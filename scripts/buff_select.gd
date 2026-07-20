@@ -34,6 +34,54 @@ const BUFF_POOL: Array[Dictionary] = [
 		"desc": "每 2 秒回复 0.5 生命\n（可叠加，生命向上取整显示）",
 		"max": 99,
 	},
+	{
+		"id": &"piercing",
+		"name": "穿透弹",
+		"desc": "子弹可穿透 1 个敌人\n（最多 2 层）",
+		"max": 2,
+	},
+	{
+		"id": &"explosive",
+		"name": "爆炸弹",
+		"desc": "命中产生 80px 范围爆炸\n（50% 伤害）",
+		"max": 1,
+	},
+	{
+		"id": &"lifesteal",
+		"name": "吸血",
+		"desc": "击毁敌人 10% 概率回 0.5 命\n（可叠 2 层，每层 +5%）",
+		"max": 2,
+	},
+	{
+		"id": &"armor",
+		"name": "护甲",
+		"desc": "受击 25% 概率伤害减半\n（可叠 2 层）",
+		"max": 2,
+	},
+	{
+		"id": &"evasion",
+		"name": "闪避",
+		"desc": "受击 15% 概率完全闪避\n（可叠 2 层，乘算递减）",
+		"max": 2,
+	},
+	{
+		"id": &"phase_dash",
+		"name": "相位冲刺",
+		"desc": "解锁空格冲刺（无敌 0.25s）\n（再选冷却 -20%，最多 2 次）",
+		"max": 3,
+	},
+	{
+		"id": &"slow_field",
+		"name": "慢速力场",
+		"desc": "300px 内敌弹减速 40%",
+		"max": 1,
+	},
+	{
+		"id": &"efficient_boost",
+		"name": "高效推进",
+		"desc": "燃料消耗 -25%\n（可叠 2 层，乘算）",
+		"max": 2,
+	},
 ]
 
 var _center: CenterContainer
@@ -76,6 +124,9 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	var available := BUFF_POOL.filter(
 		func(b: Dictionary) -> bool: return GameState.buff_count(b["id"]) < b["max"]
 	)
+	# 所有 buff 已满层：直接跳过本次里程碑
+	if available.is_empty():
+		return
 	available.shuffle()
 	for child in _cards.get_children():
 		child.queue_free()
@@ -100,8 +151,9 @@ func _make_card(buff: Dictionary) -> PanelContainer:
 	vbox.add_theme_constant_override("separation", 12)
 	card.add_child(vbox)
 
+	var stacks := GameState.buff_count(buff["id"])
 	var name_label := Label.new()
-	name_label.text = buff["name"]
+	name_label.text = buff["name"] if stacks == 0 else "%s Lv.%d" % [buff["name"], stacks]
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_override("font", FONT)
 	name_label.add_theme_font_size_override("font_size", 30)

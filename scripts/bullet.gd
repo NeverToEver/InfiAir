@@ -8,6 +8,14 @@ var damage: int = 1
 var is_player_bullet: bool = true
 var homing: bool = false
 var homing_time: float = 0.0
+## 穿透剩余次数（玩家弹，穿透弹 buff）
+var pierce: int = 0
+## 命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）
+var explosive: bool = false
+
+const EXPLOSIVE_RADIUS := 80.0
+const SLOW_FIELD_RADIUS := 300.0
+const SLOW_FIELD_FACTOR := 0.6
 
 var _homing_elapsed: float = 0.0
 
@@ -54,16 +62,44 @@ func _process(delta: float) -> void:
 			)
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle
-	position += direction * speed * delta
+	position += direction * speed * _speed_factor() * delta
 	if not Rect2(-80.0, -80.0, 2080.0, 1240.0).has_point(position):
 		queue_free()
+
+
+## 慢速力场 buff：玩家 300px 内敌弹减速 40%。
+func _speed_factor() -> float:
+	if is_player_bullet or GameState.buff_count(&"slow_field") == 0:
+		return 1.0
+	var players := get_tree().get_nodes_in_group("player")
+	if players.size() > 0:
+		var player := players[0] as Node2D
+		if global_position.distance_to(player.global_position) < SLOW_FIELD_RADIUS:
+			return SLOW_FIELD_FACTOR
+	return 1.0
+
+
+## 爆炸弹 buff：命中时对周围敌人造成 50% AoE 伤害。
+func _explode(exclude: Area2D) -> void:
+	var aoe_damage := maxi(1, damage / 2)
+	for node in get_tree().get_nodes_in_group("enemy"):
+		var e := node as Area2D
+		if e != exclude and e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
+			e.take_damage(aoe_damage)
+	Explosion.spawn_at(get_parent(), global_position, 0.6)
+	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 
 
 func _on_area_entered(area: Area2D) -> void:
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
 			area.take_damage(damage)
-			queue_free()
+			if explosive:
+				_explode(area)
+			if pierce > 0:
+				pierce -= 1
+			else:
+				queue_free()
 	elif area.is_in_group("player_hitbox"):
 		area.get_parent().take_damage()
 		queue_free()

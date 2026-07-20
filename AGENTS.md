@@ -41,4 +41,4 @@ godot --path .
 
 - 遵循 GDScript 官方风格：Tab 缩进、类型标注、Godot 4 信号语法（`signal_name.emit()` / `signal_name.connect()`）。
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
-- 不引入外部插件；不改 `project.godot` 的 autoload 与输入映射部分（确有必要时在提交说明中注明）。
+- 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，如 2.2 迭代的 `dash`=空格）。

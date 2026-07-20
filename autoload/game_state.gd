@@ -14,6 +14,7 @@ const SFX_EXPLOSION: AudioStream = preload("res://assets/audio/explosion.wav")
 const SFX_EXPLOSION_BIG: AudioStream = preload("res://assets/audio/explosion_big.wav")
 const SFX_PLAYER_HIT: AudioStream = preload("res://assets/audio/player_hit.wav")
 const SFX_BUFF_PICK: AudioStream = preload("res://assets/audio/buff_pick.wav")
+const SFX_DASH: AudioStream = preload("res://assets/audio/dash.wav")
 const SFX_POOL_SIZE := 6
 
 var _sfx_players: Array[AudioStreamPlayer] = []

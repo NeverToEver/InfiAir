@@ -98,6 +98,21 @@ def make_buff_pick() -> list:
     return out
 
 
+def make_dash() -> list:
+    """冲刺呼啸：上行音高扫频 + 噪声。"""
+    dur = 0.28
+    n = int(SR * dur)
+    out = []
+    phase = 0.0
+    for i in range(n):
+        t = i / SR
+        env = min(t / 0.03, 1.0) * math.exp(-t * 8.0)
+        freq = 220.0 + 700.0 * (t / dur)
+        phase += 2.0 * math.pi * freq / SR
+        out.append(env * (0.6 * math.sin(phase) + 0.4 * random.uniform(-1.0, 1.0)))
+    return out
+
+
 # ---------------- BGM ----------------
 
 BPM = 120.0
@@ -198,6 +213,7 @@ def main() -> None:
     write_wav("explosion_big.wav", make_explosion_big())
     write_wav("player_hit.wav", make_player_hit())
     write_wav("buff_pick.wav", make_buff_pick())
+    write_wav("dash.wav", make_dash())
     write_wav("bgm_loop.wav", make_bgm())
 
 

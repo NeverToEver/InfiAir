@@ -8,14 +8,30 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 @onready var _difficulty_label: Label = $DifficultyLabel
 @onready var _lives_label: Label = $LivesLabel
 @onready var _boss_bar: ProgressBar = $BossBar
+@onready var _fuel_bar: ProgressBar = $FuelBar
+@onready var _dash_bar: ProgressBar = $DashBar
+@onready var _fuel_tag: Label = $FuelTag
+@onready var _dash_tag: Label = $DashTag
 
 var _banner: PanelContainer
+var _fuel_fill := StyleBoxFlat.new()
+var _dash_fill := StyleBoxFlat.new()
 
 
 func _ready() -> void:
+	add_to_group("hud")
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
 		label.add_theme_font_size_override("font_size", 28)
+	for tag: Label in [_fuel_tag, _dash_tag]:
+		tag.add_theme_font_override("font", FONT)
+		tag.add_theme_font_size_override("font_size", 16)
+	_fuel_fill.bg_color = Color(0.25, 0.8, 0.9)
+	_fuel_fill.set_corner_radius_all(3)
+	_fuel_bar.add_theme_stylebox_override("fill", _fuel_fill)
+	_dash_fill.bg_color = Color(0.95, 0.85, 0.3)
+	_dash_fill.set_corner_radius_all(3)
+	_dash_bar.add_theme_stylebox_override("fill", _dash_fill)
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.lives_changed.connect(_on_lives_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
@@ -23,6 +39,32 @@ func _ready() -> void:
 	_on_lives_changed(GameState.lives)
 	_on_difficulty_changed(GameState.difficulty_multiplier)
 	_build_banner()
+
+
+func _process(_delta: float) -> void:
+	var players := get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var player := players[0] as Player
+	var fuel := player.fuel_ratio()
+	_fuel_bar.value = fuel * 100.0
+	_fuel_fill.bg_color = Color(0.9, 0.25, 0.2) if fuel < 0.3 else Color(0.25, 0.8, 0.9)
+	_dash_bar.value = player.dash_ready_ratio() * 100.0
+
+
+## 拾取物等场景的飘字提示。
+func show_popup(text: String, world_pos: Vector2) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", FONT)
+	label.add_theme_font_size_override("font_size", 22)
+	label.position = world_pos - Vector2(40.0, 40.0)
+	add_child(label)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position:y", label.position.y - 50.0, 0.8)
+	tween.tween_property(label, "modulate:a", 0.0, 0.8)
+	tween.chain().tween_callback(label.queue_free)
 
 
 func _build_banner() -> void:
