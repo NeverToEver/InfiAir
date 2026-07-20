@@ -7,9 +7,9 @@ signal resume_requested
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 const ROUTE_BUFF_NAMES: Dictionary = {
 	&"spread_shot": "散射弹道",
-	&"laser_beam": "激光光束（3.3 实装）",
+	&"laser_beam": "激光光束",
 	&"phase_dash": "相位冲刺",
-	&"mothership_recall": "母舰召回（3.3 实装）",
+	&"mothership_recall": "母舰召回",
 }
 const ROUTE_LINE_NAMES: Dictionary = {&"offense": "进攻线", &"mobility": "机动线"}
 const LIVES_CAP := 6.0
@@ -242,8 +242,7 @@ func _on_recharge_pressed() -> void:
 
 
 func _on_route_pressed(line: StringName, buff_id: StringName) -> void:
-	# choose_route 只改层数；玩家侧效果均实时读取 GameState.buff_count，无需额外重放
-	# TODO(3.3)：laser_beam / mothership_recall 效果本体在 3.3 实装，当前选择仅生效锁定规则
+	# choose_route 只改层数；玩家侧效果均实时读取 GameState.buff_count，无需额外重放（laser/recall 效果本体已在 3.3 实装）
 	if GameState.choose_route(line, buff_id):
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	_refresh()

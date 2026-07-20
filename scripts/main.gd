@@ -7,6 +7,7 @@ const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
 const DOCK_CHARGE_TIME := 3.0
 const HOME_CHARGE_TIME := 1.5
+const GIVE_UP_HOLD_TIME := 3.0
 
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
@@ -26,6 +27,7 @@ var _charging: bool = false
 var _charge_time: float = 0.0
 var _charge_ghost: Sprite2D
 var _home_charge_time: float = 0.0
+var _give_up_charge: float = 0.0
 
 
 func _ready() -> void:
@@ -80,6 +82,23 @@ func _process(delta: float) -> void:
 	elif _home_charge_time > 0.0:
 		_home_charge_time = 0.0
 		_hud.set_home_charge(-1.0)
+	# 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
+	if (
+		InputMap.has_action(&"give_up")
+		and not _game_over
+		and not _homecoming
+		and not _player._dead
+		and Input.is_action_pressed(&"give_up")
+	):
+		_give_up_charge += delta
+		_hud.set_give_up_charge(_give_up_charge / GIVE_UP_HOLD_TIME)
+		if _give_up_charge >= GIVE_UP_HOLD_TIME:
+			_give_up_charge = 0.0
+			_hud.set_give_up_charge(-1.0)
+			_give_up()
+	elif _give_up_charge > 0.0:
+		_give_up_charge = 0.0
+		_hud.set_give_up_charge(-1.0)
 
 
 func _stop_charging() -> void:
@@ -137,7 +156,16 @@ func _summon_mothership() -> void:
 
 
 func _on_mothership_departed(cooldown: float) -> void:
-	_dock_cooldown = cooldown
+	# mothership_recall buff：每层冷却 ×0.5（90s→45s→22.5s）
+	_dock_cooldown = cooldown * pow(0.5, GameState.buff_count(&"mothership_recall"))
+
+
+## 放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）
+func _give_up() -> void:
+	if _player._dead or GameState.lives <= 0.0:
+		return
+	GameState.lose_life(GameState.lives)
+	_player._die()
 
 
 ## 返航（局内中场整备）：锁输入、星光拉伸 + 白屏闪，进入基地控制台。

@@ -21,6 +21,7 @@ var _dash_fill := StyleBoxFlat.new()
 var _mag_box: HBoxContainer
 var _mag_cells_nodes: Array[ColorRect] = []
 var _home_charge_label: Label
+var _give_up_label: Label
 
 
 func _ready() -> void:
@@ -56,6 +57,26 @@ func _ready() -> void:
 	_home_charge_label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0))
 	_home_charge_label.visible = false
 	add_child(_home_charge_label)
+	# 放弃出击蓄力提示（底部居中，返航提示上方，红色警示）
+	_give_up_label = Label.new()
+	_give_up_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_give_up_label.position = Vector2(-140.0, -164.0)
+	_give_up_label.custom_minimum_size = Vector2(280.0, 0.0)
+	_give_up_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_give_up_label.add_theme_font_override("font", FONT)
+	_give_up_label.add_theme_font_size_override("font_size", 24)
+	_give_up_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35))
+	_give_up_label.visible = false
+	add_child(_give_up_label)
+
+
+## 放弃出击蓄力进度：ratio < 0 隐藏，否则显示百分比
+func set_give_up_charge(ratio: float) -> void:
+	if ratio < 0.0:
+		_give_up_label.visible = false
+	else:
+		_give_up_label.visible = true
+		_give_up_label.text = "放弃出击 %d%%" % int(clampf(ratio, 0.0, 1.0) * 100.0)
 
 
 ## 返航蓄力进度：ratio < 0 隐藏，否则显示百分比

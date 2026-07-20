@@ -1,7 +1,7 @@
 class_name Player
 extends CharacterBody2D
-## 玩家战机：WASD 平滑移动，朝鼠标旋转，全自动开火（对齐原作 auto_fire），
-## Shift 消耗燃料加速，空格相位冲刺（需解锁 buff）。
+## 玩家战机：WASD 平滑移动，朝鼠标旋转（带瞄准辅助磁吸锁定），全自动开火，
+## Shift 消耗燃料加速，Ctrl 微调（×0.35），空格相位冲刺（需解锁 buff，耗 25% 燃料）。
 
 const FIRE_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/bullet_fire.wav"),
@@ -27,6 +27,12 @@ const DASH_DISTANCE := 200.0
 const DASH_TIME := 0.25
 const DASH_COOLDOWN := 4.0
 const AFTERIMAGE_INTERVAL := 0.08
+const DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
+
+const AIM_ASSIST_RADIUS := 230.0  # 磁吸/释放半径（对齐原作 AIM_ASSIST_RELEASE_DISTANCE）
+const AIM_ASSIST_BREAK_DIST := 90.0  # 单帧鼠标位移超过则甩脱锁定
+const AIM_RING_RADIUS := 26.0
+const FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
 var _input_locked: bool = false  # 返航过场期间锁定
@@ -47,6 +53,11 @@ var _dash_dir: Vector2 = Vector2.ZERO
 var _dash_cooldown: float = 0.0
 var _afterimage_timer: float = 0.0
 
+var _aim_lock_target: Node2D = null  # 瞄准辅助锁定的敌人（含 Boss）
+var _prev_aim_mouse := Vector2.ZERO
+var _aim_mouse_initialized: bool = false
+var _aim_ring: Line2D = null
+
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
 @onready var _hitbox: Area2D = $Hitbox
@@ -56,6 +67,17 @@ var _afterimage_timer: float = 0.0
 
 func _ready() -> void:
 	add_to_group("player")
+	# 瞄准辅助锁定环：纯代码绘制的小圆环，锁定时贴在目标上
+	_aim_ring = Line2D.new()
+	_aim_ring.top_level = true
+	_aim_ring.width = 2.0
+	_aim_ring.default_color = Color(0.4, 0.9, 1.0, 0.9)
+	_aim_ring.closed = true
+	for i in 16:
+		var a := TAU * float(i) / 16.0
+		_aim_ring.add_point(Vector2(cos(a), sin(a)) * AIM_RING_RADIUS)
+	_aim_ring.hide()
+	add_child(_aim_ring)
 
 
 func fire_interval() -> float:
@@ -84,6 +106,10 @@ func dash_cooldown_max() -> float:
 	return DASH_COOLDOWN * pow(0.8, maxi(GameState.buff_count(&"phase_dash") - 1, 0))
 
 
+func dash_fuel_cost() -> float:
+	return fuel_max * DASH_FUEL_RATIO
+
+
 func dash_ready_ratio() -> float:
 	if not dash_unlocked():
 		return 0.0
@@ -94,14 +120,25 @@ func fuel_drain_rate() -> float:
 	return FUEL_DRAIN * pow(0.75, GameState.buff_count(&"efficient_boost"))
 
 
+func fuel_regen_rate() -> float:
+	# boost_recovery buff：恢复速率每层 ×1.5（乘算）
+	return FUEL_REGEN * pow(1.5, GameState.buff_count(&"boost_recovery"))
+
+
 func _physics_process(delta: float) -> void:
 	if _dead or _input_locked:
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
-	# 相位冲刺
+	# 相位冲刺（燃料不足 25% 满值时禁用）
 	_dash_cooldown = maxf(_dash_cooldown - delta, 0.0)
-	if dash_unlocked() and Input.is_action_just_pressed("dash") and _dash_cooldown <= 0.0 and not _dashing:
+	if (
+		dash_unlocked()
+		and Input.is_action_just_pressed("dash")
+		and _dash_cooldown <= 0.0
+		and not _dashing
+		and _fuel >= dash_fuel_cost()
+	):
 		_start_dash(input_dir)
 	if _dashing:
 		_dash_move(delta)
@@ -117,10 +154,12 @@ func _physics_process(delta: float) -> void:
 		if _fuel <= 0.0:
 			_fuel_locked = true
 	else:
-		_fuel = minf(_fuel + FUEL_REGEN * delta, fuel_max)
+		_fuel = minf(_fuel + fuel_regen_rate() * delta, fuel_max)
 
 	var boost := BOOST_MULT if boosting else 1.0
-	var target := input_dir * MAX_SPEED * boost
+	# Ctrl 微调：移速 ×0.35
+	var fine := FINE_MOVE_MULT if Input.is_action_pressed("fine_move") else 1.0
+	var target := input_dir * MAX_SPEED * boost * fine
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
 	move_and_slide()
@@ -140,7 +179,7 @@ func _physics_process(delta: float) -> void:
 		_thruster.amount_ratio = 0.35
 		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.6)
 
-	var aim := get_global_mouse_position() - global_position
+	var aim := _resolve_aim_point() - global_position
 	if aim.length() > 1.0:
 		# 贴图机头朝上，需 +90° 偏移
 		rotation = aim.angle() + PI / 2.0
@@ -172,6 +211,7 @@ func _physics_process(delta: float) -> void:
 func _start_dash(input_dir: Vector2) -> void:
 	_dashing = true
 	_dash_timer = DASH_TIME
+	_fuel = maxf(_fuel - dash_fuel_cost(), 0.0)
 	if input_dir != Vector2.ZERO:
 		_dash_dir = input_dir.normalized()
 	else:
@@ -181,6 +221,45 @@ func _start_dash(input_dir: Vector2) -> void:
 	_dash_cooldown = dash_cooldown_max()
 	_afterimage_timer = 0.0
 	GameState.play_sfx(GameState.SFX_DASH)
+
+
+## 瞄准辅助（对齐原作 aim_assist_system）：准星 230px 内磁吸最近敌人（含 Boss）中心，
+## 锁定后粘滞保持（释放半径同为 230px），单帧鼠标位移 >90px 视为甩鼠标立即脱离。
+## 返回本帧瞄准点：锁定时为目标中心，否则为原始鼠标位置。
+func _resolve_aim_point() -> Vector2:
+	var mouse := get_global_mouse_position()
+	var flicked := false
+	if _aim_mouse_initialized:
+		flicked = mouse.distance_to(_prev_aim_mouse) > AIM_ASSIST_BREAK_DIST
+	_prev_aim_mouse = mouse
+	_aim_mouse_initialized = true
+	if flicked:
+		_aim_lock_target = null
+	elif not is_instance_valid(_aim_lock_target):
+		_aim_lock_target = null
+	elif mouse.distance_to(_aim_lock_target.global_position) > AIM_ASSIST_RADIUS:
+		_aim_lock_target = null
+	if _aim_lock_target == null and not flicked:
+		_aim_lock_target = _nearest_enemy_to(mouse)
+	if _aim_lock_target != null:
+		_aim_ring.global_position = _aim_lock_target.global_position
+		_aim_ring.show()
+		return _aim_lock_target.global_position
+	_aim_ring.hide()
+	return mouse
+
+
+func _nearest_enemy_to(point: Vector2) -> Node2D:
+	var best: Node2D = null
+	var best_sq := AIM_ASSIST_RADIUS * AIM_ASSIST_RADIUS
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if not e is Node2D:
+			continue
+		var d_sq: float = point.distance_squared_to((e as Node2D).global_position)
+		if d_sq <= best_sq:
+			best_sq = d_sq
+			best = e
+	return best
 
 
 func _dash_move(delta: float) -> void:
@@ -254,6 +333,7 @@ func take_damage(amount: float = 1.0) -> void:
 func _die() -> void:
 	_dead = true
 	hide()
+	_aim_ring.hide()
 	_hitbox.set_deferred("monitoring", false)
 	set_physics_process(false)
 	Explosion.spawn_at(get_parent(), position, 2.0)

@@ -1,10 +1,15 @@
 class_name Boss
 extends Area2D
 ## Boss：3 种轮换（1 重装 / 2 游击 / 3 母舰），血量 <30% 触发狂暴阶段。
+## 进入战斗 50s 未被击杀则逃跑：最后 3s 逃跑警告 + 上飘，随后加速离场
+## （无击杀奖励：不触发 add_boss_kill、不加分、不升难度、轮换计数不推进）。
 
 signal health_changed(current: float, maximum: float)
 signal died
 signal enraged
+## 逃跑离场时发出（击毁不会发）；died 在击毁与逃跑离场时都会发出，
+## 用于血条隐藏与生成器重排，击杀奖励只在 _die() 结算。
+signal escaped
 
 const TEXTURES: Array[Texture2D] = [
 	preload("res://assets/sprites/boss_ship_1.png"),
@@ -21,10 +26,17 @@ const HP_MULTS: Array[float] = [1.3, 0.7, 1.6]
 const ENRAGE_HP_RATIO := 0.3
 const ENRAGE_RATE_MULT := 1.5
 const ENRAGE_SPEED_MULT := 1.3
+## 逃跑：进入战斗 50s 未击杀触发，最后 3s 警告 + 上飘（对齐原作 3000/180 帧@60fps）
+const ESCAPE_TIME := 50.0
+const ESCAPE_WARNING := 3.0
+const ESCAPE_DRIFT := 26.0
+const ESCAPE_START_SPEED := 120.0
+const ESCAPE_ACCEL := 420.0
 
 var boss_type: int = 1
 var max_hp: float = 30.0
 var hp: float = 30.0
+var is_escaped: bool = false
 
 var _in_fight: bool = false
 var _enraged: bool = false
@@ -32,6 +44,10 @@ var _score_scale: float = 1.0
 var _strafe_dir: float = 1.0
 var _fire_timer: float = 1.6
 var _fan_next: bool = true
+var _survival: float = 0.0
+var _escape_warned: bool = false
+var _escaping: bool = false
+var _escape_speed: float = 0.0
 # 游击型
 var _dashing: bool = false
 var _move_timer: float = 0.0
@@ -71,12 +87,35 @@ func _base_modulate() -> Color:
 
 
 func _physics_process(delta: float) -> void:
+	if _escaping:
+		# 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
+		_escape_speed += ESCAPE_ACCEL * delta
+		position.y -= _escape_speed * delta
+		if position.y < -280.0:
+			escaped.emit()
+			died.emit()  # 离场通知（血条/生成器重排）；非击毁，无击杀奖励
+			queue_free()
+		return
 	if not _in_fight:
 		position.y += ENTER_SPEED * delta
 		if position.y >= FIGHT_Y:
 			_in_fight = true
 			health_changed.emit(hp, max_hp)
 		return
+
+	# 存活计时：50s 未被击杀则逃跑；最后 3s 警告 + 上飘
+	_survival += delta
+	if _survival >= ESCAPE_TIME:
+		_begin_escape()
+		return
+	if _survival >= ESCAPE_TIME - ESCAPE_WARNING:
+		if not _escape_warned:
+			_escape_warned = true
+			_show_escape_warning()
+		position.y -= ESCAPE_DRIFT * delta
+		_sprite.modulate = (
+			Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate()
+		)
 
 	match boss_type:
 		1:
@@ -220,3 +259,23 @@ func _die() -> void:
 	Explosion.spawn_boss_sequence(get_parent(), global_position)
 	died.emit()
 	queue_free()
+
+
+## 逃跑警告：复用 HUD 警告横幅（不可用时退化为 print），最后 3s 机身闪烁见 _physics_process
+func _show_escape_warning() -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("_show_warning"):
+		hud._show_warning("⚠ Boss 试图逃离战场 ⚠")
+	else:
+		print("[BOSS] 逃跑警告：Boss 即将逃离战场")
+
+
+## 50s 未被击杀：逃跑（无 add_boss_kill / 加分 / 难度提升 / 轮换推进）
+func _begin_escape() -> void:
+	_escaping = true
+	is_escaped = true
+	_escape_speed = ESCAPE_START_SPEED
+	collision_layer = 0  # 离场阶段不再受弹
+	collision_mask = 0
+	_sprite.modulate = _base_modulate()
+	print("[BOSS] 存活 %ds 未被击杀，逃离战场（无击杀奖励）" % int(ESCAPE_TIME))

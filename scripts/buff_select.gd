@@ -82,6 +82,24 @@ const BUFF_POOL: Array[Dictionary] = [
 		"desc": "燃料消耗 -25%\n（可叠 2 层，乘算）",
 		"max": 2,
 	},
+	{
+		"id": &"laser_beam",
+		"name": "激光束",
+		"desc": "周期性释放 3 秒穿透激光\n（线上每 0.1 秒 1 伤害，冷却 10 秒）",
+		"max": 1,
+	},
+	{
+		"id": &"boost_recovery",
+		"name": "燃料再生",
+		"desc": "燃料恢复速度 ×1.5\n（可叠 2 层，乘算）",
+		"max": 2,
+	},
+	{
+		"id": &"mothership_recall",
+		"name": "母舰召回",
+		"desc": "母舰冷却时间减半\n（90s→45s→22.5s，最多 2 层）",
+		"max": 2,
+	},
 ]
 
 var _center: CenterContainer
@@ -118,14 +136,21 @@ func _ready() -> void:
 	GameState.milestone_reached.connect(_on_milestone_reached)
 
 
+## 抽卡候选池：未满层 + 未被路线锁定；explosive 需 boss_kills>=3 解锁（原作 gating）
+func _available_buffs() -> Array[Dictionary]:
+	return BUFF_POOL.filter(
+		func(b: Dictionary) -> bool: return (
+			GameState.buff_count(b["id"]) < b["max"]
+			and not GameState.is_buff_locked(b["id"])
+			and (b["id"] != &"explosive" or GameState.boss_kills >= 3)
+		)
+	)
+
+
 func _on_milestone_reached(_milestone_score: int) -> void:
 	if visible or GameState.lives <= 0.0:
 		return
-	var available := BUFF_POOL.filter(
-		func(b: Dictionary) -> bool: return (
-			GameState.buff_count(b["id"]) < b["max"] and not GameState.is_buff_locked(b["id"])
-		)
-	)
+	var available := _available_buffs()
 	# 所有 buff 已满层：直接跳过本次里程碑
 	if available.is_empty():
 		return

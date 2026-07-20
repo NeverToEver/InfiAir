@@ -7,53 +7,60 @@ signal boss_warning
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 
-## 普通机型配置表（贴图即机型，数值差异化）
+## 普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
 static var ENEMY_TYPES: Array[Dictionary] = [
 	{  # 1 型 均衡
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(2, 3), "speed": Vector2(140, 180), "score": 100,
 		"fire": 0.25, "fire_interval": 2.2, "scale": 0.45, "radius": 30.0,
+		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 2 型 高速低 HP
 		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
 		"strategies": [&"zigzag", &"dive"] as Array[StringName],
 		"hp": Vector2i(1, 2), "speed": Vector2(220, 280), "score": 150,
 		"fire": 0.3, "fire_interval": 2.4, "scale": 0.45, "radius": 30.0,
+		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
 		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
 		"hp": Vector2i(5, 6), "speed": Vector2(90, 120), "score": 200,
 		"fire": 0.4, "fire_interval": 2.0, "scale": 0.5, "radius": 34.0,
+		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 	{  # 4 型 高分开火狂
 		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
-		"strategies": [&"noise", &"hover"] as Array[StringName],
+		"strategies": [&"noise", &"hover", &"aggressive"] as Array[StringName],
 		"hp": Vector2i(2, 3), "speed": Vector2(150, 190), "score": 250,
 		"fire": 0.8, "fire_interval": 1.8, "scale": 0.45, "radius": 30.0,
+		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 ]
 
-## 精英机型配置表
+## 精英机型配置表（弹种池仅 spread/laser）
 static var ELITE_TYPES: Array[Dictionary] = [
 	{  # 重甲
 		"texture": preload("res://assets/sprites/elite_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(14, 16), "speed": Vector2(90, 110), "score": 400,
 		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 56.0, "elite": true,
+		"bullet_types": [&"spread"] as Array[StringName],
 	},
 	{  # 游击
 		"texture": preload("res://assets/sprites/elite_ship_2.png"),
 		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
 		"hp": Vector2i(6, 8), "speed": Vector2(240, 300), "score": 350,
 		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 40.0, "elite": true,
+		"bullet_types": [&"laser", &"spread"] as Array[StringName],
 	},
 	{  # 炮艇
 		"texture": preload("res://assets/sprites/elite_ship_3.png"),
 		"strategies": [&"hover", &"spiral"] as Array[StringName],
 		"hp": Vector2i(9, 11), "speed": Vector2(110, 140), "score": 500,
 		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 48.0, "elite": true,
+		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},
 ]
 
@@ -66,6 +73,7 @@ const SPAWN_INTERVAL_END := 0.5
 const RAMP_TIME := 300.0
 const BOSS_SCORE_STEP := 1500
 const BOSS_TIME_LIMIT := 90.0
+const SPREAD_ENEMY_CAP := 2  # 同屏 spread 弹种敌机上限（对齐原作 DEFAULT_SPREAD_ENEMY_CAP）
 
 var _spawn_timer: float = 1.5
 var _elapsed: float = 0.0
@@ -104,6 +112,25 @@ func unlocked_types() -> Array[Dictionary]:
 	return pool
 
 
+## 当前在屏的 spread 弹种敌机数（离场中的不计）
+func _count_spread_enemies() -> int:
+	var n := 0
+	for node in get_tree().get_nodes_in_group("enemy"):
+		var e := node as Enemy
+		if e != null and e.bullet_type == &"spread" and not e._exiting:
+			n += 1
+	return n
+
+
+## 从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）
+func _pick_bullet_type(config: Dictionary) -> StringName:
+	var pool: Array = config.get("bullet_types", [&"single"])
+	var btype: StringName = pool[randi() % pool.size()]
+	if btype == &"spread" and _count_spread_enemies() >= SPREAD_ENEMY_CAP:
+		btype = &"laser" if config.get("elite", false) else &"single"
+	return btype
+
+
 func _spawn_enemy() -> void:
 	var elite_chance := clampf(0.03 + GameState.score / 15000.0, 0.0, 0.25)
 	if GameState.score >= ELITE_BONUS_SCORE:
@@ -116,12 +143,13 @@ func _spawn_enemy() -> void:
 		config = pool[randi() % pool.size()]
 	var strategies: Array[StringName] = config["strategies"]
 	var strategy := strategies[randi() % strategies.size()]
+	var btype := _pick_bullet_type(config)
 	var x := randf_range(60.0, 1860.0)
 	# 入场预告：0.6s 红色提示后敌机才进场
 	get_parent().add_child(SpawnTelegraph.new(x))
 	await get_tree().create_timer(SpawnTelegraph.DURATION, false).timeout
 	var e := ENEMY_SCENE.instantiate() as Enemy
-	e.setup(config, strategy, GameState.difficulty_multiplier)
+	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
 	e.position = Vector2(x, -60.0)
 	get_parent().add_child(e)
 

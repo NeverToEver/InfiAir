@@ -12,6 +12,15 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
+## 无头模式 warp_mouse 无效：用合成鼠标移动事件把准星放到指定 canvas 坐标
+func _move_mouse_to(canvas_pos: Vector2) -> void:
+	var win: Vector2 = get_tree().root.get_screen_transform() * canvas_pos
+	var mev := InputEventMouseMotion.new()
+	mev.position = win
+	mev.global_position = win
+	Input.parse_input_event(mev)
+
+
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
 	GameState.delete_save()
@@ -430,6 +439,91 @@ func _ready() -> void:
 	_check(pause_ui.visible and get_tree().paused, "Esc 暂停面板")
 	pause_ui.toggle()
 	_check(not pause_ui.visible and not get_tree().paused, "Esc 恢复")
+
+	# 6. 迭代 3.3 玩家侧：瞄准辅助 / 冲刺耗燃料 / Ctrl 微调
+	# 第 4 节玩家已受击至死：复活以便继续测试（不重开 hitbox，避免杂散碰撞）
+	player._dead = false
+	player._invincible = 999.0
+	player.show()
+	player.set_physics_process(true)
+	GameState.lives = 3.0
+	get_node("Main/GameOverUI").hide()
+	get_tree().paused = false
+
+	# 6.1 瞄准辅助：磁吸锁定 → 子弹朝锁定点；甩鼠标脱离
+	player.position = Vector2(960.0, 800.0)
+	player.velocity = Vector2.ZERO
+	var aim_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	aim_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	aim_e.can_shoot = false
+	aim_e.hp = 9999  # 防止被测试弹击毁触发里程碑
+	aim_e.position = player.position + Vector2(0.0, -400.0)
+	main.add_child(aim_e)
+	await get_tree().process_frame
+	# 准星放到敌机旁 120px（<230px 磁吸半径）
+	_move_mouse_to(aim_e.get_global_transform_with_canvas().origin + Vector2(120.0, 0.0))
+	# 等输入事件落入 viewport；首帧位移超阈值按甩鼠标处理，需再等一帧才重新磁吸
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(player._aim_lock_target == aim_e, "瞄准辅助磁吸锁定最近敌人")
+	player._auto_fire_enabled = true
+	player._fire_cooldown = 0.0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player._auto_fire_enabled = false
+	var ab: Bullet = null
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet:
+			ab = child
+			break
+	_check(ab != null, "锁定期间自动开火")
+	if ab != null:
+		var want: Vector2 = (aim_e.global_position - player.global_position).normalized()
+		_check(ab.direction.dot(want) > 0.99, "锁定期间子弹朝目标而非原始鼠标")
+		ab.queue_free()
+	# 单帧甩鼠标 >90px 到空区 → 脱离锁定
+	_move_mouse_to(Vector2(200.0, 950.0))
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(player._aim_lock_target == null, "快速甩鼠标脱离锁定")
+	aim_e.queue_free()
+	await get_tree().process_frame
+
+	# 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用
+	player.position = Vector2(960.0, 540.0)
+	player._fuel = player.fuel_max
+	player._dash_cooldown = 0.0
+	Input.action_press("dash")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("dash")
+	_check(player._dashing, "燃料充足时冲刺可触发")
+	_check(absf(player._fuel - player.fuel_max * 0.75) < 3.0, "冲刺消耗约 25% 燃料")
+	await get_tree().create_timer(0.4).timeout  # 等冲刺结束
+	player._fuel = player.fuel_max * 0.2
+	player._dash_cooldown = 0.0
+	Input.action_press("dash")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("dash")
+	_check(not player._dashing, "燃料不足 25% 时禁用冲刺")
+
+	# 6.3 Ctrl 微调：移速 ×0.35
+	player.position = Vector2(960.0, 540.0)
+	Input.action_press("move_right")
+	await get_tree().create_timer(0.5).timeout
+	var full_speed: float = player.velocity.length()
+	Input.action_press("fine_move")
+	await get_tree().create_timer(0.5).timeout
+	var fine_speed: float = player.velocity.length()
+	Input.action_release("fine_move")
+	Input.action_release("move_right")
+	_check(full_speed > Player.MAX_SPEED * 0.9, "无微调时接近满速")
+	_check(absf(fine_speed - Player.MAX_SPEED * 0.35) < 25.0, "Ctrl 按住移速 ×0.35")
 
 	print("SMOKE TEST DONE, failures = ", _failures)
 	GameState.delete_save()

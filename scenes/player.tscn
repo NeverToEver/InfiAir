@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/player_ship.png" id="2"]
 [ext_resource type="Script" path="res://scripts/slow_field_ring.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/laser_weapon.gd" id="4"]
 
 [sub_resource type="CircleShape2D" id="1"]
 radius = 22.0
@@ -52,3 +53,6 @@ process_material = SubResource("3")
 [node name="SlowFieldRing" type="Node2D" parent="."]
 visible = false
 script = ExtResource("3")
+
+[node name="LaserWeapon" type="Node2D" parent="."]
+script = ExtResource("4")

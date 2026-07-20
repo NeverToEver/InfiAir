@@ -1,12 +1,20 @@
 class_name Enemy
 extends Area2D
-## 普通/精英敌机：straight / sine / zigzag / dive / spiral / noise / hover。
+## 普通/精英敌机：straight / sine / zigzag / dive / spiral / noise / hover / aggressive。
+## 弹种：single（单发瞄准）/ spread（五向扇形）/ laser（细长高亮快速弹）。
+## 出生 15s 寿命到期后向上或侧方加速离场（不给分、不计击杀）。
 ## 数值由 spawner 的机型配置表驱动（setup 传入 config Dictionary）。
 
 signal died(enemy: Enemy)
 
 const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 const ENEMY_BULLET_SPEED := 420.0
+const SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
+const LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹，伤害同普通弹
+const SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
+const LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
+const EXIT_ACCEL := 520.0  # 寿命离场加速度
+const AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
 const FIRE_INTERVAL := 2.2
 const HOVER_Y := 320.0
 const SPIRAL_RADIUS := 50.0
@@ -18,6 +26,7 @@ var speed: float = 140.0
 var can_shoot: bool = false
 var score_value: int = 100
 var fire_interval: float = FIRE_INTERVAL
+var bullet_type: StringName = &"single"
 
 var _time: float = 0.0
 var _spawn_x: float = 0.0
@@ -30,20 +39,32 @@ var _center: Vector2 = Vector2.ZERO  # spiral 绕转中心
 var _hovering: bool = false
 var _hover_done: bool = false
 var _hover_timer: float = 0.0
+var _life_timer: float = 0.0
+var _exiting: bool = false
+var _exit_dir: Vector2 = Vector2.UP
+var _exit_speed: float = 0.0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _shape: CollisionShape2D = $CollisionShape2D
 
 
 ## config 字段：texture, hp(Vector2i), speed(Vector2), score, fire(开火概率),
-## fire_interval, scale, radius, elite(可选)
-func setup(config: Dictionary, p_strategy: StringName, p_difficulty: float) -> void:
+## fire_interval, scale, radius, bullet_types(弹种池), elite(可选)。
+## p_bullet_type 为空时从弹种池随机抽取（spawner 传入已做同屏上限控制的结果）。
+func setup(
+	config: Dictionary,
+	p_strategy: StringName,
+	p_difficulty: float,
+	p_bullet_type: StringName = &""
+) -> void:
 	strategy = p_strategy
 	is_elite = config.get("elite", false)
 	hp = randi_range(config["hp"].x, config["hp"].y)
 	score_value = config["score"]
 	can_shoot = randf() < config["fire"]
 	fire_interval = config.get("fire_interval", FIRE_INTERVAL)
+	var pool: Array = config.get("bullet_types", [&"single"])
+	bullet_type = p_bullet_type if p_bullet_type != &"" else pool[randi() % pool.size()]
 	speed = randf_range(config["speed"].x, config["speed"].y) * (1.0 + 0.1 * (p_difficulty - 1.0))
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
 	var sprite: Sprite2D = $Sprite2D
@@ -75,6 +96,17 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_time += delta
+	if _exiting:
+		# 寿命离场：向上或侧方加速，离场不给分、不计击杀
+		_exit_speed += EXIT_ACCEL * delta
+		position += _exit_dir * _exit_speed * delta
+		if position.y < -150.0 or position.x < -150.0 or position.x > 2070.0:
+			queue_free()
+		return
+	_life_timer += delta
+	if _life_timer >= LIFETIME:
+		_begin_lifetime_exit()
+		return
 	match strategy:
 		&"straight":
 			position.y += speed * delta
@@ -109,6 +141,18 @@ func _physics_process(delta: float) -> void:
 			)
 			position += Vector2(vx, speed) * delta
 			position.x = clampf(position.x, 40.0, 1880.0)
+		&"aggressive":
+			# 追踪性噪声漂移：正弦叠加伪噪声扰动 + 持续偏向玩家 x 的下行
+			var vx := (
+				(sin(_time * 2.1) + sin(_time * 3.4 + 1.7) + sin(_time * 5.3 + 0.6))
+				/ 3.0 * speed * 1.1
+			)
+			var players := get_tree().get_nodes_in_group("player")
+			if players.size() > 0:
+				var dx: float = (players[0] as Node2D).global_position.x - position.x
+				vx += clampf(dx, -1.0, 1.0) * AGGR_CHASE_SPEED
+			position += Vector2(vx, speed * 0.9) * delta
+			position.x = clampf(position.x, 40.0, 1880.0)
 		&"hover":
 			if _hover_done:
 				position.y += speed * delta
@@ -137,11 +181,43 @@ func _fire_at_player() -> void:
 	var players := get_tree().get_nodes_in_group("player")
 	if players.size() == 0:
 		return
-	var dir := ((players[0] as Node2D).global_position - global_position).normalized()
+	var base_dir := ((players[0] as Node2D).global_position - global_position).normalized()
+	match bullet_type:
+		&"spread":
+			# 五向扇形弹：以瞄准方向为中心 ±2 步展开
+			for i in 5:
+				_spawn_enemy_bullet(
+					base_dir.rotated(SPREAD_FAN_STEP * float(i - 2)), SPREAD_BULLET_SPEED, &"spread"
+				)
+		&"laser":
+			_spawn_enemy_bullet(base_dir, LASER_BULLET_SPEED, &"laser")
+		_:
+			_spawn_enemy_bullet(base_dir, ENEMY_BULLET_SPEED, &"single")
+
+
+func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) -> void:
 	var b := BULLET_SCENE.instantiate()
-	b.setup(dir, ENEMY_BULLET_SPEED, 1, false)
+	b.setup(dir, bullet_speed, 1, false)
 	b.position = position
 	get_parent().add_child(b)
+	b.set_meta("bullet_type", p_type)
+	if p_type == &"laser":
+		# 细长高亮快速弹（polygon 尖端朝 +x，即飞行方向）
+		var poly := b.get_node("Polygon2D") as Polygon2D
+		poly.scale = Vector2(2.2, 0.55)
+		poly.color = Color(1.0, 0.85, 0.35)
+
+
+## 寿命到期：向上或侧方加速离场（停火，不给分、不计击杀）。
+func _begin_lifetime_exit() -> void:
+	_exiting = true
+	can_shoot = false
+	if randf() < 0.5:
+		_exit_dir = Vector2(randf_range(-0.6, 0.6), -1.0).normalized()  # 向上
+	else:
+		# 就近侧方（略带上行），从较近的一侧离场
+		_exit_dir = Vector2(1.0 if position.x < 960.0 else -1.0, randf_range(-0.4, 0.0)).normalized()
+	_exit_speed = speed
 
 
 var _score_scale: float = 1.0
