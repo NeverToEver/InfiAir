@@ -127,6 +127,8 @@ func take_damage(amount: int) -> void:
 func die() -> void:
 	GameState.add_score(score_value)
 	GameState.add_kill()
+	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
+	GameState.shake(9.0 if is_elite else 5.0)
 	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
 	died.emit(self)
 	queue_free()
@@ -136,6 +138,8 @@ func _on_area_entered(area: Area2D) -> void:
 	# 撞击玩家：自毁且不加分
 	if area.is_in_group("player_hitbox"):
 		area.get_parent().take_damage()
+		GameState.play_sfx(GameState.SFX_EXPLOSION)
+		GameState.shake(4.0)
 		Explosion.spawn_at(get_parent(), global_position, 1.0)
 		died.emit(self)
 		queue_free()

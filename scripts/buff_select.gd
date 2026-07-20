@@ -121,6 +121,7 @@ func _make_card(buff: Dictionary) -> PanelContainer:
 
 func _on_card_gui_input(event: InputEvent, id: StringName) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 		GameState.add_buff(id)
 		if id == &"extra_life":
 			GameState.heal(1.0)

@@ -2,6 +2,7 @@ extends Node
 ## 敌机生成器：计时波次 + Boss 触发（每 1500 分或每 90s，取先到者）。
 
 signal boss_spawned(boss: Boss)
+signal boss_warning
 
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
@@ -41,7 +42,7 @@ func _process(delta: float) -> void:
 
 	_boss_timer += delta
 	if not _boss_active and (GameState.score >= _next_boss_score or _boss_timer >= BOSS_TIME_LIMIT):
-		_spawn_boss()
+		_trigger_boss()
 
 
 func _current_interval() -> float:
@@ -52,7 +53,6 @@ func _current_interval() -> float:
 func _spawn_enemy() -> void:
 	var elite_chance := clampf(0.03 + GameState.score / 15000.0, 0.0, 0.25)
 	var is_elite := randf() < elite_chance
-	var e := ENEMY_SCENE.instantiate() as Enemy
 	var texture: Texture2D
 	var strategy: StringName = &"straight"
 	if is_elite:
@@ -62,9 +62,23 @@ func _spawn_enemy() -> void:
 		var idx := randi() % ENEMY_TEXTURES.size()
 		texture = ENEMY_TEXTURES[idx]
 		strategy = STRATEGIES[idx]
+	var x := randf_range(60.0, 1860.0)
+	# 入场预告：0.6s 红色提示后敌机才进场
+	get_parent().add_child(SpawnTelegraph.new(x))
+	await get_tree().create_timer(SpawnTelegraph.DURATION, false).timeout
+	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(texture, strategy, is_elite, GameState.difficulty_multiplier, randf() < 0.33)
-	e.position = Vector2(randf_range(60.0, 1860.0), -60.0)
+	e.position = Vector2(x, -60.0)
 	get_parent().add_child(e)
+
+
+## Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。
+func _trigger_boss() -> void:
+	_boss_active = true
+	boss_warning.emit()
+	GameState.shake(14.0)
+	await get_tree().create_timer(2.0, false).timeout
+	_spawn_boss()
 
 
 func _spawn_boss() -> void:

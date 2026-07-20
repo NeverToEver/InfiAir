@@ -95,6 +95,6 @@ func take_damage(amount: int) -> void:
 
 func _die() -> void:
 	GameState.add_boss_kill()
-	Explosion.spawn_at(get_parent(), global_position, 3.0)
+	Explosion.spawn_boss_sequence(get_parent(), global_position)
 	died.emit()
 	queue_free()

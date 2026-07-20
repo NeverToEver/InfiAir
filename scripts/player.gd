@@ -27,6 +27,7 @@ var _dead: bool = false
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
 @onready var _hitbox: Area2D = $Hitbox
+@onready var _thruster: GPUParticles2D = $Thruster
 
 
 func _ready() -> void:
@@ -45,12 +46,27 @@ func _physics_process(delta: float) -> void:
 	if _dead:
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var boost := BOOST_MULT if Input.is_action_pressed("boost") else 1.0
+	var boosting := Input.is_action_pressed("boost")
+	var boost := BOOST_MULT if boosting else 1.0
 	var target := input_dir * MAX_SPEED * boost
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
 	move_and_slide()
 	position = position.clamp(Vector2(40.0, 40.0), Vector2(1880.0, 1040.0))
+
+	# 尾焰：加速变长变亮，静止减弱
+	if boosting and input_dir != Vector2.ZERO:
+		_thruster.speed_scale = 1.7
+		_thruster.amount_ratio = 1.0
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
+	elif input_dir != Vector2.ZERO:
+		_thruster.speed_scale = 1.0
+		_thruster.amount_ratio = 0.8
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.85)
+	else:
+		_thruster.speed_scale = 0.6
+		_thruster.amount_ratio = 0.35
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.6)
 
 	var aim := get_global_mouse_position() - global_position
 	if aim.length() > 1.0:
@@ -96,6 +112,8 @@ func take_damage(amount: float = 1.0) -> void:
 	if _dead or _invincible > 0.0:
 		return
 	_invincible = INVINCIBLE_TIME
+	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
+	GameState.shake(12.0)
 	GameState.lose_life(amount)
 	if GameState.lives <= 0.0:
 		_die()

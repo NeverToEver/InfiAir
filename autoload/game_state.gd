@@ -6,8 +6,18 @@ signal lives_changed(new_lives: float)
 signal difficulty_changed(new_multiplier: float)
 signal milestone_reached(score: int)
 signal player_died
+signal screen_shake(strength: float)
 
 const MILESTONE_STEP := 500
+
+const SFX_EXPLOSION: AudioStream = preload("res://assets/audio/explosion.wav")
+const SFX_EXPLOSION_BIG: AudioStream = preload("res://assets/audio/explosion_big.wav")
+const SFX_PLAYER_HIT: AudioStream = preload("res://assets/audio/player_hit.wav")
+const SFX_BUFF_PICK: AudioStream = preload("res://assets/audio/buff_pick.wav")
+const SFX_POOL_SIZE := 6
+
+var _sfx_players: Array[AudioStreamPlayer] = []
+var _sfx_index: int = 0
 
 var score: int = 0
 var kills: int = 0
@@ -18,6 +28,26 @@ var difficulty_multiplier: float = 1.0
 var buffs: Dictionary = {}
 
 var _next_milestone: int = MILESTONE_STEP
+
+
+func _ready() -> void:
+	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断
+	for i in SFX_POOL_SIZE:
+		var p := AudioStreamPlayer.new()
+		add_child(p)
+		_sfx_players.append(p)
+
+
+func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
+	var p := _sfx_players[_sfx_index]
+	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
+	p.stream = stream
+	p.volume_db = volume_db
+	p.play()
+
+
+func shake(strength: float) -> void:
+	screen_shake.emit(strength)
 
 
 func reset_run() -> void:

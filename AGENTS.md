@@ -19,7 +19,9 @@ godot --path .
 
 ## 目录与约定
 
-- 场景放 `scenes/`，同名脚本放 `scripts/`；`autoload/game_state.gd` 是全局状态与信号总线（autoload 名 `GameState`）。
+- 场景放 `scenes/`，同名脚本放 `scripts/`；`autoload/game_state.gd` 是全局状态与信号总线（autoload 名 `GameState`），内含常驻音效池（`GameState.play_sfx()`）与 `screen_shake` 信号。
+- `scripts/tools/generate_audio.py` 是一次性音频程序合成脚本（仅 Python 标准库），产物已提交到 `assets/audio/`；需要重做音效时改参数重跑即可。
+- BGM 循环只设 `stream.loop_mode = LOOP_FORWARD`；不要显式写 `loop_begin/loop_end` 或在 `_exit_tree` 里 `stop()`，否则退出时播放实例会泄漏（已在无头验证中复现）。
 - 碰撞层：1=player，2=player_bullet，3=enemy（含 boss），4=enemy_bullet。子弹负责结算伤害（玩家弹检测 enemy 组，敌弹/敌机撞击检测 `player_hitbox` 组）。
 - 玩家/敌弹共用 `scenes/bullet.tscn`，用 `setup()` 区分阵营；爆炸为纯代码构建的 `Explosion`（GPUParticles2D 一次性）。
 - 实体 `setup()` 在 `_ready()` 之前被调用，其中不能用 `@onready` 变量，需用 `$节点路径` 访问子节点。
