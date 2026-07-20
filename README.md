@@ -1,84 +1,141 @@
-# InfiAir
+<div align="center">
 
-2D 俯视空战射击游戏（Godot 4.6 重制版），重制自 Python/Pygame 游戏 [airwar-game](../airwar-game)。竖向卷动星空、鼠标瞄准射击、波次敌机、里程碑 Buff 三选一、周期 Boss 战。
+# 🛩️ InfiAir · 无限空域
 
-## 玩法与操作
+**一款 2D 俯视空战射击游戏 —— 使用 Godot 4 + GDScript 构建，重制自 Python 原作 [airwar-game](https://github.com/NeverToEver/airwar-game)**
 
-| 操作 | 按键 |
-| --- | --- |
-| 移动 | WASD / 方向键 |
-| 瞄准 | 鼠标（机头始终朝向鼠标） |
-| 开火 | 全自动 |
-| 加速 | Shift（约 1.8x，消耗燃料；耗尽后需回到 30% 才能再加速） |
-| 相位冲刺 | 空格（需选中「相位冲刺」buff 解锁，冲刺期间无敌，消耗满值 25% 燃料） |
-| 微调移动 | 按住 Ctrl（速度 ×0.35） |
-| 召唤母舰 | 长按 H 3s 蓄力（对接驻留 20s 弹匣制扫射护航，驻留中长按 H 2s 提前离舰冷却打折，基础冷却 90s） |
-| 返航 | 长按 B 1.5s（中场整备：基地控制台，可返回同一局） |
-| 放弃出击 | 长按 K 3s（自毁进入结算） |
-| 暂停 | Esc（暂停菜单可「保存进度」，全局唯一存档入口） |
-| 重开（结算/暂停时） | R |
+[English](./README.en.md) · **中文**
 
-规则：
+[![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
+[![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
+[![Tests](https://img.shields.io/badge/tests-188%20passed-brightgreen)](#运行验证)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
-- 3 条命开局，受击后有 1.5 秒无敌帧（闪烁）。
-- 瞄准辅助：准星 230px 内磁吸最近敌人并粘滞，快速甩鼠标脱离（锁定环提示）。
-- 敌机 4 种机型 × 8 种移动模式（直下 / 正弦 / 折线 / 俯冲 / 螺旋 / 噪声飘移 / 悬停点射 / 追踪 aggression），机型数值差异化（均衡 / 高速低 HP / 高 HP 慢速 / 高分开火狂），按分数阶段解锁（0 → 300 → 800 → 1500 分）；精英 3 型（重甲 / 游击 / 炮艇）同理差异化，1500 分后精英率提升。敌机弹种 single/spread（五向扇形）/laser（高速长弹），精英只出 spread/laser，同屏 spread 敌机上限 2；敌机 15s 寿命到期离场（不给分）。得分制，无掉落拾取。
-- Boss 3 种轮换（重装型：扇形 5 发 + 追踪弹 / 游击型：冲刺移动 + 3 连狙击 / 母舰型：召唤小怪 + 十字旋转弹幕），血量 <30% 触发狂暴（射速 ×1.5、移速 ×1.3、变红、血条变红）；Boss 存活 50s 未击杀会逃跑（最后 3s 警告上飘，无击杀奖励、不计轮换）。
-- 每 500 分触发一次 Buff 三选一（暂停游戏），池共 16 种：强力射击、急速射击、散射弹道（最多 3 层）、额外生命、自我修复、穿透弹（最多 2 层）、爆炸弹（需击杀 3 个 Boss 后入池）、吸血（最多 2 层）、护甲（最多 2 层）、闪避（最多 2 层）、相位冲刺（解锁 + 减冷却最多 2 次）、慢速力场、高效推进（最多 2 层）、激光光束（3s 穿透光束 / 10s 冷却循环）、母舰召回（母舰冷却每层 ×0.5，最多 2 层）、燃料再生（恢复速率 ×1.5，最多 2 层）。
-- 每 1500 分或每 90 秒（取先到者）刷出 Boss：屏幕上部巡航，扇形 5 发 + 追踪单发交替；击毁 +500 分，难度乘数按 `1 + (2^min(Boss击杀,10) − 1) × 0.25`（封顶 8x）提升。
-- 命尽进入结算面板（显示得分/最高分，破纪录有「新纪录！」提示），按 R 重开；**死亡是唯一终局，会删除对局存档**。
+<img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
 
-局外循环：
+</div>
 
-- **存档**：暂停菜单「保存进度」写入 `user://savegame.json`（分数/击杀/生命/燃料/Boss 击杀/难度/buff 层数/RP/任务/路线/已用时间，带版本号）；启动时检测到存档会显示「继续对局 / 新游戏」开始面板；返航时自动更新存档，仅死亡删除存档。
-- **母舰补给**：长按 H 3s 蓄力召唤（松手取消、不进冷却，蓄力期有虚影与进度提示）；母舰缓动降入悬停后，双炮塔 80° 扇面扫射压制（0.2s/发，母舰击杀仅得 1/3 分）；飞入对接区触发对接——牵引光束吸附至舰腹 → 补给（回满生命与燃料）→ 驻留 20s（弹匣 10 格 2s/格，HUD 分段显示，≤4 格弹出「母舰弹药不足」警告；驻留期间锁输入且无敌）；弹匣耗尽自动释放，或驻留中长按 H 2s 提前离舰（按剩余弹匣比例冷却打折，最多 -40%，飘字提示）；随后母舰加速离场，冷却 90s。
-- **返航与基地**：长按 B 1.5s 返航（星光过场后进入基地控制台，游戏暂停）——4 模块：战机库（状态总览）、武器挂载（天赋路线：进攻线 散射弹道/激光光束、机动线 相位冲刺/母舰召回，每线二选一、合并层数、未选锁定出奖励池）、维修补给（维修 2RP 回 1 命 / 充能 2RP 满燃料）、任务规划（3 常驻任务：击杀 5 敌 / 存活 180s / 击杀 1 Boss，完成领取 +3RP）。RP 由 Boss 击杀（+5）与任务（+3）获得。「继续出击」返回同一局：轨道打击清屏（Boss 保留）后恢复战斗。
-- **最高分**：记录在 `user://profile.json`（仅最高分），死亡结算显示。
+---
 
-## 运行方式
+## 目录
 
-需要 Godot 4.6（gl_compatibility 渲染器）。
+- [✨ 亮点](#-亮点)
+- [🖼️ 截图](#️-截图)
+- [🎮 操作](#-操作)
+- [🚀 快速开始](#-快速开始)
+- [🧭 玩法循环](#-玩法循环)
+- [🏗️ 架构](#️-架构)
+- [✅ 运行验证](#-运行验证)
+- [🗺️ 路线图](#️-路线图)
+- [🤝 参与贡献](#-参与贡献)
+- [📄 许可证](#-许可证)
 
-- 编辑器打开项目后按 F5；
-- 或命令行：`godot --path .`
+## ✨ 亮点
 
-无头验证：
+- **完整的出击循环**：刷怪成长 → 里程碑 Buff 三选一 → Boss 轮换战 → 返航基地中场整备 → 再次出击；死亡是唯一终局。
+- **16 种 Buff 局内构建**：伤害/射速/散射/穿透/爆炸/吸血/护甲/闪避/相位冲刺/慢速力场/激光光束……按分数里程碑三选一，叠加成型。
+- **3 种 Boss 轮换 + 狂暴**：重装 / 游击 / 母舰型，血量 <30% 进入狂暴；输出不足拖过 50 秒 Boss 会直接逃跑。
+- **母舰对接火力平台**：长按蓄力召唤、牵引对接、驻留 20 秒弹匣扫射护航、提前离舰冷却打折——补给与火力的战术抉择。
+- **基地中场整备**：返航不终局！战机库 / 武器挂载（互斥天赋路线）/ 维修补给（RP 经济）/ 任务规划四大模块，整备完返回同一局继续战斗。
+- **纯程序化资产**：全部贴图由程序生成（继承自 Python 原作），音效与 BGM 由 `scripts/tools/generate_audio.py` 合成，零外部素材依赖。
+
+## 🖼️ 截图
+
+| 游戏画面 | 母舰对接 | 基地整备 |
+|----------|----------|----------|
+| ![游戏画面](./docs/screenshots/gameplay.png) | ![母舰对接](./docs/screenshots/mothership.png) | ![基地整备](./docs/screenshots/base.png) |
+
+## 🎮 操作
+
+| 按键 / 输入 | 功能 |
+|-------------|------|
+| WASD / 方向键 | 移动战机 |
+| 鼠标 | 瞄准（230px 内自动磁吸锁定，甩鼠标脱离） |
+| — | 武器全自动开火 |
+| Shift 长按 | 加速推进（约 1.8x，消耗燃料） |
+| Ctrl 长按 | 微调姿态（速度 ×0.35） |
+| 空格 | 相位冲刺（需 Buff 解锁，无敌突进，耗 25% 燃料） |
+| H 长按 3 秒 | 蓄力召唤母舰（驻留中长按 H 2s 提前离舰） |
+| B 长按 1.5 秒 | 返航基地中场整备 |
+| K 长按 3 秒 | 放弃当前出击 |
+| ESC | 暂停（暂停菜单可保存进度，全局唯一存档入口） |
+| R | 结算 / 暂停时重开 |
+
+## 🚀 快速开始
+
+需要 [Godot 4.6](https://godotengine.org/download)（标准版即可，无需 .NET）。
 
 ```bash
-godot --headless --import --path .
-godot --headless --path . --quit-after 300
+git clone https://github.com/NeverToEver/InfiAir.git
+cd InfiAir
+godot --path .          # 直接运行；或用编辑器打开项目按 F5
 ```
 
-## 目录结构
+## 🧭 玩法循环
 
+- 3 条命开局，受击 1.5 秒无敌帧；**得分制，无掉落拾取**。
+- 敌机 4 机型 × 8 种移动模式，按分数阶段解锁；精英 3 型；敌机弹种 single / spread / laser。
+- 每 500 分里程碑暂停三选一 Buff；Boss 每 1500 分或 90 秒刷新，击毁 +500 分并提升难度乘数（`1 + (2^min(击杀,10) − 1) × 0.25`，封顶 8x）。
+- RP（征用点数）由 Boss 击杀（+5）与基地任务（+3）获得，用于基地维修 / 充能。
+- 暂停菜单「保存进度」可随时存档，启动时可继续对局；死亡删档。
+
+## 🏗️ 架构
+
+```text
+main.tscn（对局编排）
+ ├─ Player（移动/瞄准辅助/全自动开火/燃料/相位冲刺/激光武器）
+ ├─ Spawner（7 机型配置表 + 分数阶段解锁 + Boss 轮换调度）
+ ├─ Mothership（7 态状态机：召唤→悬停→对接→驻留→释放→离场）
+ ├─ HUD / BuffSelect / BaseConsole / GameOver / Pause / StartPanel
+ └─ GameState（autoload：分数/Buff/RP/任务/路线/存档/音效池/震动）
 ```
-├── project.godot        # 项目配置（窗口/输入映射/autoload）
-├── autoload/
-│   └── game_state.gd    # 全局状态与信号总线（GameState）
-├── scenes/              # 场景（main / player / enemy / boss / bullet）
-├── scripts/             # 与场景同名的脚本及系统脚本
-├── test/                # 无头冒烟测试场景
-└── assets/
-    ├── sprites/         # 战机贴图（机头朝上）
-    ├── audio/           # 开火音效（3 个轮换）
-    └── fonts/           # msyh.ttc 中文 UI 字体
+
+- 碰撞层：`1=player 2=player_bullet 3=enemy 4=enemy_bullet`，子弹侧结算伤害。
+- 对局存档 `user://savegame.json` 与最高分档案 `user://profile.json` 均带版本号。
+- 测试为无头场景脚本（非框架），详见 `AGENTS.md`。
+
+## ✅ 运行验证
+
+```bash
+godot --headless --import --path .          # 资源与脚本解析
+godot --headless --path . --quit-after 300  # 运行时冒烟
+godot --headless --path . res://test/smoke_test.tscn        # 主流程 82 项
+godot --headless --path . res://test/base_system_test.tscn  # 存档/RP/任务/路线 46 项
+godot --headless --path . res://test/enemy_combat_test.tscn # 敌机/Boss 31 项
+godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃 29 项
 ```
 
-## 借鉴的开源项目
+共 188 项断言，全部通过。
 
-- [nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate) — 项目结构与场景组织参考
-- [quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core) — 俯视射击手感参考
-- [Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D) — 2D 俯视射击模板参考
+## 🗺️ 路线图
 
-平衡数值与行为设计参考 Python 原作 `airwar-game/airwar/` 下的 `config/`、`entities/`、`systems/difficulty_manager.py`、`game/buffs/buffs.py`。
+- [x] 核心单局循环（刷怪 / 里程碑 Buff / Boss / 结算）
+- [x] 手感与表现（震动 / 粒子 / 合成音效与 BGM / 预告与警告）
+- [x] 16 种 Buff + 相位冲刺 + 燃料系统
+- [x] 母舰对接（蓄力召唤 / 弹匣驻留 / 扫射护航 / 提前离舰）
+- [x] 返航基地中场整备（4 模块 + RP 经济 + 天赋路线）
+- [x] 战斗对齐（瞄准辅助 / 敌机三弹型 / Boss 逃跑 / 8 种移动模式）
+- [ ] 难度选择（简单 / 普通 / 困难）与 Boss 狂暴完整版 —— 迭代 3.4
+- [ ] 新手教程（6 阶段） —— 迭代 3.5
+- [ ] 联机排行榜
+- [ ] 打包发布（暂缓）
 
-## MVP 范围与路线图
+移植对齐的逐项对照见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)，任务指导见 [docs/TASK_REPORT.md](./docs/TASK_REPORT.md)。
 
-已完成：单局循环（刷怪 → 里程碑 Buff → Boss → 结算）、手感与表现（震动/粒子/音效/BGM）、成长深度（13 种 Buff、相位冲刺、燃料）、局外循环（暂停菜单存档、母舰补给、最高分）、内容扩充（7 种移动模式 × 机型差异化、3 种 Boss 轮换与狂暴阶段）、母舰原作对齐（弹匣驻留/扫射压制/蓄力召唤）、返航基地（中场整备 4 模块 + RP 经济 + 天赋路线 + 3 常驻任务）。
+## 🤝 参与贡献
 
-后续阶段（未实现）：
+欢迎 Issue 和 PR！提交前请确认：
 
-- 排行榜
-- 新手教程
-- 母舰更多交互（护航、任务）
-- 打包发布与 i18n
+1. 上述 4 套无头测试全部通过；
+2. 遵循 `AGENTS.md` 中的约定（碰撞层、代码风格、测试策略）；
+3. 玩法变更请同步更新 `docs/PORTING_PARITY.md` 的对应行。
+
+借鉴的开源项目：[nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate)、[quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core)、[Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D)。
+
+## 📄 许可证
+
+本项目当前为私有仓库，暂未选择开源许可证；如需使用或分发请先联系作者。
+
+---
+
+*InfiAir 是 airwar-game（Python/Pygame）的 Godot 重制版，业余维护中，欢迎反馈。*
