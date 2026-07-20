@@ -91,9 +91,9 @@ func add_kill() -> void:
 	kills += 1
 
 
-func add_boss_kill() -> void:
+func add_boss_kill(score_scale: float = 1.0) -> void:
 	boss_kills += 1
-	add_score(500)
+	add_score(int(500.0 * score_scale))
 	# 公式：base 1 + (2^min(kills,10) - 1) * 0.25，封顶 8x
 	difficulty_multiplier = minf(1.0 + (pow(2.0, mini(boss_kills, 10)) - 1.0) * 0.25, 8.0)
 	difficulty_changed.emit(difficulty_multiplier)

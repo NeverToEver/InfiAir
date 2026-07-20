@@ -144,8 +144,12 @@ func _fire_at_player() -> void:
 	get_parent().add_child(b)
 
 
-func take_damage(amount: int) -> void:
+var _score_scale: float = 1.0
+
+
+func take_damage(amount: int, score_scale: float = 1.0) -> void:
 	hp -= amount
+	_score_scale = score_scale
 	_sprite.modulate = Color(2.0, 2.0, 2.0)  # 受击闪白
 	var tween := create_tween()
 	tween.tween_property(_sprite, "modulate", Color.WHITE, 0.1)
@@ -154,7 +158,8 @@ func take_damage(amount: int) -> void:
 
 
 func die() -> void:
-	GameState.add_score(score_value)
+	# 母舰弹丸击毁只给 1/3 分（向下取整）
+	GameState.add_score(int(score_value * _score_scale))
 	GameState.add_kill()
 	# 吸血 buff：击毁 10% 概率回 0.5 命，每层 +5%
 	var lifesteal := GameState.buff_count(&"lifesteal")

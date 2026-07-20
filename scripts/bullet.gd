@@ -12,6 +12,8 @@ var homing_time: float = 0.0
 var pierce: int = 0
 ## 命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）
 var explosive: bool = false
+## 击毁得分系数（母舰弹丸为 1/3）
+var score_scale: float = 1.0
 
 const EXPLOSIVE_RADIUS := 80.0
 const SLOW_FIELD_RADIUS := 300.0
@@ -93,7 +95,7 @@ func _explode(exclude: Area2D) -> void:
 func _on_area_entered(area: Area2D) -> void:
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
-			area.take_damage(damage)
+			area.take_damage(damage, score_scale)
 			if explosive:
 				_explode(area)
 			if pierce > 0:

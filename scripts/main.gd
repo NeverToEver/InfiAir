@@ -4,7 +4,8 @@ extends Node2D
 
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
-const DOCK_COOLDOWN := 90.0
+const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
+const DOCK_CHARGE_TIME := 3.0
 
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
@@ -20,6 +21,9 @@ var _homecoming: bool = false
 var _bgm_player: AudioStreamPlayer
 var _dock_cooldown: float = 0.0
 var _mothership: Mothership = null
+var _charging: bool = false
+var _charge_time: float = 0.0
+var _charge_ghost: Sprite2D
 
 
 func _ready() -> void:
@@ -31,6 +35,15 @@ func _ready() -> void:
 	_start_panel.continue_chosen.connect(_on_continue_run)
 	_start_panel.new_game_chosen.connect(_on_new_run)
 	_start_bgm()
+	# 蓄力虚影（长按 H 蓄力期间显示）
+	_charge_ghost = Sprite2D.new()
+	_charge_ghost.texture = MOTHERSHIP_GHOST
+	_charge_ghost.scale = Vector2(1.6, 1.6)
+	_charge_ghost.rotation = PI
+	_charge_ghost.position = Vector2(960.0, 270.0)
+	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
+	_charge_ghost.visible = false
+	add_child(_charge_ghost)
 	# 有存档则先显示开始面板，否则直接开新局
 	if GameState.has_save():
 		_start_panel.show_panel()
@@ -41,6 +54,26 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _dock_cooldown > 0.0:
 		_dock_cooldown -= delta
+	# 长按 H 蓄力召唤母舰（松手取消，不进冷却）
+	var can_charge := (
+		_mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming
+	)
+	if can_charge and Input.is_action_pressed("dock"):
+		_charging = true
+		_charge_time += delta
+		_charge_ghost.visible = true
+		_charge_ghost.modulate.a = 0.15 + 0.25 * clampf(_charge_time / DOCK_CHARGE_TIME, 0.0, 1.0)
+		if _charge_time >= DOCK_CHARGE_TIME:
+			_stop_charging()
+			_summon_mothership()
+	elif _charging:
+		_stop_charging()
+
+
+func _stop_charging() -> void:
+	_charging = false
+	_charge_time = 0.0
+	_charge_ghost.visible = false
 
 
 func _start_bgm() -> void:
@@ -92,8 +125,10 @@ func _on_player_died() -> void:
 
 ## 母舰状态文本（HUD 轮询）
 func dock_status_text() -> String:
+	if _charging:
+		return "母舰蓄力 %d%%" % int(_charge_time / DOCK_CHARGE_TIME * 100.0)
 	if _mothership != null:
-		return "母舰对接中"
+		return _mothership.state_text()
 	if _dock_cooldown > 0.0:
 		return "母舰冷却 %ds" % ceili(_dock_cooldown)
 	return "母舰就绪 [H]"
@@ -102,13 +137,13 @@ func dock_status_text() -> String:
 func _summon_mothership() -> void:
 	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
 	_mothership.position = Vector2(960.0, -200.0)
-	_mothership.resupplied.connect(_on_mothership_resupplied)
+	_mothership.departed.connect(_on_mothership_departed)
 	_mothership.tree_exited.connect(func() -> void: _mothership = null)
 	add_child(_mothership)
 
 
-func _on_mothership_resupplied() -> void:
-	_dock_cooldown = DOCK_COOLDOWN
+func _on_mothership_departed(cooldown: float) -> void:
+	_dock_cooldown = cooldown
 
 
 ## 返航：锁输入、清场、星光拉伸 + 白屏闪，然后进入基地整备
@@ -148,7 +183,5 @@ func _unhandled_input(event: InputEvent) -> void:
 		_pause_ui.toggle()
 	if get_tree().paused or _game_over or _homecoming:
 		return
-	if event.is_action_pressed("dock") and _dock_cooldown <= 0.0 and _mothership == null:
-		_summon_mothership()
 	if event.is_action_pressed("homecoming"):
 		_start_homecoming()

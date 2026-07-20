@@ -28,6 +28,7 @@ var hp: float = 30.0
 
 var _in_fight: bool = false
 var _enraged: bool = false
+var _score_scale: float = 1.0
 var _strafe_dir: float = 1.0
 var _fire_timer: float = 1.6
 var _fan_next: bool = true
@@ -192,8 +193,9 @@ func _summon_minions() -> void:
 		spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0))
 
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, score_scale: float = 1.0) -> void:
 	hp -= float(amount)
+	_score_scale = score_scale
 	health_changed.emit(hp, max_hp)
 	_sprite.modulate = Color(2.0, 2.0, 2.0)
 	var tween := create_tween()
@@ -214,7 +216,7 @@ func _enrage() -> void:
 
 
 func _die() -> void:
-	GameState.add_boss_kill()
+	GameState.add_boss_kill(_score_scale)
 	Explosion.spawn_boss_sequence(get_parent(), global_position)
 	died.emit()
 	queue_free()

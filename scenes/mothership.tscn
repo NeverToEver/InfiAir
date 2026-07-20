@@ -1,10 +1,20 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/mothership.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/boss_ship_3.png" id="2"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(320, 90)
+
+[sub_resource type="ParticleProcessMaterial" id="2"]
+direction = Vector3(1, 0, 0)
+spread = 30.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 60.0
+initial_velocity_max = 140.0
+scale_min = 1.5
+scale_max = 3.0
+color = Color(1, 0.9, 0.4, 1)
 
 [node name="Mothership" type="Area2D"]
 rotation = 3.1415927
@@ -24,3 +34,48 @@ collision_mask = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DockZone"]
 shape = SubResource("1")
+
+[node name="TractorBeam" type="Polygon2D" parent="."]
+visible = false
+color = Color(0.4, 0.9, 1, 0.25)
+polygon = PackedVector2Array(-40, -60, 40, -60, 90, -200, -90, -200)
+
+[node name="TurretL" type="Node2D" parent="."]
+position = Vector2(-160, -40)
+
+[node name="Base" type="Polygon2D" parent="TurretL"]
+color = Color(0.3, 0.35, 0.4, 1)
+polygon = PackedVector2Array(-10, -10, 10, -10, 10, 10, -10, 10)
+
+[node name="Barrel" type="Polygon2D" parent="TurretL"]
+color = Color(0.6, 0.65, 0.7, 1)
+polygon = PackedVector2Array(8, -2, 22, -2, 22, 2, 8, 2)
+
+[node name="MuzzleFlash" type="GPUParticles2D" parent="TurretL"]
+position = Vector2(24, 0)
+emitting = false
+amount = 5
+lifetime = 0.12
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("2")
+
+[node name="TurretR" type="Node2D" parent="."]
+position = Vector2(160, -40)
+
+[node name="Base" type="Polygon2D" parent="TurretR"]
+color = Color(0.3, 0.35, 0.4, 1)
+polygon = PackedVector2Array(-10, -10, 10, -10, 10, 10, -10, 10)
+
+[node name="Barrel" type="Polygon2D" parent="TurretR"]
+color = Color(0.6, 0.65, 0.7, 1)
+polygon = PackedVector2Array(8, -2, 22, -2, 22, 2, 8, 2)
+
+[node name="MuzzleFlash" type="GPUParticles2D" parent="TurretR"]
+position = Vector2(24, 0)
+emitting = false
+amount = 5
+lifetime = 0.12
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("2")

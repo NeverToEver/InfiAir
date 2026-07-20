@@ -15,8 +15,11 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 @onready var _dock_tag: Label = $DockTag
 
 var _banner: PanelContainer
+var _banner_label: Label
 var _fuel_fill := StyleBoxFlat.new()
 var _dash_fill := StyleBoxFlat.new()
+var _mag_box: HBoxContainer
+var _mag_cells_nodes: Array[ColorRect] = []
 
 
 func _ready() -> void:
@@ -40,6 +43,23 @@ func _ready() -> void:
 	_on_lives_changed(GameState.lives)
 	_on_difficulty_changed(GameState.difficulty_multiplier)
 	_build_banner()
+	_build_magazine_bar()
+
+
+func _build_magazine_bar() -> void:
+	# 弹匣格子条（驻留时显示）：10 格分段
+	_mag_box = HBoxContainer.new()
+	_mag_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_mag_box.position = Vector2(340.0, -54.0)
+	_mag_box.add_theme_constant_override("separation", 3)
+	_mag_box.visible = false
+	for i in 10:
+		var cell := ColorRect.new()
+		cell.custom_minimum_size = Vector2(18.0, 14.0)
+		cell.color = Color(0.25, 0.8, 0.9)
+		_mag_box.add_child(cell)
+		_mag_cells_nodes.append(cell)
+	add_child(_mag_box)
 
 
 func _process(_delta: float) -> void:
@@ -54,6 +74,19 @@ func _process(_delta: float) -> void:
 	var main := get_tree().get_first_node_in_group("main")
 	if main != null:
 		_dock_tag.text = main.dock_status_text()
+		_update_magazine_bar(main)
+
+
+func _update_magazine_bar(main: Node) -> void:
+	var ms: Mothership = main._mothership
+	if ms != null and ms._state == Mothership.State.STAY:
+		_mag_box.visible = true
+		for i in _mag_cells_nodes.size():
+			_mag_cells_nodes[i].color = (
+				Color(0.25, 0.8, 0.9) if i < ms._mag_cells else Color(0.15, 0.18, 0.25)
+			)
+	else:
+		_mag_box.visible = false
 
 
 ## 世界坐标处的飘字提示（补给完成、里程碑等）。
@@ -81,18 +114,28 @@ func _build_banner() -> void:
 	style.bg_color = Color(0.45, 0.04, 0.04, 0.8)
 	style.set_content_margin_all(14.0)
 	_banner.add_theme_stylebox_override("panel", style)
-	var label := Label.new()
-	label.text = "⚠ 警告：强敌接近 ⚠"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", 44)
-	label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
-	_banner.add_child(label)
+	_banner_label = Label.new()
+	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_label.add_theme_font_override("font", FONT)
+	_banner_label.add_theme_font_size_override("font_size", 44)
+	_banner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
+	_banner.add_child(_banner_label)
 	add_child(_banner)
 
 
 ## Boss 出场警告：闪烁 2s（与 spawner 的 2s 预警同步），随后淡出。
 func show_boss_banner() -> void:
+	_show_warning("⚠ 警告：强敌接近 ⚠")
+
+
+## 母舰弹匣不足警告（≤4 格时触发一次）。
+func show_magazine_warning() -> void:
+	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
+	_show_warning("母舰弹药不足")
+
+
+func _show_warning(text: String) -> void:
+	_banner_label.text = text
 	_banner.visible = true
 	_banner.modulate.a = 1.0
 	var tween := create_tween()

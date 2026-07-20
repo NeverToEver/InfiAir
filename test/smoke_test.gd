@@ -254,27 +254,97 @@ func _ready() -> void:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
 
-	# 3.10 母舰对接补给：回血 + 回燃料 + 无敌
+	# 3.10 母舰（原作对齐）：蓄力召唤 → 扫射 → 对接 → 驻留弹匣 → 提前离舰
 	# 清理可能残留的敌弹，避免干扰生命断言
 	for child in get_node("Main").get_children():
 		if child is Bullet and not child.is_player_bullet:
 			child.queue_free()
 	await get_tree().process_frame
+	var main := get_node("Main")
 	player._invincible = 0.0
 	player.take_damage()
 	_check(GameState.lives == 2.0, "母舰测试前置：受击 -1 命")
 	player._fuel = 10.0
-	var ms := load("res://scenes/mothership.tscn").instantiate() as Mothership
+	# 长按蓄力：1s 松手取消，不进冷却
+	Input.action_press("dock")
+	await get_tree().create_timer(1.0).timeout
+	_check(main._charging and main._mothership == null, "蓄力中未召唤")
+	Input.action_release("dock")
+	await get_tree().create_timer(0.2).timeout
+	_check(not main._charging and main._dock_cooldown <= 0.0, "松手取消蓄力不进冷却")
+	# 蓄满 3s 召唤
+	Input.action_press("dock")
+	await get_tree().create_timer(3.3).timeout
+	Input.action_release("dock")
+	_check(main._mothership != null, "蓄力满 3s 召唤母舰")
+	var ms: Mothership = main._mothership
 	ms.position = Vector2(960.0, 270.0)
-	get_node("Main").add_child(ms)
 	ms._state = Mothership.State.HOVER
-	player.position = Vector2(960.0, 410.0)  # 对接区（舰体下方矩形）
-	await get_tree().create_timer(0.4).timeout
-	_check(GameState.lives == 3.0, "母舰补给回满生命")
-	_check(player._fuel == player.fuel_max, "母舰补给回满燃料")
-	_check(player._invincible > 0.0, "对接后无敌")
-	ms.queue_free()
+	# 扫射压制：应出现母舰弹丸（score_scale=1/3）
+	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	tgt.can_shoot = false
+	tgt.position = Vector2(960.0, 500.0)
+	main.add_child(tgt)
+	await get_tree().create_timer(1.0).timeout
+	var ms_bullet_found := false
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+			ms_bullet_found = true
+	_check(ms_bullet_found, "加特林扫射开火")
+	if is_instance_valid(tgt):
+		tgt.queue_free()
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+	get_tree().paused = false
+	# 对接 → 驻留
+	player.position = Vector2(960.0, 410.0)  # 对接区（舰腹下方矩形）
+	await get_tree().create_timer(0.3).timeout
+	_check(player._input_locked, "对接期间输入锁定")
+	await get_tree().create_timer(1.6).timeout
+	_check(GameState.lives == 3.0, "补给回满生命")
+	_check(player._fuel == player.fuel_max, "补给回满燃料")
+	_check(ms._state == Mothership.State.STAY, "进入驻留状态")
+	_check(ms._mag_cells == 10, "弹匣初始 10 格")
+	# 弹匣随时间消耗
+	await get_tree().create_timer(2.3).timeout
+	_check(ms._mag_cells <= 9, "驻留弹匣消耗")
+	# ≤4 格警告
+	ms._mag_cells = 5
+	await get_tree().create_timer(2.3).timeout
+	_check(ms._mag_cells == 4, "弹匣消耗到 4 格")
+	_check(ms._mag_warned, "弹匣 ≤4 弹出警告")
+	# 提前离舰：长按 H 2s，冷却打折（4 格 → 90×(1-0.4×0.4)=75.6）
+	Input.action_press("dock")
+	await get_tree().create_timer(2.4).timeout
+	Input.action_release("dock")
+	_check(ms._state >= Mothership.State.RELEASE, "提前离舰触发")
+	await get_tree().create_timer(0.8).timeout
+	_check(main._dock_cooldown > 0.0 and main._dock_cooldown < 90.0, "提前离舰冷却打折")
+	_check(not player._input_locked, "脱离后输入解锁")
+	if main._mothership != null:
+		main._mothership.queue_free()
+	# 母舰击杀 1/3 分（100 分敌机 → +33）
+	for child in main.get_children():
+		if child is Enemy:
+			child.queue_free()
 	await get_tree().process_frame
+	var e33 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	e33.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	e33.hp = 1
+	e33.position = Vector2(960.0, 400.0)
+	main.add_child(e33)
+	var b33 := (load("res://scenes/bullet.tscn") as PackedScene).instantiate() as Bullet
+	b33.setup(Vector2.DOWN, 800.0, 1, true)
+	b33.score_scale = 1.0 / 3.0
+	b33.position = e33.position
+	main.add_child(b33)
+	var score_before_33 := GameState.score
+	await get_tree().create_timer(0.3).timeout
+	_check(GameState.score == score_before_33 + 33, "母舰击杀 1/3 分")
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+	get_tree().paused = false
 
 	# 3.11 对局存档：写入 → 清空 → 恢复
 	var saved_score := GameState.score
