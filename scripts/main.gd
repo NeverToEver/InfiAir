@@ -6,13 +6,14 @@ const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
 const DOCK_CHARGE_TIME := 3.0
+const HOME_CHARGE_TIME := 1.5
 
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
 @onready var _buff_ui: CanvasLayer = $BuffUI
 @onready var _pause_ui: CanvasLayer = $PauseUI
 @onready var _start_panel: CanvasLayer = $StartPanel
-@onready var _talent_ui: CanvasLayer = $TalentUI
+@onready var _base_ui: CanvasLayer = $BaseUI
 @onready var _player: Player = $Player
 @onready var _starfield: Starfield = $Starfield
 
@@ -24,6 +25,7 @@ var _mothership: Mothership = null
 var _charging: bool = false
 var _charge_time: float = 0.0
 var _charge_ghost: Sprite2D
+var _home_charge_time: float = 0.0
 
 
 func _ready() -> void:
@@ -33,7 +35,8 @@ func _ready() -> void:
 	_spawner.boss_warning.connect(_hud.show_boss_banner)
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
-	_start_panel.new_game_chosen.connect(_on_new_run)
+	_start_panel.new_game_chosen.connect(_apply_new_run)
+	_base_ui.resume_requested.connect(_resume_from_base)
 	_start_bgm()
 	# 蓄力虚影（长按 H 蓄力期间显示）
 	_charge_ghost = Sprite2D.new()
@@ -47,8 +50,6 @@ func _ready() -> void:
 	# 有存档则先显示开始面板，否则直接开新局
 	if GameState.has_save():
 		_start_panel.show_panel()
-	else:
-		_apply_talents()
 
 
 func _process(delta: float) -> void:
@@ -68,6 +69,17 @@ func _process(delta: float) -> void:
 			_summon_mothership()
 	elif _charging:
 		_stop_charging()
+	# 长按 B 蓄力返航（松手取消）
+	if not _game_over and not _homecoming and Input.is_action_pressed("homecoming"):
+		_home_charge_time += delta
+		_hud.set_home_charge(_home_charge_time / HOME_CHARGE_TIME)
+		if _home_charge_time >= HOME_CHARGE_TIME:
+			_home_charge_time = 0.0
+			_hud.set_home_charge(-1.0)
+			_start_homecoming()
+	elif _home_charge_time > 0.0:
+		_home_charge_time = 0.0
+		_hud.set_home_charge(-1.0)
 
 
 func _stop_charging() -> void:
@@ -87,36 +99,18 @@ func _start_bgm() -> void:
 	_bgm_player.play()
 
 
-## 新对局：应用已购天赋
-func _apply_talents() -> void:
-	var hull := GameState.talent_level(&"hull")
-	if hull > 0:
-		GameState.lives = 3.0 + hull
-		GameState.lives_changed.emit(GameState.lives)
-	var tank := GameState.talent_level(&"tank")
-	if tank > 0:
-		_player.fuel_max = 100.0 + 25.0 * tank
-		_player.refill_fuel()
-	if GameState.talent_level(&"plan") > 0:
-		var available: Array = _buff_ui.BUFF_POOL.filter(
-			func(b: Dictionary) -> bool: return GameState.buff_count(b["id"]) < b["max"]
-		)
-		if not available.is_empty():
-			GameState.add_buff(available[randi() % available.size()]["id"])
+## 新对局（无存档或开始面板选「新游戏」）：数据层已由 reset_run/读档就绪，无需额外处理
+func _apply_new_run() -> void:
+	pass
 
 
 func _on_continue_run() -> void:
 	var data := GameState.load_run_data()
 	if data.is_empty():
-		_apply_talents()
 		return
 	GameState.apply_run_save(data)
 	_player._fuel = float(data.get("fuel", _player.fuel_max))
 	_spawner._elapsed = float(data.get("elapsed", 0.0))
-
-
-func _on_new_run() -> void:
-	_apply_talents()
 
 
 func _on_player_died() -> void:
@@ -146,16 +140,43 @@ func _on_mothership_departed(cooldown: float) -> void:
 	_dock_cooldown = cooldown
 
 
-## 返航：锁输入、清场、星光拉伸 + 白屏闪，然后进入基地整备
+## 返航（局内中场整备）：锁输入、星光拉伸 + 白屏闪，进入基地控制台。
+## 对局继续：不删档（反而更新存档）、Boss 保留、死亡才是唯一终局。
 func _start_homecoming() -> void:
 	_homecoming = true
+	_home_charge_time = 0.0
+	_hud.set_home_charge(-1.0)
 	_player._input_locked = true
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
-	for child in get_children():
-		if child is Enemy or child is Boss or child is Bullet or child is Mothership:
-			child.queue_free()
+	# 母舰若在对接/驻留中，直接收回（玩家由返航统一锁定，恢复时统一解锁）
+	if _mothership != null:
+		_mothership.queue_free()
+	# 返航后存档保留更新，供「继续对局」使用
+	GameState.save_run(_player._fuel, _spawner._elapsed)
 	_starfield.warp(18.0)
+	var flash := await _flash_white(0.5, 0.5)
+	flash.queue_free()
+	_base_ui.show_base()
+	get_tree().paused = true
+
+
+## 继续出击：轨道打击清屏（Boss 保留，清小怪与全部弹丸）→ 短白屏 → 恢复同一局
+func _resume_from_base() -> void:
+	for child in get_children():
+		if child is Enemy or child is Bullet:
+			child.queue_free()
+	_player._input_locked = false
+	# 驻留期无敌可能是 999，恢复时统一重置为短无敌
+	_player._invincible = 1.5
+	_spawner.set_process(true)
+	_homecoming = false
+	get_tree().paused = false
+	var flash := await _flash_white(0.15, 0.25)
+	flash.queue_free()
+
+
+func _flash_white(fade_in: float, hold: float) -> CanvasLayer:
 	var flash_layer := CanvasLayer.new()
 	flash_layer.layer = 40
 	add_child(flash_layer)
@@ -164,24 +185,13 @@ func _start_homecoming() -> void:
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flash_layer.add_child(flash)
 	var tween := create_tween()
-	tween.tween_property(flash, "color:a", 1.0, 0.5)
-	tween.tween_interval(0.5)
+	tween.tween_property(flash, "color:a", 1.0, fade_in)
+	tween.tween_interval(hold)
+	tween.tween_property(flash, "color:a", 0.0, 0.3)
 	await tween.finished
-	var earned := GameState.calc_homecoming_points()
-	GameState.talent_points += earned
-	var new_record := GameState.record_score()
-	GameState.save_profile()
-	# 主动善终：删除对局存档
-	GameState.delete_save()
-	flash_layer.queue_free()
-	_talent_ui.show_summary(earned, new_record)
-	get_tree().paused = true
+	return flash_layer
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and not _game_over and not _homecoming and not _buff_ui.visible:
 		_pause_ui.toggle()
-	if get_tree().paused or _game_over or _homecoming:
-		return
-	if event.is_action_pressed("homecoming"):
-		_start_homecoming()

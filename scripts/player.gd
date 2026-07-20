@@ -1,6 +1,6 @@
 class_name Player
 extends CharacterBody2D
-## 玩家战机：WASD 平滑移动，朝鼠标旋转，按住左键自动开火，
+## 玩家战机：WASD 平滑移动，朝鼠标旋转，全自动开火（对齐原作 auto_fire），
 ## Shift 消耗燃料加速，空格相位冲刺（需解锁 buff）。
 
 const FIRE_SOUNDS: Array[AudioStream] = [
@@ -30,6 +30,7 @@ const AFTERIMAGE_INTERVAL := 0.08
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
 var _input_locked: bool = false  # 返航过场期间锁定
+var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
@@ -58,8 +59,7 @@ func _ready() -> void:
 
 
 func fire_interval() -> float:
-	var talent_factor := pow(0.92, GameState.talent_level(&"calibration"))
-	return BASE_FIRE_INTERVAL * pow(0.75, GameState.buff_count(&"rapid_fire")) * talent_factor
+	return BASE_FIRE_INTERVAL * pow(0.75, GameState.buff_count(&"rapid_fire"))
 
 
 func bullet_damage() -> int:
@@ -146,7 +146,7 @@ func _physics_process(delta: float) -> void:
 		rotation = aim.angle() + PI / 2.0
 
 	_fire_cooldown -= delta
-	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and _fire_cooldown <= 0.0:
+	if _auto_fire_enabled and _fire_cooldown <= 0.0 and aim.length() > 1.0:
 		_fire(aim.normalized())
 		_fire_cooldown = fire_interval()
 

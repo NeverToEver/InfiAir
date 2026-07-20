@@ -2,7 +2,7 @@ extends Node
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
-## MODE: gameplay（默认，Boss 警告画面）/ start_panel（存档开始面板）/ talent（天赋台）/ mothership（母舰对接）
+## MODE: gameplay（默认，Boss 警告画面）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）
 
 const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
@@ -23,8 +23,11 @@ func _ready() -> void:
 		"start_panel":
 			for i in 30:
 				await get_tree().process_frame
-		"talent":
+		"base":
+			# 基地控制台界面
 			await get_tree().process_frame
+			GameState.add_rp(10)
+			GameState.add_buff(&"spread_shot")
 			get_node("Main")._start_homecoming()
 			await get_tree().create_timer(2.0).timeout
 		"mothership":

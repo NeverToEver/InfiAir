@@ -10,7 +10,7 @@
 [ext_resource type="Script" path="res://scripts/pause_ui.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/camera_shake.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/start_panel.gd" id="10"]
-[ext_resource type="Script" path="res://scripts/talent_ui.gd" id="11"]
+[ext_resource type="Script" path="res://scripts/base_console.gd" id="11"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -141,7 +141,7 @@ process_mode = 3
 layer = 20
 script = ExtResource("7")
 
-[node name="TalentUI" type="CanvasLayer" parent="."]
+[node name="BaseUI" type="CanvasLayer" parent="."]
 process_mode = 3
 layer = 25
 script = ExtResource("11")

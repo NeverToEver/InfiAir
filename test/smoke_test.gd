@@ -13,14 +13,14 @@ func _check(cond: bool, label: String) -> void:
 
 
 func _ready() -> void:
-	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/天赋/最高分）
+	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
 	GameState.delete_save()
-	GameState.talents.clear()
-	GameState.talent_points = 0
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
+	# 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
+	get_node("Main/Player")._auto_fire_enabled = false
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -357,34 +357,56 @@ func _ready() -> void:
 	_check(GameState.score == saved_score, "存档恢复分数")
 	_check(GameState.buff_count(&"power_shot") == 2, "存档恢复 buff 层数")
 
-	# 3.12 返航天赋点折算
-	var stacks := 0
-	for v in GameState.buffs.values():
-		stacks += int(v)
-	_check(
-		GameState.calc_homecoming_points() == stacks / 2 + GameState.boss_kills * 2,
-		"返航天赋点折算公式"
-	)
+	# 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
+	var score_before_hc := GameState.score
+	var power_before := GameState.buff_count(&"power_shot")
+	GameState.add_rp(5)
+	GameState.lives = 2.0
+	# 蓄力松手取消
+	Input.action_press("homecoming")
+	await get_tree().create_timer(0.6).timeout
+	Input.action_release("homecoming")
+	await get_tree().create_timer(0.2).timeout
+	_check(not main._homecoming and not get_tree().paused, "返航蓄力松手取消")
+	# 蓄满 1.5s 触发
+	Input.action_press("homecoming")
+	await get_tree().create_timer(1.7).timeout
+	Input.action_release("homecoming")
+	await get_tree().create_timer(1.5).timeout  # 白屏过场
+	_check(main._homecoming, "返航触发")
+	_check(main._base_ui.visible and get_tree().paused, "进入基地整备界面")
+	# 维修扣 RP 回血
+	var rp_before := GameState.rp
+	main._base_ui._on_repair_pressed()
+	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
+	_check(GameState.lives == 3.0, "维修回 1 命")
+	# 放一个敌机验证轨道打击
+	var orbit_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	orbit_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	orbit_e.can_shoot = false
+	orbit_e.position = Vector2(400.0, 300.0)
+	main.add_child(orbit_e)
+	# 继续出击 → 返回同一局
+	main._base_ui._on_resume_pressed()
+	await get_tree().create_timer(0.2).timeout
+	_check(not get_tree().paused and not main._homecoming, "继续出击恢复游戏")
+	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
+	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")
+	_check(GameState.has_save(), "返航后存档保留")
+	var enemy_left := false
+	for child in main.get_children():
+		if child is Enemy:
+			enemy_left = true
+	_check(not enemy_left, "轨道打击清屏")
+	# 恢复刷怪会干扰后续断言，重新停掉生成器并清场
+	spawner.set_process(false)
+	for child in main.get_children():
+		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+			child.queue_free()
+	await get_tree().process_frame
 
-	# 3.13 天赋购买与持久化
-	GameState.talent_points = 10
-	_check(GameState.buy_talent(&"hull"), "天赋购买成功")
-	GameState.buy_talent(&"hull")
-	_check(GameState.talent_points == 6 and GameState.talent_level(&"hull") == 2, "购买扣点并计级")
-	GameState.talent_points = 0
-	_check(not GameState.buy_talent(&"tank"), "点数不足购买失败")
-	GameState.talent_points = 6
-	GameState.save_profile()
-	GameState.talents.clear()
-	GameState.talent_points = 0
-	GameState.load_profile()
-	_check(GameState.talent_level(&"hull") == 2 and GameState.talent_points == 6, "天赋持久化")
-	GameState.talents.clear()
-	GameState.talent_points = 0
+	# 3.13 最高分
 	GameState.high_score = 0
-	GameState.save_profile()
-
-	# 3.14 最高分
 	_check(GameState.record_score(), "首次破纪录")
 	_check(GameState.high_score == GameState.score, "最高分已更新")
 	GameState.score = 5

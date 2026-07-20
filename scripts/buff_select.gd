@@ -122,7 +122,9 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	if visible or GameState.lives <= 0.0:
 		return
 	var available := BUFF_POOL.filter(
-		func(b: Dictionary) -> bool: return GameState.buff_count(b["id"]) < b["max"]
+		func(b: Dictionary) -> bool: return (
+			GameState.buff_count(b["id"]) < b["max"] and not GameState.is_buff_locked(b["id"])
+		)
 	)
 	# 所有 buff 已满层：直接跳过本次里程碑
 	if available.is_empty():

@@ -20,6 +20,7 @@ var _fuel_fill := StyleBoxFlat.new()
 var _dash_fill := StyleBoxFlat.new()
 var _mag_box: HBoxContainer
 var _mag_cells_nodes: Array[ColorRect] = []
+var _home_charge_label: Label
 
 
 func _ready() -> void:
@@ -44,6 +45,26 @@ func _ready() -> void:
 	_on_difficulty_changed(GameState.difficulty_multiplier)
 	_build_banner()
 	_build_magazine_bar()
+	# 返航蓄力提示（底部居中）
+	_home_charge_label = Label.new()
+	_home_charge_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_home_charge_label.position = Vector2(-140.0, -120.0)
+	_home_charge_label.custom_minimum_size = Vector2(280.0, 0.0)
+	_home_charge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_home_charge_label.add_theme_font_override("font", FONT)
+	_home_charge_label.add_theme_font_size_override("font_size", 24)
+	_home_charge_label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0))
+	_home_charge_label.visible = false
+	add_child(_home_charge_label)
+
+
+## 返航蓄力进度：ratio < 0 隐藏，否则显示百分比
+func set_home_charge(ratio: float) -> void:
+	if ratio < 0.0:
+		_home_charge_label.visible = false
+	else:
+		_home_charge_label.visible = true
+		_home_charge_label.text = "返航蓄力 %d%%" % int(clampf(ratio, 0.0, 1.0) * 100.0)
 
 
 func _build_magazine_bar() -> void:

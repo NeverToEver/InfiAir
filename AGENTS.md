@@ -42,6 +42,7 @@ godot --path .
 - 遵循 GDScript 官方风格：Tab 缩进、类型标注、Godot 4 信号语法（`signal_name.emit()` / `signal_name.connect()`）。
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
 - 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
-- 持久化：对局存档 `user://savegame.json`（仅暂停菜单可写，死亡/返航删除）与局外档案 `user://profile.json`（最高分/天赋点/天赋等级），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。测试运行会读写这两个文件，结束后需清理残留（冒烟测试已自行清理）。
+- 持久化：对局存档 `user://savegame.json`（暂停菜单可写 + 返航自动更新，仅死亡删除）与局外档案 `user://profile.json`（仅最高分；局外天赋系统已在 3.2 移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。测试运行会读写这两个文件，结束后需清理残留（冒烟测试已自行清理）。
+- 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），`scripts/base_console.gd` 基地控制台（战机库/武器挂载/维修补给/任务规划），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 base_system_test）。
 - 敌机数值集中在 `scripts/spawner.gd` 的 `ENEMY_TYPES` / `ELITE_TYPES`（static var，非 const：含 Vector2i 构造非常量表达式），7 种移动策略在 `scripts/enemy.gd`；Boss 3 种轮换与狂暴逻辑在 `scripts/boss.gd`（类型由 `boss_kills % 3 + 1` 决定）。纯得分制：不要引入任何掉落/拾取机制。
 - 母舰（`scripts/mothership.gd`）是 7 态状态机（DESCEND/HOVER/DOCKING/RESUPPLY/STAY/RELEASE/DEPART）：长按 H 蓄力召唤（main 管理，虚影预告）、对接驻留 20s 弹匣制、长按 H 2s 提前离舰冷却打折；加特林为双塔 80° 扫射压制，弹丸 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）；对接序列锁输入用 `player._input_locked`，与暂停/清场逻辑兼容。
