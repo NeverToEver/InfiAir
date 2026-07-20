@@ -108,6 +108,7 @@ func show_boss_bar(boss: Boss) -> void:
 	_boss_bar.value = 100.0
 	boss.health_changed.connect(_on_boss_health_changed)
 	boss.died.connect(_on_boss_died)
+	boss.enraged.connect(_on_boss_enraged)
 
 
 func _on_score_changed(new_score: int) -> void:
@@ -129,3 +130,9 @@ func _on_boss_health_changed(current: float, maximum: float) -> void:
 
 func _on_boss_died() -> void:
 	_boss_bar.visible = false
+
+
+func _on_boss_enraged() -> void:
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.9, 0.2, 0.15)
+	_boss_bar.add_theme_stylebox_override("fill", fill)

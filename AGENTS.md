@@ -43,3 +43,4 @@ godot --path .
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
 - 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
 - 持久化：对局存档 `user://savegame.json`（仅暂停菜单可写，死亡/返航删除）与局外档案 `user://profile.json`（最高分/天赋点/天赋等级），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。测试运行会读写这两个文件，结束后需清理残留（冒烟测试已自行清理）。
+- 敌机数值集中在 `scripts/spawner.gd` 的 `ENEMY_TYPES` / `ELITE_TYPES`（static var，非 const：含 Vector2i 构造非常量表达式），7 种移动策略在 `scripts/enemy.gd`；Boss 3 种轮换与狂暴逻辑在 `scripts/boss.gd`（类型由 `boss_kills % 3 + 1` 决定）。纯得分制：不要引入任何掉落/拾取机制。

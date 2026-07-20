@@ -67,9 +67,121 @@ func _ready() -> void:
 		if child is Enemy or (child is Bullet and not child.is_player_bullet):
 			child.queue_free()
 	await get_tree().process_frame
+	# 后续各段需长时间真实等待，期间弹幕可能命中玩家：测试窗口内先开无敌
+	var player: Player = get_node("Main/Player")
+	player._invincible = 999.0
+
+	# 3.1 新移动模式特征
+	# spiral：横向振幅 + 整体下压
+	var spiral := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	spiral.setup(spawner.ENEMY_TYPES[2], &"spiral", 1.0)
+	spiral.can_shoot = false
+	spiral.position = Vector2(960.0, 200.0)
+	get_node("Main").add_child(spiral)
+	await get_tree().create_timer(0.8).timeout
+	_check(absf(spiral.position.x - 960.0) > 20.0, "spiral 横向振幅")
+	_check(spiral.position.y > 200.0, "spiral 整体下压")
+	spiral.queue_free()
+
+	# noise：横向速度不规则（采样位移变化量有显著差异）
+	var noise := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	noise.setup(spawner.ENEMY_TYPES[3], &"noise", 1.0)
+	noise.can_shoot = false
+	noise.position = Vector2(960.0, 200.0)
+	get_node("Main").add_child(noise)
+	var xs: Array[float] = []
+	for i in 6:
+		await get_tree().create_timer(0.3).timeout
+		xs.append(noise.position.x)
+	var dxs: Array[float] = []
+	for i in xs.size() - 1:
+		dxs.append(xs[i + 1] - xs[i])
+	_check(dxs.max() - dxs.min() > 1.0, "noise 横向飘移不规则")
+	noise.queue_free()
+
+	# hover：下行 → 停驻 → 再下行离场
+	var hov := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	hov.setup(spawner.ENEMY_TYPES[2], &"hover", 1.0)
+	hov.can_shoot = false
+	hov.position = Vector2(960.0, 250.0)
+	get_node("Main").add_child(hov)
+	hov._hover_timer = 1.0  # 缩短停驻时间便于测试
+	await get_tree().create_timer(1.2).timeout
+	_check(hov._hovering, "hover 到达上部 1/3 后停驻")
+	var hover_y: float = hov.position.y
+	await get_tree().create_timer(0.5).timeout
+	_check(absf(hov.position.y - hover_y) < 15.0, "hover 停驻期间位置稳定")
+	await get_tree().create_timer(1.2).timeout
+	_check(hov.position.y > hover_y + 10.0, "hover 停驻结束后下行离场")
+	hov.queue_free()
+
+	# 3.2 Boss 轮换：第 2 只（boss_kills=1）应为游击型
+	spawner._spawn_boss()
+	await get_tree().process_frame
+	var boss2: Boss = null
+	for child in get_node("Main").get_children():
+		if child is Boss:
+			boss2 = child
+	_check(boss2 != null and boss2.boss_type == 2, "Boss 轮换：第 2 只为游击型")
+	boss2.take_damage(9999)
+	await get_tree().process_frame
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+
+	# 3.3 Boss-3 母舰型召唤小怪
+	spawner._spawn_boss()
+	await get_tree().process_frame
+	var boss3: Boss = null
+	for child in get_node("Main").get_children():
+		if child is Boss:
+			boss3 = child
+	_check(boss3 != null and boss3.boss_type == 3, "Boss 轮换：第 3 只为母舰型")
+	boss3.position.y = Boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	await get_tree().create_timer(7.0).timeout  # 首次召唤在 6s
+	var minion_found := false
+	for child in get_node("Main").get_children():
+		if child is Enemy:
+			minion_found = true
+	_check(minion_found, "母舰型 Boss 召唤小怪")
+	boss3.take_damage(9999)
+	await get_tree().process_frame
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+	# 清理小怪与弹幕
+	for child in get_node("Main").get_children():
+		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+			child.queue_free()
+	await get_tree().process_frame
+
+	# 3.4 狂暴阶段：血量 <30% 触发，射速 ×1.5
+	spawner._spawn_boss(1)
+	await get_tree().process_frame
+	var boss4: Boss = null
+	for child in get_node("Main").get_children():
+		if child is Boss:
+			boss4 = child
+	boss4.position.y = Boss.FIGHT_Y
+	await get_tree().create_timer(0.5).timeout
+	boss4.take_damage(int(boss4.max_hp * 0.75))
+	await get_tree().process_frame
+	_check(boss4._enraged, "Boss 血量 <30% 触发狂暴")
+	_check(boss4._base_modulate() != Color.WHITE, "狂暴贴图变红")
+	# 狂暴射速：计时器流速 ×1.5 → 0.5s 墙钟消耗 0.75s 计时
+	boss4._fire_timer = 1.6
+	await get_tree().create_timer(0.5).timeout
+	_check(boss4._fire_timer < 1.0, "狂暴后射速提升")
+	boss4.take_damage(9999)
+	await get_tree().process_frame
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+	get_tree().paused = false
+	# 清理弹幕
+	for child in get_node("Main").get_children():
+		if child is Bullet and not child.is_player_bullet:
+			child.queue_free()
+	await get_tree().process_frame
 
 	# 3.5 新 buff 抽查：穿透弹 / 爆炸弹作用于玩家子弹
-	var player: Player = get_node("Main/Player")
 	GameState.add_buff(&"piercing")
 	GameState.add_buff(&"explosive")
 	player._fire(Vector2.DOWN)
@@ -127,22 +239,27 @@ func _ready() -> void:
 
 	# 3.9 精英击毁：高分奖励（得分制，无掉落物）
 	var elite := load("res://scenes/enemy.tscn").instantiate() as Enemy
-	elite.setup(
-		load("res://assets/sprites/elite_ship_1.png") as Texture2D,
-		&"straight", true, 1.0, false
-	)
+	elite.setup(spawner.ELITE_TYPES[0], &"straight", 1.0)
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
 	var score_before_elite := GameState.score
 	elite.take_damage(99)
 	await get_tree().process_frame
-	_check(GameState.score >= score_before_elite + 300, "精英击毁得分奖励")
+	_check(
+		GameState.score >= score_before_elite + int(spawner.ELITE_TYPES[0]["score"]),
+		"精英击毁得分奖励"
+	)
 	# 得分可能再次触发里程碑，关闭之
 	if buff_ui.visible:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
 
 	# 3.10 母舰对接补给：回血 + 回燃料 + 无敌
+	# 清理可能残留的敌弹，避免干扰生命断言
+	for child in get_node("Main").get_children():
+		if child is Bullet and not child.is_player_bullet:
+			child.queue_free()
+	await get_tree().process_frame
 	player._invincible = 0.0
 	player.take_damage()
 	_check(GameState.lives == 2.0, "母舰测试前置：受击 -1 命")

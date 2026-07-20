@@ -1,24 +1,65 @@
 extends Node
-## 敌机生成器：计时波次 + Boss 触发（每 1500 分或每 90s，取先到者）。
+## 敌机生成器：计时波次（按分数阶段解锁机型）+ Boss 触发（3 种轮换）。
 
 signal boss_spawned(boss: Boss)
 signal boss_warning
 
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
-const ENEMY_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/sprites/enemy_ship_1.png"),
-	preload("res://assets/sprites/enemy_ship_2.png"),
-	preload("res://assets/sprites/enemy_ship_3.png"),
-	preload("res://assets/sprites/enemy_ship_4.png"),
+
+## 普通机型配置表（贴图即机型，数值差异化）
+static var ENEMY_TYPES: Array[Dictionary] = [
+	{  # 1 型 均衡
+		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
+		"strategies": [&"straight", &"sine"] as Array[StringName],
+		"hp": Vector2i(2, 3), "speed": Vector2(140, 180), "score": 100,
+		"fire": 0.25, "fire_interval": 2.2, "scale": 0.45, "radius": 30.0,
+	},
+	{  # 2 型 高速低 HP
+		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
+		"strategies": [&"zigzag", &"dive"] as Array[StringName],
+		"hp": Vector2i(1, 2), "speed": Vector2(220, 280), "score": 150,
+		"fire": 0.3, "fire_interval": 2.4, "scale": 0.45, "radius": 30.0,
+	},
+	{  # 3 型 高 HP 慢速
+		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
+		"strategies": [&"spiral", &"hover"] as Array[StringName],
+		"hp": Vector2i(5, 6), "speed": Vector2(90, 120), "score": 200,
+		"fire": 0.4, "fire_interval": 2.0, "scale": 0.5, "radius": 34.0,
+	},
+	{  # 4 型 高分开火狂
+		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
+		"strategies": [&"noise", &"hover"] as Array[StringName],
+		"hp": Vector2i(2, 3), "speed": Vector2(150, 190), "score": 250,
+		"fire": 0.8, "fire_interval": 1.8, "scale": 0.45, "radius": 30.0,
+	},
 ]
-const ELITE_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/sprites/elite_ship_1.png"),
-	preload("res://assets/sprites/elite_ship_2.png"),
-	preload("res://assets/sprites/elite_ship_3.png"),
+
+## 精英机型配置表
+static var ELITE_TYPES: Array[Dictionary] = [
+	{  # 重甲
+		"texture": preload("res://assets/sprites/elite_ship_1.png"),
+		"strategies": [&"straight", &"sine"] as Array[StringName],
+		"hp": Vector2i(14, 16), "speed": Vector2(90, 110), "score": 400,
+		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 56.0, "elite": true,
+	},
+	{  # 游击
+		"texture": preload("res://assets/sprites/elite_ship_2.png"),
+		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
+		"hp": Vector2i(6, 8), "speed": Vector2(240, 300), "score": 350,
+		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 40.0, "elite": true,
+	},
+	{  # 炮艇
+		"texture": preload("res://assets/sprites/elite_ship_3.png"),
+		"strategies": [&"hover", &"spiral"] as Array[StringName],
+		"hp": Vector2i(9, 11), "speed": Vector2(110, 140), "score": 500,
+		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 48.0, "elite": true,
+	},
 ]
-# 4 张贴图对应 4 种移动策略
-const STRATEGIES: Array[StringName] = [&"straight", &"sine", &"zigzag", &"dive"]
+
+## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
+const UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500]
+const ELITE_BONUS_SCORE := 1500  # 达到后精英率 +0.1
 
 const SPAWN_INTERVAL_START := 1.2
 const SPAWN_INTERVAL_END := 0.5
@@ -54,25 +95,43 @@ func _current_interval() -> float:
 	return clampf(base / (1.0 + 0.15 * (GameState.difficulty_multiplier - 1.0)), 0.35, SPAWN_INTERVAL_START)
 
 
+## 当前分数阶段已解锁的普通机型池
+func unlocked_types() -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	for i in ENEMY_TYPES.size():
+		if GameState.score >= UNLOCK_SCORES[i]:
+			pool.append(ENEMY_TYPES[i])
+	return pool
+
+
 func _spawn_enemy() -> void:
 	var elite_chance := clampf(0.03 + GameState.score / 15000.0, 0.0, 0.25)
-	var is_elite := randf() < elite_chance
-	var texture: Texture2D
-	var strategy: StringName = &"straight"
-	if is_elite:
-		texture = ELITE_TEXTURES[randi() % ELITE_TEXTURES.size()]
-		strategy = STRATEGIES[randi() % STRATEGIES.size()]
+	if GameState.score >= ELITE_BONUS_SCORE:
+		elite_chance += 0.1
+	var config: Dictionary
+	if randf() < elite_chance:
+		config = ELITE_TYPES[randi() % ELITE_TYPES.size()]
 	else:
-		var idx := randi() % ENEMY_TEXTURES.size()
-		texture = ENEMY_TEXTURES[idx]
-		strategy = STRATEGIES[idx]
+		var pool := unlocked_types()
+		config = pool[randi() % pool.size()]
+	var strategies: Array[StringName] = config["strategies"]
+	var strategy := strategies[randi() % strategies.size()]
 	var x := randf_range(60.0, 1860.0)
 	# 入场预告：0.6s 红色提示后敌机才进场
 	get_parent().add_child(SpawnTelegraph.new(x))
 	await get_tree().create_timer(SpawnTelegraph.DURATION, false).timeout
 	var e := ENEMY_SCENE.instantiate() as Enemy
-	e.setup(texture, strategy, is_elite, GameState.difficulty_multiplier, randf() < 0.33)
+	e.setup(config, strategy, GameState.difficulty_multiplier)
 	e.position = Vector2(x, -60.0)
+	get_parent().add_child(e)
+
+
+## Boss-3 召唤的小怪（straight 型 1 型机），立即进场无预告。
+## 作为 Main 的子节点，与正常敌机走同一套清场逻辑（返航/结算）。
+func spawn_minion(pos: Vector2) -> void:
+	var e := ENEMY_SCENE.instantiate() as Enemy
+	e.setup(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier)
+	e.position = pos
 	get_parent().add_child(e)
 
 
@@ -85,10 +144,13 @@ func _trigger_boss() -> void:
 	_spawn_boss()
 
 
-func _spawn_boss() -> void:
+## p_type <= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%3+1 种
+func _spawn_boss(p_type: int = 0) -> void:
 	_boss_active = true
+	if p_type <= 0:
+		p_type = GameState.boss_kills % 3 + 1
 	var boss := BOSS_SCENE.instantiate() as Boss
-	boss.setup(GameState.difficulty_multiplier)
+	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.position = Vector2(960.0, -160.0)
 	boss.died.connect(_on_boss_died)
 	get_parent().add_child(boss)
