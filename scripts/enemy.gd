@@ -7,7 +7,6 @@ extends Area2D
 
 signal died(enemy: Enemy)
 
-const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 const ENEMY_BULLET_SPEED := 420.0
 const SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
 const LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹，伤害同普通弹
@@ -51,6 +50,7 @@ var _exit_speed: float = 0.0
 ## config 字段：texture, hp(Vector2i), speed(Vector2), score, fire(开火概率),
 ## fire_interval, scale, radius, bullet_types(弹种池), elite(可选)。
 ## p_bullet_type 为空时从弹种池随机抽取（spawner 传入已做同屏上限控制的结果）。
+## HP 与速度按难度档位缩放（easy ×0.75/×0.85，medium ×1，hard ×1.5/×1.2）。
 func setup(
 	config: Dictionary,
 	p_strategy: StringName,
@@ -59,13 +59,20 @@ func setup(
 ) -> void:
 	strategy = p_strategy
 	is_elite = config.get("elite", false)
-	hp = randi_range(config["hp"].x, config["hp"].y)
+	hp = maxi(
+		1,
+		int(roundf(randf_range(config["hp"].x, config["hp"].y) * GameState.enemy_hp_multiplier()))
+	)
 	score_value = config["score"]
 	can_shoot = randf() < config["fire"]
 	fire_interval = config.get("fire_interval", FIRE_INTERVAL)
 	var pool: Array = config.get("bullet_types", [&"single"])
 	bullet_type = p_bullet_type if p_bullet_type != &"" else pool[randi() % pool.size()]
-	speed = randf_range(config["speed"].x, config["speed"].y) * (1.0 + 0.1 * (p_difficulty - 1.0))
+	speed = (
+		randf_range(config["speed"].x, config["speed"].y)
+		* (1.0 + 0.1 * (p_difficulty - 1.0))
+		* GameState.enemy_speed_multiplier()
+	)
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
 	var sprite: Sprite2D = $Sprite2D
 	var shape_node: CollisionShape2D = $CollisionShape2D
@@ -77,6 +84,7 @@ func setup(
 
 func _ready() -> void:
 	add_to_group("enemy")
+	GameState.register_enemy(self)
 	# 每个实例独立形状，避免共享 sub_resource 半径互相影响
 	_shape.shape = _shape.shape.duplicate()
 	_spawn_x = position.x
@@ -84,14 +92,17 @@ func _ready() -> void:
 	_fire_timer = randf_range(1.0, fire_interval)
 	if strategy == &"dive":
 		_dive_timer = 1.2
-		var players := get_tree().get_nodes_in_group("player")
-		if players.size() > 0:
-			_dive_target = (players[0] as Node2D).global_position
+		if GameState.player_ref != null:
+			_dive_target = GameState.player_ref.global_position
 		else:
 			_dive_target = Vector2(position.x, 1200.0)
 	elif strategy == &"hover":
 		_hover_timer = randf_range(3.0, 5.0)
 	area_entered.connect(_on_area_entered)
+
+
+func _exit_tree() -> void:
+	GameState.unregister_enemy(self)
 
 
 func _physics_process(delta: float) -> void:
@@ -147,9 +158,9 @@ func _physics_process(delta: float) -> void:
 				(sin(_time * 2.1) + sin(_time * 3.4 + 1.7) + sin(_time * 5.3 + 0.6))
 				/ 3.0 * speed * 1.1
 			)
-			var players := get_tree().get_nodes_in_group("player")
-			if players.size() > 0:
-				var dx: float = (players[0] as Node2D).global_position.x - position.x
+			var players := GameState.player_ref
+			if players != null:
+				var dx: float = players.global_position.x - position.x
 				vx += clampf(dx, -1.0, 1.0) * AGGR_CHASE_SPEED
 			position += Vector2(vx, speed * 0.9) * delta
 			position.x = clampf(position.x, 40.0, 1880.0)
@@ -178,10 +189,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _fire_at_player() -> void:
-	var players := get_tree().get_nodes_in_group("player")
-	if players.size() == 0:
+	if GameState.player_ref == null:
 		return
-	var base_dir := ((players[0] as Node2D).global_position - global_position).normalized()
+	var base_dir := (GameState.player_ref.global_position - global_position).normalized()
 	match bullet_type:
 		&"spread":
 			# 五向扇形弹：以瞄准方向为中心 ±2 步展开
@@ -196,10 +206,8 @@ func _fire_at_player() -> void:
 
 
 func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) -> void:
-	var b := BULLET_SCENE.instantiate()
-	b.setup(dir, bullet_speed, 1, false)
+	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, 1, false)
 	b.position = position
-	get_parent().add_child(b)
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（polygon 尖端朝 +x，即飞行方向）

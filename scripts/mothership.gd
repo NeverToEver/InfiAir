@@ -31,7 +31,6 @@ const GATLING_DAMAGE := 1
 const GATLING_SWEEP_DEG := 40.0  # 单侧摆幅，扇面共 80°
 const GATLING_SCORE_SCALE := 1.0 / 3.0
 const GATLING_SFX: AudioStream = preload("res://assets/audio/bullet_fire_b.wav")
-const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 
 var _state: State = State.DESCEND
 var _state_timer: float = 0.0
@@ -151,14 +150,12 @@ func _update_gatling(delta: float) -> void:
 		var angle := sin(_sweep_time * 2.0 + phase) * deg_to_rad(GATLING_SWEEP_DEG)
 		var dir := Vector2.DOWN.rotated(angle)
 		turret.global_rotation = dir.angle()
-		var b := BULLET_SCENE.instantiate()
-		b.setup(dir, GATLING_BULLET_SPEED, GATLING_DAMAGE, true)
+		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, GATLING_DAMAGE, true)
 		b.score_scale = GATLING_SCORE_SCALE
 		b.position = turret.global_position
 		# 比玩家弹更细更亮
 		b.scale = Vector2(0.6, 0.6)
 		b.modulate = Color(1.4, 1.4, 1.1)
-		get_parent().add_child(b)
 		(turret.get_node("MuzzleFlash") as GPUParticles2D).restart()
 	GameState.play_sfx(GATLING_SFX, -8.0)
 

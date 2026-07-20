@@ -16,7 +16,6 @@ const TEXTURES: Array[Texture2D] = [
 	preload("res://assets/sprites/boss_ship_2.png"),
 	preload("res://assets/sprites/boss_ship_3.png"),
 ]
-const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 const ENTER_SPEED := 140.0
 const FIGHT_Y := 230.0
 const STRAFE_MIN_X := 300.0
@@ -26,6 +25,11 @@ const HP_MULTS: Array[float] = [1.3, 0.7, 1.6]
 const ENRAGE_HP_RATIO := 0.3
 const ENRAGE_RATE_MULT := 1.5
 const ENRAGE_SPEED_MULT := 1.3
+## 狂暴快照弹幕（子弹时间结束后由 main 统一触发的一次性齐射）：4 激光向弹 + 8 方向环形慢弹
+const ENRAGE_SNAPSHOT_LASERS := 4
+const ENRAGE_SNAPSHOT_RING := 8
+const ENRAGE_LASER_SPEED := 820.0  # 高速长弹（表现复用敌弹 laser 型）
+const ENRAGE_RING_SPEED := 240.0  # 环形慢弹
 ## 逃跑：进入战斗 50s 未击杀触发，最后 3s 警告 + 上飘（对齐原作 3000/180 帧@60fps）
 const ESCAPE_TIME := 50.0
 const ESCAPE_WARNING := 3.0
@@ -70,6 +74,11 @@ func setup(p_difficulty: float, p_type: int) -> void:
 
 func _ready() -> void:
 	add_to_group("enemy")
+	GameState.register_enemy(self)
+
+
+func _exit_tree() -> void:
+	GameState.unregister_enemy(self)
 
 
 func _base_fire_interval() -> float:
@@ -183,9 +192,8 @@ func _move_dash(delta: float) -> void:
 
 
 func _player_dir() -> Vector2:
-	var players := get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		return ((players[0] as Node2D).global_position - global_position).normalized()
+	if GameState.player_ref != null:
+		return (GameState.player_ref.global_position - global_position).normalized()
 	return Vector2.DOWN
 
 
@@ -193,34 +201,26 @@ func _fire_fan() -> void:
 	var base_dir := _player_dir()
 	for i in 5:
 		var dir := base_dir.rotated(deg_to_rad(20.0 * (float(i) - 2.0)))
-		var b := BULLET_SCENE.instantiate()
-		b.setup(dir, 380.0, 1, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, 380.0, 1, false)
 		b.position = position + dir * 100.0
-		get_parent().add_child(b)
 
 
 func _fire_homing() -> void:
-	var b := BULLET_SCENE.instantiate()
-	b.setup(Vector2.DOWN, 300.0, 1, false, true, 1.5)
+	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 1, false, true, 1.5)
 	b.position = position + Vector2(0.0, 100.0)
-	get_parent().add_child(b)
 
 
 func _fire_sniper() -> void:
 	var dir := _player_dir()
-	var b := BULLET_SCENE.instantiate()
-	b.setup(dir, 650.0, 1, false)
+	var b: Bullet = GameState.bullet_pool.fire(dir, 650.0, 1, false)
 	b.position = position + dir * 100.0
-	get_parent().add_child(b)
 
 
 func _fire_cross() -> void:
 	for i in 4:
 		var dir := Vector2.RIGHT.rotated(_cross_angle + float(i) * PI / 2.0)
-		var b := BULLET_SCENE.instantiate()
-		b.setup(dir, 260.0, 1, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, 260.0, 1, false)
 		b.position = position + dir * 100.0
-		get_parent().add_child(b)
 	_cross_angle += deg_to_rad(15.0)
 
 
@@ -230,6 +230,27 @@ func _summon_minions() -> void:
 		return
 	for i in randi_range(2, 3):
 		spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0))
+
+
+## 狂暴快照弹幕：狂暴进入时的一次性齐射（由 main 在子弹时间结束后统一触发）。
+## 4 道激光向弹（高速长弹，复用敌弹 laser 型表现）+ 8 方向环形慢弹，
+## 之后接续常规狂暴循环（射速 ×1.5，见 _physics_process）。
+func fire_enrage_snapshot() -> void:
+	var aim := _player_dir()
+	var side := aim.orthogonal()
+	for i in ENRAGE_SNAPSHOT_LASERS:
+		var laser: Bullet = GameState.bullet_pool.fire(aim, ENRAGE_LASER_SPEED, 1, false)
+		laser.position = position + aim * 100.0 + side * (float(i) - 1.5) * 44.0
+		laser.set_meta("bullet_type", &"laser")
+		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
+		var poly := laser.get_node("Polygon2D") as Polygon2D
+		poly.scale = Vector2(2.2, 0.55)
+		poly.color = Color(1.0, 0.85, 0.35)
+	for i in ENRAGE_SNAPSHOT_RING:
+		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(ENRAGE_SNAPSHOT_RING))
+		var b: Bullet = GameState.bullet_pool.fire(dir, ENRAGE_RING_SPEED, 1, false)
+		b.position = position + dir * 100.0
+		b.set_meta("bullet_type", &"enrage_ring")
 
 
 func take_damage(amount: int, score_scale: float = 1.0) -> void:

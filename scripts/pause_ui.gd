@@ -1,10 +1,11 @@
 extends CanvasLayer
-## Esc 暂停面板：继续 / 保存进度 / 重开提示。
-## 「保存进度」是全局唯一主动存档入口。
+## Esc 暂停面板：继续 / 保存进度 / 设置 / 重开提示。
+## 「保存进度」是全局唯一主动存档入口；「设置」打开 Ctrl/Shift 模式面板。
 
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _save_button: Button
+var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
 
 
 func _ready() -> void:
@@ -37,6 +38,14 @@ func _ready() -> void:
 	_save_button.pressed.connect(_on_save_pressed)
 	vbox.add_child(_save_button)
 
+	var settings_button := Button.new()
+	settings_button.text = "设置"
+	settings_button.custom_minimum_size = Vector2(240.0, 52.0)
+	settings_button.add_theme_font_override("font", FONT)
+	settings_button.add_theme_font_size_override("font_size", 26)
+	settings_button.pressed.connect(_on_settings_pressed)
+	vbox.add_child(settings_button)
+
 	var hint := Label.new()
 	hint.text = "Esc 继续 · R 重新开始"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -46,6 +55,11 @@ func _ready() -> void:
 
 
 func toggle() -> void:
+	# 设置面板打开时，Esc 先退回暂停面板（保持暂停）
+	if _get_settings_ui() != null and _settings_ui.visible:
+		_settings_ui.visible = false
+		visible = true
+		return
 	if visible:
 		visible = false
 		get_tree().paused = false
@@ -53,6 +67,25 @@ func toggle() -> void:
 		_save_button.text = "保存进度"
 		get_tree().paused = true
 		visible = true
+
+
+func _get_settings_ui() -> CanvasLayer:
+	if _settings_ui == null:
+		_settings_ui = get_tree().get_first_node_in_group("settings_ui") as CanvasLayer
+		if _settings_ui != null:
+			_settings_ui.back_pressed.connect(_on_settings_back)
+	return _settings_ui
+
+
+func _on_settings_pressed() -> void:
+	if _get_settings_ui() == null:
+		return
+	visible = false
+	_settings_ui.show_settings()
+
+
+func _on_settings_back() -> void:
+	visible = true
 
 
 func _on_save_pressed() -> void:

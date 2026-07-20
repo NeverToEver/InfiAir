@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-188%20passed-brightgreen)](#运行验证)
+[![Tests](https://img.shields.io/badge/tests-267%20passed-brightgreen)](#运行验证)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -103,9 +103,11 @@ godot --headless --path . res://test/smoke_test.tscn        # 主流程 82 项
 godot --headless --path . res://test/base_system_test.tscn  # 存档/RP/任务/路线 46 项
 godot --headless --path . res://test/enemy_combat_test.tscn # 敌机/Boss 31 项
 godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃 29 项
+godot --headless --path . res://test/difficulty_test.tscn   # 难度/里程碑/设置 52 项
+godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 24 项
 ```
 
-共 188 项断言，全部通过。
+共 267 项断言，全部通过。
 
 ## 🗺️ 路线图
 
@@ -115,7 +117,8 @@ godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃
 - [x] 母舰对接（蓄力召唤 / 弹匣驻留 / 扫射护航 / 提前离舰）
 - [x] 返航基地中场整备（4 模块 + RP 经济 + 天赋路线）
 - [x] 战斗对齐（瞄准辅助 / 敌机三弹型 / Boss 逃跑 / 8 种移动模式）
-- [ ] 难度选择（简单 / 普通 / 困难）与 Boss 狂暴完整版 —— 迭代 3.4
+- [x] 难度选择（简单 / 普通 / 困难）与 Boss 狂暴完整版（子弹时间 + 快照弹幕） —— 迭代 3.4
+- [x] 性能优化（子弹/爆炸对象池、组查询缓存、HUD 节流） —— 迭代 3.4
 - [ ] 新手教程（6 阶段） —— 迭代 3.5
 - [ ] 联机排行榜
 - [ ] 打包发布（暂缓）

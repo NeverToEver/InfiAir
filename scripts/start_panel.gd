@@ -1,10 +1,19 @@
 extends CanvasLayer
-## 开始面板：检测到存档时显示「继续对局 / 新游戏」。
+## 开始面板：难度三选一（易/中/难，profile 持久化）+ 继续对局 / 新游戏。
+## 有存档时由 main 调 show_panel()（暂停）；无存档时开场自显（不暂停，
+## 仅按住刷怪，避免玩家在面板前被偷袭；测试可经 _on_new_game_pressed 直接关闭）。
 
 signal continue_chosen
 signal new_game_chosen
 
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
+
+var _hint_label: Label
+var _continue_button: Button
+var _new_button: Button
+var _diff_buttons: Dictionary = {}  # StringName -> Button
+var _diff_group := ButtonGroup.new()
+var _spawner_held := false
 
 
 func _ready() -> void:
@@ -29,20 +38,45 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 56)
 	vbox.add_child(title)
 
-	var hint := Label.new()
-	hint.text = "检测到未完成的对局"
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_override("font", FONT)
-	hint.add_theme_font_size_override("font_size", 24)
-	vbox.add_child(hint)
+	_hint_label = Label.new()
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_label.add_theme_font_override("font", FONT)
+	_hint_label.add_theme_font_size_override("font_size", 24)
+	vbox.add_child(_hint_label)
 
-	var continue_button := _make_button("继续对局")
-	continue_button.pressed.connect(_on_continue_pressed)
-	vbox.add_child(continue_button)
+	# 难度三选一（互斥，当前选中高亮）
+	var diff_row := HBoxContainer.new()
+	diff_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	diff_row.add_theme_constant_override("separation", 12)
+	vbox.add_child(diff_row)
+	var diff_label := Label.new()
+	diff_label.text = "难度"
+	diff_label.add_theme_font_override("font", FONT)
+	diff_label.add_theme_font_size_override("font_size", 24)
+	diff_row.add_child(diff_label)
+	for d in GameState.DIFFICULTY_ORDER:
+		var b := Button.new()
+		b.text = GameState.DIFFICULTY_DEFS[d]["label"]
+		b.toggle_mode = true
+		b.button_group = _diff_group
+		b.custom_minimum_size = Vector2(90.0, 52.0)
+		b.add_theme_font_override("font", FONT)
+		b.add_theme_font_size_override("font_size", 26)
+		b.pressed.connect(_on_difficulty_pressed.bind(d))
+		diff_row.add_child(b)
+		_diff_buttons[d] = b
 
-	var new_button := _make_button("新游戏")
-	new_button.pressed.connect(_on_new_game_pressed)
-	vbox.add_child(new_button)
+	_continue_button = _make_button("继续对局")
+	_continue_button.pressed.connect(_on_continue_pressed)
+	vbox.add_child(_continue_button)
+
+	_new_button = _make_button("新游戏")
+	_new_button.pressed.connect(_on_new_game_pressed)
+	vbox.add_child(_new_button)
+
+	# 无存档时开场自显（不暂停）；有存档时等 main 调 show_panel()
+	if not GameState.has_save():
+		_show(false)
 
 
 func _make_button(text: String) -> Button:
@@ -54,19 +88,53 @@ func _make_button(text: String) -> Button:
 	return button
 
 
+## main 在检测到存档时调用：继续/新开局流程（暂停游戏）
 func show_panel() -> void:
-	get_tree().paused = true
+	_show(true)
+
+
+func _show(pause: bool) -> void:
+	var has_save := GameState.has_save()
+	_hint_label.text = "检测到未完成的对局" if has_save else "选择难度，准备出击"
+	_continue_button.visible = has_save
+	_new_button.text = "新游戏" if has_save else "开始游戏"
+	_refresh_difficulty_buttons()
+	if pause:
+		get_tree().paused = true
+	else:
+		# 不暂停时按住刷怪，玩家选定难度前不会有敌机进场
+		var spawner := get_tree().get_first_node_in_group("spawner")
+		if spawner != null:
+			spawner.set_process(false)
+			_spawner_held = true
 	visible = true
 
 
-func _on_continue_pressed() -> void:
+func _dismiss() -> void:
 	visible = false
+	if _spawner_held:
+		_spawner_held = false
+		var spawner := get_tree().get_first_node_in_group("spawner")
+		if spawner != null:
+			spawner.set_process(true)
 	get_tree().paused = false
+
+
+func _refresh_difficulty_buttons() -> void:
+	for d in _diff_buttons:
+		(_diff_buttons[d] as Button).set_pressed_no_signal(GameState.difficulty == d)
+
+
+func _on_difficulty_pressed(d: StringName) -> void:
+	GameState.set_difficulty(d)
+
+
+func _on_continue_pressed() -> void:
+	_dismiss()
 	continue_chosen.emit()
 
 
 func _on_new_game_pressed() -> void:
 	GameState.delete_save()
-	visible = false
-	get_tree().paused = false
+	_dismiss()
 	new_game_chosen.emit()

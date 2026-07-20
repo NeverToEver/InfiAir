@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-188%20passed-brightgreen)](#verification)
+[![Tests](https://img.shields.io/badge/tests-267%20passed-brightgreen)](#verification)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -103,9 +103,11 @@ godot --headless --path . res://test/smoke_test.tscn        # main flow — 82 a
 godot --headless --path . res://test/base_system_test.tscn  # save/RP/missions/routes — 46
 godot --headless --path . res://test/enemy_combat_test.tscn # enemies & bosses — 31
 godot --headless --path . res://test/buff33_test.tscn       # buffs/mothership/give-up — 29
+godot --headless --path . res://test/difficulty_test.tscn   # difficulty/milestones/settings — 52
+godot --headless --path . res://test/boss_enrage_test.tscn  # boss enrage — 24
 ```
 
-188 assertions, all passing.
+267 assertions, all passing.
 
 ## 🗺️ Roadmap
 
@@ -115,7 +117,8 @@ godot --headless --path . res://test/buff33_test.tscn       # buffs/mothership/g
 - [x] Mothership docking (charge summon / magazine stay / sweep fire / early undock)
 - [x] Mid-run base refit (4 modules + RP economy + talent routes)
 - [x] Combat parity (aim assist / 3 enemy bullet types / boss escape / 8 movement patterns)
-- [ ] Difficulty selection (easy / normal / hard) & full boss enrage — iteration 3.4
+- [x] Difficulty selection (easy / normal / hard) & full boss enrage — iteration 3.4
+- [x] Performance optimization (bullet/explosion pooling, group-query caching, HUD throttling) — iteration 3.4
 - [ ] Tutorial (6 stages) — iteration 3.5
 - [ ] Online leaderboard
 - [ ] Release builds (deferred)

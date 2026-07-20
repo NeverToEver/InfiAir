@@ -1,6 +1,7 @@
 class_name Bullet
 extends Area2D
-## 直线子弹，玩家弹与敌弹共用此场景，通过 setup() 区分阵营。
+## 直线子弹，玩家弹与敌弹共用此场景，通过 setup()/activate() 区分阵营。
+## 正常产弹走 GameState.bullet_pool（对象池复用）；直接实例化（测试）走兼容路径。
 
 var direction: Vector2 = Vector2.DOWN
 var speed: float = 900.0
@@ -20,10 +21,12 @@ const SLOW_FIELD_RADIUS := 300.0
 const SLOW_FIELD_FACTOR := 0.6
 
 var _homing_elapsed: float = 0.0
+var _pool: Node = null
 
 @onready var _polygon: Polygon2D = $Polygon2D
 
 
+## 兼容路径：直接实例化时 setup() 后由 _ready() 应用阵营外观。
 func setup(
 	p_direction: Vector2,
 	p_speed: float,
@@ -40,8 +43,53 @@ func setup(
 	homing_time = p_homing_time
 
 
+## 池化路径：激活并重置全部状态（含上一任使用者的外观/标记）。
+func activate(
+	p_direction: Vector2,
+	p_speed: float,
+	p_damage: int,
+	p_is_player: bool,
+	p_homing: bool = false,
+	p_homing_time: float = 0.0
+) -> void:
+	setup(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
+	_homing_elapsed = 0.0
+	pierce = 0
+	explosive = false
+	score_scale = 1.0
+	visible = true
+	monitoring = true
+	set_process(true)
+	_apply_faction()
+
+
+## 池化回收：停用但保留实例。
+func deactivate() -> void:
+	visible = false
+	set_deferred("monitoring", false)
+	set_process(false)
+	position = Vector2(-500.0, -500.0)
+
+
 func _ready() -> void:
+	area_entered.connect(_on_area_entered)
+	_apply_faction()
+
+
+func _exit_tree() -> void:
+	# 被外部 queue_free（清场/测试/场景重载）时通知池移除引用
+	if _pool != null:
+		_pool.forget(self)
+
+
+func _apply_faction() -> void:
 	rotation = direction.angle()
+	# 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
+	scale = Vector2.ONE
+	modulate = Color.WHITE
+	_polygon.scale = Vector2.ONE
+	if has_meta("bullet_type"):
+		remove_meta("bullet_type")
 	if is_player_bullet:
 		collision_layer = 2  # 第 2 层：player_bullet
 		collision_mask = 4  # 命中第 3 层：enemy
@@ -50,33 +98,37 @@ func _ready() -> void:
 		collision_layer = 8  # 第 4 层：enemy_bullet
 		collision_mask = 1  # 命中第 1 层：player
 		_polygon.color = Color(1.0, 0.25, 0.2)
-	area_entered.connect(_on_area_entered)
+
+
+func _despawn() -> void:
+	if _pool != null and is_instance_valid(_pool):
+		_pool.release(self)
+	else:
+		queue_free()
 
 
 func _process(delta: float) -> void:
 	if homing and _homing_elapsed < homing_time:
 		_homing_elapsed += delta
-		var players := get_tree().get_nodes_in_group("player")
-		if players.size() > 0:
-			var target: Node2D = players[0]
+		if GameState.player_ref != null:
 			var new_angle := lerp_angle(
-				direction.angle(), (target.global_position - global_position).angle(), 4.0 * delta
+				direction.angle(),
+				(GameState.player_ref.global_position - global_position).angle(),
+				4.0 * delta
 			)
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle
 	position += direction * speed * _speed_factor() * delta
 	if not Rect2(-80.0, -80.0, 2080.0, 1240.0).has_point(position):
-		queue_free()
+		_despawn()
 
 
 ## 慢速力场 buff：玩家 300px 内敌弹减速 40%。
 func _speed_factor() -> float:
 	if is_player_bullet or GameState.buff_count(&"slow_field") == 0:
 		return 1.0
-	var players := get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		var player := players[0] as Node2D
-		if global_position.distance_to(player.global_position) < SLOW_FIELD_RADIUS:
+	if GameState.player_ref != null:
+		if global_position.distance_to(GameState.player_ref.global_position) < SLOW_FIELD_RADIUS:
 			return SLOW_FIELD_FACTOR
 	return 1.0
 
@@ -84,7 +136,7 @@ func _speed_factor() -> float:
 ## 爆炸弹 buff：命中时对周围敌人造成 50% AoE 伤害。
 func _explode(exclude: Area2D) -> void:
 	var aoe_damage := maxi(1, damage / 2)
-	for node in get_tree().get_nodes_in_group("enemy"):
+	for node in GameState.enemies:
 		var e := node as Area2D
 		if e != exclude and e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
 			e.take_damage(aoe_damage)
@@ -101,7 +153,7 @@ func _on_area_entered(area: Area2D) -> void:
 			if pierce > 0:
 				pierce -= 1
 			else:
-				queue_free()
+				_despawn()
 	elif area.is_in_group("player_hitbox"):
 		area.get_parent().take_damage()
-		queue_free()
+		_despawn()

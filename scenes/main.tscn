@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/starfield.gd" id="2"]
@@ -11,6 +11,8 @@
 [ext_resource type="Script" path="res://scripts/camera_shake.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/start_panel.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/base_console.gd" id="11"]
+[ext_resource type="Script" path="res://scripts/bullet_pool.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/settings_ui.gd" id="12"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -29,6 +31,9 @@ position = Vector2(960, 900)
 
 [node name="Spawner" type="Node" parent="."]
 script = ExtResource("4")
+
+[node name="BulletPool" type="Node" parent="."]
+script = ExtResource("13")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("5")
@@ -135,6 +140,11 @@ script = ExtResource("6")
 process_mode = 3
 layer = 15
 script = ExtResource("8")
+
+[node name="SettingsUI" type="CanvasLayer" parent="."]
+process_mode = 3
+layer = 16
+script = ExtResource("12")
 
 [node name="GameOverUI" type="CanvasLayer" parent="."]
 process_mode = 3

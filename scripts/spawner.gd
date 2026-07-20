@@ -73,7 +73,6 @@ const SPAWN_INTERVAL_END := 0.5
 const RAMP_TIME := 300.0
 const BOSS_SCORE_STEP := 1500
 const BOSS_TIME_LIMIT := 90.0
-const SPREAD_ENEMY_CAP := 2  # 同屏 spread 弹种敌机上限（对齐原作 DEFAULT_SPREAD_ENEMY_CAP）
 
 var _spawn_timer: float = 1.5
 var _elapsed: float = 0.0
@@ -100,7 +99,13 @@ func _process(delta: float) -> void:
 
 func _current_interval() -> float:
 	var base := lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_END, clampf(_elapsed / RAMP_TIME, 0.0, 1.0))
-	return clampf(base / (1.0 + 0.15 * (GameState.difficulty_multiplier - 1.0)), 0.35, SPAWN_INTERVAL_START)
+	# 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
+	var interval: float = (
+		base
+		* GameState.spawn_interval_multiplier()
+		/ (1.0 + 0.15 * (GameState.difficulty_multiplier - 1.0))
+	)
+	return clampf(interval, 0.35, SPAWN_INTERVAL_START * GameState.spawn_interval_multiplier())
 
 
 ## 当前分数阶段已解锁的普通机型池
@@ -122,11 +127,12 @@ func _count_spread_enemies() -> int:
 	return n
 
 
-## 从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）
+## 从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）。
+## 同屏上限按难度取（GameState.spread_enemy_cap：easy 1 / medium 2 / hard 3）。
 func _pick_bullet_type(config: Dictionary) -> StringName:
 	var pool: Array = config.get("bullet_types", [&"single"])
 	var btype: StringName = pool[randi() % pool.size()]
-	if btype == &"spread" and _count_spread_enemies() >= SPREAD_ENEMY_CAP:
+	if btype == &"spread" and _count_spread_enemies() >= GameState.spread_enemy_cap():
 		btype = &"laser" if config.get("elite", false) else &"single"
 	return btype
 

@@ -8,6 +8,12 @@ const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.pn
 const DOCK_CHARGE_TIME := 3.0
 const HOME_CHARGE_TIME := 1.5
 const GIVE_UP_HOLD_TIME := 3.0
+## Boss 狂暴子弹时间（对齐原作 ENRAGE_SLOW_FACTOR=0.24）：1.2s 全局慢速 → 0.3s 恢复 → 快照弹幕
+const ENRAGE_SLOW_SCALE := 0.24
+const ENRAGE_BULLET_TIME := 1.2
+const ENRAGE_RAMP_TIME := 0.3
+## 快照弹幕期间锁玩家移动的时长（s）
+const ENRAGE_LOCK_TIME := 0.5
 
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
@@ -28,12 +34,20 @@ var _charge_time: float = 0.0
 var _charge_ghost: Sprite2D
 var _home_charge_time: float = 0.0
 var _give_up_charge: float = 0.0
+# Boss 狂暴子弹时间状态（main 统一接管：Boss 被杀/逃跑也保证 time_scale 回 1）
+var _bullet_time_left: float = 0.0  # >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
+var _time_scale_ramp: float = -1.0  # >=0：恢复过渡进度 0..1
+var _enrage_boss: Boss = null
+var _enrage_lock_left: float = 0.0  # >0：快照弹幕锁输入剩余
 
 
 func _ready() -> void:
 	add_to_group("main")
+	# 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
+	Engine.time_scale = 1.0
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
 	_spawner.boss_spawned.connect(_hud.show_boss_bar)
+	_spawner.boss_spawned.connect(_on_boss_spawned)
 	_spawner.boss_warning.connect(_hud.show_boss_banner)
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
@@ -54,7 +68,30 @@ func _ready() -> void:
 		_start_panel.show_panel()
 
 
+func _exit_tree() -> void:
+	# 子弹时间内退出（重开/测试结束）也要保证全局速度复位
+	Engine.time_scale = 1.0
+
+
 func _process(delta: float) -> void:
+	# Boss 狂暴子弹时间驱动（delta 已被 time_scale 缩放，计时为游戏秒）：
+	# 0.24 慢速 1.2s → 0.3s 内线性恢复 1.0 → 恢复完成才发快照弹幕并锁玩家 0.5s
+	if _bullet_time_left > 0.0:
+		_bullet_time_left -= delta
+		if _bullet_time_left <= 0.0:
+			_time_scale_ramp = 0.0
+	if _time_scale_ramp >= 0.0:
+		_time_scale_ramp += delta / ENRAGE_RAMP_TIME
+		if _time_scale_ramp >= 1.0:
+			_time_scale_ramp = -1.0
+			Engine.time_scale = 1.0
+			_fire_enrage_snapshot()
+		else:
+			Engine.time_scale = lerpf(ENRAGE_SLOW_SCALE, 1.0, _time_scale_ramp)
+	if _enrage_lock_left > 0.0:
+		_enrage_lock_left -= delta
+		if _enrage_lock_left <= 0.0:
+			_player._input_locked = false
 	if _dock_cooldown > 0.0:
 		_dock_cooldown -= delta
 	# 长按 H 蓄力召唤母舰（松手取消，不进冷却）
@@ -134,6 +171,55 @@ func _on_continue_run() -> void:
 
 func _on_player_died() -> void:
 	_game_over = true
+	# 玩家死亡兜底：快照锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
+	_enrage_lock_left = 0.0
+	_player._input_locked = false
+
+
+## Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）
+func _on_boss_spawned(boss: Boss) -> void:
+	boss.enraged.connect(_on_boss_enraged.bind(boss))
+
+
+## 狂暴触发：1.2s 子弹时间（全局 0.24，玩家同样减速——与原作一致）+ 泛红演出。
+## 既有震动/警告音在 boss._enrage() 内；快照弹幕等子弹时间结束后才发。
+func _on_boss_enraged(boss: Boss) -> void:
+	if _game_over or _homecoming:
+		return
+	_enrage_boss = boss
+	_bullet_time_left = ENRAGE_BULLET_TIME
+	_time_scale_ramp = -1.0
+	Engine.time_scale = ENRAGE_SLOW_SCALE
+	_enrage_vignette()
+
+
+## 子弹时间结束：Boss 仍在场则发快照弹幕，并锁玩家移动 0.5s
+func _fire_enrage_snapshot() -> void:
+	var boss := _enrage_boss
+	_enrage_boss = null
+	if boss == null or not is_instance_valid(boss) or boss.is_queued_for_deletion():
+		return  # Boss 在子弹时间内已被击杀/逃跑：time_scale 已恢复，无需弹幕
+	boss.fire_enrage_snapshot()
+	if not _player._dead:
+		_player._input_locked = true
+		_enrage_lock_left = ENRAGE_LOCK_TIME
+
+
+## 狂暴演出：全屏短暂泛红（tween 挂在 Always 层上，暂停时也能播完并自清）
+func _enrage_vignette() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 30
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(layer)
+	var rect := ColorRect.new()
+	rect.color = Color(0.85, 0.05, 0.05, 0.0)
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(rect)
+	var tween := layer.create_tween()
+	tween.tween_property(rect, "color:a", 0.35, 0.15)
+	tween.tween_property(rect, "color:a", 0.0, 0.55)
+	tween.tween_callback(layer.queue_free)
 
 
 ## 母舰状态文本（HUD 轮询）

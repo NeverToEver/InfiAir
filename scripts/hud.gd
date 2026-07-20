@@ -22,6 +22,9 @@ var _mag_box: HBoxContainer
 var _mag_cells_nodes: Array[ColorRect] = []
 var _home_charge_label: Label
 var _give_up_label: Label
+var _main: Node = null
+var _poll_timer: float = 0.0
+const POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
 
 
 func _ready() -> void:
@@ -41,9 +44,10 @@ func _ready() -> void:
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.lives_changed.connect(_on_lives_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
+	GameState.difficulty_selected.connect(_on_difficulty_selected)
 	_on_score_changed(GameState.score)
 	_on_lives_changed(GameState.lives)
-	_on_difficulty_changed(GameState.difficulty_multiplier)
+	_refresh_difficulty_label()
 	_build_banner()
 	_build_magazine_bar()
 	# 返航蓄力提示（底部居中）
@@ -104,19 +108,24 @@ func _build_magazine_bar() -> void:
 	add_child(_mag_box)
 
 
-func _process(_delta: float) -> void:
-	var players := get_tree().get_nodes_in_group("player")
-	if players.is_empty():
+func _process(delta: float) -> void:
+	# 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
+	_poll_timer -= delta
+	if _poll_timer > 0.0:
 		return
-	var player := players[0] as Player
+	_poll_timer = POLL_INTERVAL
+	var player := GameState.player_ref as Player
+	if player == null:
+		return
 	var fuel := player.fuel_ratio()
 	_fuel_bar.value = fuel * 100.0
 	_fuel_fill.bg_color = Color(0.9, 0.25, 0.2) if fuel < 0.3 else Color(0.25, 0.8, 0.9)
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
-	var main := get_tree().get_first_node_in_group("main")
-	if main != null:
-		_dock_tag.text = main.dock_status_text()
-		_update_magazine_bar(main)
+	if _main == null:
+		_main = get_tree().get_first_node_in_group("main")
+	if _main != null:
+		_dock_tag.text = _main.dock_status_text()
+		_update_magazine_bar(_main)
 
 
 func _update_magazine_bar(main: Node) -> void:
@@ -205,8 +214,19 @@ func _on_lives_changed(new_lives: float) -> void:
 	_lives_label.text = "生命：%d" % ceili(new_lives)
 
 
-func _on_difficulty_changed(new_multiplier: float) -> void:
-	_difficulty_label.text = "难度 x%.2f" % new_multiplier
+func _on_difficulty_changed(_new_multiplier: float) -> void:
+	_refresh_difficulty_label()
+
+
+func _on_difficulty_selected(_difficulty: StringName) -> void:
+	_refresh_difficulty_label()
+
+
+## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）
+func _refresh_difficulty_label() -> void:
+	_difficulty_label.text = (
+		"难度 x%.2f · %s" % [GameState.difficulty_multiplier, GameState.difficulty_label()]
+	)
 
 
 func _on_boss_health_changed(current: float, maximum: float) -> void:

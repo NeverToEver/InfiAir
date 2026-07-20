@@ -107,7 +107,7 @@ func _end_beam() -> void:
 
 ## 穿透结算：光束线段两侧的敌人（含 Boss）都吃伤害，不打断
 func _damage_tick(start: Vector2, end: Vector2) -> void:
-	for node in get_tree().get_nodes_in_group("enemy"):
+	for node in GameState.enemies:
 		if not is_instance_valid(node):
 			continue
 		var pos := (node as Node2D).global_position

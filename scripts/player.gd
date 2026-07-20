@@ -8,7 +8,6 @@ const FIRE_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/bullet_fire_b.wav"),
 	preload("res://assets/audio/bullet_fire_c.wav"),
 ]
-const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 
 const MAX_SPEED := 420.0
 const ACCEL := 2400.0
@@ -57,6 +56,8 @@ var _aim_lock_target: Node2D = null  # 瞄准辅助锁定的敌人（含 Boss）
 var _prev_aim_mouse := Vector2.ZERO
 var _aim_mouse_initialized: bool = false
 var _aim_ring: Line2D = null
+var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
+var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
@@ -67,6 +68,7 @@ var _aim_ring: Line2D = null
 
 func _ready() -> void:
 	add_to_group("player")
+	GameState.player_ref = self
 	# 瞄准辅助锁定环：纯代码绘制的小圆环，锁定时贴在目标上
 	_aim_ring = Line2D.new()
 	_aim_ring.top_level = true
@@ -144,8 +146,10 @@ func _physics_process(delta: float) -> void:
 		_dash_move(delta)
 		return
 
-	# 燃料与加速
-	var want_boost := Input.is_action_pressed("boost")
+	# 燃料与加速（shift_toggle_mode：按一下切换开/关）
+	if GameState.shift_toggle_mode and Input.is_action_just_pressed("boost"):
+		_boost_toggle_on = not _boost_toggle_on
+	var want_boost := _boost_toggle_on if GameState.shift_toggle_mode else Input.is_action_pressed("boost")
 	if _fuel_locked and _fuel >= FUEL_RESTART:
 		_fuel_locked = false
 	var boosting := want_boost and not _fuel_locked and _fuel > 0.0
@@ -157,8 +161,11 @@ func _physics_process(delta: float) -> void:
 		_fuel = minf(_fuel + fuel_regen_rate() * delta, fuel_max)
 
 	var boost := BOOST_MULT if boosting else 1.0
-	# Ctrl 微调：移速 ×0.35
-	var fine := FINE_MOVE_MULT if Input.is_action_pressed("fine_move") else 1.0
+	# Ctrl 微调：移速 ×0.35（ctrl_toggle_mode：按一下切换开/关）
+	if GameState.ctrl_toggle_mode and Input.is_action_just_pressed("fine_move"):
+		_fine_toggle_on = not _fine_toggle_on
+	var fine_on := _fine_toggle_on if GameState.ctrl_toggle_mode else Input.is_action_pressed("fine_move")
+	var fine := FINE_MOVE_MULT if fine_on else 1.0
 	var target := input_dir * MAX_SPEED * boost * fine
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
@@ -252,7 +259,7 @@ func _resolve_aim_point() -> Vector2:
 func _nearest_enemy_to(point: Vector2) -> Node2D:
 	var best: Node2D = null
 	var best_sq := AIM_ASSIST_RADIUS * AIM_ASSIST_RADIUS
-	for e in get_tree().get_nodes_in_group("enemy"):
+	for e in GameState.enemies:
 		if not e is Node2D:
 			continue
 		var d_sq: float = point.distance_squared_to((e as Node2D).global_position)
@@ -300,12 +307,10 @@ func _fire(aim: Vector2) -> void:
 	var count := 1 + spread
 	for i in count:
 		var offset := deg_to_rad(BULLET_SPREAD_DEG * (float(i) - float(spread) / 2.0))
-		var b := BULLET_SCENE.instantiate()
-		b.setup(aim.rotated(offset), BULLET_SPEED, bullet_damage(), true)
+		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), BULLET_SPEED, bullet_damage(), true)
 		b.pierce = pierce
 		b.explosive = explosive
 		b.position = position + aim.rotated(offset) * 50.0
-		get_parent().add_child(b)
 	_audio.stream = FIRE_SOUNDS[_sound_index]
 	_sound_index = (_sound_index + 1) % FIRE_SOUNDS.size()
 	_audio.play()
@@ -337,3 +342,8 @@ func _die() -> void:
 	_hitbox.set_deferred("monitoring", false)
 	set_physics_process(false)
 	Explosion.spawn_at(get_parent(), position, 2.0)
+
+
+func _exit_tree() -> void:
+	if GameState.player_ref == self:
+		GameState.player_ref = null

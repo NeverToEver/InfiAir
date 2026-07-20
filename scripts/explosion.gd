@@ -1,15 +1,37 @@
 class_name Explosion
 extends GPUParticles2D
-## 一次性爆炸粒子（主火花 + 飞散碎片双发射器），纯代码构建，发射完毕自动释放。
+## 一次性爆炸粒子（主火花 + 飞散碎片双发射器），纯代码构建。
+## 池化复用：发射完毕后回收到静态池（上限 24），超出上限的临时实例照旧销毁。
+
+const POOL_CAP := 24
+
+static var _pool: Array[Explosion] = []
 
 var _debris: GPUParticles2D
+var _pooled: bool = false
 
 
 static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
-	var e := Explosion.new()
+	var e := _take_from_pool()
+	if e == null:
+		e = Explosion.new()
+		e._pooled = _pool.size() < POOL_CAP
+		parent.add_child(e)
+	elif e.get_parent() != parent:
+		e.reparent(parent)
 	e.position = pos
 	e.scale = Vector2.ONE * p_scale
-	parent.add_child(e)
+	e.visible = true
+	e.restart()
+	e._debris.restart()
+
+
+static func _take_from_pool() -> Explosion:
+	while not _pool.is_empty():
+		var e: Explosion = _pool.pop_back()
+		if is_instance_valid(e):
+			return e
+	return null
 
 
 ## Boss 多段爆炸序列：连续小爆炸 + 最终大爆炸 + 震动。
@@ -45,7 +67,7 @@ func _init() -> void:
 	mat.scale_max = 5.0
 	mat.color = Color(1.0, 0.6, 0.15)
 	process_material = mat
-	finished.connect(queue_free)
+	finished.connect(_on_finished)
 
 	# 碎片发射器：少量、更大、更慢、寿命更长
 	_debris = GPUParticles2D.new()
@@ -71,3 +93,16 @@ func _init() -> void:
 func _ready() -> void:
 	emitting = true
 	_debris.emitting = true
+
+
+func _exit_tree() -> void:
+	# 场景重载/外部销毁时从池中移除引用
+	_pool.erase(self)
+
+
+func _on_finished() -> void:
+	if _pooled:
+		visible = false
+		_pool.append(self)
+	else:
+		queue_free()

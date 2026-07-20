@@ -1,0 +1,53 @@
+class_name BulletPool
+extends Node
+## 子弹对象池（挂在 Main 下）：复用 bullet.tscn 实例，避免高频 instantiate/free。
+## 活跃弹挂在 Main 下（保持清场/测试遍历可见），闲置弹收回池节点下。
+
+const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
+
+var _free: Array[Bullet] = []
+
+
+func _ready() -> void:
+	GameState.bullet_pool = self
+
+
+## 取一枚子弹并激活（参数同 Bullet.setup）。
+func fire(
+	p_direction: Vector2,
+	p_speed: float,
+	p_damage: int,
+	p_is_player: bool,
+	p_homing: bool = false,
+	p_homing_time: float = 0.0
+) -> Bullet:
+	var b: Bullet = null
+	while not _free.is_empty():
+		b = _free.pop_back()
+		if is_instance_valid(b):
+			break
+		b = null
+	if b == null:
+		b = BULLET_SCENE.instantiate()
+		b._pool = self
+		get_parent().add_child(b)  # 活跃弹挂 Main 下
+	elif b.get_parent() != get_parent():
+		# 闲置弹从池节点挂回 Main
+		b.reparent(get_parent())
+	b.activate(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
+	return b
+
+
+## 回收：重置状态并移回池节点下（不销毁）。
+## reparent 延迟到空闲时执行，避免在物理回调（area_entered）内改场景树。
+func release(b: Bullet) -> void:
+	if not is_instance_valid(b):
+		return
+	b.deactivate()
+	_free.append(b)
+	b.reparent.call_deferred(self)
+
+
+## 子弹被外部 queue_free（清场/测试）时从池清单移除，防止悬空引用。
+func forget(b: Bullet) -> void:
+	_free.erase(b)

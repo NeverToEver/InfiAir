@@ -64,6 +64,14 @@ godot --path .
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
 - 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
 
+## 性能约定（3.4）
+
+- 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。
+- 爆炸走 `Explosion.spawn_at`（静态池 ≤24，发射完回收不销毁）。
+- 热路径禁止每帧 `get_nodes_in_group`：用 `GameState.enemies` / `GameState.player_ref` 注册表（enemy/boss/player 在 `_ready`/`_exit_tree` 维护）。
+- HUD 仪表类轮询 0.1s 节流；文本走信号。
+- 基准：`godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn`（无头默认实时锁帧，必须 `--fixed-fps` 才能测出纯帧耗时）。
+
 ## 持久化与安全注意
 
 - 对局存档 `user://savegame.json`（暂停菜单「保存进度」可写 + 返航自动更新，仅死亡删除）与局外档案 `user://profile.json`（仅最高分；局外天赋系统已移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。

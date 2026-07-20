@@ -26,14 +26,21 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.high_score = 0
 	GameState.save_profile()
+	# 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
+	GameState.set_difficulty(&"easy")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
+	# 无存档时开始面板会自显：直接走「开始游戏」关闭之（难度选择见 difficulty_test）
+	var start_panel: CanvasLayer = get_node("Main/StartPanel")
+	if start_panel.visible:
+		start_panel._on_new_game_pressed()
 	# 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
 	get_node("Main/Player")._auto_fire_enabled = false
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# 1. 里程碑触发 Buff UI
+	# 1. 里程碑触发 Buff UI（阈值已改曲线，测试用 override 固定 500 保证确定性）
+	GameState._set_milestone_override(500)
 	GameState.add_score(500)
 	await get_tree().process_frame
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
@@ -66,7 +73,7 @@ func _ready() -> void:
 	_check(GameState.boss_kills == 1, "Boss 击毁计数")
 	_check(GameState.difficulty_multiplier == 1.25, "难度乘数按公式更新")
 	_check(not get_node("Main/HUD/BossBar").visible, "Boss 血条隐藏")
-	# Boss 击杀 +500 分触发 1000 分里程碑，关闭 Buff UI 以便继续测试
+	# 里程碑曲线下后续阈值远高于当前分数，Buff UI 一般不再弹出；若弹出则关闭以便继续测试
 	if buff_ui.visible:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	_check(not buff_ui.visible and not get_tree().paused, "里程碑 UI 可重复触发并关闭")
@@ -422,6 +429,28 @@ func _ready() -> void:
 	_check(not GameState.record_score(), "低分不覆盖最高分")
 	GameState.score = GameState.high_score
 
+	# 3.14 Shift/Ctrl toggle 模式（按一下切换开/关）
+	GameState.set_shift_toggle_mode(true)
+	Input.action_press("boost")
+	await get_tree().physics_frame
+	Input.action_release("boost")
+	await get_tree().physics_frame
+	_check(player._boost_toggle_on, "toggle 模式按一下开启加速")
+	Input.action_press("boost")
+	await get_tree().physics_frame
+	Input.action_release("boost")
+	await get_tree().physics_frame
+	_check(not player._boost_toggle_on, "toggle 模式再按一下关闭加速")
+	GameState.set_shift_toggle_mode(false)
+	GameState.set_ctrl_toggle_mode(true)
+	Input.action_press("fine_move")
+	await get_tree().physics_frame
+	Input.action_release("fine_move")
+	await get_tree().physics_frame
+	_check(player._fine_toggle_on, "toggle 模式按一下开启微调")
+	GameState.set_ctrl_toggle_mode(false)
+	player._fine_toggle_on = false
+
 	# 4. 玩家受击至死 → 结算（此时存档存在，死亡应删档）
 	for i in 3:
 		player._invincible = 0.0
@@ -527,4 +556,6 @@ func _ready() -> void:
 
 	print("SMOKE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
+	# 恢复默认难度并落盘，避免污染其他测试进程的 profile
+	GameState.set_difficulty(&"medium")
 	get_tree().quit(_failures)
