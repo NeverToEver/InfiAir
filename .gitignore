@@ -1,0 +1,13 @@
+# Godot 4 generated files
+.godot/
+*.tmp
+
+# OS
+.DS_Store
+
+# Export presets (contain local paths; re-add if团队需要)
+export_presets.cfg
+
+# Exported builds
+builds/
+exports/
