@@ -19,7 +19,6 @@ const BULLET_SPEED := 900.0
 const BULLET_SPREAD_DEG := 15.0
 const INVINCIBLE_TIME := 1.5
 
-const FUEL_MAX := 100.0
 const FUEL_DRAIN := 35.0
 const FUEL_REGEN := 20.0
 const FUEL_RESTART := 30.0
@@ -29,13 +28,16 @@ const DASH_TIME := 0.25
 const DASH_COOLDOWN := 4.0
 const AFTERIMAGE_INTERVAL := 0.08
 
+var fuel_max: float = 100.0  # 扩容油箱天赋可提升
+var _input_locked: bool = false  # 返航过场期间锁定
+
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
 var _invincible: float = INVINCIBLE_TIME  # 出生保护
 var _regen_accum: float = 0.0
 var _dead: bool = false
 
-var _fuel: float = FUEL_MAX
+var _fuel: float = 100.0
 var _fuel_locked: bool = false  # 燃料耗尽后锁定，回到 30% 才解锁
 
 var _dashing: bool = false
@@ -56,7 +58,8 @@ func _ready() -> void:
 
 
 func fire_interval() -> float:
-	return BASE_FIRE_INTERVAL * pow(0.75, GameState.buff_count(&"rapid_fire"))
+	var talent_factor := pow(0.92, GameState.talent_level(&"calibration"))
+	return BASE_FIRE_INTERVAL * pow(0.75, GameState.buff_count(&"rapid_fire")) * talent_factor
 
 
 func bullet_damage() -> int:
@@ -64,11 +67,11 @@ func bullet_damage() -> int:
 
 
 func fuel_ratio() -> float:
-	return _fuel / FUEL_MAX
+	return _fuel / fuel_max
 
 
 func refill_fuel() -> void:
-	_fuel = FUEL_MAX
+	_fuel = fuel_max
 	_fuel_locked = false
 
 
@@ -92,7 +95,7 @@ func fuel_drain_rate() -> float:
 
 
 func _physics_process(delta: float) -> void:
-	if _dead:
+	if _dead or _input_locked:
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
@@ -114,7 +117,7 @@ func _physics_process(delta: float) -> void:
 		if _fuel <= 0.0:
 			_fuel_locked = true
 	else:
-		_fuel = minf(_fuel + FUEL_REGEN * delta, FUEL_MAX)
+		_fuel = minf(_fuel + FUEL_REGEN * delta, fuel_max)
 
 	var boost := BOOST_MULT if boosting else 1.0
 	var target := input_dir * MAX_SPEED * boost

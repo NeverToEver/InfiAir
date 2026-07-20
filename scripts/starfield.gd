@@ -9,6 +9,12 @@ const NEAR_SPEED := 140.0
 
 var _far: Array[Vector2] = []
 var _near: Array[Vector2] = []
+## 返航过场的星光拉伸倍率，随时间衰减回 1
+var warp_factor: float = 1.0
+
+
+func warp(factor: float) -> void:
+	warp_factor = factor
 
 
 func _ready() -> void:
@@ -22,12 +28,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	warp_factor = lerpf(warp_factor, 1.0, 1.5 * delta)
 	for i in _far.size():
-		_far[i] += Vector2(0.0, FAR_SPEED * delta)
+		_far[i] += Vector2(0.0, FAR_SPEED * warp_factor * delta)
 		if _far[i].y > 1080.0:
 			_far[i].y -= 1080.0
 	for i in _near.size():
-		_near[i] += Vector2(0.0, NEAR_SPEED * delta)
+		_near[i] += Vector2(0.0, NEAR_SPEED * warp_factor * delta)
 		if _near[i].y > 1080.0:
 			_near[i].y -= 1080.0
 	queue_redraw()

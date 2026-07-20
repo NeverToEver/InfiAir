@@ -13,6 +13,12 @@ func _check(cond: bool, label: String) -> void:
 
 
 func _ready() -> void:
+	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/天赋/最高分）
+	GameState.delete_save()
+	GameState.talents.clear()
+	GameState.talent_points = 0
+	GameState.high_score = 0
+	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
@@ -146,10 +152,74 @@ func _ready() -> void:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
 
-	# 4. 玩家受击至死 → 结算
+	# 3.10 母舰对接补给：回血 + 回燃料 + 无敌
+	player._invincible = 0.0
+	player.take_damage()
+	_check(GameState.lives == 2.0, "母舰测试前置：受击 -1 命")
+	player._fuel = 10.0
+	var ms := load("res://scenes/mothership.tscn").instantiate() as Mothership
+	ms.position = Vector2(960.0, 270.0)
+	get_node("Main").add_child(ms)
+	ms._state = Mothership.State.HOVER
+	player.position = Vector2(960.0, 410.0)  # 对接区（舰体下方矩形）
+	await get_tree().create_timer(0.4).timeout
+	_check(GameState.lives == 3.0, "母舰补给回满生命")
+	_check(player._fuel == player.fuel_max, "母舰补给回满燃料")
+	_check(player._invincible > 0.0, "对接后无敌")
+	ms.queue_free()
+	await get_tree().process_frame
+
+	# 3.11 对局存档：写入 → 清空 → 恢复
+	var saved_score := GameState.score
+	GameState.add_buff(&"power_shot")
+	GameState.save_run(55.0, 12.0)
+	_check(GameState.has_save(), "存档文件已写入")
+	GameState.score = 0
+	GameState.buffs.clear()
+	GameState.apply_run_save(GameState.load_run_data())
+	_check(GameState.score == saved_score, "存档恢复分数")
+	_check(GameState.buff_count(&"power_shot") == 2, "存档恢复 buff 层数")
+
+	# 3.12 返航天赋点折算
+	var stacks := 0
+	for v in GameState.buffs.values():
+		stacks += int(v)
+	_check(
+		GameState.calc_homecoming_points() == stacks / 2 + GameState.boss_kills * 2,
+		"返航天赋点折算公式"
+	)
+
+	# 3.13 天赋购买与持久化
+	GameState.talent_points = 10
+	_check(GameState.buy_talent(&"hull"), "天赋购买成功")
+	GameState.buy_talent(&"hull")
+	_check(GameState.talent_points == 6 and GameState.talent_level(&"hull") == 2, "购买扣点并计级")
+	GameState.talent_points = 0
+	_check(not GameState.buy_talent(&"tank"), "点数不足购买失败")
+	GameState.talent_points = 6
+	GameState.save_profile()
+	GameState.talents.clear()
+	GameState.talent_points = 0
+	GameState.load_profile()
+	_check(GameState.talent_level(&"hull") == 2 and GameState.talent_points == 6, "天赋持久化")
+	GameState.talents.clear()
+	GameState.talent_points = 0
+	GameState.high_score = 0
+	GameState.save_profile()
+
+	# 3.14 最高分
+	_check(GameState.record_score(), "首次破纪录")
+	_check(GameState.high_score == GameState.score, "最高分已更新")
+	GameState.score = 5
+	_check(not GameState.record_score(), "低分不覆盖最高分")
+	GameState.score = GameState.high_score
+
+	# 4. 玩家受击至死 → 结算（此时存档存在，死亡应删档）
 	for i in 3:
 		player._invincible = 0.0
 		player.take_damage()
+	await get_tree().process_frame
+	_check(not GameState.has_save(), "死亡后删除存档")
 	await get_tree().process_frame
 	_check(get_node("Main/GameOverUI").visible, "Game Over 面板显示")
 	_check(get_tree().paused, "Game Over 时游戏暂停")
@@ -163,4 +233,5 @@ func _ready() -> void:
 	_check(not pause_ui.visible and not get_tree().paused, "Esc 恢复")
 
 	print("SMOKE TEST DONE, failures = ", _failures)
+	GameState.delete_save()
 	get_tree().quit(_failures)

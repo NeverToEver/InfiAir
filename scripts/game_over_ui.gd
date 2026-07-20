@@ -4,6 +4,7 @@ extends CanvasLayer
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _stats_label: Label
+var _record_label: Label
 
 
 func _ready() -> void:
@@ -34,6 +35,15 @@ func _ready() -> void:
 	_stats_label.add_theme_font_size_override("font_size", 30)
 	vbox.add_child(_stats_label)
 
+	_record_label = Label.new()
+	_record_label.text = "新纪录！"
+	_record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_record_label.add_theme_font_override("font", FONT)
+	_record_label.add_theme_font_size_override("font_size", 34)
+	_record_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_record_label.visible = false
+	vbox.add_child(_record_label)
+
 	var hint := Label.new()
 	hint.text = "按 R 重新开始"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -45,9 +55,16 @@ func _ready() -> void:
 
 
 func _on_player_died() -> void:
+	# 死亡删档：防止一死档永存
+	GameState.delete_save()
+	var new_record := GameState.record_score()
 	_stats_label.text = (
-		"分数：%d\n击杀：%d\nBoss 击杀：%d" % [GameState.score, GameState.kills, GameState.boss_kills]
+		"得分：%d\n最高分：%d\n击杀：%d\nBoss 击杀：%d"
+		% [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
 	)
+	_record_label.visible = new_record
+	if new_record:
+		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	get_tree().paused = true
 	visible = true
 

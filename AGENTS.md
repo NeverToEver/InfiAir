@@ -41,4 +41,5 @@ godot --path .
 
 - 遵循 GDScript 官方风格：Tab 缩进、类型标注、Godot 4 信号语法（`signal_name.emit()` / `signal_name.connect()`）。
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
-- 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，如 2.2 迭代的 `dash`=空格）。
+- 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
+- 持久化：对局存档 `user://savegame.json`（仅暂停菜单可写，死亡/返航删除）与局外档案 `user://profile.json`（最高分/天赋点/天赋等级），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。测试运行会读写这两个文件，结束后需清理残留（冒烟测试已自行清理）。

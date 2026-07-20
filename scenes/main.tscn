@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/starfield.gd" id="2"]
@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://scripts/game_over_ui.gd" id="7"]
 [ext_resource type="Script" path="res://scripts/pause_ui.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/camera_shake.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/start_panel.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/talent_ui.gd" id="11"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -104,6 +106,15 @@ offset_right = 330.0
 offset_bottom = -6.0
 text = "冲刺"
 
+[node name="DockTag" type="Label" parent="HUD"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 340.0
+offset_top = -30.0
+offset_right = 560.0
+offset_bottom = -6.0
+text = "母舰就绪 [H]"
+
 [node name="BossBar" type="ProgressBar" parent="HUD"]
 visible = false
 anchor_left = 0.5
@@ -129,3 +140,13 @@ script = ExtResource("8")
 process_mode = 3
 layer = 20
 script = ExtResource("7")
+
+[node name="TalentUI" type="CanvasLayer" parent="."]
+process_mode = 3
+layer = 25
+script = ExtResource("11")
+
+[node name="StartPanel" type="CanvasLayer" parent="."]
+process_mode = 3
+layer = 30
+script = ExtResource("10")

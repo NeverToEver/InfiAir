@@ -12,6 +12,7 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 @onready var _dash_bar: ProgressBar = $DashBar
 @onready var _fuel_tag: Label = $FuelTag
 @onready var _dash_tag: Label = $DashTag
+@onready var _dock_tag: Label = $DockTag
 
 var _banner: PanelContainer
 var _fuel_fill := StyleBoxFlat.new()
@@ -23,7 +24,7 @@ func _ready() -> void:
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
 		label.add_theme_font_size_override("font_size", 28)
-	for tag: Label in [_fuel_tag, _dash_tag]:
+	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
 		tag.add_theme_font_size_override("font_size", 16)
 	_fuel_fill.bg_color = Color(0.25, 0.8, 0.9)
@@ -50,6 +51,9 @@ func _process(_delta: float) -> void:
 	_fuel_bar.value = fuel * 100.0
 	_fuel_fill.bg_color = Color(0.9, 0.25, 0.2) if fuel < 0.3 else Color(0.25, 0.8, 0.9)
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
+	var main := get_tree().get_first_node_in_group("main")
+	if main != null:
+		_dock_tag.text = main.dock_status_text()
 
 
 ## 拾取物等场景的飘字提示。

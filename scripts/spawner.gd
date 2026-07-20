@@ -33,6 +33,10 @@ var _next_boss_score: int = BOSS_SCORE_STEP
 var _boss_active: bool = false
 
 
+func _ready() -> void:
+	add_to_group("spawner")
+
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	_spawn_timer -= delta

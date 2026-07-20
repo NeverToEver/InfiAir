@@ -113,6 +113,23 @@ def make_dash() -> list:
     return out
 
 
+def make_resupply() -> list:
+    """补给确认：上行三音琶音（C5-E5-G5）+ 尾音。"""
+    dur = 0.5
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0, freq in ((0.0, 523.25), (0.1, 659.25), (0.2, 784.0)):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.01, 1.0) * math.exp(-lt * 5.0)
+                s += env * (math.sin(2.0 * math.pi * freq * lt) + 0.3 * math.sin(4.0 * math.pi * freq * lt))
+        out.append(0.5 * s)
+    return out
+
+
 # ---------------- BGM ----------------
 
 BPM = 120.0
@@ -214,6 +231,7 @@ def main() -> None:
     write_wav("player_hit.wav", make_player_hit())
     write_wav("buff_pick.wav", make_buff_pick())
     write_wav("dash.wav", make_dash())
+    write_wav("resupply.wav", make_resupply())
     write_wav("bgm_loop.wav", make_bgm())
 
 
