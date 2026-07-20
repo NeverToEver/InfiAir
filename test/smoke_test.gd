@@ -61,10 +61,10 @@ func _ready() -> void:
 	if buff_ui.visible:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	_check(not buff_ui.visible and not get_tree().paused, "里程碑 UI 可重复触发并关闭")
-	# 停掉生成器并清场（敌机/敌弹/拾取物），保证后续断言确定性
+	# 停掉生成器并清场（敌机/敌弹），保证后续断言确定性
 	spawner.set_process(false)
 	for child in get_node("Main").get_children():
-		if child is Enemy or child is Pickup or (child is Bullet and not child.is_player_bullet):
+		if child is Enemy or (child is Bullet and not child.is_player_bullet):
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -125,7 +125,7 @@ func _ready() -> void:
 	GameState.add_buff(&"efficient_boost")
 	_check(is_equal_approx(player.fuel_drain_rate(), 35.0 * 0.75), "高效推进消耗 -25%")
 
-	# 3.9 精英掉落拾取
+	# 3.9 精英击毁：高分奖励（得分制，无掉落物）
 	var elite := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	elite.setup(
 		load("res://assets/sprites/elite_ship_1.png") as Texture2D,
@@ -133,21 +133,11 @@ func _ready() -> void:
 	)
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
+	var score_before_elite := GameState.score
 	elite.take_damage(99)
 	await get_tree().process_frame
-	var pickup: Pickup = null
-	for child in get_node("Main").get_children():
-		if child is Pickup:
-			pickup = child
-	_check(pickup != null, "精英掉落拾取物")
-	if pickup != null:
-		pickup.effect = 2  # 固定为 +100 分，保证确定性
-		var score_before := GameState.score
-		pickup.position = player.position + Vector2(0.0, 30.0)
-		# 无头模式 idle 帧与物理帧解耦，需等待真实时间让磁铁吸附与碰撞检测完成
-		await get_tree().create_timer(0.3).timeout
-		_check(GameState.score >= score_before + 100, "拾取 +100 分生效")
-	# 拾取得分可能再次触发里程碑，关闭之
+	_check(GameState.score >= score_before_elite + 300, "精英击毁得分奖励")
+	# 得分可能再次触发里程碑，关闭之
 	if buff_ui.visible:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false

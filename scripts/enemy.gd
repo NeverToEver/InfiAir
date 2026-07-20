@@ -5,7 +5,6 @@ extends Area2D
 signal died(enemy: Enemy)
 
 const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
-const PICKUP_SCENE: PackedScene = preload("res://scenes/pickup.tscn")
 const ENEMY_BULLET_SPEED := 420.0
 const FIRE_INTERVAL := 2.2
 
@@ -135,10 +134,6 @@ func die() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
 	GameState.shake(9.0 if is_elite else 5.0)
 	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
-	if is_elite:
-		var pk := PICKUP_SCENE.instantiate()
-		pk.position = global_position
-		get_parent().add_child(pk)
 	died.emit(self)
 	queue_free()
 

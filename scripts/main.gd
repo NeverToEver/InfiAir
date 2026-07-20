@@ -118,7 +118,7 @@ func _start_homecoming() -> void:
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
 	for child in get_children():
-		if child is Enemy or child is Boss or child is Bullet or child is Pickup or child is Mothership:
+		if child is Enemy or child is Boss or child is Bullet or child is Mothership:
 			child.queue_free()
 	_starfield.warp(18.0)
 	var flash_layer := CanvasLayer.new()

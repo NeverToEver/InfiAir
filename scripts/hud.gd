@@ -56,7 +56,7 @@ func _process(_delta: float) -> void:
 		_dock_tag.text = main.dock_status_text()
 
 
-## 拾取物等场景的飘字提示。
+## 世界坐标处的飘字提示（补给完成、里程碑等）。
 func show_popup(text: String, world_pos: Vector2) -> void:
 	var label := Label.new()
 	label.text = text
