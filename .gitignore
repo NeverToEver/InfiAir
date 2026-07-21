@@ -11,3 +11,6 @@ export_presets.cfg
 # Exported builds
 builds/
 exports/
+
+# 会话导出文件
+kimi-export-session_*.md
