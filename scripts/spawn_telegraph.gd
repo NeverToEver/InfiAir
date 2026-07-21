@@ -1,14 +1,14 @@
 class_name SpawnTelegraph
 extends Node2D
-## 敌机入场预告：屏幕顶部对应 x 位置的红色竖线 + 箭头，闪烁淡出后自毁。
+## 敌机入场预告：可见区域顶部对应 x 位置的红色竖线 + 箭头，闪烁淡出后自毁。
 
 const DURATION := 0.6
 
 var _t: float = 0.0
 
 
-func _init(p_x: float) -> void:
-	position = Vector2(p_x, 0.0)
+func _init(p_x: float, p_top: float = 0.0) -> void:
+	position = Vector2(p_x, p_top)
 
 
 func _process(delta: float) -> void:

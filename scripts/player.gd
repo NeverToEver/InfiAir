@@ -197,7 +197,7 @@ func _physics_process(delta: float) -> void:
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
 	move_and_slide()
-	position = position.clamp(Vector2(40.0, 40.0), Vector2(1880.0, 1040.0))
+	position = _clamp_to_view(position)
 
 	# 尾焰：加速变长变亮，静止减弱
 	if boosting and input_dir != Vector2.ZERO:
@@ -240,6 +240,12 @@ func _physics_process(delta: float) -> void:
 		if _regen_accum >= GameState.cfg("buffs.regen.interval", 2.0):
 			_regen_accum -= GameState.cfg("buffs.regen.interval", 2.0)
 			GameState.heal(GameState.cfg("buffs.regen.heal_per_tick", 0.5) * regen_stacks)
+
+
+## 屏幕边缘钳制：随可见世界区域收窄（zoom=1 时即 40..1880 / 40..1040）
+func _clamp_to_view(p: Vector2) -> Vector2:
+	var view := GameState.view_world_rect()
+	return p.clamp(view.position + Vector2(40.0, 40.0), view.end - Vector2(40.0, 40.0))
 
 
 func _start_dash(input_dir: Vector2) -> void:
@@ -304,7 +310,7 @@ func _dash_move(delta: float) -> void:
 		_spawn_afterimage()
 	velocity = _dash_dir * (DASH_DISTANCE / DASH_TIME)
 	move_and_slide()
-	position = position.clamp(Vector2(40.0, 40.0), Vector2(1880.0, 1040.0))
+	position = _clamp_to_view(position)
 	# 冲刺时尾焰拉满
 	_thruster.speed_scale = 1.7
 	_thruster.amount_ratio = 1.0

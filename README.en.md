@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-326%20passed-brightgreen)](#verification)
+[![Tests](https://img.shields.io/badge/tests-369%20passed-brightgreen)](#verification)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -61,6 +61,8 @@
 | ESC | Pause (the pause menu holds the only save entry) |
 | R | Restart (on game-over / pause screens) |
 
+> Three view zoom levels (Small 1.0 / Medium 1.35 / Large 1.7, default Medium): Settings → Modes → View (persisted in `user://profile.json`; the HUD lives on a CanvasLayer and is unaffected by camera zoom).
+
 ## 🚀 Getting Started
 
 Requires [Godot 4.6](https://godotengine.org/download) (standard build — no .NET needed).
@@ -110,9 +112,10 @@ godot --headless --path . res://test/tutorial_test.tscn     # tutorial — 22
 godot --headless --path . res://test/balance_test.tscn      # balance config — 18
 godot --headless --path . res://test/keybind_test.tscn      # key rebinding — 17
 godot --headless --path . res://test/i18n_test.tscn         # i18n zh/en — 10
+godot --headless --path . res://test/view_zoom_test.tscn    # view zoom — 43
 ```
 
-326 assertions, all passing.
+369 assertions, all passing.
 
 ## 🗺️ Roadmap
 

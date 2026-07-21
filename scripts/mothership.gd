@@ -153,7 +153,7 @@ func _physics_process(delta: float) -> void:
 		State.DEPART:
 			_depart_speed += 400.0 * delta
 			position.y -= _depart_speed * delta
-			if position.y < -350.0:
+			if position.y < GameState.view_world_rect().position.y - 350.0:
 				queue_free()
 
 

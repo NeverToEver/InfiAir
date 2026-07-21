@@ -183,11 +183,20 @@ func _physics_process(delta: float) -> void:
 			_summon_minions()
 
 
+## 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）
+func _strafe_range() -> Vector2:
+	var view := GameState.view_world_rect()
+	var lo := view.position.x + STRAFE_MIN_X
+	var hi := maxf(view.end.x - (1920.0 - STRAFE_MAX_X), lo)
+	return Vector2(lo, hi)
+
+
 func _move_strafe(delta: float, p_speed: float) -> void:
 	position.x += _strafe_dir * p_speed * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
-	if position.x < STRAFE_MIN_X or position.x > STRAFE_MAX_X:
+	var bounds := _strafe_range()
+	if position.x < bounds.x or position.x > bounds.y:
 		_strafe_dir = -_strafe_dir
-		position.x = clampf(position.x, STRAFE_MIN_X, STRAFE_MAX_X)
+		position.x = clampf(position.x, bounds.x, bounds.y)
 
 
 func _move_dash(delta: float) -> void:
@@ -202,9 +211,10 @@ func _move_dash(delta: float) -> void:
 				_strafe_dir = 1.0
 	if _dashing:
 		position.x += _strafe_dir * 400.0 * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
-		if position.x < STRAFE_MIN_X or position.x > STRAFE_MAX_X:
+		var bounds := _strafe_range()
+		if position.x < bounds.x or position.x > bounds.y:
 			_strafe_dir = -_strafe_dir
-			position.x = clampf(position.x, STRAFE_MIN_X, STRAFE_MAX_X)
+			position.x = clampf(position.x, bounds.x, bounds.y)
 
 
 func _player_dir() -> Vector2:

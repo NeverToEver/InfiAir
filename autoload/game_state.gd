@@ -13,6 +13,7 @@ signal mission_completed(id: StringName)
 signal route_chosen(line: StringName, buff_id: StringName)
 signal key_bindings_changed
 signal locale_changed
+signal view_zoom_changed(factor: float)
 
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
@@ -133,6 +134,8 @@ var difficulty: StringName = &"medium"
 ## 设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）
 var ctrl_toggle_mode: bool = false
 var shift_toggle_mode: bool = false
+## 视角档位（profile 持久化，默认 medium；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）
+var view_zoom: StringName = &"medium"
 ## buff id -> 已选层数
 var buffs: Dictionary = {}
 ## 征用点数（基地经济）
@@ -302,6 +305,48 @@ func set_ctrl_toggle_mode(enabled: bool) -> void:
 func set_shift_toggle_mode(enabled: bool) -> void:
 	shift_toggle_mode = enabled
 	save_profile()
+
+
+# ---------------- 视角缩放 ----------------
+
+## 视角档位表（设置页三选，profile 持久化；值为相机 zoom 倍率）。
+## zoom>1 时可见世界区域 = 视口 ÷ zoom（以相机位置为中心收窄），
+## 所有"屏幕边缘/出屏"逻辑统一走 view_world_rect() 适配。
+const VIEW_ZOOM_LEVELS: Dictionary = {&"small": 1.0, &"medium": 1.35, &"large": 1.7}
+const VIEW_ZOOM_ORDER: Array[StringName] = [&"small", &"medium", &"large"]
+
+## main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算
+var camera_ref: Camera2D = null
+## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 medium 档一致）
+var _view_zoom_factor: float = 1.35
+
+
+## 切换视角档位（非法/同档忽略），持久化到 profile 并广播
+func set_view_zoom(level: StringName) -> void:
+	if not VIEW_ZOOM_LEVELS.has(level) or level == view_zoom:
+		return
+	view_zoom = level
+	_view_zoom_factor = VIEW_ZOOM_LEVELS[level]
+	save_profile()
+	view_zoom_changed.emit(_view_zoom_factor)
+
+
+func view_zoom_factor() -> float:
+	return _view_zoom_factor
+
+
+## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
+## 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
+func view_world_rect(margin: float = 0.0) -> Rect2:
+	var center := Vector2(960.0, 540.0)
+	if camera_ref != null and is_instance_valid(camera_ref):
+		center = camera_ref.global_position
+	var size := Vector2(1920.0, 1080.0)
+	var viewport := get_viewport()
+	if viewport != null:
+		size = viewport.get_visible_rect().size
+	size /= _view_zoom_factor
+	return Rect2(center - size * 0.5, size).grow(margin)
 
 
 func add_kill() -> void:
@@ -625,6 +670,10 @@ func load_profile() -> void:
 			difficulty = saved_difficulty
 		ctrl_toggle_mode = bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode))
 		shift_toggle_mode = bool(parsed.get("shift_toggle_mode", shift_toggle_mode))
+		var saved_zoom := StringName(parsed.get("view_zoom", ""))
+		if VIEW_ZOOM_LEVELS.has(saved_zoom):
+			view_zoom = saved_zoom
+			_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
 
 
 func save_profile() -> void:
@@ -637,6 +686,7 @@ func save_profile() -> void:
 		"difficulty": String(difficulty),
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,
+		"view_zoom": String(view_zoom),
 	}
 	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	f.store_string(JSON.stringify(data))

@@ -122,7 +122,7 @@ func _process(delta: float) -> void:
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle
 	position += direction * speed * _speed_factor() * delta
-	if not Rect2(-80.0, -80.0, 2080.0, 1240.0).has_point(position):
+	if not GameState.view_world_rect(80.0).has_point(position):
 		_despawn()
 
 

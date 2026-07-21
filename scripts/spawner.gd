@@ -177,13 +177,14 @@ func _spawn_enemy() -> void:
 	var strategies: Array[StringName] = config["strategies"]
 	var strategy := strategies[randi() % strategies.size()]
 	var btype := _pick_bullet_type(config)
-	var x := randf_range(60.0, 1860.0)
+	var view := GameState.view_world_rect()
+	var x := randf_range(view.position.x + 60.0, view.end.x - 60.0)
 	# 入场预告：0.6s 红色提示后敌机才进场
-	get_parent().add_child(SpawnTelegraph.new(x))
+	get_parent().add_child(SpawnTelegraph.new(x, view.position.y))
 	await get_tree().create_timer(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION), false).timeout
 	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
-	e.position = Vector2(x, -60.0)
+	e.position = Vector2(x, view.position.y - 60.0)
 	get_parent().add_child(e)
 
 
@@ -209,7 +210,7 @@ func _spawn_boss(p_type: int = 0) -> void:
 		p_type = GameState.boss_kills % 3 + 1
 	var boss := BOSS_SCENE.instantiate() as Boss
 	boss.setup(GameState.difficulty_multiplier, p_type)
-	boss.position = Vector2(960.0, -160.0)
+	boss.position = Vector2(960.0, GameState.view_world_rect().position.y - 160.0)
 	boss.died.connect(_on_boss_died)
 	get_parent().add_child(boss)
 	boss_spawned.emit(boss)

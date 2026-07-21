@@ -51,6 +51,7 @@ godot --path .
 - BGM 循环只设 `stream.loop_mode = LOOP_FORWARD`；不要显式写 `loop_begin/loop_end` 或在 `_exit_tree` 里 `stop()`，否则退出时播放实例会泄漏（已在无头验证中复现）。
 - 母舰：长按 H 蓄力召唤（main 管理，虚影预告）、对接驻留 20s 弹匣制、长按 H 2s 提前离舰冷却打折；加特林为双塔 80° 扫射压制，弹丸 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）；对接序列锁输入用 `player._input_locked`，与暂停/清场逻辑兼容。
 - 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
+- 视角缩放三档（`GameState.view_zoom`：small 1.0 / medium 1.35 / large 1.7，默认 medium，profile 持久化）：相机固定在 (960,540) 只设 `zoom`，一切"屏幕边缘/出屏/刷怪位置"逻辑必须走 `GameState.view_world_rect()`（zoom=1 时即全屏 1920×1080），不得再写死 0..1920 / 0..1080。
 
 ## 测试策略
 

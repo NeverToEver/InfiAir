@@ -23,6 +23,7 @@ const ENRAGE_LOCK_TIME := 0.5
 @onready var _base_ui: CanvasLayer = $BaseUI
 @onready var _player: Player = $Player
 @onready var _starfield: Starfield = $Starfield
+@onready var _camera: Camera2D = $Camera2D
 
 var _game_over: bool = false
 var _homecoming: bool = false
@@ -59,6 +60,10 @@ func _ready() -> void:
 	_start_panel.continue_chosen.connect(_on_continue_run)
 	_start_panel.new_game_chosen.connect(_apply_new_run)
 	_base_ui.resume_requested.connect(_resume_from_base)
+	# 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
+	GameState.camera_ref = _camera
+	_camera.zoom = Vector2.ONE * GameState.view_zoom_factor()
+	GameState.view_zoom_changed.connect(_on_view_zoom_changed)
 	_start_bgm()
 	# 蓄力虚影（长按 H 蓄力期间显示）
 	_charge_ghost = Sprite2D.new()
@@ -77,6 +82,12 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	# 子弹时间内退出（重开/测试结束）也要保证全局速度复位
 	Engine.time_scale = 1.0
+	if GameState.camera_ref == _camera:
+		GameState.camera_ref = null
+
+
+func _on_view_zoom_changed(factor: float) -> void:
+	_camera.zoom = Vector2(factor, factor)
 
 
 func _process(delta: float) -> void:
@@ -241,7 +252,7 @@ func dock_status_text() -> String:
 
 func _summon_mothership() -> void:
 	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
-	_mothership.position = Vector2(960.0, -200.0)
+	_mothership.position = Vector2(960.0, GameState.view_world_rect().position.y - 200.0)
 	_mothership.departed.connect(_on_mothership_departed)
 	_mothership.tree_exited.connect(func() -> void: _mothership = null)
 	add_child(_mothership)

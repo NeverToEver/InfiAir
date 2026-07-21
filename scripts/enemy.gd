@@ -194,7 +194,12 @@ func _physics_process(delta: float) -> void:
 		# 寿命离场：向上或侧方加速，离场不给分、不计击杀
 		_exit_speed += EXIT_ACCEL * delta
 		position += _exit_dir * _exit_speed * delta
-		if position.y < -150.0 or position.x < -150.0 or position.x > 2070.0:
+		var exit_view := GameState.view_world_rect()
+		if (
+			position.y < exit_view.position.y - 150.0
+			or position.x < exit_view.position.x - 150.0
+			or position.x > exit_view.end.x + 150.0
+		):
 			_despawn()
 		return
 	_life_timer += delta
@@ -213,9 +218,10 @@ func _physics_process(delta: float) -> void:
 				_zig_dir = -_zig_dir
 				_zig_timer = 0.7
 			position += Vector2(_zig_dir * speed * 0.9, speed) * delta
-			if position.x < 40.0 or position.x > 1880.0:
+			var view := GameState.view_world_rect()
+			if position.x < view.position.x + 40.0 or position.x > view.end.x - 40.0:
 				_zig_dir = -_zig_dir
-				position.x = clampf(position.x, 40.0, 1880.0)
+				position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
 		&"dive":
 			if _dive_timer > 0.0:
 				_dive_timer -= delta
@@ -234,7 +240,8 @@ func _physics_process(delta: float) -> void:
 				/ 3.0 * speed * 1.2
 			)
 			position += Vector2(vx, speed) * delta
-			position.x = clampf(position.x, 40.0, 1880.0)
+			var view := GameState.view_world_rect()
+			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
 		&"aggressive":
 			# 追踪性噪声漂移：正弦叠加伪噪声扰动 + 持续偏向玩家 x 的下行
 			var vx := (
@@ -246,7 +253,8 @@ func _physics_process(delta: float) -> void:
 				var dx: float = players.global_position.x - position.x
 				vx += clampf(dx, -1.0, 1.0) * AGGR_CHASE_SPEED
 			position += Vector2(vx, speed * 0.9) * delta
-			position.x = clampf(position.x, 40.0, 1880.0)
+			var view := GameState.view_world_rect()
+			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
 		&"hover":
 			if _hover_done:
 				position.y += speed * delta
@@ -267,7 +275,7 @@ func _physics_process(delta: float) -> void:
 			_fire_timer = fire_interval * (0.5 if _hovering else 1.0)
 			_fire_at_player()
 
-	if position.y > 1140.0:
+	if position.y > GameState.view_world_rect().end.y + 60.0:
 		_despawn()
 
 
