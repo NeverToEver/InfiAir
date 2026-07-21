@@ -11,6 +11,8 @@ signal screen_shake(strength: float)
 signal rp_changed(new_rp: int)
 signal mission_completed(id: StringName)
 signal route_chosen(line: StringName, buff_id: StringName)
+signal key_bindings_changed
+signal locale_changed
 
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
@@ -174,8 +176,13 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		_sfx_players.append(p)
+	_capture_default_bindings()
 	_init_missions()
 	load_profile()
+	TranslationServer.add_translation(load("res://data/translations.zh.translation") as Translation)
+	TranslationServer.add_translation(load("res://data/translations.en.translation") as Translation)
+	TranslationServer.set_locale(locale)
+	_apply_key_bindings()
 	_next_milestone = milestone_threshold(0)
 
 
@@ -235,7 +242,7 @@ func set_difficulty(p_difficulty: StringName) -> void:
 
 
 func difficulty_label() -> String:
-	return DIFFICULTY_DEFS[difficulty]["label"]
+	return tr("DIFF_" + String(difficulty).to_upper())
 
 
 func score_multiplier() -> int:
@@ -330,6 +337,96 @@ func buff_count(id: StringName) -> int:
 
 func add_buff(id: StringName) -> void:
 	buffs[id] = buff_count(id) + 1
+
+
+# ---------------- 可改键系统 ----------------
+
+const REBINDABLE_ACTIONS: Array[StringName] = [
+	&"move_up", &"move_down", &"move_left", &"move_right",
+	&"boost", &"fine_move", &"dash", &"dock", &"homecoming", &"give_up",
+]
+const ACTION_LABELS: Dictionary = {
+	&"move_up": "上移", &"move_down": "下移", &"move_left": "左移", &"move_right": "右移",
+	&"boost": "加速", &"fine_move": "微调", &"dash": "相位冲刺",
+	&"dock": "召唤母舰", &"homecoming": "返航", &"give_up": "放弃出击",
+}
+
+## action -> Array[int]（keycode，最多 2 个）；restart/pause 固定不可改
+var key_bindings: Dictionary = {}
+var _default_bindings: Dictionary = {}
+
+
+func _capture_default_bindings() -> void:
+	_default_bindings.clear()
+	for a in REBINDABLE_ACTIONS:
+		_default_bindings[a] = _get_action_keycodes(a)
+
+
+func _get_action_keycodes(action: StringName) -> Array[int]:
+	var out: Array[int] = []
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			var k: int = ev.keycode if ev.keycode != 0 else ev.physical_keycode
+			out.append(k)
+			if out.size() >= 2:
+				break
+	return out
+
+
+## 用 key_bindings（含 profile 覆盖）刷新 InputMap
+func _apply_key_bindings() -> void:
+	for a in REBINDABLE_ACTIONS:
+		InputMap.action_erase_events(a)
+		for k: int in key_bindings.get(a, _default_bindings.get(a, [])):
+			var ev := InputEventKey.new()
+			ev.keycode = k
+			InputMap.action_add_event(a, ev)
+
+
+## 改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）
+func rebind_action(action: StringName, keycode: int) -> bool:
+	if action not in REBINDABLE_ACTIONS:
+		return false
+	for a in key_bindings.keys():
+		if a != action and (key_bindings[a] as Array).has(keycode):
+			(key_bindings[a] as Array).erase(keycode)
+	key_bindings[action] = [keycode]
+	_apply_key_bindings()
+	save_profile()
+	key_bindings_changed.emit()
+	return true
+
+
+func reset_key_bindings() -> void:
+	key_bindings = _default_bindings.duplicate(true)
+	_apply_key_bindings()
+	save_profile()
+	key_bindings_changed.emit()
+
+
+func action_keys_text(action: StringName) -> String:
+	var keys: Array = key_bindings.get(action, _default_bindings.get(action, []))
+	if keys.is_empty():
+		return "（未绑定）"
+	var parts: Array[String] = []
+	for k in keys:
+		parts.append(OS.get_keycode_string(k))
+	return " / ".join(parts)
+
+
+# ---------------- 语言（中英双语） ----------------
+
+## 当前语言（"zh"/"en"，profile 持久化）
+var locale: String = "zh"
+
+
+func set_locale(p_locale: String) -> void:
+	if p_locale != "zh" and p_locale != "en":
+		return
+	locale = p_locale
+	TranslationServer.set_locale(p_locale)
+	save_profile()
+	locale_changed.emit()
 
 
 # ---------------- RP 经济 / 基地任务 / 天赋路线 ----------------
@@ -515,6 +612,14 @@ func load_profile() -> void:
 	if parsed is Dictionary:
 		high_score = int(parsed.get("high_score", 0))
 		tutorial_done = bool(parsed.get("tutorial_done", false))
+		locale = str(parsed.get("locale", "zh"))
+		key_bindings.clear()
+		var saved_keys: Dictionary = parsed.get("key_bindings", {})
+		for a in saved_keys.keys():
+			var keys: Array[int] = []
+			for k: Variant in saved_keys[a]:
+				keys.append(int(k))
+			key_bindings[StringName(a)] = keys
 		var saved_difficulty := StringName(parsed.get("difficulty", ""))
 		if DIFFICULTY_DEFS.has(saved_difficulty):
 			difficulty = saved_difficulty
@@ -527,6 +632,8 @@ func save_profile() -> void:
 		"version": PERSIST_VERSION,
 		"high_score": high_score,
 		"tutorial_done": tutorial_done,
+		"key_bindings": key_bindings,
+		"locale": locale,
 		"difficulty": String(difficulty),
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,

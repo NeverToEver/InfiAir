@@ -6,24 +6,28 @@ signal resume_requested
 
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 const ROUTE_BUFF_NAMES: Dictionary = {
-	&"spread_shot": "散射弹道",
-	&"laser_beam": "激光光束",
-	&"phase_dash": "相位冲刺",
-	&"mothership_recall": "母舰召回",
+	&"spread_shot": "BUFF_SPREAD_SHOT_NAME",
+	&"laser_beam": "BUFF_LASER_BEAM_NAME",
+	&"phase_dash": "BUFF_PHASE_DASH_NAME",
+	&"mothership_recall": "BUFF_MOTHERSHIP_RECALL_NAME",
 }
-const ROUTE_LINE_NAMES: Dictionary = {&"offense": "进攻线", &"mobility": "机动线"}
+const ROUTE_LINE_NAMES: Dictionary = {&"offense": "ROUTE_OFFENSE", &"mobility": "ROUTE_MOBILITY"}
 var LIVES_CAP := 6.0
 
 var _rp_label: Label
+var _title_label: Label
 var _status_label: Label
 var _repair_button: Button
 var _recharge_button: Button
 var _routes_box: VBoxContainer
 var _missions_box: VBoxContainer
+var _title_labels: Dictionary = {}
+var _route_hint_label: Label
 
 
 func _ready() -> void:
 	visible = false
+	GameState.locale_changed.connect(_on_locale_changed)
 	LIVES_CAP = GameState.cfg("mothership.lives_cap", LIVES_CAP)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.08, 0.95)
@@ -38,8 +42,10 @@ func _ready() -> void:
 	vbox.add_theme_constant_override("separation", 14)
 	center.add_child(vbox)
 
-	vbox.add_child(_make_label("基地整备", 44))
+	_title_label = _make_label(tr("BASE_TITLE"), 44)
+	vbox.add_child(_title_label)
 	_rp_label = _make_label("", 26)
+	_rp_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	vbox.add_child(_rp_label)
 
 	var columns := HBoxContainer.new()
@@ -61,7 +67,7 @@ func _ready() -> void:
 	right.add_child(_build_missions())
 
 	var resume_button := Button.new()
-	resume_button.text = "继续出击"
+	resume_button.text = tr("BASE_RESUME")
 	resume_button.custom_minimum_size = Vector2(280.0, 52.0)
 	resume_button.add_theme_font_override("font", FONT)
 	resume_button.add_theme_font_size_override("font_size", 26)
@@ -78,22 +84,17 @@ func _make_label(text: String, size: int) -> Label:
 	return label
 
 
-func _make_panel(title: String) -> PanelContainer:
+func _make_panel(title_key: String) -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(560.0, 0.0)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.13, 0.22, 0.95)
-	style.border_color = Color(0.3, 0.8, 0.9)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(14.0)
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", UITheme.make_panel_style())
 	var vbox := VBoxContainer.new()
 	vbox.name = "Body"
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
-	var title_label := _make_label(title, 24)
-	title_label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0))
+	var title_label := _make_label(tr(title_key), 24)
+	_title_labels[title_key] = title_label
+	title_label.add_theme_color_override("font_color", UITheme.ACCENT)
 	vbox.add_child(title_label)
 	return panel
 
@@ -103,11 +104,12 @@ func _make_button(text: String) -> Button:
 	button.text = text
 	button.add_theme_font_override("font", FONT)
 	button.add_theme_font_size_override("font_size", 20)
+	UITheme.apply_button(button)
 	return button
 
 
 func _build_hangar() -> PanelContainer:
-	var panel := _make_panel("战机库")
+	var panel := _make_panel("BASE_HANGAR")
 	_status_label = _make_label("", 20)
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	panel.get_node("Body").add_child(_status_label)
@@ -115,30 +117,31 @@ func _build_hangar() -> PanelContainer:
 
 
 func _build_supply() -> PanelContainer:
-	var panel := _make_panel("维修补给")
+	var panel := _make_panel("BASE_SUPPLY")
 	var body := panel.get_node("Body")
-	_repair_button = _make_button("维修（2 RP）：生命 +1")
+	_repair_button = _make_button("")
 	_repair_button.pressed.connect(_on_repair_pressed)
 	body.add_child(_repair_button)
-	_recharge_button = _make_button("充能（2 RP）：燃料充满")
+	_recharge_button = _make_button("")
 	_recharge_button.pressed.connect(_on_recharge_pressed)
 	body.add_child(_recharge_button)
 	return panel
 
 
 func _build_routes() -> PanelContainer:
-	var panel := _make_panel("武器挂载 · 天赋路线")
+	var panel := _make_panel("BASE_ROUTES")
 	var body := panel.get_node("Body")
 	_routes_box = VBoxContainer.new()
 	_routes_box.add_theme_constant_override("separation", 8)
 	body.add_child(_routes_box)
-	var hint := _make_label("每线二选一，被锁定的 buff 不再出现在奖励池", 16)
+	var hint := _make_label(tr("BASE_ROUTE_HINT"), 16)
+	_route_hint_label = hint
 	body.add_child(hint)
 	return panel
 
 
 func _build_missions() -> PanelContainer:
-	var panel := _make_panel("任务规划")
+	var panel := _make_panel("BASE_MISSIONS")
 	_missions_box = VBoxContainer.new()
 	_missions_box.add_theme_constant_override("separation", 8)
 	panel.get_node("Body").add_child(_missions_box)
@@ -151,19 +154,25 @@ func show_base() -> void:
 
 
 func _refresh() -> void:
-	_rp_label.text = "RP 余额：%d" % GameState.rp
+	_rp_label.text = tr("BASE_RP") % GameState.rp
 	var player := get_tree().get_first_node_in_group("player") as Player
 	# 战机库状态总览
 	var buff_text := ""
 	for id in GameState.buffs:
 		buff_text += "%s×%d  " % [String(id), int(GameState.buffs[id])]
 	if buff_text.is_empty():
-		buff_text = "（无）"
+		buff_text = tr("BASE_NO_BUFF")
 	var fuel_pct := 0
 	if player != null:
 		fuel_pct = int(player.fuel_ratio() * 100.0)
-	_status_label.text = "生命：%d   燃料：%d%%\nBuff：%s" % [ceili(GameState.lives), fuel_pct, buff_text]
+	_status_label.text = tr("BASE_STATUS_FMT") % [ceili(GameState.lives), fuel_pct, buff_text]
 	# 维修补给按钮状态
+	_title_label.text = tr("BASE_TITLE")
+	for k in _title_labels:
+		(_title_labels[k] as Label).text = tr(k)
+	_route_hint_label.text = tr("BASE_ROUTE_HINT")
+	_repair_button.text = tr("BASE_REPAIR")
+	_recharge_button.text = tr("BASE_RECHARGE")
 	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.lives >= LIVES_CAP
 	_recharge_button.disabled = (
 		GameState.rp < GameState.RP_RECHARGE_COST or player == null or player._fuel >= player.fuel_max
@@ -180,7 +189,7 @@ func _refresh_routes() -> void:
 		var total := GameState.buff_count(options[0]) + GameState.buff_count(options[1])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
-		var line_label := _make_label("%s（共 %d 层）" % [ROUTE_LINE_NAMES.get(line, String(line)), total], 20)
+		var line_label := _make_label(tr("BASE_LINE_FMT") % [tr(ROUTE_LINE_NAMES.get(line, String(line))), total], 20)
 		line_label.custom_minimum_size = Vector2(170.0, 0.0)
 		line_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		row.add_child(line_label)
@@ -188,12 +197,13 @@ func _refresh_routes() -> void:
 			var chosen: bool = GameState.chosen_routes.get(line) == opt
 			var locked := GameState.is_buff_locked(opt)
 			var button := _make_button("")
+			var buff_name := tr(ROUTE_BUFF_NAMES[opt])
 			if chosen:
-				button.text = "✓ %s Lv.%d" % [ROUTE_BUFF_NAMES[opt], GameState.buff_count(opt)]
+				button.text = tr("BASE_CHOSEN_FMT") % [buff_name, GameState.buff_count(opt)]
 			elif locked:
-				button.text = "%s（已锁定）" % ROUTE_BUFF_NAMES[opt]
+				button.text = tr("BASE_LOCKED_FMT") % buff_name
 			else:
-				button.text = "%s Lv.%d" % [ROUTE_BUFF_NAMES[opt], GameState.buff_count(opt)]
+				button.text = tr("BUFF_LV_FMT") % [buff_name, GameState.buff_count(opt)]
 			button.disabled = chosen or locked or total == 0
 			button.pressed.connect(_on_route_pressed.bind(line, opt))
 			row.add_child(button)
@@ -209,22 +219,26 @@ func _refresh_missions() -> void:
 		row.add_theme_constant_override("separation", 10)
 		var progress := GameState.mission_progress(id)
 		var goal := GameState.mission_goal(id)
-		var text := "%s：%s（%d/%d）" % [def["name"], def["desc"], mini(progress, goal), goal]
+		var text := "%s：%s（%d/%d）" % [tr("MISSION_%s_NAME" % String(id).to_upper()), tr("MISSION_%s_DESC" % String(id).to_upper()), mini(progress, goal), goal]
 		if GameState.is_mission_claimed(id):
-			text += " 已领取"
+			text += tr("BASE_CLAIMED")
 		elif GameState.is_mission_done(id):
-			text += " 已完成"
+			text += tr("BASE_DONE")
 		var info := _make_label(text, 20)
 		info.custom_minimum_size = Vector2(400.0, 0.0)
 		info.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		if GameState.is_mission_done(id):
-			info.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
+			info.add_theme_color_override("font_color", UITheme.SUCCESS)
 		row.add_child(info)
-		var claim_button := _make_button("领取 +3RP")
+		var claim_button := _make_button(tr("BASE_CLAIM"))
 		claim_button.disabled = not GameState.is_mission_done(id) or GameState.is_mission_claimed(id)
 		claim_button.pressed.connect(_on_claim_pressed.bind(id))
 		row.add_child(claim_button)
 		_missions_box.add_child(row)
+
+
+func _on_locale_changed() -> void:
+	_refresh()
 
 
 func _on_repair_pressed() -> void:

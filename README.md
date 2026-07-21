@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-307%20passed-brightgreen)](#运行验证)
+[![Tests](https://img.shields.io/badge/tests-326%20passed-brightgreen)](#运行验证)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -61,6 +61,9 @@
 | ESC | 暂停（暂停菜单可保存进度，全局唯一存档入口） |
 | R | 结算 / 暂停时重开 |
 
+> 以上按键均可在「设置 → 控制」中自定义（Esc/R 固定不可改，改键持久化于 `user://profile.json`）。
+> 界面支持中英双语：「设置 → 操作模式 → 语言 / Language」切换（持久化于 `user://profile.json`，文案集中在 `data/translations.csv`）。
+
 ## 🚀 快速开始
 
 需要 [Godot 4.6](https://godotengine.org/download)（标准版即可，无需 .NET）。
@@ -109,10 +112,12 @@ godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃
 godot --headless --path . res://test/difficulty_test.tscn   # 难度/里程碑/设置 52 项
 godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 24 项
 godot --headless --path . res://test/balance_test.tscn      # 数值配置中心 18 项
+godot --headless --path . res://test/keybind_test.tscn      # 可改键 17 项
+godot --headless --path . res://test/i18n_test.tscn         # 中英双语 10 项
 godot --headless --path . res://test/tutorial_test.tscn     # 新手教程 22 项
 ```
 
-共 307 项断言，全部通过。
+共 326 项断言，全部通过。
 
 ## 🗺️ 路线图
 

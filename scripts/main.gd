@@ -231,12 +231,12 @@ func _enrage_vignette() -> void:
 ## 母舰状态文本（HUD 轮询）
 func dock_status_text() -> String:
 	if _charging:
-		return "母舰蓄力 %d%%" % int(_charge_time / DOCK_CHARGE_TIME * 100.0)
+		return tr("MS_CHARGING") % int(_charge_time / DOCK_CHARGE_TIME * 100.0)
 	if _mothership != null:
 		return _mothership.state_text()
 	if _dock_cooldown > 0.0:
-		return "母舰冷却 %ds" % ceili(_dock_cooldown)
-	return "母舰就绪 [H]"
+		return tr("MS_COOLDOWN") % ceili(_dock_cooldown)
+	return tr("MS_READY")
 
 
 func _summon_mothership() -> void:

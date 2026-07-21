@@ -104,6 +104,8 @@ const BUFF_POOL: Array[Dictionary] = [
 
 var _center: CenterContainer
 var _cards: HBoxContainer
+var _title_label: Label
+var _current_available: Array = []
 
 
 func _ready() -> void:
@@ -122,10 +124,12 @@ func _ready() -> void:
 	_center.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "选择一项强化"
+	title.text = tr("BUFF_TITLE")
+	_title_label = title
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT)
 	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	vbox.add_child(title)
 
 	_cards = HBoxContainer.new()
@@ -134,6 +138,7 @@ func _ready() -> void:
 	vbox.add_child(_cards)
 
 	GameState.milestone_reached.connect(_on_milestone_reached)
+	GameState.locale_changed.connect(_on_locale_changed)
 
 
 ## 抽卡候选池：未满层 + 未被路线锁定；explosive 需 boss_kills>=3 解锁（原作 gating）
@@ -155,43 +160,51 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	if available.is_empty():
 		return
 	available.shuffle()
-	for child in _cards.get_children():
-		child.queue_free()
-	for i in mini(3, available.size()):
-		_cards.add_child(_make_card(available[i]))
+	_current_available = available.slice(0, 2)
+	_build_cards()
 	get_tree().paused = true
 	visible = true
+
+
+func _build_cards() -> void:
+	for child in _cards.get_children():
+		child.queue_free()
+	for buff in _current_available:
+		_cards.add_child(_make_card(buff))
+
+
+func _on_locale_changed() -> void:
+	_title_label.text = tr("BUFF_TITLE")
+	if visible:
+		_build_cards()
 
 
 func _make_card(buff: Dictionary) -> PanelContainer:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(320.0, 200.0)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.13, 0.22, 0.95)
-	style.border_color = Color(0.3, 0.8, 0.9)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	style.set_content_margin_all(20.0)
-	card.add_theme_stylebox_override("panel", style)
+	card.add_theme_stylebox_override("panel", UITheme.make_panel_style(2, 8, 20.0))
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
 	card.add_child(vbox)
 
 	var stacks := GameState.buff_count(buff["id"])
+	var buff_name := tr("BUFF_%s_NAME" % String(buff["id"]).to_upper())
 	var name_label := Label.new()
-	name_label.text = buff["name"] if stacks == 0 else "%s Lv.%d" % [buff["name"], stacks]
+	name_label.text = buff_name if stacks == 0 else tr("BUFF_LV_FMT") % [buff_name, stacks]
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_override("font", FONT)
 	name_label.add_theme_font_size_override("font_size", 30)
+	name_label.add_theme_color_override("font_color", UITheme.ACCENT)
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()
-	desc_label.text = buff["desc"]
+	desc_label.text = tr("BUFF_%s_DESC" % String(buff["id"]).to_upper())
 	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_label.add_theme_font_override("font", FONT)
 	desc_label.add_theme_font_size_override("font_size", 22)
+	desc_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	vbox.add_child(desc_label)
 
 	card.gui_input.connect(_on_card_gui_input.bind(buff["id"]))

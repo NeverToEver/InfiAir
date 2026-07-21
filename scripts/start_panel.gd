@@ -9,12 +9,14 @@ signal new_game_chosen
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _hint_label: Label
+var _diff_label: Label
 var _continue_button: Button
 var _new_button: Button
 var _diff_buttons: Dictionary = {}  # StringName -> Button
 var _diff_group := ButtonGroup.new()
 var _spawner_held := false
 var _tutorial_button: Button
+var _settings_button: Button
 
 
 func _ready() -> void:
@@ -37,6 +39,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT)
 	title.add_theme_font_size_override("font_size", 56)
+	title.add_theme_color_override("font_color", UITheme.ACCENT)
 	vbox.add_child(title)
 
 	_hint_label = Label.new()
@@ -51,7 +54,8 @@ func _ready() -> void:
 	diff_row.add_theme_constant_override("separation", 12)
 	vbox.add_child(diff_row)
 	var diff_label := Label.new()
-	diff_label.text = "难度"
+	diff_label.text = tr("START_DIFFICULTY")
+	_diff_label = diff_label
 	diff_label.add_theme_font_override("font", FONT)
 	diff_label.add_theme_font_size_override("font_size", 24)
 	diff_row.add_child(diff_label)
@@ -63,6 +67,7 @@ func _ready() -> void:
 		b.custom_minimum_size = Vector2(90.0, 52.0)
 		b.add_theme_font_override("font", FONT)
 		b.add_theme_font_size_override("font_size", 26)
+		UITheme.apply_button(b)
 		b.pressed.connect(_on_difficulty_pressed.bind(d))
 		diff_row.add_child(b)
 		_diff_buttons[d] = b
@@ -77,7 +82,12 @@ func _ready() -> void:
 
 	_tutorial_button = _make_button("教程")
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
+	GameState.locale_changed.connect(func() -> void: _refresh_texts())
 	vbox.add_child(_tutorial_button)
+
+	_settings_button = _make_button("")
+	vbox.add_child(_settings_button)
+	_settings_button.pressed.connect(_on_settings_pressed)
 
 	# 无存档时开场自显（不暂停）；有存档时等 main 调 show_panel()
 	if not GameState.has_save():
@@ -90,6 +100,7 @@ func _make_button(text: String) -> Button:
 	button.custom_minimum_size = Vector2(280.0, 56.0)
 	button.add_theme_font_override("font", FONT)
 	button.add_theme_font_size_override("font_size", 28)
+	UITheme.apply_button(button)
 	return button
 
 
@@ -100,10 +111,8 @@ func show_panel() -> void:
 
 func _show(pause: bool) -> void:
 	var has_save := GameState.has_save()
-	_hint_label.text = "检测到未完成的对局" if has_save else "选择难度，准备出击"
+	_refresh_texts()
 	_continue_button.visible = has_save
-	_new_button.text = "新游戏" if has_save else "开始游戏"
-	_tutorial_button.text = "教程 ✓" if GameState.tutorial_done else "教程"
 	_refresh_difficulty_buttons()
 	if pause:
 		get_tree().paused = true
@@ -124,6 +133,15 @@ func _dismiss() -> void:
 		if spawner != null:
 			spawner.set_process(true)
 	get_tree().paused = false
+
+
+func _refresh_texts() -> void:
+	_hint_label.text = tr("START_HAS_SAVE") if GameState.has_save() else tr("START_NO_SAVE")
+	_continue_button.text = tr("START_CONTINUE")
+	_new_button.text = tr("START_NEW") if GameState.has_save() else tr("START_BEGIN")
+	_tutorial_button.text = tr("START_TUTORIAL_DONE") if GameState.tutorial_done else tr("START_TUTORIAL")
+	_settings_button.text = tr("START_SETTINGS")
+	_diff_label.text = tr("START_DIFFICULTY")
 
 
 func _refresh_difficulty_buttons() -> void:
@@ -149,3 +167,9 @@ func _on_new_game_pressed() -> void:
 func _on_tutorial_pressed() -> void:
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/tutorial.tscn")
+
+
+func _on_settings_pressed() -> void:
+	var settings := get_tree().get_first_node_in_group("settings_ui")
+	if settings != null:
+		settings.show_settings()

@@ -38,19 +38,22 @@ func _ready() -> void:
 	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
 		tag.add_theme_font_size_override("font_size", 16)
-	_fuel_fill.bg_color = Color(0.25, 0.8, 0.9)
+	_fuel_fill.bg_color = UITheme.ACCENT
 	_fuel_fill.set_corner_radius_all(3)
 	_fuel_bar.add_theme_stylebox_override("fill", _fuel_fill)
-	_dash_fill.bg_color = Color(0.95, 0.85, 0.3)
+	_dash_fill.bg_color = UITheme.ACCENT
 	_dash_fill.set_corner_radius_all(3)
 	_dash_bar.add_theme_stylebox_override("fill", _dash_fill)
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.lives_changed.connect(_on_lives_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
 	GameState.difficulty_selected.connect(_on_difficulty_selected)
+	GameState.locale_changed.connect(_on_locale_changed)
 	_on_score_changed(GameState.score)
 	_on_lives_changed(GameState.lives)
 	_refresh_difficulty_label()
+	_fuel_tag.text = tr("UI_FUEL")
+	_dash_tag.text = tr("UI_DASH")
 	_build_banner()
 	_build_magazine_bar()
 	# 返航蓄力提示（底部居中）
@@ -83,7 +86,7 @@ func set_give_up_charge(ratio: float) -> void:
 		_give_up_label.visible = false
 	else:
 		_give_up_label.visible = true
-		_give_up_label.text = "放弃出击 %d%%" % int(clampf(ratio, 0.0, 1.0) * 100.0)
+		_give_up_label.text = tr("GIVE_UP_CHARGE") % int(clampf(ratio, 0.0, 1.0) * 100.0)
 
 
 ## 返航蓄力进度：ratio < 0 隐藏，否则显示百分比
@@ -92,7 +95,7 @@ func set_home_charge(ratio: float) -> void:
 		_home_charge_label.visible = false
 	else:
 		_home_charge_label.visible = true
-		_home_charge_label.text = "返航蓄力 %d%%" % int(clampf(ratio, 0.0, 1.0) * 100.0)
+		_home_charge_label.text = tr("HOME_CHARGE") % int(clampf(ratio, 0.0, 1.0) * 100.0)
 
 
 func _build_magazine_bar() -> void:
@@ -105,7 +108,7 @@ func _build_magazine_bar() -> void:
 	for i in 10:
 		var cell := ColorRect.new()
 		cell.custom_minimum_size = Vector2(18.0, 14.0)
-		cell.color = Color(0.25, 0.8, 0.9)
+		cell.color = UITheme.ACCENT
 		_mag_box.add_child(cell)
 		_mag_cells_nodes.append(cell)
 	add_child(_mag_box)
@@ -122,7 +125,7 @@ func _process(delta: float) -> void:
 		return
 	var fuel := player.fuel_ratio()
 	_fuel_bar.value = fuel * 100.0
-	_fuel_fill.bg_color = Color(0.9, 0.25, 0.2) if fuel < 0.3 else Color(0.25, 0.8, 0.9)
+	_fuel_fill.bg_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
 	if _main == null:
 		_main = get_tree().get_first_node_in_group("main")
@@ -143,7 +146,7 @@ func _update_magazine_bar(main: Node) -> void:
 		_last_mag_cells = ms._mag_cells
 		for i in _mag_cells_nodes.size():
 			_mag_cells_nodes[i].color = (
-				Color(0.25, 0.8, 0.9) if i < ms._mag_cells else Color(0.15, 0.18, 0.25)
+				UITheme.ACCENT if i < ms._mag_cells else UITheme.PANEL_BG
 			)
 	else:
 		_mag_box.visible = false
@@ -156,6 +159,7 @@ func show_popup(text: String, world_pos: Vector2) -> void:
 	label.text = text
 	label.add_theme_font_override("font", FONT)
 	label.add_theme_font_size_override("font_size", 22)
+	label.add_theme_color_override("font_color", UITheme.TEXT)
 	label.position = world_pos - Vector2(40.0, 40.0)
 	add_child(label)
 	var tween := create_tween()
@@ -172,27 +176,27 @@ func _build_banner() -> void:
 	_banner.custom_minimum_size = Vector2(560.0, 0.0)
 	_banner.visible = false
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.45, 0.04, 0.04, 0.8)
+	style.bg_color = Color(0.35, 0.08, 0.08, 0.85)
 	style.set_content_margin_all(14.0)
 	_banner.add_theme_stylebox_override("panel", style)
 	_banner_label = Label.new()
 	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner_label.add_theme_font_override("font", FONT)
 	_banner_label.add_theme_font_size_override("font_size", 44)
-	_banner_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
+	_banner_label.add_theme_color_override("font_color", UITheme.DANGER)
 	_banner.add_child(_banner_label)
 	add_child(_banner)
 
 
 ## Boss 出场警告：闪烁 2s（与 spawner 的 2s 预警同步），随后淡出。
 func show_boss_banner() -> void:
-	_show_warning("⚠ 警告：强敌接近 ⚠")
+	_show_warning(tr("WARN_BOSS"))
 
 
 ## 母舰弹匣不足警告（≤4 格时触发一次）。
 func show_magazine_warning() -> void:
 	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
-	_show_warning("母舰弹药不足")
+	_show_warning(tr("WARN_MAG"))
 
 
 func _show_warning(text: String) -> void:
@@ -216,12 +220,12 @@ func show_boss_bar(boss: Boss) -> void:
 
 
 func _on_score_changed(new_score: int) -> void:
-	_score_label.text = "分数：%d" % new_score
-	_kills_label.text = "击杀：%d" % GameState.kills
+	_score_label.text = tr("UI_SCORE") % new_score
+	_kills_label.text = tr("UI_KILLS") % GameState.kills
 
 
 func _on_lives_changed(new_lives: float) -> void:
-	_lives_label.text = "生命：%d" % ceili(new_lives)
+	_lives_label.text = tr("UI_LIVES") % ceili(new_lives)
 
 
 func _on_difficulty_changed(_new_multiplier: float) -> void:
@@ -232,10 +236,18 @@ func _on_difficulty_selected(_difficulty: StringName) -> void:
 	_refresh_difficulty_label()
 
 
+func _on_locale_changed() -> void:
+	_on_score_changed(GameState.score)
+	_on_lives_changed(GameState.lives)
+	_refresh_difficulty_label()
+	_fuel_tag.text = tr("UI_FUEL")
+	_dash_tag.text = tr("UI_DASH")
+
+
 ## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）
 func _refresh_difficulty_label() -> void:
 	_difficulty_label.text = (
-		"难度 x%.2f · %s" % [GameState.difficulty_multiplier, GameState.difficulty_label()]
+		tr("UI_DIFF_FMT") % [GameState.difficulty_multiplier, GameState.difficulty_label()]
 	)
 
 

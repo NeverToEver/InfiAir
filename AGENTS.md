@@ -71,6 +71,12 @@ godot --path .
 - 所有可调数值集中在 `data/balance.json`（玩家/敌机/精英/Boss/刷怪/母舰/buff/里程碑/难度/效果分层）；**调参只改 JSON，不改脚本常量**。脚本内的同名 var 是回退默认值，必须与 JSON 保持一致。
 - 访问统一走 `GameState.cfg("player.fuel.drain" 式路径, 默认值)`；每帧热路径禁止直接 cfg 查询，在 `_ready()` 一次性读进成员变量（参照 player.gd `_load_balance()`）。
 
+## 语言（中英双语）
+
+- 文案一律走 `tr("KEY")`，key 用英文大写蛇形（`UI_SCORE`、`BUFF_POWER_SHOT_NAME`、`TUT_S1_TITLE`）；**新增 UI 文案必须同时在 `data/translations.csv` 加 zh/en 两列**（改后需重新 import 生成 .translation）。
+- GameState 启动时手动加载 `translations.zh/en.translation` 并应用 profile 里的 `locale`；切换用 `GameState.set_locale("zh"/"en")`（落盘 + `locale_changed` 信号），各 UI 监听信号刷新文本。
+- 动态拼接文本用带 `%d`/`%s` 占位的 key（如 `MS_STAY "驻留 %ds"`）。
+
 ## 性能约定（3.4）
 - 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。
 - 敌机一律走 `GameState.enemy_pool.spawn()`（enemy_pool.gd，模式同子弹池）：`reactivate()` 全状态重置（计时/策略/HP/调制色/died 断连），`deactivate()` 注销注册表并断开 died 监听；`USE_POOL=false` 可回退纯 instantiate/free 做 A/B 对照。直接实例化（测试）走 `_ready` 兼容路径，互不影响。

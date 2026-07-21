@@ -5,6 +5,8 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _stats_label: Label
 var _record_label: Label
+var _title_label: Label
+var _hint_label: Label
 
 
 func _ready() -> void:
@@ -23,7 +25,8 @@ func _ready() -> void:
 	center.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "游戏结束"
+	title.text = tr("GO_TITLE")
+	_title_label = title
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT)
 	title.add_theme_font_size_override("font_size", 56)
@@ -36,22 +39,34 @@ func _ready() -> void:
 	vbox.add_child(_stats_label)
 
 	_record_label = Label.new()
-	_record_label.text = "新纪录！"
+	_record_label.text = tr("GO_RECORD")
 	_record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_record_label.add_theme_font_override("font", FONT)
 	_record_label.add_theme_font_size_override("font_size", 34)
-	_record_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_record_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	_record_label.visible = false
 	vbox.add_child(_record_label)
 
 	var hint := Label.new()
-	hint.text = "按 R 重新开始"
+	hint.text = tr("GO_RESTART")
+	_hint_label = hint
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_override("font", FONT)
 	hint.add_theme_font_size_override("font_size", 26)
 	vbox.add_child(hint)
 
 	GameState.player_died.connect(_on_player_died)
+	GameState.locale_changed.connect(_on_locale_changed)
+
+
+func _on_locale_changed() -> void:
+	_title_label.text = tr("GO_TITLE")
+	_record_label.text = tr("GO_RECORD")
+	_hint_label.text = tr("GO_RESTART")
+	if visible:
+		_stats_label.text = (
+			tr("GO_SCORE") + "\n" + tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")
+		) % [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
 
 
 func _on_player_died() -> void:
@@ -59,9 +74,8 @@ func _on_player_died() -> void:
 	GameState.delete_save()
 	var new_record := GameState.record_score()
 	_stats_label.text = (
-		"得分：%d\n最高分：%d\n击杀：%d\nBoss 击杀：%d"
-		% [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
-	)
+		tr("GO_SCORE") + "\n" + tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")
+	) % [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
 	_record_label.visible = new_record
 	if new_record:
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)

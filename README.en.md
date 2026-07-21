@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-307%20passed-brightgreen)](#verification)
+[![Tests](https://img.shields.io/badge/tests-326%20passed-brightgreen)](#verification)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -108,9 +108,11 @@ godot --headless --path . res://test/difficulty_test.tscn   # difficulty/milesto
 godot --headless --path . res://test/boss_enrage_test.tscn  # boss enrage — 24
 godot --headless --path . res://test/tutorial_test.tscn     # tutorial — 22
 godot --headless --path . res://test/balance_test.tscn      # balance config — 18
+godot --headless --path . res://test/keybind_test.tscn      # key rebinding — 17
+godot --headless --path . res://test/i18n_test.tscn         # i18n zh/en — 10
 ```
 
-307 assertions, all passing.
+326 assertions, all passing.
 
 ## 🗺️ Roadmap
 

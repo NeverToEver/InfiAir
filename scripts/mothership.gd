@@ -78,15 +78,15 @@ func _ready() -> void:
 func state_text() -> String:
 	match _state:
 		State.DESCEND:
-			return "母舰召唤中"
+			return tr("MS_DESCEND")
 		State.HOVER:
-			return "待命补给中"
+			return tr("MS_HOVER")
 		State.DOCKING, State.RESUPPLY:
-			return "对接中"
+			return tr("MS_DOCKING")
 		State.STAY:
-			return "驻留 %ds" % ceili(_mag_cells * MAG_CELL_TIME - _mag_cell_timer)
+			return tr("MS_STAY") % ceili(_mag_cells * MAG_CELL_TIME - _mag_cell_timer)
 		State.RELEASE, State.DEPART:
-			return "母舰离场"
+			return tr("MS_LEAVE")
 	return ""
 
 
@@ -97,7 +97,8 @@ func _enter_state(p_state: State) -> void:
 
 func _physics_process(delta: float) -> void:
 	if _beam.visible:
-		_beam.modulate.a = 0.7 + 0.3 * sin(Time.get_ticks_msec() / 1000.0 * 8.0)
+		# 淡光束：低调脉动，不刺眼
+		_beam.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 8.0)
 	_state_timer += delta
 	match _state:
 		State.DESCEND:
@@ -210,7 +211,7 @@ func _do_resupply() -> void:
 	GameState.shake(GameState.cfg("effects.shake.mothership", 4.0))
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null:
-		hud.show_popup("补给完成", global_position + Vector2(0.0, 120.0))
+		hud.show_popup(tr("POP_RESUPPLY"), global_position + Vector2(0.0, 120.0))
 
 
 ## 提前离舰：按剩余弹匣比例返还冷却（最多 -40%）
@@ -219,7 +220,7 @@ func _early_depart() -> void:
 	_cooldown_factor = 1.0 - EARLY_MAX_DISCOUNT * ratio
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null:
-		hud.show_popup("提前脱离，冷却 -%d%%" % int(EARLY_MAX_DISCOUNT * ratio * 100.0), global_position)
+		hud.show_popup(tr("POP_EARLY_LEAVE") % int(EARLY_MAX_DISCOUNT * ratio * 100.0), global_position)
 	_start_release()
 
 

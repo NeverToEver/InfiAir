@@ -10,12 +10,12 @@ const SPAWNER_SCRIPT: GDScript = preload("res://scripts/spawner.gd")
 var HOME_CHARGE_TIME := 1.5
 
 const STAGE_TITLES: Array[String] = [
-	"阶段 1/6：移动与瞄准",
-	"阶段 2/6：加速与相位突进",
-	"阶段 3/6：战斗基础",
-	"阶段 4/6：母舰停靠",
-	"阶段 5/6：返航与基地",
-	"阶段 6/6：首领遭遇",
+	"TUT_S1_TITLE",
+	"TUT_S2_TITLE",
+	"TUT_S3_TITLE",
+	"TUT_S4_TITLE",
+	"TUT_S5_TITLE",
+	"TUT_S6_TITLE",
 ]
 
 var _stage: int = 0
@@ -32,6 +32,8 @@ var _finished: bool = false
 
 var _title_label: Label
 var _objective_label: Label
+var _objective_key: String = ""
+var _objective_args: Array = []
 var _complete_panel: PanelContainer
 var _hud_layer: CanvasLayer
 
@@ -43,6 +45,7 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
+	GameState.locale_changed.connect(_on_locale_changed)
 	_build_hud()
 	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
 	_enter_stage(0)
@@ -58,6 +61,7 @@ func _build_hud() -> void:
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_font_override("font", FONT)
 	_title_label.add_theme_font_size_override("font_size", 34)
+	_title_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	_hud_layer.add_child(_title_label)
 	_objective_label = Label.new()
 	_objective_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -67,20 +71,28 @@ func _build_hud() -> void:
 	_objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_objective_label.add_theme_font_override("font", FONT)
 	_objective_label.add_theme_font_size_override("font_size", 22)
+	_objective_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	_hud_layer.add_child(_objective_label)
 
 
-func _set_objective(text: String) -> void:
-	_objective_label.text = text
+func _set_objective_tr(key: String, args: Array = []) -> void:
+	_objective_key = key
+	_objective_args = args
+	_objective_label.text = tr(key) % args if not args.is_empty() else tr(key)
+
+
+func _on_locale_changed() -> void:
+	_title_label.text = tr(STAGE_TITLES[_stage])
+	_set_objective_tr(_objective_key, _objective_args)
 
 
 func _enter_stage(idx: int) -> void:
 	_stage = idx
 	_stage_kills = 0
-	_title_label.text = STAGE_TITLES[idx]
+	_title_label.text = tr(STAGE_TITLES[idx])
 	match idx:
 		0:  # 移动与瞄准：3 个静止靶机
-			_set_objective("WASD 移动，鼠标瞄准（自动开火）\n击杀 3 个训练靶 (0/3)")
+			_set_objective_tr("TUT_S1_OBJ", [0])
 			for i in 3:
 				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
 				e.speed = 0.0  # 静止靶
@@ -92,21 +104,21 @@ func _enter_stage(idx: int) -> void:
 			_prev_dashing = false
 			_update_boost_objective()
 		2:  # 战斗基础：5 只 straight，锁血下限
-			_set_objective("击落全部 5 架敌机 (0/5)\n本阶段受伤不会阵亡")
+			_set_objective_tr("TUT_S3_OBJ", [0])
 			for i in 5:
 				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
 				e.position = Vector2(300.0 + 330.0 * i, -60.0 - 120.0 * (i % 2))
 		3:  # 母舰停靠
-			_set_objective("飞入母舰下方对接区，完成一次完整对接补给\n（弹匣随驻留消耗，≤4 格会触发弹药警告）")
+			_set_objective_tr("TUT_S4_OBJ")
 			_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
 			_mothership.position = Vector2(960.0, -200.0)
 			_mothership.departed.connect(_on_mothership_departed)
 			add_child(_mothership)
 		4:  # 返航与基地
 			_home_charge = 0.0
-			_set_objective("长按 B 1.5 秒返航，打开基地控制台\n（基地可用 RP 维修/充能、选择天赋路线、领取任务）")
+			_set_objective_tr("TUT_S5_OBJ")
 		5:  # 首领遭遇：低 HP Boss-1，触发狂暴即过关
-			_set_objective("攻击首领，逼它进入狂暴状态（血量 30%）")
+			_set_objective_tr("TUT_S6_OBJ")
 			_player._invincible = 999.0  # 教程不判负
 			_boss = BOSS_SCENE.instantiate() as Boss
 			_boss.setup(1.0, 1)
@@ -132,22 +144,17 @@ func _on_enemy_died(_enemy: Enemy) -> void:
 		return
 	_stage_kills += 1
 	if _stage == 0:
-		_set_objective("WASD 移动，鼠标瞄准（自动开火）\n击杀 3 个训练靶 (%d/3)" % _stage_kills)
+		_set_objective_tr("TUT_S1_OBJ", [_stage_kills])
 		if _stage_kills >= 3:
 			_pass_stage()
 	elif _stage == 2:
-		_set_objective("击落全部 5 架敌机 (%d/5)\n本阶段受伤不会阵亡" % _stage_kills)
+		_set_objective_tr("TUT_S3_OBJ", [_stage_kills])
 		if _stage_kills >= 5:
 			_pass_stage()
 
 
 func _update_boost_objective() -> void:
-	_set_objective(
-		(
-			"按住 Shift 加速（耗燃料，松开恢复）：%d/2\n空格相位突进（需 25%% 燃料）：%d/2"
-			% [_boost_count, _dash_count]
-		)
-	)
+	_set_objective_tr("TUT_S2_OBJ", [_boost_count, _dash_count])
 
 
 func _on_mothership_departed(_cooldown: float) -> void:
@@ -193,12 +200,12 @@ func _physics_process(delta: float) -> void:
 		4:
 			if Input.is_action_pressed("homecoming"):
 				_home_charge += delta
-				_set_objective("返航蓄力 %d%%…" % int(clampf(_home_charge / HOME_CHARGE_TIME, 0.0, 1.0) * 100.0))
+				_set_objective_tr("TUT_S5_CHARGE", [int(clampf(_home_charge / HOME_CHARGE_TIME, 0.0, 1.0) * 100.0)])
 				if _home_charge >= HOME_CHARGE_TIME:
 					_open_base()
 			elif _home_charge > 0.0:
 				_home_charge = 0.0
-				_set_objective("长按 B 1.5 秒返航，打开基地控制台\n（基地可用 RP 维修/充能、选择天赋路线、领取任务）")
+				_set_objective_tr("TUT_S5_OBJ")
 
 
 func _open_base() -> void:
@@ -238,8 +245,8 @@ func _finish() -> void:
 	for child in get_children():
 		if child is Enemy or child is Boss or child is Bullet or child is Mothership:
 			child.queue_free()
-	_title_label.text = "教程完成！"
-	_set_objective("你已掌握全部基础操作，祝武运昌隆！")
+	_title_label.text = tr("TUT_DONE")
+	_set_objective_tr("TUT_DONE_DESC")
 	_complete_panel = PanelContainer.new()
 	_complete_panel.set_anchors_preset(Control.PRESET_CENTER)
 	_complete_panel.position = Vector2(-160.0, -40.0)
@@ -252,9 +259,10 @@ func _finish() -> void:
 	style.set_content_margin_all(20.0)
 	_complete_panel.add_theme_stylebox_override("panel", style)
 	var button := Button.new()
-	button.text = "返回主菜单"
+	button.text = tr("TUT_BACK")
 	button.add_theme_font_override("font", FONT)
 	button.add_theme_font_size_override("font_size", 26)
+	UITheme.apply_button(button)
 	button.pressed.connect(_exit_tutorial)
 	_complete_panel.add_child(button)
 	_hud_layer.add_child(_complete_panel)

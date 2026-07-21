@@ -2,18 +2,27 @@ extends Node
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
-## MODE: gameplay（默认，Boss 警告画面）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）
+## MODE: gameplay（默认，Boss 警告画面）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）/ settings（设置页）
 
 const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
 const MODE := "gameplay"
+const FORCE_LOCALE := ""  # "en" 时强制英文截图
 
 
 func _ready() -> void:
+	if FORCE_LOCALE != "":
+		GameState.set_locale(FORCE_LOCALE)
 	if MODE == "start_panel":
 		GameState.save_run(50.0, 10.0)  # 伪造存档让开始面板出现
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
+	if MODE != "start_panel":
+		# 关闭开始面板（无存档时它开场自显会遮挡画面）
+		await get_tree().process_frame
+		var sp: CanvasLayer = get_node("Main/StartPanel")
+		if sp.visible:
+			sp._on_new_game_pressed()
 	match MODE:
 		"gameplay":
 			# 触发 Boss 警告横幅，便于截图覆盖该画面
@@ -30,6 +39,11 @@ func _ready() -> void:
 			GameState.add_buff(&"spread_shot")
 			get_node("Main")._start_homecoming()
 			await get_tree().create_timer(2.0).timeout
+		"settings":
+			# 设置页（控制分区改键表）
+			get_tree().get_first_node_in_group("settings_ui").show_settings()
+			for i in 30:
+				await get_tree().process_frame
 		"mothership":
 			# 母舰悬停 + 敌机（扫射开火）+ 玩家对接进入驻留（光束 + 弹匣条）
 			var main := get_node("Main")

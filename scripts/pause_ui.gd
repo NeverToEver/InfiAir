@@ -5,11 +5,14 @@ extends CanvasLayer
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _save_button: Button
+var _title_label: Label
+var _hint_label: Label
 var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
 
 
 func _ready() -> void:
 	visible = false
+	GameState.locale_changed.connect(_on_locale_changed)
 	var dim := ColorRect.new()
 	dim.color = Color(0.0, 0.0, 0.0, 0.5)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -24,22 +27,24 @@ func _ready() -> void:
 	center.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "已暂停"
+	title.text = tr("PAUSE_TITLE")
+	_title_label = title
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FONT)
 	title.add_theme_font_size_override("font_size", 48)
 	vbox.add_child(title)
 
 	_save_button = Button.new()
-	_save_button.text = "保存进度"
+	_save_button.text = tr("PAUSE_SAVE")
 	_save_button.custom_minimum_size = Vector2(240.0, 52.0)
 	_save_button.add_theme_font_override("font", FONT)
 	_save_button.add_theme_font_size_override("font_size", 26)
+	UITheme.apply_button(_save_button)
 	_save_button.pressed.connect(_on_save_pressed)
 	vbox.add_child(_save_button)
 
 	var settings_button := Button.new()
-	settings_button.text = "设置"
+	settings_button.text = tr("PAUSE_SETTINGS")
 	settings_button.custom_minimum_size = Vector2(240.0, 52.0)
 	settings_button.add_theme_font_override("font", FONT)
 	settings_button.add_theme_font_size_override("font_size", 26)
@@ -47,11 +52,19 @@ func _ready() -> void:
 	vbox.add_child(settings_button)
 
 	var hint := Label.new()
-	hint.text = "Esc 继续 · R 重新开始"
+	hint.text = tr("PAUSE_HINT")
+	_hint_label = hint
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_override("font", FONT)
 	hint.add_theme_font_size_override("font_size", 26)
 	vbox.add_child(hint)
+
+
+func _on_locale_changed() -> void:
+	_title_label.text = tr("PAUSE_TITLE")
+	_hint_label.text = tr("PAUSE_HINT")
+	if _save_button.text != tr("PAUSE_SAVED"):
+		_save_button.text = tr("PAUSE_SAVE")
 
 
 func toggle() -> void:
@@ -64,7 +77,7 @@ func toggle() -> void:
 		visible = false
 		get_tree().paused = false
 	else:
-		_save_button.text = "保存进度"
+		_save_button.text = tr("PAUSE_SAVE")
 		get_tree().paused = true
 		visible = true
 
@@ -94,9 +107,9 @@ func _on_save_pressed() -> void:
 	var fuel: float = player._fuel if player != null else 100.0
 	var elapsed: float = spawner._elapsed if spawner != null else 0.0
 	GameState.save_run(fuel, elapsed)
-	_save_button.text = "已保存 ✓"
+	_save_button.text = tr("PAUSE_SAVED")
 	await get_tree().create_timer(1.0).timeout
-	_save_button.text = "保存进度"
+	_save_button.text = tr("PAUSE_SAVE")
 
 
 func _unhandled_input(event: InputEvent) -> void:
