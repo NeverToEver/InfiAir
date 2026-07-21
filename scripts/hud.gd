@@ -7,17 +7,16 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 @onready var _kills_label: Label = $KillsLabel
 @onready var _difficulty_label: Label = $DifficultyLabel
 @onready var _lives_label: Label = $LivesLabel
-@onready var _boss_bar: ProgressBar = $BossBar
-@onready var _fuel_bar: ProgressBar = $FuelBar
-@onready var _dash_bar: ProgressBar = $DashBar
+@onready var _boss_bar: SegmentedBar = $BossBar
+@onready var _fuel_bar: SegmentedBar = $FuelBar
+@onready var _dash_bar: SegmentedBar = $DashBar
 @onready var _fuel_tag: Label = $FuelTag
 @onready var _dash_tag: Label = $DashTag
 @onready var _dock_tag: Label = $DockTag
 
-var _banner: PanelContainer
+var _banner_plate: ChamferedPanel
 var _banner_label: Label
-var _fuel_fill := StyleBoxFlat.new()
-var _dash_fill := StyleBoxFlat.new()
+
 var _mag_box: HBoxContainer
 var _mag_cells_nodes: Array[ColorRect] = []
 var _home_charge_label: Label
@@ -26,6 +25,7 @@ var _main: Node = null
 var _poll_timer: float = 0.0
 var _last_dock_text: String = ""
 var _last_mag_cells: int = -1
+var _tag_labels: Array[Label] = []
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
 
 
@@ -34,16 +34,19 @@ func _ready() -> void:
 	POLL_INTERVAL = GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL)
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
-		label.add_theme_font_size_override("font_size", 28)
+	_score_label.add_theme_font_size_override("font_size", 32)
+	_score_label.add_theme_color_override("font_color", UITheme.TEXT)
+	_kills_label.add_theme_font_size_override("font_size", 20)
+	_kills_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
+	_difficulty_label.add_theme_font_size_override("font_size", 20)
+	_difficulty_label.add_theme_color_override("font_color", UITheme.ACCENT)
+	_lives_label.add_theme_font_size_override("font_size", 28)
+	_lives_label.add_theme_color_override("font_color", UITheme.TEXT)
 	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
 		tag.add_theme_font_size_override("font_size", 16)
-	_fuel_fill.bg_color = UITheme.ACCENT
-	_fuel_fill.set_corner_radius_all(3)
-	_fuel_bar.add_theme_stylebox_override("fill", _fuel_fill)
-	_dash_fill.bg_color = UITheme.ACCENT
-	_dash_fill.set_corner_radius_all(3)
-	_dash_bar.add_theme_stylebox_override("fill", _dash_fill)
+	_fuel_bar.fill_color = UITheme.ACCENT
+	_dash_bar.fill_color = UITheme.ACCENT
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.lives_changed.connect(_on_lives_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
@@ -54,6 +57,10 @@ func _ready() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
+	if _tag_labels.size() == 2:
+		_tag_labels[0].text = tr("UI_SCORE_TAG")
+		_tag_labels[1].text = tr("UI_LIVES_TAG")
+	_build_backplates()
 	_build_banner()
 	_build_magazine_bar()
 	# 返航蓄力提示（底部居中）
@@ -125,7 +132,7 @@ func _process(delta: float) -> void:
 		return
 	var fuel := player.fuel_ratio()
 	_fuel_bar.value = fuel * 100.0
-	_fuel_fill.bg_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
+	_fuel_bar.fill_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
 	if _main == null:
 		_main = get_tree().get_first_node_in_group("main")
@@ -146,11 +153,49 @@ func _update_magazine_bar(main: Node) -> void:
 		_last_mag_cells = ms._mag_cells
 		for i in _mag_cells_nodes.size():
 			_mag_cells_nodes[i].color = (
-				UITheme.ACCENT if i < ms._mag_cells else UITheme.PANEL_BG
+				UITheme.ACCENT if i < ms._mag_cells else Color(0.05, 0.09, 0.14, 0.8)
 			)
 	else:
 		_mag_box.visible = false
 		_last_mag_cells = -1
+
+
+## 左上分数块与左下状态块的切角背板 + 小标签（标签置于背板上方外侧，不与边框/数值重叠）
+func _build_backplates() -> void:
+	var score_plate := ChamferedPanel.new()
+	score_plate.position = Vector2(10.0, 24.0)
+	score_plate.size = Vector2(230.0, 92.0)
+	add_child(score_plate)
+	move_child(score_plate, 0)
+	# 大数值下移，给标签行留位
+	_score_label.position = Vector2(24.0, 30.0)
+	_kills_label.position = Vector2(24.0, 72.0)
+	var score_tag := Label.new()
+	score_tag.text = tr("UI_SCORE_TAG")
+	score_tag.position = Vector2(22.0, 2.0)
+	score_tag.add_theme_font_override("font", FONT)
+	score_tag.add_theme_font_size_override("font_size", 16)
+	score_tag.add_theme_color_override("font_color", UITheme.ACCENT)
+	add_child(score_tag)
+	var status_plate := ChamferedPanel.new()
+	status_plate.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	status_plate.position = Vector2(10.0, -82.0)
+	status_plate.size = Vector2(560.0, 76.0)
+	add_child(status_plate)
+	move_child(status_plate, 0)
+	_lives_label.offset_left = 24.0
+	_lives_label.offset_top = -80.0
+	_lives_label.offset_bottom = -40.0
+	var lives_tag := Label.new()
+	lives_tag.text = tr("UI_LIVES_TAG")
+	lives_tag.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	lives_tag.position = Vector2(22.0, -102.0)
+	lives_tag.add_theme_font_override("font", FONT)
+	lives_tag.add_theme_font_size_override("font_size", 16)
+	lives_tag.add_theme_color_override("font_color", UITheme.ACCENT)
+	add_child(lives_tag)
+	# 刷新时同步小标签语言
+	_tag_labels = [score_tag, lives_tag]
 
 
 ## 世界坐标处的飘字提示（补给完成、里程碑等）。
@@ -170,22 +215,27 @@ func show_popup(text: String, world_pos: Vector2) -> void:
 
 
 func _build_banner() -> void:
-	_banner = PanelContainer.new()
-	_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_banner.position = Vector2(-280.0, 140.0)
-	_banner.custom_minimum_size = Vector2(560.0, 0.0)
-	_banner.visible = false
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.35, 0.08, 0.08, 0.85)
-	style.set_content_margin_all(14.0)
-	_banner.add_theme_stylebox_override("panel", style)
+	_banner_plate = ChamferedPanel.new()
+	_banner_plate.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_banner_plate.position = Vector2(-300.0, 140.0)
+	_banner_plate.size = Vector2(600.0, 80.0)
+	_banner_plate.brackets = true
+	_banner_plate.bg_color = Color(0.35, 0.06, 0.10, 0.7)
+	_banner_plate.border_color = Color(UITheme.DANGER, 0.6)
+	_banner_plate.bracket_color = UITheme.DANGER
+	_banner_plate.visible = false
+	add_child(_banner_plate)
 	_banner_label = Label.new()
+	_banner_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_banner_label.position = Vector2(-300.0, 140.0)
+	_banner_label.custom_minimum_size = Vector2(600.0, 80.0)
 	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_banner_label.add_theme_font_override("font", FONT)
-	_banner_label.add_theme_font_size_override("font_size", 44)
+	_banner_label.add_theme_font_size_override("font_size", 40)
 	_banner_label.add_theme_color_override("font_color", UITheme.DANGER)
-	_banner.add_child(_banner_label)
-	add_child(_banner)
+	_banner_label.visible = false
+	add_child(_banner_label)
 
 
 ## Boss 出场警告：闪烁 2s（与 spawner 的 2s 预警同步），随后淡出。
@@ -201,14 +251,22 @@ func show_magazine_warning() -> void:
 
 func _show_warning(text: String) -> void:
 	_banner_label.text = text
-	_banner.visible = true
-	_banner.modulate.a = 1.0
-	var tween := create_tween()
-	tween.set_loops(4)
-	tween.tween_property(_banner, "modulate:a", 0.25, 0.25)
-	tween.tween_property(_banner, "modulate:a", 1.0, 0.25)
-	tween.tween_property(_banner, "modulate:a", 0.0, 0.4)
-	tween.tween_callback(_banner.hide)
+	_banner_plate.visible = true
+	_banner_label.visible = true
+	_banner_plate.modulate.a = 1.0
+	_banner_label.modulate.a = 1.0
+	var t1 := create_tween()
+	t1.set_loops(4)
+	t1.tween_property(_banner_plate, "modulate:a", 0.25, 0.25)
+	t1.tween_property(_banner_plate, "modulate:a", 1.0, 0.25)
+	t1.tween_property(_banner_plate, "modulate:a", 0.0, 0.4)
+	t1.tween_callback(_banner_plate.hide)
+	var t2 := create_tween()
+	t2.set_loops(4)
+	t2.tween_property(_banner_label, "modulate:a", 0.25, 0.25)
+	t2.tween_property(_banner_label, "modulate:a", 1.0, 0.25)
+	t2.tween_property(_banner_label, "modulate:a", 0.0, 0.4)
+	t2.tween_callback(_banner_label.hide)
 
 
 func show_boss_bar(boss: Boss) -> void:
@@ -242,6 +300,9 @@ func _on_locale_changed() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
+	if _tag_labels.size() == 2:
+		_tag_labels[0].text = tr("UI_SCORE_TAG")
+		_tag_labels[1].text = tr("UI_LIVES_TAG")
 
 
 ## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）
@@ -260,6 +321,4 @@ func _on_boss_died() -> void:
 
 
 func _on_boss_enraged() -> void:
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.9, 0.2, 0.15)
-	_boss_bar.add_theme_stylebox_override("fill", fill)
+	_boss_bar.fill_color = UITheme.DANGER

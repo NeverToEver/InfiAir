@@ -170,3 +170,7 @@ TUT_S6_OBJ,"攻击首领，逼它进入狂暴状态（血量 30%）","Damage the
 TUT_DONE,"教程完成！","Tutorial Complete!"
 TUT_DONE_DESC,"你已掌握全部基础操作，祝武运昌隆！","You've mastered the basics. Good hunting!"
 TUT_BACK,"返回主菜单","Main Menu"
+UI_SCORE_TAG,"分数","SCORE"
+UI_KILLS_TAG,"击杀","KILLS"
+UI_LIVES_TAG,"生命","LIVES"
+UI_DIFF_TAG,"难度","DIFF"

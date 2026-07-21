@@ -18,6 +18,7 @@ var _lang_zh: Button
 var _lang_en: Button
 var _version_label: Label
 var _cheatsheet_label: Label
+var _plate: ChamferedPanel
 
 var _pages: Dictionary = {}  # 页名 -> Control
 var _nav_buttons: Dictionary = {}
@@ -43,9 +44,22 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
+	_plate = ChamferedPanel.new()
+	_plate.custom_minimum_size = Vector2(1000.0, 700.0)
+	_plate.brackets = true
+	center.add_child(_plate)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	_plate.add_child(margin)
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
-	center.add_child(vbox)
+	margin.add_child(vbox)
 
 	var title := _make_label(tr("SET_TITLE"), 44)
 	_title_label = title
@@ -282,6 +296,7 @@ func show_settings() -> void:
 	_capturing_action = &""
 	_show_page(&"controls")
 	visible = true
+	UITheme.animate_open(_plate)
 
 
 func _refresh_lang_buttons() -> void:

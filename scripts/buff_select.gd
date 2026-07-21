@@ -164,6 +164,7 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	_build_cards()
 	get_tree().paused = true
 	visible = true
+	UITheme.animate_open(_center)
 
 
 func _build_cards() -> void:
@@ -179,14 +180,21 @@ func _on_locale_changed() -> void:
 		_build_cards()
 
 
-func _make_card(buff: Dictionary) -> PanelContainer:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(320.0, 200.0)
-	card.add_theme_stylebox_override("panel", UITheme.make_panel_style(2, 8, 20.0))
+func _make_card(buff: Dictionary) -> Control:
+	var card := ChamferedPanel.new()
+	card.custom_minimum_size = Vector2(340.0, 200.0)
+	card.brackets = true
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	card.add_child(margin)
 
 	var vbox := VBoxContainer.new()
+	margin.add_child(vbox)
 	vbox.add_theme_constant_override("separation", 12)
-	card.add_child(vbox)
 
 	var stacks := GameState.buff_count(buff["id"])
 	var buff_name := tr("BUFF_%s_NAME" % String(buff["id"]).to_upper())

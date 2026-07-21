@@ -7,6 +7,7 @@ var _stats_label: Label
 var _record_label: Label
 var _title_label: Label
 var _hint_label: Label
+var _plate: ChamferedPanel
 
 
 func _ready() -> void:
@@ -20,9 +21,19 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
+	_plate = ChamferedPanel.new()
+	_plate.custom_minimum_size = Vector2(640.0, 520.0)
+	_plate.brackets = true
+	center.add_child(_plate)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_plate.add_child(margin)
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 24)
-	center.add_child(vbox)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	margin.add_child(vbox)
 
 	var title := Label.new()
 	title.text = tr("GO_TITLE")

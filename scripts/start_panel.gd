@@ -17,6 +17,7 @@ var _diff_group := ButtonGroup.new()
 var _spawner_held := false
 var _tutorial_button: Button
 var _settings_button: Button
+var _plate: ChamferedPanel
 
 
 func _ready() -> void:
@@ -30,9 +31,19 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
+	_plate = ChamferedPanel.new()
+	_plate.custom_minimum_size = Vector2(680.0, 660.0)
+	_plate.brackets = true
+	center.add_child(_plate)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_plate.add_child(margin)
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 24)
-	center.add_child(vbox)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	margin.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "InfiAir"
@@ -123,6 +134,7 @@ func _show(pause: bool) -> void:
 			spawner.set_process(false)
 			_spawner_held = true
 	visible = true
+	UITheme.animate_open(_plate)
 
 
 func _dismiss() -> void:

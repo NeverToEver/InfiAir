@@ -7,6 +7,7 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 var _save_button: Button
 var _title_label: Label
 var _hint_label: Label
+var _plate: ChamferedPanel
 var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
 
 
@@ -22,9 +23,19 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
+	_plate = ChamferedPanel.new()
+	_plate.custom_minimum_size = Vector2(560.0, 420.0)
+	_plate.brackets = true
+	center.add_child(_plate)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_plate.add_child(margin)
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 24)
-	center.add_child(vbox)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	margin.add_child(vbox)
 
 	var title := Label.new()
 	title.text = tr("PAUSE_TITLE")
@@ -80,6 +91,7 @@ func toggle() -> void:
 		_save_button.text = tr("PAUSE_SAVE")
 		get_tree().paused = true
 		visible = true
+		UITheme.animate_open(_plate)
 
 
 func _get_settings_ui() -> CanvasLayer:

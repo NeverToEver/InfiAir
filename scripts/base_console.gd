@@ -22,6 +22,7 @@ var _recharge_button: Button
 var _routes_box: VBoxContainer
 var _missions_box: VBoxContainer
 var _title_labels: Dictionary = {}
+var _columns: HBoxContainer
 var _route_hint_label: Label
 
 
@@ -48,7 +49,8 @@ func _ready() -> void:
 	_rp_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	vbox.add_child(_rp_label)
 
-	var columns := HBoxContainer.new()
+	_columns = HBoxContainer.new()
+	var columns := _columns
 	columns.add_theme_constant_override("separation", 20)
 	vbox.add_child(columns)
 
@@ -84,13 +86,17 @@ func _make_label(text: String, size: int) -> Label:
 	return label
 
 
-func _make_panel(title_key: String) -> PanelContainer:
-	var panel := PanelContainer.new()
+func _make_panel(title_key: String) -> Control:
+	var panel := ChamferedPanel.new()
 	panel.custom_minimum_size = Vector2(560.0, 0.0)
-	panel.add_theme_stylebox_override("panel", UITheme.make_panel_style())
 	var vbox := VBoxContainer.new()
 	vbox.name = "Body"
 	vbox.add_theme_constant_override("separation", 8)
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.offset_left = 14.0
+	vbox.offset_top = 14.0
+	vbox.offset_right = -14.0
+	vbox.offset_bottom = -14.0
 	panel.add_child(vbox)
 	var title_label := _make_label(tr(title_key), 24)
 	_title_labels[title_key] = title_label
@@ -151,6 +157,7 @@ func _build_missions() -> PanelContainer:
 func show_base() -> void:
 	_refresh()
 	visible = true
+	UITheme.animate_open(_columns)
 
 
 func _refresh() -> void:
