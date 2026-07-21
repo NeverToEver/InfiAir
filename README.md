@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-369%20passed-brightgreen)](#运行验证)
+[![Tests](https://img.shields.io/badge/tests-446%20passed-brightgreen)](#运行验证)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -35,7 +35,7 @@
 - **完整的出击循环**：刷怪成长 → 里程碑 Buff 三选一 → Boss 轮换战 → 返航基地中场整备 → 再次出击；死亡是唯一终局。
 - **16 种 Buff 局内构建**：伤害/射速/散射/穿透/爆炸/吸血/护甲/闪避/相位冲刺/慢速力场/激光光束……按分数里程碑三选一，叠加成型。
 - **3 种 Boss 轮换 + 狂暴**：重装 / 游击 / 母舰型，血量 <30% 进入狂暴；输出不足拖过 50 秒 Boss 会直接逃跑。
-- **母舰对接火力平台**：长按蓄力召唤、牵引对接、驻留 20 秒弹匣扫射护航、提前离舰冷却打折——补给与火力的战术抉择。
+- **母舰对接火力平台**：长按蓄力召唤、到位自动点吸附对接、驻留弹匣制——双炮塔向上 80° 扫射 + 导弹齐射（最多 5 目标）、WASD 直接驾驶母舰；四格弹药警告后限时强制离舰，也可长按 H 提前离舰按剩余量折算冷却。
 - **基地中场整备**：返航不终局！战机库 / 武器挂载（互斥天赋路线）/ 维修补给（RP 经济）/ 任务规划四大模块，整备完返回同一局继续战斗。
 - **纯程序化资产**：全部贴图由程序生成（继承自 Python 原作），音效与 BGM 由 `scripts/tools/generate_audio.py` 合成，零外部素材依赖。
 
@@ -55,7 +55,7 @@
 | Shift 长按 | 加速推进（约 1.8x，消耗燃料） |
 | Ctrl 长按 | 微调姿态（速度 ×0.35） |
 | 空格 | 相位冲刺（需 Buff 解锁，无敌突进，耗 25% 燃料） |
-| H 长按 3 秒 | 蓄力召唤母舰（驻留中长按 H 2s 提前离舰） |
+| H 长按 3 秒 | 蓄力召唤母舰（驻留中 WASD 驾驶母舰，长按 H 2s 提前离舰） |
 | B 长按 1.5 秒 | 返航基地中场整备 |
 | K 长按 3 秒 | 放弃当前出击 |
 | ESC | 暂停（暂停菜单可保存进度，全局唯一存档入口） |
@@ -77,9 +77,9 @@ godot --path .          # 直接运行；或用编辑器打开项目按 F5
 
 ## 🧭 玩法循环
 
-- 3 条命开局，受击 1.5 秒无敌帧；**得分制，无掉落拾取**。
-- 敌机 4 机型 × 8 种移动模式，按分数阶段解锁；精英 3 型；敌机弹种 single / spread / laser。
-- 每 500 分里程碑暂停三选一 Buff；Boss 每 1500 分或 90 秒刷新，击毁 +500 分并提升难度乘数（`1 + (2^min(击杀,10) − 1) × 0.25`，封顶 8x）。
+- 100 HP 开局：受击 1.5 秒无敌帧并清除身边 250px 内敌弹；脱战数秒后按难度缓慢回血（基地 2RP 维修、母舰补给均可回满）；**得分制，无掉落拾取**。
+- 敌机 4 机型 × 8 种移动模式，按分数阶段解锁；精英 3 型；敌机弹种 single / spread / laser（伤害 12/10/20，身体撞击另有 20 伤）。
+- 按里程碑阈值曲线（3000 分起，逐循环放大）暂停三选一 Buff；Boss 每 1500 分或 90 秒刷新，击毁 +500 分并提升难度乘数（`1 + (2^min(击杀,10) − 1) × 0.25`，封顶 8x）。
 - RP（征用点数）由 Boss 击杀（+5）与基地任务（+3）获得，用于基地维修 / 充能。
 - 暂停菜单「保存进度」可随时存档，启动时可继续对局；死亡删档。
 - 开始面板含「教程」入口：6 阶段新手教学（移动瞄准 / 加速冲刺 / 战斗 / 母舰对接 / 返航基地 / Boss 狂暴），Esc 随时退出，完成后按钮显示「教程 ✓」。
@@ -90,9 +90,9 @@ godot --path .          # 直接运行；或用编辑器打开项目按 F5
 main.tscn（对局编排）
  ├─ Player（移动/瞄准辅助/全自动开火/燃料/相位冲刺/激光武器）
  ├─ Spawner（7 机型配置表 + 分数阶段解锁 + Boss 轮换调度）
- ├─ Mothership（7 态状态机：召唤→悬停→对接→驻留→释放→离场）
+ ├─ Mothership（自动对接状态机：召唤→对接→驻留（驾驶+扫射+导弹）→释放→离场）
  ├─ HUD / BuffSelect / BaseConsole / GameOver / Pause / StartPanel
- └─ GameState（autoload：分数/Buff/RP/任务/路线/存档/音效池/震动）
+ └─ GameState（autoload：100 HP 生命/分数/Buff/RP/任务/路线/存档/音效池/震动）
 ```
 
 - 数值配置中心：`data/balance.json` 集中全部可调数值（玩家/敌机/Boss/刷怪/母舰/buff/里程碑/难度/效果），启动一次加载，`GameState.cfg()` 统一访问，缺失自动回退脚本默认值——调参改 JSON 即可，无需动代码。
@@ -106,20 +106,21 @@ main.tscn（对局编排）
 ```bash
 godot --headless --import --path .          # 资源与脚本解析
 godot --headless --path . --quit-after 300  # 运行时冒烟
-godot --headless --path . res://test/smoke_test.tscn        # 主流程 85 项
+godot --headless --path . res://test/smoke_test.tscn        # 主流程 95 项
 godot --headless --path . res://test/base_system_test.tscn  # 存档/RP/任务/路线 46 项
 godot --headless --path . res://test/enemy_combat_test.tscn # 敌机/Boss 31 项
 godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃 29 项
 godot --headless --path . res://test/difficulty_test.tscn   # 难度/里程碑/设置 52 项
-godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 24 项
-godot --headless --path . res://test/balance_test.tscn      # 数值配置中心 18 项
-godot --headless --path . res://test/keybind_test.tscn      # 可改键 17 项
-godot --headless --path . res://test/i18n_test.tscn         # 中英双语 10 项
-godot --headless --path . res://test/tutorial_test.tscn     # 新手教程 22 项
+godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 23 项
+godot --headless --path . res://test/balance_test.tscn      # 数值配置中心 25 项
+godot --headless --path . res://test/keybind_test.tscn      # 可改键 15 项
+godot --headless --path . res://test/i18n_test.tscn         # 中英双语 9 项
+godot --headless --path . res://test/tutorial_test.tscn     # 新手教程 19 项
 godot --headless --path . res://test/view_zoom_test.tscn    # 视角缩放 43 项
+godot --headless --path . res://test/hit_logic_test.tscn    # 受击/碰撞对齐 59 项
 ```
 
-共 369 项断言，全部通过。
+共 446 项断言，全部通过。
 
 ## 🗺️ 路线图
 
@@ -132,6 +133,9 @@ godot --headless --path . res://test/view_zoom_test.tscn    # 视角缩放 43 �
 - [x] 难度选择（简单 / 普通 / 困难）与 Boss 狂暴完整版（子弹时间 + 快照弹幕） —— 迭代 3.4
 - [x] 性能优化（子弹/爆炸对象池、组查询缓存、HUD 节流） —— 迭代 3.4
 - [x] 新手教程（6 阶段，开始面板进入，完成记录 `tutorial_done`） —— 迭代 3.5
+- [x] 视角缩放三档（小/中/大） —— 迭代 3.7
+- [x] 受击与碰撞专项对齐（r7 小判定点 / Boss 身体撞击 / 狂暴锁血 / 弹种伤害生效） —— 迭代 3.8
+- [x] 100 HP 伤害模型与附录 A 全面对齐（受击规则链 / 母舰自动对接+导弹+驾驶 / 战斗数值复核） —— 迭代 3.9
 - [ ] 打包发布（暂缓）
 
 移植对齐的逐项对照见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)，任务指导见 [docs/TASK_REPORT.md](./docs/TASK_REPORT.md)。
