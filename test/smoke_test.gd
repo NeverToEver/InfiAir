@@ -527,6 +527,26 @@ func _ready() -> void:
 	pause_ui.toggle()
 	_check(not pause_ui.visible and not get_tree().paused, "Esc 恢复")
 
+	# 5.1 设置面板 opener 回归：开始/暂停面板打开设置时必须让位（layer 30 会挡住 16），
+	# 返回/Esc 后恢复打开者，而不是一律弹暂停菜单
+	var start_panel5: CanvasLayer = get_node("Main/StartPanel")
+	var settings_ui: CanvasLayer = get_node("Main/SettingsUI")
+	pause_ui.toggle()
+	pause_ui._on_settings_pressed()
+	_check(not pause_ui.visible and settings_ui.visible, "暂停→设置：暂停面板让位")
+	_check(settings_ui._opener == pause_ui, "暂停→设置：opener 记录为暂停面板")
+	settings_ui._on_back_pressed()
+	_check(pause_ui.visible and not settings_ui.visible, "设置返回：恢复暂停面板")
+	pause_ui.toggle()
+	_check(not pause_ui.visible, "设置回归：暂停面板已关闭")
+	start_panel5.show_panel()
+	start_panel5._on_settings_pressed()
+	_check(not start_panel5.visible and settings_ui.visible, "开始→设置：开始面板让位不遮挡")
+	pause_ui.toggle()  # 与 pause_ui._unhandled_input 的 Esc 路由入口一致
+	_check(start_panel5.visible and not settings_ui.visible, "设置中 Esc：返回开始面板")
+	_check(not pause_ui.visible, "设置中 Esc：未误弹暂停菜单")
+	start_panel5._dismiss()
+
 	# 6. 迭代 3.3 玩家侧：瞄准辅助 / 冲刺耗燃料 / Ctrl 微调
 	# 第 4 节玩家已受击至死：复活以便继续测试（不重开 hitbox，避免杂散碰撞）
 	player._dead = false

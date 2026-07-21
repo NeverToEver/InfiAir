@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## 开始面板：难度三选一（易/中/难，profile 持久化）+ 继续对局 / 新游戏。
-## 有存档时由 main 调 show_panel()（暂停）；无存档时开场自显（不暂停，
-## 仅按住刷怪，避免玩家在面板前被偷袭；测试可经 _on_new_game_pressed 直接关闭）。
+## 无论有无存档，面板显示期间一律暂停游戏（冻结背景，先选再玩）；
+## 无存档时开场自显，有存档时由 main 调 show_panel()。
 
 signal continue_chosen
 signal new_game_chosen
@@ -14,7 +14,6 @@ var _continue_button: Button
 var _new_button: Button
 var _diff_buttons: Dictionary = {}  # StringName -> Button
 var _diff_group := ButtonGroup.new()
-var _spawner_held := false
 var _tutorial_button: Button
 var _settings_button: Button
 var _plate: ChamferedPanel
@@ -100,9 +99,9 @@ func _ready() -> void:
 	vbox.add_child(_settings_button)
 	_settings_button.pressed.connect(_on_settings_pressed)
 
-	# 无存档时开场自显（不暂停）；有存档时等 main 调 show_panel()
+	# 无存档时开场自显；有存档时等 main 调 show_panel()
 	if not GameState.has_save():
-		_show(false)
+		show_panel()
 
 
 func _make_button(text: String) -> Button:
@@ -115,35 +114,19 @@ func _make_button(text: String) -> Button:
 	return button
 
 
-## main 在检测到存档时调用：继续/新开局流程（暂停游戏）
+## 显示面板并暂停游戏：开场自显与存档恢复共用此路径
 func show_panel() -> void:
-	_show(true)
-
-
-func _show(pause: bool) -> void:
 	var has_save := GameState.has_save()
 	_refresh_texts()
 	_continue_button.visible = has_save
 	_refresh_difficulty_buttons()
-	if pause:
-		get_tree().paused = true
-	else:
-		# 不暂停时按住刷怪，玩家选定难度前不会有敌机进场
-		var spawner := get_tree().get_first_node_in_group("spawner")
-		if spawner != null:
-			spawner.set_process(false)
-			_spawner_held = true
+	get_tree().paused = true
 	visible = true
 	UITheme.animate_open(_plate)
 
 
 func _dismiss() -> void:
 	visible = false
-	if _spawner_held:
-		_spawner_held = false
-		var spawner := get_tree().get_first_node_in_group("spawner")
-		if spawner != null:
-			spawner.set_process(true)
 	get_tree().paused = false
 
 
@@ -184,4 +167,6 @@ func _on_tutorial_pressed() -> void:
 func _on_settings_pressed() -> void:
 	var settings := get_tree().get_first_node_in_group("settings_ui")
 	if settings != null:
-		settings.show_settings()
+		# 开始面板 layer 高于设置面板，必须先隐藏自己，否则会挡住设置页
+		visible = false
+		settings.show_settings(self)

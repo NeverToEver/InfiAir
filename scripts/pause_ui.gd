@@ -5,6 +5,7 @@ extends CanvasLayer
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _save_button: Button
+var _settings_button: Button
 var _title_label: Label
 var _hint_label: Label
 var _plate: ChamferedPanel
@@ -54,7 +55,8 @@ func _ready() -> void:
 	_save_button.pressed.connect(_on_save_pressed)
 	vbox.add_child(_save_button)
 
-	var settings_button := Button.new()
+	_settings_button = Button.new()
+	var settings_button := _settings_button
 	settings_button.text = tr("PAUSE_SETTINGS")
 	settings_button.custom_minimum_size = Vector2(240.0, 52.0)
 	settings_button.add_theme_font_override("font", FONT)
@@ -74,15 +76,15 @@ func _ready() -> void:
 func _on_locale_changed() -> void:
 	_title_label.text = tr("PAUSE_TITLE")
 	_hint_label.text = tr("PAUSE_HINT")
+	_settings_button.text = tr("PAUSE_SETTINGS")
 	if _save_button.text != tr("PAUSE_SAVED"):
 		_save_button.text = tr("PAUSE_SAVE")
 
 
 func toggle() -> void:
-	# 设置面板打开时，Esc 先退回暂停面板（保持暂停）
+	# 设置面板打开时，Esc = 返回（由设置面板恢复其打开者：本面板或开始面板）
 	if _get_settings_ui() != null and _settings_ui.visible:
-		_settings_ui.visible = false
-		visible = true
+		_settings_ui._on_back_pressed()
 		return
 	if visible:
 		visible = false
@@ -97,8 +99,6 @@ func toggle() -> void:
 func _get_settings_ui() -> CanvasLayer:
 	if _settings_ui == null:
 		_settings_ui = get_tree().get_first_node_in_group("settings_ui") as CanvasLayer
-		if _settings_ui != null:
-			_settings_ui.back_pressed.connect(_on_settings_back)
 	return _settings_ui
 
 
@@ -106,11 +106,7 @@ func _on_settings_pressed() -> void:
 	if _get_settings_ui() == null:
 		return
 	visible = false
-	_settings_ui.show_settings()
-
-
-func _on_settings_back() -> void:
-	visible = true
+	_settings_ui.show_settings(self)
 
 
 func _on_save_pressed() -> void:
@@ -125,6 +121,14 @@ func _on_save_pressed() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Esc 暂停/恢复路由必须挂在本节点（process_mode=Always）：
+	# 树暂停后 main 等 INHERIT 节点的 _unhandled_input 不再被调用
+	if event.is_action_pressed("ui_cancel"):
+		var main := get_tree().get_first_node_in_group("main")
+		if main != null and not main._game_over and not main._homecoming and not main._buff_ui.visible:
+			toggle()
+			get_viewport().set_input_as_handled()
+		return
 	if visible and event.is_action_pressed("restart"):
 		get_tree().paused = false
 		GameState.reset_run()

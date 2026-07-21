@@ -1,6 +1,7 @@
 extends Node2D
-## 主场景：串联生成器、HUD 与各 UI 层，处理 Esc 暂停、母舰召唤（H）、
-## 返航（B）、开始面板（继续对局/新游戏）与常驻 BGM。
+## 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
+## 开始面板（继续对局/新游戏）与常驻 BGM。Esc 暂停/恢复路由在 pause_ui
+## （process_mode=Always；本节点暂停时收不到 _unhandled_input）。
 
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
@@ -322,8 +323,3 @@ func _flash_white(fade_in: float, hold: float) -> CanvasLayer:
 	tween.tween_property(flash, "color:a", 0.0, 0.3)
 	await tween.finished
 	return flash_layer
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and not _game_over and not _homecoming and not _buff_ui.visible:
-		_pause_ui.toggle()

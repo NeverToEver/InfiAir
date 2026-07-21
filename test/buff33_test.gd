@@ -24,6 +24,10 @@ func _ready() -> void:
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
+	# 开场面板自显即暂停（冻结背景），先关闭解除
+	var start_panel: CanvasLayer = get_node("Main/StartPanel")
+	if start_panel.visible:
+		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
 	var hud: CanvasLayer = get_node("Main/HUD")
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")

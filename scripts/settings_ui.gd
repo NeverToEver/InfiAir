@@ -31,6 +31,7 @@ var _title_label: Label
 var _back_button: Button
 var _reset_button: Button
 var _nav_group := ButtonGroup.new()
+var _opener: CanvasLayer  # 打开者（开始/暂停面板），返回时恢复其可见
 
 
 func _ready() -> void:
@@ -300,8 +301,9 @@ func _show_page(page_name: StringName) -> void:
 		(_nav_buttons[p] as Button).set_pressed_no_signal(p == page_name)
 
 
-## 打开面板并刷新选中态
-func show_settings() -> void:
+## 打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见
+func show_settings(opener: CanvasLayer = null) -> void:
+	_opener = opener
 	_ctrl_hold.set_pressed_no_signal(not GameState.ctrl_toggle_mode)
 	_ctrl_toggle.set_pressed_no_signal(GameState.ctrl_toggle_mode)
 	_shift_hold.set_pressed_no_signal(not GameState.shift_toggle_mode)
@@ -366,4 +368,7 @@ func _on_shift_mode(toggle_mode: bool) -> void:
 func _on_back_pressed() -> void:
 	_capturing_action = &""
 	visible = false
+	if _opener != null and is_instance_valid(_opener):
+		_opener.visible = true
+	_opener = null
 	back_pressed.emit()
