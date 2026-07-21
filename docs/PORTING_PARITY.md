@@ -1,16 +1,17 @@
 # 移植一致性与路线图
 
-本文档是 InfiAir（Godot 重制版）对齐 Python 原作 `../airwar-game` 的总计划。
-**当前方针：优先保证移植后游戏内容一致性；不做打包发布；i18n 等外围排最后；联机排行榜已砍。**
+本文档是 InfiAir（Godot 重制版）对齐 Python 原作 `../airwar-game` 的**唯一计划与状态文档**（2026-07-22 由原 `PORTING_PARITY.md` 与 `TASK_REPORT.md` 合并，后者已删除；迭代历史见「迭代历史」一节，历史细节可从 git 日志追溯）。
 
-## 已确认的设计决策（2026-07-20）
+**当前方针：优先保证移植后游戏内容一致性；不做打包发布；按单机游戏设计（本地账号系统暂缓，见附录 B）；联机排行榜已砍。**
+
+## 已确认的设计决策
 
 1. **返航 = 局内中场整备**（对齐原作）：长按 B 1.5s 蓄力（松手取消）→ 过场 → 基地整备 → 返回**同一局**，返回时轨道打击清屏。终局只有死亡。
-   - 推论：2.3 的"返航即终局 + 局外天赋点折算"已在 3.2 被原作式**局内基地系统**取代；局外 meta（TALENT_DEFS 天赋台 + profile 的 talents/talent_points）已在 3.2 **移除**（profile 仅保留最高分，旧字段读取时忽略）。
+   - 推论：2.3 的"返航即终局 + 局外天赋点折算"已在 3.2 被原作式**局内基地系统**取代；局外 meta（TALENT_DEFS 天赋台 + profile 的 talents/talent_points）已在 3.2 **移除**（profile 仅保留最高分等单用户字段，旧字段读取时忽略）。
 2. **开火 = 全自动**（对齐原作）：鼠标只管瞄准，不按左键。
 3. **母舰全面对齐原作**：对接后停留 20s 的火力平台，弹匣机制，提前离舰，长按 H 蓄力召唤，母舰击杀分数 ×1/3。
 4. **纯得分制**：无任何掉落物/拾取机制（已移除精英掉落）。
-5. **欢迎页与登录系统立项**（2026-07-21）：完整移植原作 welcome 场景与本地账号系统（UserDB），**疑似 bug 不移植**；联机排行榜维持已砍决策（仅本地榜）。规格见附录 B。
+5. **游戏进入页立项**（2026-07-21 立项为登录系统版，**2026-07-22 修订为单机版**）：移植原作 welcome 场景作为游戏入口，提供「开始游戏 / 难度 / 设置 / 教程 / 本地最高分」等基础能力；**暂缓本地账号系统**（UserDB、密码、每用户隔离），按单机游戏设计。联机排行榜维持已砍决策。规格见附录 B；登录系统版完整规格存档于提交 `dcef9b6`，重启时可整体复用（含其 B7 去 bug 清单）。
 
 ## 差距清单（对照原作逐项核对，按玩法影响排序）
 
@@ -20,7 +21,7 @@
 | 2 | 母舰火力规则 | 双炮塔 80° 扫射压制；母舰击杀仅 ×1/3 分数 | 已对齐（3.1：双塔 80° 扫掠 0.2s/发，score_scale=1/3 向下取整） | 无 |
 | 3 | 返航定位 | 中场整备后返回同一局，轨道打击清屏 | 已对齐（3.2：长按 B 1.5s 蓄力 + 基地 + 轨道打击，Boss 保留） | 无 |
 | 4 | 基地系统 | 4 模块（战机库/武器挂载/维修补给/任务规划）+ RP 经济 + 3 常驻任务 | 已对齐（3.2：base_console 四区块 + RP/任务数据层） | 无 |
-| 5 | 天赋路线 | 局内 buff 点数按进攻/机动两条互斥路线重分配 | 已对齐（3.2：choose_route 合并层数 + 锁定，laser/recall 效果待 3.3） | 效果本体（3.3） |
+| 5 | 天赋路线 | 局内 buff 点数按进攻/机动两条互斥路线重分配 | 已对齐（3.2：choose_route 合并层数 + 锁定；laser/recall 效果 3.3 实装） | 无 |
 | 6 | 开火模型 | 全自动 | 已对齐（全自动 + `_auto_fire_enabled` 测试钩子） | 无 |
 | 7 | 瞄准辅助 | 磁吸锁定/粘滞/甩脱三档 | 已对齐（3.3：230px 磁吸+粘滞、>90px 甩脱、锁定环视觉） | 无 |
 | 8 | 敌机弹种 | single/spread/laser 三弹型，精英出 spread/laser，spread 同屏上限按难度 | 已对齐（3.3：三弹型+精英池+同屏上限 2，难度 3.4 联动） | 无 |
@@ -37,24 +38,66 @@
 | 19 | 里程碑阈值曲线 | 8 档 3000→80000 循环 ×1.35 ×难度倍率 | 已对齐（3.4：8 档+1.35 循环，难度阈值倍率 ×1/×1/×1.5） | 无 |
 | 20 | 新手教程 | 6 阶段（移动瞄准/加速冲刺/战斗/母舰/返航基地/Boss） | 已对齐（3.5：tutorial.tscn 独立场景 6 阶段 + tutorial_done 持久化） | 无 |
 | 21 | 设置界面玩法项 | Ctrl/Shift 各有按住/切换模式 | 已对齐（3.4：设置面板两选项+暂停面板入口+player toggle 接入） | 无 |
-| 22 | 欢迎页与登录系统 | welcome 场景：登录面板（本地 users.json 盐哈希密码、注册/登录/删除、用户下拉）+ 难度 + 排行榜 + 快速提示 | **已立项待移植**（迭代 3.10，规格见附录 B）：现状无 welcome 场景与用户系统，启动直接进 StartPanel（单用户 profile.json） | 待移植 |
+| 22 | 游戏进入页 | welcome 场景：开始游戏 + 难度 + 排行榜 + 快速提示（原作含登录面板，见附录 B） | **待移植**（迭代 3.10，单机版规格见附录 B）：现状无独立进入场景，StartPanel 叠在活的对局上 | 待移植 |
 
-## 修订后路线图
+## 迭代历史（git 提交顺序）
 
-- **迭代 3.1 母舰全对齐**（当前完整化基础上补齐）：弹匣 10 格 + 停留 20s + ≤4 警告横幅 + 耗尽弹出；长按 H 3s 蓄力召唤（虚影预告、松手取消）；对接后长按 H 2s 提前离舰（返还/冷却打折）；双炮塔 80° 扫射；母舰击杀 ×1/3 分数
-- **迭代 3.2 返航与基地重构**：返航改为中场整备（B → 基地 → 返回同一局 + 轨道打击清屏）；基地 4 模块（战机库/武器挂载/维修补给/任务规划）；RP 经济（Boss +5RP、任务 +3RP、维修 2RP、充能 2RP）；天赋路线互斥重分配（进攻线 Spread/Laser、机动线 Phase Dash/Recall）；全自动开火；评估移除局外天赋折算
-- **迭代 3.3 战斗补全**：瞄准辅助（磁吸/粘滞/甩脱）；敌机弹种 spread/laser + 同屏上限；Boss 逃跑（50s）；aggressive 模式；敌机 15s 寿命离场；缺失 buff ×3（Laser/Recall/Boost Recovery）；buff gating（Explosive 需 3 Boss 击杀）；冲刺耗 25% 燃料；Ctrl 微调；K 键放弃出击
-- **迭代 3.4 难度与演出**：难度选择（三档 + 分数倍率 + 里程碑缩放）；Boss 狂暴完整版（子弹时间/快照弹幕）；里程碑阈值曲线校准；设置界面（Ctrl/Shift 模式切换）
-- **迭代 3.5 新手教程**：6 阶段（对照原作 `config/tutorial/tutorial_stages.py`）
-- **迭代 3.10 欢迎页与登录系统**：UserDB 数据层（users.json + PBKDF2 密码 + 本地排行榜 + 每用户设置/统计）→ welcome 场景（登录/注册/删除/游客 + 难度 + 排行榜 overlay + 确认模态）→ 启动流转改造（welcome 取代 StartPanel 成为入口，结算后回 welcome）→ 每用户存档/设置迁移（profile.json 退役）。完整规格与不移植清单见附录 B
-- **排后不做**：打包发布（用户明确暂缓）；i18n（外围，最后）；联机排行榜已砍（用户决策 2026-07-20）
+| 迭代 | 日期 | 提交 | 内容 |
+|------|------|------|------|
+| MVP | 07-20 | `e5d2c0e` | Godot 工程初始化；核心循环（玩家/敌机×4 模式/子弹碰撞/里程碑 Buff 三选一/Boss/难度递增/死亡结算）；素材从 Python 原作转移 |
+| 2.1 | 07-20 | `3e8f98f` | 手感：屏幕震动、爆炸碎片、玩家尾焰、程序合成音效/BGM、敌机入场预告、Boss 警告横幅 |
+| 2.2 | 07-20 | `b181968` | 成长：Buff 池 5→13、相位冲刺（空格）、燃料系统、精英敌人 |
+| — | 07-20 | `aa5da20` | 移除掉落拾取（用户决策：原作纯得分制，无掉落物） |
+| 2.3 | 07-20 | `5c4fcec` | 局外循环初版：暂停菜单存档、母舰补给、返航+天赋台、最高分 |
+| 2.4 | 07-20 | `780062f` | 内容扩充：敌机 7 模式+7 机型数值分层+分数阶段解锁、3 Boss 轮换+狂暴 |
+| 3.1 | 07-20 | `4a2bc33` | 母舰全对齐原作：长按 H 蓄力召唤、牵引对接、驻留 20s+弹匣 10 格+提前离舰冷却折扣、双塔 80° 扫射、母舰击杀 ×1/3 分 |
+| 3.2 | 07-20 | `14d3c8a` | 返航改为局内中场整备：基地 4 模块+RP 经济+天赋路线互斥；全自动开火；移除局外 meta |
+| 3.3 | 07-20 | `c74c78a` | 战斗补全：瞄准辅助、敌机三弹型+同屏上限、Boss 逃跑、aggressive 模式、敌机 15s 寿命、3 个新 buff（池 16 种）、explosive gating、冲刺耗 25% 燃料、Ctrl 微调、K 键放弃出击（断言：smoke 82 + enemy_combat 31 + buff33 29） |
+| 3.4 | 07-20 | `f9a70bb` | 难度三档+里程碑阈值曲线+设置界面+Boss 狂暴完整版；性能优化首轮（子弹/爆炸对象池、组查询改注册表、HUD 节流，最小帧耗时 -14%）（断言：difficulty 52 + enrage 24） |
+| 3.5 | 07-21 | `67cefee` | 新手教程 6 阶段独立场景（tutorial 22 项，全项目 289 项） |
+| 优化专项 | 07-21 | `0b44cb6` | balance.json 数值配置中心；敌机对象池、三角函数查表、HUD 缓存（交错 A/B 中位帧耗时约 -17%）（balance 18 项） |
+| 3.6 | 07-21 | `1d7d22a` | 母舰视觉对齐（原作渲染器导出贴图）、UI 配色统一（ui_theme.gd）、可改键系统（10 动作）、成熟配置页、中英 i18n（translations.csv 151 key）（keybind 17 + i18n 10） |
+| — | 07-21 | `3040f85` `ba01e8f` | HUD 科幻 FUI 重绘（切角面板/分段条/角标）；切角描边双线修复；双击启动脚本 |
+| 3.7 | 07-21 | `5894aba` | 视角缩放三档（small/medium/large，profile 持久化），世界边界逻辑统一走 `GameState.view_world_rect()` |
+| 3.8 | 07-21 | `c6303de` | 受击判定对齐：r7 玩家小判定点、Boss 身体撞击、狂暴锁血、按弹种伤害（附录 A1-A4） |
+| 3.9 | 07-21 | `cf2bac3` | 附录 A 全面结案：100 HP 伤害模型、受击规则链（闪避/护甲/清弹/同帧单次结算）、母舰自动对接+导弹+驾驶、战斗数值复核；另修对象池同帧回收-复用缺陷与重复死亡结算（hit_logic 40+ 项，全项目 **446 项**） |
+| — | 07-21 | `cdd7e18` | UI 菜单链路与 Esc 导航三级修复 + 首屏冻结背景 |
+
+文档类提交（README/AGENTS.md/CLAUDE.md/计划文档）未列入，见 git 日志。
+
+### 测试规模现状
+
+- 全项目 **446 项断言**全部通过（README 口径，3.9 后）。
+- 验证三件套：`--headless --import`、`--quit-after 600`、`test/visual_capture.tscn`（窗口模式自截屏，MODE 常量切换 gameplay/base/mothership/start_panel）。
+- 测试运行会读写 `user://savegame.json` / `user://profile.json`，新测试应先 `GameState.delete_save()` 并清理残留。
+
+## 后续计划
+
+- **迭代 3.10 游戏进入页（单机版）**：新建 welcome 场景取代 StartPanel 成为入口，含开始游戏/继续对局/新游戏/教程/设置/难度/本地最高分。完整规格见附录 B。
+- **暂缓**：本地账号系统（规格存档于 `dcef9b6`）；打包发布（用户明确暂缓）。
+- **不做**：联机排行榜（用户决策 2026-07-20）。
 
 ## 每轮迭代验收标准
 
 1. 冒烟测试全绿（新增机制必须带新断言）
 2. `--headless --import` 与 `--quit-after 600` 零错误
-3. visual_capture 截图无异常
-4. 本表对应行更新为"已对齐"
+3. visual_capture 截图无异常（窗口模式人工核对，改动 UI 时必跑）
+4. 本表对应行更新为"已对齐"，「迭代历史」追加一行
+
+## 工程惯例
+
+- **提交规范**：Conventional Commits（feat/fix/revert/docs），每迭代一提交；提交前必须用户确认。
+- **子代理拆分经验**（3.2 验证有效）：大迭代按「文件不相交」拆并行任务（数据层 vs 表现层），集成阶段交给保有项目上下文的 agent-1（resume）；并行任务必须明确"只准改哪些文件"。
+- **无头测试时序坑**：`Input.action_press` 断言要等 `physics_frame`；碰撞/磁铁类断言要等真实时间（`create_timer`）；视觉/警告横幅断言内部标志位而非可见性（tween 竞态）。
+- **退出时资源告警**（"N resources still in use"）：已用 git archive 对照确认为既有引擎层噪音，与项目代码无关。
+- **视觉验证**：headless 截不到图，必须窗口模式跑 `test/visual_capture.tscn`（临时改 MODE 常量，截完还原）。
+
+## 已知遗留
+
+1. `efficient_boost`（消耗端 -25%/层）与 `boost_recovery`（恢复端 ×1.5/层）已并存，与原作不完全一致（原作只有恢复端），保留现状。
+2. 激光为「3s 开/10s 关」自动循环（原作是选 buff 后一次性激活 180 帧），如需严格对齐改 `laser_weapon.gd` 触发分支。
+3. 母舰与 Boss 警告共用横幅，同时触发互相覆盖（可接受，暂不修）。
+4. 返航蓄力 1.5s（原作 2.4s，简化），如需严格对齐改 `main.gd` 常量。
 
 ## 附录 A：受击与碰撞体积专项审查（2026-07-21，agent-11 审查；2026-07-21 迭代 3.9 全部结案）
 
@@ -87,92 +130,50 @@
 
 **修复执行状态**：A1-A4 已修复（迭代 3.8）；A5-A16 全部已修复 + A20/A21 已核实（迭代 3.9，2026-07-21；覆盖测试 `test/hit_logic_test.tscn` 40+ 项断言）。迭代 3.9 另修复两个本版自身缺陷：对象池"同帧回收-复用"过期延迟调用覆盖新激活（子弹/敌机池同构），与同帧多发命中同一目标的重复死亡结算（enemy/boss take_damage 死亡守卫）。
 
-## 附录 B：欢迎页与登录系统移植规格（2026-07-21 立项；迭代 3.10）
+## 附录 B：游戏进入页移植规格（单机版）
 
-依据对原作 welcome 场景与 `utils/database.py` 的全量代码审查（2026-07-21）。「参考位置」指向原作实现；遵循**不移植原作 bug** 原则，B7 列出全部不移植项及处理。
+2026-07-21 以「欢迎页与登录系统」立项（全量审查原作 welcome 场景与 `utils/database.py`）；**2026-07-22 修订**：用户决策暂缓本地账号系统，按单机游戏设计进入页。登录系统版完整规格（含 UserDB/PBKDF2/每用户存档/B7 去 bug 清单）存档于提交 `dcef9b6`，重启时整体复用，本文不再保留全文。
+
+「参考位置」指向原作实现；仍遵循**不移植原作 bug** 原则。
 
 ### B1 范围与启动流转
 
-原作启动链：`Game()` → `SceneDirector.run()` 主循环 `welcome_flow → game_flow` 往复（死亡结算后回 welcome）；welcome 每次进场全量重建状态（清空表单/消息、重载用户列表、按 last-login 预填用户名、焦点落到密码框）。（参考：`game/scene_director.py`、`scene_director_components/scene_switcher.py`）
+原作启动链：`Game()` → `SceneDirector.run()` 主循环 `welcome_flow → game_flow` 往复（死亡结算后回 welcome）；welcome 每次进场全量重建状态。（参考：`game/scene_director.py`、`scene_director_components/scene_switcher.py`）
 
-重制版流转：
-- 新建 `scenes/welcome.tscn` 作为**项目主场景**（取代 main.tscn 的入口地位）；登录/游客放行后 `change_scene_to_file(main.tscn)`。
+重制版流转（单机版）：
+- 新建 `scenes/welcome.tscn` 作为**项目主场景**（取代 main.tscn 的入口地位）；「开始游戏」后 `change_scene_to_file(main.tscn)`。
 - 现 `StartPanel`（main 内 CanvasLayer）**退役**，其难度三选一/继续对局/新游戏/教程/设置职责并入 welcome 场景。
 - GameOver 结算后「回主菜单」= 回 welcome（重进时全量重置，对齐原作）；教程从 welcome 进入、结束回 welcome（现 tutorial 返回 main 的行为改为回 welcome）。
-- welcome 显示期间无对局背景（不像现 StartPanel 叠在活的对局上），对齐原作独立场景语义；现"冻结背景"的 StartPanel 行为随之自然淘汰。
+- welcome 显示期间无对局背景（不像现 StartPanel 叠在活的对局上），对齐原作独立场景语义；现"冻结背景"的 StartPanel 行为随之自然淘汰。可加星空慢速卷动等纯装饰背景（实现时定，保持轻量）。
 
-### B2 欢迎页布局（对齐原作 `scenes/welcome_scene.py` + `welcome/`）
+### B2 进入页布局（对齐原作 `scenes/welcome_scene.py` 的精神，删去登录面板）
 
 - 单页 1920×1080：标题（金色发光+浮动）居中偏上。
-- **左栏登录面板**（≈480×600）：用户名行（输入框 + 下拉按钮）、密码行（`*` 掩码）、主按钮「登录」「注册」、次按钮「游客进入」「删除用户」、「设置」按钮。
-- **右栏难度面板**：「新手教程」CTA（呼吸灯）、easy/medium/hard 单选（默认 medium）、「排行榜」幽灵按钮、按键速查（复用现设置页关于页文案）。
-- 底部：提示行（TAB 切焦点 / ENTER 确认 / ESC 退出）+ 消息行（红=错误 / 绿=成功，2s 自动清除，对齐 120 帧）。
-- Overlay：排行榜（遮罩 + 居中面板 + ×关闭）、游客确认模态、删除确认模态。
-- UI 组件复用现有 `ChamferedPanel` / `UITheme`，输入框用 LineEdit（密码 `secret = true`）。
+- **主区按钮组**（居中或中偏左，纵向）：「开始游戏」（有存档时拆为「继续对局」+「新游戏」，新游戏覆盖存档需二次确认）、「新手教程」（完成显示 ✓）、「设置」、「排行榜（本地）」（幽灵按钮）。
+- **难度面板**：easy/medium/hard 单选（默认读取 profile 持久化值）。
+- **最高分展示**：本地最高分 + 历史最佳一局概要（分数/击杀，数据来自 profile.json；更完整的 Top-N 榜单为可选项，实施时评估，不过度设计）。
+- 底部：提示行（ENTER 确认 / ESC 退出）+ 按键速查（复用现设置页关于页文案）。
+- UI 组件复用现有 `ChamferedPanel` / `UITheme`。
 
-### B3 登录面板行为规格（对齐原作 `welcome/login_panel.py`）
+### B3 行为规格
 
-- **焦点环**：`username → password → difficulty` 循环；TAB 与输入框内 ↑/↓ 均循环切换并关闭下拉；有 last-login 用户时预填用户名、焦点落密码框。
-- **ENTER**：用户名+密码均非空 → 登录；否则弹游客确认框（默认焦点「返回」——去 bug，见 B7-5）。
-- **ESC**：关排行榜 overlay → 关游客/删除确认 → 关下拉 → 退出应用（welcome 是首场景，ESC=退出到桌面；重制版对齐为"退出游戏"）。
-- **输入约束**：两框各 16 字符上限；输入/退格用户名时自动弹出下拉；点密码框关下拉。
-- **用户下拉**：数据源 `list_usernames()`（last_login_order 降序 + 名字字典序），显示前 4 项；选中填入用户名、清空密码、焦点到密码。
-- **登录**：空 → 空凭证错误；`verify_user` 通过 → `record_login` → 放行；失败 → 凭证错误（不区分"用户不存在"与"密码错"，对齐）。
-- **注册**：空检查 → 用户名 <3 → 密码 <3（逐条错误文案）；重名 → 已存在错误；成功 → 成功提示 + 清密码 + **保留刚注册的用户名**（去 bug，见 B7-9）。
-- **删除**：用户名非空 → 确认框（默认焦点「取消」）；确认时校验密码非空 → `delete_user(name, password)`（先验密）；成功 → 清两框 + 重载列表；**同时清理该用户的存档文件**（去 bug，见 B7-12）。
-- **游客**：确认框（文案如实："游客模式不保存进度、最高分与设置"）→ `Guest` 放行；「游客进入」按钮同样走确认框（去 bug，见 B7-6）。
-- 全部文案走 `tr("WELCOME_*")`，translations.csv 增全套 zh/en（对应原作 `locales/zh_CN.json` 的 welcome.* 键）。
+- **开始游戏**：按当前难度开新局（对齐现 StartPanel「新游戏」语义）；有对局存档时显示「继续对局」。
+- **ESC**：关排行榜/设置 overlay → 退出游戏（welcome 是首场景，ESC=退出到桌面）。
+- **设置**：复用现有设置面板（控制/操作模式/关于三分区），从 welcome 打开时返回 welcome。
+- 全部文案走 `tr("WELCOME_*")`，translations.csv 增全套 zh/en（对应原作 `locales/zh_CN.json` 的 welcome.* 键中不涉及登录的部分）。
 
-### B4 数据模型（对齐原作 `utils/database.py`）
+### B4 数据模型（单机版）
 
-新 autoload 或 GameState 子模块 `user_db.gd`：
-- **文件**：`user://users.json`，单 JSON 共存用户表与排行榜（`_leaderboard` 键）；损坏 → 备份 `.corrupted.<ts>.bak` 重置为空；写入 tmp+rename 原子替换。**不移植** fcntl 文件锁（Godot 无等价物；单进程桌面游戏无跨进程并发，注明即可）。
-- **密码**：PBKDF2-HMAC-SHA256，盐 16 字节 hex（Godot `Crypto.generate_random_bytes`），比对常量时间。迭代数对齐原作 100_000（GDScript `Crypto.hmac_digest` 自实现 PBKDF2；若实测登录耗时不可接受可降档并在本行注明——数据文件无需与 py 端互通，迭代数不是兼容约束）。
-- **UserRecord 字段**：`password / salt / high_score / total_kills / games_played / last_login_order / settings`。
-- **API 对齐**：`create_user / verify_user / user_exists / list_usernames / get_last_login_user / record_login / get_user_data / update_user_data / update_high_score（仅更高才写）/ get_user_settings / update_user_settings / delete_user(需验密) / get_leaderboard / submit_score`。
-- **last_login**：自增序号（全局 max+1），非时间戳。
-- **注册保留名校验**：拒绝 `_leaderboard`（去 bug，见 B7-7）；`Guest` 也列为保留名拒绝注册（去 bug 延伸）。
-- **排行榜（本地）**：条目 `{player_name(≤32), score(负钳 0), timestamp(UTC ISO)}`，cap 10，排序 score 降序 + timestamp 升序；`submit_score` 返回 1-indexed 名次（0=未上榜）。
+- **沿用现有单用户文件，无存档模型变更**：`user://profile.json`（最高分/难度/locale/键位/视角缩放/tutorial_done）与 `user://savegame.json`（对局存档）保持现状。
+- 明确不做：users.json、密码、每用户设置/存档隔离（随账号系统一并暂缓）。
 
-### B5 登录态对游戏的影响（对齐原作消费点）
+### B5 暂缓存档（登录系统版要点备查）
 
-- **统计**：对局结束（死亡结算）写 `high_score / total_kills += kills / games_played += 1`；游客静默丢弃。
-- **设置按用户隔离**（`settings` 字段）：难度、Ctrl/Shift 模式、键位、视角缩放、locale、教程完成标记——登录后载入并立即生效（locale 即时 `set_locale`，去 bug，见 B7-11）；设置变更仅登录用户落盘，游客只进内存。
-- **profile.json 退役**：现有单用户 profile（最高分/难度/locale/键位/视角/tutorial_done）迁移进 users.json——首次启动若存在旧 profile 且无用户，自动注册提示或并入首个创建的用户（迁移策略实施时定，记录在 PR 描述）；机器级不再保留任何字段。
-- **存档按用户分文件**：`user://savegame_<sanitized>_<sha256[:12]>.json`（对齐原作 `_save_file_for_user` 命名）；读档校验 `username` 字段匹配；「继续对局」只显示当前用户的档；**游客不存档**（去 bug，见 B7-8）。
-- **最高分/HUD**：`GameState.high_score` 改为当前用户维度；排行榜提交以用户名（游客="Guest"）。
+若日后重启账号系统，从 `dcef9b6` 取回完整规格，核心要点：UserDB（users.json + PBKDF2-HMAC-SHA256 + 本地排行榜）、welcome 左栏登录面板（注册/登录/删除/游客）、每用户存档与设置隔离、profile.json 退役迁移，以及 13 项原作 bug 修复清单（ESC 层级/模态一致性/保留名/游客存档/删除连档清理等）。
 
-### B6 排行榜 overlay（对齐原作 `welcome/leaderboard_overlay.py`）
+### B6 工程分解与验收
 
-- welcome 右栏「排行榜」按钮 → overlay：遮罩 + 520×580 面板 + 标题 + 最多 10 行（名次 1-3 金/银/铜、玩家名、分数右对齐）+ 页脚「Top 10 · 本地」+ ×关闭 + ESC 关闭（去 bug，见 B7-1）。
-- 数据源：本地 users.json `_leaderboard`；**不移植**远程模式/双写/`AIRWAR_LEADERBOARD_*` 环境变量（联机已砍）。
-- overlay 打开时遮罩拦截鼠标（模态一致化，去 bug，见 B7-3）。
-
-### B7 不移植清单（原作疑似 bug / 坏味道，2026-07-21 审查确认）
-
-| # | 原作行为 | 处理 |
-|---|---------|------|
-| B7-1 | 排行榜 overlay 打开时 ESC = 退出整个应用 | **修复**：ESC 关闭 overlay |
-| B7-2 | 删除确认框打开时 ESC 同样退出应用 | **修复**：ESC 关闭确认框 |
-| B7-3 | overlay 鼠标模态性不一致：排行榜遮罩不拦点击（底层按钮可点）、游客确认非鼠标模态、删除确认才是模态 | **修复**：三种 overlay 统一鼠标+键盘双模态 |
-| B7-4 | `record_login` 失败时提示用错 i18n key（delete_db_failed），且已验证通过的登录被中止 | **修复**：正确 key + record_login 失败不阻断登录（仅告警） |
-| B7-5 | ENTER 陷阱：任一字段为空按 ENTER 弹游客确认且默认焦点 yes，连按两下即游客开局丢弃已输用户名 | **修复**：确认框默认焦点「返回」 |
-| B7-6 | 「游客进入」按钮跳过确认框直进，与 ENTER 路径不一致 | **修复**：两路径统一走确认框 |
-| B7-7 | 保留名碰撞：注册 `_leaderboard` 覆盖排行榜键致账号/榜单互毁；注册 `Guest` 吸收全部游客统计 | **修复**：注册拒绝保留名（`_leaderboard`、`Guest`） |
-| B7-8 | 游客文案称"不保存进度"但游客存档实际落盘且可恢复 | **修复**：按文案如实实现——游客不存档、不写统计、设置仅内存；排行榜 Guest 提交保留（对齐原作且无害） |
-| B7-9 | 注册/删除成功后重载用户列表把用户名框改填成别的用户 | **修复**：注册成功保留刚填用户名；删除成功清空不回填 |
-| B7-10 | `is_ready()` 未排除 settings_requested（仅靠调用顺序掩盖） | **修复**：状态判断显式排除 |
-| B7-11 | 持久化语言偏好登录后不生效（载入不调 set_locale） | **修复**：登录后即时 set_locale |
-| B7-12 | 删除用户不清理其存档文件，同名再注册复活旧进度 | **修复**：删号连带删存档 |
-| B7-13 | 小问题集合：键盘无注册路径与 docstring 矛盾；下拉 4 项无滚动；输入强制重开下拉；排行榜视图 10s 缓存显示旧数据；删除先弹框后验密码；`get_last_login_user` 同分不确定；"quit" 死 handler；do_login 缺 return | **修复**：键盘 ENTER 按焦点分派（表单=登录/注册由按钮）；overlay 每次打开重新读取；删除确认时先验密码非空；其余随重构自然消除 |
-| — | fcntl 跨进程文件锁、legacy 路径迁移、远程排行榜 | **不移植**（无 Godot 等价物/无对应历史路径/联机已砍），此处记录 |
-
-### B8 工程分解与验收
-
-1. **数据层** `autoload/user_db.gd`（B4 全部 API + 排行榜）→ 验收：`test/user_db_test.tscn`（注册/验密/重名/保留名/删除连档清理/last-login 排序/统计累加/排行榜 cap 与名次/损坏备份重置）
-2. **welcome 场景**（B2/B3/B6）+ 启动流转（B1）→ 验收：`test/welcome_flow_test.tscn`（焦点环/预填/登录放行/游客确认/删除流程/ESC 层级/overlay 模态）；visual_capture 增 welcome/leaderboard 两个 MODE
-3. **每用户存档/设置迁移**（B5）→ 验收：base_system_test 扩每用户存档断言；双用户切换隔离测试（A 的档/设置/最高分不影响 B）
-4. **i18n**：translations.csv 增 `WELCOME_*` 全套 zh/en → i18n_test 扩键位覆盖
-5. 既有测试适配：main.tscn 不再是主场景（测试改为显式实例化，同现状）；StartPanel 相关断言（smoke 5.1、esc_navigation_test）迁移到 welcome 流程
-6. 全部既有测试保持 0 FAIL；本表 #22 行届时更新为"已对齐"
-
+1. **welcome 场景**（B2/B3）+ 启动流转（B1）→ 验收：`test/welcome_flow_test.tscn`（开始/继续对局显隐/新游戏确认/难度持久化/ESC 层级/overlay 模态）；visual_capture 增 welcome MODE。
+2. **i18n**：translations.csv 增 `WELCOME_*` 全套 zh/en → i18n_test 扩键位覆盖。
+3. **既有测试适配**：main.tscn 不再是主场景（测试改为显式实例化，同现状）；StartPanel 相关断言（smoke 5.1、esc_navigation_test）迁移到 welcome 流程。
+4. 全部既有测试保持 0 FAIL；差距清单 #22 行届时更新为"已对齐"。

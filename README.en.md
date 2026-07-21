@@ -133,9 +133,10 @@ godot --headless --path . res://test/hit_logic_test.tscn    # hit & collision pa
 - [x] Three-level view zoom (small / medium / large) — iteration 3.7
 - [x] Hit & collision parity pass (r7 hitbox / boss body collision / enrage HP lock / per-type bullet damage) — iteration 3.8
 - [x] 100-HP damage model & full Appendix-A parity (hit-rule chain / mothership auto-dock + missiles + piloting / combat number review) — iteration 3.9
+- [ ] Game entry page (welcome scene, single-player, replacing StartPanel as the entry) — iteration 3.10
 - [ ] Release builds (deferred)
 
-The item-by-item parity checklist against the original lives in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md); task guidance in [docs/TASK_REPORT.md](./docs/TASK_REPORT.md).
+The item-by-item parity checklist against the original, the iteration history, and the roadmap live in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md).
 
 ## 🤝 Contributing
 

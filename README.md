@@ -136,9 +136,10 @@ godot --headless --path . res://test/hit_logic_test.tscn    # 受击/碰撞对�
 - [x] 视角缩放三档（小/中/大） —— 迭代 3.7
 - [x] 受击与碰撞专项对齐（r7 小判定点 / Boss 身体撞击 / 狂暴锁血 / 弹种伤害生效） —— 迭代 3.8
 - [x] 100 HP 伤害模型与附录 A 全面对齐（受击规则链 / 母舰自动对接+导弹+驾驶 / 战斗数值复核） —— 迭代 3.9
+- [ ] 游戏进入页（welcome 场景，单机版，取代 StartPanel 入口） —— 迭代 3.10
 - [ ] 打包发布（暂缓）
 
-移植对齐的逐项对照见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)，任务指导见 [docs/TASK_REPORT.md](./docs/TASK_REPORT.md)。
+移植对齐的逐项对照、迭代历史与后续计划见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)。
 
 ## 🤝 参与贡献
 
