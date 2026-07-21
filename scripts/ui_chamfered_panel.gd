@@ -32,13 +32,14 @@ var _fit_check_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
-	# 0.1s 节流做内容自适应（子节点尺寸变化时同步面板）
+	# 0.1s 节流做内容自适应（只按内容放大，不缩小显式设定的尺寸——
+	# 无子节点的纯背板保持原尺寸，否则会被压缩成小菱形）
 	_fit_check_timer -= delta
 	if _fit_check_timer > 0.0:
 		return
 	_fit_check_timer = 0.1
 	var need := _content_min_size()
-	var target := custom_minimum_size.max(need)
+	var target := size.max(custom_minimum_size).max(need)
 	if target != custom_minimum_size:
 		custom_minimum_size = target
 	if size != target:
@@ -73,7 +74,7 @@ func _draw() -> void:
 	)
 	draw_colored_polygon(pts, bg_color)
 	for i in pts.size():
-		draw_line(pts[i], pts[(i + 1) % pts.size()], border_color, 1.0, true)
+		draw_line(pts[i], pts[(i + 1) % pts.size()], border_color, 2.0, true)
 	if brackets:
 		var b := 10.0
 		var inset := 3.0
