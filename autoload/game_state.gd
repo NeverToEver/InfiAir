@@ -69,6 +69,7 @@ const PROFILE_PATH := "user://profile.json"
 const PERSIST_VERSION := 1
 
 var high_score: int = 0
+var tutorial_done: bool = false
 
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_index: int = 0
@@ -461,6 +462,7 @@ func load_profile() -> void:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PROFILE_PATH))
 	if parsed is Dictionary:
 		high_score = int(parsed.get("high_score", 0))
+		tutorial_done = bool(parsed.get("tutorial_done", false))
 		var saved_difficulty := StringName(parsed.get("difficulty", ""))
 		if DIFFICULTY_DEFS.has(saved_difficulty):
 			difficulty = saved_difficulty
@@ -472,6 +474,7 @@ func save_profile() -> void:
 	var data := {
 		"version": PERSIST_VERSION,
 		"high_score": high_score,
+		"tutorial_done": tutorial_done,
 		"difficulty": String(difficulty),
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,

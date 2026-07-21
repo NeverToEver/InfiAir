@@ -14,6 +14,7 @@ var _new_button: Button
 var _diff_buttons: Dictionary = {}  # StringName -> Button
 var _diff_group := ButtonGroup.new()
 var _spawner_held := false
+var _tutorial_button: Button
 
 
 func _ready() -> void:
@@ -74,6 +75,10 @@ func _ready() -> void:
 	_new_button.pressed.connect(_on_new_game_pressed)
 	vbox.add_child(_new_button)
 
+	_tutorial_button = _make_button("教程")
+	_tutorial_button.pressed.connect(_on_tutorial_pressed)
+	vbox.add_child(_tutorial_button)
+
 	# 无存档时开场自显（不暂停）；有存档时等 main 调 show_panel()
 	if not GameState.has_save():
 		_show(false)
@@ -98,6 +103,7 @@ func _show(pause: bool) -> void:
 	_hint_label.text = "检测到未完成的对局" if has_save else "选择难度，准备出击"
 	_continue_button.visible = has_save
 	_new_button.text = "新游戏" if has_save else "开始游戏"
+	_tutorial_button.text = "教程 ✓" if GameState.tutorial_done else "教程"
 	_refresh_difficulty_buttons()
 	if pause:
 		get_tree().paused = true
@@ -138,3 +144,8 @@ func _on_new_game_pressed() -> void:
 	GameState.delete_save()
 	_dismiss()
 	new_game_chosen.emit()
+
+
+func _on_tutorial_pressed() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/tutorial.tscn")

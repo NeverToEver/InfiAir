@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-267%20passed-brightgreen)](#verification)
+[![Tests](https://img.shields.io/badge/tests-289%20passed-brightgreen)](#verification)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -105,9 +105,10 @@ godot --headless --path . res://test/enemy_combat_test.tscn # enemies & bosses �
 godot --headless --path . res://test/buff33_test.tscn       # buffs/mothership/give-up — 29
 godot --headless --path . res://test/difficulty_test.tscn   # difficulty/milestones/settings — 52
 godot --headless --path . res://test/boss_enrage_test.tscn  # boss enrage — 24
+godot --headless --path . res://test/tutorial_test.tscn     # tutorial — 22
 ```
 
-267 assertions, all passing.
+289 assertions, all passing.
 
 ## 🗺️ Roadmap
 
@@ -119,7 +120,7 @@ godot --headless --path . res://test/boss_enrage_test.tscn  # boss enrage — 24
 - [x] Combat parity (aim assist / 3 enemy bullet types / boss escape / 8 movement patterns)
 - [x] Difficulty selection (easy / normal / hard) & full boss enrage — iteration 3.4
 - [x] Performance optimization (bullet/explosion pooling, group-query caching, HUD throttling) — iteration 3.4
-- [ ] Tutorial (6 stages) — iteration 3.5
+- [x] Tutorial (6 stages, via the start panel; completion recorded in profile) — iteration 3.5
 - [ ] Online leaderboard
 - [ ] Release builds (deferred)
 

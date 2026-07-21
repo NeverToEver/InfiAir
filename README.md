@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-267%20passed-brightgreen)](#运行验证)
+[![Tests](https://img.shields.io/badge/tests-289%20passed-brightgreen)](#运行验证)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -78,6 +78,7 @@ godot --path .          # 直接运行；或用编辑器打开项目按 F5
 - 每 500 分里程碑暂停三选一 Buff；Boss 每 1500 分或 90 秒刷新，击毁 +500 分并提升难度乘数（`1 + (2^min(击杀,10) − 1) × 0.25`，封顶 8x）。
 - RP（征用点数）由 Boss 击杀（+5）与基地任务（+3）获得，用于基地维修 / 充能。
 - 暂停菜单「保存进度」可随时存档，启动时可继续对局；死亡删档。
+- 开始面板含「教程」入口：6 阶段新手教学（移动瞄准 / 加速冲刺 / 战斗 / 母舰对接 / 返航基地 / Boss 狂暴），Esc 随时退出，完成后按钮显示「教程 ✓」。
 
 ## 🏗️ 架构
 
@@ -105,9 +106,10 @@ godot --headless --path . res://test/enemy_combat_test.tscn # 敌机/Boss 31 项
 godot --headless --path . res://test/buff33_test.tscn       # Buff/母舰/放弃 29 项
 godot --headless --path . res://test/difficulty_test.tscn   # 难度/里程碑/设置 52 项
 godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 24 项
+godot --headless --path . res://test/tutorial_test.tscn     # 新手教程 22 项
 ```
 
-共 267 项断言，全部通过。
+共 289 项断言，全部通过。
 
 ## 🗺️ 路线图
 
@@ -119,7 +121,7 @@ godot --headless --path . res://test/boss_enrage_test.tscn  # Boss 狂暴 24 项
 - [x] 战斗对齐（瞄准辅助 / 敌机三弹型 / Boss 逃跑 / 8 种移动模式）
 - [x] 难度选择（简单 / 普通 / 困难）与 Boss 狂暴完整版（子弹时间 + 快照弹幕） —— 迭代 3.4
 - [x] 性能优化（子弹/爆炸对象池、组查询缓存、HUD 节流） —— 迭代 3.4
-- [ ] 新手教程（6 阶段） —— 迭代 3.5
+- [x] 新手教程（6 阶段，开始面板进入，完成记录 `tutorial_done`） —— 迭代 3.5
 - [ ] 联机排行榜
 - [ ] 打包发布（暂缓）
 

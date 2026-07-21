@@ -64,8 +64,9 @@ godot --path .
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
 - 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
 
-## 性能约定（3.4）
+- 教程场景 `scenes/tutorial.tscn`（`scripts/tutorial.gd`）独立于 main 对局逻辑：进场 `reset_run` + `delete_save` 隔离，出场再 reset 并强制 `Engine.time_scale = 1`；开始面板「教程」按钮进入，Esc 退出。运行期代码创建的节点要取引用保存，不要用 `get_node("ClassName")`（自动名是 `@CanvasLayer@N` 形式）。
 
+## 性能约定（3.4）
 - 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。
 - 爆炸走 `Explosion.spawn_at`（静态池 ≤24，发射完回收不销毁）。
 - 热路径禁止每帧 `get_nodes_in_group`：用 `GameState.enemies` / `GameState.player_ref` 注册表（enemy/boss/player 在 `_ready`/`_exit_tree` 维护）。
