@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-289%20passed-brightgreen)](#verification)
+[![Tests](https://img.shields.io/badge/tests-307%20passed-brightgreen)](#verification)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -91,6 +91,7 @@ main.tscn (run orchestration)
 ```
 
 - Collision layers: `1=player 2=player_bullet 3=enemy 4=enemy_bullet`; bullets resolve damage on their side.
+- Balance config: `data/balance.json` holds all tunable values (player/enemies/boss/spawner/mothership/buffs/milestones/difficulty/effects), loaded once at startup via `GameState.cfg()` with per-key fallback to script defaults — tweak the JSON, no code changes needed.
 - Run save `user://savegame.json` and profile `user://profile.json` are versioned.
 - Tests are headless scene scripts (no framework) — see `AGENTS.md`.
 
@@ -99,16 +100,17 @@ main.tscn (run orchestration)
 ```bash
 godot --headless --import --path .          # assets & script parsing
 godot --headless --path . --quit-after 300  # runtime smoke
-godot --headless --path . res://test/smoke_test.tscn        # main flow — 82 assertions
+godot --headless --path . res://test/smoke_test.tscn        # main flow — 85 assertions
 godot --headless --path . res://test/base_system_test.tscn  # save/RP/missions/routes — 46
 godot --headless --path . res://test/enemy_combat_test.tscn # enemies & bosses — 31
 godot --headless --path . res://test/buff33_test.tscn       # buffs/mothership/give-up — 29
 godot --headless --path . res://test/difficulty_test.tscn   # difficulty/milestones/settings — 52
 godot --headless --path . res://test/boss_enrage_test.tscn  # boss enrage — 24
 godot --headless --path . res://test/tutorial_test.tscn     # tutorial — 22
+godot --headless --path . res://test/balance_test.tscn      # balance config — 18
 ```
 
-289 assertions, all passing.
+307 assertions, all passing.
 
 ## 🗺️ Roadmap
 
@@ -121,7 +123,6 @@ godot --headless --path . res://test/tutorial_test.tscn     # tutorial — 22
 - [x] Difficulty selection (easy / normal / hard) & full boss enrage — iteration 3.4
 - [x] Performance optimization (bullet/explosion pooling, group-query caching, HUD throttling) — iteration 3.4
 - [x] Tutorial (6 stages, via the start panel; completion recorded in profile) — iteration 3.5
-- [ ] Online leaderboard
 - [ ] Release builds (deferred)
 
 The item-by-item parity checklist against the original lives in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md); task guidance in [docs/TASK_REPORT.md](./docs/TASK_REPORT.md).

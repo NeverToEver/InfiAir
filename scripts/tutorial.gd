@@ -7,7 +7,7 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const SPAWNER_SCRIPT: GDScript = preload("res://scripts/spawner.gd")
-const HOME_CHARGE_TIME := 1.5
+var HOME_CHARGE_TIME := 1.5
 
 const STAGE_TITLES: Array[String] = [
 	"阶段 1/6：移动与瞄准",
@@ -44,6 +44,7 @@ func _ready() -> void:
 	GameState.reset_run()
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
 	_build_hud()
+	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
 	_enter_stage(0)
 
 
@@ -109,8 +110,8 @@ func _enter_stage(idx: int) -> void:
 			_player._invincible = 999.0  # 教程不判负
 			_boss = BOSS_SCENE.instantiate() as Boss
 			_boss.setup(1.0, 1)
-			_boss.max_hp = 12.0
-			_boss.hp = 12.0
+			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 12.0)
+			_boss.hp = _boss.max_hp
 			_boss.position = Vector2(960.0, -160.0)
 			_boss.enraged.connect(_on_boss_enraged)
 			add_child(_boss)

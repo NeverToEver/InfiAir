@@ -87,12 +87,12 @@ func _ready() -> void:
 		angles.sort()
 		var fan_ok := true
 		for i in 4:
-			if absf(angles[i + 1] - angles[i] - Enemy.SPREAD_FAN_STEP) > 0.02:
+			if absf(angles[i + 1] - angles[i] - spread_e.SPREAD_FAN_STEP) > 0.02:
 				fan_ok = false
 		_check(fan_ok, "spread 弹向以瞄准方向为中心均匀扇形展开")
 		_check(
-			is_equal_approx(fan[0].speed, Enemy.SPREAD_BULLET_SPEED)
-			and fan[0].speed < Enemy.ENEMY_BULLET_SPEED,
+			is_equal_approx(fan[0].speed, spread_e.SPREAD_BULLET_SPEED)
+			and fan[0].speed < spread_e.ENEMY_BULLET_SPEED,
 			"spread 弹速稍慢于普通弹"
 		)
 	spread_e.queue_free()
@@ -112,7 +112,7 @@ func _ready() -> void:
 			lasers.append(b)
 	_check(lasers.size() == 1, "laser 敌机发射单发弹")
 	if lasers.size() == 1:
-		_check(lasers[0].speed > Enemy.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
+		_check(lasers[0].speed > laser_e.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
 		_check(
 			(lasers[0].get_node("Polygon2D") as Polygon2D).scale.x > 1.5,
 			"laser 弹细长化表现"
@@ -198,7 +198,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss = child
 	_check(boss != null, "Boss 已生成（逃跑测试）")
-	boss.position.y = Boss.FIGHT_Y  # 跳过降入
+	boss.position.y = boss.FIGHT_Y  # 跳过降入
 	await get_tree().create_timer(0.3).timeout
 	_check(boss._in_fight, "Boss 进入战斗（逃跑计时开始）")
 	var kills_before_boss := GameState.boss_kills
@@ -206,12 +206,12 @@ func _ready() -> void:
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.escaped.connect(func() -> void: escaped_flag[0] = true)
-	boss._survival = Boss.ESCAPE_TIME - Boss.ESCAPE_WARNING - 0.5  # 距警告 0.5s
+	boss._survival = boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5  # 距警告 0.5s
 	var warn_y0 := boss.position.y
 	await get_tree().create_timer(0.8).timeout
 	_check(boss._escape_warned, "逃跑前 3s 触发逃跑警告")
 	_check(boss.position.y < warn_y0 - 3.0, "警告期间上飘")
-	boss._survival = Boss.ESCAPE_TIME - 0.05  # 距逃跑 0.05s
+	boss._survival = boss.ESCAPE_TIME - 0.05  # 距逃跑 0.05s
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
 	await get_tree().create_timer(2.5).timeout

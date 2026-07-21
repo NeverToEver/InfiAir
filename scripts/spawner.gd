@@ -66,13 +66,13 @@ static var ELITE_TYPES: Array[Dictionary] = [
 
 ## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
 const UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500]
-const ELITE_BONUS_SCORE := 1500  # 达到后精英率 +0.1
+var ELITE_BONUS_SCORE := 1500  # 达到后精英率 +0.1
 
-const SPAWN_INTERVAL_START := 1.2
-const SPAWN_INTERVAL_END := 0.5
-const RAMP_TIME := 300.0
-const BOSS_SCORE_STEP := 1500
-const BOSS_TIME_LIMIT := 90.0
+var SPAWN_INTERVAL_START := 1.2
+var SPAWN_INTERVAL_END := 0.5
+var RAMP_TIME := 300.0
+var BOSS_SCORE_STEP := 1500
+var BOSS_TIME_LIMIT := 90.0
 
 var _spawn_timer: float = 1.5
 var _elapsed: float = 0.0
@@ -83,6 +83,33 @@ var _boss_active: bool = false
 
 func _ready() -> void:
 	add_to_group("spawner")
+	_apply_balance()
+
+
+## 数值配置注入：机型表数值覆盖（贴图/策略/弹种池留在脚本），常量读入
+func _apply_balance() -> void:
+	SPAWN_INTERVAL_START = GameState.cfg("spawner.interval_start", SPAWN_INTERVAL_START)
+	SPAWN_INTERVAL_END = GameState.cfg("spawner.interval_end", SPAWN_INTERVAL_END)
+	RAMP_TIME = GameState.cfg("spawner.ramp_time", RAMP_TIME)
+	BOSS_SCORE_STEP = GameState.cfg("spawner.boss_score_step", BOSS_SCORE_STEP)
+	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
+	ELITE_BONUS_SCORE = GameState.cfg("spawner.elite_bonus_score", ELITE_BONUS_SCORE)
+	var normal: Array = GameState.cfg("enemies.types", [])
+	for i in mini(normal.size(), ENEMY_TYPES.size()):
+		_merge_type(ENEMY_TYPES[i], normal[i])
+	var elites: Array = GameState.cfg("elites.types", [])
+	for i in mini(elites.size(), ELITE_TYPES.size()):
+		_merge_type(ELITE_TYPES[i], elites[i])
+
+
+func _merge_type(dst: Dictionary, src: Dictionary) -> void:
+	if src.has("hp"):
+		dst["hp"] = Vector2i(int(src["hp"][0]), int(src["hp"][1]))
+	if src.has("speed"):
+		dst["speed"] = Vector2(float(src["speed"][0]), float(src["speed"][1]))
+	for k in ["score", "fire", "fire_interval", "scale", "radius"]:
+		if src.has(k):
+			dst[k] = src[k]
 
 
 func _process(delta: float) -> void:
@@ -138,9 +165,9 @@ func _pick_bullet_type(config: Dictionary) -> StringName:
 
 
 func _spawn_enemy() -> void:
-	var elite_chance := clampf(0.03 + GameState.score / 15000.0, 0.0, 0.25)
+	var elite_chance := clampf(GameState.cfg("spawner.elite_base_chance", 0.03) + GameState.score / GameState.cfg("spawner.elite_chance_per_score", 15000.0), 0.0, GameState.cfg("spawner.elite_chance_cap", 0.25))
 	if GameState.score >= ELITE_BONUS_SCORE:
-		elite_chance += 0.1
+		elite_chance += GameState.cfg("spawner.elite_bonus_chance", 0.1)
 	var config: Dictionary
 	if randf() < elite_chance:
 		config = ELITE_TYPES[randi() % ELITE_TYPES.size()]
@@ -153,7 +180,7 @@ func _spawn_enemy() -> void:
 	var x := randf_range(60.0, 1860.0)
 	# 入场预告：0.6s 红色提示后敌机才进场
 	get_parent().add_child(SpawnTelegraph.new(x))
-	await get_tree().create_timer(SpawnTelegraph.DURATION, false).timeout
+	await get_tree().create_timer(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION), false).timeout
 	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
 	e.position = Vector2(x, -60.0)
@@ -163,17 +190,14 @@ func _spawn_enemy() -> void:
 ## Boss-3 召唤的小怪（straight 型 1 型机），立即进场无预告。
 ## 作为 Main 的子节点，与正常敌机走同一套清场逻辑（返航/结算）。
 func spawn_minion(pos: Vector2) -> void:
-	var e := ENEMY_SCENE.instantiate() as Enemy
-	e.setup(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier)
-	e.position = pos
-	get_parent().add_child(e)
+	GameState.enemy_pool.spawn(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier, pos)
 
 
 ## Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。
 func _trigger_boss() -> void:
 	_boss_active = true
 	boss_warning.emit()
-	GameState.shake(14.0)
+	GameState.shake(GameState.cfg("effects.shake.boss_warning", 14.0))
 	await get_tree().create_timer(2.0, false).timeout
 	_spawn_boss()
 

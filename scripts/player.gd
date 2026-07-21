@@ -9,29 +9,29 @@ const FIRE_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/bullet_fire_c.wav"),
 ]
 
-const MAX_SPEED := 420.0
-const ACCEL := 2400.0
-const DECEL := 1800.0
-const BOOST_MULT := 1.8
-const BASE_FIRE_INTERVAL := 0.15
-const BULLET_SPEED := 900.0
-const BULLET_SPREAD_DEG := 15.0
-const INVINCIBLE_TIME := 1.5
+var MAX_SPEED := 420.0
+var ACCEL := 2400.0
+var DECEL := 1800.0
+var BOOST_MULT := 1.8
+var BASE_FIRE_INTERVAL := 0.15
+var BULLET_SPEED := 900.0
+var BULLET_SPREAD_DEG := 15.0
+var INVINCIBLE_TIME := 1.5
 
-const FUEL_DRAIN := 35.0
-const FUEL_REGEN := 20.0
-const FUEL_RESTART := 30.0
+var FUEL_DRAIN := 35.0
+var FUEL_REGEN := 20.0
+var FUEL_RESTART := 30.0
 
-const DASH_DISTANCE := 200.0
-const DASH_TIME := 0.25
-const DASH_COOLDOWN := 4.0
-const AFTERIMAGE_INTERVAL := 0.08
-const DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
+var DASH_DISTANCE := 200.0
+var DASH_TIME := 0.25
+var DASH_COOLDOWN := 4.0
+var AFTERIMAGE_INTERVAL := 0.08
+var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
 
-const AIM_ASSIST_RADIUS := 230.0  # 磁吸/释放半径（对齐原作 AIM_ASSIST_RELEASE_DISTANCE）
-const AIM_ASSIST_BREAK_DIST := 90.0  # 单帧鼠标位移超过则甩脱锁定
-const AIM_RING_RADIUS := 26.0
-const FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
+var AIM_ASSIST_RADIUS := 230.0  # 磁吸/释放半径（对齐原作 AIM_ASSIST_RELEASE_DISTANCE）
+var AIM_ASSIST_BREAK_DIST := 90.0  # 单帧鼠标位移超过则甩脱锁定
+var AIM_RING_RADIUS := 26.0
+var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
 var _input_locked: bool = false  # 返航过场期间锁定
@@ -69,6 +69,33 @@ var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 func _ready() -> void:
 	add_to_group("player")
 	GameState.player_ref = self
+	_load_balance()
+
+
+## 数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）
+func _load_balance() -> void:
+	MAX_SPEED = GameState.cfg("player.max_speed", MAX_SPEED)
+	ACCEL = GameState.cfg("player.accel", ACCEL)
+	DECEL = GameState.cfg("player.decel", DECEL)
+	BOOST_MULT = GameState.cfg("player.boost_mult", BOOST_MULT)
+	FINE_MOVE_MULT = GameState.cfg("player.fine_move_mult", FINE_MOVE_MULT)
+	BASE_FIRE_INTERVAL = GameState.cfg("player.base_fire_interval", BASE_FIRE_INTERVAL)
+	BULLET_SPEED = GameState.cfg("player.bullet_speed", BULLET_SPEED)
+	BULLET_SPREAD_DEG = GameState.cfg("player.bullet_spread_deg", BULLET_SPREAD_DEG)
+	INVINCIBLE_TIME = GameState.cfg("player.invincible_time", INVINCIBLE_TIME)
+	fuel_max = GameState.cfg("player.fuel.max", fuel_max)
+	_fuel = fuel_max
+	FUEL_DRAIN = GameState.cfg("player.fuel.drain", FUEL_DRAIN)
+	FUEL_REGEN = GameState.cfg("player.fuel.regen", FUEL_REGEN)
+	FUEL_RESTART = GameState.cfg("player.fuel.restart", FUEL_RESTART)
+	DASH_DISTANCE = GameState.cfg("player.dash.distance", DASH_DISTANCE)
+	DASH_TIME = GameState.cfg("player.dash.time", DASH_TIME)
+	DASH_COOLDOWN = GameState.cfg("player.dash.cooldown", DASH_COOLDOWN)
+	DASH_FUEL_RATIO = GameState.cfg("player.dash.fuel_ratio", DASH_FUEL_RATIO)
+	AFTERIMAGE_INTERVAL = GameState.cfg("player.dash.afterimage_interval", AFTERIMAGE_INTERVAL)
+	AIM_ASSIST_RADIUS = GameState.cfg("player.aim_assist.radius", AIM_ASSIST_RADIUS)
+	AIM_ASSIST_BREAK_DIST = GameState.cfg("player.aim_assist.break_dist", AIM_ASSIST_BREAK_DIST)
+	AIM_RING_RADIUS = GameState.cfg("player.aim_assist.ring_radius", AIM_RING_RADIUS)
 	# 瞄准辅助锁定环：纯代码绘制的小圆环，锁定时贴在目标上
 	_aim_ring = Line2D.new()
 	_aim_ring.top_level = true
@@ -83,11 +110,11 @@ func _ready() -> void:
 
 
 func fire_interval() -> float:
-	return BASE_FIRE_INTERVAL * pow(0.75, GameState.buff_count(&"rapid_fire"))
+	return BASE_FIRE_INTERVAL * pow(GameState.cfg("buffs.rapid_fire.factor", 0.75), GameState.buff_count(&"rapid_fire"))
 
 
 func bullet_damage() -> int:
-	return 1 + GameState.buff_count(&"power_shot")
+	return GameState.cfg("buffs.power_shot.damage_bonus", 1) + GameState.buff_count(&"power_shot")
 
 
 func fuel_ratio() -> float:
@@ -105,7 +132,7 @@ func dash_unlocked() -> bool:
 
 func dash_cooldown_max() -> float:
 	# 首次选择解锁，之后每次选择冷却 -20%（最多 2 次）
-	return DASH_COOLDOWN * pow(0.8, maxi(GameState.buff_count(&"phase_dash") - 1, 0))
+	return DASH_COOLDOWN * pow(GameState.cfg("player.dash.cooldown_stack_factor", 0.8), maxi(GameState.buff_count(&"phase_dash") - 1, 0))
 
 
 func dash_fuel_cost() -> float:
@@ -119,12 +146,12 @@ func dash_ready_ratio() -> float:
 
 
 func fuel_drain_rate() -> float:
-	return FUEL_DRAIN * pow(0.75, GameState.buff_count(&"efficient_boost"))
+	return FUEL_DRAIN * pow(GameState.cfg("buffs.efficient_boost.factor", 0.75), GameState.buff_count(&"efficient_boost"))
 
 
 func fuel_regen_rate() -> float:
 	# boost_recovery buff：恢复速率每层 ×1.5（乘算）
-	return FUEL_REGEN * pow(1.5, GameState.buff_count(&"boost_recovery"))
+	return FUEL_REGEN * pow(GameState.cfg("buffs.boost_recovery.factor", 1.5), GameState.buff_count(&"boost_recovery"))
 
 
 func _physics_process(delta: float) -> void:
@@ -210,9 +237,9 @@ func _physics_process(delta: float) -> void:
 	var regen_stacks := GameState.buff_count(&"regen")
 	if regen_stacks > 0:
 		_regen_accum += delta
-		if _regen_accum >= 2.0:
-			_regen_accum -= 2.0
-			GameState.heal(0.5 * regen_stacks)
+		if _regen_accum >= GameState.cfg("buffs.regen.interval", 2.0):
+			_regen_accum -= GameState.cfg("buffs.regen.interval", 2.0)
+			GameState.heal(GameState.cfg("buffs.regen.heal_per_tick", 0.5) * regen_stacks)
 
 
 func _start_dash(input_dir: Vector2) -> void:
@@ -301,8 +328,8 @@ func _spawn_afterimage() -> void:
 
 
 func _fire(aim: Vector2) -> void:
-	var spread := mini(GameState.buff_count(&"spread_shot"), 3)
-	var pierce := mini(GameState.buff_count(&"piercing"), 2)
+	var spread := mini(GameState.buff_count(&"spread_shot"), GameState.cfg("buffs.spread_shot.max_stacks", 3))
+	var pierce := mini(GameState.buff_count(&"piercing"), GameState.cfg("buffs.piercing.max_stacks", 2))
 	var explosive := GameState.buff_count(&"explosive") > 0
 	var count := 1 + spread
 	for i in count:
@@ -321,12 +348,12 @@ func take_damage(amount: float = 1.0) -> void:
 		return
 	# 闪避 buff：完全闪避，概率 1-(0.85^n)
 	var evasion_stacks := GameState.buff_count(&"evasion")
-	if evasion_stacks > 0 and randf() < 1.0 - pow(0.85, evasion_stacks):
+	if evasion_stacks > 0 and randf() < 1.0 - pow(GameState.cfg("buffs.evasion.keep_factor", 0.85), evasion_stacks):
 		return
 	# 护甲 buff：每层 25% 概率伤害减半
 	var armor_stacks := GameState.buff_count(&"armor")
-	if armor_stacks > 0 and randf() < 0.25 * armor_stacks:
-		amount *= 0.5
+	if armor_stacks > 0 and randf() < GameState.cfg("buffs.armor.chance_per_stack", 0.25) * armor_stacks:
+		amount *= GameState.cfg("buffs.armor.damage_factor", 0.5)
 	_invincible = INVINCIBLE_TIME
 	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
 	GameState.shake(12.0)

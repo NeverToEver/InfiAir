@@ -16,26 +16,25 @@ const TEXTURES: Array[Texture2D] = [
 	preload("res://assets/sprites/boss_ship_2.png"),
 	preload("res://assets/sprites/boss_ship_3.png"),
 ]
-const ENTER_SPEED := 140.0
-const FIGHT_Y := 230.0
-const STRAFE_MIN_X := 300.0
-const STRAFE_MAX_X := 1620.0
+var ENTER_SPEED := 140.0
+var FIGHT_Y := 230.0
+var STRAFE_MIN_X := 300.0
+var STRAFE_MAX_X := 1620.0
 ## 各类型 HP 系数（基础 30 × 难度乘数）
-const HP_MULTS: Array[float] = [1.3, 0.7, 1.6]
-const ENRAGE_HP_RATIO := 0.3
-const ENRAGE_RATE_MULT := 1.5
-const ENRAGE_SPEED_MULT := 1.3
+var ENRAGE_HP_RATIO := 0.3
+var ENRAGE_RATE_MULT := 1.5
+var ENRAGE_SPEED_MULT := 1.3
 ## 狂暴快照弹幕（子弹时间结束后由 main 统一触发的一次性齐射）：4 激光向弹 + 8 方向环形慢弹
-const ENRAGE_SNAPSHOT_LASERS := 4
-const ENRAGE_SNAPSHOT_RING := 8
-const ENRAGE_LASER_SPEED := 820.0  # 高速长弹（表现复用敌弹 laser 型）
-const ENRAGE_RING_SPEED := 240.0  # 环形慢弹
+var ENRAGE_SNAPSHOT_LASERS := 4
+var ENRAGE_SNAPSHOT_RING := 8
+var ENRAGE_LASER_SPEED := 820.0  # 高速长弹（表现复用敌弹 laser 型）
+var ENRAGE_RING_SPEED := 240.0  # 环形慢弹
 ## 逃跑：进入战斗 50s 未击杀触发，最后 3s 警告 + 上飘（对齐原作 3000/180 帧@60fps）
-const ESCAPE_TIME := 50.0
-const ESCAPE_WARNING := 3.0
-const ESCAPE_DRIFT := 26.0
-const ESCAPE_START_SPEED := 120.0
-const ESCAPE_ACCEL := 420.0
+var ESCAPE_TIME := 50.0
+var ESCAPE_WARNING := 3.0
+var ESCAPE_DRIFT := 26.0
+var ESCAPE_START_SPEED := 120.0
+var ESCAPE_ACCEL := 420.0
 
 var boss_type: int = 1
 var max_hp: float = 30.0
@@ -66,7 +65,7 @@ var _cross_angle: float = 0.0
 
 func setup(p_difficulty: float, p_type: int) -> void:
 	boss_type = p_type
-	max_hp = 30.0 * HP_MULTS[p_type - 1] * p_difficulty
+	max_hp = 30.0 * float(GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])[p_type - 1]) * p_difficulty
 	hp = max_hp
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
 	($Sprite2D as Sprite2D).texture = TEXTURES[p_type - 1]
@@ -75,6 +74,23 @@ func setup(p_difficulty: float, p_type: int) -> void:
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)
+	# 数值配置缓存（启动一次读入）
+	ENTER_SPEED = GameState.cfg("boss.enter_speed", ENTER_SPEED)
+	FIGHT_Y = GameState.cfg("boss.fight_y", FIGHT_Y)
+	STRAFE_MIN_X = GameState.cfg("boss.strafe_min_x", STRAFE_MIN_X)
+	STRAFE_MAX_X = GameState.cfg("boss.strafe_max_x", STRAFE_MAX_X)
+	ENRAGE_HP_RATIO = GameState.cfg("boss.enrage.hp_ratio", ENRAGE_HP_RATIO)
+	ENRAGE_RATE_MULT = GameState.cfg("boss.enrage.rate_mult", ENRAGE_RATE_MULT)
+	ENRAGE_SPEED_MULT = GameState.cfg("boss.enrage.speed_mult", ENRAGE_SPEED_MULT)
+	ENRAGE_SNAPSHOT_LASERS = GameState.cfg("boss.enrage.snapshot_lasers", ENRAGE_SNAPSHOT_LASERS)
+	ENRAGE_SNAPSHOT_RING = GameState.cfg("boss.enrage.snapshot_ring", ENRAGE_SNAPSHOT_RING)
+	ENRAGE_LASER_SPEED = GameState.cfg("boss.enrage.laser_speed", ENRAGE_LASER_SPEED)
+	ENRAGE_RING_SPEED = GameState.cfg("boss.enrage.ring_speed", ENRAGE_RING_SPEED)
+	ESCAPE_TIME = GameState.cfg("boss.escape.time", ESCAPE_TIME)
+	ESCAPE_WARNING = GameState.cfg("boss.escape.warning", ESCAPE_WARNING)
+	ESCAPE_DRIFT = GameState.cfg("boss.escape.drift", ESCAPE_DRIFT)
+	ESCAPE_START_SPEED = GameState.cfg("boss.escape.start_speed", ESCAPE_START_SPEED)
+	ESCAPE_ACCEL = GameState.cfg("boss.escape.accel", ESCAPE_ACCEL)
 
 
 func _exit_tree() -> void:
@@ -270,7 +286,7 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 func _enrage() -> void:
 	_enraged = true
 	_sprite.modulate = _base_modulate()
-	GameState.shake(16.0)
+	GameState.shake(GameState.cfg("effects.shake.enrage", 16.0))
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG, -6.0)
 	enraged.emit()
 

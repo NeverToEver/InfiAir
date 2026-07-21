@@ -5,13 +5,13 @@ extends Node2D
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
-const DOCK_CHARGE_TIME := 3.0
-const HOME_CHARGE_TIME := 1.5
-const GIVE_UP_HOLD_TIME := 3.0
+var DOCK_CHARGE_TIME := 3.0
+var HOME_CHARGE_TIME := 1.5
+var GIVE_UP_HOLD_TIME := 3.0
 ## Boss 狂暴子弹时间（对齐原作 ENRAGE_SLOW_FACTOR=0.24）：1.2s 全局慢速 → 0.3s 恢复 → 快照弹幕
-const ENRAGE_SLOW_SCALE := 0.24
-const ENRAGE_BULLET_TIME := 1.2
-const ENRAGE_RAMP_TIME := 0.3
+var ENRAGE_SLOW_SCALE := 0.24
+var ENRAGE_BULLET_TIME := 1.2
+var ENRAGE_RAMP_TIME := 0.3
 ## 快照弹幕期间锁玩家移动的时长（s）
 const ENRAGE_LOCK_TIME := 0.5
 
@@ -43,6 +43,12 @@ var _enrage_lock_left: float = 0.0  # >0：快照弹幕锁输入剩余
 
 func _ready() -> void:
 	add_to_group("main")
+	DOCK_CHARGE_TIME = GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME)
+	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
+	GIVE_UP_HOLD_TIME = GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME)
+	ENRAGE_SLOW_SCALE = GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE)
+	ENRAGE_BULLET_TIME = GameState.cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME)
+	ENRAGE_RAMP_TIME = GameState.cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME)
 	# 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
 	Engine.time_scale = 1.0
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
@@ -243,7 +249,7 @@ func _summon_mothership() -> void:
 
 func _on_mothership_departed(cooldown: float) -> void:
 	# mothership_recall buff：每层冷却 ×0.5（90s→45s→22.5s）
-	_dock_cooldown = cooldown * pow(0.5, GameState.buff_count(&"mothership_recall"))
+	_dock_cooldown = cooldown * pow(GameState.cfg("buffs.mothership_recall.cooldown_factor", 0.5), GameState.buff_count(&"mothership_recall"))
 
 
 ## 放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）

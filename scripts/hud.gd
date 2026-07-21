@@ -24,11 +24,14 @@ var _home_charge_label: Label
 var _give_up_label: Label
 var _main: Node = null
 var _poll_timer: float = 0.0
-const POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
+var _last_dock_text: String = ""
+var _last_mag_cells: int = -1
+var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
 
 
 func _ready() -> void:
 	add_to_group("hud")
+	POLL_INTERVAL = GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL)
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
 		label.add_theme_font_size_override("font_size", 28)
@@ -124,7 +127,10 @@ func _process(delta: float) -> void:
 	if _main == null:
 		_main = get_tree().get_first_node_in_group("main")
 	if _main != null:
-		_dock_tag.text = _main.dock_status_text()
+		var dock_text: String = _main.dock_status_text()
+		if dock_text != _last_dock_text:
+			_dock_tag.text = dock_text
+			_last_dock_text = dock_text
 		_update_magazine_bar(_main)
 
 
@@ -132,12 +138,16 @@ func _update_magazine_bar(main: Node) -> void:
 	var ms: Mothership = main._mothership
 	if ms != null and ms._state == Mothership.State.STAY:
 		_mag_box.visible = true
+		if ms._mag_cells == _last_mag_cells:
+			return
+		_last_mag_cells = ms._mag_cells
 		for i in _mag_cells_nodes.size():
 			_mag_cells_nodes[i].color = (
 				Color(0.25, 0.8, 0.9) if i < ms._mag_cells else Color(0.15, 0.18, 0.25)
 			)
 	else:
 		_mag_box.visible = false
+		_last_mag_cells = -1
 
 
 ## 世界坐标处的飘字提示（补给完成、里程碑等）。

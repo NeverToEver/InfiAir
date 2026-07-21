@@ -1,0 +1,380 @@
+{
+	"version": 1,
+	"player": {
+		"max_speed": 420.0,
+		"accel": 2400.0,
+		"decel": 1800.0,
+		"boost_mult": 1.8,
+		"fine_move_mult": 0.35,
+		"base_fire_interval": 0.15,
+		"bullet_speed": 900.0,
+		"bullet_spread_deg": 15.0,
+		"invincible_time": 1.5,
+		"fuel": {
+			"max": 100.0,
+			"drain": 35.0,
+			"regen": 20.0,
+			"restart": 30.0
+		},
+		"dash": {
+			"distance": 200.0,
+			"time": 0.25,
+			"cooldown": 4.0,
+			"cooldown_stack_factor": 0.8,
+			"fuel_ratio": 0.25,
+			"afterimage_interval": 0.08,
+			"max_stacks": 3
+		},
+		"aim_assist": {
+			"radius": 230.0,
+			"break_dist": 90.0,
+			"ring_radius": 26.0
+		}
+	},
+	"enemies": {
+		"bullet_speed": 420.0,
+		"spread_bullet_speed": 340.0,
+		"laser_bullet_speed": 720.0,
+		"spread_fan_step": 0.314159,
+		"lifetime": 15.0,
+		"exit_accel": 520.0,
+		"aggressive_chase_speed": 170.0,
+		"fire_interval": 2.2,
+		"hover_y": 320.0,
+		"spiral_radius": 50.0,
+		"types": [
+			{
+				"hp": [
+					2,
+					3
+				],
+				"speed": [
+					140,
+					180
+				],
+				"score": 100,
+				"fire": 0.25,
+				"fire_interval": 2.2,
+				"scale": 0.45,
+				"radius": 30.0
+			},
+			{
+				"hp": [
+					1,
+					2
+				],
+				"speed": [
+					220,
+					280
+				],
+				"score": 150,
+				"fire": 0.3,
+				"fire_interval": 2.4,
+				"scale": 0.45,
+				"radius": 30.0
+			},
+			{
+				"hp": [
+					5,
+					6
+				],
+				"speed": [
+					90,
+					120
+				],
+				"score": 200,
+				"fire": 0.4,
+				"fire_interval": 2.0,
+				"scale": 0.5,
+				"radius": 34.0
+			},
+			{
+				"hp": [
+					2,
+					3
+				],
+				"speed": [
+					150,
+					190
+				],
+				"score": 250,
+				"fire": 0.8,
+				"fire_interval": 1.8,
+				"scale": 0.45,
+				"radius": 30.0
+			}
+		]
+	},
+	"elites": {
+		"types": [
+			{
+				"hp": [
+					14,
+					16
+				],
+				"speed": [
+					90,
+					110
+				],
+				"score": 400,
+				"fire": 0.5,
+				"fire_interval": 2.2,
+				"scale": 0.7,
+				"radius": 56.0
+			},
+			{
+				"hp": [
+					6,
+					8
+				],
+				"speed": [
+					240,
+					300
+				],
+				"score": 350,
+				"fire": 0.6,
+				"fire_interval": 2.0,
+				"scale": 0.5,
+				"radius": 40.0
+			},
+			{
+				"hp": [
+					9,
+					11
+				],
+				"speed": [
+					110,
+					140
+				],
+				"score": 500,
+				"fire": 1.0,
+				"fire_interval": 1.5,
+				"scale": 0.6,
+				"radius": 48.0
+			}
+		]
+	},
+	"boss": {
+		"enter_speed": 140.0,
+		"fight_y": 230.0,
+		"strafe_min_x": 300.0,
+		"strafe_max_x": 1620.0,
+		"hp_mults": [
+			1.3,
+			0.7,
+			1.6
+		],
+		"strafe_speeds": [
+			150.0,
+			400.0,
+			60.0
+		],
+		"fire_intervals": [
+			1.6,
+			1.8,
+			0.9
+		],
+		"fan_bullet_speed": 380.0,
+		"homing_bullet_speed": 300.0,
+		"sniper_bullet_speed": 650.0,
+		"cross_bullet_speed": 260.0,
+		"enrage": {
+			"hp_ratio": 0.3,
+			"rate_mult": 1.5,
+			"speed_mult": 1.3,
+			"snapshot_lasers": 4,
+			"snapshot_ring": 8,
+			"laser_speed": 820.0,
+			"ring_speed": 240.0,
+			"slow_scale": 0.24,
+			"bullet_time": 1.2,
+			"ramp_time": 0.3
+		},
+		"escape": {
+			"time": 50.0,
+			"warning": 3.0,
+			"drift": 26.0,
+			"start_speed": 120.0,
+			"accel": 420.0
+		}
+	},
+	"spawner": {
+		"interval_start": 1.2,
+		"interval_end": 0.5,
+		"ramp_time": 300.0,
+		"difficulty_factor": 0.15,
+		"interval_min": 0.35,
+		"unlock_scores": [
+			0,
+			300,
+			800,
+			1500
+		],
+		"elite_base_chance": 0.03,
+		"elite_chance_per_score": 15000.0,
+		"elite_chance_cap": 0.25,
+		"elite_bonus_score": 1500,
+		"elite_bonus_chance": 0.1,
+		"boss_score_step": 1500,
+		"boss_time_limit": 90.0,
+		"telegraph_duration": 0.6
+	},
+	"mothership": {
+		"hover_y": 270.0,
+		"dock_invincible": 2.0,
+		"lives_cap": 6.0,
+		"dock_tween_time": 0.8,
+		"resupply_delay": 0.5,
+		"release_time": 0.5,
+		"release_drop": 90.0,
+		"mag_cells": 10,
+		"mag_cell_time": 2.0,
+		"mag_warn_cells": 4,
+		"early_hold_time": 2.0,
+		"early_max_discount": 0.4,
+		"depart_cooldown": 90.0,
+		"gatling": {
+			"interval": 0.2,
+			"bullet_speed": 800.0,
+			"damage": 1,
+			"sweep_deg": 40.0,
+			"score_scale": 0.3333333333333333
+		},
+		"dock_charge_time": 3.0
+	},
+	"buffs": {
+		"power_shot": {
+			"damage_bonus": 1
+		},
+		"rapid_fire": {
+			"factor": 0.75
+		},
+		"spread_shot": {
+			"max_stacks": 3
+		},
+		"extra_life": {
+			"lives": 1
+		},
+		"regen": {
+			"heal_per_tick": 0.5,
+			"interval": 2.0
+		},
+		"piercing": {
+			"max_stacks": 2
+		},
+		"explosive": {
+			"radius": 80.0,
+			"damage_ratio": 0.5
+		},
+		"lifesteal": {
+			"base_chance": 0.1,
+			"per_stack": 0.05
+		},
+		"armor": {
+			"chance_per_stack": 0.25,
+			"damage_factor": 0.5
+		},
+		"evasion": {
+			"keep_factor": 0.85
+		},
+		"phase_dash": {
+			"max_stacks": 3
+		},
+		"slow_field": {
+			"radius": 300.0,
+			"factor": 0.6
+		},
+		"efficient_boost": {
+			"factor": 0.75
+		},
+		"boost_recovery": {
+			"factor": 1.5
+		},
+		"mothership_recall": {
+			"cooldown_factor": 0.5
+		},
+		"laser_beam": {
+			"duration": 3.0,
+			"cooldown": 10.0,
+			"tick_interval": 0.1,
+			"tick_damage": 1,
+			"length": 2400.0,
+			"half_width": 26.0,
+			"hit_radius": 30.0
+		}
+	},
+	"milestones": {
+		"base": [
+			3000,
+			8000,
+			15000,
+			25000,
+			40000,
+			55000,
+			70000,
+			80000
+		],
+		"cycle_mult": 1.35
+	},
+	"difficulty": {
+		"easy": {
+			"label": "易",
+			"hp": 0.75,
+			"speed": 0.85,
+			"spawn": 1.25,
+			"score": 1,
+			"spread_cap": 1,
+			"milestone": 1.0
+		},
+		"medium": {
+			"label": "中",
+			"hp": 1.0,
+			"speed": 1.0,
+			"spawn": 1.0,
+			"score": 2,
+			"spread_cap": 2,
+			"milestone": 1.0
+		},
+		"hard": {
+			"label": "难",
+			"hp": 1.5,
+			"speed": 1.2,
+			"spawn": 0.8,
+			"score": 3,
+			"spread_cap": 3,
+			"milestone": 1.5
+		}
+	},
+	"effects": {
+		"explosion": {
+			"pool_cap": 24,
+			"amount": 24,
+			"debris_amount": 10
+		},
+		"shake": {
+			"player_hit": 12.0,
+			"enemy_die": 5.0,
+			"elite_die": 9.0,
+			"ram": 4.0,
+			"boss_warning": 14.0,
+			"boss_seq_initial": 20.0,
+			"boss_seq_step": 8.0,
+			"boss_seq_final": 24.0,
+			"enrage": 16.0,
+			"mothership": 4.0,
+			"decay": 6.0
+		},
+		"starfield": {
+			"far_count": 140,
+			"near_count": 90,
+			"far_speed": 60.0,
+			"near_speed": 140.0
+		},
+		"home_charge_time": 1.5,
+		"give_up_hold_time": 3.0,
+		"hud_poll_interval": 0.1
+	},
+	"tutorial": {
+		"boss_hp": 12.0
+	}
+}

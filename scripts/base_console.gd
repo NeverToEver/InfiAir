@@ -12,7 +12,7 @@ const ROUTE_BUFF_NAMES: Dictionary = {
 	&"mothership_recall": "母舰召回",
 }
 const ROUTE_LINE_NAMES: Dictionary = {&"offense": "进攻线", &"mobility": "机动线"}
-const LIVES_CAP := 6.0
+var LIVES_CAP := 6.0
 
 var _rp_label: Label
 var _status_label: Label
@@ -24,6 +24,7 @@ var _missions_box: VBoxContainer
 
 func _ready() -> void:
 	visible = false
+	LIVES_CAP = GameState.cfg("mothership.lives_cap", LIVES_CAP)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.08, 0.95)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)

@@ -2,13 +2,14 @@ extends Camera2D
 ## 屏幕震动：监听 GameState.screen_shake，随机偏移 + 指数衰减。
 ## process_mode 需为 Always（场景文件中设置），保证暂停时震动也能衰减结束。
 
-const DECAY := 6.0
+var DECAY := 6.0
 
 var _strength: float = 0.0
 
 
 func _ready() -> void:
 	GameState.screen_shake.connect(_on_screen_shake)
+	DECAY = GameState.cfg("effects.shake.decay", DECAY)
 
 
 func _process(delta: float) -> void:

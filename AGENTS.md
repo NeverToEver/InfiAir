@@ -66,12 +66,19 @@ godot --path .
 
 - 教程场景 `scenes/tutorial.tscn`（`scripts/tutorial.gd`）独立于 main 对局逻辑：进场 `reset_run` + `delete_save` 隔离，出场再 reset 并强制 `Engine.time_scale = 1`；开始面板「教程」按钮进入，Esc 退出。运行期代码创建的节点要取引用保存，不要用 `get_node("ClassName")`（自动名是 `@CanvasLayer@N` 形式）。
 
+## 数值调参
+
+- 所有可调数值集中在 `data/balance.json`（玩家/敌机/精英/Boss/刷怪/母舰/buff/里程碑/难度/效果分层）；**调参只改 JSON，不改脚本常量**。脚本内的同名 var 是回退默认值，必须与 JSON 保持一致。
+- 访问统一走 `GameState.cfg("player.fuel.drain" 式路径, 默认值)`；每帧热路径禁止直接 cfg 查询，在 `_ready()` 一次性读进成员变量（参照 player.gd `_load_balance()`）。
+
 ## 性能约定（3.4）
 - 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。
+- 敌机一律走 `GameState.enemy_pool.spawn()`（enemy_pool.gd，模式同子弹池）：`reactivate()` 全状态重置（计时/策略/HP/调制色/died 断连），`deactivate()` 注销注册表并断开 died 监听；`USE_POOL=false` 可回退纯 instantiate/free 做 A/B 对照。直接实例化（测试）走 `_ready` 兼容路径，互不影响。
+- 敌机三角函数统一 `Enemy.sin_fast/cos_fast`（2048 项循环表 + 线性插值，静态共享），禁止在 `_physics_process` 直接调 sin/cos。
 - 爆炸走 `Explosion.spawn_at`（静态池 ≤24，发射完回收不销毁）。
 - 热路径禁止每帧 `get_nodes_in_group`：用 `GameState.enemies` / `GameState.player_ref` 注册表（enemy/boss/player 在 `_ready`/`_exit_tree` 维护）。
-- HUD 仪表类轮询 0.1s 节流；文本走信号。
-- 基准：`godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn`（无头默认实时锁帧，必须 `--fixed-fps` 才能测出纯帧耗时）。
+- HUD 仪表类轮询 0.1s 节流 + 文本/格子值变化才重排（缓存上次值）；文本走信号。
+- 基准：`godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn`（无头默认实时锁帧，必须 `--fixed-fps` 才能测出纯帧耗时；本机噪声大，A/B 对照用交错跑取中位数）。
 
 ## 持久化与安全注意
 

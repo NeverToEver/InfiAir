@@ -10,26 +10,26 @@ signal departed(cooldown: float)
 
 enum State { DESCEND, HOVER, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
-const HOVER_Y := 270.0
-const DOCK_INVINCIBLE := 2.0
-const LIVES_CAP := 6.0
-const DOCK_TWEEN_TIME := 0.8
-const RESUPPLY_DELAY := 0.5
-const RELEASE_TIME := 0.5
-const RELEASE_DROP := 90.0
+var HOVER_Y := 270.0
+var DOCK_INVINCIBLE := 2.0
+var LIVES_CAP := 6.0
+var DOCK_TWEEN_TIME := 0.8
+var RESUPPLY_DELAY := 0.5
+var RELEASE_TIME := 0.5
+var RELEASE_DROP := 90.0
 # 弹匣：10 格 × 2s = 20s 驻留
-const MAG_CELLS := 10
-const MAG_CELL_TIME := 2.0
-const MAG_WARN_CELLS := 4
-const EARLY_HOLD_TIME := 2.0
-const EARLY_MAX_DISCOUNT := 0.4  # 冷却最多打 6 折
-const DEPART_COOLDOWN := 90.0
+var MAG_CELLS := 10
+var MAG_CELL_TIME := 2.0
+var MAG_WARN_CELLS := 4
+var EARLY_HOLD_TIME := 2.0
+var EARLY_MAX_DISCOUNT := 0.4  # 冷却最多打 6 折
+var DEPART_COOLDOWN := 90.0
 # 加特林扫射
-const GATLING_INTERVAL := 0.2
-const GATLING_BULLET_SPEED := 800.0
-const GATLING_DAMAGE := 1
-const GATLING_SWEEP_DEG := 40.0  # 单侧摆幅，扇面共 80°
-const GATLING_SCORE_SCALE := 1.0 / 3.0
+var GATLING_INTERVAL := 0.2
+var GATLING_BULLET_SPEED := 800.0
+var GATLING_DAMAGE := 1
+var GATLING_SWEEP_DEG := 40.0  # 单侧摆幅，扇面共 80°
+var GATLING_SCORE_SCALE := 1.0 / 3.0
 const GATLING_SFX: AudioStream = preload("res://assets/audio/bullet_fire_b.wav")
 
 var _state: State = State.DESCEND
@@ -54,6 +54,25 @@ var _cooldown_factor: float = 1.0
 
 func _ready() -> void:
 	_dock_zone.area_entered.connect(_on_dock_area_entered)
+	# 数值配置缓存（启动一次读入）
+	HOVER_Y = GameState.cfg("mothership.hover_y", HOVER_Y)
+	DOCK_INVINCIBLE = GameState.cfg("mothership.dock_invincible", DOCK_INVINCIBLE)
+	LIVES_CAP = GameState.cfg("mothership.lives_cap", LIVES_CAP)
+	DOCK_TWEEN_TIME = GameState.cfg("mothership.dock_tween_time", DOCK_TWEEN_TIME)
+	RESUPPLY_DELAY = GameState.cfg("mothership.resupply_delay", RESUPPLY_DELAY)
+	RELEASE_TIME = GameState.cfg("mothership.release_time", RELEASE_TIME)
+	RELEASE_DROP = GameState.cfg("mothership.release_drop", RELEASE_DROP)
+	MAG_CELLS = GameState.cfg("mothership.mag_cells", MAG_CELLS)
+	MAG_CELL_TIME = GameState.cfg("mothership.mag_cell_time", MAG_CELL_TIME)
+	MAG_WARN_CELLS = GameState.cfg("mothership.mag_warn_cells", MAG_WARN_CELLS)
+	EARLY_HOLD_TIME = GameState.cfg("mothership.early_hold_time", EARLY_HOLD_TIME)
+	EARLY_MAX_DISCOUNT = GameState.cfg("mothership.early_max_discount", EARLY_MAX_DISCOUNT)
+	DEPART_COOLDOWN = GameState.cfg("mothership.depart_cooldown", DEPART_COOLDOWN)
+	GATLING_INTERVAL = GameState.cfg("mothership.gatling.interval", GATLING_INTERVAL)
+	GATLING_BULLET_SPEED = GameState.cfg("mothership.gatling.bullet_speed", GATLING_BULLET_SPEED)
+	GATLING_DAMAGE = GameState.cfg("mothership.gatling.damage", GATLING_DAMAGE)
+	GATLING_SWEEP_DEG = GameState.cfg("mothership.gatling.sweep_deg", GATLING_SWEEP_DEG)
+	GATLING_SCORE_SCALE = GameState.cfg("mothership.gatling.score_scale", GATLING_SCORE_SCALE)
 
 
 func state_text() -> String:
@@ -188,7 +207,7 @@ func _do_resupply() -> void:
 		GameState.heal(full - GameState.lives)
 	_player.refill_fuel()
 	GameState.play_sfx(GameState.SFX_RESUPPLY)
-	GameState.shake(4.0)
+	GameState.shake(GameState.cfg("effects.shake.mothership", 4.0))
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null:
 		hud.show_popup("补给完成", global_position + Vector2(0.0, 120.0))

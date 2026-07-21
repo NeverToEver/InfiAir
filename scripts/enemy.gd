@@ -7,16 +7,16 @@ extends Area2D
 
 signal died(enemy: Enemy)
 
-const ENEMY_BULLET_SPEED := 420.0
-const SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
-const LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹，伤害同普通弹
-const SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
-const LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
-const EXIT_ACCEL := 520.0  # 寿命离场加速度
-const AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
-const FIRE_INTERVAL := 2.2
-const HOVER_Y := 320.0
-const SPIRAL_RADIUS := 50.0
+var ENEMY_BULLET_SPEED := 420.0
+var SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
+var LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹，伤害同普通弹
+var SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
+var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
+var EXIT_ACCEL := 520.0  # 寿命离场加速度
+var AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
+var FIRE_INTERVAL := 2.2
+var HOVER_Y := 320.0
+var SPIRAL_RADIUS := 50.0
 
 var strategy: StringName = &"straight"
 var is_elite: bool = false
@@ -35,6 +35,25 @@ var _dive_target: Vector2 = Vector2.ZERO
 var _dive_timer: float = 0.0
 var _fire_timer: float = FIRE_INTERVAL
 var _center: Vector2 = Vector2.ZERO  # spiral 绕转中心
+var _pool: Node = null
+
+# 三角函数查表（2048 项循环表 + 线性插值，全敌机共享一份）
+const TRIG_SIZE := 2048
+static var _sin_table: PackedFloat32Array = []
+
+
+static func sin_fast(x: float) -> float:
+	if _sin_table.is_empty():
+		_sin_table.resize(TRIG_SIZE + 1)
+		for i in TRIG_SIZE + 1:
+			_sin_table[i] = sin(TAU * float(i) / float(TRIG_SIZE))
+	var t := fposmod(x, TAU) / TAU * TRIG_SIZE
+	var i := int(t)
+	return lerpf(_sin_table[i], _sin_table[i + 1], t - i)
+
+
+static func cos_fast(x: float) -> float:
+	return sin_fast(x + PI / 2.0)
 var _hovering: bool = false
 var _hover_done: bool = false
 var _hover_timer: float = 0.0
@@ -85,6 +104,17 @@ func setup(
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)
+	# 数值配置缓存（启动一次读入）
+	ENEMY_BULLET_SPEED = GameState.cfg("enemies.bullet_speed", ENEMY_BULLET_SPEED)
+	SPREAD_BULLET_SPEED = GameState.cfg("enemies.spread_bullet_speed", SPREAD_BULLET_SPEED)
+	LASER_BULLET_SPEED = GameState.cfg("enemies.laser_bullet_speed", LASER_BULLET_SPEED)
+	SPREAD_FAN_STEP = GameState.cfg("enemies.spread_fan_step", SPREAD_FAN_STEP)
+	LIFETIME = GameState.cfg("enemies.lifetime", LIFETIME)
+	EXIT_ACCEL = GameState.cfg("enemies.exit_accel", EXIT_ACCEL)
+	AGGR_CHASE_SPEED = GameState.cfg("enemies.aggressive_chase_speed", AGGR_CHASE_SPEED)
+	FIRE_INTERVAL = GameState.cfg("enemies.fire_interval", FIRE_INTERVAL)
+	HOVER_Y = GameState.cfg("enemies.hover_y", HOVER_Y)
+	SPIRAL_RADIUS = GameState.cfg("enemies.spiral_radius", SPIRAL_RADIUS)
 	# 每个实例独立形状，避免共享 sub_resource 半径互相影响
 	_shape.shape = _shape.shape.duplicate()
 	_spawn_x = position.x
@@ -101,8 +131,61 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 
 
+## 池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）
+func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float) -> void:
+	_time = 0.0
+	_zig_dir = 1.0
+	_zig_timer = 0.7
+	_dive_target = Vector2.ZERO
+	_dive_timer = 0.0
+	_hovering = false
+	_hover_done = false
+	_hover_timer = 0.0
+	_exiting = false
+	_life_timer = 0.0
+	_exit_speed = 0.0
+	_score_scale = 1.0
+	visible = true
+	monitoring = true
+	set_physics_process(true)
+	_sprite.modulate = Color.WHITE
+	GameState.register_enemy(self)
+	setup(config, p_strategy, p_difficulty)
+	_spawn_x = position.x
+	_center = position
+	_fire_timer = randf_range(1.0, fire_interval)
+	if strategy == &"dive":
+		_dive_timer = 1.2
+		if GameState.player_ref != null:
+			_dive_target = GameState.player_ref.global_position
+		else:
+			_dive_target = Vector2(position.x, 1200.0)
+	elif strategy == &"hover":
+		_hover_timer = randf_range(3.0, 5.0)
+
+
+## 池化回收：停用但保留实例
+func deactivate() -> void:
+	visible = false
+	set_deferred("monitoring", false)
+	set_physics_process(false)
+	GameState.unregister_enemy(self)
+	for c in died.get_connections():
+		died.disconnect(c["callable"])
+	position = Vector2(-500.0, -500.0)
+
+
+func _despawn() -> void:
+	if _pool != null and is_instance_valid(_pool):
+		_pool.release(self)
+	else:
+		queue_free()
+
+
 func _exit_tree() -> void:
 	GameState.unregister_enemy(self)
+	if _pool != null:
+		_pool.forget(self)
 
 
 func _physics_process(delta: float) -> void:
@@ -112,7 +195,7 @@ func _physics_process(delta: float) -> void:
 		_exit_speed += EXIT_ACCEL * delta
 		position += _exit_dir * _exit_speed * delta
 		if position.y < -150.0 or position.x < -150.0 or position.x > 2070.0:
-			queue_free()
+			_despawn()
 		return
 	_life_timer += delta
 	if _life_timer >= LIFETIME:
@@ -123,7 +206,7 @@ func _physics_process(delta: float) -> void:
 			position.y += speed * delta
 		&"sine":
 			position.y += speed * delta
-			position.x = _spawn_x + sin(_time * 3.0) * 90.0
+			position.x = _spawn_x + sin_fast(_time * 3.0) * 90.0
 		&"zigzag":
 			_zig_timer -= delta
 			if _zig_timer <= 0.0:
@@ -143,11 +226,11 @@ func _physics_process(delta: float) -> void:
 		&"spiral":
 			# 绕转中心匀速下压，机身绕中心小半径转圈
 			_center.y += speed * delta
-			position = _center + Vector2(cos(_time * 4.0), sin(_time * 4.0)) * SPIRAL_RADIUS
+			position = _center + Vector2(cos_fast(_time * 4.0), sin_fast(_time * 4.0)) * SPIRAL_RADIUS
 		&"noise":
 			# 正弦叠加伪噪声驱动横向飘移
 			var vx := (
-				(sin(_time * 1.7) + sin(_time * 2.9 + 1.3) + sin(_time * 4.3 + 2.1))
+				(sin_fast(_time * 1.7) + sin_fast(_time * 2.9 + 1.3) + sin_fast(_time * 4.3 + 2.1))
 				/ 3.0 * speed * 1.2
 			)
 			position += Vector2(vx, speed) * delta
@@ -155,7 +238,7 @@ func _physics_process(delta: float) -> void:
 		&"aggressive":
 			# 追踪性噪声漂移：正弦叠加伪噪声扰动 + 持续偏向玩家 x 的下行
 			var vx := (
-				(sin(_time * 2.1) + sin(_time * 3.4 + 1.7) + sin(_time * 5.3 + 0.6))
+				(sin_fast(_time * 2.1) + sin_fast(_time * 3.4 + 1.7) + sin_fast(_time * 5.3 + 0.6))
 				/ 3.0 * speed * 1.1
 			)
 			var players := GameState.player_ref
@@ -169,7 +252,7 @@ func _physics_process(delta: float) -> void:
 				position.y += speed * delta
 			elif _hovering:
 				_hover_timer -= delta
-				position.y = HOVER_Y + sin(_time * 2.0) * 6.0  # 停驻轻微浮动
+				position.y = HOVER_Y + sin_fast(_time * 2.0) * 6.0  # 停驻轻微浮动
 				if _hover_timer <= 0.0:
 					_hover_done = true
 			else:
@@ -185,7 +268,7 @@ func _physics_process(delta: float) -> void:
 			_fire_at_player()
 
 	if position.y > 1140.0:
-		queue_free()
+		_despawn()
 
 
 func _fire_at_player() -> void:
@@ -247,13 +330,13 @@ func die() -> void:
 	GameState.add_kill()
 	# 吸血 buff：击毁 10% 概率回 0.5 命，每层 +5%
 	var lifesteal := GameState.buff_count(&"lifesteal")
-	if lifesteal > 0 and randf() < 0.10 + 0.05 * (lifesteal - 1):
+	if lifesteal > 0 and randf() < GameState.cfg("buffs.lifesteal.base_chance", 0.1) + GameState.cfg("buffs.lifesteal.per_stack", 0.05) * (lifesteal - 1):
 		GameState.heal(0.5)
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
-	GameState.shake(9.0 if is_elite else 5.0)
+	GameState.shake(GameState.cfg("effects.shake.elite_die", 9.0) if is_elite else GameState.cfg("effects.shake.enemy_die", 5.0))
 	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
 	died.emit(self)
-	queue_free()
+	_despawn()
 
 
 func _on_area_entered(area: Area2D) -> void:
@@ -261,7 +344,7 @@ func _on_area_entered(area: Area2D) -> void:
 	if area.is_in_group("player_hitbox"):
 		area.get_parent().take_damage()
 		GameState.play_sfx(GameState.SFX_EXPLOSION)
-		GameState.shake(4.0)
+		GameState.shake(GameState.cfg("effects.shake.ram", 4.0))
 		Explosion.spawn_at(get_parent(), global_position, 1.0)
 		died.emit(self)
 		queue_free()

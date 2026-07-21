@@ -16,9 +16,9 @@ var explosive: bool = false
 ## 击毁得分系数（母舰弹丸为 1/3）
 var score_scale: float = 1.0
 
-const EXPLOSIVE_RADIUS := 80.0
-const SLOW_FIELD_RADIUS := 300.0
-const SLOW_FIELD_FACTOR := 0.6
+var EXPLOSIVE_RADIUS := 80.0
+var SLOW_FIELD_RADIUS := 300.0
+var SLOW_FIELD_FACTOR := 0.6
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
@@ -73,6 +73,9 @@ func deactivate() -> void:
 
 func _ready() -> void:
 	area_entered.connect(_on_area_entered)
+	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius", EXPLOSIVE_RADIUS)
+	SLOW_FIELD_RADIUS = GameState.cfg("buffs.slow_field.radius", SLOW_FIELD_RADIUS)
+	SLOW_FIELD_FACTOR = GameState.cfg("buffs.slow_field.factor", SLOW_FIELD_FACTOR)
 	_apply_faction()
 
 
@@ -135,7 +138,7 @@ func _speed_factor() -> float:
 
 ## 爆炸弹 buff：命中时对周围敌人造成 50% AoE 伤害。
 func _explode(exclude: Area2D) -> void:
-	var aoe_damage := maxi(1, damage / 2)
+	var aoe_damage := maxi(1, int(damage * GameState.cfg("buffs.explosive.damage_ratio", 0.5)))
 	for node in GameState.enemies:
 		var e := node as Area2D
 		if e != exclude and e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:

@@ -2,10 +2,10 @@ class_name Starfield
 extends Node2D
 ## 程序化双层视差滚动星空背景。
 
-const FAR_COUNT := 140
-const NEAR_COUNT := 90
-const FAR_SPEED := 60.0
-const NEAR_SPEED := 140.0
+var FAR_COUNT := 140
+var NEAR_COUNT := 90
+var FAR_SPEED := 60.0
+var NEAR_SPEED := 140.0
 
 var _far: Array[Vector2] = []
 var _near: Array[Vector2] = []
@@ -19,6 +19,10 @@ func warp(factor: float) -> void:
 
 func _ready() -> void:
 	z_index = -10
+	FAR_COUNT = GameState.cfg("effects.starfield.far_count", FAR_COUNT)
+	NEAR_COUNT = GameState.cfg("effects.starfield.near_count", NEAR_COUNT)
+	FAR_SPEED = GameState.cfg("effects.starfield.far_speed", FAR_SPEED)
+	NEAR_SPEED = GameState.cfg("effects.starfield.near_speed", NEAR_SPEED)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345
 	for i in FAR_COUNT:

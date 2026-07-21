@@ -73,7 +73,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss = child
 	_check(boss != null, "场景1：Boss 已生成")
-	boss.position.y = Boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
 	await _wait_real(0.3)
 	boss.take_damage(int(boss.max_hp * 0.75))  # 血量压到 25%，触发狂暴
 	await get_tree().process_frame
@@ -88,12 +88,12 @@ func _ready() -> void:
 	for i in 48:  # 最多 ~12s 真实时间
 		await _wait_real(0.25)
 		counts = _count_snapshot_bullets()
-		if counts.x >= Boss.ENRAGE_SNAPSHOT_LASERS and counts.y >= Boss.ENRAGE_SNAPSHOT_RING:
+		if counts.x >= boss.ENRAGE_SNAPSHOT_LASERS and counts.y >= boss.ENRAGE_SNAPSHOT_RING:
 			snapshot_seen = true
 			break
 	_check(snapshot_seen, "场景1：子弹时间结束后发出快照弹幕")
-	_check(counts.x == Boss.ENRAGE_SNAPSHOT_LASERS, "场景1：快照弹幕含 4 道激光向弹")
-	_check(counts.y == Boss.ENRAGE_SNAPSHOT_RING, "场景1：快照弹幕含 8 方向环形慢弹")
+	_check(counts.x == boss.ENRAGE_SNAPSHOT_LASERS, "场景1：快照弹幕含 4 道激光向弹")
+	_check(counts.y == boss.ENRAGE_SNAPSHOT_RING, "场景1：快照弹幕含 8 方向环形慢弹")
 	# 激光向弹：朝玩家方向的高速长弹
 	var want_dir: Vector2 = (player.global_position - boss.global_position).normalized()
 	var laser_aimed := false
@@ -143,7 +143,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss2 = child
 	_check(boss2 != null, "场景2：Boss 已生成")
-	boss2.position.y = Boss.FIGHT_Y
+	boss2.position.y = boss2.FIGHT_Y
 	await _wait_real(0.3)
 	boss2.take_damage(int(boss2.max_hp * 0.75))
 	await get_tree().process_frame

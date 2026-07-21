@@ -15,7 +15,7 @@ static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
 	var e := _take_from_pool()
 	if e == null:
 		e = Explosion.new()
-		e._pooled = _pool.size() < POOL_CAP
+		e._pooled = _pool.size() < int(GameState.cfg("effects.explosion.pool_cap", POOL_CAP))
 		parent.add_child(e)
 	elif e.get_parent() != parent:
 		e.reparent(parent)
@@ -37,17 +37,17 @@ static func _take_from_pool() -> Explosion:
 ## Boss 多段爆炸序列：连续小爆炸 + 最终大爆炸 + 震动。
 static func spawn_boss_sequence(parent: Node, pos: Vector2) -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG)
-	GameState.shake(20.0)
+	GameState.shake(GameState.cfg("effects.shake.boss_seq_initial", 20.0))
 	for i in 6:
 		if not is_instance_valid(parent):
 			return
 		var offset := Vector2(randf_range(-130.0, 130.0), randf_range(-90.0, 90.0))
 		Explosion.spawn_at(parent, pos + offset, randf_range(0.9, 1.5))
-		GameState.shake(8.0)
+		GameState.shake(GameState.cfg("effects.shake.boss_seq_step", 8.0))
 		await parent.get_tree().create_timer(0.12).timeout
 	if is_instance_valid(parent):
 		Explosion.spawn_at(parent, pos, 3.0)
-		GameState.shake(24.0)
+		GameState.shake(GameState.cfg("effects.shake.boss_seq_final", 24.0))
 
 
 func _init() -> void:

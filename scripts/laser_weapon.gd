@@ -5,13 +5,13 @@ extends Node2D
 ## 就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
 ## 穿透性直线，线上敌人每 0.1s 结算 1 伤害；结束后进入 10s 冷却再次触发。
 
-const BEAM_DURATION := 3.0
-const COOLDOWN := 10.0
-const TICK_INTERVAL := 0.1
-const TICK_DAMAGE := 1
-const BEAM_LENGTH := 2400.0
-const BEAM_HALF_WIDTH := 26.0
-const ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径约 30（spawner 机型配置）
+var BEAM_DURATION := 3.0
+var COOLDOWN := 10.0
+var TICK_INTERVAL := 0.1
+var TICK_DAMAGE := 1
+var BEAM_LENGTH := 2400.0
+var BEAM_HALF_WIDTH := 26.0
+var ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径约 30（spawner 机型配置）
 const SFX_BEAM: AudioStream = preload("res://assets/audio/bullet_fire_c.wav")
 
 var _active: bool = false
@@ -27,6 +27,13 @@ var _glow: GPUParticles2D
 
 func _ready() -> void:
 	_player = get_parent() as Player
+	BEAM_DURATION = GameState.cfg("buffs.laser_beam.duration", BEAM_DURATION)
+	COOLDOWN = GameState.cfg("buffs.laser_beam.cooldown", COOLDOWN)
+	TICK_INTERVAL = GameState.cfg("buffs.laser_beam.tick_interval", TICK_INTERVAL)
+	TICK_DAMAGE = GameState.cfg("buffs.laser_beam.tick_damage", TICK_DAMAGE)
+	BEAM_LENGTH = GameState.cfg("buffs.laser_beam.length", BEAM_LENGTH)
+	BEAM_HALF_WIDTH = GameState.cfg("buffs.laser_beam.half_width", BEAM_HALF_WIDTH)
+	ENEMY_HIT_RADIUS = GameState.cfg("buffs.laser_beam.hit_radius", ENEMY_HIT_RADIUS)
 	# 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
 	_beam = Line2D.new()
 	_beam.top_level = true

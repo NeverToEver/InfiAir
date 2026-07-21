@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/starfield.gd" id="2"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/start_panel.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/base_console.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/bullet_pool.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/enemy_pool.gd" id="14"]
 [ext_resource type="Script" path="res://scripts/settings_ui.gd" id="12"]
 
 [node name="Main" type="Node2D"]
@@ -34,6 +35,9 @@ script = ExtResource("4")
 
 [node name="BulletPool" type="Node" parent="."]
 script = ExtResource("13")
+
+[node name="EnemyPool" type="Node" parent="."]
+script = ExtResource("14")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("5")

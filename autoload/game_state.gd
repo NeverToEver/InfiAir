@@ -16,7 +16,7 @@ signal route_chosen(line: StringName, buff_id: StringName)
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
 ## spread_cap 为 spread 弹种敌机同屏上限；milestone 为里程碑阈值倍率
 ## （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难 Buff 节奏过稀）。
-const DIFFICULTY_DEFS: Dictionary = {
+var DIFFICULTY_DEFS: Dictionary = {
 	&"easy": {
 		"label": "易", "hp": 0.75, "speed": 0.85, "spawn": 1.25,
 		"score": 1, "spread_cap": 1, "milestone": 1.0,
@@ -36,6 +36,53 @@ const DIFFICULTY_ORDER: Array[StringName] = [&"easy", &"medium", &"hard"]
 # 首循环 8 档基础阈值，之后每循环的档差按 ×1.35^cycle 放大（阈值单调不回退）。
 const MILESTONE_BASE: Array[int] = [3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000]
 const MILESTONE_CYCLE_MULT := 1.35
+
+# ---------------- 全局数值配置中心 ----------------
+# data/balance.json 启动时一次加载进 _balance；缺失/损坏时全部回退脚本默认值。
+# 访问统一走 GameState.cfg("分层.路径", 默认值)；热路径在各自 _ready 缓存进成员变量。
+const BALANCE_PATH := "res://data/balance.json"
+
+var _balance: Dictionary = {}
+## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
+var milestone_base: Array = MILESTONE_BASE.duplicate()
+var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
+
+
+func _load_balance() -> void:
+	_balance = {}
+	if not FileAccess.file_exists(BALANCE_PATH):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(BALANCE_PATH))
+	if parsed is Dictionary:
+		_balance = parsed
+
+
+## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。
+func cfg(path: String, default: Variant) -> Variant:
+	var node: Variant = _balance
+	for key in path.split("."):
+		if node is Dictionary and node.has(key):
+			node = node[key]
+		else:
+			return default
+	# 数值宽容：JSON 整数/浮点互通
+	if default is int or default is float:
+		if node is int or node is float:
+			return node
+		return default
+	if node is Array and default is Array:
+		return node
+	if typeof(node) == typeof(default):
+		return node
+	return default
+
+
+func _apply_balance() -> void:
+	milestone_base = cfg("milestones.base", MILESTONE_BASE.duplicate())
+	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
+	var diff: Variant = cfg("difficulty", {})
+	if diff is Dictionary and not diff.is_empty():
+		DIFFICULTY_DEFS = diff
 
 # RP（征用点数）经济：对齐原作 RequisitionConstants
 const RP_BOSS_KILL := 5
@@ -106,10 +153,13 @@ var enemies: Array[Node] = []
 var player_ref: Node2D = null
 ## 子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）
 var bullet_pool: BulletPool = null
+## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
+var enemy_pool: EnemyPool = null
 
 
 func register_enemy(node: Node) -> void:
-	enemies.append(node)
+	if not enemies.has(node):
+		enemies.append(node)
 
 
 func unregister_enemy(node: Node) -> void:
@@ -117,6 +167,8 @@ func unregister_enemy(node: Node) -> void:
 
 
 func _ready() -> void:
+	_load_balance()
+	_apply_balance()
 	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断
 	for i in SFX_POOL_SIZE:
 		var p := AudioStreamPlayer.new()
@@ -212,17 +264,17 @@ func spread_enemy_cap() -> int:
 ## 第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
 ## 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
 func milestone_threshold(index: int) -> int:
-	var n := MILESTONE_BASE.size()
+	var n := milestone_base.size()
 	var cycle := maxi(index, 0) / n
 	var step := maxi(index, 0) % n
 	var total := 0.0
 	for c in cycle + 1:
-		var mult := pow(MILESTONE_CYCLE_MULT, c)
+		var mult := pow(milestone_cycle_mult, c)
 		var last_step := step if c == cycle else n - 1
 		var prev := 0.0
 		for i in last_step + 1:
-			total += (MILESTONE_BASE[i] - prev) * mult
-			prev = MILESTONE_BASE[i]
+			total += (milestone_base[i] - prev) * mult
+			prev = milestone_base[i]
 	return int(roundf(total * float(DIFFICULTY_DEFS[difficulty]["milestone"])))
 
 

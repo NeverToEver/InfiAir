@@ -152,7 +152,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss3 = child
 	_check(boss3 != null and boss3.boss_type == 3, "Boss 轮换：第 3 只为母舰型")
-	boss3.position.y = Boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	boss3.position.y = boss3.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
 	await get_tree().create_timer(7.0).timeout  # 首次召唤在 6s
 	var minion_found := false
 	for child in get_node("Main").get_children():
@@ -176,7 +176,7 @@ func _ready() -> void:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss4 = child
-	boss4.position.y = Boss.FIGHT_Y
+	boss4.position.y = boss4.FIGHT_Y
 	await get_tree().create_timer(0.5).timeout
 	boss4.take_damage(int(boss4.max_hp * 0.75))
 	await get_tree().process_frame
@@ -551,8 +551,8 @@ func _ready() -> void:
 	var fine_speed: float = player.velocity.length()
 	Input.action_release("fine_move")
 	Input.action_release("move_right")
-	_check(full_speed > Player.MAX_SPEED * 0.9, "无微调时接近满速")
-	_check(absf(fine_speed - Player.MAX_SPEED * 0.35) < 25.0, "Ctrl 按住移速 ×0.35")
+	_check(full_speed > player.MAX_SPEED * 0.9, "无微调时接近满速")
+	_check(absf(fine_speed - player.MAX_SPEED * 0.35) < 25.0, "Ctrl 按住移速 ×0.35")
 
 	print("SMOKE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
