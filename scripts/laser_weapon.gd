@@ -8,7 +8,7 @@ extends Node2D
 var BEAM_DURATION := 3.0
 var COOLDOWN := 10.0
 var TICK_INTERVAL := 0.1
-var TICK_DAMAGE := 1
+var TICK_DAMAGE := 10
 var BEAM_LENGTH := 2400.0
 var BEAM_HALF_WIDTH := 26.0
 var ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径约 30（spawner 机型配置）
@@ -113,8 +113,9 @@ func _end_beam() -> void:
 
 
 ## 穿透结算：光束线段两侧的敌人（含 Boss）都吃伤害，不打断
+## （遍历副本防 take_damage→die→注销注册表造成的遍历中突变）
 func _damage_tick(start: Vector2, end: Vector2) -> void:
-	for node in GameState.enemies:
+	for node in GameState.enemies.duplicate():
 		if not is_instance_valid(node):
 			continue
 		var pos := (node as Node2D).global_position

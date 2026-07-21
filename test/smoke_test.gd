@@ -209,21 +209,32 @@ func _ready() -> void:
 	if fired != null:
 		fired.queue_free()
 
-	# 3.6 慢速力场减速敌弹
-	var bullet_scene: PackedScene = load("res://scenes/bullet.tscn")
-	var eb := bullet_scene.instantiate() as Bullet
-	eb.setup(Vector2.DOWN, 400.0, 1, false)
-	eb.position = player.position + Vector2(0.0, 100.0)
-	_check(eb._speed_factor() == 1.0, "无力场时敌弹全速")
+	# 3.6 慢速力场：全局敌机移速 ×0.8（A13，敌弹不受影响）
+	var slow_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	slow_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	slow_e.can_shoot = false
+	slow_e.speed = 100.0
+	slow_e.position = Vector2(960.0, 100.0)
+	get_node("Main").add_child(slow_e)
+	await get_tree().create_timer(0.5).timeout
+	var slow_d1: float = slow_e.position.y - 100.0
+	slow_e.queue_free()
 	GameState.add_buff(&"slow_field")
-	get_node("Main").add_child(eb)
-	await get_tree().process_frame
-	_check(eb._speed_factor() < 1.0, "慢速力场减速敌弹")
-	eb.queue_free()
+	var slow_e2 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	slow_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	slow_e2.can_shoot = false
+	slow_e2.speed = 100.0
+	slow_e2.position = Vector2(960.0, 100.0)
+	get_node("Main").add_child(slow_e2)
+	await get_tree().create_timer(0.5).timeout
+	var slow_d2: float = slow_e2.position.y - 100.0
+	slow_e2.queue_free()
+	_check(slow_d1 > 20.0 and slow_d2 < slow_d1 * 0.9, "慢速力场全局敌机移速 ×0.8")
 
 	# 3.7 相位冲刺：触发、无敌、位移、冷却
 	GameState.add_buff(&"phase_dash")
-	var lives_before := GameState.lives
+	var health_before := GameState.health
+	player._since_damage = 0.0  # 冻结被动回血，避免干扰 HP 断言
 	var pos_before := player.position
 	player._invincible = 0.0
 	Input.action_press("dash")
@@ -233,7 +244,7 @@ func _ready() -> void:
 	Input.action_release("dash")
 	_check(player._dashing, "相位冲刺触发")
 	player.take_damage()
-	_check(GameState.lives == lives_before, "冲刺期间无敌")
+	_check(GameState.health == health_before, "冲刺期间无敌")
 	await get_tree().create_timer(0.4).timeout
 	_check(player.position.distance_to(pos_before) > 100.0, "冲刺位移约 200px")
 	_check(player._dash_cooldown > 0.0, "冲刺进入冷却")
@@ -259,7 +270,7 @@ func _ready() -> void:
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
 	var score_before_elite := GameState.score
-	elite.take_damage(99)
+	elite.take_damage(9999)
 	await get_tree().process_frame
 	_check(
 		GameState.score >= score_before_elite + int(spawner.ELITE_TYPES[0]["score"]),
@@ -270,7 +281,7 @@ func _ready() -> void:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
 
-	# 3.10 母舰（原作对齐）：蓄力召唤 → 扫射 → 对接 → 驻留弹匣 → 提前离舰
+	# 3.10 母舰（原作对齐）：蓄力召唤 → 到位自动对接（点吸附）→ 驻留弹匣 → 提前离舰
 	# 清理可能残留的敌弹，避免干扰生命断言
 	for child in get_node("Main").get_children():
 		if child is Bullet and not child.is_player_bullet:
@@ -278,8 +289,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var main := get_node("Main")
 	player._invincible = 0.0
-	player.take_damage()
-	_check(GameState.lives == 2.0, "母舰测试前置：受击 -1 命")
+	player._last_hit_frame = -1
+	player.take_damage(10.0)
+	_check(GameState.health == 90.0, "母舰测试前置：受击 -10 HP")
 	player._fuel = 10.0
 	# 长按蓄力：1s 松手取消，不进冷却
 	Input.action_press("dock")
@@ -294,49 +306,76 @@ func _ready() -> void:
 	Input.action_release("dock")
 	_check(main._mothership != null, "蓄力满 3s 召唤母舰")
 	var ms: Mothership = main._mothership
-	ms.position = Vector2(960.0, 270.0)
-	ms._state = Mothership.State.HOVER
-	# 扫射压制：应出现母舰弹丸（score_scale=1/3）
+	# 到位即自动对接（原作无区域判定，点吸附补间）
+	ms.position = Vector2(960.0, 269.0)
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	tgt.can_shoot = false
+	tgt.hp = 9999  # 靶机不死，保证场内始终有目标
 	tgt.position = Vector2(960.0, 500.0)
 	main.add_child(tgt)
-	await get_tree().create_timer(1.0).timeout
-	var ms_bullet_found := false
-	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
-			ms_bullet_found = true
-	_check(ms_bullet_found, "加特林扫射开火")
-	if is_instance_valid(tgt):
-		tgt.queue_free()
-	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
-	get_tree().paused = false
-	# 对接 → 驻留
-	player.position = Vector2(960.0, 410.0)  # 对接区（舰腹下方矩形）
-	await get_tree().create_timer(0.3).timeout
-	_check(player._input_locked, "对接期间输入锁定")
-	await get_tree().create_timer(1.6).timeout
-	_check(GameState.lives == 3.0, "补给回满生命")
+	await get_tree().create_timer(0.5).timeout
+	_check(player._input_locked, "对接开始即锁输入")
+	_check(player._invincible > 100.0, "对接开始即无敌（无敌窗口前移）")
+	# 对接 1.5s + 补给 0.5s 后进入驻留
+	await get_tree().create_timer(2.0).timeout
+	_check(GameState.health == GameState.max_health(), "补给回满生命")
 	_check(player._fuel == player.fuel_max, "补给回满燃料")
 	_check(ms._state == Mothership.State.STAY, "进入驻留状态")
 	_check(ms._mag_cells == 10, "弹匣初始 10 格")
-	# 弹匣随时间消耗
-	await get_tree().create_timer(2.3).timeout
-	_check(ms._mag_cells <= 9, "驻留弹匣消耗")
-	# ≤4 格警告
+	# 驻留火力：加特林弹丸（score_scale=1/3）+ 导弹（splash 标记）
+	await get_tree().create_timer(0.6).timeout
+	var gatling_found := false
+	var missile_found := false
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+			gatling_found = true
+			if child.splash_damage > 0:
+				missile_found = true
+	_check(gatling_found, "加特林扫射开火")
+	_check(missile_found, "导弹齐射开火（A15）")
+	# 驻留驾驶：WASD 移动母舰，玩家钉在对接点
+	var ms_x_before: float = ms.position.x
+	Input.action_press("move_right")
+	await get_tree().create_timer(0.5).timeout
+	Input.action_release("move_right")
+	_check(ms.position.x > ms_x_before + 20.0, "驻留期间 WASD 驾驶母舰")
+	_check(
+		player.global_position.distance_to(ms.global_position + Vector2(0.0, 140.0)) < 5.0,
+		"驾驶时玩家钉在对接点"
+	)
+	# 驾驶边界钳制：持续左行被钳在视野内（x ≥ 视图左缘 + 130）
+	Input.action_press("move_left")
+	await get_tree().create_timer(4.5).timeout
+	Input.action_release("move_left")
+	_check(
+		absf(ms.position.x - (GameState.view_world_rect().position.x + 130.0)) < 30.0,
+		"母舰驾驶边界钳制"
+	)
+	if buff_ui.visible:
+		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+	get_tree().paused = false
+	# 弹匣随时间消耗（驻留已累计 >2s）
+	_check(ms._mag_cells < 10, "驻留弹匣消耗")
+	# ≤4 格警告 + 警告 5s 后强制离舰计时
 	ms._mag_cells = 5
+	ms._mag_cell_timer = 0.0
 	await get_tree().create_timer(2.3).timeout
 	_check(ms._mag_cells == 4, "弹匣消耗到 4 格")
 	_check(ms._mag_warned, "弹匣 ≤4 弹出警告")
-	# 提前离舰：长按 H 2s，冷却打折（4 格 → 90×(1-0.4×0.4)=75.6）
+	_check(ms._warn_eject_timer > 0.0, "警告后启动强制离舰计时")
+	# 提前离舰：长按 H 2s，冷却双机制折扣（4→3 格 r=0.3：60×0.88×0.85≈44.9）
 	Input.action_press("dock")
 	await get_tree().create_timer(2.4).timeout
 	Input.action_release("dock")
 	_check(ms._state >= Mothership.State.RELEASE, "提前离舰触发")
-	await get_tree().create_timer(0.8).timeout
-	_check(main._dock_cooldown > 0.0 and main._dock_cooldown < 90.0, "提前离舰冷却打折")
+	await get_tree().create_timer(0.6).timeout
+	_check(
+		player._invincible > 1.0 and player._invincible <= 2.0,
+		"释放后 2s 保护（重制版 QoL）"
+	)
+	await get_tree().create_timer(0.2).timeout
+	_check(main._dock_cooldown > 42.5 and main._dock_cooldown < 45.2, "提前离舰冷却双机制折扣")
 	_check(not player._input_locked, "脱离后输入解锁")
 	if main._mothership != null:
 		main._mothership.queue_free()
@@ -361,23 +400,42 @@ func _ready() -> void:
 	if buff_ui.visible:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
+	# 警告横幅播完（5s）强制离舰：第二艘母舰，缩短计时确定性验证
+	main._dock_cooldown = 0.0
+	main._summon_mothership()
+	var ms2: Mothership = main._mothership
+	ms2.position = Vector2(960.0, 269.0)
+	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
+	_check(ms2._state == Mothership.State.STAY, "第二艘母舰进入驻留")
+	ms2._mag_cells = 5
+	ms2._mag_cell_timer = 0.0
+	await get_tree().create_timer(2.3).timeout
+	_check(ms2._mag_warned, "第二艘母舰弹匣警告")
+	ms2._warn_eject_timer = 0.5  # 缩短横幅等待，直接验证强制离舰
+	await get_tree().create_timer(1.0).timeout
+	_check(ms2._state >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
+	if main._mothership != null:
+		main._mothership.queue_free()
 
 	# 3.11 对局存档：写入 → 清空 → 恢复
 	var saved_score := GameState.score
 	GameState.add_buff(&"power_shot")
+	GameState.health = 66.0
 	GameState.save_run(55.0, 12.0)
 	_check(GameState.has_save(), "存档文件已写入")
 	GameState.score = 0
+	GameState.health = 100.0
 	GameState.buffs.clear()
 	GameState.apply_run_save(GameState.load_run_data())
 	_check(GameState.score == saved_score, "存档恢复分数")
 	_check(GameState.buff_count(&"power_shot") == 2, "存档恢复 buff 层数")
+	_check(GameState.health == 66.0, "存档恢复 HP（v2 格式）")
 
 	# 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
 	var score_before_hc := GameState.score
 	var power_before := GameState.buff_count(&"power_shot")
 	GameState.add_rp(5)
-	GameState.lives = 2.0
+	GameState.health = 50.0
 	# 蓄力松手取消
 	Input.action_press("homecoming")
 	await get_tree().create_timer(0.6).timeout
@@ -391,11 +449,11 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout  # 白屏过场
 	_check(main._homecoming, "返航触发")
 	_check(main._base_ui.visible and get_tree().paused, "进入基地整备界面")
-	# 维修扣 RP 回血
+	# 维修扣 RP 回满（对齐原作 2RP 回满）
 	var rp_before := GameState.rp
 	main._base_ui._on_repair_pressed()
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
-	_check(GameState.lives == 3.0, "维修回 1 命")
+	_check(GameState.health == GameState.max_health(), "维修回满生命")
 	# 放一个敌机验证轨道打击
 	var orbit_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	orbit_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
@@ -452,9 +510,9 @@ func _ready() -> void:
 	player._fine_toggle_on = false
 
 	# 4. 玩家受击至死 → 结算（此时存档存在，死亡应删档）
-	for i in 3:
-		player._invincible = 0.0
-		player.take_damage()
+	player._invincible = 0.0
+	player._last_hit_frame = -1
+	player.take_damage(9999.0)
 	await get_tree().process_frame
 	_check(not GameState.has_save(), "死亡后删除存档")
 	await get_tree().process_frame
@@ -475,7 +533,7 @@ func _ready() -> void:
 	player._invincible = 999.0
 	player.show()
 	player.set_physics_process(true)
-	GameState.lives = 3.0
+	GameState.health = GameState.max_health()
 	get_node("Main/GameOverUI").hide()
 	get_tree().paused = false
 

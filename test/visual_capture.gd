@@ -45,20 +45,17 @@ func _ready() -> void:
 			for i in 30:
 				await get_tree().process_frame
 		"mothership":
-			# 母舰悬停 + 敌机（扫射开火）+ 玩家对接进入驻留（光束 + 弹匣条）
+			# 母舰自动对接 + 敌机（驻留扫射/导弹）+ 玩家吸附驻留（光束 + 弹匣条）
 			var main := get_node("Main")
 			main._summon_mothership()
 			var ms: Mothership = main._mothership
-			ms.position = Vector2(960.0, 270.0)
-			ms._state = Mothership.State.HOVER
+			ms.position = Vector2(960.0, 269.0)  # 到位触发自动对接
 			var spawner := get_node("Main/Spawner")
 			var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 			tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 			tgt.position = Vector2(1200.0, 500.0)
 			main.add_child(tgt)
-			await get_tree().create_timer(0.5).timeout
-			get_node("Main/Player").position = Vector2(960.0, 430.0)
-			await get_tree().create_timer(2.0).timeout
+			await get_tree().create_timer(2.8).timeout  # 对接 1.5s + 补给 0.5s → 驻留
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(SHOT_PATH)
 	print("capture saved: ", SHOT_PATH)

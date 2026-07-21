@@ -2,7 +2,7 @@ extends Node
 ## 全局状态与信号总线：分数、击杀、生命、难度乘数、已选 buff。
 
 signal score_changed(new_score: int)
-signal lives_changed(new_lives: float)
+signal health_changed(new_health: float)
 signal difficulty_changed(new_multiplier: float)
 signal difficulty_selected(difficulty: StringName)
 signal milestone_reached(score: int)
@@ -18,19 +18,24 @@ signal view_zoom_changed(factor: float)
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
 ## spread_cap 为 spread 弹种敌机同屏上限；milestone 为里程碑阈值倍率
-## （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难 Buff 节奏过稀）。
+## （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难 Buff 节奏过稀）；
+## regen_delay/regen_rate 为被动回血（对齐原作 settings.py HEALTH_REGEN）：
+## 距上次受伤 regen_delay 秒起每秒回 regen_rate HP（原作延迟不重置为疑似 bug，本版受伤即重置）。
 var DIFFICULTY_DEFS: Dictionary = {
 	&"easy": {
 		"label": "易", "hp": 0.75, "speed": 0.85, "spawn": 1.25,
 		"score": 1, "spread_cap": 1, "milestone": 1.0,
+		"regen_delay": 3.0, "regen_rate": 4.0,
 	},
 	&"medium": {
 		"label": "中", "hp": 1.0, "speed": 1.0, "spawn": 1.0,
 		"score": 2, "spread_cap": 2, "milestone": 1.0,
+		"regen_delay": 4.0, "regen_rate": 2.0,
 	},
 	&"hard": {
 		"label": "难", "hp": 1.5, "speed": 1.2, "spawn": 0.8,
 		"score": 3, "spread_cap": 3, "milestone": 1.5,
+		"regen_delay": 5.0, "regen_rate": 0.67,
 	},
 }
 const DIFFICULTY_ORDER: Array[StringName] = [&"easy", &"medium", &"hard"]
@@ -116,7 +121,8 @@ const SFX_POOL_SIZE := 6
 
 const SAVE_PATH := "user://savegame.json"
 const PROFILE_PATH := "user://profile.json"
-const PERSIST_VERSION := 1
+## v2：3 命制 lives 字段废弃，改 100 HP 制 health（v1 存档 health 回默认满血）
+const PERSIST_VERSION := 2
 
 var high_score: int = 0
 var tutorial_done: bool = false
@@ -127,7 +133,8 @@ var _sfx_index: int = 0
 var score: int = 0
 var kills: int = 0
 var boss_kills: int = 0
-var lives: float = 3.0
+## 玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）
+var health: float = 100.0
 var difficulty_multiplier: float = 1.0
 ## 难度档位（profile 持久化，默认 medium）
 var difficulty: StringName = &"medium"
@@ -156,6 +163,8 @@ var _milestone_count: int = 0
 ## enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。
 var enemies: Array[Node] = []
 var player_ref: Node2D = null
+## 玩家受击 Hitbox（player._ready/_exit_tree 维护；敌机/Boss 撞击逐帧轮询用）
+var player_hitbox: Area2D = null
 ## 子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）
 var bullet_pool: BulletPool = null
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
@@ -211,9 +220,9 @@ func reset_run() -> void:
 	score = 0
 	kills = 0
 	boss_kills = 0
-	lives = 3.0
-	difficulty_multiplier = 1.0
 	buffs.clear()
+	health = max_health()
+	difficulty_multiplier = 1.0
 	rp = 0
 	run_time = 0.0
 	_init_missions()
@@ -267,6 +276,15 @@ func spawn_interval_multiplier() -> float:
 ## spread 弹种敌机同屏上限（easy 1 / medium 2 / hard 3）
 func spread_enemy_cap() -> int:
 	return int(DIFFICULTY_DEFS[difficulty]["spread_cap"])
+
+
+## 被动回血：距上次受伤 regen_delay 秒起每秒回 regen_rate HP（对齐原作 HEALTH_REGEN）
+func passive_regen_delay() -> float:
+	return float(DIFFICULTY_DEFS[difficulty]["regen_delay"])
+
+
+func passive_regen_rate() -> float:
+	return float(DIFFICULTY_DEFS[difficulty]["regen_rate"])
 
 
 # ---------------- 里程碑阈值曲线 ----------------
@@ -364,16 +382,36 @@ func add_boss_kill(score_scale: float = 1.0) -> void:
 	difficulty_changed.emit(difficulty_multiplier)
 
 
-func lose_life(amount: float = 1.0) -> void:
-	lives = maxf(lives - amount, 0.0)
-	lives_changed.emit(lives)
-	if lives <= 0.0:
+## 生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
+func max_health() -> float:
+	return cfg("player.max_health", 100.0) + cfg("buffs.extra_life.max_hp_bonus", 50) * buff_count(&"extra_life")
+
+
+func lose_health(amount: float = 1.0) -> void:
+	health = maxf(health - amount, 0.0)
+	health_changed.emit(health)
+	if health <= 0.0:
 		player_died.emit()
 
 
+## 治疗（单点封顶 max_health，调用侧不再各自判断）
 func heal(amount: float) -> void:
-	lives += amount
-	lives_changed.emit(lives)
+	health = minf(health + amount, max_health())
+	health_changed.emit(health)
+
+
+## 吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次
+var _lifesteal_frame: int = -1
+
+
+func try_lifesteal() -> void:
+	if buff_count(&"lifesteal") <= 0:
+		return
+	var frame := Engine.get_physics_frames()
+	if frame == _lifesteal_frame:
+		return
+	_lifesteal_frame = frame
+	heal(maxi(1, int(max_health() * cfg("buffs.lifesteal.max_hp_fraction", 0.1))))
 
 
 func buff_count(id: StringName) -> int:
@@ -452,7 +490,7 @@ func reset_key_bindings() -> void:
 func action_keys_text(action: StringName) -> String:
 	var keys: Array = key_bindings.get(action, _default_bindings.get(action, []))
 	if keys.is_empty():
-		return "（未绑定）"
+		return tr("SET_UNBOUND")
 	var parts: Array[String] = []
 	for k in keys:
 		parts.append(OS.get_keycode_string(k))
@@ -567,7 +605,7 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"version": PERSIST_VERSION,
 		"score": score,
 		"kills": kills,
-		"lives": lives,
+		"health": health,
 		"fuel": fuel,
 		"boss_kills": boss_kills,
 		"difficulty_multiplier": difficulty_multiplier,
@@ -601,13 +639,18 @@ func load_run_data() -> Dictionary:
 func apply_run_save(data: Dictionary) -> void:
 	score = int(data.get("score", 0))
 	kills = int(data.get("kills", 0))
-	lives = float(data.get("lives", 3.0))
 	boss_kills = int(data.get("boss_kills", 0))
 	difficulty_multiplier = float(data.get("difficulty_multiplier", 1.0))
 	buffs.clear()
 	var saved_buffs: Dictionary = data.get("buffs", {})
 	for key in saved_buffs.keys():
 		buffs[StringName(key)] = int(saved_buffs[key])
+	# 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
+	# v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health
+	if int(data.get("version", 1)) >= 2:
+		health = clampf(float(data.get("health", max_health())), 0.0, max_health())
+	else:
+		health = max_health()
 	run_time = float(data.get("elapsed", 0.0))
 	rp = int(data.get("rp", 0))
 	_init_missions()
@@ -636,7 +679,7 @@ func apply_run_save(data: Dictionary) -> void:
 		_milestone_count += 1
 	_next_milestone = milestone_threshold(_milestone_count)
 	score_changed.emit(score)
-	lives_changed.emit(lives)
+	health_changed.emit(health)
 	difficulty_changed.emit(difficulty_multiplier)
 	rp_changed.emit(rp)
 

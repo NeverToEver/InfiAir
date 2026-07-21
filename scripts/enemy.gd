@@ -10,10 +10,14 @@ signal died(enemy: Enemy)
 var ENEMY_BULLET_SPEED := 420.0
 var SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
 var LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹
-## 各弹种伤害（对齐原作 12/10/20 的比例近似：laser=2，其余=1）
-var BULLET_DAMAGE_SINGLE := 1
-var BULLET_DAMAGE_SPREAD := 1
-var BULLET_DAMAGE_LASER := 2
+## 各弹种伤害（对齐原作 _ENEMY_BULLET_DAMAGE：single 12 / spread 10 / laser 20）
+var BULLET_DAMAGE_SINGLE := 12
+var BULLET_DAMAGE_SPREAD := 10
+var BULLET_DAMAGE_LASER := 20
+## 身体撞击伤害（对齐原作 ENEMY_COLLISION_DAMAGE=20；撞击后敌机不自毁继续飞）
+var COLLISION_DAMAGE := 20
+## 慢速力场：全局敌机移速 ×0.8（对齐原作 slow_factor；原作对普通敌机失效为疑似 bug，本版全生效）
+var SLOW_FIELD_FACTOR := 0.8
 var SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
 var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
 var EXIT_ACCEL := 520.0  # 寿命离场加速度
@@ -40,6 +44,8 @@ var _dive_timer: float = 0.0
 var _fire_timer: float = FIRE_INTERVAL
 var _center: Vector2 = Vector2.ZERO  # spiral 绕转中心
 var _pool: Node = null
+## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
+var _active: bool = false
 
 # 三角函数查表（2048 项循环表 + 线性插值，全敌机共享一份）
 const TRIG_SIZE := 2048
@@ -115,6 +121,8 @@ func _ready() -> void:
 	BULLET_DAMAGE_SINGLE = GameState.cfg("enemies.bullet_damage.single", BULLET_DAMAGE_SINGLE)
 	BULLET_DAMAGE_SPREAD = GameState.cfg("enemies.bullet_damage.spread", BULLET_DAMAGE_SPREAD)
 	BULLET_DAMAGE_LASER = GameState.cfg("enemies.bullet_damage.laser", BULLET_DAMAGE_LASER)
+	COLLISION_DAMAGE = GameState.cfg("enemies.collision_damage", COLLISION_DAMAGE)
+	SLOW_FIELD_FACTOR = GameState.cfg("buffs.slow_field.factor", SLOW_FIELD_FACTOR)
 	SPREAD_FAN_STEP = GameState.cfg("enemies.spread_fan_step", SPREAD_FAN_STEP)
 	LIFETIME = GameState.cfg("enemies.lifetime", LIFETIME)
 	EXIT_ACCEL = GameState.cfg("enemies.exit_accel", EXIT_ACCEL)
@@ -135,11 +143,19 @@ func _ready() -> void:
 			_dive_target = Vector2(position.x, 1200.0)
 	elif strategy == &"hover":
 		_hover_timer = randf_range(3.0, 5.0)
-	area_entered.connect(_on_area_entered)
+
+
+## 撞击玩家（对齐原作逐帧轮询）：重叠期间每帧尝试结算——闪避逐帧重掷、
+## 无敌结束仍重叠会再次命中；闪避/护甲/无敌/单帧守卫统一在 take_damage 内。
+func _check_body_collision() -> void:
+	var hb := GameState.player_hitbox
+	if hb != null and overlaps_area(hb):
+		(GameState.player_ref as Player).take_damage(COLLISION_DAMAGE)
 
 
 ## 池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）
 func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float) -> void:
+	_active = true
 	_time = 0.0
 	_zig_dir = 1.0
 	_zig_timer = 0.7
@@ -173,13 +189,20 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 
 ## 池化回收：停用但保留实例
 func deactivate() -> void:
+	_active = false
 	visible = false
-	set_deferred("monitoring", false)
 	set_physics_process(false)
 	GameState.unregister_enemy(self)
 	for c in died.get_connections():
 		died.disconnect(c["callable"])
 	position = Vector2(-500.0, -500.0)
+	_deferred_disable_monitoring.call_deferred()
+
+
+## 物理回调内不能直改 monitoring，延迟到帧末；若敌机已被重激活（同帧复用）则跳过
+func _deferred_disable_monitoring() -> void:
+	if not _active:
+		monitoring = false
 
 
 func _despawn() -> void:
@@ -213,18 +236,20 @@ func _physics_process(delta: float) -> void:
 	if _life_timer >= LIFETIME:
 		_begin_lifetime_exit()
 		return
+	# 慢速力场：全局移速 ×0.8（仅移动位移，不影响射速/寿命/计时）
+	var mdelta := delta * (SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0)
 	match strategy:
 		&"straight":
-			position.y += speed * delta
+			position.y += speed * mdelta
 		&"sine":
-			position.y += speed * delta
+			position.y += speed * mdelta
 			position.x = _spawn_x + sin_fast(_time * 3.0) * 90.0
 		&"zigzag":
 			_zig_timer -= delta
 			if _zig_timer <= 0.0:
 				_zig_dir = -_zig_dir
 				_zig_timer = 0.7
-			position += Vector2(_zig_dir * speed * 0.9, speed) * delta
+			position += Vector2(_zig_dir * speed * 0.9, speed) * mdelta
 			var view := GameState.view_world_rect()
 			if position.x < view.position.x + 40.0 or position.x > view.end.x - 40.0:
 				_zig_dir = -_zig_dir
@@ -233,12 +258,12 @@ func _physics_process(delta: float) -> void:
 			if _dive_timer > 0.0:
 				_dive_timer -= delta
 				var dir := (_dive_target - position).normalized()
-				position += dir * speed * 1.7 * delta
+				position += dir * speed * 1.7 * mdelta
 			else:
-				position.y += speed * delta
+				position.y += speed * mdelta
 		&"spiral":
 			# 绕转中心匀速下压，机身绕中心小半径转圈
-			_center.y += speed * delta
+			_center.y += speed * mdelta
 			position = _center + Vector2(cos_fast(_time * 4.0), sin_fast(_time * 4.0)) * SPIRAL_RADIUS
 		&"noise":
 			# 正弦叠加伪噪声驱动横向飘移
@@ -246,7 +271,7 @@ func _physics_process(delta: float) -> void:
 				(sin_fast(_time * 1.7) + sin_fast(_time * 2.9 + 1.3) + sin_fast(_time * 4.3 + 2.1))
 				/ 3.0 * speed * 1.2
 			)
-			position += Vector2(vx, speed) * delta
+			position += Vector2(vx, speed) * mdelta
 			var view := GameState.view_world_rect()
 			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
 		&"aggressive":
@@ -259,19 +284,19 @@ func _physics_process(delta: float) -> void:
 			if players != null:
 				var dx: float = players.global_position.x - position.x
 				vx += clampf(dx, -1.0, 1.0) * AGGR_CHASE_SPEED
-			position += Vector2(vx, speed * 0.9) * delta
+			position += Vector2(vx, speed * 0.9) * mdelta
 			var view := GameState.view_world_rect()
 			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
 		&"hover":
 			if _hover_done:
-				position.y += speed * delta
+				position.y += speed * mdelta
 			elif _hovering:
 				_hover_timer -= delta
 				position.y = HOVER_Y + sin_fast(_time * 2.0) * 6.0  # 停驻轻微浮动
 				if _hover_timer <= 0.0:
 					_hover_done = true
 			else:
-				position.y += speed * delta
+				position.y += speed * mdelta
 				if position.y >= HOVER_Y:
 					_hovering = true
 
@@ -281,6 +306,8 @@ func _physics_process(delta: float) -> void:
 			# 悬停期间更高频率点射
 			_fire_timer = fire_interval * (0.5 if _hovering else 1.0)
 			_fire_at_player()
+
+	_check_body_collision()
 
 	if position.y > GameState.view_world_rect().end.y + 60.0:
 		_despawn()
@@ -335,6 +362,8 @@ var _score_scale: float = 1.0
 
 
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
+	if hp <= 0:
+		return  # 已死亡待回收（同帧多发命中防重复结算）
 	hp -= amount
 	_score_scale = score_scale
 	_sprite.modulate = Color(2.0, 2.0, 2.0)  # 受击闪白
@@ -348,23 +377,10 @@ func die() -> void:
 	# 母舰弹丸击毁只给 1/3 分（向下取整）
 	GameState.add_score(int(score_value * _score_scale))
 	GameState.add_kill()
-	# 吸血 buff：击毁 10% 概率回 0.5 命，每层 +5%
-	var lifesteal := GameState.buff_count(&"lifesteal")
-	if lifesteal > 0 and randf() < GameState.cfg("buffs.lifesteal.base_chance", 0.1) + GameState.cfg("buffs.lifesteal.per_stack", 0.05) * (lifesteal - 1):
-		GameState.heal(0.5)
+	# 吸血 buff：击毁回复 10% 生命上限（每帧至多一次，对齐原作 LIFESTEAL_FRACTION）
+	GameState.try_lifesteal()
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
 	GameState.shake(GameState.cfg("effects.shake.elite_die", 9.0) if is_elite else GameState.cfg("effects.shake.enemy_die", 5.0))
 	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
 	died.emit(self)
 	_despawn()
-
-
-func _on_area_entered(area: Area2D) -> void:
-	# 撞击玩家：自毁且不加分
-	if area.is_in_group("player_hitbox"):
-		area.get_parent().take_damage()
-		GameState.play_sfx(GameState.SFX_EXPLOSION)
-		GameState.shake(GameState.cfg("effects.shake.ram", 4.0))
-		Explosion.spawn_at(get_parent(), global_position, 1.0)
-		died.emit(self)
-		queue_free()

@@ -1,5 +1,5 @@
 {
-	"version": 1,
+	"version": 2,
 	"player": {
 		"max_speed": 420.0,
 		"accel": 2400.0,
@@ -9,7 +9,11 @@
 		"base_fire_interval": 0.15,
 		"bullet_speed": 900.0,
 		"bullet_spread_deg": 15.0,
+		"bullet_damage": 10,
+		"max_health": 100.0,
 		"invincible_time": 1.5,
+		"spawn_invincible_time": 1.0,
+		"bullet_clear_radius": 250.0,
 		"fuel": {
 			"max": 100.0,
 			"drain": 35.0,
@@ -22,8 +26,7 @@
 			"cooldown": 4.0,
 			"cooldown_stack_factor": 0.8,
 			"fuel_ratio": 0.25,
-			"afterimage_interval": 0.08,
-			"max_stacks": 3
+			"afterimage_interval": 0.08
 		},
 		"aim_assist": {
 			"radius": 230.0,
@@ -37,10 +40,11 @@
 		"laser_bullet_speed": 720.0,
 		"spread_fan_step": 0.314159,
 		"bullet_damage": {
-			"single": 1,
-			"spread": 1,
-			"laser": 2
+			"single": 12,
+			"spread": 10,
+			"laser": 20
 		},
+		"collision_damage": 20,
 		"lifetime": 15.0,
 		"exit_accel": 520.0,
 		"aggressive_chase_speed": 170.0,
@@ -50,8 +54,8 @@
 		"types": [
 			{
 				"hp": [
-					2,
-					3
+					75,
+					85
 				],
 				"speed": [
 					140,
@@ -65,8 +69,8 @@
 			},
 			{
 				"hp": [
-					1,
-					2
+					55,
+					65
 				],
 				"speed": [
 					220,
@@ -80,8 +84,8 @@
 			},
 			{
 				"hp": [
-					5,
-					6
+					110,
+					130
 				],
 				"speed": [
 					90,
@@ -95,8 +99,8 @@
 			},
 			{
 				"hp": [
-					2,
-					3
+					65,
+					75
 				],
 				"speed": [
 					150,
@@ -114,8 +118,8 @@
 		"types": [
 			{
 				"hp": [
-					14,
-					16
+					210,
+					230
 				],
 				"speed": [
 					90,
@@ -125,12 +129,12 @@
 				"fire": 0.5,
 				"fire_interval": 2.2,
 				"scale": 0.7,
-				"radius": 56.0
+				"radius": 34.0
 			},
 			{
 				"hp": [
-					6,
-					8
+					150,
+					170
 				],
 				"speed": [
 					240,
@@ -140,12 +144,12 @@
 				"fire": 0.6,
 				"fire_interval": 2.0,
 				"scale": 0.5,
-				"radius": 40.0
+				"radius": 30.0
 			},
 			{
 				"hp": [
-					9,
-					11
+					190,
+					210
 				],
 				"speed": [
 					110,
@@ -155,7 +159,7 @@
 				"fire": 1.0,
 				"fire_interval": 1.5,
 				"scale": 0.6,
-				"radius": 48.0
+				"radius": 34.0
 			}
 		]
 	},
@@ -164,6 +168,7 @@
 		"fight_y": 230.0,
 		"strafe_min_x": 300.0,
 		"strafe_max_x": 1620.0,
+		"hp_base": 800.0,
 		"hp_mults": [
 			1.3,
 			0.7,
@@ -184,13 +189,14 @@
 		"sniper_bullet_speed": 650.0,
 		"cross_bullet_speed": 260.0,
 		"bullet_damage": {
-			"fan": 1,
-			"homing": 1,
-			"sniper": 1,
-			"cross": 1,
-			"snapshot_laser": 2,
-			"snapshot_ring": 1
+			"fan": 14,
+			"homing": 12,
+			"sniper": 21,
+			"cross": 12,
+			"snapshot_laser": 21,
+			"snapshot_ring": 12
 		},
+		"collision_damage": 30,
 		"enrage": {
 			"hp_ratio": 0.3,
 			"rate_mult": 1.5,
@@ -234,30 +240,56 @@
 	},
 	"mothership": {
 		"hover_y": 270.0,
-		"dock_invincible": 2.0,
-		"lives_cap": 6.0,
-		"dock_tween_time": 0.8,
+		"release_invincible": 2.0,
+		"dock_tween_time": 1.5,
+		"dock_offset_y": 140.0,
 		"resupply_delay": 0.5,
 		"release_time": 0.5,
-		"release_drop": 90.0,
+		"release_drop": 140.0,
 		"mag_cells": 10,
 		"mag_cell_time": 2.0,
 		"mag_warn_cells": 4,
+		"warn_eject_delay": 5.0,
 		"early_hold_time": 2.0,
 		"early_max_discount": 0.4,
-		"depart_cooldown": 90.0,
+		"early_prefill_max": 0.3,
+		"early_prefill_ratio": 0.5,
+		"depart_cooldown": 60.0,
+		"depart_start_speed": 0.0,
+		"depart_accel": 540.0,
+		"drive": {
+			"accel": 900.0,
+			"max_speed": 180.0,
+			"margin_x": 130.0,
+			"margin_top": 80.0,
+			"margin_bottom": 150.0
+		},
 		"gatling": {
-			"interval": 0.2,
-			"bullet_speed": 800.0,
-			"damage": 1,
-			"sweep_deg": 40.0,
-			"score_scale": 0.3333333333333333
+			"interval": 0.1333,
+			"bullet_speed": 1080.0,
+			"damage": 8,
+			"score_scale": 0.3333333333333333,
+			"sweep_left_min": -60.0,
+			"sweep_left_max": 20.0,
+			"sweep_right_min": -20.0,
+			"sweep_right_max": 60.0,
+			"sweep_left_period": 1.6,
+			"sweep_right_period": 1.8,
+			"sweep_right_phase": 0.35
+		},
+		"missile": {
+			"interval": 0.3,
+			"damage": 80,
+			"speed": 600.0,
+			"target_count": 5,
+			"splash_damage": 20,
+			"splash_radius": 80.0
 		},
 		"dock_charge_time": 3.0
 	},
 	"buffs": {
 		"power_shot": {
-			"damage_bonus": 1
+			"factor": 1.25
 		},
 		"rapid_fire": {
 			"factor": 0.75
@@ -266,36 +298,33 @@
 			"max_stacks": 3
 		},
 		"extra_life": {
-			"lives": 1
+			"max_hp_bonus": 50,
+			"heal_on_pick": 30
 		},
 		"regen": {
-			"heal_per_tick": 0.5,
-			"interval": 2.0
+			"heal_per_sec": 2.0
 		},
 		"piercing": {
 			"max_stacks": 2
 		},
 		"explosive": {
-			"radius": 80.0,
-			"damage_ratio": 0.5
+			"radius_per_level": 50.0,
+			"damage_per_level": 30
 		},
 		"lifesteal": {
-			"base_chance": 0.1,
-			"per_stack": 0.05
+			"max_hp_fraction": 0.1
 		},
 		"armor": {
-			"chance_per_stack": 0.25,
-			"damage_factor": 0.5
+			"multiplier": 0.85
 		},
 		"evasion": {
-			"keep_factor": 0.85
+			"chance": 0.2
 		},
 		"phase_dash": {
 			"max_stacks": 3
 		},
 		"slow_field": {
-			"radius": 300.0,
-			"factor": 0.6
+			"factor": 0.8
 		},
 		"efficient_boost": {
 			"factor": 0.75
@@ -310,7 +339,7 @@
 			"duration": 3.0,
 			"cooldown": 10.0,
 			"tick_interval": 0.1,
-			"tick_damage": 1,
+			"tick_damage": 10,
 			"length": 2400.0,
 			"half_width": 26.0,
 			"hit_radius": 30.0
@@ -337,7 +366,9 @@
 			"spawn": 1.25,
 			"score": 1,
 			"spread_cap": 1,
-			"milestone": 1.0
+			"milestone": 1.0,
+			"regen_delay": 3.0,
+			"regen_rate": 4.0
 		},
 		"medium": {
 			"label": "中",
@@ -346,7 +377,9 @@
 			"spawn": 1.0,
 			"score": 2,
 			"spread_cap": 2,
-			"milestone": 1.0
+			"milestone": 1.0,
+			"regen_delay": 4.0,
+			"regen_rate": 2.0
 		},
 		"hard": {
 			"label": "难",
@@ -355,7 +388,9 @@
 			"spawn": 0.8,
 			"score": 3,
 			"spread_cap": 3,
-			"milestone": 1.5
+			"milestone": 1.5,
+			"regen_delay": 5.0,
+			"regen_rate": 0.67
 		}
 	},
 	"effects": {
@@ -368,7 +403,6 @@
 			"player_hit": 12.0,
 			"enemy_die": 5.0,
 			"elite_die": 9.0,
-			"ram": 4.0,
 			"boss_warning": 14.0,
 			"boss_seq_initial": 20.0,
 			"boss_seq_step": 8.0,
@@ -388,6 +422,6 @@
 		"hud_poll_interval": 0.1
 	},
 	"tutorial": {
-		"boss_hp": 12.0
+		"boss_hp": 120.0
 	}
 }

@@ -12,7 +12,6 @@ const ROUTE_BUFF_NAMES: Dictionary = {
 	&"mothership_recall": "BUFF_MOTHERSHIP_RECALL_NAME",
 }
 const ROUTE_LINE_NAMES: Dictionary = {&"offense": "ROUTE_OFFENSE", &"mobility": "ROUTE_MOBILITY"}
-var LIVES_CAP := 6.0
 
 var _rp_label: Label
 var _title_label: Label
@@ -29,7 +28,6 @@ var _route_hint_label: Label
 func _ready() -> void:
 	visible = false
 	GameState.locale_changed.connect(_on_locale_changed)
-	LIVES_CAP = GameState.cfg("mothership.lives_cap", LIVES_CAP)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.08, 0.95)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -172,7 +170,7 @@ func _refresh() -> void:
 	var fuel_pct := 0
 	if player != null:
 		fuel_pct = int(player.fuel_ratio() * 100.0)
-	_status_label.text = tr("BASE_STATUS_FMT") % [ceili(GameState.lives), fuel_pct, buff_text]
+	_status_label.text = tr("BASE_STATUS_FMT") % [ceili(GameState.health), fuel_pct, buff_text]
 	# 维修补给按钮状态
 	_title_label.text = tr("BASE_TITLE")
 	for k in _title_labels:
@@ -180,7 +178,8 @@ func _refresh() -> void:
 	_route_hint_label.text = tr("BASE_ROUTE_HINT")
 	_repair_button.text = tr("BASE_REPAIR")
 	_recharge_button.text = tr("BASE_RECHARGE")
-	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.lives >= LIVES_CAP
+	# 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
+	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.health >= GameState.max_health()
 	_recharge_button.disabled = (
 		GameState.rp < GameState.RP_RECHARGE_COST or player == null or player._fuel >= player.fuel_max
 	)
@@ -249,8 +248,9 @@ func _on_locale_changed() -> void:
 
 
 func _on_repair_pressed() -> void:
+	# 2RP 回满（对齐原作，不按缺口计价）
 	if GameState.spend_rp(GameState.RP_REPAIR_COST):
-		GameState.heal(1.0)
+		GameState.heal(GameState.max_health() - GameState.health)
 		GameState.play_sfx(GameState.SFX_RESUPPLY)
 		_refresh()
 

@@ -72,8 +72,8 @@ func _ready() -> void:
 		)
 
 	# ---------- 2. 敌机 HP/速度缩放（同 seed 对比，randf 序列对齐） ----------
-	var normal_cfg: Dictionary = SpawnerScript.ENEMY_TYPES[0]  # hp 2-3, speed 140-180
-	var elite_cfg: Dictionary = SpawnerScript.ELITE_TYPES[0]  # hp 14-16, speed 90-110
+	var normal_cfg: Dictionary = SpawnerScript.ENEMY_TYPES[0]  # hp 75-85, speed 140-180
+	var elite_cfg: Dictionary = SpawnerScript.ELITE_TYPES[0]  # hp 210-230, speed 90-110
 	seed(1001)
 	GameState.difficulty = &"easy"
 	var easy_batch := _sample_batch(normal_cfg, 30)
@@ -104,7 +104,7 @@ func _ready() -> void:
 	_free_batch(easy_batch)
 	_free_batch(med_batch)
 	_free_batch(hard_batch)
-	# 精英大 HP 池：三档区间互不重叠（easy 11-12 / medium 14-16 / hard 21-24）
+	# 精英大 HP 池：三档区间互不重叠（easy 158-173 / medium 210-230 / hard 315-345）
 	seed(2002)
 	GameState.difficulty = &"easy"
 	var elite_e := _sample_batch(elite_cfg, 30)
@@ -115,9 +115,9 @@ func _ready() -> void:
 	GameState.difficulty = &"hard"
 	var elite_h := _sample_batch(elite_cfg, 30)
 	var max_e := 0
-	var min_m := 99
+	var min_m := 999999
 	var max_m := 0
-	var min_h := 99
+	var min_h := 999999
 	for i in 30:
 		max_e = maxi(max_e, elite_e[i].hp)
 		min_m = mini(min_m, elite_m[i].hp)

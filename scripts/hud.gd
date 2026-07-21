@@ -7,6 +7,7 @@ const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 @onready var _kills_label: Label = $KillsLabel
 @onready var _difficulty_label: Label = $DifficultyLabel
 @onready var _lives_label: Label = $LivesLabel
+@onready var _hp_bar: SegmentedBar = $HpBar
 @onready var _boss_bar: SegmentedBar = $BossBar
 @onready var _fuel_bar: SegmentedBar = $FuelBar
 @onready var _dash_bar: SegmentedBar = $DashBar
@@ -40,20 +41,21 @@ func _ready() -> void:
 	_kills_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	_difficulty_label.add_theme_font_size_override("font_size", 20)
 	_difficulty_label.add_theme_color_override("font_color", UITheme.ACCENT)
-	_lives_label.add_theme_font_size_override("font_size", 28)
+	_lives_label.add_theme_font_size_override("font_size", 22)
 	_lives_label.add_theme_color_override("font_color", UITheme.TEXT)
 	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
 		tag.add_theme_font_size_override("font_size", 16)
+	_hp_bar.fill_color = UITheme.ACCENT
 	_fuel_bar.fill_color = UITheme.ACCENT
 	_dash_bar.fill_color = UITheme.ACCENT
 	GameState.score_changed.connect(_on_score_changed)
-	GameState.lives_changed.connect(_on_lives_changed)
+	GameState.health_changed.connect(_on_health_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
 	GameState.difficulty_selected.connect(_on_difficulty_selected)
 	GameState.locale_changed.connect(_on_locale_changed)
 	_on_score_changed(GameState.score)
-	_on_lives_changed(GameState.lives)
+	_on_health_changed(GameState.health)
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
@@ -183,9 +185,6 @@ func _build_backplates() -> void:
 	status_plate.size = Vector2(560.0, 76.0)
 	add_child(status_plate)
 	move_child(status_plate, 0)
-	_lives_label.offset_left = 24.0
-	_lives_label.offset_top = -80.0
-	_lives_label.offset_bottom = -40.0
 	var lives_tag := Label.new()
 	lives_tag.text = tr("UI_LIVES_TAG")
 	lives_tag.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -282,8 +281,17 @@ func _on_score_changed(new_score: int) -> void:
 	_kills_label.text = tr("UI_KILLS") % GameState.kills
 
 
-func _on_lives_changed(new_lives: float) -> void:
-	_lives_label.text = tr("UI_LIVES") % ceili(new_lives)
+var _last_hp_text: String = ""
+
+
+func _on_health_changed(new_health: float) -> void:
+	var max_hp := GameState.max_health()
+	_hp_bar.value = clampf(new_health / max_hp, 0.0, 1.0) * 100.0
+	_hp_bar.fill_color = UITheme.DANGER if new_health / max_hp < 0.3 else UITheme.ACCENT
+	var text := "%d/%d" % [ceili(new_health), int(max_hp)]
+	if text != _last_hp_text:
+		_lives_label.text = text
+		_last_hp_text = text
 
 
 func _on_difficulty_changed(_new_multiplier: float) -> void:
@@ -296,7 +304,7 @@ func _on_difficulty_selected(_difficulty: StringName) -> void:
 
 func _on_locale_changed() -> void:
 	_on_score_changed(GameState.score)
-	_on_lives_changed(GameState.lives)
+	_on_health_changed(GameState.health)
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")

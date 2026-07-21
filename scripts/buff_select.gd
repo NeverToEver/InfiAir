@@ -1,5 +1,5 @@
 extends CanvasLayer
-## 里程碑 Buff 三选一：每 500 分触发，暂停游戏并弹出 3 张卡片。
+## 里程碑 Buff 三选一：达到里程碑阈值触发，暂停游戏并弹出 3 张卡片。
 
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
@@ -7,7 +7,7 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"power_shot",
 		"name": "强力射击",
-		"desc": "子弹伤害 +1\n（可无限叠加）",
+		"desc": "子弹伤害 ×1.25\n（可无限叠加）",
 		"max": 99,
 	},
 	{
@@ -25,14 +25,14 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"extra_life",
 		"name": "额外生命",
-		"desc": "生命 +1\n（可无限叠加）",
+		"desc": "最大生命 +50，立即回复 30\n（可无限叠加）",
 		"max": 99,
 	},
 	{
 		"id": &"regen",
 		"name": "自我修复",
-		"desc": "每 2 秒回复 0.5 生命\n（可叠加，生命向上取整显示）",
-		"max": 99,
+		"desc": "每秒回复 2 点生命",
+		"max": 1,
 	},
 	{
 		"id": &"piercing",
@@ -43,26 +43,26 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"explosive",
 		"name": "爆炸弹",
-		"desc": "命中产生 80px 范围爆炸\n（50% 伤害）",
+		"desc": "命中产生 50px 爆炸\n（固定 30 点溅射伤害）",
 		"max": 1,
 	},
 	{
 		"id": &"lifesteal",
 		"name": "吸血",
-		"desc": "击毁敌人 10% 概率回 0.5 命\n（可叠 2 层，每层 +5%）",
-		"max": 2,
+		"desc": "击毁敌人回复 10% 最大生命",
+		"max": 1,
 	},
 	{
 		"id": &"armor",
 		"name": "护甲",
-		"desc": "受击 25% 概率伤害减半\n（可叠 2 层）",
-		"max": 2,
+		"desc": "受到的伤害 ×85%",
+		"max": 1,
 	},
 	{
 		"id": &"evasion",
 		"name": "闪避",
-		"desc": "受击 15% 概率完全闪避\n（可叠 2 层，乘算递减）",
-		"max": 2,
+		"desc": "20% 概率完全闪避",
+		"max": 1,
 	},
 	{
 		"id": &"phase_dash",
@@ -73,7 +73,7 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"slow_field",
 		"name": "慢速力场",
-		"desc": "300px 内敌弹减速 40%",
+		"desc": "敌机与 Boss 移速 -20%",
 		"max": 1,
 	},
 	{
@@ -85,7 +85,7 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"laser_beam",
 		"name": "激光束",
-		"desc": "周期性释放 3 秒穿透激光\n（线上每 0.1 秒 1 伤害，冷却 10 秒）",
+		"desc": "周期性释放 3 秒穿透激光\n（线上每 0.1 秒 10 伤害，冷却 10 秒）",
 		"max": 1,
 	},
 	{
@@ -97,7 +97,7 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"mothership_recall",
 		"name": "母舰召回",
-		"desc": "母舰冷却时间减半\n（90s→45s→22.5s，最多 2 层）",
+		"desc": "母舰冷却时间减半\n（60s→30s→15s，最多 2 层）",
 		"max": 2,
 	},
 ]
@@ -141,11 +141,12 @@ func _ready() -> void:
 	GameState.locale_changed.connect(_on_locale_changed)
 
 
-## 抽卡候选池：未满层 + 未被路线锁定；explosive 需 boss_kills>=3 解锁（原作 gating）
+## 抽卡候选池：未满层 + 未被路线锁定；explosive 需 boss_kills>=3 解锁（原作 gating）。
+## 层数上限可用 balance.json 的 buffs.<id>.max_stacks 覆盖（缺省用池内值）。
 func _available_buffs() -> Array[Dictionary]:
 	return BUFF_POOL.filter(
 		func(b: Dictionary) -> bool: return (
-			GameState.buff_count(b["id"]) < b["max"]
+			GameState.buff_count(b["id"]) < int(GameState.cfg("buffs.%s.max_stacks" % String(b["id"]), b["max"]))
 			and not GameState.is_buff_locked(b["id"])
 			and (b["id"] != &"explosive" or GameState.boss_kills >= 3)
 		)
@@ -153,7 +154,7 @@ func _available_buffs() -> Array[Dictionary]:
 
 
 func _on_milestone_reached(_milestone_score: int) -> void:
-	if visible or GameState.lives <= 0.0:
+	if visible or GameState.health <= 0.0:
 		return
 	var available := _available_buffs()
 	# 所有 buff 已满层：直接跳过本次里程碑
@@ -224,6 +225,7 @@ func _on_card_gui_input(event: InputEvent, id: StringName) -> void:
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 		GameState.add_buff(id)
 		if id == &"extra_life":
-			GameState.heal(1.0)
+			# 对齐原作：选取瞬时 +30 HP（上限 +50 由 max_health() 按层数自动生效）
+			GameState.heal(GameState.cfg("buffs.extra_life.heal_on_pick", 30))
 		visible = false
 		get_tree().paused = false

@@ -16,7 +16,20 @@ var BOOST_MULT := 1.8
 var BASE_FIRE_INTERVAL := 0.15
 var BULLET_SPEED := 900.0
 var BULLET_SPREAD_DEG := 15.0
+## 单发弹伤基底（对齐原作 BULLET_DAMAGE=10 口径；power_shot 每层 ×1.25 乘算）
+var BULLET_DAMAGE := 10
 var INVINCIBLE_TIME := 1.5
+## 出生保护（对齐原作入场动画 60 帧≈1.0s 短路游戏逻辑的等效保护）
+var SPAWN_INVINCIBLE_TIME := 1.0
+## 受击清弹半径（对齐原作 BULLET_CLEAR_RADIUS=250）
+var BULLET_CLEAR_RADIUS := 250.0
+## 护甲：固定 ×0.85 减伤（对齐原作 ARMOR_MULTIPLIER，二元 buff 全伤害源生效）
+var ARMOR_MULT := 0.85
+## 闪避：20% 完全闪避（对齐原作 EVASION_CHANCE，二元 buff 全伤害源生效）
+var EVASION_CHANCE := 0.2
+## 自我修复 buff：每秒回 2 HP（对齐原作 RegenerationBuff，二元）
+var REGEN_PER_SEC := 2.0
+var SHAKE_HIT := 12.0
 
 var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
@@ -39,8 +52,9 @@ var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
-var _invincible: float = INVINCIBLE_TIME  # 出生保护
-var _regen_accum: float = 0.0
+var _invincible: float = 0.0
+var _last_hit_frame: int = -1  # 本帧已结算受击（A16：单帧至多结算一次）
+var _since_damage: float = 999.0  # 距上次受击秒数（被动回血延迟计时）
 var _dead: bool = false
 
 var _fuel: float = 100.0
@@ -63,12 +77,12 @@ var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
 @onready var _hitbox: Area2D = $Hitbox
 @onready var _thruster: GPUParticles2D = $Thruster
-@onready var _slow_ring: Node2D = $SlowFieldRing
 
 
 func _ready() -> void:
 	add_to_group("player")
 	GameState.player_ref = self
+	GameState.player_hitbox = $Hitbox
 	_load_balance()
 
 
@@ -82,7 +96,15 @@ func _load_balance() -> void:
 	BASE_FIRE_INTERVAL = GameState.cfg("player.base_fire_interval", BASE_FIRE_INTERVAL)
 	BULLET_SPEED = GameState.cfg("player.bullet_speed", BULLET_SPEED)
 	BULLET_SPREAD_DEG = GameState.cfg("player.bullet_spread_deg", BULLET_SPREAD_DEG)
+	BULLET_DAMAGE = GameState.cfg("player.bullet_damage", BULLET_DAMAGE)
 	INVINCIBLE_TIME = GameState.cfg("player.invincible_time", INVINCIBLE_TIME)
+	SPAWN_INVINCIBLE_TIME = GameState.cfg("player.spawn_invincible_time", SPAWN_INVINCIBLE_TIME)
+	BULLET_CLEAR_RADIUS = GameState.cfg("player.bullet_clear_radius", BULLET_CLEAR_RADIUS)
+	ARMOR_MULT = GameState.cfg("buffs.armor.multiplier", ARMOR_MULT)
+	EVASION_CHANCE = GameState.cfg("buffs.evasion.chance", EVASION_CHANCE)
+	REGEN_PER_SEC = GameState.cfg("buffs.regen.heal_per_sec", REGEN_PER_SEC)
+	SHAKE_HIT = GameState.cfg("effects.shake.player_hit", SHAKE_HIT)
+	_invincible = SPAWN_INVINCIBLE_TIME  # 出生保护（受击无敌同见 take_damage）
 	fuel_max = GameState.cfg("player.fuel.max", fuel_max)
 	_fuel = fuel_max
 	FUEL_DRAIN = GameState.cfg("player.fuel.drain", FUEL_DRAIN)
@@ -114,7 +136,8 @@ func fire_interval() -> float:
 
 
 func bullet_damage() -> int:
-	return GameState.cfg("buffs.power_shot.damage_bonus", 1) + GameState.buff_count(&"power_shot")
+	# power_shot：每层 ×1.25 乘算（对齐原作 PowerShotBuff int(base × 1.25^level)，int() 截断）
+	return maxi(1, int(BULLET_DAMAGE * pow(GameState.cfg("buffs.power_shot.factor", 1.25), GameState.buff_count(&"power_shot"))))
 
 
 func fuel_ratio() -> float:
@@ -223,8 +246,7 @@ func _physics_process(delta: float) -> void:
 		_fire(aim.normalized())
 		_fire_cooldown = fire_interval()
 
-	# 慢速力场环显示
-	_slow_ring.visible = GameState.buff_count(&"slow_field") > 0
+	# 慢速力场已改为全局敌机移速（A13），不再有玩家侧环视觉
 
 	# 无敌帧闪烁
 	if _invincible > 0.0:
@@ -233,13 +255,13 @@ func _physics_process(delta: float) -> void:
 	else:
 		_sprite.modulate.a = 1.0
 
-	# Regen buff：每 2s 回 0.5 命 / 层
-	var regen_stacks := GameState.buff_count(&"regen")
-	if regen_stacks > 0:
-		_regen_accum += delta
-		if _regen_accum >= GameState.cfg("buffs.regen.interval", 2.0):
-			_regen_accum -= GameState.cfg("buffs.regen.interval", 2.0)
-			GameState.heal(GameState.cfg("buffs.regen.heal_per_tick", 0.5) * regen_stacks)
+	# 回血：regen buff 固定 +2 HP/s（二元，对齐原作 RegenerationBuff）；
+	# 无 buff 时被动回血——距上次受伤 delay 秒起按难度速率回复（原作延迟不重置为疑似 bug，本版受伤即重置）
+	_since_damage += delta
+	if GameState.buff_count(&"regen") > 0:
+		GameState.heal(REGEN_PER_SEC * delta)
+	elif _since_damage >= GameState.passive_regen_delay():
+		GameState.heal(GameState.passive_regen_rate() * delta)
 
 
 ## 屏幕边缘钳制：随可见世界区域收窄（zoom=1 时即 40..1880 / 40..1040）
@@ -349,23 +371,41 @@ func _fire(aim: Vector2) -> void:
 	_audio.play()
 
 
-func take_damage(amount: float = 1.0) -> void:
+## 受击结算（100 HP 制）。返回 true = 本帧实际结算（调用方据此决定子弹是否销毁；
+## 无敌/单帧已结算/闪避返回 false，敌弹直接穿过不销毁，对齐原作 single-hit 语义）。
+## 减免两段式（去 bug 统一版：原作闪避仅敌机撞击、护甲不含敌机撞击且多层零收益，
+## 均疑似接线 bug——本版闪避与护甲对全部伤害源生效）：先 20% 闪避，再护甲 ×0.85。
+func take_damage(amount: float = 1.0) -> bool:
 	if _dead or _invincible > 0.0 or _dashing:
-		return
-	# 闪避 buff：完全闪避，概率 1-(0.85^n)
-	var evasion_stacks := GameState.buff_count(&"evasion")
-	if evasion_stacks > 0 and randf() < 1.0 - pow(GameState.cfg("buffs.evasion.keep_factor", 0.85), evasion_stacks):
-		return
-	# 护甲 buff：每层 25% 概率伤害减半
-	var armor_stacks := GameState.buff_count(&"armor")
-	if armor_stacks > 0 and randf() < GameState.cfg("buffs.armor.chance_per_stack", 0.25) * armor_stacks:
-		amount *= GameState.cfg("buffs.armor.damage_factor", 0.5)
+		return false
+	# A16：单帧至多结算一次受击（敌弹/敌机撞/Boss 撞共用）
+	if Engine.get_physics_frames() == _last_hit_frame:
+		return false
+	# 闪避 buff：20% 完全免伤（不置无敌、不清弹）
+	if GameState.buff_count(&"evasion") > 0 and randf() < EVASION_CHANCE:
+		return false
+	# 护甲 buff：固定 ×0.85 减伤
+	if GameState.buff_count(&"armor") > 0:
+		amount *= ARMOR_MULT
+	_last_hit_frame = Engine.get_physics_frames()
+	_since_damage = 0.0
 	_invincible = INVINCIBLE_TIME
 	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
-	GameState.shake(12.0)
-	GameState.lose_life(amount)
-	if GameState.lives <= 0.0:
+	GameState.shake(SHAKE_HIT)
+	GameState.lose_health(amount)
+	_clear_nearby_enemy_bullets()
+	if GameState.health <= 0.0:
 		_die()
+	return true
+
+
+## 受击连锁：清除 250px 内全部敌弹（对齐原作 BULLET_CLEAR_RADIUS；无分无特效）
+func _clear_nearby_enemy_bullets() -> void:
+	for child in get_parent().get_children():
+		var b := child as Bullet
+		if b != null and not b.is_player_bullet:
+			if b.global_position.distance_to(global_position) <= BULLET_CLEAR_RADIUS:
+				b._despawn()
 
 
 func _die() -> void:
@@ -380,3 +420,5 @@ func _die() -> void:
 func _exit_tree() -> void:
 	if GameState.player_ref == self:
 		GameState.player_ref = null
+	if GameState.player_hitbox == _hitbox:
+		GameState.player_hitbox = null

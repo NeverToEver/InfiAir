@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 渲染器，无外部插件），是 Python/Pygame 游戏 `../airwar-game` 的重制版。竖向卷动星空、鼠标瞄准全自动射击、波次敌机、每 500 分里程碑 Buff 三选一（池共 13 种）、周期 Boss 战（3 种轮换 + 狂暴阶段）、母舰补给、返航基地中场整备。纯得分制，无掉落/拾取机制。详细玩法见 `README.md`，移植对齐情况见 `docs/PORTING_PARITY.md`。
+InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 渲染器，无外部插件），是 Python/Pygame 游戏 `../airwar-game` 的重制版。竖向卷动星空、鼠标瞄准全自动射击、波次敌机、里程碑 Buff 三选一（池共 16 种）、周期 Boss 战（3 种轮换 + 狂暴阶段）、母舰补给、返航基地中场整备。纯得分制，无掉落/拾取机制。详细玩法见 `README.md`，移植对齐情况见 `docs/PORTING_PARITY.md`。
 
 - 主场景 `scenes/main.tscn`，窗口 1920×1080（stretch = canvas_items / keep）。
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`），全局状态与信号总线，内含常驻音效池（`GameState.play_sfx()`）与 `screen_shake` 信号。
@@ -34,9 +34,9 @@ godot --path .
   - `spawner.gd` — 敌机数值集中在 `ENEMY_TYPES` / `ELITE_TYPES`（static var，非 const：含 Vector2i 构造非常量表达式）。
   - `enemy.gd` — 7 种移动策略；`boss.gd` — 3 种 Boss 轮换与狂暴逻辑（类型由 `boss_kills % 3 + 1` 决定）。
   - `mothership.gd` — 母舰 7 态状态机（DESCEND/HOVER/DOCKING/RESUPPLY/STAY/RELEASE/DEPART）。
-  - `buff_select.gd` — Buff 池 `BUFF_POOL`（13 种，含层数上限）与三选一 UI。
+  - `buff_select.gd` — Buff 池 `BUFF_POOL`（16 种，含层数上限）与三选一 UI。
   - `base_console.gd` — 返航基地控制台（战机库/武器挂载/维修补给/任务规划 4 模块）。
-  - `hud.gd` / `game_over_ui.gd` / `pause_ui.gd` / `start_panel.gd` — UI；`starfield.gd`、`camera_shake.gd`、`explosion.gd`、`spawn_telegraph.gd`、`slow_field_ring.gd` — 表现层。
+  - `hud.gd` / `game_over_ui.gd` / `pause_ui.gd` / `start_panel.gd` — UI；`starfield.gd`、`camera_shake.gd`、`explosion.gd`、`spawn_telegraph.gd` — 表现层。
   - `scripts/tools/generate_audio.py` — 一次性音频程序合成脚本（仅 Python 标准库），产物已提交到 `assets/audio/`；需要重做音效时改参数重跑即可。
 - `autoload/game_state.gd` — 分数/生命/buff 层数/RP/任务/天赋路线数据层、存档与最高分持久化。
 - `assets/` — `sprites/`（战机贴图，机头朝上）、`audio/`（开火/爆炸/BGM 等 wav）、`fonts/`（msyh.ttc 中文 UI 字体）。
@@ -45,12 +45,12 @@ godot --path .
 ## 关键约定（改动时必须遵守）
 
 - 碰撞层：1=player，2=player_bullet，3=enemy（含 boss），4=enemy_bullet。子弹负责结算伤害（玩家弹检测 enemy 组，敌弹/敌机撞击检测 `player_hitbox` 组）。
-- 受击判定（3.8 对齐原作）：玩家受击只看 `Hitbox` Area2D（r=7 小判定点，近似原作 10×14）；CharacterBody2D 上的 r=22 圆无碰撞用途（mask=0，勿用于判定）。Boss 身体撞击走 boss 自身 `area_entered`（mask 含层 1）：入场降入/逃跑离场不判定，玩家 -1 命，Boss 不掉血不死。Boss 狂暴锁血：未狂暴时非致死伤害最多把 HP 钳到 30% 阈值并触发狂暴，致死直接击杀。敌弹按自身 damage 结算（`enemies.bullet_damage` single/spread/laser=1/1/2，`boss.bullet_damage` 狂暴快照激光=2 其余=1）。
+- 受击判定（3.9 起为 100 HP 制，对齐原作）：玩家 HP 存于 `GameState.health`（上限 `GameState.max_health()` = 基础 100 + extra_life ×50），受击只看 `Hitbox` Area2D（r=7 小判定点，近似原作 10×14）；CharacterBody2D 上的 r=22 圆无碰撞用途（mask=0，勿用于判定）。`player.take_damage(amount) -> bool`：先 20% 闪避（evasion，二元）再护甲 ×0.85（armor，二元），全伤害源两段式（原作分裂语义为疑似 bug 未移植）；返回 false（无敌/单帧已结算/闪避）时敌弹穿过不销毁——单帧至多结算一次受击（帧号标记），命中生效后清 250px 敌弹。敌弹按弹种 12/10/20，Boss 弹 14/12/21/12/21/12，敌机撞击 20（敌机不自毁），Boss 撞击 30（入场降入/逃跑离场不判定）。Boss 狂暴锁血：未狂暴时非致死伤害最多把 HP 钳到 30% 阈值并触发狂暴，致死直接击杀。回血：regen buff +2 HP/s，被动回血按难度（受伤重置延迟），lifesteal 击杀回 10% 上限（每帧至多一次），基地维修/母舰补给回满。
 - 玩家/敌弹共用 `scenes/bullet.tscn`，用 `setup()` 区分阵营；爆炸为纯代码构建的 `Explosion`（GPUParticles2D 一次性）。
 - 实体 `setup()` 在 `_ready()` 之前被调用，其中不能用 `@onready` 变量，需用 `$节点路径` 访问子节点。
 - 暂停类 UI（Buff/结算/暂停）`process_mode = Always`，用 `get_tree().paused` 控制。
 - BGM 循环只设 `stream.loop_mode = LOOP_FORWARD`；不要显式写 `loop_begin/loop_end` 或在 `_exit_tree` 里 `stop()`，否则退出时播放实例会泄漏（已在无头验证中复现）。
-- 母舰：长按 H 蓄力召唤（main 管理，虚影预告）、对接驻留 20s 弹匣制、长按 H 2s 提前离舰冷却打折；加特林为双塔 80° 扫射压制，弹丸 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）；对接序列锁输入用 `player._input_locked`，与暂停/清场逻辑兼容。
+- 母舰：长按 H 蓄力召唤（main 管理，虚影预告）→ 到位**自动点吸附对接**（无区域判定，原作语义）→ 驻留 20s 弹匣制（四格警告 5s 后强制离舰，对齐原作横幅弹射）+ WASD 驾驶母舰；无敌窗口 = 吸附开始→弹射结束（释放后 2s 保护为重制版 QoL）。长按 H 2s 提前离舰：冷却双机制折扣（时长 max(0.6,1-0.4r) + 预填 min(0.3,0.5r)），基础冷却 60s。火力：加特林双塔向上 80° 扫射（仅驻留有目标时）+ 导弹（0.3s/波 ≤5 最近目标、直线定向弹直击 80+溅射 20）；弹丸/导弹 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）。补给回满血+燃料为重制版增强（原作母舰无补给）。
 - 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
 - 视角缩放三档（`GameState.view_zoom`：small 1.0 / medium 1.35 / large 1.7，默认 medium，profile 持久化）：相机固定在 (960,540) 只设 `zoom`，一切"屏幕边缘/出屏/刷怪位置"逻辑必须走 `GameState.view_world_rect()`（zoom=1 时即全屏 1920×1080），不得再写死 0..1920 / 0..1080。
 
@@ -80,7 +80,7 @@ godot --path .
 - 动态拼接文本用带 `%d`/`%s` 占位的 key（如 `MS_STAY "驻留 %ds"`）。
 
 ## 性能约定（3.4）
-- 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。
+- 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。**池的同帧回收-复用安全**：实体带 `_active` 标记，回收的延迟调用（monitoring=false / reparent）在重激活后自动失效（3.9 修复过期延迟调用覆盖新激活的缺陷，改动池行为时勿破坏该模式）。
 - 敌机一律走 `GameState.enemy_pool.spawn()`（enemy_pool.gd，模式同子弹池）：`reactivate()` 全状态重置（计时/策略/HP/调制色/died 断连），`deactivate()` 注销注册表并断开 died 监听；`USE_POOL=false` 可回退纯 instantiate/free 做 A/B 对照。直接实例化（测试）走 `_ready` 兼容路径，互不影响。
 - 敌机三角函数统一 `Enemy.sin_fast/cos_fast`（2048 项循环表 + 线性插值，静态共享），禁止在 `_physics_process` 直接调 sin/cos。
 - 爆炸走 `Explosion.spawn_at`（静态池 ≤24，发射完回收不销毁）。

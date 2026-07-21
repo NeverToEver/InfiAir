@@ -8,69 +8,74 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 
 ## 普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
+## HP 定标（A11）：玩家弹伤 10、射速 0.15s 下 TTK≈1.2s（对齐原作 DPS 平衡器稳态）
 static var ENEMY_TYPES: Array[Dictionary] = [
 	{  # 1 型 均衡
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
-		"hp": Vector2i(2, 3), "speed": Vector2(140, 180), "score": 100,
+		"hp": Vector2i(75, 85), "speed": Vector2(140, 180), "score": 100,
 		"fire": 0.25, "fire_interval": 2.2, "scale": 0.45, "radius": 30.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 2 型 高速低 HP
 		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
 		"strategies": [&"zigzag", &"dive"] as Array[StringName],
-		"hp": Vector2i(1, 2), "speed": Vector2(220, 280), "score": 150,
+		"hp": Vector2i(55, 65), "speed": Vector2(220, 280), "score": 150,
 		"fire": 0.3, "fire_interval": 2.4, "scale": 0.45, "radius": 30.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
 		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
-		"hp": Vector2i(5, 6), "speed": Vector2(90, 120), "score": 200,
+		"hp": Vector2i(110, 130), "speed": Vector2(90, 120), "score": 200,
 		"fire": 0.4, "fire_interval": 2.0, "scale": 0.5, "radius": 34.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 	{  # 4 型 高分开火狂
 		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
 		"strategies": [&"noise", &"hover", &"aggressive"] as Array[StringName],
-		"hp": Vector2i(2, 3), "speed": Vector2(150, 190), "score": 250,
+		"hp": Vector2i(65, 75), "speed": Vector2(150, 190), "score": 250,
 		"fire": 0.8, "fire_interval": 1.8, "scale": 0.45, "radius": 30.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 ]
 
 ## 精英机型配置表（弹种池仅 spread/laser）
+## HP ≈ 普通均值 ×2.5（对齐原作精英倍率）；radius 与普通机同档
+## （A10：原作精英碰撞盒不大于普通机，"精英更大"为疑似 bug 不移植）
 static var ELITE_TYPES: Array[Dictionary] = [
 	{  # 重甲
 		"texture": preload("res://assets/sprites/elite_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
-		"hp": Vector2i(14, 16), "speed": Vector2(90, 110), "score": 400,
-		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 56.0, "elite": true,
+		"hp": Vector2i(210, 230), "speed": Vector2(90, 110), "score": 400,
+		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 34.0, "elite": true,
 		"bullet_types": [&"spread"] as Array[StringName],
 	},
 	{  # 游击
 		"texture": preload("res://assets/sprites/elite_ship_2.png"),
 		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
-		"hp": Vector2i(6, 8), "speed": Vector2(240, 300), "score": 350,
-		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 40.0, "elite": true,
+		"hp": Vector2i(150, 170), "speed": Vector2(240, 300), "score": 350,
+		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 30.0, "elite": true,
 		"bullet_types": [&"laser", &"spread"] as Array[StringName],
 	},
 	{  # 炮艇
 		"texture": preload("res://assets/sprites/elite_ship_3.png"),
 		"strategies": [&"hover", &"spiral"] as Array[StringName],
-		"hp": Vector2i(9, 11), "speed": Vector2(110, 140), "score": 500,
-		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 48.0, "elite": true,
+		"hp": Vector2i(190, 210), "speed": Vector2(110, 140), "score": 500,
+		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 34.0, "elite": true,
 		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},
 ]
 
 ## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
-const UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500]
+var UNLOCK_SCORES: Array = [0, 300, 800, 1500]
 var ELITE_BONUS_SCORE := 1500  # 达到后精英率 +0.1
 
 var SPAWN_INTERVAL_START := 1.2
 var SPAWN_INTERVAL_END := 0.5
 var RAMP_TIME := 300.0
+var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对刷怪间隔的影响系数
+var INTERVAL_MIN := 0.35
 var BOSS_SCORE_STEP := 1500
 var BOSS_TIME_LIMIT := 90.0
 
@@ -94,6 +99,9 @@ func _apply_balance() -> void:
 	BOSS_SCORE_STEP = GameState.cfg("spawner.boss_score_step", BOSS_SCORE_STEP)
 	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
 	ELITE_BONUS_SCORE = GameState.cfg("spawner.elite_bonus_score", ELITE_BONUS_SCORE)
+	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
+	INTERVAL_MIN = GameState.cfg("spawner.interval_min", INTERVAL_MIN)
+	UNLOCK_SCORES = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
 	var normal: Array = GameState.cfg("enemies.types", [])
 	for i in mini(normal.size(), ENEMY_TYPES.size()):
 		_merge_type(ENEMY_TYPES[i], normal[i])
@@ -130,9 +138,9 @@ func _current_interval() -> float:
 	var interval: float = (
 		base
 		* GameState.spawn_interval_multiplier()
-		/ (1.0 + 0.15 * (GameState.difficulty_multiplier - 1.0))
+		/ (1.0 + DIFFICULTY_FACTOR * (GameState.difficulty_multiplier - 1.0))
 	)
-	return clampf(interval, 0.35, SPAWN_INTERVAL_START * GameState.spawn_interval_multiplier())
+	return clampf(interval, INTERVAL_MIN, SPAWN_INTERVAL_START * GameState.spawn_interval_multiplier())
 
 
 ## 当前分数阶段已解锁的普通机型池

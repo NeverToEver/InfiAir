@@ -13,15 +13,21 @@ var homing_time: float = 0.0
 var pierce: int = 0
 ## 命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）
 var explosive: bool = false
+## 导弹溅射（母舰导弹）：命中时对半径内敌人追加固定溅射伤害（含主目标与 Boss）
+var splash_damage: int = 0
+var splash_radius: float = 0.0
 ## 击毁得分系数（母舰弹丸为 1/3）
 var score_scale: float = 1.0
 
-var EXPLOSIVE_RADIUS := 80.0
-var SLOW_FIELD_RADIUS := 300.0
-var SLOW_FIELD_FACTOR := 0.6
+## 爆炸弹 buff（对齐原作 bullet_vs_entities.py：半径 50×层、固定伤害 30×层、
+## 主目标吃直击+溅射两段、不伤 Boss、不伤玩家）
+var EXPLOSIVE_RADIUS := 50.0
+var EXPLOSIVE_DAMAGE := 30
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
+## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
+var _active: bool = false
 
 @onready var _polygon: Polygon2D = $Polygon2D
 
@@ -53,9 +59,12 @@ func activate(
 	p_homing_time: float = 0.0
 ) -> void:
 	setup(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
+	_active = true
 	_homing_elapsed = 0.0
 	pierce = 0
 	explosive = false
+	splash_damage = 0
+	splash_radius = 0.0
 	score_scale = 1.0
 	visible = true
 	monitoring = true
@@ -65,17 +74,23 @@ func activate(
 
 ## 池化回收：停用但保留实例。
 func deactivate() -> void:
+	_active = false
 	visible = false
-	set_deferred("monitoring", false)
 	set_process(false)
 	position = Vector2(-500.0, -500.0)
+	_deferred_disable_monitoring.call_deferred()
+
+
+## 物理回调内不能直改 monitoring，延迟到帧末；若子弹已被重激活（同帧复用）则跳过
+func _deferred_disable_monitoring() -> void:
+	if not _active:
+		monitoring = false
 
 
 func _ready() -> void:
 	area_entered.connect(_on_area_entered)
-	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius", EXPLOSIVE_RADIUS)
-	SLOW_FIELD_RADIUS = GameState.cfg("buffs.slow_field.radius", SLOW_FIELD_RADIUS)
-	SLOW_FIELD_FACTOR = GameState.cfg("buffs.slow_field.factor", SLOW_FIELD_FACTOR)
+	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius_per_level", EXPLOSIVE_RADIUS)
+	EXPLOSIVE_DAMAGE = GameState.cfg("buffs.explosive.damage_per_level", EXPLOSIVE_DAMAGE)
 	_apply_faction()
 
 
@@ -121,29 +136,36 @@ func _process(delta: float) -> void:
 			)
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle
-	position += direction * speed * _speed_factor() * delta
+	position += direction * speed * delta
 	if not GameState.view_world_rect(80.0).has_point(position):
 		_despawn()
 
 
-## 慢速力场 buff：玩家 300px 内敌弹减速 40%。
-func _speed_factor() -> float:
-	if is_player_bullet or GameState.buff_count(&"slow_field") == 0:
-		return 1.0
-	if GameState.player_ref != null:
-		if global_position.distance_to(GameState.player_ref.global_position) < SLOW_FIELD_RADIUS:
-			return SLOW_FIELD_FACTOR
-	return 1.0
-
-
-## 爆炸弹 buff：命中时对周围敌人造成 50% AoE 伤害。
-func _explode(exclude: Area2D) -> void:
-	var aoe_damage := maxi(1, int(damage * GameState.cfg("buffs.explosive.damage_ratio", 0.5)))
-	for node in GameState.enemies:
+## 爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
+## 遍历副本防 take_damage→die→注销注册表造成的遍历中突变。
+func _explode() -> void:
+	var stacks := maxi(GameState.buff_count(&"explosive"), 1)
+	var radius := EXPLOSIVE_RADIUS * stacks
+	var aoe_damage := EXPLOSIVE_DAMAGE * stacks
+	for node in GameState.enemies.duplicate():
 		var e := node as Area2D
-		if e != exclude and e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
+		if e == null or e is Boss:
+			continue
+		if e.global_position.distance_to(global_position) <= radius:
 			e.take_damage(aoe_damage)
 	Explosion.spawn_at(get_parent(), global_position, 0.6)
+	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
+
+
+## 导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害，×1/3 分随 score_scale。
+func _splash() -> void:
+	for node in GameState.enemies.duplicate():
+		var e := node as Area2D
+		if e == null:
+			continue
+		if e.global_position.distance_to(global_position) <= splash_radius:
+			e.take_damage(splash_damage, score_scale)
+	Explosion.spawn_at(get_parent(), global_position, 0.8)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 
 
@@ -151,12 +173,16 @@ func _on_area_entered(area: Area2D) -> void:
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
 			area.take_damage(damage, score_scale)
-			if explosive:
-				_explode(area)
+			# 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击
+			if explosive and not (area is Boss):
+				_explode()
+			if splash_damage > 0:
+				_splash()
 			if pierce > 0:
 				pierce -= 1
 			else:
 				_despawn()
 	elif area.is_in_group("player_hitbox"):
-		area.get_parent().take_damage(float(damage))
-		_despawn()
+		# 命中生效才销毁；无敌/单帧已结算/闪避则穿过（对齐原作 single-hit 语义）
+		if (area.get_parent() as Player).take_damage(float(damage)):
+			_despawn()

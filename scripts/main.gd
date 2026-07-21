@@ -259,15 +259,15 @@ func _summon_mothership() -> void:
 
 
 func _on_mothership_departed(cooldown: float) -> void:
-	# mothership_recall buff：每层冷却 ×0.5（90s→45s→22.5s）
+	# mothership_recall buff：每层冷却 ×0.5（60s→30s→15s）
 	_dock_cooldown = cooldown * pow(GameState.cfg("buffs.mothership_recall.cooldown_factor", 0.5), GameState.buff_count(&"mothership_recall"))
 
 
 ## 放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）
 func _give_up() -> void:
-	if _player._dead or GameState.lives <= 0.0:
+	if _player._dead or GameState.health <= 0.0:
 		return
-	GameState.lose_life(GameState.lives)
+	GameState.lose_health(GameState.health)
 	_player._die()
 
 
@@ -280,9 +280,10 @@ func _start_homecoming() -> void:
 	_player._input_locked = true
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
-	# 母舰若在对接/驻留中，直接收回（玩家由返航统一锁定，恢复时统一解锁）
+	# 母舰若在对接/驻留中，直接收回——按基础冷却进冷却（防"补给→返航→再召唤"无限循环）
 	if _mothership != null:
 		_mothership.queue_free()
+		_on_mothership_departed(GameState.cfg("mothership.depart_cooldown", 60.0))
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player._fuel, _spawner._elapsed)
 	_starfield.warp(18.0)

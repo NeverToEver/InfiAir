@@ -44,7 +44,7 @@ godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 
 - `main.gd` 是对局编排核心：刷怪、里程碑 Buff、Boss 调度、母舰蓄力、返航计时都在此串联。
 - 数值配置中心：所有可调数值在 `data/balance.json`，统一经 `GameState.cfg("player.fuel.drain" 式路径, 默认值)` 访问；**调参只改 JSON 不改脚本常量**，脚本内同名 var 是回退默认值需与 JSON 保持一致；热路径在 `_ready()` 一次性读入，禁止每帧 cfg 查询。
-- 碰撞层：`1=player 2=player_bullet 3=enemy(含boss) 4=enemy_bullet`；子弹侧结算伤害；玩家受击只看 `Hitbox` Area2D（r=7），Boss 身体撞击走自身 `area_entered`，狂暴前非致死伤害钳到 30% 阈值。
+- 碰撞层：`1=player 2=player_bullet 3=enemy(含boss) 4=enemy_bullet`；子弹侧结算伤害；玩家受击只看 `Hitbox` Area2D（r=7）；敌机/Boss 身体撞击走逐帧 `overlaps_area` 轮询（对齐原作），狂暴前非致死伤害钳到 30% 阈值。
 - 实体 `setup()` 在 `_ready()` 之前调用，其中不能用 `@onready` 变量，需用 `$节点路径`。
 - 视角缩放三档：相机固定 (960,540) 只设 `zoom`，一切"屏幕边缘/刷怪位置"逻辑必须走 `GameState.view_world_rect()`，不得写死 1920×1080。
 - 性能约定：子弹/敌机走对象池（`GameState.bullet_pool.fire()` / `enemy_pool.spawn()`），热路径禁止每帧 `get_nodes_in_group`（用 `GameState.enemies` / `player_ref` 注册表），禁止 `_physics_process` 直接调 sin/cos（用 `Enemy.sin_fast/cos_fast` 查表）。

@@ -122,7 +122,7 @@ func _enter_stage(idx: int) -> void:
 			_player._invincible = 999.0  # 教程不判负
 			_boss = BOSS_SCENE.instantiate() as Boss
 			_boss.setup(1.0, 1)
-			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 12.0)
+			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 120.0)
 			_boss.hp = _boss.max_hp
 			_boss.position = Vector2(960.0, -160.0)
 			_boss.enraged.connect(_on_boss_enraged)
@@ -195,8 +195,8 @@ func _physics_process(delta: float) -> void:
 				_pass_stage()
 		2:
 			# 锁血下限：每帧补足，受伤不死
-			if GameState.lives < 3.0:
-				GameState.lives = 3.0
+			if GameState.health < GameState.max_health():
+				GameState.heal(GameState.max_health() - GameState.health)
 		4:
 			if Input.is_action_pressed("homecoming"):
 				_home_charge += delta

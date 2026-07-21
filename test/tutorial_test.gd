@@ -33,7 +33,7 @@ func _ready() -> void:
 			targets.append(c)
 	_check(targets.size() == 3, "阶段 1 生成 3 个靶机")
 	for t in targets:
-		t.take_damage(99)
+		t.take_damage(9999)
 	await get_tree().create_timer(1.3).timeout
 	_check(tut._stage == 1, "阶段 1 → 2（击杀 3 靶过关）")
 
@@ -64,22 +64,21 @@ func _ready() -> void:
 	_check(enemies.size() == 5, "阶段 3 刷 5 只敌机")
 	for i in 3:
 		player._invincible = 0.0
-		player.take_damage()
+		player._last_hit_frame = -1
+		player.take_damage(10.0)
 		await get_tree().physics_frame
-	_check(GameState.lives >= 1.0 and not player._dead, "战斗阶段锁血不死")
+	_check(GameState.health > 0.0 and not player._dead, "战斗阶段锁血不死")
 	for e in enemies:
-		e.take_damage(99)
+		e.take_damage(9999)
 	await get_tree().create_timer(1.3).timeout
 	_check(tut._stage == 3, "阶段 3 → 4")
 
-	# 阶段 4：完整对接（弹匣加速消耗到自动释放）
+	# 阶段 4：自动对接（弹匣加速消耗到自动释放）
 	_check(tut._mothership != null, "阶段 4 母舰已召唤")
 	var ms: Mothership = tut._mothership
-	ms.position = Vector2(960.0, 270.0)
-	ms._state = Mothership.State.HOVER
+	ms.position = Vector2(960.0, 270.0)  # 到位触发自动对接
 	ms._mag_cells = 1  # 加速演示：1 格弹匣 2s 后自动释放
-	player.position = Vector2(960.0, 410.0)
-	await get_tree().create_timer(5.0).timeout
+	await get_tree().create_timer(6.0).timeout
 	_check(tut._stage == 4, "对接完成 → 阶段 5")
 
 	# 阶段 5：长按 B 打开基地

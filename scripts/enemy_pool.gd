@@ -33,16 +33,22 @@ func spawn(config: Dictionary, strategy: StringName, p_difficulty: float, pos: V
 	return e
 
 
-## 回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行。
+## 回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行；
+## 若敌机在延迟执行前已被重激活（同帧复用）则跳过。幂等防重复回收。
 func release(e: Enemy) -> void:
-	if not is_instance_valid(e):
+	if not is_instance_valid(e) or _free.has(e):
 		return
 	if not USE_POOL:
 		e.queue_free()
 		return
 	e.deactivate()
 	_free.append(e)
-	e.reparent.call_deferred(self)
+	_reparent_deferred.call_deferred(e)
+
+
+func _reparent_deferred(e: Enemy) -> void:
+	if is_instance_valid(e) and not e._active:
+		e.reparent(self)
 
 
 ## 被外部 queue_free（清场/测试/场景重载）时从池清单移除。

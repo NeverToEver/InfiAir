@@ -51,7 +51,7 @@ static func spawn_boss_sequence(parent: Node, pos: Vector2) -> void:
 
 
 func _init() -> void:
-	amount = 24
+	amount = int(GameState.cfg("effects.explosion.amount", 24))
 	lifetime = 0.6
 	one_shot = true
 	explosiveness = 0.9
@@ -71,7 +71,7 @@ func _init() -> void:
 
 	# 碎片发射器：少量、更大、更慢、寿命更长
 	_debris = GPUParticles2D.new()
-	_debris.amount = 10
+	_debris.amount = int(GameState.cfg("effects.explosion.debris_amount", 10))
 	_debris.lifetime = 0.9
 	_debris.one_shot = true
 	_debris.explosiveness = 0.85

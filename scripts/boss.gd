@@ -20,7 +20,15 @@ var ENTER_SPEED := 140.0
 var FIGHT_Y := 230.0
 var STRAFE_MIN_X := 300.0
 var STRAFE_MAX_X := 1620.0
-## 各类型 HP 系数（基础 30 × 难度乘数）
+## HP 基底（× 类型系数 × 难度乘数；对齐原作首发 Boss ≈12s TTK 量级）
+var HP_BASE := 800.0
+## 各类型移动速度 / 开火间隔 / 弹速（读 balance.json boss 段，AGENTS.md 调参约定）
+var STRAFE_SPEEDS: Array = [150.0, 400.0, 60.0]
+var FIRE_INTERVALS: Array = [1.6, 1.8, 0.9]
+var FAN_BULLET_SPEED := 380.0
+var HOMING_BULLET_SPEED := 300.0
+var SNIPER_BULLET_SPEED := 650.0
+var CROSS_BULLET_SPEED := 260.0
 var ENRAGE_HP_RATIO := 0.3
 var ENRAGE_RATE_MULT := 1.5
 var ENRAGE_SPEED_MULT := 1.3
@@ -35,13 +43,18 @@ var ESCAPE_WARNING := 3.0
 var ESCAPE_DRIFT := 26.0
 var ESCAPE_START_SPEED := 120.0
 var ESCAPE_ACCEL := 420.0
-## 各弹种伤害（3 命制，对齐原作 laser≈2×普通弹 的比例：狂暴快照激光=2，其余=1）
-var BULLET_DAMAGE_FAN := 1
-var BULLET_DAMAGE_HOMING := 1
-var BULLET_DAMAGE_SNIPER := 1
-var BULLET_DAMAGE_CROSS := 1
-var BULLET_DAMAGE_SNAPSHOT_LASER := 2
-var BULLET_DAMAGE_SNAPSHOT_RING := 1
+## 各弹种伤害（对齐原作 boss_attack.py phase-1：spread 12+2=14 / aim 18+3=21 / wave 12 /
+## 快照激光 18+3=21 / 快照环弹 12；homing 为本版弹种取 wave 同档 12）
+var BULLET_DAMAGE_FAN := 14
+var BULLET_DAMAGE_HOMING := 12
+var BULLET_DAMAGE_SNIPER := 21
+var BULLET_DAMAGE_CROSS := 12
+var BULLET_DAMAGE_SNAPSHOT_LASER := 21
+var BULLET_DAMAGE_SNAPSHOT_RING := 12
+## 身体撞击伤害（对齐原作 BOSS_COLLISION_DAMAGE=30）
+var COLLISION_DAMAGE := 30
+## 慢速力场：机体移速 ×0.8（对齐原作 boss 移动 slow_factor）
+var SLOW_FIELD_FACTOR := 0.8
 
 var boss_type: int = 1
 var max_hp: float = 30.0
@@ -72,7 +85,11 @@ var _cross_angle: float = 0.0
 
 func setup(p_difficulty: float, p_type: int) -> void:
 	boss_type = p_type
-	max_hp = 30.0 * float(GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])[p_type - 1]) * p_difficulty
+	max_hp = (
+		float(GameState.cfg("boss.hp_base", HP_BASE))
+		* float(GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])[p_type - 1])
+		* p_difficulty
+	)
 	hp = max_hp
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
 	($Sprite2D as Sprite2D).texture = TEXTURES[p_type - 1]
@@ -98,13 +115,21 @@ func _ready() -> void:
 	ESCAPE_DRIFT = GameState.cfg("boss.escape.drift", ESCAPE_DRIFT)
 	ESCAPE_START_SPEED = GameState.cfg("boss.escape.start_speed", ESCAPE_START_SPEED)
 	ESCAPE_ACCEL = GameState.cfg("boss.escape.accel", ESCAPE_ACCEL)
+	HP_BASE = GameState.cfg("boss.hp_base", HP_BASE)
+	STRAFE_SPEEDS = GameState.cfg("boss.strafe_speeds", STRAFE_SPEEDS)
+	FIRE_INTERVALS = GameState.cfg("boss.fire_intervals", FIRE_INTERVALS)
+	FAN_BULLET_SPEED = GameState.cfg("boss.fan_bullet_speed", FAN_BULLET_SPEED)
+	HOMING_BULLET_SPEED = GameState.cfg("boss.homing_bullet_speed", HOMING_BULLET_SPEED)
+	SNIPER_BULLET_SPEED = GameState.cfg("boss.sniper_bullet_speed", SNIPER_BULLET_SPEED)
+	CROSS_BULLET_SPEED = GameState.cfg("boss.cross_bullet_speed", CROSS_BULLET_SPEED)
+	COLLISION_DAMAGE = GameState.cfg("boss.collision_damage", COLLISION_DAMAGE)
+	SLOW_FIELD_FACTOR = GameState.cfg("buffs.slow_field.factor", SLOW_FIELD_FACTOR)
 	BULLET_DAMAGE_FAN = GameState.cfg("boss.bullet_damage.fan", BULLET_DAMAGE_FAN)
 	BULLET_DAMAGE_HOMING = GameState.cfg("boss.bullet_damage.homing", BULLET_DAMAGE_HOMING)
 	BULLET_DAMAGE_SNIPER = GameState.cfg("boss.bullet_damage.sniper", BULLET_DAMAGE_SNIPER)
 	BULLET_DAMAGE_CROSS = GameState.cfg("boss.bullet_damage.cross", BULLET_DAMAGE_CROSS)
 	BULLET_DAMAGE_SNAPSHOT_LASER = GameState.cfg("boss.bullet_damage.snapshot_laser", BULLET_DAMAGE_SNAPSHOT_LASER)
 	BULLET_DAMAGE_SNAPSHOT_RING = GameState.cfg("boss.bullet_damage.snapshot_ring", BULLET_DAMAGE_SNAPSHOT_RING)
-	area_entered.connect(_on_area_entered)
 
 
 func _exit_tree() -> void:
@@ -112,13 +137,12 @@ func _exit_tree() -> void:
 
 
 func _base_fire_interval() -> float:
-	match boss_type:
-		1:
-			return 1.6
-		2:
-			return 1.8
-		_:
-			return 0.9
+	return float(FIRE_INTERVALS[clampi(boss_type - 1, 0, FIRE_INTERVALS.size() - 1)])
+
+
+## 慢速力场因子（全局机体移速 ×0.8；与狂暴移速倍率相乘）
+func _slow_factor() -> float:
+	return SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
 
 
 func _base_modulate() -> Color:
@@ -136,7 +160,7 @@ func _physics_process(delta: float) -> void:
 			queue_free()
 		return
 	if not _in_fight:
-		position.y += ENTER_SPEED * delta
+		position.y += ENTER_SPEED * _slow_factor() * delta
 		if position.y >= FIGHT_Y:
 			_in_fight = true
 			health_changed.emit(hp, max_hp)
@@ -158,11 +182,11 @@ func _physics_process(delta: float) -> void:
 
 	match boss_type:
 		1:
-			_move_strafe(delta, 150.0)
+			_move_strafe(delta, float(STRAFE_SPEEDS[0]))
 		2:
 			_move_dash(delta)
 		3:
-			_move_strafe(delta, 60.0)
+			_move_strafe(delta, float(STRAFE_SPEEDS[2]))
 
 	# 狂暴：射速 ×1.5（计时器流速加快）
 	_fire_timer -= delta * (ENRAGE_RATE_MULT if _enraged else 1.0)
@@ -196,6 +220,8 @@ func _physics_process(delta: float) -> void:
 			_summon_timer = 6.0
 			_summon_minions()
 
+	_check_body_collision()
+
 
 ## 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）
 func _strafe_range() -> Vector2:
@@ -206,7 +232,7 @@ func _strafe_range() -> Vector2:
 
 
 func _move_strafe(delta: float, p_speed: float) -> void:
-	position.x += _strafe_dir * p_speed * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
+	position.x += _strafe_dir * p_speed * _slow_factor() * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
 	var bounds := _strafe_range()
 	if position.x < bounds.x or position.x > bounds.y:
 		_strafe_dir = -_strafe_dir
@@ -224,7 +250,7 @@ func _move_dash(delta: float) -> void:
 			if _strafe_dir == 0.0:
 				_strafe_dir = 1.0
 	if _dashing:
-		position.x += _strafe_dir * 400.0 * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
+		position.x += _strafe_dir * float(STRAFE_SPEEDS[1]) * _slow_factor() * (ENRAGE_SPEED_MULT if _enraged else 1.0) * delta
 		var bounds := _strafe_range()
 		if position.x < bounds.x or position.x > bounds.y:
 			_strafe_dir = -_strafe_dir
@@ -241,25 +267,25 @@ func _fire_fan() -> void:
 	var base_dir := _player_dir()
 	for i in 5:
 		var dir := base_dir.rotated(deg_to_rad(20.0 * (float(i) - 2.0)))
-		var b: Bullet = GameState.bullet_pool.fire(dir, 380.0, BULLET_DAMAGE_FAN, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, FAN_BULLET_SPEED, BULLET_DAMAGE_FAN, false)
 		b.position = position + dir * 100.0
 
 
 func _fire_homing() -> void:
-	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, 300.0, BULLET_DAMAGE_HOMING, false, true, 1.5)
+	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, HOMING_BULLET_SPEED, BULLET_DAMAGE_HOMING, false, true, 1.5)
 	b.position = position + Vector2(0.0, 100.0)
 
 
 func _fire_sniper() -> void:
 	var dir := _player_dir()
-	var b: Bullet = GameState.bullet_pool.fire(dir, 650.0, BULLET_DAMAGE_SNIPER, false)
+	var b: Bullet = GameState.bullet_pool.fire(dir, SNIPER_BULLET_SPEED, BULLET_DAMAGE_SNIPER, false)
 	b.position = position + dir * 100.0
 
 
 func _fire_cross() -> void:
 	for i in 4:
 		var dir := Vector2.RIGHT.rotated(_cross_angle + float(i) * PI / 2.0)
-		var b: Bullet = GameState.bullet_pool.fire(dir, 260.0, BULLET_DAMAGE_CROSS, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, CROSS_BULLET_SPEED, BULLET_DAMAGE_CROSS, false)
 		b.position = position + dir * 100.0
 	_cross_angle += deg_to_rad(15.0)
 
@@ -296,6 +322,8 @@ func fire_enrage_snapshot() -> void:
 ## 狂暴锁血（对齐原作 boss_sub_state.py compute_take_damage）：致死伤害直接击杀；
 ## 否则未狂暴时最多把 HP 打到阈值（触发狂暴），狂暴后不再钳制。
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
+	if hp <= 0.0:
+		return  # 已死亡待释放（同帧多发命中防重复结算）
 	hp -= float(amount)
 	_score_scale = score_scale
 	if hp > 0.0 and not _enraged and hp < max_hp * ENRAGE_HP_RATIO:
@@ -311,13 +339,12 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 		_enrage()
 
 
-## 身体撞击（对齐原作 boss_vs_player.py）：入场降入与逃跑离场阶段不判定；
-## 玩家 -1 命（受击无敌帧节流连撞），Boss 不掉血、不自毁。
-func _on_area_entered(area: Area2D) -> void:
-	if not _in_fight or _escaping:
-		return
-	if area.is_in_group("player_hitbox"):
-		area.get_parent().take_damage()
+## 身体撞击（对齐原作 boss_vs_player.py 逐帧轮询）：入场降入与逃跑离场阶段不判定；
+## 玩家 -30 HP（受击无敌帧节流连撞，无敌结束仍重叠会再次命中），Boss 不掉血、不自毁。
+func _check_body_collision() -> void:
+	var hb := GameState.player_hitbox
+	if hb != null and overlaps_area(hb):
+		(GameState.player_ref as Player).take_damage(COLLISION_DAMAGE)
 
 
 func _enrage() -> void:
@@ -330,6 +357,8 @@ func _enrage() -> void:
 
 func _die() -> void:
 	GameState.add_boss_kill(_score_scale)
+	# 吸血 buff：Boss 击杀同样触发（对齐原作 boss_manager 路径，每帧至多一次）
+	GameState.try_lifesteal()
 	Explosion.spawn_boss_sequence(get_parent(), global_position)
 	died.emit()
 	queue_free()

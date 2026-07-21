@@ -39,13 +39,20 @@ func fire(
 
 
 ## 回收：重置状态并移回池节点下（不销毁）。
-## reparent 延迟到空闲时执行，避免在物理回调（area_entered）内改场景树。
+## reparent 延迟到空闲时执行，避免在物理回调（area_entered）内改场景树；
+## 若子弹在延迟执行前已被重激活（同帧复用）则跳过，防止过期延迟调用覆盖新激活。
+## 幂等：受击清弹与命中销毁可能在同一回调内重复触发回收。
 func release(b: Bullet) -> void:
-	if not is_instance_valid(b):
+	if not is_instance_valid(b) or _free.has(b):
 		return
 	b.deactivate()
 	_free.append(b)
-	b.reparent.call_deferred(self)
+	_reparent_deferred.call_deferred(b)
+
+
+func _reparent_deferred(b: Bullet) -> void:
+	if is_instance_valid(b) and not b._active:
+		b.reparent(self)
 
 
 ## 子弹被外部 queue_free（清场/测试）时从池清单移除，防止悬空引用。

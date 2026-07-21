@@ -63,14 +63,14 @@ func _ready() -> void:
 	var enemy_scene: PackedScene = load("res://scenes/enemy.tscn")
 	var e1 := enemy_scene.instantiate() as Enemy
 	e1.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
-	e1.hp = 50
+	e1.hp = 9999
 	e1.speed = 0.0
 	e1.can_shoot = false
 	e1.position = player.global_position + aim * 300.0
 	main.add_child(e1)
 	var e2 := enemy_scene.instantiate() as Enemy
 	e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
-	e2.hp = 50
+	e2.hp = 9999
 	e2.speed = 0.0
 	e2.can_shoot = false
 	e2.position = player.global_position + aim * 600.0
@@ -82,8 +82,8 @@ func _ready() -> void:
 	_check(laser._active, "获得 laser_beam 后触发光束")
 	_check(laser._beam.visible, "光束视觉可见")
 	await get_tree().create_timer(0.5).timeout
-	_check(is_instance_valid(e1) and e1.hp < 50, "光束对直线上敌人 1 造成伤害")
-	_check(is_instance_valid(e2) and e2.hp < 50, "光束穿透对直线上敌人 2 造成伤害")
+	_check(is_instance_valid(e1) and e1.hp < 9999, "光束对直线上敌人 1 造成伤害")
+	_check(is_instance_valid(e2) and e2.hp < 9999, "光束穿透对直线上敌人 2 造成伤害")
 	# 3s 持续结束后进入约 10s 冷却
 	await get_tree().create_timer(2.8).timeout
 	_check(not laser._active, "3 秒后光束结束")
@@ -100,15 +100,15 @@ func _ready() -> void:
 		e2.queue_free()
 	await get_tree().process_frame
 
-	# 3. mothership_recall：每层母舰冷却 ×0.5（90s→45s→22.5s）
-	main._on_mothership_departed(90.0)
-	_check(is_equal_approx(main._dock_cooldown, 90.0), "无 recall 时母舰冷却 90s")
+	# 3. mothership_recall：每层母舰冷却 ×0.5（基础 60s→30s→15s）
+	main._on_mothership_departed(60.0)
+	_check(is_equal_approx(main._dock_cooldown, 60.0), "无 recall 时母舰冷却 60s")
 	GameState.add_buff(&"mothership_recall")
-	main._on_mothership_departed(90.0)
-	_check(is_equal_approx(main._dock_cooldown, 45.0), "recall 1 层母舰冷却 45s")
+	main._on_mothership_departed(60.0)
+	_check(is_equal_approx(main._dock_cooldown, 30.0), "recall 1 层母舰冷却 30s")
 	GameState.add_buff(&"mothership_recall")
-	main._on_mothership_departed(90.0)
-	_check(is_equal_approx(main._dock_cooldown, 22.5), "recall 2 层母舰冷却 22.5s")
+	main._on_mothership_departed(60.0)
+	_check(is_equal_approx(main._dock_cooldown, 15.0), "recall 2 层母舰冷却 15s")
 	_check(main.dock_status_text().contains("母舰冷却"), "母舰状态文本联动冷却值")
 	main._dock_cooldown = 0.0
 
@@ -130,12 +130,12 @@ func _ready() -> void:
 	Input.action_release("give_up")
 	await get_tree().create_timer(0.2).timeout
 	_check(main._give_up_charge == 0.0 and not hud._give_up_label.visible, "松开 K 取消蓄力")
-	_check(GameState.lives == 3.0, "取消蓄力未自毁")
+	_check(GameState.health == GameState.max_health(), "取消蓄力未自毁")
 	Input.action_press("give_up")
 	await get_tree().create_timer(3.3).timeout
 	Input.action_release("give_up")
 	await get_tree().process_frame
-	_check(GameState.lives == 0.0, "长按 K 3s 自毁")
+	_check(GameState.health == 0.0, "长按 K 3s 自毁")
 	_check(player._dead, "自毁后玩家死亡")
 	_check(get_node("Main/GameOverUI").visible, "自毁进入死亡结算面板")
 	_check(get_tree().paused, "结算时游戏暂停")

@@ -75,7 +75,7 @@ func _ready() -> void:
 	_check(boss != null, "场景1：Boss 已生成")
 	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
 	await _wait_real(0.3)
-	boss.take_damage(int(boss.max_hp * 0.75))  # 血量压到 25%，触发狂暴
+	boss.take_damage(int(boss.max_hp * 0.75))  # 非致死大额伤害：钳到 30% 阈值，触发狂暴
 	await get_tree().process_frame
 	_check(boss._enraged, "场景1：血量 <30% 触发狂暴（既有行为）")
 	_check(boss._base_modulate() != Color.WHITE, "场景1：狂暴贴图变红（既有行为）")
