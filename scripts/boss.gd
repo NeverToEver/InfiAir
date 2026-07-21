@@ -35,6 +35,13 @@ var ESCAPE_WARNING := 3.0
 var ESCAPE_DRIFT := 26.0
 var ESCAPE_START_SPEED := 120.0
 var ESCAPE_ACCEL := 420.0
+## 各弹种伤害（3 命制，对齐原作 laser≈2×普通弹 的比例：狂暴快照激光=2，其余=1）
+var BULLET_DAMAGE_FAN := 1
+var BULLET_DAMAGE_HOMING := 1
+var BULLET_DAMAGE_SNIPER := 1
+var BULLET_DAMAGE_CROSS := 1
+var BULLET_DAMAGE_SNAPSHOT_LASER := 2
+var BULLET_DAMAGE_SNAPSHOT_RING := 1
 
 var boss_type: int = 1
 var max_hp: float = 30.0
@@ -91,6 +98,13 @@ func _ready() -> void:
 	ESCAPE_DRIFT = GameState.cfg("boss.escape.drift", ESCAPE_DRIFT)
 	ESCAPE_START_SPEED = GameState.cfg("boss.escape.start_speed", ESCAPE_START_SPEED)
 	ESCAPE_ACCEL = GameState.cfg("boss.escape.accel", ESCAPE_ACCEL)
+	BULLET_DAMAGE_FAN = GameState.cfg("boss.bullet_damage.fan", BULLET_DAMAGE_FAN)
+	BULLET_DAMAGE_HOMING = GameState.cfg("boss.bullet_damage.homing", BULLET_DAMAGE_HOMING)
+	BULLET_DAMAGE_SNIPER = GameState.cfg("boss.bullet_damage.sniper", BULLET_DAMAGE_SNIPER)
+	BULLET_DAMAGE_CROSS = GameState.cfg("boss.bullet_damage.cross", BULLET_DAMAGE_CROSS)
+	BULLET_DAMAGE_SNAPSHOT_LASER = GameState.cfg("boss.bullet_damage.snapshot_laser", BULLET_DAMAGE_SNAPSHOT_LASER)
+	BULLET_DAMAGE_SNAPSHOT_RING = GameState.cfg("boss.bullet_damage.snapshot_ring", BULLET_DAMAGE_SNAPSHOT_RING)
+	area_entered.connect(_on_area_entered)
 
 
 func _exit_tree() -> void:
@@ -227,25 +241,25 @@ func _fire_fan() -> void:
 	var base_dir := _player_dir()
 	for i in 5:
 		var dir := base_dir.rotated(deg_to_rad(20.0 * (float(i) - 2.0)))
-		var b: Bullet = GameState.bullet_pool.fire(dir, 380.0, 1, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, 380.0, BULLET_DAMAGE_FAN, false)
 		b.position = position + dir * 100.0
 
 
 func _fire_homing() -> void:
-	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 1, false, true, 1.5)
+	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, 300.0, BULLET_DAMAGE_HOMING, false, true, 1.5)
 	b.position = position + Vector2(0.0, 100.0)
 
 
 func _fire_sniper() -> void:
 	var dir := _player_dir()
-	var b: Bullet = GameState.bullet_pool.fire(dir, 650.0, 1, false)
+	var b: Bullet = GameState.bullet_pool.fire(dir, 650.0, BULLET_DAMAGE_SNIPER, false)
 	b.position = position + dir * 100.0
 
 
 func _fire_cross() -> void:
 	for i in 4:
 		var dir := Vector2.RIGHT.rotated(_cross_angle + float(i) * PI / 2.0)
-		var b: Bullet = GameState.bullet_pool.fire(dir, 260.0, 1, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, 260.0, BULLET_DAMAGE_CROSS, false)
 		b.position = position + dir * 100.0
 	_cross_angle += deg_to_rad(15.0)
 
@@ -265,7 +279,7 @@ func fire_enrage_snapshot() -> void:
 	var aim := _player_dir()
 	var side := aim.orthogonal()
 	for i in ENRAGE_SNAPSHOT_LASERS:
-		var laser: Bullet = GameState.bullet_pool.fire(aim, ENRAGE_LASER_SPEED, 1, false)
+		var laser: Bullet = GameState.bullet_pool.fire(aim, ENRAGE_LASER_SPEED, BULLET_DAMAGE_SNAPSHOT_LASER, false)
 		laser.position = position + aim * 100.0 + side * (float(i) - 1.5) * 44.0
 		laser.set_meta("bullet_type", &"laser")
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
@@ -274,14 +288,18 @@ func fire_enrage_snapshot() -> void:
 		poly.color = Color(1.0, 0.85, 0.35)
 	for i in ENRAGE_SNAPSHOT_RING:
 		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(ENRAGE_SNAPSHOT_RING))
-		var b: Bullet = GameState.bullet_pool.fire(dir, ENRAGE_RING_SPEED, 1, false)
+		var b: Bullet = GameState.bullet_pool.fire(dir, ENRAGE_RING_SPEED, BULLET_DAMAGE_SNAPSHOT_RING, false)
 		b.position = position + dir * 100.0
 		b.set_meta("bullet_type", &"enrage_ring")
 
 
+## 狂暴锁血（对齐原作 boss_sub_state.py compute_take_damage）：致死伤害直接击杀；
+## 否则未狂暴时最多把 HP 打到阈值（触发狂暴），狂暴后不再钳制。
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
 	hp -= float(amount)
 	_score_scale = score_scale
+	if hp > 0.0 and not _enraged and hp < max_hp * ENRAGE_HP_RATIO:
+		hp = max_hp * ENRAGE_HP_RATIO
 	health_changed.emit(hp, max_hp)
 	_sprite.modulate = Color(2.0, 2.0, 2.0)
 	var tween := create_tween()
@@ -291,6 +309,15 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 		_die()
 	elif not _enraged and hp <= max_hp * ENRAGE_HP_RATIO:
 		_enrage()
+
+
+## 身体撞击（对齐原作 boss_vs_player.py）：入场降入与逃跑离场阶段不判定；
+## 玩家 -1 命（受击无敌帧节流连撞），Boss 不掉血、不自毁。
+func _on_area_entered(area: Area2D) -> void:
+	if not _in_fight or _escaping:
+		return
+	if area.is_in_group("player_hitbox"):
+		area.get_parent().take_damage()
 
 
 func _enrage() -> void:

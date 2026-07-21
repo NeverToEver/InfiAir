@@ -9,7 +9,11 @@ signal died(enemy: Enemy)
 
 var ENEMY_BULLET_SPEED := 420.0
 var SPREAD_BULLET_SPEED := 340.0  # 扇形弹稍慢
-var LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹，伤害同普通弹
+var LASER_BULLET_SPEED := 720.0  # laser 简化表现：细长高亮快速弹
+## 各弹种伤害（对齐原作 12/10/20 的比例近似：laser=2，其余=1）
+var BULLET_DAMAGE_SINGLE := 1
+var BULLET_DAMAGE_SPREAD := 1
+var BULLET_DAMAGE_LASER := 2
 var SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
 var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
 var EXIT_ACCEL := 520.0  # 寿命离场加速度
@@ -108,6 +112,9 @@ func _ready() -> void:
 	ENEMY_BULLET_SPEED = GameState.cfg("enemies.bullet_speed", ENEMY_BULLET_SPEED)
 	SPREAD_BULLET_SPEED = GameState.cfg("enemies.spread_bullet_speed", SPREAD_BULLET_SPEED)
 	LASER_BULLET_SPEED = GameState.cfg("enemies.laser_bullet_speed", LASER_BULLET_SPEED)
+	BULLET_DAMAGE_SINGLE = GameState.cfg("enemies.bullet_damage.single", BULLET_DAMAGE_SINGLE)
+	BULLET_DAMAGE_SPREAD = GameState.cfg("enemies.bullet_damage.spread", BULLET_DAMAGE_SPREAD)
+	BULLET_DAMAGE_LASER = GameState.cfg("enemies.bullet_damage.laser", BULLET_DAMAGE_LASER)
 	SPREAD_FAN_STEP = GameState.cfg("enemies.spread_fan_step", SPREAD_FAN_STEP)
 	LIFETIME = GameState.cfg("enemies.lifetime", LIFETIME)
 	EXIT_ACCEL = GameState.cfg("enemies.exit_accel", EXIT_ACCEL)
@@ -297,7 +304,12 @@ func _fire_at_player() -> void:
 
 
 func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) -> void:
-	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, 1, false)
+	var dmg := BULLET_DAMAGE_SINGLE
+	if p_type == &"spread":
+		dmg = BULLET_DAMAGE_SPREAD
+	elif p_type == &"laser":
+		dmg = BULLET_DAMAGE_LASER
+	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
 	b.position = position
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":

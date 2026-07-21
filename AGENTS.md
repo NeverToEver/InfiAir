@@ -45,6 +45,7 @@ godot --path .
 ## 关键约定（改动时必须遵守）
 
 - 碰撞层：1=player，2=player_bullet，3=enemy（含 boss），4=enemy_bullet。子弹负责结算伤害（玩家弹检测 enemy 组，敌弹/敌机撞击检测 `player_hitbox` 组）。
+- 受击判定（3.8 对齐原作）：玩家受击只看 `Hitbox` Area2D（r=7 小判定点，近似原作 10×14）；CharacterBody2D 上的 r=22 圆无碰撞用途（mask=0，勿用于判定）。Boss 身体撞击走 boss 自身 `area_entered`（mask 含层 1）：入场降入/逃跑离场不判定，玩家 -1 命，Boss 不掉血不死。Boss 狂暴锁血：未狂暴时非致死伤害最多把 HP 钳到 30% 阈值并触发狂暴，致死直接击杀。敌弹按自身 damage 结算（`enemies.bullet_damage` single/spread/laser=1/1/2，`boss.bullet_damage` 狂暴快照激光=2 其余=1）。
 - 玩家/敌弹共用 `scenes/bullet.tscn`，用 `setup()` 区分阵营；爆炸为纯代码构建的 `Explosion`（GPUParticles2D 一次性）。
 - 实体 `setup()` 在 `_ready()` 之前被调用，其中不能用 `@onready` 变量，需用 `$节点路径` 访问子节点。
 - 暂停类 UI（Buff/结算/暂停）`process_mode = Always`，用 `get_tree().paused` 控制。

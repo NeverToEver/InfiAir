@@ -36,6 +36,11 @@
 		"spread_bullet_speed": 340.0,
 		"laser_bullet_speed": 720.0,
 		"spread_fan_step": 0.314159,
+		"bullet_damage": {
+			"single": 1,
+			"spread": 1,
+			"laser": 2
+		},
 		"lifetime": 15.0,
 		"exit_accel": 520.0,
 		"aggressive_chase_speed": 170.0,
@@ -178,6 +183,14 @@
 		"homing_bullet_speed": 300.0,
 		"sniper_bullet_speed": 650.0,
 		"cross_bullet_speed": 260.0,
+		"bullet_damage": {
+			"fan": 1,
+			"homing": 1,
+			"sniper": 1,
+			"cross": 1,
+			"snapshot_laser": 2,
+			"snapshot_ring": 1
+		},
 		"enrage": {
 			"hp_ratio": 0.3,
 			"rate_mult": 1.5,
