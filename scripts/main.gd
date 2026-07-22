@@ -5,7 +5,6 @@ extends Node2D
 
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
-const MOTHERSHIP_GHOST: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
 var DOCK_CHARGE_TIME := 3.0
 var HOME_CHARGE_TIME := 1.5
 var GIVE_UP_HOLD_TIME := 3.0
@@ -33,7 +32,7 @@ var _dock_cooldown: float = 0.0
 var _mothership: Mothership = null
 var _charging: bool = false
 var _charge_time: float = 0.0
-var _charge_ghost: Sprite2D
+var _charge_ghost: Mothership
 var _home_charge_time: float = 0.0
 var _give_up_charge: float = 0.0
 # Boss 狂暴子弹时间状态（main 统一接管：Boss 被杀/逃跑也保证 time_scale 回 1）
@@ -68,15 +67,15 @@ func _ready() -> void:
 	_start_bgm_async()
 	if "--startup-time" in OS.get_cmdline_user_args():
 		_report_startup_time()
-	# 蓄力虚影（长按 H 蓄力期间显示）
-	_charge_ghost = Sprite2D.new()
-	_charge_ghost.texture = MOTHERSHIP_GHOST
-	_charge_ghost.scale = Vector2(1.6, 1.6)
-	_charge_ghost.rotation = PI
-	_charge_ghost.position = Vector2(960.0, 270.0)
+	# 蓄力虚影（长按 H 蓄力期间显示）：复用真实母舰场景实例做半透明预告，
+	# 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
+	_charge_ghost = MOTHERSHIP_SCENE.instantiate() as Mothership
+	add_child(_charge_ghost)
+	# 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
+	_charge_ghost.set_physics_process(false)
+	_charge_ghost.position = Vector2(960.0, _charge_ghost.HOVER_Y)
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
-	add_child(_charge_ghost)
 	# 有存档则先显示开始面板，否则直接开新局；欢迎页在显时由 dismiss() 补调 show_panel，
 	# 不得在此抢显（GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
 	if GameState.has_save() and not $WelcomeScreen.visible:

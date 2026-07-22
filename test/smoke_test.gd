@@ -302,6 +302,16 @@ func _ready() -> void:
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
 	_check(main._charging and main._mothership == null, "蓄力中未召唤")
+	# 蓄力虚影：复用真实母舰场景实例（贴图/尺寸/炮塔一致），仅半透明预告、禁用状态机
+	_check(main._charge_ghost.visible, "蓄力中显示母舰虚影")
+	_check(
+		(main._charge_ghost.get_node("Sprite2D") as Sprite2D).texture.resource_path
+			== "res://assets/sprites/mothership.png",
+		"虚影贴图 = 真实母舰贴图"
+	)
+	_check(main._charge_ghost.has_node("TurretL") and main._charge_ghost.has_node("TurretR"), "虚影含双炮塔")
+	_check(not main._charge_ghost.is_physics_processing(), "虚影禁用状态机（不移动/不对接）")
+	_check(main._charge_ghost.modulate.a < 0.5, "虚影半透明调制")
 	Input.action_release("dock")
 	await get_tree().create_timer(0.2).timeout
 	_check(not main._charging and main._dock_cooldown <= 0.0, "松手取消蓄力不进冷却")

@@ -107,9 +107,7 @@ func _enter_stage(idx: int) -> void:
 			_update_boost_objective()
 		2:  # 战斗基础：5 只 straight，锁血下限
 			_set_objective_tr("TUT_S3_OBJ", [0])
-			for i in 5:
-				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
-				e.position = Vector2(300.0 + 330.0 * i, -60.0 - 120.0 * (i % 2))
+			_spawn_combat_wave(5)
 		3:  # 母舰停靠
 			_set_objective_tr("TUT_S4_OBJ")
 			_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
@@ -145,6 +143,22 @@ func _on_player_died() -> void:
 func _on_boss_gone() -> void:
 	if _stage == 5 and not _finished and not _failed:
 		_enter_stage(5)
+
+
+## 阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）
+func _spawn_combat_wave(count: int) -> void:
+	for i in count:
+		var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
+		e.position = Vector2(300.0 + 330.0 * i, -60.0 - 120.0 * (i % 2))
+
+
+## 场上存活敌机数（教程实体均为本节点子节点）
+func _alive_enemy_count() -> int:
+	var n := 0
+	for child in get_children():
+		if child is Enemy:
+			n += 1
+	return n
 
 
 func _spawn_enemy(config: Dictionary, strategy: StringName) -> Enemy:
@@ -215,6 +229,9 @@ func _physics_process(delta: float) -> void:
 			# 锁血下限：每帧补足，受伤不死
 			if GameState.health < GameState.max_health():
 				GameState.heal(GameState.max_health() - GameState.health)
+			# 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数
+			if not _advancing and _stage_kills < 5 and _alive_enemy_count() == 0:
+				_spawn_combat_wave(5 - _stage_kills)
 		4:
 			if Input.is_action_pressed("homecoming"):
 				_home_charge += delta

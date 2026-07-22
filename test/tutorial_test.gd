@@ -89,6 +89,21 @@ func _ready() -> void:
 		player.take_damage(10.0)
 		await get_tree().physics_frame
 	_check(GameState.health > 0.0 and not player._dead, "战斗阶段锁血不死")
+	# 补刷兜底：先击杀 2 只，其余 3 只未计击杀直接离场（模拟飞出屏幕自毁）→ 自动补足剩余 3 只
+	enemies[0].take_damage(9999)
+	enemies[1].take_damage(9999)
+	await get_tree().physics_frame
+	for i in range(2, 5):
+		enemies[i].queue_free()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(tut._stage_kills == 2, "阶段 3 已计 2 杀（离场不虚增）")
+	enemies.clear()
+	for c in tut.get_children():
+		if c is Enemy:
+			enemies.append(c)
+	_check(enemies.size() == 3, "阶段 3 敌机离场后自动补足剩余 3 只")
+	_check(tut._stage == 2, "补刷后仍在阶段 3")
 	for e in enemies:
 		e.take_damage(9999)
 	await get_tree().create_timer(1.3).timeout
