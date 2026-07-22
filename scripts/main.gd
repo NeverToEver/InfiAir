@@ -77,8 +77,9 @@ func _ready() -> void:
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
 	add_child(_charge_ghost)
-	# 有存档则先显示开始面板，否则直接开新局
-	if GameState.has_save():
+	# 有存档则先显示开始面板，否则直接开新局；欢迎页在显时由 dismiss() 补调 show_panel，
+	# 不得在此抢显（GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
+	if GameState.has_save() and not $WelcomeScreen.visible:
 		_start_panel.show_panel()
 
 
@@ -199,8 +200,8 @@ func _on_continue_run() -> void:
 		_apply_new_run()
 		return
 	GameState.apply_run_save(data)
-	_player._fuel = float(data.get("fuel", _player.fuel_max))
-	_spawner._elapsed = float(data.get("elapsed", 0.0))
+	_player._fuel = GameState.save_num(data.get("fuel", _player.fuel_max), _player.fuel_max)
+	_spawner._elapsed = GameState.save_num(data.get("elapsed", 0.0), 0.0)
 
 
 func _on_player_died() -> void:

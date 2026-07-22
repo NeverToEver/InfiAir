@@ -161,7 +161,7 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	if available.is_empty():
 		return
 	available.shuffle()
-	_current_available = available.slice(0, 2)
+	_current_available = available.slice(0, 3)  # slice end 排他：取前 3 张候选
 	_build_cards()
 	get_tree().paused = true
 	visible = true

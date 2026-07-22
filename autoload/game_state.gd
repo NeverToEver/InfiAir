@@ -675,40 +675,54 @@ func _quarantine(path: String) -> void:
 		push_warning("InfiAir: 无法备份损坏文件 %s（错误 %d）" % [path, err])
 
 
+## 存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
+func save_num(v: Variant, default: float) -> float:
+	return float(v) if v is int or v is float else default
+
+
 func apply_run_save(data: Dictionary) -> void:
-	score = int(data.get("score", 0))
-	kills = int(data.get("kills", 0))
-	boss_kills = int(data.get("boss_kills", 0))
-	difficulty_multiplier = float(data.get("difficulty_multiplier", 1.0))
+	# 逐字段判型：语法合法但结构非法的存档（手改）不崩，异常字段回默认值
+	score = int(save_num(data.get("score", 0), 0.0))
+	kills = int(save_num(data.get("kills", 0), 0.0))
+	boss_kills = int(save_num(data.get("boss_kills", 0), 0.0))
+	difficulty_multiplier = save_num(data.get("difficulty_multiplier", 1.0), 1.0)
 	buffs.clear()
-	var saved_buffs: Dictionary = data.get("buffs", {})
-	for key in saved_buffs.keys():
-		buffs[StringName(key)] = int(saved_buffs[key])
+	var saved_buffs: Variant = data.get("buffs", {})
+	if saved_buffs is Dictionary:
+		for key in saved_buffs.keys():
+			if saved_buffs[key] is int or saved_buffs[key] is float:
+				buffs[StringName(key)] = int(saved_buffs[key])
 	# 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
 	# v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health
-	if int(data.get("version", 1)) >= 2:
-		health = clampf(float(data.get("health", max_health())), 0.0, max_health())
+	if int(save_num(data.get("version", 1), 1.0)) >= 2:
+		health = clampf(save_num(data.get("health", max_health()), max_health()), 0.0, max_health())
 	else:
 		health = max_health()
-	run_time = float(data.get("elapsed", 0.0))
-	rp = int(data.get("rp", 0))
+	run_time = save_num(data.get("elapsed", 0.0), 0.0)
+	rp = int(save_num(data.get("rp", 0), 0.0))
 	_init_missions()
-	var saved_missions: Dictionary = data.get("missions", {})
-	for key in saved_missions.keys():
-		if missions.has(StringName(key)):
-			var m: Dictionary = saved_missions[key]
-			missions[StringName(key)] = {
-				"progress": int(m.get("progress", 0)),
-				"claimed": bool(m.get("claimed", false)),
-			}
+	var saved_missions: Variant = data.get("missions", {})
+	if saved_missions is Dictionary:
+		for key in saved_missions.keys():
+			if missions.has(StringName(key)) and saved_missions[key] is Dictionary:
+				var m: Dictionary = saved_missions[key]
+				var claimed: Variant = m.get("claimed", false)
+				missions[StringName(key)] = {
+					"progress": int(save_num(m.get("progress", 0), 0.0)),
+					"claimed": claimed if claimed is bool else false,
+				}
 	chosen_routes.clear()
-	var saved_chosen: Dictionary = data.get("chosen_routes", {})
-	for key in saved_chosen.keys():
-		chosen_routes[StringName(key)] = StringName(saved_chosen[key])
+	var saved_chosen: Variant = data.get("chosen_routes", {})
+	if saved_chosen is Dictionary:
+		for key in saved_chosen.keys():
+			if saved_chosen[key] is String or saved_chosen[key] is StringName:
+				chosen_routes[StringName(key)] = StringName(saved_chosen[key])
 	locked_routes.clear()
-	var saved_locked: Dictionary = data.get("locked_routes", {})
-	for key in saved_locked.keys():
-		locked_routes[StringName(key)] = StringName(saved_locked[key])
+	var saved_locked: Variant = data.get("locked_routes", {})
+	if saved_locked is Dictionary:
+		for key in saved_locked.keys():
+			if saved_locked[key] is String or saved_locked[key] is StringName:
+				locked_routes[StringName(key)] = StringName(saved_locked[key])
 	# 设置项随存档往返（旧存档无字段时保留当前值）
 	ctrl_toggle_mode = bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode))
 	shift_toggle_mode = bool(data.get("shift_toggle_mode", shift_toggle_mode))

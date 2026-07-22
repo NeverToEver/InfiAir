@@ -269,6 +269,7 @@ func _show_warning(text: String) -> void:
 
 
 func show_boss_bar(boss: Boss) -> void:
+	_boss_bar.fill_color = UITheme.ACCENT  # 重置上一只 Boss 狂暴留下的红色
 	_boss_bar.visible = true
 	_boss_bar.value = 100.0
 	boss.health_changed.connect(_on_boss_health_changed)

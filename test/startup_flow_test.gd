@@ -113,6 +113,75 @@ func _ready() -> void:
 	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel._new_button, "损坏存档焦点落到开始游戏")
 	start_panel._dismiss()
 
+	# ---------- 6. F1 回归：有存档 + 欢迎页首显，开始面板不得抢显/抢焦点 ----------
+	GameState.save_run(50.0, 10.0)
+	GameState.welcome_seen = false
+	# 重置 welcome_screen 的进程内 static 兜底（本进程已展示过一次）
+	(load("res://scripts/welcome_screen.gd") as GDScript)._entry_shown = false
+	get_node("Main").queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	add_child(main_scene.instantiate())
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var welcome2: CanvasLayer = get_node("Main/WelcomeScreen")
+	var start_panel2: CanvasLayer = get_node("Main/StartPanel")
+	_check(welcome2.visible, "F1：有存档且首显时欢迎页显示")
+	_check(not start_panel2.visible, "F1：开始面板不在欢迎页下抢显")
+	_check(start_panel2.get_viewport().gui_get_focus_owner() == null, "F1：欢迎页期间无 GUI 焦点")
+	# 模拟 Enter：只许关闭欢迎页，不得触发「继续对局」（恢复运行/读档）
+	var continued := [false]
+	start_panel2.continue_chosen.connect(func() -> void: continued[0] = true)
+	var enter := InputEventKey.new()
+	enter.keycode = KEY_ENTER
+	enter.pressed = true
+	Input.parse_input_event(enter)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not welcome2.visible and start_panel2.visible, "F1：Enter 关闭欢迎页进入开始面板")
+	_check(get_tree().paused, "F1：Enter 未绕过欢迎页恢复游戏运行")
+	_check(not continued[0], "F1：Enter 未触发继续对局")
+	_check(GameState.has_save(), "F1：Enter 未触发新游戏删档")
+	_check(
+		start_panel2.get_viewport().gui_get_focus_owner() == start_panel2._continue_button,
+		"F1：dismiss 后面板焦点在继续对局"
+	)
+	# dismiss 幂等：已隐藏时再调不应报错或改变面板状态
+	welcome2.dismiss()
+	_check(start_panel2.visible, "F1：dismiss 后开始面板正常显示")
+
+	# ---------- 7. F2：语法合法但结构非法的存档 → 继续对局不崩、异常字段回默认 ----------
+	_write_file(GameState.SAVE_PATH, JSON.stringify({
+		"version": 2,
+		"score": "lots",
+		"kills": [1, 2],
+		"health": "full",
+		"fuel": "half",
+		"elapsed": "long",
+		"buffs": [1, 2],
+		"missions": {"kill_5": "done"},
+		"chosen_routes": [3],
+		"locked_routes": {"line": 7},
+		"rp": "rich",
+		"difficulty_multiplier": "high",
+	}))
+	var bad_data := GameState.load_run_data()
+	_check(not bad_data.is_empty(), "F2：结构非法存档可解析（语法合法不隔离）")
+	GameState.reset_run()
+	GameState.apply_run_save(bad_data)
+	_check(GameState.score == 0, "F2：非法 score 回默认 0")
+	_check(GameState.buffs.is_empty(), "F2：非法 buffs 回默认空")
+	_check(GameState.health == GameState.max_health(), "F2：非法 health 回默认满血")
+	_check(GameState.rp == 0, "F2：非法 rp 回默认 0")
+	_check(GameState.chosen_routes.is_empty() and GameState.locked_routes.is_empty(), "F2：非法路线字段回默认空")
+	_check(int(GameState.missions[&"kill_5"]["progress"]) == 0, "F2：非法 mission 条目回默认进度")
+	# main 的继续对局路径（fuel/elapsed 判型）
+	var main2 := get_node("Main")
+	var player2: Player = get_node("Main/Player")
+	main2._on_continue_run()
+	_check(player2._fuel == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
+	_check(get_node("Main/Spawner")._elapsed == 0.0, "F2：非法 elapsed 回默认 0")
+
 	_cleanup()
 	GameState.welcome_seen = false
 	GameState.save_profile()

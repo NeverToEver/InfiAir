@@ -50,6 +50,7 @@ func _ready() -> void:
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
 	_check(buff_ui.visible, "500 分触发 Buff 选择 UI")
 	_check(get_tree().paused, "Buff UI 弹出时游戏暂停")
+	_check(buff_ui._current_available.size() == 3, "里程碑三选一候选数为 3（池未满）")
 
 	# 2. 选择 buff 后恢复
 	var ev := InputEventMouseButton.new()

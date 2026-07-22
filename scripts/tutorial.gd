@@ -29,6 +29,7 @@ var _base_ui: CanvasLayer = null
 var _boss: Boss = null
 var _mothership: Mothership = null
 var _finished: bool = false
+var _failed: bool = false
 
 var _title_label: Label
 var _objective_label: Label
@@ -46,6 +47,7 @@ func _ready() -> void:
 	GameState.reset_run()
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
 	GameState.locale_changed.connect(_on_locale_changed)
+	GameState.player_died.connect(_on_player_died)
 	_build_hud()
 	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
 	_enter_stage(0)
@@ -126,7 +128,23 @@ func _enter_stage(idx: int) -> void:
 			_boss.hp = _boss.max_hp
 			_boss.position = Vector2(960.0, -160.0)
 			_boss.enraged.connect(_on_boss_enraged)
+			_boss.died.connect(_on_boss_gone)
 			add_child(_boss)
+
+
+## 玩家死亡：教程无法推进（阶段 4/5 依赖玩家存活操作），提示失败并等待 Esc 退出
+func _on_player_died() -> void:
+	if _finished or _failed:
+		return
+	_failed = true
+	_title_label.text = tr("TUT_FAIL_TITLE")
+	_set_objective_tr("TUT_FAIL_DESC")
+
+
+## 阶段 6 软锁兜底：Boss 未触发狂暴即被击杀/逃跑离场（died 两种离场都会发）→ 重置阶段重刷
+func _on_boss_gone() -> void:
+	if _stage == 5 and not _finished and not _failed:
+		_enter_stage(5)
 
 
 func _spawn_enemy(config: Dictionary, strategy: StringName) -> Enemy:
@@ -168,7 +186,7 @@ func _on_boss_enraged() -> void:
 
 
 func _pass_stage() -> void:
-	if _advancing:
+	if _advancing or _failed:
 		return
 	_advancing = true
 	GameState.play_sfx(GameState.SFX_BUFF_PICK)
@@ -179,7 +197,7 @@ func _pass_stage() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _finished:
+	if _finished or _failed:
 		return
 	match _stage:
 		1:

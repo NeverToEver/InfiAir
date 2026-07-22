@@ -18,6 +18,27 @@ func _ready() -> void:
 	GameState.high_score = 0
 	GameState.tutorial_done = false
 	GameState.save_profile()
+
+	# ---------- 软锁路径 a：玩家死亡 → 显示任务失败提示（独立实例，不影响主流程） ----------
+	var tut_a: Node2D = (load("res://scenes/tutorial.tscn") as PackedScene).instantiate()
+	add_child(tut_a)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var player_a: Player = tut_a.get_node("Player")
+	player_a._auto_fire_enabled = false
+	player_a._invincible = 0.0
+	player_a._last_hit_frame = -1
+	player_a.take_damage(9999.0)
+	await get_tree().process_frame
+	_check(player_a._dead, "死亡路径：玩家已死亡")
+	_check(tut_a._failed, "死亡路径：教程进入失败态")
+	_check(tut_a._title_label.text == tr("TUT_FAIL_TITLE"), "死亡路径：标题显示任务失败（tr 命中）")
+	_check(tut_a._objective_label.text == tr("TUT_FAIL_DESC"), "死亡路径：提示 Esc 退出（tr 命中）")
+	tut_a.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# ---------- 主流程：6 阶段推进 ----------
 	add_child(load("res://scenes/tutorial.tscn").instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -94,6 +115,18 @@ func _ready() -> void:
 	# 阶段 6：Boss 狂暴即过关
 	_check(tut._boss != null, "阶段 6 Boss 已生成")
 	var boss: Boss = tut._boss
+	# 软锁路径 b：Boss 未狂暴逃跑离场 → 重置阶段 6 重刷 Boss
+	boss._begin_escape()
+	boss.position.y = -300.0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(not is_instance_valid(boss), "阶段 6：未狂暴 Boss 逃跑离场")
+	_check(tut._stage == 5 and not tut._finished, "阶段 6：逃跑后仍在阶段 6 未过关")
+	_check(
+		tut._boss != null and is_instance_valid(tut._boss) and tut._boss != boss,
+		"阶段 6：逃跑后重置重刷 Boss"
+	)
+	boss = tut._boss
 	boss.take_damage(int(boss.max_hp * 0.75))
 	await get_tree().create_timer(0.3).timeout
 	_check(tut._finished, "Boss 狂暴触发即过关")

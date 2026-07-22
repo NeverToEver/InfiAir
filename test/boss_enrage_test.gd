@@ -151,6 +151,8 @@ func _ready() -> void:
 		if child is Boss:
 			boss2 = child
 	_check(boss2 != null, "场景2：Boss 已生成")
+	# 场景1 狂暴把血条染红（DANGER），新 Boss 开场必须重置回 ACCENT
+	_check(get_node("Main/HUD/BossBar").fill_color == UITheme.ACCENT, "场景2：第二只 Boss 开场血条重置为 ACCENT")
 	boss2.position.y = boss2.FIGHT_Y
 	await _wait_real(0.3)
 	boss2.take_damage(int(boss2.max_hp * 0.75))
