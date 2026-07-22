@@ -14,6 +14,7 @@ signal route_chosen(line: StringName, buff_id: StringName)
 signal key_bindings_changed
 signal locale_changed
 signal view_zoom_changed(factor: float)
+signal window_size_changed(level: StringName)
 
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
@@ -145,6 +146,8 @@ var ctrl_toggle_mode: bool = false
 var shift_toggle_mode: bool = false
 ## 视角档位（profile 持久化，默认 medium；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）
 var view_zoom: StringName = &"medium"
+## 窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）
+var window_size: StringName = &"large"
 ## buff id -> 已选层数
 var buffs: Dictionary = {}
 ## 征用点数（基地经济）
@@ -367,6 +370,38 @@ func set_view_zoom(level: StringName) -> void:
 
 func view_zoom_factor() -> float:
 	return _view_zoom_factor
+
+
+# ---------------- 窗口大小 ----------------
+
+## 窗口尺寸档位表（设置页三选，profile 持久化；stretch 等比缩放，仅改窗口物理尺寸）。
+## 非 const：Vector2i 构造为非常量表达式（同 spawner.ENEMY_TYPES 先例）。
+static var WINDOW_SIZE_LEVELS: Dictionary = {
+	&"small": Vector2i(1280, 720),
+	&"medium": Vector2i(1600, 900),
+	&"large": Vector2i(1920, 1080),
+}
+const WINDOW_SIZE_ORDER: Array[StringName] = [&"small", &"medium", &"large"]
+
+
+## 切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 profile 并广播
+func set_window_size(level: StringName) -> void:
+	if not WINDOW_SIZE_LEVELS.has(level) or level == window_size:
+		return
+	window_size = level
+	_apply_window_size()
+	save_profile()
+	window_size_changed.emit(window_size)
+
+
+## 应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过
+func _apply_window_size() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var win := get_window()
+	if win == null or win.mode != Window.MODE_WINDOWED:
+		return
+	win.size = WINDOW_SIZE_LEVELS[window_size]
 
 
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
@@ -776,6 +811,10 @@ func load_profile() -> void:
 	if VIEW_ZOOM_LEVELS.has(saved_zoom):
 		view_zoom = saved_zoom
 		_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
+	var saved_window := StringName(parsed.get("window_size", ""))
+	if WINDOW_SIZE_LEVELS.has(saved_window):
+		window_size = saved_window
+		_apply_window_size()
 
 
 func save_profile() -> void:
@@ -790,6 +829,7 @@ func save_profile() -> void:
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,
 		"view_zoom": String(view_zoom),
+		"window_size": String(window_size),
 	}
 	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	if f == null:

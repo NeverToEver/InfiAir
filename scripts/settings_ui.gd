@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## 设置界面：左侧导航三页——「控制」（可改键表 + 恢复默认）、
-## 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放）、「关于」（版本与操作速查）。
+## 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）。
 ## 改键：点「改键」进入捕获态，下一按键即绑定（Esc 取消），冲突键从占用者移除。
 
 signal back_pressed
@@ -18,6 +18,8 @@ var _lang_zh: Button
 var _lang_en: Button
 var _zoom_group := ButtonGroup.new()
 var _zoom_buttons: Dictionary = {}  # 视角档位 -> Button
+var _window_group := ButtonGroup.new()
+var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
@@ -243,6 +245,21 @@ func _build_modes_page() -> VBoxContainer:
 		b.pressed.connect(GameState.set_view_zoom.bind(level))
 		zoom_row.add_child(b)
 		_zoom_buttons[level] = b
+	# 窗口大小（小/中/大，按钮含分辨率文本，加宽）
+	var win_row := HBoxContainer.new()
+	win_row.add_theme_constant_override("separation", 16)
+	page.add_child(win_row)
+	var win_label := _make_label(tr("SET_WINDOW_SIZE"), 26)
+	win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	win_label.custom_minimum_size = Vector2(240.0, 0.0)
+	win_row.add_child(win_label)
+	_window_buttons.clear()
+	for level in GameState.WINDOW_SIZE_ORDER:
+		var b := _make_mode_button(tr("SET_WINDOW_" + String(level).to_upper()), _window_group)
+		b.custom_minimum_size = Vector2(210.0, 48.0)
+		b.pressed.connect(GameState.set_window_size.bind(level))
+		win_row.add_child(b)
+		_window_buttons[level] = b
 	return page
 
 
@@ -311,6 +328,7 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_refresh_rebind_rows()
 	_refresh_lang_buttons()
 	_refresh_zoom_buttons()
+	_refresh_window_buttons()
 	_hint_label.text = ""
 	_capturing_action = &""
 	_show_page(&"controls")
@@ -326,6 +344,11 @@ func _refresh_lang_buttons() -> void:
 func _refresh_zoom_buttons() -> void:
 	for level in _zoom_buttons:
 		(_zoom_buttons[level] as Button).set_pressed_no_signal(level == GameState.view_zoom)
+
+
+func _refresh_window_buttons() -> void:
+	for level in _window_buttons:
+		(_window_buttons[level] as Button).set_pressed_no_signal(level == GameState.window_size)
 
 
 func _on_locale_changed() -> void:
@@ -355,6 +378,7 @@ func _on_locale_changed() -> void:
 	_shift_hold.set_pressed_no_signal(not GameState.shift_toggle_mode)
 	_shift_toggle.set_pressed_no_signal(GameState.shift_toggle_mode)
 	_refresh_zoom_buttons()
+	_refresh_window_buttons()
 
 
 func _on_ctrl_mode(toggle_mode: bool) -> void:

@@ -60,6 +60,7 @@ godot --path .
 - 母舰：长按 H 蓄力召唤（main 管理，虚影预告）→ 到位**自动点吸附对接**（无区域判定，原作语义）→ 驻留 20s 弹匣制（四格警告 5s 后强制离舰，对齐原作横幅弹射）+ WASD 驾驶母舰；无敌窗口 = 吸附开始→弹射结束（释放后 2s 保护为重制版 QoL）。长按 H 2s 提前离舰：冷却双机制折扣（时长 max(0.6,1-0.4r) + 预填 min(0.3,0.5r)），基础冷却 60s。火力：加特林双塔向上 80° 扫射（仅驻留有目标时）+ 导弹（0.3s/波 ≤5 最近目标、直线定向弹直击 80+溅射 20）；弹丸/导弹 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）。补给回满血+燃料为重制版增强（原作母舰无补给）。
 - 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
 - 视角缩放三档（`GameState.view_zoom`：small 1.0 / medium 1.35 / large 1.7，默认 medium，profile 持久化）：相机固定在 (960,540) 只设 `zoom`，一切"屏幕边缘/出屏/刷怪位置"逻辑必须走 `GameState.view_world_rect()`（zoom=1 时即全屏 1920×1080），不得再写死 0..1920 / 0..1080。
+- 窗口大小三档（`GameState.window_size`：small 1280×720 / medium 1600×900 / large 1920×1080，默认 large，profile 持久化）：`set_window_size()` 立即应用到窗口（仅窗口模式生效，headless 跳过）并发 `window_size_changed`，启动时 `load_profile()` 读档即应用；与视角缩放 `view_zoom` 是两套独立设置（stretch 等比缩放，内容不变形），互不影响。
 
 ## 测试策略
 
