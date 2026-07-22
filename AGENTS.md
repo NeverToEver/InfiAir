@@ -19,6 +19,10 @@ InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 
 ~/.local/bin/godot --headless --path . res://test/smoke_test.tscn
 # 基地系统测试（存档 / RP / 任务 / 天赋路线数据层）
 ~/.local/bin/godot --headless --path . res://test/base_system_test.tscn
+# 启动链路测试（损坏存档隔离 / 欢迎页 / 开始面板焦点键盘链路）
+~/.local/bin/godot --headless --path . res://test/startup_flow_test.tscn
+# 返回/退出状态机测试（decide 全分支 + Esc/Android 返回集成路径）
+~/.local/bin/godot --headless --path . res://test/back_navigation_test.tscn
 # 本地运行
 godot --path .
 ```
@@ -36,6 +40,8 @@ godot --path .
   - `mothership.gd` — 母舰 7 态状态机（DESCEND/HOVER/DOCKING/RESUPPLY/STAY/RELEASE/DEPART）。
   - `buff_select.gd` — Buff 池 `BUFF_POOL`（16 种，含层数上限）与三选一 UI。
   - `base_console.gd` — 返航基地控制台（战机库/武器挂载/维修补给/任务规划 4 模块）。
+  - `welcome_screen.gd` — 进游戏欢迎页（仅装机后首次启动：profile `welcome_seen` 持久化 + static 进程内兜底；任意键进入开始面板）。
+  - `back_navigator.gd` — 全局返回/退出状态机：PC Esc / 手柄 B（引擎内置 ui_cancel）与 Android 返回通知统一走 `go_back()`，页面层级与决策表见 `docs/EXIT_FLOW.md`；`exit_confirm.gd` — 全局退出确认窗（normal/battle 双模式，确认后统一清理：profile 落盘、战斗中删档、淡出 0.3s 后 quit）。
   - `hud.gd` / `game_over_ui.gd` / `pause_ui.gd` / `start_panel.gd` — UI；`starfield.gd`、`camera_shake.gd`、`explosion.gd`、`spawn_telegraph.gd` — 表现层。
   - `scripts/tools/generate_audio.py` — 一次性音频程序合成脚本（仅 Python 标准库），产物已提交到 `assets/audio/`；需要重做音效时改参数重跑即可。
 - `autoload/game_state.gd` — 分数/生命/buff 层数/RP/任务/天赋路线数据层、存档与最高分持久化。
@@ -49,6 +55,7 @@ godot --path .
 - 玩家/敌弹共用 `scenes/bullet.tscn`，用 `setup()` 区分阵营；爆炸为纯代码构建的 `Explosion`（GPUParticles2D 一次性）。
 - 实体 `setup()` 在 `_ready()` 之前被调用，其中不能用 `@onready` 变量，需用 `$节点路径` 访问子节点。
 - 暂停类 UI（Buff/结算/暂停）`process_mode = Always`，用 `get_tree().paused` 控制。
+- 返回/退出路由统一在 `BackNavigator`（`ui_cancel` + Android 返回通知 → `go_back()`，层级见 `docs/EXIT_FLOW.md`）；各 UI 不得再自行处理 `ui_cancel`（settings 改键捕获态除外，navigator 会放行），新增页面要在 `decide_back_action()` 登记层级。
 - BGM 循环只设 `stream.loop_mode = LOOP_FORWARD`；不要显式写 `loop_begin/loop_end` 或在 `_exit_tree` 里 `stop()`，否则退出时播放实例会泄漏（已在无头验证中复现）。
 - 母舰：长按 H 蓄力召唤（main 管理，虚影预告）→ 到位**自动点吸附对接**（无区域判定，原作语义）→ 驻留 20s 弹匣制（四格警告 5s 后强制离舰，对齐原作横幅弹射）+ WASD 驾驶母舰；无敌窗口 = 吸附开始→弹射结束（释放后 2s 保护为重制版 QoL）。长按 H 2s 提前离舰：冷却双机制折扣（时长 max(0.6,1-0.4r) + 预填 min(0.3,0.5r)），基础冷却 60s。火力：加特林双塔向上 80° 扫射（仅驻留有目标时）+ 导弹（0.3s/波 ≤5 最近目标、直线定向弹直击 80+溅射 20）；弹丸/导弹 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）。补给回满血+燃料为重制版增强（原作母舰无补给）。
 - 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
@@ -90,7 +97,8 @@ godot --path .
 
 ## 持久化与安全注意
 
-- 对局存档 `user://savegame.json`（暂停菜单「保存进度」可写 + 返航自动更新，仅死亡删除）与局外档案 `user://profile.json`（仅最高分；局外天赋系统已移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。
+- 对局存档 `user://savegame.json`（暂停菜单「保存进度」可写 + 返航自动更新，仅死亡删除）与局外档案 `user://profile.json`（最高分/难度/键位/locale/视角/`welcome_seen`；局外天赋系统已移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。
+- 损坏持久化文件自动隔离：JSON 解析失败时重命名为 `<file>.corrupt` 备份并置 `save_corrupt`/`profile_corrupt` 标记（开始面板据此提示），按无存档/默认档案继续，不留死路径；`--startup-time` CLI 参数（`--` 后传入）可打印启动分段耗时。
 - 无网络代码、无第三方依赖、无密钥；唯一外部交互是上述 user:// 本地文件。
 
 ## 数值平衡参考

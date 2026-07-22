@@ -115,6 +115,9 @@ func _ready() -> void:
 	# ---------- 5. main 场景：相机应用 + 震动兼容 ----------
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
+	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
+	if welcome.visible:
+		welcome.dismiss()
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()

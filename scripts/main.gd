@@ -1,7 +1,7 @@
 extends Node2D
 ## 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
-## 开始面板（继续对局/新游戏）与常驻 BGM。Esc 暂停/恢复路由在 pause_ui
-## （process_mode=Always；本节点暂停时收不到 _unhandled_input）。
+## 开始面板（继续对局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
+## 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
 
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
@@ -65,7 +65,9 @@ func _ready() -> void:
 	GameState.camera_ref = _camera
 	_camera.zoom = Vector2.ONE * GameState.view_zoom_factor()
 	GameState.view_zoom_changed.connect(_on_view_zoom_changed)
-	_start_bgm()
+	_start_bgm_async()
+	if "--startup-time" in OS.get_cmdline_user_args():
+		_report_startup_time()
 	# 蓄力虚影（长按 H 蓄力期间显示）
 	_charge_ghost = Sprite2D.new()
 	_charge_ghost.texture = MOTHERSHIP_GHOST
@@ -162,6 +164,18 @@ func _stop_charging() -> void:
 	_charge_ghost.visible = false
 
 
+## BGM 延后到首帧之后启动：3.5MB WAV 解码不占首帧关键路径
+func _start_bgm_async() -> void:
+	await get_tree().process_frame
+	_start_bgm()
+
+
+## 启动计时（--startup-time 传入时）：打印 boot → 首帧 / → 首面板就绪 的分段耗时
+func _report_startup_time() -> void:
+	await get_tree().process_frame
+	print("[startup] boot → first frame: %d ms" % (Time.get_ticks_msec() - GameState.boot_ticks_msec))
+
+
 func _start_bgm() -> void:
 	var stream := ResourceLoader.load(BGM_PATH, "AudioStreamWAV", ResourceLoader.CACHE_MODE_IGNORE) as AudioStreamWAV
 	# 只设 loop_mode 即可整段循环；显式写 loop_begin/loop_end 会在退出时泄漏播放实例
@@ -181,6 +195,8 @@ func _apply_new_run() -> void:
 func _on_continue_run() -> void:
 	var data := GameState.load_run_data()
 	if data.is_empty():
+		# 存档损坏已被 GameState 隔离备份：回退为新对局（数据层本就在默认态），不留死路径
+		_apply_new_run()
 		return
 	GameState.apply_run_save(data)
 	_player._fuel = float(data.get("fuel", _player.fuel_max))

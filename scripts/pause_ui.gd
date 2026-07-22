@@ -1,11 +1,14 @@
 extends CanvasLayer
-## Esc 暂停面板：继续 / 保存进度 / 设置 / 重开提示。
+## Esc 暂停面板：继续 / 保存进度 / 设置 / 退出游戏 / 重开提示。
 ## 「保存进度」是全局唯一主动存档入口；「设置」打开 Ctrl/Shift 模式面板。
+## ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator（见 docs/EXIT_FLOW.md），
+## 本面板只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
 
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _save_button: Button
 var _settings_button: Button
+var _quit_button: Button
 var _title_label: Label
 var _hint_label: Label
 var _plate: ChamferedPanel
@@ -64,6 +67,15 @@ func _ready() -> void:
 	settings_button.pressed.connect(_on_settings_pressed)
 	vbox.add_child(settings_button)
 
+	_quit_button = Button.new()
+	_quit_button.text = tr("PAUSE_QUIT")
+	_quit_button.custom_minimum_size = Vector2(240.0, 52.0)
+	_quit_button.add_theme_font_override("font", FONT)
+	_quit_button.add_theme_font_size_override("font_size", 26)
+	UITheme.apply_button(_quit_button)
+	_quit_button.pressed.connect(_on_quit_pressed)
+	vbox.add_child(_quit_button)
+
 	var hint := Label.new()
 	hint.text = tr("PAUSE_HINT")
 	_hint_label = hint
@@ -77,23 +89,28 @@ func _on_locale_changed() -> void:
 	_title_label.text = tr("PAUSE_TITLE")
 	_hint_label.text = tr("PAUSE_HINT")
 	_settings_button.text = tr("PAUSE_SETTINGS")
+	_quit_button.text = tr("PAUSE_QUIT")
 	if _save_button.text != tr("PAUSE_SAVED"):
 		_save_button.text = tr("PAUSE_SAVE")
 
 
+func open() -> void:
+	_save_button.text = tr("PAUSE_SAVE")
+	get_tree().paused = true
+	visible = true
+	UITheme.animate_open(_plate)
+
+
+func close() -> void:
+	visible = false
+	get_tree().paused = false
+
+
 func toggle() -> void:
-	# 设置面板打开时，Esc = 返回（由设置面板恢复其打开者：本面板或开始面板）
-	if _get_settings_ui() != null and _settings_ui.visible:
-		_settings_ui._on_back_pressed()
-		return
 	if visible:
-		visible = false
-		get_tree().paused = false
+		close()
 	else:
-		_save_button.text = tr("PAUSE_SAVE")
-		get_tree().paused = true
-		visible = true
-		UITheme.animate_open(_plate)
+		open()
 
 
 func _get_settings_ui() -> CanvasLayer:
@@ -120,15 +137,15 @@ func _on_save_pressed() -> void:
 	_save_button.text = tr("PAUSE_SAVE")
 
 
+func _on_quit_pressed() -> void:
+	# 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
+	var exit_confirm: CanvasLayer = get_parent().get_node("ExitConfirm")
+	exit_confirm.show_confirm(true)
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	# Esc 暂停/恢复路由必须挂在本节点（process_mode=Always）：
-	# 树暂停后 main 等 INHERIT 节点的 _unhandled_input 不再被调用
-	if event.is_action_pressed("ui_cancel"):
-		var main := get_tree().get_first_node_in_group("main")
-		if main != null and not main._game_over and not main._homecoming and not main._buff_ui.visible:
-			toggle()
-			get_viewport().set_input_as_handled()
-		return
+	# ui_cancel（Esc/手柄 B/Android 返回）的全局路由已移交 BackNavigator；
+	# 此处只保留暂停中的 R 重开
 	if visible and event.is_action_pressed("restart"):
 		get_tree().paused = false
 		GameState.reset_run()

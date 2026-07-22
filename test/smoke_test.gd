@@ -30,6 +30,10 @@ func _ready() -> void:
 	GameState.set_difficulty(&"easy")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
+	# 欢迎页（进游戏首屏）→ 关闭后进入开始面板
+	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
+	if welcome.visible:
+		welcome.dismiss()
 	# 无存档时开始面板会自显：直接走「开始游戏」关闭之（难度选择见 difficulty_test）
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
@@ -542,7 +546,7 @@ func _ready() -> void:
 	start_panel5.show_panel()
 	start_panel5._on_settings_pressed()
 	_check(not start_panel5.visible and settings_ui.visible, "开始→设置：开始面板让位不遮挡")
-	pause_ui.toggle()  # 与 pause_ui._unhandled_input 的 Esc 路由入口一致
+	get_node("Main/BackNavigator").go_back()  # Esc 全局路由已移交 BackNavigator
 	_check(start_panel5.visible and not settings_ui.visible, "设置中 Esc：返回开始面板")
 	_check(not pause_ui.visible, "设置中 Esc：未误弹暂停菜单")
 	start_panel5._dismiss()

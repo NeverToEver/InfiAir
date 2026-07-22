@@ -2,7 +2,7 @@ extends Node
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
-## MODE: gameplay（默认，Boss 警告画面）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）/ settings（设置页）
+## MODE: gameplay（默认，Boss 警告画面）/ welcome（欢迎页）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
 
 const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
@@ -15,15 +15,33 @@ func _ready() -> void:
 		GameState.set_locale(FORCE_LOCALE)
 	if MODE == "start_panel":
 		GameState.save_run(50.0, 10.0)  # 伪造存档让开始面板出现
+	if MODE == "welcome":
+		GameState.welcome_seen = false  # 欢迎页仅首次启动显示，截图前强制复位
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
-	if MODE != "start_panel":
+	if MODE != "welcome":
+		# 关闭欢迎页（进游戏首屏，会遮挡画面；关闭后进入开始面板）
+		await get_tree().process_frame
+		var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
+		if welcome.visible:
+			welcome.dismiss()
+	if MODE != "start_panel" and MODE != "welcome":
 		# 关闭开始面板（无存档时它开场自显会遮挡画面）
 		await get_tree().process_frame
 		var sp: CanvasLayer = get_node("Main/StartPanel")
 		if sp.visible:
 			sp._on_new_game_pressed()
 	match MODE:
+		"welcome":
+			for i in 30:
+				await get_tree().process_frame
+		"exit_confirm":
+			# 暂停面板 + 战斗退出确认窗（battle 模式进度损失警告）
+			var pui: CanvasLayer = get_node("Main/PauseUI")
+			pui.open()
+			pui._on_quit_pressed()
+			for i in 30:
+				await get_tree().process_frame
 		"gameplay":
 			# 触发 Boss 警告横幅，便于截图覆盖该画面
 			get_node("Main/Spawner")._trigger_boss()

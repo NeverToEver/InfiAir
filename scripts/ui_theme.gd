@@ -36,7 +36,8 @@ static func apply_button(button: Button) -> void:
 	button.add_theme_stylebox_override("hover", _make_btn_style(BTN_HOVER, ACCENT))
 	button.add_theme_stylebox_override("pressed", _make_btn_style(BTN_PRESSED, ACCENT))
 	button.add_theme_stylebox_override("disabled", _make_btn_style(Color(BTN_NORMAL, 0.5), Color(PANEL_BORDER, 0.4)))
-	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	# 焦点样式与 hover 一致：键盘导航（Tab/方向键 + Enter）时焦点可见
+	button.add_theme_stylebox_override("focus", _make_btn_style(BTN_HOVER, ACCENT))
 	button.add_theme_color_override("font_color", TEXT)
 	button.add_theme_color_override("font_hover_color", ACCENT)
 	button.add_theme_color_override("font_pressed_color", TEXT)

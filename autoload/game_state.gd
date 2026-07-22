@@ -126,6 +126,8 @@ const PERSIST_VERSION := 2
 
 var high_score: int = 0
 var tutorial_done: bool = false
+## 欢迎页是否已展示过（profile 持久化：仅装机后首次启动显示欢迎页）
+var welcome_seen: bool = false
 
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_index: int = 0
@@ -159,6 +161,16 @@ var locked_routes: Dictionary = {}
 var _next_milestone: int = MILESTONE_BASE[0]
 var _milestone_count: int = 0
 
+## 启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）
+var boot_ticks_msec: int = 0
+## 启动/读档时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）
+var save_corrupt: bool = false
+var profile_corrupt: bool = false
+
+
+func _enter_tree() -> void:
+	boot_ticks_msec = Time.get_ticks_msec()
+
 ## 实体注册表（热路径缓存，避免每帧 get_nodes_in_group 分配）：
 ## enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。
 var enemies: Array[Node] = []
@@ -191,8 +203,12 @@ func _ready() -> void:
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
-	TranslationServer.add_translation(load("res://data/translations.zh.translation") as Translation)
-	TranslationServer.add_translation(load("res://data/translations.en.translation") as Translation)
+	var tr_zh := load("res://data/translations.zh.translation") as Translation
+	var tr_en := load("res://data/translations.en.translation") as Translation
+	if tr_zh != null:
+		TranslationServer.add_translation(tr_zh)
+	if tr_en != null:
+		TranslationServer.add_translation(tr_en)
 	TranslationServer.set_locale(locale)
 	_apply_key_bindings()
 	_next_milestone = milestone_threshold(0)
@@ -619,6 +635,9 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"shift_toggle_mode": shift_toggle_mode,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f == null:
+		push_warning("InfiAir: 无法写入对局存档 %s（错误 %d）" % [SAVE_PATH, FileAccess.get_open_error()])
+		return
 	f.store_string(JSON.stringify(data))
 	f.close()
 
@@ -628,12 +647,32 @@ func has_save() -> bool:
 
 
 func load_run_data() -> Dictionary:
+	save_corrupt = false
 	if not has_save():
 		return {}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if f == null:
+		return {}
+	var text := f.get_as_text()
 	f.close()
-	return parsed if parsed is Dictionary else {}
+	# 用 JSON 实例解析（parse_string 会把损坏内容打成 ERROR 级日志，噪音大）
+	var json := JSON.new()
+	if json.parse(text) == OK and json.data is Dictionary:
+		return json.data
+	# 损坏存档：隔离备份后按无存档处理（否则「继续对局」每次点了都无反应，形成死路径）
+	_quarantine(SAVE_PATH)
+	save_corrupt = true
+	return {}
+
+
+## 损坏文件隔离：重命名为 <path>.corrupt（已有备份则先删），给玩家留排查余地
+func _quarantine(path: String) -> void:
+	var backup := path + ".corrupt"
+	if FileAccess.file_exists(backup):
+		DirAccess.remove_absolute(backup)
+	var err := DirAccess.rename_absolute(path, backup)
+	if err != OK:
+		push_warning("InfiAir: 无法备份损坏文件 %s（错误 %d）" % [path, err])
 
 
 func apply_run_save(data: Dictionary) -> void:
@@ -692,31 +731,37 @@ func delete_save() -> void:
 # ---------------- 局外档案（user://profile.json） ----------------
 
 ## 局外档案：最高分 + 难度档位 + 设置项（旧版 talents/talent_points 字段读取时忽略；
-## 旧档案缺少新字段时保留当前内存值，保证兼容）
+## 旧档案缺少新字段时保留当前内存值，保证兼容；损坏文件隔离备份后按默认值继续）
 func load_profile() -> void:
+	profile_corrupt = false
 	if not FileAccess.file_exists(PROFILE_PATH):
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PROFILE_PATH))
-	if parsed is Dictionary:
-		high_score = int(parsed.get("high_score", 0))
-		tutorial_done = bool(parsed.get("tutorial_done", false))
-		locale = str(parsed.get("locale", "zh"))
-		key_bindings.clear()
-		var saved_keys: Dictionary = parsed.get("key_bindings", {})
-		for a in saved_keys.keys():
-			var keys: Array[int] = []
-			for k: Variant in saved_keys[a]:
-				keys.append(int(k))
-			key_bindings[StringName(a)] = keys
-		var saved_difficulty := StringName(parsed.get("difficulty", ""))
-		if DIFFICULTY_DEFS.has(saved_difficulty):
-			difficulty = saved_difficulty
-		ctrl_toggle_mode = bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode))
-		shift_toggle_mode = bool(parsed.get("shift_toggle_mode", shift_toggle_mode))
-		var saved_zoom := StringName(parsed.get("view_zoom", ""))
-		if VIEW_ZOOM_LEVELS.has(saved_zoom):
-			view_zoom = saved_zoom
-			_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(PROFILE_PATH)) != OK or not json.data is Dictionary:
+		_quarantine(PROFILE_PATH)
+		profile_corrupt = true
+		return
+	var parsed: Dictionary = json.data
+	high_score = int(parsed.get("high_score", 0))
+	tutorial_done = bool(parsed.get("tutorial_done", false))
+	welcome_seen = bool(parsed.get("welcome_seen", false))
+	locale = str(parsed.get("locale", "zh"))
+	key_bindings.clear()
+	var saved_keys: Dictionary = parsed.get("key_bindings", {})
+	for a in saved_keys.keys():
+		var keys: Array[int] = []
+		for k: Variant in saved_keys[a]:
+			keys.append(int(k))
+		key_bindings[StringName(a)] = keys
+	var saved_difficulty := StringName(parsed.get("difficulty", ""))
+	if DIFFICULTY_DEFS.has(saved_difficulty):
+		difficulty = saved_difficulty
+	ctrl_toggle_mode = bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode))
+	shift_toggle_mode = bool(parsed.get("shift_toggle_mode", shift_toggle_mode))
+	var saved_zoom := StringName(parsed.get("view_zoom", ""))
+	if VIEW_ZOOM_LEVELS.has(saved_zoom):
+		view_zoom = saved_zoom
+		_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
 
 
 func save_profile() -> void:
@@ -724,6 +769,7 @@ func save_profile() -> void:
 		"version": PERSIST_VERSION,
 		"high_score": high_score,
 		"tutorial_done": tutorial_done,
+		"welcome_seen": welcome_seen,
 		"key_bindings": key_bindings,
 		"locale": locale,
 		"difficulty": String(difficulty),
@@ -732,6 +778,9 @@ func save_profile() -> void:
 		"view_zoom": String(view_zoom),
 	}
 	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
+	if f == null:
+		push_warning("InfiAir: 无法写入档案 %s（错误 %d）" % [PROFILE_PATH, FileAccess.get_open_error()])
+		return
 	f.store_string(JSON.stringify(data))
 	f.close()
 

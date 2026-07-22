@@ -1,7 +1,8 @@
 extends CanvasLayer
 ## 开始面板：难度三选一（易/中/难，profile 持久化）+ 继续对局 / 新游戏。
 ## 无论有无存档，面板显示期间一律暂停游戏（冻结背景，先选再玩）；
-## 无存档时开场自显，有存档时由 main 调 show_panel()。
+## 无存档时开场自显，有存档时由 main 调 show_panel()；
+## 每进程首次进游戏由 welcome_screen 先行覆盖，其 dismiss() 会调 show_panel()。
 
 signal continue_chosen
 signal new_game_chosen
@@ -9,6 +10,7 @@ signal new_game_chosen
 const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _hint_label: Label
+var _corrupt_label: Label
 var _diff_label: Label
 var _continue_button: Button
 var _new_button: Button
@@ -57,6 +59,14 @@ func _ready() -> void:
 	_hint_label.add_theme_font_override("font", FONT)
 	_hint_label.add_theme_font_size_override("font_size", 24)
 	vbox.add_child(_hint_label)
+
+	# 损坏存档提示（仅 GameState.save_corrupt 时可见）
+	_corrupt_label = Label.new()
+	_corrupt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_corrupt_label.add_theme_font_override("font", FONT)
+	_corrupt_label.add_theme_font_size_override("font_size", 20)
+	_corrupt_label.add_theme_color_override("font_color", UITheme.DANGER)
+	vbox.add_child(_corrupt_label)
 
 	# 难度三选一（互斥，当前选中高亮）
 	var diff_row := HBoxContainer.new()
@@ -114,8 +124,12 @@ func _make_button(text: String) -> Button:
 	return button
 
 
-## 显示面板并暂停游戏：开场自显与存档恢复共用此路径
+## 显示面板并暂停游戏：开场自显与存档恢复共用此路径。
+## 先校验存档（损坏的已被 GameState 隔离，has_save 随之变 false），再把主按钮聚焦，
+## 保证键盘-only 链路（Enter/Space 直接触发主按钮）可达。
 func show_panel() -> void:
+	if GameState.has_save():
+		GameState.load_run_data()  # 校验用：损坏存档在此被隔离备份
 	var has_save := GameState.has_save()
 	_refresh_texts()
 	_continue_button.visible = has_save
@@ -123,6 +137,18 @@ func show_panel() -> void:
 	get_tree().paused = true
 	visible = true
 	UITheme.animate_open(_plate)
+	if has_save:
+		_continue_button.grab_focus()
+	else:
+		_new_button.grab_focus()
+
+
+## 主按钮重获焦点（退出确认窗取消后由 BackNavigator 调用）
+func grab_primary_focus() -> void:
+	if _continue_button.visible:
+		_continue_button.grab_focus()
+	else:
+		_new_button.grab_focus()
 
 
 func _dismiss() -> void:
@@ -132,6 +158,8 @@ func _dismiss() -> void:
 
 func _refresh_texts() -> void:
 	_hint_label.text = tr("START_HAS_SAVE") if GameState.has_save() else tr("START_NO_SAVE")
+	_corrupt_label.visible = GameState.save_corrupt
+	_corrupt_label.text = tr("START_SAVE_CORRUPT")
 	_continue_button.text = tr("START_CONTINUE")
 	_new_button.text = tr("START_NEW") if GameState.has_save() else tr("START_BEGIN")
 	_tutorial_button.text = tr("START_TUTORIAL_DONE") if GameState.tutorial_done else tr("START_TUTORIAL")
