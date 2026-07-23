@@ -23,6 +23,10 @@ InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 
 ~/.local/bin/godot --headless --path . res://test/startup_flow_test.tscn
 # 返回/退出状态机测试（decide 全分支 + Esc/Android 返回集成路径）
 ~/.local/bin/godot --headless --path . res://test/back_navigation_test.tscn
+# 对象池复用回归（reparent 触发 _exit_tree 导致 forget 误清的 3.11 修复）
+~/.local/bin/godot --headless --path . res://test/pool_reuse_test.tscn
+# 模拟人工游玩探针（≥8 分钟真实时间自动游玩 + [ANOMALY] 不变量监控，不以 FAIL 结束）
+~/.local/bin/godot --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480]
 # 本地运行
 godot --path .
 ```
@@ -88,7 +92,7 @@ godot --path .
 - 动态拼接文本用带 `%d`/`%s` 占位的 key（如 `MS_STAY "驻留 %ds"`）。
 
 ## 性能约定（3.4）
-- 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。**池的同帧回收-复用安全**：实体带 `_active` 标记，回收的延迟调用（monitoring=false / reparent）在重激活后自动失效（3.9 修复过期延迟调用覆盖新激活的缺陷，改动池行为时勿破坏该模式）。
+- 产弹一律走 `GameState.bullet_pool.fire()`：活跃弹挂 Main 下（清场/测试遍历可见），回收回 BulletPool 节点；外部 queue_free 由子弹 `_exit_tree` 自动 forget，不会污染池。**池的同帧回收-复用安全**：实体带 `_active` 标记，回收的延迟调用（monitoring=false / reparent）在重激活后自动失效（3.9 修复过期延迟调用覆盖新激活的缺陷，改动池行为时勿破坏该模式）。**注意：4.6 实测 `reparent()` 也会触发 `_exit_tree`**，池回收 reparent 必须用实体的 `_repooling` 标记包住，否则 forget 会把实体误清出 `_free`，池只进不出（3.11 修复，回归测试 `test/pool_reuse_test.tscn`）。
 - 敌机一律走 `GameState.enemy_pool.spawn()`（enemy_pool.gd，模式同子弹池）：`reactivate()` 全状态重置（计时/策略/HP/调制色/died 断连），`deactivate()` 注销注册表并断开 died 监听；`USE_POOL=false` 可回退纯 instantiate/free 做 A/B 对照。直接实例化（测试）走 `_ready` 兼容路径，互不影响。
 - 敌机三角函数统一 `Enemy.sin_fast/cos_fast`（2048 项循环表 + 线性插值，静态共享），禁止在 `_physics_process` 直接调 sin/cos。
 - 爆炸走 `Explosion.spawn_at`（静态池 ≤24，发射完回收不销毁）。

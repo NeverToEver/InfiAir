@@ -46,6 +46,8 @@ var _center: Vector2 = Vector2.ZERO  # spiral 绕转中心
 var _pool: Node = null
 ## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
 var _active: bool = false
+## 回收 reparent 保护：4.6 实测 reparent 也会触发 _exit_tree，置位期间禁止 forget 误清池清单
+var _repooling: bool = false
 
 # 三角函数查表（2048 项循环表 + 线性插值，全敌机共享一份）
 const TRIG_SIZE := 2048
@@ -214,7 +216,8 @@ func _despawn() -> void:
 
 func _exit_tree() -> void:
 	GameState.unregister_enemy(self)
-	if _pool != null:
+	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
+	if _pool != null and not _repooling:
 		_pool.forget(self)
 
 

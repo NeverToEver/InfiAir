@@ -48,7 +48,10 @@ func release(e: Enemy) -> void:
 
 func _reparent_deferred(e: Enemy) -> void:
 	if is_instance_valid(e) and not e._active:
+		# 4.6 实测 reparent 会触发 e._exit_tree，置位防 forget 把敌机误清出 _free
+		e._repooling = true
 		e.reparent(self)
+		e._repooling = false
 
 
 ## 被外部 queue_free（清场/测试/场景重载）时从池清单移除。

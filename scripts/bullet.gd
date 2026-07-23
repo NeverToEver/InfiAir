@@ -28,6 +28,8 @@ var _homing_elapsed: float = 0.0
 var _pool: Node = null
 ## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
 var _active: bool = false
+## 回收 reparent 保护：4.6 实测 reparent 也会触发 _exit_tree，置位期间禁止 forget 误清池清单
+var _repooling: bool = false
 
 @onready var _polygon: Polygon2D = $Polygon2D
 
@@ -95,8 +97,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	# 被外部 queue_free（清场/测试/场景重载）时通知池移除引用
-	if _pool != null:
+	# 被外部 queue_free（清场/测试/场景重载）时通知池移除引用；
+	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
+	if _pool != null and not _repooling:
 		_pool.forget(self)
 
 
