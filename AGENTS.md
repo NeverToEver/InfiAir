@@ -25,8 +25,11 @@ InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 
 ~/.local/bin/godot --headless --path . res://test/back_navigation_test.tscn
 # 对象池复用回归（reparent 触发 _exit_tree 导致 forget 误清的 3.11 修复）
 ~/.local/bin/godot --headless --path . res://test/pool_reuse_test.tscn
-# 模拟人工游玩探针（≥8 分钟真实时间自动游玩 + [ANOMALY] 不变量监控，不以 FAIL 结束）
-~/.local/bin/godot --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480]
+# 模拟人工游玩探针（≥8 分钟真实时间自动游玩 + [ANOMALY] 不变量监控，不以 FAIL 结束；
+# 覆盖暂停存档/继续对局读档、对局中切设置（视角/窗口/语言/难度）、基地全模块、
+# 母舰蓄力取消/提前离舰/强制弹射、狂暴期冲刺、Buff 种类优先未拥有；监控 Performance
+# 对象/孤儿节点/内存/帧耗时、注册表一致性、池规模上界；--seed=N 换随机种子，默认 20260722）
+~/.local/bin/godot --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
 # 本地运行
 godot --path .
 ```
