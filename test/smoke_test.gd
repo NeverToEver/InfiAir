@@ -381,9 +381,17 @@ func _ready() -> void:
 	_check(ms._warn_eject_timer > 0.0, "警告后启动强制离舰计时")
 	# 提前离舰：长按 H 2s，冷却双机制折扣（4→3 格 r=0.3：60×0.88×0.85≈44.9）
 	Input.action_press("dock")
-	await get_tree().create_timer(2.4).timeout
+	await get_tree().create_timer(1.0).timeout
+	_check(main._hud._early_leave_box.visible, "提前离舰蓄力进度条显示")
+	_check(
+		main._hud._early_leave_fill.anchor_right > 0.3
+		and main._hud._early_leave_fill.anchor_right < 0.7,
+		"提前离舰进度条进度 ~50%"
+	)
+	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
 	_check(ms._state >= Mothership.State.RELEASE, "提前离舰触发")
+	_check(not main._hud._early_leave_box.visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(
 		player._invincible > 1.0 and player._invincible <= 2.0,

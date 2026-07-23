@@ -78,6 +78,7 @@ var _mag_warned: bool = false
 var _warn_eject_timer: float = 0.0
 # 提前离舰
 var _early_timer: float = 0.0
+var _hud: Node = null  # 延迟缓存（驻留期每帧刷新进度条用）
 var _cooldown_factor: float = 1.0
 var _prefill: float = 0.0
 
@@ -198,10 +199,16 @@ func _physics_process(delta: float) -> void:
 				_warn_eject_timer -= delta
 				if _warn_eject_timer <= 0.0:
 					_start_release()
-			# 提前离舰：长按 H 2s
+			# 提前离舰：长按 H 2s（蓄力进度条经 HUD 显示，松手清零隐藏）
 			if Input.is_action_pressed("dock"):
 				_early_timer += delta
+				if _hud == null:
+					_hud = get_tree().get_first_node_in_group("hud")
+				if _hud != null:
+					_hud.set_early_leave_charge(_early_timer / EARLY_HOLD_TIME)
 			else:
+				if _early_timer > 0.0 and _hud != null:
+					_hud.set_early_leave_charge(-1.0)
 				_early_timer = 0.0
 			if _early_timer >= EARLY_HOLD_TIME:
 				_early_depart()
@@ -350,6 +357,7 @@ func _early_depart() -> void:
 	_prefill = minf(EARLY_PREFILL_MAX, EARLY_PREFILL_RATIO * ratio)
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null:
+		hud.set_early_leave_charge(-1.0)
 		var factor := maxf(0.6, 1.0 - EARLY_MAX_DISCOUNT * ratio) * (1.0 - _prefill)
 		hud.show_popup(tr("POP_EARLY_LEAVE") % int((1.0 - factor) * 100.0), global_position)
 	_start_release()

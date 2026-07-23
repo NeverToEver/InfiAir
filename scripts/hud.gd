@@ -22,6 +22,9 @@ var _mag_box: HBoxContainer
 var _mag_cells_nodes: Array[ColorRect] = []
 var _home_charge_label: Label
 var _give_up_label: Label
+var _early_leave_box: VBoxContainer
+var _early_leave_label: Label
+var _early_leave_fill: ColorRect
 var _main: Node = null
 var _poll_timer: float = 0.0
 var _last_dock_text: String = ""
@@ -87,6 +90,29 @@ func _ready() -> void:
 	_give_up_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35))
 	_give_up_label.visible = false
 	add_child(_give_up_label)
+	# 提前离舰蓄力进度条（驻留母舰时长按 H，底部居中，放弃提示上方）
+	_early_leave_box = VBoxContainer.new()
+	_early_leave_box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_early_leave_box.position = Vector2(-140.0, -220.0)
+	_early_leave_box.custom_minimum_size = Vector2(280.0, 0.0)
+	_early_leave_box.add_theme_constant_override("separation", 6)
+	_early_leave_box.visible = false
+	add_child(_early_leave_box)
+	_early_leave_label = Label.new()
+	_early_leave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_early_leave_label.add_theme_font_override("font", FONT)
+	_early_leave_label.add_theme_font_size_override("font_size", 24)
+	_early_leave_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.35))
+	_early_leave_box.add_child(_early_leave_label)
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(1.0, 1.0, 1.0, 0.15)
+	bar_bg.custom_minimum_size = Vector2(280.0, 10.0)
+	_early_leave_box.add_child(bar_bg)
+	_early_leave_fill = ColorRect.new()
+	_early_leave_fill.color = Color(1.0, 0.8, 0.35)
+	_early_leave_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	_early_leave_fill.anchor_right = 0.0
+	bar_bg.add_child(_early_leave_fill)
 
 
 ## 放弃出击蓄力进度：ratio < 0 隐藏，否则显示百分比
@@ -105,6 +131,17 @@ func set_home_charge(ratio: float) -> void:
 	else:
 		_home_charge_label.visible = true
 		_home_charge_label.text = tr("HOME_CHARGE") % int(clampf(ratio, 0.0, 1.0) * 100.0)
+
+
+## 提前离舰蓄力进度条（驻留母舰时长按 H）：ratio < 0 隐藏，否则显示百分比 + 进度条
+func set_early_leave_charge(ratio: float) -> void:
+	if ratio < 0.0:
+		_early_leave_box.visible = false
+	else:
+		var r := clampf(ratio, 0.0, 1.0)
+		_early_leave_box.visible = true
+		_early_leave_label.text = tr("MS_EARLY_LEAVE") % int(r * 100.0)
+		_early_leave_fill.anchor_right = r
 
 
 func _build_magazine_bar() -> void:
