@@ -68,6 +68,7 @@ godot --path .
 - 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
 - 视角缩放三档（`GameState.view_zoom`：small 1.0 / medium 1.35 / large 1.7，默认 medium，profile 持久化）：相机固定在 (960,540) 只设 `zoom`，一切"屏幕边缘/出屏/刷怪位置"逻辑必须走 `GameState.view_world_rect()`（zoom=1 时即全屏 1920×1080），不得再写死 0..1920 / 0..1080。
 - 窗口大小三档（`GameState.window_size`：small 1280×720 / medium 1600×900 / large 1920×1080，默认 large，profile 持久化）：`set_window_size()` 立即应用到窗口（仅窗口模式生效，headless 跳过）并发 `window_size_changed`，启动时 `load_profile()` 读档即应用；与视角缩放 `view_zoom` 是两套独立设置（stretch 等比缩放，内容不变形），互不影响。
+- UI 样式统一走 `UITheme`（scripts/ui_theme.gd）：色板 token + 字号阶梯（FONT_DISPLAY 72/TITLE 40/HEADER 28/BODY 24/CAPTION 18，字体 `UITheme.FONT`）+ 工厂方法（`make_label`/`make_button(primary)`/`make_toggle_button`/`make_section_header`/`make_page_shell` 返回 {root,panel,title,content}/`animate_open`/`stagger_open`）。新页面用 `make_page_shell` 组装，每页至多一个 primary 主按钮；不要再手写散落的 Label/Button 样板与硬编码色值。视觉核对用 `test/ui_capture.tscn`（窗口模式，产物 /tmp/ui_*.png）。
 
 ## 测试策略
 

@@ -5,7 +5,6 @@ extends CanvasLayer
 ## （难度/继续对局选择）。显示期间暂停游戏；跳过时完全不影响 start_panel
 ## 既有的自显/读档恢复流程。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 static var _entry_shown: bool = false  # reload_current_scene 不重置 static，保证死亡重开不再迎
 
@@ -44,12 +43,7 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 20)
 	center.add_child(vbox)
 
-	var title := Label.new()
-	title.text = "InfiAir"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", FONT)
-	title.add_theme_font_size_override("font_size", 120)
-	title.add_theme_color_override("font_color", UITheme.ACCENT)
+	var title := UITheme.make_label("InfiAir", 120, UITheme.ACCENT)
 	title.add_theme_color_override("font_shadow_color", Color(UITheme.ACCENT_BLUE, 0.45))
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 6)
@@ -81,12 +75,7 @@ func _build_ui() -> void:
 
 
 func _make_label(font_size: int, color: Color) -> Label:
-	var label := Label.new()
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	return label
+	return UITheme.make_label("", font_size, color)
 
 
 func _refresh_texts() -> void:

@@ -4,89 +4,55 @@ extends CanvasLayer
 ## ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator（见 docs/EXIT_FLOW.md），
 ## 本面板只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
-
+var _resume_button: Button
 var _save_button: Button
 var _settings_button: Button
 var _quit_button: Button
 var _title_label: Label
 var _hint_label: Label
 var _plate: ChamferedPanel
+var _content: VBoxContainer
 var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
 
 
 func _ready() -> void:
 	visible = false
 	GameState.locale_changed.connect(_on_locale_changed)
-	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.0, 0.0, 0.5)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	var shell := UITheme.make_page_shell("PAUSE_TITLE")
+	add_child(shell["root"])
+	_plate = shell["panel"]
+	_plate.custom_minimum_size = Vector2(560.0, 480.0)
+	_title_label = shell["title"]
+	_content = shell["content"]
 
-	_plate = ChamferedPanel.new()
-	_plate.custom_minimum_size = Vector2(560.0, 420.0)
-	_plate.brackets = true
-	center.add_child(_plate)
+	_resume_button = UITheme.make_button(tr("PAUSE_RESUME"), true)
+	_resume_button.custom_minimum_size = Vector2(280.0, 56.0)
+	_resume_button.pressed.connect(close)
+	_content.add_child(_resume_button)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_plate.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 24)
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	margin.add_child(vbox)
-
-	var title := Label.new()
-	title.text = tr("PAUSE_TITLE")
-	_title_label = title
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", FONT)
-	title.add_theme_font_size_override("font_size", 48)
-	vbox.add_child(title)
-
-	_save_button = Button.new()
-	_save_button.text = tr("PAUSE_SAVE")
-	_save_button.custom_minimum_size = Vector2(240.0, 52.0)
-	_save_button.add_theme_font_override("font", FONT)
-	_save_button.add_theme_font_size_override("font_size", 26)
-	UITheme.apply_button(_save_button)
+	_save_button = UITheme.make_button(tr("PAUSE_SAVE"))
+	_save_button.custom_minimum_size = Vector2(280.0, 52.0)
 	_save_button.pressed.connect(_on_save_pressed)
-	vbox.add_child(_save_button)
+	_content.add_child(_save_button)
 
-	_settings_button = Button.new()
-	var settings_button := _settings_button
-	settings_button.text = tr("PAUSE_SETTINGS")
-	settings_button.custom_minimum_size = Vector2(240.0, 52.0)
-	settings_button.add_theme_font_override("font", FONT)
-	settings_button.add_theme_font_size_override("font_size", 26)
-	settings_button.pressed.connect(_on_settings_pressed)
-	vbox.add_child(settings_button)
+	_settings_button = UITheme.make_button(tr("PAUSE_SETTINGS"))
+	_settings_button.custom_minimum_size = Vector2(280.0, 52.0)
+	_settings_button.pressed.connect(_on_settings_pressed)
+	_content.add_child(_settings_button)
 
-	_quit_button = Button.new()
-	_quit_button.text = tr("PAUSE_QUIT")
-	_quit_button.custom_minimum_size = Vector2(240.0, 52.0)
-	_quit_button.add_theme_font_override("font", FONT)
-	_quit_button.add_theme_font_size_override("font_size", 26)
-	UITheme.apply_button(_quit_button)
+	_quit_button = UITheme.make_button(tr("PAUSE_QUIT"))
+	_quit_button.custom_minimum_size = Vector2(280.0, 52.0)
 	_quit_button.pressed.connect(_on_quit_pressed)
-	vbox.add_child(_quit_button)
+	_content.add_child(_quit_button)
 
-	var hint := Label.new()
-	hint.text = tr("PAUSE_HINT")
-	_hint_label = hint
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_override("font", FONT)
-	hint.add_theme_font_size_override("font_size", 26)
-	vbox.add_child(hint)
+	_hint_label = UITheme.make_label(tr("PAUSE_HINT"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM)
+	_content.add_child(_hint_label)
 
 
 func _on_locale_changed() -> void:
 	_title_label.text = tr("PAUSE_TITLE")
+	_resume_button.text = tr("PAUSE_RESUME")
 	_hint_label.text = tr("PAUSE_HINT")
 	_settings_button.text = tr("PAUSE_SETTINGS")
 	_quit_button.text = tr("PAUSE_QUIT")
@@ -99,6 +65,8 @@ func open() -> void:
 	get_tree().paused = true
 	visible = true
 	UITheme.animate_open(_plate)
+	UITheme.stagger_open(_content)
+	_resume_button.grab_focus()
 
 
 func close() -> void:

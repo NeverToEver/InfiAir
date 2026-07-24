@@ -5,8 +5,6 @@ extends CanvasLayer
 
 signal back_pressed
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
-
 var _ctrl_hold: Button
 var _ctrl_toggle: Button
 var _shift_hold: Button
@@ -66,10 +64,8 @@ func _ready() -> void:
 	vbox.add_theme_constant_override("separation", 16)
 	margin.add_child(vbox)
 
-	var title := _make_label(tr("SET_TITLE"), 44)
-	_title_label = title
-	title.add_theme_color_override("font_color", UITheme.ACCENT)
-	vbox.add_child(title)
+	_title_label = UITheme.make_label(tr("SET_TITLE"), UITheme.FONT_TITLE, UITheme.ACCENT)
+	vbox.add_child(_title_label)
 
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 20)
@@ -80,13 +76,8 @@ func _ready() -> void:
 	nav.add_theme_constant_override("separation", 8)
 	body.add_child(nav)
 	for page_id in [&"controls", &"modes", &"about"]:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.button_group = _nav_group
+		var b := UITheme.make_toggle_button("", _nav_group)
 		b.custom_minimum_size = Vector2(140.0, 48.0)
-		b.add_theme_font_override("font", FONT)
-		b.add_theme_font_size_override("font_size", 24)
-		UITheme.apply_button(b)
 		b.pressed.connect(_show_page.bind(page_id))
 		nav.add_child(b)
 		_nav_buttons[page_id] = b
@@ -104,31 +95,16 @@ func _ready() -> void:
 		content.add_child(p)
 		p.visible = false
 
-	_hint_label = _make_label("", 20)
-	_hint_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
+	_hint_label = UITheme.make_label("", UITheme.FONT_CAPTION, UITheme.ACCENT_GOLD)
 	vbox.add_child(_hint_label)
 
-	_back_button = Button.new()
-	var back_button := _back_button
-	back_button.text = tr("SET_BACK")
-	back_button.custom_minimum_size = Vector2(200.0, 52.0)
-	back_button.add_theme_font_override("font", FONT)
-	back_button.add_theme_font_size_override("font_size", 26)
-	UITheme.apply_button(back_button)
-	back_button.pressed.connect(_on_back_pressed)
-	vbox.add_child(back_button)
+	_back_button = UITheme.make_button(tr("SET_BACK"))
+	_back_button.custom_minimum_size = Vector2(200.0, 52.0)
+	_back_button.pressed.connect(_on_back_pressed)
+	vbox.add_child(_back_button)
 
 	GameState.key_bindings_changed.connect(_refresh_rebind_rows)
 	GameState.locale_changed.connect(_on_locale_changed)
-
-
-func _make_label(text: String, size: int) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", size)
-	return label
 
 
 # ---------------- 控制（改键） ----------------
@@ -139,34 +115,25 @@ func _build_controls_page() -> VBoxContainer:
 	for action in GameState.REBINDABLE_ACTIONS:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
-		var name_label := _make_label(tr("ACT_" + String(action).to_upper()), 22)
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var name_label := UITheme.make_label(
+			tr("ACT_" + String(action).to_upper()), UITheme.FONT_BODY, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT
+		)
 		name_label.custom_minimum_size = Vector2(180.0, 0.0)
 		row.add_child(name_label)
-		var keys_label := _make_label("", 22)
-		keys_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var keys_label := UITheme.make_label("", UITheme.FONT_BODY, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT)
 		keys_label.custom_minimum_size = Vector2(280.0, 0.0)
-		keys_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 		row.add_child(keys_label)
-		var rebind_button := Button.new()
-		rebind_button.text = tr("SET_REBIND")
+		var rebind_button := UITheme.make_button(tr("SET_REBIND"))
 		rebind_button.custom_minimum_size = Vector2(110.0, 40.0)
-		rebind_button.add_theme_font_override("font", FONT)
-		rebind_button.add_theme_font_size_override("font_size", 20)
-		UITheme.apply_button(rebind_button)
+		rebind_button.add_theme_font_size_override("font_size", UITheme.FONT_CAPTION)
 		rebind_button.pressed.connect(_start_capture.bind(action))
 		row.add_child(rebind_button)
 		page.add_child(row)
 		_rebind_rows[action] = {"keys": keys_label, "button": rebind_button, "name": name_label}
-	_reset_button = Button.new()
-	var reset_button := _reset_button
-	reset_button.text = tr("SET_RESET")
-	reset_button.custom_minimum_size = Vector2(220.0, 44.0)
-	reset_button.add_theme_font_override("font", FONT)
-	reset_button.add_theme_font_size_override("font_size", 22)
-	UITheme.apply_button(reset_button)
-	reset_button.pressed.connect(_on_reset_keys)
-	page.add_child(reset_button)
+	_reset_button = UITheme.make_button(tr("SET_RESET"))
+	_reset_button.custom_minimum_size = Vector2(220.0, 44.0)
+	_reset_button.pressed.connect(_on_reset_keys)
+	page.add_child(_reset_button)
 	return page
 
 
@@ -206,7 +173,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _build_modes_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
-	page.add_theme_constant_override("separation", 20)
+	page.add_theme_constant_override("separation", 14)
+	# 按键模式（Ctrl/Shift）
+	page.add_child(UITheme.make_section_header(tr("SET_MODES")))
 	var ctrl_pair := _make_mode_row(page, tr("SET_CTRL_MODE"), _ctrl_group)
 	_ctrl_hold = ctrl_pair[0]
 	_ctrl_toggle = ctrl_pair[1]
@@ -218,44 +187,40 @@ func _build_modes_page() -> VBoxContainer:
 	_shift_hold.pressed.connect(_on_shift_mode.bind(false))
 	_shift_toggle.pressed.connect(_on_shift_mode.bind(true))
 	# 语言 / Language
+	page.add_child(UITheme.make_section_header(tr("SET_LANGUAGE")))
 	var lang_row := HBoxContainer.new()
 	lang_row.add_theme_constant_override("separation", 16)
 	page.add_child(lang_row)
-	var lang_label := _make_label(tr("SET_LANGUAGE"), 26)
-	lang_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	lang_label.custom_minimum_size = Vector2(240.0, 0.0)
-	lang_row.add_child(lang_label)
-	_lang_zh = _make_mode_button("中文", _lang_group)
-	_lang_en = _make_mode_button("English", _lang_group)
+	_lang_zh = UITheme.make_toggle_button("中文", _lang_group)
+	_lang_en = UITheme.make_toggle_button("English", _lang_group)
 	lang_row.add_child(_lang_zh)
 	lang_row.add_child(_lang_en)
 	_lang_zh.pressed.connect(GameState.set_locale.bind("zh"))
 	_lang_en.pressed.connect(GameState.set_locale.bind("en"))
-	# 视角缩放（小/中/大）
+	# 显示：视角缩放 + 窗口大小
+	page.add_child(UITheme.make_section_header(tr("SET_DISPLAY")))
 	var zoom_row := HBoxContainer.new()
 	zoom_row.add_theme_constant_override("separation", 16)
 	page.add_child(zoom_row)
-	var zoom_label := _make_label(tr("SET_VIEW_ZOOM"), 26)
-	zoom_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	zoom_label.custom_minimum_size = Vector2(240.0, 0.0)
+	var zoom_label := UITheme.make_label(tr("SET_VIEW_ZOOM"), UITheme.FONT_BODY, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+	zoom_label.custom_minimum_size = Vector2(140.0, 0.0)
 	zoom_row.add_child(zoom_label)
 	_zoom_buttons.clear()
 	for level in GameState.VIEW_ZOOM_ORDER:
-		var b := _make_mode_button(tr("SET_VIEW_" + String(level).to_upper()), _zoom_group)
+		var b := UITheme.make_toggle_button(tr("SET_VIEW_" + String(level).to_upper()), _zoom_group)
 		b.pressed.connect(GameState.set_view_zoom.bind(level))
 		zoom_row.add_child(b)
 		_zoom_buttons[level] = b
-	# 窗口大小（小/中/大，按钮含分辨率文本，加宽）
+	# 窗口大小（按钮含分辨率文本，加宽）
 	var win_row := HBoxContainer.new()
 	win_row.add_theme_constant_override("separation", 16)
 	page.add_child(win_row)
-	var win_label := _make_label(tr("SET_WINDOW_SIZE"), 26)
-	win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	win_label.custom_minimum_size = Vector2(240.0, 0.0)
+	var win_label := UITheme.make_label(tr("SET_WINDOW_SIZE"), UITheme.FONT_BODY, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+	win_label.custom_minimum_size = Vector2(140.0, 0.0)
 	win_row.add_child(win_label)
 	_window_buttons.clear()
 	for level in GameState.WINDOW_SIZE_ORDER:
-		var b := _make_mode_button(tr("SET_WINDOW_" + String(level).to_upper()), _window_group)
+		var b := UITheme.make_toggle_button(tr("SET_WINDOW_" + String(level).to_upper()), _window_group)
 		b.custom_minimum_size = Vector2(210.0, 48.0)
 		b.pressed.connect(GameState.set_window_size.bind(level))
 		win_row.add_child(b)
@@ -267,27 +232,14 @@ func _make_mode_row(parent: Container, label_text: String, group: ButtonGroup) -
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 16)
 	parent.add_child(row)
-	var label := _make_label(label_text, 26)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var label := UITheme.make_label(label_text, UITheme.FONT_BODY, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
 	label.custom_minimum_size = Vector2(240.0, 0.0)
 	row.add_child(label)
-	var hold := _make_mode_button(tr("SET_HOLD"), group)
-	var toggle := _make_mode_button(tr("SET_TOGGLE"), group)
+	var hold := UITheme.make_toggle_button(tr("SET_HOLD"), group)
+	var toggle := UITheme.make_toggle_button(tr("SET_TOGGLE"), group)
 	row.add_child(hold)
 	row.add_child(toggle)
 	return [hold, toggle]
-
-
-func _make_mode_button(text: String, group: ButtonGroup) -> Button:
-	var b := Button.new()
-	UITheme.apply_button(b)
-	b.text = text
-	b.toggle_mode = true
-	b.button_group = group
-	b.custom_minimum_size = Vector2(110.0, 48.0)
-	b.add_theme_font_override("font", FONT)
-	b.add_theme_font_size_override("font_size", 24)
-	return b
 
 
 # ---------------- 关于 ----------------
@@ -295,11 +247,11 @@ func _make_mode_button(text: String, group: ButtonGroup) -> Button:
 func _build_about_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 10)
-	_version_label = _make_label(tr("SET_VERSION") % Engine.get_version_info().string, 22)
-	_version_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
+	_version_label = UITheme.make_label(
+		tr("SET_VERSION") % Engine.get_version_info().string, UITheme.FONT_BODY, UITheme.ACCENT_GOLD
+	)
 	page.add_child(_version_label)
-	_cheatsheet_label = _make_label(tr("SET_CHEATSHEET"), 20)
-	_cheatsheet_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
+	_cheatsheet_label = UITheme.make_label(tr("SET_CHEATSHEET"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM)
 	page.add_child(_cheatsheet_label)
 	return page
 

@@ -1,8 +1,6 @@
 extends CanvasLayer
 ## 里程碑 Buff 三选一：达到里程碑阈值触发，暂停游戏并弹出 3 张卡片。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
-
 const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"power_shot",
@@ -123,13 +121,8 @@ func _ready() -> void:
 	vbox.add_theme_constant_override("separation", 24)
 	_center.add_child(vbox)
 
-	var title := Label.new()
-	title.text = tr("BUFF_TITLE")
+	var title := UITheme.make_label(tr("BUFF_TITLE"), UITheme.FONT_TITLE, UITheme.ACCENT_GOLD)
 	_title_label = title
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", FONT)
-	title.add_theme_font_size_override("font_size", 40)
-	title.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	vbox.add_child(title)
 
 	_cards = HBoxContainer.new()
@@ -166,6 +159,9 @@ func _on_milestone_reached(_milestone_score: int) -> void:
 	get_tree().paused = true
 	visible = true
 	UITheme.animate_open(_center)
+	# 键盘导航链路：焦点落在第一张卡（方向键切换，Enter 选取）
+	if _cards.get_child_count() > 0:
+		(_cards.get_child(0) as Control).grab_focus()
 
 
 func _build_cards() -> void:
@@ -183,10 +179,12 @@ func _on_locale_changed() -> void:
 
 func _make_card(buff: Dictionary) -> Control:
 	var card := ChamferedPanel.new()
-	card.custom_minimum_size = Vector2(340.0, 200.0)
+	card.custom_minimum_size = Vector2(340.0, 260.0)  # 三卡统一高度
 	card.brackets = true
+	card.focus_mode = Control.FOCUS_ALL
 
 	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)  # 填满卡片，内容居中
 	margin.add_theme_constant_override("margin_left", 20)
 	margin.add_theme_constant_override("margin_right", 20)
 	margin.add_theme_constant_override("margin_top", 16)
@@ -195,33 +193,48 @@ func _make_card(buff: Dictionary) -> Control:
 
 	var vbox := VBoxContainer.new()
 	margin.add_child(vbox)
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 10)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	var stacks := GameState.buff_count(buff["id"])
-	var buff_name := tr("BUFF_%s_NAME" % String(buff["id"]).to_upper())
-	var name_label := Label.new()
-	name_label.text = buff_name if stacks == 0 else tr("BUFF_LV_FMT") % [buff_name, stacks]
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_override("font", FONT)
-	name_label.add_theme_font_size_override("font_size", 30)
-	name_label.add_theme_color_override("font_color", UITheme.ACCENT)
+	var name_label := UITheme.make_label(
+		tr("BUFF_%s_NAME" % String(buff["id"]).to_upper()), UITheme.FONT_HEADER, UITheme.ACCENT
+	)
 	vbox.add_child(name_label)
 
-	var desc_label := Label.new()
-	desc_label.text = tr("BUFF_%s_DESC" % String(buff["id"]).to_upper())
-	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# 层数标记（已有层数时显示，金色突出）
+	if stacks > 0:
+		var stacks_label := UITheme.make_label(
+			tr("BUFF_STACKS_FMT") % stacks, UITheme.FONT_CAPTION, UITheme.ACCENT_GOLD
+		)
+		vbox.add_child(stacks_label)
+
+	var desc_label := UITheme.make_label(
+		tr("BUFF_%s_DESC" % String(buff["id"]).to_upper()), UITheme.FONT_BODY, UITheme.TEXT_DIM
+	)
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_label.add_theme_font_override("font", FONT)
-	desc_label.add_theme_font_size_override("font_size", 22)
-	desc_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	vbox.add_child(desc_label)
 
 	card.gui_input.connect(_on_card_gui_input.bind(buff["id"]))
+	# hover/focus 提亮边框（键盘导航焦点可见）
+	card.mouse_entered.connect(_set_card_highlight.bind(card, true))
+	card.mouse_exited.connect(_set_card_highlight.bind(card, false))
+	card.focus_entered.connect(_set_card_highlight.bind(card, true))
+	card.focus_exited.connect(_set_card_highlight.bind(card, false))
 	return card
 
 
+func _set_card_highlight(card: ChamferedPanel, on: bool) -> void:
+	card.border_color = UITheme.ACCENT if on else UITheme.PANEL_BORDER
+	card.bracket_color = UITheme.ACCENT_GOLD if on else UITheme.ACCENT
+
+
 func _on_card_gui_input(event: InputEvent, id: StringName) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	var picked: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	# 键盘导航：焦点卡上按 Enter/Space 选取
+	if event is InputEventKey and event.pressed and not event.echo and event.is_action(&"ui_accept"):
+		picked = true
+	if picked:
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 		GameState.add_buff(id)
 		if id == &"extra_life":

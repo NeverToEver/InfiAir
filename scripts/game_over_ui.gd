@@ -1,8 +1,8 @@
 extends CanvasLayer
-## 死亡结算面板：显示分数/击杀/Boss 击杀，按 R 重开。
+## 死亡结算面板：DISPLAY 级大分数 + 新纪录标记 + 击杀统计，按 R 重开。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
-
+var _score_label: Label
+var _score_tag_label: Label
 var _stats_label: Label
 var _record_label: Label
 var _title_label: Label
@@ -31,40 +31,28 @@ func _ready() -> void:
 	_plate.add_child(margin)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 24)
+	vbox.add_theme_constant_override("separation", 16)
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	margin.add_child(vbox)
 
-	var title := Label.new()
-	title.text = tr("GO_TITLE")
-	_title_label = title
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", FONT)
-	title.add_theme_font_size_override("font_size", 56)
-	vbox.add_child(title)
+	_title_label = UITheme.make_label(tr("GO_TITLE"), UITheme.FONT_TITLE, UITheme.TEXT)
+	vbox.add_child(_title_label)
 
-	_stats_label = Label.new()
-	_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_stats_label.add_theme_font_override("font", FONT)
-	_stats_label.add_theme_font_size_override("font_size", 30)
-	vbox.add_child(_stats_label)
+	# 大分数：DISPLAY 级金色数字 + 小 caption 标签
+	_score_tag_label = UITheme.make_label(tr("UI_SCORE_TAG"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM)
+	vbox.add_child(_score_tag_label)
+	_score_label = UITheme.make_label("0", UITheme.FONT_DISPLAY, UITheme.ACCENT_GOLD)
+	vbox.add_child(_score_label)
 
-	_record_label = Label.new()
-	_record_label.text = tr("GO_RECORD")
-	_record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_record_label.add_theme_font_override("font", FONT)
-	_record_label.add_theme_font_size_override("font_size", 34)
-	_record_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
+	_record_label = UITheme.make_label(tr("GO_RECORD"), UITheme.FONT_HEADER, UITheme.ACCENT_GOLD)
 	_record_label.visible = false
 	vbox.add_child(_record_label)
 
-	var hint := Label.new()
-	hint.text = tr("GO_RESTART")
-	_hint_label = hint
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_override("font", FONT)
-	hint.add_theme_font_size_override("font_size", 26)
-	vbox.add_child(hint)
+	_stats_label = UITheme.make_label("", UITheme.FONT_BODY, UITheme.TEXT)
+	vbox.add_child(_stats_label)
+
+	_hint_label = UITheme.make_label(tr("GO_RESTART"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM)
+	vbox.add_child(_hint_label)
 
 	GameState.player_died.connect(_on_player_died)
 	GameState.locale_changed.connect(_on_locale_changed)
@@ -72,26 +60,29 @@ func _ready() -> void:
 
 func _on_locale_changed() -> void:
 	_title_label.text = tr("GO_TITLE")
+	_score_tag_label.text = tr("UI_SCORE_TAG")
 	_record_label.text = tr("GO_RECORD")
 	_hint_label.text = tr("GO_RESTART")
 	if visible:
-		_stats_label.text = (
-			tr("GO_SCORE") + "\n" + tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")
-		) % [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
+		_stats_label.text = (tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [
+			GameState.high_score, GameState.kills, GameState.boss_kills
+		]
 
 
 func _on_player_died() -> void:
 	# 死亡删档：防止一死档永存
 	GameState.delete_save()
 	var new_record := GameState.record_score()
-	_stats_label.text = (
-		tr("GO_SCORE") + "\n" + tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")
-	) % [GameState.score, GameState.high_score, GameState.kills, GameState.boss_kills]
+	_score_label.text = str(GameState.score)
+	_stats_label.text = (tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [
+		GameState.high_score, GameState.kills, GameState.boss_kills
+	]
 	_record_label.visible = new_record
 	if new_record:
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	get_tree().paused = true
 	visible = true
+	UITheme.animate_open(_plate)
 
 
 func _unhandled_input(event: InputEvent) -> void:

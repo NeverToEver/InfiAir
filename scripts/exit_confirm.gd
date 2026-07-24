@@ -5,7 +5,6 @@ extends CanvasLayer
 ## profile 落盘 → 战斗中删档（放弃对局）→ 资源 hook → 淡出 0.3s → quit。
 ## Esc/手柄 B 取消由 BackNavigator 路由到 cancel()。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 
 var _msg_label: Label
 var _ok_button: Button
@@ -40,18 +39,10 @@ func _ready() -> void:
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	margin.add_child(vbox)
 
-	var title := Label.new()
-	title.text = tr("EXIT_TITLE")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", FONT)
-	title.add_theme_font_size_override("font_size", 40)
-	title.add_theme_color_override("font_color", UITheme.ACCENT)
+	var title := UITheme.make_label(tr("EXIT_TITLE"), UITheme.FONT_TITLE, UITheme.ACCENT)
 	vbox.add_child(title)
 
-	_msg_label = Label.new()
-	_msg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_msg_label.add_theme_font_override("font", FONT)
-	_msg_label.add_theme_font_size_override("font_size", 26)
+	_msg_label = UITheme.make_label("", UITheme.FONT_BODY, UITheme.TEXT)
 	vbox.add_child(_msg_label)
 
 	var row := HBoxContainer.new()
@@ -65,6 +56,7 @@ func _ready() -> void:
 
 	_ok_button = _make_button(tr("EXIT_OK"))
 	_ok_button.add_theme_color_override("font_color", UITheme.DANGER)
+	_ok_button.add_theme_color_override("font_hover_color", UITheme.DANGER)
 	_ok_button.pressed.connect(_on_ok_pressed)
 	row.add_child(_ok_button)
 
@@ -72,12 +64,8 @@ func _ready() -> void:
 
 
 func _make_button(text: String) -> Button:
-	var button := Button.new()
-	button.text = text
+	var button := UITheme.make_button(text)
 	button.custom_minimum_size = Vector2(200.0, 56.0)
-	button.add_theme_font_override("font", FONT)
-	button.add_theme_font_size_override("font_size", 26)
-	UITheme.apply_button(button)
 	return button
 
 

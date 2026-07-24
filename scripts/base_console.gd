@@ -4,7 +4,6 @@ extends CanvasLayer
 
 signal resume_requested
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
 const ROUTE_BUFF_NAMES: Dictionary = {
 	&"spread_shot": "BUFF_SPREAD_SHOT_NAME",
 	&"laser_beam": "BUFF_LASER_BEAM_NAME",
@@ -66,22 +65,14 @@ func _ready() -> void:
 	right.add_child(_build_routes())
 	right.add_child(_build_missions())
 
-	var resume_button := Button.new()
-	resume_button.text = tr("BASE_RESUME")
+	var resume_button := UITheme.make_button(tr("BASE_RESUME"), true)
 	resume_button.custom_minimum_size = Vector2(280.0, 52.0)
-	resume_button.add_theme_font_override("font", FONT)
-	resume_button.add_theme_font_size_override("font_size", 26)
 	resume_button.pressed.connect(_on_resume_pressed)
 	vbox.add_child(resume_button)
 
 
 func _make_label(text: String, size: int) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", size)
-	return label
+	return UITheme.make_label(text, size)
 
 
 func _make_panel(title_key: String) -> Control:
@@ -96,23 +87,19 @@ func _make_panel(title_key: String) -> Control:
 	vbox.offset_right = -14.0
 	vbox.offset_bottom = -14.0
 	panel.add_child(vbox)
-	var title_label := _make_label(tr(title_key), 24)
-	_title_labels[title_key] = title_label
-	title_label.add_theme_color_override("font_color", UITheme.ACCENT)
-	vbox.add_child(title_label)
+	var header := UITheme.make_section_header(tr(title_key))
+	_title_labels[title_key] = header.get_child(0) as Label
+	vbox.add_child(header)
 	return panel
 
 
 func _make_button(text: String) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.add_theme_font_override("font", FONT)
+	var button := UITheme.make_button(text)
 	button.add_theme_font_size_override("font_size", 20)
-	UITheme.apply_button(button)
 	return button
 
 
-func _build_hangar() -> PanelContainer:
+func _build_hangar() -> Control:
 	var panel := _make_panel("BASE_HANGAR")
 	_status_label = _make_label("", 20)
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -120,7 +107,7 @@ func _build_hangar() -> PanelContainer:
 	return panel
 
 
-func _build_supply() -> PanelContainer:
+func _build_supply() -> Control:
 	var panel := _make_panel("BASE_SUPPLY")
 	var body := panel.get_node("Body")
 	_repair_button = _make_button("")
@@ -132,7 +119,7 @@ func _build_supply() -> PanelContainer:
 	return panel
 
 
-func _build_routes() -> PanelContainer:
+func _build_routes() -> Control:
 	var panel := _make_panel("BASE_ROUTES")
 	var body := panel.get_node("Body")
 	_routes_box = VBoxContainer.new()
@@ -144,7 +131,7 @@ func _build_routes() -> PanelContainer:
 	return panel
 
 
-func _build_missions() -> PanelContainer:
+func _build_missions() -> Control:
 	var panel := _make_panel("BASE_MISSIONS")
 	_missions_box = VBoxContainer.new()
 	_missions_box.add_theme_constant_override("separation", 8)
