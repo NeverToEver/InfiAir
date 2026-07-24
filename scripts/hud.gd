@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部）。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
+const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
 @onready var _score_label: Label = $ScoreLabel
 @onready var _kills_label: Label = $KillsLabel

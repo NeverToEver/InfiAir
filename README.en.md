@@ -34,12 +34,12 @@
 
 - **A complete sortie loop**: fight waves → pick 1-of-3 buffs at score milestones → rotating bosses → return to base for a mid-run refit → sortie again. Death is the only end.
 - **16 stackable buffs**: damage, fire rate, spread, piercing, explosive, lifesteal, armor, evasion, phase dash, slow field, laser beam and more — drafted at score milestones.
-- **3 rotating bosses + a full enrage sequence**: heavy / skirmisher / mothership archetypes. Below 30% HP a boss enters a scripted enrage — HP-lock checkpoint, bullet time, an orbiting attack run around your ship (square → circular path) while you're rooted in place, then a dense release barrage before returning to the fight. Fail to kill within 50 seconds and the boss flees.
-- **Mothership docking**: charge-up summon with a holographic ghost preview and automatic point-snap docking — twin turrets sweeping an upward 80° fan, missile volleys (up to 5 targets), and direct WASD control of the mothership itself while docked. A low-ammo warning precedes a forced undock, or hold H to undock early (with a charge progress bar) for a cooldown refund.
-- **Mid-run base refit**: homecoming does NOT end the run. Four base modules — hangar, weapon hardpoints (mutually exclusive talent routes), repair & resupply (RP economy), and mission planning — then you return to the same battle.
+- **3 rotating bosses + a full enrage sequence**: heavy / skirmisher / mothership archetypes; below 30% HP a boss enrages — HP lock, bullet time, an orbiting attack run, rooting barrage, and a final release salvo (see Game Loop); fail to kill within 50 seconds and the boss flees.
+- **Mothership docking**: charge-up summon with a ghost preview and automatic point-snap docking; magazine-based stay (10 cells × 2s) — twin turrets sweeping an upward 80° fan, missile volleys (up to 5 targets), direct WASD piloting; a 4-cell ammo warning precedes forced undock 5s later, or hold H to undock early (with progress bar) for a cooldown refund.
+- **Mid-run base refit**: homecoming does NOT end the run — four base modules (hangar / weapon hardpoints with mutually exclusive talent routes / repair & resupply with an RP economy / mission planning), then you return to the same battle.
 - **Holographic sci-fi UI design system**: unified color tokens and type scale, chamfered panels, primary/secondary button hierarchy, staggered fade-in motion — every screen (start / settings / pause / game over / buff draft / base) shares one skeleton.
-- **Arcade-grade visibility**: brightened player ship with a cyan rim glow, plus a pulsing hitbox dot on the actual r=7 collision point — never lose your ship in bullet hell.
-- **Fully procedural assets**: all ship sprites are procedurally generated (inherited from the Python original); SFX and BGM are synthesized by `scripts/tools/generate_audio.py`. Zero external asset dependencies.
+- **Arcade-grade visibility**: brightened player ship with a cyan rim glow, plus a pulsing dot on the actual r=7 hitbox — never lose your ship in bullet hell.
+- **Fully procedural assets**: sprites are procedurally generated (inherited from the Python original); SFX and BGM are synthesized by `scripts/tools/generate_audio.py`. Zero external asset dependencies.
 
 ## 🖼️ Screenshots
 
@@ -54,13 +54,13 @@
 | WASD / Arrow keys | Move |
 | Mouse | Aim (auto aim-assist locks targets within 230px; flick to break lock) |
 | — | Weapons fire fully automatically |
-| Shift (hold) | Boost (~1.8x speed, drains fuel) |
+| Shift (hold) | Boost (×1.8 speed, drains fuel) |
 | Ctrl (hold) | Precision movement (speed ×0.35) |
 | Space | Phase dash (requires buff; invulnerable, costs 25% fuel) |
 | H (hold 3s) | Charge-summon the mothership (WASD pilots the ship while docked; hold H 2s for early undock, with progress bar) |
 | B (hold 1.5s) | Homecoming — mid-run base refit |
 | K (hold 3s) | Abandon the sortie |
-| ESC | Global back: pause in combat (only save entry) / back one page / exit confirmation at top level |
+| ESC | Global back: pause in combat (save your run) / back one page / exit confirmation at top level |
 | R | Restart (on game-over / pause screens) |
 
 > All keys are rebindable in Settings → Controls (Esc/R are fixed; bindings persist in `user://profile.json`).
@@ -82,9 +82,9 @@ godot --path .          # run directly, or open the project in the editor and pr
 - Start with 100 HP: taking a hit grants 1.5s of invulnerability and clears enemy bullets within 250px; HP slowly regenerates after a few seconds out of combat (rate varies by difficulty), and can be fully restored by base repairs (2 RP) or mothership resupply; **pure score-based — no item drops**.
 - 4 enemy classes × 8 movement patterns, unlocked progressively by score; 3 elite variants; enemy bullets come in single / spread / laser types (12/10/20 damage, plus 20 for body collisions).
 - Milestone thresholds (starting at 3000, scaling up per cycle) pause the game for a 1-of-3 buff draft; bosses spawn every 1500 points or 90s, granting +500 points and raising the difficulty multiplier (`1 + (2^min(kills,10) − 1) × 0.25`, capped at 8x).
-- Boss enrage below 30% HP: HP locks at the 30% checkpoint (invulnerable during the sequence) → bullet time → the boss orbits your snapshot position while rooting you in place (you can still shoot) → unlock + dense release barrage → returns to the fight permanently enraged (fire rate ×1.5).
-- RP (requisition points) come from boss kills (+5) and base missions (+3), spent on repairs and fuel at the base.
-- Save anytime via the pause menu; continue from the title panel on next launch. Death deletes the save.
+- Boss enrage below 30% HP: HP locks at the 30% checkpoint (invulnerable during the sequence) → bullet time → the boss orbits your snapshot position while rooting you in place (you can still shoot) → unlock + dense release barrage → returns to the fight permanently enraged (fire rate ×1.5 / speed ×1.3).
+- RP (requisition points) come from boss kills (+5) and base missions (+3), spent on base repairs and fuel (2 RP each).
+- Save anytime via the pause menu (homecoming also updates the save automatically); continue from the title panel on next launch. Death deletes the save.
 - A welcome screen greets the first launch; the start panel includes a tutorial entry: 6 stages (movement & aim / boost & dash / combat / mothership docking / homecoming & base / boss enrage); Esc quits anytime, and the button shows "Tutorial ✓" once completed.
 
 ## 🏗️ Architecture
@@ -92,7 +92,7 @@ godot --path .          # run directly, or open the project in the editor and pr
 ```text
 main.tscn (run orchestration)
  ├─ Player (movement / aim assist / auto-fire / fuel / phase dash / laser weapon / hitbox indicator)
- ├─ Spawner (7 enemy-class config tables + score-gated unlocks + boss rotation)
+ ├─ Spawner (4 enemy + 3 elite config tables / score-gated unlocks / boss rotation)
  ├─ Mothership (auto-dock state machine: summon → dock → stay (piloting + sweep + missiles) → release → depart)
  ├─ Boss (3-type rotation + enrage sequence state machine: HP lock / orbit / root / barrage / return)
  ├─ HUD / BuffSelect / BaseConsole / GameOver / Pause / Settings / StartPanel / Welcome

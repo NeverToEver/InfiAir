@@ -2,7 +2,7 @@ extends Node2D
 ## 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
 ## 不启动正常 spawner 波次；进场 reset_run + 删档隔离，出场再 reset 并保证 time_scale=1。
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
+const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")

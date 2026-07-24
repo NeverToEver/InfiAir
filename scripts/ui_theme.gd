@@ -20,14 +20,14 @@ const BTN_PRESSED := Color(0.0, 0.83, 1.0, 0.25)
 const BTN_PRIMARY_BG := Color(0.0, 0.83, 1.0, 0.18)  # 主按钮底（ACCENT 18% alpha）
 const DIM_BG := Color(0.0, 0.0, 0.0, 0.6)  # 全屏遮罩
 
-# 字号阶梯：层级靠字号/颜色/透明度区分（字体仅 msyh.ttc 一款）
+# 字号阶梯：层级靠字号/颜色/透明度区分（字体仅 NotoSansSC.ttf 一款，OFL 开源可分发）
 const FONT_DISPLAY := 72  # 超大展示（主标题/结算大数字）
 const FONT_TITLE := 40  # 页标题
 const FONT_HEADER := 28  # 卡片名/主按钮
 const FONT_BODY := 24  # 正文/次按钮
 const FONT_CAPTION := 18  # 说明/分组标题/角落提示
 
-const FONT: FontFile = preload("res://assets/fonts/msyh.ttc")
+const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
 
 # ---------------- 控件工厂 ----------------

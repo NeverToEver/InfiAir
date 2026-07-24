@@ -43,7 +43,7 @@ godot --path .
   - `main.gd` — 对局主循环编排：刷怪、里程碑 Buff、Boss 调度、返航/召唤母舰蓄力计时。
   - `player.gd` — 玩家（WASD 移动、鼠标朝向、燃料加速、相位冲刺、受击无敌帧）。
   - `spawner.gd` — 敌机数值集中在 `ENEMY_TYPES` / `ELITE_TYPES`（static var，非 const：含 Vector2i 构造非常量表达式）。
-  - `enemy.gd` — 7 种移动策略；`boss.gd` — 3 种 Boss 轮换与狂暴逻辑（类型由 `boss_kills % 3 + 1` 决定；狂暴为完整序列状态机 EnragePhase：TRANSITION→ACTIVE→RELEASE_HOLD→RETURN）。
+  - `enemy.gd` — 8 种移动策略（straight/sine/zigzag/dive/spiral/noise/aggressive/hover）；`boss.gd` — 3 种 Boss 轮换与狂暴逻辑（类型由 `boss_kills % 3 + 1` 决定；狂暴为完整序列状态机 EnragePhase：TRANSITION→ACTIVE→RELEASE_HOLD→RETURN）。
   - `mothership.gd` — 母舰 7 态状态机（DESCEND/HOVER/DOCKING/RESUPPLY/STAY/RELEASE/DEPART）。
   - `buff_select.gd` — Buff 池 `BUFF_POOL`（16 种，含层数上限）与三选一 UI。
   - `base_console.gd` — 返航基地控制台（战机库/武器挂载/维修补给/任务规划 4 模块）。
@@ -52,7 +52,7 @@ godot --path .
   - `hud.gd` / `game_over_ui.gd` / `pause_ui.gd` / `start_panel.gd` — UI；`starfield.gd`、`camera_shake.gd`、`explosion.gd`、`spawn_telegraph.gd` — 表现层。
   - `scripts/tools/generate_audio.py` — 一次性音频程序合成脚本（仅 Python 标准库），产物已提交到 `assets/audio/`；需要重做音效时改参数重跑即可。
 - `autoload/game_state.gd` — 分数/生命/buff 层数/RP/任务/天赋路线数据层、存档与最高分持久化。
-- `assets/` — `sprites/`（战机贴图，机头朝上）、`audio/`（开火/爆炸/BGM 等 wav）、`fonts/`（msyh.ttc 中文 UI 字体）。
+- `assets/` — `sprites/`（战机贴图，机头朝上）、`audio/`（开火/爆炸/BGM 等 wav）、`fonts/`（NotoSansSC.ttf 中文 UI 字体，OFL 开源可分发）。
 - `test/` — 无头测试场景（见上节命令）。
 
 ## 关键约定（改动时必须遵守）
@@ -64,11 +64,12 @@ godot --path .
 - 暂停类 UI（Buff/结算/暂停）`process_mode = Always`，用 `get_tree().paused` 控制。
 - 返回/退出路由统一在 `BackNavigator`（`ui_cancel` + Android 返回通知 → `go_back()`，层级见 `docs/EXIT_FLOW.md`）；各 UI 不得再自行处理 `ui_cancel`（settings 改键捕获态除外，navigator 会放行），新增页面要在 `decide_back_action()` 登记层级。
 - BGM 循环只设 `stream.loop_mode = LOOP_FORWARD`；不要显式写 `loop_begin/loop_end` 或在 `_exit_tree` 里 `stop()`，否则退出时播放实例会泄漏（已在无头验证中复现）。
-- 母舰：长按 H 蓄力召唤（main 管理，虚影预告）→ 到位**自动点吸附对接**（无区域判定，原作语义）→ 驻留 20s 弹匣制（四格警告 5s 后强制离舰，对齐原作横幅弹射）+ WASD 驾驶母舰；无敌窗口 = 吸附开始→弹射结束（释放后 2s 保护为重制版 QoL）。长按 H 2s 提前离舰：冷却双机制折扣（时长 max(0.6,1-0.4r) + 预填 min(0.3,0.5r)），基础冷却 60s。火力：加特林双塔向上 80° 扫射（仅驻留有目标时）+ 导弹（0.3s/波 ≤5 最近目标、直线定向弹直击 80+溅射 20）；弹丸/导弹 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）。补给回满血+燃料为重制版增强（原作母舰无补给）。
-- 返航 = 局内中场整备：长按 B 蓄力（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
+- 母舰：长按 H 蓄力 3s 召唤（main 管理，虚影预告）→ 到位**自动点吸附对接**（无区域判定，原作语义）→ 驻留 20s 弹匣制（10 格 × 2s；≤4 格警告，警告 5s 后强制离舰，对齐原作横幅弹射）+ WASD 驾驶母舰；无敌窗口 = 吸附开始→弹射结束（释放后 2s 保护为重制版 QoL）。长按 H 2s 提前离舰：冷却双机制折扣（时长 max(0.6,1-0.4r) + 预填 min(0.3,0.5r)），基础冷却 60s。火力：加特林双塔向上 80° 扫射（仅驻留有目标时）+ 导弹（0.3s/波 ≤5 最近目标、直线定向弹直击 80+溅射 20）；弹丸/导弹 `score_scale=1/3`（击毁结算向下取整，enemy/boss 的 `take_damage(amount, score_scale)` 链路）。补给回满血+燃料为重制版增强（原作母舰无补给）。
+- 返航 = 局内中场整备：长按 B 蓄力 1.5s（main.gd `_process` 计时），「继续出击」轨道打击清屏后返回同一局（Boss 保留）；RP/任务/天赋路线数据层在 game_state.gd（见 `test/base_system_test.gd`）。
 - 视角缩放三档（`GameState.view_zoom`：small 1.0 / medium 1.35 / large 1.7，默认 medium，profile 持久化）：相机固定在 (960,540) 只设 `zoom`，一切"屏幕边缘/出屏/刷怪位置"逻辑必须走 `GameState.view_world_rect()`（zoom=1 时即全屏 1920×1080），不得再写死 0..1920 / 0..1080。
 - 窗口大小三档（`GameState.window_size`：small 1280×720 / medium 1600×900 / large 1920×1080，默认 large，profile 持久化）：`set_window_size()` 立即应用到窗口（仅窗口模式生效，headless 跳过）并发 `window_size_changed`，启动时 `load_profile()` 读档即应用；与视角缩放 `view_zoom` 是两套独立设置（stretch 等比缩放，内容不变形），互不影响。
 - UI 样式统一走 `UITheme`（scripts/ui_theme.gd）：色板 token + 字号阶梯（FONT_DISPLAY 72/TITLE 40/HEADER 28/BODY 24/CAPTION 18，字体 `UITheme.FONT`）+ 工厂方法（`make_label`/`make_button(primary)`/`make_toggle_button`/`make_section_header`/`make_page_shell` 返回 {root,panel,title,content}/`animate_open`/`stagger_open`）。新页面用 `make_page_shell` 组装，每页至多一个 primary 主按钮；不要再手写散落的 Label/Button 样板与硬编码色值。视觉核对用 `test/ui_capture.tscn`（窗口模式，产物 /tmp/ui_*.png）。
+- 教程场景 `scenes/tutorial.tscn`（`scripts/tutorial.gd`）独立于 main 对局逻辑：进场 `reset_run` + `delete_save` 隔离，出场再 reset 并强制 `Engine.time_scale = 1`；开始面板「教程」按钮进入，Esc 退出。运行期代码创建的节点要取引用保存，不要用 `get_node("ClassName")`（自动名是 `@CanvasLayer@N` 形式）。
 
 ## 测试策略
 
@@ -82,11 +83,9 @@ godot --path .
 - 私有成员加 `_` 前缀；常量用 `CONSTANT_CASE` 并集中在文件头部。
 - 不引入外部插件；不改 `project.godot` 的 autoload 与既有输入映射（追加新映射允许，已追加：`dash`=空格、`dock`=H、`homecoming`=B）。
 
-- 教程场景 `scenes/tutorial.tscn`（`scripts/tutorial.gd`）独立于 main 对局逻辑：进场 `reset_run` + `delete_save` 隔离，出场再 reset 并强制 `Engine.time_scale = 1`；开始面板「教程」按钮进入，Esc 退出。运行期代码创建的节点要取引用保存，不要用 `get_node("ClassName")`（自动名是 `@CanvasLayer@N` 形式）。
-
 ## 数值调参
 
-- 所有可调数值集中在 `data/balance.json`（玩家/敌机/精英/Boss/刷怪/母舰/buff/里程碑/难度/效果分层）；**调参只改 JSON，不改脚本常量**。脚本内的同名 var 是回退默认值，必须与 JSON 保持一致。
+- 所有可调数值集中在 `data/balance.json`（玩家/敌机/精英/Boss/刷怪/母舰/buff/里程碑/难度/效果/教程分层）；**调参只改 JSON，不改脚本常量**。脚本内的同名 var 是回退默认值，必须与 JSON 保持一致。
 - 访问统一走 `GameState.cfg("player.fuel.drain" 式路径, 默认值)`；每帧热路径禁止直接 cfg 查询，在 `_ready()` 一次性读进成员变量（参照 player.gd `_load_balance()`）。
 
 ## 语言（中英双语）
@@ -106,7 +105,7 @@ godot --path .
 
 ## 持久化与安全注意
 
-- 对局存档 `user://savegame.json`（暂停菜单「保存进度」可写 + 返航自动更新，仅死亡删除）与局外档案 `user://profile.json`（最高分/难度/键位/locale/视角/`welcome_seen`；局外天赋系统已移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。
+- 对局存档 `user://savegame.json`（暂停菜单「保存进度」可写 + 返航自动更新；死亡/战斗中确认退出/开新局时删除）与局外档案 `user://profile.json`（最高分/难度/键位/locale/视角/窗口大小/`welcome_seen`/`tutorial_done` 等；局外天赋系统已移除，旧 talents 字段读取时忽略），逻辑都在 `autoload/game_state.gd`，均带 `version` 字段。
 - 损坏持久化文件自动隔离：JSON 解析失败时重命名为 `<file>.corrupt` 备份并置 `save_corrupt`/`profile_corrupt` 标记（开始面板据此提示），按无存档/默认档案继续，不留死路径；`--startup-time` CLI 参数（`--` 后传入）可打印启动分段耗时。
 - 无网络代码、无第三方依赖、无密钥；唯一外部交互是上述 user:// 本地文件。
 

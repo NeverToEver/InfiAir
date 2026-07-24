@@ -21,26 +21,28 @@ L0 顶层:  StartPanel（主界面/大厅）⇐ WelcomeScreen（仅首次启动�
 
 ```
 func go_back():
-    match decide_back_action():            # 按页面优先级 L3 → L0 判定
+    match decide_back_action():            # 纯决策函数，无副作用（供测试覆盖全分支）
         CANCEL_EXIT:          # ExitConfirm 可见
-            exit_confirm.cancel()          # 返回 = 取消退出，焦点还给开始面板主按钮
+            exit_confirm.cancel()          # 返回 = 取消退出；开始面板可见时焦点还给其主按钮
         CAPTURE_PASSTHROUGH:  # 设置改键捕获中
             pass                           # 不消费事件，让 SettingsUI 取消捕获
         CLOSE_SETTINGS:       # 设置页可见
-            settings._on_back_pressed()    # 返回 opener（暂停或开始面板）
+            settings_ui._on_back_pressed() # 返回 opener（暂停或开始面板）
         RESUME_BASE:          # 基地控制台可见
             base_ui._on_resume_pressed()   # = 继续出击
-        IGNORE:               # Buff 三选一 / 过场
-            （吞掉输入，必须做选择）
+        IGNORE:               # Buff 三选一（必须做选择）/ 死亡→结算页出现前的中间态 / 返航过场及其他暂停态
+            （吞掉输入）
         TO_MAIN_MENU:         # 结算页可见
-            reset_run + reload_current_scene   # 回主界面（死亡时已删档）
+            paused = false + reset_run + reload_current_scene   # 回主界面（死亡时已删档）
         RESUME_GAME:          # 暂停面板可见
             pause_ui.close()
-        OPEN_PAUSE:           # 战斗中（无覆盖、未暂停）
-            pause_ui.open()                # 返回上一级 = 暂停
         CONFIRM_EXIT:         # 顶层（开始面板 / 欢迎页）
             exit_confirm.show_confirm(battle=false)
+        OPEN_PAUSE:           # 以上皆非 = 战斗中（无覆盖、未暂停）
+            pause_ui.open()                # 返回上一级 = 暂停
 ```
+
+判定顺序即代码顺序：模态（确认窗）→ 设置/基地/阻塞态/结算 → 暂停 → 顶层 → 战斗。
 
 ### 战斗中退出（二次确认 + 进度损失提示）
 
@@ -80,15 +82,15 @@ func _execute_exit_cleanup(battle):
   - `show_confirm(battle: bool = false)` — normal/battle 双模式；battle 换 `UITheme.DANGER` 红字警告。
   - `cancel()` — 关闭（Esc 由 BackNavigator 路由至此）。
   - `_execute_exit_cleanup(battle)` — 退出前清理（测试可直接调用断言副作用）。
-- 布局：`ChamferedPanel` + 标题 + 消息 + 「取消」（默认焦点）/「确认退出」（danger 色），复用 `UITheme.apply_button`；文案 `EXIT_*` 翻译键，监听 `locale_changed`。
+- 布局：`ChamferedPanel` + 标题 + 消息 + 「取消」（默认焦点）/「确认退出」（danger 色）；按钮样式走 `UITheme.make_button`；文案 `EXIT_*` 翻译键，监听 `locale_changed` 刷新。
 - 复用方式：任何页面需要"确认后退出"只需 `show_confirm()`，清理/过渡/退出进程全部内部封装。
 
 ## 5. 平台差异化处理
 
 - **PC**：无差异，Esc 全程可用（当前唯一实机验证平台）。
-- **手柄**：依赖引擎内置 `ui_cancel` 默认映射（含 joy button 1），零配置；按钮焦点样式（hover 同款高亮）保证键盘/手柄导航可见。未实机验证（无导出流程）。
-- **Android**：系统返回手势经 `NOTIFICATION_WM_GO_BACK_REQUEST` 接入同一状态机，无需额外逻辑；导出模板配置不在本项目范围内（无发布流程），标注为"映射就绪、未实机验证"。
-- **教程场景**：独立顶层，Esc 直接回主界面，不进状态机（避免跨场景耦合）。
+- **手柄**：依赖引擎内置 `ui_cancel` 默认映射（含 joy button 1），零配置；按钮 focus 样式与 hover 同款高亮，键盘/手柄导航可见。未实机验证（无导出流程）。
+- **Android**：系统返回手势接入同一状态机；导出模板配置不在本项目范围内，标注为"映射就绪、未实机验证"。
+- **教程场景**：见第 1 节，独立顶层自处理，不进状态机（避免跨场景耦合）。
 
 ## 6. 测试
 

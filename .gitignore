@@ -1,16 +1,26 @@
 # Godot 4 generated files
 .godot/
 *.tmp
+# 由 data/translations.csv 经 import 自动生成，无需跟踪
+*.translation
 
 # OS
 .DS_Store
+Thumbs.db
 
-# Export presets (contain local paths; re-add if团队需要)
+# 编辑器 / IDE
+.idea/
+.vscode/
+
+# Export presets (contain local paths; re-add if 团队需要)
 export_presets.cfg
 
 # Exported builds
 builds/
 exports/
+android/build/
+*.apk
+*.aab
 
 # 会话导出文件
 kimi-export-session_*.md
