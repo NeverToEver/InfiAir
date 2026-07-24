@@ -10,7 +10,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - 设计视口：1920×1080，`canvas_items` 拉伸，`keep` 宽高比。
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`），负责全局状态、信号、数值读取、持久化、音效池与实体注册表。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
-- 玩法对齐状态和已知差异见 `docs/PORTING_PARITY.md`；返回/退出行为见 `docs/EXIT_FLOW.md`。
+- 玩法对齐状态和已知差异见 `docs/PORTING_PARITY.md`；返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`。
 
 ## 技术栈、配置与交付现状
 
@@ -132,7 +132,7 @@ Main (scripts/main.gd)
 | `assets/` | 游戏贴图、音效/BGM 和字体。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
-| `docs/` | 移植对齐、退出流程、审计计划与截图。 |
+| `docs/` | 移植对齐、退出流程、审计计划、路线图（ROADMAP）与截图。 |
 
 ## 开发约定
 
@@ -193,5 +193,6 @@ Main (scripts/main.gd)
 ## 文档同步要求
 
 - 调整玩法、移植差异、对齐状态或验收口径时，更新 `docs/PORTING_PARITY.md` 的对应条目。
+- 调整项目方向、阶段计划或暂缓/重启决策时，更新 `docs/ROADMAP.md`（方向类决策的单一事实源）。
 - 调整页面返回层级、退出清理或平台返回处理时，更新 `docs/EXIT_FLOW.md` 并运行返回导航测试。
 - 修改工程结构、运行命令、测试策略、配置位置或本文件所述约定时，同步维护本 `AGENTS.md`，使其保持面向首次接手项目的代理的真实入口文档。

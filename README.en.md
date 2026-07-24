@@ -160,7 +160,7 @@ godot --path . res://test/ui_capture.tscn                # windowed six-screen U
 - [x] Full boss enrage sequence (HP lock / orbit attack / root / barrage) + player visibility (brighten / rim glow / hitbox dot) — iteration 3.14
 - [ ] Release builds (deferred)
 
-The item-by-item parity checklist against the original, the iteration history, and the roadmap live in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md).
+The item-by-item parity checklist against the original and the iteration history live in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md); future direction and the phased plan live in [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## 🤝 Contributing
 

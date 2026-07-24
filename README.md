@@ -160,7 +160,7 @@ godot --path . res://test/ui_capture.tscn                # 窗口模式六界面
 - [x] Boss 狂暴完整序列（锁血 / 轨道环绕 / 定身 / 齐射）+ 玩家可视性（提亮 / 辉光 / 碰撞点光点） —— 迭代 3.14
 - [ ] 打包发布（暂缓）
 
-移植对齐的逐项对照、迭代历史与后续计划见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)。
+移植对齐的逐项对照、迭代历史与后续计划见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)；未来方向与阶段计划见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
 
 ## 🤝 参与贡献
 
