@@ -174,6 +174,7 @@ func _physics_process(delta: float) -> void:
 			pass  # 兼容保留：自动对接流程下不再经过（见 _start_docking 守卫）
 		State.DOCKING:
 			if _state_timer >= DOCK_TWEEN_TIME:
+				_beam.visible = false  # 对接完成即隐藏牵引光束，否则驻留期一直闪烁
 				_enter_state(State.RESUPPLY)
 		State.RESUPPLY:
 			if _state_timer >= RESUPPLY_DELAY:

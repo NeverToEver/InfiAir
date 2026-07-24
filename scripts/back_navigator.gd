@@ -46,31 +46,38 @@ func go_back() -> void:
 			# 焦点还给开始面板主按钮（确认窗打开时抢走了焦点）
 			if _start_panel.visible:
 				_start_panel.grab_primary_focus()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.CAPTURE_PASSTHROUGH:
 			pass  # 不 set_input_as_handled，让 settings_ui 取消捕获
 		BackAction.CLOSE_SETTINGS:
 			_settings_ui._on_back_pressed()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.RESUME_BASE:
 			_base_ui._on_resume_pressed()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.IGNORE:
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.TO_MAIN_MENU:
 			get_tree().paused = false
 			GameState.reset_run()
 			get_tree().reload_current_scene()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.RESUME_GAME:
 			_pause_ui.close()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.OPEN_PAUSE:
 			_pause_ui.open()
-			get_viewport().set_input_as_handled()
+			_mark_handled()
 		BackAction.CONFIRM_EXIT:
 			_exit_confirm.show_confirm(false)
-			get_viewport().set_input_as_handled()
+			_mark_handled()
+
+
+## 退出/场景重载途中节点可能已离树，get_viewport() 会返回 null（3.12 实机退出报错修复）
+func _mark_handled() -> void:
+	var vp := get_viewport()
+	if vp != null:
+		vp.set_input_as_handled()
 
 
 ## 纯决策：按页面优先级（模态 > 覆盖 > 对局 > 顶层）决定返回动作

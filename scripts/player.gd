@@ -48,6 +48,9 @@ var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
 var _input_locked: bool = false  # 返航过场期间锁定
+## Boss 狂暴序列锁定（对齐原作 is_controls_locked）：移动/冲刺完全冻结，仍可瞄准/开火。
+## 由 Boss 在狂暴触发时置位、RELEASE_HOLD 开始/序列中断时解除。
+var movement_locked: bool = false
 var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
 
 var _fire_cooldown: float = 0.0
@@ -70,6 +73,8 @@ var _aim_lock_target: Node2D = null  # 瞄准辅助锁定的敌人（含 Boss）
 var _prev_aim_mouse := Vector2.ZERO
 var _aim_mouse_initialized: bool = false
 var _aim_ring: Line2D = null
+var _hitbox_dot: Polygon2D = null
+var _hitbox_halo: Line2D = null
 var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
 var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 
@@ -129,6 +134,32 @@ func _load_balance() -> void:
 		_aim_ring.add_point(Vector2(cos(a), sin(a)) * AIM_RING_RADIUS)
 	_aim_ring.hide()
 	add_child(_aim_ring)
+	# 可视性增强（深色机体在星空背景上易丢失）：机体提亮 + 青色描边辉光
+	# （辉光挂 _sprite 下，跟随旋转/缩放/无敌帧闪烁）
+	_sprite.modulate = Color(1.35, 1.4, 1.55)
+	var glow := Sprite2D.new()
+	glow.texture = _sprite.texture
+	glow.scale = Vector2(1.2, 1.2)
+	glow.modulate = Color(0.45, 0.9, 1.0, 0.45)
+	glow.z_index = -1
+	_sprite.add_child(glow)
+	# 碰撞点指示：受击判定点（Hitbox r=7）的闪烁小光点 + 淡色光圈（街机 shmup 惯例）
+	_hitbox_dot = Polygon2D.new()
+	var dot_pts := PackedVector2Array()
+	for i in 10:
+		var a := TAU * float(i) / 10.0
+		dot_pts.append(Vector2(cos(a), sin(a)) * 3.5)
+	_hitbox_dot.polygon = dot_pts
+	_hitbox_dot.color = Color(0.65, 0.95, 1.0)
+	add_child(_hitbox_dot)
+	_hitbox_halo = Line2D.new()
+	_hitbox_halo.width = 1.5
+	_hitbox_halo.default_color = Color(0.5, 0.9, 1.0, 0.45)
+	_hitbox_halo.closed = true
+	for i in 16:
+		var a := TAU * float(i) / 16.0
+		_hitbox_halo.add_point(Vector2(cos(a), sin(a)) * 8.0)
+	add_child(_hitbox_halo)
 
 
 func fire_interval() -> float:
@@ -181,11 +212,17 @@ func _physics_process(delta: float) -> void:
 	if _dead or _input_locked:
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# Boss 狂暴锁定：移动/冲刺冻结（原作 controls_locked 语义），瞄准与开火照常
+	if movement_locked:
+		input_dir = Vector2.ZERO
+		velocity = Vector2.ZERO
+		_dashing = false
 
 	# 相位冲刺（燃料不足 25% 满值时禁用）
 	_dash_cooldown = maxf(_dash_cooldown - delta, 0.0)
 	if (
 		dash_unlocked()
+		and not movement_locked
 		and Input.is_action_just_pressed("dash")
 		and _dash_cooldown <= 0.0
 		and not _dashing
@@ -200,6 +237,8 @@ func _physics_process(delta: float) -> void:
 	if GameState.shift_toggle_mode and Input.is_action_just_pressed("boost"):
 		_boost_toggle_on = not _boost_toggle_on
 	var want_boost := _boost_toggle_on if GameState.shift_toggle_mode else Input.is_action_pressed("boost")
+	if movement_locked:
+		want_boost = false  # 锁定期间加速同样冻结（不耗燃料）
 	if _fuel_locked and _fuel >= FUEL_RESTART:
 		_fuel_locked = false
 	var boosting := want_boost and not _fuel_locked and _fuel > 0.0
@@ -254,6 +293,9 @@ func _physics_process(delta: float) -> void:
 		_sprite.modulate.a = 0.35 + 0.65 * absf(sin(Time.get_ticks_msec() / 1000.0 * 20.0))
 	else:
 		_sprite.modulate.a = 1.0
+
+	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
+	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(sin(Time.get_ticks_msec() / 1000.0 * 6.0))
 
 	# 回血：regen buff 固定 +2 HP/s（二元，对齐原作 RegenerationBuff）；
 	# 无 buff 时被动回血——距上次受伤 delay 秒起按难度速率回复（原作延迟不重置为疑似 bug，本版受伤即重置）

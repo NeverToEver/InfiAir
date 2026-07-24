@@ -43,7 +43,7 @@ godot --path .
   - `main.gd` — 对局主循环编排：刷怪、里程碑 Buff、Boss 调度、返航/召唤母舰蓄力计时。
   - `player.gd` — 玩家（WASD 移动、鼠标朝向、燃料加速、相位冲刺、受击无敌帧）。
   - `spawner.gd` — 敌机数值集中在 `ENEMY_TYPES` / `ELITE_TYPES`（static var，非 const：含 Vector2i 构造非常量表达式）。
-  - `enemy.gd` — 7 种移动策略；`boss.gd` — 3 种 Boss 轮换与狂暴逻辑（类型由 `boss_kills % 3 + 1` 决定）。
+  - `enemy.gd` — 7 种移动策略；`boss.gd` — 3 种 Boss 轮换与狂暴逻辑（类型由 `boss_kills % 3 + 1` 决定；狂暴为完整序列状态机 EnragePhase：TRANSITION→ACTIVE→RELEASE_HOLD→RETURN）。
   - `mothership.gd` — 母舰 7 态状态机（DESCEND/HOVER/DOCKING/RESUPPLY/STAY/RELEASE/DEPART）。
   - `buff_select.gd` — Buff 池 `BUFF_POOL`（16 种，含层数上限）与三选一 UI。
   - `base_console.gd` — 返航基地控制台（战机库/武器挂载/维修补给/任务规划 4 模块）。
@@ -58,7 +58,7 @@ godot --path .
 ## 关键约定（改动时必须遵守）
 
 - 碰撞层：1=player，2=player_bullet，3=enemy（含 boss），4=enemy_bullet。子弹负责结算伤害（玩家弹检测 enemy 组，敌弹/敌机撞击检测 `player_hitbox` 组）。
-- 受击判定（3.9 起为 100 HP 制，对齐原作）：玩家 HP 存于 `GameState.health`（上限 `GameState.max_health()` = 基础 100 + extra_life ×50），受击只看 `Hitbox` Area2D（r=7 小判定点，近似原作 10×14）；CharacterBody2D 上的 r=22 圆无碰撞用途（mask=0，勿用于判定）。`player.take_damage(amount) -> bool`：先 20% 闪避（evasion，二元）再护甲 ×0.85（armor，二元），全伤害源两段式（原作分裂语义为疑似 bug 未移植）；返回 false（无敌/单帧已结算/闪避）时敌弹穿过不销毁——单帧至多结算一次受击（帧号标记），命中生效后清 250px 敌弹。敌弹按弹种 12/10/20，Boss 弹 14/12/21/12/21/12，敌机撞击 20（敌机不自毁），Boss 撞击 30（入场降入/逃跑离场不判定）。Boss 狂暴锁血：未狂暴时非致死伤害最多把 HP 钳到 30% 阈值并触发狂暴，致死直接击杀。回血：regen buff +2 HP/s，被动回血按难度（受伤重置延迟），lifesteal 击杀回 10% 上限（每帧至多一次），基地维修/母舰补给回满。
+- 受击判定（3.9 起为 100 HP 制，对齐原作）：玩家 HP 存于 `GameState.health`（上限 `GameState.max_health()` = 基础 100 + extra_life ×50），受击只看 `Hitbox` Area2D（r=7 小判定点，近似原作 10×14）；CharacterBody2D 上的 r=22 圆无碰撞用途（mask=0，勿用于判定）。`player.take_damage(amount) -> bool`：先 20% 闪避（evasion，二元）再护甲 ×0.85（armor，二元），全伤害源两段式（原作分裂语义为疑似 bug 未移植）；返回 false（无敌/单帧已结算/闪避）时敌弹穿过不销毁——单帧至多结算一次受击（帧号标记），命中生效后清 250px 敌弹。敌弹按弹种 12/10/20，Boss 弹 14/12/21/12/21/12，敌机撞击 20（敌机不自毁），Boss 撞击 30（入场降入/逃跑离场不判定）。Boss 狂暴锁血：未狂暴时非致死伤害最多把 HP 钳到 30% 阈值并触发狂暴，致死直接击杀；触发后进入完整狂暴序列（TRANSITION 0.9s 子弹时间蓄力 → ACTIVE 绕触发时玩家位置快照走方形→圆形轨道 + 高速波次开火 → RELEASE_HOLD 0.7s 密集慢速弹幕 → RETURN 0.8s 归位，数值在 `boss.enrage` 段），序列期间（触发→RELEASE_HOLD 前）HP 锁定在 30% 检查点（任何伤害不掉血不死）且冻结玩家移动（`player.movement_locked`，对齐原作 is_controls_locked：定身但可射击；RELEASE_HOLD/逃跑/死亡/离场必解除），RELEASE_HOLD 起解锁可正常击杀，序列结束后保持永久射速 ×1.5/移速 ×1.3。回血：regen buff +2 HP/s，被动回血按难度（受伤重置延迟），lifesteal 击杀回 10% 上限（每帧至多一次），基地维修/母舰补给回满。
 - 玩家/敌弹共用 `scenes/bullet.tscn`，用 `setup()` 区分阵营；爆炸为纯代码构建的 `Explosion`（GPUParticles2D 一次性）。
 - 实体 `setup()` 在 `_ready()` 之前被调用，其中不能用 `@onready` 变量，需用 `$节点路径` 访问子节点。
 - 暂停类 UI（Buff/结算/暂停）`process_mode = Always`，用 `get_tree().paused` 控制。

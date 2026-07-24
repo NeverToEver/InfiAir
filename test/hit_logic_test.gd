@@ -213,9 +213,16 @@ func _ready() -> void:
 		"A3：非致死伤害钳到 30% 阈值"
 	)
 	_check(boss3._enraged, "A3：钳到阈值触发狂暴")
-	# 狂暴后不再钳制：小额伤害正常扣血
+	# 锁血期（触发→RELEASE_HOLD 前）：任何伤害不掉血不死
 	boss3.take_damage(1)
-	_check(boss3.hp < boss3.max_hp * boss3.ENRAGE_HP_RATIO, "A3：狂暴触发后不再锁血")
+	_check(
+		is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO),
+		"A3：锁血期伤害不掉血"
+	)
+	# 序列中断/RELEASE_HOLD 解锁后：小额伤害正常扣血
+	boss3._abort_enrage_sequence()
+	boss3.take_damage(1)
+	_check(boss3.hp < boss3.max_hp * boss3.ENRAGE_HP_RATIO, "A3：锁血解除后正常扣血")
 	boss3.queue_free()
 	await get_tree().process_frame
 	# 致死伤害：满血一击直接击杀（不触发狂暴钳制）

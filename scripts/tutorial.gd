@@ -196,6 +196,7 @@ func _on_mothership_departed(_cooldown: float) -> void:
 
 func _on_boss_enraged() -> void:
 	if _stage == 5 and not _finished:
+		_boss._abort_enrage_sequence()  # 教程触发即过关：中止序列，不冻结玩家移动
 		_finish()
 
 

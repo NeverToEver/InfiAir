@@ -174,7 +174,7 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 
-	# 3.4 狂暴阶段：血量 <30% 触发，射速 ×1.5
+	# 3.4 狂暴阶段：血量 <30% 触发，序列后射速 ×1.5
 	spawner._spawn_boss(1)
 	await get_tree().process_frame
 	var boss4: Boss = null
@@ -187,6 +187,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(boss4._enraged, "Boss 血量 <30% 触发狂暴")
 	_check(boss4._base_modulate() != Color.WHITE, "狂暴贴图变红")
+	# 狂暴完整序列（锁血/冻结玩家/轨道攻击）断言见 boss_enrage_test；
+	# 这里中止序列后验证永久射速倍率，并快进 main 子弹时间等 time_scale 恢复
+	boss4._abort_enrage_sequence()
+	get_node("Main")._bullet_time_left = 0.05
+	for i in 30:
+		await get_tree().create_timer(0.1, true, false, true).timeout
+		if is_equal_approx(Engine.time_scale, 1.0):
+			break
 	# 狂暴射速：计时器流速 ×1.5 → 0.5s 墙钟消耗 0.75s 计时
 	boss4._fire_timer = 1.6
 	await get_tree().create_timer(0.5).timeout
