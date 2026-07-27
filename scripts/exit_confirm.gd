@@ -112,9 +112,9 @@ func _execute_exit_cleanup(battle: bool) -> void:
 	_on_exit_cleanup()
 
 
-## 退出前资源/连接清理 hook：本项目无网络代码，保留单点以便将来接入（网络断开等）
+## 退出前资源/连接清理 hook：本项目无网络代码；停止未播完的音效，避免退出时播放实例泄漏
 func _on_exit_cleanup() -> void:
-	pass
+	GameState.stop_all_sfx()
 
 
 ## 短暂过渡动画（淡出黑屏 0.3s）后退出，避免突兀切进程

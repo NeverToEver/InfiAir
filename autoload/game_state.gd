@@ -231,6 +231,16 @@ func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
 	p.play()
 
 
+## 退出前停止所有仍在播放的音效：带播未停时 AudioStreamPlayback 会在退出时泄漏
+func stop_all_sfx() -> void:
+	for p in _sfx_players:
+		p.stop()
+	if player_ref != null and is_instance_valid(player_ref):
+		var audio: AudioStreamPlayer2D = player_ref.get_node_or_null("AudioStreamPlayer2D")
+		if audio != null:
+			audio.stop()
+
+
 func shake(strength: float) -> void:
 	screen_shake.emit(strength)
 

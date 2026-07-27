@@ -189,10 +189,15 @@ func _spawn_enemy() -> void:
 	var x := randf_range(view.position.x + 60.0, view.end.x - 60.0)
 	# 入场预告：0.6s 红色提示后敌机才进场
 	get_parent().add_child(SpawnTelegraph.new(x, view.position.y))
-	await get_tree().create_timer(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION), false).timeout
+	_schedule(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
+		_on_telegraph_timeout.bind(config, strategy, btype, x))
+
+
+## 预告计时结束后敌机实际进场
+func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: StringName, x: float) -> void:
 	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
-	e.position = Vector2(x, view.position.y - 60.0)
+	e.position = Vector2(x, GameState.view_world_rect().position.y - 60.0)
 	get_parent().add_child(e)
 
 
@@ -207,8 +212,7 @@ func _trigger_boss() -> void:
 	_boss_active = true
 	boss_warning.emit()
 	GameState.shake(GameState.cfg("effects.shake.boss_warning", 14.0))
-	await get_tree().create_timer(2.0, false).timeout
-	_spawn_boss()
+	_schedule(2.0, _spawn_boss)
 
 
 ## p_type <= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%3+1 种
@@ -228,3 +232,14 @@ func _on_boss_died() -> void:
 	_boss_active = false
 	_boss_timer = 0.0
 	_next_boss_score += BOSS_SCORE_STEP
+
+
+## 一次性计时回调。不用协程 await（SceneTreeTimer 或 Timer 均可）：退出时挂起的
+## 协程函数状态会泄漏并连带持有其引用的资源；信号连接随 Timer 节点一并释放。
+func _schedule(seconds: float, callback: Callable) -> void:
+	var timer := Timer.new()
+	timer.one_shot = true
+	add_child(timer)
+	timer.timeout.connect(callback, CONNECT_ONE_SHOT)
+	timer.timeout.connect(timer.queue_free, CONNECT_ONE_SHOT)
+	timer.start(seconds)

@@ -142,6 +142,7 @@ Main (scripts/main.gd)
 - `setup()` 会在实体被加入场景、执行 `_ready()` 之前调用。此阶段不要依赖 `@onready` 缓存；改用 `$节点路径` 访问子节点。
 - 不要修改既有 autoload 或输入映射来完成无关需求。现有输入由 `project.godot` 定义，包括移动、`boost`（Shift）、`fine_move`（Ctrl）、`dash`（Space）、`dock`（H）、`homecoming`（B）、`give_up`（K）和 `restart`（R）。
 - 教程进入时会隔离对局状态和存档，离开时必须恢复 `Engine.time_scale = 1`。运行期创建的节点要保存引用，不能依赖 Godot 自动生成的节点名。
+- 延迟回调不要 `await get_tree().create_timer()` 或挂起在任何计时器上的协程：进程退出时未完成的协程函数状态会泄漏，并连带其引用的资源（贴图/音频）。改用一次性 `Timer` 节点 + 信号连接（参考 `spawner.gd` 的 `_schedule()`），Timer 随场景树释放。
 
 ### 数值与配置
 

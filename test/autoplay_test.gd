@@ -1112,6 +1112,7 @@ func _finish() -> void:
 	print("[AUTOPLAY] ===================================================")
 	# 清理：释放输入、恢复全局状态、删残留存档、恢复原设置档位
 	_release_all_inputs()
+	GameState.stop_all_sfx()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	GameState.delete_save()

@@ -35,19 +35,36 @@ static func _take_from_pool() -> Explosion:
 
 
 ## Boss 多段爆炸序列：连续小爆炸 + 最终大爆炸 + 震动。
+## 用重复 Timer 驱动而非协程：退出时挂起的协程函数状态会泄漏并连带其引用。
 static func spawn_boss_sequence(parent: Node, pos: Vector2) -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG)
 	GameState.shake(GameState.cfg("effects.shake.boss_seq_initial", 20.0))
-	for i in 6:
-		if not is_instance_valid(parent):
-			return
-		var offset := Vector2(randf_range(-130.0, 130.0), randf_range(-90.0, 90.0))
-		Explosion.spawn_at(parent, pos + offset, randf_range(0.9, 1.5))
-		GameState.shake(GameState.cfg("effects.shake.boss_seq_step", 8.0))
-		await parent.get_tree().create_timer(0.12).timeout
-	if is_instance_valid(parent):
+	_boss_seq_burst(parent, pos)  # 第 1 段立即触发
+	var step := [1]  # 已触发段数（数组引用跨回调共享计数）
+	var timer := Timer.new()
+	timer.process_mode = Node.PROCESS_MODE_ALWAYS  # 对齐原 SceneTreeTimer 暂停中仍计时
+	parent.add_child(timer)
+	timer.timeout.connect(_boss_seq_step.bind(parent, pos, step, timer))
+	timer.start(0.12)
+
+
+static func _boss_seq_burst(parent: Node, pos: Vector2) -> void:
+	var offset := Vector2(randf_range(-130.0, 130.0), randf_range(-90.0, 90.0))
+	Explosion.spawn_at(parent, pos + offset, randf_range(0.9, 1.5))
+	GameState.shake(GameState.cfg("effects.shake.boss_seq_step", 8.0))
+
+
+static func _boss_seq_step(parent: Node, pos: Vector2, step: Array, timer: Timer) -> void:
+	if not is_instance_valid(parent):
+		timer.queue_free()
+		return
+	step[0] += 1
+	if step[0] <= 6:
+		_boss_seq_burst(parent, pos)
+	else:
 		Explosion.spawn_at(parent, pos, 3.0)
 		GameState.shake(GameState.cfg("effects.shake.boss_seq_final", 24.0))
+		timer.queue_free()
 
 
 func _init() -> void:

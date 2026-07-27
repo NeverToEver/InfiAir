@@ -59,7 +59,7 @@ func _execute_exit_cleanup(battle):
     GameState.save_profile()     # 最高分/设置/语言/键位落盘
     if battle:
         GameState.delete_save()  # 战斗中退出 = 放弃对局（与死亡语义一致）
-    _on_exit_cleanup()           # hook：网络断开等（本项目无网络，预留单点）
+    _on_exit_cleanup()           # hook：停止未播完音效（避免退出时播放实例泄漏）；网络断开等预留
     # 随后淡出黑屏 0.3s（过渡动画）→ get_tree().quit()
 ```
 

@@ -101,7 +101,16 @@ func _on_save_pressed() -> void:
 	var elapsed: float = spawner._elapsed if spawner != null else 0.0
 	GameState.save_run(fuel, elapsed)
 	_save_button.text = tr("PAUSE_SAVED")
-	await get_tree().create_timer(1.0).timeout
+	# 用信号连接而非协程：退出时挂起的协程函数状态会泄漏
+	var timer := Timer.new()
+	timer.one_shot = true
+	add_child(timer)  # 本节点 process_mode=Always，暂停中仍计时
+	timer.timeout.connect(_reset_save_label, CONNECT_ONE_SHOT)
+	timer.timeout.connect(timer.queue_free, CONNECT_ONE_SHOT)
+	timer.start(1.0)
+
+
+func _reset_save_label() -> void:
 	_save_button.text = tr("PAUSE_SAVE")
 
 
