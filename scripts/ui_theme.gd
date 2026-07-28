@@ -20,6 +20,12 @@ const BTN_PRESSED := Color(0.0, 0.83, 1.0, 0.25)
 const BTN_PRIMARY_BG := Color(0.0, 0.83, 1.0, 0.18)  # 主按钮底（ACCENT 18% alpha）
 const DIM_BG := Color(0.0, 0.0, 0.0, 0.6)  # 全屏遮罩
 
+# 虚影基地皮肤 token（docs/RETURN_HOME_CINEMATIC.md §3.2，与现有 token 并存不替换）
+const PHANTOM_BG := Color(0.01, 0.03, 0.06, 0.90)  # 基地全屏底（比原 dim 更冷更深）
+const PHANTOM_PANEL_BG := Color(0.03, 0.08, 0.12, 0.55)  # 虚影面板底：更透，让背景结构隐约透出
+const PHANTOM_BORDER := Color(0.0, 0.83, 1.0, 0.65)  # 虚影面板边框：比 PANEL_BORDER 亮一档
+const PHANTOM_SCAN := Color(0.0, 0.83, 1.0, 0.06)  # 扫描线/毛玻璃叠加层
+
 # 字号阶梯：层级靠字号/颜色/透明度区分（字体仅 NotoSansSC.ttf 一款，OFL 开源可分发）
 const FONT_DISPLAY := 72  # 超大展示（主标题/结算大数字）
 const FONT_TITLE := 40  # 页标题
@@ -184,6 +190,12 @@ static func apply_button(button: Button) -> void:
 	button.add_theme_color_override("font_hover_color", ACCENT)
 	button.add_theme_color_override("font_pressed_color", TEXT)
 	button.add_theme_color_override("font_disabled_color", Color(TEXT_DIM, 0.5))
+
+
+## 虚影面板材质（§3.2）：更透的全息底 + 亮一档边框（仅基地控制台使用）
+static func apply_phantom_panel(panel: ChamferedPanel) -> void:
+	panel.bg_color = PHANTOM_PANEL_BG
+	panel.border_color = PHANTOM_BORDER
 
 
 static func _make_btn_style(bg: Color, border: Color) -> StyleBoxFlat:

@@ -1,8 +1,42 @@
 extends CanvasLayer
 ## 基地控制台（返航中场整备）：战机库 / 武器挂载（天赋路线）/ 维修补给 / 任务规划。
 ## 顶部 RP 余额，底部「继续出击」返回同一局。
+## 视觉为「虚影皮肤」（docs/RETURN_HOME_CINEMATIC.md §3）：虚影站背景层 + 全息面板，
+## 全部信号/回调/GameState 数据接口零改动。
 
 signal resume_requested
+
+
+## 面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call
+class _Scanlines:
+	extends Control
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		resized.connect(queue_redraw)
+
+	func _draw() -> void:
+		var y := 2.0
+		while y < size.y:
+			draw_line(Vector2(0.0, y), Vector2(size.x, y), UITheme.PHANTOM_SCAN, 1.0)
+			y += 4.0
+
+
+## 16×16 程序化线性发光图标（§3.2）：极简折线，青色双层描边模拟辉光
+class _GlyphIcon:
+	extends Control
+	var strokes: Array = []  # Array[PackedVector2Array]
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(16.0, 16.0)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	func _draw() -> void:
+		for stroke in strokes:
+			draw_polyline(stroke, Color(UITheme.ACCENT, 0.3), 3.0, true)
+		for stroke in strokes:
+			draw_polyline(stroke, UITheme.ACCENT, 1.5, true)
 
 const ROUTE_BUFF_NAMES: Dictionary = {
 	&"spread_shot": "BUFF_SPREAD_SHOT_NAME",
@@ -22,15 +56,68 @@ var _missions_box: VBoxContainer
 var _title_labels: Dictionary = {}
 var _columns: HBoxContainer
 var _route_hint_label: Label
+var _panels: Array[ChamferedPanel] = []
+var _glow_texture: GradientTexture2D
+
+
+## 虚影面板底后径向辉光垫（近似毛玻璃，§3.2）：四面板共享一张径向渐变纹理
+func _make_glow_texture() -> GradientTexture2D:
+	if _glow_texture != null:
+		return _glow_texture
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.0, 0.83, 1.0, 0.12))
+	gradient.set_color(1, Color(0.0, 0.83, 1.0, 0.0))
+	_glow_texture = GradientTexture2D.new()
+	_glow_texture.gradient = gradient
+	_glow_texture.fill = GradientTexture2D.FILL_RADIAL
+	_glow_texture.fill_from = Vector2(0.5, 0.5)
+	_glow_texture.fill_to = Vector2(1.0, 0.5)
+	_glow_texture.width = 128
+	_glow_texture.height = 128
+	return _glow_texture
+
+
+## 数据抖动装饰（§3.2）：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
+##（tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）
+func _apply_data_flicker(label: Label) -> void:
+	var tween := create_tween().set_loops()
+	for i in 8:  # 8 × 0.334s ≈ 2.67s
+		tween.tween_property(label, "modulate:a", 0.92, 0.167).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tween.tween_property(label, "modulate:a", 1.0, 0.167).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(label, "position:x", 1.0, 0.03)
+	tween.tween_interval(0.03)
+	tween.tween_property(label, "position:x", 0.0, 0.0)
 
 
 func _ready() -> void:
 	visible = false
 	GameState.locale_changed.connect(_on_locale_changed)
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.08, 0.95)
+	dim.color = UITheme.PHANTOM_BG
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+
+	# 虚影站内部概念背景层（§3.3.1）：PHANTOM 站体 r≈520 以 (960,540) 为圆心，
+	# 父容器压 α≈0.12（站体自呼吸写自身 modulate:a，不能直接在站体上压 alpha）+ 8s/趟全屏慢扫描带。
+	# 该层放在 dim 之后、CenterContainer 之前。
+	var bg_wrap := Control.new()
+	bg_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg_wrap.modulate.a = 0.12
+	add_child(bg_wrap)
+	var station := DawnStation.build(DawnStation.Mode.PHANTOM)
+	station.position = Vector2(960.0, 540.0)
+	station.scale = Vector2.ONE * 2.0
+	bg_wrap.add_child(station)
+	var slow_scan := ColorRect.new()
+	slow_scan.color = UITheme.PHANTOM_SCAN
+	slow_scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slow_scan.size = Vector2(1920.0, 140.0)
+	slow_scan.position = Vector2(0.0, -140.0)
+	add_child(slow_scan)
+	var scan_tween := create_tween().set_loops()
+	scan_tween.tween_property(slow_scan, "position:y", 1080.0, 8.0).set_trans(Tween.TRANS_LINEAR)
+	scan_tween.tween_property(slow_scan, "position:y", -140.0, 0.0)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -42,13 +129,15 @@ func _ready() -> void:
 
 	_title_label = _make_label(tr("BASE_TITLE"), 44)
 	vbox.add_child(_title_label)
+	_apply_data_flicker(_title_label)
 	_rp_label = _make_label("", 26)
 	_rp_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
 	vbox.add_child(_rp_label)
+	_apply_data_flicker(_rp_label)
 
 	_columns = HBoxContainer.new()
 	var columns := _columns
-	columns.add_theme_constant_override("separation", 20)
+	columns.add_theme_constant_override("separation", 140)  # §3.3.2：露出中央环体轴心，容器层级/热区/焦点链不变
 	vbox.add_child(columns)
 
 	# 左列：战机库 + 维修补给
@@ -68,6 +157,21 @@ func _ready() -> void:
 	var resume_button := UITheme.make_button(tr("BASE_RESUME"), true)
 	resume_button.custom_minimum_size = Vector2(280.0, 52.0)
 	resume_button.pressed.connect(_on_resume_pressed)
+	# 底部 2px 投影线 + 1.5s 呼吸辉光（§3.3.4，只动 alpha；尺寸/位置/回调不变）
+	var shadow_line := ColorRect.new()
+	shadow_line.color = UITheme.ACCENT_DIM
+	shadow_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shadow_line.anchor_left = 0.15
+	shadow_line.anchor_right = 0.85
+	shadow_line.anchor_top = 1.0
+	shadow_line.anchor_bottom = 1.0
+	shadow_line.offset_top = 2.0
+	shadow_line.offset_bottom = 4.0
+	shadow_line.modulate.a = 0.3
+	resume_button.add_child(shadow_line)
+	var glow_breathe := create_tween().set_loops()
+	glow_breathe.tween_property(shadow_line, "modulate:a", 1.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	glow_breathe.tween_property(shadow_line, "modulate:a", 0.3, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	vbox.add_child(resume_button)
 
 
@@ -75,9 +179,24 @@ func _make_label(text: String, size: int) -> Label:
 	return UITheme.make_label(text, size)
 
 
-func _make_panel(title_key: String) -> Control:
+func _make_panel(title_key: String, glyph: Array) -> Control:
 	var panel := ChamferedPanel.new()
+	UITheme.apply_phantom_panel(panel)  # §3.3.3 虚影材质
 	panel.custom_minimum_size = Vector2(560.0, 0.0)
+	_panels.append(panel)
+	# 面板底后径向辉光垫（近似毛玻璃，§3.2）：绘于面板底之下，随面板尺寸自适应
+	var glow := TextureRect.new()
+	glow.texture = _make_glow_texture()
+	glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow.stretch_mode = TextureRect.STRETCH_SCALE
+	glow.show_behind_parent = true
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(glow)
+	# 扫描线叠加层（§3.2）：单节点自绘，绘于面板底之上、内容之下
+	var scan := _Scanlines.new()
+	scan.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(scan)
 	var vbox := VBoxContainer.new()
 	vbox.name = "Body"
 	vbox.add_theme_constant_override("separation", 8)
@@ -87,9 +206,18 @@ func _make_panel(title_key: String) -> Control:
 	vbox.offset_right = -14.0
 	vbox.offset_bottom = -14.0
 	panel.add_child(vbox)
+	# 标题行：16×16 线性发光图标 + section header（仅基地内组装，不影响其它页面的 make_section_header）
 	var header := UITheme.make_section_header(tr(title_key))
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title_labels[title_key] = header.get_child(0) as Label
-	vbox.add_child(header)
+	_apply_data_flicker(_title_labels[title_key])
+	var header_row := HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 8)
+	var icon := _GlyphIcon.new()
+	icon.strokes = glyph
+	header_row.add_child(icon)
+	header_row.add_child(header)
+	vbox.add_child(header_row)
 	return panel
 
 
@@ -100,7 +228,9 @@ func _make_button(text: String) -> Button:
 
 
 func _build_hangar() -> Control:
-	var panel := _make_panel("BASE_HANGAR")
+	# 战机极简折线图标
+	var glyph: Array = [PackedVector2Array([Vector2(8, 1), Vector2(13, 14), Vector2(8, 11), Vector2(3, 14), Vector2(8, 1)])]
+	var panel := _make_panel("BASE_HANGAR", glyph)
 	_status_label = _make_label("", 20)
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	panel.get_node("Body").add_child(_status_label)
@@ -108,7 +238,9 @@ func _build_hangar() -> Control:
 
 
 func _build_supply() -> Control:
-	var panel := _make_panel("BASE_SUPPLY")
+	# 扳手极简折线图标
+	var glyph: Array = [PackedVector2Array([Vector2(3, 13), Vector2(9, 7), Vector2(12, 8), Vector2(14, 5), Vector2(12, 3), Vector2(9, 4), Vector2(9, 7)])]
+	var panel := _make_panel("BASE_SUPPLY", glyph)
 	var body := panel.get_node("Body")
 	_repair_button = _make_button("")
 	_repair_button.pressed.connect(_on_repair_pressed)
@@ -120,7 +252,12 @@ func _build_supply() -> Control:
 
 
 func _build_routes() -> Control:
-	var panel := _make_panel("BASE_ROUTES")
+	# 交叉线极简折线图标
+	var glyph: Array = [
+		PackedVector2Array([Vector2(3, 3), Vector2(13, 13)]),
+		PackedVector2Array([Vector2(13, 3), Vector2(3, 13)]),
+	]
+	var panel := _make_panel("BASE_ROUTES", glyph)
 	var body := panel.get_node("Body")
 	_routes_box = VBoxContainer.new()
 	_routes_box.add_theme_constant_override("separation", 8)
@@ -132,7 +269,12 @@ func _build_routes() -> Control:
 
 
 func _build_missions() -> Control:
-	var panel := _make_panel("BASE_MISSIONS")
+	# 旗帜极简折线图标
+	var glyph: Array = [
+		PackedVector2Array([Vector2(4, 2), Vector2(4, 14)]),
+		PackedVector2Array([Vector2(4, 2), Vector2(13, 4), Vector2(4, 8)]),
+	]
+	var panel := _make_panel("BASE_MISSIONS", glyph)
 	_missions_box = VBoxContainer.new()
 	_missions_box.add_theme_constant_override("separation", 8)
 	panel.get_node("Body").add_child(_missions_box)
@@ -142,7 +284,23 @@ func _build_missions() -> Control:
 func show_base() -> void:
 	_refresh()
 	visible = true
+	_holo_boot()
 	UITheme.animate_open(_columns)
+
+
+## 全息启动（§3.3.5）：四面板 α0 + scale 0.98→1.0，stagger 60ms；
+## pivot 设为中心（否则从左上角缩放），tween 终值保证 scale 精确回 1.0
+func _holo_boot() -> void:
+	var i := 0
+	for panel in _panels:
+		panel.pivot_offset = panel.size * 0.5
+		panel.modulate.a = 0.0
+		panel.scale = Vector2.ONE * 0.98
+		var tween := create_tween()
+		tween.tween_interval(0.06 * i)
+		tween.tween_property(panel, "modulate:a", 1.0, 0.25)
+		tween.parallel().tween_property(panel, "scale", Vector2.ONE, 0.25)
+		i += 1
 
 
 func _refresh() -> void:

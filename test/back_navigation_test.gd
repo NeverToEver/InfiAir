@@ -91,6 +91,16 @@ func _ready() -> void:
 	pause_ui.close()
 
 	# ---------- 5. 覆盖/阻塞态决策（不执行动作，仅断言决策） ----------
+	main._play_return_cinematic()
+	await get_tree().process_frame
+	_check(main._return != null and nav.decide_back_action() == A.SKIP_RETURN, "返航过场：决策=跳过过场")
+	main._skip_return()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(base_ui.visible and nav.decide_back_action() == A.RESUME_BASE, "返航过场跳过后：基地控制台决策=继续出击")
+	base_ui._on_resume_pressed()  # 恢复对局态，避免影响后续分支断言
+	await get_tree().process_frame
+	await get_tree().process_frame
 	buff_ui.visible = true
 	_check(nav.decide_back_action() == A.IGNORE, "Buff 三选一：决策=忽略")
 	buff_ui.visible = false

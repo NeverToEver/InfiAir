@@ -10,6 +10,8 @@ L3 模态:  ExitConfirm（全局退出确认窗，最高优先级）
 L2 覆盖:  SettingsUI（opener = 暂停/开始面板）
           BaseUI（基地控制台）/ GameOverUI（结算）/ BuffUI（三选一，阻塞）
           IntroCinematic（开场过场，layer=35；播放中树暂停，Esc/任意键/点击 = 跳过）
+          ReturnCinematic（返航过场，layer=35；播放中树暂停，Esc/任意键/点击 = 跳过；
+                          结束后树保持暂停落 BaseUI，见 docs/RETURN_HOME_CINEMATIC.md §4）
 L1 对局:  Gameplay(HUD) ⇄ PauseUI
 L0 顶层:  StartPanel（主界面/大厅）⇐ WelcomeScreen（仅首次启动）
 ```
@@ -27,13 +29,15 @@ func go_back():
             exit_confirm.cancel()          # 返回 = 取消退出；开始面板可见时焦点还给其主按钮
         SKIP_INTRO:           # 开场过场播放中（Main._intro != null）
             main._skip_intro()             # = 跳过过场直接进对局（任意键/点击由过场自身捕获）
+        SKIP_RETURN:          # 返航过场播放中（Main._return != null，优先级同 SKIP_INTRO）
+            main._skip_return()            # = 跳过过场直落基地 UI（树保持暂停；任意键/点击同上）
         CAPTURE_PASSTHROUGH:  # 设置改键捕获中
             pass                           # 不消费事件，让 SettingsUI 取消捕获
         CLOSE_SETTINGS:       # 设置页可见
             settings_ui._on_back_pressed() # 返回 opener（暂停或开始面板）
         RESUME_BASE:          # 基地控制台可见
             base_ui._on_resume_pressed()   # = 继续出击
-        IGNORE:               # Buff 三选一（必须做选择）/ 死亡→结算页出现前的中间态 / 返航过场及其他暂停态
+        IGNORE:               # Buff 三选一（必须做选择）/ 死亡→结算页出现前的中间态 / 其他暂停态
             （吞掉输入）
         TO_MAIN_MENU:         # 结算页可见
             paused = false + reset_run + reload_current_scene   # 回主界面（死亡时已删档）
@@ -45,7 +49,7 @@ func go_back():
             pause_ui.open()                # 返回上一级 = 暂停
 ```
 
-判定顺序即代码顺序：模态（确认窗）→ 过场跳过 → 设置/基地/阻塞态/结算 → 暂停 → 顶层 → 战斗。
+判定顺序即代码顺序：模态（确认窗）→ 过场跳过（开场/返航）→ 设置/基地/阻塞态/结算 → 暂停 → 顶层 → 战斗。
 
 ### 战斗中退出（二次确认 + 进度损失提示）
 
@@ -97,4 +101,4 @@ func _execute_exit_cleanup(battle):
 
 ## 6. 测试
 
-`test/back_navigation_test.tscn`：`decide_back_action()` 全分支覆盖 + 集成路径（Esc→暂停→恢复、设置返回、顶层 Esc→确认窗→取消、战斗退出确认链、清理副作用）。开场过场的 SKIP_INTRO 分支与 Esc 跳过路径由 `test/intro_cinematic_test.tscn` 覆盖（设计见 docs/INTRO_CINEMATIC.md）。回归：`esc_navigation_test`（真实按键注入）与 `smoke_test` 必须全绿。
+`test/back_navigation_test.tscn`：`decide_back_action()` 全分支覆盖 + 集成路径（Esc→暂停→恢复、设置返回、顶层 Esc→确认窗→取消、战斗退出确认链、清理副作用）。开场过场的 SKIP_INTRO 分支与 Esc 跳过路径由 `test/intro_cinematic_test.tscn` 覆盖（设计见 docs/INTRO_CINEMATIC.md）；返航过场的 SKIP_RETURN 分支（决策 + 真实 Esc 注入 + 跳过后落基地 UI 且树保持暂停）由 `test/return_cinematic_test.tscn` 覆盖（设计见 docs/RETURN_HOME_CINEMATIC.md §4），back_navigation_test 另断言其决策分支。回归：`esc_navigation_test`（真实按键注入）与 `smoke_test` 必须全绿。

@@ -65,11 +65,15 @@ func _ready() -> void:
 	pui.close()
 	await get_tree().process_frame
 
-	# 5. 基地控制台（四模块 section header）
+	# 5. 基地控制台（四模块 section header；返航过场直接 skip 落基地，截虚影皮肤）
 	GameState.add_rp(10)
 	GameState.add_buff(&"spread_shot")
-	get_node("Main")._start_homecoming()
-	await get_tree().create_timer(2.0).timeout
+	var main := get_node("Main")
+	main._start_homecoming()
+	await get_tree().process_frame
+	if main._return != null:
+		main._return.skip()
+	await _settle()  # 等全息启动 0.25s + animate_open 0.2s 播完
 	_shot("base")
 	var base_ui: CanvasLayer = get_node("Main/BaseUI")
 	base_ui._on_resume_pressed()

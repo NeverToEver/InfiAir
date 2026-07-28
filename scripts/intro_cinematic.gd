@@ -276,87 +276,12 @@ func _build_shot1() -> Node2D:
 	neb2.position = Vector2(300.0, 840.0)
 	root.add_child(neb2)
 
-	var station := Node2D.new()
+	# 站体构件抽为 DawnStation 共享构建函数（开场=实体毁灭态，纯提取不改视觉；
+	# 返航/基地背景复用虚影态，docs/RETURN_HOME_CINEMATIC.md §5）
+	var station := DawnStation.build(DawnStation.Mode.DESTROYED)
 	station.position = Vector2(960.0, 470.0)
 	station.scale = Vector2.ONE * 0.7
 	root.add_child(station)
-
-	# 环体主弧 + 内外廓细节线 + 破损段（暗色弧覆盖出缺口）
-	var ring_points := PackedVector2Array()
-	for i in 48:
-		var a := TAU * float(i) / 48.0
-		ring_points.append(Vector2(cos(a), sin(a)) * 260.0)
-	var ring := _line(ring_points, Color(0.38, 0.45, 0.58), 26.0)
-	ring.closed = true
-	station.add_child(ring)
-	for r_detail in [232.0, 288.0]:
-		var detail_points := PackedVector2Array()
-		for i in 64:
-			var a := TAU * float(i) / 64.0
-			detail_points.append(Vector2(cos(a), sin(a)) * r_detail)
-		var detail := _line(detail_points, Color(0.55, 0.65, 0.8, 0.5), 2.0)
-		detail.closed = true
-		station.add_child(detail)
-	# 舱段分块刻线：16 条径向短刻线跨环体
-	for i in 16:
-		var a := TAU * float(i) / 16.0
-		station.add_child(_line(
-			PackedVector2Array([Vector2(cos(a), sin(a)) * 244.0, Vector2(cos(a), sin(a)) * 276.0]),
-			Color(0.18, 0.22, 0.3), 3.0
-		))
-	var broken_points := PackedVector2Array()
-	for i in 7:
-		var a := 0.5 + 0.7 * float(i) / 6.0
-		broken_points.append(Vector2(cos(a), sin(a)) * 260.0)
-	station.add_child(_line(broken_points, Color(0.05, 0.05, 0.08), 30.0))
-	# 破口锯齿边缘
-	var jagged := Polygon2D.new()
-	jagged.polygon = PackedVector2Array([
-		Vector2(cos(0.45), sin(0.45)) * 240.0, Vector2(cos(0.6), sin(0.6)) * 282.0,
-		Vector2(cos(0.85), sin(0.85)) * 236.0, Vector2(cos(1.1), sin(1.1)) * 284.0,
-		Vector2(cos(1.25), sin(1.25)) * 244.0, Vector2(cos(0.85), sin(0.85)) * 262.0,
-	])
-	jagged.color = Color(0.03, 0.03, 0.05)
-	station.add_child(jagged)
-	# 破口剥落碎片：小多边形缓慢外飘 + 翻滚
-	for k in 3:
-		var flake := Polygon2D.new()
-		flake.polygon = PackedVector2Array([
-			Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
-		flake.color = Color(0.3, 0.36, 0.46)
-		var fa := 0.6 + 0.3 * k
-		flake.position = Vector2(cos(fa), sin(fa)) * 265.0
-		station.add_child(flake)
-		var ft := root.create_tween().set_parallel(true).set_loops()
-		ft.tween_property(flake, "position", flake.position + Vector2(cos(fa), sin(fa)) * 60.0, 2.0)
-		ft.tween_property(flake, "rotation", flake.rotation + 2.5, 2.0)
-	# 舱段矩形 + 中心毂与辐条（结构细节）
-	for i in 8:
-		var a := TAU * float(i) / 8.0
-		if a > 0.4 and a < 1.4:
-			continue  # 破损舱段缺失
-		var seg := _rect_poly(64.0, 40.0, Color(0.48, 0.56, 0.68))
-		seg.position = Vector2(cos(a), sin(a)) * 260.0
-		seg.rotation = a + PI * 0.5
-		station.add_child(seg)
-		var seg_edge := _rect_poly(70.0, 46.0, Color(0.6, 0.7, 0.85, 0.35))
-		seg_edge.position = seg.position
-		seg_edge.rotation = seg.rotation
-		station.add_child(seg_edge)
-		station.move_child(seg_edge, seg.get_index())
-		station.add_child(_line(
-			PackedVector2Array([Vector2(cos(a), sin(a)) * 70.0, Vector2(cos(a), sin(a)) * 240.0]),
-			Color(0.3, 0.36, 0.48), 8.0
-		))
-	station.add_child(_glow(66.0, Color(0.28, 0.34, 0.45), false))
-	# 中心毂细节环
-	var hub_ring_points := PackedVector2Array()
-	for i in 24:
-		var a := TAU * float(i) / 24.0
-		hub_ring_points.append(Vector2(cos(a), sin(a)) * 46.0)
-	var hub_ring := _line(hub_ring_points, Color(0.5, 0.6, 0.75, 0.6), 2.5)
-	hub_ring.closed = true
-	station.add_child(hub_ring)
 
 	# 爆炸核心：破口处叠加辉光，暗红 → 橙白并放大
 	var blast_pos := Vector2(cos(0.85), sin(0.85)) * 260.0

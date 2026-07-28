@@ -477,8 +477,13 @@ func _ready() -> void:
 	Input.action_press("homecoming")
 	await get_tree().create_timer(1.7).timeout
 	Input.action_release("homecoming")
-	await get_tree().create_timer(1.5).timeout  # 白屏过场
+	await get_tree().process_frame
 	_check(main._homecoming, "返航触发")
+	_check(main._return != null and get_tree().paused, "返航过场播放中（树暂停）")
+	# 过场本体由 return_cinematic_test 专测；这里跳过直达基地 UI
+	main._skip_return()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	_check(main._base_ui.visible and get_tree().paused, "进入基地整备界面")
 	# 维修扣 RP 回满（对齐原作 2RP 回满）
 	var rp_before := GameState.rp

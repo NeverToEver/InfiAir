@@ -6,6 +6,7 @@ extends Node2D
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_cinematic.tscn")
+const RETURN_SCENE: PackedScene = preload("res://scenes/return_cinematic.tscn")
 var DOCK_CHARGE_TIME := 3.0
 var HOME_CHARGE_TIME := 1.5
 var GIVE_UP_HOLD_TIME := 3.0
@@ -41,6 +42,8 @@ var _time_scale_ramp: float = -1.0  # >=0：恢复过渡进度 0..1
 var _enrage_boss: Boss = null
 ## 播放中的开场过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
 var _intro: IntroCinematic = null
+## 播放中的返航过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
+var _return: ReturnCinematic = null
 ## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
 var _event: EliteTurretEvent = null
 
@@ -219,6 +222,36 @@ func _on_intro_finished() -> void:
 	get_tree().paused = false
 
 
+## 播放返航过场：与 _play_intro_cinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。
+## BGM 引用交给过场做镜头 7 渐暗期淡出（_bgm_player 异步创建，取值判空）。测试可直接调用。
+func _play_return_cinematic() -> void:
+	if _return != null:
+		return
+	_return = RETURN_SCENE.instantiate() as ReturnCinematic
+	_return.finished.connect(_on_return_finished)
+	if _bgm_player != null:
+		_return.bgm_player = _bgm_player
+	add_child(_return)
+	get_tree().paused = true
+
+
+## Esc 经 BackNavigator 路由至此；任意键/点击由过场自身 _unhandled_input 捕获
+func _skip_return() -> void:
+	if _return != null:
+		_return.skip()
+
+
+## 跳过与自然结束同一出口：基地 UI 在黑场下淡入；树保持暂停（基地界面本就是暂停态 UI）。
+## BGM 已在过场镜头 7 淡出到 -40dB（或 skip 时立即置位），此处以 -30dB 淡入恢复（基地氛围）
+func _on_return_finished() -> void:
+	_return = null
+	_base_ui.show_base()
+	if _bgm_player != null:
+		var bgm_tween := create_tween()
+		bgm_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)  # 树保持暂停，tween 需照常推进
+		bgm_tween.tween_property(_bgm_player, "volume_db", -30.0, 1.0)
+
+
 func _on_continue_run() -> void:
 	var data := GameState.load_run_data()
 	if data.is_empty():
@@ -313,7 +346,7 @@ func _give_up() -> void:
 	_player._die()
 
 
-## 返航（局内中场整备）：锁输入、星光拉伸 + 白屏闪，进入基地控制台。
+## 返航（局内中场整备）：锁输入、星光拉伸 + 返航过场，过场结束后进入基地控制台。
 ## 对局继续：不删档（反而更新存档）、Boss 保留、死亡才是唯一终局。
 func _start_homecoming() -> void:
 	_homecoming = true
@@ -328,11 +361,8 @@ func _start_homecoming() -> void:
 		_on_mothership_departed(GameState.cfg("mothership.depart_cooldown", 60.0))
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player._fuel, _spawner._elapsed)
-	_starfield.warp(18.0)
-	var flash := await _flash_white(0.5, 0.5)
-	flash.queue_free()
-	_base_ui.show_base()
-	get_tree().paused = true
+	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
+	_play_return_cinematic()
 
 
 ## 继续出击：轨道打击清屏（Boss 保留，清小怪与全部弹丸）→ 短白屏 → 恢复同一局

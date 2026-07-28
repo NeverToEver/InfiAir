@@ -10,6 +10,7 @@ enum BackAction {
 	CLOSE_SETTINGS,  # 设置页 → 返回 opener（暂停/开始面板）
 	RESUME_BASE,  # 基地控制台 → 继续出击
 	SKIP_INTRO,  # 开场过场播放中：返回 = 跳过过场
+	SKIP_RETURN,  # 返航过场播放中：返回 = 跳过过场
 	IGNORE,  # 阻塞态（Buff 三选一/其他暂停态）：忽略
 	TO_MAIN_MENU,  # 结算页 → 返回主界面
 	RESUME_GAME,  # 暂停中 → 继续游戏
@@ -59,6 +60,9 @@ func go_back() -> void:
 		BackAction.SKIP_INTRO:
 			_main._skip_intro()
 			_mark_handled()
+		BackAction.SKIP_RETURN:
+			_main._skip_return()
+			_mark_handled()
 		BackAction.IGNORE:
 			_mark_handled()
 		BackAction.TO_MAIN_MENU:
@@ -90,6 +94,8 @@ func decide_back_action() -> BackAction:
 		return BackAction.CANCEL_EXIT
 	if _main._intro != null:
 		return BackAction.SKIP_INTRO  # 过场播放中：Esc = 跳过过场（须在下方暂停 IGNORE 之前）
+	if _main._return != null:
+		return BackAction.SKIP_RETURN  # 返航过场播放中：Esc = 跳过过场（优先级同 SKIP_INTRO）
 	if _settings_ui.visible:
 		if _settings_ui._capturing_action != &"":
 			return BackAction.CAPTURE_PASSTHROUGH

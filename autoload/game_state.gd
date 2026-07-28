@@ -227,11 +227,12 @@ func _process(delta: float) -> void:
 	_set_mission_progress(&"survive_180", int(run_time))
 
 
-func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
+func play_sfx(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
 	var p := _sfx_players[_sfx_index]
 	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
 	p.stream = stream
 	p.volume_db = volume_db
+	p.pitch_scale = pitch_scale  # 池化复用：每次播放都显式置位，避免上次变调残留
 	p.play()
 
 
