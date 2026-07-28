@@ -14,7 +14,7 @@ const SCHEDULE := [
 	[11.2, "/tmp/return_shot2.png"],
 	[19.2, "/tmp/return_shot3.png"],
 	[27.2, "/tmp/return_shot4.png"],
-	[38.3, "/tmp/return_shot5.png"],
+	[39.7, "/tmp/return_shot5.png"],
 	[43.2, "/tmp/return_shot6.png"],
 	[54.6, "/tmp/return_shot7.png"],
 	[55.9, "/tmp/return_shot7b.png"],

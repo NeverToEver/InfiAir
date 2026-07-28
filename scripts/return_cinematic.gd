@@ -8,11 +8,11 @@ extends CanvasLayer
 signal finished
 
 const TRANSITION := 0.3  # 镜头间黑场淡入淡出（含在各镜头时长内）
-const OUTRO_FADE := 1.2  # 镜头 7 末尾渐暗到全黑（与闭眼重叠）
+const OUTRO_FADE := 0.9  # 镜头 7 末尾渐暗到全黑（与闭眼重叠，BGM 同步淡出）
 const PLAYER_SHIP: Texture2D = preload("res://assets/sprites/player_ship.png")
 
-## 每镜头时长（§2 分镜表；七镜头 16.8s = 总和，转场含在内）。测试可改短。
-var _shot_durations: Array[float] = [2.4, 1.6, 2.0, 3.0, 2.4, 2.4, 3.0]
+## 每镜头时长（§2 分镜表；七镜头 11.8s = 总和，转场含在内）。测试可改短。
+var _shot_durations: Array[float] = [1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]
 
 ## 由 main 注入（_bgm_player 异步创建，可能为 null）：镜头 7 渐暗期淡出到 -40dB
 var bgm_player: AudioStreamPlayer = null
@@ -722,13 +722,14 @@ func _build_shot4() -> Node2D:
 	return root
 
 
-# ---------------- 镜头 5：停机坪降落（2.4s） ----------------
+# ---------------- 镜头 5：停机坪降落（1.8s） ----------------
 ## 战机沿引导灯带中线垂直下落 40px 降落（ease_out + 落地下压回弹 + 细尘）；引擎熄火
 ## （喷口辉光 0.3s 缩没）；座舱盖上翻 0.4s；主角跃下落地（弧线 0.5s + 落地微尘）。
 ## 固定机位低角度仰拍（机位元素整体下移 ~60px）。
+## 舰人比例按现实战机/驾驶员锚定：舰可见长约 420px（scale 2.8）≈ 人物 64px（scale 0.55）的 6.6 倍。
 func _build_shot5() -> Node2D:
 	var dur: float = _shot_durations[4]
-	var u := dur / 2.4
+	var u := dur / 1.8
 	var root := Node2D.new()
 	root.name = "Shot5"
 	root.add_child(_bg_rect(Color(0.01, 0.02, 0.05)))
@@ -770,34 +771,34 @@ func _build_shot5() -> Node2D:
 	]), Color(0.0, 0.83, 1.0, 0.35), 2.0)
 	gate_frame.closed = true
 	root.add_child(gate_frame)
-	# 战机（载体含机身/喷口/座舱盖）
+	# 战机（载体含机身/喷口/座舱盖）：scale 2.8，尾部落于甲板顶面（y=710）
 	var ship := Node2D.new()
-	ship.position = Vector2(960.0, 640.0)
+	ship.position = Vector2(960.0, 460.0)
 	root.add_child(ship)
 	var hull := Sprite2D.new()
 	hull.texture = PLAYER_SHIP
-	hull.scale = Vector2.ONE * 1.4
+	hull.scale = Vector2.ONE * 2.8
 	ship.add_child(hull)
-	var engine := _glow(14.0, Color(1.0, 0.95, 0.85, 0.9))
-	engine.position = Vector2(0.0, 46.0)
+	var engine := _glow(20.0, Color(1.0, 0.95, 0.85, 0.9))
+	engine.position = Vector2(0.0, 195.0)
 	ship.add_child(engine)
 	var canopy := Polygon2D.new()
 	canopy.polygon = PackedVector2Array([
-		Vector2(-10.0, 0.0), Vector2(10.0, 0.0), Vector2(6.0, -18.0), Vector2(-6.0, -18.0)])
+		Vector2(-20.0, 0.0), Vector2(20.0, 0.0), Vector2(12.0, -36.0), Vector2(-12.0, -36.0)])
 	canopy.color = Color(0.15, 0.35, 0.5, 0.85)
-	canopy.position = Vector2(0.0, -14.0)
+	canopy.position = Vector2(0.0, -80.0)
 	ship.add_child(canopy)
-	# 主角（初始藏于座舱）
+	# 主角（scale 0.55 ≈ 64px 高，初始藏于座舱）
 	var person := _build_person()
 	var pnode: Node2D = person["node"]
-	pnode.scale = Vector2.ONE * 1.4
-	pnode.position = Vector2(960.0, 640.0)
+	pnode.scale = Vector2.ONE * 0.55
+	pnode.position = Vector2(960.0, 425.0)
 	pnode.visible = false
 	_pose_stand(person)
 	root.add_child(pnode)
 	# 降落：垂直下落 40px（ease_out）→ 下压回弹 + 细尘 + 熄火 + 开舱 + 跃下
 	var land := root.create_tween()
-	land.tween_property(ship, "position:y", 680.0, 0.9 * u
+	land.tween_property(ship, "position:y", 500.0, 0.9 * u
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	land.tween_property(ship, "scale:y", 0.94, 0.1 * u)
 	land.tween_property(ship, "scale:y", 1.0, 0.12 * u)
@@ -809,7 +810,7 @@ func _build_shot5() -> Node2D:
 			"vel_min": 40.0, "vel_max": 110.0,
 			"scale_min": 2.0, "scale_max": 5.0, "color": Color(0.5, 0.7, 0.9, 0.3),
 		})
-		dust.position = Vector2(960.0, 740.0)
+		dust.position = Vector2(960.0, 705.0)
 		root.add_child(dust)
 		var off := root.create_tween()
 		off.tween_property(engine, "scale", Vector2.ZERO, 0.3 * u)  # 引擎熄火
@@ -822,9 +823,9 @@ func _build_shot5() -> Node2D:
 		GameState.play_sfx(GameState.SFX_DASH, -14.0)  # 跃下短促音
 		pnode.visible = true
 		var jump := root.create_tween()
-		jump.tween_property(pnode, "position", Vector2(930.0, 590.0), 0.25 * u
+		jump.tween_property(pnode, "position", Vector2(935.0, 390.0), 0.25 * u
 		).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		jump.tween_property(pnode, "position", Vector2(870.0, 646.0), 0.25 * u
+		jump.tween_property(pnode, "position", Vector2(905.0, 686.0), 0.25 * u
 		).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		jump.tween_callback(func() -> void:
 			# 落地微尘 + 屈膝缓冲后站直
@@ -834,7 +835,7 @@ func _build_shot5() -> Node2D:
 				"vel_min": 30.0, "vel_max": 80.0,
 				"scale_min": 1.5, "scale_max": 3.5, "color": Color(0.5, 0.7, 0.9, 0.25),
 			})
-			land_dust.position = Vector2(870.0, 700.0)
+			land_dust.position = Vector2(905.0, 706.0)
 			root.add_child(land_dust)
 			for i in 2:
 				(person["knees"][i] as Node2D).rotation = 0.9
@@ -846,7 +847,7 @@ func _build_shot5() -> Node2D:
 	return root
 
 
-# ---------------- 镜头 6：通道步行 + 舱门（2.4s） ----------------
+# ---------------- 镜头 6：通道步行 + 舱门（1.6s） ----------------
 
 class _WalkShot:
 	extends Node2D
@@ -860,7 +861,8 @@ class _WalkShot:
 	var _door_opened := false
 	var _walking := true
 	var _scrolled := 0.0
-	var _stop_scroll := 140.0  # 走 ~1.6s（90px/s）抵达舱门前停步
+	var _stop_scroll := 140.0  # 走 ~1.6s（90px/s）抵达舱门前停步（构建时按镜头时长等比缩放）
+	var _time_u := 1.0  # 内部关键帧时间缩放（舱门滑开时长随镜头时长压缩）
 	var _phase := 0.0
 	var _bob_base_y := 0.0
 
@@ -901,9 +903,9 @@ class _WalkShot:
 		_door_opened = true
 		GameState.play_sfx(GameState.SFX_DASH, -10.0, 0.7)  # 舱门滑开 0.7 倍速
 		var tween := create_tween().set_parallel(true)
-		tween.tween_property(_door_l, "position:x", _door_l.position.x - 70.0, 0.5)
-		tween.tween_property(_door_r, "position:x", _door_r.position.x + 70.0, 0.5)
-		tween.tween_property(_door_leak, "color:a", 0.6, 0.5)  # 门缝光线泄出
+		tween.tween_property(_door_l, "position:x", _door_l.position.x - 85.0, 0.5 * _time_u)
+		tween.tween_property(_door_r, "position:x", _door_r.position.x + 85.0, 0.5 * _time_u)
+		tween.tween_property(_door_leak, "color:a", 0.6, 0.5 * _time_u)  # 门缝光线泄出
 
 
 ## 侧视走廊：天花板/地面透视线 + 舱壁管线；顶部感应灯带 12 节点随主角行进亮起；
@@ -912,6 +914,8 @@ func _build_shot6() -> Node2D:
 	var dur: float = _shot_durations[5]
 	var root := _WalkShot.new()
 	root.name = "Shot6"
+	root._stop_scroll = 140.0 * (dur / 2.4)  # 步行距离按镜头时长等比压缩（步速 90px/s 不变）
+	root._time_u = dur / 2.4
 	root.add_child(_bg_rect(Color(0.02, 0.02, 0.05)))
 	var world := Node2D.new()
 	root.add_child(world)
@@ -943,27 +947,27 @@ func _build_shot6() -> Node2D:
 		world.add_child(seg)
 		root._lights.append(seg)
 		root._light_x.append(lx)
-	# 尽头休息室舱门：门框 + 左右双扇门片 + 门缝泄光
+	# 尽头休息室舱门：门框 + 左右双扇门片 + 门缝泄光（门高 280px，明显高于 185px 人物）
 	var door_x := 920.0
 	var frame := _line(PackedVector2Array([
-		Vector2(door_x - 70.0, 640.0), Vector2(door_x + 70.0, 640.0),
-		Vector2(door_x + 70.0, 820.0), Vector2(door_x - 70.0, 820.0),
+		Vector2(door_x - 76.0, 540.0), Vector2(door_x + 76.0, 540.0),
+		Vector2(door_x + 76.0, 820.0), Vector2(door_x - 76.0, 820.0),
 	]), Color(0.0, 0.83, 1.0, 0.4), 2.5)
 	frame.closed = true
 	world.add_child(frame)
 	var leak := ColorRect.new()
 	leak.color = Color(0.6, 0.95, 1.0, 0.0)
-	leak.position = Vector2(door_x - 60.0, 646.0)
-	leak.size = Vector2(120.0, 168.0)
+	leak.position = Vector2(door_x - 66.0, 546.0)
+	leak.size = Vector2(132.0, 268.0)
 	leak.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	world.add_child(leak)
 	root._door_leak = leak
-	var door_l := _rect_poly(64.0, 172.0, Color(0.10, 0.13, 0.18))
-	door_l.position = Vector2(door_x - 33.0, 732.0)
+	var door_l := _rect_poly(76.0, 272.0, Color(0.10, 0.13, 0.18))
+	door_l.position = Vector2(door_x - 39.0, 676.0)
 	world.add_child(door_l)
 	root._door_l = door_l
-	var door_r := _rect_poly(64.0, 172.0, Color(0.10, 0.13, 0.18))
-	door_r.position = Vector2(door_x + 33.0, 732.0)
+	var door_r := _rect_poly(76.0, 272.0, Color(0.10, 0.13, 0.18))
+	door_r.position = Vector2(door_x + 39.0, 676.0)
 	world.add_child(door_r)
 	root._door_r = door_r
 	# 主角步行（固定画面左 1/3，世界反向平移）
@@ -991,10 +995,10 @@ func _build_shot6() -> Node2D:
 	return root
 
 
-# ---------------- 镜头 7：休息室入睡（3.0s） ----------------
+# ---------------- 镜头 7：休息室入睡（2.0s） ----------------
 ## 休眠床 + 床头全息屏微光 + 顶部暖调小灯（全场景唯一暖光源）+ 观察窗外环体缓转；
 ## 主角走入 → 坐下 → 躺下（三姿态 0.6s 间隔）→ 镜头推近面部特写（scale→1.6）→
-## 眼睑 0.8s 闭合；闭眼瞬间画面渐暗（导演 1.2s 淡黑）+ BGM 淡出到 -40dB。
+## 眼睑 0.8s 闭合；闭眼瞬间画面渐暗（导演 0.9s 淡黑）+ BGM 淡出到 -40dB。
 func _build_shot7() -> Node2D:
 	var dur: float = _shot_durations[6]
 	var u := dur / 3.0
@@ -1051,12 +1055,12 @@ func _build_shot7() -> Node2D:
 	cone_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	cone.material = cone_mat
 	room.add_child(cone)
-	# 休眠床：圆角平台 + 床头全息小屏微光
-	var pod := _rect_poly(240.0, 26.0, Color(0.08, 0.10, 0.14))
+	# 休眠床：圆角平台（260 长，可躺下 185px 人物）+ 床头全息小屏微光
+	var pod := _rect_poly(260.0, 26.0, Color(0.08, 0.10, 0.14))
 	pod.position = Vector2(1080.0, 786.0)
 	room.add_child(pod)
 	room.add_child(_line(PackedVector2Array(
-		[Vector2(960.0, 773.0), Vector2(1200.0, 773.0)]), Color(0.0, 0.83, 1.0, 0.4), 2.0))
+		[Vector2(950.0, 773.0), Vector2(1210.0, 773.0)]), Color(0.0, 0.83, 1.0, 0.4), 2.0))
 	var pillow := _rect_poly(50.0, 12.0, Color(0.12, 0.15, 0.2))
 	pillow.position = Vector2(980.0, 766.0)
 	room.add_child(pillow)
@@ -1087,15 +1091,15 @@ func _build_shot7() -> Node2D:
 			sit.tween_property(person["knees"][i], "rotation", 1.4, 0.3 * u)
 			sit.tween_property(person["shoulders"][i], "rotation", 0.2, 0.3 * u)
 			sit.tween_property(person["elbows"][i], "rotation", -0.8, 0.3 * u)
-		sit.tween_property(pnode, "position", Vector2(1010.0, 746.0), 0.3 * u)
+		sit.tween_property(pnode, "position", Vector2(1010.0, 756.0), 0.3 * u)
 	)
 	_once(root, 1.3 * u, func() -> void:
 		GameState.play_sfx(GameState.SFX_RESUPPLY, -16.0)  # 躺下轻柔音
-		# 躺下：整体后倒 -90° 卧上休眠床 + 四肢舒展微调
+		# 躺下：整体后倒 -90° 卧上休眠床（床面 y≈762）+ 四肢舒展微调
 		var lie := root.create_tween().set_parallel(true)
 		lie.tween_property(pnode, "rotation", -PI * 0.5, 0.4 * u
 		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		lie.tween_property(pnode, "position", Vector2(1080.0, 742.0), 0.4 * u
+		lie.tween_property(pnode, "position", Vector2(1080.0, 762.0), 0.4 * u
 		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		for i in 2:
 			lie.tween_property(person["hips"][i], "rotation", 0.1, 0.5 * u)
@@ -1103,16 +1107,16 @@ func _build_shot7() -> Node2D:
 			lie.tween_property(person["shoulders"][i], "rotation", 0.15, 0.5 * u)
 			lie.tween_property(person["elbows"][i], "rotation", -0.2, 0.5 * u)
 	)
-	# 面部特写：镜头推近至头部（scale→1.6，聚焦平躺后的头盔位置 ≈(981,724)）
+	# 面部特写：镜头推近至头部（scale→1.6，聚焦平躺后的头盔位置 ≈(981,744)）
 	var push_in := root.create_tween().set_parallel(true)
 	push_in.tween_interval(1.5 * u)
 	push_in.tween_property(room, "scale", Vector2.ONE * 1.6, 1.0 * u
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	push_in.tween_property(room, "position", Vector2(960.0, 540.0) - Vector2(981.0, 724.0) * 1.6,
+	push_in.tween_property(room, "position", Vector2(960.0, 540.0) - Vector2(981.0, 744.0) * 1.6,
 		1.0 * u).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	# 眼睑缓缓闭合 0.8s（与渐暗重叠）
+	# 眼睑缓缓闭合（与渐暗重叠：闭眼完成时画面约五成暗）
 	var blink := root.create_tween()
-	blink.tween_interval(1.9 * u)
+	blink.tween_interval(1.5 * u)
 	blink.tween_property(person["eyelid"], "scale:y", 1.0, 0.8 * u)
 	# 渐暗期 BGM 同步淡出到 -40dB（skip 时由 skip() kill 并立即置位）
 	if bgm_player != null:

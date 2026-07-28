@@ -102,16 +102,30 @@ static func build(mode: Mode = Mode.DESTROYED) -> Node2D:
 
 ## 站体共享几何：环体主弧 + 内外廓细节环 + 舱段刻线 + 8 舱段 + 辐条 + 中心毂。
 ## palette 键：ring/detail/tick/seg/seg_edge/spoke/hub/hub_ring；additive=true 时全构件改叠加态。
-static func _build_body(station: Node2D, palette: Dictionary, additive: bool) -> void:
-	var ring_points := PackedVector2Array()
-	for i in 48:
-		var a := TAU * float(i) / 48.0
-		ring_points.append(Vector2(cos(a), sin(a)) * RING_RADIUS)
-	var ring := _line(ring_points, palette["ring"], 26.0)
-	ring.closed = true
-	if additive:
-		_additive(ring)
-	station.add_child(ring)
+## gaps（[[a0,a1],…]，rad）：主弧分段绘制留出缺口（虚影态破碎感）；空表 = 完整闭合环（毁灭态现状）。
+## 返回 {"segments":…, "edges":…} 舱段引用（虚影态逐个掉线闪烁用；毁灭态忽略）。
+static func _build_body(
+	station: Node2D, palette: Dictionary, additive: bool, gaps: Array = []
+) -> Dictionary:
+	var refs := {"segments": [], "edges": []}
+	if gaps.is_empty():
+		var ring_points := PackedVector2Array()
+		for i in 48:
+			var a := TAU * float(i) / 48.0
+			ring_points.append(Vector2(cos(a), sin(a)) * RING_RADIUS)
+		var ring := _line(ring_points, palette["ring"], 26.0)
+		ring.closed = true
+		if additive:
+			_additive(ring)
+		station.add_child(ring)
+	else:
+		var sorted_gaps := gaps.duplicate()
+		sorted_gaps.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+		var cursor := 0.0
+		for gap in sorted_gaps:
+			_ring_arc(station, palette["ring"], cursor, gap[0], additive)
+			cursor = gap[1]
+		_ring_arc(station, palette["ring"], cursor, TAU, additive)
 	for r_detail in [232.0, 288.0]:
 		var detail_points := PackedVector2Array()
 		for i in 64:
@@ -143,6 +157,7 @@ static func _build_body(station: Node2D, palette: Dictionary, additive: bool) ->
 		if additive:
 			_additive(seg)
 		station.add_child(seg)
+		refs["segments"].append(seg)
 		var seg_edge := _rect_poly(70.0, 46.0, palette["seg_edge"])
 		seg_edge.position = seg.position
 		seg_edge.rotation = seg.rotation
@@ -150,6 +165,7 @@ static func _build_body(station: Node2D, palette: Dictionary, additive: bool) ->
 			_additive(seg_edge)
 		station.add_child(seg_edge)
 		station.move_child(seg_edge, seg.get_index())
+		refs["edges"].append(seg_edge)
 		var spoke := _line(
 			PackedVector2Array([Vector2(cos(a), sin(a)) * 70.0, Vector2(cos(a), sin(a)) * 240.0]),
 			palette["spoke"], 8.0
@@ -168,6 +184,22 @@ static func _build_body(station: Node2D, palette: Dictionary, additive: bool) ->
 	if additive:
 		_additive(hub_ring)
 	station.add_child(hub_ring)
+	return refs
+
+
+## 主弧分段（gaps 模式）：a0→a1 弧段，段数按弧长等比（闭合整环 48 段基准）
+static func _ring_arc(station: Node2D, color: Color, a0: float, a1: float, additive: bool) -> void:
+	if a1 - a0 < 0.05:
+		return
+	var segs := maxi(4, int((a1 - a0) / TAU * 48.0))
+	var points := PackedVector2Array()
+	for i in segs + 1:
+		var a: float = lerpf(a0, a1, float(i) / float(segs))
+		points.append(Vector2(cos(a), sin(a)) * RING_RADIUS)
+	var arc := _line(points, color, 26.0)
+	if additive:
+		_additive(arc)
+	station.add_child(arc)
 
 
 ## 破口锯齿轮廓顶点（两态共用：毁灭态=近黑填充，虚影态=亮线描边）
@@ -216,57 +248,79 @@ static func _build_destroyed(station: Node2D) -> void:
 		ft.tween_property(flake, "rotation", flake.rotation + 2.5, 2.0)
 
 
-## 全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补
+## 全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补，
+## 外加破碎感：主弧断弧缺口 ×3、舱段逐个掉线闪烁、破口全息碎片外飘、整站 glitch 瞬闪。
+## 全部视觉挂在 inner 下：呼吸写 station.modulate、glitch 写 inner.modulate，互不打架。
 static func _build_phantom(station: Node2D) -> void:
-	# 第 1 层：全息基底——全构件 ADD 叠加，冷钢蓝灰映射到全息青蓝
-	_build_body(station, {
-		"ring": Color(0.0, 0.5, 1.0, 0.30),  # ACCENT_BLUE α0.30 主弧
-		"detail": Color(0.0, 0.55, 1.0, 0.18),
-		"tick": Color(0.0, 0.55, 1.0, 0.18),
-		"seg": Color(0.0, 0.6, 1.0, 0.22),
-		"seg_edge": Color(0.0, 0.6, 1.0, 0.22),
-		"spoke": Color(0.0, 0.5, 1.0, 0.18),
-		"hub": Color(0.0, 0.55, 1.0, 0.30),
-		"hub_ring": Color(0.0, 0.6, 1.0, 0.18),
-	}, true)
-	# 整体容器 4s 慢呼吸（±0.08，投影不稳定感）
+	var inner := Node2D.new()
+	inner.name = "PhantomBody"
+	station.add_child(inner)
+	# 第 1 层：全息基底——全构件 ADD 叠加，亮青 #00d4ff 高饱和（主弧 α0.55/舱段 0.45/细节 0.35）；
+	# 主弧分段留 3 处断弧缺口（原破口 0.5–1.2 + 两处较小缺口），站已毁的破碎感
+	var refs := _build_body(inner, {
+		"ring": Color(0.0, 0.83, 1.0, 0.55),
+		"detail": Color(0.0, 0.83, 1.0, 0.35),
+		"tick": Color(0.0, 0.83, 1.0, 0.35),
+		"seg": Color(0.0, 0.83, 1.0, 0.45),
+		"seg_edge": Color(0.0, 0.83, 1.0, 0.40),
+		"spoke": Color(0.0, 0.75, 1.0, 0.35),
+		"hub": Color(0.0, 0.83, 1.0, 0.50),
+		"hub_ring": Color(0.0, 0.83, 1.0, 0.35),
+	}, true, [[BREACH_START, BREACH_END], [2.4, 2.62], [4.9, 5.06]])
+	# 舱段模块逐个随机「掉线」闪烁（0.1s 掉线机制，相位错开 0.13s + 周期错档）
+	for i in refs["segments"].size():
+		var seg: Polygon2D = refs["segments"][i]
+		var edge: Polygon2D = refs["edges"][i]
+		var seg_flicker := station.create_tween().set_loops()
+		seg_flicker.tween_interval(0.13 * i + 1.1 + 0.4 * (i % 3))
+		seg_flicker.tween_property(seg, "modulate:a", 0.08, 0.05)
+		seg_flicker.parallel().tween_property(edge, "modulate:a", 0.08, 0.05)
+		seg_flicker.tween_interval(0.1)
+		seg_flicker.tween_property(seg, "modulate:a", 1.0, 0.08)
+		seg_flicker.parallel().tween_property(edge, "modulate:a", 1.0, 0.08)
+	# 整体容器 4s 慢呼吸（0.85–1.0，投影不稳定感；下限抬高保证存在感）
 	var breathe := station.create_tween().set_loops()
-	breathe.tween_property(station, "modulate:a", 0.77, 2.0
+	breathe.tween_property(station, "modulate:a", 0.85, 2.0
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	breathe.tween_property(station, "modulate:a", 0.93, 2.0
+	breathe.tween_property(station, "modulate:a", 1.0, 2.0
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# 偶发整站 glitch 瞬闪：alpha 瞬时下跌 0.08s 内恢复，每 ~3.9s 一次
+	var glitch := station.create_tween().set_loops()
+	glitch.tween_interval(3.8)
+	glitch.tween_property(inner, "modulate:a", 0.3, 0.04)
+	glitch.tween_property(inner, "modulate:a", 1.0, 0.04)
 	# 第 2 层：扫描线光晕——环体外缘常亮大半径辉光 + 40px 扫描带纵向 3.5s/趟
-	station.add_child(_dot(360.0, Color(0.0, 0.83, 1.0, 0.12)))
-	var scan_band := _rect_poly(680.0, 40.0, Color(0.0, 0.83, 1.0, 0.08))
+	inner.add_child(_dot(360.0, Color(0.0, 0.83, 1.0, 0.15)))
+	var scan_band := _rect_poly(680.0, 40.0, Color(0.0, 0.83, 1.0, 0.12))
 	scan_band.position = Vector2(0.0, -340.0)
 	_additive(scan_band)
-	station.add_child(scan_band)
+	inner.add_child(scan_band)
 	var scan := station.create_tween().set_loops()
 	scan.tween_property(scan_band, "position:y", 340.0, 3.5).set_trans(Tween.TRANS_LINEAR)
 	scan.tween_property(scan_band, "position:y", -340.0, 0.0)
 	# 第 3 层：数据流粒子——①边缘逸散（环轮廓切向慢飘）②内部结构流（环面内侧往返）
 	var edge_flow := _particles({
 		"amount": 48, "lifetime": 2.5, "vel_min": 15.0, "vel_max": 35.0,
-		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.83, 1.0, 0.35),
+		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.83, 1.0, 0.4),
 		"emission_ring_radius": 260.0, "emission_ring_inner_radius": 250.0,
 	})
-	station.add_child(edge_flow)
+	inner.add_child(edge_flow)
 	var inner_flow := _particles({
 		"amount": 40, "lifetime": 3.0, "vel_min": 15.0, "vel_max": 45.0,
-		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.7, 1.0, 0.25),
+		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.75, 1.0, 0.3),
 		"emission_ring_radius": 200.0, "emission_ring_inner_radius": 80.0,
 	})
-	station.add_child(inner_flow)
-	# 第 4 层：破口能量网格修补——跨越缺口的经纬细格（青 α0.4），每格相位错开 0.13s
-	# 低频闪烁 + 偶发整格掉线 0.1s；缺口锯齿轮廓以 α0.5 亮线描出
+	inner.add_child(inner_flow)
+	# 第 4 层：破口能量网格修补——跨越缺口的经纬格（亮青 α0.75 宽 2.5，加亮加粗），
+	# 每格相位错开 0.13s 低频闪烁 + 更频繁的整格掉线 0.1s；锯齿轮廓 α0.8 亮线描出
 	var grid_lines: Array[Line2D] = []
 	for g in 4:  # 经线：4 条径向跨 r240→280
 		var a := BREACH_START + (BREACH_END - BREACH_START) * float(g) / 3.0
 		var meridian := _line(
 			PackedVector2Array([Vector2(cos(a), sin(a)) * 240.0, Vector2(cos(a), sin(a)) * 280.0]),
-			Color(0.0, 0.83, 1.0, 0.4), 1.5)
+			Color(0.0, 0.83, 1.0, 0.75), 2.5)
 		_additive(meridian)
-		station.add_child(meridian)
+		inner.add_child(meridian)
 		grid_lines.append(meridian)
 	for g in 3:  # 纬线：3 条弧跨 0.5–1.2 rad
 		var r_lat := 246.0 + 12.0 * g
@@ -274,22 +328,42 @@ static func _build_phantom(station: Node2D) -> void:
 		for s in 8:
 			var a := BREACH_START + (BREACH_END - BREACH_START) * float(s) / 7.0
 			lat_points.append(Vector2(cos(a), sin(a)) * r_lat)
-		var latitude := _line(lat_points, Color(0.0, 0.83, 1.0, 0.4), 1.5)
+		var latitude := _line(lat_points, Color(0.0, 0.83, 1.0, 0.75), 2.5)
 		_additive(latitude)
-		station.add_child(latitude)
+		inner.add_child(latitude)
 		grid_lines.append(latitude)
 	for g in grid_lines.size():
 		var gl := grid_lines[g]
-		gl.modulate.a = 0.4
+		gl.modulate.a = 0.75
 		var flicker := station.create_tween().set_loops()
 		flicker.tween_interval(0.13 * g)  # 相位错开
-		flicker.tween_property(gl, "modulate:a", 0.15, 0.3)
-		flicker.tween_property(gl, "modulate:a", 0.55, 0.3)
-		flicker.tween_interval(0.9 + 0.2 * (g % 3))
-		# 偶发整格「掉线」0.1s 再亮起
+		flicker.tween_property(gl, "modulate:a", 0.3, 0.25)
+		flicker.tween_property(gl, "modulate:a", 0.95, 0.25)
+		flicker.tween_interval(0.5 + 0.15 * (g % 3))
+		# 整格「掉线」0.1s 再亮起（更频繁）
 		flicker.tween_property(gl, "modulate:a", 0.0, 0.05)
 		flicker.tween_interval(0.1)
-		flicker.tween_property(gl, "modulate:a", 0.4, 0.1)
-	var jagged_outline := _line(_jagged_points(), Color(0.0, 0.83, 1.0, 0.5), 2.0)
+		flicker.tween_property(gl, "modulate:a", 0.75, 0.08)
+	var jagged_outline := _line(_jagged_points(), Color(0.0, 0.83, 1.0, 0.8), 2.5)
 	_additive(jagged_outline)
-	station.add_child(jagged_outline)
+	inner.add_child(jagged_outline)
+	# 破口附近全息碎片：3 块半透明青色多边形缓慢外飘翻滚（往复，不瞬移）
+	for k in 3:
+		var flake := Polygon2D.new()
+		flake.polygon = PackedVector2Array([
+			Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
+		flake.color = Color(0.0, 0.83, 1.0, 0.35)
+		_additive(flake)
+		var fa := 0.6 + 0.25 * k
+		flake.position = Vector2(cos(fa), sin(fa)) * 262.0
+		inner.add_child(flake)
+		var drift := 3.0 + 0.5 * k
+		var ft := station.create_tween().set_loops()
+		ft.tween_property(flake, "position", flake.position + Vector2(cos(fa), sin(fa)) * 55.0, drift
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation + 2.2, drift
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.tween_property(flake, "position", flake.position, drift
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation, drift
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
