@@ -1,3 +1,0 @@
-[    1512ms] [ERROR] Access to fetch at 'https://vcf.bing.com/bd/verify?IID=BdVerify&SFX=1&IG=99F4E066F058462EA8708D36BD7536C8' from origin 'https://cn.bing.com' has been blocked by CORS policy: The 'Access-Control-Allow-Origin' header has a value 'https://www.bing.com' that is not equal to the supplied origin. Have the server send the header with a valid value. @ https://cn.bing.com/search?q=shmup+boss+design+patterns+telegraph+phases+game+design&rdr=1&rdrig=DB4C21527C52408D9E4F7F7A7E00612D:0
-[    1513ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://vcf.bing.com/bd/verify?IID=BdVerify&SFX=1&IG=99F4E066F058462EA8708D36BD7536C8:0
-[    6962ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ https://www.clarity.ms/tag/wc9hf6s8nj:0

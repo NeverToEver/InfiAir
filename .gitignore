@@ -24,3 +24,6 @@ android/build/
 
 # 会话导出文件
 kimi-export-session_*.md
+
+# Playwright MCP 会话产物
+.playwright-mcp/
