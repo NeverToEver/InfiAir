@@ -468,6 +468,26 @@
 			"shake": 4.0
 		}
 	},
+	"formation_strike_event": {
+		"min_score": 500,
+		"trigger_interval": 40.0,
+		"trigger_chance": 0.30,
+		"cooldown": 50.0,
+		"craft_counts": { "easy": 3, "medium": 4, "hard": 5 },
+		"craft_hp_base": 60,
+		"craft_score": 200,
+		"approach_speed": 260.0,
+		"approach_y": 260.0,
+		"turn_time": 1.2,
+		"run_speed": 340.0,
+		"bomb_interval": 0.35,
+		"bombs_per_craft": 2,
+		"bomb_fall_speed": 300.0,
+		"bomb_fuse": 1.2,
+		"bomb_damage": 20,
+		"bomb_radius": 120.0,
+		"reward_all_clear": 200
+	},
 	"tutorial": {
 		"boss_hp": 120.0
 	}

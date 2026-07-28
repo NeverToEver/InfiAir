@@ -46,6 +46,8 @@ var _intro: IntroCinematic = null
 var _return: ReturnCinematic = null
 ## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
 var _event: EliteTurretEvent = null
+## 轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）
+var _formation: FormationStrikeEvent = null
 
 
 func _ready() -> void:
@@ -66,6 +68,10 @@ func _ready() -> void:
 	_event = EliteTurretEvent.new()
 	add_child(_event)
 	_spawner._event = _event
+	# 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
+	_formation = FormationStrikeEvent.new()
+	add_child(_formation)
+	_spawner._formation = _formation
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
 	_start_panel.new_game_chosen.connect(_apply_new_run)
@@ -359,6 +365,9 @@ func _start_homecoming() -> void:
 	if _mothership != null:
 		_mothership.queue_free()
 		_on_mothership_departed(GameState.cfg("mothership.depart_cooldown", 60.0))
+	# 轰炸编队进行中则打断：编队解散离场，无结算，冷却照计
+	if _formation != null:
+		_formation.abort()
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player._fuel, _spawner._elapsed)
 	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接

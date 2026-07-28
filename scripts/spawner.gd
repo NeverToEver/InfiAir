@@ -83,6 +83,9 @@ var BOSS_TIME_LIMIT := 90.0
 var ETV_MIN_SCORE := 800
 var ETV_TRIGGER_INTERVAL := 45.0
 var ETV_TRIGGER_CHANCE := 0.35
+## 轰炸编队事件触发参数（docs/FORMATION_STRIKE_EVENT.md 第 5 节；最低优先级，其余条件由事件 can_trigger 检查）
+var FS_TRIGGER_INTERVAL := 40.0
+var FS_TRIGGER_CHANCE := 0.30
 
 var _spawn_timer: float = 1.5
 var _elapsed: float = 0.0
@@ -97,6 +100,9 @@ var _waves_paused: bool = false
 ## 事件编排节点（main 在 _ready 登记）
 var _event: EliteTurretEvent = null
 var _event_check_timer: float = ETV_TRIGGER_INTERVAL
+## 轰炸编队事件编排节点（main 在 _ready 登记；与 Boss/精英炮塔事件按优先级链互斥）
+var _formation: FormationStrikeEvent = null
+var _formation_check_timer: float = FS_TRIGGER_INTERVAL
 
 
 func _ready() -> void:
@@ -118,6 +124,8 @@ func _apply_balance() -> void:
 	ETV_MIN_SCORE = GameState.cfg("elite_turret_event.min_score", ETV_MIN_SCORE)
 	ETV_TRIGGER_INTERVAL = GameState.cfg("elite_turret_event.trigger_interval", ETV_TRIGGER_INTERVAL)
 	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
+	FS_TRIGGER_INTERVAL = GameState.cfg("formation_strike_event.trigger_interval", FS_TRIGGER_INTERVAL)
+	FS_TRIGGER_CHANCE = GameState.cfg("formation_strike_event.trigger_chance", FS_TRIGGER_CHANCE)
 	var normal: Array = GameState.cfg("enemies.types", [])
 	for i in mini(normal.size(), ENEMY_TYPES.size()):
 		_merge_type(ENEMY_TYPES[i], normal[i])
@@ -163,6 +171,14 @@ func _process(delta: float) -> void:
 			_event_check_timer = ETV_TRIGGER_INTERVAL
 			if randf() < ETV_TRIGGER_CHANCE:
 				_event.start()
+	# 轰炸编队事件触发检查（最低优先级，在精英炮塔事件检查之后；
+	# Boss 激活/精英事件 active/冷却/分数门槛由事件 can_trigger 内检查）
+	if _formation != null and _formation.can_trigger():
+		_formation_check_timer -= delta
+		if _formation_check_timer <= 0.0:
+			_formation_check_timer = FS_TRIGGER_INTERVAL
+			if randf() < FS_TRIGGER_CHANCE:
+				_formation.start()
 
 
 func _current_interval() -> float:
