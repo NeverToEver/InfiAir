@@ -29,9 +29,12 @@
 			"afterimage_interval": 0.08
 		},
 		"aim_assist": {
-			"radius": 230.0,
-			"break_dist": 90.0,
-			"ring_radius": 26.0
+			"ring_radius": 26.0,
+			"levels": {
+				"low": { "radius": 160.0, "break_dist": 110.0, "switch_dist": 130.0, "cone_dot": 0.55, "pull": 0.5 },
+				"medium": { "radius": 230.0, "break_dist": 140.0, "switch_dist": 90.0, "cone_dot": 0.42, "pull": 1.0 },
+				"high": { "radius": 320.0, "break_dist": 180.0, "switch_dist": 60.0, "cone_dot": 0.3, "pull": 1.0 }
+			}
 		}
 	},
 	"enemies": {
@@ -405,6 +408,8 @@
 		}
 	},
 	"effects": {
+		"bullet_visual_scale": 1.7,
+		"explosion_visual_scale": 1.6,
 		"explosion": {
 			"pool_cap": 24,
 			"amount": 24,
@@ -431,6 +436,37 @@
 		"home_charge_time": 1.5,
 		"give_up_hold_time": 3.0,
 		"hud_poll_interval": 0.1
+	},
+	"elite_turret_event": {
+		"duration": 30.0,
+		"enter_time": 2.0,
+		"rise_time": 1.5,
+		"boss_resume_delay": 4.0,
+		"min_score": 800,
+		"trigger_interval": 45.0,
+		"trigger_chance": 0.35,
+		"cooldown": 60.0,
+		"turret_hp_base": 80,
+		"turret_counts": { "easy": 3, "medium": 4, "hard": 5 },
+		"fire_interval": [2.0, 2.4],
+		"weak_lock": {
+			"turn_rate": 2.0,
+			"homing_turn_rate": 1.5,
+			"homing_time": 0.6,
+			"spread_deg": 7.0
+		},
+		"ammo_sequences": {
+			"easy": ["single", "spread3", "single"],
+			"medium": ["single", "spread3", "laser", "weak_homing"],
+			"hard": ["spread5", "laser", "weak_homing", "sniper", "single"]
+		},
+		"reward_score": 500,
+		"carrier": {
+			"hover_y": 300.0,
+			"retreat_start_speed": 120.0,
+			"retreat_accel": 420.0,
+			"shake": 4.0
+		}
 	},
 	"tutorial": {
 		"boss_hp": 120.0

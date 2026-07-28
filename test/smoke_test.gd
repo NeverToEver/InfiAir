@@ -631,6 +631,17 @@ func _ready() -> void:
 	aim_e.queue_free()
 	await get_tree().process_frame
 
+	# 6.1b 瞄准辅助强度三档：参数随档位切换，无关闭档（非法档位拒绝）
+	var default_radius: float = player._aim_radius
+	GameState.set_aim_assist_level(&"low")
+	_check(player._aim_radius < default_radius and player._aim_pull < 1.0, "弱档：磁吸半径缩小且吸附力度减弱")
+	GameState.set_aim_assist_level(&"high")
+	_check(player._aim_radius > default_radius, "强档：磁吸半径扩大")
+	GameState.set_aim_assist_level(&"off")
+	_check(GameState.aim_assist_level == &"high", "辅助瞄准无关闭档（非法档位被拒绝）")
+	GameState.set_aim_assist_level(&"medium")
+	_check(is_equal_approx(player._aim_radius, default_radius), "恢复中档后参数还原")
+
 	# 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用
 	player.position = Vector2(960.0, 540.0)
 	player._fuel = player.fuel_max

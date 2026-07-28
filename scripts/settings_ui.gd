@@ -16,6 +16,8 @@ var _lang_zh: Button
 var _lang_en: Button
 var _zoom_group := ButtonGroup.new()
 var _zoom_buttons: Dictionary = {}  # 视角档位 -> Button
+var _aim_group := ButtonGroup.new()
+var _aim_buttons: Dictionary = {}  # 瞄准辅助强度档位 -> Button
 var _window_group := ButtonGroup.new()
 var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
 var _version_label: Label
@@ -197,6 +199,17 @@ func _build_modes_page() -> VBoxContainer:
 	lang_row.add_child(_lang_en)
 	_lang_zh.pressed.connect(GameState.set_locale.bind("zh"))
 	_lang_en.pressed.connect(GameState.set_locale.bind("en"))
+	# 辅助瞄准强度（常驻不可关，仅弱/中/强三档）
+	page.add_child(UITheme.make_section_header(tr("SET_AIM_ASSIST")))
+	var aim_row := HBoxContainer.new()
+	aim_row.add_theme_constant_override("separation", 16)
+	page.add_child(aim_row)
+	_aim_buttons.clear()
+	for level in GameState.AIM_ASSIST_ORDER:
+		var ab := UITheme.make_toggle_button(tr("SET_AIM_" + String(level).to_upper()), _aim_group)
+		ab.pressed.connect(GameState.set_aim_assist_level.bind(level))
+		aim_row.add_child(ab)
+		_aim_buttons[level] = ab
 	# 显示：视角缩放 + 窗口大小
 	page.add_child(UITheme.make_section_header(tr("SET_DISPLAY")))
 	var zoom_row := HBoxContainer.new()
@@ -281,6 +294,7 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_refresh_lang_buttons()
 	_refresh_zoom_buttons()
 	_refresh_window_buttons()
+	_refresh_aim_buttons()
 	_hint_label.text = ""
 	_capturing_action = &""
 	_show_page(&"controls")
@@ -301,6 +315,11 @@ func _refresh_zoom_buttons() -> void:
 func _refresh_window_buttons() -> void:
 	for level in _window_buttons:
 		(_window_buttons[level] as Button).set_pressed_no_signal(level == GameState.window_size)
+
+
+func _refresh_aim_buttons() -> void:
+	for level in _aim_buttons:
+		(_aim_buttons[level] as Button).set_pressed_no_signal(level == GameState.aim_assist_level)
 
 
 func _on_locale_changed() -> void:
@@ -331,6 +350,7 @@ func _on_locale_changed() -> void:
 	_shift_toggle.set_pressed_no_signal(GameState.shift_toggle_mode)
 	_refresh_zoom_buttons()
 	_refresh_window_buttons()
+	_refresh_aim_buttons()
 
 
 func _on_ctrl_mode(toggle_mode: bool) -> void:

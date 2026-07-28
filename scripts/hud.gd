@@ -30,6 +30,11 @@ var _poll_timer: float = 0.0
 var _last_dock_text: String = ""
 var _last_mag_cells: int = -1
 var _tag_labels: Array[Label] = []
+var _event_box: VBoxContainer
+var _event_bar: SegmentedBar
+var _event_title: Label
+var _event_turrets_label: Label
+var _last_event_alive: int = -1
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
 
 
@@ -113,6 +118,59 @@ func _ready() -> void:
 	_early_leave_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	_early_leave_fill.anchor_right = 0.0
 	bar_bg.add_child(_early_leave_fill)
+	_build_event_bar()
+
+
+## 精英炮塔事件计时条（顶部居中，Boss 血条下方；与 Boss 互斥不会同屏）
+func _build_event_bar() -> void:
+	_event_box = VBoxContainer.new()
+	_event_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_event_box.position = Vector2(-300.0, 52.0)
+	_event_box.custom_minimum_size = Vector2(600.0, 0.0)
+	_event_box.add_theme_constant_override("separation", 4)
+	_event_box.visible = false
+	add_child(_event_box)
+	_event_title = Label.new()
+	_event_title.text = tr("ETV_TITLE")
+	_event_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_event_title.add_theme_font_override("font", FONT)
+	_event_title.add_theme_font_size_override("font_size", 18)
+	_event_title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.75))
+	_event_box.add_child(_event_title)
+	_event_bar = SegmentedBar.new()
+	_event_bar.custom_minimum_size = Vector2(600.0, 12.0)
+	_event_bar.segments = 30
+	_event_bar.fill_color = Color(1.0, 0.25, 0.75)
+	_event_box.add_child(_event_bar)
+	_event_turrets_label = Label.new()
+	_event_turrets_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_event_turrets_label.add_theme_font_override("font", FONT)
+	_event_turrets_label.add_theme_font_size_override("font_size", 16)
+	_event_turrets_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
+	_event_box.add_child(_event_turrets_label)
+
+
+## 事件倒计时开始：显示计时条（total = 炮台总数）
+func show_event_bar(total: int) -> void:
+	_event_title.text = tr("ETV_TITLE")
+	_event_bar.value = 100.0
+	_last_event_alive = -1
+	_event_turrets_label.text = tr("ETV_TURRETS") % total
+	_event_box.visible = true
+
+
+## 事件进行：剩余时间填充 + 剩余炮台数（约 0.1s 节流由调用侧控制）
+func update_event_bar(time_left: float, duration: float, alive: int) -> void:
+	if not _event_box.visible:
+		return
+	_event_bar.value = clampf(time_left / maxf(duration, 0.01), 0.0, 1.0) * 100.0
+	if alive != _last_event_alive:
+		_last_event_alive = alive
+		_event_turrets_label.text = tr("ETV_TURRETS") % alive
+
+
+func hide_event_bar() -> void:
+	_event_box.visible = false
 
 
 ## 放弃出击蓄力进度：ratio < 0 隐藏，否则显示百分比
@@ -349,6 +407,9 @@ func _on_locale_changed() -> void:
 	if _tag_labels.size() == 2:
 		_tag_labels[0].text = tr("UI_SCORE_TAG")
 		_tag_labels[1].text = tr("UI_LIVES_TAG")
+	if _event_box != null and _event_box.visible:
+		_event_title.text = tr("ETV_TITLE")
+		_event_turrets_label.text = tr("ETV_TURRETS") % maxi(_last_event_alive, 0)
 
 
 ## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）

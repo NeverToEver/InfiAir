@@ -41,9 +41,13 @@ var DASH_COOLDOWN := 4.0
 var AFTERIMAGE_INTERVAL := 0.08
 var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
 
-var AIM_ASSIST_RADIUS := 230.0  # 磁吸/释放半径（对齐原作 AIM_ASSIST_RELEASE_DISTANCE）
-var AIM_ASSIST_BREAK_DIST := 90.0  # 单帧鼠标位移超过则甩脱锁定
-var AIM_RING_RADIUS := 26.0
+var AIM_RING_RADIUS := 26.0  # 锁定环半径下限
+## 瞄准辅助当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
+var _aim_radius := 230.0  # 磁吸/粘滞半径
+var _aim_break := 140.0  # 甩动无方向候选且位移超过则脱锁
+var _aim_switch := 90.0  # 单帧位移超过则尝试沿甩动方向锥形切换目标
+var _aim_cone_dot := 0.42  # 方向切换锥形阈值（夹角余弦）
+var _aim_pull := 1.0  # 吸附力度：<1 时准星仅被部分拉向目标（弱档）
 var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
@@ -72,7 +76,8 @@ var _afterimage_timer: float = 0.0
 var _aim_lock_target: Node2D = null  # 瞄准辅助锁定的敌人（含 Boss）
 var _prev_aim_mouse := Vector2.ZERO
 var _aim_mouse_initialized: bool = false
-var _aim_ring: Line2D = null
+var _aim_ring: Node2D = null  # 锁定环容器（4 段圆弧，旋转+脉动）
+var _aim_ring_target: Node2D = null  # 锁定环当前绑定的目标（变化时才重建样式）
 var _hitbox_dot: Polygon2D = null
 var _hitbox_halo: Line2D = null
 var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
@@ -120,18 +125,17 @@ func _load_balance() -> void:
 	DASH_COOLDOWN = GameState.cfg("player.dash.cooldown", DASH_COOLDOWN)
 	DASH_FUEL_RATIO = GameState.cfg("player.dash.fuel_ratio", DASH_FUEL_RATIO)
 	AFTERIMAGE_INTERVAL = GameState.cfg("player.dash.afterimage_interval", AFTERIMAGE_INTERVAL)
-	AIM_ASSIST_RADIUS = GameState.cfg("player.aim_assist.radius", AIM_ASSIST_RADIUS)
-	AIM_ASSIST_BREAK_DIST = GameState.cfg("player.aim_assist.break_dist", AIM_ASSIST_BREAK_DIST)
 	AIM_RING_RADIUS = GameState.cfg("player.aim_assist.ring_radius", AIM_RING_RADIUS)
-	# 瞄准辅助锁定环：纯代码绘制的小圆环，锁定时贴在目标上
-	_aim_ring = Line2D.new()
+	_load_aim_assist_params()
+	GameState.aim_assist_changed.connect(_on_aim_assist_level_changed)
+	# 瞄准辅助锁定环：4 段圆弧容器，锁定时贴在目标上缓慢旋转（半径按目标重排点，不做节点缩放）
+	_aim_ring = Node2D.new()
 	_aim_ring.top_level = true
-	_aim_ring.width = 2.0
-	_aim_ring.default_color = Color(0.4, 0.9, 1.0, 0.9)
-	_aim_ring.closed = true
-	for i in 16:
-		var a := TAU * float(i) / 16.0
-		_aim_ring.add_point(Vector2(cos(a), sin(a)) * AIM_RING_RADIUS)
+	for i in 4:
+		var arc := Line2D.new()
+		arc.width = 2.0
+		_aim_ring.add_child(arc)
+	_layout_aim_ring(AIM_RING_RADIUS)
 	_aim_ring.hide()
 	add_child(_aim_ring)
 	# 可视性增强（深色机体在星空背景上易丢失）：机体提亮 + 青色描边辉光
@@ -327,35 +331,58 @@ func _start_dash(input_dir: Vector2) -> void:
 	GameState.play_sfx(GameState.SFX_DASH)
 
 
-## 瞄准辅助（对齐原作 aim_assist_system）：准星 230px 内磁吸最近敌人（含 Boss）中心，
-## 锁定后粘滞保持（释放半径同为 230px），单帧鼠标位移 >90px 视为甩鼠标立即脱离。
-## 返回本帧瞄准点：锁定时为目标中心，否则为原始鼠标位置。
+## 读取当前强度档位参数（balance.json player.aim_assist.levels.<level>，缺键回退脚本默认）
+func _load_aim_assist_params() -> void:
+	var base := "player.aim_assist.levels." + String(GameState.aim_assist_level) + "."
+	_aim_radius = GameState.cfg(base + "radius", _aim_radius)
+	_aim_break = GameState.cfg(base + "break_dist", _aim_break)
+	_aim_switch = GameState.cfg(base + "switch_dist", _aim_switch)
+	_aim_cone_dot = GameState.cfg(base + "cone_dot", _aim_cone_dot)
+	_aim_pull = GameState.cfg(base + "pull", _aim_pull)
+
+
+func _on_aim_assist_level_changed(_level: StringName) -> void:
+	_load_aim_assist_params()
+
+
+## 瞄准辅助（对齐原作 aim_assist_system，强度三档可调、常驻不可关）：
+## 准星 radius 内磁吸最近敌人（含 Boss）并粘滞保持；单帧位移 ≥switch 时先沿甩动方向
+## 锥形切换目标，无方向候选且位移 ≥break 才脱锁；pull<1（弱档）时准星仅部分被拉向目标。
+## 返回本帧瞄准点：锁定时为目标中心（弱档为鼠标与目标的 pull 混合），否则为原始鼠标位置。
 func _resolve_aim_point() -> Vector2:
 	var mouse := get_global_mouse_position()
-	var flicked := false
+	var movement := Vector2.ZERO
 	if _aim_mouse_initialized:
-		flicked = mouse.distance_to(_prev_aim_mouse) > AIM_ASSIST_BREAK_DIST
+		movement = mouse - _prev_aim_mouse
 	_prev_aim_mouse = mouse
 	_aim_mouse_initialized = true
-	if flicked:
+	var move_len := movement.length()
+	if move_len >= _aim_switch:
+		var switched := _target_in_direction(mouse, movement)
+		if switched != null:
+			_aim_lock_target = switched
+		elif move_len >= _aim_break:
+			_aim_lock_target = null
+	if not is_instance_valid(_aim_lock_target):
 		_aim_lock_target = null
-	elif not is_instance_valid(_aim_lock_target):
+	elif mouse.distance_to(_aim_lock_target.global_position) > _aim_radius:
 		_aim_lock_target = null
-	elif mouse.distance_to(_aim_lock_target.global_position) > AIM_ASSIST_RADIUS:
-		_aim_lock_target = null
-	if _aim_lock_target == null and not flicked:
+	if _aim_lock_target == null:
 		_aim_lock_target = _nearest_enemy_to(mouse)
 	if _aim_lock_target != null:
-		_aim_ring.global_position = _aim_lock_target.global_position
-		_aim_ring.show()
-		return _aim_lock_target.global_position
+		_update_aim_ring(_aim_lock_target)
+		var target_pos: Vector2 = _aim_lock_target.global_position
+		if _aim_pull >= 1.0:
+			return target_pos
+		return mouse.lerp(target_pos, _aim_pull)
 	_aim_ring.hide()
+	_aim_ring_target = null
 	return mouse
 
 
 func _nearest_enemy_to(point: Vector2) -> Node2D:
 	var best: Node2D = null
-	var best_sq := AIM_ASSIST_RADIUS * AIM_ASSIST_RADIUS
+	var best_sq := _aim_radius * _aim_radius
 	for e in GameState.enemies:
 		if not e is Node2D:
 			continue
@@ -364,6 +391,67 @@ func _nearest_enemy_to(point: Vector2) -> Node2D:
 			best_sq = d_sq
 			best = e
 	return best
+
+
+## 沿甩动方向的锥形目标切换（对齐原作 AIM_ASSIST_DIRECTION_CONE_DOT）：
+## 以当前锁定目标（无则原始准星）为原点，取位移方向夹角余弦最大的其他敌人。
+func _target_in_direction(mouse: Vector2, movement: Vector2) -> Node2D:
+	var origin := mouse
+	if is_instance_valid(_aim_lock_target):
+		origin = _aim_lock_target.global_position
+	var dir := movement.normalized()
+	var best: Node2D = null
+	var best_dot := _aim_cone_dot
+	for e in GameState.enemies:
+		if not e is Node2D or e == _aim_lock_target:
+			continue
+		var to: Vector2 = (e as Node2D).global_position - origin
+		if to.length() < 1.0:
+			continue
+		var dot := to.normalized().dot(dir)
+		if dot > best_dot:
+			best_dot = dot
+			best = e
+	return best
+
+
+## 锁定环：跟随目标，半径按目标碰撞体自适应（下限 AIM_RING_RADIUS），
+## 普通机青色 / 精英金色 / Boss 红色；每物理帧缓慢旋转并脉动（仅锁定时被调用）。
+func _update_aim_ring(target: Node2D) -> void:
+	_aim_ring.global_position = target.global_position
+	if _aim_ring_target != target:
+		_aim_ring_target = target
+		var color := Color(0.4, 0.9, 1.0, 0.9)
+		if target is Boss:
+			color = Color(1.0, 0.45, 0.4, 0.95)
+		elif target is Enemy and (target as Enemy).is_elite:
+			color = Color(1.0, 0.85, 0.35, 0.95)
+		for arc in _aim_ring.get_children():
+			(arc as Line2D).default_color = color
+		_layout_aim_ring(_lock_ring_radius(target))
+	_aim_ring.rotation += 0.025
+	_aim_ring.modulate.a = 0.7 + 0.3 * absf(sin(Time.get_ticks_msec() / 1000.0 * 5.0))
+	_aim_ring.show()
+
+
+## 重排 4 段圆弧到指定半径（每段 60°、间隔 30°；线宽恒定 2，不用节点缩放避免线宽失真）
+func _layout_aim_ring(radius: float) -> void:
+	for i in 4:
+		var arc := _aim_ring.get_child(i) as Line2D
+		arc.clear_points()
+		var a0 := PI / 2.0 * float(i) + deg_to_rad(15.0)
+		var a1 := PI / 2.0 * float(i + 1) - deg_to_rad(15.0)
+		for j in 8:
+			var a := lerpf(a0, a1, float(j) / 7.0)
+			arc.add_point(Vector2(cos(a), sin(a)) * radius)
+
+
+func _lock_ring_radius(target: Node2D) -> float:
+	var r := 0.0
+	var shape_node := target.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if shape_node != null and shape_node.shape is CircleShape2D:
+		r = (shape_node.shape as CircleShape2D).radius * maxf(target.scale.x, 0.5)
+	return maxf(r + 10.0, AIM_RING_RADIUS)
 
 
 func _dash_move(delta: float) -> void:

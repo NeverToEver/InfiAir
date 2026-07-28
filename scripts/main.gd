@@ -5,6 +5,7 @@ extends Node2D
 
 const BGM_PATH := "res://assets/audio/bgm_loop.wav"
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
+const INTRO_SCENE: PackedScene = preload("res://scenes/intro_cinematic.tscn")
 var DOCK_CHARGE_TIME := 3.0
 var HOME_CHARGE_TIME := 1.5
 var GIVE_UP_HOLD_TIME := 3.0
@@ -38,6 +39,10 @@ var _give_up_charge: float = 0.0
 var _bullet_time_left: float = 0.0  # >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
 var _time_scale_ramp: float = -1.0  # >=0：恢复过渡进度 0..1
 var _enrage_boss: Boss = null
+## 播放中的开场过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
+var _intro: IntroCinematic = null
+## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
+var _event: EliteTurretEvent = null
 
 
 func _ready() -> void:
@@ -54,6 +59,10 @@ func _ready() -> void:
 	_spawner.boss_spawned.connect(_hud.show_boss_bar)
 	_spawner.boss_spawned.connect(_on_boss_spawned)
 	_spawner.boss_warning.connect(_hud.show_boss_banner)
+	# 精英炮塔事件：编排节点挂 Main 下（清场/测试遍历可见），spawner 持引用做互斥
+	_event = EliteTurretEvent.new()
+	add_child(_event)
+	_spawner._event = _event
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
 	_start_panel.new_game_chosen.connect(_apply_new_run)
@@ -181,9 +190,33 @@ func _start_bgm() -> void:
 	_bgm_player.play()
 
 
-## 新对局（无存档或开始面板选「新游戏」）：数据层已由 reset_run/读档就绪，无需额外处理
+## 新对局（无存档或开始面板选「新游戏」）：数据层已由 reset_run/读档就绪，无需额外处理。
+## 仅正常启动入口播放开场过场（测试以子节点实例化 main.tscn 时 current_scene != self，不播）
 func _apply_new_run() -> void:
-	pass
+	if get_tree().current_scene == self:
+		_play_intro_cinematic()
+
+
+## 播放开场过场：冻结对局帧 0（树暂停，过场 process_mode=Always 照常播放），
+## 播完/跳过统一走 finished 恢复。测试可直接调用本函数触发。
+func _play_intro_cinematic() -> void:
+	if _intro != null:
+		return
+	_intro = INTRO_SCENE.instantiate() as IntroCinematic
+	_intro.finished.connect(_on_intro_finished)
+	add_child(_intro)
+	get_tree().paused = true
+
+
+## Esc 经 BackNavigator 路由至此；任意键/点击由过场自身 _unhandled_input 捕获
+func _skip_intro() -> void:
+	if _intro != null:
+		_intro.skip()
+
+
+func _on_intro_finished() -> void:
+	_intro = null
+	get_tree().paused = false
 
 
 func _on_continue_run() -> void:

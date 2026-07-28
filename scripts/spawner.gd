@@ -8,34 +8,35 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 
 ## 普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
+## scale 为纯视觉缩放：以锁定环/碰撞提示等指示器尺寸为锚（不动指示器），舰船视觉应明显大于指示器
 ## HP 定标（A11）：玩家弹伤 10、射速 0.15s 下 TTK≈1.2s（对齐原作 DPS 平衡器稳态）
 static var ENEMY_TYPES: Array[Dictionary] = [
 	{  # 1 型 均衡
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(75, 85), "speed": Vector2(140, 180), "score": 100,
-		"fire": 0.25, "fire_interval": 2.2, "scale": 0.45, "radius": 30.0,
+		"fire": 0.25, "fire_interval": 2.2, "scale": 0.85, "radius": 30.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 2 型 高速低 HP
 		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
 		"strategies": [&"zigzag", &"dive"] as Array[StringName],
 		"hp": Vector2i(55, 65), "speed": Vector2(220, 280), "score": 150,
-		"fire": 0.3, "fire_interval": 2.4, "scale": 0.45, "radius": 30.0,
+		"fire": 0.3, "fire_interval": 2.4, "scale": 0.85, "radius": 30.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
 		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
 		"hp": Vector2i(110, 130), "speed": Vector2(90, 120), "score": 200,
-		"fire": 0.4, "fire_interval": 2.0, "scale": 0.5, "radius": 34.0,
+		"fire": 0.4, "fire_interval": 2.0, "scale": 0.95, "radius": 34.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 	{  # 4 型 高分开火狂
 		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
 		"strategies": [&"noise", &"hover", &"aggressive"] as Array[StringName],
 		"hp": Vector2i(65, 75), "speed": Vector2(150, 190), "score": 250,
-		"fire": 0.8, "fire_interval": 1.8, "scale": 0.45, "radius": 30.0,
+		"fire": 0.8, "fire_interval": 1.8, "scale": 0.85, "radius": 30.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 ]
@@ -48,21 +49,21 @@ static var ELITE_TYPES: Array[Dictionary] = [
 		"texture": preload("res://assets/sprites/elite_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(210, 230), "speed": Vector2(90, 110), "score": 400,
-		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 34.0, "elite": true,
+		"fire": 0.5, "fire_interval": 2.2, "scale": 1.05, "radius": 34.0, "elite": true,
 		"bullet_types": [&"spread"] as Array[StringName],
 	},
 	{  # 游击
 		"texture": preload("res://assets/sprites/elite_ship_2.png"),
 		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
 		"hp": Vector2i(150, 170), "speed": Vector2(240, 300), "score": 350,
-		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 30.0, "elite": true,
+		"fire": 0.6, "fire_interval": 2.0, "scale": 0.85, "radius": 30.0, "elite": true,
 		"bullet_types": [&"laser", &"spread"] as Array[StringName],
 	},
 	{  # 炮艇
 		"texture": preload("res://assets/sprites/elite_ship_3.png"),
 		"strategies": [&"hover", &"spiral"] as Array[StringName],
 		"hp": Vector2i(190, 210), "speed": Vector2(110, 140), "score": 500,
-		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 34.0, "elite": true,
+		"fire": 1.0, "fire_interval": 1.5, "scale": 0.95, "radius": 34.0, "elite": true,
 		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},
 ]
@@ -78,12 +79,24 @@ var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对刷怪间隔的影响
 var INTERVAL_MIN := 0.35
 var BOSS_SCORE_STEP := 1500
 var BOSS_TIME_LIMIT := 90.0
+## 精英炮塔事件触发参数（docs/ELITE_TURRET_EVENT.md 第 6 节）
+var ETV_MIN_SCORE := 800
+var ETV_TRIGGER_INTERVAL := 45.0
+var ETV_TRIGGER_CHANCE := 0.35
 
 var _spawn_timer: float = 1.5
 var _elapsed: float = 0.0
 var _boss_timer: float = 0.0
 var _next_boss_score: int = BOSS_SCORE_STEP
 var _boss_active: bool = false
+## 精英炮塔事件互斥：事件期间 Boss 触发被冻结（到期记 _boss_pending 一次，不累积）
+var _boss_frozen: bool = false
+var _boss_pending: bool = false
+## 事件期间普通波次暂停
+var _waves_paused: bool = false
+## 事件编排节点（main 在 _ready 登记）
+var _event: EliteTurretEvent = null
+var _event_check_timer: float = ETV_TRIGGER_INTERVAL
 
 
 func _ready() -> void:
@@ -102,6 +115,9 @@ func _apply_balance() -> void:
 	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
 	INTERVAL_MIN = GameState.cfg("spawner.interval_min", INTERVAL_MIN)
 	UNLOCK_SCORES = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
+	ETV_MIN_SCORE = GameState.cfg("elite_turret_event.min_score", ETV_MIN_SCORE)
+	ETV_TRIGGER_INTERVAL = GameState.cfg("elite_turret_event.trigger_interval", ETV_TRIGGER_INTERVAL)
+	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
 	var normal: Array = GameState.cfg("enemies.types", [])
 	for i in mini(normal.size(), ENEMY_TYPES.size()):
 		_merge_type(ENEMY_TYPES[i], normal[i])
@@ -122,14 +138,31 @@ func _merge_type(dst: Dictionary, src: Dictionary) -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
-	_spawn_timer -= delta
-	if _spawn_timer <= 0.0:
-		_spawn_enemy()
-		_spawn_timer = _current_interval()
+	if not _waves_paused:
+		_spawn_timer -= delta
+		if _spawn_timer <= 0.0:
+			_spawn_enemy()
+			_spawn_timer = _current_interval()
 
 	_boss_timer += delta
 	if not _boss_active and (GameState.score >= _next_boss_score or _boss_timer >= BOSS_TIME_LIMIT):
-		_trigger_boss()
+		# 精英炮塔事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
+		if _boss_frozen:
+			_boss_pending = true
+		else:
+			_trigger_boss()
+	# 精英炮塔事件触发检查：Boss 优先（Boss 未预警/入场/战斗中且事件可触发时才允许启动）
+	if (
+		_event != null
+		and not _boss_active
+		and _event.can_trigger()
+		and GameState.score >= ETV_MIN_SCORE
+	):
+		_event_check_timer -= delta
+		if _event_check_timer <= 0.0:
+			_event_check_timer = ETV_TRIGGER_INTERVAL
+			if randf() < ETV_TRIGGER_CHANCE:
+				_event.start()
 
 
 func _current_interval() -> float:

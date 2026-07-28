@@ -15,6 +15,7 @@ signal key_bindings_changed
 signal locale_changed
 signal view_zoom_changed(factor: float)
 signal window_size_changed(level: StringName)
+signal aim_assist_changed(level: StringName)
 
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
@@ -148,6 +149,8 @@ var shift_toggle_mode: bool = false
 var view_zoom: StringName = &"medium"
 ## 窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）
 var window_size: StringName = &"large"
+## 瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）
+var aim_assist_level: StringName = &"medium"
 ## buff id -> 已选层数
 var buffs: Dictionary = {}
 ## 征用点数（基地经济）
@@ -206,6 +209,7 @@ func _ready() -> void:
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
+	_apply_window_size()  # 无 profile 时 load_profile 不会应用窗口尺寸，这里补一次默认档位
 	var tr_zh := load("res://data/translations.zh.translation") as Translation
 	var tr_en := load("res://data/translations.en.translation") as Translation
 	if tr_zh != null:
@@ -404,14 +408,40 @@ func set_window_size(level: StringName) -> void:
 	window_size_changed.emit(window_size)
 
 
-## 应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过
+## 应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过。
+## 档位尺寸按逻辑点定义：高分屏（Retina 等 content scale>1）乘屏幕缩放换算物理像素，
+## 否则 1920×1080 档位在 2x 屏上只显示为 960×540 点的小窗；超出当前屏可用区域时等比收缩并居中。
 func _apply_window_size() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
 	var win := get_window()
 	if win == null or win.mode != Window.MODE_WINDOWED:
 		return
-	win.size = WINDOW_SIZE_LEVELS[window_size]
+	var screen := win.current_screen
+	var scale := DisplayServer.screen_get_scale(screen)
+	var phys := Vector2i(Vector2(WINDOW_SIZE_LEVELS[window_size]) * scale)
+	var usable: Rect2i = DisplayServer.screen_get_usable_rect(screen)
+	if phys.x > usable.size.x or phys.y > usable.size.y:
+		var fit := minf(float(usable.size.x) / phys.x, float(usable.size.y) / phys.y)
+		phys = Vector2i(Vector2(phys) * fit)
+	win.size = phys
+	win.position = usable.position + (usable.size - phys) / 2
+
+
+# ---------------- 瞄准辅助强度 ----------------
+
+## 强度档位表（设置页三选，profile 持久化；辅助瞄准常驻、刻意不提供关闭档）。
+## 各档数值（磁吸半径/甩脱阈值/方向切换锥形/吸附力度）在 balance.json player.aim_assist.levels。
+const AIM_ASSIST_ORDER: Array[StringName] = [&"low", &"medium", &"high"]
+
+
+## 切换瞄准辅助强度档位（非法/同档忽略），持久化到 profile 并广播
+func set_aim_assist_level(level: StringName) -> void:
+	if not AIM_ASSIST_ORDER.has(level) or level == aim_assist_level:
+		return
+	aim_assist_level = level
+	save_profile()
+	aim_assist_changed.emit(level)
 
 
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
@@ -825,6 +855,9 @@ func load_profile() -> void:
 	if WINDOW_SIZE_LEVELS.has(saved_window):
 		window_size = saved_window
 		_apply_window_size()
+	var saved_aim := StringName(parsed.get("aim_assist", ""))
+	if AIM_ASSIST_ORDER.has(saved_aim):
+		aim_assist_level = saved_aim
 
 
 func save_profile() -> void:
@@ -840,6 +873,7 @@ func save_profile() -> void:
 		"shift_toggle_mode": shift_toggle_mode,
 		"view_zoom": String(view_zoom),
 		"window_size": String(window_size),
+		"aim_assist": String(aim_assist_level),
 	}
 	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	if f == null:

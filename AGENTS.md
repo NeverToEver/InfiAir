@@ -11,15 +11,16 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`），负责全局状态、信号、数值读取、持久化、音效池与实体注册表。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
 - 玩法对齐状态和已知差异见 `docs/PORTING_PARITY.md`；返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`。
+- `CLAUDE.md` 只提供入口级概览并声明本文件为权威约定文档；两者冲突时以本文件为准。
 
 ## 技术栈、配置与交付现状
 
 ### 技术栈
 
 - **引擎：** Godot 4.6（标准版即可，无需 .NET）。`project.godot` 当前声明 `4.6` 和 `GL Compatibility` 特性，桌面/移动端均使用 `gl_compatibility`。
-- **语言：** 纯 GDScript；唯一 Python 文件 `scripts/tools/generate_audio.py` 是使用 Python 标准库的离线音频合成工具，不属于游戏运行时依赖。
+- **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件（`generate_audio.py`、`generate_enemy_sprites.py`）是离线资产生成工具，不属于游戏运行时依赖。
 - **资源：** `assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf` UI 字体。
-- **数据：** `data/balance.json` 为可调数值源；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
+- **数据：** `data/balance.json` 为可调数值源（顶层分区：player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、effects、tutorial、elite_turret_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
 
 ### 关键配置文件
 
@@ -29,7 +30,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 | `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。 |
 | `data/translations.csv` | 翻译键及 `zh`、`en` 文本源。 |
 | `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件、导出预设和导出产物。 |
-| `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装；`run.sh` 依次查找 PATH、`~/.local/bin/godot` 和 macOS App bundle，并对低于 4.6 的版本告警。 |
+| `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装；`run.sh` 依次查找 PATH、`~/.local/bin/godot` 和 macOS App bundle，并对低于 4.6 的版本告警（仅警告不阻断）。 |
 
 当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置、CI 工作流或 `export_presets.cfg`。因此没有包安装、构建、CI、自动部署或可复现导出流程；打包发布目前暂缓。不要虚构这些流程或为常规修改引入第三方插件/依赖。
 
@@ -65,6 +66,7 @@ godot --headless --path . res://test/difficulty_test.tscn
 godot --headless --path . res://test/boss_enrage_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
 godot --headless --path . res://test/balance_test.tscn
+godot --headless --path . res://test/elite_turret_event_test.tscn
 
 # 设置、启动、导航与教程
 godot --headless --path . res://test/keybind_test.tscn
@@ -74,6 +76,7 @@ godot --headless --path . res://test/window_size_test.tscn
 godot --headless --path . res://test/startup_flow_test.tscn
 godot --headless --path . res://test/back_navigation_test.tscn
 godot --headless --path . res://test/esc_navigation_test.tscn
+godot --headless --path . res://test/intro_cinematic_test.tscn
 godot --headless --path . res://test/tutorial_test.tscn
 
 # 对象池与性能
@@ -107,7 +110,9 @@ Main (scripts/main.gd)
 ├─ HUD
 ├─ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
 ├─ StartPanel / WelcomeScreen / ExitConfirm
-└─ BackNavigator
+├─ BackNavigator
+├─ IntroCinematic（运行时由 main 在新游戏时实例化，layer=35）
+└─ EliteTurretEvent（运行时由 main 在 _ready 创建并登记给 spawner 互斥）
 ```
 
 - `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM 与页面流转。
@@ -117,9 +122,11 @@ Main (scripts/main.gd)
 - `scripts/enemy.gd`、`boss.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
+- `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
+- `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。
 
-`scenes/` 包含主场景、玩家、普通敌机、Boss、子弹、母舰和教程场景；同名行为脚本通常位于 `scripts/`。所有动态对局实体应挂在 Main 下，以便清场逻辑和测试遍历可见。
+`scenes/` 包含主场景、玩家、普通敌机、Boss、子弹、母舰、开场过场和教程场景；同名行为脚本通常位于 `scripts/`。所有动态对局实体应挂在 Main 下，以便清场逻辑和测试遍历可见。
 
 ## 目录职责
 
@@ -128,7 +135,7 @@ Main (scripts/main.gd)
 | `autoload/` | 全局 autoload；当前只有 `game_state.gd`。 |
 | `scenes/` | Godot `.tscn` 场景与节点组合。 |
 | `scripts/` | GDScript 游戏逻辑、UI、表现和池实现。 |
-| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV。 |
+| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV，`generate_enemy_sprites.py` 可重新生成敌方单位贴图（PIL，晶体棱镜风格）。 |
 | `assets/` | 游戏贴图、音效/BGM 和字体。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
@@ -161,7 +168,7 @@ Main (scripts/main.gd)
 
 - 所有用户可见文本使用 `tr("UPPER_SNAKE_CASE_KEY")`。新增键必须同步写入 `data/translations.csv` 的 `zh` 和 `en` 列；让 Godot 重新导入后生成 `.translation`。动态文本使用带 `%d`/`%s` 占位符的翻译键。
 - 语言切换必须经 `GameState.set_locale("zh" / "en")`，并使 UI 监听 `locale_changed` 后刷新文本。
-- 页面样式使用 `scripts/ui_theme.gd`：色板 token、字号阶梯、`make_label()`、`make_button()`、`make_toggle_button()`、`make_section_header()`、`make_page_shell()` 和开场动画工具。新页面以 `make_page_shell()` 组合，单页最多一个 primary 主按钮；不要散落手写色值和重复 Label/Button 样板。
+- 页面样式使用 `scripts/ui_theme.gd`：色板 token、字号阶梯、`make_label()`、`make_button()`、`make_toggle_button()`、`make_section_header()`、`make_page_shell()` 和开场动画工具；可复用构件还有 `scripts/ui_chamfered_panel.gd`（切角面板）与 `scripts/ui_segmented_bar.gd`（分段条形仪表）。新页面以 `make_page_shell()` 组合，单页最多一个 primary 主按钮；不要散落手写色值和重复 Label/Button 样板。
 - Buff、暂停、结算等暂停态 UI 必须设置 `process_mode = Always`，并通过 `get_tree().paused` 管理暂停。
 - 返回/退出集中在 `BackNavigator`。除设置页的改键捕获态外，页面不要自行消费 `ui_cancel`；新增页面层级必须在 `decide_back_action()` 中登记，并同步 `docs/EXIT_FLOW.md`。
 - BGM 循环只设置 `stream.loop_mode = LOOP_FORWARD`；不要显式设置 `loop_begin`/`loop_end` 或在 `_exit_tree()` 停止 BGM，否则可能造成播放实例泄漏。
@@ -176,7 +183,7 @@ Main (scripts/main.gd)
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 23 个场景：19 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

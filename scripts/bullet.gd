@@ -9,6 +9,8 @@ var damage: int = 1
 var is_player_bullet: bool = true
 var homing: bool = false
 var homing_time: float = 0.0
+## 追踪转向速率（rad 级插值系数；精英炮台弱锁定追踪弹降为 1.5）
+var homing_turn_rate: float = 4.0
 ## 穿透剩余次数（玩家弹，穿透弹 buff）
 var pierce: int = 0
 ## 命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）
@@ -23,6 +25,8 @@ var score_scale: float = 1.0
 ## 主目标吃直击+溅射两段、不伤 Boss、不伤玩家）
 var EXPLOSIVE_RADIUS := 50.0
 var EXPLOSIVE_DAMAGE := 30
+## 弹丸视觉缩放（对齐单位放大后的比例；effects.bullet_visual_scale，碰撞半径不变）
+var VISUAL_SCALE := 1.7
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
@@ -68,6 +72,7 @@ func activate(
 	splash_damage = 0
 	splash_radius = 0.0
 	score_scale = 1.0
+	homing_turn_rate = 4.0
 	visible = true
 	monitoring = true
 	set_process(true)
@@ -93,6 +98,7 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius_per_level", EXPLOSIVE_RADIUS)
 	EXPLOSIVE_DAMAGE = GameState.cfg("buffs.explosive.damage_per_level", EXPLOSIVE_DAMAGE)
+	VISUAL_SCALE = GameState.cfg("effects.bullet_visual_scale", VISUAL_SCALE)
 	_apply_faction()
 
 
@@ -108,7 +114,7 @@ func _apply_faction() -> void:
 	# 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
 	scale = Vector2.ONE
 	modulate = Color.WHITE
-	_polygon.scale = Vector2.ONE
+	_polygon.scale = Vector2.ONE * VISUAL_SCALE
 	if has_meta("bullet_type"):
 		remove_meta("bullet_type")
 	if is_player_bullet:
@@ -135,7 +141,7 @@ func _process(delta: float) -> void:
 			var new_angle := lerp_angle(
 				direction.angle(),
 				(GameState.player_ref.global_position - global_position).angle(),
-				4.0 * delta
+				homing_turn_rate * delta
 			)
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle

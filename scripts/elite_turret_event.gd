@@ -1,0 +1,240 @@
+class_name EliteTurretEvent
+extends Node
+## 精英炮塔事件编排（docs/ELITE_TURRET_EVENT.md）：
+## IDLE → CARRIER_ENTER（航母降入 2s）→ 炮塔升起充能 1.5s → TURRET_ACTIVE（30s 倒计时）
+## → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
+## 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），
+## BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
+
+const TURRET_SCENE: PackedScene = preload("res://scenes/turret.tscn")
+const COMM_OVERLAY_SCRIPT: GDScript = preload("res://scripts/comm_overlay.gd")
+
+enum State { IDLE, CARRIER_ENTER, TURRET_ACTIVE, CARRIER_EXIT, BOSS_DELAY }
+
+## 配置（读 balance.json elite_turret_event 段，脚本值为缺键回退）
+var DURATION := 30.0
+var ENTER_TIME := 2.0
+var RISE_TIME := 1.5
+var BOSS_RESUME_DELAY := 4.0
+var TURRET_HP_BASE := 80
+var TURRET_COUNTS: Dictionary = {"easy": 3, "medium": 4, "hard": 5}
+var FIRE_INTERVAL := Vector2(2.0, 2.4)
+var WEAK_LOCK: Dictionary = {
+	"turn_rate": 2.0, "homing_turn_rate": 1.5, "homing_time": 0.6, "spread_deg": 7.0,
+}
+var AMMO_SEQUENCES: Dictionary = {
+	"easy": [&"single", &"spread3", &"single"],
+	"medium": [&"single", &"spread3", &"laser", &"weak_homing"],
+	"hard": [&"spread5", &"laser", &"weak_homing", &"sniper", &"single"],
+}
+var REWARD_SCORE := 500
+var HOVER_Y := 300.0
+var COOLDOWN := 60.0
+
+var _state: State = State.IDLE
+var _carrier: StrikeCarrier = null
+var _turrets: Array[TurretBattery] = []
+var _turret_sockets: Dictionary = {}  # turret -> 基座环索引
+var _timer: float = 0.0
+var _hud_poll: float = 0.0
+var _total: int = 0
+var _destroyed: int = 0
+var _line_stage: int = 0  # 台词节点：0 未播 / 1 已播第1句 / 2 已播第2句
+var _lines: Array[String] = []
+var _cooldown_left: float = 0.0
+var _comm: CommOverlay = null
+var _hud: CanvasLayer = null
+
+
+func _ready() -> void:
+	add_to_group("elite_turret_event")
+	DURATION = GameState.cfg("elite_turret_event.duration", DURATION)
+	ENTER_TIME = GameState.cfg("elite_turret_event.enter_time", ENTER_TIME)
+	RISE_TIME = GameState.cfg("elite_turret_event.rise_time", RISE_TIME)
+	BOSS_RESUME_DELAY = GameState.cfg("elite_turret_event.boss_resume_delay", BOSS_RESUME_DELAY)
+	TURRET_HP_BASE = GameState.cfg("elite_turret_event.turret_hp_base", TURRET_HP_BASE)
+	TURRET_COUNTS = GameState.cfg("elite_turret_event.turret_counts", TURRET_COUNTS)
+	var fi: Array = GameState.cfg("elite_turret_event.fire_interval", [FIRE_INTERVAL.x, FIRE_INTERVAL.y])
+	FIRE_INTERVAL = Vector2(float(fi[0]), float(fi[1]))
+	WEAK_LOCK = GameState.cfg("elite_turret_event.weak_lock", WEAK_LOCK)
+	AMMO_SEQUENCES = GameState.cfg("elite_turret_event.ammo_sequences", AMMO_SEQUENCES)
+	REWARD_SCORE = GameState.cfg("elite_turret_event.reward_score", REWARD_SCORE)
+	HOVER_Y = GameState.cfg("elite_turret_event.carrier.hover_y", HOVER_Y)
+	COOLDOWN = GameState.cfg("elite_turret_event.cooldown", COOLDOWN)
+	_comm = COMM_OVERLAY_SCRIPT.new() as CommOverlay
+	add_child(_comm)
+
+
+func is_active() -> bool:
+	return _state != State.IDLE
+
+
+## 触发条件：IDLE 且冷却结束（Boss 互斥由 spawner 侧检查）
+func can_trigger() -> bool:
+	return _state == State.IDLE and _cooldown_left <= 0.0
+
+
+## 事件启动（互斥检查通过后由 spawner 调用）
+func start() -> void:
+	if _state != State.IDLE:
+		return
+	_state = State.CARRIER_ENTER
+	_destroyed = 0
+	_line_stage = 0
+	# 10 句台词无放回随机抽取 3 句，绑定三个进度节点
+	var pool: Array[String] = []
+	for i in 10:
+		pool.append("ETQ_%d" % (i + 1))
+	pool.shuffle()
+	_lines = pool.slice(0, 3)
+	# 冻结 Boss 调度 + 暂停普通波次（spawner 钩子）
+	var spawner := get_tree().get_first_node_in_group("spawner")
+	if spawner != null:
+		spawner._boss_frozen = true
+		spawner._waves_paused = true
+	_carrier = StrikeCarrier.new()
+	_carrier.position = Vector2(960.0, GameState.view_world_rect().position.y - 450.0)
+	_carrier.entered.connect(_on_carrier_entered)
+	_carrier.exited.connect(_on_carrier_exited)
+	get_parent().add_child(_carrier)
+	_carrier.enter(HOVER_Y, ENTER_TIME)
+	GameState.shake(GameState.cfg("elite_turret_event.carrier.shake", 4.0))
+	_hud = get_tree().get_first_node_in_group("hud")
+
+
+## 航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）
+func _on_carrier_entered() -> void:
+	_total = int(TURRET_COUNTS.get(String(GameState.difficulty), 4))
+	var hp := maxi(1, int(roundf(TURRET_HP_BASE * GameState.enemy_hp_multiplier())))
+	var ammo: Array = AMMO_SEQUENCES.get(String(GameState.difficulty), AMMO_SEQUENCES["medium"])
+	for i in _total:
+		var turret := TURRET_SCENE.instantiate() as TurretBattery
+		turret.setup(hp, ammo, FIRE_INTERVAL, WEAK_LOCK)
+		turret.position = _carrier.position + StrikeCarrier.SOCKETS[i]
+		turret.died.connect(_on_turret_died.bind(i))
+		get_parent().add_child(turret)
+		_turrets.append(turret)
+		_turret_sockets[turret] = i
+		_carrier.set_socket_charging(i)
+		turret.rise(RISE_TIME)
+	_schedule(RISE_TIME, _begin_countdown)
+
+
+## 充能完毕：30s 倒计时开始，炮塔可被攻击并开火
+func _begin_countdown() -> void:
+	if _state != State.CARRIER_ENTER:
+		return
+	_state = State.TURRET_ACTIVE
+	_timer = DURATION
+	for turret in _turrets:
+		if is_instance_valid(turret):
+			turret.activate()
+	if _hud != null:
+		_hud.show_event_bar(_total)
+
+
+func _process(delta: float) -> void:
+	if _cooldown_left > 0.0 and _state == State.IDLE:
+		_cooldown_left -= delta
+	if _state != State.TURRET_ACTIVE:
+		return
+	_timer -= delta
+	_hud_poll -= delta
+	if _hud_poll <= 0.0:
+		_hud_poll = 0.1
+		if _hud != null:
+			_hud.update_event_bar(_timer, DURATION, _total - _destroyed)
+	if _timer <= 0.0:
+		_on_event_timeout()
+
+
+func _on_turret_died(turret: TurretBattery, socket: int) -> void:
+	_destroyed += 1
+	_turrets.erase(turret)
+	_turret_sockets.erase(turret)
+	if _carrier != null and is_instance_valid(_carrier):
+		_carrier.set_socket_destroyed(socket)
+	if _hud != null and _state == State.TURRET_ACTIVE:
+		_hud.update_event_bar(_timer, DURATION, _total - _destroyed)
+	# 进度台词节点：摧毁 ≥ ⌈总数/3⌉ → 第 1 句；≥ ⌈总数×2/3⌉ → 第 2 句；全歼 → 第 3 句
+	if _line_stage == 0 and _destroyed >= maxi(1, ceili(_total / 3.0)):
+		_line_stage = 1
+		_comm.show_line(_lines[0])
+	if _line_stage == 1 and _destroyed >= maxi(1, ceili(_total * 2.0 / 3.0)) and _destroyed < _total:
+		_line_stage = 2
+		_comm.show_line(_lines[1])
+	if _destroyed >= _total:
+		_on_all_turrets_destroyed()
+
+
+## 成功结算：第 3 句台词 + 复用 Boss 击杀得分（基础 500，add_score 内乘难度倍率）
+func _on_all_turrets_destroyed() -> void:
+	if _state != State.TURRET_ACTIVE:
+		return
+	_state = State.CARRIER_EXIT
+	_comm.show_line(_lines[2])
+	GameState.add_score(REWARD_SCORE)
+	if _hud != null:
+		_hud.hide_event_bar()
+	_resume_waves()
+	_carrier_retreat(false)  # 受创撤离（冒烟+慢速）
+
+
+## 失败结算：炮塔收回盖板，固定撤退台词，无奖励
+func _on_event_timeout() -> void:
+	_state = State.CARRIER_EXIT
+	for turret in _turrets:
+		if is_instance_valid(turret):
+			turret.cease_fire_and_retract()
+	_comm.show_line("ETQ_RETREAT")
+	if _hud != null:
+		_hud.hide_event_bar()
+	_resume_waves()
+	_carrier_retreat(true)  # 完整撤离（加速上升淡出）
+
+
+## 航母撤离（复用 Boss escape 参数族量级；存活敌弹自然出界销毁，不清屏）
+func _carrier_retreat(victorious: bool) -> void:
+	if _carrier != null and is_instance_valid(_carrier):
+		_carrier.retreat(victorious)
+	else:
+		_on_carrier_exited()
+
+
+## 航母离场后进入 Boss 恢复间隔
+func _on_carrier_exited() -> void:
+	_carrier = null
+	if _state == State.CARRIER_EXIT:
+		_state = State.BOSS_DELAY
+		_schedule(BOSS_RESUME_DELAY, _on_boss_delay_end)
+
+
+## BOSS_DELAY 结束：回 IDLE；若存在被冻结的 Boss 触发 → 立即触发一次（不累积）
+func _on_boss_delay_end() -> void:
+	_state = State.IDLE
+	_cooldown_left = COOLDOWN
+	_turrets.clear()
+	_turret_sockets.clear()
+	var spawner := get_tree().get_first_node_in_group("spawner")
+	if spawner != null:
+		spawner._boss_frozen = false
+		if spawner._boss_pending:
+			spawner._boss_pending = false
+			spawner._trigger_boss()
+
+
+## 普通波次在 CARRIER_EXIT 起恢复（Boss 冻结保留到 BOSS_DELAY 结束）
+func _resume_waves() -> void:
+	var spawner := get_tree().get_first_node_in_group("spawner")
+	if spawner != null:
+		spawner._waves_paused = false
+
+
+## 一次性计时回调（同 spawner._schedule：Timer 节点 + 信号，避免协程泄漏）
+func _schedule(seconds: float, callback: Callable) -> void:
+	var timer := Timer.new()
+	timer.one_shot = true
+	add_child(timer)
+	timer.timeout.connect(callback, CONNECT_ONE_SHOT)
+	timer.timeout.connect(timer.queue_free, CONNECT_ONE_SHOT)
+	timer.start(seconds)

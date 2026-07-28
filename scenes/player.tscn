@@ -18,8 +18,8 @@ initial_velocity_min = 90.0
 initial_velocity_max = 170.0
 damping_min = 40.0
 damping_max = 90.0
-scale_min = 1.5
-scale_max = 3.5
+scale_min = 2.5
+scale_max = 5.5
 color = Color(0.35, 0.85, 1, 0.9)
 
 [node name="Player" type="CharacterBody2D"]
@@ -28,7 +28,7 @@ collision_mask = 0
 script = ExtResource("1")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-scale = Vector2(0.25, 0.25)
+scale = Vector2(0.45, 0.45)
 texture = ExtResource("2")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
@@ -44,7 +44,7 @@ shape = SubResource("2")
 [node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
 
 [node name="Thruster" type="GPUParticles2D" parent="."]
-position = Vector2(0, 26)
+position = Vector2(0, 30)
 amount = 32
 lifetime = 0.35
 process_material = SubResource("3")

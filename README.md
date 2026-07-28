@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-586%20passed-brightgreen)](#运行验证)
+[![Tests](https://img.shields.io/badge/tests-635%20passed-brightgreen)](#运行验证)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -36,10 +36,11 @@
 - **16 种 Buff 局内构建**：伤害/射速/散射/穿透/爆炸/吸血/护甲/闪避/相位冲刺/慢速力场/激光光束……按分数里程碑三选一，叠加成型。
 - **3 种 Boss 轮换 + 完整狂暴序列**：重装 / 游击 / 母舰型；血量 <30% 触发狂暴——锁血、子弹时间、环绕轨道攻击、定身弹幕、终结齐射（详见玩法循环）；拖过 50 秒未击杀则 Boss 逃跑。
 - **母舰对接火力平台**：长按蓄力召唤（虚影预告），到位自动吸附对接；驻留弹匣制（10 格 × 2s）——双炮塔向上 80° 扫射 + 导弹齐射（≤5 目标），WASD 直接驾驶；余 4 格弹药警告、5s 后强制离舰，也可长按 H 提前离舰（带进度条）按剩余量折算冷却。
+- **精英炮塔事件**：偶遇精英打击航母自深空降入——按难度升起 3/4/5 座弱锁定索敌炮台（限速转台 + 出膛散布 + 弱追踪弹），30 秒限时全歼；指挥官通讯台词随摧毁进度播放，基座环即状态灯；与 Boss 调度严格互斥，全歼 +500 分（乘难度倍率）。
 - **基地中场整备**：返航不终局——战机库 / 武器挂载（互斥天赋路线）/ 维修补给（RP 经济）/ 任务规划四模块，整备后返回同一局。
 - **全息科幻 UI 设计系统**：统一色板与字号阶梯、切角面板、主次按钮层级、逐条淡入动效；全部页面（开始/设置/暂停/结算/Buff/基地）同一骨架。
 - **街机级可视性**：战机提亮 + 青色描边辉光，受击判定点（r=7）配闪烁光点，弹幕再密也不丢焦点。
-- **纯程序化资产**：贴图程序生成（继承自 Python 原作），音效与 BGM 由 `scripts/tools/generate_audio.py` 合成，零外部素材依赖。
+- **纯程序化资产**：敌方单位贴图为晶体棱镜风格（深色晶面 + 霓虹描边 + 能量核心），由 `scripts/tools/generate_enemy_sprites.py` 程序生成；音效与 BGM 由 `scripts/tools/generate_audio.py` 合成，零外部素材依赖。
 
 ## 🖼️ 截图
 
@@ -52,7 +53,7 @@
 | 按键 / 输入 | 功能 |
 |-------------|------|
 | WASD / 方向键 | 移动战机 |
-| 鼠标 | 瞄准（230px 内自动磁吸锁定，甩鼠标脱离） |
+| 鼠标 | 瞄准（辅助瞄准磁吸锁定，弱/中/强三档可调，甩鼠标换目标或脱离） |
 | — | 武器全自动开火 |
 | Shift 长按 | 加速推进（×1.8，消耗燃料） |
 | Ctrl 长按 | 微调姿态（速度 ×0.35） |
@@ -66,6 +67,7 @@
 > 以上按键均可在「设置 → 控制」中自定义（Esc/R 固定不可改，改键持久化于 `user://profile.json`）。
 > 中英双语：「设置 → 操作模式 → 语言 / Language」切换。
 > 视角缩放三档（小 1.0 / 中 1.35 / 大 1.7，默认中）与窗口大小三档（1280×720 / 1600×900 / 1920×1080，默认大）在「设置 → 操作模式」切换，两者独立，均持久化。
+> 辅助瞄准三档（弱 / 中 / 强，默认中）同在「设置 → 操作模式」：辅助常驻不可关闭，仅调强度（磁吸半径 / 吸附力度 / 换目标灵敏度），持久化。
 
 ## 🚀 快速开始
 
@@ -83,6 +85,7 @@ godot --path .          # 直接运行；或用编辑器打开项目按 F5
 - 敌机 4 机型 × 8 种移动模式，按分数阶段解锁；精英 3 型；敌机弹种 single / spread / laser（伤害 12/10/20，身体撞击另有 20 伤）。
 - 按里程碑阈值曲线（3000 分起，逐循环放大）暂停三选一 Buff；Boss 每 1500 分或 90 秒刷新，击毁 +500 分并提升难度乘数（`1 + (2^min(击杀,10) − 1) × 0.25`，封顶 8x）。
 - Boss 血量 <30% 进入狂暴序列：HP 锁定在 30% 检查点（期间不受伤害）→ 子弹时间 → 环绕我方快照点轨道攻击并定身我方（仍可射击）→ 解锁密集齐射 → 归位后持续狂暴（射速 ×1.5 / 移速 ×1.3）。
+- 精英炮塔事件（分数 ≥800 后随机遭遇）：航母入场 → 炮台升起充能 → 30s 倒计时；事件期间普通波次暂停、Boss 触发冻结（结束后补触发一次）；全歼得 500 基础分（×难度倍率），超时无奖励。
 - RP（征用点数）由 Boss 击杀（+5）与基地任务（+3）获得，用于基地维修 / 充能（各 2 RP）。
 - 暂停菜单「保存进度」可随时存档（返航也会自动更新存档），启动时可继续对局；死亡删档。
 - 首次进入有欢迎页；开始面板含「教程」入口：6 阶段新手教学（移动瞄准 / 加速冲刺 / 战斗 / 母舰对接 / 返航基地 / Boss 狂暴），Esc 随时退出，完成后按钮显示「教程 ✓」。
@@ -95,6 +98,7 @@ main.tscn（对局编排）
  ├─ Spawner（敌机 4 型 + 精英 3 型配置表 / 分数阶段解锁 / Boss 轮换调度）
  ├─ Mothership（自动对接状态机：召唤→对接→驻留(驾驶+扫射+导弹)→释放→离场）
  ├─ Boss（3 型轮换 + 狂暴序列状态机：锁血/轨道环绕/定身/齐射/归位）
+ ├─ EliteTurretEvent（精英炮塔事件：航母导演/炮台实体/通讯浮层，与 Boss 互斥）
  ├─ HUD / BuffSelect / BaseConsole / GameOver / Pause / Settings / StartPanel / Welcome
  ├─ BackNavigator（全局返回/退出状态机：PC Esc、手柄 B、Android 返回统一路由）
  └─ GameState（autoload：100 HP 生命/分数/Buff/RP/任务/路线/存档/profile/音效池/震动）
@@ -112,7 +116,7 @@ main.tscn（对局编排）
 ```bash
 godot --headless --import --path .          # 资源与脚本解析
 godot --headless --path . --quit-after 300  # 运行时冒烟
-godot --headless --path . res://test/smoke_test.tscn          # 主流程 111 项
+godot --headless --path . res://test/smoke_test.tscn          # 主流程 115 项
 godot --headless --path . res://test/hit_logic_test.tscn      # 受击/碰撞对齐 60 项
 godot --headless --path . res://test/difficulty_test.tscn     # 难度/里程碑/设置 52 项
 godot --headless --path . res://test/base_system_test.tscn    # 存档/RP/任务/路线 46 项
@@ -124,6 +128,7 @@ godot --headless --path . res://test/buff33_test.tscn         # Buff/母舰/放�
 godot --headless --path . res://test/tutorial_test.tscn       # 新手教程 29 项
 godot --headless --path . res://test/balance_test.tscn        # 数值配置中心 25 项
 godot --headless --path . res://test/back_navigation_test.tscn # 返回/退出状态机 23 项
+godot --headless --path . res://test/elite_turret_event_test.tscn # 精英炮塔事件 45 项
 godot --headless --path . res://test/window_size_test.tscn    # 窗口大小 17 项
 godot --headless --path . res://test/keybind_test.tscn        # 可改键 15 项
 godot --headless --path . res://test/pool_reuse_test.tscn     # 对象池复用 12 项
@@ -138,7 +143,7 @@ godot --headless --path . res://test/autoplay_test.tscn  # 模拟人工游玩 �
 godot --path . res://test/ui_capture.tscn                # 窗口模式六界面截图（/tmp/ui_*.png）
 ```
 
-17 个测试场景共 **586 项断言**，全部通过。
+18 个测试场景共 **635 项断言**，全部通过。
 
 ## 🗺️ 路线图
 
@@ -158,6 +163,8 @@ godot --path . res://test/ui_capture.tscn                # 窗口模式六界面
 - [x] 窗口大小三档 + 母舰提前离舰进度条 —— 迭代 3.12
 - [x] UI 设计系统重构（统一骨架 / 主次按钮 / 全页面迁移） —— 迭代 3.13
 - [x] Boss 狂暴完整序列（锁血 / 轨道环绕 / 定身 / 齐射）+ 玩家可视性（提亮 / 辉光 / 碰撞点光点） —— 迭代 3.14
+- [x] 瞄准辅助重做（方向锥形切换 + 弱/中/强三档常驻可调 + 自适应锁定环）+ 敌方单位晶体棱镜风格贴图（程序生成） —— 迭代 3.15
+- [x] 精英炮塔事件（打击航母 + 弱锁定炮台 + 通讯台词 + Boss 互斥） —— 迭代 3.16
 - [ ] 打包发布（暂缓）
 
 移植对齐的逐项对照、迭代历史与后续计划见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)；未来方向与阶段计划见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
