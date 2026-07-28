@@ -1,5 +1,6 @@
 extends CanvasLayer
-## HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部）。
+## HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
+## 带 70%/30% 阶段刻度线与阶段切换短闪，逃跑最后 10s 血条下方倒计时）。
 
 const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
@@ -35,7 +36,20 @@ var _event_bar: SegmentedBar
 var _event_title: Label
 var _event_turrets_label: Label
 var _last_event_alive: int = -1
+var _boss: Boss = null  # 当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）
+var _boss_countdown: Label
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
+
+
+## Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层
+class _BossBarTicks:
+	extends Control
+	var ratios: PackedFloat32Array = [0.7, 0.3]
+
+	func _draw() -> void:
+		for r in ratios:
+			var x := size.x * r
+			draw_line(Vector2(x, -2.0), Vector2(x, size.y + 2.0), Color(1.0, 1.0, 1.0, 0.55), 2.0)
 
 
 func _ready() -> void:
@@ -118,6 +132,22 @@ func _ready() -> void:
 	_early_leave_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	_early_leave_fill.anchor_right = 0.0
 	bar_bg.add_child(_early_leave_fill)
+	# Boss 血条阶段刻度线（70%/30%，覆盖在血条上随其显隐）
+	var ticks := _BossBarTicks.new()
+	ticks.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ticks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_bar.add_child(ticks)
+	# Boss 逃跑倒计时（血条下方，剩余 ≤10s 起显示，红色闪烁）
+	_boss_countdown = Label.new()
+	_boss_countdown.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_boss_countdown.position = Vector2(-100.0, 48.0)
+	_boss_countdown.custom_minimum_size = Vector2(200.0, 0.0)
+	_boss_countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_boss_countdown.add_theme_font_override("font", FONT)
+	_boss_countdown.add_theme_font_size_override("font_size", 22)
+	_boss_countdown.add_theme_color_override("font_color", UITheme.DANGER)
+	_boss_countdown.visible = false
+	add_child(_boss_countdown)
 	_build_event_bar()
 
 
@@ -224,6 +254,17 @@ func _process(delta: float) -> void:
 	if _poll_timer > 0.0:
 		return
 	_poll_timer = POLL_INTERVAL
+	# Boss 逃跑倒计时（约 0.1s 节流轮询，§4.5）：血条存在且剩余 ≤10s 起显示
+	if _boss != null and is_instance_valid(_boss) and _boss_bar.visible:
+		var remaining: float = _boss.escape_remaining()
+		if _boss._in_fight and not _boss._escaping and remaining <= _boss.ESCAPE_COUNTDOWN_FROM and remaining > 0.0:
+			_boss_countdown.visible = true
+			_boss_countdown.text = "%d" % ceili(remaining)
+			_boss_countdown.modulate.a = 1.0 if int(Time.get_ticks_msec() / 500) % 2 == 0 else 0.45
+		else:
+			_boss_countdown.visible = false
+	else:
+		_boss_countdown.visible = false
 	var player := GameState.player_ref as Player
 	if player == null:
 		return
@@ -367,9 +408,12 @@ func show_boss_bar(boss: Boss) -> void:
 	_boss_bar.fill_color = UITheme.ACCENT  # 重置上一只 Boss 狂暴留下的红色
 	_boss_bar.visible = true
 	_boss_bar.value = 100.0
+	_boss = boss
+	_boss_countdown.visible = false
 	boss.health_changed.connect(_on_boss_health_changed)
 	boss.died.connect(_on_boss_died)
 	boss.enraged.connect(_on_boss_enraged)
+	boss.phase_changed.connect(_on_boss_phase_changed)
 
 
 func _on_score_changed(new_score: int) -> void:
@@ -425,7 +469,16 @@ func _on_boss_health_changed(current: float, maximum: float) -> void:
 
 func _on_boss_died() -> void:
 	_boss_bar.visible = false
+	_boss_countdown.visible = false
+	_boss = null
 
 
 func _on_boss_enraged() -> void:
 	_boss_bar.fill_color = UITheme.DANGER
+
+
+## 阶段切换瞬间血条短闪（§4.2）
+func _on_boss_phase_changed(_phase: int) -> void:
+	_boss_bar.modulate = Color(2.2, 2.2, 2.2)
+	var tween := create_tween()
+	tween.tween_property(_boss_bar, "modulate", Color.WHITE, 0.3)

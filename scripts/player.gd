@@ -52,9 +52,12 @@ var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 扩容油箱天赋可提升
 var _input_locked: bool = false  # 返航过场期间锁定
-## Boss 狂暴序列锁定（对齐原作 is_controls_locked）：移动/冲刺完全冻结，仍可瞄准/开火。
-## 由 Boss 在狂暴触发时置位、RELEASE_HOLD 开始/序列中断时解除。
+## 原 Boss 狂暴定身字段（原作 is_controls_locked）：阶段 A 起狂暴改用 _enrage_slow 减速
+## （BOSS_REDESIGN §4.3），本字段保留兼容，Boss 不再写它。
 var movement_locked: bool = false
+## Boss 狂暴减速乘区（§4.3）：TRANSITION+ACTIVE 期间 0.35，与燃料加速/微调相乘；
+## dash 不受影响。由 Boss 触发时置位、RELEASE_HOLD 开始/序列中断时复位。
+var _enrage_slow: float = 1.0
 var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
 
 var _fire_cooldown: float = 0.0
@@ -259,7 +262,7 @@ func _physics_process(delta: float) -> void:
 		_fine_toggle_on = not _fine_toggle_on
 	var fine_on := _fine_toggle_on if GameState.ctrl_toggle_mode else Input.is_action_pressed("fine_move")
 	var fine := FINE_MOVE_MULT if fine_on else 1.0
-	var target := input_dir * MAX_SPEED * boost * fine
+	var target := input_dir * MAX_SPEED * boost * fine * _enrage_slow
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
 	move_and_slide()
@@ -540,6 +543,7 @@ func _clear_nearby_enemy_bullets() -> void:
 
 func _die() -> void:
 	_dead = true
+	_enrage_slow = 1.0  # 死亡/重生路径兜底：狂暴减速必复位（Boss 侧另有解锁与离场兜底）
 	hide()
 	_aim_ring.hide()
 	_hitbox.set_deferred("monitoring", false)

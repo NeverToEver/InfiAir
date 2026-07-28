@@ -1,9 +1,10 @@
 extends Node
-## Boss 狂暴完整序列测试（对齐原作 EnrageSubMachine）：
-## 触发（锁血 30% + 快照玩家位置 + 冻结玩家移动 + 子弹时间）→ TRANSITION →
-## ACTIVE（绕快照点方形→圆形轨道 + 高速波次开火，玩家定身可射击）→
-## RELEASE_HOLD（解血锁/解移动锁，每 0.1s 密集慢速弹幕）→ RETURN 飞回战斗位 →
-## 常规狂暴循环（射速 ×1.5）。另覆盖：序列中到点逃跑中断序列、子弹时间恢复兜底。
+## Boss 狂暴完整序列测试（一型「旋转堡垒」差异化序列，BOSS_REDESIGN §5.1）：
+## 触发（锁血 30% + 快照玩家位置 + 玩家减速 ×0.35 + 子弹时间）→ TRANSITION（蓄力抖动，
+## 一型悬停原地不滑入轨道）→ ACTIVE（原地每 0.5s 一波 12 向环弹，起始角随波次进动；
+## 玩家减速可移动/射击/冲刺）→ RELEASE_HOLD（解血锁/复位移速，蓄力 0.5s 后 8 路重炮齐射）
+## → RETURN 飞回战斗位 → 常规「余怒」循环（射速 ×1.3）。
+## 另覆盖：序列中到点逃跑中断序列、子弹时间恢复兜底。
 ## 时序坑：Engine.time_scale 会缩放 create_timer 默认等待，真实时间等待用 ignore_time_scale=true。
 
 var _failures: int = 0
@@ -29,6 +30,16 @@ func _count_enrage_bullets() -> int:
 		if child is Bullet and not child.is_player_bullet and child.has_meta("bullet_type"):
 			var t: StringName = child.get_meta("bullet_type")
 			if t == &"laser" or t == &"enrage_ring":
+				n += 1
+	return n
+
+
+## 指定弹速的重弹数（蓄力重炮/狂暴齐射重弹：无 meta + 弹速标识）
+func _count_heavy_bullets(p_speed: float) -> int:
+	var n := 0
+	for child in get_node("Main").get_children():
+		if child is Bullet and not child.is_player_bullet and not child.has_meta("bullet_type"):
+			if is_equal_approx((child as Bullet).speed, p_speed):
 				n += 1
 	return n
 
@@ -65,6 +76,7 @@ func _spawn_test_boss() -> Boss:
 	boss.ENRAGE_ATTACK_INTERVAL = 0.4
 	boss.ENRAGE_RELEASE_HOLD_DURATION = 0.4
 	boss.ENRAGE_RETURN_DURATION = 0.4
+	boss.E1_SALVO_CHARGE = 0.2  # 压缩收尾蓄力，适配 0.4s RELEASE_HOLD
 	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
 	return boss
 
@@ -114,7 +126,7 @@ func _ready() -> void:
 	_check(boss._base_modulate() != Color.WHITE, "场景1：狂暴贴图变红")
 	_check(boss._enrage_phase == Boss.EnragePhase.TRANSITION, "场景1：触发进入 TRANSITION")
 	_check(is_equal_approx(Engine.time_scale, 0.24), "场景1：狂暴瞬间进入子弹时间 time_scale=0.24")
-	_check(player.movement_locked, "场景1：触发即冻结玩家移动")
+	_check(is_equal_approx(player._enrage_slow, 0.35), "场景1：触发即施加玩家减速 ×0.35")
 	_check(
 		boss._enrage_snapshot_target.distance_to(player.global_position) < 5.0,
 		"场景1：轨道中心为触发时玩家位置快照"
@@ -126,15 +138,7 @@ func _ready() -> void:
 	boss.take_damage(9999)
 	await get_tree().process_frame
 	_check(is_instance_valid(boss) and is_equal_approx(boss.hp, hp0), "场景1：锁血期致死伤害也不死")
-	# 冻结功能验证：按住方向键也不动（仍可瞄准/开火，见 player.gd movement_locked）
-	Input.action_press("move_right")
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	_check(
-		absf(player.velocity.x) < 1.0 and absf(player.position.x - 960.0) < 1.0,
-		"场景1：锁定期间方向键输入不产生移动"
-	)
-	Input.action_release("move_right")
+	# 减速功能验证在 ACTIVE 段进行（等 time_scale 恢复后速度才能爬到上限）
 	# 快进子弹时间，等 TRANSITION 结束进入 ACTIVE
 	main._bullet_time_left = 0.05
 	var active := false
@@ -146,8 +150,17 @@ func _ready() -> void:
 			active = true
 			break
 	_check(active, "场景1：TRANSITION 结束进入 ACTIVE")
-	_check(player.movement_locked, "场景1：ACTIVE 期间玩家移动保持冻结")
-	# 轨道环绕：位置随时间围绕快照点变化
+	_check(is_equal_approx(player._enrage_slow, 0.35), "场景1：ACTIVE 期间玩家保持减速 ×0.35")
+	# 减速功能验证：仍可位移，但移速上限 ×0.35（time_scale 已恢复 1.0）
+	Input.action_press("move_right")
+	await _wait_real(0.6)
+	var slow_vx := absf(player.velocity.x)
+	Input.action_release("move_right")
+	_check(slow_vx > 30.0, "场景1：减速期间方向键输入仍可位移")
+	_check(slow_vx <= player.MAX_SPEED * 0.35 + 5.0, "场景1：减速期间移速上限 ×0.35")
+	player.position = Vector2(960.0, 540.0)
+	player.velocity = Vector2.ZERO
+	# 一型「旋转堡垒」：ACTIVE 悬停原地（不绕轨道），每 0.5s 一波环弹且起始角进动
 	var samples: Array[Vector2] = []
 	for i in 6:
 		if is_instance_valid(boss):
@@ -157,15 +170,12 @@ func _ready() -> void:
 	for i in samples.size():
 		for j in i:
 			max_d = maxf(max_d, samples[i].distance_to(samples[j]))
-	_check(max_d > 100.0, "场景1：ACTIVE 期 Boss 绕轨道运动（采样点分散）")
-	var radius: float = boss._enrage_path_radius()
-	var on_path := samples.size() >= 4
-	for s in samples:
-		var d: float = s.distance_to(boss._enrage_snapshot_target)
-		if d < radius * 0.5 or d > radius + 60.0:
-			on_path = false
-	_check(on_path, "场景1：轨道围绕快照点（半径受边界约束）")
-	_check(_count_enrage_bullets() > 0, "场景1：ACTIVE 期高速波次开火")
+	_check(max_d < 20.0, "场景1：ACTIVE 期 Boss 悬停原地（旋转堡垒）")
+	_check(
+		boss._enrage_attack_index >= 1 and boss._enrage_ring_angle > 0.01,
+		"场景1：环弹波次开火且起始角随波次进动"
+	)
+	_check(_count_enrage_bullets() > 0, "场景1：ACTIVE 期环弹开火")
 	# 等 ACTIVE 计时耗尽进入 RELEASE_HOLD
 	var hold := false
 	for i in 60:
@@ -176,13 +186,20 @@ func _ready() -> void:
 			hold = true
 			break
 	_check(hold, "场景1：ACTIVE 结束进入 RELEASE_HOLD")
-	_check(not player.movement_locked, "场景1：RELEASE_HOLD 解除玩家移动冻结")
+	_check(is_equal_approx(player._enrage_slow, 1.0), "场景1：RELEASE_HOLD 复位玩家减速")
 	var hp1: float = boss.hp
 	boss.take_damage(5)
 	_check(boss.hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血")
-	var rel0 := _count_enrage_bullets()
-	await _wait_real(0.3)
-	_check(_count_enrage_bullets() > rel0, "场景1：RELEASE_HOLD 密集释放弹幕")
+	# 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）
+	var salvo := 0
+	for i in 30:
+		await _wait_real(0.05)
+		if not is_instance_valid(boss):
+			break
+		salvo = maxi(salvo, _count_heavy_bullets(boss.E1_SALVO_SPEED))
+		if salvo >= 8:
+			break
+	_check(salvo >= 8, "场景1：RELEASE_HOLD 蓄力后 8 路重炮齐射")
 	# 等 RETURN 结束回归常规狂暴循环
 	var done := false
 	for i in 60:
@@ -195,10 +212,10 @@ func _ready() -> void:
 	_check(done, "场景1：RETURN 结束回归常规阶段")
 	if is_instance_valid(boss):
 		_check(absf(boss.position.y - boss.FIGHT_Y) < 40.0, "场景1：RETURN 飞回战斗位")
-		# 永久狂暴射速 ×1.5（计时器流速 ×1.5）
+		# 永久「余怒」射速 ×1.3（计时器流速 ×1.3，§5.4）
 		boss._fire_timer = 1.6
 		await get_tree().create_timer(0.5).timeout  # scale 已为 1.0，0.5s 真实 = 0.5 游戏秒
-		_check(boss._fire_timer < 1.0, "场景1：序列后保持狂暴射速 ×1.5")
+		_check(boss._fire_timer < 1.0, "场景1：序列后保持余怒射速 ×1.3")
 		# 解锁后可击杀
 		boss.take_damage(9999)
 		await get_tree().process_frame
@@ -214,7 +231,7 @@ func _ready() -> void:
 	await _wait_real(0.3)
 	boss2.take_damage(int(boss2.max_hp * 0.75))
 	await get_tree().process_frame
-	_check(boss2._enraged and player.movement_locked, "场景2：狂暴触发并冻结玩家")
+	_check(boss2._enraged and is_equal_approx(player._enrage_slow, 0.35), "场景2：狂暴触发并减速玩家")
 	_check(is_equal_approx(Engine.time_scale, 0.24), "场景2：子弹时间启动")
 	boss2._survival = boss2.ESCAPE_TIME - 0.02  # 下一秒到点：序列中照样逃跑
 	var escaping := false
@@ -226,7 +243,7 @@ func _ready() -> void:
 	_check(escaping, "场景2：狂暴序列中到点照样逃跑")
 	if is_instance_valid(boss2):
 		_check(boss2._enrage_phase == Boss.EnragePhase.NONE, "场景2：逃跑中断狂暴序列")
-	_check(not player.movement_locked, "场景2：逃跑解除玩家移动冻结")
+	_check(is_equal_approx(player._enrage_slow, 1.0), "场景2：逃跑复位玩家减速")
 	# main 统一接管的恢复过渡不受 Boss 离场影响，仍应回到 1.0
 	_check(await _wait_time_scale_restored(), "场景2：Boss 子弹时间内离场，time_scale 仍恢复 1.0")
 	_check(main._time_scale_ramp < 0.0, "场景2：恢复过渡已结束")

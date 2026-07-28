@@ -27,7 +27,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 | 文件 | 用途 |
 | --- | --- |
 | `project.godot` | Godot 项目名、入口场景、唯一 autoload、视口/拉伸、输入映射与渲染器。优先用 Godot 编辑器修改。 |
-| `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。 |
+| `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。Boss 段含 `phases`（阶段模式表/telegraph/各型 P2 攻击参数）、`enrage.type_*`（三型差异化狂暴）与 `difficulty_scaling`（弹数/间隔/弹速三档分档表）。 |
 | `data/translations.csv` | 翻译键及 `zh`、`en` 文本源。 |
 | `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件、导出预设和导出产物。 |
 | `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装；`run.sh` 依次查找 PATH、`~/.local/bin/godot` 和 macOS App bundle，并对低于 4.6 的版本告警（仅警告不阻断）。 |
@@ -64,6 +64,8 @@ godot --headless --path . res://test/enemy_combat_test.tscn
 godot --headless --path . res://test/buff33_test.tscn
 godot --headless --path . res://test/difficulty_test.tscn
 godot --headless --path . res://test/boss_enrage_test.tscn
+godot --headless --path . res://test/boss_phase_test.tscn
+godot --headless --path . res://test/boss_pattern_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
 godot --headless --path . res://test/balance_test.tscn
 godot --headless --path . res://test/elite_turret_event_test.tscn
@@ -125,7 +127,8 @@ Main (scripts/main.gd)
 - `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线；加载数值/翻译；维护 `GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用；读写本地存档。
 - `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。
 - `scripts/spawner.gd`：普通/精英敌机选择、波次与 Boss 调度。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把“所有敌机已经池化”当成当前事实。
-- `scripts/enemy.gd`、`boss.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
+- `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
+- `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
 - `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
@@ -191,7 +194,7 @@ Main (scripts/main.gd)
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 25 个场景：20 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture`（窗口模式截图工具）。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 28 个场景：23 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

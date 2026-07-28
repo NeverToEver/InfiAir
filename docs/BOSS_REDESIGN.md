@@ -11,6 +11,8 @@
 
 ### 1.1 现状结构
 
+> 本节为重设计前的旧行为快照，**已被本重设计取代（2026-07-28 全三期落地，见 §8 实施记录）**，仅作偏离对照保留。
+
 - 3 型轮换：1 重装（strafe 150，5 路扇形/追踪弹交替，1.6s）/ 2 游击（冲刺 400，3 连狙 0.12s 间隔，1.8s）/
   3 母舰（strafe 60，旋转 cross 0.9s + 每 6s 召唤 2–3 小怪）。HP = 800 × [1.3, 0.7, 1.6] × 难度。
 - 狂暴（HP<30%）：**三型共用同一序列**——锁血 + 冻结玩家移动，子弹时间 1.2s → 绕玩家快照点方形→圆形轨道 6s
@@ -174,3 +176,48 @@ FIGHT（常规）
 - 精英炮塔事件/轰炸编队事件的 Boss 互斥钩子（`_boss_frozen/_boss_pending`）不动。
 - 子弹池/注册表/性能预算（draw call、零堆分配热路径）沿用 AGENTS.md 约束；
   telegraph 节点随出弹销毁，不走常驻 `_process`。
+
+---
+
+## 8. 实施记录（2026-07-28，三期全部落地）
+
+### 8.1 分期完成情况
+
+- **阶段 A（框架）**：`scripts/boss.gd` 重构为 FightPhase（P1/P2/ENRAGE）阶段框架 + 模式表 `_patterns`
+  （`boss.phases.typeN` 配置 + DEFAULT_PATTERNS 回退）；telegraph 构件（`_charge_glow` 蓄力辉光 /
+  `_make_aim_line` 瞄准线）；狂暴期定身改 `_enrage_slow = 0.35` 减速；HUD 血条 70%/30% 阶段刻度；
+  血条下逃跑倒计时（存活 ≥40s 起 10→0）。
+- **阶段 B（逐型模式库）**：三型 P2 新攻击（蓄力重炮 charged_cannon / 冲刺掠过 dash_sweep /
+  编队齐射 minion_volley / 弹幕墙 bullet_wall）+ 三型差异化狂暴（`_update_enrage_sequence`
+  按 boss_type 分发，参数 `boss.enrage.type_*`）；`spawner.spawn_minion(pos) -> Enemy` 返回实例。
+- **阶段 C（数值与验证）**：难度分档 `_apply_difficulty_scaling()`（见 §8.3）；
+  数值验证见 §8.4；文档回写（本节、PORTING_PARITY §7.3、AGENTS.md）。
+
+### 8.2 实施中的自决点（设计文档未明确处）
+
+- 阶段 A：段切换演出期间停火时长 = 新模式首波 interval；狂暴后「余怒」沿用 P2 模式表（射速 ×1.3）；
+  跨段一击直接触发狂暴时狂暴优先；三型召唤计时与模式表相互独立；逃跑倒计时为纯数字文本（无翻译键）。
+- 阶段 B：环弹伤害沿用既有基准 12；二型狂暴瞄准线全程跟踪（非锁定后固定）；一型 TRANSITION
+  原地抖动替代轨道入场；三型收尾 RELEASE 一次性结算；dash_sweep 期间模式表计时暂停；
+  弹幕墙弧心固定向下（不随玩家方位旋转，仅缺口避开玩家 ±30°）。
+- 阶段 C：分档在 `_ready` 配置载入后一次性乘算（非每帧查档）；快照弹幕（main 编排 4 激光 + 8 环）、
+  telegraph 时长、机体移速、HP/伤害不分档；弹数钳制下限 wall 6 / ring 4 / 其余 1（fan 下限 3）。
+- 修复：`_load_patterns` 对 cfg 返回的共享 JSON 数组必须 `duplicate(true)` 深拷贝，
+  否则分档 interval 乘算会污染 GameState 配置缓存、叠加到后续 Boss 实例（boss_pattern_test 场景 6 捕获）。
+
+### 8.3 难度分档落地（§4.4）
+
+- 配置：`boss.difficulty_scaling`（`interval_mult` [1.15, 1.0, 0.85]、`speed_mult` [0.9, 1.0, 1.1]、
+  `counts` 逐参数 [easy, medium, hard] 增减量：fan/homing/cannon/volley/summon/drops ±1，wall/ring/salvo ±2）。
+- 实现：`Boss._apply_difficulty_scaling()` 在 `_ready` 末尾统一乘算——模式表 interval、
+  FIRE_INTERVALS、CANNON/ENRAGE/E1/E2/E3 各内部节奏 ×interval_mult；全部攻击弹速 ×speed_mult
+  （不含快照弹速与机体移速 SWEEP_SPEED）；弹数按 counts 增减并钳下限；fan/homing2 在 `_execute_attack`
+  分发处取 `_d_fan/_d_homing`。档位 = `GameState.DIFFICULTY_ORDER.find(GameState.difficulty)`，未知回退 medium。
+
+### 8.4 数值校准验证结果
+
+- 断言测试：`boss_phase_test` / `boss_enrage_test` / `boss_pattern_test`（含 easy/hard 分档场景）全绿；
+  回归清单（hit_logic / difficulty / smoke / enemy_combat / elite_turret_event /
+  formation_strike_event / base_system / `--quit-after 300` / `--import`）全绿。
+- autoplay 480s 探针与 perf_bench 结果见当次提交说明/报告；TTK 与手感属人工游玩校准范畴，
+  无人工游玩条件时以探针无 [ANOMALY] 与帧耗时量级为准。

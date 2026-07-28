@@ -252,8 +252,9 @@ func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: Stri
 
 ## Boss-3 召唤的小怪（straight 型 1 型机），立即进场无预告。
 ## 作为 Main 的子节点，与正常敌机走同一套清场逻辑（返航/结算）。
-func spawn_minion(pos: Vector2) -> void:
-	GameState.enemy_pool.spawn(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier, pos)
+## 返回实例供调用方标记/编排（Boss 编队齐射）；不需要时可忽略返回值。
+func spawn_minion(pos: Vector2) -> Enemy:
+	return GameState.enemy_pool.spawn(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier, pos)
 
 
 ## Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。
