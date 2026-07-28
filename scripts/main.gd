@@ -368,16 +368,24 @@ func _start_homecoming() -> void:
 	# 轰炸编队进行中则打断：编队解散离场，无结算，冷却照计
 	if _formation != null:
 		_formation.abort()
+	# 精英炮塔事件同样中止：清炮塔、隐藏事件条、航母完整撤离，Boss 解冻走 BOSS_DELAY
+	if _event != null:
+		_event.abort()
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player._fuel, _spawner._elapsed)
 	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
 	_play_return_cinematic()
 
 
-## 继续出击：轨道打击清屏（Boss 保留，清小怪与全部弹丸）→ 短白屏 → 恢复同一局
+## 继续出击：轨道打击清屏（Boss 保留；注册表驱动清敌方实体——覆盖 Enemy（含池化）/
+## FormationCraft/事件残留，再清全部弹丸与编队炸弹）→ 短白屏 → 恢复同一局
 func _resume_from_base() -> void:
+	for e in GameState.enemies.duplicate():
+		if e is Boss or not is_instance_valid(e):
+			continue
+		e.queue_free()
 	for child in get_children():
-		if child is Enemy or child is Bullet:
+		if child is Bullet or child is FormationBomb:
 			child.queue_free()
 	_player._input_locked = false
 	# 驻留期无敌可能是 999，恢复时统一重置为短无敌

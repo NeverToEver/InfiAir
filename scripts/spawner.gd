@@ -78,7 +78,9 @@ var RAMP_TIME := 300.0
 var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对刷怪间隔的影响系数
 var INTERVAL_MIN := 0.35
 var BOSS_SCORE_STEP := 1500
-var BOSS_TIME_LIMIT := 90.0
+## Boss 触发最小间隔：分数步进触发需同时满足该时间门（防分数暴涨期连出 Boss）
+var BOSS_MIN_INTERVAL := 80.0
+var BOSS_TIME_LIMIT := 120.0
 ## 精英炮塔事件触发参数（docs/ELITE_TURRET_EVENT.md 第 6 节）
 var ETV_MIN_SCORE := 800
 var ETV_TRIGGER_INTERVAL := 45.0
@@ -116,6 +118,7 @@ func _apply_balance() -> void:
 	SPAWN_INTERVAL_END = GameState.cfg("spawner.interval_end", SPAWN_INTERVAL_END)
 	RAMP_TIME = GameState.cfg("spawner.ramp_time", RAMP_TIME)
 	BOSS_SCORE_STEP = GameState.cfg("spawner.boss_score_step", BOSS_SCORE_STEP)
+	BOSS_MIN_INTERVAL = GameState.cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL)
 	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
 	ELITE_BONUS_SCORE = GameState.cfg("spawner.elite_bonus_score", ELITE_BONUS_SCORE)
 	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
@@ -153,7 +156,11 @@ func _process(delta: float) -> void:
 			_spawn_timer = _current_interval()
 
 	_boss_timer += delta
-	if not _boss_active and (GameState.score >= _next_boss_score or _boss_timer >= BOSS_TIME_LIMIT):
+	# 分数触发需同时越过最小间隔（防分数暴涨期战后连出 Boss）；时间兜底不受此限
+	if not _boss_active and (
+		(GameState.score >= _next_boss_score and _boss_timer >= BOSS_MIN_INTERVAL)
+		or _boss_timer >= BOSS_TIME_LIMIT
+	):
 		# 精英炮塔事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
 		if _boss_frozen:
 			_boss_pending = true

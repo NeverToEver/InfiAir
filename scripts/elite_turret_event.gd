@@ -102,6 +102,26 @@ func start() -> void:
 	_hud = get_tree().get_first_node_in_group("hud")
 
 
+## 返航中止（main._start_homecoming 调用）：IDLE 直接返回；清掉在场炮塔（queue_free
+## 不触发 died 计分，自行清理注册清单）、隐藏 HUD 事件条、恢复普通波次，航母按完整
+## 撤离处理；Boss 解冻/_boss_pending 补触发沿用现有 BOSS_DELAY → _on_boss_delay_end。
+func abort() -> void:
+	if _state == State.IDLE:
+		return
+	for turret in _turrets:
+		if is_instance_valid(turret):
+			turret.queue_free()
+	_turrets.clear()
+	_turret_sockets.clear()
+	if _hud != null:
+		_hud.hide_event_bar()
+	_resume_waves()
+	if _state == State.CARRIER_ENTER or _state == State.TURRET_ACTIVE:
+		_state = State.CARRIER_EXIT
+		_carrier_retreat(true)  # 完整撤离（加速上升淡出）
+	# CARRIER_EXIT/BOSS_DELAY：撤离/解冻流程已在推进，无需干预
+
+
 ## 航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）
 func _on_carrier_entered() -> void:
 	_total = int(TURRET_COUNTS.get(String(GameState.difficulty), 4))

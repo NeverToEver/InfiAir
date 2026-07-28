@@ -26,7 +26,7 @@ var score_scale: float = 1.0
 var EXPLOSIVE_RADIUS := 50.0
 var EXPLOSIVE_DAMAGE := 30
 ## 弹丸视觉缩放（对齐单位放大后的比例；effects.bullet_visual_scale，碰撞半径不变）
-var VISUAL_SCALE := 1.7
+var VISUAL_SCALE := 1.3
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null

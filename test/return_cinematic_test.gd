@@ -1,6 +1,8 @@
 extends Node
 ## 返航过场测试（docs/RETURN_HOME_CINEMATIC.md §5）：直接触发/skip 路径/时序路径，
 ## 以及 BackNavigator 的 SKIP_RETURN 决策与真实 Esc 注入。全程真实 Timer 等待。
+## 输入宽限（SKIP_GRACE 1.2s，防实战按键误触）：开播 1.2s 内任意键/点击/Esc 不跳过，
+## 各跳过路径断言前须先等 1.4s 真实时间越过宽限。
 ## 与开场过场测试的关键差异：finished 后基地 UI 可见且树**保持暂停**（无标题定格）；
 ## 每轮触发后须先 _on_resume_pressed() 恢复（其白闪 await 约 0.7s，等待真实计时器收尾）。
 
@@ -70,9 +72,27 @@ func _ready() -> void:
 	_check(get_tree().paused, "过场播放期间树暂停")
 	_check(not base_ui.visible, "过场播放期间基地 UI 未显")
 
-	# ---------- 2. skip() 路径：销毁、finished 一次、基地 UI 可见且树仍暂停、无 Timer 残留 ----------
+	# ---------- 2. 输入宽限 + skip() 路径 ----------
 	var finished_fired := [0]
 	ret.finished.connect(func() -> void: finished_fired[0] += 1)
+	# 输入宽限（开播 1.2s 内，防实战 WASD/Shift 持续按键误触）：任意键/点击不跳过
+	var grace_key := InputEventKey.new()
+	grace_key.keycode = KEY_A
+	grace_key.pressed = true
+	Input.parse_input_event(grace_key)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(is_instance_valid(ret) and main._return == ret, "宽限期内任意键：过场不跳过（节点仍在）")
+	_check(finished_fired[0] == 0, "宽限期内任意键：finished 未发出")
+	var grace_click := InputEventMouseButton.new()
+	grace_click.button_index = MOUSE_BUTTON_LEFT
+	grace_click.pressed = true
+	Input.parse_input_event(grace_click)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(is_instance_valid(ret) and main._return == ret, "宽限期内鼠标点击：过场不跳过")
+	# 越过宽限后：销毁、finished 一次、基地 UI 可见且树仍暂停、无 Timer 残留
+	await get_tree().create_timer(1.4).timeout
 	main._skip_return()
 	ret.skip()  # 幂等：重复调用不重复发信号
 	await get_tree().process_frame
@@ -129,15 +149,17 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var ret3: ReturnCinematic = main._return
 	_check(nav.decide_back_action() == A.SKIP_RETURN, "过场播放中：决策 = SKIP_RETURN")
+	await get_tree().create_timer(1.4).timeout  # 越过输入宽限后 Esc 才生效
 	await _press_esc()
 	_check(main._return == null and not is_instance_valid(ret3), "Esc：经 BackNavigator 跳过过场")
 	_check(base_ui.visible and get_tree().paused, "Esc 跳过后基地 UI 可见且树仍暂停")
 	await _restore_from_base(base_ui)
 
-	# ---------- 5. 任意键跳过（过场自身 _unhandled_input） ----------
+	# ---------- 5. 任意键跳过（过场自身 _unhandled_input，需越过输入宽限） ----------
 	main._play_return_cinematic()
 	await get_tree().process_frame
 	var ret4: ReturnCinematic = main._return
+	await get_tree().create_timer(1.4).timeout
 	var ev := InputEventKey.new()
 	ev.keycode = KEY_A
 	ev.pressed = true
@@ -148,10 +170,11 @@ func _ready() -> void:
 	_check(base_ui.visible and get_tree().paused, "任意键跳过后基地 UI 可见且树仍暂停")
 	await _restore_from_base(base_ui)
 
-	# ---------- 6. 鼠标点击跳过（与任意键同一出口） ----------
+	# ---------- 6. 鼠标点击跳过（与任意键同一出口，需越过输入宽限） ----------
 	main._play_return_cinematic()
 	await get_tree().process_frame
 	var ret5: ReturnCinematic = main._return
+	await get_tree().create_timer(1.4).timeout
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true

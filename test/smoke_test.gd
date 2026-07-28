@@ -480,7 +480,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(main._homecoming, "返航触发")
 	_check(main._return != null and get_tree().paused, "返航过场播放中（树暂停）")
-	# 过场本体由 return_cinematic_test 专测；这里跳过直达基地 UI
+	# 过场本体由 return_cinematic_test 专测；越过 1.2s 输入宽限后跳过直达基地 UI
+	await get_tree().create_timer(1.4).timeout
 	main._skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -490,12 +491,16 @@ func _ready() -> void:
 	main._base_ui._on_repair_pressed()
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")
-	# 放一个敌机验证轨道打击
+	# 放一个敌机 + 一枚编队炸弹（长引信不爆）验证轨道打击清场
 	var orbit_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	orbit_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	orbit_e.can_shoot = false
 	orbit_e.position = Vector2(400.0, 300.0)
 	main.add_child(orbit_e)
+	var bomb := FormationBomb.new()
+	bomb.setup(Vector2(0.0, 300.0), 30.0, 20, 120.0)
+	bomb.position = Vector2(700.0, 300.0)
+	main.add_child(bomb)
 	# 继续出击 → 返回同一局
 	main._base_ui._on_resume_pressed()
 	await get_tree().create_timer(0.2).timeout
@@ -503,11 +508,18 @@ func _ready() -> void:
 	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
 	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")
 	_check(GameState.has_save(), "返航后存档保留")
+	# 注册表驱动清场：非 Boss 实体（Enemy/FormationCraft/事件残留）全清
 	var enemy_left := false
-	for child in main.get_children():
-		if child is Enemy:
+	for e in GameState.enemies:
+		if is_instance_valid(e) and not (e is Boss):
 			enemy_left = true
-	_check(not enemy_left, "轨道打击清屏")
+	_check(not enemy_left, "轨道打击清屏（注册表非 Boss 全清）")
+	# 弹丸清场：敌弹与编队炸弹全清（FormationBomb 非 Bullet 类，原遍历式清场会漏）
+	var bullet_left := false
+	for child in main.get_children():
+		if (child is Bullet and not child.is_player_bullet) or child is FormationBomb:
+			bullet_left = true
+	_check(not bullet_left, "轨道打击清弹（含编队炸弹）")
 	# 恢复刷怪会干扰后续断言，重新停掉生成器并清场
 	spawner.set_process(false)
 	for child in main.get_children():

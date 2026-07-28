@@ -11,6 +11,10 @@ const TRANSITION := 0.3  # 镜头间黑场淡入淡出（含在各镜头时长�
 const OUTRO_FADE := 0.9  # 镜头 7 末尾渐暗到全黑（与闭眼重叠，BGM 同步淡出）
 const PLAYER_SHIP: Texture2D = preload("res://assets/sprites/player_ship.png")
 
+## 输入宽限：开播前 SKIP_GRACE 秒内忽略跳过（防实战中 WASD/Shift/Space 持续按键瞬间误触；
+## 任意键/点击/Esc 路由统一收敛在 skip() 内受控；effects.return_skip_grace 可调）
+var SKIP_GRACE := 1.2
+
 ## 每镜头时长（§2 分镜表；七镜头 11.8s = 总和，转场含在内）。测试可改短。
 var _shot_durations: Array[float] = [1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]
 
@@ -21,6 +25,7 @@ var _shot_index := -1
 var _current_shot: Node2D = null
 var _shot_timer: Timer
 var _done := false
+var _start_msec := 0  # 开播真实时刻（输入宽限计时基准）
 var _drift_t := 0.0  # 导演级手持漂移相位（共享容器，单 _process 零堆分配）
 var _seamless_next := false  # 差异化转场：2→3 画面连续（端口内推，不黑场）
 var _sub_tween: Tween = null  # 字幕淡入/淡出互斥
@@ -34,6 +39,8 @@ var _bgm_tween: Tween = null  # 镜头 7 BGM 淡出（skip 时 kill 并立即置
 
 
 func _ready() -> void:
+	SKIP_GRACE = GameState.cfg("effects.return_skip_grace", SKIP_GRACE)
+	_start_msec = Time.get_ticks_msec()
 	_skip_hint.text = tr("INTRO_SKIP")  # 跳过提示复用开场键
 	_skip_hint.add_theme_font_override("font", UITheme.FONT)
 	_subtitle.add_theme_font_override("font", UITheme.FONT)
@@ -65,10 +72,14 @@ func _process(delta: float) -> void:
 
 
 ## 跳过（幂等）：与自然结束同一出口——停计时、kill 音频 tween 并置目标音量、
-## 停在全黑画面、发 finished、整树 queue_free
+## 停在全黑画面、发 finished、整树 queue_free。
+## 输入宽限期（开播前 SKIP_GRACE 秒）内直接忽略：任意键/点击与 Esc 路由都经此收敛；
+## 自然结束（11.8s）远超宽限，不受影响。
 func skip() -> void:
 	if _done:
 		return
+	if float(Time.get_ticks_msec() - _start_msec) / 1000.0 < SKIP_GRACE:
+		return  # 输入宽限期内忽略跳过
 	_done = true
 	_shot_timer.stop()
 	if _bgm_tween != null and _bgm_tween.is_valid():

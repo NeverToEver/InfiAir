@@ -363,7 +363,8 @@
 		"elite_bonus_score": 1500,
 		"elite_bonus_chance": 0.1,
 		"boss_score_step": 1500,
-		"boss_time_limit": 90.0,
+		"boss_min_interval": 80.0,
+		"boss_time_limit": 120.0,
 		"telegraph_duration": 0.6
 	},
 	"mothership": {
@@ -522,7 +523,8 @@
 		}
 	},
 	"effects": {
-		"bullet_visual_scale": 1.7,
+		"bullet_visual_scale": 1.3,
+		"return_skip_grace": 1.2,
 		"explosion_visual_scale": 1.6,
 		"explosion": {
 			"pool_cap": 24,

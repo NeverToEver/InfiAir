@@ -306,6 +306,32 @@ func _ready() -> void:
 		"reset_run 保留难度与设置模式"
 	)
 
+	# ---------- 8. Boss 触发最小间隔（BOSS_MIN_INTERVAL，防分数暴涨期连出 Boss） ----------
+	GameState.difficulty = &"medium"
+	GameState.reset_run()
+	GameState._set_milestone_override(999999999)
+	spawner._boss_active = false
+	spawner._boss_frozen = false
+	spawner._boss_pending = false
+	spawner._next_boss_score = spawner.BOSS_SCORE_STEP
+	GameState.score = spawner.BOSS_SCORE_STEP  # 分数已跨步进（直接赋值，避开倍率/里程碑）
+	spawner._boss_timer = 10.0  # 距上次 Boss 仅 10s（模拟 Boss 刚死、分数立刻跨步进）
+	spawner.set_process(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not spawner._boss_active, "Boss 最小间隔：分数跨步进但间隔 <80s 不触发")
+	spawner._boss_timer = spawner.BOSS_MIN_INTERVAL + 1.0
+	await get_tree().process_frame
+	_check(spawner._boss_active, "Boss 最小间隔：越过 80s 后分数触发生效")
+	# 清理：停主循环并撤掉已排程的 Boss 降入 Timer（不真正生成 Boss）
+	spawner.set_process(false)
+	for c in spawner.get_children():
+		if c is Timer:
+			c.queue_free()
+	spawner._boss_active = false
+	spawner._boss_timer = 0.0
+	GameState.score = 0
+
 	print("DIFFICULTY TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.difficulty = &"medium"

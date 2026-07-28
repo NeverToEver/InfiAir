@@ -5,6 +5,8 @@ extends Node
 ## 场景2 互斥：事件期间 Boss 触发被冻结（_boss_pending 记一次不累积），
 ##   BOSS_DELAY 结束补触发一次且仅一次。
 ## 场景3 失败流：倒计时归零仍有炮台存活 → 撤退台词 + 无奖励 + 炮塔收回 + 回 IDLE 进冷却。
+## 场景4 返航中止：TURRET_ACTIVE 中 _start_homecoming → abort 清炮塔/隐藏事件条/恢复波次/
+##   航母完整撤离 → 继续出击注册表清场 → BOSS_DELAY 后回 IDLE 且 Boss 解冻。
 
 var _failures: int = 0
 
@@ -159,6 +161,7 @@ func _ready() -> void:
 	# ================= 场景 2：Boss 冻结/恢复（单次不累积） =================
 	spawner._boss_pending = false
 	spawner._next_boss_score = GameState.score  # Boss 分数步进立即到期
+	spawner._boss_timer = spawner.BOSS_MIN_INTERVAL  # 越过最小间隔时间门（分数触发需同时满足）
 	spawner.set_process(true)  # 恢复 spawner 主循环：pending 标记由它记录
 	_start_fast_event(event)
 	await _wait_real(0.5)
@@ -207,6 +210,47 @@ func _ready() -> void:
 	_check(turrets_gone, "场景3：存活炮台停火收回盖板")
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 12.0), "场景3：航母完整撤离后回 IDLE")
 	_check(not event.can_trigger(), "场景3：冷却期内不可再次触发")
+
+	# ================= 场景 4：返航中止（abort） =================
+	var main := get_node("Main")
+	event._cooldown_left = 0.0
+	event.DURATION = 30.0  # 恢复倒计时（场景3 改过）
+	_start_fast_event(event)
+	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景4：事件进入倒计时")
+	_check(hud._event_box.visible, "场景4：中止前 HUD 事件条显示")
+	# 返航触发：elite 事件应被 abort（清炮塔、隐藏事件条、恢复波次、航母完整撤离）
+	main._start_homecoming()
+	await get_tree().process_frame
+	_check(event._state == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
+	_check(event._turrets.is_empty(), "场景4：在场炮塔清单已清")
+	_check(not hud._event_box.visible, "场景4：中止后 HUD 事件条隐藏")
+	_check(not spawner._waves_paused, "场景4：普通波次恢复")
+	await get_tree().process_frame
+	var turret_nodes_left := 0
+	for child in main.get_children():
+		if child is TurretBattery:
+			turret_nodes_left += 1
+	_check(turret_nodes_left == 0, "场景4：炮塔节点已释放（不走 died 计分）")
+	# 过场越过 1.2s 输入宽限后跳过 → 基地 → 继续出击
+	await _wait_real(1.4)
+	main._skip_return()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(main._base_ui.visible, "场景4：过场结束进入基地界面")
+	main._base_ui._on_resume_pressed()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	# 注册表驱动清场：非 Boss 实体（含事件/波次残留）全清
+	var registry_left := false
+	for e in GameState.enemies:
+		if is_instance_valid(e) and not (e is Boss):
+			registry_left = true
+	_check(not registry_left, "场景4：继续出击后注册表非 Boss 实体清空")
+	await _wait_real(1.0)  # 让白闪 await 收尾
+	# 航母完整撤离 → BOSS_DELAY → IDLE，Boss 解冻（沿用 _on_boss_delay_end）
+	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 15.0), "场景4：航母撤离后回 IDLE")
+	_check(not spawner._boss_frozen, "场景4：Boss 冻结解除")
+	_check(not spawner._boss_pending, "场景4：无遗留 pending 标记")
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：time_scale = 1.0")
 	await _wait_real(1.5)  # 让撤退 tween/爆炸粒子播完，避免退出时对象泄漏

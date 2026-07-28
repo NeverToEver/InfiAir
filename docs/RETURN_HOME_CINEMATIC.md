@@ -218,7 +218,7 @@ t≈12.3s  基地 UI 完全可操作
 ### 4.3 机制要点
 
 - **无异步加载需求**：过场与 UI 全部程序化构件，无外部资源；`finished` 信号回调里同步 `show_base()` 即可，淡入动效天然掩盖单帧搭建开销。
-- **跳过语义统一**：Esc（BackNavigator 新增 `SKIP_RETURN`，优先级同 `SKIP_INTRO`）/任意键/点击 → `skip()` → 直接走 `_on_return_finished()`。跳过中途的 BGM 淡出由 `skip()` 内统一处理（kill 音频 tween 并立即置目标音量）。
+- **跳过语义统一**：Esc（BackNavigator 新增 `SKIP_RETURN`，优先级同 `SKIP_INTRO`）/任意键/点击 → `skip()` → 直接走 `_on_return_finished()`。跳过中途的 BGM 淡出由 `skip()` 内统一处理（kill 音频 tween 并立即置目标音量）。**1.2s 输入宽限（防实战按键误触）**：开播前 `SKIP_GRACE` 秒（配置 `effects.return_skip_grace`，默认 1.2）内 `skip()` 直接忽略——实战中 WASD/Shift/Space 持续按键不再瞬间跳过；宽限判断收敛在 `skip()` 内，任意键/点击/Esc 路由统一受控；自然结束（11.8s）远超宽限不受影响。
 - **存档时机不变**：`save_run()` 仍在过场开始前完成（现状行 330），过场播放/跳过/崩溃均不影响存档完整性。
 - **暂停语义**：过场与基地 UI 全程树暂停，两层 `process_mode=Always`；`_resume_from_base()`（继续出击）完全不改。
 - **可配置跳过**：若后续需要「多次返航不重复看过场」，在 `GameState` 加一个标记位即可走原白闪直切路径——本设计不实现，仅预留分叉点。
