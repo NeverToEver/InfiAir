@@ -439,7 +439,8 @@
 		},
 		"extra_life": {
 			"max_hp_bonus": 50,
-			"heal_on_pick": 30
+			"heal_on_pick": 30,
+			"max_stacks": 10
 		},
 		"regen": {
 			"heal_per_sec": 2.0
@@ -449,7 +450,8 @@
 		},
 		"explosive": {
 			"radius_per_level": 50.0,
-			"damage_per_level": 30
+			"damage_per_level": 30,
+			"unlock_boss_kills": 3
 		},
 		"lifesteal": {
 			"max_hp_fraction": 0.1
@@ -497,6 +499,11 @@
 			80000
 		],
 		"cycle_mult": 1.35
+	},
+	"progression": {
+		"per_boss_kill": 0.5,
+		"per_ten_minutes": 1.0,
+		"time_step_seconds": 30.0
 	},
 	"difficulty": {
 		"easy": {

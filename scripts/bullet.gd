@@ -21,7 +21,7 @@ var splash_radius: float = 0.0
 ## 击毁得分系数（母舰弹丸为 1/3）
 var score_scale: float = 1.0
 
-## 爆炸弹 buff（对齐原作 bullet_vs_entities.py：半径 50×层、固定伤害 30×层、
+## 爆炸弹 buff 固定值（对齐原作 bullet_vs_entities.py 单层取值：半径 50、伤害 30；
 ## 主目标吃直击+溅射两段、不伤 Boss、不伤玩家）
 var EXPLOSIVE_RADIUS := 50.0
 var EXPLOSIVE_DAMAGE := 30
@@ -152,17 +152,16 @@ func _process(delta: float) -> void:
 
 
 ## 爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
+## 原作公式为 半径/伤害 ×层数；本作 explosive 锁 1 层（PORTING_PARITY #13「近似一次性」），
+## 2026-07-29 清理不可达的 per-level 缩放，取固定值（P2-8）。
 ## 遍历副本防 take_damage→die→注销注册表造成的遍历中突变。
 func _explode() -> void:
-	var stacks := maxi(GameState.buff_count(&"explosive"), 1)
-	var radius := EXPLOSIVE_RADIUS * stacks
-	var aoe_damage := EXPLOSIVE_DAMAGE * stacks
 	for node in GameState.enemies.duplicate():
 		var e := node as Area2D
 		if e == null or e is Boss:
 			continue
-		if e.global_position.distance_to(global_position) <= radius:
-			e.take_damage(aoe_damage)
+		if e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
+			e.take_damage(EXPLOSIVE_DAMAGE)
 	Explosion.spawn_at(get_parent(), global_position, 0.6)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 

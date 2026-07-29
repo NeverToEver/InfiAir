@@ -2,7 +2,7 @@
 
 > 2026-07-29 立项，源自同日的机制与数值审计。本文是「15 分钟后无限段」数值演进的单一事实源；
 > 涉及阶段/方向调整时同步 `docs/ROADMAP.md` 并在 AGENTS.md「文档同步要求」登记。
-> 状态：**指引，未实施**。任何落地改动必须先对齐本文；实施变更回写本文 §6。
+> 状态：**已实施**——2026-07-29 方案 1~5 全量落地，D1/D2 决策收口（见 §5/§6）。
 
 ---
 
@@ -20,9 +20,9 @@
 | 密度 | — | 波间隔硬下限 2.5s、波规模硬上限 5 架 | 压力有硬顶 |
 | Boss | HP ×8 全额缩放，与玩家 DPS 上限对齐 | 第 5 杀后同样封顶 | 稳态 |
 
-`difficulty_multiplier = min(1 + (2^min(boss_kills,10) − 1) × 0.25, 8)`（`autoload/game_state.gd:476`）
-第 5 次击杀即触顶 ×8，且只由 Boss 击杀驱动、与时间无关。此后一局在理论和技术上都不会结束，
-score attack 退化为纯时间投入。
+修订前公式：`difficulty_multiplier = min(1 + (2^min(boss_kills,10) − 1) × 0.25, 8)`——第 5 次击杀即触顶 ×8，
+且只由 Boss 击杀驱动、与时间无关。此后一局在理论和技术上都不会结束，score attack 退化为纯时间投入。
+（2026-07-29 起被 §4 方案 3/4 的线性 + 时间轴曲线取代，见 §6。）
 
 ## 2. 参考模式（成熟项目惯例）
 
@@ -33,7 +33,7 @@ score attack 退化为纯时间投入。
 - **定时终点**：固定时长后结算或强制终结，期间玩家成长跑赢敌人、享受 power fantasy
   （Vampire Survivors 30 分钟制；终局敌人 HP 按分钟膨胀数千倍，死神强制结算）。
 
-**§5 的范式选择是落地 §4 方案 1/3 的前置决策。**
+**§5 的范式选择是落地 §4 方案 1/3 的前置决策（2026-07-29 已选定 A 必死曲线）。**
 
 ## 3. 问题清单
 
@@ -66,16 +66,18 @@ score attack 退化为纯时间投入。
 
 > 数值一律进 `data/balance.json`，脚本 `cfg()` 回退值同步；公式中的 k 值均为初稿，落地时以平衡测试标定。
 
-### 方案 1 — 敌方伤害 ramp（P0-1 核心，最低成本恢复张力）【2026-07-29 已落地伤害 ramp 部分】
+### 方案 1 — 敌方伤害 ramp（P0-1 核心，最低成本恢复张力）【2026-07-29 已全量落地】
 
 - 敌弹/撞体伤害乘 `(1 + k × (difficulty_multiplier − 1))`，建议 k ≈ 0.08（mult=8 时 ×1.56）；
   或按局内时间缓升。消费点：`enemy.gd`、`boss.gd`、编队炸弹。
 - 配合 extra_life 设实质上限（建议 10 层 / 总 HP 500 封顶）或改递减收益
   （每层 +50×0.9^n）。当前 99 层上限实际被里程碑指数阈值锁死，属虚设，直接收紧无体验损失。
-- **实施记录（2026-07-29）**：伤害 ramp 已按 k=0.08 落地——新键 `enemies.damage_ramp_factor`、
+- **实施记录（2026-07-29，伤害 ramp）**：伤害 ramp 已按 k=0.08 落地——新键 `enemies.damage_ramp_factor`、
   `GameState.enemy_damage_ramp()`；敌弹在 `bullet.gd` 按阵营统一分流（覆盖敌机/Boss/炮塔全部弹种），
   撞体（`enemy.gd`/`boss.gd`）与编队炸弹（`formation_strike_event.gd`）单独接入。
-  **extra_life 上限收紧未做**，生存轴正反馈仍在，待 D1 决策后一并处理。
+- **实施记录（2026-07-29，extra_life 收紧）**：上限 99→**10 层**（总 HP 100+500=600 封顶）——
+  新键 `buffs.extra_life.max_stacks`=10、池内 `max` 同步、卡面文案「可无限叠加」→「最多 10 层」（中英双列）。
+  生存轴正反馈由收紧后的 HP 上限 + 方案 3/4 的无限伤害 ramp 共同对冲。
 
 ### 方案 2 — 事件单位吃难度乘数（P0-2，一行级改动）【2026-07-29 已落地】
 
@@ -83,35 +85,55 @@ score attack 退化为纯时间投入。
   （`elite_turret_event.gd:127`、`formation_strike_event.gd:115`）。
 - **实施记录（2026-07-29）**：已落地，统一走新增的 `GameState.enemy_hp_ramp()`。
 
-### 方案 3 — mult 曲线平滑化与去硬顶（P1-3）
+### 方案 3 — mult 曲线平滑化与去硬顶（P1-3）【2026-07-29 已落地】
 
 - `2^n` 改为线性或对数（如 `1 + 0.5 × boss_kills`）；
 - ×8 封顶改缓增长（如 `8 + 0.2 × (bk − 5)`），给后期留持续加压通道。
 - 依赖 §5 范式决策：选「必死曲线」则必须去硬顶；选「定时终点」可保留封顶。
+- **实施记录（2026-07-29）**：D1 选定必死曲线，采用**完全去硬顶**的线性方案——
+  `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + 时间轴分量`（方案 4），
+  `GameState._recompute_difficulty()` 统一计算（击杀触发 + 时间档触发 + 存档恢复重算），
+  旧 `2^n + ×8 封顶` 公式废弃。随 mult 无顶增长：Boss HP 同步放大（50s DPS 检查自然转化为
+  「打不死则逃跑」的压力阀）、`enemies.hp_ramp`/`damage_ramp`/刷怪间隔 ramp 全部获得无限加压通道，
+  玩家成长（DPS ×9.5、HP 600）固定，必死曲线成立。
 
-### 方案 4 — 引入时间/分数难度因子（P1-5）
+### 方案 4 — 引入时间/分数难度因子（P1-5）【2026-07-29 已落地】
 
 - 如 `mult = f(boss_kills) + elapsed / 600`，权重低即可，堵「避战停滞」漏洞。
+- **实施记录（2026-07-29）**：时间分量按 `progression.time_step_seconds`(30s) **量化步进**、
+  每 10 分钟 +`progression.per_ten_minutes`(1.0)——即 `floor(run_time/30) × 0.05`，
+  量化避免连续漂移（HUD 稳定、测试可钉档）；只计对局存活时间 `run_time`（树暂停不计），
+  避战同样持续加压。新顶层配置段 `progression`（per_boss_kill/per_ten_minutes/time_step_seconds），
+  `_apply_balance()` 缓存，`_process` 跨档时重算并广播 `difficulty_changed`。
 
-### 方案 5 — 文案与配置清理（P2，独立可先做）
+### 方案 5 — 文案与配置清理（P2，独立可先做）【2026-07-29 已落地】
 
 - rapid_fire 描述改 33%（translations.csv 中英双列）；
 - 删除或更新 `buff_select.gd` 池内死 `desc` 字段；
 - explosive 解锁门槛入 `balance.json`（如 `buffs.explosive.unlock_boss_kills`）。
+- **实施记录（2026-07-29）**：三项全做——`BUFF_RAPID_FIRE_DESC` 中英改 33%；
+  池内 16 条死 `desc` 字段全删（卡片文本只走 `BUFF_%s_DESC` 翻译键，单一事实源）；
+  `buffs.explosive.unlock_boss_kills`=3 入配置。P2-8/P2-9 同日顺手清理：
+  explosive 不可达的 per-level 缩放删除（固定值口径对齐卡面与 PORTING_PARITY #13），
+  `player.gd` 「扩容油箱天赋」死注释改为配置覆盖说明。
 
-## 5. 待决策项
+## 5. 决策记录（2026-07-29 收口）
 
-| # | 决策 | 选项 | 影响 |
+| # | 决策 | 结论 | 影响 |
 | --- | --- | --- | --- |
-| D1 | **终局范式** | A. 必死曲线（方案 1+3 去硬顶即可达成）/ B. 定时终点（单局限时结算最高分，可保留生存膨胀作爽点） | 决定方案 3 是否去硬顶；B 需另立结算流程设计 |
-| D2 | hard 里程碑 ×1.5 是否意图 | 是 → 写进 `docs/PORTING_PARITY.md`；否 → 调整为 ×3 对齐得分倍率 | 仅口径确认 |
+| D1 | **终局范式** | **A. 必死曲线**：方案 1+3 去硬顶即达成，无需新增结算流程；符合街机 score attack 定位 | 方案 3 采用完全去硬顶（×8 封顶废弃）；B（定时终点）不采用 |
+| D2 | hard 里程碑 ×1.5 是否意图 | **是，有意设计**：`game_state.gd` DIFFICULTY_DEFS 注释载明「避免高难 Buff 节奏过稀」 | 已登记 `docs/PORTING_PARITY.md` 决策 10，数值不动 |
 
 ## 6. 实施记录与验收
 
-- 状态：**部分实施**——2026-07-29 方案 1（伤害 ramp 部分，extra_life 收紧除外）与方案 2 已落地；
-  方案 3/4/5 未动。验收：smoke/hit_logic/balance/difficulty/enemy_combat/boss_pattern/boss_enrage/
-  elite_turret_event/formation_strike_event 九场景 0 FAIL（boss_pattern 场景4 齐射弹伤害断言改动态期望）。
-- 验收基线：全部既有测试 0 FAIL；改动条目在本文标注完成日期。
+- 状态：**已全部实施**（2026-07-29）——方案 1（含 extra_life 收紧）、2、3、4、5 全量落地；
+  D1/D2 决策收口（§5）。
+- 验收（2026-07-29）：全部 26 个断言场景 0 FAIL（含 `--headless --import`、`--quit-after 300`）；
+  断言同步：smoke（难度乘数改动态期望）、difficulty（新增进程曲线 §4b 五断言 + 间隔段钉时间档）、
+  enemy_combat（逃跑段钉时间档）、hit_logic（A4 敌弹伤害全段改动态期望，同 boss_pattern 口径）。
+- 长时探针（2026-07-29，`--autoplay-seconds=300 --seed=20260729`）：**异常 0**；
+  300s 处难度乘数 ≈ ×2.5（2 杀 ×2.0 + 10 时间档 ×0.5），压力随时间持续上升、无稳态平台；
+  更深无限段（>15 分钟）的实机标定留待后续（§7）。
 - 数值类改动必跑：`balance_test.tscn`、`difficulty_test.tscn`、`boss_enrage_test.tscn`、
   `wave_pacing_test.tscn`；落地后用 `autoplay_test.tscn` 长时探针验证后期不再出现
   「HP 单边膨胀、压力归零」的稳态（关注 SUMMARY 中 Boss 击杀数与存活时长）。
@@ -120,4 +142,5 @@ score attack 退化为纯时间投入。
 ## 7. 维护约定
 
 - 本文只覆盖「无限段数值演进」；新 Buff/新敌机等内容立项仍走 `docs/ROADMAP.md` Phase 2。
-- D1/D2 决策落定后回写本文 §5 并删除对应「待决策」标记。
+- 后续标定（per_boss_kill / per_ten_minutes / ramp 系数的实机手感微调）直接改 `balance.json`
+  `progression` 段并在本文 §6 追加记录。

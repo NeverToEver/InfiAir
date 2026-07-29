@@ -2,6 +2,7 @@ extends Node
 ## 难度 / 里程碑 / 设置测试（迭代 3.4-A）：
 ## 三档难度下敌机 HP/速度缩放、分数倍率 ×1/×2/×3、spread 同屏上限 1/2/3、
 ## 刷怪间隔倍率、里程碑阈值曲线（8 档基础 + 循环 ×1.35 + 难度倍率）、
+## 难度进程曲线（线性击杀项 + 30s 量化时间档，去硬顶）、
 ## 难度 profile 持久化往返、Ctrl/Shift 模式标志序列化（对局存档 + profile）。
 ## 不加载 main 场景；spawner 以脚本实例挂载（停 process），敌机仅采样 setup 数值。
 
@@ -195,6 +196,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ---------- 4. 刷怪间隔倍率 ×1.25/×1/×0.8 ----------
+	# 钉住难度进程曲线：间隔断言基于难度乘数 ×1.0，排除时间轴档位漂移
+	GameState.run_time = 0.0
+	GameState._recompute_difficulty()
 	spawner._elapsed = 0.0
 	GameState.difficulty = &"easy"
 	var iv_easy: float = spawner._current_interval()
@@ -206,6 +210,22 @@ func _ready() -> void:
 	_check(absf(iv_medium - 7.0) < 0.01, "波次间隔 medium ×1（7.0s 不变）")
 	_check(absf(iv_hard - 5.6) < 0.01, "波次间隔 hard ×0.8（7.0s → 5.6s）")
 	_check(iv_easy > iv_medium and iv_medium > iv_hard, "波次间隔随难度递减（越难越密）")
+
+	# ---------- 4b. 难度进程曲线：线性击杀项 + 时间轴档位（去硬顶，无限段修订） ----------
+	GameState.difficulty = &"medium"
+	GameState.reset_run()
+	_check(GameState.difficulty_multiplier == 1.0, "进程曲线：开局 ×1.0")
+	GameState.boss_kills = 2
+	GameState._recompute_difficulty()
+	_check(absf(GameState.difficulty_multiplier - 2.0) < 0.001, "进程曲线：2 杀 ×2.0（线性 0.5/杀）")
+	GameState.run_time = 65.0
+	GameState._recompute_difficulty()
+	_check(absf(GameState.difficulty_multiplier - 2.1) < 0.001, "进程曲线：65s 量化两档 +0.1（30s/档）")
+	GameState.boss_kills = 20
+	GameState._recompute_difficulty()
+	_check(GameState.difficulty_multiplier > 11.0, "进程曲线：20 杀无硬顶（>×11，原 ×8 封顶废弃）")
+	GameState.reset_run()
+	_check(GameState.difficulty_multiplier == 1.0, "进程曲线：reset_run 归位 ×1.0")
 
 	# ---------- 5. 里程碑阈值曲线 ----------
 	GameState.difficulty = &"medium"

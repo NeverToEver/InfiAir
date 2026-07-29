@@ -20,7 +20,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - **引擎：** Godot 4.6（标准版即可，无需 .NET）。`project.godot` 当前声明 `4.6` 和 `GL Compatibility` 特性，桌面/移动端均使用 `gl_compatibility`。
 - **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件（`generate_audio.py`、`generate_enemy_sprites.py`、`generate_player_sprite.py`、`generate_mothership_sprite.py`）是离线资产生成工具，不属于游戏运行时依赖。
 - **资源：** `assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf` UI 字体。
-- **数据：** `data/balance.json` 为可调数值源（顶层分区：player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、effects、tutorial、elite_turret_event、formation_strike_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
+- **数据：** `data/balance.json` 为可调数值源（顶层分区：player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、progression、effects、tutorial、elite_turret_event、formation_strike_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
 
 ### 关键配置文件
 

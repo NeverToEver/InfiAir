@@ -92,6 +92,9 @@ func cfg(path: String, default: Variant) -> Variant:
 func _apply_balance() -> void:
 	milestone_base = cfg("milestones.base", MILESTONE_BASE.duplicate())
 	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
+	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
+	_prog_per_ten_minutes = float(cfg("progression.per_ten_minutes", 1.0))
+	_prog_time_step_seconds = float(cfg("progression.time_step_seconds", 30.0))
 	var diff: Variant = cfg("difficulty", {})
 	if diff is Dictionary and not diff.is_empty():
 		DIFFICULTY_DEFS = diff
@@ -169,6 +172,13 @@ var locked_routes: Dictionary = {}
 var _next_milestone: int = MILESTONE_BASE[0]
 var _milestone_count: int = 0
 
+## 难度进程曲线参数（_apply_balance 从 balance.json progression 段读取缓存，热路径免查 JSON）
+var _prog_per_boss_kill: float = 0.5
+var _prog_per_ten_minutes: float = 1.0
+var _prog_time_step_seconds: float = 30.0
+## 已计入难度乘数的时间档位（按 time_step_seconds 量化步进，避免连续漂移）
+var _difficulty_time_step: int = 0
+
 ## 启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）
 var boot_ticks_msec: int = 0
 ## 启动/读档时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）
@@ -227,9 +237,17 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	run_time += delta
 	_set_mission_progress(&"survive_180", int(run_time))
+	# 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
+	if int(floorf(run_time / _prog_time_step_seconds)) != _difficulty_time_step:
+		if _recompute_difficulty():
+			difficulty_changed.emit(difficulty_multiplier)
 
 
 func play_sfx(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
+	# headless dummy 音频驱动不混音：一次性 WAV 播放实例在退出时既不自然结束、
+	# stop() 也不释放，必报 ObjectDB 泄漏噪音；无头路径直接不创建播放实例。
+	if DisplayServer.get_name() == "headless":
+		return
 	var p := _sfx_players[_sfx_index]
 	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
 	p.stream = stream
@@ -259,6 +277,7 @@ func reset_run() -> void:
 	buffs.clear()
 	health = max_health()
 	difficulty_multiplier = 1.0
+	_difficulty_time_step = 0
 	rp = 0
 	run_time = 0.0
 	_init_missions()
@@ -483,9 +502,26 @@ func add_boss_kill(score_scale: float = 1.0) -> void:
 	add_score(int(500.0 * score_scale))
 	add_rp(RP_BOSS_KILL)
 	_set_mission_progress(&"boss_1", boss_kills)
-	# 公式：base 1 + (2^min(kills,10) - 1) * 0.25，封顶 8x
-	difficulty_multiplier = minf(1.0 + (pow(2.0, mini(boss_kills, 10)) - 1.0) * 0.25, 8.0)
-	difficulty_changed.emit(difficulty_multiplier)
+	if _recompute_difficulty():
+		difficulty_changed.emit(difficulty_multiplier)
+
+
+## 难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线，docs/ENDLESS_BALANCE_PLAN.md）：
+## 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
+## 线性无封顶：敌方 HP/伤害 ramp 随之无限增长，最终超过玩家固定成长上限。
+## 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。
+func _recompute_difficulty() -> bool:
+	var step := int(floorf(run_time / _prog_time_step_seconds))
+	var new_mult := (
+		1.0
+		+ _prog_per_boss_kill * boss_kills
+		+ step * _prog_time_step_seconds / 600.0 * _prog_per_ten_minutes
+	)
+	_difficulty_time_step = step
+	if is_equal_approx(new_mult, difficulty_multiplier):
+		return false
+	difficulty_multiplier = new_mult
+	return true
 
 
 ## 生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
@@ -792,6 +828,8 @@ func apply_run_save(data: Dictionary) -> void:
 	else:
 		health = max_health()
 	run_time = save_num(data.get("elapsed", 0.0), 0.0)
+	# 难度乘数按曲线从 boss_kills + run_time 重算（旧档的 difficulty_multiplier 字段仅作读入兼容）
+	_recompute_difficulty()
 	rp = int(save_num(data.get("rp", 0), 0.0))
 	_init_missions()
 	var saved_missions: Variant = data.get("missions", {})

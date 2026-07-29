@@ -76,7 +76,9 @@ func _ready() -> void:
 	boss.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.boss_kills == 1, "Boss 击毁计数")
-	_check(GameState.difficulty_multiplier == 1.25, "难度乘数按公式更新")
+	# 进程曲线：1 + 0.5×击杀 + 时间轴每 30s +0.05（去硬顶，2026-07-29 无限段修订）
+	var expect_mult := 1.0 + 0.5 + floorf(GameState.run_time / 30.0) * 0.05
+	_check(absf(GameState.difficulty_multiplier - expect_mult) < 0.001, "难度乘数按公式更新")
 	_check(not get_node("Main/HUD/BossBar").visible, "Boss 血条隐藏")
 	# 里程碑曲线下后续阈值远高于当前分数，Buff UI 一般不再弹出；若弹出则关闭以便继续测试
 	if buff_ui.visible:

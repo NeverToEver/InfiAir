@@ -53,7 +53,7 @@ var _aim_cone_dot := 0.42  # 方向切换锥形阈值（夹角余弦）
 var _aim_pull := 1.0  # 吸附力度：<1 时准星仅被部分拉向目标（弱档）
 var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
-var fuel_max: float = 100.0  # 扩容油箱天赋可提升
+var fuel_max: float = 100.0  # 燃料上限（balance.json player.fuel.max 覆盖）
 var _input_locked: bool = false  # 返航过场期间锁定
 ## 原 Boss 狂暴定身字段（原作 is_controls_locked）：阶段 A 起狂暴改用 _enrage_slow 减速
 ## （BOSS_REDESIGN §4.3），本字段保留兼容，Boss 不再写它。

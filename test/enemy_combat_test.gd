@@ -211,6 +211,9 @@ func _ready() -> void:
 	_check(boss._in_fight, "Boss 进入战斗（逃跑计时开始）")
 	var kills_before_boss := GameState.boss_kills
 	var score_before_boss := GameState.score
+	# 钉住时间轴难度档：后续约 4s 真实等待不得跨过 30s 量化边界造成偶发漂移
+	GameState.run_time = 0.0
+	GameState._recompute_difficulty()
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.escaped.connect(func() -> void: escaped_flag[0] = true)

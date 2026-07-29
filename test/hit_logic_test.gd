@@ -231,7 +231,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(not is_instance_valid(boss4), "A3：致死伤害直接击杀")
 
-	# ================= A4：敌弹 damage 按弹种 12/10/20 =================
+	# ================= A4：敌弹 damage 按弹种 12/10/20（基准值） =================
+	# 伤害随对局进程 ramp（×enemy_damage_ramp），期望按当前 ramp 动态计算（同 boss_pattern 场景4 口径）
+	var dmg_ramp := GameState.enemy_damage_ramp()
+	var exp10 := maxi(1, int(roundf(10.0 * dmg_ramp)))
+	var exp12 := maxi(1, int(roundf(12.0 * dmg_ramp)))
+	var exp14 := maxi(1, int(roundf(14.0 * dmg_ramp)))
+	var exp20 := maxi(1, int(roundf(20.0 * dmg_ramp)))
+	var exp21 := maxi(1, int(roundf(21.0 * dmg_ramp)))
 	player.position = Vector2(960.0, 800.0)
 	# laser 弹：配置 damage=20
 	var laser_e := _make_enemy(spawner.ELITE_TYPES[1])
@@ -242,8 +249,8 @@ func _ready() -> void:
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
 			laser_b = b
-	_check(laser_b != null and laser_b.damage == 20, "A4：laser 敌弹 damage=20")
-	# 命中玩家 -20 HP（传送重叠走真实碰撞管线）
+	_check(laser_b != null and laser_b.damage == exp20, "A4：laser 敌弹 damage（基准 20，期望 %d）" % exp20)
+	# 命中玩家扣血（传送重叠走真实碰撞管线）
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	if laser_b != null:
@@ -251,7 +258,7 @@ func _ready() -> void:
 		laser_b.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(GameState.health == 80.0, "A4：laser 敌弹命中 -20 HP")
+	_check(GameState.health == 100.0 - exp20, "A4：laser 敌弹命中 -%d HP" % exp20)
 	laser_e.queue_free()
 	await _free_enemy_bullets()
 
@@ -264,7 +271,7 @@ func _ready() -> void:
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"single":
 			single_b = b
-	_check(single_b != null and single_b.damage == 12, "A4：single 敌弹 damage=12")
+	_check(single_b != null and single_b.damage == exp12, "A4：single 敌弹 damage（基准 12，期望 %d）" % exp12)
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	if single_b != null:
@@ -272,7 +279,7 @@ func _ready() -> void:
 		single_b.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(GameState.health == 88.0, "A4：single 敌弹命中 -12 HP")
+	_check(GameState.health == 100.0 - exp12, "A4：single 敌弹命中 -%d HP" % exp12)
 	single_e.queue_free()
 	await _free_enemy_bullets()
 
@@ -284,12 +291,12 @@ func _ready() -> void:
 	var spread_dmg_ok := false
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"spread":
-			spread_dmg_ok = spread_dmg_ok or b.damage == 10
-	_check(spread_dmg_ok, "A4：spread 敌弹 damage=10")
+			spread_dmg_ok = spread_dmg_ok or b.damage == exp10
+	_check(spread_dmg_ok, "A4：spread 敌弹 damage（基准 10，期望 %d）" % exp10)
 	spread_e.queue_free()
 	await _free_enemy_bullets()
 
-	# Boss 弹种取值：fan=14，homing=12，狙击=21，cross=12，快照激光=21，快照环弹=12
+	# Boss 弹种取值（基准）：fan=14，homing=12，狙击=21，cross=12，快照激光=21，快照环弹=12
 	var boss5 := _make_boss(1)
 	boss5.position = Vector2(960.0, 300.0)
 	boss5._fire_timer = 999.0  # 屏蔽常规开火，保证弹丸计数纯净
@@ -298,31 +305,31 @@ func _ready() -> void:
 	var fan_count := 0
 	for b in _enemy_bullets():
 		fan_count += 1
-		if b.damage != 14:
+		if b.damage != exp14:
 			fan_dmg_ok = false
-	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage=14")
+	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage（基准 14，期望 %d）" % exp14)
 	await _free_enemy_bullets()
 	boss5._fire_homing()
 	var homing_b: Bullet = null
 	for b in _enemy_bullets():
 		homing_b = b
-	_check(homing_b != null and homing_b.damage == 12 and homing_b.homing, "A4：Boss 追踪弹 damage=12")
+	_check(homing_b != null and homing_b.damage == exp12 and homing_b.homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
 	boss5._fire_cross()
 	var cross_dmg_ok := true
 	var cross_count := 0
 	for b in _enemy_bullets():
 		cross_count += 1
-		if b.damage != 12:
+		if b.damage != exp12:
 			cross_dmg_ok = false
-	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage=12")
+	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
 	boss5._fire_sniper()
 	var sniper_b: Bullet = null
 	for b in _enemy_bullets():
 		if not b.has_meta("bullet_type"):
 			sniper_b = b
-	_check(sniper_b != null and sniper_b.damage == 21, "A4：Boss 狙击弹 damage=21")
+	_check(sniper_b != null and sniper_b.damage == exp21, "A4：Boss 狙击弹 damage（基准 21，期望 %d）" % exp21)
 	await _free_enemy_bullets()
 	boss5.fire_enrage_snapshot()
 	var snap_laser_dmg_ok := true
@@ -332,19 +339,19 @@ func _ready() -> void:
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
 			snap_lasers += 1
-			if b.damage != 21:
+			if b.damage != exp21:
 				snap_laser_dmg_ok = false
 		elif b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"enrage_ring":
 			snap_rings += 1
-			if b.damage != 12:
+			if b.damage != exp12:
 				snap_ring_dmg_ok = false
 	_check(
 		snap_lasers == boss5.ENRAGE_SNAPSHOT_LASERS and snap_laser_dmg_ok,
-		"A4：Boss 狂暴快照激光 damage=21"
+		"A4：Boss 狂暴快照激光 damage（基准 21，期望 %d）" % exp21
 	)
 	_check(
 		snap_rings == boss5.ENRAGE_SNAPSHOT_RING and snap_ring_dmg_ok,
-		"A4：Boss 狂暴快照环弹 damage=12"
+		"A4：Boss 狂暴快照环弹 damage（基准 12，期望 %d）" % exp12
 	)
 	boss5.queue_free()
 	await _free_enemy_bullets()
