@@ -66,17 +66,22 @@ score attack 退化为纯时间投入。
 
 > 数值一律进 `data/balance.json`，脚本 `cfg()` 回退值同步；公式中的 k 值均为初稿，落地时以平衡测试标定。
 
-### 方案 1 — 敌方伤害 ramp（P0-1 核心，最低成本恢复张力）
+### 方案 1 — 敌方伤害 ramp（P0-1 核心，最低成本恢复张力）【2026-07-29 已落地伤害 ramp 部分】
 
 - 敌弹/撞体伤害乘 `(1 + k × (difficulty_multiplier − 1))`，建议 k ≈ 0.08（mult=8 时 ×1.56）；
   或按局内时间缓升。消费点：`enemy.gd`、`boss.gd`、编队炸弹。
 - 配合 extra_life 设实质上限（建议 10 层 / 总 HP 500 封顶）或改递减收益
   （每层 +50×0.9^n）。当前 99 层上限实际被里程碑指数阈值锁死，属虚设，直接收紧无体验损失。
+- **实施记录（2026-07-29）**：伤害 ramp 已按 k=0.08 落地——新键 `enemies.damage_ramp_factor`、
+  `GameState.enemy_damage_ramp()`；敌弹在 `bullet.gd` 按阵营统一分流（覆盖敌机/Boss/炮塔全部弹种），
+  撞体（`enemy.gd`/`boss.gd`）与编队炸弹（`formation_strike_event.gd`）单独接入。
+  **extra_life 上限收紧未做**，生存轴正反馈仍在，待 D1 决策后一并处理。
 
-### 方案 2 — 事件单位吃难度乘数（P0-2，一行级改动）
+### 方案 2 — 事件单位吃难度乘数（P0-2，一行级改动）【2026-07-29 已落地】
 
 - 炮塔/编队战机 HP 乘 `(1 + enemies.hp_ramp_factor × (mult − 1))`，与普通敌机同口径
   （`elite_turret_event.gd:127`、`formation_strike_event.gd:115`）。
+- **实施记录（2026-07-29）**：已落地，统一走新增的 `GameState.enemy_hp_ramp()`。
 
 ### 方案 3 — mult 曲线平滑化与去硬顶（P1-3）
 
@@ -103,7 +108,9 @@ score attack 退化为纯时间投入。
 
 ## 6. 实施记录与验收
 
-- 状态：未实施。
+- 状态：**部分实施**——2026-07-29 方案 1（伤害 ramp 部分，extra_life 收紧除外）与方案 2 已落地；
+  方案 3/4/5 未动。验收：smoke/hit_logic/balance/difficulty/enemy_combat/boss_pattern/boss_enrage/
+  elite_turret_event/formation_strike_event 九场景 0 FAIL（boss_pattern 场景4 齐射弹伤害断言改动态期望）。
 - 验收基线：全部既有测试 0 FAIL；改动条目在本文标注完成日期。
 - 数值类改动必跑：`balance_test.tscn`、`difficulty_test.tscn`、`boss_enrage_test.tscn`、
   `wave_pacing_test.tscn`；落地后用 `autoplay_test.tscn` 长时探针验证后期不再出现

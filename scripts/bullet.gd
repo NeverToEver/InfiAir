@@ -49,7 +49,8 @@ func setup(
 ) -> void:
 	direction = p_direction.normalized()
 	speed = p_speed
-	damage = p_damage
+	# 敌方子弹伤害随对局进程 ramp（Boss 击杀难度乘数驱动，GameState.enemy_damage_ramp）
+	damage = p_damage if p_is_player else maxi(1, int(roundf(p_damage * GameState.enemy_damage_ramp())))
 	is_player_bullet = p_is_player
 	homing = p_homing
 	homing_time = p_homing_time

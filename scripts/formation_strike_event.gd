@@ -113,7 +113,8 @@ func start() -> void:
 	_anchor = Vector2(x0, view.position.y - 120.0)
 	# 生成编队：长机居中，僚机后掠 ±55px 递增（楔形，槽位稳定）
 	var count := int(CRAFT_COUNTS.get(String(GameState.difficulty), 4))
-	var hp := maxi(1, int(roundf(CRAFT_HP_BASE * GameState.enemy_hp_multiplier())))
+	# HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
+	var hp := maxi(1, int(roundf(CRAFT_HP_BASE * GameState.enemy_hp_multiplier() * GameState.enemy_hp_ramp())))
 	_crafts.clear()
 	_offsets.clear()
 	_offsets.append(Vector2.ZERO)
@@ -227,9 +228,12 @@ func _process_drops() -> void:
 			continue
 		var bomb := FormationBomb.new()
 		var dir := Vector2.RIGHT.rotated(_heading)
+		# 炸弹伤害随对局进程 ramp（与敌弹同一系数）
 		bomb.setup(
 			Vector2(dir.x * RUN_SPEED * 0.35, BOMB_FALL_SPEED),
-			BOMB_FUSE, BOMB_DAMAGE, BOMB_RADIUS
+			BOMB_FUSE,
+			maxi(1, int(roundf(BOMB_DAMAGE * GameState.enemy_damage_ramp()))),
+			BOMB_RADIUS
 		)
 		bomb.position = craft.position + Vector2(0.0, 18.0)
 		get_parent().add_child(bomb)

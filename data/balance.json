@@ -49,6 +49,7 @@
 		},
 		"collision_damage": 20,
 		"hp_ramp_factor": 0.12,
+		"damage_ramp_factor": 0.08,
 		"lifetime": 15.0,
 		"exit_accel": 520.0,
 		"aggressive_chase_speed": 170.0,

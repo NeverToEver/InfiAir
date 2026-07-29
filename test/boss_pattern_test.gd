@@ -315,10 +315,12 @@ func _ready() -> void:
 			break
 	_check(volley_max >= 4, "场景4：0.8s 后小怪齐射一轮自机狙（420 弹速普通敌弹）")
 	var volley_dmg_ok := true
+	# 伤害随对局进程 ramp（2026-07-29 修订：×enemy_damage_ramp，基准 12）
+	var volley_expected := maxi(1, int(roundf(12.0 * GameState.enemy_damage_ramp())))
 	for b in _bullets_by_speed(420.0):
-		if b.damage != 12:
+		if b.damage != volley_expected:
 			volley_dmg_ok = false
-	_check(volley_dmg_ok, "场景4：齐射弹伤害 12")
+	_check(volley_dmg_ok, "场景4：齐射弹伤害随难度 ramp（基准 12，实测期望 %d）" % volley_expected)
 	# 弹幕墙：10 槽位留 2 相邻缺口，缺口避开自机方位 ±30°
 	var wall: Array[Bullet] = []
 	for i in 60:

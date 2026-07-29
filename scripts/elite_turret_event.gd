@@ -125,7 +125,8 @@ func abort() -> void:
 ## 航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）
 func _on_carrier_entered() -> void:
 	_total = int(TURRET_COUNTS.get(String(GameState.difficulty), 4))
-	var hp := maxi(1, int(roundf(TURRET_HP_BASE * GameState.enemy_hp_multiplier())))
+	# HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
+	var hp := maxi(1, int(roundf(TURRET_HP_BASE * GameState.enemy_hp_multiplier() * GameState.enemy_hp_ramp())))
 	var ammo: Array = AMMO_SEQUENCES.get(String(GameState.difficulty), AMMO_SEQUENCES["medium"])
 	for i in _total:
 		var turret := TURRET_SCENE.instantiate() as TurretBattery

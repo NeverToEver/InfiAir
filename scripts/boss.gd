@@ -1369,7 +1369,10 @@ func _flash_hit() -> void:
 func _check_body_collision() -> void:
 	var hb := GameState.player_hitbox
 	if hb != null and overlaps_area(hb):
-		(GameState.player_ref as Player).take_damage(COLLISION_DAMAGE)
+		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）
+		(GameState.player_ref as Player).take_damage(
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp())))
+		)
 
 
 func _enrage() -> void:

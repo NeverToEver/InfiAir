@@ -190,7 +190,10 @@ func _resolve_anchor() -> void:
 func _check_body_collision() -> void:
 	var hb := GameState.player_hitbox
 	if hb != null and overlaps_area(hb):
-		(GameState.player_ref as Player).take_damage(COLLISION_DAMAGE)
+		# 撞体伤害随对局进程 ramp（与敌弹同一系数）
+		(GameState.player_ref as Player).take_damage(
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp())))
+		)
 
 
 ## 池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）

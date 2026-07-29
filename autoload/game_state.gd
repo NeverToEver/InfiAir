@@ -306,6 +306,17 @@ func enemy_speed_multiplier() -> float:
 	return float(DIFFICULTY_DEFS[difficulty]["speed"])
 
 
+## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长
+func enemy_hp_ramp() -> float:
+	return 1.0 + float(cfg("enemies.hp_ramp_factor", 0.12)) * (difficulty_multiplier - 1.0)
+
+
+## 敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
+## 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）
+func enemy_damage_ramp() -> float:
+	return 1.0 + float(cfg("enemies.damage_ramp_factor", 0.08)) * (difficulty_multiplier - 1.0)
+
+
 func spawn_interval_multiplier() -> float:
 	return float(DIFFICULTY_DEFS[difficulty]["spawn"])
 
