@@ -124,7 +124,8 @@ var WALL_BULLET_SPEED := 220.0
 var WALL_DAMAGE := 12
 var WALL_ARC_DEG := 150.0
 ## 难度分档（§4.4，boss.difficulty_scaling）：索引 = [easy, medium, hard]。
-## 只作用于 Boss 攻击密度/速度：开火间隔 ×、弹速 ×、弹数 ±（快照弹幕/HP/伤害不动）。
+## 只作用于 Boss 攻击密度/速度：开火间隔 ×、弹速 ×、弹数 ±（快照弹幕/伤害不动；
+## HP 由 setup 经 GameState.enemy_hp_multiplier() 按难度档 0.75/1.0/1.5 乘算）。
 var DIFF_INTERVAL_MULT: Array = [1.15, 1.0, 0.85]
 var DIFF_SPEED_MULT: Array = [0.9, 1.0, 1.1]
 var DIFF_COUNT_DELTAS: Dictionary = {
@@ -297,10 +298,12 @@ class _GlowDot:
 
 func setup(p_difficulty: float, p_type: int) -> void:
 	boss_type = p_type
+	# HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
 	max_hp = (
 		float(GameState.cfg("boss.hp_base", HP_BASE))
 		* float(GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])[p_type - 1])
 		* p_difficulty
+		* GameState.enemy_hp_multiplier()
 	)
 	hp = max_hp
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量

@@ -450,7 +450,7 @@ func _ready() -> void:
 	var p2_interval_h: float = boss6h._patterns["p2"][0]["interval"]
 	_check(absf(p2_interval_h - 2.4 * 0.85) < 0.01, "场景6：hard 开火间隔 ×0.85（实测 %.3f）" % p2_interval_h)
 	_check(absf(boss6h.FAN_BULLET_SPEED - 380.0 * 1.1) < 0.01, "场景6：hard 弹速 ×1.1（实测 %.1f）" % boss6h.FAN_BULLET_SPEED)
-	_check(boss6h.max_hp == hp_e, "场景6：HP 不随难度分档（HP 由既有难度 HP 系数单独控制）")
+	_check(boss6h.max_hp == hp_e * 2, "场景6：HP 随难度分档 ×0.75/×1.5（hard/easy=2.0，实测 %d/%d）" % [boss6h.max_hp, hp_e])
 	boss6h.queue_free()
 	await get_tree().process_frame
 	GameState.difficulty = &"medium"

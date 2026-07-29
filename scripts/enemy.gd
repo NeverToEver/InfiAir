@@ -25,6 +25,8 @@ var AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
 var FIRE_INTERVAL := 2.2
 var HOVER_Y := 320.0
 var SPIRAL_RADIUS := 50.0
+## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
+var HP_RAMP_FACTOR := 0.12
 
 var strategy: StringName = &"straight"
 var is_elite: bool = false
@@ -81,7 +83,8 @@ var _exit_speed: float = 0.0
 ## config 字段：texture, hp(Vector2i), speed(Vector2), score, fire(开火概率),
 ## fire_interval, scale, radius, bullet_types(弹种池), elite(可选)。
 ## p_bullet_type 为空时从弹种池随机抽取（spawner 传入已做同屏上限控制的结果）。
-## HP 与速度按难度档位缩放（easy ×0.75/×0.85，medium ×1，hard ×1.5/×1.2）。
+## HP 按难度档位缩放（easy ×0.75，medium ×1，hard ×1.5），并随对局进程 ramp：
+## ×(1 + hp_ramp_factor ×(Boss 击杀难度乘数-1))；速度按难度档 ×0.85/×1/×1.2 与同一 ramp ×0.1 系数成长。
 func setup(
 	config: Dictionary,
 	p_strategy: StringName,
@@ -90,9 +93,14 @@ func setup(
 ) -> void:
 	strategy = p_strategy
 	is_elite = config.get("elite", false)
+	# HP 三级乘算：机型区间 × 难度档 × 对局进程 ramp（随 Boss 击杀线性成长）
 	hp = maxi(
 		1,
-		int(roundf(randf_range(config["hp"].x, config["hp"].y) * GameState.enemy_hp_multiplier()))
+		int(roundf(
+			randf_range(config["hp"].x, config["hp"].y)
+			* GameState.enemy_hp_multiplier()
+			* (1.0 + GameState.cfg("enemies.hp_ramp_factor", HP_RAMP_FACTOR) * (p_difficulty - 1.0))
+		))
 	)
 	score_value = config["score"]
 	can_shoot = randf() < config["fire"]

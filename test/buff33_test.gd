@@ -92,11 +92,11 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_check(is_instance_valid(e1) and e1.hp < 9999, "光束对直线上敌人 1 造成伤害")
 	_check(is_instance_valid(e2) and e2.hp < 9999, "光束穿透对直线上敌人 2 造成伤害")
-	# 3s 持续结束后进入约 10s 冷却
+	# 3s 持续结束后进入约 8s 冷却
 	await get_tree().create_timer(2.8).timeout
 	_check(not laser._active, "3 秒后光束结束")
-	_check(laser._cooldown > 8.0, "光束结束后进入约 10s 冷却")
-	# 冷却结束可再次触发（测试直接缩短冷却，不真等 10s）
+	_check(laser._cooldown > 6.0, "光束结束后进入约 8s 冷却")
+	# 冷却结束可再次触发（测试直接缩短冷却，不真等 8s）
 	laser._cooldown = 0.05
 	await get_tree().create_timer(0.3).timeout
 	_check(laser._active, "冷却结束后激光可再次触发")

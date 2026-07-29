@@ -3,12 +3,12 @@ extends Node2D
 ## 激光束武器（laser_beam buff，对齐原作 LaserBuff + LASER_DURATION=180 帧）：
 ## 挂载于 Player 节点下，GameState.buff_count(&"laser_beam") > 0 时启用。
 ## 就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
-## 穿透性直线，线上敌人每 0.1s 结算 1 伤害；结束后进入 10s 冷却再次触发。
+## 穿透性直线，线上敌人每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
 
 var BEAM_DURATION := 3.0
-var COOLDOWN := 10.0
+var COOLDOWN := 8.0
 var TICK_INTERVAL := 0.1
-var TICK_DAMAGE := 10
+var TICK_DAMAGE := 16
 var BEAM_LENGTH := 2400.0
 var BEAM_HALF_WIDTH := 26.0
 var ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径约 30（spawner 机型配置）

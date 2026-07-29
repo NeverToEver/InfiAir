@@ -5,14 +5,14 @@ const BUFF_POOL: Array[Dictionary] = [
 	{
 		"id": &"power_shot",
 		"name": "强力射击",
-		"desc": "子弹伤害 ×1.25\n（可无限叠加）",
-		"max": 99,
+		"desc": "子弹伤害 ×1.25\n（最多 5 层）",
+		"max": 5,
 	},
 	{
 		"id": &"rapid_fire",
 		"name": "急速射击",
-		"desc": "射速提升 25%\n（可无限叠加）",
-		"max": 99,
+		"desc": "射速提升 25%\n（最多 4 层）",
+		"max": 4,
 	},
 	{
 		"id": &"spread_shot",

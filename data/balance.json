@@ -48,6 +48,7 @@
 			"laser": 20
 		},
 		"collision_damage": 20,
+		"hp_ramp_factor": 0.12,
 		"lifetime": 15.0,
 		"exit_accel": 520.0,
 		"aggressive_chase_speed": 170.0,
@@ -418,10 +419,12 @@
 	},
 	"buffs": {
 		"power_shot": {
-			"factor": 1.25
+			"factor": 1.25,
+			"max_stacks": 5
 		},
 		"rapid_fire": {
-			"factor": 0.75
+			"factor": 0.75,
+			"max_stacks": 4
 		},
 		"spread_shot": {
 			"max_stacks": 3
@@ -466,9 +469,9 @@
 		},
 		"laser_beam": {
 			"duration": 3.0,
-			"cooldown": 10.0,
+			"cooldown": 8.0,
 			"tick_interval": 0.1,
-			"tick_damage": 10,
+			"tick_damage": 16,
 			"length": 2400.0,
 			"half_width": 26.0,
 			"hit_radius": 30.0
