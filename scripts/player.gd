@@ -35,6 +35,9 @@ var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
 var FUEL_RESTART := 30.0
 
+## 尾焰染色乘区（Buff 外观反馈：高效推进/燃料再生写入，每帧乘算进尾焰基色）
+var engine_tint := Color(1.0, 1.0, 1.0)
+
 var DASH_DISTANCE := 200.0
 var DASH_TIME := 0.25
 var DASH_COOLDOWN := 4.0
@@ -167,6 +170,12 @@ func _load_balance() -> void:
 		var a := TAU * float(i) / 16.0
 		_hitbox_halo.add_point(Vector2(cos(a), sin(a)) * 8.0)
 	add_child(_hitbox_halo)
+	# Buff 外观反馈附件（程序化炮舱/护盾弧/光环/尾焰染色，buffs_changed 信号驱动）
+	# 附件几何按 0.6 基准机体系数设计，随实际机体缩放等比放大以贴合部位
+	var buff_visuals := PlayerBuffVisuals.new()
+	buff_visuals.scale = _sprite.scale / PlayerBuffVisuals.BASE_SHIP_SCALE
+	add_child(buff_visuals)
+	buff_visuals.init(_sprite, self)
 
 
 func fire_interval() -> float:
@@ -272,15 +281,15 @@ func _physics_process(delta: float) -> void:
 	if boosting and input_dir != Vector2.ZERO:
 		_thruster.speed_scale = 1.7
 		_thruster.amount_ratio = 1.0
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
 	elif input_dir != Vector2.ZERO:
 		_thruster.speed_scale = 1.0
 		_thruster.amount_ratio = 0.8
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.85)
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.85) * engine_tint
 	else:
 		_thruster.speed_scale = 0.6
 		_thruster.amount_ratio = 0.35
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.6)
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.6) * engine_tint
 
 	var aim := _resolve_aim_point() - global_position
 	if aim.length() > 1.0:
@@ -469,7 +478,7 @@ func _dash_move(delta: float) -> void:
 	# 冲刺时尾焰拉满
 	_thruster.speed_scale = 1.7
 	_thruster.amount_ratio = 1.0
-	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
+	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
 	if _dash_timer <= 0.0:
 		_dashing = false
 		GameState.play_sfx(GameState.SFX_DASH, -3.0)

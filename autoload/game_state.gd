@@ -16,6 +16,8 @@ signal locale_changed
 signal view_zoom_changed(factor: float)
 signal window_size_changed(level: StringName)
 signal aim_assist_changed(level: StringName)
+## buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新
+signal buffs_changed
 
 ## 难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
 ## hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
@@ -264,6 +266,7 @@ func reset_run() -> void:
 	locked_routes.clear()
 	_milestone_count = 0
 	_next_milestone = milestone_threshold(0)
+	buffs_changed.emit()
 
 
 func add_score(points: int) -> void:
@@ -512,6 +515,7 @@ func buff_count(id: StringName) -> int:
 
 func add_buff(id: StringName) -> void:
 	buffs[id] = buff_count(id) + 1
+	buffs_changed.emit()
 
 
 # ---------------- 可改键系统 ----------------
@@ -682,6 +686,7 @@ func choose_route(line: StringName, buff_id: StringName) -> bool:
 	chosen_routes[line] = buff_id
 	locked_routes[line] = other
 	route_chosen.emit(line, buff_id)
+	buffs_changed.emit()
 	return true
 
 
@@ -768,6 +773,7 @@ func apply_run_save(data: Dictionary) -> void:
 		for key in saved_buffs.keys():
 			if saved_buffs[key] is int or saved_buffs[key] is float:
 				buffs[StringName(key)] = int(saved_buffs[key])
+	buffs_changed.emit()
 	# 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
 	# v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health
 	if int(save_num(data.get("version", 1), 1.0)) >= 2:
