@@ -155,7 +155,7 @@ Main (scripts/main.gd)
 | `assets/` | 游戏贴图、音效/BGM 和字体。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
-| `docs/` | 移植对齐、退出流程、审计计划、路线图（ROADMAP）与截图。 |
+| `docs/` | 移植对齐、退出流程、审计计划、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）与截图。 |
 
 ## 开发约定
 
