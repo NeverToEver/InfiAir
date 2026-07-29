@@ -10,7 +10,7 @@ extends Node
 ## 开始面板退出确认窗「打开→取消」探针（永不确认退出，避免杀掉测试进程）。
 ##
 ## 监控维度：每 5s 快照记录 Performance 监控器（对象/节点/孤儿节点/静态内存/FPS）、
-## 节点数与对象数上涨趋势、GameState.enemies 注册表 vs 场景实际敌机/Boss 数一致性、
+## 节点数与对象数上涨趋势、GameState.enemies 注册表 vs enemy 组场景集合双向差集一致性、
 ## player_ref/对象池引用有效性、池规模上界、帧耗时恶化趋势，外加既有的
 ## 卡死/数值越界/实体爆增/UI 状态一致性检查。异常用 printerr("[ANOMALY] ...") 记录但不中断。
 ##
@@ -33,6 +33,7 @@ const BOSS_TIMEOUT_MS := 120000
 const HOME_STUCK_MS := 8000
 const BASE_STUCK_MS := 20000
 const SCORE_STAGNANT_MS := 60000
+const SLOW_STUCK_MS := 15000  # 狂暴减速残留判定（无狂暴 Boss 但 _enrage_slow 未复位）
 # 母舰各状态预期最长停留（State 枚举序 -> ms）
 const MS_STATE_TIMEOUTS: Array[int] = [20000, 10000, 10000, 10000, 70000, 10000, 30000]
 const MS_STATE_NAMES: Array[String] = ["DESCEND", "HOVER", "DOCKING", "RESUPPLY", "STAY", "RELEASE", "DEPART"]
@@ -109,8 +110,10 @@ var _boss_timeout_reported := false
 var _ms_last_state: int = -1
 var _ms_state_since: int = 0
 var _ms_stuck_reported := false
-var _homecoming_since: int = 0
+var _homecoming_pending_since_ms: int = 0  # 返航过场结束后才开始计时（过场期每检查点顺延）
 var _home_stuck_reported := false
+var _slow_since: int = 0  # 玩家狂暴减速但无狂暴 Boss 的持续起点
+var _slow_reported := false
 var _base_since: int = 0
 var _base_stage: int = 0
 var _base_stuck_reported := false
@@ -143,6 +146,7 @@ var _total_kills: int = 0
 var _total_boss_kills: int = 0
 var _run_scores: Array[int] = []
 var _buff_picks: int = 0
+var _buff_animated_picks: int = 0  # 走三参确认动效路径的选取次数
 var _buffs_seen: Dictionary = {}  # id -> true（跨局累计，覆盖率统计）
 var _ms_summons: int = 0
 var _charge_cancels: int = 0
@@ -157,6 +161,12 @@ var _base_repairs: int = 0
 var _base_recharges: int = 0
 var _route_choices: int = 0
 var _mission_claims: int = 0
+var _boss_p2_count: int = 0
+var _boss_enrage_count: int = 0
+var _turret_event_count: int = 0
+var _formation_event_count: int = 0
+var _event_was_active := false
+var _formation_was_active := false
 var _max_nodes: int = 0
 var _max_enemy_bullets: int = 0
 var _max_player_bullets: int = 0
@@ -350,6 +360,8 @@ func _handle_buff_ui(now: int) -> void:
 	if _buff_ui == null or not is_instance_valid(_buff_ui):
 		return
 	if _buff_ui.visible:
+		if _buff_ui._closing:
+			return  # 选取确认动效播放中：不重复 pick（动效结束才 visible=false）
 		if _buff_open_since == 0:
 			_buff_open_since = now
 			_buff_stuck_reported = false
@@ -365,13 +377,35 @@ func _handle_buff_ui(now: int) -> void:
 				var unseen: Array = avail.filter(func(b: Dictionary) -> bool: return not _buffs_seen.has(b["id"]))
 				var pool: Array = unseen if not unseen.is_empty() else avail
 				var pick: Dictionary = pool[randi() % pool.size()]
+				var pick_idx := -1  # 候选卡在 _cards 中的索引（顺序与 _current_available 对应）
+				for i in avail.size():
+					if avail[i]["id"] == pick["id"]:
+						pick_idx = i
+						break
 				var ev := InputEventMouseButton.new()
 				ev.pressed = true
 				ev.button_index = MOUSE_BUTTON_LEFT
-				_buff_ui._on_card_gui_input(ev, pick["id"])
+				# 10% 走真实三参动效路径（~200ms 确认动效后才关闭/恢复），其余维持两参立即关闭
+				var card: Control = null
+				if randf() < 0.10 and pick_idx >= 0 and _buff_ui._cards.get_child_count() > pick_idx:
+					card = _buff_ui._cards.get_child(pick_idx) as Control
+				if card != null:
+					_buff_ui._on_card_gui_input(ev, pick["id"], card)
+					_buff_animated_picks += 1
+				else:
+					_buff_ui._on_card_gui_input(ev, pick["id"])
 				_buff_picks += 1
 				_buffs_seen[pick["id"]] = true
-				_log("Buff 选择: %s（层数 %d，已覆盖种类 %d/%d）" % [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE])
+				# 选取后立即校验层数上限（口径同 buff_select.gd：cfg 覆盖池内默认）
+				var pool_max := 1
+				for b in _buff_ui.BUFF_POOL:
+					if b["id"] == pick["id"]:
+						pool_max = int(b["max"])
+						break
+				var cap := int(GameState.cfg("buffs.%s.max_stacks" % pick["id"], pool_max))
+				if GameState.buff_count(pick["id"]) > cap:
+					_anomaly_rl("buff_over_cap", "Buff %s 层数 %d 超过上限 %d" % [pick["id"], GameState.buff_count(pick["id"]), cap], now)
+				_log("Buff 选择: %s（层数 %d，已覆盖种类 %d/%d%s）" % [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE, "，动效路径" if card != null else ""])
 			_buff_open_since = 0
 	else:
 		_buff_open_since = 0
@@ -551,14 +585,21 @@ func _update_movement(now: int) -> void:
 		)
 	var steer := (_move_target - _player.position)
 	steer = steer.normalized() if steer.length() > 60.0 else Vector2.ZERO
-	# 规避：240px 内敌弹 + 160px 内敌机的反加权和
+	# 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和
 	var dodge := Vector2.ZERO
 	for child in _main.get_children():
 		var b := child as Bullet
-		if b != null and not b.is_player_bullet:
-			var d: float = _player.position.distance_to(b.position)
+		if b != null:
+			if not b.is_player_bullet:
+				var d: float = _player.position.distance_to(b.position)
+				if d < 240.0 and d > 1.0:
+					dodge += (_player.position - b.position) / d * (1.0 - d / 240.0) * 2.0
+			continue
+		var fb := child as FormationBomb
+		if fb != null:
+			var d: float = _player.position.distance_to(fb.position)
 			if d < 240.0 and d > 1.0:
-				dodge += (_player.position - b.position) / d * (1.0 - d / 240.0) * 2.0
+				dodge += (_player.position - fb.position) / d * (1.0 - d / 240.0) * 2.0
 	for e in GameState.enemies:
 		var n := e as Node2D
 		if n == null:
@@ -771,10 +812,20 @@ func _on_boss_spawned(boss: Boss) -> void:
 	_boss_since = Time.get_ticks_msec()
 	_boss_timeout_reported = false
 	_log("Boss 出现 type=%d hp=%.0f" % [boss.boss_type, boss.max_hp])
-	boss.enraged.connect(func() -> void: _log("Boss 狂暴 type=%d" % boss.boss_type))
+	boss.enraged.connect(func() -> void:
+		_boss_enrage_count += 1
+		_log("Boss 狂暴 type=%d（第 %d 次）" % [boss.boss_type, _boss_enrage_count])
+	)
+	boss.phase_changed.connect(_on_boss_phase_changed)
 	boss.died.connect(_on_boss_died.bind(boss))
 	boss.escaped.connect(func() -> void: _log("Boss 逃跑 type=%d" % boss.boss_type); _clear_boss(boss))
 	boss.tree_exited.connect(func() -> void: _clear_boss(boss))
+
+
+func _on_boss_phase_changed(new_phase: int) -> void:
+	if new_phase == Boss.FightPhase.P2:
+		_boss_p2_count += 1
+		_log("Boss 进入 P2（第 %d 次）" % _boss_p2_count)
 
 
 func _on_boss_died(boss: Boss) -> void:
@@ -834,7 +885,11 @@ func _reset_transition_state() -> void:
 	_stay_since = 0
 	_stay_until_eject = false
 	_buff_open_since = 0
-	_homecoming_since = 0
+	_homecoming_pending_since_ms = 0
+	_slow_since = 0
+	_slow_reported = false
+	_event_was_active = false
+	_formation_was_active = false
 	_pause_open_since = 0
 	get_tree().paused = false
 	_started = false
@@ -984,6 +1039,22 @@ func _histogram_line(node: Node, indent: String) -> void:
 	_log("%s%s <%s> children=%d %s" % [indent, node.name, node.get_class(), node.get_child_count(), str(by_class)])
 
 
+## 注册表差集诊断用：节点类名（有脚本的取脚本文件名，同 _histogram_line 口径）
+func _class_label(obj: Object) -> String:
+	var n := obj as Node
+	if n != null and n.get_script() != null:
+		return (n.get_script() as Script).resource_path.get_file().get_basename()
+	return obj.get_class()
+
+
+## 「类名×n, ...」格式化（注册表差集消息明细）
+func _fmt_class_counts(counts: Dictionary) -> String:
+	var parts: Array[String] = []
+	for k in counts:
+		parts.append("%s×%d" % [k, int(counts[k])])
+	return ", ".join(parts)
+
+
 func _count_nodes(root: Node) -> int:
 	var n := 1
 	for child in root.get_children():
@@ -997,10 +1068,9 @@ func _checks(now: int) -> void:
 		_anomaly_rl("hp_bounds", "HP 越界 %.2f（上限 %.2f）" % [GameState.health, GameState.max_health()], now)
 	if GameState.score < 0:
 		_anomaly_rl("negative_score", "分数为负 %d" % GameState.score, now)
-	# 实体爆增 + 注册表一致性
+	# 实体爆增
 	var p_bullets := 0
 	var e_bullets := 0
-	var real_enemies := 0
 	for child in _main.get_children():
 		var b := child as Bullet
 		if b != null:
@@ -1008,21 +1078,50 @@ func _checks(now: int) -> void:
 				p_bullets += 1
 			else:
 				e_bullets += 1
-		elif child is Enemy or child is Boss:
-			real_enemies += 1
 	if p_bullets > MAX_PLAYER_BULLETS:
 		_anomaly_rl("entity_explosion", "玩家子弹数 %d 超过 %d" % [p_bullets, MAX_PLAYER_BULLETS], now)
 	if e_bullets > MAX_ENEMY_BULLETS:
 		_anomaly_rl("entity_explosion", "敌方子弹数 %d 超过 %d" % [e_bullets, MAX_ENEMY_BULLETS], now)
 	if GameState.enemies.size() > MAX_ENEMIES:
 		_anomaly_rl("entity_explosion", "敌机注册数 %d 超过 %d" % [GameState.enemies.size(), MAX_ENEMIES], now)
-	# 注册表一致性：数量对齐 + 无失效实例
-	if real_enemies != GameState.enemies.size():
-		_anomaly_rl("registry_mismatch", "注册表 %d 个 vs 场景实际 %d 个敌机/Boss" % [GameState.enemies.size(), real_enemies], now)
+	# 注册表一致性：enemy 组集合与注册表双向差集比对
+	# （四类注册者 Enemy/Boss/TurretBattery/FormationCraft 组语义与注册表一致；
+	# 两侧都跳过 _active==false 的池化 Enemy——deactivate 同步注销、deferred reparent 亚帧窗口）
+	var scene_set: Dictionary = {}  # Node -> true
+	for n in get_tree().get_nodes_in_group("enemy"):
+		var node := n as Node
+		if node == null or not _main.is_ancestor_of(node):
+			continue
+		var en := node as Enemy
+		if en != null and not en._active:
+			continue
+		scene_set[node] = true
+	var registry_set: Dictionary = {}  # 有效实例 -> true
+	var stale_found := false
 	for e in GameState.enemies:
 		if not is_instance_valid(e):
-			_anomaly_rl("registry_stale", "GameState.enemies 含失效实例", now)
-			break
+			stale_found = true
+			continue  # 失效实例归 registry_stale 管，不参与差集
+		var re := e as Enemy
+		if re != null and not re._active:
+			continue
+		registry_set[e] = true
+	if stale_found:
+		_anomaly_rl("registry_stale", "GameState.enemies 含失效实例", now)
+	var reg_extra: Dictionary = {}  # 类名 -> 计数
+	for e in registry_set:
+		if not scene_set.has(e):
+			var k := _class_label(e)
+			reg_extra[k] = int(reg_extra.get(k, 0)) + 1
+	if not reg_extra.is_empty():
+		_anomaly_rl("registry_mismatch", "注册表多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(reg_extra), registry_set.size(), scene_set.size()], now)
+	var scene_extra: Dictionary = {}
+	for node in scene_set:
+		if not registry_set.has(node):
+			var k := _class_label(node)
+			scene_extra[k] = int(scene_extra.get(k, 0)) + 1
+	if not scene_extra.is_empty():
+		_anomaly_rl("registry_mismatch", "场景多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(scene_extra), registry_set.size(), scene_set.size()], now)
 	# 引用有效性：player_ref / 对象池
 	if _player != null and is_instance_valid(_player) and GameState.player_ref != _player:
 		_anomaly_rl("player_ref_mismatch", "GameState.player_ref 未指向当前玩家", now)
@@ -1042,19 +1141,49 @@ func _checks(now: int) -> void:
 		if now - _boss_since > BOSS_TIMEOUT_MS:
 			_boss_timeout_reported = true
 			_anomaly("boss_timeout", "Boss type=%d 在场超过 %ds" % [_boss.boss_type, BOSS_TIMEOUT_MS / 1000])
-	# 返航/基地卡死
+	# 返航/基地卡死（返航过场播放期不计时：过场真实时长可达数十秒，计时起点顺延到结束）
 	if _main._homecoming:
-		if _homecoming_since == 0:
-			_homecoming_since = now
+		if _main._return != null:
+			_homecoming_pending_since_ms = now
 			_home_stuck_reported = false
-		elif not _home_stuck_reported and not _main._base_ui.visible and now - _homecoming_since > HOME_STUCK_MS:
+		elif _homecoming_pending_since_ms == 0:
+			_homecoming_pending_since_ms = now
+			_home_stuck_reported = false
+		elif not _home_stuck_reported and not _main._base_ui.visible and now - _homecoming_pending_since_ms > HOME_STUCK_MS:
 			_home_stuck_reported = true
-			_anomaly("homecoming_stuck", "返航触发 %ds 后基地 UI 仍未显示" % (HOME_STUCK_MS / 1000))
+			_anomaly("homecoming_stuck", "返航过场结束 %ds 后基地 UI 仍未显示" % (HOME_STUCK_MS / 1000))
 	else:
-		_homecoming_since = 0
+		_homecoming_pending_since_ms = 0
 	if _main._base_ui.visible and _base_since > 0 and now - _base_since > BASE_STUCK_MS and not _base_stuck_reported:
 		_base_stuck_reported = true
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
+	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
+	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss._enraged
+	if (
+		_player != null
+		and is_instance_valid(_player)
+		and absf(_player._enrage_slow - 1.0) > 0.001
+		and not boss_enraged
+	):
+		if _slow_since == 0:
+			_slow_since = now
+		elif not _slow_reported and now - _slow_since > SLOW_STUCK_MS:
+			_slow_reported = true
+			_anomaly("enrage_slow_stuck", "玩家狂暴减速 %.2f 持续 %ds 但无狂暴 Boss" % [_player._enrage_slow, SLOW_STUCK_MS / 1000])
+	else:
+		_slow_since = 0
+		_slow_reported = false
+	# 事件触发计数：非活跃 -> 活跃跃迁各 +1（500ms 轮询事件状态机）
+	var turret_active: bool = _main._event != null and _main._event._state != EliteTurretEvent.State.IDLE
+	if turret_active and not _event_was_active:
+		_turret_event_count += 1
+		_log("精英炮塔事件触发（第 %d 次）" % _turret_event_count)
+	_event_was_active = turret_active
+	var formation_active: bool = _main._formation != null and _main._formation._state != FormationStrikeEvent.State.IDLE
+	if formation_active and not _formation_was_active:
+		_formation_event_count += 1
+		_log("轰炸编队事件触发（第 %d 次）" % _formation_event_count)
+	_formation_was_active = formation_active
 	# UI 状态一致性：结算面板与基地面板同显 / 玩家死亡但游戏未停且无结算面板
 	var game_over_ui: CanvasLayer = _main.get_node("GameOverUI")
 	if game_over_ui.visible and _main._base_ui.visible:
@@ -1100,6 +1229,7 @@ func _finish() -> void:
 	print("[AUTOPLAY] 母舰边界：蓄力取消 %d | 提前离舰 %d | 强制弹射 %d" % [_charge_cancels, _early_leaves, _forced_ejects])
 	print("[AUTOPLAY] 暂停存档 %d 次 | 继续对局 %d 次 | 退出确认探针 %d 次 | 设置切换 %d 次" % [_pause_saves, _continue_resumes, _exit_probes, _setting_switches])
 	print("[AUTOPLAY] 基地：维修 %d | 补给 %d | 路线选择 %d | 任务领奖 %d" % [_base_repairs, _base_recharges, _route_choices, _mission_claims])
+	print("[AUTOPLAY] Buff 动效路径选取 %d 次 | Boss P2 %d 次 | 狂暴 %d 次 | 炮塔事件 %d 次 | 编队事件 %d 次" % [_buff_animated_picks, _boss_p2_count, _boss_enrage_count, _turret_event_count, _formation_event_count])
 	print("[AUTOPLAY] 峰值: 节点 %d | 敌弹 %d | 玩家弹 %d | 敌机 %d | 孤儿节点 %.0f | 池(b=%d,e=%d) | 帧耗时 %.2fms（基线 %.2fms）" % [_max_nodes, _max_enemy_bullets, _max_player_bullets, _max_enemies, _max_orphans, _max_bullet_pool, _max_enemy_pool, _max_frame_ms, _frame_ms_baseline])
 	var total_anomalies := 0
 	for k in _anomaly_counts:
