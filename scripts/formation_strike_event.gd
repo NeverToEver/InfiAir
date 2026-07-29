@@ -105,6 +105,9 @@ func start() -> void:
 	_heading = PI / 2.0
 	_speed = APPROACH_SPEED
 	_dropped = 0
+	# 占用波次槽：事件期间暂停普通波次（结束/打断时恢复）
+	if _spawner != null and is_instance_valid(_spawner):
+		_spawner._waves_paused = true
 	var view := GameState.view_world_rect()
 	var x0 := randf_range(view.position.x + view.size.x * 0.4, view.position.x + view.size.x * 0.6)
 	_anchor = Vector2(x0, view.position.y - 120.0)
@@ -137,6 +140,7 @@ func abort() -> void:
 	_free_crafts()
 	_state = State.IDLE
 	_cooldown_left = COOLDOWN
+	_resume_waves()
 
 
 func _process(delta: float) -> void:
@@ -204,6 +208,13 @@ func _finish() -> void:
 	_free_crafts()
 	_state = State.IDLE
 	_cooldown_left = COOLDOWN
+	_resume_waves()
+
+
+## 恢复普通波次（事件结束/打断时；精英炮塔事件可能同时持有暂停，以其自身恢复为准）
+func _resume_waves() -> void:
+	if _spawner != null and is_instance_valid(_spawner):
+		_spawner._waves_paused = false
 
 
 ## 按时刻表投弹：投弹点即当前位置正下方；已毁机跳过（时刻表照走）

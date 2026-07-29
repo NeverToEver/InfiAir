@@ -224,6 +224,7 @@ func _ready() -> void:
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
 	await get_tree().create_timer(2.5).timeout
 	_check(escaped_flag[0], "Boss 离场发出 escaped 信号")
+	_check(not spawner._boss_active, "Boss 逃跑解除波次/事件占用（可再触发）")
 	_check(not is_instance_valid(boss), "Boss 离场销毁")
 	_check(GameState.boss_kills == kills_before_boss, "逃跑不加 boss_kills（轮换不推进）")
 	_check(GameState.score == score_before_boss, "逃跑无 500 分奖励")

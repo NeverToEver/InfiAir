@@ -34,7 +34,7 @@ func _ready() -> void:
 	_check(GameState.cfg("player.dash.cooldown", 0.0) == 4.0, "冲刺冷却 4s")
 	_check(GameState.cfg("enemies.collision_damage", 0) == 20, "敌机撞击 20")
 	_check(GameState.cfg("enemies.bullet_damage.laser", 0) == 20, "laser 敌弹 20")
-	_check(GameState.cfg("spawner.elite_chance_cap", 0.0) == 0.25, "精英率上限 0.25")
+	_check(GameState.cfg("spawner.special_gap_max", 0) == 4, "特殊槽间隔上限 4")
 	_check(GameState.cfg("buffs.slow_field.factor", 0.0) == 0.8, "慢速力场移速 ×0.8")
 	_check(GameState.cfg("buffs.explosive.damage_per_level", 0) == 30, "爆炸弹固定溅射 30")
 	_check(is_equal_approx(GameState.cfg("mothership.gatling.score_scale", 0.0), 1.0 / 3.0), "母舰击杀 1/3 分")

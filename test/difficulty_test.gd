@@ -202,10 +202,10 @@ func _ready() -> void:
 	var iv_medium: float = spawner._current_interval()
 	GameState.difficulty = &"hard"
 	var iv_hard: float = spawner._current_interval()
-	_check(absf(iv_easy - 1.5) < 0.01, "刷怪间隔 easy ×1.25（1.2s → 1.5s）")
-	_check(absf(iv_medium - 1.2) < 0.01, "刷怪间隔 medium ×1（1.2s 不变）")
-	_check(absf(iv_hard - 0.96) < 0.01, "刷怪间隔 hard ×0.8（1.2s → 0.96s）")
-	_check(iv_easy > iv_medium and iv_medium > iv_hard, "刷怪间隔随难度递减（越难越密）")
+	_check(absf(iv_easy - 8.75) < 0.01, "波次间隔 easy ×1.25（7.0s → 8.75s）")
+	_check(absf(iv_medium - 7.0) < 0.01, "波次间隔 medium ×1（7.0s 不变）")
+	_check(absf(iv_hard - 5.6) < 0.01, "波次间隔 hard ×0.8（7.0s → 5.6s）")
+	_check(iv_easy > iv_medium and iv_medium > iv_hard, "波次间隔随难度递减（越难越密）")
 
 	# ---------- 5. 里程碑阈值曲线 ----------
 	GameState.difficulty = &"medium"

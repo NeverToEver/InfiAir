@@ -1,5 +1,7 @@
 extends Node
-## 敌机生成器：计时波次（按分数阶段解锁机型）+ Boss 触发（3 种轮换）。
+## 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
+## （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
+## + Boss 触发（3 种轮换）。
 
 signal boss_spawned(boss: Boss)
 signal boss_warning
@@ -70,13 +72,21 @@ static var ELITE_TYPES: Array[Dictionary] = [
 
 ## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
 var UNLOCK_SCORES: Array = [0, 300, 800, 1500]
-var ELITE_BONUS_SCORE := 1500  # 达到后精英率 +0.1
 
-var SPAWN_INTERVAL_START := 1.2
-var SPAWN_INTERVAL_END := 0.5
+## 波次节奏：普通波成组刷新，间隔/规模随对局时间 ramp
+var WAVE_INTERVAL_START := 7.0
+var WAVE_INTERVAL_END := 4.0
 var RAMP_TIME := 300.0
-var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对刷怪间隔的影响系数
-var INTERVAL_MIN := 0.35
+var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对波次间隔的影响系数
+var INTERVAL_MIN := 2.5
+var WAVE_SIZE_START := 3
+var WAVE_SIZE_END := 5
+## 特殊槽：每 SPECIAL_GAP_MIN~MAX 个普通波出一个精英波；Boss/事件触发同样占用并清零计数
+var SPECIAL_GAP_MIN := 3
+var SPECIAL_GAP_MAX := 4
+## 休整：精英/Boss 击杀后追加的普通波次数（计数置负，拉长下一个特殊槽间隔）
+var REST_WAVES_AFTER_KILL := 2
+var ELITE_WAVE_SIZE := 1
 var BOSS_SCORE_STEP := 1500
 ## Boss 触发最小间隔：分数步进触发需同时满足该时间门（防分数暴涨期连出 Boss）
 var BOSS_MIN_INTERVAL := 80.0
@@ -89,8 +99,14 @@ var ETV_TRIGGER_CHANCE := 0.35
 var FS_TRIGGER_INTERVAL := 40.0
 var FS_TRIGGER_CHANCE := 0.30
 
-var _spawn_timer: float = 1.5
+var _wave_timer: float = 1.5
 var _elapsed: float = 0.0
+## 特殊槽计数：普通波 +1；精英波/Boss/事件触发清零；精英/Boss 击杀置负（休整）
+var _waves_since_special: int = 0
+## 本周期特殊槽间隔（计数清零/休整时重抽，SPECIAL_GAP_MIN~MAX）
+var _next_special_gap: int = 3
+## 敌机悬停带缓存（与 Enemy.HOVER_BAND 同源，供波次锚点分配）
+var _hover_band := Vector2(150.0, 430.0)
 var _boss_timer: float = 0.0
 var _next_boss_score: int = BOSS_SCORE_STEP
 var _boss_active: bool = false
@@ -114,16 +130,23 @@ func _ready() -> void:
 
 ## 数值配置注入：机型表数值覆盖（贴图/策略/弹种池留在脚本），常量读入
 func _apply_balance() -> void:
-	SPAWN_INTERVAL_START = GameState.cfg("spawner.interval_start", SPAWN_INTERVAL_START)
-	SPAWN_INTERVAL_END = GameState.cfg("spawner.interval_end", SPAWN_INTERVAL_END)
+	WAVE_INTERVAL_START = GameState.cfg("spawner.wave_interval_start", WAVE_INTERVAL_START)
+	WAVE_INTERVAL_END = GameState.cfg("spawner.wave_interval_end", WAVE_INTERVAL_END)
 	RAMP_TIME = GameState.cfg("spawner.ramp_time", RAMP_TIME)
 	BOSS_SCORE_STEP = GameState.cfg("spawner.boss_score_step", BOSS_SCORE_STEP)
 	BOSS_MIN_INTERVAL = GameState.cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL)
 	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
-	ELITE_BONUS_SCORE = GameState.cfg("spawner.elite_bonus_score", ELITE_BONUS_SCORE)
 	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
 	INTERVAL_MIN = GameState.cfg("spawner.interval_min", INTERVAL_MIN)
 	UNLOCK_SCORES = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
+	WAVE_SIZE_START = int(GameState.cfg("spawner.wave_size_start", WAVE_SIZE_START))
+	WAVE_SIZE_END = int(GameState.cfg("spawner.wave_size_end", WAVE_SIZE_END))
+	SPECIAL_GAP_MIN = int(GameState.cfg("spawner.special_gap_min", SPECIAL_GAP_MIN))
+	SPECIAL_GAP_MAX = int(GameState.cfg("spawner.special_gap_max", SPECIAL_GAP_MAX))
+	REST_WAVES_AFTER_KILL = int(GameState.cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL))
+	ELITE_WAVE_SIZE = int(GameState.cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE))
+	var band: Array = GameState.cfg("enemies.hover_band", [_hover_band.x, _hover_band.y])
+	_hover_band = Vector2(float(band[0]), float(band[1]))
 	ETV_MIN_SCORE = GameState.cfg("elite_turret_event.min_score", ETV_MIN_SCORE)
 	ETV_TRIGGER_INTERVAL = GameState.cfg("elite_turret_event.trigger_interval", ETV_TRIGGER_INTERVAL)
 	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
@@ -149,11 +172,18 @@ func _merge_type(dst: Dictionary, src: Dictionary) -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
-	if not _waves_paused:
-		_spawn_timer -= delta
-		if _spawn_timer <= 0.0:
-			_spawn_enemy()
-			_spawn_timer = _current_interval()
+	# Boss 激活与事件暂停期间波次计时冻结（Boss/事件占用波次槽）
+	if not _waves_paused and not _boss_active:
+		_wave_timer -= delta
+		if _wave_timer <= 0.0:
+			_wave_timer = _current_interval()
+			if _waves_since_special >= _next_special_gap:
+				_spawn_elite_wave()
+				_waves_since_special = 0
+				_draw_special_gap()
+			else:
+				_spawn_normal_wave()
+				_waves_since_special += 1
 
 	_boss_timer += delta
 	# 分数触发需同时越过最小间隔（防分数暴涨期战后连出 Boss）；时间兜底不受此限
@@ -166,10 +196,12 @@ func _process(delta: float) -> void:
 			_boss_pending = true
 		else:
 			_trigger_boss()
-	# 精英炮塔事件触发检查：Boss 优先（Boss 未预警/入场/战斗中且事件可触发时才允许启动）
+	# 精英炮塔事件触发检查：Boss 优先（Boss 未预警/入场/战斗中且事件可触发时才允许启动；
+	# 编队事件激活期间不启动，避免两事件的波次暂停钩子互相提前恢复）
 	if (
 		_event != null
 		and not _boss_active
+		and (_formation == null or not _formation.is_active())
 		and _event.can_trigger()
 		and GameState.score >= ETV_MIN_SCORE
 	):
@@ -178,6 +210,7 @@ func _process(delta: float) -> void:
 			_event_check_timer = ETV_TRIGGER_INTERVAL
 			if randf() < ETV_TRIGGER_CHANCE:
 				_event.start()
+				_waves_since_special = 0  # 事件占用特殊槽
 	# 轰炸编队事件触发检查（最低优先级，在精英炮塔事件检查之后；
 	# Boss 激活/精英事件 active/冷却/分数门槛由事件 can_trigger 内检查）
 	if _formation != null and _formation.can_trigger():
@@ -186,17 +219,30 @@ func _process(delta: float) -> void:
 			_formation_check_timer = FS_TRIGGER_INTERVAL
 			if randf() < FS_TRIGGER_CHANCE:
 				_formation.start()
+				_waves_since_special = 0  # 事件占用特殊槽
 
 
 func _current_interval() -> float:
-	var base := lerpf(SPAWN_INTERVAL_START, SPAWN_INTERVAL_END, clampf(_elapsed / RAMP_TIME, 0.0, 1.0))
+	var base := lerpf(WAVE_INTERVAL_START, WAVE_INTERVAL_END, clampf(_elapsed / RAMP_TIME, 0.0, 1.0))
 	# 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
 	var interval: float = (
 		base
 		* GameState.spawn_interval_multiplier()
 		/ (1.0 + DIFFICULTY_FACTOR * (GameState.difficulty_multiplier - 1.0))
 	)
-	return clampf(interval, INTERVAL_MIN, SPAWN_INTERVAL_START * GameState.spawn_interval_multiplier())
+	return clampf(interval, INTERVAL_MIN, WAVE_INTERVAL_START * GameState.spawn_interval_multiplier())
+
+
+## 当前波次规模：随对局时间 ramp（WAVE_SIZE_START → WAVE_SIZE_END）
+func _wave_size() -> int:
+	var t := clampf(_elapsed / RAMP_TIME, 0.0, 1.0)
+	return maxi(1, int(roundf(lerpf(float(WAVE_SIZE_START), float(WAVE_SIZE_END), t))))
+
+
+## 均分槽位取点：范围 [start, start+length] 均分 n 槽，取第 i 槽中心 ±25% 槽宽抖动
+func _slot_pos(start: float, length: float, n: int, i: int) -> float:
+	var slot := length / float(n)
+	return start + slot * (float(i) + 0.5) + randf_range(-0.25, 0.25) * slot
 
 
 ## 当前分数阶段已解锁的普通机型池
@@ -228,33 +274,70 @@ func _pick_bullet_type(config: Dictionary) -> StringName:
 	return btype
 
 
+## 普通波：成组均布入场（x 按视口均分槽 + 抖动；锚点在悬停带内均分槽 + 抖动）
+func _spawn_normal_wave() -> void:
+	var pool := unlocked_types()
+	var n := _wave_size()
+	var view := GameState.view_world_rect()
+	for i in n:
+		var config: Dictionary = pool[randi() % pool.size()]
+		var x := _slot_pos(view.position.x + 60.0, view.size.x - 120.0, n, i)
+		var anchor := _slot_pos(_hover_band.x, _hover_band.y - _hover_band.x, n, i)
+		_queue_enemy(config, x, anchor)
+
+
+## 精英波：占用特殊槽，ELITE_WAVE_SIZE 个精英均布入场；击杀触发休整
+func _spawn_elite_wave() -> void:
+	var view := GameState.view_world_rect()
+	for i in ELITE_WAVE_SIZE:
+		var config: Dictionary = ELITE_TYPES[randi() % ELITE_TYPES.size()]
+		var x := _slot_pos(view.position.x + 60.0, view.size.x - 120.0, ELITE_WAVE_SIZE, i)
+		_queue_enemy(config, x, randf_range(_hover_band.x, _hover_band.y), true)
+
+
+## 单机随机入口（兼容旧调用/测试）：随机 x + 悬停带内随机锚点
 func _spawn_enemy() -> void:
-	var elite_chance := clampf(GameState.cfg("spawner.elite_base_chance", 0.03) + GameState.score / GameState.cfg("spawner.elite_chance_per_score", 15000.0), 0.0, GameState.cfg("spawner.elite_chance_cap", 0.25))
-	if GameState.score >= ELITE_BONUS_SCORE:
-		elite_chance += GameState.cfg("spawner.elite_bonus_chance", 0.1)
-	var config: Dictionary
-	if randf() < elite_chance:
-		config = ELITE_TYPES[randi() % ELITE_TYPES.size()]
-	else:
-		var pool := unlocked_types()
-		config = pool[randi() % pool.size()]
+	var pool := unlocked_types()
+	var config: Dictionary = pool[randi() % pool.size()]
+	var view := GameState.view_world_rect()
+	_queue_enemy(
+		config,
+		randf_range(view.position.x + 60.0, view.end.x - 60.0),
+		randf_range(_hover_band.x, _hover_band.y)
+	)
+
+
+## 单机入场：0.6s 红色入场预告后敌机才进场（波次与单机入口共用）
+func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = false) -> void:
 	var strategies: Array[StringName] = config["strategies"]
 	var strategy := strategies[randi() % strategies.size()]
 	var btype := _pick_bullet_type(config)
 	var view := GameState.view_world_rect()
-	var x := randf_range(view.position.x + 60.0, view.end.x - 60.0)
-	# 入场预告：0.6s 红色提示后敌机才进场
 	get_parent().add_child(SpawnTelegraph.new(x, view.position.y))
 	_schedule(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
-		_on_telegraph_timeout.bind(config, strategy, btype, x))
+		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special))
 
 
 ## 预告计时结束后敌机实际进场
-func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: StringName, x: float) -> void:
+func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: StringName, x: float, anchor: float, special: bool) -> void:
 	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
 	e.position = Vector2(x, GameState.view_world_rect().position.y - 60.0)
+	e.anchor_y = anchor
+	if special:
+		e.died.connect(_on_special_killed)
 	get_parent().add_child(e)
+
+
+## 精英/Boss 击杀休整：追加 REST_WAVES_AFTER_KILL 个普通波才再出特殊槽
+func _on_special_killed(_enemy: Enemy = null) -> void:
+	_waves_since_special = -REST_WAVES_AFTER_KILL
+	_draw_special_gap()
+
+
+## 重抽本周期特殊槽间隔
+func _draw_special_gap() -> void:
+	_next_special_gap = randi_range(SPECIAL_GAP_MIN, SPECIAL_GAP_MAX)
 
 
 ## Boss-3 召唤的小怪（straight 型 1 型机），立即进场无预告。
@@ -267,6 +350,7 @@ func spawn_minion(pos: Vector2) -> Enemy:
 ## Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。
 func _trigger_boss() -> void:
 	_boss_active = true
+	_waves_since_special = 0  # Boss 占用特殊槽
 	boss_warning.emit()
 	GameState.shake(GameState.cfg("effects.shake.boss_warning", 14.0))
 	_schedule(2.0, _spawn_boss)
@@ -281,6 +365,7 @@ func _spawn_boss(p_type: int = 0) -> void:
 	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.position = Vector2(960.0, GameState.view_world_rect().position.y - 160.0)
 	boss.died.connect(_on_boss_died)
+	boss.escaped.connect(_on_boss_escaped)
 	get_parent().add_child(boss)
 	boss_spawned.emit(boss)
 
@@ -289,6 +374,13 @@ func _on_boss_died() -> void:
 	_boss_active = false
 	_boss_timer = 0.0
 	_next_boss_score += BOSS_SCORE_STEP
+	_on_special_killed()  # Boss 击杀休整
+
+
+## Boss 逃跑：不推进轮换、不给休整，仅解除波次/事件占用（Boss 计时重置，之后按分数/时间门再触发同型）
+func _on_boss_escaped() -> void:
+	_boss_active = false
+	_boss_timer = 0.0
 
 
 ## 一次性计时回调。不用协程 await（SceneTreeTimer 或 Timer 均可）：退出时挂起的

@@ -78,7 +78,11 @@ func _ready() -> void:
 	var base_ui: CanvasLayer = get_node("Main/BaseUI")
 	base_ui._on_resume_pressed()
 	get_tree().paused = false
-	await get_tree().process_frame
+	# 等轨道打击动画播完，避免叠入后续截图
+	if main._strike != null:
+		main._strike.DURATION = 0.3
+	while main._strike != null:
+		await get_tree().process_frame
 
 	# 6. 死亡结算（大分数 + 新纪录标记）；先收掉可能被分数再次触发的 Buff UI 避免叠屏
 	if buff_ui.visible:

@@ -44,6 +44,8 @@ var _enrage_boss: Boss = null
 var _intro: IntroCinematic = null
 ## 播放中的返航过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
 var _return: ReturnCinematic = null
+## 播放中的轨道打击清场动画（继续出击时触发；null = 未播放）
+var _strike: OrbitalStrike = null
 ## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
 var _event: EliteTurretEvent = null
 ## 轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）
@@ -377,12 +379,25 @@ func _start_homecoming() -> void:
 	_play_return_cinematic()
 
 
-## 继续出击：轨道打击清屏（Boss 保留；注册表驱动清敌方实体——覆盖 Enemy（含池化）/
-## FormationCraft/事件残留，再清全部弹丸与编队炸弹）→ 短白屏 → 恢复同一局
+## 继续出击：播放轨道打击清场动画（对齐原作 ORBITAL_STRIKE 阶段；树保持暂停）。
+## 命中帧（struck）清场并恢复对局，动画结束（finished）仅释放引用。
 func _resume_from_base() -> void:
+	if _strike != null:
+		return
+	_strike = OrbitalStrike.new()
+	_strike.struck.connect(_on_orbital_struck)
+	_strike.finished.connect(_on_orbital_strike_finished)
+	add_child(_strike)
+
+
+## 轨道打击命中：注册表驱动清场——Enemy（含池化）/FormationCraft/事件残留逐机触发爆炸
+## 后移除（Boss 保留），再清全部弹丸与编队炸弹，恢复同一局
+func _on_orbital_struck() -> void:
 	for e in GameState.enemies.duplicate():
 		if e is Boss or not is_instance_valid(e):
 			continue
+		if e is Node2D:
+			Explosion.spawn_at(self, (e as Node2D).global_position)
 		e.queue_free()
 	for child in get_children():
 		if child is Bullet or child is FormationBomb:
@@ -393,21 +408,7 @@ func _resume_from_base() -> void:
 	_spawner.set_process(true)
 	_homecoming = false
 	get_tree().paused = false
-	var flash := await _flash_white(0.15, 0.25)
-	flash.queue_free()
 
 
-func _flash_white(fade_in: float, hold: float) -> CanvasLayer:
-	var flash_layer := CanvasLayer.new()
-	flash_layer.layer = 40
-	add_child(flash_layer)
-	var flash := ColorRect.new()
-	flash.color = Color(1.0, 1.0, 1.0, 0.0)
-	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	flash_layer.add_child(flash)
-	var tween := create_tween()
-	tween.tween_property(flash, "color:a", 1.0, fade_in)
-	tween.tween_interval(hold)
-	tween.tween_property(flash, "color:a", 0.0, 0.3)
-	await tween.finished
-	return flash_layer
+func _on_orbital_strike_finished() -> void:
+	_strike = null

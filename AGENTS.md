@@ -18,7 +18,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 ### 技术栈
 
 - **引擎：** Godot 4.6（标准版即可，无需 .NET）。`project.godot` 当前声明 `4.6` 和 `GL Compatibility` 特性，桌面/移动端均使用 `gl_compatibility`。
-- **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件（`generate_audio.py`、`generate_enemy_sprites.py`）是离线资产生成工具，不属于游戏运行时依赖。
+- **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件（`generate_audio.py`、`generate_enemy_sprites.py`、`generate_player_sprite.py`、`generate_mothership_sprite.py`）是离线资产生成工具，不属于游戏运行时依赖。
 - **资源：** `assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf` UI 字体。
 - **数据：** `data/balance.json` 为可调数值源（顶层分区：player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、effects、tutorial、elite_turret_event、formation_strike_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
 
@@ -61,6 +61,7 @@ godot --headless --path . res://test/base_system_test.tscn
 ```bash
 # 对局机制与配置
 godot --headless --path . res://test/enemy_combat_test.tscn
+godot --headless --path . res://test/wave_pacing_test.tscn
 godot --headless --path . res://test/buff33_test.tscn
 godot --headless --path . res://test/buff_visuals_test.tscn
 godot --headless --path . res://test/difficulty_test.tscn
@@ -71,6 +72,7 @@ godot --headless --path . res://test/hit_logic_test.tscn
 godot --headless --path . res://test/balance_test.tscn
 godot --headless --path . res://test/elite_turret_event_test.tscn
 godot --headless --path . res://test/formation_strike_event_test.tscn
+godot --headless --path . res://test/orbital_strike_test.tscn
 
 # 设置、启动、导航与教程
 godot --headless --path . res://test/keybind_test.tscn
@@ -120,6 +122,7 @@ Main (scripts/main.gd)
 ├─ BackNavigator
 ├─ IntroCinematic（运行时由 main 在新游戏时实例化，layer=35）
 ├─ ReturnCinematic（运行时由 main 在返航时实例化，layer=35）
+├─ OrbitalStrike（运行时由 main 在继续出击时实例化，layer=24，轨道打击清场动画）
 └─ EliteTurretEvent（运行时由 main 在 _ready 创建并登记给 spawner 互斥）
 └─ FormationStrikeEvent（运行时由 main 在 _ready 创建并登记给 spawner；最低优先级随机事件）
 ```
@@ -127,13 +130,14 @@ Main (scripts/main.gd)
 - `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM 与页面流转。
 - `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线；加载数值/翻译；维护 `GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用；读写本地存档。
 - `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担：程序化炮舱/护盾弧/光环/信标与尾焰染色（`engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。
-- `scripts/spawner.gd`：普通/精英敌机选择、波次与 Boss 调度。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把“所有敌机已经池化”当成当前事实。
+- `scripts/spawner.gd`：波次化刷怪与特殊槽调度。普通波成组（均分槽位入场、锚点悬停机动）按间隔 ramp 刷新；每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽（Boss 激活与事件期间暂停普通波次），精英/Boss 击杀后追加休整波次。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把"所有敌机已经池化"当成当前事实。
 - `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
 - `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
 - `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
 - `scripts/return_cinematic.gd` + `scripts/dawn_station.gd`：返航过场导演（7 镜头，长按 B 返航触发，设计文档 `docs/RETURN_HOME_CINEMATIC.md`）；架构镜像开场，Esc 经 `SKIP_RETURN` 路由，播完/跳过统一走 `finished` 落基地 UI（树保持暂停，镜头 7 渐暗期 BGM 淡出到 -40dB）。`DawnStation` 是「曙光」站体共享静态工厂（毁灭态/全息虚影态），开场镜头 1、返航镜头 2/3/4 与后续基地背景层复用。
+- `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发，对齐原作 ORBITAL_STRIKE 阶段）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
 - `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
 - `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss、不暂停波次，可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。
@@ -147,7 +151,7 @@ Main (scripts/main.gd)
 | `autoload/` | 全局 autoload；当前只有 `game_state.gd`。 |
 | `scenes/` | Godot `.tscn` 场景与节点组合。 |
 | `scripts/` | GDScript 游戏逻辑、UI、表现和池实现。 |
-| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV，`generate_enemy_sprites.py` 可重新生成敌方单位贴图（PIL，晶体棱镜风格）。 |
+| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV；`generate_enemy_sprites.py`（敌方单位+航母+炮塔，晶体棱镜风格）、`generate_player_sprite.py`（玩家机，钛灰钢甲+青色能量）、`generate_mothership_sprite.py`（母舰，同玩家体系）可重新生成全部单位贴图（PIL，超采样+光晕双层合成）。 |
 | `assets/` | 游戏贴图、音效/BGM 和字体。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
@@ -195,7 +199,7 @@ Main (scripts/main.gd)
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 29 个场景：24 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture`（窗口模式截图工具）。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 31 个场景：26 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

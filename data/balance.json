@@ -7,7 +7,7 @@
 		"boost_mult": 1.8,
 		"fine_move_mult": 0.35,
 		"base_fire_interval": 0.15,
-		"bullet_speed": 900.0,
+		"bullet_speed": 1200.0,
 		"bullet_spread_deg": 15.0,
 		"bullet_damage": 10,
 		"max_health": 100.0,
@@ -53,7 +53,13 @@
 		"exit_accel": 520.0,
 		"aggressive_chase_speed": 170.0,
 		"fire_interval": 2.2,
-		"hover_y": 320.0,
+		"hover_band": [150.0, 430.0],
+		"hover_bob_amp": 12.0,
+		"hover_bob_freq": 2.0,
+		"hover_sway_amp": 42.0,
+		"hover_sway_freq": 1.2,
+		"spiral_drift_amp": 70.0,
+		"spiral_drift_freq": 0.7,
 		"spiral_radius": 50.0,
 		"types": [
 			{
@@ -347,22 +353,23 @@
 		}
 	},
 	"spawner": {
-		"interval_start": 1.2,
-		"interval_end": 0.5,
+		"wave_interval_start": 7.0,
+		"wave_interval_end": 4.0,
 		"ramp_time": 300.0,
 		"difficulty_factor": 0.15,
-		"interval_min": 0.35,
+		"interval_min": 2.5,
 		"unlock_scores": [
 			0,
 			300,
 			800,
 			1500
 		],
-		"elite_base_chance": 0.03,
-		"elite_chance_per_score": 15000.0,
-		"elite_chance_cap": 0.25,
-		"elite_bonus_score": 1500,
-		"elite_bonus_chance": 0.1,
+		"wave_size_start": 3,
+		"wave_size_end": 5,
+		"special_gap_min": 3,
+		"special_gap_max": 4,
+		"rest_waves_after_kill": 2,
+		"elite_wave_size": 1,
 		"boss_score_step": 1500,
 		"boss_min_interval": 80.0,
 		"boss_time_limit": 120.0,
@@ -564,7 +571,14 @@
 		},
 		"home_charge_time": 1.5,
 		"give_up_hold_time": 3.0,
-		"hud_poll_interval": 0.1
+		"hud_poll_interval": 0.1,
+		"orbital_strike": {
+			"duration": 1.4,
+			"impact_at": 0.56,
+			"missile_from": 0.3,
+			"reticle_radius": 46.0,
+			"impact_y_ratio": 0.42
+		}
 	},
 	"elite_turret_event": {
 		"duration": 30.0,

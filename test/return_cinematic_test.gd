@@ -4,7 +4,7 @@ extends Node
 ## 输入宽限（SKIP_GRACE 1.2s，防实战按键误触）：开播 1.2s 内任意键/点击/Esc 不跳过，
 ## 各跳过路径断言前须先等 1.4s 真实时间越过宽限。
 ## 与开场过场测试的关键差异：finished 后基地 UI 可见且树**保持暂停**（无标题定格）；
-## 每轮触发后须先 _on_resume_pressed() 恢复（其白闪 await 约 0.7s，等待真实计时器收尾）。
+## 每轮触发后须先 _on_resume_pressed() 恢复（触发轨道打击动画，_restore_from_base 缩短时轴等其收尾）。
 
 var _failures: int = 0
 
@@ -40,13 +40,19 @@ func _press_esc() -> void:
 	await get_tree().process_frame
 
 
-## 从基地整备恢复对局态：_resume_from_base 清敌/子弹并有 ~0.7s 白闪 await，等其收尾
+## 从基地整备恢复对局态：_resume_from_base 触发轨道打击动画（命中帧清场并解除暂停），
+## 缩短时轴并等待播完，避免后续断言落在动画/暂停窗口内
 func _restore_from_base(base_ui: CanvasLayer) -> void:
 	if base_ui.visible:
 		base_ui._on_resume_pressed()
 	await get_tree().process_frame
-	await get_tree().process_frame
-	await get_tree().create_timer(0.8).timeout
+	var main := base_ui.get_parent()
+	if main._strike != null:
+		main._strike.DURATION = 0.4
+	var t := 0.0
+	while main._strike != null and t < 3.0:
+		await get_tree().create_timer(0.1).timeout
+		t += 0.1
 	await get_tree().process_frame
 
 

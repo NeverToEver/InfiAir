@@ -2,6 +2,9 @@ class_name Enemy
 extends Area2D
 ## 普通/精英敌机：straight / sine / zigzag / dive / spiral / noise / hover / aggressive。
 ## 弹种：single（单发瞄准）/ spread（五向扇形）/ laser（细长高亮快速弹）。
+## 入场两阶段：先下降到锚点 anchor_y（hover_band 悬停带内），随后围绕锚点水平机动
+## + 垂直小幅浮动（不再净下降）；悬停机动带个体随机相位（错开全波同相位的机械感），
+## straight/hover 增加水平慢摇摆、spiral 绕转中心漂移，参数见 balance.json enemies 段；
 ## 出生 15s 寿命到期后向上或侧方加速离场（不给分、不计击杀）。
 ## 数值由 spawner 的机型配置表驱动（setup 传入 config Dictionary）。
 
@@ -23,7 +26,16 @@ var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
 var EXIT_ACCEL := 520.0  # 寿命离场加速度
 var AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
 var FIRE_INTERVAL := 2.2
-var HOVER_Y := 320.0
+## 悬停带：锚点 anchor_y 的取值范围（view 顶部起算的世界 y）
+var HOVER_BAND := Vector2(150.0, 430.0)
+## 悬停机动参数（全部可由 balance.json enemies 段覆盖）：
+## 垂直微浮 + 水平慢摇摆（straight/hover）+ spiral 中心漂移，相位按个体随机错开
+var HOVER_BOB_AMP := 12.0  # 悬停垂直浮动振幅
+var HOVER_BOB_FREQ := 2.0  # 悬停垂直浮动角频率
+var HOVER_SWAY_AMP := 42.0  # 悬停水平摇摆振幅（straight/hover）
+var HOVER_SWAY_FREQ := 1.2  # 悬停水平摇摆角频率
+var SPIRAL_DRIFT_AMP := 70.0  # spiral 悬停期绕转中心水平漂移振幅
+var SPIRAL_DRIFT_FREQ := 0.7  # spiral 漂移角频率
 var SPIRAL_RADIUS := 50.0
 ## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
 var HP_RAMP_FACTOR := 0.12
@@ -36,8 +48,11 @@ var can_shoot: bool = false
 var score_value: int = 100
 var fire_interval: float = FIRE_INTERVAL
 var bullet_type: StringName = &"single"
+## 悬停锚点 y（spawner 分配；<0 时按 hover_band 自取，保证直接 setup 的用法仍先下降后悬停）
+var anchor_y: float = -1.0
 
 var _time: float = 0.0
+var _phase: float = 0.0  # 机动相位（出生/重激活随机化，全波错开避免同相位机械浮动）
 var _spawn_x: float = 0.0
 var _zig_dir: float = 1.0
 var _zig_timer: float = 0.7
@@ -69,8 +84,6 @@ static func sin_fast(x: float) -> float:
 static func cos_fast(x: float) -> float:
 	return sin_fast(x + PI / 2.0)
 var _hovering: bool = false
-var _hover_done: bool = false
-var _hover_timer: float = 0.0
 var _life_timer: float = 0.0
 var _exiting: bool = false
 var _exit_dir: Vector2 = Vector2.UP
@@ -138,12 +151,21 @@ func _ready() -> void:
 	EXIT_ACCEL = GameState.cfg("enemies.exit_accel", EXIT_ACCEL)
 	AGGR_CHASE_SPEED = GameState.cfg("enemies.aggressive_chase_speed", AGGR_CHASE_SPEED)
 	FIRE_INTERVAL = GameState.cfg("enemies.fire_interval", FIRE_INTERVAL)
-	HOVER_Y = GameState.cfg("enemies.hover_y", HOVER_Y)
+	var band: Array = GameState.cfg("enemies.hover_band", [HOVER_BAND.x, HOVER_BAND.y])
+	HOVER_BAND = Vector2(float(band[0]), float(band[1]))
+	HOVER_BOB_AMP = GameState.cfg("enemies.hover_bob_amp", HOVER_BOB_AMP)
+	HOVER_BOB_FREQ = GameState.cfg("enemies.hover_bob_freq", HOVER_BOB_FREQ)
+	HOVER_SWAY_AMP = GameState.cfg("enemies.hover_sway_amp", HOVER_SWAY_AMP)
+	HOVER_SWAY_FREQ = GameState.cfg("enemies.hover_sway_freq", HOVER_SWAY_FREQ)
+	SPIRAL_DRIFT_AMP = GameState.cfg("enemies.spiral_drift_amp", SPIRAL_DRIFT_AMP)
+	SPIRAL_DRIFT_FREQ = GameState.cfg("enemies.spiral_drift_freq", SPIRAL_DRIFT_FREQ)
 	SPIRAL_RADIUS = GameState.cfg("enemies.spiral_radius", SPIRAL_RADIUS)
 	# 每个实例独立形状，避免共享 sub_resource 半径互相影响
 	_shape.shape = _shape.shape.duplicate()
 	_spawn_x = position.x
 	_center = position
+	_phase = randf() * TAU
+	_zig_timer = randf_range(0.15, 0.7)  # zigzag 折返相位错开
 	_fire_timer = randf_range(1.0, fire_interval)
 	if strategy == &"dive":
 		_dive_timer = 1.2
@@ -151,8 +173,16 @@ func _ready() -> void:
 			_dive_target = GameState.player_ref.global_position
 		else:
 			_dive_target = Vector2(position.x, 1200.0)
-	elif strategy == &"hover":
-		_hover_timer = randf_range(3.0, 5.0)
+
+
+## anchor_y 未由 spawner 分配时自取（首个物理帧惰性调用，取最终出生位置）：
+## 出生点下方一段距离，钳入悬停带；深位出生（悬停带之下）不悬停，持续下降出屏销毁
+func _resolve_anchor() -> void:
+	if anchor_y < 0.0:
+		if position.y > HOVER_BAND.y:
+			anchor_y = 1.0e9
+		else:
+			anchor_y = clampf(position.y + randf_range(120.0, 240.0), HOVER_BAND.x, HOVER_BAND.y)
 
 
 ## 撞击玩家（对齐原作逐帧轮询）：重叠期间每帧尝试结算——闪避逐帧重掷、
@@ -172,8 +202,6 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 	_dive_target = Vector2.ZERO
 	_dive_timer = 0.0
 	_hovering = false
-	_hover_done = false
-	_hover_timer = 0.0
 	_exiting = false
 	_life_timer = 0.0
 	_exit_speed = 0.0
@@ -186,15 +214,16 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 	setup(config, p_strategy, p_difficulty)
 	_spawn_x = position.x
 	_center = position
+	_phase = randf() * TAU
+	_zig_timer = randf_range(0.15, 0.7)
 	_fire_timer = randf_range(1.0, fire_interval)
+	anchor_y = -1.0
 	if strategy == &"dive":
 		_dive_timer = 1.2
 		if GameState.player_ref != null:
 			_dive_target = GameState.player_ref.global_position
 		else:
 			_dive_target = Vector2(position.x, 1200.0)
-	elif strategy == &"hover":
-		_hover_timer = randf_range(3.0, 5.0)
 
 
 ## 池化回收：停用但保留实例
@@ -247,75 +276,117 @@ func _physics_process(delta: float) -> void:
 	if _life_timer >= LIFETIME:
 		_begin_lifetime_exit()
 		return
+	if anchor_y < 0.0:
+		_resolve_anchor()  # 惰性解析：取首个物理帧的最终出生位置
 	# 慢速力场：全局移速 ×0.8（仅移动位移，不影响射速/寿命/计时）
 	var mdelta := delta * (SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0)
+	var view := GameState.view_world_rect()
 	match strategy:
-		&"straight":
-			position.y += speed * mdelta
+		&"straight", &"hover":
+			if _hovering:
+				# 悬停：绕锚点垂直微浮 + 绕出生槽位缓慢水平摇摆（相位随机，全波错开）
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
+				position.x = clampf(
+					_spawn_x + sin_fast(_time * HOVER_SWAY_FREQ + _phase) * HOVER_SWAY_AMP,
+					view.position.x + 40.0,
+					view.end.x - 40.0
+				)
+			else:
+				position.y += speed * mdelta
 		&"sine":
-			position.y += speed * mdelta
-			position.x = _spawn_x + sin_fast(_time * 3.0) * 90.0
+			position.x = _spawn_x + sin_fast(_time * 3.0 + _phase) * 90.0
+			if _hovering:
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
+			else:
+				position.y += speed * mdelta
 		&"zigzag":
 			_zig_timer -= delta
 			if _zig_timer <= 0.0:
 				_zig_dir = -_zig_dir
 				_zig_timer = 0.7
-			position += Vector2(_zig_dir * speed * 0.9, speed) * mdelta
-			var view := GameState.view_world_rect()
+			position.x += _zig_dir * speed * 0.9 * mdelta
 			if position.x < view.position.x + 40.0 or position.x > view.end.x - 40.0:
 				_zig_dir = -_zig_dir
 				position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
+			if _hovering:
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
+			else:
+				position.y += speed * mdelta
 		&"dive":
 			if _dive_timer > 0.0:
+				# 入场冲刺：直扑玩家当前位置（钳制不越过屏幕下缘安全线）
 				_dive_timer -= delta
 				var dir := (_dive_target - position).normalized()
 				position += dir * speed * 1.7 * mdelta
+				position.y = minf(position.y, view.end.y - 200.0)
+				if _dive_timer <= 0.0:
+					# 冲刺结束后以当前深度与锚点较深者为新锚点，转入悬停
+					anchor_y = clampf(maxf(anchor_y, position.y), HOVER_BAND.x, view.end.y - 200.0)
+			elif _hovering:
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
 			else:
 				position.y += speed * mdelta
 		&"spiral":
-			# 绕转中心匀速下压，机身绕中心小半径转圈
-			_center.y += speed * mdelta
-			position = _center + Vector2(cos_fast(_time * 4.0), sin_fast(_time * 4.0)) * SPIRAL_RADIUS
+			# 绕转中心下压至锚点；悬停后中心绕出生槽位缓慢漂移，不再原地打转
+			if not _hovering:
+				_center.y += speed * mdelta
+			else:
+				_center.x = clampf(
+					_spawn_x + sin_fast(_time * SPIRAL_DRIFT_FREQ + _phase) * SPIRAL_DRIFT_AMP,
+					view.position.x + 40.0,
+					view.end.x - 40.0
+				)
+			position = (
+				_center
+				+ Vector2(cos_fast(_time * 4.0 + _phase), sin_fast(_time * 4.0 + _phase)) * SPIRAL_RADIUS
+			)
 		&"noise":
 			# 正弦叠加伪噪声驱动横向飘移
 			var vx := (
-				(sin_fast(_time * 1.7) + sin_fast(_time * 2.9 + 1.3) + sin_fast(_time * 4.3 + 2.1))
+				(
+					sin_fast(_time * 1.7 + _phase)
+					+ sin_fast(_time * 2.9 + 1.3 + _phase)
+					+ sin_fast(_time * 4.3 + 2.1 + _phase)
+				)
 				/ 3.0 * speed * 1.2
 			)
-			position += Vector2(vx, speed) * mdelta
-			var view := GameState.view_world_rect()
+			position.x += vx * mdelta
 			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
+			if _hovering:
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
+			else:
+				position.y += speed * mdelta
 		&"aggressive":
-			# 追踪性噪声漂移：正弦叠加伪噪声扰动 + 持续偏向玩家 x 的下行
+			# 追踪性噪声漂移：正弦叠加伪噪声扰动 + 持续偏向玩家 x
 			var vx := (
-				(sin_fast(_time * 2.1) + sin_fast(_time * 3.4 + 1.7) + sin_fast(_time * 5.3 + 0.6))
+				(
+					sin_fast(_time * 2.1 + _phase)
+					+ sin_fast(_time * 3.4 + 1.7 + _phase)
+					+ sin_fast(_time * 5.3 + 0.6 + _phase)
+				)
 				/ 3.0 * speed * 1.1
 			)
 			var players := GameState.player_ref
 			if players != null:
 				var dx: float = players.global_position.x - position.x
 				vx += clampf(dx, -1.0, 1.0) * AGGR_CHASE_SPEED
-			position += Vector2(vx, speed * 0.9) * mdelta
-			var view := GameState.view_world_rect()
+			position.x += vx * mdelta
 			position.x = clampf(position.x, view.position.x + 40.0, view.end.x - 40.0)
-		&"hover":
-			if _hover_done:
-				position.y += speed * mdelta
-			elif _hovering:
-				_hover_timer -= delta
-				position.y = HOVER_Y + sin_fast(_time * 2.0) * 6.0  # 停驻轻微浮动
-				if _hover_timer <= 0.0:
-					_hover_done = true
+			if _hovering:
+				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
 			else:
-				position.y += speed * mdelta
-				if position.y >= HOVER_Y:
-					_hovering = true
+				position.y += speed * 0.9 * mdelta
+	# 到达锚点转入悬停机动（dive 冲刺期除外；spiral 以绕转中心为准）
+	if not _hovering:
+		var diving := strategy == &"dive" and _dive_timer > 0.0
+		var ref_y: float = _center.y if strategy == &"spiral" else position.y
+		if not diving and ref_y >= anchor_y:
+			_hovering = true
 
 	if can_shoot:
 		_fire_timer -= delta
 		if _fire_timer <= 0.0:
-			# 悬停期间更高频率点射
-			_fire_timer = fire_interval * (0.5 if _hovering else 1.0)
+			_fire_timer = fire_interval
 			_fire_at_player()
 
 	_check_body_collision()

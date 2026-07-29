@@ -67,7 +67,7 @@
 
 > All keys are rebindable in Settings → Controls (Esc/R are fixed; bindings persist in `user://profile.json`).
 > UI language: English / 中文 via Settings → Modes → Language.
-> Three view zoom levels (1.0 / 1.35 / 1.7, default Medium) and three window sizes (1280×720 / 1600×900 / 1920×1080, default Large) — independent settings, both persisted.
+> Three view zoom levels (1.0 / 1.35 / 1.7, default Small) and three window sizes (1280×720 / 1600×900 / 1920×1080, default Large) — independent settings, both persisted.
 > Aim assist also has three levels (Low / Medium / High, default Medium) under Settings → Modes: the assist is always on — only its strength (magnet radius / pull / target-switch sensitivity) changes, persisted.
 
 ## 🚀 Getting Started

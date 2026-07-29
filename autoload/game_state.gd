@@ -147,8 +147,8 @@ var difficulty: StringName = &"medium"
 ## 设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）
 var ctrl_toggle_mode: bool = false
 var shift_toggle_mode: bool = false
-## 视角档位（profile 持久化，默认 medium；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）
-var view_zoom: StringName = &"medium"
+## 视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）
+var view_zoom: StringName = &"small"
 ## 窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）
 var window_size: StringName = &"large"
 ## 瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）
@@ -372,8 +372,8 @@ const VIEW_ZOOM_ORDER: Array[StringName] = [&"small", &"medium", &"large"]
 
 ## main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算
 var camera_ref: Camera2D = null
-## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 medium 档一致）
-var _view_zoom_factor: float = 1.35
+## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 small 档一致）
+var _view_zoom_factor: float = 1.0
 
 
 ## 切换视角档位（非法/同档忽略），持久化到 profile 并广播

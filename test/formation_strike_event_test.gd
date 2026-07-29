@@ -123,6 +123,7 @@ func _ready() -> void:
 	# ================= 场景 2：状态推进 + 投弹计数（击坠机跳过） =================
 	_start_fast_event(event)
 	_check(event._state == FormationStrikeEvent.State.FORMATION_ENTER, "场景2：启动进入 FORMATION_ENTER")
+	_check(spawner._waves_paused, "场景2：事件启动即暂停普通波次（占用波次槽）")
 	_check(event._crafts.size() == 4, "场景2：中难度 4 架编队")
 	_check(_count_registered_crafts() == 4, "场景2：战机注册 GameState.enemies")
 	if event._crafts.size() > 0:
@@ -141,6 +142,7 @@ func _ready() -> void:
 	_check(event._dropped == 6, "场景2：投弹数 = 存活 3 机 × 2 枚 = 6（击坠机跳过）")
 	_check(_count_bombs() > 0, "场景2：引信未到时炸弹节点存续")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景2：离场结束回 IDLE")
+	_check(not spawner._waves_paused, "场景2：事件结束恢复普通波次")
 	_check(event._cooldown_left > 0.0, "场景2：事件结束进入触发冷却")
 	_check(_count_crafts() == 0, "场景2：离场后战机节点清理")
 	_check(_count_registered_crafts() == 0, "场景2：离场后注册表无残留")
@@ -203,6 +205,7 @@ func _ready() -> void:
 	event.abort()
 	await get_tree().process_frame  # queue_free 帧末生效后再断言清理
 	_check(event._state == FormationStrikeEvent.State.IDLE, "场景5：abort 回 IDLE")
+	_check(not spawner._waves_paused, "场景5：abort 恢复普通波次")
 	_check(_count_crafts() == 0, "场景5：abort 清理全部战机实体")
 	_check(_count_registered_crafts() == 0, "场景5：abort 后注册表无残留")
 	_check(event._cooldown_left > 0.0, "场景5：abort 后冷却照计")

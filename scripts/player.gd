@@ -14,7 +14,7 @@ var ACCEL := 2400.0
 var DECEL := 1800.0
 var BOOST_MULT := 1.8
 var BASE_FIRE_INTERVAL := 0.15
-var BULLET_SPEED := 900.0
+var BULLET_SPEED := 1200.0
 var BULLET_SPREAD_DEG := 15.0
 ## 单发弹伤基底（对齐原作 BULLET_DAMAGE=10 口径；power_shot 每层 ×1.25 乘算）
 var BULLET_DAMAGE := 10
@@ -226,6 +226,13 @@ func fuel_regen_rate() -> float:
 
 func _physics_process(delta: float) -> void:
 	if _dead or _input_locked:
+		# 输入锁定（母舰停靠等）期间 _resolve_aim_point 不执行，锁定目标可能已被
+		# 母舰火力击杀；惰性校验被跳过会导致锁定环残留，需在早退前主动校验
+		if _aim_ring != null and _aim_ring.visible:
+			if not is_instance_valid(_aim_lock_target):
+				_aim_lock_target = null
+				_aim_ring_target = null
+				_aim_ring.hide()
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# Boss 狂暴锁定：移动/冲刺冻结（原作 controls_locked 语义），瞄准与开火照常

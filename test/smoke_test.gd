@@ -93,14 +93,17 @@ func _ready() -> void:
 	player._invincible = 999.0
 
 	# 3.1 新移动模式特征
-	# spiral：横向振幅 + 整体下压
+	# spiral：横向振幅 + 整体下压（机动相位随机，采样窗口取最大偏离）
 	var spiral := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	spiral.setup(spawner.ENEMY_TYPES[2], &"spiral", 1.0)
 	spiral.can_shoot = false
 	spiral.position = Vector2(960.0, 200.0)
 	get_node("Main").add_child(spiral)
-	await get_tree().create_timer(0.8).timeout
-	_check(absf(spiral.position.x - 960.0) > 20.0, "spiral 横向振幅")
+	var max_dev := 0.0
+	for i in 8:
+		await get_tree().create_timer(0.1).timeout
+		max_dev = maxf(max_dev, absf(spiral.position.x - 960.0))
+	_check(max_dev > 20.0, "spiral 横向振幅")
 	_check(spiral.position.y > 200.0, "spiral 整体下压")
 	spiral.queue_free()
 
@@ -120,20 +123,27 @@ func _ready() -> void:
 	_check(dxs.max() - dxs.min() > 1.0, "noise 横向飘移不规则")
 	noise.queue_free()
 
-	# hover：下行 → 停驻 → 再下行离场
+	# hover：下行 → 到达锚点后停驻机动（不再净下降，直到寿命离场）
 	var hov := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	hov.setup(spawner.ENEMY_TYPES[2], &"hover", 1.0)
 	hov.can_shoot = false
 	hov.position = Vector2(960.0, 250.0)
 	get_node("Main").add_child(hov)
-	hov._hover_timer = 1.0  # 缩短停驻时间便于测试
-	await get_tree().create_timer(1.2).timeout
-	_check(hov._hovering, "hover 到达上部 1/3 后停驻")
+	var t_hover := 0.0
+	while not hov._hovering and t_hover < 4.0:
+		await get_tree().create_timer(0.2).timeout
+		t_hover += 0.2
+	_check(hov._hovering, "hover 到达锚点后停驻")
 	var hover_y: float = hov.position.y
 	await get_tree().create_timer(0.5).timeout
 	_check(absf(hov.position.y - hover_y) < 15.0, "hover 停驻期间位置稳定")
-	await get_tree().create_timer(1.2).timeout
-	_check(hov.position.y > hover_y + 10.0, "hover 停驻结束后下行离场")
+	# 停驻期间绕出生槽位水平慢摇摆（相位随机，采样窗口取最大偏离）
+	var max_sway := 0.0
+	for i in 6:
+		await get_tree().create_timer(0.2).timeout
+		max_sway = maxf(max_sway, absf(hov.position.x - 960.0))
+	_check(max_sway > 10.0, "hover 停驻期间水平摇摆")
+	_check(absf(hov.position.y - hov.anchor_y) <= hov.HOVER_BOB_AMP + 1.0, "hover 停驻后不再净下降")
 	hov.queue_free()
 
 	# 3.2 Boss 轮换：第 2 只（boss_kills=1）应为游击型
@@ -368,8 +378,9 @@ func _ready() -> void:
 		"驾驶时玩家钉在对接点"
 	)
 	# 驾驶边界钳制：持续左行被钳在视野内（x ≥ 视图左缘 + 130）
+	# small 档（zoom=1.0）视野最宽，1045→130 约 915px @180px/s 需 ~5.3s，留足余量
 	Input.action_press("move_left")
-	await get_tree().create_timer(4.5).timeout
+	await get_tree().create_timer(6.5).timeout
 	Input.action_release("move_left")
 	_check(
 		absf(ms.position.x - (GameState.view_world_rect().position.x + 130.0)) < 30.0,
@@ -501,9 +512,16 @@ func _ready() -> void:
 	bomb.setup(Vector2(0.0, 300.0), 30.0, 20, 120.0)
 	bomb.position = Vector2(700.0, 300.0)
 	main.add_child(bomb)
-	# 继续出击 → 返回同一局
+	# 继续出击 → 轨道打击动画清场后返回同一局
 	main._base_ui._on_resume_pressed()
-	await get_tree().create_timer(0.2).timeout
+	await get_tree().process_frame
+	# 动画本体由 orbital_strike_test 专测；此处缩短时轴，等待命中清场并播完
+	if main._strike != null:
+		main._strike.DURATION = 0.5
+	var t_strike := 0.0
+	while main._strike != null and t_strike < 3.0:
+		await get_tree().create_timer(0.1).timeout
+		t_strike += 0.1
 	_check(not get_tree().paused and not main._homecoming, "继续出击恢复游戏")
 	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
 	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")

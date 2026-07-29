@@ -239,14 +239,19 @@ func _ready() -> void:
 	_check(main._base_ui.visible, "场景4：过场结束进入基地界面")
 	main._base_ui._on_resume_pressed()
 	await get_tree().process_frame
-	await get_tree().process_frame
+	# 轨道打击动画（orbital_strike_test 专测本体）：缩短时轴，等待命中清场并播完
+	if main._strike != null:
+		main._strike.DURATION = 0.5
+	var t_strike := 0.0
+	while main._strike != null and t_strike < 3.0:
+		await get_tree().create_timer(0.1).timeout
+		t_strike += 0.1
 	# 注册表驱动清场：非 Boss 实体（含事件/波次残留）全清
 	var registry_left := false
 	for e in GameState.enemies:
 		if is_instance_valid(e) and not (e is Boss):
 			registry_left = true
 	_check(not registry_left, "场景4：继续出击后注册表非 Boss 实体清空")
-	await _wait_real(1.0)  # 让白闪 await 收尾
 	# 航母完整撤离 → BOSS_DELAY → IDLE，Boss 解冻（沿用 _on_boss_delay_end）
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 15.0), "场景4：航母撤离后回 IDLE")
 	_check(not spawner._boss_frozen, "场景4：Boss 冻结解除")
