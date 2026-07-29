@@ -169,6 +169,9 @@ func _physics_process(delta: float) -> void:
 			if remaining <= 2.0:
 				position.y = HOVER_Y
 				# 原作无"飞入区域"判定：到位即自动对接（点吸附补间）
+				var hud := get_tree().get_first_node_in_group("hud")
+				if hud != null:
+					hud.show_info_banner(tr("BANNER_MOTHERSHIP_ARRIVED"))
 				_start_docking(GameState.player_ref as Player)
 		State.HOVER:
 			pass  # 兼容保留：自动对接流程下不再经过（见 _start_docking 守卫）

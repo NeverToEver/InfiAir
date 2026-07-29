@@ -2,7 +2,7 @@ extends Node
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
-## MODE: gameplay（默认，Boss 警告画面）/ welcome（欢迎页）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
+## MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/ boss_fight（Boss 名牌 + 血条 + 狂暴态）/ welcome（欢迎页）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰对接）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
 
 const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
@@ -47,6 +47,31 @@ func _ready() -> void:
 			get_node("Main/Spawner")._trigger_boss()
 			for i in FRAMES_BEFORE_SHOT:
 				await get_tree().process_frame
+		"hud":
+			# 常态对局 HUD：垫 buff 让芯片区可见 + 压低 HP 展示低血晕影脉动
+			GameState.add_buff(&"power_shot")
+			GameState.add_buff(&"power_shot")
+			GameState.add_buff(&"spread_shot")
+			GameState.add_buff(&"armor")
+			GameState.add_buff(&"laser_beam")
+			GameState.health = 18.0
+			for i in FRAMES_BEFORE_SHOT:
+				await get_tree().process_frame
+		"boss_fight":
+			# Boss 名牌 + 血条 + 狂暴态（打掉 75% HP 触发狂暴，名牌整行转红）
+			get_node("Main/Spawner")._trigger_boss()
+			var boss: Boss = null
+			for i in 1800:  # 等降入完成进入战斗（上限 30s，窗口低帧率冗余）
+				await get_tree().process_frame
+				for e in GameState.enemies:
+					if e is Boss and (e as Boss)._in_fight:
+						boss = e
+				if boss != null:
+					break
+			if boss != null:
+				boss.take_damage(int(boss.max_hp * 0.75))
+				for i in 120:  # 狂暴转场演出一段后截图
+					await get_tree().process_frame
 		"start_panel":
 			for i in 30:
 				await get_tree().process_frame

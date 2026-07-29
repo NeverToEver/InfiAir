@@ -94,6 +94,8 @@ func _ready() -> void:
 	main._play_return_cinematic()
 	await get_tree().process_frame
 	_check(main._return != null and nav.decide_back_action() == A.SKIP_RETURN, "返航过场：决策=跳过过场")
+	# skip() 有 SKIP_GRACE（1.2s）误触宽限期，期内忽略跳过；先等宽限期结束（真实时间，树已暂停）
+	await get_tree().create_timer(1.3).timeout
 	main._skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -38,7 +38,26 @@ var _event_turrets_label: Label
 var _last_event_alive: int = -1
 var _boss: Boss = null  # 当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）
 var _boss_countdown: Label
+var _boss_name: Label  # Boss 名牌（型号 + 阶段），血条子节点随其显隐
+var _boss_phase: int = Boss.FightPhase.P1
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
+# 受击/低血屏幕反馈（effects.hit_flash / effects.low_hp，_ready 缓存）
+var HIT_FLASH_ALPHA := 0.55
+var HIT_FLASH_TIME := 0.25
+var LOW_HP_RATIO := 0.2
+var LOW_HP_PULSE_MIN := 0.15
+var LOW_HP_PULSE_MAX := 0.3
+var LOW_HP_PULSE_PERIOD := 1.2
+var _vignette: TextureRect
+var _hit_flash: float = 0.0
+var _hit_tween: Tween = null
+var _last_hp_value: float = -1.0
+var _pulse_time: float = 0.0
+var _buff_flow: FlowContainer
+var _last_buff_signature: String = ""
+var _info_plate: ChamferedPanel
+var _info_label: Label
+var _info_tween: Tween = null
 
 
 ## Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层
@@ -55,19 +74,25 @@ class _BossBarTicks:
 func _ready() -> void:
 	add_to_group("hud")
 	POLL_INTERVAL = GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL)
+	HIT_FLASH_ALPHA = GameState.cfg("effects.hit_flash.alpha", HIT_FLASH_ALPHA)
+	HIT_FLASH_TIME = GameState.cfg("effects.hit_flash.time", HIT_FLASH_TIME)
+	LOW_HP_RATIO = GameState.cfg("effects.low_hp.ratio", LOW_HP_RATIO)
+	LOW_HP_PULSE_MIN = GameState.cfg("effects.low_hp.pulse_min", LOW_HP_PULSE_MIN)
+	LOW_HP_PULSE_MAX = GameState.cfg("effects.low_hp.pulse_max", LOW_HP_PULSE_MAX)
+	LOW_HP_PULSE_PERIOD = GameState.cfg("effects.low_hp.pulse_period", LOW_HP_PULSE_PERIOD)
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
-	_score_label.add_theme_font_size_override("font_size", 32)
+	_score_label.add_theme_font_size_override("font_size", UITheme.FONT_SCORE)
 	_score_label.add_theme_color_override("font_color", UITheme.TEXT)
-	_kills_label.add_theme_font_size_override("font_size", 20)
+	_kills_label.add_theme_font_size_override("font_size", UITheme.FONT_HUD)
 	_kills_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
-	_difficulty_label.add_theme_font_size_override("font_size", 20)
+	_difficulty_label.add_theme_font_size_override("font_size", UITheme.FONT_HUD)
 	_difficulty_label.add_theme_color_override("font_color", UITheme.ACCENT)
-	_lives_label.add_theme_font_size_override("font_size", 22)
+	_lives_label.add_theme_font_size_override("font_size", UITheme.FONT_HUD_L)
 	_lives_label.add_theme_color_override("font_color", UITheme.TEXT)
 	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
-		tag.add_theme_font_size_override("font_size", 16)
+		tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
 	_hp_bar.fill_color = UITheme.ACCENT
 	_fuel_bar.fill_color = UITheme.ACCENT
 	_dash_bar.fill_color = UITheme.ACCENT
@@ -95,7 +120,7 @@ func _ready() -> void:
 	_home_charge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_home_charge_label.add_theme_font_override("font", FONT)
 	_home_charge_label.add_theme_font_size_override("font_size", 24)
-	_home_charge_label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0))
+	_home_charge_label.add_theme_color_override("font_color", UITheme.CHARGE_CYAN)
 	_home_charge_label.visible = false
 	add_child(_home_charge_label)
 	# 放弃出击蓄力提示（底部居中，返航提示上方，红色警示）
@@ -106,7 +131,7 @@ func _ready() -> void:
 	_give_up_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_give_up_label.add_theme_font_override("font", FONT)
 	_give_up_label.add_theme_font_size_override("font_size", 24)
-	_give_up_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35))
+	_give_up_label.add_theme_color_override("font_color", UITheme.DANGER)
 	_give_up_label.visible = false
 	add_child(_give_up_label)
 	# 提前离舰蓄力进度条（驻留母舰时长按 H，底部居中，放弃提示上方）
@@ -121,17 +146,38 @@ func _ready() -> void:
 	_early_leave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_early_leave_label.add_theme_font_override("font", FONT)
 	_early_leave_label.add_theme_font_size_override("font_size", 24)
-	_early_leave_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.35))
+	_early_leave_label.add_theme_color_override("font_color", UITheme.WARN_YELLOW)
 	_early_leave_box.add_child(_early_leave_label)
 	var bar_bg := ColorRect.new()
 	bar_bg.color = Color(1.0, 1.0, 1.0, 0.15)
 	bar_bg.custom_minimum_size = Vector2(280.0, 10.0)
 	_early_leave_box.add_child(bar_bg)
 	_early_leave_fill = ColorRect.new()
-	_early_leave_fill.color = Color(1.0, 0.8, 0.35)
+	_early_leave_fill.color = UITheme.WARN_YELLOW
 	_early_leave_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	_early_leave_fill.anchor_right = 0.0
 	bar_bg.add_child(_early_leave_fill)
+	# 名牌行占位：血条整体下移 30px，上方留出一行型号 + 阶段标签
+	_boss_bar.offset_top += 30.0
+	_boss_bar.offset_bottom += 30.0
+	# Boss 名牌（型号 + 阶段，血条子节点随其显隐；事件与 Boss 互斥不会同屏）
+	# 深色底衬保证叠在 Boss 机体/辉光上时可读
+	var name_plate := PanelContainer.new()
+	name_plate.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	name_plate.position = Vector2(-300.0, -34.0)
+	name_plate.custom_minimum_size = Vector2(600.0, 0.0)
+	name_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plate_style := StyleBoxFlat.new()
+	plate_style.bg_color = Color(0.02, 0.05, 0.09, 0.6)
+	name_plate.add_theme_stylebox_override("panel", plate_style)
+	_boss_name = Label.new()
+	_boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_boss_name.add_theme_font_override("font", FONT)
+	_boss_name.add_theme_font_size_override("font_size", UITheme.FONT_HUD)
+	_boss_name.add_theme_color_override("font_color", UITheme.TEXT)
+	_boss_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_plate.add_child(_boss_name)
+	_boss_bar.add_child(name_plate)
 	# Boss 血条阶段刻度线（70%/30%，覆盖在血条上随其显隐）
 	var ticks := _BossBarTicks.new()
 	ticks.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -140,15 +186,20 @@ func _ready() -> void:
 	# Boss 逃跑倒计时（血条下方，剩余 ≤10s 起显示，红色闪烁）
 	_boss_countdown = Label.new()
 	_boss_countdown.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_boss_countdown.position = Vector2(-100.0, 48.0)
+	_boss_countdown.position = Vector2(-100.0, 78.0)
 	_boss_countdown.custom_minimum_size = Vector2(200.0, 0.0)
 	_boss_countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_countdown.add_theme_font_override("font", FONT)
-	_boss_countdown.add_theme_font_size_override("font_size", 22)
+	_boss_countdown.add_theme_font_size_override("font_size", UITheme.FONT_HUD_L)
 	_boss_countdown.add_theme_color_override("font_color", UITheme.DANGER)
 	_boss_countdown.visible = false
 	add_child(_boss_countdown)
 	_build_event_bar()
+	_build_vignette()
+	_build_buff_chips()
+	_build_info_banner()
+	GameState.buffs_changed.connect(_rebuild_buff_chips)
+	_rebuild_buff_chips()
 
 
 ## 精英炮塔事件计时条（顶部居中，Boss 血条下方；与 Boss 互斥不会同屏）
@@ -165,17 +216,17 @@ func _build_event_bar() -> void:
 	_event_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_event_title.add_theme_font_override("font", FONT)
 	_event_title.add_theme_font_size_override("font_size", 18)
-	_event_title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.75))
+	_event_title.add_theme_color_override("font_color", UITheme.EVENT_MAGENTA)
 	_event_box.add_child(_event_title)
 	_event_bar = SegmentedBar.new()
 	_event_bar.custom_minimum_size = Vector2(600.0, 12.0)
 	_event_bar.segments = 30
-	_event_bar.fill_color = Color(1.0, 0.25, 0.75)
+	_event_bar.fill_color = UITheme.EVENT_MAGENTA
 	_event_box.add_child(_event_bar)
 	_event_turrets_label = Label.new()
 	_event_turrets_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_event_turrets_label.add_theme_font_override("font", FONT)
-	_event_turrets_label.add_theme_font_size_override("font_size", 16)
+	_event_turrets_label.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
 	_event_turrets_label.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	_event_box.add_child(_event_turrets_label)
 
@@ -249,6 +300,7 @@ func _build_magazine_bar() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_vignette(delta)
 	# 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
 	_poll_timer -= delta
 	if _poll_timer > 0.0:
@@ -312,7 +364,7 @@ func _build_backplates() -> void:
 	score_tag.text = tr("UI_SCORE_TAG")
 	score_tag.position = Vector2(22.0, 2.0)
 	score_tag.add_theme_font_override("font", FONT)
-	score_tag.add_theme_font_size_override("font_size", 16)
+	score_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
 	score_tag.add_theme_color_override("font_color", UITheme.ACCENT)
 	add_child(score_tag)
 	var status_plate := ChamferedPanel.new()
@@ -326,7 +378,7 @@ func _build_backplates() -> void:
 	lives_tag.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	lives_tag.position = Vector2(22.0, -102.0)
 	lives_tag.add_theme_font_override("font", FONT)
-	lives_tag.add_theme_font_size_override("font_size", 16)
+	lives_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
 	lives_tag.add_theme_color_override("font_color", UITheme.ACCENT)
 	add_child(lives_tag)
 	# 刷新时同步小标签语言
@@ -338,9 +390,10 @@ func show_popup(text: String, world_pos: Vector2) -> void:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", 22)
+	label.add_theme_font_size_override("font_size", UITheme.FONT_HUD_L)
 	label.add_theme_color_override("font_color", UITheme.TEXT)
-	label.position = world_pos - Vector2(40.0, 40.0)
+	# 世界坐标 → CanvasLayer 屏幕坐标（修视角 zoom≠1 时错位）
+	label.position = get_viewport().get_canvas_transform() * world_pos - Vector2(40.0, 40.0)
 	add_child(label)
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -355,7 +408,7 @@ func _build_banner() -> void:
 	_banner_plate.position = Vector2(-300.0, 140.0)
 	_banner_plate.size = Vector2(600.0, 80.0)
 	_banner_plate.brackets = true
-	_banner_plate.bg_color = Color(0.35, 0.06, 0.10, 0.7)
+	_banner_plate.bg_color = UITheme.BANNER_DANGER_BG
 	_banner_plate.border_color = Color(UITheme.DANGER, 0.6)
 	_banner_plate.bracket_color = UITheme.DANGER
 	_banner_plate.visible = false
@@ -410,10 +463,12 @@ func show_boss_bar(boss: Boss) -> void:
 	_boss_bar.value = 100.0
 	_boss = boss
 	_boss_countdown.visible = false
+	_boss_phase = Boss.FightPhase.P1
 	boss.health_changed.connect(_on_boss_health_changed)
 	boss.died.connect(_on_boss_died)
 	boss.enraged.connect(_on_boss_enraged)
 	boss.phase_changed.connect(_on_boss_phase_changed)
+	_refresh_boss_name()
 
 
 func _on_score_changed(new_score: int) -> void:
@@ -426,6 +481,14 @@ var _last_hp_text: String = ""
 
 func _on_health_changed(new_health: float) -> void:
 	var max_hp := GameState.max_health()
+	# 受击红闪：HP 下降沿触发 alpha 脉冲（tween 衰减，低血脉动取两者较大值）
+	if _last_hp_value >= 0.0 and new_health < _last_hp_value:
+		_hit_flash = HIT_FLASH_ALPHA
+		if _hit_tween != null and _hit_tween.is_valid():
+			_hit_tween.kill()
+		_hit_tween = create_tween()
+		_hit_tween.tween_property(self, "_hit_flash", 0.0, HIT_FLASH_TIME)
+	_last_hp_value = new_health
 	_hp_bar.value = clampf(new_health / max_hp, 0.0, 1.0) * 100.0
 	_hp_bar.fill_color = UITheme.DANGER if new_health / max_hp < 0.3 else UITheme.ACCENT
 	var text := "%d/%d" % [ceili(new_health), int(max_hp)]
@@ -454,6 +517,9 @@ func _on_locale_changed() -> void:
 	if _event_box != null and _event_box.visible:
 		_event_title.text = tr("ETV_TITLE")
 		_event_turrets_label.text = tr("ETV_TURRETS") % maxi(_last_event_alive, 0)
+	_rebuild_buff_chips(true)
+	if _boss_bar.visible:
+		_refresh_boss_name()
 
 
 ## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）
@@ -475,10 +541,146 @@ func _on_boss_died() -> void:
 
 func _on_boss_enraged() -> void:
 	_boss_bar.fill_color = UITheme.DANGER
+	_refresh_boss_name()
 
 
 ## 阶段切换瞬间血条短闪（§4.2）
-func _on_boss_phase_changed(_phase: int) -> void:
+func _on_boss_phase_changed(phase: int) -> void:
+	_boss_phase = phase
+	_refresh_boss_name()
 	_boss_bar.modulate = Color(2.2, 2.2, 2.2)
 	var tween := create_tween()
 	tween.tween_property(_boss_bar, "modulate", Color.WHITE, 0.3)
+
+
+## Boss 名牌：型号名 + 阶段标签（狂暴整行 DANGER）
+func _refresh_boss_name() -> void:
+	if _boss == null or not is_instance_valid(_boss):
+		return
+	var phase_text: String
+	match _boss_phase:
+		Boss.FightPhase.P2:
+			phase_text = "P2"
+		Boss.FightPhase.ENRAGE:
+			phase_text = tr("BOSS_PHASE_ENRAGE")
+		_:
+			phase_text = "P1"
+	_boss_name.text = "%s · %s" % [tr("BOSS_TYPE_%d" % _boss.boss_type), phase_text]
+	_boss_name.add_theme_color_override(
+		"font_color", UITheme.DANGER if _boss_phase == Boss.FightPhase.ENRAGE else UITheme.TEXT
+	)
+
+
+## 受击/低血屏幕反馈：全屏径向渐变（无新资产，GradientTexture2D 程序化）
+func _build_vignette() -> void:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.2, 0.3, 0.0))
+	gradient.set_color(1, Color(1.0, 0.2, 0.35, 1.0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = gradient
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 512
+	tex.height = 512
+	_vignette = TextureRect.new()
+	_vignette.texture = tex
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.modulate.a = 0.0
+	add_child(_vignette)
+	move_child(_vignette, 0)
+
+
+## 每帧算 vignette alpha：受击红闪衰减与低血正弦脉动取较大值，恢复后归 0
+func _update_vignette(delta: float) -> void:
+	if _vignette == null:
+		return
+	var alpha := _hit_flash
+	var max_hp := GameState.max_health()
+	if GameState.health > 0.0 and GameState.health < max_hp * LOW_HP_RATIO:
+		_pulse_time += delta
+		var s := (sin(_pulse_time * TAU / LOW_HP_PULSE_PERIOD) + 1.0) * 0.5
+		alpha = maxf(alpha, lerpf(LOW_HP_PULSE_MIN, LOW_HP_PULSE_MAX, s))
+	else:
+		_pulse_time = 0.0
+	_vignette.modulate.a = alpha
+
+
+## 左下 buff 芯片容器（仪表区上方，向上生长，间距 6，超出换行）
+func _build_buff_chips() -> void:
+	_buff_flow = FlowContainer.new()
+	_buff_flow.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_buff_flow.position = Vector2(10.0, -108.0)
+	_buff_flow.custom_minimum_size = Vector2(560.0, 0.0)
+	# grow_vertical 默认 BEGINNING（向上生长），底边保持在仪表区上方
+	_buff_flow.add_theme_constant_override("h_separation", 6)
+	_buff_flow.add_theme_constant_override("v_separation", 6)
+	_buff_flow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buff_flow.visible = false
+	add_child(_buff_flow)
+
+
+## buffs_changed / locale_changed 驱动重建；内容签名不变不重建
+func _rebuild_buff_chips(force: bool = false) -> void:
+	var signature := ""
+	for id: StringName in GameState.buffs:
+		var stacks: int = GameState.buffs[id]
+		if stacks > 0:
+			signature += "%s:%d;" % [String(id), stacks]
+	if not force and signature == _last_buff_signature:
+		return
+	_last_buff_signature = signature
+	for chip: Control in _buff_flow.get_children():
+		chip.queue_free()
+	_buff_flow.visible = not signature.is_empty()
+	for id: StringName in GameState.buffs:
+		var stacks: int = GameState.buffs[id]
+		if stacks > 0:
+			_buff_flow.add_child(
+				UITheme.make_buff_chip(tr("BUFF_%s_NAME" % String(id).to_upper()), stacks)
+			)
+
+
+## 信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁
+func _build_info_banner() -> void:
+	_info_plate = ChamferedPanel.new()
+	_info_plate.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_info_plate.position = Vector2(-300.0, 232.0)
+	_info_plate.size = Vector2(600.0, 64.0)
+	_info_plate.brackets = true
+	_info_plate.bg_color = UITheme.BTN_PRIMARY_BG
+	_info_plate.border_color = Color(UITheme.ACCENT, 0.6)
+	_info_plate.bracket_color = UITheme.ACCENT
+	_info_plate.visible = false
+	add_child(_info_plate)
+	_info_label = Label.new()
+	_info_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_info_label.position = Vector2(-300.0, 232.0)
+	_info_label.custom_minimum_size = Vector2(600.0, 64.0)
+	_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_info_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_info_label.add_theme_font_override("font", FONT)
+	_info_label.add_theme_font_size_override("font_size", UITheme.FONT_TITLE)
+	_info_label.add_theme_color_override("font_color", UITheme.ACCENT)
+	_info_label.visible = false
+	add_child(_info_label)
+
+
+## 信息横幅：显示 ~1.6s 后淡出（位于警告横幅下方，不与其重叠）
+func show_info_banner(text: String) -> void:
+	_info_label.text = text
+	_info_plate.visible = true
+	_info_label.visible = true
+	_info_plate.modulate.a = 1.0
+	_info_label.modulate.a = 1.0
+	if _info_tween != null and _info_tween.is_valid():
+		_info_tween.kill()
+	_info_tween = create_tween()
+	_info_tween.tween_interval(1.6)
+	_info_tween.set_parallel(true)
+	_info_tween.tween_property(_info_plate, "modulate:a", 0.0, 0.4)
+	_info_tween.tween_property(_info_label, "modulate:a", 0.0, 0.4)
+	_info_tween.chain().tween_callback(_info_plate.hide)
+	_info_tween.tween_callback(_info_label.hide)

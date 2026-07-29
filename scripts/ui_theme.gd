@@ -19,6 +19,10 @@ const BTN_HOVER := Color(0.0, 0.83, 1.0, 0.12)
 const BTN_PRESSED := Color(0.0, 0.83, 1.0, 0.25)
 const BTN_PRIMARY_BG := Color(0.0, 0.83, 1.0, 0.18)  # 主按钮底（ACCENT 18% alpha）
 const DIM_BG := Color(0.0, 0.0, 0.0, 0.6)  # 全屏遮罩
+const EVENT_MAGENTA := Color(1.0, 0.25, 0.75)  # 随机事件/通讯品红
+const WARN_YELLOW := Color(1.0, 0.8, 0.35)  # 蓄力/提示黄
+const CHARGE_CYAN := Color(0.5, 0.9, 1.0)  # 蓄力青
+const BANNER_DANGER_BG := Color(0.35, 0.06, 0.10, 0.7)  # 警告横幅底
 
 # 虚影基地皮肤 token（docs/RETURN_HOME_CINEMATIC.md §3.2，与现有 token 并存不替换）
 const PHANTOM_BG := Color(0.01, 0.03, 0.06, 0.90)  # 基地全屏底（比原 dim 更冷更深）
@@ -29,9 +33,13 @@ const PHANTOM_SCAN := Color(0.0, 0.83, 1.0, 0.06)  # 扫描线/毛玻璃叠加�
 # 字号阶梯：层级靠字号/颜色/透明度区分（字体仅 NotoSansSC.ttf 一款，OFL 开源可分发）
 const FONT_DISPLAY := 72  # 超大展示（主标题/结算大数字）
 const FONT_TITLE := 40  # 页标题
+const FONT_SCORE := 32  # 大数值（得分等）
 const FONT_HEADER := 28  # 卡片名/主按钮
 const FONT_BODY := 24  # 正文/次按钮
+const FONT_HUD_L := 22  # HUD 大字（通讯字幕等）
+const FONT_HUD := 20  # HUD 正文
 const FONT_CAPTION := 18  # 说明/分组标题/角落提示
+const FONT_SMALL := 16  # 小字（芯片/标签）
 
 const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
@@ -94,6 +102,30 @@ static func make_toggle_button(text: String, group: ButtonGroup) -> Button:
 	button.add_theme_font_override("font", FONT)
 	button.add_theme_font_size_override("font_size", FONT_BODY)
 	return button
+
+
+## Buff 芯片：小尺寸自适应 ChamferedPanel（无括号），
+## 内 HBox：名称（FONT_SMALL/TEXT_DIM）+ 层数 pip（"●"×stacks，FONT_SMALL/ACCENT_GOLD；stacks<=0 不加 pip）。
+static func make_buff_chip(label_text: String, stacks: int) -> Control:
+	var panel := ChamferedPanel.new()
+	panel.chamfer = 8.0
+	panel.padding = 0.0
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_bottom", 4)
+	panel.add_child(margin)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 6)
+	margin.add_child(hbox)
+	hbox.add_child(make_label(label_text, FONT_SMALL, TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+	if stacks > 0:
+		hbox.add_child(make_label("●".repeat(stacks), FONT_SMALL, ACCENT_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
+	return panel
 
 
 ## 分组标题：小号 CAPTION 标题（左对齐）+ 下方 1px 分隔线（ACCENT_DIM）

@@ -78,6 +78,7 @@
 | — | 07-27 | （待提交） | 默认窗口高分屏修复：Godot 在 macOS Retina 上按物理像素计窗口尺寸，1920×1080 实际只显示为半尺寸小窗；`_apply_window_size()` 改为档位逻辑点×`screen_get_scale` 换算物理像素、钳制到 `screen_get_usable_rect` 并居中，首启无 profile 时也应用默认档；1× 屏行为不变 |
 | — | 07-28 | （待提交） | Boss 行为重设计三期落地（`docs/BOSS_REDESIGN.md`，五条演进偏离见决策 8）：HP 阶段模式表（P1/P2/ENRAGE）+ telegraph 前摇 + 狂暴定身改减速 ×0.35 + 血条阶段刻度/逃跑倒计时 + 三型 P2 新攻击与专属狂暴 + 难度分档（`boss.phases`/`boss.enrage.type_*`/`boss.difficulty_scaling`）（断言：boss_phase + boss_enrage + boss_pattern 三场景） |
 | — | 07-29 | （待提交） | 数值平衡修订（对标 Python 原作与 Nova Drift/20MTD/VS/GW 惯例审计）：① 敌机 HP 随 Boss 击杀线性 ramp（新键 `enemies.hp_ramp_factor`=0.12，×(1+0.12×(难度乘数-1))，精英同路径）；② Boss HP 接入难度档 ×0.75/1.0/1.5（`GameState.enemy_hp_multiplier()`，boss_pattern 场景6 断言同步反转）；③ laser_beam 脱离选取陷阱：tick 伤害 10→16、冷却 10s→8s；④ power_shot/rapid_fire 叠加封顶 5/4 层（新键 `buffs.*.max_stacks`，卡片描述中英同步） |
+| — | 07-29 | （待提交） | 游戏内 UI 优化（对标 Nova Drift/VS/东方/Darius 惯例）：HUD 新增 buff 状态芯片区（`UITheme.make_buff_chip`，`buffs_changed` 驱动）；受击边缘红闪 + 低血 <20% 晕影脉动（`effects.hit_flash`/`effects.low_hp` 新键）；Boss 血条上方名牌（型号 `BOSS_TYPE_*` + P1/P2/狂暴阶段，深色底衬）；母舰到达信息横幅（`BANNER_MOTHERSHIP_ARRIVED`）；Buff 卡升级（层数 ●○ 点阵、NEW! 徽标、进攻/机动/通用分类标签、stagger 入场、hover 1.05 缩放、选取 ~200ms 确认动效）；SegmentedBar 末段部分填充去跳格；hud/comm_overlay 硬编码色值字号全部归入 ui_theme token（新增 EVENT_MAGENTA/WARN_YELLOW/CHARGE_CYAN/BANNER_DANGER_BG 与 FONT_SMALL/HUD/HUD_L/SCORE）；修 show_popup 视角缩放错位与 back_navigation 既有失败（返航 skip 1.2s 宽限期测试未等待） |
 
 文档类提交（README/AGENTS.md/CLAUDE.md/计划文档）未列入，见 git 日志。
 

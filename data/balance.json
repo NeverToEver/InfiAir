@@ -546,6 +546,16 @@
 			"mothership": 4.0,
 			"decay": 6.0
 		},
+		"hit_flash": {
+			"alpha": 0.55,
+			"time": 0.25
+		},
+		"low_hp": {
+			"ratio": 0.2,
+			"pulse_min": 0.15,
+			"pulse_max": 0.3,
+			"pulse_period": 1.2
+		},
 		"starfield": {
 			"far_count": 140,
 			"near_count": 90,

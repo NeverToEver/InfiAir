@@ -23,12 +23,12 @@ func _init() -> void:
 	_panel.position = Vector2(24.0, 760.0)
 	_panel.size = Vector2(760.0, 96.0)
 	_panel.bg_color = Color(0.10, 0.03, 0.09, 0.78)
-	_panel.border_color = Color(1.0, 0.25, 0.75, 0.6)  # 精英品红描边
-	_panel.bracket_color = Color(1.0, 0.25, 0.75)
+	_panel.border_color = Color(UITheme.EVENT_MAGENTA, 0.6)  # 精英品红描边
+	_panel.bracket_color = UITheme.EVENT_MAGENTA
 	_panel.brackets = true
 	_panel.visible = false
 	add_child(_panel)
-	_label = UITheme.make_label("", UITheme.FONT_BODY - 2, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+	_label = UITheme.make_label("", UITheme.FONT_HUD_L, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
 	_label.position = Vector2(20.0, 14.0)
 	_label.custom_minimum_size = Vector2(720.0, 68.0)
 	_label.size = Vector2(720.0, 68.0)
