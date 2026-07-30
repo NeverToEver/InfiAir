@@ -2,8 +2,8 @@
 
 本文档是 Boss 行为重设计的单一事实源：现状审计、参考模式、重设计方案、实施分期与测试计划。
 **任何 Boss 行为改动必须先对齐本文档；实施阶段的变更回写本文档。**
-与移植对齐的关系：现 Boss 行为是对原作（`../airwar-game`）的忠实移植（见 `docs/PORTING_PARITY.md`），
-本重设计是**有意的演进偏离**——偏离点逐条登记在 §7.3，PORTING_PARITY 相应条目标注「演进取代」。
+重设计前的旧行为移植自 Python 原作（对齐记录已归档于 `docs/archive/PORTING_PARITY.md`，仅作溯源参考）；
+本重设计是独立演进，演进决策记录见 §7.3。
 
 ---
 
@@ -27,7 +27,7 @@
 | P1 | **狂暴无型号身份**：三型共用同一序列，最高潮时刻打法完全一致，且每场战斗重复 | boss.gd `_update_enrage_sequence` 无 boss_type 分支 |
 | P2 | **常规阶段是节拍器**：HP 100%→30% 打法零变化；每型仅 1–2 个攻击按固定间隔轮转，无模式循环、无压力曲线 | `_fire_timer` 固定 `FIRE_INTERVALS`，`_fan_next` 二元交替 |
 | P3 | **重攻击零预警**：650 弹速自机狙 3 连发（0.12s 间隔）、380 扇形、追踪弹全部瞬发，无前摇/瞄准线/蓄力表现，公平性差 | `_fire_sniper/_fire_fan/_fire_homing` 直接出弹 |
-| P4 | **狂暴冻结玩家移动约 6s**：弹幕密度最高的时刻剥夺躲避手段，靠锁血和运气通过，挫败感强（对齐原作但为重设计对象） | `_lock_player_movement` 覆盖 TRANSITION+ACTIVE |
+| P4 | **狂暴冻结玩家移动约 6s**：弹幕密度最高的时刻剥夺躲避手段，靠锁血和运气通过，挫败感强（旧行为，本次重设计对象） | `_lock_player_movement` 覆盖 TRANSITION+ACTIVE |
 | P5 | **难度只加血**：hard = 更长的海绵战而非更丰富的压力，easy/hard 弹幕完全相同 | `setup()` 仅 HP 乘难度；`FIRE_INTERVALS` 等无难度维度 |
 | P6 | **走位一维**：固定 y=230 水平往返，玩家蹲正下方跟踪 x 即最优解，无位置博弈、无纵向往复 | `_move_strafe/_move_dash` 只写 position.x |
 | P7 | **逃跑计时不可见**：仅最后 3s 警告，低 DPS 构建被惩罚却不知原因 | `_show_escape_warning` 在 47s 才出现 |
@@ -58,7 +58,7 @@
   每段独立模式表循环，段间有明确切换演出；血条加阶段刻度（解决 P8）。
 - **G3 一切重攻击有预警**：所有弹速 ≥500 或伤害 ≥20 的攻击配 ≥0.35s telegraph（蓄力辉光/瞄准线/音调）。
 - **G4 保留躲避主动权**：狂暴期「冻结移动」改为「强制减速 ×0.35」（玩家仍可位移/射击/冲刺）；
-  定身语义从本作移除（偏离原作，见 §7.3）。
+  定身语义从本作移除（演进决策，见 §7.3）。
 - **G5 难度影响模式而非只 HP**：模式参数表按难度取（弹数/间隔/弹速分档），HP 倍率保留。
 - **G6 逃跑计时可见**：血条最后 10s 显示逃跑倒计时（解决 P7）。
 
@@ -101,7 +101,7 @@ FIGHT（常规）
 
 模式参数表增加难度维度（easy/medium/hard 三列），作用于：弹数 ±1/±2、开火间隔 ×1.15/×1/×0.85、
 弹速 ×0.9/×1/×1.1。HP 的 Boss 击杀 ramp 乘数不变；2026-07-29 平衡修订起 Boss HP 另按难度档
-×0.75/×1/×1.5（`GameState.enemy_hp_multiplier()`，与敌机同源，对齐原作"波次 HP 分档推导 Boss HP"）。
+×0.75/×1/×1.5（`GameState.enemy_hp_multiplier()`，与敌机同源，沿用「波次 HP 分档推导 Boss HP」口径）。
 
 ### 4.5 逃跑计时可见
 
@@ -163,12 +163,12 @@ FIGHT（常规）
 - 重构 `test/boss_enrage_test.tscn`：定身断言改减速断言；阶段 B 再补三型差异化断言。
 - 回归：`hit_logic_test`、`difficulty_test`、`smoke_test`、`autoplay_test`（[ANOMALY] 探针）、`--quit-after 300`。
 
-### 7.3 对原作的刻意偏离（登记进 PORTING_PARITY）
+### 7.3 演进决策记录（曾登记于 PORTING_PARITY，2026-07-30 已归档）
 
-1. 狂暴期玩家定身 → 强制减速 ×0.35（P4，原作 is_controls_locked 语义不移植）。
-2. 三型共用狂暴序列 → 各型专属狂暴（P1，原作 EnrageSubMachine 单一序列仅作框架参考）。
-3. 固定节拍器 → HP 阶段模式表（P2，原作无阶段概念）。
-4. 瞬发狙/扇形 → telegraph 前摇（P3，原作无前摇）。
+1. 狂暴期玩家定身 → 强制减速 ×0.35（P4，定身语义不再保留）。
+2. 三型共用狂暴序列 → 各型专属狂暴（P1）。
+3. 固定节拍器 → HP 阶段模式表（P2）。
+4. 瞬发狙/扇形 → telegraph 前摇（P3）。
 5. 难度只乘 HP → 模式参数分档（P5）。
 
 ### 7.4 兼容约束
@@ -192,7 +192,7 @@ FIGHT（常规）
   编队齐射 minion_volley / 弹幕墙 bullet_wall）+ 三型差异化狂暴（`_update_enrage_sequence`
   按 boss_type 分发，参数 `boss.enrage.type_*`）；`spawner.spawn_minion(pos) -> Enemy` 返回实例。
 - **阶段 C（数值与验证）**：难度分档 `_apply_difficulty_scaling()`（见 §8.3）；
-  数值验证见 §8.4；文档回写（本节、PORTING_PARITY §7.3、AGENTS.md）。
+  数值验证见 §8.4；文档回写（本节、AGENTS.md）。
 
 ### 8.2 实施中的自决点（设计文档未明确处）
 

@@ -2,11 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**本仓库的权威约定文档是 `AGENTS.md`**（碰撞层、测试策略、性能约定、i18n、调参流程、GDScript 风格），改动前必读；本文件只提供入口级概览。玩法移植对齐见 `docs/PORTING_PARITY.md`，玩法变更需同步更新该文档对应行。
+**本仓库的权威约定文档是 `AGENTS.md`**（碰撞层、测试策略、性能约定、i18n、调参流程、GDScript 风格），改动前必读；本文件只提供入口级概览。未来方向与阶段计划见 `docs/ROADMAP.md`。
 
 ## 项目概览
 
-InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 渲染器，无外部插件），`../airwar-game`（Python/Pygame）的重制版。竖向卷动星空、波次敌机、里程碑 Buff 三选一、周期 Boss 战 + 狂暴、母舰补给、返航中场整备。纯得分制。
+InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 渲染器，无外部插件）。早期重制自 `airwar-game`（Python/Pygame），经大规模扩展后已独立演进（历史对齐记录归档于 `docs/archive/PORTING_PARITY.md`）。竖向卷动星空、波次敌机、里程碑 Buff 三选一、周期 Boss 战 + 狂暴、母舰补给、返航中场整备。纯得分制。
 
 - 主场景 `scenes/main.tscn`，窗口 1920×1080（stretch = canvas_items / keep）。
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`）——全局状态/信号总线、音效池、`GameState.cfg()` 数值访问、存档持久化。
@@ -48,7 +48,7 @@ $G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 
 - `main.gd` 是对局编排核心：刷怪、里程碑 Buff、Boss 调度、母舰蓄力、返航计时都在此串联。
 - 数值配置中心：所有可调数值在 `data/balance.json`，统一经 `GameState.cfg("player.fuel.drain" 式路径, 默认值)` 访问；**调参只改 JSON 不改脚本常量**（脚本内同名 var 是回退默认值，需与 JSON 一致）；热路径在 `_ready()` 一次性读入，禁止每帧 cfg 查询。
-- 碰撞层：`1=player 2=player_bullet 3=enemy(含boss) 4=enemy_bullet`；子弹侧结算伤害；玩家受击只看 `Hitbox` Area2D（r=7）；敌机/Boss 身体撞击走逐帧 `overlaps_area` 轮询（对齐原作）；狂暴前非致死伤害钳到 30% 阈值（`boss.gd` `ENRAGE_HP_RATIO`）。
+- 碰撞层：`1=player 2=player_bullet 3=enemy(含boss) 4=enemy_bullet`；子弹侧结算伤害；玩家受击只看 `Hitbox` Area2D（r=7）；敌机/Boss 身体撞击走逐帧 `overlaps_area` 轮询；狂暴前非致死伤害钳到 30% 阈值（`boss.gd` `ENRAGE_HP_RATIO`）。
 - 实体 `setup()` 在 `_ready()` 之前调用，其中不能用 `@onready` 变量，需用 `$节点路径`。
 - 视角缩放与窗口大小各三档（两套独立设置）：相机固定 (960,540) 只设 `zoom`，一切"屏幕边缘/刷怪位置"逻辑必须走 `GameState.view_world_rect()`，不得写死 1920×1080。
 - 性能约定：子弹/敌机走对象池（`GameState.bullet_pool.fire()` / `enemy_pool.spawn()`），热路径禁止每帧 `get_nodes_in_group`（用 `GameState.enemies` / `player_ref` 注册表），禁止 `_physics_process` 直接调 sin/cos（用 `Enemy.sin_fast/cos_fast` 查表）。

@@ -2,7 +2,7 @@
 
 # 🛩️ InfiAir · 无限空域
 
-**一款 2D 俯视空战射击游戏 —— 使用 Godot 4 + GDScript 构建，重制自 Python 原作 [airwar-game](https://github.com/NeverToEver/airwar-game)**
+**一款 2D 俯视空战射击游戏 —— 使用 Godot 4 + GDScript 构建**（早期重制自 Python 项目 [airwar-game](https://github.com/NeverToEver/airwar-game)，现已独立演进）
 
 [English](./README.en.md) · **中文**
 
@@ -38,7 +38,7 @@
 - **母舰对接火力平台**：长按蓄力召唤（虚影预告），到位自动吸附对接；驻留弹匣制（10 格 × 2s）——双炮塔向上 80° 扫射 + 导弹齐射（≤5 目标），WASD 直接驾驶；余 4 格弹药警告、5s 后强制离舰，也可长按 H 提前离舰（带进度条）按剩余量折算冷却。
 - **精英炮塔事件**：偶遇精英打击航母自深空降入——按难度升起 3/4/5 座弱锁定索敌炮台（限速转台 + 出膛散布 + 弱追踪弹），30 秒限时全歼；指挥官通讯台词随摧毁进度播放，基座环即状态灯；与 Boss 调度严格互斥，全歼 +500 分（乘难度倍率）。
 - **轰炸编队事件**：楔形编队突入投弹——引信制炸弹下落，预警圈随引信同步收缩，AoE 只伤玩家；全歼编队有小额奖励。最低优先级随机事件：不冻结 Boss、不暂停波次，可被返航打断。
-- **基地中场整备**：返航不终局——战机库 / 武器挂载（互斥天赋路线）/ 维修补给（RP 经济）/ 任务规划四模块，整备后返回同一局；继续出击时播放**轨道打击清场动画**（瞄准具锁定 → 导弹下落 → 光柱清场，Boss 保留），对齐原作 ORBITAL_STRIKE。
+- **基地中场整备**：返航不终局——战机库 / 武器挂载（互斥天赋路线）/ 维修补给（RP 经济）/ 任务规划四模块，整备后返回同一局；继续出击时播放**轨道打击清场动画**（瞄准具锁定 → 导弹下落 → 光柱清场，Boss 保留）。
 - **返航过场与虚影基地**：长按 B 触发 16.8s 七镜头返航过场——曲率充能、跃迁端口、虚影站「曙光·残响」捕获对接、停机坪降落、归舱入眠（与开场过场对位，Esc/任意键可跳过）；基地控制台为全息虚影皮肤（半透明面板 + 扫描线 + 数据抖动），过场渐暗后无缝淡入。
 - **全息科幻 UI 设计系统**：统一色板与字号阶梯、切角面板、主次按钮层级、逐条淡入动效；全部页面（开始/设置/暂停/结算/Buff/基地）同一骨架。
 - **街机级可视性**：战机提亮 + 青色描边辉光，受击判定点（r=7）配闪烁光点，弹幕再密也不丢焦点。
@@ -189,7 +189,7 @@ godot --path . res://test/return_capture.tscn            # 窗口模式返航过
 - [x] 轨道打击清场动画 + 全单位贴图精细化 + 初始弹速提升 —— 迭代 3.21
 - [ ] 打包发布（暂缓）
 
-移植对齐的逐项对照、迭代历史与后续计划见 [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md)；未来方向与阶段计划见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
+未来方向与阶段计划见 [docs/ROADMAP.md](./docs/ROADMAP.md)；移植时期的逐项对照与迭代历史已归档（冻结不再维护）：[docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md)。
 
 ## 🤝 参与贡献
 
@@ -197,7 +197,7 @@ godot --path . res://test/return_capture.tscn            # 窗口模式返航过
 
 1. 上述无头测试全部通过；
 2. 遵循 `AGENTS.md` 中的约定（碰撞层、UI 设计系统、代码风格、测试策略）；
-3. 玩法变更请同步更新 `docs/PORTING_PARITY.md` 的对应行。
+3. 方向类决策（新内容立项、暂缓/重启）请先在 `docs/ROADMAP.md` 登记。
 
 借鉴的开源项目：[nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate)、[quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core)、[Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D)、[Maaack/Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template)。
 
@@ -207,4 +207,4 @@ godot --path . res://test/return_capture.tscn            # 窗口模式返航过
 
 ---
 
-*InfiAir 是 airwar-game（Python/Pygame）的 Godot 重制版，业余维护中，欢迎反馈。*
+*InfiAir 早期重制自 airwar-game（Python/Pygame），现已独立演进；业余维护中，欢迎反馈。*

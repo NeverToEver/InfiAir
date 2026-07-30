@@ -43,7 +43,7 @@
 
 ### 0.3 基地 UI 现状（来源：`scripts/base_console.gd` + `scripts/ui_theme.gd` + `docs/screenshots/base.png`）
 
-- **触发链路**：局内长按 B（`HOME_CHARGE_TIME` 蓄力）→ `Main._start_homecoming()`：锁输入 → 停 spawner → 收回母舰 → `GameState.save_run()` → `_starfield.warp(18.0)` → 白闪（0.5s 淡入 + 0.5s 停留 + 0.3s 淡出）→ `_base_ui.show_base()` → 树暂停。返回：`resume_requested` → `_resume_from_base()` 触发轨道打击清场动画（`scripts/orbital_strike.gd`，命中帧清场并恢复同一局；早期版本为静默清屏 + 短白闪，后补对齐原作 ORBITAL_STRIKE）。
+- **触发链路**：局内长按 B（`HOME_CHARGE_TIME` 蓄力）→ `Main._start_homecoming()`：锁输入 → 停 spawner → 收回母舰 → `GameState.save_run()` → `_starfield.warp(18.0)` → 白闪（0.5s 淡入 + 0.5s 停留 + 0.3s 淡出）→ `_base_ui.show_base()` → 树暂停。返回：`resume_requested` → `_resume_from_base()` 触发轨道打击清场动画（`scripts/orbital_strike.gd`，命中帧清场并恢复同一局；早期版本为静默清屏 + 短白闪，后补为完整动画）。
 - **布局**：CanvasLayer > 全屏 dim ColorRect(0.02,0.03,0.08,0.95) > CenterContainer > VBox（标题 BASE_TITLE 字号44 → RP 余额金色 → HBox 双列 separation 20 → 主按钮「继续出击」280×52）。左列：战机库（状态总览）+ 维修补给（维修/充能两按钮）；右列：武器挂载·天赋路线（进攻线/机动线各两选项按钮行）+ 任务规划（任务行+领取按钮）。四块均为 ChamferedPanel（min 宽 560）。
 - **风格规范（UITheme token）**：面板底 藏青 (0.039,0.063,0.102,0.78)、边框 1px 青 (0,0.83,1,0.5)、主强调青 `#00d4ff`、辅助全息蓝 `#0080ff`、数值金 `#d8a868`、文字 `#e0e8f0`/`#8a9bb0`、切角直角面板、按钮 normal 透明底+青边/hover 12% 青底/pressed 25%、字号阶梯 72/40/28/24/18、字体仅 NotoSansSC、动效 `animate_open` 200ms 淡入 / `stagger_open` 60ms 逐子项淡入（均只动 modulate.a 不动 position）。
 - **功能端口（逻辑复用对象）**：`_on_repair_pressed`（2RP 回满）、`_on_recharge_pressed`（2RP 满燃料）、`_on_route_pressed`（天赋二选一）、`_on_claim_pressed`（任务领取）、`_on_resume_pressed`（继续出击）；数据全部经 `GameState`（rp/buff_count/choose_route/claim_mission/mission_progress）。
@@ -231,7 +231,7 @@ t≈12.3s  基地 UI 完全可操作
 - **性能预算**：沿用开场——单发射器 ≤96、存活粒子 ≤400、每镜头至多一个 `_process` 零堆分配（镜头 2/4/6 各一，导演漂移共享）、draw calls <400；虚影站构件与基地背景层共用一套站体构建函数，避免两份几何漂移。
 - **重构建议（实现时）**：把开场 `_build_shot1()` 的站体构件抽为共享函数（参数化配色/alpha/破口表现），开场与返航/基地背景三处复用——这是本设计唯一建议的既有代码改动，纯提取不改行为。
 - **测试**：新增 `test/return_cinematic_test.tscn` 镜像 `intro_cinematic_test`（触发/暂停/finished/恢复/跳过幂等/Timer 无残留/时长表可写逐镜头推进）；回归清单：smoke、base_system（基地逻辑零改动验证）、back/esc_navigation（新 SKIP_RETURN 路由）、quit-after-300；窗口模式逐镜头截图人工核对（`test/return_capture.tscn`，8s/镜头拉长时轴，输出 `/tmp/return_shot*.png`）+ ui_capture 核对基地新皮肤。
-- **文档同步**：`docs/EXIT_FLOW.md` 登记返航过场 Esc 行为；`docs/PORTING_PARITY.md` 无需改动（纯表现层，无玩法移植对齐变化）；README 玩法说明补一句返航过场。
+- **文档同步**：`docs/EXIT_FLOW.md` 登记返航过场 Esc 行为；`docs/PORTING_PARITY.md` 无需改动（纯表现层，无玩法移植对齐变化；该文档 2026-07-30 已归档至 `docs/archive/` 并冻结）；README 玩法说明补一句返航过场。
 
 ---
 

@@ -59,7 +59,7 @@
 | 6 | rapid_fire 卡面写「射速提升 25%」，实际间隔 ×0.75 = +33%/层 | `scripts/player.gd:181-182`、`data/translations.csv:36` |
 | 7 | `buff_select.gd` 池内 `desc` 为死文本且过时（laser 写 10 伤/10s，实际 16 伤/8s） | `scripts/buff_select.gd:4-101` vs `scripts/laser_weapon.gd:10-11` |
 | 8 | explosive 的 per-level 缩放不可达（层数上限锁 1） | `scripts/bullet.gd:155-166` |
-| 9 | `player.gd:56` 注释提及「扩容油箱天赋」但无实现，疑似原作遗留 | `scripts/player.gd:56,124` |
+| 9 | `player.gd:56` 注释提及「扩容油箱天赋」但无实现，疑似早期版本遗留 | `scripts/player.gd:56,124` |
 | 10 | explosive 解锁门槛 `boss_kills >= 3` 硬编码，未进 balance.json | `scripts/buff_select.gd:145` |
 
 ## 4. 改进方案（按性价比排序）
@@ -114,7 +114,7 @@
 - **实施记录（2026-07-29）**：三项全做——`BUFF_RAPID_FIRE_DESC` 中英改 33%；
   池内 16 条死 `desc` 字段全删（卡片文本只走 `BUFF_%s_DESC` 翻译键，单一事实源）；
   `buffs.explosive.unlock_boss_kills`=3 入配置。P2-8/P2-9 同日顺手清理：
-  explosive 不可达的 per-level 缩放删除（固定值口径对齐卡面与 PORTING_PARITY #13），
+  explosive 不可达的 per-level 缩放删除（固定值口径与卡面一致），
   `player.gd` 「扩容油箱天赋」死注释改为配置覆盖说明。
 
 ## 5. 决策记录（2026-07-29 收口）
@@ -122,7 +122,7 @@
 | # | 决策 | 结论 | 影响 |
 | --- | --- | --- | --- |
 | D1 | **终局范式** | **A. 必死曲线**：方案 1+3 去硬顶即达成，无需新增结算流程；符合街机 score attack 定位 | 方案 3 采用完全去硬顶（×8 封顶废弃）；B（定时终点）不采用 |
-| D2 | hard 里程碑 ×1.5 是否意图 | **是，有意设计**：`game_state.gd` DIFFICULTY_DEFS 注释载明「避免高难 Buff 节奏过稀」 | 已登记 `docs/PORTING_PARITY.md` 决策 10，数值不动 |
+| D2 | hard 里程碑 ×1.5 是否意图 | **是，有意设计**：`game_state.gd` DIFFICULTY_DEFS 注释载明「避免高难 Buff 节奏过稀」 | 已登记 `docs/archive/PORTING_PARITY.md` 决策 10，数值不动 |
 
 ## 6. 实施记录与验收
 

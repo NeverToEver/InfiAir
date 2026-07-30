@@ -2,7 +2,7 @@
 
 ## 项目概览
 
-InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **Godot 4.6 + GDScript** 实现，采用 GL Compatibility 渲染器。项目重制自相邻目录的 Python/Pygame 项目 `../airwar-game`；本仓库运行时不依赖该目录。
+InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **Godot 4.6 + GDScript** 实现，采用 GL Compatibility 渲染器。项目早期重制自 Python/Pygame 项目 `airwar-game`，经大规模扩展开发后已脱离原作框架独立演进；原作仅作历史参考（溯源见 `docs/archive/PORTING_PARITY.md`），本仓库运行时不依赖原作目录。
 
 核心对局循环为：自动射击与波次刷怪 → 分数里程碑 Buff 三选一 → 3 类 Boss 轮换及狂暴阶段 → 母舰补给/火力平台 → 返航基地中场整备 → 回到同一局继续。游戏为纯得分制，没有掉落或拾取物。
 
@@ -10,7 +10,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - 设计视口：1920×1080，`canvas_items` 拉伸，`keep` 宽高比。
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`），负责全局状态、信号、数值读取、持久化、音效池与实体注册表。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
-- 玩法对齐状态和已知差异见 `docs/PORTING_PARITY.md`；返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`。
+- 返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`；移植时期的对齐记录与迭代历史已归档为 `docs/archive/PORTING_PARITY.md`（冻结，不再维护）。
 - `CLAUDE.md` 只提供入口级概览并声明本文件为权威约定文档；两者冲突时以本文件为准。
 
 ## 技术栈、配置与交付现状
@@ -137,7 +137,7 @@ Main (scripts/main.gd)
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
 - `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
 - `scripts/return_cinematic.gd` + `scripts/dawn_station.gd`：返航过场导演（7 镜头，长按 B 返航触发，设计文档 `docs/RETURN_HOME_CINEMATIC.md`）；架构镜像开场，Esc 经 `SKIP_RETURN` 路由，播完/跳过统一走 `finished` 落基地 UI（树保持暂停，镜头 7 渐暗期 BGM 淡出到 -40dB）。`DawnStation` 是「曙光」站体共享静态工厂（毁灭态/全息虚影态），开场镜头 1、返航镜头 2/3/4 与后续基地背景层复用。
-- `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发，对齐原作 ORBITAL_STRIKE 阶段）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
+- `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
 - `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
 - `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss、不暂停波次，可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。
@@ -155,7 +155,7 @@ Main (scripts/main.gd)
 | `assets/` | 游戏贴图、音效/BGM 和字体。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
-| `docs/` | 移植对齐、退出流程、审计计划、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）与截图。 |
+| `docs/` | 退出流程、审计计划、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录）。 |
 
 ## 开发约定
 
@@ -216,7 +216,6 @@ Main (scripts/main.gd)
 
 ## 文档同步要求
 
-- 调整玩法、移植差异、对齐状态或验收口径时，更新 `docs/PORTING_PARITY.md` 的对应条目。
 - 调整项目方向、阶段计划或暂缓/重启决策时，更新 `docs/ROADMAP.md`（方向类决策的单一事实源）。
 - 调整页面返回层级、退出清理或平台返回处理时，更新 `docs/EXIT_FLOW.md` 并运行返回导航测试。
 - 修改工程结构、运行命令、测试策略、配置位置或本文件所述约定时，同步维护本 `AGENTS.md`，使其保持面向首次接手项目的代理的真实入口文档。

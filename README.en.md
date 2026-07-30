@@ -2,7 +2,7 @@
 
 # 🛩️ InfiAir
 
-**A 2D top-down space shooter built with Godot 4 + GDScript — a remake of the Python original [airwar-game](https://github.com/NeverToEver/airwar-game)**
+**A 2D top-down space shooter built with Godot 4 + GDScript** (originally a remake of the Python project [airwar-game](https://github.com/NeverToEver/airwar-game), now evolved independently)
 
 **English** · [中文](./README.md)
 
@@ -189,7 +189,7 @@ godot --path . res://test/return_capture.tscn            # windowed return-cinem
 - [x] Orbital strike clear animation + full unit-sprite refinement + faster starting bullet speed — iteration 3.21
 - [ ] Release builds (deferred)
 
-The item-by-item parity checklist against the original and the iteration history live in [docs/PORTING_PARITY.md](./docs/PORTING_PARITY.md); future direction and the phased plan live in [docs/ROADMAP.md](./docs/ROADMAP.md).
+Future direction and the phased plan live in [docs/ROADMAP.md](./docs/ROADMAP.md); the porting-era parity checklist and iteration history are archived (frozen, no longer maintained) in [docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md).
 
 ## 🤝 Contributing
 
@@ -197,7 +197,7 @@ Issues and PRs are welcome! Before submitting, please make sure:
 
 1. All headless test suites above pass;
 2. You follow the conventions in `AGENTS.md` (collision layers, UI design system, code style, test strategy);
-3. Gameplay changes update the corresponding row in `docs/PORTING_PARITY.md`.
+3. Direction-level decisions (new content, defer/restart) are recorded in `docs/ROADMAP.md` first.
 
 Reference projects: [nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate), [quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core), [Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D), [Maaack/Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template).
 
@@ -207,4 +207,4 @@ This repository is currently private and has not chosen an open-source license y
 
 ---
 
-*InfiAir is a Godot remake of airwar-game (Python/Pygame), maintained as a hobby project — feedback welcome.*
+*InfiAir began as a Godot remake of airwar-game (Python/Pygame) and has since evolved independently — maintained as a hobby project, feedback welcome.*
