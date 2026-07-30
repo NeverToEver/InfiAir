@@ -213,6 +213,8 @@ var player_hitbox: Area2D = null
 var bullet_pool: BulletPool = null
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
 var enemy_pool: EnemyPool = null
+## 辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）
+var aim_frame_layer: AimFrameLayer = null
 
 
 func register_enemy(node: Node) -> void:
@@ -479,7 +481,7 @@ func _apply_window_size() -> void:
 # ---------------- 瞄准辅助强度 ----------------
 
 ## 强度档位表（设置页三选，profile 持久化；辅助瞄准常驻、刻意不提供关闭档）。
-## 各档数值（磁吸半径/甩脱阈值/方向切换锥形/吸附力度）在 balance.json player.aim_assist.levels。
+## 各档数值（辅助框内边距 frame_pad/追踪转向速率 homing_turn_rate）在 balance.json player.aim_assist.levels。
 const AIM_ASSIST_ORDER: Array[StringName] = [&"low", &"medium", &"high"]
 
 

@@ -11,6 +11,9 @@ var homing: bool = false
 var homing_time: float = 0.0
 ## 追踪转向速率（rad 级插值系数；精英炮台弱锁定追踪弹降为 1.5）
 var homing_turn_rate: float = 4.0
+## 辅助瞄准追踪目标（P1-1，玩家弹专用）：准星入标记框时由 player._fire 写入，
+## 优先于 homing 玩家追踪分支；目标失效即直行。池化 activate 复位为 null。
+var homing_target: Node2D = null
 ## 穿透剩余次数（玩家弹，穿透弹 buff）
 var pierce: int = 0
 ## 命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）
@@ -27,6 +30,8 @@ var EXPLOSIVE_RADIUS := 50.0
 var EXPLOSIVE_DAMAGE := 30
 ## 弹丸视觉缩放（设计值 1.3；effects.bullet_visual_scale × world_scale，碰撞半径不变）
 var VISUAL_SCALE := 1.3
+## 敌弹视觉缩放（设计值 2.4；effects.enemy_bullet_visual_scale × world_scale，P0-4 敌弹可见性）
+var ENEMY_VISUAL_SCALE := 2.4
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
@@ -68,6 +73,7 @@ func activate(
 	setup(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
 	_active = true
 	_homing_elapsed = 0.0
+	homing_target = null
 	pierce = 0
 	explosive = false
 	splash_damage = 0
@@ -100,6 +106,7 @@ func _ready() -> void:
 	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius_per_level", EXPLOSIVE_RADIUS)
 	EXPLOSIVE_DAMAGE = GameState.cfg("buffs.explosive.damage_per_level", EXPLOSIVE_DAMAGE)
 	VISUAL_SCALE = GameState.cfg("effects.bullet_visual_scale", VISUAL_SCALE) * GameState.world_scale
+	ENEMY_VISUAL_SCALE = GameState.cfg("effects.enemy_bullet_visual_scale", ENEMY_VISUAL_SCALE) * GameState.world_scale
 	# 碰撞半径：设计值 6 × 全局缩放（幂等赋值；池化实例共享 shape 也只写同值）
 	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 6.0 * GameState.world_scale
 	_apply_faction()
@@ -117,7 +124,7 @@ func _apply_faction() -> void:
 	# 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
 	scale = Vector2.ONE
 	modulate = Color.WHITE
-	_polygon.scale = Vector2.ONE * VISUAL_SCALE
+	_polygon.scale = Vector2.ONE * (VISUAL_SCALE if is_player_bullet else ENEMY_VISUAL_SCALE)
 	if has_meta("bullet_type"):
 		remove_meta("bullet_type")
 	if is_player_bullet:
@@ -127,7 +134,7 @@ func _apply_faction() -> void:
 	else:
 		collision_layer = 8  # 第 4 层：enemy_bullet
 		collision_mask = 1  # 命中第 1 层：player
-		_polygon.color = Color(1.0, 0.25, 0.2)
+		_polygon.color = Color(1.0, 0.38, 0.3)
 
 
 func _despawn() -> void:
@@ -138,7 +145,20 @@ func _despawn() -> void:
 
 
 func _process(delta: float) -> void:
-	if homing and _homing_elapsed < homing_time:
+	if homing_target != null:
+		# 辅助瞄准追踪（P1-1）：优先于 homing 玩家追踪分支；目标失效/超时限即直行
+		if not is_instance_valid(homing_target):
+			homing_target = null
+		elif _homing_elapsed < homing_time:
+			_homing_elapsed += delta
+			var target_angle := lerp_angle(
+				direction.angle(),
+				(homing_target.global_position - global_position).angle(),
+				homing_turn_rate * delta
+			)
+			direction = Vector2.RIGHT.rotated(target_angle)
+			rotation = target_angle
+	elif homing and _homing_elapsed < homing_time:
 		_homing_elapsed += delta
 		if GameState.player_ref != null:
 			var new_angle := lerp_angle(

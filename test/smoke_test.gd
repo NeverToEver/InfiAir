@@ -12,15 +12,6 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
-## 无头模式 warp_mouse 无效：用合成鼠标移动事件把准星放到指定 canvas 坐标
-func _move_mouse_to(canvas_pos: Vector2) -> void:
-	var win: Vector2 = get_tree().root.get_screen_transform() * canvas_pos
-	var mev := InputEventMouseMotion.new()
-	mev.position = win
-	mev.global_position = win
-	Input.parse_input_event(mev)
-
-
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
 	GameState.delete_save()
@@ -640,24 +631,24 @@ func _ready() -> void:
 	get_node("Main/GameOverUI").hide()
 	get_tree().paused = false
 
-	# 6.1 瞄准辅助：磁吸锁定 → 子弹朝锁定点；甩鼠标脱离
+	# 6.1 辅助瞄准（P1-1 新语义）：标记敌 + 准星入框 → 出膛弹追踪该敌；未入框 → 朝准星直射
+	# （瞄准点用 aim_point_override 注入：相机震动 offset 会让合成鼠标事件的世界落点漂移）
 	player.position = Vector2(960.0, 800.0)
 	player.velocity = Vector2.ZERO
 	var aim_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	aim_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e.can_shoot = false
 	aim_e.hp = 9999  # 防止被测试弹击毁触发里程碑
-	aim_e.position = player.position + Vector2(0.0, -400.0)
+	aim_e.aim_marked = true  # 出生标记为 40% 随机掷点，测试强制置位保证确定性
+	aim_e.position = player.position + Vector2(0.0, -300.0)
 	main.add_child(aim_e)
 	await get_tree().process_frame
-	# 准星放到敌机旁 120px（<230px 磁吸半径）
-	_move_mouse_to(aim_e.get_global_transform_with_canvas().origin + Vector2(120.0, 0.0))
-	# 等输入事件落入 viewport；首帧位移超阈值按甩鼠标处理，需再等一帧才重新磁吸
-	await get_tree().process_frame
+	var frames := GameState.aim_frame_layer
+	_check(frames != null, "辅助框覆盖层已登记 GameState")
+	# 准星置入标记敌框内（框心偏移 20px，仍在 碰撞半径+frame_pad 内）
+	player.aim_point_override = aim_e.global_position + Vector2(20.0, 0.0)
 	await get_tree().physics_frame
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	_check(player._aim_lock_target == aim_e, "瞄准辅助磁吸锁定最近敌人")
+	_check(frames.marked_target_at(player.aim_point()) == aim_e, "准星入框命中标记敌")
 	player._auto_fire_enabled = true
 	player._fire_cooldown = 0.0
 	await get_tree().physics_frame
@@ -668,31 +659,54 @@ func _ready() -> void:
 		if child is Bullet and child.is_player_bullet:
 			ab = child
 			break
-	_check(ab != null, "锁定期间自动开火")
+	_check(ab != null, "入框期间自动开火")
 	if ab != null:
-		var want: Vector2 = (aim_e.global_position - player.global_position).normalized()
-		_check(ab.direction.dot(want) > 0.99, "锁定期间子弹朝目标而非原始鼠标")
+		_check(ab.homing_target == aim_e, "入框出膛弹绑定追踪目标")
+		var dir0: Vector2 = ab.direction
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		# 直线弹方向恒定；方向发生偏转即追踪转向生效（lerp_angle 恒朝目标）
+		_check(absf(angle_difference(ab.direction.angle(), dir0.angle())) > 0.005, "追踪弹出膛后向目标转向")
 		ab.queue_free()
-	# 单帧甩鼠标 >90px 到空区 → 脱离锁定
-	_move_mouse_to(Vector2(200.0, 950.0))
-	await get_tree().process_frame
+	# 准星不在任何标记框内 → 朝准星直射，无追踪绑定
+	player.aim_point_override = Vector2(200.0, 950.0)
+	await get_tree().physics_frame
+	_check(frames.marked_target_at(player.aim_point()) == null, "准星出框无命中目标")
+	player._auto_fire_enabled = true
+	player._fire_cooldown = 0.0
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	await get_tree().physics_frame
-	_check(player._aim_lock_target == null, "快速甩鼠标脱离锁定")
+	player._auto_fire_enabled = false
+	var ab2: Bullet = null
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet:
+			ab2 = child
+			break
+	_check(ab2 != null and ab2.homing_target == null, "未入框出膛弹无追踪目标")
+	if ab2 != null:
+		var want2: Vector2 = (player.aim_point() - player.global_position).normalized()
+		_check(ab2.direction.dot(want2) > 0.99, "未入框子弹朝准星直射")
+		ab2.queue_free()
+	player.aim_point_override = Vector2.INF
 	aim_e.queue_free()
 	await get_tree().process_frame
 
-	# 6.1b 瞄准辅助强度三档：参数随档位切换，无关闭档（非法档位拒绝）
-	var default_radius: float = player._aim_radius
+	# 6.1b 辅助瞄准强度三档：框内边距/追踪速率随档位切换，无关闭档（非法档位拒绝）
+	var default_pad: float = frames._frame_pad
+	var default_turn: float = player._homing_turn_rate
 	GameState.set_aim_assist_level(&"low")
-	_check(player._aim_radius < default_radius and player._aim_pull < 1.0, "弱档：磁吸半径缩小且吸附力度减弱")
+	_check(frames._frame_pad < default_pad and player._homing_turn_rate < default_turn, "弱档：框内边距与追踪速率降低")
 	GameState.set_aim_assist_level(&"high")
-	_check(player._aim_radius > default_radius, "强档：磁吸半径扩大")
+	_check(frames._frame_pad > default_pad and player._homing_turn_rate > default_turn, "强档：框内边距与追踪速率提高")
 	GameState.set_aim_assist_level(&"off")
 	_check(GameState.aim_assist_level == &"high", "辅助瞄准无关闭档（非法档位被拒绝）")
 	GameState.set_aim_assist_level(&"medium")
-	_check(is_equal_approx(player._aim_radius, default_radius), "恢复中档后参数还原")
+	_check(
+		is_equal_approx(frames._frame_pad, default_pad) and is_equal_approx(player._homing_turn_rate, default_turn),
+		"恢复中档后参数还原"
+	)
 
 	# 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用
 	player.position = Vector2(960.0, 540.0)

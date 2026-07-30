@@ -170,6 +170,10 @@ FIGHT（常规）
 3. 固定节拍器 → HP 阶段模式表（P2）。
 4. 瞬发狙/扇形 → telegraph 前摇（P3）。
 5. 难度只乘 HP → 模式参数分档（P5）。
+6. `FIGHT_Y` 绝对锚点（y=230 写死）→ 距可见区域顶缘偏移（2026-07-30 战斗 UX 审计 P0-1）：新增
+   `_fight_anchor_y()` = `GameState.view_world_rect().position.y + FIGHT_Y`，三处使用点
+   （入场停线逐帧求值、P2 冲刺 RETURN、狂暴 RETURN）统一改走它，支持战斗中途切视角档；
+   与 `_strafe_range()` 的 view 边距处理对齐，zoom=1 时行为逐位不变。
 
 ### 7.4 兼容约束
 

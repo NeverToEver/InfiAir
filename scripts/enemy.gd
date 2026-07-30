@@ -26,7 +26,7 @@ var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
 var EXIT_ACCEL := 520.0  # 寿命离场加速度
 var AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
 var FIRE_INTERVAL := 2.2
-## 悬停带：锚点 anchor_y 的取值范围（view 顶部起算的世界 y）
+## 悬停带：锚点 anchor_y 的取值范围（相对可见区域顶缘的偏移，求解锚点时实时加 view.position.y 基线）
 var HOVER_BAND := Vector2(150.0, 430.0)
 ## 悬停机动参数（全部可由 balance.json enemies 段覆盖）：
 ## 垂直微浮 + 水平慢摇摆（straight/hover）+ spiral 中心漂移，相位按个体随机错开
@@ -40,6 +40,13 @@ var SPIRAL_RADIUS := 50.0
 ## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
 var HP_RAMP_FACTOR := 0.12
 
+## 尾焰软光点（P0-5 副轨，运行时辨识增强）：红/品红低 alpha 软光贴舰尾，尺寸族设计值 ×ws；
+## 精英同色稍微光。贴图尾喷口在纹理 +y（enemy.tscn 根节点自带 π 旋转，即世界舰尾方向）
+const TAIL_GLOW_RADIUS := 26.0
+const TAIL_GLOW_RADIUS_ELITE := 36.0
+const TAIL_GLOW_COLOR := Color(1.0, 0.22, 0.38, 0.32)
+const TAIL_GLOW_COLOR_ELITE := Color(1.0, 0.25, 0.42, 0.46)
+
 var strategy: StringName = &"straight"
 var is_elite: bool = false
 var hp: int = 2
@@ -50,6 +57,10 @@ var fire_interval: float = FIRE_INTERVAL
 var bullet_type: StringName = &"single"
 ## 悬停锚点 y（spawner 分配；<0 时按 hover_band 自取，保证直接 setup 的用法仍先下降后悬停）
 var anchor_y: float = -1.0
+## 辅助瞄准「强辅助」标记（P1-1）：setup 按 mark_ratio 掷点，终生稳定；
+## 带标记者由 AimFrameLayer 画辅助框，准星入框时玩家出膛弹获得追踪。精英纳入；
+## Boss/炮塔/编队战机非 Enemy 类，天然排除。池化 deactivate 复位防残留。
+var aim_marked: bool = false
 
 var _time: float = 0.0
 var _phase: float = 0.0  # 机动相位（出生/重激活随机化，全波错开避免同相位机械浮动）
@@ -95,6 +106,9 @@ var _summon_slow_factor: float = 1.0
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _shape: CollisionShape2D = $CollisionShape2D
 
+## 尾焰软光点实例（_ready 创建，每机 +1 draw call）
+var _tail_glow: Sprite2D = null
+
 
 ## config 字段：texture, hp(Vector2i), speed(Vector2), score, fire(开火概率),
 ## fire_interval, scale, radius, bullet_types(弹种池), elite(可选)。
@@ -132,6 +146,8 @@ func setup(
 	var sprite: Sprite2D = $Sprite2D
 	var shape_node: CollisionShape2D = $CollisionShape2D
 	sprite.texture = config["texture"]
+	# 辅助瞄准标记：按比率掷点（直实例化与池化 reactivate 均过 setup，标记终生稳定）
+	aim_marked = randf() < GameState.cfg("player.aim_assist.mark_ratio", 0.4)
 	# 机体尺寸族：config 存设计值（1.0 基准），统一乘全局缩放（shape 已 local_to_scene，实例独立）
 	var sc: float = config.get("scale", 0.85)
 	sprite.scale = Vector2(sc, sc) * GameState.world_scale
@@ -177,16 +193,39 @@ func _ready() -> void:
 			_dive_target = GameState.player_ref.global_position
 		else:
 			_dive_target = Vector2(position.x, 1200.0)
+	# 尾焰软光点（P0-5 副轨）：红/品红低 alpha，尺寸族 ×ws，随舰体朝向贴尾；精英同色稍微光。
+	# 池化实例 _ready 先于 reactivate 执行（setup 未跑、texture 为空），
+	# 位置/颜色由 _update_tail_glow 在 reactivate 后重同步（池化小怪均非精英，半径档不变）
+	var glow_radius := TAIL_GLOW_RADIUS_ELITE if is_elite else TAIL_GLOW_RADIUS
+	_tail_glow = CinematicFx.soft_glow(glow_radius * GameState.world_scale, TAIL_GLOW_COLOR)
+	_tail_glow.show_behind_parent = true
+	add_child(_tail_glow)
+	_update_tail_glow()
+
+
+## 尾焰光点同步：颜色按精英标记、位置贴纹理尾缘（经 sprite.scale 自动 ×ws 并跟随机型 scale）。
+## 池化重激活（新机型贴图/scale）后由 reactivate 再调一次。
+func _update_tail_glow() -> void:
+	if _tail_glow == null:
+		return
+	_tail_glow.modulate = TAIL_GLOW_COLOR_ELITE if is_elite else TAIL_GLOW_COLOR
+	var tex_h := 190.0
+	if _sprite.texture != null:
+		tex_h = _sprite.texture.get_height()
+	_tail_glow.position = Vector2(0.0, tex_h * 0.5 * _sprite.scale.y * 0.85)
 
 
 ## anchor_y 未由 spawner 分配时自取（首个物理帧惰性调用，取最终出生位置）：
-## 出生点下方一段距离，钳入悬停带；深位出生（悬停带之下）不悬停，持续下降出屏销毁
+## 出生点下方一段距离，钳入悬停带；深位出生（悬停带之下）不悬停，持续下降出屏销毁。
+## 悬停带为相对可见区域顶缘的偏移，求解时实时加 view 基线（支持中途切视角档）
 func _resolve_anchor() -> void:
 	if anchor_y < 0.0:
-		if position.y > HOVER_BAND.y:
+		var band_top := GameState.view_world_rect().position.y + HOVER_BAND.x
+		var band_bottom := GameState.view_world_rect().position.y + HOVER_BAND.y
+		if position.y > band_bottom:
 			anchor_y = 1.0e9
 		else:
-			anchor_y = clampf(position.y + randf_range(120.0, 240.0), HOVER_BAND.x, HOVER_BAND.y)
+			anchor_y = clampf(position.y + randf_range(120.0, 240.0), band_top, band_bottom)
 
 
 ## 撞击玩家（对齐原作逐帧轮询）：重叠期间每帧尝试结算——闪避逐帧重掷、
@@ -222,6 +261,7 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 	_sprite.modulate = Color.WHITE
 	GameState.register_enemy(self)
 	setup(config, p_strategy, p_difficulty)
+	_update_tail_glow()
 	_spawn_x = position.x
 	_center = position
 	_phase = randf() * TAU
@@ -239,6 +279,7 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 ## 池化回收：停用但保留实例
 func deactivate() -> void:
 	_active = false
+	aim_marked = false  # 辅助瞄准标记复位，防池残留串到下一任使用者
 	visible = false
 	set_physics_process(false)
 	GameState.unregister_enemy(self)
@@ -335,8 +376,8 @@ func _physics_process(delta: float) -> void:
 				position += dir * speed * 1.7 * mdelta
 				position.y = minf(position.y, view.end.y - 200.0)
 				if _dive_timer <= 0.0:
-					# 冲刺结束后以当前深度与锚点较深者为新锚点，转入悬停
-					anchor_y = clampf(maxf(anchor_y, position.y), HOVER_BAND.x, view.end.y - 200.0)
+					# 冲刺结束后以当前深度与锚点较深者为新锚点，转入悬停（悬停带下界加 view 基线，与 _resolve_anchor 一致）
+					anchor_y = clampf(maxf(anchor_y, position.y), view.position.y + HOVER_BAND.x, view.end.y - 200.0)
 			elif _hovering:
 				position.y = anchor_y + sin_fast(_time * HOVER_BOB_FREQ + _phase) * HOVER_BOB_AMP
 			else:

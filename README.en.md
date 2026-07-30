@@ -55,7 +55,7 @@
 | Input | Action |
 |-------|--------|
 | WASD / Arrow keys | Move |
-| Mouse | Aim (aim assist magnet-lock, Low/Medium/High adjustable; flick to switch or break lock) |
+| Mouse | Aim (follow-the-cursor crosshair; ~40% of enemies carry a cyan aim frame — place the crosshair inside to make shots home in, Low/Medium/High adjustable) |
 | — | Weapons fire fully automatically |
 | Shift (hold) | Boost (×1.8 speed, drains fuel) |
 | Ctrl (hold) | Precision movement (speed ×0.35) |
@@ -69,7 +69,7 @@
 > All keys are rebindable in Settings → Controls (Esc/R are fixed; bindings persist in `user://profile.json`).
 > UI language: English / 中文 via Settings → Modes → Language.
 > Three view zoom levels (1.0 / 1.35 / 1.7, default Small) and three window sizes (1280×720 / 1600×900 / 1920×1080, default Large) — independent settings, both persisted.
-> Aim assist also has three levels (Low / Medium / High, default Medium) under Settings → Modes: the assist is always on — only its strength (magnet radius / pull / target-switch sensitivity) changes, persisted.
+> Aim assist also has three levels (Low / Medium / High, default Medium) under Settings → Modes: the assist is always on — only its strength (frame size / homing turn rate) changes, persisted.
 
 ## 🚀 Getting Started
 
@@ -187,6 +187,7 @@ godot --path . res://test/return_capture.tscn            # windowed return-cinem
 - [x] Buff visual feedback + player ship redesign + in-game UI polish — iteration 3.19
 - [x] Wave-based spawning (grouped entries / staggered anchor-hover phases) + formation strike event — iteration 3.20
 - [x] Orbital strike clear animation + full unit-sprite refinement + faster starting bullet speed — iteration 3.21
+- [x] Combat readability audit (view-aware boss anchor & hover bands + larger/brighter enemies + enemy bullet visibility + aim assist redesign: crosshair + 40% aim frames + in-frame homing + bullet speed 1800) — iteration 3.22
 - [ ] Release builds (deferred)
 
 Future direction and the phased plan live in [docs/ROADMAP.md](./docs/ROADMAP.md); the porting-era parity checklist and iteration history are archived (frozen, no longer maintained) in [docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md).

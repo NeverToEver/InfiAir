@@ -211,6 +211,8 @@ func _build_modes_page() -> VBoxContainer:
 		ab.pressed.connect(GameState.set_aim_assist_level.bind(level))
 		aim_row.add_child(ab)
 		_aim_buttons[level] = ab
+	# 机制说明（P1-1 新语义）：准星入标记框 → 出膛弹追踪该敌；档位调节框大小与追踪速度
+	page.add_child(UITheme.make_label(tr("SET_AIM_ASSIST_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
 	# 显示：视角缩放 + 窗口大小
 	page.add_child(UITheme.make_section_header(tr("SET_DISPLAY")))
 	var zoom_row := HBoxContainer.new()

@@ -18,14 +18,43 @@ from PIL import Image, ImageDraw, ImageFilter
 
 S = 4  # 超采样抗锯齿
 
-# 深色晶舰体分段面
-HULL_A = (22, 18, 34, 255)
-HULL_B = (34, 28, 52, 255)
-HULL_C = (48, 40, 72, 255)
-HULL_D = (62, 52, 92, 255)
-SEAM = (10, 8, 18, 255)
-RIM = (150, 140, 185, 255)
-RIVET = (96, 86, 140, 255)   # 铆接点（亮于 SEAM 暗于 RIM）
+# 调色板双档（P0-5 敌机对比度）：DARK 为原暗紫档，Boss/航母/炮台沿用，保持既有贴图不变；
+# BRIGHT 为普通机/精英提亮档——舰体亮度升至 70–100 段，色相由蓝紫（≈256°）移向紫红/品红（≈295°），
+# 与清屏背景 RGB(5,5,15) 拉开明度与色相距离；霓虹能量缝 +2 设计 px（1–3 → 3–5），棱线 2 → 3 px。
+PALETTE_DARK = {
+    "hull": ((22, 18, 34, 255), (34, 28, 52, 255), (48, 40, 72, 255), (62, 52, 92, 255)),
+    "seam": (10, 8, 18, 255),
+    "rim": (150, 140, 185, 255),
+    "rivet": (96, 86, 140, 255),
+    "neon_boost": 0,
+    "rim_w": 2,
+}
+PALETTE_BRIGHT = {
+    "hull": ((96, 50, 100, 255), (112, 60, 118, 255), (130, 72, 136, 255), (150, 86, 156, 255)),
+    "seam": (20, 12, 30, 255),
+    "rim": (200, 156, 224, 255),
+    "rivet": (140, 110, 168, 255),
+    "neon_boost": 2,
+    "rim_w": 3,
+}
+
+# 当前生效调色板（由 _apply_palette 切换；默认 DARK，与旧行为一致）
+HULL_A, HULL_B, HULL_C, HULL_D = PALETTE_DARK["hull"]
+SEAM = PALETTE_DARK["seam"]
+RIM = PALETTE_DARK["rim"]
+RIVET = PALETTE_DARK["rivet"]   # 铆接点（亮于 SEAM 暗于 RIM）
+NEON_BOOST = PALETTE_DARK["neon_boost"]  # 霓虹能量缝加粗量（设计 px）
+RIM_W = PALETTE_DARK["rim_w"]            # 棱线宽（设计 px）
+
+
+def _apply_palette(p) -> None:
+    global HULL_A, HULL_B, HULL_C, HULL_D, SEAM, RIM, RIVET, NEON_BOOST, RIM_W
+    HULL_A, HULL_B, HULL_C, HULL_D = p["hull"]
+    SEAM = p["seam"]
+    RIM = p["rim"]
+    RIVET = p["rivet"]
+    NEON_BOOST = p["neon_boost"]
+    RIM_W = p["rim_w"]
 
 ENEMY_ACCENT = (255, 72, 56)    # 普通机：猩红
 ENEMY_CORE = (255, 150, 70)
@@ -77,16 +106,18 @@ class Ship:
         if mirror:
             self.bd.line(self.p(self.mirror(pts)), fill=SEAM, width=width * S, joint="curve")
 
-    def rim(self, pts, width=2, mirror=True):
-        self.bd.line(self.p(pts), fill=RIM, width=width * S, joint="curve")
+    def rim(self, pts, width=None, mirror=True):
+        w = RIM_W if width is None else width
+        self.bd.line(self.p(pts), fill=RIM, width=w * S, joint="curve")
         if mirror:
-            self.bd.line(self.p(self.mirror(pts)), fill=RIM, width=width * S, joint="curve")
+            self.bd.line(self.p(self.mirror(pts)), fill=RIM, width=w * S, joint="curve")
 
     def neon(self, pts, width=3, color=None, mirror=True):
         c = (color or self.accent) + (255,)
-        self.gd.line(self.p(pts), fill=c, width=width * S, joint="curve")
+        w = (width + NEON_BOOST) * S
+        self.gd.line(self.p(pts), fill=c, width=w, joint="curve")
         if mirror:
-            self.gd.line(self.p(self.mirror(pts)), fill=c, width=width * S, joint="curve")
+            self.gd.line(self.p(self.mirror(pts)), fill=c, width=w, joint="curve")
 
     def lamp(self, x, y, r=2.0, color=None, mirror=True):
         """节点灯/航行灯（glow 层小光点）。"""
@@ -200,6 +231,8 @@ def enemy_1() -> Ship:  # 飞镖：菱形机身 + 后掠刀翼
     s.seam([(84, 92), (48, 134)])                                       # 翼面板划分
     s.seam([(74, 146), (88, 122)], width=1)
     s.rim([(95, 22), (111, 92)], mirror=False)
+    s.rim([(88, 78), (28, 142)])                                            # 外翼前缘棱线
+    s.rim([(111, 92), (95, 168)], mirror=False)                             # 机身侧缘棱线
     s.panel_dot(87, 104)
     s.panel_dot(85, 128)
     s.vent(77, 138, length=9, gap=3, n=3)                               # 翼根散热格栅
@@ -228,6 +261,8 @@ def enemy_2() -> Ship:  # 蝠鲼：新月宽翼
     s.seam([(95, 60), (52, 122)])
     s.seam([(86, 62), (40, 112)], width=1)                             # 翼面板划分
     s.rim([(95, 32), (107, 108)], mirror=False)
+    s.rim([(95, 42), (18, 118)])                                            # 翼前缘棱线
+    s.rim([(107, 108), (95, 162)], mirror=False)                            # 机身侧缘棱线
     s.panel_dot(90, 74)
     s.panel_dot(88, 96)
     s.vent(64, 118, length=10, gap=3, n=3)
@@ -258,6 +293,8 @@ def enemy_3() -> Ship:  # 重锤：前掠翼厚机身
     s.seam([(83, 140), (107, 140)], mirror=False)
     s.seam([(76, 96), (58, 76)], width=1)                              # 翼面板划分
     s.rim([(95, 28), (116, 88)], mirror=False)
+    s.rim([(82, 88), (38, 48)])                                             # 前掠翼前缘棱线
+    s.rim([(116, 88), (109, 162)], mirror=False)                            # 机身侧缘棱线
     s.greeble(99, 124, 6, 5)                                           # 舱口
     s.panel_dot(88, 112)
     s.panel_dot(87, 150)
@@ -288,6 +325,8 @@ def enemy_4() -> Ship:  # 针刺：双叉机头
     s.seam([(80, 104), (58, 124)], width=1)                             # 翼面板划分
     s.seam([(84, 44), (89, 92)], width=1)                               # 叉体接缝
     s.rim([(80, 32), (90, 26)])
+    s.rim([(86, 96), (46, 134)])                                            # 小翼前缘棱线
+    s.rim([(106, 128), (95, 166)], mirror=False)                            # 机身侧缘棱线
     s.panel_dot(90, 132)
     s.panel_dot(90, 148)
     s.crystal(64, 118, 3)
@@ -322,6 +361,8 @@ def elite_1() -> Ship:  # 枪骑：长机身 + 侧刃 + 鸭翼
     s.seam([(104, 104), (62, 154)], width=1)                            # 刃面板划分
     s.seam([(86, 176), (108, 148)], width=1)
     s.rim([(122, 24), (139, 118)], mirror=False)
+    s.rim([(110, 88), (42, 158)])                                           # 侧刃前缘棱线
+    s.rim([(139, 118), (122, 218)], mirror=False)                           # 机身侧缘棱线
     s.panel_dot(110, 144)
     s.panel_dot(111, 170)
     s.panel_dot(92, 178)
@@ -359,6 +400,8 @@ def elite_2() -> Ship:  # 卫盾：宽盾翼 + 装甲板
     s.seam([(112, 62), (48, 108)], width=1)                             # 盾翼板划分
     s.seam([(84, 122), (116, 118)], width=1)
     s.rim([(122, 38), (135, 138)], mirror=False)
+    s.rim([(122, 48), (28, 108)])                                           # 盾翼前缘棱线
+    s.rim([(135, 138), (122, 202)], mirror=False)                           # 机身侧缘棱线
     s.panel_dot(116, 100)
     s.panel_dot(100, 120)
     s.panel_dot(64, 118)
@@ -395,6 +438,8 @@ def elite_3() -> Ship:  # 掠舰：爪形翼
     s.seam([(62, 134), (50, 164)], width=1)
     s.seam([(122, 140), (122, 196)], mirror=False)                      # 机身中脊
     s.rim([(122, 34), (137, 128)], mirror=False)
+    s.rim([(113, 78), (36, 58)])                                            # 爪翼前缘棱线
+    s.rim([(137, 128), (122, 208)], mirror=False)                           # 机身侧缘棱线
     s.panel_dot(104, 116)
     s.panel_dot(76, 128)
     s.panel_dot(111, 160)
@@ -735,15 +780,16 @@ def turret() -> Ship:  # 小型六棱柱基座 + 单管晶体炮身（炮口朝�
 def main() -> None:
     base = "assets/sprites/"
     ships = [
-        (enemy_1, "enemy_ship_1.png"), (enemy_2, "enemy_ship_2.png"),
-        (enemy_3, "enemy_ship_3.png"), (enemy_4, "enemy_ship_4.png"),
-        (elite_1, "elite_ship_1.png"), (elite_2, "elite_ship_2.png"),
-        (elite_3, "elite_ship_3.png"),
-        (boss_1, "boss_ship_1.png"), (boss_2, "boss_ship_2.png"),
-        (boss_3, "boss_ship_3.png"),
-        (strike_carrier, "strike_carrier.png"), (turret, "elite_turret.png"),
+        (enemy_1, "enemy_ship_1.png", PALETTE_BRIGHT), (enemy_2, "enemy_ship_2.png", PALETTE_BRIGHT),
+        (enemy_3, "enemy_ship_3.png", PALETTE_BRIGHT), (enemy_4, "enemy_ship_4.png", PALETTE_BRIGHT),
+        (elite_1, "elite_ship_1.png", PALETTE_BRIGHT), (elite_2, "elite_ship_2.png", PALETTE_BRIGHT),
+        (elite_3, "elite_ship_3.png", PALETTE_BRIGHT),
+        (boss_1, "boss_ship_1.png", PALETTE_DARK), (boss_2, "boss_ship_2.png", PALETTE_DARK),
+        (boss_3, "boss_ship_3.png", PALETTE_DARK),
+        (strike_carrier, "strike_carrier.png", PALETTE_DARK), (turret, "elite_turret.png", PALETTE_DARK),
     ]
-    for fn, name in ships:
+    for fn, name, palette in ships:
+        _apply_palette(palette)
         fn().finish(base + name)
 
 

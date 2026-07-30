@@ -136,6 +136,7 @@ Main (scripts/main.gd)
 ├─ StartPanel / WelcomeScreen / ExitConfirm
 ├─ BackNavigator
 ├─ MetaHealthFX（运行时由 main 在 _ready 创建，layer=1，Meta HUD 血量/受击全屏后处理）
+├─ AimFrameLayer（运行时由 main 在 _ready 创建，世界坐标，辅助瞄准标记敌 bracket 框覆盖层，登记 GameState.aim_frame_layer）
 ├─ IntroCinematic（运行时由 main 在新游戏时实例化，layer=35）
 ├─ ReturnCinematic（运行时由 main 在返航时实例化，layer=35）
 ├─ OrbitalStrike（运行时由 main 在继续出击时实例化，layer=24，轨道打击清场动画）
@@ -147,10 +148,10 @@ Main (scripts/main.gd)
 
 - `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM 与页面流转。
 - `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线；加载数值/翻译；维护 `GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用；读写本地存档。
-- `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担：程序化炮舱/护盾弧/光环/信标与尾焰染色（`engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。
+- `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担：程序化炮舱/护盾弧/光环/信标与尾焰染色（`engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。辅助瞄准（2026-07-30 重设计）：准星构件 `scripts/aim_crosshair.gd`（AimCrosshair，挂 Player，top_level；仅对局活跃时跟随 `aim_point()` 并隐藏系统光标，同一条件驱动两处），敌机按 `player.aim_assist.mark_ratio` 出生掷 `Enemy.aim_marked` 标记，`scripts/aim_frame_layer.gd`（AimFrameLayer，挂 Main）统一画 bracket 框；准星入框时 `player._fire()` 给新弹写入 `Bullet.homing_target` 追踪（档位表 `player.aim_assist.levels`：frame_pad/homing_turn_rate，`homing_time` 追踪时长），未入框朝准星直射。
 - `scripts/spawner.gd`：波次化刷怪与特殊槽调度。普通波成组（均分槽位入场、锚点悬停机动）按间隔 ramp 刷新；每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽（Boss 激活与事件期间暂停普通波次），精英/Boss 击杀后追加休整波次。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把"所有敌机已经池化"当成当前事实。
 - `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
-- `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
+- `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。战斗锚线 `FIGHT_Y` 语义为距 view 顶缘偏移，使用点一律走 `_fight_anchor_y()`（2026-07-30 view 适配）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
 - `scripts/meta_health_fx.gd`（MetaHealthFX）+ `assets/shaders/meta_health.gdshader` + `assets/shaders/crack_field_bake.gdshader`：Meta HUD 血量/受击反馈（设计文档 `docs/META_HUD_DESIGN.md`）——全屏后处理承载受击色差/径向模糊、攻击方向定向波纹、低血裂纹生长/错峰消散（Voronoi 距离场一次性预烘焙：窗口模式 SubViewport GPU 512²、headless CPU 64² 等价回退，两路径公式必须同步）、去饱和/晕影与 DYING 心跳/呼吸/HUD 抖动；满血隐藏全屏 ColorRect + `_process` 早退（常态零 GPU、≈零 CPU），参数上传 epsilon 检测。数值在 `effects.meta_health`，「减少闪光」无障碍开关在设置页「操作模式」。
@@ -172,7 +173,7 @@ Main (scripts/main.gd)
 | `autoload/` | 全局 autoload；当前只有 `game_state.gd`。 |
 | `scenes/` | Godot `.tscn` 场景与节点组合。 |
 | `scripts/` | GDScript 游戏逻辑、UI、表现和池实现。 |
-| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV；`generate_enemy_sprites.py`（敌方单位+航母+炮塔，晶体棱镜风格）、`generate_player_sprite.py`（玩家机，钛灰钢甲+青色能量）、`generate_mothership_sprite.py`（母舰，同玩家体系）可重新生成全部单位贴图（PIL，超采样+光晕双层合成）。 |
+| `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV；`generate_enemy_sprites.py`（敌方单位+航母+炮塔，晶体棱镜风格，`PALETTE_DARK`/`PALETTE_BRIGHT` 双档调色板）、`generate_player_sprite.py`（玩家机，钛灰钢甲+青色能量）、`generate_mothership_sprite.py`（母舰，同玩家体系）可重新生成全部单位贴图（PIL，超采样+光晕双层合成）。 |
 | `assets/` | 游戏贴图、音效/BGM、字体和着色器（`assets/shaders/`，Meta HUD 后处理与裂纹场烘焙）。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
@@ -200,8 +201,8 @@ Main (scripts/main.gd)
 
 - 逻辑碰撞层约定：1=`player`、2=`player_bullet`、3=`enemy`（含 Boss）、4=`enemy_bullet`。玩家子弹以 `enemy` 组结算；敌方子弹和敌方实体以 `player_hitbox` 组结算。
 - 玩家受击只使用 `Player/Hitbox` 的 Area2D（设计值 r=7 × world_scale，当前运行值 2.33）。`CharacterBody2D` 本体的半径 22 圆没有碰撞用途（mask 为 0），不得用于受击判定。
-- 子弹使用 `scenes/bullet.tscn`，由 `setup()` 区分阵营。爆炸应使用 `Explosion.spawn_at()`，而非为每次爆炸随意构建新的粒子方案。
-- 视角缩放和窗口尺寸是相互独立的 profile 设置。相机固定在 `(960, 540)` 并只调整 `zoom`；所有屏幕边缘、出界、刷怪和可见区域计算必须使用 `GameState.view_world_rect()`，不要硬编码 `0..1920` 或 `0..1080`。
+- 子弹使用 `scenes/bullet.tscn`，由 `setup()` 区分阵营；敌阵营视觉缩放用 `effects.enemy_bullet_visual_scale`、玩家弹用 `effects.bullet_visual_scale`（均设计值 × world_scale），玩家弹可写入 `Bullet.homing_target` 追踪（字段在 `activate()` 重置清单内）。爆炸应使用 `Explosion.spawn_at()`，而非为每次爆炸随意构建新的粒子方案。
+- 视角缩放和窗口尺寸是相互独立的 profile 设置。相机固定在 `(960, 540)` 并只调整 `zoom`；所有屏幕边缘、出界、刷怪和可见区域计算必须使用 `GameState.view_world_rect()`，不要硬编码 `0..1920` 或 `0..1080`（Boss 战斗锚线 `_fight_anchor_y()`、敌机悬停带/入场锚点基线均已按此适配）。
 
 ### UI、文本与导航
 

@@ -403,11 +403,11 @@ func _ready() -> void:
 	# ================= A10：精英碰撞半径与普通机同档 =================
 	var elite_r := _make_enemy(spawner.ELITE_TYPES[0])
 	var elite_shape := (elite_r.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(is_equal_approx(elite_shape.radius, 34.0 * GameState.world_scale), "A10：精英重甲碰撞半径 = 设计值 34 × world_scale（与普通同档）")
+	_check(is_equal_approx(elite_shape.radius, 38.0 * GameState.world_scale), "A10：精英重甲碰撞半径 = 设计值 38 × world_scale（与普通同档）")
 	elite_r.queue_free()
 	var elite_r2 := _make_enemy(spawner.ELITE_TYPES[1])
 	var elite_shape2 := (elite_r2.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(is_equal_approx(elite_shape2.radius, 30.0 * GameState.world_scale), "A10：精英游击碰撞半径 = 设计值 30 × world_scale（与普通同档）")
+	_check(is_equal_approx(elite_shape2.radius, 34.0 * GameState.world_scale), "A10：精英游击碰撞半径 = 设计值 34 × world_scale（与普通同档）")
 	elite_r2.queue_free()
 
 	# ================= A12：爆炸弹 50px/固定 30/主目标吃溅射/Boss 不吃 =================

@@ -17,28 +17,28 @@ static var ENEMY_TYPES: Array[Dictionary] = [
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(75, 85), "speed": Vector2(140, 180), "score": 100,
-		"fire": 0.25, "fire_interval": 2.2, "scale": 0.45, "radius": 30.0,
+		"fire": 0.25, "fire_interval": 2.2, "scale": 0.62, "radius": 34.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 2 型 高速低 HP
 		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
 		"strategies": [&"zigzag", &"dive"] as Array[StringName],
 		"hp": Vector2i(55, 65), "speed": Vector2(220, 280), "score": 150,
-		"fire": 0.3, "fire_interval": 2.4, "scale": 0.45, "radius": 30.0,
+		"fire": 0.3, "fire_interval": 2.4, "scale": 0.62, "radius": 34.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
 		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
 		"hp": Vector2i(110, 130), "speed": Vector2(90, 120), "score": 200,
-		"fire": 0.4, "fire_interval": 2.0, "scale": 0.5, "radius": 34.0,
+		"fire": 0.4, "fire_interval": 2.0, "scale": 0.68, "radius": 38.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 	{  # 4 型 高分开火狂
 		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
 		"strategies": [&"noise", &"hover", &"aggressive"] as Array[StringName],
 		"hp": Vector2i(65, 75), "speed": Vector2(150, 190), "score": 250,
-		"fire": 0.8, "fire_interval": 1.8, "scale": 0.45, "radius": 30.0,
+		"fire": 0.8, "fire_interval": 1.8, "scale": 0.62, "radius": 34.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 ]
@@ -51,21 +51,21 @@ static var ELITE_TYPES: Array[Dictionary] = [
 		"texture": preload("res://assets/sprites/elite_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(210, 230), "speed": Vector2(90, 110), "score": 400,
-		"fire": 0.5, "fire_interval": 2.2, "scale": 0.7, "radius": 34.0, "elite": true,
+		"fire": 0.5, "fire_interval": 2.2, "scale": 0.9, "radius": 38.0, "elite": true,
 		"bullet_types": [&"spread"] as Array[StringName],
 	},
 	{  # 游击
 		"texture": preload("res://assets/sprites/elite_ship_2.png"),
 		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
 		"hp": Vector2i(150, 170), "speed": Vector2(240, 300), "score": 350,
-		"fire": 0.6, "fire_interval": 2.0, "scale": 0.5, "radius": 30.0, "elite": true,
+		"fire": 0.6, "fire_interval": 2.0, "scale": 0.68, "radius": 34.0, "elite": true,
 		"bullet_types": [&"laser", &"spread"] as Array[StringName],
 	},
 	{  # 炮艇
 		"texture": preload("res://assets/sprites/elite_ship_3.png"),
 		"strategies": [&"hover", &"spiral"] as Array[StringName],
 		"hp": Vector2i(190, 210), "speed": Vector2(110, 140), "score": 500,
-		"fire": 1.0, "fire_interval": 1.5, "scale": 0.6, "radius": 34.0, "elite": true,
+		"fire": 1.0, "fire_interval": 1.5, "scale": 0.78, "radius": 38.0, "elite": true,
 		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},
 ]
@@ -105,7 +105,7 @@ var _elapsed: float = 0.0
 var _waves_since_special: int = 0
 ## 本周期特殊槽间隔（计数清零/休整时重抽，SPECIAL_GAP_MIN~MAX）
 var _next_special_gap: int = 3
-## 敌机悬停带缓存（与 Enemy.HOVER_BAND 同源，供波次锚点分配）
+## 敌机悬停带缓存（与 Enemy.HOVER_BAND 同源，相对可见区域顶缘的偏移，供波次锚点分配）
 var _hover_band := Vector2(150.0, 430.0)
 var _boss_timer: float = 0.0
 var _next_boss_score: int = BOSS_SCORE_STEP
@@ -274,7 +274,7 @@ func _pick_bullet_type(config: Dictionary) -> StringName:
 	return btype
 
 
-## 普通波：成组均布入场（x 按视口均分槽 + 抖动；锚点在悬停带内均分槽 + 抖动）
+## 普通波：成组均布入场（x 按视口均分槽 + 抖动；锚点在悬停带内均分槽 + 抖动，加 view 顶基线）
 func _spawn_normal_wave() -> void:
 	var pool := unlocked_types()
 	var n := _wave_size()
@@ -282,7 +282,7 @@ func _spawn_normal_wave() -> void:
 	for i in n:
 		var config: Dictionary = pool[randi() % pool.size()]
 		var x := _slot_pos(view.position.x + 60.0, view.size.x - 120.0, n, i)
-		var anchor := _slot_pos(_hover_band.x, _hover_band.y - _hover_band.x, n, i)
+		var anchor := _slot_pos(view.position.y + _hover_band.x, _hover_band.y - _hover_band.x, n, i)
 		_queue_enemy(config, x, anchor)
 
 
@@ -292,7 +292,7 @@ func _spawn_elite_wave() -> void:
 	for i in ELITE_WAVE_SIZE:
 		var config: Dictionary = ELITE_TYPES[randi() % ELITE_TYPES.size()]
 		var x := _slot_pos(view.position.x + 60.0, view.size.x - 120.0, ELITE_WAVE_SIZE, i)
-		_queue_enemy(config, x, randf_range(_hover_band.x, _hover_band.y), true)
+		_queue_enemy(config, x, randf_range(view.position.y + _hover_band.x, view.position.y + _hover_band.y), true)
 
 
 ## 单机随机入口（兼容旧调用/测试）：随机 x + 悬停带内随机锚点
@@ -303,7 +303,7 @@ func _spawn_enemy() -> void:
 	_queue_enemy(
 		config,
 		randf_range(view.position.x + 60.0, view.end.x - 60.0),
-		randf_range(_hover_band.x, _hover_band.y)
+		randf_range(view.position.y + _hover_band.x, view.position.y + _hover_band.y)
 	)
 
 

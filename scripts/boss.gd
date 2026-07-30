@@ -71,6 +71,7 @@ const DEFAULT_PATTERNS: Dictionary = {
 	},
 }
 var ENTER_SPEED := 140.0
+## 战斗锚线距可见区域顶缘的偏移（small 档 view.position.y=0 时即绝对 y；使用点一律走 _fight_anchor_y()）
 var FIGHT_Y := 230.0
 var STRAFE_MIN_X := 300.0
 var STRAFE_MAX_X := 1620.0
@@ -552,7 +553,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if not _in_fight:
 		position.y += ENTER_SPEED * _slow_factor() * delta
-		if position.y >= FIGHT_Y:
+		if position.y >= _fight_anchor_y():  # 逐帧求值，支持战斗中途切视角档
 			_in_fight = true
 			health_changed.emit(hp, max_hp)
 		return
@@ -768,6 +769,12 @@ func _update_press(delta: float) -> void:
 	_press_offset = target
 
 
+## 战斗锚线 y：FIGHT_Y 为距可见区域顶缘的偏移，调用时实时取 view 基线
+## （与 _strafe_range() 边距处理对齐；zoom=1 时 view.position.y=0，锚线 = FIGHT_Y 本身）
+func _fight_anchor_y() -> float:
+	return GameState.view_world_rect().position.y + FIGHT_Y
+
+
 ## 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）
 func _strafe_range() -> Vector2:
 	var view := GameState.view_world_rect()
@@ -974,7 +981,7 @@ func _update_sweep(delta: float) -> void:
 				_sweep_state = SweepState.RETURN
 				_sweep_timer = SWEEP_RETURN_DURATION
 				_sweep_origin = position
-				_sweep_return_target = Vector2(clampf(960.0, bounds.x, bounds.y), FIGHT_Y)
+				_sweep_return_target = Vector2(clampf(960.0, bounds.x, bounds.y), _fight_anchor_y())
 		SweepState.RETURN:
 			_sweep_timer -= delta
 			var t := clampf(1.0 - _sweep_timer / SWEEP_RETURN_DURATION, 0.0, 1.0)
@@ -1315,13 +1322,13 @@ func _hive_volley_all_minions() -> void:
 	_minion_volley_fire(minions)
 
 
-## RELEASE_HOLD 结束：0.8s 飞回战斗位（x 钳回巡航范围、y 回 FIGHT_Y）
+## RELEASE_HOLD 结束：0.8s 飞回战斗位（x 钳回巡航范围、y 回战斗锚线 view 顶 + FIGHT_Y）
 func _begin_return() -> void:
 	_enrage_phase = EnragePhase.RETURN
 	_enrage_return_timer = ENRAGE_RETURN_DURATION
 	_enrage_return_origin = position
 	var bounds := _strafe_range()
-	_enrage_return_target = Vector2(clampf(position.x, bounds.x, bounds.y), FIGHT_Y)
+	_enrage_return_target = Vector2(clampf(position.x, bounds.x, bounds.y), _fight_anchor_y())
 
 
 ## 序列中断（逃跑/死亡/离场/教程收尾）：清状态 + 解血锁 + 复位减速 + 清 telegraph，幂等

@@ -2,7 +2,8 @@ extends Node
 ## 视角缩放测试：
 ## 三档映射与切换信号、view_world_rect 可见区域计算、profile 持久化往返、
 ## 设置页三选按钮 wiring、main 场景相机 zoom 应用与震动 offset 兼容、
-## 玩家边缘钳制 / 敌机与子弹出屏销毁 / 刷怪位置与预告线 / Boss 巡航范围随档收窄。
+## 玩家边缘钳制 / 敌机与子弹出屏销毁 / 刷怪位置与预告线 / 敌机悬停锚点 /
+## Boss 巡航范围与战斗锚线随档收窄。
 ## 结束时恢复 medium 档并落盘，避免污染其他测试进程。
 
 var _failures: int = 0
@@ -189,7 +190,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(not is_instance_valid(b), "large 档 x=100 子弹出屏销毁（边界 ≈315）")
 
-	# ---------- 9. 刷怪位置与预告线随档收窄 ----------
+	# ---------- 9. 刷怪位置/预告线/悬停锚点随档收窄（当前为 large 档） ----------
 	spawner._spawn_enemy()  # 异步：先挂预告线，0.6s 后出机
 	await get_tree().create_timer(0.2).timeout
 	var tel: SpawnTelegraph = null
@@ -223,7 +224,26 @@ func _ready() -> void:
 			absf(spawned.position.y - (view.position.y - 60.0)) < 100.0,
 			"刷怪 y 在可见区域顶上方"
 		)
+		_check(
+			spawned.anchor_y >= view.position.y,
+			"large 档刷怪锚点 ≥ 可见顶（spawner 分配加 view 基线）"
+		)
 		spawned.queue_free()
+	await get_tree().process_frame
+	# 锚点 fallback：spawner 未分配时 _resolve_anchor 自取，钳入「view 顶 + 悬停带」
+	var e_fb := ENEMY_SCENE.instantiate() as Enemy
+	e_fb.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	e_fb.can_shoot = false
+	e_fb.hp = 9999
+	e_fb.position = Vector2(600.0, GameState.view_world_rect().position.y + 10.0)
+	get_node("Main").add_child(e_fb)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(
+		e_fb.anchor_y >= GameState.view_world_rect().position.y + e_fb.HOVER_BAND.x,
+		"large 档敌机自取锚点 ≥ 可见顶 + 悬停带顶缘偏移"
+	)
+	e_fb.queue_free()
 	await get_tree().process_frame
 
 	# ---------- 10. Boss 出场位置与巡航范围 ----------
@@ -245,6 +265,10 @@ func _ready() -> void:
 	GameState.set_view_zoom(&"small")
 	var small_range := range_boss._strafe_range()
 	_check(small_range == Vector2(300.0, 1620.0), "small 档 Boss 巡航范围 = 配置 300..1620")
+	_check(
+		absf(range_boss._fight_anchor_y() - range_boss.FIGHT_Y) < 0.001,
+		"small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）"
+	)
 	GameState.set_view_zoom(&"large")
 	var large_range := range_boss._strafe_range()
 	var expect_lo := GameState.view_world_rect().position.x + 300.0
@@ -252,6 +276,16 @@ func _ready() -> void:
 	_check(
 		absf(large_range.x - expect_lo) < 1.0 and absf(large_range.y - expect_hi) < 1.0,
 		"large 档 Boss 巡航范围随可见区域收窄"
+	)
+	var view_anchor := GameState.view_world_rect()
+	var anchor_large := range_boss._fight_anchor_y()
+	_check(
+		absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001,
+		"large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y"
+	)
+	_check(
+		anchor_large > view_anchor.position.y and anchor_large < view_anchor.end.y,
+		"large 档 Boss 战斗锚线落在可见区域内"
 	)
 	range_boss.free()
 	# ---------- 11. 母舰召唤位置（小窗演出直推，母舰穿梭入场于停驻点） ----------
@@ -266,9 +300,10 @@ func _ready() -> void:
 			absf(main._mothership.position.x - GameState.view_world_rect().get_center().x) < 1.0,
 			"母舰出场 x = 可见区域中心"
 		)
+		var warp_drop: float = GameState.cfg("effects.mothership_summon.warp_in_drop", 260.0)
 		_check(
-			absf(main._mothership.position.y - (GameState.cfg("mothership.hover_y", 270.0) - 120.0 * GameState.world_scale)) < 1.0,
-			"母舰出场 y = 停驻点上方 120 × world_scale（穿梭滑入起点）"
+			absf(main._mothership.position.y - (GameState.cfg("mothership.hover_y", 270.0) - warp_drop * GameState.world_scale)) < 1.0,
+			"母舰出场 y = 停驻点上方 warp_in_drop × world_scale（穿梭滑入起点）"
 		)
 		main._mothership.queue_free()
 	await get_tree().process_frame

@@ -58,6 +58,8 @@ var _event: EliteTurretEvent = null
 var _formation: FormationStrikeEvent = null
 ## Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）
 var _meta_fx: MetaHealthFX = null
+## 辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）
+var _aim_frames: AimFrameLayer = null
 var _breath_was_active: bool = false
 
 
@@ -92,6 +94,9 @@ func _ready() -> void:
 	# Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
 	_meta_fx = MetaHealthFX.new()
 	add_child(_meta_fx)
+	# 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
+	_aim_frames = AimFrameLayer.new()
+	add_child(_aim_frames)
 	_apply_camera_zoom()
 	GameState.view_zoom_changed.connect(_on_view_zoom_changed)
 	_start_bgm_async()
