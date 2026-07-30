@@ -254,14 +254,21 @@ func _ready() -> void:
 		"large 档 Boss 巡航范围随可见区域收窄"
 	)
 	range_boss.free()
-	# ---------- 11. 母舰召唤位置 ----------
+	# ---------- 11. 母舰召唤位置（小窗演出直推，母舰穿梭入场于停驻点） ----------
 	var main := get_node("Main")
 	main._summon_mothership()
+	_check(main._summon_window != null, "召唤小窗已弹出")
+	if main._summon_window != null:
+		main._summon_window.skip()  # 幂等直推：finished → main 开穿梭门并实例化母舰
 	_check(main._mothership != null, "母舰已召唤")
 	if main._mothership != null:
 		_check(
-			absf(main._mothership.position.y - (GameState.view_world_rect().position.y - 200.0)) < 1.0,
-			"母舰出场 y 在可见区域顶上方"
+			absf(main._mothership.position.x - GameState.view_world_rect().get_center().x) < 1.0,
+			"母舰出场 x = 可见区域中心"
+		)
+		_check(
+			absf(main._mothership.position.y - (GameState.cfg("mothership.hover_y", 270.0) - 120.0 * GameState.world_scale)) < 1.0,
+			"母舰出场 y = 停驻点上方 120 × world_scale（穿梭滑入起点）"
 		)
 		main._mothership.queue_free()
 	await get_tree().process_frame

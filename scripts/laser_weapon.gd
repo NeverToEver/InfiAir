@@ -11,7 +11,7 @@ var TICK_INTERVAL := 0.1
 var TICK_DAMAGE := 16
 var BEAM_LENGTH := 2400.0
 var BEAM_HALF_WIDTH := 26.0
-var ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径约 30（spawner 机型配置）
+var ENEMY_HIT_RADIUS := 30.0  # 敌机碰撞半径设计值（spawner 机型配置基准 30，× world_scale 生效）
 const SFX_BEAM: AudioStream = preload("res://assets/audio/bullet_fire_c.wav")
 
 var _active: bool = false
@@ -33,7 +33,7 @@ func _ready() -> void:
 	TICK_DAMAGE = GameState.cfg("buffs.laser_beam.tick_damage", TICK_DAMAGE)
 	BEAM_LENGTH = GameState.cfg("buffs.laser_beam.length", BEAM_LENGTH)
 	BEAM_HALF_WIDTH = GameState.cfg("buffs.laser_beam.half_width", BEAM_HALF_WIDTH)
-	ENEMY_HIT_RADIUS = GameState.cfg("buffs.laser_beam.hit_radius", ENEMY_HIT_RADIUS)
+	ENEMY_HIT_RADIUS = GameState.cfg("buffs.laser_beam.hit_radius", ENEMY_HIT_RADIUS) * GameState.world_scale
 	# 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
 	_beam = Line2D.new()
 	_beam.top_level = true

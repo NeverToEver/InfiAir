@@ -20,7 +20,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - **引擎：** Godot 4.6（标准版即可，无需 .NET）。`project.godot` 当前声明 `4.6` 和 `GL Compatibility` 特性，桌面/移动端均使用 `gl_compatibility`。
 - **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件（`generate_audio.py`、`generate_enemy_sprites.py`、`generate_player_sprite.py`、`generate_mothership_sprite.py`）是离线资产生成工具，不属于游戏运行时依赖。
 - **资源：** `assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf` UI 字体。
-- **数据：** `data/balance.json` 为可调数值源（顶层分区：player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、progression、effects、tutorial、elite_turret_event、formation_strike_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
+- **数据：** `data/balance.json` 为可调数值源（顶层分区：world_scale、player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、progression、effects、tutorial、elite_turret_event、formation_strike_event）；`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
 
 ### 关键配置文件
 
@@ -71,8 +71,11 @@ godot --headless --path . res://test/boss_pattern_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
 godot --headless --path . res://test/balance_test.tscn
 godot --headless --path . res://test/elite_turret_event_test.tscn
+godot --headless --path . res://test/buff_panel_test.tscn
 godot --headless --path . res://test/formation_strike_event_test.tscn
 godot --headless --path . res://test/orbital_strike_test.tscn
+godot --headless --path . res://test/mothership_summon_test.tscn
+godot --headless --path . res://test/meta_health_fx_test.tscn
 
 # 设置、启动、导航与教程
 godot --headless --path . res://test/keybind_test.tscn
@@ -104,6 +107,18 @@ godot --path . res://test/ui_capture.tscn
 
 # 窗口模式：返航过场逐镜头（8s/镜头拉长时轴），输出 /tmp/return_shot*.png
 godot --path . res://test/return_capture.tscn
+
+# 窗口模式：开场过场逐镜头（8s/镜头拉长时轴），输出 /tmp/intro_shot*.png
+godot --path . res://test/intro_capture.tscn
+
+# 窗口模式：母舰召唤全序列（蓄力/小窗/穿梭门/牵引/驻留），输出 /tmp/summon_*.png
+godot --path . res://test/summon_capture.tscn
+
+# 窗口模式：Meta HUD 血量/受击反馈各血量档，输出 /tmp/meta_fx_*.png
+godot --path . res://test/meta_fx_capture.tscn
+
+# 窗口模式：HUD 常态/极端（全 buff 满层）布局，输出 /tmp/hud_*.png
+godot --path . res://test/hud_capture.tscn
 ```
 
 ## 运行时架构
@@ -116,13 +131,16 @@ Main (scripts/main.gd)
 ├─ Player
 ├─ Spawner
 ├─ BulletPool / EnemyPool
-├─ HUD
+├─ HUD（layer=2：为 MetaHealthFX 让出「世界之上、HUD 之下」的 layer=1）
 ├─ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
 ├─ StartPanel / WelcomeScreen / ExitConfirm
 ├─ BackNavigator
+├─ MetaHealthFX（运行时由 main 在 _ready 创建，layer=1，Meta HUD 血量/受击全屏后处理）
 ├─ IntroCinematic（运行时由 main 在新游戏时实例化，layer=35）
 ├─ ReturnCinematic（运行时由 main 在返航时实例化，layer=35）
 ├─ OrbitalStrike（运行时由 main 在继续出击时实例化，layer=24，轨道打击清场动画）
+├─ MothershipSummonWindow（运行时由 main 在母舰蓄力完成时实例化，layer=24，机库小窗演出）
+├─ WarpGate（运行时由 main 在小窗结束时实例化于母舰停驻点，世界坐标，穿梭门特效）
 └─ EliteTurretEvent（运行时由 main 在 _ready 创建并登记给 spawner 互斥）
 └─ FormationStrikeEvent（运行时由 main 在 _ready 创建并登记给 spawner；最低优先级随机事件）
 ```
@@ -135,9 +153,12 @@ Main (scripts/main.gd)
 - `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
 - `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。
+- `scripts/meta_health_fx.gd`（MetaHealthFX）+ `assets/shaders/meta_health.gdshader` + `assets/shaders/crack_field_bake.gdshader`：Meta HUD 血量/受击反馈（设计文档 `docs/META_HUD_DESIGN.md`）——全屏后处理承载受击色差/径向模糊、攻击方向定向波纹、低血裂纹生长/错峰消散（Voronoi 距离场一次性预烘焙：窗口模式 SubViewport GPU 512²、headless CPU 64² 等价回退，两路径公式必须同步）、去饱和/晕影与 DYING 心跳/呼吸/HUD 抖动；满血隐藏全屏 ColorRect + `_process` 早退（常态零 GPU、≈零 CPU），参数上传 epsilon 检测。数值在 `effects.meta_health`，「减少闪光」无障碍开关在设置页「操作模式」。
+- `scripts/cinematic_fx.gd`（CinematicFx）：过场/演出共享特效静态工厂——软径向光晕 `soft_glow`（64² 程序生成软点贴图，消除硬边圆点）、带纹理粒子 `particles`（与旧 `_particles(cfg)` 同契约，≤96/发射器）、双层冲击波环 `shockwave`、分层能量束+流光点 `beam`、速度线场 `speed_lines`、径向放射条纹 `radial_streaks`；驱动类 `_process` 全部零堆分配。开场/返航过场与母舰召唤演出共用。
 - `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
 - `scripts/return_cinematic.gd` + `scripts/dawn_station.gd`：返航过场导演（7 镜头，长按 B 返航触发，设计文档 `docs/RETURN_HOME_CINEMATIC.md`）；架构镜像开场，Esc 经 `SKIP_RETURN` 路由，播完/跳过统一走 `finished` 落基地 UI（树保持暂停，镜头 7 渐暗期 BGM 淡出到 -40dB）。`DawnStation` 是「曙光」站体共享静态工厂（毁灭态/全息虚影态），开场镜头 1、返航镜头 2/3/4 与后续基地背景层复用。
 - `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
+- `scripts/mothership_summon_window.gd` + `scripts/warp_gate.gd`：母舰召唤演出（蓄力完成触发，对局不暂停、演出期玩家锁输入+事件驱动无敌）——蓄力期 main 在停驻点叠加收缩双环/内吸粒子/背光（`_charge_fx`，随进度驱动、松手复位）；机库小窗（充能管线断开→维护臂解除→弹射+穿梭器启动，layer=24，`finished` 信号统一出口，`skip()` 供测试直推）；小窗结束后 main 在停驻点创建穿梭门（世界坐标，软光门心+内旋弧+门缘内吸粒子+前唇遮挡层），母舰 DESCEND 穿出减速（缩放 ease-out，前唇层压过舰体形成穿门读感，行程 `warp_in_drop`），到位释放双环减速带（`Enemy`/`Boss.apply_slow` 短时位移减速乘区）并立即火力掩护，DOCKING 牵引回收玩家进保护舱（光束含 3 枚循环流动捕获环；`player.enter_pod()` 隐藏+关受击判定，RELEASE `exit_pod()` 恢复），之后补给/驻留/离场与原流程一致。数值在 `effects.mothership_summon`。
 - `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
 - `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss、不暂停波次，可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。
@@ -152,7 +173,7 @@ Main (scripts/main.gd)
 | `scenes/` | Godot `.tscn` 场景与节点组合。 |
 | `scripts/` | GDScript 游戏逻辑、UI、表现和池实现。 |
 | `scripts/tools/` | 离线工具；`generate_audio.py` 可重新生成已提交的 WAV；`generate_enemy_sprites.py`（敌方单位+航母+炮塔，晶体棱镜风格）、`generate_player_sprite.py`（玩家机，钛灰钢甲+青色能量）、`generate_mothership_sprite.py`（母舰，同玩家体系）可重新生成全部单位贴图（PIL，超采样+光晕双层合成）。 |
-| `assets/` | 游戏贴图、音效/BGM 和字体。 |
+| `assets/` | 游戏贴图、音效/BGM、字体和着色器（`assets/shaders/`，Meta HUD 后处理与裂纹场烘焙）。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
 | `docs/` | 退出流程、审计计划、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录）。 |
@@ -163,7 +184,7 @@ Main (scripts/main.gd)
 
 - 遵循 Godot 4 官方风格：**Tab 缩进**、类型标注、`CONSTANT_CASE` 常量、私有成员前缀 `_`、`signal_name.emit()` / `signal_name.connect()` 信号语法。
 - `setup()` 会在实体被加入场景、执行 `_ready()` 之前调用。此阶段不要依赖 `@onready` 缓存；改用 `$节点路径` 访问子节点。
-- 不要修改既有 autoload 或输入映射来完成无关需求。现有输入由 `project.godot` 定义，包括移动、`boost`（Shift）、`fine_move`（Ctrl）、`dash`（Space）、`dock`（H）、`homecoming`（B）、`give_up`（K）和 `restart`（R）。
+- 不要修改既有 autoload 或输入映射来完成无关需求。现有输入由 `project.godot` 定义，包括移动、`boost`（Shift）、`fine_move`（Ctrl）、`dash`（Space）、`dock`（H）、`homecoming`（B）、`give_up`（K）、`buff_panel`（L，展开/收起 buff 滚动栏）和 `restart`（R）。
 - 教程进入时会隔离对局状态和存档，离开时必须恢复 `Engine.time_scale = 1`。运行期创建的节点要保存引用，不能依赖 Godot 自动生成的节点名。
 - 延迟回调不要 `await get_tree().create_timer()` 或挂起在任何计时器上的协程：进程退出时未完成的协程函数状态会泄漏，并连带其引用的资源（贴图/音频）。改用一次性 `Timer` 节点 + 信号连接（参考 `spawner.gd` 的 `_schedule()`），Timer 随场景树释放。
 
@@ -172,11 +193,13 @@ Main (scripts/main.gd)
 - **可调游戏数值只修改 `data/balance.json`，不要仅修改脚本回退值。** 脚本内的同名默认值用于缺键/损坏 JSON 回退，新增或调整数值时应保持两者一致。
 - 统一使用 `GameState.cfg("player.fuel.drain", default)` 查询嵌套配置。高频 `_process`/`_physics_process` 路径必须在 `_ready()` 或初始化阶段读取并缓存，不要每帧查 JSON 字典。
 - `GameState` 在启动时加载 `balance.json`，并对缺失或无法解析的配置使用脚本默认值。
+- **整体机体缩放只有一个杠杆：`balance.json` 顶层 `world_scale`（当前 1/3），运行时缓存为 `GameState.world_scale`。** 机体尺寸族数值——贴图 scale、碰撞 radius、muzzle/对接/炮位/牵引等机体偏移、子弹/爆炸/穿梭门/激光判定等随机体特效比例——在 json/tscn/脚本回退三处一律存**设计值**（1.0 基准，即 2026-07 缩放前的原始大小），由实体在 `_ready()`/`setup()` 统一乘 `world_scale` 后应用。游戏性范围族（AoE 半径、锁定/清弹半径、减速环）与指示器/过场/UI 不乘。新增尺寸数值时按此归类，不要绕过杠杆直接写运行值。
+- 尺寸应用必须是**幂等赋值**（`radius = 设计值 * world_scale`），严禁 `*=` 累乘：场景 CircleShape2D 等 sub_resource 默认被全部实例共享，累乘会逐实例重复缩放；运行时写半径的场景（enemy.tscn）要给 shape 加 `resource_local_to_scene = true`（普通机与精英半径不同档，共享会互相串改）。
 
 ### 碰撞、伤害与视角
 
 - 逻辑碰撞层约定：1=`player`、2=`player_bullet`、3=`enemy`（含 Boss）、4=`enemy_bullet`。玩家子弹以 `enemy` 组结算；敌方子弹和敌方实体以 `player_hitbox` 组结算。
-- 玩家受击只使用 `Player/Hitbox` 的 Area2D（半径 7）。`CharacterBody2D` 本体的半径 22 圆没有碰撞用途（mask 为 0），不得用于受击判定。
+- 玩家受击只使用 `Player/Hitbox` 的 Area2D（设计值 r=7 × world_scale，当前运行值 2.33）。`CharacterBody2D` 本体的半径 22 圆没有碰撞用途（mask 为 0），不得用于受击判定。
 - 子弹使用 `scenes/bullet.tscn`，由 `setup()` 区分阵营。爆炸应使用 `Explosion.spawn_at()`，而非为每次爆炸随意构建新的粒子方案。
 - 视角缩放和窗口尺寸是相互独立的 profile 设置。相机固定在 `(960, 540)` 并只调整 `zoom`；所有屏幕边缘、出界、刷怪和可见区域计算必须使用 `GameState.view_world_rect()`，不要硬编码 `0..1920` 或 `0..1080`。
 
@@ -184,7 +207,7 @@ Main (scripts/main.gd)
 
 - 所有用户可见文本使用 `tr("UPPER_SNAKE_CASE_KEY")`。新增键必须同步写入 `data/translations.csv` 的 `zh` 和 `en` 列；让 Godot 重新导入后生成 `.translation`。动态文本使用带 `%d`/`%s` 占位符的翻译键。
 - 语言切换必须经 `GameState.set_locale("zh" / "en")`，并使 UI 监听 `locale_changed` 后刷新文本。
-- 页面样式使用 `scripts/ui_theme.gd`：色板 token、字号阶梯、`make_label()`、`make_button()`、`make_toggle_button()`、`make_section_header()`、`make_page_shell()`、`make_buff_chip()`（HUD buff 状态芯片）和开场动画工具；可复用构件还有 `scripts/ui_chamfered_panel.gd`（切角面板）与 `scripts/ui_segmented_bar.gd`（分段条形仪表，末段按比例部分填充）。新页面以 `make_page_shell()` 组合，单页最多一个 primary 主按钮；不要散落手写色值和重复 Label/Button 样板。
+- 页面样式使用 `scripts/ui_theme.gd`：色板 token、字号阶梯、`make_label()`、`make_button()`、`make_toggle_button()`、`make_section_header()`、`make_page_shell()`、`make_buff_tile()`（HUD buff 图标格：46×46 字形瓦片 + 层数徽标；右下角收起态单行（最新 4 格 + 溢出 +N），L 展开右缘滚动明细栏，Esc 经 BackNavigator 优先收栏）和开场动画工具；可复用构件还有 `scripts/ui_chamfered_panel.gd`（切角面板）、`scripts/ui_segmented_bar.gd`（分段条形仪表，末段按比例部分填充）与 `scripts/ui_buff_icons.gd`（BuffIcons：16 种 buff 程序化字形 + 分类配色，HUD 图标坞与 Buff 三选一卡片共用）。新页面以 `make_page_shell()` 组合，单页最多一个 primary 主按钮；不要散落手写色值和重复 Label/Button 样板。
 - Buff、暂停、结算等暂停态 UI 必须设置 `process_mode = Always`，并通过 `get_tree().paused` 管理暂停。
 - 返回/退出集中在 `BackNavigator`。除设置页的改键捕获态外，页面不要自行消费 `ui_cancel`；新增页面层级必须在 `decide_back_action()` 中登记，并同步 `docs/EXIT_FLOW.md`。
 - BGM 循环只设置 `stream.loop_mode = LOOP_FORWARD`；不要显式设置 `loop_begin`/`loop_end` 或在 `_exit_tree()` 停止 BGM，否则可能造成播放实例泄漏。
@@ -199,7 +222,7 @@ Main (scripts/main.gd)
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 31 个场景：26 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture`（窗口模式截图工具）。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 38 个场景：29 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

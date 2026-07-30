@@ -26,11 +26,11 @@ func _init() -> void:
 	collision_mask = 0
 	_sprite = Sprite2D.new()
 	_sprite.texture = TEXTURE
-	_sprite.scale = Vector2.ONE * 0.9
+	_sprite.scale = Vector2.ONE * 0.9 * GameState.world_scale  # 设计值 0.9 × 全局缩放
 	add_child(_sprite)
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = 26.0
+	circle.radius = 26.0 * GameState.world_scale
 	shape.shape = circle
 	add_child(shape)
 

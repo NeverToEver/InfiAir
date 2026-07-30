@@ -11,6 +11,7 @@ enum BackAction {
 	RESUME_BASE,  # 基地控制台 → 继续出击
 	SKIP_INTRO,  # 开场过场播放中：返回 = 跳过过场
 	SKIP_RETURN,  # 返航过场播放中：返回 = 跳过过场
+	CLOSE_BUFF_PANEL,  # buff 滚动栏展开中：返回 = 收起栏（优先于打开暂停）
 	IGNORE,  # 阻塞态（Buff 三选一/其他暂停态）：忽略
 	TO_MAIN_MENU,  # 结算页 → 返回主界面
 	RESUME_GAME,  # 暂停中 → 继续游戏
@@ -19,6 +20,7 @@ enum BackAction {
 }
 
 @onready var _main: Node2D = get_parent()
+@onready var _hud: CanvasLayer = get_parent().get_node("HUD")
 @onready var _buff_ui: CanvasLayer = get_parent().get_node("BuffUI")
 @onready var _pause_ui: CanvasLayer = get_parent().get_node("PauseUI")
 @onready var _settings_ui: CanvasLayer = get_parent().get_node("SettingsUI")
@@ -63,6 +65,9 @@ func go_back() -> void:
 		BackAction.SKIP_RETURN:
 			_main._skip_return()
 			_mark_handled()
+		BackAction.CLOSE_BUFF_PANEL:
+			_hud.close_buff_panel()
+			_mark_handled()
 		BackAction.IGNORE:
 			_mark_handled()
 		BackAction.TO_MAIN_MENU:
@@ -106,6 +111,8 @@ func decide_back_action() -> BackAction:
 		return BackAction.IGNORE
 	if _game_over_ui.visible:
 		return BackAction.TO_MAIN_MENU
+	if _hud.is_buff_panel_open():
+		return BackAction.CLOSE_BUFF_PANEL  # buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
 	if _pause_ui.visible:
 		return BackAction.RESUME_GAME
 	if _start_panel.visible or _welcome.visible:

@@ -34,6 +34,10 @@ var _mothership: Mothership = null
 var _charging: bool = false
 var _charge_time: float = 0.0
 var _charge_ghost: Mothership
+var _charge_fx: Node2D = null  # 蓄力特效容器（与 _charge_ghost 同位，随蓄力显隐）
+var _charge_glow: Sprite2D = null  # 虚影背光
+var _charge_rings: Array[Line2D] = []  # 收缩椭圆环 ×2
+var _charge_inflow: GPUParticles2D = null  # 内吸粒子
 var _home_charge_time: float = 0.0
 var _give_up_charge: float = 0.0
 # Boss 狂暴子弹时间状态（main 统一接管：Boss 被杀/逃跑也保证 time_scale 回 1）
@@ -46,10 +50,15 @@ var _intro: IntroCinematic = null
 var _return: ReturnCinematic = null
 ## 播放中的轨道打击清场动画（继续出击时触发；null = 未播放）
 var _strike: OrbitalStrike = null
+## 播放中的母舰召唤机库小窗（蓄力完成后触发；null = 未播放）
+var _summon_window: MothershipSummonWindow = null
 ## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
 var _event: EliteTurretEvent = null
 ## 轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）
 var _formation: FormationStrikeEvent = null
+## Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）
+var _meta_fx: MetaHealthFX = null
+var _breath_was_active: bool = false
 
 
 func _ready() -> void:
@@ -80,7 +89,10 @@ func _ready() -> void:
 	_base_ui.resume_requested.connect(_resume_from_base)
 	# 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
 	GameState.camera_ref = _camera
-	_camera.zoom = Vector2.ONE * GameState.view_zoom_factor()
+	# Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
+	_meta_fx = MetaHealthFX.new()
+	add_child(_meta_fx)
+	_apply_camera_zoom()
 	GameState.view_zoom_changed.connect(_on_view_zoom_changed)
 	_start_bgm_async()
 	if "--startup-time" in OS.get_cmdline_user_args():
@@ -94,6 +106,7 @@ func _ready() -> void:
 	_charge_ghost.position = Vector2(960.0, _charge_ghost.HOVER_Y)
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
+	_build_charge_fx()
 	# 有存档则先显示开始面板，否则直接开新局；欢迎页在显时由 dismiss() 补调 show_panel，
 	# 不得在此抢显（GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
 	if GameState.has_save() and not $WelcomeScreen.visible:
@@ -107,8 +120,16 @@ func _exit_tree() -> void:
 		GameState.camera_ref = null
 
 
-func _on_view_zoom_changed(factor: float) -> void:
-	_camera.zoom = Vector2(factor, factor)
+func _on_view_zoom_changed(_factor: float) -> void:
+	_apply_camera_zoom()
+
+
+## 相机 zoom 单点组合（D6）：视角档位 × DYING 呼吸缩放；震动只写 offset 不受影响
+func _apply_camera_zoom() -> void:
+	var breath := 1.0
+	if _meta_fx != null and _meta_fx.breath_active():
+		breath = _meta_fx.breath_scale()
+	_camera.zoom = Vector2.ONE * GameState.view_zoom_factor() * breath
 
 
 func _process(delta: float) -> void:
@@ -136,7 +157,17 @@ func _process(delta: float) -> void:
 		_charging = true
 		_charge_time += delta
 		_charge_ghost.visible = true
-		_charge_ghost.modulate.a = 0.15 + 0.25 * clampf(_charge_time / DOCK_CHARGE_TIME, 0.0, 1.0)
+		var cp := clampf(_charge_time / DOCK_CHARGE_TIME, 0.0, 1.0)
+		_charge_ghost.modulate.a = 0.15 + 0.25 * cp
+		# 蓄力特效：背光渐亮 + 双环错峰收缩 + 内吸粒子（帧内仅属性写，零分配）
+		_charge_fx.visible = true
+		_charge_inflow.emitting = true
+		_charge_glow.modulate.a = 0.35 * cp
+		for i in _charge_rings.size():
+			var rp := clampf(cp * 1.25 - 0.25 * float(i), 0.0, 1.0)
+			var ring := _charge_rings[i]
+			ring.scale = Vector2.ONE * lerpf(2.2, 0.7, rp)
+			ring.modulate.a = 0.15 + 0.55 * rp
 		if _charge_time >= DOCK_CHARGE_TIME:
 			_stop_charging()
 			_summon_mothership()
@@ -170,12 +201,59 @@ func _process(delta: float) -> void:
 	elif _give_up_charge > 0.0:
 		_give_up_charge = 0.0
 		_hud.set_give_up_charge(-1.0)
+	# DYING 呼吸缩放（D6）：仅激活期逐帧组合；退出激活时复位一次到基础 zoom
+	var breath_on := _meta_fx != null and _meta_fx.breath_active()
+	if breath_on or _breath_was_active:
+		_apply_camera_zoom()
+	_breath_was_active = breath_on
 
 
 func _stop_charging() -> void:
 	_charging = false
 	_charge_time = 0.0
 	_charge_ghost.visible = false
+	_charge_fx.visible = false
+	_charge_inflow.emitting = false
+
+
+## 蓄力特效（长按 H 期间随 _charge_ghost 显示）：虚影背光 + 双收缩椭圆环 + 内吸粒子。
+## 与虚影同位（960, HOVER_Y），世界坐标；环半径 160 为设计值 × world_scale。
+func _build_charge_fx() -> void:
+	var ws: float = GameState.world_scale
+	_charge_fx = Node2D.new()
+	_charge_fx.position = Vector2(960.0, _charge_ghost.HOVER_Y)
+	_charge_fx.visible = false
+	add_child(_charge_fx)
+	# 背光（衬在虚影之下：z -1）
+	_charge_glow = CinematicFx.soft_glow(220.0 * ws, Color(0.35, 0.85, 1.0, 0.0))
+	_charge_glow.z_index = -1
+	_charge_fx.add_child(_charge_glow)
+	# 收缩椭圆环 ×2（透视压扁，蓄力进度驱动 2.2→0.7 错峰收缩）
+	for i in 2:
+		var ring := Line2D.new()
+		ring.width = 2.5
+		ring.default_color = Color(0.4, 0.9, 1.0)
+		ring.points = CinematicFx.ring_points(48, 160.0 * ws, 0.5)
+		ring.material = CinematicFx.additive_material()
+		_charge_fx.add_child(ring)
+		_charge_rings.append(ring)
+	# 内吸粒子：环上发射、负径向速度流向中心（蓄能汇聚感）
+	_charge_inflow = CinematicFx.particles({
+		"amount": 36, "lifetime": 0.7, "vel_min": 0.0, "vel_max": 0.0,
+		"scale_min": 2.0, "scale_max": 4.0, "color": Color(0.5, 0.9, 1.0, 0.55),
+	})
+	var inflow_mat := _charge_inflow.process_material as ParticleProcessMaterial
+	inflow_mat.direction = Vector3.ZERO
+	inflow_mat.spread = 0.0
+	inflow_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	inflow_mat.emission_ring_axis = Vector3(0.0, 0.0, 1.0)
+	inflow_mat.emission_ring_radius = 160.0 * ws
+	inflow_mat.emission_ring_inner_radius = 150.0 * ws
+	inflow_mat.emission_ring_height = 0.0
+	inflow_mat.radial_velocity_min = -90.0 * ws
+	inflow_mat.radial_velocity_max = -160.0 * ws
+	_charge_inflow.emitting = false
+	_charge_fx.add_child(_charge_inflow)
 
 
 ## BGM 延后到首帧之后启动：3.5MB WAV 解码不占首帧关键路径
@@ -326,6 +404,8 @@ func _enrage_vignette() -> void:
 func dock_status_text() -> String:
 	if _charging:
 		return tr("MS_CHARGING") % int(_charge_time / DOCK_CHARGE_TIME * 100.0)
+	if _summon_window != null:
+		return tr("MS_DESCEND")
 	if _mothership != null:
 		return _mothership.state_text()
 	if _dock_cooldown > 0.0:
@@ -333,9 +413,33 @@ func dock_status_text() -> String:
 	return tr("MS_READY")
 
 
+## 召唤序列（蓄力完成）：锁输入 + 事件驱动无敌（演出期对局不暂停，保护窗口与
+## 对接期一致），弹出机库小窗演出；小窗 finished 后开穿梭门、母舰穿出
 func _summon_mothership() -> void:
+	if _summon_window != null:
+		return
+	# 成功路径保底隐藏蓄力特效（自然流程 _stop_charging 已处理；测试直调走此分支）
+	_charge_fx.visible = false
+	_charge_inflow.emitting = false
+	_player._input_locked = true
+	_player.velocity = Vector2.ZERO
+	_player._invincible = 999.0
+	_summon_window = MothershipSummonWindow.new()
+	_summon_window.finished.connect(_on_summon_window_finished)
+	add_child(_summon_window)
+
+
+## 小窗演出结束：在母舰停驻点打开穿梭门，母舰穿出减速入场（DESCEND 由母舰自驱；
+## 到位后减速带 + 火力掩护 + 牵引回收进保护舱，均由母舰状态机接管）
+func _on_summon_window_finished() -> void:
+	_summon_window = null
+	var gate_pos := Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HOVER_Y)
+	var gate := WarpGate.new()
+	gate.position = gate_pos
+	add_child(gate)
+	GameState.shake(GameState.cfg("effects.mothership_summon.shake_gate", 6.0))
 	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
-	_mothership.position = Vector2(960.0, GameState.view_world_rect().position.y - 200.0)
+	_mothership.begin_warp_in(gate_pos, gate)
 	_mothership.departed.connect(_on_mothership_departed)
 	_mothership.tree_exited.connect(func() -> void: _mothership = null)
 	add_child(_mothership)
@@ -363,6 +467,11 @@ func _start_homecoming() -> void:
 	_player._input_locked = true
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
+	# 召唤小窗在播则断开回调后关闭（避免 finished 触发穿梭门/母舰创建）
+	if _summon_window != null:
+		_summon_window.finished.disconnect(_on_summon_window_finished)
+		_summon_window.skip()
+		_summon_window = null
 	# 母舰若在对接/驻留中，直接收回——按基础冷却进冷却（防"补给→返航→再召唤"无限循环）
 	if _mothership != null:
 		_mothership.queue_free()

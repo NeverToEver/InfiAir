@@ -235,7 +235,7 @@ func _process_drops() -> void:
 			maxi(1, int(roundf(BOMB_DAMAGE * GameState.enemy_damage_ramp()))),
 			BOMB_RADIUS
 		)
-		bomb.position = craft.position + Vector2(0.0, 18.0)
+		bomb.position = craft.position + Vector2(0.0, 18.0) * GameState.world_scale
 		get_parent().add_child(bomb)
 		_dropped += 1
 

@@ -10,13 +10,13 @@ signal exited
 
 const TEXTURE: Texture2D = preload("res://assets/sprites/strike_carrier.png")
 
-## 基座相对偏移（与生成器 TURRET_WELLS 对齐：贴图坐标 - (600, 350)）
+## 基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - (600, 350)；使用点 × world_scale）
 const SOCKETS: Array[Vector2] = [
-	Vector2(-170.0, 120.0),  # 左翼台内
-	Vector2(170.0, 120.0),   # 右翼台内
-	Vector2(-310.0, 80.0),   # 左翼台外
-	Vector2(310.0, 80.0),    # 右翼台外
-	Vector2(0.0, 170.0),     # 中央前甲板
+	Vector2(-170.0, 120.0),   # 左翼台内
+	Vector2(170.0, 120.0),    # 右翼台内
+	Vector2(-310.0, 80.0),  # 左翼台外
+	Vector2(310.0, 80.0),   # 右翼台外
+	Vector2(0.0, 170.0),      # 中央前甲板
 ]
 
 enum State { ENTER, HOVER, RETREAT }
@@ -40,6 +40,7 @@ var _sprite: Sprite2D
 func _init() -> void:
 	_sprite = Sprite2D.new()
 	_sprite.texture = TEXTURE
+	_sprite.scale = Vector2.ONE * GameState.world_scale  # 设计值 1.0 × 全局缩放
 	add_child(_sprite)
 
 
@@ -53,14 +54,15 @@ func _ready() -> void:
 
 ## 八角基座环（状态灯；默认隐藏，事件按启用基座逐个点亮）
 func _build_rings() -> void:
+	var ws: float = GameState.world_scale
 	for socket in SOCKETS:
 		var ring := Line2D.new()
 		var pts := PackedVector2Array()
 		for i in 9:
 			var a := PI / 8.0 + float(i) * PI / 4.0
-			pts.append(socket + Vector2(cos(a), sin(a)) * 40.0)
+			pts.append(socket * ws + Vector2(cos(a), sin(a)) * 40.0 * ws)
 		ring.points = pts
-		ring.width = 3.0
+		ring.width = 1.0
 		ring.default_color = Color(0.47, 0.12, 0.24, 0.9)  # 待命暗红
 		ring.visible = false
 		add_child(ring)
@@ -97,8 +99,9 @@ func retreat(victorious: bool) -> void:
 	if not victorious:
 		_sprite.modulate = Color(0.7, 0.6, 0.65)
 		# 受创冒烟：甲板几处爆点
+		var ws: float = GameState.world_scale
 		for i in 3:
-			Explosion.spawn_at(get_parent(), global_position + SOCKETS[i] + Vector2(randf_range(-30.0, 30.0), 0.0), 0.8)
+			Explosion.spawn_at(get_parent(), global_position + SOCKETS[i] * ws + Vector2(randf_range(-30.0, 30.0) * ws, 0.0), 0.8)
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 2.2)
 

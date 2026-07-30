@@ -1,13 +1,13 @@
 class_name Mothership
 extends Area2D
-## 母舰补给平台（对齐原作）：长按 H 蓄力召唤（main 管理蓄力）→
-## DESCEND 缓动降入 → 到位自动 DOCKING 牵引对接（原作无区域判定，点吸附补间）→
-## RESUPPLY 补给 → STAY 驻留 20s（弹匣 10 格，2s/格；≤4 格警告，警告 5s 后强制离舰，
-## 对齐原作"横幅播完强制弹射"，自然 20s 到期不可达；可长按 H 2s 提前离舰，
-## 冷却双机制折扣：时长 max(0.6, 1-0.4×剩余比例) + 进度预填 min(0.3, 0.5×剩余比例)）→
-## RELEASE 释放 → DEPART 加速离场。
-## 无敌窗口对齐原作：对接吸附开始即无敌（锁输入），弹射结束才解除（释放后 2s 为重制版 QoL）。
-## STAY 期间 WASD 直接驾驶母舰（原作特性），加特林双塔向上 80° 扫射 + 导弹齐射（≤5 目标）。
+## 母舰补给平台：长按 H 蓄力召唤（main 管理蓄力）→ 机库小窗演出（main 编排）→
+## 穿梭门打开，母舰 DESCEND 穿出减速（缩放+ease-out 滑入停驻点）→ 到位释放减速带
+## （冲击波短时减速敌人）并立即以加特林+导弹火力掩护，DOCKING 牵引回收玩家进保护舱
+## （隐藏+关受击判定）→ RESUPPLY 补给 → STAY 驻留 20s（弹匣 10 格，2s/格；≤4 格警告，
+## 警告 5s 后强制离舰；可长按 H 2s 提前离舰，冷却双机制折扣：时长 max(0.6, 1-0.4×剩余比例)
+## + 进度预填 min(0.3, 0.5×剩余比例)）→ RELEASE 释放（玩家出舱恢复显示）→ DEPART 加速离场。
+## 无敌窗口：演出/对接开始即无敌（锁输入），弹射结束才解除（释放后 2s 为重制版 QoL）。
+## STAY 期间 WASD 直接驾驶母舰，加特林双塔向上 80° 扫射 + 导弹齐射（≤5 目标）。
 ## 母舰弹丸/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
 
 signal departed(cooldown: float)
@@ -33,6 +33,14 @@ var EARLY_PREFILL_RATIO := 0.5
 var DEPART_COOLDOWN := 60.0
 var DEPART_START_SPEED := 0.0
 var DEPART_ACCEL := 540.0
+# 穿梭入场（effects.mothership_summon）
+var WARP_IN_TIME := 0.8
+var WARP_IN_DROP := 260.0  # 穿出下落行程设计值（× world_scale 生效，运行时缓存为已缩放值）
+var SLOW_RADIUS := 900.0  # 减速带冲击波扩散半径
+var SLOW_DURATION := 2.0  # 敌人减速持续秒数
+var SLOW_FACTOR := 0.4  # 敌人位移速度乘区
+var SLOW_RING_TIME := 0.5  # 扩散环视觉时长
+var SHAKE_SLOW := 4.0
 # 母舰驾驶（STAY 期间 WASD，对齐原作 mother_ship_motion）
 var DRIVE_ACCEL := 900.0
 var DRIVE_MAX_SPEED := 180.0
@@ -81,6 +89,21 @@ var _early_timer: float = 0.0
 var _hud: Node = null  # 延迟缓存（驻留期每帧刷新进度条用）
 var _cooldown_factor: float = 1.0
 var _prefill: float = 0.0
+# 穿梭入场
+var _warp_gate: WarpGate = null
+var _warp_from: Vector2 = Vector2.ZERO
+var _warp_target: Vector2 = Vector2.ZERO
+var _ws: float = 1.0  # world_scale 缓存（_ready 写入，帧内复用）
+# 演出附件（_ready 预建，帧内仅属性写，零分配）
+var _engine_glow: Sprite2D = null  # 引擎光晕（DESCEND 巨大→常态，DEPART 随加速增大）
+var _engine_glow_base: Vector2 = Vector2.ONE  # 「常态」基准缩放
+var _descend_trail: GPUParticles2D = null  # 穿出期上冲气流尾迹
+var _depart_trail: GPUParticles2D = null  # 离场下喷尾迹
+var _beam_fx: Node2D = null  # 牵引光束附件容器（随 _beam.visible 同步显隐）
+var _beam_rings: Array[Line2D] = []  # 捕获流环 ×3（自上而下循环）
+var _beam_ring_u: PackedFloat32Array = PackedFloat32Array([0.0, 1.0 / 3.0, 2.0 / 3.0])
+var _beam_edges: Array[Line2D] = []  # 光束两侧描边（微闪）
+var _beam_dust: GPUParticles2D = null  # 光束下端上升尘粒
 
 @onready var _beam: Polygon2D = $TractorBeam
 @onready var _turrets: Array[Node2D] = [$TurretL, $TurretR]
@@ -91,10 +114,10 @@ func _ready() -> void:
 	HOVER_Y = GameState.cfg("mothership.hover_y", HOVER_Y)
 	RELEASE_INVINCIBLE = GameState.cfg("mothership.release_invincible", RELEASE_INVINCIBLE)
 	DOCK_TWEEN_TIME = GameState.cfg("mothership.dock_tween_time", DOCK_TWEEN_TIME)
-	DOCK_OFFSET_Y = GameState.cfg("mothership.dock_offset_y", DOCK_OFFSET_Y)
+	DOCK_OFFSET_Y = GameState.cfg("mothership.dock_offset_y", DOCK_OFFSET_Y) * GameState.world_scale
 	RESUPPLY_DELAY = GameState.cfg("mothership.resupply_delay", RESUPPLY_DELAY)
 	RELEASE_TIME = GameState.cfg("mothership.release_time", RELEASE_TIME)
-	RELEASE_DROP = GameState.cfg("mothership.release_drop", RELEASE_DROP)
+	RELEASE_DROP = GameState.cfg("mothership.release_drop", RELEASE_DROP) * GameState.world_scale
 	MAG_CELLS = GameState.cfg("mothership.mag_cells", MAG_CELLS)
 	MAG_CELL_TIME = GameState.cfg("mothership.mag_cell_time", MAG_CELL_TIME)
 	MAG_WARN_CELLS = GameState.cfg("mothership.mag_warn_cells", MAG_WARN_CELLS)
@@ -108,9 +131,9 @@ func _ready() -> void:
 	DEPART_ACCEL = GameState.cfg("mothership.depart_accel", DEPART_ACCEL)
 	DRIVE_ACCEL = GameState.cfg("mothership.drive.accel", DRIVE_ACCEL)
 	DRIVE_MAX_SPEED = GameState.cfg("mothership.drive.max_speed", DRIVE_MAX_SPEED)
-	DRIVE_MARGIN_X = GameState.cfg("mothership.drive.margin_x", DRIVE_MARGIN_X)
-	DRIVE_MARGIN_TOP = GameState.cfg("mothership.drive.margin_top", DRIVE_MARGIN_TOP)
-	DRIVE_MARGIN_BOTTOM = GameState.cfg("mothership.drive.margin_bottom", DRIVE_MARGIN_BOTTOM)
+	DRIVE_MARGIN_X = GameState.cfg("mothership.drive.margin_x", DRIVE_MARGIN_X) * GameState.world_scale
+	DRIVE_MARGIN_TOP = GameState.cfg("mothership.drive.margin_top", DRIVE_MARGIN_TOP) * GameState.world_scale
+	DRIVE_MARGIN_BOTTOM = GameState.cfg("mothership.drive.margin_bottom", DRIVE_MARGIN_BOTTOM) * GameState.world_scale
 	GATLING_INTERVAL = GameState.cfg("mothership.gatling.interval", GATLING_INTERVAL)
 	GATLING_BULLET_SPEED = GameState.cfg("mothership.gatling.bullet_speed", GATLING_BULLET_SPEED)
 	GATLING_DAMAGE = GameState.cfg("mothership.gatling.damage", GATLING_DAMAGE)
@@ -128,8 +151,112 @@ func _ready() -> void:
 	MISSILE_TARGET_COUNT = GameState.cfg("mothership.missile.target_count", MISSILE_TARGET_COUNT)
 	MISSILE_SPLASH_DAMAGE = GameState.cfg("mothership.missile.splash_damage", MISSILE_SPLASH_DAMAGE)
 	MISSILE_SPLASH_RADIUS = GameState.cfg("mothership.missile.splash_radius", MISSILE_SPLASH_RADIUS)
+	WARP_IN_TIME = GameState.cfg("effects.mothership_summon.warp_in_time", WARP_IN_TIME)
+	WARP_IN_DROP = GameState.cfg("effects.mothership_summon.warp_in_drop", WARP_IN_DROP) * GameState.world_scale
+	SLOW_RADIUS = GameState.cfg("effects.mothership_summon.slow.radius", SLOW_RADIUS)
+	SLOW_DURATION = GameState.cfg("effects.mothership_summon.slow.duration", SLOW_DURATION)
+	SLOW_FACTOR = GameState.cfg("effects.mothership_summon.slow.factor", SLOW_FACTOR)
+	SLOW_RING_TIME = GameState.cfg("effects.mothership_summon.slow.ring_time", SLOW_RING_TIME)
+	SHAKE_SLOW = GameState.cfg("effects.mothership_summon.shake_slow", SHAKE_SLOW)
 	_mag_cells = MAG_CELLS
 	_depart_speed = DEPART_START_SPEED
+	# 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
+	var ws: float = GameState.world_scale
+	($Sprite2D as Sprite2D).scale = Vector2.ONE * 1.25 * ws
+	var beam_pts := _beam.polygon
+	for i in beam_pts.size():
+		beam_pts[i] *= ws
+	_beam.polygon = beam_pts
+	($TurretL as Node2D).position = Vector2(-170.0, 80.0) * ws
+	($TurretR as Node2D).position = Vector2(170.0, 80.0) * ws
+	for turret in _turrets:
+		var muzzle := turret.get_node("MuzzleFlash") as GPUParticles2D
+		muzzle.position = Vector2(24.0, 0.0) * ws
+		var muzzle_mat := muzzle.process_material as ParticleProcessMaterial
+		muzzle_mat.scale_min = 1.5 * ws
+		muzzle_mat.scale_max = 3.0 * ws
+	# 直接实例化（测试/教程，未经 begin_warp_in）：穿梭参数按当前位置补默认
+	if _warp_target == Vector2.ZERO:
+		_warp_target = Vector2(position.x, HOVER_Y)
+		_warp_from = _warp_target + Vector2(0.0, -WARP_IN_DROP)
+	_ws = ws
+	_build_fx()
+
+
+## 演出附件预建（帧内只写属性，零分配）：引擎光晕 + 双向尾迹 + 牵引光束附件组
+func _build_fx() -> void:
+	# 引擎光晕（舰底喷口位）：DESCEND 巨大→常态收敛，DEPART 随加速增大
+	_engine_glow = CinematicFx.soft_glow(70.0 * _ws, Color(0.45, 0.85, 1.0, 0.0))
+	_engine_glow.position = Vector2(0.0, 85.0 * _ws)
+	_engine_glow_base = _engine_glow.scale
+	add_child(_engine_glow)
+	# 穿出期上冲气流（相对舰体向上冲刷）
+	_descend_trail = CinematicFx.particles({
+		"amount": 48, "lifetime": 0.55, "direction": Vector3(0.0, -1.0, 0.0), "spread": 28.0,
+		"vel_min": 320.0 * _ws, "vel_max": 640.0 * _ws,
+		"scale_min": 8.0 * _ws, "scale_max": 18.0 * _ws,
+		"color": Color(0.5, 0.85, 1.0, 0.6),
+	})
+	_descend_trail.position = Vector2(0.0, 30.0 * _ws)
+	_descend_trail.emitting = false
+	add_child(_descend_trail)
+	# 离场下喷尾迹
+	_depart_trail = CinematicFx.particles({
+		"amount": 48, "lifetime": 0.6, "direction": Vector3(0.0, 1.0, 0.0), "spread": 22.0,
+		"vel_min": 340.0 * _ws, "vel_max": 640.0 * _ws,
+		"scale_min": 8.0 * _ws, "scale_max": 20.0 * _ws,
+		"color": Color(0.55, 0.9, 1.0, 0.65),
+	})
+	_depart_trail.position = Vector2(0.0, 90.0 * _ws)
+	_depart_trail.emitting = false
+	add_child(_depart_trail)
+	# 牵引光束附件组（随 _beam.visible 同步显隐）
+	_beam_fx = Node2D.new()
+	_beam_fx.visible = false
+	add_child(_beam_fx)
+	# 捕获流环 ×3：预建最大半径椭圆点集，帧内仅缩放/位移/透明度
+	for i in 3:
+		var ring := Line2D.new()
+		ring.width = 2.5
+		ring.default_color = Color(0.55, 0.95, 1.0)
+		ring.points = CinematicFx.ring_points(28, 90.0 * _ws * 0.92, 0.35)
+		ring.material = CinematicFx.additive_material()
+		_beam_fx.add_child(ring)
+		_beam_rings.append(ring)
+	# 光束两侧描边（与 TractorBeam 斜边同位，微闪强化轮廓）
+	for sx in [-1.0, 1.0]:
+		var edge := Line2D.new()
+		edge.width = 2.0
+		edge.default_color = Color(0.6, 0.95, 1.0)
+		edge.points = PackedVector2Array([
+			Vector2(40.0 * sx, 60.0) * _ws, Vector2(90.0 * sx, 200.0) * _ws,
+		])
+		edge.material = CinematicFx.additive_material()
+		_beam_fx.add_child(edge)
+		_beam_edges.append(edge)
+	# 光束下端上升尘粒（回收吸附感）
+	_beam_dust = CinematicFx.particles({
+		"amount": 30, "lifetime": 0.8, "direction": Vector3(0.0, -1.0, 0.0), "spread": 35.0,
+		"vel_min": 50.0 * _ws, "vel_max": 120.0 * _ws,
+		"scale_min": 3.5 * _ws, "scale_max": 7.0 * _ws,
+		"color": Color(0.6, 0.95, 1.0, 0.65),
+	})
+	_beam_dust.position = Vector2(0.0, 190.0 * _ws)
+	_beam_dust.emitting = false
+	_beam_fx.add_child(_beam_dust)
+
+
+## 穿梭入场（召唤序列入口，由 main 在实例化后调用）：母舰从穿梭门门心穿出，
+## 缩放 0.25→1 + ease-out 减速滑入停驻点；gate_pos 即最终停驻点。
+## 注意：main 在 add_child 前调用本方法（先于 _ready 配置缓存），行程须内联读配置。
+func begin_warp_in(gate_pos: Vector2, gate: WarpGate) -> void:
+	_warp_gate = gate
+	_warp_target = gate_pos
+	var drop: float = GameState.cfg("effects.mothership_summon.warp_in_drop", WARP_IN_DROP)
+	_warp_from = gate_pos + Vector2(0.0, -drop) * GameState.world_scale
+	position = _warp_from
+	scale = Vector2.ONE * 0.25
+	modulate = Color(1.8, 1.8, 2.2)
 
 
 func state_text() -> String:
@@ -158,17 +285,36 @@ func _dock_point() -> Vector2:
 
 
 func _physics_process(delta: float) -> void:
+	# 牵引光束附件随 _beam.visible 同步显隐（_start_docking/_start_release/对接完成均走此同步）
+	if _beam_fx.visible != _beam.visible:
+		_beam_fx.visible = _beam.visible
+		_beam_dust.emitting = _beam.visible
 	if _beam.visible:
 		# 淡光束：低调脉动，不刺眼
 		_beam.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 8.0)
+		_update_beam_fx(delta)
 	_state_timer += delta
 	match _state:
 		State.DESCEND:
-			var remaining := HOVER_Y - position.y
-			position.y += clampf(remaining * 2.0, 40.0, 160.0) * delta
-			if remaining <= 2.0:
-				position.y = HOVER_Y
-				# 原作无"飞入区域"判定：到位即自动对接（点吸附补间）
+			# 穿梭门穿出：缩放 0.25→1 + ease-out 减速滑入停驻点
+			var p := clampf(_state_timer / WARP_IN_TIME, 0.0, 1.0)
+			var e := 1.0 - pow(1.0 - p, 3.0)
+			position = _warp_from.lerp(_warp_target, e)
+			scale = Vector2.ONE * lerpf(0.25, 1.0, e)
+			modulate = Color(1.8, 1.8, 2.2).lerp(Color.WHITE, e)
+			# 引擎制动光晕随同一 ease-out 从巨大收到常态；上冲气流全程伴随
+			_descend_trail.emitting = p < 1.0
+			_engine_glow.modulate.a = 0.85 * (1.0 - e)
+			_engine_glow.scale = _engine_glow_base * lerpf(2.4, 0.8, e)
+			if p >= 1.0:
+				position = _warp_target
+				scale = Vector2.ONE
+				modulate = Color.WHITE
+				_engine_glow.modulate.a = 0.0
+				if _warp_gate != null:
+					_warp_gate.close()
+					_warp_gate = null
+				_deploy_slow_field()
 				var hud := get_tree().get_first_node_in_group("hud")
 				if hud != null:
 					hud.show_info_banner(tr("BANNER_MOTHERSHIP_ARRIVED"))
@@ -176,8 +322,26 @@ func _physics_process(delta: float) -> void:
 		State.HOVER:
 			pass  # 兼容保留：自动对接流程下不再经过（见 _start_docking 守卫）
 		State.DOCKING:
+			# 回收牵引期间火力掩护（加特林+导弹，不耗驻留弹匣）
+			_update_gatling(delta)
+			_update_missiles(delta)
 			if _state_timer >= DOCK_TWEEN_TIME:
 				_beam.visible = false  # 对接完成即隐藏牵引光束，否则驻留期一直闪烁
+				# 回收完成：玩家进保护舱（隐藏+关受击判定，驻留全程保持，RELEASE 出舱）
+				if is_instance_valid(_player) and not _player._dead:
+					_player.enter_pod()
+					# 进舱捕获反馈：对接点小冲击环 + 短促软闪
+					var sw := CinematicFx.shockwave({
+						"radius": 120.0 * _ws, "time": 0.5, "ry_ratio": 0.6,
+						"color": Color(0.5, 0.95, 1.0, 0.5), "core_color": Color(0.9, 1.0, 1.0, 0.9),
+						"width": 8.0,
+					})
+					sw.position = _dock_point()
+					get_parent().add_child(sw)
+					_soft_flash(_dock_point(), 70.0 * _ws, Color(0.8, 1.0, 1.0, 0.9))
+					var hud := get_tree().get_first_node_in_group("hud")
+					if hud != null:
+						hud.show_popup(tr("POD_SECURED"), global_position + Vector2(0.0, 120.0) * GameState.world_scale)
 				_enter_state(State.RESUPPLY)
 		State.RESUPPLY:
 			if _state_timer >= RESUPPLY_DELAY:
@@ -228,8 +392,64 @@ func _physics_process(delta: float) -> void:
 		State.DEPART:
 			_depart_speed += DEPART_ACCEL * delta
 			position.y -= _depart_speed * delta
+			# 离场加速：引擎光晕随速度增大，下喷尾迹全程伴随
+			_depart_trail.emitting = true
+			var sp := clampf(_depart_speed / 500.0, 0.0, 1.0)
+			_engine_glow.modulate.a = 0.15 + 0.75 * sp
+			_engine_glow.scale = _engine_glow_base * (0.7 + 1.6 * sp)
 			if position.y < GameState.view_world_rect().position.y - 200.0:
 				queue_free()
+
+
+## 减速带冲击波（穿梭入场到位帧）：短时减速全场敌人（仅位移乘区，duck-typing
+## 仅 Enemy/Boss 响应）；视觉为双环冲击波（主环满半径+填充盘，副环尾随），播完自毁
+func _deploy_slow_field() -> void:
+	GameState.shake(SHAKE_SLOW)
+	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG, -10.0, 0.6)
+	for e in GameState.enemies:
+		if is_instance_valid(e) and e.has_method("apply_slow"):
+			e.apply_slow(SLOW_DURATION, SLOW_FACTOR)
+	var sw := CinematicFx.shockwave({
+		"radius": SLOW_RADIUS, "time": SLOW_RING_TIME,
+		"color": Color(0.32, 0.93, 0.85, 0.45), "core_color": Color(0.75, 1.0, 0.95, 0.85),
+		"width": 14.0, "fill": true,
+	})
+	sw.position = position
+	get_parent().add_child(sw)
+	# 副环：起点比例更大 + 时长更长，读作主环之后的内侧余波
+	var echo := CinematicFx.shockwave({
+		"radius": SLOW_RADIUS, "time": SLOW_RING_TIME * 1.4, "start_scale": 0.45,
+		"color": Color(0.32, 0.93, 0.85, 0.3), "core_color": Color(0.7, 1.0, 0.95, 0.6),
+		"width": 7.0,
+	})
+	echo.position = position
+	get_parent().add_child(echo)
+
+
+## 牵引光束附件帧驱动（仅 _beam.visible 时调用，零分配）：
+## 捕获流环自窄端向宽端循环流动，两侧描边微闪
+func _update_beam_fx(delta: float) -> void:
+	var ft := Time.get_ticks_msec() / 1000.0
+	for i in _beam_rings.size():
+		_beam_ring_u[i] = fposmod(_beam_ring_u[i] + delta * 0.55, 1.0)
+		var u := _beam_ring_u[i]
+		var ring := _beam_rings[i]
+		ring.position = Vector2(0.0, lerpf(60.0, 200.0, u) * _ws)
+		var k := lerpf(40.0, 90.0, u) / 90.0
+		ring.scale = Vector2(k, k)
+		ring.modulate.a = 0.75 * sin(PI * u)
+	for i in _beam_edges.size():
+		_beam_edges[i].modulate.a = 0.5 + 0.25 * sin(ft * 9.0 + float(i) * 2.1)
+
+
+## 一次性软闪（进舱/释放等瞬时反馈）：软光晕快速淡出后自毁
+func _soft_flash(pos: Vector2, radius: float, color: Color) -> void:
+	var g := CinematicFx.soft_glow(radius, color)
+	g.position = pos
+	get_parent().add_child(g)
+	var tw := g.create_tween()
+	tw.tween_property(g, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(g.queue_free)
 
 
 ## 驻留期间 WASD 驾驶母舰（对齐原作：加速 900、极速 180、松手即停、边界夹紧），
@@ -351,7 +571,7 @@ func _do_resupply() -> void:
 	GameState.shake(GameState.cfg("effects.shake.mothership", 4.0))
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null:
-		hud.show_popup(tr("POP_RESUPPLY"), global_position + Vector2(0.0, 120.0))
+		hud.show_popup(tr("POP_RESUPPLY"), global_position + Vector2(0.0, 120.0) * GameState.world_scale)
 
 
 ## 提前离舰（长按 H 2s）：冷却双机制折扣——时长 max(0.6, 1-0.4×剩余比例)
@@ -373,9 +593,29 @@ func _start_release() -> void:
 	var ratio := clampf(float(_mag_cells) / float(MAG_CELLS), 0.0, 1.0)
 	_cooldown_factor = maxf(0.6, 1.0 - EARLY_MAX_DISCOUNT * ratio)
 	_enter_state(State.RELEASE)
+	# 出舱释放反馈：对接点小喷发（一次性，随母舰离场自毁）
+	var burst := CinematicFx.particles({
+		"amount": 20, "lifetime": 0.5, "explosiveness": 0.9, "one_shot": true,
+		"direction": Vector3(0.0, 1.0, 0.0), "spread": 55.0,
+		"vel_min": 70.0 * _ws, "vel_max": 200.0 * _ws,
+		"scale_min": 2.0 * _ws, "scale_max": 5.0 * _ws,
+		"color": Color(0.55, 0.95, 1.0, 0.75),
+	})
+	burst.position = Vector2(0.0, DOCK_OFFSET_Y)
+	add_child(burst)
 	if not is_instance_valid(_player) or _player._dead:
 		return
+	_player.exit_pod()  # 出舱恢复显示（抛下补间全程可见）
 	var tween := create_tween()
 	tween.tween_property(
 		_player, "global_position", _player.global_position + Vector2(0.0, RELEASE_DROP), RELEASE_TIME
 	)
+
+
+func _exit_tree() -> void:
+	# 提前收回（返航/对局重置等）：穿梭门关闭兜底；玩家若仍在保护舱则恢复显示
+	if _warp_gate != null:
+		_warp_gate.close()
+		_warp_gate = null
+	if is_instance_valid(_player) and not _player._dead and not _player.visible:
+		_player.exit_pod()

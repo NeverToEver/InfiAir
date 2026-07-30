@@ -88,6 +88,9 @@ var _life_timer: float = 0.0
 var _exiting: bool = false
 var _exit_dir: Vector2 = Vector2.UP
 var _exit_speed: float = 0.0
+## 母舰召唤减速带：短时减速乘区（仅位移，不影响射速/寿命/计时）
+var _summon_slow_timer: float = 0.0
+var _summon_slow_factor: float = 1.0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _shape: CollisionShape2D = $CollisionShape2D
@@ -129,9 +132,10 @@ func setup(
 	var sprite: Sprite2D = $Sprite2D
 	var shape_node: CollisionShape2D = $CollisionShape2D
 	sprite.texture = config["texture"]
-	var sc: float = config.get("scale", 0.45)
-	sprite.scale = Vector2(sc, sc)
-	(shape_node.shape as CircleShape2D).radius = config.get("radius", 30.0)
+	# 机体尺寸族：config 存设计值（1.0 基准），统一乘全局缩放（shape 已 local_to_scene，实例独立）
+	var sc: float = config.get("scale", 0.85)
+	sprite.scale = Vector2(sc, sc) * GameState.world_scale
+	(shape_node.shape as CircleShape2D).radius = config.get("radius", 30.0) * GameState.world_scale
 
 
 func _ready() -> void:
@@ -190,9 +194,10 @@ func _resolve_anchor() -> void:
 func _check_body_collision() -> void:
 	var hb := GameState.player_hitbox
 	if hb != null and overlaps_area(hb):
-		# 撞体伤害随对局进程 ramp（与敌弹同一系数）
+		# 撞体伤害随对局进程 ramp（与敌弹同一系数）；补传撞体位置作伤害源方向（D8）
 		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp())))
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))),
+			global_position
 		)
 
 
@@ -208,6 +213,8 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 	_exiting = false
 	_life_timer = 0.0
 	_exit_speed = 0.0
+	_summon_slow_timer = 0.0
+	_summon_slow_factor = 1.0
 	_score_scale = 1.0
 	visible = true
 	monitoring = true
@@ -282,7 +289,12 @@ func _physics_process(delta: float) -> void:
 	if anchor_y < 0.0:
 		_resolve_anchor()  # 惰性解析：取首个物理帧的最终出生位置
 	# 慢速力场：全局移速 ×0.8（仅移动位移，不影响射速/寿命/计时）
-	var mdelta := delta * (SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0)
+	var slow_mult := SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
+	# 母舰召唤减速带：短时乘区叠加（同语义，仅位移）
+	if _summon_slow_timer > 0.0:
+		_summon_slow_timer -= delta
+		slow_mult *= _summon_slow_factor
+	var mdelta := delta * slow_mult
 	var view := GameState.view_world_rect()
 	match strategy:
 		&"straight", &"hover":
@@ -441,6 +453,12 @@ func _begin_lifetime_exit() -> void:
 		# 就近侧方（略带上行），从较近的一侧离场
 		_exit_dir = Vector2(1.0 if position.x < 960.0 else -1.0, randf_range(-0.4, 0.0)).normalized()
 	_exit_speed = speed
+
+
+## 母舰召唤减速带命中：duration 秒内位移速度 ×factor（与慢速力场乘算叠加）
+func apply_slow(duration: float, factor: float) -> void:
+	_summon_slow_timer = duration
+	_summon_slow_factor = factor
 
 
 var _score_scale: float = 1.0

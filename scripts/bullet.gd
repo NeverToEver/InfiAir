@@ -25,7 +25,7 @@ var score_scale: float = 1.0
 ## 主目标吃直击+溅射两段、不伤 Boss、不伤玩家）
 var EXPLOSIVE_RADIUS := 50.0
 var EXPLOSIVE_DAMAGE := 30
-## 弹丸视觉缩放（对齐单位放大后的比例；effects.bullet_visual_scale，碰撞半径不变）
+## 弹丸视觉缩放（设计值 1.3；effects.bullet_visual_scale × world_scale，碰撞半径不变）
 var VISUAL_SCALE := 1.3
 
 var _homing_elapsed: float = 0.0
@@ -99,7 +99,9 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius_per_level", EXPLOSIVE_RADIUS)
 	EXPLOSIVE_DAMAGE = GameState.cfg("buffs.explosive.damage_per_level", EXPLOSIVE_DAMAGE)
-	VISUAL_SCALE = GameState.cfg("effects.bullet_visual_scale", VISUAL_SCALE)
+	VISUAL_SCALE = GameState.cfg("effects.bullet_visual_scale", VISUAL_SCALE) * GameState.world_scale
+	# 碰撞半径：设计值 6 × 全局缩放（幂等赋值；池化实例共享 shape 也只写同值）
+	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 6.0 * GameState.world_scale
 	_apply_faction()
 
 
@@ -193,5 +195,6 @@ func _on_area_entered(area: Area2D) -> void:
 				_despawn()
 	elif area.is_in_group("player_hitbox"):
 		# 命中生效才销毁；无敌/单帧已结算/闪避则穿过（对齐原作 single-hit 语义）
-		if (area.get_parent() as Player).take_damage(float(damage)):
+		# 补传弹丸位置作伤害源方向（Meta HUD 定向波纹，D8）
+		if (area.get_parent() as Player).take_damage(float(damage), global_position):
 			_despawn()

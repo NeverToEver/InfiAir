@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/enemy_ship_1.png" id="2"]
 
 [sub_resource type="CircleShape2D" id="1"]
+resource_local_to_scene = true
 radius = 30.0
 
 [node name="Enemy" type="Area2D"]

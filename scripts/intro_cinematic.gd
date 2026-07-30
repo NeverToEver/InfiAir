@@ -235,28 +235,10 @@ static func _kick_shake(host: Node2D, amp: float, state: Array) -> void:
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
+## 粒子工厂委托给 CinematicFx（同 cfg 契约）：默认挂共享软点贴图，消除硬边圆点的廉价感；
+## scale 语义保持「像素直径」，≤96/发射器的硬性上限不变。
 static func _particles(cfg: Dictionary) -> GPUParticles2D:
-	var p := GPUParticles2D.new()
-	p.amount = mini(int(cfg.get("amount", 32)), 96)  # 硬性上限：每发射器 ≤96
-	p.lifetime = cfg.get("lifetime", 1.0)
-	p.explosiveness = cfg.get("explosiveness", 0.0)
-	var mat := ParticleProcessMaterial.new()
-	mat.direction = cfg.get("direction", Vector3(0.0, -1.0, 0.0))
-	mat.spread = cfg.get("spread", 180.0)
-	mat.initial_velocity_min = cfg.get("vel_min", 100.0)
-	mat.initial_velocity_max = cfg.get("vel_max", 200.0)
-	mat.gravity = cfg.get("gravity", Vector3.ZERO)
-	mat.damping_min = cfg.get("damping_min", 0.0)
-	mat.damping_max = cfg.get("damping_max", 0.0)
-	mat.scale_min = cfg.get("scale_min", 2.0)
-	mat.scale_max = cfg.get("scale_max", 4.0)
-	mat.color = cfg.get("color", Color(1.0, 0.6, 0.15))
-	p.process_material = mat
-	if cfg.get("additive", true):
-		var blend := CanvasItemMaterial.new()
-		blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		p.material = blend
-	return p
+	return CinematicFx.particles(cfg)
 
 
 # ---------------- 镜头 1：远景推近（2.8s） ----------------
@@ -268,11 +250,11 @@ func _build_shot1() -> Node2D:
 	var root := Node2D.new()
 	root.name = "Shot1"
 	root.add_child(Starfield.new())
-	# 远处星云（比镜头 6 更淡，只铺层次）
-	var neb1 := _glow(520.0, Color(0.2, 0.12, 0.4, 0.05))
+	# 远处星云（比镜头 6 更淡，只铺层次；软径向光晕消除硬边）
+	var neb1 := CinematicFx.soft_glow(520.0, Color(0.2, 0.12, 0.4, 0.08))
 	neb1.position = Vector2(1560.0, 260.0)
 	root.add_child(neb1)
-	var neb2 := _glow(420.0, Color(0.08, 0.18, 0.4, 0.05))
+	var neb2 := CinematicFx.soft_glow(420.0, Color(0.08, 0.18, 0.4, 0.08))
 	neb2.position = Vector2(300.0, 840.0)
 	root.add_child(neb2)
 
@@ -283,20 +265,33 @@ func _build_shot1() -> Node2D:
 	station.scale = Vector2.ONE * 0.7
 	root.add_child(station)
 
-	# 爆炸核心：破口处叠加辉光，暗红 → 橙白并放大
+	# 爆炸核心：破口处叠加辉光，暗红 → 橙白并放大（软光晕；scale tween 以 soft_glow 基准缩放为底）
 	var blast_pos := Vector2(cos(0.85), sin(0.85)) * 260.0
-	var halo := _glow(150.0, Color(0.6, 0.2, 0.08, 0.35))
+	var halo := CinematicFx.soft_glow(150.0, Color(0.6, 0.2, 0.08, 0.35))
 	halo.position = blast_pos
+	var halo_base := halo.scale
 	station.add_child(halo)
-	var core := _glow(80.0, Color(1.0, 1.0, 1.0, 0.95))
+	var core := CinematicFx.soft_glow(80.0, Color(1.0, 1.0, 1.0, 0.95))
 	core.position = blast_pos
 	core.modulate = Color(0.5, 0.1, 0.05)
+	var core_base := core.scale
 	station.add_child(core)
 	var tween := root.create_tween().set_parallel(true)
 	tween.tween_property(station, "scale", Vector2.ONE, dur).set_trans(Tween.TRANS_LINEAR)
 	tween.tween_property(core, "modulate", Color(1.0, 0.9, 0.7), dur * 0.8)
-	tween.tween_property(core, "scale", Vector2.ONE * 2.4, dur)
-	tween.tween_property(halo, "scale", Vector2.ONE * 1.8, dur)
+	tween.tween_property(core, "scale", core_base * 2.4, dur)
+	tween.tween_property(halo, "scale", halo_base * 1.8, dur)
+
+	# 舱段模块舷窗灯 ×8：随爆炸吞噬站体，按距破口角距由近到远逐盏熄灭（错峰 tween 延迟贯穿全镜头）
+	var light_seq := [1.571, 0.0, 2.356, 5.497, 3.142, 4.712, 3.927, -1.0]  # 舱段角（rad），-1 = 中心毂
+	for l_i in light_seq.size():
+		var lamp_a: float = light_seq[l_i]
+		var lamp := _glow(4.5, Color(1.0, 0.75, 0.4, 0.85))
+		lamp.position = Vector2.ZERO if lamp_a < 0.0 else Vector2(cos(lamp_a), sin(lamp_a)) * 260.0
+		station.add_child(lamp)
+		var lamp_t := root.create_tween()
+		lamp_t.tween_interval(dur * (0.22 + 0.07 * l_i))
+		lamp_t.tween_property(lamp, "modulate:a", 0.05, 0.35)
 
 	# 冲击波扩散环：爆心薄环急速扩大并淡出（叠加态，错开 0.3s 两波）
 	var wave_shake_state: Array = [null]  # 两波主爆颤动共享刷新
@@ -323,11 +318,47 @@ func _build_shot1() -> Node2D:
 		kt.tween_interval(0.2 + 0.3 * wave)
 		kt.tween_callback(func() -> void: _kick_shake(root, 6.0, wave_shake_state))
 
+	# 二次殉爆（dur*0.45 起）：破口对侧环缘小型闪爆——软闪光核 + 冲击波扩散环 + 颤动 + 递减音量
+	var blast2_pos := Vector2(cos(3.8), sin(3.8)) * 240.0
+	var boom2 := Timer.new()
+	boom2.one_shot = true
+	boom2.wait_time = dur * 0.45
+	boom2.autostart = true
+	root.add_child(boom2)
+	boom2.timeout.connect(func() -> void:
+		var flash2 := CinematicFx.soft_glow(56.0, Color(1.0, 0.85, 0.6, 0.9))
+		flash2.position = blast2_pos
+		var flash2_base := flash2.scale
+		flash2.scale = Vector2.ZERO
+		station.add_child(flash2)
+		var f2t := root.create_tween()
+		f2t.tween_property(flash2, "scale", flash2_base * 1.3, 0.1)
+		f2t.tween_property(flash2, "modulate:a", 0.0, 0.4)
+		f2t.tween_callback(flash2.queue_free)
+		var wave2 := CinematicFx.shockwave({
+			"radius": 200.0, "time": 0.7, "color": Color(1.0, 0.6, 0.25, 0.55),
+			"core_color": Color(1.0, 0.9, 0.7, 0.85), "width": 10.0,
+		})
+		wave2.position = blast2_pos
+		station.add_child(wave2)
+		_kick_shake(root, 5.0, wave_shake_state)
+		GameState.play_sfx(GameState.SFX_EXPLOSION, -8.0)
+	)
+
+	# 余烬：全镜头持续的橙色慢速上飘细屑（低透明度，燃烧余韵层）
+	var embers := _particles({
+		"amount": 40, "lifetime": 3.2, "vel_min": 12.0, "vel_max": 40.0,
+		"spread": 35.0, "scale_min": 3.0, "scale_max": 6.0,
+		"color": Color(1.0, 0.5, 0.15, 0.3),
+	})
+	embers.position = Vector2(960.0, 500.0)
+	root.add_child(embers)
+
 	# 碎片（高速外抛）+ 尘埃（慢速前景低透明度）
 	var debris := _particles({
 		"amount": 48, "lifetime": 2.2, "vel_min": 160.0, "vel_max": 420.0,
 		"damping_min": 60.0, "damping_max": 140.0,
-		"scale_min": 2.0, "scale_max": 5.0, "color": Color(1.0, 0.55, 0.15),
+		"scale_min": 3.0, "scale_max": 7.0, "color": Color(1.0, 0.55, 0.15),
 	})
 	debris.position = Vector2(960.0, 470.0) + blast_pos * 0.7
 	root.add_child(debris)
@@ -348,6 +379,10 @@ func _build_shot1() -> Node2D:
 		root.add_child(drift_shard)
 		drift_shard.add_child(_line(PackedVector2Array(
 			[Vector2(-26.0, -10.0), Vector2(20.0, -18.0)]), Color(1.0, 0.6, 0.25, 0.4), 2.0))
+		# 顶缘暖色软轮廓光（朝向爆心一侧的反射光，把剪影从深空里托出来）
+		var shard_rim := CinematicFx.soft_glow(18.0, Color(1.0, 0.55, 0.2, 0.22))
+		shard_rim.position = Vector2(0.0, -12.0)
+		drift_shard.add_child(shard_rim)
 		var spin := root.create_tween().set_loops()
 		spin.tween_property(drift_shard, "rotation", drift_shard.rotation + TAU, 9.0 + 3.0 * k)
 		var move := root.create_tween().set_loops()
@@ -435,6 +470,14 @@ func _build_shot2() -> Node2D:
 	band_sweep.tween_property(scan_band, "position:y", 300.0, 2.6
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
+	# 顶层甲板状态灯带：一排小舷灯（初始青色），链爆经过时逐点转红（重着色在 Timer 步进内完成）
+	var deck_lights: Array[_GlowDot] = []
+	for d_i in 12:
+		var dl := _glow(3.5, Color(0.0, 0.83, 1.0, 0.8)) as _GlowDot
+		dl.position = Vector2(220.0 + 134.0 * d_i, 348.0)
+		root.add_child(dl)
+		deck_lights.append(dl)
+
 	# 链式能量路径：逐节点点亮（折线穿过各层甲板）；外发光 = 更宽更淡的叠加态底线
 	var path := PackedVector2Array([
 		Vector2(200.0, 700.0), Vector2(500.0, 700.0), Vector2(500.0, 520.0),
@@ -464,14 +507,30 @@ func _build_shot2() -> Node2D:
 		energy.width = 6.0 + step[0] * 1.5
 		energy_glow.add_point(pos)
 		energy_glow.width = 16.0 + step[0] * 3.0
-		var flash := _glow(36.0, Color(1.0, 0.55, 0.15, 0.9))
+		# 节点爆闪（软光晕）+ 一次性火花溅射（ textured 软点粒子，播完自毁）
+		var flash := CinematicFx.soft_glow(36.0, Color(1.0, 0.55, 0.15, 0.9))
 		flash.position = pos
+		var flash_base := flash.scale
 		flash.scale = Vector2.ZERO
 		root.add_child(flash)
 		var ft := root.create_tween()
-		ft.tween_property(flash, "scale", Vector2.ONE * 1.4, 0.12)
+		ft.tween_property(flash, "scale", flash_base * 1.4, 0.12)
 		ft.tween_property(flash, "modulate:a", 0.0, 0.35)
 		ft.tween_callback(flash.queue_free)
+		var sparks := _particles({
+			"amount": 24, "lifetime": 0.4, "one_shot": true, "explosiveness": 0.9,
+			"spread": 180.0, "vel_min": 120.0, "vel_max": 300.0,
+			"damping_min": 80.0, "damping_max": 160.0,
+			"scale_min": 2.0, "scale_max": 4.0, "color": Color(1.0, 0.6, 0.2, 0.95),
+		})
+		sparks.position = pos
+		root.add_child(sparks)
+		sparks.finished.connect(sparks.queue_free)
+		# 顶层甲板状态灯带：链爆波前经过处由青转红（步进内重着色，零逐帧开销）
+		for dl in deck_lights:
+			if dl.position.x <= pos.x:
+				dl.dot_color = Color(1.0, 0.3, 0.2, 0.9)
+				dl.queue_redraw()
 		# 冲击波纹：节点爆闪处薄环扩大淡出（仿镜头 1 冲击波）
 		var ripple_points := PackedVector2Array()
 		for r_i in 16:
@@ -510,6 +569,7 @@ class _RunnerShot:
 	var _bob_base_y := 0.0
 	var _red: ColorRect  # 应急灯全屏红闪
 	var _speed_lines: Array[Line2D] = []
+	var _fg_struts: Array[Polygon2D] = []  # 前景近景支杆（比中景更快的反向视差，-1600px/s 回卷）
 	var _t := 0.0
 
 	func _process(delta: float) -> void:
@@ -518,6 +578,11 @@ class _RunnerShot:
 			s.position.x -= 900.0 * delta
 			if s.position.x < -160.0:
 				s.position.x += 2240.0
+		# 前景支杆：近景快速横扫（-1600px/s，快于中景 -900），出界回卷
+		for fs in _fg_struts:
+			fs.position.x -= 1600.0 * delta
+			if fs.position.x < -200.0:
+				fs.position.x += 2520.0
 		# 两拍跑步循环：双腿反相、手臂与对侧腿反相、躯干 2 倍频起伏（就地写 rotation/position，零堆分配）
 		# 关节符号约定（人物朝 +x）：正 rotation = 肢尖向 -x（后），负 = 向 +x（前）
 		var run_phase := _t * 11.0
@@ -541,7 +606,8 @@ class _RunnerShot:
 
 ## 侧视走廊：透视线 + 天花板管道/舱门框结构 + 黄色警示条纹反向滚动；
 ## 多段式飞行服驾驶员（骨盆/胸廓/头盔/维生背包/双关节四肢）+ 暖色边缘光 + 双层残影，两拍奔跑循环；
-## 顶部锥形体积光带，红色应急灯 6Hz 闪烁，蒸汽上飘，加密速度线，低频警报脉冲。
+## 五条顶部锥形体积光带，前景近景支杆快速横扫（-1600px/s 强视差），红色应急灯 6Hz 闪烁，
+## 蒸汽上飘，加密速度线，低频警报脉冲。
 func _build_shot3() -> Node2D:
 	var root := _RunnerShot.new()
 	root.name = "Shot3"
@@ -574,10 +640,10 @@ func _build_shot3() -> Node2D:
 		var jx := 200.0 + 400.0 * i
 		joint.position = Vector2(jx, 150.0 + jx * 230.0 / 1920.0)
 		root.add_child(joint)
-	# 顶部体积光：三条锥形光带（叠加态，上窄下宽）
-	for i in 3:
+	# 顶部体积光：五条锥形光带（叠加态，上窄下宽）
+	for i in 5:
 		var cone := Polygon2D.new()
-		var cx := 480.0 + 560.0 * i
+		var cx := 320.0 + 320.0 * i
 		cone.polygon = PackedVector2Array([
 			Vector2(cx - 50.0, 60.0), Vector2(cx + 50.0, 60.0),
 			Vector2(cx + 170.0, 950.0), Vector2(cx - 170.0, 950.0),
@@ -632,13 +698,13 @@ func _build_shot3() -> Node2D:
 	# 蒸汽：墙壁管道泄漏，白色半透明上飘
 	var steam := _particles({
 		"amount": 32, "lifetime": 1.8, "vel_min": 50.0, "vel_max": 110.0,
-		"spread": 30.0, "scale_min": 4.0, "scale_max": 9.0,
-		"color": Color(0.9, 0.95, 1.0, 0.18), "additive": false,
+		"spread": 30.0, "scale_min": 5.0, "scale_max": 11.0,
+		"color": Color(0.9, 0.95, 1.0, 0.2), "additive": false,
 	})
 	steam.position = Vector2(1500.0, 320.0)
 	root.add_child(steam)
 	# 驾驶员背光（叠加态暖光，把剪影从暗舱里托出来）
-	var backlight := _glow(170.0, Color(1.0, 0.6, 0.25, 0.16))
+	var backlight := CinematicFx.soft_glow(170.0, Color(1.0, 0.6, 0.25, 0.16))
 	backlight.position = Vector2(880.0, 520.0)
 	root.add_child(backlight)
 	# 驾驶员：多段式飞行服人物（骨盆/胸廓/头盔/维生背包/双关节四肢），两拍奔跑由 _process 相位驱动
@@ -741,7 +807,7 @@ func _build_shot3() -> Node2D:
 	helmet.dot_color = body_color
 	helmet.position = Vector2(11.0, -62.0)
 	torso_grp.add_child(helmet)
-	var helmet_rim := _glow(12.0, Color(1.0, 0.6, 0.3, 0.3))
+	var helmet_rim := CinematicFx.soft_glow(12.0, Color(1.0, 0.6, 0.3, 0.3))
 	helmet_rim.position = Vector2(13.0, -64.0)
 	torso_grp.add_child(helmet_rim)
 	var visor := _glow(3.5, Color(0.5, 0.9, 1.0, 0.8))
@@ -787,6 +853,17 @@ func _build_shot3() -> Node2D:
 		sl.position = Vector2(randf() * 2200.0, randf() * 1080.0)
 		root.add_child(sl)
 		root._speed_lines.append(sl)
+	# 前景近景支杆 ×4：宽斜边深色半透明立柱，-1600px/s 反向横扫回卷（近景强视差，在红闪之下受染色）
+	for fg_i in 4:
+		var fg := Polygon2D.new()
+		fg.polygon = PackedVector2Array([
+			Vector2(-90.0, -620.0), Vector2(70.0, -620.0),
+			Vector2(130.0, 620.0), Vector2(-30.0, 620.0),
+		])
+		fg.color = Color(0.01, 0.015, 0.03, 0.6)
+		fg.position = Vector2(300.0 + 630.0 * fg_i, 540.0)
+		root.add_child(fg)
+		root._fg_struts.append(fg)
 	# 红色应急灯全屏闪烁
 	var red := _bg_rect(Color(1.0, 0.1, 0.1, 0.0))
 	root.add_child(red)
@@ -813,6 +890,11 @@ class _ConsoleShot:
 	var _grabbing := false  # 倒计时结束：双手猛抓两侧把手
 	var _retarget := [0.0, 0.15]
 	var _press := [0.0, 0.0]  # 按下-抬起起伏剩余时长
+	var _radar_sweep: Line2D  # 左副屏雷达扫掠针（rotation 随时间推进）
+	var _radar_blips: Array[Sprite2D] = []  # 雷达回波亮点（扫过点亮、余晖衰减）
+	var _radar_blip_angles := PackedFloat32Array()
+	var _radar_blip_e := PackedFloat32Array()  # 回波余晖能量 0..1
+	var _radar_angle := 0.0
 
 	func _process(delta: float) -> void:
 		for h in _hands.size():
@@ -832,9 +914,19 @@ class _ConsoleShot:
 					_press[h] -= delta
 					dip = 5.0 * sin(PI * clampf(1.0 - _press[h] / 0.16, 0.0, 1.0))
 				hand.position = hand.position.lerp(_targets[h] + Vector2(0.0, dip), 16.0 * delta)
+		# 雷达：扫掠针匀速旋转；扫过回波角时点亮，余晖按 0.7/s 衰减（预计算角度，零堆分配）
+		_radar_angle = wrapf(_radar_angle + delta * 3.6, 0.0, TAU)
+		_radar_sweep.rotation = _radar_angle
+		for b in _radar_blips.size():
+			var b_diff: float = absf(wrapf(_radar_angle - _radar_blip_angles[b] + PI, 0.0, TAU) - PI)
+			if b_diff < 0.2:
+				_radar_blip_e[b] = 1.0
+			else:
+				_radar_blip_e[b] = maxf(0.0, _radar_blip_e[b] - delta * 0.7)
+			_radar_blips[b].modulate.a = 0.12 + 0.88 * _radar_blip_e[b]
 
 
-## 驾驶舱前景框架（含舱壁缝线）+ 两侧仪表副屏（玻璃高光）+ 三分区航电控制台
+## 驾驶舱前景框架（含舱壁缝线）+ 两侧仪表副屏（玻璃高光；左副屏带雷达距圈/扫掠针/回波亮点）+ 三分区航电控制台
 ## （斜切梯形台体：推进区按钮簇+节流阀滑槽 / 导航区旋钮+按钮排 / 武器区拨杆开关，LED 指示排+分区铭牌）+
 ## 4 指+拇指手形剪影带按下起伏地点按 + 主屏红色倒计时 3→2→1（bezel 边框）与警告行闪烁 + 两侧金属把手；
 ## 倒计时结束五指扣合把手，结尾 0.5s 整体后仰 -3° + 短促震动 + 屏幕白光渐强。
@@ -911,6 +1003,29 @@ func _build_shot4() -> Node2D:
 			var b := _rect_poly(14.0, 20.0 + 14.0 * bar, Color(0.0, 0.83, 1.0, 0.4))
 			b.position = Vector2(side[0] + 30.0 + 30.0 * bar, side[1] + 118.0 - 7.0 * bar)
 			root.add_child(b)
+	# 左副屏雷达：静态距圈 + 旋转扫掠针（叠加态）+ 2 枚回波亮点（扫过点亮，_ConsoleShot._process 驱动）
+	var radar_c := Vector2(430.0, 315.0)
+	var radar_ring_pts := PackedVector2Array()
+	for rr in 24:
+		var ra := TAU * float(rr) / 24.0
+		radar_ring_pts.append(radar_c + Vector2(cos(ra), sin(ra)) * 52.0)
+	var radar_ring := _line(radar_ring_pts, Color(0.0, 0.83, 1.0, 0.3), 1.5)
+	radar_ring.closed = true
+	root.add_child(radar_ring)
+	var sweep := _line(PackedVector2Array([Vector2.ZERO, Vector2(52.0, 0.0)]), Color(0.4, 0.95, 1.0, 0.8), 2.5)
+	sweep.position = radar_c
+	var sweep_mat := CanvasItemMaterial.new()
+	sweep_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	sweep.material = sweep_mat
+	root.add_child(sweep)
+	root._radar_sweep = sweep
+	for b_a in [0.9, 3.8]:
+		var blip := CinematicFx.soft_glow(4.0, Color(0.5, 1.0, 1.0, 0.9))
+		blip.position = radar_c + Vector2(cos(b_a), sin(b_a)) * 34.0
+		root.add_child(blip)
+		root._radar_blips.append(blip)
+		root._radar_blip_angles.append(b_a)
+		root._radar_blip_e.append(0.0)
 	# 控制台：斜切梯形台体 + 三功能分区（推进/导航/武器），控制件成组分布（构图避开底部 letterbox）
 	var console_body := Polygon2D.new()
 	console_body.polygon = PackedVector2Array([
@@ -955,7 +1070,7 @@ func _build_shot4() -> Node2D:
 			led.position = Vector2(lz + 14.0 * l_i, 766.0)
 			root.add_child(led)
 	var cells: Array[Polygon2D] = []
-	# 按钮簇：背板 + rows×cols 小按钮（闪烁重着色，也是双手点按目标池）
+	# 按钮簇：背板 + rows×cols 小按钮（闪烁重着色，也是双手点按目标池）+ 板角状态 LED
 	var cluster := func(cx: float, cy: float, cols: int, rows: int) -> void:
 		var plate := _rect_poly(28.0 * cols + 16.0, 26.0 * rows + 14.0, Color(0.04, 0.05, 0.08))
 		plate.position = Vector2(cx, cy)
@@ -968,6 +1083,13 @@ func _build_shot4() -> Node2D:
 					cy - 13.0 * (rows - 1) + 26.0 * row)
 				root.add_child(btn)
 				cells.append(btn)
+		for led_i in 2:  # 簇板顶边两角状态灯（静态，青/红各一）
+			var cl_led := _GlowDot.new()
+			cl_led.radius = 2.5
+			cl_led.dot_color = (
+				Color(0.0, 0.83, 1.0, 0.9) if led_i == 0 else Color(0.9, 0.2, 0.25, 0.9))
+			cl_led.position = Vector2(cx + 14.0 * cols * (-1.0 + 2.0 * led_i), cy - 13.0 * rows)
+			root.add_child(cl_led)
 	cluster.call(450.0, 855.0, 4, 2)  # 推进区按钮簇
 	cluster.call(960.0, 950.0, 4, 1)  # 导航区按钮排
 	cluster.call(1445.0, 855.0, 2, 2)  # 武器区按钮簇
@@ -1082,15 +1204,11 @@ func _build_shot4() -> Node2D:
 	warning.size = Vector2(400.0, 44.0)
 	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(warning)
-	# 滚动状态日志：文本初始化期预建，Timer 回调只换 text（零逐帧分配）
-	var log_texts: Array[PackedStringArray] = [
-		PackedStringArray(["> CORE TEMP 1180K", "> CORE TEMP 1240K", "> CORE TEMP 1310K", "> CORE TEMP CRIT"]),
-		PackedStringArray(["> HULL STRESS 62%", "> HULL STRESS 71%", "> HULL STRESS 83%", "> HULL BREACH"]),
-		PackedStringArray(["> RAIL POWER 62%", "> RAIL POWER 80%", "> RAIL POWER 100%", "> RAIL READY"]),
-	]
+	# 滚动状态日志：INTRO_LOG_1..4 四条 i18n 键，Timer 回调只换 text（零逐帧分配）
 	var log_lines: Array[Label] = []
 	for li in 3:
-		var log_line := UITheme.make_label(log_texts[li][0], UITheme.FONT_CAPTION, Color(1.0, 0.55, 0.5))
+		var log_line := UITheme.make_label(
+			tr("INTRO_LOG_%d" % (li + 1)), UITheme.FONT_CAPTION, Color(1.0, 0.55, 0.5))
 		log_line.position = Vector2(720.0, 452.0 + 26.0 * li)
 		log_line.size = Vector2(480.0, 24.0)
 		root.add_child(log_line)
@@ -1113,7 +1231,7 @@ func _build_shot4() -> Node2D:
 	warn_blink.autostart = true
 	root.add_child(warn_blink)
 	warn_blink.timeout.connect(func() -> void: warning.visible = not warning.visible)
-	# 日志轮换：0.7s 步进，4 条预建文本循环
+	# 日志轮换：0.7s 步进，INTRO_LOG_1..4 四条键在三行间滚动
 	var log_step := [0]
 	var log_timer := Timer.new()
 	log_timer.wait_time = 0.7
@@ -1122,7 +1240,7 @@ func _build_shot4() -> Node2D:
 	log_timer.timeout.connect(func() -> void:
 		log_step[0] = (log_step[0] + 1) % 4
 		for li in 3:
-			log_lines[li].text = log_texts[li][log_step[0]]
+			log_lines[li].text = tr("INTRO_LOG_%d" % ((log_step[0] + li) % 4 + 1))
 	)
 	# 两侧金属把手
 	var handle_l := _rect_poly(36.0, 160.0, Color(0.5, 0.55, 0.62))
@@ -1171,7 +1289,7 @@ func _build_shot4() -> Node2D:
 			grip_shape.add_child(groove)
 		grip_shape.visible = false
 		hand.add_child(grip_shape)
-		var palm_rim := _glow(15.0, Color(0.0, 0.83, 1.0, 0.15))
+		var palm_rim := CinematicFx.soft_glow(15.0, Color(0.0, 0.83, 1.0, 0.15))
 		hand.add_child(palm_rim)
 		root.add_child(hand)
 		root._hands.append(hand)
@@ -1259,10 +1377,12 @@ class _ChaseShot:
 				el.position.x = randf() * 230.0 if edge_pair[1] < 0.0 else 1690.0 + randf() * 230.0
 
 
-## 尾部视角：玩家机贴图置于画面中心偏下 + 双层橙色拖影（动态模糊）；
+## 尾部视角：玩家机贴图置于画面中心偏下（调暗 + 暖色软轮廓光，对齐镜头 6 剪影光比）+ 双层橙色拖影（动态模糊）；
+## 点火预热 ~0.3s（尾焰/喷口辉光从 0 升起 + 白闪脉冲，时轴随镜头时长缩放）；
 ## 轨道 = 两侧透视收缩的壁面 + 斜向结构线加速向后流动（取代横档「梯子」）；
-## 尾部双火焰 + 机身两侧舔舐火焰舌；全屏速度线 + 容器 ±6px 震动；引擎音持续。
+## 尾部双火焰 + 亮白内芯 + 机身两侧舔舐火焰舌 + 双壁轨道电火花；全屏速度线 + 容器 ±6px 震动；引擎音持续。
 func _build_shot5() -> Node2D:
+	var dur: float = _shot_durations[4]
 	var root := _ChaseShot.new()
 	root.name = "Shot5"
 	var shake_root := Node2D.new()
@@ -1312,6 +1432,10 @@ func _build_shot5() -> Node2D:
 			lamp.position = Vector2(0.0, -320.0 + 210.0 * i)
 			shake_root.add_child(lamp)
 			root._wall_lights.append([lamp, side])
+	# 机身暖色软轮廓光（托底背光，对齐镜头 6 剪影光比；在拖影/机身之下）
+	var ship_rim := CinematicFx.soft_glow(120.0, Color(1.0, 0.5, 0.2, 0.2))
+	ship_rim.position = Vector2(960.0, 600.0)
+	shake_root.add_child(ship_rim)
 	# 战机双层拖影（动态模糊：橙色淡影拖在机尾方向）
 	for k in [2, 1]:
 		var ghost_ship := Sprite2D.new()
@@ -1320,39 +1444,73 @@ func _build_shot5() -> Node2D:
 		ghost_ship.position = Vector2(960.0, 560.0 + 30.0 * k)
 		ghost_ship.modulate = Color(1.0, 0.6, 0.3, 0.05 + 0.05 * (2 - k))
 		shake_root.add_child(ghost_ship)
-	# 战机（尾部视角：机头朝远方/画面上方，发动机喷口朝向镜头）
+	# 战机（尾部视角：机头朝远方/画面上方，发动机喷口朝向镜头；整体调暗对齐镜头 6 剪影调性）
 	var ship := Sprite2D.new()
 	ship.texture = PLAYER_SHIP
 	ship.scale = Vector2.ONE * 1.4
 	ship.position = Vector2(960.0, 560.0)
+	ship.modulate = Color(0.85, 0.85, 0.92)
 	shake_root.add_child(ship)
-	# 尾部主火焰（橙红、短寿命、向下拖尾）
+	# 尾部主火焰（橙红、短寿命、向下拖尾；软点贴图边缘衰减，尺寸加大一档补偿）；点火预热期由 amount_ratio 0→1 升起
+	var engines: Array[GPUParticles2D] = []
 	for side in [-46.0, 46.0]:
 		var flame := _particles({
 			"amount": 40, "lifetime": 0.35, "direction": Vector3(0.0, 1.0, 0.0),
 			"spread": 18.0, "vel_min": 380.0, "vel_max": 560.0,
-			"scale_min": 4.0, "scale_max": 8.0, "color": Color(1.0, 0.45, 0.1, 0.85),
+			"scale_min": 6.0, "scale_max": 12.0, "color": Color(1.0, 0.45, 0.1, 0.95),
 		})
 		flame.position = Vector2(960.0 + side, 640.0)
 		shake_root.add_child(flame)
+		engines.append(flame)
 	# 亮白内芯：叠在橙红外焰内，更短射程、更高温度感
 	for side in [-46.0, 46.0]:
 		var core_flame := _particles({
 			"amount": 24, "lifetime": 0.22, "direction": Vector3(0.0, 1.0, 0.0),
 			"spread": 10.0, "vel_min": 300.0, "vel_max": 420.0,
-			"scale_min": 2.0, "scale_max": 4.0, "color": Color(1.0, 0.95, 0.85, 0.9),
+			"scale_min": 3.0, "scale_max": 6.0, "color": Color(1.0, 0.95, 0.85, 1.0),
 		})
 		core_flame.position = Vector2(960.0 + side, 636.0)
 		shake_root.add_child(core_flame)
+		engines.append(core_flame)
 	# 机身两侧舔舐火焰舌（斜外下方向、更短寿命，包住机身两侧）
 	for side in [-1.0, 1.0]:
 		var lick := _particles({
 			"amount": 32, "lifetime": 0.28, "direction": Vector3(0.35 * side, 1.0, 0.0),
 			"spread": 25.0, "vel_min": 200.0, "vel_max": 380.0,
-			"scale_min": 3.0, "scale_max": 6.0, "color": Color(1.0, 0.5, 0.12, 0.7),
+			"scale_min": 4.5, "scale_max": 9.0, "color": Color(1.0, 0.5, 0.12, 0.8),
 		})
 		lick.position = Vector2(960.0 + 62.0 * side, 590.0)
 		shake_root.add_child(lick)
+		engines.append(lick)
+	# 点火预热：前 ~0.3s（时轴随镜头时长缩放）尾焰 amount_ratio 0→1 + 喷口软辉光从 0 弹起 + 白闪脉冲
+	var pre_roll := dur * 0.11
+	var ignite := root.create_tween().set_parallel(true)
+	for e in engines:
+		e.amount_ratio = 0.0
+		ignite.tween_property(e, "amount_ratio", 1.0, pre_roll
+		).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	for side in [-46.0, 46.0]:
+		var nozzle := CinematicFx.soft_glow(26.0, Color(1.0, 0.55, 0.15, 0.75))
+		nozzle.position = Vector2(960.0 + side, 632.0)
+		var nozzle_base := nozzle.scale
+		nozzle.scale = Vector2.ZERO
+		shake_root.add_child(nozzle)
+		ignite.tween_property(nozzle, "scale", nozzle_base, pre_roll
+		).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var ignite_flash := _bg_rect(Color(1.0, 1.0, 1.0, 0.55))
+	shake_root.add_child(ignite_flash)
+	var ignite_flash_t := root.create_tween()
+	ignite_flash_t.tween_property(ignite_flash, "color:a", 0.0, dur * 0.07)
+	# 轨道电火花：两侧壁轨各一发射器，火花顺轨向 +y 高速喷洒（textured 软点，≤32/侧）
+	for side in [0, 1]:
+		var rail_spark := _particles({
+			"amount": 28, "lifetime": 0.35, "direction": Vector3(0.0, 1.0, 0.0),
+			"spread": 22.0, "vel_min": 500.0, "vel_max": 850.0,
+			"damping_min": 100.0, "damping_max": 220.0,
+			"scale_min": 2.5, "scale_max": 4.5, "color": Color(1.0, 0.75, 0.35, 0.9),
+		})
+		rail_spark.position = Vector2(645.0 if side == 0 else 1275.0, 760.0)
+		shake_root.add_child(rail_spark)
 	# 全屏速度线
 	for i in 10:
 		var sl := _line(PackedVector2Array([Vector2.ZERO, Vector2(0.0, 180.0 + randf() * 160.0)]),
@@ -1386,22 +1544,23 @@ func _build_shot5() -> Node2D:
 
 
 # ---------------- 镜头 6：远景收束（3.0s） ----------------
-## 星云叠加圆 + 右上恒星背光；左下残骸剪影与余烬闪烁（外加缓慢翻滚的漂浮碎片）；
-## 战机 = 深色剪影 + 引擎亮斑，向右上加速驶离；补给舰编队光点同向跟随；
+## 星云叠加圆 + 右上恒星背光；画面底部行星弧线 + 青蓝大气辉光带压底；
+## 左下残骸剪影与余烬闪烁（外加缓慢翻滚的漂浮碎片）；
+## 战机 = 深色剪影 + 引擎亮斑，向右上加速驶离；补给舰编队两列三行光点同向跟随；
 ## 末尾 0.7s 由导演淡黑衔接标题定格。
 func _build_shot6() -> Node2D:
 	var dur: float = _shot_durations[5]
 	var root := Node2D.new()
 	root.name = "Shot6"
 	root.add_child(Starfield.new())
-	# 星云（大半径低透明度叠加圆）
-	var nebula1 := _glow(430.0, Color(0.35, 0.15, 0.5, 0.08))
+	# 星云（大半径低透明度叠加圆，软径向光晕）
+	var nebula1 := CinematicFx.soft_glow(430.0, Color(0.35, 0.15, 0.5, 0.13))
 	nebula1.position = Vector2(1380.0, 320.0)
 	root.add_child(nebula1)
-	var nebula2 := _glow(340.0, Color(0.1, 0.2, 0.5, 0.11))
+	var nebula2 := CinematicFx.soft_glow(340.0, Color(0.1, 0.2, 0.5, 0.17))
 	nebula2.position = Vector2(420.0, 780.0)
 	root.add_child(nebula2)
-	var nebula3 := _glow(260.0, Color(0.1, 0.4, 0.45, 0.06))
+	var nebula3 := CinematicFx.soft_glow(260.0, Color(0.1, 0.4, 0.45, 0.1))
 	nebula3.position = Vector2(1050.0, 850.0)
 	root.add_child(nebula3)
 	# 星云缓慢异向漂移（远景视差呼吸感，往返循环）
@@ -1413,11 +1572,26 @@ func _build_shot6() -> Node2D:
 			7.0 + 2.0 * n_i).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		neb_tween.tween_property(nebulae[n_i], "position", nebulae[n_i].position,
 			7.0 + 2.0 * n_i).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	# 恒星背光（右上强辉光）
-	var star_halo := _glow(230.0, Color(1.0, 0.9, 0.7, 0.12))
+	# 行星弧线（画面底部）：巨大半径圆弧（圆心远在屏下）+ 暗色星体填充 + 青蓝大气辉光带
+	var limb_pts := PackedVector2Array()
+	limb_pts.resize(64)
+	for p_i in 64:
+		var la := -PI * 0.5 + (float(p_i) / 63.0 - 0.5) * 1.0
+		limb_pts[p_i] = Vector2(960.0, 3350.0) + Vector2(cos(la), sin(la)) * 2480.0
+	var planet := Polygon2D.new()
+	planet.polygon = limb_pts + PackedVector2Array([Vector2(2200.0, 1200.0), Vector2(-280.0, 1200.0)])
+	planet.color = Color(0.02, 0.04, 0.09)
+	root.add_child(planet)
+	root.add_child(_line(limb_pts, Color(0.25, 0.5, 0.75, 0.55), 3.0))
+	var atmo := CinematicFx.soft_glow(90.0, Color(0.3, 0.65, 0.9, 0.22))
+	atmo.position = Vector2(960.0, 880.0)
+	atmo.scale *= Vector2(16.0, 0.9)  # 横向拉扁成大气光带
+	root.add_child(atmo)
+	# 恒星背光（右上强辉光，软径向光晕）
+	var star_halo := CinematicFx.soft_glow(230.0, Color(1.0, 0.9, 0.7, 0.12))
 	star_halo.position = Vector2(1620.0, 180.0)
 	root.add_child(star_halo)
-	var star := _glow(80.0, Color(1.0, 0.95, 0.85, 0.75))
+	var star := CinematicFx.soft_glow(80.0, Color(1.0, 0.95, 0.85, 0.75))
 	star.position = Vector2(1620.0, 180.0)
 	root.add_child(star)
 	# 恒星横向 anamorphic 光晕：宽蓝白亮条 + 短竖条（叠加态），缓慢脉动
@@ -1502,10 +1676,10 @@ func _build_shot6() -> Node2D:
 	var ship_tween := root.create_tween()
 	ship_tween.tween_property(ship, "position", Vector2(1480.0, 280.0), dur).set_trans(
 		Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	# 补给舰编队：光点阵列同向跟随（各带引擎拖尾短线，作为光点子节点随 tween 同行）
+	# 补给舰编队：两列 × 三行光点阵列同向跟随（各带引擎拖尾短线，作为光点子节点随 tween 同行）
 	for i in 6:
 		var dot := _glow(4.0, Color(0.6, 0.8, 1.0, 0.8))
-		dot.position = Vector2(420.0 + 70.0 * (i % 3), 830.0 + 46.0 * (i / 3))
+		dot.position = Vector2(420.0 + 70.0 * (i % 2), 800.0 + 52.0 * (i / 2))
 		dot.add_child(_line(PackedVector2Array(
 			[Vector2.ZERO, Vector2(-18.0, 10.0)]), Color(0.5, 0.75, 1.0, 0.45), 2.0))
 		root.add_child(dot)

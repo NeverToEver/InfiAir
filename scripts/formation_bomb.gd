@@ -32,14 +32,16 @@ func _init() -> void:
 	collision_layer = 8  # 第 4 层：enemy_bullet（语义同敌弹，但不接命中即毁）
 	collision_mask = 1   # 第 1 层：player
 	_body = Polygon2D.new()
+	# 机体尺寸族：设计值 × world_scale（AoE 半径 aoe_radius 为游戏性范围，不缩）
+	var ws: float = GameState.world_scale
 	_body.polygon = PackedVector2Array([
-		Vector2(-7.0, -12.0), Vector2(7.0, -12.0), Vector2(9.0, 6.0), Vector2(0.0, 14.0), Vector2(-9.0, 6.0),
+		Vector2(-7.0, -12.0) * ws, Vector2(7.0, -12.0) * ws, Vector2(9.0, 6.0) * ws, Vector2(0.0, 14.0) * ws, Vector2(-9.0, 6.0) * ws,
 	])
 	_body.color = Color(1.0, 0.45, 0.15)
 	add_child(_body)
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = 10.0
+	circle.radius = 10.0 * ws
 	shape.shape = circle
 	add_child(shape)
 	# 警示环：单位圆一次构建，运行时只改 scale（半径 0.9×AoE → 0.15×AoE），零堆分配
@@ -84,5 +86,5 @@ func _detonate() -> void:
 	var hitbox := GameState.player_hitbox
 	if hitbox != null and is_instance_valid(hitbox):
 		if hitbox.global_position.distance_to(global_position) <= aoe_radius:
-			(hitbox.get_parent() as Player).take_damage(float(damage))
+			(hitbox.get_parent() as Player).take_damage(float(damage), global_position)
 	queue_free()

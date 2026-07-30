@@ -1,6 +1,6 @@
 extends Node
 ## 受击/碰撞对齐测试（迭代 3.9，PORTING_PARITY 附录 A）：
-## A1 玩家受击小判定点 r=7；A2 Boss 身体撞击 30（入场降入期跳过，Boss 不掉血）；
+## A1 玩家受击小判定点（设计值 r=7 × world_scale）；A2 Boss 身体撞击 30（入场降入期跳过，Boss 不掉血）；
 ## A3 狂暴锁血；A4 敌弹按弹种 12/10/20 结算；A5 100 HP 伤害模型（上限/封顶）；
 ## A6 敌机撞击 20 且不自毁；A7/A8 闪避 20% 与护甲 ×0.85 全伤害源两段式（去 bug 统一版）；
 ## A9 受击清 250px 敌弹；A10 精英碰撞半径与普通同档；A12 爆炸弹 50px/30 固定/主目标吃溅射；
@@ -77,7 +77,7 @@ func _ready() -> void:
 
 	# ================= A1：玩家受击小判定点 =================
 	var hb := (player.get_node("Hitbox/CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(hb != null and is_equal_approx(hb.radius, 7.0), "A1：玩家受击判定点半径 r=7")
+	_check(hb != null and is_equal_approx(hb.radius, 7.0 * GameState.world_scale), "A1：玩家受击判定点半径 = 设计值 7 × world_scale")
 
 	# ================= A5：100 HP 伤害模型 =================
 	_check(GameState.health == 100.0 and GameState.max_health() == 100.0, "A5：初始 100/100 HP")
@@ -403,11 +403,11 @@ func _ready() -> void:
 	# ================= A10：精英碰撞半径与普通机同档 =================
 	var elite_r := _make_enemy(spawner.ELITE_TYPES[0])
 	var elite_shape := (elite_r.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(is_equal_approx(elite_shape.radius, 34.0), "A10：精英重甲碰撞半径 34（与普通同档）")
+	_check(is_equal_approx(elite_shape.radius, 34.0 * GameState.world_scale), "A10：精英重甲碰撞半径 = 设计值 34 × world_scale（与普通同档）")
 	elite_r.queue_free()
 	var elite_r2 := _make_enemy(spawner.ELITE_TYPES[1])
 	var elite_shape2 := (elite_r2.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(is_equal_approx(elite_shape2.radius, 30.0), "A10：精英游击碰撞半径 30（与普通同档）")
+	_check(is_equal_approx(elite_shape2.radius, 30.0 * GameState.world_scale), "A10：精英游击碰撞半径 = 设计值 30 × world_scale（与普通同档）")
 	elite_r2.queue_free()
 
 	# ================= A12：爆炸弹 50px/固定 30/主目标吃溅射/Boss 不吃 =================
@@ -419,7 +419,7 @@ func _ready() -> void:
 	var tgt_b := _make_enemy(spawner.ENEMY_TYPES[0])
 	tgt_b.hp = 200
 	tgt_b.speed = 0.0
-	tgt_b.position = Vector2(1000.0, 400.0)  # 40px：超出直击判定（30+6）但在爆炸半径 50 内
+	tgt_b.position = Vector2(1000.0, 400.0)  # 40px：超出直击判定（10+2）但在爆炸半径 50 内
 	var tgt_c := _make_enemy(spawner.ENEMY_TYPES[0])
 	tgt_c.hp = 200
 	tgt_c.speed = 0.0

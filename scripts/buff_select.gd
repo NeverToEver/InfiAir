@@ -191,11 +191,12 @@ func _make_card(buff: Dictionary) -> Control:
 	# 上限口径与 _available_buffs() 相同：balance.json 可覆盖池内值
 	var max_stacks := int(GameState.cfg("buffs.%s.max_stacks" % String(buff["id"]), buff["max"]))
 
-	# 名称行：名称 + NEW! 徽标（首次获得时）
+	# 名称行：HUD 图标坞同款字形 + 名称 + NEW! 徽标（首次获得时）
 	var name_row := HBoxContainer.new()
 	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	name_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(name_row)
+	name_row.add_child(BuffIcons.make_glyph(buff["id"], BuffIcons.color_for(buff["id"]), 26.0))
 	var name_label := UITheme.make_label(
 		tr("BUFF_%s_NAME" % String(buff["id"]).to_upper()), UITheme.FONT_HEADER, UITheme.ACCENT
 	)

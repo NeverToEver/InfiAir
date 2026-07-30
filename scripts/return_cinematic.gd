@@ -238,29 +238,9 @@ static func _kick_shake(host: Node2D, amp: float, state: Array) -> void:
 	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
+## 粒子工厂：全局委托 CinematicFx（同 dict 契约，默认挂软点贴图，scale 语义保持"像素直径"）
 static func _particles(cfg: Dictionary) -> GPUParticles2D:
-	var p := GPUParticles2D.new()
-	p.amount = mini(int(cfg.get("amount", 32)), 96)  # 硬性上限：每发射器 ≤96
-	p.lifetime = cfg.get("lifetime", 1.0)
-	p.explosiveness = cfg.get("explosiveness", 0.0)
-	p.one_shot = cfg.get("one_shot", false)
-	var mat := ParticleProcessMaterial.new()
-	mat.direction = cfg.get("direction", Vector3(0.0, -1.0, 0.0))
-	mat.spread = cfg.get("spread", 180.0)
-	mat.initial_velocity_min = cfg.get("vel_min", 100.0)
-	mat.initial_velocity_max = cfg.get("vel_max", 200.0)
-	mat.gravity = cfg.get("gravity", Vector3.ZERO)
-	mat.damping_min = cfg.get("damping_min", 0.0)
-	mat.damping_max = cfg.get("damping_max", 0.0)
-	mat.scale_min = cfg.get("scale_min", 2.0)
-	mat.scale_max = cfg.get("scale_max", 4.0)
-	mat.color = cfg.get("color", Color(0.6, 0.85, 1.0))
-	p.process_material = mat
-	if cfg.get("additive", true):
-		var blend := CanvasItemMaterial.new()
-		blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		p.material = blend
-	return p
+	return CinematicFx.particles(cfg)
 
 
 # ---------------- 人物构件（复用开场镜头 3 多段式飞行服人物，改姿态/相位） ----------------
@@ -432,7 +412,9 @@ func _build_shot1() -> Node2D:
 	var dur: float = _shot_durations[0]
 	var root := Node2D.new()
 	root.name = "Shot1"
-	root.add_child(Starfield.new())
+	var starfield := Starfield.new()
+	starfield.warp(12.0)  # 承接对局 _starfield.warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
+	root.add_child(starfield)
 	var neb1 := _glow(480.0, Color(0.08, 0.18, 0.4, 0.05))
 	neb1.position = Vector2(360.0, 800.0)
 	root.add_child(neb1)
@@ -445,19 +427,21 @@ func _build_shot1() -> Node2D:
 	ship.scale = Vector2.ONE * 1.4
 	ship.position = Vector2(960.0, 560.0)
 	root.add_child(ship)
-	# 喷口充能：双层辉光暗红 → 炽白放大
+	# 喷口充能：双层软辉光暗红 → 炽白放大
 	for side in [-46.0, 46.0]:
-		var halo := _glow(42.0, Color(0.9, 0.4, 0.15, 0.2))
+		var halo := CinematicFx.soft_glow(42.0, Color(0.9, 0.4, 0.15, 0.2))
 		halo.position = Vector2(960.0 + side, 648.0)
 		root.add_child(halo)
-		var nozzle := _glow(15.0, Color(1.0, 0.95, 0.85, 0.9))
+		var nozzle := CinematicFx.soft_glow(15.0, Color(1.0, 1.0, 1.0, 0.9))
 		nozzle.position = Vector2(960.0 + side, 644.0)
 		nozzle.modulate = Color(0.5, 0.1, 0.05)
 		root.add_child(nozzle)
+		var nozzle_base := nozzle.scale
+		var halo_base := halo.scale
 		var charge := root.create_tween().set_parallel(true)
 		charge.tween_property(nozzle, "modulate", Color(1.0, 0.95, 0.85), dur * 0.8)
-		charge.tween_property(nozzle, "scale", Vector2.ONE * 1.8, dur * 0.8)
-		charge.tween_property(halo, "scale", Vector2.ONE * 1.5, dur * 0.8)
+		charge.tween_property(nozzle, "scale", nozzle_base * 1.8, dur * 0.8)
+		charge.tween_property(halo, "scale", halo_base * 1.5, dur * 0.8)
 	# 能量粒子向内收束（负速度朝发射点汇聚）
 	var inbound := _particles({
 		"amount": 48, "lifetime": 1.2, "direction": Vector3(0.0, 1.0, 0.0), "spread": 180.0,
@@ -466,6 +450,25 @@ func _build_shot1() -> Node2D:
 	})
 	inbound.position = Vector2(960.0, 580.0)
 	root.add_child(inbound)
+	# 充能峰值（结尾 0.4s）：两道错位同心冲击环掠过观察者（曲率引擎点火感）
+	_once(root, dur - 0.4, func() -> void:
+		var wave1 := CinematicFx.shockwave({
+			"radius": 700.0, "time": 0.5, "ry_ratio": 0.6,
+			"color": Color(0.0, 0.83, 1.0, 0.35), "core_color": Color(0.7, 0.97, 1.0, 0.7),
+			"width": 12.0,
+		})
+		wave1.position = Vector2(960.0, 570.0)
+		root.add_child(wave1)
+		_once(root, 0.14, func() -> void:
+			var wave2 := CinematicFx.shockwave({
+				"radius": 900.0, "time": 0.5, "ry_ratio": 0.6,
+				"color": Color(0.0, 0.83, 1.0, 0.3), "core_color": Color(0.6, 0.95, 1.0, 0.6),
+				"width": 10.0,
+			})
+			wave2.position = Vector2(960.0, 570.0)
+			root.add_child(wave2)
+		)
+	)
 	# 结尾 0.4s：画面中心同心细环微缩脉动（空间扭曲）
 	for k in 3:
 		var ring_points := PackedVector2Array()
@@ -497,6 +500,8 @@ class _PortalShot:
 	var _ry := 240.0
 	var _inner_station: Node2D = null  # 环内虚影站模糊景象（水平弥散抖动）
 	var _inner_base_x := 0.0
+	var _swirls: Array[Line2D] = []  # 环内旋涡弧 ×2（反向旋转，空间搅动感）
+	var _swirl_speeds := PackedFloat32Array()
 	var _t := 0.0
 
 	func _process(delta: float) -> void:
@@ -504,11 +509,14 @@ class _PortalShot:
 		for i in _dots.size():
 			var a := _t * 2.5 + TAU * float(i) / float(_dots.size())
 			_dots[i].position = _center + Vector2(cos(a) * _rx, sin(a) * _ry)
+		for i in _swirls.size():
+			_swirls[i].rotation += _swirl_speeds[i] * delta
 		if _inner_station != null:
 			_inner_station.position.x = _inner_base_x + sin(_t * 25.0) * 2.0
 
 
 ## 竖直长圆环从一点撕开扩到全尺寸（0.5s），环缘 12 个 glow 点快速游走；
+## 环内：口腔软辉光垫 + 双旋涡弧反向搅动 + 环缘粒子内流（环形发射域 + 负径向加速度）；
 ## 环内显现虚影站模糊景象（站体 α0.1 + 水平弥散抖动）；镜头稍推 1.0→1.06。
 func _build_shot2() -> Node2D:
 	var dur: float = _shot_durations[1]
@@ -521,6 +529,12 @@ func _build_shot2() -> Node2D:
 	push_tween.tween_property(push, "scale", Vector2.ONE * 1.06, dur).set_trans(Tween.TRANS_SINE)
 	var center := Vector2(1150.0, 430.0)
 	root._center = center
+	# 端口口腔软辉光垫（椭圆压扁，垫在虚影站之下，随撕裂同步张开）
+	var mouth := CinematicFx.soft_glow(32.0, Color(0.0, 0.7, 1.0, 0.15))
+	mouth.position = center
+	var mouth_scale := Vector2(root._rx * 0.95 / 32.0, root._ry * 0.95 / 32.0)
+	mouth.scale = mouth_scale * 0.02
+	push.add_child(mouth)
 	# 内部景象先露（环张开时透出）：虚影站极简版（小比例 + 低 alpha + 弥散抖动）
 	var inner := DawnStation.build(DawnStation.Mode.PHANTOM)
 	inner.scale = Vector2.ONE * 0.28
@@ -547,14 +561,53 @@ func _build_shot2() -> Node2D:
 	push.add_child(ring)
 	for r in [ring_glow, ring]:
 		r.scale = Vector2.ONE * 0.02
+	# 环内旋涡弧 ×2（各约 200° 弧段，反向旋转，随撕裂同步张开；_process 仅累加 rotation）
+	for k in 2:
+		var rr := 0.55 + 0.25 * float(k)
+		var swirl_points := PackedVector2Array()
+		for i in 28:
+			var a := -TAU * 100.0 / 360.0 + TAU * 200.0 / 360.0 * float(i) / 27.0
+			swirl_points.append(Vector2(cos(a) * root._rx * rr, sin(a) * root._ry * rr))
+		var swirl := _line(swirl_points, Color(0.3, 0.9, 1.0, 0.3), 3.0)
+		swirl.position = center
+		swirl.scale = Vector2.ONE * 0.02
+		var swirl_mat := CanvasItemMaterial.new()
+		swirl_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		swirl.material = swirl_mat
+		push.add_child(swirl)
+		root._swirls.append(swirl)
+		root._swirl_speeds.append(2.4 if k == 0 else -1.7)
 	var tear := root.create_tween().set_parallel(true)
 	tear.tween_property(ring, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tear.tween_property(ring_glow, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tear.tween_property(mouth, "scale", mouth_scale, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	for swirl in root._swirls:
+		tear.tween_property(swirl, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	# 环缘能量翻涌：12 个小 glow 点（本镜头唯一 _process 逐帧换位）
 	for i in 12:
 		var dot := _glow(3.5, Color(0.5, 0.95, 1.0, 0.9))
 		push.add_child(dot)
 		root._dots.append(dot)
+	# 环缘内流粒子：环形发射域（参考 DawnStation 数据流配方）+ 负径向加速度拉向环心；
+	# 节点 y 压扁成椭圆贴合端口；撕裂近完成（0.45s）才开始发射
+	var inflow := _particles({
+		"amount": 40, "lifetime": 0.9, "direction": Vector3(0.0, -1.0, 0.0), "spread": 180.0,
+		"vel_min": 0.0, "vel_max": 15.0,
+		"scale_min": 2.0, "scale_max": 4.0, "color": Color(0.5, 0.9, 1.0, 0.45),
+	})
+	var inflow_mat := inflow.process_material as ParticleProcessMaterial
+	inflow_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	inflow_mat.emission_ring_axis = Vector3(0.0, 0.0, 1.0)
+	inflow_mat.emission_ring_radius = root._rx
+	inflow_mat.emission_ring_inner_radius = root._rx * 0.8
+	inflow_mat.emission_ring_height = 0.0
+	inflow_mat.radial_accel_min = -140.0
+	inflow_mat.radial_accel_max = -90.0
+	inflow.position = center
+	inflow.scale = Vector2(1.0, root._ry / root._rx)
+	inflow.emitting = false
+	push.add_child(inflow)
+	_once(root, 0.45, func() -> void: inflow.emitting = true)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -12.0, 0.5)  # 0.5 倍速低沉撕裂感
 	return root
 
@@ -573,6 +626,15 @@ func _build_shot3() -> Node2D:
 	var part_a := Node2D.new()
 	root.add_child(part_a)
 	part_a.add_child(Starfield.new())
+	# 跃迁隧道放射条纹（以端口为中心，白闪切镜时随 part_a 隐藏）
+	var streaks := CinematicFx.radial_streaks({
+		"count": 26, "max_radius": 1000.0, "color": Color(0.5, 0.85, 1.0, 0.45), "cycle": 1.0,
+	})
+	streaks.position = portal_pos
+	streaks.modulate.a = 0.0
+	part_a.add_child(streaks)
+	var streaks_in := root.create_tween()
+	streaks_in.tween_property(streaks, "modulate:a", 1.0, 0.3 * u)
 	var ring_a_points := PackedVector2Array()
 	for i in 48:
 		var a := TAU * float(i) / 48.0
@@ -626,7 +688,7 @@ func _build_shot3() -> Node2D:
 	part_b.add_child(ship_b)
 	# 减速拖短粒子尾迹（挂在机尾随 tween 同行）
 	var trail := _particles({
-		"amount": 32, "lifetime": 0.35, "direction": Vector3(-1.0, 0.4, 0.0), "spread": 20.0,
+		"amount": 40, "lifetime": 0.35, "direction": Vector3(-1.0, 0.4, 0.0), "spread": 20.0,
 		"vel_min": 120.0, "vel_max": 220.0,
 		"scale_min": 2.0, "scale_max": 4.0, "color": Color(0.6, 0.9, 1.0, 0.7),
 	})
@@ -638,6 +700,14 @@ func _build_shot3() -> Node2D:
 	_once(root, 0.9 * u, func() -> void:
 		part_a.visible = false
 		part_b.visible = true
+		# 白闪瞬间端口中心扩散一道冲击环（跃迁能量释放）
+		var wave := CinematicFx.shockwave({
+			"radius": 520.0, "time": 0.4, "ry_ratio": 0.7,
+			"color": Color(0.6, 0.95, 1.0, 0.5), "core_color": Color(1.0, 1.0, 1.0, 0.85),
+			"width": 14.0,
+		})
+		wave.position = portal_pos
+		root.add_child(wave)
 		var ft := root.create_tween()
 		ft.tween_property(flash, "color:a", 1.0, 0.05)
 		ft.tween_property(flash, "color:a", 0.0, 0.25)
@@ -661,11 +731,11 @@ func _build_shot3() -> Node2D:
 
 class _CaptureShot:
 	extends Node2D
-	var _samples: PackedVector2Array = PackedVector2Array()  # 捕获轨道弧采样（构建期预计算）
-	var _dots: Array[Node2D] = []  # 沿轨游走亮斑 ×2（alpha 流光从站体端流向战机端）
-	var _dot_u: Array[float] = [0.0, 0.5]
+	var _samples: PackedVector2Array = PackedVector2Array()  # 捕获轨道弧采样（构建期预计算，供战机定位）
 	var _ship: Node2D = null
 	var _ship_u := 1.0  # 战机沿轨位置参数（1=远端 → 0=站体端，tween 驱动）
+	var _lights: Array[Sprite2D] = []  # 站体环缘航行灯 ×8（慢速追逐明灭）
+	var _t := 0.0
 
 	func _sample_at(t: float) -> Vector2:
 		var f: float = clampf(t, 0.0, 1.0) * float(_samples.size() - 1)
@@ -675,9 +745,11 @@ class _CaptureShot:
 		return _samples[i].lerp(_samples[i + 1], f - float(i))
 
 	func _process(delta: float) -> void:
-		for i in _dots.size():
-			_dot_u[i] = fmod(_dot_u[i] + delta * 0.45, 1.0)
-			_dots[i].position = _sample_at(_dot_u[i])
+		_t += delta
+		# 航行灯慢追逐：相位绕环依次点亮（alpha 窄脉冲 + 低常亮底）
+		for i in _lights.size():
+			var w := sin(_t * 1.5 - TAU * float(i) / 8.0)
+			_lights[i].modulate.a = 0.12 + 0.78 * pow(maxf(w, 0.0), 4.0)
 		if _ship != null:
 			_ship.position = _sample_at(_ship_u)
 			var ahead := _sample_at(maxf(_ship_u - 0.02, 0.0))
@@ -686,8 +758,8 @@ class _CaptureShot:
 
 
 ## 虚影站「曙光·残响」全貌首次完整亮相（§1.1 四层虚影全开）；
-## 半透明能量捕获轨道（宽 14px 亮青弧线 + 2 个沿轨游走亮斑）牵引战机滑向停机坪入口；
-## 镜头缓慢侧跟（正弦平移 60px + scale 1.0→1.12 缓推）。
+## 半透明能量捕获轨道（CinematicFx.beam 分层能量束：辉光层 + 亮芯层 + 3 个循环流光软点）牵引战机滑向停机坪入口；
+## 站体环缘 8 盏航行灯慢速追逐明灭；镜头缓慢侧跟（正弦平移 60px + scale 1.0→1.12 缓推）。
 func _build_shot4() -> Node2D:
 	var dur: float = _shot_durations[3]
 	var root := _CaptureShot.new()
@@ -703,6 +775,14 @@ func _build_shot4() -> Node2D:
 	var station := DawnStation.build(DawnStation.Mode.PHANTOM)
 	station.position = Vector2(960.0, 470.0)
 	cam.add_child(station)
+	# 站体环缘航行灯 ×8（慢速追逐明灭，预建后由 _CaptureShot 相位驱动 alpha）
+	for i in 8:
+		var a := TAU * float(i) / 8.0
+		var lamp := CinematicFx.soft_glow(5.0, Color(0.5, 0.95, 1.0, 1.0))
+		lamp.position = Vector2(960.0, 470.0) + Vector2(cos(a), sin(a)) * (DawnStation.RING_RADIUS + 4.0)
+		lamp.modulate.a = 0.12
+		cam.add_child(lamp)
+		root._lights.append(lamp)
 	# 捕获轨道：站体边缘 → 战机的二次贝塞尔弧（构建期采样 24 点，_process 零分配）
 	var p0 := Vector2(960.0, 470.0) + Vector2(cos(-0.2), sin(-0.2)) * DawnStation.RING_RADIUS
 	var p2 := Vector2(1530.0, 660.0)
@@ -711,22 +791,27 @@ func _build_shot4() -> Node2D:
 		var t := float(i) / 23.0
 		root._samples.append(
 			p0.lerp(p1, t).lerp(p1.lerp(p2, t), t))
-	var beam_glow := _line(root._samples, Color(0.0, 0.83, 1.0, 0.25), 14.0)
-	var beam_mat := CanvasItemMaterial.new()
-	beam_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	beam_glow.material = beam_mat
-	cam.add_child(beam_glow)
-	cam.add_child(_line(root._samples, Color(0.3, 0.95, 1.0, 0.7), 3.0))
-	for i in 2:
-		var dot := _glow(6.0, Color(0.6, 0.98, 1.0, 0.95))
-		cam.add_child(dot)
-		root._dots.append(dot)
+	# 分层能量束（辉光层 + 亮芯层 + 3 个循环流光软点，内部零分配 _process）
+	var beam := CinematicFx.beam(root._samples, {
+		"color": Color(0.0, 0.83, 1.0), "width": 14.0,
+		"dot_count": 3, "dot_speed": 0.5,
+		"dot_radius": 8.0, "dot_color": Color(0.6, 0.98, 1.0),
+	})
+	cam.add_child(beam)
 	# 战机沿轨道弧线缓速滑向停机坪入口（TRANS_SINE 吸附感）
 	var ship := Sprite2D.new()
 	ship.texture = PLAYER_SHIP
 	ship.scale = Vector2.ONE * 0.9
 	cam.add_child(ship)
 	root._ship = ship
+	# 机尾短距拖尾（镜头 3 飞出段同款配方，减速滑行弱一档）
+	var ship_trail := _particles({
+		"amount": 24, "lifetime": 0.35, "direction": Vector3(-1.0, 0.4, 0.0), "spread": 20.0,
+		"vel_min": 100.0, "vel_max": 180.0,
+		"scale_min": 2.0, "scale_max": 3.5, "color": Color(0.6, 0.9, 1.0, 0.55),
+	})
+	ship_trail.position = Vector2(-26.0, 0.0)
+	ship.add_child(ship_trail)
 	var pull := root.create_tween()
 	pull.tween_property(root, "_ship_u", 0.06, dur).set_trans(Tween.TRANS_SINE)
 	GameState.play_sfx(GameState.SFX_RESUPPLY, -8.0)  # 对接感
@@ -768,10 +853,21 @@ func _build_shot5() -> Node2D:
 	deck_edge_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	deck_edge.material = deck_edge_mat
 	deck.add_child(deck_edge)
+	# 中线引导灯带 ×8：初始压暗，降落窗口内由两侧向落点依次追逐点亮
+	var guides: Array[Node2D] = []
 	for i in 8:
 		var guide := _glow(3.0, Color(0.0, 0.83, 1.0, 0.7))
 		guide.position = Vector2(-210.0 + 60.0 * i, 0.0)
+		guide.modulate.a = 0.2
 		deck.add_child(guide)
+		guides.append(guide)
+	var chase_order := [0, 7, 1, 6, 2, 5, 3, 4]  # 由远及近指向甲板中心落点
+	for j in 8:
+		var g: Node2D = guides[chase_order[j]]
+		var gt := root.create_tween()
+		gt.tween_interval(0.05 * u + 0.075 * u * float(j))
+		gt.tween_property(g, "modulate:a", 1.0, 0.08 * u)
+		gt.tween_property(g, "modulate:a", 0.7, 0.3 * u)
 	# 甲板尽头通道闸门
 	var gate := _rect_poly(120.0, 160.0, Color(0.06, 0.08, 0.12))
 	gate.position = Vector2(1450.0, 730.0)
@@ -829,6 +925,21 @@ func _build_shot5() -> Node2D:
 	_once(root, 1.0 * u, func() -> void:
 		var open := root.create_tween()
 		open.tween_property(canopy, "rotation", -1.3, 0.4 * u)  # 座舱盖上翻
+		# 玻璃高光条随开舱滑过舱面（与上翻同程 0.4u）
+		var shine := Polygon2D.new()
+		shine.polygon = PackedVector2Array([
+			Vector2(-2.0, -4.0), Vector2(4.0, -4.0), Vector2(-2.0, -32.0), Vector2(-8.0, -32.0)])
+		shine.color = Color(1.0, 1.0, 1.0, 0.0)
+		var shine_mat := CanvasItemMaterial.new()
+		shine_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		shine.material = shine_mat
+		shine.position = Vector2(-10.0, 0.0)
+		canopy.add_child(shine)
+		var slide := root.create_tween()
+		slide.tween_property(shine, "position:x", 12.0, 0.4 * u)
+		var fade := root.create_tween()
+		fade.tween_property(shine, "color:a", 0.4, 0.08 * u)
+		fade.tween_property(shine, "color:a", 0.0, 0.12 * u).set_delay(0.26 * u)  # 滑到末段同步消隐
 	)
 	_once(root, 1.15 * u, func() -> void:
 		GameState.play_sfx(GameState.SFX_DASH, -14.0)  # 跃下短促音
@@ -936,13 +1047,43 @@ func _build_shot6() -> Node2D:
 		[Vector2(0.0, 340.0), Vector2(2600.0, 340.0)]), Color(0.16, 0.22, 0.32, 0.7), 3.0))
 	world.add_child(_line(PackedVector2Array(
 		[Vector2(0.0, 820.0), Vector2(2600.0, 820.0)]), Color(0.16, 0.22, 0.32, 0.7), 3.0))
+	# 舱壁肋板 ×12：宽窄/深浅交替，破除等距重复感
 	for i in 12:
-		var rib := _rect_poly(22.0, 480.0, Color(0.07, 0.09, 0.13))
+		var wide := i % 2 == 0
+		var rib := _rect_poly(22.0 if wide else 14.0, 480.0,
+			Color(0.07, 0.09, 0.13) if wide else Color(0.05, 0.065, 0.10))
 		rib.position = Vector2(120.0 + 220.0 * i, 580.0)
 		world.add_child(rib)
+	# 肋板间舱壁小壁板（带顶部刻线，通道纵深细节）
+	for i in 6:
+		var px := 230.0 + 440.0 * i
+		var panel := _rect_poly(84.0, 56.0, Color(0.06, 0.08, 0.12))
+		panel.position = Vector2(px, 560.0)
+		world.add_child(panel)
+		world.add_child(_line(PackedVector2Array(
+			[Vector2(px - 42.0, 531.0), Vector2(px + 42.0, 531.0)]), Color(0.2, 0.3, 0.42, 0.5), 1.5))
 	for pipe in [[360.0, 6.0], [382.0, 4.0]]:
 		world.add_child(_line(PackedVector2Array(
 			[Vector2(0.0, pipe[0]), Vector2(2600.0, pipe[0])]), Color(0.2, 0.26, 0.36), pipe[1]))
+	# 顶灯光锥 ×3（叠加态低 alpha，挂在世界容器随滚动视差）
+	for cx in [500.0, 1200.0, 1900.0]:
+		var lamp_cone := Polygon2D.new()
+		lamp_cone.polygon = PackedVector2Array([
+			Vector2(cx - 26.0, 356.0), Vector2(cx + 26.0, 356.0),
+			Vector2(cx + 150.0, 820.0), Vector2(cx - 150.0, 820.0),
+		])
+		lamp_cone.color = Color(0.6, 0.9, 1.0, 0.05)
+		var cone_mat := CanvasItemMaterial.new()
+		cone_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		lamp_cone.material = cone_mat
+		world.add_child(lamp_cone)
+	# 地面反光提示条（灯带光在地板上的长条泛光）
+	var floor_hint := _line(PackedVector2Array(
+		[Vector2(0.0, 812.0), Vector2(2600.0, 812.0)]), Color(0.5, 0.8, 1.0, 0.10), 2.5)
+	var floor_hint_mat := CanvasItemMaterial.new()
+	floor_hint_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	floor_hint.material = floor_hint_mat
+	world.add_child(floor_hint)
 	# 远处结构微光（虚影站内部）
 	var far_glow := _glow(300.0, Color(0.0, 0.5, 1.0, 0.06))
 	far_glow.position = Vector2(2300.0, 540.0)
@@ -1007,14 +1148,68 @@ func _build_shot6() -> Node2D:
 
 
 # ---------------- 镜头 7：休息室入睡（2.0s） ----------------
-## 休眠床 + 床头全息屏微光 + 顶部暖调小灯（全场景唯一暖光源）+ 观察窗外环体缓转；
+
+class _RoomShot:
+	extends Node2D
+	var _person: Dictionary  # 人物关节（走入步行循环 + 躺后呼吸共用）
+	var _time_u := 1.0  # u = dur/3.0（镜头内部关键帧缩放）
+	var _phase := 0.0
+	var _t := 0.0
+	var _bob_base_y := 0.0
+	var _breathe_w := 0.0  # 呼吸权重（躺下完成后缓入，避免突变）
+	var _stars: Array[Sprite2D] = []  # 观察窗外漂移星点（窗框内回卷）
+	var _star_vel := PackedVector2Array()
+	var _star_bounds := Rect2()
+
+	func _process(delta: float) -> void:
+		_t += delta
+		var u := _time_u
+		if _t < 0.6 * u:
+			# 走入步行循环（窗口两端权重淡入淡出，结束自动缓回直立；肢体公式同 _WalkShot）
+			_phase += delta * 16.0
+			var k := clampf(minf(_t, 0.6 * u - _t) / (0.12 * u), 0.0, 1.0)
+			var person_node: Node2D = _person["node"]
+			for i in 2:
+				var p: float = _phase + PI * float(i)
+				var hip := _person["hips"][i] as Node2D
+				var knee := _person["knees"][i] as Node2D
+				var shoulder := _person["shoulders"][i] as Node2D
+				var elbow := _person["elbows"][i] as Node2D
+				hip.rotation = lerpf(hip.rotation, sin(p) * 0.5 * k, 12.0 * delta)
+				knee.rotation = lerpf(knee.rotation, 0.05 + maxf(0.0, sin(p - 1.8)) * 0.7 * k, 12.0 * delta)
+				shoulder.rotation = lerpf(shoulder.rotation, 0.1 - sin(p) * 0.35 * k, 12.0 * delta)
+				elbow.rotation = lerpf(elbow.rotation, -(0.3 + 0.4 * k + sin(p + 0.8) * 0.15 * k), 12.0 * delta)
+			person_node.position.y = _bob_base_y + 1.5 * (0.5 + 0.5 * cos(_phase * 2.0)) * k
+		elif _t > 1.7 * u:
+			# 躺下后的呼吸起伏：躯干微小缩放/位移正弦
+			_breathe_w = lerpf(_breathe_w, 1.0, 1.5 * delta)
+			var torso := _person["torso"] as Node2D
+			var b := sin(_t * 1.5) * _breathe_w
+			torso.scale = Vector2(1.0, 1.0 + 0.025 * b)
+			torso.position = Vector2(0.0, 0.6 * b)
+		# 观察窗外星点缓慢漂移（越界回卷，始终留在窗框内）
+		for i in _stars.size():
+			var s := _stars[i]
+			s.position += _star_vel[i] * delta
+			if s.position.x < _star_bounds.position.x:
+				s.position.x += _star_bounds.size.x
+			elif s.position.x > _star_bounds.end.x:
+				s.position.x -= _star_bounds.size.x
+			if s.position.y < _star_bounds.position.y:
+				s.position.y += _star_bounds.size.y
+			elif s.position.y > _star_bounds.end.y:
+				s.position.y -= _star_bounds.size.y
+
+
+## 休眠床 + 床头全息屏微光 + 顶部暖调小灯（全场景唯一暖光源）+ 观察窗外环体缓转 + 漂移星点；
 ## 主角走入 → 坐下 → 躺下（三姿态 0.6s 间隔）→ 镜头推近面部特写（scale→1.6）→
 ## 眼睑 0.8s 闭合；闭眼瞬间画面渐暗（导演 0.9s 淡黑）+ BGM 淡出到 -40dB。
 func _build_shot7() -> Node2D:
 	var dur: float = _shot_durations[6]
 	var u := dur / 3.0
-	var root := Node2D.new()
+	var root := _RoomShot.new()
 	root.name = "Shot7"
+	root._time_u = u
 	root.add_child(_bg_rect(Color(0.02, 0.02, 0.04)))
 	var room := Node2D.new()  # 推近面部特写的运镜容器
 	root.add_child(room)
@@ -1025,7 +1220,16 @@ func _build_shot7() -> Node2D:
 		[Vector2(300.0, 300.0), Vector2(300.0, 840.0)]), Color(0.10, 0.14, 0.22, 0.5)))
 	room.add_child(_line(PackedVector2Array(
 		[Vector2(1620.0, 300.0), Vector2(1620.0, 840.0)]), Color(0.10, 0.14, 0.22, 0.5)))
-	# 观察窗：窗外虚影环体缓慢旋转轮廓（提醒此处仍在虚影站内）
+	# 观察窗：窗外虚影环体缓慢旋转轮廓（提醒此处仍在虚影站内）+ 远景星点漂移
+	root._star_bounds = Rect2(392.0, 412.0, 316.0, 156.0)  # 窗框内缘留边
+	for i in 3:
+		var star := CinematicFx.soft_glow(2.0, Color(0.85, 0.92, 1.0, 0.7))
+		star.position = Vector2(
+			randf_range(root._star_bounds.position.x, root._star_bounds.end.x),
+			randf_range(root._star_bounds.position.y, root._star_bounds.end.y))
+		room.add_child(star)
+		root._stars.append(star)
+		root._star_vel.append(Vector2(randf_range(-14.0, -6.0), randf_range(-3.0, 3.0)))
 	var window_frame := _line(PackedVector2Array([
 		Vector2(380.0, 400.0), Vector2(720.0, 400.0),
 		Vector2(720.0, 580.0), Vector2(380.0, 580.0),
@@ -1084,13 +1288,15 @@ func _build_shot7() -> Node2D:
 	var holo_glow := _glow(40.0, Color(0.0, 0.83, 1.0, 0.1))
 	holo_glow.position = Vector2(946.0, 700.0)
 	room.add_child(holo_glow)
-	# 主角：从舱门走入 → 床沿坐下 → 平躺
+	# 主角：步行循环走入（_RoomShot 驱动肢体，位置仍由 tween 推进）→ 床沿坐下 → 平躺
 	var person := _build_person()
 	var pnode: Node2D = person["node"]
 	pnode.scale = Vector2.ONE * 1.6
 	pnode.position = Vector2(560.0, 766.0)
 	_pose_stand(person)
 	room.add_child(pnode)
+	root._person = person
+	root._bob_base_y = pnode.position.y
 	var walk_in := root.create_tween()
 	walk_in.tween_property(pnode, "position:x", 990.0, 0.6 * u
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)

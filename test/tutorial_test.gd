@@ -112,7 +112,7 @@ func _ready() -> void:
 	# 阶段 4：自动对接（弹匣加速消耗到自动释放）
 	_check(tut._mothership != null, "阶段 4 母舰已召唤")
 	var ms: Mothership = tut._mothership
-	ms.position = Vector2(960.0, 270.0)  # 到位触发自动对接
+	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场，到位触发自动对接
 	ms._mag_cells = 1  # 加速演示：1 格弹匣 2s 后自动释放
 	await get_tree().create_timer(6.0).timeout
 	_check(tut._stage == 4, "对接完成 → 阶段 5")

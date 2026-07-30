@@ -131,7 +131,7 @@ func _on_carrier_entered() -> void:
 	for i in _total:
 		var turret := TURRET_SCENE.instantiate() as TurretBattery
 		turret.setup(hp, ammo, FIRE_INTERVAL, WEAK_LOCK)
-		turret.position = _carrier.position + StrikeCarrier.SOCKETS[i]
+		turret.position = _carrier.position + StrikeCarrier.SOCKETS[i] * GameState.world_scale
 		turret.died.connect(_on_turret_died.bind(i))
 		get_parent().add_child(turret)
 		_turrets.append(turret)

@@ -6,6 +6,9 @@
 - explosion_big.wav  Boss/精英爆炸（更长、更低沉、双层噪声）
 - player_hit.wav     玩家受击（短促噪声 + 下滑音）
 - buff_pick.wav      Buff 确认音（上行双音）
+- dash.wav           相位冲刺（上行扫频 + 噪声）
+- resupply.wav       母舰补给（上行三音琶音）
+- heartbeat.wav      Meta HUD DYING 心跳（55Hz 双脉冲 lub-dub）
 - bgm_loop.wav       40s 无缝循环氛围电子 BGM（和弦垫 + 琶音 + 低音）
 
 用法：python3 scripts/tools/generate_audio.py
@@ -130,6 +133,23 @@ def make_resupply() -> list:
     return out
 
 
+def make_heartbeat() -> list:
+    """DYING 心跳（D7）：55Hz 正弦双脉冲（lub 强 / dub 弱），0.28s，指数包络。"""
+    dur = 0.28
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0, amp in ((0.0, 1.0), (0.13, 0.65)):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.008, 1.0) * math.exp(-lt * 18.0)
+                s += amp * env * math.sin(2.0 * math.pi * 55.0 * lt)
+        out.append(0.8 * s)
+    return out
+
+
 # ---------------- BGM ----------------
 
 BPM = 120.0
@@ -232,6 +252,7 @@ def main() -> None:
     write_wav("buff_pick.wav", make_buff_pick())
     write_wav("dash.wav", make_dash())
     write_wav("resupply.wav", make_resupply())
+    write_wav("heartbeat.wav", make_heartbeat())
     write_wav("bgm_loop.wav", make_bgm())
 
 

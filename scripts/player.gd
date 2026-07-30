@@ -86,6 +86,7 @@ var _aim_ring: Node2D = null  # 锁定环容器（4 段圆弧，旋转+脉动）
 var _aim_ring_target: Node2D = null  # 锁定环当前绑定的目标（变化时才重建样式）
 var _hitbox_dot: Polygon2D = null
 var _hitbox_halo: Line2D = null
+var _muzzle_offset: float  # 出弹点偏移（50 × world_scale，_load_balance 缓存）
 var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
 var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 
@@ -134,6 +135,16 @@ func _load_balance() -> void:
 	AIM_RING_RADIUS = GameState.cfg("player.aim_assist.ring_radius", AIM_RING_RADIUS)
 	_load_aim_assist_params()
 	GameState.aim_assist_changed.connect(_on_aim_assist_level_changed)
+	# 机体尺寸族：tscn 存设计值（1.0 基准），此处统一乘全局缩放并幂等覆盖
+	var ws: float = GameState.world_scale
+	_sprite.scale = Vector2.ONE * 0.65 * ws
+	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 22.0 * ws
+	(($Hitbox/CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 7.0 * ws
+	_thruster.position = Vector2(0.0, 70.0 * ws)
+	var thruster_mat := _thruster.process_material as ParticleProcessMaterial
+	thruster_mat.scale_min = 2.5 * ws
+	thruster_mat.scale_max = 5.5 * ws
+	_muzzle_offset = 50.0 * ws
 	# 瞄准辅助锁定环：4 段圆弧容器，锁定时贴在目标上缓慢旋转（半径按目标重排点，不做节点缩放）
 	_aim_ring = Node2D.new()
 	_aim_ring.top_level = true
@@ -514,7 +525,7 @@ func _fire(aim: Vector2) -> void:
 		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), BULLET_SPEED, bullet_damage(), true)
 		b.pierce = pierce
 		b.explosive = explosive
-		b.position = position + aim.rotated(offset) * 50.0
+		b.position = position + aim.rotated(offset) * _muzzle_offset
 	_audio.stream = FIRE_SOUNDS[_sound_index]
 	_sound_index = (_sound_index + 1) % FIRE_SOUNDS.size()
 	_audio.play()
@@ -524,7 +535,8 @@ func _fire(aim: Vector2) -> void:
 ## 无敌/单帧已结算/闪避返回 false，敌弹直接穿过不销毁，对齐原作 single-hit 语义）。
 ## 减免两段式（去 bug 统一版：原作闪避仅敌机撞击、护甲不含敌机撞击且多层零收益，
 ## 均疑似接线 bug——本版闪避与护甲对全部伤害源生效）：先 20% 闪避，再护甲 ×0.85。
-func take_damage(amount: float = 1.0) -> bool:
+## from_pos（D8）：伤害源世界坐标，供 Meta HUD 定向波纹；Vector2.INF = 无方向（均匀环）。
+func take_damage(amount: float = 1.0, from_pos: Vector2 = Vector2.INF) -> bool:
 	if _dead or _invincible > 0.0 or _dashing:
 		return false
 	# A16：单帧至多结算一次受击（敌弹/敌机撞/Boss 撞共用）
@@ -542,6 +554,7 @@ func take_damage(amount: float = 1.0) -> bool:
 	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
 	GameState.shake(SHAKE_HIT)
 	GameState.lose_health(amount)
+	GameState.player_damaged.emit(amount, from_pos)  # Meta HUD 受击层（减免后最终值）
 	_clear_nearby_enemy_bullets()
 	if GameState.health <= 0.0:
 		_die()
@@ -565,6 +578,22 @@ func _die() -> void:
 	_hitbox.set_deferred("monitoring", false)
 	set_physics_process(false)
 	Explosion.spawn_at(get_parent(), position, 2.0)
+
+
+## 进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead；
+## 无敌与输入锁由母舰对接流程管理，position 仍由母舰驱动（驻留钉在对接点）
+func enter_pod() -> void:
+	hide()
+	_aim_ring.hide()
+	_hitbox.set_deferred("monitoring", false)
+
+
+## 离开保护舱（释放抛下时调用）：恢复显示与受击判定；锁定环随下次瞄准自动重现
+func exit_pod() -> void:
+	if _dead:
+		return
+	show()
+	_hitbox.set_deferred("monitoring", true)
 
 
 func _exit_tree() -> void:

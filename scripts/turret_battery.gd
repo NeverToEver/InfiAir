@@ -41,6 +41,7 @@ var _facing: float = PI / 2.0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _hp_bar: SegmentedBar = $HpBar
+var _muzzle_offset: float  # 出弹点偏移（40 × world_scale，_ready 覆写）
 
 
 ## setup() 在入树/_ready() 之前调用，不能用 @onready 变量
@@ -72,6 +73,15 @@ func _ready() -> void:
 	DMG_LASER = GameState.cfg("enemies.bullet_damage.laser", DMG_LASER)
 	DMG_HOMING = GameState.cfg("boss.bullet_damage.homing", DMG_HOMING)
 	DMG_SNIPER = GameState.cfg("boss.bullet_damage.sniper", DMG_SNIPER)
+	# 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
+	var ws: float = GameState.world_scale
+	($Sprite2D as Sprite2D).scale = Vector2.ONE * ws
+	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 26.0 * ws
+	_hp_bar.offset_left = -24.0 * ws
+	_hp_bar.offset_top = -46.0 * ws
+	_hp_bar.offset_right = 24.0 * ws
+	_hp_bar.offset_bottom = -38.0 * ws
+	_muzzle_offset = 40.0 * ws
 	_hp_bar.max_value = 100.0
 	_hp_bar.value = 100.0
 	_hp_bar.fill_color = Color(1.0, 0.25, 0.75)  # 精英品红
@@ -150,7 +160,7 @@ func _fire_current_ammo() -> void:
 			var dir := _fire_dir()
 			var b: Bullet = GameState.bullet_pool.fire(dir, HOMING_SPEED, DMG_HOMING, false, true, homing_time)
 			b.homing_turn_rate = homing_turn_rate
-			b.position = global_position + dir * 40.0
+			b.position = global_position + dir * _muzzle_offset
 			b.set_meta("bullet_type", &"homing")
 		&"sniper":
 			_spawn_bullet(_fire_dir(), SNIPER_SPEED, DMG_SNIPER, &"sniper")
@@ -168,7 +178,7 @@ func _fire_fan(count: int) -> void:
 
 func _spawn_bullet(dir: Vector2, bullet_speed: float, dmg: int, p_type: StringName) -> void:
 	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
-	b.position = global_position + dir * 40.0
+	b.position = global_position + dir * _muzzle_offset
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）

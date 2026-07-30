@@ -335,14 +335,17 @@ func _ready() -> void:
 	Input.action_release("dock")
 	await get_tree().create_timer(0.2).timeout
 	_check(not main._charging and main._dock_cooldown <= 0.0, "松手取消蓄力不进冷却")
-	# 蓄满 3s 召唤
+	# 蓄满 3s 召唤：弹出机库小窗 → 小窗结束后穿梭门+母舰穿出
 	Input.action_press("dock")
 	await get_tree().create_timer(3.3).timeout
 	Input.action_release("dock")
-	_check(main._mothership != null, "蓄力满 3s 召唤母舰")
+	_check(main._summon_window != null, "蓄力满 3s 弹出机库小窗")
+	main._summon_window.skip()
+	await get_tree().process_frame
+	_check(main._mothership != null, "小窗结束后召唤母舰")
 	var ms: Mothership = main._mothership
-	# 到位即自动对接（原作无区域判定，点吸附补间）
-	ms.position = Vector2(960.0, 269.0)
+	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场（0.8s）
+	# 到位即自动对接（无区域判定，点吸附补间）
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	tgt.can_shoot = false
@@ -350,14 +353,23 @@ func _ready() -> void:
 	tgt.position = Vector2(960.0, 500.0)
 	main.add_child(tgt)
 	await get_tree().create_timer(0.5).timeout
+	_check(ms._state == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
+	_check(tgt._summon_slow_timer > 0.0, "减速带命中敌机（短时减速）")
 	_check(player._input_locked, "对接开始即锁输入")
 	_check(player._invincible > 100.0, "对接开始即无敌（无敌窗口前移）")
+	# 回收牵引期火力掩护（DOCKING 态即开火，不耗驻留弹匣）
+	var dock_fire := false
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+			dock_fire = true
+	_check(dock_fire, "回收牵引期火力掩护开火")
 	# 对接 1.5s + 补给 0.5s 后进入驻留
 	await get_tree().create_timer(2.0).timeout
 	_check(GameState.health == GameState.max_health(), "补给回满生命")
 	_check(player._fuel == player.fuel_max, "补给回满燃料")
 	_check(ms._state == Mothership.State.STAY, "进入驻留状态")
 	_check(ms._mag_cells == 10, "弹匣初始 10 格")
+	_check(not player.visible, "回收完成玩家进入保护舱（隐藏）")
 	# 驻留火力：加特林弹丸（score_scale=1/3）+ 导弹（splash 标记）
 	await get_tree().create_timer(0.6).timeout
 	var gatling_found := false
@@ -376,16 +388,16 @@ func _ready() -> void:
 	Input.action_release("move_right")
 	_check(ms.position.x > ms_x_before + 20.0, "驻留期间 WASD 驾驶母舰")
 	_check(
-		player.global_position.distance_to(ms.global_position + Vector2(0.0, 140.0)) < 5.0,
+		player.global_position.distance_to(ms.global_position + Vector2(0.0, ms.DOCK_OFFSET_Y)) < 5.0,
 		"驾驶时玩家钉在对接点"
 	)
-	# 驾驶边界钳制：持续左行被钳在视野内（x ≥ 视图左缘 + 130）
-	# small 档（zoom=1.0）视野最宽，1045→130 约 915px @180px/s 需 ~5.3s，留足余量
+	# 驾驶边界钳制：持续左行被钳在视野内（x ≥ 视图左缘 + DRIVE_MARGIN_X）
+	# small 档（zoom=1.0）视野最宽，1045→43 约 1000px @180px/s 需 ~5.6s，留足余量
 	Input.action_press("move_left")
 	await get_tree().create_timer(6.5).timeout
 	Input.action_release("move_left")
 	_check(
-		absf(ms.position.x - (GameState.view_world_rect().position.x + 130.0)) < 30.0,
+		absf(ms.position.x - (GameState.view_world_rect().position.x + ms.DRIVE_MARGIN_X)) < 30.0,
 		"母舰驾驶边界钳制"
 	)
 	if buff_ui.visible:
@@ -421,6 +433,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.2).timeout
 	_check(main._dock_cooldown > 42.5 and main._dock_cooldown < 45.2, "提前离舰冷却双机制折扣")
 	_check(not player._input_locked, "脱离后输入解锁")
+	_check(player.visible, "释放后玩家出舱恢复显示")
 	if main._mothership != null:
 		main._mothership.queue_free()
 	# 母舰击杀 1/3 分（100 分敌机 → +33）
@@ -447,8 +460,10 @@ func _ready() -> void:
 	# 警告横幅播完（5s）强制离舰：第二艘母舰，缩短计时确定性验证
 	main._dock_cooldown = 0.0
 	main._summon_mothership()
+	main._summon_window.skip()
+	await get_tree().process_frame
 	var ms2: Mothership = main._mothership
-	ms2.position = Vector2(960.0, 269.0)
+	ms2._state_timer = ms2.WARP_IN_TIME  # 快进穿梭入场
 	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
 	_check(ms2._state == Mothership.State.STAY, "第二艘母舰进入驻留")
 	ms2._mag_cells = 5

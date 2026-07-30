@@ -153,6 +153,9 @@ var ENRAGE_RELEASE_HOLD_DURATION := 0.7  # 42 帧
 var ENRAGE_RETURN_DURATION := 0.8  # 48 帧
 ## 轨道：半径 = max(机体宽,高)×1.5 受屏幕边界约束（原作 PATH_RADIUS_SCALE/MIN_Y 钳制）
 var ENRAGE_PATH_RADIUS_SCALE := 1.5
+## 出弹点前伸：舰体边缘（原 100 按 r=120 机体定，机体 ÷3 后同步）
+var MUZZLE_OFFSET := 100.0  # 出弹点偏移设计值（_ready × world_scale）
+var _ws: float = 1.0  # 全局机体缩放缓存（_ready 读取一次）
 var ENRAGE_SQUARE_PATH_RATIO := 0.48  # 前 48% 方形路径，后 52% 圆形路径
 ## RELEASE 弹速 = ACTIVE 弹速 × 原作释放比例（1.35/3.7≈0.365、1.55/3.2≈0.484，回退路径用）
 var ENRAGE_RELEASE_LASER_SPEED := 300.0
@@ -217,6 +220,9 @@ var _survival: float = 0.0
 var _escape_warned: bool = false
 var _escaping: bool = false
 var _escape_speed: float = 0.0
+## 母舰召唤减速带：短时减速乘区（仅位移，经 _slow_factor 生效）
+var _summon_slow_timer: float = 0.0
+var _summon_slow_factor: float = 1.0
 # 阶段框架与模式表循环（§4.1）
 var _fight_phase: int = FightPhase.P1
 var _patterns: Dictionary = {}  # {"p1": [...], "p2": [...]}，_ready 从配置载入
@@ -313,6 +319,11 @@ func setup(p_difficulty: float, p_type: int) -> void:
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)
+	# 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
+	_ws = GameState.world_scale
+	_sprite.scale = Vector2.ONE * 1.15 * _ws
+	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 120.0 * _ws
+	MUZZLE_OFFSET = 100.0 * _ws
 	# 数值配置缓存（启动一次读入）
 	ENTER_SPEED = GameState.cfg("boss.enter_speed", ENTER_SPEED)
 	FIGHT_Y = GameState.cfg("boss.fight_y", FIGHT_Y)
@@ -504,8 +515,18 @@ func _base_fire_interval() -> float:
 
 
 ## 慢速力场因子（全局机体移速 ×0.8；与狂暴移速倍率相乘）
+## 母舰召唤减速带命中时叠加短时乘区（同语义，仅位移）
 func _slow_factor() -> float:
-	return SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
+	var f := SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
+	if _summon_slow_timer > 0.0:
+		f *= _summon_slow_factor
+	return f
+
+
+## 母舰召唤减速带命中：duration 秒内位移速度 ×factor
+func apply_slow(duration: float, factor: float) -> void:
+	_summon_slow_timer = duration
+	_summon_slow_factor = factor
 
 
 func _base_modulate() -> Color:
@@ -518,6 +539,8 @@ func escape_remaining() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if _summon_slow_timer > 0.0:
+		_summon_slow_timer -= delta
 	if _escaping:
 		# 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
 		_escape_speed += ESCAPE_ACCEL * delta
@@ -586,7 +609,7 @@ func _physics_process(delta: float) -> void:
 		if _sniper_aim_elapsed <= SNIPER_TRACK_TIME:
 			_sniper_dir = _player_dir()
 			if _aim_line != null:
-				_aim_line.points = PackedVector2Array([_sniper_dir * 100.0, _sniper_dir * 1200.0])
+				_aim_line.points = PackedVector2Array([_sniper_dir * MUZZLE_OFFSET, _sniper_dir * 1200.0])
 		if _aim_line != null:
 			_aim_line.modulate.a = 0.18 + 0.18 * absf(sin(_sniper_aim_elapsed * 25.0))
 		if _sniper_aim_elapsed >= SNIPER_AIM_TIME:
@@ -618,7 +641,7 @@ func _physics_process(delta: float) -> void:
 		_cannon_timer -= delta
 		if not _cannon_flashed and _cannon_timer <= CANNON_FLASH:
 			_cannon_flashed = true
-			_charge_glow(CANNON_FLASH, 30.0, Color(1.0, 0.7, 0.3, 0.6))
+			_charge_glow(CANNON_FLASH, 90.0 * _ws, Color(1.0, 0.7, 0.3, 0.6))
 		if _cannon_timer <= 0.0:
 			_cannon_timer = CANNON_INTERVAL
 			_cannon_shots_left -= 1
@@ -782,7 +805,9 @@ func _move_dash(delta: float) -> void:
 # ---------------- Telegraph 小函数（§4.2，用完即毁，不走常驻 _process） ----------------
 
 ## 蓄力辉光：叠加态圆点 scale/alpha tween，duration 后自毁（过场 _glow 配方）
-func _charge_glow(duration: float, radius := 70.0, color := Color(1.0, 0.55, 0.3, 0.55)) -> Node2D:
+func _charge_glow(duration: float, radius := -1.0, color := Color(1.0, 0.55, 0.3, 0.55)) -> Node2D:
+	if radius < 0.0:
+		radius = 70.0 * _ws  # 默认辉光半径设计值 × 全局缩放
 	var dot := _GlowDot.new()
 	dot.radius = radius
 	dot.dot_color = color
@@ -807,7 +832,7 @@ func _make_aim_line(dir: Vector2, length: float, color := Color(1.0, 0.35, 0.3, 
 	line.width = 2.0
 	line.default_color = color
 	line.modulate.a = 0.3
-	line.add_point(dir * 100.0)
+	line.add_point(dir * MUZZLE_OFFSET)
 	line.add_point(dir * length)
 	add_child(line)
 	return line
@@ -842,33 +867,33 @@ func _fire_fan(p_count: int = 5) -> void:
 	for i in p_count:
 		var dir := base_dir.rotated(deg_to_rad(20.0 * (float(i) - half)))
 		var b: Bullet = GameState.bullet_pool.fire(dir, FAN_BULLET_SPEED, BULLET_DAMAGE_FAN, false)
-		b.position = position + dir * 100.0
+		b.position = position + dir * MUZZLE_OFFSET
 
 
 func _fire_homing(p_offset := Vector2(0.0, 100.0)) -> void:
 	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, HOMING_BULLET_SPEED, BULLET_DAMAGE_HOMING, false, true, 1.5)
-	b.position = position + p_offset
+	b.position = position + p_offset * _ws
 
 
 ## 狙击弹：p_dir 为零向量时自机狙（保留旧语义），否则沿 telegraph 锁定方向
 func _fire_sniper(p_dir := Vector2.ZERO) -> void:
 	var dir := p_dir if p_dir != Vector2.ZERO else _player_dir()
 	var b: Bullet = GameState.bullet_pool.fire(dir, SNIPER_BULLET_SPEED, BULLET_DAMAGE_SNIPER, false)
-	b.position = position + dir * 100.0
+	b.position = position + dir * MUZZLE_OFFSET
 
 
 func _fire_cross() -> void:
 	for i in 4:
 		var dir := Vector2.RIGHT.rotated(_cross_angle + float(i) * PI / 2.0)
 		var b: Bullet = GameState.bullet_pool.fire(dir, CROSS_BULLET_SPEED, BULLET_DAMAGE_CROSS, false)
-		b.position = position + dir * 100.0
+		b.position = position + dir * MUZZLE_OFFSET
 	_cross_angle += deg_to_rad(15.0)
 
 
 ## 重弹（蓄力重炮/狂暴齐射/猎杀狙击共用）：高亮加粗外观
 func _fire_heavy(p_dir: Vector2, p_speed: float, p_damage: int) -> void:
 	var b: Bullet = GameState.bullet_pool.fire(p_dir, p_speed, p_damage, false)
-	b.position = position + p_dir * 100.0
+	b.position = position + p_dir * MUZZLE_OFFSET
 	var poly := b.get_node("Polygon2D") as Polygon2D
 	poly.scale = Vector2(2.4, 2.4)
 	poly.color = Color(1.0, 0.6, 0.3)
@@ -879,7 +904,7 @@ func _fire_ring(p_count: int, p_speed: float, p_damage: int, p_offset: float) ->
 	for i in p_count:
 		var dir := Vector2.RIGHT.rotated(p_offset + TAU * float(i) / float(p_count))
 		var b: Bullet = GameState.bullet_pool.fire(dir, p_speed, p_damage, false)
-		b.position = position + dir * 100.0
+		b.position = position + dir * MUZZLE_OFFSET
 		b.set_meta("bullet_type", &"enrage_ring")
 
 
@@ -940,7 +965,7 @@ func _update_sweep(delta: float) -> void:
 				if (_sweep_dir > 0.0 and position.x >= drop_x) or (_sweep_dir < 0.0 and position.x <= drop_x):
 					_sweep_drop_x.remove_at(0)
 					var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, SWEEP_DROP_SPEED, SWEEP_DROP_DAMAGE, false)
-					b.position = position + Vector2(0.0, 60.0)
+					b.position = position + Vector2(0.0, 60.0) * _ws
 				else:
 					break
 			var bounds := _strafe_range()
@@ -981,7 +1006,7 @@ func _start_minion_volley() -> void:
 	_volley_minions.clear()
 	for i in VOLLEY_COUNT:
 		var e: Enemy = spawner.spawn_minion(
-			position + Vector2((float(i) - float(VOLLEY_COUNT - 1) * 0.5) * 100.0, 110.0)
+			position + Vector2((float(i) - float(VOLLEY_COUNT - 1) * 0.5) * 100.0, 110.0) * _ws
 		)
 		if e != null:
 			e.set_meta("hive_volley", true)
@@ -997,7 +1022,7 @@ func _minion_volley_fire(minions: Array[Enemy]) -> void:
 		if is_instance_valid(e) and e._active:
 			var dir := (GameState.player_ref.global_position - e.global_position).normalized()
 			var b: Bullet = GameState.bullet_pool.fire(dir, VOLLEY_BULLET_SPEED, VOLLEY_BULLET_DAMAGE, false)
-			b.position = e.position + dir * 40.0
+			b.position = e.position + dir * 40.0 * _ws
 
 
 ## 弹幕墙（三型 P2）：150° 扇形 10 槽位，留 2 个相邻缺口；
@@ -1034,7 +1059,7 @@ func _fire_bullet_wall() -> void:
 			continue
 		var dir := Vector2.from_angle(slot_angle.call(i))
 		var b: Bullet = GameState.bullet_pool.fire(dir, WALL_BULLET_SPEED, WALL_DAMAGE, false)
-		b.position = position + dir * 100.0
+		b.position = position + dir * MUZZLE_OFFSET
 
 
 func _summon_minions() -> void:
@@ -1042,7 +1067,7 @@ func _summon_minions() -> void:
 	if spawner == null:
 		return
 	for i in randi_range(2, 3):
-		spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0))
+		spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0) * _ws)
 
 
 ## 狂暴快照弹幕：狂暴进入时的一次性齐射（由 main 在子弹时间结束后统一触发）。
@@ -1063,7 +1088,7 @@ func _fire_enrage_wave(laser_speed: float, ring_speed: float) -> void:
 	var side := aim.orthogonal()
 	for i in ENRAGE_SNAPSHOT_LASERS:
 		var laser: Bullet = GameState.bullet_pool.fire(aim, laser_speed, BULLET_DAMAGE_SNAPSHOT_LASER, false)
-		laser.position = position + aim * 100.0 + side * (float(i) - 1.5) * 44.0
+		laser.position = position + aim * MUZZLE_OFFSET + side * (float(i) - 1.5) * 44.0 * _ws
 		laser.set_meta("bullet_type", &"laser")
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
 		var poly := laser.get_node("Polygon2D") as Polygon2D
@@ -1072,7 +1097,7 @@ func _fire_enrage_wave(laser_speed: float, ring_speed: float) -> void:
 	for i in ENRAGE_SNAPSHOT_RING:
 		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(ENRAGE_SNAPSHOT_RING))
 		var b: Bullet = GameState.bullet_pool.fire(dir, ring_speed, BULLET_DAMAGE_SNAPSHOT_RING, false)
-		b.position = position + dir * 100.0
+		b.position = position + dir * MUZZLE_OFFSET
 		b.set_meta("bullet_type", &"enrage_ring")
 
 
@@ -1174,7 +1199,7 @@ func _enrage_active_stalker(delta: float) -> void:
 		_enrage_aim_elapsed += delta
 		_sniper_dir = _player_dir()
 		if _aim_line != null:
-			_aim_line.points = PackedVector2Array([_sniper_dir * 100.0, _sniper_dir * 1200.0])
+			_aim_line.points = PackedVector2Array([_sniper_dir * MUZZLE_OFFSET, _sniper_dir * 1200.0])
 			_aim_line.modulate.a = 0.18 + 0.18 * absf(sin(_enrage_aim_elapsed * 25.0))
 		if _enrage_aim_elapsed >= E2_AIM:
 			_cancel_aim_line()
@@ -1211,7 +1236,7 @@ func _enrage_active_hive(delta: float) -> void:
 			var spawner := get_tree().get_first_node_in_group("spawner")
 			if spawner != null:
 				for i in E3_SUMMON_COUNT:
-					spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0))
+					spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0) * _ws)
 
 
 ## 序列进度 0→1（TRANSITION 起算，ACTIVE 结束到 1；对齐原作 enrage_progress）
@@ -1369,9 +1394,10 @@ func _flash_hit() -> void:
 func _check_body_collision() -> void:
 	var hb := GameState.player_hitbox
 	if hb != null and overlaps_area(hb):
-		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）
+		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
 		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp())))
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))),
+			global_position
 		)
 
 

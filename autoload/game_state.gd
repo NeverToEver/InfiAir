@@ -7,6 +7,8 @@ signal difficulty_changed(new_multiplier: float)
 signal difficulty_selected(difficulty: StringName)
 signal milestone_reached(score: int)
 signal player_died
+## 玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源
+signal player_damaged(amount: float, from_pos: Vector2)
 signal screen_shake(strength: float)
 signal rp_changed(new_rp: int)
 signal mission_completed(id: StringName)
@@ -16,6 +18,7 @@ signal locale_changed
 signal view_zoom_changed(factor: float)
 signal window_size_changed(level: StringName)
 signal aim_assist_changed(level: StringName)
+signal reduce_flash_changed(enabled: bool)
 ## buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新
 signal buffs_changed
 
@@ -58,6 +61,10 @@ var _balance: Dictionary = {}
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
+## 全局机体尺寸缩放（balance.json 顶层 world_scale；1/3 = 当前默认观感）。
+## 机体尺寸族数值（贴图 scale/碰撞 radius/机体偏移/随机体特效比例）在 json/tscn/脚本回退中
+## 一律存设计值（1.0 基准），实体在 _ready()/setup() 统一乘本系数后应用；游戏性范围族不乘。
+var world_scale: float = 0.3333333333333333
 
 
 func _load_balance() -> void:
@@ -90,6 +97,7 @@ func cfg(path: String, default: Variant) -> Variant:
 
 
 func _apply_balance() -> void:
+	world_scale = float(cfg("world_scale", world_scale))
 	milestone_base = cfg("milestones.base", MILESTONE_BASE.duplicate())
 	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
 	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
@@ -124,6 +132,7 @@ const SFX_PLAYER_HIT: AudioStream = preload("res://assets/audio/player_hit.wav")
 const SFX_BUFF_PICK: AudioStream = preload("res://assets/audio/buff_pick.wav")
 const SFX_DASH: AudioStream = preload("res://assets/audio/dash.wav")
 const SFX_RESUPPLY: AudioStream = preload("res://assets/audio/resupply.wav")
+const SFX_HEARTBEAT: AudioStream = preload("res://assets/audio/heartbeat.wav")
 const SFX_POOL_SIZE := 6
 
 const SAVE_PATH := "user://savegame.json"
@@ -156,6 +165,11 @@ var view_zoom: StringName = &"small"
 var window_size: StringName = &"large"
 ## 瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）
 var aim_assist_level: StringName = &"medium"
+## Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
+## 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）
+var meta_fx_lod: int = 1
+## 无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
+var reduce_flash: bool = false
 ## buff id -> 已选层数
 var buffs: Dictionary = {}
 ## 征用点数（基地经济）
@@ -478,6 +492,15 @@ func set_aim_assist_level(level: StringName) -> void:
 	aim_assist_changed.emit(level)
 
 
+## 无障碍·减少闪光：开关持久化到 profile 并广播（Meta HUD 据此折算色差/禁脉冲）
+func set_reduce_flash(enabled: bool) -> void:
+	if enabled == reduce_flash:
+		return
+	reduce_flash = enabled
+	save_profile()
+	reduce_flash_changed.emit(enabled)
+
+
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
 ## 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
 func view_world_rect(margin: float = 0.0) -> Rect2:
@@ -569,12 +592,12 @@ func add_buff(id: StringName) -> void:
 
 const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"move_up", &"move_down", &"move_left", &"move_right",
-	&"boost", &"fine_move", &"dash", &"dock", &"homecoming", &"give_up",
+	&"boost", &"fine_move", &"dash", &"dock", &"homecoming", &"give_up", &"buff_panel",
 ]
 const ACTION_LABELS: Dictionary = {
 	&"move_up": "上移", &"move_down": "下移", &"move_left": "左移", &"move_right": "右移",
 	&"boost": "加速", &"fine_move": "微调", &"dash": "相位冲刺",
-	&"dock": "召唤母舰", &"homecoming": "返航", &"give_up": "放弃出击",
+	&"dock": "召唤母舰", &"homecoming": "返航", &"give_up": "放弃出击", &"buff_panel": "增益面板",
 }
 
 ## action -> Array[int]（keycode，最多 2 个）；restart/pause 固定不可改
@@ -914,6 +937,7 @@ func load_profile() -> void:
 	var saved_aim := StringName(parsed.get("aim_assist", ""))
 	if AIM_ASSIST_ORDER.has(saved_aim):
 		aim_assist_level = saved_aim
+	reduce_flash = bool(parsed.get("reduce_flash", reduce_flash))
 
 
 func save_profile() -> void:
@@ -930,6 +954,7 @@ func save_profile() -> void:
 		"view_zoom": String(view_zoom),
 		"window_size": String(window_size),
 		"aim_assist": String(aim_assist_level),
+		"reduce_flash": reduce_flash,
 	}
 	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
 	if f == null:

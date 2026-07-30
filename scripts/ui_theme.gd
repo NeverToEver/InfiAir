@@ -104,27 +104,29 @@ static func make_toggle_button(text: String, group: ButtonGroup) -> Button:
 	return button
 
 
-## Buff 芯片：小尺寸自适应 ChamferedPanel（无括号），
-## 内 HBox：名称（FONT_SMALL/TEXT_DIM）+ 层数 pip（"●"×stacks，FONT_SMALL/ACCENT_GOLD；stacks<=0 不加 pip）。
-static func make_buff_chip(label_text: String, stacks: int) -> Control:
+## Buff 图标格：46×46 ChamferedPanel 瓦片（无括号），中央分类色程序化字形
+## （BuffIcons，与 Buff 三选一卡片同一套图形语言），层数 >1 时右下角放 "×N" 数字徽标。
+## 网格坞内高密度排布用，避免长文芯片互相遮挡。
+static func make_buff_tile(id: StringName, stacks: int) -> Control:
+	var color: Color = BuffIcons.color_for(id)
 	var panel := ChamferedPanel.new()
-	panel.chamfer = 8.0
+	panel.chamfer = 7.0
 	panel.padding = 0.0
+	panel.custom_minimum_size = Vector2(46.0, 46.0)
+	panel.border_color = Color(color, 0.55)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_bottom", 4)
-	panel.add_child(margin)
+	var glyph := BuffIcons.make_glyph(id, color, 22.0)
+	glyph.position = Vector2(12.0, 12.0)  # (46-22)/2，面板尺寸固定 46
+	panel.add_child(glyph)
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 6)
-	margin.add_child(hbox)
-	hbox.add_child(make_label(label_text, FONT_SMALL, TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
-	if stacks > 0:
-		hbox.add_child(make_label("●".repeat(stacks), FONT_SMALL, ACCENT_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
+	if stacks > 1:
+		var badge := make_label("×%d" % stacks, 12, TEXT, HORIZONTAL_ALIGNMENT_RIGHT)
+		badge.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		badge.position = Vector2(-22.0, -17.0)
+		badge.custom_minimum_size = Vector2(19.0, 15.0)
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(badge)
 	return panel
 
 

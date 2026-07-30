@@ -20,6 +20,7 @@ var _aim_group := ButtonGroup.new()
 var _aim_buttons: Dictionary = {}  # 瞄准辅助强度档位 -> Button
 var _window_group := ButtonGroup.new()
 var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
+var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
@@ -238,6 +239,18 @@ func _build_modes_page() -> VBoxContainer:
 		b.pressed.connect(GameState.set_window_size.bind(level))
 		win_row.add_child(b)
 		_window_buttons[level] = b
+	# 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
+	page.add_child(UITheme.make_section_header(tr("SET_ACCESSIBILITY")))
+	var rf_row := HBoxContainer.new()
+	rf_row.add_theme_constant_override("separation", 16)
+	page.add_child(rf_row)
+	# 单开关 ButtonGroup 需 allow_unpress，否则按下后无法再取消
+	var rf_group := ButtonGroup.new()
+	rf_group.allow_unpress = true
+	_reduce_flash_btn = UITheme.make_toggle_button(tr("SET_REDUCE_FLASH"), rf_group)
+	_reduce_flash_btn.custom_minimum_size = Vector2(160.0, 48.0)
+	_reduce_flash_btn.pressed.connect(_on_reduce_flash)
+	rf_row.add_child(_reduce_flash_btn)
 	return page
 
 
@@ -295,6 +308,7 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_refresh_zoom_buttons()
 	_refresh_window_buttons()
 	_refresh_aim_buttons()
+	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
 	_hint_label.text = ""
 	_capturing_action = &""
 	_show_page(&"controls")
@@ -351,6 +365,7 @@ func _on_locale_changed() -> void:
 	_refresh_zoom_buttons()
 	_refresh_window_buttons()
 	_refresh_aim_buttons()
+	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
 
 
 func _on_ctrl_mode(toggle_mode: bool) -> void:
@@ -359,6 +374,10 @@ func _on_ctrl_mode(toggle_mode: bool) -> void:
 
 func _on_shift_mode(toggle_mode: bool) -> void:
 	GameState.set_shift_toggle_mode(toggle_mode)
+
+
+func _on_reduce_flash() -> void:
+	GameState.set_reduce_flash(_reduce_flash_btn.button_pressed)
 
 
 func _on_back_pressed() -> void:

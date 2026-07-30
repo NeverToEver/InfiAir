@@ -718,7 +718,7 @@ func _update_dock(now: int) -> void:
 				Input.action_press("dock")
 				_dock_holding = true
 				_dock_cancel_episode = false
-				_dock_hold_until = now + 5000
+				_dock_hold_until = now + 8000  # 蓄力 3s + 机库小窗 ~2.6s，留足余量
 				_log("开始蓄力召唤母舰（boss=%s hp=%.0f%%）" % [str(_boss != null), hp_ratio * 100.0])
 			else:
 				_next_dock_consider = now + 20000

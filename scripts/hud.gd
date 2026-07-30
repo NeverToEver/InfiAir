@@ -1,6 +1,8 @@
 extends CanvasLayer
 ## HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
 ## 带 70%/30% 阶段刻度线与阶段切换短闪，逃跑最后 10s 血条下方倒计时）。
+## Buff 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
+## （Esc 经 BackNavigator 优先关栏），与左下状态区、底部居中蓄力提示、左中通讯浮层分角隔离。
 
 const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
@@ -31,6 +33,7 @@ var _poll_timer: float = 0.0
 var _last_dock_text: String = ""
 var _last_mag_cells: int = -1
 var _tag_labels: Array[Label] = []
+var _tag_keys: Array[StringName] = []
 var _event_box: VBoxContainer
 var _event_bar: SegmentedBar
 var _event_title: Label
@@ -53,11 +56,23 @@ var _hit_flash: float = 0.0
 var _hit_tween: Tween = null
 var _last_hp_value: float = -1.0
 var _pulse_time: float = 0.0
-var _buff_flow: FlowContainer
+var _buff_dock_wrap: Control  # 右下角锚定包装（meta_jitter 抖动对象，避免直接动自动生长的网格）
+var _buff_dock: GridContainer
+var _buff_tag: Label
+var _buff_overflow_label: Label = null  # 收起态溢出计数（">4 个 buff 时 +N"）
+var _buff_panel: ChamferedPanel  # L 键展开的 buff 滚动栏
+var _buff_panel_title: Label
+var _buff_rows: VBoxContainer
 var _last_buff_signature: String = ""
 var _info_plate: ChamferedPanel
 var _info_label: Label
 var _info_tween: Tween = null
+# Meta HUD DYING 抖动（D9）：仅 _hp_bar 与 buff 坞两控件的静止位与补间
+var _hp_bar_rest: Vector2
+var _buff_dock_rest: Vector2
+var _jitter_tween: Tween = null
+
+const BUFF_DOCK_MAX_TILES := 4  # 收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格
 
 
 ## Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层
@@ -96,6 +111,11 @@ func _ready() -> void:
 	_hp_bar.fill_color = UITheme.ACCENT
 	_fuel_bar.fill_color = UITheme.ACCENT
 	_dash_bar.fill_color = UITheme.ACCENT
+	# HpBar 全息化（META_HUD_DESIGN §4.3/§6 明示层）：底盘更透 + 填充段 ADD 伪泛光
+	_hp_bar.empty_color = Color(0.05, 0.09, 0.14, 0.25)
+	var hp_holo := CanvasItemMaterial.new()
+	hp_holo.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_hp_bar.material = hp_holo
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.health_changed.connect(_on_health_changed)
 	GameState.difficulty_changed.connect(_on_difficulty_changed)
@@ -106,9 +126,6 @@ func _ready() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
-	if _tag_labels.size() == 2:
-		_tag_labels[0].text = tr("UI_SCORE_TAG")
-		_tag_labels[1].text = tr("UI_LIVES_TAG")
 	_build_backplates()
 	_build_banner()
 	_build_magazine_bar()
@@ -196,10 +213,13 @@ func _ready() -> void:
 	add_child(_boss_countdown)
 	_build_event_bar()
 	_build_vignette()
-	_build_buff_chips()
+	_build_buff_dock()
 	_build_info_banner()
-	GameState.buffs_changed.connect(_rebuild_buff_chips)
-	_rebuild_buff_chips()
+	GameState.buffs_changed.connect(_rebuild_buff_dock)
+	GameState.key_bindings_changed.connect(_refresh_buff_tag)
+	_rebuild_buff_dock()
+	_hp_bar_rest = _hp_bar.position
+	_buff_dock_rest = _buff_dock_wrap.position
 
 
 ## 精英炮塔事件计时条（顶部居中，Boss 血条下方；与 Boss 互斥不会同屏）
@@ -299,9 +319,15 @@ func _build_magazine_bar() -> void:
 	add_child(_mag_box)
 
 
+## L（buff_panel）切换 buff 滚动栏；暂停态下 HUD 不处理输入（process 继承）
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"buff_panel"):
+		_toggle_buff_panel()
+		get_viewport().set_input_as_handled()
+
+
 func _process(delta: float) -> void:
-	_update_vignette(delta)
-	# 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
+	_update_vignette(delta)	# 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
 	_poll_timer -= delta
 	if _poll_timer > 0.0:
 		return
@@ -350,7 +376,7 @@ func _update_magazine_bar(main: Node) -> void:
 		_last_mag_cells = -1
 
 
-## 左上分数块与左下状态块的切角背板 + 小标签（标签置于背板上方外侧，不与边框/数值重叠）
+## 左上分数块、左下状态块与右上难度块的切角背板 + 小标签（标签置于背板上方外侧，不与边框/数值重叠）
 func _build_backplates() -> void:
 	var score_plate := ChamferedPanel.new()
 	score_plate.position = Vector2(10.0, 24.0)
@@ -360,12 +386,8 @@ func _build_backplates() -> void:
 	# 大数值下移，给标签行留位
 	_score_label.position = Vector2(24.0, 30.0)
 	_kills_label.position = Vector2(24.0, 72.0)
-	var score_tag := Label.new()
-	score_tag.text = tr("UI_SCORE_TAG")
+	var score_tag := _make_corner_tag(tr("UI_SCORE_TAG"))
 	score_tag.position = Vector2(22.0, 2.0)
-	score_tag.add_theme_font_override("font", FONT)
-	score_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
-	score_tag.add_theme_color_override("font_color", UITheme.ACCENT)
 	add_child(score_tag)
 	var status_plate := ChamferedPanel.new()
 	status_plate.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -373,16 +395,45 @@ func _build_backplates() -> void:
 	status_plate.size = Vector2(560.0, 76.0)
 	add_child(status_plate)
 	move_child(status_plate, 0)
-	var lives_tag := Label.new()
-	lives_tag.text = tr("UI_LIVES_TAG")
+	var lives_tag := _make_corner_tag(tr("UI_LIVES_TAG"))
 	lives_tag.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	lives_tag.position = Vector2(22.0, -102.0)
-	lives_tag.add_theme_font_override("font", FONT)
-	lives_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
-	lives_tag.add_theme_color_override("font_color", UITheme.ACCENT)
 	add_child(lives_tag)
+	# 右上难度背板：与分数块同语系（原浮空文字难以在亮背景上阅读）
+	var diff_plate := ChamferedPanel.new()
+	diff_plate.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	diff_plate.position = Vector2(-240.0, 24.0)
+	diff_plate.size = Vector2(230.0, 44.0)
+	add_child(diff_plate)
+	move_child(diff_plate, 0)
+	_difficulty_label.offset_left = -228.0
+	_difficulty_label.offset_top = 24.0
+	_difficulty_label.offset_right = -22.0
+	_difficulty_label.offset_bottom = 68.0
+	_difficulty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var diff_tag := _make_corner_tag(tr("UI_DIFF_TAG"))
+	diff_tag.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	diff_tag.position = Vector2(-238.0, 2.0)
+	add_child(diff_tag)
 	# 刷新时同步小标签语言
-	_tag_labels = [score_tag, lives_tag]
+	_tag_labels = [score_tag, lives_tag, diff_tag]
+	_tag_keys = [&"UI_SCORE_TAG", &"UI_LIVES_TAG", &"UI_DIFF_TAG"]
+
+
+## 角落板块小标签（分数/生命/难度共用样式）
+func _make_corner_tag(text: String) -> Label:
+	var tag := Label.new()
+	tag.text = text
+	tag.add_theme_font_override("font", FONT)
+	tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
+	tag.add_theme_color_override("font_color", UITheme.ACCENT)
+	return tag
+
+
+## 语言切换时重刷全部角落小标签
+func _refresh_tag_labels() -> void:
+	for i in mini(_tag_labels.size(), _tag_keys.size()):
+		_tag_labels[i].text = tr(_tag_keys[i])
 
 
 ## 世界坐标处的飘字提示（补给完成、里程碑等）。
@@ -511,13 +562,15 @@ func _on_locale_changed() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
-	if _tag_labels.size() == 2:
-		_tag_labels[0].text = tr("UI_SCORE_TAG")
-		_tag_labels[1].text = tr("UI_LIVES_TAG")
+	_refresh_tag_labels()
+	if _buff_tag != null:
+		_refresh_buff_tag()
+	if _buff_panel_title != null:
+		_buff_panel_title.text = tr("UI_BUFFS_TITLE")
 	if _event_box != null and _event_box.visible:
 		_event_title.text = tr("ETV_TITLE")
 		_event_turrets_label.text = tr("ETV_TURRETS") % maxi(_last_event_alive, 0)
-	_rebuild_buff_chips(true)
+	_rebuild_buff_dock(true)
 	if _boss_bar.visible:
 		_refresh_boss_name()
 
@@ -597,6 +650,11 @@ func _build_vignette() -> void:
 func _update_vignette(delta: float) -> void:
 	if _vignette == null:
 		return
+	# LOD0 移交 MetaFX 后处理（D2），旧晕影恒 0；非 0（回退/MetaFX 离场）保留现状
+	if GameState.meta_fx_lod == 0:
+		if _vignette.modulate.a > 0.0:
+			_vignette.modulate.a = 0.0
+		return
 	var alpha := _hit_flash
 	var max_hp := GameState.max_health()
 	if GameState.health > 0.0 and GameState.health < max_hp * LOW_HP_RATIO:
@@ -608,39 +666,176 @@ func _update_vignette(delta: float) -> void:
 	_vignette.modulate.a = alpha
 
 
-## 左下 buff 芯片容器（仪表区上方，向上生长，间距 6，超出换行）
-func _build_buff_chips() -> void:
-	_buff_flow = FlowContainer.new()
-	_buff_flow.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_buff_flow.position = Vector2(10.0, -108.0)
-	_buff_flow.custom_minimum_size = Vector2(560.0, 0.0)
-	# grow_vertical 默认 BEGINNING（向上生长），底边保持在仪表区上方
-	_buff_flow.add_theme_constant_override("h_separation", 6)
-	_buff_flow.add_theme_constant_override("v_separation", 6)
-	_buff_flow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_buff_flow.visible = false
-	add_child(_buff_flow)
+## Meta HUD DYING 抖动（D9）：只抖 _hp_bar 与 buff 坞包装两个控件（±px，80ms burst）
+func meta_jitter(px: float = 2.0) -> void:
+	if _jitter_tween != null and _jitter_tween.is_valid():
+		_jitter_tween.kill()
+	var off := Vector2(randf_range(-px, px), randf_range(-px, px))
+	_hp_bar.position = _hp_bar_rest + off
+	_buff_dock_wrap.position = _buff_dock_rest + off * 0.5
+	_jitter_tween = create_tween()
+	_jitter_tween.tween_property(_hp_bar, "position", _hp_bar_rest, 0.08)
+	_jitter_tween.parallel().tween_property(_buff_dock_wrap, "position", _buff_dock_rest, 0.08)
+
+
+## 右下 buff 区：收起态单行瓦片（最新 4 个 + 溢出 +N，标签带 [L] 快捷键提示），
+## L 键展开右侧滚动栏（全部 buff 明细，不暂停对局）；与左下状态区/底部蓄力提示分角隔离。
+func _build_buff_dock() -> void:
+	_buff_dock_wrap = Control.new()
+	_buff_dock_wrap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_buff_dock_wrap.position = Vector2(-16.0, -44.0)  # 底部留 28px 给标签行
+	_buff_dock_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_buff_dock_wrap)
+	_buff_dock = GridContainer.new()
+	_buff_dock.columns = BUFF_DOCK_MAX_TILES + 1  # 瓦片 + 溢出格，恒单行
+	_buff_dock.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_buff_dock.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_buff_dock.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_buff_dock.add_theme_constant_override("h_separation", 6)
+	_buff_dock.add_theme_constant_override("v_separation", 6)
+	_buff_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buff_dock_wrap.add_child(_buff_dock)
+	_buff_tag = Label.new()
+	_buff_tag.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_buff_tag.position = Vector2(-136.0, -24.0)
+	_buff_tag.custom_minimum_size = Vector2(120.0, 18.0)
+	_buff_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_buff_tag.add_theme_font_override("font", FONT)
+	_buff_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
+	_buff_tag.add_theme_color_override("font_color", UITheme.ACCENT)
+	_buff_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buff_tag.visible = false
+	add_child(_buff_tag)
+	_refresh_buff_tag()
+	_build_buff_panel()
+
+
+## L 展开的 buff 滚动栏：右缘居中面板（标题 + 分隔线 + 滚动明细行），不暂停对局
+func _build_buff_panel() -> void:
+	_buff_panel = ChamferedPanel.new()
+	_buff_panel.padding = 0.0
+	_buff_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_buff_panel.position = Vector2(-356.0, -320.0)
+	_buff_panel.size = Vector2(340.0, 640.0)
+	_buff_panel.visible = false
+	add_child(_buff_panel)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	_buff_panel.add_child(margin)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	margin.add_child(vbox)
+	_buff_panel_title = UITheme.make_label(
+		tr("UI_BUFFS_TITLE"), UITheme.FONT_HUD, UITheme.ACCENT, HORIZONTAL_ALIGNMENT_LEFT
+	)
+	vbox.add_child(_buff_panel_title)
+	var divider := ColorRect.new()
+	divider.color = UITheme.ACCENT_DIM
+	divider.custom_minimum_size = Vector2(0.0, 1.0)
+	divider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(divider)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	_buff_rows = VBoxContainer.new()
+	_buff_rows.add_theme_constant_override("separation", 6)
+	_buff_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_buff_rows)
+
+
+## 滚动栏明细行：字形 + 名称 + 层数（>1 时右侧 ×N）
+func _make_buff_row(id: StringName, stacks: int) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(BuffIcons.make_glyph(id, BuffIcons.color_for(id), 24.0))
+	var name_label := UITheme.make_label(
+		tr("BUFF_%s_NAME" % String(id).to_upper()), UITheme.FONT_HUD, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT
+	)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	if stacks > 1:
+		row.add_child(
+			UITheme.make_label("×%d" % stacks, UITheme.FONT_HUD, UITheme.ACCENT_GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
+		)
+	return row
+
+
+## 收起态溢出格：46×46 同尺寸瓦片，中央 "+N"
+func _make_overflow_tile(count: int) -> Control:
+	var panel := ChamferedPanel.new()
+	panel.chamfer = 7.0
+	panel.padding = 0.0
+	panel.custom_minimum_size = Vector2(46.0, 46.0)
+	panel.border_color = Color(UITheme.ACCENT, 0.55)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buff_overflow_label = UITheme.make_label("+%d" % count, UITheme.FONT_CAPTION, UITheme.ACCENT)
+	_buff_overflow_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_buff_overflow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_buff_overflow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(_buff_overflow_label)
+	return panel
 
 
 ## buffs_changed / locale_changed 驱动重建；内容签名不变不重建
-func _rebuild_buff_chips(force: bool = false) -> void:
+func _rebuild_buff_dock(force: bool = false) -> void:
 	var signature := ""
+	var active: Array = []  # [[id, stacks], ...] 按获得顺序
 	for id: StringName in GameState.buffs:
 		var stacks: int = GameState.buffs[id]
 		if stacks > 0:
 			signature += "%s:%d;" % [String(id), stacks]
+			active.append([id, stacks])
 	if not force and signature == _last_buff_signature:
 		return
 	_last_buff_signature = signature
-	for chip: Control in _buff_flow.get_children():
-		chip.queue_free()
-	_buff_flow.visible = not signature.is_empty()
-	for id: StringName in GameState.buffs:
-		var stacks: int = GameState.buffs[id]
-		if stacks > 0:
-			_buff_flow.add_child(
-				UITheme.make_buff_chip(tr("BUFF_%s_NAME" % String(id).to_upper()), stacks)
-			)
+	for tile: Control in _buff_dock.get_children():
+		tile.queue_free()
+	for row: Control in _buff_rows.get_children():
+		row.queue_free()
+	if active.is_empty():
+		_buff_tag.visible = false
+		_buff_panel.visible = false
+		return
+	_buff_tag.visible = true
+	# 收起态单行：最新 BUFF_DOCK_MAX_TILES 个，更早的折叠为 +N 溢出格
+	var shown: Array = active.slice(maxi(active.size() - BUFF_DOCK_MAX_TILES, 0))
+	for entry: Array in shown:
+		_buff_dock.add_child(UITheme.make_buff_tile(entry[0], entry[1]))
+	var overflow := active.size() - shown.size()
+	if overflow > 0:
+		_buff_dock.add_child(_make_overflow_tile(overflow))
+	# 滚动栏：全量明细行
+	for entry: Array in active:
+		_buff_rows.add_child(_make_buff_row(entry[0], entry[1]))
+
+
+## buff 滚动栏开关（L 键路由至此；无 buff 时不展开）
+func _toggle_buff_panel() -> void:
+	if _buff_panel.visible:
+		_buff_panel.visible = false
+	elif not _last_buff_signature.is_empty():
+		_buff_panel.visible = true
+
+
+func is_buff_panel_open() -> bool:
+	return _buff_panel.visible
+
+
+## BackNavigator CLOSE_BUFF_PANEL 路由：Esc 先关栏再进暂停
+func close_buff_panel() -> void:
+	_buff_panel.visible = false
+
+
+## 收起态标签：名称 + 当前绑定键提示（改键后同步刷新）
+func _refresh_buff_tag() -> void:
+	_buff_tag.text = "%s [%s]" % [tr("UI_BUFFS_TAG"), GameState.action_keys_text(&"buff_panel")]
 
 
 ## 信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁

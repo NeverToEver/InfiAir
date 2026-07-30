@@ -20,8 +20,8 @@ static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
 	elif e.get_parent() != parent:
 		e.reparent(parent)
 	e.position = pos
-	# effects.explosion_visual_scale：对齐单位放大后的全局特效比例（调用方 p_scale 语义不变）
-	e.scale = Vector2.ONE * p_scale * GameState.cfg("effects.explosion_visual_scale", 1.6)
+	# effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
+	e.scale = Vector2.ONE * p_scale * GameState.cfg("effects.explosion_visual_scale", 1.6) * GameState.world_scale
 	e.visible = true
 	e.restart()
 	e._debris.restart()

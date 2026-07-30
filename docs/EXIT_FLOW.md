@@ -13,6 +13,7 @@ L2 覆盖:  SettingsUI（opener = 暂停/开始面板）
           ReturnCinematic（返航过场，layer=35；播放中树暂停，Esc/任意键/点击 = 跳过；
                           结束后树保持暂停落 BaseUI，见 docs/RETURN_HOME_CINEMATIC.md §4）
 L1 对局:  Gameplay(HUD) ⇄ PauseUI
+          buff 滚动栏（HUD 内覆盖层，L 键展开/收起，不暂停对局；Esc = 收起栏）
 L0 顶层:  StartPanel（主界面/大厅）⇐ WelcomeScreen（仅首次启动）
 ```
 
@@ -41,6 +42,8 @@ func go_back():
             （吞掉输入）
         TO_MAIN_MENU:         # 结算页可见
             paused = false + reset_run + reload_current_scene   # 回主界面（死亡时已删档）
+        CLOSE_BUFF_PANEL:     # buff 滚动栏展开中（HUD 覆盖层，不暂停对局）
+            hud.close_buff_panel()       # 返回 = 收起栏（优先于打开暂停）
         RESUME_GAME:          # 暂停面板可见
             pause_ui.close()
         CONFIRM_EXIT:         # 顶层（开始面板 / 欢迎页）
@@ -49,7 +52,7 @@ func go_back():
             pause_ui.open()                # 返回上一级 = 暂停
 ```
 
-判定顺序即代码顺序：模态（确认窗）→ 过场跳过（开场/返航）→ 设置/基地/阻塞态/结算 → 暂停 → 顶层 → 战斗。
+判定顺序即代码顺序：模态（确认窗）→ 过场跳过（开场/返航）→ 设置/基地/阻塞态/结算 → buff 栏 → 暂停 → 顶层 → 战斗。
 
 ### 战斗中退出（二次确认 + 进度损失提示）
 
