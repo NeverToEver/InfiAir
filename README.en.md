@@ -22,6 +22,7 @@
 - [✨ Highlights](#-highlights)
 - [🖼️ Screenshots](#️-screenshots)
 - [🎮 Controls](#-controls)
+- [📦 Pre-built Packages](#-pre-built-packages)
 - [🚀 Getting Started](#-getting-started)
 - [🧭 Game Loop](#-game-loop)
 - [🏗️ Architecture](#️-architecture)
@@ -70,6 +71,13 @@
 > UI language: English / 中文 via Settings → Modes → Language.
 > Three view zoom levels (1.0 / 1.35 / 1.7, default Small) and three window sizes (1280×720 / 1600×900 / 1920×1080, default Large) — independent settings, both persisted.
 > Aim assist also has three levels (Low / Medium / High, default Medium) under Settings → Modes: the assist is always on — only its strength (frame size / homing turn rate) changes, persisted.
+
+## 📦 Pre-built Packages
+
+The release page provides Linux / Windows pre-built packages (x86_64, single-file executables with install/uninstall scripts):
+
+- **Linux**: extract and run `./install.sh` (per-user install to `~/.local/share/infiair`, with a `~/.local/bin/infiair` command entry and a desktop menu item); `./uninstall.sh` removes it (add `--purge` to also delete save data and settings). You can also run the bundled `InfiAir.x86_64` directly without installing.
+- **Windows**: extract and run `install.bat` (installs to `%LOCALAPPDATA%\InfiAir` and creates a Start Menu shortcut); `uninstall.bat` removes it (add `/purge` to also delete save data and settings). You can also run `InfiAir.exe` directly without installing.
 
 ## 🚀 Getting Started
 

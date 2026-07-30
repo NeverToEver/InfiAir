@@ -12,9 +12,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Export presets (contain local paths; re-add if 团队需要)
-export_presets.cfg
-
 # Exported builds
 builds/
 exports/

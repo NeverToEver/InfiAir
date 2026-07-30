@@ -29,10 +29,14 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 | `project.godot` | Godot 项目名、入口场景、唯一 autoload、视口/拉伸、输入映射与渲染器。优先用 Godot 编辑器修改。 |
 | `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。Boss 段含 `phases`（阶段模式表/telegraph/各型 P2 攻击参数）、`enrage.type_*`（三型差异化狂暴）与 `difficulty_scaling`（弹数/间隔/弹速三档分档表）。 |
 | `data/translations.csv` | 翻译键及 `zh`、`en` 文本源。 |
-| `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件、导出预设和导出产物。 |
+| `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件和导出产物（`builds/` 等；`export_presets.cfg` 自 2026-07-30 起入库）。 |
 | `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装；`run.sh` 依次查找 PATH、`~/.local/bin/godot` 和 macOS App bundle，并对低于 4.6 的版本告警（仅警告不阻断）。 |
+| `export_presets.cfg` | Linux/X11 与 Windows Desktop 导出预设（嵌入 pck 单文件，x86_64）。需本机安装匹配版本的 Godot 导出模板。 |
+| `release.sh` | 发布构建：资源导入 → 双平台导出 → 打包到 `builds/release/`（`VERSION` 环境变量指定版本号）。 |
 
-当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置、CI 工作流或 `export_presets.cfg`。因此没有包安装、构建、CI、自动部署或可复现导出流程；打包发布目前暂缓。不要虚构这些流程或为常规修改引入第三方插件/依赖。
+当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置或 CI 工作流。打包发布已重启（2026-07-30）：`export_presets.cfg` 入库（Linux/X11 + Windows Desktop，嵌入 pck 单文件 exe/二进制），根目录 `release.sh` 一键完成导入 → 双平台导出 → 打包（产物 `builds/release/`，版本号由 `VERSION` 环境变量指定）；`packaging/linux/`（用户态 install.sh / uninstall.sh[--purge] / infiair.desktop）与 `packaging/windows/`（per-user install.bat / uninstall.bat[/purge]，开始菜单快捷方式）随包分发。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
+
+**发布工程现状（2026-07-30 收尾）**：脚本与文档已就绪，但**尚未实际导出**——本机导出模板目录 `~/Library/Application Support/Godot/export_templates/` 为空，`Godot_v4.6.2-stable_export_templates.tpz`（1.17 GB）因网络受限未下完（单连接 ~40 KB/s 且易停滞；当日用 16 路 HTTP Range 并行分块达 ~1 MB/s，下完 98% 后网络变更中断）。续作步骤：①下载该 tpz（可用并行 Range 分块 + 断点续传，注意签名直链 1 小时过期、curl 须带 `--speed-time/--speed-limit` 防挂死）；②解压 `templates/` 内容到 `export_templates/4.6.2.stable/` 并写 `version.txt`（内容 `4.6.2.stable`）；③`./release.sh` 导出并核对 `builds/release/` 产物；④在真实 Linux/Windows 机器验证安装/卸载脚本。
 
 ## 本地运行与验证
 
@@ -178,6 +182,7 @@ Main (scripts/main.gd)
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
 | `docs/` | 退出流程、审计计划、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录）。 |
+| `packaging/` | 发布包随附的安装/卸载脚本：`linux/`（install.sh / uninstall.sh / infiair.desktop）、`windows/`（install.bat / uninstall.bat）。 |
 
 ## 开发约定
 
@@ -236,7 +241,7 @@ Main (scripts/main.gd)
 - 对局存档为 `user://savegame.json`，局外档案为 `user://profile.json`；二者由 `GameState` 管理并带版本字段。profile 保存最高分、难度、键位、语言、视角、窗口尺寸、欢迎页/教程状态等。
 - 损坏 JSON 会被隔离为 `<file>.corrupt`，并通过 `save_corrupt`/`profile_corrupt` 标记通知开始界面。不要绕过该恢复流程。
 - 当前未发现网络通信、第三方插件、远程服务、密钥或凭据文件。除本地 `user://` 持久化和离线资源生成外，游戏没有外部交互。
-- `.gitignore` 排除导入缓存、导出预设和导出目录；若未来增加正式导出/CI，先补齐可审查的预设、构建命令和发布说明，再把它写入本文件。
+- `.gitignore` 排除导入缓存和导出产物（`builds/` 等）；`export_presets.cfg` 已随打包发布重启入库（2026-07-30），修改预设需同步审查 `release.sh` 与 `packaging/`。若未来增加 CI/自动部署，先补齐可审查的工作流与发布说明，再把它写入本文件。
 
 ## 文档同步要求
 

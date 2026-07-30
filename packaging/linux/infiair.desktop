@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=InfiAir
+Name[zh_CN]=无限空域
+Comment=2D top-down arcade air combat
+Comment[zh_CN]=2D 俯视空战射击游戏
+Exec=@INSTALL_DIR@/InfiAir.x86_64
+Terminal=false
+Categories=Game;ActionGame;ArcadeGame;Shooter
+Keywords=game;shmup;arcade;shooter;
