@@ -29,7 +29,7 @@
 
 - **本地账号系统**：完整规格存档于提交 `dcef9b6`（UserDB/PBKDF2/每用户存档隔离），重启时整体复用。
 - **附录 B 独立主场景版进入页**：轻量方案已够用；仅在开始面板承载不下新入口时重启，规格在 `docs/archive/PORTING_PARITY.md` 附录 B。
-- **打包发布**：2026-07-30 已重启——`export_presets.cfg`（Linux/X11 + Windows Desktop，嵌入 pck 单文件）入库，`release.sh` 一键导出打包，`packaging/` 提供双平台安装/卸载脚本（Linux 用户态 + .desktop 入口 / Windows per-user + 开始菜单快捷方式）。当前进度：工程就绪、尚未实际导出（导出模板未安装，续作步骤见 `AGENTS.md` 发布工程现状）。
+- **打包发布**：2026-07-30 重启、2026-07-31 跑通——`export_presets.cfg`（Linux/X11 + Windows Desktop，嵌入 pck 单文件）入库，`release.sh` 一键导出打包（产物 `builds/release/`，本机 gitignore），`packaging/` 提供双平台安装/卸载脚本（Linux 用户态 + .desktop 入口 / Windows per-user + 开始菜单快捷方式）。安装脚本与实机运行待对应平台验证。
 - **联机排行榜**：已决策不做（2026-07-20），如需翻盘须显式推翻该决策。
 - **协作与发布工程化**（原 Phase 1）：导出预设入库与导出命令已随打包发布重启落地（2026-07-30）；`CONTRIBUTING.md` / GitHub Actions CI / 语义化版本与 tag 发布说明仍暂缓，重启需用户明确决策。
 - **内容演进**（原 Phase 2）：2026-07-30 决策砍掉，含本地排行榜页、新内容候选（新 Buff 品类、新敌机/精英类型、第 4 种 Boss、移动端触屏操控）、母舰玩法扩展、无限段 k 值实机标定（方案已全量落地，见 `docs/ENDLESS_BALANCE_PLAN.md`）；重启任一项须重新立项并先在本文登记。
