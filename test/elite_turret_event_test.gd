@@ -28,11 +28,11 @@ func _wait_real(sec: float) -> void:
 func _wait_event_state(event: EliteTurretEvent, p_state: int, timeout: float = 8.0) -> bool:
 	var left := timeout
 	while left > 0.0:
-		if event._state == p_state:
+		if event.state() == p_state:
 			return true
 		await _wait_real(0.1)
 		left -= 0.1
-	return event._state == p_state
+	return event.state() == p_state
 
 
 func _count_bosses() -> int:
@@ -49,14 +49,14 @@ func _start_fast_event(event: EliteTurretEvent) -> void:
 	event.RISE_TIME = 0.2
 	event.BOSS_RESUME_DELAY = 0.3
 	event.FIRE_INTERVAL = Vector2(0.3, 0.4)
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	event.start()
 
 
 ## 击毁 n 座仍存活的炮台（返回实际击毁数）
 func _kill_turrets(event: EliteTurretEvent, n: int) -> int:
 	var killed := 0
-	for turret in event._turrets.duplicate():
+	for turret in event.turrets().duplicate():
 		if killed >= n:
 			break
 		if is_instance_valid(turret):
@@ -95,13 +95,13 @@ func _ready() -> void:
 
 	# ================= 场景 1：成功流（全歼炮台） =================
 	_start_fast_event(event)
-	_check(event._state == EliteTurretEvent.State.CARRIER_ENTER, "场景1：启动进入 CARRIER_ENTER")
+	_check(event.state() == EliteTurretEvent.State.CARRIER_ENTER, "场景1：启动进入 CARRIER_ENTER")
 	_check(spawner.boss_frozen(), "场景1：事件启动即冻结 Boss 调度")
 	_check(spawner.waves_paused(), "场景1：事件启动即暂停普通波次")
-	_check(event._lines.size() == 3, "场景1：无放回抽取 3 句绑定台词")
+	_check(event.lines().size() == 3, "场景1：无放回抽取 3 句绑定台词")
 	var seen_lines: Array = []
 	var dup_ok := true
-	for key in event._lines:
+	for key in event.lines():
 		if key in seen_lines:
 			dup_ok = false
 		seen_lines.append(key)
@@ -109,10 +109,10 @@ func _ready() -> void:
 	# 等升起完成进入 30s 倒计时
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景1：入场+升起后进入 TURRET_ACTIVE")
 	await get_tree().process_frame
-	_check(event._turrets.size() == 4, "场景1：中难度 4 座炮台")
-	_check(event._total == 4, "场景1：炮台总数记录为 4")
-	if event._turrets.size() > 0:
-		var t0 := event._turrets[0]
+	_check(event.turrets().size() == 4, "场景1：中难度 4 座炮台")
+	_check(event.total() == 4, "场景1：炮台总数记录为 4")
+	if event.turrets().size() > 0:
+		var t0: TurretBattery = event.turrets()[0]
 		_check(t0.max_hp == 80, "场景1：单台血量 80（80×中难度×1.0）")
 		_check(t0.monitoring, "场景1：充能完毕后炮台可被攻击")
 	_check(hud._event_box.visible, "场景1：HUD 事件计时条显示")
@@ -134,29 +134,29 @@ func _ready() -> void:
 	# 台词节点：⌈4/3⌉=2 → 第 1 句；⌈4×2/3⌉=3 → 第 2 句
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
-	_check(event._line_stage == 0, "场景1：摧毁 1 座未达 ⌈4/3⌉=2，台词未播")
+	_check(event.line_stage() == 0, "场景1：摧毁 1 座未达 ⌈4/3⌉=2，台词未播")
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
-	_check(event._line_stage == 1, "场景1：摧毁 2 座（≥⌈总数/3⌉）播第 1 句")
-	_check(event._comm._full_text == tr(event._lines[0]), "场景1：第 1 句为绑定台词第 1 条")
+	_check(event.line_stage() == 1, "场景1：摧毁 2 座（≥⌈总数/3⌉）播第 1 句")
+	_check(event.comm()._full_text == tr(event.lines()[0]), "场景1：第 1 句为绑定台词第 1 条")
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
-	_check(event._line_stage == 2, "场景1：摧毁 3 座（≥⌈总数×2/3⌉）播第 2 句")
+	_check(event.line_stage() == 2, "场景1：摧毁 3 座（≥⌈总数×2/3⌉）播第 2 句")
 	# 全歼 → 成功结算
 	var score0 := GameState.score
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
-	_check(event._state == EliteTurretEvent.State.CARRIER_EXIT, "场景1：全歼进入 CARRIER_EXIT")
+	_check(event.state() == EliteTurretEvent.State.CARRIER_EXIT, "场景1：全歼进入 CARRIER_EXIT")
 	_check(GameState.score - score0 == 1000, "场景1：奖励 500×中难度倍率×2 = 1000 入账")
-	_check(event._comm._full_text == tr(event._lines[2]), "场景1：全歼播第 3 句绑定台词")
+	_check(event.comm()._full_text == tr(event.lines()[2]), "场景1：全歼播第 3 句绑定台词")
 	_check(not hud._event_box.visible, "场景1：结算后事件计时条隐藏")
 	_check(not spawner.waves_paused(), "场景1：CARRIER_EXIT 起普通波次恢复")
-	_check(event._turrets.is_empty(), "场景1：炮台清单已清空")
+	_check(event.turrets().is_empty(), "场景1：炮台清单已清空")
 	# 航母受创撤离 → BOSS_DELAY → IDLE，Boss 解冻
 	_check(await _wait_event_state(event, EliteTurretEvent.State.BOSS_DELAY, 10.0), "场景1：航母离场进入 BOSS_DELAY")
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 5.0), "场景1：BOSS_DELAY 结束回 IDLE")
 	_check(not spawner.boss_frozen(), "场景1：事件结束后 Boss 解冻")
-	_check(event._cooldown_left > 0.0, "场景1：事件结束进入触发冷却")
+	_check(event.cooldown_left() > 0.0, "场景1：事件结束进入触发冷却")
 
 	# ================= 场景 2：Boss 冻结/恢复（单次不累积） =================
 	spawner.set_boss_pending(false)
@@ -195,16 +195,16 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ================= 场景 3：失败流（超时撤退） =================
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	event.DURATION = 0.8
 	event.start()
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景3：事件进入倒计时")
 	var score1 := GameState.score
 	_check(await _wait_event_state(event, EliteTurretEvent.State.CARRIER_EXIT, 5.0), "场景3：倒计时归零进入 CARRIER_EXIT")
-	_check(event._comm._full_text == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")
+	_check(event.comm()._full_text == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")
 	_check(GameState.score == score1, "场景3：失败无奖励入账")
 	var turrets_gone := true
-	for turret in event._turrets:
+	for turret in event.turrets():
 		if is_instance_valid(turret) and not turret._ceased:
 			turrets_gone = false
 	_check(turrets_gone, "场景3：存活炮台停火收回盖板")
@@ -213,7 +213,7 @@ func _ready() -> void:
 
 	# ================= 场景 4：返航中止（abort） =================
 	var main := get_node("Main")
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	event.DURATION = 30.0  # 恢复倒计时（场景3 改过）
 	_start_fast_event(event)
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景4：事件进入倒计时")
@@ -221,8 +221,8 @@ func _ready() -> void:
 	# 返航触发：elite 事件应被 abort（清炮塔、隐藏事件条、恢复波次、航母完整撤离）
 	main.start_homecoming()
 	await get_tree().process_frame
-	_check(event._state == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
-	_check(event._turrets.is_empty(), "场景4：在场炮塔清单已清")
+	_check(event.state() == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
+	_check(event.turrets().is_empty(), "场景4：在场炮塔清单已清")
 	_check(not hud._event_box.visible, "场景4：中止后 HUD 事件条隐藏")
 	_check(not spawner.waves_paused(), "场景4：普通波次恢复")
 	await get_tree().process_frame

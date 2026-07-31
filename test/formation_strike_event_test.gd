@@ -28,11 +28,11 @@ func _wait_real(sec: float) -> void:
 func _wait_event_state(event: FormationStrikeEvent, p_state: int, timeout: float = 8.0) -> bool:
 	var left := timeout
 	while left > 0.0:
-		if event._state == p_state:
+		if event.state() == p_state:
 			return true
 		await _wait_real(0.05)
 		left -= 0.05
-	return event._state == p_state
+	return event.state() == p_state
 
 
 func _count_crafts() -> int:
@@ -66,7 +66,7 @@ func _start_fast_event(event: FormationStrikeEvent) -> void:
 	event.RUN_SPEED = 400.0
 	event.BOMB_INTERVAL = 0.2
 	event.BOMB_FUSE = 3.0  # 炸弹存续到场景结束统一清理
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	event.start()
 
 
@@ -101,49 +101,49 @@ func _ready() -> void:
 
 	# ================= 场景 1：触发门槛 =================
 	GameState.score = 1000
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	_check(event.can_trigger(), "场景1：常态（分数达标/无 Boss/无精英事件/非冷却）可触发")
 	spawner.set_boss_active(true)
 	_check(not event.can_trigger(), "场景1：Boss 激活时不可触发")
 	spawner.set_boss_active(false)
 	var fake_event := EliteTurretEvent.new()  # 不入树，仅置状态模拟精英事件 active
-	fake_event._state = EliteTurretEvent.State.CARRIER_ENTER
+	fake_event.set_state(EliteTurretEvent.State.CARRIER_ENTER)
 	var real_event: EliteTurretEvent = spawner.elite_event()
 	spawner.set_elite_event(fake_event)
 	_check(not event.can_trigger(), "场景1：精英炮塔事件 active 时不可触发")
 	spawner.set_elite_event(real_event)
 	fake_event.free()
-	event._cooldown_left = 5.0
+	event.set_cooldown_left(5.0)
 	_check(not event.can_trigger(), "场景1：冷却中不可触发")
-	event._cooldown_left = 0.0
+	event.set_cooldown_left(0.0)
 	GameState.score = event.MIN_SCORE - 1
 	_check(not event.can_trigger(), "场景1：分数不足不可触发")
 	GameState.score = 1000
 
 	# ================= 场景 2：状态推进 + 投弹计数（击坠机跳过） =================
 	_start_fast_event(event)
-	_check(event._state == FormationStrikeEvent.State.FORMATION_ENTER, "场景2：启动进入 FORMATION_ENTER")
+	_check(event.state() == FormationStrikeEvent.State.FORMATION_ENTER, "场景2：启动进入 FORMATION_ENTER")
 	_check(spawner.waves_paused(), "场景2：事件启动即暂停普通波次（占用波次槽）")
-	_check(event._crafts.size() == 4, "场景2：中难度 4 架编队")
+	_check(event.crafts().size() == 4, "场景2：中难度 4 架编队")
 	_check(_count_registered_crafts() == 4, "场景2：战机注册 GameState.enemies")
-	if event._crafts.size() > 0:
-		_check(event._crafts[0].max_hp == 60, "场景2：单机血量 60（60×中难度×1.0）")
+	if event.crafts().size() > 0:
+		_check(event.crafts()[0].max_hp == 60, "场景2：单机血量 60（60×中难度×1.0）")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.FORMATION_TURN), "场景2：靠近后进入 FORMATION_TURN")
 	# 转航向期间击落 4 号僚机（投弹前）：其投弹序列应被跳过
-	var wingman: FormationCraft = event._crafts[3]
+	var wingman: FormationCraft = event.crafts()[3]
 	var score0 := GameState.score
 	wingman.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.score - score0 == 400, "场景2：击坠得分 200×中难度倍率×2 = 400")
-	_check(event._alive == 3, "场景2：剩余 3 架")
+	_check(event.alive_count() == 3, "场景2：剩余 3 架")
 	_check(_count_bombs() == 0, "场景2：转向完成前无炸弹生成")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.BOMBING_RUN), "场景2：转向后进入 BOMBING_RUN")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.FORMATION_EXIT, 6.0), "场景2：投弹完毕进入 FORMATION_EXIT")
-	_check(event._dropped == 6, "场景2：投弹数 = 存活 3 机 × 2 枚 = 6（击坠机跳过）")
+	_check(event.dropped() == 6, "场景2：投弹数 = 存活 3 机 × 2 枚 = 6（击坠机跳过）")
 	_check(_count_bombs() > 0, "场景2：引信未到时炸弹节点存续")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景2：离场结束回 IDLE")
 	_check(not spawner.waves_paused(), "场景2：事件结束恢复普通波次")
-	_check(event._cooldown_left > 0.0, "场景2：事件结束进入触发冷却")
+	_check(event.cooldown_left() > 0.0, "场景2：事件结束进入触发冷却")
 	_check(_count_crafts() == 0, "场景2：离场后战机节点清理")
 	_check(_count_registered_crafts() == 0, "场景2：离场后注册表无残留")
 	# 统一清理本场景遗留炸弹（引爆音/粒子自然播完）
@@ -161,12 +161,12 @@ func _ready() -> void:
 	bomb.position = player.position
 	main.add_child(bomb)
 	# add_child 同步触发 _ready（警示环半径已置位），此处先于首个 _process 帧检查初值
-	_check(bomb._ring != null and bomb._ring.visible, "场景3：炸弹带警示环")
-	var ring_r0: float = bomb._ring.scale.x
+	_check(bomb.ring() != null and bomb.ring().visible, "场景3：炸弹带警示环")
+	var ring_r0: float = bomb.ring().scale.x
 	_check(is_equal_approx(ring_r0, 108.0), "场景3：警示环初始半径 0.9×AoE = 108")
 	await get_tree().process_frame
 	await _wait_real(0.25)
-	_check(is_instance_valid(bomb) and bomb._ring.scale.x < ring_r0, "场景3：警示环随引信收缩")
+	_check(is_instance_valid(bomb) and bomb.ring().scale.x < ring_r0, "场景3：警示环随引信收缩")
 	var hp0 := GameState.health
 	await _wait_real(0.4)  # 越过引信 0.5s 引爆
 	_check(not is_instance_valid(bomb), "场景3：引爆后炸弹节点释放")
@@ -185,16 +185,16 @@ func _ready() -> void:
 	# ================= 场景 4：全歼奖励 + 提前离场 =================
 	_start_fast_event(event)
 	await get_tree().process_frame
-	_check(event._state == FormationStrikeEvent.State.FORMATION_ENTER, "场景4：事件再次启动")
+	_check(event.state() == FormationStrikeEvent.State.FORMATION_ENTER, "场景4：事件再次启动")
 	var score1 := GameState.score
-	for i in event._crafts.size():
-		var craft: FormationCraft = event._crafts[i]
+	for i in event.crafts().size():
+		var craft: FormationCraft = event.crafts()[i]
 		if craft != null and is_instance_valid(craft):
 			craft.take_damage(9999)
 	await get_tree().process_frame
 	# 4 机击坠 200×4 + 全歼 200 = 1000 基础分 ×中难度×2 = 2000
 	_check(GameState.score - score1 == 2000, "场景4：击坠分 + 全歼奖励入账（2000）")
-	_check(event._state == FormationStrikeEvent.State.FORMATION_EXIT, "场景4：全歼立即提前离场")
+	_check(event.state() == FormationStrikeEvent.State.FORMATION_EXIT, "场景4：全歼立即提前离场")
 	_check(_count_registered_crafts() == 0, "场景4：全歼后注册表无残留")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景4：提前离场后回 IDLE")
 
@@ -204,11 +204,11 @@ func _ready() -> void:
 	_check(event.is_active(), "场景5：事件进行中")
 	event.abort()
 	await get_tree().process_frame  # queue_free 帧末生效后再断言清理
-	_check(event._state == FormationStrikeEvent.State.IDLE, "场景5：abort 回 IDLE")
+	_check(event.state() == FormationStrikeEvent.State.IDLE, "场景5：abort 回 IDLE")
 	_check(not spawner.waves_paused(), "场景5：abort 恢复普通波次")
 	_check(_count_crafts() == 0, "场景5：abort 清理全部战机实体")
 	_check(_count_registered_crafts() == 0, "场景5：abort 后注册表无残留")
-	_check(event._cooldown_left > 0.0, "场景5：abort 后冷却照计")
+	_check(event.cooldown_left() > 0.0, "场景5：abort 后冷却照计")
 	_check(not event.can_trigger(), "场景5：冷却期内不可再次触发")
 
 	# ================= 场景 6：无残留 =================

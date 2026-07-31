@@ -83,6 +83,31 @@ func is_active() -> bool:
 	return _state != State.IDLE
 
 
+## A7：测试/诊断白盒断言经公开接口
+func state() -> State:
+	return _state
+
+
+func crafts() -> Array:
+	return _crafts
+
+
+func alive_count() -> int:
+	return _alive
+
+
+func dropped() -> int:
+	return _dropped
+
+
+func set_cooldown_left(seconds: float) -> void:
+	_cooldown_left = seconds
+
+
+func cooldown_left() -> float:
+	return _cooldown_left
+
+
 ## 触发条件（最低优先级）：自身 IDLE 且冷却结束、分数达标、Boss 未激活、精英炮塔事件未激活。
 ## 掷签间隔/概率由 spawner 侧持有（elite 事件在本事件之前检查，本 tick 先启动则 is_active 拦截）。
 func can_trigger() -> bool:

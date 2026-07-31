@@ -20,6 +20,11 @@ var _body: Polygon2D
 var _ring: Line2D
 
 
+## A7：测试/诊断白盒断言经公开接口
+func ring() -> Line2D:
+	return _ring
+
+
 ## setup() 在入树/_ready() 之前调用
 func setup(p_velocity: Vector2, p_fuse: float, p_damage: int, p_radius: float) -> void:
 	velocity = p_velocity

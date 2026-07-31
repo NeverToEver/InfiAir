@@ -40,6 +40,43 @@ var _carrier: StrikeCarrier = null
 ## A5：spawner 依赖注入（main._ready 调用；替代 group 现找）
 func set_spawner(spawner: Node) -> void:
 	_spawner = spawner
+
+
+## A7：测试/诊断白盒断言经公开接口
+func state() -> State:
+	return _state
+
+
+func lines() -> Array:
+	return _lines
+
+
+func turrets() -> Array:
+	return _turrets
+
+
+func total() -> int:
+	return _total
+
+
+func line_stage() -> int:
+	return _line_stage
+
+
+func comm() -> CommOverlay:
+	return _comm
+
+
+func set_cooldown_left(seconds: float) -> void:
+	_cooldown_left = seconds
+
+
+func set_state(p_state: State) -> void:
+	_state = p_state
+
+
+func cooldown_left() -> float:
+	return _cooldown_left
 var _turrets: Array[TurretBattery] = []
 var _turret_sockets: Dictionary = {}  # turret -> 基座环索引
 var _timer: float = 0.0
