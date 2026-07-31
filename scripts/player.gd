@@ -71,22 +71,59 @@ var movement_locked: bool = false
 ## dash 不受影响。由 Boss 触发时置位、RELEASE_HOLD 开始/序列中断时复位。
 var _enrage_slow: float = 1.0
 var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
+## A8：受击/回血与冲刺组件（组合委托）
+var _damage := PlayerDamage.new()
+var _dash := PlayerDash.new()
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
-var _invincible: float = 0.0
-var _last_hit_frame: int = -1  # 本帧已结算受击（A16：单帧至多结算一次）
-var _since_damage: float = 999.0  # 距上次受击秒数（被动回血延迟计时）
+## A8：受击/回血状态经属性转发到 PlayerDamage（语法兼容，测试白盒不变）
+var _invincible: float = 0.0:
+	get:
+		return _damage.invincible
+	set(value):
+		_damage.invincible = value
+var _last_hit_frame: int = -1:  # 本帧已结算受击（A16：单帧至多结算一次）
+	get:
+		return _damage.last_hit_frame
+	set(value):
+		_damage.last_hit_frame = value
+var _since_damage: float = 999.0:  # 距上次受击秒数（被动回血延迟计时）
+	get:
+		return _damage.since_damage
+	set(value):
+		_damage.since_damage = value
 var _dead: bool = false
 
 var _fuel: float = 100.0
 var _fuel_locked: bool = false  # 燃料耗尽后锁定，回到 30% 才解锁
 
-var _dashing: bool = false
-var _dash_timer: float = 0.0
-var _dash_dir: Vector2 = Vector2.ZERO
-var _dash_cooldown: float = 0.0
-var _afterimage_timer: float = 0.0
+## A8：冲刺状态经属性转发到 PlayerDash（语法兼容，测试白盒不变）
+var _dashing: bool = false:
+	get:
+		return _dash.dashing
+	set(value):
+		_dash.dashing = value
+var _dash_timer: float = 0.0:
+	get:
+		return _dash.dash_timer
+	set(value):
+		_dash.dash_timer = value
+var _dash_dir: Vector2 = Vector2.ZERO:
+	get:
+		return _dash.dash_dir
+	set(value):
+		_dash.dash_dir = value
+var _dash_cooldown: float = 0.0:
+	get:
+		return _dash.dash_cooldown
+	set(value):
+		_dash.dash_cooldown = value
+var _afterimage_timer: float = 0.0:
+	get:
+		return _dash.afterimage_timer
+	set(value):
+		_dash.afterimage_timer = value
 
 ## 测试瞄准注入点（!=INF 时代替鼠标位置；headless 合成鼠标事件之外的直接注入路径）
 var aim_point_override := Vector2.INF
@@ -141,6 +178,9 @@ func _load_balance() -> void:
 	DASH_COOLDOWN = GameState.cfg("player.dash.cooldown", DASH_COOLDOWN)
 	DASH_FUEL_RATIO = GameState.cfg("player.dash.fuel_ratio", DASH_FUEL_RATIO)
 	AFTERIMAGE_INTERVAL = GameState.cfg("player.dash.afterimage_interval", AFTERIMAGE_INTERVAL)
+	# A8：配置注入受击/回血与冲刺组件（缓存值从 balance 覆盖后传入）
+	_damage.configure(INVINCIBLE_TIME, ARMOR_MULT, EVASION_CHANCE, REGEN_PER_SEC, SHAKE_HIT)
+	_dash.configure(DASH_DISTANCE, DASH_TIME, DASH_COOLDOWN, AFTERIMAGE_INTERVAL)
 	_load_aim_assist_params()
 	GameState.aim_assist_changed.connect(_on_aim_assist_level_changed)
 	# 机体尺寸族：tscn 存设计值（1.0 基准），此处统一乘全局缩放并幂等覆盖
@@ -202,7 +242,11 @@ func is_input_locked() -> bool:
 
 
 func set_invincible(seconds: float) -> void:
-	_invincible = seconds
+	_damage.set_invincible(seconds)
+
+
+func invincible_remaining() -> float:
+	return _damage.invincible_remaining()
 
 
 func lock_input() -> void:
@@ -238,7 +282,7 @@ func auto_fire_enabled() -> bool:
 
 
 func is_dashing() -> bool:
-	return _dashing
+	return _dash.is_dashing()
 
 
 ## A5 阶段1：刷新 buff 缩放系数缓存（_ready 初始 + buffs_changed 信号驱动）
@@ -285,7 +329,7 @@ func dash_fuel_cost() -> float:
 func dash_ready_ratio() -> float:
 	if not dash_unlocked():
 		return 0.0
-	return 1.0 - clampf(_dash_cooldown / dash_cooldown_max(), 0.0, 1.0)
+	return 1.0 - clampf(_dash.cooldown_remaining() / dash_cooldown_max(), 0.0, 1.0)
 
 
 func fuel_drain_rate() -> float:
@@ -307,19 +351,23 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		_dashing = false
 
-	# 相位冲刺（燃料不足 25% 满值时禁用）
-	_dash_cooldown = maxf(_dash_cooldown - delta, 0.0)
+	# 相位冲刺（燃料不足 25% 满值时禁用；A8 委托 PlayerDash）
+	_dash.tick_cooldown(delta)
 	if (
 		dash_unlocked()
 		and not movement_locked
 		and Input.is_action_just_pressed("dash")
-		and _dash_cooldown <= 0.0
-		and not _dashing
+		and _dash.cooldown_remaining() <= 0.0
+		and not _dash.is_dashing()
 		and _fuel >= dash_fuel_cost()
 	):
-		_start_dash(input_dir)
-	if _dashing:
-		_dash_move(delta)
+		_dash.start(input_dir, self)
+	if _dash.is_dashing():
+		_dash.update_move(delta, self)
+		# 冲刺尾焰（视觉保留 player 侧）
+		_thruster.speed_scale = 1.7
+		_thruster.amount_ratio = 1.0
+		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
 		return
 
 	# 燃料与加速（shift_toggle_mode：按一下切换开/关）
@@ -348,7 +396,7 @@ func _physics_process(delta: float) -> void:
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
 	velocity = velocity.move_toward(target, rate * delta)
 	move_and_slide()
-	position = _clamp_to_view(position)
+	position = clamp_to_view(position)
 
 	# 尾焰：加速变长变亮，静止减弱
 	if boosting and input_dir != Vector2.ZERO:
@@ -386,34 +434,16 @@ func _physics_process(delta: float) -> void:
 	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
 	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(sin(Time.get_ticks_msec() / 1000.0 * 6.0))
 
-	# 回血：regen buff 固定 +2 HP/s（二元，对齐原作 RegenerationBuff）；
-	# 无 buff 时被动回血——距上次受伤 delay 秒起按难度速率回复（原作延迟不重置为疑似 bug，本版受伤即重置）
-	_since_damage += delta
-	if GameState.buff_count(&"regen") > 0:
-		GameState.heal(REGEN_PER_SEC * delta)
-	elif _since_damage >= GameState.passive_regen_delay():
-		GameState.heal(GameState.passive_regen_rate() * delta)
+	# 回血（A8 委托 PlayerDamage）：regen buff 固定 +2 HP/s；无 buff 时被动回血
+	_damage.heal_tick(delta)
 
 
 ## 屏幕边缘钳制：随可见世界区域收窄（zoom=1 时即 40..1880 / 40..1040）
-func _clamp_to_view(p: Vector2) -> Vector2:
+func clamp_to_view(p: Vector2) -> Vector2:
 	var view := GameState.view_world_rect()
 	return p.clamp(view.position + Vector2(40.0, 40.0), view.end - Vector2(40.0, 40.0))
 
 
-func _start_dash(input_dir: Vector2) -> void:
-	_dashing = true
-	_dash_timer = DASH_TIME
-	_fuel = maxf(_fuel - dash_fuel_cost(), 0.0)
-	if input_dir != Vector2.ZERO:
-		_dash_dir = input_dir.normalized()
-	else:
-		_dash_dir = (get_global_mouse_position() - global_position).normalized()
-		if _dash_dir == Vector2.ZERO:
-			_dash_dir = Vector2.UP
-	_dash_cooldown = dash_cooldown_max()
-	_afterimage_timer = 0.0
-	GameState.play_sfx(GameState.SFX_DASH)
 
 
 ## 当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（与准星/开火同一来源）。
@@ -449,25 +479,9 @@ func _on_aim_assist_level_changed(_level: StringName) -> void:
 	_load_aim_assist_params()
 
 
-func _dash_move(delta: float) -> void:
-	_dash_timer -= delta
-	_afterimage_timer -= delta
-	if _afterimage_timer <= 0.0:
-		_afterimage_timer = AFTERIMAGE_INTERVAL
-		_spawn_afterimage()
-	velocity = _dash_dir * (DASH_DISTANCE / DASH_TIME)
-	move_and_slide()
-	position = _clamp_to_view(position)
-	# 冲刺时尾焰拉满
-	_thruster.speed_scale = 1.7
-	_thruster.amount_ratio = 1.0
-	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
-	if _dash_timer <= 0.0:
-		_dashing = false
-		GameState.play_sfx(GameState.SFX_DASH, -3.0)
 
 
-func _spawn_afterimage() -> void:
+func spawn_afterimage() -> void:
 	var ghost := Sprite2D.new()
 	ghost.texture = _sprite.texture
 	ghost.scale = _sprite.scale
@@ -510,32 +524,13 @@ func _fire(aim: Vector2) -> void:
 ## 均疑似接线 bug——本版闪避与护甲对全部伤害源生效）：先 20% 闪避，再护甲 ×0.85。
 ## from_pos（D8）：伤害源世界坐标，供 Meta HUD 定向波纹；Vector2.INF = 无方向（均匀环）。
 func take_damage(amount: float = 1.0, from_pos: Vector2 = Vector2.INF) -> bool:
-	if _dead or _invincible > 0.0 or _dashing:
-		return false
-	# A16：单帧至多结算一次受击（敌弹/敌机撞/Boss 撞共用）
-	if Engine.get_physics_frames() == _last_hit_frame:
-		return false
-	# 闪避 buff：20% 完全免伤（不置无敌、不清弹）
-	if GameState.buff_count(&"evasion") > 0 and randf() < EVASION_CHANCE:
-		return false
-	# 护甲 buff：固定 ×0.85 减伤
-	if GameState.buff_count(&"armor") > 0:
-		amount *= ARMOR_MULT
-	_last_hit_frame = Engine.get_physics_frames()
-	_since_damage = 0.0
-	_invincible = INVINCIBLE_TIME
-	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
-	GameState.shake(SHAKE_HIT)
-	GameState.lose_health(amount)
-	GameState.player_damaged.emit(amount, from_pos)  # Meta HUD 受击层（减免后最终值）
-	_clear_nearby_enemy_bullets()
-	if GameState.health <= 0.0:
-		_die()
-	return true
+	# A8：受击结算（减免两段式/单帧守卫/无敌/闪避/清弹/死亡）委托 PlayerDamage
+	return _damage.take_damage(amount, from_pos, self)
 
 
-## 受击连锁：清除 250px 内全部敌弹（对齐原作 BULLET_CLEAR_RADIUS；无分无特效）
-func _clear_nearby_enemy_bullets() -> void:
+## 受击连锁：清除 250px 内全部敌弹（对齐原作 BULLET_CLEAR_RADIUS；无分无特效）。
+## A8：PlayerDamage 经公开入口调用。
+func clear_nearby_enemy_bullets() -> void:
 	for child in get_parent().get_children():
 		var b := child as Bullet
 		if b != null and not b.is_player_bullet:
