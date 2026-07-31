@@ -121,7 +121,7 @@ func _ready() -> void:
 		welcome.dismiss()
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false)
 	player.set_invincible(999.0)

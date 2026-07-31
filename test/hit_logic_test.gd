@@ -96,7 +96,7 @@ func _ready() -> void:
 	var ev := InputEventMouseButton.new()
 	ev.pressed = true
 	ev.button_index = MOUSE_BUTTON_LEFT
-	get_node("Main/BuffUI")._on_card_gui_input(ev, &"extra_life")
+	get_node("Main/BuffUI").pick_buff(&"extra_life")
 	_check(GameState.max_health() == 150.0 and GameState.health == 80.0, "A5：extra_life 选取 +50 上限 +30 HP")
 	GameState.buffs.clear()
 

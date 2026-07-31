@@ -50,7 +50,7 @@ func _ready() -> void:
 	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 	var settings_ui: CanvasLayer = main.get_node("SettingsUI")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	await get_tree().process_frame
 
 	# 1. Esc → 暂停（未暂停时注入，main/pause 均可收）
@@ -63,11 +63,11 @@ func _ready() -> void:
 
 	# 3. 暂停 → 设置 → 改键 dash=T → Esc 逐级返回（用户报告的卡死路径）
 	await _press_key(KEY_ESCAPE)
-	pause_ui._on_settings_pressed()
+	pause_ui.open_settings()
 	_check(settings_ui.visible, "设置面板打开")
-	settings_ui._start_capture(&"dash")
+	settings_ui.start_capture(&"dash")
 	await _press_key(KEY_T)
-	_check(settings_ui._capturing_action == &"", "绑定后退出捕获态")
+	_check(settings_ui.capturing_action() == &"", "绑定后退出捕获态")
 	_check(GameState.action_keys_text(&"dash") == "T", "dash 已绑定 T")
 	await _press_key(KEY_ESCAPE)
 	_check(not settings_ui.visible, "Esc 后设置面板关闭")
@@ -77,10 +77,10 @@ func _ready() -> void:
 
 	# 4. 捕获态 Esc 取消 → 再 Esc 逐级退出
 	await _press_key(KEY_ESCAPE)
-	pause_ui._on_settings_pressed()
-	settings_ui._start_capture(&"dash")
+	pause_ui.open_settings()
+	settings_ui.start_capture(&"dash")
 	await _press_key(KEY_ESCAPE)  # 取消捕获
-	_check(settings_ui.visible and settings_ui._capturing_action == &"", "捕获中 Esc 取消但留在设置页")
+	_check(settings_ui.visible and settings_ui.capturing_action() == &"", "捕获中 Esc 取消但留在设置页")
 	await _press_key(KEY_ESCAPE)  # 退出设置 → 回暂停
 	_check(not settings_ui.visible and pause_ui.visible, "取消后再 Esc 回暂停面板")
 	await _press_key(KEY_ESCAPE)  # 恢复游戏

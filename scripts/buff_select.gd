@@ -265,6 +265,34 @@ func _set_card_highlight(card: ChamferedPanel, on: bool) -> void:
 	card.bracket_color = UITheme.ACCENT_GOLD if on else UITheme.ACCENT
 
 
+## A7：测试/诊断经公开接口——直接选取指定 buff（无卡片上下文，等价 _on_card_gui_input 的 card==null 路径）
+func pick_buff(id: StringName) -> void:
+	if _closing:
+		return
+	GameState.play_sfx(GameState.SFX_BUFF_PICK)
+	GameState.add_buff(id)
+	if id == &"extra_life":
+		GameState.heal(GameState.cfg("buffs.extra_life.heal_on_pick", 30))
+	visible = false
+	get_tree().paused = false
+
+
+func current_available() -> Array:
+	return _current_available
+
+
+func cards() -> HBoxContainer:
+	return _cards
+
+
+func closing() -> bool:
+	return _closing
+
+
+func available_buffs() -> Array[Dictionary]:
+	return _available_buffs()
+
+
 func _on_card_gui_input(event: InputEvent, id: StringName, card: Control = null) -> void:
 	if _closing:
 		return

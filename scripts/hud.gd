@@ -492,6 +492,47 @@ func show_warning(text: String) -> void:
 	_show_warning(text)
 
 
+## A7：测试/诊断白盒断言经公开接口（UI 节点引用 getter）
+func boss_countdown() -> Label:
+	return _boss_countdown
+
+
+func buff_dock() -> GridContainer:
+	return _buff_dock
+
+
+func buff_tag() -> Label:
+	return _buff_tag
+
+
+func buff_overflow_label() -> Label:
+	return _buff_overflow_label
+
+
+func buff_rows() -> VBoxContainer:
+	return _buff_rows
+
+
+func buff_panel_title() -> Label:
+	return _buff_panel_title
+
+
+func event_box() -> VBoxContainer:
+	return _event_box
+
+
+func give_up_label() -> Label:
+	return _give_up_label
+
+
+func vignette() -> TextureRect:
+	return _vignette
+
+
+func toggle_buff_panel() -> void:
+	_toggle_buff_panel()
+
+
 func _show_warning(text: String) -> void:
 	_banner_label.text = text
 	_banner_plate.visible = true

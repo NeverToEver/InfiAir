@@ -58,12 +58,12 @@ func _ready() -> void:
 	add_child(settings)
 	settings.show_settings()
 	settings._start_capture(&"dock")
-	_check(settings._capturing_action == &"dock", "进入捕获态")
+	_check(settings.capturing_action() == &"dock", "进入捕获态")
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
 	esc.pressed = true
 	settings._unhandled_input(esc)
-	_check(settings._capturing_action == &"", "Esc 取消捕获")
+	_check(settings.capturing_action() == &"", "Esc 取消捕获")
 	_check(not _action_has_key(&"dock", KEY_ESCAPE), "取消未写入绑定")
 
 	# 7. 捕获态绑定成功

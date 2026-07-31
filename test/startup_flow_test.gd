@@ -77,8 +77,8 @@ func _ready() -> void:
 	_check(not welcome.visible and start_panel.visible, "任意键关闭欢迎页进入开始面板")
 	_check(GameState.welcome_seen, "欢迎页关闭后 welcome_seen 已置位")
 	var focused := start_panel.get_viewport().gui_get_focus_owner()
-	_check(focused == start_panel._new_button, "无存档时主按钮（开始游戏）持有焦点")
-	_check(not start_panel._corrupt_label.visible, "无损坏存档时提示隐藏")
+	_check(focused == start_panel.new_button(), "无存档时主按钮（开始游戏）持有焦点")
+	_check(not start_panel.corrupt_label().visible, "无损坏存档时提示隐藏")
 
 	# 按钮 action_mode 默认为释放触发：pressed + released 才算一次完整点击
 	var accept := InputEventAction.new()
@@ -98,20 +98,20 @@ func _ready() -> void:
 	GameState.save_run(50.0, 10.0)
 	start_panel.show_panel()
 	await get_tree().process_frame
-	_check(start_panel._continue_button.visible, "有存档时显示继续对局")
-	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel._continue_button, "有存档时焦点在继续对局")
-	start_panel._dismiss()
+	_check(start_panel.continue_button().visible, "有存档时显示继续对局")
+	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel.continue_button(), "有存档时焦点在继续对局")
+	start_panel.dismiss()
 	GameState.delete_save()
 
 	# ---------- 5. 损坏存档：面板降级为新对局 + 提示可见 ----------
 	_write_file(GameState.SAVE_PATH, "{still broken")
 	start_panel.show_panel()
 	await get_tree().process_frame
-	_check(not start_panel._continue_button.visible, "损坏存档不再显示继续对局")
-	_check(start_panel._corrupt_label.visible, "损坏存档提示可见")
-	_check(start_panel._corrupt_label.text != "START_SAVE_CORRUPT", "损坏提示文案已翻译（tr 命中）")
-	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel._new_button, "损坏存档焦点落到开始游戏")
-	start_panel._dismiss()
+	_check(not start_panel.continue_button().visible, "损坏存档不再显示继续对局")
+	_check(start_panel.corrupt_label().visible, "损坏存档提示可见")
+	_check(start_panel.corrupt_label().text != "START_SAVE_CORRUPT", "损坏提示文案已翻译（tr 命中）")
+	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel.new_button(), "损坏存档焦点落到开始游戏")
+	start_panel.dismiss()
 
 	# ---------- 6. F1 回归：有存档 + 欢迎页首显，开始面板不得抢显/抢焦点 ----------
 	GameState.save_run(50.0, 10.0)

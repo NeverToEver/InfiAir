@@ -57,12 +57,12 @@ func _ready() -> void:
 	await _press_esc()
 	_check(not exit_confirm.visible and start_panel.visible, "确认窗 Esc：取消退出回到开始面板")
 	_check(
-		start_panel.get_viewport().gui_get_focus_owner() == start_panel._new_button,
+		start_panel.get_viewport().gui_get_focus_owner() == start_panel.new_button(),
 		"取消后焦点还给主按钮",
 	)
 
 	# ---------- 2. 对局层：Esc ⇄ 暂停 ----------
-	start_panel._on_new_game_pressed()
+	start_panel.press_new_game()
 	await get_tree().process_frame
 	_check(nav.decide_back_action() == A.OPEN_PAUSE, "战斗中：决策=打开暂停")
 	await _press_esc()
@@ -73,17 +73,17 @@ func _ready() -> void:
 
 	# ---------- 3. 设置页：返回 opener + 改键捕获态放行 ----------
 	pause_ui.open()
-	pause_ui._on_settings_pressed()
+	pause_ui.open_settings()
 	_check(settings_ui.visible and nav.decide_back_action() == A.CLOSE_SETTINGS, "设置页：决策=返回 opener")
-	settings_ui._start_capture(&"dash")
+	settings_ui.start_capture(&"dash")
 	_check(nav.decide_back_action() == A.CAPTURE_PASSTHROUGH, "改键捕获中：决策=放行")
 	await _press_esc()
-	_check(settings_ui._capturing_action == &"" and settings_ui.visible, "捕获中 Esc：取消捕获留在设置页")
+	_check(settings_ui.capturing_action() == &"" and settings_ui.visible, "捕获中 Esc：取消捕获留在设置页")
 	await _press_esc()
 	_check(not settings_ui.visible and pause_ui.visible, "设置页 Esc：返回暂停面板")
 
 	# ---------- 4. 战斗退出链：暂停 → 退出游戏 → battle 确认窗 ----------
-	pause_ui._on_quit_pressed()
+	pause_ui.quit()
 	_check(exit_confirm.visible and exit_confirm._battle, "暂停「退出游戏」：battle 模式确认窗")
 	_check(exit_confirm._msg_label.text == tr("EXIT_BATTLE_MSG"), "battle 模式显示进度损失警告")
 	await _press_esc()
@@ -100,7 +100,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(base_ui.visible and nav.decide_back_action() == A.RESUME_BASE, "返航过场跳过后：基地控制台决策=继续出击")
-	base_ui._on_resume_pressed()  # 恢复对局态，避免影响后续分支断言
+	base_ui.resume()  # 恢复对局态，避免影响后续分支断言
 	await get_tree().process_frame
 	await get_tree().process_frame
 	buff_ui.visible = true

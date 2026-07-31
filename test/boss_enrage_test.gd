@@ -57,7 +57,7 @@ func _close_buff_ui_if_open() -> void:
 		var ev := InputEventMouseButton.new()
 		ev.pressed = true
 		ev.button_index = MOUSE_BUTTON_LEFT
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 
 
@@ -106,7 +106,7 @@ func _ready() -> void:
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0  )# 狂暴弹幕期间不被误伤

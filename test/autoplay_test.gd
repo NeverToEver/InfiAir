@@ -263,13 +263,13 @@ func _start_run(p_continue: bool = false) -> void:
 			_probe_exit_confirm()
 			await get_tree().process_frame
 			await get_tree().process_frame
-		if p_continue and GameState.has_save() and start_panel._continue_button.visible:
+		if p_continue and GameState.has_save() and start_panel.continue_button().visible:
 			var saved_score := GameState.score
-			start_panel._on_continue_pressed()
+			start_panel.press_continue()
 			_continue_resumes += 1
 			_log("开始面板：继续对局（读档恢复，第 %d 次，存档 score=%d）" % [_continue_resumes, saved_score])
 		else:
-			start_panel._on_new_game_pressed()
+			start_panel.press_new_game()
 			_log("开始面板：新游戏")
 	await get_tree().process_frame
 	_player = _main.get_node("Player")
@@ -360,18 +360,18 @@ func _handle_buff_ui(now: int) -> void:
 	if _buff_ui == null or not is_instance_valid(_buff_ui):
 		return
 	if _buff_ui.visible:
-		if _buff_ui._closing:
+		if _buff_ui.closing():
 			return  # 选取确认动效播放中：不重复 pick（动效结束才 visible=false）
 		if _buff_open_since == 0:
 			_buff_open_since = now
 			_buff_stuck_reported = false
 			_buff_pick_at = now + 400 + randi() % 600  # 模拟真人看牌时间
 			var ids: Array = []
-			for b in _buff_ui._current_available:
+			for b in _buff_ui.current_available():
 				ids.append(b["id"])
 			_log("Buff 三选一弹出 candidates=%s" % [str(ids)])
 		elif now >= _buff_pick_at:
-			var avail: Array = _buff_ui._current_available
+			var avail: Array = _buff_ui.current_available()
 			if not avail.is_empty():
 				# 优先选本进程尚未拥有过的种类，争取覆盖全部 buff 效果代码
 				var unseen: Array = avail.filter(func(b: Dictionary) -> bool: return not _buffs_seen.has(b["id"]))
@@ -387,13 +387,13 @@ func _handle_buff_ui(now: int) -> void:
 				ev.button_index = MOUSE_BUTTON_LEFT
 				# 10% 走真实三参动效路径（~200ms 确认动效后才关闭/恢复），其余维持两参立即关闭
 				var card: Control = null
-				if randf() < 0.10 and pick_idx >= 0 and _buff_ui._cards.get_child_count() > pick_idx:
-					card = _buff_ui._cards.get_child(pick_idx) as Control
+				if randf() < 0.10 and pick_idx >= 0 and _buff_ui.cards().get_child_count() > pick_idx:
+					card = _buff_ui.cards().get_child(pick_idx) as Control
 				if card != null:
-					_buff_ui._on_card_gui_input(ev, pick["id"], card)
+					_buff_ui.pick_buff(pick["id"])
 					_buff_animated_picks += 1
 				else:
-					_buff_ui._on_card_gui_input(ev, pick["id"])
+					_buff_ui.pick_buff(pick["id"])
 				_buff_picks += 1
 				_buffs_seen[pick["id"]] = true
 				# 选取后立即校验层数上限（口径同 buff_select.gd：cfg 覆盖池内默认）
@@ -427,7 +427,7 @@ func _handle_base_ui(now: int) -> void:
 		if _base_stage == 0 and t >= 600:
 			_base_stage = 1
 			if GameState.rp >= GameState.RP_REPAIR_COST and GameState.health < GameState.max_health():
-				base_ui._on_repair_pressed()
+				base_ui.repair()
 				_base_repairs += 1
 				_log("基地维修：HP -> %.0f（RP=%d）" % [GameState.health, GameState.rp])
 		elif _base_stage == 1 and t >= 1000:
@@ -437,7 +437,7 @@ func _handle_base_ui(now: int) -> void:
 				and _player != null
 				and _player.fuel_amount() < _player.fuel_max - 1.0
 			):
-				base_ui._on_recharge_pressed()
+				base_ui.recharge()
 				_base_recharges += 1
 				_log("基地补给燃料：-> %.0f（RP=%d）" % [_player.fuel_amount(), GameState.rp])
 		elif _base_stage == 2 and t >= 1400:
@@ -454,7 +454,7 @@ func _handle_base_ui(now: int) -> void:
 					opt = options[0] if options[1] == opt else options[1]
 				if GameState.is_buff_locked(opt):
 					continue
-				base_ui._on_route_pressed(line, opt)
+				base_ui.choose_route(line, opt)
 				_route_choices += 1
 				_log("天赋路线选择：%s -> %s（合并后 %d 层）" % [line, opt, GameState.buff_count(opt)])
 		elif _base_stage == 3 and t >= 1800:
@@ -462,11 +462,11 @@ func _handle_base_ui(now: int) -> void:
 			for def in GameState.MISSION_DEFS:
 				var id: StringName = def["id"]
 				if GameState.is_mission_done(id) and not GameState.is_mission_claimed(id):
-					base_ui._on_claim_pressed(id)
+					base_ui.claim_mission(id)
 					_mission_claims += 1
 					_log("领取任务奖励：%s（RP=%d）" % [id, GameState.rp])
 		elif _base_stage == 4 and t >= 2600:
-			base_ui._on_resume_pressed()
+			base_ui.resume()
 			_log("继续出击，返回对局")
 			_base_since = 0
 	else:
@@ -498,7 +498,7 @@ func _handle_pause_ui(now: int) -> void:
 	if _pause_stage == 0 and t >= 600:
 		_pause_stage = 1
 		if randf() < 0.75:
-			pause_ui._on_save_pressed()
+			pause_ui.save()
 			_pause_saves += 1
 			_log("暂停菜单：保存进度（第 %d 次）" % _pause_saves)
 	elif _pause_stage == 1 and t >= 1400:

@@ -51,7 +51,7 @@ func _ready() -> void:
 		var ev := InputEventMouseButton.new()
 		ev.pressed = true
 		ev.button_index = MOUSE_BUTTON_LEFT
-		buff_ui._on_card_gui_input(ev, buff_ui._current_available[0]["id"])
+		buff_ui.pick_buff(buff_ui.current_available()[0]["id"])
 	await get_tree().process_frame
 
 	# 屏蔽后续里程碑触发，避免 Buff UI 与结算叠屏（确定性截图）
@@ -76,7 +76,7 @@ func _ready() -> void:
 	await _settle()  # 等全息启动 0.25s + animate_open 0.2s 播完
 	_shot("base")
 	var base_ui: CanvasLayer = get_node("Main/BaseUI")
-	base_ui._on_resume_pressed()
+	base_ui.resume()
 	get_tree().paused = false
 	# 等轨道打击动画播完，避免叠入后续截图
 	if main.strike() != null:
@@ -89,7 +89,7 @@ func _ready() -> void:
 		var ev2 := InputEventMouseButton.new()
 		ev2.pressed = true
 		ev2.button_index = MOUSE_BUTTON_LEFT
-		buff_ui._on_card_gui_input(ev2, buff_ui._current_available[0]["id"])
+		buff_ui.pick_buff(buff_ui.current_available()[0]["id"])
 	GameState.high_score = 100  # 压低原纪录，保证「新纪录」标记可见（结尾还原）
 	GameState.add_score(8888)
 	GameState.player_died.emit()

@@ -129,11 +129,11 @@ func _ready() -> void:
 	fx._set_lod(1)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(hud._vignette.modulate.a > 0.0, "6：LOD1 时 hud 低血晕影回退生效")
+	_check(hud.vignette().modulate.a > 0.0, "6：LOD1 时 hud 低血晕影回退生效")
 	fx._set_lod(0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(hud._vignette.modulate.a == 0.0, "6：LOD0 时 hud 晕影移交 MetaFX（恒 0）")
+	_check(hud.vignette().modulate.a == 0.0, "6：LOD0 时 hud 晕影移交 MetaFX（恒 0）")
 
 	# ================= 7：满血静止早退零参数上传（D5/D10） =================
 	GameState.heal(999.0)

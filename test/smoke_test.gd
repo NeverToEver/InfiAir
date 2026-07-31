@@ -28,7 +28,7 @@ func _ready() -> void:
 	# 无存档时开始面板会自显：直接走「开始游戏」关闭之（难度选择见 difficulty_test）
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	# 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
 	get_node("Main/Player")._auto_fire_enabled = false
 	await get_tree().process_frame
@@ -41,13 +41,13 @@ func _ready() -> void:
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
 	_check(buff_ui.visible, "500 分触发 Buff 选择 UI")
 	_check(get_tree().paused, "Buff UI 弹出时游戏暂停")
-	_check(buff_ui._current_available.size() == 3, "里程碑三选一候选数为 3（池未满）")
+	_check(buff_ui.current_available().size() == 3, "里程碑三选一候选数为 3（池未满）")
 
 	# 2. 选择 buff 后恢复
 	var ev := InputEventMouseButton.new()
 	ev.pressed = true
 	ev.button_index = MOUSE_BUTTON_LEFT
-	buff_ui._on_card_gui_input(ev, &"power_shot")
+	buff_ui.pick_buff(&"power_shot")
 	_check(not buff_ui.visible and not get_tree().paused, "选择 buff 后关闭并恢复")
 	_check(GameState.buff_count(&"power_shot") == 1, "buff 计入 GameState")
 
@@ -73,7 +73,7 @@ func _ready() -> void:
 	_check(not get_node("Main/HUD/BossBar").visible, "Boss 血条隐藏")
 	# 里程碑曲线下后续阈值远高于当前分数，Buff UI 一般不再弹出；若弹出则关闭以便继续测试
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	_check(not buff_ui.visible and not get_tree().paused, "里程碑 UI 可重复触发并关闭")
 	# 停掉生成器并清场（敌机/敌弹），保证后续断言确定性
 	spawner.set_process(false)
@@ -150,7 +150,7 @@ func _ready() -> void:
 	boss2.take_damage(9999)
 	await get_tree().process_frame
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 
 	# 3.3 Boss-3 母舰型召唤小怪
 	spawner.spawn_boss()
@@ -170,7 +170,7 @@ func _ready() -> void:
 	boss3.take_damage(9999)
 	await get_tree().process_frame
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	# 清理小怪与弹幕
 	for child in get_node("Main").get_children():
 		if child is Enemy or (child is Bullet and not child.is_player_bullet):
@@ -205,7 +205,7 @@ func _ready() -> void:
 	boss4.take_damage(9999)
 	await get_tree().process_frame
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 	# 清理弹幕
 	for child in get_node("Main").get_children():
@@ -294,7 +294,7 @@ func _ready() -> void:
 	)
 	# 得分可能再次触发里程碑，关闭之
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 
 	# 3.10 母舰（原作对齐）：蓄力召唤 → 到位自动对接（点吸附）→ 驻留弹匣 → 提前离舰
@@ -392,7 +392,7 @@ func _ready() -> void:
 		"母舰驾驶边界钳制"
 	)
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 	# 弹匣随时间消耗（驻留已累计 >2s）
 	_check(ms._mag_cells < 10, "驻留弹匣消耗")
@@ -448,7 +448,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_check(GameState.score == score_before_33 + 33, "母舰击杀 1/3 分")
 	if buff_ui.visible:
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 	# 警告横幅播完（5s）强制离舰：第二艘母舰，缩短计时确定性验证
 	main.set_dock_cooldown(0.0)
@@ -608,10 +608,10 @@ func _ready() -> void:
 	var start_panel5: CanvasLayer = get_node("Main/StartPanel")
 	var settings_ui: CanvasLayer = get_node("Main/SettingsUI")
 	pause_ui.toggle()
-	pause_ui._on_settings_pressed()
+	pause_ui.open_settings()
 	_check(not pause_ui.visible and settings_ui.visible, "暂停→设置：暂停面板让位")
-	_check(settings_ui._opener == pause_ui, "暂停→设置：opener 记录为暂停面板")
-	settings_ui._on_back_pressed()
+	_check(settings_ui.opener() == pause_ui, "暂停→设置：opener 记录为暂停面板")
+	settings_ui.back()
 	_check(pause_ui.visible and not settings_ui.visible, "设置返回：恢复暂停面板")
 	pause_ui.toggle()
 	_check(not pause_ui.visible, "设置回归：暂停面板已关闭")

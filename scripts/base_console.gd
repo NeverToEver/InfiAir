@@ -392,6 +392,27 @@ func _on_locale_changed() -> void:
 	_refresh()
 
 
+## A7：测试/诊断经公开接口（动作包装）
+func repair() -> void:
+	_on_repair_pressed()
+
+
+func recharge() -> void:
+	_on_recharge_pressed()
+
+
+func choose_route(line: StringName, buff_id: StringName) -> void:
+	_on_route_pressed(line, buff_id)
+
+
+func claim_mission(id: StringName) -> void:
+	_on_claim_pressed(id)
+
+
+func resume() -> void:
+	_on_resume_pressed()
+
+
 func _on_repair_pressed() -> void:
 	# 2RP 回满（对齐原作，不按缺口计价）
 	if GameState.spend_rp(GameState.RP_REPAIR_COST):

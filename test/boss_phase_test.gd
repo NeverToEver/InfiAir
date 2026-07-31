@@ -37,7 +37,7 @@ func _close_buff_ui_if_open() -> void:
 		var ev := InputEventMouseButton.new()
 		ev.pressed = true
 		ev.button_index = MOUSE_BUTTON_LEFT
-		buff_ui._on_card_gui_input(ev, &"rapid_fire")
+		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 
 
@@ -69,7 +69,7 @@ func _ready() -> void:
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0  )# 弹幕期间不被误伤
@@ -205,18 +205,18 @@ func _ready() -> void:
 	_check(boss4 != null, "场景4：Boss 已生成")
 	boss4.set_fire_timer(999.0  )# 屏蔽开火，保持场内干净
 	await _wait_real(0.3)
-	_check(not hud._boss_countdown.visible, "场景4：剩余 >10s 不显示倒计时")
+	_check(not hud.boss_countdown().visible, "场景4：剩余 >10s 不显示倒计时")
 	boss4.set_survival(boss4.ESCAPE_TIME - 5.0  )# 剩余 5s ≤ countdown_visible_from(10s)
 	await _wait_real(0.3)
 	_check(
-		hud._boss_countdown.visible and hud._boss_countdown.text != "",
+		hud.boss_countdown().visible and hud.boss_countdown().text != "",
 		"场景4：剩余 ≤10s 血条下方显示逃跑倒计时"
 	)
 	boss4.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
 	await _wait_real(0.3)
-	_check(not hud._boss_countdown.visible, "场景4：Boss 死亡后倒计时隐藏")
+	_check(not hud.boss_countdown().visible, "场景4：Boss 死亡后倒计时隐藏")
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")

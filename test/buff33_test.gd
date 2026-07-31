@@ -31,7 +31,7 @@ func _ready() -> void:
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	var hud: CanvasLayer = get_node("Main/HUD")
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
@@ -49,13 +49,13 @@ func _ready() -> void:
 
 	# 1. Buff 候选池：新 buff 入池 + explosive gating（boss_kills>=3 才解锁）
 	GameState.boss_kills = 0
-	var ids: Array = buff_ui._available_buffs().map(func(b: Dictionary) -> StringName: return b["id"])
+	var ids: Array = buff_ui.available_buffs().map(func(b: Dictionary) -> StringName: return b["id"])
 	_check(&"laser_beam" in ids, "laser_beam 入抽卡候选池")
 	_check(&"mothership_recall" in ids, "mothership_recall 入抽卡候选池")
 	_check(&"boost_recovery" in ids, "boost_recovery 入抽卡候选池")
 	_check(&"explosive" not in ids, "boss_kills<3 时 explosive 不入候选池")
 	GameState.boss_kills = 3
-	ids = buff_ui._available_buffs().map(func(b: Dictionary) -> StringName: return b["id"])
+	ids = buff_ui.available_buffs().map(func(b: Dictionary) -> StringName: return b["id"])
 	_check(&"explosive" in ids, "boss_kills>=3 时 explosive 入候选池")
 	GameState.boss_kills = 0
 
@@ -134,10 +134,10 @@ func _ready() -> void:
 	Input.action_press("give_up")
 	await get_tree().create_timer(1.0).timeout
 	_check(main.give_up_charge() > 0.0, "K 蓄力进行中")
-	_check(hud._give_up_label.visible, "HUD 显示放弃蓄力进度")
+	_check(hud.give_up_label().visible, "HUD 显示放弃蓄力进度")
 	Input.action_release("give_up")
 	await get_tree().create_timer(0.2).timeout
-	_check(main.give_up_charge() == 0.0 and not hud._give_up_label.visible, "松开 K 取消蓄力")
+	_check(main.give_up_charge() == 0.0 and not hud.give_up_label().visible, "松开 K 取消蓄力")
 	_check(GameState.health == GameState.max_health(), "取消蓄力未自毁")
 	Input.action_press("give_up")
 	await get_tree().create_timer(3.3).timeout

@@ -87,6 +87,19 @@ func _get_settings_ui() -> CanvasLayer:
 	return _settings_ui
 
 
+## A7：测试/诊断经公开接口（动作包装）
+func open_settings() -> void:
+	_on_settings_pressed()
+
+
+func save() -> void:
+	_on_save_pressed()
+
+
+func quit() -> void:
+	_on_quit_pressed()
+
+
 func _on_settings_pressed() -> void:
 	if _get_settings_ui() == null:
 		return

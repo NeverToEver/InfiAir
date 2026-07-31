@@ -44,7 +44,7 @@ func _press_esc() -> void:
 ## 缩短时轴并等待播完，避免后续断言落在动画/暂停窗口内
 func _restore_from_base(base_ui: CanvasLayer) -> void:
 	if base_ui.visible:
-		base_ui._on_resume_pressed()
+		base_ui.resume()
 	await get_tree().process_frame
 	var main := base_ui.get_parent()
 	if main.strike() != null:

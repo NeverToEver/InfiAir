@@ -146,6 +146,19 @@ func _refresh_rebind_rows() -> void:
 		(_rebind_rows[action]["name"] as Label).text = tr("ACT_" + String(action).to_upper())
 
 
+## A7：测试/诊断经公开接口
+func start_capture(action: StringName) -> void:
+	_start_capture(action)
+
+
+func opener() -> CanvasLayer:
+	return _opener
+
+
+func back() -> void:
+	_on_back_pressed()
+
+
 func _start_capture(action: StringName) -> void:
 	_capturing_action = action
 	_hint_label.text = tr("SET_CAPTURE") % tr("ACT_" + String(action).to_upper())

@@ -78,7 +78,7 @@ func _ready() -> void:
 		welcome.dismiss()
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false  )# 禁用自动开火，炮台击杀全部走断言路径
 	player.set_invincible(999.0)
@@ -115,7 +115,7 @@ func _ready() -> void:
 		var t0: TurretBattery = event.turrets()[0]
 		_check(t0.max_hp == 80, "场景1：单台血量 80（80×中难度×1.0）")
 		_check(t0.monitoring, "场景1：充能完毕后炮台可被攻击")
-	_check(hud._event_box.visible, "场景1：HUD 事件计时条显示")
+	_check(hud.event_box().visible, "场景1：HUD 事件计时条显示")
 	# 弱锁定开火：等几轮射击，验证弹药与追踪参数
 	var homing_ok := false
 	var fired_ok := false
@@ -138,7 +138,7 @@ func _ready() -> void:
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
 	_check(event.line_stage() == 1, "场景1：摧毁 2 座（≥⌈总数/3⌉）播第 1 句")
-	_check(event.comm()._full_text == tr(event.lines()[0]), "场景1：第 1 句为绑定台词第 1 条")
+	_check(event.comm().full_text() == tr(event.lines()[0]), "场景1：第 1 句为绑定台词第 1 条")
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
 	_check(event.line_stage() == 2, "场景1：摧毁 3 座（≥⌈总数×2/3⌉）播第 2 句")
@@ -148,8 +148,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(event.state() == EliteTurretEvent.State.CARRIER_EXIT, "场景1：全歼进入 CARRIER_EXIT")
 	_check(GameState.score - score0 == 1000, "场景1：奖励 500×中难度倍率×2 = 1000 入账")
-	_check(event.comm()._full_text == tr(event.lines()[2]), "场景1：全歼播第 3 句绑定台词")
-	_check(not hud._event_box.visible, "场景1：结算后事件计时条隐藏")
+	_check(event.comm().full_text() == tr(event.lines()[2]), "场景1：全歼播第 3 句绑定台词")
+	_check(not hud.event_box().visible, "场景1：结算后事件计时条隐藏")
 	_check(not spawner.waves_paused(), "场景1：CARRIER_EXIT 起普通波次恢复")
 	_check(event.turrets().is_empty(), "场景1：炮台清单已清空")
 	# 航母受创撤离 → BOSS_DELAY → IDLE，Boss 解冻
@@ -201,7 +201,7 @@ func _ready() -> void:
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景3：事件进入倒计时")
 	var score1 := GameState.score
 	_check(await _wait_event_state(event, EliteTurretEvent.State.CARRIER_EXIT, 5.0), "场景3：倒计时归零进入 CARRIER_EXIT")
-	_check(event.comm()._full_text == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")
+	_check(event.comm().full_text() == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")
 	_check(GameState.score == score1, "场景3：失败无奖励入账")
 	var turrets_gone := true
 	for turret in event.turrets():
@@ -217,13 +217,13 @@ func _ready() -> void:
 	event.DURATION = 30.0  # 恢复倒计时（场景3 改过）
 	_start_fast_event(event)
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景4：事件进入倒计时")
-	_check(hud._event_box.visible, "场景4：中止前 HUD 事件条显示")
+	_check(hud.event_box().visible, "场景4：中止前 HUD 事件条显示")
 	# 返航触发：elite 事件应被 abort（清炮塔、隐藏事件条、恢复波次、航母完整撤离）
 	main.start_homecoming()
 	await get_tree().process_frame
 	_check(event.state() == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
 	_check(event.turrets().is_empty(), "场景4：在场炮塔清单已清")
-	_check(not hud._event_box.visible, "场景4：中止后 HUD 事件条隐藏")
+	_check(not hud.event_box().visible, "场景4：中止后 HUD 事件条隐藏")
 	_check(not spawner.waves_paused(), "场景4：普通波次恢复")
 	await get_tree().process_frame
 	var turret_nodes_left := 0

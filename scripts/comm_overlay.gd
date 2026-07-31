@@ -12,6 +12,11 @@ const FADE_TIME := 0.5
 var _panel: ChamferedPanel
 var _label: Label
 var _full_text: String = ""
+
+
+## A7：测试/诊断白盒断言经公开接口
+func full_text() -> String:
+	return _full_text
 var _char_t: float = 0.0
 var _shown_chars: int = 0
 var _hold_left: float = -1.0  # <0：打字中

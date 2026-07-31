@@ -28,7 +28,7 @@ func _ready() -> void:
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
-		start_panel._on_new_game_pressed()
+		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	var spawner: Node = get_node("Main/Spawner")
 	# 关闭自动开火与刷怪，避免对局逻辑干扰外观断言

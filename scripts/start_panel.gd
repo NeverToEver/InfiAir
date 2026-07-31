@@ -187,6 +187,31 @@ func grab_primary_focus() -> void:
 		_new_button.grab_focus()
 
 
+## A7：测试/诊断经公开接口（动作包装）
+func press_new_game() -> void:
+	_on_new_game_pressed()
+
+
+func press_continue() -> void:
+	_on_continue_pressed()
+
+
+func dismiss() -> void:
+	_dismiss()
+
+
+func new_button() -> Button:
+	return _new_button
+
+
+func continue_button() -> Button:
+	return _continue_button
+
+
+func corrupt_label() -> Label:
+	return _corrupt_label
+
+
 func _dismiss() -> void:
 	visible = false
 	get_tree().paused = false

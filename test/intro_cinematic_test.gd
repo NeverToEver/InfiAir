@@ -51,7 +51,7 @@ func _ready() -> void:
 
 	# ---------- 1. 门禁路径：测试场景（current_scene != Main）点击新游戏不触发过场 ----------
 	_check(start_panel.visible, "无存档时开始面板自显")
-	start_panel._on_new_game_pressed()
+	start_panel.press_new_game()
 	await get_tree().process_frame
 	_check(main.intro() == null, "门禁：测试场景点击新游戏不播过场")
 	_check(not get_tree().paused, "门禁：未残留暂停")
