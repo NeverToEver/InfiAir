@@ -91,6 +91,31 @@ func _aim_dir(start: Vector2) -> Vector2:
 	return aim.normalized()
 
 
+## A7：测试/诊断白盒断言经公开接口
+func active() -> bool:
+	return _active
+
+
+func active_time() -> float:
+	return _active_time
+
+
+func cooldown() -> float:
+	return _cooldown
+
+
+func set_cooldown(seconds: float) -> void:
+	_cooldown = seconds
+
+
+func set_active_time(seconds: float) -> void:
+	_active_time = seconds
+
+
+func beam() -> Line2D:
+	return _beam
+
+
 func _start_beam() -> void:
 	_active = true
 	_active_time = BEAM_DURATION

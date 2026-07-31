@@ -58,6 +58,53 @@ var _early_out_count: int = 0
 var _heart_beats: int = 0
 
 
+## A7：测试/诊断白盒断言经公开接口（平滑参数注入统一测试口 + 状态 getter）
+func set_test_state(state: Dictionary) -> void:
+	for k in state.keys():
+		if k is String and String(k).begins_with("_"):
+			set(k, state[k])
+
+
+func crack_progress() -> float:
+	return _crack_progress()
+
+
+func hit_pulse() -> float:
+	return _hit_pulse
+
+
+func damage_x() -> float:
+	return _damage_x
+
+
+func state() -> int:
+	return _state
+
+
+func heal_jitter() -> float:
+	return _heal_jitter
+
+
+func heart_rate() -> float:
+	return _heart_rate
+
+
+func breath() -> float:
+	return _breath
+
+
+func rect() -> ColorRect:
+	return _rect
+
+
+func upload_count() -> int:
+	return _upload_count
+
+
+func early_out_count() -> int:
+	return _early_out_count
+
+
 func _ready() -> void:
 	layer = 1
 	_load_cfg()

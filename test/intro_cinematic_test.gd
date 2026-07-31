@@ -82,7 +82,7 @@ func _ready() -> void:
 	main.play_intro()
 	var intro2: IntroCinematic = main.intro()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
-	intro2._shot_durations = short_durations
+	intro2.set_shot_durations(short_durations)
 	var finished2 := [false]
 	intro2.finished.connect(func() -> void: finished2[0] = true)
 	var seen_shots: Array[String] = []
@@ -90,19 +90,19 @@ func _ready() -> void:
 		var reached := false
 		for i in 40:
 			await get_tree().create_timer(0.05).timeout
-			if not is_instance_valid(intro2) or intro2._shot_index >= expected:
+			if not is_instance_valid(intro2) or intro2.shot_index() >= expected:
 				reached = true
 				break
 		_check(reached, "时序：推进到镜头 %d" % (expected + 1))
-		if reached and is_instance_valid(intro2) and intro2._current_shot != null:
-			var shot_name: String = intro2._current_shot.name
+		if reached and is_instance_valid(intro2) and intro2.current_shot() != null:
+			var shot_name: String = intro2.current_shot().name
 			if not seen_shots.has(shot_name):
 				seen_shots.append(shot_name)
 			_check(
-				intro2._shot_root.get_child_count() == 1,
+				intro2.shot_root().get_child_count() == 1,
 				"时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1)
 			)
-			_check(intro2._subtitle.text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
+			_check(intro2.subtitle().text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
 	# 收尾标题定格额外 1.8s（§2），等待窗口放宽
 	for i in 80:
 		await get_tree().create_timer(0.05).timeout

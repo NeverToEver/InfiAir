@@ -62,7 +62,7 @@ func _ready() -> void:
 	# 2. laser_beam：无 buff 不触发；获得后触发光束并穿透伤害直线上 2 个敌人
 	var laser: LaserWeapon = player.get_node("LaserWeapon")
 	await get_tree().create_timer(0.4).timeout
-	_check(not laser._active, "无 laser_beam buff 时激光不触发")
+	_check(not laser.active(), "无 laser_beam buff 时激光不触发")
 	GameState.add_buff(&"laser_beam")
 	# 沿瞄准线布置两个静止高血敌人（不被击毁，避免得分里程碑干扰）
 	var aim: Vector2 = (player.get_global_mouse_position() - player.global_position).normalized()
@@ -84,23 +84,23 @@ func _ready() -> void:
 	e2.position = player.global_position + aim * 600.0
 	main.add_child(e2)
 	var wait := 0.0
-	while not laser._active and wait < 2.0:
+	while not laser.active() and wait < 2.0:
 		await get_tree().create_timer(0.1).timeout
 		wait += 0.1
-	_check(laser._active, "获得 laser_beam 后触发光束")
-	_check(laser._beam.visible, "光束视觉可见")
+	_check(laser.active(), "获得 laser_beam 后触发光束")
+	_check(laser.beam().visible, "光束视觉可见")
 	await get_tree().create_timer(0.5).timeout
 	_check(is_instance_valid(e1) and e1.hp < 9999, "光束对直线上敌人 1 造成伤害")
 	_check(is_instance_valid(e2) and e2.hp < 9999, "光束穿透对直线上敌人 2 造成伤害")
 	# 3s 持续结束后进入约 8s 冷却
 	await get_tree().create_timer(2.8).timeout
-	_check(not laser._active, "3 秒后光束结束")
-	_check(laser._cooldown > 6.0, "光束结束后进入约 8s 冷却")
+	_check(not laser.active(), "3 秒后光束结束")
+	_check(laser.cooldown() > 6.0, "光束结束后进入约 8s 冷却")
 	# 冷却结束可再次触发（测试直接缩短冷却，不真等 8s）
-	laser._cooldown = 0.05
+	laser.set_cooldown(0.05)
 	await get_tree().create_timer(0.3).timeout
-	_check(laser._active, "冷却结束后激光可再次触发")
-	laser._active_time = 0.01
+	_check(laser.active(), "冷却结束后激光可再次触发")
+	laser.set_active_time(0.01)
 	await get_tree().create_timer(0.2).timeout
 	if is_instance_valid(e1):
 		e1.queue_free()

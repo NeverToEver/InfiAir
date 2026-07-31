@@ -114,6 +114,11 @@ func despawn() -> void:
 	_despawn()
 
 
+## A7：测试/诊断白盒断言经公开接口
+func explode() -> void:
+	_explode()
+
+
 ## 物理回调内不能直改 monitoring，延迟到帧末；若子弹已被重激活（同帧复用）则跳过
 func _deferred_disable_monitoring() -> void:
 	if not _active:

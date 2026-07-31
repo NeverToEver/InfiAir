@@ -395,6 +395,15 @@ func _set_milestone_override(threshold: int) -> void:
 	_next_milestone = threshold
 
 
+## A7：测试/诊断白盒断言经公开接口
+func next_milestone() -> int:
+	return _next_milestone
+
+
+func recompute_difficulty() -> void:
+	_recompute_difficulty()
+
+
 # ---------------- 设置项（Ctrl/Shift 模式） ----------------
 
 ## Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 profile
@@ -439,6 +448,10 @@ func set_view_zoom(level: StringName) -> void:
 
 func view_zoom_factor() -> float:
 	return _view_zoom_factor
+
+
+func set_view_zoom_factor(factor: float) -> void:
+	_view_zoom_factor = factor
 
 
 # ---------------- 窗口大小 ----------------

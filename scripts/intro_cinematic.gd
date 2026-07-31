@@ -33,6 +33,27 @@ var _sub_tween: Tween = null  # 字幕淡入/淡出互斥
 @onready var _skip_hint: Label = $SkipHint
 
 
+## A7：测试/诊断白盒断言经公开接口（过场镜头）
+func set_shot_durations(durations: Array) -> void:
+	_shot_durations = durations
+
+
+func shot_index() -> int:
+	return _shot_index
+
+
+func current_shot() -> Node2D:
+	return _current_shot
+
+
+func shot_root() -> Node2D:
+	return _shot_root
+
+
+func subtitle() -> Label:
+	return _subtitle
+
+
 func _ready() -> void:
 	_skip_hint.text = tr("INTRO_SKIP")
 	_skip_hint.add_theme_font_override("font", UITheme.FONT)

@@ -45,6 +45,11 @@ func _process(_delta: float) -> void:
 
 
 ## 框半宽：碰撞半径（机体尺寸族，setup 已 ×ws）× 实例缩放 + frame_pad
+## A7：测试/诊断白盒断言经公开接口
+func frame_pad() -> float:
+	return _frame_pad
+
+
 func frame_half_size(e: Enemy) -> float:
 	var r := 0.0
 	var shape_node := e.get_node_or_null("CollisionShape2D") as CollisionShape2D

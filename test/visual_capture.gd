@@ -94,7 +94,7 @@ func _ready() -> void:
 			main.summon_window().skip()
 			await get_tree().process_frame
 			var ms: Mothership = main.mothership()
-			ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场，到位触发自动对接
+			ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场，到位触发自动对接
 			var spawner := get_node("Main/Spawner")
 			var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 			tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)

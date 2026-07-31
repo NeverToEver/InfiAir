@@ -39,6 +39,63 @@ var _beacon: Polygon2D
 
 
 ## 由 Player._ready() 调用：构建附件、按当前 buff 刷新、监听后续变更
+## A7：测试/诊断白盒断言经公开接口（外观节点 getter）
+func power_glow() -> Polygon2D:
+	return _power_glow
+
+
+func rapid_fins() -> Node2D:
+	return _rapid_fins
+
+
+func spread_pods() -> Array:
+	return _spread_pods
+
+
+func pierce_spike() -> Polygon2D:
+	return _pierce_spike
+
+
+func explosive_glow() -> Polygon2D:
+	return _explosive_glow
+
+
+func laser_pod() -> Node2D:
+	return _laser_pod
+
+
+func armor_ring() -> Line2D:
+	return _armor_ring
+
+
+func regen_ring() -> Line2D:
+	return _regen_ring
+
+
+func lifesteal_tips() -> Node2D:
+	return _lifesteal_tips
+
+
+func shield_hex() -> Line2D:
+	return _shield_hex
+
+
+func evasion_ghost() -> Sprite2D:
+	return _evasion_ghost
+
+
+func dash_fins() -> Node2D:
+	return _dash_fins
+
+
+func slow_ring() -> Line2D:
+	return _slow_ring
+
+
+func beacon() -> Polygon2D:
+	return _beacon
+
+
 func init(ship_sprite: Sprite2D, player: Player) -> void:
 	_player = player
 	_build_all(ship_sprite.texture)

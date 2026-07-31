@@ -94,6 +94,11 @@ func _ready() -> void:
 
 
 ## 母舰穿出完成（或提前收回）时调用：进入关闭段（幂等）
+## A7：测试/诊断白盒断言经公开接口
+func phase() -> int:
+	return _phase
+
+
 func close() -> void:
 	if _phase == Phase.CLOSING:
 		return

@@ -80,7 +80,7 @@ func _ready() -> void:
 	spread_e.bullet_type = &"spread"
 	spread_e.can_shoot = true
 	spread_e.fire_interval = 5.0  # 只放一轮
-	spread_e._fire_timer = 0.1
+	spread_e.set_fire_timer(0.1)
 	spread_e.position = Vector2(960.0, 300.0)
 	await get_tree().create_timer(0.5).timeout
 	var fan: Array[Bullet] = []
@@ -111,7 +111,7 @@ func _ready() -> void:
 	laser_e.bullet_type = &"laser"
 	laser_e.can_shoot = true
 	laser_e.fire_interval = 5.0
-	laser_e._fire_timer = 0.1
+	laser_e.set_fire_timer(0.1)
 	laser_e.position = Vector2(960.0, 300.0)
 	await get_tree().create_timer(0.4).timeout
 	var lasers: Array[Bullet] = []
@@ -182,7 +182,7 @@ func _ready() -> void:
 	var kills_before_life := GameState.kills
 	var life_e := _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	life_e.position = Vector2(960.0, 300.0)
-	life_e._life_timer = 14.8
+	life_e.set_life_timer(14.8)
 	await get_tree().create_timer(0.4).timeout
 	_check(life_e._exiting, "敌机 15s 寿命到期进入离场")
 	var exit_p0 := life_e.position
@@ -213,7 +213,7 @@ func _ready() -> void:
 	var score_before_boss := GameState.score
 	# 钉住时间轴难度档：后续约 4s 真实等待不得跨过 30s 量化边界造成偶发漂移
 	GameState.run_time = 0.0
-	GameState._recompute_difficulty()
+	GameState.recompute_difficulty()
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.escaped.connect(func() -> void: escaped_flag[0] = true)

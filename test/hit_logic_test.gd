@@ -144,7 +144,7 @@ func _ready() -> void:
 	boss_enter.position = player.position  # 重叠，但仍在降入阶段
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(not boss_enter._in_fight, "A2：Boss 仍处于入场降入阶段")
+	_check(not boss_enter.is_in_fight(), "A2：Boss 仍处于入场降入阶段")
 	_check(GameState.health == 100.0, "A2：入场降入期撞击不扣血")
 	boss_enter.queue_free()
 	await get_tree().physics_frame
@@ -154,8 +154,8 @@ func _ready() -> void:
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	var boss_fight := _make_boss(1)
-	boss_fight._in_fight = true  # 直接置战斗态（重叠事件由传送产生，避开降入时序）
-	boss_fight._fire_timer = 999.0  # 屏蔽开火，保证场内无杂弹
+	boss_fight.set_in_fight(true  )# 直接置战斗态（重叠事件由传送产生，避开降入时序）
+	boss_fight.set_fire_timer(999.0  )# 屏蔽开火，保证场内无杂弹
 	boss_fight.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -244,7 +244,7 @@ func _ready() -> void:
 	var laser_e := _make_enemy(spawner.ELITE_TYPES[1])
 	laser_e.bullet_type = &"laser"
 	laser_e.position = Vector2(960.0, 300.0)
-	laser_e._fire_at_player()
+	laser_e.fire_at_player()
 	var laser_b: Bullet = null
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
@@ -266,7 +266,7 @@ func _ready() -> void:
 	var single_e := _make_enemy(spawner.ENEMY_TYPES[0])
 	single_e.bullet_type = &"single"
 	single_e.position = Vector2(960.0, 300.0)
-	single_e._fire_at_player()
+	single_e.fire_at_player()
 	var single_b: Bullet = null
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"single":
@@ -287,7 +287,7 @@ func _ready() -> void:
 	var spread_e := _make_enemy(spawner.ENEMY_TYPES[0])
 	spread_e.bullet_type = &"spread"
 	spread_e.position = Vector2(960.0, 300.0)
-	spread_e._fire_at_player()
+	spread_e.fire_at_player()
 	var spread_dmg_ok := false
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"spread":
@@ -438,13 +438,13 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	# Boss 不吃爆炸 AoE：关碰撞手动触发（Boss r=120 必与子弹重叠，无法走真实碰撞隔离）
 	var boss_aoe := _make_boss(1)
-	boss_aoe._fire_timer = 999.0
+	boss_aoe.set_fire_timer(999.0)
 	boss_aoe.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在半径内
 	var ex_b2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
 	ex_b2.explosive = true
 	ex_b2.monitoring = false  # 只手动测 AoE，不走碰撞
 	ex_b2.position = Vector2(960.0, 400.0)
-	ex_b2._explode()
+	ex_b2.explode()
 	_check(boss_aoe.hp == boss_aoe.max_hp, "A12：Boss 不吃爆炸 AoE")
 	boss_aoe.queue_free()
 	ex_b2.queue_free()
@@ -511,14 +511,14 @@ func _ready() -> void:
 
 	# ================= A21：Boss 入场期可被玩家弹伤（已核实与原作一致） =================
 	var boss_early := _make_boss(1)
-	boss_early._fire_timer = 999.0
+	boss_early.set_fire_timer(999.0)
 	boss_early.position = Vector2(960.0, 100.0)  # 仍在降入
 	var pb := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
 	pb.position = boss_early.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check(
-		not boss_early._in_fight and boss_early.hp < boss_early.max_hp,
+		not boss_early.is_in_fight() and boss_early.hp < boss_early.max_hp,
 		"A21：入场降入期玩家弹可伤 Boss（与原作一致）"
 	)
 	boss_early.queue_free()

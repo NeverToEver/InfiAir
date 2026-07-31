@@ -25,15 +25,15 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var player_a: Player = tut_a.get_node("Player")
-	player_a._auto_fire_enabled = false
-	player_a._invincible = 0.0
-	player_a._last_hit_frame = -1
+	player_a.set_auto_fire(false)
+	player_a.set_invincible(0.0)
+	player_a.set_last_hit_frame(-1)
 	player_a.take_damage(9999.0)
 	await get_tree().process_frame
-	_check(player_a._dead, "死亡路径：玩家已死亡")
-	_check(tut_a._failed, "死亡路径：教程进入失败态")
-	_check(tut_a._title_label.text == tr("TUT_FAIL_TITLE"), "死亡路径：标题显示任务失败（tr 命中）")
-	_check(tut_a._objective_label.text == tr("TUT_FAIL_DESC"), "死亡路径：提示 Esc 退出（tr 命中）")
+	_check(player_a.is_dead(), "死亡路径：玩家已死亡")
+	_check(tut_a.failed(), "死亡路径：教程进入失败态")
+	_check(tut_a.title_label().text == tr("TUT_FAIL_TITLE"), "死亡路径：标题显示任务失败（tr 命中）")
+	_check(tut_a.objective_label().text == tr("TUT_FAIL_DESC"), "死亡路径：提示 Esc 退出（tr 命中）")
 	tut_a.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -47,7 +47,7 @@ func _ready() -> void:
 	player.set_auto_fire(false)
 
 	# 阶段 1：3 个静止靶机
-	_check(tut._stage == 0, "教程进入阶段 1")
+	_check(tut.stage() == 0, "教程进入阶段 1")
 	var targets: Array[Enemy] = []
 	for c in tut.get_children():
 		if c is Enemy:
@@ -56,7 +56,7 @@ func _ready() -> void:
 	for t in targets:
 		t.take_damage(9999)
 	await get_tree().create_timer(1.3).timeout
-	_check(tut._stage == 1, "阶段 1 → 2（击杀 3 靶过关）")
+	_check(tut.stage() == 1, "阶段 1 → 2（击杀 3 靶过关）")
 
 	# 阶段 2：加速 ×2 + 冲刺 ×2
 	_check(GameState.buff_count(&"phase_dash") == 1, "阶段 2 发放 phase_dash")
@@ -72,10 +72,10 @@ func _ready() -> void:
 		await get_tree().physics_frame
 		Input.action_release("dash")
 		await get_tree().create_timer(0.4).timeout
-	print("[dbg] boost=", tut._boost_count, " dash=", tut._dash_count)
-	_check(tut._boost_count == 2 and tut._dash_count == 2, "阶段 2 输入计数")
+	print("[dbg] boost=", tut.boost_count(), " dash=", tut.dash_count())
+	_check(tut.boost_count() == 2 and tut.dash_count() == 2, "阶段 2 输入计数")
 	await get_tree().create_timer(1.3).timeout
-	_check(tut._stage == 2, "阶段 2 → 3")
+	_check(tut.stage() == 2, "阶段 2 → 3")
 
 	# 阶段 3：5 敌 + 锁血不死
 	var enemies: Array[Enemy] = []
@@ -97,59 +97,59 @@ func _ready() -> void:
 		enemies[i].queue_free()
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(tut._stage_kills == 2, "阶段 3 已计 2 杀（离场不虚增）")
+	_check(tut.stage_kills() == 2, "阶段 3 已计 2 杀（离场不虚增）")
 	enemies.clear()
 	for c in tut.get_children():
 		if c is Enemy:
 			enemies.append(c)
 	_check(enemies.size() == 3, "阶段 3 敌机离场后自动补足剩余 3 只")
-	_check(tut._stage == 2, "补刷后仍在阶段 3")
+	_check(tut.stage() == 2, "补刷后仍在阶段 3")
 	for e in enemies:
 		e.take_damage(9999)
 	await get_tree().create_timer(1.3).timeout
-	_check(tut._stage == 3, "阶段 3 → 4")
+	_check(tut.stage() == 3, "阶段 3 → 4")
 
 	# 阶段 4：长按 H 蓄力召唤母舰（对齐正局 dock 键），穿梭入场后自动对接（弹匣加速消耗到自动释放）
-	_check(tut._mothership == null, "阶段 4 进场时母舰未召唤（需长按 H）")
+	_check(tut.mothership() == null, "阶段 4 进场时母舰未召唤（需长按 H）")
 	Input.action_press("dock")
 	await get_tree().create_timer(tut.DOCK_CHARGE_TIME + 0.3).timeout
 	Input.action_release("dock")
-	_check(tut._mothership != null, "阶段 4 蓄力完成后母舰已召唤")
-	var ms: Mothership = tut._mothership
-	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场，到位触发自动对接
-	ms._mag_cells = 1  # 加速演示：1 格弹匣 2s 后自动释放
+	_check(tut.mothership() != null, "阶段 4 蓄力完成后母舰已召唤")
+	var ms: Mothership = tut.mothership()
+	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场，到位触发自动对接
+	ms.set_mag_cells(1  )# 加速演示：1 格弹匣 2s 后自动释放
 	await get_tree().create_timer(6.0).timeout
-	_check(tut._stage == 4, "对接完成 → 阶段 5")
+	_check(tut.stage() == 4, "对接完成 → 阶段 5")
 
 	# 阶段 5：长按 B 打开基地
 	Input.action_press("homecoming")
 	await get_tree().create_timer(1.8).timeout
 	Input.action_release("homecoming")
 	await get_tree().create_timer(0.3).timeout
-	_check(tut._base_ui != null and get_tree().paused, "返航打开基地界面")
+	_check(tut.base_ui() != null and get_tree().paused, "返航打开基地界面")
 	await get_tree().create_timer(1.5).timeout
-	_check(tut._stage == 5, "基地关闭 → 阶段 6")
+	_check(tut.stage() == 5, "基地关闭 → 阶段 6")
 	_check(not get_tree().paused, "基地关闭后恢复")
 
 	# 阶段 6：Boss 狂暴即过关
-	_check(tut._boss != null, "阶段 6 Boss 已生成")
-	var boss: Boss = tut._boss
+	_check(tut.boss() != null, "阶段 6 Boss 已生成")
+	var boss: Boss = tut.boss()
 	# 软锁路径 b：Boss 未狂暴逃跑离场 → 重置阶段 6 重刷 Boss
 	boss.begin_escape()
 	boss.position.y = -300.0
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check(not is_instance_valid(boss), "阶段 6：未狂暴 Boss 逃跑离场")
-	_check(tut._stage == 5 and not tut._finished, "阶段 6：逃跑后仍在阶段 6 未过关")
+	_check(tut.stage() == 5 and not tut.finished(), "阶段 6：逃跑后仍在阶段 6 未过关")
 	_check(
-		tut._boss != null and is_instance_valid(tut._boss) and tut._boss != boss,
+		tut.boss() != null and is_instance_valid(tut.boss()) and tut.boss() != boss,
 		"阶段 6：逃跑后重置重刷 Boss"
 	)
-	boss = tut._boss
+	boss = tut.boss()
 	boss.take_damage(int(boss.max_hp * 0.75))
 	await get_tree().create_timer(0.3).timeout
-	_check(tut._finished, "Boss 狂暴触发即过关")
-	_check(tut._complete_panel != null, "教程完成面板显示")
+	_check(tut.finished(), "Boss 狂暴触发即过关")
+	_check(tut.complete_panel() != null, "教程完成面板显示")
 	_check(GameState.tutorial_done, "tutorial_done 已写 profile")
 	_check(Engine.time_scale == 1.0, "time_scale 正常")
 

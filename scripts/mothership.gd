@@ -283,6 +283,38 @@ func mag_cells() -> int:
 	return _mag_cells
 
 
+func set_state_timer(seconds: float) -> void:
+	_state_timer = seconds
+
+
+func mag_cell_timer() -> float:
+	return _mag_cell_timer
+
+
+func mag_warned() -> bool:
+	return _mag_warned
+
+
+func warn_eject_timer() -> float:
+	return _warn_eject_timer
+
+
+func beam() -> Polygon2D:
+	return _beam
+
+
+func set_mag_cell_timer(seconds: float) -> void:
+	_mag_cell_timer = seconds
+
+
+func set_mag_cells(count: int) -> void:
+	_mag_cells = count
+
+
+func set_warn_eject_timer(seconds: float) -> void:
+	_warn_eject_timer = seconds
+
+
 func _enter_state(p_state: State) -> void:
 	_state = p_state
 	_state_timer = 0.0

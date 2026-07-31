@@ -52,7 +52,7 @@ func _ready() -> void:
 	welcome.dismiss()
 	_check(start_panel.visible and nav.decide_back_action() == A.CONFIRM_EXIT, "开始面板（顶层）：决策=退出确认")
 	await _press_esc()
-	_check(exit_confirm.visible and not exit_confirm._battle, "顶层 Esc：弹出退出确认（normal 模式）")
+	_check(exit_confirm.visible and not exit_confirm.battle_mode(), "顶层 Esc：弹出退出确认（normal 模式）")
 	_check(nav.decide_back_action() == A.CANCEL_EXIT, "确认窗可见：决策=取消退出")
 	await _press_esc()
 	_check(not exit_confirm.visible and start_panel.visible, "确认窗 Esc：取消退出回到开始面板")
@@ -84,8 +84,8 @@ func _ready() -> void:
 
 	# ---------- 4. 战斗退出链：暂停 → 退出游戏 → battle 确认窗 ----------
 	pause_ui.quit()
-	_check(exit_confirm.visible and exit_confirm._battle, "暂停「退出游戏」：battle 模式确认窗")
-	_check(exit_confirm._msg_label.text == tr("EXIT_BATTLE_MSG"), "battle 模式显示进度损失警告")
+	_check(exit_confirm.visible and exit_confirm.battle_mode(), "暂停「退出游戏」：battle 模式确认窗")
+	_check(exit_confirm.msg_label().text == tr("EXIT_BATTLE_MSG"), "battle 模式显示进度损失警告")
 	await _press_esc()
 	_check(not exit_confirm.visible and pause_ui.visible, "battle 确认窗 Esc：取消回到暂停")
 	pause_ui.close()
@@ -117,10 +117,10 @@ func _ready() -> void:
 
 	# ---------- 6. 退出前清理副作用 ----------
 	GameState.save_run(50.0, 10.0)
-	exit_confirm._execute_exit_cleanup(true)
+	exit_confirm.execute_exit_cleanup(true)
 	_check(not GameState.has_save(), "战斗中退出清理：对局存档删除（放弃进度）")
 	GameState.save_run(50.0, 10.0)
-	exit_confirm._execute_exit_cleanup(false)
+	exit_confirm.execute_exit_cleanup(false)
 	_check(GameState.has_save(), "主界面退出清理：对局存档保留（可继续对局）")
 
 	# ---------- 7. Android 返回手势走同一状态机 ----------

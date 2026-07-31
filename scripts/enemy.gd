@@ -157,6 +157,22 @@ func is_boss() -> bool:
 	return false
 
 
+func hovering() -> bool:
+	return _hovering
+
+
+func set_fire_timer(seconds: float) -> void:
+	_fire_timer = seconds
+
+
+func fire_at_player() -> void:
+	_fire_at_player()
+
+
+func set_life_timer(seconds: float) -> void:
+	_life_timer = seconds
+
+
 func set_pool(pool: Node) -> void:
 	_pool = pool
 

@@ -56,6 +56,11 @@ func _ready() -> void:
 
 
 ## 立即结束（幂等）：测试或外部流程直推召唤序列
+## A7：测试/诊断白盒断言经公开接口
+func subtitle() -> Label:
+	return _subtitle
+
+
 func skip() -> void:
 	if _done:
 		return

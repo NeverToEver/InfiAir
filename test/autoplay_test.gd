@@ -724,19 +724,19 @@ func _update_dock(now: int) -> void:
 				_next_dock_consider = now + 20000
 		else:
 			_next_dock_consider = now + 10000
-	elif ms != null and ms._state < Mothership.State.STAY and randf() < 0.002:
+	elif ms != null and ms.state() < Mothership.State.STAY and randf() < 0.002:
 		# 边界探针：非驻留态（降入/吸附/补给）乱按 H，应为无操作
 		Input.action_press("dock")
 		Input.action_release("dock")
 	# 驻留驾驶一段时间后提前离舰；部分局驻留到超时强制弹射
 	if _early_holding:
-		if ms == null or ms._state >= Mothership.State.RELEASE or now >= _early_hold_until:
+		if ms == null or ms.state() >= Mothership.State.RELEASE or now >= _early_hold_until:
 			Input.action_release("dock")
 			_early_holding = false
-			if ms != null and ms._state >= Mothership.State.RELEASE:
+			if ms != null and ms.state() >= Mothership.State.RELEASE:
 				_early_leaves += 1
-				_log("提前离舰（第 %d 次，弹匣 %d 格）" % [_early_leaves, ms._mag_cells])
-	elif ms != null and ms._state == Mothership.State.STAY:
+				_log("提前离舰（第 %d 次，弹匣 %d 格）" % [_early_leaves, ms.mag_cells()])
+	elif ms != null and ms.state() == Mothership.State.STAY:
 		if _stay_since == 0:
 			_stay_since = now
 			_stay_until_eject = randf() < 0.35
@@ -781,7 +781,7 @@ func _update_homecoming(now: int) -> void:
 ## 母舰状态变化日志 + 卡死 episode 跟踪
 func _track_mothership(now: int) -> void:
 	var ms: Mothership = _main.mothership() if (_main != null and is_instance_valid(_main)) else null
-	var state := -1 if ms == null else int(ms._state)
+	var state := -1 if ms == null else int(ms.state())
 	if state != _ms_last_state:
 		if _ms_last_state >= 0 or state >= 0:
 			var from_s := "NONE" if _ms_last_state < 0 else MS_STATE_NAMES[_ms_last_state]
@@ -1093,7 +1093,7 @@ func _checks(now: int) -> void:
 		if node == null or not _main.is_ancestor_of(node):
 			continue
 		var en := node as Enemy
-		if en != null and not en._active:
+		if en != null and not en.active():
 			continue
 		scene_set[node] = true
 	var registry_set: Dictionary = {}  # 有效实例 -> true
@@ -1103,7 +1103,7 @@ func _checks(now: int) -> void:
 			stale_found = true
 			continue  # 失效实例归 registry_stale 管，不参与差集
 		var re := e as Enemy
-		if re != null and not re._active:
+		if re != null and not re.active():
 			continue
 		registry_set[e] = true
 	if stale_found:

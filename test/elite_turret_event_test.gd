@@ -205,7 +205,7 @@ func _ready() -> void:
 	_check(GameState.score == score1, "场景3：失败无奖励入账")
 	var turrets_gone := true
 	for turret in event.turrets():
-		if is_instance_valid(turret) and not turret._ceased:
+		if is_instance_valid(turret) and not turret.ceased():
 			turrets_gone = false
 	_check(turrets_gone, "场景3：存活炮台停火收回盖板")
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 12.0), "场景3：航母完整撤离后回 IDLE")

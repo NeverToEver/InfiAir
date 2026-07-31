@@ -169,6 +169,14 @@ func capturing_action() -> StringName:
 	return _capturing_action
 
 
+func zoom_buttons() -> Dictionary:
+	return _zoom_buttons
+
+
+func window_buttons() -> Dictionary:
+	return _window_buttons
+
+
 func _on_reset_keys() -> void:
 	GameState.reset_key_bindings()
 	_hint_label.text = tr("SET_RESET_DONE")

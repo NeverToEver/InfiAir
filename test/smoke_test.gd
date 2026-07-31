@@ -123,10 +123,10 @@ func _ready() -> void:
 	hov.position = Vector2(960.0, 250.0)
 	get_node("Main").add_child(hov)
 	var t_hover := 0.0
-	while not hov._hovering and t_hover < 4.0:
+	while not hov.hovering() and t_hover < 4.0:
 		await get_tree().create_timer(0.2).timeout
 		t_hover += 0.2
-	_check(hov._hovering, "hover 到达锚点后停驻")
+	_check(hov.hovering(), "hover 到达锚点后停驻")
 	var hover_y: float = hov.position.y
 	await get_tree().create_timer(0.5).timeout
 	_check(absf(hov.position.y - hover_y) < 15.0, "hover 停驻期间位置稳定")
@@ -335,7 +335,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(main.mothership() != null, "小窗结束后召唤母舰")
 	var ms: Mothership = main.mothership()
-	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场（0.8s）
+	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场（0.8s）
 	# 到位即自动对接（无区域判定，点吸附补间）
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
@@ -344,7 +344,7 @@ func _ready() -> void:
 	tgt.position = Vector2(960.0, 500.0)
 	main.add_child(tgt)
 	await get_tree().create_timer(0.5).timeout
-	_check(ms._state == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
+	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
 	_check(tgt._summon_slow_timer > 0.0, "减速带命中敌机（短时减速）")
 	_check(player.is_input_locked(), "对接开始即锁输入")
 	_check(player.invincible_remaining() > 100.0, "对接开始即无敌（无敌窗口前移）")
@@ -358,8 +358,8 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	_check(GameState.health == GameState.max_health(), "补给回满生命")
 	_check(player.fuel_amount() == player.fuel_max, "补给回满燃料")
-	_check(ms._state == Mothership.State.STAY, "进入驻留状态")
-	_check(ms._mag_cells == 10, "弹匣初始 10 格")
+	_check(ms.state() == Mothership.State.STAY, "进入驻留状态")
+	_check(ms.mag_cells() == 10, "弹匣初始 10 格")
 	_check(not player.visible, "回收完成玩家进入保护舱（隐藏）")
 	# 驻留火力：加特林弹丸（score_scale=1/3）+ 导弹（splash 标记）
 	await get_tree().create_timer(0.6).timeout
@@ -395,14 +395,14 @@ func _ready() -> void:
 		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
 	# 弹匣随时间消耗（驻留已累计 >2s）
-	_check(ms._mag_cells < 10, "驻留弹匣消耗")
+	_check(ms.mag_cells() < 10, "驻留弹匣消耗")
 	# ≤4 格警告 + 警告 5s 后强制离舰计时
-	ms._mag_cells = 5
-	ms._mag_cell_timer = 0.0
+	ms.set_mag_cells(5)
+	ms.set_mag_cell_timer(0.0)
 	await get_tree().create_timer(2.3).timeout
-	_check(ms._mag_cells == 4, "弹匣消耗到 4 格")
-	_check(ms._mag_warned, "弹匣 ≤4 弹出警告")
-	_check(ms._warn_eject_timer > 0.0, "警告后启动强制离舰计时")
+	_check(ms.mag_cells() == 4, "弹匣消耗到 4 格")
+	_check(ms.mag_warned(), "弹匣 ≤4 弹出警告")
+	_check(ms.warn_eject_timer() > 0.0, "警告后启动强制离舰计时")
 	# 提前离舰：长按 H 2s，冷却双机制折扣（4→3 格 r=0.3：60×0.88×0.85≈44.9）
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
@@ -414,7 +414,7 @@ func _ready() -> void:
 	)
 	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
-	_check(ms._state >= Mothership.State.RELEASE, "提前离舰触发")
+	_check(ms.state() >= Mothership.State.RELEASE, "提前离舰触发")
 	_check(not main.hud()._early_leave_box.visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(
@@ -456,16 +456,16 @@ func _ready() -> void:
 	main.summon_window().skip()
 	await get_tree().process_frame
 	var ms2: Mothership = main.mothership()
-	ms2._state_timer = ms2.WARP_IN_TIME  # 快进穿梭入场
+	ms2.set_state_timer(ms2.WARP_IN_TIME  )# 快进穿梭入场
 	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
-	_check(ms2._state == Mothership.State.STAY, "第二艘母舰进入驻留")
-	ms2._mag_cells = 5
-	ms2._mag_cell_timer = 0.0
+	_check(ms2.state() == Mothership.State.STAY, "第二艘母舰进入驻留")
+	ms2.set_mag_cells(5)
+	ms2.set_mag_cell_timer(0.0)
 	await get_tree().create_timer(2.3).timeout
-	_check(ms2._mag_warned, "第二艘母舰弹匣警告")
-	ms2._warn_eject_timer = 0.5  # 缩短横幅等待，直接验证强制离舰
+	_check(ms2.mag_warned(), "第二艘母舰弹匣警告")
+	ms2.set_warn_eject_timer(0.5  )# 缩短横幅等待，直接验证强制离舰
 	await get_tree().create_timer(1.0).timeout
-	_check(ms2._state >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
+	_check(ms2.state() >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
 	if main.mothership() != null:
 		main.mothership().queue_free()
 
@@ -621,7 +621,7 @@ func _ready() -> void:
 	get_node("Main/BackNavigator").go_back()  # Esc 全局路由已移交 BackNavigator
 	_check(start_panel5.visible and not settings_ui.visible, "设置中 Esc：返回开始面板")
 	_check(not pause_ui.visible, "设置中 Esc：未误弹暂停菜单")
-	start_panel5._dismiss()
+	start_panel5.dismiss()
 
 	# 6. 迭代 3.3 玩家侧：瞄准辅助 / 冲刺耗燃料 / Ctrl 微调
 	# 第 4 节玩家已受击至死：复活以便继续测试（不重开 hitbox，避免杂散碰撞）
@@ -696,25 +696,25 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 6.1b 辅助瞄准强度三档：框内边距/追踪速率/入框吸附系数随档位切换，无关闭档（非法档位拒绝）
-	var default_pad: float = frames._frame_pad
-	var default_turn: float = player._homing_turn_rate
-	var default_stick: float = player._aim_stick_factor
+	var default_pad: float = frames.frame_pad()
+	var default_turn: float = player.aim_assist_params()["homing_turn_rate"]
+	var default_stick: float = player.aim_assist_params()["stick_factor"]
 	GameState.set_aim_assist_level(&"low")
 	_check(
-		frames._frame_pad < default_pad and player._homing_turn_rate < default_turn and player._aim_stick_factor > default_stick,
+		frames.frame_pad() < default_pad and player.aim_assist_params()["homing_turn_rate"] < default_turn and player.aim_assist_params()["stick_factor"] > default_stick,
 		"弱档：框内边距与追踪速率降低、吸附减弱"
 	)
 	GameState.set_aim_assist_level(&"high")
 	_check(
-		frames._frame_pad > default_pad and player._homing_turn_rate > default_turn and player._aim_stick_factor < default_stick,
+		frames.frame_pad() > default_pad and player.aim_assist_params()["homing_turn_rate"] > default_turn and player.aim_assist_params()["stick_factor"] < default_stick,
 		"强档：框内边距与追踪速率提高、吸附增强"
 	)
 	GameState.set_aim_assist_level(&"off")
 	_check(GameState.aim_assist_level == &"high", "辅助瞄准无关闭档（非法档位被拒绝）")
 	GameState.set_aim_assist_level(&"medium")
 	_check(
-		is_equal_approx(frames._frame_pad, default_pad) and is_equal_approx(player._homing_turn_rate, default_turn)
-			and is_equal_approx(player._aim_stick_factor, default_stick),
+		is_equal_approx(frames.frame_pad(), default_pad) and is_equal_approx(player.aim_assist_params()["homing_turn_rate"], default_turn)
+			and is_equal_approx(player.aim_assist_params()["stick_factor"], default_stick),
 		"恢复中档后参数还原"
 	)
 

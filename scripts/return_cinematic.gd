@@ -38,6 +38,27 @@ var _bgm_tween: Tween = null  # 镜头 7 BGM 淡出（skip 时 kill 并立即置
 @onready var _skip_hint: Label = $SkipHint
 
 
+## A7：测试/诊断白盒断言经公开接口（过场镜头）
+func set_shot_durations(durations: Array) -> void:
+	_shot_durations = durations
+
+
+func shot_index() -> int:
+	return _shot_index
+
+
+func current_shot() -> Node2D:
+	return _current_shot
+
+
+func shot_root() -> Node2D:
+	return _shot_root
+
+
+func subtitle() -> Label:
+	return _subtitle
+
+
 func _ready() -> void:
 	SKIP_GRACE = GameState.cfg("effects.return_skip_grace", SKIP_GRACE)
 	_start_msec = Time.get_ticks_msec()

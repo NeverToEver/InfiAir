@@ -73,7 +73,7 @@ func _ready() -> void:
 	var ms: Mothership = main.mothership()
 	for i in 60:
 		await get_tree().create_timer(0.05).timeout
-		if ms == null or not is_instance_valid(ms) or ms._state == Mothership.State.STAY:
+		if ms == null or not is_instance_valid(ms) or ms.state() == Mothership.State.STAY:
 			break
 	await get_tree().create_timer(0.3).timeout
 	await _shot("/tmp/summon_stay.png")

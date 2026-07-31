@@ -114,7 +114,7 @@ func _ready() -> void:
 	main.play_return()
 	var ret2: ReturnCinematic = main.return_cinematic()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
-	ret2._shot_durations = short_durations
+	ret2.set_shot_durations(short_durations)
 	var finished2 := [false]
 	ret2.finished.connect(func() -> void: finished2[0] = true)
 	var seen_shots: Array[String] = []
@@ -122,22 +122,22 @@ func _ready() -> void:
 		var reached := false
 		for i in 40:
 			await get_tree().create_timer(0.05).timeout
-			if not is_instance_valid(ret2) or ret2._shot_index >= expected:
+			if not is_instance_valid(ret2) or ret2.shot_index() >= expected:
 				reached = true
 				break
 		_check(reached, "时序：推进到镜头 %d" % (expected + 1))
-		if reached and is_instance_valid(ret2) and ret2._current_shot != null:
+		if reached and is_instance_valid(ret2) and ret2.current_shot() != null:
 			await get_tree().process_frame  # 等 _advance() 旧镜头 queue_free 落定再数子节点（防抖）
-			if not is_instance_valid(ret2) or ret2._current_shot == null:
+			if not is_instance_valid(ret2) or ret2.current_shot() == null:
 				continue
-			var shot_name: String = ret2._current_shot.name
+			var shot_name: String = ret2.current_shot().name
 			if not seen_shots.has(shot_name):
 				seen_shots.append(shot_name)
 			_check(
-				ret2._shot_root.get_child_count() == 1,
+				ret2.shot_root().get_child_count() == 1,
 				"时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1)
 			)
-			_check(ret2._subtitle.text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
+			_check(ret2.subtitle().text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
 	# 镜头 7 末尾渐暗后 finished（渐暗含在时长内），等待窗口放宽
 	for i in 80:
 		await get_tree().create_timer(0.05).timeout

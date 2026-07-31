@@ -24,13 +24,13 @@ func _ready() -> void:
 	var cine: IntroCinematic = load("res://scenes/intro_cinematic.tscn").instantiate()
 	add_child(cine)
 	# add_child 同帧替换时长表（首镜头延后到帧末启动，见 intro_cinematic._ready）
-	cine._shot_durations = []
+	cine.set_shot_durations([])
 	for i in 6:
-		cine._shot_durations.append(SHOT_LEN)
+		cine.set_shot_durations().append(SHOT_LEN)
 	var t := 0.0
 	for item in SCHEDULE:
 		await get_tree().create_timer(item[0] - t).timeout
 		t = item[0]
 		get_viewport().get_texture().get_image().save_png(item[1])
-		print("capture saved: %s (shot_index=%d)" % [item[1], cine._shot_index])
+		print("capture saved: %s (shot_index=%d)" % [item[1], cine.shot_index()])
 	get_tree().quit(0)

@@ -50,7 +50,7 @@ func _ready() -> void:
 	# 确定性起点：清存档，视角档位归位 medium（profile 级，reset_run 不清）
 	GameState.delete_save()
 	GameState.view_zoom = &"medium"
-	GameState._view_zoom_factor = 1.35
+	GameState.set_view_zoom_factor(1.35)
 
 	# ---------- 1. 档位映射与切换 ----------
 	GameState.set_view_zoom(&"small")
@@ -84,13 +84,13 @@ func _ready() -> void:
 	GameState.set_view_zoom(&"large")
 	_check(str(_read_profile().get("view_zoom", "")) == "large", "视角档位写入 profile")
 	GameState.view_zoom = &"small"  # 篡改内存（不经 setter，避免写盘）
-	GameState._view_zoom_factor = 1.0
+	GameState.set_view_zoom_factor(1.0)
 	GameState.load_profile()
 	_check(GameState.view_zoom == &"large" and GameState.view_zoom_factor() == 1.7, "视角档位从 profile 恢复")
 	# 旧档案无 view_zoom 字段：保留当前值
 	_write_profile({"version": 1, "high_score": 0})
 	GameState.view_zoom = &"small"
-	GameState._view_zoom_factor = 1.0
+	GameState.set_view_zoom_factor(1.0)
 	GameState.load_profile()
 	_check(GameState.view_zoom == &"small", "旧档（无 view_zoom 字段）读取保留当前档位")
 	# 非法档位值：忽略并保持当前值
@@ -103,12 +103,12 @@ func _ready() -> void:
 	var settings := SETTINGS_SCRIPT.new() as CanvasLayer
 	add_child(settings)
 	settings.show_settings()
-	_check(settings._zoom_buttons.size() == 3, "设置页视角三选按钮")
+	_check(settings.zoom_buttons().size() == 3, "设置页视角三选按钮")
 	_check(
-		(settings._zoom_buttons[&"medium"] as Button).button_pressed,
+		(settings.zoom_buttons()[&"medium"] as Button).button_pressed,
 		"视角按钮选中态 = 当前档"
 	)
-	(settings._zoom_buttons[&"large"] as Button).pressed.emit()
+	(settings.zoom_buttons()[&"large"] as Button).pressed.emit()
 	_check(GameState.view_zoom == &"large", "视角按钮点击切换档位")
 	settings.queue_free()
 	GameState.set_view_zoom(&"medium")

@@ -54,12 +54,12 @@ func _ready() -> void:
 	main.summon_mothership()  # 幂等：播放中重复触发不叠加
 	await get_tree().process_frame
 	_check(main.summon_window() == window, "小窗：重复触发不叠加第二个窗口")
-	_check(window._subtitle.text == tr("MS_SEQ_CHARGE"), "小窗：镜头 1 字幕（充能管线断开）")
+	_check(window.subtitle().text == tr("MS_SEQ_CHARGE"), "小窗：镜头 1 字幕（充能管线断开）")
 	# 字幕镜头轮替（真实时轴：0.25 开场 + 0.8/0.6/0.7 三镜头）
 	await get_tree().create_timer(1.2).timeout
-	_check(window._subtitle.text == tr("MS_SEQ_ARMS"), "小窗：镜头 2 字幕（维护臂解除链接）")
+	_check(window.subtitle().text == tr("MS_SEQ_ARMS"), "小窗：镜头 2 字幕（维护臂解除链接）")
 	await get_tree().create_timer(0.8).timeout
-	_check(window._subtitle.text == tr("MS_SEQ_LAUNCH"), "小窗：镜头 3 字幕（弹射·穿梭器启动）")
+	_check(window.subtitle().text == tr("MS_SEQ_LAUNCH"), "小窗：镜头 3 字幕（弹射·穿梭器启动）")
 	# 播完 finished：小窗自毁 + 穿梭门/母舰创建
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
@@ -76,17 +76,17 @@ func _ready() -> void:
 	_check(gate != null, "穿梭门：小窗结束后创建")
 	var ms: Mothership = main.mothership()
 	_check(ms != null, "穿梭门：母舰已创建")
-	_check(ms._state == Mothership.State.DESCEND, "穿梭入场：DESCEND 态")
+	_check(ms.state() == Mothership.State.DESCEND, "穿梭入场：DESCEND 态")
 	_check(ms.scale.x < 1.0, "穿梭入场：穿出期缩放小于 1（%.2f）" % ms.scale.x)
-	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场
+	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场
 	await get_tree().create_timer(0.3).timeout
-	_check(ms._state == Mothership.State.DOCKING, "穿梭入场：到位后自动对接")
+	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场：到位后自动对接")
 	_check(ms.scale.is_equal_approx(Vector2.ONE), "穿梭入场：到位缩放收敛为 1")
 	_check(
 		ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0,
 		"穿梭入场：停驻点收敛"
 	)
-	_check(gate == null or not is_instance_valid(gate) or gate._phase == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
+	_check(gate == null or not is_instance_valid(gate) or gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
 	_check(tgt._summon_slow_timer > 0.0, "减速带：敌机被施加短时减速")
 
 	# ---------- 4. DOCKING 火力掩护 + 回收进保护舱 ----------
@@ -96,7 +96,7 @@ func _ready() -> void:
 		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
 			dock_fire = true
 	_check(dock_fire, "火力掩护：DOCKING 态即开火（不耗弹匣）")
-	_check(ms._mag_cells == ms.MAG_CELLS, "火力掩护：DOCKING 不耗驻留弹匣")
+	_check(ms.mag_cells() == ms.MAG_CELLS, "火力掩护：DOCKING 不耗驻留弹匣")
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
 		if not main.player().visible:
@@ -105,14 +105,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(not main.player()._hitbox.monitoring, "保护舱：受击判定关闭")
-	_check(ms._beam.visible == false, "保护舱：牵引光束回收后隐藏")
+	_check(ms.beam().visible == false, "保护舱：牵引光束回收后隐藏")
 
 	# ---------- 5. STAY 隐藏保持 → RELEASE 出舱 ----------
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if ms._state == Mothership.State.STAY:
+		if ms.state() == Mothership.State.STAY:
 			break
-	_check(ms._state == Mothership.State.STAY, "驻留：进入 STAY")
+	_check(ms.state() == Mothership.State.STAY, "驻留：进入 STAY")
 	_check(not main.player().visible, "驻留：玩家保持隐藏（保护舱）")
 	ms._start_release()
 	await get_tree().process_frame

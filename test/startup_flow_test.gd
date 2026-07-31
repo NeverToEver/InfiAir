@@ -143,7 +143,7 @@ func _ready() -> void:
 	_check(not continued[0], "F1：Enter 未触发继续对局")
 	_check(GameState.has_save(), "F1：Enter 未触发新游戏删档")
 	_check(
-		start_panel2.get_viewport().gui_get_focus_owner() == start_panel2._continue_button,
+		start_panel2.get_viewport().gui_get_focus_owner() == start_panel2.continue_button(),
 		"F1：dismiss 后面板焦点在继续对局"
 	)
 	# dismiss 幂等：已隐藏时再调不应报错或改变面板状态
@@ -179,7 +179,7 @@ func _ready() -> void:
 	var main2 := get_node("Main")
 	var player2: Player = get_node("Main/Player")
 	main2._on_continue_run()
-	_check(player2._fuel == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
+	_check(player2.fuel_amount() == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
 	_check(get_node("Main/Spawner")._elapsed == 0.0, "F2：非法 elapsed 回默认 0")
 
 	_cleanup()

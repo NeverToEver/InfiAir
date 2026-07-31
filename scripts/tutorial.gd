@@ -43,6 +43,55 @@ var _hud_layer: CanvasLayer
 @onready var _player: Player = $Player
 
 
+## A7：测试/诊断白盒断言经公开接口
+func stage() -> int:
+	return _stage
+
+
+func boss() -> Boss:
+	return _boss
+
+
+func mothership() -> Mothership:
+	return _mothership
+
+
+func stage_kills() -> int:
+	return _stage_kills
+
+
+func boost_count() -> int:
+	return _boost_count
+
+
+func dash_count() -> int:
+	return _dash_count
+
+
+func base_ui() -> CanvasLayer:
+	return _base_ui
+
+
+func finished() -> bool:
+	return _finished
+
+
+func failed() -> bool:
+	return _failed
+
+
+func title_label() -> Label:
+	return _title_label
+
+
+func objective_label() -> Label:
+	return _objective_label
+
+
+func complete_panel() -> PanelContainer:
+	return _complete_panel
+
+
 func _ready() -> void:
 	# 存档隔离：教程不读写 savegame
 	GameState.delete_save()

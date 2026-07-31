@@ -105,6 +105,19 @@ func _on_ok_pressed() -> void:
 
 ## 退出前统一清理（测试可直接调用断言副作用）：
 ## 档案落盘；战斗中退出 = 放弃对局（删档，与死亡语义一致）；开始面板退出保留存档
+## A7：测试/诊断白盒断言经公开接口
+func battle_mode() -> bool:
+	return _battle
+
+
+func msg_label() -> Label:
+	return _msg_label
+
+
+func execute_exit_cleanup(battle: bool) -> void:
+	_execute_exit_cleanup(battle)
+
+
 func _execute_exit_cleanup(battle: bool) -> void:
 	GameState.save_profile()
 	if battle:

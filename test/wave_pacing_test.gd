@@ -77,11 +77,11 @@ func _ready() -> void:
 	if hover_e == null:
 		hover_e = wave[0]
 	var t_wait := 0.0
-	while is_instance_valid(hover_e) and not hover_e._hovering and t_wait < 6.0:
+	while is_instance_valid(hover_e) and not hover_e.hovering() and t_wait < 6.0:
 		await get_tree().create_timer(0.2).timeout
 		t_wait += 0.2
-	_check(is_instance_valid(hover_e) and hover_e._hovering, "敌机到达锚点转入悬停")
-	if is_instance_valid(hover_e) and hover_e._hovering:
+	_check(is_instance_valid(hover_e) and hover_e.hovering(), "敌机到达锚点转入悬停")
+	if is_instance_valid(hover_e) and hover_e.hovering():
 		var max_dev := 0.0
 		for i in 5:
 			await get_tree().create_timer(0.2).timeout

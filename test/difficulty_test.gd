@@ -198,7 +198,7 @@ func _ready() -> void:
 	# ---------- 4. 刷怪间隔倍率 ×1.25/×1/×0.8 ----------
 	# 钉住难度进程曲线：间隔断言基于难度乘数 ×1.0，排除时间轴档位漂移
 	GameState.run_time = 0.0
-	GameState._recompute_difficulty()
+	GameState.recompute_difficulty()
 	spawner.set_elapsed(0.0)
 	GameState.difficulty = &"easy"
 	var iv_easy: float = spawner.current_interval()
@@ -216,13 +216,13 @@ func _ready() -> void:
 	GameState.reset_run()
 	_check(GameState.difficulty_multiplier == 1.0, "进程曲线：开局 ×1.0")
 	GameState.boss_kills = 2
-	GameState._recompute_difficulty()
+	GameState.recompute_difficulty()
 	_check(absf(GameState.difficulty_multiplier - 2.0) < 0.001, "进程曲线：2 杀 ×2.0（线性 0.5/杀）")
 	GameState.run_time = 65.0
-	GameState._recompute_difficulty()
+	GameState.recompute_difficulty()
 	_check(absf(GameState.difficulty_multiplier - 2.1) < 0.001, "进程曲线：65s 量化两档 +0.1（30s/档）")
 	GameState.boss_kills = 20
-	GameState._recompute_difficulty()
+	GameState.recompute_difficulty()
 	_check(GameState.difficulty_multiplier > 11.0, "进程曲线：20 杀无硬顶（>×11，原 ×8 封顶废弃）")
 	GameState.reset_run()
 	_check(GameState.difficulty_multiplier == 1.0, "进程曲线：reset_run 归位 ×1.0")
@@ -250,19 +250,19 @@ func _ready() -> void:
 	# _next_milestone 机制：reset 后从首档开始，触发后沿曲线推进
 	GameState.difficulty = &"medium"
 	GameState.reset_run()
-	_check(GameState._next_milestone == 3000, "reset_run 后下一里程碑为 3000")
+	_check(GameState.next_milestone() == 3000, "reset_run 后下一里程碑为 3000")
 	var fired := [0]
 	GameState.milestone_reached.connect(func(_s: int) -> void: fired[0] += 1)
 	GameState.add_score(1500)  # ×2 = 3000，触发第 1 档
-	_check(fired[0] == 1 and GameState._next_milestone == 8000, "到达 3000 触发里程碑并推进 8000")
+	_check(fired[0] == 1 and GameState.next_milestone() == 8000, "到达 3000 触发里程碑并推进 8000")
 	GameState.add_score(2500)  # ×2 = 5000，累计 8000
-	_check(fired[0] == 2 and GameState._next_milestone == 15000, "到达 8000 触发里程碑并推进 15000")
+	_check(fired[0] == 2 and GameState.next_milestone() == 15000, "到达 8000 触发里程碑并推进 15000")
 	GameState._set_milestone_override(100)
 	GameState.add_score(50)  # ×2 = 100，触发 override
-	_check(fired[0] == 3 and GameState._next_milestone == 25000, "override 阈值触发后回到曲线档位")
+	_check(fired[0] == 3 and GameState.next_milestone() == 25000, "override 阈值触发后回到曲线档位")
 	GameState.difficulty = &"hard"
 	GameState.reset_run()
-	_check(GameState._next_milestone == 4500, "hard 档 reset_run 后下一里程碑为 4500")
+	_check(GameState.next_milestone() == 4500, "hard 档 reset_run 后下一里程碑为 4500")
 
 	# 存档恢复：按分数定位曲线档位
 	GameState.difficulty = &"medium"
@@ -271,7 +271,7 @@ func _ready() -> void:
 	GameState.add_score(5000)  # ×2 = 10000，处于 8000~15000 之间
 	GameState.save_run(50.0, 1.0)
 	GameState.apply_run_save(GameState.load_run_data())
-	_check(GameState._next_milestone == 15000, "存档恢复后里程碑定位到 15000")
+	_check(GameState.next_milestone() == 15000, "存档恢复后里程碑定位到 15000")
 
 	# ---------- 6. 难度持久化（profile 往返 + 旧档兼容） ----------
 	GameState.set_difficulty(&"hard")
