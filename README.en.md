@@ -2,61 +2,79 @@
 
 # 🛩️ InfiAir
 
-**A 2D top-down space shooter built with Godot 4 + GDScript** (originally a remake of the Python project [airwar-game](https://github.com/NeverToEver/airwar-game), now evolved independently)
+**A 2D top-down space shooter built with Godot 4 + GDScript**
 
 **English** · [中文](./README.md)
 
-[![Godot](https://img.shields.io/badge/godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
+[![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Tests](https://img.shields.io/badge/tests-893%20passed-brightgreen)](#verification)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#getting-started)
+[![Release](https://img.shields.io/badge/Release-v3.22-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Tests](https://img.shields.io/badge/Tests-1018%20passed-brightgreen)](#-testing)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-installation)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
 
+[📦 Installation](#-installation) · [🚀 Run from Source](#-run-from-source) · [🎮 Controls](#-controls) · [📚 Docs](#-documentation) · [🗺️ Roadmap](#️-roadmap)
+
 </div>
 
----
+## About
 
-## Contents
+InfiAir is a single-player, score-driven arcade shooter: fight wave-based enemy swarms, draft 1-of-3 buffs at score milestones, and take on rotating bosses — then fly home for a mid-run refit and jump back into the same battle. Death is the only end. The difficulty curve grows linearly with no cap: the longer you survive and the more you kill, the deadlier the swarm.
 
-- [✨ Highlights](#-highlights)
-- [🖼️ Screenshots](#️-screenshots)
-- [🎮 Controls](#-controls)
-- [📦 Pre-built Packages](#-pre-built-packages)
-- [🚀 Getting Started](#-getting-started)
-- [🧭 Game Loop](#-game-loop)
-- [🏗️ Architecture](#️-architecture)
-- [✅ Verification](#-verification)
-- [🗺️ Roadmap](#️-roadmap)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+Originally a remake of the Python/Pygame project [airwar-game](https://github.com/NeverToEver/airwar-game), it has since evolved independently. Every sprite and sound is procedurally generated — zero external asset dependencies.
 
-## ✨ Highlights
+## ✨ Features
 
-- **A complete sortie loop**: fight waves → pick 1-of-3 buffs at score milestones → rotating bosses → return to base for a mid-run refit → sortie again. Death is the only end.
-- **16 stackable buffs**: damage, fire rate, spread, piercing, explosive, lifesteal, armor, evasion, phase dash, slow field, laser beam and more — drafted at score milestones.
-- **3 rotating bosses + phased enrage**: heavy / skirmisher / mothership archetypes, driven by an HP-phase pattern table (P1/P2/enrage + telegraph wind-ups); below the HP threshold each archetype runs its **own enrage sequence** — the player is slowed ×0.35 instead of rooted; fail to kill within the time limit and the boss flees (see Game Loop).
-- **Mothership docking**: charge-up summon with a ghost preview and automatic point-snap docking; magazine-based stay (10 cells × 2s) — twin turrets sweeping an upward 80° fan, missile volleys (up to 5 targets), direct WASD piloting; a 4-cell ammo warning precedes forced undock 5s later, or hold H to undock early (with progress bar) for a cooldown refund.
-- **Elite turret event**: a strike carrier descends from deep space and raises 3/4/5 weak-lock turrets by difficulty (rate-limited turntable tracking, muzzle spread, weak homing rounds) — destroy them all within 30 seconds; commander comm lines play as turrets fall, socket rings double as status lights; strictly mutually exclusive with boss scheduling, full clear grants +500 base score (scaled by difficulty).
-- **Formation strike event**: a wedge formation sweeps in and drops fused bombs — warning rings shrink in sync with the fuse, the AoE only hurts the player; wiping the formation grants a small bonus. The lowest-priority random event: it neither freezes bosses nor pauses waves, and can be aborted by homecoming.
-- **Mid-run base refit**: homecoming does NOT end the run — four base modules (hangar / weapon hardpoints with mutually exclusive talent routes / repair & resupply with an RP economy / mission planning), then you return to the same battle; sortieing again plays an **orbital strike clear animation** (targeting reticle → missile rain → beam sweep; the boss is spared), matching the original's ORBITAL_STRIKE.
-- **Return cinematic & phantom base**: holding B plays a 16.8s seven-shot homecoming cinematic — warp charge-up, a torn jump portal, capture and docking by the phantom station "Dawn Echo", landing pad touchdown, and walking back to the bunk (mirrors the intro cinematic; Esc / any key skips). The base console wears a holographic phantom skin (translucent panels, scanlines, data flicker) that fades in seamlessly as the cinematic dims.
-- **Holographic sci-fi UI design system**: unified color tokens and type scale, chamfered panels, primary/secondary button hierarchy, staggered fade-in motion — every screen (start / settings / pause / game over / buff draft / base) shares one skeleton.
-- **Arcade-grade visibility**: brightened player ship with a cyan rim glow, plus a pulsing dot on the actual r=7 hitbox — never lose your ship in bullet hell.
-- **Fully procedural assets**: all 13 unit sprites (including the player ship and the mothership) are procedurally generated and refined — subdivided armor plates, crystal clusters, crystalline energy cores, secondary neon edging, nozzle rings; enemies follow the crystalline-prism style. Generated by `generate_enemy_sprites.py` / `generate_player_sprite.py` / `generate_mothership_sprite.py` (all under `scripts/tools/`); SFX and BGM are synthesized by `generate_audio.py`. Zero external asset dependencies.
+**Gameplay**
+
+- 🔄 **A complete sortie loop**: fight waves → draft milestone buffs → rotating bosses → base refit → sortie again
+- 🃏 **16 stackable buffs**: damage, fire rate, spread, piercing, explosive, lifesteal, armor, evasion, phase dash, laser beam and more
+- 👾 **3 rotating bosses**: driven by an HP-phase pattern table (P1 / P2 / enrage + telegraph wind-ups), each with its own enrage sequence; fail to kill in time and the boss flees
+- 🛰️ **Mothership weapons platform**: charge-up summon (warp-gate entrance) → auto-docking → magazine-based stay (WASD piloting + twin-turret sweep + missile volleys) → tractor-beam recovery
+- 💥 **Two random events**: the elite turret strike (30s turret-clearing timer, boss-mutex) and the formation bombing run (fused bombs with shrinking warning rings, abortable by homecoming)
+- 🏠 **Mid-run base refit**: homecoming does NOT end the run — hangar, weapon hardpoints (mutually exclusive talent routes), repair & resupply (RP economy), and mission planning, then back to the same battle
+
+**Audiovisuals & Presentation**
+
+- 🎬 **Two cinematic directors**: a 6-shot launch intro and a 7-shot homecoming return (warp charge / jump portal / phantom-station docking / landing-pad touchdown), skippable anytime
+- ❤️ **Meta HUD health feedback**: hit chromatic aberration, directional ripples, low-HP crack growth, vignette heartbeat — a fullscreen post-process with a "reduce flashes" accessibility toggle
+- 🎯 **Arcade-grade readability**: follow-the-cursor crosshair, aim frames on ~40% of enemies with in-frame homing shots (Low / Medium / High), and a pulsing dot on the actual hitbox — never lose your ship in bullet hell
+- 🎛️ **Holographic UI design system**: unified color tokens, type scale, chamfered panels and staggered fade-ins — every screen shares one skeleton
+- 🎨 **Fully procedural assets**: 14 crystalline-prism unit sprites plus all SFX/BGM synthesized by scripts, regenerable offline
 
 ## 🖼️ Screenshots
 
-| Main menu | Gameplay | Base refit |
-|-----------|----------|------------|
-| ![Main menu](./docs/screenshots/start.png) | ![Gameplay](./docs/screenshots/gameplay.png) | ![Base](./docs/screenshots/base.png) |
+| Main menu | Gameplay | Mothership dock | Base refit |
+|-----------|----------|-----------------|------------|
+| ![Main menu](./docs/screenshots/start.png) | ![Gameplay](./docs/screenshots/gameplay.png) | ![Mothership](./docs/screenshots/mothership.png) | ![Base](./docs/screenshots/base.png) |
+
+## 📦 Installation
+
+Grab a pre-built package from [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) (x86_64, single-file executable with embedded pck, install/uninstall scripts included):
+
+- **Windows**: extract the zip and run `InfiAir.exe` directly; or run `install.bat` to install to `%LOCALAPPDATA%\InfiAir` with a Start Menu shortcut (`uninstall.bat /purge` also removes save data)
+- **Linux**: extract the tarball and run `InfiAir.x86_64` directly; or run `./install.sh` for a per-user install (`~/.local` + desktop menu entry, `./uninstall.sh --purge` also removes save data)
+- **macOS**: no pre-built package yet — please [run from source](#-run-from-source)
+
+Uninstall keeps your saves by default (`user://savegame.json` run progress, `user://profile.json` high scores and settings).
+
+## 🚀 Run from Source
+
+Requires [Godot 4.6](https://godotengine.org/download) (standard build — no .NET needed):
+
+```bash
+git clone https://github.com/NeverToEver/InfiAir.git
+cd InfiAir
+godot --path .     # run directly, or open the project in the editor and press F5
+```
 
 ## 🎮 Controls
 
 | Input | Action |
 |-------|--------|
 | WASD / Arrow keys | Move |
-| Mouse | Aim (follow-the-cursor crosshair; ~40% of enemies carry a cyan aim frame — place the crosshair inside to make shots home in, Low/Medium/High adjustable) |
+| Mouse | Aim (follow-the-cursor crosshair; ~40% of enemies carry a cyan aim frame — place the crosshair inside to make shots home in, Low / Medium / High adjustable) |
 | — | Weapons fire fully automatically |
 | Shift (hold) | Boost (×1.8 speed, drains fuel) |
 | Ctrl (hold) | Precision movement (speed ×0.35) |
@@ -67,148 +85,85 @@
 | ESC | Global back: pause in combat (save your run) / back one page / exit confirmation at top level |
 | R | Restart (on game-over / pause screens) |
 
-> All keys are rebindable in Settings → Controls (Esc/R are fixed; bindings persist in `user://profile.json`).
-> UI language: English / 中文 via Settings → Modes → Language.
-> Three view zoom levels (1.0 / 1.35 / 1.7, default Small) and three window sizes (1280×720 / 1600×900 / 1920×1080, default Large) — independent settings, both persisted.
-> Aim assist also has three levels (Low / Medium / High, default Medium) under Settings → Modes: the assist is always on — only its strength (frame size / homing turn rate) changes, persisted.
-
-## 📦 Pre-built Packages
-
-The release page provides Linux / Windows pre-built packages (x86_64, single-file executables with install/uninstall scripts):
-
-- **Linux**: extract and run `./install.sh` (per-user install to `~/.local/share/infiair`, with a `~/.local/bin/infiair` command entry and a desktop menu item); `./uninstall.sh` removes it (add `--purge` to also delete save data and settings). You can also run the bundled `InfiAir.x86_64` directly without installing.
-- **Windows**: extract and run `install.bat` (installs to `%LOCALAPPDATA%\InfiAir` and creates a Start Menu shortcut); `uninstall.bat` removes it (add `/purge` to also delete save data and settings). You can also run `InfiAir.exe` directly without installing.
-
-## 🚀 Getting Started
-
-Requires [Godot 4.6](https://godotengine.org/download) (standard build — no .NET needed).
-
-```bash
-git clone https://github.com/NeverToEver/InfiAir.git
-cd InfiAir
-godot --path .          # run directly, or open the project in the editor and press F5
-```
+> All keys are rebindable in Settings → Controls (Esc / R are fixed; bindings persist). Language (中文 / English), three view-zoom levels, three window sizes and three aim-assist levels all live in Settings → Modes, each persisted independently.
 
 ## 🧭 Game Loop
 
-- Start with 100 HP: taking a hit grants 1.5s of invulnerability and clears enemy bullets within 250px; HP slowly regenerates after a few seconds out of combat (rate varies by difficulty), and can be fully restored by base repairs (2 RP) or mothership resupply; **pure score-based — no item drops**.
-- 4 enemy classes × 8 movement patterns, unlocked progressively by score; 3 elite variants; enemy bullets come in single / spread / laser types (12/10/20 damage, plus 20 for body collisions). Wave-based spawning: normal waves enter as groups (split slots, anchor-hovering with staggered maneuver phases); every 3–4 normal waves one elite wave.
-- Formation strike event (lowest-priority random encounter): wedge formation entry → fused bombs drop with shrinking warning rings, AoE only hurts the player; neither freezes bosses nor pauses waves, abortable by homecoming; full clear grants a small bonus.
-- Milestone thresholds (starting at 3000, scaling up per cycle) pause the game for a 1-of-3 buff draft; bosses spawn every 1500 points or 90s, granting +500 points and raising the difficulty multiplier (`1 + (2^min(kills,10) − 1) × 0.25`, capped at 8x).
-- Bosses act from an HP-phase pattern table (P1/P2/enrage, phase switches telegraphed); below the HP threshold each boss type runs its own enrage sequence: the player is slowed ×0.35 (can still move and shoot) while the boss executes its signature attack pattern, then stays permanently enraged; fail to kill within the time limit and the boss flees.
-- Elite turret event (random encounter once score ≥ 800): carrier entry → turrets rise and charge → 30s countdown; normal waves pause during the event and boss triggers freeze (catch-up trigger once afterwards); full clear grants 500 base score (×difficulty multiplier), timeout grants nothing.
+- Start with 100 HP: taking a hit grants 1.5s of invulnerability and clears enemy bullets within 250px; HP slowly regenerates out of combat (base repairs and mothership resupply restore it fully); **pure score-based — no item drops**.
+- 4 enemy classes × 8 movement patterns unlocked progressively by score, 3 elite variants, bullet types single / spread / laser; wave-based spawning (grouped entries, anchor-hovering with staggered phases), one elite wave every 3–4 normal waves.
+- Milestones (starting at 3000, scaling ×1.35 per cycle) pause the game for a 1-of-3 buff draft; a boss spawns every 1500 points or 80s, granting +500 points.
+- The difficulty multiplier grows linearly with no cap: `1 + 0.5 × boss kills + 1 per 10 minutes` (quantized in 30s steps), ramping enemy HP / damage — the run is eventually lethal, so survive longer to score higher.
 - RP (requisition points) come from boss kills (+5) and base missions (+3), spent on base repairs and fuel (2 RP each).
-- Save anytime via the pause menu (homecoming also updates the save automatically); continue from the title panel on next launch. Death deletes the save. "Sortie again" from the base triggers an orbital strike clear animation (reticle → missiles → beam sweep; the boss is spared) before returning to the same run.
-- A welcome screen greets the first launch; the start panel includes a tutorial entry: 6 stages (movement & aim / boost & dash / combat / mothership docking / homecoming & base / boss enrage); Esc quits anytime, and the button shows "Tutorial ✓" once completed.
+- Save anytime via the pause menu (homecoming also auto-saves); continue from the title panel on next launch. Death deletes the save.
+- A welcome screen greets the first launch; the start panel includes a 6-stage tutorial (movement & aim / boost & dash / combat / mothership docking / homecoming & base / boss enrage).
 
 ## 🏗️ Architecture
 
 ```text
 main.tscn (run orchestration)
- ├─ Player (movement / aim assist / auto-fire / fuel / phase dash / laser weapon / hitbox indicator)
- ├─ Spawner (wave-based spawning: grouped normal-wave entries / elite special slots / boss & event scheduling)
- ├─ Mothership (auto-dock state machine: summon → dock → stay (piloting + sweep + missiles) → release → depart)
- ├─ Boss (3-type rotation + HP-phase pattern table + per-type enrage state machines)
- ├─ EliteTurretEvent (elite turret event: carrier director / turret entities / comm overlay, boss-mutex)
- ├─ FormationStrikeEvent (formation strike event: formation director / fused bombs / warning rings, lowest-priority random event)
- ├─ IntroCinematic / ReturnCinematic (intro / homecoming cinematic directors, instantiated at runtime)
- ├─ OrbitalStrike (orbital strike clear animation on sortie-again: reticle → missiles → beam sweep)
- ├─ HUD / BuffSelect / BaseConsole / GameOver / Pause / Settings / StartPanel / Welcome
- ├─ BackNavigator (global back/exit state machine: PC Esc, gamepad B, Android back — one route)
- └─ GameState (autoload: 100-HP health / score / buffs / RP / missions / routes / saves / profile / SFX pool / shake)
+ ├─ Player (movement / aim assist / auto-fire / fuel / phase dash / laser weapon)
+ ├─ Spawner (wave-based spawning + elite / boss / event special-slot scheduling)
+ ├─ Mothership (state machine: summon → dock → piloted stay → tractor recovery → depart)
+ ├─ Boss (3-type rotation + HP-phase pattern table + per-type enrage)
+ ├─ EliteTurretEvent / FormationStrikeEvent (elite turret / formation strike events)
+ ├─ IntroCinematic / ReturnCinematic / OrbitalStrike (cinematic & set-piece directors)
+ ├─ HUD / BuffSelect / BaseConsole / Pause / Settings / GameOver / StartPanel
+ ├─ BackNavigator (global back/exit state machine: PC Esc, gamepad B, Android back)
+ └─ GameState (autoload: score / HP / buffs / RP / missions / saves / settings / SFX pool / entity registries)
 ```
 
-- **Balance config**: `data/balance.json` holds all tunable values, accessed via `GameState.cfg()` with per-key fallback to script defaults — tweak the JSON, no code changes needed.
-- **UI design system**: `scripts/ui_theme.gd` provides color tokens, a type scale (72/40/28/24/18), and component factories (page skeleton / primary & secondary buttons / section headers / motion) shared by every screen.
-- **Performance**: bullet/enemy/explosion object pooling, registries instead of group queries, trig lookup tables, throttled HUD; a `--fixed-fps` benchmark scene measures raw frame time.
-- Collision layers: `1=player 2=player_bullet 3=enemy 4=enemy_bullet`; bullets resolve damage on their side; hits only count on the r=7 hitbox point.
-- Run save `user://savegame.json` and profile `user://profile.json` (high score / difficulty / keybinds / locale / view / window size) are versioned; corrupted files are quarantined automatically.
-- Tests are headless scene scripts (no framework) — see `AGENTS.md`.
+- **Data-driven tuning**: every tunable lives in `data/balance.json`, accessed via `GameState.cfg()` with per-key fallback to script defaults — tweak the JSON, no code changes needed.
+- **UI design system**: `scripts/ui_theme.gd` provides color tokens, a type scale and component factories shared by every screen.
+- **Performance**: bullet / enemy / explosion object pooling, registries instead of group queries, trig lookup tables, throttled HUD; the `perf_bench` scene measures raw frame time.
+- **Collision layers**: `1=player 2=player_bullet 3=enemy 4=enemy_bullet`; bullets resolve damage on their side; hits only count on the r=7 hitbox point.
+- **Persistence**: `user://savegame.json` and `user://profile.json` are versioned; corrupted files are quarantined automatically.
 
-## ✅ Verification
+## 📚 Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [AGENTS.md](./AGENTS.md) | Contributor conventions: tech stack / verification / architecture / code style / test strategy |
+| [docs/ROADMAP.md](./docs/ROADMAP.md) | Roadmap and future direction (single source of truth) |
+| [docs/EXIT_FLOW.md](./docs/EXIT_FLOW.md) | Back / exit flow |
+| [docs/BOSS_REDESIGN.md](./docs/BOSS_REDESIGN.md) | Boss phase pattern tables and enrage design |
+| [docs/META_HUD_DESIGN.md](./docs/META_HUD_DESIGN.md) | Meta HUD health feedback design |
+| [docs/ELITE_TURRET_EVENT.md](./docs/ELITE_TURRET_EVENT.md) · [docs/FORMATION_STRIKE_EVENT.md](./docs/FORMATION_STRIKE_EVENT.md) | Random event design |
+| [docs/INTRO_CINEMATIC.md](./docs/INTRO_CINEMATIC.md) · [docs/RETURN_HOME_CINEMATIC.md](./docs/RETURN_HOME_CINEMATIC.md) | Intro / return cinematic design |
+| [docs/ENDLESS_BALANCE_PLAN.md](./docs/ENDLESS_BALANCE_PLAN.md) | Endless-mode difficulty curve plan |
+
+## ✅ Testing
+
+Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output: **29 assertion scenes, 1018 assertions, all passing**. Minimal verification set:
 
 ```bash
 godot --headless --import --path .          # assets & script parsing
 godot --headless --path . --quit-after 300  # runtime smoke
-godot --headless --path . res://test/smoke_test.tscn          # main flow — 118 assertions
-godot --headless --path . res://test/hit_logic_test.tscn      # hit & collision parity — 60
-godot --headless --path . res://test/elite_turret_event_test.tscn # elite turret event — 57
-godot --headless --path . res://test/boss_pattern_test.tscn   # boss phase pattern table — 55
-godot --headless --path . res://test/difficulty_test.tscn     # difficulty/milestones/settings — 52
-godot --headless --path . res://test/formation_strike_event_test.tscn # formation strike event — 47
-godot --headless --path . res://test/base_system_test.tscn    # save/RP/missions/routes — 46
-godot --headless --path . res://test/view_zoom_test.tscn      # view zoom — 43
-godot --headless --path . res://test/startup_flow_test.tscn   # startup/corrupt saves/welcome — 40
-godot --headless --path . res://test/boss_enrage_test.tscn    # boss enrage sequence — 34
-godot --headless --path . res://test/enemy_combat_test.tscn   # enemies & bosses — 32
-godot --headless --path . res://test/boss_phase_test.tscn     # boss phase transitions — 31
-godot --headless --path . res://test/buff_visuals_test.tscn   # buff visual feedback — 30
-godot --headless --path . res://test/buff33_test.tscn         # buffs/mothership/give-up — 29
-godot --headless --path . res://test/tutorial_test.tscn       # tutorial — 29
-godot --headless --path . res://test/return_cinematic_test.tscn # return cinematic — 27
-godot --headless --path . res://test/intro_cinematic_test.tscn # intro cinematic — 25
-godot --headless --path . res://test/balance_test.tscn        # balance config — 25
-godot --headless --path . res://test/back_navigation_test.tscn # back/exit state machine — 25
-godot --headless --path . res://test/window_size_test.tscn    # window size — 17
-godot --headless --path . res://test/keybind_test.tscn        # key rebinding — 15
-godot --headless --path . res://test/orbital_strike_test.tscn # orbital strike clear — 13
-godot --headless --path . res://test/pool_reuse_test.tscn     # object pool reuse — 12
-godot --headless --path . res://test/wave_pacing_test.tscn    # wave pacing — 11
-godot --headless --path . res://test/esc_navigation_test.tscn # Esc navigation — 11
-godot --headless --path . res://test/i18n_test.tscn           # i18n zh/en — 9
+godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (128 assertions)
 ```
 
-Plus automated probes and tools (not assertion tests):
-
-```bash
-godot --headless --path . res://test/autoplay_test.tscn  # ≥8 min simulated human play: full interaction coverage + anomaly monitors
-godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn  # raw frame-time benchmark
-godot --path . res://test/ui_capture.tscn                # windowed six-screen UI capture (/tmp/ui_*.png)
-godot --path . res://test/visual_capture.tscn            # windowed gameplay capture (/tmp/infiair_capture.png)
-godot --path . res://test/return_capture.tscn            # windowed return-cinematic shot-by-shot capture (/tmp/return_shot*.png)
-```
-
-**893 assertions across 26 test scenes, all passing.**
+The full 29-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
 
 ## 🗺️ Roadmap
 
-- [x] Core run loop (waves / milestone buffs / bosses / game over)
-- [x] Game feel (shake / particles / synthesized SFX & BGM / telegraphs)
-- [x] 16 buffs + phase dash + fuel system
-- [x] Mothership docking (charge summon / magazine stay / sweep fire / early undock)
-- [x] Mid-run base refit (4 modules + RP economy + talent routes)
-- [x] Combat parity (aim assist / 3 enemy bullet types / boss escape / 8 movement patterns)
-- [x] Difficulty selection + performance pass (pooling / registries / HUD throttling) — iteration 3.4
-- [x] Tutorial (6 stages) — iteration 3.5
-- [x] Three-level view zoom — iteration 3.7
-- [x] Hit & collision parity pass (r7 hitbox / boss body collision / per-type bullet damage) — iteration 3.8
-- [x] 100-HP damage model & full Appendix-A parity — iteration 3.9
-- [x] Welcome screen + startup hardening + global back/exit state machine — iteration 3.10
-- [x] Object-pool reuse fix + autoplay simulated-play probe — iteration 3.11
-- [x] Window size levels + mothership early-undock progress bar — iteration 3.12
-- [x] UI design system refactor (unified skeleton / button hierarchy / all screens migrated) — iteration 3.13
-- [x] Full boss enrage sequence (HP lock / orbit attack / root / barrage) + player visibility (brighten / rim glow / hitbox dot) — iteration 3.14
-- [x] Aim assist rework (directional-cone switching + always-on Low/Medium/High levels + adaptive lock ring) + crystalline-prism enemy sprites (procedural) — iteration 3.15
-- [x] Elite turret event (strike carrier + weak-lock turrets + comm lines + boss mutex) — iteration 3.16
-- [x] Boss behavior redesign (HP-phase pattern table + telegraphs + per-type enrage sequences + difficulty tiers) — iteration 3.17
-- [x] Intro / return cinematics & phantom base (two seven-shot directors + holographic base skin) — iteration 3.18
-- [x] Buff visual feedback + player ship redesign + in-game UI polish — iteration 3.19
-- [x] Wave-based spawning (grouped entries / staggered anchor-hover phases) + formation strike event — iteration 3.20
-- [x] Orbital strike clear animation + full unit-sprite refinement + faster starting bullet speed — iteration 3.21
-- [x] Combat readability audit (view-aware boss anchor & hover bands + larger/brighter enemies + enemy bullet visibility + aim assist redesign: crosshair + 40% aim frames + in-frame homing + bullet speed 1800) — iteration 3.22
-- [ ] Release builds (deferred)
+- ✅ **Done**: core run loop / 16-buff drafting / bosses & dual random events / mothership docking & base refit / dual cinematics & holographic UI / Meta HUD health feedback / endless difficulty curve / dual-platform release packaging (distributed via GitHub Releases since v3.22)
+- 🔭 **Next**: content evolution (new buffs / new enemy & boss types / mobile controls) is deferred and needs re-proposal to restart; CI and semantic versioning are planned
+- Iteration history lives in the git log; porting-era archives are frozen in [docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md)
 
-Future direction and the phased plan live in [docs/ROADMAP.md](./docs/ROADMAP.md); the porting-era parity checklist and iteration history are archived (frozen, no longer maintained) in [docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md).
+See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
 
 ## 🤝 Contributing
 
 Issues and PRs are welcome! Before submitting, please make sure:
 
-1. All headless test suites above pass;
-2. You follow the conventions in `AGENTS.md` (collision layers, UI design system, code style, test strategy);
-3. Direction-level decisions (new content, defer/restart) are recorded in `docs/ROADMAP.md` first.
+1. All headless assertion scenes pass;
+2. You follow the conventions in [AGENTS.md](./AGENTS.md) (collision layers, UI design system, code style, test strategy);
+3. Direction-level decisions (new content, defer / restart) are recorded in [docs/ROADMAP.md](./docs/ROADMAP.md) first.
 
-Reference projects: [nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate), [quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core), [Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D), [Maaack/Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template).
+## 🙏 Acknowledgments
+
+- Original prototype: [airwar-game](https://github.com/NeverToEver/airwar-game) (Python / Pygame)
+- Reference projects: [nezvers/Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate), [quiver-dev/top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core), [Unchained112/SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D), [Maaack/Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template)
+- Engine: [Godot Engine](https://godotengine.org/); font: [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) (SIL OFL)
 
 ## 📄 License
 
@@ -216,4 +171,8 @@ This repository is currently private and has not chosen an open-source license y
 
 ---
 
-*InfiAir began as a Godot remake of airwar-game (Python/Pygame) and has since evolved independently — maintained as a hobby project, feedback welcome.*
+<div align="center">
+
+Maintained as a hobby project — feedback welcome · Made with Godot 4
+
+</div>
