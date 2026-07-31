@@ -54,7 +54,10 @@ const OBJECT_LEAK_STREAK := 4
 const OBJECT_LEAK_RATIO := 1.8
 
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down"]
-const SETTING_KINDS: Array[StringName] = [&"view_zoom", &"window_size", &"locale", &"difficulty"]
+const SETTING_KINDS: Array[StringName] = [
+	&"view_zoom", &"window_size", &"locale", &"difficulty",
+	&"aim_assist", &"reduce_flash", &"ctrl_toggle", &"shift_toggle",
+]
 const BUFF_POOL_SIZE := 16  # buff_select.gd BUFF_POOL 种类数（覆盖率统计分母）
 
 var _run_seconds: float = DEFAULT_RUN_SECONDS
@@ -95,6 +98,7 @@ var _restart_at: int = 0
 var _next_pause_consider: int = 0
 var _pause_open_since: int = 0
 var _pause_stage: int = 0
+var _settings_open_since: int = 0  # 暂停菜单内打开设置页的时刻
 var _menu_return_at: int = 0  # >0：到点主动回开始面板走「继续对局」
 # 设置轮换
 var _next_setting_at: int = 0
@@ -154,9 +158,12 @@ var _early_leaves: int = 0
 var _forced_ejects: int = 0
 var _homecomings: int = 0
 var _pause_saves: int = 0
+var _settings_opens: int = 0
 var _continue_resumes: int = 0
 var _exit_probes: int = 0
 var _setting_switches: int = 0
+var _milestones: int = 0
+var _boss_escapes: int = 0
 var _base_repairs: int = 0
 var _base_recharges: int = 0
 var _route_choices: int = 0
@@ -181,6 +188,10 @@ var _prev_difficulty: StringName = &"medium"
 var _prev_view_zoom: StringName = &"medium"
 var _prev_window_size: StringName = &"large"
 var _prev_locale: String = "zh"
+var _prev_aim_assist: StringName = &"medium"
+var _prev_reduce_flash := false
+var _prev_ctrl_toggle := false
+var _prev_shift_toggle := false
 
 
 func _elapsed_s() -> float:
@@ -222,6 +233,10 @@ func _ready() -> void:
 	_prev_view_zoom = GameState.view_zoom
 	_prev_window_size = GameState.window_size
 	_prev_locale = GameState.locale
+	_prev_aim_assist = GameState.aim_assist_level
+	_prev_reduce_flash = GameState.reduce_flash
+	_prev_ctrl_toggle = GameState.ctrl_toggle_mode
+	_prev_shift_toggle = GameState.shift_toggle_mode
 	GameState.set_difficulty(&"medium")
 	GameState.milestone_reached.connect(_on_milestone)
 	GameState.player_died.connect(_on_player_died)
@@ -361,7 +376,11 @@ func _handle_buff_ui(now: int) -> void:
 		return
 	if _buff_ui.visible:
 		if _buff_ui.closing():
-			return  # 选取确认动效播放中：不重复 pick（动效结束才 visible=false）
+			# 确认动效播放中：不重复 pick（动效结束才 visible=false）；动效期也纳入卡死计时
+			if _buff_open_since == 0:
+				_buff_open_since = now
+				_buff_stuck_reported = false
+			return
 		if _buff_open_since == 0:
 			_buff_open_since = now
 			_buff_stuck_reported = false
@@ -385,16 +404,21 @@ func _handle_buff_ui(now: int) -> void:
 				var ev := InputEventMouseButton.new()
 				ev.pressed = true
 				ev.button_index = MOUSE_BUTTON_LEFT
-				# 10% 走真实三参动效路径（~200ms 确认动效后才关闭/恢复），其余维持两参立即关闭
+				# 10% 走真实三参确认动效路径：合成鼠标左键事件发给目标卡片
+				# （card.gui_input → _on_card_gui_input 的 card!=null 分支 → _closing 动效，
+				# ~200ms 后 _on_pick_close_finished 才关闭面板并恢复对局）；其余走两参立即关闭
 				var card: Control = null
+				var animated := false
 				if randf() < 0.10 and pick_idx >= 0 and _buff_ui.cards().get_child_count() > pick_idx:
 					card = _buff_ui.cards().get_child(pick_idx) as Control
 				if card != null:
-					_buff_ui.pick_buff(pick["id"])
-					_buff_animated_picks += 1
+					card.gui_input.emit(ev)
+					animated = true
 				else:
 					_buff_ui.pick_buff(pick["id"])
 				_buff_picks += 1
+				if animated:
+					_buff_animated_picks += 1
 				_buffs_seen[pick["id"]] = true
 				# 选取后立即校验层数上限（口径同 buff_select.gd：cfg 覆盖池内默认）
 				var pool_max := 1
@@ -405,7 +429,7 @@ func _handle_buff_ui(now: int) -> void:
 				var cap := int(GameState.cfg("buffs.%s.max_stacks" % pick["id"], pool_max))
 				if GameState.buff_count(pick["id"]) > cap:
 					_anomaly_rl("buff_over_cap", "Buff %s 层数 %d 超过上限 %d" % [pick["id"], GameState.buff_count(pick["id"]), cap], now)
-				_log("Buff 选择: %s（层数 %d，已覆盖种类 %d/%d%s）" % [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE, "，动效路径" if card != null else ""])
+				_log("Buff 选择: %s（层数 %d，已覆盖种类 %d/%d%s）" % [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE, "，动效路径" if animated else ""])
 			_buff_open_since = 0
 	else:
 		_buff_open_since = 0
@@ -486,12 +510,13 @@ func _update_pause(now: int) -> void:
 			_log("暂停：Esc 打开暂停菜单")
 
 
-## 暂停菜单链路：「保存进度」写档 → 恢复对局（或回开始面板走继续对局）
+## 暂停菜单链路：「保存进度」写档 →（50% 打开设置页再返回）→ 恢复对局（或回开始面板走继续对局）
 func _handle_pause_ui(now: int) -> void:
 	if _pause_open_since == 0:
 		return
 	var pause_ui: CanvasLayer = _main.pause_ui()
-	if not pause_ui.visible:
+	var settings_ui: CanvasLayer = _main.get_node("SettingsUI")
+	if not pause_ui.visible and not settings_ui.visible:
 		_pause_open_since = 0  # 未打开成功或已被其他路径关闭
 		return
 	var t := now - _pause_open_since
@@ -501,8 +526,26 @@ func _handle_pause_ui(now: int) -> void:
 			pause_ui.save()
 			_pause_saves += 1
 			_log("暂停菜单：保存进度（第 %d 次）" % _pause_saves)
-	elif _pause_stage == 1 and t >= 1400:
-		_pause_stage = 2
+	elif _pause_stage == 1 and t >= 1300:
+		# 50% 打开设置页（pause_ui 隐藏、SettingsUI 显示），随后 go_back 走
+		# BackNavigator CLOSE_SETTINGS 真实路由返回（opener 恢复可见）
+		if randf() < 0.5:
+			pause_ui.open_settings()
+			if settings_ui.visible:
+				_settings_open_since = now
+				_pause_stage = 2
+				_log("暂停菜单：打开设置页")
+			else:
+				_pause_stage = 3
+		else:
+			_pause_stage = 3
+	elif _pause_stage == 2 and now - _settings_open_since >= 900:
+		_pause_stage = 3
+		_settings_opens += 1
+		_main.get_node("BackNavigator").go_back()  # 设置页 → CLOSE_SETTINGS
+		_log("暂停菜单：设置页返回（第 %d 次）" % _settings_opens)
+	elif _pause_stage == 3 and t >= 2400:
+		_pause_stage = 4
 		_pause_open_since = 0
 		if randf() < 0.35 and GameState.has_save():
 			# 回开始面板 →「继续对局」读档恢复（与新游戏不同的代码路径）
@@ -544,6 +587,18 @@ func _update_settings(now: int) -> void:
 		&"difficulty":
 			old = GameState.difficulty
 			new_val = _pick_other(GameState.DIFFICULTY_ORDER, old)
+		&"aim_assist":
+			old = GameState.aim_assist_level
+			new_val = _pick_other(GameState.AIM_ASSIST_ORDER, old)
+		&"reduce_flash":
+			old = GameState.reduce_flash
+			new_val = not old
+		&"ctrl_toggle":
+			old = GameState.ctrl_toggle_mode
+			new_val = not old
+		&"shift_toggle":
+			old = GameState.shift_toggle_mode
+			new_val = not old
 	if new_val == null or new_val == old:
 		return
 	_setting_restore = {"kind": kind, "old": old}
@@ -570,6 +625,14 @@ func _apply_setting(kind: StringName, value: Variant) -> void:
 			GameState.set_locale(value)
 		&"difficulty":
 			GameState.set_difficulty(value)
+		&"aim_assist":
+			GameState.set_aim_assist_level(value)
+		&"reduce_flash":
+			GameState.set_reduce_flash(value)
+		&"ctrl_toggle":
+			GameState.set_ctrl_toggle_mode(value)
+		&"shift_toggle":
+			GameState.set_shift_toggle_mode(value)
 
 
 ## 随机游走 + 远离密集敌弹/敌机的简单规避
@@ -804,7 +867,8 @@ func _track_mothership(now: int) -> void:
 # ---------------- 事件 ----------------
 
 func _on_milestone(milestone_score: int) -> void:
-	_log("里程碑达成 score=%d" % milestone_score)
+	_milestones += 1
+	_log("里程碑达成 score=%d（第 %d 次）" % [milestone_score, _milestones])
 
 
 func _on_boss_spawned(boss: Boss) -> void:
@@ -818,7 +882,11 @@ func _on_boss_spawned(boss: Boss) -> void:
 	)
 	boss.phase_changed.connect(_on_boss_phase_changed)
 	boss.died.connect(_on_boss_died.bind(boss))
-	boss.escaped.connect(func() -> void: _log("Boss 逃跑 type=%d" % boss.boss_type); _clear_boss(boss))
+	boss.escaped.connect(func() -> void:
+		_boss_escapes += 1
+		_log("Boss 逃跑 type=%d（第 %d 次）" % [boss.boss_type, _boss_escapes])
+		_clear_boss(boss)
+	)
 	boss.tree_exited.connect(func() -> void: _clear_boss(boss))
 
 
@@ -954,7 +1022,7 @@ func _snapshot(now: int) -> void:
 	var boss_s := "none"
 	if _boss != null and is_instance_valid(_boss):
 		boss_s = "type%d hp=%.0f/%.0f%s" % [_boss.boss_type, _boss.hp, _boss.max_hp, "(enraged)" if _boss.is_enraged() else ""]
-	var ms_s := "none" if _main.mothership() == null else MS_STATE_NAMES[int(_main.mothership()._state)]
+	var ms_s := "none" if _main.mothership() == null else MS_STATE_NAMES[int(_main.mothership().state())]
 	_log(
 		(
 			"SNAP run=%d t_game=%.0fs score=%d hp=%.0f/%.0f kills=%d enemies=%d bullets(p=%d,e=%d) boss=%s ms=%s diff=%.2f elapsed=%.0fs nodes(main=%d,total=%d) ts=%.2f paused=%s perf(obj=%.0f,nodes=%.0f,orphan=%.0f,mem=%.1fMB,fps=%.0f,fms=%.2f) pool(b=%d,e=%d)"
@@ -1006,11 +1074,12 @@ func _snapshot(now: int) -> void:
 		_obj_leak_armed = false
 		_anomaly("object_leak", "对象数连续上涨 %.0f -> %.0f（基线 %.0f）" % [_obj_baseline, obj_count, _obj_baseline])
 		_dump_node_histogram()
-	# 帧耗时恶化：取前 2 个快照均值作基线，持续 3 倍即报（难度升高后的性能悬崖）
+	# 帧耗时恶化：前 5 个快照取最小值作基线（避免初始恰逢演出/弹幕高峰抬高基线
+	# 而掩盖真实悬崖），持续 3 倍即报（难度升高后的性能悬崖）
 	if frame_ms > 0.0:
 		_frame_snaps += 1
-		if _frame_snaps <= 2:
-			_frame_ms_baseline = frame_ms if _frame_ms_baseline <= 0.0 else (_frame_ms_baseline + frame_ms) * 0.5
+		if _frame_snaps <= 5:
+			_frame_ms_baseline = frame_ms if _frame_ms_baseline <= 0.0 else minf(_frame_ms_baseline, frame_ms)
 		elif _frame_ms_baseline > 0.0 and frame_ms > _frame_ms_baseline * 3.0:
 			_frame_slow_streak += 1
 			if _frame_slow_streak >= 3:
@@ -1093,7 +1162,7 @@ func _checks(now: int) -> void:
 		if node == null or not _main.is_ancestor_of(node):
 			continue
 		var en := node as Enemy
-		if en != null and not en.active():
+		if en != null and not en.is_active():
 			continue
 		scene_set[node] = true
 	var registry_set: Dictionary = {}  # 有效实例 -> true
@@ -1103,7 +1172,7 @@ func _checks(now: int) -> void:
 			stale_found = true
 			continue  # 失效实例归 registry_stale 管，不参与差集
 		var re := e as Enemy
-		if re != null and not re.active():
+		if re != null and not re.is_active():
 			continue
 		registry_set[e] = true
 	if stale_found:
@@ -1174,12 +1243,12 @@ func _checks(now: int) -> void:
 		_slow_since = 0
 		_slow_reported = false
 	# 事件触发计数：非活跃 -> 活跃跃迁各 +1（500ms 轮询事件状态机）
-	var turret_active: bool = _main.event() != null and _main.event()._state != EliteTurretEvent.State.IDLE
+	var turret_active: bool = _main.event() != null and _main.event().state() != EliteTurretEvent.State.IDLE
 	if turret_active and not _event_was_active:
 		_turret_event_count += 1
 		_log("精英炮塔事件触发（第 %d 次）" % _turret_event_count)
 	_event_was_active = turret_active
-	var formation_active: bool = _main.formation() != null and _main.formation()._state != FormationStrikeEvent.State.IDLE
+	var formation_active: bool = _main.formation() != null and _main.formation().state() != FormationStrikeEvent.State.IDLE
 	if formation_active and not _formation_was_active:
 		_formation_event_count += 1
 		_log("轰炸编队事件触发（第 %d 次）" % _formation_event_count)
@@ -1227,9 +1296,9 @@ func _finish() -> void:
 	print("[AUTOPLAY] 每局得分 %s | 总击杀 %d | Boss 击杀 %d" % [str(_run_scores), _total_kills, _total_boss_kills])
 	print("[AUTOPLAY] Buff 选取 %d 次（覆盖种类 %d/%d）| 母舰召唤 %d 次 | 返航 %d 次" % [_buff_picks, _buffs_seen.size(), BUFF_POOL_SIZE, _ms_summons, _homecomings])
 	print("[AUTOPLAY] 母舰边界：蓄力取消 %d | 提前离舰 %d | 强制弹射 %d" % [_charge_cancels, _early_leaves, _forced_ejects])
-	print("[AUTOPLAY] 暂停存档 %d 次 | 继续对局 %d 次 | 退出确认探针 %d 次 | 设置切换 %d 次" % [_pause_saves, _continue_resumes, _exit_probes, _setting_switches])
+	print("[AUTOPLAY] 暂停存档 %d 次 | 暂停开设置页 %d 次 | 继续对局 %d 次 | 退出确认探针 %d 次 | 设置切换 %d 次" % [_pause_saves, _settings_opens, _continue_resumes, _exit_probes, _setting_switches])
 	print("[AUTOPLAY] 基地：维修 %d | 补给 %d | 路线选择 %d | 任务领奖 %d" % [_base_repairs, _base_recharges, _route_choices, _mission_claims])
-	print("[AUTOPLAY] Buff 动效路径选取 %d 次 | Boss P2 %d 次 | 狂暴 %d 次 | 炮塔事件 %d 次 | 编队事件 %d 次" % [_buff_animated_picks, _boss_p2_count, _boss_enrage_count, _turret_event_count, _formation_event_count])
+	print("[AUTOPLAY] Buff 动效路径选取 %d 次 | Boss P2 %d 次 | 狂暴 %d 次 | 逃跑 %d 次 | 里程碑 %d 次 | 炮塔事件 %d 次 | 编队事件 %d 次" % [_buff_animated_picks, _boss_p2_count, _boss_enrage_count, _boss_escapes, _milestones, _turret_event_count, _formation_event_count])
 	print("[AUTOPLAY] 峰值: 节点 %d | 敌弹 %d | 玩家弹 %d | 敌机 %d | 孤儿节点 %.0f | 池(b=%d,e=%d) | 帧耗时 %.2fms（基线 %.2fms）" % [_max_nodes, _max_enemy_bullets, _max_player_bullets, _max_enemies, _max_orphans, _max_bullet_pool, _max_enemy_pool, _max_frame_ms, _frame_ms_baseline])
 	var total_anomalies := 0
 	for k in _anomaly_counts:
@@ -1254,4 +1323,12 @@ func _finish() -> void:
 		GameState.set_window_size(_prev_window_size)
 	if GameState.locale != _prev_locale:
 		GameState.set_locale(_prev_locale)
+	if GameState.aim_assist_level != _prev_aim_assist:
+		GameState.set_aim_assist_level(_prev_aim_assist)
+	if GameState.reduce_flash != _prev_reduce_flash:
+		GameState.set_reduce_flash(_prev_reduce_flash)
+	if GameState.ctrl_toggle_mode != _prev_ctrl_toggle:
+		GameState.set_ctrl_toggle_mode(_prev_ctrl_toggle)
+	if GameState.shift_toggle_mode != _prev_shift_toggle:
+		GameState.set_shift_toggle_mode(_prev_shift_toggle)
 	get_tree().quit(0)
