@@ -117,10 +117,11 @@ var _boss_pending: bool = false
 var _waves_paused: bool = false
 ## 事件编排节点（main 在 _ready 登记）
 var _event: EliteTurretEvent = null
-var _event_check_timer: float = ETV_TRIGGER_INTERVAL
 ## 轰炸编队事件编排节点（main 在 _ready 登记；与 Boss/精英炮塔事件按优先级链互斥）
 var _formation: FormationStrikeEvent = null
-var _formation_check_timer: float = FS_TRIGGER_INTERVAL
+## A4b：事件触发策略统一骨架（定时 + 概率 + 分数门槛，替代原 _event_check_timer 内联）
+var _elite_trigger := ScheduledEventTrigger.new(ETV_TRIGGER_INTERVAL, ETV_TRIGGER_CHANCE, ETV_MIN_SCORE)
+var _formation_trigger := ScheduledEventTrigger.new(FS_TRIGGER_INTERVAL, FS_TRIGGER_CHANCE)
 
 
 func _ready() -> void:
@@ -152,6 +153,9 @@ func _apply_balance() -> void:
 	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
 	FS_TRIGGER_INTERVAL = GameState.cfg("formation_strike_event.trigger_interval", FS_TRIGGER_INTERVAL)
 	FS_TRIGGER_CHANCE = GameState.cfg("formation_strike_event.trigger_chance", FS_TRIGGER_CHANCE)
+	# A4b：balance 覆盖后同步触发策略配置（_timer 不重置，保持现有节奏）
+	_elite_trigger.configure(ETV_TRIGGER_INTERVAL, ETV_TRIGGER_CHANCE, ETV_MIN_SCORE)
+	_formation_trigger.configure(FS_TRIGGER_INTERVAL, FS_TRIGGER_CHANCE)
 	var normal: Array = GameState.cfg("enemies.types", [])
 	for i in mini(normal.size(), ENEMY_TYPES.size()):
 		_merge_type(ENEMY_TYPES[i], normal[i])
@@ -247,23 +251,17 @@ func _process(delta: float) -> void:
 		and not _boss_active
 		and (_formation == null or not _formation.is_active())
 		and _event.can_trigger()
-		and GameState.score >= ETV_MIN_SCORE
 	):
-		_event_check_timer -= delta
-		if _event_check_timer <= 0.0:
-			_event_check_timer = ETV_TRIGGER_INTERVAL
-			if randf() < ETV_TRIGGER_CHANCE:
-				_event.start()
-				_waves_since_special = 0  # 事件占用特殊槽
+		# A4b：触发策略（定时/概率/分数门槛）委托 ScheduledEventTrigger
+		if _elite_trigger.tick(delta, GameState.score):
+			_event.start()
+			_waves_since_special = 0  # 事件占用特殊槽
 	# 轰炸编队事件触发检查（最低优先级，在精英炮塔事件检查之后；
 	# Boss 激活/精英事件 active/冷却/分数门槛由事件 can_trigger 内检查）
 	if _formation != null and _formation.can_trigger():
-		_formation_check_timer -= delta
-		if _formation_check_timer <= 0.0:
-			_formation_check_timer = FS_TRIGGER_INTERVAL
-			if randf() < FS_TRIGGER_CHANCE:
-				_formation.start()
-				_waves_since_special = 0  # 事件占用特殊槽
+		if _formation_trigger.tick(delta, GameState.score):
+			_formation.start()
+			_waves_since_special = 0  # 事件占用特殊槽
 
 
 func _current_interval() -> float:
