@@ -122,7 +122,7 @@ func _enter_stage(idx: int) -> void:
 			_set_objective_tr("TUT_S5_OBJ")
 		5:  # 首领遭遇：低 HP Boss-1，触发狂暴即过关
 			_set_objective_tr("TUT_S6_OBJ")
-			_player._invincible = 999.0  # 教程不判负
+			_player.set_invincible(999.0)  # 教程不判负
 			_boss = BOSS_SCENE.instantiate() as Boss
 			_boss.setup(1.0, 1)
 			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 120.0)
@@ -215,7 +215,7 @@ func _on_mothership_departed(_cooldown: float) -> void:
 
 func _on_boss_enraged() -> void:
 	if _stage == 5 and not _finished:
-		_boss._abort_enrage_sequence()  # 教程触发即过关：中止序列，不冻结玩家移动
+		_boss.abort_enrage_sequence()  # 教程触发即过关：中止序列，不冻结玩家移动
 		_finish()
 
 
@@ -239,10 +239,10 @@ func _physics_process(delta: float) -> void:
 			if Input.is_action_just_pressed("boost"):
 				_boost_count = mini(_boost_count + 1, 2)
 				_update_boost_objective()
-			if _player._dashing and not _prev_dashing:
+			if _player.is_dashing() and not _prev_dashing:
 				_dash_count = mini(_dash_count + 1, 2)
 				_update_boost_objective()
-			_prev_dashing = _player._dashing
+			_prev_dashing = _player.is_dashing()
 			if _boost_count >= 2 and _dash_count >= 2:
 				_pass_stage()
 		2:

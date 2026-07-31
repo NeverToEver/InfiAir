@@ -335,7 +335,7 @@ func _process(delta: float) -> void:
 	# Boss 逃跑倒计时（约 0.1s 节流轮询，§4.5）：血条存在且剩余 ≤10s 起显示
 	if _boss != null and is_instance_valid(_boss) and _boss_bar.visible:
 		var remaining: float = _boss.escape_remaining()
-		if _boss._in_fight and not _boss._escaping and remaining <= _boss.ESCAPE_COUNTDOWN_FROM and remaining > 0.0:
+		if _boss.is_in_fight() and not _boss.is_escaping() and remaining <= _boss.ESCAPE_COUNTDOWN_FROM and remaining > 0.0:
 			_boss_countdown.visible = true
 			_boss_countdown.text = "%d" % ceili(remaining)
 			_boss_countdown.modulate.a = 1.0 if int(Time.get_ticks_msec() / 500) % 2 == 0 else 0.45
@@ -361,15 +361,15 @@ func _process(delta: float) -> void:
 
 
 func _update_magazine_bar(main: Node) -> void:
-	var ms: Mothership = main._mothership
-	if ms != null and ms._state == Mothership.State.STAY:
+	var ms: Mothership = main.mothership()
+	if ms != null and ms.state() == Mothership.State.STAY:
 		_mag_box.visible = true
-		if ms._mag_cells == _last_mag_cells:
+		if ms.mag_cells() == _last_mag_cells:
 			return
-		_last_mag_cells = ms._mag_cells
+		_last_mag_cells = ms.mag_cells()
 		for i in _mag_cells_nodes.size():
 			_mag_cells_nodes[i].color = (
-				UITheme.ACCENT if i < ms._mag_cells else Color(0.05, 0.09, 0.14, 0.8)
+				UITheme.ACCENT if i < ms.mag_cells() else Color(0.05, 0.09, 0.14, 0.8)
 			)
 	else:
 		_mag_box.visible = false
@@ -486,6 +486,11 @@ func show_boss_banner() -> void:
 func show_magazine_warning() -> void:
 	GameState.play_sfx(GameState.SFX_PLAYER_HIT)
 	_show_warning(tr("WARN_MAG"))
+
+
+## 对外公开接口（A1 修复）：Boss 逃跑警告经公开入口触发
+func show_warning(text: String) -> void:
+	_show_warning(text)
 
 
 func _show_warning(text: String) -> void:

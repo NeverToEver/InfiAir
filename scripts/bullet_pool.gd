@@ -29,7 +29,7 @@ func fire(
 		b = null
 	if b == null:
 		b = BULLET_SCENE.instantiate()
-		b._pool = self
+		b.set_pool(self)
 		get_parent().add_child(b)  # 活跃弹挂 Main 下
 	elif b.get_parent() != get_parent():
 		# 闲置弹从池节点挂回 Main
@@ -51,11 +51,11 @@ func release(b: Bullet) -> void:
 
 
 func _reparent_deferred(b: Bullet) -> void:
-	if is_instance_valid(b) and not b._active:
+	if is_instance_valid(b) and not b.is_active():
 		# 4.6 实测 reparent 会触发 b._exit_tree，置位防 forget 把子弹误清出 _free
-		b._repooling = true
+		b.set_repooling(true)
 		b.reparent(self)
-		b._repooling = false
+		b.set_repooling(false)
 
 
 ## 子弹被外部 queue_free（清场/测试）时从池清单移除，防止悬空引用。

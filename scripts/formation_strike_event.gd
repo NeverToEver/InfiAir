@@ -89,9 +89,9 @@ func can_trigger() -> bool:
 	if _state != State.IDLE or _cooldown_left > 0.0 or GameState.score < MIN_SCORE:
 		return false
 	if _spawner != null and is_instance_valid(_spawner):
-		if _spawner._boss_active:
+		if _spawner.is_boss_active():
 			return false
-		if _spawner._event != null and _spawner._event.is_active():
+		if _spawner.elite_event() != null and _spawner.elite_event().is_active():
 			return false
 	return true
 
@@ -107,7 +107,7 @@ func start() -> void:
 	_dropped = 0
 	# 占用波次槽：事件期间暂停普通波次（结束/打断时恢复）
 	if _spawner != null and is_instance_valid(_spawner):
-		_spawner._waves_paused = true
+		_spawner.set_waves_paused(true)
 	var view := GameState.view_world_rect()
 	var x0 := randf_range(view.position.x + view.size.x * 0.4, view.position.x + view.size.x * 0.6)
 	_anchor = Vector2(x0, view.position.y - 120.0)
@@ -215,7 +215,7 @@ func _finish() -> void:
 ## 恢复普通波次（事件结束/打断时；精英炮塔事件可能同时持有暂停，以其自身恢复为准）
 func _resume_waves() -> void:
 	if _spawner != null and is_instance_valid(_spawner):
-		_spawner._waves_paused = false
+		_spawner.set_waves_paused(false)
 
 
 ## 按时刻表投弹：投弹点即当前位置正下方；已毁机跳过（时刻表照走）

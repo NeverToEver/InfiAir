@@ -154,6 +154,23 @@ func setup(
 	(shape_node.shape as CircleShape2D).radius = config.get("radius", 30.0) * GameState.world_scale
 
 
+## 对外公开接口（A1 修复）：对象池/生成器/事件读取内部状态，禁止跨类直接写 _ 私有字段
+func set_pool(pool: Node) -> void:
+	_pool = pool
+
+
+func is_active() -> bool:
+	return _active
+
+
+func set_repooling(value: bool) -> void:
+	_repooling = value
+
+
+func is_exiting() -> bool:
+	return _exiting
+
+
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)

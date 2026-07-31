@@ -16,8 +16,8 @@ func _ready() -> void:
 	var original: String = FileAccess.get_file_as_string(GameState.BALANCE_PATH)
 	GameState.difficulty = &"medium"  # 里程碑倍率确定性
 
-	# 1. 配置已加载
-	_check(not GameState._balance.is_empty(), "balance.json 已加载进内存")
+	# 1. 配置已加载（A2 阶段 1：改走公开 has_balance()，_balance 已移入 BalanceService）
+	_check(GameState.has_balance(), "balance.json 已加载进内存")
 
 	# 2. 代表值抽查（须与当前 data/balance.json 一致）
 	_check(GameState.cfg("player.fuel.drain", 0.0) == 35.0, "燃料消耗 35/s")
@@ -45,7 +45,7 @@ func _ready() -> void:
 	f.close()
 	GameState._load_balance()
 	GameState._apply_balance()
-	_check(GameState._balance.is_empty(), "损坏 JSON 被丢弃")
+	_check(not GameState.has_balance(), "损坏 JSON 被丢弃")
 	_check(GameState.cfg("player.fuel.drain", 35.0) == 35.0, "损坏后回退默认值")
 	_check(GameState.milestone_threshold(0) == 3000, "损坏后里程碑回退默认")
 

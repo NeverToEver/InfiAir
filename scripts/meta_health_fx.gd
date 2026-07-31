@@ -291,7 +291,7 @@ func _process(delta: float) -> void:
 		var explosions := 0
 		for child in get_parent().get_children():
 			if child is Bullet:
-				if child._active:
+				if child.is_active():
 					bullets += 1
 			elif child is Explosion:
 				if child.visible:

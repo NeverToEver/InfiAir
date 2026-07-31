@@ -5,7 +5,8 @@
 ## 现状快照（2026-07-24）
 
 - **移植对齐收官**：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）。
-- **质量基线**：17 个无头测试场景 586 项断言全绿；长时 autoplay 探针 + 性能基准可用。
+- **质量基线**：29 个无头断言测试场景全绿；长时 autoplay 探针 + 性能基准可用。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8（A1 封装穿透已全量修复，A2/A3 排入 Phase 0，A4–A8 待排期）。
 - **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
 
 ## 方向转变
@@ -23,6 +24,8 @@
 
 - 审计 P2 待办清理（`docs/2026-07-22-audit-fix-plan.md`）：死代码删除（`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等）、母舰 `_start_release()` 幂等守卫、`profile_corrupt` 损坏档案提示消费。
 - 敌机生成路径统一：普通波次目前直接实例化、Boss-3 小怪走 `enemy_pool`，两条路径并存；评估统一到对象池（含 A/B 性能对照，`USE_POOL` 开关已留）。
+- **A2 GameState 拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A2）：四阶段委托式剥离全部落地——①数值配置读操作 `BalanceService` → ②持久化 `SaveManager` → ③音效池 `SfxPlayer` → ④实体注册表 `EntityRegistry`。GameState 公开 API 保留并转发（注册表用属性 getter/setter），调用方与测试零破坏；29 断言场景全绿、数值地图 0 失配、`game_state.gd` 直接文件 IO 清零。
+- **A3 Boss 单类拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A3）：1488 行单类拆为门面 Boss + 4 职责类（`BossFire` 弹幕发射 / `BossAttacks` 攻击状态机 / `BossMovement` 移动策略 / `EnrageSequence` 狂暴状态机）；`boss.gd` 瘦身至 802 行，集中 match 分发被委托取代（O 原则），无跨类私有访问复发；29 断言场景全绿。
 - 验收：全部既有测试 0 FAIL；改动条目在审计文档标注完成。
 
 ### Phase 3 — 暂缓/已砍项的重启条件（均需用户明确决策）

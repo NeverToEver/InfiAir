@@ -53,11 +53,16 @@ const MILESTONE_BASE: Array[int] = [3000, 8000, 15000, 25000, 40000, 55000, 7000
 const MILESTONE_CYCLE_MULT := 1.35
 
 # ---------------- 全局数值配置中心 ----------------
-# data/balance.json 启动时一次加载进 _balance；缺失/损坏时全部回退脚本默认值。
-# 访问统一走 GameState.cfg("分层.路径", 默认值)；热路径在各自 _ready 缓存进成员变量。
+# A2 阶段 1：balance.json 的加载/查询/纯数值 ramp 已剥离到 BalanceService（组合委托）。
+# 缺失/损坏时全部回退脚本默认值；访问统一走 GameState.cfg("分层.路径", 默认值)；
+# 热路径在各自 _ready 缓存进成员变量。
 const BALANCE_PATH := "res://data/balance.json"
 
-var _balance: Dictionary = {}
+## A2 组合服务（均非 autoload，保持"唯一 autoload：GameState"约定；GameState 委托）
+var _balance_service := BalanceService.new()
+var _save_manager := SaveManager.new()
+var _sfx_player := SfxPlayer.new()
+var _registry := EntityRegistry.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
@@ -68,32 +73,17 @@ var world_scale: float = 0.3333333333333333
 
 
 func _load_balance() -> void:
-	_balance = {}
-	if not FileAccess.file_exists(BALANCE_PATH):
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(BALANCE_PATH))
-	if parsed is Dictionary:
-		_balance = parsed
+	_balance_service.load(BALANCE_PATH)
 
 
-## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。
+## 配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；测试/诊断用）
+func has_balance() -> bool:
+	return not _balance_service.is_empty()
+
+
+## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。
 func cfg(path: String, default: Variant) -> Variant:
-	var node: Variant = _balance
-	for key in path.split("."):
-		if node is Dictionary and node.has(key):
-			node = node[key]
-		else:
-			return default
-	# 数值宽容：JSON 整数/浮点互通
-	if default is int or default is float:
-		if node is int or node is float:
-			return node
-		return default
-	if node is Array and default is Array:
-		return node
-	if typeof(node) == typeof(default):
-		return node
-	return default
+	return _balance_service.cfg(path, default)
 
 
 func _apply_balance() -> void:
@@ -145,8 +135,6 @@ var tutorial_done: bool = false
 ## 欢迎页是否已展示过（profile 持久化：仅装机后首次启动显示欢迎页）
 var welcome_seen: bool = false
 
-var _sfx_players: Array[AudioStreamPlayer] = []
-var _sfx_index: int = 0
 
 var score: int = 0
 var kills: int = 0
@@ -203,37 +191,57 @@ var profile_corrupt: bool = false
 func _enter_tree() -> void:
 	boot_ticks_msec = Time.get_ticks_msec()
 
-## 实体注册表（热路径缓存，避免每帧 get_nodes_in_group 分配）：
+## 实体注册表（A2 阶段 4：数据归 EntityRegistry，属性转发保持外部语法不变）。
+## 热路径缓存，避免每帧 get_nodes_in_group 分配。
 ## enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。
-var enemies: Array[Node] = []
-var player_ref: Node2D = null
+var enemies: Array[Node] = []:
+	get:
+		return _registry.enemies
+var player_ref: Node2D = null:
+	get:
+		return _registry.player_ref
+	set(value):
+		_registry.player_ref = value
 ## 玩家受击 Hitbox（player._ready/_exit_tree 维护；敌机/Boss 撞击逐帧轮询用）
-var player_hitbox: Area2D = null
+var player_hitbox: Area2D = null:
+	get:
+		return _registry.player_hitbox
+	set(value):
+		_registry.player_hitbox = value
 ## 子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）
-var bullet_pool: BulletPool = null
+var bullet_pool: BulletPool = null:
+	get:
+		return _registry.bullet_pool
+	set(value):
+		_registry.bullet_pool = value
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
-var enemy_pool: EnemyPool = null
+var enemy_pool: EnemyPool = null:
+	get:
+		return _registry.enemy_pool
+	set(value):
+		_registry.enemy_pool = value
 ## 辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）
-var aim_frame_layer: AimFrameLayer = null
+var aim_frame_layer: AimFrameLayer = null:
+	get:
+		return _registry.aim_frame_layer
+	set(value):
+		_registry.aim_frame_layer = value
 
 
 func register_enemy(node: Node) -> void:
-	if not enemies.has(node):
-		enemies.append(node)
+	_registry.register_enemy(node)
 
 
 func unregister_enemy(node: Node) -> void:
-	enemies.erase(node)
+	_registry.unregister_enemy(node)
 
 
 func _ready() -> void:
 	_load_balance()
 	_apply_balance()
-	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断
-	for i in SFX_POOL_SIZE:
-		var p := AudioStreamPlayer.new()
-		add_child(p)
-		_sfx_players.append(p)
+	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
+	add_child(_sfx_player)
+	_sfx_player.build_pool(SFX_POOL_SIZE)
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
@@ -260,22 +268,13 @@ func _process(delta: float) -> void:
 
 
 func play_sfx(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
-	# headless dummy 音频驱动不混音：一次性 WAV 播放实例在退出时既不自然结束、
-	# stop() 也不释放，必报 ObjectDB 泄漏噪音；无头路径直接不创建播放实例。
-	if DisplayServer.get_name() == "headless":
-		return
-	var p := _sfx_players[_sfx_index]
-	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
-	p.stream = stream
-	p.volume_db = volume_db
-	p.pitch_scale = pitch_scale  # 池化复用：每次播放都显式置位，避免上次变调残留
-	p.play()
+	# headless 短路与池化复用逻辑在 SfxPlayer（A2 阶段 3）
+	_sfx_player.play(stream, volume_db, pitch_scale)
 
 
 ## 退出前停止所有仍在播放的音效：带播未停时 AudioStreamPlayback 会在退出时泄漏
 func stop_all_sfx() -> void:
-	for p in _sfx_players:
-		p.stop()
+	_sfx_player.stop_all()
 	if player_ref != null and is_instance_valid(player_ref):
 		var audio: AudioStreamPlayer2D = player_ref.get_node_or_null("AudioStreamPlayer2D")
 		if audio != null:
@@ -341,15 +340,17 @@ func enemy_speed_multiplier() -> float:
 	return float(DIFFICULTY_DEFS[difficulty]["speed"])
 
 
-## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长
+## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
+## 纯查询委托 BalanceService（难度乘数作参数）。
 func enemy_hp_ramp() -> float:
-	return 1.0 + float(cfg("enemies.hp_ramp_factor", 0.12)) * (difficulty_multiplier - 1.0)
+	return _balance_service.enemy_hp_ramp(difficulty_multiplier)
 
 
 ## 敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
-## 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）
+## 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
+## 纯查询委托 BalanceService（难度乘数作参数）。
 func enemy_damage_ramp() -> float:
-	return 1.0 + float(cfg("enemies.damage_ramp_factor", 0.08)) * (difficulty_multiplier - 1.0)
+	return _balance_service.enemy_damage_ramp(difficulty_multiplier)
 
 
 func spawn_interval_multiplier() -> float:
@@ -417,7 +418,11 @@ const VIEW_ZOOM_LEVELS: Dictionary = {&"small": 1.0, &"medium": 1.35, &"large": 
 const VIEW_ZOOM_ORDER: Array[StringName] = [&"small", &"medium", &"large"]
 
 ## main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算
-var camera_ref: Camera2D = null
+var camera_ref: Camera2D = null:
+	get:
+		return _registry.camera_ref
+	set(value):
+		_registry.camera_ref = value
 ## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 small 档一致）
 var _view_zoom_factor: float = 1.0
 
@@ -787,50 +792,28 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,
 	}
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f == null:
-		push_warning("InfiAir: 无法写入对局存档 %s（错误 %d）" % [SAVE_PATH, FileAccess.get_open_error()])
-		return
-	f.store_string(JSON.stringify(data))
-	f.close()
+	# A2 阶段 2：文件 IO 委托 SaveManager
+	_save_manager.save(SAVE_PATH, data)
 
 
 func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+	return _save_manager.exists(SAVE_PATH)
 
 
 func load_run_data() -> Dictionary:
 	save_corrupt = false
-	if not has_save():
+	if not _save_manager.exists(SAVE_PATH):
 		return {}
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if f == null:
-		return {}
-	var text := f.get_as_text()
-	f.close()
-	# 用 JSON 实例解析（parse_string 会把损坏内容打成 ERROR 级日志，噪音大）
-	var json := JSON.new()
-	if json.parse(text) == OK and json.data is Dictionary:
-		return json.data
-	# 损坏存档：隔离备份后按无存档处理（否则「继续对局」每次点了都无反应，形成死路径）
-	_quarantine(SAVE_PATH)
-	save_corrupt = true
-	return {}
-
-
-## 损坏文件隔离：重命名为 <path>.corrupt（已有备份则先删），给玩家留排查余地
-func _quarantine(path: String) -> void:
-	var backup := path + ".corrupt"
-	if FileAccess.file_exists(backup):
-		DirAccess.remove_absolute(backup)
-	var err := DirAccess.rename_absolute(path, backup)
-	if err != OK:
-		push_warning("InfiAir: 无法备份损坏文件 %s（错误 %d）" % [path, err])
+	var data := _save_manager.load(SAVE_PATH)
+	if _save_manager.last_was_corrupt:
+		# 损坏存档已由 SaveManager 隔离备份，按无存档处理（不留死路径）
+		save_corrupt = true
+	return data
 
 
 ## 存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
 func save_num(v: Variant, default: float) -> float:
-	return float(v) if v is int or v is float else default
+	return _save_manager.sanitize_num(v, default)
 
 
 func apply_run_save(data: Dictionary) -> void:
@@ -894,8 +877,7 @@ func apply_run_save(data: Dictionary) -> void:
 
 
 func delete_save() -> void:
-	if has_save():
-		DirAccess.remove_absolute(SAVE_PATH)
+	_save_manager.delete(SAVE_PATH)
 
 
 # ---------------- 局外档案（user://profile.json） ----------------
@@ -904,14 +886,12 @@ func delete_save() -> void:
 ## 旧档案缺少新字段时保留当前内存值，保证兼容；损坏文件隔离备份后按默认值继续）
 func load_profile() -> void:
 	profile_corrupt = false
-	if not FileAccess.file_exists(PROFILE_PATH):
-		return
-	var json := JSON.new()
-	if json.parse(FileAccess.get_file_as_string(PROFILE_PATH)) != OK or not json.data is Dictionary:
-		_quarantine(PROFILE_PATH)
+	var parsed := _save_manager.load(PROFILE_PATH)
+	if _save_manager.last_was_corrupt:
 		profile_corrupt = true
 		return
-	var parsed: Dictionary = json.data
+	if parsed.is_empty():
+		return
 	high_score = int(parsed.get("high_score", 0))
 	tutorial_done = bool(parsed.get("tutorial_done", false))
 	welcome_seen = bool(parsed.get("welcome_seen", false))
@@ -958,12 +938,7 @@ func save_profile() -> void:
 		"aim_assist": String(aim_assist_level),
 		"reduce_flash": reduce_flash,
 	}
-	var f := FileAccess.open(PROFILE_PATH, FileAccess.WRITE)
-	if f == null:
-		push_warning("InfiAir: 无法写入档案 %s（错误 %d）" % [PROFILE_PATH, FileAccess.get_open_error()])
-		return
-	f.store_string(JSON.stringify(data))
-	f.close()
+	_save_manager.save(PROFILE_PATH, data)
 
 
 ## 记录最高分，破纪录返回 true

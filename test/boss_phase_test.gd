@@ -50,7 +50,7 @@ func _spawn_test_boss(p_type: int) -> Boss:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss = child
-	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
+	boss.position.y = boss.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	return boss
 
 
@@ -115,13 +115,13 @@ func _ready() -> void:
 		is_equal_approx(boss.hp, boss.max_hp * 0.65),
 		"场景1：P2 阈值不钳血（锁血仅狂暴 30% 语义不变）"
 	)
-	_check(not boss._enrage_health_lock, "场景1：P2 段切换不触发锁血")
+	_check(not boss._enrage_seq.is_health_locked(), "场景1：P2 段切换不触发锁血")
 	_check(boss._pattern_index == 0, "场景1：段切换重置模式表循环")
 	# P2→ENRAGE：打到 25%（钳 30% 触发狂暴；一击跨两段狂暴优先）
 	boss.take_damage(int(boss.max_hp * 0.4))
 	await get_tree().process_frame
 	_check(boss._enraged and boss._fight_phase == Boss.FightPhase.ENRAGE, "场景1：HP <30% 进入 ENRAGE")
-	_check(boss._enrage_health_lock, "场景1：狂暴锁血语义不变")
+	_check(boss._enrage_seq.is_health_locked(), "场景1：狂暴锁血语义不变")
 	_check(is_equal_approx(player._enrage_slow, 0.35), "场景1：TRANSITION 中玩家减速 ×0.35")
 	# 快进 main 子弹时间等恢复
 	main._bullet_time_left = 0.05
@@ -154,7 +154,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		if boss2._aim_line != null:
+		if boss2._attacks.aim_line() != null:
 			line_appeared = true
 			line_tick = Time.get_ticks_msec()
 			break
@@ -167,7 +167,7 @@ func _ready() -> void:
 			fire_elapsed = Time.get_ticks_msec() - line_tick
 			break
 	_check(fire_elapsed >= 300, "场景2：瞄准线出现 ≥0.3s 后才出弹（实测 %dms）" % fire_elapsed)
-	_check(boss2._aim_line == null, "场景2：出弹后瞄准线即毁")
+	_check(boss2._attacks.aim_line() == null, "场景2：出弹后瞄准线即毁")
 	await _wait_real(0.4)  # 3 连发 0.12s 间隔
 	_check(_enemy_bullets().size() == 3, "场景2：到点沿线 3 连发出弹")
 	boss2.take_damage(9999)

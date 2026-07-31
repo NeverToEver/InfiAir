@@ -183,6 +183,55 @@ func _load_balance() -> void:
 	buff_visuals.init(_sprite, self)
 
 
+## 对外公开接口（A1 修复）：封装内部状态，禁止跨类直接写 _ 私有字段
+func is_dead() -> bool:
+	return _dead
+
+
+func is_input_locked() -> bool:
+	return _input_locked
+
+
+func set_invincible(seconds: float) -> void:
+	_invincible = seconds
+
+
+func lock_input() -> void:
+	_input_locked = true
+
+
+func unlock_input() -> void:
+	_input_locked = false
+
+
+func set_fuel(value: float) -> void:
+	_fuel = clampf(value, 0.0, fuel_max)
+
+
+func fuel_amount() -> float:
+	return _fuel
+
+
+func die() -> void:
+	_die()
+
+
+func apply_enrage_slow(factor: float) -> void:
+	_enrage_slow = factor
+
+
+func set_auto_fire(enabled: bool) -> void:
+	_auto_fire_enabled = enabled
+
+
+func auto_fire_enabled() -> bool:
+	return _auto_fire_enabled
+
+
+func is_dashing() -> bool:
+	return _dashing
+
+
 func fire_interval() -> float:
 	return BASE_FIRE_INTERVAL * pow(GameState.cfg("buffs.rapid_fire.factor", 0.75), GameState.buff_count(&"rapid_fire"))
 
@@ -472,7 +521,7 @@ func _clear_nearby_enemy_bullets() -> void:
 		var b := child as Bullet
 		if b != null and not b.is_player_bullet:
 			if b.global_position.distance_to(global_position) <= BULLET_CLEAR_RADIUS:
-				b._despawn()
+				b.despawn()
 
 
 func _die() -> void:

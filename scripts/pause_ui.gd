@@ -97,8 +97,8 @@ func _on_settings_pressed() -> void:
 func _on_save_pressed() -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	var spawner := get_tree().get_first_node_in_group("spawner")
-	var fuel: float = player._fuel if player != null else 100.0
-	var elapsed: float = spawner._elapsed if spawner != null else 0.0
+	var fuel: float = player.fuel_amount() if player != null else 100.0
+	var elapsed: float = spawner.elapsed() if spawner != null else 0.0
 	GameState.save_run(fuel, elapsed)
 	_save_button.text = tr("PAUSE_SAVED")
 	# 用信号连接而非协程：退出时挂起的协程函数状态会泄漏

@@ -79,7 +79,7 @@ func _spawn_test_boss(p_type: int) -> Boss:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss = child
-	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
+	boss.position.y = boss.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	return boss
 
 
@@ -129,7 +129,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss1):
 			break
-		if boss1._cannon_elapsed >= 0.0:
+		if boss1._attacks.cannon_elapsed() >= 0.0:
 			cannon_started = true
 			cannon_tick = Time.get_ticks_msec()
 			break
@@ -170,7 +170,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		if boss2._sweep_state == Boss.SweepState.AIM and boss2._sweep_line != null:
+		if boss2._attacks.sweep_state() == Boss.SweepState.AIM and boss2._attacks.sweep_line() != null:
 			sweep_aimed = true
 			break
 	_check(sweep_aimed, "场景2：冲刺掠过水平瞄准线 telegraph 先行")
@@ -181,7 +181,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		if boss2._sweep_state == Boss.SweepState.DASH:
+		if boss2._attacks.sweep_state() == Boss.SweepState.DASH:
 			dashing = true
 			x0 = boss2.position.x
 			break
@@ -196,7 +196,7 @@ func _ready() -> void:
 		if not is_instance_valid(boss2):
 			break
 		drops = maxi(drops, _bullets_by_speed(150.0).size())
-		if boss2._sweep_state == Boss.SweepState.NONE:
+		if boss2._attacks.sweep_state() == Boss.SweepState.NONE:
 			sweep_done = true
 			break
 	_check(drops >= 3, "场景2：路径等距拖 3 枚减速弹（150 弹速）")
@@ -207,7 +207,7 @@ func _ready() -> void:
 	_check(drop_dmg_ok, "场景2：减速弹伤害 12")
 	_check(sweep_done, "场景2：穿屏后回到巡航流程")
 	if is_instance_valid(boss2):
-		_check(absf(boss2.position.y - boss2._fight_anchor_y()) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")
+		_check(absf(boss2.position.y - boss2.fight_anchor_y()) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")
 	boss2.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
@@ -233,7 +233,7 @@ func _ready() -> void:
 		await _wait_real(0.1)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_phase == Boss.EnragePhase.ACTIVE:
+		if boss3._enrage_seq.phase() == Boss.EnragePhase.ACTIVE:
 			active3 = true
 			break
 	_check(active3, "场景3：TRANSITION 结束进入 ACTIVE")
@@ -245,10 +245,10 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_phase != Boss.EnragePhase.ACTIVE:
+		if boss3._enrage_seq.phase() != Boss.EnragePhase.ACTIVE:
 			break
-		aim_seen = aim_seen or boss3._aim_line != null
-		max_index = maxi(max_index, boss3._enrage_attack_index)
+		aim_seen = aim_seen or boss3._enrage_seq.aim_line() != null
+		max_index = maxi(max_index, boss3._enrage_seq.attack_index())
 		heavy3_max = maxi(heavy3_max, _bullets_by_speed(900.0).size())
 		pos_samples.append(boss3.global_position)
 	_check(aim_seen, "场景3：瞬停点 0.3s 瞄准线 telegraph")
@@ -264,7 +264,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_phase == Boss.EnragePhase.RELEASE_HOLD:
+		if boss3._enrage_seq.phase() == Boss.EnragePhase.RELEASE_HOLD:
 			hold3 = true
 			break
 	_check(hold3, "场景3：ACTIVE 结束进入 RELEASE_HOLD")
@@ -382,7 +382,7 @@ func _ready() -> void:
 		await _wait_real(0.1)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_phase == Boss.EnragePhase.ACTIVE:
+		if boss5._enrage_seq.phase() == Boss.EnragePhase.ACTIVE:
 			active5 = true
 			break
 	_check(active5, "场景5：TRANSITION 结束进入 ACTIVE")
@@ -393,10 +393,10 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_phase != Boss.EnragePhase.ACTIVE:
+		if boss5._enrage_seq.phase() != Boss.EnragePhase.ACTIVE:
 			break
 		minion_max = maxi(minion_max, _enemies_alive().size())
-		waves_max = maxi(waves_max, boss5._enrage_summon_waves)
+		waves_max = maxi(waves_max, boss5._enrage_seq.summon_waves())
 		ring5_max = maxi(ring5_max, _count_meta_bullets(&"enrage_ring"))
 	_check(waves_max >= 3, "场景5：ACTIVE 共放 3 波小怪（实测 %d 波）" % waves_max)
 	_check(minion_max >= 6, "场景5：小怪波次在场（峰值 %d 只）" % minion_max)
@@ -406,7 +406,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_phase == Boss.EnragePhase.RELEASE_HOLD:
+		if boss5._enrage_seq.phase() == Boss.EnragePhase.RELEASE_HOLD:
 			hold5 = true
 			break
 	_check(hold5, "场景5：ACTIVE 结束进入 RELEASE_HOLD")
@@ -435,7 +435,7 @@ func _ready() -> void:
 	_check(boss6e != null, "场景6：easy Boss 已生成")
 	_check(boss6e.E1_RING_COUNT == 10, "场景6：easy 狂暴环弹 12-2=10（实测 %d）" % boss6e.E1_RING_COUNT)
 	_check(boss6e.CANNON_SHOTS == 2, "场景6：easy 蓄力重炮 3-1=2 发（实测 %d）" % boss6e.CANNON_SHOTS)
-	_check(boss6e._d_fan == -1 and boss6e._d_homing == -1, "场景6：easy 扇形/追踪弹数 -1")
+	_check(boss6e._attacks.fan_delta == -1 and boss6e._attacks.homing_delta == -1, "场景6：easy 扇形/追踪弹数 -1")
 	var p2_interval_e: float = boss6e._patterns["p2"][0]["interval"]
 	_check(absf(p2_interval_e - 2.4 * 1.15) < 0.01, "场景6：easy 开火间隔 ×1.15（实测 %.3f）" % p2_interval_e)
 	_check(absf(boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, "场景6：easy 弹速 ×0.9（实测 %.1f）" % boss6e.FAN_BULLET_SPEED)
@@ -448,7 +448,7 @@ func _ready() -> void:
 	_check(boss6h != null, "场景6：hard Boss 已生成")
 	_check(boss6h.E1_RING_COUNT == 14, "场景6：hard 狂暴环弹 12+2=14（实测 %d）" % boss6h.E1_RING_COUNT)
 	_check(boss6h.CANNON_SHOTS == 4, "场景6：hard 蓄力重炮 3+1=4 发（实测 %d）" % boss6h.CANNON_SHOTS)
-	_check(boss6h._d_fan == 1 and boss6h._d_homing == 1, "场景6：hard 扇形/追踪弹数 +1")
+	_check(boss6h._attacks.fan_delta == 1 and boss6h._attacks.homing_delta == 1, "场景6：hard 扇形/追踪弹数 +1")
 	var p2_interval_h: float = boss6h._patterns["p2"][0]["interval"]
 	_check(absf(p2_interval_h - 2.4 * 0.85) < 0.01, "场景6：hard 开火间隔 ×0.85（实测 %.3f）" % p2_interval_h)
 	_check(absf(boss6h.FAN_BULLET_SPEED - 380.0 * 1.1) < 0.01, "场景6：hard 弹速 ×1.1（实测 %.1f）" % boss6h.FAN_BULLET_SPEED)

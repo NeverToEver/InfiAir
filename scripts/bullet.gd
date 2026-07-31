@@ -97,6 +97,23 @@ func deactivate() -> void:
 	_deferred_disable_monitoring.call_deferred()
 
 
+## 对外公开接口（A1 修复）：对象池协调的内部状态封装，禁止跨类直接写 _ 私有字段
+func set_pool(pool: Node) -> void:
+	_pool = pool
+
+
+func is_active() -> bool:
+	return _active
+
+
+func set_repooling(value: bool) -> void:
+	_repooling = value
+
+
+func despawn() -> void:
+	_despawn()
+
+
 ## 物理回调内不能直改 monitoring，延迟到帧末；若子弹已被重激活（同帧复用）则跳过
 func _deferred_disable_monitoring() -> void:
 	if not _active:
@@ -224,5 +241,7 @@ func _on_area_entered(area: Area2D) -> void:
 	elif area.is_in_group("player_hitbox"):
 		# 命中生效才销毁；无敌/单帧已结算/闪避则穿过（对齐原作 single-hit 语义）
 		# 补传弹丸位置作伤害源方向（Meta HUD 定向波纹，D8）
-		if (area.get_parent() as Player).take_damage(float(damage), global_position):
+		# A1：用注册表引用替代父节点硬强转（Hitbox 由 Player 维护，二者等价）
+		var player := GameState.player_ref as Player
+		if player != null and player.take_damage(float(damage), global_position):
 			_despawn()

@@ -151,6 +151,11 @@ func _start_capture(action: StringName) -> void:
 	_hint_label.text = tr("SET_CAPTURE") % tr("ACT_" + String(action).to_upper())
 
 
+## 对外公开接口（A1 修复）：BackNavigator 决策查询改键捕获态
+func capturing_action() -> StringName:
+	return _capturing_action
+
+
 func _on_reset_keys() -> void:
 	GameState.reset_key_bindings()
 	_hint_label.text = tr("SET_RESET_DONE")

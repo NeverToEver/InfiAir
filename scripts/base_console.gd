@@ -326,7 +326,7 @@ func _refresh() -> void:
 	# 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
 	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.health >= GameState.max_health()
 	_recharge_button.disabled = (
-		GameState.rp < GameState.RP_RECHARGE_COST or player == null or player._fuel >= player.fuel_max
+		GameState.rp < GameState.RP_RECHARGE_COST or player == null or player.fuel_amount() >= player.fuel_max
 	)
 	_refresh_routes()
 	_refresh_missions()

@@ -24,7 +24,7 @@ func spawn(config: Dictionary, strategy: StringName, p_difficulty: float, pos: V
 			e = null
 	if e == null:
 		e = ENEMY_SCENE.instantiate()
-		e._pool = self
+		e.set_pool(self)
 		get_parent().add_child(e)
 	elif e.get_parent() != get_parent():
 		e.reparent(get_parent())
@@ -47,11 +47,11 @@ func release(e: Enemy) -> void:
 
 
 func _reparent_deferred(e: Enemy) -> void:
-	if is_instance_valid(e) and not e._active:
+	if is_instance_valid(e) and not e.is_active():
 		# 4.6 实测 reparent 会触发 e._exit_tree，置位防 forget 把敌机误清出 _free
-		e._repooling = true
+		e.set_repooling(true)
 		e.reparent(self)
-		e._repooling = false
+		e.set_repooling(false)
 
 
 ## 被外部 queue_free（清场/测试/场景重载）时从池清单移除。

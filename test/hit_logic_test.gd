@@ -300,7 +300,7 @@ func _ready() -> void:
 	var boss5 := _make_boss(1)
 	boss5.position = Vector2(960.0, 300.0)
 	boss5._fire_timer = 999.0  # 屏蔽常规开火，保证弹丸计数纯净
-	boss5._fire_fan()
+	boss5._fire.fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)
 	var fan_dmg_ok := true
 	var fan_count := 0
 	for b in _enemy_bullets():
@@ -309,13 +309,13 @@ func _ready() -> void:
 			fan_dmg_ok = false
 	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage（基准 14，期望 %d）" % exp14)
 	await _free_enemy_bullets()
-	boss5._fire_homing()
+	boss5._fire.fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)
 	var homing_b: Bullet = null
 	for b in _enemy_bullets():
 		homing_b = b
 	_check(homing_b != null and homing_b.damage == exp12 and homing_b.homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5._fire_cross()
+	boss5._fire.fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)
 	var cross_dmg_ok := true
 	var cross_count := 0
 	for b in _enemy_bullets():
@@ -324,7 +324,7 @@ func _ready() -> void:
 			cross_dmg_ok = false
 	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5._fire_sniper()
+	boss5._fire.fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)
 	var sniper_b: Bullet = null
 	for b in _enemy_bullets():
 		if not b.has_meta("bullet_type"):

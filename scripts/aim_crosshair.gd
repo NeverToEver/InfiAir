@@ -32,8 +32,8 @@ func _process(_delta: float) -> void:
 	var active := (
 		_player != null
 		and not get_tree().paused
-		and not _player._dead
-		and not _player._input_locked
+		and not _player.is_dead()
+		and not _player.is_input_locked()
 	)
 	if active:
 		global_position = _player.aim_point()

@@ -263,14 +263,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var range_boss := BOSS_SCENE.instantiate() as Boss
 	GameState.set_view_zoom(&"small")
-	var small_range := range_boss._strafe_range()
+	var small_range := range_boss.strafe_range()
 	_check(small_range == Vector2(300.0, 1620.0), "small 档 Boss 巡航范围 = 配置 300..1620")
 	_check(
-		absf(range_boss._fight_anchor_y() - range_boss.FIGHT_Y) < 0.001,
+		absf(range_boss.fight_anchor_y() - range_boss.FIGHT_Y) < 0.001,
 		"small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）"
 	)
 	GameState.set_view_zoom(&"large")
-	var large_range := range_boss._strafe_range()
+	var large_range := range_boss.strafe_range()
 	var expect_lo := GameState.view_world_rect().position.x + 300.0
 	var expect_hi := GameState.view_world_rect().end.x - 300.0
 	_check(
@@ -278,7 +278,7 @@ func _ready() -> void:
 		"large 档 Boss 巡航范围随可见区域收窄"
 	)
 	var view_anchor := GameState.view_world_rect()
-	var anchor_large := range_boss._fight_anchor_y()
+	var anchor_large := range_boss.fight_anchor_y()
 	_check(
 		absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001,
 		"large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y"

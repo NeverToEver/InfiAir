@@ -160,7 +160,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss3 = child
 	_check(boss3 != null and boss3.boss_type == 3, "Boss 轮换：第 3 只为母舰型")
-	boss3.position.y = boss3._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
+	boss3.position.y = boss3.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	await get_tree().create_timer(7.0).timeout  # 首次召唤在 6s
 	var minion_found := false
 	for child in get_node("Main").get_children():
@@ -184,7 +184,7 @@ func _ready() -> void:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss4 = child
-	boss4.position.y = boss4._fight_anchor_y()
+	boss4.position.y = boss4.fight_anchor_y()
 	await get_tree().create_timer(0.5).timeout
 	boss4.take_damage(int(boss4.max_hp * 0.75))
 	await get_tree().process_frame

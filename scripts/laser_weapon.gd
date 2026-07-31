@@ -68,7 +68,7 @@ func _physics_process(delta: float) -> void:
 	if _active:
 		_active_time -= delta
 		_tick_timer -= delta
-		if _active_time <= 0.0 or _player._dead or _player._input_locked:
+		if _active_time <= 0.0 or _player.is_dead() or _player.is_input_locked():
 			_end_beam()
 			return
 		var start := _player.global_position
@@ -78,7 +78,7 @@ func _physics_process(delta: float) -> void:
 		if _tick_timer <= 0.0:
 			_tick_timer += TICK_INTERVAL
 			_damage_tick(start, end)
-	elif _cooldown <= 0.0 and not _player._dead and not _player._input_locked:
+	elif _cooldown <= 0.0 and not _player.is_dead() and not _player.is_input_locked():
 		if (get_global_mouse_position() - _player.global_position).length() > 1.0:
 			_start_beam()
 
@@ -98,8 +98,8 @@ func _start_beam() -> void:
 	_beam.visible = true
 	_glow.emitting = true
 	# 光束期间替换普通子弹
-	_saved_autofire = _player._auto_fire_enabled
-	_player._auto_fire_enabled = false
+	_saved_autofire = _player.auto_fire_enabled()
+	_player.set_auto_fire(false)
 	GameState.play_sfx(SFX_BEAM, -6.0)
 
 
@@ -109,7 +109,7 @@ func _end_beam() -> void:
 	_glow.emitting = false
 	_cooldown = COOLDOWN
 	if is_instance_valid(_player):
-		_player._auto_fire_enabled = _saved_autofire
+		_player.set_auto_fire(_saved_autofire)
 
 
 ## 穿透结算：光束线段两侧的敌人（含 Boss）都吃伤害，不打断

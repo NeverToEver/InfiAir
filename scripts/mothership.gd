@@ -274,6 +274,15 @@ func state_text() -> String:
 	return ""
 
 
+## 对外公开接口（A1 修复）：HUD 轮询读取状态/弹匣，禁止跨类直接写 _ 私有字段
+func state() -> State:
+	return _state
+
+
+func mag_cells() -> int:
+	return _mag_cells
+
+
 func _enter_state(p_state: State) -> void:
 	_state = p_state
 	_state_timer = 0.0
@@ -328,7 +337,7 @@ func _physics_process(delta: float) -> void:
 			if _state_timer >= DOCK_TWEEN_TIME:
 				_beam.visible = false  # 对接完成即隐藏牵引光束，否则驻留期一直闪烁
 				# 回收完成：玩家进保护舱（隐藏+关受击判定，驻留全程保持，RELEASE 出舱）
-				if is_instance_valid(_player) and not _player._dead:
+				if is_instance_valid(_player) and not _player.is_dead():
 					_player.enter_pod()
 					# 进舱捕获反馈：对接点小冲击环 + 短促软闪
 					var sw := CinematicFx.shockwave({
@@ -384,9 +393,9 @@ func _physics_process(delta: float) -> void:
 				_start_release()
 		State.RELEASE:
 			if _state_timer >= RELEASE_TIME:
-				if is_instance_valid(_player) and not _player._dead:
-					_player._input_locked = false
-					_player._invincible = RELEASE_INVINCIBLE
+				if is_instance_valid(_player) and not _player.is_dead():
+					_player.unlock_input()
+					_player.set_invincible(RELEASE_INVINCIBLE)
 				_enter_state(State.DEPART)
 				departed.emit(DEPART_COOLDOWN * _cooldown_factor * (1.0 - _prefill))
 		State.DEPART:
@@ -466,7 +475,7 @@ func _update_drive(delta: float) -> void:
 		view.position + Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_TOP),
 		view.end - Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_BOTTOM)
 	)
-	if is_instance_valid(_player) and not _player._dead:
+	if is_instance_valid(_player) and not _player.is_dead():
 		_player.global_position = _dock_point()
 
 
@@ -545,15 +554,15 @@ func _update_missiles(delta: float) -> void:
 
 ## 对接开始：锁输入 + 即无敌（对齐原作无敌窗口起点，堵对接/补给空窗）+ 吸附补间
 func _start_docking(player: Player) -> void:
-	if player == null or player._dead:
+	if player == null or player.is_dead():
 		queue_free()  # 玩家不可用（死亡路径）：母舰直接离场，避免 HOVER 死态
 		return
 	_player = player
 	_enter_state(State.DOCKING)
-	_player._input_locked = true
+	_player.lock_input()
 	_player.velocity = Vector2.ZERO
 	# 无敌窗口起点 = 吸附动画开始（锁输入期间无敌帧不衰减，对齐原作事件驱动无敌）
-	_player._invincible = 999.0
+	_player.set_invincible(999.0)
 	_beam.visible = true
 	# 牵引光束吸附到对接点（原作定长补间 1.5s）
 	var tween := create_tween()
@@ -562,7 +571,7 @@ func _start_docking(player: Player) -> void:
 
 
 func _do_resupply() -> void:
-	if not is_instance_valid(_player) or _player._dead:
+	if not is_instance_valid(_player) or _player.is_dead():
 		return
 	# 回满生命与燃料（重制版增强：原作母舰无补给，回复在基地 RP 交易）
 	GameState.heal(GameState.max_health() - GameState.health)
@@ -603,7 +612,7 @@ func _start_release() -> void:
 	})
 	burst.position = Vector2(0.0, DOCK_OFFSET_Y)
 	add_child(burst)
-	if not is_instance_valid(_player) or _player._dead:
+	if not is_instance_valid(_player) or _player.is_dead():
 		return
 	_player.exit_pod()  # 出舱恢复显示（抛下补间全程可见）
 	var tween := create_tween()
@@ -617,5 +626,5 @@ func _exit_tree() -> void:
 	if _warp_gate != null:
 		_warp_gate.close()
 		_warp_gate = null
-	if is_instance_valid(_player) and not _player._dead and not _player.visible:
+	if is_instance_valid(_player) and not _player.is_dead() and not _player.visible:
 		_player.exit_pod()

@@ -97,17 +97,17 @@ func _mark_handled() -> void:
 func decide_back_action() -> BackAction:
 	if _exit_confirm.visible:
 		return BackAction.CANCEL_EXIT
-	if _main._intro != null:
+	if _main.is_intro_playing():
 		return BackAction.SKIP_INTRO  # 过场播放中：Esc = 跳过过场（须在下方暂停 IGNORE 之前）
-	if _main._return != null:
+	if _main.is_return_playing():
 		return BackAction.SKIP_RETURN  # 返航过场播放中：Esc = 跳过过场（优先级同 SKIP_INTRO）
 	if _settings_ui.visible:
-		if _settings_ui._capturing_action != &"":
+		if _settings_ui.capturing_action() != &"":
 			return BackAction.CAPTURE_PASSTHROUGH
 		return BackAction.CLOSE_SETTINGS
 	if _base_ui.visible:
 		return BackAction.RESUME_BASE
-	if _buff_ui.visible or (_main._game_over and not _game_over_ui.visible):
+	if _buff_ui.visible or (_main.is_game_over() and not _game_over_ui.visible):
 		return BackAction.IGNORE
 	if _game_over_ui.visible:
 		return BackAction.TO_MAIN_MENU
@@ -117,6 +117,6 @@ func decide_back_action() -> BackAction:
 		return BackAction.RESUME_GAME
 	if _start_panel.visible or _welcome.visible:
 		return BackAction.CONFIRM_EXIT
-	if _main._homecoming or get_tree().paused:
+	if _main.is_homecoming() or get_tree().paused:
 		return BackAction.IGNORE  # 其他暂停态不响应
 	return BackAction.OPEN_PAUSE

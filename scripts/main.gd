@@ -80,11 +80,11 @@ func _ready() -> void:
 	# 精英炮塔事件：编排节点挂 Main 下（清场/测试遍历可见），spawner 持引用做互斥
 	_event = EliteTurretEvent.new()
 	add_child(_event)
-	_spawner._event = _event
+	_spawner.set_elite_event(_event)
 	# 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
 	_formation = FormationStrikeEvent.new()
 	add_child(_formation)
-	_spawner._formation = _formation
+	_spawner.set_formation_event(_formation)
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
 	_start_panel.new_game_chosen.connect(_apply_new_run)
@@ -123,6 +123,27 @@ func _exit_tree() -> void:
 	Engine.time_scale = 1.0
 	if GameState.camera_ref == _camera:
 		GameState.camera_ref = null
+
+
+## 对外公开接口（A1 修复）：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段
+func is_intro_playing() -> bool:
+	return _intro != null
+
+
+func is_return_playing() -> bool:
+	return _return != null
+
+
+func is_game_over() -> bool:
+	return _game_over
+
+
+func is_homecoming() -> bool:
+	return _homecoming
+
+
+func mothership() -> Mothership:
+	return _mothership
 
 
 func _on_view_zoom_changed(_factor: float) -> void:
@@ -194,7 +215,7 @@ func _process(delta: float) -> void:
 		InputMap.has_action(&"give_up")
 		and not _game_over
 		and not _homecoming
-		and not _player._dead
+		and not _player.is_dead()
 		and Input.is_action_pressed(&"give_up")
 	):
 		_give_up_charge += delta
@@ -350,14 +371,14 @@ func _on_continue_run() -> void:
 		_apply_new_run()
 		return
 	GameState.apply_run_save(data)
-	_player._fuel = GameState.save_num(data.get("fuel", _player.fuel_max), _player.fuel_max)
-	_spawner._elapsed = GameState.save_num(data.get("elapsed", 0.0), 0.0)
+	_player.set_fuel(GameState.save_num(data.get("fuel", _player.fuel_max), _player.fuel_max))
+	_spawner.set_elapsed(GameState.save_num(data.get("elapsed", 0.0), 0.0))
 
 
 func _on_player_died() -> void:
 	_game_over = true
 	# 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
-	_player._input_locked = false
+	_player.unlock_input()
 	_player.movement_locked = false
 
 
@@ -426,9 +447,9 @@ func _summon_mothership() -> void:
 	# 成功路径保底隐藏蓄力特效（自然流程 _stop_charging 已处理；测试直调走此分支）
 	_charge_fx.visible = false
 	_charge_inflow.emitting = false
-	_player._input_locked = true
+	_player.lock_input()
 	_player.velocity = Vector2.ZERO
-	_player._invincible = 999.0
+	_player.set_invincible(999.0)
 	_summon_window = MothershipSummonWindow.new()
 	_summon_window.finished.connect(_on_summon_window_finished)
 	add_child(_summon_window)
@@ -457,10 +478,10 @@ func _on_mothership_departed(cooldown: float) -> void:
 
 ## 放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）
 func _give_up() -> void:
-	if _player._dead or GameState.health <= 0.0:
+	if _player.is_dead() or GameState.health <= 0.0:
 		return
 	GameState.lose_health(GameState.health)
-	_player._die()
+	_player.die()
 
 
 ## 返航（局内中场整备）：锁输入、星光拉伸 + 返航过场，过场结束后进入基地控制台。
@@ -469,7 +490,7 @@ func _start_homecoming() -> void:
 	_homecoming = true
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
-	_player._input_locked = true
+	_player.lock_input()
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
 	# 召唤小窗在播则断开回调后关闭（避免 finished 触发穿梭门/母舰创建）
@@ -488,7 +509,7 @@ func _start_homecoming() -> void:
 	if _event != null:
 		_event.abort()
 	# 返航后存档保留更新，供「继续对局」使用
-	GameState.save_run(_player._fuel, _spawner._elapsed)
+	GameState.save_run(_player.fuel_amount(), _spawner.elapsed())
 	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
 	_play_return_cinematic()
 
@@ -516,9 +537,9 @@ func _on_orbital_struck() -> void:
 	for child in get_children():
 		if child is Bullet or child is FormationBomb:
 			child.queue_free()
-	_player._input_locked = false
+	_player.unlock_input()
 	# 驻留期无敌可能是 999，恢复时统一重置为短无敌
-	_player._invincible = 1.5
+	_player.set_invincible(1.5)
 	_spawner.set_process(true)
 	_homecoming = false
 	get_tree().paused = false

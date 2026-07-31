@@ -90,8 +90,8 @@ func start() -> void:
 	# 冻结 Boss 调度 + 暂停普通波次（spawner 钩子）
 	var spawner := get_tree().get_first_node_in_group("spawner")
 	if spawner != null:
-		spawner._boss_frozen = true
-		spawner._waves_paused = true
+		spawner.set_boss_frozen(true)
+		spawner.set_waves_paused(true)
 	_carrier = StrikeCarrier.new()
 	_carrier.position = Vector2(960.0, GameState.view_world_rect().position.y - 450.0)
 	_carrier.entered.connect(_on_carrier_entered)
@@ -238,17 +238,16 @@ func _on_boss_delay_end() -> void:
 	_turret_sockets.clear()
 	var spawner := get_tree().get_first_node_in_group("spawner")
 	if spawner != null:
-		spawner._boss_frozen = false
-		if spawner._boss_pending:
-			spawner._boss_pending = false
-			spawner._trigger_boss()
+		spawner.set_boss_frozen(false)
+		if spawner.consume_boss_pending():
+			spawner.trigger_boss()
 
 
 ## 普通波次在 CARRIER_EXIT 起恢复（Boss 冻结保留到 BOSS_DELAY 结束）
 func _resume_waves() -> void:
 	var spawner := get_tree().get_first_node_in_group("spawner")
 	if spawner != null:
-		spawner._waves_paused = false
+		spawner.set_waves_paused(false)
 
 
 ## 一次性计时回调（同 spawner._schedule：Timer 节点 + 信号，避免协程泄漏）

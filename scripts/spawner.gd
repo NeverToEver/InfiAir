@@ -170,6 +170,50 @@ func _merge_type(dst: Dictionary, src: Dictionary) -> void:
 			dst[k] = src[k]
 
 
+## 对外公开接口（A1 修复）：事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段
+func set_elite_event(event: EliteTurretEvent) -> void:
+	_event = event
+
+
+func set_formation_event(event: FormationStrikeEvent) -> void:
+	_formation = event
+
+
+func set_elapsed(seconds: float) -> void:
+	_elapsed = seconds
+
+
+func elapsed() -> float:
+	return _elapsed
+
+
+func set_boss_frozen(frozen: bool) -> void:
+	_boss_frozen = frozen
+
+
+func set_waves_paused(paused: bool) -> void:
+	_waves_paused = paused
+
+
+func is_boss_active() -> bool:
+	return _boss_active
+
+
+func elite_event() -> EliteTurretEvent:
+	return _event
+
+
+## 读取并清除一次 Boss pending（事件解冻时若期间触发过 Boss 则补触发）
+func consume_boss_pending() -> bool:
+	var was := _boss_pending
+	_boss_pending = false
+	return was
+
+
+func trigger_boss() -> void:
+	_trigger_boss()
+
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	# Boss 激活与事件暂停期间波次计时冻结（Boss/事件占用波次槽）
@@ -259,7 +303,7 @@ func _count_spread_enemies() -> int:
 	var n := 0
 	for node in get_tree().get_nodes_in_group("enemy"):
 		var e := node as Enemy
-		if e != null and e.bullet_type == &"spread" and not e._exiting:
+		if e != null and e.bullet_type == &"spread" and not e.is_exiting():
 			n += 1
 	return n
 
