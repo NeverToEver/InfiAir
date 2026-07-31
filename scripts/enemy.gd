@@ -155,6 +155,11 @@ func setup(
 
 
 ## 对外公开接口（A1 修复）：对象池/生成器/事件读取内部状态，禁止跨类直接写 _ 私有字段
+## A6：语义化类型查询（Boss override 返回 true，调用方不依赖具体类型）
+func is_boss() -> bool:
+	return false
+
+
 func set_pool(pool: Node) -> void:
 	_pool = pool
 

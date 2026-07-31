@@ -205,7 +205,7 @@ func _process(delta: float) -> void:
 func _explode() -> void:
 	for node in GameState.enemies.duplicate():
 		var e := node as Area2D
-		if e == null or e is Boss:
+		if e == null or e.is_boss():
 			continue
 		if e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
 			e.take_damage(EXPLOSIVE_DAMAGE)
@@ -230,7 +230,7 @@ func _on_area_entered(area: Area2D) -> void:
 		if area.is_in_group("enemy"):
 			area.take_damage(damage, score_scale)
 			# 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击
-			if explosive and not (area is Boss):
+			if explosive and not area.is_boss():
 				_explode()
 			if splash_damage > 0:
 				_splash()

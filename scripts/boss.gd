@@ -278,6 +278,11 @@ func is_enraged() -> bool:
 	return _enraged
 
 
+## A6：语义化类型查询（调用方不再依赖 `is Boss` 具体类型）
+func is_boss() -> bool:
+	return true
+
+
 func fight_phase() -> int:
 	return _fight_phase
 
