@@ -36,7 +36,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 
 当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置或 CI 工作流。打包发布已重启（2026-07-30）：`export_presets.cfg` 入库（Linux/X11 + Windows Desktop，嵌入 pck 单文件 exe/二进制），根目录 `release.sh` 一键完成导入 → 双平台导出 → 打包（产物 `builds/release/`，版本号由 `VERSION` 环境变量指定）；`packaging/linux/`（用户态 install.sh / uninstall.sh[--purge] / infiair.desktop）与 `packaging/windows/`（per-user install.bat / uninstall.bat[/purge]，开始菜单快捷方式）随包分发。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
 
-**发布工程现状（2026-07-31 更新）**：导出模板已安装（`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`），`./release.sh` 已跑通，产物在 `builds/release/`（`InfiAir-<版本>-linux-x86_64.tar.gz` / `-windows-x86_64.zip`，均为嵌入 pck 单文件 + 安装/卸载脚本）。macOS 本机无法运行 Linux/Windows 二进制，安装脚本与实机运行需在对应平台验证。模板包若需重下（1.17 GB）：慢网络下可用 16 路 HTTP Range 并行分块 + 断点续传（签名直链 1 小时过期、curl 须带 `--speed-time/--speed-limit` 防挂死）。
+**发布工程现状（2026-07-31 更新）**：导出模板已安装（`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`），`./release.sh` 已跑通，产物在 `builds/release/`（`InfiAir-<版本>-linux-x86_64.tar.gz` / `-windows-x86_64.zip`，均为嵌入 pck 单文件 + 安装/卸载脚本，本机 gitignore）。**产物以 GitHub Releases 附件分发（不入库）**：`gh release create v<版本> builds/release/InfiAir-<版本>-*.{tar.gz,zip}`。macOS 本机无法运行 Linux/Windows 二进制，安装脚本与实机运行需在对应平台验证。模板包若需重下（1.17 GB）：慢网络下可用 16 路 HTTP Range 并行分块 + 断点续传（签名直链 1 小时过期、curl 须带 `--speed-time/--speed-limit` 防挂死）。
 
 ## 本地运行与验证
 
