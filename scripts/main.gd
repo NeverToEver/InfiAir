@@ -80,6 +80,7 @@ func _ready() -> void:
 	# 精英炮塔事件：编排节点挂 Main 下（清场/测试遍历可见），spawner 持引用做互斥
 	_event = EliteTurretEvent.new()
 	add_child(_event)
+	_event.set_spawner(_spawner)  # A5：依赖注入，替代事件侧 group 现找
 	_spawner.set_elite_event(_event)
 	# 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
 	_formation = FormationStrikeEvent.new()

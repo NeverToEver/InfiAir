@@ -32,7 +32,14 @@ var HOVER_Y := 300.0
 var COOLDOWN := 60.0
 
 var _state: State = State.IDLE
+## A5：spawner 依赖注入（main._ready 经 set_spawner 设置；替代 group 现找）
+var _spawner: Node = null
 var _carrier: StrikeCarrier = null
+
+
+## A5：spawner 依赖注入（main._ready 调用；替代 group 现找）
+func set_spawner(spawner: Node) -> void:
+	_spawner = spawner
 var _turrets: Array[TurretBattery] = []
 var _turret_sockets: Dictionary = {}  # turret -> 基座环索引
 var _timer: float = 0.0
@@ -87,11 +94,10 @@ func start() -> void:
 		pool.append("ETQ_%d" % (i + 1))
 	pool.shuffle()
 	_lines = pool.slice(0, 3)
-	# 冻结 Boss 调度 + 暂停普通波次（spawner 钩子）
-	var spawner := get_tree().get_first_node_in_group("spawner")
-	if spawner != null:
-		spawner.set_boss_frozen(true)
-		spawner.set_waves_paused(true)
+	# 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；A5 注入 _spawner）
+	if _spawner != null:
+		_spawner.set_boss_frozen(true)
+		_spawner.set_waves_paused(true)
 	_carrier = StrikeCarrier.new()
 	_carrier.position = Vector2(960.0, GameState.view_world_rect().position.y - 450.0)
 	_carrier.entered.connect(_on_carrier_entered)
@@ -236,18 +242,16 @@ func _on_boss_delay_end() -> void:
 	_cooldown_left = COOLDOWN
 	_turrets.clear()
 	_turret_sockets.clear()
-	var spawner := get_tree().get_first_node_in_group("spawner")
-	if spawner != null:
-		spawner.set_boss_frozen(false)
-		if spawner.consume_boss_pending():
-			spawner.trigger_boss()
+	if _spawner != null:
+		_spawner.set_boss_frozen(false)
+		if _spawner.consume_boss_pending():
+			_spawner.trigger_boss()
 
 
 ## 普通波次在 CARRIER_EXIT 起恢复（Boss 冻结保留到 BOSS_DELAY 结束）
 func _resume_waves() -> void:
-	var spawner := get_tree().get_first_node_in_group("spawner")
-	if spawner != null:
-		spawner.set_waves_paused(false)
+	if _spawner != null:
+		_spawner.set_waves_paused(false)
 
 
 ## 一次性计时回调（同 spawner._schedule：Timer 节点 + 信号，避免协程泄漏）

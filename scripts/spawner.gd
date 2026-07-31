@@ -407,6 +407,7 @@ func _spawn_boss(p_type: int = 0) -> void:
 		p_type = GameState.boss_kills % 3 + 1
 	var boss := BOSS_SCENE.instantiate() as Boss
 	boss.setup(GameState.difficulty_multiplier, p_type)
+	boss.set_spawner(self)  # A5：依赖注入，替代 Boss 侧 group 现找
 	boss.position = Vector2(960.0, GameState.view_world_rect().position.y - 160.0)
 	boss.died.connect(_on_boss_died)
 	boss.escaped.connect(_on_boss_escaped)

@@ -95,7 +95,7 @@ func _on_settings_pressed() -> void:
 
 
 func _on_save_pressed() -> void:
-	var player := get_tree().get_first_node_in_group("player")
+	var player := GameState.player_ref as Player  # A5：走注册表，替代 group 现找
 	var spawner := get_tree().get_first_node_in_group("spawner")
 	var fuel: float = player.fuel_amount() if player != null else 100.0
 	var elapsed: float = spawner.elapsed() if spawner != null else 0.0

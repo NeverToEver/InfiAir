@@ -88,6 +88,7 @@ class _BossBarTicks:
 
 func _ready() -> void:
 	add_to_group("hud")
+	_main = get_parent()  # A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
 	POLL_INTERVAL = GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL)
 	HIT_FLASH_ALPHA = GameState.cfg("effects.hit_flash.alpha", HIT_FLASH_ALPHA)
 	HIT_FLASH_TIME = GameState.cfg("effects.hit_flash.time", HIT_FLASH_TIME)
@@ -350,8 +351,6 @@ func _process(delta: float) -> void:
 	_fuel_bar.value = fuel * 100.0
 	_fuel_bar.fill_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
-	if _main == null:
-		_main = get_tree().get_first_node_in_group("main")
 	if _main != null:
 		var dock_text: String = _main.dock_status_text()
 		if dock_text != _last_dock_text:

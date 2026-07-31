@@ -165,6 +165,8 @@ var _movement := BossMovement.new()
 var _attacks := BossAttacks.new()
 ## A3：狂暴状态机（EnrageSequence，狂暴 5 子状态 + 三型差异化，Boss._enrage 委托）
 var _enrage_seq := EnrageSequence.new()
+## A5：spawner 依赖注入（spawner._spawn_boss 设置；替代 group 现找）
+var _spawner: Node = null
 var ENRAGE_SQUARE_PATH_RATIO := 0.48  # 前 48% 方形路径，后 52% 圆形路径
 ## RELEASE 弹速 = ACTIVE 弹速 × 原作释放比例（1.35/3.7≈0.365、1.55/3.2≈0.484，回退路径用）
 var ENRAGE_RELEASE_LASER_SPEED := 300.0
@@ -285,12 +287,15 @@ func reset_fire_timer() -> void:
 	_fire_timer = float(_current_pattern().get("interval", _base_fire_interval()))
 
 
-## A3：编队小怪召唤（BossAttacks/EnrageSequence 经公开接口调用；Boss 经 group 找 spawner）
+## A3：编队小怪召唤（BossAttacks/EnrageSequence 经公开接口调用；A5 改注入 spawner）
+func set_spawner(spawner: Node) -> void:
+	_spawner = spawner
+
+
 func spawn_minion_at(pos: Vector2) -> Enemy:
-	var spawner := get_tree().get_first_node_in_group("spawner")
-	if spawner == null:
+	if _spawner == null:
 		return null
-	return spawner.spawn_minion(pos)
+	return _spawner.spawn_minion(pos)
 
 
 func _ready() -> void:
@@ -672,11 +677,10 @@ func strafe_range() -> Vector2:
 
 
 func _summon_minions() -> void:
-	var spawner := get_tree().get_first_node_in_group("spawner")
-	if spawner == null:
+	if _spawner == null:
 		return
 	for i in randi_range(2, 3):
-		spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0) * _ws)
+		_spawner.spawn_minion(position + Vector2(randf_range(-80.0, 80.0), 110.0) * _ws)
 
 
 ## 狂暴快照弹幕：狂暴进入时的一次性齐射（由 main 在子弹时间结束后统一触发）。

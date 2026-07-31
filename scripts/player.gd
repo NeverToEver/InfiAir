@@ -30,6 +30,13 @@ var EVASION_CHANCE := 0.2
 ## 自我修复 buff：每秒回 2 HP（对齐原作 RegenerationBuff，二元）
 var REGEN_PER_SEC := 2.0
 var SHAKE_HIT := 12.0
+## A5 阶段1：buff 缩放系数热路径缓存（buffs_changed 驱动刷新，避免每帧/每发射查 cfg）
+var _rapid_fire_factor: float = 0.75
+var _power_shot_factor: float = 1.25
+var _spread_max: int = 3
+var _pierce_max: int = 2
+var _efficient_factor: float = 0.75
+var _boost_recovery_factor: float = 1.5
 
 var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
@@ -101,6 +108,8 @@ func _ready() -> void:
 	GameState.player_ref = self
 	GameState.player_hitbox = $Hitbox
 	_load_balance()
+	_refresh_buff_factors()
+	GameState.buffs_changed.connect(_refresh_buff_factors)
 
 
 ## 数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）
@@ -232,13 +241,23 @@ func is_dashing() -> bool:
 	return _dashing
 
 
+## A5 阶段1：刷新 buff 缩放系数缓存（_ready 初始 + buffs_changed 信号驱动）
+func _refresh_buff_factors() -> void:
+	_rapid_fire_factor = GameState.cfg("buffs.rapid_fire.factor", _rapid_fire_factor)
+	_power_shot_factor = GameState.cfg("buffs.power_shot.factor", _power_shot_factor)
+	_spread_max = int(GameState.cfg("buffs.spread_shot.max_stacks", _spread_max))
+	_pierce_max = int(GameState.cfg("buffs.piercing.max_stacks", _pierce_max))
+	_efficient_factor = GameState.cfg("buffs.efficient_boost.factor", _efficient_factor)
+	_boost_recovery_factor = GameState.cfg("buffs.boost_recovery.factor", _boost_recovery_factor)
+
+
 func fire_interval() -> float:
-	return BASE_FIRE_INTERVAL * pow(GameState.cfg("buffs.rapid_fire.factor", 0.75), GameState.buff_count(&"rapid_fire"))
+	return BASE_FIRE_INTERVAL * pow(_rapid_fire_factor, GameState.buff_count(&"rapid_fire"))
 
 
 func bullet_damage() -> int:
 	# power_shot：每层 ×1.25 乘算（对齐原作 PowerShotBuff int(base × 1.25^level)，int() 截断）
-	return maxi(1, int(BULLET_DAMAGE * pow(GameState.cfg("buffs.power_shot.factor", 1.25), GameState.buff_count(&"power_shot"))))
+	return maxi(1, int(BULLET_DAMAGE * pow(_power_shot_factor, GameState.buff_count(&"power_shot"))))
 
 
 func fuel_ratio() -> float:
@@ -270,12 +289,12 @@ func dash_ready_ratio() -> float:
 
 
 func fuel_drain_rate() -> float:
-	return FUEL_DRAIN * pow(GameState.cfg("buffs.efficient_boost.factor", 0.75), GameState.buff_count(&"efficient_boost"))
+	return FUEL_DRAIN * pow(_efficient_factor, GameState.buff_count(&"efficient_boost"))
 
 
 func fuel_regen_rate() -> float:
 	# boost_recovery buff：恢复速率每层 ×1.5（乘算）
-	return FUEL_REGEN * pow(GameState.cfg("buffs.boost_recovery.factor", 1.5), GameState.buff_count(&"boost_recovery"))
+	return FUEL_REGEN * pow(_boost_recovery_factor, GameState.buff_count(&"boost_recovery"))
 
 
 func _physics_process(delta: float) -> void:
@@ -462,8 +481,8 @@ func _spawn_afterimage() -> void:
 
 
 func _fire(aim: Vector2) -> void:
-	var spread := mini(GameState.buff_count(&"spread_shot"), GameState.cfg("buffs.spread_shot.max_stacks", 3))
-	var pierce := mini(GameState.buff_count(&"piercing"), GameState.cfg("buffs.piercing.max_stacks", 2))
+	var spread := mini(GameState.buff_count(&"spread_shot"), _spread_max)
+	var pierce := mini(GameState.buff_count(&"piercing"), _pierce_max)
 	var explosive := GameState.buff_count(&"explosive") > 0
 	# 辅助瞄准（P1-1）：准星在某标记敌框内 → 本轮出膛弹全部获得对该敌的追踪修正
 	var homing_target: Enemy = null
