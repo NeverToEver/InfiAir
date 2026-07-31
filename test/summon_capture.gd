@@ -27,9 +27,9 @@ func _ready() -> void:
 	get_tree().paused = false
 	# 全程禁用刷怪与随机事件编排：只拍召唤序列自身
 	spawner.set_process(false)
-	main._event.set_process(false)
-	main._formation.set_process(false)
-	main._player.set_auto_fire(false)
+	main.event().set_process(false)
+	main.formation().set_process(false)
+	main.player().set_auto_fire(false)
 
 	# 靶机一台：DOCKING 火力掩护的目标（不死、不开火）
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
@@ -42,14 +42,14 @@ func _ready() -> void:
 
 	# ---------- 1. 蓄力中段（虚影 + 蓄力特效） ----------
 	Input.action_press("dock")
-	main._charge_time = main.DOCK_CHARGE_TIME * 0.55  # 预填到中段，让环收缩/背光可读
+	main.set_charge_time(main.DOCK_CHARGE_TIME * 0.55  )# 预填到中段，让环收缩/背光可读
 	await get_tree().create_timer(0.35).timeout
 	await _shot("/tmp/summon_charge.png")
 	Input.action_release("dock")
-	main._stop_charging()
+	main.stop_charging()
 
 	# ---------- 2. 机库小窗 3 镜头（真实时轴 ~2.6s） ----------
-	main._summon_mothership()
+	main.summon_mothership()
 	await get_tree().create_timer(0.65).timeout  # 镜头 1 中段（充能管线断开）
 	await _shot("/tmp/summon_window1.png")
 	await get_tree().create_timer(0.8).timeout  # 镜头 2 中段（维护臂收回）
@@ -58,7 +58,7 @@ func _ready() -> void:
 	await _shot("/tmp/summon_window3.png")
 	for i in 40:  # 等播完：小窗自毁 + 穿梭门/母舰创建
 		await get_tree().create_timer(0.05).timeout
-		if main._summon_window == null:
+		if main.summon_window() == null:
 			break
 
 	# ---------- 3. 穿梭门 + 母舰 DESCEND 前段（舰体尚在门心，前唇遮挡读「穿门」） ----------
@@ -70,7 +70,7 @@ func _ready() -> void:
 	await _shot("/tmp/summon_beam.png")
 
 	# ---------- 5. 驻留 STAY（玩家已进保护舱） ----------
-	var ms: Mothership = main._mothership
+	var ms: Mothership = main.mothership()
 	for i in 60:
 		await get_tree().create_timer(0.05).timeout
 		if ms == null or not is_instance_valid(ms) or ms._state == Mothership.State.STAY:
@@ -79,7 +79,7 @@ func _ready() -> void:
 	await _shot("/tmp/summon_stay.png")
 
 	# 清理：收回母舰（_exit_tree 恢复玩家出舱），靶机随场景退出
-	if main._mothership != null:
-		main._mothership.queue_free()
+	if main.mothership() != null:
+		main.mothership().queue_free()
 	print("[DONE] summon capture finished")
 	get_tree().quit(0)

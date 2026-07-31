@@ -290,22 +290,22 @@ func _ready() -> void:
 	range_boss.free()
 	# ---------- 11. 母舰召唤位置（小窗演出直推，母舰穿梭入场于停驻点） ----------
 	var main := get_node("Main")
-	main._summon_mothership()
-	_check(main._summon_window != null, "召唤小窗已弹出")
-	if main._summon_window != null:
-		main._summon_window.skip()  # 幂等直推：finished → main 开穿梭门并实例化母舰
-	_check(main._mothership != null, "母舰已召唤")
-	if main._mothership != null:
+	main.summon_mothership()
+	_check(main.summon_window() != null, "召唤小窗已弹出")
+	if main.summon_window() != null:
+		main.summon_window().skip()  # 幂等直推：finished → main 开穿梭门并实例化母舰
+	_check(main.mothership() != null, "母舰已召唤")
+	if main.mothership() != null:
 		_check(
-			absf(main._mothership.position.x - GameState.view_world_rect().get_center().x) < 1.0,
+			absf(main.mothership().position.x - GameState.view_world_rect().get_center().x) < 1.0,
 			"母舰出场 x = 可见区域中心"
 		)
 		var warp_drop: float = GameState.cfg("effects.mothership_summon.warp_in_drop", 260.0)
 		_check(
-			absf(main._mothership.position.y - (GameState.cfg("mothership.hover_y", 270.0) - warp_drop * GameState.world_scale)) < 1.0,
+			absf(main.mothership().position.y - (GameState.cfg("mothership.hover_y", 270.0) - warp_drop * GameState.world_scale)) < 1.0,
 			"母舰出场 y = 停驻点上方 warp_in_drop × world_scale（穿梭滑入起点）"
 		)
-		main._mothership.queue_free()
+		main.mothership().queue_free()
 	await get_tree().process_frame
 
 	print("VIEW ZOOM TEST DONE, failures = ", _failures)

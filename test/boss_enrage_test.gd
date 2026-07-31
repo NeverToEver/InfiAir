@@ -140,7 +140,7 @@ func _ready() -> void:
 	_check(is_instance_valid(boss) and is_equal_approx(boss.hp, hp0), "场景1：锁血期致死伤害也不死")
 	# 减速功能验证在 ACTIVE 段进行（等 time_scale 恢复后速度才能爬到上限）
 	# 快进子弹时间，等 TRANSITION 结束进入 ACTIVE
-	main._bullet_time_left = 0.05
+	main.set_bullet_time(0.05)
 	var active := false
 	for i in 40:  # 最多 ~4s 真实时间
 		await _wait_real(0.1)
@@ -246,7 +246,7 @@ func _ready() -> void:
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "场景2：逃跑复位玩家减速")
 	# main 统一接管的恢复过渡不受 Boss 离场影响，仍应回到 1.0
 	_check(await _wait_time_scale_restored(), "场景2：Boss 子弹时间内离场，time_scale 仍恢复 1.0")
-	_check(main._time_scale_ramp < 0.0, "场景2：恢复过渡已结束")
+	_check(main.time_scale_ramp() < 0.0, "场景2：恢复过渡已结束")
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	await _wait_real(2.0)  # 让场景2 逃跑 Boss 出屏释放、演出 tween 播完，避免退出时对象泄漏

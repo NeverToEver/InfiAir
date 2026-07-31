@@ -69,19 +69,19 @@ func _ready() -> void:
 	GameState.add_rp(10)
 	GameState.add_buff(&"spread_shot")
 	var main := get_node("Main")
-	main._start_homecoming()
+	main.start_homecoming()
 	await get_tree().process_frame
-	if main._return != null:
-		main._return.skip()
+	if main.return_cinematic() != null:
+		main.return_cinematic().skip()
 	await _settle()  # 等全息启动 0.25s + animate_open 0.2s 播完
 	_shot("base")
 	var base_ui: CanvasLayer = get_node("Main/BaseUI")
 	base_ui._on_resume_pressed()
 	get_tree().paused = false
 	# 等轨道打击动画播完，避免叠入后续截图
-	if main._strike != null:
-		main._strike.DURATION = 0.3
-	while main._strike != null:
+	if main.strike() != null:
+		main.strike().DURATION = 0.3
+	while main.strike() != null:
 		await get_tree().process_frame
 
 	# 6. 死亡结算（大分数 + 新纪录标记）；先收掉可能被分数再次触发的 Buff UI 避免叠屏

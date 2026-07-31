@@ -28,8 +28,8 @@ func _ready() -> void:
 	(main.get_node("StartPanel") as CanvasLayer).hide()
 	# 全程禁用刷怪与随机事件编排：本测试只验证轨道打击自身，排除波次/事件注册新敌人的时序干扰
 	spawner.set_process(false)
-	main._event.set_process(false)
-	main._formation.set_process(false)
+	main.event().set_process(false)
+	main.formation().set_process(false)
 
 	# ---------- 1. 布置战场：3 台普通敌机 + 1 发弹丸 ----------
 	for i in 3:
@@ -46,18 +46,18 @@ func _ready() -> void:
 
 	# ---------- 2. 模拟基地状态触发继续出击 ----------
 	get_tree().paused = true
-	main._homecoming = true
-	main._player.lock_input()
-	main._player.set_invincible(999.0  )# 驻留态无敌
+	main.set_homecoming(true)
+	main.player().lock_input()
+	main.player().set_invincible(999.0  )# 驻留态无敌
 	spawner.set_process(false)
-	main._resume_from_base()
+	main.resume_from_base()
 	await get_tree().process_frame
-	var strike: OrbitalStrike = main._strike  # get_node 返回 Variant，不能用 := 推断
+	var strike: OrbitalStrike = main.strike()  # get_node 返回 Variant，不能用 := 推断
 	_check(strike != null, "触发：轨道打击节点已创建")
 	_check(get_tree().paused, "动画期间树保持暂停")
-	main._resume_from_base()  # 幂等：播放中重复触发不叠加
+	main.resume_from_base()  # 幂等：播放中重复触发不叠加
 	await get_tree().process_frame
-	_check(main._strike == strike, "幂等：重复触发不叠加第二个动画")
+	_check(main.strike() == strike, "幂等：重复触发不叠加第二个动画")
 
 	# ---------- 3. 缩短时轴推进到命中 ----------
 	strike.DURATION = 0.6
@@ -75,10 +75,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(not get_tree().paused, "命中：树恢复非暂停")
 	_check(GameState.enemies.is_empty(), "命中：敌机全部清除（残留 %d 台）" % GameState.enemies.size())
-	_check(not main._player.is_input_locked(), "命中：玩家输入解锁")
-	_check(main._player.invincible_remaining() <= 1.5, "命中：驻留无敌重置为短无敌")
+	_check(not main.player().is_input_locked(), "命中：玩家输入解锁")
+	_check(main.player().invincible_remaining() <= 1.5, "命中：驻留无敌重置为短无敌")
 	_check(spawner.is_processing(), "命中：spawner 恢复")
-	_check(not main._homecoming, "命中：homecoming 标志复位")
+	_check(not main.is_homecoming(), "命中：homecoming 标志复位")
 	_check(
 		not is_instance_valid(b),
 		"命中：既有弹丸被清除（valid=%s parent=%s）"
@@ -88,10 +88,10 @@ func _ready() -> void:
 	# ---------- 4. 动画播完自销毁 ----------
 	for i in 60:
 		await get_tree().create_timer(0.05).timeout
-		if main._strike == null:
+		if main.strike() == null:
 			break
 	await get_tree().process_frame
-	_check(main._strike == null and not is_instance_valid(strike), "收尾：动画自销毁并释放引用")
+	_check(main.strike() == null and not is_instance_valid(strike), "收尾：动画自销毁并释放引用")
 
 	GameState.delete_save()
 	GameState.save_profile()

@@ -312,29 +312,29 @@ func _ready() -> void:
 	# 长按蓄力：1s 松手取消，不进冷却
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
-	_check(main._charging and main._mothership == null, "蓄力中未召唤")
+	_check(main.charging() and main.mothership() == null, "蓄力中未召唤")
 	# 蓄力虚影：复用真实母舰场景实例（贴图/尺寸/炮塔一致），仅半透明预告、禁用状态机
-	_check(main._charge_ghost.visible, "蓄力中显示母舰虚影")
+	_check(main.charge_ghost().visible, "蓄力中显示母舰虚影")
 	_check(
-		(main._charge_ghost.get_node("Sprite2D") as Sprite2D).texture.resource_path
+		(main.charge_ghost().get_node("Sprite2D") as Sprite2D).texture.resource_path
 			== "res://assets/sprites/mothership.png",
 		"虚影贴图 = 真实母舰贴图"
 	)
-	_check(main._charge_ghost.has_node("TurretL") and main._charge_ghost.has_node("TurretR"), "虚影含双炮塔")
-	_check(not main._charge_ghost.is_physics_processing(), "虚影禁用状态机（不移动/不对接）")
-	_check(main._charge_ghost.modulate.a < 0.5, "虚影半透明调制")
+	_check(main.charge_ghost().has_node("TurretL") and main.charge_ghost().has_node("TurretR"), "虚影含双炮塔")
+	_check(not main.charge_ghost().is_physics_processing(), "虚影禁用状态机（不移动/不对接）")
+	_check(main.charge_ghost().modulate.a < 0.5, "虚影半透明调制")
 	Input.action_release("dock")
 	await get_tree().create_timer(0.2).timeout
-	_check(not main._charging and main._dock_cooldown <= 0.0, "松手取消蓄力不进冷却")
+	_check(not main.charging() and main.dock_cooldown() <= 0.0, "松手取消蓄力不进冷却")
 	# 蓄满 3s 召唤：弹出机库小窗 → 小窗结束后穿梭门+母舰穿出
 	Input.action_press("dock")
 	await get_tree().create_timer(3.3).timeout
 	Input.action_release("dock")
-	_check(main._summon_window != null, "蓄力满 3s 弹出机库小窗")
-	main._summon_window.skip()
+	_check(main.summon_window() != null, "蓄力满 3s 弹出机库小窗")
+	main.summon_window().skip()
 	await get_tree().process_frame
-	_check(main._mothership != null, "小窗结束后召唤母舰")
-	var ms: Mothership = main._mothership
+	_check(main.mothership() != null, "小窗结束后召唤母舰")
+	var ms: Mothership = main.mothership()
 	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场（0.8s）
 	# 到位即自动对接（无区域判定，点吸附补间）
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
@@ -406,27 +406,27 @@ func _ready() -> void:
 	# 提前离舰：长按 H 2s，冷却双机制折扣（4→3 格 r=0.3：60×0.88×0.85≈44.9）
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
-	_check(main._hud._early_leave_box.visible, "提前离舰蓄力进度条显示")
+	_check(main.hud()._early_leave_box.visible, "提前离舰蓄力进度条显示")
 	_check(
-		main._hud._early_leave_fill.anchor_right > 0.3
-		and main._hud._early_leave_fill.anchor_right < 0.7,
+		main.hud()._early_leave_fill.anchor_right > 0.3
+		and main.hud()._early_leave_fill.anchor_right < 0.7,
 		"提前离舰进度条进度 ~50%"
 	)
 	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
 	_check(ms._state >= Mothership.State.RELEASE, "提前离舰触发")
-	_check(not main._hud._early_leave_box.visible, "提前离舰后进度条隐藏")
+	_check(not main.hud()._early_leave_box.visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(
 		player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0,
 		"释放后 2s 保护（重制版 QoL）"
 	)
 	await get_tree().create_timer(0.2).timeout
-	_check(main._dock_cooldown > 42.5 and main._dock_cooldown < 45.2, "提前离舰冷却双机制折扣")
+	_check(main.dock_cooldown() > 42.5 and main.dock_cooldown() < 45.2, "提前离舰冷却双机制折扣")
 	_check(not player.is_input_locked(), "脱离后输入解锁")
 	_check(player.visible, "释放后玩家出舱恢复显示")
-	if main._mothership != null:
-		main._mothership.queue_free()
+	if main.mothership() != null:
+		main.mothership().queue_free()
 	# 母舰击杀 1/3 分（100 分敌机 → +33）
 	# 组判定清场：FormationCraft/TurretBattery 非 Enemy 子类但注册 enemy 组，
 	# 漏清会被 b33 抢先命中造成抖动；在飞流弹一并清掉
@@ -451,11 +451,11 @@ func _ready() -> void:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 	get_tree().paused = false
 	# 警告横幅播完（5s）强制离舰：第二艘母舰，缩短计时确定性验证
-	main._dock_cooldown = 0.0
-	main._summon_mothership()
-	main._summon_window.skip()
+	main.set_dock_cooldown(0.0)
+	main.summon_mothership()
+	main.summon_window().skip()
 	await get_tree().process_frame
-	var ms2: Mothership = main._mothership
+	var ms2: Mothership = main.mothership()
 	ms2._state_timer = ms2.WARP_IN_TIME  # 快进穿梭入场
 	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
 	_check(ms2._state == Mothership.State.STAY, "第二艘母舰进入驻留")
@@ -466,8 +466,8 @@ func _ready() -> void:
 	ms2._warn_eject_timer = 0.5  # 缩短横幅等待，直接验证强制离舰
 	await get_tree().create_timer(1.0).timeout
 	_check(ms2._state >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
-	if main._mothership != null:
-		main._mothership.queue_free()
+	if main.mothership() != null:
+		main.mothership().queue_free()
 
 	# 3.11 对局存档：写入 → 清空 → 恢复
 	var saved_score := GameState.score
@@ -493,23 +493,23 @@ func _ready() -> void:
 	await get_tree().create_timer(0.6).timeout
 	Input.action_release("homecoming")
 	await get_tree().create_timer(0.2).timeout
-	_check(not main._homecoming and not get_tree().paused, "返航蓄力松手取消")
+	_check(not main.is_homecoming() and not get_tree().paused, "返航蓄力松手取消")
 	# 蓄满 1.5s 触发
 	Input.action_press("homecoming")
 	await get_tree().create_timer(1.7).timeout
 	Input.action_release("homecoming")
 	await get_tree().process_frame
-	_check(main._homecoming, "返航触发")
-	_check(main._return != null and get_tree().paused, "返航过场播放中（树暂停）")
+	_check(main.is_homecoming(), "返航触发")
+	_check(main.return_cinematic() != null and get_tree().paused, "返航过场播放中（树暂停）")
 	# 过场本体由 return_cinematic_test 专测；越过 1.2s 输入宽限后跳过直达基地 UI
 	await get_tree().create_timer(1.4).timeout
-	main._skip_return()
+	main.skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._base_ui.visible and get_tree().paused, "进入基地整备界面")
+	_check(main.base_ui().visible and get_tree().paused, "进入基地整备界面")
 	# 维修扣 RP 回满（对齐原作 2RP 回满）
 	var rp_before := GameState.rp
-	main._base_ui._on_repair_pressed()
+	main.base_ui()._on_repair_pressed()
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")
 	# 放一个敌机 + 一枚编队炸弹（长引信不爆）验证轨道打击清场
@@ -523,16 +523,16 @@ func _ready() -> void:
 	bomb.position = Vector2(700.0, 300.0)
 	main.add_child(bomb)
 	# 继续出击 → 轨道打击动画清场后返回同一局
-	main._base_ui._on_resume_pressed()
+	main.base_ui()._on_resume_pressed()
 	await get_tree().process_frame
 	# 动画本体由 orbital_strike_test 专测；此处缩短时轴，等待命中清场并播完
-	if main._strike != null:
-		main._strike.DURATION = 0.5
+	if main.strike() != null:
+		main.strike().DURATION = 0.5
 	var t_strike := 0.0
-	while main._strike != null and t_strike < 3.0:
+	while main.strike() != null and t_strike < 3.0:
 		await get_tree().create_timer(0.1).timeout
 		t_strike += 0.1
-	_check(not get_tree().paused and not main._homecoming, "继续出击恢复游戏")
+	_check(not get_tree().paused and not main.is_homecoming(), "继续出击恢复游戏")
 	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
 	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")
 	_check(GameState.has_save(), "返航后存档保留")

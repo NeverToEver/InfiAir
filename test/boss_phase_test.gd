@@ -124,7 +124,7 @@ func _ready() -> void:
 	_check(boss.enrage_sequence().is_health_locked(), "场景1：狂暴锁血语义不变")
 	_check(is_equal_approx(player.enrage_slow(), 0.35), "场景1：TRANSITION 中玩家减速 ×0.35")
 	# 快进 main 子弹时间等恢复
-	main._bullet_time_left = 0.05
+	main.set_bullet_time(0.05)
 	for i in 40:
 		await _wait_real(0.1)
 		if is_equal_approx(Engine.time_scale, 1.0):

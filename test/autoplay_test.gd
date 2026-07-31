@@ -321,7 +321,7 @@ func _process(_delta: float) -> void:
 
 ## 狂暴子弹时间（main.gd 直接写 Engine.time_scale=0.24→恢复 1.0）结束后恢复加速倍率
 func _reassert_time_scale() -> void:
-	if _main._bullet_time_left <= 0.0 and _main._time_scale_ramp < 0.0 and Engine.time_scale != TIME_SCALE:
+	if _main.bullet_time() <= 0.0 and _main.time_scale_ramp() < 0.0 and Engine.time_scale != TIME_SCALE:
 		Engine.time_scale = TIME_SCALE
 
 
@@ -415,7 +415,7 @@ func _handle_buff_ui(now: int) -> void:
 func _handle_base_ui(now: int) -> void:
 	if _main == null or not is_instance_valid(_main):
 		return
-	var base_ui: CanvasLayer = _main._base_ui
+	var base_ui: CanvasLayer = _main.base_ui()
 	if base_ui.visible:
 		if _base_since == 0:
 			_base_since = now
@@ -480,7 +480,7 @@ func _update_pause(now: int) -> void:
 	_next_pause_consider = now + PAUSE_GAP_MS + randi() % 20000
 	if randf() < 0.6:
 		_main.get_node("BackNavigator").go_back()  # 战斗中 → OPEN_PAUSE
-		if _main._pause_ui.visible:
+		if _main.pause_ui().visible:
 			_pause_open_since = now
 			_pause_stage = 0
 			_log("暂停：Esc 打开暂停菜单")
@@ -490,7 +490,7 @@ func _update_pause(now: int) -> void:
 func _handle_pause_ui(now: int) -> void:
 	if _pause_open_since == 0:
 		return
-	var pause_ui: CanvasLayer = _main._pause_ui
+	var pause_ui: CanvasLayer = _main.pause_ui()
 	if not pause_ui.visible:
 		_pause_open_since = 0  # 未打开成功或已被其他路径关闭
 		return
@@ -659,8 +659,8 @@ func _update_dash(now: int) -> void:
 		return
 	var enrage_active: bool = (
 		(_boss != null and is_instance_valid(_boss) and _boss.is_enraged())
-		or _main._bullet_time_left > 0.0
-		or _main._time_scale_ramp >= 0.0
+		or _main.bullet_time() > 0.0
+		or _main.time_scale_ramp() >= 0.0
 	)
 	_next_dash_try = now + (250 if enrage_active else 500)
 	if not _player.dash_unlocked() or _player.dash_cooldown() > 0.0 or _player.is_dashing():
@@ -682,12 +682,12 @@ func _update_dash(now: int) -> void:
 ## 母舰：Boss 战或 HP 偏低时概率蓄力召唤（含蓄力主动取消探针）；
 ## 驻留驾驶一段时间（WASD 已被移动驱动复用）后提前离舰，或驻留到超时强制弹射
 func _update_dock(now: int) -> void:
-	if _main._homecoming or _main._game_over:
+	if _main.is_homecoming() or _main.is_game_over():
 		if _dock_holding:
 			Input.action_release("dock")
 			_dock_holding = false
 		return
-	var ms: Mothership = _main._mothership
+	var ms: Mothership = _main.mothership()
 	if _dock_holding:
 		if ms != null:
 			Input.action_release("dock")
@@ -703,7 +703,7 @@ func _update_dock(now: int) -> void:
 			else:
 				_log("母舰蓄力超时未召唤，松手")
 			_dock_cancel_episode = false
-	elif ms == null and _main._dock_cooldown <= 0.0 and now >= _next_dock_consider:
+	elif ms == null and _main.dock_cooldown() <= 0.0 and now >= _next_dock_consider:
 		var hp_ratio: float = GameState.health / GameState.max_health()
 		if _boss != null or hp_ratio < 0.7:
 			var roll := randf()
@@ -753,7 +753,7 @@ func _update_dock(now: int) -> void:
 
 ## 返航：血量低（或 Boss 战且半血以下）概率蓄力 B
 func _update_homecoming(now: int) -> void:
-	if _main._homecoming:
+	if _main.is_homecoming():
 		if _home_holding:
 			Input.action_release("homecoming")
 			_home_holding = false
@@ -766,7 +766,7 @@ func _update_homecoming(now: int) -> void:
 			_home_holding = false
 			_log("返航蓄力超时未触发，松手")
 		return
-	if now < _next_home_consider or _main._game_over:
+	if now < _next_home_consider or _main.is_game_over():
 		return
 	_next_home_consider = now + 8000
 	var hp_ratio: float = GameState.health / GameState.max_health()
@@ -780,7 +780,7 @@ func _update_homecoming(now: int) -> void:
 
 ## 母舰状态变化日志 + 卡死 episode 跟踪
 func _track_mothership(now: int) -> void:
-	var ms: Mothership = _main._mothership if (_main != null and is_instance_valid(_main)) else null
+	var ms: Mothership = _main.mothership() if (_main != null and is_instance_valid(_main)) else null
 	var state := -1 if ms == null else int(ms._state)
 	if state != _ms_last_state:
 		if _ms_last_state >= 0 or state >= 0:
@@ -954,7 +954,7 @@ func _snapshot(now: int) -> void:
 	var boss_s := "none"
 	if _boss != null and is_instance_valid(_boss):
 		boss_s = "type%d hp=%.0f/%.0f%s" % [_boss.boss_type, _boss.hp, _boss.max_hp, "(enraged)" if _boss.is_enraged() else ""]
-	var ms_s := "none" if _main._mothership == null else MS_STATE_NAMES[int(_main._mothership._state)]
+	var ms_s := "none" if _main.mothership() == null else MS_STATE_NAMES[int(_main.mothership()._state)]
 	_log(
 		(
 			"SNAP run=%d t_game=%.0fs score=%d hp=%.0f/%.0f kills=%d enemies=%d bullets(p=%d,e=%d) boss=%s ms=%s diff=%.2f elapsed=%.0fs nodes(main=%d,total=%d) ts=%.2f paused=%s perf(obj=%.0f,nodes=%.0f,orphan=%.0f,mem=%.1fMB,fps=%.0f,fms=%.2f) pool(b=%d,e=%d)"
@@ -1142,19 +1142,19 @@ func _checks(now: int) -> void:
 			_boss_timeout_reported = true
 			_anomaly("boss_timeout", "Boss type=%d 在场超过 %ds" % [_boss.boss_type, BOSS_TIMEOUT_MS / 1000])
 	# 返航/基地卡死（返航过场播放期不计时：过场真实时长可达数十秒，计时起点顺延到结束）
-	if _main._homecoming:
-		if _main._return != null:
+	if _main.is_homecoming():
+		if _main.return_cinematic() != null:
 			_homecoming_pending_since_ms = now
 			_home_stuck_reported = false
 		elif _homecoming_pending_since_ms == 0:
 			_homecoming_pending_since_ms = now
 			_home_stuck_reported = false
-		elif not _home_stuck_reported and not _main._base_ui.visible and now - _homecoming_pending_since_ms > HOME_STUCK_MS:
+		elif not _home_stuck_reported and not _main.base_ui().visible and now - _homecoming_pending_since_ms > HOME_STUCK_MS:
 			_home_stuck_reported = true
 			_anomaly("homecoming_stuck", "返航过场结束 %ds 后基地 UI 仍未显示" % (HOME_STUCK_MS / 1000))
 	else:
 		_homecoming_pending_since_ms = 0
-	if _main._base_ui.visible and _base_since > 0 and now - _base_since > BASE_STUCK_MS and not _base_stuck_reported:
+	if _main.base_ui().visible and _base_since > 0 and now - _base_since > BASE_STUCK_MS and not _base_stuck_reported:
 		_base_stuck_reported = true
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
 	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
@@ -1174,19 +1174,19 @@ func _checks(now: int) -> void:
 		_slow_since = 0
 		_slow_reported = false
 	# 事件触发计数：非活跃 -> 活跃跃迁各 +1（500ms 轮询事件状态机）
-	var turret_active: bool = _main._event != null and _main._event._state != EliteTurretEvent.State.IDLE
+	var turret_active: bool = _main.event() != null and _main.event()._state != EliteTurretEvent.State.IDLE
 	if turret_active and not _event_was_active:
 		_turret_event_count += 1
 		_log("精英炮塔事件触发（第 %d 次）" % _turret_event_count)
 	_event_was_active = turret_active
-	var formation_active: bool = _main._formation != null and _main._formation._state != FormationStrikeEvent.State.IDLE
+	var formation_active: bool = _main.formation() != null and _main.formation()._state != FormationStrikeEvent.State.IDLE
 	if formation_active and not _formation_was_active:
 		_formation_event_count += 1
 		_log("轰炸编队事件触发（第 %d 次）" % _formation_event_count)
 	_formation_was_active = formation_active
 	# UI 状态一致性：结算面板与基地面板同显 / 玩家死亡但游戏未停且无结算面板
 	var game_over_ui: CanvasLayer = _main.get_node("GameOverUI")
-	if game_over_ui.visible and _main._base_ui.visible:
+	if game_over_ui.visible and _main.base_ui().visible:
 		_anomaly_rl("ui_overlap", "GameOverUI 与基地 UI 同时可见", now)
 	if _player != null and _player.is_dead() and not get_tree().paused and not game_over_ui.visible:
 		_anomaly_rl("dead_no_gameover", "玩家已死亡、游戏未暂停且结算面板不可见", now)
@@ -1201,8 +1201,8 @@ func _checks(now: int) -> void:
 		and GameState.enemies.is_empty()
 		and _boss == null
 		and not get_tree().paused
-		and not _main._homecoming
-		and not _main._game_over
+		and not _main.is_homecoming()
+		and not _main.is_game_over()
 	):
 		_score_stag_reported = true
 		_anomaly("score_stagnant", "分数 %ds 未增长且场上无敌机（疑似不刷怪）" % (SCORE_STAGNANT_MS / 1000))

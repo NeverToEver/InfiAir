@@ -91,12 +91,12 @@ func _ready() -> void:
 	pause_ui.close()
 
 	# ---------- 5. 覆盖/阻塞态决策（不执行动作，仅断言决策） ----------
-	main._play_return_cinematic()
+	main.play_return()
 	await get_tree().process_frame
-	_check(main._return != null and nav.decide_back_action() == A.SKIP_RETURN, "返航过场：决策=跳过过场")
+	_check(main.return_cinematic() != null and nav.decide_back_action() == A.SKIP_RETURN, "返航过场：决策=跳过过场")
 	# skip() 有 SKIP_GRACE（1.2s）误触宽限期，期内忽略跳过；先等宽限期结束（真实时间，树已暂停）
 	await get_tree().create_timer(1.3).timeout
-	main._skip_return()
+	main.skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(base_ui.visible and nav.decide_back_action() == A.RESUME_BASE, "返航过场跳过后：基地控制台决策=继续出击")
@@ -109,11 +109,11 @@ func _ready() -> void:
 	base_ui.visible = true
 	_check(nav.decide_back_action() == A.RESUME_BASE, "基地控制台：决策=继续出击")
 	base_ui.visible = false
-	main._game_over = true
+	main.set_game_over(true)
 	game_over_ui.visible = true
 	_check(nav.decide_back_action() == A.TO_MAIN_MENU, "结算页：决策=返回主界面")
 	game_over_ui.visible = false
-	main._game_over = false
+	main.set_game_over(false)
 
 	# ---------- 6. 退出前清理副作用 ----------
 	GameState.save_run(50.0, 10.0)

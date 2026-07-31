@@ -147,6 +147,135 @@ func mothership() -> Mothership:
 	return _mothership
 
 
+## A7：测试/诊断白盒断言经公开接口（命名语义化）
+func player() -> Player:
+	return _player
+
+
+func hud() -> CanvasLayer:
+	return _hud
+
+
+func base_ui() -> CanvasLayer:
+	return _base_ui
+
+
+func pause_ui() -> CanvasLayer:
+	return _pause_ui
+
+
+func meta_fx() -> MetaHealthFX:
+	return _meta_fx
+
+
+func event() -> EliteTurretEvent:
+	return _event
+
+
+func formation() -> FormationStrikeEvent:
+	return _formation
+
+
+func strike() -> OrbitalStrike:
+	return _strike
+
+
+func summon_window() -> MothershipSummonWindow:
+	return _summon_window
+
+
+func set_homecoming(v: bool) -> void:
+	_homecoming = v
+
+
+func set_game_over(v: bool) -> void:
+	_game_over = v
+
+
+func set_bullet_time(seconds: float) -> void:
+	_bullet_time_left = seconds
+
+
+func time_scale_ramp() -> float:
+	return _time_scale_ramp
+
+
+func play_intro() -> void:
+	_play_intro_cinematic()
+
+
+func skip_intro() -> void:
+	_skip_intro()
+
+
+func play_return() -> void:
+	_play_return_cinematic()
+
+
+func skip_return() -> void:
+	_skip_return()
+
+
+func start_homecoming() -> void:
+	_start_homecoming()
+
+
+func summon_mothership() -> void:
+	_summon_mothership()
+
+
+func resume_from_base() -> void:
+	_resume_from_base()
+
+
+func stop_charging() -> void:
+	_stop_charging()
+
+
+func set_dock_cooldown(seconds: float) -> void:
+	_dock_cooldown = seconds
+
+
+func on_mothership_departed(seconds: float) -> void:
+	_on_mothership_departed(seconds)
+
+
+func charging() -> bool:
+	return _charging
+
+
+func charge_ghost() -> Mothership:
+	return _charge_ghost
+
+
+func give_up_charge() -> float:
+	return _give_up_charge
+
+
+func continue_run() -> void:
+	_on_continue_run()
+
+
+func bullet_time() -> float:
+	return _bullet_time_left
+
+
+func dock_cooldown() -> float:
+	return _dock_cooldown
+
+
+func set_charge_time(seconds: float) -> void:
+	_charge_time = seconds
+
+
+func intro() -> IntroCinematic:
+	return _intro
+
+
+func return_cinematic() -> ReturnCinematic:
+	return _return
+
+
 func _on_view_zoom_changed(_factor: float) -> void:
 	_apply_camera_zoom()
 

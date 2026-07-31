@@ -219,7 +219,7 @@ func _ready() -> void:
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景4：事件进入倒计时")
 	_check(hud._event_box.visible, "场景4：中止前 HUD 事件条显示")
 	# 返航触发：elite 事件应被 abort（清炮塔、隐藏事件条、恢复波次、航母完整撤离）
-	main._start_homecoming()
+	main.start_homecoming()
 	await get_tree().process_frame
 	_check(event._state == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
 	_check(event._turrets.is_empty(), "场景4：在场炮塔清单已清")
@@ -233,17 +233,17 @@ func _ready() -> void:
 	_check(turret_nodes_left == 0, "场景4：炮塔节点已释放（不走 died 计分）")
 	# 过场越过 1.2s 输入宽限后跳过 → 基地 → 继续出击
 	await _wait_real(1.4)
-	main._skip_return()
+	main.skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._base_ui.visible, "场景4：过场结束进入基地界面")
-	main._base_ui._on_resume_pressed()
+	_check(main.base_ui().visible, "场景4：过场结束进入基地界面")
+	main.base_ui()._on_resume_pressed()
 	await get_tree().process_frame
 	# 轨道打击动画（orbital_strike_test 专测本体）：缩短时轴，等待命中清场并播完
-	if main._strike != null:
-		main._strike.DURATION = 0.5
+	if main.strike() != null:
+		main.strike().DURATION = 0.5
 	var t_strike := 0.0
-	while main._strike != null and t_strike < 3.0:
+	while main.strike() != null and t_strike < 3.0:
 		await get_tree().create_timer(0.1).timeout
 		t_strike += 0.1
 	# 注册表驱动清场：非 Boss 实体（含事件/波次残留）全清

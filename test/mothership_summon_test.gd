@@ -30,9 +30,9 @@ func _ready() -> void:
 	get_tree().paused = false  # 开始面板路径可能带暂停态；小窗 process_mode 跟随树，需非暂停
 	# 全程禁用刷怪与随机事件编排：只验证召唤序列自身
 	spawner.set_process(false)
-	main._event.set_process(false)
-	main._formation.set_process(false)
-	main._player.set_auto_fire(false)
+	main.event().set_process(false)
+	main.formation().set_process(false)
+	main.player().set_auto_fire(false)
 
 	# ---------- 1. 布置一台靶机（验证减速带与火力目标） ----------
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
@@ -44,16 +44,16 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ---------- 2. 机库小窗 ----------
-	main._summon_mothership()
+	main.summon_mothership()
 	await get_tree().process_frame
-	var window: MothershipSummonWindow = main._summon_window
+	var window: MothershipSummonWindow = main.summon_window()
 	_check(window != null, "小窗：蓄力完成后弹出机库小窗")
-	_check(main._mothership == null, "小窗：播放期间母舰尚未创建")
-	_check(main._player.is_input_locked(), "小窗：演出期玩家锁输入")
-	_check(main._player.invincible_remaining() > 100.0, "小窗：演出期事件驱动无敌")
-	main._summon_mothership()  # 幂等：播放中重复触发不叠加
+	_check(main.mothership() == null, "小窗：播放期间母舰尚未创建")
+	_check(main.player().is_input_locked(), "小窗：演出期玩家锁输入")
+	_check(main.player().invincible_remaining() > 100.0, "小窗：演出期事件驱动无敌")
+	main.summon_mothership()  # 幂等：播放中重复触发不叠加
 	await get_tree().process_frame
-	_check(main._summon_window == window, "小窗：重复触发不叠加第二个窗口")
+	_check(main.summon_window() == window, "小窗：重复触发不叠加第二个窗口")
 	_check(window._subtitle.text == tr("MS_SEQ_CHARGE"), "小窗：镜头 1 字幕（充能管线断开）")
 	# 字幕镜头轮替（真实时轴：0.25 开场 + 0.8/0.6/0.7 三镜头）
 	await get_tree().create_timer(1.2).timeout
@@ -63,9 +63,9 @@ func _ready() -> void:
 	# 播完 finished：小窗自毁 + 穿梭门/母舰创建
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if main._summon_window == null:
+		if main.summon_window() == null:
 			break
-	_check(main._summon_window == null and not is_instance_valid(window), "小窗：播完自毁并释放引用")
+	_check(main.summon_window() == null and not is_instance_valid(window), "小窗：播完自毁并释放引用")
 	await get_tree().process_frame
 
 	# ---------- 3. 穿梭门与穿梭入场 ----------
@@ -74,7 +74,7 @@ func _ready() -> void:
 		if child is WarpGate:
 			gate = child
 	_check(gate != null, "穿梭门：小窗结束后创建")
-	var ms: Mothership = main._mothership
+	var ms: Mothership = main.mothership()
 	_check(ms != null, "穿梭门：母舰已创建")
 	_check(ms._state == Mothership.State.DESCEND, "穿梭入场：DESCEND 态")
 	_check(ms.scale.x < 1.0, "穿梭入场：穿出期缩放小于 1（%.2f）" % ms.scale.x)
@@ -99,12 +99,12 @@ func _ready() -> void:
 	_check(ms._mag_cells == ms.MAG_CELLS, "火力掩护：DOCKING 不耗驻留弹匣")
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if not main._player.visible:
+		if not main.player().visible:
 			break
-	_check(not main._player.visible, "保护舱：回收完成玩家隐藏")
+	_check(not main.player().visible, "保护舱：回收完成玩家隐藏")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(not main._player._hitbox.monitoring, "保护舱：受击判定关闭")
+	_check(not main.player()._hitbox.monitoring, "保护舱：受击判定关闭")
 	_check(ms._beam.visible == false, "保护舱：牵引光束回收后隐藏")
 
 	# ---------- 5. STAY 隐藏保持 → RELEASE 出舱 ----------
@@ -113,18 +113,18 @@ func _ready() -> void:
 		if ms._state == Mothership.State.STAY:
 			break
 	_check(ms._state == Mothership.State.STAY, "驻留：进入 STAY")
-	_check(not main._player.visible, "驻留：玩家保持隐藏（保护舱）")
+	_check(not main.player().visible, "驻留：玩家保持隐藏（保护舱）")
 	ms._start_release()
 	await get_tree().process_frame
-	_check(main._player.visible, "释放：玩家出舱恢复显示")
+	_check(main.player().visible, "释放：玩家出舱恢复显示")
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if not main._player.is_input_locked():
+		if not main.player().is_input_locked():
 			break
-	_check(not main._player.is_input_locked(), "释放：输入解锁")
-	_check(main._player.invincible_remaining() <= 2.0, "释放：无敌重置为 2s 保护")
-	if main._mothership != null:
-		main._mothership.queue_free()
+	_check(not main.player().is_input_locked(), "释放：输入解锁")
+	_check(main.player().invincible_remaining() <= 2.0, "释放：无敌重置为 2s 保护")
+	if main.mothership() != null:
+		main.mothership().queue_free()
 
 	GameState.delete_save()
 	GameState.save_profile()

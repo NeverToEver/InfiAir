@@ -47,10 +47,10 @@ func _restore_from_base(base_ui: CanvasLayer) -> void:
 		base_ui._on_resume_pressed()
 	await get_tree().process_frame
 	var main := base_ui.get_parent()
-	if main._strike != null:
-		main._strike.DURATION = 0.4
+	if main.strike() != null:
+		main.strike().DURATION = 0.4
 	var t := 0.0
-	while main._strike != null and t < 3.0:
+	while main.strike() != null and t < 3.0:
 		await get_tree().create_timer(0.1).timeout
 		t += 0.1
 	await get_tree().process_frame
@@ -71,9 +71,9 @@ func _ready() -> void:
 
 	# ---------- 1. 直接触发：过场节点存在、树暂停 ----------
 	var timer_baseline := _count_timers(get_tree().root)
-	main._play_return_cinematic()
+	main.play_return()
 	await get_tree().process_frame
-	var ret: ReturnCinematic = main._return
+	var ret: ReturnCinematic = main.return_cinematic()
 	_check(ret != null, "直接触发：返航过场节点存在")
 	_check(get_tree().paused, "过场播放期间树暂停")
 	_check(not base_ui.visible, "过场播放期间基地 UI 未显")
@@ -88,7 +88,7 @@ func _ready() -> void:
 	Input.parse_input_event(grace_key)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(is_instance_valid(ret) and main._return == ret, "宽限期内任意键：过场不跳过（节点仍在）")
+	_check(is_instance_valid(ret) and main.return_cinematic() == ret, "宽限期内任意键：过场不跳过（节点仍在）")
 	_check(finished_fired[0] == 0, "宽限期内任意键：finished 未发出")
 	var grace_click := InputEventMouseButton.new()
 	grace_click.button_index = MOUSE_BUTTON_LEFT
@@ -96,23 +96,23 @@ func _ready() -> void:
 	Input.parse_input_event(grace_click)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(is_instance_valid(ret) and main._return == ret, "宽限期内鼠标点击：过场不跳过")
+	_check(is_instance_valid(ret) and main.return_cinematic() == ret, "宽限期内鼠标点击：过场不跳过")
 	# 越过宽限后：销毁、finished 一次、基地 UI 可见且树仍暂停、无 Timer 残留
 	await get_tree().create_timer(1.4).timeout
-	main._skip_return()
+	main.skip_return()
 	ret.skip()  # 幂等：重复调用不重复发信号
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(finished_fired[0] == 1, "skip：finished 信号发出且仅一次")
-	_check(main._return == null and not is_instance_valid(ret), "skip：过场已销毁")
+	_check(main.return_cinematic() == null and not is_instance_valid(ret), "skip：过场已销毁")
 	_check(base_ui.visible, "skip：基地 UI 可见（关键差异：无标题定格，直接落基地）")
 	_check(get_tree().paused, "skip：树保持暂停（基地界面本就是暂停态 UI）")
 	_check(_count_timers(get_tree().root) == timer_baseline, "skip：无残留 Timer")
 	await _restore_from_base(base_ui)
 
 	# ---------- 3. 时序路径：短时长推进 7 镜头，节点创建/销毁与最终 finished ----------
-	main._play_return_cinematic()
-	var ret2: ReturnCinematic = main._return
+	main.play_return()
+	var ret2: ReturnCinematic = main.return_cinematic()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 	ret2._shot_durations = short_durations
 	var finished2 := [false]
@@ -147,27 +147,27 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(finished2[0], "时序：7 镜头播完发出 finished")
 	_check(seen_shots.size() == 7, "时序：7 个镜头节点依次创建（Shot1..Shot7）")
-	_check(main._return == null, "时序：播完销毁")
+	_check(main.return_cinematic() == null, "时序：播完销毁")
 	_check(base_ui.visible, "时序：播完基地 UI 可见")
 	_check(get_tree().paused, "时序：播完树保持暂停")
 	_check(_count_timers(get_tree().root) == timer_baseline, "时序：播完无残留 Timer")
 	await _restore_from_base(base_ui)
 
 	# ---------- 4. Esc 路由：播放中决策 = SKIP_RETURN，真实 Esc 注入跳过 ----------
-	main._play_return_cinematic()
+	main.play_return()
 	await get_tree().process_frame
-	var ret3: ReturnCinematic = main._return
+	var ret3: ReturnCinematic = main.return_cinematic()
 	_check(nav.decide_back_action() == A.SKIP_RETURN, "过场播放中：决策 = SKIP_RETURN")
 	await get_tree().create_timer(1.4).timeout  # 越过输入宽限后 Esc 才生效
 	await _press_esc()
-	_check(main._return == null and not is_instance_valid(ret3), "Esc：经 BackNavigator 跳过过场")
+	_check(main.return_cinematic() == null and not is_instance_valid(ret3), "Esc：经 BackNavigator 跳过过场")
 	_check(base_ui.visible and get_tree().paused, "Esc 跳过后基地 UI 可见且树仍暂停")
 	await _restore_from_base(base_ui)
 
 	# ---------- 5. 任意键跳过（过场自身 _unhandled_input，需越过输入宽限） ----------
-	main._play_return_cinematic()
+	main.play_return()
 	await get_tree().process_frame
-	var ret4: ReturnCinematic = main._return
+	var ret4: ReturnCinematic = main.return_cinematic()
 	await get_tree().create_timer(1.4).timeout
 	var ev := InputEventKey.new()
 	ev.keycode = KEY_A
@@ -175,14 +175,14 @@ func _ready() -> void:
 	Input.parse_input_event(ev)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._return == null and not is_instance_valid(ret4), "任意键：过场自身捕获跳过")
+	_check(main.return_cinematic() == null and not is_instance_valid(ret4), "任意键：过场自身捕获跳过")
 	_check(base_ui.visible and get_tree().paused, "任意键跳过后基地 UI 可见且树仍暂停")
 	await _restore_from_base(base_ui)
 
 	# ---------- 6. 鼠标点击跳过（与任意键同一出口，需越过输入宽限） ----------
-	main._play_return_cinematic()
+	main.play_return()
 	await get_tree().process_frame
-	var ret5: ReturnCinematic = main._return
+	var ret5: ReturnCinematic = main.return_cinematic()
 	await get_tree().create_timer(1.4).timeout
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
@@ -190,7 +190,7 @@ func _ready() -> void:
 	Input.parse_input_event(click)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._return == null and not is_instance_valid(ret5), "鼠标点击：过场自身捕获跳过")
+	_check(main.return_cinematic() == null and not is_instance_valid(ret5), "鼠标点击：过场自身捕获跳过")
 	_check(base_ui.visible and get_tree().paused, "点击跳过后基地 UI 可见且树仍暂停")
 
 	GameState.delete_save()

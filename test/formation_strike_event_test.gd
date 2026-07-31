@@ -92,7 +92,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var main := get_node("Main")
 	var spawner: Node = get_node("Main/Spawner")
-	var event: FormationStrikeEvent = main._formation
+	var event: FormationStrikeEvent = main.formation()
 	_check(event != null, "初始化：事件编排节点已登记到 main")
 	_check(spawner.formation_event() == event, "初始化：spawner 持有事件引用（优先级链钩子）")
 	spawner.set_process(false)  # 全程手动驱动，保证确定性

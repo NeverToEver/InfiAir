@@ -90,10 +90,10 @@ func _ready() -> void:
 		"mothership":
 			# 母舰召唤序列（小窗跳过）→ 穿梭入场快进 → 自动对接 + 敌机（驻留扫射/导弹）
 			var main := get_node("Main")
-			main._summon_mothership()
-			main._summon_window.skip()
+			main.summon_mothership()
+			main.summon_window().skip()
 			await get_tree().process_frame
-			var ms: Mothership = main._mothership
+			var ms: Mothership = main.mothership()
 			ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场，到位触发自动对接
 			var spawner := get_node("Main/Spawner")
 			var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
@@ -104,7 +104,7 @@ func _ready() -> void:
 		"summon":
 			# 召唤机库小窗演出镜头 1（充能管线断开）
 			var main := get_node("Main")
-			main._summon_mothership()
+			main.summon_mothership()
 			await get_tree().create_timer(0.65).timeout
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(SHOT_PATH)

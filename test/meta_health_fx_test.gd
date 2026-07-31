@@ -44,7 +44,7 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
-	var fx: MetaHealthFX = main._meta_fx
+	var fx: MetaHealthFX = main.meta_fx()
 	_check(fx != null, "0：main._ready 创建 MetaHealthFX")
 	_check(GameState.meta_fx_lod == 0, "0：LOD0 时 GameState.meta_fx_lod 置 0（hud 移交晕影）")
 

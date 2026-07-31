@@ -53,15 +53,15 @@ func _ready() -> void:
 	_check(start_panel.visible, "无存档时开始面板自显")
 	start_panel._on_new_game_pressed()
 	await get_tree().process_frame
-	_check(main._intro == null, "门禁：测试场景点击新游戏不播过场")
+	_check(main.intro() == null, "门禁：测试场景点击新游戏不播过场")
 	_check(not get_tree().paused, "门禁：未残留暂停")
 	_check(not start_panel.visible, "开始面板已隐藏")
 
 	# ---------- 2. 直接触发：过场节点存在、树暂停、面板隐藏 ----------
 	var timer_baseline := _count_timers(get_tree().root)
-	main._play_intro_cinematic()
+	main.play_intro()
 	await get_tree().process_frame
-	var intro: IntroCinematic = main._intro
+	var intro: IntroCinematic = main.intro()
 	_check(intro != null, "直接触发：过场节点存在")
 	_check(get_tree().paused, "过场播放期间树暂停")
 	_check(not start_panel.visible, "过场播放期间开始面板隐藏")
@@ -69,18 +69,18 @@ func _ready() -> void:
 	# ---------- 3. skip() 路径：销毁、finished、恢复非暂停、无 Timer 残留 ----------
 	var finished_fired := [false]
 	intro.finished.connect(func() -> void: finished_fired[0] = true)
-	main._skip_intro()
+	main.skip_intro()
 	intro.skip()  # 幂等：重复调用不重复发信号
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(finished_fired[0], "skip：finished 信号发出（且仅一次）")
-	_check(main._intro == null and not is_instance_valid(intro), "skip：过场已销毁")
+	_check(main.intro() == null and not is_instance_valid(intro), "skip：过场已销毁")
 	_check(not get_tree().paused, "skip：树恢复非暂停")
 	_check(_count_timers(get_tree().root) == timer_baseline, "skip：无残留 Timer")
 
 	# ---------- 4. 时序路径：短时长推进 6 镜头，节点创建/销毁与最终 finished ----------
-	main._play_intro_cinematic()
-	var intro2: IntroCinematic = main._intro
+	main.play_intro()
+	var intro2: IntroCinematic = main.intro()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 	intro2._shot_durations = short_durations
 	var finished2 := [false]
@@ -112,42 +112,42 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(finished2[0], "时序：6 镜头播完发出 finished")
 	_check(seen_shots.size() == 6, "时序：6 个镜头节点依次创建（Shot1..Shot6）")
-	_check(main._intro == null and not get_tree().paused, "时序：播完销毁并恢复非暂停")
+	_check(main.intro() == null and not get_tree().paused, "时序：播完销毁并恢复非暂停")
 	_check(_count_timers(get_tree().root) == timer_baseline, "时序：播完无残留 Timer")
 
 	# ---------- 5. Esc 路由：播放中决策 = SKIP_INTRO，真实 Esc 注入跳过 ----------
-	main._play_intro_cinematic()
+	main.play_intro()
 	await get_tree().process_frame
-	var intro3: IntroCinematic = main._intro
+	var intro3: IntroCinematic = main.intro()
 	_check(nav.decide_back_action() == A.SKIP_INTRO, "过场播放中：决策 = SKIP_INTRO")
 	await _press_esc()
-	_check(main._intro == null and not is_instance_valid(intro3), "Esc：经 BackNavigator 跳过过场")
+	_check(main.intro() == null and not is_instance_valid(intro3), "Esc：经 BackNavigator 跳过过场")
 	_check(not get_tree().paused, "Esc 跳过后树恢复非暂停")
 
 	# ---------- 6. 任意键跳过（过场自身 _unhandled_input） ----------
-	main._play_intro_cinematic()
+	main.play_intro()
 	await get_tree().process_frame
-	var intro4: IntroCinematic = main._intro
+	var intro4: IntroCinematic = main.intro()
 	var ev := InputEventKey.new()
 	ev.keycode = KEY_A
 	ev.pressed = true
 	Input.parse_input_event(ev)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._intro == null and not is_instance_valid(intro4), "任意键：过场自身捕获跳过")
+	_check(main.intro() == null and not is_instance_valid(intro4), "任意键：过场自身捕获跳过")
 	_check(not get_tree().paused, "任意键跳过后树恢复非暂停")
 
 	# ---------- 7. 鼠标点击跳过（与任意键同一出口） ----------
-	main._play_intro_cinematic()
+	main.play_intro()
 	await get_tree().process_frame
-	var intro5: IntroCinematic = main._intro
+	var intro5: IntroCinematic = main.intro()
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true
 	Input.parse_input_event(click)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(main._intro == null and not is_instance_valid(intro5), "鼠标点击：过场自身捕获跳过")
+	_check(main.intro() == null and not is_instance_valid(intro5), "鼠标点击：过场自身捕获跳过")
 	_check(not get_tree().paused, "点击跳过后树恢复非暂停")
 
 	GameState.delete_save()

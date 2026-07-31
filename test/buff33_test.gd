@@ -109,16 +109,16 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 3. mothership_recall：每层母舰冷却 ×0.5（基础 60s→30s→15s）
-	main._on_mothership_departed(60.0)
-	_check(is_equal_approx(main._dock_cooldown, 60.0), "无 recall 时母舰冷却 60s")
+	main.on_mothership_departed(60.0)
+	_check(is_equal_approx(main.dock_cooldown(), 60.0), "无 recall 时母舰冷却 60s")
 	GameState.add_buff(&"mothership_recall")
-	main._on_mothership_departed(60.0)
-	_check(is_equal_approx(main._dock_cooldown, 30.0), "recall 1 层母舰冷却 30s")
+	main.on_mothership_departed(60.0)
+	_check(is_equal_approx(main.dock_cooldown(), 30.0), "recall 1 层母舰冷却 30s")
 	GameState.add_buff(&"mothership_recall")
-	main._on_mothership_departed(60.0)
-	_check(is_equal_approx(main._dock_cooldown, 15.0), "recall 2 层母舰冷却 15s")
+	main.on_mothership_departed(60.0)
+	_check(is_equal_approx(main.dock_cooldown(), 15.0), "recall 2 层母舰冷却 15s")
 	_check(main.dock_status_text().contains("母舰冷却"), "母舰状态文本联动冷却值")
-	main._dock_cooldown = 0.0
+	main.set_dock_cooldown(0.0)
 
 	# 4. boost_recovery：恢复速率每层 ×1.5（乘算），且实际回油生效
 	_check(is_equal_approx(player.fuel_regen_rate(), 20.0), "无 buff 燃料恢复 20/s")
@@ -133,11 +133,11 @@ func _ready() -> void:
 	# 5. 长按 K 放弃出击：蓄力可取消，蓄满 3s 自毁进死亡结算
 	Input.action_press("give_up")
 	await get_tree().create_timer(1.0).timeout
-	_check(main._give_up_charge > 0.0, "K 蓄力进行中")
+	_check(main.give_up_charge() > 0.0, "K 蓄力进行中")
 	_check(hud._give_up_label.visible, "HUD 显示放弃蓄力进度")
 	Input.action_release("give_up")
 	await get_tree().create_timer(0.2).timeout
-	_check(main._give_up_charge == 0.0 and not hud._give_up_label.visible, "松开 K 取消蓄力")
+	_check(main.give_up_charge() == 0.0 and not hud._give_up_label.visible, "松开 K 取消蓄力")
 	_check(GameState.health == GameState.max_health(), "取消蓄力未自毁")
 	Input.action_press("give_up")
 	await get_tree().create_timer(3.3).timeout

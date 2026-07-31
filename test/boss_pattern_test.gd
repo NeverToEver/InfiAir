@@ -227,7 +227,7 @@ func _ready() -> void:
 	boss3.take_damage(int(boss3.max_hp * 0.75))
 	await get_tree().process_frame
 	_check(boss3.is_enraged(), "场景3：血量 <30% 触发狂暴")
-	main._bullet_time_left = 0.05
+	main.set_bullet_time(0.05)
 	var active3 := false
 	for i in 40:
 		await _wait_real(0.1)
@@ -376,7 +376,7 @@ func _ready() -> void:
 	boss5.take_damage(int(boss5.max_hp * 0.75))
 	await get_tree().process_frame
 	_check(boss5.is_enraged(), "场景5：血量 <30% 触发狂暴")
-	main._bullet_time_left = 0.05
+	main.set_bullet_time(0.05)
 	var active5 := false
 	for i in 40:
 		await _wait_real(0.1)
