@@ -206,7 +206,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss = child
 	_check(boss != null, "Boss 已生成（逃跑测试）")
-	boss.position.y = boss.FIGHT_Y  # 跳过降入
+	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y）
 	await get_tree().create_timer(0.3).timeout
 	_check(boss._in_fight, "Boss 进入战斗（逃跑计时开始）")
 	var kills_before_boss := GameState.boss_kills

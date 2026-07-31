@@ -77,7 +77,7 @@ func _spawn_test_boss() -> Boss:
 	boss.ENRAGE_RELEASE_HOLD_DURATION = 0.4
 	boss.ENRAGE_RETURN_DURATION = 0.4
 	boss.E1_SALVO_CHARGE = 0.2  # 压缩收尾蓄力，适配 0.4s RELEASE_HOLD
-	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	return boss
 
 
@@ -211,7 +211,7 @@ func _ready() -> void:
 			break
 	_check(done, "场景1：RETURN 结束回归常规阶段")
 	if is_instance_valid(boss):
-		_check(absf(boss.position.y - boss.FIGHT_Y) < 40.0, "场景1：RETURN 飞回战斗位")
+		_check(absf(boss.position.y - boss._fight_anchor_y()) < 40.0, "场景1：RETURN 飞回战斗位")
 		# 永久「余怒」射速 ×1.3（计时器流速 ×1.3，§5.4）
 		boss._fire_timer = 1.6
 		await get_tree().create_timer(0.5).timeout  # scale 已为 1.0，0.5s 真实 = 0.5 游戏秒

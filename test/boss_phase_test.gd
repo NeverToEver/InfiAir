@@ -50,7 +50,7 @@ func _spawn_test_boss(p_type: int) -> Boss:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss = child
-	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	return boss
 
 

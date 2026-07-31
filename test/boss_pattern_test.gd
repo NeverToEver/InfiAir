@@ -79,7 +79,7 @@ func _spawn_test_boss(p_type: int) -> Boss:
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			boss = child
-	boss.position.y = boss.FIGHT_Y  # 跳过降入，下一物理帧进入战斗
+	boss.position.y = boss._fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
 	return boss
 
 
@@ -207,7 +207,7 @@ func _ready() -> void:
 	_check(drop_dmg_ok, "场景2：减速弹伤害 12")
 	_check(sweep_done, "场景2：穿屏后回到巡航流程")
 	if is_instance_valid(boss2):
-		_check(absf(boss2.position.y - boss2.FIGHT_Y) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")
+		_check(absf(boss2.position.y - boss2._fight_anchor_y()) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")
 	boss2.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()

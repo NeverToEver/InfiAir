@@ -55,7 +55,7 @@ func _ready() -> void:
 	var wave := _enemies()
 	_check(wave.size() == n, "普通波成组刷出（%d 架）" % n)
 	var slot_w := (view.size.x - 120.0) / float(n)
-	var band: Vector2 = spawner._hover_band
+	var band := Vector2(view.position.y + spawner._hover_band.x, view.position.y + spawner._hover_band.y)  # 悬停带为 view 顶缘偏移（2026-07-30 view 适配）
 	var slots_ok := true
 	var anchor_ok := true
 	for e in wave:

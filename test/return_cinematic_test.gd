@@ -127,6 +127,9 @@ func _ready() -> void:
 				break
 		_check(reached, "时序：推进到镜头 %d" % (expected + 1))
 		if reached and is_instance_valid(ret2) and ret2._current_shot != null:
+			await get_tree().process_frame  # 等 _advance() 旧镜头 queue_free 落定再数子节点（防抖）
+			if not is_instance_valid(ret2) or ret2._current_shot == null:
+				continue
 			var shot_name: String = ret2._current_shot.name
 			if not seen_shots.has(shot_name):
 				seen_shots.append(shot_name)
