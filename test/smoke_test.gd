@@ -30,12 +30,12 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	# 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
-	get_node("Main/Player")._auto_fire_enabled = false
+	get_node("Main/Player").set_auto_fire(false)
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 	# 1. 里程碑触发 Buff UI（阈值已改曲线，测试用 override 固定 500 保证确定性）
-	GameState._set_milestone_override(500)
+	GameState.set_milestone_override(500)
 	GameState.add_score(500)
 	await get_tree().process_frame
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
@@ -193,7 +193,7 @@ func _ready() -> void:
 	# 狂暴完整序列（锁血/冻结玩家/轨道攻击）断言见 boss_enrage_test；
 	# 这里中止序列后验证永久射速倍率，并快进 main 子弹时间等 time_scale 恢复
 	boss4.abort_enrage_sequence()
-	get_node("Main")._bullet_time_left = 0.05
+	get_node("Main").set_bullet_time(0.05)
 	for i in 30:
 		await get_tree().create_timer(0.1, true, false, true).timeout
 		if is_equal_approx(Engine.time_scale, 1.0):
@@ -345,7 +345,7 @@ func _ready() -> void:
 	main.add_child(tgt)
 	await get_tree().create_timer(0.5).timeout
 	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
-	_check(tgt._summon_slow_timer > 0.0, "减速带命中敌机（短时减速）")
+	_check(tgt.summon_slow_timer() > 0.0, "减速带命中敌机（短时减速）")
 	_check(player.is_input_locked(), "对接开始即锁输入")
 	_check(player.invincible_remaining() > 100.0, "对接开始即无敌（无敌窗口前移）")
 	# 回收牵引期火力掩护（DOCKING 态即开火，不耗驻留弹匣）
@@ -406,16 +406,16 @@ func _ready() -> void:
 	# 提前离舰：长按 H 2s，冷却双机制折扣（4→3 格 r=0.3：60×0.88×0.85≈44.9）
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
-	_check(main.hud()._early_leave_box.visible, "提前离舰蓄力进度条显示")
+	_check(main.hud().early_leave_box().visible, "提前离舰蓄力进度条显示")
 	_check(
-		main.hud()._early_leave_fill.anchor_right > 0.3
-		and main.hud()._early_leave_fill.anchor_right < 0.7,
+		main.hud().early_leave_fill().anchor_right > 0.3
+		and main.hud().early_leave_fill().anchor_right < 0.7,
 		"提前离舰进度条进度 ~50%"
 	)
 	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
 	_check(ms.state() >= Mothership.State.RELEASE, "提前离舰触发")
-	_check(not main.hud()._early_leave_box.visible, "提前离舰后进度条隐藏")
+	_check(not main.hud().early_leave_box().visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(
 		player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0,
@@ -509,7 +509,7 @@ func _ready() -> void:
 	_check(main.base_ui().visible and get_tree().paused, "进入基地整备界面")
 	# 维修扣 RP 回满（对齐原作 2RP 回满）
 	var rp_before := GameState.rp
-	main.base_ui()._on_repair_pressed()
+	main.base_ui().repair()
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")
 	# 放一个敌机 + 一枚编队炸弹（长引信不爆）验证轨道打击清场
@@ -523,7 +523,7 @@ func _ready() -> void:
 	bomb.position = Vector2(700.0, 300.0)
 	main.add_child(bomb)
 	# 继续出击 → 轨道打击动画清场后返回同一局
-	main.base_ui()._on_resume_pressed()
+	main.base_ui().resume()
 	await get_tree().process_frame
 	# 动画本体由 orbital_strike_test 专测；此处缩短时轴，等待命中清场并播完
 	if main.strike() != null:
@@ -616,7 +616,7 @@ func _ready() -> void:
 	pause_ui.toggle()
 	_check(not pause_ui.visible, "设置回归：暂停面板已关闭")
 	start_panel5.show_panel()
-	start_panel5._on_settings_pressed()
+	start_panel5.press_settings()
 	_check(not start_panel5.visible and settings_ui.visible, "开始→设置：开始面板让位不遮挡")
 	get_node("Main/BackNavigator").go_back()  # Esc 全局路由已移交 BackNavigator
 	_check(start_panel5.visible and not settings_ui.visible, "设置中 Esc：返回开始面板")

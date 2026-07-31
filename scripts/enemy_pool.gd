@@ -14,6 +14,11 @@ func _ready() -> void:
 	GameState.enemy_pool = self
 
 
+## 闲置实例数（A7 遗留清理：测试/诊断公开查询，替代 _free 直读）
+func free_count() -> int:
+	return _free.size()
+
+
 func spawn(config: Dictionary, strategy: StringName, p_difficulty: float, pos: Vector2) -> Enemy:
 	var e: Enemy = null
 	if USE_POOL:

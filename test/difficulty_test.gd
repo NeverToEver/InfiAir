@@ -65,7 +65,7 @@ func _ready() -> void:
 	for case in score_cases:
 		GameState.reset_run()
 		GameState.difficulty = case[0]
-		GameState._set_milestone_override(999999999)  # 屏蔽里程碑干扰
+		GameState.set_milestone_override(999999999)  # 屏蔽里程碑干扰
 		GameState.add_score(100)
 		_check(
 			GameState.score == int(case[1]),
@@ -257,7 +257,7 @@ func _ready() -> void:
 	_check(fired[0] == 1 and GameState.next_milestone() == 8000, "到达 3000 触发里程碑并推进 8000")
 	GameState.add_score(2500)  # ×2 = 5000，累计 8000
 	_check(fired[0] == 2 and GameState.next_milestone() == 15000, "到达 8000 触发里程碑并推进 15000")
-	GameState._set_milestone_override(100)
+	GameState.set_milestone_override(100)
 	GameState.add_score(50)  # ×2 = 100，触发 override
 	_check(fired[0] == 3 and GameState.next_milestone() == 25000, "override 阈值触发后回到曲线档位")
 	GameState.difficulty = &"hard"
@@ -267,7 +267,7 @@ func _ready() -> void:
 	# 存档恢复：按分数定位曲线档位
 	GameState.difficulty = &"medium"
 	GameState.reset_run()
-	GameState._set_milestone_override(999999999)
+	GameState.set_milestone_override(999999999)
 	GameState.add_score(5000)  # ×2 = 10000，处于 8000~15000 之间
 	GameState.save_run(50.0, 1.0)
 	GameState.apply_run_save(GameState.load_run_data())
@@ -329,7 +329,7 @@ func _ready() -> void:
 	# ---------- 8. Boss 触发最小间隔（BOSS_MIN_INTERVAL，防分数暴涨期连出 Boss） ----------
 	GameState.difficulty = &"medium"
 	GameState.reset_run()
-	GameState._set_milestone_override(999999999)
+	GameState.set_milestone_override(999999999)
 	spawner.set_boss_active(false)
 	spawner.set_boss_frozen(false)
 	spawner.set_boss_pending(false)

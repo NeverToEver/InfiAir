@@ -8,6 +8,11 @@ extends CanvasLayer
 
 static var _entry_shown: bool = false  # reload_current_scene 不重置 static，保证死亡重开不再迎
 
+
+## 测试钩子（A7 遗留清理，公开化）：重置进程内首显兜底（startup_flow 场景切换探针用）
+static func reset_entry_shown() -> void:
+	_entry_shown = false
+
 var _subtitle_label: Label
 var _high_score_label: Label
 var _controls_label: Label

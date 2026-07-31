@@ -97,7 +97,7 @@ func _ready() -> void:
 	_check(spawner.formation_event() == event, "初始化：spawner 持有事件引用（优先级链钩子）")
 	spawner.set_process(false)  # 全程手动驱动，保证确定性
 	GameState.score = 0
-	GameState._set_milestone_override(999999)  # 防止得分跨越里程碑弹 Buff 三选一暂停树
+	GameState.set_milestone_override(999999)  # 防止得分跨越里程碑弹 Buff 三选一暂停树
 
 	# ================= 场景 1：触发门槛 =================
 	GameState.score = 1000

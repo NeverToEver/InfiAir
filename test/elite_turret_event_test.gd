@@ -87,7 +87,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
 	var hud: CanvasLayer = get_node("Main/HUD")
-	var event: EliteTurretEvent = get_node("Main")._event
+	var event: EliteTurretEvent = get_node("Main").event()
 	_check(event != null, "初始化：事件编排节点已登记到 main")
 	_check(spawner.elite_event() == event, "初始化：spawner 持有事件引用（互斥钩子）")
 	spawner.set_process(false)  # 场景1 手动驱动，保证确定性
@@ -237,7 +237,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(main.base_ui().visible, "场景4：过场结束进入基地界面")
-	main.base_ui()._on_resume_pressed()
+	main.base_ui().resume()
 	await get_tree().process_frame
 	# 轨道打击动画（orbital_strike_test 专测本体）：缩短时轴，等待命中清场并播完
 	if main.strike() != null:

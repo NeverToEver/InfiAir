@@ -326,7 +326,7 @@ func _dock_point() -> Vector2:
 
 
 func _physics_process(delta: float) -> void:
-	# 牵引光束附件随 _beam.visible 同步显隐（_start_docking/_start_release/对接完成均走此同步）
+	# 牵引光束附件随 _beam.visible 同步显隐（_start_docking/start_release/对接完成均走此同步）
 	if _beam_fx.visible != _beam.visible:
 		_beam_fx.visible = _beam.visible
 		_beam_dust.emitting = _beam.visible
@@ -407,7 +407,7 @@ func _physics_process(delta: float) -> void:
 			if _mag_warned:
 				_warn_eject_timer -= delta
 				if _warn_eject_timer <= 0.0:
-					_start_release()
+					start_release()
 			# 提前离舰：长按 H 2s（蓄力进度条经 HUD 显示，松手清零隐藏）
 			if Input.is_action_pressed("dock"):
 				_early_timer += delta
@@ -422,7 +422,7 @@ func _physics_process(delta: float) -> void:
 			if _early_timer >= EARLY_HOLD_TIME:
 				_early_depart()
 			elif _mag_cells <= 0:
-				_start_release()
+				start_release()
 		State.RELEASE:
 			if _state_timer >= RELEASE_TIME:
 				if is_instance_valid(_player) and not _player.is_dead():
@@ -518,7 +518,7 @@ func _live_targets() -> Array[Node2D]:
 		var e := node as Node2D
 		if e == null:
 			continue
-		if e is Enemy and e._exiting:
+		if e is Enemy and e.is_exiting():
 			continue
 		if e is Boss and e.is_escaped:
 			continue
@@ -625,10 +625,10 @@ func _early_depart() -> void:
 		hud.set_early_leave_charge(-1.0)
 		var factor := maxf(0.6, 1.0 - EARLY_MAX_DISCOUNT * ratio) * (1.0 - _prefill)
 		hud.show_popup(tr("POP_EARLY_LEAVE") % int((1.0 - factor) * 100.0), global_position)
-	_start_release()
+	start_release()
 
 
-func _start_release() -> void:
+func start_release() -> void:
 	_beam.visible = false
 	# 时长折扣对所有离场路径生效（剩余比例越低折扣越小）
 	var ratio := clampf(float(_mag_cells) / float(MAG_CELLS), 0.0, 1.0)

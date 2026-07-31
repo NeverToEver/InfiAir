@@ -521,6 +521,15 @@ func event_box() -> VBoxContainer:
 	return _event_box
 
 
+## A7 遗留清理：提前离舰蓄力条节点公开查询（测试替代 _ 直读）
+func early_leave_box() -> VBoxContainer:
+	return _early_leave_box
+
+
+func early_leave_fill() -> ColorRect:
+	return _early_leave_fill
+
+
 func give_up_label() -> Label:
 	return _give_up_label
 

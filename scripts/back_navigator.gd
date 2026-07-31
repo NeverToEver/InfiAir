@@ -54,16 +54,16 @@ func go_back() -> void:
 		BackAction.CAPTURE_PASSTHROUGH:
 			pass  # 不 set_input_as_handled，让 settings_ui 取消捕获
 		BackAction.CLOSE_SETTINGS:
-			_settings_ui._on_back_pressed()
+			_settings_ui.back()
 			_mark_handled()
 		BackAction.RESUME_BASE:
-			_base_ui._on_resume_pressed()
+			_base_ui.resume()
 			_mark_handled()
 		BackAction.SKIP_INTRO:
-			_main._skip_intro()
+			_main.skip_intro()
 			_mark_handled()
 		BackAction.SKIP_RETURN:
-			_main._skip_return()
+			_main.skip_return()
 			_mark_handled()
 		BackAction.CLOSE_BUFF_PANEL:
 			_hud.close_buff_panel()

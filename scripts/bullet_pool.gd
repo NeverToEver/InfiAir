@@ -12,6 +12,11 @@ func _ready() -> void:
 	GameState.bullet_pool = self
 
 
+## 闲置实例数（A7 遗留清理：测试/诊断公开查询，替代 _free 直读）
+func free_count() -> int:
+	return _free.size()
+
+
 ## 取一枚子弹并激活（参数同 Bullet.setup）。
 func fire(
 	p_direction: Vector2,

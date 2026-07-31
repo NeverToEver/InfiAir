@@ -196,6 +196,11 @@ func press_continue() -> void:
 	_on_continue_pressed()
 
 
+## A7 遗留清理：公开动作方法（测试/诊断走公开接口，替代 _on_settings_pressed 直调）
+func press_settings() -> void:
+	_on_settings_pressed()
+
+
 func dismiss() -> void:
 	_dismiss()
 

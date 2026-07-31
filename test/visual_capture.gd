@@ -30,7 +30,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 		var sp: CanvasLayer = get_node("Main/StartPanel")
 		if sp.visible:
-			sp._on_new_game_pressed()
+			sp.press_new_game()
 	match MODE:
 		"welcome":
 			for i in 30:
@@ -39,12 +39,12 @@ func _ready() -> void:
 			# 暂停面板 + 战斗退出确认窗（battle 模式进度损失警告）
 			var pui: CanvasLayer = get_node("Main/PauseUI")
 			pui.open()
-			pui._on_quit_pressed()
+			pui.quit()
 			for i in 30:
 				await get_tree().process_frame
 		"gameplay":
 			# 触发 Boss 警告横幅，便于截图覆盖该画面
-			get_node("Main/Spawner")._trigger_boss()
+			get_node("Main/Spawner").trigger_boss()
 			for i in FRAMES_BEFORE_SHOT:
 				await get_tree().process_frame
 		"hud":
@@ -59,12 +59,12 @@ func _ready() -> void:
 				await get_tree().process_frame
 		"boss_fight":
 			# Boss 名牌 + 血条 + 狂暴态（打掉 75% HP 触发狂暴，名牌整行转红）
-			get_node("Main/Spawner")._trigger_boss()
+			get_node("Main/Spawner").trigger_boss()
 			var boss: Boss = null
 			for i in 1800:  # 等降入完成进入战斗（上限 30s，窗口低帧率冗余）
 				await get_tree().process_frame
 				for e in GameState.enemies:
-					if e is Boss and (e as Boss)._in_fight:
+					if e is Boss and (e as Boss).is_in_fight():
 						boss = e
 				if boss != null:
 					break
@@ -80,7 +80,7 @@ func _ready() -> void:
 			await get_tree().process_frame
 			GameState.add_rp(10)
 			GameState.add_buff(&"spread_shot")
-			get_node("Main")._start_homecoming()
+			get_node("Main").start_homecoming()
 			await get_tree().create_timer(2.0).timeout
 		"settings":
 			# 设置页（控制分区改键表）

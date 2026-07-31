@@ -45,7 +45,7 @@ func _ready() -> void:
 	GameState.key_bindings.clear()
 	GameState.load_profile()
 	_check(GameState.key_bindings.get(&"dash", []) == [KEY_K], "profile 往返保留改键")
-	GameState._apply_key_bindings()
+	GameState.apply_key_bindings()
 	_check(_action_has_key(&"dash", KEY_K), "读档后 InputMap 已应用")
 
 	# 5. 非法动作拒绝
@@ -57,7 +57,7 @@ func _ready() -> void:
 	settings.set_script(load("res://scripts/settings_ui.gd"))
 	add_child(settings)
 	settings.show_settings()
-	settings._start_capture(&"dock")
+	settings.start_capture(&"dock")
 	_check(settings.capturing_action() == &"dock", "进入捕获态")
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
@@ -67,7 +67,7 @@ func _ready() -> void:
 	_check(not _action_has_key(&"dock", KEY_ESCAPE), "取消未写入绑定")
 
 	# 7. 捕获态绑定成功
-	settings._start_capture(&"dock")
+	settings.start_capture(&"dock")
 	var j_ev := InputEventKey.new()
 	j_ev.keycode = KEY_J
 	j_ev.pressed = true

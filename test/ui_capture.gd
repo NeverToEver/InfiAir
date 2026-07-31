@@ -31,15 +31,15 @@ func _ready() -> void:
 	_shot("start")
 
 	# 2. 设置页（从开始面板进入，默认控制分区）
-	sp._on_settings_pressed()
+	sp.press_settings()
 	await _settle()
 	_shot("settings")
 	var settings: CanvasLayer = get_node("Main/SettingsUI")
-	settings._on_back_pressed()
+	settings.back()
 	await get_tree().process_frame
 
 	# 开新局，后续界面在对局内展示
-	sp._on_new_game_pressed()
+	sp.press_new_game()
 	await get_tree().process_frame
 
 	# 3. Buff 三选一（含层数标记：先垫一层 power_shot 候选必含时可见，随缘即可）
@@ -55,7 +55,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 屏蔽后续里程碑触发，避免 Buff UI 与结算叠屏（确定性截图）
-	GameState._set_milestone_override(999999999)
+	GameState.set_milestone_override(999999999)
 
 	# 4. 暂停面板（继续 primary）
 	var pui: CanvasLayer = get_node("Main/PauseUI")

@@ -47,7 +47,7 @@ func _ready() -> void:
 		start_panel.press_new_game()
 		await get_tree().process_frame
 	# 屏蔽里程碑三选一叠屏
-	GameState._set_milestone_override(999999999)
+	GameState.set_milestone_override(999999999)
 
 	# ---------- 1. 无 buff：标签隐藏，L 不展开 ----------
 	_check(not hud.buff_tag().visible, "无 buff：收起态标签隐藏")

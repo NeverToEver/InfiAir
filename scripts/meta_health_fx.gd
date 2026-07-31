@@ -409,8 +409,8 @@ func _same_param(a: Variant, b: Variant) -> bool:
 	return a == b
 
 
-## 测试钩子：切换 LOD（正常路径由 _ready 从 effects.meta_health.lod 读取）
-func _set_lod(v: int) -> void:
+## 测试钩子（A7 遗留清理，公开化）：切换 LOD（正常路径由 _ready 从 effects.meta_health.lod 读取）
+func set_lod(v: int) -> void:
 	_lod = v
 	GameState.meta_fx_lod = v
 	_mat.set_shader_parameter("u_lod", v)

@@ -87,7 +87,7 @@ func _ready() -> void:
 		"穿梭入场：停驻点收敛"
 	)
 	_check(gate == null or not is_instance_valid(gate) or gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
-	_check(tgt._summon_slow_timer > 0.0, "减速带：敌机被施加短时减速")
+	_check(tgt.summon_slow_timer() > 0.0, "减速带：敌机被施加短时减速")
 
 	# ---------- 4. DOCKING 火力掩护 + 回收进保护舱 ----------
 	await get_tree().create_timer(0.4).timeout
@@ -104,7 +104,7 @@ func _ready() -> void:
 	_check(not main.player().visible, "保护舱：回收完成玩家隐藏")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(not main.player()._hitbox.monitoring, "保护舱：受击判定关闭")
+	_check(not main.player().hitbox_enabled(), "保护舱：受击判定关闭")
 	_check(ms.beam().visible == false, "保护舱：牵引光束回收后隐藏")
 
 	# ---------- 5. STAY 隐藏保持 → RELEASE 出舱 ----------
@@ -114,7 +114,7 @@ func _ready() -> void:
 			break
 	_check(ms.state() == Mothership.State.STAY, "驻留：进入 STAY")
 	_check(not main.player().visible, "驻留：玩家保持隐藏（保护舱）")
-	ms._start_release()
+	ms.start_release()
 	await get_tree().process_frame
 	_check(main.player().visible, "释放：玩家出舱恢复显示")
 	for i in 40:

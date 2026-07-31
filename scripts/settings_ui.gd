@@ -81,7 +81,7 @@ func _ready() -> void:
 	for page_id in [&"controls", &"modes", &"about"]:
 		var b := UITheme.make_toggle_button("", _nav_group)
 		b.custom_minimum_size = Vector2(140.0, 48.0)
-		b.pressed.connect(_show_page.bind(page_id))
+		b.pressed.connect(show_page.bind(page_id))
 		nav.add_child(b)
 		_nav_buttons[page_id] = b
 
@@ -318,7 +318,7 @@ func _refresh_nav_labels() -> void:
 	(_nav_buttons[&"about"] as Button).text = tr("SET_ABOUT")
 
 
-func _show_page(page_name: StringName) -> void:
+func show_page(page_name: StringName) -> void:
 	for p in _pages:
 		_pages[p].visible = p == page_name
 		(_nav_buttons[p] as Button).set_pressed_no_signal(p == page_name)
@@ -339,7 +339,7 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
 	_hint_label.text = ""
 	_capturing_action = &""
-	_show_page(&"controls")
+	show_page(&"controls")
 	visible = true
 	UITheme.animate_open(_plate)
 
@@ -384,7 +384,7 @@ func _on_locale_changed() -> void:
 		content.add_child(p)
 		p.visible = false
 	_refresh_rebind_rows()
-	_show_page(&"controls")
+	show_page(&"controls")
 	# 操作模式按钮选中态刷新
 	_ctrl_hold.set_pressed_no_signal(not GameState.ctrl_toggle_mode)
 	_ctrl_toggle.set_pressed_no_signal(GameState.ctrl_toggle_mode)

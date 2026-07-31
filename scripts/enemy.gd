@@ -189,6 +189,11 @@ func is_exiting() -> bool:
 	return _exiting
 
 
+## 母舰减速带剩余时长（A7 遗留清理：测试/诊断公开查询，替代 _summon_slow_timer 直读）
+func summon_slow_timer() -> float:
+	return _summon_slow_timer
+
+
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)

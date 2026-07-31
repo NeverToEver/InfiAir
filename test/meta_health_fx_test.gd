@@ -126,11 +126,11 @@ func _ready() -> void:
 	var hud := get_node("Main/HUD")
 	GameState.health = 10.0
 	GameState.health_changed.emit(10.0)
-	fx._set_lod(1)
+	fx.set_lod(1)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(hud.vignette().modulate.a > 0.0, "6：LOD1 时 hud 低血晕影回退生效")
-	fx._set_lod(0)
+	fx.set_lod(0)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(hud.vignette().modulate.a == 0.0, "6：LOD0 时 hud 晕影移交 MetaFX（恒 0）")

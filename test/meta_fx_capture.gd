@@ -19,7 +19,7 @@ func _ready() -> void:
 	# 关闭开始面板（无存档时它开场自显会遮挡画面，参照 visual_capture.gd）
 	var sp: CanvasLayer = get_node("Main/StartPanel")
 	if sp.visible:
-		sp._on_new_game_pressed()
+		sp.press_new_game()
 	var spawner := get_node("Main/Spawner")
 	spawner.set_process(false)
 	var player: Player = get_node("Main/Player")
@@ -74,7 +74,7 @@ func _ready() -> void:
 	GameState.health_changed.emit(100.0)
 	var settings := get_tree().get_first_node_in_group("settings_ui") as CanvasLayer
 	settings.show_settings()
-	settings._show_page(&"modes")
+	settings.show_page(&"modes")
 	for i in 30:
 		await get_tree().process_frame
 	await _shot("settings_modes")

@@ -117,7 +117,7 @@ func _ready() -> void:
 	GameState.save_run(50.0, 10.0)
 	GameState.welcome_seen = false
 	# 重置 welcome_screen 的进程内 static 兜底（本进程已展示过一次）
-	(load("res://scripts/welcome_screen.gd") as GDScript)._entry_shown = false
+	(load("res://scripts/welcome_screen.gd") as GDScript).reset_entry_shown()
 	get_node("Main").queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -178,9 +178,9 @@ func _ready() -> void:
 	# main 的继续对局路径（fuel/elapsed 判型）
 	var main2 := get_node("Main")
 	var player2: Player = get_node("Main/Player")
-	main2._on_continue_run()
+	main2.continue_run()
 	_check(player2.fuel_amount() == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
-	_check(get_node("Main/Spawner")._elapsed == 0.0, "F2：非法 elapsed 回默认 0")
+	_check(get_node("Main/Spawner").elapsed() == 0.0, "F2：非法 elapsed 回默认 0")
 
 	_cleanup()
 	GameState.welcome_seen = false

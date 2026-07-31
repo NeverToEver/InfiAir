@@ -23,10 +23,10 @@ func _ready() -> void:
 	# 直接开新局（测试实例化 main 不是 current_scene，不播开场过场）
 	var sp: CanvasLayer = get_node("Main/StartPanel")
 	if sp.visible:
-		sp._on_new_game_pressed()
+		sp.press_new_game()
 		await get_tree().process_frame
 	# 屏蔽里程碑触发，避免 Buff UI 叠屏（确定性截图）
-	GameState._set_milestone_override(999999999)
+	GameState.set_milestone_override(999999999)
 	GameState.add_score(12340)
 	GameState.kills = 57
 	GameState.score_changed.emit(GameState.score)
@@ -65,7 +65,7 @@ func _ready() -> void:
 	_shot("stress")
 
 	# 3. L 展开 buff 滚动栏（全 16 种明细行）
-	get_node("Main/HUD")._toggle_buff_panel()
+	get_node("Main/HUD").toggle_buff_panel()
 	await _settle()
 	_shot("panel")
 

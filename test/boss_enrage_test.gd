@@ -83,7 +83,7 @@ func _spawn_test_boss() -> Boss:
 
 ## 快进 main 子弹时间并轮询真实时间等 time_scale 恢复 1.0
 func _wait_time_scale_restored() -> bool:
-	get_node("Main")._bullet_time_left = 0.05
+	get_node("Main").set_bullet_time(0.05)
 	for i in 40:  # 最多 ~4s 真实时间
 		await _wait_real(0.1)
 		if is_equal_approx(Engine.time_scale, 1.0):

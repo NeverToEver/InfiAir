@@ -81,6 +81,12 @@ func has_balance() -> bool:
 	return not _balance_service.is_empty()
 
 
+## A7 遗留清理：重新加载并应用 balance.json（测试/诊断注入用；运行时只 _ready 走一次）
+func reload_balance() -> void:
+	_load_balance()
+	_apply_balance()
+
+
 ## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。
 func cfg(path: String, default: Variant) -> Variant:
 	return _balance_service.cfg(path, default)
@@ -253,7 +259,7 @@ func _ready() -> void:
 	if tr_en != null:
 		TranslationServer.add_translation(tr_en)
 	TranslationServer.set_locale(locale)
-	_apply_key_bindings()
+	apply_key_bindings()
 	_next_milestone = milestone_threshold(0)
 
 
@@ -390,8 +396,8 @@ func milestone_threshold(index: int) -> int:
 	return int(roundf(total * float(DIFFICULTY_DEFS[difficulty]["milestone"])))
 
 
-## 测试钩子：直接设定下一个里程碑阈值（不动曲线计数，保证测试确定性）
-func _set_milestone_override(threshold: int) -> void:
+## 测试钩子（A7 遗留清理，公开化）：直接设定下一个里程碑阈值（不动曲线计数，保证测试确定性）
+func set_milestone_override(threshold: int) -> void:
 	_next_milestone = threshold
 
 
@@ -643,7 +649,7 @@ func _get_action_keycodes(action: StringName) -> Array[int]:
 
 
 ## 用 key_bindings（含 profile 覆盖）刷新 InputMap
-func _apply_key_bindings() -> void:
+func apply_key_bindings() -> void:
 	for a in REBINDABLE_ACTIONS:
 		InputMap.action_erase_events(a)
 		for k: int in key_bindings.get(a, _default_bindings.get(a, [])):
@@ -660,7 +666,7 @@ func rebind_action(action: StringName, keycode: int) -> bool:
 		if a != action and (key_bindings[a] as Array).has(keycode):
 			(key_bindings[a] as Array).erase(keycode)
 	key_bindings[action] = [keycode]
-	_apply_key_bindings()
+	apply_key_bindings()
 	save_profile()
 	key_bindings_changed.emit()
 	return true
@@ -668,7 +674,7 @@ func rebind_action(action: StringName, keycode: int) -> bool:
 
 func reset_key_bindings() -> void:
 	key_bindings = _default_bindings.duplicate(true)
-	_apply_key_bindings()
+	apply_key_bindings()
 	save_profile()
 	key_bindings_changed.emit()
 

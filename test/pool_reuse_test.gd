@@ -32,20 +32,20 @@ func _test_bullet_pool() -> void:
 	main.add_child(pool)
 	var b1 := pool.fire(Vector2.DOWN, 100.0, 1, true)
 	pool.release(b1)
-	_check(pool._free.size() == 1, "bullet: release 后 _free=1")
+	_check(pool.free_count() == 1, "bullet: release 后 _free=1")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(pool._free.size() == 1, "bullet: reparent 后仍在 _free（forget 未误清）")
+	_check(pool.free_count() == 1, "bullet: reparent 后仍在 _free（forget 未误清）")
 	_check(b1.get_parent() == pool, "bullet: 闲置弹收回池节点下")
 	var b2 := pool.fire(Vector2.UP, 100.0, 1, false)
 	_check(b2 == b1, "bullet: 再次 fire 复用同一实例")
-	_check(pool._free.is_empty() and pool.get_child_count() == 0, "bullet: 复用后池清空")
+	_check(pool.free_count() == 0 and pool.get_child_count() == 0, "bullet: 复用后池清空")
 	# 外部 queue_free 路径仍应 forget
 	pool.release(b2)
 	await get_tree().process_frame
 	b2.queue_free()
 	await get_tree().process_frame
-	_check(pool._free.is_empty(), "bullet: 外部销毁后 forget 生效")
+	_check(pool.free_count() == 0, "bullet: 外部销毁后 forget 生效")
 	main.queue_free()
 
 
@@ -57,10 +57,10 @@ func _test_enemy_pool() -> void:
 	var config: Dictionary = preload("res://scripts/spawner.gd").ENEMY_TYPES[0]
 	var e1 := pool.spawn(config, &"straight", 1.0, Vector2(100, 100))
 	pool.release(e1)
-	_check(pool._free.size() == 1, "enemy: release 后 _free=1")
+	_check(pool.free_count() == 1, "enemy: release 后 _free=1")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(pool._free.size() == 1, "enemy: reparent 后仍在 _free（forget 未误清）")
+	_check(pool.free_count() == 1, "enemy: reparent 后仍在 _free（forget 未误清）")
 	_check(e1.get_parent() == pool, "enemy: 闲置敌机收回池节点下")
 	_check(not GameState.enemies.has(e1), "enemy: 回收后注销注册表")
 	var e2 := pool.spawn(config, &"straight", 1.0, Vector2(200, 100))
