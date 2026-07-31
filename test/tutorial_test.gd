@@ -109,8 +109,12 @@ func _ready() -> void:
 	await get_tree().create_timer(1.3).timeout
 	_check(tut._stage == 3, "阶段 3 → 4")
 
-	# 阶段 4：自动对接（弹匣加速消耗到自动释放）
-	_check(tut._mothership != null, "阶段 4 母舰已召唤")
+	# 阶段 4：长按 H 蓄力召唤母舰（对齐正局 dock 键），穿梭入场后自动对接（弹匣加速消耗到自动释放）
+	_check(tut._mothership == null, "阶段 4 进场时母舰未召唤（需长按 H）")
+	Input.action_press("dock")
+	await get_tree().create_timer(tut.DOCK_CHARGE_TIME + 0.3).timeout
+	Input.action_release("dock")
+	_check(tut._mothership != null, "阶段 4 蓄力完成后母舰已召唤")
 	var ms: Mothership = tut._mothership
 	ms._state_timer = ms.WARP_IN_TIME  # 快进穿梭入场，到位触发自动对接
 	ms._mag_cells = 1  # 加速演示：1 格弹匣 2s 后自动释放

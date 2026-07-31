@@ -47,6 +47,12 @@ var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 ph
 var HOMING_TIME := 4.0  # 辅助瞄准追踪时限（≈弹寿命；balance.json player.aim_assist.homing_time）
 ## 辅助瞄准当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
 var _homing_turn_rate := 5.5  # 准星入标记框时出膛弹的追踪转向速率
+var _aim_stick_factor := 0.5  # 准星入标记框时的鼠标灵敏度系数（弱吸附，1.0 = 无吸附）
+## 平滑瞄准点状态（入框降灵敏度用；每渲染帧推进一次，判定用上一帧平滑点）
+var _aim_smooth := Vector2.ZERO
+var _aim_last_raw := Vector2.ZERO
+var _aim_smoothed_frame := -1
+var _aim_initialized := false
 var FINE_MOVE_MULT := 0.35  # Ctrl 微调（对齐原作 PRECISION_SPEED_MULT）
 
 var fuel_max: float = 100.0  # 燃料上限（balance.json player.fuel.max 覆盖）
@@ -342,18 +348,32 @@ func _start_dash(input_dir: Vector2) -> void:
 	GameState.play_sfx(GameState.SFX_DASH)
 
 
-## 当前瞄准点（世界坐标）：测试注入点优先，否则原始鼠标位置（与准星/激光同一来源）。
+## 当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（与准星/开火同一来源）。
 ## 弹道规则（P1-1）：默认朝瞄准点直射；准星入标记敌框时出膛弹获得对该敌的追踪修正。
+## 入框弱吸附：平滑点在标记框内时鼠标增量按档位 stick_factor 降灵敏度，帮助定住准星；
+## 判定用上一帧平滑点（即玩家看到的准星位置），与框高亮/追踪绑定自洽，出框即恢复全速。
 func aim_point() -> Vector2:
 	if aim_point_override != Vector2.INF:
 		return aim_point_override
-	return get_global_mouse_position()
+	var raw := get_global_mouse_position()
+	var frame := Engine.get_process_frames()
+	if frame != _aim_smoothed_frame:  # 每渲染帧只推一次（准星/框层/开火多处取值）
+		_aim_smoothed_frame = frame
+		var factor := 1.0
+		if _aim_initialized and GameState.aim_frame_layer != null \
+				and GameState.aim_frame_layer.marked_target_at(_aim_smooth) != null:
+			factor = _aim_stick_factor
+		_aim_smooth = raw if not _aim_initialized else _aim_smooth + (raw - _aim_last_raw) * factor
+		_aim_last_raw = raw
+		_aim_initialized = true
+	return _aim_smooth
 
 
 ## 读取当前强度档位参数（balance.json player.aim_assist.levels.<level>，缺键回退脚本默认）
 func _load_aim_assist_params() -> void:
 	var base := "player.aim_assist.levels." + String(GameState.aim_assist_level) + "."
 	_homing_turn_rate = GameState.cfg(base + "homing_turn_rate", _homing_turn_rate)
+	_aim_stick_factor = GameState.cfg(base + "stick_factor", _aim_stick_factor)
 	HOMING_TIME = GameState.cfg("player.aim_assist.homing_time", HOMING_TIME)
 
 

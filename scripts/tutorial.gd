@@ -8,6 +8,7 @@ const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 const MOTHERSHIP_SCENE: PackedScene = preload("res://scenes/mothership.tscn")
 const SPAWNER_SCRIPT: GDScript = preload("res://scripts/spawner.gd")
 var HOME_CHARGE_TIME := 1.5
+var DOCK_CHARGE_TIME := 3.0  # 母舰召唤蓄力（mothership.dock_charge_time，对齐正局）
 
 const STAGE_TITLES: Array[String] = [
 	"TUT_S1_TITLE",
@@ -25,6 +26,7 @@ var _boost_count: int = 0
 var _dash_count: int = 0
 var _prev_dashing: bool = false
 var _home_charge: float = 0.0
+var _dock_charge: float = 0.0
 var _base_ui: CanvasLayer = null
 var _boss: Boss = null
 var _mothership: Mothership = null
@@ -48,8 +50,12 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
 	GameState.locale_changed.connect(_on_locale_changed)
 	GameState.player_died.connect(_on_player_died)
+	# 辅助瞄准框覆盖层：与 main.gd 同款运行时创建（登记 GameState.aim_frame_layer），
+	# 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
+	add_child(AimFrameLayer.new())
 	_build_hud()
 	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
+	DOCK_CHARGE_TIME = GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME)
 	_enter_stage(0)
 
 
@@ -93,11 +99,11 @@ func _enter_stage(idx: int) -> void:
 	_stage_kills = 0
 	_title_label.text = tr(STAGE_TITLES[idx])
 	match idx:
-		0:  # 移动与瞄准：3 个静止靶机
+		0:  # 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
 			_set_objective_tr("TUT_S1_OBJ", [0])
 			for i in 3:
 				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
-				e.speed = 0.0  # 静止靶
+				e.aim_marked = true  # 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性）
 				e.position = Vector2(600.0 + 360.0 * i, 280.0)
 		1:  # 加速与相位突进
 			GameState.add_buff(&"phase_dash")
@@ -108,12 +114,9 @@ func _enter_stage(idx: int) -> void:
 		2:  # 战斗基础：5 只 straight，锁血下限
 			_set_objective_tr("TUT_S3_OBJ", [0])
 			_spawn_combat_wave(5)
-		3:  # 母舰停靠
+		3:  # 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
+			_dock_charge = 0.0
 			_set_objective_tr("TUT_S4_OBJ")
-			_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
-			_mothership.position = Vector2(960.0, -200.0)
-			_mothership.departed.connect(_on_mothership_departed)
-			add_child(_mothership)
 		4:  # 返航与基地
 			_home_charge = 0.0
 			_set_objective_tr("TUT_S5_OBJ")
@@ -189,6 +192,22 @@ func _update_boost_objective() -> void:
 	_set_objective_tr("TUT_S2_OBJ", [_boost_count, _dash_count])
 
 
+## 母舰召唤（对齐 main._on_summon_window_finished 的实体路径：穿梭门 + begin_warp_in；
+## 略去机库小窗演出保持教程节奏）
+func _summon_mothership() -> void:
+	var gate_pos := Vector2(
+		GameState.view_world_rect().get_center().x, GameState.cfg("mothership.hover_y", 270.0)
+	)
+	var gate := WarpGate.new()
+	gate.position = gate_pos
+	add_child(gate)
+	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
+	_mothership.begin_warp_in(gate_pos, gate)
+	_mothership.departed.connect(_on_mothership_departed)
+	add_child(_mothership)
+	_set_objective_tr("TUT_S4_DOCK")
+
+
 func _on_mothership_departed(_cooldown: float) -> void:
 	if _stage == 3:
 		_pass_stage()
@@ -233,6 +252,17 @@ func _physics_process(delta: float) -> void:
 			# 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数
 			if not _advancing and _stage_kills < 5 and _alive_enemy_count() == 0:
 				_spawn_combat_wave(5 - _stage_kills)
+		3:
+			# 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
+			if _mothership == null and not _advancing:
+				if Input.is_action_pressed("dock"):
+					_dock_charge += delta
+					_set_objective_tr("TUT_S4_CHARGE", [int(clampf(_dock_charge / DOCK_CHARGE_TIME, 0.0, 1.0) * 100.0)])
+					if _dock_charge >= DOCK_CHARGE_TIME:
+						_summon_mothership()
+				elif _dock_charge > 0.0:
+					_dock_charge = 0.0
+					_set_objective_tr("TUT_S4_OBJ")
 		4:
 			if Input.is_action_pressed("homecoming"):
 				_home_charge += delta

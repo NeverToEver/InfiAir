@@ -1,48 +1,60 @@
 {
 	"version": 2,
-	"world_scale": 0.3333333333333333,
+	"world_scale": 0.4,
 	"player": {
-		"max_speed": 420.0,
-		"accel": 2400.0,
-		"decel": 1800.0,
+		"max_speed": 420,
+		"accel": 2400,
+		"decel": 1800,
 		"boost_mult": 1.8,
 		"fine_move_mult": 0.35,
 		"base_fire_interval": 0.15,
-		"bullet_speed": 1800.0,
-		"bullet_spread_deg": 15.0,
+		"bullet_speed": 1800,
+		"bullet_spread_deg": 15,
 		"bullet_damage": 10,
-		"max_health": 100.0,
+		"max_health": 100,
 		"invincible_time": 1.5,
-		"spawn_invincible_time": 1.0,
-		"bullet_clear_radius": 250.0,
+		"spawn_invincible_time": 1,
+		"bullet_clear_radius": 250,
 		"fuel": {
-			"max": 100.0,
-			"drain": 35.0,
-			"regen": 20.0,
-			"restart": 30.0
+			"max": 100,
+			"drain": 35,
+			"regen": 20,
+			"restart": 30
 		},
 		"dash": {
-			"distance": 200.0,
+			"distance": 200,
 			"time": 0.25,
-			"cooldown": 4.0,
+			"cooldown": 4,
 			"cooldown_stack_factor": 0.8,
 			"fuel_ratio": 0.25,
 			"afterimage_interval": 0.08
 		},
 		"aim_assist": {
-			"mark_ratio": 0.4,
-			"homing_time": 4.0,
+			"mark_ratio": 0.25,
+			"homing_time": 4,
 			"levels": {
-				"low": { "frame_pad": 10.0, "homing_turn_rate": 3.5 },
-				"medium": { "frame_pad": 16.0, "homing_turn_rate": 5.5 },
-				"high": { "frame_pad": 24.0, "homing_turn_rate": 8.0 }
+				"low": {
+					"frame_pad": 10,
+					"homing_turn_rate": 3.5,
+					"stick_factor": 0.65
+				},
+				"medium": {
+					"frame_pad": 16,
+					"homing_turn_rate": 5.5,
+					"stick_factor": 0.5
+				},
+				"high": {
+					"frame_pad": 24,
+					"homing_turn_rate": 8,
+					"stick_factor": 0.35
+				}
 			}
 		}
 	},
 	"enemies": {
-		"bullet_speed": 420.0,
-		"spread_bullet_speed": 340.0,
-		"laser_bullet_speed": 720.0,
+		"bullet_speed": 420,
+		"spread_bullet_speed": 340,
+		"laser_bullet_speed": 720,
 		"spread_fan_step": 0.314159,
 		"bullet_damage": {
 			"single": 12,
@@ -52,78 +64,81 @@
 		"collision_damage": 20,
 		"hp_ramp_factor": 0.12,
 		"damage_ramp_factor": 0.08,
-		"lifetime": 15.0,
-		"exit_accel": 520.0,
-		"aggressive_chase_speed": 170.0,
+		"lifetime": 15,
+		"exit_accel": 520,
+		"aggressive_chase_speed": 140,
 		"fire_interval": 2.2,
-		"hover_band": [150.0, 430.0],
-		"hover_bob_amp": 12.0,
-		"hover_bob_freq": 2.0,
-		"hover_sway_amp": 42.0,
+		"hover_band": [
+			150,
+			430
+		],
+		"hover_bob_amp": 12,
+		"hover_bob_freq": 2,
+		"hover_sway_amp": 34,
 		"hover_sway_freq": 1.2,
-		"spiral_drift_amp": 70.0,
+		"spiral_drift_amp": 56,
 		"spiral_drift_freq": 0.7,
-		"spiral_radius": 50.0,
+		"spiral_radius": 50,
 		"types": [
 			{
 				"hp": [
-					75,
-					85
+					65,
+					72
 				],
 				"speed": [
-					140,
-					180
+					115,
+					145
 				],
 				"score": 100,
 				"fire": 0.25,
 				"fire_interval": 2.2,
 				"scale": 0.62,
-				"radius": 34.0
+				"radius": 34
 			},
 			{
 				"hp": [
-					55,
-					65
+					48,
+					56
 				],
 				"speed": [
-					220,
-					280
+					175,
+					225
 				],
 				"score": 150,
 				"fire": 0.3,
 				"fire_interval": 2.4,
 				"scale": 0.62,
-				"radius": 34.0
+				"radius": 34
 			},
 			{
 				"hp": [
-					110,
-					130
+					95,
+					112
 				],
 				"speed": [
-					90,
-					120
+					75,
+					100
 				],
 				"score": 200,
 				"fire": 0.4,
-				"fire_interval": 2.0,
+				"fire_interval": 2,
 				"scale": 0.68,
-				"radius": 38.0
+				"radius": 38
 			},
 			{
 				"hp": [
-					65,
-					75
+					56,
+					66
 				],
 				"speed": [
-					150,
-					190
+					120,
+					155
 				],
 				"score": 250,
 				"fire": 0.8,
 				"fire_interval": 1.8,
 				"scale": 0.62,
-				"radius": 34.0
+				"radius": 34
 			}
 		]
 	},
@@ -131,76 +146,76 @@
 		"types": [
 			{
 				"hp": [
-					210,
-					230
+					190,
+					210
 				],
 				"speed": [
-					90,
-					110
+					75,
+					95
 				],
 				"score": 400,
 				"fire": 0.5,
 				"fire_interval": 2.2,
 				"scale": 0.9,
-				"radius": 38.0
+				"radius": 38
 			},
 			{
 				"hp": [
-					150,
-					170
+					135,
+					155
 				],
 				"speed": [
-					240,
-					300
+					195,
+					245
 				],
 				"score": 350,
 				"fire": 0.6,
-				"fire_interval": 2.0,
+				"fire_interval": 2,
 				"scale": 0.68,
-				"radius": 34.0
+				"radius": 34
 			},
 			{
 				"hp": [
-					190,
-					210
+					170,
+					190
 				],
 				"speed": [
-					110,
-					140
+					90,
+					115
 				],
 				"score": 500,
-				"fire": 1.0,
+				"fire": 1,
 				"fire_interval": 1.5,
 				"scale": 0.78,
-				"radius": 38.0
+				"radius": 38
 			}
 		]
 	},
 	"boss": {
-		"enter_speed": 140.0,
-		"fight_y": 230.0,
-		"strafe_min_x": 300.0,
-		"strafe_max_x": 1620.0,
-		"hp_base": 800.0,
+		"enter_speed": 140,
+		"fight_y": 230,
+		"strafe_min_x": 300,
+		"strafe_max_x": 1620,
+		"hp_base": 800,
 		"hp_mults": [
 			1.3,
 			0.7,
 			1.6
 		],
 		"strafe_speeds": [
-			150.0,
-			400.0,
-			60.0
+			150,
+			400,
+			60
 		],
 		"fire_intervals": [
 			1.6,
 			1.8,
 			0.9
 		],
-		"fan_bullet_speed": 380.0,
-		"homing_bullet_speed": 300.0,
-		"sniper_bullet_speed": 650.0,
-		"cross_bullet_speed": 260.0,
+		"fan_bullet_speed": 380,
+		"homing_bullet_speed": 300,
+		"sniper_bullet_speed": 650,
+		"cross_bullet_speed": 260,
 		"bullet_damage": {
 			"fan": 14,
 			"homing": 12,
@@ -212,18 +227,62 @@
 		"collision_damage": 30,
 		"phase2_hp_ratio": 0.7,
 		"difficulty_scaling": {
-			"interval_mult": [1.15, 1.0, 0.85],
-			"speed_mult": [0.9, 1.0, 1.1],
+			"interval_mult": [
+				1.15,
+				1,
+				0.85
+			],
+			"speed_mult": [
+				0.9,
+				1,
+				1.1
+			],
 			"counts": {
-				"fan": [-1, 0, 1],
-				"homing": [-1, 0, 1],
-				"cannon": [-1, 0, 1],
-				"volley": [-1, 0, 1],
-				"wall": [-2, 0, 2],
-				"ring": [-2, 0, 2],
-				"salvo": [-2, 0, 2],
-				"summon": [-1, 0, 1],
-				"drops": [-1, 0, 1]
+				"fan": [
+					-1,
+					0,
+					1
+				],
+				"homing": [
+					-1,
+					0,
+					1
+				],
+				"cannon": [
+					-1,
+					0,
+					1
+				],
+				"volley": [
+					-1,
+					0,
+					1
+				],
+				"wall": [
+					-2,
+					0,
+					2
+				],
+				"ring": [
+					-2,
+					0,
+					2
+				],
+				"salvo": [
+					-2,
+					0,
+					2
+				],
+				"summon": [
+					-1,
+					0,
+					1
+				],
+				"drops": [
+					-1,
+					0,
+					1
+				]
 			}
 		},
 		"phases": {
@@ -232,34 +291,74 @@
 				"sniper_aim": 0.35,
 				"sniper_track": 0.2
 			},
-			"press_interval": 6.0,
-			"press_depth": 80.0,
+			"press_interval": 6,
+			"press_depth": 80,
 			"type1": {
 				"p1": [
-					{"attack": "fan5", "waves": 3, "interval": 1.6},
-					{"attack": "homing", "waves": 2, "interval": 1.6}
+					{
+						"attack": "fan5",
+						"waves": 3,
+						"interval": 1.6
+					},
+					{
+						"attack": "homing",
+						"waves": 2,
+						"interval": 1.6
+					}
 				],
 				"p2": [
-					{"attack": "charged_cannon", "waves": 1, "interval": 2.4},
-					{"attack": "fan7", "waves": 3, "interval": 1.4}
+					{
+						"attack": "charged_cannon",
+						"waves": 1,
+						"interval": 2.4
+					},
+					{
+						"attack": "fan7",
+						"waves": 3,
+						"interval": 1.4
+					}
 				]
 			},
 			"type2": {
 				"p1": [
-					{"attack": "sniper3", "waves": 1, "interval": 1.8}
+					{
+						"attack": "sniper3",
+						"waves": 1,
+						"interval": 1.8
+					}
 				],
 				"p2": [
-					{"attack": "dash_sweep", "waves": 1, "interval": 2.5},
-					{"attack": "sniper3", "waves": 1, "interval": 1.5}
+					{
+						"attack": "dash_sweep",
+						"waves": 1,
+						"interval": 2.5
+					},
+					{
+						"attack": "sniper3",
+						"waves": 1,
+						"interval": 1.5
+					}
 				]
 			},
 			"type3": {
 				"p1": [
-					{"attack": "cross", "duration": 6.0, "interval": 0.9}
+					{
+						"attack": "cross",
+						"duration": 6,
+						"interval": 0.9
+					}
 				],
 				"p2": [
-					{"attack": "minion_volley", "waves": 1, "interval": 2.0},
-					{"attack": "bullet_wall", "waves": 1, "interval": 1.5}
+					{
+						"attack": "minion_volley",
+						"waves": 1,
+						"interval": 2
+					},
+					{
+						"attack": "bullet_wall",
+						"waves": 1,
+						"interval": 1.5
+					}
 				]
 			},
 			"attacks": {
@@ -267,29 +366,29 @@
 					"charge": 0.6,
 					"shots": 3,
 					"interval": 0.25,
-					"bullet_speed": 700.0,
+					"bullet_speed": 700,
 					"damage": 21,
 					"flash": 0.15
 				},
 				"dash_sweep": {
 					"aim": 0.5,
-					"speed": 900.0,
+					"speed": 900,
 					"drop_count": 3,
-					"drop_speed": 150.0,
+					"drop_speed": 150,
 					"drop_damage": 12,
 					"return_duration": 0.8
 				},
 				"minion_volley": {
 					"count": 4,
 					"delay": 0.8,
-					"bullet_speed": 420.0,
+					"bullet_speed": 420,
 					"bullet_damage": 12
 				},
 				"bullet_wall": {
 					"count": 10,
-					"bullet_speed": 220.0,
+					"bullet_speed": 220,
 					"damage": 12,
-					"arc_deg": 150.0
+					"arc_deg": 150
 				}
 			}
 		},
@@ -300,9 +399,9 @@
 			"player_slow": 0.35,
 			"snapshot_lasers": 4,
 			"snapshot_ring": 8,
-			"laser_speed": 820.0,
-			"ring_speed": 240.0,
-			"duration": 6.0,
+			"laser_speed": 820,
+			"ring_speed": 240,
+			"duration": 6,
 			"transition_duration": 0.9,
 			"attack_interval": 0.7,
 			"attack_windup": 0.4,
@@ -311,29 +410,29 @@
 			"return_duration": 0.8,
 			"path_radius_scale": 1.5,
 			"square_path_ratio": 0.48,
-			"release_laser_speed": 300.0,
-			"release_ring_speed": 120.0,
+			"release_laser_speed": 300,
+			"release_ring_speed": 120,
 			"slow_scale": 0.24,
 			"bullet_time": 1.2,
 			"ramp_time": 0.3,
 			"type_1": {
 				"ring_interval": 0.5,
 				"ring_count": 12,
-				"ring_speed": 240.0,
-				"ring_precession_deg": 15.0,
+				"ring_speed": 240,
+				"ring_precession_deg": 15,
 				"salvo_charge": 0.5,
 				"salvo_count": 8,
-				"salvo_speed": 700.0,
+				"salvo_speed": 700,
 				"salvo_damage": 21
 			},
 			"type_2": {
 				"point_count": 6,
 				"point_interval": 0.8,
 				"aim": 0.3,
-				"sniper_speed": 900.0,
+				"sniper_speed": 900,
 				"sniper_damage": 21,
 				"release_ring_count": 12,
-				"release_ring_speed": 120.0
+				"release_ring_speed": 120
 			},
 			"type_3": {
 				"summon_interval": 1.2,
@@ -341,24 +440,24 @@
 				"summon_count": 3,
 				"ring_interval": 0.9,
 				"ring_count": 8,
-				"ring_speed": 240.0,
+				"ring_speed": 240,
 				"release_ring_count": 16,
-				"release_ring_speed": 120.0
+				"release_ring_speed": 120
 			}
 		},
 		"escape": {
-			"time": 50.0,
-			"warning": 3.0,
-			"drift": 26.0,
-			"start_speed": 120.0,
-			"accel": 420.0,
-			"countdown_visible_from": 10.0
+			"time": 50,
+			"warning": 3,
+			"drift": 26,
+			"start_speed": 120,
+			"accel": 420,
+			"countdown_visible_from": 10
 		}
 	},
 	"spawner": {
-		"wave_interval_start": 7.0,
-		"wave_interval_end": 4.0,
-		"ramp_time": 300.0,
+		"wave_interval_start": 7,
+		"wave_interval_end": 4,
+		"ramp_time": 300,
 		"difficulty_factor": 0.15,
 		"interval_min": 2.5,
 		"unlock_scores": [
@@ -374,45 +473,45 @@
 		"rest_waves_after_kill": 2,
 		"elite_wave_size": 1,
 		"boss_score_step": 1500,
-		"boss_min_interval": 80.0,
-		"boss_time_limit": 120.0,
+		"boss_min_interval": 80,
+		"boss_time_limit": 120,
 		"telegraph_duration": 0.6
 	},
 	"mothership": {
-		"hover_y": 270.0,
-		"release_invincible": 2.0,
+		"hover_y": 270,
+		"release_invincible": 2,
 		"dock_tween_time": 1.5,
-		"dock_offset_y": 140.0,
+		"dock_offset_y": 140,
 		"resupply_delay": 0.5,
 		"release_time": 0.5,
-		"release_drop": 140.0,
+		"release_drop": 140,
 		"mag_cells": 10,
-		"mag_cell_time": 2.0,
+		"mag_cell_time": 2,
 		"mag_warn_cells": 4,
-		"warn_eject_delay": 5.0,
-		"early_hold_time": 2.0,
+		"warn_eject_delay": 5,
+		"early_hold_time": 2,
 		"early_max_discount": 0.4,
 		"early_prefill_max": 0.3,
 		"early_prefill_ratio": 0.5,
-		"depart_cooldown": 60.0,
-		"depart_start_speed": 0.0,
-		"depart_accel": 540.0,
+		"depart_cooldown": 60,
+		"depart_start_speed": 0,
+		"depart_accel": 540,
 		"drive": {
-			"accel": 900.0,
-			"max_speed": 180.0,
-			"margin_x": 130.0,
-			"margin_top": 80.0,
-			"margin_bottom": 150.0
+			"accel": 900,
+			"max_speed": 180,
+			"margin_x": 130,
+			"margin_top": 80,
+			"margin_bottom": 150
 		},
 		"gatling": {
 			"interval": 0.1333,
-			"bullet_speed": 1080.0,
+			"bullet_speed": 1080,
 			"damage": 8,
 			"score_scale": 0.3333333333333333,
-			"sweep_left_min": -60.0,
-			"sweep_left_max": 20.0,
-			"sweep_right_min": -20.0,
-			"sweep_right_max": 60.0,
+			"sweep_left_min": -60,
+			"sweep_left_max": 20,
+			"sweep_right_min": -20,
+			"sweep_right_max": 60,
 			"sweep_left_period": 1.6,
 			"sweep_right_period": 1.8,
 			"sweep_right_phase": 0.35
@@ -420,12 +519,12 @@
 		"missile": {
 			"interval": 0.3,
 			"damage": 80,
-			"speed": 600.0,
+			"speed": 600,
 			"target_count": 5,
 			"splash_damage": 20,
-			"splash_radius": 80.0
+			"splash_radius": 80
 		},
-		"dock_charge_time": 3.0
+		"dock_charge_time": 3
 	},
 	"buffs": {
 		"power_shot": {
@@ -445,13 +544,13 @@
 			"max_stacks": 10
 		},
 		"regen": {
-			"heal_per_sec": 2.0
+			"heal_per_sec": 2
 		},
 		"piercing": {
 			"max_stacks": 2
 		},
 		"explosive": {
-			"radius_per_level": 50.0,
+			"radius_per_level": 50,
 			"damage_per_level": 30,
 			"unlock_boss_kills": 3
 		},
@@ -480,13 +579,13 @@
 			"cooldown_factor": 0.5
 		},
 		"laser_beam": {
-			"duration": 3.0,
-			"cooldown": 8.0,
+			"duration": 3,
+			"cooldown": 8,
 			"tick_interval": 0.1,
 			"tick_damage": 16,
-			"length": 2400.0,
-			"half_width": 26.0,
-			"hit_radius": 30.0
+			"length": 2400,
+			"half_width": 26,
+			"hit_radius": 30
 		}
 	},
 	"milestones": {
@@ -504,8 +603,8 @@
 	},
 	"progression": {
 		"per_boss_kill": 0.5,
-		"per_ten_minutes": 1.0,
-		"time_step_seconds": 30.0
+		"per_ten_minutes": 1,
+		"time_step_seconds": 30
 	},
 	"difficulty": {
 		"easy": {
@@ -515,20 +614,20 @@
 			"spawn": 1.25,
 			"score": 1,
 			"spread_cap": 1,
-			"milestone": 1.0,
-			"regen_delay": 3.0,
-			"regen_rate": 4.0
+			"milestone": 1,
+			"regen_delay": 3,
+			"regen_rate": 4
 		},
 		"medium": {
 			"label": "中",
-			"hp": 1.0,
-			"speed": 1.0,
-			"spawn": 1.0,
+			"hp": 1,
+			"speed": 1,
+			"spawn": 1,
 			"score": 2,
 			"spread_cap": 2,
-			"milestone": 1.0,
-			"regen_delay": 4.0,
-			"regen_rate": 2.0
+			"milestone": 1,
+			"regen_delay": 4,
+			"regen_rate": 2
 		},
 		"hard": {
 			"label": "难",
@@ -538,7 +637,7 @@
 			"score": 3,
 			"spread_cap": 3,
 			"milestone": 1.5,
-			"regen_delay": 5.0,
+			"regen_delay": 5,
 			"regen_rate": 0.67
 		}
 	},
@@ -553,16 +652,16 @@
 			"debris_amount": 10
 		},
 		"shake": {
-			"player_hit": 12.0,
-			"enemy_die": 5.0,
-			"elite_die": 9.0,
-			"boss_warning": 14.0,
-			"boss_seq_initial": 20.0,
-			"boss_seq_step": 8.0,
-			"boss_seq_final": 24.0,
-			"enrage": 16.0,
-			"mothership": 4.0,
-			"decay": 6.0
+			"player_hit": 12,
+			"enemy_die": 5,
+			"elite_die": 9,
+			"boss_warning": 14,
+			"boss_seq_initial": 20,
+			"boss_seq_step": 8,
+			"boss_seq_final": 24,
+			"enrage": 16,
+			"mothership": 4,
+			"decay": 6
 		},
 		"hit_flash": {
 			"alpha": 0.55,
@@ -577,47 +676,63 @@
 		"starfield": {
 			"far_count": 140,
 			"near_count": 90,
-			"far_speed": 60.0,
-			"near_speed": 140.0
+			"far_speed": 60,
+			"near_speed": 140
 		},
 		"home_charge_time": 1.5,
-		"give_up_hold_time": 3.0,
+		"give_up_hold_time": 3,
 		"hud_poll_interval": 0.1,
 		"orbital_strike": {
 			"duration": 1.4,
 			"impact_at": 0.56,
 			"missile_from": 0.3,
-			"reticle_radius": 46.0,
+			"reticle_radius": 46,
 			"impact_y_ratio": 0.42
 		},
 		"mothership_summon": {
 			"window": {
 				"open_time": 0.25,
-				"shot_durations": [0.8, 0.6, 0.7],
+				"shot_durations": [
+					0.8,
+					0.6,
+					0.7
+				],
 				"close_time": 0.25
 			},
 			"gate": {
 				"open_time": 0.35,
 				"close_time": 0.4,
-				"radius": 190.0
+				"radius": 190
 			},
 			"warp_in_time": 0.8,
-			"warp_in_drop": 260.0,
+			"warp_in_drop": 260,
 			"slow": {
-				"radius": 900.0,
-				"duration": 2.0,
+				"radius": 900,
+				"duration": 2,
 				"factor": 0.4,
 				"ring_time": 0.5
 			},
-			"shake_gate": 6.0,
-			"shake_slow": 4.0
+			"shake_gate": 6,
+			"shake_slow": 4
 		},
 		"meta_health": {
 			"lod": 0,
-			"pulse": { "scale": 2.5, "min": 0.15, "decay_tau": 0.09 },
-			"chromatic": { "base": 0.006, "peak": 0.014 },
-			"blur": { "strength": 0.6 },
-			"ripple": { "duration": 0.4, "alpha": 0.8 },
+			"pulse": {
+				"scale": 2.5,
+				"min": 0.15,
+				"decay_tau": 0.09
+			},
+			"chromatic": {
+				"base": 0.006,
+				"peak": 0.014
+			},
+			"blur": {
+				"strength": 0.6
+			},
+			"ripple": {
+				"duration": 0.4,
+				"alpha": 0.8
+			},
 			"crack": {
 				"exponent": 1.6,
 				"spread_min": 0.1,
@@ -627,76 +742,126 @@
 				"heal_jitter": 0.35,
 				"grow_overshoot": 0.08,
 				"grow_time": 0.6,
-				"density": [0.0, 0.3, 0.5, 0.75, 1.0]
+				"density": [
+					0,
+					0.3,
+					0.5,
+					0.75,
+					1
+				]
 			},
-			"desat": { "max": 0.35, "exponent": 2.0 },
-			"vignette": { "max_alpha": 0.5, "inner": 0.62, "dying_shrink": 0.06 },
+			"desat": {
+				"max": 0.35,
+				"exponent": 2
+			},
+			"vignette": {
+				"max_alpha": 0.5,
+				"inner": 0.62,
+				"dying_shrink": 0.06
+			},
 			"dying": {
 				"threshold": 0.2,
-				"heart_min_hz": 1.0,
+				"heart_min_hz": 1,
 				"heart_max_hz": 1.2,
 				"breath": 0.015,
-				"jitter_px": 2.0,
+				"jitter_px": 2,
 				"warn_hz": 2.5,
 				"fade": 0.3
 			},
-			"smooth": { "down_tau": 0.1, "up_tau": 0.8 },
-			"adapt": { "interval": 0.25, "min": 0.8, "max": 1.3, "bullet_weight": 0.002, "explosion_weight": 0.15 },
-			"reduce_flash": { "chromatic_scale": 0.4 }
+			"smooth": {
+				"down_tau": 0.1,
+				"up_tau": 0.8
+			},
+			"adapt": {
+				"interval": 0.25,
+				"min": 0.8,
+				"max": 1.3,
+				"bullet_weight": 0.002,
+				"explosion_weight": 0.15
+			},
+			"reduce_flash": {
+				"chromatic_scale": 0.4
+			}
 		}
 	},
 	"elite_turret_event": {
-		"duration": 30.0,
-		"enter_time": 2.0,
+		"duration": 30,
+		"enter_time": 2,
 		"rise_time": 1.5,
-		"boss_resume_delay": 4.0,
+		"boss_resume_delay": 4,
 		"min_score": 800,
-		"trigger_interval": 45.0,
+		"trigger_interval": 45,
 		"trigger_chance": 0.35,
-		"cooldown": 60.0,
+		"cooldown": 60,
 		"turret_hp_base": 80,
-		"turret_counts": { "easy": 3, "medium": 4, "hard": 5 },
-		"fire_interval": [2.0, 2.4],
+		"turret_counts": {
+			"easy": 3,
+			"medium": 4,
+			"hard": 5
+		},
+		"fire_interval": [
+			2,
+			2.4
+		],
 		"weak_lock": {
-			"turn_rate": 2.0,
+			"turn_rate": 2,
 			"homing_turn_rate": 1.5,
 			"homing_time": 0.6,
-			"spread_deg": 7.0
+			"spread_deg": 7
 		},
 		"ammo_sequences": {
-			"easy": ["single", "spread3", "single"],
-			"medium": ["single", "spread3", "laser", "weak_homing"],
-			"hard": ["spread5", "laser", "weak_homing", "sniper", "single"]
+			"easy": [
+				"single",
+				"spread3",
+				"single"
+			],
+			"medium": [
+				"single",
+				"spread3",
+				"laser",
+				"weak_homing"
+			],
+			"hard": [
+				"spread5",
+				"laser",
+				"weak_homing",
+				"sniper",
+				"single"
+			]
 		},
 		"reward_score": 500,
 		"carrier": {
-			"hover_y": 300.0,
-			"retreat_start_speed": 120.0,
-			"retreat_accel": 420.0,
-			"shake": 4.0
+			"hover_y": 300,
+			"retreat_start_speed": 120,
+			"retreat_accel": 420,
+			"shake": 4
 		}
 	},
 	"formation_strike_event": {
 		"min_score": 500,
-		"trigger_interval": 40.0,
-		"trigger_chance": 0.30,
-		"cooldown": 50.0,
-		"craft_counts": { "easy": 3, "medium": 4, "hard": 5 },
+		"trigger_interval": 40,
+		"trigger_chance": 0.3,
+		"cooldown": 50,
+		"craft_counts": {
+			"easy": 3,
+			"medium": 4,
+			"hard": 5
+		},
 		"craft_hp_base": 60,
 		"craft_score": 200,
-		"approach_speed": 260.0,
-		"approach_y": 260.0,
+		"approach_speed": 260,
+		"approach_y": 260,
 		"turn_time": 1.2,
-		"run_speed": 340.0,
+		"run_speed": 340,
 		"bomb_interval": 0.35,
 		"bombs_per_craft": 2,
-		"bomb_fall_speed": 300.0,
+		"bomb_fall_speed": 300,
 		"bomb_fuse": 1.2,
 		"bomb_damage": 20,
-		"bomb_radius": 120.0,
+		"bomb_radius": 120,
 		"reward_all_clear": 200
 	},
 	"tutorial": {
-		"boss_hp": 120.0
+		"boss_hp": 120
 	}
 }

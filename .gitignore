@@ -24,3 +24,7 @@ kimi-export-session_*.md
 
 # Playwright MCP 会话产物
 .playwright-mcp/
+
+# 数值管理器本地备份与 Python 缓存
+data/balance.json.bak
+__pycache__/

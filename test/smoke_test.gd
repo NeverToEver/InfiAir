@@ -695,18 +695,26 @@ func _ready() -> void:
 	aim_e.queue_free()
 	await get_tree().process_frame
 
-	# 6.1b 辅助瞄准强度三档：框内边距/追踪速率随档位切换，无关闭档（非法档位拒绝）
+	# 6.1b 辅助瞄准强度三档：框内边距/追踪速率/入框吸附系数随档位切换，无关闭档（非法档位拒绝）
 	var default_pad: float = frames._frame_pad
 	var default_turn: float = player._homing_turn_rate
+	var default_stick: float = player._aim_stick_factor
 	GameState.set_aim_assist_level(&"low")
-	_check(frames._frame_pad < default_pad and player._homing_turn_rate < default_turn, "弱档：框内边距与追踪速率降低")
+	_check(
+		frames._frame_pad < default_pad and player._homing_turn_rate < default_turn and player._aim_stick_factor > default_stick,
+		"弱档：框内边距与追踪速率降低、吸附减弱"
+	)
 	GameState.set_aim_assist_level(&"high")
-	_check(frames._frame_pad > default_pad and player._homing_turn_rate > default_turn, "强档：框内边距与追踪速率提高")
+	_check(
+		frames._frame_pad > default_pad and player._homing_turn_rate > default_turn and player._aim_stick_factor < default_stick,
+		"强档：框内边距与追踪速率提高、吸附增强"
+	)
 	GameState.set_aim_assist_level(&"off")
 	_check(GameState.aim_assist_level == &"high", "辅助瞄准无关闭档（非法档位被拒绝）")
 	GameState.set_aim_assist_level(&"medium")
 	_check(
-		is_equal_approx(frames._frame_pad, default_pad) and is_equal_approx(player._homing_turn_rate, default_turn),
+		is_equal_approx(frames._frame_pad, default_pad) and is_equal_approx(player._homing_turn_rate, default_turn)
+			and is_equal_approx(player._aim_stick_factor, default_stick),
 		"恢复中档后参数还原"
 	)
 

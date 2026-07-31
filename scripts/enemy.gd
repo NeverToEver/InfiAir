@@ -24,7 +24,7 @@ var SLOW_FIELD_FACTOR := 0.8
 var SPREAD_FAN_STEP := 0.314159  # 五向扇形步进角（18°）
 var LIFETIME := 15.0  # 出生后寿命（对齐原作 900 帧@60fps）
 var EXIT_ACCEL := 520.0  # 寿命离场加速度
-var AGGR_CHASE_SPEED := 170.0  # aggressive 持续偏向玩家 x 的速度
+var AGGR_CHASE_SPEED := 140.0  # aggressive 持续偏向玩家 x 的速度
 var FIRE_INTERVAL := 2.2
 ## 悬停带：锚点 anchor_y 的取值范围（相对可见区域顶缘的偏移，求解锚点时实时加 view.position.y 基线）
 var HOVER_BAND := Vector2(150.0, 430.0)
@@ -32,9 +32,9 @@ var HOVER_BAND := Vector2(150.0, 430.0)
 ## 垂直微浮 + 水平慢摇摆（straight/hover）+ spiral 中心漂移，相位按个体随机错开
 var HOVER_BOB_AMP := 12.0  # 悬停垂直浮动振幅
 var HOVER_BOB_FREQ := 2.0  # 悬停垂直浮动角频率
-var HOVER_SWAY_AMP := 42.0  # 悬停水平摇摆振幅（straight/hover）
+var HOVER_SWAY_AMP := 34.0  # 悬停水平摇摆振幅（straight/hover）
 var HOVER_SWAY_FREQ := 1.2  # 悬停水平摇摆角频率
-var SPIRAL_DRIFT_AMP := 70.0  # spiral 悬停期绕转中心水平漂移振幅
+var SPIRAL_DRIFT_AMP := 56.0  # spiral 悬停期绕转中心水平漂移振幅
 var SPIRAL_DRIFT_FREQ := 0.7  # spiral 漂移角频率
 var SPIRAL_RADIUS := 50.0
 ## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
@@ -147,7 +147,7 @@ func setup(
 	var shape_node: CollisionShape2D = $CollisionShape2D
 	sprite.texture = config["texture"]
 	# 辅助瞄准标记：按比率掷点（直实例化与池化 reactivate 均过 setup，标记终生稳定）
-	aim_marked = randf() < GameState.cfg("player.aim_assist.mark_ratio", 0.4)
+	aim_marked = randf() < GameState.cfg("player.aim_assist.mark_ratio", 0.25)
 	# 机体尺寸族：config 存设计值（1.0 基准），统一乘全局缩放（shape 已 local_to_scene，实例独立）
 	var sc: float = config.get("scale", 0.85)
 	sprite.scale = Vector2(sc, sc) * GameState.world_scale

@@ -32,6 +32,8 @@ var EXPLOSIVE_DAMAGE := 30
 var VISUAL_SCALE := 1.3
 ## 敌弹视觉缩放（设计值 2.4；effects.enemy_bullet_visual_scale × world_scale，P0-4 敌弹可见性）
 var ENEMY_VISUAL_SCALE := 2.4
+## 辅助瞄准追踪近距收敛半径：低于此距离直取目标（避免低转向档擦弹后绕目标永动圆）
+var HOMING_SNAP_RADIUS := 36.0
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
@@ -151,13 +153,19 @@ func _process(delta: float) -> void:
 			homing_target = null
 		elif _homing_elapsed < homing_time:
 			_homing_elapsed += delta
-			var target_angle := lerp_angle(
-				direction.angle(),
-				(homing_target.global_position - global_position).angle(),
-				homing_turn_rate * delta
-			)
-			direction = Vector2.RIGHT.rotated(target_angle)
-			rotation = target_angle
+			var to_target: Vector2 = homing_target.global_position - global_position
+			var dist := to_target.length()
+			if dist > 0.0 and dist <= HOMING_SNAP_RADIUS + speed * delta:
+				# 近距直取：恒定转向速率追不上贴脸急转，擦弹会绕目标永动圆；
+				# 进入收敛半径后直接对准目标，呈「绕渐小圆后命中」的观感
+				direction = to_target / dist
+				rotation = direction.angle()
+			else:
+				# 距离越近转向越急：螺旋收敛而非恒定半径环绕
+				var rate := homing_turn_rate * (1.0 + HOMING_SNAP_RADIUS * 2.0 / dist)
+				var target_angle := lerp_angle(direction.angle(), to_target.angle(), rate * delta)
+				direction = Vector2.RIGHT.rotated(target_angle)
+				rotation = target_angle
 	elif homing and _homing_elapsed < homing_time:
 		_homing_elapsed += delta
 		if GameState.player_ref != null:

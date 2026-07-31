@@ -119,6 +119,7 @@ EXIT_BATTLE_MSG,"战斗进行中：退出将丢失本局进度！","Battle in pr
 EXIT_OK,"确认退出","Quit"
 EXIT_CANCEL,"取消","Cancel"
 START_HAS_SAVE,"检测到未完成的对局","Saved game found"
+START_SUBTITLE,"无 限 空 域","ENDLESS SKIES"
 START_NO_SAVE,"选择难度，准备出击","Pick difficulty, pilot"
 START_CONTINUE,"继续对局","Continue"
 START_NEW,"新游戏","New Game"
@@ -186,7 +187,9 @@ TUT_S4_TITLE,"阶段 4/6：母舰停靠","Stage 4/6: Docking"
 TUT_S5_TITLE,"阶段 5/6：返航与基地","Stage 5/6: Homecoming"
 TUT_S6_TITLE,"阶段 6/6：首领遭遇","Stage 6/6: Boss"
 TUT_S1_OBJ,"WASD 移动，鼠标瞄准（自动开火）
+准星套住青色标记框，子弹会追踪目标
 击杀 3 个训练靶 (%d/3)","Move with WASD, aim with mouse (auto-fire)
+Catch a cyan bracket frame with your crosshair to make bullets home in
 Destroy 3 targets (%d/3)"
 TUT_S2_OBJ,"按住 Shift 加速（耗燃料，松开恢复）：%d/2
 空格相位突进（需 25%% 燃料）：%d/2","Hold Shift to boost (drains fuel): %d/2
@@ -194,7 +197,9 @@ Space to phase dash (needs 25%% fuel): %d/2"
 TUT_S3_OBJ,"击落全部 5 架敌机 (%d/5)
 本阶段受伤不会阵亡","Shoot down all 5 enemies (%d/5)
 You cannot die in this stage"
-TUT_S4_OBJ,"飞入母舰下方对接区，完成一次完整对接补给
+TUT_S4_OBJ,"长按 H 蓄力召唤母舰","Hold H to summon the mothership"
+TUT_S4_CHARGE,"召唤蓄力 %d%%…","Summoning %d%%…"
+TUT_S4_DOCK,"飞入母舰下方对接区，完成一次完整对接补给
 （弹匣随驻留消耗，≤4 格会触发弹药警告）","Fly into the dock zone below the mothership
 (Magazine drains while docked; ≤4 cells warns)"
 TUT_S5_OBJ,"长按 B 1.5 秒返航，打开基地控制台
