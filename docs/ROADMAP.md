@@ -6,7 +6,7 @@
 
 - **移植对齐收官**：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）。
 - **质量基线**：29 个无头断言测试场景全绿；长时 autoplay 探针 + 性能基准可用。
-- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8（A1 封装穿透已全量修复，A2/A3 排入 Phase 0，A4–A8 待排期）。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**A1–A8 已全部修复**（同日）：A1 封装穿透、A2 GameState 四服务拆分、A3 Boss 四类拆分、A4 敌机策略/事件触发基类、A5 依赖注入、A6 语义化特判、A7 测试白盒 855 处全清、A8 Player 组件拆分；29 断言场景全绿 + autoplay 120s 伪实机 0 异常。
 - **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
 
 ## 方向转变
