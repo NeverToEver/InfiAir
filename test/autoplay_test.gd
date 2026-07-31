@@ -344,7 +344,7 @@ func _bot_tick(now: int) -> void:
 	_handle_buff_ui(now)
 	_handle_base_ui(now)
 	_handle_pause_ui(now)
-	var playing := not get_tree().paused and _player != null and not _player._dead
+	var playing := not get_tree().paused and _player != null and not _player.is_dead()
 	if playing:
 		_update_movement(now)
 		_update_aim(now)
@@ -435,11 +435,11 @@ func _handle_base_ui(now: int) -> void:
 			if (
 				GameState.rp >= GameState.RP_RECHARGE_COST
 				and _player != null
-				and _player._fuel < _player.fuel_max - 1.0
+				and _player.fuel_amount() < _player.fuel_max - 1.0
 			):
 				base_ui._on_recharge_pressed()
 				_base_recharges += 1
-				_log("基地补给燃料：-> %.0f（RP=%d）" % [_player._fuel, GameState.rp])
+				_log("基地补给燃料：-> %.0f（RP=%d）" % [_player.fuel_amount(), GameState.rp])
 		elif _base_stage == 2 and t >= 1400:
 			_base_stage = 3
 			for line in GameState.ROUTE_LINES:
@@ -658,12 +658,12 @@ func _update_dash(now: int) -> void:
 	if now < _next_dash_try:
 		return
 	var enrage_active: bool = (
-		(_boss != null and is_instance_valid(_boss) and _boss._enraged)
+		(_boss != null and is_instance_valid(_boss) and _boss.is_enraged())
 		or _main._bullet_time_left > 0.0
 		or _main._time_scale_ramp >= 0.0
 	)
 	_next_dash_try = now + (250 if enrage_active else 500)
-	if not _player.dash_unlocked() or _player._dash_cooldown > 0.0 or _player._dashing:
+	if not _player.dash_unlocked() or _player.dash_cooldown() > 0.0 or _player.is_dashing():
 		return
 	var threat := 0.0
 	for child in _main.get_children():
@@ -953,7 +953,7 @@ func _snapshot(now: int) -> void:
 	_max_frame_ms = maxf(_max_frame_ms, frame_ms)
 	var boss_s := "none"
 	if _boss != null and is_instance_valid(_boss):
-		boss_s = "type%d hp=%.0f/%.0f%s" % [_boss.boss_type, _boss.hp, _boss.max_hp, "(enraged)" if _boss._enraged else ""]
+		boss_s = "type%d hp=%.0f/%.0f%s" % [_boss.boss_type, _boss.hp, _boss.max_hp, "(enraged)" if _boss.is_enraged() else ""]
 	var ms_s := "none" if _main._mothership == null else MS_STATE_NAMES[int(_main._mothership._state)]
 	_log(
 		(
@@ -961,7 +961,7 @@ func _snapshot(now: int) -> void:
 			% [
 				_run_index, GameState.run_time, GameState.score, GameState.health, GameState.max_health(),
 				GameState.kills, GameState.enemies.size(), p_bullets, e_bullets, boss_s, ms_s,
-				GameState.difficulty_multiplier, _spawner._elapsed, main_nodes, total_nodes,
+				GameState.difficulty_multiplier, _spawner.elapsed(), main_nodes, total_nodes,
 				Engine.time_scale, str(get_tree().paused),
 				obj_count, node_count, orphans, mem_static / 1048576.0, fps, frame_ms,
 				bullet_pool_n, enemy_pool_n,
@@ -1158,18 +1158,18 @@ func _checks(now: int) -> void:
 		_base_stuck_reported = true
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
 	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
-	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss._enraged
+	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss.is_enraged()
 	if (
 		_player != null
 		and is_instance_valid(_player)
-		and absf(_player._enrage_slow - 1.0) > 0.001
+		and absf(_player.enrage_slow() - 1.0) > 0.001
 		and not boss_enraged
 	):
 		if _slow_since == 0:
 			_slow_since = now
 		elif not _slow_reported and now - _slow_since > SLOW_STUCK_MS:
 			_slow_reported = true
-			_anomaly("enrage_slow_stuck", "玩家狂暴减速 %.2f 持续 %ds 但无狂暴 Boss" % [_player._enrage_slow, SLOW_STUCK_MS / 1000])
+			_anomaly("enrage_slow_stuck", "玩家狂暴减速 %.2f 持续 %ds 但无狂暴 Boss" % [_player.enrage_slow(), SLOW_STUCK_MS / 1000])
 	else:
 		_slow_since = 0
 		_slow_reported = false
@@ -1188,7 +1188,7 @@ func _checks(now: int) -> void:
 	var game_over_ui: CanvasLayer = _main.get_node("GameOverUI")
 	if game_over_ui.visible and _main._base_ui.visible:
 		_anomaly_rl("ui_overlap", "GameOverUI 与基地 UI 同时可见", now)
-	if _player != null and _player._dead and not get_tree().paused and not game_over_ui.visible:
+	if _player != null and _player.is_dead() and not get_tree().paused and not game_over_ui.visible:
 		_anomaly_rl("dead_no_gameover", "玩家已死亡、游戏未暂停且结算面板不可见", now)
 	# 分数停滞 + 场上无敌机（疑似不刷怪/不结算）
 	if GameState.score != _last_score:
@@ -1215,7 +1215,7 @@ func _finish() -> void:
 		return
 	_finished = true
 	# 收尾局（未死亡）也计入统计
-	if _player != null and is_instance_valid(_player) and not _player._dead:
+	if _player != null and is_instance_valid(_player) and not _player.is_dead():
 		_total_kills += GameState.kills
 		_run_scores.append(GameState.score)
 	_log("DONE")

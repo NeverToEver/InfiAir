@@ -47,8 +47,8 @@ func _ready() -> void:
 	# ---------- 2. 模拟基地状态触发继续出击 ----------
 	get_tree().paused = true
 	main._homecoming = true
-	main._player._input_locked = true
-	main._player._invincible = 999.0  # 驻留态无敌
+	main._player.lock_input()
+	main._player.set_invincible(999.0  )# 驻留态无敌
 	spawner.set_process(false)
 	main._resume_from_base()
 	await get_tree().process_frame
@@ -75,8 +75,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(not get_tree().paused, "命中：树恢复非暂停")
 	_check(GameState.enemies.is_empty(), "命中：敌机全部清除（残留 %d 台）" % GameState.enemies.size())
-	_check(not main._player._input_locked, "命中：玩家输入解锁")
-	_check(main._player._invincible <= 1.5, "命中：驻留无敌重置为短无敌")
+	_check(not main._player.is_input_locked(), "命中：玩家输入解锁")
+	_check(main._player.invincible_remaining() <= 1.5, "命中：驻留无敌重置为短无敌")
 	_check(spawner.is_processing(), "命中：spawner 恢复")
 	_check(not main._homecoming, "命中：homecoming 标志复位")
 	_check(

@@ -32,7 +32,7 @@ func _ready() -> void:
 	spawner.set_process(false)
 	main._event.set_process(false)
 	main._formation.set_process(false)
-	main._player._auto_fire_enabled = false
+	main._player.set_auto_fire(false)
 
 	# ---------- 1. 布置一台靶机（验证减速带与火力目标） ----------
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
@@ -49,8 +49,8 @@ func _ready() -> void:
 	var window: MothershipSummonWindow = main._summon_window
 	_check(window != null, "小窗：蓄力完成后弹出机库小窗")
 	_check(main._mothership == null, "小窗：播放期间母舰尚未创建")
-	_check(main._player._input_locked, "小窗：演出期玩家锁输入")
-	_check(main._player._invincible > 100.0, "小窗：演出期事件驱动无敌")
+	_check(main._player.is_input_locked(), "小窗：演出期玩家锁输入")
+	_check(main._player.invincible_remaining() > 100.0, "小窗：演出期事件驱动无敌")
 	main._summon_mothership()  # 幂等：播放中重复触发不叠加
 	await get_tree().process_frame
 	_check(main._summon_window == window, "小窗：重复触发不叠加第二个窗口")
@@ -119,10 +119,10 @@ func _ready() -> void:
 	_check(main._player.visible, "释放：玩家出舱恢复显示")
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if not main._player._input_locked:
+		if not main._player.is_input_locked():
 			break
-	_check(not main._player._input_locked, "释放：输入解锁")
-	_check(main._player._invincible <= 2.0, "释放：无敌重置为 2s 保护")
+	_check(not main._player.is_input_locked(), "释放：输入解锁")
+	_check(main._player.invincible_remaining() <= 2.0, "释放：无敌重置为 2s 保护")
 	if main._mothership != null:
 		main._mothership.queue_free()
 

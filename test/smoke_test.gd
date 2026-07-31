@@ -53,7 +53,7 @@ func _ready() -> void:
 
 	# 3. Boss 生成与弹幕
 	var spawner: Node = get_node("Main/Spawner")
-	spawner._spawn_boss()
+	spawner.spawn_boss()
 	await get_tree().process_frame
 	var boss: Boss = null
 	for child in get_node("Main").get_children():
@@ -63,7 +63,7 @@ func _ready() -> void:
 	_check(get_node("Main/HUD/BossBar").visible, "Boss 血条显示")
 	# 无头模式帧不封顶，240 帧远不足 4 秒真实时间，改用真实时间等待
 	await get_tree().create_timer(4.0).timeout
-	_check(boss._in_fight, "Boss 进入巡航阶段")
+	_check(boss.is_in_fight(), "Boss 进入巡航阶段")
 	boss.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.boss_kills == 1, "Boss 击毁计数")
@@ -83,7 +83,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	# 后续各段需长时间真实等待，期间弹幕可能命中玩家：测试窗口内先开无敌
 	var player: Player = get_node("Main/Player")
-	player._invincible = 999.0
+	player.set_invincible(999.0)
 
 	# 3.1 新移动模式特征
 	# spiral：横向振幅 + 整体下压（机动相位随机，采样窗口取最大偏离）
@@ -140,7 +140,7 @@ func _ready() -> void:
 	hov.queue_free()
 
 	# 3.2 Boss 轮换：第 2 只（boss_kills=1）应为游击型
-	spawner._spawn_boss()
+	spawner.spawn_boss()
 	await get_tree().process_frame
 	var boss2: Boss = null
 	for child in get_node("Main").get_children():
@@ -153,7 +153,7 @@ func _ready() -> void:
 		buff_ui._on_card_gui_input(ev, &"rapid_fire")
 
 	# 3.3 Boss-3 母舰型召唤小怪
-	spawner._spawn_boss()
+	spawner.spawn_boss()
 	await get_tree().process_frame
 	var boss3: Boss = null
 	for child in get_node("Main").get_children():
@@ -178,7 +178,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 3.4 狂暴阶段：血量 <30% 触发，序列后射速 ×1.5
-	spawner._spawn_boss(1)
+	spawner.spawn_boss(1)
 	await get_tree().process_frame
 	var boss4: Boss = null
 	for child in get_node("Main").get_children():
@@ -188,20 +188,20 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	boss4.take_damage(int(boss4.max_hp * 0.75))
 	await get_tree().process_frame
-	_check(boss4._enraged, "Boss 血量 <30% 触发狂暴")
-	_check(boss4._base_modulate() != Color.WHITE, "狂暴贴图变红")
+	_check(boss4.is_enraged(), "Boss 血量 <30% 触发狂暴")
+	_check(boss4.base_modulate_color() != Color.WHITE, "狂暴贴图变红")
 	# 狂暴完整序列（锁血/冻结玩家/轨道攻击）断言见 boss_enrage_test；
 	# 这里中止序列后验证永久射速倍率，并快进 main 子弹时间等 time_scale 恢复
-	boss4._abort_enrage_sequence()
+	boss4.abort_enrage_sequence()
 	get_node("Main")._bullet_time_left = 0.05
 	for i in 30:
 		await get_tree().create_timer(0.1, true, false, true).timeout
 		if is_equal_approx(Engine.time_scale, 1.0):
 			break
 	# 狂暴射速：计时器流速 ×1.5 → 0.5s 墙钟消耗 0.75s 计时
-	boss4._fire_timer = 1.6
+	boss4.set_fire_timer(1.6)
 	await get_tree().create_timer(0.5).timeout
-	_check(boss4._fire_timer < 1.0, "狂暴后射速提升")
+	_check(boss4.fire_timer() < 1.0, "狂暴后射速提升")
 	boss4.take_damage(9999)
 	await get_tree().process_frame
 	if buff_ui.visible:
@@ -216,7 +216,7 @@ func _ready() -> void:
 	# 3.5 新 buff 抽查：穿透弹 / 爆炸弹作用于玩家子弹
 	GameState.add_buff(&"piercing")
 	GameState.add_buff(&"explosive")
-	player._fire(Vector2.DOWN)
+	player.fire(Vector2.DOWN)
 	var fired: Bullet = null
 	for child in get_node("Main").get_children():
 		if child is Bullet and child.is_player_bullet:
@@ -250,32 +250,32 @@ func _ready() -> void:
 	# 3.7 相位冲刺：触发、无敌、位移、冷却
 	GameState.add_buff(&"phase_dash")
 	var health_before := GameState.health
-	player._since_damage = 0.0  # 冻结被动回血，避免干扰 HP 断言
+	player.set_since_damage(0.0  )# 冻结被动回血，避免干扰 HP 断言
 	var pos_before := player.position
-	player._invincible = 0.0
+	player.set_invincible(0.0)
 	Input.action_press("dash")
 	# 无头模式需等物理帧而非 idle 帧，just_pressed 才可靠到达 _physics_process
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("dash")
-	_check(player._dashing, "相位冲刺触发")
+	_check(player.is_dashing(), "相位冲刺触发")
 	player.take_damage()
 	_check(GameState.health == health_before, "冲刺期间无敌")
 	await get_tree().create_timer(0.4).timeout
 	_check(player.position.distance_to(pos_before) > 100.0, "冲刺位移约 200px")
-	_check(player._dash_cooldown > 0.0, "冲刺进入冷却")
+	_check(player.dash_cooldown() > 0.0, "冲刺进入冷却")
 
 	# 3.8 燃料：加速消耗 / 松手回复
-	var fuel_before: float = player._fuel
+	var fuel_before: float = player.fuel_amount()
 	Input.action_press("boost")
 	Input.action_press("move_up")
 	await get_tree().create_timer(0.5).timeout
 	Input.action_release("boost")
 	Input.action_release("move_up")
-	_check(player._fuel < fuel_before, "加速消耗燃料")
-	var fuel_after_boost: float = player._fuel
+	_check(player.fuel_amount() < fuel_before, "加速消耗燃料")
+	var fuel_after_boost: float = player.fuel_amount()
 	await get_tree().create_timer(0.5).timeout
-	_check(player._fuel > fuel_after_boost, "燃料回复")
+	_check(player.fuel_amount() > fuel_after_boost, "燃料回复")
 	_check(player.fuel_drain_rate() == 35.0, "无高效推进时消耗 35/s")
 	GameState.add_buff(&"efficient_boost")
 	_check(is_equal_approx(player.fuel_drain_rate(), 35.0 * 0.75), "高效推进消耗 -25%")
@@ -304,11 +304,11 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	var main := get_node("Main")
-	player._invincible = 0.0
-	player._last_hit_frame = -1
+	player.set_invincible(0.0)
+	player.set_last_hit_frame(-1)
 	player.take_damage(10.0)
 	_check(GameState.health == 90.0, "母舰测试前置：受击 -10 HP")
-	player._fuel = 10.0
+	player.set_fuel(10.0)
 	# 长按蓄力：1s 松手取消，不进冷却
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
@@ -346,8 +346,8 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_check(ms._state == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
 	_check(tgt._summon_slow_timer > 0.0, "减速带命中敌机（短时减速）")
-	_check(player._input_locked, "对接开始即锁输入")
-	_check(player._invincible > 100.0, "对接开始即无敌（无敌窗口前移）")
+	_check(player.is_input_locked(), "对接开始即锁输入")
+	_check(player.invincible_remaining() > 100.0, "对接开始即无敌（无敌窗口前移）")
 	# 回收牵引期火力掩护（DOCKING 态即开火，不耗驻留弹匣）
 	var dock_fire := false
 	for child in main.get_children():
@@ -357,7 +357,7 @@ func _ready() -> void:
 	# 对接 1.5s + 补给 0.5s 后进入驻留
 	await get_tree().create_timer(2.0).timeout
 	_check(GameState.health == GameState.max_health(), "补给回满生命")
-	_check(player._fuel == player.fuel_max, "补给回满燃料")
+	_check(player.fuel_amount() == player.fuel_max, "补给回满燃料")
 	_check(ms._state == Mothership.State.STAY, "进入驻留状态")
 	_check(ms._mag_cells == 10, "弹匣初始 10 格")
 	_check(not player.visible, "回收完成玩家进入保护舱（隐藏）")
@@ -418,12 +418,12 @@ func _ready() -> void:
 	_check(not main._hud._early_leave_box.visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(
-		player._invincible > 1.0 and player._invincible <= 2.0,
+		player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0,
 		"释放后 2s 保护（重制版 QoL）"
 	)
 	await get_tree().create_timer(0.2).timeout
 	_check(main._dock_cooldown > 42.5 and main._dock_cooldown < 45.2, "提前离舰冷却双机制折扣")
-	_check(not player._input_locked, "脱离后输入解锁")
+	_check(not player.is_input_locked(), "脱离后输入解锁")
 	_check(player.visible, "释放后玩家出舱恢复显示")
 	if main._mothership != null:
 		main._mothership.queue_free()
@@ -569,25 +569,25 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	Input.action_release("boost")
 	await get_tree().physics_frame
-	_check(player._boost_toggle_on, "toggle 模式按一下开启加速")
+	_check(player.boost_toggle_active(), "toggle 模式按一下开启加速")
 	Input.action_press("boost")
 	await get_tree().physics_frame
 	Input.action_release("boost")
 	await get_tree().physics_frame
-	_check(not player._boost_toggle_on, "toggle 模式再按一下关闭加速")
+	_check(not player.boost_toggle_active(), "toggle 模式再按一下关闭加速")
 	GameState.set_shift_toggle_mode(false)
 	GameState.set_ctrl_toggle_mode(true)
 	Input.action_press("fine_move")
 	await get_tree().physics_frame
 	Input.action_release("fine_move")
 	await get_tree().physics_frame
-	_check(player._fine_toggle_on, "toggle 模式按一下开启微调")
+	_check(player.fine_toggle_active(), "toggle 模式按一下开启微调")
 	GameState.set_ctrl_toggle_mode(false)
-	player._fine_toggle_on = false
+	player.set_fine_toggle(false)
 
 	# 4. 玩家受击至死 → 结算（此时存档存在，死亡应删档）
-	player._invincible = 0.0
-	player._last_hit_frame = -1
+	player.set_invincible(0.0)
+	player.set_last_hit_frame(-1)
 	player.take_damage(9999.0)
 	await get_tree().process_frame
 	_check(not GameState.has_save(), "死亡后删除存档")
@@ -625,8 +625,8 @@ func _ready() -> void:
 
 	# 6. 迭代 3.3 玩家侧：瞄准辅助 / 冲刺耗燃料 / Ctrl 微调
 	# 第 4 节玩家已受击至死：复活以便继续测试（不重开 hitbox，避免杂散碰撞）
-	player._dead = false
-	player._invincible = 999.0
+	player.set_dead(false)
+	player.set_invincible(999.0)
 	player.show()
 	player.set_physics_process(true)
 	GameState.health = GameState.max_health()
@@ -651,11 +651,11 @@ func _ready() -> void:
 	player.aim_point_override = aim_e.global_position + Vector2(20.0, 0.0)
 	await get_tree().physics_frame
 	_check(frames.marked_target_at(player.aim_point()) == aim_e, "准星入框命中标记敌")
-	player._auto_fire_enabled = true
-	player._fire_cooldown = 0.0
+	player.set_auto_fire(true)
+	player.reset_fire_cooldown()
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	player._auto_fire_enabled = false
+	player.set_auto_fire(false)
 	var ab: Bullet = null
 	for child in main.get_children():
 		if child is Bullet and child.is_player_bullet:
@@ -676,11 +676,11 @@ func _ready() -> void:
 	player.aim_point_override = Vector2(200.0, 950.0)
 	await get_tree().physics_frame
 	_check(frames.marked_target_at(player.aim_point()) == null, "准星出框无命中目标")
-	player._auto_fire_enabled = true
-	player._fire_cooldown = 0.0
+	player.set_auto_fire(true)
+	player.reset_fire_cooldown()
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	player._auto_fire_enabled = false
+	player.set_auto_fire(false)
 	var ab2: Bullet = null
 	for child in main.get_children():
 		if child is Bullet and child.is_player_bullet:
@@ -720,22 +720,22 @@ func _ready() -> void:
 
 	# 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用
 	player.position = Vector2(960.0, 540.0)
-	player._fuel = player.fuel_max
-	player._dash_cooldown = 0.0
+	player.set_fuel(player.fuel_max)
+	player.set_dash_cooldown(0.0)
 	Input.action_press("dash")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("dash")
-	_check(player._dashing, "燃料充足时冲刺可触发")
-	_check(absf(player._fuel - player.fuel_max * 0.75) < 3.0, "冲刺消耗约 25% 燃料")
+	_check(player.is_dashing(), "燃料充足时冲刺可触发")
+	_check(absf(player.fuel_amount() - player.fuel_max * 0.75) < 3.0, "冲刺消耗约 25% 燃料")
 	await get_tree().create_timer(0.4).timeout  # 等冲刺结束
-	player._fuel = player.fuel_max * 0.2
-	player._dash_cooldown = 0.0
+	player.set_fuel(player.fuel_max * 0.2)
+	player.set_dash_cooldown(0.0)
 	Input.action_press("dash")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("dash")
-	_check(not player._dashing, "燃料不足 25% 时禁用冲刺")
+	_check(not player.is_dashing(), "燃料不足 25% 时禁用冲刺")
 
 	# 6.3 Ctrl 微调：移速 ×0.35
 	player.position = Vector2(960.0, 540.0)

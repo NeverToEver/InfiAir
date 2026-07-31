@@ -32,8 +32,8 @@ func _ready() -> void:
 	var player: Player = get_node("Main/Player")
 	var spawner: Node = get_node("Main/Spawner")
 	# 关闭自动开火与刷怪，避免对局逻辑干扰外观断言
-	player._auto_fire_enabled = false
-	player._invincible = 999.0
+	player.set_auto_fire(false)
+	player.set_invincible(999.0)
 	spawner.set_process(false)
 	await get_tree().process_frame
 	await get_tree().process_frame

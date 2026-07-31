@@ -123,8 +123,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false
-	player._invincible = 999.0
+	player.set_auto_fire(false)
+	player.set_invincible(999.0)
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)
 	await get_tree().process_frame
@@ -191,7 +191,7 @@ func _ready() -> void:
 	_check(not is_instance_valid(b), "large 档 x=100 子弹出屏销毁（边界 ≈315）")
 
 	# ---------- 9. 刷怪位置/预告线/悬停锚点随档收窄（当前为 large 档） ----------
-	spawner._spawn_enemy()  # 异步：先挂预告线，0.6s 后出机
+	spawner.spawn_enemy()  # 异步：先挂预告线，0.6s 后出机
 	await get_tree().create_timer(0.2).timeout
 	var tel: SpawnTelegraph = null
 	for child in get_node("Main").get_children():
@@ -247,7 +247,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ---------- 10. Boss 出场位置与巡航范围 ----------
-	spawner._spawn_boss(1)
+	spawner.spawn_boss(1)
 	var boss: Boss = null
 	for child in get_node("Main").get_children():
 		if child is Boss:

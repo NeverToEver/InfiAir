@@ -19,9 +19,9 @@ func _check(cond: bool, label: String) -> void:
 
 ## 重置玩家受击状态并关闭被动回血（_since_damage=0 < 4s 延迟，计时窗内不回血）
 func _reset_hit_state(player: Player) -> void:
-	player._invincible = 0.0
-	player._last_hit_frame = -1
-	player._since_damage = 0.0
+	player.set_invincible(0.0)
+	player.set_last_hit_frame(-1)
+	player.set_since_damage(0.0)
 
 
 func _ready() -> void:
@@ -34,7 +34,7 @@ func _ready() -> void:
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false
+	player.set_auto_fire(false)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	get_tree().paused = false  # 开始面板/欢迎页路径可能带暂停态

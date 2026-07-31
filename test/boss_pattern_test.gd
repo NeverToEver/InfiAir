@@ -73,7 +73,7 @@ func _close_buff_ui_if_open() -> void:
 ## 生成 Boss 并跳过降入；调用方负责击杀/清理
 func _spawn_test_boss(p_type: int) -> Boss:
 	var spawner: Node = get_node("Main/Spawner")
-	spawner._spawn_boss(p_type)
+	spawner.spawn_boss(p_type)
 	await get_tree().process_frame
 	var boss: Boss = null
 	for child in get_node("Main").get_children():
@@ -85,11 +85,11 @@ func _spawn_test_boss(p_type: int) -> Boss:
 
 ## 强制进入 P2 并换成指定模式表（绕过血量流程，专注攻击断言）
 func _force_p2_patterns(boss: Boss, p2: Array) -> void:
-	boss._patterns = {"p1": [{"attack": &"fan5", "waves": 1, "interval": 0.3}], "p2": p2}
-	boss._fight_phase = Boss.FightPhase.P2
-	boss._pattern_index = 0
-	boss._start_pattern()
-	boss._fire_timer = 0.1
+	boss.set_patterns({"p1": [{"attack": &"fan5", "waves": 1, "interval": 0.3}], "p2": p2})
+	boss.set_fight_phase(Boss.FightPhase.P2)
+	boss.set_pattern_index(0)
+	boss.start_pattern()
+	boss.set_fire_timer(0.1)
 
 
 func _ready() -> void:
@@ -110,8 +110,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
-	player._invincible = 999.0  # 弹幕/掠过期间不被误伤
+	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
+	player.set_invincible(999.0  )# 弹幕/掠过期间不被误伤
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -129,7 +129,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss1):
 			break
-		if boss1._attacks.cannon_elapsed() >= 0.0:
+		if boss1.attacks().cannon_elapsed() >= 0.0:
 			cannon_started = true
 			cannon_tick = Time.get_ticks_msec()
 			break
@@ -170,7 +170,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		if boss2._attacks.sweep_state() == Boss.SweepState.AIM and boss2._attacks.sweep_line() != null:
+		if boss2.attacks().sweep_state() == Boss.SweepState.AIM and boss2.attacks().sweep_line() != null:
 			sweep_aimed = true
 			break
 	_check(sweep_aimed, "场景2：冲刺掠过水平瞄准线 telegraph 先行")
@@ -181,7 +181,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		if boss2._attacks.sweep_state() == Boss.SweepState.DASH:
+		if boss2.attacks().sweep_state() == Boss.SweepState.DASH:
 			dashing = true
 			x0 = boss2.position.x
 			break
@@ -196,7 +196,7 @@ func _ready() -> void:
 		if not is_instance_valid(boss2):
 			break
 		drops = maxi(drops, _bullets_by_speed(150.0).size())
-		if boss2._attacks.sweep_state() == Boss.SweepState.NONE:
+		if boss2.attacks().sweep_state() == Boss.SweepState.NONE:
 			sweep_done = true
 			break
 	_check(drops >= 3, "场景2：路径等距拖 3 枚减速弹（150 弹速）")
@@ -226,14 +226,14 @@ func _ready() -> void:
 	await _wait_real(0.3)
 	boss3.take_damage(int(boss3.max_hp * 0.75))
 	await get_tree().process_frame
-	_check(boss3._enraged, "场景3：血量 <30% 触发狂暴")
+	_check(boss3.is_enraged(), "场景3：血量 <30% 触发狂暴")
 	main._bullet_time_left = 0.05
 	var active3 := false
 	for i in 40:
 		await _wait_real(0.1)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_seq.phase() == Boss.EnragePhase.ACTIVE:
+		if boss3.enrage_sequence().phase() == Boss.EnragePhase.ACTIVE:
 			active3 = true
 			break
 	_check(active3, "场景3：TRANSITION 结束进入 ACTIVE")
@@ -245,10 +245,10 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_seq.phase() != Boss.EnragePhase.ACTIVE:
+		if boss3.enrage_sequence().phase() != Boss.EnragePhase.ACTIVE:
 			break
-		aim_seen = aim_seen or boss3._enrage_seq.aim_line() != null
-		max_index = maxi(max_index, boss3._enrage_seq.attack_index())
+		aim_seen = aim_seen or boss3.enrage_sequence().aim_line() != null
+		max_index = maxi(max_index, boss3.enrage_sequence().attack_index())
 		heavy3_max = maxi(heavy3_max, _bullets_by_speed(900.0).size())
 		pos_samples.append(boss3.global_position)
 	_check(aim_seen, "场景3：瞬停点 0.3s 瞄准线 telegraph")
@@ -264,7 +264,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss3):
 			break
-		if boss3._enrage_seq.phase() == Boss.EnragePhase.RELEASE_HOLD:
+		if boss3.enrage_sequence().phase() == Boss.EnragePhase.RELEASE_HOLD:
 			hold3 = true
 			break
 	_check(hold3, "场景3：ACTIVE 结束进入 RELEASE_HOLD")
@@ -287,7 +287,7 @@ func _ready() -> void:
 	var boss4: Boss = await _spawn_test_boss(3)
 	_check(boss4 != null, "场景4：Boss 已生成")
 	boss4.VOLLEY_DELAY = 0.4
-	boss4._summon_timer = 999.0  # 屏蔽常规召唤，保持计数纯净
+	boss4.set_summon_timer(999.0  )# 屏蔽常规召唤，保持计数纯净
 	_force_p2_patterns(boss4, [
 		{"attack": &"minion_volley", "waves": 1, "interval": 1.0},
 		{"attack": &"bullet_wall", "waves": 1, "interval": 0.8},
@@ -371,18 +371,18 @@ func _ready() -> void:
 	boss5.E3_RING_INTERVAL = 0.4
 	boss5.ENRAGE_RELEASE_HOLD_DURATION = 0.5
 	boss5.ENRAGE_RETURN_DURATION = 0.4
-	boss5._summon_timer = 999.0
+	boss5.set_summon_timer(999.0)
 	await _wait_real(0.3)
 	boss5.take_damage(int(boss5.max_hp * 0.75))
 	await get_tree().process_frame
-	_check(boss5._enraged, "场景5：血量 <30% 触发狂暴")
+	_check(boss5.is_enraged(), "场景5：血量 <30% 触发狂暴")
 	main._bullet_time_left = 0.05
 	var active5 := false
 	for i in 40:
 		await _wait_real(0.1)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_seq.phase() == Boss.EnragePhase.ACTIVE:
+		if boss5.enrage_sequence().phase() == Boss.EnragePhase.ACTIVE:
 			active5 = true
 			break
 	_check(active5, "场景5：TRANSITION 结束进入 ACTIVE")
@@ -393,10 +393,10 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_seq.phase() != Boss.EnragePhase.ACTIVE:
+		if boss5.enrage_sequence().phase() != Boss.EnragePhase.ACTIVE:
 			break
 		minion_max = maxi(minion_max, _enemies_alive().size())
-		waves_max = maxi(waves_max, boss5._enrage_seq.summon_waves())
+		waves_max = maxi(waves_max, boss5.enrage_sequence().summon_waves())
 		ring5_max = maxi(ring5_max, _count_meta_bullets(&"enrage_ring"))
 	_check(waves_max >= 3, "场景5：ACTIVE 共放 3 波小怪（实测 %d 波）" % waves_max)
 	_check(minion_max >= 6, "场景5：小怪波次在场（峰值 %d 只）" % minion_max)
@@ -406,7 +406,7 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss5):
 			break
-		if boss5._enrage_seq.phase() == Boss.EnragePhase.RELEASE_HOLD:
+		if boss5.enrage_sequence().phase() == Boss.EnragePhase.RELEASE_HOLD:
 			hold5 = true
 			break
 	_check(hold5, "场景5：ACTIVE 结束进入 RELEASE_HOLD")
@@ -435,8 +435,8 @@ func _ready() -> void:
 	_check(boss6e != null, "场景6：easy Boss 已生成")
 	_check(boss6e.E1_RING_COUNT == 10, "场景6：easy 狂暴环弹 12-2=10（实测 %d）" % boss6e.E1_RING_COUNT)
 	_check(boss6e.CANNON_SHOTS == 2, "场景6：easy 蓄力重炮 3-1=2 发（实测 %d）" % boss6e.CANNON_SHOTS)
-	_check(boss6e._attacks.fan_delta == -1 and boss6e._attacks.homing_delta == -1, "场景6：easy 扇形/追踪弹数 -1")
-	var p2_interval_e: float = boss6e._patterns["p2"][0]["interval"]
+	_check(boss6e.attacks().fan_delta == -1 and boss6e.attacks().homing_delta == -1, "场景6：easy 扇形/追踪弹数 -1")
+	var p2_interval_e: float = boss6e.patterns()["p2"][0]["interval"]
 	_check(absf(p2_interval_e - 2.4 * 1.15) < 0.01, "场景6：easy 开火间隔 ×1.15（实测 %.3f）" % p2_interval_e)
 	_check(absf(boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, "场景6：easy 弹速 ×0.9（实测 %.1f）" % boss6e.FAN_BULLET_SPEED)
 	var hp_e: int = boss6e.max_hp
@@ -448,8 +448,8 @@ func _ready() -> void:
 	_check(boss6h != null, "场景6：hard Boss 已生成")
 	_check(boss6h.E1_RING_COUNT == 14, "场景6：hard 狂暴环弹 12+2=14（实测 %d）" % boss6h.E1_RING_COUNT)
 	_check(boss6h.CANNON_SHOTS == 4, "场景6：hard 蓄力重炮 3+1=4 发（实测 %d）" % boss6h.CANNON_SHOTS)
-	_check(boss6h._attacks.fan_delta == 1 and boss6h._attacks.homing_delta == 1, "场景6：hard 扇形/追踪弹数 +1")
-	var p2_interval_h: float = boss6h._patterns["p2"][0]["interval"]
+	_check(boss6h.attacks().fan_delta == 1 and boss6h.attacks().homing_delta == 1, "场景6：hard 扇形/追踪弹数 +1")
+	var p2_interval_h: float = boss6h.patterns()["p2"][0]["interval"]
 	_check(absf(p2_interval_h - 2.4 * 0.85) < 0.01, "场景6：hard 开火间隔 ×0.85（实测 %.3f）" % p2_interval_h)
 	_check(absf(boss6h.FAN_BULLET_SPEED - 380.0 * 1.1) < 0.01, "场景6：hard 弹速 ×1.1（实测 %.1f）" % boss6h.FAN_BULLET_SPEED)
 	_check(boss6h.max_hp == hp_e * 2, "场景6：HP 随难度分档 ×0.75/×1.5（hard/easy=2.0，实测 %d/%d）" % [boss6h.max_hp, hp_e])
@@ -458,7 +458,7 @@ func _ready() -> void:
 	GameState.difficulty = &"medium"
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
-	_check(is_equal_approx(player._enrage_slow, 1.0), "收尾：退出前玩家减速已复位")
+	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")
 	await _clear_field()
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏
 	print("BOSS PATTERN TEST DONE, failures = ", _failures)

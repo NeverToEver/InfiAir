@@ -44,7 +44,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var tut := get_node("Tutorial")
 	var player: Player = tut.get_node("Player")
-	player._auto_fire_enabled = false
+	player.set_auto_fire(false)
 
 	# 阶段 1：3 个静止靶机
 	_check(tut._stage == 0, "教程进入阶段 1")
@@ -66,7 +66,7 @@ func _ready() -> void:
 		Input.action_release("boost")
 		await get_tree().physics_frame
 	for i in 2:
-		player._dash_cooldown = 0.0  # 绕过 4s 冲刺冷却，缩短测试
+		player.set_dash_cooldown(0.0  )# 绕过 4s 冲刺冷却，缩短测试
 		Input.action_press("dash")
 		await get_tree().physics_frame
 		await get_tree().physics_frame
@@ -84,11 +84,11 @@ func _ready() -> void:
 			enemies.append(c)
 	_check(enemies.size() == 5, "阶段 3 刷 5 只敌机")
 	for i in 3:
-		player._invincible = 0.0
-		player._last_hit_frame = -1
+		player.set_invincible(0.0)
+		player.set_last_hit_frame(-1)
 		player.take_damage(10.0)
 		await get_tree().physics_frame
-	_check(GameState.health > 0.0 and not player._dead, "战斗阶段锁血不死")
+	_check(GameState.health > 0.0 and not player.is_dead(), "战斗阶段锁血不死")
 	# 补刷兜底：先击杀 2 只，其余 3 只未计击杀直接离场（模拟飞出屏幕自毁）→ 自动补足剩余 3 只
 	enemies[0].take_damage(9999)
 	enemies[1].take_damage(9999)
@@ -135,7 +135,7 @@ func _ready() -> void:
 	_check(tut._boss != null, "阶段 6 Boss 已生成")
 	var boss: Boss = tut._boss
 	# 软锁路径 b：Boss 未狂暴逃跑离场 → 重置阶段 6 重刷 Boss
-	boss._begin_escape()
+	boss.begin_escape()
 	boss.position.y = -300.0
 	await get_tree().physics_frame
 	await get_tree().physics_frame

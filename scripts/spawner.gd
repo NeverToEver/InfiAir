@@ -187,6 +187,99 @@ func set_elapsed(seconds: float) -> void:
 	_elapsed = seconds
 
 
+## A7：测试/诊断白盒断言经公开接口（命名语义化）
+func spawn_boss(p_type: int = 0) -> void:
+	_spawn_boss(p_type)
+
+
+func spawn_enemy() -> void:
+	_spawn_enemy()
+
+
+func spawn_normal_wave() -> void:
+	_spawn_normal_wave()
+
+
+func wave_size() -> int:
+	return _wave_size()
+
+
+func count_spread_enemies() -> int:
+	return _count_spread_enemies()
+
+
+func pick_bullet_type(config: Dictionary) -> StringName:
+	return _pick_bullet_type(config)
+
+
+func current_interval() -> float:
+	return _current_interval()
+
+
+func set_boss_timer(seconds: float) -> void:
+	_boss_timer = seconds
+
+
+func set_next_boss_score(score_value: int) -> void:
+	_next_boss_score = score_value
+
+
+func set_wave_timer(seconds: float) -> void:
+	_wave_timer = seconds
+
+
+func set_waves_since_special(count: int) -> void:
+	_waves_since_special = count
+
+
+func set_boss_active(active: bool) -> void:
+	_boss_active = active
+
+
+func boss_frozen() -> bool:
+	return _boss_frozen
+
+
+func waves_paused() -> bool:
+	return _waves_paused
+
+
+func boss_pending() -> bool:
+	return _boss_pending
+
+
+func set_boss_pending(pending: bool) -> void:
+	_boss_pending = pending
+
+
+func formation_event() -> FormationStrikeEvent:
+	return _formation
+
+
+func hover_band() -> Vector2:
+	return _hover_band
+
+
+func notify_special_killed() -> void:
+	_on_special_killed()
+
+
+func notify_boss_died() -> void:
+	_on_boss_died()
+
+
+func boss_timer() -> float:
+	return _boss_timer
+
+
+func wave_timer() -> float:
+	return _wave_timer
+
+
+func waves_since_special() -> int:
+	return _waves_since_special
+
+
 func elapsed() -> float:
 	return _elapsed
 

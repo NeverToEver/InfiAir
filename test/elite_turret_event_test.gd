@@ -80,8 +80,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false  # 禁用自动开火，炮台击杀全部走断言路径
-	player._invincible = 999.0
+	player.set_auto_fire(false  )# 禁用自动开火，炮台击杀全部走断言路径
+	player.set_invincible(999.0)
 	player.position = Vector2(960.0, 800.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -89,15 +89,15 @@ func _ready() -> void:
 	var hud: CanvasLayer = get_node("Main/HUD")
 	var event: EliteTurretEvent = get_node("Main")._event
 	_check(event != null, "初始化：事件编排节点已登记到 main")
-	_check(spawner._event == event, "初始化：spawner 持有事件引用（互斥钩子）")
+	_check(spawner.elite_event() == event, "初始化：spawner 持有事件引用（互斥钩子）")
 	spawner.set_process(false)  # 场景1 手动驱动，保证确定性
 	GameState.score = 0
 
 	# ================= 场景 1：成功流（全歼炮台） =================
 	_start_fast_event(event)
 	_check(event._state == EliteTurretEvent.State.CARRIER_ENTER, "场景1：启动进入 CARRIER_ENTER")
-	_check(spawner._boss_frozen, "场景1：事件启动即冻结 Boss 调度")
-	_check(spawner._waves_paused, "场景1：事件启动即暂停普通波次")
+	_check(spawner.boss_frozen(), "场景1：事件启动即冻结 Boss 调度")
+	_check(spawner.waves_paused(), "场景1：事件启动即暂停普通波次")
 	_check(event._lines.size() == 3, "场景1：无放回抽取 3 句绑定台词")
 	var seen_lines: Array = []
 	var dup_ok := true
@@ -150,25 +150,25 @@ func _ready() -> void:
 	_check(GameState.score - score0 == 1000, "场景1：奖励 500×中难度倍率×2 = 1000 入账")
 	_check(event._comm._full_text == tr(event._lines[2]), "场景1：全歼播第 3 句绑定台词")
 	_check(not hud._event_box.visible, "场景1：结算后事件计时条隐藏")
-	_check(not spawner._waves_paused, "场景1：CARRIER_EXIT 起普通波次恢复")
+	_check(not spawner.waves_paused(), "场景1：CARRIER_EXIT 起普通波次恢复")
 	_check(event._turrets.is_empty(), "场景1：炮台清单已清空")
 	# 航母受创撤离 → BOSS_DELAY → IDLE，Boss 解冻
 	_check(await _wait_event_state(event, EliteTurretEvent.State.BOSS_DELAY, 10.0), "场景1：航母离场进入 BOSS_DELAY")
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 5.0), "场景1：BOSS_DELAY 结束回 IDLE")
-	_check(not spawner._boss_frozen, "场景1：事件结束后 Boss 解冻")
+	_check(not spawner.boss_frozen(), "场景1：事件结束后 Boss 解冻")
 	_check(event._cooldown_left > 0.0, "场景1：事件结束进入触发冷却")
 
 	# ================= 场景 2：Boss 冻结/恢复（单次不累积） =================
-	spawner._boss_pending = false
-	spawner._next_boss_score = GameState.score  # Boss 分数步进立即到期
-	spawner._boss_timer = spawner.BOSS_MIN_INTERVAL  # 越过最小间隔时间门（分数触发需同时满足）
+	spawner.set_boss_pending(false)
+	spawner.set_next_boss_score(GameState.score  )# Boss 分数步进立即到期
+	spawner.set_boss_timer(spawner.BOSS_MIN_INTERVAL  )# 越过最小间隔时间门（分数触发需同时满足）
 	spawner.set_process(true)  # 恢复 spawner 主循环：pending 标记由它记录
 	_start_fast_event(event)
 	await _wait_real(0.5)
-	_check(spawner._boss_pending, "场景2：事件期间 Boss 到期只记 pending")
+	_check(spawner.boss_pending(), "场景2：事件期间 Boss 到期只记 pending")
 	_check(_count_bosses() == 0, "场景2：事件期间 Boss 未触发（冻结）")
 	await _wait_real(1.0)  # 多帧重复到期：覆盖为同一标记，不累积
-	_check(spawner._boss_pending, "场景2：重复到期仍只有同一 pending 标记")
+	_check(spawner.boss_pending(), "场景2：重复到期仍只有同一 pending 标记")
 	_check(_count_bosses() == 0, "场景2：重复到期仍无 Boss")
 	# 快速全歼结束事件
 	await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE)
@@ -183,14 +183,14 @@ func _ready() -> void:
 			boss_spawned = true
 			break
 	_check(boss_spawned, "场景2：冻结的 Boss 在 BOSS_DELAY 后补触发")
-	_check(not spawner._boss_pending, "场景2：补触发后 pending 标记清除")
+	_check(not spawner.boss_pending(), "场景2：补触发后 pending 标记清除")
 	await _wait_real(0.5)
 	_check(_count_bosses() == 1, "场景2：Boss 仅补触发一次（不累积）")
 	# 清理：直接释放 Boss，避免击杀奖励干扰后续断言
 	for child in get_node("Main").get_children():
 		if child is Boss:
 			child.queue_free()
-	spawner._boss_active = false
+	spawner.set_boss_active(false)
 	spawner.set_process(false)
 	await get_tree().process_frame
 
@@ -224,7 +224,7 @@ func _ready() -> void:
 	_check(event._state == EliteTurretEvent.State.CARRIER_EXIT, "场景4：返航中止事件进入 CARRIER_EXIT")
 	_check(event._turrets.is_empty(), "场景4：在场炮塔清单已清")
 	_check(not hud._event_box.visible, "场景4：中止后 HUD 事件条隐藏")
-	_check(not spawner._waves_paused, "场景4：普通波次恢复")
+	_check(not spawner.waves_paused(), "场景4：普通波次恢复")
 	await get_tree().process_frame
 	var turret_nodes_left := 0
 	for child in main.get_children():
@@ -254,8 +254,8 @@ func _ready() -> void:
 	_check(not registry_left, "场景4：继续出击后注册表非 Boss 实体清空")
 	# 航母完整撤离 → BOSS_DELAY → IDLE，Boss 解冻（沿用 _on_boss_delay_end）
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 15.0), "场景4：航母撤离后回 IDLE")
-	_check(not spawner._boss_frozen, "场景4：Boss 冻结解除")
-	_check(not spawner._boss_pending, "场景4：无遗留 pending 标记")
+	_check(not spawner.boss_frozen(), "场景4：Boss 冻结解除")
+	_check(not spawner.boss_pending(), "场景4：无遗留 pending 标记")
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：time_scale = 1.0")
 	await _wait_real(1.5)  # 让撤退 tween/爆炸粒子播完，避免退出时对象泄漏

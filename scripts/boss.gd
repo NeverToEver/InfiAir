@@ -292,6 +292,75 @@ func reset_fire_timer() -> void:
 	_fire_timer = float(_current_pattern().get("interval", _base_fire_interval()))
 
 
+## A7：测试/诊断白盒断言经公开接口（命名语义化）
+func enrage_sequence() -> EnrageSequence:
+	return _enrage_seq
+
+
+func attacks() -> BossAttacks:
+	return _attacks
+
+
+func fire_tool() -> BossFire:
+	return _fire
+
+
+func set_fire_timer(seconds: float) -> void:
+	_fire_timer = seconds
+
+
+func fire_timer() -> float:
+	return _fire_timer
+
+
+func set_fight_phase(p_phase: int) -> void:
+	_fight_phase = p_phase
+
+
+func set_summon_timer(seconds: float) -> void:
+	_summon_timer = seconds
+
+
+func set_patterns(pattern_dict: Dictionary) -> void:
+	_patterns = pattern_dict
+
+
+func patterns() -> Dictionary:
+	return _patterns
+
+
+func set_pattern_index(index: int) -> void:
+	_pattern_index = index
+
+
+func pattern_index() -> int:
+	return _pattern_index
+
+
+func start_pattern() -> void:
+	_start_pattern()
+
+
+func base_modulate_color() -> Color:
+	return _base_modulate()
+
+
+func set_survival(seconds: float) -> void:
+	_survival = seconds
+
+
+func set_in_fight(fighting: bool) -> void:
+	_in_fight = fighting
+
+
+func escape_warned() -> bool:
+	return _escape_warned
+
+
+func begin_escape() -> void:
+	_begin_escape()
+
+
 ## A3：编队小怪召唤（BossAttacks/EnrageSequence 经公开接口调用；A5 改注入 spawner）
 func set_spawner(spawner: Node) -> void:
 	_spawner = spawner

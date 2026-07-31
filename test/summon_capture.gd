@@ -29,7 +29,7 @@ func _ready() -> void:
 	spawner.set_process(false)
 	main._event.set_process(false)
 	main._formation.set_process(false)
-	main._player._auto_fire_enabled = false
+	main._player.set_auto_fire(false)
 
 	# 靶机一台：DOCKING 火力掩护的目标（不死、不开火）
 	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy

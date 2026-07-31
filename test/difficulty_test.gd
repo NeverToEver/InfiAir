@@ -152,17 +152,17 @@ func _ready() -> void:
 	GameState.difficulty = &"easy"
 	add_child(spread_fighters[0])
 	await get_tree().process_frame
-	_check(spawner._count_spread_enemies() == 1, "spread 敌机同屏计数为 1")
+	_check(spawner.count_spread_enemies() == 1, "spread 敌机同屏计数为 1")
 	var easy_degenerate := true
 	for i in 20:
-		if spawner._pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
 			easy_degenerate = false
 	_check(easy_degenerate, "spread 上限 1（easy）：普通机退化为 single")
 	# medium（上限 2）：1 架在场未满可出 spread，2 架满则退化
 	GameState.difficulty = &"medium"
 	var saw_spread_m := false
 	for i in 40:
-		if spawner._pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
+		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
 			saw_spread_m = true
 	_check(saw_spread_m, "spread 上限 2（medium）：1 架在场仍可出 spread")
 	add_child(spread_fighters[1])
@@ -170,9 +170,9 @@ func _ready() -> void:
 	var med_degenerate := true
 	var med_elite_degenerate := true
 	for i in 20:
-		if spawner._pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
 			med_degenerate = false
-		if spawner._pick_bullet_type(SpawnerScript.ELITE_TYPES[2]) != &"laser":
+		if spawner.pick_bullet_type(SpawnerScript.ELITE_TYPES[2]) != &"laser":
 			med_elite_degenerate = false
 	_check(med_degenerate, "spread 上限 2（medium）：满 2 架普通机退化为 single")
 	_check(med_elite_degenerate, "spread 上限 2（medium）：满 2 架精英退化为 laser")
@@ -180,14 +180,14 @@ func _ready() -> void:
 	GameState.difficulty = &"hard"
 	var saw_spread_h := false
 	for i in 40:
-		if spawner._pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
+		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
 			saw_spread_h = true
 	_check(saw_spread_h, "spread 上限 3（hard）：2 架在场仍可出 spread")
 	add_child(spread_fighters[2])
 	await get_tree().process_frame
 	var hard_degenerate := true
 	for i in 20:
-		if spawner._pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
 			hard_degenerate = false
 	_check(hard_degenerate, "spread 上限 3（hard）：满 3 架普通机退化为 single")
 	for e in spread_fighters:
@@ -199,13 +199,13 @@ func _ready() -> void:
 	# 钉住难度进程曲线：间隔断言基于难度乘数 ×1.0，排除时间轴档位漂移
 	GameState.run_time = 0.0
 	GameState._recompute_difficulty()
-	spawner._elapsed = 0.0
+	spawner.set_elapsed(0.0)
 	GameState.difficulty = &"easy"
-	var iv_easy: float = spawner._current_interval()
+	var iv_easy: float = spawner.current_interval()
 	GameState.difficulty = &"medium"
-	var iv_medium: float = spawner._current_interval()
+	var iv_medium: float = spawner.current_interval()
 	GameState.difficulty = &"hard"
-	var iv_hard: float = spawner._current_interval()
+	var iv_hard: float = spawner.current_interval()
 	_check(absf(iv_easy - 8.75) < 0.01, "波次间隔 easy ×1.25（7.0s → 8.75s）")
 	_check(absf(iv_medium - 7.0) < 0.01, "波次间隔 medium ×1（7.0s 不变）")
 	_check(absf(iv_hard - 5.6) < 0.01, "波次间隔 hard ×0.8（7.0s → 5.6s）")
@@ -330,26 +330,26 @@ func _ready() -> void:
 	GameState.difficulty = &"medium"
 	GameState.reset_run()
 	GameState._set_milestone_override(999999999)
-	spawner._boss_active = false
-	spawner._boss_frozen = false
-	spawner._boss_pending = false
-	spawner._next_boss_score = spawner.BOSS_SCORE_STEP
+	spawner.set_boss_active(false)
+	spawner.set_boss_frozen(false)
+	spawner.set_boss_pending(false)
+	spawner.set_next_boss_score(spawner.BOSS_SCORE_STEP)
 	GameState.score = spawner.BOSS_SCORE_STEP  # 分数已跨步进（直接赋值，避开倍率/里程碑）
-	spawner._boss_timer = 10.0  # 距上次 Boss 仅 10s（模拟 Boss 刚死、分数立刻跨步进）
+	spawner.set_boss_timer(10.0  )# 距上次 Boss 仅 10s（模拟 Boss 刚死、分数立刻跨步进）
 	spawner.set_process(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(not spawner._boss_active, "Boss 最小间隔：分数跨步进但间隔 <80s 不触发")
-	spawner._boss_timer = spawner.BOSS_MIN_INTERVAL + 1.0
+	_check(not spawner.is_boss_active(), "Boss 最小间隔：分数跨步进但间隔 <80s 不触发")
+	spawner.set_boss_timer(spawner.BOSS_MIN_INTERVAL + 1.0)
 	await get_tree().process_frame
-	_check(spawner._boss_active, "Boss 最小间隔：越过 80s 后分数触发生效")
+	_check(spawner.is_boss_active(), "Boss 最小间隔：越过 80s 后分数触发生效")
 	# 清理：停主循环并撤掉已排程的 Boss 降入 Timer（不真正生成 Boss）
 	spawner.set_process(false)
 	for c in spawner.get_children():
 		if c is Timer:
 			c.queue_free()
-	spawner._boss_active = false
-	spawner._boss_timer = 0.0
+	spawner.set_boss_active(false)
+	spawner.set_boss_timer(0.0)
 	GameState.score = 0
 
 	print("DIFFICULTY TEST DONE, failures = ", _failures)

@@ -249,6 +249,72 @@ func invincible_remaining() -> float:
 	return _damage.invincible_remaining()
 
 
+## A7：测试/诊断白盒断言经公开接口（命名语义化，非纯测试专用）
+func enrage_slow() -> float:
+	return _enrage_slow
+
+
+func set_dead(dead: bool) -> void:
+	_dead = dead
+
+
+func set_dash_cooldown(seconds: float) -> void:
+	_dash.dash_cooldown = seconds
+
+
+func reset_combat_state() -> void:
+	_damage.last_hit_frame = -1
+	_damage.since_damage = 999.0
+
+
+func set_since_damage(seconds: float) -> void:
+	_damage.since_damage = seconds
+
+
+func set_last_hit_frame(frame: int) -> void:
+	_damage.last_hit_frame = frame
+
+
+func dash_cooldown() -> float:
+	return _dash.cooldown_remaining()
+
+
+func since_damage() -> float:
+	return _damage.since_damage
+
+
+func fire(aim: Vector2) -> void:
+	_fire(aim)
+
+
+func reset_fire_cooldown() -> void:
+	_fire_cooldown = 0.0
+
+
+func boost_toggle_active() -> bool:
+	return _boost_toggle_on
+
+
+func fine_toggle_active() -> bool:
+	return _fine_toggle_on
+
+
+func set_boost_toggle(enabled: bool) -> void:
+	_boost_toggle_on = enabled
+
+
+func set_fine_toggle(enabled: bool) -> void:
+	_fine_toggle_on = enabled
+
+
+func aim_assist_params() -> Dictionary:
+	return {"homing_turn_rate": _homing_turn_rate, "stick_factor": _aim_stick_factor}
+
+
+func hitbox_enabled() -> bool:
+	return _hitbox.monitoring
+
+
 func lock_input() -> void:
 	_input_locked = true
 

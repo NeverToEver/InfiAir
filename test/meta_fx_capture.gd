@@ -23,7 +23,7 @@ func _ready() -> void:
 	var spawner := get_node("Main/Spawner")
 	spawner.set_process(false)
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false
+	player.set_auto_fire(false)
 	# 摆几架静态敌机丰富画面，让后处理有内容可作用
 	for i in 5:
 		var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
@@ -33,7 +33,7 @@ func _ready() -> void:
 		e.position = Vector2(500.0 + i * 220.0, 300.0 + (i % 2) * 120.0)
 		main.add_child(e)
 	player.position = Vector2(960.0, 800.0)
-	player._since_damage = 0.0  # 关闭被动回血，保持各血量档稳定
+	player.set_since_damage(0.0  )# 关闭被动回血，保持各血量档稳定
 	for i in 30:  # 等裂纹距离场烘焙与首帧稳定
 		await get_tree().process_frame
 
@@ -44,8 +44,8 @@ func _ready() -> void:
 	await _shot("healthy")
 
 	# 2. 受击峰值：25 伤害来自右上方 → 色差峰 + 定向波纹（峰区约 0~50ms，2 帧截图）
-	player._invincible = 0.0
-	player._last_hit_frame = -1
+	player.set_invincible(0.0)
+	player.set_last_hit_frame(-1)
 	player.take_damage(25.0, Vector2(1500.0, 350.0))
 	for i in 2:
 		await get_tree().process_frame

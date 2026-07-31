@@ -53,12 +53,12 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false  # 禁用自动开火，避免误伤与意外得分里程碑
+	player.set_auto_fire(false  )# 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
-	player._invincible = 999.0  # 弹幕流弹不干扰流程
+	player.set_invincible(999.0  )# 弹幕流弹不干扰流程
 	player.position = Vector2(960.0, 800.0)
 
 	# 1. 弹种配置表约束：普通机仅 single/spread，精英仅 spread/laser
@@ -132,14 +132,14 @@ func _ready() -> void:
 	var normal_pick_ok := true
 	for t in spawner.ENEMY_TYPES:
 		for i in 20:
-			var bt: StringName = spawner._pick_bullet_type(t)
+			var bt: StringName = spawner.pick_bullet_type(t)
 			if bt != &"single" and bt != &"spread":
 				normal_pick_ok = false
 	_check(normal_pick_ok, "普通机抽取弹种仅 single/spread")
 	var elite_pick_ok := true
 	for t in spawner.ELITE_TYPES:
 		for i in 20:
-			var bt2: StringName = spawner._pick_bullet_type(t)
+			var bt2: StringName = spawner.pick_bullet_type(t)
 			if bt2 != &"spread" and bt2 != &"laser":
 				elite_pick_ok = false
 	_check(elite_pick_ok, "精英抽取弹种仅 spread/laser")
@@ -152,15 +152,15 @@ func _ready() -> void:
 	cap2.bullet_type = &"spread"
 	cap2.position = Vector2(1400.0, 300.0)
 	await get_tree().process_frame
-	_check(spawner._count_spread_enemies() == 2, "同屏 spread 敌机计数")
+	_check(spawner.count_spread_enemies() == 2, "同屏 spread 敌机计数")
 	var cap_normal_ok := true
 	for i in 10:
-		if spawner._pick_bullet_type(spawner.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(spawner.ENEMY_TYPES[1]) != &"single":
 			cap_normal_ok = false
 	_check(cap_normal_ok, "spread 同屏上限 2：普通机退化为 single")
 	var cap_elite_ok := true
 	for i in 10:
-		if spawner._pick_bullet_type(spawner.ELITE_TYPES[2]) != &"laser":
+		if spawner.pick_bullet_type(spawner.ELITE_TYPES[2]) != &"laser":
 			cap_elite_ok = false
 	_check(cap_elite_ok, "spread 同屏上限 2：精英退化为 laser")
 	cap1.queue_free()
@@ -199,7 +199,7 @@ func _ready() -> void:
 	)
 
 	# 8. Boss 逃跑：50s 未击杀 → 最后 3s 警告 + 上飘 → 离场无奖励
-	spawner._spawn_boss(1)
+	spawner.spawn_boss(1)
 	await get_tree().process_frame
 	var boss: Boss = null
 	for child in main.get_children():
@@ -208,7 +208,7 @@ func _ready() -> void:
 	_check(boss != null, "Boss 已生成（逃跑测试）")
 	boss.position.y = boss.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y）
 	await get_tree().create_timer(0.3).timeout
-	_check(boss._in_fight, "Boss 进入战斗（逃跑计时开始）")
+	_check(boss.is_in_fight(), "Boss 进入战斗（逃跑计时开始）")
 	var kills_before_boss := GameState.boss_kills
 	var score_before_boss := GameState.score
 	# 钉住时间轴难度档：后续约 4s 真实等待不得跨过 30s 量化边界造成偶发漂移
@@ -217,24 +217,24 @@ func _ready() -> void:
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.escaped.connect(func() -> void: escaped_flag[0] = true)
-	boss._survival = boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5  # 距警告 0.5s
+	boss.set_survival(boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5  )# 距警告 0.5s
 	var warn_y0 := boss.position.y
 	await get_tree().create_timer(0.8).timeout
-	_check(boss._escape_warned, "逃跑前 3s 触发逃跑警告")
+	_check(boss.escape_warned(), "逃跑前 3s 触发逃跑警告")
 	_check(boss.position.y < warn_y0 - 3.0, "警告期间上飘")
-	boss._survival = boss.ESCAPE_TIME - 0.05  # 距逃跑 0.05s
+	boss.set_survival(boss.ESCAPE_TIME - 0.05  )# 距逃跑 0.05s
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
 	await get_tree().create_timer(2.5).timeout
 	_check(escaped_flag[0], "Boss 离场发出 escaped 信号")
-	_check(not spawner._boss_active, "Boss 逃跑解除波次/事件占用（可再触发）")
+	_check(not spawner.is_boss_active(), "Boss 逃跑解除波次/事件占用（可再触发）")
 	_check(not is_instance_valid(boss), "Boss 离场销毁")
 	_check(GameState.boss_kills == kills_before_boss, "逃跑不加 boss_kills（轮换不推进）")
 	_check(GameState.score == score_before_boss, "逃跑无 500 分奖励")
 	_check(GameState.difficulty_multiplier == diff_before, "逃跑不升难度")
 	_check(not get_node("Main/HUD/BossBar").visible, "逃跑后 Boss 血条隐藏")
 	# 轮换计数未推进：下一只仍为同型（boss_kills 未变）
-	spawner._spawn_boss()
+	spawner.spawn_boss()
 	await get_tree().process_frame
 	var boss_next: Boss = null
 	for child in main.get_children():

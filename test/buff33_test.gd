@@ -37,8 +37,8 @@ func _ready() -> void:
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
 	var spawner: Node = get_node("Main/Spawner")
 	# 全自动开火会干扰激光断言，测试全程禁用
-	player._auto_fire_enabled = false
-	player._invincible = 999.0
+	player.set_auto_fire(false)
+	player.set_invincible(999.0)
 	spawner.set_process(false)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -126,9 +126,9 @@ func _ready() -> void:
 	_check(is_equal_approx(player.fuel_regen_rate(), 30.0), "boost_recovery 1 层恢复 ×1.5")
 	GameState.add_buff(&"boost_recovery")
 	_check(is_equal_approx(player.fuel_regen_rate(), 45.0), "boost_recovery 2 层乘算 ×2.25")
-	player._fuel = 50.0
+	player.set_fuel(50.0)
 	await get_tree().create_timer(1.0).timeout
-	_check(player._fuel > 80.0, "提升后的恢复速率实际生效（1s 回 45）")
+	_check(player.fuel_amount() > 80.0, "提升后的恢复速率实际生效（1s 回 45）")
 
 	# 5. 长按 K 放弃出击：蓄力可取消，蓄满 3s 自毁进死亡结算
 	Input.action_press("give_up")
@@ -144,7 +144,7 @@ func _ready() -> void:
 	Input.action_release("give_up")
 	await get_tree().process_frame
 	_check(GameState.health == 0.0, "长按 K 3s 自毁")
-	_check(player._dead, "自毁后玩家死亡")
+	_check(player.is_dead(), "自毁后玩家死亡")
 	_check(get_node("Main/GameOverUI").visible, "自毁进入死亡结算面板")
 	_check(get_tree().paused, "结算时游戏暂停")
 

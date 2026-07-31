@@ -51,9 +51,9 @@ func _free_enemy_bullets() -> void:
 
 ## 重置玩家受击状态（无敌/帧标记/被动回血计时），便于逐条断言
 func _reset_hit_state(player: Player) -> void:
-	player._invincible = 0.0
-	player._last_hit_frame = -1
-	player._since_damage = 999.0
+	player.set_invincible(0.0)
+	player.set_last_hit_frame(-1)
+	player.set_since_damage(999.0)
 
 
 func _ready() -> void:
@@ -64,7 +64,7 @@ func _ready() -> void:
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false  # 禁用自动开火，避免误伤与意外得分里程碑
+	player.set_auto_fire(false  )# 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -109,10 +109,10 @@ func _ready() -> void:
 
 	# 被动回血：无 buff 时按难度延迟后回复（本测试环境 medium：4s/2HP）
 	GameState.health = 50.0
-	player._since_damage = 999.0
+	player.set_since_damage(999.0)
 	await get_tree().create_timer(0.6).timeout
 	_check(GameState.health > 50.5 and GameState.health < 52.5, "A5：被动回血按速率回复")
-	player._since_damage = 0.0  # 关闭被动回血，避免干扰后续精确断言
+	player.set_since_damage(0.0  )# 关闭被动回血，避免干扰后续精确断言
 
 	# lifesteal：击毁回复 10% 上限（每帧至多一次）
 	GameState.health = 50.0
@@ -204,7 +204,7 @@ func _ready() -> void:
 
 	# ================= A3：狂暴锁血 =================
 	var boss3 := _make_boss(1)
-	boss3._fire_timer = 999.0
+	boss3.set_fire_timer(999.0)
 	# 非致死大额伤害：应钳到 30% 阈值并触发狂暴（而非打到阈值以下）
 	boss3.take_damage(int(boss3.max_hp * 0.75))
 	await get_tree().process_frame
@@ -212,7 +212,7 @@ func _ready() -> void:
 		is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO),
 		"A3：非致死伤害钳到 30% 阈值"
 	)
-	_check(boss3._enraged, "A3：钳到阈值触发狂暴")
+	_check(boss3.is_enraged(), "A3：钳到阈值触发狂暴")
 	# 锁血期（触发→RELEASE_HOLD 前）：任何伤害不掉血不死
 	boss3.take_damage(1)
 	_check(
@@ -220,7 +220,7 @@ func _ready() -> void:
 		"A3：锁血期伤害不掉血"
 	)
 	# 序列中断/RELEASE_HOLD 解锁后：小额伤害正常扣血
-	boss3._abort_enrage_sequence()
+	boss3.abort_enrage_sequence()
 	boss3.take_damage(1)
 	_check(boss3.hp < boss3.max_hp * boss3.ENRAGE_HP_RATIO, "A3：锁血解除后正常扣血")
 	boss3.queue_free()
@@ -299,8 +299,8 @@ func _ready() -> void:
 	# Boss 弹种取值（基准）：fan=14，homing=12，狙击=21，cross=12，快照激光=21，快照环弹=12
 	var boss5 := _make_boss(1)
 	boss5.position = Vector2(960.0, 300.0)
-	boss5._fire_timer = 999.0  # 屏蔽常规开火，保证弹丸计数纯净
-	boss5._fire.fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)
+	boss5.set_fire_timer(999.0  )# 屏蔽常规开火，保证弹丸计数纯净
+	boss5.fire_tool().fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)
 	var fan_dmg_ok := true
 	var fan_count := 0
 	for b in _enemy_bullets():
@@ -309,13 +309,13 @@ func _ready() -> void:
 			fan_dmg_ok = false
 	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage（基准 14，期望 %d）" % exp14)
 	await _free_enemy_bullets()
-	boss5._fire.fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)
+	boss5.fire_tool().fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)
 	var homing_b: Bullet = null
 	for b in _enemy_bullets():
 		homing_b = b
 	_check(homing_b != null and homing_b.damage == exp12 and homing_b.homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5._fire.fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)
+	boss5.fire_tool().fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)
 	var cross_dmg_ok := true
 	var cross_count := 0
 	for b in _enemy_bullets():
@@ -324,7 +324,7 @@ func _ready() -> void:
 			cross_dmg_ok = false
 	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5._fire.fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)
+	boss5.fire_tool().fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)
 	var sniper_b: Bullet = null
 	for b in _enemy_bullets():
 		if not b.has_meta("bullet_type"):
@@ -481,9 +481,9 @@ func _ready() -> void:
 	# 行为级：新实例化的玩家出生即带 1.0s 保护
 	var fresh_player := (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
 	main.add_child(fresh_player)
-	fresh_player._auto_fire_enabled = false
+	fresh_player.set_auto_fire(false)
 	await get_tree().process_frame
-	_check(fresh_player._invincible > 0.9 and fresh_player._invincible <= 1.0, "A20：出生即带 1.0s 保护")
+	_check(fresh_player.invincible_remaining() > 0.9 and fresh_player.invincible_remaining() <= 1.0, "A20：出生即带 1.0s 保护")
 	fresh_player.queue_free()
 	await get_tree().process_frame
 
@@ -523,7 +523,7 @@ func _ready() -> void:
 	)
 	boss_early.queue_free()
 	await _free_enemy_bullets()
-	player._invincible = 999.0
+	player.set_invincible(999.0)
 
 	print("HIT LOGIC TEST DONE, failures = ", _failures)
 	GameState.delete_save()

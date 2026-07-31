@@ -37,7 +37,7 @@ func _ready() -> void:
 		if i % EXPLOSION_EVERY == 0:
 			Explosion.spawn_at(main, Vector2(randf_range(200.0, 1700.0), randf_range(200.0, 800.0)))
 		if i % FIRE_EVERY == 0:
-			player._fire(Vector2.UP.rotated(randf_range(-0.6, 0.6)))
+			player.fire(Vector2.UP.rotated(randf_range(-0.6, 0.6)))
 		if i % 10 == 0:
 			# 敌机生成churn（走 spawner.spawn_minion，优化前后同一代码路径）
 			spawner.spawn_minion(Vector2(randf_range(60.0, 1860.0), -60.0))

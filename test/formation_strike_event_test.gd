@@ -85,8 +85,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel._on_new_game_pressed()
 	var player: Player = get_node("Main/Player")
-	player._auto_fire_enabled = false  # 禁用自动开火，击杀全部走断言路径
-	player._invincible = 999.0
+	player.set_auto_fire(false  )# 禁用自动开火，击杀全部走断言路径
+	player.set_invincible(999.0)
 	player.position = Vector2(960.0, 800.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -94,7 +94,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	var event: FormationStrikeEvent = main._formation
 	_check(event != null, "初始化：事件编排节点已登记到 main")
-	_check(spawner._formation == event, "初始化：spawner 持有事件引用（优先级链钩子）")
+	_check(spawner.formation_event() == event, "初始化：spawner 持有事件引用（优先级链钩子）")
 	spawner.set_process(false)  # 全程手动驱动，保证确定性
 	GameState.score = 0
 	GameState._set_milestone_override(999999)  # 防止得分跨越里程碑弹 Buff 三选一暂停树
@@ -103,15 +103,15 @@ func _ready() -> void:
 	GameState.score = 1000
 	event._cooldown_left = 0.0
 	_check(event.can_trigger(), "场景1：常态（分数达标/无 Boss/无精英事件/非冷却）可触发")
-	spawner._boss_active = true
+	spawner.set_boss_active(true)
 	_check(not event.can_trigger(), "场景1：Boss 激活时不可触发")
-	spawner._boss_active = false
+	spawner.set_boss_active(false)
 	var fake_event := EliteTurretEvent.new()  # 不入树，仅置状态模拟精英事件 active
 	fake_event._state = EliteTurretEvent.State.CARRIER_ENTER
-	var real_event: EliteTurretEvent = spawner._event
-	spawner._event = fake_event
+	var real_event: EliteTurretEvent = spawner.elite_event()
+	spawner.set_elite_event(fake_event)
 	_check(not event.can_trigger(), "场景1：精英炮塔事件 active 时不可触发")
-	spawner._event = real_event
+	spawner.set_elite_event(real_event)
 	fake_event.free()
 	event._cooldown_left = 5.0
 	_check(not event.can_trigger(), "场景1：冷却中不可触发")
@@ -123,7 +123,7 @@ func _ready() -> void:
 	# ================= 场景 2：状态推进 + 投弹计数（击坠机跳过） =================
 	_start_fast_event(event)
 	_check(event._state == FormationStrikeEvent.State.FORMATION_ENTER, "场景2：启动进入 FORMATION_ENTER")
-	_check(spawner._waves_paused, "场景2：事件启动即暂停普通波次（占用波次槽）")
+	_check(spawner.waves_paused(), "场景2：事件启动即暂停普通波次（占用波次槽）")
 	_check(event._crafts.size() == 4, "场景2：中难度 4 架编队")
 	_check(_count_registered_crafts() == 4, "场景2：战机注册 GameState.enemies")
 	if event._crafts.size() > 0:
@@ -142,7 +142,7 @@ func _ready() -> void:
 	_check(event._dropped == 6, "场景2：投弹数 = 存活 3 机 × 2 枚 = 6（击坠机跳过）")
 	_check(_count_bombs() > 0, "场景2：引信未到时炸弹节点存续")
 	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景2：离场结束回 IDLE")
-	_check(not spawner._waves_paused, "场景2：事件结束恢复普通波次")
+	_check(not spawner.waves_paused(), "场景2：事件结束恢复普通波次")
 	_check(event._cooldown_left > 0.0, "场景2：事件结束进入触发冷却")
 	_check(_count_crafts() == 0, "场景2：离场后战机节点清理")
 	_check(_count_registered_crafts() == 0, "场景2：离场后注册表无残留")
@@ -154,7 +154,7 @@ func _ready() -> void:
 
 	# ================= 场景 3：炸弹引信/预警环/玩家伤害 =================
 	player.position = Vector2(960.0, 800.0)
-	player._invincible = 0.0
+	player.set_invincible(0.0)
 	GameState.health = 100.0
 	var bomb := FormationBomb.new()
 	bomb.setup(Vector2.ZERO, 0.5, 20, 120.0)
@@ -172,7 +172,7 @@ func _ready() -> void:
 	_check(not is_instance_valid(bomb), "场景3：引爆后炸弹节点释放")
 	_check(GameState.health < hp0, "场景3：玩家站半径内引爆掉血")
 	# 无敌不掉血（血量只可能因被动回血上升，不允许下降）
-	player._invincible = 999.0
+	player.set_invincible(999.0)
 	var bomb2 := FormationBomb.new()
 	bomb2.setup(Vector2.ZERO, 0.3, 20, 120.0)
 	bomb2.position = player.position
@@ -205,7 +205,7 @@ func _ready() -> void:
 	event.abort()
 	await get_tree().process_frame  # queue_free 帧末生效后再断言清理
 	_check(event._state == FormationStrikeEvent.State.IDLE, "场景5：abort 回 IDLE")
-	_check(not spawner._waves_paused, "场景5：abort 恢复普通波次")
+	_check(not spawner.waves_paused(), "场景5：abort 恢复普通波次")
 	_check(_count_crafts() == 0, "场景5：abort 清理全部战机实体")
 	_check(_count_registered_crafts() == 0, "场景5：abort 后注册表无残留")
 	_check(event._cooldown_left > 0.0, "场景5：abort 后冷却照计")
