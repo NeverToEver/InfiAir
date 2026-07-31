@@ -85,7 +85,7 @@
 
 ---
 
-## P1-1 辅助瞄准重设计（磁吸锁定 → 准星 + 40% 标记 + 框内追踪）
+## P1-1 辅助瞄准重设计（磁吸锁定 → 准星 + 标记（mark_ratio 落地 0.25）+ 框内追踪）
 
 **目标态**（用户定义）：
 1. 鼠标跟随准星（世界坐标），默认弹道 = 朝准星方向直射；
@@ -124,6 +124,34 @@
 
 ---
 
+## P1-3 辅助瞄准算法优化（准星磁吸 + 框外锥形渐变弱追踪 + 距离衰减 + 输入反比）
+
+**背景**：P1-1 重设计删除了旧磁吸系统后，辅助瞄准只剩「入框降灵敏度（stickiness）+ 框内全追踪/框外零修正的二元 homing」——出框瞬间修正从有到无硬切换、无准星被吸向目标的直觉感，与主流辅助瞄准四件套（磁吸/粘性/子弹磁吸/衰减）相比缺三件。本项在 **P1-1 既有机制逐位保留** 的前提下补齐。
+
+**目标态**（P1-1 四条规则不变，新增三条）：
+5. 准星在标记敌框外近距（magnet_range 内）且鼠标慢速移动时，平滑瞄准点被轻微拉向该敌（输入反比：静止/甩枪不拉，防自动瞄准感）；
+6. 出膛时准星在框外但目标落在瞄准锥角（cone_angle_deg）内 → 出膛弹获得弱追踪，转向率随角距与玩家-目标距离渐变，锥缘/远距退化为直射（消除框缘硬切换）；
+7. 磁吸与弱追踪强度均随玩家-目标距离衰减（falloff：400px 内全辅助 → 1400px 线性降至 0.3 下限，保技能上限）。
+
+**子系统设计**：
+
+- **准星磁吸**（`aim_frame_layer.gd` 新增 `magnet_pull(point, input_delta)`，player `aim_point()` 增量公式扩展）：框外轴距粗筛（省 sqrt）取**框沿距**最近标记敌；强度 = `magnet_strength × (1 - 框沿距/range) × 输入 smoothstep × 距离衰减`，钳到 `magnet_max_speed` 防瞬移；输入阈值 `magnet_input_min/max`（静止 <2px/帧、甩枪 ≥40px/帧 → ZERO，输入优先）。粘性判定结果复用（一次 `marked_target_at`），入框时磁吸恒 ZERO → **框内手感逐位不变**；`aim_point_override`（测试注入）原样旁路；准星/金色高亮随 `aim_point()` 自动联动（零改动）。
+- **锥形弱追踪**（`aim_frame_layer.gd` 新增 `nearest_cone_target(origin, aim_dir, cone_cos)`，`player._fire()` 扩展）：`marked_target_at` 未命中时查锥角内最近标记敌，`turn_rate = 档位 homing_turn_rate × cone_strength × ang_t × falloff`（ang_t = 角距线性归一，dot 免 trig）；散射多发同绑同参（与全追踪一致）；`bullet.gd` 零改动。
+- **距离衰减**（player `aim_dist_falloff()` 公开 + 层侧 `_dist_falloff()` 同形状）：`d ≤ peak → 1.0`；`d ≥ end → min`；中间线性。全局参数三档共用。
+- **档位扩展**（low/med/high 梯度，新参数 json + 脚本回退同步）：
+
+  | 档 | magnet_range | magnet_strength | magnet_max_speed | cone_angle_deg | cone_strength |
+  |---|---|---|---|---|---|
+  | low | 70 | 4.0 | 5.5 | 4° | 0.35 |
+  | medium | 100 | 6.0 | 8.0 | 6° | 0.45 |
+  | high | 130 | 8.0 | 10.5 | 8° | 0.55 |
+
+  全局：`player.aim_assist.input.magnet_input_min/full = 2.0/40.0`、`player.aim_assist.falloff.peak/end/min = 400/1400/0.3`。量纲：world_scale 0.4 实算框半宽 22~39 世界单位（zoom=1 = 屏幕 px）；中档拉速 6px/帧 ≈ 360px/s@60fps（慢速输入一半以内）；锥角 4°/6°/8° 与 300~400px 交战距离的框角径同量级（"框为内核、锥为外晕"连续过渡）；弱追踪峰值 ≈ 全追踪一半。帧率依赖与既有 delta 模型同属性（阈值按 60fps px/帧设计）。
+
+**验证**：`smoke_test` 6.1c 新段（13 断言：档位梯度/磁吸 API 纯函数六态/距离衰减单调/锥内绑定与角距渐变/锥外直射，全走公开接口）+ `balance_test` 3 行代表值；既有 6.1/6.1b 断言逐条核算兼容（入框强路径逐位不变、出框直射目标在 101° 外锥路径不触发）；`hit_logic` / `pool_reuse` 回归；autoplay 短跑 0 ANOMALY。
+
+---
+
 ## 实施阶段与回归矩阵
 
 | 阶段 | 内容 | 回归 |
@@ -133,6 +161,7 @@
 | 3 | P0-5 主轨贴图重生成（PIL） | visual_capture A/B（无断言影响） |
 | 4 | P1-1 瞄准重设计 | smoke（重写段）、hit_logic、buff33、pool_reuse、--quit-after 300 |
 | 5 | P1-2 弹速 | smoke、hit_logic、autoplay 480s |
+| 6 | P1-3 辅助瞄准算法优化 | smoke（6.1c 新增段）、balance、hit_logic、pool_reuse、autoplay 短跑 |
 
 收尾同步：新数值键与新构件（准星/aim_frame_layer/Bullet.homing_target）写入 `AGENTS.md` 对应段落；`docs/BOSS_REDESIGN.md` 补 FIGHT_Y view 适配的决策记录；瞄准语义变更若影响教程文案则同步 `tutorial.gd` 与 translations.csv。
 

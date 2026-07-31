@@ -13,6 +13,16 @@ const COLOR_HOVER := Color(1.0, 0.85, 0.35)
 
 ## 当前档位辅助框内边距（balance.json player.aim_assist.levels，信号联动刷新）
 var _frame_pad := 16.0
+## P1-3：准星磁吸档位参数（同 levels 前缀、同信号刷新）
+var _magnet_range := 100.0
+var _magnet_strength := 6.0
+var _magnet_max_speed := 8.0
+## P1-3：磁吸输入阈值与距离衰减全局参数（player.aim_assist.input / falloff，_ready 一次缓存）
+var _magnet_input_min := 2.0
+var _magnet_input_full := 40.0
+var _falloff_peak := 400.0
+var _falloff_end := 1400.0
+var _falloff_min := 0.3
 var _hover: Enemy = null  # 本帧准星入框的标记敌（高亮显示用）
 
 
@@ -20,6 +30,11 @@ func _ready() -> void:
 	z_index = 9  # 世界实体之上、准星（10）之下
 	GameState.aim_frame_layer = self
 	_load_level_params()
+	_magnet_input_min = float(GameState.cfg("player.aim_assist.input.magnet_input_min", _magnet_input_min))
+	_magnet_input_full = float(GameState.cfg("player.aim_assist.input.magnet_input_full", _magnet_input_full))
+	_falloff_peak = float(GameState.cfg("player.aim_assist.falloff.peak", _falloff_peak))
+	_falloff_end = float(GameState.cfg("player.aim_assist.falloff.end", _falloff_end))
+	_falloff_min = float(GameState.cfg("player.aim_assist.falloff.min", _falloff_min))
 	GameState.aim_assist_changed.connect(_on_aim_assist_level_changed)
 
 
@@ -29,9 +44,11 @@ func _exit_tree() -> void:
 
 
 func _load_level_params() -> void:
-	_frame_pad = GameState.cfg(
-		"player.aim_assist.levels." + String(GameState.aim_assist_level) + ".frame_pad", _frame_pad
-	)
+	var base := "player.aim_assist.levels." + String(GameState.aim_assist_level) + "."
+	_frame_pad = GameState.cfg(base + "frame_pad", _frame_pad)
+	_magnet_range = float(GameState.cfg(base + "magnet_range", _magnet_range))
+	_magnet_strength = float(GameState.cfg(base + "magnet_strength", _magnet_strength))
+	_magnet_max_speed = float(GameState.cfg(base + "magnet_max_speed", _magnet_max_speed))
 
 
 func _on_aim_assist_level_changed(_level: StringName) -> void:
@@ -75,6 +92,74 @@ func marked_target_at(point: Vector2) -> Enemy:
 			best_sq = d_sq
 			best = e
 	return best
+
+
+## P1-3 准星磁吸修正向量：把准星轻微拉向最近框外标记敌（框内归 stickiness 管辖）。
+## 静止/抖动（|delta| < input_min）与高速甩枪（>= input_full）直接返回 ZERO——输入优先，
+## 静止无磁吸天然满足；强度 = strength × (1 - 框沿距/range) × 输入 smoothstep × 距离衰减，
+## 钳到 max_speed 防瞬移。无标记敌返回 ZERO。热路径无 sin/cos、无 cfg。
+func magnet_pull(point: Vector2, input_delta: Vector2) -> Vector2:
+	var ilen := input_delta.length()
+	if ilen < _magnet_input_min or ilen >= _magnet_input_full:
+		return Vector2.ZERO
+	var best: Enemy = null
+	var best_d := INF
+	for node in GameState.enemies:
+		var e := node as Enemy
+		if e == null or not e.aim_marked:
+			continue
+		var half := frame_half_size(e)
+		# 矩形框沿距（0 = 框内，归 stickiness 不磁吸）
+		var dx := absf(point.x - e.global_position.x) - half
+		var dy := absf(point.y - e.global_position.y) - half
+		if dx <= 0.0 and dy <= 0.0:
+			continue
+		if dx > _magnet_range or dy > _magnet_range:
+			continue  # 轴距粗筛，省 sqrt
+		var d := Vector2(dx, dy).length()
+		if d >= best_d or d > _magnet_range:
+			continue
+		best_d = d
+		best = e
+	if best == null:
+		return Vector2.ZERO
+	var t := (ilen - _magnet_input_min) / (_magnet_input_full - _magnet_input_min)
+	var input_scale := 1.0 - t * t * (3.0 - 2.0 * t)  # smoothstep：慢速精瞄全辅助，快速甩枪退出
+	var p := GameState.player_ref
+	var falloff := _dist_falloff(
+		best.global_position.distance_to(p.global_position if p != null else point)
+	)
+	var mag := _magnet_strength * (1.0 - best_d / _magnet_range) * input_scale * falloff
+	return (best.global_position - point).normalized() * minf(mag, _magnet_max_speed)
+
+
+## P1-3 锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近标记敌；
+## 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。
+func nearest_cone_target(origin: Vector2, aim_dir: Vector2, cone_cos: float) -> Enemy:
+	var best: Enemy = null
+	var best_d := INF
+	for node in GameState.enemies:
+		var e := node as Enemy
+		if e == null or not e.aim_marked:
+			continue
+		var to: Vector2 = e.global_position - origin
+		var d := to.length()
+		if d > _falloff_end or d >= best_d:
+			continue
+		if aim_dir.dot(to / d) < cone_cos:
+			continue
+		best_d = d
+		best = e
+	return best
+
+
+## P1-3 距离衰减（player 侧 aim_dist_falloff 同形状）：d ≤ peak 全辅助，≥ end 平坦下限，中间线性
+func _dist_falloff(d: float) -> float:
+	if d <= _falloff_peak:
+		return 1.0
+	if d >= _falloff_end:
+		return _falloff_min
+	return lerpf(1.0, _falloff_min, (d - _falloff_peak) / (_falloff_end - _falloff_peak))
 
 
 func _draw() -> void:

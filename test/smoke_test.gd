@@ -718,6 +718,106 @@ func _ready() -> void:
 		"恢复中档后参数还原"
 	)
 
+	# 6.1c 辅助瞄准算法优化（P1-3）：准星磁吸 / 框外锥形弱追踪 / 输入反比 / 距离衰减
+	var aim_e2 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	aim_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	aim_e2.can_shoot = false
+	aim_e2.hp = 9999
+	aim_e2.aim_marked = true
+	aim_e2.position = player.position + Vector2(0.0, -300.0)
+	main.add_child(aim_e2)
+	await get_tree().process_frame
+	# 档位梯度：磁吸/锥形参数 low < high，恢复 medium
+	GameState.set_aim_assist_level(&"low")
+	var pa_low: Dictionary = player.aim_assist_params()
+	GameState.set_aim_assist_level(&"high")
+	var pa_high: Dictionary = player.aim_assist_params()
+	_check(
+		pa_low["magnet_range"] < pa_high["magnet_range"]
+			and pa_low["magnet_strength"] < pa_high["magnet_strength"]
+			and pa_low["cone_angle_deg"] < pa_high["cone_angle_deg"]
+			and pa_low["cone_strength"] < pa_high["cone_strength"],
+		"弱/强档：磁吸与锥形参数梯度"
+	)
+	GameState.set_aim_assist_level(&"medium")
+	await get_tree().process_frame
+	# 磁吸 API（纯函数，合成输入增量；目标在玩家上方 300 < falloff.peak，衰减不干扰）
+	var c2: Vector2 = aim_e2.global_position
+	var half2: float = frames.frame_half_size(aim_e2)
+	_check(frames.magnet_pull(c2 + Vector2(half2 + 40.0, 0.0), Vector2.ZERO) == Vector2.ZERO, "静止输入无磁吸")
+	_check(frames.magnet_pull(c2 + Vector2(half2 + 40.0, 0.0), Vector2(1.0, 0.0)) == Vector2.ZERO, "微动低于阈值无磁吸")
+	_check(frames.magnet_pull(c2 + Vector2(half2 + 40.0, 0.0), Vector2(60.0, 0.0)) == Vector2.ZERO, "高速输入无磁吸（输入优先）")
+	_check(frames.magnet_pull(c2 + Vector2(10.0, 0.0), Vector2(6.0, 0.0)) == Vector2.ZERO, "框内点不触发磁吸（归 stickiness）")
+	var pull: Vector2 = frames.magnet_pull(c2 + Vector2(half2 + 40.0, 0.0), Vector2(6.0, 0.0))
+	var lim: float = player.aim_assist_params()["magnet_max_speed"]
+	_check(pull.length() > 0.5 and pull.length() <= lim, "慢速输入磁吸量级在 (0, 拉速上限]")
+	_check(pull.normalized().dot(Vector2.LEFT) > 0.99, "磁吸方向指向框外目标（目标在左侧）")
+	var pull_near: Vector2 = frames.magnet_pull(c2 + Vector2(half2 + 10.0, 0.0), Vector2(6.0, 0.0))
+	var pull_far: Vector2 = frames.magnet_pull(c2 + Vector2(half2 + 90.0, 0.0), Vector2(6.0, 0.0))
+	_check(pull_near.length() > pull_far.length(), "磁吸随框沿距线性衰减")
+	# 距离衰减：目标移至玩家上方 1200（falloff≈0.44），同输入与框沿距拉量显著下降
+	aim_e2.position = player.position + Vector2(0.0, -1200.0)
+	await get_tree().process_frame
+	var pull_far_d: Vector2 = frames.magnet_pull(aim_e2.global_position + Vector2(half2 + 40.0, 0.0), Vector2(6.0, 0.0))
+	_check(pull_far_d.length() < pull.length() * 0.6, "磁吸随玩家-目标距离衰减")
+	_check(
+		player.aim_dist_falloff(300.0) == 1.0
+			and player.aim_dist_falloff(900.0) < 1.0
+			and player.aim_dist_falloff(900.0) > player.aim_dist_falloff(1300.0)
+			and player.aim_dist_falloff(1500.0) == player.aim_assist_params()["falloff_min"],
+		"距离衰减曲线单调（400 平台 / 1400 下限）"
+	)
+	# 框外锥形弱追踪：目标复位玩家上方 400（falloff=1.0），准星置框沿外测角距（中档锥角 6°）
+	aim_e2.position = player.position + Vector2(0.0, -400.0)
+	await get_tree().process_frame
+	var full_rate: float = player.aim_assist_params()["homing_turn_rate"]
+	# 框沿外 2px（角距 ~4.5° < 6°）→ 弱绑定
+	player.aim_point_override = aim_e2.global_position + Vector2(half2 + 2.0, 0.0)
+	var wdir: Vector2 = (player.aim_point() - player.global_position).normalized()
+	player.reset_fire_cooldown()
+	player.fire(wdir)
+	var wb: Bullet = null
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet:
+			wb = child
+			break
+	_check(wb != null and wb.homing_target == aim_e2, "框外锥内弱追踪绑定目标")
+	var wb_rate: float = wb.homing_turn_rate if wb != null else 0.0
+	if wb != null:
+		_check(wb_rate > 0.1 and wb_rate < full_rate * 0.75, "弱追踪转向率介于 (0, 全追踪) 之间")
+		wb.queue_free()
+	await get_tree().process_frame  # queue_free 帧末才删除：等旧弹离场再扫下一发
+	# 框沿外 8px（角距 ~5.4°）→ 转向率更低（角距渐变）
+	player.aim_point_override = aim_e2.global_position + Vector2(half2 + 8.0, 0.0)
+	var wdir2: Vector2 = (player.aim_point() - player.global_position).normalized()
+	player.reset_fire_cooldown()
+	player.fire(wdir2)
+	var wb2: Bullet = null
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet:
+			wb2 = child
+			break
+	if wb2 != null:
+		_check(wb2.homing_turn_rate < wb_rate, "锥内转向率随角距渐变（框缘更低）")
+		wb2.queue_free()
+	await get_tree().process_frame  # 同上：等 wb2 离场
+	# 框沿外 30px（角距 ~8.5° > 6°）→ 直射无追踪
+	player.aim_point_override = aim_e2.global_position + Vector2(half2 + 30.0, 0.0)
+	var wdir3: Vector2 = (player.aim_point() - player.global_position).normalized()
+	player.reset_fire_cooldown()
+	player.fire(wdir3)
+	var wb3: Bullet = null
+	for child in main.get_children():
+		if child is Bullet and child.is_player_bullet:
+			wb3 = child
+			break
+	_check(wb3 != null and wb3.homing_target == null, "锥外出膛弹无追踪（直射）")
+	if wb3 != null:
+		wb3.queue_free()
+	player.aim_point_override = Vector2.INF
+	aim_e2.queue_free()
+	await get_tree().process_frame
+
 	# 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用
 	player.position = Vector2(960.0, 540.0)
 	player.set_fuel(player.fuel_max)

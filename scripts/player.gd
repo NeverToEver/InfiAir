@@ -55,6 +55,20 @@ var HOMING_TIME := 4.0  # 辅助瞄准追踪时限（≈弹寿命；balance.json
 ## 辅助瞄准当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
 var _homing_turn_rate := 5.5  # 准星入标记框时出膛弹的追踪转向速率
 var _aim_stick_factor := 0.5  # 准星入标记框时的鼠标灵敏度系数（弱吸附，1.0 = 无吸附）
+## P1-3：框外锥形弱追踪参数（档位；_cone_cos 在 _load_aim_assist_params 内由角度重算）
+var _cone_angle_deg := 6.0
+var _cone_cos := 0.9945  # cos(6°)（类级初始化限常量表达式，档位切换时重算）
+var _cone_strength := 0.45
+## P1-3：磁吸档位参数（仅供 aim_assist_params() 聚合返回，计算在 AimFrameLayer 侧）
+var _magnet_range := 100.0
+var _magnet_strength := 6.0
+var _magnet_max_speed := 8.0
+## P1-3：磁吸输入阈值与距离衰减全局参数（player.aim_assist.input / falloff，_load_balance 一次缓存）
+var _magnet_input_min := 2.0
+var _magnet_input_full := 40.0
+var _falloff_peak := 400.0
+var _falloff_end := 1400.0
+var _falloff_min := 0.3
 ## 平滑瞄准点状态（入框降灵敏度用；每渲染帧推进一次，判定用上一帧平滑点）
 var _aim_smooth := Vector2.ZERO
 var _aim_last_raw := Vector2.ZERO
@@ -181,6 +195,12 @@ func _load_balance() -> void:
 	# A8：配置注入受击/回血与冲刺组件（缓存值从 balance 覆盖后传入）
 	_damage.configure(INVINCIBLE_TIME, ARMOR_MULT, EVASION_CHANCE, REGEN_PER_SEC, SHAKE_HIT)
 	_dash.configure(DASH_DISTANCE, DASH_TIME, DASH_COOLDOWN, AFTERIMAGE_INTERVAL)
+	# P1-3：磁吸输入阈值与距离衰减全局参数（非档位，仅 _ready 一次缓存）
+	_magnet_input_min = float(GameState.cfg("player.aim_assist.input.magnet_input_min", _magnet_input_min))
+	_magnet_input_full = float(GameState.cfg("player.aim_assist.input.magnet_input_full", _magnet_input_full))
+	_falloff_peak = float(GameState.cfg("player.aim_assist.falloff.peak", _falloff_peak))
+	_falloff_end = float(GameState.cfg("player.aim_assist.falloff.end", _falloff_end))
+	_falloff_min = float(GameState.cfg("player.aim_assist.falloff.min", _falloff_min))
 	_load_aim_assist_params()
 	GameState.aim_assist_changed.connect(_on_aim_assist_level_changed)
 	# 机体尺寸族：tscn 存设计值（1.0 基准），此处统一乘全局缩放并幂等覆盖
@@ -308,7 +328,24 @@ func set_fine_toggle(enabled: bool) -> void:
 
 
 func aim_assist_params() -> Dictionary:
-	return {"homing_turn_rate": _homing_turn_rate, "stick_factor": _aim_stick_factor}
+	return {
+		"homing_turn_rate": _homing_turn_rate, "stick_factor": _aim_stick_factor,
+		"magnet_range": _magnet_range, "magnet_strength": _magnet_strength,
+		"magnet_max_speed": _magnet_max_speed,
+		"magnet_input_min": _magnet_input_min, "magnet_input_full": _magnet_input_full,
+		"cone_angle_deg": _cone_angle_deg, "cone_strength": _cone_strength,
+		"falloff_peak": _falloff_peak, "falloff_end": _falloff_end, "falloff_min": _falloff_min,
+	}
+
+
+## P1-3 距离衰减曲线（公开供测试；_fire 弱追踪与 AimFrameLayer 磁吸共用同一形状）：
+## d ≤ peak 全辅助；d ≥ end 平坦下限；中间线性。参数来自 player.aim_assist.falloff.*
+func aim_dist_falloff(d: float) -> float:
+	if d <= _falloff_peak:
+		return 1.0
+	if d >= _falloff_end:
+		return _falloff_min
+	return lerpf(1.0, _falloff_min, (d - _falloff_peak) / (_falloff_end - _falloff_peak))
 
 
 func hitbox_enabled() -> bool:
@@ -524,10 +561,16 @@ func aim_point() -> Vector2:
 	if frame != _aim_smoothed_frame:  # 每渲染帧只推一次（准星/框层/开火多处取值）
 		_aim_smoothed_frame = frame
 		var factor := 1.0
-		if _aim_initialized and GameState.aim_frame_layer != null \
-				and GameState.aim_frame_layer.marked_target_at(_aim_smooth) != null:
-			factor = _aim_stick_factor
-		_aim_smooth = raw if not _aim_initialized else _aim_smooth + (raw - _aim_last_raw) * factor
+		var magnet := Vector2.ZERO
+		if _aim_initialized and GameState.aim_frame_layer != null:
+			# 粘性判定结果复用（一次 marked_target_at）：入框走降灵敏度，框外近距走磁吸
+			var sticky: Enemy = GameState.aim_frame_layer.marked_target_at(_aim_smooth)
+			if sticky != null:
+				factor = _aim_stick_factor
+			else:
+				magnet = GameState.aim_frame_layer.magnet_pull(_aim_smooth, raw - _aim_last_raw)
+		_aim_smooth = raw if not _aim_initialized else \
+			_aim_smooth + (raw - _aim_last_raw) * factor + magnet
 		_aim_last_raw = raw
 		_aim_initialized = true
 	return _aim_smooth
@@ -539,6 +582,13 @@ func _load_aim_assist_params() -> void:
 	_homing_turn_rate = GameState.cfg(base + "homing_turn_rate", _homing_turn_rate)
 	_aim_stick_factor = GameState.cfg(base + "stick_factor", _aim_stick_factor)
 	HOMING_TIME = GameState.cfg("player.aim_assist.homing_time", HOMING_TIME)
+	# P1-3：锥形弱追踪与磁吸档位参数（同 base 路径、同档位信号刷新）
+	_cone_angle_deg = float(GameState.cfg(base + "cone_angle_deg", _cone_angle_deg))
+	_cone_cos = cos(deg_to_rad(_cone_angle_deg))
+	_cone_strength = float(GameState.cfg(base + "cone_strength", _cone_strength))
+	_magnet_range = float(GameState.cfg(base + "magnet_range", _magnet_range))
+	_magnet_strength = float(GameState.cfg(base + "magnet_strength", _magnet_strength))
+	_magnet_max_speed = float(GameState.cfg(base + "magnet_max_speed", _magnet_max_speed))
 
 
 func _on_aim_assist_level_changed(_level: StringName) -> void:
@@ -564,10 +614,22 @@ func _fire(aim: Vector2) -> void:
 	var spread := mini(GameState.buff_count(&"spread_shot"), _spread_max)
 	var pierce := mini(GameState.buff_count(&"piercing"), _pierce_max)
 	var explosive := GameState.buff_count(&"explosive") > 0
-	# 辅助瞄准（P1-1）：准星在某标记敌框内 → 本轮出膛弹全部获得对该敌的追踪修正
+	# 辅助瞄准（P1-1）：准星在某标记敌框内 → 本轮出膛弹全部获得对该敌的追踪修正。
+	# P1-3：框外但目标在瞄准锥角内 → 弱追踪（转向率随角距与距离渐变，锥缘/远距退化为直射）
 	var homing_target: Enemy = null
+	var homing_rate := _homing_turn_rate
 	if GameState.aim_frame_layer != null:
 		homing_target = GameState.aim_frame_layer.marked_target_at(aim_point())
+		if homing_target == null:
+			var aim_dir := aim.normalized()
+			homing_target = GameState.aim_frame_layer.nearest_cone_target(global_position, aim_dir, _cone_cos)
+			if homing_target != null:
+				var dot := aim_dir.dot((homing_target.global_position - global_position).normalized())
+				var ang_t := clampf((dot - _cone_cos) / (1.0 - _cone_cos), 0.0, 1.0)
+				homing_rate = _homing_turn_rate * _cone_strength * ang_t \
+					* aim_dist_falloff(global_position.distance_to(homing_target.global_position))
+				if homing_rate <= 0.0:
+					homing_target = null  # 锥缘/远距退化为直射
 	var count := 1 + spread
 	for i in count:
 		var offset := deg_to_rad(BULLET_SPREAD_DEG * (float(i) - float(spread) / 2.0))
@@ -577,7 +639,7 @@ func _fire(aim: Vector2) -> void:
 		if homing_target != null:
 			b.homing_target = homing_target
 			b.homing_time = HOMING_TIME
-			b.homing_turn_rate = _homing_turn_rate
+			b.homing_turn_rate = homing_rate
 		b.position = position + aim.rotated(offset) * _muzzle_offset
 	_audio.stream = FIRE_SOUNDS[_sound_index]
 	_sound_index = (_sound_index + 1) % FIRE_SOUNDS.size()

@@ -38,6 +38,9 @@ func _ready() -> void:
 	_check(GameState.cfg("buffs.slow_field.factor", 0.0) == 0.8, "慢速力场移速 ×0.8")
 	_check(GameState.cfg("buffs.explosive.damage_per_level", 0) == 30, "爆炸弹固定溅射 30")
 	_check(is_equal_approx(GameState.cfg("mothership.gatling.score_scale", 0.0), 1.0 / 3.0), "母舰击杀 1/3 分")
+	_check(GameState.cfg("player.aim_assist.input.magnet_input_min", 0.0) == 2.0, "磁吸输入阈值下限 2.0")
+	_check(GameState.cfg("player.aim_assist.falloff.peak", 0.0) == 400.0, "辅助距离衰减峰值 400")
+	_check(GameState.cfg("player.aim_assist.levels.high.magnet_range", 0.0) == 130.0, "高档磁吸半径 130")
 
 	# 3. 损坏 JSON → 回退脚本默认值
 	var f := FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)

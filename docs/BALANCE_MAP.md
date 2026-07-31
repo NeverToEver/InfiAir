@@ -422,6 +422,30 @@
 | 426 | `player.aim_assist.homing_time` | `HOMING_TIME` |
 | 465 | `buffs.spread_shot.max_stacks` | `3` |
 | 466 | `buffs.piercing.max_stacks` | `2` |
+| 199 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
+| 200 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
+| 201 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
+| 202 | `player.aim_assist.falloff.end` | `_falloff_end` |
+| 203 | `player.aim_assist.falloff.min` | `_falloff_min` |
+| 586 | `player.aim_assist.levels.<level>.cone_angle_deg` | `_cone_angle_deg` |
+| 587 | `player.aim_assist.levels.<level>.cone_strength` | `_cone_strength` |
+| 589 | `player.aim_assist.levels.<level>.magnet_range` | `_magnet_range` |
+| 590 | `player.aim_assist.levels.<level>.magnet_strength` | `_magnet_strength` |
+| 591 | `player.aim_assist.levels.<level>.magnet_max_speed` | `_magnet_max_speed` |
+
+### `scripts/aim_frame_layer.gd`（P1-3 新增）
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 33 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
+| 34 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
+| 35 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
+| 36 | `player.aim_assist.falloff.end` | `_falloff_end` |
+| 37 | `player.aim_assist.falloff.min` | `_falloff_min` |
+| 48 | `player.aim_assist.levels.<level>.frame_pad` | `_frame_pad` |
+| 49 | `player.aim_assist.levels.<level>.magnet_range` | `_magnet_range` |
+| 50 | `player.aim_assist.levels.<level>.magnet_strength` | `_magnet_strength` |
+| 51 | `player.aim_assist.levels.<level>.magnet_max_speed` | `_magnet_max_speed` |
 
 ### `scripts/return_cinematic.gd`
 

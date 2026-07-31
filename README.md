@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Release](https://img.shields.io/badge/Release-v3.22-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Release](https://img.shields.io/badge/Release-v3.23-orange)](https://github.com/NeverToEver/InfiAir/releases)
 [![Tests](https://img.shields.io/badge/Tests-1018%20passed-brightgreen)](#-测试与验证)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-安装)
 
@@ -145,7 +145,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（128 �
 
 ## 🗺️ 路线图
 
-- ✅ **已完成**：核心单局循环 / 16 种 Buff 构筑 / Boss 与双事件体系 / 母舰对接与基地整备 / 双过场与全息 UI / Meta HUD 血量反馈 / 无限段难度曲线 / 双平台打包发布（v3.22 起经 GitHub Releases 分发）
+- ✅ **已完成**：核心单局循环 / 16 种 Buff 构筑 / Boss 与双事件体系 / 母舰对接与基地整备 / 双过场与全息 UI / Meta HUD 血量反馈 / 无限段难度曲线 / 双平台打包发布（v3.23 起经 GitHub Releases 分发）
 - 🔭 **未来方向**：内容演进（新 Buff / 新敌机与 Boss 型 / 移动端操控等）暂缓，重启需重新立项；CI 与语义化版本流程规划中
 - 迭代历史见 git 提交记录；移植时期档案已归档（冻结）：[docs/archive/PORTING_PARITY.md](./docs/archive/PORTING_PARITY.md)
 

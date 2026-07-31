@@ -32,21 +32,45 @@
 		"aim_assist": {
 			"mark_ratio": 0.25,
 			"homing_time": 4,
+			"input": {
+				"magnet_input_min": 2.0,
+				"magnet_input_full": 40.0
+			},
+			"falloff": {
+				"peak": 400.0,
+				"end": 1400.0,
+				"min": 0.3
+			},
 			"levels": {
 				"low": {
 					"frame_pad": 10,
 					"homing_turn_rate": 3.5,
-					"stick_factor": 0.65
+					"stick_factor": 0.65,
+					"magnet_range": 70,
+					"magnet_strength": 4.0,
+					"magnet_max_speed": 5.5,
+					"cone_angle_deg": 4.0,
+					"cone_strength": 0.35
 				},
 				"medium": {
 					"frame_pad": 16,
 					"homing_turn_rate": 5.5,
-					"stick_factor": 0.5
+					"stick_factor": 0.5,
+					"magnet_range": 100,
+					"magnet_strength": 6.0,
+					"magnet_max_speed": 8.0,
+					"cone_angle_deg": 6.0,
+					"cone_strength": 0.45
 				},
 				"high": {
 					"frame_pad": 24,
 					"homing_turn_rate": 8,
-					"stick_factor": 0.35
+					"stick_factor": 0.35,
+					"magnet_range": 130,
+					"magnet_strength": 8.0,
+					"magnet_max_speed": 10.5,
+					"cone_angle_deg": 8.0,
+					"cone_strength": 0.55
 				}
 			}
 		}
