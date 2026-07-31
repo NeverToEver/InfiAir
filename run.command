@@ -4,30 +4,65 @@
 # 若提示"无法验证开发者"：系统设置 → 隐私与安全性 → 仍要打开
 cd "$(dirname "$0")" || exit 1
 
-# 引擎探测：PATH → ~/.local/bin → /Applications/Godot.app
-if command -v godot >/dev/null 2>&1; then
-    GODOT="godot"
-elif [ -x "$HOME/.local/bin/godot" ]; then
-    GODOT="$HOME/.local/bin/godot"
-elif [ -d "/Applications/Godot.app" ]; then
-    GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
-else
+# 引擎候选：PATH → ~/.local/bin → /Applications → ~/Applications（含 Godot*.app 变体名）
+CANDIDATES=()
+add_candidate() {
+    local c
+    for c in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
+        [ "$c" = "$1" ] && return
+    done
+    CANDIDATES+=("$1")
+}
+if command -v godot >/dev/null 2>&1; then add_candidate "godot"; fi
+[ -x "$HOME/.local/bin/godot" ] && add_candidate "$HOME/.local/bin/godot"
+for app in "/Applications/Godot.app" "$HOME/Applications/Godot.app" \
+    /Applications/Godot*.app "$HOME"/Applications/Godot*.app; do
+    bin="$app/Contents/MacOS/Godot"
+    [ -x "$bin" ] && add_candidate "$bin"
+done
+
+# 版本判定：4.6+ 返回 0；版本号无法解析视为不满足（避免误用 Godot 3 / 4.5）
+version_ok() {
+    local ver major rest minor
+    ver="$("$1" --version 2>/dev/null | head -n1)"
+    [[ "$ver" =~ ^[0-9]+\.[0-9]+ ]] || return 1
+    major="${ver%%.*}"
+    rest="${ver#*.}"
+    minor="${rest%%.*}"
+    { [ "$major" -gt 4 ] || { [ "$major" -eq 4 ] && [ "$minor" -ge 6 ]; }; }
+}
+
+# 优先选第一个 4.6+ 的候选；全部不满足时回退第一个候选并警告
+GODOT=""
+for c in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
+    if version_ok "$c"; then
+        GODOT="$c"
+        break
+    fi
+done
+if [ -z "$GODOT" ] && [ ${#CANDIDATES[@]} -gt 0 ]; then
+    GODOT="${CANDIDATES[0]}"
+    VER="$("$GODOT" --version 2>/dev/null | head -n1)"
+    echo "[InfiAir] 警告：只检测到 Godot ${VER:-未知版本}，本项目按 4.6+ 构建，可能无法正常运行。"
+fi
+
+if [ -z "$GODOT" ]; then
     echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，标准版即可）。"
     echo "          下载：https://godotengine.org/download"
-    echo "          安装后放到 /Applications 或 ~/.local/bin 均可识别。"
+    echo "          安装到 /Applications 或 ~/Applications（改带版本的名字也能识别），"
+    echo "          或将 godot 加入 PATH / 放置到 ~/.local/bin/godot。"
     read -r -p "按回车退出…"
     exit 1
 fi
 
 VER="$("$GODOT" --version 2>/dev/null | head -n1)"
-if [ -n "$VER" ]; then
-    MAJOR="${VER%%.*}"
-    REST="${VER#*.}"
-    MINOR="${REST%%.*}"
-    if [ "$MAJOR" -lt 4 ] || { [ "$MAJOR" -eq 4 ] && [ "$MINOR" -lt 6 ]; }; then
-        echo "[InfiAir] 警告：检测到 Godot $VER，本项目按 4.6+ 构建，可能无法正常运行。"
-    fi
-fi
-
 echo "[InfiAir] 使用引擎：$GODOT（$VER）"
-exec "$GODOT" --path .
+
+# 不用 exec：异常退出时保留窗口与输出，方便排查
+"$GODOT" --path .
+CODE=$?
+if [ "$CODE" -ne 0 ]; then
+    echo "[InfiAir] 游戏异常退出（代码 $CODE），可把上方输出截图反馈。"
+    read -r -p "按回车关闭窗口…"
+fi
+exit "$CODE"
