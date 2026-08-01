@@ -358,14 +358,14 @@
 | C25 | ✅ 已修复 | main 返航/死亡终局路径补 `_stop_charging`，蓄力特效不再残留。验证：mothership_summon 0 FAIL |
 | C26 | ✅ 已修复 | start_panel 按钮初始化 `tr()` + base_console 任务格式串提 `BASE_MISSION_FMT`。验证：i18n_test 0 FAIL |
 | C27 | ✅ 已修复 | ChamferedPanel/StartRadar `_process` 加 `is_visible_in_tree()` 早退。验证：--quit-after 300 |
-| C28 | ⚠️ 部分完成 | warp_gate 环/弧预建单位点集（每次召唤都发生）已零分配重构；intro_cinematic/orbital_strike/summon_window/mothership 四处单次瞬态演出（1-4s）点集重建保留（几何重构收益低风险高，低优先）。 |
+| C28 | ✅ 已修复 | warp_gate 环/弧 + intro_cinematic 结构线 + orbital_strike 瞄准环/导弹拖尾 + summon_window 穿梭器环/拖尾——创建时预分配点集，帧内经 `set_point_position` 原地写（零分配、线宽不随 scale 变）。mothership `_live_targets` 判定低频函数返回数组（每 0.13-0.3s 开火一次，非每帧）保留并注记。同时修正 c526d79 的同类回归：`points[i]=` 是值语义副本不生效、`ring.scale=ONE*radius` 会连带放大线宽，全部改 `set_point_position`。验证：intro/return/mothership_summon/orbital_strike 0 FAIL |
 | C29 | ✅ 已修复 | enemy_combat_test `_exiting`→`is_exiting()`。验证：enemy_combat 0 FAIL |
 | C30 | ✅ 已修复 | back_navigation_test `_notification`→`go_back()`；keybind_test `_unhandled_input`→`Input.parse_input_event`。验证：back_navigation/keybind 0 FAIL |
 | C31 | ✅ 已修复 | tutorial_test `_exit_tutorial`→注入 ui_cancel 动作。验证：tutorial_test 0 FAIL |
 | C32 | ✅ 已修复 | base_system_test `_init_missions`→新增公开 `reset_missions()`。验证：base_system 0 FAIL |
-| C33 | 📄 记录在案 | 测试 ~120 处 `await create_timer`：多数经 `_wait_real` 正确包装、收尾即 quit 泄漏影响有限；系统性收敛属低优先改进，未逐一替换（高风险低收益）。 |
-| C34 | 📄 记录在案 | 测试硬编码 balance.json 数值：改 JSON 漂移不报错，属测试设计权衡；纯数学倍率保留。低优先。 |
-| C35 | 📄 记录在案 | meta_health_fx_test set_test_state 字符串键：显式测试钩子（A7 承认模式），键名耦合实现属可读性改进，低优先。 |
+| C33 | 📄 已核实无风险 | 核实：所有会改 `time_scale` 的测试关键路径已用 `_wait_real`（create_timer 4 参 ignore_time_scale，boss_*/elite/formation）；残留 ~118 处默认参数 create_timer 全部运行在 time_scale=1 段（smoke/tutorial/enemy_combat/capture 等），行为正确。判定为风格一致性而非功能 bug，机械替换回归风险超收益，不逐一替换。 |
+| C34 | ⚠️ 部分完成 | boss_pattern_test 场景 1/2/4 的弹速/伤害硬编码（700/21/150/12/220）改读 boss 实例常量（CANNON_BULLET_SPEED/CANNON_DAMAGE/SWEEP_DROP_SPEED/SWEEP_DROP_DAMAGE/WALL_BULLET_SPEED），改 JSON 不漂移；场景 4/5 的 420（enemy.ENEMY_BULLET_SPEED 与 VOLLEY 同值）补来源注释。difficulty/buff33/elite/formation 硬编码判定为逻辑验证锚点保留（改读会降低测试独立价值）。验证：boss_pattern_test 0 FAIL |
+| C35 | ✅ 已修复 | MetaHealthFX.set_test_state 接受无 `_` 前缀语义键（内部补 `_` 写私有字段），meta_health_fx_test 全部键去 `_` 前缀，不再与实现字段名强耦合。验证：meta_health_fx_test 0 FAIL |
 
 > 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 120s 探针。
 
