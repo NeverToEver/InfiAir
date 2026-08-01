@@ -259,3 +259,77 @@
 | B16 | ✅ 已修复 | `Explosion._init()` 设 `process_mode=Always`——死亡爆炸生成于已暂停树仍播放（覆盖正常死亡 `player_damage` 与 `_give_up` 两条路径） |
 
 > 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 60s 0 异常 0 孤儿节点。
+
+---
+
+# 第三轮审核（2026-08-01 Godot 最佳实践与语法规范审计）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | Godot 4.x 最佳实践与 GDScript 语法规范（新维度，区别于 A 系列 SOLID / B 系列业务逻辑） |
+| 工作时间 | 2026-08-01 |
+| 审核区域 | `scripts/` 全部 76 脚本 + `autoload/game_state.gd` + `scenes/*.tscn` + `test/*.gd` + 配置/资源（约 1.8 万行） |
+| 审核方法 | 7 分区并行审核（对局编排/玩家武器/刷怪敌人/Boss/事件演出/UI/测试）+ 主控交叉核验 + 判定分类（`docs/AUDIT_REVIEW_SOP.md`） |
+| 结论 | 无危险级崩溃；2 严重 + 15 中等 + 18 轻微，共 35 项（生产 28 / 测试 7）。基线 `--import` 与 `--quit-after 300` 全绿；Godot 3.x 残留 API 全库 0 处 |
+| 审核人 | Claude Code（依据用户指示执行） |
+| 完整报告 | `docs/2026-08-01-godot-best-practice-audit.md` |
+
+## 发现清单（C 系列，登记待修复）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 |
+| --- | --- | --- | --- | --- |
+| C01 | 严重 | `tutorial.gd:276,338` | 协程泄漏 | 两处 `await create_timer` 违反 AGENTS.md 禁令；教程中途切场景协程悬死，`_advancing`/`_close_base` 不执行 |
+| C02 | 严重 | `game_state.gd:920` | 纯bug/健壮性 | `load_profile` key_bindings 无类型守卫，手改档案 typed 赋值运行期报错提前返回、后续字段不加载且不置 corrupt |
+| C03 | 中等 | `game_state.gd:96-105` | 纯bug/健壮性 | `_apply_balance` 只校验顶层类型，缺子键/空数组时 KeyError/除零，违背损坏回退宣称 |
+| C04 | 中等 | `bullet.gd:171-208` | 生命周期/物理 | Area2D 位移在 `_process` 而非 `_physics_process`，物理步进采样错位，高速弹穿越风险 |
+| C05 | 中等 | `player.gd:533,538` | 性能/规范 | `_physics_process` 热路径直调 `sin()` 违反查表约定；get_ticks_msec 每帧两次 |
+| C06 | 中等 | `enemy.gd:391-401` | 性能 | 每帧每敌机构造 9 键 ctx Dictionary + 3 次 view_world_rect()，池规模 GC 压力 |
+| C07 | 中等 | `starfield.gd:29-43` | 规范 | 星域范围/回绕硬编码 1920×1080，违反 view_world_rect() 约定 |
+| C08 | 中等 | `boss.gd:869` | i18n | 逃跑警告硬编码中文绕过 tr()，英文环境显示中文 |
+| C09 | 中等 | `boss_movement.gd:45`/`boss_attacks.gd:108,240`/`enrage_sequence.gd:230` | 性能/规范 | 四处 `_physics_process` 直调 sin() 违反查表约定 |
+| C10 | 中等 | `enrage_sequence.gd:300-307` | 性能 | `_path_center` 每帧构建 5 元素 Array[Vector2]，狂暴 ACTIVE 全程堆分配 |
+| C11 | 中等 | `boss.gd:711-714`/`boss_movement.gd:38-47` | 纯bug | P1→P2 段切换落在下压窗口内时 `_press_offset` 残留，机身最多 80px 永久偏移至锚线下 |
+| C12 | 中等 | `return_cinematic.gd:1357-1362` | 纯bug | 镜头 7 推近 `set_parallel` 下 `tween_interval` 不延迟，特写在人物躺下前完成 |
+| C13 | 中等 | `comm_overlay.gd:80-86` | 纯bug | 淡出 tween 不被 show_line/clear kill，新台词落窗口时被拉回 alpha=0 并 hide |
+| C14 | 中等 | `main.gd:113,382`/`boss_attacks.gd:214,228,266`/`boss_movement.gd:66` | 规范 | 硬编码 960.0/±1600 世界坐标绕过 view_world_rect()（同文件 606 已正确） |
+| C15 | 轻微 | `main.gd:419,425` | 生命周期 | `await process_frame` 缺 is_inside_tree 守卫，首帧前释放则 freed add_child |
+| C16 | 轻微 | `game_state.gd:886-887,929-930` | 纯bug | `bool()` 字符串真值陷阱：手改存档 "false"/"0" 字符串转 true |
+| C17 | 轻微 | `back_navigator.gd:22-31`/`welcome_screen.gd:33,101,121`/`pause_ui.gd:132` | 节点安全 | `get_parent().get_node("X")` 链式兄弟访问无判空，未用唯一名 % |
+| C18 | 轻微 | `game_state.gd:67`/`spawner.gd:74`/`boss.gd:81-82`/`enemy.gd:72` | 类型 | 裸 Array/Node 未标元素/具体类型 |
+| C19 | 轻微 | `main.gd:10-17`/`game_state.gd:31`/`hud.gd:46-53`/`tutorial.gd:10-11` 遍布 | 可读性 | CONSTANT_CASE 命名用于可变 var（回退默认值模式），与官方约定冲突；判定为项目数据模式维持现状 |
+| C20 | 轻微 | `player_buff_visuals.gd:51`/`bullet.gd:218-233`/`enemy_move_strategy.gd:122` | 类型 | 弱类型返回/参数（裸 Array、Area2D 调 Enemy 专有方法、Node2D 访问私有成员） |
+| C21 | 轻微 | `bullet_pool.gd:11-12` | 生命周期 | `_ready` 注册 GameState.bullet_pool 无 `_exit_tree` 清空 |
+| C22 | 轻微 | `player.gd:693-697`/`camera_shake.gd:11` | 信号 | `_exit_tree` 未断信号/connect 无 is_connected 守卫，重入树重复连接 |
+| C23 | 轻微 | `laser_weapon.gd:76`/`boss_attacks.gd:106`/`enrage_sequence.gd:229`/`aim_frame_layer.gd:72` | 性能 | 每帧 PackedVector2Array 分配/每帧 get_node_or_null |
+| C24 | 轻微 | `boss_fire.gd:56,84`/`enemy.gd:453-455`/`mothership.gd:561` | 性能 | 每次发射 get_node("Polygon2D"/"MuzzleFlash") 字符串查找，可缓存 |
+| C25 | 轻微 | `main.gd:633-660,510,624` | 生命周期 | 返航/死亡/放弃终局路径不调 `_stop_charging`，蓄力特效瞬态残留（自动修复） |
+| C26 | 轻微 | `start_panel.gd:122,128,134`/`base_console.gd:373` | i18n | 硬编码中文按钮文案/任务格式串绕过 tr() |
+| C27 | 轻微 | `ui_chamfered_panel.gd:34`/`start_radar.gd:18` | 性能 | `_process` 轮询自适应/隐藏期仍每帧 queue_redraw |
+| C28 | 轻微 | 演出类 `_process` 每帧重建点集（intro:1375/warp_gate:150-158/summon_window:303-314/orbital_strike:162-190/mothership:517-529） | 性能 | 短时演出的每帧 PackedVector2Array/闭包分配 |
+| C29 | 中等 | `enemy_combat_test.gd:187` | 测试规范 | 直读 `_exiting`，`is_exiting()` 公开接口已存在（A7 残留） |
+| C30 | 中等 | `back_navigation_test.gd:128`/`keybind_test.gd:65,74` | 测试规范 | 直调 `_notification`/`_unhandled_input` 虚回调绕过公开路由/输入管线 |
+| C31 | 轻微 | `tutorial_test.gd:160` | 测试规范 | 直调 `_exit_tutorial()` 私有方法 |
+| C32 | 轻微 | `base_system_test.gd:81` | 测试规范 | 直调 `_init_missions()`，无干净公开替代 |
+| C33 | 中等 | `test/*.gd` 约 120 处 | 测试规范 | `await create_timer` 系统性偏离协程约定（部分经 _wait_real 正确包装） |
+| C34 | 轻微 | 多个测试 | 测试规范 | 硬编码 balance.json 数值（改 JSON 漂移不报错）；view_zoom_test:38 硬编码 1920×1080 |
+| C35 | 轻微 | `meta_health_fx_test.gd:66-154` | 测试规范 | set_test_state 字符串键直写私有字段，键名强耦合实现 |
+
+## 判定分类记录（2026-08-01）
+
+| 项 | 判定 | 理由 |
+| --- | --- | --- |
+| C19 CONSTANT_CASE 可变 var | 🟦 设计确认 | 项目数据模式（AGENTS/CLAUDE 明文"脚本回退默认值"），大范围改名收益低风险高，维持现状 |
+| `buff_select.gd:157` child.free() | 🟦 合理 | stagger_open 紧接遍历 children，queue_free 会新旧卡同帧共存 |
+| `enemy.tscn` resource_local_to_scene | 🟦 约定正确 | AGENTS.md:204 规定，无共享污染 |
+| `mothership.gd` 六处 group hud | 🟦 非热路径 | 全部事件驱动/一次性缓存 |
+| 组件 boss 参数无类型（boss_attacks.gd:70） | 🟦 取舍可接受 | A1/A3 文档化取舍，可优化非必须 |
+| 测试 create_timer | 🟦 泄漏影响有限 | 收尾即 quit；仍建议收敛（C33） |
+
+## 修复起效记录（C 系列，待修复落地后回填）
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| C01–C35 | ⏳ 待修复 | 修复计划见 `docs/2026-08-01-godot-best-practice-audit.md` §5；落地后按批次回填 |
+
