@@ -712,6 +712,8 @@ func _enter_phase(p_phase: int) -> void:
 	_pattern_index = 0
 	_start_pattern()
 	_fire_timer = PHASE_SHIFT_DURATION  # 段切换蓄力期停火
+	# C11 修复：段切换归零一型纵向下压偏移，避免 P2 以残留下压永久停在锚线下方
+	_movement.reset_press()
 	_attacks.cancel_all()
 	_attacks.charge_glow(self, PHASE_SHIFT_DURATION)
 	GameState.shake(GameState.cfg("effects.shake.enrage", 16.0) * 0.5)

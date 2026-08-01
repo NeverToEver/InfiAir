@@ -1351,8 +1351,11 @@ func _build_shot7() -> Node2D:
 			lie.tween_property(person["elbows"][i], "rotation", -0.2, 0.5 * u)
 	)
 	# 面部特写：镜头推近至头部（scale→1.6，聚焦平躺后的头盔位置 ≈(981,744)）
-	var push_in := root.create_tween().set_parallel(true)
+	# C12 修复：set_parallel 下前置 tween_interval 不延迟并行成员（特写提前完成）；
+	# 改顺序 tween + 前置 interval，scale/position 两属性经 parallel() 同时推进
+	var push_in := root.create_tween()
 	push_in.tween_interval(1.5 * u)
+	push_in.set_parallel(true)
 	push_in.tween_property(room, "scale", Vector2.ONE * 1.6, 1.0 * u
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	push_in.tween_property(room, "position", Vector2(960.0, 540.0) - Vector2(981.0, 744.0) * 1.6,

@@ -117,6 +117,12 @@ func _ready() -> void:
 	)
 	_check(not boss.enrage_sequence().is_health_locked(), "场景1：P2 段切换不触发锁血")
 	_check(boss.pattern_index() == 0, "场景1：段切换重置模式表循环")
+	# C11：段切换归零纵向下压偏移——若切换恰在下压窗口内，机身不得残留 80px 级偏移。
+	# 容差 4px 容纳入场降入的逼近残差（非 C11 范畴）；重点排除下压偏移残留（80px 量级）。
+	_check(
+		absf(boss.position.y - boss.fight_anchor_y()) < 4.0,
+		"场景1：P2 段切换后机身回到战斗锚线（无残留下压偏移）"
+	)
 	# P2→ENRAGE：打到 25%（钳 30% 触发狂暴；一击跨两段狂暴优先）
 	boss.take_damage(int(boss.max_hp * 0.4))
 	await get_tree().process_frame

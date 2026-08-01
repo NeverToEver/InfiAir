@@ -95,14 +95,29 @@ func cfg(path: String, default: Variant) -> Variant:
 
 func _apply_balance() -> void:
 	world_scale = float(cfg("world_scale", world_scale))
-	milestone_base = cfg("milestones.base", MILESTONE_BASE.duplicate())
+	# C03 修复：milestones.base 须为非空数组，否则下游 milestone_threshold 除零
+	var base: Variant = cfg("milestones.base", MILESTONE_BASE.duplicate())
+	milestone_base = base if base is Array and not (base as Array).is_empty() else MILESTONE_BASE.duplicate()
 	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
 	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
 	_prog_per_ten_minutes = float(cfg("progression.per_ten_minutes", 1.0))
 	_prog_time_step_seconds = float(cfg("progression.time_step_seconds", 30.0))
+	# C03 修复：难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
+	# （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
 	var diff: Variant = cfg("difficulty", {})
-	if diff is Dictionary and not diff.is_empty():
+	if _valid_difficulty_defs(diff):
 		DIFFICULTY_DEFS = diff
+
+
+## C03 修复：难度表结构校验——顶层 Dictionary 且含 easy/medium/hard 三个子字典
+func _valid_difficulty_defs(diff: Variant) -> bool:
+	if not diff is Dictionary:
+		return false
+	var d: Dictionary = diff
+	for key in [&"easy", &"medium", &"hard"]:
+		if not d.has(key) or not d[key] is Dictionary:
+			return false
+	return true
 
 # RP（征用点数）经济：对齐原作 RequisitionConstants
 const RP_BOSS_KILL := 5
@@ -836,6 +851,12 @@ func save_num(v: Variant, default: float) -> float:
 	return _save_manager.sanitize_num(v, default)
 
 
+## C16 修复：布尔字段安全读取——仅接受真 bool（GDScript 的 bool("false") 为 true，
+## 手改存档写字符串 "false"/"0" 会被误读为开；与 save_num 同款判型回退）
+func save_bool(v: Variant, default: bool) -> bool:
+	return v if v is bool else default
+
+
 func apply_run_save(data: Dictionary) -> void:
 	# 逐字段判型：语法合法但结构非法的存档（手改）不崩，异常字段回默认值
 	score = int(save_num(data.get("score", 0), 0.0))
@@ -883,8 +904,8 @@ func apply_run_save(data: Dictionary) -> void:
 			if saved_locked[key] is String or saved_locked[key] is StringName:
 				locked_routes[StringName(key)] = StringName(saved_locked[key])
 	# 设置项随存档往返（旧存档无字段时保留当前值）
-	ctrl_toggle_mode = bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode))
-	shift_toggle_mode = bool(data.get("shift_toggle_mode", shift_toggle_mode))
+	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
+	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
 	# 里程碑曲线：恢复到大于当前分数的第一档
 	_milestone_count = 0
 	while milestone_threshold(_milestone_count) <= score:
@@ -913,8 +934,8 @@ func load_profile() -> void:
 	if parsed.is_empty():
 		return
 	high_score = int(parsed.get("high_score", 0))
-	tutorial_done = bool(parsed.get("tutorial_done", false))
-	welcome_seen = bool(parsed.get("welcome_seen", false))
+	tutorial_done = save_bool(parsed.get("tutorial_done", false), false)
+	welcome_seen = save_bool(parsed.get("welcome_seen", false), false)
 	locale = str(parsed.get("locale", "zh"))
 	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
 	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
@@ -932,8 +953,8 @@ func load_profile() -> void:
 	var saved_difficulty := StringName(parsed.get("difficulty", ""))
 	if DIFFICULTY_DEFS.has(saved_difficulty):
 		difficulty = saved_difficulty
-	ctrl_toggle_mode = bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode))
-	shift_toggle_mode = bool(parsed.get("shift_toggle_mode", shift_toggle_mode))
+	ctrl_toggle_mode = save_bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
+	shift_toggle_mode = save_bool(parsed.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
 	var saved_zoom := StringName(parsed.get("view_zoom", ""))
 	if VIEW_ZOOM_LEVELS.has(saved_zoom):
 		view_zoom = saved_zoom
@@ -945,7 +966,7 @@ func load_profile() -> void:
 	var saved_aim := StringName(parsed.get("aim_assist", ""))
 	if AIM_ASSIST_ORDER.has(saved_aim):
 		aim_assist_level = saved_aim
-	reduce_flash = bool(parsed.get("reduce_flash", reduce_flash))
+	reduce_flash = save_bool(parsed.get("reduce_flash", reduce_flash), reduce_flash)
 
 
 func save_profile() -> void:

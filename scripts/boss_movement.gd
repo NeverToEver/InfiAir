@@ -20,6 +20,13 @@ func sync_press_timer(interval: float) -> void:
 	_press_timer = interval
 
 
+## C11 修复：段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
+## _press_offset 保留非零值而 _update_press 不再被调用，机身会以偏移永久留在锚线下方
+func reset_press() -> void:
+	_press_offset = 0.0
+	_press_timer = _press_timer  # 保留下压周期相位，仅清偏移
+
+
 func update(delta: float, boss) -> void:
 	match int(boss.boss_type):
 		1:

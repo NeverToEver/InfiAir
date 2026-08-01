@@ -20,6 +20,9 @@ func full_text() -> String:
 var _char_t: float = 0.0
 var _shown_chars: int = 0
 var _hold_left: float = -1.0  # <0：打字中
+## C13 修复：淡出 tween 缓存——show_line/clear 必须 kill 进行中的淡出，
+## 否则新台词恰落淡出窗口时被残留 tween 拉回 alpha=0 并 hide
+var _fade_tween: Tween = null
 
 
 func _init() -> void:
@@ -44,6 +47,10 @@ func _init() -> void:
 
 ## 播放一句台词（翻译键）：新台词顶掉未播完的旧台词
 func show_line(key: String) -> void:
+	# C13：先取消进行中的淡出，避免新台词被残留 tween 拖回 alpha=0
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+		_fade_tween = null
 	_full_text = tr(key)
 	_shown_chars = 0
 	_char_t = 0.0
@@ -56,6 +63,10 @@ func show_line(key: String) -> void:
 
 ## 清空当前台词并隐藏（B13：返航打断事件时调用，避免恢复对局后台词残留）
 func clear() -> void:
+	# C13：取消进行中的淡出，防止 clear 后 alpha 残留改变
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+		_fade_tween = null
 	_full_text = ""
 	_shown_chars = 0
 	_char_t = 0.0
@@ -80,6 +91,9 @@ func _process(delta: float) -> void:
 		_hold_left -= delta
 		if _hold_left <= 0.0:
 			_hold_left = FADE_TIME + 1.0  # 进入淡出段（复用同一计时）
-			var tween := create_tween()
-			tween.tween_property(_panel, "modulate:a", 0.0, FADE_TIME)
-			tween.tween_callback(_panel.hide)
+			_fade_tween = create_tween()
+			_fade_tween.tween_property(_panel, "modulate:a", 0.0, FADE_TIME)
+			_fade_tween.tween_callback(func() -> void:
+				_fade_tween = null
+				_panel.hide()
+			)
