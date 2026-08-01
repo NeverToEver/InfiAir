@@ -109,6 +109,8 @@ func _ready() -> void:
 	for tag: Label in [_fuel_tag, _dash_tag, _dock_tag]:
 		tag.add_theme_font_override("font", FONT)
 		tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
+		tag.add_theme_color_override("font_color", UITheme.TEXT_DIM)
+	_dock_tag.add_theme_color_override("font_color", UITheme.ACCENT)
 	_hp_bar.fill_color = UITheme.ACCENT
 	_fuel_bar.fill_color = UITheme.ACCENT
 	_dash_bar.fill_color = UITheme.ACCENT
@@ -390,14 +392,22 @@ func _build_backplates() -> void:
 	add_child(score_tag)
 	var status_plate := ChamferedPanel.new()
 	status_plate.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	status_plate.position = Vector2(10.0, -82.0)
-	status_plate.size = Vector2(560.0, 76.0)
+	status_plate.position = Vector2(10.0, -120.0)
+	status_plate.size = Vector2(560.0, 110.0)
 	add_child(status_plate)
 	move_child(status_plate, 0)
 	var lives_tag := _make_corner_tag(tr("UI_LIVES_TAG"))
 	lives_tag.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	lives_tag.position = Vector2(22.0, -102.0)
+	lives_tag.position = Vector2(22.0, -140.0)
 	add_child(lives_tag)
+	# 仪表区与母舰状态区之间的竖分隔线（分区结构感）
+	var status_divider := ColorRect.new()
+	status_divider.color = UITheme.ACCENT_DIM
+	status_divider.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	status_divider.position = Vector2(374.0, -92.0)
+	status_divider.size = Vector2(1.0, 56.0)
+	status_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(status_divider)
 	# 右上难度背板：与分数块同语系（原浮空文字难以在亮背景上阅读）
 	var diff_plate := ChamferedPanel.new()
 	diff_plate.set_anchors_preset(Control.PRESET_TOP_RIGHT)

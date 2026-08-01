@@ -309,7 +309,8 @@ func _refresh() -> void:
 	# 战机库状态总览
 	var buff_text := ""
 	for id in GameState.buffs:
-		buff_text += "%s×%d  " % [String(id), int(GameState.buffs[id])]
+		# 显示名走翻译键（与 Buff 三选一/HUD 明细栏同源），不裸显内部 id
+		buff_text += "%s×%d  " % [tr("BUFF_%s_NAME" % String(id).to_upper()), int(GameState.buffs[id])]
 	if buff_text.is_empty():
 		buff_text = tr("BASE_NO_BUFF")
 	var fuel_pct := 0

@@ -10,45 +10,29 @@ var _msg_label: Label
 var _ok_button: Button
 var _cancel_button: Button
 var _plate: ChamferedPanel
+var _dim: ColorRect
+var _title_label: Label
 var _battle: bool = false
 var _exiting: bool = false
 
 
 func _ready() -> void:
 	visible = false
-	var dim := ColorRect.new()
-	dim.color = UITheme.DIM_BG
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
-
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
-	_plate = ChamferedPanel.new()
+	var shell := UITheme.make_page_shell("EXIT_TITLE")
+	add_child(shell["root"])
+	_dim = shell["dim"]
+	_plate = shell["panel"]
 	_plate.custom_minimum_size = Vector2(560.0, 320.0)
-	_plate.brackets = true
-	center.add_child(_plate)
-
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_plate.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 24)
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	margin.add_child(vbox)
-
-	var title := UITheme.make_label(tr("EXIT_TITLE"), UITheme.FONT_TITLE, UITheme.ACCENT)
-	vbox.add_child(title)
+	_title_label = shell["title"]
+	var content: VBoxContainer = shell["content"]
 
 	_msg_label = UITheme.make_label("", UITheme.FONT_BODY, UITheme.TEXT)
-	vbox.add_child(_msg_label)
+	content.add_child(_msg_label)
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 24)
-	vbox.add_child(row)
+	content.add_child(row)
 
 	_cancel_button = _make_button(tr("EXIT_CANCEL"))
 	_cancel_button.pressed.connect(cancel)
@@ -74,12 +58,13 @@ func show_confirm(battle: bool = false) -> void:
 	_battle = battle
 	_refresh_texts()
 	visible = true
-	UITheme.animate_open(_plate)
+	UITheme.animate_modal_open(_dim, _plate)
 	# 默认焦点在「取消」（安全侧），防止误按 Enter 直接退出
 	_cancel_button.grab_focus()
 
 
 func _refresh_texts() -> void:
+	_title_label.text = tr("EXIT_TITLE")
 	_msg_label.text = tr("EXIT_BATTLE_MSG") if _battle else tr("EXIT_MSG")
 	_msg_label.add_theme_color_override(
 		"font_color", UITheme.DANGER if _battle else UITheme.TEXT

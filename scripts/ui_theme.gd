@@ -18,7 +18,7 @@ const BTN_NORMAL := Color(0.039, 0.063, 0.102, 0.4)  # 透明底
 const BTN_HOVER := Color(0.0, 0.83, 1.0, 0.12)
 const BTN_PRESSED := Color(0.0, 0.83, 1.0, 0.25)
 const BTN_PRIMARY_BG := Color(0.0, 0.83, 1.0, 0.18)  # 主按钮底（ACCENT 18% alpha）
-const DIM_BG := Color(0.0, 0.0, 0.0, 0.6)  # 全屏遮罩
+const DIM_BG := Color(0.006, 0.012, 0.024, 0.84)  # 全屏遮罩：深青黑强压暗，模态层与游戏画面充分分离
 const EVENT_MAGENTA := Color(1.0, 0.25, 0.75)  # 随机事件/通讯品红
 const WARN_YELLOW := Color(1.0, 0.8, 0.35)  # 蓄力/提示黄
 const CHARGE_CYAN := Color(0.5, 0.9, 1.0)  # 蓄力青
@@ -73,6 +73,7 @@ static func make_button(text: String, primary: bool = false) -> Button:
 	else:
 		button.add_theme_font_size_override("font_size", FONT_BODY)
 		apply_button(button)
+	add_button_motion(button)
 	return button
 
 
@@ -101,6 +102,7 @@ static func make_toggle_button(text: String, group: ButtonGroup) -> Button:
 	button.custom_minimum_size = Vector2(110.0, 48.0)
 	button.add_theme_font_override("font", FONT)
 	button.add_theme_font_size_override("font_size", FONT_BODY)
+	add_button_motion(button)
 	return button
 
 
@@ -144,8 +146,8 @@ static func make_section_header(text: String) -> Control:
 
 
 ## 页面骨架：遮罩 dim + CenterContainer + ChamferedPanel(brackets)
-## + 页头（标题 + accent 装饰短线 + 分隔线）+ 内容 VBox（separation 16）。
-## 返回 {"root", "panel", "title", "content"}：root 挂到 CanvasLayer 下，内容加进 content。
+## + 页头（标题 + accent 装饰短线 + 分隔线）+ 内容 VBox（separation 16，纵向填满居中）。
+## 返回 {"root", "dim", "panel", "margin", "title", "content"}：root 挂到 CanvasLayer 下，内容加进 content。
 static func make_page_shell(title_key: String) -> Dictionary:
 	var dim := ColorRect.new()
 	dim.color = DIM_BG
@@ -161,6 +163,11 @@ static func make_page_shell(title_key: String) -> Dictionary:
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# 内容内缩，避开面板边框与括号角标（ChamferedPanel.padding 只管扩尺寸，不管内容偏移）
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	panel.add_child(margin)
 
 	var vbox := VBoxContainer.new()
@@ -189,12 +196,25 @@ static func make_page_shell(title_key: String) -> Dictionary:
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	# 纵向填满页头之下的剩余空间并居中：消除面板底部空荡，按钮组居中构图
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(content)
 
-	return {"root": dim, "panel": panel, "title": title, "content": content}
+	return {"root": dim, "dim": dim, "panel": panel, "margin": margin, "title": title, "content": content}
 
 
 # ---------------- 动效 ----------------
+
+## 模态统一打开动效：遮罩 150ms 淡入 + 面板 200ms 淡入 + 内容错峰淡入（可选）。
+## 各模态页面 open()/show 时调用，替代散落的 animate_open 单面板调用。
+static func animate_modal_open(dim: Control, panel: Control, content: Control = null) -> void:
+	dim.modulate.a = 0.0
+	var dim_tween := dim.create_tween()
+	dim_tween.tween_property(dim, "modulate:a", 1.0, 0.15)
+	animate_open(panel)
+	if content != null:
+		stagger_open(content)
+
 
 ## 子项依次 60ms 间隔淡入（只动 modulate.a，不动 position——容器布局会覆盖 position）
 static func stagger_open(container: Control) -> void:
@@ -247,3 +267,26 @@ static func animate_open(control: Control) -> void:
 	control.modulate.a = 0.0
 	var tween := control.create_tween()
 	tween.tween_property(control, "modulate:a", 1.0, 0.2)
+
+
+## 按钮微动效：hover/焦点 1.02 倍放大、按下 0.98 回弹（pivot 居中，只动 scale 不动布局）。
+## 幅度刻意收小：全宽按钮放大过多会溢出面板边框。
+## 由 make_button/make_toggle_button 统一挂载；键盘焦点与鼠标 hover 表现一致。
+static func add_button_motion(button: Button) -> void:
+	var update_pivot := func() -> void:
+		button.pivot_offset = button.size * 0.5
+	button.resized.connect(update_pivot)
+	update_pivot.call()
+	button.mouse_entered.connect(func() -> void: _motion_tween(button, 1.02))
+	button.mouse_exited.connect(func() -> void: _motion_tween(button, 1.0))
+	button.focus_entered.connect(func() -> void: _motion_tween(button, 1.02))
+	button.focus_exited.connect(func() -> void: _motion_tween(button, 1.0))
+	button.button_down.connect(func() -> void: _motion_tween(button, 0.98))
+	button.button_up.connect(func() -> void: _motion_tween(button, 1.0))
+
+
+static func _motion_tween(button: Button, target: float) -> void:
+	if not is_instance_valid(button):
+		return
+	var tween := button.create_tween()
+	tween.tween_property(button, "scale", Vector2(target, target), 0.08)

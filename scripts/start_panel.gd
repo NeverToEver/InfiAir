@@ -35,10 +35,10 @@ func _ready() -> void:
 	add_child(dim)
 	add_child(StartBackdrop.new())  # 装饰星空（界面元素，非游玩背景）
 
-	# 右侧装饰雷达（先加，压在菜单板之下）
+	# 右侧装饰雷达（先加，压在菜单板之下）；绝对定位中心 (1420,480)，与菜单板同水平线。
+	# 不用 PRESET_CENTER：其锚点语义会把 position 加成到屏幕中心，导致雷达右缘被裁
 	var radar := StartRadar.new()
-	radar.set_anchors_preset(Control.PRESET_CENTER)
-	radar.position = Vector2(460.0, -280.0)
+	radar.position = Vector2(1140.0, 200.0)
 	radar.custom_minimum_size = Vector2(560.0, 560.0)
 	radar.size = Vector2(560.0, 560.0)
 	add_child(radar)
@@ -87,6 +87,11 @@ func _ready() -> void:
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# 内容内缩，避开面板边框与括号角标（分组标题此前贴着左上角标）
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	_plate.add_child(margin)
 
 	_content = VBoxContainer.new()

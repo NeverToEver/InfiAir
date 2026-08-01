@@ -70,12 +70,23 @@ func _ready() -> void:
 	GameState.add_buff(&"spread_shot")
 	var main := get_node("Main")
 	main.start_homecoming()
-	await get_tree().process_frame
-	if main.return_cinematic() != null:
-		main.return_cinematic().skip()
+	# 跳过返航过场：skip() 有 SKIP_GRACE 输入宽限（开播数秒内忽略），宽限期内每帧重试，
+	# 直到过场引用被 _on_return_finished 置空（跳过与自然结束同一出口）
+	for i in 600:
+		await get_tree().process_frame
+		var rc: ReturnCinematic = main.return_cinematic()
+		if rc != null and is_instance_valid(rc):
+			rc.skip()
+		else:
+			break
+	# 等基地控制台真正可见再截（跳过过场后还有全息启动动效）
+	var base_ui: CanvasLayer = get_node("Main/BaseUI")
+	for i in 120:
+		await get_tree().process_frame
+		if base_ui.visible:
+			break
 	await _settle()  # 等全息启动 0.25s + animate_open 0.2s 播完
 	_shot("base")
-	var base_ui: CanvasLayer = get_node("Main/BaseUI")
 	base_ui.resume()
 	get_tree().paused = false
 	# 等轨道打击动画播完，避免叠入后续截图
@@ -93,6 +104,11 @@ func _ready() -> void:
 	GameState.high_score = 100  # 压低原纪录，保证「新纪录」标记可见（结尾还原）
 	GameState.add_score(8888)
 	GameState.player_died.emit()
+	# 等结算面板真正可见再截
+	for i in 60:
+		await get_tree().process_frame
+		if get_node("Main/GameOverUI").visible:
+			break
 	await _settle()
 	_shot("gameover")
 

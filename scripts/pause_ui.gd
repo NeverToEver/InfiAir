@@ -13,6 +13,7 @@ var _hint_label: Label
 var _plate: ChamferedPanel
 var _content: VBoxContainer
 var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
+var _dim: ColorRect
 
 
 func _ready() -> void:
@@ -21,28 +22,33 @@ func _ready() -> void:
 
 	var shell := UITheme.make_page_shell("PAUSE_TITLE")
 	add_child(shell["root"])
+	_dim = shell["dim"]
 	_plate = shell["panel"]
 	_plate.custom_minimum_size = Vector2(560.0, 480.0)
 	_title_label = shell["title"]
 	_content = shell["content"]
 
 	_resume_button = UITheme.make_button(tr("PAUSE_RESUME"), true)
-	_resume_button.custom_minimum_size = Vector2(280.0, 56.0)
+	_resume_button.custom_minimum_size = Vector2(360.0, 56.0)
+	_resume_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_resume_button.pressed.connect(close)
 	_content.add_child(_resume_button)
 
 	_save_button = UITheme.make_button(tr("PAUSE_SAVE"))
-	_save_button.custom_minimum_size = Vector2(280.0, 52.0)
+	_save_button.custom_minimum_size = Vector2(360.0, 52.0)
+	_save_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_save_button.pressed.connect(_on_save_pressed)
 	_content.add_child(_save_button)
 
 	_settings_button = UITheme.make_button(tr("PAUSE_SETTINGS"))
-	_settings_button.custom_minimum_size = Vector2(280.0, 52.0)
+	_settings_button.custom_minimum_size = Vector2(360.0, 52.0)
+	_settings_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_content.add_child(_settings_button)
 
 	_quit_button = UITheme.make_button(tr("PAUSE_QUIT"))
-	_quit_button.custom_minimum_size = Vector2(280.0, 52.0)
+	_quit_button.custom_minimum_size = Vector2(360.0, 52.0)
+	_quit_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_content.add_child(_quit_button)
 
@@ -64,8 +70,7 @@ func open() -> void:
 	_save_button.text = tr("PAUSE_SAVE")
 	get_tree().paused = true
 	visible = true
-	UITheme.animate_open(_plate)
-	UITheme.stagger_open(_content)
+	UITheme.animate_modal_open(_dim, _plate, _content)
 	_resume_button.grab_focus()
 
 
@@ -79,6 +84,11 @@ func toggle() -> void:
 		close()
 	else:
 		open()
+
+
+## 主按钮重获焦点（设置页返回时由 SettingsUI 调用，与开始面板 grab_primary_focus 同约定）
+func grab_primary_focus() -> void:
+	_resume_button.grab_focus()
 
 
 func _get_settings_ui() -> CanvasLayer:

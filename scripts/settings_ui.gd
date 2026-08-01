@@ -24,6 +24,7 @@ var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
+var _dim: ColorRect
 
 var _pages: Dictionary = {}  # 页名 -> Control
 var _nav_buttons: Dictionary = {}
@@ -41,37 +42,19 @@ func _ready() -> void:
 	add_to_group("settings_ui")
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var dim := ColorRect.new()
-	dim.color = UITheme.DIM_BG
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
-
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
-	_plate = ChamferedPanel.new()
+	var shell := UITheme.make_page_shell("SET_TITLE")
+	add_child(shell["root"])
+	_dim = shell["dim"]
+	_plate = shell["panel"]
 	_plate.custom_minimum_size = Vector2(1000.0, 700.0)
-	_plate.brackets = true
-	center.add_child(_plate)
-
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	_plate.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	margin.add_child(vbox)
-
-	_title_label = UITheme.make_label(tr("SET_TITLE"), UITheme.FONT_TITLE, UITheme.ACCENT)
-	vbox.add_child(_title_label)
+	_title_label = shell["title"]
+	var vbox: VBoxContainer = shell["content"]
+	# 设置页内容从顶部排布（覆盖 shell 的居中），body 纵向填满
+	vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 20)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(body)
 
 	# 左侧导航
@@ -102,7 +85,8 @@ func _ready() -> void:
 	vbox.add_child(_hint_label)
 
 	_back_button = UITheme.make_button(tr("SET_BACK"))
-	_back_button.custom_minimum_size = Vector2(200.0, 52.0)
+	_back_button.custom_minimum_size = Vector2(240.0, 52.0)
+	_back_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_back_button.pressed.connect(_on_back_pressed)
 	vbox.add_child(_back_button)
 
@@ -114,8 +98,10 @@ func _ready() -> void:
 
 func _build_controls_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
-	page.add_theme_constant_override("separation", 6)
-	for action in GameState.REBINDABLE_ACTIONS:
+	page.add_theme_constant_override("separation", 8)
+	var actions := GameState.REBINDABLE_ACTIONS
+	for i in actions.size():
+		var action: StringName = actions[i]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 		var name_label := UITheme.make_label(
@@ -133,6 +119,13 @@ func _build_controls_page() -> VBoxContainer:
 		row.add_child(rebind_button)
 		page.add_child(row)
 		_rebind_rows[action] = {"keys": keys_label, "button": rebind_button, "name": name_label}
+		# 行间细分隔线（末行不加）：密集列表的视觉分组
+		if i < actions.size() - 1:
+			var sep := ColorRect.new()
+			sep.color = Color(UITheme.ACCENT_DIM, 0.4)
+			sep.custom_minimum_size = Vector2(0.0, 1.0)
+			sep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			page.add_child(sep)
 	_reset_button = UITheme.make_button(tr("SET_RESET"))
 	_reset_button.custom_minimum_size = Vector2(220.0, 44.0)
 	_reset_button.pressed.connect(_on_reset_keys)
@@ -341,7 +334,9 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_capturing_action = &""
 	show_page(&"controls")
 	visible = true
-	UITheme.animate_open(_plate)
+	UITheme.animate_modal_open(_dim, _plate)
+	# 键盘/手柄链路：打开即有焦点（方向键在导航/行间遍历，Enter 触发）
+	(_nav_buttons[&"controls"] as Button).grab_focus()
 
 
 func _refresh_lang_buttons() -> void:
@@ -413,5 +408,8 @@ func _on_back_pressed() -> void:
 	visible = false
 	if _opener != null and is_instance_valid(_opener):
 		_opener.visible = true
+		# 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
+		if _opener.has_method("grab_primary_focus"):
+			_opener.grab_primary_focus()
 	_opener = null
 	back_pressed.emit()
