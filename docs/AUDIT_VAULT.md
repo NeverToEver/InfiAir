@@ -327,9 +327,45 @@
 | 组件 boss 参数无类型（boss_attacks.gd:70） | 🟦 取舍可接受 | A1/A3 文档化取舍，可优化非必须 |
 | 测试 create_timer | 🟦 泄漏影响有限 | 收尾即 quit；仍建议收敛（C33） |
 
-## 修复起效记录（C 系列，待修复落地后回填）
+## 修复起效记录（2026-08-01 全量修复，见当次批次提交）
 
 | 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
 | --- | --- | --- |
-| C01–C35 | ⏳ 待修复 | 修复计划见 `docs/2026-08-01-godot-best-practice-audit.md` §5；落地后按批次回填 |
+| C01 | ✅ 已修复 | `tutorial.gd` 两处 `await create_timer` 改一次性 `Timer` 节点 + `timeout` 信号（process_mode=ALWAYS 对齐原 SceneTreeTimer）；教程切场景不再协程悬死。验证：tutorial_test 0 FAIL |
+| C02 | ✅ 已修复 | `game_state.gd` load_profile key_bindings 类型守卫——非 Dictionary/子值非 Array 跳过该字段，不崩溃不提前返回。验证：startup_flow/base_system 0 FAIL |
+| C03 | ✅ 已修复 | `_apply_balance` 校验难度表 easy/medium/hard 子键齐全（`_valid_difficulty_defs`）+ milestones.base 非空数组，损坏 JSON 不再 KeyError/除零。验证：balance_test 0 FAIL |
+| C04 | ✅ 已修复 | `bullet.gd` 位移 `_process`→`_physics_process`，activate/deactivate 的 set_process→set_physics_process 配对；view_zoom_test 等待改 physics_frame。验证：pool_reuse/hit_logic/enemy_combat/smoke 0 FAIL |
+| C05 | ✅ 已修复 | `player.gd` 无敌闪烁/碰撞点脉动改 `Enemy.sin_fast` 查表（`Time.get_ticks_msec()` 缓存为常量倍率）。验证：--quit-after 300 无错 |
+| C06 | ✅ 已修复 | `enemy.gd` 移动 ctx 改 `_move_ctx` 字典复用（每帧只更新字段）；主路径 view 复用到出界销毁。验证：enemy_combat/wave_pacing 0 FAIL |
+| C07 | ✅ 已修复 | `starfield.gd` 星点范围/回绕改 `view_world_rect().size` 缓存，不再写死 1920×1080。验证：view_zoom_test 0 FAIL |
+| C08 | ✅ 已修复 | `boss.gd` 逃跑警告改 `tr("BOSS_ESCAPE_WARNING")`（translations.csv 补 zh/en）。验证：i18n_test 0 FAIL |
+| C09 | ✅ 已修复 | boss 体系四处 `_physics_process` 直调 sin 改 `Enemy.sin_fast`（下压/telegraph/猎杀闪烁）。验证：boss_pattern/boss_enrage 0 FAIL |
+| C10 | ✅ 已修复 | `enrage_sequence._path_center` 方形路径改 `_square_corner` 两端点 lerp，消除每帧 5 元素数组。验证：boss_enrage 0 FAIL |
+| C11 | ✅ 已修复 | `BossMovement.reset_press()` 段切换归零下压偏移 + `boss._enter_phase` 调用；boss_phase_test 新增"P2 后机身回锚线"断言（容差 4px）。验证：boss_phase 0 FAIL |
+| C12 | ✅ 已修复 | `return_cinematic` 镜头 7 推近 `set_parallel` 改顺序 tween + 前置 interval + `.parallel()` 属性组，特写在人物躺下后开始。验证：return_cinematic 0 FAIL |
+| C13 | ✅ 已修复 | `comm_overlay` 缓存 `_fade_tween`，show_line/clear 先 kill；新台词不再被残留淡出拉没。验证：elite_turret/formation_strike 0 FAIL |
+| C14 | ✅ 已修复 | 硬编码 960/±1600 世界坐标改 `view_world_rect().get_center()`（main 蓄力/冲刺预警线/strafe 方向）。验证：view_zoom/boss_pattern 0 FAIL |
+| C15 | ✅ 已修复 | `main.gd` await process_frame 后加 `is_inside_tree()` 守卫。验证：--quit-after 300 + startup_flow 0 FAIL |
+| C16 | ✅ 已修复 | `game_state.gd` 新增 `save_bool()` 安全布尔读取，7 处 `bool(手改值)` 全替换（"false"/"0" 字符串不再误读 true）。验证：startup_flow/base_system 0 FAIL |
+| C17 | ✅ 已修复 | welcome_screen/pause_ui 的 `get_parent().get_node` 链改 `get_node_or_null` + 判空。验证：back_navigation 0 FAIL |
+| C18 | ✅ 已修复 | milestone_base→Array[int]、UNLOCK_SCORES→Array[int]、STRAFE_SPEEDS→Array[float]（cfg 显式转换）、enemy._pool→EnemyPool。验证：--import + 全量测试 |
+| C19 | 🟦 设计确认 | **非缺陷**：CONSTANT_CASE 可变 var 为项目"脚本回退默认值"数据模式（CLAUDE.md 明文），大范围改名收益低风险高，维持现状。不改码 |
+| C20 | ✅ 已修复 | spread_pods()→Array[Node2D]、bullet 爆炸/溅射 `as Enemy`、EnemyMoveStrategy 8 update+4 reset 参数 Node2D→Enemy。验证：--import + 全量测试 |
+| C21 | ✅ 已修复 | bullet_pool/enemy_pool 加 `_exit_tree` 清空 GameState 全局池注册。验证：pool_reuse 0 FAIL |
+| C22 | ✅ 已修复 | player `_exit_tree` 显式断开 GameState 信号；camera_shake connect 加 is_connected 守卫 + _exit_tree 断开。验证：--quit-after 300 |
+| C23 | ✅ 已修复 | laser_weapon/boss_attacks/enrage_sequence 每帧 PackedVector2Array 改预分配写元素；aim_frame_layer 碰撞半径 meta 缓存。验证：boss_pattern/boss_enrage 0 FAIL |
+| C24 | ✅ 已修复 | Bullet.polygon_node() 懒加载缓存，boss_fire/enemy 不再每弹 get_node；mothership `_muzzles` 数组同序缓存。验证：boss_pattern/mothership_summon 0 FAIL |
+| C25 | ✅ 已修复 | main 返航/死亡终局路径补 `_stop_charging`，蓄力特效不再残留。验证：mothership_summon 0 FAIL |
+| C26 | ✅ 已修复 | start_panel 按钮初始化 `tr()` + base_console 任务格式串提 `BASE_MISSION_FMT`。验证：i18n_test 0 FAIL |
+| C27 | ✅ 已修复 | ChamferedPanel/StartRadar `_process` 加 `is_visible_in_tree()` 早退。验证：--quit-after 300 |
+| C28 | ⚠️ 部分完成 | warp_gate 环/弧预建单位点集（每次召唤都发生）已零分配重构；intro_cinematic/orbital_strike/summon_window/mothership 四处单次瞬态演出（1-4s）点集重建保留（几何重构收益低风险高，低优先）。 |
+| C29 | ✅ 已修复 | enemy_combat_test `_exiting`→`is_exiting()`。验证：enemy_combat 0 FAIL |
+| C30 | ✅ 已修复 | back_navigation_test `_notification`→`go_back()`；keybind_test `_unhandled_input`→`Input.parse_input_event`。验证：back_navigation/keybind 0 FAIL |
+| C31 | ✅ 已修复 | tutorial_test `_exit_tutorial`→注入 ui_cancel 动作。验证：tutorial_test 0 FAIL |
+| C32 | ✅ 已修复 | base_system_test `_init_missions`→新增公开 `reset_missions()`。验证：base_system 0 FAIL |
+| C33 | 📄 记录在案 | 测试 ~120 处 `await create_timer`：多数经 `_wait_real` 正确包装、收尾即 quit 泄漏影响有限；系统性收敛属低优先改进，未逐一替换（高风险低收益）。 |
+| C34 | 📄 记录在案 | 测试硬编码 balance.json 数值：改 JSON 漂移不报错，属测试设计权衡；纯数学倍率保留。低优先。 |
+| C35 | 📄 记录在案 | meta_health_fx_test set_test_state 字符串键：显式测试钩子（A7 承认模式），键名耦合实现属可读性改进，低优先。 |
+
+> 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 120s 探针。
 
