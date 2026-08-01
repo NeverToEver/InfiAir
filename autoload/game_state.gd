@@ -64,7 +64,7 @@ var _save_manager := SaveManager.new()
 var _sfx_player := SfxPlayer.new()
 var _registry := EntityRegistry.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
-var milestone_base: Array = MILESTONE_BASE.duplicate()
+var milestone_base: Array[int] = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
 ## 全局机体尺寸缩放（balance.json 顶层 world_scale；0.4 = 当前默认观感，2026-07-31 由 1/3 上调）。
 ## 机体尺寸族数值（贴图 scale/碰撞 radius/机体偏移/随机体特效比例）在 json/tscn/脚本回退中
@@ -96,8 +96,13 @@ func cfg(path: String, default: Variant) -> Variant:
 func _apply_balance() -> void:
 	world_scale = float(cfg("world_scale", world_scale))
 	# C03 修复：milestones.base 须为非空数组，否则下游 milestone_threshold 除零
+	# C18：显式转 Array[int]（cfg 返回 Variant，typed 赋值需转换）
 	var base: Variant = cfg("milestones.base", MILESTONE_BASE.duplicate())
-	milestone_base = base if base is Array and not (base as Array).is_empty() else MILESTONE_BASE.duplicate()
+	var base_arr: Array[int] = []
+	if base is Array and not (base as Array).is_empty():
+		for v in base:
+			base_arr.append(int(v))
+	milestone_base = base_arr if not base_arr.is_empty() else MILESTONE_BASE.duplicate()
 	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
 	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
 	_prog_per_ten_minutes = float(cfg("progression.per_ten_minutes", 1.0))
@@ -740,6 +745,12 @@ func _init_missions() -> void:
 	missions.clear()
 	for def in MISSION_DEFS:
 		missions[def["id"]] = {"progress": 0, "claimed": false}
+
+
+## C32 修复：公开任务重置口（仅清任务进度，不清 rp/buffs——比 reset_run 副作用小，
+## 供测试/调用方在保留状态的前提下重置 missions）
+func reset_missions() -> void:
+	_init_missions()
 
 
 func _set_mission_progress(id: StringName, value: int) -> void:

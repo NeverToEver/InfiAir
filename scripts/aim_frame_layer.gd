@@ -69,9 +69,15 @@ func frame_pad() -> float:
 
 func frame_half_size(e: Enemy) -> float:
 	var r := 0.0
-	var shape_node := e.get_node_or_null("CollisionShape2D") as CollisionShape2D
-	if shape_node != null and shape_node.shape is CircleShape2D:
-		r = (shape_node.shape as CircleShape2D).radius * maxf(e.scale.x, 0.5)
+	# C23：碰撞半径经 meta 缓存——setup 后恒定（仅 scale.x 随缩放变化），
+	# 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")
+	if not e.has_meta("aim_frame_radius"):
+		var shape_node := e.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		var r_base := 0.0
+		if shape_node != null and shape_node.shape is CircleShape2D:
+			r_base = (shape_node.shape as CircleShape2D).radius
+		e.set_meta("aim_frame_radius", r_base)
+	r = float(e.get_meta("aim_frame_radius")) * maxf(e.scale.x, 0.5)
 	return r + _frame_pad
 
 

@@ -30,7 +30,10 @@ func _ready() -> void:
 	get_tree().paused = true
 	visible = true
 	# 开始面板此时可能已自显（无存档）：先藏起，欢迎页关闭后再正式 show_panel()
-	get_parent().get_node("StartPanel").visible = false
+	# C17：get_node_or_null + 判空，独立加载欢迎页时节点缺失不崩溃
+	var start_panel: CanvasLayer = get_parent().get_node_or_null("StartPanel") as CanvasLayer
+	if start_panel != null:
+		start_panel.visible = false
 
 
 func _build_ui() -> void:
@@ -97,8 +100,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Esc/手柄 B 在顶层 = 全局退出确认（BackNavigator 处理），不算"任意键"
 	if event.is_action_pressed("ui_cancel"):
 		return
-	# 退出确认窗打开期间不响应其他按键
-	if get_parent().get_node("ExitConfirm").visible:
+	# 退出确认窗打开期间不响应其他按键（C17：get_node_or_null 判空）
+	var exit_confirm: CanvasLayer = get_parent().get_node_or_null("ExitConfirm") as CanvasLayer
+	if exit_confirm != null and exit_confirm.visible:
 		return
 	var pressed := false
 	if event is InputEventKey:
@@ -118,5 +122,6 @@ func dismiss() -> void:
 	visible = false
 	GameState.welcome_seen = true
 	GameState.save_profile()
-	var start_panel: CanvasLayer = get_parent().get_node("StartPanel")
-	start_panel.show_panel()
+	var start_panel: CanvasLayer = get_parent().get_node_or_null("StartPanel") as CanvasLayer
+	if start_panel != null:
+		start_panel.show_panel()

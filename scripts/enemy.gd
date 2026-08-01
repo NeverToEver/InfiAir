@@ -71,7 +71,7 @@ var _fire_timer: float = FIRE_INTERVAL
 var _strategy: EnemyMoveStrategy = null
 ## C06 修复：移动上下文缓存（每帧复用同一字典，只更新字段值，消除每帧 new Dictionary 分配）
 var _move_ctx: Dictionary = {}
-var _pool: Node = null
+var _pool: EnemyPool = null
 ## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
 var _active: bool = false
 ## 回收 reparent 保护：4.6 实测 reparent 也会触发 _exit_tree，置位期间禁止 forget 误清池清单
@@ -176,7 +176,7 @@ func set_life_timer(seconds: float) -> void:
 	_life_timer = seconds
 
 
-func set_pool(pool: Node) -> void:
+func set_pool(pool: EnemyPool) -> void:
 	_pool = pool
 
 
@@ -452,9 +452,10 @@ func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) 
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（polygon 尖端朝 +x，即飞行方向）
-		var poly := b.get_node("Polygon2D") as Polygon2D
-		poly.scale = Vector2(2.2, 0.55)
-		poly.color = Color(1.0, 0.85, 0.35)
+		var poly := b.polygon_node()  # C24：缓存引用，不再每次 get_node
+		if poly != null:
+			poly.scale = Vector2(2.2, 0.55)
+			poly.color = Color(1.0, 0.85, 0.35)
 
 
 ## 寿命到期：向上或侧方加速离场（停火，不给分、不计击杀）。

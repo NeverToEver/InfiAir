@@ -12,6 +12,12 @@ func _ready() -> void:
 	GameState.bullet_pool = self
 
 
+## C21 修复：场景卸载时清空全局注册，避免 GameState.bullet_pool 悬空
+func _exit_tree() -> void:
+	if GameState.bullet_pool == self:
+		GameState.bullet_pool = null
+
+
 ## 闲置实例数（A7 遗留清理：测试/诊断公开查询，替代 _free 直读）
 func free_count() -> int:
 	return _free.size()

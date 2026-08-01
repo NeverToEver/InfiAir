@@ -78,7 +78,7 @@ var STRAFE_MAX_X := 1620.0
 ## HP 基底（× 类型系数 × 难度乘数；对齐原作首发 Boss ≈12s TTK 量级）
 var HP_BASE := 800.0
 ## 各类型移动速度 / 开火间隔（模式表 interval 缺键时的回退基准）/ 弹速
-var STRAFE_SPEEDS: Array = [150.0, 400.0, 60.0]
+var STRAFE_SPEEDS: Array[float] = [150.0, 400.0, 60.0]
 var FIRE_INTERVALS: Array = [1.6, 1.8, 0.9]
 var FAN_BULLET_SPEED := 380.0
 var HOMING_BULLET_SPEED := 300.0
@@ -417,7 +417,13 @@ func _ready() -> void:
 	ESCAPE_ACCEL = GameState.cfg("boss.escape.accel", ESCAPE_ACCEL)
 	ESCAPE_COUNTDOWN_FROM = GameState.cfg("boss.escape.countdown_visible_from", ESCAPE_COUNTDOWN_FROM)
 	HP_BASE = GameState.cfg("boss.hp_base", HP_BASE)
-	STRAFE_SPEEDS = GameState.cfg("boss.strafe_speeds", STRAFE_SPEEDS)
+	# C18：cfg 返回 Variant，显式转 Array[float] 再赋 typed 变量
+	var ss: Variant = GameState.cfg("boss.strafe_speeds", STRAFE_SPEEDS)
+	var ss_arr: Array[float] = []
+	if ss is Array:
+		for v in ss:
+			ss_arr.append(float(v))
+	STRAFE_SPEEDS = ss_arr if not ss_arr.is_empty() else [150.0, 400.0, 60.0]
 	# B5 修复：cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
 	# FIRE_INTERVALS[i]——不拷贝会污染全局缓存、easy/hard 下跨 Boss 复合叠加
 	# （同 _load_patterns 的 duplicate(true)，见 BOSS_REDESIGN §8.2）。

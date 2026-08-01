@@ -691,6 +691,11 @@ func exit_pod() -> void:
 
 
 func _exit_tree() -> void:
+	# C22：显式断开 GameState 信号连接（重入树不重复连接；与 PlayerBuffVisuals 模式对齐）
+	if GameState.buffs_changed.is_connected(_refresh_buff_factors):
+		GameState.buffs_changed.disconnect(_refresh_buff_factors)
+	if GameState.aim_assist_changed.is_connected(_on_aim_assist_level_changed):
+		GameState.aim_assist_changed.disconnect(_on_aim_assist_level_changed)
 	if GameState.player_ref == self:
 		GameState.player_ref = null
 	if GameState.player_hitbox == _hitbox:

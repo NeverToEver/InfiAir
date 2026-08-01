@@ -25,7 +25,7 @@ func _init(params: Dictionary = {}) -> void:
 			set(k, params[k])
 
 
-func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 	pass
 
 
@@ -45,7 +45,7 @@ func hover_reference_y() -> float:
 
 
 ## 重激活/出生状态复位（Enemy._ready / reactivate 调用）
-func reset(enemy: Node2D) -> void:
+func reset(enemy: Enemy) -> void:
 	pass
 
 
@@ -53,7 +53,7 @@ func reset(enemy: Node2D) -> void:
 class HoverMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
 			enemy.position.x = clampf(
@@ -69,7 +69,7 @@ class HoverMove:
 class SineMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		enemy.position.x = ctx.spawn_x + Enemy.sin_fast(ctx.time * 3.0 + ctx.phase) * 90.0
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
@@ -84,7 +84,7 @@ class ZigzagMove:
 	var _zig_dir: float = 1.0
 	var _zig_timer: float = 0.7
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		_zig_timer -= delta
 		if _zig_timer <= 0.0:
 			_zig_dir = -_zig_dir
@@ -98,7 +98,7 @@ class ZigzagMove:
 		else:
 			enemy.position.y += ctx.speed * ctx.mdelta
 
-	func reset(enemy: Node2D) -> void:
+	func reset(enemy: Enemy) -> void:
 		_zig_dir = 1.0
 		_zig_timer = randf_range(0.15, 0.7)
 
@@ -110,7 +110,7 @@ class DiveMove:
 	var _dive_target: Vector2 = Vector2.ZERO
 	var _dive_timer: float = 0.0
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if _dive_timer > 0.0:
 			# 入场冲刺：直扑玩家当前位置（钳制不越过屏幕下缘安全线）
 			_dive_timer -= delta
@@ -128,7 +128,7 @@ class DiveMove:
 	func is_diving() -> bool:
 		return _dive_timer > 0.0
 
-	func reset(enemy: Node2D) -> void:
+	func reset(enemy: Enemy) -> void:
 		_dive_timer = 1.2
 		if GameState.player_ref != null:
 			_dive_target = GameState.player_ref.global_position
@@ -142,7 +142,7 @@ class SpiralMove:
 
 	var _center: Vector2 = Vector2.ZERO
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if not ctx.hovering:
 			_center.y += ctx.speed * ctx.mdelta
 		else:
@@ -159,7 +159,7 @@ class SpiralMove:
 	func hover_reference_y() -> float:
 		return _center.y
 
-	func reset(enemy: Node2D) -> void:
+	func reset(enemy: Enemy) -> void:
 		_center = enemy.position
 
 
@@ -167,7 +167,7 @@ class SpiralMove:
 class NoiseMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
 				Enemy.sin_fast(ctx.time * 1.7 + ctx.phase)
@@ -188,7 +188,7 @@ class NoiseMove:
 class AggressiveMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Node2D, ctx: Dictionary) -> void:
+	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
 				Enemy.sin_fast(ctx.time * 2.1 + ctx.phase)

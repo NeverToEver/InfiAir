@@ -136,6 +136,17 @@ func _ready() -> void:
 	_apply_faction()
 
 
+## C24 修复：Polygon2D 懒加载缓存——池化复用生命周期内引用稳定，
+## 调用方（boss_fire/enemy/mothership）不再每次发射 get_node("Polygon2D")
+var _polygon_cache: Polygon2D = null
+
+
+func polygon_node() -> Polygon2D:
+	if _polygon_cache == null:
+		_polygon_cache = get_node_or_null("Polygon2D") as Polygon2D
+	return _polygon_cache
+
+
 func _exit_tree() -> void:
 	# 被外部 queue_free（清场/测试/场景重载）时通知池移除引用；
 	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -216,7 +227,7 @@ func _physics_process(delta: float) -> void:
 ## 遍历副本防 take_damage→die→注销注册表造成的遍历中突变。
 func _explode() -> void:
 	for node in GameState.enemies.duplicate():
-		var e := node as Area2D
+		var e := node as Enemy  # C20：注册表全为 Enemy，静态类型化访问 is_boss/take_damage
 		if e == null or e.is_boss():
 			continue
 		if e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
@@ -228,7 +239,7 @@ func _explode() -> void:
 ## 导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害，×1/3 分随 score_scale。
 func _splash() -> void:
 	for node in GameState.enemies.duplicate():
-		var e := node as Area2D
+		var e := node as Enemy  # C20：注册表全为 Enemy，静态类型化访问 take_damage
 		if e == null:
 			continue
 		if e.global_position.distance_to(global_position) <= splash_radius:

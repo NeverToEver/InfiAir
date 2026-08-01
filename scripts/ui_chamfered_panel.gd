@@ -32,6 +32,9 @@ var _fit_check_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
+	# C27：隐藏面板不做内容自适应（消除不可见实例的每帧空转）
+	if not is_visible_in_tree():
+		return
 	# 0.1s 节流做内容自适应（只按内容放大，不缩小显式设定的尺寸——
 	# 无子节点的纯背板保持原尺寸，否则会被压缩成小菱形）
 	_fit_check_timer -= delta

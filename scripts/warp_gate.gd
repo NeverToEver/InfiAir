@@ -37,10 +37,20 @@ func _ready() -> void:
 	z_index = -1  # 门洞衬在母舰之后
 	_ring = _make_ring(4.0, CYAN)
 	_ring_inner = _make_ring(2.0, WARP_BLUE)
+	# C28：环预建单位半径点集，_layout 帧内仅写 scale（零分配）
+	_ring.points = _ellipse_points(1.0, 48)
+	_ring_inner.points = _ellipse_points(1.0, 48)
 	for i in 3:
 		var arc := Line2D.new()
 		arc.width = 3.0
 		arc.default_color = Color(CYAN, 0.7)
+		# C28：弧预建单位点集（span 50°、10 点），_layout 帧内仅写 scale
+		var pts := PackedVector2Array()
+		var a0 := TAU * float(i) / 3.0
+		for j in 10:
+			var a := a0 + deg_to_rad(50.0) * float(j) / 9.0
+			pts.append(Vector2(cos(a), sin(a) * ELLIPSE_RATIO))
+		arc.points = pts
 		add_child(arc)
 		_arcs.append(arc)
 	# 门心软光填充（替代硬边圆盘）：软点贴图椭圆压扁，alpha 由 _layout 驱动
@@ -135,9 +145,10 @@ func _process(delta: float) -> void:
 
 ## scale_p：门洞开合比例；alpha_p：整体透明度
 func _layout(scale_p: float, alpha_p: float) -> void:
-	_ring.points = _ellipse_points(RADIUS * scale_p, 48)
+	# C28：环预建单位点集，帧内仅写 scale/modulate（零分配）
+	_ring.scale = Vector2.ONE * (RADIUS * scale_p)
 	_ring.default_color = Color(CYAN, 0.9 * alpha_p)
-	_ring_inner.points = _ellipse_points(RADIUS * 0.82 * scale_p, 48)
+	_ring_inner.scale = Vector2.ONE * (RADIUS * 0.82 * scale_p)
 	_ring_inner.default_color = Color(WARP_BLUE, 0.7 * alpha_p)
 	# 新增附件层：预建点集，仅缩放/透明度写（零分配）
 	_mouth.scale = _mouth_base * scale_p
@@ -149,12 +160,8 @@ func _layout(scale_p: float, alpha_p: float) -> void:
 	_lip.modulate.a = alpha_p
 	for i in _arcs.size():
 		var arc := _arcs[i]
-		var pts := PackedVector2Array()
-		var a0 := TAU * float(i) / 3.0
-		for j in 10:
-			var a := a0 + deg_to_rad(50.0) * float(j) / 9.0
-			pts.append(Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * RADIUS * 1.12 * scale_p)
-		arc.points = pts
+		# C28：弧预建单位点集（_ready），帧内仅写 scale/modulate（零分配）
+		arc.scale = Vector2.ONE * (RADIUS * 1.12 * scale_p)
 		arc.default_color = Color(CYAN, 0.7 * alpha_p)
 
 

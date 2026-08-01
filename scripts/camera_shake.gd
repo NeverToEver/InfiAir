@@ -8,8 +8,15 @@ var _strength: float = 0.0
 
 
 func _ready() -> void:
-	GameState.screen_shake.connect(_on_screen_shake)
+	# C22：is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
+	if not GameState.screen_shake.is_connected(_on_screen_shake):
+		GameState.screen_shake.connect(_on_screen_shake)
 	DECAY = GameState.cfg("effects.shake.decay", DECAY)
+
+
+func _exit_tree() -> void:
+	if GameState.screen_shake.is_connected(_on_screen_shake):
+		GameState.screen_shake.disconnect(_on_screen_shake)
 
 
 func _process(delta: float) -> void:

@@ -42,6 +42,7 @@ func _ready() -> void:
 	_beam.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam.end_cap_mode = Line2D.LINE_CAP_ROUND
 	_beam.visible = false
+	_beam.points = PackedVector2Array([Vector2.ZERO, Vector2.ZERO])  # C23：预分配，帧内只写元素
 	add_child(_beam)
 	_glow = GPUParticles2D.new()
 	_glow.top_level = true
@@ -73,7 +74,8 @@ func _physics_process(delta: float) -> void:
 			return
 		var start := _player.global_position
 		var end := start + _aim_dir(start) * BEAM_LENGTH
-		_beam.points = PackedVector2Array([start, end])
+		_beam.points[0] = start  # C23：预分配数组只写元素，避免每帧 new PackedVector2Array
+		_beam.points[1] = end
 		_glow.position = end
 		if _tick_timer <= 0.0:
 			_tick_timer += TICK_INTERVAL

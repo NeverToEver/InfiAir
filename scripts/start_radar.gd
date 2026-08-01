@@ -16,6 +16,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# C27：隐藏（StartPanel 关闭进对局）时不再每帧重绘
+	if not is_visible_in_tree():
+		return
 	_angle = fmod(_angle + SWEEP_SPEED * delta, TAU)
 	queue_redraw()
 

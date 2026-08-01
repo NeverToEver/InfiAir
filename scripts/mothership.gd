@@ -107,6 +107,8 @@ var _beam_dust: GPUParticles2D = null  # 光束下端上升尘粒
 
 @onready var _beam: Polygon2D = $TractorBeam
 @onready var _turrets: Array[Node2D] = [$TurretL, $TurretR]
+## C24 修复：MuzzleFlash 缓存（与 _turrets 同序），开火不再每次 get_node
+var _muzzles: Array[GPUParticles2D] = []
 
 
 func _ready() -> void:
@@ -172,8 +174,10 @@ func _ready() -> void:
 	_beam.polygon = beam_pts
 	($TurretL as Node2D).position = Vector2(-170.0, 80.0) * ws
 	($TurretR as Node2D).position = Vector2(170.0, 80.0) * ws
+	_muzzles.clear()
 	for turret in _turrets:
 		var muzzle := turret.get_node("MuzzleFlash") as GPUParticles2D
+		_muzzles.append(muzzle)
 		muzzle.position = Vector2(24.0, 0.0) * ws
 		var muzzle_mat := muzzle.process_material as ParticleProcessMaterial
 		muzzle_mat.scale_min = 1.5 * ws
@@ -558,7 +562,9 @@ func _update_gatling(delta: float) -> void:
 		# 比玩家弹更细更亮
 		b.scale = Vector2(0.6, 0.6)
 		b.modulate = Color(1.4, 1.4, 1.1)
-		(turret.get_node("MuzzleFlash") as GPUParticles2D).restart()
+		# C24：用缓存的 muzzle 引用（与 _turrets 同序），不再每次 get_node
+		if i < _muzzles.size() and _muzzles[i] != null:
+			_muzzles[i].restart()
 	GameState.play_sfx(GATLING_SFX, -8.0)
 
 

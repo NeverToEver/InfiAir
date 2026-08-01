@@ -129,8 +129,10 @@ func _reset_save_label() -> void:
 
 func _on_quit_pressed() -> void:
 	# 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
-	var exit_confirm: CanvasLayer = get_parent().get_node("ExitConfirm")
-	exit_confirm.show_confirm(true)
+	# C17：get_node_or_null + 判空，测试场景缺该节点不崩溃
+	var exit_confirm: CanvasLayer = get_parent().get_node_or_null("ExitConfirm") as CanvasLayer
+	if exit_confirm != null:
+		exit_confirm.show_confirm(true)
 
 
 func _unhandled_input(event: InputEvent) -> void:

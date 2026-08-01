@@ -71,7 +71,7 @@ static var ELITE_TYPES: Array[Dictionary] = [
 ]
 
 ## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
-var UNLOCK_SCORES: Array = [0, 300, 800, 1500]
+var UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500]
 
 ## 波次节奏：普通波成组刷新，间隔/规模随对局时间 ramp
 var WAVE_INTERVAL_START := 7.0
@@ -139,7 +139,13 @@ func _apply_balance() -> void:
 	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
 	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
 	INTERVAL_MIN = GameState.cfg("spawner.interval_min", INTERVAL_MIN)
-	UNLOCK_SCORES = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
+	# C18：cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
+	var us: Variant = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
+	var us_arr: Array[int] = []
+	if us is Array:
+		for v in us:
+			us_arr.append(int(v))
+	UNLOCK_SCORES = us_arr if not us_arr.is_empty() else [0, 300, 800, 1500]
 	WAVE_SIZE_START = int(GameState.cfg("spawner.wave_size_start", WAVE_SIZE_START))
 	WAVE_SIZE_END = int(GameState.cfg("spawner.wave_size_end", WAVE_SIZE_END))
 	SPECIAL_GAP_MIN = int(GameState.cfg("spawner.special_gap_min", SPECIAL_GAP_MIN))

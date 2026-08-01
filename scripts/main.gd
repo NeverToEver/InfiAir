@@ -419,6 +419,9 @@ func _build_charge_fx() -> void:
 ## BGM 延后到首帧之后启动：3.5MB WAV 解码不占首帧关键路径
 func _start_bgm_async() -> void:
 	await get_tree().process_frame
+	# C15：await 后守卫——首帧前 main 被释放（无头测试同帧实例化释放）则不再操作 freed 实例
+	if not is_inside_tree():
+		return
 	_start_bgm()
 
 
@@ -516,6 +519,8 @@ func _on_player_died() -> void:
 	_player.movement_locked = false
 	# 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24（B2 修复）
 	_reset_global_time_scale()
+	# C25：死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
+	_stop_charging()
 
 
 ## 对局终态复位全局速度（B2 修复）：返航/死亡/放弃路径会冻结 _process，
@@ -636,6 +641,8 @@ func _start_homecoming() -> void:
 	_homecoming = true
 	# 返航冻结对局：狂暴子弹时间若在播先复位，避免过场以慢速播放（B2 修复）
 	_reset_global_time_scale()
+	# C25：返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
+	_stop_charging()
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
 	_player.lock_input()

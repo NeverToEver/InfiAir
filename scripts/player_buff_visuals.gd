@@ -48,7 +48,7 @@ func rapid_fins() -> Node2D:
 	return _rapid_fins
 
 
-func spread_pods() -> Array:
+func spread_pods() -> Array[Node2D]:
 	return _spread_pods
 
 

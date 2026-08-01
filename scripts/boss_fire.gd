@@ -53,9 +53,10 @@ func fire_cross(boss: Node2D, speed: float, damage: int) -> void:
 func fire_heavy(boss: Node2D, p_dir: Vector2, p_speed: float, p_damage: int) -> void:
 	var b: Bullet = GameState.bullet_pool.fire(p_dir, p_speed, p_damage, false)
 	b.position = boss.position + p_dir * muzzle_offset
-	var poly := b.get_node("Polygon2D") as Polygon2D
-	poly.scale = Vector2(2.4, 2.4)
-	poly.color = Color(1.0, 0.6, 0.3)
+	var poly := b.polygon_node()  # C24：缓存引用，不再每次 get_node
+	if poly != null:
+		poly.scale = Vector2(2.4, 2.4)
+		poly.color = Color(1.0, 0.6, 0.3)
 
 
 ## 环弹（差异化狂暴各型共用）：meta=enrage_ring（与快照环弹同标记）
@@ -81,9 +82,10 @@ func fire_enrage_wave(
 		laser.position = boss.position + aim * muzzle_offset + side * (float(i) - 1.5) * 44.0 * world_scale
 		laser.set_meta("bullet_type", &"laser")
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-		var poly := laser.get_node("Polygon2D") as Polygon2D
-		poly.scale = Vector2(2.2, 0.55)
-		poly.color = Color(1.0, 0.85, 0.35)
+		var poly := laser.polygon_node()  # C24：缓存引用，不再每次 get_node
+		if poly != null:
+			poly.scale = Vector2(2.2, 0.55)
+			poly.color = Color(1.0, 0.85, 0.35)
 	for i in ring_count:
 		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(ring_count))
 		var b: Bullet = GameState.bullet_pool.fire(dir, ring_speed, ring_damage, false)
