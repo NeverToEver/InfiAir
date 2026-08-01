@@ -184,7 +184,7 @@ func _ready() -> void:
 	life_e.position = Vector2(960.0, 300.0)
 	life_e.set_life_timer(14.8)
 	await get_tree().create_timer(0.4).timeout
-	_check(life_e._exiting, "敌机 15s 寿命到期进入离场")
+	_check(life_e.is_exiting(), "敌机 15s 寿命到期进入离场")
 	var exit_p0 := life_e.position
 	await get_tree().create_timer(0.4).timeout
 	_check(

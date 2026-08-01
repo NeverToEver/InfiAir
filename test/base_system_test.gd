@@ -78,7 +78,7 @@ func _ready() -> void:
 	var saved_rp := GameState.rp
 	GameState.rp = 0
 	GameState.buffs.clear()
-	GameState._init_missions()
+	GameState.reset_missions()
 	GameState.chosen_routes.clear()
 	GameState.locked_routes.clear()
 	GameState.apply_run_save(GameState.load_run_data())

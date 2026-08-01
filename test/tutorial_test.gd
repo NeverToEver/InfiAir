@@ -155,6 +155,10 @@ func _ready() -> void:
 
 	print("TUTORIAL TEST DONE, failures = ", _failures)
 	# Esc 退出：触发场景切换（本节点随后被释放），用绑定 SceneTree 的定时器收尾
+	# C31：注入 ui_cancel 动作走公开输入路径，不直调私有 _exit_tutorial
+	var cancel := InputEventAction.new()
+	cancel.action = &"ui_cancel"
+	cancel.pressed = true
+	Input.parse_input_event(cancel)
 	var fails := _failures
 	get_tree().create_timer(1.0).timeout.connect(get_tree().quit.bind(fails))
-	tut._exit_tutorial()

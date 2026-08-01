@@ -62,7 +62,13 @@ func _ready() -> void:
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
 	esc.pressed = true
-	settings._unhandled_input(esc)
+	Input.parse_input_event(esc)  # C30：走真实输入管线（对齐 esc_navigation_test 黑盒做法）
+	await get_tree().process_frame
+	var esc_up := InputEventKey.new()
+	esc_up.keycode = KEY_ESCAPE
+	esc_up.pressed = false
+	Input.parse_input_event(esc_up)
+	await get_tree().process_frame
 	_check(settings.capturing_action() == &"", "Esc 取消捕获")
 	_check(not _action_has_key(&"dock", KEY_ESCAPE), "取消未写入绑定")
 
@@ -71,7 +77,13 @@ func _ready() -> void:
 	var j_ev := InputEventKey.new()
 	j_ev.keycode = KEY_J
 	j_ev.pressed = true
-	settings._unhandled_input(j_ev)
+	Input.parse_input_event(j_ev)  # C30：走真实输入管线
+	await get_tree().process_frame
+	var j_up := InputEventKey.new()
+	j_up.keycode = KEY_J
+	j_up.pressed = false
+	Input.parse_input_event(j_up)
+	await get_tree().process_frame
 	_check(_action_has_key(&"dock", KEY_J), "捕获按键完成绑定")
 
 	# 收尾：恢复默认并落盘，避免污染其他测试/本机 profile

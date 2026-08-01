@@ -125,7 +125,7 @@ func _ready() -> void:
 
 	# ---------- 7. Android 返回手势走同一状态机 ----------
 	pause_ui.open()
-	nav._notification(NOTIFICATION_WM_GO_BACK_REQUEST)
+	nav.go_back()  # C30：走公开路由（_notification 仅一行转发 go_back，语义等价）
 	_check(not pause_ui.visible and not get_tree().paused, "Android 返回通知：与 Esc 同一路由")
 
 	GameState.delete_save()
