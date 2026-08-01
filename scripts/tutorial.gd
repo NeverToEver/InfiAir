@@ -273,7 +273,18 @@ func _pass_stage() -> void:
 		return
 	_advancing = true
 	GameState.play_sfx(GameState.SFX_BUFF_PICK)
-	await get_tree().create_timer(1.0).timeout
+	# 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程，退出时协程状态泄漏）
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.process_mode = Node.PROCESS_MODE_ALWAYS  # 对齐原 SceneTreeTimer 暂停树仍计时
+	timer.wait_time = 1.0
+	timer.timeout.connect(_finish_pass_stage)
+	add_child(timer)
+	timer.start()
+
+
+## C01 修复：_pass_stage 的延迟推进改为 Timer 回调（原 await create_timer 在教程被释放时协程悬死）
+func _finish_pass_stage() -> void:
 	_advancing = false
 	if _stage < STAGE_TITLES.size() - 1:
 		_enter_stage(_stage + 1)
@@ -335,8 +346,14 @@ func _open_base() -> void:
 	get_tree().paused = true
 	# 打开即过关：1s 后自动关闭进入下一阶段（玩家点继续出击同样推进）
 	_pass_stage()
-	await get_tree().create_timer(1.2).timeout
-	_close_base()
+	# 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程）
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.process_mode = Node.PROCESS_MODE_ALWAYS  # 树暂停（基地 UI）中仍需计时
+	timer.wait_time = 1.2
+	timer.timeout.connect(_close_base)
+	add_child(timer)
+	timer.start()
 
 
 func _close_base() -> void:

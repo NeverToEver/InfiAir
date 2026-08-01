@@ -916,13 +916,19 @@ func load_profile() -> void:
 	tutorial_done = bool(parsed.get("tutorial_done", false))
 	welcome_seen = bool(parsed.get("welcome_seen", false))
 	locale = str(parsed.get("locale", "zh"))
+	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
+	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
 	key_bindings.clear()
-	var saved_keys: Dictionary = parsed.get("key_bindings", {})
-	for a in saved_keys.keys():
-		var keys: Array[int] = []
-		for k: Variant in saved_keys[a]:
-			keys.append(int(k))
-		key_bindings[StringName(a)] = keys
+	var saved_keys: Variant = parsed.get("key_bindings", {})
+	if saved_keys is Dictionary:
+		for a in saved_keys.keys():
+			var raw: Variant = saved_keys[a]
+			if not raw is Array:
+				continue
+			var keys: Array[int] = []
+			for k: Variant in raw:
+				keys.append(int(k))
+			key_bindings[StringName(a)] = keys
 	var saved_difficulty := StringName(parsed.get("difficulty", ""))
 	if DIFFICULTY_DEFS.has(saved_difficulty):
 		difficulty = saved_difficulty
