@@ -63,7 +63,7 @@ func _ready() -> void:
 	_check(records.size() == 1, "1：无敌帧期不发射")
 
 	# ================= 2：hit_pulse max 池化 =================
-	fx.set_test_state({"_hit_pulse": 0.0  })# 清掉测试 1 的 0.25 残留，隔离验证池化
+	fx.set_test_state({"hit_pulse": 0.0  })# 清掉测试 1 的 0.25 残留，隔离验证池化
 	for i in 10:
 		_reset_hit_state(player)
 		GameState.health = 100.0
@@ -72,11 +72,11 @@ func _ready() -> void:
 	_check(fx.hit_pulse() >= 0.149, "2：max 池化取到单次峰值 0.15")
 
 	# ================= 3：血量-裂纹映射曲线采样 =================
-	fx.set_test_state({"_hit_pulse": 0.0})
+	fx.set_test_state({"hit_pulse": 0.0})
 	var curve_cases: Array = [[0.25, 0.11], [0.50, 0.33], [0.75, 0.63], [0.90, 0.84]]
 	var curve_ok := true
 	for c in curve_cases:
-		fx.set_test_state({"_damage_x": c[0]})
+		fx.set_test_state({"damage_x": c[0]})
 		if absf(fx.crack_progress() - c[1]) > 0.02:
 			curve_ok = false
 	_check(curve_ok, "3：x=0.25/0.50/0.75/0.90 → crack_progress≈0.11/0.33/0.63/0.84（±0.02）")
@@ -84,8 +84,8 @@ func _ready() -> void:
 	# ================= 4：状态机快入慢出 + 修复错峰消散 =================
 	GameState.health = 100.0
 	GameState.health_changed.emit(100.0)
-	fx.set_test_state({"_damage_x": 0.0})
-	fx.set_test_state({"_state": MetaHealthFX.STATE_NORMAL})
+	fx.set_test_state({"damage_x": 0.0})
+	fx.set_test_state({"state": MetaHealthFX.STATE_NORMAL})
 	_reset_hit_state(player)
 	await get_tree().process_frame
 	GameState.lose_health(90.0)  # x 目标 0.9，tau=0.10 快入
@@ -137,21 +137,21 @@ func _ready() -> void:
 
 	# ================= 7：满血静止早退零参数上传（D5/D10） =================
 	GameState.heal(999.0)
-	fx.set_test_state({"_damage_x": 0.0})
-	fx.set_test_state({"_target_x": 0.0})
-	fx.set_test_state({"_state": MetaHealthFX.STATE_NORMAL})
-	fx.set_test_state({"_hit_pulse": 0.0})
-	fx.set_test_state({"_ripple_t": 2.0})
-	fx.set_test_state({"_heart_phase": -1.0})
-	fx.set_test_state({"_heart_env": 0.0})
-	fx.set_test_state({"_heal_t": -1.0})
-	fx.set_test_state({"_heal_jitter": 0.0})
-	fx.set_test_state({"_grow_boost": 0.0})
-	fx.set_test_state({"_breath": 1.0})
+	fx.set_test_state({"damage_x": 0.0})
+	fx.set_test_state({"target_x": 0.0})
+	fx.set_test_state({"state": MetaHealthFX.STATE_NORMAL})
+	fx.set_test_state({"hit_pulse": 0.0})
+	fx.set_test_state({"ripple_t": 2.0})
+	fx.set_test_state({"heart_phase": -1.0})
+	fx.set_test_state({"heart_env": 0.0})
+	fx.set_test_state({"heal_t": -1.0})
+	fx.set_test_state({"heal_jitter": 0.0})
+	fx.set_test_state({"grow_boost": 0.0})
+	fx.set_test_state({"breath": 1.0})
 	for i in 5:  # 吸收残留过渡，进入稳态
 		await get_tree().process_frame
-	fx.set_test_state({"_upload_count": 0})
-	fx.set_test_state({"_early_out_count": 0})
+	fx.set_test_state({"upload_count": 0})
+	fx.set_test_state({"early_out_count": 0})
 	for i in 60:
 		await get_tree().process_frame
 	_check(fx.upload_count() == 0, "7：满血静止 60 帧零参数上传（D5）")

@@ -1372,7 +1372,9 @@ class _ChaseShot:
 			else:
 				inner_x = lerpf(1220.0, 1300.0, ty)
 				outer_x = lerpf(1490.0, 1670.0, ty)
-			strut.points = PackedVector2Array([Vector2(inner_x, y), Vector2(outer_x, y + 70.0)])
+			# C28：创建时已预分配 2 点，set_point_position 原地写（points[i]= 是值语义副本不生效）
+			strut.set_point_position(0, Vector2(inner_x, y))
+			strut.set_point_position(1, Vector2(outer_x, y + 70.0))
 		for lamp_pair in _wall_lights:
 			var lamp: _GlowDot = lamp_pair[0]
 			var ly: float = lamp.position.y + _rail_speed * delta

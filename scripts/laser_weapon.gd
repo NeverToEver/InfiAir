@@ -74,8 +74,9 @@ func _physics_process(delta: float) -> void:
 			return
 		var start := _player.global_position
 		var end := start + _aim_dir(start) * BEAM_LENGTH
-		_beam.points[0] = start  # C23：预分配数组只写元素，避免每帧 new PackedVector2Array
-		_beam.points[1] = end
+		# C23：预分配数组经 set_point_position 原地写（points[i]= 值语义副本不生效）
+		_beam.set_point_position(0, start)
+		_beam.set_point_position(1, end)
 		_glow.position = end
 		if _tick_timer <= 0.0:
 			_tick_timer += TICK_INTERVAL

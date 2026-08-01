@@ -145,12 +145,12 @@ func _process(delta: float) -> void:
 
 ## scale_p：门洞开合比例；alpha_p：整体透明度
 func _layout(scale_p: float, alpha_p: float) -> void:
-	# C28：环预建单位点集，帧内仅写 scale/modulate（零分配）
-	_ring.scale = Vector2.ONE * (RADIUS * scale_p)
+	# C28：环/弧预建点集，帧内经 set_point_position 原地写（零分配、线宽不随 scale 变）
+	_layout_ellipse(_ring, RADIUS * scale_p, 48)
 	_ring.default_color = Color(CYAN, 0.9 * alpha_p)
-	_ring_inner.scale = Vector2.ONE * (RADIUS * 0.82 * scale_p)
+	_layout_ellipse(_ring_inner, RADIUS * 0.82 * scale_p, 48)
 	_ring_inner.default_color = Color(WARP_BLUE, 0.7 * alpha_p)
-	# 新增附件层：预建点集，仅缩放/透明度写（零分配）
+	# 新增附件层：预建点集，仅缩放/透明度写（零分配）——Sprite2D/Node2D scale 正常
 	_mouth.scale = _mouth_base * scale_p
 	_mouth.modulate.a = 0.4 * alpha_p * scale_p
 	for i in _swirls.size():
@@ -160,8 +160,12 @@ func _layout(scale_p: float, alpha_p: float) -> void:
 	_lip.modulate.a = alpha_p
 	for i in _arcs.size():
 		var arc := _arcs[i]
-		# C28：弧预建单位点集（_ready），帧内仅写 scale/modulate（零分配）
-		arc.scale = Vector2.ONE * (RADIUS * 1.12 * scale_p)
+		# C28：弧预建点集（_ready），帧内 set_point_position 原地写（线宽不变）
+		var r := RADIUS * 1.12 * scale_p
+		var a0 := TAU * float(i) / 3.0
+		for j in 10:
+			var a := a0 + deg_to_rad(50.0) * float(j) / 9.0
+			arc.set_point_position(j, Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * r)
 		arc.default_color = Color(CYAN, 0.7 * alpha_p)
 
 
@@ -173,6 +177,13 @@ func _arc_points(radius: float, span_deg: float, count: int) -> PackedVector2Arr
 		var a := deg_to_rad(span_deg) * float(i) / float(count - 1)
 		pts[i] = Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * radius
 	return pts
+
+
+## C28：原地写椭圆点集（set_point_position 直写内部数组，零分配、线宽不随 scale 变）
+func _layout_ellipse(line: Line2D, radius: float, count: int) -> void:
+	for i in count:
+		var a := TAU * float(i) / float(count)
+		line.set_point_position(i, Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * radius)
 
 
 func _make_ring(width: float, color: Color) -> Line2D:

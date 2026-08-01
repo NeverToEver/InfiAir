@@ -107,6 +107,7 @@ func _build_missile() -> void:
 	grad.set_color(0, Color(CYAN, 0.0))
 	grad.set_color(1, CYAN)
 	_missile_trail.gradient = grad
+	_missile_trail.points = PackedVector2Array([Vector2.ZERO, Vector2.ZERO])  # C28：预分配，帧内只写元素
 	_missile.add_child(_missile_trail)
 	var body := Polygon2D.new()
 	body.polygon = PackedVector2Array([Vector2(0.0, 14.0), Vector2(-5.0, -10.0), Vector2(5.0, -10.0)])
@@ -173,7 +174,9 @@ func _update_visuals(p: float) -> void:
 			var mp := (p - MISSILE_FROM) / (IMPACT_AT - MISSILE_FROM)
 			var head := Vector2(_impact_point.x, lerpf(MISSILE_START_Y, _impact_point.y, mp * mp))
 			_missile.position = head
-			_missile_trail.points = PackedVector2Array([Vector2(0.0, MISSILE_START_Y - head.y), Vector2.ZERO])
+			# C28：预分配 2 点，set_point_position 原地写（points[i]= 值语义副本不生效）
+			_missile_trail.set_point_position(0, Vector2(0.0, MISSILE_START_Y - head.y))
+			_missile_trail.set_point_position(1, Vector2.ZERO)
 	else:
 		# 命中后：q ∈ [0,1] 全程衰减
 		var q := (p - IMPACT_AT) / (1.0 - IMPACT_AT)
@@ -195,12 +198,18 @@ func _make_ring_line(radius: float, width: float, color: Color) -> Line2D:
 	ring.width = width
 	ring.default_color = color
 	ring.closed = true
+	# C28：预建点集（长度固定），帧内经 set_point_position 原地改写（零分配、线宽不随 scale 变）
+	ring.points = _circle_points(1.0, RING_POINTS)
 	_layout_ring(ring, radius)
 	return ring
 
 
 func _layout_ring(ring: Line2D, radius: float) -> void:
-	ring.points = _circle_points(radius, RING_POINTS)
+	# C28：原地写点集元素（set_point_position 直写内部数组），不重建 PackedVector2Array、
+	# 不缩放节点（缩放会连带放大线宽）
+	for i in RING_POINTS:
+		var a := TAU * float(i) / float(RING_POINTS)
+		ring.set_point_position(i, Vector2(cos(a), sin(a)) * radius)
 
 
 func _circle_points(radius: float, count: int) -> PackedVector2Array:

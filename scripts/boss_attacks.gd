@@ -103,9 +103,9 @@ func update(delta: float, boss) -> void:
 		if _sniper_aim_elapsed <= float(boss.SNIPER_TRACK_TIME):
 			_sniper_dir = _player_dir(boss)
 			if _aim_line != null:
-				# C23：创建时已 add_point 预置 2 点，这里只写元素避免每帧 new 数组
-				_aim_line.points[0] = _sniper_dir * float(boss.MUZZLE_OFFSET)
-				_aim_line.points[1] = _sniper_dir * 1200.0
+				# C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
+				_aim_line.set_point_position(0, _sniper_dir * float(boss.MUZZLE_OFFSET))
+				_aim_line.set_point_position(1, _sniper_dir * 1200.0)
 		if _aim_line != null:
 			_aim_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_sniper_aim_elapsed * 25.0))
 		if _sniper_aim_elapsed >= float(boss.SNIPER_AIM_TIME):

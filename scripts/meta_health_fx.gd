@@ -59,10 +59,14 @@ var _heart_beats: int = 0
 
 
 ## A7：测试/诊断白盒断言经公开接口（平滑参数注入统一测试口 + 状态 getter）
+## C35：接受无 `_` 前缀的语义键（内部补 `_` 写私有字段），不再与实现字段名强耦合
 func set_test_state(state: Dictionary) -> void:
 	for k in state.keys():
-		if k is String and String(k).begins_with("_"):
-			set(k, state[k])
+		if k is String:
+			var field := String(k)
+			if not field.begins_with("_"):
+				field = "_" + field
+			set(field, state[k])
 
 
 func crack_progress() -> float:

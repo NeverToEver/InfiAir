@@ -210,6 +210,7 @@ func _build_hangar() -> void:
 	grad.set_color(0, Color(WARP_BLUE, 0.0))
 	grad.set_color(1, Color(WARP_BLUE, 0.8))
 	_ship_trail.gradient = grad
+	_ship_trail.points = PackedVector2Array([Vector2.ZERO, Vector2.ZERO])  # C28：预分配，帧内只写元素
 	_stage.add_child(_ship_trail)
 	# 拖首软光（镜头 3 随弹射点亮，贴在舰尾）
 	_ship_glow = CinematicFx.soft_glow(30.0, Color(WARP_BLUE, 0.0))
@@ -220,7 +221,7 @@ func _build_hangar() -> void:
 	_warp_ring.width = 3.0
 	_warp_ring.closed = true
 	_warp_ring.default_color = Color(WARP_BLUE, 0.0)
-	_warp_ring.points = _circle_points(20.0, 48)
+	_warp_ring.points = _circle_points(1.0, 48)  # C28：预建单位点集，帧内仅写 scale
 	_stage.add_child(_warp_ring)
 	# 镜头 3 起步白闪
 	_flash = ColorRect.new()
@@ -303,13 +304,15 @@ func _update_arms(p: float) -> void:
 func _update_launch(p: float) -> void:
 	var e := p * p  # ease-in 加速
 	_ship.position = SHIP_HOME + Vector2(0.0, -560.0 * e)
-	_ship_trail.points = PackedVector2Array([_ship.position + Vector2(0.0, 26.0), _ship.position + Vector2(0.0, 26.0 + 220.0 * e)])
+	# C28：点集已预分配，经 set_point_position 原地写（points[i]= 是值语义副本不生效）
+	_ship_trail.set_point_position(0, _ship.position + Vector2(0.0, 26.0))
+	_ship_trail.set_point_position(1, _ship.position + Vector2(0.0, 26.0 + 220.0 * e))
 	_ship_trail.default_color = Color(WARP_BLUE, 0.8 * p)
 	_ship_glow.position = _ship.position + Vector2(0.0, 26.0)
 	_ship_glow.modulate = Color(WARP_BLUE, 0.75 * p)
 	_ship_glow.scale = Vector2.ONE * (30.0 / 32.0) * (0.6 + 0.9 * e)
 	var ring_p := clampf(p / 0.6, 0.0, 1.0)
-	_warp_ring.points = _circle_points(lerpf(20.0, 200.0, ring_p), 48)
+	_layout_warp_ring(lerpf(20.0, 200.0, ring_p))
 	_warp_ring.position = _ship.position
 	_warp_ring.default_color = Color(WARP_BLUE, 0.9 * (1.0 - ring_p))
 
@@ -321,3 +324,10 @@ func _circle_points(radius: float, count: int) -> PackedVector2Array:
 		var a := TAU * float(i) / float(count)
 		pts[i] = Vector2(cos(a), sin(a)) * radius
 	return pts
+
+
+## C28：原地写穿梭器环点集（预分配数组 + set_point_position，零分配、线宽不随 scale 变）
+func _layout_warp_ring(radius: float) -> void:
+	for i in 48:
+		var a := TAU * float(i) / 48.0
+		_warp_ring.set_point_position(i, Vector2(cos(a), sin(a)) * radius)
