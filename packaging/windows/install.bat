@@ -13,6 +13,10 @@ if not exist "%~dp0InfiAir.exe" (
 
 if not exist "%APP_DIR%" mkdir "%APP_DIR%"
 copy /y "%~dp0InfiAir.exe" "%APP_DIR%\InfiAir.exe" >nul
+if errorlevel 1 (
+    echo Error: failed to copy InfiAir.exe. Is the game currently running?
+    exit /b 1
+)
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('%START_MENU%\InfiAir.lnk'); $sc.TargetPath = '%APP_DIR%\InfiAir.exe'; $sc.WorkingDirectory = '%APP_DIR%'; $sc.Description = 'InfiAir - 2D top-down arcade air combat'; $sc.Save()"
 if errorlevel 1 (

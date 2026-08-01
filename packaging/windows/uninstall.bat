@@ -15,7 +15,13 @@ if not "%~1"=="" if /i not "%~1"=="/purge" (
     exit /b 2
 )
 
-if exist "%APP_DIR%" rmdir /s /q "%APP_DIR%"
+if exist "%APP_DIR%" (
+    rmdir /s /q "%APP_DIR%"
+    if exist "%APP_DIR%" (
+        echo Error: could not remove %APP_DIR%. Is the game currently running?
+        exit /b 1
+    )
+)
 if exist "%START_MENU%\InfiAir.lnk" del /f /q "%START_MENU%\InfiAir.lnk"
 
 echo InfiAir uninstalled.
