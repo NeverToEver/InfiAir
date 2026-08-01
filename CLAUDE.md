@@ -19,7 +19,7 @@ G=~/.local/bin/godot
 $G --path .                                    # 本地运行
 $G --headless --import --path .                # 无头导入（验证资源与脚本解析）
 $G --headless --path . --quit-after 300        # 无头跑 300 帧（验证无运行时错误）
-# 无头测试：test/*.tscn 场景脚本，[PASS]/[FAIL] 自检，29 个断言场景（共 38 个场景）；完整清单见 AGENTS.md
+# 无头测试：test/*.tscn 场景脚本，[PASS]/[FAIL] 自检，29 个断言场景（共 38 个场景）；完整清单见 docs/TESTING.md
 $G --headless --path . res://test/smoke_test.tscn          # 主流程（改动后必跑）
 $G --headless --path . res://test/base_system_test.tscn    # 存档/RP/任务/路线（涉存档/基地/母舰加跑）
 # 对局机制与配置

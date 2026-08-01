@@ -10,165 +10,29 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - 设计视口：1920×1080，`canvas_items` 拉伸，`keep` 宽高比。
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`）——全局状态/信号总线门面。A2 起数值读取、持久化、音效池、实体注册表已组合委托给四个非 autoload 服务类（`scripts/balance_service.gd` / `save_manager.gd` / `sfx_player.gd` / `entity_registry.gd`），GameState 公开 API 语法保留并转发，调用方与测试零感知。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
-- 返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`；全部数值读取位置索引见 `docs/BALANCE_MAP.md`（生成文件）；移植时期的对齐记录与迭代历史已归档为 `docs/archive/PORTING_PARITY.md`（冻结，不再维护）。
 - `CLAUDE.md` 只提供入口级概览并声明本文件为权威约定文档；两者冲突时以本文件为准。
 
-## 技术栈、配置与交付现状
+## 技术栈与配置
 
-### 技术栈
-
-- **引擎：** Godot 4.6（标准版即可，无需 .NET）。`project.godot` 当前声明 `4.6` 和 `GL Compatibility` 特性，桌面/移动端均使用 `gl_compatibility`。
-- **语言：** 纯 GDScript；`scripts/tools/` 下的 Python 文件是离线工具（数值管理器、文档生成器、资产生成器），仅依赖标准库（贴图生成器另需 PIL），不属于游戏运行时依赖。
-- **资源：** `assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf` UI 字体。
-- **数据：** `data/balance.json` 为可调数值源（顶层分区：world_scale、player、enemies、elites、boss、spawner、mothership、buffs、milestones、difficulty、progression、effects、tutorial、elite_turret_event、formation_strike_event）；自 2026-07-31 起为规范 JSON 格式（Tab 缩进、无行内对象），由 `balance_editor.py` 维护落盘。`data/translations.csv` 是中英文本源，`.translation` 文件由 Godot 导入生成并在运行时加载。
-
-### 关键配置文件
-
-| 文件 | 用途 |
-| --- | --- |
-| `project.godot` | Godot 项目名、入口场景、唯一 autoload、视口/拉伸、输入映射与渲染器。优先用 Godot 编辑器修改。 |
-| `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。Boss 段含 `phases`（阶段模式表/telegraph/各型 P2 攻击参数）、`enrage.type_*`（三型差异化狂暴）与 `difficulty_scaling`（弹数/间隔/弹速三档分档表）。优先用 `scripts/tools/balance_editor.py` 编辑。 |
-| `data/translations.csv` | 翻译键及 `zh`、`en` 文本源。 |
-| `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件和导出产物（`builds/` 等；`export_presets.cfg` 自 2026-07-30 起入库）。 |
-| `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装。`run.sh`：PATH → `~/.local/bin/godot` → App bundle，低版本仅告警，参数透传（`--editor` 等）。`run.command`（双击）：候选含 `/Applications` 与 `~/Applications` 的 `Godot*.app` 变体名，逐候选验证版本并优先选 4.6+，不用 `exec`——异常退出保留窗口与输出。 |
-| `export_presets.cfg` | Linux/X11 与 Windows Desktop 导出预设（嵌入 pck 单文件，x86_64）。需本机安装匹配版本的 Godot 导出模板。 |
-| `release.sh` | 发布构建：资源导入 → 双平台导出 → 打包到 `builds/release/`（`VERSION` 环境变量指定版本号）。 |
-
-当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置或 CI 工作流。打包发布已重启（2026-07-30）：`export_presets.cfg` 入库（Linux/X11 + Windows Desktop，嵌入 pck 单文件 exe/二进制），根目录 `release.sh` 一键完成导入 → 双平台导出 → 打包（产物 `builds/release/`，版本号由 `VERSION` 环境变量指定）；`packaging/linux/`（用户态 install.sh / uninstall.sh[--purge] / infiair.desktop）与 `packaging/windows/`（per-user install.bat / uninstall.bat[/purge]，开始菜单快捷方式）随包分发。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
-
-**发布工程现状（2026-07-31 更新）**：导出模板已安装（`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`），`./release.sh` 已跑通，产物在 `builds/release/`（`InfiAir-<版本>-linux-x86_64.tar.gz` / `-windows-x86_64.zip`，均为嵌入 pck 单文件 + 安装/卸载脚本，本机 gitignore）。**产物以 GitHub Releases 附件分发（不入库）**：`gh release create v<版本> builds/release/InfiAir-<版本>-*.{tar.gz,zip}`。macOS 本机无法运行 Linux/Windows 二进制，安装脚本与实机运行需在对应平台验证。模板包若需重下（1.17 GB）：慢网络下可用 16 路 HTTP Range 并行分块 + 断点续传（签名直链 1 小时过期、curl 须带 `--speed-time/--speed-limit` 防挂死）。
+- **引擎/语言：** Godot 4.6（gl_compatibility，无 .NET），纯 GDScript。`scripts/tools/` 下的 Python 文件是离线工具（数值管理器、文档生成器、资产生成器），不属于游戏运行时依赖。
+- **数据源：** `data/balance.json` 为可调数值源（由 `scripts/tools/balance_editor.py` 维护落盘），`data/translations.csv` 是中英文本源。详细配置与发布交付现状见 `docs/ARCHITECTURE.md`。
+- **发布：** 无包管理器、无 CI；发布经 `export_presets.cfg` + `release.sh` 双平台导出，产物以 GitHub Releases 附件分发（不入库）。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
 
 ## 本地运行与验证
 
-在项目根目录运行。当前开发机可使用 `~/.local/bin/godot`；若 `godot` 已在 PATH 中，也可以直接替换命令。`./run.sh` 会自动定位引擎。
-
 ```bash
-# 本地运行
-./run.sh
-godot --path .
-
-# 资源导入与脚本解析
-godot --headless --import --path .
-
-# 启动主场景并运行 300 帧
+./run.sh                              # 本地运行（自动定位引擎）
+godot --headless --import --path .    # 资源导入与脚本解析
 godot --headless --path . --quit-after 300
-
-# 最小必跑主流程冒烟测试
 godot --headless --path . res://test/smoke_test.tscn
-
-# 存档、RP、任务、基地整备数据层
-godot --headless --path . res://test/base_system_test.tscn
+godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/母舰时加跑
 ```
 
-推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。涉及存档、基地或母舰时额外运行 `base_system_test.tscn`；涉及对应子系统时运行下列专项场景。
-
-```bash
-# 对局机制与配置
-godot --headless --path . res://test/enemy_combat_test.tscn
-godot --headless --path . res://test/wave_pacing_test.tscn
-godot --headless --path . res://test/buff33_test.tscn
-godot --headless --path . res://test/buff_visuals_test.tscn
-godot --headless --path . res://test/difficulty_test.tscn
-godot --headless --path . res://test/boss_enrage_test.tscn
-godot --headless --path . res://test/boss_phase_test.tscn
-godot --headless --path . res://test/boss_pattern_test.tscn
-godot --headless --path . res://test/hit_logic_test.tscn
-godot --headless --path . res://test/balance_test.tscn
-godot --headless --path . res://test/elite_turret_event_test.tscn
-godot --headless --path . res://test/buff_panel_test.tscn
-godot --headless --path . res://test/formation_strike_event_test.tscn
-godot --headless --path . res://test/orbital_strike_test.tscn
-godot --headless --path . res://test/mothership_summon_test.tscn
-godot --headless --path . res://test/meta_health_fx_test.tscn
-
-# 设置、启动、导航与教程
-godot --headless --path . res://test/keybind_test.tscn
-godot --headless --path . res://test/i18n_test.tscn
-godot --headless --path . res://test/view_zoom_test.tscn
-godot --headless --path . res://test/window_size_test.tscn
-godot --headless --path . res://test/startup_flow_test.tscn
-godot --headless --path . res://test/back_navigation_test.tscn
-godot --headless --path . res://test/esc_navigation_test.tscn
-godot --headless --path . res://test/intro_cinematic_test.tscn
-godot --headless --path . res://test/tutorial_test.tscn
-
-# 对象池与性能
-godot --headless --path . res://test/pool_reuse_test.tscn
-godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
-
-# 自动游玩异常探针（默认真实时间 480 秒；不是普通断言测试）
-godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
-```
-
-无头模式的帧率不等同于真实时间；依赖计时的测试应等待真实计时器/物理帧，参考现有测试实现。视觉测试不能使用 headless dummy 渲染器：
-
-```bash
-# 窗口模式：游戏画面，输出 /tmp/infiair_capture.png
-godot --path . res://test/visual_capture.tscn
-
-# 窗口模式：UI 页面，输出 /tmp/ui_*.png
-godot --path . res://test/ui_capture.tscn
-
-# 窗口模式：返航过场逐镜头（8s/镜头拉长时轴），输出 /tmp/return_shot*.png
-godot --path . res://test/return_capture.tscn
-
-# 窗口模式：开场过场逐镜头（8s/镜头拉长时轴），输出 /tmp/intro_shot*.png
-godot --path . res://test/intro_capture.tscn
-
-# 窗口模式：母舰召唤全序列（蓄力/小窗/穿梭门/牵引/驻留），输出 /tmp/summon_*.png
-godot --path . res://test/summon_capture.tscn
-
-# 窗口模式：Meta HUD 血量/受击反馈各血量档，输出 /tmp/meta_fx_*.png
-godot --path . res://test/meta_fx_capture.tscn
-
-# 窗口模式：HUD 常态/极端（全 buff 满层）布局，输出 /tmp/hud_*.png
-godot --path . res://test/hud_capture.tscn
-```
+推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**完整专项测试清单、视觉截图工具与测试策略副作用明细见 `docs/TESTING.md`**。
 
 ## 运行时架构
 
-`scenes/main.tscn` 是主节点树和对局容器：
-
-```text
-Main (scripts/main.gd)
-├─ Starfield / Camera2D
-├─ Player
-├─ Spawner
-├─ BulletPool / EnemyPool
-├─ HUD（layer=2：为 MetaHealthFX 让出「世界之上、HUD 之下」的 layer=1）
-├─ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ StartPanel / WelcomeScreen / ExitConfirm
-├─ BackNavigator
-├─ MetaHealthFX（运行时由 main 在 _ready 创建，layer=1，Meta HUD 血量/受击全屏后处理）
-├─ AimFrameLayer（运行时由 main 在 _ready 创建，世界坐标，辅助瞄准标记敌 bracket 框覆盖层，登记 GameState.aim_frame_layer）
-├─ IntroCinematic（运行时由 main 在新游戏时实例化，layer=35）
-├─ ReturnCinematic（运行时由 main 在返航时实例化，layer=35）
-├─ OrbitalStrike（运行时由 main 在继续出击时实例化，layer=24，轨道打击清场动画）
-├─ MothershipSummonWindow（运行时由 main 在母舰蓄力完成时实例化，layer=24，机库小窗演出）
-├─ WarpGate（运行时由 main 在小窗结束时实例化于母舰停驻点，世界坐标，穿梭门特效）
-└─ EliteTurretEvent（运行时由 main 在 _ready 创建并登记给 spawner 互斥）
-└─ FormationStrikeEvent（运行时由 main 在 _ready 创建并登记给 spawner；最低优先级随机事件）
-```
-
-- `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM 与页面流转。
-- `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线门面。数值加载/查询委托 `BalanceService`，存档读写/损坏隔离委托 `SaveManager`，音效池委托 `SfxPlayer`，实体注册表（`GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用）委托 `EntityRegistry`——对外 `GameState.*` 语法逐字不变（A2）。
-- `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担：程序化炮舱/护盾弧/光环/信标与尾焰染色（`engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。辅助瞄准（2026-07-31 三轮增强，P1-3 磁吸/锥形弱追踪）：准星构件 `scripts/aim_crosshair.gd`（AimCrosshair，挂 Player，top_level；仅对局活跃时跟随 `aim_point()` 并隐藏系统光标，同一条件驱动两处），敌机按 `player.aim_assist.mark_ratio`（当前 0.25）出生掷 `Enemy.aim_marked` 标记，`scripts/aim_frame_layer.gd`（AimFrameLayer，挂 Main）统一画 bracket 框；准星入框时 `player._fire()` 给新弹写入 `Bullet.homing_target` 追踪（档位表 `player.aim_assist.levels`：frame_pad/homing_turn_rate/stick_factor，`homing_time` 追踪时长），未入框朝准星直射；追踪弹近距（≤`Bullet.HOMING_SNAP_RADIUS` 36+帧位移）直取目标、中距转向随距离加急，螺旋收敛命中不环绕。`aim_point()` 返回平滑瞄准点：准星在标记框内时鼠标增量按 `stick_factor` 降灵敏度（入框弱吸附），框外近距（`AimFrameLayer.magnet_pull`：框沿距 ≤ `magnet_range`、输入增量 2~40px/帧区间）时按磁吸系数拉向目标（输入 smoothstep 反比 + 距离衰减 + `magnet_max_speed` 拉速上限，静止/甩枪不拉），判定/开火/准星绘制共用同一点，每渲染帧推进一次（`Engine.get_process_frames()` 守卫）。框外锥形弱追踪：`_fire()` 入框判定未命中时经 `AimFrameLayer.nearest_cone_target` 查瞄准锥角（`cone_angle_deg` 4/6/8° 三档）内最近标记敌，`homing_turn_rate × cone_strength × 角距归一 × aim_dist_falloff` 渐变弱绑定（锥缘/远距退化为直射）。磁吸与弱追踪共用距离衰减（`player.aim_assist.falloff`：400px 内全辅助 → 1400px 线性降至 0.3 下限）。
-- `scripts/spawner.gd`：波次化刷怪与特殊槽调度。普通波成组（均分槽位入场、锚点悬停机动）按间隔 ramp 刷新；每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽（Boss 激活与事件期间暂停普通波次），精英/Boss 击杀后追加休整波次。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把"所有敌机已经池化"当成当前事实。
-- `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
-- `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。战斗锚线 `FIGHT_Y` 语义为距 view 顶缘偏移，使用点一律走 `_fight_anchor_y()`（2026-07-30 view 适配）。设计/实施记录见 `docs/BOSS_REDESIGN.md`。
-- `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
-- `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。开始面板（2026-07-31 重设计）是全遮光独立标题屏（不透出对局画面）：左上品牌区 + 左中切角菜单板 + 右侧装饰雷达 `scripts/start_radar.gd`（StartRadar，慢扫描纯装饰）+ 装饰星空 `scripts/start_backdrop.gd`（StartBackdrop，固定种子静态星点，与对局 Starfield 无关）。
-- `scripts/meta_health_fx.gd`（MetaHealthFX）+ `assets/shaders/meta_health.gdshader` + `assets/shaders/crack_field_bake.gdshader`：Meta HUD 血量/受击反馈（设计文档 `docs/META_HUD_DESIGN.md`）——全屏后处理承载受击色差/径向模糊、攻击方向定向波纹、低血裂纹生长/错峰消散（Voronoi 距离场一次性预烘焙：窗口模式 SubViewport GPU 512²、headless CPU 64² 等价回退，两路径公式必须同步）、去饱和/晕影与 DYING 心跳/呼吸/HUD 抖动；满血隐藏全屏 ColorRect + `_process` 早退（常态零 GPU、≈零 CPU），参数上传 epsilon 检测。数值在 `effects.meta_health`，「减少闪光」无障碍开关在设置页「操作模式」。
-- `scripts/cinematic_fx.gd`（CinematicFx）：过场/演出共享特效静态工厂——软径向光晕 `soft_glow`（64² 程序生成软点贴图，消除硬边圆点）、带纹理粒子 `particles`（与旧 `_particles(cfg)` 同契约，≤96/发射器）、双层冲击波环 `shockwave`、分层能量束+流光点 `beam`、速度线场 `speed_lines`、径向放射条纹 `radial_streaks`；驱动类 `_process` 全部零堆分配。开场/返航过场与母舰召唤演出共用。
-- `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，设计文档 `docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO` 路由、任意键/点击由过场自身捕获跳过，播完/跳过统一走 `finished` 恢复。
-- `scripts/return_cinematic.gd` + `scripts/dawn_station.gd`：返航过场导演（7 镜头，长按 B 返航触发，设计文档 `docs/RETURN_HOME_CINEMATIC.md`）；架构镜像开场，Esc 经 `SKIP_RETURN` 路由，播完/跳过统一走 `finished` 落基地 UI（树保持暂停，镜头 7 渐暗期 BGM 淡出到 -40dB）。`DawnStation` 是「曙光」站体共享静态工厂（毁灭态/全息虚影态），开场镜头 1、返航镜头 2/3/4 与后续基地背景层复用。
-- `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
-- `scripts/mothership_summon_window.gd` + `scripts/warp_gate.gd`：母舰召唤演出（蓄力完成触发，对局不暂停、演出期玩家锁输入+事件驱动无敌）——蓄力期 main 在停驻点叠加收缩双环/内吸粒子/背光（`_charge_fx`，随进度驱动、松手复位）；机库小窗（充能管线断开→维护臂解除→弹射+穿梭器启动，layer=24，`finished` 信号统一出口，`skip()` 供测试直推）；小窗结束后 main 在停驻点创建穿梭门（世界坐标，软光门心+内旋弧+门缘内吸粒子+前唇遮挡层），母舰 DESCEND 穿出减速（缩放 ease-out，前唇层压过舰体形成穿门读感，行程 `warp_in_drop`），到位释放双环减速带（`Enemy`/`Boss.apply_slow` 短时位移减速乘区）并立即火力掩护，DOCKING 牵引回收玩家进保护舱（光束含 3 枚循环流动捕获环；`player.enter_pod()` 隐藏+关受击判定，RELEASE `exit_pod()` 恢复），之后补给/驻留/离场与原流程一致。数值在 `effects.mothership_summon`。
-- `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
-- `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss；2026-07-29 修订为**占用波次槽——运行期间暂停普通波次**，经 spawner `_waves_paused` 钩子，与精英炮塔事件互斥；可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
-- `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。教程与正局逻辑对齐（2026-07-31）：`_ready` 同样创建 AimFrameLayer（辅助瞄准标记框/追踪弹在教程内有效），阶段 1 为正常速度强制标记靶机，阶段 4 为长按 H 蓄力 → 穿梭门 → 母舰 `begin_warp_in` → 对接补给（略去机库小窗演出，实体路径同 `main._on_summon_window_finished`）。
-
-`scenes/` 包含主场景、玩家、普通敌机、Boss、子弹、母舰、开场/返航过场和教程场景；同名行为脚本通常位于 `scripts/`。所有动态对局实体应挂在 Main 下，以便清场逻辑和测试遍历可见。
+`scenes/main.tscn` 是主节点树和对局容器（Starfield/Camera2D、Player、Spawner、BulletPool/EnemyPool、HUD 及各页面 UI、BackNavigator，以及运行时由 main 创建的 MetaHealthFX/AimFrameLayer/过场/母舰/事件等）。`scripts/main.gd` 是对局编排核心；`GameState` 委托四个服务类（见上）；动态对局实体应挂在 Main 下，以便清场逻辑和测试遍历可见。**完整节点树与逐脚本职责见 `docs/ARCHITECTURE.md`**。
 
 ## 目录职责
 
@@ -177,12 +41,14 @@ Main (scripts/main.gd)
 | `autoload/` | 全局 autoload；当前只有 `game_state.gd`。 |
 | `scenes/` | Godot `.tscn` 场景与节点组合。 |
 | `scripts/` | GDScript 游戏逻辑、UI、表现和池实现。 |
-| `scripts/tools/` | 离线工具（Python 标准库）；`balance_editor.py` 数值管理器（`python3 scripts/tools/balance_editor.py`，浏览器分区编辑 `balance.json`，改动高亮 + 服务端结构/类型校验 + 原子落盘 + 自动备份 `.bak`）——调数值优先用它，改完跑最小验证集；`gen_balance_map.py` 重新生成 `docs/BALANCE_MAP.md`（全部 `cfg()` 调用点索引 + json/脚本双写对齐反查，新增/改名键后必跑）；`generate_audio.py` 可重新生成已提交的 WAV；`generate_enemy_sprites.py`（敌方单位+航母+炮塔，晶体棱镜风格，`PALETTE_DARK`/`PALETTE_BRIGHT` 双档调色板）、`generate_player_sprite.py`（玩家机，钛灰钢甲+青色能量）、`generate_mothership_sprite.py`（母舰，同玩家体系）可重新生成全部单位贴图（PIL，超采样+光晕双层合成）。 |
-| `assets/` | 游戏贴图、音效/BGM、字体和着色器（`assets/shaders/`，Meta HUD 后处理与裂纹场烘焙）。 |
-| `data/` | 运行时数值配置和翻译资源源文件。 |
-| `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
-| `docs/` | 退出流程、审计计划、审核-修复 SOP（AUDIT_REVIEW_SOP，并行审核方法论）、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）、数值位置地图（BALANCE_MAP，生成文件）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录）。 |
-| `packaging/` | 发布包随附的安装/卸载脚本：`linux/`（install.sh / uninstall.sh / infiair.desktop）、`windows/`（install.bat / uninstall.bat）。 |
+| `scripts/tools/` | 离线 Python 工具（`balance_editor.py` 数值管理器、`gen_balance_map.py` 文档生成、资产生成器）。 |
+| `assets/` | 贴图、音效/BGM、字体和着色器。 |
+| `data/` | 运行时数值配置（`balance.json`）和翻译资源源文件。 |
+| `test/` | 无头场景自检、性能基准、自动游玩和截图工具（命令见 `docs/TESTING.md`）。 |
+| `docs/` | 审计档案（`AUDIT_VAULT.md`）、设计文档、路线图、BALANCE_MAP 与 archive 档案。 |
+| `packaging/` | 发布包随附的安装/卸载脚本（linux/、windows/）。 |
+
+`scripts/tools/` 明细与全部目录职责详见 `docs/ARCHITECTURE.md`。
 
 ## 开发约定
 
@@ -223,20 +89,13 @@ Main (scripts/main.gd)
 
 - 子弹生产统一使用 `GameState.bullet_pool.fire()`；外部 `queue_free()` 后的池引用清理由子弹退出树逻辑处理。
 - 修改对象池时必须保留 `_active` 与 `_repooling` 防护。Godot 4.6 的 `reparent()` 会触发 `_exit_tree()`；回收 reparent 必须由 `_repooling` 包裹，否则 `forget()` 会将对象错误地从空闲池移除。修改后运行 `test/pool_reuse_test.tscn`。
-- 敌机存在直接实例化和对象池两条当前路径（见“运行时架构”）。池化实体的 `reactivate()`/`deactivate()` 负责状态重置、注册表和死亡信号；不要把池对象外部随意释放或绕过其生命周期。
+- 敌机存在直接实例化和对象池两条当前路径（见 `docs/ARCHITECTURE.md`）。池化实体的 `reactivate()`/`deactivate()` 负责状态重置、注册表和死亡信号；不要把池对象外部随意释放或绕过其生命周期。
 - 热路径不能反复 `get_nodes_in_group()`；使用 `GameState.enemies`、`GameState.player_ref` 和 `GameState.player_hitbox` 注册表。`Enemy` 移动计算使用 `Enemy.sin_fast()` / `Enemy.cos_fast()` 的查表实现，避免在 `_physics_process()` 直接调用三角函数。
 - HUD 仪表类轮询按约 0.1 秒节流，且只在文本/格子值变化时更新布局；优先通过 `GameState` 信号驱动状态更新。
 
-## 测试策略与副作用
+## 测试策略
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 38 个场景：29 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
-
-- 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
-- `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。
-- `test/autoplay_test.tscn` 是长时自动游玩与 `[ANOMALY]` 不变量监控探针，不以常规断言失败形式代表所有问题。注册表一致性按 "enemy" 组集合双向比对（含炮台/编队战机注册者，跳过池化 deferred 回收窗口）；另覆盖 Buff 卡确认动效路径（10% 真实三参选取）、返航过场期豁免的卡死计时、狂暴减速复位、buff 层数封顶与事件/Boss 阶段计数（SUMMARY 输出）。
-- `test/perf_bench.tscn` 必须带 `--fixed-fps 1000`；无头默认帧率行为不适合直接比较纯帧耗时。做性能 A/B 时交错运行并使用中位数。
-- 修改 UI 后使用窗口模式截图人工核对；headless 不会输出可用游戏截图。
-- **既有失败基线（2026-07-31 在干净 HEAD 复现确认，与近期改动无关，修复前不必重复排查）**：`hit_logic_test` 的 A21「Boss 入场降入期玩家弹可伤 Boss」稳定失败；`smoke_test` 的「母舰击杀 1/3 分」偶发失败（重跑可过）。**2026-08-01 复核：两条基线在干净 HEAD 均已通过**（hit_logic 20 断言含 A21、smoke 31 断言全 PASS），应视为已自愈/被后续改动修复；若再现先排查近期改动，不再默认其为与无关的既有失败。
+每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检（非单元测试框架）。`test/` 下共 38 个场景：29 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）与 7 个窗口模式截图工具。**运行命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`**。
 
 ## 持久化与安全边界
 
@@ -251,4 +110,4 @@ Main (scripts/main.gd)
 - 调整页面返回层级、退出清理或平台返回处理时，更新 `docs/EXIT_FLOW.md` 并运行返回导航测试。
 - 新增/改名数值键或调整 `cfg()` 调用后，运行 `python3 scripts/tools/gen_balance_map.py` 重新生成 `docs/BALANCE_MAP.md`。
 - **`docs/AUDIT_VAULT.md`（代码审计档案）为专有文档，禁止删除或合并**：登记全部已发现的代码质量错误、修复指引、修复后的处理与起效记录、工作时间与区域。新审计发现追加登记；修复落地后在对应条目回填「修复起效记录」并更新状态总览。任何清理/归档操作不得移除本文件。
-- 修改工程结构、运行命令、测试策略、配置位置或本文件所述约定时，同步维护本 `AGENTS.md`，使其保持面向首次接手项目的代理的真实入口文档。
+- 修改工程结构、运行命令、测试策略、配置位置或本文件所述约定时，同步维护本 `AGENTS.md`，使其保持面向首次接手项目的代理的真实入口文档；架构/配置细节改动同步维护 `docs/ARCHITECTURE.md`，测试命令/策略改动同步维护 `docs/TESTING.md`。
