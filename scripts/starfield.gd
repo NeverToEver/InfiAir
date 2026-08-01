@@ -11,6 +11,8 @@ var _far: Array[Vector2] = []
 var _near: Array[Vector2] = []
 ## 返航过场的星光拉伸倍率，随时间衰减回 1
 var warp_factor: float = 1.0
+## C07 修复：可见世界区域尺寸缓存（view_world_rect），替代硬编码 1920×1080
+var _area_size: Vector2 = Vector2(1920.0, 1080.0)
 
 
 func warp(factor: float) -> void:
@@ -25,22 +27,24 @@ func _ready() -> void:
 	NEAR_SPEED = GameState.cfg("effects.starfield.near_speed", NEAR_SPEED)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345
+	# C07：星点范围随可见世界区域（view_world_rect）而非写死 1920×1080
+	_area_size = GameState.view_world_rect().size
 	for i in FAR_COUNT:
-		_far.append(Vector2(rng.randf() * 1920.0, rng.randf() * 1080.0))
+		_far.append(Vector2(rng.randf() * _area_size.x, rng.randf() * _area_size.y))
 	for i in NEAR_COUNT:
-		_near.append(Vector2(rng.randf() * 1920.0, rng.randf() * 1080.0))
+		_near.append(Vector2(rng.randf() * _area_size.x, rng.randf() * _area_size.y))
 
 
 func _process(delta: float) -> void:
 	warp_factor = lerpf(warp_factor, 1.0, 1.5 * delta)
 	for i in _far.size():
 		_far[i] += Vector2(0.0, FAR_SPEED * warp_factor * delta)
-		if _far[i].y > 1080.0:
-			_far[i].y -= 1080.0
+		if _far[i].y > _area_size.y:
+			_far[i].y -= _area_size.y
 	for i in _near.size():
 		_near[i] += Vector2(0.0, NEAR_SPEED * warp_factor * delta)
-		if _near[i].y > 1080.0:
-			_near[i].y -= 1080.0
+		if _near[i].y > _area_size.y:
+			_near[i].y -= _area_size.y
 	queue_redraw()
 
 

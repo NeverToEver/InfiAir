@@ -49,7 +49,7 @@ func _update_press(delta: float, boss) -> void:
 	var elapsed: float = float(boss.PRESS_INTERVAL) - _press_timer
 	var target := 0.0
 	if elapsed >= float(boss.PRESS_INTERVAL) - PRESS_WINDOW:
-		target = float(boss.PRESS_DEPTH) * sin(PI * (elapsed - (float(boss.PRESS_INTERVAL) - PRESS_WINDOW)) / PRESS_WINDOW)
+		target = float(boss.PRESS_DEPTH) * Enemy.sin_fast(PI * (elapsed - (float(boss.PRESS_INTERVAL) - PRESS_WINDOW)) / PRESS_WINDOW)
 	boss.position.y += target - _press_offset
 	_press_offset = target
 
@@ -69,8 +69,9 @@ func _move_dash(delta: float, boss) -> void:
 		_dashing = not _dashing
 		_move_timer = 0.5 if _dashing else 0.7
 		if _dashing:
-			# 偏向屏幕中心方向冲刺，避免长期贴边
-			_strafe_dir = signf(960.0 - boss.position.x) if randf() < 0.6 else (-_strafe_dir)
+			# 偏向屏幕中心方向冲刺，避免长期贴边（C14：中心取可见世界，不写死 960）
+			var center_x: float = GameState.view_world_rect().get_center().x
+			_strafe_dir = signf(center_x - boss.position.x) if randf() < 0.6 else (-_strafe_dir)
 			if _strafe_dir == 0.0:
 				_strafe_dir = 1.0
 	if _dashing:

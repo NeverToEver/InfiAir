@@ -530,12 +530,12 @@ func _physics_process(delta: float) -> void:
 	# 无敌帧闪烁
 	if _invincible > 0.0:
 		_invincible -= delta
-		_sprite.modulate.a = 0.35 + 0.65 * absf(sin(Time.get_ticks_msec() / 1000.0 * 20.0))
+		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(Time.get_ticks_msec() * 0.02))
 	else:
 		_sprite.modulate.a = 1.0
 
 	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
-	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(sin(Time.get_ticks_msec() / 1000.0 * 6.0))
+	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(Time.get_ticks_msec() * 0.006))
 
 	# 回血（A8 委托 PlayerDamage）：regen buff 固定 +2 HP/s；无 buff 时被动回血
 	_damage.heal_tick(delta)

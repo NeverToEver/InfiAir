@@ -187,7 +187,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(is_instance_valid(b), "small 档 x=100 子弹存活（边界 -80）")
 	GameState.set_view_zoom(&"large")
-	await get_tree().process_frame
+	# C04 后子弹位移/销毁走物理帧，等待 physics_frame 而非 process_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
 	_check(not is_instance_valid(b), "large 档 x=100 子弹出屏销毁（边界 ≈315）")
 
 	# ---------- 9. 刷怪位置/预告线/悬停锚点随档收窄（当前为 large 档） ----------

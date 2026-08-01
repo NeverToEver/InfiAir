@@ -105,7 +105,7 @@ func update(delta: float, boss) -> void:
 			if _aim_line != null:
 				_aim_line.points = PackedVector2Array([_sniper_dir * float(boss.MUZZLE_OFFSET), _sniper_dir * 1200.0])
 		if _aim_line != null:
-			_aim_line.modulate.a = 0.18 + 0.18 * absf(sin(_sniper_aim_elapsed * 25.0))
+			_aim_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_sniper_aim_elapsed * 25.0))
 		if _sniper_aim_elapsed >= float(boss.SNIPER_AIM_TIME):
 			_cancel_aim_line()
 			_sniper_aim_elapsed = -1.0
@@ -211,8 +211,10 @@ func _start_dash_sweep(boss) -> void:
 		return
 	_sweep_state = SWEEP_AIM
 	_sweep_timer = float(boss.SWEEP_AIM)
-	var player_x := 960.0
-	var dy := 300.0
+	# C14：默认方向/高度取可见世界中心，不写死 960/300
+	var view := GameState.view_world_rect()
+	var player_x: float = view.get_center().x
+	var dy: float = view.get_center().y - boss.position.y
 	if GameState.player_ref != null:
 		player_x = GameState.player_ref.global_position.x
 		dy = GameState.player_ref.global_position.y - boss.position.y
@@ -225,8 +227,10 @@ func _start_dash_sweep(boss) -> void:
 	_sweep_line.width = 2.0
 	_sweep_line.default_color = Color(1.0, 0.35, 0.3, 0.9)
 	_sweep_line.modulate.a = 0.3
-	_sweep_line.add_point(Vector2(-1600.0, dy))
-	_sweep_line.add_point(Vector2(1600.0, dy))
+	# 预警线跨度覆盖可见区全宽（zoom 加宽也不露边）
+	var span := view.size.x * 0.6
+	_sweep_line.add_point(Vector2(-span, dy))
+	_sweep_line.add_point(Vector2(span, dy))
 	boss.add_child(_sweep_line)
 
 
@@ -237,7 +241,7 @@ func _update_sweep(delta: float, boss) -> void:
 		SWEEP_AIM:
 			_sweep_timer -= delta
 			if _sweep_line != null:
-				_sweep_line.modulate.a = 0.18 + 0.18 * absf(sin(_sweep_timer * 25.0))
+				_sweep_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_sweep_timer * 25.0))
 			if _sweep_timer <= 0.0:
 				_cancel_sweep_line()
 				_sweep_state = SWEEP_DASH
@@ -263,7 +267,8 @@ func _update_sweep(delta: float, boss) -> void:
 				_sweep_state = SWEEP_RETURN
 				_sweep_timer = float(boss.SWEEP_RETURN_DURATION)
 				_sweep_origin = boss.position
-				_sweep_return_target = Vector2(clampf(960.0, bounds.x, bounds.y), boss.fight_anchor_y())
+				# C14：返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
+				_sweep_return_target = Vector2(clampf(GameState.view_world_rect().get_center().x, bounds.x, bounds.y), boss.fight_anchor_y())
 		SWEEP_RETURN:
 			_sweep_timer -= delta
 			var t := clampf(1.0 - _sweep_timer / float(boss.SWEEP_RETURN_DURATION), 0.0, 1.0)

@@ -110,7 +110,8 @@ func _ready() -> void:
 	add_child(_charge_ghost)
 	# 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
 	_charge_ghost.set_physics_process(false)
-	_charge_ghost.position = Vector2(960.0, _charge_ghost.HOVER_Y)
+	# C14：蓄力虚影居中取可见世界中心，不写死 960
+	_charge_ghost.position = Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HOVER_Y)
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
 	_build_charge_fx()
@@ -379,7 +380,8 @@ func _stop_charging() -> void:
 func _build_charge_fx() -> void:
 	var ws: float = GameState.world_scale
 	_charge_fx = Node2D.new()
-	_charge_fx.position = Vector2(960.0, _charge_ghost.HOVER_Y)
+	# C14：与虚影同位（复用 _charge_ghost.position.x，不写死 960）
+	_charge_fx.position = Vector2(_charge_ghost.position.x, _charge_ghost.HOVER_Y)
 	_charge_fx.visible = false
 	add_child(_charge_fx)
 	# 背光（衬在虚影之下：z -1）

@@ -227,7 +227,7 @@ func _active_stalker(delta: float, boss) -> void:
 		_sniper_dir = _player_dir(boss)
 		if _aim_line != null:
 			_aim_line.points = PackedVector2Array([_sniper_dir * float(boss.MUZZLE_OFFSET), _sniper_dir * 1200.0])
-			_aim_line.modulate.a = 0.18 + 0.18 * absf(sin(_aim_elapsed * 25.0))
+			_aim_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_aim_elapsed * 25.0))
 		if _aim_elapsed >= float(boss.E2_AIM):
 			_free_aim_line()
 			_aim_elapsed = -1.0
@@ -288,6 +288,19 @@ func _path_radius(boss) -> float:
 	return minf(base, max_radius)
 
 
+## C10：方形路径角点（底→左→顶→右，index 4 循环回底），配合 _path_center 无数组求值
+func _square_corner(index: int, radius: float) -> Vector2:
+	match index % 4:
+		0:
+			return Vector2(0.0, radius)
+		1:
+			return Vector2(-radius, 0.0)
+		2:
+			return Vector2(0.0, -radius)
+		_:
+			return Vector2(radius, 0.0)
+
+
 ## 轨道中心：前 48% 方形路径（底→左→顶→右→底），后 52% 圆形路径（底部起顺接）
 func _path_center(progress: float, boss) -> Vector2:
 	progress = clampf(progress, 0.0, 1.0)
@@ -297,14 +310,10 @@ func _path_center(progress: float, boss) -> Vector2:
 		var sp := progress / float(boss.ENRAGE_SQUARE_PATH_RATIO)
 		var segment := mini(3, int(sp * 4.0))
 		var local := sp * 4.0 - float(segment)
-		var points: Array[Vector2] = [
-			c + Vector2(0.0, radius),
-			c + Vector2(-radius, 0.0),
-			c + Vector2(0.0, -radius),
-			c + Vector2(radius, 0.0),
-			c + Vector2(0.0, radius),
-		]
-		return points[segment].lerp(points[segment + 1], local)
+		# C10：方形路径四角直接求两端点 lerp，避免每帧构建 5 元素数组（GC 压力）
+		var from := c + _square_corner(segment, radius)
+		var to := c + _square_corner(segment + 1, radius)
+		return from.lerp(to, local)
 	var cp := (progress - float(boss.ENRAGE_SQUARE_PATH_RATIO)) / (1.0 - float(boss.ENRAGE_SQUARE_PATH_RATIO))
 	var angle := PI / 2.0 + cp * TAU
 	return c + Vector2(Enemy.cos_fast(angle), Enemy.sin_fast(angle)) * radius

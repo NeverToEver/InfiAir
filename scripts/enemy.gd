@@ -69,6 +69,8 @@ var _spawn_x: float = 0.0
 var _fire_timer: float = FIRE_INTERVAL
 ## A4a：移动策略实例（_ready 按 strategy 构建；zigzag/dive/spiral 私有状态已迁入策略类）
 var _strategy: EnemyMoveStrategy = null
+## C06 修复：移动上下文缓存（每帧复用同一字典，只更新字段值，消除每帧 new Dictionary 分配）
+var _move_ctx: Dictionary = {}
 var _pool: Node = null
 ## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
 var _active: bool = false
@@ -388,19 +390,18 @@ func _physics_process(delta: float) -> void:
 	var mdelta := delta * slow_mult
 	var view := GameState.view_world_rect()
 	# A4a：移动委托移动策略（straight/sine/zigzag/dive/spiral/noise/hover/aggressive）
-	var ctx := {
-		"view": view,
-		"mdelta": mdelta,
-		"speed": speed,
-		"time": _time,
-		"phase": _phase,
-		"spawn_x": _spawn_x,
-		"anchor_y": anchor_y,
-		"hovering": _hovering,
-		"player": GameState.player_ref,
-	}
+	# C06：复用 _move_ctx 字典（字段原地更新），避免每个敌机每物理帧新建 Dictionary
+	_move_ctx["view"] = view
+	_move_ctx["mdelta"] = mdelta
+	_move_ctx["speed"] = speed
+	_move_ctx["time"] = _time
+	_move_ctx["phase"] = _phase
+	_move_ctx["spawn_x"] = _spawn_x
+	_move_ctx["anchor_y"] = anchor_y
+	_move_ctx["hovering"] = _hovering
+	_move_ctx["player"] = GameState.player_ref
 	if _strategy != null:
-		_strategy.update(delta, self, ctx)
+		_strategy.update(delta, self, _move_ctx)
 	# 到达锚点转入悬停机动（dive 冲刺期除外；spiral 以绕转中心为准）
 	if not _hovering:
 		var diving: bool = _strategy != null and _strategy.is_diving()
@@ -418,7 +419,8 @@ func _physics_process(delta: float) -> void:
 
 	_check_body_collision()
 
-	if position.y > GameState.view_world_rect().end.y + 60.0:
+	# C06：复用主路径已取的 view（391 行），避免同帧重复 view_world_rect()
+	if position.y > view.end.y + 60.0:
 		_despawn()
 
 

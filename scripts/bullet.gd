@@ -84,7 +84,7 @@ func activate(
 	homing_turn_rate = 4.0
 	visible = true
 	monitoring = true
-	set_process(true)
+	set_physics_process(true)  # C04：位移走物理帧，与 Area2D overlap 检测同步
 	_apply_faction()
 
 
@@ -92,7 +92,7 @@ func activate(
 func deactivate() -> void:
 	_active = false
 	visible = false
-	set_process(false)
+	set_physics_process(false)  # C04：与 activate 的物理帧开关配对
 	position = Vector2(-500.0, -500.0)
 	_deferred_disable_monitoring.call_deferred()
 
@@ -168,7 +168,7 @@ func _despawn() -> void:
 		queue_free()
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if homing_target != null:
 		# 辅助瞄准追踪（P1-1）：优先于 homing 玩家追踪分支；目标失效/超时限即直行
 		# B4 修复：池化敌机 deactivate 后仍是合法节点（is_instance_valid 通过）但已回收，
