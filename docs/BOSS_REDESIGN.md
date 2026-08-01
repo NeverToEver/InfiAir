@@ -209,6 +209,9 @@ FIGHT（常规）
   telegraph 时长、机体移速、HP/伤害不分档；弹数钳制下限 wall 6 / ring 4 / 其余 1（fan 下限 3）。
 - 修复：`_load_patterns` 对 cfg 返回的共享 JSON 数组必须 `duplicate(true)` 深拷贝，
   否则分档 interval 乘算会污染 GameState 配置缓存、叠加到后续 Boss 实例（boss_pattern_test 场景 6 捕获）。
+  **2026-08-01 复核补充**：同类污染仍存在于 `FIRE_INTERVALS`（`boss.gd:420-421` 读共享数组、
+  `:522-523` 原地 `[i] *= interval_mult`，easy/hard 下跨 Boss 复合叠加）——`_apply_difficulty_scaling`
+  对 `FIRE_INTERVALS` 需同样先 `duplicate(true)`，已登记 AUDIT_VAULT B5。
 
 ### 8.3 难度分档落地（§4.4）
 

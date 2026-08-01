@@ -29,15 +29,15 @@ func go_back():
         CANCEL_EXIT:          # ExitConfirm 可见
             exit_confirm.cancel()          # 返回 = 取消退出；开始面板可见时焦点还给其主按钮
         SKIP_INTRO:           # 开场过场播放中（Main._intro != null）
-            main._skip_intro()             # = 跳过过场直接进对局（任意键/点击由过场自身捕获）
+            main.skip_intro()              # = 跳过过场直接进对局（任意键/点击由过场自身捕获）
         SKIP_RETURN:          # 返航过场播放中（Main._return != null，优先级同 SKIP_INTRO）
-            main._skip_return()            # = 跳过过场直落基地 UI（树保持暂停；任意键/点击同上）
+            main.skip_return()             # = 跳过过场直落基地 UI（树保持暂停；任意键/点击同上）
         CAPTURE_PASSTHROUGH:  # 设置改键捕获中
             pass                           # 不消费事件，让 SettingsUI 取消捕获
         CLOSE_SETTINGS:       # 设置页可见
-            settings_ui._on_back_pressed() # 返回 opener（暂停或开始面板）
+            settings_ui.back()             # 返回 opener（暂停或开始面板）
         RESUME_BASE:          # 基地控制台可见
-            base_ui._on_resume_pressed()   # = 继续出击
+            base_ui.resume()               # = 继续出击
         IGNORE:               # Buff 三选一（必须做选择）/ 死亡→结算页出现前的中间态 / 其他暂停态
             （吞掉输入）
         TO_MAIN_MENU:         # 结算页可见

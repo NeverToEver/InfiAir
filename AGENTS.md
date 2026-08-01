@@ -8,7 +8,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 
 - 项目入口：`project.godot` 的 `run/main_scene = res://scenes/main.tscn`。
 - 设计视口：1920×1080，`canvas_items` 拉伸，`keep` 宽高比。
-- 唯一 autoload：`GameState`（`autoload/game_state.gd`），负责全局状态、信号、数值读取、持久化、音效池与实体注册表。
+- 唯一 autoload：`GameState`（`autoload/game_state.gd`）——全局状态/信号总线门面。A2 起数值读取、持久化、音效池、实体注册表已组合委托给四个非 autoload 服务类（`scripts/balance_service.gd` / `save_manager.gd` / `sfx_player.gd` / `entity_registry.gd`），GameState 公开 API 语法保留并转发，调用方与测试零感知。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
 - 返回/退出行为见 `docs/EXIT_FLOW.md`；未来方向与阶段计划见 `docs/ROADMAP.md`；全部数值读取位置索引见 `docs/BALANCE_MAP.md`（生成文件）；移植时期的对齐记录与迭代历史已归档为 `docs/archive/PORTING_PARITY.md`（冻结，不再维护）。
 - `CLAUDE.md` 只提供入口级概览并声明本文件为权威约定文档；两者冲突时以本文件为准。
@@ -151,7 +151,7 @@ Main (scripts/main.gd)
 ```
 
 - `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM 与页面流转。
-- `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线；加载数值/翻译；维护 `GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用；读写本地存档。
+- `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线门面。数值加载/查询委托 `BalanceService`，存档读写/损坏隔离委托 `SaveManager`，音效池委托 `SfxPlayer`，实体注册表（`GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用）委托 `EntityRegistry`——对外 `GameState.*` 语法逐字不变（A2）。
 - `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担：程序化炮舱/护盾弧/光环/信标与尾焰染色（`engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。辅助瞄准（2026-07-31 三轮增强，P1-3 磁吸/锥形弱追踪）：准星构件 `scripts/aim_crosshair.gd`（AimCrosshair，挂 Player，top_level；仅对局活跃时跟随 `aim_point()` 并隐藏系统光标，同一条件驱动两处），敌机按 `player.aim_assist.mark_ratio`（当前 0.25）出生掷 `Enemy.aim_marked` 标记，`scripts/aim_frame_layer.gd`（AimFrameLayer，挂 Main）统一画 bracket 框；准星入框时 `player._fire()` 给新弹写入 `Bullet.homing_target` 追踪（档位表 `player.aim_assist.levels`：frame_pad/homing_turn_rate/stick_factor，`homing_time` 追踪时长），未入框朝准星直射；追踪弹近距（≤`Bullet.HOMING_SNAP_RADIUS` 36+帧位移）直取目标、中距转向随距离加急，螺旋收敛命中不环绕。`aim_point()` 返回平滑瞄准点：准星在标记框内时鼠标增量按 `stick_factor` 降灵敏度（入框弱吸附），框外近距（`AimFrameLayer.magnet_pull`：框沿距 ≤ `magnet_range`、输入增量 2~40px/帧区间）时按磁吸系数拉向目标（输入 smoothstep 反比 + 距离衰减 + `magnet_max_speed` 拉速上限，静止/甩枪不拉），判定/开火/准星绘制共用同一点，每渲染帧推进一次（`Engine.get_process_frames()` 守卫）。框外锥形弱追踪：`_fire()` 入框判定未命中时经 `AimFrameLayer.nearest_cone_target` 查瞄准锥角（`cone_angle_deg` 4/6/8° 三档）内最近标记敌，`homing_turn_rate × cone_strength × 角距归一 × aim_dist_falloff` 渐变弱绑定（锥缘/远距退化为直射）。磁吸与弱追踪共用距离衰减（`player.aim_assist.falloff`：400px 内全辅助 → 1400px 线性降至 0.3 下限）。
 - `scripts/spawner.gd`：波次化刷怪与特殊槽调度。普通波成组（均分槽位入场、锚点悬停机动）按间隔 ramp 刷新；每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽（Boss 激活与事件期间暂停普通波次），精英/Boss 击杀后追加休整波次。普通波次当前直接实例化 `enemy.tscn`；Boss-3 生成的小怪使用 `GameState.enemy_pool.spawn()`。不要把"所有敌机已经池化"当成当前事实。
 - `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
@@ -165,7 +165,7 @@ Main (scripts/main.gd)
 - `scripts/orbital_strike.gd`：轨道打击清场动画（基地「继续出击」触发）：瞄准具→导弹下落→命中光柱/扩散环，树保持暂停播放；命中帧（`struck`）由 main 做注册表驱动清场（Boss 保留、逐机爆炸）并恢复对局，数值在 `effects.orbital_strike`。
 - `scripts/mothership_summon_window.gd` + `scripts/warp_gate.gd`：母舰召唤演出（蓄力完成触发，对局不暂停、演出期玩家锁输入+事件驱动无敌）——蓄力期 main 在停驻点叠加收缩双环/内吸粒子/背光（`_charge_fx`，随进度驱动、松手复位）；机库小窗（充能管线断开→维护臂解除→弹射+穿梭器启动，layer=24，`finished` 信号统一出口，`skip()` 供测试直推）；小窗结束后 main 在停驻点创建穿梭门（世界坐标，软光门心+内旋弧+门缘内吸粒子+前唇遮挡层），母舰 DESCEND 穿出减速（缩放 ease-out，前唇层压过舰体形成穿门读感，行程 `warp_in_drop`），到位释放双环减速带（`Enemy`/`Boss.apply_slow` 短时位移减速乘区）并立即火力掩护，DOCKING 牵引回收玩家进保护舱（光束含 3 枚循环流动捕获环；`player.enter_pod()` 隐藏+关受击判定，RELEASE `exit_pod()` 恢复），之后补给/驻留/离场与原流程一致。数值在 `effects.mothership_summon`。
 - `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（设计/实现文档 `docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
-- `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss、不暂停波次，可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
+- `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（设计/实现文档 `docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss；2026-07-29 修订为**占用波次槽——运行期间暂停普通波次**，经 spawner `_waves_paused` 钩子，与精英炮塔事件互斥；可被返航 `abort()` 打断）、编队锚点/楔形偏移由事件 `_process` 驱动、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回的统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `scripts/tutorial.gd` 自己处理返回。教程与正局逻辑对齐（2026-07-31）：`_ready` 同样创建 AimFrameLayer（辅助瞄准标记框/追踪弹在教程内有效），阶段 1 为正常速度强制标记靶机，阶段 4 为长按 H 蓄力 → 穿梭门 → 母舰 `begin_warp_in` → 对接补给（略去机库小窗演出，实体路径同 `main._on_summon_window_finished`）。
 
 `scenes/` 包含主场景、玩家、普通敌机、Boss、子弹、母舰、开场/返航过场和教程场景；同名行为脚本通常位于 `scripts/`。所有动态对局实体应挂在 Main 下，以便清场逻辑和测试遍历可见。
@@ -236,7 +236,7 @@ Main (scripts/main.gd)
 - `test/autoplay_test.tscn` 是长时自动游玩与 `[ANOMALY]` 不变量监控探针，不以常规断言失败形式代表所有问题。注册表一致性按 "enemy" 组集合双向比对（含炮台/编队战机注册者，跳过池化 deferred 回收窗口）；另覆盖 Buff 卡确认动效路径（10% 真实三参选取）、返航过场期豁免的卡死计时、狂暴减速复位、buff 层数封顶与事件/Boss 阶段计数（SUMMARY 输出）。
 - `test/perf_bench.tscn` 必须带 `--fixed-fps 1000`；无头默认帧率行为不适合直接比较纯帧耗时。做性能 A/B 时交错运行并使用中位数。
 - 修改 UI 后使用窗口模式截图人工核对；headless 不会输出可用游戏截图。
-- **既有失败基线（2026-07-31 在干净 HEAD 复现确认，与近期改动无关，修复前不必重复排查）**：`hit_logic_test` 的 A21「Boss 入场降入期玩家弹可伤 Boss」稳定失败；`smoke_test` 的「母舰击杀 1/3 分」偶发失败（重跑可过）。
+- **既有失败基线（2026-07-31 在干净 HEAD 复现确认，与近期改动无关，修复前不必重复排查）**：`hit_logic_test` 的 A21「Boss 入场降入期玩家弹可伤 Boss」稳定失败；`smoke_test` 的「母舰击杀 1/3 分」偶发失败（重跑可过）。**2026-08-01 复核：两条基线在干净 HEAD 均已通过**（hit_logic 20 断言含 A21、smoke 31 断言全 PASS），应视为已自愈/被后续改动修复；若再现先排查近期改动，不再默认其为与无关的既有失败。
 
 ## 持久化与安全边界
 

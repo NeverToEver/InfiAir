@@ -279,7 +279,7 @@ crack_progress = pow(_damage_x, 1.6)            # shader 参数，采样：x=0.2
 
 1. `take_damage(10)` → `player_damaged` 信号携带 amount 与 from_pos；无敌帧期不发射。
 2. max 池化：连续 10 次 `r=0.05` 伤害，`_hit_pulse` 不超过 0.15（不累积）。
-3. 曲线采样：hp=75%/50%/25%/10% → crack_progress ≈ 0.11/0.33/0.72/0.93（±0.02）。
+3. 曲线采样：hp=75%/50%/25%/10% → crack_progress ≈ 0.11/0.33/0.63/0.84（±0.02）。（2026-08-01 订正：原 0.72/0.93 为笔误，`pow(0.75,1.6)=0.63`、`pow(0.90,1.6)=0.84`，与 §4.2 采样及 `meta_health_fx_test.gd` 断言一致。）
 4. 状态机：hp 跨越 0.25 下行 instant 快入；上行修复 0.8s 后 crack_progress 回落且 `_heal_jitter` 经历过 0→0.35→0 全程。
 5. DYING：hp<20% 时心率在 [1.0,1.2]Hz、`breath_scale()` ∈ [0.985,1.015]；开「减少闪光」后 `breath_active()==false`。
 6. LOD1：`u_lod==1` 时 hud `_vignette` 恢复低血脉动（回退路径，D2）。

@@ -66,10 +66,11 @@ var _registry := EntityRegistry.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
-## 全局机体尺寸缩放（balance.json 顶层 world_scale；1/3 = 当前默认观感）。
+## 全局机体尺寸缩放（balance.json 顶层 world_scale；0.4 = 当前默认观感，2026-07-31 由 1/3 上调）。
 ## 机体尺寸族数值（贴图 scale/碰撞 radius/机体偏移/随机体特效比例）在 json/tscn/脚本回退中
 ## 一律存设计值（1.0 基准），实体在 _ready()/setup() 统一乘本系数后应用；游戏性范围族不乘。
-var world_scale: float = 0.3333333333333333
+## 回退默认值须与 balance.json 一致（损坏/缺键时全局比例不错位）。
+var world_scale: float = 0.4
 
 
 func _load_balance() -> void:

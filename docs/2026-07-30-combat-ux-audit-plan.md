@@ -5,6 +5,8 @@
 
 **执行状态**：已完成（2026-07-30 全量实施：P0-1~P0-5、P1-1、P1-2 全部合入工作区；全量无头回归 30 项 0 FAIL，autoplay 480s 探针 0 异常，窗口截图可读性逐项核对通过；未 git commit）。
 
+> **口径更新（2026-08-01 统一）**：① `mark_ratio` 落地时从设计值 0.4（40%）调整为 **0.25**（P1-1 标题已记、正文未同步，本节正文/目标态/回退值已统一为 0.25）；② 本计划 P0-3「明确不做·不动 world_scale（1/3）」的决策已於 **2026-07-31 被推翻**——`world_scale` 由 1/3 上调至 **0.4**（本节现状数值系当日期快照，仅作历史对照，运行时以 `data/balance.json` 顶层为准）；③ P1-3 已于 2026-07-31 实施（见下小节）。
+
 ---
 
 ## 现状关键事实（审计基准）
@@ -89,14 +91,14 @@
 
 **目标态**（用户定义）：
 1. 鼠标跟随准星（世界坐标），默认弹道 = 朝准星方向直射；
-2. 随机约 40% 敌机出生即带「强辅助」标记并显示辅助框；
+2. 随机约 25% 敌机出生即带「强辅助」标记并显示辅助框；
 3. 准星置入某标记敌框内 → 出膛弹获得对该敌的追踪（homing）修正；
 4. 准星不在任何标记框内 → 朝准星直射（规则 1）。
 
 **子系统设计**：
 
 - **准星构件**：新世界空间节点（建议挂 Player，`top_level=true` Node2D + 程序化 bracket/点，复用 `_aim_ring` 模式）。每帧跟随 `get_global_mouse_position()`；`Input.mouse_mode = MOUSE_MODE_HIDDEN` 仅在对局活跃（未暂停、未锁输入、存活）时生效，暂停/Buff/基地/结算/死亡/过场恢复系统光标并隐藏准星——同一条件驱动两处，避免双光标/无光标死角。`laser_weapon` 光束本就走原始鼠标，与准星天然一致（`buff33_test` 光束段不动）。
-- **40% 标记**：`Enemy.setup()` 掷 `randf() < cfg("player.aim_assist.mark_ratio", 0.4)`（直实例化与池化 `reactivate` 均过 setup；`deactivate` 复位，防池残留）。标记终生稳定。**排除** Boss、精英炮塔事件炮台、轰炸编队战机（决策点：它们非 `Enemy` 类或属事件单位；若后续要含精英/事件单位再开配置）。精英（`Enemy` 子行为）纳入。
+- **25% 标记**：`Enemy.setup()` 掷 `randf() < cfg("player.aim_assist.mark_ratio", 0.25)`（直实例化与池化 `reactivate` 均过 setup；`deactivate` 复位，防池残留）。标记终生稳定。**排除** Boss、精英炮塔事件炮台、轰炸编队战机（决策点：它们非 `Enemy` 类或属事件单位；若后续要含精英/事件单位再开配置）。精英（`Enemy` 子行为）纳入。
 - **辅助框覆盖层**：单管理节点（建议 `scripts/aim_frame_layer.gd`，挂 Main，世界坐标），`_draw` 每帧遍历 `GameState.enemies` 中带标记者统一画四角 bracket 框（单节点一次 `_draw`，零逐敌节点开销）；框半径 = 碰撞半径 + `frame_pad`（指示器族不乘 ws），青色强对比 + 低频频闪；准星入框的个体框转金色高亮（即时反馈「追踪已生效」）。
 - **追踪弹**：`Bullet` 新增 `homing_target: Node2D` 字段（默认 null），`_process` 优先于现有玩家追踪逻辑：目标有效则 `lerp_angle(direction.angle(), 到目标角度, homing_turn_rate × delta)`，失效则直行；字段纳入 `activate()` 池化重置清单（AGENTS 强约束）。`player._fire()` 在准星入框时把该敌写入新弹；散射多发全部追踪同一目标。`homing_time` 取大值（配置 4.0s ≈ 弹寿命），不逐帧改方向即无 DPS 口径变化。
 - **档位重映射**（保留三档无 off，`smoke_test` 拒绝 off 的断言不动）：
@@ -107,7 +109,7 @@
   | medium | 16 | 5.5 |
   | high | 24 | 8.0 |
 
-  新配置：`player.aim_assist.mark_ratio 0.4`、`frame_pad/homing_turn_rate` 三档表、`homing_time 4.0`（json + 脚本回退一致）。旧磁吸参数（radius/break/switch/cone/pull）删除（json + `game_state.gd` + `player.gd` 三处同步清理）。
+  新配置：`player.aim_assist.mark_ratio 0.25`（落地值，非设计初稿 0.4）、`frame_pad/homing_turn_rate` 三档表、`homing_time 4.0`（json + 脚本回退一致）。旧磁吸参数（radius/break/switch/cone/pull）删除（json + `game_state.gd` + `player.gd` 三处同步清理）。
 - **删除的旧系统**：`_resolve_aim_point` 磁吸全家（`player.gd:382-445`）、`_aim_lock_target`、`_aim_ring`（`:148-157,450-484`）——锁定环显示职责由辅助框覆盖层接管；`smoke_test:660,671-674,682` 的磁吸断言**重写**为新语义（标记敌入框 → 弹向目标追踪；未入框 → 弹向准星；档位参数联动；off 拒绝）。
 - **新 UI 文本**：设置页辅助瞄准描述更新（`SET_AIM_ASSIST` 相关键 translations.csv 双语同步）。
 
@@ -167,7 +169,7 @@
 
 ## 明确不做
 
-- 不动 `world_scale` 全局杠杆（1/3 是 2026-07 既定决策，本审计全部按尺寸族/游戏性族归类处理）。
+- ~~不动 `world_scale` 全局杠杆（1/3 是 2026-07 既定决策，本审计全部按尺寸族/游戏性族归类处理）~~ —— **2026-07-31 已推翻**：`world_scale` 由 1/3 上调至 0.4；本条作历史决策记录保留，运行时以 `data/balance.json` 顶层为准。
 - 不动敌机 fire 概率与伤害 ramp（平衡分层，待可读性修复落地后单独评估）。
 - 不做敌机/Boss 弹速调整（仅玩家弹速）。
 - 不给追踪弹加伤害修正（追踪即收益，DPS 口径保持不变）。

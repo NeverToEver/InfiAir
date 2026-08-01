@@ -67,7 +67,7 @@ func _ready() -> void:
 	_advance.call_deferred()
 
 
-## 任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main._skip_intro()
+## 任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.skip_intro()（公开接口，A7 后经 _skip_intro 落地）
 func _unhandled_input(event: InputEvent) -> void:
 	if _done or event.is_action_pressed("ui_cancel"):
 		return

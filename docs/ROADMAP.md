@@ -6,7 +6,7 @@
 
 - **移植对齐收官**：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）。
 - **质量基线**：29 个无头断言测试场景全绿；长时 autoplay 探针 + 性能基准可用。
-- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**A1–A8 已全部修复**（同日）：A1 封装穿透、A2 GameState 四服务拆分、A3 Boss 四类拆分、A4 敌机策略/事件触发基类、A5 依赖注入、A6 语义化特判、A7 测试白盒 855 处全清、A8 Player 组件拆分；29 断言场景全绿 + autoplay 120s 伪实机 0 异常。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**修复状态（2026-08-01 按 git 历史与代码实况订正，见档案 A 系列回填）**：A1 封装穿透 ✅、A2 GameState 四服务拆分 ✅、A3 Boss 四类拆分 ⚠️ 拆分落地但 O 原则未达成（match 仅搬迁）、A4 开闭违反 ⚠️ 部分完成（A4a 敌机策略/A4b 事件触发基类已落地，Boss 分支与 Player buff 未治理）、A5 依赖倒置 ❌、A6 语义化特判 ✅、A7 测试白盒 855 处全清 ✅、A8 Player 组件拆分 ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽）。2026-08-01 并行复核另登记 B1–B16（见档案）。
 - **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
 
 ## 方向转变
@@ -25,7 +25,7 @@
 - 审计 P2 待办清理（`docs/2026-07-22-audit-fix-plan.md`）：死代码删除（`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等）、母舰 `_start_release()` 幂等守卫、`profile_corrupt` 损坏档案提示消费。
 - 敌机生成路径统一：普通波次目前直接实例化、Boss-3 小怪走 `enemy_pool`，两条路径并存；评估统一到对象池（含 A/B 性能对照，`USE_POOL` 开关已留）。
 - **A2 GameState 拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A2）：四阶段委托式剥离全部落地——①数值配置读操作 `BalanceService` → ②持久化 `SaveManager` → ③音效池 `SfxPlayer` → ④实体注册表 `EntityRegistry`。GameState 公开 API 保留并转发（注册表用属性 getter/setter），调用方与测试零破坏；29 断言场景全绿、数值地图 0 失配、`game_state.gd` 直接文件 IO 清零。
-- **A3 Boss 单类拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A3）：1488 行单类拆为门面 Boss + 4 职责类（`BossFire` 弹幕发射 / `BossAttacks` 攻击状态机 / `BossMovement` 移动策略 / `EnrageSequence` 狂暴状态机）；`boss.gd` 瘦身至 802 行，集中 match 分发被委托取代（O 原则），无跨类私有访问复发；29 断言场景全绿。
+- **A3 Boss 单类拆分**（2026-07-31 **拆分落地**，`docs/AUDIT_VAULT.md` A3）：1488 行单类拆为门面 Boss + 4 职责类（`BossFire` 弹幕发射 / `BossAttacks` 攻击状态机 / `BossMovement` 移动策略 / `EnrageSequence` 狂暴状态机）；`boss.gd` 瘦身至 802 行，无跨类私有访问复发；29 断言场景全绿。**订正（2026-08-01）**：集中 match 仅是搬迁进 `BossAttacks.execute()`，非查表/工厂取代；机型分支在 BossMovement/EnrageSequence/Boss 残留 7 处，O 原则未达成（见 A3 复核订正）。
 - 验收：全部既有测试 0 FAIL；改动条目在审计文档标注完成。
 
 ### Phase 3 — 暂缓/已砍项的重启条件（均需用户明确决策）

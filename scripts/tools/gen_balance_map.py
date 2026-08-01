@@ -27,6 +27,11 @@ RE_BARE = re.compile(r'(?<![\w.])cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTAL
 RE_DYNAMIC = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*\+')
 # 格式化动态键：GameState.cfg("boss.phases.type%d" % boss_type, ...) → 前缀取 % 之前
 RE_FORMAT = re.compile(r'GameState\.cfg\(\s*"([^"]*?)%[^"]*"\s*%')
+# 前缀变量模式：var base := "player.aim_assist.levels." + String(x) + "."
+# → 后续 GameState.cfg(base + "frame_pad", ...)。RE_PREFIX_VAR 捕获 {变量名: 字面前缀}；
+# RE_CFG_WITH_VAR 把用该变量作首参的 cfg 调用登记为动态前缀（P1-3 起 aim_frame_layer 采用此写法）。
+RE_PREFIX_VAR = re.compile(r'var\s+(\w+)\s*(?::\s*[\w.]*\s*)?=\s*"([^"]+)"\s*\+')
+RE_CFG_WITH_VAR = re.compile(r'GameState\.cfg\(\s*(\w+)\s*\+')
 
 
 def _in_comment(text: str, pos: int) -> bool:
@@ -66,7 +71,8 @@ def main() -> None:
             rel = gd.relative_to(ROOT)
             text = gd.read_text(encoding="utf-8")
             patterns = [RE_STATIC]
-            if gd.name == "game_state.gd":  # autoload 内部裸 cfg() 调用
+            if gd.name in ("game_state.gd", "balance_service.gd"):
+                # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
             for pat in patterns:
                 for m in pat.finditer(text):
@@ -83,6 +89,14 @@ def main() -> None:
             for m in RE_FORMAT.finditer(text):
                 if not _in_comment(text, m.start()):
                     dynamic_prefixes.add(m.group(1))
+            # 前缀变量模式：先收集 var xxx := "前缀" + …，再把 cfg(xxx + …) 记为动态前缀
+            prefix_vars: dict[str, str] = {}
+            for m in RE_PREFIX_VAR.finditer(text):
+                if not _in_comment(text, m.start()):
+                    prefix_vars[m.group(1)] = m.group(2)
+            for m in RE_CFG_WITH_VAR.finditer(text):
+                if not _in_comment(text, m.start()) and m.group(1) in prefix_vars:
+                    dynamic_prefixes.add(prefix_vars[m.group(1)])
 
     referenced = {key for _, _, key, _ in static_calls}
     missing_in_json = [(f, ln, k, d) for f, ln, k, d in static_calls if not json_get(balance, k)]

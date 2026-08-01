@@ -3,9 +3,10 @@ extends Node
 ## 轰炸编队事件编排（docs/FORMATION_STRIKE_EVENT.md）：最低优先级随机遭遇——
 ## IDLE → FORMATION_ENTER（自屏顶外靠近）→ FORMATION_TURN（90° 转航向）
 ## → BOMBING_RUN（横穿交错投弹）→ FORMATION_EXIT（加速离场）→ IDLE（冷却）。
-## 不冻结 Boss 调度、不暂停普通波次；可被返航 abort() 打断（无结算，冷却照计）。
-## 编队锚点运动与战机偏移/朝向由本节点 _process 驱动；状态计时全在 _process，
-## 不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下（清场/测试遍历可见）。
+## 不冻结 Boss 调度；2026-07-29 修订为占用波次槽——运行期间暂停普通波次
+## （start() 置 spawner._waves_paused，与精英炮塔事件互斥，见设计文档 §1/§2）；
+## 可被返航 abort() 打断（无结算，冷却照计）。编队锚点运动与战机偏移/朝向由本节点
+## _process 驱动；状态计时全在 _process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
 
 const COMM_OVERLAY_SCRIPT: GDScript = preload("res://scripts/comm_overlay.gd")
 

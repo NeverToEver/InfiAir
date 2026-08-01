@@ -99,9 +99,10 @@
   1. 攻击抽为**数据驱动的攻击对象/工厂**（`BossAttack` 接口：`begin()/update(delta)/end()`），模式表存攻击构造器引用，`_execute_attack` 退化为查表实例化。
   2. 狂暴序列抽为独立状态机类 `EnrageSequence`（持 Boss 引用 + 各型行为策略），Boss 委托。
   3. 每型 Boss 移动抽为策略（如 `BulwarkMove/DashMove/StrafeMove`），`_update_movement` 的 match 退化为查表。
-- **修复起效记录**：✅ 全部完成（2026-07-31）
+- **修复起效记录**：✅ 拆分落地（2026-07-31）；O 原则达成存疑（2026-08-01 订正，见下）
   - **改了什么**：1488 行单类拆为「门面 Boss + 4 职责类」——`BossFire`（128 行）弹幕发射器；`BossAttacks`（356 行）持续型攻击状态机 + `execute()` 分发（原 `_execute_attack` match）；`BossMovement`（79 行）三型移动策略 + P1 纵向下压；`EnrageSequence`（362 行）狂暴 5 子状态机 + 三型差异化 ACTIVE + 轨道路径 + 锁血/玩家减速。`boss.gd` 1488 → 802 行，保留配置加载、阶段框架、血量/受击/逃跑、入场、信号、公开查询（fight_anchor_y/strafe_range/slow_factor/is_enraged/fight_phase/reset_fire_timer/spawn_minion_at）。
-  - **为什么起效**：三型移动、20+ 攻击、狂暴状态机各归单一职责类；集中 match 分发被查表/委托取代（O 原则，新增攻击/机型不再改既有函数）；子类经注入 BossFire/BossAttacks + boss 公开查询交互，残留扫描确认无跨类私有访问复发（A1 不回退）。
+  - **为什么起效**：三型移动、20+ 攻击、狂暴状态机各归单一职责类，`boss.gd` 大幅缩水、单类可读性提升；子类经注入 BossFire/BossAttacks + boss 公开查询交互，残留扫描确认无跨类私有访问复发（A1 不回退）。
+  - **⚠️ 2026-08-01 复核订正（勿再据此断言 O 原则达成）**：拆分确为真·职责迁移，但「集中 match 分发被查表/委托取代（O 原则）」表述过誉。事实核查：原 `_execute_attack` 的 10 分支 `match attack:` 只是**逐字搬进** `BossAttacks.execute()`（既非查表也非工厂实例化）；按机型分支在 `BossMovement.update`（1 处 match）+ `EnrageSequence`（4 处机型 if）+ `Boss`（召唤、受击硬直 2 处）共残留 **7 处**——新增机型仍须改 7 处既有函数。且该声明与同档案 **A4 条目「boss 攻击 match / 按类型嵌套未修复」对同一事实给出相反结论**（两者实际都是"match 仍在、仅换文件"），档案自洽性已被破坏，本表 A4 已回填澄清。
   - **如何验证**：`--headless --import` 通过；`--quit-after 300` 无运行时错误；29 个断言场景全绿 0 FAIL（boss_phase 31 / boss_pattern 55 / boss_enrage 34 / enemy_combat 32 / hit_logic 60 / smoke 128 等）；测试白盒断言改走子类公开查询（`boss._enrage_seq.phase()` 等）。
   - **遗留**：测试仍白盒访问 `boss._attacks`/`boss._enrage_seq` 组件字段（归 A7）；`Boss.SweepState`/`EnragePhase` enum 仍驻留 Boss 供测试引用。
 
@@ -112,7 +113,11 @@
 - **位置**：`enemy.gd:340`（8 分支策略 match）、`boss.gd:695`（攻击 match）、`boss.gd:1137`（按类型 3 路嵌套）、`player.gd:324`（Buff 内联分支）、`spawner.gd:201`（两事件触发内联）
 - **描述**：新增移动策略/攻击/Buff/事件 = 修改既有函数的 match 或 if 分支。改既有代码就有回归风险。
 - **修复指引**：按 A3 模式，将策略/攻击/事件抽为可注册的独立对象；Buff 效果改为声明式效果表（buff id → 效果对象），Player 遍历效果对象而非逐 Buff if。
-- **修复起效记录**：⚠️ 未修复（登记于 2026-07-31）
+- **修复起效记录**：⚠️ **部分完成（2026-08-01 按 git 历史回填，状态表当时漏更新）**
+  - **已完成子项（2026-07-31 落地）**：
+    - A4a 敌机移动策略抽类（`cea806e`）：`EnemyMoveStrategy` 基类 + 8 策略子类，`enemy.gd` `_physics_process` 的策略 match 委托给 `_strategy.update()`；`_make_strategy()` 仅余工厂 match（构造分发，可接受）。
+    - A4b spawner 事件触发基类（`955f8a5`）：`ScheduledEventTrigger` 统一精英/编队触发策略，原 spawner 两事件内联分支委托。
+  - **未完成子项**：Boss 攻击 match（现 `BossAttacks.execute()` 仍为 10 分支 match，见 A3 订正）与按机型分支（BossMovement/EnrageSequence/Boss 共残留 7 处）；`player.gd` Buff 效果仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, GameState.buff_count())` 族），未改声明式效果表。
 
 ---
 
@@ -139,7 +144,9 @@
 - **位置**：`enemy.gd:508` vs `boss.gd:1371`；调用方 `bullet.gd:216`
 - **描述**：两类型 `take_damage` 语义不同（Enemy 直扣直死；Boss 锁血/阶段推进/狂暴），调用方被迫 `if area is Boss` 特判 —— 说明多态接口不完整，Boss 与 Enemy 不应共用同一调用点。
 - **修复指引**：将玩家弹命中结算改为「命中事件」信号驱动，或定义 `Hittable` 契约（`take_damage(amount, score_scale)`），Boss/Enemy 各自实现并移除调用方类型特判；特判移入各自实现内部。
-- **修复起效记录**：⚠️ 未修复（登记于 2026-07-31）
+- **修复起效记录**：✅ **已修复（2026-07-31 `68fea1e`「A6 语义化特判」；vault 状态表当时漏更新，2026-08-01 回填）**
+  - **改了什么**：`Enemy.is_boss()` 语义特判 + `Boss` override；`bullet.gd` 命中结算的硬类型特判 `if area is Boss` 改为 `if e.is_boss()` / `if explosive and not area.is_boss()`（爆炸 AoE/溅射对 Boss 的排除逻辑语义化）。
+  - **为什么起效**：调用方不再依赖具体类型（`Enemy`/`Boss` 共用 `is_boss()` 查询），满足「类型特判移入各自实现内部」的指引方向。实现走语义化分支而非完整 `Hittable` 契约，属指引允许的分支方案。
 
 ---
 
@@ -161,7 +168,9 @@
 - **位置**：`scripts/player.gd`
 - **描述**：移动、瞄准/辅助瞄准、开火、Dash、燃料、受击/减免、回血、尾焰/残影视觉、碰撞清除同处一类。外部（main/boss）还直接写其私有字段（见 A1）。
 - **修复指引**：受击减免（闪避/护甲/吸血）与回血抽为 `DamagePipeline` 效果组件；Dash 抽独立组件；视觉（尾焰/残影/准星/碰撞点）抽 `PlayerVisuals`。
-- **修复起效记录**：⚠️ 未修复（登记于 2026-07-31）
+- **修复起效记录**：⚠️ **部分完成（2026-08-01 按 git 历史回填，状态表当时漏更新）**
+  - **已完成（2026-07-31 `9174a52`「A8 Player 职责拆分」）**：受击/回血抽为 `PlayerDamage` 组件、冲刺抽为 `PlayerDash` 组件（属性经 Player 转发，外部 API 不变，A1 无穿透）。
+  - **未完成**：视觉职责（尾焰/残影/准星/碰撞点/`PlayerBuffVisuals`）仍驻留 Player 本体；Player 仍约 697 行。
 
 ---
 
@@ -171,13 +180,59 @@
 | --- | --- | --- | --- |
 | A1 封装穿透 | 危险 | ✅ 已修复 | 2026-07-31 |
 | A2 上帝对象 | 危险 | ✅ 已修复 | 2026-07-31 |
-| A3 boss 单类 | 严重 | ✅ 已修复 | 2026-07-31 |
-| A4 开闭违反 | 严重 | 未修复 | 2026-07-31 |
+| A3 boss 单类 | 严重 | ⚠️ 拆分落地、O 原则未达成（2026-08-01 订正） | 2026-07-31 |
+| A4 开闭违反 | 严重 | ⚠️ 部分完成（A4a/A4b 落地，Boss 分支与 Player buff 未治理） | 2026-07-31 |
 | A5 依赖倒置 | 严重 | 未修复 | 2026-07-31 |
-| A6 L 违反 | 中等 | 未修复 | 2026-07-31 |
+| A6 L 违反 | 中等 | ✅ 已修复（is_boss 语义化特判，2026-08-01 回填） | 2026-07-31 |
 | A7 测试耦合 | 中等 | ✅ 已修复 | 2026-07-31 |
-| A8 Player 膨胀 | 中等 | 未修复 | 2026-07-31 |
+| A8 Player 膨胀 | 中等 | ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽） | 2026-07-31 |
 
 > **修复后处理**：任何一条修复落地后，须回到本表更新状态，并在对应条目回填「修复起效记录」——说明改了什么、为什么起效、用什么验证（相关测试场景：`smoke_test` / `base_system_test` / `pool_reuse_test` / `enemy_combat_test` / `hit_logic_test`）。
 
 <!-- 新发现追加区：后续审核轮次在此编号继续（B1, B2, ...） -->
+
+---
+
+# 第二轮审核（2026-08-01 并行业务逻辑复核 + 文档口径统一）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 主要业务逻辑问题与矛盾复核（6 路并行代理：对局编排/玩家瞄准/刷怪池/Boss/事件演出/数值一致性）+ 文档-代码口径统一 |
+| 工作时间 | 2026-08-01 |
+| 审核区域 | `scripts/` 全部脚本 + `autoload/game_state.gd` + `data/balance.json` + 7 份设计文档 |
+| 结论 | 无危险级运行时崩溃；2 个真实泄漏类缺陷、8 个对局影响级缺陷、一批文档-代码矛盾（口径已统一并登记）。A2/P1-3/五套演出系统判定为真·达成设计目标；A3/A4/A8 为部分完成（见 A 系列订正） |
+
+## 发现清单
+
+| 编号 | 严重度 | 位置 | 描述 | 修复指引 |
+| --- | --- | --- | --- | --- |
+| B1 | 严重 | `enrage_sequence.gd:237` | 二型狂暴 `_aim_line` 每次瞬停点 `make_aim_line()` 创建 Line2D 存本类字段，全文件无 `queue_free`；`abort()`/RELEASE/RETURN 均不清理，残留静态瞄准线显示到 Boss 释放，每次二型狂暴泄漏约 6 个 Line2D | 创建时纳入统一生命周期（复用 `BossAttacks.cancel_aim_line()` 或本类持有后于 RELEASE/RETURN/abort 清理） |
+| B2 | 中等 | `main.gd:291-305,508-513,610-644` | 狂暴子弹时间 `Engine.time_scale=0.24` 在返航/死亡/放弃三条对局终态路径不复位；返航过场以 4 倍慢速播放直至轨道打击解除暂停自愈 | `_start_homecoming()`/`_on_player_died()`/`_give_up()` 入口复位 `time_scale = 1.0` |
+| B3 | 中等 | `spawner.gd:503-513` + `boss.gd:608-611` | Boss 逃跑同时 emit `escaped`+`died`；`_on_boss_died` 无 `is_escaped` 守卫，误走击杀结算（推进 `_next_boss_score` + 给休整波），违背「逃跑不推进轮换、不给休整」契约 | `_on_boss_died` 先判 `boss.is_escaped` 跳过击杀侧结算 |
+| B4 | 中等 | `bullet.gd:172-190` + `enemy.gd:329-338` | 追踪弹对池化回收目标仅查 `is_instance_valid`（池实例仍合法），目标死亡后弹追向 `(-500,-500)`、复用后追向无关新敌 | 失效判定补 `not homing_target.is_active()` 或注册表成员检查 |
+| B5 | 中等 | `balance_service.gd:40-42` + `boss.gd:420-421,522-523` | `cfg()` 对数组返回共享 JSON 引用；`FIRE_INTERVALS[i] *= interval_mult` 就地污染缓存，easy/hard 跨 Boss 复合叠加（BOSS_REDESIGN §8.2 同类已修 bug 漏此路径） | `_apply_difficulty_scaling()` 对 `FIRE_INTERVALS` 先 `duplicate(true)`（与 `_load_patterns` 同法） |
+| B6 | 中等 | `game_state.gd:72` | `world_scale` 脚本回退默认 1/3 未随 json 0.4 上调；损坏 JSON 时全游戏机体缩放/碰撞半径系统性错位 | 回退默认值改 0.4（**2026-08-01 本次已修**） |
+| B7 | 中等 | `laser_weapon.gd:74-91` | 激光光束走原始鼠标，与磁吸/粘性后的准星 `aim_point()` 指向不一致（P1-3 磁吸放大偏差） | `_aim_dir()` 改用 `_player.aim_point()` |
+| B8 | 中等 | `spawner.gd:393-399` | `_count_spread_enemies()` 用 group 遍历（池化敌机 `deactivate()` 不 `remove_from_group`），池中闲置实例虚抬 spread 同屏上限 → spread 弹种频繁退化 | 改遍历 `GameState.enemies` 注册表 |
+| B9 | 中等 | `boss.gd:252-257` vs `enemy.gd:124-131` | Boss HP ramp 整倍乘 vs 敌机阻尼 ramp（0.12/单位），后期 Boss 血量可能在 50s 逃跑窗口内无法击杀（mult≈5 时 Boss-3 hard ≈9600 HP） | 确认设计意图或统一 ramp 语义 |
+| B10 | 中等 | `formation_strike_event.gd:212-222` | BOMBING_RUN 投弹横穿实际 1.1–1.8s（3/4/5 机），设计文档承诺 2.6–3.8s（投完即离场） | 调投弹间隔/延长横穿段至设计区间（游戏性变更，需人决） |
+| B11 | 轻微 | `mothership.gd:134-136` | 母舰 `drive.margin_*` 被乘 `world_scale`，同族屏幕边界值（strafe/hover_band/fight_y）不乘，归类口径不一致 | 统一为不乘或补注释说明例外 |
+| B12 | 轻微 | `enemy.gd:139` | 敌机速度 ramp 系数 0.1 硬编码无 json 键（HP/伤害 ramp 均有键） | 补 `enemies.speed_ramp_factor` 键 |
+| B13 | 轻微 | `elite_turret_event.gd:151-165` / `formation_strike_event.gd:163-169` | 事件 `abort()` 不清理 CommOverlay 已显台词，返航恢复后台词残留 | `abort()` 内清空/隐藏 `_comm` |
+| B14 | 轻微 | `meta_health_fx.gd:188-194` | 状态边界严格小于比较，恰好 20% 血量不进入 DYING（差一档；浮点连续值实际几乎不可达） | 边界改 `<=` 或文档注明 |
+| B15 | 轻微 | `return_cinematic.gd:99-113` | `skip()` 的 SKIP_GRACE（1.2s）输入宽限同时门控程序化自然结束；未来过场时长 <1.2s 会被永久拦截 | 自然结束与输入跳过分流（`_finish()` 独立于 `skip()`） |
+| B16 | 轻微 | `main.gd:610-614` | `_give_up()` 死亡爆炸生成于已暂停树不播放（纯视觉） | 先 `_player.die()` 再暂停，或爆炸挂 `process_mode=Always` |
+
+## 口径统一记录（2026-08-01 一并修正的文档-代码矛盾）
+
+| 项 | 修正内容 |
+| --- | --- |
+| AUDIT_VAULT A 系列状态表 | A3/A4/A6/A8 按实际完成度订正（上文）；ROADMAP/AGENTS 同步 |
+| `docs/2026-07-30-combat-ux-audit-plan.md` | P1-1 mark_ratio 0.4/40% → 落地值 0.25（正文/回退/目标态）；P0-3「不动 world_scale 1/3」加 2026-07-31 上调 0.4 决策变更注 |
+| `docs/META_HUD_DESIGN.md` §7 | 裂纹曲线验收 0.11/0.33/**0.72/0.93** → 与 §4.2/代码一致的 **0.63/0.84** |
+| `docs/EXIT_FLOW.md` | 状态机伪代码方法名改公开接口（`main.skip_intro()/skip_return()`、`base_ui.resume()`、`settings_ui.back()`） |
+| `AGENTS.md` | GameState 描述补 A2 组合服务；编队事件「不暂停波次」→「占用波次槽暂停普通波次」；失败基线（A21/母舰击杀偶发）标注已通过 |
+| 代码注释/回退 | `game_state.gd` world_scale 回退 1/3→0.4（含注释）；`formation_strike_event.gd` 类注释；`smoke_test.gd`「40%」→「25%」；`main.gd` 两处误导注释 |
+| `BOSS_REDESIGN.md` §8.2 | duplicate(true) 自决点补注 FIRE_INTERVALS 同路径漏拷贝（B5） |

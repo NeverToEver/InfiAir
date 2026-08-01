@@ -641,7 +641,7 @@ func _ready() -> void:
 	aim_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e.can_shoot = false
 	aim_e.hp = 9999  # 防止被测试弹击毁触发里程碑
-	aim_e.aim_marked = true  # 出生标记为 40% 随机掷点，测试强制置位保证确定性
+	aim_e.aim_marked = true  # 出生标记为 25% 随机掷点（mark_ratio 0.25），测试强制置位保证确定性
 	aim_e.position = player.position + Vector2(0.0, -300.0)
 	main.add_child(aim_e)
 	await get_tree().process_frame

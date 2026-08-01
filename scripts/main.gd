@@ -40,7 +40,8 @@ var _charge_rings: Array[Line2D] = []  # 收缩椭圆环 ×2
 var _charge_inflow: GPUParticles2D = null  # 内吸粒子
 var _home_charge_time: float = 0.0
 var _give_up_charge: float = 0.0
-# Boss 狂暴子弹时间状态（main 统一接管：Boss 被杀/逃跑也保证 time_scale 回 1）
+# Boss 狂暴子弹时间状态（main 统一接管）。注意：time_scale 复位只覆盖 Boss 离场/逃跑路径，
+# 返航/放弃/玩家死亡路径不复位（已知缺口，见 docs/AUDIT_VAULT.md B2），修前勿依赖全局保证
 var _bullet_time_left: float = 0.0  # >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
 var _time_scale_ramp: float = -1.0  # >=0：恢复过渡进度 0..1
 var _enrage_boss: Boss = null
@@ -113,8 +114,9 @@ func _ready() -> void:
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
 	_build_charge_fx()
-	# 有存档则先显示开始面板，否则直接开新局；欢迎页在显时由 dismiss() 补调 show_panel，
-	# 不得在此抢显（GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
+	# 有存档则显示开始面板；无存档时开始面板由自身逻辑自显（并非"直接开新局"）。
+	# 欢迎页在显时由 dismiss() 补调 show_panel，不得在此抢显
+	# （GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
 	if GameState.has_save() and not $WelcomeScreen.visible:
 		_start_panel.show_panel()
 
