@@ -11,6 +11,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 - 唯一 autoload：`GameState`（`autoload/game_state.gd`）——全局状态/信号总线门面。A2 起数值读取、持久化、音效池、实体注册表已组合委托给四个非 autoload 服务类（`scripts/balance_service.gd` / `save_manager.gd` / `sfx_player.gd` / `entity_registry.gd`），GameState 公开 API 语法保留并转发，调用方与测试零感知。
 - 用户界面和主要文档以中文为主；新增游戏文本必须保持中英双语。
 - `CLAUDE.md` 只提供入口级概览并声明本文件为权威约定文档；两者冲突时以本文件为准。
+- **设计意图与架构基线的唯一修正文档为 `docs/DESIGN_BASELINE.md`**（产品玩法、技术架构、全局不变量、技术债与未来方向的总纲；专项设计文档提供实现级细节）。改动设计意图/基线时同步维护它。
 
 ## 技术栈与配置
 
@@ -107,6 +108,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 ## 文档同步要求
 
 - 调整项目方向、阶段计划或暂缓/重启决策时，更新 `docs/ROADMAP.md`（方向类决策的单一事实源）。
+- 调整设计意图、玩法规则或架构基线时，更新 `docs/DESIGN_BASELINE.md`（设计基线唯一修正文档）并同步受影响专项设计文档。
 - 调整页面返回层级、退出清理或平台返回处理时，更新 `docs/EXIT_FLOW.md` 并运行返回导航测试。
 - 新增/改名数值键或调整 `cfg()` 调用后，运行 `python3 scripts/tools/gen_balance_map.py` 重新生成 `docs/BALANCE_MAP.md`。
 - **`docs/AUDIT_VAULT.md`（代码审计档案）为专有文档，禁止删除或合并**：登记全部已发现的代码质量错误、修复指引、修复后的处理与起效记录、工作时间与区域。新审计发现追加登记；修复落地后在对应条目回填「修复起效记录」并更新状态总览。任何清理/归档操作不得移除本文件。
