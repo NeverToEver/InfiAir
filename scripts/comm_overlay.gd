@@ -54,6 +54,16 @@ func show_line(key: String) -> void:
 	GameState.play_sfx(COMM_SFX, -10.0)
 
 
+## 清空当前台词并隐藏（B13：返航打断事件时调用，避免恢复对局后台词残留）
+func clear() -> void:
+	_full_text = ""
+	_shown_chars = 0
+	_char_t = 0.0
+	_hold_left = -1.0
+	_label.text = ""
+	_panel.visible = false
+
+
 func _process(delta: float) -> void:
 	if not _panel.visible:
 		return

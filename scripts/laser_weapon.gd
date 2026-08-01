@@ -79,12 +79,15 @@ func _physics_process(delta: float) -> void:
 			_tick_timer += TICK_INTERVAL
 			_damage_tick(start, end)
 	elif _cooldown <= 0.0 and not _player.is_dead() and not _player.is_input_locked():
-		if (get_global_mouse_position() - _player.global_position).length() > 1.0:
+		# B7 修复：触发判定随瞄准点（含磁吸/粘性）而非原始鼠标，与准星一致
+		if (_player.aim_point() - _player.global_position).length() > 1.0:
 			_start_beam()
 
 
-func _aim_dir(start: Vector2) -> Vector2:
-	var aim := get_global_mouse_position() - start
+## 光束方向：经 _player.aim_point()（磁吸/粘性后的平滑瞄准点），与准星/开火共用同一点
+## （B7 修复：P1-3 磁吸会让准星偏离原始鼠标，仍走 get_global_mouse_position 则光束与可见准星指向不同目标）
+func _aim_dir(_start: Vector2) -> Vector2:
+	var aim := _player.aim_point() - _player.global_position
 	if aim.length() <= 1.0:
 		# 贴图机头朝上，机身 rotation 对应 Vector2.UP 方向
 		return Vector2.UP.rotated(_player.rotation)

@@ -82,6 +82,15 @@ func aim_line() -> Line2D:
 	return _aim_line
 
 
+## 释放本类持有的瞄准线（B1 修复）。`BossAttacks.make_aim_line` 创建的 Line2D
+## 只由本类 `_aim_line` 持有，`BossAttacks.cancel_aim_line()` 仅清其自身 `_aim_line`，
+## 到不了这里——不显式清理会残留静态瞄准线并泄漏节点（每次 2 型狂暴约 6 个）。
+func _free_aim_line() -> void:
+	if _aim_line != null:
+		_aim_line.queue_free()
+		_aim_line = null
+
+
 ## 狂暴触发初始化（Boss._enrage 调用：数据 + 锁血 + 玩家减速；表现由 Boss 侧负责）
 func begin(boss, snapshot_target: Vector2, boss_size: Vector2) -> void:
 	_snapshot_target = snapshot_target
@@ -104,6 +113,7 @@ func abort() -> void:
 	_phase = ENRAGE_NONE
 	_health_lock = false
 	_attacks.cancel_aim_line()
+	_free_aim_line()
 	_aim_elapsed = -1.0
 	_unlock_player_movement()
 
@@ -219,7 +229,7 @@ func _active_stalker(delta: float, boss) -> void:
 			_aim_line.points = PackedVector2Array([_sniper_dir * float(boss.MUZZLE_OFFSET), _sniper_dir * 1200.0])
 			_aim_line.modulate.a = 0.18 + 0.18 * absf(sin(_aim_elapsed * 25.0))
 		if _aim_elapsed >= float(boss.E2_AIM):
-			_attacks.cancel_aim_line()
+			_free_aim_line()
 			_aim_elapsed = -1.0
 			_fire.fire_heavy(boss, _sniper_dir, float(boss.E2_SNIPER_SPEED), int(boss.E2_SNIPER_DAMAGE))
 	_attack_timer -= delta
@@ -232,6 +242,7 @@ func _active_stalker(delta: float, boss) -> void:
 		_attack_index += 1
 		_attack_timer = float(boss.E2_POINT_INTERVAL)
 		_attacks.cancel_aim_line()
+		_free_aim_line()
 		_aim_elapsed = 0.0
 		_sniper_dir = _player_dir(boss)
 		_aim_line = _attacks.make_aim_line(boss, _sniper_dir, 1200.0)
@@ -306,6 +317,7 @@ func _begin_release_hold(boss) -> void:
 	_health_lock = false
 	_unlock_player_movement()
 	_attacks.cancel_aim_line()
+	_free_aim_line()
 	_aim_elapsed = -1.0
 	_release_salvo_done = false
 	match int(boss.boss_type):

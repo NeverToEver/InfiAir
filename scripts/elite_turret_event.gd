@@ -158,6 +158,8 @@ func abort() -> void:
 	_turret_sockets.clear()
 	if _hud != null:
 		_hud.hide_event_bar()
+	if _comm != null:
+		_comm.clear()  # B13：清掉已显台词，避免返航恢复后残留
 	_resume_waves()
 	if _state == State.CARRIER_ENTER or _state == State.TURRET_ACTIVE:
 		_state = State.CARRIER_EXIT

@@ -164,7 +164,8 @@
 				"scale": 0.62,
 				"radius": 34
 			}
-		]
+		],
+		"speed_ramp_factor": 0.1
 	},
 	"elites": {
 		"types": [
@@ -877,7 +878,7 @@
 		"approach_y": 260,
 		"turn_time": 1.2,
 		"run_speed": 340,
-		"bomb_interval": 0.35,
+		"bomb_interval": 0.8,
 		"bombs_per_craft": 2,
 		"bomb_fall_speed": 300,
 		"bomb_fuse": 1.2,

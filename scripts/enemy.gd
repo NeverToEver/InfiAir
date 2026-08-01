@@ -39,6 +39,7 @@ var SPIRAL_DRIFT_FREQ := 0.7  # spiral 漂移角频率
 var SPIRAL_RADIUS := 50.0
 ## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
 var HP_RAMP_FACTOR := 0.12
+var SPEED_RAMP_FACTOR := 0.1  # 敌机速度对局进程 ramp（B12：原硬编码 0.1 无 json 键，现补 enemies.speed_ramp_factor）
 
 ## 尾焰软光点（P0-5 副轨，运行时辨识增强）：红/品红低 alpha 软光贴舰尾，尺寸族设计值 ×ws；
 ## 精英同色稍微光。贴图尾喷口在纹理 +y（enemy.tscn 根节点自带 π 旋转，即世界舰尾方向）
@@ -136,7 +137,7 @@ func setup(
 	bullet_type = p_bullet_type if p_bullet_type != &"" else pool[randi() % pool.size()]
 	speed = (
 		randf_range(config["speed"].x, config["speed"].y)
-		* (1.0 + 0.1 * (p_difficulty - 1.0))
+		* (1.0 + GameState.cfg("enemies.speed_ramp_factor", SPEED_RAMP_FACTOR) * (p_difficulty - 1.0))
 		* GameState.enemy_speed_multiplier()
 	)
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量

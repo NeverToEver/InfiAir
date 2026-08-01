@@ -171,7 +171,14 @@ func _despawn() -> void:
 func _process(delta: float) -> void:
 	if homing_target != null:
 		# 辅助瞄准追踪（P1-1）：优先于 homing 玩家追踪分支；目标失效/超时限即直行
+		# B4 修复：池化敌机 deactivate 后仍是合法节点（is_instance_valid 通过）但已回收，
+		# 不判会在 deactivate 驻留期追向 (-500,-500)。用 GameState.enemies 注册表判"在屏"——
+		# 活跃敌机（直实例化 _ready 注册 / 池化 reactivate 注册）都在表中，deactivate 已注销。
+		# 不能用 is_active()：直实例化敌机从不走 reactivate，_active 恒 false（enemy.gd 语义缺口）。
+		# homing_target 恒为 Enemy（标记仅掷给 Enemy，Boss/炮台/编队战机排除）。
 		if not is_instance_valid(homing_target):
+			homing_target = null
+		elif not GameState.enemies.has(homing_target):
 			homing_target = null
 		elif _homing_elapsed < homing_time:
 			_homing_elapsed += delta

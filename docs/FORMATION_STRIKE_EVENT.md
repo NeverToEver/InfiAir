@@ -36,7 +36,7 @@
 
 ```
 IDLE → FORMATION_ENTER（靠近，时长由位移/approach_speed 推导，约 1.5s）→ FORMATION_TURN（转航向 turn_time 1.2s）
-     → BOMBING_RUN（横穿投弹，长度按编队规模 2.6–3.8s）→ FORMATION_EXIT（离场 EXIT_TIME 1.5s）→ IDLE（冷却 cooldown）
+     → BOMBING_RUN（横穿投弹，长度按编队规模 2.0/2.8/3.6s，3/4/5 机）→ FORMATION_EXIT（离场 EXIT_TIME 1.5s）→ IDLE（冷却 cooldown）
 ```
 
 - **FORMATION_ENTER**：编队锚点自屏顶外 `(x0, view.top - 120)` 垂直下降至接近高度 `approach_y`（view.top + 260），
@@ -83,7 +83,7 @@ IDLE → FORMATION_ENTER（靠近，时长由位移/approach_speed 推导，约 
 | `approach_y` | 260.0 | 接近高度（相对视野上缘偏移） |
 | `turn_time` | 1.2 | 转航向时长 |
 | `run_speed` | 340.0 | 横穿段速度 |
-| `bomb_interval` | 0.35 | 各机投弹交错间隔 |
+| `bomb_interval` | 0.8 | 各机投弹交错间隔（2026-08-01 由 0.35 上调：投弹段时长对齐设计目标，见 §3） |
 | `bombs_per_craft` | 2 | 每架投弹数 |
 | `bomb_fall_speed` | 300.0 | 炸弹下落速度 |
 | `bomb_fuse` | 1.2 | 引信（秒） |

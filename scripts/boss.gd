@@ -418,7 +418,10 @@ func _ready() -> void:
 	ESCAPE_COUNTDOWN_FROM = GameState.cfg("boss.escape.countdown_visible_from", ESCAPE_COUNTDOWN_FROM)
 	HP_BASE = GameState.cfg("boss.hp_base", HP_BASE)
 	STRAFE_SPEEDS = GameState.cfg("boss.strafe_speeds", STRAFE_SPEEDS)
-	FIRE_INTERVALS = GameState.cfg("boss.fire_intervals", FIRE_INTERVALS)
+	# B5 修复：cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
+	# FIRE_INTERVALS[i]——不拷贝会污染全局缓存、easy/hard 下跨 Boss 复合叠加
+	# （同 _load_patterns 的 duplicate(true)，见 BOSS_REDESIGN §8.2）。
+	FIRE_INTERVALS = GameState.cfg("boss.fire_intervals", FIRE_INTERVALS).duplicate()
 	FAN_BULLET_SPEED = GameState.cfg("boss.fan_bullet_speed", FAN_BULLET_SPEED)
 	HOMING_BULLET_SPEED = GameState.cfg("boss.homing_bullet_speed", HOMING_BULLET_SPEED)
 	SNIPER_BULLET_SPEED = GameState.cfg("boss.sniper_bullet_speed", SNIPER_BULLET_SPEED)

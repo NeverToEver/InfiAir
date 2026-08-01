@@ -389,10 +389,12 @@ func unlocked_types() -> Array[Dictionary]:
 	return pool
 
 
-## 当前在屏的 spread 弹种敌机数（离场中的不计）
+## 当前在屏的 spread 弹种敌机数（离场中的不计）。
+## B8 修复：改遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
+## 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
 func _count_spread_enemies() -> int:
 	var n := 0
-	for node in get_tree().get_nodes_in_group("enemy"):
+	for node in GameState.enemies:
 		var e := node as Enemy
 		if e != null and e.bullet_type == &"spread" and not e.is_exiting():
 			n += 1
@@ -500,15 +502,20 @@ func _spawn_boss(p_type: int = 0) -> void:
 	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.set_spawner(self)  # A5：依赖注入，替代 Boss 侧 group 现找
 	boss.position = Vector2(960.0, GameState.view_world_rect().position.y - 160.0)
-	boss.died.connect(_on_boss_died)
+	boss.died.connect(_on_boss_died.bind(boss))
 	boss.escaped.connect(_on_boss_escaped)
 	get_parent().add_child(boss)
 	boss_spawned.emit(boss)
 
 
-func _on_boss_died() -> void:
+## Boss 离场统一结算。逃跑离场也会发 died（boss.gd 逃跑路径同时 emit escaped+died，
+## 用于血条隐藏/生成器重排）；此处按 is_escaped 区分，只对真·击杀推进轮换与休整（B3 修复）。
+## 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，is_escaped 判定无歧义。
+func _on_boss_died(boss: Boss = null) -> void:
 	_boss_active = false
 	_boss_timer = 0.0
+	if boss != null and boss.is_escaped:
+		return  # 逃跑离场：不推进轮换、不给休整（与 _on_boss_escaped 契约一致）
 	_next_boss_score += BOSS_SCORE_STEP
 	_on_special_killed()  # Boss 击杀休整
 

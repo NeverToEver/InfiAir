@@ -94,12 +94,17 @@ func _process(delta: float) -> void:
 
 ## 跳过（幂等）：与自然结束同一出口——停计时、kill 音频 tween 并置目标音量、
 ## 停在全黑画面、发 finished、整树 queue_free。
-## 输入宽限期（开播前 SKIP_GRACE 秒）内直接忽略：任意键/点击与 Esc 路由都经此收敛；
-## 自然结束（11.8s）远超宽限，不受影响。
+## 输入宽限期（开播前 SKIP_GRACE 秒）内直接忽略：任意键/点击与 Esc 路由都经此收敛。
+## B15 修复：输入宽限只门控"输入跳过"，不门控"程序化自然结束"（_advance 走 _do_skip(true)，
+## 否则未来压缩过场总时长 <SKIP_GRACE 时自然结束会被永久拦截）。
 func skip() -> void:
+	_do_skip(false)
+
+
+func _do_skip(bypass_grace: bool) -> void:
 	if _done:
 		return
-	if float(Time.get_ticks_msec() - _start_msec) / 1000.0 < SKIP_GRACE:
+	if not bypass_grace and float(Time.get_ticks_msec() - _start_msec) / 1000.0 < SKIP_GRACE:
 		return  # 输入宽限期内忽略跳过
 	_done = true
 	_shot_timer.stop()
@@ -120,7 +125,7 @@ func _advance() -> void:
 		_current_shot = null
 	_shot_index += 1
 	if _shot_index >= _shot_durations.size():
-		skip()  # 自然结束：无标题定格，渐暗已停在全黑，直接走统一出口
+		_do_skip(true)  # 自然结束：绕过输入宽限（B15），无标题定格，渐暗已停在全黑，直接走统一出口
 		return
 	_current_shot = _build_shot(_shot_index)
 	_shot_root.add_child(_current_shot)

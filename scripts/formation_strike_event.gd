@@ -29,7 +29,7 @@ var APPROACH_SPEED := 260.0
 var APPROACH_Y := 260.0  # 接近高度（相对视野上缘偏移）
 var TURN_TIME := 1.2
 var RUN_SPEED := 340.0
-var BOMB_INTERVAL := 0.35
+var BOMB_INTERVAL := 0.8
 var BOMBS_PER_CRAFT := 2
 var BOMB_FALL_SPEED := 300.0
 var BOMB_FUSE := 1.2
@@ -168,6 +168,7 @@ func abort() -> void:
 	_state = State.IDLE
 	_cooldown_left = COOLDOWN
 	_resume_waves()
+	_comm.clear()  # B13：清掉已显警告台词，避免返航恢复后残留
 
 
 func _process(delta: float) -> void:

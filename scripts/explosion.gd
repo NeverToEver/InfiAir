@@ -69,6 +69,9 @@ static func _boss_seq_step(parent: Node, pos: Vector2, step: Array, timer: Timer
 
 
 func _init() -> void:
+	# B16 修复：玩家死亡爆炸生成于已暂停的树（lose_health→player_died→game_over 暂停后 die()），
+	# GPUParticles2D 默认随树暂停会冻结首帧——设为 Always 使爆炸在死亡/放弃/暂停时仍正常播放。
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	amount = int(GameState.cfg("effects.explosion.amount", 24))
 	lifetime = 0.6
 	one_shot = true

@@ -512,6 +512,18 @@ func _on_player_died() -> void:
 	# 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
 	_player.unlock_input()
 	_player.movement_locked = false
+	# 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24（B2 修复）
+	_reset_global_time_scale()
+
+
+## 对局终态复位全局速度（B2 修复）：返航/死亡/放弃路径会冻结 _process，
+## 狂暴子弹时间（time_scale=0.24）不显式复位会卡到下次场景重载
+## （返航过场 4 倍慢速播放直到轨道打击才自愈）。
+func _reset_global_time_scale() -> void:
+	_bullet_time_left = 0.0
+	_time_scale_ramp = -1.0
+	_enrage_boss = null
+	Engine.time_scale = 1.0
 
 
 ## Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）
@@ -620,6 +632,8 @@ func _give_up() -> void:
 ## 对局继续：不删档（反而更新存档）、Boss 保留、死亡才是唯一终局。
 func _start_homecoming() -> void:
 	_homecoming = true
+	# 返航冻结对局：狂暴子弹时间若在播先复位，避免过场以慢速播放（B2 修复）
+	_reset_global_time_scale()
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
 	_player.lock_input()

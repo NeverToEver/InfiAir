@@ -236,3 +236,26 @@
 | `AGENTS.md` | GameState 描述补 A2 组合服务；编队事件「不暂停波次」→「占用波次槽暂停普通波次」；失败基线（A21/母舰击杀偶发）标注已通过 |
 | 代码注释/回退 | `game_state.gd` world_scale 回退 1/3→0.4（含注释）；`formation_strike_event.gd` 类注释；`smoke_test.gd`「40%」→「25%」；`main.gd` 两处误导注释 |
 | `BOSS_REDESIGN.md` §8.2 | duplicate(true) 自决点补注 FIRE_INTERVALS 同路径漏拷贝（B5） |
+
+## 修复起效记录（2026-08-01 全量修复，见当次提交）
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| B1 | ✅ 已修复 | `EnrageSequence` 新增 `_free_aim_line()`，创建/出弹/RELEASE_HOLD/abort 四处清理；`BossAttacks.cancel_aim_line()` 只清自身 `_aim_line` 到不了此处。验证：autoplay 60s 孤儿节点 0 |
+| B2 | ✅ 已修复 | `main._reset_global_time_scale()`（清子弹时间状态 + `Engine.time_scale=1`），挂到 `_on_player_died`/`_start_homecoming`（放弃经 player_died 覆盖） |
+| B3 | ✅ 已修复 | `boss.died.connect(_on_boss_died.bind(boss))` + `is_escaped` 守卫；逃跑期 `collision_layer=0` 故无"逃跑中击毁"歧义。enemy_combat_test「逃跑不升难度」保持通过 |
+| B4 | ✅ 已修复 | `Bullet._process` 失效判定改 `GameState.enemies.has(homing_target)`（活跃敌机都在注册表、deactivate 已注销）；不能用 `is_active()`（直实例化敌机恒 false）。smoke 追踪段重跑通过 |
+| B5 | ✅ 已修复 | `FIRE_INTERVALS` 从 cfg 取后 `.duplicate()`，与 `_load_patterns` 同法；boss_pattern_test easy/hard 场景通过 |
+| B6 | ✅ 已修复 | `game_state.gd` world_scale 回退默认 1/3→0.4（已含在首提 commit） |
+| B7 | ✅ 已修复 | `laser_weapon._aim_dir`/触发判定改用 `_player.aim_point()`，光束与磁吸准星指向一致。buff33_test 通过 |
+| B8 | ✅ 已修复 | `_count_spread_enemies` 改遍历 `GameState.enemies` 注册表，池中闲置实例不再虚抬 spread 上限。wave_pacing/enemy_combat 通过 |
+| B9 | 🟦 设计确认 | **非缺陷**：`enemy_hp_multiplier()` 实为难度档倍率（0.75/1/1.5），敌机 HP = 基准×难度档×阻尼 ramp 无叠加；Boss 线性放大 + 50s 逃跑压力阀为 ENDLESS_BALANCE_PLAN D1 明文设计。不改码 |
+| B10 | ✅ 已修复 | `bomb_interval` 0.35→0.8（json+脚本回退）；投弹段 1.1/1.45/1.8s → 2.0/2.8/3.6s（3/4/5 机），中/难落入设计带。formation_strike_event_test 通过 |
+| B11 | 📄 口径澄清 | 补注释：DRIVE_MARGIN 乘 ws 是有意例外（舰体边缘视觉屏距恒定），归类机体偏移族；不改行为 |
+| B12 | ✅ 已修复 | 新增 `enemies.speed_ramp_factor=0.1` json 键，`enemy.gd` 改 `cfg` 读取（原硬编码 0.1） |
+| B13 | ✅ 已修复 | `CommOverlay` 新增 `clear()`，精英炮塔/编队事件 `abort()` 调用清台词 |
+| B14 | 🟦 设计确认 | **非缺陷**：设计 §7 明确「hp<20% 进 DYING」，`ratio < t` 严格小于正是该语义；恰好 20% 不进 DYING 正确。不改码 |
+| B15 | ✅ 已修复 | `skip()` 拆 `_do_skip(bypass_grace)`；自然结束 `_advance` 走 `_do_skip(true)` 绕过输入宽限，未来压缩总时长不误拦截。return_cinematic_test 通过 |
+| B16 | ✅ 已修复 | `Explosion._init()` 设 `process_mode=Always`——死亡爆炸生成于已暂停树仍播放（覆盖正常死亡 `player_damage` 与 `_give_up` 两条路径） |
+
+> 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 60s 0 异常 0 孤儿节点。

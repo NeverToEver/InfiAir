@@ -131,6 +131,9 @@ func _ready() -> void:
 	DEPART_ACCEL = GameState.cfg("mothership.depart_accel", DEPART_ACCEL)
 	DRIVE_ACCEL = GameState.cfg("mothership.drive.accel", DRIVE_ACCEL)
 	DRIVE_MAX_SPEED = GameState.cfg("mothership.drive.max_speed", DRIVE_MAX_SPEED)
+	# B11 口径澄清：DRIVE_MARGIN_* 乘 world_scale 是有意例外——margin 语义是「舰体边缘到屏边
+	# 视觉距离恒定」（舰体缩放后边缘保持同屏距），归类为机体偏移族（乘 ws），
+	# 区别于 boss.strafe/hover_band/fight_y 等「中心坐标」屏幕边界族（不乘）。
 	DRIVE_MARGIN_X = GameState.cfg("mothership.drive.margin_x", DRIVE_MARGIN_X) * GameState.world_scale
 	DRIVE_MARGIN_TOP = GameState.cfg("mothership.drive.margin_top", DRIVE_MARGIN_TOP) * GameState.world_scale
 	DRIVE_MARGIN_BOTTOM = GameState.cfg("mothership.drive.margin_bottom", DRIVE_MARGIN_BOTTOM) * GameState.world_scale
