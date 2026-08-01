@@ -134,26 +134,29 @@ func _ready() -> void:
 			cannon_tick = Time.get_ticks_msec()
 			break
 	_check(cannon_started, "场景1：蓄力重炮蓄力 telegraph 起手")
-	_check(_bullets_by_speed(700.0).is_empty(), "场景1：蓄力期间未出弹（telegraph 先行）")
+	# C34：弹速/伤害从 boss 实例常量读取（cfg 覆盖后运行时值），改 JSON 不漂移
+	var cannon_speed: float = boss1.CANNON_BULLET_SPEED
+	var cannon_dmg: int = boss1.CANNON_DAMAGE
+	_check(_bullets_by_speed(cannon_speed).is_empty(), "场景1：蓄力期间未出弹（telegraph 先行）")
 	var heavy_max := 0
 	var first_fire_elapsed := -1
 	for i in 50:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss1):
 			break
-		var n := _bullets_by_speed(700.0).size()
+		var n := _bullets_by_speed(cannon_speed).size()
 		if n > 0 and first_fire_elapsed < 0:
 			first_fire_elapsed = Time.get_ticks_msec() - cannon_tick
 		heavy_max = maxi(heavy_max, n)
 		if heavy_max >= 3:
 			break
 	_check(first_fire_elapsed >= 350, "场景1：蓄力 ≥0.35s 后才出弹（实测 %dms）" % first_fire_elapsed)
-	_check(heavy_max >= 3, "场景1：3 发高速重弹（700 弹速）")
+	_check(heavy_max >= 3, "场景1：3 发高速重弹（%d 弹速）" % int(cannon_speed))
 	var heavy_dmg_ok := true
-	for b in _bullets_by_speed(700.0):
-		if b.damage != 21:
+	for b in _bullets_by_speed(cannon_speed):
+		if b.damage != cannon_dmg:
 			heavy_dmg_ok = false
-	_check(heavy_dmg_ok, "场景1：重弹伤害 21")
+	_check(heavy_dmg_ok, "场景1：重弹伤害 %d" % cannon_dmg)
 	boss1.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
@@ -174,7 +177,10 @@ func _ready() -> void:
 			sweep_aimed = true
 			break
 	_check(sweep_aimed, "场景2：冲刺掠过水平瞄准线 telegraph 先行")
-	_check(_bullets_by_speed(150.0).is_empty(), "场景2：瞄准期间未拖弹")
+	# C34：弹速/伤害从 boss 实例常量读取，改 JSON 不漂移
+	var drop_speed: float = boss2.SWEEP_DROP_SPEED
+	var drop_dmg: int = boss2.SWEEP_DROP_DAMAGE
+	_check(_bullets_by_speed(drop_speed).is_empty(), "场景2：瞄准期间未拖弹")
 	var dashing := false
 	var x0 := 0.0
 	for i in 40:
@@ -195,16 +201,16 @@ func _ready() -> void:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss2):
 			break
-		drops = maxi(drops, _bullets_by_speed(150.0).size())
+		drops = maxi(drops, _bullets_by_speed(drop_speed).size())
 		if boss2.attacks().sweep_state() == Boss.SweepState.NONE:
 			sweep_done = true
 			break
-	_check(drops >= 3, "场景2：路径等距拖 3 枚减速弹（150 弹速）")
+	_check(drops >= 3, "场景2：路径等距拖 3 枚减速弹（%d 弹速）" % int(drop_speed))
 	var drop_dmg_ok := true
-	for b in _bullets_by_speed(150.0):
-		if b.damage != 12:
+	for b in _bullets_by_speed(drop_speed):
+		if b.damage != drop_dmg:
 			drop_dmg_ok = false
-	_check(drop_dmg_ok, "场景2：减速弹伤害 12")
+	_check(drop_dmg_ok, "场景2：减速弹伤害 %d" % drop_dmg)
 	_check(sweep_done, "场景2：穿屏后回到巡航流程")
 	if is_instance_valid(boss2):
 		_check(absf(boss2.position.y - boss2.fight_anchor_y()) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")
@@ -305,6 +311,8 @@ func _ready() -> void:
 			volley_row = true
 			break
 	_check(volley_row, "场景4：编队齐射召唤 4 小怪列横队（meta 标记）")
+	# C34：420 弹速为小怪齐射（enemy.ENEMY_BULLET_SPEED，与 boss.VOLLEY_BULLET_SPEED 同值）；
+	# 改 JSON 需两处同步。此处匹配在场全部 420 弹速弹（enemy 生成），故保留字面量并注明来源。
 	var volley_max := 0
 	for i in 40:
 		await _wait_real(0.05)
@@ -322,12 +330,14 @@ func _ready() -> void:
 			volley_dmg_ok = false
 	_check(volley_dmg_ok, "场景4：齐射弹伤害随难度 ramp（基准 12，实测期望 %d）" % volley_expected)
 	# 弹幕墙：10 槽位留 2 相邻缺口，缺口避开自机方位 ±30°
+	# C34：弹速从 boss 实例常量读取，改 JSON 不漂移
+	var wall_speed: float = boss4.WALL_BULLET_SPEED
 	var wall: Array[Bullet] = []
 	for i in 60:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss4):
 			break
-		wall = _bullets_by_speed(220.0)
+		wall = _bullets_by_speed(wall_speed)
 		if wall.size() >= 8:
 			break
 	_check(wall.size() == 8, "场景4：弹幕墙 10 槽位出 8 弹（留 2 缺口，实测 %d）" % wall.size())
@@ -412,6 +422,7 @@ func _ready() -> void:
 	_check(hold5, "场景5：ACTIVE 结束进入 RELEASE_HOLD")
 	var ring5_total := 0
 	var volley5_max := 0
+	# C34：420 同场景 4（小怪齐射 enemy.ENEMY_BULLET_SPEED，与 VOLLEY 同值，改 JSON 两处同步）
 	for i in 30:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss5):
