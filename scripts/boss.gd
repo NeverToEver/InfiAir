@@ -868,7 +868,7 @@ func _die() -> void:
 func _show_escape_warning() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null and hud.has_method("show_warning"):
-		hud.show_warning("⚠ Boss 试图逃离战场 ⚠")
+		hud.show_warning(tr("BOSS_ESCAPE_WARNING"))
 	else:
 		print("[BOSS] 逃跑警告：Boss 即将逃离战场")
 

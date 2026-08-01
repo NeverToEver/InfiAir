@@ -370,7 +370,8 @@ func _refresh_missions() -> void:
 		row.add_theme_constant_override("separation", 10)
 		var progress := GameState.mission_progress(id)
 		var goal := GameState.mission_goal(id)
-		var text := "%s：%s（%d/%d）" % [tr("MISSION_%s_NAME" % String(id).to_upper()), tr("MISSION_%s_DESC" % String(id).to_upper()), mini(progress, goal), goal]
+		# C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
+		var text := tr("BASE_MISSION_FMT") % [tr("MISSION_%s_NAME" % String(id).to_upper()), tr("MISSION_%s_DESC" % String(id).to_upper()), mini(progress, goal), goal]
 		if GameState.is_mission_claimed(id):
 			text += tr("BASE_CLAIMED")
 		elif GameState.is_mission_done(id):

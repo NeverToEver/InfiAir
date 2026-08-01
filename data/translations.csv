@@ -264,3 +264,5 @@ ETQ_RETREAT,"“时限已到，全舰撤退。算你走运，虫子。”","Time
 FBQ_WARN,"侦测到轰炸编队，正在接近","Bomber formation inbound"
 SET_ACCESSIBILITY,"无障碍","Accessibility"
 SET_REDUCE_FLASH,"减少闪光","Reduce flashes"
+BOSS_ESCAPE_WARNING,"⚠ Boss 试图逃离战场 ⚠","⚠ Boss is trying to escape! ⚠"
+BASE_MISSION_FMT,"%s：%s（%d/%d）","%s: %s (%d/%d)"

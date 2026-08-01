@@ -119,19 +119,20 @@ func _ready() -> void:
 	buttons.add_theme_constant_override("separation", 12)
 	_content.add_child(buttons)
 
-	_continue_button = UITheme.make_button("继续对局", true)
+	# C26：初始化即用 tr()（_refresh_texts 会再覆盖，但避免源码裸中文串）
+	_continue_button = UITheme.make_button(tr("START_CONTINUE"), true)
 	_continue_button.custom_minimum_size = Vector2(0.0, 64.0)
 	_continue_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_continue_button.pressed.connect(_on_continue_pressed)
 	buttons.add_child(_continue_button)
 
-	_new_button = UITheme.make_button("新游戏")
+	_new_button = UITheme.make_button(tr("START_NEW"))
 	_new_button.custom_minimum_size = Vector2(0.0, 56.0)
 	_new_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_new_button.pressed.connect(_on_new_game_pressed)
 	buttons.add_child(_new_button)
 
-	_tutorial_button = UITheme.make_button("教程")
+	_tutorial_button = UITheme.make_button(tr("START_TUTORIAL"))
 	_tutorial_button.custom_minimum_size = Vector2(0.0, 56.0)
 	_tutorial_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
