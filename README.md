@@ -8,7 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Release](https://img.shields.io/badge/Release-v3.23-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Release](https://img.shields.io/badge/Release-v3.24-orange)](https://github.com/NeverToEver/InfiAir/releases)
 [![Tests](https://img.shields.io/badge/Tests-1018%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
