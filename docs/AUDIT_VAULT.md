@@ -548,4 +548,6 @@
 | --- | --- | --- |
 | F02 | ✅ 已修复 | `_trap_active()` 增加「未暂停」+「系统光标隐藏（准星态）」两放行条件（`AimCrosshair` 在暂停/非准星态恢复系统光标，两条件相互印证，不依赖处理时序），并抽 `_trap_enabled()` 静态纯函数供断言。confine 从此仅限对局准星活跃且窗口聚焦：暂停后鼠标自由移出窗口（点标题栏 × 退出游戏不受阻），对局准星态照常拉回。验证：mouse_lock_test 新增 7 项放行判定断言（23 项全绿 0 FAIL）+ smoke_test 0 FAIL |
 
+> **F02 核查注记（2026-08-02，warp 是否导致准星抖动）**：结论——**不会**。warp 目标恒取 `_last_known_pos`（出框前最后窗口内位置，移出后冻结），位移 ≤1-2px；鼠标在窗口外时 `get_global_mouse_position()` 本就冻结在最后内部位置，warp 后读值连续，`aim_point()` 平滑增量 ≈0。warp 反而把"移回窗口时的数十 px 位置跳变"钳在边缘内侧。边界仅左/上缘第 0 列/行触发单次 1px 回拉（右/下缘最后列在 clamp 范围内不触发）。验证：mouse_lock_test 新增 2 项「warp 位移 ≤2px」断言（25 项全绿 0 FAIL）。
+
 > 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / mouse_lock_test 23 断言 0 FAIL / smoke_test 0 FAIL。

@@ -123,6 +123,18 @@ func _ready() -> void:
 		"无窗口尺寸（headless）不 confine",
 	)
 
+	# ---------- 8. warp 不引入准星跳变：warp 目标 ≈ 出框前最后位置（位移 ≤ 2px） ----------
+	var edge_pos := Vector2(1918, 500)  # 右缘附近出框前最后内部位置
+	_check(
+		(MOUSE_TRAP._warp_target(edge_pos, Vector2i(1920, 1080)) - edge_pos).length() <= 2.0,
+		"右缘出框 warp 位移 ≤ 2px（aim_point 平滑增量≈0，无准星跳变）",
+	)
+	var edge_top := Vector2(500, 0)  # 上缘第 0 行（clamp 边界）
+	_check(
+		(MOUSE_TRAP._warp_target(edge_top, Vector2i(1920, 1080)) - edge_top).length() <= 2.0,
+		"上缘出框 warp 位移 ≤ 2px（第 0 行仅 1px 回拉）",
+	)
+
 	print("MOUSE LOCK TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.mouse_lock = true
