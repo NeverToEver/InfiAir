@@ -74,6 +74,7 @@ godot --path .
 | H (hold) | Charge-summon the mothership (WASD pilots it while docked) |
 | B (hold) | Homecoming — base refit |
 | ESC | Pause / back one page / exit confirmation |
+| Right mouse button | Back / cancel (same routing as ESC: dismiss confirm, close settings, pause toggle, exit confirm at top level) |
 
 **Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller. **PlayStation pads are auto-detected** (same button positions, different labels): A/B/X/Y ↔ ✕/○/□/△, LB/RB ↔ L1/R1.
 

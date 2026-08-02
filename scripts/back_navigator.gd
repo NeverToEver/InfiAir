@@ -1,6 +1,6 @@
 extends Node
 ## 全局返回/退出状态机（设计文档：docs/EXIT_FLOW.md）。
-## 所有平台的"返回"输入统一走 go_back()：PC Esc 与手柄 B 经引擎内置 ui_cancel，
+## 所有平台的"返回"输入统一走 go_back()：PC Esc、鼠标右键与手柄 B 经引擎内置 ui_cancel，
 ## Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
 ## decide_back_action() 为纯决策函数（不执行副作用，供无头测试覆盖全分支）。
 
@@ -31,6 +31,12 @@ enum BackAction {
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 右键 = 返回/取消（惯例：许多游戏以右键作为默认返回触发器）。
+	# 固定不参与改键（Esc/R 同类固定）；is_action_pressed 只认 ui_cancel（Esc/手柄 B）
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		go_back()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("ui_cancel"):
 		go_back()
 

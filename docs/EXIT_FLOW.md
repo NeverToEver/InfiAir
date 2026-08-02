@@ -21,7 +21,7 @@ L0 顶层:  StartPanel（主界面/大厅）
 
 ## 2. 状态机伪代码
 
-所有平台的返回输入统一收敛到 `BackNavigator.go_back()`：
+所有平台的返回输入统一收敛到 `BackNavigator.go_back()`（PC Esc / **鼠标右键** / 手柄 `ui_cancel` / Android 系统返回）：
 
 ```
 func go_back():
@@ -80,6 +80,7 @@ func _execute_exit_cleanup(battle):
 | 平台 | 物理输入 | 映射到 | 处理 |
 |---|---|---|---|
 | PC | Esc | `ui_cancel`（引擎内置） | `BackNavigator._unhandled_input` |
+| PC | 鼠标右键 | 固定检测（不参与改键） | 同上——**右键 = 返回/取消**（惯例：确认窗取消、设置返回、暂停打开/恢复、顶层退出确认） |
 | 手柄 | B / Circle（joy button 1） | `ui_cancel`（引擎内置默认映射） | 同上；A = `ui_accept` 确认，方向键/摇杆走 GUI 焦点导航（焦点样式已可见） |
 | 手柄 | 左摇杆 | `move_*`（左摇杆移动） | GameState `_bind_joypad_defaults()` 启动时经 InputMap 运行时装配（`project.godot` 只存键盘，P0-1） |
 | 手柄 | 右摇杆 | `aim_x`/`aim_y`（虚拟准星，`player.aim_point`） | 灵敏度/死区在设置页「手柄」分区可调（`joy_aim_speed`/`joy_deadzone`，profile 持久化） |

@@ -27,6 +27,21 @@ func _press_esc() -> void:
 	await get_tree().process_frame
 
 
+## 右键 = 返回/取消（惯例）：模拟按下-释放
+func _press_rmb() -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_RIGHT
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_RIGHT
+	up.pressed = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+
+
 func _ready() -> void:
 	GameState.delete_save()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -57,6 +72,13 @@ func _ready() -> void:
 		"取消后焦点还给主按钮",
 	)
 
+	# ---------- 1b. 顶层右键：退出确认（惯例：右键=返回/取消） ----------
+	await _press_rmb()
+	_check(exit_confirm.visible, "顶层右键：弹出退出确认")
+	_check(nav.decide_back_action() == A.CANCEL_EXIT, "右键确认窗可见：决策=取消退出")
+	await _press_rmb()
+	_check(not exit_confirm.visible and start_panel.visible, "确认窗右键：取消退出回到开始面板")
+
 	# ---------- 2. 对局层：Esc ⇄ 暂停 ----------
 	start_panel.press_new_game()
 	await get_tree().process_frame
@@ -66,6 +88,12 @@ func _ready() -> void:
 	_check(nav.decide_back_action() == A.RESUME_GAME, "暂停中：决策=继续游戏")
 	await _press_esc()
 	_check(not pause_ui.visible and not get_tree().paused, "暂停中 Esc：恢复游戏")
+
+	# ---------- 2b. 战斗中右键：打开暂停（惯例） ----------
+	await _press_rmb()
+	_check(pause_ui.visible and get_tree().paused, "战斗中右键：打开暂停")
+	await _press_rmb()
+	_check(not pause_ui.visible and not get_tree().paused, "暂停中右键：恢复游戏")
 
 	# ---------- 3. 设置页：返回 opener + 改键捕获态放行 ----------
 	pause_ui.open()
