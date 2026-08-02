@@ -141,6 +141,10 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 			var v: Variant = def.get(k)  # 缺键时 get 返回 null，一并落入类型校验
 			if (not v is int) and (not v is float):
 				return false
+		# H03（健壮性审核）：数值域校验——milestone/cycle_mult ≤ 0 会破坏阈值单调性，
+		# 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴
+		if float(def.get("milestone", 1.0)) <= 0.0 or float(def.get("cycle_mult", 1.0)) <= 0.0:
+			return false
 	return true
 
 # RP（征用点数）经济：对齐原作 RequisitionConstants
@@ -191,7 +195,7 @@ const PS_BUTTON_LABELS: Dictionary = {0: "✕", 1: "○", 2: "□", 3: "△", 4:
 ## 手柄相关动作清单（死区应用与装配共用）
 const JOYPAD_ACTIONS: Array[StringName] = [
 	&"move_up", &"move_down", &"move_left", &"move_right",
-	&"aim_x", &"aim_y",
+	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
 	&"dash", &"boost", &"fine_move", &"dock", &"homecoming", &"give_up", &"buff_panel", &"restart",
 ]
 ## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
@@ -789,8 +793,12 @@ func _get_action_keycodes(action: StringName) -> Array[int]:
 
 ## 用 key_bindings（含 profile 覆盖）刷新 InputMap
 func apply_key_bindings() -> void:
+	# H02（健壮性审核）：只擦除键盘事件，保留手柄事件——action_erase_events 会连
+	# _bind_joypad_defaults 装配的手柄绑定一起清掉（改键后本会话手柄失效）
 	for a in REBINDABLE_ACTIONS:
-		InputMap.action_erase_events(a)
+		for ev in InputMap.action_get_events(a):
+			if ev is InputEventKey:
+				InputMap.action_erase_event(a, ev)
 		for k: int in key_bindings.get(a, _default_bindings.get(a, [])):
 			var ev := InputEventKey.new()
 			ev.keycode = k
@@ -818,9 +826,13 @@ func _bind_joypad_defaults() -> void:
 	_add_joy_button(&"give_up", 7)    # R3（长按放弃）
 	_add_joy_button(&"buff_panel", 6) # L3（展开/收起 buff 栏）
 	_add_joy_button(&"restart", 0)    # A（结算/暂停重开）
-	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取，虚拟准星）
-	_add_joy_axis(&"aim_x", 2, 1.0)
-	_add_joy_axis(&"aim_y", 3, 1.0)
+	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。
+	# H01（健壮性审核）：必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
+	# 同一动作正负双向传会恒为零（右摇杆瞄准完全失效）
+	_add_joy_axis(&"aim_left", 2, -1.0)
+	_add_joy_axis(&"aim_right", 2, 1.0)
+	_add_joy_axis(&"aim_up", 3, -1.0)
+	_add_joy_axis(&"aim_down", 3, 1.0)
 	# 应用已持久化的摇杆死区（不触发 save/广播，启动装配专用）
 	for a in JOYPAD_ACTIONS:
 		if InputMap.has_action(a):

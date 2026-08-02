@@ -619,8 +619,9 @@ func aim_point() -> Vector2:
 	if aim_point_override != Vector2.INF:
 		return aim_point_override
 	var raw := get_global_mouse_position()
-	# P0-1：手柄右摇杆虚拟准星——摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
-	var joy := Input.get_vector(&"aim_x", &"aim_x", &"aim_y", &"aim_y")
+	# H01（健壮性审核）：右摇杆虚拟准星——四向独立动作（get_vector 语义：差值驱动）；
+	# 摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
+	var joy := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")
 	if joy.length_squared() > 0.01:
 		raw += joy * _aim_joy_speed * get_process_delta_time()
 	var frame := Engine.get_process_frames()

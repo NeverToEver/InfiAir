@@ -124,8 +124,18 @@ func _ready() -> void:
 	GameState.highscores.clear()
 	GameState.save_profile()
 
-	# 11. 手柄默认绑定（P0-1 竞品调研）：运行时装配 + 右摇杆瞄准动作
-	_check(InputMap.has_action(&"aim_x") and InputMap.has_action(&"aim_y"), "P0-1：右摇杆瞄准动作已注册")
+	# 11. 手柄默认绑定（P0-1 竞品调研）：运行时装配 + 右摇杆四向动作（H01 修正）
+	_check(
+		InputMap.has_action(&"aim_left") and InputMap.has_action(&"aim_right")
+		and InputMap.has_action(&"aim_up") and InputMap.has_action(&"aim_down"),
+		"H01：右摇杆四向瞄准动作已注册",
+	)
+	var aim_events := InputMap.action_get_events(&"aim_right")
+	var has_aim_axis := false
+	for ev in aim_events:
+		if ev is InputEventJoypadMotion and ev.axis == 2 and ev.axis_value == 1.0:
+			has_aim_axis = true
+	_check(has_aim_axis, "H01：右摇杆动作含正确轴事件（axis 2/+1）")
 	var has_move_joy := false
 	for ev in InputMap.action_get_events(&"move_up"):
 		if ev is InputEventJoypadMotion:
@@ -136,6 +146,22 @@ func _ready() -> void:
 		if ev is InputEventJoypadButton:
 			has_dash_joy = true
 	_check(has_dash_joy, "P0-1：动作键含手柄按钮绑定")
+
+	# H02（健壮性审核）：改键只擦除键盘事件，手柄事件保留
+	GameState.rebind_action(&"dash", KEY_M)
+	var dash_events_after := InputMap.action_get_events(&"dash")
+	var dash_joy_kept := false
+	for ev in dash_events_after:
+		if ev is InputEventJoypadButton:
+			dash_joy_kept = true
+	_check(dash_joy_kept, "H02：改键后手柄事件保留")
+	GameState.reset_key_bindings()
+	var dash_events_reset := InputMap.action_get_events(&"dash")
+	var dash_joy_reset := false
+	for ev in dash_events_reset:
+		if ev is InputEventJoypadButton:
+			dash_joy_reset = true
+	_check(dash_joy_reset, "H02：重置键位后手柄事件保留")
 
 	# 12. 手柄设置（P0-1 设置页）：默认值 / setter 应用死区 / 持久化往返
 	_check(GameState.joy_deadzone == 0.5 and GameState.joy_aim_speed >= 200.0, "P0-1：手柄设置默认值（死区 0.5 / 灵敏度≥200）")
