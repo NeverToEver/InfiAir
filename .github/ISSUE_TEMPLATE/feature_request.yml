@@ -1,0 +1,34 @@
+name: Feature request
+description: 建议新功能或玩法改进
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        注意：方向类决策（新内容立项、暂缓/重启）须先在 `docs/ROADMAP.md` 登记并明确决策；本模板用于收集具体功能诉求。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题（Problem statement）
+      description: 现在的痛点或缺失
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案（Proposed solution）
+      description: 期望的行为 / 交互 / 数值方向
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案（Alternatives considered）
+      description: 考虑过的其他做法（可选）
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 范围确认（Scope）
+      options:
+        - label: 属于玩法 / 内容新增（可能需重新立项）
+        - label: 属于体验 / 工程改进（现有框架内可做）

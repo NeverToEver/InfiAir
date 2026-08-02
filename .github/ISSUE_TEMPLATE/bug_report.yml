@@ -1,0 +1,57 @@
+name: Bug report
+description: 报告一个可复现的问题
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告！请尽量提供可复现信息。安全相关问题请走 [SECURITY.md](../SECURITY.md) 的私有披露流程，勿公开提交。
+  - type: input
+    id: version
+    attributes:
+      label: 版本（Version）
+      description: 游戏版本（如 3.26，`project.godot` config/version 或 Release tag）
+      placeholder: "3.26"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台（Platform）
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - 其他 / 未知
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述（Description）
+      description: 发生了什么？预期是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤（Steps to reproduce）
+      description: 尽量给出最小复现路径：进入什么界面 / 按什么键 / 什么对局阶段
+      placeholder: |
+        1. 启动游戏，选择「新游戏」
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 输出（Logs）
+      description: 从终端 `./run.sh` 启动时的 stderr/输出；无头复现命令见 `docs/TESTING.md`
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查（Self-check）
+      options:
+        - label: 在最新版（或 main 分支）上可复现
+        - label: 已尝试 `godot --headless --import --path .` 排除资源缓存问题

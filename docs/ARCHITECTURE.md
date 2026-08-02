@@ -23,7 +23,7 @@
 
 当前**未发现** `package.json`、`pyproject.toml`、`requirements*.txt`、`Cargo.toml`、`go.mod`、Makefile、Docker/Compose 配置或 CI 工作流。打包发布已重启（2026-07-30）：`export_presets.cfg` 入库（Linux/X11 + Windows Desktop，嵌入 pck 单文件 exe/二进制），根目录 `release.sh` 一键完成导入 → 双平台导出 → 打包（产物 `builds/release/`，版本号由 `VERSION` 环境变量指定）；`packaging/linux/`（用户态 install.sh / uninstall.sh[--purge] / infiair.desktop）与 `packaging/windows/`（per-user install.bat / uninstall.bat[/purge]，开始菜单快捷方式）随包分发。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
 
-**发布工程现状（2026-07-31 更新）**：导出模板已安装（`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`），`./release.sh` 已跑通，产物在 `builds/release/`（`InfiAir-<版本>-linux-x86_64.tar.gz` / `-windows-x86_64.zip`，嵌入 pck 单文件 + 安装/卸载脚本，本机 gitignore）。**产物以 GitHub Releases 附件分发（不入库）**：`gh release create v<版本> builds/release/InfiAir-<版本>-*.{tar.gz,zip}`。macOS 本机无法运行 Linux/Windows 二进制，安装脚本与实机运行需在对应平台验证。
+**发布工程现状（2026-07-31 更新；CI 2026-08-02 补充）**：导出模板已安装（`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`），`./release.sh` 已跑通，产物在 `builds/release/`（`InfiAir-<版本>-linux-x86_64.tar.gz` / `-windows-x86_64.zip`，嵌入 pck 单文件 + 安装/卸载脚本，本机 gitignore）。**产物以 GitHub Releases 附件分发（不入库）**：`gh release create v<版本> builds/release/InfiAir-<版本>-*.{tar.gz,zip}`。macOS 本机无法运行 Linux/Windows 二进制，安装脚本与实机运行需在对应平台验证。**持续集成 / 发布（2026-08-02）**：`.github/workflows/ci.yml`（GitHub Actions）——官方 Godot 4.6.2 stable 二进制（Linux x86_64，自官方 Release 下载，无第三方 action）+ 无头导入 + 主场景冒烟 + 31 断言场景全量回归，push/PR 触发；CI 全绿为合入门槛（贡献流程见仓库根 `CONTRIBUTING.md`）。`.github/workflows/release.yml`（手动触发 CD）——安装标准版 Godot + 官方导出模板 → 冒烟 → `release.sh` 双平台导出打包 → tag `v<版本>` → 创建 GitHub Release 并上传附件；输入版本自动同步 `project.godot` `config/version`。
 
 ## 主节点树
 

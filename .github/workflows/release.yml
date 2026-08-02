@@ -1,0 +1,92 @@
+name: Release
+
+# 手动触发的发布工作流（CD）：构建 Linux/Windows 双平台包并创建 GitHub Release。
+# 用法：Actions → Release → Run workflow → 输入版本号（如 3.27）。
+# 版本号须与 `release.sh` VERSION 及 `project.godot` config/version 一致（工作流会自动同步 project.godot）。
+# 依赖：官方 Godot 4.6.2 stable（标准版）+ 官方导出模板；无第三方 action。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (MAJOR.MINOR, e.g. 3.27)'
+        required: true
+        type: string
+        default: '3.27'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build v${{ github.event.inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.6.2 (editor)
+        run: |
+          curl -sL -o godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.6.2-stable_linux.x86_64
+          sudo mv Godot_v4.6.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Install export templates
+        run: |
+          curl -sL -o templates.tpz \
+            https://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q templates.tpz -d /tmp/et
+          mv /tmp/et/templates ~/.local/share/godot/export_templates/4.6.2.stable
+          ls ~/.local/share/godot/export_templates/4.6.2.stable/ | head -5
+
+      - name: Validate version
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::invalid version '$VERSION' (expect MAJOR.MINOR, e.g. 3.27)"
+            exit 1
+          fi
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+
+      - name: Sync project.godot config/version
+        run: |
+          sed -i.bak 's/^config\/version=.*/config\/version="'"$VERSION"'"/' project.godot
+          rm -f project.godot.bak
+          grep -n 'config/version' project.godot
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+
+      - name: Smoke test
+        run: |
+          godot --headless --import --path . > /tmp/import.log 2>&1 \
+            || { echo "::error::import failed"; tail -30 /tmp/import.log; exit 1; }
+          godot --headless --path . --quit-after 300 > /tmp/smoke.log 2>&1 \
+            || { echo "::error::main scene smoke failed"; tail -30 /tmp/smoke.log; exit 1; }
+          godot --headless --path . res://test/smoke_test.tscn > /tmp/smoke_test.log 2>&1 \
+            || { echo "::error::smoke_test failed"; tail -30 /tmp/smoke_test.log; exit 1; }
+          tail -2 /tmp/smoke_test.log
+
+      - name: Build release packages
+        run: |
+          GODOT="$(command -v godot)" VERSION="$VERSION" ./release.sh
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+
+      - name: Tag and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          tag="v$VERSION"
+          git tag "$tag"
+          git push origin "$tag"
+          gh release create "$tag" \
+            builds/release/InfiAir-"$VERSION"-linux-x86_64.tar.gz \
+            builds/release/InfiAir-"$VERSION"-windows-x86_64.zip \
+            --title "InfiAir v$VERSION" \
+            --notes "InfiAir v$VERSION 发布包（Linux / Windows，x86_64）。安装/卸载脚本见包内 packaging/；完整变更见 CHANGELOG.md 与 GitHub Releases 自动生成说明。"

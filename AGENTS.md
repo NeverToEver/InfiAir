@@ -17,7 +17,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 
 - **引擎/语言：** Godot 4.6（gl_compatibility，无 .NET），纯 GDScript。`scripts/tools/` 下的 Python 文件是离线工具（数值管理器、文档生成器、资产生成器），不属于游戏运行时依赖。
 - **数据源：** `data/balance.json` 为可调数值源（由 `scripts/tools/balance_editor.py` 维护落盘），`data/translations.csv` 是中英文本源。详细配置与发布交付现状见 `docs/ARCHITECTURE.md`。
-- **发布：** 无包管理器、无 CI；发布经 `export_presets.cfg` + `release.sh` 双平台导出，产物以 GitHub Releases 附件分发（不入库）。不要虚构 CI/自动部署流程或为常规修改引入第三方插件/依赖。
+- **发布：** 无包管理器；CI 为 GitHub Actions（`.github/workflows/ci.yml`：无头导入 + 主场景冒烟 + 31 断言场景全量回归，push/PR 触发）；发布经 `export_presets.cfg` + `release.sh` 双平台导出，产物以 GitHub Releases 附件分发（不入库）；手动触发发布工作流 `.github/workflows/release.yml`（导出打包 → tag `v<版本>` → 创建 GitHub Release，输入版本自动同步 `project.godot` `config/version`）。CI/CD 步骤增改须同步本文件与 `release.sh`；不为常规修改引入第三方插件/依赖（CI/CD 仅用官方 checkout action + 官方 Godot 二进制与导出模板）。
 
 ## 本地运行与验证
 
@@ -29,7 +29,7 @@ godot --headless --path . res://test/smoke_test.tscn
 godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/母舰时加跑
 ```
 
-推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**完整专项测试清单、视觉截图工具与测试策略副作用明细见 `docs/TESTING.md`**。
+推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**完整专项测试清单、视觉截图工具与测试策略副作用明细见 `docs/TESTING.md`**。提交/PR 由 GitHub Actions CI（`.github/workflows/ci.yml`）自动跑全量 31 断言场景，CI 全绿是合入门槛。
 
 ## 运行时架构
 

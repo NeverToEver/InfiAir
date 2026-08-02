@@ -8,6 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
+[![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
 [![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
@@ -138,6 +139,9 @@ The full 31-scene list, the `perf_bench` performance benchmark, the autoplay sim
 | Doc | Contents |
 |-----|----------|
 | [AGENTS.md](./AGENTS.md) | Contributor conventions: tech stack / verification / architecture / code style / test strategy |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guide: setup / workflow / PR checklist |
+| [CHANGELOG.md](./CHANGELOG.md) | Version history |
+| [SECURITY.md](./SECURITY.md) | Security policy & vulnerability reporting |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Roadmap and future direction (single source of truth) |
 | [docs/EXIT_FLOW.md](./docs/EXIT_FLOW.md) | Back / exit flow |
 | [docs/BOSS_REDESIGN.md](./docs/BOSS_REDESIGN.md) | Boss phase pattern tables and enrage design |

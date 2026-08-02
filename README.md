@@ -8,6 +8,7 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
+[![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
 [![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
@@ -138,6 +139,9 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 �
 | 文档 | 内容 |
 |------|------|
 | [AGENTS.md](./AGENTS.md) | 开发约定总纲：技术栈 / 运行验证 / 架构 / 代码风格 / 测试策略 |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南：环境准备 / 开发流程 / PR 检查清单 |
+| [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录 |
+| [SECURITY.md](./SECURITY.md) | 安全策略与漏洞报告 |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | 路线图与未来方向（单一事实源） |
 | [docs/EXIT_FLOW.md](./docs/EXIT_FLOW.md) | 返回 / 退出流程 |
 | [docs/BOSS_REDESIGN.md](./docs/BOSS_REDESIGN.md) | Boss 阶段模式表与狂暴设计 |
