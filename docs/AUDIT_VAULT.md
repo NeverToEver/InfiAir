@@ -737,3 +737,15 @@
 | H20 | P3 | 生命周期/边界守卫组：buff_select 重建时 _closing 软锁复位、tutorial 失败/结束态防阶段推进、ui_theme 按钮 tween 互斥 kill、base_console 路线 buff 名缺键兜底 + 负治疗钳制、settings_ui `_pages` 空防御、cinematic_fx 点列<2 防御、return_cinematic 镜头时长 0 除零防御 |
 
 > 修复后回归：`--headless --import` 0 错误；批次相关断言场景（smoke/tutorial/buff33/base_system/return_cinematic/back_navigation/i18n/boss_pattern/mothership_summon/elite_turret_event/meta_health_fx/enemy_combat/difficulty/balance）全 0 FAIL。
+
+## GDScript 引擎警告分层与持续改进清单（2026-08-02，chore/gdscript-warnings 分支）
+
+> 在 `project.godot` `[debug]` 段部署 Godot 4 编译器警告系统（`debug/gdscript/warnings/*`），三层分级：
+
+| 级别 | 配置 | 处置 |
+| --- | --- | --- |
+| **error（零容忍，CI 门禁）** | 未使用变量/私有字段/信号、遮蔽变量与内置函数、整数除法、冗余 await、注解顺序等 25 类 | CI import 出现 "Warning treated as error" 即失败；已修复全部现存 error（含本轮 20 条 InputEvent 判型注解、2 处遮蔽改名、6 处子类引用字段注解） |
+| **warn（编辑器 GUI 可见）** | unsafe_cast / unsafe_method_access / unsafe_property_access / untyped_declaration / untyped_variable / unsafe_line 共 6 类 | **持续改进清单 202 条**：unsafe_method 91（Variant/Node 上调用子类方法，多为判型后安全）、unsafe_cast 54（`as` 受检查 cast，失败返回 null 不崩溃）、untyped 66（`for x in dict/array` 迭代变量，盲加类型有运行时断言风险，需逐处确认容器类型）、unsafe_property 33（InputEvent 等，已修 20 条判型注解，其余待收口）。**修复路径**：逐处类型收敛或 `@warning_ignore` 声明判型已保证安全；编辑器脚本状态栏实时可见 |
+| **ignore（项目风格确认真冲突）** | inferred_declaration（`:=` 是 Godot 官方推荐）、return_value_discarded（Tween 链式标准写法） | 项目风格冲突，关闭 |
+
+**验证**：配置定稿后 `--headless --import` 0 error；InputEvent 判型注解后 meta_health_fx/smoke/base_system/back_navigation 回归通过。

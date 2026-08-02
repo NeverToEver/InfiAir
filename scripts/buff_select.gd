@@ -248,8 +248,10 @@ func available_buffs() -> Array[Dictionary]:
 func _on_card_gui_input(event: InputEvent, id: StringName, card: Control = null) -> void:
 	if _closing:
 		return
+	@warning_ignore("unsafe_property_access")
 	var picked: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
 	# 键盘导航：焦点卡上按 Enter/Space 选取
+	@warning_ignore("unsafe_property_access")
 	if event is InputEventKey and event.pressed and not event.echo and event.is_action(&"ui_accept"):
 		picked = true
 	if picked:

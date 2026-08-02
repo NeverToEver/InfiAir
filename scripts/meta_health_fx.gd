@@ -60,13 +60,13 @@ var _heart_beats: int = 0
 
 ## A7：测试/诊断白盒断言经公开接口（平滑参数注入统一测试口 + 状态 getter）
 ## C35：接受无 `_` 前缀的语义键（内部补 `_` 写私有字段），不再与实现字段名强耦合
-func set_test_state(state: Dictionary) -> void:
-	for k in state.keys():
+func set_test_state(state_dict: Dictionary) -> void:
+	for k in state_dict.keys():
 		if k is String:
 			var field := String(k)
 			if not field.begins_with("_"):
 				field = "_" + field
-			set(field, state[k])
+			set(field, state_dict[k])
 
 
 func crack_progress() -> float:
@@ -436,12 +436,12 @@ func _bake_crack_field() -> void:
 	vp.size = Vector2i(512, 512)
 	vp.disable_3d = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	var rect := ColorRect.new()
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var rect_node := ColorRect.new()
+	rect_node.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var mat := ShaderMaterial.new()
 	mat.shader = BAKE_SHADER
-	rect.material = mat
-	vp.add_child(rect)
+	rect_node.material = mat
+	vp.add_child(rect_node)
 	add_child(vp)
 	# 一次性信号回调而非 await 协程：进程退出时挂起协程会泄漏函数状态
 	RenderingServer.frame_post_draw.connect(_on_bake_frame.bind(vp), CONNECT_ONE_SHOT)

@@ -847,6 +847,7 @@ func _get_action_keycodes(action: StringName) -> Array[int]:
 	var out: Array[int] = []
 	for ev in InputMap.action_get_events(action):
 		if ev is InputEventKey:
+			@warning_ignore("unsafe_property_access")
 			var k: int = ev.keycode if ev.keycode != 0 else ev.physical_keycode
 			out.append(k)
 			if out.size() >= 2:

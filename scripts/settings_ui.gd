@@ -184,15 +184,19 @@ func _on_reset_keys() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or _capturing_action == &"":
 		return
+	@warning_ignore("unsafe_property_access")
 	if event is InputEventKey and event.pressed and not event.echo:
+		@warning_ignore("unsafe_property_access")
 		if event.keycode == KEY_ESCAPE:
 			_hint_label.text = tr("SET_CANCELLED")
 		else:
+			@warning_ignore("unsafe_property_access")
 			GameState.rebind_action(_capturing_action, event.keycode)
 			_hint_label.text = (
 				tr("SET_BOUND")
 				% [
 					tr("ACT_" + String(_capturing_action).to_upper()),
+					@warning_ignore("unsafe_property_access")
 					OS.get_keycode_string(event.keycode),
 				]
 			)

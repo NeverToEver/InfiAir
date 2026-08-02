@@ -76,7 +76,9 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _done or event.is_action_pressed("ui_cancel"):
 		return
+	@warning_ignore("unsafe_property_access")
 	var pressed_key: bool = event is InputEventKey and event.pressed and not event.echo
+	@warning_ignore("unsafe_property_access")
 	var pressed_click: bool = event is InputEventMouseButton and event.pressed
 	if pressed_key or pressed_click:
 		get_viewport().set_input_as_handled()

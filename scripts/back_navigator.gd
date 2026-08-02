@@ -33,6 +33,7 @@ enum BackAction {
 func _unhandled_input(event: InputEvent) -> void:
 	# 右键 = 返回/取消（惯例：许多游戏以右键作为默认返回触发器）。
 	# 固定不参与改键（Esc/R 同类固定）；is_action_pressed 只认 ui_cancel（Esc/手柄 B）
+	@warning_ignore("unsafe_property_access")
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		go_back()
 		get_viewport().set_input_as_handled()

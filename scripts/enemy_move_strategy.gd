@@ -8,11 +8,17 @@ extends RefCounted
 ## 共享悬停参数（构造注入，缺省值 = balance.json enemies.* 默认）
 var _hover_bob_amp: float = 12.0
 var _hover_bob_freq: float = 2.0
+@warning_ignore("unused_private_class_variable")
 var _hover_sway_amp: float = 34.0
+@warning_ignore("unused_private_class_variable")
 var _hover_sway_freq: float = 1.2
+@warning_ignore("unused_private_class_variable")
 var _spiral_drift_amp: float = 56.0
+@warning_ignore("unused_private_class_variable")
 var _spiral_drift_freq: float = 0.7
+@warning_ignore("unused_private_class_variable")
 var _spiral_radius: float = 50.0
+@warning_ignore("unused_private_class_variable")
 var _aggressive_chase_speed: float = 140.0
 
 
