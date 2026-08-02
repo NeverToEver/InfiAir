@@ -1,143 +1,146 @@
-# Endless-Mode Balance Improvements (ENDLESS_BALANCE_PLAN)
+# 无限流数值改进指引（ENDLESS_BALANCE_PLAN）
 
-> Initiated 2026-07-29, from the same-day mechanics & balance audit. This document is the single source of truth for balance evolution of the "endless segment past 15 minutes";
-> sync `docs/ROADMAP.md` on stage/direction changes and register in AGENTS.md's "Documentation sync requirements".
-> Status: **implemented** — 2026-07-29: plans 1–5 fully landed, D1/D2 decisions finalized (see §5/§6).
+> 2026-07-29 立项，源自同日的机制与数值审计。本文是「15 分钟后无限段」数值演进的单一事实源；
+> 涉及阶段/方向调整时同步 `docs/ROADMAP.md` 并在 AGENTS.md「文档同步要求」登记。
+> 状态：**已实施**——2026-07-29 方案 1~5 全量落地，D1/D2 决策收口（见 §5/§6）。
 
 ---
 
-## 1. Audit Findings Summary
+## 1. 审计结论摘要
 
-The first ~15 minutes are carefully tuned and sound: the loop of score → milestone buff pick-1-of-3 → boss rotation → in-run RP economy is complete, and designs like the 50s boss-flee DPS check, enrage HP-lock, and per-axis caps are mature.
+前 ~15 分钟的体验数值是精心调过的、合理的：分数 → 里程碑 Buff 三选一 → Boss 轮换 → 局内 RP
+经济的闭环完整，Boss 50s 逃跑 DPS 检查、狂暴锁血、全轴封顶等设计成熟。
 
-But as an endless mode there is a structural gap: **after the 5th boss kill the game enters a pure steady state — it neither gets harder nor ever ends**.
+但作为无限流存在结构性缺口：**游戏在第 5 次 Boss 击杀后进入纯稳态，之后既不变难、也没有终点**。
 
-| Axis | Player | Enemy | Result |
+| 轴 | 玩家 | 敌方 | 结果 |
 | --- | --- | --- | --- |
-| Output | DPS multiplicative, capped ×9.5 (single) ~ ×38 (theoretical) | Normal enemy HP capped ×1.84 | Mid/late-game trash dies in one hit |
-| Survival | extra_life +50 HP per stack (99-stack nominal cap) + lifesteal up to 10% cap | Enemy bullet damage constant 12~21 for the whole run | Survival axis inflates infinitely one-sidedly |
-| Density | — | Wave interval hard floor 2.5s, wave size hard cap 5 ships | Pressure has a hard ceiling |
-| Boss | HP ×8 full scaling, aligned with the player DPS cap | Also capped after the 5th kill | Steady state |
+| 输出 | DPS 乘算，上限 ×9.5（单体）~ ×38（理论） | 普通敌 HP 封顶 ×1.84 | 中后期小怪秒杀化 |
+| 生存 | extra_life 每层 +50 HP（99 层名义上限）+ 吸血回 10% 上限 | 敌弹伤害全程恒定 12~21 | 生存轴单边无限膨胀 |
+| 密度 | — | 波间隔硬下限 2.5s、波规模硬上限 5 架 | 压力有硬顶 |
+| Boss | HP ×8 全额缩放，与玩家 DPS 上限对齐 | 第 5 杀后同样封顶 | 稳态 |
 
-Pre-revision formula: `difficulty_multiplier = min(1 + (2^min(boss_kills,10) − 1) × 0.25, 8)` — hits the ×8 cap at the 5th kill, driven only by boss kills, independent of time. After that a run can never end, theoretically or technically; score attack degrades to pure time investment. (Superseded from 2026-07-29 by the linear + time-axis curves of §4 plans 3/4, see §6.)
+修订前公式：`difficulty_multiplier = min(1 + (2^min(boss_kills,10) − 1) × 0.25, 8)`——第 5 次击杀即触顶 ×8，
+且只由 Boss 击杀驱动、与时间无关。此后一局在理论和技术上都不会结束，score attack 退化为纯时间投入。
+（2026-07-29 起被 §4 方案 3/4 的线性 + 时间轴曲线取代，见 §6。）
 
-## 2. Reference Patterns (Conventions of Mature Titles)
+## 2. 参考模式（成熟项目惯例）
 
-Mature endless/survival games handle "infinity" with only two paradigms; this project currently fits neither:
+成熟无尽/生存类游戏处理「无限」只有两种范式，本项目目前两条都不占：
 
-- **Guaranteed-death curve**: enemy growth eventually outpaces the player, the player must lose, so score has meaning
-  (Geometry Wars, classic arcade; enemy density/speed ramp unboundedly, player growth fixed).
-- **Timed endpoint**: settlement or forced termination after a fixed duration, during which the player's growth outruns enemies and delivers power fantasy
-  (Vampire Survivors' 30-minute format; endgame enemy HP inflates thousands-fold per minute, Death forces settlement).
+- **必死曲线**：敌方成长最终超过玩家，玩家必败，分数才有意义
+  （Geometry Wars、传统街机；敌人密度/速度无限 ramp，玩家成长固定）。
+- **定时终点**：固定时长后结算或强制终结，期间玩家成长跑赢敌人、享受 power fantasy
+  （Vampire Survivors 30 分钟制；终局敌人 HP 按分钟膨胀数千倍，死神强制结算）。
 
-**The paradigm choice in §5 is a prerequisite for plans 1/3 in §4 (2026-07-29: A guaranteed-death curve selected).**
+**§5 的范式选择是落地 §4 方案 1/3 的前置决策（2026-07-29 已选定 A 必死曲线）。**
 
-## 3. Issue List
+## 3. 问题清单
 
-### P0 — Endless Mode Unsustainable
+### P0 — 无限流不可持续
 
-| # | Issue | Evidence |
+| # | 问题 | 证据 |
 | --- | --- | --- |
-| 1 | **Enemy output has zero growth, survival axis has no cap to offset it**: enemy bullet damage is constant; extra_life becomes the only pickable card late-game (others leave the pool at max stacks), estimated +750~1000 HP net per hour; lifesteal healing at the 10% cap snowballs into a positive feedback loop | `enemies.bullet_damage`, `boss.bullet_damage` never consume a ramp; `scripts/buff_select.gd:154-156` max-stack pool removal; `autoload/game_state.gd:498-509` lifesteal |
-| 2 | **Event units ignore the difficulty multiplier**: turret HP constant 80, formation fighter HP constant 60 (only multiplied by difficulty tier); after 10 minutes they degrade from pressure sources into free points | `scripts/elite_turret_event.gd:127-132`, `scripts/formation_strike_event.gd:115-126` |
+| 1 | **敌方输出零成长，生存轴无顶对冲**：敌弹伤害恒定；extra_life 后期成为唯一可选卡（其余满层出池），估算每小时净增 750~1000 HP；吸血按上限 10% 回血形成正反馈滚雪球 | `enemies.bullet_damage`、`boss.bullet_damage` 无 ramp 消费；`scripts/buff_select.gd:154-156` 满层出池；`autoload/game_state.gd:498-509` 吸血 |
+| 2 | **事件单位不吃难度乘数**：炮塔 HP 恒 80、编队战机 HP 恒 60（只乘难度档），10 分钟后从压力源退化为送分道具 | `scripts/elite_turret_event.gd:127-132`、`scripts/formation_strike_event.gd:115-126` |
 
-### P1 — Curve Shape
+### P1 — 曲线形状
 
-| # | Issue | Evidence |
+| # | 问题 | 证据 |
 | --- | --- | --- |
-| 3 | The 2^n exponential mult formula: the 4th→5th kill jumps ×4.75 → ×8 (+68%), then caps forever — gentle start / abrupt mid-section / flat tail | `autoload/game_state.gd:470-477` |
-| 4 | On hard difficulty buff pacing is paradoxically the fastest (score ×3, milestone thresholds only ×1.5); whether that is intentional is undocumented | `difficulty.*.score` / `.milestone`, `autoload/game_state.gd:331-343` |
-| 5 | Difficulty only tracks boss kills: dodging fights stalls difficulty, kill streaks spike it; the time/score axes are entirely unused | `autoload/game_state.gd:470-477` |
+| 3 | mult 公式 2^n 指数：第 4→5 杀从 ×4.75 跳至 ×8（+68%），随后永久封顶，前缓/中断/后平 | `autoload/game_state.gd:470-477` |
+| 4 | hard 难度 Buff 节奏反而最快（得分 ×3、里程碑阈值仅 ×1.5），是否意图无文档 | `difficulty.*.score` / `.milestone`、`autoload/game_state.gd:331-343` |
+| 5 | 难度只认 Boss 击杀：避战则难度停滞，连杀则陡升；时间/分数轴完全未使用 | `autoload/game_state.gd:470-477` |
 
-### P2 — Config & Copy Decay
+### P2 — 配置与文案腐烂
 
-| # | Issue | Evidence |
+| # | 问题 | 证据 |
 | --- | --- | --- |
-| 6 | rapid_fire card says "fire rate +25%", actually interval ×0.75 = +33%/stack | `scripts/player.gd:181-182`, `data/translations.csv:36` |
-| 7 | `desc` in the `buff_select.gd` pool is dead text and stale (laser says 10 dmg/10s, actual 16 dmg/8s) | `scripts/buff_select.gd:4-101` vs `scripts/laser_weapon.gd:10-11` |
-| 8 | explosive's per-level scaling is unreachable (stack cap locked at 1) | `scripts/bullet.gd:155-166` |
-| 9 | The comment at `player.gd:56` mentions a "fuel-tank expansion perk" that has no implementation, likely leftover from an early version | `scripts/player.gd:56,124` |
-| 10 | explosive's unlock gate `boss_kills >= 3` is hardcoded, not in balance.json | `scripts/buff_select.gd:145` |
+| 6 | rapid_fire 卡面写「射速提升 25%」，实际间隔 ×0.75 = +33%/层 | `scripts/player.gd:181-182`、`data/translations.csv:36` |
+| 7 | `buff_select.gd` 池内 `desc` 为死文本且过时（laser 写 10 伤/10s，实际 16 伤/8s） | `scripts/buff_select.gd:4-101` vs `scripts/laser_weapon.gd:10-11` |
+| 8 | explosive 的 per-level 缩放不可达（层数上限锁 1） | `scripts/bullet.gd:155-166` |
+| 9 | `player.gd:56` 注释提及「扩容油箱天赋」但无实现，疑似早期版本遗留 | `scripts/player.gd:56,124` |
+| 10 | explosive 解锁门槛 `boss_kills >= 3` 硬编码，未进 balance.json | `scripts/buff_select.gd:145` |
 
-## 4. Improvement Plans (Ranked by Cost-Benefit)
+## 4. 改进方案（按性价比排序）
 
-> All numbers go into `data/balance.json`, with script `cfg()` fallbacks kept in sync; the k values in formulas are drafts, to be calibrated by balance tests at implementation.
+> 数值一律进 `data/balance.json`，脚本 `cfg()` 回退值同步；公式中的 k 值均为初稿，落地时以平衡测试标定。
 
-### Plan 1 — Enemy Damage Ramp (P0-1 Core, Cheapest Way to Restore Tension) [Fully Landed 2026-07-29]
+### 方案 1 — 敌方伤害 ramp（P0-1 核心，最低成本恢复张力）【2026-07-29 已全量落地】
 
-- Enemy bullet/ram damage multiplied by `(1 + k × (difficulty_multiplier − 1))`, suggested k ≈ 0.08 (×1.56 at mult=8);
-  or a slow rise by in-run time. Consumption points: `enemy.gd`, `boss.gd`, formation bombs.
-- Pair with a real extra_life cap (suggested 10 stacks / 500 total HP) or diminishing returns
-  (+50×0.9^n per stack). The current 99-stack cap is already locked by exponential milestone thresholds — it is nominal, so tightening it directly costs no gameplay.
-- **Implementation record (2026-07-29, damage ramp)**: the damage ramp landed with k=0.08 — new key `enemies.damage_ramp_factor`,
-  `GameState.enemy_damage_ramp()`; enemy bullets split uniformly by faction in `bullet.gd` (covers all enemy/Boss/turret bullet types),
-  with ramming (`enemy.gd`/`boss.gd`) and formation bombs (`formation_strike_event.gd`) wired separately.
-- **Implementation record (2026-07-29, extra_life tightening)**: cap 99→**10 stacks** (total HP 100+500=600 cap) —
-  new key `buffs.extra_life.max_stacks`=10, pool `max` synced, card copy "可无限叠加" → "最多 10 层" (both zh/en columns).
-  The survival-axis positive feedback is offset jointly by the tightened HP cap and the unbounded damage ramp of plans 3/4.
+- 敌弹/撞体伤害乘 `(1 + k × (difficulty_multiplier − 1))`，建议 k ≈ 0.08（mult=8 时 ×1.56）；
+  或按局内时间缓升。消费点：`enemy.gd`、`boss.gd`、编队炸弹。
+- 配合 extra_life 设实质上限（建议 10 层 / 总 HP 500 封顶）或改递减收益
+  （每层 +50×0.9^n）。当前 99 层上限实际被里程碑指数阈值锁死，属虚设，直接收紧无体验损失。
+- **实施记录（2026-07-29，伤害 ramp）**：伤害 ramp 已按 k=0.08 落地——新键 `enemies.damage_ramp_factor`、
+  `GameState.enemy_damage_ramp()`；敌弹在 `bullet.gd` 按阵营统一分流（覆盖敌机/Boss/炮塔全部弹种），
+  撞体（`enemy.gd`/`boss.gd`）与编队炸弹（`formation_strike_event.gd`）单独接入。
+- **实施记录（2026-07-29，extra_life 收紧）**：上限 99→**10 层**（总 HP 100+500=600 封顶）——
+  新键 `buffs.extra_life.max_stacks`=10、池内 `max` 同步、卡面文案「可无限叠加」→「最多 10 层」（中英双列）。
+  生存轴正反馈由收紧后的 HP 上限 + 方案 3/4 的无限伤害 ramp 共同对冲。
 
-### Plan 2 — Event Units Take the Difficulty Multiplier (P0-2, One-Line Change) [Landed 2026-07-29]
+### 方案 2 — 事件单位吃难度乘数（P0-2，一行级改动）【2026-07-29 已落地】
 
-- Turret/formation-fighter HP multiplied by `(1 + enemies.hp_ramp_factor × (mult − 1))`, same formula as normal enemies
-  (`elite_turret_event.gd:127`, `formation_strike_event.gd:115`).
-- **Implementation record (2026-07-29)**: landed, uniformly routed through the new `GameState.enemy_hp_ramp()`.
+- 炮塔/编队战机 HP 乘 `(1 + enemies.hp_ramp_factor × (mult − 1))`，与普通敌机同口径
+  （`elite_turret_event.gd:127`、`formation_strike_event.gd:115`）。
+- **实施记录（2026-07-29）**：已落地，统一走新增的 `GameState.enemy_hp_ramp()`。
 
-### Plan 3 — Smoothed Mult Curve, No Hard Cap (P1-3) [Landed 2026-07-29]
+### 方案 3 — mult 曲线平滑化与去硬顶（P1-3）【2026-07-29 已落地】
 
-- Replace `2^n` with linear or logarithmic (e.g. `1 + 0.5 × boss_kills`);
-- Replace the ×8 cap with slow growth (e.g. `8 + 0.2 × (bk − 5)`), keeping a sustained pressure channel for the late game.
-- Depends on the §5 paradigm decision: "guaranteed-death" requires removing the hard cap; "timed endpoint" may keep it.
-- **Implementation record (2026-07-29)**: D1 chose guaranteed-death, adopting a **fully cap-free linear** scheme —
-  `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time-axis component` (plan 4), computed uniformly in
-  `GameState._recompute_difficulty()` (kill-triggered + time-tier-triggered + save-restore recompute);
-  the old `2^n + ×8 cap` formula is retired. As mult grows without bound: boss HP scales up in step (the 50s DPS check naturally becomes
-  a "flee if you can't kill it" pressure valve), `enemies.hp_ramp`/`damage_ramp`/spawn-interval ramp all gain unbounded pressure channels,
-  and player growth (DPS ×9.5, HP 600) is fixed, so the guaranteed-death curve holds.
+- `2^n` 改为线性或对数（如 `1 + 0.5 × boss_kills`）；
+- ×8 封顶改缓增长（如 `8 + 0.2 × (bk − 5)`），给后期留持续加压通道。
+- 依赖 §5 范式决策：选「必死曲线」则必须去硬顶；选「定时终点」可保留封顶。
+- **实施记录（2026-07-29）**：D1 选定必死曲线，采用**完全去硬顶**的线性方案——
+  `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + 时间轴分量`（方案 4），
+  `GameState._recompute_difficulty()` 统一计算（击杀触发 + 时间档触发 + 存档恢复重算），
+  旧 `2^n + ×8 封顶` 公式废弃。随 mult 无顶增长：Boss HP 同步放大（50s DPS 检查自然转化为
+  「打不死则逃跑」的压力阀）、`enemies.hp_ramp`/`damage_ramp`/刷怪间隔 ramp 全部获得无限加压通道，
+  玩家成长（DPS ×9.5、HP 600）固定，必死曲线成立。
 
-### Plan 4 — Time/Score Difficulty Factor (P1-5) [Landed 2026-07-29]
+### 方案 4 — 引入时间/分数难度因子（P1-5）【2026-07-29 已落地】
 
-- E.g. `mult = f(boss_kills) + elapsed / 600`, low weight suffices to close the "stall by avoiding fights" loophole.
-- **Implementation record (2026-07-29)**: the time component steps **quantized** by `progression.time_step_seconds`(30s),
-  +`progression.per_ten_minutes`(1.0) every 10 minutes — i.e. `floor(run_time/30) × 0.05`;
-  quantization avoids continuous drift (stable HUD, test-pinnable tiers); counts only in-run survival time `run_time` (tree pause excluded),
-  so avoiding fights still pressures steadily. New top-level config block `progression` (per_boss_kill/per_ten_minutes/time_step_seconds),
-  cached by `_apply_balance()`, recomputed on tier crossing in `_process` and broadcasting `difficulty_changed`.
+- 如 `mult = f(boss_kills) + elapsed / 600`，权重低即可，堵「避战停滞」漏洞。
+- **实施记录（2026-07-29）**：时间分量按 `progression.time_step_seconds`(30s) **量化步进**、
+  每 10 分钟 +`progression.per_ten_minutes`(1.0)——即 `floor(run_time/30) × 0.05`，
+  量化避免连续漂移（HUD 稳定、测试可钉档）；只计对局存活时间 `run_time`（树暂停不计），
+  避战同样持续加压。新顶层配置段 `progression`（per_boss_kill/per_ten_minutes/time_step_seconds），
+  `_apply_balance()` 缓存，`_process` 跨档时重算并广播 `difficulty_changed`。
 
-### Plan 5 — Copy & Config Cleanup (P2, Independent, Can Go First) [Landed 2026-07-29]
+### 方案 5 — 文案与配置清理（P2，独立可先做）【2026-07-29 已落地】
 
-- Change the rapid_fire description to 33% (both zh/en columns in translations.csv);
-- Delete or update the dead `desc` fields in the `buff_select.gd` pool;
-- Move the explosive unlock gate into `balance.json` (e.g. `buffs.explosive.unlock_boss_kills`).
-- **Implementation record (2026-07-29)**: all three done — `BUFF_RAPID_FIRE_DESC` changed to 33% in both zh/en;
-  all 16 dead `desc` fields deleted from the pool (card text now goes only through the `BUFF_%s_DESC` translation keys — single source of truth);
-  `buffs.explosive.unlock_boss_kills`=3 added to config. P2-8/P2-9 cleaned up the same day:
-  explosive's unreachable per-level scaling removed (fixed-value wording now matches the card),
-  and the dead "fuel-tank expansion perk" comment in `player.gd` replaced with a config-override note.
+- rapid_fire 描述改 33%（translations.csv 中英双列）；
+- 删除或更新 `buff_select.gd` 池内死 `desc` 字段；
+- explosive 解锁门槛入 `balance.json`（如 `buffs.explosive.unlock_boss_kills`）。
+- **实施记录（2026-07-29）**：三项全做——`BUFF_RAPID_FIRE_DESC` 中英改 33%；
+  池内 16 条死 `desc` 字段全删（卡片文本只走 `BUFF_%s_DESC` 翻译键，单一事实源）；
+  `buffs.explosive.unlock_boss_kills`=3 入配置。P2-8/P2-9 同日顺手清理：
+  explosive 不可达的 per-level 缩放删除（固定值口径与卡面一致），
+  `player.gd` 「扩容油箱天赋」死注释改为配置覆盖说明。
 
-## 5. Decision Log (Finalized 2026-07-29)
+## 5. 决策记录（2026-07-29 收口）
 
-| # | Decision | Conclusion | Impact |
+| # | 决策 | 结论 | 影响 |
 | --- | --- | --- | --- |
-| D1 | **Endgame paradigm** | **A. Guaranteed-death curve**: achieved by plans 1+3 removing the hard cap; no new settlement flow needed; fits the arcade score-attack positioning | Plan 3 adopts full cap removal (×8 cap retired); B (timed endpoint) not adopted |
-| D2 | Is the hard ×1.5 milestone intentional? | **Yes, deliberate design**: the DIFFICULTY_DEFS comment in `game_state.gd` states "avoid too-sparse buff pacing on high difficulty" | Registered as decision 10 in `docs/archive/PORTING_PARITY.md`; numbers unchanged |
+| D1 | **终局范式** | **A. 必死曲线**：方案 1+3 去硬顶即达成，无需新增结算流程；符合街机 score attack 定位 | 方案 3 采用完全去硬顶（×8 封顶废弃）；B（定时终点）不采用 |
+| D2 | hard 里程碑 ×1.5 是否意图 | **是，有意设计**：`game_state.gd` DIFFICULTY_DEFS 注释载明「避免高难 Buff 节奏过稀」 | 已登记 `docs/archive/PORTING_PARITY.md` 决策 10，数值不动 |
 
-## 6. Implementation Records & Acceptance
+## 6. 实施记录与验收
 
-- Status: **fully implemented** (2026-07-29) — plans 1 (incl. extra_life tightening), 2, 3, 4, 5 all landed;
-  D1/D2 decisions finalized (§5).
-- Acceptance (2026-07-29): all 26 assertion scenes 0 FAIL (incl. `--headless --import`, `--quit-after 300`);
-  assertions synced: smoke (difficulty multiplier now a dynamic expectation), difficulty (new progression curve §4b five assertions + interval section pins time tiers),
-  enemy_combat (flee section pins time tiers), hit_logic (A4 enemy bullet damage fully dynamic expectation, same convention as boss_pattern).
-- Long-run probe (2026-07-29, `--autoplay-seconds=300 --seed=20260729`): **0 exceptions**;
-  at 300s difficulty multiplier ≈ ×2.5 (2 kills ×2.0 + 10 time tiers ×0.5), pressure keeps rising with time, no steady-state plateau;
-  deeper endless segments (>15 min) on-device calibration deferred (§7).
-- Mandatory for balance changes: `balance_test.tscn`, `difficulty_test.tscn`, `boss_enrage_test.tscn`,
-  `wave_pacing_test.tscn`; after landing, use `autoplay_test.tscn` long-run probes to confirm the late game no longer hits
-  the "HP inflates one-sidedly, pressure to zero" steady state (watch boss-kill count and survival time in SUMMARY).
-- Run `i18n_test.tscn` when touching P2 copy.
+- 状态：**已全部实施**（2026-07-29）——方案 1（含 extra_life 收紧）、2、3、4、5 全量落地；
+  D1/D2 决策收口（§5）。
+- 验收（2026-07-29）：全部 26 个断言场景 0 FAIL（含 `--headless --import`、`--quit-after 300`）；
+  断言同步：smoke（难度乘数改动态期望）、difficulty（新增进程曲线 §4b 五断言 + 间隔段钉时间档）、
+  enemy_combat（逃跑段钉时间档）、hit_logic（A4 敌弹伤害全段改动态期望，同 boss_pattern 口径）。
+- 长时探针（2026-07-29，`--autoplay-seconds=300 --seed=20260729`）：**异常 0**；
+  300s 处难度乘数 ≈ ×2.5（2 杀 ×2.0 + 10 时间档 ×0.5），压力随时间持续上升、无稳态平台；
+  更深无限段（>15 分钟）的实机标定留待后续（§7）。
+- 数值类改动必跑：`balance_test.tscn`、`difficulty_test.tscn`、`boss_enrage_test.tscn`、
+  `wave_pacing_test.tscn`；落地后用 `autoplay_test.tscn` 长时探针验证后期不再出现
+  「HP 单边膨胀、压力归零」的稳态（关注 SUMMARY 中 Boss 击杀数与存活时长）。
+- 改动 P2 文案时运行 `i18n_test.tscn`。
 
-## 7. Maintenance Conventions
+## 7. 维护约定
 
-- This document covers only "endless-segment balance evolution"; new buffs/new enemies and similar content still go through Phase 2 of `docs/ROADMAP.md`.
-- Later calibration (per_boss_kill / per_ten_minutes / ramp coefficient feel-tuning on device) edits the `progression` block
-  of `balance.json` directly and appends records to §6 of this document.
+- 本文只覆盖「无限段数值演进」；新 Buff/新敌机等内容立项仍走 `docs/ROADMAP.md` Phase 2。
+- 后续标定（per_boss_kill / per_ten_minutes / ramp 系数的实机手感微调）直接改 `balance.json`
+  `progression` 段并在本文 §6 追加记录。

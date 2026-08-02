@@ -1,303 +1,310 @@
-# Boss Behavior Redesign (BOSS_REDESIGN)
+# Boss 行为重设计文档（BOSS_REDESIGN）
 
-This document is the single source of truth for the Boss behavior redesign: current-state audit, reference patterns, redesign plan, implementation phases, and test plan.
-**Any Boss behavior change must first align with this document; implementation-stage changes are written back here.**
-The pre-redesign behavior was ported from the Python original (alignment record archived in `docs/archive/PORTING_PARITY.md`, kept for provenance only);
-this redesign evolves independently — see §7.3 for evolution decisions.
-
----
-
-## 1. Current-State Audit (2026-07-28, based on `scripts/boss.gd` and the boss section of `data/balance.json`)
-
-### 1.1 Current Structure
-
-> This section is a snapshot of the pre-redesign behavior, **already superseded by this redesign (all three phases shipped 2026-07-28, see §8 implementation record)** — kept only as a deviation reference.
-
-- 3-type rotation: 1 Heavy (strafe 150, alternating 5-way fan / homing, 1.6s) / 2 Stalker (dash 400, 3-round sniper at 0.12s interval, 1.8s) /
-  3 Mothership (strafe 60, rotating cross 0.9s + summons 2–3 minions every 6s). HP = 800 × [1.3, 0.7, 1.6] × difficulty.
-- Enrage (HP<30%): **all three types share one sequence** — HP lock + player movement freeze, bullet time 1.2s → orbit the player snapshot point, square→circle 6s
-  (every 0.7s a wave of 4 lasers + 8 ring bullets) → 0.7s dense slow barrage → 0.8s return to position → regular phase fire rate ×1.5 / move speed ×1.3.
-- Escape: triggered when not killed within 50s of entry, warning floats up in the last 3s, no reward.
-- Three difficulty tiers: only multiply HP and global spawn parameters; **Boss barrage rhythm / bullet count / bullet speed do not scale with difficulty**.
-
-### 1.2 Problem List
-
-| # | Problem | Evidence |
-| --- | --- | --- |
-| P1 | **Enrage has no type identity**: all three types share one sequence; the climactic phase plays identically and repeats every fight | boss.gd `_update_enrage_sequence` has no boss_type branch |
-| P2 | **Regular phase is a metronome**: HP 100%→30% playstyle is zero-change; each type has only 1–2 attacks rotating on fixed intervals, no pattern cycles, no pressure curve | `_fire_timer` fixed `FIRE_INTERVALS`, `_fan_next` binary alternation |
-| P3 | **Heavy attacks have zero telegraph**: 650-speed 3-round aimed sniper (0.12s interval), 380 fan, homing — all fire instantly, no windup / aim line / charge telegraph, unfair | `_fire_sniper/_fire_fan/_fire_homing` fire directly |
-| P4 | **Enrage freezes player movement ~6s**: strips evasive options at the densest barrage moment, passed only on HP lock and luck, frustrating (old behavior, target of this redesign) | `_lock_player_movement` covers TRANSITION+ACTIVE |
-| P5 | **Difficulty only adds HP**: hard = longer sponge fight rather than richer pressure; easy/hard barrages identical | `setup()` only multiplies HP by difficulty; `FIRE_INTERVALS` etc. have no difficulty dimension |
-| P6 | **One-dimensional movement**: fixed y=230 horizontal shuttling; optimal play is to sit under the Boss and track x; no positional play, no vertical oscillation | `_move_strafe/_move_dash` only write position.x |
-| P7 | **Escape timer invisible**: warning only in the last 3s; low-DPS builds punished without knowing why | `_show_escape_warning` only appears at 47s |
-| P8 | **Health bar has no phase info**: players can't perceive mode-switch points (reference §2 variety principle) | `hud.show_boss_bar` only draws a continuous bar |
-| P9 | **No final burst at fight end**: after enrage the fight returns to the sped-up metronome until kill/escape; no "last stand" pressure peak before the kill | RELEASE_HOLD only 0.7s slow barrage |
-
-## 2. Reference Patterns (research on comparable projects)
-
-Primary source: Michael Molinari, "Video Game Boss Design For Shmups" (GameDeveloper, 2010),
-supplemented by accepted practice from Touhou (spell-card phase structure), Cave shooters (Mushihimesama/ESPGaluda2 closing burst), and Ikaruga (final-stage acceleration).
-
-Five applicable principles distilled:
-
-1. **Variety / Phasing**: Boss fights split by HP segments, each segment an independent attack-mode group looping within itself; the health bar is visually segmented so players can anticipate mode-switch points. Different modes must force players to change evasion/output strategy (position, rhythm), not just re-skin.
-2. **Telegraph / Fairness**: every high-threat attack must have a readable warning (charge, aim line, sound), intensity proportional to threat. "Looks deadly" must mean "gives a chance to dodge".
-3. **Pressure curve**: fight-ending intensity must exceed the opening (Cave-style death burst); mid sections alternate tension and release rather than a constant metronome.
-4. **Length discipline**: fight length proportional to the preceding flow; skilled players can be 2× faster, newcomers should not be 4× slower (the project already has the 50s escape fallback; kept).
-5. **Character / type identity**: each Boss's attacks, movement, hit feedback, and death scene must serve its "character"; the climactic phase (enrage) is the strongest expression of identity — the three types must differ.
-
-## 3. Redesign Goals
-
-- **G1 Type identity throughout**: each type has its "character" (Bulwark/Stalker/Hive); enrage is a type-unique finale, no shared sequence.
-- **G2 Full phasing**: HP 100%→0 split into P1 (100–70%) / P2 (70–30%) / ENRAGE (<30%), each segment an independent pattern-table loop with an explicit transition animation between segments; health bar gains phase ticks (fixes P8).
-- **G3 Every heavy attack telegraphed**: all attacks with bullet speed ≥500 or damage ≥20 get a ≥0.35s telegraph (charge glow / aim line / tone).
-- **G4 Keep evasion agency**: enrage "movement freeze" becomes "forced slow ×0.35" (the player can still move / shoot / dash); root-in-place semantics removed from the game (evolution decision, §7.3).
-- **G5 Difficulty affects modes, not only HP**: pattern parameter tables keyed by difficulty (bullet count / interval / speed tiers); HP multiplier kept.
-- **G6 Escape timer visible**: countdown shown in the last 10s of the health bar (fixes P7).
-
-Skeleton kept unchanged: 3-type rotation and HP baseline, 50s escape mechanic, bullet-time enrage framework (main orchestration),
-existing bullet-damage baselines, Boss kill/reward settlement chain, object pool and registry technical constraints.
-
-## 4. Common Mechanics
-
-### 4.1 Phase Framework (replacing the fixed metronome)
-
-```
-FIGHT (regular)
-├─ P1: HP 100–70%, pattern-table loop (2 modes per type)
-├─ P2: HP 70–30%, pattern-table loop (2–3 modes per type, incl. 1 telegraphed heavy attack)
-│     phase-transition animation: 0.6s charge screen-shake + tone + clear own timers
-└─ ENRAGE: HP<30%, type-unique enrage sequence (§5), HP-lock semantics kept (trigger → HP clamped at 30% until finale)
-```
-
-- Phase switches driven by `take_damage` thresholds (reusing the existing ENRAGE_HP_RATIO pattern; new P2 threshold 0.7).
-- Each "mode" = a duration (4–8s) or a fixed wave count, then switch to the next; in-mode firing rhythm is programmable (no longer a single interval).
-- Movement modes decoupled from attack modes: one movement function per type per phase (with a vertical component, fixes P6), attacks layered on top.
-
-### 4.2 Telegraph Spec (reusing existing building blocks)
-
-| Telegraph form | Use | Implementation |
-| --- | --- | --- |
-| Charge glow | heavy cannon / volley windup (0.4–0.6s) | `_glow` layered dot scale/alpha tween (cinematic recipe) |
-| Aim line | sniper / dash path (0.35–0.5s) | Line2D thin line α0.3 flicker, vanishes the instant bullets fire / movement starts |
-| Hull reddening + tone | phase switch / enrage opener | existing `_base_modulate` variant + `play_sfx` pitch shift |
-| Health-bar phase ticks | mode-switch preview | HUD boss bar draws 2 tick lines (70%/30%) + brief flash on switch |
-
-### 4.3 Enrage Player Slow (replacing root)
-
-- During TRANSITION+ACTIVE, `Player.movement_locked` is no longer used; replaced by `player._enrage_slow = 0.35`
-  (movement-speed multiplier, stacking with fuel boost / fine move; dash remains usable as the active escape tool).
-- Unlock timing unchanged (RELEASE_HOLD start); `_exit_tree` fallback reset (reusing the `_unlock_player_movement` fallback pattern).
-- Companion change: ACTIVE orbit bullet speed/density recalibrated for "player evades at 0.35 speed" (§5 gives per-type baselines).
-
-### 4.4 Difficulty Tiers
-
-Pattern parameter tables gain a difficulty dimension (easy/medium/hard columns) affecting: bullet count ±1/±2, fire interval ×1.15/×1/×0.85,
-bullet speed ×0.9/×1/×1.1. The Boss kill ramp multiplier on HP is unchanged; since the 2026-07-29 balance revision, Boss HP is additionally
-×0.75/×1/×1.5 by difficulty tier (`GameState.enemy_hp_multiplier()`, same source as regular enemies, keeping the "wave HP tier derives Boss HP" convention).
-
-### 4.5 Escape Timer Visible
-
-While the health bar is present, once survival ≥40s a countdown text appears below the bar (10→0, red flashing); at 50s the escape logic is unchanged.
-
-## 5. Per-Type Design
-
-### 5.1 Type 1 "Bulwark" (Heavy) — character: mobile gun platform, frontal suppression
-
-| Phase | Movement | Attack modes (loop) |
-| --- | --- | --- |
-| P1 | slow strafe (150) + 80px vertical press-down every 6s then return (first positional game) | ① 5-way fan ×3 waves (existing fan) ② homing ×2 (existing homing) |
-| P2 | strafe faster (200) + vertical oscillation | ③ **charged cannon**: 0.6s charge glow → 3 high-speed heavy shots (700 speed, 21 damage, 0.25s interval) ④ denser 5-way fan (7-way) |
-| ENRAGE | **rotating bulwark**: bullet-time framework kept; ACTIVE becomes hovering in place, rotating clockwise, a 12-way rotating ring wave every 0.5s (start angle precesses per wave); finale an 8-way charged-cannon volley (telegraphed) |
-
-### 5.2 Type 2 "Stalker" (Striker) — character: assassin, one-on-one pressure
-
-| Phase | Movement | Attack modes (loop) |
-| --- | --- | --- |
-| P1 | existing dash (400, 0.5s/0.7s rhythm) | ① **3-round sniper with aim line**: 0.35s aim-line lock (line micro-tracks the player for 0.2s then fixes) → 3 rounds (existing sniper) |
-| P2 | dash more frequent (0.4s/0.5s) | ② **dash sweep**: 0.5s aim line → high-speed horizontal pass at the player's altitude (body-contact hit kept; drops 3 slow bullets along the path) ③ 3-round sniper |
-| ENRAGE | **hunt orbit**: bullet-time framework kept; ACTIVE becomes sequential freeze-stops at 4 quadrant points of the player snapshot orbit, 0.3s aim line + single lethal sniper at each (900 speed, 21 damage), 6 points total; finale returns to the orbit bottom and releases a 12-way slow ring |
-
-### 5.3 Type 3 "Hive" (Mothership) — character: commander, numbers over finesse
-
-| Phase | Movement | Attack modes (loop) |
-| --- | --- | --- |
-| P1 | very slow strafe (60) + slow press/recover (y 200–280 sine) | ① rotating cross (existing) ② summon 2–3 minions every 6s (existing) |
-| P2 | strafe 100 + vertical oscillation | ③ **formation volley**: summons 4 minions in a row, one aimed volley 0.8s later (minion normal bullets, 420 speed) ④ **bullet wall**: 10-way slow fan wall (2 gaps, 220 speed, 12 damage) |
-| ENRAGE | **swarm out**: bullet-time framework kept; ACTIVE releases a wave of 3 minions every 1.2s (3 waves total) + own 8-way ring every 0.9s; finale one 16-way slow ring + all living minions volley simultaneously |
-
-### 5.4 Common Final Burst (principle 3)
-
-Each type's ENRAGE RELEASE_HOLD stage is that type's "last stand" peak (already in the tables above), followed by RETURN;
-the regular loop then enters "lingering rage": fire rate ×1.3 (down from ×1.5 because enrage itself is now stronger).
-
-### 5.5 P2 Movement Upgrade Implementation Design (2026-08-02, D05 shipped)
-
-> Background: the P2 upgrades in the §5.1-5.3 per-type movement tables were unimplemented since Phase B (registered as D05 on the 2026-08-02 review).
-> This round implements them per the tables; the vertical component is uniformly **sine oscillation**, reusing the project's existing `EnemyMoveStrategy` sine form
-> (`anchor + Enemy.sin_fast(time * freq + phase) * amp`) and `BossMovement._update_press`'s
-> incremental y-application pattern — no new movement primitives.
-
-#### Research & References (2026-08-02)
-
-- **BulletML movement primitives** ([official reference](http://www.asahi-net.or.jp/~cs8k-cyu/bulletml/bulletml_ref_e.html)):
-  movement = composition of incremental `changeDirection / changeSpeed / accel` (linear transition to the target within term frames) —
-  sine/oscillation derives from incremental adjustments; no standalone "waveform" concept. This project's `_update_press` "apply the
-  `target - _press_offset` delta per frame" is the same paradigm (already present; reused).
-- **In-project `EnemyMoveStrategy`** (`scripts/enemy_move_strategy.gd`): `SineMove`/`HoverMove` express sine via
-  `Enemy.sin_fast(time * freq + phase) * amp` (lookup table, zero allocation; C05/C09 closure convention).
-  Boss vertical oscillation reuses the same family rather than reinventing the wheel.
-- **Danmaku design principles** ([The Anatomy of a Shmup](https://www.gamedeveloper.com/design/the-anatomy-of-a-shmup),
-  [Danmaku Design Discussion](https://www.shrinemaiden.org/forum/index.php?topic=6649.0)):
-  ① movement decoupled from the barrage (Boss movement keeps its own rhythm, not tied to bullet intervals); ② phase-upgrade pressure comes from
-  "more movement freedom" (P1 one-axis → P2 two-axis); ③ vertical oscillation amplitude/period stay small and slow so as not to squeeze player space
-  (`strafe_range` horizontal band unchanged; vertical only swings near the anchor line).
-
-#### Semantic Interpretation
-
-- **§5.3 Type 3 P1 "y 200–280 sine"**: interpreted as **periodic press-down/recover** (isomorphic with §5.1 Type 1 P1's "press down 80px every 6s then return",
-  but larger amplitude, longer period, slower) — the hull sines down from the anchor line into the **band 200–280px below the anchor** (press depth center 240,
-  trajectory swing ±40, 9s slow-breath period), then slowly recovers. Rationale: the anchor line itself sits at `view.position.y + FIGHT_Y(230)`;
-  if 200–280 were absolute coordinates they would nearly coincide with the anchor line (no press effect); "press/recover" is periodic-motion semantics, starting
-  from the anchor (target eases from 0) to avoid phase-switch/entry jumps, isomorphic with `_update_press`'s incremental style.
-- **Type 1 P2 "vertical oscillation"**: two-direction sine around the anchor line ±40px (distinct from P1's one-direction periodic press), period 6s
-  (same feel as P1's `press_interval`); phase starts at 0 on phase switch (sin 0 = 0, seamless with `reset_press()`).
-- **Type 3 P2 "vertical oscillation"**: two-direction sine around the anchor line ±50px, period 8s (slower pitching for the mothership).
-
-#### Parameter Table (new config keys, `boss.movement` section of balance.json)
-
-| Key | Default | Semantics |
-| --- | --- | --- |
-| `type1_p2_strafe` | 200 | Type 1 P2 horizontal strafe speed (P1 = `strafe_speeds[0]` 150) |
-| `type1_p2_bob_amp` | 40 | Type 1 P2 vertical sine amplitude (±px, around the anchor line) |
-| `type1_p2_bob_period` | 6 | Type 1 P2 vertical sine period (s) |
-| `type2_p2_dash_time` | 0.4 | Type 2 P2 dash duration (P1 = 0.5) |
-| `type2_p2_rest_time` | 0.5 | Type 2 P2 dash rest (P1 = 0.7) |
-| `type3_p1_bob_min` | 200 | Type 3 P1 press-depth band lower bound (px below anchor) |
-| `type3_p1_bob_max` | 280 | Type 3 P1 press-depth band upper bound (px below anchor) |
-| `type3_p1_bob_period` | 9 | Type 3 P1 press/recover period (s; offset from the pattern loop to avoid a rigid rhythm) |
-| `type3_p2_strafe` | 100 | Type 3 P2 horizontal strafe speed (P1 = `strafe_speeds[2]` 60) |
-| `type3_p2_bob_amp` | 50 | Type 3 P2 vertical sine amplitude (±px, around the anchor line) |
-| `type3_p2_bob_period` | 8 | Type 3 P2 vertical sine period (s) |
-
-All are **gameplay-range family** (not multiplied by `world_scale`); movement coordinates are based on the `fight_anchor_y()` / `strafe_range()` view baseline.
-
-#### Implementation Notes
-
-- `BossMovement` gains `_move_bob(delta, boss, amp, period)` (P2 vertical sine oscillation: directly sets
-  `position.y = fight_anchor_y() + sin(phase)*amp` — called only after `_in_fight`; entry/escape/enrage sequences all early-return without interfering;
-  `fight_anchor_y()` evaluated per frame supports mid-fight view-tier switches) and
-  `_move_band(delta, boss, y_lo, y_hi, period)` (Type 3 P1 slow press/recover: isomorphic with `_update_press`;
-  the target is a pure offset starting from 0, no initial jump); phase accumulated via `_bob_phase` (`TAU * delta / period`),
-  and `reset_press()` zeroes the phase on phase switch.
-- Type 1 `update()`: P2 branch `_move_strafe(type1_p2_speed)` + `_move_bob(amp, period)`;
-  P1 branch keeps `_update_press` (one-direction periodic press).
-- Type 2 `update()`: dash rhythm takes 0.5/0.7 (P1) or 0.4/0.5 (P2) by `fight_phase`.
-- Type 3 `update()`: P1 adds `_move_band(200, 280, 9)` (strafe 60 unchanged); P2 uses `_move_strafe(100)` + `_move_bob(50, 8)`.
-- All speeds go through the `slow_factor()` / `_enrage_speed_mult()` multipliers (consistent with existing movement).
-- Config read cached once as instance fields in `Boss._ready` and injected into `_movement` (A5 dependency-injection pattern);
-  new keys also sync script fallback defaults (AGENTS.md consistency convention).
-
-#### Test Impact
-
-- `boss_phase_test` scene 1 (Type 1) C11 "returns to the anchor line after P2 switch" assertion: with sine in P2, at the switch instant
-  sin 0 = 0 still returns to the anchor line, but **y starts deviating over the following frames** — the assertion would fail if it checked after waiting several frames;
-  it must change to "y within anchor ±amp after the phase switch".
-- New assertions: Type 1 P2 vertical y fluctuation (both y > anchor and y < anchor within sampled frames); Type 2 P2 dash rhythm
-  (0.4/0.5 period verification); Type 3 P1 y ∈ [anchor+200, anchor+280] (sampled band breathing).
-- Movement-value assertions prefer instance constants / config reads (C34 convention), no hardcoding.
-
-## 6. Values & Config (balance.json boss section restructure)
-
-- Existing keys untouched (compat/fallback); new `boss.phases` section: per-type per-phase pattern table (duration/waves/count/speed/interval × three difficulty columns),
-  telegraph durations, vertical movement parameters. Script defaults match JSON (AGENTS.md convention).
-- New `boss.enrage.player_slow` (0.35) and `boss.enrage.type_*` per-type enrage parameter subsections; the original `boss.enrage.*`
-  common timing (bullet time / orbit radius etc.) is kept.
-- New `boss.escape.countdown_visible_from` (10.0).
-
-## 7. Implementation Phases, Testing & Compatibility
-
-### 7.1 Phases
-
-- **Phase A (framework first)**: Boss state machine refactored to phase-table driven (P1/P2/ENRAGE switching + pattern loops + telegraph mechanism +
-  health-bar ticks + escape countdown + slow replaces root); all three types fill the tables with **existing attacks** (sniper gains an aim line); enrage keeps the shared sequence for now.
-  Exit criteria: full regression green + new phase assertion tests green.
-- **Phase B (per-type mode library)**: implement the §5 per-type P2 new attacks and differentiated enrages (charged cannon / dash sweep / formation volley / bullet wall / type-3 exclusive enrage).
-- **Phase C (values & verification)**: difficulty-tier parameters, TTK/pressure calibration (autoplay 480s probe + manual play), performance re-measurement.
-
-### 7.2 Test Plan
-
-- New `test/boss_phase_test.tscn`: phase-threshold switching, pattern-loop advancement, telegraph timing (line before bullets),
-  slow application and reset (incl. Boss death/escape/depart fallbacks), escape countdown display, difficulty-tier values.
-- Refactor `test/boss_enrage_test.tscn`: root assertions → slow assertions; Phase B adds per-type differentiation assertions.
-- Regression: `hit_logic_test`, `difficulty_test`, `smoke_test`, `autoplay_test` ([ANOMALY] probe), `--quit-after 300`.
-
-### 7.3 Evolution Decision Record (previously registered in PORTING_PARITY, archived 2026-07-30)
-
-1. Enrage player root → forced slow ×0.35 (P4; root semantics no longer kept).
-2. Shared 3-type enrage sequence → per-type enrage (P1).
-3. Fixed metronome → HP-phase pattern tables (P2).
-4. Instant sniper/fan → telegraph windup (P3).
-5. Difficulty multiplies only HP → tiered pattern parameters (P5).
-6. `FIGHT_Y` absolute anchor (y=230 hardcoded) → offset from the visible-area top edge (2026-07-30 combat UX audit P0-1): new
-   `_fight_anchor_y()` = `GameState.view_world_rect().position.y + FIGHT_Y`; all three use sites
-   (entry stop line per-frame evaluation, P2 dash RETURN, enrage RETURN) unified onto it, supporting mid-fight view-tier switches;
-   aligned with `_strafe_range()`'s view-margin handling, behavior bit-identical at zoom=1.
-
-### 7.4 Compatibility Constraints
-
-- Save data contains no Boss state (save_run stores only score/fuel/time); on continue the Boss re-enters per scheduling — no migration issues.
-- Elite-turret / formation-strike event Boss-mutex hooks (`_boss_frozen/_boss_pending`) untouched.
-- Bullet pool / registry / performance budget (draw calls, zero heap allocation on hot paths) follow AGENTS.md constraints;
-  telegraph nodes are freed with their bullets, not resident in `_process`.
+本文档是 Boss 行为重设计的单一事实源：现状审计、参考模式、重设计方案、实施分期与测试计划。
+**任何 Boss 行为改动必须先对齐本文档；实施阶段的变更回写本文档。**
+重设计前的旧行为移植自 Python 原作（对齐记录已归档于 `docs/archive/PORTING_PARITY.md`，仅作溯源参考）；
+本重设计是独立演进，演进决策记录见 §7.3。
 
 ---
 
-## 8. Implementation Record (2026-07-28, all three phases shipped)
+## 1. 现状审计（2026-07-28，依据 `scripts/boss.gd` 与 `data/balance.json` boss 段）
 
-### 8.1 Phase Completion
+### 1.1 现状结构
 
-- **Phase A (framework)**: `scripts/boss.gd` refactored to the FightPhase (P1/P2/ENRAGE) phase framework + pattern table `_patterns`
-  (`boss.phases.typeN` config + DEFAULT_PATTERNS fallback); telegraph primitives (`_charge_glow` charge glow /
-  `_make_aim_line` aim line); enrage root replaced with the `_enrage_slow = 0.35` slow; HUD health bar 70%/30% phase ticks;
-  escape countdown below the bar (10→0 once alive ≥40s).
-- **Phase B (per-type mode library)**: the three types' P2 new attacks (charged_cannon / dash_sweep /
-  minion_volley / bullet_wall) + per-type differentiated enrage (`_update_enrage_sequence`
-  dispatched by boss_type, params `boss.enrage.type_*`); `spawner.spawn_minion(pos) -> Enemy` returns the instance.
-- **Phase C (values & verification)**: difficulty tiers `_apply_difficulty_scaling()` (see §8.3);
-  value verification §8.4; doc write-back (this section, AGENTS.md).
+> 本节为重设计前的旧行为快照，**已被本重设计取代（2026-07-28 全三期落地，见 §8 实施记录）**，仅作偏离对照保留。
 
-### 8.2 Self-Decided Points During Implementation (where the design doc was silent)
+- 3 型轮换：1 重装（strafe 150，5 路扇形/追踪弹交替，1.6s）/ 2 游击（冲刺 400，3 连狙 0.12s 间隔，1.8s）/
+  3 母舰（strafe 60，旋转 cross 0.9s + 每 6s 召唤 2–3 小怪）。HP = 800 × [1.3, 0.7, 1.6] × 难度。
+- 狂暴（HP<30%）：**三型共用同一序列**——锁血 + 冻结玩家移动，子弹时间 1.2s → 绕玩家快照点方形→圆形轨道 6s
+  （每 0.7s 一波 4 激光+8 环弹）→ 0.7s 密集慢速弹幕 → 0.8s 归位 → 常规阶段射速×1.5/移速×1.3。
+- 逃跑：入场 50s 未击杀触发，最后 3s 警告上飘，无奖励。
+- 难度三档：只乘 HP 与全局刷怪参数，**Boss 弹幕节奏/弹数/弹速不随难度变化**。
 
-- Phase A: cease-fire duration during the phase-switch animation = the new mode's first wave interval; post-enrage "lingering rage" reuses the P2 pattern table (fire rate ×1.3);
-  a cross-phase one-shot triggering enrage → enrage takes priority; the type-3 summon timer is independent of the pattern table; the escape countdown is plain numeric text (no translation key).
-- Phase B: ring damage keeps the existing baseline 12; type-2 enrage aim line tracks continuously (not lock-then-fix); type 1 TRANSITION
-  jitters in place instead of an orbit entry; the type-3 finale RELEASE settles in one go; pattern-table timing pauses during dash_sweep;
-  the bullet-wall arc center is fixed downward (not rotating with the player's position; only the gap avoids the player ±30°).
-- Phase C: tiers applied once after `_ready` config load (not per-frame lookup); snapshot barrage (main orchestration 4 lasers + 8 rings),
-  telegraph durations, craft movement speed, HP/damage not tiered; bullet-count lower clamp wall 6 / ring 4 / others 1 (fan min 3).
-- Fix: `_load_patterns` must `duplicate(true)` deep-copy the shared JSON arrays returned by cfg,
-  otherwise tiered interval multiplication pollutes the GameState config cache and stacks onto subsequent Boss instances (caught by boss_pattern_test scene 6).
-  **2026-08-01 review supplement**: the same pollution persists in `FIRE_INTERVALS` (`boss.gd:420-421` reads the shared array,
-  `:522-523` does in-place `[i] *= interval_mult`, compounding across Bosses under easy/hard) — `_apply_difficulty_scaling`
-  must `duplicate(true)` `FIRE_INTERVALS` first as well; registered as AUDIT_VAULT B5. **Fixed 2026-08-01**
-  (`boss.gd` `.duplicate()` after fetch; see the AUDIT_VAULT B5 fix-effect record; boss_pattern_test easy/hard pass).
-- Movement simplification (**2026-08-02 review registration, D05**): the P2 upgrades required by the §5.1-5.3 per-type movement tables (Type 1 P2 "strafe 200 + vertical oscillation", Type 2 P2 "dash 0.4s/0.5s", Type 3 P2 "strafe 100 + vertical oscillation", Type 3 P1 "y 200-280 sine") were not yet implemented — `boss_movement.gd` has a vertical component only for Type 1 P1 (`_update_press` only called in `FIGHT_P1`), Type 2 dash has no phase distinction, Type 3 none. `git show 3188902^` confirms the gap existed when Phase B landed (not introduced by the A3 split). **Fixed the same day, 2026-08-02, per §5.5 (see above)**; this registration becomes an implementation record.
+### 1.2 问题清单
 
-### 8.3 Difficulty Tier Implementation (§4.4)
+| # | 问题 | 证据 |
+| --- | --- | --- |
+| P1 | **狂暴无型号身份**：三型共用同一序列，最高潮时刻打法完全一致，且每场战斗重复 | boss.gd `_update_enrage_sequence` 无 boss_type 分支 |
+| P2 | **常规阶段是节拍器**：HP 100%→30% 打法零变化；每型仅 1–2 个攻击按固定间隔轮转，无模式循环、无压力曲线 | `_fire_timer` 固定 `FIRE_INTERVALS`，`_fan_next` 二元交替 |
+| P3 | **重攻击零预警**：650 弹速自机狙 3 连发（0.12s 间隔）、380 扇形、追踪弹全部瞬发，无前摇/瞄准线/蓄力表现，公平性差 | `_fire_sniper/_fire_fan/_fire_homing` 直接出弹 |
+| P4 | **狂暴冻结玩家移动约 6s**：弹幕密度最高的时刻剥夺躲避手段，靠锁血和运气通过，挫败感强（旧行为，本次重设计对象） | `_lock_player_movement` 覆盖 TRANSITION+ACTIVE |
+| P5 | **难度只加血**：hard = 更长的海绵战而非更丰富的压力，easy/hard 弹幕完全相同 | `setup()` 仅 HP 乘难度；`FIRE_INTERVALS` 等无难度维度 |
+| P6 | **走位一维**：固定 y=230 水平往返，玩家蹲正下方跟踪 x 即最优解，无位置博弈、无纵向往复 | `_move_strafe/_move_dash` 只写 position.x |
+| P7 | **逃跑计时不可见**：仅最后 3s 警告，低 DPS 构建被惩罚却不知原因 | `_show_escape_warning` 在 47s 才出现 |
+| P8 | **血条无阶段信息**：玩家无法感知模式切换点（参考模式 §2 的 variety 原则） | `hud.show_boss_bar` 只画连续血条 |
+| P9 | **战斗节奏无收尾爆发**：狂暴结束后回到提速节拍器直至击杀/逃跑，击杀前没有「最后一搏」的压力峰值 | RELEASE_HOLD 仅 0.7s 慢速弹幕 |
 
-- Config: `boss.difficulty_scaling` (`interval_mult` [1.15, 1.0, 0.85], `speed_mult` [0.9, 1.0, 1.1],
-  `counts` per-parameter [easy, medium, hard] deltas: fan/homing/cannon/volley/summon/drops ±1, wall/ring/salvo ±2).
-- Implementation: `Boss._apply_difficulty_scaling()` applies at the end of `_ready` — pattern-table interval,
-  FIRE_INTERVALS, CANNON/ENRAGE/E1/E2/E3 internal rhythms ×interval_mult; all attack bullet speeds ×speed_mult
-  (excluding snapshot speed and craft movement speed SWEEP_SPEED); bullet counts adjusted by counts with a lower clamp; fan/homing2 take `_d_fan/_d_homing` at the `_execute_attack`
-  dispatch site. Tier = `GameState.DIFFICULTY_ORDER.find(GameState.difficulty)`, unknown falls back to medium.
+## 2. 参考模式（同类项目调研）
 
-### 8.4 Value Calibration Verification Results
+主要来源：Michael Molinari《Video Game Boss Design For Shmups》（GameDeveloper，2010），
+辅以 Touhou（符卡阶段制）、Cave 系（虫姬/ESPGaluda2 收尾爆发）、Ikaruga（终章加速）的公认做法。
 
-- Assertion tests: `boss_phase_test` / `boss_enrage_test` / `boss_pattern_test` (incl. easy/hard tier scenes) all green;
-  regression list (hit_logic / difficulty / smoke / enemy_combat / elite_turret_event /
-  formation_strike_event / base_system / `--quit-after 300` / `--import`) all green.
-- autoplay 480s probe and perf_bench results are in the respective commit notes/reports; TTK and feel belong to manual-play calibration,
-  and without manual-play conditions, the probe showing no [ANOMALY] and the frame-time magnitude stand in.
+提炼五条适用原则：
+
+1. **Variety / 阶段化**：Boss 战按 HP 分段，每段一个独立攻击模式组并在组内循环；血条可视化分段，
+   玩家能预见模式切换点。不同模式应迫使玩家改变躲避/输出策略（换位置、换节奏），而非换皮。
+2. **Telegraph / 公平性**：一切高威胁攻击必须有可读的预警（蓄力、瞄准线、音效），强度与威胁成正比。
+   「看起来致命」必须「给机会躲」。
+3. **压力曲线**：战斗结尾强度必须高于开头（Cave 式临死爆发）；中间段落张弛交替而非恒定节拍。
+4. **Length / 时长纪律**：Boss 战时长与前置流程成比例；熟练玩家可以快一倍，懵懂玩家不应慢四倍
+   （本项目已有 50s 逃跑兜底，保留）。
+5. **Character / 型号身份**：每个 Boss 的攻击、移动、受击反馈、死亡演出都应服务于它的「角色」，
+   高潮阶段（狂暴）是身份最强表达处——三型必须差异化。
+
+## 3. 重设计目标
+
+- **G1 型号身份贯穿全程**：三型各有「角色」（堡垒/猎手/蜂巢），狂暴为各型独有收尾，不再共用序列。
+- **G2 全程阶段化**：HP 100%→0 划分为 P1（100–70%）/ P2（70–30%）/ ENRAGE（<30%）三段，
+  每段独立模式表循环，段间有明确切换演出；血条加阶段刻度（解决 P8）。
+- **G3 一切重攻击有预警**：所有弹速 ≥500 或伤害 ≥20 的攻击配 ≥0.35s telegraph（蓄力辉光/瞄准线/音调）。
+- **G4 保留躲避主动权**：狂暴期「冻结移动」改为「强制减速 ×0.35」（玩家仍可位移/射击/冲刺）；
+  定身语义从本作移除（演进决策，见 §7.3）。
+- **G5 难度影响模式而非只 HP**：模式参数表按难度取（弹数/间隔/弹速分档），HP 倍率保留。
+- **G6 逃跑计时可见**：血条最后 10s 显示逃跑倒计时（解决 P7）。
+
+保留不动的骨架：3 型轮换与 HP 基准、50s 逃跑机制、子弹时间狂暴演出框架（main 编排）、
+既有弹种伤害基准、Boss 击杀/奖励结算链路、对象池与注册表技术约束。
+
+## 4. 通用机制
+
+### 4.1 阶段框架（替代固定节拍器）
+
+```
+FIGHT（常规）
+├─ P1：HP 100–70%，模式表循环（每型 2 个模式）
+├─ P2：HP 70–30%，模式表循环（每型 2–3 个模式，含 1 个带 telegraph 的重攻击）
+│     段切换演出：0.6s 蓄力抖屏 + 音调 + 清自身计时
+└─ ENRAGE：HP<30%，各型独有狂暴序列（§5），锁血语义保留（触发→收尾前 HP 钳在 30%）
+```
+
+- 阶段切换由 `take_damage` 阈值驱动（沿用现有 ENRAGE_HP_RATIO 模式，新增 P2 阈值 0.7）。
+- 每个「模式」= 持续时间（4–8s）或固定波次数，播完切下一个；模式内开火节奏可编程（不再单一间隔）。
+- 走位模式与攻击模式解耦：每型每阶段一个走位函数（含纵向分量，解决 P6），攻击在其上叠加。
+
+### 4.2 Telegraph 规范（复用现有构件）
+
+| 预警形式 | 用途 | 实现 |
+| --- | --- | --- |
+| 蓄力辉光 | 重炮/齐射前摇（0.4–0.6s） | `_glow` 叠加态圆点 scale/alpha tween（过场配方） |
+| 瞄准线 | 狙击/冲刺路径（0.35–0.5s） | Line2D 细线 α0.3 闪烁，出弹/启动瞬间消失 |
+| 机身泛红 + 音调 | 段切换/狂暴起手 | 现有 `_base_modulate` 变体 + `play_sfx` 变调 |
+| 血条阶段刻度 | 模式切换预告 | HUD boss bar 画 2 道刻度线（70%/30%）+ 切换时短闪 |
+
+### 4.3 狂暴期玩家减速（替代定身）
+
+- TRANSITION+ACTIVE 期间 `Player.movement_locked` 不再使用；改为 `player._enrage_slow = 0.35`
+  （移动速度乘区，与燃料加速/微调相乘；dash 可用，是脱锁的主动技）。
+- 解锁时机不变（RELEASE_HOLD 开始）；`_exit_tree` 兜底复位（沿用 `_unlock_player_movement` 的兜底模式）。
+- 配套：ACTIVE 轨道弹速/密度按「玩家可 0.35 速躲避」重新校准（§5 各型给出基准）。
+
+### 4.4 难度分档
+
+模式参数表增加难度维度（easy/medium/hard 三列），作用于：弹数 ±1/±2、开火间隔 ×1.15/×1/×0.85、
+弹速 ×0.9/×1/×1.1。HP 的 Boss 击杀 ramp 乘数不变；2026-07-29 平衡修订起 Boss HP 另按难度档
+×0.75/×1/×1.5（`GameState.enemy_hp_multiplier()`，与敌机同源，沿用「波次 HP 分档推导 Boss HP」口径）。
+
+### 4.5 逃跑计时可见
+
+血条存在期间，存活 ≥40s 起在血条下方显示倒计时文本（10→0，红色闪烁），到 50s 逃跑逻辑不变。
+
+## 5. 逐型设计
+
+### 5.1 一型「堡垒 Bulwark」（重装）——角色：移动炮台，正面压制
+
+| 段 | 走位 | 攻击模式（循环） |
+| --- | --- | --- |
+| P1 | 慢速 strafe（150）+ 每 6s 纵向下压 80px 再回（第一次位置博弈） | ① 5 路扇形 ×3 波（现有 fan）② 追踪弹 ×2（现有 homing） |
+| P2 | strafe 提速（200）+ 纵向往复 | ③ **蓄力重炮**：0.6s 蓄力辉光 → 3 发高速重弹（700 弹速，伤害 21，间隔 0.25s）④ 5 路扇形加密（7 路） |
+| ENRAGE | **旋转堡垒**：子弹时间框架保留；ACTIVE 改为悬停原地顺时针旋转，每 0.5s 一波 12 向旋转环弹（起始角随波次进动），收尾 8 路蓄力重炮齐射（有 telegraph） |
+
+### 5.2 二型「猎手 Stalker」（游击）——角色：刺客，单挑压迫
+
+| 段 | 走位 | 攻击模式（循环） |
+| --- | --- | --- |
+| P1 | 现有冲刺（400，0.5s/0.7s 节奏） | ① **3 连狙加瞄准线**：0.35s 瞄准线锁定（线随玩家微跟踪 0.2s 后固定）→ 3 连发（现有 sniper） |
+| P2 | 冲刺更频（0.4s/0.5s） | ② **冲刺掠过**：0.5s 瞄准线 → 高速横穿玩家所在高度（机身撞击判定保留，路径拖 3 枚减速弹）③ 3 连狙 |
+| ENRAGE | **猎杀环绕**：子弹时间框架保留；ACTIVE 改为在玩家快照点轨道 4 个象限点依次瞬停，每点 0.3s 瞄准线 + 单发致命狙（弹速 900，伤害 21），共 6 点；收尾回到轨道底部释放 12 向慢速环弹 |
+
+### 5.3 三型「蜂巢 Hive」（母舰）——角色：指挥官，以多打少
+
+| 段 | 走位 | 攻击模式（循环） |
+| --- | --- | --- |
+| P1 | 极慢 strafe（60）+ 缓慢下压/回升（y 200–280 正弦） | ① 旋转 cross（现有）② 每 6s 召唤 2–3 小怪（现有） |
+| P2 | strafe 100 + 纵向往复 | ③ **编队齐射**：召唤 4 小怪列横队，0.8s 后齐射一轮自机狙（小怪普通弹，弹速 420）④ **弹幕墙**：10 路低速扇形墙（留 2 个缺口，弹速 220，伤害 12） |
+| ENRAGE | **倾巢**：子弹时间框架保留；ACTIVE 每 1.2s 放一波 3 小怪（共 3 波）+ 自身每 0.9s 一圈 8 向环弹；收尾一次性 16 向慢速环弹 + 全部在场小怪齐射 |
+
+### 5.4 通用收尾爆发（原则 3）
+
+每型 ENRAGE 的 RELEASE_HOLD 阶段为该型「最后一搏」峰值（上表已含），随后 RETURN 归位，
+常规循环进入「余怒」态：射速 ×1.3（原 ×1.5 下调，因为狂暴本体已强化）。
+
+### 5.5 P2 走位升级实现设计（2026-08-02，D05 落地）
+
+> 背景：§5.1-5.3 逐型走位表的 P2 阶段升级自阶段 B 起未实现（2026-08-02 复核登记为 D05）。
+> 本轮按表格补实现，纵向分量统一为**正弦往复**，复用项目内 `EnemyMoveStrategy` 既有正弦形态
+> （`anchor + Enemy.sin_fast(time * freq + phase) * amp`）与 `BossMovement._update_press` 的
+> 增量式 y 施加模式——不新建走位原语。
+
+#### 调研与引用（2026-08-02）
+
+- **BulletML 移动原语**（[官方参考](http://www.asahi-net.or.jp/~cs8k-cyu/bulletml/bulletml_ref_e.html)）：
+  移动 = 增量式 `changeDirection / changeSpeed / accel`（term 帧内线性过渡到目标值）的组合——
+  正弦/往复由增量调整派生，无需独立"波形"概念。本项目 `_update_press` 的"每帧施加
+  `target - _press_offset` 差值"即同一范式（已存在，复用）。
+- **项目内 `EnemyMoveStrategy`**（`scripts/enemy_move_strategy.gd`）：`SineMove`/`HoverMove` 用
+  `Enemy.sin_fast(time * freq + phase) * amp` 表达正弦（查表零分配，C05/C09 收口口径）。
+  Boss 纵向往复直接同族复用，不重复造轮子。
+- **Danmaku 设计原则**（[The Anatomy of a Shmup](https://www.gamedeveloper.com/design/the-anatomy-of-a-shmup)、
+  [Danmaku Design Discussion](https://www.shrinemaiden.org/forum/index.php?topic=6649.0)）：
+  ① 走位与弹幕解耦（Boss 移动自成节奏，不跟弹幕间隔绑死）；② 阶段升级的压迫感来自"移动自由度
+  增加"（P1 单向 → P2 双向）；③ 纵向往复幅度与周期保持小幅度慢节奏，避免挤压玩家活动空间
+  （`strafe_range` 横向区间不变，纵向只在锚线邻域摆动）。
+
+#### 语义解读
+
+- **§5.3 三型 P1「y 200–280 正弦」**：解读为**周期下压/回升**（同 §5.1 一型 P1「每 6s 下压 80px 再回」同构，
+  幅度更大、周期更长、更缓慢）——机身从锚线正弦下压到**锚线下 200px~280px 区间**（下压深度中心 240、
+  轨迹邻域摆动 ±40、周期 9s 慢呼吸）再缓慢回升。理由：锚线本身在 `view.position.y + FIGHT_Y(230)`，
+  若 200-280 为绝对坐标将与锚线几乎重合（无下压效果）；"下压/回升"为周期动作语义，且从锚线起步
+  （target 从 0 渐变）避免段切换/入场跳变，与 `_update_press` 增量式同构。
+- **一型 P2「纵向往复」**：围绕锚线 ±40px 双向正弦（区别于 P1 的单向周期下压），周期 6s
+  （与 P1 `press_interval` 同节奏感），段切换相位从 0 起（sin 0 = 0，与 `reset_press()` 衔接无跳变）。
+- **三型 P2「纵向往复」**：围绕锚线 ±50px 双向正弦，周期 8s（母舰更慢的俯仰）。
+
+#### 参数表（新配置键，balance.json `boss.movement` 段）
+
+| 键 | 默认值 | 语义 |
+| --- | --- | --- |
+| `type1_p2_strafe` | 200 | 一型 P2 横向 strafe 速度（P1 = `strafe_speeds[0]` 150） |
+| `type1_p2_bob_amp` | 40 | 一型 P2 纵向正弦幅度（±px，围绕锚线） |
+| `type1_p2_bob_period` | 6 | 一型 P2 纵向正弦周期（s） |
+| `type2_p2_dash_time` | 0.4 | 二型 P2 冲刺持续（P1 = 0.5） |
+| `type2_p2_rest_time` | 0.5 | 二型 P2 冲刺休息（P1 = 0.7） |
+| `type3_p1_bob_min` | 200 | 三型 P1 下压深度区间下界（锚线下 px） |
+| `type3_p1_bob_max` | 280 | 三型 P1 下压深度区间上界（锚线下 px） |
+| `type3_p1_bob_period` | 9 | 三型 P1 下压/回升周期（s，与模式循环错开避免节奏死板） |
+| `type3_p2_strafe` | 100 | 三型 P2 横向 strafe 速度（P1 = `strafe_speeds[2]` 60） |
+| `type3_p2_bob_amp` | 50 | 三型 P2 纵向正弦幅度（±px，围绕锚线） |
+| `type3_p2_bob_period` | 8 | 三型 P2 纵向正弦周期（s） |
+
+全部为**游戏性范围族**（不乘 `world_scale`），走位坐标系基于 `fight_anchor_y()` / `strafe_range()` view 基线。
+
+#### 实现要点
+
+- `BossMovement` 新增 `_move_bob(delta, boss, amp, period)`（P2 纵向正弦往复：直接设置
+  `position.y = fight_anchor_y() + sin(phase)*amp`——`_in_fight` 后才被调用，入场/逃跑/狂暴序列均
+  早退不干扰；`fight_anchor_y()` 逐帧求值支持战斗中切视角档）与
+  `_move_band(delta, boss, y_lo, y_hi, period)`（三型 P1 缓慢下压/回升：`_update_press` 同构，
+  target 为纯偏移从 0 起步，无初始跳变）；相位经 `_bob_phase` 累计（`TAU * delta / period`），
+  段切换 `reset_press()` 归零相位。
+- 一型 `update()`：P2 分支 `_move_strafe(type1_p2_speed)` + `_move_bob(amp, period)`；
+  P1 分支维持 `_update_press`（单向周期下压）。
+- 二型 `update()`：dash 节奏按 `fight_phase` 取 0.5/0.7（P1）或 0.4/0.5（P2）。
+- 三型 `update()`：P1 加 `_move_band(200, 280, 9)`（strafe 60 不变）；P2 用 `_move_strafe(100)` +
+  `_move_bob(50, 8)`。
+- 速度全部经 `slow_factor()` / `_enrage_speed_mult()` 乘区（与既有走位一致）。
+- 配置读取在 `Boss._ready` 统一缓存为实例字段并注入 `_movement`（A5 依赖注入模式），
+  新增键同步脚本回退默认值（AGENTS.md 一致性约定）。
+
+#### 测试影响
+
+- `boss_phase_test` 场景 1（一型）C11「P2 段切换后回到锚线」断言：P2 有正弦后，切换瞬间
+  sin 0 = 0 仍回锚线，但**后续若干帧 y 开始偏离**——断言若在切换后等待多帧再检查会失配，
+  需改为"段切换后 y 在锚线 ±amp 范围内"。
+- 新增断言：一型 P2 纵向 y 波动（采样帧内出现 y > anchor 与 y < anchor）；二型 P2 dash 节奏
+  （0.4/0.5 周期验证）；三型 P1 y ∈ [anchor+200, anchor+280]（采样验证区间呼吸）。
+- 走位数值断言尽量用实例常量/配置读值（C34 口径），不硬编码。
+
+## 6. 数值与配置（balance.json boss 段重构）
+
+- 保留现有键不动（兼容/回退），新增 `boss.phases` 段：每型每阶段的模式表（时长/波次/弹数/弹速/间隔 ×难度三列）、
+  telegraph 时长、纵向走位参数。脚本默认值与 JSON 保持一致（AGENTS.md 约定）。
+- 新增 `boss.enrage.player_slow`（0.35）、`boss.enrage.type_*` 各型狂暴参数子段；原 `boss.enrage.*`
+  公共时序（子弹时间/轨道半径等）保留。
+- 新增 `boss.escape.countdown_visible_from`（10.0）。
+
+## 7. 实施分期、测试与兼容
+
+### 7.1 分期
+
+- **阶段 A（框架先行）**：Boss 状态机重构为阶段表驱动（P1/P2/ENRAGE 切换 + 模式循环 + telegraph 机制 +
+  血条刻度 + 逃跑倒计时 + 减速替代定身）；三型先用**现有攻击**填表（狙击加瞄准线），狂暴暂保持共用序列。
+  出口标准：全部回归测试绿 + 新阶段断言测试绿。
+- **阶段 B（逐型模式库）**：实现 §5 各型 P2 新攻击与差异化狂暴（蓄力重炮/冲刺掠过/编队齐射/弹幕墙/三型专属狂暴）。
+- **阶段 C（数值与验证）**：难度分档参数、TTK/压力校准（autoplay 480s 探针 + 人工游玩）、性能复测。
+
+### 7.2 测试计划
+
+- 新增 `test/boss_phase_test.tscn`：阶段阈值切换、模式循环推进、telegraph 时序（先线后弹）、
+  减速生效与复位（含 Boss 死亡/逃跑/离场兜底）、逃跑倒计时显示、难度分档取值。
+- 重构 `test/boss_enrage_test.tscn`：定身断言改减速断言；阶段 B 再补三型差异化断言。
+- 回归：`hit_logic_test`、`difficulty_test`、`smoke_test`、`autoplay_test`（[ANOMALY] 探针）、`--quit-after 300`。
+
+### 7.3 演进决策记录（曾登记于 PORTING_PARITY，2026-07-30 已归档）
+
+1. 狂暴期玩家定身 → 强制减速 ×0.35（P4，定身语义不再保留）。
+2. 三型共用狂暴序列 → 各型专属狂暴（P1）。
+3. 固定节拍器 → HP 阶段模式表（P2）。
+4. 瞬发狙/扇形 → telegraph 前摇（P3）。
+5. 难度只乘 HP → 模式参数分档（P5）。
+6. `FIGHT_Y` 绝对锚点（y=230 写死）→ 距可见区域顶缘偏移（2026-07-30 战斗 UX 审计 P0-1）：新增
+   `_fight_anchor_y()` = `GameState.view_world_rect().position.y + FIGHT_Y`，三处使用点
+   （入场停线逐帧求值、P2 冲刺 RETURN、狂暴 RETURN）统一改走它，支持战斗中途切视角档；
+   与 `_strafe_range()` 的 view 边距处理对齐，zoom=1 时行为逐位不变。
+
+### 7.4 兼容约束
+
+- 存档不含 Boss 状态（save_run 只存分数/燃料/时间），继续对局时 Boss 按调度重新入场，无迁移问题。
+- 精英炮塔事件/轰炸编队事件的 Boss 互斥钩子（`_boss_frozen/_boss_pending`）不动。
+- 子弹池/注册表/性能预算（draw call、零堆分配热路径）沿用 AGENTS.md 约束；
+  telegraph 节点随出弹销毁，不走常驻 `_process`。
+
+---
+
+## 8. 实施记录（2026-07-28，三期全部落地）
+
+### 8.1 分期完成情况
+
+- **阶段 A（框架）**：`scripts/boss.gd` 重构为 FightPhase（P1/P2/ENRAGE）阶段框架 + 模式表 `_patterns`
+  （`boss.phases.typeN` 配置 + DEFAULT_PATTERNS 回退）；telegraph 构件（`_charge_glow` 蓄力辉光 /
+  `_make_aim_line` 瞄准线）；狂暴期定身改 `_enrage_slow = 0.35` 减速；HUD 血条 70%/30% 阶段刻度；
+  血条下逃跑倒计时（存活 ≥40s 起 10→0）。
+- **阶段 B（逐型模式库）**：三型 P2 新攻击（蓄力重炮 charged_cannon / 冲刺掠过 dash_sweep /
+  编队齐射 minion_volley / 弹幕墙 bullet_wall）+ 三型差异化狂暴（`_update_enrage_sequence`
+  按 boss_type 分发，参数 `boss.enrage.type_*`）；`spawner.spawn_minion(pos) -> Enemy` 返回实例。
+- **阶段 C（数值与验证）**：难度分档 `_apply_difficulty_scaling()`（见 §8.3）；
+  数值验证见 §8.4；文档回写（本节、AGENTS.md）。
+
+### 8.2 实施中的自决点（设计文档未明确处）
+
+- 阶段 A：段切换演出期间停火时长 = 新模式首波 interval；狂暴后「余怒」沿用 P2 模式表（射速 ×1.3）；
+  跨段一击直接触发狂暴时狂暴优先；三型召唤计时与模式表相互独立；逃跑倒计时为纯数字文本（无翻译键）。
+- 阶段 B：环弹伤害沿用既有基准 12；二型狂暴瞄准线全程跟踪（非锁定后固定）；一型 TRANSITION
+  原地抖动替代轨道入场；三型收尾 RELEASE 一次性结算；dash_sweep 期间模式表计时暂停；
+  弹幕墙弧心固定向下（不随玩家方位旋转，仅缺口避开玩家 ±30°）。
+- 阶段 C：分档在 `_ready` 配置载入后一次性乘算（非每帧查档）；快照弹幕（main 编排 4 激光 + 8 环）、
+  telegraph 时长、机体移速、HP/伤害不分档；弹数钳制下限 wall 6 / ring 4 / 其余 1（fan 下限 3）。
+- 修复：`_load_patterns` 对 cfg 返回的共享 JSON 数组必须 `duplicate(true)` 深拷贝，
+  否则分档 interval 乘算会污染 GameState 配置缓存、叠加到后续 Boss 实例（boss_pattern_test 场景 6 捕获）。
+  **2026-08-01 复核补充**：同类污染仍存在于 `FIRE_INTERVALS`（`boss.gd:420-421` 读共享数组、
+  `:522-523` 原地 `[i] *= interval_mult`，easy/hard 下跨 Boss 复合叠加）——`_apply_difficulty_scaling`
+  对 `FIRE_INTERVALS` 需同样先 `duplicate(true)`，已登记 AUDIT_VAULT B5。**2026-08-01 已修复**
+  （`boss.gd` 取用后 `.duplicate()`，见 AUDIT_VAULT B5 修复起效记录；boss_pattern_test easy/hard 通过）。
+- 走位简化（**2026-08-02 复核登记，D05**）：§5.1-5.3 逐型走位表要求的 P2 阶段升级（一型 P2「strafe 提速 200 + 纵向往复」、二型 P2「冲刺 0.4s/0.5s」、三型 P2「strafe 100 + 纵向往复」、三型 P1「y 200-280 正弦」）至今未实现——`boss_movement.gd` 仅一型 P1 有纵向分量（`_update_press` 仅 `FIGHT_P1` 调用）、二型 dash 无阶段区分、三型无纵向。经 `git show 3188902^` 核实此差距为阶段 B 落地时即有（非 A3 拆分引入）。**2026-08-02 同日已按 §5.5 落地修复（见上）**，本登记转为实现记录。
+
+### 8.3 难度分档落地（§4.4）
+
+- 配置：`boss.difficulty_scaling`（`interval_mult` [1.15, 1.0, 0.85]、`speed_mult` [0.9, 1.0, 1.1]、
+  `counts` 逐参数 [easy, medium, hard] 增减量：fan/homing/cannon/volley/summon/drops ±1，wall/ring/salvo ±2）。
+- 实现：`Boss._apply_difficulty_scaling()` 在 `_ready` 末尾统一乘算——模式表 interval、
+  FIRE_INTERVALS、CANNON/ENRAGE/E1/E2/E3 各内部节奏 ×interval_mult；全部攻击弹速 ×speed_mult
+  （不含快照弹速与机体移速 SWEEP_SPEED）；弹数按 counts 增减并钳下限；fan/homing2 在 `_execute_attack`
+  分发处取 `_d_fan/_d_homing`。档位 = `GameState.DIFFICULTY_ORDER.find(GameState.difficulty)`，未知回退 medium。
+
+### 8.4 数值校准验证结果
+
+- 断言测试：`boss_phase_test` / `boss_enrage_test` / `boss_pattern_test`（含 easy/hard 分档场景）全绿；
+  回归清单（hit_logic / difficulty / smoke / enemy_combat / elite_turret_event /
+  formation_strike_event / base_system / `--quit-after 300` / `--import`）全绿。
+- autoplay 480s 探针与 perf_bench 结果见当次提交说明/报告；TTK 与手感属人工游玩校准范畴，
+  无人工游玩条件时以探针无 [ANOMALY] 与帧耗时量级为准。

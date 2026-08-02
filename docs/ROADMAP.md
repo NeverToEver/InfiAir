@@ -1,43 +1,43 @@
-# InfiAir Roadmap (Future Directions & Initial Plans)
+# InfiAir 路线图（未来方向与初步计划）
 
-> Initiated 2026-07-24. This document is the single source of truth for project direction; when phases change, update this document and register in the "Document Sync Requirements" section of `AGENTS.md`.
+> 2026-07-24 立项。本文是项目方向的单一事实源；阶段调整时更新本文并在 AGENTS.md「文档同步要求」登记。
 
-## Current Snapshot (2026-07-24)
+## 现状快照（2026-07-24）
 
-- **Porting alignment closed out** (2026-07-24 snapshot): all core mechanics of the Python/Pygame original rewritten and aligned (item-by-item comparison in the gap list of `docs/archive/PORTING_PARITY.md`; only the optional "local leaderboard page" remains); **post-closeout the project evolves independently — the original serves only as historical / balance reference, no longer an item-by-item alignment target**.
-- **Quality baseline**: 31 headless assertion test scenes all green (1113 assertions, incl. `entry_animation_test`/`mouse_lock_test`); long-run autoplay probe + performance benchmark available.
-- **Code audit vault (established 2026-07-31)**: `docs/AUDIT_VAULT.md` is the proprietary audit vault registering SOLID review findings A1–A8. **Fix status (corrected 2026-08-01 per git history and current code, see A-series backfill in the vault; A5 re-corrected 2026-08-02)**: A1 encapsulation breach ✅, A2 GameState four-service split ✅, A3 Boss four-class split ⚠️ split landed but O principle not achieved (match only relocated), A4 open/closed violation ⚠️ partially done (A4a enemy strategies / A4b event trigger base class landed; Boss branches and Player buffs unmanaged), A5 dependency inversion ⚠️ partially done (Boss/event Spawner dependency injection landed; GameState as config center + registry kept as intentional performance trade-off), A6 semantic special-casing ✅, A7 test white-boxing fully cleaned ✅ (vault baseline: 28 test-side + 5 game-side; 855 is the sed batch-replacement count), A8 Player component split ⚠️ partially done (PlayerDamage/PlayerDash extracted, visuals not). A parallel re-review on 2026-08-01 additionally registered B1–B16 (see vault).
-- **Collaboration ready**: privacy isolation audit passed (no secrets/personal-info leaks, git history scrubbed), UI font replaced with OFL-licensed NotoSansSC, documentation baselines (README / AGENTS / PORTING_PARITY / EXIT_FLOW) verified item-by-item against code.
+- **移植对齐收官**（2026-07-24 快照）：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）；**收官后进入独立演进，原作仅作历史溯源/数值参考，不再作逐项对齐对象**。
+- **质量基线**：31 个无头断言测试场景全绿（1113 断言，含 `entry_animation_test`/`mouse_lock_test`）；长时 autoplay 探针 + 性能基准可用。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**修复状态（2026-08-01 按 git 历史与代码实况订正，见档案 A 系列回填；2026-08-02 再订正 A5）**：A1 封装穿透 ✅、A2 GameState 四服务拆分 ✅、A3 Boss 四类拆分 ⚠️ 拆分落地但 O 原则未达成（match 仅搬迁）、A4 开闭违反 ⚠️ 部分完成（A4a 敌机策略/A4b 事件触发基类已落地，Boss 分支与 Player buff 未治理）、A5 依赖倒置 ⚠️ 部分完成（Boss/事件对 Spawner 依赖注入已落地，GameState 作配置中心+注册表为有意性能权衡保留）、A6 语义化特判 ✅、A7 测试白盒全清 ✅（档案口径：测试侧 28 处 + 游戏侧 5 处，855 为 sed 批量替换计数）、A8 Player 组件拆分 ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽）。2026-08-01 并行复核另登记 B1–B16（见档案）。
+- **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
 
-## Direction Changes
+## 方向转变
 
-| Dimension | Past (~3.13) | Future |
+| 维度 | 过去（~3.13） | 未来 |
 | --- | --- | --- |
-| Goal | Align with the original item-by-item, eliminate porting gaps | Evolve independently along the remake's own route; original only as balance/design reference, no longer line-by-line alignment |
-| Dev mode | Solo development | Collaborative development (repo ready for contributors) |
-| Distribution | Packaging explicitly deferred | 2026-07-30 packaging restarted: export presets committed + `release.sh` dual-platform export + Linux/Windows install/uninstall scripts; CI and semantic versioning still deferred |
-| Content | Mechanic completion | Keep current content; experience deepening & new content cut with Phase 2 on 2026-07-30, restart requires new approval |
+| 目标 | 逐项对齐原作，消除移植差距 | 以重制版自身路线独立演进；原作仅作数值/设计参考，不再逐行对齐 |
+| 开发模式 | 单人开发 | 协作开发（仓库已具备协作者条件） |
+| 发布 | 明确暂缓打包 | 2026-07-30 重启打包：导出预设入库 + `release.sh` 双平台导出 + Linux/Windows 安装卸载脚本；CI 与语义化版本流程仍暂缓 |
+| 内容 | 机制补全 | 维持现有内容；体验深化与新内容 2026-07-30 已随 Phase 2 一并砍掉，重启需重新立项 |
 
-## Phase Plan
+## 阶段计划
 
-### Phase 0 — Technical-debt closeout (near term, no new gameplay)
+### Phase 0 — 技术债收尾（近期，无新玩法）
 
-- Audit P2 backlog cleanup (`docs/archive/2026-07-22-audit-fix-plan.md`): dead code removal (unused references in `main.gd`, always-false branches in `hud.gd`, zero-connect signals etc.), mothership `_start_release()` idempotency guard, `profile_corrupt` corrupt-profile prompt consumption. **Status (2026-08-02)**: several items already covered by later audit rounds (C21 pool `_exit_tree` registration cleanup, several D-series items); remaining items still listed in `docs/DESIGN_BASELINE.md` §7.3.
-- Enemy spawn path unification: normal waves instantiate directly vs Boss-3 minions through `enemy_pool`, two paths coexist. **✅ Unified (2026-08-02, with performance optimization plan `920e5e9`)**: normal waves now uniformly pooled via `GameState.enemy_pool.spawn()`, `USE_POOL` switch kept as A/B comparison (see `docs/archive/2026-08-02-performance-optimization-plan.md`).
-- **A2 GameState split** (2026-07-31 **fully complete**, `docs/AUDIT_VAULT.md` A2): all four stages of delegated extraction landed — ①balance config reads `BalanceService` → ②persistence `SaveManager` → ③SFX pool `SfxPlayer` → ④entity registry `EntityRegistry`. GameState public API kept and forwarded (registries via property getters/setters); callers and tests unaffected; 29 assertion scenes all green, balance map 0 mismatches, direct file IO in `game_state.gd` down to zero.
-- **A3 Boss single-class split** (2026-07-31 **split landed**, `docs/AUDIT_VAULT.md` A3): 1488-line single class split into facade Boss + 4 responsibility classes (`BossFire` bullet patterns / `BossAttacks` attack state machine / `BossMovement` movement strategies / `EnrageSequence` enrage state machine); `boss.gd` slimmed to 802 lines, no cross-class private-access regressions; 29 assertion scenes all green. **Correction (2026-08-01)**: the central match was only relocated into `BossAttacks.execute()`, not replaced by table/factory; 7 type branches remain across BossMovement/EnrageSequence/Boss, O principle not achieved (see A3 re-review correction).
-- Acceptance: all existing tests 0 FAIL; changed items marked complete in the audit vault.
+- 审计 P2 待办清理（`docs/archive/2026-07-22-audit-fix-plan.md`）：死代码删除（`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等）、母舰 `_start_release()` 幂等守卫、`profile_corrupt` 损坏档案提示消费。**状态（2026-08-02）**：多项已被后续审计轮次覆盖处置（C21 对象池 `_exit_tree` 清注册、D 系列若干项），未处置项仍见 `docs/DESIGN_BASELINE.md` §7.3。
+- 敌机生成路径统一：普通波次直接实例化 vs Boss-3 小怪走 `enemy_pool` 两条路径并存。**✅ 已统一（2026-08-02，随性能优化计划 `920e5e9`）**：普通波次已统一经 `GameState.enemy_pool.spawn()` 入池，`USE_POOL` 开关保留作 A/B 对照（见 `docs/archive/2026-08-02-performance-optimization-plan.md`）。
+- **A2 GameState 拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A2）：四阶段委托式剥离全部落地——①数值配置读操作 `BalanceService` → ②持久化 `SaveManager` → ③音效池 `SfxPlayer` → ④实体注册表 `EntityRegistry`。GameState 公开 API 保留并转发（注册表用属性 getter/setter），调用方与测试零破坏；29 断言场景全绿、数值地图 0 失配、`game_state.gd` 直接文件 IO 清零。
+- **A3 Boss 单类拆分**（2026-07-31 **拆分落地**，`docs/AUDIT_VAULT.md` A3）：1488 行单类拆为门面 Boss + 4 职责类（`BossFire` 弹幕发射 / `BossAttacks` 攻击状态机 / `BossMovement` 移动策略 / `EnrageSequence` 狂暴状态机）；`boss.gd` 瘦身至 802 行，无跨类私有访问复发；29 断言场景全绿。**订正（2026-08-01）**：集中 match 仅是搬迁进 `BossAttacks.execute()`，非查表/工厂取代；机型分支在 BossMovement/EnrageSequence/Boss 残留 7 处，O 原则未达成（见 A3 复核订正）。
+- 验收：全部既有测试 0 FAIL；改动条目在审计文档标注完成。
 
-### Phase 3 — Restart conditions for deferred/cut items (all require explicit user decision)
+### Phase 3 — 暂缓/已砍项的重启条件（均需用户明确决策）
 
-- **Local account system**: full spec archived in commit `7aacd3f` (login system project, UserDB/PBKDF2/per-user save isolation, written into porting plan appendix B; spec also in `docs/archive/PORTING_PARITY.md` appendix B); fully reusable on restart.
-- **Appendix B standalone main-scene entry page**: the lightweight approach suffices; only restart if the start panel can no longer hold new entries; spec in `docs/archive/PORTING_PARITY.md` appendix B.
-- **Packaging & distribution**: restarted 2026-07-30, ran through 2026-07-31 — `export_presets.cfg` (Linux/X11 + Windows Desktop, embedded pck single file) committed, `release.sh` one-click export & package (artifacts in `builds/release/`, gitignored locally), `packaging/` provides dual-platform install/uninstall scripts (Linux user-level + .desktop entry / Windows per-user + Start Menu shortcut). Install scripts and real-machine runs await platform verification.
-- **Online leaderboard**: decided against (2026-07-20); reversing requires explicitly overturning that decision.
-- **Collaboration & release engineering** (formerly Phase 1): export presets committed and export commands landed with the packaging restart (2026-07-30); **CI / contribution guide / versioned releases (CD) all landed 2026-08-02** — CI: `.github/workflows/ci.yml` (headless import + main-scene smoke + full 31-assertion-scene regression, push/PR triggered); contribution guide: `CONTRIBUTING.md` at repo root (plus `SECURITY.md`, issue/PR templates, `CHANGELOG.md`); manually-triggered release workflow `.github/workflows/release.yml` (dual-platform export & package → tag `v<version>` → create GitHub Release; input version auto-syncs `project.godot` `config/version`). Version numbering keeps the MAJOR.MINOR increment convention (currently 3.26).
-- **Content evolution** (formerly Phase 2): cut by decision on 2026-07-30, incl. local leaderboard page, new-content candidates (new buff categories, new enemy/elite types, 4th Boss, mobile touch controls), mothership gameplay extensions, endless-segment k-value field calibration (plan fully landed, see `docs/ENDLESS_BALANCE_PLAN.md`); restarting any item requires new approval and registration here first.
+- **本地账号系统**：完整规格存档于提交 `7aacd3f`（登录系统立项，UserDB/PBKDF2/每用户存档隔离，写入移植计划附录 B；`docs/archive/PORTING_PARITY.md` 附录 B 亦有规格），重启时整体复用。
+- **附录 B 独立主场景版进入页**：轻量方案已够用；仅在开始面板承载不下新入口时重启，规格在 `docs/archive/PORTING_PARITY.md` 附录 B。
+- **打包发布**：2026-07-30 重启、2026-07-31 跑通——`export_presets.cfg`（Linux/X11 + Windows Desktop，嵌入 pck 单文件）入库，`release.sh` 一键导出打包（产物 `builds/release/`，本机 gitignore），`packaging/` 提供双平台安装/卸载脚本（Linux 用户态 + .desktop 入口 / Windows per-user + 开始菜单快捷方式）。安装脚本与实机运行待对应平台验证。
+- **联机排行榜**：已决策不做（2026-07-20），如需翻盘须显式推翻该决策。
+- **协作与发布工程化**（原 Phase 1）：导出预设入库与导出命令已随打包发布重启落地（2026-07-30）；**CI / 贡献指南 / 版本发布（CD）已于 2026-08-02 全量落地**——CI：`.github/workflows/ci.yml`（无头导入 + 主场景冒烟 + 31 断言场景全量回归，push/PR 触发）；贡献指南：仓库根 `CONTRIBUTING.md`（另有 `SECURITY.md`、issue/PR 模板、`CHANGELOG.md`）；手动触发发布工作流 `.github/workflows/release.yml`（双平台导出打包 → tag `v<版本>` → 创建 GitHub Release，输入版本自动同步 `project.godot` `config/version`）。版本号沿用 MAJOR.MINOR 递增惯例（当前 3.26）。
+- **内容演进**（原 Phase 2）：2026-07-30 决策砍掉，含本地排行榜页、新内容候选（新 Buff 品类、新敌机/精英类型、第 4 种 Boss、移动端触屏操控）、母舰玩法扩展、无限段 k 值实机标定（方案已全量落地，见 `docs/ENDLESS_BALANCE_PLAN.md`）；重启任一项须重新立项并先在本文登记。
 
-## Maintenance Conventions
+## 维护约定
 
-- Phase completion / direction change → update this document; porting-era gap baselines archived with `docs/archive/PORTING_PARITY.md` (frozen 2026-07-30), no longer written back.
-- New defer/restart decisions → record in Phase 3 with decision dates, not scattered in other documents.
+- 阶段完成/方向调整 → 更新本文；移植时期的差距口径已随 `docs/archive/PORTING_PARITY.md` 归档（2026-07-30 冻结），不再回写。
+- 新增暂缓/重启决策 → 记入 Phase 3 并注明决策日期，不散落在其他文档。
