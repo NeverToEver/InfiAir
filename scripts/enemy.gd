@@ -238,12 +238,12 @@ func _ready() -> void:
 	_shape.shape = _shape.shape.duplicate()
 	_spawn_x = position.x
 	_phase = randf() * TAU
-	_fire_timer = randf_range(1.0, fire_interval)
+	_fire_timer = randf_range(1.0, maxf(fire_interval, 1.0))
 	_strategy = _make_strategy()
 	_strategy.reset(self)
 	# 尾焰软光点（P0-5 副轨）：红/品红低 alpha，尺寸族 ×ws，随舰体朝向贴尾；精英同色稍微光。
-	# 池化实例 _ready 先于 reactivate 执行（setup 未跑、texture 为空），
-	# 位置/颜色由 _update_tail_glow 在 reactivate 后重同步（池化小怪均非精英，半径档不变）
+	# 池化实例 _ready 先于 reactivate 执行（setup 未跑、is_elite 恒 false、texture 为空），
+	# 颜色/半径档由 _update_tail_glow 在 reactivate 后按 is_elite 重同步（绝对 scale 重算）
 	var glow_radius := TAIL_GLOW_RADIUS_ELITE if is_elite else TAIL_GLOW_RADIUS
 	_tail_glow = CinematicFx.soft_glow(glow_radius * GameState.world_scale, TAIL_GLOW_COLOR)
 	_tail_glow.show_behind_parent = true
@@ -282,12 +282,15 @@ func _make_strategy() -> EnemyMoveStrategy:
 	return EnemyMoveStrategy.HoverMove.new(params)  # straight / hover
 
 
-## 尾焰光点同步：颜色按精英标记、位置贴纹理尾缘（经 sprite.scale 自动 ×ws 并跟随机型 scale）。
-## 池化重激活（新机型贴图/scale）后由 reactivate 再调一次。
+## 尾焰光点同步：颜色/半径档按精英标记、位置贴纹理尾缘（经 sprite.scale 自动 ×ws 并跟随机型 scale）。
+## 池化重激活（新机型贴图/scale）后由 reactivate 再调一次；半径经绝对 scale 重算
+## （soft_glow 以 scale = radius×ws / (SOFT_TEX_SIZE*0.5) 表达半径，幂等赋值不累积）。
 func _update_tail_glow() -> void:
 	if _tail_glow == null:
 		return
 	_tail_glow.modulate = TAIL_GLOW_COLOR_ELITE if is_elite else TAIL_GLOW_COLOR
+	var glow_radius := TAIL_GLOW_RADIUS_ELITE if is_elite else TAIL_GLOW_RADIUS
+	_tail_glow.scale = Vector2.ONE * (glow_radius * GameState.world_scale / (CinematicFx.SOFT_TEX_SIZE * 0.5))
 	var tex_h := 190.0
 	if _sprite.texture != null:
 		tex_h = _sprite.texture.get_height()
@@ -344,7 +347,7 @@ func reactivate(
 	_update_tail_glow()
 	_spawn_x = position.x
 	_phase = randf() * TAU
-	_fire_timer = randf_range(1.0, fire_interval)
+	_fire_timer = randf_range(1.0, maxf(fire_interval, 1.0))
 	anchor_y = -1.0
 	# A4a：策略重激活复位（zigzag 相位/ dive 冲刺目标/ spiral 绕转中心由策略类持有）
 	_strategy = _make_strategy()
@@ -380,7 +383,8 @@ func _despawn() -> void:
 func _exit_tree() -> void:
 	GameState.unregister_enemy(self)
 	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
-	if _pool != null and not _repooling:
+	# is_instance_valid 防护与 _despawn 对称：池对象先于实例释放的时序下 _pool 已失效
+	if _pool != null and is_instance_valid(_pool) and not _repooling:
 		_pool.forget(self)
 
 

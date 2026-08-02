@@ -424,7 +424,8 @@ func _slot_pos(start: float, length: float, n: int, i: int) -> float:
 ## H07（健壮性审核）：unlock_scores 异常（全正/为空）时空池回退首型，防 randi()%0 崩溃
 func unlocked_types() -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
-	for i in ENEMY_TYPES.size():
+	# 长度钳制：UNLOCK_SCORES 由 json 覆盖（_apply_balance）时可能短于 ENEMY_TYPES.size()，防越界
+	for i in mini(ENEMY_TYPES.size(), UNLOCK_SCORES.size()):
 		if GameState.score >= UNLOCK_SCORES[i]:
 			pool.append(ENEMY_TYPES[i])
 	if pool.is_empty():
@@ -499,6 +500,8 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	var telegraph := SpawnTelegraph.new(x, view.position.y)
 	get_parent().add_child(telegraph)
 	_pending_telegraphs.append(telegraph)
+	# 预告线自毁（0.6s 超时 / clear_pending 释放）时解除登记，与 _pending_timers 的 _on_pending_timer_fired 对称
+	telegraph.tree_exited.connect(_on_telegraph_freed.bind(telegraph))
 	_schedule(
 		GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
 		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special)
@@ -592,6 +595,11 @@ func _schedule(seconds: float, callback: Callable) -> void:
 func _on_pending_timer_fired(timer: Timer) -> void:
 	_pending_timers.erase(timer)
 	timer.queue_free()
+
+
+## 预告线离树（0.6s 自毁或 clear_pending 释放）后解除登记，防悬空引用只增不减。
+func _on_telegraph_freed(telegraph: Node2D) -> void:
+	_pending_telegraphs.erase(telegraph)
 
 
 ## 清空排队回调与入场预告线（D01/G01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。

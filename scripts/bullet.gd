@@ -291,8 +291,10 @@ func _on_area_entered(area: Area2D) -> void:
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
 			area.take_damage(damage, score_scale)
-			# 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击
-			if explosive and not area.is_boss():
+			# 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
+			# TurretBattery/FormationCraft 为 Area2D 无 is_boss() 方法：先查方法存在（防命中时报错+子弹不销毁），
+			# 再取返回值语义——Boss/精英 is_boss()==true 不爆炸，普通 Enemy 返回 false 爆炸
+			if explosive and (not area.has_method("is_boss") or not area.is_boss()):
 				_explode()
 			if splash_damage > 0:
 				_splash()

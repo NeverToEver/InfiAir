@@ -35,7 +35,9 @@ func setup(p_velocity: Vector2, p_fuse: float, p_damage: int, p_radius: float) -
 
 func _init() -> void:
 	collision_layer = 8  # 第 4 层：enemy_bullet（语义同敌弹，但不接命中即毁）
-	collision_mask = 1  # 第 1 层：player
+	# collision_mask = 1（第 1 层 player）：纯语义文档——引信制炸弹对 player_hitbox 用距离判定结算
+	# （见 _detonate），无 body_entered/area_entered 碰撞信号连接，此掩码不参与任何命中判定
+	collision_mask = 1
 	_body = Polygon2D.new()
 	# 机体尺寸族：设计值 × world_scale（AoE 半径 aoe_radius 为游戏性范围，不缩）
 	var ws: float = GameState.world_scale

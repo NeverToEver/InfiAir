@@ -219,8 +219,10 @@ func _begin_run() -> void:
 	_drop_times.clear()
 	_drop_craft.clear()
 	_drop_index = 0
-	for k in BOMBS_PER_CRAFT:
-		for i in _crafts.size():
+	# 循环次序 i 外层 / k 内层（2026-08-02 修复）：原 k 外层产生非排序时刻表
+	# [0,0.8,1.6,2.4,0.4,...]，_process_drops 按单调 _state_time 贪心消费会把第二波炸弹堆积到末尾同帧
+	for i in _crafts.size():
+		for k in BOMBS_PER_CRAFT:
 			_drop_times.append(float(i) * BOMB_INTERVAL + float(k) * BOMB_STAGGER)
 			_drop_craft.append(i)
 
