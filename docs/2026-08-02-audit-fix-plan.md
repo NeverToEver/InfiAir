@@ -241,7 +241,7 @@ D11、D15、D16、D19、D20、D30；D05/D18 仅文档登记。
 | D02 | ✅ 已修复 | player 回退值 2.1 + 注释对齐 | balance_test 28 |
 | D03 | 🟥 证伪不修 | Label 默认 mouse_filter=IGNORE（实证），原机制判断不成立 | 实证打印 |
 | D04 | ✅ 已修复 | 难度按钮 tr() + _refresh_texts 刷新 | startup_flow 36 / back_navigation 24 |
-| D05 | 📄 已登记 | BOSS_REDESIGN §8.2 追加走位简化登记（待作者确认） | 文档核对 |
+| D05 | ✅ 已修复 | BOSS_REDESIGN §5.5 落地——_move_bob/_move_band、三型 P1 缓慢下压回升、二型 P2 冲刺更频；配置 boss.movement 11 键 | boss_phase 37 / 全量 0 FAIL |
 | D06 | ✅ 已修复 | abort_entry() + 返航/自毁调用 | entry_animation 13 |
 | D07 | ✅ 已修复 | landed 判据改邻域连续 8 帧 + auto_fire 2 断言 | entry_animation 13（13=11+2） |
 | D08 | ✅ 已修复 | hud 缓存 max_health + buffs_changed 刷新 | smoke 142 / buff_panel 16 |

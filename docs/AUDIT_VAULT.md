@@ -393,7 +393,7 @@
 | D02 | P2 | `balance.json:22` vs `player.gd:21` | 一致性 | `player.entry.invincible` json 2.1 vs 脚本回退 1.65——全仓 363 键逐值核对唯一不一致；JSON 损坏时无敌窗口缩水 0.45s |
 | D03 | P2→证伪 | `buff_select.gd:188` / `ui_theme.gd:50` | 误报 | 声称 Label 默认 STOP 阻断卡片点选热区——**实证 Godot 4.6 Label 默认 `mouse_filter=IGNORE`、Container 默认 PASS**，点文字穿透到卡片，无阻断 |
 | D04 | P2 | `start_panel.gd:109` | 一致性 | 难度按钮取 `DIFFICULTY_DEFS["label"]`（数据驱动中文）不走 `tr()`，切 en 后 HUD 英文、按钮中文 |
-| D05 | P2 | `BOSS_REDESIGN.md §5.1-5.3` vs `boss_movement.gd:30-39` | 文档-代码矛盾 | P2 阶段走位升级（一型 strafe 200+纵向、二型冲刺 0.4/0.5s、三型 strafe 100+纵向、三型 P1 纵向正弦）未实现；阶段 B 即有非 A3 引入，档案未登记 |
+| D05 | P2 | `BOSS_REDESIGN.md §5.1-5.3` vs `boss_movement.gd:30-39` | 文档-代码矛盾 | P2 阶段走位升级（一型 strafe 200+纵向、二型冲刺 0.4/0.5s、三型 strafe 100+纵向、三型 P1 纵向正弦）未实现；阶段 B 即有非 A3 引入，档案未登记。**2026-08-02 已按 §5.5 实现（见修复起效记录）** |
 | D06 | P3 | `player.gd:640-642` / `main.gd:707-711` | 纯bug（边缘） | 入场起始帧内按 B 返航 → 锁输入冻结后撤、`_finish_entry` 不执行，新入场被守卫跳过；长按 K 自毁同源（`_die` 不清入场状态） |
 | D07 | P3 | `test/entry_animation_test.gd:55-70` | 测试脆弱性 | `landed` 判据 `y<=land_y+5` 在冲入阶段（t≈0.88）提前 break，后撤断言余量仅 ~20px；不覆盖中断路径 |
 | D08 | P3 | `hud.gd:723` | 性能约定 | vignette 每帧调 `GameState.max_health()`（内部 2 次 cfg JSON 查询），违反热路径缓存约定 |
@@ -425,7 +425,7 @@
 | 项 | 判定 | 理由 |
 | --- | --- | --- |
 | D03 | 🟥 误报证伪 | 实证（headless 打印默认值）：Godot 4.6 `Label.mouse_filter=IGNORE`、Container 系 `PASS`——点击文字穿透到卡片，无阻断。不改码 |
-| D05 | 🟦 设计确认登记 | P2 走位升级为阶段 B 即有缺口（`git show 3188902^` 逐行一致），产品级走位调整待作者确认；已回写 `BOSS_REDESIGN.md §8.2` 自决点 |
+| D05 | ✅ 已实现 | P2 走位升级为阶段 B 即有缺口（`git show 3188902^` 逐行一致）；**2026-08-02 按 `BOSS_REDESIGN.md §5.5` 落地**（一型/三型 P2 strafe 提速 + 纵向正弦、三型 P1 缓慢下压回升、二型 P2 冲刺更频），配置入 `balance.json boss.movement`（11 键）；ENRAGE 走位不受影响 |
 | D11 | 🟦 观察级不修 | 多 tween 竞争闪白，无泄漏无逻辑错误 |
 | D15 | 🟦 设计权衡登记 | 帧率依赖为结构性选择，改 delta 归一属手感重构，超本轮范围 |
 | D16 | 🟦 不修 | 双份默认值当前一致，已注释分工，低成本接受 |
@@ -443,7 +443,7 @@
 | D02 | ✅ 已修复 | `player.gd` 回退值 1.65→2.1 并对齐注释（= 冲入 0.55 + 后撤 1.1 + 0.45s 缓冲，缓冲段按普通无敌闪烁路径）。验证：balance_test 28 PASS（损坏回退路径） |
 | D03 | 🟥 证伪不修 | 见判定分类：Label 默认 IGNORE，原机制判断不成立 |
 | D04 | ✅ 已修复 | `start_panel.gd` 难度按钮改 `tr("DIFF_"+String(d).to_upper())`，`_refresh_texts()` 同步刷新（与 HUD difficulty_label 同口径）。验证：startup_flow_test 36 PASS + back_navigation_test 24 PASS |
-| D05 | 📄 已登记 | `BOSS_REDESIGN.md §8.2` 追加走位简化登记（D05），含证据（3188902^ 逐行一致）与处置（待作者确认） |
+| D05 | ✅ 已修复 | `BOSS_REDESIGN §5.5` 落地——`boss_movement.gd` 新增 `_move_bob`（P2 纵向正弦，直接设置 y：`_in_fight` 后才调用，入场/逃跑/狂暴早退不干扰；`fight_anchor_y()` 逐帧求值支持切视角档）与 `_move_band`（三型 P1 缓慢下压回升，`_update_press` 同构 target 从 0 起步无跳变）；一型/三型 P2 strafe 提速 + 正弦、二型 P2 dash 0.4/0.5、三型 P1 下压 200–280 区间/9s；配置 `boss.movement` 11 键入 balance.json + 脚本回退同步 + BALANCE_MAP 重跑；ENRAGE 走位不变。实现中修复 2 个自身问题：`var target := boss.fight_anchor_y()+...` 因 boss 为 Variant 无法推断类型（改显式 float）；增量式施加初始跳变（改直接设置 y / band 从 0 起步）。验证：boss_phase_test 37 PASS（原 32 + 新增 5：一型 P2 正弦波动/振幅/strafe、三型 P1 下压/上界）；boss_pattern 55 / boss_enrage 34 / smoke 142 / 全量 30 断言场景 0 FAIL |
 | D06 | ✅ 已修复 | `player.gd` 新增 `abort_entry()`（复位相位/恢复 auto_fire/kill tween）+ `_entry_tween` 成员；`main.gd` 返航调 `abort_entry()`；`_die()` 内调 `abort_entry()`。入场起始帧返航/自毁不再滞留相位。验证：entry_animation_test 13 PASS |
 | D07 | ✅ 已修复 | `entry_animation_test` landed 判据改"定位线邻域连续 8 帧"（排除冲入阶段 y≥land_y 恒成立的假到达）；补"入场期间 auto_fire 暂停/结束后恢复"2 断言。验证：13 PASS 连续多轮稳定 |
 | D08 | ✅ 已修复 | `hud.gd` 新增 `_cached_max_hp`，`_rebuild_buff_dock()` 开头刷新（buffs_changed 信号已有连接，extra_life 层数变化即刷新）；`_update_vignette`/`_on_health_changed` 改读缓存。热路径免 2 次 cfg JSON 查询。验证：smoke 142 + buff_panel 16 PASS |

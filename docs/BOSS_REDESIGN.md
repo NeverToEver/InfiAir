@@ -138,6 +138,83 @@ FIGHT（常规）
 每型 ENRAGE 的 RELEASE_HOLD 阶段为该型「最后一搏」峰值（上表已含），随后 RETURN 归位，
 常规循环进入「余怒」态：射速 ×1.3（原 ×1.5 下调，因为狂暴本体已强化）。
 
+### 5.5 P2 走位升级实现设计（2026-08-02，D05 落地）
+
+> 背景：§5.1-5.3 逐型走位表的 P2 阶段升级自阶段 B 起未实现（2026-08-02 复核登记为 D05）。
+> 本轮按表格补实现，纵向分量统一为**正弦往复**，复用项目内 `EnemyMoveStrategy` 既有正弦形态
+> （`anchor + Enemy.sin_fast(time * freq + phase) * amp`）与 `BossMovement._update_press` 的
+> 增量式 y 施加模式——不新建走位原语。
+
+#### 调研与引用（2026-08-02）
+
+- **BulletML 移动原语**（[官方参考](http://www.asahi-net.or.jp/~cs8k-cyu/bulletml/bulletml_ref_e.html)）：
+  移动 = 增量式 `changeDirection / changeSpeed / accel`（term 帧内线性过渡到目标值）的组合——
+  正弦/往复由增量调整派生，无需独立"波形"概念。本项目 `_update_press` 的"每帧施加
+  `target - _press_offset` 差值"即同一范式（已存在，复用）。
+- **项目内 `EnemyMoveStrategy`**（`scripts/enemy_move_strategy.gd`）：`SineMove`/`HoverMove` 用
+  `Enemy.sin_fast(time * freq + phase) * amp` 表达正弦（查表零分配，C05/C09 收口口径）。
+  Boss 纵向往复直接同族复用，不重复造轮子。
+- **Danmaku 设计原则**（[The Anatomy of a Shmup](https://www.gamedeveloper.com/design/the-anatomy-of-a-shmup)、
+  [Danmaku Design Discussion](https://www.shrinemaiden.org/forum/index.php?topic=6649.0)）：
+  ① 走位与弹幕解耦（Boss 移动自成节奏，不跟弹幕间隔绑死）；② 阶段升级的压迫感来自"移动自由度
+  增加"（P1 单向 → P2 双向）；③ 纵向往复幅度与周期保持小幅度慢节奏，避免挤压玩家活动空间
+  （`strafe_range` 横向区间不变，纵向只在锚线邻域摆动）。
+
+#### 语义解读
+
+- **§5.3 三型 P1「y 200–280 正弦」**：解读为**周期下压/回升**（同 §5.1 一型 P1「每 6s 下压 80px 再回」同构，
+  幅度更大、周期更长、更缓慢）——机身从锚线正弦下压到**锚线下 200px~280px 区间**（下压深度中心 240、
+  轨迹邻域摆动 ±40、周期 9s 慢呼吸）再缓慢回升。理由：锚线本身在 `view.position.y + FIGHT_Y(230)`，
+  若 200-280 为绝对坐标将与锚线几乎重合（无下压效果）；"下压/回升"为周期动作语义，且从锚线起步
+  （target 从 0 渐变）避免段切换/入场跳变，与 `_update_press` 增量式同构。
+- **一型 P2「纵向往复」**：围绕锚线 ±40px 双向正弦（区别于 P1 的单向周期下压），周期 6s
+  （与 P1 `press_interval` 同节奏感），段切换相位从 0 起（sin 0 = 0，与 `reset_press()` 衔接无跳变）。
+- **三型 P2「纵向往复」**：围绕锚线 ±50px 双向正弦，周期 8s（母舰更慢的俯仰）。
+
+#### 参数表（新配置键，balance.json `boss.movement` 段）
+
+| 键 | 默认值 | 语义 |
+| --- | --- | --- |
+| `type1_p2_strafe` | 200 | 一型 P2 横向 strafe 速度（P1 = `strafe_speeds[0]` 150） |
+| `type1_p2_bob_amp` | 40 | 一型 P2 纵向正弦幅度（±px，围绕锚线） |
+| `type1_p2_bob_period` | 6 | 一型 P2 纵向正弦周期（s） |
+| `type2_p2_dash_time` | 0.4 | 二型 P2 冲刺持续（P1 = 0.5） |
+| `type2_p2_rest_time` | 0.5 | 二型 P2 冲刺休息（P1 = 0.7） |
+| `type3_p1_bob_min` | 200 | 三型 P1 下压深度区间下界（锚线下 px） |
+| `type3_p1_bob_max` | 280 | 三型 P1 下压深度区间上界（锚线下 px） |
+| `type3_p1_bob_period` | 9 | 三型 P1 下压/回升周期（s，与模式循环错开避免节奏死板） |
+| `type3_p2_strafe` | 100 | 三型 P2 横向 strafe 速度（P1 = `strafe_speeds[2]` 60） |
+| `type3_p2_bob_amp` | 50 | 三型 P2 纵向正弦幅度（±px，围绕锚线） |
+| `type3_p2_bob_period` | 8 | 三型 P2 纵向正弦周期（s） |
+
+全部为**游戏性范围族**（不乘 `world_scale`），走位坐标系基于 `fight_anchor_y()` / `strafe_range()` view 基线。
+
+#### 实现要点
+
+- `BossMovement` 新增 `_move_bob(delta, boss, amp, period)`（P2 纵向正弦往复：直接设置
+  `position.y = fight_anchor_y() + sin(phase)*amp`——`_in_fight` 后才被调用，入场/逃跑/狂暴序列均
+  早退不干扰；`fight_anchor_y()` 逐帧求值支持战斗中切视角档）与
+  `_move_band(delta, boss, y_lo, y_hi, period)`（三型 P1 缓慢下压/回升：`_update_press` 同构，
+  target 为纯偏移从 0 起步，无初始跳变）；相位经 `_bob_phase` 累计（`TAU * delta / period`），
+  段切换 `reset_press()` 归零相位。
+- 一型 `update()`：P2 分支 `_move_strafe(type1_p2_speed)` + `_move_bob(amp, period)`；
+  P1 分支维持 `_update_press`（单向周期下压）。
+- 二型 `update()`：dash 节奏按 `fight_phase` 取 0.5/0.7（P1）或 0.4/0.5（P2）。
+- 三型 `update()`：P1 加 `_move_band(200, 280, 9)`（strafe 60 不变）；P2 用 `_move_strafe(100)` +
+  `_move_bob(50, 8)`。
+- 速度全部经 `slow_factor()` / `_enrage_speed_mult()` 乘区（与既有走位一致）。
+- 配置读取在 `Boss._ready` 统一缓存为实例字段并注入 `_movement`（A5 依赖注入模式），
+  新增键同步脚本回退默认值（AGENTS.md 一致性约定）。
+
+#### 测试影响
+
+- `boss_phase_test` 场景 1（一型）C11「P2 段切换后回到锚线」断言：P2 有正弦后，切换瞬间
+  sin 0 = 0 仍回锚线，但**后续若干帧 y 开始偏离**——断言若在切换后等待多帧再检查会失配，
+  需改为"段切换后 y 在锚线 ±amp 范围内"。
+- 新增断言：一型 P2 纵向 y 波动（采样帧内出现 y > anchor 与 y < anchor）；二型 P2 dash 节奏
+  （0.4/0.5 周期验证）；三型 P1 y ∈ [anchor+200, anchor+280]（采样验证区间呼吸）。
+- 走位数值断言尽量用实例常量/配置读值（C34 口径），不硬编码。
+
 ## 6. 数值与配置（balance.json boss 段重构）
 
 - 保留现有键不动（兼容/回退），新增 `boss.phases` 段：每型每阶段的模式表（时长/波次/弹数/弹速/间隔 ×难度三列）、
@@ -212,7 +289,7 @@ FIGHT（常规）
   **2026-08-01 复核补充**：同类污染仍存在于 `FIRE_INTERVALS`（`boss.gd:420-421` 读共享数组、
   `:522-523` 原地 `[i] *= interval_mult`，easy/hard 下跨 Boss 复合叠加）——`_apply_difficulty_scaling`
   对 `FIRE_INTERVALS` 需同样先 `duplicate(true)`，已登记 AUDIT_VAULT B5。
-- 走位简化（**2026-08-02 复核登记，D05**）：§5.1-5.3 逐型走位表要求的 P2 阶段升级（一型 P2「strafe 提速 200 + 纵向往复」、二型 P2「冲刺 0.4s/0.5s」、三型 P2「strafe 100 + 纵向往复」、三型 P1「y 200-280 正弦」）至今未实现——`boss_movement.gd` 仅一型 P1 有纵向分量（`_update_press` 仅 `FIGHT_P1` 调用）、二型 dash 无阶段区分、三型无纵向。经 `git show 3188902^` 核实此差距为阶段 B 落地时即有（非 A3 拆分引入）。设计确认：本轮不补实现（产品级走位调整，待作者确认是否遗漏），此处登记防止按文档误判现状。
+- 走位简化（**2026-08-02 复核登记，D05**）：§5.1-5.3 逐型走位表要求的 P2 阶段升级（一型 P2「strafe 提速 200 + 纵向往复」、二型 P2「冲刺 0.4s/0.5s」、三型 P2「strafe 100 + 纵向往复」、三型 P1「y 200-280 正弦」）至今未实现——`boss_movement.gd` 仅一型 P1 有纵向分量（`_update_press` 仅 `FIGHT_P1` 调用）、二型 dash 无阶段区分、三型无纵向。经 `git show 3188902^` 核实此差距为阶段 B 落地时即有（非 A3 拆分引入）。**2026-08-02 同日已按 §5.5 落地修复（见上）**，本登记转为实现记录。
 
 ### 8.3 难度分档落地（§4.4）
 
