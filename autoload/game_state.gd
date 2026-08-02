@@ -129,9 +129,13 @@ func _apply_balance() -> void:
 		for v in base:
 			base_arr.append(int(v))
 	milestone_base = base_arr if not base_arr.is_empty() else MILESTONE_BASE.duplicate()
-	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
-	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
-	_prog_per_ten_minutes = float(cfg("progression.per_ten_minutes", 1.0))
+	# H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——≤0 使阈值曲线平台化，
+	# apply_run_save 的 while 里程碑推进永不退出（挂死）。difficulty 子表无 cycle_mult 键
+	# （原 _valid_difficulty_defs 内检查恒真为死代码），此处对全局键钳制下限（同 world_scale 款）
+	milestone_cycle_mult = maxf(float(cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)), 0.01)
+	# 难度进程曲线参数：负值会使难度乘数随时间/Boss 击杀下行，钳制 ≥0 保曲线单调不减
+	_prog_per_boss_kill = maxf(float(cfg("progression.per_boss_kill", 0.5)), 0.0)
+	_prog_per_ten_minutes = maxf(float(cfg("progression.per_ten_minutes", 1.0)), 0.0)
 	_prog_time_step_seconds = maxf(float(cfg("progression.time_step_seconds", 30.0)), 0.1)  # H15：=0 除零挂死
 	# C03 修复：难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
 	# （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
@@ -140,7 +144,7 @@ func _apply_balance() -> void:
 		DIFFICULTY_DEFS = diff
 	# P0-2：回血链数值一次性缓存（热路径禁 cfg 约定）
 	_refresh_regen_cache()
-	_max_hp_base = float(cfg("player.max_health", _max_hp_base))
+	_max_hp_base = maxf(float(cfg("player.max_health", _max_hp_base)), 0.1)  # H15 同款：≤0 使 max_health 归零/负值，玩家秒死
 	_max_hp_bonus = float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus))
 
 
@@ -172,9 +176,11 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 			var v: Variant = def.get(k)  # 缺键时 get 返回 null，一并落入类型校验
 			if (not v is int) and (not v is float):
 				return false
-		# H03（健壮性审核）：数值域校验——milestone/cycle_mult ≤ 0 会破坏阈值单调性，
-		# 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴
-		if float(def.get("milestone", 1.0)) <= 0.0 or float(def.get("cycle_mult", 1.0)) <= 0.0:
+		# H03（健壮性审核）：数值域校验——milestone ≤ 0 会破坏阈值单调性，
+		# 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴。
+		# 原 cycle_mult 检查为死代码：difficulty 子表无 cycle_mult 键（get 恒返回默认 1.0），
+		# 全局 milestones.cycle_mult 的 >0 域校验已移至 _apply_balance
+		if float(def.get("milestone", 1.0)) <= 0.0:
 			return false
 	return true
 
@@ -1172,8 +1178,9 @@ func apply_run_save(data: Dictionary) -> void:
 	if saved_buffs is Dictionary:
 		for key in saved_buffs.keys():
 			if saved_buffs[key] is int or saved_buffs[key] is float:
-				# G013：层数钳制 ≥0（手改存档负层数会破坏 buff_count 逻辑；超大值属手改作弊，
-				# 正常路径由 add_buff 的 max_stacks 上限约束）
+				# G013：层数钳制 ≥0（手改存档负层数会破坏 buff_count 逻辑；超大值属手改作弊。
+				# 注：add_buff 本身无 max_stacks 钳制——上限约束在 buff_select 选取侧检查
+				# （buffs.<id>.max_stacks），此处仅保下限防负层数，不改存档恢复行为）
 				buffs[StringName(key)] = maxi(int(saved_buffs[key]), 0)
 	buffs_changed.emit()
 	# 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
@@ -1243,7 +1250,7 @@ func load_profile() -> void:
 		return
 	if parsed.is_empty():
 		return
-	high_score = int(parsed.get("high_score", 0))
+	high_score = int(save_num(parsed.get("high_score", 0), 0.0))  # save_num 判型：手改档案字符串等非法类型回默认
 	tutorial_done = save_bool(parsed.get("tutorial_done", false), false)
 	# E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持默认 zh，
 	# 避免 locale 变量与 TranslationServer 状态（启动默认 zh）不一致；
@@ -1304,7 +1311,7 @@ func load_profile() -> void:
 			var s: Variant = entry.get("score", 0)
 			if not (s is int or s is float):
 				continue
-			highscores.append({"score": int(s), "date": int(entry.get("date", 0))})
+			highscores.append({"score": int(s), "date": int(save_num(entry.get("date", 0), 0.0))})  # E11 同款：date 走 save_num 判型
 		highscores.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["score"]) > int(b["score"]))
 		if highscores.size() > HIGHSCORE_LIMIT:
 			highscores.resize(HIGHSCORE_LIMIT)

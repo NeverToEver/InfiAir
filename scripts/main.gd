@@ -66,8 +66,8 @@ var _breath_was_active: bool = false
 func _ready() -> void:
 	add_to_group("main")
 	DOCK_CHARGE_TIME = maxf(GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME), 0.01)  # H15：=0 除零
-	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
-	GIVE_UP_HOLD_TIME = GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME)
+	HOME_CHARGE_TIME = maxf(GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
+	GIVE_UP_HOLD_TIME = maxf(GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
 	ENRAGE_SLOW_SCALE = GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE)
 	ENRAGE_BULLET_TIME = GameState.cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME)
 	ENRAGE_RAMP_TIME = GameState.cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME)
@@ -310,8 +310,9 @@ func _process(delta: float) -> void:
 			Engine.time_scale = lerpf(ENRAGE_SLOW_SCALE, 1.0, _time_scale_ramp)
 	if _dock_cooldown > 0.0:
 		_dock_cooldown -= delta
-	# 长按 H 蓄力召唤母舰（松手取消，不进冷却）
-	var can_charge := _mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming
+	# 长按 H 蓄力召唤母舰（松手取消，不进冷却；召唤小窗播放中不再进入蓄力，
+	# 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）
+	var can_charge := _mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming and _summon_window == null
 	if can_charge and Input.is_action_pressed("dock"):
 		_charging = true
 		_charge_time += delta
@@ -525,6 +526,9 @@ func _on_continue_run() -> void:
 	GameState.apply_run_save(data)
 	_player.set_fuel(GameState.save_num(data.get("fuel", _player.fuel_max), _player.fuel_max))
 	_spawner.set_elapsed(GameState.save_num(data.get("elapsed", 0.0), 0.0))
+	# D01 印证：continue 后同样存在入场动画窗口（敌机生成延迟由入场序列接管），
+	# 与开场 _on_intro_finished / 继续出击 _on_orbital_struck 同构；is_connected 守卫可幂等调用
+	_start_entry_sequence()
 
 
 func _on_player_died() -> void:

@@ -79,6 +79,9 @@ static func particles(cfg: Dictionary) -> GPUParticles2D:
 
 ## 闭合椭圆环点集（Line2D 用；ry_ratio 压扁做透视门洞/光圈）。
 static func ring_points(n: int, r: float, ry_ratio := 1.0) -> PackedVector2Array:
+	# n<=1 无闭合环可言（n=0 读未写元素、n=1 退化单点自环），直接返回空集
+	if n <= 1:
+		return PackedVector2Array()
 	var pts := PackedVector2Array()
 	pts.resize(n + 1)
 	for i in n:
@@ -195,6 +198,9 @@ class BeamFlow:
 		return out
 
 	func _sample_at(u: float) -> Vector2:
+		# H20 补全：_resample 对点列 <2 返回空集，此处防空 _samples 负索引越界（-2 越界）
+		if _samples.is_empty():
+			return Vector2.ZERO
 		var n := _samples.size()
 		var f := clampf(u, 0.0, 1.0) * float(n - 1)
 		var idx := mini(int(f), n - 2)
@@ -252,19 +258,24 @@ class SpeedLineField:
 		for i in _lines.size():
 			var ln := _lines[i]
 			ln.position += _dir * _speeds[i] * delta
-			# 沿运动方向越界即回卷到对侧，横向随机换位
+			# 沿运动方向越界即回卷到对侧；斜向 dir 按分量各自回卷（另一轴保持相对位置，
+			# 两步内回到对角对侧），纯单轴运动时另一轴随机换位维持变化感
 			if _dir.y > 0.0 and ln.position.y - _margin > _area.end.y:
 				ln.position.y = _area.position.y - _margin
-				ln.position.x = randf_range(_area.position.x, _area.end.x)
+				if _dir.x == 0.0:
+					ln.position.x = randf_range(_area.position.x, _area.end.x)
 			elif _dir.y < 0.0 and ln.position.y + _margin < _area.position.y:
 				ln.position.y = _area.end.y + _margin
-				ln.position.x = randf_range(_area.position.x, _area.end.x)
+				if _dir.x == 0.0:
+					ln.position.x = randf_range(_area.position.x, _area.end.x)
 			elif _dir.x > 0.0 and ln.position.x - _margin > _area.end.x:
 				ln.position.x = _area.position.x - _margin
-				ln.position.y = randf_range(_area.position.y, _area.end.y)
+				if _dir.y == 0.0:
+					ln.position.y = randf_range(_area.position.y, _area.end.y)
 			elif _dir.x < 0.0 and ln.position.x + _margin < _area.position.x:
 				ln.position.x = _area.end.x + _margin
-				ln.position.y = randf_range(_area.position.y, _area.end.y)
+				if _dir.y == 0.0:
+					ln.position.y = randf_range(_area.position.y, _area.end.y)
 
 
 static func speed_lines(cfg: Dictionary) -> Node2D:

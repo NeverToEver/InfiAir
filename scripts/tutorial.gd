@@ -258,6 +258,8 @@ func _summon_mothership() -> void:
 	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
 	_mothership.begin_warp_in(gate_pos, gate)
 	_mothership.departed.connect(_on_mothership_departed)
+	# 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 3 轮询判空依赖）
+	_mothership.tree_exited.connect(func() -> void: _mothership = null)
 	add_child(_mothership)
 	_set_objective_tr("TUT_S4_DOCK")
 
