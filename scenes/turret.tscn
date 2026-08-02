@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/ui_segmented_bar.gd" id="3"]
 
 [sub_resource type="CircleShape2D" id="1"]
+resource_local_to_scene = true
 radius = 26.0
 
 [node name="TurretBattery" type="Area2D"]

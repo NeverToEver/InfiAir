@@ -709,6 +709,10 @@ func _early_depart() -> void:
 
 
 func start_release() -> void:
+	# P2：STAY 多入口（警告到期/弹匣耗尽/提前离舰 _early_depart）可能同帧二次触发，
+	# 非 STAY 直接短路，令 start_release 幂等
+	if _state != State.STAY:
+		return
 	# E05：所有强制离舰路径（警告到期/弹匣耗尽）统一清 HUD 提前离舰进度条——
 	# H 按住时走本路径不复位，进度条残留可见（_early_depart 已有清理，此处兜底全部入口）
 	var hud := get_tree().get_first_node_in_group("hud")

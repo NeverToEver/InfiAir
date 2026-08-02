@@ -19,7 +19,7 @@ func _init(p_interval: float, p_chance: float, p_min_score: int = 0) -> void:
 func configure(p_interval: float, p_chance: float, p_min_score: int = 0) -> void:
 	# H15（健壮性审核）：interval ≤0 时每帧掷签事件风暴，钳制下限
 	_interval = maxf(p_interval, 0.1)
-	_chance = p_chance
+	_chance = clampf(p_chance, 0.0, 1.0)  # H15：越界钳制（<0 永不触发 / >1 必触发）
 	_min_score = p_min_score
 	if _timer <= 0.0:
 		_timer = _interval

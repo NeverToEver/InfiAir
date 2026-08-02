@@ -160,7 +160,8 @@ func _layout(scale_p: float, alpha_p: float) -> void:
 	_ring.default_color = Color(CYAN, 0.9 * alpha_p)
 	_layout_ellipse(_ring_inner, RADIUS * 0.82 * scale_p, 48)
 	_ring_inner.default_color = Color(WARP_BLUE, 0.7 * alpha_p)
-	# 新增附件层：预建点集，仅缩放/透明度写（零分配）——Sprite2D/Node2D scale 正常
+	# 附件层（mouth/lip/swirls）：经节点 scale 随开合伸缩——mouth 为 Sprite2D 无线宽问题；
+	# lip/swirls 为 Line2D，线宽随比例伸缩是既有表现（与环/弧的原地写点集不同，维持现状）
 	_mouth.scale = _mouth_base * scale_p
 	_mouth.modulate.a = 0.4 * alpha_p * scale_p
 	for i in _swirls.size():

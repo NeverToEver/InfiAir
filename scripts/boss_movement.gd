@@ -26,8 +26,7 @@ func sync_press_timer(interval: float) -> void:
 ## C11 修复：段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
 ## _press_offset 保留非零值而 _update_press 不再被调用，机身会以偏移永久留在锚线下方
 func reset_press() -> void:
-	_press_offset = 0.0
-	_press_timer = _press_timer  # 保留下压周期相位，仅清偏移
+	_press_offset = 0.0  # 仅清偏移，保留下压周期相位（_press_timer 不动）
 	_bob_phase = 0.0  # D05：段切换归零纵向正弦（sin 0 = 0 平滑衔接锚线）
 
 

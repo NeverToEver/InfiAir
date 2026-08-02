@@ -62,8 +62,9 @@ func fire_heavy(boss: Node2D, p_dir: Vector2, p_speed: float, p_damage: int) -> 
 
 ## 环弹（差异化狂暴各型共用）：meta=enrage_ring（与快照环弹同标记）
 func fire_ring(boss: Node2D, p_count: int, p_speed: float, p_damage: int, p_offset: float) -> void:
-	for i in p_count:
-		var dir := Vector2.RIGHT.rotated(p_offset + TAU * float(i) / float(p_count))
+	var count := maxi(2, p_count)  # H15：cfg 直读为 0 时 float(i)/float(p_count) 除零 NaN 方向
+	for i in count:
+		var dir := Vector2.RIGHT.rotated(p_offset + TAU * float(i) / float(count))
 		var b: Bullet = GameState.bullet_pool.fire(dir, p_speed, p_damage, false)
 		b.position = boss.position + dir * muzzle_offset
 		b.set_meta("bullet_type", &"enrage_ring")
@@ -73,9 +74,12 @@ func fire_ring(boss: Node2D, p_count: int, p_speed: float, p_damage: int, p_offs
 func fire_enrage_wave(
 	boss: Node2D, laser_speed: float, ring_speed: float, laser_damage: int, ring_damage: int, laser_count: int, ring_count: int
 ) -> void:
+	# H15：count 下限钳制——cfg 直读为 0/负时防空齐射、float(i)/float(ring_count) 除零 NaN 方向
+	var lasers := maxi(2, laser_count)
+	var rings := maxi(2, ring_count)
 	var aim := player_dir(boss)
 	var side := aim.orthogonal()
-	for i in laser_count:
+	for i in lasers:
 		var laser: Bullet = GameState.bullet_pool.fire(aim, laser_speed, laser_damage, false)
 		laser.position = boss.position + aim * muzzle_offset + side * (float(i) - 1.5) * 44.0 * world_scale
 		laser.set_meta("bullet_type", &"laser")
@@ -84,8 +88,8 @@ func fire_enrage_wave(
 		if poly != null:
 			poly.scale = Vector2(2.2, 0.55)
 			poly.color = Color(1.0, 0.85, 0.35)
-	for i in ring_count:
-		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(ring_count))
+	for i in rings:
+		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(rings))
 		var b: Bullet = GameState.bullet_pool.fire(dir, ring_speed, ring_damage, false)
 		b.position = boss.position + dir * muzzle_offset
 		b.set_meta("bullet_type", &"enrage_ring")
@@ -94,13 +98,14 @@ func fire_enrage_wave(
 ## 弹幕墙（三型 P2）：arc_deg 度扇形 count 槽位，留 2 个相邻缺口；
 ## 缺口方位避开自机当前方位 ±30°（无可行槽位时退化为离自机最远的槽，保证理论上可躲）
 func fire_bullet_wall(boss: Node2D, count: int, speed: float, damage: int, arc_deg: float) -> void:
+	var slots := maxi(2, count)  # H15：cfg 直读为 0/1 时 float(count-1) 除零 NaN 方向
 	var arc := deg_to_rad(arc_deg)
 	var base := Vector2.DOWN.angle()
 	var to_player := player_dir(boss).angle()
 	var min_gap := deg_to_rad(30.0)
-	var slot_angle := func(i: int) -> float: return base - arc * 0.5 + arc * float(i) / float(count - 1)
+	var slot_angle := func(i: int) -> float: return base - arc * 0.5 + arc * float(i) / float(slots - 1)
 	var candidates: Array[int] = []
-	for g in count - 1:
+	for g in slots - 1:
 		if (
 			absf(angle_difference(slot_angle.call(g), to_player)) > min_gap
 			and absf(angle_difference(slot_angle.call(g + 1), to_player)) > min_gap
@@ -109,14 +114,14 @@ func fire_bullet_wall(boss: Node2D, count: int, speed: float, damage: int, arc_d
 	var gap_start := -1
 	if candidates.is_empty():
 		var best_dist := -1.0
-		for g in count - 1:
+		for g in slots - 1:
 			var d := minf(absf(angle_difference(slot_angle.call(g), to_player)), absf(angle_difference(slot_angle.call(g + 1), to_player)))
 			if d > best_dist:
 				best_dist = d
 				gap_start = g
 	else:
 		gap_start = candidates[randi() % candidates.size()]
-	for i in count:
+	for i in slots:
 		if i == gap_start or i == gap_start + 1:
 			continue
 		var dir := Vector2.from_angle(slot_angle.call(i))

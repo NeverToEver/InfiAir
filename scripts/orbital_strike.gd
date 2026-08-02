@@ -44,9 +44,11 @@ var _screen := Vector2.ZERO  # _ready 缓存视口尺寸（D17：命中段热路
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 24  # 对局世界与 HUD 之上、基地 UI（25）之下
-	DURATION = GameState.cfg("effects.orbital_strike.duration", DURATION)
-	IMPACT_AT = GameState.cfg("effects.orbital_strike.impact_at", IMPACT_AT)
-	MISSILE_FROM = GameState.cfg("effects.orbital_strike.missile_from", MISSILE_FROM)
+	# H15（健壮性审核）：时轴序钳制——duration=0 首帧 finished、impact_at≥1.0 时 struck 不可达
+	# （main 收不到 _on_orbital_struck，树保持暂停+锁输入软锁）、missile_from≥impact_at 时瞄准段除零
+	DURATION = maxf(GameState.cfg("effects.orbital_strike.duration", DURATION), 0.01)
+	IMPACT_AT = minf(GameState.cfg("effects.orbital_strike.impact_at", IMPACT_AT), 0.95)
+	MISSILE_FROM = maxf(minf(GameState.cfg("effects.orbital_strike.missile_from", MISSILE_FROM), IMPACT_AT - 0.05), 0.0)
 	RETICLE_RADIUS = GameState.cfg("effects.orbital_strike.reticle_radius", RETICLE_RADIUS)
 	IMPACT_Y_RATIO = GameState.cfg("effects.orbital_strike.impact_y_ratio", IMPACT_Y_RATIO)
 	_screen = get_viewport().get_visible_rect().size

@@ -247,9 +247,13 @@ static func _build_destroyed(station: Node2D) -> void:
 		var fa := 0.6 + 0.3 * k
 		flake.position = Vector2(cos(fa), sin(fa)) * 265.0
 		station.add_child(flake)
-		var ft := station.create_tween().set_parallel(true).set_loops()
+		# 往复段：外飘/翻滚到目标后返回起点（对齐虚影态碎片）——仅 set_loops 时循环重放
+		# 立即完成，碎片冻结在首圈末位
+		var ft := station.create_tween().set_loops()
 		ft.tween_property(flake, "position", flake.position + Vector2(cos(fa), sin(fa)) * 60.0, 2.0)
-		ft.tween_property(flake, "rotation", flake.rotation + 2.5, 2.0)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation + 2.5, 2.0)
+		ft.tween_property(flake, "position", flake.position, 2.0)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation, 2.0)
 
 
 ## 全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补，

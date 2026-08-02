@@ -41,6 +41,8 @@ var _charge_sparks: Array[Sprite2D] = []  # 断开点软火花
 var _spark_bursts: Array[GPUParticles2D] = []  # 断开瞬间一次性喷发
 var _burst_fired: Array[bool] = [false, false, false]
 var _arms: Array[Line2D] = []  # [左臂, 右臂]，各 3 点（基座/关节/末端）
+var _charge_line_origins: Array[PackedVector2Array] = []  # P2：充能管线构建期原始端点 [anchor, tip]
+var _arm_origins: Array[PackedVector2Array] = []  # P2：机械臂构建期原始端点 [base, joint, tip]
 
 
 func _ready() -> void:
@@ -192,6 +194,7 @@ func _build_hangar() -> void:
 		line.points = PackedVector2Array([anchor, SHIP_HOME + attach[i]])
 		_stage.add_child(line)
 		_charge_lines.append(line)
+		_charge_line_origins.append(PackedVector2Array([anchor, SHIP_HOME + attach[i]]))
 		var spark := CinematicFx.soft_glow(16.0, Color(CYAN, 0.0))
 		spark.position = SHIP_HOME + attach[i]
 		_stage.add_child(spark)
@@ -230,6 +233,7 @@ func _build_hangar() -> void:
 		arm.points = PackedVector2Array(pts)
 		_stage.add_child(arm)
 		_arms.append(arm)
+		_arm_origins.append(PackedVector2Array(pts))
 	# 母舰剪影（缩略比例：机库全景中的小舰体）
 	_ship = Sprite2D.new()
 	_ship.texture = SHIP_TEXTURE
@@ -317,8 +321,10 @@ func _update_charge_lines(p: float) -> void:
 		var at := 0.15 + 0.3 * float(i)
 		var lp := clampf((p - at) / 0.25, 0.0, 1.0)
 		var line := _charge_lines[i]
-		var anchor: Vector2 = line.points[0]
-		var tip: Vector2 = line.points[1]
+		# P2：插值基准取构建期原始端点——points[1] 逐帧被改写，读当前值会累积失真（帧率相关）
+		var orig := _charge_line_origins[i]
+		var anchor: Vector2 = orig[0]
+		var tip: Vector2 = orig[1]
 		line.set_point_position(1, tip.lerp(anchor, lp * lp))
 		line.default_color = Color(CYAN, 1.0 - 0.6 * lp)
 		var spark := _charge_sparks[i]
@@ -331,10 +337,13 @@ func _update_charge_lines(p: float) -> void:
 ## 镜头 2：维护臂解除链接，末端+关节同步收回基座
 func _update_arms(p: float) -> void:
 	var e := 1.0 - (1.0 - p) * (1.0 - p)  # ease-out
-	for arm in _arms:
-		var base: Vector2 = arm.points[0]
-		var joint: Vector2 = arm.points[1]
-		var tip: Vector2 = arm.points[2]
+	for i in _arms.size():
+		var arm := _arms[i]
+		# P2：插值基准取构建期原始端点——points[1]/points[2] 逐帧被改写，读当前值会累积失真
+		var orig := _arm_origins[i]
+		var base: Vector2 = orig[0]
+		var joint: Vector2 = orig[1]
+		var tip: Vector2 = orig[2]
 		arm.set_point_position(2, tip.lerp(base, e))
 		arm.set_point_position(1, joint.lerp(base, e * 0.6))
 		arm.default_color = Color(0.55, 0.65, 0.75, 1.0 - 0.7 * e)
