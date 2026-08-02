@@ -93,9 +93,31 @@ godot --path . res://test/meta_fx_capture.tscn
 godot --path . res://test/hud_capture.tscn
 ```
 
+## 统一检查流程（提交前 / CI 门禁）
+
+五层自动检查，CI（`.github/workflows/ci.yml`）全部自动执行；本地用下命令等价复现：
+
+```bash
+# 1. 格式：GDScript 格式一致性（行宽 140，gdformatrc）
+gdformat --check autoload/ scripts/
+# 2. 静态：风格/未使用参数/命名规则（.gdlintrc 规则取舍）
+gdlint autoload/ scripts/
+# 3. 引擎编译警告：error 级零容忍（CI 出现 "Warning treated as error" 即失败）；
+#    warn 级（unsafe_cast/未类型声明等）编辑器脚本状态栏可见，持续改进清单见 AUDIT_VAULT
+godot --headless --import --path .
+# 4. 编译 + 运行时冒烟
+godot --headless --path . --quit-after 300
+godot --headless --path . res://test/smoke_test.tscn
+# 5. 全量断言：31 个场景逐个跑（排除 autoplay_test 长时探针），任一 FAIL 退出码非零
+```
+
+- **工具安装**（一次性）：`python3 -m venv /tmp/gdvenv && /tmp/gdvenv/bin/pip install gdtoolkit`，之后用 `/tmp/gdvenv/bin/gdformat` / `gdlint`。
+- **规则取舍**：`gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` 段的取舍依据见各自文件内注释与 `docs/AUDIT_VAULT.md`「GDScript 引擎警告分层」；新增禁用/放宽规则须同步这三处配置与 `AGENTS.md`。
+- **三层分工**：gdformat（格式）→ gdlint（风格）→ 引擎警告（编译期暗病）→ import/冒烟（编译+启动）→ 断言场景（运行时行为）。
+
 ## CI 执行（GitHub Actions）
 
-`.github/workflows/ci.yml` 在 push/PR 时自动跑：无头导入 → 主场景冒烟（`--quit-after 300`）→ 全量 31 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action。CI 全绿是合入门槛；本地可用上文全量断言命令等价复现。
+`.github/workflows/ci.yml` 在 push/PR 时自动跑：GDScript 静态检查（`gdlint` + `gdformat --check`，见上节 1-2）→ 引擎警告门禁（import 步骤 grep "Warning treated as error"，见上节 3）→ 主场景冒烟（`--quit-after 300`）→ 全量 31 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action（gdtoolkit 经 pip 安装）。CI 全绿是合入门槛；本地可用上文命令等价复现。
 
 ## 测试策略与副作用
 
