@@ -347,7 +347,7 @@
 | C14 | ✅ 已修复 | 硬编码 960/±1600 世界坐标改 `view_world_rect().get_center()`（main 蓄力/冲刺预警线/strafe 方向）。验证：view_zoom/boss_pattern 0 FAIL |
 | C15 | ✅ 已修复 | `main.gd` await process_frame 后加 `is_inside_tree()` 守卫。验证：--quit-after 300 + startup_flow 0 FAIL |
 | C16 | ✅ 已修复 | `game_state.gd` 新增 `save_bool()` 安全布尔读取，7 处 `bool(手改值)` 全替换（"false"/"0" 字符串不再误读 true）。验证：startup_flow/base_system 0 FAIL |
-| C17 | ✅ 已修复 | welcome_screen/pause_ui 的 `get_parent().get_node` 链改 `get_node_or_null` + 判空。验证：back_navigation 0 FAIL |
+| C17 | ✅ 已修复 | welcome_screen/pause_ui 的 `get_parent().get_node` 链改 `get_node_or_null` + 判空。验证：back_navigation 0 FAIL。**2026-08-02 补注（D29）**：登记中的 `back_navigator.gd:22-31` 另有 8 处同类裸 `get_node("固定兄弟")` 未改——访问对象为 main.tscn 固定子节点、风险低，判定为合理模式不修（档案复核口径） |
 | C18 | ✅ 已修复 | milestone_base→Array[int]、UNLOCK_SCORES→Array[int]、STRAFE_SPEEDS→Array[float]（cfg 显式转换）、enemy._pool→EnemyPool。验证：--import + 全量测试 |
 | C19 | 🟦 设计确认 | **非缺陷**：CONSTANT_CASE 可变 var 为项目"脚本回退默认值"数据模式（CLAUDE.md 明文），大范围改名收益低风险高，维持现状。不改码 |
 | C20 | ✅ 已修复 | spread_pods()→Array[Node2D]、bullet 爆炸/溅射 `as Enemy`、EnemyMoveStrategy 8 update+4 reset 参数 Node2D→Enemy。验证：--import + 全量测试 |
@@ -369,3 +369,105 @@
 
 > 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 120s 探针。
 
+---
+
+# 第四轮审核（2026-08-02 近期大改全量代码审查）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 近期 60 提交大改全量代码审查（入场衔接动画 / UI uplift / Boss·事件·演出 / 辅助瞄准弹道 / 数值一致性 / 文档-代码-测试三角） |
+| 工作时间 | 2026-08-02 |
+| 审核区域 | 基线 `8c6dfff`→HEAD（60 提交、195 文件、+14.2k/-3.9k 行）涉及 `scripts/` + `autoload/` + `data/` + `docs/` + `test/` |
+| 审核方法 | 6 分区并行审核（`docs/AUDIT_REVIEW_SOP.md`）+ 主控交叉核验 + 实证证伪（D03 Label mouse_filter 默认值） |
+| 结论 | 无 P0/P1；P2×4 修复 + P2×1 文档登记（D05）+ P3×9 修复 + P3×6 登记不修 + 文档同步 8 处；D03 误报证伪；修复后全量 29 断言场景 0 FAIL |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+| 完整报告 | `docs/2026-08-02-audit-fix-plan.md`（发现-判定-修复追踪单一事实源） |
+
+## 发现清单（D 系列，登记待修复）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 |
+| --- | --- | --- | --- | --- |
+| D01 | P2 | `spawner.gd:459-462,499,537` / `main.gd:652,695-699` | 纯bug/设计目标未达 | 入场动画"敌机延迟"只挂 spawner `_process` 开关；返航前排队的 `_schedule` Timer 与 SpawnTelegraph 不清，continue 后在入场窗口（0~0.6s）触发敌机/Boss 带预告进场 |
+| D02 | P2 | `balance.json:22` vs `player.gd:21` | 一致性 | `player.entry.invincible` json 2.1 vs 脚本回退 1.65——全仓 363 键逐值核对唯一不一致；JSON 损坏时无敌窗口缩水 0.45s |
+| D03 | P2→证伪 | `buff_select.gd:188` / `ui_theme.gd:50` | 误报 | 声称 Label 默认 STOP 阻断卡片点选热区——**实证 Godot 4.6 Label 默认 `mouse_filter=IGNORE`、Container 默认 PASS**，点文字穿透到卡片，无阻断 |
+| D04 | P2 | `start_panel.gd:109` | 一致性 | 难度按钮取 `DIFFICULTY_DEFS["label"]`（数据驱动中文）不走 `tr()`，切 en 后 HUD 英文、按钮中文 |
+| D05 | P2 | `BOSS_REDESIGN.md §5.1-5.3` vs `boss_movement.gd:30-39` | 文档-代码矛盾 | P2 阶段走位升级（一型 strafe 200+纵向、二型冲刺 0.4/0.5s、三型 strafe 100+纵向、三型 P1 纵向正弦）未实现；阶段 B 即有非 A3 引入，档案未登记 |
+| D06 | P3 | `player.gd:640-642` / `main.gd:707-711` | 纯bug（边缘） | 入场起始帧内按 B 返航 → 锁输入冻结后撤、`_finish_entry` 不执行，新入场被守卫跳过；长按 K 自毁同源（`_die` 不清入场状态） |
+| D07 | P3 | `test/entry_animation_test.gd:55-70` | 测试脆弱性 | `landed` 判据 `y<=land_y+5` 在冲入阶段（t≈0.88）提前 break，后撤断言余量仅 ~20px；不覆盖中断路径 |
+| D08 | P3 | `hud.gd:723` | 性能约定 | vignette 每帧调 `GameState.max_health()`（内部 2 次 cfg JSON 查询），违反热路径缓存约定 |
+| D09 | P3 | `back_navigator.gd:50` | 可访问性 | CANCEL_EXIT 只给开始面板还焦点；暂停→退出→Esc 后焦点留在隐藏确认窗 |
+| D10 | P3 | `spawner.gd:510` / `elite_turret_event.gd:139` | 一致性 | 两处硬编码 960（C14 已收敛同类，未收敛此两处） |
+| D11 | P3 | `boss.gd:828-830` | 观察级 | 狂暴锁血期多 tween 竞争闪白（无泄漏） |
+| D12 | P3 | `test/boss_pattern_test.gd:254` | 一致性 | C34 例外：场景 3 `_bullets_by_speed(900.0)` 硬编码，未改读实例常量 |
+| D13 | P3 | `player.gd:65` / `bullet.gd:194` | 一致性/文档矛盾 | `homing_time=4.0` 对玩家弹是死参数（出屏寿命≈1.07s），注释"≈弹寿命"不符 |
+| D14 | P3 | `player.gd:664,680` | 一致性 | 入场起点屏外偏移 90px、后撤水平速度 0.6 倍率硬编码，未入 `player.entry` 配置 |
+| D15 | P3 | `aim_frame_layer.gd:139` / `player.gd:597` | 设计权衡 | 磁吸/粘性每渲染帧增量式，绝对强度随刷新率缩放（60Hz 480px/s vs 144Hz 1152px/s） |
+| D16 | P3 | `player.gd:74-82` / `aim_frame_layer.gd:17-26` | 维护 | 磁吸/距离衰减参数双份默认值（当前值一致） |
+| D17 | P3 | `orbital_strike.gd:186` / `mothership_summon_window.gd:271` | 代码卫生 | 命中段每帧取视口尺寸可复用缓存；flash 衰减帧率依赖 |
+| D18 | P3 | `return_cinematic.gd`（14 处 play_sfx） | 一致性（待判定） | 返航音效未应用 8-02 开场过场统一 -6dB/0.88 策略；返航各镜头本就压低，属产品判断 |
+| D19 | P3 | `warp_gate.gd:157` 等 | 一致性 | C28 收口后残留节点 scale 线宽变化（收缩动画，均无回归级放大，视觉合理） |
+| D20 | P3 | `data/balance.json.bak` | 维护 | bak 落后多段（缺 aim_assist/entry 段）——近期改数值绕过编辑器直落盘 |
+| D21 | P3 | `EXIT_FLOW.md:49` | 文档-代码矛盾 | 伪代码注释残留"（开始面板 / 欢迎页）" |
+| D22 | P3 | `README.md:92` / `README.en.md:92` | 文档-代码矛盾 | 仍描述"首启欢迎页与 6 阶段教程" |
+| D23 | P3 | `AGENTS.md:104` | 文档-代码矛盾 | profile 字段描述仍含"欢迎页/"（welcome_seen 已删） |
+| D24 | P3 | `DESIGN_BASELINE.md:301` | 文档-代码矛盾 | §6 持久化同 D23 表述 |
+| D25 | P3 | `DESIGN_BASELINE.md:7,292,361,9` | 文档过期 | "29 断言场景"应为 30；"C 系列 35 项已全量修复"与档案 C34 部分完成/C19、C33 不修实况不符 |
+| D26 | P3 | `ROADMAP.md:9` | 口径不一致 | "A7 855 处全清" vs 档案"测试侧 28 + 游戏侧 5" |
+| D27 | P3 | `2026-08-01-remove-welcome-screen-plan.md` | 流程遗留 | 25 个 task checkbox 未勾、无完成注记、"29 断言"过期 |
+| D28 | P3 | `translations.csv:103,213` | 一致性 | 孤儿键 `GO_SCORE` / `UI_KILLS_TAG`（零引用） |
+| D29 | P3 | `AUDIT_VAULT.md:350` | 一致性 | C17 登记含 back_navigator 8 处裸 `get_node("固定兄弟")`，修复记录只提 welcome_screen/pause_ui；风险低 |
+| D30 | P3 | `spawner.gd:123-124` / `scheduled_event_trigger.gd:16` | 一致性 | A4b 后 elite/formation 分数门槛语义分散两处（行为正确） |
+
+## 判定分类记录（2026-08-02）
+
+| 项 | 判定 | 理由 |
+| --- | --- | --- |
+| D03 | 🟥 误报证伪 | 实证（headless 打印默认值）：Godot 4.6 `Label.mouse_filter=IGNORE`、Container 系 `PASS`——点击文字穿透到卡片，无阻断。不改码 |
+| D05 | 🟦 设计确认登记 | P2 走位升级为阶段 B 即有缺口（`git show 3188902^` 逐行一致），产品级走位调整待作者确认；已回写 `BOSS_REDESIGN.md §8.2` 自决点 |
+| D11 | 🟦 观察级不修 | 多 tween 竞争闪白，无泄漏无逻辑错误 |
+| D15 | 🟦 设计权衡登记 | 帧率依赖为结构性选择，改 delta 归一属手感重构，超本轮范围 |
+| D16 | 🟦 不修 | 双份默认值当前一致，已注释分工，低成本接受 |
+| D18 | 🟦 待判定 | 返航音效口径已登记 `RETURN_HOME_CINEMATIC.md §9`，统一与否属产品判断 |
+| D19 | 🟦 不修 | 线宽变化 ≤4%（HOLD 呼吸），无回归级放大，视觉合理 |
+| D20 | 🟦 不修 | bak 为编辑器自动备份产物，下次打开保存自动刷新 |
+| D29 | 🟦 不修 | main.tscn 固定兄弟节点访问风险低，补注说明 |
+| D30 | 🟦 不修 | 行为正确（can_trigger 先于 tick 门控） |
+
+## 修复起效记录（2026-08-02 全量修复）
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| D01 | ✅ 已修复 | `spawner.gd` 新增 `_pending_timers`/`_pending_telegraphs` 登记 + `_on_pending_timer_fired` 解除登记 + `clear_pending()`；`_queue_enemy`/`_schedule` 登记；`main.gd` 返航路径调 `clear_pending()`。continue 后入场窗口不再有敌机/Boss 进场。验证：entry_animation_test 13 PASS + smoke 142 PASS + 全量回归 0 FAIL |
+| D02 | ✅ 已修复 | `player.gd` 回退值 1.65→2.1 并对齐注释（= 冲入 0.55 + 后撤 1.1 + 0.45s 缓冲，缓冲段按普通无敌闪烁路径）。验证：balance_test 28 PASS（损坏回退路径） |
+| D03 | 🟥 证伪不修 | 见判定分类：Label 默认 IGNORE，原机制判断不成立 |
+| D04 | ✅ 已修复 | `start_panel.gd` 难度按钮改 `tr("DIFF_"+String(d).to_upper())`，`_refresh_texts()` 同步刷新（与 HUD difficulty_label 同口径）。验证：startup_flow_test 36 PASS + back_navigation_test 24 PASS |
+| D05 | 📄 已登记 | `BOSS_REDESIGN.md §8.2` 追加走位简化登记（D05），含证据（3188902^ 逐行一致）与处置（待作者确认） |
+| D06 | ✅ 已修复 | `player.gd` 新增 `abort_entry()`（复位相位/恢复 auto_fire/kill tween）+ `_entry_tween` 成员；`main.gd` 返航调 `abort_entry()`；`_die()` 内调 `abort_entry()`。入场起始帧返航/自毁不再滞留相位。验证：entry_animation_test 13 PASS |
+| D07 | ✅ 已修复 | `entry_animation_test` landed 判据改"定位线邻域连续 8 帧"（排除冲入阶段 y≥land_y 恒成立的假到达）；补"入场期间 auto_fire 暂停/结束后恢复"2 断言。验证：13 PASS 连续多轮稳定 |
+| D08 | ✅ 已修复 | `hud.gd` 新增 `_cached_max_hp`，`_rebuild_buff_dock()` 开头刷新（buffs_changed 信号已有连接，extra_life 层数变化即刷新）；`_update_vignette`/`_on_health_changed` 改读缓存。热路径免 2 次 cfg JSON 查询。验证：smoke 142 + buff_panel 16 PASS |
+| D09 | ✅ 已修复 | `back_navigator.gd` CANCEL_EXIT 分支补 `_pause_ui.visible → grab_primary_focus()`（暂停→退出→Esc 焦点回到暂停面板）。验证：esc_navigation 11 + back_navigation 24 PASS |
+| D10 | ✅ 已修复 | `spawner.gd` Boss 入场锚点、`elite_turret_event.gd` 载体入场锚点改 `view_world_rect().get_center().x`（C14 收敛口径）。验证：elite_turret_event 57 + smoke 142 PASS |
+| D11 | 🟦 不修 | 见判定分类 |
+| D12 | ✅ 已修复 | `boss_pattern_test` 场景 3 `_bullets_by_speed(900.0)`→`boss3.E2_SNIPER_SPEED`，C34 收口补齐。验证：boss_pattern 55 PASS |
+| D13 | ✅ 已修复 | `player.gd` `HOMING_TIME` 4.0→1.2（≈出屏寿命 1.07s）并修正注释；`balance.json` `player.aim_assist.homing_time` 同步 1.2。验证：enemy_combat 32 + smoke 142 PASS |
+| D14 | ✅ 已修复 | 入场硬编码入配置：新增 `player.entry.spawn_clearance=90` / `rush_hspeed_ratio=0.6`（json + 脚本回退同步）；`gen_balance_map.py` 重跑双向反查干净。验证：entry_animation_test 13 PASS |
+| D15 | 🟦 不修 | 见判定分类 |
+| D16 | 🟦 不修 | 见判定分类 |
+| D17 | ✅ 已修复 | `orbital_strike.gd` 视口尺寸 `_ready` 缓存 `_screen`、命中段复用；`mothership_summon_window.gd` `_update(t, delta)` 用 delta 参数替代 `get_process_delta_time()`。验证：orbital_strike 15 + mothership_summon 28 PASS |
+| D18 | 📄 已登记 | `RETURN_HOME_CINEMATIC.md §9` 追加音频口径说明（沿用各镜头既有压低值，暂不统一；统一需同步改代码并回写本文档） |
+| D19 | 🟦 不修 | 见判定分类 |
+| D20 | 🟦 不修 | 见判定分类 |
+| D21 | ✅ 已修复 | `EXIT_FLOW.md:49` 伪代码删" / 欢迎页" |
+| D22 | ✅ 已修复 | `README.md` / `README.en.md:92` 欢迎页描述改"启动直达主菜单，首次进入有 6 阶段教程" |
+| D23 | ✅ 已修复 | `AGENTS.md:104` profile 字段删"欢迎页/"（保留教程状态，`tutorial_done` 仍在用） |
+| D24 | ✅ 已修复 | `DESIGN_BASELINE.md:301` §6 同删"欢迎页/" |
+| D25 | ✅ 已修复 | `DESIGN_BASELINE.md` 三处 29→30 + "全量修复"→"已处理收尾"（与档案 C34/C19/C33 实况对齐），快照日期更新 2026-08-02 |
+| D26 | ✅ 已修复 | `ROADMAP.md:9` A7 口径统一（档案口径 28+5，855 注为 sed 替换计数） |
+| D27 | ✅ 已修复 | 移除欢迎页计划文档 25 checkbox 全勾 + 头部完成注记（2026-08-02，提交 2c16892）+ "29 断言"修正 |
+| D28 | ✅ 已修复 | `translations.csv` 删 `GO_SCORE` / `UI_KILLS_TAG` 两孤儿键。验证：i18n_test 9 PASS |
+| D29 | 🟦 不修 | 见判定分类（C17 条目已补注说明 back_navigator 属合理模式） |
+| D30 | 🟦 不修 | 见判定分类 |
+
+> 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / perf_bench rc=0 / autoplay 探针完整跑（480s、3 对局、0 死亡、孤儿 0、帧耗时峰值 7.43ms）——1 个 `score_stagnant` 偶发（Boss 战专注期分数停滞 + 逃跑空窗竞态，该 run 返航 0 次、与 D 系列改动路径无交集，判定为既有探针偶发非本次引入）。

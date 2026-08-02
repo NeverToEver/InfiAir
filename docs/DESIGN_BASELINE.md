@@ -4,7 +4,7 @@
 >
 > **维护约定**：任何方向/架构/数值口径调整，须在此登记并同步 `AGENTS.md`「文档同步要求」；技术债修复后在此回填状态并同步 `docs/AUDIT_VAULT.md`。
 >
-> **状态快照（2026-08-01）**：C 系列（Godot 最佳实践与语法规范）35 项已全量修复提交；29 个无头断言场景 0 FAIL；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）。
+> **状态快照（2026-08-02 修订）**：C 系列（Godot 最佳实践与语法规范）35 项已处理收尾（含设计确认不改码/核实无风险，详见档案）；30 个无头断言场景 0 FAIL；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）。
 
 ---
 
@@ -289,7 +289,7 @@ Main (scripts/main.gd)
 > 完整命令清单见 `docs/TESTING.md`。测试不是单元测试框架：`test/*.tscn` 启动 GDScript 场景，以 `[PASS]/[FAIL]` 输出和退出码自检。
 
 - **最小必跑集**：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`；涉存档/基地/母舰加跑 `base_system_test.tscn`。
-- **全量断言**：29 个断言场景（当前全绿 0 FAIL）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
+- **全量断言**：30 个断言场景（当前全绿 0 FAIL）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
 - **特殊场景**：`perf_bench` 必须 `--fixed-fps 1000`；`autoplay_test` 长时异常探针（注册表一致性双向比对、动效路径、卡死计时、buff 封顶、阶段计数）。
 - **测试副作用**：测试可能读写 `user://savegame.json` / `profile.json`，新测试先 `GameState.delete_save()` 并清理自身持久化；`balance_test` 会覆盖 `data/balance.json` 验证损坏回退再恢复，勿并发手编。
 - **视觉验证**：窗口模式截图人工核对（headless 无可用截图）；`visual/ui/return/intro/summon/meta_fx/hud` capture 工具。
@@ -298,7 +298,7 @@ Main (scripts/main.gd)
 
 ## 6. 持久化与安全边界
 
-- **对局存档** `user://savegame.json`、**局外档案** `user://profile.json`；二者由 GameState 管理带版本字段；profile 保存最高分/难度/键位/语言/视角/窗口尺寸/欢迎页/教程状态。
+- **对局存档** `user://savegame.json`、**局外档案** `user://profile.json`；二者由 GameState 管理带版本字段；profile 保存最高分/难度/键位/语言/视角/窗口尺寸/教程状态。
 - **损坏隔离**：损坏 JSON 隔离为 `<file>.corrupt` 并置 `save_corrupt`/`profile_corrupt` 标记通知开始界面；不绕过恢复流程。
 - **健壮性**：`load_profile` key_bindings 类型守卫（C02）；`_apply_balance` 校验难度表子键与 `milestones.base` 非空（C03）；布尔安全读取防 `bool("false")→true`（C16）。
 - **无外部交互**：无网络/插件/远程服务/密钥；离线 `balance_editor.py` 仅监听 127.0.0.1。
@@ -358,7 +358,7 @@ Main (scripts/main.gd)
 1. 维持 §3 全部全局不变量（碰撞层/world_scale/view_world_rect/cfg/协程/i18n/热路径/池防护）。
 2. 可调数值只改 `balance.json`，跑 `gen_balance_map.py` 与最小验证集。
 3. 新增功能在本文 §8 与 `ROADMAP.md` 登记方向，专项设计文档落实现级规格。
-4. 修复/新代码全量测试 0 FAIL（29 断言 + autoplay 探针），视觉改动窗口截图核对。
+4. 修复/新代码全量测试 0 FAIL（30 断言 + autoplay 探针），视觉改动窗口截图核对。
 5. 技术债修复在 `AUDIT_VAULT.md` 回填"修复起效记录"。
 
 ---

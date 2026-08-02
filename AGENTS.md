@@ -101,7 +101,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 ## 持久化与安全边界
 
-- 对局存档为 `user://savegame.json`，局外档案为 `user://profile.json`；二者由 `GameState` 管理并带版本字段。profile 保存最高分、难度、键位、语言、视角、窗口尺寸、欢迎页/教程状态等。
+- 对局存档为 `user://savegame.json`，局外档案为 `user://profile.json`；二者由 `GameState` 管理并带版本字段。profile 保存最高分、难度、键位、语言、视角、窗口尺寸、教程状态等。
 - 损坏 JSON 会被隔离为 `<file>.corrupt`，并通过 `save_corrupt`/`profile_corrupt` 标记通知开始界面。不要绕过该恢复流程。
 - 当前未发现网络通信、第三方插件、远程服务、密钥或凭据文件。除本地 `user://` 持久化和离线资源生成外，游戏没有外部交互。离线数值管理器 `balance_editor.py` 只监听 127.0.0.1，不属游戏运行时。
 - `.gitignore` 排除导入缓存和导出产物（`builds/` 等）；`export_presets.cfg` 已随打包发布重启入库（2026-07-30），修改预设需同步审查 `release.sh` 与 `packaging/`。若未来增加 CI/自动部署，先补齐可审查的工作流与发布说明，再把它写入本文件。

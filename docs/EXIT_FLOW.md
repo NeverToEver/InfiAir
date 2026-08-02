@@ -46,7 +46,7 @@ func go_back():
             hud.close_buff_panel()       # 返回 = 收起栏（优先于打开暂停）
         RESUME_GAME:          # 暂停面板可见
             pause_ui.close()
-        CONFIRM_EXIT:         # 顶层（开始面板 / 欢迎页）
+        CONFIRM_EXIT:         # 顶层（开始面板）
             exit_confirm.show_confirm(battle=false)
         OPEN_PAUSE:           # 以上皆非 = 战斗中（无覆盖、未暂停）
             pause_ui.open()                # 返回上一级 = 暂停

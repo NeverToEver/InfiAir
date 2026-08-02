@@ -89,7 +89,7 @@ godot --path .
 - **Growth**: draft 1-of-3 buffs at score milestones; boss kills and base missions earn RP for repairs and resupply.
 - **Pacing**: new enemy classes and elites unlock as your score rises; difficulty grows with no cap as kills and time add up — survive longer, score higher.
 - **Saves**: save anytime from the pause menu; homecoming auto-updates the save so you can continue on next launch.
-- **Getting started**: a welcome screen and a 6-stage tutorial (movement / dash / combat / mothership / homecoming / boss enrage) greet the first launch.
+- **Getting started**: the game boots straight to the main menu; a 6-stage tutorial (movement / dash / combat / mothership / homecoming / boss enrage) awaits on first entry.
 
 ## 📁 For Developers
 

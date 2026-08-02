@@ -6,7 +6,7 @@
 
 - **移植对齐收官**：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）。
 - **质量基线**：29 个无头断言测试场景全绿；长时 autoplay 探针 + 性能基准可用。
-- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**修复状态（2026-08-01 按 git 历史与代码实况订正，见档案 A 系列回填）**：A1 封装穿透 ✅、A2 GameState 四服务拆分 ✅、A3 Boss 四类拆分 ⚠️ 拆分落地但 O 原则未达成（match 仅搬迁）、A4 开闭违反 ⚠️ 部分完成（A4a 敌机策略/A4b 事件触发基类已落地，Boss 分支与 Player buff 未治理）、A5 依赖倒置 ❌、A6 语义化特判 ✅、A7 测试白盒 855 处全清 ✅、A8 Player 组件拆分 ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽）。2026-08-01 并行复核另登记 B1–B16（见档案）。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**修复状态（2026-08-01 按 git 历史与代码实况订正，见档案 A 系列回填）**：A1 封装穿透 ✅、A2 GameState 四服务拆分 ✅、A3 Boss 四类拆分 ⚠️ 拆分落地但 O 原则未达成（match 仅搬迁）、A4 开闭违反 ⚠️ 部分完成（A4a 敌机策略/A4b 事件触发基类已落地，Boss 分支与 Player buff 未治理）、A5 依赖倒置 ❌、A6 语义化特判 ✅、A7 测试白盒全清 ✅（档案口径：测试侧 28 处 + 游戏侧 5 处，855 为 sed 批量替换计数）、A8 Player 组件拆分 ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽）。2026-08-01 并行复核另登记 B1–B16（见档案）。
 - **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
 
 ## 方向转变

@@ -2,6 +2,8 @@
 
 > **执行方式：** 本计划由当前会话按任务顺序 inline 执行，每任务完成即跑对应验证；全部完成后跑全量 29 断言场景并提交推送。
 > 计划日期：2026-08-01。
+>
+> **✅ 已完成（2026-08-02，提交 2c16892）：** 全部 25 项任务落地并提交；执行期断言场景为 30（entry_animation_test 随 8-02 一并加入），全量回归 0 FAIL。
 
 **Goal:** 移除进游戏后的「按任意键或点击出击」首启欢迎页（WelcomeScreen），启动 `main.tscn` 后直接显示开始面板（主菜单），无存档/有存档两种情况下均直达。
 
@@ -48,17 +50,17 @@
 - Modify: `scripts/start_panel.gd:1-8`
 - Modify: `autoload/game_state.gd:163,949,988`
 
-- [ ] **Step 1: 删除 main.tscn 中欢迎页资源与节点**
+- [x] **Step 1: 删除 main.tscn 中欢迎页资源与节点**
 
 `scenes/main.tscn`：
 - 删第 18 行 `[ext_resource type="Script" path="res://scripts/welcome_screen.gd" id="16"]`
 - 删 185-188 行节点（`[node name="WelcomeScreen" type="CanvasLayer" parent="."]` 及其 `process_mode`/`layer`/`script` 三行）
 
-- [ ] **Step 2: 删除欢迎页脚本文件**
+- [x] **Step 2: 删除欢迎页脚本文件**
 
 `git rm scripts/welcome_screen.gd scripts/welcome_screen.gd.uid`（或 `rm` + 之后 `git add -A`）。
 
-- [ ] **Step 3: 简化 main.gd 存档恢复 guard**
+- [x] **Step 3: 简化 main.gd 存档恢复 guard**
 
 `scripts/main.gd:121`：`if GameState.has_save() and not $WelcomeScreen.visible:` → `if GameState.has_save():`
 同步更新 118-120 注释：
@@ -69,25 +71,25 @@
 		_start_panel.show_panel()
 ```
 
-- [ ] **Step 4: 移除 BackNavigator 欢迎页引用**
+- [x] **Step 4: 移除 BackNavigator 欢迎页引用**
 
 `scripts/back_navigator.gd`：
 - 删 `:30` `@onready var _welcome: CanvasLayer = get_parent().get_node("WelcomeScreen")`
 - `:118` `if _start_panel.visible or _welcome.visible:` → `if _start_panel.visible:`
 - `:19` 枚举注释 `CONFIRM_EXIT,  # 顶层（开始面板/欢迎页）→ 弹出全局退出确认` → `CONFIRM_EXIT,  # 顶层（开始面板）→ 弹出全局退出确认`
 
-- [ ] **Step 5: 更新 start_panel.gd 头部注释**
+- [x] **Step 5: 更新 start_panel.gd 头部注释**
 
 `scripts/start_panel.gd:5` 删行 `## 每进程首次进游戏由 welcome_screen 先行覆盖，其 dismiss() 会调 show_panel()。`
 
-- [ ] **Step 6: 移除 GameState.welcome_seen**
+- [x] **Step 6: 移除 GameState.welcome_seen**
 
 `autoload/game_state.gd`：
 - 删 `:163` `var welcome_seen: bool = false`
 - 删 `:949` `welcome_seen = save_bool(parsed.get("welcome_seen", false), false)`
 - 删 `:988` `"welcome_seen": welcome_seen,`
 
-- [ ] **Step 7: 语法验证**
+- [x] **Step 7: 语法验证**
 
 Run: `godot --headless --import --path .`
 Expected: 导入完成无脚本错误（此时测试文件尚未清理，可能有未删引用报错——见 Task 3 前置说明）。
@@ -101,14 +103,14 @@ Expected: 导入完成无脚本错误（此时测试文件尚未清理，可能�
 **Files:**
 - Modify: `data/translations.csv:133,135,136`
 
-- [ ] **Step 1: 删除欢迎页专属翻译键**
+- [x] **Step 1: 删除欢迎页专属翻译键**
 
 `data/translations.csv` 删除 3 行（**保留 134 行 `WELCOME_HIGH_SCORE`**）：
 - `WELCOME_SUBTITLE,"无尽空战 · 出击待命","Endless skies · Awaiting launch"`
 - `WELCOME_CONTROLS,"WASD 移动 · 鼠标瞄准 · 空格冲刺 · H 召唤母舰 · B 返航整备",...`
 - `WELCOME_PROMPT,"— 按任意键或点击出击 —","— Press any key or click to launch —"`
 
-- [ ] **Step 2: 校验无遗留引用**
+- [x] **Step 2: 校验无遗留引用**
 
 Run: `grep -rn "WELCOME_SUBTITLE\|WELCOME_CONTROLS\|WELCOME_PROMPT" scripts/ test/ autoload/ scenes/`
 Expected: 无匹配。
@@ -152,7 +154,7 @@ B 类 — 额外的存档/恢复/模式分支需整体处理：
 | `test/visual_capture.gd` | MODE 列表（`:5` 注释）去 `welcome`；`:18-28` 中 `MODE=="welcome"` 分支与 `MODE != "welcome"` 条件删除（`MODE != "start_panel"` 保留）；`:35` 的 `"welcome":` 分支删除 |
 | `test/startup_flow_test.gd` | 单独处理，见 Task 4 |
 
-- [ ] **Step 1: 逐文件删除样板**
+- [x] **Step 1: 逐文件删除样板**
 
 对 A 类 17 个文件：删除上表所示行（编辑前 Read 确认上下文，删除后保证语法完整）。样板模式示例（以 `test/smoke_test.gd` 为准）：
 
@@ -164,11 +166,11 @@ B 类 — 额外的存档/恢复/模式分支需整体处理：
 
 与 `GameState.welcome_seen = true  # 跳过欢迎页...` 整行删除。
 
-- [ ] **Step 2: 处理 B 类 5 个文件（除 startup_flow_test）**
+- [x] **Step 2: 处理 B 类 5 个文件（除 startup_flow_test）**
 
 按上表 Read 后精确编辑。
 
-- [ ] **Step 3: 编译校验**
+- [x] **Step 3: 编译校验**
 
 Run: `godot --headless --import --path . 2>&1 | grep -iE "error|script" | head -20`
 Expected: 无 `welcome_seen` / `WelcomeScreen` 相关报错。
@@ -180,7 +182,7 @@ Expected: 无 `welcome_seen` / `WelcomeScreen` 相关报错。
 **Files:**
 - Modify: `test/startup_flow_test.gd:59-95,116-151,186`
 
-- [ ] **Step 1: 第 3 节改为「无存档启动直达开始面板」**
+- [x] **Step 1: 第 3 节改为「无存档启动直达开始面板」**
 
 将 `:59-95` 整节（欢迎页 → 面板）替换为：
 
@@ -212,7 +214,7 @@ Expected: 无 `welcome_seen` / `WelcomeScreen` 相关报错。
 	_check(not start_panel.visible and not get_tree().paused, "Enter 触发开始游戏并恢复运行")
 ```
 
-- [ ] **Step 2: 第 6 节 F1 改为「有存档启动直达开始面板」**
+- [x] **Step 2: 第 6 节 F1 改为「有存档启动直达开始面板」**
 
 将 `:116-151` 整节替换为：
 
@@ -247,13 +249,13 @@ Expected: 无 `welcome_seen` / `WelcomeScreen` 相关报错。
 	_check(GameState.has_save(), "继续对局未删档")
 ```
 
-- [ ] **Step 3: 清理文件头注释与结尾**
+- [x] **Step 3: 清理文件头注释与结尾**
 
 - `:2-3` 注释改为：`## 启动链路测试：损坏存档/档案的隔离恢复、启动直达开始面板键盘-only 链路、`
   `## 主按钮焦点策略（无存档=开始游戏，有存档=继续对局）、损坏提示显隐。`
 - 结尾 `:186` `GameState.welcome_seen = false` 删除（保留 `GameState.save_profile()`）。
 
-- [ ] **Step 4: 单测验证**
+- [x] **Step 4: 单测验证**
 
 Run: `godot --headless --path . res://test/startup_flow_test.tscn 2>&1 | tail -8`
 Expected: `[DONE] failures=0`，退出码 0。
@@ -267,21 +269,21 @@ Expected: `[DONE] failures=0`，退出码 0。
 - Modify: `docs/ARCHITECTURE.md:40,64`
 - Modify: `docs/EXIT_FLOW.md:17`
 
-- [ ] **Step 1: DESIGN_BASELINE**
+- [x] **Step 1: DESIGN_BASELINE**
 
 - `:119` `→ L0 StartPanel⇐WelcomeScreen。` → `→ L0 StartPanel。`
 - `:144` `├─ StartPanel / WelcomeScreen / ExitConfirm` → `├─ StartPanel / ExitConfirm`
 
-- [ ] **Step 2: ARCHITECTURE**
+- [x] **Step 2: ARCHITECTURE**
 
 - `:40` `├─ StartPanel / WelcomeScreen / ExitConfirm` → `├─ StartPanel / ExitConfirm`
 - `:64` 脚本清单去掉 `welcome_screen.gd`：`...start_panel.gd`、`exit_confirm.gd`：页面和覆盖层。...`
 
-- [ ] **Step 3: EXIT_FLOW**
+- [x] **Step 3: EXIT_FLOW**
 
 - `:17` `L0 顶层:  StartPanel（主界面/大厅）⇐ WelcomeScreen（仅首次启动）` → `L0 顶层:  StartPanel（主界面/大厅）`
 
-- [ ] **Step 4: 交叉检查**
+- [x] **Step 4: 交叉检查**
 
 Run: `grep -rn "welcome" docs/DESIGN_BASELINE.md docs/ARCHITECTURE.md docs/EXIT_FLOW.md`
 Expected: 仅剩历史语境条目或无匹配（历史文档 AUDIT_VAULT/archive/计划档案不在此检查内）。
@@ -290,17 +292,17 @@ Expected: 仅剩历史语境条目或无匹配（历史文档 AUDIT_VAULT/archiv
 
 ### Task 6: 全量验证
 
-- [ ] **Step 1: 导入与启动**
+- [x] **Step 1: 导入与启动**
 
 Run: `godot --headless --import --path . && godot --headless --path . --quit-after 300`
 Expected: 无错误，退出码 0。
 
-- [ ] **Step 2: 全量断言场景**
+- [x] **Step 2: 全量断言场景**
 
 Run: `for t in $(ls test/*_test.tscn | grep -v autoplay_test); do godot --headless --path . "res://$t" ...; done`
 Expected: 29 场景全部 `failures=0`，退出码 0（重点：startup_flow / back_navigation / smoke / esc_navigation）。
 
-- [ ] **Step 3: 复核**
+- [x] **Step 3: 复核**
 
 Run: `grep -rn "welcome_seen\|WelcomeScreen\|welcome_screen" scripts/ autoload/ scenes/ test/`
 Expected: 仅 `test/visual_capture.gd:5` 注释等历史语境残留为可接受（若存在则一并清理），脚本/场景/测试代码零引用。
@@ -309,14 +311,14 @@ Expected: 仅 `test/visual_capture.gd:5` 注释等历史语境残留为可接受
 
 ### Task 7: 提交并推送
 
-- [ ] **Step 1: 提交**
+- [x] **Step 1: 提交**
 
 ```bash
 git add -A
 git commit -m "refactor: 移除首启欢迎页——启动直达主菜单（2026-08-01）"
 ```
 
-- [ ] **Step 2: 推送**
+- [x] **Step 2: 推送**
 
 ```bash
 git push origin main
