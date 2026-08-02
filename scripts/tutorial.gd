@@ -27,6 +27,7 @@ var _dash_count: int = 0
 var _prev_dashing: bool = false
 var _home_charge: float = 0.0
 var _dock_charge: float = 0.0
+var _max_hp: float = 100.0  # G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
 var _base_ui: CanvasLayer = null
 var _boss: Boss = null
 var _mothership: Mothership = null
@@ -96,6 +97,7 @@ func _ready() -> void:
 	# 存档隔离：教程不读写 savegame
 	GameState.delete_save()
 	GameState.reset_run()
+	_max_hp = GameState.max_health()  # G05：热路径缓存（阶段 2 锁血每物理帧读）
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
 	GameState.locale_changed.connect(_on_locale_changed)
 	GameState.player_died.connect(_on_player_died)
@@ -307,8 +309,8 @@ func _physics_process(delta: float) -> void:
 				_pass_stage()
 		2:
 			# 锁血下限：每帧补足，受伤不死
-			if GameState.health < GameState.max_health():
-				GameState.heal(GameState.max_health() - GameState.health)
+			if GameState.health < _max_hp:
+				GameState.heal(_max_hp - GameState.health)
 			# 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数
 			if not _advancing and _stage_kills < 5 and _alive_enemy_count() == 0:
 				_spawn_combat_wave(5 - _stage_kills)

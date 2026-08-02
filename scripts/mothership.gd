@@ -672,5 +672,9 @@ func _exit_tree() -> void:
 	if _warp_gate != null:
 		_warp_gate.close()
 		_warp_gate = null
+	# G011：隐藏 HUD 提前离舰蓄力进度条（E05 只覆盖 start_release 强制离舰路径，返航提前回收漏清）
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("set_early_leave_charge"):
+		hud.set_early_leave_charge(-1.0)
 	if is_instance_valid(_player) and not _player.is_dead() and not _player.visible:
 		_player.exit_pod()

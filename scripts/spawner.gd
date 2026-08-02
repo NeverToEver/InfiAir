@@ -157,8 +157,10 @@ func _apply_balance() -> void:
 	SPECIAL_GAP_MAX = int(GameState.cfg("spawner.special_gap_max", SPECIAL_GAP_MAX))
 	REST_WAVES_AFTER_KILL = int(GameState.cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL))
 	ELITE_WAVE_SIZE = int(GameState.cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE))
-	var band: Array = GameState.cfg("enemies.hover_band", [_hover_band.x, _hover_band.y])
-	_hover_band = Vector2(float(band[0]), float(band[1]))
+	# G06：嵌套结构判型（对齐 C03/E03 损坏 JSON 回退默认口径）——手改 JSON 使 band 非 2 元素数组时不崩溃
+	var band: Variant = GameState.cfg("enemies.hover_band", [_hover_band.x, _hover_band.y])
+	if band is Array and band.size() >= 2:
+		_hover_band = Vector2(float(band[0]), float(band[1]))
 	ETV_MIN_SCORE = GameState.cfg("elite_turret_event.min_score", ETV_MIN_SCORE)
 	ETV_TRIGGER_INTERVAL = GameState.cfg("elite_turret_event.trigger_interval", ETV_TRIGGER_INTERVAL)
 	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
@@ -175,10 +177,12 @@ func _apply_balance() -> void:
 		_merge_type(ELITE_TYPES[i], elites[i])
 
 
-func _merge_type(dst: Dictionary, src: Dictionary) -> void:
-	if src.has("hp"):
+func _merge_type(dst: Dictionary, src: Variant) -> void:
+	if not src is Dictionary:
+		return  # G06：结构损坏的机型条目整体跳过（回退脚本默认）
+	if src.has("hp") and src["hp"] is Array and src["hp"].size() >= 2:
 		dst["hp"] = Vector2i(int(src["hp"][0]), int(src["hp"][1]))
-	if src.has("speed"):
+	if src.has("speed") and src["speed"] is Array and src["speed"].size() >= 2:
 		dst["speed"] = Vector2(float(src["speed"][0]), float(src["speed"][1]))
 	for k in ["score", "fire", "fire_interval", "scale", "radius"]:
 		if src.has(k):

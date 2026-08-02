@@ -194,7 +194,7 @@ func _physics_process(delta: float) -> void:
 		# homing_target 恒为 Enemy（标记仅掷给 Enemy，Boss/炮台/编队战机排除）。
 		if not is_instance_valid(homing_target):
 			homing_target = null
-		elif not GameState.enemies.has(homing_target):
+		elif not GameState.enemies_has(homing_target):  # G010：注册表 O(1) 存在性判定（替代 Array.has 线性扫描）
 			homing_target = null
 		elif _homing_elapsed < homing_time:
 			_homing_elapsed += delta

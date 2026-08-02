@@ -86,6 +86,14 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(_action_has_key(&"dock", KEY_J), "捕获按键完成绑定")
 
+	# 8. G04：默认绑定冲突——未自定义动作的默认键被占用时解除占用（防同键双动作）
+	GameState.reset_key_bindings()
+	GameState.rebind_action(&"dock", KEY_SPACE)  # dash 默认 Space 未自定义
+	_check(_action_has_key(&"dock", KEY_SPACE), "dock 占用 Space")
+	_check(not _action_has_key(&"dash", KEY_SPACE), "G04：默认键被占用后 dash 解除占用（空绑定覆盖默认）")
+	GameState.reset_key_bindings()
+	_check(_action_has_key(&"dash", KEY_SPACE), "恢复默认后 dash 回到 Space")
+
 	# 收尾：恢复默认并落盘，避免污染其他测试/本机 profile
 	GameState.reset_key_bindings()
 

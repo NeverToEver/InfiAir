@@ -151,7 +151,10 @@ func setup(
 	# 机体尺寸族：config 存设计值（1.0 基准），统一乘全局缩放（shape 已 local_to_scene，实例独立）
 	var sc: float = config.get("scale", 0.85)
 	sprite.scale = Vector2(sc, sc) * GameState.world_scale
-	(shape_node.shape as CircleShape2D).radius = config.get("radius", 30.0) * GameState.world_scale
+	var hit_r: float = config.get("radius", 30.0) * GameState.world_scale
+	(shape_node.shape as CircleShape2D).radius = hit_r
+	# G07：辅助框半径缓存随 setup 刷新（池化实例复用不同半径机型时 meta 不得过期）
+	set_meta("aim_frame_radius", hit_r)
 
 
 ## 对外公开接口（A1 修复）：对象池/生成器/事件读取内部状态，禁止跨类直接写 _ 私有字段

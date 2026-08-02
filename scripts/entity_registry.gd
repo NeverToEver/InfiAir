@@ -10,6 +10,8 @@ extends RefCounted
 ## - bullet_pool / enemy_pool / aim_frame_layer / camera_ref 由各自 _ready/_exit_tree 登记
 
 var enemies: Array[Node] = []
+## G010：enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定，Array 线性扫描热路径开销）
+var _enemy_set: Dictionary = {}  # node -> true
 var player_ref: Node2D = null
 var player_hitbox: Area2D = null
 var bullet_pool: BulletPool = null
@@ -21,7 +23,14 @@ var camera_ref: Camera2D = null
 func register_enemy(node: Node) -> void:
 	if not enemies.has(node):
 		enemies.append(node)
+	_enemy_set[node] = true
 
 
 func unregister_enemy(node: Node) -> void:
 	enemies.erase(node)
+	_enemy_set.erase(node)
+
+
+## G010：注册表存在性判定 O(1)（替代 enemies.has() 线性扫描；语义同注册表包含，deactivate 即移除）
+func has_enemy(node: Node) -> bool:
+	return _enemy_set.has(node)

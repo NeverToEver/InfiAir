@@ -8,6 +8,9 @@ extends RefCounted
 ## 缺失/损坏 JSON 回退脚本默认值（脚本内同名 var 是回退默认值，需与 JSON 一致）。
 
 var _balance: Dictionary = {}
+## G09：ramp 因子 load() 时缓存一次——热路径（每发敌弹创建）免 path.split/字典遍历 JSON 查询
+var _hp_ramp_factor := 0.12
+var _damage_ramp_factor := 0.08
 
 
 func load(path: String) -> void:
@@ -17,6 +20,9 @@ func load(path: String) -> void:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if parsed is Dictionary:
 		_balance = parsed
+	# G09：缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
+	_hp_ramp_factor = float(cfg("enemies.hp_ramp_factor", 0.12))
+	_damage_ramp_factor = float(cfg("enemies.damage_ramp_factor", 0.08))
 
 
 ## 配置字典是否为空（缺失/损坏 JSON 时为空，全部回退脚本默认值）
@@ -47,11 +53,11 @@ func cfg(path: String, default: Variant) -> Variant:
 ## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
 ## 纯查询：难度乘数作参数传入，不依赖调用方状态。
 func enemy_hp_ramp(difficulty_multiplier: float) -> float:
-	return 1.0 + float(cfg("enemies.hp_ramp_factor", 0.12)) * (difficulty_multiplier - 1.0)
+	return 1.0 + _hp_ramp_factor * (difficulty_multiplier - 1.0)
 
 
 ## 敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
 ## 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
 ## 纯查询：难度乘数作参数传入。
 func enemy_damage_ramp(difficulty_multiplier: float) -> float:
-	return 1.0 + float(cfg("enemies.damage_ramp_factor", 0.08)) * (difficulty_multiplier - 1.0)
+	return 1.0 + _damage_ramp_factor * (difficulty_multiplier - 1.0)

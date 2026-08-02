@@ -637,7 +637,7 @@ func _physics_process(delta: float) -> void:
 		# 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
 		_escape_speed += ESCAPE_ACCEL * delta
 		position.y -= _escape_speed * delta
-		if position.y < -280.0:
+		if position.y < GameState.view_world_rect().position.y - 280.0:  # G08：出界基线对齐 view_world_rect
 			escaped.emit()
 			died.emit()  # 离场通知（血条/生成器重排）；非击毁，无击杀奖励
 			queue_free()

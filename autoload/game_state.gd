@@ -273,6 +273,11 @@ func register_enemy(node: Node) -> void:
 	_registry.register_enemy(node)
 
 
+## G010：注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）
+func enemies_has(node: Node) -> bool:
+	return _registry.has_enemy(node)
+
+
 func unregister_enemy(node: Node) -> void:
 	_registry.unregister_enemy(node)
 
@@ -703,12 +708,22 @@ func apply_key_bindings() -> void:
 
 
 ## 改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）
+## G04：冲突清理同时扫默认绑定——未自定义动作的默认键被占用时置空绑定覆盖默认，
+## 避免 apply_key_bindings 从默认表重灌同键造成两动作冲突
 func rebind_action(action: StringName, keycode: int) -> bool:
 	if action not in REBINDABLE_ACTIONS:
 		return false
-	for a in key_bindings.keys():
-		if a != action and (key_bindings[a] as Array).has(keycode):
-			(key_bindings[a] as Array).erase(keycode)
+	for a in REBINDABLE_ACTIONS:
+		if a == action:
+			continue
+		var effective: Array = key_bindings.get(a, _default_bindings.get(a, []))
+		if effective.is_empty():
+			continue  # 空绑定 = 该动作无键，不占用任何键
+		if effective.has(keycode):
+			if a in key_bindings:
+				(key_bindings[a] as Array).erase(keycode)
+			else:
+				key_bindings[a] = []  # 默认键被占用：空绑定覆盖默认，解除占用
 	key_bindings[action] = [keycode]
 	apply_key_bindings()
 	save_profile()

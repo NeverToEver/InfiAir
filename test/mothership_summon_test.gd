@@ -133,6 +133,18 @@ func _ready() -> void:
 	if main.mothership() != null:
 		main.mothership().queue_free()
 
+	# ---------- 5b. G011：母舰提前回收（_exit_tree，返航路径）须清除提前离舰进度条 ----------
+	var hud_g011 := get_tree().get_first_node_in_group("hud")
+	if hud_g011 != null:
+		hud_g011.set_early_leave_charge(0.5)
+		_check(hud_g011.early_leave_box().visible, "G011：前置：提前离舰进度条可见")
+		var ms2 := (load("res://scenes/mothership.tscn") as PackedScene).instantiate()
+		main.add_child(ms2)
+		await get_tree().process_frame
+		ms2.queue_free()
+		await get_tree().process_frame
+		_check(not hud_g011.early_leave_box().visible, "G011：母舰回收（_exit_tree）清除提前离舰进度条")
+
 	GameState.delete_save()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)
