@@ -78,9 +78,6 @@ func _ready() -> void:
 	GameState.set_difficulty(&"medium")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
-	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
 		start_panel.press_new_game()

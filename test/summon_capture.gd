@@ -15,7 +15,6 @@ func _shot(path: String) -> void:
 
 func _ready() -> void:
 	GameState.reset_run()
-	GameState.welcome_seen = true  # 跳过欢迎页（内存标记，不落盘）
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame

@@ -2,22 +2,17 @@ extends Node
 ## HUD 布局巡检截图：常态（2 个 buff）与极端（全 16 种 buff 满层）两种形态，
 ## 每屏截图存 /tmp/hud_<name>.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ##   godot --path . res://test/hud_capture.tscn
-## 结束恢复现场：删除测试产生的存档，profile 原始值（welcome_seen）还原落盘。
+## 结束恢复现场：删除测试产生的存档，profile 原始值还原落盘。
 
 const SETTLE_SECONDS := 0.6  # 等重建/淡入动效播完（真实时间）
 
 
 func _ready() -> void:
-	var orig_welcome_seen: bool = GameState.welcome_seen
 	GameState.delete_save()
-	GameState.welcome_seen = true  # 跳过欢迎页遮挡（内存值，结尾还原）
 
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
-	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	await get_tree().process_frame
 
 	# 直接开新局（测试实例化 main 不是 current_scene，不播开场过场）
@@ -71,7 +66,6 @@ func _ready() -> void:
 
 	# 恢复现场：删测试存档 + 还原 profile 原始值落盘
 	GameState.delete_save()
-	GameState.welcome_seen = orig_welcome_seen
 	GameState.save_profile()
 	print("hud capture done")
 	get_tree().quit()

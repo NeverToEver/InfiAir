@@ -2,7 +2,7 @@ extends Node
 ## UI 样式巡检截图：依次展示 开始面板/设置/Buff 三选一/暂停/基地控制台/结算 六个界面，
 ## 每屏截图存 /tmp/ui_<name>.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ##   godot --path . res://test/ui_capture.tscn
-## 结束恢复现场：删除测试产生的存档，profile 原始值（最高分/welcome_seen）还原落盘。
+## 结束恢复现场：删除测试产生的存档，profile 原始值（最高分）还原落盘。
 
 const SETTLE_SECONDS := 1.2  # 等 stagger/淡入动效播完（真实时间，暂停中 process_always 仍计时）
 
@@ -10,17 +10,12 @@ const SETTLE_SECONDS := 1.2  # 等 stagger/淡入动效播完（真实时间，�
 func _ready() -> void:
 	# 快照 profile 原始值，结束还原（测试要伪造最高分/新纪录）
 	var orig_high_score: int = GameState.high_score
-	var orig_welcome_seen: bool = GameState.welcome_seen
-	GameState.welcome_seen = true  # 跳过欢迎页遮挡（内存值，结尾还原）
 	GameState.high_score = 12345
 	GameState.save_run(50.0, 10.0)  # 伪造存档让开始面板显示「继续对局」形态
 
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
-	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	await get_tree().process_frame
 
 	# 1. 开始面板（有存档：继续对局 primary + 最高分副信息行）
@@ -115,7 +110,6 @@ func _ready() -> void:
 	# 恢复现场：删测试存档 + 还原 profile 原始值落盘
 	GameState.delete_save()
 	GameState.high_score = orig_high_score
-	GameState.welcome_seen = orig_welcome_seen
 	GameState.save_profile()
 	print("ui capture done")
 	get_tree().quit()

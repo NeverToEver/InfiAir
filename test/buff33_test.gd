@@ -24,10 +24,6 @@ func _ready() -> void:
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
-	# 开场欢迎页（首屏）暂停游戏，先关闭进入开始面板
-	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:

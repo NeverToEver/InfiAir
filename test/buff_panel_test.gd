@@ -29,10 +29,8 @@ func _press_l() -> void:
 
 
 func _ready() -> void:
-	var orig_welcome_seen: bool = GameState.welcome_seen
 	var orig_locale: String = GameState.locale
 	GameState.delete_save()
-	GameState.welcome_seen = true
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
@@ -100,7 +98,6 @@ func _ready() -> void:
 
 	# ---------- 8. 清理 ----------
 	GameState.delete_save()
-	GameState.welcome_seen = orig_welcome_seen
 	GameState.set_locale(orig_locale)
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)

@@ -29,7 +29,6 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.high_score = 0
 	GameState.reduce_flash = false
-	GameState.welcome_seen = true
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")

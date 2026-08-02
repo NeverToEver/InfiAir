@@ -116,7 +116,7 @@
 ### 1.12 退出/返回导航（单一事实源 `docs/EXIT_FLOW.md`）
 
 - 所有平台返回输入统一收敛 `BackNavigator.go_back()`，经纯决策函数 `decide_back_action()` 分发（确认窗→过场跳过→设置/基地/阻塞态/结算→buff 栏→暂停→顶层→战斗）。
-- 页面层级：L3 模态 ExitConfirm → L2 覆盖（Settings/Base/GameOver/Buff/过场）→ L1 对局（HUD⇄Pause + buff 滚动栏）→ L0 StartPanel⇐WelcomeScreen。
+- 页面层级：L3 模态 ExitConfirm → L2 覆盖（Settings/Base/GameOver/Buff/过场）→ L1 对局（HUD⇄Pause + buff 滚动栏）→ L0 StartPanel。
 - 战斗中退出需二次确认（红色警告丢进度），确认后 `_execute_exit_cleanup`：存 profile、战斗中删 save、停止未播完音效、淡出退出。
 - 平台：PC Esc / 手柄 `ui_cancel` / Android 系统返回手势，同一状态机。
 
@@ -141,7 +141,7 @@ Main (scripts/main.gd)
 ├─ Spawner
 ├─ BulletPool / EnemyPool
 ├─ HUD（layer=2）/ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ StartPanel / WelcomeScreen / ExitConfirm
+├─ StartPanel / ExitConfirm
 ├─ BackNavigator
 ├─ MetaHealthFX（运行时 _ready 创建，layer=1）
 ├─ AimFrameLayer（运行时 _ready 创建，世界坐标）

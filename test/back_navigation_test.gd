@@ -29,7 +29,6 @@ func _press_esc() -> void:
 
 func _ready() -> void:
 	GameState.delete_save()
-	GameState.welcome_seen = false
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
@@ -37,7 +36,6 @@ func _ready() -> void:
 
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
-	var welcome: CanvasLayer = main.get_node("WelcomeScreen")
 	var start_panel: CanvasLayer = main.get_node("StartPanel")
 	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 	var settings_ui: CanvasLayer = main.get_node("SettingsUI")
@@ -47,9 +45,7 @@ func _ready() -> void:
 	var exit_confirm: CanvasLayer = main.get_node("ExitConfirm")
 	var A = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
-	# ---------- 1. 顶层：欢迎页 / 开始面板 → 退出确认 ----------
-	_check(welcome.visible and nav.decide_back_action() == A.CONFIRM_EXIT, "欢迎页（顶层）：决策=退出确认")
-	welcome.dismiss()
+	# ---------- 1. 顶层：开始面板 → 退出确认 ----------
 	_check(start_panel.visible and nav.decide_back_action() == A.CONFIRM_EXIT, "开始面板（顶层）：决策=退出确认")
 	await _press_esc()
 	_check(exit_confirm.visible and not exit_confirm.battle_mode(), "顶层 Esc：弹出退出确认（normal 模式）")

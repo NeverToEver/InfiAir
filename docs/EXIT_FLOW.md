@@ -14,7 +14,7 @@ L2 覆盖:  SettingsUI（opener = 暂停/开始面板）
                           结束后树保持暂停落 BaseUI，见 docs/RETURN_HOME_CINEMATIC.md §4）
 L1 对局:  Gameplay(HUD) ⇄ PauseUI
           buff 滚动栏（HUD 内覆盖层，L 键展开/收起，不暂停对局；Esc = 收起栏）
-L0 顶层:  StartPanel（主界面/大厅）⇐ WelcomeScreen（仅首次启动）
+L0 顶层:  StartPanel（主界面/大厅）
 ```
 
 `scenes/tutorial.tscn` 为独立场景：自身即顶层，Esc = 退出教程回主界面（`tutorial.gd` 自处理，不进状态机）。

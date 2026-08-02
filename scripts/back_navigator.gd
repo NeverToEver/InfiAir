@@ -16,7 +16,7 @@ enum BackAction {
 	TO_MAIN_MENU,  # 结算页 → 返回主界面
 	RESUME_GAME,  # 暂停中 → 继续游戏
 	OPEN_PAUSE,  # 战斗中 → 打开暂停（返回上一级）
-	CONFIRM_EXIT,  # 顶层（开始面板/欢迎页）→ 弹出全局退出确认
+	CONFIRM_EXIT,  # 顶层（开始面板）→ 弹出全局退出确认
 }
 
 @onready var _main: Node2D = get_parent()
@@ -27,7 +27,6 @@ enum BackAction {
 @onready var _game_over_ui: CanvasLayer = get_parent().get_node("GameOverUI")
 @onready var _base_ui: CanvasLayer = get_parent().get_node("BaseUI")
 @onready var _start_panel: CanvasLayer = get_parent().get_node("StartPanel")
-@onready var _welcome: CanvasLayer = get_parent().get_node("WelcomeScreen")
 @onready var _exit_confirm: CanvasLayer = get_parent().get_node("ExitConfirm")
 
 
@@ -115,7 +114,7 @@ func decide_back_action() -> BackAction:
 		return BackAction.CLOSE_BUFF_PANEL  # buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
 	if _pause_ui.visible:
 		return BackAction.RESUME_GAME
-	if _start_panel.visible or _welcome.visible:
+	if _start_panel.visible:
 		return BackAction.CONFIRM_EXIT
 	if _main.is_homecoming() or get_tree().paused:
 		return BackAction.IGNORE  # 其他暂停态不响应

@@ -116,9 +116,7 @@ func _ready() -> void:
 	_charge_ghost.visible = false
 	_build_charge_fx()
 	# 有存档则显示开始面板；无存档时开始面板由自身逻辑自显（并非"直接开新局"）。
-	# 欢迎页在显时由 dismiss() 补调 show_panel，不得在此抢显
-	# （GUI 焦点不看 layer 遮挡，Enter 会绕过欢迎页直接触发继续对局）
-	if GameState.has_save() and not $WelcomeScreen.visible:
+	if GameState.has_save():
 		_start_panel.show_panel()
 
 

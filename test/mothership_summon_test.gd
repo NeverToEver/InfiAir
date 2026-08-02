@@ -18,7 +18,6 @@ func _check(cond: bool, label: String) -> void:
 func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
-	GameState.welcome_seen = true  # 跳过欢迎页，直达开始面板
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame

@@ -262,10 +262,6 @@ func _start_run(p_continue: bool = false) -> void:
 	add_child(_main)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var welcome: CanvasLayer = _main.get_node("WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
-		_log("欢迎页已关闭")
 	# 开始面板可能晚一帧显示，轮询若干帧
 	var start_panel: CanvasLayer = _main.get_node("StartPanel")
 	for i in 10:

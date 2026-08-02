@@ -15,7 +15,6 @@
 [ext_resource type="Script" path="res://scripts/enemy_pool.gd" id="14"]
 [ext_resource type="Script" path="res://scripts/ui_segmented_bar.gd" id="15"]
 [ext_resource type="Script" path="res://scripts/settings_ui.gd" id="12"]
-[ext_resource type="Script" path="res://scripts/welcome_screen.gd" id="16"]
 [ext_resource type="Script" path="res://scripts/exit_confirm.gd" id="17"]
 [ext_resource type="Script" path="res://scripts/back_navigator.gd" id="18"]
 
@@ -181,11 +180,6 @@ script = ExtResource("11")
 process_mode = 3
 layer = 30
 script = ExtResource("10")
-
-[node name="WelcomeScreen" type="CanvasLayer" parent="."]
-process_mode = 3
-layer = 35
-script = ExtResource("16")
 
 [node name="ExitConfirm" type="CanvasLayer" parent="."]
 process_mode = 3

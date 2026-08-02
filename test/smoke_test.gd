@@ -21,10 +21,6 @@ func _ready() -> void:
 	GameState.set_difficulty(&"easy")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
-	# 欢迎页（进游戏首屏）→ 关闭后进入开始面板
-	var welcome: CanvasLayer = get_node("Main/WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	# 无存档时开始面板会自显：直接走「开始游戏」关闭之（难度选择见 difficulty_test）
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:

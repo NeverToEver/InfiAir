@@ -43,9 +43,6 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var welcome: CanvasLayer = main.get_node("WelcomeScreen")
-	if welcome.visible:
-		welcome.dismiss()
 	var start_panel: CanvasLayer = main.get_node("StartPanel")
 	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 	var settings_ui: CanvasLayer = main.get_node("SettingsUI")

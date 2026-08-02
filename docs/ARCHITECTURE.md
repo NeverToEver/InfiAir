@@ -37,7 +37,7 @@ Main (scripts/main.gd)
 ├─ BulletPool / EnemyPool
 ├─ HUD（layer=2：为 MetaHealthFX 让出「世界之上、HUD 之下」的 layer=1）
 ├─ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ StartPanel / WelcomeScreen / ExitConfirm
+├─ StartPanel / ExitConfirm
 ├─ BackNavigator
 ├─ MetaHealthFX（运行时由 main 在 _ready 创建，layer=1，Meta HUD 血量/受击全屏后处理）
 ├─ AimFrameLayer（运行时由 main 在 _ready 创建，世界坐标，辅助瞄准标记敌 bracket 框覆盖层，登记 GameState.aim_frame_layer）
@@ -61,7 +61,7 @@ Main (scripts/main.gd)
 - `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。
 - `scripts/boss.gd`：Boss 实体，HP 阶段模式表驱动（P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇），三型差异化狂暴（`boss.enrage.type_*`，狂暴期玩家减速 ×0.35 而非定身），难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`）。战斗锚线 `FIGHT_Y` 为距 view 顶缘偏移，使用点一律走 `_fight_anchor_y()`。设计见 `docs/BOSS_REDESIGN.md`。
 - `scripts/bullet_pool.gd`、`enemy_pool.gd`、`explosion.gd`、`starfield.gd`、`camera_shake.gd`、`spawn_telegraph.gd`：对象复用与表现层。
-- `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`welcome_screen.gd`、`exit_confirm.gd`：页面和覆盖层。开始面板是全遮光独立标题屏（不透出对局画面）：左上品牌区 + 左中切角菜单板 + 右侧装饰雷达 `scripts/start_radar.gd` + 装饰星空 `scripts/start_backdrop.gd`（固定种子静态星点，与对局 Starfield 无关）。
+- `scripts/hud.gd`、`buff_select.gd`、`base_console.gd`、`settings_ui.gd`、`pause_ui.gd`、`game_over_ui.gd`、`start_panel.gd`、`exit_confirm.gd`：页面和覆盖层。开始面板是全遮光独立标题屏（不透出对局画面）：左上品牌区 + 左中切角菜单板 + 右侧装饰雷达 `scripts/start_radar.gd` + 装饰星空 `scripts/start_backdrop.gd`（固定种子静态星点，与对局 Starfield 无关）。
 - `scripts/meta_health_fx.gd`（MetaHealthFX）+ `assets/shaders/meta_health.gdshader` + `assets/shaders/crack_field_bake.gdshader`：Meta HUD 血量/受击全屏后处理（设计 `docs/META_HUD_DESIGN.md`）——受击色差/径向模糊、攻击方向定向波纹、低血裂纹生长（Voronoi 距离场一次性预烘焙：窗口模式 SubViewport GPU 512²、headless CPU 64² 等价回退，**两路径公式必须同步**）、去饱和/晕影与 DYING 心跳/呼吸/HUD 抖动；满血隐藏全屏 ColorRect + `_process` 早退（常态零 GPU、≈零 CPU）。数值在 `effects.meta_health`，「减少闪光」开关在设置页「操作模式」。
 - `scripts/cinematic_fx.gd`（CinematicFx）：过场/演出共享特效静态工厂——软径向光晕 `soft_glow`、带纹理粒子 `particles`（≤96/发射器）、双层冲击波环 `shockwave`、分层能量束 `beam`、速度线 `speed_lines`、径向条纹 `radial_streaks`；驱动类 `_process` 全部零堆分配。开场/返航过场与母舰召唤演出共用。
 - `scripts/intro_cinematic.gd`：开场过场导演（6 镜头，新游戏触发，`docs/INTRO_CINEMATIC.md`）；播放时树暂停，Esc 经 BackNavigator `SKIP_INTRO`、任意键/点击跳过，播完/跳过统一走 `finished` 恢复。

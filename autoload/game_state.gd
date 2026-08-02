@@ -159,8 +159,6 @@ const PERSIST_VERSION := 2
 
 var high_score: int = 0
 var tutorial_done: bool = false
-## 欢迎页是否已展示过（profile 持久化：仅装机后首次启动显示欢迎页）
-var welcome_seen: bool = false
 
 
 var score: int = 0
@@ -946,7 +944,6 @@ func load_profile() -> void:
 		return
 	high_score = int(parsed.get("high_score", 0))
 	tutorial_done = save_bool(parsed.get("tutorial_done", false), false)
-	welcome_seen = save_bool(parsed.get("welcome_seen", false), false)
 	locale = str(parsed.get("locale", "zh"))
 	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
 	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
@@ -985,7 +982,6 @@ func save_profile() -> void:
 		"version": PERSIST_VERSION,
 		"high_score": high_score,
 		"tutorial_done": tutorial_done,
-		"welcome_seen": welcome_seen,
 		"key_bindings": key_bindings,
 		"locale": locale,
 		"difficulty": String(difficulty),

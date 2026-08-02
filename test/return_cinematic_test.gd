@@ -58,7 +58,6 @@ func _restore_from_base(base_ui: CanvasLayer) -> void:
 
 func _ready() -> void:
 	GameState.delete_save()
-	GameState.welcome_seen = true  # 跳过欢迎页；无存档时不显示开始面板，直接在对局态
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame

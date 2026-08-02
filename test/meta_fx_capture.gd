@@ -9,7 +9,6 @@ const OUT_DIR := "/tmp/"
 
 
 func _ready() -> void:
-	GameState.welcome_seen = true  # 跳过欢迎页
 	GameState.reduce_flash = false
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
