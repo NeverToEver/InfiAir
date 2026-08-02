@@ -137,6 +137,18 @@ func _ready() -> void:
 			has_dash_joy = true
 	_check(has_dash_joy, "P0-1：动作键含手柄按钮绑定")
 
+	# 12. 手柄设置（P0-1 设置页）：默认值 / setter 应用死区 / 持久化往返
+	_check(GameState.joy_deadzone == 0.5 and GameState.joy_aim_speed >= 200.0, "P0-1：手柄设置默认值（死区 0.5 / 灵敏度≥200）")
+	GameState.set_joy_deadzone(0.7)
+	_check(is_equal_approx(InputMap.action_get_deadzone(&"move_up"), 0.7), "P0-1：死区 setter 应用至 InputMap")
+	GameState.set_joy_aim_speed(1800.0)
+	GameState.save_profile()
+	GameState.load_profile()
+	_check(GameState.joy_aim_speed == 1800.0, "P0-1：瞄准灵敏度持久化往返")
+	_check(GameState.joy_deadzone == 0.7, "P0-1：死区持久化往返")
+	GameState.set_joy_deadzone(0.5)
+	GameState.set_joy_aim_speed(GameState.cfg("player.aim_assist.joy_speed", 1400.0))
+
 	print("BASE SYSTEM TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

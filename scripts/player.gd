@@ -188,6 +188,9 @@ func _ready() -> void:
 	_load_balance()
 	_refresh_buff_factors()
 	GameState.buffs_changed.connect(_refresh_buff_factors)
+	# P0-1：手柄右摇杆瞄准灵敏度由设置页驱动（joy_settings_changed 广播重读）
+	_aim_joy_speed = GameState.joy_aim_speed
+	GameState.joy_settings_changed.connect(_on_joy_settings_changed)
 	# P1-5：冲刺残影小池预建（消灭每次冲刺的节点+Tween 新建/销毁抖动）。
 	# 挂 Main 下（残影固定在世界坐标，不随玩家移动）；Main 场景构建期 add_child 会报
 	# "busy setting up children"，延迟到帧末执行
@@ -652,12 +655,15 @@ func _load_aim_assist_params() -> void:
 	_magnet_range = float(GameState.cfg(base + "magnet_range", _magnet_range))
 	_magnet_strength = float(GameState.cfg(base + "magnet_strength", _magnet_strength))
 	_magnet_max_speed = float(GameState.cfg(base + "magnet_max_speed", _magnet_max_speed))
-	# P0-1：手柄右摇杆虚拟准星速度（px/s，满偏摇杆每秒移动瞄准点距离）
-	_aim_joy_speed = float(GameState.cfg("player.aim_assist.joy_speed", _aim_joy_speed))
 
 
 func _on_aim_assist_level_changed(_level: StringName) -> void:
 	_load_aim_assist_params()
+
+
+## P0-1：手柄设置变更（右摇杆灵敏度）重读
+func _on_joy_settings_changed(aim_speed: float, _deadzone: float) -> void:
+	_aim_joy_speed = aim_speed
 
 
 

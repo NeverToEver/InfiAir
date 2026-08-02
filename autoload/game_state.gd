@@ -20,6 +20,8 @@ signal window_size_changed(level: StringName)
 signal aim_assist_changed(level: StringName)
 signal reduce_flash_changed(enabled: bool)
 signal mouse_lock_changed(enabled: bool)
+## P0-1 手柄设置：右摇杆瞄准灵敏度 + 摇杆死区（profile 持久化；变更时广播供 player 重读）
+signal joy_settings_changed(aim_speed: float, deadzone: float)
 ## buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新
 signal buffs_changed
 
@@ -177,6 +179,15 @@ const PERSIST_VERSION := 2
 var high_score: int = 0
 ## P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）
 var _joypad_bound: bool = false
+## P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
+var joy_aim_speed: float = 1400.0
+var joy_deadzone: float = 0.5
+## 手柄相关动作清单（死区应用与装配共用）
+const JOYPAD_ACTIONS: Array[StringName] = [
+	&"move_up", &"move_down", &"move_left", &"move_right",
+	&"aim_x", &"aim_y",
+	&"dash", &"boost", &"fine_move", &"dock", &"homecoming", &"give_up", &"buff_panel", &"restart",
+]
 ## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
 var highscores: Array[Dictionary] = []
 const HIGHSCORE_LIMIT := 10
@@ -608,6 +619,27 @@ func set_mouse_lock(enabled: bool) -> void:
 	mouse_lock_changed.emit(enabled)
 
 
+## P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）
+func set_joy_aim_speed(value: float) -> void:
+	joy_aim_speed = clampf(value, 200.0, 4000.0)
+	_apply_joy_settings()
+
+
+## P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）
+func set_joy_deadzone(value: float) -> void:
+	joy_deadzone = clampf(value, 0.05, 0.9)
+	_apply_joy_settings()
+
+
+## 应用手柄设置：死区写入 InputMap（手柄动作全局生效）+ 持久化 + 广播
+func _apply_joy_settings() -> void:
+	for a in JOYPAD_ACTIONS:
+		if InputMap.has_action(a):
+			InputMap.action_set_deadzone(a, joy_deadzone)
+	save_profile()
+	joy_settings_changed.emit(joy_aim_speed, joy_deadzone)
+
+
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
 ## 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
 ## 物理帧内缓存（P0-1）：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询。
@@ -780,6 +812,10 @@ func _bind_joypad_defaults() -> void:
 	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取，虚拟准星）
 	_add_joy_axis(&"aim_x", 2, 1.0)
 	_add_joy_axis(&"aim_y", 3, 1.0)
+	# 应用已持久化的摇杆死区（不触发 save/广播，启动装配专用）
+	for a in JOYPAD_ACTIONS:
+		if InputMap.has_action(a):
+			InputMap.action_set_deadzone(a, joy_deadzone)
 
 
 func _add_joy_axis(action: StringName, axis: int, value: float) -> void:
@@ -1124,6 +1160,13 @@ func load_profile() -> void:
 		aim_assist_level = saved_aim
 	reduce_flash = save_bool(parsed.get("reduce_flash", reduce_flash), reduce_flash)
 	mouse_lock = save_bool(parsed.get("mouse_lock", mouse_lock), mouse_lock)
+	# P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
+	var joy_speed: Variant = parsed.get("joy_aim_speed", cfg("player.aim_assist.joy_speed", joy_aim_speed))
+	if joy_speed is float or joy_speed is int:
+		joy_aim_speed = clampf(float(joy_speed), 200.0, 4000.0)
+	var joy_dz: Variant = parsed.get("joy_deadzone", joy_deadzone)
+	if joy_dz is float or joy_dz is int:
+		joy_deadzone = clampf(float(joy_dz), 0.05, 0.9)
 	# P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
 	highscores.clear()
 	var saved_highscores: Variant = parsed.get("highscores", [])
@@ -1155,6 +1198,8 @@ func save_profile() -> void:
 		"aim_assist": String(aim_assist_level),
 		"reduce_flash": reduce_flash,
 		"mouse_lock": mouse_lock,
+		"joy_aim_speed": joy_aim_speed,
+		"joy_deadzone": joy_deadzone,
 		"highscores": highscores,
 	}
 	_save_manager.save(PROFILE_PATH, data)

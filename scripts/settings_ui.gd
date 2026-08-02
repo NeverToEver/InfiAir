@@ -22,6 +22,8 @@ var _window_group := ButtonGroup.new()
 var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
 var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
 var _mouse_lock_btn: Button  # 显示·鼠标锁定窗口内开关
+var _joy_speed_slider: HSlider  # 手柄·右摇杆瞄准灵敏度
+var _joy_deadzone_slider: HSlider  # 手柄·摇杆死区
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
@@ -269,6 +271,17 @@ func _build_modes_page() -> VBoxContainer:
 	_mouse_lock_btn.pressed.connect(_on_mouse_lock)
 	page.add_child(_mouse_lock_btn)
 	page.add_child(UITheme.make_label(tr("SET_MOUSE_LOCK_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+	# 手柄（P0-1）：右摇杆瞄准灵敏度 + 摇杆死区（InputMap 全局 deadzone）
+	page.add_child(UITheme.make_section_header(tr("SET_JOY")))
+	_joy_speed_slider = _make_joy_slider(
+		page, tr("SET_JOY_AIM_SPEED"), 200.0, 4000.0, GameState.joy_aim_speed, "%.0f",
+		func(v: float) -> void: GameState.set_joy_aim_speed(v)
+	)
+	_joy_deadzone_slider = _make_joy_slider(
+		page, tr("SET_JOY_DEADZONE"), 5.0, 90.0, GameState.joy_deadzone * 100.0, "%.0f%%",
+		func(v: float) -> void: GameState.set_joy_deadzone(v / 100.0)
+	)
+	page.add_child(UITheme.make_label(tr("SET_JOY_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
 	# 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
 	page.add_child(UITheme.make_section_header(tr("SET_ACCESSIBILITY")))
 	var rf_row := HBoxContainer.new()
@@ -296,6 +309,41 @@ func _make_mode_row(parent: Container, label_text: String, group: ButtonGroup) -
 	row.add_child(hold)
 	row.add_child(toggle)
 	return [hold, toggle]
+
+
+## P0-1：手柄参数滑杆行（标题 + HSlider + 数值标签；value_changed 实时回调并更新数值显示）
+func _make_joy_slider(
+	parent: Container,
+	title: String,
+	min_value: float,
+	max_value: float,
+	value: float,
+	format: String,
+	on_changed: Callable
+) -> HSlider:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	parent.add_child(row)
+	var label := UITheme.make_label(title, UITheme.FONT_BODY, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+	label.custom_minimum_size = Vector2(200.0, 0.0)
+	row.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = min_value
+	slider.max_value = max_value
+	slider.step = 1.0
+	slider.value = value
+	slider.custom_minimum_size = Vector2(240.0, 0.0)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var value_label := UITheme.make_label(format % value, UITheme.FONT_BODY, UITheme.TEXT_DIM)
+	value_label.custom_minimum_size = Vector2(70.0, 0.0)
+	row.add_child(value_label)
+	slider.value_changed.connect(
+		func(v: float) -> void:
+			value_label.text = format % v
+			on_changed.call(v)
+	)
+	return slider
 
 
 # ---------------- 关于 ----------------
