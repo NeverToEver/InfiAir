@@ -638,6 +638,11 @@ func _early_depart() -> void:
 
 
 func start_release() -> void:
+	# E05：所有强制离舰路径（警告到期/弹匣耗尽）统一清 HUD 提前离舰进度条——
+	# H 按住时走本路径不复位，进度条残留可见（_early_depart 已有清理，此处兜底全部入口）
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null:
+		hud.set_early_leave_charge(-1.0)
 	_beam.visible = false
 	# 时长折扣对所有离场路径生效（剩余比例越低折扣越小）
 	var ratio := clampf(float(_mag_cells) / float(MAG_CELLS), 0.0, 1.0)

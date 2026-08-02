@@ -466,7 +466,11 @@ func _begin_lifetime_exit() -> void:
 		_exit_dir = Vector2(randf_range(-0.6, 0.6), -1.0).normalized()  # 向上
 	else:
 		# 就近侧方（略带上行），从较近的一侧离场
-		_exit_dir = Vector2(1.0 if position.x < 960.0 else -1.0, randf_range(-0.4, 0.0)).normalized()
+		# E06 修复：960 硬编码改视口中心（D10 同类口径；相机滚动时取当前可视中心）
+		_exit_dir = Vector2(
+			1.0 if position.x < GameState.view_world_rect().get_center().x else -1.0,
+			randf_range(-0.4, 0.0)
+		).normalized()
 	_exit_speed = speed
 
 

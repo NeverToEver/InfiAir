@@ -238,6 +238,9 @@ func _refresh_texts() -> void:
 	_continue_button.text = tr("START_CONTINUE")
 	_new_button.text = tr("START_NEW") if has_save else tr("START_BEGIN")
 	_tutorial_button.text = tr("START_TUTORIAL_DONE") if GameState.tutorial_done else tr("START_TUTORIAL")
+	# E02：通关后禁用教程按钮——重进教程 tutorial._ready 会无条件 delete_save()，
+	# 静默删掉进行中存档；禁用 + _on_tutorial_pressed 守卫双保险
+	_tutorial_button.disabled = GameState.tutorial_done
 	_settings_button.text = tr("START_SETTINGS")
 	_diff_label.text = tr("START_DIFFICULTY")
 	# D04：难度按钮文案走翻译键（与 HUD difficulty_label 同口径），locale 切换时一并刷新
@@ -273,6 +276,10 @@ func _on_new_game_pressed() -> void:
 
 
 func _on_tutorial_pressed() -> void:
+	# E02：通关后禁入教程（UI 已禁用按钮，此处兜底防键盘/程序化调用）——
+	# 重进会触发 tutorial._ready 的 delete_save()，静默删掉进行中存档
+	if GameState.tutorial_done:
+		return
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/tutorial.tscn")
 
