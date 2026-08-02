@@ -1,0 +1,14 @@
+# Third-Party Notices
+
+本仓库除下述第三方素材外，游戏代码、贴图、音频与着色器均为原创（程序化生成），适用 [LICENSE](LICENSE)（MIT）。
+
+The game code, sprites, audio and shaders in this repository are original
+(procedurally generated) and licensed under the [LICENSE](LICENSE) (MIT).
+The only third-party asset is the font listed below.
+
+## Fonts
+
+- **Noto Sans SC** (`assets/fonts/NotoSansSC.ttf`)
+  - Copyright 2014-2021 The Noto Project Authors
+  - Licensed under the **SIL Open Font License, Version 1.1**
+  - <https://openfontlicense.org/> · <https://fonts.google.com/noto/specimen/Noto+Sans+SC>

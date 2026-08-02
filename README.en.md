@@ -157,7 +157,7 @@ The full 31-scene list, the `perf_bench` performance benchmark, the autoplay sim
 
 **Acknowledgments**: [airwar-game](https://github.com/NeverToEver/airwar-game) (original prototype) · [Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate) · [top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core) · [SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D) · [Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template) · [Godot Engine](https://godotengine.org/) · [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) (SIL OFL)
 
-**License**: this repository went public on 2026-08-02, but has not chosen an open-source license yet (no license means all rights reserved); please contact the author before using or redistributing.
+**License**: the game code and procedurally generated assets are released under the [MIT License](./LICENSE); the bundled font [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) is licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/) (third-party notices in [NOTICE](./NOTICE)).
 
 </details>
 
