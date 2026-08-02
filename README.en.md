@@ -89,7 +89,7 @@ godot --path .
 - **Health & score**: start with 100 HP; taking a hit grants invulnerability and clears nearby enemy bullets. Pure score-based — no item drops; death ends the run.
 - **Growth**: draft 1-of-3 buffs at score milestones; boss kills and base missions earn RP for repairs and resupply.
 - **Pacing**: new enemy classes and elites unlock as your score rises; difficulty grows with no cap as kills and time add up — survive longer, score higher.
-- **Saves**: save anytime from the pause menu; homecoming auto-updates the save so you can continue on next launch.
+- **Saves**: run progress auto-saves to `user://savegame.json` (cleared on death); homecoming updates it automatically; settings / best score / local leaderboard live in `user://profile.json`. Corrupt saves are quarantined and backed up, never blocking startup.
 - **Getting started**: the game boots straight to the main menu; a 6-stage tutorial (movement / dash / combat / mothership / homecoming / boss enrage) awaits on first entry.
 
 ## 📁 For Developers
