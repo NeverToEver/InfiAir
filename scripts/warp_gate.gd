@@ -68,10 +68,20 @@ func _ready() -> void:
 		add_child(swirl)
 		_swirls.append(swirl)
 	# 门缘内吸粒子：环上发射、负径向速度流向门心
-	_rim_fx = CinematicFx.particles({
-		"amount": 48, "lifetime": 0.55, "vel_min": 0.0, "vel_max": 0.0,
-		"scale_min": 3.0, "scale_max": 6.0, "color": Color(CYAN, 0.7),
-	})
+	_rim_fx = (
+		CinematicFx
+		. particles(
+			{
+				"amount": 48,
+				"lifetime": 0.55,
+				"vel_min": 0.0,
+				"vel_max": 0.0,
+				"scale_min": 3.0,
+				"scale_max": 6.0,
+				"color": Color(CYAN, 0.7),
+			}
+		)
+	)
 	var rim_mat := _rim_fx.process_material as ParticleProcessMaterial
 	rim_mat.direction = Vector3.ZERO
 	rim_mat.spread = 0.0

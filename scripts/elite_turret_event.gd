@@ -20,7 +20,10 @@ var TURRET_HP_BASE := 80
 var TURRET_COUNTS: Dictionary = {"easy": 3, "medium": 4, "hard": 5}
 var FIRE_INTERVAL := Vector2(2.0, 2.4)
 var WEAK_LOCK: Dictionary = {
-	"turn_rate": 2.0, "homing_turn_rate": 1.5, "homing_time": 0.6, "spread_deg": 7.0,
+	"turn_rate": 2.0,
+	"homing_turn_rate": 1.5,
+	"homing_time": 0.6,
+	"spread_deg": 7.0,
 }
 var AMMO_SEQUENCES: Dictionary = {
 	"easy": [&"single", &"spread3", &"single"],
@@ -77,6 +80,8 @@ func set_state(p_state: State) -> void:
 
 func cooldown_left() -> float:
 	return _cooldown_left
+
+
 var _turrets: Array[TurretBattery] = []
 var _turret_sockets: Dictionary = {}  # turret -> 基座环索引
 var _timer: float = 0.0

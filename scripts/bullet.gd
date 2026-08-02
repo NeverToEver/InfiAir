@@ -47,12 +47,7 @@ var _repooling: bool = false
 
 ## 兼容路径：直接实例化时 setup() 后由 _ready() 应用阵营外观。
 func setup(
-	p_direction: Vector2,
-	p_speed: float,
-	p_damage: int,
-	p_is_player: bool,
-	p_homing: bool = false,
-	p_homing_time: float = 0.0
+	p_direction: Vector2, p_speed: float, p_damage: int, p_is_player: bool, p_homing: bool = false, p_homing_time: float = 0.0
 ) -> void:
 	direction = p_direction.normalized()
 	# H10（健壮性审核）：零方向弹回退 DOWN（对齐 G026 口径，防静止弹永驻场景）
@@ -68,12 +63,7 @@ func setup(
 
 ## 池化路径：激活并重置全部状态（含上一任使用者的外观/标记）。
 func activate(
-	p_direction: Vector2,
-	p_speed: float,
-	p_damage: int,
-	p_is_player: bool,
-	p_homing: bool = false,
-	p_homing_time: float = 0.0
+	p_direction: Vector2, p_speed: float, p_damage: int, p_is_player: bool, p_homing: bool = false, p_homing_time: float = 0.0
 ) -> void:
 	setup(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
 	_active = true
@@ -257,9 +247,7 @@ func _physics_process(delta: float) -> void:
 		_homing_elapsed += delta
 		if GameState.player_ref != null:
 			var new_angle := lerp_angle(
-				direction.angle(),
-				(GameState.player_ref.global_position - global_position).angle(),
-				homing_turn_rate * delta
+				direction.angle(), (GameState.player_ref.global_position - global_position).angle(), homing_turn_rate * delta
 			)
 			direction = Vector2.RIGHT.rotated(new_angle)
 			rotation = new_angle

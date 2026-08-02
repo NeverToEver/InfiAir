@@ -45,26 +45,33 @@ const STALKER_POINT_ANGLES_DEG: Array[float] = [0.0, -90.0, 180.0, 90.0, 0.0, -9
 ## 1 型 P1=[5路扇形,追踪弹] P2=[蓄力重炮,7路扇形]；2 型 P1=[3连狙] P2=[冲刺掠过,3连狙]；
 ## 3 型 P1=[旋转cross+召唤] P2=[编队齐射,弹幕墙]（召唤为独立计时，不在模式表内）。
 const DEFAULT_PATTERNS: Dictionary = {
-	1: {
-		"p1": [
+	1:
+	{
+		"p1":
+		[
 			{"attack": &"fan5", "waves": 3, "interval": 1.6},
 			{"attack": &"homing", "waves": 2, "interval": 1.6},
 		],
-		"p2": [
+		"p2":
+		[
 			{"attack": &"charged_cannon", "waves": 1, "interval": 2.4},
 			{"attack": &"fan7", "waves": 3, "interval": 1.4},
 		],
 	},
-	2: {
+	2:
+	{
 		"p1": [{"attack": &"sniper3", "waves": 1, "interval": 1.8}],
-		"p2": [
+		"p2":
+		[
 			{"attack": &"dash_sweep", "waves": 1, "interval": 2.5},
 			{"attack": &"sniper3", "waves": 1, "interval": 1.5},
 		],
 	},
-	3: {
+	3:
+	{
 		"p1": [{"attack": &"cross", "duration": 6.0, "interval": 0.9}],
-		"p2": [
+		"p2":
+		[
 			{"attack": &"minion_volley", "waves": 1, "interval": 2.0},
 			{"attack": &"bullet_wall", "waves": 1, "interval": 1.5},
 		],
@@ -275,12 +282,7 @@ func setup(p_difficulty: float, p_type: int) -> void:
 				hp_mults_valid = false
 				break
 	var hp_mults: Array = hp_mults_raw if hp_mults_valid else [1.3, 0.7, 1.6]
-	max_hp = (
-		float(GameState.cfg("boss.hp_base", HP_BASE))
-		* float(hp_mults[p_type - 1])
-		* p_difficulty
-		* GameState.enemy_hp_multiplier()
-	)
+	max_hp = (float(GameState.cfg("boss.hp_base", HP_BASE)) * float(hp_mults[p_type - 1]) * p_difficulty * GameState.enemy_hp_multiplier())
 	hp = max_hp
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
 	($Sprite2D as Sprite2D).texture = TEXTURES[p_type - 1]
@@ -682,18 +684,14 @@ func _physics_process(delta: float) -> void:
 	# 狂暴序列接管移动与开火（逃跑计时照常走，序列中到点照样逃跑；撞击判定保留）
 	if _enrage_seq.is_active():
 		if _survival >= ESCAPE_TIME - ESCAPE_WARNING:
-			_sprite.modulate = (
-				Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate()
-			)
+			_sprite.modulate = (Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate())
 		_enrage_seq.update(delta, self)
 		_check_body_collision()
 		return
 
 	if _survival >= ESCAPE_TIME - ESCAPE_WARNING:
 		position.y -= ESCAPE_DRIFT * delta
-		_sprite.modulate = (
-			Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate()
-		)
+		_sprite.modulate = (Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate())
 
 	# 冲刺掠过（二型 P2）接管移动与模式编排；否则走位 + 模式表循环
 	if _attacks.is_sweep_active():
@@ -731,6 +729,7 @@ func _physics_process(delta: float) -> void:
 
 # ---------------- 阶段框架与模式表（§4.1） ----------------
 
+
 ## 当前模式（ENRAGE「余怒」沿用 P2 表提速）
 func _current_pattern() -> Dictionary:
 	var list: Array = _patterns["p1" if _fight_phase == FightPhase.P1 else "p2"]
@@ -754,8 +753,6 @@ func _advance_pattern() -> void:
 	_start_pattern()
 
 
-
-
 ## P1→P2 段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身开火计时（§4.1），模式表重置循环
 func _enter_phase(p_phase: int) -> void:
 	_fight_phase = p_phase
@@ -773,6 +770,7 @@ func _enter_phase(p_phase: int) -> void:
 
 # ---------------- 走位（与攻击解耦；阶段 A 仅一型 P1 纵向下压，其余保持现状） ----------------
 
+
 ## 战斗锚线 y：FIGHT_Y 为距可见区域顶缘的偏移，调用时实时取 view 基线
 ## （与 strafe_range() 边距处理对齐；zoom=1 时 view.position.y=0，锚线 = FIGHT_Y 本身）。
 ## A3：走位实现在 BossMovement，此处保留只读查询供子类/内部使用。
@@ -788,23 +786,6 @@ func strafe_range() -> Vector2:
 	return Vector2(lo, hi)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 func _summon_minions() -> void:
 	if _spawner == null:
 		return
@@ -818,9 +799,13 @@ func fire_enrage_snapshot() -> void:
 	if _escaping:
 		return
 	_fire.fire_enrage_wave(
-		self, ENRAGE_LASER_SPEED, ENRAGE_RING_SPEED,
-		BULLET_DAMAGE_SNAPSHOT_LASER, BULLET_DAMAGE_SNAPSHOT_RING,
-		ENRAGE_SNAPSHOT_LASERS, ENRAGE_SNAPSHOT_RING
+		self,
+		ENRAGE_LASER_SPEED,
+		ENRAGE_RING_SPEED,
+		BULLET_DAMAGE_SNAPSHOT_LASER,
+		BULLET_DAMAGE_SNAPSHOT_RING,
+		ENRAGE_SNAPSHOT_LASERS,
+		ENRAGE_SNAPSHOT_RING
 	)
 
 
@@ -829,9 +814,13 @@ func _fire_enrage_release() -> void:
 	if _escaping:
 		return
 	_fire.fire_enrage_wave(
-		self, ENRAGE_RELEASE_LASER_SPEED, ENRAGE_RELEASE_RING_SPEED,
-		BULLET_DAMAGE_SNAPSHOT_LASER, BULLET_DAMAGE_SNAPSHOT_RING,
-		ENRAGE_SNAPSHOT_LASERS, ENRAGE_SNAPSHOT_RING
+		self,
+		ENRAGE_RELEASE_LASER_SPEED,
+		ENRAGE_RELEASE_RING_SPEED,
+		BULLET_DAMAGE_SNAPSHOT_LASER,
+		BULLET_DAMAGE_SNAPSHOT_RING,
+		ENRAGE_SNAPSHOT_LASERS,
+		ENRAGE_SNAPSHOT_RING
 	)
 
 
@@ -896,8 +885,7 @@ func _check_body_collision() -> void:
 	if hb != null and overlaps_area(hb):
 		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
 		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))),
-			global_position
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position
 		)
 
 
@@ -908,9 +896,7 @@ func _enrage() -> void:
 	# （狂暴数据初始化 + 锁血 + 玩家减速委托 EnrageSequence，A3）
 	_attacks.cancel_all()
 	_enrage_seq.begin(
-		self,
-		GameState.player_ref.global_position if GameState.player_ref != null else GameState.view_world_rect().get_center(),
-		_boss_size
+		self, GameState.player_ref.global_position if GameState.player_ref != null else GameState.view_world_rect().get_center(), _boss_size
 	)
 	_sprite.modulate = _base_modulate()
 	GameState.shake(GameState.cfg("effects.shake.enrage", 16.0))

@@ -5,7 +5,6 @@ extends CanvasLayer
 ## profile 落盘 → 战斗中删档（放弃对局）→ 资源 hook → 淡出 0.3s → quit。
 ## Esc/手柄 B 取消由 BackNavigator 路由到 cancel()。
 
-
 var _msg_label: Label
 var _ok_button: Button
 var _cancel_button: Button
@@ -66,9 +65,7 @@ func show_confirm(battle: bool = false) -> void:
 func _refresh_texts() -> void:
 	_title_label.text = tr("EXIT_TITLE")
 	_msg_label.text = tr("EXIT_BATTLE_MSG") if _battle else tr("EXIT_MSG")
-	_msg_label.add_theme_color_override(
-		"font_color", UITheme.DANGER if _battle else UITheme.TEXT
-	)
+	_msg_label.add_theme_color_override("font_color", UITheme.DANGER if _battle else UITheme.TEXT)
 	_ok_button.text = tr("EXIT_OK")
 	_cancel_button.text = tr("EXIT_CANCEL")
 

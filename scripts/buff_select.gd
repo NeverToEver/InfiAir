@@ -59,11 +59,12 @@ func _ready() -> void:
 ## 层数上限可用 balance.json 的 buffs.<id>.max_stacks 覆盖（缺省用池内值）。
 func _available_buffs() -> Array[Dictionary]:
 	return BUFF_POOL.filter(
-		func(b: Dictionary) -> bool: return (
-			GameState.buff_count(b["id"]) < int(GameState.cfg("buffs.%s.max_stacks" % String(b["id"]), b["max"]))
-			and not GameState.is_buff_locked(b["id"])
-			and (b["id"] != &"explosive" or GameState.boss_kills >= int(GameState.cfg("buffs.explosive.unlock_boss_kills", 3)))
-		)
+		func(b: Dictionary) -> bool:
+			return (
+				GameState.buff_count(b["id"]) < int(GameState.cfg("buffs.%s.max_stacks" % String(b["id"]), b["max"]))
+				and not GameState.is_buff_locked(b["id"])
+				and (b["id"] != &"explosive" or GameState.boss_kills >= int(GameState.cfg("buffs.explosive.unlock_boss_kills", 3)))
+			)
 	)
 
 
@@ -144,9 +145,7 @@ func _make_card(buff: Dictionary) -> Control:
 	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	name_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(name_row)
-	name_row.add_child(UITheme.make_label(
-		tr("BUFF_%s_NAME" % String(id).to_upper()), UITheme.FONT_HEADER, UITheme.ACCENT
-	))
+	name_row.add_child(UITheme.make_label(tr("BUFF_%s_NAME" % String(id).to_upper()), UITheme.FONT_HEADER, UITheme.ACCENT))
 	if stacks == 0:
 		name_row.add_child(UITheme.make_label(tr("BUFF_NEW_BADGE"), UITheme.FONT_SMALL, UITheme.ACCENT_GOLD))
 
@@ -164,9 +163,7 @@ func _make_card(buff: Dictionary) -> Control:
 		if stacks < max_stacks:
 			pip_row.add_child(UITheme.make_label("○".repeat(max_stacks - stacks), UITheme.FONT_CAPTION, UITheme.TEXT_DIM))
 	elif stacks > 0:
-		pip_slot.add_child(UITheme.make_label(
-			tr("BUFF_STACKS_FMT") % stacks, UITheme.FONT_CAPTION, UITheme.ACCENT_GOLD
-		))
+		pip_slot.add_child(UITheme.make_label(tr("BUFF_STACKS_FMT") % stacks, UITheme.FONT_CAPTION, UITheme.ACCENT_GOLD))
 
 	# 分隔线 + 来源分类小标签（进攻/机动/通用，分类色）
 	var divider_wrap := CenterContainer.new()
@@ -183,9 +180,7 @@ func _make_card(buff: Dictionary) -> Control:
 	vbox.add_child(UITheme.make_label(tr(kind_key), UITheme.FONT_SMALL, kind_color))
 
 	# 描述：固定最小高度，三卡底缘对齐
-	var desc_label := UITheme.make_label(
-		tr("BUFF_%s_DESC" % String(id).to_upper()), UITheme.FONT_BODY, UITheme.TEXT_DIM
-	)
+	var desc_label := UITheme.make_label(tr("BUFF_%s_DESC" % String(id).to_upper()), UITheme.FONT_BODY, UITheme.TEXT_DIM)
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_label.custom_minimum_size = Vector2(0.0, 62.0)
 	vbox.add_child(desc_label)

@@ -18,10 +18,19 @@ var _aggressive_chase_speed: float = 140.0
 
 func _init(params: Dictionary = {}) -> void:
 	for k in params.keys():
-		if k in [
-			"hover_bob_amp", "hover_bob_freq", "hover_sway_amp", "hover_sway_freq",
-			"spiral_drift_amp", "spiral_drift_freq", "spiral_radius", "aggressive_chase_speed",
-		]:
+		if (
+			k
+			in [
+				"hover_bob_amp",
+				"hover_bob_freq",
+				"hover_sway_amp",
+				"hover_sway_freq",
+				"spiral_drift_amp",
+				"spiral_drift_freq",
+				"spiral_radius",
+				"aggressive_chase_speed",
+			]
+		):
 			set(k, params[k])
 
 
@@ -119,7 +128,9 @@ class DiveMove:
 			enemy.position.y = minf(enemy.position.y, ctx.view.end.y - 200.0)
 			if _dive_timer <= 0.0:
 				# 冲刺结束后以当前深度与锚点较深者为新锚点，转入悬停（悬停带下界加 view 基线）
-				enemy.anchor_y = clampf(maxf(enemy.anchor_y, enemy.position.y), ctx.view.position.y + enemy.HOVER_BAND.x, ctx.view.end.y - 200.0)
+				enemy.anchor_y = clampf(
+					maxf(enemy.anchor_y, enemy.position.y), ctx.view.position.y + enemy.HOVER_BAND.x, ctx.view.end.y - 200.0
+				)
 		elif ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
 		else:
@@ -152,8 +163,7 @@ class SpiralMove:
 				ctx.view.end.x - 40.0
 			)
 		enemy.position = (
-			_center
-			+ Vector2(Enemy.cos_fast(ctx.time * 4.0 + ctx.phase), Enemy.sin_fast(ctx.time * 4.0 + ctx.phase)) * _spiral_radius
+			_center + Vector2(Enemy.cos_fast(ctx.time * 4.0 + ctx.phase), Enemy.sin_fast(ctx.time * 4.0 + ctx.phase)) * _spiral_radius
 		)
 
 	func hover_reference_y() -> float:
@@ -174,7 +184,9 @@ class NoiseMove:
 				+ Enemy.sin_fast(ctx.time * 2.9 + 1.3 + ctx.phase)
 				+ Enemy.sin_fast(ctx.time * 4.3 + 2.1 + ctx.phase)
 			)
-			/ 3.0 * ctx.speed * 1.2
+			/ 3.0
+			* ctx.speed
+			* 1.2
 		)
 		enemy.position.x += vx * ctx.mdelta
 		enemy.position.x = clampf(enemy.position.x, ctx.view.position.x + 40.0, ctx.view.end.x - 40.0)
@@ -195,7 +207,9 @@ class AggressiveMove:
 				+ Enemy.sin_fast(ctx.time * 3.4 + 1.7 + ctx.phase)
 				+ Enemy.sin_fast(ctx.time * 5.3 + 0.6 + ctx.phase)
 			)
-			/ 3.0 * ctx.speed * 1.1
+			/ 3.0
+			* ctx.speed
+			* 1.1
 		)
 		var player: Node2D = ctx.player
 		if player != null:

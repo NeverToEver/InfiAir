@@ -312,9 +312,7 @@ func _process(delta: float) -> void:
 	if _dock_cooldown > 0.0:
 		_dock_cooldown -= delta
 	# 长按 H 蓄力召唤母舰（松手取消，不进冷却）
-	var can_charge := (
-		_mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming
-	)
+	var can_charge := _mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming
 	if can_charge and Input.is_action_pressed("dock"):
 		_charging = true
 		_charge_time += delta
@@ -401,10 +399,20 @@ func _build_charge_fx() -> void:
 		_charge_fx.add_child(ring)
 		_charge_rings.append(ring)
 	# 内吸粒子：环上发射、负径向速度流向中心（蓄能汇聚感）
-	_charge_inflow = CinematicFx.particles({
-		"amount": 36, "lifetime": 0.7, "vel_min": 0.0, "vel_max": 0.0,
-		"scale_min": 2.0, "scale_max": 4.0, "color": Color(0.5, 0.9, 1.0, 0.55),
-	})
+	_charge_inflow = (
+		CinematicFx
+		. particles(
+			{
+				"amount": 36,
+				"lifetime": 0.7,
+				"vel_min": 0.0,
+				"vel_max": 0.0,
+				"scale_min": 2.0,
+				"scale_max": 4.0,
+				"color": Color(0.5, 0.9, 1.0, 0.55),
+			}
+		)
+	)
 	var inflow_mat := _charge_inflow.process_material as ParticleProcessMaterial
 	inflow_mat.direction = Vector3.ZERO
 	inflow_mat.spread = 0.0
@@ -632,7 +640,9 @@ func _on_summon_window_finished() -> void:
 
 func _on_mothership_departed(cooldown: float) -> void:
 	# mothership_recall buff：每层冷却 ×0.5（60s→30s→15s）
-	_dock_cooldown = cooldown * pow(GameState.cfg("buffs.mothership_recall.cooldown_factor", 0.5), GameState.buff_count(&"mothership_recall"))
+	_dock_cooldown = (
+		cooldown * pow(GameState.cfg("buffs.mothership_recall.cooldown_factor", 0.5), GameState.buff_count(&"mothership_recall"))
+	)
 
 
 ## 放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）

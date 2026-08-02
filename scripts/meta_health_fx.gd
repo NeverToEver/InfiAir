@@ -217,10 +217,7 @@ func _on_health_changed(new_health: float) -> void:
 func _on_player_damaged(amount: float, from_pos: Vector2) -> void:
 	var r := amount / GameState.max_health()
 	# max 池化：高频低伤不累积（R2）
-	_hit_pulse = maxf(
-		_hit_pulse,
-		clampf(r * float(_cfg["pulse_scale"]), float(_cfg["pulse_min"]), 1.0)
-	)
+	_hit_pulse = maxf(_hit_pulse, clampf(r * float(_cfg["pulse_scale"]), float(_cfg["pulse_min"]), 1.0))
 	if from_pos == Vector2.INF or GameState.player_ref == null:
 		_hit_dir = Vector2.ZERO  # 无方向：波纹退化为全边缘均匀环
 	else:
@@ -298,9 +295,7 @@ func _process(delta: float) -> void:
 	elif new_state < _state:
 		_heal_t = 0.0
 	_state = new_state
-	_grow_boost = move_toward(
-		_grow_boost, 0.0, float(_cfg["crack_grow_overshoot"]) / float(_cfg["crack_grow_time"]) * delta
-	)
+	_grow_boost = move_toward(_grow_boost, 0.0, float(_cfg["crack_grow_overshoot"]) / float(_cfg["crack_grow_time"]) * delta)
 	if _heal_t >= 0.0:
 		_heal_t += delta / 0.7
 		if _heal_t >= 1.0:
@@ -319,7 +314,8 @@ func _process(delta: float) -> void:
 			_heart_phase = 0.0
 		var threshold_x := 1.0 - float(_cfg["dying_threshold"])
 		_heart_rate = lerpf(
-			float(_cfg["heart_min_hz"]), float(_cfg["heart_max_hz"]),
+			float(_cfg["heart_min_hz"]),
+			float(_cfg["heart_max_hz"]),
 			clampf((_damage_x - threshold_x) / maxf(1.0 - threshold_x, 0.01), 0.0, 1.0)
 		)
 		var prev := _heart_phase
@@ -342,9 +338,7 @@ func _process(delta: float) -> void:
 	var vig_inner_target := float(_cfg["vignette_inner"])
 	if _state == STATE_DYING and GameState.health > 0.0:
 		vig_inner_target -= float(_cfg["vignette_dying_shrink"])
-	_vig_inner = move_toward(
-		_vig_inner, vig_inner_target, float(_cfg["vignette_dying_shrink"]) / float(_cfg["dying_fade"]) * delta
-	)
+	_vig_inner = move_toward(_vig_inner, vig_inner_target, float(_cfg["vignette_dying_shrink"]) / float(_cfg["dying_fade"]) * delta)
 
 	# 5. D3 自适应可读性：注册表代理亮度（活跃弹数/爆炸数），0.25s 节流，零 GPU 回读
 	_adapt_timer -= delta
@@ -359,10 +353,7 @@ func _process(delta: float) -> void:
 			elif child is Explosion:
 				if child.visible:
 					explosions += 1
-		var proxy := (
-			bullets * float(_cfg["adapt_bullet_weight"])
-			+ explosions * float(_cfg["adapt_explosion_weight"])
-		)
+		var proxy := bullets * float(_cfg["adapt_bullet_weight"]) + explosions * float(_cfg["adapt_explosion_weight"])
 		_adapt_gain = clampf(1.0 - proxy, float(_cfg["adapt_min"]), float(_cfg["adapt_max"]))
 
 	# 6. 参数合成（§4.2 曲线；「减少闪光」在传参前折算，shader 零分支）
@@ -435,6 +426,7 @@ func set_lod(v: int) -> void:
 
 # ---------------- 裂纹距离场预烘焙（D1） ----------------
 
+
 ## 运行时 SubViewport 单帧烘焙（启动一次，512²，成本 1 帧）；headless dummy 渲染走 CPU 回退。
 func _bake_crack_field() -> void:
 	if DisplayServer.get_name() == "headless":
@@ -475,10 +467,7 @@ func _apply_crack_field_image(img: Image) -> void:
 func _cpu_bake_image(size: int) -> Image:
 	var seeds: Array[Vector2] = []
 	for i in 12:
-		seeds.append(Vector2(
-			_fract(sin(float(i) * 12.9898) * 43758.5453),
-			_fract(sin(float(i) * 78.233) * 43758.5453)
-		))
+		seeds.append(Vector2(_fract(sin(float(i) * 12.9898) * 43758.5453), _fract(sin(float(i) * 78.233) * 43758.5453)))
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	for y in size:
 		for x in size:

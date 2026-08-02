@@ -118,16 +118,25 @@ func _build_hangar() -> void:
 	var gantry_color := Color(0.03, 0.055, 0.1, 1.0)
 	for gx in [110.0, 280.0, 450.0]:
 		var strut := Polygon2D.new()
-		strut.polygon = PackedVector2Array([
-			Vector2(gx - 10.0, 70.0), Vector2(gx + 10.0, 70.0),
-			Vector2(gx + 16.0, 700.0), Vector2(gx - 16.0, 700.0),
-		])
+		strut.polygon = PackedVector2Array(
+			[
+				Vector2(gx - 10.0, 70.0),
+				Vector2(gx + 10.0, 70.0),
+				Vector2(gx + 16.0, 700.0),
+				Vector2(gx - 16.0, 700.0),
+			]
+		)
 		strut.color = gantry_color
 		_stage.add_child(strut)
 	var cross_beam := Polygon2D.new()
-	cross_beam.polygon = PackedVector2Array([
-		Vector2(40.0, 250.0), Vector2(520.0, 250.0), Vector2(520.0, 262.0), Vector2(40.0, 262.0),
-	])
+	cross_beam.polygon = PackedVector2Array(
+		[
+			Vector2(40.0, 250.0),
+			Vector2(520.0, 250.0),
+			Vector2(520.0, 262.0),
+			Vector2(40.0, 262.0),
+		]
+	)
 	cross_beam.color = gantry_color
 	_stage.add_child(cross_beam)
 	# 顶部滑轨（充能管线挂载点）
@@ -143,10 +152,14 @@ func _build_hangar() -> void:
 		lamp.position = Vector2(lx, 62.0)
 		_stage.add_child(lamp)
 		var cone := Polygon2D.new()
-		cone.polygon = PackedVector2Array([
-			Vector2(lx - 8.0, 68.0), Vector2(lx + 8.0, 68.0),
-			Vector2(lx + 42.0, 240.0), Vector2(lx - 42.0, 240.0),
-		])
+		cone.polygon = PackedVector2Array(
+			[
+				Vector2(lx - 8.0, 68.0),
+				Vector2(lx + 8.0, 68.0),
+				Vector2(lx + 42.0, 240.0),
+				Vector2(lx - 42.0, 240.0),
+			]
+		)
 		cone.color = Color(1.0, 0.9, 0.6, 0.045)
 		_stage.add_child(cone)
 	# 机库地线
@@ -159,10 +172,14 @@ func _build_hangar() -> void:
 	for si in 13:
 		var sx := 44.0 + 36.0 * float(si)
 		var stripe := Polygon2D.new()
-		stripe.polygon = PackedVector2Array([
-			Vector2(sx, 704.0), Vector2(sx + 28.0, 704.0),
-			Vector2(sx + 24.0, 712.0), Vector2(sx - 4.0, 712.0),
-		])
+		stripe.polygon = PackedVector2Array(
+			[
+				Vector2(sx, 704.0),
+				Vector2(sx + 28.0, 704.0),
+				Vector2(sx + 24.0, 712.0),
+				Vector2(sx - 4.0, 712.0),
+			]
+		)
 		stripe.color = Color(0.85, 0.7, 0.15, 0.4) if si % 2 == 0 else Color(0.05, 0.07, 0.12, 0.9)
 		_stage.add_child(stripe)
 	# 充能管线 ×3（顶部 → 舰体挂点）+ 断开软火花与一次性喷发
@@ -179,12 +196,24 @@ func _build_hangar() -> void:
 		spark.position = SHIP_HOME + attach[i]
 		_stage.add_child(spark)
 		_charge_sparks.append(spark)
-		var burst := CinematicFx.particles({
-			"amount": 14, "lifetime": 0.45, "explosiveness": 1.0, "one_shot": true,
-			"direction": Vector3(0.0, -1.0, 0.0), "spread": 70.0,
-			"vel_min": 40.0, "vel_max": 130.0,
-			"scale_min": 1.5, "scale_max": 3.5, "color": Color(0.7, 1.0, 0.95, 0.9),
-		})
+		var burst := (
+			CinematicFx
+			. particles(
+				{
+					"amount": 14,
+					"lifetime": 0.45,
+					"explosiveness": 1.0,
+					"one_shot": true,
+					"direction": Vector3(0.0, -1.0, 0.0),
+					"spread": 70.0,
+					"vel_min": 40.0,
+					"vel_max": 130.0,
+					"scale_min": 1.5,
+					"scale_max": 3.5,
+					"color": Color(0.7, 1.0, 0.95, 0.9),
+				}
+			)
+		)
 		burst.position = SHIP_HOME + attach[i]
 		burst.emitting = false
 		_stage.add_child(burst)
@@ -257,11 +286,18 @@ func _update(t: float, delta: float = 0.0) -> void:
 			GameState.play_sfx(GameState.SFX_DASH, -4.0, 0.6)
 			_flash.color = Color(WARP_BLUE, 0.55)
 			# 弹射起步冲击环（出仓点，一次性自毁）
-			var launch_sw := CinematicFx.shockwave({
-				"radius": 170.0, "time": 0.55,
-				"color": Color(WARP_BLUE, 0.5), "core_color": Color(0.85, 0.95, 1.0, 0.9),
-				"width": 9.0,
-			})
+			var launch_sw := (
+				CinematicFx
+				. shockwave(
+					{
+						"radius": 170.0,
+						"time": 0.55,
+						"color": Color(WARP_BLUE, 0.5),
+						"core_color": Color(0.85, 0.95, 1.0, 0.9),
+						"width": 9.0,
+					}
+				)
+			)
 			launch_sw.position = SHIP_HOME
 			_stage.add_child(launch_sw)
 	var p := clampf(st / _shot_durations[idx], 0.0, 1.0)

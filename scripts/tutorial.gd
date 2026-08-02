@@ -251,9 +251,7 @@ func _update_boost_objective() -> void:
 ## 母舰召唤（对齐 main._on_summon_window_finished 的实体路径：穿梭门 + begin_warp_in；
 ## 略去机库小窗演出保持教程节奏）
 func _summon_mothership() -> void:
-	var gate_pos := Vector2(
-		GameState.view_world_rect().get_center().x, GameState.cfg("mothership.hover_y", 270.0)
-	)
+	var gate_pos := Vector2(GameState.view_world_rect().get_center().x, GameState.cfg("mothership.hover_y", 270.0))
 	var gate := WarpGate.new()
 	gate.position = gate_pos
 	add_child(gate)

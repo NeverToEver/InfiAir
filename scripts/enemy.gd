@@ -94,6 +94,8 @@ static func sin_fast(x: float) -> float:
 
 static func cos_fast(x: float) -> float:
 	return sin_fast(x + PI / 2.0)
+
+
 var _hovering: bool = false
 var _life_timer: float = 0.0
 var _exiting: bool = false
@@ -115,22 +117,21 @@ var _tail_glow: Sprite2D = null
 ## p_bullet_type 为空时从弹种池随机抽取（spawner 传入已做同屏上限控制的结果）。
 ## HP 按难度档位缩放（easy ×0.75，medium ×1，hard ×1.5），并随对局进程 ramp：
 ## ×(1 + hp_ramp_factor ×(Boss 击杀难度乘数-1))；速度按难度档 ×0.85/×1/×1.2 与同一 ramp ×0.1 系数成长。
-func setup(
-	config: Dictionary,
-	p_strategy: StringName,
-	p_difficulty: float,
-	p_bullet_type: StringName = &""
-) -> void:
+func setup(config: Dictionary, p_strategy: StringName, p_difficulty: float, p_bullet_type: StringName = &"") -> void:
 	strategy = p_strategy
 	is_elite = config.get("elite", false)
 	# HP 三级乘算：机型区间 × 难度档 × 对局进程 ramp（随 Boss 击杀线性成长）
 	hp = maxi(
 		1,
-		int(roundf(
-			randf_range(config["hp"].x, config["hp"].y)
-			* GameState.enemy_hp_multiplier()
-			* (1.0 + GameState.cfg("enemies.hp_ramp_factor", HP_RAMP_FACTOR) * (p_difficulty - 1.0))
-		))
+		int(
+			roundf(
+				(
+					randf_range(config["hp"].x, config["hp"].y)
+					* GameState.enemy_hp_multiplier()
+					* (1.0 + GameState.cfg("enemies.hp_ramp_factor", HP_RAMP_FACTOR) * (p_difficulty - 1.0))
+				)
+			)
+		)
 	)
 	score_value = config["score"]
 	can_shoot = randf() < config["fire"]
@@ -256,10 +257,14 @@ func _ready() -> void:
 ## A4a：按 strategy 构建移动策略实例（共享悬停常量从 balance 缓存值注入，行为逐字节等价）
 func _make_strategy() -> EnemyMoveStrategy:
 	var params := {
-		"hover_bob_amp": HOVER_BOB_AMP, "hover_bob_freq": HOVER_BOB_FREQ,
-		"hover_sway_amp": HOVER_SWAY_AMP, "hover_sway_freq": HOVER_SWAY_FREQ,
-		"spiral_drift_amp": SPIRAL_DRIFT_AMP, "spiral_drift_freq": SPIRAL_DRIFT_FREQ,
-		"spiral_radius": SPIRAL_RADIUS, "aggressive_chase_speed": AGGR_CHASE_SPEED,
+		"hover_bob_amp": HOVER_BOB_AMP,
+		"hover_bob_freq": HOVER_BOB_FREQ,
+		"hover_sway_amp": HOVER_SWAY_AMP,
+		"hover_sway_freq": HOVER_SWAY_FREQ,
+		"spiral_drift_amp": SPIRAL_DRIFT_AMP,
+		"spiral_drift_freq": SPIRAL_DRIFT_FREQ,
+		"spiral_radius": SPIRAL_RADIUS,
+		"aggressive_chase_speed": AGGR_CHASE_SPEED,
 	}
 	match strategy:
 		&"sine":
@@ -309,8 +314,7 @@ func _check_body_collision() -> void:
 	if hb != null and overlaps_area(hb):
 		# 撞体伤害随对局进程 ramp（与敌弹同一系数）；补传撞体位置作伤害源方向（D8）
 		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))),
-			global_position
+			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position
 		)
 
 
@@ -388,11 +392,7 @@ func _physics_process(delta: float) -> void:
 		_exit_speed += EXIT_ACCEL * delta
 		position += _exit_dir * _exit_speed * delta
 		var exit_view := GameState.view_world_rect()
-		if (
-			position.y < exit_view.position.y - 150.0
-			or position.x < exit_view.position.x - 150.0
-			or position.x > exit_view.end.x + 150.0
-		):
+		if position.y < exit_view.position.y - 150.0 or position.x < exit_view.position.x - 150.0 or position.x > exit_view.end.x + 150.0:
 			_despawn()
 		return
 	_life_timer += delta
@@ -454,9 +454,7 @@ func _fire_at_player() -> void:
 		&"spread":
 			# 五向扇形弹：以瞄准方向为中心 ±2 步展开
 			for i in 5:
-				_spawn_enemy_bullet(
-					base_dir.rotated(SPREAD_FAN_STEP * float(i - 2)), SPREAD_BULLET_SPEED, &"spread"
-				)
+				_spawn_enemy_bullet(base_dir.rotated(SPREAD_FAN_STEP * float(i - 2)), SPREAD_BULLET_SPEED, &"spread")
 		&"laser":
 			_spawn_enemy_bullet(base_dir, LASER_BULLET_SPEED, &"laser")
 		_:
@@ -489,10 +487,7 @@ func _begin_lifetime_exit() -> void:
 	else:
 		# 就近侧方（略带上行），从较近的一侧离场
 		# E06 修复：960 硬编码改视口中心（D10 同类口径；相机滚动时取当前可视中心）
-		_exit_dir = Vector2(
-			1.0 if position.x < GameState.view_world_rect().get_center().x else -1.0,
-			randf_range(-0.4, 0.0)
-		).normalized()
+		_exit_dir = Vector2(1.0 if position.x < GameState.view_world_rect().get_center().x else -1.0, randf_range(-0.4, 0.0)).normalized()
 	_exit_speed = speed
 
 

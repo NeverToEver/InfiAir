@@ -44,6 +44,8 @@ var _shake_die := 5.0
 ## A7：测试/诊断白盒断言经公开接口
 func ceased() -> bool:
 	return _ceased
+
+
 var _fire_timer: float = 0.0
 var _ammo_index: int = 0
 ## 当前朝向（炮口方向，初始直指下方玩家区域）

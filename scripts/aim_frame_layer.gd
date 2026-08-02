@@ -147,9 +147,7 @@ func magnet_pull(point: Vector2, input_delta: Vector2) -> Vector2:
 	var t := (ilen - _magnet_input_min) / (_magnet_input_full - _magnet_input_min)
 	var input_scale := 1.0 - t * t * (3.0 - 2.0 * t)  # smoothstep：慢速精瞄全辅助，快速甩枪退出
 	var p := GameState.player_ref
-	var falloff := _dist_falloff(
-		best.global_position.distance_to(p.global_position if p != null else point)
-	)
+	var falloff := _dist_falloff(best.global_position.distance_to(p.global_position if p != null else point))
 	var mag := _magnet_strength * (1.0 - best_d / _magnet_range) * input_scale * falloff
 	return (best.global_position - point).normalized() * minf(mag, _magnet_max_speed)
 

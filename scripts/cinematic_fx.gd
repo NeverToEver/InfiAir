@@ -28,6 +28,8 @@ static func soft_texture() -> ImageTexture:
 ## 软径向光晕：Sprite2D 承载软点贴图，scale/modulate 语义与旧 GlowDot 一致（可直接 tween）。
 ## G022：additive material 静态共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）
 static var _additive_mat: CanvasItemMaterial = null
+
+
 static func additive_material() -> CanvasItemMaterial:
 	if _additive_mat == null:
 		_additive_mat = CanvasItemMaterial.new()

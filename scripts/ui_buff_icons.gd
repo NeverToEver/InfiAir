@@ -4,12 +4,8 @@ extends RefCounted
 ## 供 HUD 图标格（ui_theme.make_buff_tile）与 Buff 三选一卡片共用同一套图形语言。
 ## 分类配色：进攻=ACCENT 青，维生=SUCCESS 绿，通用=ACCENT_GOLD 金。
 
-const _OFFENSE: Array[StringName] = [
-	&"power_shot", &"rapid_fire", &"spread_shot", &"piercing", &"explosive", &"laser_beam"
-]
-const _SUSTAIN: Array[StringName] = [
-	&"extra_life", &"regen", &"lifesteal", &"armor", &"evasion"
-]
+const _OFFENSE: Array[StringName] = [&"power_shot", &"rapid_fire", &"spread_shot", &"piercing", &"explosive", &"laser_beam"]
+const _SUSTAIN: Array[StringName] = [&"extra_life", &"regen", &"lifesteal", &"armor", &"evasion"]
 # 其余归入通用：phase_dash / slow_field / efficient_boost / boost_recovery / mothership_recall
 
 

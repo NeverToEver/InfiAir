@@ -203,22 +203,42 @@ func _build_fx() -> void:
 	_engine_glow_base = _engine_glow.scale
 	add_child(_engine_glow)
 	# 穿出期上冲气流（相对舰体向上冲刷）
-	_descend_trail = CinematicFx.particles({
-		"amount": 48, "lifetime": 0.55, "direction": Vector3(0.0, -1.0, 0.0), "spread": 28.0,
-		"vel_min": 320.0 * _ws, "vel_max": 640.0 * _ws,
-		"scale_min": 8.0 * _ws, "scale_max": 18.0 * _ws,
-		"color": Color(0.5, 0.85, 1.0, 0.6),
-	})
+	_descend_trail = (
+		CinematicFx
+		. particles(
+			{
+				"amount": 48,
+				"lifetime": 0.55,
+				"direction": Vector3(0.0, -1.0, 0.0),
+				"spread": 28.0,
+				"vel_min": 320.0 * _ws,
+				"vel_max": 640.0 * _ws,
+				"scale_min": 8.0 * _ws,
+				"scale_max": 18.0 * _ws,
+				"color": Color(0.5, 0.85, 1.0, 0.6),
+			}
+		)
+	)
 	_descend_trail.position = Vector2(0.0, 30.0 * _ws)
 	_descend_trail.emitting = false
 	add_child(_descend_trail)
 	# 离场下喷尾迹
-	_depart_trail = CinematicFx.particles({
-		"amount": 48, "lifetime": 0.6, "direction": Vector3(0.0, 1.0, 0.0), "spread": 22.0,
-		"vel_min": 340.0 * _ws, "vel_max": 640.0 * _ws,
-		"scale_min": 8.0 * _ws, "scale_max": 20.0 * _ws,
-		"color": Color(0.55, 0.9, 1.0, 0.65),
-	})
+	_depart_trail = (
+		CinematicFx
+		. particles(
+			{
+				"amount": 48,
+				"lifetime": 0.6,
+				"direction": Vector3(0.0, 1.0, 0.0),
+				"spread": 22.0,
+				"vel_min": 340.0 * _ws,
+				"vel_max": 640.0 * _ws,
+				"scale_min": 8.0 * _ws,
+				"scale_max": 20.0 * _ws,
+				"color": Color(0.55, 0.9, 1.0, 0.65),
+			}
+		)
+	)
 	_depart_trail.position = Vector2(0.0, 90.0 * _ws)
 	_depart_trail.emitting = false
 	add_child(_depart_trail)
@@ -240,19 +260,32 @@ func _build_fx() -> void:
 		var edge := Line2D.new()
 		edge.width = 2.0
 		edge.default_color = Color(0.6, 0.95, 1.0)
-		edge.points = PackedVector2Array([
-			Vector2(40.0 * sx, 60.0) * _ws, Vector2(90.0 * sx, 200.0) * _ws,
-		])
+		edge.points = PackedVector2Array(
+			[
+				Vector2(40.0 * sx, 60.0) * _ws,
+				Vector2(90.0 * sx, 200.0) * _ws,
+			]
+		)
 		edge.material = CinematicFx.additive_material()
 		_beam_fx.add_child(edge)
 		_beam_edges.append(edge)
 	# 光束下端上升尘粒（回收吸附感）
-	_beam_dust = CinematicFx.particles({
-		"amount": 30, "lifetime": 0.8, "direction": Vector3(0.0, -1.0, 0.0), "spread": 35.0,
-		"vel_min": 50.0 * _ws, "vel_max": 120.0 * _ws,
-		"scale_min": 3.5 * _ws, "scale_max": 7.0 * _ws,
-		"color": Color(0.6, 0.95, 1.0, 0.65),
-	})
+	_beam_dust = (
+		CinematicFx
+		. particles(
+			{
+				"amount": 30,
+				"lifetime": 0.8,
+				"direction": Vector3(0.0, -1.0, 0.0),
+				"spread": 35.0,
+				"vel_min": 50.0 * _ws,
+				"vel_max": 120.0 * _ws,
+				"scale_min": 3.5 * _ws,
+				"scale_max": 7.0 * _ws,
+				"color": Color(0.6, 0.95, 1.0, 0.65),
+			}
+		)
+	)
 	_beam_dust.position = Vector2(0.0, 190.0 * _ws)
 	_beam_dust.emitting = false
 	_beam_fx.add_child(_beam_dust)
@@ -386,11 +419,19 @@ func _physics_process(delta: float) -> void:
 				if is_instance_valid(_player) and not _player.is_dead():
 					_player.enter_pod()
 					# 进舱捕获反馈：对接点小冲击环 + 短促软闪
-					var sw := CinematicFx.shockwave({
-						"radius": 120.0 * _ws, "time": 0.5, "ry_ratio": 0.6,
-						"color": Color(0.5, 0.95, 1.0, 0.5), "core_color": Color(0.9, 1.0, 1.0, 0.9),
-						"width": 8.0,
-					})
+					var sw := (
+						CinematicFx
+						. shockwave(
+							{
+								"radius": 120.0 * _ws,
+								"time": 0.5,
+								"ry_ratio": 0.6,
+								"color": Color(0.5, 0.95, 1.0, 0.5),
+								"core_color": Color(0.9, 1.0, 1.0, 0.9),
+								"width": 8.0,
+							}
+						)
+					)
 					sw.position = _dock_point()
 					get_parent().add_child(sw)
 					_soft_flash(_dock_point(), 70.0 * _ws, Color(0.8, 1.0, 1.0, 0.9))
@@ -464,19 +505,35 @@ func _deploy_slow_field() -> void:
 	for e in GameState.enemies:
 		if is_instance_valid(e) and e.has_method("apply_slow"):
 			e.apply_slow(SLOW_DURATION, SLOW_FACTOR)
-	var sw := CinematicFx.shockwave({
-		"radius": SLOW_RADIUS, "time": SLOW_RING_TIME,
-		"color": Color(0.32, 0.93, 0.85, 0.45), "core_color": Color(0.75, 1.0, 0.95, 0.85),
-		"width": 14.0, "fill": true,
-	})
+	var sw := (
+		CinematicFx
+		. shockwave(
+			{
+				"radius": SLOW_RADIUS,
+				"time": SLOW_RING_TIME,
+				"color": Color(0.32, 0.93, 0.85, 0.45),
+				"core_color": Color(0.75, 1.0, 0.95, 0.85),
+				"width": 14.0,
+				"fill": true,
+			}
+		)
+	)
 	sw.position = position
 	get_parent().add_child(sw)
 	# 副环：起点比例更大 + 时长更长，读作主环之后的内侧余波
-	var echo := CinematicFx.shockwave({
-		"radius": SLOW_RADIUS, "time": SLOW_RING_TIME * 1.4, "start_scale": 0.45,
-		"color": Color(0.32, 0.93, 0.85, 0.3), "core_color": Color(0.7, 1.0, 0.95, 0.6),
-		"width": 7.0,
-	})
+	var echo := (
+		CinematicFx
+		. shockwave(
+			{
+				"radius": SLOW_RADIUS,
+				"time": SLOW_RING_TIME * 1.4,
+				"start_scale": 0.45,
+				"color": Color(0.32, 0.93, 0.85, 0.3),
+				"core_color": Color(0.7, 1.0, 0.95, 0.6),
+				"width": 7.0,
+			}
+		)
+	)
 	echo.position = position
 	get_parent().add_child(echo)
 
@@ -518,8 +575,7 @@ func _update_drive(delta: float) -> void:
 	position += _drive_vel * delta
 	var view := GameState.view_world_rect()
 	position = position.clamp(
-		view.position + Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_TOP),
-		view.end - Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_BOTTOM)
+		view.position + Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_TOP), view.end - Vector2(DRIVE_MARGIN_X, DRIVE_MARGIN_BOTTOM)
 	)
 	if is_instance_valid(_player) and not _player.is_dead():
 		_player.global_position = _dock_point()
@@ -592,8 +648,7 @@ func _update_missiles(delta: float) -> void:
 		return
 	var dock := _dock_point()
 	targets.sort_custom(
-		func(a: Node2D, b: Node2D) -> bool:
-			return a.global_position.distance_squared_to(dock) < b.global_position.distance_squared_to(dock)
+		func(a: Node2D, b: Node2D) -> bool: return a.global_position.distance_squared_to(dock) < b.global_position.distance_squared_to(dock)
 	)
 	for t in targets.slice(0, MISSILE_TARGET_COUNT):
 		var dir: Vector2 = (t.global_position - dock).normalized()
@@ -622,8 +677,9 @@ func _start_docking(player: Player) -> void:
 	_beam.visible = true
 	# 牵引光束吸附到对接点（原作定长补间 1.5s）
 	var tween := create_tween()
-	tween.tween_property(_player, "global_position", _dock_point(), DOCK_TWEEN_TIME) \
-		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(_player, "global_position", _dock_point(), DOCK_TWEEN_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_IN_OUT
+	)
 
 
 func _do_resupply() -> void:
@@ -664,22 +720,31 @@ func start_release() -> void:
 	_cooldown_factor = maxf(0.6, 1.0 - EARLY_MAX_DISCOUNT * ratio)
 	_enter_state(State.RELEASE)
 	# 出舱释放反馈：对接点小喷发（一次性，随母舰离场自毁）
-	var burst := CinematicFx.particles({
-		"amount": 20, "lifetime": 0.5, "explosiveness": 0.9, "one_shot": true,
-		"direction": Vector3(0.0, 1.0, 0.0), "spread": 55.0,
-		"vel_min": 70.0 * _ws, "vel_max": 200.0 * _ws,
-		"scale_min": 2.0 * _ws, "scale_max": 5.0 * _ws,
-		"color": Color(0.55, 0.95, 1.0, 0.75),
-	})
+	var burst := (
+		CinematicFx
+		. particles(
+			{
+				"amount": 20,
+				"lifetime": 0.5,
+				"explosiveness": 0.9,
+				"one_shot": true,
+				"direction": Vector3(0.0, 1.0, 0.0),
+				"spread": 55.0,
+				"vel_min": 70.0 * _ws,
+				"vel_max": 200.0 * _ws,
+				"scale_min": 2.0 * _ws,
+				"scale_max": 5.0 * _ws,
+				"color": Color(0.55, 0.95, 1.0, 0.75),
+			}
+		)
+	)
 	burst.position = Vector2(0.0, DOCK_OFFSET_Y)
 	add_child(burst)
 	if not is_instance_valid(_player) or _player.is_dead():
 		return
 	_player.exit_pod()  # 出舱恢复显示（抛下补间全程可见）
 	var tween := create_tween()
-	tween.tween_property(
-		_player, "global_position", _player.global_position + Vector2(0.0, RELEASE_DROP), RELEASE_TIME
-	)
+	tween.tween_property(_player, "global_position", _player.global_position + Vector2(0.0, RELEASE_DROP), RELEASE_TIME)
 
 
 func _exit_tree() -> void:

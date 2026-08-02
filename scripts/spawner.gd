@@ -20,29 +20,49 @@ static var ENEMY_TYPES: Array[Dictionary] = [
 	{  # 1 型 均衡
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
-		"hp": Vector2i(65, 72), "speed": Vector2(115, 145), "score": 100,
-		"fire": 0.25, "fire_interval": 2.2, "scale": 0.62, "radius": 34.0,
+		"hp": Vector2i(65, 72),
+		"speed": Vector2(115, 145),
+		"score": 100,
+		"fire": 0.25,
+		"fire_interval": 2.2,
+		"scale": 0.62,
+		"radius": 34.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 2 型 高速低 HP
 		"texture": preload("res://assets/sprites/enemy_ship_2.png"),
 		"strategies": [&"zigzag", &"dive"] as Array[StringName],
-		"hp": Vector2i(48, 56), "speed": Vector2(175, 225), "score": 150,
-		"fire": 0.3, "fire_interval": 2.4, "scale": 0.62, "radius": 34.0,
+		"hp": Vector2i(48, 56),
+		"speed": Vector2(175, 225),
+		"score": 150,
+		"fire": 0.3,
+		"fire_interval": 2.4,
+		"scale": 0.62,
+		"radius": 34.0,
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
 		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
-		"hp": Vector2i(95, 112), "speed": Vector2(75, 100), "score": 200,
-		"fire": 0.4, "fire_interval": 2.0, "scale": 0.68, "radius": 38.0,
+		"hp": Vector2i(95, 112),
+		"speed": Vector2(75, 100),
+		"score": 200,
+		"fire": 0.4,
+		"fire_interval": 2.0,
+		"scale": 0.68,
+		"radius": 38.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 	{  # 4 型 高分开火狂
 		"texture": preload("res://assets/sprites/enemy_ship_4.png"),
 		"strategies": [&"noise", &"hover", &"aggressive"] as Array[StringName],
-		"hp": Vector2i(56, 66), "speed": Vector2(120, 155), "score": 250,
-		"fire": 0.8, "fire_interval": 1.8, "scale": 0.62, "radius": 34.0,
+		"hp": Vector2i(56, 66),
+		"speed": Vector2(120, 155),
+		"score": 250,
+		"fire": 0.8,
+		"fire_interval": 1.8,
+		"scale": 0.62,
+		"radius": 34.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
 ]
@@ -54,22 +74,40 @@ static var ELITE_TYPES: Array[Dictionary] = [
 	{  # 重甲
 		"texture": preload("res://assets/sprites/elite_ship_1.png"),
 		"strategies": [&"straight", &"sine"] as Array[StringName],
-		"hp": Vector2i(190, 210), "speed": Vector2(75, 95), "score": 400,
-		"fire": 0.5, "fire_interval": 2.2, "scale": 0.9, "radius": 38.0, "elite": true,
+		"hp": Vector2i(190, 210),
+		"speed": Vector2(75, 95),
+		"score": 400,
+		"fire": 0.5,
+		"fire_interval": 2.2,
+		"scale": 0.9,
+		"radius": 38.0,
+		"elite": true,
 		"bullet_types": [&"spread"] as Array[StringName],
 	},
 	{  # 游击
 		"texture": preload("res://assets/sprites/elite_ship_2.png"),
 		"strategies": [&"zigzag", &"dive", &"noise"] as Array[StringName],
-		"hp": Vector2i(135, 155), "speed": Vector2(195, 245), "score": 350,
-		"fire": 0.6, "fire_interval": 2.0, "scale": 0.68, "radius": 34.0, "elite": true,
+		"hp": Vector2i(135, 155),
+		"speed": Vector2(195, 245),
+		"score": 350,
+		"fire": 0.6,
+		"fire_interval": 2.0,
+		"scale": 0.68,
+		"radius": 34.0,
+		"elite": true,
 		"bullet_types": [&"laser", &"spread"] as Array[StringName],
 	},
 	{  # 炮艇
 		"texture": preload("res://assets/sprites/elite_ship_3.png"),
 		"strategies": [&"hover", &"spiral"] as Array[StringName],
-		"hp": Vector2i(170, 190), "speed": Vector2(90, 115), "score": 500,
-		"fire": 1.0, "fire_interval": 1.5, "scale": 0.78, "radius": 38.0, "elite": true,
+		"hp": Vector2i(170, 190),
+		"speed": Vector2(90, 115),
+		"score": 500,
+		"fire": 1.0,
+		"fire_interval": 1.5,
+		"scale": 0.78,
+		"radius": 38.0,
+		"elite": true,
 		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},
 ]
@@ -342,10 +380,7 @@ func _process(delta: float) -> void:
 
 	_boss_timer += delta
 	# 分数触发需同时越过最小间隔（防分数暴涨期战后连出 Boss）；时间兜底不受此限
-	if not _boss_active and (
-		(GameState.score >= _next_boss_score and _boss_timer >= BOSS_MIN_INTERVAL)
-		or _boss_timer >= BOSS_TIME_LIMIT
-	):
+	if not _boss_active and ((GameState.score >= _next_boss_score and _boss_timer >= BOSS_MIN_INTERVAL) or _boss_timer >= BOSS_TIME_LIMIT):
 		# 精英炮塔事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
 		if _boss_frozen:
 			_boss_pending = true
@@ -353,12 +388,7 @@ func _process(delta: float) -> void:
 			_trigger_boss()
 	# 精英炮塔事件触发检查：Boss 优先（Boss 未预警/入场/战斗中且事件可触发时才允许启动；
 	# 编队事件激活期间不启动，避免两事件的波次暂停钩子互相提前恢复）
-	if (
-		_event != null
-		and not _boss_active
-		and (_formation == null or not _formation.is_active())
-		and _event.can_trigger()
-	):
+	if _event != null and not _boss_active and (_formation == null or not _formation.is_active()) and _event.can_trigger():
 		# A4b：触发策略（定时/概率/分数门槛）委托 ScheduledEventTrigger
 		if _elite_trigger.tick(delta, GameState.score):
 			_event.start()
@@ -374,11 +404,7 @@ func _process(delta: float) -> void:
 func _current_interval() -> float:
 	var base := lerpf(WAVE_INTERVAL_START, WAVE_INTERVAL_END, clampf(_elapsed / RAMP_TIME, 0.0, 1.0))
 	# 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
-	var interval: float = (
-		base
-		* GameState.spawn_interval_multiplier()
-		/ (1.0 + DIFFICULTY_FACTOR * (GameState.difficulty_multiplier - 1.0))
-	)
+	var interval: float = base * GameState.spawn_interval_multiplier() / (1.0 + DIFFICULTY_FACTOR * (GameState.difficulty_multiplier - 1.0))
 	return clampf(interval, INTERVAL_MIN, WAVE_INTERVAL_START * GameState.spawn_interval_multiplier())
 
 
@@ -473,8 +499,10 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	var telegraph := SpawnTelegraph.new(x, view.position.y)
 	get_parent().add_child(telegraph)
 	_pending_telegraphs.append(telegraph)
-	_schedule(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
-		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special))
+	_schedule(
+		GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
+		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special)
+	)
 
 
 ## 预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）

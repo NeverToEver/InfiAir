@@ -34,11 +34,7 @@ func _draw() -> void:
 	for i in 12:
 		var a := TAU * i / 12.0
 		var inner := r * (0.94 if i % 3 == 0 else 0.965)
-		draw_line(
-			c + Vector2.RIGHT.rotated(a) * inner,
-			c + Vector2.RIGHT.rotated(a) * r * 0.995,
-			Color(COLOR, 0.28), 1.5, true
-		)
+		draw_line(c + Vector2.RIGHT.rotated(a) * inner, c + Vector2.RIGHT.rotated(a) * r * 0.995, Color(COLOR, 0.28), 1.5, true)
 	# 十字轴线
 	var axis := Color(COLOR, 0.08)
 	draw_line(c + Vector2(-r, 0.0), c + Vector2(r, 0.0), axis, 1.0, true)

@@ -167,9 +167,7 @@ func refresh() -> void:
 		tint *= TINT_RECOVERY
 	_player.engine_tint = tint
 
-	set_process(
-		_regen_ring.visible or _evasion_ghost.visible or _beacon.visible or _slow_ring.visible
-	)
+	set_process(_regen_ring.visible or _evasion_ghost.visible or _beacon.visible or _slow_ring.visible)
 
 
 func _build_all(ship_texture: Texture2D) -> void:
@@ -193,24 +191,15 @@ func _build_all(ship_texture: Texture2D) -> void:
 	for pod_pos in pod_positions:
 		var pod := Node2D.new()
 		pod.position = pod_pos
-		var body := _make_poly(
-			PackedVector2Array([Vector2(-7, -10), Vector2(7, -10), Vector2(7, 10), Vector2(-7, 10)]),
-			COLOR_STEEL
-		)
+		var body := _make_poly(PackedVector2Array([Vector2(-7, -10), Vector2(7, -10), Vector2(7, 10), Vector2(-7, 10)]), COLOR_STEEL)
 		pod.add_child(body)
-		var barrel := _make_poly(
-			PackedVector2Array([Vector2(-2, -22), Vector2(2, -22), Vector2(2, -10), Vector2(-2, -10)]),
-			COLOR_CYAN
-		)
+		var barrel := _make_poly(PackedVector2Array([Vector2(-2, -22), Vector2(2, -22), Vector2(2, -10), Vector2(-2, -10)]), COLOR_CYAN)
 		pod.add_child(barrel)
 		add_child(pod)
 		_spread_pods.append(pod)
 
 	# 机头穿甲尖刺（piercing）
-	_pierce_spike = _make_poly(
-		PackedVector2Array([Vector2(0, -102), Vector2(6, -74), Vector2(-6, -74)]),
-		Color(0.55, 0.95, 1.0)
-	)
+	_pierce_spike = _make_poly(PackedVector2Array([Vector2(0, -102), Vector2(6, -74), Vector2(-6, -74)]), Color(0.55, 0.95, 1.0))
 	add_child(_pierce_spike)
 
 	# 机腹弹舱辉光（explosive，压底不盖机体）
@@ -223,8 +212,7 @@ func _build_all(ship_texture: Texture2D) -> void:
 	_laser_pod = Node2D.new()
 	_laser_pod.position = Vector2(0.0, 10.0)
 	var pod_body := _make_poly(
-		PackedVector2Array([Vector2(-6, -11), Vector2(6, -11), Vector2(6, 11), Vector2(-6, 11)]),
-		Color(0.35, 0.45, 0.55)
+		PackedVector2Array([Vector2(-6, -11), Vector2(6, -11), Vector2(6, 11), Vector2(-6, 11)]), Color(0.35, 0.45, 0.55)
 	)
 	_laser_pod.add_child(pod_body)
 	var lens := _make_circle(3.5, Color(0.6, 0.95, 1.0))
@@ -283,9 +271,19 @@ func _build_all(ship_texture: Texture2D) -> void:
 
 	# 初始全部隐藏，由 refresh() 统一驱动
 	for node: Node2D in [
-		_power_glow, _rapid_fins, _pierce_spike, _explosive_glow, _laser_pod,
-		_armor_ring, _regen_ring, _lifesteal_tips, _shield_hex, _evasion_ghost,
-		_dash_fins, _slow_ring, _beacon,
+		_power_glow,
+		_rapid_fins,
+		_pierce_spike,
+		_explosive_glow,
+		_laser_pod,
+		_armor_ring,
+		_regen_ring,
+		_lifesteal_tips,
+		_shield_hex,
+		_evasion_ghost,
+		_dash_fins,
+		_slow_ring,
+		_beacon,
 	]:
 		node.hide()
 	for pod in _spread_pods:

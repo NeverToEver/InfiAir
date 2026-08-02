@@ -12,11 +12,11 @@ const TEXTURE: Texture2D = preload("res://assets/sprites/strike_carrier.png")
 
 ## 基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - (600, 350)；使用点 × world_scale）
 const SOCKETS: Array[Vector2] = [
-	Vector2(-170.0, 120.0),   # 左翼台内
-	Vector2(170.0, 120.0),    # 右翼台内
+	Vector2(-170.0, 120.0),  # 左翼台内
+	Vector2(170.0, 120.0),  # 右翼台内
 	Vector2(-310.0, 80.0),  # 左翼台外
-	Vector2(310.0, 80.0),   # 右翼台外
-	Vector2(0.0, 170.0),      # 中央前甲板
+	Vector2(310.0, 80.0),  # 右翼台外
+	Vector2(0.0, 170.0),  # 中央前甲板
 ]
 
 enum State { ENTER, HOVER, RETREAT }

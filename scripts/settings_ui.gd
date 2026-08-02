@@ -101,6 +101,7 @@ func _ready() -> void:
 
 # ---------------- 控制（改键） ----------------
 
+
 func _build_controls_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 8)
@@ -188,15 +189,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_hint_label.text = tr("SET_CANCELLED")
 		else:
 			GameState.rebind_action(_capturing_action, event.keycode)
-			_hint_label.text = tr("SET_BOUND") % [
-				tr("ACT_" + String(_capturing_action).to_upper()),
-				OS.get_keycode_string(event.keycode),
-			]
+			_hint_label.text = (
+				tr("SET_BOUND")
+				% [
+					tr("ACT_" + String(_capturing_action).to_upper()),
+					OS.get_keycode_string(event.keycode),
+				]
+			)
 		_capturing_action = &""
 		get_viewport().set_input_as_handled()
 
 
 # ---------------- 操作模式 ----------------
+
 
 func _build_modes_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
@@ -280,11 +285,21 @@ func _build_modes_page() -> VBoxContainer:
 	page.add_child(_joy_layout_label)
 	_refresh_joy_layout_label()
 	_joy_speed_slider = _make_joy_slider(
-		page, tr("SET_JOY_AIM_SPEED"), 200.0, 4000.0, GameState.joy_aim_speed, "%.0f",
+		page,
+		tr("SET_JOY_AIM_SPEED"),
+		200.0,
+		4000.0,
+		GameState.joy_aim_speed,
+		"%.0f",
 		func(v: float) -> void: GameState.set_joy_aim_speed(v)
 	)
 	_joy_deadzone_slider = _make_joy_slider(
-		page, tr("SET_JOY_DEADZONE"), 5.0, 90.0, GameState.joy_deadzone * 100.0, "%.0f%%",
+		page,
+		tr("SET_JOY_DEADZONE"),
+		5.0,
+		90.0,
+		GameState.joy_deadzone * 100.0,
+		"%.0f%%",
 		func(v: float) -> void: GameState.set_joy_deadzone(v / 100.0)
 	)
 	page.add_child(UITheme.make_label(tr("SET_JOY_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
@@ -319,13 +334,7 @@ func _make_mode_row(parent: Container, label_text: String, group: ButtonGroup) -
 
 ## P0-1：手柄参数滑杆行（标题 + HSlider + 数值标签；value_changed 实时回调并更新数值显示）
 func _make_joy_slider(
-	parent: Container,
-	title: String,
-	min_value: float,
-	max_value: float,
-	value: float,
-	format: String,
-	on_changed: Callable
+	parent: Container, title: String, min_value: float, max_value: float, value: float, format: String, on_changed: Callable
 ) -> HSlider:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -361,12 +370,11 @@ func _refresh_joy_layout_label() -> void:
 
 # ---------------- 关于 ----------------
 
+
 func _build_about_page() -> VBoxContainer:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 10)
-	_version_label = UITheme.make_label(
-		tr("SET_VERSION") % Engine.get_version_info().string, UITheme.FONT_BODY, UITheme.ACCENT_GOLD
-	)
+	_version_label = UITheme.make_label(tr("SET_VERSION") % Engine.get_version_info().string, UITheme.FONT_BODY, UITheme.ACCENT_GOLD)
 	page.add_child(_version_label)
 	_cheatsheet_label = UITheme.make_label(tr("SET_CHEATSHEET"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM)
 	page.add_child(_cheatsheet_label)
@@ -374,6 +382,7 @@ func _build_about_page() -> VBoxContainer:
 
 
 # ---------------- 通用 ----------------
+
 
 func _refresh_nav_labels() -> void:
 	(_nav_buttons[&"controls"] as Button).text = tr("SET_CONTROLS")

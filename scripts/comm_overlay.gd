@@ -17,6 +17,8 @@ var _full_text: String = ""
 ## A7：测试/诊断白盒断言经公开接口
 func full_text() -> String:
 	return _full_text
+
+
 var _char_t: float = 0.0
 var _shown_chars: int = 0
 var _hold_left: float = -1.0  # <0：打字中
@@ -95,7 +97,8 @@ func _process(delta: float) -> void:
 			_hold_left = FADE_TIME + 1.0  # 进入淡出段（复用同一计时）
 			_fade_tween = create_tween()
 			_fade_tween.tween_property(_panel, "modulate:a", 0.0, FADE_TIME)
-			_fade_tween.tween_callback(func() -> void:
-				_fade_tween = null
-				_panel.hide()
+			_fade_tween.tween_callback(
+				func() -> void:
+					_fade_tween = null
+					_panel.hide()
 			)

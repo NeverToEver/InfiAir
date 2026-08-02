@@ -4,9 +4,7 @@ extends Node2D
 
 const DURATION := 0.6
 ## P2：箭头三角几何静态复用（替代每帧构造 PackedVector2Array）
-static var _arrow_triangle := PackedVector2Array(
-	[Vector2(-8.0, 70.0), Vector2(8.0, 70.0), Vector2(0.0, 86.0)]
-)
+static var _arrow_triangle := PackedVector2Array([Vector2(-8.0, 70.0), Vector2(8.0, 70.0), Vector2(0.0, 86.0)])
 
 var _t: float = 0.0
 

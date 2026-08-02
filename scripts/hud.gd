@@ -332,7 +332,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	_update_vignette(delta)	# 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
+	_update_vignette(delta)  # 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
 	_poll_timer -= delta
 	if _poll_timer > 0.0:
 		return
@@ -371,9 +371,7 @@ func _update_magazine_bar(main: Node) -> void:
 			return
 		_last_mag_cells = ms.mag_cells()
 		for i in _mag_cells_nodes.size():
-			_mag_cells_nodes[i].color = (
-				UITheme.ACCENT if i < ms.mag_cells() else Color(0.05, 0.09, 0.14, 0.8)
-			)
+			_mag_cells_nodes[i].color = (UITheme.ACCENT if i < ms.mag_cells() else Color(0.05, 0.09, 0.14, 0.8))
 	else:
 		_mag_box.visible = false
 		_last_mag_cells = -1
@@ -662,9 +660,7 @@ func _on_locale_changed() -> void:
 
 ## 难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）
 func _refresh_difficulty_label() -> void:
-	_difficulty_label.text = (
-		tr("UI_DIFF_FMT") % [GameState.difficulty_multiplier, GameState.difficulty_label()]
-	)
+	_difficulty_label.text = (tr("UI_DIFF_FMT") % [GameState.difficulty_multiplier, GameState.difficulty_label()])
 
 
 func _on_boss_health_changed(current: float, maximum: float) -> void:
@@ -704,9 +700,7 @@ func _refresh_boss_name() -> void:
 		_:
 			phase_text = "P1"
 	_boss_name.text = "%s · %s" % [tr("BOSS_TYPE_%d" % _boss.boss_type), phase_text]
-	_boss_name.add_theme_color_override(
-		"font_color", UITheme.DANGER if _boss_phase == Boss.FightPhase.ENRAGE else UITheme.TEXT
-	)
+	_boss_name.add_theme_color_override("font_color", UITheme.DANGER if _boss_phase == Boss.FightPhase.ENRAGE else UITheme.TEXT)
 
 
 ## 受击/低血屏幕反馈：全屏径向渐变（无新资产，GradientTexture2D 程序化）
@@ -814,9 +808,7 @@ func _build_buff_panel() -> void:
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 10)
 	margin.add_child(vbox)
-	_buff_panel_title = UITheme.make_label(
-		tr("UI_BUFFS_TITLE"), UITheme.FONT_HUD, UITheme.ACCENT, HORIZONTAL_ALIGNMENT_LEFT
-	)
+	_buff_panel_title = UITheme.make_label(tr("UI_BUFFS_TITLE"), UITheme.FONT_HUD, UITheme.ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
 	vbox.add_child(_buff_panel_title)
 	var divider := ColorRect.new()
 	divider.color = UITheme.ACCENT_DIM
@@ -846,9 +838,7 @@ func _make_buff_row(id: StringName, stacks: int) -> Control:
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
 	if stacks > 1:
-		row.add_child(
-			UITheme.make_label("×%d" % stacks, UITheme.FONT_HUD, UITheme.ACCENT_GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
-		)
+		row.add_child(UITheme.make_label("×%d" % stacks, UITheme.FONT_HUD, UITheme.ACCENT_GOLD, HORIZONTAL_ALIGNMENT_RIGHT))
 	return row
 
 

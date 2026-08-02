@@ -45,10 +45,14 @@ static func _line(points: PackedVector2Array, color: Color, width: float = 2.0) 
 
 static func _rect_poly(w: float, h: float, color: Color) -> Polygon2D:
 	var p := Polygon2D.new()
-	p.polygon = PackedVector2Array([
-		Vector2(-w * 0.5, -h * 0.5), Vector2(w * 0.5, -h * 0.5),
-		Vector2(w * 0.5, h * 0.5), Vector2(-w * 0.5, h * 0.5),
-	])
+	p.polygon = PackedVector2Array(
+		[
+			Vector2(-w * 0.5, -h * 0.5),
+			Vector2(w * 0.5, -h * 0.5),
+			Vector2(w * 0.5, h * 0.5),
+			Vector2(-w * 0.5, h * 0.5),
+		]
+	)
 	p.color = color
 	return p
 
@@ -104,9 +108,7 @@ static func build(mode: Mode = Mode.DESTROYED) -> Node2D:
 ## palette 键：ring/detail/tick/seg/seg_edge/spoke/hub/hub_ring；additive=true 时全构件改叠加态。
 ## gaps（[[a0,a1],…]，rad）：主弧分段绘制留出缺口（虚影态破碎感）；空表 = 完整闭合环（毁灭态现状）。
 ## 返回 {"segments":…, "edges":…} 舱段引用（虚影态逐个掉线闪烁用；毁灭态忽略）。
-static func _build_body(
-	station: Node2D, palette: Dictionary, additive: bool, gaps: Array = []
-) -> Dictionary:
+static func _build_body(station: Node2D, palette: Dictionary, additive: bool, gaps: Array = []) -> Dictionary:
 	var refs := {"segments": [], "edges": []}
 	if gaps.is_empty():
 		var ring_points := PackedVector2Array()
@@ -139,10 +141,7 @@ static func _build_body(
 	# 舱段分块刻线：16 条径向短刻线跨环体
 	for i in 16:
 		var a := TAU * float(i) / 16.0
-		var tick := _line(
-			PackedVector2Array([Vector2(cos(a), sin(a)) * 244.0, Vector2(cos(a), sin(a)) * 276.0]),
-			palette["tick"], 3.0
-		)
+		var tick := _line(PackedVector2Array([Vector2(cos(a), sin(a)) * 244.0, Vector2(cos(a), sin(a)) * 276.0]), palette["tick"], 3.0)
 		if additive:
 			_additive(tick)
 		station.add_child(tick)
@@ -166,10 +165,7 @@ static func _build_body(
 		station.add_child(seg_edge)
 		station.move_child(seg_edge, seg.get_index())
 		refs["edges"].append(seg_edge)
-		var spoke := _line(
-			PackedVector2Array([Vector2(cos(a), sin(a)) * 70.0, Vector2(cos(a), sin(a)) * 240.0]),
-			palette["spoke"], 8.0
-		)
+		var spoke := _line(PackedVector2Array([Vector2(cos(a), sin(a)) * 70.0, Vector2(cos(a), sin(a)) * 240.0]), palette["spoke"], 8.0)
 		if additive:
 			_additive(spoke)
 		station.add_child(spoke)
@@ -204,25 +200,34 @@ static func _ring_arc(station: Node2D, color: Color, a0: float, a1: float, addit
 
 ## 破口锯齿轮廓顶点（两态共用：毁灭态=近黑填充，虚影态=亮线描边）
 static func _jagged_points() -> PackedVector2Array:
-	return PackedVector2Array([
-		Vector2(cos(0.45), sin(0.45)) * 240.0, Vector2(cos(0.6), sin(0.6)) * 282.0,
-		Vector2(cos(0.85), sin(0.85)) * 236.0, Vector2(cos(1.1), sin(1.1)) * 284.0,
-		Vector2(cos(1.25), sin(1.25)) * 244.0, Vector2(cos(0.85), sin(0.85)) * 262.0,
-	])
+	return PackedVector2Array(
+		[
+			Vector2(cos(0.45), sin(0.45)) * 240.0,
+			Vector2(cos(0.6), sin(0.6)) * 282.0,
+			Vector2(cos(0.85), sin(0.85)) * 236.0,
+			Vector2(cos(1.1), sin(1.1)) * 284.0,
+			Vector2(cos(1.25), sin(1.25)) * 244.0,
+			Vector2(cos(0.85), sin(0.85)) * 262.0,
+		]
+	)
 
 
 ## 实体毁灭态：现状配色 + 破口暗弧覆盖/锯齿填充/3 块剥落碎片外飘翻滚
 static func _build_destroyed(station: Node2D) -> void:
-	_build_body(station, {
-		"ring": Color(0.38, 0.45, 0.58),
-		"detail": Color(0.55, 0.65, 0.8, 0.5),
-		"tick": Color(0.18, 0.22, 0.3),
-		"seg": Color(0.48, 0.56, 0.68),
-		"seg_edge": Color(0.6, 0.7, 0.85, 0.35),
-		"spoke": Color(0.3, 0.36, 0.48),
-		"hub": Color(0.28, 0.34, 0.45),
-		"hub_ring": Color(0.5, 0.6, 0.75, 0.6),
-	}, false)
+	_build_body(
+		station,
+		{
+			"ring": Color(0.38, 0.45, 0.58),
+			"detail": Color(0.55, 0.65, 0.8, 0.5),
+			"tick": Color(0.18, 0.22, 0.3),
+			"seg": Color(0.48, 0.56, 0.68),
+			"seg_edge": Color(0.6, 0.7, 0.85, 0.35),
+			"spoke": Color(0.3, 0.36, 0.48),
+			"hub": Color(0.28, 0.34, 0.45),
+			"hub_ring": Color(0.5, 0.6, 0.75, 0.6),
+		},
+		false
+	)
 	# 破损段：暗色弧覆盖出缺口（0.5–1.2 rad）
 	var broken_points := PackedVector2Array()
 	for i in 7:
@@ -237,8 +242,7 @@ static func _build_destroyed(station: Node2D) -> void:
 	# 破口剥落碎片：小多边形缓慢外飘 + 翻滚
 	for k in 3:
 		var flake := Polygon2D.new()
-		flake.polygon = PackedVector2Array([
-			Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
+		flake.polygon = PackedVector2Array([Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
 		flake.color = Color(0.3, 0.36, 0.46)
 		var fa := 0.6 + 0.3 * k
 		flake.position = Vector2(cos(fa), sin(fa)) * 265.0
@@ -264,16 +268,21 @@ static func _build_phantom(station: Node2D) -> void:
 	breathe_root.add_child(inner)
 	# 第 1 层：全息基底——全构件 ADD 叠加，亮青 #00d4ff 高饱和（主弧 α0.55/舱段 0.45/细节 0.35）；
 	# 主弧分段留 3 处断弧缺口（原破口 0.5–1.2 + 两处较小缺口），站已毁的破碎感
-	var refs := _build_body(inner, {
-		"ring": Color(0.0, 0.83, 1.0, 0.55),
-		"detail": Color(0.0, 0.83, 1.0, 0.35),
-		"tick": Color(0.0, 0.83, 1.0, 0.35),
-		"seg": Color(0.0, 0.83, 1.0, 0.45),
-		"seg_edge": Color(0.0, 0.83, 1.0, 0.40),
-		"spoke": Color(0.0, 0.75, 1.0, 0.35),
-		"hub": Color(0.0, 0.83, 1.0, 0.50),
-		"hub_ring": Color(0.0, 0.83, 1.0, 0.35),
-	}, true, [[BREACH_START, BREACH_END], [2.4, 2.62], [4.9, 5.06]])
+	var refs := _build_body(
+		inner,
+		{
+			"ring": Color(0.0, 0.83, 1.0, 0.55),
+			"detail": Color(0.0, 0.83, 1.0, 0.35),
+			"tick": Color(0.0, 0.83, 1.0, 0.35),
+			"seg": Color(0.0, 0.83, 1.0, 0.45),
+			"seg_edge": Color(0.0, 0.83, 1.0, 0.40),
+			"spoke": Color(0.0, 0.75, 1.0, 0.35),
+			"hub": Color(0.0, 0.83, 1.0, 0.50),
+			"hub_ring": Color(0.0, 0.83, 1.0, 0.35),
+		},
+		true,
+		[[BREACH_START, BREACH_END], [2.4, 2.62], [4.9, 5.06]]
+	)
 	# 舱段模块逐个随机「掉线」闪烁（0.1s 掉线机制，相位错开 0.13s + 周期错档）
 	for i in refs["segments"].size():
 		var seg: Polygon2D = refs["segments"][i]
@@ -288,10 +297,8 @@ static func _build_phantom(station: Node2D) -> void:
 	# 整体容器 4s 慢呼吸（0.85–1.0，投影不稳定感；下限抬高保证存在感）
 	# E04：写 BreatheRoot 容器而非 station（调用方压 station.modulate.a 不被呼吸覆盖）
 	var breathe_tween := station.create_tween().set_loops()
-	breathe_tween.tween_property(breathe_root, "modulate:a", 0.85, 2.0
-	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	breathe_tween.tween_property(breathe_root, "modulate:a", 1.0, 2.0
-	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	breathe_tween.tween_property(breathe_root, "modulate:a", 0.85, 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	breathe_tween.tween_property(breathe_root, "modulate:a", 1.0, 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# 偶发整站 glitch 瞬闪：alpha 瞬时下跌 0.08s 内恢复，每 ~3.9s 一次
 	var glitch := station.create_tween().set_loops()
 	glitch.tween_interval(3.8)
@@ -307,17 +314,33 @@ static func _build_phantom(station: Node2D) -> void:
 	scan.tween_property(scan_band, "position:y", 340.0, 3.5).set_trans(Tween.TRANS_LINEAR)
 	scan.tween_property(scan_band, "position:y", -340.0, 0.0)
 	# 第 3 层：数据流粒子——①边缘逸散（环轮廓切向慢飘）②内部结构流（环面内侧往返）
-	var edge_flow := _particles({
-		"amount": 48, "lifetime": 2.5, "vel_min": 15.0, "vel_max": 35.0,
-		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.83, 1.0, 0.4),
-		"emission_ring_radius": 260.0, "emission_ring_inner_radius": 250.0,
-	})
+	var edge_flow := _particles(
+		{
+			"amount": 48,
+			"lifetime": 2.5,
+			"vel_min": 15.0,
+			"vel_max": 35.0,
+			"scale_min": 1.0,
+			"scale_max": 2.0,
+			"color": Color(0.0, 0.83, 1.0, 0.4),
+			"emission_ring_radius": 260.0,
+			"emission_ring_inner_radius": 250.0,
+		}
+	)
 	inner.add_child(edge_flow)
-	var inner_flow := _particles({
-		"amount": 40, "lifetime": 3.0, "vel_min": 15.0, "vel_max": 45.0,
-		"scale_min": 1.0, "scale_max": 2.0, "color": Color(0.0, 0.75, 1.0, 0.3),
-		"emission_ring_radius": 200.0, "emission_ring_inner_radius": 80.0,
-	})
+	var inner_flow := _particles(
+		{
+			"amount": 40,
+			"lifetime": 3.0,
+			"vel_min": 15.0,
+			"vel_max": 45.0,
+			"scale_min": 1.0,
+			"scale_max": 2.0,
+			"color": Color(0.0, 0.75, 1.0, 0.3),
+			"emission_ring_radius": 200.0,
+			"emission_ring_inner_radius": 80.0,
+		}
+	)
 	inner.add_child(inner_flow)
 	# 第 4 层：破口能量网格修补——跨越缺口的经纬格（亮青 α0.75 宽 2.5，加亮加粗），
 	# 每格相位错开 0.13s 低频闪烁 + 更频繁的整格掉线 0.1s；锯齿轮廓 α0.8 亮线描出
@@ -325,8 +348,8 @@ static func _build_phantom(station: Node2D) -> void:
 	for g in 4:  # 经线：4 条径向跨 r240→280
 		var a := BREACH_START + (BREACH_END - BREACH_START) * float(g) / 3.0
 		var meridian := _line(
-			PackedVector2Array([Vector2(cos(a), sin(a)) * 240.0, Vector2(cos(a), sin(a)) * 280.0]),
-			Color(0.0, 0.83, 1.0, 0.75), 2.5)
+			PackedVector2Array([Vector2(cos(a), sin(a)) * 240.0, Vector2(cos(a), sin(a)) * 280.0]), Color(0.0, 0.83, 1.0, 0.75), 2.5
+		)
 		_additive(meridian)
 		inner.add_child(meridian)
 		grid_lines.append(meridian)
@@ -358,8 +381,7 @@ static func _build_phantom(station: Node2D) -> void:
 	# 破口附近全息碎片：3 块半透明青色多边形缓慢外飘翻滚（往复，不瞬移）
 	for k in 3:
 		var flake := Polygon2D.new()
-		flake.polygon = PackedVector2Array([
-			Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
+		flake.polygon = PackedVector2Array([Vector2(-8.0, -5.0), Vector2(9.0, -3.0), Vector2(5.0, 7.0), Vector2(-6.0, 6.0)])
 		flake.color = Color(0.0, 0.83, 1.0, 0.35)
 		_additive(flake)
 		var fa := 0.6 + 0.25 * k
@@ -367,11 +389,9 @@ static func _build_phantom(station: Node2D) -> void:
 		inner.add_child(flake)
 		var drift := 3.0 + 0.5 * k
 		var ft := station.create_tween().set_loops()
-		ft.tween_property(flake, "position", flake.position + Vector2(cos(fa), sin(fa)) * 55.0, drift
-		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		ft.parallel().tween_property(flake, "rotation", flake.rotation + 2.2, drift
-		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		ft.tween_property(flake, "position", flake.position, drift
-		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		ft.parallel().tween_property(flake, "rotation", flake.rotation, drift
-		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.tween_property(flake, "position", flake.position + Vector2(cos(fa), sin(fa)) * 55.0, drift).set_trans(Tween.TRANS_SINE).set_ease(
+			Tween.EASE_IN_OUT
+		)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation + 2.2, drift).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.tween_property(flake, "position", flake.position, drift).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		ft.parallel().tween_property(flake, "rotation", flake.rotation, drift).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)

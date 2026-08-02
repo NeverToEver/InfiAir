@@ -1,0 +1,9 @@
+# gdformat 配置（gdtoolkit 4.x，YAML）
+# line_length 与 .gdlintrc 的 max-line-length 保持一致（140），防止 gdformat 折行
+# 后 gdlint 报超长。CI 以 gdformat --check 门禁格式一致性。
+
+excluded_directories: !!set
+  .git: null
+line_length: 140
+safety_checks: null
+use_spaces: null

@@ -38,6 +38,7 @@ class _GlyphIcon:
 		for stroke in strokes:
 			draw_polyline(stroke, UITheme.ACCENT, 1.5, true)
 
+
 const ROUTE_BUFF_NAMES: Dictionary = {
 	&"spread_shot": "BUFF_SPREAD_SHOT_NAME",
 	&"laser_beam": "BUFF_LASER_BEAM_NAME",
@@ -239,10 +240,19 @@ func _build_hangar() -> Control:
 
 func _build_supply() -> Control:
 	# 扳手极简折线图标
-	var glyph: Array = [PackedVector2Array([
-		Vector2(3, 13), Vector2(9, 7), Vector2(12, 8), Vector2(14, 5),
-		Vector2(12, 3), Vector2(9, 4), Vector2(9, 7),
-	])]
+	var glyph: Array = [
+		PackedVector2Array(
+			[
+				Vector2(3, 13),
+				Vector2(9, 7),
+				Vector2(12, 8),
+				Vector2(14, 5),
+				Vector2(12, 3),
+				Vector2(9, 4),
+				Vector2(9, 7),
+			]
+		)
+	]
 	var panel := _make_panel("BASE_SUPPLY", glyph)
 	var body := panel.get_node("Body")
 	_repair_button = _make_button("")
@@ -329,9 +339,7 @@ func _refresh() -> void:
 	_recharge_button.text = tr("BASE_RECHARGE")
 	# 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
 	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.health >= GameState.max_health()
-	_recharge_button.disabled = (
-		GameState.rp < GameState.RP_RECHARGE_COST or player == null or player.fuel_amount() >= player.fuel_max
-	)
+	_recharge_button.disabled = (GameState.rp < GameState.RP_RECHARGE_COST or player == null or player.fuel_amount() >= player.fuel_max)
 	_refresh_routes()
 	_refresh_missions()
 
@@ -375,11 +383,15 @@ func _refresh_missions() -> void:
 		var progress := GameState.mission_progress(id)
 		var goal := GameState.mission_goal(id)
 		# C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
-		var text := tr("BASE_MISSION_FMT") % [
-			tr("MISSION_%s_NAME" % String(id).to_upper()),
-			tr("MISSION_%s_DESC" % String(id).to_upper()),
-			mini(progress, goal), goal,
-		]
+		var text := (
+			tr("BASE_MISSION_FMT")
+			% [
+				tr("MISSION_%s_NAME" % String(id).to_upper()),
+				tr("MISSION_%s_DESC" % String(id).to_upper()),
+				mini(progress, goal),
+				goal,
+			]
+		)
 		if GameState.is_mission_claimed(id):
 			text += tr("BASE_CLAIMED")
 		elif GameState.is_mission_done(id):

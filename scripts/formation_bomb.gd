@@ -35,13 +35,19 @@ func setup(p_velocity: Vector2, p_fuse: float, p_damage: int, p_radius: float) -
 
 func _init() -> void:
 	collision_layer = 8  # 第 4 层：enemy_bullet（语义同敌弹，但不接命中即毁）
-	collision_mask = 1   # 第 1 层：player
+	collision_mask = 1  # 第 1 层：player
 	_body = Polygon2D.new()
 	# 机体尺寸族：设计值 × world_scale（AoE 半径 aoe_radius 为游戏性范围，不缩）
 	var ws: float = GameState.world_scale
-	_body.polygon = PackedVector2Array([
-		Vector2(-7.0, -12.0) * ws, Vector2(7.0, -12.0) * ws, Vector2(9.0, 6.0) * ws, Vector2(0.0, 14.0) * ws, Vector2(-9.0, 6.0) * ws,
-	])
+	_body.polygon = PackedVector2Array(
+		[
+			Vector2(-7.0, -12.0) * ws,
+			Vector2(7.0, -12.0) * ws,
+			Vector2(9.0, 6.0) * ws,
+			Vector2(0.0, 14.0) * ws,
+			Vector2(-9.0, 6.0) * ws,
+		]
+	)
 	_body.color = Color(1.0, 0.45, 0.15)
 	add_child(_body)
 	var shape := CollisionShape2D.new()

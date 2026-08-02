@@ -78,9 +78,14 @@ func execute(attack: StringName, boss) -> void:
 		&"homing2":
 			var homing_count: int = maxi(1, 2 + homing_delta)
 			for i in homing_count:
-				_fire.fire_homing(
-					boss, Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
-					float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING),
+				(
+					_fire
+					. fire_homing(
+						boss,
+						Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
+						float(boss.HOMING_BULLET_SPEED),
+						int(boss.BULLET_DAMAGE_HOMING),
+					)
 				)
 		&"sniper3":
 			_start_sniper_volley(boss)
@@ -93,7 +98,9 @@ func execute(attack: StringName, boss) -> void:
 		&"minion_volley":
 			_start_minion_volley(boss)
 		&"bullet_wall":
-			_fire.fire_bullet_wall(boss, int(boss.WALL_COUNT), float(boss.WALL_BULLET_SPEED), int(boss.WALL_DAMAGE), float(boss.WALL_ARC_DEG))
+			_fire.fire_bullet_wall(
+				boss, int(boss.WALL_COUNT), float(boss.WALL_BULLET_SPEED), int(boss.WALL_DAMAGE), float(boss.WALL_ARC_DEG)
+			)
 		_:
 			push_warning("[BOSS] 未知攻击 id: %s" % attack)
 
@@ -262,7 +269,9 @@ func _update_sweep(delta: float, boss) -> void:
 				var drop_x: float = _sweep_drop_x[0]
 				if (_sweep_dir > 0.0 and boss.position.x >= drop_x) or (_sweep_dir < 0.0 and boss.position.x <= drop_x):
 					_sweep_drop_x.remove_at(0)
-					var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, float(boss.SWEEP_DROP_SPEED), int(boss.SWEEP_DROP_DAMAGE), false)
+					var b: Bullet = GameState.bullet_pool.fire(
+						Vector2.DOWN, float(boss.SWEEP_DROP_SPEED), int(boss.SWEEP_DROP_DAMAGE), false
+					)
 					b.position = boss.position + Vector2(0.0, 60.0) * world_scale
 				else:
 					break
@@ -273,7 +282,9 @@ func _update_sweep(delta: float, boss) -> void:
 				_sweep_timer = float(boss.SWEEP_RETURN_DURATION)
 				_sweep_origin = boss.position
 				# C14：返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
-				_sweep_return_target = Vector2(clampf(GameState.view_world_rect().get_center().x, bounds.x, bounds.y), boss.fight_anchor_y())
+				_sweep_return_target = Vector2(
+					clampf(GameState.view_world_rect().get_center().x, bounds.x, bounds.y), boss.fight_anchor_y()
+				)
 		SWEEP_RETURN:
 			_sweep_timer -= delta
 			var t := clampf(1.0 - _sweep_timer / float(boss.SWEEP_RETURN_DURATION), 0.0, 1.0)

@@ -43,15 +43,12 @@ const FONT_SMALL := 16  # 小字（芯片/标签）
 
 const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 
-
 # ---------------- 控件工厂 ----------------
+
 
 ## 统一 Label 工厂：字号走阶梯常量，颜色走色板
 static func make_label(
-	text: String,
-	size: int = FONT_BODY,
-	color: Color = TEXT,
-	align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER
+	text: String, size: int = FONT_BODY, color: Color = TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER
 ) -> Label:
 	var label := Label.new()
 	label.text = text
@@ -205,6 +202,7 @@ static func make_page_shell(title_key: String) -> Dictionary:
 
 # ---------------- 动效 ----------------
 
+
 ## 模态统一打开动效：遮罩 150ms 淡入 + 面板 200ms 淡入 + 内容错峰淡入（可选）。
 ## 各模态页面 open()/show 时调用，替代散落的 animate_open 单面板调用。
 static func animate_modal_open(dim: Control, panel: Control, content: Control = null) -> void:
@@ -230,6 +228,7 @@ static func stagger_open(container: Control) -> void:
 
 
 # ---------------- 基础样式 ----------------
+
 
 ## 统一按钮样式：切角系（直角）——normal 透明底+青边框，
 ## hover 底 rgba(0,212,255,0.12)+边框提亮，pressed 底 rgba(0,212,255,0.25)。
@@ -273,8 +272,7 @@ static func animate_open(control: Control) -> void:
 ## 幅度刻意收小：全宽按钮放大过多会溢出面板边框。
 ## 由 make_button/make_toggle_button 统一挂载；键盘焦点与鼠标 hover 表现一致。
 static func add_button_motion(button: Button) -> void:
-	var update_pivot := func() -> void:
-		button.pivot_offset = button.size * 0.5
+	var update_pivot := func() -> void: button.pivot_offset = button.size * 0.5
 	button.resized.connect(update_pivot)
 	update_pivot.call()
 	button.mouse_entered.connect(func() -> void: _motion_tween(button, 1.02))

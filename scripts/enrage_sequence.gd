@@ -137,16 +137,9 @@ func update(delta: float, boss) -> void:
 			_transition_timer -= delta
 			var t := clampf(1.0 - _transition_timer / float(boss.ENRAGE_TRANSITION_DURATION), 0.0, 1.0)
 			var eased := 1.0 - pow(1.0 - t, 3.0)
-			var shake := Vector2(
-				Enemy.sin_fast(t * TAU * 7.0) * (1.0 - t) * 13.0,
-				Enemy.cos_fast(t * TAU * 5.0) * (1.0 - t) * 8.0
-			)
+			var shake := Vector2(Enemy.sin_fast(t * TAU * 7.0) * (1.0 - t) * 13.0, Enemy.cos_fast(t * TAU * 5.0) * (1.0 - t) * 8.0)
 			# 1 型「旋转堡垒」悬停原地，不滑入轨道
-			var target_pos := (
-				_transition_origin
-				if int(boss.boss_type) == 1
-				else _path_center(_progress(boss), boss)
-			)
+			var target_pos := _transition_origin if int(boss.boss_type) == 1 else _path_center(_progress(boss), boss)
 			boss.position = _transition_origin.lerp(target_pos, eased) + shake
 			if _transition_timer <= 0.0:
 				_phase = ENRAGE_ACTIVE
@@ -167,10 +160,17 @@ func update(delta: float, boss) -> void:
 					if _attack_timer <= 0.0:
 						_attack_timer = float(boss.ENRAGE_ATTACK_INTERVAL)
 						_attack_index += 1
-						_fire.fire_enrage_wave(
-							boss, float(boss.ENRAGE_LASER_SPEED), float(boss.ENRAGE_RING_SPEED),
-							int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
-							int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING),
+						(
+							_fire
+							. fire_enrage_wave(
+								boss,
+								float(boss.ENRAGE_LASER_SPEED),
+								float(boss.ENRAGE_RING_SPEED),
+								int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
+								int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+								int(boss.ENRAGE_SNAPSHOT_LASERS),
+								int(boss.ENRAGE_SNAPSHOT_RING),
+							)
 						)
 			if _timer <= 0.0:
 				_begin_release_hold(boss)
@@ -190,22 +190,33 @@ func update(delta: float, boss) -> void:
 					# 回轨道底部放 12 向慢速环弹
 					var t := clampf(1.0 - _release_hold_timer / float(boss.ENRAGE_RELEASE_HOLD_DURATION), 0.0, 1.0)
 					var eased := t * t * (3.0 - 2.0 * t)
-					boss.position = _release_origin.lerp(
-						_snapshot_target + Vector2(0.0, _path_radius(boss)), eased
-					)
+					boss.position = _release_origin.lerp(_snapshot_target + Vector2(0.0, _path_radius(boss)), eased)
 					if not _release_salvo_done and t >= 0.5:
 						_release_salvo_done = true
-						_fire.fire_ring(boss, int(boss.E2_RELEASE_RING_COUNT), float(boss.E2_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0)
+						_fire.fire_ring(
+							boss,
+							int(boss.E2_RELEASE_RING_COUNT),
+							float(boss.E2_RELEASE_RING_SPEED),
+							int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+							0.0
+						)
 				3:
 					pass  # 16 向环弹 + 小怪齐射已在 _begin_release_hold 一次性结算
 				_:
 					_attack_timer -= delta
 					if _attack_timer <= 0.0:
 						_attack_timer = float(boss.ENRAGE_RELEASE_INTERVAL)
-						_fire.fire_enrage_wave(
-							boss, float(boss.ENRAGE_RELEASE_LASER_SPEED), float(boss.ENRAGE_RELEASE_RING_SPEED),
-							int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
-							int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING),
+						(
+							_fire
+							. fire_enrage_wave(
+								boss,
+								float(boss.ENRAGE_RELEASE_LASER_SPEED),
+								float(boss.ENRAGE_RELEASE_RING_SPEED),
+								int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
+								int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+								int(boss.ENRAGE_SNAPSHOT_LASERS),
+								int(boss.ENRAGE_SNAPSHOT_RING),
+							)
 						)
 			if _release_hold_timer <= 0.0:
 				_begin_return(boss)
@@ -245,10 +256,7 @@ func _active_stalker(delta: float, boss) -> void:
 	_attack_timer -= delta
 	if _attack_timer <= 0.0 and _attack_index < int(boss.E2_POINT_COUNT):
 		var angle := deg_to_rad(STALKER_POINT_ANGLES_DEG[_attack_index % STALKER_POINT_ANGLES_DEG.size()])
-		boss.position = (
-			_snapshot_target
-			+ Vector2(Enemy.cos_fast(angle), Enemy.sin_fast(angle)) * _path_radius(boss)
-		)
+		boss.position = (_snapshot_target + Vector2(Enemy.cos_fast(angle), Enemy.sin_fast(angle)) * _path_radius(boss))
 		_attack_index += 1
 		_attack_timer = float(boss.E2_POINT_INTERVAL)
 		_attacks.cancel_aim_line()
@@ -285,16 +293,13 @@ func _path_radius(boss) -> float:
 	var base := maxf(_boss_size.x, _boss_size.y) * float(boss.ENRAGE_PATH_RADIUS_SCALE)
 	var view := GameState.view_world_rect()
 	var half := _boss_size * 0.5
-	var max_radius := maxf(24.0, minf(
+	var max_radius := maxf(
+		24.0,
 		minf(
-			_snapshot_target.x - view.position.x - half.x,
-			view.end.x - _snapshot_target.x - half.x
-		),
-		minf(
-			_snapshot_target.y - view.position.y - half.y,
-			view.end.y - _snapshot_target.y - half.y
+			minf(_snapshot_target.x - view.position.x - half.x, view.end.x - _snapshot_target.x - half.x),
+			minf(_snapshot_target.y - view.position.y - half.y, view.end.y - _snapshot_target.y - half.y)
 		)
-	))
+	)
 	return minf(base, max_radius)
 
 
@@ -346,7 +351,9 @@ func _begin_release_hold(boss) -> void:
 		2:
 			_release_origin = boss.position
 		3:
-			_fire.fire_ring(boss, int(boss.E3_RELEASE_RING_COUNT), float(boss.E3_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0)
+			_fire.fire_ring(
+				boss, int(boss.E3_RELEASE_RING_COUNT), float(boss.E3_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0
+			)
 			_hive_volley_all_minions(boss)
 		_:
 			_attack_timer = 0.0  # 回退路径：立即放第一波

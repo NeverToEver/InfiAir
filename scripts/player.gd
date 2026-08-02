@@ -380,12 +380,18 @@ func set_fine_toggle(enabled: bool) -> void:
 
 func aim_assist_params() -> Dictionary:
 	return {
-		"homing_turn_rate": _homing_turn_rate, "stick_factor": _aim_stick_factor,
-		"magnet_range": _magnet_range, "magnet_strength": _magnet_strength,
+		"homing_turn_rate": _homing_turn_rate,
+		"stick_factor": _aim_stick_factor,
+		"magnet_range": _magnet_range,
+		"magnet_strength": _magnet_strength,
 		"magnet_max_speed": _magnet_max_speed,
-		"magnet_input_min": _magnet_input_min, "magnet_input_full": _magnet_input_full,
-		"cone_angle_deg": _cone_angle_deg, "cone_strength": _cone_strength,
-		"falloff_peak": _falloff_peak, "falloff_end": _falloff_end, "falloff_min": _falloff_min,
+		"magnet_input_min": _magnet_input_min,
+		"magnet_input_full": _magnet_input_full,
+		"cone_angle_deg": _cone_angle_deg,
+		"cone_strength": _cone_strength,
+		"falloff_peak": _falloff_peak,
+		"falloff_end": _falloff_end,
+		"falloff_min": _falloff_min,
 	}
 
 
@@ -609,8 +615,6 @@ func clamp_to_view(p: Vector2) -> Vector2:
 	return p.clamp(view.position + Vector2(40.0, 40.0), view.end - Vector2(40.0, 40.0))
 
 
-
-
 ## 当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（与准星/开火同一来源）。
 ## 弹道规则（P1-1）：默认朝瞄准点直射；准星入标记敌框时出膛弹获得对该敌的追踪修正。
 ## 入框弱吸附：平滑点在标记框内时鼠标增量按档位 stick_factor 降灵敏度，帮助定住准星；
@@ -636,8 +640,7 @@ func aim_point() -> Vector2:
 				factor = _aim_stick_factor
 			else:
 				magnet = GameState.aim_frame_layer.magnet_pull(_aim_smooth, raw - _aim_last_raw)
-		_aim_smooth = raw if not _aim_initialized else \
-			_aim_smooth + (raw - _aim_last_raw) * factor + magnet
+		_aim_smooth = raw if not _aim_initialized else _aim_smooth + (raw - _aim_last_raw) * factor + magnet
 		_aim_last_raw = raw
 		_aim_initialized = true
 	return _aim_smooth
@@ -665,8 +668,6 @@ func _on_aim_assist_level_changed(_level: StringName) -> void:
 ## P0-1：手柄设置变更（右摇杆灵敏度）重读
 func _on_joy_settings_changed(aim_speed: float, _deadzone: float) -> void:
 	_aim_joy_speed = aim_speed
-
-
 
 
 func spawn_afterimage() -> void:
@@ -791,8 +792,12 @@ func _fire(aim: Vector2) -> void:
 			if homing_target != null:
 				var dot := aim_dir.dot((homing_target.global_position - global_position).normalized())
 				var ang_t := clampf((dot - _cone_cos) / (1.0 - _cone_cos), 0.0, 1.0)
-				homing_rate = _homing_turn_rate * _cone_strength * ang_t \
+				homing_rate = (
+					_homing_turn_rate
+					* _cone_strength
+					* ang_t
 					* aim_dist_falloff(global_position.distance_to(homing_target.global_position))
+				)
 				if homing_rate <= 0.0:
 					homing_target = null  # 锥缘/远距退化为直射
 	var count := 1 + spread

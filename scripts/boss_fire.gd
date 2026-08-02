@@ -71,10 +71,7 @@ func fire_ring(boss: Node2D, p_count: int, p_speed: float, p_damage: int, p_offs
 
 ## 快照激光 + 环形慢弹（狂暴进入一次性齐射 / RELEASE 回退路径共用）
 func fire_enrage_wave(
-	boss: Node2D,
-	laser_speed: float, ring_speed: float,
-	laser_damage: int, ring_damage: int,
-	laser_count: int, ring_count: int
+	boss: Node2D, laser_speed: float, ring_speed: float, laser_damage: int, ring_damage: int, laser_count: int, ring_count: int
 ) -> void:
 	var aim := player_dir(boss)
 	var side := aim.orthogonal()
@@ -101,8 +98,7 @@ func fire_bullet_wall(boss: Node2D, count: int, speed: float, damage: int, arc_d
 	var base := Vector2.DOWN.angle()
 	var to_player := player_dir(boss).angle()
 	var min_gap := deg_to_rad(30.0)
-	var slot_angle := func(i: int) -> float:
-		return base - arc * 0.5 + arc * float(i) / float(count - 1)
+	var slot_angle := func(i: int) -> float: return base - arc * 0.5 + arc * float(i) / float(count - 1)
 	var candidates: Array[int] = []
 	for g in count - 1:
 		if (
@@ -114,10 +110,7 @@ func fire_bullet_wall(boss: Node2D, count: int, speed: float, damage: int, arc_d
 	if candidates.is_empty():
 		var best_dist := -1.0
 		for g in count - 1:
-			var d := minf(
-				absf(angle_difference(slot_angle.call(g), to_player)),
-				absf(angle_difference(slot_angle.call(g + 1), to_player))
-			)
+			var d := minf(absf(angle_difference(slot_angle.call(g), to_player)), absf(angle_difference(slot_angle.call(g + 1), to_player)))
 			if d > best_dist:
 				best_dist = d
 				gap_start = g

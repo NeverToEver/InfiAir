@@ -32,20 +32,41 @@ signal buffs_changed
 ## regen_delay/regen_rate 为被动回血（对齐原作 settings.py HEALTH_REGEN）：
 ## 距上次受伤 regen_delay 秒起每秒回 regen_rate HP（原作延迟不重置为疑似 bug，本版受伤即重置）。
 var DIFFICULTY_DEFS: Dictionary = {
-	&"easy": {
-		"label": "易", "hp": 0.75, "speed": 0.85, "spawn": 1.25,
-		"score": 1, "spread_cap": 1, "milestone": 1.0,
-		"regen_delay": 3.0, "regen_rate": 4.0,
+	&"easy":
+	{
+		"label": "易",
+		"hp": 0.75,
+		"speed": 0.85,
+		"spawn": 1.25,
+		"score": 1,
+		"spread_cap": 1,
+		"milestone": 1.0,
+		"regen_delay": 3.0,
+		"regen_rate": 4.0,
 	},
-	&"medium": {
-		"label": "中", "hp": 1.0, "speed": 1.0, "spawn": 1.0,
-		"score": 2, "spread_cap": 2, "milestone": 1.0,
-		"regen_delay": 4.0, "regen_rate": 2.0,
+	&"medium":
+	{
+		"label": "中",
+		"hp": 1.0,
+		"speed": 1.0,
+		"spawn": 1.0,
+		"score": 2,
+		"spread_cap": 2,
+		"milestone": 1.0,
+		"regen_delay": 4.0,
+		"regen_rate": 2.0,
 	},
-	&"hard": {
-		"label": "难", "hp": 1.5, "speed": 1.2, "spawn": 0.8,
-		"score": 3, "spread_cap": 3, "milestone": 1.5,
-		"regen_delay": 5.0, "regen_rate": 0.67,
+	&"hard":
+	{
+		"label": "难",
+		"hp": 1.5,
+		"speed": 1.2,
+		"spawn": 0.8,
+		"score": 3,
+		"spread_cap": 3,
+		"milestone": 1.5,
+		"regen_delay": 5.0,
+		"regen_rate": 0.67,
 	},
 }
 const DIFFICULTY_ORDER: Array[StringName] = [&"easy", &"medium", &"hard"]
@@ -127,8 +148,16 @@ func _apply_balance() -> void:
 ## 部分损坏 JSON 通过后敌方 0 HP 秒死/得分倍率 0，违背「损坏回退默认」宣称）。
 ## label 键已由 D04 改走 tr() 不再消费，不纳入校验。
 const DIFFICULTY_DEF_KEYS: Array[String] = [
-	"hp", "speed", "spawn", "score", "spread_cap", "milestone", "regen_delay", "regen_rate",
+	"hp",
+	"speed",
+	"spawn",
+	"score",
+	"spread_cap",
+	"milestone",
+	"regen_delay",
+	"regen_rate",
 ]
+
 
 func _valid_difficulty_defs(diff: Variant) -> bool:
 	if not diff is Dictionary:
@@ -147,6 +176,7 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 		if float(def.get("milestone", 1.0)) <= 0.0 or float(def.get("cycle_mult", 1.0)) <= 0.0:
 			return false
 	return true
+
 
 # RP（征用点数）经济：对齐原作 RequisitionConstants
 const RP_BOSS_KILL := 5
@@ -195,15 +225,27 @@ const XBOX_BUTTON_LABELS: Dictionary = {0: "A", 1: "B", 2: "X", 3: "Y", 4: "LB",
 const PS_BUTTON_LABELS: Dictionary = {0: "✕", 1: "○", 2: "□", 3: "△", 4: "L1", 5: "R1", 6: "L3", 7: "R3"}
 ## 手柄相关动作清单（死区应用与装配共用）
 const JOYPAD_ACTIONS: Array[StringName] = [
-	&"move_up", &"move_down", &"move_left", &"move_right",
-	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
-	&"dash", &"boost", &"fine_move", &"dock", &"homecoming", &"give_up", &"buff_panel", &"restart",
+	&"move_up",
+	&"move_down",
+	&"move_left",
+	&"move_right",
+	&"aim_left",
+	&"aim_right",
+	&"aim_up",
+	&"aim_down",
+	&"dash",
+	&"boost",
+	&"fine_move",
+	&"dock",
+	&"homecoming",
+	&"give_up",
+	&"buff_panel",
+	&"restart",
 ]
 ## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
 var highscores: Array[Dictionary] = []
 const HIGHSCORE_LIMIT := 10
 var tutorial_done: bool = false
-
 
 var score: int = 0
 var kills: int = 0
@@ -268,6 +310,7 @@ var profile_corrupt: bool = false
 
 func _enter_tree() -> void:
 	boot_ticks_msec = Time.get_ticks_msec()
+
 
 ## 实体注册表（A2 阶段 4：数据归 EntityRegistry，属性转发保持外部语法不变）。
 ## 热路径缓存，避免每帧 get_nodes_in_group 分配。
@@ -402,6 +445,7 @@ func add_score(points: int) -> void:
 
 # ---------------- 难度档位 ----------------
 
+
 ## 切换难度档位（非法档位忽略），持久化到 profile 并广播
 func set_difficulty(p_difficulty: StringName) -> void:
 	if not DIFFICULTY_DEFS.has(p_difficulty) or p_difficulty == difficulty:
@@ -469,6 +513,7 @@ func _refresh_regen_cache() -> void:
 
 # ---------------- 里程碑阈值曲线 ----------------
 
+
 ## 第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
 ## 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
 func milestone_threshold(index: int) -> int:
@@ -501,6 +546,7 @@ func recompute_difficulty() -> void:
 
 
 # ---------------- 设置项（Ctrl/Shift 模式） ----------------
+
 
 ## Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 profile
 func set_ctrl_toggle_mode(enabled: bool) -> void:
@@ -704,11 +750,7 @@ func add_boss_kill(score_scale: float = 1.0) -> void:
 ## 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。
 func _recompute_difficulty() -> bool:
 	var step := int(floorf(run_time / _prog_time_step_seconds))
-	var new_mult := (
-		1.0
-		+ _prog_per_boss_kill * boss_kills
-		+ step * _prog_time_step_seconds / 600.0 * _prog_per_ten_minutes
-	)
+	var new_mult := 1.0 + _prog_per_boss_kill * boss_kills + step * _prog_time_step_seconds / 600.0 * _prog_per_ten_minutes
 	_difficulty_time_step = step
 	if is_equal_approx(new_mult, difficulty_multiplier):
 		return false
@@ -761,13 +803,30 @@ func add_buff(id: StringName) -> void:
 # ---------------- 可改键系统 ----------------
 
 const REBINDABLE_ACTIONS: Array[StringName] = [
-	&"move_up", &"move_down", &"move_left", &"move_right",
-	&"boost", &"fine_move", &"dash", &"dock", &"homecoming", &"give_up", &"buff_panel",
+	&"move_up",
+	&"move_down",
+	&"move_left",
+	&"move_right",
+	&"boost",
+	&"fine_move",
+	&"dash",
+	&"dock",
+	&"homecoming",
+	&"give_up",
+	&"buff_panel",
 ]
 const ACTION_LABELS: Dictionary = {
-	&"move_up": "上移", &"move_down": "下移", &"move_left": "左移", &"move_right": "右移",
-	&"boost": "加速", &"fine_move": "微调", &"dash": "相位冲刺",
-	&"dock": "召唤母舰", &"homecoming": "返航", &"give_up": "放弃出击", &"buff_panel": "增益面板",
+	&"move_up": "上移",
+	&"move_down": "下移",
+	&"move_left": "左移",
+	&"move_right": "右移",
+	&"boost": "加速",
+	&"fine_move": "微调",
+	&"dash": "相位冲刺",
+	&"dock": "召唤母舰",
+	&"homecoming": "返航",
+	&"give_up": "放弃出击",
+	&"buff_panel": "增益面板",
 }
 
 ## action -> Array[int]（keycode，最多 2 个）；restart/pause 固定不可改
@@ -819,14 +878,14 @@ func _bind_joypad_defaults() -> void:
 	_add_joy_axis(&"move_left", 0, -1.0)
 	_add_joy_axis(&"move_right", 0, 1.0)
 	# 动作键（B=ui_cancel 已被引擎默认占用，返航让位 Y）
-	_add_joy_button(&"dash", 0)       # A
-	_add_joy_button(&"boost", 5)      # RB
+	_add_joy_button(&"dash", 0)  # A
+	_add_joy_button(&"boost", 5)  # RB
 	_add_joy_button(&"fine_move", 4)  # LB
-	_add_joy_button(&"dock", 2)       # X
-	_add_joy_button(&"homecoming", 3) # Y（长按返航）
-	_add_joy_button(&"give_up", 7)    # R3（长按放弃）
-	_add_joy_button(&"buff_panel", 6) # L3（展开/收起 buff 栏）
-	_add_joy_button(&"restart", 0)    # A（结算/暂停重开）
+	_add_joy_button(&"dock", 2)  # X
+	_add_joy_button(&"homecoming", 3)  # Y（长按返航）
+	_add_joy_button(&"give_up", 7)  # R3（长按放弃）
+	_add_joy_button(&"buff_panel", 6)  # L3（展开/收起 buff 栏）
+	_add_joy_button(&"restart", 0)  # A（结算/暂停重开）
 	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。
 	# H01（健壮性审核）：必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
 	# 同一动作正负双向传会恒为零（右摇杆瞄准完全失效）
@@ -886,8 +945,11 @@ func is_ps_guid(guid: String) -> bool:
 
 ## 手柄按钮的物理标签（按当前布局）：PS 用 ✕○□△/L1/R1…，Xbox/SDL 用 A/B/X/Y/LB/RB…
 func joy_button_label(button: int) -> String:
-	return str(PS_BUTTON_LABELS.get(button, XBOX_BUTTON_LABELS.get(button, str(button)))) if joy_layout == &"ps" \
+	return (
+		str(PS_BUTTON_LABELS.get(button, XBOX_BUTTON_LABELS.get(button, str(button))))
+		if joy_layout == &"ps"
 		else str(XBOX_BUTTON_LABELS.get(button, str(button)))
+	)
 
 
 ## 改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）
@@ -947,6 +1009,7 @@ func set_locale(p_locale: String) -> void:
 
 
 # ---------------- RP 经济 / 基地任务 / 天赋路线 ----------------
+
 
 func add_rp(amount: int) -> void:
 	rp += amount
@@ -1044,6 +1107,7 @@ func is_buff_locked(buff_id: StringName) -> bool:
 
 
 # ---------------- 对局存档（user://savegame.json） ----------------
+
 
 func save_run(fuel: float, elapsed: float) -> void:
 	var data := {
@@ -1163,6 +1227,7 @@ func delete_save() -> void:
 
 
 # ---------------- 局外档案（user://profile.json） ----------------
+
 
 ## 局外档案：最高分 + 难度档位 + 设置项（旧版 talents/talent_points 字段读取时忽略；
 ## 旧档案缺少新字段时保留当前内存值，保证兼容；损坏文件隔离备份后按默认值继续）

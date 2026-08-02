@@ -63,9 +63,10 @@ func _on_locale_changed() -> void:
 	_board_title_label.text = tr("GO_BOARD")
 	_hint_label.text = tr("GO_RESTART")
 	if visible:
-		_stats_label.text = (tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [
-			GameState.high_score, GameState.kills, GameState.boss_kills
-		]
+		_stats_label.text = (
+			(tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS"))
+			% [GameState.high_score, GameState.kills, GameState.boss_kills]
+		)
 		_board_label.text = GameState.highscores_text(5)
 
 
@@ -76,9 +77,9 @@ func _on_player_died() -> void:
 	# P0-3：本局分数提交本地榜并显示名次与 Top5
 	_last_rank = GameState.submit_highscore(GameState.score)
 	_score_label.text = str(GameState.score)
-	_stats_label.text = (tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [
-		GameState.high_score, GameState.kills, GameState.boss_kills
-	]
+	_stats_label.text = (
+		(tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [GameState.high_score, GameState.kills, GameState.boss_kills]
+	)
 	_rank_label.text = tr("GO_RANK") % [_last_rank]
 	_rank_label.visible = _last_rank > 0
 	_board_label.text = GameState.highscores_text(5)

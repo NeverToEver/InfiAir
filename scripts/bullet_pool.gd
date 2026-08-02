@@ -25,12 +25,7 @@ func free_count() -> int:
 
 ## 取一枚子弹并激活（参数同 Bullet.setup）。
 func fire(
-	p_direction: Vector2,
-	p_speed: float,
-	p_damage: int,
-	p_is_player: bool,
-	p_homing: bool = false,
-	p_homing_time: float = 0.0
+	p_direction: Vector2, p_speed: float, p_damage: int, p_is_player: bool, p_homing: bool = false, p_homing_time: float = 0.0
 ) -> Bullet:
 	var b: Bullet = null
 	while not _free.is_empty():
