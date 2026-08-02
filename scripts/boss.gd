@@ -100,6 +100,18 @@ var SNIPER_TRACK_TIME := 0.2
 ## 一型 P1 纵向下压（§5.1）：每 6s 下压 80px 再回
 var PRESS_INTERVAL := 6.0
 var PRESS_DEPTH := 80.0
+## D05 P2 走位（balance.json boss.movement，公开字段供 BossMovement 读取）
+var TYPE1_P2_STRAFE := 200  # 一型 P2 strafe 速度（P1 = STRAFE_SPEEDS[0] 150）
+var TYPE1_P2_BOB_AMP := 40.0  # 一型 P2 纵向正弦幅度（±px，围绕锚线）
+var TYPE1_P2_BOB_PERIOD := 6.0  # 一型 P2 纵向正弦周期（s）
+var TYPE2_P2_DASH_TIME := 0.4  # 二型 P2 冲刺持续（P1 = 0.5）
+var TYPE2_P2_REST_TIME := 0.5  # 二型 P2 冲刺休息（P1 = 0.7）
+var TYPE3_P1_BOB_MIN := 200.0  # 三型 P1 纵向呼吸下界（锚线下 px）
+var TYPE3_P1_BOB_MAX := 280.0  # 三型 P1 纵向呼吸上界（锚线下 px）
+var TYPE3_P1_BOB_PERIOD := 9.0  # 三型 P1 纵向呼吸周期（s，与模式循环错开）
+var TYPE3_P2_STRAFE := 100  # 三型 P2 strafe 速度（P1 = STRAFE_SPEEDS[2] 60）
+var TYPE3_P2_BOB_AMP := 50.0  # 三型 P2 纵向正弦幅度（±px，围绕锚线）
+var TYPE3_P2_BOB_PERIOD := 8.0  # 三型 P2 纵向正弦周期（s）
 ## 蓄力重炮（一型 P2，§5.1）：0.6s 蓄力辉光 → 3 发高速重弹（间隔 0.25s，每发 0.15s 短闪光）
 var CANNON_CHARGE := 0.6
 var CANNON_SHOTS := 3
@@ -445,6 +457,17 @@ func _ready() -> void:
 	SNIPER_TRACK_TIME = GameState.cfg("boss.phases.telegraph.sniper_track", SNIPER_TRACK_TIME)
 	PRESS_INTERVAL = GameState.cfg("boss.phases.press_interval", PRESS_INTERVAL)
 	PRESS_DEPTH = GameState.cfg("boss.phases.press_depth", PRESS_DEPTH)
+	TYPE1_P2_STRAFE = int(GameState.cfg("boss.movement.type1_p2_strafe", TYPE1_P2_STRAFE))
+	TYPE1_P2_BOB_AMP = float(GameState.cfg("boss.movement.type1_p2_bob_amp", TYPE1_P2_BOB_AMP))
+	TYPE1_P2_BOB_PERIOD = float(GameState.cfg("boss.movement.type1_p2_bob_period", TYPE1_P2_BOB_PERIOD))
+	TYPE2_P2_DASH_TIME = float(GameState.cfg("boss.movement.type2_p2_dash_time", TYPE2_P2_DASH_TIME))
+	TYPE2_P2_REST_TIME = float(GameState.cfg("boss.movement.type2_p2_rest_time", TYPE2_P2_REST_TIME))
+	TYPE3_P1_BOB_MIN = float(GameState.cfg("boss.movement.type3_p1_bob_min", TYPE3_P1_BOB_MIN))
+	TYPE3_P1_BOB_MAX = float(GameState.cfg("boss.movement.type3_p1_bob_max", TYPE3_P1_BOB_MAX))
+	TYPE3_P1_BOB_PERIOD = float(GameState.cfg("boss.movement.type3_p1_bob_period", TYPE3_P1_BOB_PERIOD))
+	TYPE3_P2_STRAFE = int(GameState.cfg("boss.movement.type3_p2_strafe", TYPE3_P2_STRAFE))
+	TYPE3_P2_BOB_AMP = float(GameState.cfg("boss.movement.type3_p2_bob_amp", TYPE3_P2_BOB_AMP))
+	TYPE3_P2_BOB_PERIOD = float(GameState.cfg("boss.movement.type3_p2_bob_period", TYPE3_P2_BOB_PERIOD))
 	# 阶段 B 攻击库参数（boss.phases.attacks.*）
 	CANNON_CHARGE = GameState.cfg("boss.phases.attacks.charged_cannon.charge", CANNON_CHARGE)
 	CANNON_SHOTS = GameState.cfg("boss.phases.attacks.charged_cannon.shots", CANNON_SHOTS)

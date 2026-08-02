@@ -426,6 +426,19 @@
 				}
 			}
 		},
+		"movement": {
+			"type1_p2_strafe": 200,
+			"type1_p2_bob_amp": 40,
+			"type1_p2_bob_period": 6,
+			"type2_p2_dash_time": 0.4,
+			"type2_p2_rest_time": 0.5,
+			"type3_p1_bob_min": 200,
+			"type3_p1_bob_max": 280,
+			"type3_p1_bob_period": 9,
+			"type3_p2_strafe": 100,
+			"type3_p2_bob_amp": 50,
+			"type3_p2_bob_period": 8
+		},
 		"enrage": {
 			"hp_ratio": 0.3,
 			"rate_mult": 1.3,
