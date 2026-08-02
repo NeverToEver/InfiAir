@@ -1,5 +1,9 @@
 #!/bin/bash
-# InfiAir 双击启动（macOS）
+# InfiAir 双击启动（macOS）+ 终端参数透传（2026-08-02 与 run.sh 对齐）
+# 双击启动：直接开游戏；异常退出保留窗口与输出，方便排查。
+# 终端用法：./run.command [引擎参数]——与 run.sh 同一参数协议：
+#           例：./run.command --editor              （打开编辑器）
+#               ./run.command --headless --quit-after 300（无头快速启动自检）
 # 若双击无反应：右键 → 打开；或先执行 chmod +x run.command
 # 若提示"无法验证开发者"：系统设置 → 隐私与安全性 → 仍要打开
 cd "$(dirname "$0")" || exit 1
@@ -57,9 +61,14 @@ fi
 
 VER="$("$GODOT" --version 2>/dev/null | head -n1)"
 echo "[InfiAir] 使用引擎：$GODOT（$VER）"
+if [ $# -gt 0 ]; then
+    echo "[InfiAir] 透传参数：$*"
+fi
 
-# 不用 exec：异常退出时保留窗口与输出，方便排查
-"$GODOT" --path .
+# 不用 exec：异常退出时保留窗口与输出，方便排查。
+# 双击无参数时等价纯启动；终端传入的引擎参数（--editor / --headless 验证等）原样透传，
+# 与 run.sh 参数协议一致（--help 也由引擎处理）。
+"$GODOT" --path . "$@"
 CODE=$?
 if [ "$CODE" -ne 0 ]; then
     echo "[InfiAir] 游戏异常退出（代码 $CODE），可把上方输出截图反馈。"

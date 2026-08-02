@@ -17,7 +17,7 @@
 | `data/balance.json` | 玩家、敌机、Boss、刷怪、Buff、母舰、难度、特效、教程等可调参数。Boss 段含 `phases`（阶段模式表/telegraph/各型 P2 攻击参数）、`enrage.type_*`（三型差异化狂暴）与 `difficulty_scaling`（弹数/间隔/弹速三档分档表）。优先用 `scripts/tools/balance_editor.py` 编辑。 |
 | `data/translations.csv` | 翻译键及 `zh`、`en` 文本源。 |
 | `.gitignore` | 忽略 `.godot/`、导入的 `*.translation`、本地 IDE 文件和导出产物（`builds/` 等；`export_presets.cfg` 自 2026-07-30 起入库）。 |
-| `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装。`run.sh`：PATH → `~/.local/bin/godot` → App bundle，低版本仅告警，参数透传（`--editor` 等）。`run.command`（双击）：候选含 `/Applications` 与 `~/Applications` 的 `Godot*.app` 变体名，逐候选验证版本并优先选 4.6+，不用 `exec`——异常退出保留窗口与输出。 |
+| `run.sh` / `run.command` / `run.bat` | macOS/Linux/Windows 的本地启动包装。`run.sh`：PATH → `~/.local/bin/godot` → App bundle，低版本仅告警，参数透传（`--editor` 等）。`run.command`（双击 + 终端通用，2026-08-02 起与 `run.sh` 参数协议对齐）：候选含 `/Applications` 与 `~/Applications` 的 `Godot*.app` 变体名，逐候选验证版本并优先选 4.6+，引擎参数原样透传（`--editor` / `--headless --quit-after 300` 无头自检），不用 `exec`——异常退出保留窗口与输出。 |
 | `export_presets.cfg` | Linux/X11 与 Windows Desktop 导出预设（嵌入 pck 单文件，x86_64）。需本机安装匹配版本的 Godot 导出模板。 |
 | `release.sh` | 发布构建：资源导入 → 双平台导出 → 打包到 `builds/release/`（`VERSION` 环境变量指定版本号）。 |
 

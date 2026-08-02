@@ -92,9 +92,18 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 - 子弹生产统一使用 `GameState.bullet_pool.fire()`；外部 `queue_free()` 后的池引用清理由子弹退出树逻辑处理。
 - 修改对象池时必须保留 `_active` 与 `_repooling` 防护。Godot 4.6 的 `reparent()` 会触发 `_exit_tree()`；回收 reparent 必须由 `_repooling` 包裹，否则 `forget()` 会将对象错误地从空闲池移除。修改后运行 `test/pool_reuse_test.tscn`。
-- 敌机存在直接实例化和对象池两条当前路径（见 `docs/ARCHITECTURE.md`）。池化实体的 `reactivate()`/`deactivate()` 负责状态重置、注册表和死亡信号；不要把池对象外部随意释放或绕过其生命周期。
+- 敌机统一走对象池（`GameState.enemy_pool.spawn()`，含普通波次、Boss-3 小怪与编队机；`USE_POOL=false` 时退化为直接实例化，作性能 A/B 对照开关）。池化实体的 `reactivate()`/`deactivate()` 负责状态重置、注册表和死亡信号；不要把池对象外部随意释放或绕过其生命周期。架构细节见 `docs/ARCHITECTURE.md`。
 - 热路径不能反复 `get_nodes_in_group()`；使用 `GameState.enemies`、`GameState.player_ref` 和 `GameState.player_hitbox` 注册表。`Enemy` 移动计算使用 `Enemy.sin_fast()` / `Enemy.cos_fast()` 的查表实现，避免在 `_physics_process()` 直接调用三角函数。
 - HUD 仪表类轮询按约 0.1 秒节流，且只在文本/格子值变化时更新布局；优先通过 `GameState` 信号驱动状态更新。
+
+### Shell 脚本与启动包装
+
+- 项目根脚本：`run.sh` / `run.command` / `run.bat`（本地启动；`run.sh` 与 `run.command` 同一参数协议，可透传引擎参数，如 `--editor`、`--headless --quit-after 300`）、`release.sh`（发布构建）、`packaging/`（双平台安装/卸载）。**结构规范提炼自 `bentsolheim/public-skills` 的 `bash` skill（v2.0.0，生态中唯一 shell 维护类 skill），按项目现状适配如下**（其"禁 `set -e`"立场与项目主流实践冲突，未采纳）：
+  - **错误处理**：新脚本默认 `set -euo pipefail`（既有 `release.sh`/`run.sh`/`packaging/linux/*.sh` 均为该风格，属主流实践）；错误信息走 stderr（`>&2`）并带上下文，返回非零退出码。`run.command` 因 macOS 双击需"异常退出保留窗口与输出"，用显式 `$?` 检查而非 `set -e`——有意的特例。
+  - **结构**：带参数/多函数/交互的普通脚本用 `main()` + 底部 guard clause（`[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"`，保证可被 source 而不执行）+ `usage()` heredoc（描述/选项/示例/依赖）；函数单一职责、参数用 `local`。简单脚本（<30 行、无参数、线性、输出供程序消费）无需 main 包装，但保留目的注释、退出码与变量加引号。
+  - **参数解析**：`while` + `case` 结构；未知选项报错并调 `usage()`；支持 `--help` / `--version`。
+  - **依赖与输出**：启动类脚本须做引擎探测与版本判定（本项目要求 Godot 4.6+，参考 `run.sh`/`run.command` 的候选列表与 `version_ok` 模式）；依赖外部工具先 `command -v` 检查。交互输出可带颜色但须尊重 `NO_COLOR`。
+  - **校验**：改完 shell 脚本至少 `bash -n` 语法检查 + 实际跑通（如 `./run.command --headless --quit-after 300` 无头自检）。
 
 ## 测试策略
 
