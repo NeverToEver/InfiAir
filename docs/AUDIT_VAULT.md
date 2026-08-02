@@ -749,3 +749,67 @@
 | **ignore（项目风格确认真冲突）** | inferred_declaration（`:=` 是 Godot 官方推荐）、return_value_discarded（Tween 链式标准写法） | 项目风格冲突，关闭 |
 
 **验证**：配置定稿后 `--headless --import` 0 error；InputEvent 判型注解后 meta_health_fx/smoke/base_system/back_navigation 回归通过。
+
+---
+
+# 第七轮审核（2026-08-02 全链路静态分析与修复）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 全游戏链路深度语法与逻辑探查（静态门禁 + 9 路子代理并行深读 + 主控复核） |
+| 工作时间 | 2026-08-02 |
+| 审核区域 | `scripts/` 61 文件 + `autoload/game_state.gd`，按链路分 9 组并行（玩家/战斗/敌人/Boss/母舰返航/事件/UI/核心编排/过场） |
+| 审核方法 | 静态门禁（gdformat/gdlint/引擎 import+冒烟）全绿后派 9 路子代理并行深读（交叉核对 balance.json 键、信号配对、池生命周期、热路径、world_scale 幂等），主控对 P1 级发现读码复核，最后全量 31 断言场景回归 |
+| 结论 | 无 P0；P1×2 + P2×17 + P3×约 20（组）。其中：2 项 P2 经核实无需修（编队炸弹保护舱/鼠标 warp 坐标待实测）、2 项与既有「登记不修」决策冲突已回退（E09/E15）、1 项 P3 死标记核实为测试契约非死代码（hive_volley） |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+
+## I 系列发现与处置（全量修复，5 批提交 025b393/18b5ad8/89ee243/ecb9d33/6bbbf8b）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| I01 | P1 | `bullet.gd:295` | 纯bug（运行时错误+伤害放大） | 爆炸弹命中分支对 enemy 组 Area2D 鸭子调用 `is_boss()`；TurretBattery/FormationCraft（extends Area2D）无此方法 → 运行时错误中断函数 → 子弹不销毁二次命中 | ✅ 已修复（批次1）：改「`not area.has_method("is_boss") or not area.is_boss()`」双条件——无方法（炮台/编队机）或返回值 false（普通敌机）均爆炸，Boss/精英 true 不爆炸。验证：hit_logic_test A12 全 PASS |
+| I02 | P1 | `formation_strike_event.gd:222` | 纯bug（玩法节奏失真） | `_begin_run` 循环 k 外层 i 内层生成非排序时刻表 `[0,0.8,1.6,2.4,0.4,...]`，`_process_drops` 按单调 `_state_time` 贪心消费 → 第二波炸弹堆积到末尾同一帧（4 机时同帧 4 弹），与注释「僚机错开 bomb_interval」设计意图相悖 | ✅ 已修复（批次1）：循环转置为 i 外层 k 内层，时刻表单调递增。验证：formation_strike_event_test 0 FAIL |
+| I03 | P2 | `player.gd:199` | 信号清理 | `_exit_tree` 漏断 `joy_settings_changed`（buffs_changed/aim_assist_changed 均断开），重入树重复连接致回调重复执行 | ✅ 已修复（批次2）：补对称断开。验证：smoke 0 FAIL |
+| I04 | P2 | `laser_weapon.gd:29` | 尺寸族一致性 | `BEAM_HALF_WIDTH` 未乘 world_scale 而 `ENEMY_HIT_RADIUS` 乘了（同一命中公式两杠杆） | 🟦 登记不修：AUDIT_VAULT E09 既有决策（乘后 26→10.4px 显著削弱激光命中，属游戏性变更需产品判断），本轮改动已回退 |
+| I05 | P2 | `spawner.gd:501` | 资源清单管理 | `_pending_telegraphs` 悬空引用只增不减（SpawnTelegraph 0.6s 自毁但未从数组移除），长局累积到返航 | ✅ 已修复（批次1）：telegraph 连接 `tree_exited` 自动 erase，与 `_pending_timers` 对称。验证：enemy_combat/wave_pacing 0 FAIL |
+| I06 | P2 | `enemy.gd:383` | 生命周期防御 | `_exit_tree` 的 `_pool.forget(self)` 缺 `is_instance_valid(_pool)`（与 `_despawn` 不对称），池先于实例释放时踩悬空引用 | ✅ 已修复（批次1）：补齐判空。验证：pool_reuse 0 FAIL |
+| I07 | P2 | `orbital_strike.gd` | 配置无域校验（潜在软锁） | `IMPACT_AT>=1.0` 时 finished 先于 struck → main 收不到 `_on_orbital_struck` → 树保持暂停+玩家锁输入**永久卡死**；`DURATION=0`/`MISSILE_FROM>=IMPACT_AT` 同族 | ✅ 已修复（批次3）：时轴序钳制（duration≥0.01、impact_at≤0.95、missile_from<impact_at）。验证：orbital_strike_test 0 FAIL |
+| I08 | P2 | `boss_fire.gd` | 除零/NaN | `fire_ring`/`fire_enrage_wave`/`fire_bullet_wall` 对 cfg 直读弹数/墙数（如 ENRAGE_SNAPSHOT_*）无下限钳制，误写 0 时 `float(count-1)` 除零 NaN 方向 | ✅ 已修复（批次3）：入口 `maxi(2, count)` 钳制。验证：boss_pattern/boss_enrage 0 FAIL |
+| I09 | P2 | `turret.tscn:7` | 资源共享 | CircleShape2D 被 `turret_battery.gd` 运行时写半径但缺 `resource_local_to_scene=true`（AGENTS 明文约定，enemy.tscn 已修同型），当前全实例写同值未暴露 | ✅ 已修复（批次3）：补 `resource_local_to_scene = true`。验证：elite_turret_event 0 FAIL |
+| I010 | P2 | `mothership.gd:462-480` | 同帧双触发 | STAY 态警告到期 `start_release()` 与 `_early_timer` 到点 `_early_depart()` 同帧双入口 → 二次 start_release 重复释放演出+计时重置 | ✅ 已修复（批次3）：`start_release` 幂等守卫（`_state != STAY` 早退）。验证：mothership_summon 0 FAIL |
+| I011 | P2 | `buff_select.gd:99` | 隐性软锁 | `_on_locale_changed` 在 `_closing` 分支只复位暂停未置 `visible=false`/复位 modulate → 面板残留+对局不暂停+`if visible: return` 致里程碑**永久跳过** | ✅ 已修复（批次2）：补齐关闭语义 + 重建后 grab_focus。验证：buff_panel/buff33 0 FAIL |
+| I012 | P2 | `formation_bomb.gd:93` | 语义核实 | 编队炸弹 AoE 直判伤害绕 monitoring，疑穿透母舰保护舱 | 🟦 核实无需修：母舰 `_start_docking` 即 `set_invincible(999.0)` 覆盖整个驻留期，`take_damage` 的 invincible 检查免疫该伤害 |
+| I013 | P2 | `hud.gd:556` | tween 竞态 | `_show_warning` 淡出 tween 与 label 闪烁 t2 未纳入 `_warning_tween` 互斥，二次警告被旧淡出 hide() 提前压制整段失效 | ✅ 已修复（批次2）：blink/fade 合并管理，阶段切换 kill 当前活跃 tween。验证：smoke/buff_panel 0 FAIL |
+| I014 | P2 | `main.gd:519` | 流程遗漏 | 「继续对局」恢复数据后缺 `_start_entry_sequence()`（开场/返航继续出击均有），与 ARCHITECTURE/D01 注释声明不符 | ✅ 已修复（批次4）：补入场衔接序列（内部 is_connected 守卫幂等）。验证：entry_animation/startup_flow 0 FAIL |
+| I015 | P2 | `game_state.gd:132` | 挂死（H03 补全） | 全局 `milestones.cycle_mult` 无单调性校验，≤0 阈值平台化 → `apply_run_save` while 里程碑永不退出挂死；原 H03 检查在 difficulty 子表（无 cycle_mult 键）为死代码 | ✅ 已修复（批次4）：全局键 `maxf(...,0.01)` 域校验 + 删死代码。验证：difficulty/balance 0 FAIL |
+| I016 | P2 | `game_state.gd:1246/1314` | 判型缺口 | `load_profile` 的 high_score/date 直 `int()`，未走 save_num 判型惯例，手改档案非法类型中断加载链 | ✅ 已修复（批次4）：改 `int(save_num(...))`。验证：startup_flow/base_system 0 FAIL |
+| I017 | P2 | `tutorial.gd:262` | 悬挂引用 | `_mothership` 释放后引用未置空（main.gd:636 有 tree_exited 置空模式），阶段 3 判空依赖释放对象 `==null` 语义 | ✅ 已修复（批次4）：补 `tree_exited` 置空连接。验证：tutorial_test 0 FAIL |
+| I018 | P2 | `cinematic_fx.gd:202` | 潜伏崩溃 | BeamFlow `_sample_at` 缺空数组守卫，`points.size()<2` 时负索引越界（当前调用方传 24 点不可达） | ✅ 已修复（批次4）：`_samples.is_empty()` 早退。验证：return_cinematic/intro_cinematic 0 FAIL |
+| I019 | P2 | `mouse_trap.gd:84/94` | 坐标语义待实测 | `Input.warp_mouse` 窗口相对 vs 全局屏幕坐标语义跨平台不一，加 `win.get_position()` 的正确性需窗口环境实测 | 🟦 待判定：注释含落地调研结论（接受屏幕坐标），无头环境无法实测，登记待窗口环境验证 |
+| I020 | P3 | `enemy.gd:405` | 热路径缓存 | `_physics_process` 每帧 `buff_count(&"slow_field")` 字典查询 | 🟦 登记不修：AUDIT_VAULT E15 既有决策（开销极小），本轮改动已回退 |
+| I021 | P3 | `enemy.gd:247` | 视觉错档 | 精英尾焰光点 `_ready` 时 `is_elite` 恒 false（池化实例 setup 未跑），半径恒取普通档 | ✅ 已修复（批次1）：半径档移入 `_update_tail_glow` 按 is_elite 绝对 scale 重算（幂等）。验证：enemy_combat/pool_reuse 0 FAIL |
+| I022 | P3 | `enemy.gd`（2 处） | 参数倒置 | `randf_range(1.0, fire_interval)` 当 fire_interval<1.0 参数倒置报错 | ✅ 已修复（批次1）：`maxf(fire_interval,1.0)` 钳制 |
+| I023 | P3 | `spawner.gd:428` | 越界 | `unlocked_types` 用 `UNLOCK_SCORES[i]` 按机型表索引，短数组越界崩溃 | ✅ 已修复（批次1）：循环上界 `mini` 钳制 |
+| I024 | P3 | `boss_movement.gd:30` | 死代码 | `reset_press` 内 `_press_timer = _press_timer` 自赋值空语句，注释暗示有保留语义 | ✅ 已修复（批次3）：删除自赋值，注释修正 |
+| I025 | P3 | `boss_attacks.gd:319` | 死标记核实 | `hive_volley` meta 疑只写不读 | 🟦 核实非死代码：`boss_pattern_test.gd:304` 场景 4 断言依赖该 meta 计数，保留 |
+| I026 | P3 | `mothership_summon_window.gd:315-340` | 帧率相关失真 | 插值基准读上一帧 `set_point_position` 后的当前值（非原始端点），形成帧率相关累积轨迹 | ✅ 已修复（批次3）：构建期缓存原始端点。验证：mothership_summon 0 FAIL |
+| I027 | P3 | `dawn_station.gd:250` | tween 空转 | 毁灭态碎片 `set_loops()` 但目标为固定值，循环重放立即完成、碎片冻结首圈末位 | ✅ 已修复（批次3）：改往复段（外飘→返回）。验证：return_cinematic 0 FAIL |
+| I028 | P3 | `scheduled_event_trigger.gd:22` | 无域校验 | `_chance` 未钳制 [0,1]，越界必触发/永不触发 | ✅ 已修复（批次3）：`clampf` |
+| I029 | P3 | `main.gd:69-70/314` | 除零/窗口 | `HOME_CHARGE_TIME`/`GIVE_UP_HOLD_TIME` 无除零钳制（H15 只钳 DOCK）；H 蓄力未检查召唤小窗 | ✅ 已修复（批次4）：`maxf(...,0.01)` + `_summon_window == null` 守卫 |
+| I030 | P3 | `game_state.gd:133-143/1176` | 防御/注释 | `_prog_per_*` 负值、`_max_hp_base` 无下限；add_buff 注释声称有 max_stacks 钳制实无 | ✅ 已修复（批次4）：负值/下限钳制 + 注释修正 |
+| I031 | P3 | `meta_health_fx.gd:329/204` | 配置双源 | 心跳淡出硬编码 0.3s（应读 `dying_fade`）；DYING 阈值 THRESHOLDS 硬编码 0.20 与 cfg 双源 | ✅ 已修复（批次2）：统一读 `_cfg`。验证：meta_health_fx 0 FAIL |
+| I032 | P3 | `settings_ui.gd:447` | 守卫无效 | `_on_locale_changed` 先直写节点文本后 `if _pages.is_empty(): return`——守卫位置无效 | ✅ 已修复（批次2）：守卫提前至函数首行 |
+| I033 | P3 | `cinematic_fx.gd:83/257` | 边界/回卷 | `ring_points(n=0)` 读未写元素；SpeedLine 斜向 dir 不回卷（当前调用方只传 DOWN 不可达） | ✅ 已修复（批次4）：`n<=1` 早退 + 按分量回卷 |
+| I034 | P3 | 多文件（player_dash 等） | 热路径缓存 | `dash_cooldown_max()` HUD 轮询路径每调用查 cfg（A5 缓存模式未覆盖） | ✅ 已修复（批次2）：并入 buffs_changed 缓存。验证：buff_panel 0 FAIL |
+| I035 | P3 | `warp_gate.gd:163` | 注释失实 | 注释称附件走 set_point_position 不随 scale 变，实 `_swirls/_lip` 用节点 scale | ✅ 已修复（批次3）：注释修正（不改实现） |
+| I036 | P3 | `formation_bomb.gd:38` | 死配置 | `collision_mask=1` 无碰撞信号连接 | ✅ 已修复（批次1）：加注释说明保留为语义文档 |
+
+## 测试基础设施补记（2026-08-02）
+
+- **问题**：`test/*.tscn` 不被主场景引用 → `--import` 不解析 test/ 脚本；8e370f9e 警告门禁（narrowing_conversion/unused_variable 等 error 级）与 test/ 既有代码冲突时，**场景启动即静默挂起**（只打 banner 后空转、0% CPU、无错误输出），全量回归被单场景阻塞 30min+（CI 运行同型 cancelled）。
+- **已修复**（批次5 6bbbf8b）：`boss_pattern_test:457` 窄化显式 `int()`（Boss.max_hp 为 float，2026-07-28 引入）、`wave_pacing_test:31` 未使用变量删除。修复后全量 31 断言场景 0 FAIL。
+- **建议（待定）**：① `test/` 纳入 `gdformat --check` 范围（当前仅 `autoload/ scripts/`，test/ 长期未格式化）；② CI 断言场景循环加单场景超时，防单场景挂起阻塞整个 job（当前依赖 job 级 30min timeout 兜底）。
+
+> 修复后回归（2026-08-02 晚）：`--headless --import` 0 错误 / `--quit-after 300` 0 错误 / **全量 31 断言场景 0 FAIL**（修复前 boss_pattern/wave_pacing 编译错误挂起、hit_logic A12 我方 has_method 语义缺陷已修正，全绿为修复后最终口径）。
