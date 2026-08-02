@@ -175,6 +175,8 @@ const PROFILE_PATH := "user://profile.json"
 const PERSIST_VERSION := 2
 
 var high_score: int = 0
+## P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）
+var _joypad_bound: bool = false
 ## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
 var highscores: Array[Dictionary] = []
 const HIGHSCORE_LIMIT := 10
@@ -313,6 +315,7 @@ func _ready() -> void:
 		TranslationServer.add_translation(tr_en)
 	TranslationServer.set_locale(locale)
 	apply_key_bindings()
+	_bind_joypad_defaults()
 	_next_milestone = milestone_threshold(0)
 
 
@@ -751,6 +754,49 @@ func apply_key_bindings() -> void:
 			var ev := InputEventKey.new()
 			ev.keycode = k
 			InputMap.action_add_event(a, ev)
+
+
+## P0-1（竞品调研）：手柄默认绑定运行时装配——project.godot 保持键盘单一事实源，
+## 手柄左摇杆移动/动作键/右摇杆瞄准在此追加（InputMap.action_add_event），
+## 与 keybind 改键系统（只改键盘事件）互不覆盖；一次装配幂等。
+func _bind_joypad_defaults() -> void:
+	if _joypad_bound:
+		return
+	_joypad_bound = true
+	# 左摇杆移动（轴 0=x、1=y；axis_value 负=上/左）
+	_add_joy_axis(&"move_up", 1, -1.0)
+	_add_joy_axis(&"move_down", 1, 1.0)
+	_add_joy_axis(&"move_left", 0, -1.0)
+	_add_joy_axis(&"move_right", 0, 1.0)
+	# 动作键（B=ui_cancel 已被引擎默认占用，返航让位 Y）
+	_add_joy_button(&"dash", 0)       # A
+	_add_joy_button(&"boost", 5)      # RB
+	_add_joy_button(&"fine_move", 4)  # LB
+	_add_joy_button(&"dock", 2)       # X
+	_add_joy_button(&"homecoming", 3) # Y（长按返航）
+	_add_joy_button(&"give_up", 7)    # R3（长按放弃）
+	_add_joy_button(&"buff_panel", 6) # L3（展开/收起 buff 栏）
+	_add_joy_button(&"restart", 0)    # A（结算/暂停重开）
+	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取，虚拟准星）
+	_add_joy_axis(&"aim_x", 2, 1.0)
+	_add_joy_axis(&"aim_y", 3, 1.0)
+
+
+func _add_joy_axis(action: StringName, axis: int, value: float) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
+	InputMap.action_add_event(action, ev)
+
+
+func _add_joy_button(action: StringName, button: int) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	InputMap.action_add_event(action, ev)
 
 
 ## 改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）

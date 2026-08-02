@@ -124,6 +124,19 @@ func _ready() -> void:
 	GameState.highscores.clear()
 	GameState.save_profile()
 
+	# 11. 手柄默认绑定（P0-1 竞品调研）：运行时装配 + 右摇杆瞄准动作
+	_check(InputMap.has_action(&"aim_x") and InputMap.has_action(&"aim_y"), "P0-1：右摇杆瞄准动作已注册")
+	var has_move_joy := false
+	for ev in InputMap.action_get_events(&"move_up"):
+		if ev is InputEventJoypadMotion:
+			has_move_joy = true
+	_check(has_move_joy, "P0-1：移动动作含手柄摇杆绑定")
+	var has_dash_joy := false
+	for ev in InputMap.action_get_events(&"dash"):
+		if ev is InputEventJoypadButton:
+			has_dash_joy = true
+	_check(has_dash_joy, "P0-1：动作键含手柄按钮绑定")
+
 	print("BASE SYSTEM TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

@@ -41,6 +41,7 @@
 		"aim_assist": {
 			"mark_ratio": 0.25,
 			"homing_time": 1.2,
+			"joy_speed": 1400,
 			"input": {
 				"magnet_input_min": 2.0,
 				"magnet_input_full": 40.0

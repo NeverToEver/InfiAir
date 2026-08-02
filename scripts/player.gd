@@ -68,6 +68,7 @@ var HOMING_TIME := 1.2  # 辅助瞄准追踪时限（≈玩家弹出屏寿命 19
 ## 辅助瞄准当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
 var _homing_turn_rate := 5.5  # 准星入标记框时出膛弹的追踪转向速率
 var _aim_stick_factor := 0.5  # 准星入标记框时的鼠标灵敏度系数（弱吸附，1.0 = 无吸附）
+var _aim_joy_speed := 1400.0  # P0-1：手柄右摇杆虚拟准星速度 px/s（balance player.aim_assist.joy_speed）
 ## P1-3：框外锥形弱追踪参数（档位；_cone_cos 在 _load_aim_assist_params 内由角度重算）
 var _cone_angle_deg := 6.0
 var _cone_cos := 0.9945  # cos(6°)（类级初始化限常量表达式，档位切换时重算）
@@ -615,6 +616,10 @@ func aim_point() -> Vector2:
 	if aim_point_override != Vector2.INF:
 		return aim_point_override
 	var raw := get_global_mouse_position()
+	# P0-1：手柄右摇杆虚拟准星——摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
+	var joy := Input.get_vector(&"aim_x", &"aim_x", &"aim_y", &"aim_y")
+	if joy.length_squared() > 0.01:
+		raw += joy * _aim_joy_speed * get_process_delta_time()
 	var frame := Engine.get_process_frames()
 	if frame != _aim_smoothed_frame:  # 每渲染帧只推一次（准星/框层/开火多处取值）
 		_aim_smoothed_frame = frame
@@ -647,6 +652,8 @@ func _load_aim_assist_params() -> void:
 	_magnet_range = float(GameState.cfg(base + "magnet_range", _magnet_range))
 	_magnet_strength = float(GameState.cfg(base + "magnet_strength", _magnet_strength))
 	_magnet_max_speed = float(GameState.cfg(base + "magnet_max_speed", _magnet_max_speed))
+	# P0-1：手柄右摇杆虚拟准星速度（px/s，满偏摇杆每秒移动瞄准点距离）
+	_aim_joy_speed = float(GameState.cfg("player.aim_assist.joy_speed", _aim_joy_speed))
 
 
 func _on_aim_assist_level_changed(_level: StringName) -> void:
