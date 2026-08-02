@@ -76,7 +76,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 - 玩家受击只使用 `Player/Hitbox` 的 Area2D（设计值 r=7 × world_scale，当前运行值 2.8）。`CharacterBody2D` 本体的半径 22 圆没有碰撞用途（mask 为 0），不得用于受击判定。
 - 子弹使用 `scenes/bullet.tscn`，由 `setup()` 区分阵营；敌阵营视觉缩放用 `effects.enemy_bullet_visual_scale`、玩家弹用 `effects.bullet_visual_scale`（均设计值 × world_scale），玩家弹可写入 `Bullet.homing_target` 追踪（字段在 `activate()` 重置清单内）。爆炸应使用 `Explosion.spawn_at()`，而非为每次爆炸随意构建新的粒子方案。
 - 视角缩放和窗口尺寸是相互独立的 profile 设置。相机固定在 `(960, 540)` 并只调整 `zoom`；所有屏幕边缘、出界、刷怪和可见区域计算必须使用 `GameState.view_world_rect()`，不要硬编码 `0..1920` 或 `0..1080`（Boss 战斗锚线 `_fight_anchor_y()`、敌机悬停带/入场锚点基线均已按此适配）。
-- **鼠标锁定窗口内**（profile 设置 `mouse_lock`，默认开启）：`scripts/mouse_trap.gd`（挂 Main，`PROCESS_MODE_ALWAYS`）在窗口聚焦期间把移出内容区的鼠标经 `Input.warp_mouse()` 拉回边缘内侧（`mouse_exited` 信号触发 + `_process` 每帧防御），从根上避免鼠标出框导致准星 `get_global_mouse_position()` 冻结/跳变；窗口失焦自动放行，不阻碍切换应用。
+- **鼠标锁定窗口内**（profile 设置 `mouse_lock`，默认开启）：`scripts/mouse_trap.gd`（挂 Main，`PROCESS_MODE_ALWAYS`）在**对局准星活跃（未暂停且系统光标隐藏）且窗口聚焦**时把移出内容区的鼠标经 `Input.warp_mouse()` 拉回边缘内侧（`mouse_exited` 信号触发 + `_process` 每帧防御），从根上避免鼠标出框导致准星 `get_global_mouse_position()` 冻结/跳变；暂停/Buff/基地/结算/过场/开始页等非准星态与窗口失焦一律放行，保证暂停后鼠标可自由移出窗口（如点系统标题栏关闭按钮退出游戏）。
 
 ### UI、文本与导航
 

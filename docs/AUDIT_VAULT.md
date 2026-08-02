@@ -533,3 +533,19 @@
 | F01 | ✅ 已修复 | 新增 `mouse_lock` 设置项（默认开启，profile 持久化）+ `scripts/mouse_trap.gd`（挂 Main，`PROCESS_MODE_ALWAYS`）：窗口聚焦期间鼠标移出内容区 `mouse_exited` 信号触发即 `Input.warp_mouse()` 拉回边缘内侧 1px（`_process` 每帧防御兜底），失焦放行不阻碍切换应用。从根上消除"鼠标出框 → 位置冻结"前提，`aim_point()`/`AimCrosshair` 逻辑零改动。设置页「显示」区开关 + 中英双语说明。验证：mouse_lock_test 13 断言 0 FAIL + 全量断言场景回归 0 FAIL（`warp` 窗口事件行为需真机验收） |
 
 > 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / **全量 31 断言场景 0 FAIL**（含新增 mouse_lock_test）。
+
+### F02（2026-08-02 暂停后 confine 未放行——F01 修复引入缺陷，登记 + 修复）
+
+> F01 落地后实测反馈：暂停时 MouseTrap 仍按 `PROCESS_MODE_ALWAYS` 持续 confine，鼠标被锁在窗口内容区内，无法移到系统标题栏点关闭按钮退出游戏。设计缺陷：confine 生效范围过宽（所有聚焦态），应按"对局准星态"限定。
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
+| --- | --- | --- | --- | --- | --- |
+| F02 | P2 | `scripts/mouse_trap.gd:48-56`（`_trap_active`） | 纯 bug（交互阻断） | 暂停/Buff/基地/结算等暂停态鼠标仍被 confine，无法移出窗口点系统标题栏关闭按钮退出游戏 | **修** |
+
+## F02 修复起效记录（2026-08-02）
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| F02 | ✅ 已修复 | `_trap_active()` 增加「未暂停」+「系统光标隐藏（准星态）」两放行条件（`AimCrosshair` 在暂停/非准星态恢复系统光标，两条件相互印证，不依赖处理时序），并抽 `_trap_enabled()` 静态纯函数供断言。confine 从此仅限对局准星活跃且窗口聚焦：暂停后鼠标自由移出窗口（点标题栏 × 退出游戏不受阻），对局准星态照常拉回。验证：mouse_lock_test 新增 7 项放行判定断言（23 项全绿 0 FAIL）+ smoke_test 0 FAIL |
+
+> 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / mouse_lock_test 23 断言 0 FAIL / smoke_test 0 FAIL。

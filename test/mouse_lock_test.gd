@@ -93,6 +93,36 @@ func _ready() -> void:
 	settings.queue_free()
 	GameState.set_mouse_lock(true)
 
+	# ---------- 7. confine 放行判定纯函数（仅对局准星态生效；暂停/非准星态放行） ----------
+	_check(
+		MOUSE_TRAP._trap_enabled(true, true, true, true, true, true),
+		"对局准星活跃态 confine 生效",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(true, true, true, true, false, true),
+		"暂停态放行（暂停后可自由移出窗口，如点系统关闭按钮）",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(true, true, true, true, true, false),
+		"系统光标可见态放行（菜单/设置/基地等非准星态）",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(false, true, true, true, true, true),
+		"设置关闭不 confine",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(true, false, true, true, true, true),
+		"窗口不可见不 confine",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(true, true, false, true, true, true),
+		"窗口失焦不 confine",
+	)
+	_check(
+		not MOUSE_TRAP._trap_enabled(true, true, true, false, true, true),
+		"无窗口尺寸（headless）不 confine",
+	)
+
 	print("MOUSE LOCK TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.mouse_lock = true

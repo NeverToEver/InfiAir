@@ -174,7 +174,7 @@ Main (scripts/main.gd)
 ### 2.5 输入与设置
 
 - 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。
-- 设置项：难度、键位、语言、视角缩放、窗口尺寸、辅助瞄准档位、`reduce_flash`、`mouse_lock`（鼠标锁定窗口内，默认开启：窗口聚焦期间鼠标移出内容区即被拉回边缘内侧，防准星出框失控，失焦放行）、音效/音量；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed` 刷新。
+- 设置项：难度、键位、语言、视角缩放、窗口尺寸、辅助瞄准档位、`reduce_flash`、`mouse_lock`（鼠标锁定窗口内，默认开启：仅对局准星活跃且窗口聚焦时把移出内容区的鼠标拉回边缘内侧，防准星出框失控；暂停/非准星态与失焦放行）、音效/音量；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed` 刷新。
 - 视角缩放与窗口尺寸是**两套独立** profile 设置。
 
 ### 2.6 渲染与视觉层级
