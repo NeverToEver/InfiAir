@@ -12,7 +12,8 @@ const STATE_DAMAGED := 2
 const STATE_CRITICAL := 3
 const STATE_DYING := 4
 
-## 下行边界（HP 比例，低于即进入下一状态）
+## 下行边界（HP 比例，低于即进入下一状态）；末级 DYING 阈值以 balance.json
+## effects.meta_health.dying.threshold 为准（_state_for_x 运行时用 cfg 覆盖 0.20，防双源漂移）
 const THRESHOLDS: Array[float] = [0.75, 0.50, 0.25, 0.20]
 ## 各状态裂纹密度上限（NORMAL 无裂纹；balance.json effects.meta_health.crack.density 可覆盖）
 const DENSITY_CAPS: Array[float] = [0.0, 0.30, 0.50, 0.75, 1.0]
@@ -204,7 +205,10 @@ func _load_cfg() -> void:
 func _state_for_x(x: float) -> int:
 	var ratio := clampf(1.0 - x, 0.0, 1.0)
 	var s := STATE_NORMAL
-	for t in THRESHOLDS:
+	for i in THRESHOLDS.size():
+		var t: float = THRESHOLDS[i]
+		if i == THRESHOLDS.size() - 1:
+			t = float(_cfg["dying_threshold"])  # DYING 阈值统一读 cfg（默认 0.2，与常量一致）
 		if ratio < t:
 			s += 1
 	return s
@@ -326,7 +330,7 @@ func _process(delta: float) -> void:
 			GameState.play_sfx(GameState.SFX_HEARTBEAT, -8.0)  # D7：单发触发，音效不受减少闪光影响
 			if not GameState.reduce_flash:
 				get_tree().call_group("hud", "meta_jitter", float(_cfg["jitter_px"]))  # D9
-		_heart_env = maxf(_heart_env - delta / 0.3, 0.0)
+		_heart_env = maxf(_heart_env - delta / float(_cfg["dying_fade"]), 0.0)
 		_breath = 1.0 + float(_cfg["breath"]) * Enemy.sin_fast(_heart_phase * TAU)
 		_warn_t += delta
 	else:

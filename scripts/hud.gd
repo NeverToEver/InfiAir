@@ -332,7 +332,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	_update_vignette(delta)  # 仪表类刷新降频到 0.1s（文本类由信号驱动，见 _ready 连接）
+	# 晕影/受击红闪每帧更新（需连续衰减与脉动）；其余仪表类按 POLL_INTERVAL（0.1s）降频，
+	# 文本类由信号驱动（见 _ready 连接）
+	_update_vignette(delta)
 	_poll_timer -= delta
 	if _poll_timer > 0.0:
 		return
@@ -554,7 +556,9 @@ func toggle_buff_panel() -> void:
 
 
 func _show_warning(text: String) -> void:
-	# H09（健壮性审核）：互斥缓存——旧警告 tween 仍在跑时 kill 再建，防同属性竞争与 hide 竞态
+	# H09（健壮性审核）：互斥缓存——旧警告 tween 仍在跑时 kill 再建，防同属性竞争与 hide 竞态。
+	# 背板闪烁（t1）/label 闪烁（t2）与淡出全部纳入 _warning_tween：闪烁阶段缓存 blink，
+	# 其 finished 后缓存 fade，任意时刻 kill 的都是当前活跃阶段（旧 fade 被杀不会再 hide 压制新警告）
 	if _warning_tween != null and _warning_tween.is_valid():
 		_warning_tween.kill()
 	_banner_label.text = text
@@ -564,23 +568,22 @@ func _show_warning(text: String) -> void:
 	_banner_label.modulate.a = 1.0
 	# 闪烁对（0.25→1.0）循环 4 次 ≈2s（与 spawner 预警同步）；set_loops 作用于整链，
 	# 旧实现把淡出+hide 也包进循环，首轮末尾 hide 即永久隐藏——淡出移出循环外
-	var t1 := create_tween()
-	t1.tween_property(_banner_plate, "modulate:a", 0.25, 0.25)
-	t1.tween_property(_banner_plate, "modulate:a", 1.0, 0.25)
-	t1.set_loops(4)
-	var t2 := create_tween()
-	t2.tween_property(_banner_label, "modulate:a", 0.25, 0.25)
-	t2.tween_property(_banner_label, "modulate:a", 1.0, 0.25)
-	t2.set_loops(4)
-	_warning_tween = t1
-	t1.finished.connect(
+	var blink := create_tween()
+	blink.tween_property(_banner_plate, "modulate:a", 0.25, 0.25)
+	blink.parallel().tween_property(_banner_label, "modulate:a", 0.25, 0.25)
+	blink.tween_property(_banner_plate, "modulate:a", 1.0, 0.25)
+	blink.parallel().tween_property(_banner_label, "modulate:a", 1.0, 0.25)
+	blink.set_loops(4)
+	_warning_tween = blink
+	blink.finished.connect(
 		func() -> void:
 			var fade := create_tween()
+			fade.set_parallel(true)
 			fade.tween_property(_banner_plate, "modulate:a", 0.0, 0.4)
-			fade.tween_callback(_banner_plate.hide)
-			var fade_label := create_tween()
-			fade_label.tween_property(_banner_label, "modulate:a", 0.0, 0.4)
-			fade_label.tween_callback(_banner_label.hide)
+			fade.tween_property(_banner_label, "modulate:a", 0.0, 0.4)
+			fade.chain().tween_callback(_banner_plate.hide)
+			fade.tween_callback(_banner_label.hide)
+			_warning_tween = fade
 	)
 
 
@@ -872,10 +875,11 @@ func _rebuild_buff_dock(force: bool = false) -> void:
 	if not force and signature == _last_buff_signature:
 		return
 	_last_buff_signature = signature
+	# 立即释放旧瓦片/行：queue_free 帧末才删除，同帧 add_child 新旧并存会闪一帧（P3）
 	for tile: Control in _buff_dock.get_children():
-		tile.queue_free()
+		tile.free()
 	for row: Control in _buff_rows.get_children():
-		row.queue_free()
+		row.free()
 	if active.is_empty():
 		_buff_tag.visible = false
 		_buff_panel.visible = false

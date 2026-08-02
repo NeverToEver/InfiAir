@@ -50,6 +50,7 @@ var _spread_max: int = 3
 var _pierce_max: int = 2
 var _efficient_factor: float = 0.75
 var _boost_recovery_factor: float = 1.5
+var _dash_cooldown_stack_factor: float = 0.8  # 冲刺冷却逐层堆叠系数（player.dash.cooldown_stack_factor）
 
 var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
@@ -465,6 +466,7 @@ func _refresh_buff_factors() -> void:
 	_pierce_max = int(GameState.cfg("buffs.piercing.max_stacks", _pierce_max))
 	_efficient_factor = GameState.cfg("buffs.efficient_boost.factor", _efficient_factor)
 	_boost_recovery_factor = GameState.cfg("buffs.boost_recovery.factor", _boost_recovery_factor)
+	_dash_cooldown_stack_factor = GameState.cfg("player.dash.cooldown_stack_factor", _dash_cooldown_stack_factor)
 
 
 func fire_interval() -> float:
@@ -490,8 +492,8 @@ func dash_unlocked() -> bool:
 
 
 func dash_cooldown_max() -> float:
-	# 首次选择解锁，之后每次选择冷却 -20%（最多 2 次）
-	return DASH_COOLDOWN * pow(GameState.cfg("player.dash.cooldown_stack_factor", 0.8), maxi(GameState.buff_count(&"phase_dash") - 1, 0))
+	# 首次选择解锁，之后每次选择冷却 -20%（最多 2 次）；系数经 buffs_changed 缓存（热路径免查 cfg）
+	return DASH_COOLDOWN * pow(_dash_cooldown_stack_factor, maxi(GameState.buff_count(&"phase_dash") - 1, 0))
 
 
 func dash_fuel_cost() -> float:
@@ -873,6 +875,8 @@ func _exit_tree() -> void:
 		GameState.buffs_changed.disconnect(_refresh_buff_factors)
 	if GameState.aim_assist_changed.is_connected(_on_aim_assist_level_changed):
 		GameState.aim_assist_changed.disconnect(_on_aim_assist_level_changed)
+	if GameState.joy_settings_changed.is_connected(_on_joy_settings_changed):
+		GameState.joy_settings_changed.disconnect(_on_joy_settings_changed)
 	if GameState.player_ref == self:
 		GameState.player_ref = null
 	if GameState.player_hitbox == _hitbox:

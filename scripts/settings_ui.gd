@@ -445,6 +445,10 @@ func _refresh_aim_buttons() -> void:
 
 
 func _on_locale_changed() -> void:
+	# H20（健壮性审核）：_pages 空（locale_changed 早于 _ready）时防御，必须最先执行——
+	# 原守卫在后，前面的 _title_label 等节点 _ready 前为 null 会先空引用崩溃
+	if _pages.is_empty():
+		return
 	_title_label.text = tr("SET_TITLE")
 	_back_button.text = tr("SET_BACK")
 	_reset_button.text = tr("SET_RESET")
@@ -453,9 +457,6 @@ func _on_locale_changed() -> void:
 	_refresh_rebind_rows()
 	_refresh_lang_buttons()
 	_refresh_nav_labels()
-	# H20（健壮性审核）：_pages 空（locale_changed 早于 _ready）时防御
-	if _pages.is_empty():
-		return
 	# 重建内容区文本（重建代价低，保证全部文案换语言）
 	var content: Container = _pages.values()[0].get_parent()
 	for p in _pages.values():

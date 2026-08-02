@@ -102,9 +102,15 @@ func _on_locale_changed() -> void:
 		_build_cards()
 		if _closing:
 			# H20（健壮性审核）：卡片重建会 free 旧卡 → 关闭动效 tween 被杀 → finished 永不
-			# 触发 → _closing + paused 软锁；重建时直接完成关闭语义
+			# 触发 → _closing + paused 软锁；重建时直接完成关闭语义（对齐 _on_pick_close_finished）
+			visible = false
+			_center.modulate.a = 1.0  # 复位选取动效残留的淡出
 			_closing = false
 			get_tree().paused = false
+		else:
+			# P3：locale 重建后焦点回落到第一张卡（键盘导航链路不因换语言中断）
+			if _cards.get_child_count() > 0:
+				(_cards.get_child(0) as Control).grab_focus()
 
 
 func _make_card(buff: Dictionary) -> Control:
