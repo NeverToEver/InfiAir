@@ -50,6 +50,7 @@ godot --headless --path . res://test/keybind_test.tscn
 godot --headless --path . res://test/i18n_test.tscn
 godot --headless --path . res://test/view_zoom_test.tscn
 godot --headless --path . res://test/window_size_test.tscn
+godot --headless --path . res://test/mouse_lock_test.tscn
 godot --headless --path . res://test/startup_flow_test.tscn
 godot --headless --path . res://test/entry_animation_test.tscn
 godot --headless --path . res://test/back_navigation_test.tscn
@@ -94,7 +95,7 @@ godot --path . res://test/hud_capture.tscn
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 39 个场景：30 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 40 个场景：31 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

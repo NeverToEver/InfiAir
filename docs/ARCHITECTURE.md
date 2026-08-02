@@ -71,6 +71,7 @@ Main (scripts/main.gd)
 - `scripts/elite_turret_event.gd`、`strike_carrier.gd`、`turret_battery.gd`（+ `scenes/turret.tscn`）、`comm_overlay.gd`：精英炮塔事件（`docs/ELITE_TURRET_EVENT.md`）——事件状态机与 Boss 互斥（`_boss_frozen`/`_boss_pending`/`_waves_paused` 钩子在 spawner）、打击航母导演、炮台实体（弱锁定索敌，注册 `enemy` 组与 `GameState.enemies`）、左下通讯浮层。
 - `scripts/formation_strike_event.gd`、`formation_craft.gd`、`formation_bomb.gd`：轰炸编队事件（`docs/FORMATION_STRIKE_EVENT.md`）——最低优先级随机事件（不冻结 Boss，但**占用波次槽——运行期间暂停普通波次**，经 spawner `_waves_paused` 钩子，与精英炮塔互斥；可被返航 `abort()` 打断）、编队战机（注册 `enemy` 组与 `GameState.enemies`）、引信制下落炸弹（预警环随引信收缩，AoE 只伤玩家）。
 - `scripts/back_navigator.gd`：PC Esc/手柄 `ui_cancel`/Android 返回统一路由。教程是独立场景 `scenes/tutorial.tscn`，由 `tutorial.gd` 自己处理返回；教程与正局逻辑对齐：`_ready` 同样创建 AimFrameLayer（辅助瞄准在教程内有效），阶段 1 强制标记靶机，阶段 4 长按 H 蓄力 → 穿梭门 → 母舰 `begin_warp_in` → 对接补给（略去机库小窗，实体路径同 `main._on_summon_window_finished`）。
+- `scripts/mouse_trap.gd`：鼠标锁定窗口内运行组件（挂 Main，`GameState.mouse_lock` 设置项，默认开启，profile 持久化）——窗口聚焦期间鼠标移出内容区即经 `Input.warp_mouse()` 拉回边缘内侧 1px（`mouse_exited` 信号触发 + `_process` 每帧防御），失焦自动放行；从根上避免鼠标出框导致准星 `get_global_mouse_position()` 冻结/跳变，`aim_point()`/`AimCrosshair` 零改动。
 
 ## 目录职责明细
 

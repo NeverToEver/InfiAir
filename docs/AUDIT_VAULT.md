@@ -517,3 +517,19 @@
 | E15 | 🟦 登记不修 | 每帧 `buff_count(&"slow_field")` 字典 get 无分配，开销极小 |
 
 > 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / **全量 30 断言场景 0 FAIL**（含新增 E01/E02/E03/E05 断言）。
+
+### F 系列（2026-08-02 鼠标出框准星失控——登记 + 修复）
+
+> 对局中鼠标移出游戏窗口后 Godot 停止派发鼠标移动事件，`get_global_mouse_position()` 冻结在最后位置，准星卡在屏幕边缘、移回时位置跳变；此前尝试未彻底解决。本次新增「鼠标锁定窗口内」设置项（`mouse_lock`，默认开启，profile 持久化）从根上消除出框前提。执行计划存档见 `docs/2026-08-02-mouse-lock-plan.md`。
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
+| --- | --- | --- | --- | --- | --- |
+| F01 | P2 | `player.gd:585-605`（`aim_point()`） | 纯 bug（输入边界） | 鼠标移出窗口后 `get_global_mouse_position()` 冻结，准星停在边缘；移回时平滑增量 `raw - _aim_last_raw` 跳变。此前修复未彻底 | **修** |
+
+## F 系列修复起效记录（2026-08-02）
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| F01 | ✅ 已修复 | 新增 `mouse_lock` 设置项（默认开启，profile 持久化）+ `scripts/mouse_trap.gd`（挂 Main，`PROCESS_MODE_ALWAYS`）：窗口聚焦期间鼠标移出内容区 `mouse_exited` 信号触发即 `Input.warp_mouse()` 拉回边缘内侧 1px（`_process` 每帧防御兜底），失焦放行不阻碍切换应用。从根上消除"鼠标出框 → 位置冻结"前提，`aim_point()`/`AimCrosshair` 逻辑零改动。设置页「显示」区开关 + 中英双语说明。验证：mouse_lock_test 13 断言 0 FAIL + 全量断言场景回归 0 FAIL（`warp` 窗口事件行为需真机验收） |
+
+> 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / **全量 31 断言场景 0 FAIL**（含新增 mouse_lock_test）。
