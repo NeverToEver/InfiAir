@@ -605,3 +605,44 @@
 | G032 | P3 | `mothership.gd:168-170`/`mothership.tscn:22` | 注释不符 | 脚本注释"tscn 存 1.0 基准"，tscn 实际 1.25 且脚本硬编码 1.25*ws | 修 |
 
 > 修复后回归口径：修复批次落地后按 `docs/2026-08-02-core-logic-audit.md` 优先级执行，逐条回填本表「修复起效记录」。
+
+## G 系列修复起效记录（2026-08-02 全量处置）
+
+> 修复批次提交：批次 1（P1×3，cb8511b）、批次 2（P2×9，b7b2cc8）、批次 3+4（P3+待判定，ffef641）。完整审核报告见 `docs/2026-08-02-core-logic-audit.md`。
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| G01 | ✅ 已修复 | `spawner.clear_pending()` 复位 `_boss_active=false`——预警 2s 窗口内返航取消后波次/Boss/事件三守卫不再被永久冻结（D01「按门控再触发」口径恢复成立）。验证：difficulty_test 新增 2 断言 PASS |
+| G02 | ✅ 已修复 | `boss.take_damage` 入口加 `_escaping` 拦截——激光/溅射按注册表+距离判定绕碰撞层，防逃跑窗口补刀致死触发 add_boss_kill 奖励失真（对齐 fire_enrage_snapshot 同款防护）。验证：enemy_combat_test 新增「逃跑期 take_damage 无效」断言 PASS |
+| G03 | ✅ 已修复 | 教程按钮禁用条件扩为 `tutorial_done or has_save`（E02 补全「有存档未通关」路径），防 tutorial._ready 无条件 delete_save 删进行中存档。验证：startup_flow_test 新增 1 断言 PASS |
+| G04 | ✅ 已修复 | `rebind_action` 冲突清理扫默认绑定——未自定义动作默认键被占用时置空绑定覆盖默认，防同键双动作。验证：keybind_test 新增 3 断言 PASS |
+| G05 | ✅ 已修复 | tutorial 阶段 2 锁血缓存 `_max_hp`（_ready 一次读，免每物理帧 2 次 cfg）。验证：tutorial_test 0 FAIL |
+| G06 | ✅ 已修复 | spawner `hover_band`/`_merge_type` 嵌套结构判型（损坏 JSON 回退默认，对齐 C03/E03）。验证：wave_pacing 0 FAIL |
+| G07 | ✅ 已修复 | `Enemy.setup` 每次激活刷新 `aim_frame_radius` meta——池化实例复用不同半径机型不过期。验证：enemy_combat/pool_reuse 0 FAIL |
+| G08 | ✅ 已修复 | Boss 逃跑离场基线改 `view_world_rect().position.y - 280.0`（去 280 硬编码，enemy 同口径）。验证：enemy_combat 0 FAIL |
+| G09 | ✅ 已修复 | `BalanceService` ramp 因子 load 时缓存（免每发敌弹 path.split+字典遍历 JSON 查询）。验证：enemy_combat/wave_pacing 0 FAIL |
+| G010 | ✅ 已修复 | `EntityRegistry` 增 `_enemy_set` O(1) 存在性索引 + `GameState.enemies_has()`，追踪弹每帧判定改走（免 Array.has 线性扫描）。验证：pool_reuse/hit_logic/buff33 0 FAIL |
+| G011 | ✅ 已修复 | `mothership._exit_tree` 补 HUD 提前离舰进度条隐藏（E05 只覆盖 start_release，返航回收路径漏清）。验证：mothership_summon_test 新增 2 断言 PASS |
+| G012 | ✅ 已修复 | `add_boss_kill` 加分基准 500.0 入 balance（`milestones.boss_kill_base`，BALANCE_MAP 收录）。验证：balance_test 0 FAIL |
+| G013 | ✅ 已修复 | `apply_run_save` buffs 恢复层数钳制 ≥0（手改存档负层数不再破坏 buff_count 逻辑）。验证：startup_flow 0 FAIL |
+| G014 | ✅ 已修复 | 教程 4 处硬编码世界坐标改 `view_world_rect()` 基线（960/600/300 收敛，对齐 D10）。验证：tutorial_test 0 FAIL |
+| G015 | ✅ 已修复 | 教程蓄力百分比文本 0.1s 节流（对齐 HUD 仪表约定，免每物理帧 tr()+Label 赋值）。验证：tutorial_test 0 FAIL |
+| G016 | ✅ 已修复 | `aim_frame_layer._exit_tree` 显式断开 `aim_assist_changed`（对齐 player C22 模式）。验证：smoke 0 FAIL |
+| G017 | 🟦 不修 | `_draw` 每帧 1 次 sin() 量级可忽略（非热路径瓶颈） |
+| G018 | ✅ 已修复 | 距离衰减抽 `Player.dist_falloff_curve` 静态单实现（player/aim_frame_layer 共用，改一侧不再破坏另一侧）。验证：smoke/buff33 0 FAIL |
+| G019 | 🟦 登记不修 | 锁定期（Boss 狂暴）冻结移动/冲刺为既有设计语义（「controls_locked」对齐原作），非缺陷 |
+| G020 | ✅ 已修复 | `_start_beam` 仅非激活时记录 `_saved_autofire`（防御性，当前 _active 门闩下不可达）。验证：buff33 0 FAIL |
+| G021 | ✅ 已修复 | `_aim_dir` 删未使用参数（防误导调用方）。验证：buff33 0 FAIL |
+| G022 | ✅ 已修复 | 爆炸视觉比例静态缓存 + `CinematicFx.additive_material` 材质静态共享（N 机 N 份→1 份）。验证：enemy_combat/smoke 0 FAIL |
+| G023 | ✅ 已修复 | 删 `_boss_seq_step` parent 无效分支对已随父销毁 timer 的 queue_free（UAF 危险行）。验证：enemy_combat 0 FAIL |
+| G024 | ✅ 已修复 | 三型普通召唤间隔入配置（`boss.phases.type3.summon_interval`，BALANCE_MAP 收录）。验证：boss_pattern 0 FAIL |
+| G025 | 🟦 登记不修 | 每帧重复 view_world_rect()（~130 次）单次开销极小，全局缓存改动影响面大、收益低 |
+| G026 | ✅ 已修复 | 敌弹/编队弹 `(player-from).normalized()` 零向量回退 DOWN（圆心重合时防零方向弹永不销毁）。验证：enemy_combat/boss_pattern 0 FAIL |
+| G027 | ✅ 已修复 | 母舰加特林/导弹先置位间隔再判空（空目标不每物理帧分配数组+扫注册表）。验证：mothership_summon 0 FAIL |
+| G028 | ✅ 已修复 | `SfxPlayer.play()` 池空守卫（build_pool 未调用时防越界/除零）。验证：headless 全量 0 报错 |
+| G029 | ✅ 已修复 | `BalanceService.cfg()` 数值分支按 default 类型显式转换（JSON float 不再漂 typed int 字段，对齐 C18）。验证：balance_test 0 FAIL |
+| G030 | ✅ 已修复 | 导弹得分系数独立 `MISSILE_SCORE_SCALE` 常量（原复用 GATLING 语义混用）。验证：mothership_summon 0 FAIL |
+| G031 | 🟦 不修 | 双炮塔共享 ParticleProcessMaterial 写 scale 为幂等同值安全（E14 同族注明口径成立） |
+| G032 | ✅ 已修复 | 母舰注释修正（tscn 实存 1.25 基线）+ `SHIP_SCALE` 具名常量。验证：mothership_summon 0 FAIL |
+
+> 修复后回归：`--headless --import` 0 错误 / BALANCE_MAP 刷新（2 新键、0 缺失、未引用键仅既有 `version`）/ 批次相关断言场景（difficulty/enemy_combat/startup_flow/keybind/mothership_summon/tutorial/pool_reuse/boss_phase/boss_pattern/balance/buff33/hit_logic/wave_pacing/smoke）全 0 FAIL。
