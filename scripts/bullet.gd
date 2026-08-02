@@ -145,11 +145,21 @@ func _ready() -> void:
 ## 调用方（boss_fire/enemy/mothership）不再每次发射 get_node("Polygon2D")
 var _polygon_cache: Polygon2D = null
 
+## 竞品调研 P0-2：玩家弹白芯高光（描边感，敌我弹可读性）——内芯子节点引用缓存
+var _core_cache: Polygon2D = null
+
 
 func polygon_node() -> Polygon2D:
 	if _polygon_cache == null:
 		_polygon_cache = get_node_or_null("Polygon2D") as Polygon2D
 	return _polygon_cache
+
+
+## P0-2：内芯高光节点懒加载（与 polygon_node 同模式，热路径零字符串查找）
+func core_node() -> Polygon2D:
+	if _core_cache == null:
+		_core_cache = get_node_or_null("Polygon2D/Core") as Polygon2D
+	return _core_cache
 
 
 func _exit_tree() -> void:
@@ -175,6 +185,10 @@ func _apply_faction() -> void:
 		collision_layer = 8  # 第 4 层：enemy_bullet
 		collision_mask = 1  # 命中第 1 层：player
 		_polygon.color = Color(1.0, 0.38, 0.3)
+	# P0-2 可读性：玩家弹显示白色高光内芯（金边白芯，满屏弹幕下敌我火力可区分）；敌弹隐藏
+	var core := core_node()
+	if core != null:
+		core.visible = is_player_bullet
 
 
 func _despawn() -> void:
