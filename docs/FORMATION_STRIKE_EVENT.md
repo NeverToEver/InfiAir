@@ -1,128 +1,127 @@
-# 轰炸编队事件（Formation Strike Event）设计文档
+# Formation Strike Event Design Document
 
-本文档是「阵列轰炸编队」随机事件的单一事实源：触发优先级、状态机、编队/炸弹行为、数值与测试要点。
-实现时改动本事件相关内容必须同步更新本文档。与精英炮塔事件的对位关系见 `docs/ELITE_TURRET_EVENT.md`。
+This document is the single source of truth for the "formation bombing strike" random event: trigger priority, state machine, formation/bomb behavior, values, and test points.
+Any change to this event at implementation time must be synced back here. The counterpart relation to the elite turret event is in `docs/ELITE_TURRET_EVENT.md`.
 
 ---
 
-## 1. 概念
+## 1. Concept
 
-一支 3/4/5 架攻击机组成的编队（按难度）自屏顶外进入，保持楔形编队**靠近**（下降至玩家活动区上缘），
-随后整体**转航向**（编队 90° 转向改为水平横穿），在横穿段逐架**投弹**，投完从侧缘加速离场。
-炸弹带引信与落点预警圈，引爆造成 AoE 伤害。全部战机可在投弹前被玩家击坠（击坠有分，全歼有小额奖励）。
+A formation of 3/4/5 attack craft (by difficulty) enters from above the screen top, holding a wedge formation while **approaching** (descending to the top edge of the player's active area),
+then the whole formation **turns heading** (a 90° turn into a horizontal crossing run), **dropping bombs** craft-by-craft along the crossing, and accelerates off the side edge when done.
+Bombs carry a fuse and a landing-point warning ring; detonation deals AoE damage. Every craft can be shot down by the player before dropping (downs score points; a full clear gives a small reward).
 
-定位：**最低优先级**的随机遭遇——它不抢占任何调度权，只在「无 Boss、无精英炮塔事件」的空档期搭车出现；
-事件短（约 12s）、不冻结 Boss 调度。本作新增内容，独立设计。
-**2026-07-29 修订**：事件改为占用波次槽——运行期间暂停普通波次（spawner `_waves_paused` 钩子，结束/打断恢复），
-触发时清零 spawner 特殊槽计数（与精英波/Boss 同槽），降低叠加压力。
+Positioning: the **lowest-priority** random encounter — it preempts no scheduling authority, only hitching into gaps where "no Boss, no elite turret event" holds;
+the event is short (≈12s) and does not freeze Boss scheduling. New content for this game, independently designed.
+**2026-07-29 revision**: the event now occupies a wave slot — normal waves pause while it runs (spawner `_waves_paused` hook; restored on end/interrupt),
+and triggering zeroes the spawner special-slot counter (same slot as elite waves/Boss) to reduce stacking pressure.
 
-## 2. 触发与优先级
+## 2. Trigger & Priority
 
-优先级链（spawner `_process` 每 tick 顺序检查，前者启动则后者本 tick 跳过）：
+Priority chain (spawner `_process` checks in order each tick; if the former starts, the latter is skipped for that tick):
 
-1. **Boss**（分数/时间门槛，最高优先）
-2. **精英炮塔事件**（`elite_turret_event`，30s 重型事件，冻结 Boss + 暂停波次）
-3. **轰炸编队事件**（本事件，最低优先）：仅当 ① Boss 未激活（未预警/未在场）② 精英炮塔事件 `is_active() == false`
-   ③ 自身 IDLE 且冷却结束 ④ 分数 ≥ `min_score` 时，每隔 `trigger_interval` 秒以 `trigger_chance` 概率掷签启动。
+1. **Boss** (score/time threshold, highest priority)
+2. **Elite turret event** (`elite_turret_event`, 30s heavy event; freezes Boss + pauses waves)
+3. **Formation strike event** (this event, lowest priority): starts via a dice roll every `trigger_interval` seconds at `trigger_chance` probability, only when ① Boss not active (no warning/not present) ② elite turret event `is_active() == false` ③ self IDLE and cooldown elapsed ④ score ≥ `min_score`.
 
-与精英炮塔事件的关键差异（低优先级的具体语义）：
+Key differences from the elite turret event (the concrete semantics of low priority):
 
-- **不冻结 Boss 调度**：Boss 到期照常触发（警告+入场约 2s+，此时编队已近离场，炸弹有预警圈可躲，叠加风险可控）；
-  但**事件期间暂停普通波次**（2026-07-29 修订：占用波次槽，与精英炮塔事件共用 `_waves_paused` 钩子；
-  为避免两事件暂停钩子互相提前恢复，精英炮塔事件在编队激活期间不会启动）。
-- **可被返航打断**：`Main._start_homecoming()` 调用事件 `abort()`（同母舰收回语义），编队立即解散离场，无结算并恢复波次；已投放的炸弹为独立实体，自然存续（语义同敌弹）。
+- **Does not freeze Boss scheduling**: an expired Boss triggers normally (warning + entry ≈2s+, by which point the formation is nearly gone; bombs have warning rings to dodge, overlap risk manageable);
+  but **normal waves pause during the event** (2026-07-29 revision: occupies the wave slot, sharing the `_waves_paused` hook with the elite turret event;
+  to keep the two events' pause hooks from prematurely resuming each other, the elite turret event won't start while the formation is active).
+- **Interruptible by homecoming**: `Main._start_homecoming()` calls the event's `abort()` (same semantics as mothership recall); the formation immediately disperses and leaves, no settlement, and waves resume; already-dropped bombs are independent entities that persist naturally (same semantics as enemy bullets).
 
-## 3. 状态机
+## 3. State Machine
 
 ```
-IDLE → FORMATION_ENTER（靠近，时长由位移/approach_speed 推导，约 1.5s）→ FORMATION_TURN（转航向 turn_time 1.2s）
-     → BOMBING_RUN（横穿投弹，长度按编队规模 2.0/2.8/3.6s，3/4/5 机）→ FORMATION_EXIT（离场 EXIT_TIME 1.5s）→ IDLE（冷却 cooldown）
+IDLE → FORMATION_ENTER (approach; duration derived from displacement / approach_speed, ≈1.5s) → FORMATION_TURN (heading turn, turn_time 1.2s)
+     → BOMBING_RUN (crossing bomb run; length by formation size 2.0/2.8/3.6s for 3/4/5 craft) → FORMATION_EXIT (leave, EXIT_TIME 1.5s) → IDLE (cooldown)
 ```
 
-- **FORMATION_ENTER**：编队锚点自屏顶外 `(x0, view.top - 120)` 垂直下降至接近高度 `approach_y`（view.top + 260），
-  各机保持楔形偏移（长机居中，僚机后掠 ±55px 递增）。`x0` 在视野中部 40%–60% 随机。
-  进场时 `CommOverlay` 播一句警告台词（`FBQ_WARN`）。
-- **FORMATION_TURN**：锚点减速，编队朝向在 1.2s 内从 +y 平滑旋转到 ±x（朝较远侧缘方向），
-  各机偏移量随编队朝向旋转（楔形整体转向，僚机划出小弧）。
-- **BOMBING_RUN**：编队以 `run_speed` 水平横穿；自转向完成起，每架机按 `bomb_interval` 交错投弹
-  （长机先投，僚机依次错开），每架投 `bombs_per_craft` 枚（间隔 0.4s）。投弹点即当前位置正下方。
-- **FORMATION_EXIT**：投弹完毕或穿出侧缘后，编队朝侧缘外加速离场（1.5s），离场后回 IDLE 并进入冷却。
-- **提前结束**：全部战机被击坠 → 立即结算全歼奖励 → FORMATION_EXIT（剩余节点清理）。
+- **FORMATION_ENTER**: the formation anchor descends vertically from above the screen top `(x0, view.top - 120)` to approach altitude `approach_y` (view.top + 260);
+  craft hold wedge offsets (lead centered, wingmen swept back in ±55px increments). `x0` random in the middle 40%–60% of the view.
+  On entry, `CommOverlay` plays a warning line (`FBQ_WARN`).
+- **FORMATION_TURN**: the anchor slows; the formation heading smoothly rotates from +y to ±x over 1.2s (toward the farther side edge);
+  craft offsets rotate with the heading (the wedge turns as a whole, wingmen tracing small arcs).
+- **BOMBING_RUN**: the formation crosses horizontally at `run_speed`; from the turn's completion, each craft drops at a staggered `bomb_interval`
+  (lead first, wingmen offset in turn), each dropping `bombs_per_craft` bombs (0.4s apart). The drop point is directly below the current position.
+- **FORMATION_EXIT**: after bombing completes or crossing out the side edge, the formation accelerates off the side edge (1.5s), then back to IDLE and into cooldown.
+- **Early end**: all craft shot down → settle the full-clear reward immediately → FORMATION_EXIT (remaining nodes cleaned up).
 
-## 4. 实体
+## 4. Entities
 
-### 4.1 编队战机（`scripts/formation_craft.gd`，Area2D）
+### 4.1 Formation Craft (`scripts/formation_craft.gd`, Area2D)
 
-- 注册 `enemy` 组与 `GameState.enemies`（玩家子弹/激光可命中），死亡/离场时注销（同 TurretBattery 模式）。
-- 贴图复用 `assets/sprites/enemy_ship_2.png`（高速机型，视觉贴合"攻击机"），scale 0.9。
-- HP = `craft_hp_base` × `GameState.enemy_hp_multiplier()`；击坠得分 `craft_score`（`add_score` 内乘难度倍率）。
-- 自身无 AI：位置 = 编队锚点 + 旋转后偏移，rotation = 编队朝向 + PI/2（机头朝航向），由事件 `_process` 驱动。
-- 被击坠：`Explosion.spawn_at()` + 击坠音，编队剩余继续；投弹序列跳过已毁机。
+- Registered in the `enemy` group and `GameState.enemies` (hittable by player bullets/laser); unregistered on death/leave (same pattern as TurretBattery).
+- Sprite reuses `assets/sprites/enemy_ship_2.png` (high-speed model, visually fitting an "attack craft"), scale 0.9.
+- HP = `craft_hp_base` × `GameState.enemy_hp_multiplier()`; down score `craft_score` (`add_score` applies the difficulty multiplier).
+- No self-AI: position = formation anchor + rotated offset, rotation = formation heading + PI/2 (nose toward heading), driven by the event's `_process`.
+- On down: `Explosion.spawn_at()` + down sound, the rest of the formation continues; the bomb sequence skips destroyed craft.
 
-### 4.2 炸弹（`scripts/formation_bomb.gd`，Area2D）
+### 4.2 Bomb (`scripts/formation_bomb.gd`, Area2D)
 
-- 碰撞层 4（`enemy_bullet`）/ mask 1（`player`），但不走命中即毁逻辑：引信制。
-- 投放时继承编队水平速度 ×0.35 + 垂直下落 `bomb_fall_speed`；引信 `bomb_fuse` 1.2s 后引爆。
-- **预警**：弹体带脉冲辉光（红橙，8Hz），外挂一圈随引信剩余时间收缩的警示环（Line2D，半径 0.9×AoE → 0.15×AoE）。
-- **引爆**：`Explosion.spawn_at(scale=0.9)` + 爆炸音；对 `player_hitbox` 做距离判定（≤ `bomb_radius` 且玩家非无敌 →
-  `take_damage(bomb_damage)`）。AoE 只伤玩家，不伤敌机（与敌方弹丸语义一致）。
-- 出界/引爆后 queue_free。不受慢速力场等玩家 buff 影响（非 enemy 注册实体，语义同敌弹）。
+- Collision layer 4 (`enemy_bullet`) / mask 1 (`player`), but no hit-to-destroy logic: fuse-based.
+- On drop, inherits formation horizontal speed ×0.35 + vertical fall at `bomb_fall_speed`; detonates `bomb_fuse` 1.2s later.
+- **Warning**: the bomb body pulses with a glow (red-orange, 8Hz) plus a warning ring that shrinks with remaining fuse time (Line2D, radius 0.9×AoE → 0.15×AoE).
+- **Detonation**: `Explosion.spawn_at(scale=0.9)` + explosion sound; distance check against `player_hitbox` (≤ `bomb_radius` and the player not invincible →
+  `take_damage(bomb_damage)`). AoE damages only the player, not enemies (consistent with enemy-bullet semantics).
+- `queue_free` after leaving bounds/detonating. Not affected by player buffs like the slow field (not enemy-registered entities; same semantics as enemy bullets).
 
-## 5. 数值（`data/balance.json` 新增顶层 `formation_strike_event` 段；脚本同名默认值为缺键回退，两者保持一致）
+## 5. Values (new top-level `formation_strike_event` section in `data/balance.json`; script same-named defaults are the missing-key fallback; the two must stay consistent)
 
-| 键 | 默认 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `min_score` | 500 | 触发分数门槛（低于炮塔事件 800，更早可见） |
-| `trigger_interval` | 40.0 | 掷签间隔（秒） |
-| `trigger_chance` | 0.30 | 每次掷签概率 |
-| `cooldown` | 50.0 | 事件结束冷却 |
-| `craft_counts` | `{easy:3, medium:4, hard:5}` | 编队规模 |
-| `craft_hp_base` | 60 | 单机 HP 基数（×难度 HP 倍率） |
-| `craft_score` | 200 | 击坠基础分 |
-| `approach_speed` | 260.0 | 靠近段下降速度 |
-| `approach_y` | 260.0 | 接近高度（相对视野上缘偏移） |
-| `turn_time` | 1.2 | 转航向时长 |
-| `run_speed` | 340.0 | 横穿段速度 |
-| `bomb_interval` | 0.8 | 各机投弹交错间隔（2026-08-01 由 0.35 上调：投弹段时长对齐设计目标，见 §3） |
-| `bombs_per_craft` | 2 | 每架投弹数 |
-| `bomb_fall_speed` | 300.0 | 炸弹下落速度 |
-| `bomb_fuse` | 1.2 | 引信（秒） |
-| `bomb_damage` | 20 | AoE 伤害（玩家 100 HP） |
-| `bomb_radius` | 120.0 | AoE 半径 |
-| `reward_all_clear` | 200 | 全歼的基础奖励分（任一活动阶段全歼即发，编队立即提前 EXIT） |
+| `min_score` | 500 | trigger score threshold (below the turret event's 800; visible earlier) |
+| `trigger_interval` | 40.0 | dice-roll interval (seconds) |
+| `trigger_chance` | 0.30 | per-roll probability |
+| `cooldown` | 50.0 | post-event cooldown |
+| `craft_counts` | `{easy:3, medium:4, hard:5}` | formation size |
+| `craft_hp_base` | 60 | per-craft HP base (× difficulty HP multiplier) |
+| `craft_score` | 200 | down base score |
+| `approach_speed` | 260.0 | approach descent speed |
+| `approach_y` | 260.0 | approach altitude (offset from the view top edge) |
+| `turn_time` | 1.2 | heading-turn duration |
+| `run_speed` | 340.0 | crossing-run speed |
+| `bomb_interval` | 0.8 | per-craft staggered drop interval (raised from 0.35 on 2026-08-01: drop-run duration aligned with the design target, see §3) |
+| `bombs_per_craft` | 2 | bombs per craft |
+| `bomb_fall_speed` | 300.0 | bomb fall speed |
+| `bomb_fuse` | 1.2 | fuse (seconds) |
+| `bomb_damage` | 20 | AoE damage (player 100 HP) |
+| `bomb_radius` | 120.0 | AoE radius |
+| `reward_all_clear` | 200 | full-clear base reward (awarded for a full clear at any active stage; the formation immediately exits early) |
 
-（`EXIT_TIME` 1.5s、同机投弹间隔 0.4s、楔形僚机步进 55px 为脚本 `const` 常量级，不进 balance.json。）
+(`EXIT_TIME` 1.5s, same-craft drop interval 0.4s, wedge wingman step 55px are script `const` level; not in balance.json.)
 
 ## 6. i18n
 
-新增 1 个键（中英双列）：`FBQ_WARN`「侦测到轰炸编队，正在接近」/ `"Bomber formation inbound"`。
-复用 `CommOverlay`（同精英炮塔事件，layer=12 左下通讯浮层）。
+One new key (bilingual zh/en columns): `FBQ_WARN`「侦测到轰炸编队，正在接近」/ `"Bomber formation inbound"`.
+Reuses `CommOverlay` (same as the elite turret event: layer=12 bottom-left comm overlay).
 
-## 7. 接入点
+## 7. Integration Points
 
-- `main.gd _ready()`：创建 `FormationStrikeEvent` 节点挂 Main 下（清场/测试遍历可见），登记给 `spawner._formation`。
-- `spawner.gd`：新增 `_formation` 引用与触发检查（在精英炮塔事件检查之后、同 `_process` 尾部）；
-  触发参数读 `formation_strike_event.*`（`_apply_balance` 注入）。
-- `main.gd _start_homecoming()`：调 `_formation.abort()`（编队解散离场，无结算，冷却照计）。
-- 动态实体（战机/炸弹）一律挂 Main 下；返航清场 `child is Enemy or child is Bullet` 不涉及本事件实体
-  （由 `abort()` 与事件自身生命周期负责）。玩家死亡不特判（与精英炮塔事件一致，结算后场景重载自清）。
+- `main.gd _ready()`: creates the `FormationStrikeEvent` node under Main (visible to clearing/test traversal), registered as `spawner._formation`.
+- `spawner.gd`: adds the `_formation` reference and trigger check (after the elite turret event check, at the tail of the same `_process`);
+  trigger params read `formation_strike_event.*` (injected via `_apply_balance`).
+- `main.gd _start_homecoming()`: calls `_formation.abort()` (formation disperses and leaves; no settlement; cooldown still runs).
+- Dynamic entities (craft/bombs) all hang under Main; the homecoming clear-out `child is Enemy or child is Bullet` doesn't involve this event's entities
+  (handled by `abort()` and the event's own lifecycle). No special-casing for player death (same as the elite turret event; the scene reload clears it after settlement).
 
-## 8. 测试要点（`test/formation_strike_event_test.tscn`）
+## 8. Test Points (`test/formation_strike_event_test.tscn`)
 
-镜像 `elite_turret_event_test` 结构，全程真实 Timer 等待：
+Mirrors the `elite_turret_event_test` structure, real-Timer waits throughout:
 
-1. **触发门槛**：Boss 激活 / 精英炮塔事件 active / 冷却中 / 分数不足 四种情况 `can_trigger()` 为 false。
-2. **状态推进**（缩短配置强制 `start()`）：ENTER→TURN→BOMBING_RUN→EXIT→IDLE 依次到达；
-   战机注册 `GameState.enemies`；转向后才有炸弹生成；投弹数 = 存活机 × `bombs_per_craft`（击坠机跳过）。
-3. **炸弹**：预警环存在且随引信收缩；引爆后节点释放；玩家站半径内引爆掉血（无敌时不掉）。
-4. **击坠**：`take_damage` 致死 → `GameState.enemies` 注销 + 得分增加；全歼 → 奖励分 + 提前 EXIT。
-5. **打断**：`abort()` → 实体清理、回 IDLE、冷却生效。
-6. **无 Timer/节点残留**（事件树与 Main 子节点计数）；结束清理 `user://` 持久化。
+1. **Trigger gates**: `can_trigger()` false for Boss active / elite turret event active / cooling down / insufficient score.
+2. **State progression** (shortened config forcing `start()`): ENTER→TURN→BOMBING_RUN→EXIT→IDLE reached in order;
+   craft registered in `GameState.enemies`; bombs spawn only after the turn; drop count = living craft × `bombs_per_craft` (downed craft skipped).
+3. **Bombs**: warning ring exists and shrinks with the fuse; node freed after detonation; player standing within radius takes damage (not while invincible).
+4. **Downs**: lethal `take_damage` → unregistered from `GameState.enemies` + score gained; full clear → reward + early EXIT.
+5. **Interrupt**: `abort()` → entities cleaned up, back to IDLE, cooldown in effect.
+6. **No Timer/node residue** (event tree and Main child counts); end cleans up `user://` persistence.
 
-回归清单：`smoke_test`、`elite_turret_event_test`（同调度器改动回归）、`enemy_combat_test`、
-`base_system_test`、`--quit-after 300`。
+Regression list: `smoke_test`, `elite_turret_event_test` (regression for the shared scheduler change), `enemy_combat_test`,
+`base_system_test`, `--quit-after 300`.
 
-## 9. 文档同步
+## 9. Documentation Sync
 
-`AGENTS.md`（架构树/脚本清单/测试清单/balance.json 顶层段）、本文件（单一事实源）。
-（事件条目曾登记于 `docs/PORTING_PARITY.md`；该文档 2026-07-30 已归档冻结，不再回写。）
+`AGENTS.md` (architecture tree / script list / test list / balance.json top-level sections), this file (single source of truth).
+(The event entry was previously registered in `docs/PORTING_PARITY.md`; that document was archived and frozen 2026-07-30, no longer written back.)

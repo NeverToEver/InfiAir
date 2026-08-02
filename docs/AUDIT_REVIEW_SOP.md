@@ -1,109 +1,109 @@
-# 审核-修复 SOP（AUDIT_REVIEW_SOP）
+# Audit-Fix SOP (AUDIT_REVIEW_SOP)
 
-> 从一次完整的并行审核 + 缺陷修复实践中提炼的可复用流程（2026-08-01 首版，实例见 `docs/AUDIT_VAULT.md` B 系列与同批次两笔 commit）。面向"改动面广、横跨多子系统、且仓库有权威设计文档 + 审计档案双重事实源"的审核任务。
+> A reusable process distilled from one full parallel audit + defect-fix pass (first version 2026-08-01; instance: `docs/AUDIT_VAULT.md` B-series and the two commits of that batch). For audit tasks with a wide blast radius spanning multiple subsystems, where the repo has both an authoritative design doc and an audit archive as dual sources of truth.
 >
-> 关联：发现登记与修复起效记录 → `docs/AUDIT_VAULT.md`（专有档案）；方向决策 → `docs/ROADMAP.md`；数值键 → `docs/BALANCE_MAP.md`（生成文件，改键后重跑生成器）。
+> Related: finding registration & fix-effectiveness records → `docs/AUDIT_VAULT.md` (proprietary archive); direction decisions → `docs/ROADMAP.md`; balance keys → `docs/BALANCE_MAP.md` (generated file; re-run the generator after key changes).
 
 ---
 
-## 1. 流程总览
+## 1. Process Overview
 
 ```
-① 并行审核   → ② 判定分类   → ③ 分批提交   → ④ 迭代修复+即时验证   → ⑤ 档案回填
-   发现问题       分清 bug/设计/口径      文档债与代码债分开       每改即测，测试证伪       登记→修复→回填
+① Parallel audit   → ② Classification   → ③ Batched commits   → ④ Iterative fix + instant verification   → ⑤ Archive backfill
+   Find issues          bug / design / wording       docs debt and code debt separated        test each change, tests falsify        register → fix → backfill
 ```
 
-核心要点一句话：**并行分工 × 交叉验证发现问题，修前先判类（不盲改平衡），文档与代码分批次提交，让测试当场证伪假设，最后档案闭环留痕。**
+The gist in one sentence: **parallel division of labor × cross-validation finds issues; classify before fixing (no blind balance changes); commit docs and code in separate batches; let tests falsify assumptions on the spot; close the loop with archive records.**
 
 ---
 
-## 2. 阶段一：并行审核（发现问题）
+## 2. Phase 1: Parallel Audit (Find Issues)
 
-- **按子系统分工，互不重叠**。示例分区：对局编排 / 玩家与辅助瞄准 / 刷怪与对象池 / Boss 体系 / 事件与演出 / 数值一致性。每路代理只读自己的区域，避免同一文件被多路重复读。
-- **每路带设计文档对比**——这是判断"真·达成设计目标还是紧急补丁"的关键。示例：
-  - Boss 体系（A3 拆分）对照 `docs/BOSS_REDESIGN.md` → 判定为"结构性搬迁"（match 仅换文件、机型分支残留 7 处），而非真 O 原则达成；
-  - 五套演出系统对照各自设计文档 → 判定为真·完整实现。
-- **主控并行做交叉核对**：代理看代码，主控看「文档 × 代码 × git 历史」三角矛盾。示例：AUDIT_VAULT 状态表（A4/A6/A8 未修复）vs git 历史（已有修复提交）vs ROADMAP（声称全部修复）三处打架——这类跨区域矛盾是单路代理各自看不到的。
-- **输出统一**：每条发现带严重度、file:line、描述、类别、证据。类别四选一：`纯 bug` / `设计目标未达` / `紧急补丁痕迹` / `文档-代码矛盾`。
+- **Divide by subsystem, with no overlap**. Example partitions: gameplay orchestration / player & aim assist / spawning & object pools / Boss system / events & shows / balance consistency. Each agent reads only its own area, avoiding multiple lanes re-reading the same file.
+- **Each lane compares against its design doc** — this is the key to telling "genuinely met the design goal" from "emergency patch". Examples:
+  - Boss system (split as A3) vs `docs/BOSS_REDESIGN.md` → judged a "structural relocation" (match only moved files, 7 machine-type branch remnants), not a genuine O-principle (Open/Closed) achievement;
+  - The five show systems vs their design docs → judged genuine, complete implementations.
+- **The lead cross-checks in parallel**: agents read code; the lead looks for "doc × code × git history" triangle contradictions. Example: AUDIT_VAULT status table (A4/A6/A8 unfixed) vs git history (fixes already committed) vs ROADMAP (claims all fixed) — three-way contradictions of this kind are invisible to any single lane.
+- **Uniform output**: every finding carries severity, file:line, description, category, and evidence. Category is one of four: `pure bug` / `design goal unmet` / `emergency-patch trace` / `doc-code contradiction`.
 
-### 核对清单
+### Checklist
 
-- [ ] 分区清单已列出，无文件归属争议
-- [ ] 每路拿到对应设计文档路径
-- [ ] 跨区域文档/代码/git 三角矛盾已由主控单独扫一遍
-- [ ] 发现按统一格式登记
+- [ ] Partition list written; no file-ownership disputes
+- [ ] Each lane has its design-doc paths
+- [ ] Cross-area doc/code/git triangle contradictions scanned once by the lead
+- [ ] Findings logged in the unified format
 
 ---
 
-## 3. 阶段二：判定分类（决定要不要修）
+## 3. Phase 2: Classification (Decide Whether to Fix)
 
-**最容易跳过的环节——先分清"bug"和"设计决策"，不盲改平衡。** 每个发现先读代码 + 设计文档核实，再归类：
+**The most-skipped step — first separate "bug" from "design decision"; do not blindly change balance.** Verify each finding against the code + design doc before classifying:
 
-| 判定 | 处理 | 本次实例 |
+| Verdict | Handling | This instance |
 | --- | --- | --- |
-| **真 bug** | 修复 | B1 瞄准线泄漏：全文件无 `queue_free`，实锤 |
-| **设计意图** | 不改码，档案回填结论 | B9 Boss 血量线性放大：ENDLESS_BALANCE_PLAN D1 明文"Boss 线性 + 50s 逃跑压力阀" |
-| **口径问题** | 补注释/统一文档，不改行为 | B11 母舰 margin 乘 ws：可辩护的"舰体边缘屏距恒定"例外 |
-| **文档-代码矛盾** | 统一文档指向代码现实 | mark_ratio 0.4 vs 0.25：代码是刻意调成的 0.25，文档没同步 |
+| **True bug** | Fix | B1 aim-line leak: no `queue_free` anywhere in the file — confirmed |
+| **Design intent** | No code change; backfill conclusion to the archive | B9 Boss HP linear scaling: ENDLESS_BALANCE_PLAN D1 explicitly states "linear Boss + 50s escape pressure valve" |
+| **Wording issue** | Add comments / unify docs; no behavior change | B11 mothership margin × ws: the defensible "constant hull-to-screen-edge margin" exception |
+| **Doc-code contradiction** | Align docs to code reality | mark_ratio 0.4 vs 0.25: the code was deliberately tuned to 0.25; docs never synced |
 
-### 关键教训（务必先核实再下结论）
+### Key Lessons (Always Verify Before Concluding)
 
-- **数值语义必须查函数定义，不能凭注释和表象判断。** B9 曾因读到"Boss 整倍乘、敌机阻尼 ramp"想当然要"统一"，查清 `enemy_hp_multiplier()` 的定义后才发现它其实是**难度档倍率**（0.75/1/1.5），不是进程 ramp——按表象修会直接改坏平衡。
-- **"语义不一致"不一定是 bug**，可能是刻意的分层设计。Boss 线性放大 vs 敌机阻尼，是"Boss 是节奏锚点、敌机留在区间"的设计选择。
-- **数学上不可满足的目标**（如某设计数值三档无法同时精确达成）→ 优先调参逼近并同步文档，而不是强行满足。
-
----
-
-## 4. 阶段三：分批提交（可追溯）
-
-- **文档债与代码债分两批提交**，互不混淆：
-  1. 第一批：文档口径统一（过期文档修正、档案状态订正、生成器盲区修复）。
-  2. 第二批：缺陷修复。
-- **提交信息里逐项列明**：改了哪些文件/为什么；每条修复标注其审核编号（B 系列），保证可回溯到原始发现；明确区分「代码修复 / 设计确认不改码 / 口径澄清」三类。
+- **Value semantics must be checked against the function definition, never judged from comments or appearances.** B9: reading "Boss whole-multiple multiplier, enemy damping ramp" made us want to "unify" — but checking `enemy_hp_multiplier()`'s definition showed it is actually a **difficulty-tier multiplier** (0.75/1/1.5), not a progression ramp; fixing by appearance would have directly broken the balance.
+- **"Semantic inconsistency" is not necessarily a bug** — it may be deliberate layered design. Boss linear scaling vs enemy damping is the design choice "the Boss is the pacing anchor, enemies stay within a band".
+- **Mathematically unsatisfiable goals** (e.g. a designed value's three tiers cannot all be hit exactly) → prefer tuning parameters to approximate and syncing the docs, rather than forcing compliance.
 
 ---
 
-## 5. 阶段四：迭代修复 + 即时验证
+## 4. Phase 3: Batched Commits (Traceable)
 
-- **每条修复后立刻跑针对性测试**，不是攒到最后一起跑。改动积累后再跑全量回归。
-- **让测试当场证伪假设，证伪后不硬凑，回到代码找根因。** 本次实例（B4）：
-  - 初版用 `is_active()` 做追踪目标失效判据 → `smoke_test` 当场报「入框出膛弹绑定追踪目标」失败；
-  - 追查发现：直实例化敌机从不走 `reactivate`，`_active` 恒 false（已知语义缺口）→ 改用 `GameState.enemies` 注册表成员检查；
-  - 重跑通过。**测试抓住了一个仅凭读代码看不出来的判据错误。**
-- **数值改动（balance.json）后先验证 diff 最小化**，避免生成器/脚本整文件重排污染提交。
-
-### 最小验证集
-
-- 每次改动后：`--headless --import` + 相关专项测试。
-- 涉及平衡数值：加跑 `balance_test`（损坏回退路径）。
-- 涉及对象池/注册表：加跑 `pool_reuse_test`。
-- 全量收尾：**29 断言场景全绿 0 FAIL** + `--quit-after 300` + `autoplay_test` 短跑（探针监控注册表一致性 / 孤儿节点 / 帧耗时）。
+- **Docs debt and code debt are committed in two batches**, never mixed:
+  1. Batch 1: doc wording unification (stale-doc corrections, archive status fixes, generator blind-spot fixes).
+  2. Batch 2: defect fixes.
+- **Commit messages itemize everything**: which files changed / why; each fix is tagged with its audit ID (B-series) so it can be traced back to the original finding; clearly distinguish the three classes: "code fix / design confirmed, no change / wording clarification".
 
 ---
 
-## 6. 阶段五：档案回填（沉淀）
+## 5. Phase 4: Iterative Fix + Instant Verification
 
-按 `docs/AUDIT_VAULT.md` 约定：发现登记（B 系列）→ 修复 → 回填「修复起效记录」（改了什么 / 为什么起效 / 用什么验证）。
+- **Run targeted tests right after each fix**, not all at the end. Run the full regression once changes accumulate.
+- **Let tests falsify assumptions on the spot; once falsified, don't force-fit — go back to the code for the root cause.** This instance (B4):
+  - v1 used `is_active()` as the tracking-target-invalid criterion → `smoke_test` immediately reported "in-bracket fired bullet bound to a tracking target" failing;
+  - Investigation: directly-instantiated enemies never go through `reactivate`, so `_active` is always false (a known semantic gap) → switched to a membership check in the `GameState.enemies` registry;
+  - Re-run passed. **The test caught a criterion error that reading code alone could not reveal.**
+- **After value changes (balance.json), first verify the diff stays minimal**, so generator/script whole-file reformatting doesn't pollute the commit.
 
-- 已确认为"设计意图不改码"的条目，在档案里明确标注，**避免后人当 bug 重查一遍**（B9/B14 即此处理）。
-- 回填后同步修正状态总览与任何已过时的关联文档，防止档案再次成为矛盾源。
+### Minimal Verification Set
+
+- After every change: `--headless --import` + the relevant dedicated test.
+- Balance values involved: also run `balance_test` (corruption fallback paths).
+- Object pools / registry involved: also run `pool_reuse_test`.
+- Full wrap-up: **31 assertion scenes all green, 0 FAIL** + `--quit-after 300` + a short `autoplay_test` run (the probe watches registry consistency / orphan nodes / frame cost).
 
 ---
 
-## 7. 反模式速查
+## 6. Phase 5: Archive Backfill (Consolidate)
 
-| 反模式 | 正确做法 |
+Per `docs/AUDIT_VAULT.md` conventions: register the finding (B-series) → fix → backfill the "fix effectiveness record" (what changed / why it worked / how it was verified).
+
+- Entries confirmed as "design intent, no code change" are clearly marked in the archive, **so later people don't re-investigate them as bugs** (B9/B14 were handled this way).
+- After backfilling, sync the status overview and any stale related docs, so the archive doesn't become a contradiction source again.
+
+---
+
+## 7. Anti-Pattern Quick Reference
+
+| Anti-pattern | Right approach |
 | --- | --- |
-| 单线通读，漏跨区域矛盾 | 并行分区 + 主控交叉核对 |
-| 看到"不一致"就动手改平衡 | 先判 bug/设计/口径，查清语义再决定 |
-| 凭注释判断数值含义 | 查函数定义与文档公式 |
-| 攒一批改动再统一测 | 每条改完即跑针对性测试 |
-| 修复与文档混在一笔提交 | 分两批，各带编号与说明 |
-| 修完不更新档案 | 回填起效记录，防止旧档案误导后人 |
+| Single-threaded read-through misses cross-area contradictions | Parallel partitions + lead cross-check |
+| "Inconsistency" triggers a balance change | Classify bug / design / wording first; check semantics before deciding |
+| Judge value meaning from comments | Look up the function definition and doc formulas |
+| Batch all changes, then test once | Run targeted tests after each change |
+| Fixes and docs mixed in one commit | Two batches, each with IDs and notes |
+| No archive update after fixing | Backfill effectiveness records; keep stale archives from misleading later work |
 
 ---
 
-## 8. 适用与不适用
+## 8. When It Applies & When It Doesn't
 
-- **适用**：跨多文件、多子系统的审计/重构；仓库有"权威设计文档 + 审计档案"双重事实源；改动可能影响平衡或生命周期。
-- **不适用**：单文件小修（直接改直接测即可）；纯探索性阅读（用 Explore 代理而非完整 SOP）；无设计文档参照的快速迭代期。
+- **Applies**: audits/refactors spanning many files and subsystems; the repo has the "authoritative design doc + audit archive" dual source of truth; changes may affect balance or lifecycles.
+- **Doesn't apply**: single-file small fixes (just change and test directly); purely exploratory reading (use an Explore agent rather than the full SOP); fast-iteration periods without design-doc references.

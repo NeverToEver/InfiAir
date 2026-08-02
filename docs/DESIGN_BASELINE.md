@@ -1,139 +1,139 @@
-# InfiAir 设计基线（DESIGN_BASELINE）
+# InfiAir Design Baseline (DESIGN_BASELINE)
 
-> **文档地位**：本项目设计意图与架构约定的**唯一修正文档**。审阅技术债、评估改动影响、规划未来工作时，以本文为权威基准；专项设计文档（`BOSS_REDESIGN` / `META_HUD_DESIGN` / `ELITE_TURRET_EVENT` / `FORMATION_STRIKE_EVENT` / `INTRO_CINEMATIC` / `RETURN_HOME_CINEMATIC` / `ENDLESS_BALANCE_PLAN` / `EXIT_FLOW`）提供各系统的实现级细节，冲突时以本文为纲、专项文档为目，二者不一致时以本文为准并修订专项文档。
+> **Document status**: This is the **single authoritative document** for this project's design intent and architectural conventions. When reviewing technical debt, assessing the impact of changes, or planning future work, treat this document as the authority; the specialized design docs (`BOSS_REDESIGN` / `META_HUD_DESIGN` / `ELITE_TURRET_EVENT` / `FORMATION_STRIKE_EVENT` / `INTRO_CINEMATIC` / `RETURN_HOME_CINEMATIC` / `ENDLESS_BALANCE_PLAN` / `EXIT_FLOW`) provide implementation-level detail per subsystem. In case of conflict, this document takes precedence and the specialized docs must be revised to match.
 >
-> **维护约定**：任何方向/架构/数值口径调整，须在此登记并同步 `AGENTS.md`「文档同步要求」；技术债修复后在此回填状态并同步 `docs/AUDIT_VAULT.md`。
+> **Maintenance convention**: Any adjustment to direction/architecture/balance conventions must be registered here and synced with the "Document Sync Requirements" section of `AGENTS.md`; after technical-debt fixes, backfill status here and sync `docs/AUDIT_VAULT.md`.
 >
-> **状态快照（2026-08-02 修订）**：C 系列（Godot 最佳实践与语法规范）35 项已处理收尾（含设计确认不改码/核实无风险，详见档案）；31 个无头断言场景 0 FAIL（1113 断言）；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）；性能优化计划全量落地（敌机生成路径已统一池化，见 §7.2 与 `docs/archive/2026-08-02-performance-optimization-plan.md` §12）。
+> **Status snapshot (revised 2026-08-02)**: C-series (Godot best practices & syntax conventions) 35 items processed and closed (incl. design confirmations to leave code unchanged / verified no risk; see the vault); 31 headless assertion scenes 0 FAIL (1113 assertions); A-series SOLID audit leftovers A3/A4/A5/A8 partially unresolved (see §7); performance optimization plan fully landed (enemy spawn path unified through pooling, see §7.2 and `docs/archive/2026-08-02-performance-optimization-plan.md` §12).
 
 ---
 
-## 目录
+## Table of Contents
 
-1. [产品与玩法设计基线](#1-产品与玩法设计基线)
-2. [技术架构基线](#2-技术架构基线)
-3. [全局不变量与开发约定](#3-全局不变量与开发约定)
-4. [数据驱动与数值体系](#4-数据驱动与数值体系)
-5. [测试与验证基线](#5-测试与验证基线)
-6. [持久化与安全边界](#6-持久化与安全边界)
-7. [已知技术债清单](#7-已知技术债清单)
-8. [未来工作方向](#8-未来工作方向)
+1. [Product & Gameplay Design Baseline](#1-product--gameplay-design-baseline)
+2. [Technical Architecture Baseline](#2-technical-architecture-baseline)
+3. [Global Invariants & Development Conventions](#3-global-invariants--development-conventions)
+4. [Data-Driven Design & Balance System](#4-data-driven-design--balance-system)
+5. [Testing & Verification Baseline](#5-testing--verification-baseline)
+6. [Persistence & Security Boundaries](#6-persistence--security-boundaries)
+7. [Known Technical Debt](#7-known-technical-debt)
+8. [Future Work Directions](#8-future-work-directions)
 
 ---
 
-## 1. 产品与玩法设计基线
+## 1. Product & Gameplay Design Baseline
 
-### 1.1 产品定位
+### 1.1 Product Positioning
 
-单机 2D 俯视空战射击（shoot 'em up / score attack），Godot 4.6 + GDScript，GL Compatibility 渲染器，设计视口 1920×1080（`canvas_items` 拉伸、`keep` 宽高比）。**纯得分制**：无掉落、无拾取物、无装备；得分是唯一进度货币。早期重制自 Python/Pygame `airwar-game`，已脱离原作独立演进（历史对齐记录归档冻结于 `docs/archive/PORTING_PARITY.md`）。
+Standalone 2D top-down shoot 'em up / score attack, Godot 4.6 + GDScript, GL Compatibility renderer, design viewport 1920×1080 (`canvas_items` stretch, `keep` aspect). **Score-only**: no drops, no pickups, no equipment; score is the only progress currency. Early rewrite of the Python/Pygame `airwar-game`; has since evolved independently (historical alignment records archived and frozen in `docs/archive/PORTING_PARITY.md`).
 
-### 1.2 核心对局循环
+### 1.2 Core Gameplay Loop
 
 ```
-自动射击与波次刷怪 → 分数里程碑 Buff 三选一 → 3 类 Boss 轮换及狂暴阶段
-→ 母舰补给/火力平台 → 返航基地中场整备 → 回到同一局继续
+Auto-fire & wave spawning → score-milestone 3-choose-1 buff → 3-type Boss rotation with enrage phases
+→ mothership resupply / fire platform → homecoming base mid-run refit → continue the same run
 ```
 
-单局无限延伸（无限流，见 §1.4），无固定关卡终点；终局范式为**必死曲线**（玩家成长有限、敌方无限加压，玩家终将败北，得分才有意义）。
+A single run extends indefinitely (endless mode, see §1.4) with no fixed level endpoint; the endgame paradigm is a **doom curve** (player growth is bounded, enemy pressure is unbounded — the player is eventually defeated, which is what makes score meaningful).
 
-### 1.3 评分与经济
+### 1.3 Scoring & Economy
 
-- **得分**：`GameState.add_score(v)`，内部**乘难度倍率**（易 ×1 / 中 ×2 / 难 ×3）。击杀普通敌机、Boss、事件单位均由此入账。
-- **Boss 击杀**：`GameState.add_boss_kill(score_scale)` → `add_score(500 × score_scale)`，并推进 RP / boss_kills 计数 / 难度成长。
-- **RP（局内经济）**：随击杀/分数积累，供母舰补给使用；不跨局继承。
-- **里程碑**：分数里程碑到达时触发 Buff 三选一（`buff_select`），Buff 卡由 `buff33_test` 与 `buff_panel_test` 覆盖。
+- **Score**: `GameState.add_score(v)`, internally **scaled by difficulty multiplier** (Easy ×1 / Normal ×2 / Hard ×3). Kills of normal enemies, Bosses and event units all flow through it.
+- **Boss kills**: `GameState.add_boss_kill(score_scale)` → `add_score(500 × score_scale)`, also advancing RP / boss_kills counter / difficulty growth.
+- **RP (in-run economy)**: accumulates from kills/score; spent on mothership resupply; does not persist across runs.
+- **Milestones**: hitting a score milestone triggers a 3-choose-1 buff (`buff_select`); buff cards covered by `buff33_test` and `buff_panel_test`.
 
-### 1.4 难度与无限流曲线（单一事实源 `docs/ENDLESS_BALANCE_PLAN.md`）
+### 1.4 Difficulty & Endless Curve (single source of truth `docs/ENDLESS_BALANCE_PLAN.md`)
 
-**终局范式（决策 D1，2026-07-29 收口）**：必死曲线——玩家成长有硬上限，敌方成长无顶。
+**Endgame paradigm (decision D1, closed 2026-07-29)**: doom curve — player growth has a hard cap, enemy growth is unbounded.
 
-- **难度乘数**：`mult = 1 + progression.per_boss_kill(0.5) × boss_kills + 时间分量`。
-  - **时间分量**：按 `progression.time_step_seconds`（30s）量化步进，每 10 分钟 + `progression.per_ten_minutes`（1.0），即 `floor(run_time / 30) × 0.05`；只计对局存活时间 `run_time`（树暂停不计），量化避免 HUD 连续漂移、测试可钉档。
-  - **完全去硬顶**：废弃旧 `2^n + ×8 封顶` 公式。`GameState._recompute_difficulty()` 统一计算（击杀触发 + 时间档触发 + 存档恢复重算），跨档时广播 `difficulty_changed`。
-- **敌方成长对顶**：Boss HP 随 mult 线性放大（50s 逃跑 DPS 检查自然转化为「打不死则逃跑」的压力阀）；`enemies.hp_ramp_factor` / `enemies.damage_ramp_factor`（k=0.08）/ 刷怪间隔 ramp 全部获得无限加压通道。
-- **生存轴收紧**：`extra_life` 上限 99→**10 层**（总 HP 100+500=600 封顶），卡面「可无限叠加」→「最多 10 层」；吸血按上限 10% 回血的正反馈由 HP 上限 + 无限伤害 ramp 共同对冲。
-- **事件单位吃难度**：炮塔/编队战机 HP 乘 `GameState.enemy_hp_ramp()`，统一口径。
-- **决策 D2**：hard 难度 Buff 节奏最快（得分 ×3、里程碑阈值仅 ×1.5）为**有意设计**（避免高难 Buff 节奏过稀），数值不动。
-- 新键顶层段 `progression`；脚本 `cfg()` 回退值与 json 一致。
+- **Difficulty multiplier**: `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time component`.
+  - **Time component**: quantized steps of `progression.time_step_seconds` (30s); every 10 minutes + `progression.per_ten_minutes` (1.0), i.e. `floor(run_time / 30) × 0.05`; counts only in-run survival time `run_time` (tree pauses excluded); quantization avoids HUD drift and lets tests pin values.
+  - **Hard cap fully removed**: the old `2^n + ×8 cap` formula is abandoned. `GameState._recompute_difficulty()` computes uniformly (kill-triggered + time-tier-triggered + save-restore recompute), broadcasting `difficulty_changed` across tiers.
+- **Enemy growth ceiling**: Boss HP scales linearly with mult (the 50s escape DPS check naturally becomes a "fail to kill → escape" pressure valve); `enemies.hp_ramp_factor` / `enemies.damage_ramp_factor` (k=0.08) / spawn-interval ramp all get unbounded pressure channels.
+- **Survival axis tightened**: `extra_life` cap 99→**10 stacks** (total HP 100+500=600 capped); card text "stacks infinitely"→"max 10 stacks"; the positive feedback of vampirism capped at 10% heal is offset jointly by the HP cap and the unbounded damage ramp.
+- **Event units take difficulty**: turret/formation fighter HP multiplied by `GameState.enemy_hp_ramp()`, unified convention.
+- **Decision D2**: hard difficulty has the fastest buff cadence (score ×3, milestone threshold only ×1.5) — **intentional design** (avoids overly sparse buff cadence on high difficulty); balance unchanged.
+- New top-level `progression` section; script `cfg()` fallback values match the json.
 
-### 1.5 Buff 体系
+### 1.5 Buff System
 
-- 16 种 buff（`ui_buff_icons` 程序化字形 + 分类配色），经里程碑三选一获得，多数可多层堆叠（层数上限由 `buffs.*.max_stacks` 约束，extra_life 例外收紧至 10）。
-- 卡面文本走 `BUFF_%s_DESC` 翻译键（单一事实源），池内 `desc` 死文本已删除。
-- 关键缩放系数：`buffs.rapid_fire.factor`（射速间隔 ×0.75 = +33%/层，卡面文案一致）、`armor.multiplier`、`evasion.chance`、`regen.heal_per_sec`、`slow_field.factor`、`laser_beam.*`（线段判定，非弹丸）、`explosive.*`（解锁门槛 `boss_kills>=3` 入配置）、`mothership_recall.cooldown_factor` 等。
-- **辅助瞄准**（`player.aim_assist`）：敌机按 `mark_ratio`（0.25）掷 `aim_marked` 标记，AimFrameLayer 画 bracket 框，AimCrosshair 跟随 `aim_point()`；准星入框时新弹写 `Bullet.homing_target` 追踪（`homing_time` 限制），未入框朝准星直射；磁吸/弱追踪共用距离衰减（400px 内全辅助 → 1400px 线性降至 0.3 下限）。
+- 16 buffs (`ui_buff_icons` procedural glyphs + category colors), gained via milestone 3-choose-1, most stack (stack caps from `buffs.*.max_stacks`; extra_life excepted, tightened to 10).
+- Card text goes through `BUFF_%s_DESC` translation keys (single source of truth); dead `desc` text in the pool removed.
+- Key scaling factors: `buffs.rapid_fire.factor` (fire interval ×0.75 = +33%/stack, matches card copy), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line-segment damage, not projectiles), `explosive.*` (unlock gate `boss_kills>=3` in config), `mothership_recall.cooldown_factor`, etc.
+- **Aim assist** (`player.aim_assist`): enemies roll `aim_marked` per `mark_ratio` (0.25); AimFrameLayer draws bracket frames; AimCrosshair follows `aim_point()`; when the crosshair is inside a bracket, new shots write `Bullet.homing_target` tracking (limited by `homing_time`), otherwise they fire straight at the crosshair; magnet/weak tracking share a distance falloff (full assist within 400px → linear decay to 0.3 floor at 1400px).
 
-### 1.6 Boss 体系（单一事实源 `docs/BOSS_REDESIGN.md`）
+### 1.6 Boss System (single source of truth `docs/BOSS_REDESIGN.md`)
 
-- **3 类 Boss 轮换**：第 N 只 = 第 `(N-1) % 3 + 1` 种，由 `spawner._spawn_boss()` 按击杀数轮换。
-- **阶段模式表驱动**：P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇；三型差异化狂暴（`boss.enrage.type_*`），狂暴期玩家减速 ×0.35 而非定身；难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`：弹数/间隔/弹速三档）。
-- **战斗锚线**：`FIGHT_Y` 为距 view 顶缘偏移，使用点一律走 `_fight_anchor_y()`。
-- **逃跑机制**：50s 超时逃跑（DPS 检查的压力阀）；逃跑**不推进轮换、不给休整**（B3 契约），血条隐藏 + 生成器重排。
-- **实现结构**：门面 `Boss` + 4 职责类 `BossFire`（弹幕）/`BossAttacks`（攻击状态机）/`BossMovement`（移动 + P1 下压）/`EnrageSequence`（狂暴状态机）。**已知遗留**：集中 `match` 仅搬迁、按机型分支残留 7 处（见 §7 A3/A4）。
+- **3-type rotation**: the Nth Boss = type `(N-1) % 3 + 1`, rotated by kill count in `spawner._spawn_boss()`.
+- **Table-driven phase patterns**: P1/P2/ENRAGE, pattern tables `boss.phases.typeN` + telegraph windups; three differentiated enrages (`boss.enrage.type_*`); enrage slows the player ×0.35 instead of freezing; difficulty tiers multiplied once in `_ready` (`boss.difficulty_scaling`: projectile count/interval/speed three tiers).
+- **Fight anchor line**: `FIGHT_Y` is an offset from the view top edge; all usages go through `_fight_anchor_y()`.
+- **Escape mechanic**: 50s timeout escape (DPS-check pressure valve); escape **does not advance rotation or grant respite** (B3 contract); HP bar hidden + spawner re-schedules.
+- **Implementation structure**: facade `Boss` + 4 responsibility classes `BossFire` (bullet patterns) / `BossAttacks` (attack state machine) / `BossMovement` (movement + P1 push-down) / `EnrageSequence` (enrage state machine). **Known leftover**: the central `match` was only relocated; 7 per-type branches remain (see §7 A3/A4).
 
-### 1.7 母舰与返航
+### 1.7 Mothership & Homecoming
 
-- **母舰召唤**：蓄力（`dock` H）完成触发，对局不暂停、演出期玩家锁输入 + 事件驱动无敌。机库小窗 → 穿梭门 → 母舰 DESCEND 穿出减速 → 双环减速带 → DOCKING 牵引回收玩家进保护舱（`player.enter_pod()`）→ 补给 → RELEASE（`exit_pod()`）→ 驻留/离场。数值在 `effects.mothership_summon`。
-- **火力平台**：驻留期 GATLING 扫射 / MISSILE 目标打击，火力掩护。
-- **返航**：长按 B（`homecoming`，`effects.home_charge_time` 蓄力）→ 锁输入 → 停 spawner → 收回母舰 → `save_run()` → `starfield.warp(18)` → 返航过场 → 落基地 UI（树保持暂停）。
-- **基地整备**：`base_console.gd`，虚影空间站皮肤（`dawn_station.gd`），「继续出击」触发轨道打击清场（`orbital_strike`，Boss 保留、逐机爆炸）后播战机入场动画恢复对局。
-- **入场衔接动画**：开场过场播完与「继续出击」清场后播放（`player.play_entry_animation()`，数值 `player.entry`）——高速冲入定位到屏幕下 1/3 → 向后（下）缓移一小节，期间仅左右可调/上下锁定、全程无敌（不闪烁），敌机生成延迟到动画结束；替代原"原地无敌闪现"入场。
+- **Mothership summon**: triggered after charging (`dock` H); the run does not pause; input locked + event-driven invulnerability during the sequence. Hangar mini-window → warp gate → mothership DESCEND decelerating pass-through → dual-ring deceleration bands → DOCKING tow-recovery of the player into the pod (`player.enter_pod()`) → resupply → RELEASE (`exit_pod()`) → loiter/leave. Values in `effects.mothership_summon`.
+- **Fire platform**: GATLING strafing / MISSILE targeted strikes while loitering — fire support.
+- **Homecoming**: hold B (`homecoming`, charged by `effects.home_charge_time`) → input locked → spawner stopped → mothership recalled → `save_run()` → `starfield.warp(18)` → homecoming cinematic → base UI landing (tree stays paused).
+- **Base refit**: `base_console.gd`, holographic station skin (`dawn_station.gd`); "Continue Sortie" triggers an orbital-strike sweep (`orbital_strike`; Bosses exempt, fighters explode one by one), then plays the fighter entry animation to resume the run.
+- **Entry transition animation**: played after the intro cinematic finishes and after the "Continue Sortie" sweep (`player.play_entry_animation()`, values `player.entry`) — high-speed dive to the lower third of the screen → gentle backward (downward) drift; only left/right adjustable during it, vertical locked, fully invulnerable (no flashing); enemy spawning delayed until the animation ends; replaces the old "in-place invulnerable flicker" entry.
 
-### 1.8 事件系统
+### 1.8 Event System
 
-**精英炮塔事件**（`docs/ELITE_TURRET_EVENT.md`，重型 30s 事件）：
-- 打击航母自屏顶降入为背景舞台，升起多座自动索敌炮台（每座独立血条/开火/弱锁定追踪）；纯得分制，弹药全复用敌侧弹种，不新增弹药类型。
-- **与 Boss 互斥**：Boss 触发被冻结至多一次不累积（`_boss_frozen`/`_boss_pending`），事件期普通波次暂停（`_waves_paused`），事件结束经 `BOSS_DELAY` 恢复。
-- 三节点敌方台词（`ETQ_1..10`，10 选 3 无放回）+ 左下通讯浮层（`comm_overlay`）；奖励 `reward_score` 500（乘难度倍率），超时失败无奖励。
-- 触发：分数 ≥`min_score`(800) 后每 `trigger_interval`(45s) 以 `trigger_chance`(0.35) 掷签，事件后 `cooldown`(60s)。
+**Elite Turret Event** (`docs/ELITE_TURRET_EVENT.md`, heavy 30s event):
+- A strike carrier descends from the screen top as the stage backdrop, raising multiple auto-targeting turret emplacements (each with its own HP bar / fire / weak tracking); score-only, ammunition fully reuses the enemy-side bullet types, no new ammunition types.
+- **Mutually exclusive with Boss**: Boss trigger frozen at most once without accumulation (`_boss_frozen`/`_boss_pending`); normal waves paused during the event (`_waves_paused`); resumed via `BOSS_DELAY` after the event ends.
+- Three-node enemy dialogue (`ETQ_1..10`, 3 of 10 without replacement) + bottom-left comm overlay (`comm_overlay`); reward `reward_score` 500 (scaled by difficulty multiplier); timeout failure grants no reward.
+- Trigger: score ≥`min_score`(800), roll every `trigger_interval`(45s) at `trigger_chance`(0.35), then `cooldown`(60s).
 
-**轰炸编队事件**（`docs/FORMATION_STRIKE_EVENT.md`，最低优先级随机事件）：
-- 3/4/5 架（按难度）攻击机楔形编队下降 → 90° 转航向横穿 → 逐架投引信制炸弹（落点预警环随引信收缩，AoE 只伤玩家）→ 离场。全歼有奖励。
-- **不冻结 Boss**（Boss 到期照常触发，靠预警圈控叠加），但**占用波次槽**（运行期暂停普通波次，共用 `_waves_paused`，与精英炮塔互斥）；可被返航 `abort()` 打断。
-- 触发：Boss 未激活 + 精英炮塔非激活 + 冷却结束 + 分数 ≥`min_score`(500)。
+**Bombing Formation Event** (`docs/FORMATION_STRIKE_EVENT.md`, lowest-priority random event):
+- 3/4/5 attackers (by difficulty) dive in a wedge formation → turn 90° to cross the screen → drop fuse-fused bombs one by one (landing warning rings shrink with the fuse; AoE only hurts the player) → exit. Full wipe grants a reward.
+- **Does not freeze the Boss** (the Boss fires on schedule; overlap controlled by warning rings), but **occupies the wave slot** (normal waves paused at runtime, shares `_waves_paused`, mutually exclusive with the Elite Turret event); interruptible by homecoming `abort()`.
+- Trigger: Boss not active + Elite Turret not active + cooldown done + score ≥`min_score`(500).
 
-**优先级链**（spawner `_process` 每 tick 顺序检查，前者启动则本 tick 跳过）：Boss（最高）→ 精英炮塔 → 轰炸编队（最低）。
+**Priority chain** (checked in order every tick in spawner `_process`; if the earlier one launches, this tick is skipped): Boss (highest) → Elite Turret → Bombing Formation (lowest).
 
-### 1.9 Meta HUD 血量与受击反馈（单一事实源 `docs/META_HUD_DESIGN.md`）
+### 1.9 Meta HUD Health & Hit Feedback (single source of truth `docs/META_HUD_DESIGN.md`)
 
-- 全屏后处理 CanvasLayer layer=1（世界之上、HUD 之下；HUD 抬至 layer=2），`meta_health.gdshader` + `hint_screen_texture`。
-- 管线：受击层（径向色差 + 手写 6-tap 径向模糊）→ 定向波纹（边缘 12% 带）→ 去饱和/冷青色偏 + 晕影 → 裂纹合成（Voronoi 距离场一次性预烘焙，窗口 SubViewport GPU 512² / headless CPU 64² 等价回退）。
-- 血量状态机：NORMAL/CAUTION/DAMAGED/CRITICAL/DYING（阈值 0.75/0.50/0.25/0.20）；下行快入（tau 0.10s）、上行慢出（tau 0.80s + 错峰消散）；DYING 心跳 1.0–1.2Hz、呼吸 ±1.5%、HUD 抖动 ±2px、视野收窄 6%。
-- 明示层（SegmentedBar 血条，数值兜底）+ 暗示层（去饱和/晕影/心跳，可被「减少闪光」降级）；`reduce_flash` 开启时色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲（音效保留）。
-- 自适应可读性：注册表代理亮度（bullet 活跃数 ×0.002 + 爆炸数 ×0.15），零 GPU 回读；LOD1 降级跳过色差/模糊/波纹。
+- Fullscreen post-processing CanvasLayer layer=1 (above the world, below the HUD; HUD raised to layer=2), `meta_health.gdshader` + `hint_screen_texture`.
+- Pipeline: hit layer (radial chromatic aberration + hand-written 6-tap radial blur) → directional ripples (edge 12% band) → desaturation / cool-cyan tint + vignette → crack compositing (Voronoi distance field prebaked once; window SubViewport GPU 512² / headless CPU 64² equivalent fallback).
+- Health state machine: NORMAL/CAUTION/DAMAGED/CRITICAL/DYING (thresholds 0.75/0.50/0.25/0.20); fast entry on descent (tau 0.10s), slow exit on ascent (tau 0.80s + staggered dissipation); DYING heartbeat 1.0–1.2Hz, breathing ±1.5%, HUD shake ±2px, view narrowing 6%.
+- Explicit layer (SegmentedBar health bar, value fallback) + implicit layer (desaturation/vignette/heartbeat, degradable via "Reduce Flashing"); with `reduce_flash` on: chromatic aberration ×0.4, breathing/shake/heartbeat visual pulses disabled (SFX kept).
+- Adaptive readability: registry-driven brightness proxy (bullet active count ×0.002 + explosion count ×0.15), zero GPU readback; LOD1 downgrade skips aberration/blur/ripples.
 
-### 1.10 过场演出
+### 1.10 Cinematics
 
-- **开场过场**（`docs/INTRO_CINEMATIC.md`）：6 镜头 17.3s 硬科幻开场（站毁→逃生→驶向深空），2.35:1 letterbox，字幕卡 `INTRO_SUB_1..6`；开始面板「新游戏」触发；门禁 `current_scene == Main`（继续对局/教程/测试不触发）；Esc/任意键/点击跳过。播放期树暂停，根 `process_mode=Always`。阶段 1–3 已实施，**阶段 4（低配复测/手柄移动端适配/README 说明）未完成**。
-- **返航过场**（`docs/RETURN_HOME_CINEMATIC.md`）：7 镜头 11.8s（跃迁→被捕获→入睡），架构镜像开场；Esc 经 `SKIP_RETURN` 跳过（1.2s 输入宽限防误触，`effects.return_skip_grace`）；播完/跳过统一落基地 UI，树保持暂停，镜头 7 渐暗期 BGM 淡出。
-- **共享工厂**：`cinematic_fx.gd`（soft_glow/particles/shockwave/beam/speed_lines/radial_streaks，驱动类零堆分配）、`dawn_station.gd`（站体毁灭态/全息虚影态工厂，开场镜头 1、返航镜头 2/3/4、基地背景共用）。
+- **Intro cinematic** (`docs/INTRO_CINEMATIC.md`): 6 shots, 17.3s hard sci-fi intro (station destroyed → escape → heading into deep space), 2.35:1 letterbox, subtitle cards `INTRO_SUB_1..6`; triggered by "New Game" on the start panel; gate `current_scene == Main` (no trigger from continue-run/tutorial/tests); skip via Esc/any key/click. Tree paused during playback, root `process_mode=Always`. Phases 1–3 implemented; **phase 4 (low-end retest / gamepad-mobile adaptation / README notes) not done**.
+- **Homecoming cinematic** (`docs/RETURN_HOME_CINEMATIC.md`): 7 shots, 11.8s (jump → captured → falling asleep), mirrors the intro architecture; Esc skips via `SKIP_RETURN` (1.2s input grace against accidental skip, `effects.return_skip_grace`); both play-through and skip land on the base UI with the tree paused; BGM fades out during shot 7 darkening.
+- **Shared factories**: `cinematic_fx.gd` (soft_glow/particles/shockwave/beam/speed_lines/radial_streaks, zero heap allocation in driver classes), `dawn_station.gd` (station destroyed / holographic ghost state factories; shared by intro shot 1, homecoming shots 2/3/4 and the base backdrop).
 
-### 1.11 教程
+### 1.11 Tutorial
 
-- 独立场景 `scenes/tutorial.tscn`，自处理返回（Esc 退出教程回主界面，不进 BackNavigator 状态机）。
-- 与正局逻辑对齐：`_ready` 创建 AimFrameLayer（辅助瞄准在教程内有效），阶段 1 强制标记靶机，阶段 4 长按 H 蓄力 → 穿梭门 → 母舰 `begin_warp_in` → 对接补给（略去机库小窗，实体路径同 main）。
-- 进入时隔离对局状态与存档，离开必须恢复 `Engine.time_scale = 1`。
+- Standalone scene `scenes/tutorial.tscn`, self-handles return (Esc exits the tutorial back to the main screen, not through the BackNavigator state machine).
+- Aligned with real-run logic: `_ready` creates AimFrameLayer (aim assist works in the tutorial); phase 1 forces a marked target; phase 4 long-press H charges → warp gate → mothership `begin_warp_in` → docking resupply (hangar mini-window omitted, same entity path as main).
+- Isolates run state and save data on entry; must restore `Engine.time_scale = 1` on exit.
 
-### 1.12 退出/返回导航（单一事实源 `docs/EXIT_FLOW.md`）
+### 1.12 Exit / Back Navigation (single source of truth `docs/EXIT_FLOW.md`)
 
-- 所有平台返回输入统一收敛 `BackNavigator.go_back()`，经纯决策函数 `decide_back_action()` 分发（确认窗→过场跳过→设置/基地/阻塞态/结算→buff 栏→暂停→顶层→战斗）。
-- 页面层级：L3 模态 ExitConfirm → L2 覆盖（Settings/Base/GameOver/Buff/过场）→ L1 对局（HUD⇄Pause + buff 滚动栏）→ L0 StartPanel。
-- 战斗中退出需二次确认（红色警告丢进度），确认后 `_execute_exit_cleanup`：存 profile、战斗中删 save、停止未播完音效、淡出退出。
-- 平台：PC Esc / 手柄 `ui_cancel` / Android 系统返回手势，同一状态机。
+- All platform back inputs converge on `BackNavigator.go_back()`, dispatched through the pure decision function `decide_back_action()` (confirm dialog → cinematic skip → settings/base/blocked/game over → buff bar → pause → top → in-combat).
+- Page hierarchy: L3 modal ExitConfirm → L2 overlays (Settings/Base/GameOver/Buff/cinematics) → L1 gameplay (HUD⇄Pause + buff scroll bar) → L0 StartPanel.
+- Exiting mid-combat requires a second confirmation (red warning: progress lost); after confirm, `_execute_exit_cleanup`: saves profile, deletes the in-run save, stops unfinished SFX, fades out and exits.
+- Platforms: PC Esc / gamepad `ui_cancel` / Android system back gesture, same state machine.
 
 ---
 
-## 2. 技术架构基线
+## 2. Technical Architecture Baseline
 
-### 2.1 技术栈
+### 2.1 Tech Stack
 
-- **引擎**：Godot 4.6（标准版，无 .NET），`project.godot` 声明 `4.6` + `GL Compatibility`，桌面/移动端均 `gl_compatibility`。
-- **语言**：纯 GDScript；`scripts/tools/` 为离线 Python 工具（标准库，贴图生成器另需 PIL），非运行时依赖。
-- **资源**：`assets/sprites/` PNG、`assets/audio/` WAV、`assets/fonts/NotoSansSC.ttf`（OFL 开源）。
-- **渲染**：无 HDR bloom/Compositor；自发光用 ADD 混合伪泛光（`_glow()` 惯例）；全屏后处理走 canvas_item shader + `hint_screen_texture`。
-- **唯一 autoload**：`GameState`（`autoload/game_state.gd`）。
+- **Engine**: Godot 4.6 (standard, no .NET); `project.godot` declares `4.6` + `GL Compatibility`; both desktop and mobile use `gl_compatibility`.
+- **Language**: pure GDScript; `scripts/tools/` holds offline Python tools (stdlib; the texture generator additionally needs PIL), not runtime dependencies.
+- **Assets**: `assets/sprites/` PNG, `assets/audio/` WAV, `assets/fonts/NotoSansSC.ttf` (OFL open source).
+- **Rendering**: no HDR bloom/Compositor; emissive uses ADD-blended fake bloom (`_glow()` convention); fullscreen post-processing via canvas_item shader + `hint_screen_texture`.
+- **Single autoload**: `GameState` (`autoload/game_state.gd`).
 
-### 2.2 主节点树（`scenes/main.tscn`）
+### 2.2 Main Node Tree (`scenes/main.tscn`)
 
 ```
 Main (scripts/main.gd)
@@ -141,226 +141,226 @@ Main (scripts/main.gd)
 ├─ Player
 ├─ Spawner
 ├─ BulletPool / EnemyPool
-├─ HUD（layer=2）/ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
+├─ HUD (layer=2) / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
 ├─ StartPanel / ExitConfirm
 ├─ BackNavigator
-├─ MetaHealthFX（运行时 _ready 创建，layer=1）
-├─ AimFrameLayer（运行时 _ready 创建，世界坐标）
-├─ IntroCinematic / ReturnCinematic（layer=35，运行时按需实例化）
-├─ OrbitalStrike（layer=24，继续出击清场）
-├─ MothershipSummonWindow（layer=24）+ WarpGate（世界坐标）
-└─ EliteTurretEvent / FormationStrikeEvent（_ready 创建并登记给 spawner）
+├─ MetaHealthFX (created in _ready at runtime, layer=1)
+├─ AimFrameLayer (created in _ready at runtime, world coordinates)
+├─ IntroCinematic / ReturnCinematic (layer=35, instanced on demand at runtime)
+├─ OrbitalStrike (layer=24, Continue Sortie sweep)
+├─ MothershipSummonWindow (layer=24) + WarpGate (world coordinates)
+└─ EliteTurretEvent / FormationStrikeEvent (created in _ready, registered to the spawner)
 ```
 
-**约定**：所有动态对局实体挂在 Main 下，以便清场逻辑与测试遍历可见。`scenes/` 含主场景、玩家、敌机、Boss、子弹、母舰、过场、教程场景；同名行为脚本位于 `scripts/`。
+**Convention**: all dynamic run entities hang under Main so sweep logic and test traversal can see them. `scenes/` holds the main scene, player, enemies, Boss, bullets, mothership, cinematic and tutorial scenes; same-named behavior scripts live in `scripts/`.
 
-### 2.3 职责与服务拆分（A2 拆分基线）
+### 2.3 Responsibility & Service Split (A2 split baseline)
 
-- **GameState 门面**：全局分数/HP/Buff/难度/RP/任务/路线/设置与信号总线，公开 API 委托转发，调用方与测试零感知。
-- 四个**非 autoload 组合服务类**（保持「唯一 autoload」约定）：
-  - `BalanceService`（RefCounted）：持 `_balance`，`load()/cfg()/enemy_hp_ramp()/enemy_damage_ramp()`。
-  - `SaveManager`（RefCounted）：`exists/save/load/delete/quarantine/sanitize_num`，损坏隔离置 `last_was_corrupt`。
-  - `SfxPlayer`（Node，挂 GameState 子节点）：`build_pool/play/stop_all`，headless 短路；`SFX_*` 常量保留。
-  - `EntityRegistry`（RefCounted）：`enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` 注册增删。
-- **要点**：热路径避免每帧 `get_nodes_in_group`，用注册表 `GameState.enemies` / `player_ref` / `player_hitbox`。
+- **GameState facade**: global score/HP/buff/difficulty/RP/task/route/settings + signal bus; public API delegated and forwarded — callers and tests unaffected.
+- Four **non-autoload composed service classes** (keeping the "single autoload" convention):
+  - `BalanceService` (RefCounted): holds `_balance`; `load()/cfg()/enemy_hp_ramp()/enemy_damage_ramp()`.
+  - `SaveManager` (RefCounted): `exists/save/load/delete/quarantine/sanitize_num`; corruption isolation sets `last_was_corrupt`.
+  - `SfxPlayer` (Node, child of GameState): `build_pool/play/stop_all`, headless short-circuit; `SFX_*` constants kept.
+  - `EntityRegistry` (RefCounted): registers/removes `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref`.
+- **Key point**: avoid per-frame `get_nodes_in_group` on hot paths; use the registries `GameState.enemies` / `player_ref` / `player_hitbox`.
 
-### 2.4 对象池与注册表
+### 2.4 Object Pools & Registries
 
-- **子弹**：统一 `GameState.bullet_pool.fire()`；`Bullet` 为 Area2D，位移在 `_physics_process`（C04），阵营由 `setup()/activate()` 区分；`activate()` 重置追踪/视觉字段清单。
-- **敌机**：**已统一走对象池**（2026-08-02，性能优化计划 `920e5e9`）：普通波次、Boss-3 小怪、编队机均经 `GameState.enemy_pool.spawn()`（`USE_POOL=false` 时退化为直接实例化，作性能 A/B 对照开关）。池化实体 `reactivate()/deactivate()` 负责状态重置、注册表登记/注销、死亡信号；不要把"所有敌机已池化"当作当前事实——`USE_POOL=false` 对照模式仍直接实例化。
-- **防护**：池化实体必须保留 `_active`（延迟守卫）与 `_repooling`（包 reparent 防 `_exit_tree` 误清）；`reactivate()/deactivate()` 负责状态重置、注册表登记/注销、死亡信号；外部不得绕过生命周期释放池对象。
-- **爆炸**：统一 `Explosion.spawn_at()`，复用对象池（`pool_cap` 配置），`process_mode=Always`（死亡爆炸在暂停树仍播放）。
+- **Bullets**: unified through `GameState.bullet_pool.fire()`; `Bullet` is an Area2D, moves in `_physics_process` (C04), side set by `setup()/activate()`; `activate()` resets the tracking/visual-field list.
+- **Enemies**: **unified through the object pool** (2026-08-02, performance optimization plan `920e5e9`): normal waves, Boss-3 minions and formation fighters all go through `GameState.enemy_pool.spawn()` (`USE_POOL=false` falls back to direct instantiation as a performance A/B switch). Pooled entities use `reactivate()/deactivate()` for state reset, registry add/remove and death signals; don't treat "all enemies pooled" as the current fact — the `USE_POOL=false` comparison mode still instantiates directly.
+- **Guards**: pooled entities must keep `_active` (late guard) and `_repooling` (wraps reparent to prevent `_exit_tree` misfires); `reactivate()/deactivate()` handle state reset, registry add/remove and death signals; outsiders must not bypass the lifecycle to free pooled objects.
+- **Explosions**: unified through `Explosion.spawn_at()`, reuse the object pool (`pool_cap` config), `process_mode=Always` (death explosions still play under a paused tree).
 
-### 2.5 输入与设置
+### 2.5 Input & Settings
 
-- 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。**手柄默认绑定运行时装配**（P0-1）：`GameState._bind_joypad_defaults()` 启动时经 InputMap 追加左摇杆移动/动作键（A/RB/LB/X/Y/L3/R3）/右摇杆瞄准动作（`aim_x`/`aim_y`，`player.aim_point` 增量驱动虚拟准星）；死区经 `set_joy_deadzone()` 应用到全部手柄动作。**PS 手柄自动识别**（GUID vendor 054c，位置一致仅标签对应 ✕○□△/L1-R1，`joy_button_label()` 供 UI 显示）。
-- 设置项：难度、键位、语言、视角缩放、窗口尺寸、辅助瞄准档位、`reduce_flash`、`mouse_lock`（鼠标锁定窗口内，默认开启：仅对局准星活跃且窗口聚焦时把移出内容区的鼠标拉回边缘内侧，防准星出框失控；暂停/非准星态与失焦放行）、手柄参数（`joy_aim_speed` 右摇杆瞄准灵敏度、`joy_deadzone` 摇杆死区，设置页「手柄」分区滑杆调节）、音效/音量；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed` 刷新。
-- 视角缩放与窗口尺寸是**两套独立** profile 设置。
+- Input map defined in `project.godot` (move/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`); don't modify existing mappings for unrelated needs; keys rebindable (`keybind`), persisted in profile. **Gamepad defaults assembled at runtime** (P0-1): `GameState._bind_joypad_defaults()` appends left-stick move/action keys (A/RB/LB/X/Y/L3/R3) and right-stick aim actions (`aim_x`/`aim_y`, virtual crosshair driven incrementally from `player.aim_point`) at startup via InputMap; deadzone applied to all gamepad actions via `set_joy_deadzone()`. **PS gamepad auto-detection** (GUID vendor 054c; identical layout, only labels map to ✕○□△/L1-R1; `joy_button_label()` for UI display).
+- Settings: difficulty, keybindings, language, view zoom, window size, aim-assist tier, `reduce_flash`, `mouse_lock` (mouse locked inside the window, on by default: only while the in-combat crosshair is active and the window is focused, the mouse that exits the content area is warped back to the inner edge, preventing crosshair loss of control; released during pause/non-crosshair states and on focus loss), gamepad params (`joy_aim_speed` right-stick aim sensitivity, `joy_deadzone` stick deadzone; sliders in the "Gamepad" section of the settings page), SFX/music volume; language switching via `GameState.set_locale()`, UI refreshes listening to `locale_changed`.
+- View zoom and window size are **two independent** profile settings.
 
-### 2.6 渲染与视觉层级
+### 2.6 Rendering & Visual Layers
 
-| layer | 内容 |
+| layer | Content |
 | --- | --- |
-| 1 | MetaHealthFX（全屏后处理，世界之上、HUD 之下） |
+| 1 | MetaHealthFX (fullscreen post-processing, above world, below HUD) |
 | 2 | HUD |
-| 12 | CommOverlay（通讯浮层） |
+| 12 | CommOverlay (comm overlay) |
 | 24 | OrbitalStrike / MothershipSummonWindow |
 | 35 | Intro/Return Cinematic |
 | 40 | ExitConfirm |
 
-暂停态 UI 一律 `process_mode = Always`，经 `get_tree().paused` 管理暂停；BGM 循环只设 `loop_mode = LOOP_FORWARD`（不在 `_exit_tree` 停 BGM）。
+Pause-state UI always uses `process_mode = Always`, pause managed via `get_tree().paused`; BGM loops only set `loop_mode = LOOP_FORWARD` (no BGM stop in `_exit_tree`).
 
 ---
 
-## 3. 全局不变量与开发约定
+## 3. Global Invariants & Development Conventions
 
-> 这些是本项目代码的"定律"。任何改动（修复、重构、新功能）都必须维持，否则视为破坏设计基线。
+> These are the "laws" of this codebase. Any change (fix, refactor, new feature) must preserve them; violating them counts as breaking the design baseline.
 
-### 3.1 碰撞与伤害
+### 3.1 Collision & Damage
 
-- **碰撞层**：1=`player`、2=`player_bullet`、3=`enemy`（含 Boss）、4=`enemy_bullet`。
-- 玩家子弹以 `enemy` 组结算；敌方子弹与敌方实体以 `player_hitbox` 组结算。
-- **玩家受击只认 `Player/Hitbox` 的 Area2D**（设计值 r=7 × `world_scale`，当前运行值 2.8）；`CharacterBody2D` 本体半径 22 圆无碰撞用途（mask=0），不得用于受击判定。
-- 玩家受击调用统一 `take_damage(amount, from_pos := Vector2.INF)`，发射 `player_damaged` 信号（D8 定向反馈）。
+- **Collision layers**: 1=`player`, 2=`player_bullet`, 3=`enemy` (incl. Boss), 4=`enemy_bullet`.
+- Player bullets resolve against the `enemy` group; enemy bullets and enemy bodies resolve against the `player_hitbox` group.
+- **Player hits only count via the `Player/Hitbox` Area2D** (design r=7 × `world_scale`, current runtime value 2.8); the `CharacterBody2D` body's radius-22 circle has no collision purpose (mask=0) and must not be used for hit detection.
+- Player damage goes through the unified `take_damage(amount, from_pos := Vector2.INF)`, emitting the `player_damaged` signal (D8 directional feedback).
 
-### 3.2 机体缩放（world_scale 杠杆）
+### 3.2 Craft Scaling (world_scale Lever)
 
-- **唯一杠杆**：`balance.json` 顶层 `world_scale`（当前 **0.4**），运行时缓存 `GameState.world_scale`。
-- **机体尺寸族**（贴图 scale、碰撞 radius、muzzle/对接/炮位/牵引偏移、随机体特效比例）在 json/tscn/脚本回退三处一律存**设计值**（1.0 基准），实体 `_ready()/setup()` 统一乘 `world_scale`。
-- **游戏性范围族**（AoE 半径、锁定/清弹半径、减速环）与指示器/过场/UI **不乘**。
-- **幂等赋值**（`radius = 设计值 × world_scale`），严禁 `*=` 累乘（共享 sub_resource 会逐实例重复缩放）；运行时写半径的场景须 `resource_local_to_scene = true`。
-- **例外**：`mothership.DRIVE_MARGIN` 乘 `world_scale` 是有意例外（舰体边缘视觉屏距恒定，B11）。
+- **Single lever**: top-level `world_scale` in `balance.json` (currently **0.4**), cached at runtime as `GameState.world_scale`.
+- **Craft-size family** (texture scale, collision radius, muzzle/dock/turret/tow offsets, effect scales tied to the craft) is stored as **design values** (1.0 baseline) in json/tscn/script fallbacks, multiplied by `world_scale` uniformly in the entity's `_ready()/setup()`.
+- **Gameplay-range family** (AoE radii, lock/clear-bullet radii, deceleration rings) and indicators/cinematics/UI are **not multiplied**.
+- **Idempotent assignment** (`radius = design value × world_scale`), never `*=` accumulation (shared sub_resources would rescale per instance); scenes that write radius at runtime must set `resource_local_to_scene = true`.
+- **Exception**: `mothership.DRIVE_MARGIN` multiplied by `world_scale` is an intentional exception (constant visual screen margin for the hull edge, B11).
 
-### 3.3 视口与坐标
+### 3.3 Viewport & Coordinates
 
-- 相机固定在 `(960, 540)` 只调 `zoom`；一切屏幕边缘/出界/刷怪/可见区域计算必须用 `GameState.view_world_rect()`，**不得硬编码 1920×1080 / 960 / ±1600**。
-- Boss 战斗锚线 `_fight_anchor_y()`、敌机悬停带/入场锚点基线均按此适配。
-- 过场按 1920×1080 设计坐标布局（固定机位，属有意例外）。
+- Camera fixed at `(960, 540)`, only `zoom` changes; all screen-edge/out-of-bounds/spawning/visible-area computations must use `GameState.view_world_rect()`, **never hardcode 1920×1080 / 960 / ±1600**.
+- Boss fight anchor line `_fight_anchor_y()`, enemy hover band / entry anchor baseline all adapted accordingly.
+- Cinematics are laid out in 1920×1080 design coordinates (fixed camera; intentional exception).
 
-### 3.4 数值访问（cfg）
+### 3.4 Balance Access (cfg)
 
-- 统一 `GameState.cfg("分层.路径", default)`；缺键/损坏 JSON 回退脚本默认值，两者必须一致。
-- **热路径禁止每帧 cfg()**：`_ready()/setup()` 一次性读入缓存；高频 `_process/_physics_process` 不得查 JSON 字典。
-- 可调数值只改 `data/balance.json`（用 `scripts/tools/balance_editor.py`），不改脚本回退值；改完跑 `gen_balance_map.py` 刷新 `docs/BALANCE_MAP.md`。
+- Unified via `GameState.cfg("dotted.path", default)`; missing/corrupt JSON falls back to script defaults, and both must stay consistent.
+- **No per-frame cfg() on hot paths**: read into cache once in `_ready()/setup()`; high-frequency `_process/_physics_process` must not query the JSON dict.
+- Tweakable values change only in `data/balance.json` (via `scripts/tools/balance_editor.py`), never script fallbacks; after changes run `gen_balance_map.py` to refresh `docs/BALANCE_MAP.md`.
 
-### 3.5 三角函数与热路径
+### 3.5 Trigonometry & Hot Paths
 
-- 禁止 `_physics_process` 直调 `sin()/cos()`；用 `Enemy.sin_fast()/cos_fast()` 查表。
-- 热路径不得每帧分配：演出点集预分配 + 原地写（`points[i]=` 值语义副本不生效）、`PackedVector2Array` 复用、节点引用懒加载缓存。
-- 高频字段在 `_ready` 缓存；`Time.get_ticks_msec()` 每帧取一次复用。
+- No direct `sin()/cos()` in `_physics_process`; use the `Enemy.sin_fast()/cos_fast()` lookup tables.
+- No per-frame allocation on hot paths: pre-allocated effect point sets written in place (value-semantic copies via `points[i]=` don't take effect), `PackedVector2Array` reuse, lazily-cached node references.
+- High-frequency fields cached in `_ready`; `Time.get_ticks_msec()` fetched once per frame and reused.
 
-### 3.6 协程纪律
+### 3.6 Coroutine Discipline
 
-- **禁止 `await get_tree().create_timer()` / 挂起计时器协程**（进程退出时协程状态泄漏并连带资源）。
-- 延迟回调用**一次性 `Timer` 节点 + `timeout` 信号**（参考 `spawner._schedule()`），Timer 随场景树释放。
-- 禁止 `await get_tree().process_frame` 后无 `is_inside_tree()` 守卫的越界访问。
+- **No `await get_tree().create_timer()` / timer-suspended coroutines** (coroutine state leaks on process exit and drags referenced resources along).
+- Delayed callbacks use a **one-shot `Timer` node + `timeout` signal** (see `spawner._schedule()`); the Timer is freed with the scene tree.
+- No `await get_tree().process_frame` followed by out-of-tree access without an `is_inside_tree()` guard.
 
-### 3.7 GDScript 风格与类型
+### 3.7 GDScript Style & Typing
 
-- Godot 4 官方风格：Tab 缩进、类型标注、`CONSTANT_CASE` 常量、`_` 私有前缀、`signal.emit()/connect()`。
-- `setup()` 在 `_ready()` 之前调用，勿依赖 `@onready`，用 `$节点路径`。
-- 新增 `class_name` 脚本后必须 `--headless --import` 刷新全局类缓存，否则引用编译失败。
-- 标具体类型：`Array[int]`、`EnemyPool`、`enemy: Enemy`；裸 `Array`/`Node` 尽量收敛（C18/C20 已大部清理）。
-- **已知惯例例外（C19，设计确认）**：`CONSTANT_CASE` 命名用于可变脚本回退默认值 var——项目数据模式，维持现状，不视为违规。
+- Godot 4 official style: Tab indentation, type annotations, `CONSTANT_CASE` constants, `_` private prefix, `signal.emit()/connect()`.
+- `setup()` is called before `_ready()`; don't rely on `@onready`, use `$node_path`.
+- After adding a script with `class_name`, must run `--headless --import` to refresh the global class cache, or referencing scripts fail to compile.
+- Annotate concrete types: `Array[int]`, `EnemyPool`, `enemy: Enemy`; bare `Array`/`Node` kept minimal (C18/C20 largely cleaned).
+- **Known convention exception (C19, design-confirmed)**: `CONSTANT_CASE` naming is used for mutable script fallback default vars — a project data pattern; kept as-is, not treated as a violation.
 
-### 3.8 信号与生命周期安全
+### 3.8 Signals & Lifecycle Safety
 
-- 连接用 Callable；重入树须 `is_connected` 守卫；`_exit_tree` 显式断开/清理注册。
-- `get_parent().get_node("X")` 链式访问须判空（`get_node_or_null`）或标 unique name 用 `%X`；热路径不得逐帧字符串节点查找（懒加载缓存）。
-- 池 `_exit_tree` 清空 GameState 全局池注册，防场景卸载悬空。
+- Connect with Callable; guard re-entry into the tree with `is_connected`; explicitly disconnect/clean up registrations in `_exit_tree`.
+- Chained `get_parent().get_node("X")` access must null-check (`get_node_or_null`) or use unique names via `%X`; no per-frame string node lookups on hot paths (lazy-load cache).
+- Pool `_exit_tree` clears the GameState global pool registrations to prevent dangling references on scene unload.
 
 ### 3.9 i18n
 
-- 所有用户可见文本走 `tr("UPPER_SNAKE_CASE_KEY")`；新增键同步 `data/translations.csv` 中英双列，重新 import 生成 `.translation`。
-- 动态文本用 `%d`/`%s` 占位符；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed`。
-- **禁止硬编码中文用户可见字符串**（C08/C26 已清理）。
+- All user-visible text goes through `tr("UPPER_SNAKE_CASE_KEY")`; new keys sync both `zh` and `en` columns in `data/translations.csv`; re-import to generate `.translation`.
+- Dynamic text uses `%d`/`%s` placeholders; language switching via `GameState.set_locale()`, UI listens to `locale_changed`.
+- **No hardcoded Chinese user-visible strings** (C08/C26 cleaned).
 
-### 3.10 对象生命周期
+### 3.10 Object Lifecycle
 
-- 教程进入隔离对局状态与存档，离开恢复 `Engine.time_scale = 1`。
-- 运行期创建节点要保存引用，不依赖 Godot 自动生成节点名。
-- 母舰/过场等演出节点 `skip()/abort()` 幂等，统一出口信号。
+- Tutorial isolates run state and save data on entry, restores `Engine.time_scale = 1` on exit.
+- Runtime-created nodes keep references; don't rely on Godot-generated node names.
+- Mothership/cinematic presentation nodes `skip()/abort()` are idempotent, unified exit signals.
 
 ---
 
-## 4. 数据驱动与数值体系
+## 4. Data-Driven Design & Balance System
 
 ### 4.1 `data/balance.json`
 
-顶层分区（Tab 缩进、无行内对象规范 JSON，由 `balance_editor.py` 维护落盘、自动备份 `.bak`）：
-`world_scale` / `player` / `enemies` / `elites` / `boss` / `spawner` / `mothership` / `buffs` / `milestones` / `difficulty` / `progression` / `effects` / `tutorial` / `elite_turret_event` / `formation_strike_event`。
+Top-level sections (Tab indentation, canonical JSON without inline objects; written by `balance_editor.py` with automatic `.bak` backup):
+`world_scale` / `player` / `enemies` / `elites` / `boss` / `spawner` / `mothership` / `buffs` / `milestones` / `difficulty` / `progression` / `effects` / `tutorial` / `elite_turret_event` / `formation_strike_event`.
 
-关键段：
-- `difficulty`：难度档倍率（得分 ×1/×2/×3、HP ×0.75/×1/×1.5、里程碑阈值）。
-- `progression`：必死曲线（per_boss_kill / per_ten_minutes / time_step_seconds）。
-- `boss.phases` / `boss.enrage.type_*` / `boss.difficulty_scaling`：Boss 阶段模式表、三型差异化狂暴、难度分档表。
-- `effects.*`：starfield、shake、meta_health、mothership_summon、orbital_strike、explosion 等表现数值。
-- `elite_turret_event.*` / `formation_strike_event.*`：事件参数。
+Key sections:
+- `difficulty`: difficulty-tier multipliers (score ×1/×2/×3, HP ×0.75/×1/×1.5, milestone thresholds).
+- `progression`: doom curve (per_boss_kill / per_ten_minutes / time_step_seconds).
+- `boss.phases` / `boss.enrage.type_*` / `boss.difficulty_scaling`: Boss phase pattern tables, three differentiated enrages, difficulty-tier tables.
+- `effects.*`: starfield, shake, meta_health, mothership_summon, orbital_strike, explosion and other presentation values.
+- `elite_turret_event.*` / `formation_strike_event.*`: event parameters.
 
-### 4.2 数值访问与文档
+### 4.2 Balance Access & Docs
 
-- 全部 `cfg()` 调用点索引与 json/脚本双写对齐反查见 `docs/BALANCE_MAP.md`（**生成文件**，改键后 `gen_balance_map.py` 重新生成）。
-- 调数值优先 `balance_editor.py`（浏览器编辑、校验、备份）。
-
----
-
-## 5. 测试与验证基线
-
-> 完整命令清单见 `docs/TESTING.md`。测试不是单元测试框架：`test/*.tscn` 启动 GDScript 场景，以 `[PASS]/[FAIL]` 输出和退出码自检。
-
-- **最小必跑集**：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`；涉存档/基地/母舰加跑 `base_system_test.tscn`。
-- **全量断言**：31 个断言场景（当前全绿 0 FAIL，1113 断言）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
-- **特殊场景**：`perf_bench` 必须 `--fixed-fps 1000`；`autoplay_test` 长时异常探针（注册表一致性双向比对、动效路径、卡死计时、buff 封顶、阶段计数）。
-- **测试副作用**：测试可能读写 `user://savegame.json` / `profile.json`，新测试先 `GameState.delete_save()` 并清理自身持久化；`balance_test` 会覆盖 `data/balance.json` 验证损坏回退再恢复，勿并发手编。
-- **视觉验证**：窗口模式截图人工核对（headless 无可用截图）；`visual/ui/return/intro/summon/meta_fx/hud` capture 工具。
+- All `cfg()` call-site indexes and json/script dual-write alignment reverse lookups live in `docs/BALANCE_MAP.md` (**generated file**; re-generate with `gen_balance_map.py` after changing keys).
+- Tune values with `balance_editor.py` first (browser editing, validation, backup).
 
 ---
 
-## 6. 持久化与安全边界
+## 5. Testing & Verification Baseline
 
-- **对局存档** `user://savegame.json`、**局外档案** `user://profile.json`；二者由 GameState 管理带版本字段；profile 保存最高分/本地高分榜/难度/键位/语言/视角/窗口尺寸/教程状态/手柄参数。
-- **损坏隔离**：损坏 JSON 隔离为 `<file>.corrupt` 并置 `save_corrupt`/`profile_corrupt` 标记通知开始界面；不绕过恢复流程。
-- **健壮性**：`load_profile` key_bindings 类型守卫（C02）；`_apply_balance` 校验难度表子键与 `milestones.base` 非空（C03）；布尔安全读取防 `bool("false")→true`（C16）。
-- **无外部交互**：无网络/插件/远程服务/密钥；离线 `balance_editor.py` 仅监听 127.0.0.1。
-- **发布**：`export_presets.cfg` + `release.sh` 双平台导出，产物 `builds/release/`（gitignore），GitHub Releases 分发不入库；`packaging/` 双平台安装/卸载脚本。
+> Full command list in `docs/TESTING.md`. Tests are not a unit-test framework: `test/*.tscn` starts a GDScript scene that self-checks via `[PASS]/[FAIL]` output and exit code.
+
+- **Minimal required set**: `--headless --import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when save/base/mothership is involved.
+- **Full assertions**: 31 assertion scenes (currently all green 0 FAIL, 1113 assertions); run per-subsystem as needed (boss/events/cinematics/object pools/i18n/navigation etc.).
+- **Special scenes**: `perf_bench` must run with `--fixed-fps 1000`; `autoplay_test` is a long-running anomaly probe (registry consistency dual comparison, animation paths, hang timers, buff caps, phase counting).
+- **Test side effects**: tests may read/write `user://savegame.json` / `profile.json`; new tests should call `GameState.delete_save()` first and clean up their own persistence; `balance_test` overwrites `data/balance.json` to verify corruption fallback then restores it — don't hand-edit concurrently.
+- **Visual verification**: windowed screenshots manually reviewed (headless has no usable screenshots); `visual/ui/return/intro/summon/meta_fx/hud` capture tools.
 
 ---
 
-## 7. 已知技术债清单
+## 6. Persistence & Security Boundaries
 
-> 状态图例：✅ 已修复 / ⚠️ 部分 / ❌ 未修复。完整登记与修复起效记录见 `docs/AUDIT_VAULT.md`（专有档案，禁止删除/合并）。
+- **Run save** `user://savegame.json`, **out-of-run profile** `user://profile.json`; both managed by GameState with version fields; profile stores high score / local leaderboard / difficulty / keybindings / language / view / window size / tutorial state / gamepad params.
+- **Corruption isolation**: corrupt JSON quarantined as `<file>.corrupt` with `save_corrupt`/`profile_corrupt` flags notifying the start screen; don't bypass the recovery flow.
+- **Robustness**: `load_profile` type-guards key_bindings (C02); `_apply_balance` validates difficulty sub-keys and `milestones.base` non-empty (C03); safe boolean reads prevent `bool("false")→true` (C16).
+- **No external interaction**: no network/plugins/remote services/secrets; the offline `balance_editor.py` only listens on 127.0.0.1.
+- **Distribution**: `export_presets.cfg` + `release.sh` dual-platform export, artifacts in `builds/release/` (gitignored), distributed via GitHub Releases (not committed); `packaging/` provides dual-platform install/uninstall scripts.
 
-### 7.1 架构债（A 系列遗留）
+---
 
-| 编号 | 内容 | 状态 | 影响与修复方向 |
+## 7. Known Technical Debt
+
+> Legend: ✅ Fixed / ⚠️ Partial / ❌ Not fixed. Full registry and fix-effectiveness records in `docs/AUDIT_VAULT.md` (proprietary vault; forbidden to delete/merge).
+
+### 7.1 Architectural Debt (A-series Legacy)
+
+| ID | Item | Status | Impact & Fix Direction |
 | --- | --- | --- | --- |
-| A3 | Boss 拆分为门面+4 职责类，但集中 `match` 仅逐字搬迁进 `BossAttacks.execute()`（10 分支），按机型分支残留 7 处 | ⚠️ | 新增机型仍须改既有函数；O 原则未达成。方向：查表/工厂取代集中 match，机型分支收敛为数据驱动 |
-| A4 | 开闭原则：Boss 攻击 match + 机型分支未治理；`player.gd` Buff 仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, buff_count)` 族），未改声明式效果表 | ⚠️ | A4a（敌机策略）/A4b（事件触发基类）已落地；剩余为 Boss 与 Player buff。方向：Buff 效果声明式配置表 |
-| A5 | 依赖倒置：Boss/事件对 Spawner 依赖应注入而非 group 查找 | ⚠️ | **注入已落地（2026-08-02 订正，`bdb0274`）**：Boss/精英炮塔经 `set_spawner()` 注入引用，替换 group 查找；GameState 作配置中心+注册表是有意性能权衡，保留。方向：残余依赖收敛 |
-| A8 | Player 职责拆分：受击/冲刺已抽组件，**视觉职责（尾焰/残影/准星/碰撞点/PlayerBuffVisuals）仍驻留 Player**（约 697 行） | ⚠️ | 方向：视觉类抽 `PlayerVisuals` 组件 |
+| A3 | Boss split into facade + 4 responsibility classes, but the central `match` was only verbatim-relocated into `BossAttacks.execute()` (10 branches); 7 per-type branches remain | ⚠️ | New types still require editing existing functions; O principle not achieved. Direction: replace the central match with table/factory, converge type branches into data-driven |
+| A4 | Open/closed: Boss attack match + type branches unmanaged; `player.gd` buffs are still functional inline branches (`_refresh_buff_factors` + `pow(factor, buff_count)` family), not a declarative effect table | ⚠️ | A4a (enemy strategies) / A4b (event trigger base class) landed; remaining are Boss and Player buffs. Direction: declarative buff effect table |
+| A5 | Dependency inversion: Boss/event dependencies on Spawner should be injected, not group lookups | ⚠️ | **Injection landed (corrected 2026-08-02, `bdb0274`)**: Boss/Elite Turret receive references via `set_spawner()`, replacing group lookups; GameState as config center + registry is an intentional performance trade-off, kept. Direction: converge remaining dependencies |
+| A8 | Player responsibility split: damage/dash extracted into components, **visual responsibilities (trail/ghost/crosshair/hit point/PlayerBuffVisuals) still live in Player** (~697 lines) | ⚠️ | Direction: extract a `PlayerVisuals` component |
 
-### 7.2 规范/性能遗留
+### 7.2 Style & Performance Legacy
 
-| 编号 | 内容 | 状态 |
+| ID | Item | Status |
 | --- | --- | --- |
-| C34 | `boss_pattern_test` 弹速/伤害已改读实例常量；`difficulty/buff33/elite/formation` 硬编码判定为逻辑验证锚点保留 | ⚠️（部分为设计确认） |
-| 敌机生成路径 | 普通波次直接实例化 vs Boss-3 小怪走对象池，两条路径并存 | ✅ **已统一（2026-08-02）**：普通波次经 `EnemyPool.spawn()` 入池（`spawn`/`reactivate` 扩展 `p_bullet_type` 可选参），`USE_POOL` 开关保留作 A/B 对照；回归 smoke 142 / pool_reuse 12 / enemy_combat 33 PASS |
+| C34 | `boss_pattern_test` bullet speed/damage now reads instance constants; `difficulty/buff33/elite/formation` hardcoded assertions kept as logic-verification anchors | ⚠️ (partially design-confirmed) |
+| Enemy spawn path | Normal waves instantiate directly vs Boss-3 minions through the object pool, two paths coexist | ✅ **Unified (2026-08-02)**: normal waves pooled via `EnemyPool.spawn()` (`spawn`/`reactivate` extended with optional `p_bullet_type`), `USE_POOL` switch kept as A/B comparison; regression smoke 142 / pool_reuse 12 / enemy_combat 33 PASS |
 
-### 7.3 阶段遗留（ROADMAP Phase 0 待办）
+### 7.3 Phase Legacy (ROADMAP Phase 0 Backlog)
 
-- 死代码清理：`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等（见 `docs/archive/2026-07-22-audit-fix-plan.md`）。
-- 母舰 `_start_release()` 幂等守卫；`profile_corrupt` 损坏档案提示消费。
-- 过场阶段 4：低配机复测、手柄/移动端输入适配、README 补过场说明（`INTRO_CINEMATIC`）。
-
----
-
-## 8. 未来工作方向
-
-> 方向类决策单一事实源：`docs/ROADMAP.md`。本文是方向拆解与落点索引。
-
-### 8.1 近期（技术债收尾，无新玩法）
-
-1. **架构债收敛**（§7.1）：A4 Boss/Player buff 声明式效果表、A8 Player 视觉抽组件、A3 机型分支收敛。所有改造须维持 §3 全部不变量 + 全量测试 0 FAIL。
-2. **敌机生成路径统一**：✅ **已落地（2026-08-02，随性能优化计划）**——普通波次已统一经 `EnemyPool.spawn()` 入池（§7.2 状态更新），`USE_POOL` 开关保留作 A/B 对照。
-3. **死代码清理**与幂等守卫（§7.3）。
-
-### 8.2 中期（体验深化）
-
-- **无限段实机标定**：`progression.per_boss_kill / per_ten_minutes / ramp 系数` 的深段（>15 分钟）手感微调，直接改 `balance.json` 并在 `ENDLESS_BALANCE_PLAN §6` 追加记录；用 `autoplay_test` 长时探针验证后期无「HP 单边膨胀、压力归零」稳态。
-- **过场收尾**：`INTRO_CINEMATIC` 阶段 4（低配复测/手柄移动端适配/README）。
-
-### 8.3 暂缓/已砍（重启需用户明确决策，登记于 `ROADMAP.md` Phase 3）
-
-- 本地账号系统（规格存档于提交 `7aacd3f`）、独立主场景版进入页（附录 B）、联机排行榜（已决策不做）、协作与发布工程化（CONTRIBUTING/CI/语义化版本）、内容演进（新 Buff/敌机/精英/Boss/移动端触控/母舰扩展）。
-
-### 8.4 任何未来改动必须遵守
-
-1. 维持 §3 全部全局不变量（碰撞层/world_scale/view_world_rect/cfg/协程/i18n/热路径/池防护）。
-2. 可调数值只改 `balance.json`，跑 `gen_balance_map.py` 与最小验证集。
-3. 新增功能在本文 §8 与 `ROADMAP.md` 登记方向，专项设计文档落实现级规格。
-4. 修复/新代码全量测试 0 FAIL（31 断言 + autoplay 探针），视觉改动窗口截图核对。
-5. 技术债修复在 `AUDIT_VAULT.md` 回填"修复起效记录"。
+- Dead-code cleanup: unused references in `main.gd`, always-false branches in `hud.gd`, zero-connect signals etc. (see `docs/archive/2026-07-22-audit-fix-plan.md`).
+- Mothership `_start_release()` idempotency guard; `profile_corrupt` corrupt-profile prompt consumption.
+- Cinematic phase 4: low-end retest, gamepad/mobile input adaptation, README cinematic notes (`INTRO_CINEMATIC`).
 
 ---
 
-*文档性质：设计意图与架构约定的单一修正基准。审核人：依据用户指示执行 · 生成：2026-08-01。*
+## 8. Future Work Directions
+
+> Direction-type decisions single source of truth: `docs/ROADMAP.md`. This section indexes direction breakdowns and landing points.
+
+### 8.1 Near Term (technical-debt closeout, no new gameplay)
+
+1. **Architectural debt convergence** (§7.1): A4 Boss/Player buff declarative effect table, A8 Player visual component extraction, A3 type-branch convergence. All changes must preserve every §3 invariant + full tests 0 FAIL.
+2. **Enemy spawn path unification**: ✅ **landed (2026-08-02, with the performance optimization plan)** — normal waves now uniformly pooled via `EnemyPool.spawn()` (§7.2 status update), `USE_POOL` switch kept as A/B comparison.
+3. **Dead-code cleanup** and idempotency guards (§7.3).
+
+### 8.2 Mid Term (experience deepening)
+
+- **Endless-segment field calibration**: fine-tune deep-run (>15 min) feel of `progression.per_boss_kill / per_ten_minutes / ramp` coefficients, editing `balance.json` directly and appending records to `ENDLESS_BALANCE_PLAN §6`; use the `autoplay_test` long-run probe to verify no late-game "one-sided HP inflation, zero pressure" steady state.
+- **Cinematic wrap-up**: `INTRO_CINEMATIC` phase 4 (low-end retest / gamepad-mobile adaptation / README).
+
+### 8.3 Deferred / Cut (restart requires explicit user decision; registered in `ROADMAP.md` Phase 3)
+
+- Local account system (spec archived in commit `7aacd3f`), standalone main-scene entry page (appendix B), online leaderboard (decided against), collaboration & release engineering (CONTRIBUTING/CI/semantic versioning), content evolution (new Buffs/enemies/elites/Bosses/mobile touch/mothership extensions).
+
+### 8.4 Mandatory Rules for Future Changes
+
+1. Preserve all §3 global invariants (collision layers/world_scale/view_world_rect/cfg/coroutines/i18n/hot paths/pool guards).
+2. Tweakable values change only in `balance.json`; run `gen_balance_map.py` and the minimal verification set.
+3. New features register direction in this §8 and `ROADMAP.md`; specialized design docs carry implementation-level specs.
+4. Fixes/new code: full tests 0 FAIL (31 assertions + autoplay probe), visual changes reviewed via windowed screenshots.
+5. Technical-debt fixes backfill "fix-effectiveness records" in `AUDIT_VAULT.md`.
+
+---
+
+*Document nature: single correction baseline for design intent and architectural conventions. Reviewer: executed per user instructions · Generated: 2026-08-01.*
