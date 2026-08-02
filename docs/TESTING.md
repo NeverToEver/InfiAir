@@ -93,6 +93,10 @@ godot --path . res://test/meta_fx_capture.tscn
 godot --path . res://test/hud_capture.tscn
 ```
 
+## CI 执行（GitHub Actions）
+
+`.github/workflows/ci.yml` 在 push/PR 时自动跑：无头导入 → 主场景冒烟（`--quit-after 300`）→ 全量 31 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action。CI 全绿是合入门槛；本地可用上文全量断言命令等价复现。
+
 ## 测试策略与副作用
 
 测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 40 个场景：31 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。

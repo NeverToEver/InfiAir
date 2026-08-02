@@ -1,0 +1,72 @@
+name: CI
+
+# InfiAir 持续集成：无头导入 → 主场景冒烟 → 31 断言场景全量回归。
+# 引擎使用官方 Godot 4.6.2 stable headless（Linux x86_64）二进制，不依赖第三方 action（仅官方 checkout）。
+# 本地等价验证：`godot --headless --import --path .` + 逐个 `godot --headless --path . res://test/<场景>.tscn`
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Headless tests (Godot 4.6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.6.2 (headless)
+        run: |
+          curl -sL -o godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.6.2-stable_linux.x86_64
+          sudo mv Godot_v4.6.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Import project resources
+        run: |
+          godot --headless --import --path . > /tmp/import.log 2>&1 \
+            || { echo "::error::import failed"; tail -30 /tmp/import.log; exit 1; }
+          tail -3 /tmp/import.log
+
+      - name: Main scene smoke (300 frames)
+        run: |
+          godot --headless --path . --quit-after 300 > /tmp/smoke.log 2>&1 \
+            || { echo "::error::main scene smoke failed"; tail -30 /tmp/smoke.log; exit 1; }
+          tail -3 /tmp/smoke.log
+
+      - name: Run assertion scenes (31)
+        run: |
+          passed=0
+          failed=0
+          for tscn in test/*_test.tscn; do
+            name="$(basename "$tscn" .tscn)"
+            case "$name" in
+              autoplay_test) echo "skip $name (long-running probe, run locally)"; continue ;;
+            esac
+            echo "== $name =="
+            log="/tmp/$name.log"
+            if godot --headless --path . "res://$tscn" >"$log" 2>&1; then
+              passed=$((passed + 1))
+            else
+              code=$?
+              echo "::error::$name FAILED (exit $code)"
+              tail -25 "$log"
+              failed=$((failed + 1))
+            fi
+          done
+          echo "CI result: $passed passed, $failed failed"
+          exit "$failed"
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: /tmp/*_test.log
+          retention-days: 7
