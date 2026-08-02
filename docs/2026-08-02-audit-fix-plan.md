@@ -269,3 +269,37 @@ D11、D15、D16、D19、D20、D30；D05/D18 仅文档登记。
 | D30 | 🟦 不修 | A4b 门槛不对称登记（行为正确） | — |
 
 **全量回归（修复后）**：29 断言场景 0 FAIL + perf_bench rc=0 + `--quit-after 300` 0 error；autoplay 探针完整跑（480s、3 对局、0 死亡）：孤儿节点 0、帧耗时峰值 7.43ms（基线 6.90ms），**1 个 score_stagnant 偶发**——Boss 战专注期（玩家血量 43 龟缩躲弹）分数 60s 停滞 + Boss 逃跑空窗瞬间触发；该 run 返航 0 次、异常点与 D 系列改动路径（返航/入场/Timer 清理）无交集，判定为既有探针偶发（同 smoke 偶发基线），非本次改动引入。
+
+---
+
+## 四、E 系列登记（2026-08-02 存量盲区补充审查，只登记未修复）
+
+> 背景：D 系列聚焦近期 60 提交改动；本批补充审查**未改动存量盲区**（敌人体系 / 演出·特效·母舰 / 系统服务·杂项，共 28 脚本），3 路并行 + 主控交叉核验。主控已核实全部 P1/P2 关键发现（C20 diff、教程按钮守卫、难度校验实况）。
+> 处置：按用户指示**只登记不修复**；判定建议供后续决策。
+
+### E 系列发现清单
+
+| 编号 | 严重度 | 位置 | 类别 | 描述与证据 | 判定建议 |
+| --- | --- | --- | --- | --- | --- |
+| E01 | P1 | `scripts/bullet.gd:240-246` | 纯bug（C20 静默回归） | 母舰导弹溅射 `_splash()` 对 Boss 失效：C20 把 `node as Area2D` 改为 `as Enemy`（注释"注册表全为 Enemy"前提错误——注册表含 Boss，Boss `extends Area2D` 非 Enemy），cast 得 null 被跳过。注释明确"含主目标与 Boss"，溅射 20 伤害静默丢失（直击 80 仍有效）。`_explode` 的 Boss 排除为有意设计，修复时不可连带 | **修** |
+| E02 | P2 | `scripts/start_panel.gd:275` + `scripts/tutorial.gd:97` | 纯bug（玩家有损路径） | 教程按钮通关后未禁用/隐藏；`_on_tutorial_pressed()` 无 `tutorial_done`/`has_save` 守卫直接 change_scene；`tutorial.gd:97` 无条件 `delete_save()`。对局中存档 → 开始面板点「教程 ✓」→ 进行中存档被静默删除 | **修（最优先）** |
+| E03 | P2 | `autoload/game_state.gd:118-125` | 设计目标未达（C03 半堵） | `_valid_difficulty_defs` 只校验 easy/medium/hard 是 Dictionary，不校验子键；部分损坏（缺 hp/score 等）通过后 8 处 `DIFFICULTY_DEFS[difficulty][...]` 访问 KeyError→0：敌方 0 HP 秒死、得分倍率 0 | **修** |
+| E04 | P2 | `scripts/dawn_station.gd:282-286` + `scripts/return_cinematic.gd:568,702` | 设计目标未达/一致性 | PHANTOM 工厂对 `station.modulate.a` 循环呼吸（0.85↔1.0），return_cinematic 两处压站体 alpha（0.35/0.5）被 tween 抬高 2.5~3 倍；base_console 用包装节点规避（同工厂两种用法不一致） | **修** |
+| E05 | P2 | `scripts/mothership.gd:414-432` | 纯bug（边缘） | H 按住时被强制离舰（警告到期/弹匣耗尽走 `start_release()`），`_hud.set_early_leave_charge(-1.0)` 未调，提前离舰进度条残留可见 | **修** |
+| E06 | P2 | `scripts/enemy.gd:469` | 一致性（D10 同类未收敛） | 侧方离场方向 `position.x < 960.0` 硬编码；相机固定 (960,540) 时等价，滚动即错 | **修（一行）** |
+| E07 | P3 | `scripts/bullet.gd:230` | 文档-代码矛盾 | `_explode` C20 注释"注册表全为 Enemy"与事实不符（含 Boss；as Enemy 对 Boss 恰为 null 行为巧合正确）——同 E01 错误前提，掩盖了真实回归 | **修（与 E01 同批）** |
+| E08 | P3 | `scripts/laser_weapon.gd:66-67` | 纯bug（当前不可达） | buff 计数归零早退冻结激活态光束（`_end_beam` 不执行、autofire 卡禁）；当前无 buff 移除机制不可达，未来引入即触发 | 待判定（顺手兜底：早退前 `if _active: _end_beam()`） |
+| E09 | P3 | `scripts/laser_weapon.gd:13` | 一致性（待判定） | `BEAM_HALF_WIDTH := 26.0` 判定半宽未乘 ws（`ENEMY_HIT_RADIUS` 已乘）；AGENTS 约定激光判定随机体特效比例应乘 ws | 待判定（现视觉可接受可不修） |
+| E10 | P3 | `autoload/game_state.gd:947` | 一致性（低危） | `locale = str(parsed.get("locale", "zh"))` 绕过 `set_locale()` 守卫：手改 "fr" 时 `locale` 变量与 TranslationServer 状态不一致 | 待判定 |
+| E11 | P3 | `autoload/game_state.gd:958-959` | 一致性（C02 元素级缺口） | key_bindings 外层类型已守卫，数组元素 `int(k)` 未判型：手改字符串 keycode 报转换错误刷屏（不崩溃） | 待判定 |
+| E12 | P3 | `scripts/save_manager.gd:21-28` | 一致性（存量行为） | `save()` 直接 WRITE 覆盖非原子写；写入中途崩溃产生截断 JSON，下次 load 隔离 .corrupt（自愈但丢进度） | 待判定（可改临时文件+rename） |
+| E13 | P3 | `scripts/player_damage.gd:64-69` | 热路径约定边缘 | `heal_tick()` 每物理帧调 `passive_regen_delay()/passive_regen_rate()`（嵌套字典查找）+ buff_count；可在 configure() 缓存难度参数 | 待判定 |
+| E14 | P3 | `scripts/mothership.gd:171-174` | 一致性 | `beam_pts[i] *= ws` 累乘写回 polygon，字面违反幂等约定；当前安全（polygon 为节点内联属性非共享 sub_resource） | 不修（注明安全）或改幂等措辞 |
+| E15 | P3 | `scripts/enemy.gd:385` | 性能约定轻微 | `_physics_process` 每帧 `GameState.buff_count(&"slow_field")`（字典 get 无分配，开销极小） | 不修（登记备查） |
+
+### 判定分类说明
+
+- **必须修（P1/P2 行为）**：E01（溅射回归）、E02（删档路径，最优先）、E03（难度校验）、E04（视觉回归）、E05（HUD 残留）、E06（硬编码）、E07（注释，随 E01）。
+- **待判定**：E08-E13——均为低危/不可达/存量行为，修复收益小或需产品判断。
+- **不修登记**：E14（当前安全）、E15（开销极小）。
+- **核实通过（不列发现）**：对象池双防护/注册表成对增删、`_move_ctx` 复用与查表三角、A2 四服务委托完整、A8 组件转发、A4b 触发语义等价、C01/C13/C16/C27 无回退、enemy 数值回退与 balance.json 逐项一致。

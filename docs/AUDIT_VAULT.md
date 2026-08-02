@@ -471,3 +471,25 @@
 | D30 | 🟦 不修 | 见判定分类 |
 
 > 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / perf_bench rc=0 / autoplay 探针完整跑（480s、3 对局、0 死亡、孤儿 0、帧耗时峰值 7.43ms）——1 个 `score_stagnant` 偶发（Boss 战专注期分数停滞 + 逃跑空窗竞态，该 run 返航 0 次、与 D 系列改动路径无交集，判定为既有探针偶发非本次引入）。
+
+### E 系列（2026-08-02 存量盲区补充审查，只登记未修复）
+
+> 补充审查 D 系列未作为主审对象的存量盲区（敌人体系 / 演出·特效·母舰 / 系统服务·杂项，28 脚本），3 路并行 + 主控核验。**按用户指示只登记不修复**，判定建议供后续决策；完整报告见 `docs/2026-08-02-audit-fix-plan.md` 第四节。
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
+| --- | --- | --- | --- | --- | --- |
+| E01 | P1 | `bullet.gd:240-246` | 纯bug（C20 静默回归） | 母舰溅射 `_splash()` `as Enemy` cast 对 Boss 失效（注册表含 Boss，Boss 非 Enemy），溅射伤害静默丢失；`_explode` Boss 排除为有意设计 | **修** |
+| E02 | P2 | `start_panel.gd:275`/`tutorial.gd:97` | 纯bug（玩家有损） | 教程按钮通关后未禁用，重进教程 `delete_save()` 静默删进行中存档 | **修（最优先）** |
+| E03 | P2 | `game_state.gd:118-125` | 设计目标未达（C03 半堵） | 难度表只校验三档是 Dictionary 不校验子键，部分损坏 KeyError→0 HP/0 得分 | **修** |
+| E04 | P2 | `dawn_station.gd:282-286`/`return_cinematic.gd:568,702` | 设计目标未达/一致性 | PHANTOM 呼吸 tween 覆盖调用方 `modulate.a`（0.35/0.5 被抬到 0.85-1.0）；base_console 用包装节点规避，用法不一致 | **修** |
+| E05 | P2 | `mothership.gd:414-432` | 纯bug（边缘） | H 按住时强制离舰不清 HUD 提前离舰进度条，残留可见 | **修** |
+| E06 | P2 | `enemy.gd:469` | 一致性（D10 未收敛） | 侧方离场 `position.x < 960.0` 硬编码 | **修（一行）** |
+| E07 | P3 | `bullet.gd:230` | 文档-代码矛盾 | `_explode` C20 注释"注册表全为 Enemy"前提错误（与 E01 同源） | **修（随 E01）** |
+| E08 | P3 | `laser_weapon.gd:66-67` | 纯bug（不可达） | buff 归零早退冻结激活态光束；当前无 buff 移除机制 | 待判定（顺手兜底） |
+| E09 | P3 | `laser_weapon.gd:13` | 一致性（待判定） | `BEAM_HALF_WIDTH` 未乘 ws（`ENEMY_HIT_RADIUS` 已乘） | 待判定 |
+| E10 | P3 | `game_state.gd:947` | 一致性（低危） | `locale` 绕过 `set_locale()` 守卫，手改值状态不一致 | 待判定 |
+| E11 | P3 | `game_state.gd:958-959` | 一致性（C02 元素级缺口） | key_bindings 数组元素 `int(k)` 未判型 | 待判定 |
+| E12 | P3 | `save_manager.gd:21-28` | 一致性（存量） | `save()` 非原子写，崩溃截断 JSON 丢进度（自愈为 .corrupt） | 待判定 |
+| E13 | P3 | `player_damage.gd:64-69` | 热路径边缘 | `heal_tick()` 每物理帧嵌套字典查询 | 待判定 |
+| E14 | P3 | `mothership.gd:171-174` | 一致性 | `beam_pts[i] *= ws` 字面违反幂等约定（当前安全：非共享 sub_resource） | 不修（注明安全） |
+| E15 | P3 | `enemy.gd:385` | 性能轻微 | 每帧 `buff_count(&"slow_field")` 字典 get | 不修（登记备查） |
