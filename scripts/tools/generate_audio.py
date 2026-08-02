@@ -10,6 +10,7 @@
 - resupply.wav       母舰补给（上行三音琶音）
 - heartbeat.wav      Meta HUD DYING 心跳（55Hz 双脉冲 lub-dub）
 - bgm_loop.wav       40s 无缝循环氛围电子 BGM（和弦垫 + 琶音 + 低音）
+- bullet_fire.wav / bullet_fire_b.wav / bullet_fire_c.wav  玩家开火（类消音枪械：低频砰 + 瞬态 + 气体嘶，三变体）
 
 用法：python3 scripts/tools/generate_audio.py
 """
@@ -26,9 +27,9 @@ OUT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "
 random.seed(20260720)
 
 
-def write_wav(name: str, samples: list) -> None:
+def write_wav(name: str, samples: list, peak_target: float = 0.89) -> None:
     peak = max(1e-9, max(abs(s) for s in samples))
-    scale = 0.89 / peak
+    scale = peak_target / peak
     frames = b"".join(
         struct.pack("<h", int(max(-1.0, min(1.0, s * scale)) * 32767)) for s in samples
     )
@@ -39,6 +40,32 @@ def write_wav(name: str, samples: list) -> None:
         w.setframerate(SR)
         w.writeframes(frames)
     print(f"wrote {path} ({len(samples) / SR:.2f}s)")
+
+
+def make_bullet_fire(pitch: float, punch: float) -> list:
+    """类消音枪械开火：低频砰 + 中频瞬态 + 低通气体嘶（替代激光/晶体音）。
+
+    低频主体 pitch→0.55x 快速下滑 + ~50ms 指数衰减（闷"噗"）；
+    中频非谐波瞬态 6ms 内消失（机械"啪"）；一阶低通噪声模拟气体释放（"嘶"）。
+    三个变体音高错开、力度（punch）不同，轮转播放不单调。
+    """
+    dur = 0.09
+    n = int(SR * dur)
+    out = []
+    phase = 0.0
+    hiss = 0.0
+    for i in range(n):
+        t = i / SR
+        # 低频砰：pitch 快速下滑到 0.55x
+        freq = pitch * (0.55 + 0.45 * math.exp(-t / 0.018))
+        phase += 2.0 * math.pi * freq / SR
+        thump = (math.sin(phase) + 0.25 * math.sin(2.0 * phase)) * math.exp(-t / 0.020)
+        # 中频瞬态"啪"：非整数倍，6ms 内消失
+        snap = math.sin(2.0 * math.pi * pitch * 3.1 * t) * math.exp(-t / 0.006)
+        # 气体嘶：一阶低通噪声（~700Hz 截止），16ms 衰减
+        hiss += 0.10 * (random.uniform(-1.0, 1.0) - hiss)
+        out.append(0.75 * thump + 0.30 * punch * snap + 0.35 * hiss * math.exp(-t / 0.016))
+    return out
 
 
 def make_explosion(dur: float, base_freq: float, noise_decay: float) -> list:
@@ -254,6 +281,9 @@ def main() -> None:
     write_wav("resupply.wav", make_resupply())
     write_wav("heartbeat.wav", make_heartbeat())
     write_wav("bgm_loop.wav", make_bgm())
+    write_wav("bullet_fire.wav", make_bullet_fire(135.0, 0.8), peak_target=0.42)
+    write_wav("bullet_fire_b.wav", make_bullet_fire(115.0, 0.65), peak_target=0.42)
+    write_wav("bullet_fire_c.wav", make_bullet_fire(160.0, 1.0), peak_target=0.42)
 
 
 if __name__ == "__main__":
