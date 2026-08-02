@@ -229,6 +229,11 @@ func resume_from_base() -> void:
 	_resume_from_base()
 
 
+## A7：测试/诊断经公开接口（动作包装）——开场/继续出击后的战机入场序列
+func start_entry_sequence() -> void:
+	_start_entry_sequence()
+
+
 func stop_charging() -> void:
 	_stop_charging()
 
@@ -467,6 +472,7 @@ func _skip_intro() -> void:
 func _on_intro_finished() -> void:
 	_intro = null
 	get_tree().paused = false
+	_start_entry_sequence()  # 开场动画后播战机入场动画（替代原地无敌闪现）
 
 
 ## 播放返航过场：与 _play_intro_cinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。
@@ -691,11 +697,22 @@ func _on_orbital_struck() -> void:
 		if child is Bullet or child is FormationBomb:
 			child.queue_free()
 	_player.unlock_input()
-	# 驻留期无敌可能是 999，恢复时统一重置为短无敌
-	_player.set_invincible(1.5)
-	_spawner.set_process(true)
 	_homecoming = false
 	get_tree().paused = false
+	# 继续出击后播战机入场动画：无敌与敌机延迟由入场序列接管（替代原地无敌闪现）
+	_start_entry_sequence()
+
+
+## 入场衔接（开场/继续出击后）：播战机入场动画，敌机生成延迟到动画结束才恢复
+func _start_entry_sequence() -> void:
+	_spawner.set_process(false)
+	if not _player.entry_finished.is_connected(_on_entry_finished):
+		_player.entry_finished.connect(_on_entry_finished)
+	_player.play_entry_animation()
+
+
+func _on_entry_finished() -> void:
+	_spawner.set_process(true)
 
 
 func _on_orbital_strike_finished() -> void:

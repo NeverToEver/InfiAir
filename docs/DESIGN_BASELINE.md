@@ -76,7 +76,8 @@
 - **母舰召唤**：蓄力（`dock` H）完成触发，对局不暂停、演出期玩家锁输入 + 事件驱动无敌。机库小窗 → 穿梭门 → 母舰 DESCEND 穿出减速 → 双环减速带 → DOCKING 牵引回收玩家进保护舱（`player.enter_pod()`）→ 补给 → RELEASE（`exit_pod()`）→ 驻留/离场。数值在 `effects.mothership_summon`。
 - **火力平台**：驻留期 GATLING 扫射 / MISSILE 目标打击，火力掩护。
 - **返航**：长按 B（`homecoming`，`effects.home_charge_time` 蓄力）→ 锁输入 → 停 spawner → 收回母舰 → `save_run()` → `starfield.warp(18)` → 返航过场 → 落基地 UI（树保持暂停）。
-- **基地整备**：`base_console.gd`，虚影空间站皮肤（`dawn_station.gd`），「继续出击」触发轨道打击清场（`orbital_strike`，Boss 保留、逐机爆炸）后恢复对局。
+- **基地整备**：`base_console.gd`，虚影空间站皮肤（`dawn_station.gd`），「继续出击」触发轨道打击清场（`orbital_strike`，Boss 保留、逐机爆炸）后播战机入场动画恢复对局。
+- **入场衔接动画**：开场过场播完与「继续出击」清场后播放（`player.play_entry_animation()`，数值 `player.entry`）——高速冲入定位到屏幕下 1/3 → 向后（下）缓移一小节，期间仅左右可调/上下锁定、全程无敌（不闪烁），敌机生成延迟到动画结束；替代原"原地无敌闪现"入场。
 
 ### 1.8 事件系统
 

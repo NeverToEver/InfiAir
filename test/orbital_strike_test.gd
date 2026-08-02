@@ -1,6 +1,6 @@
 extends Node
 ## 轨道打击清场动画测试：触发/_resume_from_base 接线/命中清场（Boss 保留、弹丸清除、
-## 逐机爆炸）/恢复对局（解除暂停、解锁输入、短无敌、spawner 恢复）/动画自销毁。
+## 逐机爆炸）/恢复对局（解除暂停、解锁输入、播战机入场动画、spawner 延迟恢复）/动画自销毁。
 ## 缩短 DURATION 后用真实 Timer 等待推进时轴。
 
 var _failures: int = 0
@@ -75,14 +75,22 @@ func _ready() -> void:
 	_check(not get_tree().paused, "命中：树恢复非暂停")
 	_check(GameState.enemies.is_empty(), "命中：敌机全部清除（残留 %d 台）" % GameState.enemies.size())
 	_check(not main.player().is_input_locked(), "命中：玩家输入解锁")
-	_check(main.player().invincible_remaining() <= 1.5, "命中：驻留无敌重置为短无敌")
-	_check(spawner.is_processing(), "命中：spawner 恢复")
+	_check(main.player().is_entry_playing(), "命中：播战机入场动画（替代原地无敌闪现）")
+	var inv: float = main.player().invincible_remaining()
+	_check(inv > 0.0 and inv <= main.player().ENTRY_INVINCIBLE, "命中：驻留无敌被入场动画接管")
+	_check(not spawner.is_processing(), "命中：敌机生成延迟（入场动画期间暂停）")
 	_check(not main.is_homecoming(), "命中：homecoming 标志复位")
 	_check(
 		not is_instance_valid(b),
 		"命中：既有弹丸被清除（valid=%s parent=%s）"
 		% [is_instance_valid(b), b.get_parent().name if is_instance_valid(b) else "-"]
 	)
+	# 等入场动画结束（约 1.65s），敌机生成恢复
+	var t_entry := 0.0
+	while main.player().is_entry_playing() and t_entry < 3.0:
+		await get_tree().create_timer(0.1).timeout
+		t_entry += 0.1
+	_check(spawner.is_processing(), "入场动画结束：spawner 恢复")
 
 	# ---------- 4. 动画播完自销毁 ----------
 	for i in 60:

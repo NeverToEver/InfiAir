@@ -9,6 +9,17 @@ const FIRE_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/bullet_fire_c.wav"),
 ]
 
+## 入场动画结束（缓移段收尾）后发出，main 据此恢复敌机生成
+signal entry_finished
+
+## 入场动画（开场/返航继续出击后播放）：高速冲入定位到屏幕下 1/3，再向后（下）缓移一小节。
+## 数值在 balance.json player.entry（设计值，view_world_rect 适配视角缩放）。
+var ENTRY_LAND_RATIO := 0.74  # 冲入定位点 = view 高度占比（下 1/3 区域）
+var ENTRY_RUSH_TIME := 0.55  # 高速冲入时长（QUAD EASE_OUT 减速）
+var ENTRY_RETREAT_SPEED := 90.0  # 后撤缓移速度（px/s，向下）
+var ENTRY_RETREAT_TIME := 1.1  # 后撤时长
+var ENTRY_INVINCIBLE := 1.65  # 入场全程无敌（= 冲入 + 后撤，不闪烁）
+
 var MAX_SPEED := 420.0
 var ACCEL := 2400.0
 var DECEL := 1800.0
@@ -91,6 +102,10 @@ var _dash := PlayerDash.new()
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
+## 入场动画状态（0=无/正常对局，1=高速冲入，2=后撤缓移）
+var _entry_phase: int = 0
+var _entry_retreat_left: float = 0.0
+var _entry_prev_auto_fire: bool = true  # 入场前自动开火状态（结束恢复，不覆盖测试/既有设置）
 ## A8：受击/回血状态经属性转发到 PlayerDamage（语法兼容，测试白盒不变）
 var _invincible: float = 0.0:
 	get:
@@ -177,6 +192,11 @@ func _load_balance() -> void:
 	INVINCIBLE_TIME = GameState.cfg("player.invincible_time", INVINCIBLE_TIME)
 	SPAWN_INVINCIBLE_TIME = GameState.cfg("player.spawn_invincible_time", SPAWN_INVINCIBLE_TIME)
 	BULLET_CLEAR_RADIUS = GameState.cfg("player.bullet_clear_radius", BULLET_CLEAR_RADIUS)
+	ENTRY_LAND_RATIO = float(GameState.cfg("player.entry.land_ratio", ENTRY_LAND_RATIO))
+	ENTRY_RUSH_TIME = float(GameState.cfg("player.entry.rush_time", ENTRY_RUSH_TIME))
+	ENTRY_RETREAT_SPEED = float(GameState.cfg("player.entry.retreat_speed", ENTRY_RETREAT_SPEED))
+	ENTRY_RETREAT_TIME = float(GameState.cfg("player.entry.retreat_time", ENTRY_RETREAT_TIME))
+	ENTRY_INVINCIBLE = float(GameState.cfg("player.entry.invincible", ENTRY_INVINCIBLE))
 	ARMOR_MULT = GameState.cfg("buffs.armor.multiplier", ARMOR_MULT)
 	EVASION_CHANCE = GameState.cfg("buffs.evasion.chance", EVASION_CHANCE)
 	REGEN_PER_SEC = GameState.cfg("buffs.regen.heal_per_sec", REGEN_PER_SEC)
@@ -447,6 +467,10 @@ func fuel_regen_rate() -> float:
 func _physics_process(delta: float) -> void:
 	if _dead or _input_locked:
 		return
+	# 入场动画接管移动/输入（开场/继续出击后），无敌照常倒计时但不闪烁
+	if _entry_phase != 0:
+		_entry_physics(delta)
+		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	# Boss 狂暴锁定：移动/冲刺冻结（原作 controls_locked 语义），瞄准与开火照常
 	if movement_locked:
@@ -608,6 +632,67 @@ func spawn_afterimage() -> void:
 	var tween := ghost.create_tween()
 	tween.tween_property(ghost, "modulate:a", 0.0, 0.3)
 	tween.tween_callback(ghost.queue_free)
+
+
+## 入场动画（开场/返航继续出击后由 main 调用）：高速冲入定位到屏幕下 1/3，再向后缓移一小节。
+## 阶段 1 冲入锁输入（tween 驱动）；阶段 2 后撤仅左右可调、上下锁定；全程无敌（不闪烁）。
+## 结束发 entry_finished。动画进行中/已死亡时重复调用忽略。
+func play_entry_animation() -> void:
+	if _entry_phase != 0 or _dead:
+		return
+	var rect := GameState.view_world_rect()
+	var land_y := rect.position.y + rect.size.y * ENTRY_LAND_RATIO
+	_entry_phase = 1
+	_entry_retreat_left = ENTRY_RETREAT_TIME
+	set_invincible(ENTRY_INVINCIBLE)
+	velocity = Vector2.ZERO
+	_dashing = false
+	_entry_prev_auto_fire = _auto_fire_enabled
+	_auto_fire_enabled = false
+	position = Vector2(rect.get_center().x, rect.end.y + 90.0)
+	# 高功率引擎冲入（尾焰拉满；减速后随拖尾渐隐）
+	_thruster.speed_scale = 2.0
+	_thruster.amount_ratio = 1.0
+	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
+	var tween := create_tween()
+	tween.tween_property(self, "position:y", land_y, ENTRY_RUSH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_callback(_on_entry_landed)
+
+
+## 入场动画进行中（main/测试查询，替代私有直读）
+func is_entry_playing() -> bool:
+	return _entry_phase != 0
+
+
+func _on_entry_landed() -> void:
+	if _entry_phase == 1:
+		_entry_phase = 2
+
+
+## 入场物理分支（_physics_process 在最前调用）：阶段 1 由 tween 驱动不吃输入；
+## 阶段 2 仅左右可调（上下锁定），Y 自动后移，尾焰渐隐，计时收尾。
+func _entry_physics(delta: float) -> void:
+	if _invincible > 0.0:
+		_invincible -= delta  # 入场期间无敌照常倒计时（不闪烁）
+	if _entry_phase == 1:
+		return
+	var input_x := Input.get_axis("move_left", "move_right")
+	velocity = Vector2(input_x * MAX_SPEED * 0.6, ENTRY_RETREAT_SPEED)
+	move_and_slide()
+	position = clamp_to_view(position)
+	_entry_retreat_left -= delta
+	# 拖尾渐隐（冲入尾焰回收到静止档）
+	_thruster.speed_scale = move_toward(_thruster.speed_scale, 0.6, delta * 2.0)
+	_thruster.amount_ratio = move_toward(_thruster.amount_ratio, 0.35, delta * 1.2)
+	if _entry_retreat_left <= 0.0:
+		_finish_entry()
+
+
+func _finish_entry() -> void:
+	_entry_phase = 0
+	_auto_fire_enabled = _entry_prev_auto_fire
+	velocity = Vector2.ZERO
+	entry_finished.emit()
 
 
 func _fire(aim: Vector2) -> void:

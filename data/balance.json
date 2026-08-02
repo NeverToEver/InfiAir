@@ -14,6 +14,13 @@
 		"max_health": 100,
 		"invincible_time": 1.5,
 		"spawn_invincible_time": 1,
+		"entry": {
+			"land_ratio": 0.74,
+			"rush_time": 0.55,
+			"retreat_speed": 90.0,
+			"retreat_time": 1.1,
+			"invincible": 2.1
+		},
 		"bullet_clear_radius": 250,
 		"fuel": {
 			"max": 100,

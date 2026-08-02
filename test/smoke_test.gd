@@ -528,6 +528,11 @@ func _ready() -> void:
 	while main.strike() != null and t_strike < 3.0:
 		await get_tree().create_timer(0.1).timeout
 		t_strike += 0.1
+	# 继续出击触发战机入场动画（约 1.65s）：等其结束，避免后续物理断言被入场移动锁干扰
+	var t_entry := 0.0
+	while player.is_entry_playing() and t_entry < 3.0:
+		await get_tree().create_timer(0.1).timeout
+		t_entry += 0.1
 	_check(not get_tree().paused and not main.is_homecoming(), "继续出击恢复游戏")
 	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
 	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")
