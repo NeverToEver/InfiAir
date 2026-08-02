@@ -21,6 +21,7 @@ var _aim_buttons: Dictionary = {}  # 瞄准辅助强度档位 -> Button
 var _window_group := ButtonGroup.new()
 var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
 var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
+var _mouse_lock_btn: Button  # 显示·鼠标锁定窗口内开关
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
@@ -260,6 +261,14 @@ func _build_modes_page() -> VBoxContainer:
 		b.pressed.connect(GameState.set_window_size.bind(level))
 		win_row.add_child(b)
 		_window_buttons[level] = b
+	# 鼠标锁定窗口内（MouseTrap：窗口聚焦期间鼠标移出内容区即被拉回，防止准星失控；失焦放行）
+	var lock_group := ButtonGroup.new()
+	lock_group.allow_unpress = true
+	_mouse_lock_btn = UITheme.make_toggle_button(tr("SET_MOUSE_LOCK"), lock_group)
+	_mouse_lock_btn.custom_minimum_size = Vector2(200.0, 48.0)
+	_mouse_lock_btn.pressed.connect(_on_mouse_lock)
+	page.add_child(_mouse_lock_btn)
+	page.add_child(UITheme.make_label(tr("SET_MOUSE_LOCK_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
 	# 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
 	page.add_child(UITheme.make_section_header(tr("SET_ACCESSIBILITY")))
 	var rf_row := HBoxContainer.new()
@@ -330,6 +339,7 @@ func show_settings(opener: CanvasLayer = null) -> void:
 	_refresh_window_buttons()
 	_refresh_aim_buttons()
 	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
+	_mouse_lock_btn.set_pressed_no_signal(GameState.mouse_lock)
 	_hint_label.text = ""
 	_capturing_action = &""
 	show_page(&"controls")
@@ -389,6 +399,7 @@ func _on_locale_changed() -> void:
 	_refresh_window_buttons()
 	_refresh_aim_buttons()
 	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
+	_mouse_lock_btn.set_pressed_no_signal(GameState.mouse_lock)
 
 
 func _on_ctrl_mode(toggle_mode: bool) -> void:
@@ -401,6 +412,15 @@ func _on_shift_mode(toggle_mode: bool) -> void:
 
 func _on_reduce_flash() -> void:
 	GameState.set_reduce_flash(_reduce_flash_btn.button_pressed)
+
+
+func _on_mouse_lock() -> void:
+	GameState.set_mouse_lock(_mouse_lock_btn.button_pressed)
+
+
+## 测试/诊断经公开接口（对齐 window_buttons() 模式）
+func mouse_lock_button() -> Button:
+	return _mouse_lock_btn
 
 
 func _on_back_pressed() -> void:

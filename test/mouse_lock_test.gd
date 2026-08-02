@@ -77,6 +77,22 @@ func _ready() -> void:
 		"原点 (0,0) clamp 到边缘内侧 (1,1)",
 	)
 
+	# ---------- 6. 设置页开关 wiring ----------
+	const SETTINGS_SCRIPT: GDScript = preload("res://scripts/settings_ui.gd")
+	var settings := SETTINGS_SCRIPT.new() as CanvasLayer
+	add_child(settings)
+	settings.show_settings()
+	var lock_btn := settings.mouse_lock_button() as Button
+	_check(lock_btn.button_pressed == GameState.mouse_lock, "设置页鼠标锁定按钮选中态 = 当前设置")
+	lock_btn.button_pressed = false
+	lock_btn.pressed.emit()
+	_check(not GameState.mouse_lock, "鼠标锁定按钮点击关闭")
+	lock_btn.button_pressed = true
+	lock_btn.pressed.emit()
+	_check(GameState.mouse_lock, "鼠标锁定按钮再点开启")
+	settings.queue_free()
+	GameState.set_mouse_lock(true)
+
 	print("MOUSE LOCK TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.mouse_lock = true
