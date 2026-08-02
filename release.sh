@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${VERSION:-3.25}"
+VERSION="${VERSION:-3.26}"
 GODOT="${GODOT:-$HOME/.local/bin/godot}"
 command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
 

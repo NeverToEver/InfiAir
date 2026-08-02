@@ -98,7 +98,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 ## 测试策略
 
-每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检（非单元测试框架）。`test/` 下共 39 个场景：30 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）与 7 个窗口模式截图工具。**运行命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`**。
+每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检（非单元测试框架）。`test/` 下共 40 个场景：31 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）与 7 个窗口模式截图工具。**运行命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`**。
 
 ## 持久化与安全边界
 

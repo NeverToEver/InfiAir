@@ -8,8 +8,8 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Release](https://img.shields.io/badge/Release-v3.25-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1018%20passed-brightgreen)](#-for-developers)
+[![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -79,7 +79,7 @@ godot --path .
 
 - **K (hold 3s)**: abandon the sortie
 - **R**: restart (on game-over / pause screens)
-- All keys are rebindable in Settings → Controls (Esc / R are fixed; bindings persist). Language (中文 / English), view zoom, window size and aim-assist levels live in Settings → Modes, each persisted independently.
+- All keys are rebindable in Settings → Controls (Esc / R are fixed; bindings persist). Language (中文 / English), view zoom, window size and aim-assist levels live in Settings → Modes; the Display section also has a "Lock Mouse in Window" toggle (on by default, keeps the cursor inside the window to prevent aim loss, auto-released when switching windows). Each setting persists independently.
 
 </details>
 
@@ -118,17 +118,17 @@ main.tscn (run orchestration)
 </details>
 
 <details>
-<summary>✅ Testing (29 scenes / 1018 assertions)</summary>
+<summary>✅ Testing (31 scenes / 1092 assertions)</summary>
 
 Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
 
 ```bash
 godot --headless --import --path .          # assets & script parsing
 godot --headless --path . --quit-after 300  # runtime smoke
-godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (128 assertions)
+godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (142 assertions)
 ```
 
-The full 29-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
+The full 31-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
 
 </details>
 

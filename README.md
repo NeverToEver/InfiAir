@@ -8,8 +8,8 @@
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
-[![Release](https://img.shields.io/badge/Release-v3.25-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1018%20passed-brightgreen)](#-开发者信息)
+[![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -79,7 +79,7 @@ godot --path .
 
 - **K 长按 3 秒**：放弃当前出击
 - **R**：结算 / 暂停时重开
-- 全部按键可在「设置 → 控制」自定义（Esc / R 固定，改键持久化）；语言 / 视角缩放 / 窗口大小 / 辅助瞄准档位在「设置 → 操作模式」
+- 全部按键可在「设置 → 控制」自定义（Esc / R 固定，改键持久化）；语言 / 视角缩放 / 窗口大小 / 辅助瞄准档位在「设置 → 操作模式」，显示区另有「鼠标锁定窗口内」开关（默认开启，防准星移出窗口失控，切换窗口自动放行）
 
 </details>
 
@@ -118,17 +118,17 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（29 场景 / 1018 断言）</summary>
+<summary>✅ 测试与验证（31 场景 / 1092 断言）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 
 ```bash
 godot --headless --import --path .          # 资源导入与脚本解析
 godot --headless --path . --quit-after 300  # 运行时冒烟
-godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（128 项）
+godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 项）
 ```
 
-完整 29 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#本地运行与验证)。
+完整 31 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#本地运行与验证)。
 
 </details>
 
