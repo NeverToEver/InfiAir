@@ -28,6 +28,11 @@ jobs:
           sudo mv Godot_v4.6.2-stable_linux.x86_64 /usr/local/bin/godot
           godot --version
 
+      - name: GDScript lint (gdlint)
+        run: |
+          python3 -m pip install --quiet gdtoolkit
+          gdlint autoload/ scripts/
+
       - name: Import project resources
         run: |
           godot --headless --import --path . > /tmp/import.log 2>&1 \

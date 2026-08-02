@@ -591,7 +591,10 @@ func _update_missiles(delta: float) -> void:
 	if targets.is_empty():
 		return
 	var dock := _dock_point()
-	targets.sort_custom(func(a: Node2D, b: Node2D) -> bool: return a.global_position.distance_squared_to(dock) < b.global_position.distance_squared_to(dock))
+	targets.sort_custom(
+		func(a: Node2D, b: Node2D) -> bool:
+			return a.global_position.distance_squared_to(dock) < b.global_position.distance_squared_to(dock)
+	)
 	for t in targets.slice(0, MISSILE_TARGET_COUNT):
 		var dir: Vector2 = (t.global_position - dock).normalized()
 		if dir == Vector2.ZERO:

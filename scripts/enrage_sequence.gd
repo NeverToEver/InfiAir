@@ -167,7 +167,11 @@ func update(delta: float, boss) -> void:
 					if _attack_timer <= 0.0:
 						_attack_timer = float(boss.ENRAGE_ATTACK_INTERVAL)
 						_attack_index += 1
-						_fire.fire_enrage_wave(boss, float(boss.ENRAGE_LASER_SPEED), float(boss.ENRAGE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING))
+						_fire.fire_enrage_wave(
+							boss, float(boss.ENRAGE_LASER_SPEED), float(boss.ENRAGE_RING_SPEED),
+							int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+							int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING),
+						)
 			if _timer <= 0.0:
 				_begin_release_hold(boss)
 		ENRAGE_RELEASE_HOLD:
@@ -198,7 +202,11 @@ func update(delta: float, boss) -> void:
 					_attack_timer -= delta
 					if _attack_timer <= 0.0:
 						_attack_timer = float(boss.ENRAGE_RELEASE_INTERVAL)
-						_fire.fire_enrage_wave(boss, float(boss.ENRAGE_RELEASE_LASER_SPEED), float(boss.ENRAGE_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING))
+						_fire.fire_enrage_wave(
+							boss, float(boss.ENRAGE_RELEASE_LASER_SPEED), float(boss.ENRAGE_RELEASE_RING_SPEED),
+							int(boss.BULLET_DAMAGE_SNAPSHOT_LASER), int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+							int(boss.ENRAGE_SNAPSHOT_LASERS), int(boss.ENRAGE_SNAPSHOT_RING),
+						)
 			if _release_hold_timer <= 0.0:
 				_begin_return(boss)
 		ENRAGE_RETURN:

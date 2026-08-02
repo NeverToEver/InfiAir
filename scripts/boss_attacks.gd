@@ -78,7 +78,10 @@ func execute(attack: StringName, boss) -> void:
 		&"homing2":
 			var homing_count: int = maxi(1, 2 + homing_delta)
 			for i in homing_count:
-				_fire.fire_homing(boss, Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0), float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING))
+				_fire.fire_homing(
+					boss, Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
+					float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING),
+				)
 		&"sniper3":
 			_start_sniper_volley(boss)
 		&"cross":

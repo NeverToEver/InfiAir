@@ -25,7 +25,7 @@ func _init(params: Dictionary = {}) -> void:
 			set(k, params[k])
 
 
-func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+func update(_delta: float, _enemy: Enemy, _ctx: Dictionary) -> void:
 	pass
 
 
@@ -45,7 +45,7 @@ func hover_reference_y() -> float:
 
 
 ## 重激活/出生状态复位（Enemy._ready / reactivate 调用）
-func reset(enemy: Enemy) -> void:
+func reset(_enemy: Enemy) -> void:
 	pass
 
 
@@ -53,7 +53,7 @@ func reset(enemy: Enemy) -> void:
 class HoverMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
 			enemy.position.x = clampf(
@@ -69,7 +69,7 @@ class HoverMove:
 class SineMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		enemy.position.x = ctx.spawn_x + Enemy.sin_fast(ctx.time * 3.0 + ctx.phase) * 90.0
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
@@ -98,7 +98,7 @@ class ZigzagMove:
 		else:
 			enemy.position.y += ctx.speed * ctx.mdelta
 
-	func reset(enemy: Enemy) -> void:
+	func reset(_enemy: Enemy) -> void:
 		_zig_dir = 1.0
 		_zig_timer = randf_range(0.15, 0.7)
 
@@ -142,7 +142,7 @@ class SpiralMove:
 
 	var _center: Vector2 = Vector2.ZERO
 
-	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if not ctx.hovering:
 			_center.y += ctx.speed * ctx.mdelta
 		else:
@@ -167,7 +167,7 @@ class SpiralMove:
 class NoiseMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
 				Enemy.sin_fast(ctx.time * 1.7 + ctx.phase)
@@ -188,7 +188,7 @@ class NoiseMove:
 class AggressiveMove:
 	extends EnemyMoveStrategy
 
-	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
 				Enemy.sin_fast(ctx.time * 2.1 + ctx.phase)

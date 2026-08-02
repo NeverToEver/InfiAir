@@ -239,7 +239,10 @@ func _build_hangar() -> Control:
 
 func _build_supply() -> Control:
 	# 扳手极简折线图标
-	var glyph: Array = [PackedVector2Array([Vector2(3, 13), Vector2(9, 7), Vector2(12, 8), Vector2(14, 5), Vector2(12, 3), Vector2(9, 4), Vector2(9, 7)])]
+	var glyph: Array = [PackedVector2Array([
+		Vector2(3, 13), Vector2(9, 7), Vector2(12, 8), Vector2(14, 5),
+		Vector2(12, 3), Vector2(9, 4), Vector2(9, 7),
+	])]
 	var panel := _make_panel("BASE_SUPPLY", glyph)
 	var body := panel.get_node("Body")
 	_repair_button = _make_button("")
@@ -372,7 +375,11 @@ func _refresh_missions() -> void:
 		var progress := GameState.mission_progress(id)
 		var goal := GameState.mission_goal(id)
 		# C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
-		var text := tr("BASE_MISSION_FMT") % [tr("MISSION_%s_NAME" % String(id).to_upper()), tr("MISSION_%s_DESC" % String(id).to_upper()), mini(progress, goal), goal]
+		var text := tr("BASE_MISSION_FMT") % [
+			tr("MISSION_%s_NAME" % String(id).to_upper()),
+			tr("MISSION_%s_DESC" % String(id).to_upper()),
+			mini(progress, goal), goal,
+		]
 		if GameState.is_mission_claimed(id):
 			text += tr("BASE_CLAIMED")
 		elif GameState.is_mission_done(id):
