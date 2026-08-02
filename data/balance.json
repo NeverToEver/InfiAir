@@ -393,7 +393,8 @@
 						"waves": 1,
 						"interval": 1.5
 					}
-				]
+				],
+				"summon_interval": 6.0
 			},
 			"attacks": {
 				"charged_cannon": {
@@ -646,7 +647,8 @@
 			70000,
 			80000
 		],
-		"cycle_mult": 1.35
+		"cycle_mult": 1.35,
+		"boss_kill_base": 500.0
 	},
 	"progression": {
 		"per_boss_kill": 0.5,

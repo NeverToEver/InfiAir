@@ -597,7 +597,8 @@ func add_kill() -> void:
 
 func add_boss_kill(score_scale: float = 1.0) -> void:
 	boss_kills += 1
-	add_score(int(500.0 * score_scale))
+	# G012：加分基准入 balance.json（milestones.boss_kill_base；击杀低频，非热路径可直查）
+	add_score(int(GameState.cfg("milestones.boss_kill_base", 500.0) * score_scale))
 	add_rp(RP_BOSS_KILL)
 	_set_mission_progress(&"boss_1", boss_kills)
 	if _recompute_difficulty():
@@ -917,7 +918,9 @@ func apply_run_save(data: Dictionary) -> void:
 	if saved_buffs is Dictionary:
 		for key in saved_buffs.keys():
 			if saved_buffs[key] is int or saved_buffs[key] is float:
-				buffs[StringName(key)] = int(saved_buffs[key])
+				# G013：层数钳制 ≥0（手改存档负层数会破坏 buff_count 逻辑；超大值属手改作弊，
+				# 正常路径由 add_buff 的 max_stacks 上限约束）
+				buffs[StringName(key)] = maxi(int(saved_buffs[key]), 0)
 	buffs_changed.emit()
 	# 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
 	# v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health

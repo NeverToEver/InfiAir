@@ -28,6 +28,7 @@ var _prev_dashing: bool = false
 var _home_charge: float = 0.0
 var _dock_charge: float = 0.0
 var _max_hp: float = 100.0  # G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
+var _objective_poll := 0.0  # G015：蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
 var _base_ui: CanvasLayer = null
 var _boss: Boss = null
 var _mothership: Mothership = null
@@ -152,10 +153,11 @@ func _enter_stage(idx: int) -> void:
 	match idx:
 		0:  # 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
 			_set_objective_tr("TUT_S1_OBJ", [0])
+			var view0 := GameState.view_world_rect()  # G014：视口基线（D10 口径，去 960/600 硬编码）
 			for i in 3:
 				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
 				e.aim_marked = true  # 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性）
-				e.position = Vector2(600.0 + 360.0 * i, 280.0)
+				e.position = Vector2(view0.get_center().x - 360.0 + 360.0 * i, view0.position.y + 280.0)
 		1:  # 加速与相位突进
 			GameState.add_buff(&"phase_dash")
 			_boost_count = 0
@@ -174,11 +176,12 @@ func _enter_stage(idx: int) -> void:
 		5:  # 首领遭遇：低 HP Boss-1，触发狂暴即过关
 			_set_objective_tr("TUT_S6_OBJ")
 			_player.set_invincible(999.0)  # 教程不判负
+			var view5 := GameState.view_world_rect()  # G014
 			_boss = BOSS_SCENE.instantiate() as Boss
 			_boss.setup(1.0, 1)
 			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 120.0)
 			_boss.hp = _boss.max_hp
-			_boss.position = Vector2(960.0, -160.0)
+			_boss.position = Vector2(view5.get_center().x, view5.position.y - 160.0)
 			_boss.enraged.connect(_on_boss_enraged)
 			_boss.died.connect(_on_boss_gone)
 			add_child(_boss)
@@ -201,9 +204,10 @@ func _on_boss_gone() -> void:
 
 ## 阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）
 func _spawn_combat_wave(count: int) -> void:
+	var view := GameState.view_world_rect()  # G014：视口基线
 	for i in count:
 		var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
-		e.position = Vector2(300.0 + 330.0 * i, -60.0 - 120.0 * (i % 2))
+		e.position = Vector2(view.position.x + 300.0 + 330.0 * i, view.position.y - 60.0 - 120.0 * (i % 2))
 
 
 ## 场上存活敌机数（教程实体均为本节点子节点）
@@ -219,7 +223,8 @@ func _spawn_enemy(config: Dictionary, strategy: StringName) -> Enemy:
 	var e := ENEMY_SCENE.instantiate() as Enemy
 	e.setup(config, strategy, 1.0)
 	e.can_shoot = _stage == 2  # 仅战斗阶段敌机开火
-	e.position = Vector2(960.0, -60.0)
+	var view := GameState.view_world_rect()  # G014：视口基线（去 960 硬编码）
+	e.position = Vector2(view.get_center().x, view.position.y - 60.0)
 	e.died.connect(_on_enemy_died)
 	add_child(e)
 	return e
@@ -319,20 +324,28 @@ func _physics_process(delta: float) -> void:
 			if _mothership == null and not _advancing:
 				if Input.is_action_pressed("dock"):
 					_dock_charge += delta
-					_set_objective_tr("TUT_S4_CHARGE", [int(clampf(_dock_charge / DOCK_CHARGE_TIME, 0.0, 1.0) * 100.0)])
+					_objective_poll -= delta
+					if _objective_poll <= 0.0:
+						_objective_poll = 0.1  # G015：百分比文本 0.1s 节流
+						_set_objective_tr("TUT_S4_CHARGE", [int(clampf(_dock_charge / DOCK_CHARGE_TIME, 0.0, 1.0) * 100.0)])
 					if _dock_charge >= DOCK_CHARGE_TIME:
 						_summon_mothership()
 				elif _dock_charge > 0.0:
 					_dock_charge = 0.0
+					_objective_poll = 0.0
 					_set_objective_tr("TUT_S4_OBJ")
 		4:
 			if Input.is_action_pressed("homecoming"):
 				_home_charge += delta
-				_set_objective_tr("TUT_S5_CHARGE", [int(clampf(_home_charge / HOME_CHARGE_TIME, 0.0, 1.0) * 100.0)])
+				_objective_poll -= delta
+				if _objective_poll <= 0.0:
+					_objective_poll = 0.1  # G015：百分比文本 0.1s 节流
+					_set_objective_tr("TUT_S5_CHARGE", [int(clampf(_home_charge / HOME_CHARGE_TIME, 0.0, 1.0) * 100.0)])
 				if _home_charge >= HOME_CHARGE_TIME:
 					_open_base()
 			elif _home_charge > 0.0:
 				_home_charge = 0.0
+				_objective_poll = 0.0
 				_set_objective_tr("TUT_S5_OBJ")
 
 

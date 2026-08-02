@@ -38,10 +38,11 @@ func cfg(path: String, default: Variant) -> Variant:
 			node = node[key]
 		else:
 			return default
-	# 数值宽容：JSON 整数/浮点互通
+	# 数值宽容：JSON 整数/浮点互通；G029 按 default 类型显式转换——JSON float 赋 typed int
+	# 字段时不再漂移（对齐 C18 显式 int() 模式）
 	if default is int or default is float:
 		if node is int or node is float:
-			return node
+			return int(node) if default is int else float(node)
 		return default
 	if node is Array and default is Array:
 		return node

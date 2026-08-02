@@ -431,6 +431,8 @@ func _fire_at_player() -> void:
 	if GameState.player_ref == null:
 		return
 	var base_dir := (GameState.player_ref.global_position - global_position).normalized()
+	if base_dir == Vector2.ZERO:
+		base_dir = Vector2.DOWN  # G026：与玩家圆心重合时回退，防零方向弹永不销毁
 	match bullet_type:
 		&"spread":
 			# 五向扇形弹：以瞄准方向为中心 ±2 步展开

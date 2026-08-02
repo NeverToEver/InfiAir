@@ -39,6 +39,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	# G016：显式断开档位信号（对齐 player.gd C22 模式），节点未 free 重新入树不重复连接
+	if GameState.aim_assist_changed.is_connected(_on_aim_assist_level_changed):
+		GameState.aim_assist_changed.disconnect(_on_aim_assist_level_changed)
 	if GameState.aim_frame_layer == self:
 		GameState.aim_frame_layer = null
 
@@ -159,13 +162,9 @@ func nearest_cone_target(origin: Vector2, aim_dir: Vector2, cone_cos: float) -> 
 	return best
 
 
-## P1-3 距离衰减（player 侧 aim_dist_falloff 同形状）：d ≤ peak 全辅助，≥ end 平坦下限，中间线性
+## P1-3 距离衰减（G018：与 Player.aim_dist_falloff 共用 Player.dist_falloff_curve 单实现）
 func _dist_falloff(d: float) -> float:
-	if d <= _falloff_peak:
-		return 1.0
-	if d >= _falloff_end:
-		return _falloff_min
-	return lerpf(1.0, _falloff_min, (d - _falloff_peak) / (_falloff_end - _falloff_peak))
+	return Player.dist_falloff_curve(d, _falloff_peak, _falloff_end, _falloff_min)
 
 
 func _draw() -> void:

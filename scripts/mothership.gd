@@ -14,6 +14,9 @@ signal departed(cooldown: float)
 
 enum State { DESCEND, HOVER, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
+## G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）
+var SHIP_SCALE := 1.25
+
 var HOVER_Y := 270.0
 var RELEASE_INVINCIBLE := 2.0  # 释放后保护（重制版 QoL，原作弹射后无保护）
 var DOCK_TWEEN_TIME := 1.5
@@ -52,6 +55,8 @@ var GATLING_INTERVAL := 0.1333
 var GATLING_BULLET_SPEED := 1080.0
 var GATLING_DAMAGE := 8
 var GATLING_SCORE_SCALE := 1.0 / 3.0
+## G030：导弹得分系数独立命名（与加特林同为 1/3，分别调参时不误改）
+var MISSILE_SCORE_SCALE := 1.0 / 3.0
 var GATLING_SWEEP_LEFT_MIN := -60.0
 var GATLING_SWEEP_LEFT_MAX := 20.0
 var GATLING_SWEEP_RIGHT_MIN := -20.0
@@ -165,9 +170,9 @@ func _ready() -> void:
 	SHAKE_SLOW = GameState.cfg("effects.mothership_summon.shake_slow", SHAKE_SLOW)
 	_mag_cells = MAG_CELLS
 	_depart_speed = DEPART_START_SPEED
-	# 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
+	# 机体尺寸族：设计值 × 全局缩放（tscn 存母舰基线 1.25，此处幂等覆盖——G032：注释与实际一致）
 	var ws: float = GameState.world_scale
-	($Sprite2D as Sprite2D).scale = Vector2.ONE * 1.25 * ws
+	($Sprite2D as Sprite2D).scale = Vector2.ONE * SHIP_SCALE * ws
 	var beam_pts := _beam.polygon
 	for i in beam_pts.size():
 		beam_pts[i] *= ws
@@ -540,9 +545,9 @@ func _update_gatling(delta: float) -> void:
 	_gatling_timer -= delta
 	if _gatling_timer > 0.0:
 		return
+	_gatling_timer = GATLING_INTERVAL  # G027：先置位再判空——空目标不每物理帧分配数组+扫注册表
 	if _live_targets().is_empty():
 		return
-	_gatling_timer = GATLING_INTERVAL
 	for i in _turrets.size():
 		var turret := _turrets[i]
 		var angle: float
@@ -574,10 +579,10 @@ func _update_missiles(delta: float) -> void:
 	_missile_timer -= delta
 	if _missile_timer > 0.0:
 		return
+	_missile_timer = MISSILE_INTERVAL  # G027：先置位再判空——空目标不每物理帧扫描
 	var targets := _live_targets()
 	if targets.is_empty():
 		return
-	_missile_timer = MISSILE_INTERVAL
 	var dock := _dock_point()
 	targets.sort_custom(func(a: Node2D, b: Node2D) -> bool: return a.global_position.distance_squared_to(dock) < b.global_position.distance_squared_to(dock))
 	for t in targets.slice(0, MISSILE_TARGET_COUNT):
@@ -585,7 +590,7 @@ func _update_missiles(delta: float) -> void:
 		if dir == Vector2.ZERO:
 			dir = Vector2.UP
 		var b: Bullet = GameState.bullet_pool.fire(dir, MISSILE_SPEED, MISSILE_DAMAGE, true)
-		b.score_scale = GATLING_SCORE_SCALE
+		b.score_scale = MISSILE_SCORE_SCALE  # G030：独立常量（原复用 GATLING_SCORE_SCALE 语义混用）
 		b.splash_damage = MISSILE_SPLASH_DAMAGE
 		b.splash_radius = MISSILE_SPLASH_RADIUS
 		b.position = dock

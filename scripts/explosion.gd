@@ -6,6 +6,8 @@ extends GPUParticles2D
 const POOL_CAP := 24
 
 static var _pool: Array[Explosion] = []
+## G022：爆炸视觉比例缓存（首次读取；中频事件免每次 spawn_at JSON 查询）
+static var _visual_scale := -1.0
 
 var _debris: GPUParticles2D
 var _pooled: bool = false
@@ -21,7 +23,9 @@ static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
 		e.reparent(parent)
 	e.position = pos
 	# effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
-	e.scale = Vector2.ONE * p_scale * GameState.cfg("effects.explosion_visual_scale", 1.6) * GameState.world_scale
+	if _visual_scale < 0.0:
+		_visual_scale = float(GameState.cfg("effects.explosion_visual_scale", 1.6))  # G022：一次性缓存
+	e.scale = Vector2.ONE * p_scale * _visual_scale * GameState.world_scale
 	e.visible = true
 	e.restart()
 	e._debris.restart()
@@ -57,8 +61,7 @@ static func _boss_seq_burst(parent: Node, pos: Vector2) -> void:
 
 static func _boss_seq_step(parent: Node, pos: Vector2, step: Array, timer: Timer) -> void:
 	if not is_instance_valid(parent):
-		timer.queue_free()
-		return
+		return  # G023：parent 已销毁时 timer 必然已随父销毁（回调不会再触发），不再对其 queue_free
 	step[0] += 1
 	if step[0] <= 6:
 		_boss_seq_burst(parent, pos)

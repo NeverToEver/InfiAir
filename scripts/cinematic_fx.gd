@@ -25,13 +25,16 @@ static func soft_texture() -> ImageTexture:
 	return _soft_tex
 
 
-static func additive_material() -> CanvasItemMaterial:
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	return mat
-
-
 ## 软径向光晕：Sprite2D 承载软点贴图，scale/modulate 语义与旧 GlowDot 一致（可直接 tween）。
+## G022：additive material 静态共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）
+static var _additive_mat: CanvasItemMaterial = null
+static func additive_material() -> CanvasItemMaterial:
+	if _additive_mat == null:
+		_additive_mat = CanvasItemMaterial.new()
+		_additive_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return _additive_mat
+
+
 static func soft_glow(radius: float, color: Color, additive := true) -> Sprite2D:
 	var s := Sprite2D.new()
 	s.texture = soft_texture()

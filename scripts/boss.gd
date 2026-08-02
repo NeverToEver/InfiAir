@@ -252,6 +252,8 @@ var _pattern_index: int = 0
 var _pattern_left: float = 0.0  # 当前模式剩余波次（或剩余时长秒）
 var _pattern_is_duration: bool = false
 var _fire_timer: float = 1.6
+## G024：三型普通阶段召唤小怪间隔（balance.json boss.phases.type3.summon_interval 可覆盖）
+var _summon_interval := 6.0
 var _summon_timer: float = 6.0
 var _boss_size := Vector2(328.0, 328.0)  # 贴图有效尺寸（_ready 实测更新，算轨道半径）
 
@@ -506,6 +508,9 @@ func _ready() -> void:
 	E2_RELEASE_RING_COUNT = GameState.cfg("boss.enrage.type_2.release_ring_count", E2_RELEASE_RING_COUNT)
 	E2_RELEASE_RING_SPEED = GameState.cfg("boss.enrage.type_2.release_ring_speed", E2_RELEASE_RING_SPEED)
 	E3_SUMMON_INTERVAL = GameState.cfg("boss.enrage.type_3.summon_interval", E3_SUMMON_INTERVAL)
+	# G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
+	_summon_interval = float(GameState.cfg("boss.phases.type3.summon_interval", _summon_interval))
+	_summon_timer = _summon_interval
 	E3_SUMMON_WAVES = GameState.cfg("boss.enrage.type_3.summon_waves", E3_SUMMON_WAVES)
 	E3_SUMMON_COUNT = GameState.cfg("boss.enrage.type_3.summon_count", E3_SUMMON_COUNT)
 	E3_RING_INTERVAL = GameState.cfg("boss.enrage.type_3.ring_interval", E3_RING_INTERVAL)
@@ -702,7 +707,7 @@ func _physics_process(delta: float) -> void:
 	if boss_type == 3:
 		_summon_timer -= delta
 		if _summon_timer <= 0.0:
-			_summon_timer = 6.0
+			_summon_timer = _summon_interval  # G024：间隔入配置
 			_summon_minions()
 
 	_check_body_collision()

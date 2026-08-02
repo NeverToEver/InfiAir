@@ -366,11 +366,17 @@ func aim_assist_params() -> Dictionary:
 ## P1-3 距离衰减曲线（公开供测试；_fire 弱追踪与 AimFrameLayer 磁吸共用同一形状）：
 ## d ≤ peak 全辅助；d ≥ end 平坦下限；中间线性。参数来自 player.aim_assist.falloff.*
 func aim_dist_falloff(d: float) -> float:
-	if d <= _falloff_peak:
+	return dist_falloff_curve(d, _falloff_peak, _falloff_end, _falloff_min)
+
+
+## G018：距离衰减分段纯函数（单实现——Player.aim_dist_falloff 与 AimFrameLayer 磁吸共用，
+## 改一侧不再破坏另一侧一致性）
+static func dist_falloff_curve(d: float, peak: float, end: float, min_v: float) -> float:
+	if d <= peak:
 		return 1.0
-	if d >= _falloff_end:
-		return _falloff_min
-	return lerpf(1.0, _falloff_min, (d - _falloff_peak) / (_falloff_end - _falloff_peak))
+	if d >= end:
+		return min_v
+	return lerpf(1.0, min_v, (d - peak) / (end - peak))
 
 
 func hitbox_enabled() -> bool:

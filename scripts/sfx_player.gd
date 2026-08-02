@@ -22,6 +22,8 @@ func play(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0)
 	# stop() 也不释放，必报 ObjectDB 泄漏噪音；无头路径直接不创建播放实例。
 	if DisplayServer.get_name() == "headless":
 		return
+	if _sfx_players.is_empty():
+		return  # G028：build_pool 未调用（如测试直接 new()）时防 index 越界/除零
 	var p := _sfx_players[_sfx_index]
 	_sfx_index = (_sfx_index + 1) % _sfx_players.size()
 	p.stream = stream

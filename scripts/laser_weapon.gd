@@ -77,7 +77,7 @@ func _physics_process(delta: float) -> void:
 			_end_beam()
 			return
 		var start := _player.global_position
-		var end := start + _aim_dir(start) * BEAM_LENGTH
+		var end := start + _aim_dir() * BEAM_LENGTH  # G021：参数已删
 		# C23：预分配数组经 set_point_position 原地写（points[i]= 值语义副本不生效）
 		_beam.set_point_position(0, start)
 		_beam.set_point_position(1, end)
@@ -93,7 +93,7 @@ func _physics_process(delta: float) -> void:
 
 ## 光束方向：经 _player.aim_point()（磁吸/粘性后的平滑瞄准点），与准星/开火共用同一点
 ## （B7 修复：P1-3 磁吸会让准星偏离原始鼠标，仍走 get_global_mouse_position 则光束与可见准星指向不同目标）
-func _aim_dir(_start: Vector2) -> Vector2:
+func _aim_dir() -> Vector2:  # G021：_start 参数从未使用，删除
 	var aim := _player.aim_point() - _player.global_position
 	if aim.length() <= 1.0:
 		# 贴图机头朝上，机身 rotation 对应 Vector2.UP 方向
@@ -133,7 +133,10 @@ func _start_beam() -> void:
 	_beam.visible = true
 	_glow.emitting = true
 	# 光束期间替换普通子弹
-	_saved_autofire = _player.auto_fire_enabled()
+	# G020：防御性——仅在非激活时记录初始 autofire，防未来移除 _active 门闩后二次
+	# 进入保存 false → _end_beam 恢复 false → autofire 永久关闭（当前 _active 门闩下不可达）
+	if not _active:
+		_saved_autofire = _player.auto_fire_enabled()
 	_player.set_auto_fire(false)
 	GameState.play_sfx(SFX_BEAM, -6.0)
 

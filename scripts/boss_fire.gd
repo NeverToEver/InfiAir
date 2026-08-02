@@ -16,7 +16,8 @@ var _cross_angle: float = 0.0
 ## 面向玩家的方向（player 为空回退 Vector2.DOWN）
 static func player_dir(from: Node2D) -> Vector2:
 	if GameState.player_ref != null:
-		return (GameState.player_ref.global_position - from.global_position).normalized()
+		var dir := (GameState.player_ref.global_position - from.global_position).normalized()
+		return dir if dir != Vector2.ZERO else Vector2.DOWN  # G026：圆心重合时回退
 	return Vector2.DOWN
 
 
