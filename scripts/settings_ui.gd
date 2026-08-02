@@ -24,6 +24,7 @@ var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
 var _mouse_lock_btn: Button  # 显示·鼠标锁定窗口内开关
 var _joy_speed_slider: HSlider  # 手柄·右摇杆瞄准灵敏度
 var _joy_deadzone_slider: HSlider  # 手柄·摇杆死区
+var _joy_layout_label: Label  # 手柄·当前布局指示（Xbox/PS）
 var _version_label: Label
 var _cheatsheet_label: Label
 var _plate: ChamferedPanel
@@ -95,6 +96,7 @@ func _ready() -> void:
 
 	GameState.key_bindings_changed.connect(_refresh_rebind_rows)
 	GameState.locale_changed.connect(_on_locale_changed)
+	GameState.joy_layout_changed.connect(_refresh_joy_layout_label)
 
 
 # ---------------- 控制（改键） ----------------
@@ -273,6 +275,10 @@ func _build_modes_page() -> VBoxContainer:
 	page.add_child(UITheme.make_label(tr("SET_MOUSE_LOCK_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
 	# 手柄（P0-1）：右摇杆瞄准灵敏度 + 摇杆死区（InputMap 全局 deadzone）
 	page.add_child(UITheme.make_section_header(tr("SET_JOY")))
+	# PS 布局适配：按已连接手柄显示布局与按钮标签对照（Xbox A/B/X/Y vs PS ✕/○/□/△）
+	_joy_layout_label = UITheme.make_label("", UITheme.FONT_CAPTION, UITheme.ACCENT_GOLD, HORIZONTAL_ALIGNMENT_LEFT)
+	page.add_child(_joy_layout_label)
+	_refresh_joy_layout_label()
 	_joy_speed_slider = _make_joy_slider(
 		page, tr("SET_JOY_AIM_SPEED"), 200.0, 4000.0, GameState.joy_aim_speed, "%.0f",
 		func(v: float) -> void: GameState.set_joy_aim_speed(v)
@@ -344,6 +350,13 @@ func _make_joy_slider(
 			on_changed.call(v)
 	)
 	return slider
+
+
+## PS 布局适配：刷新手柄布局指示（joy_layout_changed / locale 重建时调用）
+func _refresh_joy_layout_label() -> void:
+	if _joy_layout_label == null:
+		return
+	_joy_layout_label.text = tr("SET_JOY_LAYOUT_PS") if GameState.joy_layout == &"ps" else tr("SET_JOY_LAYOUT_XBOX")
 
 
 # ---------------- 关于 ----------------

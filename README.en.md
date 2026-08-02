@@ -75,7 +75,7 @@ godot --path .
 | B (hold) | Homecoming — base refit |
 | ESC | Pause / back one page / exit confirmation |
 
-**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller.
+**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller. **PlayStation pads are auto-detected** (same button positions, different labels): A/B/X/Y ↔ ✕/○/□/△, LB/RB ↔ L1/R1.
 
 <details>
 <summary>Full key list (abandon / restart / rebinding)</summary>

@@ -182,6 +182,12 @@ var _joypad_bound: bool = false
 ## P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
 var joy_aim_speed: float = 1400.0
 var joy_deadzone: float = 0.5
+## PS 布局适配（P0-1 延伸）：SDL 标准位置（JOY_BUTTON_A=底部等）跨 Xbox/PS 一致，
+## 仅物理标签不同——按已连接手柄 GUID/名称检测布局，供 UI/文档显示对应标签
+signal joy_layout_changed(layout: StringName)
+var joy_layout: StringName = &"xbox"  # 默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &"ps"
+const XBOX_BUTTON_LABELS: Dictionary = {0: "A", 1: "B", 2: "X", 3: "Y", 4: "LB", 5: "RB", 6: "LS", 7: "RS"}
+const PS_BUTTON_LABELS: Dictionary = {0: "✕", 1: "○", 2: "□", 3: "△", 4: "L1", 5: "R1", 6: "L3", 7: "R3"}
 ## 手柄相关动作清单（死区应用与装配共用）
 const JOYPAD_ACTIONS: Array[StringName] = [
 	&"move_up", &"move_down", &"move_left", &"move_right",
@@ -327,6 +333,9 @@ func _ready() -> void:
 	TranslationServer.set_locale(locale)
 	apply_key_bindings()
 	_bind_joypad_defaults()
+	# PS 布局检测：监听手柄插拔并刷新布局（标签显示用）
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+	_detect_joy_layout()
 	_next_milestone = milestone_threshold(0)
 
 
@@ -833,6 +842,39 @@ func _add_joy_button(action: StringName, button: int) -> void:
 	var ev := InputEventJoypadButton.new()
 	ev.button_index = button
 	InputMap.action_add_event(action, ev)
+
+
+## PS 布局适配：手柄插拔时重检布局
+func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
+	_detect_joy_layout()
+
+
+## 检测已连接手柄的布局：SDL GUID vendor = 0x054c（LE "4c05"）为 Sony（DualShock/DualSense），
+## 名称含 PlayStation 特征词兜底；其余保持 Xbox/SDL 标准布局（位置语义一致）。
+func _detect_joy_layout() -> void:
+	var found: StringName = &""
+	for d in Input.get_connected_joypads():
+		if is_ps_guid(Input.get_joy_guid(d)):
+			found = &"ps"
+			break
+		var name := Input.get_joy_name(d).to_lower()
+		if "dualshock" in name or "dualsense" in name or "playstation" in name:
+			found = &"ps"
+			break
+	if found != &"" and found != joy_layout:
+		joy_layout = found
+		joy_layout_changed.emit(joy_layout)
+
+
+## Sony 手柄 GUID 判定（SDL GUID：vendor 0x054c 小端序为 "4c05"；PS4/PS5/DualShock/DualSense）
+func is_ps_guid(guid: String) -> bool:
+	return guid.begins_with("030000004c05")
+
+
+## 手柄按钮的物理标签（按当前布局）：PS 用 ✕○□△/L1/R1…，Xbox/SDL 用 A/B/X/Y/LB/RB…
+func joy_button_label(button: int) -> String:
+	return str(PS_BUTTON_LABELS.get(button, XBOX_BUTTON_LABELS.get(button, str(button)))) if joy_layout == &"ps" \
+		else str(XBOX_BUTTON_LABELS.get(button, str(button)))
 
 
 ## 改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）

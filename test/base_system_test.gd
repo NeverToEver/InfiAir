@@ -149,6 +149,15 @@ func _ready() -> void:
 	GameState.set_joy_deadzone(0.5)
 	GameState.set_joy_aim_speed(GameState.cfg("player.aim_assist.joy_speed", 1400.0))
 
+	# 13. PS 布局适配（P0-1 延伸）：GUID 判定纯函数 + 按钮标签映射（默认 Xbox / 切 PS）
+	_check(GameState.is_ps_guid("030000004c050000c405000000010000"), "P0-1：Sony GUID 判定（vendor 054c）")
+	_check(not GameState.is_ps_guid("030000005e0400008e02000000010000"), "P0-1：非 Sony GUID 不误判")
+	_check(GameState.joy_button_label(0) == "A" and GameState.joy_button_label(5) == "RB", "P0-1：Xbox 布局标签映射")
+	var saved_layout := GameState.joy_layout
+	GameState.joy_layout = &"ps"
+	_check(GameState.joy_button_label(0) == "✕" and GameState.joy_button_label(4) == "L1", "P0-1：PS 布局标签映射（✕/L1）")
+	GameState.joy_layout = saved_layout
+
 	print("BASE SYSTEM TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

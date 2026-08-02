@@ -173,7 +173,7 @@ Main (scripts/main.gd)
 
 ### 2.5 输入与设置
 
-- 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。**手柄默认绑定运行时装配**（P0-1）：`GameState._bind_joypad_defaults()` 启动时经 InputMap 追加左摇杆移动/动作键（A/RB/LB/X/Y/L3/R3）/右摇杆瞄准动作（`aim_x`/`aim_y`，`player.aim_point` 增量驱动虚拟准星）；死区经 `set_joy_deadzone()` 应用到全部手柄动作。
+- 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。**手柄默认绑定运行时装配**（P0-1）：`GameState._bind_joypad_defaults()` 启动时经 InputMap 追加左摇杆移动/动作键（A/RB/LB/X/Y/L3/R3）/右摇杆瞄准动作（`aim_x`/`aim_y`，`player.aim_point` 增量驱动虚拟准星）；死区经 `set_joy_deadzone()` 应用到全部手柄动作。**PS 手柄自动识别**（GUID vendor 054c，位置一致仅标签对应 ✕○□△/L1-R1，`joy_button_label()` 供 UI 显示）。
 - 设置项：难度、键位、语言、视角缩放、窗口尺寸、辅助瞄准档位、`reduce_flash`、`mouse_lock`（鼠标锁定窗口内，默认开启：仅对局准星活跃且窗口聚焦时把移出内容区的鼠标拉回边缘内侧，防准星出框失控；暂停/非准星态与失焦放行）、手柄参数（`joy_aim_speed` 右摇杆瞄准灵敏度、`joy_deadzone` 摇杆死区，设置页「手柄」分区滑杆调节）、音效/音量；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed` 刷新。
 - 视角缩放与窗口尺寸是**两套独立** profile 设置。
 
