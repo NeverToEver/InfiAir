@@ -19,6 +19,7 @@ signal view_zoom_changed(factor: float)
 signal window_size_changed(level: StringName)
 signal aim_assist_changed(level: StringName)
 signal reduce_flash_changed(enabled: bool)
+signal mouse_lock_changed(enabled: bool)
 ## buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新
 signal buffs_changed
 
@@ -195,6 +196,9 @@ var aim_assist_level: StringName = &"medium"
 var meta_fx_lod: int = 1
 ## 无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
 var reduce_flash: bool = false
+## 鼠标锁定窗口内（profile 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
+## 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）
+var mouse_lock: bool = true
 ## buff id -> 已选层数
 var buffs: Dictionary = {}
 ## 征用点数（基地经济）
@@ -556,6 +560,15 @@ func set_reduce_flash(enabled: bool) -> void:
 	reduce_flash = enabled
 	save_profile()
 	reduce_flash_changed.emit(enabled)
+
+
+## 鼠标锁定窗口内：开关持久化到 profile 并广播（MouseTrap 据此决定是否拉回出框鼠标）
+func set_mouse_lock(enabled: bool) -> void:
+	if enabled == mouse_lock:
+		return
+	mouse_lock = enabled
+	save_profile()
+	mouse_lock_changed.emit(enabled)
 
 
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
@@ -996,6 +1009,7 @@ func load_profile() -> void:
 	if AIM_ASSIST_ORDER.has(saved_aim):
 		aim_assist_level = saved_aim
 	reduce_flash = save_bool(parsed.get("reduce_flash", reduce_flash), reduce_flash)
+	mouse_lock = save_bool(parsed.get("mouse_lock", mouse_lock), mouse_lock)
 
 
 func save_profile() -> void:
@@ -1012,6 +1026,7 @@ func save_profile() -> void:
 		"window_size": String(window_size),
 		"aim_assist": String(aim_assist_level),
 		"reduce_flash": reduce_flash,
+		"mouse_lock": mouse_lock,
 	}
 	_save_manager.save(PROFILE_PATH, data)
 
