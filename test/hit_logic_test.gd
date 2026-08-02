@@ -139,8 +139,9 @@ func _ready() -> void:
 	# 入场降入期：与玩家重叠也不扣血（Boss 尚未降入战斗位置）
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	player.position = Vector2(960.0, 150.0)  # FIGHT_Y(230) 之上
 	var boss_enter := _make_boss(1)
+	# 位置按战斗锚线（view 顶缘 + FIGHT_Y）动态取锚线上方：仍在降入、且位于可见区内
+	player.position = Vector2(960.0, boss_enter.fight_anchor_y() - 80.0)
 	boss_enter.position = player.position  # 重叠，但仍在降入阶段
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -529,7 +530,14 @@ func _ready() -> void:
 	# ================= A21：Boss 入场期可被玩家弹伤（已核实与原作一致） =================
 	var boss_early := _make_boss(1)
 	boss_early.set_fire_timer(999.0)
-	boss_early.position = Vector2(960.0, 100.0)  # 仍在降入
+	# A21 根因修复（2026-08-02）：原硬编码 (960,100) 在 large 视角档下位于可见区外
+	# （view 顶缘 222），玩家弹触发 view_world_rect(80) 出界判定被 _despawn() 销毁，
+	# 从未命中 Boss → hp == max_hp，断言稳定失败（07-31 登记；08-01 复核通过只是
+	# profile 恰为 medium 档的巧合，根因未除，large 档下依旧复现）。
+	# 改按战斗锚线动态定位：fight_anchor_y() - 75 = view 顶缘 + 155，仍在降入且
+	# 在出界 margin(80) 内（FIGHT_Y=230 时余量充足，任意视角档均成立）。
+	var enter_pos := Vector2(960.0, boss_early.fight_anchor_y() - 75.0)
+	boss_early.position = enter_pos
 	var pb := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
 	pb.position = boss_early.position
 	await get_tree().physics_frame
