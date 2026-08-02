@@ -18,7 +18,9 @@ var ENTRY_LAND_RATIO := 0.74  # 冲入定位点 = view 高度占比（下 1/3 �
 var ENTRY_RUSH_TIME := 0.55  # 高速冲入时长（QUAD EASE_OUT 减速）
 var ENTRY_RETREAT_SPEED := 90.0  # 后撤缓移速度（px/s，向下）
 var ENTRY_RETREAT_TIME := 1.1  # 后撤时长
-var ENTRY_INVINCIBLE := 1.65  # 入场全程无敌（= 冲入 + 后撤，不闪烁）
+var ENTRY_INVINCIBLE := 2.1  # 入场全程无敌（= 冲入 0.55 + 后撤 1.1 + 0.45s 缓冲；缓冲段按普通无敌闪烁路径）
+var ENTRY_SPAWN_CLEARANCE := 90.0  # 入场起点屏外偏移（设计值，view 坐标不乘 world_scale）
+var ENTRY_RUSH_HS_RATIO := 0.6  # 后撤段水平输入速度系数（× MAX_SPEED）
 
 var MAX_SPEED := 420.0
 var ACCEL := 2400.0
@@ -62,7 +64,7 @@ var DASH_COOLDOWN := 4.0
 var AFTERIMAGE_INTERVAL := 0.08
 var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
 
-var HOMING_TIME := 4.0  # 辅助瞄准追踪时限（≈弹寿命；balance.json player.aim_assist.homing_time）
+var HOMING_TIME := 1.2  # 辅助瞄准追踪时限（≈玩家弹出屏寿命 1920/1800≈1.07s；balance.json player.aim_assist.homing_time）
 ## 辅助瞄准当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
 var _homing_turn_rate := 5.5  # 准星入标记框时出膛弹的追踪转向速率
 var _aim_stick_factor := 0.5  # 准星入标记框时的鼠标灵敏度系数（弱吸附，1.0 = 无吸附）
@@ -106,6 +108,7 @@ var _sound_index: int = 0
 var _entry_phase: int = 0
 var _entry_retreat_left: float = 0.0
 var _entry_prev_auto_fire: bool = true  # 入场前自动开火状态（结束恢复，不覆盖测试/既有设置）
+var _entry_tween: Tween = null  # 冲入 tween（abort_entry 中断时 kill）
 ## A8：受击/回血状态经属性转发到 PlayerDamage（语法兼容，测试白盒不变）
 var _invincible: float = 0.0:
 	get:
@@ -197,6 +200,8 @@ func _load_balance() -> void:
 	ENTRY_RETREAT_SPEED = float(GameState.cfg("player.entry.retreat_speed", ENTRY_RETREAT_SPEED))
 	ENTRY_RETREAT_TIME = float(GameState.cfg("player.entry.retreat_time", ENTRY_RETREAT_TIME))
 	ENTRY_INVINCIBLE = float(GameState.cfg("player.entry.invincible", ENTRY_INVINCIBLE))
+	ENTRY_SPAWN_CLEARANCE = float(GameState.cfg("player.entry.spawn_clearance", ENTRY_SPAWN_CLEARANCE))
+	ENTRY_RUSH_HS_RATIO = float(GameState.cfg("player.entry.rush_hspeed_ratio", ENTRY_RUSH_HS_RATIO))
 	ARMOR_MULT = GameState.cfg("buffs.armor.multiplier", ARMOR_MULT)
 	EVASION_CHANCE = GameState.cfg("buffs.evasion.chance", EVASION_CHANCE)
 	REGEN_PER_SEC = GameState.cfg("buffs.regen.heal_per_sec", REGEN_PER_SEC)
@@ -649,19 +654,35 @@ func play_entry_animation() -> void:
 	_dashing = false
 	_entry_prev_auto_fire = _auto_fire_enabled
 	_auto_fire_enabled = false
-	position = Vector2(rect.get_center().x, rect.end.y + 90.0)
+	position = Vector2(rect.get_center().x, rect.end.y + ENTRY_SPAWN_CLEARANCE)
 	# 高功率引擎冲入（尾焰拉满；减速后随拖尾渐隐）
 	_thruster.speed_scale = 2.0
 	_thruster.amount_ratio = 1.0
 	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
-	var tween := create_tween()
-	tween.tween_property(self, "position:y", land_y, ENTRY_RUSH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_callback(_on_entry_landed)
+	_entry_tween = create_tween()
+	_entry_tween.tween_property(self, "position:y", land_y, ENTRY_RUSH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_entry_tween.tween_callback(_on_entry_landed)
 
 
 ## 入场动画进行中（main/测试查询，替代私有直读）
 func is_entry_playing() -> bool:
 	return _entry_phase != 0
+
+
+## 中断入场动画（返航/自毁等流程接管时调用）：复位状态机并静默收尾，不发 entry_finished
+## （避免误恢复敌机生成）。D06：入场起始帧内返航会经 lock_input 冻结后撤推进、
+## _finish_entry 永不执行，此出口防止继续出击后新入场被 _entry_phase != 0 守卫跳过。
+func abort_entry() -> void:
+	if _entry_phase == 0:
+		return
+	_entry_phase = 0
+	_auto_fire_enabled = _entry_prev_auto_fire
+	if _entry_tween != null and _entry_tween.is_valid():
+		_entry_tween.kill()
+		_entry_tween = null
+	velocity = Vector2.ZERO
+	_thruster.speed_scale = 1.0
+	_thruster.amount_ratio = 0.35
 
 
 func _on_entry_landed() -> void:
@@ -677,7 +698,7 @@ func _entry_physics(delta: float) -> void:
 	if _entry_phase == 1:
 		return
 	var input_x := Input.get_axis("move_left", "move_right")
-	velocity = Vector2(input_x * MAX_SPEED * 0.6, ENTRY_RETREAT_SPEED)
+	velocity = Vector2(input_x * MAX_SPEED * ENTRY_RUSH_HS_RATIO, ENTRY_RETREAT_SPEED)
 	move_and_slide()
 	position = clamp_to_view(position)
 	_entry_retreat_left -= delta
@@ -753,6 +774,7 @@ func clear_nearby_enemy_bullets() -> void:
 
 func _die() -> void:
 	_dead = true
+	abort_entry()  # D06：入场期间自毁（长按 K）时复位入场状态机，防 tween/相位滞留
 	_enrage_slow = 1.0  # 死亡/重生路径兜底：狂暴减速必复位（Boss 侧另有解锁与离场兜底）
 	hide()
 	_hitbox.set_deferred("monitoring", false)

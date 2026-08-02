@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 	if _t >= _total:
 		skip()
 		return
-	_update(_t)
+	_update(_t, delta)
 
 
 func _build_panel() -> void:
@@ -233,7 +233,7 @@ func _build_hangar() -> void:
 
 
 ## 进度驱动全部视觉（t 秒）
-func _update(t: float) -> void:
+func _update(t: float, delta: float = 0.0) -> void:
 	# 面板淡入/淡出
 	var fade_in := clampf(t / OPEN_TIME, 0.0, 1.0)
 	var fade_out := clampf((_total - t) / CLOSE_TIME, 0.0, 1.0)
@@ -268,7 +268,7 @@ func _update(t: float) -> void:
 			_update_arms(p)
 		2:
 			_update_launch(p)
-	_flash.color.a = maxf(_flash.color.a - 2.2 * get_process_delta_time(), 0.0)
+	_flash.color.a = maxf(_flash.color.a - 2.2 * delta, 0.0)
 
 
 ## 镜头 1：3 条充能管线依次断开（挂点回缩 + 软火花闪灭 + 断开瞬间喷发）

@@ -19,7 +19,9 @@
 			"rush_time": 0.55,
 			"retreat_speed": 90.0,
 			"retreat_time": 1.1,
-			"invincible": 2.1
+			"invincible": 2.1,
+			"spawn_clearance": 90.0,
+			"rush_hspeed_ratio": 0.6
 		},
 		"bullet_clear_radius": 250,
 		"fuel": {
@@ -38,7 +40,7 @@
 		},
 		"aim_assist": {
 			"mark_ratio": 0.25,
-			"homing_time": 4,
+			"homing_time": 1.2,
 			"input": {
 				"magnet_input_min": 2.0,
 				"magnet_input_full": 40.0

@@ -38,6 +38,7 @@ var _column: Polygon2D = null
 var _ring_outer: Line2D = null
 var _ring_inner: Line2D = null
 var _rays: Array[Polygon2D] = []
+var _screen := Vector2.ZERO  # _ready 缓存视口尺寸（D17：命中段热路径免每帧查询）
 
 
 func _ready() -> void:
@@ -48,8 +49,8 @@ func _ready() -> void:
 	MISSILE_FROM = GameState.cfg("effects.orbital_strike.missile_from", MISSILE_FROM)
 	RETICLE_RADIUS = GameState.cfg("effects.orbital_strike.reticle_radius", RETICLE_RADIUS)
 	IMPACT_Y_RATIO = GameState.cfg("effects.orbital_strike.impact_y_ratio", IMPACT_Y_RATIO)
-	var screen := get_viewport().get_visible_rect().size
-	_impact_point = Vector2(screen.x * 0.5, screen.y * IMPACT_Y_RATIO)
+	_screen = get_viewport().get_visible_rect().size
+	_impact_point = Vector2(_screen.x * 0.5, _screen.y * IMPACT_Y_RATIO)
 	_build_reticle()
 	_build_missile()
 	_build_impact_fx()
@@ -183,7 +184,7 @@ func _update_visuals(p: float) -> void:
 		var fade_out := 1.0 - q
 		_flash.color = Color(CYAN, 0.85 * fade_out * fade_out)
 		_column.color = Color(CYAN, 0.55 * fade_out)
-		var screen := get_viewport().get_visible_rect().size
+		var screen := _screen
 		var diag := screen.length()
 		_layout_ring(_ring_outer, lerpf(40.0, diag * 0.6, 1.0 - fade_out * fade_out))
 		_ring_outer.default_color = Color(CYAN, 0.9 * fade_out)

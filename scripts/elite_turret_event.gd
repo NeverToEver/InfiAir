@@ -136,7 +136,8 @@ func start() -> void:
 		_spawner.set_boss_frozen(true)
 		_spawner.set_waves_paused(true)
 	_carrier = StrikeCarrier.new()
-	_carrier.position = Vector2(960.0, GameState.view_world_rect().position.y - 450.0)
+	var ev_view := GameState.view_world_rect()  # D10：载体入场锚点统一 view 基线
+	_carrier.position = Vector2(ev_view.get_center().x, ev_view.position.y - 450.0)
 	_carrier.entered.connect(_on_carrier_entered)
 	_carrier.exited.connect(_on_carrier_exited)
 	get_parent().add_child(_carrier)

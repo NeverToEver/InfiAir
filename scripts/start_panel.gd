@@ -106,7 +106,7 @@ func _ready() -> void:
 	_content.add_child(diff_row)
 	for d in GameState.DIFFICULTY_ORDER:
 		var b := Button.new()
-		b.text = GameState.DIFFICULTY_DEFS[d]["label"]
+		b.text = tr("DIFF_" + String(d).to_upper())
 		b.toggle_mode = true
 		b.button_group = _diff_group
 		b.custom_minimum_size = Vector2(120.0, 52.0)
@@ -240,6 +240,9 @@ func _refresh_texts() -> void:
 	_tutorial_button.text = tr("START_TUTORIAL_DONE") if GameState.tutorial_done else tr("START_TUTORIAL")
 	_settings_button.text = tr("START_SETTINGS")
 	_diff_label.text = tr("START_DIFFICULTY")
+	# D04：难度按钮文案走翻译键（与 HUD difficulty_label 同口径），locale 切换时一并刷新
+	for d in _diff_buttons:
+		(_diff_buttons[d] as Button).text = tr("DIFF_" + String(d).to_upper())
 	# 主按钮层级：有存档=继续对局 primary，无存档=开始游戏 primary
 	if has_save:
 		UITheme.apply_primary_button(_continue_button)

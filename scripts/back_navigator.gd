@@ -46,9 +46,11 @@ func go_back() -> void:
 	match action:
 		BackAction.CANCEL_EXIT:
 			_exit_confirm.cancel()
-			# 焦点还给开始面板主按钮（确认窗打开时抢走了焦点）
+			# 焦点还给来源页面（确认窗打开时抢走了焦点）：开始面板主按钮 / 暂停面板恢复按钮
 			if _start_panel.visible:
 				_start_panel.grab_primary_focus()
+			elif _pause_ui.visible:
+				_pause_ui.grab_primary_focus()
 			_mark_handled()
 		BackAction.CAPTURE_PASSTHROUGH:
 			pass  # 不 set_input_as_handled，让 settings_ui 取消捕获

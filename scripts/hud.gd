@@ -56,6 +56,7 @@ var _hit_flash: float = 0.0
 var _hit_tween: Tween = null
 var _last_hp_value: float = -1.0
 var _pulse_time: float = 0.0
+var _cached_max_hp: float = 100.0  # 缓存 max_health()（extra_life 层数驱动，buffs_changed 刷新；D08）
 var _buff_dock_wrap: Control  # 右下角锚定包装（meta_jitter 抖动对象，避免直接动自动生长的网格）
 var _buff_dock: GridContainer
 var _buff_tag: Label
@@ -595,7 +596,7 @@ var _last_hp_text: String = ""
 
 
 func _on_health_changed(new_health: float) -> void:
-	var max_hp := GameState.max_health()
+	var max_hp := _cached_max_hp
 	# 受击红闪：HP 下降沿触发 alpha 脉冲（tween 衰减，低血脉动取两者较大值）
 	if _last_hp_value >= 0.0 and new_health < _last_hp_value:
 		_hit_flash = HIT_FLASH_ALPHA
@@ -720,7 +721,7 @@ func _update_vignette(delta: float) -> void:
 			_vignette.modulate.a = 0.0
 		return
 	var alpha := _hit_flash
-	var max_hp := GameState.max_health()
+	var max_hp := _cached_max_hp
 	if GameState.health > 0.0 and GameState.health < max_hp * LOW_HP_RATIO:
 		_pulse_time += delta
 		var s := (sin(_pulse_time * TAU / LOW_HP_PULSE_PERIOD) + 1.0) * 0.5
@@ -849,6 +850,7 @@ func _make_overflow_tile(count: int) -> Control:
 
 ## buffs_changed / locale_changed 驱动重建；内容签名不变不重建
 func _rebuild_buff_dock(force: bool = false) -> void:
+	_cached_max_hp = GameState.max_health()  # D08：buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
 	var signature := ""
 	var active: Array = []  # [[id, stacks], ...] 按获得顺序
 	for id: StringName in GameState.buffs:

@@ -6,6 +6,11 @@ extends Node
 signal boss_spawned(boss: Boss)
 signal boss_warning
 
+## 排队中的一次性回调 Timer 与屏上入场预告线（D01）。返航时经 clear_pending() 释放，
+## 防止 continue 继续出击后、入场动画窗口内敌机/Boss 带预告进场。
+var _pending_timers: Array[Timer] = []
+var _pending_telegraphs: Array[Node2D] = []
+
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 
@@ -456,7 +461,9 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	var strategy := strategies[randi() % strategies.size()]
 	var btype := _pick_bullet_type(config)
 	var view := GameState.view_world_rect()
-	get_parent().add_child(SpawnTelegraph.new(x, view.position.y))
+	var telegraph := SpawnTelegraph.new(x, view.position.y)
+	get_parent().add_child(telegraph)
+	_pending_telegraphs.append(telegraph)
 	_schedule(GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
 		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special))
 
@@ -507,7 +514,8 @@ func _spawn_boss(p_type: int = 0) -> void:
 	var boss := BOSS_SCENE.instantiate() as Boss
 	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.set_spawner(self)  # A5：依赖注入，替代 Boss 侧 group 现找
-	boss.position = Vector2(960.0, GameState.view_world_rect().position.y - 160.0)
+	var view := GameState.view_world_rect()  # D10：Boss 入场锚点统一 view 基线
+	boss.position = Vector2(view.get_center().x, view.position.y - 160.0)
 	boss.died.connect(_on_boss_died.bind(boss))
 	boss.escaped.connect(_on_boss_escaped)
 	get_parent().add_child(boss)
@@ -539,5 +547,26 @@ func _schedule(seconds: float, callback: Callable) -> void:
 	timer.one_shot = true
 	add_child(timer)
 	timer.timeout.connect(callback, CONNECT_ONE_SHOT)
-	timer.timeout.connect(timer.queue_free, CONNECT_ONE_SHOT)
+	timer.timeout.connect(_on_pending_timer_fired.bind(timer), CONNECT_ONE_SHOT)
+	_pending_timers.append(timer)
 	timer.start(seconds)
+
+
+## Timer 到点：解除登记并释放（连带 callback 信号连接一并随节点释放）。
+func _on_pending_timer_fired(timer: Timer) -> void:
+	_pending_timers.erase(timer)
+	timer.queue_free()
+
+
+## 清空排队回调与入场预告线（D01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
+## 未入场的 Boss 预警随之取消，之后按分数/时间门控再触发，属预期。
+func clear_pending() -> void:
+	for timer in _pending_timers:
+		if is_instance_valid(timer):
+			timer.stop()
+			timer.queue_free()
+	_pending_timers.clear()
+	for telegraph in _pending_telegraphs:
+		if is_instance_valid(telegraph):
+			telegraph.queue_free()
+	_pending_telegraphs.clear()

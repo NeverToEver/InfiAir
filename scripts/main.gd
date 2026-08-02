@@ -650,8 +650,11 @@ func _start_homecoming() -> void:
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
 	_player.lock_input()
+	_player.abort_entry()  # D06：入场中按 B 返航时复位入场状态机（防新入场被守卫跳过）
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)
+	# D01：释放排队中的敌机/Boss 预告与一次性回调，防 continue 后入场动画窗口内进场
+	_spawner.clear_pending()
 	# 召唤小窗在播则断开回调后关闭（避免 finished 触发穿梭门/母舰创建）
 	if _summon_window != null:
 		_summon_window.finished.disconnect(_on_summon_window_finished)

@@ -172,7 +172,7 @@
 | 105 | `elite_turret_event.reward_score` | `REWARD_SCORE` |
 | 106 | `elite_turret_event.carrier.hover_y` | `HOVER_Y` |
 | 107 | `elite_turret_event.cooldown` | `COOLDOWN` |
-| 144 | `elite_turret_event.carrier.shake` | `4.0` |
+| 145 | `elite_turret_event.carrier.shake` | `4.0` |
 
 ### `scripts/enemy.gd`
 
@@ -254,13 +254,13 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 92 | `effects.hud_poll_interval` | `POLL_INTERVAL` |
-| 93 | `effects.hit_flash.alpha` | `HIT_FLASH_ALPHA` |
-| 94 | `effects.hit_flash.time` | `HIT_FLASH_TIME` |
-| 95 | `effects.low_hp.ratio` | `LOW_HP_RATIO` |
-| 96 | `effects.low_hp.pulse_min` | `LOW_HP_PULSE_MIN` |
-| 97 | `effects.low_hp.pulse_max` | `LOW_HP_PULSE_MAX` |
-| 98 | `effects.low_hp.pulse_period` | `LOW_HP_PULSE_PERIOD` |
+| 93 | `effects.hud_poll_interval` | `POLL_INTERVAL` |
+| 94 | `effects.hit_flash.alpha` | `HIT_FLASH_ALPHA` |
+| 95 | `effects.hit_flash.time` | `HIT_FLASH_TIME` |
+| 96 | `effects.low_hp.ratio` | `LOW_HP_RATIO` |
+| 97 | `effects.low_hp.pulse_min` | `LOW_HP_PULSE_MIN` |
+| 98 | `effects.low_hp.pulse_max` | `LOW_HP_PULSE_MAX` |
+| 99 | `effects.low_hp.pulse_period` | `LOW_HP_PULSE_PERIOD` |
 
 ### `scripts/laser_weapon.gd`
 
@@ -286,7 +286,7 @@
 | 74 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
 | 621 | `effects.mothership_summon.shake_gate` | `6.0` |
 | 631 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 663 | `mothership.depart_cooldown` | `60.0` |
+| 666 | `mothership.depart_cooldown` | `60.0` |
 
 ### `scripts/meta_health_fx.gd`
 
@@ -397,60 +397,62 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 46 | `effects.orbital_strike.duration` | `DURATION` |
-| 47 | `effects.orbital_strike.impact_at` | `IMPACT_AT` |
-| 48 | `effects.orbital_strike.missile_from` | `MISSILE_FROM` |
-| 49 | `effects.orbital_strike.reticle_radius` | `RETICLE_RADIUS` |
-| 50 | `effects.orbital_strike.impact_y_ratio` | `IMPACT_Y_RATIO` |
-| 70 | `effects.shake.boss_seq_final` | `24.0` |
+| 47 | `effects.orbital_strike.duration` | `DURATION` |
+| 48 | `effects.orbital_strike.impact_at` | `IMPACT_AT` |
+| 49 | `effects.orbital_strike.missile_from` | `MISSILE_FROM` |
+| 50 | `effects.orbital_strike.reticle_radius` | `RETICLE_RADIUS` |
+| 51 | `effects.orbital_strike.impact_y_ratio` | `IMPACT_Y_RATIO` |
+| 71 | `effects.shake.boss_seq_final` | `24.0` |
 
 ### `scripts/player.gd`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 182 | `player.max_speed` | `MAX_SPEED` |
-| 183 | `player.accel` | `ACCEL` |
-| 184 | `player.decel` | `DECEL` |
-| 185 | `player.boost_mult` | `BOOST_MULT` |
-| 186 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
-| 187 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
-| 188 | `player.bullet_speed` | `BULLET_SPEED` |
-| 189 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
-| 190 | `player.bullet_damage` | `BULLET_DAMAGE` |
-| 191 | `player.invincible_time` | `INVINCIBLE_TIME` |
-| 192 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
-| 193 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
-| 194 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
-| 195 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
-| 196 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
-| 197 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
-| 198 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
-| 199 | `buffs.armor.multiplier` | `ARMOR_MULT` |
-| 200 | `buffs.evasion.chance` | `EVASION_CHANCE` |
-| 201 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
-| 202 | `effects.shake.player_hit` | `SHAKE_HIT` |
-| 204 | `player.fuel.max` | `fuel_max` |
-| 206 | `player.fuel.drain` | `FUEL_DRAIN` |
-| 207 | `player.fuel.regen` | `FUEL_REGEN` |
-| 208 | `player.fuel.restart` | `FUEL_RESTART` |
-| 209 | `player.dash.distance` | `DASH_DISTANCE` |
-| 210 | `player.dash.time` | `DASH_TIME` |
-| 211 | `player.dash.cooldown` | `DASH_COOLDOWN` |
-| 212 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
-| 213 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
-| 218 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
-| 219 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
-| 220 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
-| 221 | `player.aim_assist.falloff.end` | `_falloff_end` |
-| 222 | `player.aim_assist.falloff.min` | `_falloff_min` |
-| 412 | `buffs.rapid_fire.factor` | `_rapid_fire_factor` |
-| 413 | `buffs.power_shot.factor` | `_power_shot_factor` |
-| 414 | `buffs.spread_shot.max_stacks` | `_spread_max` |
-| 415 | `buffs.piercing.max_stacks` | `_pierce_max` |
-| 416 | `buffs.efficient_boost.factor` | `_efficient_factor` |
-| 417 | `buffs.boost_recovery.factor` | `_boost_recovery_factor` |
-| 444 | `player.dash.cooldown_stack_factor` | `0.8` |
-| 607 | `player.aim_assist.homing_time` | `HOMING_TIME` |
+| 186 | `player.max_speed` | `MAX_SPEED` |
+| 187 | `player.accel` | `ACCEL` |
+| 188 | `player.decel` | `DECEL` |
+| 189 | `player.boost_mult` | `BOOST_MULT` |
+| 190 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
+| 191 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
+| 192 | `player.bullet_speed` | `BULLET_SPEED` |
+| 193 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
+| 194 | `player.bullet_damage` | `BULLET_DAMAGE` |
+| 195 | `player.invincible_time` | `INVINCIBLE_TIME` |
+| 196 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
+| 197 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
+| 198 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
+| 199 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
+| 200 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
+| 201 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
+| 202 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
+| 203 | `player.entry.spawn_clearance` | `ENTRY_SPAWN_CLEARANCE` |
+| 204 | `player.entry.rush_hspeed_ratio` | `ENTRY_RUSH_HS_RATIO` |
+| 205 | `buffs.armor.multiplier` | `ARMOR_MULT` |
+| 206 | `buffs.evasion.chance` | `EVASION_CHANCE` |
+| 207 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
+| 208 | `effects.shake.player_hit` | `SHAKE_HIT` |
+| 210 | `player.fuel.max` | `fuel_max` |
+| 212 | `player.fuel.drain` | `FUEL_DRAIN` |
+| 213 | `player.fuel.regen` | `FUEL_REGEN` |
+| 214 | `player.fuel.restart` | `FUEL_RESTART` |
+| 215 | `player.dash.distance` | `DASH_DISTANCE` |
+| 216 | `player.dash.time` | `DASH_TIME` |
+| 217 | `player.dash.cooldown` | `DASH_COOLDOWN` |
+| 218 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
+| 219 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
+| 224 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
+| 225 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
+| 226 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
+| 227 | `player.aim_assist.falloff.end` | `_falloff_end` |
+| 228 | `player.aim_assist.falloff.min` | `_falloff_min` |
+| 418 | `buffs.rapid_fire.factor` | `_rapid_fire_factor` |
+| 419 | `buffs.power_shot.factor` | `_power_shot_factor` |
+| 420 | `buffs.spread_shot.max_stacks` | `_spread_max` |
+| 421 | `buffs.piercing.max_stacks` | `_pierce_max` |
+| 422 | `buffs.efficient_boost.factor` | `_efficient_factor` |
+| 423 | `buffs.boost_recovery.factor` | `_boost_recovery_factor` |
+| 450 | `player.dash.cooldown_stack_factor` | `0.8` |
+| 613 | `player.aim_assist.homing_time` | `HOMING_TIME` |
 
 ### `scripts/return_cinematic.gd`
 
@@ -462,31 +464,31 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 134 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
-| 135 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
-| 136 | `spawner.ramp_time` | `RAMP_TIME` |
-| 137 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
-| 138 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
-| 139 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
-| 140 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
-| 141 | `spawner.interval_min` | `INTERVAL_MIN` |
-| 143 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
-| 149 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
-| 150 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
-| 151 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
-| 152 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
-| 153 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
-| 154 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
-| 155 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
-| 157 | `elite_turret_event.min_score` | `ETV_MIN_SCORE` |
-| 158 | `elite_turret_event.trigger_interval` | `ETV_TRIGGER_INTERVAL` |
-| 159 | `elite_turret_event.trigger_chance` | `ETV_TRIGGER_CHANCE` |
-| 160 | `formation_strike_event.trigger_interval` | `FS_TRIGGER_INTERVAL` |
-| 161 | `formation_strike_event.trigger_chance` | `FS_TRIGGER_CHANCE` |
-| 165 | `enemies.types` | `[]` |
-| 168 | `elites.types` | `[]` |
-| 460 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
-| 498 | `effects.shake.boss_warning` | `14.0` |
+| 139 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
+| 140 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
+| 141 | `spawner.ramp_time` | `RAMP_TIME` |
+| 142 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
+| 143 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
+| 144 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
+| 145 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
+| 146 | `spawner.interval_min` | `INTERVAL_MIN` |
+| 148 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
+| 154 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
+| 155 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
+| 156 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
+| 157 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
+| 158 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
+| 159 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
+| 160 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
+| 162 | `elite_turret_event.min_score` | `ETV_MIN_SCORE` |
+| 163 | `elite_turret_event.trigger_interval` | `ETV_TRIGGER_INTERVAL` |
+| 164 | `elite_turret_event.trigger_chance` | `ETV_TRIGGER_CHANCE` |
+| 165 | `formation_strike_event.trigger_interval` | `FS_TRIGGER_INTERVAL` |
+| 166 | `formation_strike_event.trigger_chance` | `FS_TRIGGER_CHANCE` |
+| 170 | `enemies.types` | `[]` |
+| 173 | `elites.types` | `[]` |
+| 467 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
+| 505 | `effects.shake.boss_warning` | `14.0` |
 
 ### `scripts/starfield.gd`
 
