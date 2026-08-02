@@ -175,6 +175,9 @@ const PROFILE_PATH := "user://profile.json"
 const PERSIST_VERSION := 2
 
 var high_score: int = 0
+## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
+var highscores: Array[Dictionary] = []
+const HIGHSCORE_LIMIT := 10
 var tutorial_done: bool = false
 
 
@@ -1075,6 +1078,20 @@ func load_profile() -> void:
 		aim_assist_level = saved_aim
 	reduce_flash = save_bool(parsed.get("reduce_flash", reduce_flash), reduce_flash)
 	mouse_lock = save_bool(parsed.get("mouse_lock", mouse_lock), mouse_lock)
+	# P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
+	highscores.clear()
+	var saved_highscores: Variant = parsed.get("highscores", [])
+	if saved_highscores is Array:
+		for entry: Variant in saved_highscores:
+			if not entry is Dictionary:
+				continue
+			var s: Variant = entry.get("score", 0)
+			if not (s is int or s is float):
+				continue
+			highscores.append({"score": int(s), "date": int(entry.get("date", 0))})
+		highscores.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["score"]) > int(b["score"]))
+		if highscores.size() > HIGHSCORE_LIMIT:
+			highscores.resize(HIGHSCORE_LIMIT)
 
 
 func save_profile() -> void:
@@ -1092,6 +1109,7 @@ func save_profile() -> void:
 		"aim_assist": String(aim_assist_level),
 		"reduce_flash": reduce_flash,
 		"mouse_lock": mouse_lock,
+		"highscores": highscores,
 	}
 	_save_manager.save(PROFILE_PATH, data)
 
@@ -1103,3 +1121,33 @@ func record_score() -> bool:
 		save_profile()
 		return true
 	return false
+
+
+## 竞品调研 P0-3：提交本局分数入本地榜，返回名次（1-based；未上榜返回 0）。
+## 同分新条目排后（先到先得）；超出上限的分数不入榜。
+func submit_highscore(run_score: int) -> int:
+	if run_score <= 0:
+		return 0
+	var rank := 1
+	for e in highscores:
+		if int(e["score"]) >= run_score:
+			rank += 1
+		else:
+			break
+	if rank > HIGHSCORE_LIMIT:
+		return 0
+	highscores.insert(rank - 1, {"score": run_score, "date": int(Time.get_unix_time_from_system())})
+	if highscores.size() > HIGHSCORE_LIMIT:
+		highscores.resize(HIGHSCORE_LIMIT)
+	save_profile()
+	return rank
+
+
+## 榜单文本（供结算页/开始页展示）："1. 12345\n2. 9876..."；空榜返回空串
+func highscores_text(limit: int = 5) -> String:
+	if highscores.is_empty():
+		return ""
+	var lines: Array[String] = []
+	for i in mini(limit, highscores.size()):
+		lines.append("%d. %d" % [i + 1, int(highscores[i]["score"])])
+	return "\n".join(lines)

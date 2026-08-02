@@ -12,6 +12,7 @@ signal new_game_chosen
 var _hint_label: Label
 var _corrupt_label: Label
 var _high_score_label: Label
+var _board_label: Label
 var _subtitle_label: Label
 var _diff_label: Label
 var _continue_button: Button
@@ -71,6 +72,10 @@ func _ready() -> void:
 
 	_high_score_label = UITheme.make_label("", UITheme.FONT_BODY, UITheme.ACCENT_GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	_hero.add_child(_high_score_label)
+
+	# P0-3：本地排行榜 Top 3（空榜隐藏）
+	_board_label = UITheme.make_label("", UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT)
+	_hero.add_child(_board_label)
 
 	# 损坏存档提示（仅 GameState.save_corrupt 时可见）
 	_corrupt_label = UITheme.make_label("", UITheme.FONT_CAPTION, UITheme.DANGER, HORIZONTAL_ALIGNMENT_LEFT)
@@ -237,6 +242,10 @@ func _refresh_texts() -> void:
 	_hint_label.text = tr("START_HAS_SAVE") if has_save else tr("START_NO_SAVE")
 	_high_score_label.visible = GameState.high_score > 0
 	_high_score_label.text = tr("WELCOME_HIGH_SCORE") % GameState.high_score
+	# P0-3：开始页榜单 Top 3（空榜隐藏）
+	var board := GameState.highscores_text(3)
+	_board_label.visible = board != ""
+	_board_label.text = tr("START_BOARD") + "\n" + board
 	_corrupt_label.visible = GameState.save_corrupt
 	_corrupt_label.text = tr("START_SAVE_CORRUPT")
 	_continue_button.text = tr("START_CONTINUE")
