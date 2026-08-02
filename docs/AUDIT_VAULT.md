@@ -493,3 +493,27 @@
 | E13 | P3 | `player_damage.gd:64-69` | 热路径边缘 | `heal_tick()` 每物理帧嵌套字典查询 | 待判定 |
 | E14 | P3 | `mothership.gd:171-174` | 一致性 | `beam_pts[i] *= ws` 字面违反幂等约定（当前安全：非共享 sub_resource） | 不修（注明安全） |
 | E15 | P3 | `enemy.gd:385` | 性能轻微 | 每帧 `buff_count(&"slow_field")` 字典 get | 不修（登记备查） |
+
+## E 系列修复起效记录（2026-08-02 全量处置）
+
+> 按登记判定建议全量落地；修复批次见 `docs/2026-08-02-e-series-fix-plan.md`（发现-判定-修复追踪单一事实源）。
+
+| 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| E01 | ✅ 已修复 | `bullet.gd _splash()` 的 `as Enemy` 改 Variant 鸭子调用 `take_damage(amount, score_scale)`——注册表含 Boss（Boss 非 Enemy 子类），as Enemy 对 Boss cast 得 null 致溅射 20 伤害静默丢失；与 `laser_weapon._damage_tick`「含 Boss」同模式。`_explode()` Boss 排除为有意设计行为不变。验证：hit_logic_test 新增「溅射对 Boss 生效 20 伤害」断言 PASS |
+| E02 | ✅ 已修复 | `start_panel.gd` 教程按钮通关后 `disabled` + `_on_tutorial_pressed()` 加 `tutorial_done` 守卫——重进教程触发 `tutorial._ready` 无条件 `delete_save()`，静默删进行中存档。验证：startup_flow_test 新增「通关后按钮禁用」断言 PASS |
+| E03 | ✅ 已修复 | `game_state.gd _valid_difficulty_defs` 增加 `DIFFICULTY_DEF_KEYS` 8 数值键存在+类型校验——缺子键通过后下游 8 处 `DIFFICULTY_DEFS[difficulty][...]` KeyError→0（敌方 0 HP 秒死/得分倍率 0）。验证：balance_test 新增「难度段缺子键回退默认」断言 PASS |
+| E04 | ✅ 已修复 | `dawn_station.gd` PHANTOM 全部视觉挂 `BreatheRoot` 呼吸容器，4s 慢呼吸写容器 `modulate:a` 而非站体本身——调用方压 `station.modulate.a`（return_cinematic 0.35/0.5）不再被抬高 2.5~3 倍，与 base_console 包装用法统一。验证：return_cinematic/intro_cinematic/base_system 0 FAIL |
+| E05 | ✅ 已修复 | `mothership.start_release()` 入口统一清 HUD 提前离舰进度条——H 按住被强制离舰（警告到期/弹匣耗尽）进度条残留可见。验证：mothership_summon_test 新增「前置可见 + start_release 清除」断言 PASS |
+| E06 | ✅ 已修复 | `enemy.gd` 侧方离场 `position.x < 960.0` → `view_world_rect().get_center().x`（D10 同类收口）。验证：enemy_combat/wave_pacing 0 FAIL |
+| E07 | ✅ 已修复 | `bullet.gd _explode()` 注释修正——注册表含 Enemy 与 Boss，Boss 由 as Enemy null 排除为有意设计（非「注册表全为 Enemy」）。随 E01 验证 |
+| E08 | ✅ 已修复 | `laser_weapon.gd` buff 归零早退前 `if _active: _end_beam()`——防未来 buff 移除机制引入后激活态光束冻结、autofire 卡禁。验证：buff33/smoke 0 FAIL |
+| E09 | 🟦 登记不修 | `BEAM_HALF_WIDTH` 乘 ws（0.4）后判定 26→10.4px 显著削弱激光命中，属游戏性变更需产品判断；现视觉可接受 |
+| E10 | ✅ 已修复 | `game_state.gd load_profile` locale 经 zh/en 白名单守卫——手改非法值保持默认 zh，与 TranslationServer 状态一致；不调 `set_locale` 免 load 期 `save_profile`/`locale_changed` 副作用。验证：startup_flow/base_system 0 FAIL |
+| E11 | ✅ 已修复 | `game_state.gd load_profile` key_bindings 数组元素 int/float 判型——手改字符串 keycode 直接跳过，不再 `int()` 转换错误刷屏（C02 外层守卫的元素级补全）。验证：startup_flow/base_system 0 FAIL |
+| E12 | ✅ 已修复 | `save_manager.gd save()` 先写 `.tmp` 临时文件再替换正本（原子写，防写入中途崩溃产生截断 JSON 丢进度）；最坏情况（删旧后 rename 前崩溃）正本缺失 → load 返回 {} 无存档不置 corrupt，优于现状（截断 → 隔离 .corrupt → 丢进度 + 弹损坏提示）。验证：base_system/startup_flow 0 FAIL |
+| E13 | 🟦 登记不修 | 缓存被动回血参数与「难度可中途切换」语义冲突（切换后缓存过期需信号刷新链路），超低风险修复范围 |
+| E14 | 🟦 登记不修 | `beam_pts[i] *= ws` 当前安全（polygon 为节点内联属性非共享 sub_resource） |
+| E15 | 🟦 登记不修 | 每帧 `buff_count(&"slow_field")` 字典 get 无分配，开销极小 |
+
+> 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / **全量 30 断言场景 0 FAIL**（含新增 E01/E02/E03/E05 断言）。
