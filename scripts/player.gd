@@ -171,6 +171,14 @@ var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 @onready var _hitbox: Area2D = $Hitbox
 @onready var _thruster: GPUParticles2D = $Thruster
 
+## P1-5：冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）
+const AFTERIMAGE_POOL_SIZE := 4
+const AFTERIMAGE_FADE_TIME := 0.3
+const AFTERIMAGE_COLOR := Color(0.5, 0.9, 1.0, 0.5)
+var _afterimage_pool: Array[Sprite2D] = []
+var _afterimage_idx: int = 0
+var _active_afterimages: Array[Sprite2D] = []
+
 
 func _ready() -> void:
 	add_to_group("player")
@@ -179,6 +187,20 @@ func _ready() -> void:
 	_load_balance()
 	_refresh_buff_factors()
 	GameState.buffs_changed.connect(_refresh_buff_factors)
+	# P1-5：冲刺残影小池预建（消灭每次冲刺的节点+Tween 新建/销毁抖动）。
+	# 挂 Main 下（残影固定在世界坐标，不随玩家移动）；Main 场景构建期 add_child 会报
+	# "busy setting up children"，延迟到帧末执行
+	for i in AFTERIMAGE_POOL_SIZE:
+		var g := Sprite2D.new()
+		g.visible = false
+		g.modulate = AFTERIMAGE_COLOR
+		get_parent().add_child.call_deferred(g)
+		_afterimage_pool.append(g)
+
+
+## P1-5：残影逐帧淡出（渲染帧；池节点 alpha 归零即隐藏回收，零分配）
+func _process(delta: float) -> void:
+	_update_afterimages(delta)
 
 
 ## 数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）
@@ -563,14 +585,15 @@ func _physics_process(delta: float) -> void:
 	# 慢速力场已改为全局敌机移速（A13），不再有玩家侧环视觉
 
 	# 无敌帧闪烁
+	var now_ms := Time.get_ticks_msec()  # 每帧一次（P2：闪烁与光点共用）
 	if _invincible > 0.0:
 		_invincible -= delta
-		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(Time.get_ticks_msec() * 0.02))
+		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(now_ms * 0.02))
 	else:
 		_sprite.modulate.a = 1.0
 
 	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
-	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(Time.get_ticks_msec() * 0.006))
+	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(now_ms * 0.006))
 
 	# 回血（A8 委托 PlayerDamage）：regen buff 固定 +2 HP/s；无 buff 时被动回血
 	_damage.heal_tick(delta)
@@ -633,16 +656,32 @@ func _on_aim_assist_level_changed(_level: StringName) -> void:
 
 
 func spawn_afterimage() -> void:
-	var ghost := Sprite2D.new()
+	# P1-5：循环复用池节点；同一节点淡出中被再次冲刺命中时 alpha 重置重新淡出
+	var ghost := _afterimage_pool[_afterimage_idx]
+	_afterimage_idx = (_afterimage_idx + 1) % AFTERIMAGE_POOL_SIZE
 	ghost.texture = _sprite.texture
 	ghost.scale = _sprite.scale
 	ghost.global_position = global_position
 	ghost.global_rotation = rotation
-	ghost.modulate = Color(0.5, 0.9, 1.0, 0.5)
-	get_parent().add_child(ghost)
-	var tween := ghost.create_tween()
-	tween.tween_property(ghost, "modulate:a", 0.0, 0.3)
-	tween.tween_callback(ghost.queue_free)
+	ghost.modulate = AFTERIMAGE_COLOR
+	ghost.visible = true
+	if not _active_afterimages.has(ghost):
+		_active_afterimages.append(ghost)
+
+
+## P1-5：残影淡出推进（_process 每帧调用；池内每节点 alpha 线性衰减，归零隐藏）
+func _update_afterimages(delta: float) -> void:
+	if _active_afterimages.is_empty():
+		return
+	var i := 0
+	while i < _active_afterimages.size():
+		var g: Sprite2D = _active_afterimages[i]
+		g.modulate.a -= delta / AFTERIMAGE_FADE_TIME
+		if g.modulate.a <= 0.0:
+			g.visible = false
+			_active_afterimages.remove_at(i)
+		else:
+			i += 1
 
 
 ## 入场动画（开场/返航继续出击后由 main 调用）：高速冲入定位到屏幕下 1/3，再向后缓移一小节。

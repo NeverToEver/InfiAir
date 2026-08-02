@@ -45,7 +45,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
+	var pulse := 0.75 + 0.25 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 6.0)
 	var c := COLOR * Color(1.0, 1.0, 1.0, pulse)
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:

@@ -343,8 +343,8 @@ func _physics_process(delta: float) -> void:
 		_beam_fx.visible = _beam.visible
 		_beam_dust.emitting = _beam.visible
 	if _beam.visible:
-		# 淡光束：低调脉动，不刺眼
-		_beam.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 8.0)
+		# 淡光束：低调脉动，不刺眼（P2：查表 sin）
+		_beam.modulate.a = 0.55 + 0.45 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 8.0)
 		_update_beam_fx(delta)
 	_state_timer += delta
 	match _state:
@@ -490,9 +490,9 @@ func _update_beam_fx(delta: float) -> void:
 		ring.position = Vector2(0.0, lerpf(60.0, 200.0, u) * _ws)
 		var k := lerpf(40.0, 90.0, u) / 90.0
 		ring.scale = Vector2(k, k)
-		ring.modulate.a = 0.75 * sin(PI * u)
+		ring.modulate.a = 0.75 * Enemy.sin_fast(PI * u)
 	for i in _beam_edges.size():
-		_beam_edges[i].modulate.a = 0.5 + 0.25 * sin(ft * 9.0 + float(i) * 2.1)
+		_beam_edges[i].modulate.a = 0.5 + 0.25 * Enemy.sin_fast(ft * 9.0 + float(i) * 2.1)
 
 
 ## 一次性软闪（进舱/释放等瞬时反馈）：软光晕快速淡出后自毁
@@ -523,9 +523,14 @@ func _update_drive(delta: float) -> void:
 		_player.global_position = _dock_point()
 
 
+## P2：目标数组输出缓冲（_live_targets 复用，免每次调用分配新 Array）
+var _targets_buf: Array[Node2D] = []
+
+
 ## 场上有效目标（敌机注册表筛掉离场中；Boss 筛掉逃跑中）
+## P2：复用 _targets_buf，调用方仅当帧消费（is_empty/排序后不再保留引用）
 func _live_targets() -> Array[Node2D]:
-	var out: Array[Node2D] = []
+	_targets_buf.clear()
 	for node in GameState.enemies:
 		var e := node as Node2D
 		if e == null:
@@ -534,8 +539,8 @@ func _live_targets() -> Array[Node2D]:
 			continue
 		if e is Boss and e.is_escaped:
 			continue
-		out.append(e)
-	return out
+		_targets_buf.append(e)
+	return _targets_buf
 
 
 ## 加特林扫射压制（对齐原作）：仅驻留且有目标时开火；双塔向上半球各扫 80°，
@@ -554,11 +559,11 @@ func _update_gatling(delta: float) -> void:
 		if i == 0:
 			var center := deg_to_rad((GATLING_SWEEP_LEFT_MIN + GATLING_SWEEP_LEFT_MAX) * 0.5)
 			var half := deg_to_rad((GATLING_SWEEP_LEFT_MAX - GATLING_SWEEP_LEFT_MIN) * 0.5)
-			angle = center + half * sin(_sweep_time * TAU / GATLING_SWEEP_LEFT_PERIOD)
+			angle = center + half * Enemy.sin_fast(_sweep_time * TAU / GATLING_SWEEP_LEFT_PERIOD)
 		else:
 			var center := deg_to_rad((GATLING_SWEEP_RIGHT_MIN + GATLING_SWEEP_RIGHT_MAX) * 0.5)
 			var half := deg_to_rad((GATLING_SWEEP_RIGHT_MAX - GATLING_SWEEP_RIGHT_MIN) * 0.5)
-			angle = center + half * sin((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
+			angle = center + half * Enemy.sin_fast((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
 		var dir := Vector2.UP.rotated(angle)
 		turret.global_rotation = dir.angle()
 		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, GATLING_DAMAGE, true)

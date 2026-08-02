@@ -122,7 +122,7 @@ func _physics_process(delta: float) -> void:
 		State.HOVER:
 			# 悬停轻微浮动（质量感：慢速小幅）
 			_hover_time += delta
-			position.y = _hover_y + sin(_hover_time * 0.8) * 6.0
+			position.y = _hover_y + Enemy.sin_fast(_hover_time * 0.8) * 6.0
 		State.RETREAT:
 			_retreat_speed += RETREAT_ACCEL * _retreat_factor * delta
 			position.y -= _retreat_speed * delta

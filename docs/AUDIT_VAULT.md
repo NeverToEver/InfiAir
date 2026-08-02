@@ -646,3 +646,18 @@
 | G032 | ✅ 已修复 | 母舰注释修正（tscn 实存 1.25 基线）+ `SHIP_SCALE` 具名常量。验证：mothership_summon 0 FAIL |
 
 > 修复后回归：`--headless --import` 0 错误 / BALANCE_MAP 刷新（2 新键、0 缺失、未引用键仅既有 `version`）/ 批次相关断言场景（difficulty/enemy_combat/startup_flow/keybind/mothership_summon/tutorial/pool_reuse/boss_phase/boss_pattern/balance/buff33/hit_logic/wave_pacing/smoke）全 0 FAIL。
+
+# 性能优化落地记录（2026-08-02，全量）
+
+> 依据 `docs/2026-08-02-performance-optimization-plan.md` 全量落地（P0×4 / P1×7 / P2×8），改动 24 个源码文件。本节登记与既有审计条目的交集回填；完整落地摘要、A/B 数据与回归见计划书 §12。改动面：`game_state.gd`（view_world_rect 帧缓存 / 回血链缓存 / mission 守卫）、`spawner.gd`+`enemy_pool.gd`+`enemy.gd`（敌机池化统一）、`enemy/boss/turret_battery/formation_craft`（受击闪白手动衰减）、`player.gd`（残影池 / ticks 单取）、`aim_frame_layer.gd`（扫描缓存）、`starfield.gd`（绘制合批）、`hud.gd`（文本档位守卫 / sin_fast）、`meta_health.gdshader`（减采样）、P2 各项。
+
+| 编号 | 原状态 | 回填 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- | --- |
+| D08 | ✅ 已修复 | ✅ 补充 | 既有 `_cached_max_hp` 之上再断深层链路：`max_health()` 基础值 `_apply_balance` 缓存、`passive_regen_delay/rate` 难度变更刷新——`heal_tick→heal→max_health` 全链不再每物理帧 cfg（全仓唯一每帧 cfg 违规点消除）。验证：smoke 142 / buff33 29 PASS |
+| D11 | 🟦 观察级不修 | ✅ **已修复** | 受击闪白多 tween 竞争改为**手动衰减**（`_flash_timer` + `_physics_process` 逐帧 lerp，enemy/boss/turret_battery/formation_craft 四实体）——消灭每命中一次 Tween 分配与竞争，Godot 4.6 Tween 无 `reset()` 故不走预建复用。验证：hit_logic 61 / enemy_combat 33 / smoke 142 PASS |
+| E13 | 🟦 登记不修 | ✅ **已修复** | `heal_tick` 每物理帧嵌套字典查询——`passive_regen_delay/rate` 缓存 + `set_difficulty`/`_apply_balance` 刷新（原"难度中途切换缓存过期"顾虑由刷新链路解决）。验证：smoke 142 / base_system 46 PASS |
+| G017 | 🟦 不修 | ✅ **已修复** | `aim_crosshair`/`aim_frame_layer` 每帧直接 sin() 改 `Enemy.sin_fast`（连同对局路径 11 处批量清扫；过场/一次性构建豁免）。验证：i18n / mouse_lock / smoke 0 FAIL |
+| G025 | 🟦 登记不修 | ✅ **已修复** | 每帧重复 `view_world_rect()`（~130 次）——`GameState` 物理帧号守卫缓存（同帧子弹×N/敌机×N/玩家/Boss 共享一次视口查询，zoom/camera 变更四点失效）。验证：view_zoom 50 / smoke 142 / perf_bench A/B -8~9% |
+| G027 | ✅ 已修复 | ✅ 补充 | 既有空目标早退之上补 `_live_targets()` 输出缓冲复用（免每次发射分配新 Array）。验证：mothership_summon 32 PASS |
+
+> 回归：`--headless --import` / `--quit-after 300` 0 错误；smoke 142 / pool_reuse 12 / base_system 46 / 全量 27 专项断言场景 0 FAIL；perf_bench 同环境 A/B 中位数 0.131→0.120 ms/帧（约 -8~9% CPU 逻辑耗时）。

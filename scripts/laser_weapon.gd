@@ -151,14 +151,18 @@ func _end_beam() -> void:
 
 
 ## 穿透结算：光束线段两侧的敌人（含 Boss）都吃伤害，不打断
-## （遍历副本防 take_damage→die→注销注册表造成的遍历中突变）
+## P2：从尾向前索引遍历（take_damage→die→注销注册表 erase 只影响已处理的高索引区，
+## 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝
 func _damage_tick(start: Vector2, end: Vector2) -> void:
-	for node in GameState.enemies.duplicate():
-		if not is_instance_valid(node):
-			continue
-		var pos := (node as Node2D).global_position
-		if _dist_to_segment(pos, start, end) <= BEAM_HALF_WIDTH + ENEMY_HIT_RADIUS:
-			node.take_damage(TICK_DAMAGE)
+	var arr: Array[Node] = GameState.enemies
+	var i := arr.size() - 1
+	while i >= 0:
+		var node: Node = arr[i]
+		if is_instance_valid(node):
+			var pos := (node as Node2D).global_position
+			if _dist_to_segment(pos, start, end) <= BEAM_HALF_WIDTH + ENEMY_HIT_RADIUS:
+				node.take_damage(TICK_DAMAGE)
+		i -= 1
 
 
 static func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:

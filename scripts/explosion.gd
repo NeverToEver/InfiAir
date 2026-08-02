@@ -8,6 +8,8 @@ const POOL_CAP := 24
 static var _pool: Array[Explosion] = []
 ## G022：爆炸视觉比例缓存（首次读取；中频事件免每次 spawn_at JSON 查询）
 static var _visual_scale := -1.0
+## P2：池容量缓存（首次读取；免每次新建实例查 cfg）
+static var _pool_cap := -1
 
 var _debris: GPUParticles2D
 var _pooled: bool = false
@@ -17,7 +19,9 @@ static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
 	var e := _take_from_pool()
 	if e == null:
 		e = Explosion.new()
-		e._pooled = _pool.size() < int(GameState.cfg("effects.explosion.pool_cap", POOL_CAP))
+		if _pool_cap < 0:
+			_pool_cap = int(GameState.cfg("effects.explosion.pool_cap", POOL_CAP))
+		e._pooled = _pool.size() < _pool_cap
 		parent.add_child(e)
 	elif e.get_parent() != parent:
 		e.reparent(parent)

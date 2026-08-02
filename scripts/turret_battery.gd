@@ -34,6 +34,11 @@ var spread_deg: float = 7.0
 
 var _rising: bool = false
 var _ceased: bool = false
+## P1-2：受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）
+var _flash_timer: float = 0.0
+const FLASH_TIME := 0.1
+## P1-6：击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）
+var _shake_die := 5.0
 
 
 ## A7：测试/诊断白盒断言经公开接口
@@ -91,6 +96,8 @@ func _ready() -> void:
 	_hp_bar.value = 100.0
 	_hp_bar.fill_color = Color(1.0, 0.25, 0.75)  # 精英品红
 	_fire_timer = randf_range(fire_interval.x, fire_interval.y)
+	# P1-6：击杀震动强度缓存
+	_shake_die = float(GameState.cfg("effects.shake.enemy_die", _shake_die))
 
 
 func _exit_tree() -> void:
@@ -129,6 +136,8 @@ func cease_fire_and_retract() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# P1-2：受击闪白手动衰减（rising/ceased 时也推进，闪白不残留）
+	_update_flash(delta)
 	if _rising or _ceased or hp <= 0:
 		return
 	# 弱锁定索敌：限速转向玩家（lerp_angle 缓动 + rad/s 上限，机械转台感）
@@ -198,15 +207,25 @@ func take_damage(amount: int, _score_scale: float = 1.0) -> void:
 	hp -= amount
 	_hp_bar.value = clampf(float(hp) / float(max_hp), 0.0, 1.0) * 100.0
 	_sprite.modulate = Color(2.0, 2.0, 2.0)  # 受击闪白
-	var tween := create_tween()
-	tween.tween_property(_sprite, "modulate", Color.WHITE, 0.1)
+	_flash_timer = FLASH_TIME
 	if hp <= 0:
 		die()
 
 
+## P1-2：受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）
+func _update_flash(delta: float) -> void:
+	if _flash_timer <= 0.0:
+		return
+	_flash_timer -= delta
+	if _flash_timer <= 0.0:
+		_sprite.modulate = Color.WHITE
+	else:
+		_sprite.modulate = _sprite.modulate.lerp(Color.WHITE, delta / FLASH_TIME)
+
+
 func die() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
-	GameState.shake(GameState.cfg("effects.shake.enemy_die", 5.0))
+	GameState.shake(_shake_die)
 	Explosion.spawn_at(get_parent(), global_position, 1.0)
 	died.emit(self)
 	queue_free()

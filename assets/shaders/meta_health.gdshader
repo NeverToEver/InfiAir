@@ -36,20 +36,21 @@ void fragment() {
 	float dist = length(to_center * vec2(1.0, 0.5625)) * 2.0;
 	float radial_w = smoothstep(0.25, 1.0, dist);            // 边缘强、中心弱
 
-	// ── 1. 受击层：径向色差 + 手写 6-tap 径向模糊（LOD1 整段跳过，D2/D4）──
+	// ── 1. 受击层：径向色差 + 手写 4-tap 径向模糊（LOD1 整段跳过，D2/D4；P1-7 减采样 9→6）──
 	vec3 col;
 	if (u_lod == 0 && (u_chromatic_amount > 0.0001 || u_radial_blur_strength > 0.001)) {
 		vec2 off = normalize(to_center + 1e-6) * radial_w * u_chromatic_amount;
-		col.r = texture(screen_texture, uv + off).r;
-		col.g = texture(screen_texture, uv).g;
-		col.b = texture(screen_texture, uv - off).b;
+		// P1-7：色差 3 采样 → 2 采样（G 通道取两端平均，色差感不变）
+		vec3 a = texture(screen_texture, uv + off).rgb;
+		vec3 b = texture(screen_texture, uv - off).rgb;
+		col = vec3(a.r, mix(a.g, b.g, 0.5), b.b);
 		if (u_radial_blur_strength > 0.001) {
 			vec3 acc = col;
-			for (int i = 1; i <= 5; i++) {
-				float t = float(i) / 6.0 * u_radial_blur_strength * radial_w * 0.06;
+			for (int i = 1; i <= 3; i++) {
+				float t = float(i) / 4.0 * u_radial_blur_strength * radial_w * 0.06;
 				acc += texture(screen_texture, mix(uv, vec2(0.5), t)).rgb;
 			}
-			col = acc / 6.0;
+			col = acc / 4.0;
 		}
 	} else {
 		col = texture(screen_texture, uv).rgb;

@@ -113,6 +113,10 @@ func _apply_balance() -> void:
 	var diff: Variant = cfg("difficulty", {})
 	if _valid_difficulty_defs(diff):
 		DIFFICULTY_DEFS = diff
+	# P0-2：回血链数值一次性缓存（热路径禁 cfg 约定）
+	_refresh_regen_cache()
+	_max_hp_base = float(cfg("player.max_health", _max_hp_base))
+	_max_hp_bonus = float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus))
 
 
 ## C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -219,6 +223,12 @@ var _milestone_count: int = 0
 var _prog_per_boss_kill: float = 0.5
 var _prog_per_ten_minutes: float = 1.0
 var _prog_time_step_seconds: float = 30.0
+## 回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存；regen 档位难度变更时刷新。
+## 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。
+var _max_hp_base: float = 100.0
+var _max_hp_bonus: float = 50.0
+var _regen_delay: float = 4.0
+var _regen_rate: float = 2.0
 ## 已计入难度乘数的时间档位（按 time_step_seconds 量化步进，避免连续漂移）
 var _difficulty_time_step: int = 0
 
@@ -366,6 +376,7 @@ func set_difficulty(p_difficulty: StringName) -> void:
 	if not DIFFICULTY_DEFS.has(p_difficulty) or p_difficulty == difficulty:
 		return
 	difficulty = p_difficulty
+	_refresh_regen_cache()
 	difficulty_selected.emit(difficulty)
 	save_profile()
 
@@ -409,12 +420,20 @@ func spread_enemy_cap() -> int:
 
 
 ## 被动回血：距上次受伤 regen_delay 秒起每秒回 regen_rate HP（对齐原作 HEALTH_REGEN）
+## P0-2：档位值在难度变更/重新加载时缓存，热路径免双层字典查找
 func passive_regen_delay() -> float:
-	return float(DIFFICULTY_DEFS[difficulty]["regen_delay"])
+	return _regen_delay
 
 
 func passive_regen_rate() -> float:
-	return float(DIFFICULTY_DEFS[difficulty]["regen_rate"])
+	return _regen_rate
+
+
+func _refresh_regen_cache() -> void:
+	var def: Variant = DIFFICULTY_DEFS.get(difficulty, {})
+	if def is Dictionary:
+		_regen_delay = float(def.get("regen_delay", _regen_delay))
+		_regen_rate = float(def.get("regen_rate", _regen_rate))
 
 
 # ---------------- 里程碑阈值曲线 ----------------
@@ -478,8 +497,13 @@ var camera_ref: Camera2D = null:
 		return _registry.camera_ref
 	set(value):
 		_registry.camera_ref = value
+		_invalidate_view_rect_cache()
 ## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 small 档一致）
 var _view_zoom_factor: float = 1.0
+## view_world_rect 物理帧缓存：同帧多次调用免重复视口查询（子弹/敌机/玩家每帧共用一帧结果）。
+## zoom 因子或相机注册变更时置 -1 强制重算；相机位置固定 (960,540)，帧内语义不变。
+var _view_rect_frame: int = -1
+var _view_rect_cached: Rect2 = Rect2()
 
 
 ## 切换视角档位（非法/同档忽略），持久化到 profile 并广播
@@ -488,6 +512,7 @@ func set_view_zoom(level: StringName) -> void:
 		return
 	view_zoom = level
 	_view_zoom_factor = VIEW_ZOOM_LEVELS[level]
+	_invalidate_view_rect_cache()
 	save_profile()
 	view_zoom_changed.emit(_view_zoom_factor)
 
@@ -498,6 +523,7 @@ func view_zoom_factor() -> float:
 
 func set_view_zoom_factor(factor: float) -> void:
 	_view_zoom_factor = factor
+	_invalidate_view_rect_cache()
 
 
 # ---------------- 窗口大小 ----------------
@@ -578,16 +604,31 @@ func set_mouse_lock(enabled: bool) -> void:
 
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
 ## 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
+## 物理帧内缓存（P0-1）：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询。
 func view_world_rect(margin: float = 0.0) -> Rect2:
-	var center := Vector2(960.0, 540.0)
-	if camera_ref != null and is_instance_valid(camera_ref):
-		center = camera_ref.global_position
-	var size := Vector2(1920.0, 1080.0)
-	var viewport := get_viewport()
-	if viewport != null:
-		size = viewport.get_visible_rect().size
-	size /= _view_zoom_factor
-	return Rect2(center - size * 0.5, size).grow(margin)
+	if margin == 0.0:
+		return _cached_view_rect()
+	return _cached_view_rect().grow(margin)
+
+
+func _invalidate_view_rect_cache() -> void:
+	_view_rect_frame = -1
+
+
+func _cached_view_rect() -> Rect2:
+	var frame := Engine.get_physics_frames()
+	if frame != _view_rect_frame:
+		_view_rect_frame = frame
+		var center := Vector2(960.0, 540.0)
+		if camera_ref != null and is_instance_valid(camera_ref):
+			center = camera_ref.global_position
+		var size := Vector2(1920.0, 1080.0)
+		var viewport := get_viewport()
+		if viewport != null:
+			size = viewport.get_visible_rect().size
+		size /= _view_zoom_factor
+		_view_rect_cached = Rect2(center - size * 0.5, size)
+	return _view_rect_cached
 
 
 func add_kill() -> void:
@@ -624,8 +665,9 @@ func _recompute_difficulty() -> bool:
 
 
 ## 生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
+## P0-2：基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）
 func max_health() -> float:
-	return cfg("player.max_health", 100.0) + cfg("buffs.extra_life.max_hp_bonus", 50) * buff_count(&"extra_life")
+	return _max_hp_base + _max_hp_bonus * buff_count(&"extra_life")
 
 
 func lose_health(amount: float = 1.0) -> void:
@@ -783,7 +825,8 @@ func spend_rp(amount: int) -> bool:
 func _init_missions() -> void:
 	missions.clear()
 	for def in MISSION_DEFS:
-		missions[def["id"]] = {"progress": 0, "claimed": false}
+		# P0-3：goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_DEFS
+		missions[def["id"]] = {"progress": 0, "claimed": false, "goal": int(def["goal"])}
 
 
 ## C32 修复：公开任务重置口（仅清任务进度，不清 rp/buffs——比 reset_run 副作用小，
@@ -796,7 +839,10 @@ func _set_mission_progress(id: StringName, value: int) -> void:
 	if not missions.has(id):
 		return
 	var m: Dictionary = missions[id]
-	var goal := mission_goal(id)
+	# P0-3：survive_180 每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
+	if int(m["progress"]) == value:
+		return
+	var goal := int(m.get("goal", 0))
 	var was_done: bool = int(m["progress"]) >= goal
 	m["progress"] = value
 	if not was_done and value >= goal:
@@ -1019,6 +1065,7 @@ func load_profile() -> void:
 	if VIEW_ZOOM_LEVELS.has(saved_zoom):
 		view_zoom = saved_zoom
 		_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
+		_invalidate_view_rect_cache()
 	var saved_window := StringName(parsed.get("window_size", ""))
 	if WINDOW_SIZE_LEVELS.has(saved_window):
 		window_size = saved_window

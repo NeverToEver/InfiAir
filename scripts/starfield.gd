@@ -9,6 +9,11 @@ var NEAR_SPEED := 140.0
 
 var _far: Array[Vector2] = []
 var _near: Array[Vector2] = []
+## P1-4：预分配线段数组（draw_multiline 合批：每层 1 条指令替代逐星 draw_circle，
+## 星点以 1px 短线段 + 线宽呈现，视觉等价于原圆点；_process 原地写，零每帧分配）
+var _far_lines: PackedVector2Array = PackedVector2Array()
+var _near_lines: PackedVector2Array = PackedVector2Array()
+const LINE_LEN := 1.0
 ## 返航过场的星光拉伸倍率，随时间衰减回 1
 var warp_factor: float = 1.0
 ## C07 修复：可见世界区域尺寸缓存（view_world_rect），替代硬编码 1920×1080
@@ -33,23 +38,31 @@ func _ready() -> void:
 		_far.append(Vector2(rng.randf() * _area_size.x, rng.randf() * _area_size.y))
 	for i in NEAR_COUNT:
 		_near.append(Vector2(rng.randf() * _area_size.x, rng.randf() * _area_size.y))
+	# P1-4：线段数组一次性分配（每星 2 点：起点 + 1px 尾端）
+	_far_lines.resize(FAR_COUNT * 2)
+	_near_lines.resize(NEAR_COUNT * 2)
 
 
 func _process(delta: float) -> void:
 	warp_factor = lerpf(warp_factor, 1.0, 1.5 * delta)
 	for i in _far.size():
-		_far[i] += Vector2(0.0, FAR_SPEED * warp_factor * delta)
-		if _far[i].y > _area_size.y:
-			_far[i].y -= _area_size.y
+		var p: Vector2 = _far[i] + Vector2(0.0, FAR_SPEED * warp_factor * delta)
+		if p.y > _area_size.y:
+			p.y -= _area_size.y
+		_far[i] = p
+		_far_lines[i * 2] = p
+		_far_lines[i * 2 + 1] = p + Vector2(LINE_LEN, 0.0)
 	for i in _near.size():
-		_near[i] += Vector2(0.0, NEAR_SPEED * warp_factor * delta)
-		if _near[i].y > _area_size.y:
-			_near[i].y -= _area_size.y
+		var p: Vector2 = _near[i] + Vector2(0.0, NEAR_SPEED * warp_factor * delta)
+		if p.y > _area_size.y:
+			p.y -= _area_size.y
+		_near[i] = p
+		_near_lines[i * 2] = p
+		_near_lines[i * 2 + 1] = p + Vector2(LINE_LEN, 0.0)
 	queue_redraw()
 
 
 func _draw() -> void:
-	for s in _far:
-		draw_circle(s, 1.5, Color(0.7, 0.75, 0.9, 0.6))
-	for s in _near:
-		draw_circle(s, 2.5, Color(1.0, 1.0, 1.0, 0.9))
+	# P1-4：每层单条 draw_multiline 合批（230 条绘制指令 → 2 条）；线宽对应原圆直径
+	draw_multiline(_far_lines, Color(0.7, 0.75, 0.9, 0.6), 3.0)
+	draw_multiline(_near_lines, Color(1.0, 1.0, 1.0, 0.9), 5.0)

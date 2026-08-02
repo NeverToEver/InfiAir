@@ -29,6 +29,11 @@ extends Control
 @export var padding: float = 28.0
 
 var _fit_check_timer: float = 0.0
+## P2：切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配）
+var _cached_pts: PackedVector2Array = PackedVector2Array()
+var _cached_key_w: float = -1.0
+var _cached_key_h: float = -1.0
+var _cached_key_c: float = -1.0
 
 
 func _process(delta: float) -> void:
@@ -63,21 +68,26 @@ func _draw() -> void:
 	var h := size.y
 	if w < c * 2.0 or h < c * 2.0:
 		return
-	var pts := PackedVector2Array(
-		[
-			Vector2(c, 0),
-			Vector2(w - c, 0),
-			Vector2(w, c),
-			Vector2(w, h - c),
-			Vector2(w - c, h),
-			Vector2(c, h),
-			Vector2(0, h - c),
-			Vector2(0, c),
-		]
-	)
-	draw_colored_polygon(pts, bg_color)
-	for i in pts.size():
-		draw_line(pts[i], pts[(i + 1) % pts.size()], border_color, 2.0, true)
+	# P2：几何缓存——尺寸/chamfer 未变直接复用上次数组
+	if _cached_pts.size() == 0 or w != _cached_key_w or h != _cached_key_h or c != _cached_key_c:
+		_cached_pts = PackedVector2Array(
+			[
+				Vector2(c, 0),
+				Vector2(w - c, 0),
+				Vector2(w, c),
+				Vector2(w, h - c),
+				Vector2(w - c, h),
+				Vector2(c, h),
+				Vector2(0, h - c),
+				Vector2(0, c),
+			]
+		)
+		_cached_key_w = w
+		_cached_key_h = h
+		_cached_key_c = c
+	draw_colored_polygon(_cached_pts, bg_color)
+	for i in _cached_pts.size():
+		draw_line(_cached_pts[i], _cached_pts[(i + 1) % _cached_pts.size()], border_color, 2.0, true)
 	if brackets:
 		var b := 10.0
 		var inset := 3.0

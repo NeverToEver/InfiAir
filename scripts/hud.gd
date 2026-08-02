@@ -593,6 +593,8 @@ func _on_score_changed(new_score: int) -> void:
 
 
 var _last_hp_text: String = ""
+var _last_hp_int: int = -1  # P0-2：整数档位守卫，回血逐帧信号时跳过无变化格式化
+var _last_max_int: int = -1  # P0-2：上限整数守卫（extra_life 叠加改变 max_hp 时强制刷新）
 
 
 func _on_health_changed(new_health: float) -> void:
@@ -607,10 +609,16 @@ func _on_health_changed(new_health: float) -> void:
 	_last_hp_value = new_health
 	_hp_bar.value = clampf(new_health / max_hp, 0.0, 1.0) * 100.0
 	_hp_bar.fill_color = UITheme.DANGER if new_health / max_hp < 0.3 else UITheme.ACCENT
-	var text := "%d/%d" % [ceili(new_health), int(max_hp)]
-	if text != _last_hp_text:
-		_lives_label.text = text
-		_last_hp_text = text
+	# P0-2：回血每帧触发信号，仅整数档位/上限变化时才格式化（连续帧 HP 小数差异不刷新文本）
+	var hp_int := ceili(new_health)
+	var max_int := int(max_hp)
+	if hp_int != _last_hp_int or max_int != _last_max_int:
+		_last_hp_int = hp_int
+		_last_max_int = max_int
+		var text := "%d/%d" % [hp_int, max_int]
+		if text != _last_hp_text:
+			_lives_label.text = text
+			_last_hp_text = text
 
 
 func _on_difficulty_changed(_new_multiplier: float) -> void:
@@ -724,7 +732,7 @@ func _update_vignette(delta: float) -> void:
 	var max_hp := _cached_max_hp
 	if GameState.health > 0.0 and GameState.health < max_hp * LOW_HP_RATIO:
 		_pulse_time += delta
-		var s := (sin(_pulse_time * TAU / LOW_HP_PULSE_PERIOD) + 1.0) * 0.5
+		var s := (Enemy.sin_fast(_pulse_time * TAU / LOW_HP_PULSE_PERIOD) + 1.0) * 0.5
 		alpha = maxf(alpha, lerpf(LOW_HP_PULSE_MIN, LOW_HP_PULSE_MAX, s))
 	else:
 		_pulse_time = 0.0

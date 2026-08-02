@@ -11,7 +11,6 @@ signal boss_warning
 var _pending_timers: Array[Timer] = []
 var _pending_telegraphs: Array[Node2D] = []
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 
 ## 普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
@@ -472,15 +471,14 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special))
 
 
-## 预告计时结束后敌机实际进场
+## 预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）
 func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: StringName, x: float, anchor: float, special: bool) -> void:
-	var e := ENEMY_SCENE.instantiate() as Enemy
-	e.setup(config, strategy, GameState.difficulty_multiplier, btype)
-	e.position = Vector2(x, GameState.view_world_rect().position.y - 60.0)
+	var e := GameState.enemy_pool.spawn(
+		config, strategy, GameState.difficulty_multiplier, Vector2(x, GameState.view_world_rect().position.y - 60.0), btype
+	)
 	e.anchor_y = anchor
 	if special:
 		e.died.connect(_on_special_killed)
-	get_parent().add_child(e)
 
 
 ## 精英/Boss 击杀休整：追加 REST_WAVES_AFTER_KILL 个普通波才再出特殊槽

@@ -258,6 +258,9 @@ var _summon_timer: float = 6.0
 var _boss_size := Vector2(328.0, 328.0)  # 贴图有效尺寸（_ready 实测更新，算轨道半径）
 
 @onready var _sprite: Sprite2D = $Sprite2D
+## P1-2：受击闪白手动衰减（_physics_process 逐帧 lerp 回 _base_modulate，替代每命中新建 Tween）
+var _flash_timer: float = 0.0
+var _flash_total: float = 0.1
 
 
 func setup(p_difficulty: float, p_type: int) -> void:
@@ -636,6 +639,7 @@ func escape_remaining() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	_update_flash(delta)
 	if _summon_slow_timer > 0.0:
 		_summon_slow_timer -= delta
 	if _escaping:
@@ -854,12 +858,23 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 		_enter_phase(FightPhase.P2)
 
 
-## 受击闪白（锁血期复用）
+## 受击闪白（锁血期复用；P1-2 手动衰减替代 Tween，高频命中零分配）
 func _flash_hit() -> void:
 	_sprite.modulate = Color(2.0, 2.0, 2.0)
-	var tween := create_tween()
 	# 游击型受击硬直（闪白）更短
-	tween.tween_property(_sprite, "modulate", _base_modulate(), 0.05 if boss_type == 2 else 0.1)
+	_flash_total = 0.05 if boss_type == 2 else 0.1
+	_flash_timer = _flash_total
+
+
+## P1-2：受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）
+func _update_flash(delta: float) -> void:
+	if _flash_timer <= 0.0:
+		return
+	_flash_timer -= delta
+	if _flash_timer <= 0.0:
+		_sprite.modulate = _base_modulate()
+	else:
+		_sprite.modulate = _sprite.modulate.lerp(_base_modulate(), delta / _flash_total)
 
 
 ## 身体撞击（对齐原作 boss_vs_player.py 逐帧轮询）：入场降入与逃跑离场阶段不判定；

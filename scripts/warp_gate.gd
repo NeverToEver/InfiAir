@@ -128,7 +128,7 @@ func _process(delta: float) -> void:
 				_t = 0.0
 		Phase.HOLD:
 			# 保持期：呼吸脉动 + 弧段旋转
-			_layout(1.0 + 0.04 * sin(_t * 6.0), 1.0)
+			_layout(1.0 + 0.04 * Enemy.sin_fast(_t * 6.0), 1.0)
 			if _t >= HOLD_MAX:
 				close()
 		Phase.CLOSING:

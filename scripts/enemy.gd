@@ -241,6 +241,9 @@ func _ready() -> void:
 	_tail_glow.show_behind_parent = true
 	add_child(_tail_glow)
 	_update_tail_glow()
+	# P1-6：击杀/精英击杀震动强度一次性缓存（热路径禁 cfg）
+	_shake_die_normal = float(GameState.cfg("effects.shake.enemy_die", _shake_die_normal))
+	_shake_die_elite = float(GameState.cfg("effects.shake.elite_die", _shake_die_elite))
 
 
 ## A4a：按 strategy 构建移动策略实例（共享悬停常量从 balance 缓存值注入，行为逐字节等价）
@@ -305,7 +308,12 @@ func _check_body_collision() -> void:
 
 
 ## 池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）
-func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float) -> void:
+func reactivate(
+	config: Dictionary,
+	p_strategy: StringName,
+	p_difficulty: float,
+	p_bullet_type: StringName = &"",
+) -> void:
 	_active = true
 	_time = 0.0
 	_hovering = false
@@ -319,8 +327,9 @@ func reactivate(config: Dictionary, p_strategy: StringName, p_difficulty: float)
 	monitoring = true
 	set_physics_process(true)
 	_sprite.modulate = Color.WHITE
+	_flash_timer = 0.0  # P1-2：闪白计时复位（池化复用）
 	GameState.register_enemy(self)
-	setup(config, p_strategy, p_difficulty)
+	setup(config, p_strategy, p_difficulty, p_bullet_type)
 	_update_tail_glow()
 	_spawn_x = position.x
 	_phase = randf() * TAU
@@ -366,6 +375,7 @@ func _exit_tree() -> void:
 
 func _physics_process(delta: float) -> void:
 	_time += delta
+	_update_flash(delta)
 	if _exiting:
 		# 寿命离场：向上或侧方加速，离场不给分、不计击杀
 		_exit_speed += EXIT_ACCEL * delta
@@ -486,6 +496,12 @@ func apply_slow(duration: float, factor: float) -> void:
 
 
 var _score_scale: float = 1.0
+## P1-2：受击闪白手动衰减计时（替代每命中新建 Tween；_physics_process 逐帧 lerp 回本色）
+var _flash_timer: float = 0.0
+const FLASH_TIME := 0.1
+## P1-6：击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）
+var _shake_die_normal := 5.0
+var _shake_die_elite := 9.0
 
 
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
@@ -494,10 +510,20 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 	hp -= amount
 	_score_scale = score_scale
 	_sprite.modulate = Color(2.0, 2.0, 2.0)  # 受击闪白
-	var tween := create_tween()
-	tween.tween_property(_sprite, "modulate", Color.WHITE, 0.1)
+	_flash_timer = FLASH_TIME
 	if hp <= 0:
 		die()
+
+
+## P1-2：受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）
+func _update_flash(delta: float) -> void:
+	if _flash_timer <= 0.0:
+		return
+	_flash_timer -= delta
+	if _flash_timer <= 0.0:
+		_sprite.modulate = Color.WHITE
+	else:
+		_sprite.modulate = _sprite.modulate.lerp(Color.WHITE, delta / FLASH_TIME)
 
 
 func die() -> void:
@@ -507,7 +533,7 @@ func die() -> void:
 	# 吸血 buff：击毁回复 10% 生命上限（每帧至多一次，对齐原作 LIFESTEAL_FRACTION）
 	GameState.try_lifesteal()
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
-	GameState.shake(GameState.cfg("effects.shake.elite_die", 9.0) if is_elite else GameState.cfg("effects.shake.enemy_die", 5.0))
+	GameState.shake(_shake_die_elite if is_elite else _shake_die_normal)
 	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
 	died.emit(self)
 	_despawn()

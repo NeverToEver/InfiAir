@@ -79,12 +79,14 @@ func _process(delta: float) -> void:
 	if not _panel.visible:
 		return
 	if _hold_left < 0.0:
-		# 打字机
+		# 打字机（P2：字符数未变时不 set_text，避免逐帧字形 shaping）
+		var prev := _shown_chars
 		_char_t += delta
 		while _char_t >= CHAR_INTERVAL and _shown_chars < _full_text.length():
 			_char_t -= CHAR_INTERVAL
 			_shown_chars += 1
-		_label.text = _full_text.left(_shown_chars)
+		if _shown_chars != prev:
+			_label.text = _full_text.left(_shown_chars)
 		if _shown_chars >= _full_text.length():
 			_hold_left = HOLD_TIME
 	else:

@@ -25,7 +25,13 @@ func free_count() -> int:
 	return _free.size()
 
 
-func spawn(config: Dictionary, strategy: StringName, p_difficulty: float, pos: Vector2) -> Enemy:
+func spawn(
+	config: Dictionary,
+	strategy: StringName,
+	p_difficulty: float,
+	pos: Vector2,
+	p_bullet_type: StringName = &"",
+) -> Enemy:
 	var e: Enemy = null
 	if USE_POOL:
 		while not _free.is_empty():
@@ -40,7 +46,7 @@ func spawn(config: Dictionary, strategy: StringName, p_difficulty: float, pos: V
 	elif e.get_parent() != get_parent():
 		e.reparent(get_parent())
 	e.position = pos
-	e.reactivate(config, strategy, p_difficulty)
+	e.reactivate(config, strategy, p_difficulty, p_bullet_type)
 	return e
 
 

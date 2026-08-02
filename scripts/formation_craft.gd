@@ -13,6 +13,11 @@ var max_hp: int = 60
 var hp: int = 60
 
 var _sprite: Sprite2D
+## P1-2：受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）
+var _flash_timer: float = 0.0
+const FLASH_TIME := 0.1
+## P1-6：击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）
+var _shake_die := 5.0
 
 
 ## setup() 在入树/_ready() 之前调用
@@ -38,6 +43,19 @@ func _init() -> void:
 func _ready() -> void:
 	add_to_group("enemy")
 	GameState.register_enemy(self)
+	# P1-6：击杀震动强度缓存
+	_shake_die = float(GameState.cfg("effects.shake.enemy_die", _shake_die))
+
+
+## P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白）
+func _physics_process(delta: float) -> void:
+	if _flash_timer <= 0.0:
+		return
+	_flash_timer -= delta
+	if _flash_timer <= 0.0:
+		_sprite.modulate = Color.WHITE
+	else:
+		_sprite.modulate = _sprite.modulate.lerp(Color.WHITE, delta / FLASH_TIME)
 
 
 func _exit_tree() -> void:
@@ -49,15 +67,14 @@ func take_damage(amount: int, _score_scale: float = 1.0) -> void:
 		return
 	hp -= amount
 	_sprite.modulate = Color(2.0, 2.0, 2.0)  # 受击闪白
-	var tween := create_tween()
-	tween.tween_property(_sprite, "modulate", Color.WHITE, 0.1)
+	_flash_timer = FLASH_TIME
 	if hp <= 0:
 		die()
 
 
 func die() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
-	GameState.shake(GameState.cfg("effects.shake.enemy_die", 5.0))
+	GameState.shake(_shake_die)
 	Explosion.spawn_at(get_parent(), global_position, 1.0)
 	died.emit(self)
 	queue_free()

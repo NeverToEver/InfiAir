@@ -24,6 +24,11 @@ var _falloff_peak := 400.0
 var _falloff_end := 1400.0
 var _falloff_min := 0.3
 var _hover: Enemy = null  # 本帧准星入框的标记敌（高亮显示用）
+## P1-3：marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧同点各调一次，
+## 命中缓存免重复 O(enemies) 扫描；point 变化即失效）
+var _target_cache_frame: int = -1
+var _target_cache_point: Vector2 = Vector2.INF
+var _target_cache_result: Enemy = null
 
 
 func _ready() -> void:
@@ -85,7 +90,11 @@ func frame_half_size(e: Enemy) -> float:
 
 
 ## 世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null
+## P1-3：同渲染帧同点缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致）
 func marked_target_at(point: Vector2) -> Enemy:
+	var frame := Engine.get_process_frames()
+	if frame == _target_cache_frame and point == _target_cache_point:
+		return _target_cache_result
 	var best: Enemy = null
 	var best_sq := INF
 	for node in GameState.enemies:
@@ -100,6 +109,9 @@ func marked_target_at(point: Vector2) -> Enemy:
 		if d_sq < best_sq:
 			best_sq = d_sq
 			best = e
+	_target_cache_frame = frame
+	_target_cache_point = point
+	_target_cache_result = best
 	return best
 
 
@@ -168,7 +180,7 @@ func _dist_falloff(d: float) -> float:
 
 
 func _draw() -> void:
-	var flicker := 0.55 + 0.35 * sin(Time.get_ticks_msec() / 1000.0 * 4.0)
+	var flicker := 0.55 + 0.35 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 4.0)
 	for node in GameState.enemies:
 		var e := node as Enemy
 		if e == null or not e.aim_marked:

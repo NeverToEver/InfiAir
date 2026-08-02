@@ -3,6 +3,10 @@ extends Node2D
 ## 敌机入场预告：可见区域顶部对应 x 位置的红色竖线 + 箭头，闪烁淡出后自毁。
 
 const DURATION := 0.6
+## P2：箭头三角几何静态复用（替代每帧构造 PackedVector2Array）
+static var _arrow_triangle := PackedVector2Array(
+	[Vector2(-8.0, 70.0), Vector2(8.0, 70.0), Vector2(0.0, 86.0)]
+)
 
 var _t: float = 0.0
 
@@ -20,9 +24,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var alpha := 0.8 * (1.0 - _t / DURATION) * (0.6 + 0.4 * sin(_t * 30.0))
+	var alpha := 0.8 * (1.0 - _t / DURATION) * (0.6 + 0.4 * Enemy.sin_fast(_t * 30.0))
 	var color := Color(1.0, 0.2, 0.2, alpha)
 	draw_rect(Rect2(-2.0, 0.0, 4.0, 70.0), color)
-	draw_colored_polygon(
-		PackedVector2Array([Vector2(-8.0, 70.0), Vector2(8.0, 70.0), Vector2(0.0, 86.0)]), color
-	)
+	draw_colored_polygon(_arrow_triangle, color)

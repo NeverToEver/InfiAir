@@ -112,14 +112,14 @@ func _process(_delta: float) -> void:
 	# 仅 refresh() 判定有脉动件可见时才启用处理；动画全部按时间正弦，无每帧分配
 	var t := Time.get_ticks_msec() / 1000.0
 	if _regen_ring.visible:
-		_regen_ring.modulate.a = 0.2 + 0.35 * absf(sin(t * 2.0))
+		_regen_ring.modulate.a = 0.2 + 0.35 * absf(Enemy.sin_fast(t * 2.0))
 	if _evasion_ghost.visible:
-		_evasion_ghost.modulate.a = 0.1 + 0.18 * absf(sin(t * 3.0))
+		_evasion_ghost.modulate.a = 0.1 + 0.18 * absf(Enemy.sin_fast(t * 3.0))
 	if _beacon.visible:
-		_beacon.modulate.a = 1.0 if sin(t * 6.0) > 0.0 else 0.15
+		_beacon.modulate.a = 1.0 if Enemy.sin_fast(t * 6.0) > 0.0 else 0.15
 	if _slow_ring.visible:
 		# 软力场环允许节点缩放脉动（线宽 2→2.5 的失真在半透明环上不可辨）
-		var k := 1.0 + 0.22 * (0.5 + 0.5 * sin(t * 1.5))
+		var k := 1.0 + 0.22 * (0.5 + 0.5 * Enemy.sin_fast(t * 1.5))
 		_slow_ring.scale = Vector2(k, k)
 
 
