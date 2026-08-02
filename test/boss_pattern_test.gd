@@ -106,8 +106,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
-	player.set_invincible(999.0  )# 弹幕/掠过期间不被误伤
+	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
+	player.set_invincible(999.0)  # 弹幕/掠过期间不被误伤
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -289,11 +289,14 @@ func _ready() -> void:
 	var boss4: Boss = await _spawn_test_boss(3)
 	_check(boss4 != null, "场景4：Boss 已生成")
 	boss4.VOLLEY_DELAY = 0.4
-	boss4.set_summon_timer(999.0  )# 屏蔽常规召唤，保持计数纯净
-	_force_p2_patterns(boss4, [
-		{"attack": &"minion_volley", "waves": 1, "interval": 1.0},
-		{"attack": &"bullet_wall", "waves": 1, "interval": 0.8},
-	])
+	boss4.set_summon_timer(999.0)  # 屏蔽常规召唤，保持计数纯净
+	_force_p2_patterns(
+		boss4,
+		[
+			{"attack": &"minion_volley", "waves": 1, "interval": 1.0},
+			{"attack": &"bullet_wall", "waves": 1, "interval": 0.8},
+		]
+	)
 	var volley_row := false
 	for i in 40:
 		await _wait_real(0.05)
@@ -352,10 +355,7 @@ func _ready() -> void:
 		for i in 10:
 			if not filled[i]:
 				missing.append(i)
-		_check(
-			missing.size() == 2 and missing[1] == missing[0] + 1,
-			"场景4：缺口为 2 个相邻槽位（实测缺失槽 %s）" % str(missing)
-		)
+		_check(missing.size() == 2 and missing[1] == missing[0] + 1, "场景4：缺口为 2 个相邻槽位（实测缺失槽 %s）" % str(missing))
 		var gap_far := true
 		for m in missing:
 			var slot_a: float = first_slot + spacing * float(m)
@@ -446,7 +446,7 @@ func _ready() -> void:
 	var p2_interval_e: float = boss6e.patterns()["p2"][0]["interval"]
 	_check(absf(p2_interval_e - 2.4 * 1.15) < 0.01, "场景6：easy 开火间隔 ×1.15（实测 %.3f）" % p2_interval_e)
 	_check(absf(boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, "场景6：easy 弹速 ×0.9（实测 %.1f）" % boss6e.FAN_BULLET_SPEED)
-	var hp_e: int = boss6e.max_hp
+	var hp_e: int = int(boss6e.max_hp)  # 显式 int()：max_hp 为 float（narrowing_conversion=2 门禁），HP 数值语义为整数
 	boss6e.queue_free()
 	await get_tree().process_frame
 

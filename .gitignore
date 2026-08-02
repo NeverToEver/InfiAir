@@ -28,3 +28,6 @@ kimi-export-session_*.md
 # 数值管理器本地备份与 Python 缓存
 data/balance.json.bak
 __pycache__/
+
+# 本地静态检查工具虚拟环境（gdtoolkit：gdlint/gdformat，按 docs/TESTING.md 安装）
+.venv/

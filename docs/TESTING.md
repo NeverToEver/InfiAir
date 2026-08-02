@@ -111,7 +111,7 @@ godot --headless --path . res://test/smoke_test.tscn
 # 5. 全量断言：31 个场景逐个跑（排除 autoplay_test 长时探针），任一 FAIL 退出码非零
 ```
 
-- **工具安装**（一次性）：`python3 -m venv /tmp/gdvenv && /tmp/gdvenv/bin/pip install gdtoolkit`，之后用 `/tmp/gdvenv/bin/gdformat` / `gdlint`。
+- **工具安装**（一次性，装于项目内 `.venv/`，已被 `.gitignore` 排除不入库；复用 pip 本地 wheel 缓存无需重复下载）：`python3 -m venv .venv && .venv/bin/pip install gdtoolkit`，之后用 `.venv/bin/gdformat` / `.venv/bin/gdlint`。
 - **规则取舍**：`gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` 段的取舍依据见各自文件内注释与 `docs/AUDIT_VAULT.md`「GDScript 引擎警告分层」；新增禁用/放宽规则须同步这三处配置与 `AGENTS.md`。
 - **三层分工**：gdformat（格式）→ gdlint（风格）→ 引擎警告（编译期暗病）→ import/冒烟（编译+启动）→ 断言场景（运行时行为）。
 

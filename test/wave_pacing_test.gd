@@ -28,13 +28,12 @@ func _ready() -> void:
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
-	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
 	var start_panel: CanvasLayer = get_node("Main/StartPanel")
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 禁用自动开火，避免误伤与意外得分里程碑
+	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -125,8 +124,7 @@ func _ready() -> void:
 		for e in _enemies():
 			if e.is_elite:
 				elite_seen = true
-	_check(gap >= spawner.SPECIAL_GAP_MIN and gap <= spawner.SPECIAL_GAP_MAX,
-		"精英节奏：%d 个普通波后出精英波" % gap)
+	_check(gap >= spawner.SPECIAL_GAP_MIN and gap <= spawner.SPECIAL_GAP_MAX, "精英节奏：%d 个普通波后出精英波" % gap)
 	_check(elite_seen, "精英波产出精英敌机")
 	_check(spawner.waves_since_special() == 0, "精英波后特殊槽计数归零")
 	for e in _enemies():
