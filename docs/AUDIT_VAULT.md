@@ -551,3 +551,57 @@
 > **F02 核查注记（2026-08-02，warp 是否导致准星抖动）**：结论——**不会**。warp 目标恒取 `_last_known_pos`（出框前最后窗口内位置，移出后冻结），位移 ≤1-2px；鼠标在窗口外时 `get_global_mouse_position()` 本就冻结在最后内部位置，warp 后读值连续，`aim_point()` 平滑增量 ≈0。warp 反而把"移回窗口时的数十 px 位置跳变"钳在边缘内侧。边界仅左/上缘第 0 列/行触发单次 1px 回拉（右/下缘最后列在 clamp 范围内不触发）。验证：mouse_lock_test 新增 2 项「warp 位移 ≤2px」断言（25 项全绿 0 FAIL）。
 
 > 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / mouse_lock_test 23 断言 0 FAIL / smoke_test 0 FAIL。
+
+# 第五轮审核（2026-08-02 核心逻辑全量代码审查）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 核心逻辑实现代码审核（现代流行标准 + 项目约定），4 分区并行 + 主控 P1 亲验 |
+| 工作时间 | 2026-08-02 |
+| 审核区域 | 对局编排/状态（main/game_state/spawner/tutorial）、玩家系统（player/player_damage/player_dash/aim_crosshair/aim_frame_layer）、战斗实体（enemy/boss/bullet/laser_weapon/explosion）、服务与对象池（balance_service/save_manager/sfx_player/entity_registry/bullet_pool/enemy_pool/mothership），17 文件约 6900 行 |
+| 审核方法 | 分区通读 + 跨文件依赖追踪 + P1 证据亲验（读源码确证） |
+| 结论 | 2 项 P1、9 项 P2、21 项 P3；整体质量高，未见协程违规/信号重连/池防护缺失 |
+| 审核人 | Kimi Code（依据用户指示执行） |
+
+### G 系列（2026-08-02 核心逻辑全量审查，只登记未修复）
+
+> 完整报告（范围/规则/证据/修复优先级）见 `docs/2026-08-02-core-logic-audit.md`。判定建议供后续决策。
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
+| --- | --- | --- | --- | --- | --- |
+| G01 | P1 | `spawner.gd:501-506,563-572` | 纯bug（整局瘫痪） | Boss 预警 2s 窗口内返航：`clear_pending()` 只停 Timer 不复位 `_boss_active`，无其他复位路径 → continue 后波次/Boss/事件三守卫永久冻结，整局空转；注释"之后按门控再触发属预期"与实际不符（D01 口径不成立） | **修** |
+| G02 | P1 | `boss.gd:828`/`laser_weapon.gd:152-158`/`bullet.gd:250-257` | 纯bug（奖励失真） | Boss 逃跑期 `_begin_escape` 只置碰撞层 0 挡 Area2D 路径；激光 `_damage_tick`/溅射 `_splash` 按注册表+距离绕碰撞层 → 逃跑窗口内补刀致死 → `add_boss_kill` 加分/升难度，与 :905 注释及 `fire_enrage_snapshot` 同款 `_escaping` 防护模式矛盾 | **修** |
+| G03 | P1 | `tutorial.gd:97`/`start_panel.gd:244-247,282-288` | 玩家有损（E02 补全） | 教程 `_ready` 无条件 `delete_save()`；E02 守卫只拦 `tutorial_done`，漏「有存档且未通关教程」→ 点教程按钮静默删进行中存档 | **修** |
+| G04 | P2 | `game_state.gd:706-716` | 逻辑bug | `rebind_action` 冲突清理只扫 `key_bindings` 不扫 `_default_bindings`：未自定义动作的默认键被改绑后与另一动作同键冲突 | **修** |
+| G05 | P2 | `tutorial.gd:310-311` | 热路径性能 | 阶段 2 每物理帧 `max_health()` ×2（内部 2 次 cfg + split 分配） | **修**（_ready 缓存） |
+| G06 | P2 | `spawner.gd:160-161,178-185` | 健壮性 | `_apply_balance` 嵌套结构（hover_band/types）无判型，手改 JSON 结构损坏时越界崩溃，与 C03/E03 回退口径不一致 | **修** |
+| G07 | P2 | `aim_frame_layer.gd:74-80` | 池化复用失配 | `frame_half_size` 首调缓存碰撞半径进 meta，池化实例被不同半径机型复用则框尺寸/入框判定过期（当前唯一池化路径恒同半径未触发） | 待判定 |
+| G08 | P2 | `boss.gd:640` | 项目约定 | 逃跑离场 `position.y < -280.0` 硬编码，违反 view_world_rect 约定（enemy 已相对化） | **修** |
+| G09 | P2 | `bullet.gd:60`/`balance_service.gd:57` | 热路径性能 | 每发敌弹创建时 `enemy_damage_ramp()` JSON 查询（split+遍历），弹幕压力每秒 30+ 次 | **修**（启动缓存） |
+| G010 | P2 | `bullet.gd:197`/`entity_registry.gd:12` | 性能 | `GameState.enemies.has()` 每追踪弹每帧 O(N) 线性扫描 | 待判定 |
+| G011 | P2 | `mothership.gd:670-676`/`main.gd:665` | UI 残留（E05 补全） | 返航提前 `queue_free` 母舰不清 HUD 提前离舰进度条（`set_early_leave_charge(-1.0)` 唯一隐藏入口） | **修** |
+| G012 | P3 | `game_state.gd:595` | 魔法数字 | `add_boss_kill` 加分基准 500.0 硬编码未入 balance | 修 |
+| G013 | P3 | `game_state.gd:900-906` | 边界条件 | `apply_run_save` 恢复 buffs 层数无钳制，手改存档可溢出放大 max_health | 修 |
+| G014 | P3 | `tutorial.gd:156,179,204,220` | 一致性 | 教程 4 处硬编码世界坐标（960/600/300），D10 未同步 | 修 |
+| G015 | P3 | `tutorial.gd:320,329` | 性能 | 蓄力期间每物理帧 tr()+Label 赋值，超 HUD 0.1s 节流约定 | 修 |
+| G016 | P3 | `aim_frame_layer.gd:41-43` | 信号清理 | `_exit_tree` 未显式断开 `aim_assist_changed`（C22 模式对照） | 修 |
+| G017 | P3 | `aim_crosshair.gd:48`/`aim_frame_layer.gd:172` | 性能 | `_draw` 每帧直接 `sin()`（未走 sin_fast 查表） | 不修 |
+| G018 | P3 | `player.gd:368-373`/`aim_frame_layer.gd:163-168` | 重复代码 | 距离衰减分段函数双实现（`aim_dist_falloff`/`_dist_falloff`），改一侧忘另一侧破坏一致性 | 待判定 |
+| G019 | P3 | `player.gd:481-484` | 边界条件 | `movement_locked` 直接 `_dashing=false` 中断冲刺，dash_timer 残留/冷却燃料不返还 | 待判定 |
+| G020 | P3 | `laser_weapon.gd:136-137,147` | 防御性缺口 | `_start_beam` 无条件覆写 `_saved_autofire`（当前不可达，E08 同类） | 待判定 |
+| G021 | P3 | `laser_weapon.gd:96` | 死代码 | `_aim_dir(_start)` 参数未使用 | 修 |
+| G022 | P3 | `explosion.gd:24`/`enemy.gd:237` | 性能 | `spawn_at` 每次 cfg 查询；Enemy 每机新建相同 material | 修 |
+| G023 | P3 | `explosion.gd:59-61` | 生命周期 | parent 无效时对已随父销毁的 timer 调 queue_free（UAF 危险行，分支不可达） | 待判定 |
+| G024 | P3 | `boss.gd:255,705` | 魔法数字 | 三型普通阶段召唤间隔 6.0 硬编码，无 balance 键 | 修 |
+| G025 | P3 | 多文件（enemy/bullet/boss/boss_movement/boss_attacks） | 热路径性能 | 每实体每帧重复 `view_world_rect()`（~130 次/帧） | 待判定 |
+| G026 | P3 | `enemy.gd:430`/`boss_fire.gd:19` | 边界条件 | 射手与玩家圆心重合时零向量弹方向，子弹永不销毁 | 待判定 |
+| G027 | P3 | `mothership.gd:543,577` | 热路径性能 | `_live_targets` 空目标分支每帧分配数组+全表扫描（C28 口径仅在有目标时成立） | 修 |
+| G028 | P3 | `sfx_player.gd:25-26` | 防御性 | `play()` 无池空守卫（build_pool 未调用时越界/除零） | 修 |
+| G029 | P3 | `balance_service.gd:36-39` | 类型健壮性 | `cfg()` 数值分支原样返回 JSON 节点，手改 int 字段漂 float（与 C18 显式转换不一致） | 修 |
+| G030 | P3 | `mothership.gd:588` | 命名一致性 | 导弹复用 `GATLING_SCORE_SCALE` 得分系数，语义混用 | 修 |
+| G031 | P3 | `mothership.gd:182-184` | 资源共享 | 双炮塔共享 ParticleProcessMaterial 写 scale（幂等同值安全，E14 同族） | 不修（注明安全） |
+| G032 | P3 | `mothership.gd:168-170`/`mothership.tscn:22` | 注释不符 | 脚本注释"tscn 存 1.0 基准"，tscn 实际 1.25 且脚本硬编码 1.25*ws | 修 |
+
+> 修复后回归口径：修复批次落地后按 `docs/2026-08-02-core-logic-audit.md` 优先级执行，逐条回填本表「修复起效记录」。
