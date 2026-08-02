@@ -630,7 +630,7 @@
 | G016 | ✅ 已修复 | `aim_frame_layer._exit_tree` 显式断开 `aim_assist_changed`（对齐 player C22 模式）。验证：smoke 0 FAIL |
 | G017 | 🟦 不修 | `_draw` 每帧 1 次 sin() 量级可忽略（非热路径瓶颈） |
 | G018 | ✅ 已修复 | 距离衰减抽 `Player.dist_falloff_curve` 静态单实现（player/aim_frame_layer 共用，改一侧不再破坏另一侧）。验证：smoke/buff33 0 FAIL |
-| G019 | 🟦 登记不修 | 锁定期（Boss 狂暴）冻结移动/冲刺为既有设计语义（「controls_locked」对齐原作），非缺陷 |
+| G019 | 🟦 登记不修 | `movement_locked` 冻结移动/冲刺为**死字段路径**（全项目无任何写 true 的代码，恒 false、不可达）；狂暴期移动约束由 `apply_enrage_slow` ×0.35 减速实现。2026-08-02 口径修正：狂暴设计独立演进（BOSS_REDESIGN §4.3），不再归因「对齐原作 controls_locked」 |
 | G020 | ✅ 已修复 | `_start_beam` 仅非激活时记录 `_saved_autofire`（防御性，当前 _active 门闩下不可达）。验证：buff33 0 FAIL |
 | G021 | ✅ 已修复 | `_aim_dir` 删未使用参数（防误导调用方）。验证：buff33 0 FAIL |
 | G022 | ✅ 已修复 | 爆炸视觉比例静态缓存 + `CinematicFx.additive_material` 材质静态共享（N 机 N 份→1 份）。验证：enemy_combat/smoke 0 FAIL |

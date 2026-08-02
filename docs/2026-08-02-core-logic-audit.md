@@ -34,7 +34,7 @@
 | G016 | P3 | `aim_frame_layer.gd:41-43` | 信号清理 | `_exit_tree` 未像 player.gd（C22 模式）显式断开 `aim_assist_changed`，节点未 free 重新入树会重复连接（当前靠 free 自动清理未触发） | 修 |
 | G017 | P3 | `aim_crosshair.gd:48` / `aim_frame_layer.gd:172` | 性能 | `_draw` 每渲染帧直接 `sin()`（脉冲/频闪），项目约定热路径用 `sin_fast` 查表 | 不修（每帧各 1 次量级可忽略） |
 | G018 | P3 | `player.gd:368-373` vs `aim_frame_layer.gd:163-168` | 重复代码 | 同形状「峰值-末端-下限」分段距离衰减双实现（`Player.aim_dist_falloff` / `AimFrameLayer._dist_falloff`），改一侧忘另一侧破坏一致性 | 待判定（可抽公共函数） |
-| G019 | P3 | `player.gd:481-484` | 边界条件 | `movement_locked` 时直接 `_dashing = false` 中断进行中冲刺，dash_timer 残留、冷却/燃料不返还（Boss 狂暴锁在冲刺中触发时冲刺被吞） | 待判定（或为设计决策） |
+| G019 | P3 | `player.gd:481-484` | 边界条件（死字段） | `movement_locked` 时直接 `_dashing = false` 中断冲刺（复核：全项目无任何写 true 的路径，恒 false 不可达；狂暴期移动约束由 `apply_enrage_slow` ×0.35 减速实现——2026-08-02 口径：狂暴独立演进，非原作对齐） | 登记不修 |
 | G020 | P3 | `laser_weapon.gd:136-137,147` | 防御性缺口 | `_start_beam` 无条件覆写 `_saved_autofire`：若 autofire 已 false 期间二次进入（当前不可达——`_active` 门闩+cooldown），二次保存 false → 恢复后 autofire 永久关闭 | 待判定（E08 同类不可达缺口） |
 | G021 | P3 | `laser_weapon.gd:96` | 死代码 | `_aim_dir(_start)` 参数 `_start` 声明未使用，误导调用方 | 修（删参数） |
 | G022 | P3 | `explosion.gd:24` + `enemy.gd:237` | 性能 | `spawn_at` 每次爆炸 `cfg("effects.explosion_visual_scale")` JSON 查询（中频）；`Enemy._ready` 每机新建 CanvasItemMaterial（`soft_texture()` 已共享、material 未共享） | 修（低风险优化） |
