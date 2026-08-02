@@ -176,6 +176,15 @@ func _ready() -> void:
 	GameState.tutorial_done = false
 	GameState.save_profile()
 
+	# ---------- 8b. G03：有进行中存档（未通关）时教程按钮禁用（E02 漏网路径） ----------
+	GameState.delete_save()
+	GameState.save_run(50.0, 10.0)
+	start_panel2.show_panel()
+	await get_tree().process_frame
+	_check(start_panel2.tutorial_button().disabled, "G03：有存档（未通关）时教程按钮禁用")
+	start_panel2.dismiss()
+	GameState.delete_save()
+
 	_cleanup()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)

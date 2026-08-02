@@ -826,6 +826,10 @@ func _abort_enrage_sequence() -> void:
 ## 任何伤害不掉血不死；RELEASE_HOLD 解锁后正常扣血可击杀。
 ## 阶段框架（§4.1）：同阈值驱动 P1→P2（70%）；一击跨两段时狂暴优先（锁血语义不变）。
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
+	if _escaping:
+		return  # G02：逃跑期不再受任何伤害——激光 _damage_tick/溅射 _splash 按注册表+距离判定
+		# 绕开 collision_layer=0，此处统一拦截，防逃跑窗口内补刀致死触发击杀奖励（与
+		# fire_enrage_snapshot/_fire_enrage_release 的 _escaping 防护同模式）
 	if hp <= 0.0:
 		return  # 已死亡待释放（同帧多发命中防重复结算）
 	if _enrage_seq.is_health_locked():

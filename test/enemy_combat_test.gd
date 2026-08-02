@@ -221,6 +221,10 @@ func _ready() -> void:
 	boss.set_survival(boss.ESCAPE_TIME - 0.05  )# 距逃跑 0.05s
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
+	# G02：逃跑期 take_damage 必须无效（激光/溅射按注册表+距离判定绕碰撞层，防补刀致奖励失真）
+	var hp_after_escape := boss.hp
+	boss.take_damage(1000, 1.0)
+	_check(boss.hp == hp_after_escape, "G02：逃跑期 take_damage 无效（防补刀致死触发击杀奖励）")
 	await get_tree().create_timer(2.5).timeout
 	_check(escaped_flag[0], "Boss 离场发出 escaped 信号")
 	_check(not spawner.is_boss_active(), "Boss 逃跑解除波次/事件占用（可再触发）")

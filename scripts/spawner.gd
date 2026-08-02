@@ -558,9 +558,11 @@ func _on_pending_timer_fired(timer: Timer) -> void:
 	timer.queue_free()
 
 
-## 清空排队回调与入场预告线（D01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
-## 未入场的 Boss 预警随之取消，之后按分数/时间门控再触发，属预期。
+## 清空排队回调与入场预告线（D01/G01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
+## 未入场的 Boss 预警随之取消：必须同时复位 _boss_active，否则波次/Boss/事件三守卫被永久
+## 冻结（continue 后整局空转无怪无 Boss）；复位后按分数/时间门控再触发，属预期。
 func clear_pending() -> void:
+	_boss_active = false  # G01：预警 2s 窗口内取消须解除占用（_spawn_boss 未执行则无 died/escaped 复位路径）
 	for timer in _pending_timers:
 		if is_instance_valid(timer):
 			timer.stop()

@@ -352,6 +352,18 @@ func _ready() -> void:
 	spawner.set_boss_timer(0.0)
 	GameState.score = 0
 
+	# ---------- 8b. G01：Boss 预警 2s 窗口内 clear_pending（返航）必须解除占用 ----------
+	spawner.set_boss_timer(spawner.BOSS_MIN_INTERVAL + 1.0)
+	spawner.trigger_boss()
+	_check(spawner.is_boss_active(), "G01：Boss 预警中占用波次/Boss/事件槽")
+	spawner.clear_pending()
+	_check(not spawner.is_boss_active(), "G01：预警取消（返航）解除占用——continue 后 Boss 门可再触发")
+	for c in spawner.get_children():
+		if c is Timer:
+			c.queue_free()
+	spawner.set_boss_active(false)
+	spawner.set_boss_timer(0.0)
+
 	print("DIFFICULTY TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.difficulty = &"medium"
