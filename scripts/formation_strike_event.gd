@@ -146,6 +146,7 @@ func start() -> void:
 	_offsets.append(Vector2.ZERO)
 	for i in range(1, count):
 		var side := -1.0 if i % 2 == 1 else 1.0
+		@warning_ignore("integer_division")
 		var step := float((i + 1) / 2)
 		_offsets.append(Vector2(side * WING_STEP * step, WING_STEP * step))
 	for i in count:

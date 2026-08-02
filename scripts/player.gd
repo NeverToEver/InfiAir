@@ -116,11 +116,13 @@ var _invincible: float = 0.0:
 		return _damage.invincible
 	set(value):
 		_damage.invincible = value
+@warning_ignore("unused_private_class_variable")
 var _last_hit_frame: int = -1:  # 本帧已结算受击（A16：单帧至多结算一次）
 	get:
 		return _damage.last_hit_frame
 	set(value):
 		_damage.last_hit_frame = value
+@warning_ignore("unused_private_class_variable")
 var _since_damage: float = 999.0:  # 距上次受击秒数（被动回血延迟计时）
 	get:
 		return _damage.since_damage
@@ -137,21 +139,25 @@ var _dashing: bool = false:
 		return _dash.dashing
 	set(value):
 		_dash.dashing = value
+@warning_ignore("unused_private_class_variable")
 var _dash_timer: float = 0.0:
 	get:
 		return _dash.dash_timer
 	set(value):
 		_dash.dash_timer = value
+@warning_ignore("unused_private_class_variable")
 var _dash_dir: Vector2 = Vector2.ZERO:
 	get:
 		return _dash.dash_dir
 	set(value):
 		_dash.dash_dir = value
+@warning_ignore("unused_private_class_variable")
 var _dash_cooldown: float = 0.0:
 	get:
 		return _dash.dash_cooldown
 	set(value):
 		_dash.dash_cooldown = value
+@warning_ignore("unused_private_class_variable")
 var _afterimage_timer: float = 0.0:
 	get:
 		return _dash.afterimage_timer

@@ -397,8 +397,8 @@ func show_page(page_name: StringName) -> void:
 
 
 ## 打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见
-func show_settings(opener: CanvasLayer = null) -> void:
-	_opener = opener
+func show_settings(opener_layer: CanvasLayer = null) -> void:
+	_opener = opener_layer
 	_ctrl_hold.set_pressed_no_signal(not GameState.ctrl_toggle_mode)
 	_ctrl_toggle.set_pressed_no_signal(GameState.ctrl_toggle_mode)
 	_shift_hold.set_pressed_no_signal(not GameState.shift_toggle_mode)

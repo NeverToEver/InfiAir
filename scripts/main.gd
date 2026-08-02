@@ -18,7 +18,6 @@ var ENRAGE_RAMP_TIME := 0.3
 
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
-@onready var _buff_ui: CanvasLayer = $BuffUI
 @onready var _pause_ui: CanvasLayer = $PauseUI
 @onready var _start_panel: CanvasLayer = $StartPanel
 @onready var _base_ui: CanvasLayer = $BaseUI

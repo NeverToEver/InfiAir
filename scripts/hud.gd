@@ -343,6 +343,7 @@ func _process(delta: float) -> void:
 		if _boss.is_in_fight() and not _boss.is_escaping() and remaining <= _boss.ESCAPE_COUNTDOWN_FROM and remaining > 0.0:
 			_boss_countdown.visible = true
 			_boss_countdown.text = "%d" % ceili(remaining)
+			@warning_ignore("integer_division")
 			_boss_countdown.modulate.a = 1.0 if int(Time.get_ticks_msec() / 500) % 2 == 0 else 0.45
 		else:
 			_boss_countdown.visible = false

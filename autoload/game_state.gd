@@ -8,6 +8,7 @@ signal difficulty_selected(difficulty: StringName)
 signal milestone_reached(score: int)
 signal player_died
 ## 玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源
+@warning_ignore("unused_signal")
 signal player_damaged(amount: float, from_pos: Vector2)
 signal screen_shake(strength: float)
 signal rp_changed(new_rp: int)
@@ -518,6 +519,7 @@ func _refresh_regen_cache() -> void:
 ## 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
 func milestone_threshold(index: int) -> int:
 	var n := milestone_base.size()
+	@warning_ignore("integer_division")
 	var cycle := maxi(index, 0) / n
 	var step := maxi(index, 0) % n
 	var total := 0.0
@@ -642,6 +644,7 @@ func _apply_window_size() -> void:
 		var fit := minf(float(usable.size.x) / phys.x, float(usable.size.y) / phys.y)
 		phys = Vector2i(Vector2(phys) * fit)
 	win.size = phys
+	@warning_ignore("integer_division")
 	win.position = usable.position + (usable.size - phys) / 2
 
 

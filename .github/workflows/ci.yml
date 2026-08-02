@@ -34,10 +34,17 @@ jobs:
           gdlint autoload/ scripts/
           gdformat --check autoload/ scripts/
 
-      - name: Import project resources
+      - name: Import project resources (warning gate)
         run: |
           godot --headless --import --path . > /tmp/import.log 2>&1 \
             || { echo "::error::import failed"; tail -30 /tmp/import.log; exit 1; }
+          # GDScript 警告门禁：project.godot 配置的高价值警告为 error 级，
+          # 任何 "Warning treated as error" 即失败（引擎级暗病排查）
+          if grep -q "Warning treated as error" /tmp/import.log; then
+            echo "::error::GDScript warnings (treated as errors) found:"
+            grep -B1 "Warning treated as error" /tmp/import.log | head -30
+            exit 1
+          fi
           tail -3 /tmp/import.log
 
       - name: Main scene smoke (300 frames)

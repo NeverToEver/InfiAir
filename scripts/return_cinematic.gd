@@ -33,7 +33,6 @@ var _bgm_tween: Tween = null  # 镜头 7 BGM 淡出（skip 时 kill 并立即置
 
 @onready var _shot_root: Node2D = $ShotRoot
 @onready var _fade: ColorRect = $Fade
-@onready var _flash: ColorRect = $Flash
 @onready var _subtitle: Label = $Subtitle
 @onready var _skip_hint: Label = $SkipHint
 

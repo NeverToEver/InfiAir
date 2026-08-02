@@ -698,10 +698,10 @@ func _build_shot3() -> Node2D:
 	root.add_child(_line(PackedVector2Array([Vector2(0.0, 200.0), Vector2(1920.0, 430.0)]), Color(0.16, 0.22, 0.32, 0.7), 3.0))
 	root.add_child(_line(PackedVector2Array([Vector2(0.0, 880.0), Vector2(1920.0, 650.0)]), Color(0.16, 0.22, 0.32, 0.7), 3.0))
 	root.add_child(_line(PackedVector2Array([Vector2(0.0, 540.0), Vector2(1920.0, 540.0)]), Color(0.1, 0.14, 0.22, 0.5)))
-	var ceil := Polygon2D.new()
-	ceil.polygon = PackedVector2Array([Vector2(0.0, 0.0), Vector2(1920.0, 0.0), Vector2(1920.0, 430.0), Vector2(0.0, 200.0)])
-	ceil.color = Color(0.05, 0.06, 0.09)
-	root.add_child(ceil)
+	var ceil_poly := Polygon2D.new()
+	ceil_poly.polygon = PackedVector2Array([Vector2(0.0, 0.0), Vector2(1920.0, 0.0), Vector2(1920.0, 430.0), Vector2(0.0, 200.0)])
+	ceil_poly.color = Color(0.05, 0.06, 0.09)
+	root.add_child(ceil_poly)
 	var floor_poly := Polygon2D.new()
 	floor_poly.polygon = PackedVector2Array([Vector2(0.0, 880.0), Vector2(1920.0, 650.0), Vector2(1920.0, 1080.0), Vector2(0.0, 1080.0)])
 	floor_poly.color = Color(0.06, 0.07, 0.1)
@@ -1868,6 +1868,7 @@ func _build_shot6() -> Node2D:
 	# 补给舰编队：两列 × 三行光点阵列同向跟随（各带引擎拖尾短线，作为光点子节点随 tween 同行）
 	for i in 6:
 		var dot := _glow(4.0, Color(0.6, 0.8, 1.0, 0.8))
+		@warning_ignore("integer_division")
 		dot.position = Vector2(420.0 + 70.0 * (i % 2), 800.0 + 52.0 * (i / 2))
 		dot.add_child(_line(PackedVector2Array([Vector2.ZERO, Vector2(-18.0, 10.0)]), Color(0.5, 0.75, 1.0, 0.45), 2.0))
 		root.add_child(dot)

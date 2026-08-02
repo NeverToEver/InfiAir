@@ -92,8 +92,8 @@ func _free_aim_line() -> void:
 
 
 ## 狂暴触发初始化（Boss._enrage 调用：数据 + 锁血 + 玩家减速；表现由 Boss 侧负责）
-func begin(boss, snapshot_target: Vector2, boss_size: Vector2) -> void:
-	_snapshot_target = snapshot_target
+func begin(boss, snapshot_pos: Vector2, boss_size: Vector2) -> void:
+	_snapshot_target = snapshot_pos
 	_boss_size = boss_size
 	_ring_angle = 0.0
 	_summon_waves = 0

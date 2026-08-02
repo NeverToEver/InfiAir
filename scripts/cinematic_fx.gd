@@ -238,8 +238,8 @@ class SpeedLineField:
 		for i in count:
 			_speeds[i] = randf_range(speed_min, speed_max)
 			var ln := Line2D.new()
-			var len := randf_range(len_min, len_max)
-			ln.points = PackedVector2Array([Vector2.ZERO, -_dir * len])
+			var line_len := randf_range(len_min, len_max)
+			ln.points = PackedVector2Array([Vector2.ZERO, -_dir * line_len])
 			ln.default_color = color
 			ln.width = width
 			if mat != null:
@@ -310,14 +310,14 @@ class RadialStreaks:
 			var p: float = _progress[i]
 			var r_head := p * _max_radius
 			var r_tail := maxf(0.0, p - 0.3) * _max_radius
-			var len := r_head - r_tail
+			var line_len := r_head - r_tail
 			var s := _streaks[i]
-			if len < 2.0:
+			if line_len < 2.0:
 				s.modulate.a = 0.0
 				continue
 			var dir := Vector2.from_angle(_angles[i])
 			s.position = dir * ((r_head + r_tail) * 0.5)
-			s.scale = Vector2(len / 32.0, 6.0 / 32.0)
+			s.scale = Vector2(line_len / 32.0, 6.0 / 32.0)
 			s.modulate = Color(_color.r, _color.g, _color.b, _color.a * sin(PI * p))
 
 

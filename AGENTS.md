@@ -29,7 +29,7 @@ godot --headless --path . res://test/smoke_test.tscn
 godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/母舰时加跑
 ```
 
-推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**完整专项测试清单、视觉截图工具与测试策略副作用明细见 `docs/TESTING.md`**。提交/PR 由 GitHub Actions CI（`.github/workflows/ci.yml`）自动跑 GDScript 静态检查（`gdlint` + `gdformat --check`，配置 `.gdlintrc`/`gdformatrc`，行宽均 140）+ 全量 31 断言场景，CI 全绿是合入门槛。本地静态检查：`python3 -m venv /tmp/gdvenv && /tmp/gdvenv/bin/pip install gdtoolkit && /tmp/gdvenv/bin/gdlint autoload/ scripts/ && /tmp/gdvenv/bin/gdformat --check autoload/ scripts/`（规则取舍见 `.gdlintrc` 注释；**新增 .gd 文件须经 gdformat 格式化**，禁用/放宽规则须同步配置文件与本文件）。
+推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**完整专项测试清单、视觉截图工具与测试策略副作用明细见 `docs/TESTING.md`**。提交/PR 由 GitHub Actions CI（`.github/workflows/ci.yml`）自动跑 GDScript 静态检查（`gdlint` + `gdformat --check`，配置 `.gdlintrc`/`gdformatrc`，行宽均 140）+ **引擎警告门禁**（`project.godot` `[debug]` 段配置 `debug/gdscript/warnings/*`：高价值警告为 error 级——未使用变量/遮蔽/整数除法等，CI import 出现 "Warning treated as error" 即失败；unsafe_cast/未类型声明等量大类为 warn 级，编辑器 GUI 可见、持续改进）+ 全量 31 断言场景，CI 全绿是合入门槛。本地静态检查：`python3 -m venv /tmp/gdvenv && /tmp/gdvenv/bin/pip install gdtoolkit && /tmp/gdvenv/bin/gdlint autoload/ scripts/ && /tmp/gdvenv/bin/gdformat --check autoload/ scripts/`（规则取舍见 `.gdlintrc` 注释；**新增 .gd 文件须经 gdformat 格式化**，禁用/放宽规则须同步配置文件与本文件）。
 
 ## 运行时架构
 
