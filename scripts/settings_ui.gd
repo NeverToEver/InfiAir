@@ -192,12 +192,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			@warning_ignore("unsafe_property_access")
 			GameState.rebind_action(_capturing_action, event.keycode)
+			# 提取局部变量：@warning_ignore 注解不能放数组元素中间（Godot 解析错误）
+			var bound_key := OS.get_keycode_string(event.keycode)
 			_hint_label.text = (
 				tr("SET_BOUND")
 				% [
 					tr("ACT_" + String(_capturing_action).to_upper()),
-					@warning_ignore("unsafe_property_access")
-					OS.get_keycode_string(event.keycode),
+					bound_key,
 				]
 			)
 		_capturing_action = &""
