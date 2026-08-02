@@ -119,6 +119,34 @@ func _ready() -> void:
 		absf(boss.position.y - boss.fight_anchor_y()) < 4.0,
 		"场景1：P2 段切换后机身回到战斗锚线（无残留下压偏移）"
 	)
+	# D05：P2 走位——strafe 提速 200 + 纵向正弦往复（采样 1s 物理帧）
+	# C11 断言已保证切换瞬间回锚线（sin 0 = 0 无跳变）；此处验证 bob 摆动存在且幅度受控
+	var y_min := INF
+	var y_max := -INF
+	var x_min := INF
+	var x_max := -INF
+	for i in 60:
+		await get_tree().physics_frame
+		if not is_instance_valid(boss):
+			break
+		y_min = minf(y_min, boss.position.y)
+		y_max = maxf(y_max, boss.position.y)
+		x_min = minf(x_min, boss.position.x)
+		x_max = maxf(x_max, boss.position.x)
+	var anchor_y: float = boss.fight_anchor_y()
+	var amp: float = boss.TYPE1_P2_BOB_AMP
+	_check(
+		y_max - y_min > 20.0,
+		"场景1：P2 纵向正弦往复（采样期 y 波动 ≥20px，实测 %.1f）" % (y_max - y_min)
+	)
+	_check(
+		y_max <= anchor_y + amp + 4.0 and y_min >= anchor_y - amp - 4.0,
+		"场景1：P2 纵向振幅在 ±amp 内（amp=%.0f）" % amp
+	)
+	_check(
+		x_max - x_min > 30.0,
+		"场景1：P2 横向 strafe 持续移动（采样期 x 位移 %.1fpx）" % (x_max - x_min)
+	)
 	# P2→ENRAGE：打到 25%（钳 30% 触发狂暴；一击跨两段狂暴优先）
 	boss.take_damage(int(boss.max_hp * 0.4))
 	await get_tree().process_frame
@@ -192,6 +220,25 @@ func _ready() -> void:
 		if child is Enemy:
 			minion_found = true
 	_check(minion_found, "场景3：召唤小怪独立计时保持")
+	# D05：三型 P1 纵向区间呼吸——机身 y 在锚线下 [min, max] 区间正弦（采样 0.5s）
+	var t3_y_min := INF
+	var t3_y_max := -INF
+	for i in 30:
+		await get_tree().physics_frame
+		if not is_instance_valid(boss3):
+			break
+		t3_y_min = minf(t3_y_min, boss3.position.y)
+		t3_y_max = maxf(t3_y_max, boss3.position.y)
+	var t3_anchor: float = boss3.fight_anchor_y()
+	_check(
+		t3_y_max - t3_y_min > 15.0,
+		"场景3：P1 纵向区间呼吸（采样期 y 波动 ≥15px，实测 %.1f）" % (t3_y_max - t3_y_min)
+	)
+	_check(
+		t3_y_min >= t3_anchor + boss3.TYPE3_P1_BOB_MIN - 6.0
+			and t3_y_max <= t3_anchor + boss3.TYPE3_P1_BOB_MAX + 6.0,
+		"场景3：P1 纵向区间在锚线下 [min, max] 内（min=%.0f max=%.0f）" % [boss3.TYPE3_P1_BOB_MIN, boss3.TYPE3_P1_BOB_MAX]
+	)
 	boss3.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
