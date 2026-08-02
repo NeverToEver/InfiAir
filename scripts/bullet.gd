@@ -198,6 +198,25 @@ func _despawn() -> void:
 		queue_free()
 
 
+## P2-10（竞品调研）：致死弹 0.5s 高亮残留（死亡归因）——停位移/关碰撞/红闪高亮，
+## 一次性 Timer 到期回收（Timer 随场景树释放，AGENTS 协程纪律）。
+func _linger_fatal(duration: float = 0.5) -> void:
+	set_physics_process(false)
+	monitoring = false
+	modulate = Color(2.0, 0.7, 0.7)
+	_polygon.color = Color(1.2, 0.35, 0.35)
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = duration
+	t.timeout.connect(
+		func() -> void:
+			_despawn()
+			t.queue_free()
+	)
+	add_child(t)
+	t.start()
+
+
 func _physics_process(delta: float) -> void:
 	if homing_target != null:
 		# 辅助瞄准追踪（P1-1）：优先于 homing 玩家追踪分支；目标失效/超时限即直行
@@ -290,4 +309,8 @@ func _on_area_entered(area: Area2D) -> void:
 		# A1：用注册表引用替代父节点硬强转（Hitbox 由 Player 维护，二者等价）
 		var player := GameState.player_ref as Player
 		if player != null and player.take_damage(float(damage), global_position):
-			_despawn()
+			# P2-10（竞品调研）：致死一击弹丸高亮残留，让玩家看清"是什么杀了自己"
+			if player.is_dead():
+				_linger_fatal()
+			else:
+				_despawn()
