@@ -13,6 +13,9 @@ const TITLE_CARD_IN := 0.2  # 收尾标题定格：淡入
 const TITLE_CARD_HOLD := 0.8  # 收尾标题定格：停留
 const TITLE_CARD_OUT := 0.2  # 收尾标题定格：淡出（随后走统一出口 skip）
 const PLAYER_SHIP: Texture2D = preload("res://assets/sprites/player_ship.png")
+## 过场音频统一策略：全部音量下移 + 变调下沉柔和化（避免爆炸/引擎音突兀炸耳）
+const AUDIO_VOL_OFFSET := -6.0  # 各音效在原设定基础上统一 -6dB
+const AUDIO_PITCH := 0.88  # 变调下沉，音色更闷柔
 
 ## 每镜头时长（§2 分镜表；六镜头 16.1s = 总和，转场含在内；+标题定格 1.2s = 总 17.3s）。测试可改短。
 var _shot_durations: Array[float] = [2.8, 2.5, 2.5, 2.5, 2.8, 3.0]
@@ -363,7 +366,7 @@ func _build_shot1() -> Node2D:
 		wave2.position = blast2_pos
 		station.add_child(wave2)
 		_kick_shake(root, 5.0, wave_shake_state)
-		GameState.play_sfx(GameState.SFX_EXPLOSION, -8.0)
+		GameState.play_sfx(GameState.SFX_EXPLOSION, -8.0 + AUDIO_VOL_OFFSET, AUDIO_PITCH)
 	)
 
 	# 余烬：全镜头持续的橙色慢速上飘细屑（低透明度，燃烧余韵层）
@@ -412,7 +415,7 @@ func _build_shot1() -> Node2D:
 		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		move.tween_property(drift_shard, "position", drift_shard.position, 4.0 + k
 		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG)
+	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG, AUDIO_VOL_OFFSET, AUDIO_PITCH)
 	return root
 
 
@@ -571,7 +574,7 @@ func _build_shot2() -> Node2D:
 		rt.chain().tween_callback(ripple.queue_free)
 		if step[0] == 1 or step[0] == 3 or step[0] == 5:
 			# 链式三连发：音量逐发递减
-			GameState.play_sfx(GameState.SFX_EXPLOSION, -2.0 - 3.0 * (step[0] / 2))
+			GameState.play_sfx(GameState.SFX_EXPLOSION, -2.0 - 3.0 * (step[0] / 2) + AUDIO_VOL_OFFSET, AUDIO_PITCH)
 		step[0] += 1
 	)
 	return root
@@ -889,12 +892,12 @@ func _build_shot3() -> Node2D:
 	var red := _bg_rect(Color(1.0, 0.1, 0.1, 0.0))
 	root.add_child(red)
 	root._red = red
-	# 低频警报脉冲（既有命中音压低至 -14dB，0.7s 间隔）
+	# 低频警报脉冲（既有命中音压低至 -14dB 基础，叠加过场音量策略，0.7s 间隔）
 	var alarm := Timer.new()
 	alarm.wait_time = 0.7
 	alarm.autostart = true
 	root.add_child(alarm)
-	alarm.timeout.connect(func() -> void: GameState.play_sfx(GameState.SFX_PLAYER_HIT, -14.0))
+	alarm.timeout.connect(func() -> void: GameState.play_sfx(GameState.SFX_PLAYER_HIT, -14.0 + AUDIO_VOL_OFFSET, AUDIO_PITCH))
 	return root
 
 
@@ -1552,7 +1555,7 @@ func _build_shot5() -> Node2D:
 			randf() * 1300.0 - 260.0)
 		shake_root.add_child(edge_sl)
 		root._edge_lines.append([edge_sl, side_sign])
-	GameState.play_sfx(GameState.SFX_DASH)
+	GameState.play_sfx(GameState.SFX_DASH, AUDIO_VOL_OFFSET, AUDIO_PITCH)
 	# 引擎音持续：1.1s 后压低 6dB 补一发，覆盖镜头后段
 	var engine := Timer.new()
 	engine.one_shot = true
@@ -1561,7 +1564,7 @@ func _build_shot5() -> Node2D:
 	root.add_child(engine)  # 随镜头销毁：跳过/切镜后不残留迟发回调
 	engine.timeout.connect(func() -> void:
 		if is_instance_valid(root):
-			GameState.play_sfx(GameState.SFX_DASH, -6.0)
+			GameState.play_sfx(GameState.SFX_DASH, -6.0 + AUDIO_VOL_OFFSET, AUDIO_PITCH)
 	)
 	return root
 

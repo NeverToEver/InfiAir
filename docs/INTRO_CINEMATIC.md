@@ -50,7 +50,7 @@
 - **跳过路径**：`skip()` 幂等——停全部 Timer、发 `finished` 信号、queue_free；main 统一在 `finished` 回调里恢复 `paused = false` 并进入对局。跳过与自然结束走同一出口，不允许两份收尾逻辑。
 - **Esc 路由**：过场播放中 BackNavigator `decide_back_action()` 返回 `SKIP_INTRO`（新增枚举），`go_back()` 调 `Main._skip_intro()`；其余按键/点击由过场自身 `_unhandled_input` 捕获跳过。开始面板已隐藏、树已暂停，现有分支不会误触（暂停IGNORE分支之前拦截）。
 - **测试门禁**：播放条件 `get_tree().current_scene == self`（仅正常启动入口）。测试需要过场时直接调 `Main._play_intro_cinematic()`。
-- **资源复用**：星空复用 `scripts/starfield.gd`；爆炸/火焰粒子参照 `scripts/explosion.gd` 的叠加态配色；字体/颜色用 `UITheme` token；音效用 `GameState.play_sfx()` 既有常量，不新增音频资产（阶段2再评估专属配乐）。
+- **资源复用**：星空复用 `scripts/starfield.gd`；爆炸/火焰粒子参照 `scripts/explosion.gd` 的叠加态配色；字体/颜色用 `UITheme` token；音效用 `GameState.play_sfx()` 既有常量，不新增音频资产（阶段2再评估专属配乐）；**音频统一策略**：全部音量经 `AUDIO_VOL_OFFSET`（-6dB）下移 + `AUDIO_PITCH`（0.88）变调下沉柔和化，避免过场音频突兀炸耳。
 - **视口**：全部按 1920×1080 设计坐标布局（CanvasLayer 随 canvas_items 拉伸自适应，勿用运行时窗口物理尺寸）。
 - **清理**：`finished` 后整棵过场树 queue_free；不留 Timer/tween/粒子残留；`Engine.time_scale` 不被动过（本过场不使用子弹时间）。
 
