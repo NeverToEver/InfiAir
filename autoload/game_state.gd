@@ -114,7 +114,14 @@ func _apply_balance() -> void:
 		DIFFICULTY_DEFS = diff
 
 
-## C03 修复：难度表结构校验——顶层 Dictionary 且含 easy/medium/hard 三个子字典
+## C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
+## 且每个子字典含全部数值键（缺子键时下游 8 处 DIFFICULTY_DEFS[difficulty][...] 访问 KeyError，
+## 部分损坏 JSON 通过后敌方 0 HP 秒死/得分倍率 0，违背「损坏回退默认」宣称）。
+## label 键已由 D04 改走 tr() 不再消费，不纳入校验。
+const DIFFICULTY_DEF_KEYS: Array[String] = [
+	"hp", "speed", "spawn", "score", "spread_cap", "milestone", "regen_delay", "regen_rate",
+]
+
 func _valid_difficulty_defs(diff: Variant) -> bool:
 	if not diff is Dictionary:
 		return false
@@ -122,6 +129,11 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 	for key in [&"easy", &"medium", &"hard"]:
 		if not d.has(key) or not d[key] is Dictionary:
 			return false
+		var def: Dictionary = d[key]
+		for k in DIFFICULTY_DEF_KEYS:
+			var v: Variant = def.get(k)  # 缺键时 get 返回 null，一并落入类型校验
+			if (not v is int) and (not v is float):
+				return false
 	return true
 
 # RP（征用点数）经济：对齐原作 RequisitionConstants
@@ -944,7 +956,12 @@ func load_profile() -> void:
 		return
 	high_score = int(parsed.get("high_score", 0))
 	tutorial_done = save_bool(parsed.get("tutorial_done", false), false)
-	locale = str(parsed.get("locale", "zh"))
+	# E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持默认 zh，
+	# 避免 locale 变量与 TranslationServer 状态（启动默认 zh）不一致；
+	# 不调 set_locale 以免 load 阶段触发 save_profile / locale_changed 副作用
+	var saved_locale := str(parsed.get("locale", "zh"))
+	if saved_locale == "zh" or saved_locale == "en":
+		locale = saved_locale
 	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
 	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
 	key_bindings.clear()
@@ -956,6 +973,10 @@ func load_profile() -> void:
 				continue
 			var keys: Array[int] = []
 			for k: Variant in raw:
+				# E11：元素级判型（C02 外层守卫的补全）——手改字符串 keycode 直接跳过，
+				# 不再 int() 转换错误刷屏（不崩溃但不干净）
+				if (not k is int) and (not k is float):
+					continue
 				keys.append(int(k))
 			key_bindings[StringName(a)] = keys
 	var saved_difficulty := StringName(parsed.get("difficulty", ""))

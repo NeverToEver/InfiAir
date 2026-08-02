@@ -225,9 +225,11 @@ func _physics_process(delta: float) -> void:
 ## 原作公式为 半径/伤害 ×层数；本作 explosive 锁 1 层（PORTING_PARITY #13「近似一次性」），
 ## 2026-07-29 清理不可达的 per-level 缩放，取固定值（P2-8）。
 ## 遍历副本防 take_damage→die→注销注册表造成的遍历中突变。
+## E07 修正：注册表含 Enemy 与 Boss（Boss extends Area2D 非 Enemy 子类），as Enemy 对 Boss
+## cast 得 null 恰落在 e == null 跳过——Boss 排除为有意设计（与 _on_area_entered 直击路径一致）。
 func _explode() -> void:
 	for node in GameState.enemies.duplicate():
-		var e := node as Enemy  # C20：注册表全为 Enemy，静态类型化访问 is_boss/take_damage
+		var e := node as Enemy  # C20：静态类型化访问 is_boss/take_damage（Boss 由 null 排除）
 		if e == null or e.is_boss():
 			continue
 		if e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
@@ -237,13 +239,15 @@ func _explode() -> void:
 
 
 ## 导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害，×1/3 分随 score_scale。
+## E01 修复：注册表含 Boss（Boss 非 Enemy 子类），as Enemy 对 Boss cast 得 null 使溅射伤害
+## 静默丢失（直击 80 仍有效）；改 Variant 鸭子调用 take_damage(amount, score_scale)——
+## Enemy/Boss 均实现同签名（与 laser_weapon._damage_tick「含 Boss」同模式）。
 func _splash() -> void:
 	for node in GameState.enemies.duplicate():
-		var e := node as Enemy  # C20：注册表全为 Enemy，静态类型化访问 take_damage
-		if e == null:
+		if not (node is Area2D):
 			continue
-		if e.global_position.distance_to(global_position) <= splash_radius:
-			e.take_damage(splash_damage, score_scale)
+		if node.global_position.distance_to(global_position) <= splash_radius:
+			node.take_damage(splash_damage, score_scale)
 	Explosion.spawn_at(get_parent(), global_position, 0.8)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 
