@@ -66,7 +66,7 @@ var _breath_was_active: bool = false
 
 func _ready() -> void:
 	add_to_group("main")
-	DOCK_CHARGE_TIME = GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME)
+	DOCK_CHARGE_TIME = maxf(GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME), 0.01)  # H15：=0 除零
 	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
 	GIVE_UP_HOLD_TIME = GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME)
 	ENRAGE_SLOW_SCALE = GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE)

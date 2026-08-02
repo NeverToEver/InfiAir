@@ -97,7 +97,8 @@ func cfg(path: String, default: Variant) -> Variant:
 
 
 func _apply_balance() -> void:
-	world_scale = float(cfg("world_scale", world_scale))
+	# H16（健壮性审核）：world_scale 域校验——0/负值使机体贴图/碰撞归零或镜像翻转，钳制下限
+	world_scale = maxf(float(cfg("world_scale", world_scale)), 0.01)
 	# C03 修复：milestones.base 须为非空数组，否则下游 milestone_threshold 除零
 	# C18：显式转 Array[int]（cfg 返回 Variant，typed 赋值需转换）
 	var base: Variant = cfg("milestones.base", MILESTONE_BASE.duplicate())
@@ -109,7 +110,7 @@ func _apply_balance() -> void:
 	milestone_cycle_mult = cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)
 	_prog_per_boss_kill = float(cfg("progression.per_boss_kill", 0.5))
 	_prog_per_ten_minutes = float(cfg("progression.per_ten_minutes", 1.0))
-	_prog_time_step_seconds = float(cfg("progression.time_step_seconds", 30.0))
+	_prog_time_step_seconds = maxf(float(cfg("progression.time_step_seconds", 30.0)), 0.1)  # H15：=0 除零挂死
 	# C03 修复：难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
 	# （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
 	var diff: Variant = cfg("difficulty", {})

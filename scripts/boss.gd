@@ -266,9 +266,18 @@ var _flash_total: float = 0.1
 func setup(p_difficulty: float, p_type: int) -> void:
 	boss_type = p_type
 	# HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
+	# H11（健壮性审核）：hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默
+	var hp_mults_raw: Variant = GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])
+	var hp_mults_valid: bool = hp_mults_raw is Array and hp_mults_raw.size() >= 3
+	if hp_mults_valid:
+		for v: Variant in hp_mults_raw:
+			if not (v is int or v is float):
+				hp_mults_valid = false
+				break
+	var hp_mults: Array = hp_mults_raw if hp_mults_valid else [1.3, 0.7, 1.6]
 	max_hp = (
 		float(GameState.cfg("boss.hp_base", HP_BASE))
-		* float(GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])[p_type - 1])
+		* float(hp_mults[p_type - 1])
 		* p_difficulty
 		* GameState.enemy_hp_multiplier()
 	)
@@ -423,7 +432,8 @@ func _ready() -> void:
 	ENRAGE_RELEASE_HOLD_DURATION = GameState.cfg("boss.enrage.release_hold_duration", ENRAGE_RELEASE_HOLD_DURATION)
 	ENRAGE_RETURN_DURATION = GameState.cfg("boss.enrage.return_duration", ENRAGE_RETURN_DURATION)
 	ENRAGE_PATH_RADIUS_SCALE = GameState.cfg("boss.enrage.path_radius_scale", ENRAGE_PATH_RADIUS_SCALE)
-	ENRAGE_SQUARE_PATH_RATIO = GameState.cfg("boss.enrage.square_path_ratio", ENRAGE_SQUARE_PATH_RATIO)
+	# H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
+	ENRAGE_SQUARE_PATH_RATIO = clampf(float(GameState.cfg("boss.enrage.square_path_ratio", ENRAGE_SQUARE_PATH_RATIO)), 0.05, 1.0)
 	ENRAGE_RELEASE_LASER_SPEED = GameState.cfg("boss.enrage.release_laser_speed", ENRAGE_RELEASE_LASER_SPEED)
 	ENRAGE_RELEASE_RING_SPEED = GameState.cfg("boss.enrage.release_ring_speed", ENRAGE_RELEASE_RING_SPEED)
 	_boss_size = _sprite.texture.get_size() * _sprite.scale
@@ -440,11 +450,13 @@ func _ready() -> void:
 	if ss is Array:
 		for v in ss:
 			ss_arr.append(float(v))
-	STRAFE_SPEEDS = ss_arr if not ss_arr.is_empty() else [150.0, 400.0, 60.0]
+	STRAFE_SPEEDS = ss_arr if ss_arr.size() >= 3 else [150.0, 400.0, 60.0]  # H11：不足 3 元素回退默认
 	# B5 修复：cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
 	# FIRE_INTERVALS[i]——不拷贝会污染全局缓存、easy/hard 下跨 Boss 复合叠加
 	# （同 _load_patterns 的 duplicate(true)，见 BOSS_REDESIGN §8.2）。
-	FIRE_INTERVALS = GameState.cfg("boss.fire_intervals", FIRE_INTERVALS).duplicate()
+	# H11：非数组类型时回退默认（原 .duplicate() 对非数组直接崩溃）
+	var fi_raw: Variant = GameState.cfg("boss.fire_intervals", FIRE_INTERVALS)
+	FIRE_INTERVALS = fi_raw.duplicate(true) if fi_raw is Array else FIRE_INTERVALS.duplicate(true)
 	FAN_BULLET_SPEED = GameState.cfg("boss.fan_bullet_speed", FAN_BULLET_SPEED)
 	HOMING_BULLET_SPEED = GameState.cfg("boss.homing_bullet_speed", HOMING_BULLET_SPEED)
 	SNIPER_BULLET_SPEED = GameState.cfg("boss.sniper_bullet_speed", SNIPER_BULLET_SPEED)

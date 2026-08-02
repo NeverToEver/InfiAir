@@ -17,7 +17,8 @@ func _init(p_interval: float, p_chance: float, p_min_score: int = 0) -> void:
 
 ## 配置刷新（spawner._apply_balance 在 balance 覆盖后调用；_timer 不重置，保持现有节奏）
 func configure(p_interval: float, p_chance: float, p_min_score: int = 0) -> void:
-	_interval = p_interval
+	# H15（健壮性审核）：interval ≤0 时每帧掷签事件风暴，钳制下限
+	_interval = maxf(p_interval, 0.1)
 	_chance = p_chance
 	_min_score = p_min_score
 	if _timer <= 0.0:

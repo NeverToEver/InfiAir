@@ -314,6 +314,9 @@ func minion_volley_fire(boss, minions: Array) -> void:
 	for e in minions:
 		if is_instance_valid(e) and e.is_active():
 			var dir: Vector2 = (GameState.player_ref.global_position - e.global_position).normalized()
+			# H10（健壮性审核）：玩家与僚机重合时零向量回退（防静止弹，G026 同族）
+			if dir == Vector2.ZERO:
+				dir = Vector2.DOWN
 			var b: Bullet = GameState.bullet_pool.fire(dir, float(boss.VOLLEY_BULLET_SPEED), int(boss.VOLLEY_BULLET_DAMAGE), false)
 			b.position = e.position + dir * 40.0 * world_scale
 

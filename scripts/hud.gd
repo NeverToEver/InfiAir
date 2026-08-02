@@ -91,13 +91,13 @@ class _BossBarTicks:
 func _ready() -> void:
 	add_to_group("hud")
 	_main = get_parent()  # A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
-	POLL_INTERVAL = GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL)
+	POLL_INTERVAL = maxf(GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL), 0.01)  # H15：≤0 节流失效
 	HIT_FLASH_ALPHA = GameState.cfg("effects.hit_flash.alpha", HIT_FLASH_ALPHA)
 	HIT_FLASH_TIME = GameState.cfg("effects.hit_flash.time", HIT_FLASH_TIME)
 	LOW_HP_RATIO = GameState.cfg("effects.low_hp.ratio", LOW_HP_RATIO)
 	LOW_HP_PULSE_MIN = GameState.cfg("effects.low_hp.pulse_min", LOW_HP_PULSE_MIN)
 	LOW_HP_PULSE_MAX = GameState.cfg("effects.low_hp.pulse_max", LOW_HP_PULSE_MAX)
-	LOW_HP_PULSE_PERIOD = GameState.cfg("effects.low_hp.pulse_period", LOW_HP_PULSE_PERIOD)
+	LOW_HP_PULSE_PERIOD = maxf(GameState.cfg("effects.low_hp.pulse_period", LOW_HP_PULSE_PERIOD), 0.01)  # H15：=0 sin NaN
 	for label: Label in [_score_label, _kills_label, _difficulty_label, _lives_label]:
 		label.add_theme_font_override("font", FONT)
 	_score_label.add_theme_font_size_override("font_size", UITheme.FONT_SCORE)

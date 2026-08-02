@@ -11,7 +11,7 @@ func _ready() -> void:
 	# C22：is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
 	if not GameState.screen_shake.is_connected(_on_screen_shake):
 		GameState.screen_shake.connect(_on_screen_shake)
-	DECAY = GameState.cfg("effects.shake.decay", DECAY)
+	DECAY = maxf(GameState.cfg("effects.shake.decay", DECAY), 0.001)  # H15：decay=0 震动永不衰减
 
 
 func _exit_tree() -> void:

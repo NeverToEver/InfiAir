@@ -98,8 +98,12 @@ func _ready() -> void:
 	BOSS_RESUME_DELAY = GameState.cfg("elite_turret_event.boss_resume_delay", BOSS_RESUME_DELAY)
 	TURRET_HP_BASE = GameState.cfg("elite_turret_event.turret_hp_base", TURRET_HP_BASE)
 	TURRET_COUNTS = GameState.cfg("elite_turret_event.turret_counts", TURRET_COUNTS)
-	var fi: Array = GameState.cfg("elite_turret_event.fire_interval", [FIRE_INTERVAL.x, FIRE_INTERVAL.y])
-	FIRE_INTERVAL = Vector2(float(fi[0]), float(fi[1]))
+	# H13（健壮性审核）：fire_interval 判型回退（G06 口径，防非数组/短数组 _ready 崩溃）
+	var fi: Variant = GameState.cfg("elite_turret_event.fire_interval", [FIRE_INTERVAL.x, FIRE_INTERVAL.y])
+	if fi is Array and fi.size() >= 2:
+		FIRE_INTERVAL = Vector2(float(fi[0]), float(fi[1]))
+	else:
+		FIRE_INTERVAL = Vector2(FIRE_INTERVAL.x, FIRE_INTERVAL.y)
 	WEAK_LOCK = GameState.cfg("elite_turret_event.weak_lock", WEAK_LOCK)
 	AMMO_SEQUENCES = GameState.cfg("elite_turret_event.ammo_sequences", AMMO_SEQUENCES)
 	REWARD_SCORE = GameState.cfg("elite_turret_event.reward_score", REWARD_SCORE)

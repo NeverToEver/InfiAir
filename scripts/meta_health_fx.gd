@@ -163,11 +163,11 @@ func _load_cfg() -> void:
 		"lod": int(GameState.cfg("effects.meta_health.lod", 0)),
 		"pulse_scale": float(GameState.cfg("effects.meta_health.pulse.scale", 2.5)),
 		"pulse_min": float(GameState.cfg("effects.meta_health.pulse.min", 0.15)),
-		"pulse_decay_tau": float(GameState.cfg("effects.meta_health.pulse.decay_tau", 0.09)),
+		"pulse_decay_tau": maxf(float(GameState.cfg("effects.meta_health.pulse.decay_tau", 0.09)), 0.001),  # H15
 		"chromatic_base": float(GameState.cfg("effects.meta_health.chromatic.base", 0.006)),
 		"chromatic_peak": float(GameState.cfg("effects.meta_health.chromatic.peak", 0.014)),
 		"blur_strength": float(GameState.cfg("effects.meta_health.blur.strength", 0.6)),
-		"ripple_duration": float(GameState.cfg("effects.meta_health.ripple.duration", 0.4)),
+		"ripple_duration": maxf(float(GameState.cfg("effects.meta_health.ripple.duration", 0.4)), 0.001),  # H15
 		"ripple_alpha": float(GameState.cfg("effects.meta_health.ripple.alpha", 0.8)),
 		"crack_exponent": float(GameState.cfg("effects.meta_health.crack.exponent", 1.6)),
 		"crack_spread_min": float(GameState.cfg("effects.meta_health.crack.spread_min", 0.10)),
@@ -189,9 +189,9 @@ func _load_cfg() -> void:
 		"breath": float(GameState.cfg("effects.meta_health.dying.breath", 0.015)),
 		"jitter_px": float(GameState.cfg("effects.meta_health.dying.jitter_px", 2.0)),
 		"warn_hz": float(GameState.cfg("effects.meta_health.dying.warn_hz", 2.5)),
-		"dying_fade": float(GameState.cfg("effects.meta_health.dying.fade", 0.3)),
-		"smooth_down_tau": float(GameState.cfg("effects.meta_health.smooth.down_tau", 0.10)),
-		"smooth_up_tau": float(GameState.cfg("effects.meta_health.smooth.up_tau", 0.80)),
+		"dying_fade": maxf(float(GameState.cfg("effects.meta_health.dying.fade", 0.3)), 0.001),  # H15
+		"smooth_down_tau": maxf(float(GameState.cfg("effects.meta_health.smooth.down_tau", 0.10)), 0.001),  # H15
+		"smooth_up_tau": maxf(float(GameState.cfg("effects.meta_health.smooth.up_tau", 0.80)), 0.001),  # H15
 		"adapt_interval": float(GameState.cfg("effects.meta_health.adapt.interval", 0.25)),
 		"adapt_min": float(GameState.cfg("effects.meta_health.adapt.min", 0.8)),
 		"adapt_max": float(GameState.cfg("effects.meta_health.adapt.max", 1.3)),

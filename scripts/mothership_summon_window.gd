@@ -47,8 +47,12 @@ func _ready() -> void:
 	layer = 24  # 对局世界与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
 	OPEN_TIME = GameState.cfg("effects.mothership_summon.window.open_time", OPEN_TIME)
 	CLOSE_TIME = GameState.cfg("effects.mothership_summon.window.close_time", CLOSE_TIME)
-	var durs: Array = GameState.cfg("effects.mothership_summon.window.shot_durations", _shot_durations)
-	_shot_durations = [float(durs[0]), float(durs[1]), float(durs[2])]
+	# H13（健壮性审核）：shot_durations 判型/判长回退——短数组/非数组时用默认，防 _ready 崩溃
+	var durs: Variant = GameState.cfg("effects.mothership_summon.window.shot_durations", _shot_durations)
+	if durs is Array and durs.size() >= 3:
+		_shot_durations = [float(durs[0]), float(durs[1]), float(durs[2])]
+	else:
+		_shot_durations = [0.8, 0.6, 0.7]
 	_total = OPEN_TIME + _shot_durations[0] + _shot_durations[1] + _shot_durations[2] + CLOSE_TIME
 	_build_panel()
 	_build_hangar()

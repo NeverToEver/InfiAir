@@ -365,7 +365,9 @@ func _physics_process(delta: float) -> void:
 				modulate = Color.WHITE
 				_engine_glow.modulate.a = 0.0
 				if _warp_gate != null:
-					_warp_gate.close()
+					# H14（健壮性审核）：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
+					if is_instance_valid(_warp_gate):
+						_warp_gate.close()
 					_warp_gate = null
 				_deploy_slow_field()
 				var hud := get_tree().get_first_node_in_group("hud")
@@ -680,7 +682,9 @@ func start_release() -> void:
 func _exit_tree() -> void:
 	# 提前收回（返航/对局重置等）：穿梭门关闭兜底；玩家若仍在保护舱则恢复显示
 	if _warp_gate != null:
-		_warp_gate.close()
+		# H14：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
+		if is_instance_valid(_warp_gate):
+			_warp_gate.close()
 		_warp_gate = null
 	# G011：隐藏 HUD 提前离舰蓄力进度条（E05 只覆盖 start_release 强制离舰路径，返航提前回收漏清）
 	var hud := get_tree().get_first_node_in_group("hud")

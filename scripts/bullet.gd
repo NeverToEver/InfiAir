@@ -55,6 +55,9 @@ func setup(
 	p_homing_time: float = 0.0
 ) -> void:
 	direction = p_direction.normalized()
+	# H10（健壮性审核）：零方向弹回退 DOWN（对齐 G026 口径，防静止弹永驻场景）
+	if direction == Vector2.ZERO:
+		direction = Vector2.DOWN
 	speed = p_speed
 	# 敌方子弹伤害随对局进程 ramp（Boss 击杀难度乘数驱动，GameState.enemy_damage_ramp）
 	damage = p_damage if p_is_player else maxi(1, int(roundf(p_damage * GameState.enemy_damage_ramp())))
