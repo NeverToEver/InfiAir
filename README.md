@@ -157,7 +157,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 �
 
 **致谢**：[airwar-game](https://github.com/NeverToEver/airwar-game)（原作原型）· [Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate) · [top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core) · [SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D) · [Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template) · [Godot Engine](https://godotengine.org/) · [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC)（SIL OFL）
 
-**许可证**：本项目当前为私有仓库，暂未选择开源许可证；如需使用或分发请先联系作者。
+**许可证**：本项目已于 2026-08-02 公开，暂未选择开源许可证（无许可证即保留所有权利）；如需使用或分发请先联系作者。
 
 </details>
 
