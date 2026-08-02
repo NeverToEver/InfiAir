@@ -58,6 +58,25 @@ func _ready() -> void:
 	GameState.load_profile()
 	_check(not GameState.mouse_lock, "旧档（无 mouse_lock 字段）读取保留当前值")
 
+	# ---------- 5. MouseTrap 边界 clamp 纯函数 ----------
+	const MOUSE_TRAP: GDScript = preload("res://scripts/mouse_trap.gd")
+	_check(
+		MOUSE_TRAP._warp_target(Vector2(-50, -50), Vector2i(1920, 1080)) == Vector2(1, 1),
+		"clamp 左上越界到 (1,1)",
+	)
+	_check(
+		MOUSE_TRAP._warp_target(Vector2(5000, 5000), Vector2i(1920, 1080)) == Vector2(1919, 1079),
+		"clamp 右下越界到 (size-1)",
+	)
+	_check(
+		MOUSE_TRAP._warp_target(Vector2(960, 540), Vector2i(1920, 1080)) == Vector2(960, 540),
+		"窗口内点不变",
+	)
+	_check(
+		MOUSE_TRAP._warp_target(Vector2(0, 0), Vector2i(1920, 1080)) == Vector2(1, 1),
+		"原点 (0,0) clamp 到边缘内侧 (1,1)",
+	)
+
 	print("MOUSE LOCK TEST DONE, failures = ", _failures)
 	# 清理：恢复默认并落盘，避免污染其他测试进程
 	GameState.mouse_lock = true
