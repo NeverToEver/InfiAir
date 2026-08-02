@@ -288,5 +288,11 @@ static func add_button_motion(button: Button) -> void:
 static func _motion_tween(button: Button, target: float) -> void:
 	if not is_instance_valid(button):
 		return
+	# H20（健壮性审核）：互斥——快速进出按钮时旧 tween kill 再建，防同属性竞争抖动
+	if button.has_meta("motion_tween"):
+		var old: Tween = button.get_meta("motion_tween")
+		if old != null and old.is_valid():
+			old.kill()
 	var tween := button.create_tween()
+	button.set_meta("motion_tween", tween)
 	tween.tween_property(button, "scale", Vector2(target, target), 0.08)

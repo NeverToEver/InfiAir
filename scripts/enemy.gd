@@ -220,8 +220,12 @@ func _ready() -> void:
 	EXIT_ACCEL = GameState.cfg("enemies.exit_accel", EXIT_ACCEL)
 	AGGR_CHASE_SPEED = GameState.cfg("enemies.aggressive_chase_speed", AGGR_CHASE_SPEED)
 	FIRE_INTERVAL = GameState.cfg("enemies.fire_interval", FIRE_INTERVAL)
-	var band: Array = GameState.cfg("enemies.hover_band", [HOVER_BAND.x, HOVER_BAND.y])
-	HOVER_BAND = Vector2(float(band[0]), float(band[1]))
+	# H19（健壮性审核）：hover_band 判型回退（对齐 spawner G06 口径，防非数组 _ready 崩溃）
+	var band: Variant = GameState.cfg("enemies.hover_band", [HOVER_BAND.x, HOVER_BAND.y])
+	if band is Array and band.size() >= 2:
+		HOVER_BAND = Vector2(float(band[0]), float(band[1]))
+	else:
+		HOVER_BAND = Vector2(HOVER_BAND.x, HOVER_BAND.y)
 	HOVER_BOB_AMP = GameState.cfg("enemies.hover_bob_amp", HOVER_BOB_AMP)
 	HOVER_BOB_FREQ = GameState.cfg("enemies.hover_bob_freq", HOVER_BOB_FREQ)
 	HOVER_SWAY_AMP = GameState.cfg("enemies.hover_sway_amp", HOVER_SWAY_AMP)

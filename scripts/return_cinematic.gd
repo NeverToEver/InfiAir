@@ -1193,7 +1193,7 @@ class _RoomShot:
 		if _t < 0.6 * u:
 			# 走入步行循环（窗口两端权重淡入淡出，结束自动缓回直立；肢体公式同 _WalkShot）
 			_phase += delta * 16.0
-			var k := clampf(minf(_t, 0.6 * u - _t) / (0.12 * u), 0.0, 1.0)
+			var k := clampf(minf(_t, 0.6 * u - _t) / maxf(0.12 * u, 0.001), 0.0, 1.0)  # H20：镜头时长 0 除零防御
 			var person_node: Node2D = _person["node"]
 			for i in 2:
 				var p: float = _phase + PI * float(i)

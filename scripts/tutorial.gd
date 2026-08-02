@@ -292,6 +292,9 @@ func _pass_stage() -> void:
 
 ## C01 修复：_pass_stage 的延迟推进改为 Timer 回调（原 await create_timer 在教程被释放时协程悬死）
 func _finish_pass_stage() -> void:
+	# H20（健壮性审核）：失败/结束态防阶段推进（失败态下已挂起的推进 Timer 仍会触发）
+	if _failed or _finished:
+		return
 	_advancing = false
 	if _stage < STAGE_TITLES.size() - 1:
 		_enter_stage(_stage + 1)

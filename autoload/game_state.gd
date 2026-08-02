@@ -1125,9 +1125,12 @@ func apply_run_save(data: Dictionary) -> void:
 			if missions.has(StringName(key)) and saved_missions[key] is Dictionary:
 				var m: Dictionary = saved_missions[key]
 				var claimed: Variant = m.get("claimed", false)
+				# H18（健壮性审核）：恢复保留 goal 键——整体替换会丢 goal 致
+				# mission_completed 判定 progress >= 0 恒真而永久哑火（潜伏）
 				missions[StringName(key)] = {
 					"progress": int(save_num(m.get("progress", 0), 0.0)),
 					"claimed": claimed if claimed is bool else false,
+					"goal": int(m.get("goal", mission_goal(StringName(key)))),
 				}
 	chosen_routes.clear()
 	var saved_chosen: Variant = data.get("chosen_routes", {})

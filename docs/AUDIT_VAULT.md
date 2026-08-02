@@ -694,3 +694,46 @@
 | G027 | ✅ 已修复 | ✅ 补充 | 既有空目标早退之上补 `_live_targets()` 输出缓冲复用（免每次发射分配新 Array）。验证：mothership_summon 32 PASS |
 
 > 回归：`--headless --import` / `--quit-after 300` 0 错误；smoke 142 / pool_reuse 12 / base_system 46 / 全量 31 断言场景 0 FAIL（落地时点实际为 31，含 mouse_lock_test；原记 27 系口径笔误，2026-08-02 订正）；perf_bench 同环境 A/B 中位数 0.131→0.120 ms/帧（约 -8~9% CPU 逻辑耗时）。
+
+---
+
+# 第六轮审核（2026-08-02 健壮性专项）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 健壮性（鲁棒性）专项——崩溃/挂起/状态错乱/数据损坏路径（空输入、资源加载失败、除零/NaN、节点生命周期、信号重入、幂等、状态机非法转换、池边界、配置无域校验） |
+| 工作时间 | 2026-08-02 |
+| 审核区域 | `scripts/` 全部 + `autoload/game_state.gd`（三路并行：对局编排+玩家 / 战斗实体+事件 / UI+服务+表现） |
+| 审核方法 | 三路并行只读扫描 + 主控交叉核验（对照 A-G 系列基线去重，G026/C03/E03/G06 等已处理项不重复）+ 判定分类 |
+| 结论 | 无 P0；P1×3 + P2×6 + P3×20（组）；整体健壮性强（对象池双防护/注册表去重/Timer 替代协程/幂等守卫覆盖大多数重入与生命周期路径）；真实风险集中在手改 balance.json 损坏数据的判型缺口与少量零值/除零边缘 |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+| 完整报告 | `docs/archive/2026-08-02-robustness-audit.md`（发现-判定-修复追踪） |
+
+## H 系列修复起效记录（2026-08-02 全量落地，3 批提交）
+
+| 编号 | 严重度 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| H01 | P1 | 右摇杆瞄准改四向独立动作（`aim_left/right/up/down`，axis 2/3 ±1）——`Input.get_vector` 正负同动作恒为零，P0-1 虚拟准星完全失效；base_system_test 新增四向动作/轴事件断言 |
+| H02 | P1 | `apply_key_bindings` 按事件类型只擦键盘（`action_erase_event` 单事件）——原 `action_erase_events` 连手柄事件一起清，改键/重置后本会话手柄失效；测试新增改键/重置后手柄事件保留断言 |
+| H03 | P1 | 难度档 `milestone/cycle_mult ≤ 0` 数值域校验——恒 0 阈值致 continue_run 里程碑 while 永不退出挂死；difficulty_test/balance_test 回归 |
+| H04 | P2 | BGM 运行时 `ResourceLoader.load` 判空降级（push_warning + return）——缺资源不再空引用崩溃 |
+| H05 | P2 | homing 追踪 `dist <= 0` 保持原向——除零产生 inf/NaN 角度污染弹坐标 |
+| H06 | P2 | laser `_saved_autofire` 捕获移到 `_active=true` 之前——死守卫修复，`_end_beam` 不再无条件强开 autofire |
+| H07 | P2 | spawner `unlocked_types`/`_pick_bullet_type`/enemy 弹种池空池回退首型/单发——`randi()%0` 崩溃防护 |
+| H08 | P2 | meta_health `crack.density` 长度+元素校验回退默认档——越界索引/float 转换错误防护 |
+| H09 | P2 | hud 警告横幅闪烁对循环外置淡出+hide + tween 互斥缓存——旧实现 set_loops 包住淡出，首轮末尾即永久隐藏（声称 2s 实 0.9s） |
+| H10 | P3 | bullet `setup`/boss_attacks 编队齐射零方向弹统一回退 DOWN（G026 同族） |
+| H11 | P3 | boss `hp_mults` 长度+元素校验/`STRAFE_SPEEDS` 短数组回退/`fire_intervals` 非数组判型——Boss HP=0 免疫伤害静默与 _ready 崩溃防护 |
+| H12 | P3 | enrage `square_path_ratio` 钳制 (0.05, 1.0]——0 值除零产生 inf 轨道 NaN |
+| H13 | P3 | elite `fire_interval`/mothership_summon `shot_durations` 判型+判长回退（G06 口径） |
+| H14 | P3 | mothership `_warp_gate` 调用 `is_instance_valid` 判空（场景卸载时序悬挂引用） |
+| H15 | P3 | 配置 clamp 批量：事件间隔/震动衰减/HUD 轮询与低血周期/时间步进/蓄力时长/meta_health 时长键（tau/duration/fade）——≤0 除零/节流失效/永不衰减防护 |
+| H16 | P3 | `world_scale` 域校验钳制 ≥0.01——0/负使机体归零或镜像翻转 |
+| H17 | P3 | exit_confirm 淡出退出改 `tween_callback(get_tree().quit)`——替代 `await tween.finished` 挂起协程（AGENTS 协程纪律） |
+| H18 | P3 | missions 存档恢复保留 `goal` 键——整体替换丢 goal 致 `mission_completed` 永久哑火（潜伏） |
+| H19 | P3 | enemy `hover_band` 判型+判长回退（对齐 spawner G06） |
+| H20 | P3 | 生命周期/边界守卫组：buff_select 重建时 _closing 软锁复位、tutorial 失败/结束态防阶段推进、ui_theme 按钮 tween 互斥 kill、base_console 路线 buff 名缺键兜底 + 负治疗钳制、settings_ui `_pages` 空防御、cinematic_fx 点列<2 防御、return_cinematic 镜头时长 0 除零防御 |
+
+> 修复后回归：`--headless --import` 0 错误；批次相关断言场景（smoke/tutorial/buff33/base_system/return_cinematic/back_navigation/i18n/boss_pattern/mothership_summon/elite_turret_event/meta_health_fx/enemy_combat/difficulty/balance）全 0 FAIL。

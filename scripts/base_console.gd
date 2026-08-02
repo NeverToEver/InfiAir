@@ -349,7 +349,7 @@ func _refresh_routes() -> void:
 			var chosen: bool = GameState.chosen_routes.get(line) == opt
 			var locked := GameState.is_buff_locked(opt)
 			var button := _make_button("")
-			var buff_name := tr(ROUTE_BUFF_NAMES[opt])
+			var buff_name := tr(String(ROUTE_BUFF_NAMES.get(opt, String(opt))))  # H20：表缺键兜底
 			if chosen:
 				button.text = tr("BASE_CHOSEN_FMT") % [buff_name, GameState.buff_count(opt)]
 			elif locked:
@@ -418,7 +418,7 @@ func resume() -> void:
 func _on_repair_pressed() -> void:
 	# 2RP 回满（对齐原作，不按缺口计价）
 	if GameState.spend_rp(GameState.RP_REPAIR_COST):
-		GameState.heal(GameState.max_health() - GameState.health)
+		GameState.heal(maxf(0.0, GameState.max_health() - GameState.health))  # H20：防负治疗扣血
 		GameState.play_sfx(GameState.SFX_RESUPPLY)
 		_refresh()
 

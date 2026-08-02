@@ -126,5 +126,6 @@ func _fade_and_quit() -> void:
 	fade_layer.add_child(fade)
 	var tween := create_tween()
 	tween.tween_property(fade, "color:a", 1.0, 0.3)
-	await tween.finished
-	get_tree().quit()
+	# H17（健壮性审核）：tween_callback 替代 await——淡出期间场景卸载/双退出时
+	# tween 随节点释放自动取消，不留挂起协程（AGENTS 协程纪律）
+	tween.tween_callback(get_tree().quit)

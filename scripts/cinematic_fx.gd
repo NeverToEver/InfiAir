@@ -180,6 +180,9 @@ class BeamFlow:
 			_dots.append(dot)
 
 	static func _resample(points: PackedVector2Array, n: int) -> PackedVector2Array:
+		# H20（健壮性审核）：点列 <2 或目标 <2 时直接返回，防负索引/除零
+		if points.size() < 2 or n < 2:
+			return PackedVector2Array()
 		var out := PackedVector2Array()
 		out.resize(n)
 		var segs := points.size() - 1

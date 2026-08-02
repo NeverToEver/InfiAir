@@ -99,6 +99,11 @@ func _on_locale_changed() -> void:
 	_title_label.text = tr("BUFF_TITLE")
 	if visible:
 		_build_cards()
+		if _closing:
+			# H20（健壮性审核）：卡片重建会 free 旧卡 → 关闭动效 tween 被杀 → finished 永不
+			# 触发 → _closing + paused 软锁；重建时直接完成关闭语义
+			_closing = false
+			get_tree().paused = false
 
 
 func _make_card(buff: Dictionary) -> Control:

@@ -439,6 +439,9 @@ func _on_locale_changed() -> void:
 	_refresh_rebind_rows()
 	_refresh_lang_buttons()
 	_refresh_nav_labels()
+	# H20（健壮性审核）：_pages 空（locale_changed 早于 _ready）时防御
+	if _pages.is_empty():
+		return
 	# 重建内容区文本（重建代价低，保证全部文案换语言）
 	var content: Container = _pages.values()[0].get_parent()
 	for p in _pages.values():
