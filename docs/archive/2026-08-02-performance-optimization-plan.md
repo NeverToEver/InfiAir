@@ -4,7 +4,7 @@
 > **日期**：2026-08-02
 > **范围**：对局常驻热路径、对象池与分配、渲染常驻成本、瞬态帧率尖峰、启动一次性成本。
 > **依据**：三个并行只读代码扫描（热路径 / 分配池化 / 渲染启动）+ 实测基准（`perf_bench`、主场景启动计时）。
-> **执行状态（2026-08-02）**：P0 ×4 / P1 ×7 / P2 ×8 全部落地并全量回归 0 FAIL；P3 可选项经评估全部跳过（理由见 §12）；实测 A/B 见 §2.3。
+> **执行状态（2026-08-02）**：P0 ×4 / P1 ×7 / P2 ×8 全部落地（提交 `920e5e9`，2026-08-02 口径统一回填）并全量回归 0 FAIL（31 断言场景，含 mouse_lock_test）；P3 可选项经评估全部跳过（理由见 §12）；实测 A/B 见 §2.3。
 > **前置知识**：`docs/DESIGN_BASELINE.md` §3「全局不变量」、`docs/TESTING.md`、`docs/AUDIT_VAULT.md`。
 
 ---
@@ -375,7 +375,7 @@ godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 
 ### 9.3 全量回归
 
-- 每批改动落地后：`--headless --import` → `--quit-after 300` → `smoke_test` → 涉及池化时 `pool_reuse_test` → 涉存档/基地/母舰时 `base_system_test` → 全量 30 断言场景 0 FAIL →（改动涉及对局行为时）`autoplay_test` 长时探针。
+- 每批改动落地后：`--headless --import` → `--quit-after 300` → `smoke_test` → 涉及池化时 `pool_reuse_test` → 涉存档/基地/母舰时 `base_system_test` → 全量 31 断言场景 0 FAIL（落地时点含 mouse_lock_test，2026-08-02 口径统一订正）→（改动涉及对局行为时）`autoplay_test` 长时探针。
 
 ---
 
@@ -473,7 +473,7 @@ godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 
 - `--headless --import` 0 错误；`--quit-after 300` 0 错误。
 - `smoke_test` 142 PASS 0 FAIL；`pool_reuse_test` 12 PASS 0 FAIL；`base_system_test` 46 PASS 0 FAIL；`buff33_test` 29 PASS 0 FAIL。
-- 全量 30 断言场景 0 FAIL（§9.3 清单）。
+- 全量 31 断言场景 0 FAIL（§9.3 清单；落地时点实际为 31，原记 30 系计划写作时点，2026-08-02 口径统一订正）。
 - 文档同步：AUDIT_VAULT 回填 D08/D11/E13/G017/G025/G027（见档案性能优化落地记录）；DESIGN_BASELINE §7.2 敌机生成路径技术债更新；AGENTS.md 同步。
 
 ---

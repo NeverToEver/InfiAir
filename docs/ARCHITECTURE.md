@@ -84,5 +84,5 @@ Main (scripts/main.gd)
 | `assets/` | 游戏贴图、音效/BGM、字体和着色器（`assets/shaders/`，Meta HUD 后处理与裂纹场烘焙）。 |
 | `data/` | 运行时数值配置和翻译资源源文件。 |
 | `test/` | 以 `.tscn + .gd` 实现的无头场景自检、性能基准、自动游玩和截图工具。 |
-| `docs/` | 退出流程、审计计划、审核-修复 SOP（AUDIT_REVIEW_SOP，并行审核方法论）、路线图（ROADMAP）、无限流数值指引（ENDLESS_BALANCE_PLAN）、数值位置地图（BALANCE_MAP，生成文件）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录）。 |
+| `docs/` | 退出流程、审核-修复 SOP（AUDIT_REVIEW_SOP，并行审核方法论）、路线图（ROADMAP）、设计基线（DESIGN_BASELINE）、无限流数值指引（ENDLESS_BALANCE_PLAN）、数值位置地图（BALANCE_MAP，生成文件）、各机制设计文档与截图；`docs/archive/` 存放冻结的历史档案（移植对齐记录 `PORTING_PARITY.md` 与已完成工作的执行留档 `EXECUTION_LOG.md` 及其原文）。 |
 | `packaging/` | 发布包随附的安装/卸载脚本：`linux/`（install.sh / uninstall.sh / infiair.desktop）、`windows/`（install.bat / uninstall.bat）。 |

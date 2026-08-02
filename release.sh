@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # InfiAir 发布构建：资源导入 → 导出 Linux/Windows → 打包（含安装/卸载脚本）
 # 用法：./release.sh           输出 builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>
-# 环境变量：VERSION（默认 3.25）、GODOT（默认 ~/.local/bin/godot，回退 PATH）
+# 环境变量：VERSION（默认 3.26）、GODOT（默认 ~/.local/bin/godot，回退 PATH）
 set -euo pipefail
 cd "$(dirname "$0")"
 

@@ -55,7 +55,7 @@
 - **修复起效记录**：✅ 已修复（2026-07-31 全量落地）
   - **改了什么**：为 9 个被穿透类新增公开接口方法并替换全部生产代码跨类访问。新增接口——`Player`：`is_dead()/is_input_locked()/set_invincible()/lock_input()/unlock_input()/set_fuel()/fuel_amount()/die()/apply_enrage_slow()/set_auto_fire()/auto_fire_enabled()/is_dashing()`；`Spawner`：`set_elite_event()/set_formation_event()/set_elapsed()/elapsed()/set_boss_frozen()/set_waves_paused()/is_boss_active()/elite_event()/consume_boss_pending()/trigger_boss()`；`Boss`：`is_in_fight()/is_escaping()/abort_enrage_sequence()`；`Mothership`：`state()/mag_cells()`；`Main`：`is_intro_playing()/is_return_playing()/is_game_over()/is_homecoming()/mothership()`；`SettingsUI`：`capturing_action()`；`HUD`：`show_warning()`；`Bullet`/`Enemy`：`set_pool()/is_active()/set_repooling()`（+ `Bullet.despawn()`、`Enemy.is_exiting()`）。`bullet.gd` 命中玩家的硬强转 `(area.get_parent() as Player)` 改为经 `GameState.player_ref` 注册表引用。被穿透的 `_` 字段保留原名（测试白盒访问不受影响，A7 独立处理）。
   - **为什么起效**：私有状态不再被外部直接读写，封装边界恢复——任意 `_` 字段改名只影响本类内部，不再编译期/运行时波及跨类调用方；对象池与对象的协调（`_repooling` 防误清）走公开 setter，语义不变。
-  - **如何验证**：`--headless --import` 通过；27 个断言测试场景全部 `[PASS]` 0 失败（smoke/pool_reuse/hit_logic/enemy_combat/boss_enrage/tutorial/esc_navigation/mothership_summon/elite_turret_event/formation_strike_event/base_system/buff33/view_zoom/i18n/keybind/startup_flow/back_navigation/meta_health_fx/orbital_strike/boss_phase/boss_pattern/wave_pacing/buff_panel/buff_visuals/window_size/difficulty/balance）。注意：`hit_logic` A21（AGENTS.md 记录的既有失败基线）本次运行通过，判定与该次改动无关、疑似测试顺序/环境差异，已复核无需回退。
+  - **如何验证**：`--headless --import` 通过；29 个断言测试场景全部 `[PASS]` 0 失败（smoke/pool_reuse/hit_logic/enemy_combat/boss_enrage/tutorial/esc_navigation/mothership_summon/elite_turret_event/formation_strike_event/base_system/buff33/view_zoom/i18n/keybind/startup_flow/back_navigation/meta_health_fx/orbital_strike/boss_phase/boss_pattern/wave_pacing/buff_panel/buff_visuals/window_size/difficulty/balance/intro_cinematic/return_cinematic。注：原记录漏写 intro/return_cinematic 两个、误记为 27，2026-08-02 口径统一订正为 29）。注意：`hit_logic` A21（AGENTS.md 记录的既有失败基线）本次运行通过，判定与该次改动无关、疑似测试顺序/环境差异，已复核无需回退——**2026-08-02 已查明实为 profile 视角档巧合（见下「既有失败基线处置记录」），根因已修复**。
   - **遗留**：测试文件仍白盒访问 `_` 私有字段（归 A7，未混入本次）；`intro/return_cinematic` 内部 `root._*` 与 `explosion.gd` 同类静态访问为合法同类内部访问，不属 A1。
 
 ---
@@ -133,7 +133,9 @@
   1. 区分可接受部分：GameState 作配置中心 + 信号总线 + 注册表是**有意的性能权衡**（热路径避免每帧 `get_nodes_in_group`），保留但收敛接口。
   2. 事件依赖注入：Boss/事件需要的 Spawner 引用在 `_ready`/`setup` 时由注入方传入，避免 group 查找。
   3. `bullet.gd` 的 Player 强转改信号或接口。
-- **修复起效记录**：⚠️ 未修复（登记于 2026-07-31）
+- **修复起效记录**：⚠️ **部分完成（2026-08-02 订正，此前误记「未修复」）**
+  - **已落地（2026-07-31 `bdb0274`「A5 依赖注入」）**：Boss/精英炮塔对 Spawner 的依赖改为注入——`boss.gd` 新增 `_spawner` + `set_spawner()`，`spawn_minion_at()`/`_summon_minions()` 不再 `get_first_node_in_group("spawner")`；`elite_turret_event.gd` 同法替换 3 处 group 查找（指引第 2 条）；`bullet.gd` 的 Player 强转已由 A1 经 `GameState.player_ref` 落地（指引第 3 条）；指引第 1 条「GameState 作配置中心+注册表」为有意性能权衡保留。
+  - **未收敛**：残余依赖点（`hud`/`pause_ui` 等对 Main 的引用）仍经注册表/组间接获取，未全量改显式注入（详见 `DESIGN_BASELINE.md` §7.1）。
 
 ---
 
@@ -182,12 +184,43 @@
 | A2 上帝对象 | 危险 | ✅ 已修复 | 2026-07-31 |
 | A3 boss 单类 | 严重 | ⚠️ 拆分落地、O 原则未达成（2026-08-01 订正） | 2026-07-31 |
 | A4 开闭违反 | 严重 | ⚠️ 部分完成（A4a/A4b 落地，Boss 分支与 Player buff 未治理） | 2026-07-31 |
-| A5 依赖倒置 | 严重 | 未修复 | 2026-07-31 |
+| A5 依赖倒置 | 严重 | ⚠️ 部分完成（依赖注入已落地 `bdb0274`；GameState 配置中心有意保留，2026-08-02 订正） | 2026-07-31 |
 | A6 L 违反 | 中等 | ✅ 已修复（is_boss 语义化特判，2026-08-01 回填） | 2026-07-31 |
 | A7 测试耦合 | 中等 | ✅ 已修复 | 2026-07-31 |
 | A8 Player 膨胀 | 中等 | ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽） | 2026-07-31 |
 
 > **修复后处理**：任何一条修复落地后，须回到本表更新状态，并在对应条目回填「修复起效记录」——说明改了什么、为什么起效、用什么验证（相关测试场景：`smoke_test` / `base_system_test` / `pool_reuse_test` / `enemy_combat_test` / `hit_logic_test`）。
+
+## 既有失败基线处置记录（A21：hit_logic_test「Boss 入场降入期玩家弹可伤 Boss」）
+
+> 本条不是 A 系列审计条目，而是 `docs/TESTING.md` 曾登记的既有失败基线（PORTING_PARITY 附录 A 的 A21 断言）。因 2026-08-01 复核曾误判「已自愈」、根因未除，特立档记录，防止同类误判再犯。
+
+- **登记**：2026-07-31（AGENTS.md「既有失败基线」）。描述：`hit_logic_test` A21 断言「Boss 入场降入期玩家弹可伤 Boss」稳定失败。
+- **2026-08-01 复核误判**：干净 HEAD 复跑通过（hit_logic 20 断言含 A21），判定「疑似测试顺序/环境差异」、记为已自愈——**结论错误**：通过只是因为当时 `user://profile.json` 的 `view_zoom` 恰为 medium/small 档，失败条件未复现，根因从未排查。
+- **根因（2026-08-02 定位）**：A21 把 Boss 与玩家弹放在**硬编码绝对坐标** `(960, 100)`，并假定该处「仍在降入」。`view_zoom=large`（相机 zoom 1.7）时可见区顶缘 `view_world_rect().position.y = 222`，该坐标已在可见区之外——玩家弹下一帧触发 `view_world_rect(80)` 出界判定被 `_despawn()` 销毁，从未与 Boss 碰撞，`hp == max_hp` 恒成立 → 断言稳定失败。物理碰撞本身与视角档无关，失败纯由测试坐标未适配视角档导致。
+- **修复（2026-08-02，`test/hit_logic_test.gd`）**：A21 段 Boss/子弹位置改按战斗锚线动态计算 `fight_anchor_y() - 75`（= view 顶缘 + FIGHT_Y - 75 = view 顶缘 + 155）：仍在降入（< 锚线）且恒在 `view_world_rect(80)` 出界判定内（FIGHT_Y=230，任意档位余量充足）。A2 段同类硬编码 `y=150` 一并改 `fight_anchor_y() - 80`（同一脆弱模式：绝对坐标依赖视角档/FIGHT_Y 配置）。
+- **为什么起效**：断言不再依赖「small 档下 y=100 恰在可见区内」的隐式前提；任意视角档、任意 FIGHT_Y（>155）下，「Boss 仍在降入」与「玩家弹可命中」都由位置公式直接保证，无环境状态参与。
+- **如何验证**：视角档 × 难度 9 组合矩阵（small/medium/large × easy/medium/hard）hit_logic_test 全部 61 PASS 0 FAIL（修复前 large 档必失败）；large/medium 档各连跑 5 轮稳定；smoke_test 142 PASS、view_zoom_test 0 FAIL、boss_pattern/boss_phase/boss_enrage/enemy_combat/wave_pacing 全绿无回归。
+- **经验教训**：失败基线登记后必须定位根因并验证根因消除，不能因一次干净环境通过就标记「自愈」；`user://` 等共享持久化状态是测试顺序相关失败的高频来源，涉及视角/窗口/难度档的测试断言不得硬编码绝对世界坐标。
+
+## 文档口径统一处置记录（2026-08-02）
+
+> **触发**：用户指出文档健康度极低，要求「彻头彻尾统一口径，有问题就标记，已完成就标记」。对 `docs/` 全部 26 份文档做了全量交叉核对（3 路并行只读核查：专项设计文档 vs 代码、计划文档 vs git 落地、本档案内部一致性；核心活文档 ROADMAP/DESIGN_BASELINE/ARCHITECTURE/EXIT_FLOW/TESTING/README 亲自核对）。权威基准：31 断言场景 / 版本 3.26 / 提交时间线实测。
+
+**确认并修复的口径问题（按类别）**：
+
+1. **状态误记（最严重）**：A5 依赖倒置状态表/条目/ROADMAP/DESIGN_BASELINE 四处均写「未修复」，实际 `bdb0274`（2026-07-31）已落地 Boss/精英炮塔 Spawner 依赖注入——统一订正为「⚠️ 部分完成（注入已落地，GameState 配置中心有意保留）」。
+2. **文档内部自相矛盾**：`DESIGN_BASELINE` §2.4 仍写敌机「两条路径并存」、§7.2 却标「已统一池化」（2026-08-02 性能计划）——§2.4 订正为已统一；`RETURN_HOME_CINEMATIC` §6 写 16.8s、§2/§7 写 11.8s；`INTRO_CINEMATIC` §4 letterbox 110px、§2 与 tscn 为 132px；META_HUD 文档 6-tap vs shader 4-tap（shader 自身注释也过期，一并修）。
+3. **断言场景数四代并存（27/29/30/31）**：AUDIT_VAULT A1「27」→29（补漏 intro/return_cinematic）、D 系列两处 29→30、F 系列 23→25、性能记录「27」→31、ROADMAP/DESIGN_BASELINE 29/30→31、计划文档 30→31 等；保留各轮时点正确者（B/C/E 系列）。
+4. **失效提交哈希**：`dcef9b6`（ROADMAP/DESIGN_BASELINE 本地账号规格）→ `7aacd3f`；`b02be46`/`57c778b`（07-22 计划）→ `4df9e02`/`7f0aa42`。
+5. **G 系列计数**：结论「2 项 P1、9 项 P2」→「3 项 P1、8 项 P2」（清单与提交实测）；批次 2「P2×9」→「P2×8」（提交消息自身笔误）；D 系列结论 P3×6→P3×8、基线 60 提交/195 文件→59/196/+14.6k。
+6. **计划文档 7 份无/缺完成标记**：2026-07-30（「未 git commit」过期）、2026-08-01 C 系列报告（零标记）、2026-08-02 D 系列、boss-p2（20 checkbox 全未勾）、E 系列、性能计划（补 920e5e9）、core-logic（补 4 批哈希）——全部回填 ✅ 状态与落地提交；mouse-lock F02 补 `c48383f`。
+7. **专项设计文档过期数值**：ELITE §1.2 敌机 HP 采样（55~130/80 → 48~112/65-72，精英 150-230→135-210）；META_HUD uniform 默认值（u_ripple_phase 0.0→1.0、u_crack_spread_min 0.10→0.15、u_crack_width 0.03→0.10）、meta_fx_lod 默认 0→1；BOSS_REDESIGN B5 注记补「已修复」。
+8. **release.sh**：L4 注释默认版本 3.25→3.26。
+
+**未改动（有意保留）**：各轮审核的「时点数字」作为历史快照保留（B/C/E/F 系列断言场景数、计划文档执行时点计数）；设计文档中标注「已废弃/被取代」的旧行为快照保留；行号锚点类引用因代码持续演进普遍漂移，本次未逐行更新（以函数名为准，随下次专项维护处理）。
+
+**验证**：`--headless --import` 0 错误（含 shader 注释修订编译）；`smoke_test` 142 PASS 0 FAIL；`--quit-after 300` 0 error；`bash -n release.sh` 通过。改动 20 份文档 + release.sh + shader 注释 + 上一条 A21 修复，共 21 文件 +114/-82。
 
 <!-- 新发现追加区：后续审核轮次在此编号继续（B1, B2, ...） -->
 
@@ -230,7 +263,7 @@
 | 项 | 修正内容 |
 | --- | --- |
 | AUDIT_VAULT A 系列状态表 | A3/A4/A6/A8 按实际完成度订正（上文）；ROADMAP/AGENTS 同步 |
-| `docs/2026-07-30-combat-ux-audit-plan.md` | P1-1 mark_ratio 0.4/40% → 落地值 0.25（正文/回退/目标态）；P0-3「不动 world_scale 1/3」加 2026-07-31 上调 0.4 决策变更注 |
+| `docs/archive/2026-07-30-combat-ux-audit-plan.md` | P1-1 mark_ratio 0.4/40% → 落地值 0.25（正文/回退/目标态）；P0-3「不动 world_scale 1/3」加 2026-07-31 上调 0.4 决策变更注 |
 | `docs/META_HUD_DESIGN.md` §7 | 裂纹曲线验收 0.11/0.33/**0.72/0.93** → 与 §4.2/代码一致的 **0.63/0.84** |
 | `docs/EXIT_FLOW.md` | 状态机伪代码方法名改公开接口（`main.skip_intro()/skip_return()`、`base_ui.resume()`、`settings_ui.back()`） |
 | `AGENTS.md` | GameState 描述补 A2 组合服务；编队事件「不暂停波次」→「占用波次槽暂停普通波次」；失败基线（A21/母舰击杀偶发）标注已通过 |
@@ -274,7 +307,7 @@
 | 审核方法 | 7 分区并行审核（对局编排/玩家武器/刷怪敌人/Boss/事件演出/UI/测试）+ 主控交叉核验 + 判定分类（`docs/AUDIT_REVIEW_SOP.md`） |
 | 结论 | 无危险级崩溃；2 严重 + 15 中等 + 18 轻微，共 35 项（生产 28 / 测试 7）。基线 `--import` 与 `--quit-after 300` 全绿；Godot 3.x 残留 API 全库 0 处 |
 | 审核人 | Claude Code（依据用户指示执行） |
-| 完整报告 | `docs/2026-08-01-godot-best-practice-audit.md` |
+| 完整报告 | `docs/archive/2026-08-01-godot-best-practice-audit.md` |
 
 ## 发现清单（C 系列，登记待修复）
 
@@ -379,11 +412,11 @@
 | --- | --- |
 | 审核类型 | 近期 60 提交大改全量代码审查（入场衔接动画 / UI uplift / Boss·事件·演出 / 辅助瞄准弹道 / 数值一致性 / 文档-代码-测试三角） |
 | 工作时间 | 2026-08-02 |
-| 审核区域 | 基线 `8c6dfff`→HEAD（60 提交、195 文件、+14.2k/-3.9k 行）涉及 `scripts/` + `autoload/` + `data/` + `docs/` + `test/` |
+| 审核区域 | 基线 `8c6dfff`→HEAD（59 提交、196 文件、+14.6k/-3.9k 行，2026-08-02 口径统一订正）涉及 `scripts/` + `autoload/` + `data/` + `docs/` + `test/` |
 | 审核方法 | 6 分区并行审核（`docs/AUDIT_REVIEW_SOP.md`）+ 主控交叉核验 + 实证证伪（D03 Label mouse_filter 默认值） |
-| 结论 | 无 P0/P1；P2×4 修复 + P2×1 文档登记（D05）+ P3×9 修复 + P3×6 登记不修 + 文档同步 8 处；D03 误报证伪；修复后全量 29 断言场景 0 FAIL |
+| 结论 | 无 P0/P1；P2×4 修复 + P2×1 文档登记（D05）+ P3×9 修复 + P3×8 登记不修 + 文档同步 8 处；D03 误报证伪；修复后全量 30 断言场景 0 FAIL |
 | 审核人 | Kimi Code CLI（依据用户指示执行） |
-| 完整报告 | `docs/2026-08-02-audit-fix-plan.md`（发现-判定-修复追踪单一事实源） |
+| 完整报告 | `docs/archive/2026-08-02-audit-fix-plan.md`（发现-判定-修复追踪单一事实源） |
 
 ## 发现清单（D 系列，登记待修复）
 
@@ -470,11 +503,11 @@
 | D29 | 🟦 不修 | 见判定分类（C17 条目已补注说明 back_navigator 属合理模式） |
 | D30 | 🟦 不修 | 见判定分类 |
 
-> 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / perf_bench rc=0 / autoplay 探针完整跑（480s、3 对局、0 死亡、孤儿 0、帧耗时峰值 7.43ms）——1 个 `score_stagnant` 偶发（Boss 战专注期分数停滞 + 逃跑空窗竞态，该 run 返航 0 次、与 D 系列改动路径无交集，判定为既有探针偶发非本次引入）。
+> 修复后回归：`--import` / `--quit-after 300` / **30 断言场景全绿 0 FAIL** / perf_bench rc=0 / autoplay 探针完整跑（480s、3 对局、0 死亡、孤儿 0、帧耗时峰值 7.43ms）——1 个 `score_stagnant` 偶发（Boss 战专注期分数停滞 + 逃跑空窗竞态，该 run 返航 0 次、与 D 系列改动路径无交集，判定为既有探针偶发非本次引入）。
 
 ### E 系列（2026-08-02 存量盲区补充审查，只登记未修复）
 
-> 补充审查 D 系列未作为主审对象的存量盲区（敌人体系 / 演出·特效·母舰 / 系统服务·杂项，28 脚本），3 路并行 + 主控核验。**按用户指示只登记不修复**，判定建议供后续决策；完整报告见 `docs/2026-08-02-audit-fix-plan.md` 第四节。
+> 补充审查 D 系列未作为主审对象的存量盲区（敌人体系 / 演出·特效·母舰 / 系统服务·杂项，28 脚本），3 路并行 + 主控核验。**按用户指示只登记不修复**，判定建议供后续决策；完整报告见 `docs/archive/2026-08-02-audit-fix-plan.md` 第四节。
 
 | 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
 | --- | --- | --- | --- | --- | --- |
@@ -496,7 +529,7 @@
 
 ## E 系列修复起效记录（2026-08-02 全量处置）
 
-> 按登记判定建议全量落地；修复批次见 `docs/2026-08-02-e-series-fix-plan.md`（发现-判定-修复追踪单一事实源）。
+> 按登记判定建议全量落地；修复批次见 `docs/archive/2026-08-02-e-series-fix-plan.md`（发现-判定-修复追踪单一事实源）。
 
 | 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
 | --- | --- | --- |
@@ -520,7 +553,7 @@
 
 ### F 系列（2026-08-02 鼠标出框准星失控——登记 + 修复）
 
-> 对局中鼠标移出游戏窗口后 Godot 停止派发鼠标移动事件，`get_global_mouse_position()` 冻结在最后位置，准星卡在屏幕边缘、移回时位置跳变；此前尝试未彻底解决。本次新增「鼠标锁定窗口内」设置项（`mouse_lock`，默认开启，profile 持久化）从根上消除出框前提。执行计划存档见 `docs/2026-08-02-mouse-lock-plan.md`。
+> 对局中鼠标移出游戏窗口后 Godot 停止派发鼠标移动事件，`get_global_mouse_position()` 冻结在最后位置，准星卡在屏幕边缘、移回时位置跳变；此前尝试未彻底解决。本次新增「鼠标锁定窗口内」设置项（`mouse_lock`，默认开启，profile 持久化）从根上消除出框前提。执行计划存档见 `docs/archive/2026-08-02-mouse-lock-plan.md`。
 
 | 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
 | --- | --- | --- | --- | --- | --- |
@@ -550,7 +583,7 @@
 
 > **F02 核查注记（2026-08-02，warp 是否导致准星抖动）**：结论——**不会**。warp 目标恒取 `_last_known_pos`（出框前最后窗口内位置，移出后冻结），位移 ≤1-2px；鼠标在窗口外时 `get_global_mouse_position()` 本就冻结在最后内部位置，warp 后读值连续，`aim_point()` 平滑增量 ≈0。warp 反而把"移回窗口时的数十 px 位置跳变"钳在边缘内侧。边界仅左/上缘第 0 列/行触发单次 1px 回拉（右/下缘最后列在 clamp 范围内不触发）。验证：mouse_lock_test 新增 2 项「warp 位移 ≤2px」断言（25 项全绿 0 FAIL）。
 
-> 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / mouse_lock_test 23 断言 0 FAIL / smoke_test 0 FAIL。
+> 修复后回归：`--headless --import` / `--quit-after 300` 0 错误 / mouse_lock_test 25 断言 0 FAIL（13 基础 + F02 放行判定 7 + warp 位移核查 2，2026-08-02 口径统一订正）/ smoke_test 0 FAIL。
 
 # 第五轮审核（2026-08-02 核心逻辑全量代码审查）
 
@@ -562,12 +595,12 @@
 | 工作时间 | 2026-08-02 |
 | 审核区域 | 对局编排/状态（main/game_state/spawner/tutorial）、玩家系统（player/player_damage/player_dash/aim_crosshair/aim_frame_layer）、战斗实体（enemy/boss/bullet/laser_weapon/explosion）、服务与对象池（balance_service/save_manager/sfx_player/entity_registry/bullet_pool/enemy_pool/mothership），17 文件约 6900 行 |
 | 审核方法 | 分区通读 + 跨文件依赖追踪 + P1 证据亲验（读源码确证） |
-| 结论 | 2 项 P1、9 项 P2、21 项 P3；整体质量高，未见协程违规/信号重连/池防护缺失 |
+| 结论 | 3 项 P1、8 项 P2、21 项 P3；整体质量高，未见协程违规/信号重连/池防护缺失（2026-08-02 口径统一订正：P1=G01–G03、P2=G04–G011） |
 | 审核人 | Kimi Code（依据用户指示执行） |
 
 ### G 系列（2026-08-02 核心逻辑全量审查，只登记未修复）
 
-> 完整报告（范围/规则/证据/修复优先级）见 `docs/2026-08-02-core-logic-audit.md`。判定建议供后续决策。
+> 完整报告（范围/规则/证据/修复优先级）见 `docs/archive/2026-08-02-core-logic-audit.md`。判定建议供后续决策。
 
 | 编号 | 严重度 | 位置 | 类别 | 描述 | 判定建议 |
 | --- | --- | --- | --- | --- | --- |
@@ -604,11 +637,11 @@
 | G031 | P3 | `mothership.gd:182-184` | 资源共享 | 双炮塔共享 ParticleProcessMaterial 写 scale（幂等同值安全，E14 同族） | 不修（注明安全） |
 | G032 | P3 | `mothership.gd:168-170`/`mothership.tscn:22` | 注释不符 | 脚本注释"tscn 存 1.0 基准"，tscn 实际 1.25 且脚本硬编码 1.25*ws | 修 |
 
-> 修复后回归口径：修复批次落地后按 `docs/2026-08-02-core-logic-audit.md` 优先级执行，逐条回填本表「修复起效记录」。
+> 修复后回归口径：修复批次落地后按 `docs/archive/2026-08-02-core-logic-audit.md` 优先级执行，逐条回填本表「修复起效记录」。
 
 ## G 系列修复起效记录（2026-08-02 全量处置）
 
-> 修复批次提交：批次 1（P1×3，cb8511b）、批次 2（P2×9，b7b2cc8）、批次 3+4（P3+待判定，ffef641）。完整审核报告见 `docs/2026-08-02-core-logic-audit.md`。
+> 修复批次提交：批次 1（P1×3，cb8511b）、批次 2（P2×8，b7b2cc8；提交消息标题写 P2×9 系笔误，正文实列 G04–G011 共 8 项，2026-08-02 口径统一订正）、批次 3+4（P3+待判定，ffef641）。完整审核报告见 `docs/archive/2026-08-02-core-logic-audit.md`。
 
 | 编号 | 状态 | 改了什么 / 为什么起效 / 验证 |
 | --- | --- | --- |
@@ -649,7 +682,7 @@
 
 # 性能优化落地记录（2026-08-02，全量）
 
-> 依据 `docs/2026-08-02-performance-optimization-plan.md` 全量落地（P0×4 / P1×7 / P2×8），改动 24 个源码文件。本节登记与既有审计条目的交集回填；完整落地摘要、A/B 数据与回归见计划书 §12。改动面：`game_state.gd`（view_world_rect 帧缓存 / 回血链缓存 / mission 守卫）、`spawner.gd`+`enemy_pool.gd`+`enemy.gd`（敌机池化统一）、`enemy/boss/turret_battery/formation_craft`（受击闪白手动衰减）、`player.gd`（残影池 / ticks 单取）、`aim_frame_layer.gd`（扫描缓存）、`starfield.gd`（绘制合批）、`hud.gd`（文本档位守卫 / sin_fast）、`meta_health.gdshader`（减采样）、P2 各项。
+> 依据 `docs/archive/2026-08-02-performance-optimization-plan.md` 全量落地（P0×4 / P1×7 / P2×8），改动 24 个源码文件（git 统计 27 文件，另含 3 份 docs，2026-08-02 口径统一订正）。本节登记与既有审计条目的交集回填；完整落地摘要、A/B 数据与回归见计划书 §12。改动面：`game_state.gd`（view_world_rect 帧缓存 / 回血链缓存 / mission 守卫）、`spawner.gd`+`enemy_pool.gd`+`enemy.gd`（敌机池化统一）、`enemy/boss/turret_battery/formation_craft`（受击闪白手动衰减）、`player.gd`（残影池 / ticks 单取）、`aim_frame_layer.gd`（扫描缓存）、`starfield.gd`（绘制合批）、`hud.gd`（文本档位守卫 / sin_fast）、`meta_health.gdshader`（减采样）、P2 各项。
 
 | 编号 | 原状态 | 回填 | 改了什么 / 为什么起效 / 验证 |
 | --- | --- | --- | --- |
@@ -660,4 +693,4 @@
 | G025 | 🟦 登记不修 | ✅ **已修复** | 每帧重复 `view_world_rect()`（~130 次）——`GameState` 物理帧号守卫缓存（同帧子弹×N/敌机×N/玩家/Boss 共享一次视口查询，zoom/camera 变更四点失效）。验证：view_zoom 50 / smoke 142 / perf_bench A/B -8~9% |
 | G027 | ✅ 已修复 | ✅ 补充 | 既有空目标早退之上补 `_live_targets()` 输出缓冲复用（免每次发射分配新 Array）。验证：mothership_summon 32 PASS |
 
-> 回归：`--headless --import` / `--quit-after 300` 0 错误；smoke 142 / pool_reuse 12 / base_system 46 / 全量 27 专项断言场景 0 FAIL；perf_bench 同环境 A/B 中位数 0.131→0.120 ms/帧（约 -8~9% CPU 逻辑耗时）。
+> 回归：`--headless --import` / `--quit-after 300` 0 错误；smoke 142 / pool_reuse 12 / base_system 46 / 全量 31 断言场景 0 FAIL（落地时点实际为 31，含 mouse_lock_test；原记 27 系口径笔误，2026-08-02 订正）；perf_bench 同环境 A/B 中位数 0.131→0.120 ms/帧（约 -8~9% CPU 逻辑耗时）。

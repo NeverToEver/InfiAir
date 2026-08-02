@@ -1,5 +1,7 @@
 # Boss P2 阶段走位升级 Implementation Plan
 
+> **✅ 已完成（2026-08-02 口径统一回填）**：全部 20 项任务落地——配置键 `237b077`（boss.movement 段 11 键）、TDD 红测试 `ce1ea1c`、功能实现 `4a7d252`（提交信息与 §4 计划原文逐字一致）、文档回填 `1e6183c`。验证：boss_phase_test 37 PASS（原 32 + 新增 5）+ 全量 30 断言场景 0 FAIL。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 落地 BOSS_REDESIGN §5 的 P2 阶段走位升级（D05）：一型 P2 strafe 200 + 纵向正弦往复、二型 P2 冲刺 0.4s/0.5s、三型 P1 锚线下 200–280px 区间呼吸、三型 P2 strafe 100 + 纵向正弦往复。
@@ -29,7 +31,7 @@
 **Interfaces:**
 - Produces: `Boss.TYPE1_P2_STRAFE: int`、`Boss.TYPE1_P2_BOB_AMP: float`、`Boss.TYPE1_P2_BOB_PERIOD: float`、`Boss.TYPE2_P2_DASH_TIME: float`、`Boss.TYPE2_P2_REST_TIME: float`、`Boss.TYPE3_P1_BOB_MIN: float`、`Boss.TYPE3_P1_BOB_MAX: float`、`Boss.TYPE3_P1_BOB_PERIOD: float`、`Boss.TYPE3_P2_STRAFE: int`、`Boss.TYPE3_P2_BOB_AMP: float`、`Boss.TYPE3_P2_BOB_PERIOD: float`（均为公开实例字段，`boss_movement.gd` 经 `boss.XXX` 读取，同 `STRAFE_SPEEDS` 模式）
 
-- [ ] **Step 1: balance.json 新增 `boss.movement` 段**
+- [x] **Step 1: balance.json 新增 `boss.movement` 段**
 
 在 `data/balance.json` 的 `boss` 段 `phases` 键之后新增：
 
@@ -49,7 +51,7 @@
 	}
 ```
 
-- [ ] **Step 2: boss.gd 新增公开字段（默认值 = json 同值）**
+- [x] **Step 2: boss.gd 新增公开字段（默认值 = json 同值）**
 
 在 `scripts/boss.gd` 的 `PRESS_DEPTH`（约 :102）声明之后追加：
 
@@ -68,7 +70,7 @@ var TYPE3_P2_BOB_AMP := 50.0  # 三型 P2 纵向正弦幅度（±px，围绕锚�
 var TYPE3_P2_BOB_PERIOD := 8.0  # 三型 P2 纵向正弦周期（s）
 ```
 
-- [ ] **Step 3: boss.gd `_ready` 缓存配置**
+- [x] **Step 3: boss.gd `_ready` 缓存配置**
 
 在 `scripts/boss.gd` `_ready` 中 `PRESS_DEPTH` 缓存行（约 :447）之后追加：
 
@@ -86,12 +88,12 @@ var TYPE3_P2_BOB_PERIOD := 8.0  # 三型 P2 纵向正弦周期（s）
 	TYPE3_P2_BOB_PERIOD = float(GameState.cfg("boss.movement.type3_p2_bob_period", TYPE3_P2_BOB_PERIOD))
 ```
 
-- [ ] **Step 4: 验证解析**
+- [x] **Step 4: 验证解析**
 
 Run: `godot --headless --import --path .`
 Expected: exit 0，无脚本解析错误。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add data/balance.json scripts/boss.gd
@@ -109,7 +111,7 @@ git commit -m "feat: Boss P2 走位配置键——boss.movement 段 11 键（str
 - Consumes: Task 1 的 `Boss.TYPE1_P2_BOB_AMP` 等 11 个字段
 - Produces: 走位存在性/幅度断言（C34 口径：读实例常量，不硬编码）
 
-- [ ] **Step 1: 场景 1（一型）P2 段追加走位采样断言**
+- [x] **Step 1: 场景 1（一型）P2 段追加走位采样断言**
 
 在 `test/boss_phase_test.gd` 的 C11「P2 段切换后机身回到战斗锚线」断言之后、`P2→ENRAGE` 的 take_damage 之前，插入：
 
@@ -151,7 +153,7 @@ git commit -m "feat: Boss P2 走位配置键——boss.movement 段 11 键（str
 	# D05：P2 起加入纵向正弦（sin 0 = 0，切换瞬间仍回锚线）；容差 4px 兼容相位未推进时的逼近残差。
 ```
 
-- [ ] **Step 2: 场景 3（三型）P1 段追加区间呼吸断言**
+- [x] **Step 2: 场景 3（三型）P1 段追加区间呼吸断言**
 
 在 `test/boss_phase_test.gd` 场景 3 的 P1 模式循环断言之后（三型仍在 P1 且未打到 P2 时）插入：
 
@@ -178,12 +180,12 @@ git commit -m "feat: Boss P2 走位配置键——boss.movement 段 11 键（str
 
 （若场景 3 现有代码无 `boss3` 变量名，按该场景现有变量命名调整；三型须处于 P1 阶段且模式在播。）
 
-- [ ] **Step 3: 运行测试确认失败（TDD 红）**
+- [x] **Step 3: 运行测试确认失败（TDD 红）**
 
 Run: `godot --headless --path . res://test/boss_phase_test.tscn`
 Expected: 新增的「P2 纵向正弦往复」「P2 纵向振幅」「P1 纵向区间呼吸」断言 FAIL（走位未实现，y 恒定锚线）；既有断言全 PASS。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add test/boss_phase_test.gd
@@ -201,7 +203,7 @@ git commit -m "test: Boss P2 走位断言——一型 P2 正弦往复/振幅、�
 - Consumes: Task 1 的 11 个 `Boss.TYPE*` 字段、`boss.fight_phase()`、`boss.fight_anchor_y()`、`boss.slow_factor()`、`boss.STRAFE_SPEEDS`
 - Produces: `BossMovement._move_bob(delta, boss, amp, period, y_center)`（正弦往复）、`reset_press()` 增加相位归零
 
-- [ ] **Step 1: 新增 `_bob_phase`/`_bob_offset` 状态与 `_move_bob`**
+- [x] **Step 1: 新增 `_bob_phase`/`_bob_offset` 状态与 `_move_bob`**
 
 在 `scripts/boss_movement.gd` 的状态字段区（`_press_offset` 之后）追加：
 
@@ -223,7 +225,7 @@ func _move_bob(delta: float, boss, amp: float, period: float, y_center: float = 
 	_bob_offset = target
 ```
 
-- [ ] **Step 2: `reset_press()` 归零 bob 相位与偏移**
+- [x] **Step 2: `reset_press()` 归零 bob 相位与偏移**
 
 ```gdscript
 func reset_press() -> void:
@@ -233,7 +235,7 @@ func reset_press() -> void:
 	_bob_offset = 0.0
 ```
 
-- [ ] **Step 3: `update()` 按阶段分发**
+- [x] **Step 3: `update()` 按阶段分发**
 
 替换 `update()` 为：
 
@@ -268,7 +270,7 @@ func update(delta: float, boss) -> void:
 				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
 ```
 
-- [ ] **Step 4: `_move_dash` 按阶段取冲刺节奏**
+- [x] **Step 4: `_move_dash` 按阶段取冲刺节奏**
 
 ```gdscript
 func _move_dash(delta: float, boss) -> void:
@@ -293,12 +295,12 @@ func _move_dash(delta: float, boss) -> void:
 			boss.position.x = clampf(boss.position.x, bounds.x, bounds.y)
 ```
 
-- [ ] **Step 5: 运行测试确认通过（TDD 绿）**
+- [x] **Step 5: 运行测试确认通过（TDD 绿）**
 
 Run: `godot --headless --path . res://test/boss_phase_test.tscn`
 Expected: 全部断言 PASS（含 Task 2 新增的走位断言）；exit 0。
 
-- [ ] **Step 6: 跑关联测试防回归**
+- [x] **Step 6: 跑关联测试防回归**
 
 Run:
 ```bash
@@ -308,7 +310,7 @@ godot --headless --path . res://test/smoke_test.tscn
 ```
 Expected: 0 FAIL（ENRAGE/狂暴/模式测试不涉走位断言，应稳定通过）。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/boss_movement.gd
@@ -325,12 +327,12 @@ git commit -m "feat: Boss P2 走位升级——一型/三型 P2 strafe 提速 + 
 - Modify: `docs/2026-08-02-audit-fix-plan.md`（D05 追踪表更新）
 - Regenerate: `docs/BALANCE_MAP.md`（gen_balance_map.py）
 
-- [ ] **Step 1: 重跑数值映射生成器**
+- [x] **Step 1: 重跑数值映射生成器**
 
 Run: `python3 scripts/tools/gen_balance_map.py`
 Expected: 输出含新键；双向反查"脚本引用但 json 缺失"节为空。
 
-- [ ] **Step 2: 全量回归**
+- [x] **Step 2: 全量回归**
 
 Run:
 ```bash
@@ -339,7 +341,7 @@ godot --headless --path . --quit-after 300
 ```
 Expected: exit 0，无错误；随后全量 30 断言场景逐个跑，0 FAIL（含 boss_phase/boss_pattern/boss_enrage/smoke）。
 
-- [ ] **Step 3: BOSS_REDESIGN §8.2 D05 登记更新**
+- [x] **Step 3: BOSS_REDESIGN §8.2 D05 登记更新**
 
 把 §8.2 中 D05 登记条目改为已实现，追加实现记录：
 
@@ -351,15 +353,15 @@ Expected: exit 0，无错误；随后全量 30 断言场景逐个跑，0 FAIL（
   新增 5 断言 + 全量 30 断言场景 0 FAIL。
 ```
 
-- [ ] **Step 4: AUDIT_VAULT D05 状态回填**
+- [x] **Step 4: AUDIT_VAULT D05 状态回填**
 
 把 D 系列修复起效记录表中 D05 行更新为 `✅ 已修复`，并补"修复起效记录"（改了什么/为什么起效/验证）。
 
-- [ ] **Step 5: 审计计划文档 D05 追踪行更新**
+- [x] **Step 5: 审计计划文档 D05 追踪行更新**
 
 `docs/2026-08-02-audit-fix-plan.md` 追踪表 D05 行改 `✅ 已修复` 并补验证。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/BOSS_REDESIGN.md docs/AUDIT_VAULT.md docs/2026-08-02-audit-fix-plan.md docs/BALANCE_MAP.md

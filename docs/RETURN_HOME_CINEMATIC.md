@@ -237,7 +237,7 @@ t≈12.3s  基地 UI 完全可操作
 
 ## 6. 实现记录（2026-07-28 落地）
 
-已全量实现：共享站体工厂 `scripts/dawn_station.gd`（`DawnStation.build(Mode.DESTROYED/PHANTOM)`，开场镜头 1 已重构复用、返航镜头 4 与基地背景层共用）、返航过场 `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn`（7 镜头 16.8s，无标题定格，渐暗停在全黑后发 finished）、`main.gd` 新触发链路（`_play_return_cinematic` / `_skip_return` / `_on_return_finished`，存档时机与 `_resume_from_base` 不变）、BackNavigator `SKIP_RETURN` 路由、`play_sfx` 可选 `pitch_scale`、基地虚影皮肤（UITheme PHANTOM_* token + base_console 视觉层，逻辑零改动）、`test/return_cinematic_test.tscn`（42 断言）与 `test/return_capture.tscn`（逐镜头截图工具）。
+已全量实现：共享站体工厂 `scripts/dawn_station.gd`（`DawnStation.build(Mode.DESTROYED/PHANTOM)`，开场镜头 1 已重构复用、返航镜头 4 与基地背景层共用）、返航过场 `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn`（7 镜头，初版 16.8s 无标题定格，**2026-08-02 同日压缩至 11.8s**，见 §7.1；渐暗停在全黑后发 finished）、`main.gd` 新触发链路（`_play_return_cinematic` / `_skip_return` / `_on_return_finished`，存档时机与 `_resume_from_base` 不变）、BackNavigator `SKIP_RETURN` 路由、`play_sfx` 可选 `pitch_scale`、基地虚影皮肤（UITheme PHANTOM_* token + base_console 视觉层，逻辑零改动）、`test/return_cinematic_test.tscn`（42 断言）与 `test/return_capture.tscn`（逐镜头截图工具）。
 
 与 §1–§3 设计的既定偏差（实现时判断，后续如调整以代码为准并回写此处）：
 

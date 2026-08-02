@@ -1,6 +1,6 @@
 shader_type canvas_item;
 // Meta HUD 血量/受击后处理（docs/META_HUD_DESIGN.md §3，管线顺序即 §1）：
-// 屏幕抓取 → 径向色差+手写 6-tap 径向模糊 → 定向波纹(边缘弧形 ADD)
+// 屏幕抓取 → 径向色差+手写 4-tap 径向模糊 → 定向波纹(边缘弧形 ADD)
 // → 去饱和/冷青色偏 → 晕影/心跳/视野收窄 → 裂纹距离场合成。
 // 挂在 MetaHealthFX（CanvasLayer，世界之上、HUD 之下）的全屏 ColorRect 上。
 // 注：Godot 4.3+ 的 gl_compatibility 已对 screen_texture 做过 Y 归一，直接采 SCREEN_UV，
@@ -36,7 +36,7 @@ void fragment() {
 	float dist = length(to_center * vec2(1.0, 0.5625)) * 2.0;
 	float radial_w = smoothstep(0.25, 1.0, dist);            // 边缘强、中心弱
 
-	// ── 1. 受击层：径向色差 + 手写 4-tap 径向模糊（LOD1 整段跳过，D2/D4；P1-7 减采样 9→6）──
+	// ── 1. 受击层：径向色差 + 手写 4-tap 径向模糊（LOD1 整段跳过，D2/D4；P1-7 减采样至 4-tap）──
 	vec3 col;
 	if (u_lod == 0 && (u_chromatic_amount > 0.0001 || u_radial_blur_strength > 0.001)) {
 		vec2 off = normalize(to_center + 1e-6) * radial_w * u_chromatic_amount;

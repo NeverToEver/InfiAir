@@ -288,7 +288,8 @@ FIGHT（常规）
   否则分档 interval 乘算会污染 GameState 配置缓存、叠加到后续 Boss 实例（boss_pattern_test 场景 6 捕获）。
   **2026-08-01 复核补充**：同类污染仍存在于 `FIRE_INTERVALS`（`boss.gd:420-421` 读共享数组、
   `:522-523` 原地 `[i] *= interval_mult`，easy/hard 下跨 Boss 复合叠加）——`_apply_difficulty_scaling`
-  对 `FIRE_INTERVALS` 需同样先 `duplicate(true)`，已登记 AUDIT_VAULT B5。
+  对 `FIRE_INTERVALS` 需同样先 `duplicate(true)`，已登记 AUDIT_VAULT B5。**2026-08-01 已修复**
+  （`boss.gd` 取用后 `.duplicate()`，见 AUDIT_VAULT B5 修复起效记录；boss_pattern_test easy/hard 通过）。
 - 走位简化（**2026-08-02 复核登记，D05**）：§5.1-5.3 逐型走位表要求的 P2 阶段升级（一型 P2「strafe 提速 200 + 纵向往复」、二型 P2「冲刺 0.4s/0.5s」、三型 P2「strafe 100 + 纵向往复」、三型 P1「y 200-280 正弦」）至今未实现——`boss_movement.gd` 仅一型 P1 有纵向分量（`_update_press` 仅 `FIGHT_P1` 调用）、二型 dash 无阶段区分、三型无纵向。经 `git show 3188902^` 核实此差距为阶段 B 落地时即有（非 A3 拆分引入）。**2026-08-02 同日已按 §5.5 落地修复（见上）**，本登记转为实现记录。
 
 ### 8.3 难度分档落地（§4.4）

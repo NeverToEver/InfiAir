@@ -123,4 +123,5 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 - 调整页面返回层级、退出清理或平台返回处理时，更新 `docs/EXIT_FLOW.md` 并运行返回导航测试。
 - 新增/改名数值键或调整 `cfg()` 调用后，运行 `python3 scripts/tools/gen_balance_map.py` 重新生成 `docs/BALANCE_MAP.md`。
 - **`docs/AUDIT_VAULT.md`（代码审计档案）为专有文档，禁止删除或合并**：登记全部已发现的代码质量错误、修复指引、修复后的处理与起效记录、工作时间与区域。新审计发现追加登记；修复落地后在对应条目回填「修复起效记录」并更新状态总览。任何清理/归档操作不得移除本文件。
+- **已完成工作压缩留档**：计划/审核文档落地完成后，全文移入 `docs/archive/`，并在 `docs/archive/EXECUTION_LOG.md` 登记压缩条目（日期 / 落地提交 / 摘要 / 关键决策与教训 / 原文链接），然后从 `docs/` 顶层删除原文档并更新各引用。归档文档内部 `docs/xxx` 引用为归档前快照，不保证可点击（与 `docs/archive/PORTING_PARITY.md` 同例）。
 - 修改工程结构、运行命令、测试策略、配置位置或本文件所述约定时，同步维护本 `AGENTS.md`，使其保持面向首次接手项目的代理的真实入口文档；架构/配置细节改动同步维护 `docs/ARCHITECTURE.md`，测试命令/策略改动同步维护 `docs/TESTING.md`。

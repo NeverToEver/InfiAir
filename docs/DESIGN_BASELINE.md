@@ -4,7 +4,7 @@
 >
 > **维护约定**：任何方向/架构/数值口径调整，须在此登记并同步 `AGENTS.md`「文档同步要求」；技术债修复后在此回填状态并同步 `docs/AUDIT_VAULT.md`。
 >
-> **状态快照（2026-08-02 修订）**：C 系列（Godot 最佳实践与语法规范）35 项已处理收尾（含设计确认不改码/核实无风险，详见档案）；30 个无头断言场景 0 FAIL；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）；性能优化计划全量落地（敌机生成路径已统一池化，见 §7.2 与 `docs/2026-08-02-performance-optimization-plan.md` §12）。
+> **状态快照（2026-08-02 修订）**：C 系列（Godot 最佳实践与语法规范）35 项已处理收尾（含设计确认不改码/核实无风险，详见档案）；31 个无头断言场景 0 FAIL（1092 断言）；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）；性能优化计划全量落地（敌机生成路径已统一池化，见 §7.2 与 `docs/archive/2026-08-02-performance-optimization-plan.md` §12）。
 
 ---
 
@@ -167,7 +167,7 @@ Main (scripts/main.gd)
 ### 2.4 对象池与注册表
 
 - **子弹**：统一 `GameState.bullet_pool.fire()`；`Bullet` 为 Area2D，位移在 `_physics_process`（C04），阵营由 `setup()/activate()` 区分；`activate()` 重置追踪/视觉字段清单。
-- **敌机**：存在**直接实例化**（普通波次，`enemy.tscn`）与**对象池**（Boss-3 小怪，`enemy_pool.spawn()`）**两条路径并存**——这是已知技术债（见 §7），不要把"所有敌机已池化"当作当前事实。
+- **敌机**：**已统一走对象池**（2026-08-02，性能优化计划 `920e5e9`）：普通波次、Boss-3 小怪、编队机均经 `GameState.enemy_pool.spawn()`（`USE_POOL=false` 时退化为直接实例化，作性能 A/B 对照开关）。池化实体 `reactivate()/deactivate()` 负责状态重置、注册表登记/注销、死亡信号；不要把"所有敌机已池化"当作当前事实——`USE_POOL=false` 对照模式仍直接实例化。
 - **防护**：池化实体必须保留 `_active`（延迟守卫）与 `_repooling`（包 reparent 防 `_exit_tree` 误清）；`reactivate()/deactivate()` 负责状态重置、注册表登记/注销、死亡信号；外部不得绕过生命周期释放池对象。
 - **爆炸**：统一 `Explosion.spawn_at()`，复用对象池（`pool_cap` 配置），`process_mode=Always`（死亡爆炸在暂停树仍播放）。
 
@@ -289,7 +289,7 @@ Main (scripts/main.gd)
 > 完整命令清单见 `docs/TESTING.md`。测试不是单元测试框架：`test/*.tscn` 启动 GDScript 场景，以 `[PASS]/[FAIL]` 输出和退出码自检。
 
 - **最小必跑集**：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`；涉存档/基地/母舰加跑 `base_system_test.tscn`。
-- **全量断言**：30 个断言场景（当前全绿 0 FAIL）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
+- **全量断言**：31 个断言场景（当前全绿 0 FAIL，1092 断言）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
 - **特殊场景**：`perf_bench` 必须 `--fixed-fps 1000`；`autoplay_test` 长时异常探针（注册表一致性双向比对、动效路径、卡死计时、buff 封顶、阶段计数）。
 - **测试副作用**：测试可能读写 `user://savegame.json` / `profile.json`，新测试先 `GameState.delete_save()` 并清理自身持久化；`balance_test` 会覆盖 `data/balance.json` 验证损坏回退再恢复，勿并发手编。
 - **视觉验证**：窗口模式截图人工核对（headless 无可用截图）；`visual/ui/return/intro/summon/meta_fx/hud` capture 工具。
@@ -316,7 +316,7 @@ Main (scripts/main.gd)
 | --- | --- | --- | --- |
 | A3 | Boss 拆分为门面+4 职责类，但集中 `match` 仅逐字搬迁进 `BossAttacks.execute()`（10 分支），按机型分支残留 7 处 | ⚠️ | 新增机型仍须改既有函数；O 原则未达成。方向：查表/工厂取代集中 match，机型分支收敛为数据驱动 |
 | A4 | 开闭原则：Boss 攻击 match + 机型分支未治理；`player.gd` Buff 仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, buff_count)` 族），未改声明式效果表 | ⚠️ | A4a（敌机策略）/A4b（事件触发基类）已落地；剩余为 Boss 与 Player buff。方向：Buff 效果声明式配置表 |
-| A5 | 依赖倒置：Boss/事件对 Spawner 依赖应注入而非 group 查找 | ❌ | 收敛接口、注入；但 GameState 作配置中心+注册表是有意性能权衡，保留 |
+| A5 | 依赖倒置：Boss/事件对 Spawner 依赖应注入而非 group 查找 | ⚠️ | **注入已落地（2026-08-02 订正，`bdb0274`）**：Boss/精英炮塔经 `set_spawner()` 注入引用，替换 group 查找；GameState 作配置中心+注册表是有意性能权衡，保留。方向：残余依赖收敛 |
 | A8 | Player 职责拆分：受击/冲刺已抽组件，**视觉职责（尾焰/残影/准星/碰撞点/PlayerBuffVisuals）仍驻留 Player**（约 697 行） | ⚠️ | 方向：视觉类抽 `PlayerVisuals` 组件 |
 
 ### 7.2 规范/性能遗留
@@ -328,7 +328,7 @@ Main (scripts/main.gd)
 
 ### 7.3 阶段遗留（ROADMAP Phase 0 待办）
 
-- 死代码清理：`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等（见 `docs/2026-07-22-audit-fix-plan.md`）。
+- 死代码清理：`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等（见 `docs/archive/2026-07-22-audit-fix-plan.md`）。
 - 母舰 `_start_release()` 幂等守卫；`profile_corrupt` 损坏档案提示消费。
 - 过场阶段 4：低配机复测、手柄/移动端输入适配、README 补过场说明（`INTRO_CINEMATIC`）。
 
@@ -351,14 +351,14 @@ Main (scripts/main.gd)
 
 ### 8.3 暂缓/已砍（重启需用户明确决策，登记于 `ROADMAP.md` Phase 3）
 
-- 本地账号系统（规格存档于提交 `dcef9b6`）、独立主场景版进入页（附录 B）、联机排行榜（已决策不做）、协作与发布工程化（CONTRIBUTING/CI/语义化版本）、内容演进（新 Buff/敌机/精英/Boss/移动端触控/母舰扩展）。
+- 本地账号系统（规格存档于提交 `7aacd3f`）、独立主场景版进入页（附录 B）、联机排行榜（已决策不做）、协作与发布工程化（CONTRIBUTING/CI/语义化版本）、内容演进（新 Buff/敌机/精英/Boss/移动端触控/母舰扩展）。
 
 ### 8.4 任何未来改动必须遵守
 
 1. 维持 §3 全部全局不变量（碰撞层/world_scale/view_world_rect/cfg/协程/i18n/热路径/池防护）。
 2. 可调数值只改 `balance.json`，跑 `gen_balance_map.py` 与最小验证集。
 3. 新增功能在本文 §8 与 `ROADMAP.md` 登记方向，专项设计文档落实现级规格。
-4. 修复/新代码全量测试 0 FAIL（30 断言 + autoplay 探针），视觉改动窗口截图核对。
+4. 修复/新代码全量测试 0 FAIL（31 断言 + autoplay 探针），视觉改动窗口截图核对。
 5. 技术债修复在 `AUDIT_VAULT.md` 回填"修复起效记录"。
 
 ---

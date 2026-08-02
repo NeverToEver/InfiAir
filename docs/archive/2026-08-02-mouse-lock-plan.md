@@ -47,4 +47,5 @@ godot --headless --path . res://test/window_size_test.tscn   # 0 FAIL
 | `c3425e7` | MouseTrap 组件 + main.tscn 挂载 + clamp 纯函数断言 | 13 断言 0 FAIL |
 | `c3e4d5c` | 设置页开关 + 中英翻译键 + 按钮 wiring 断言 | 16 断言 0 FAIL |
 | `5e15219` | 文档同步（AGENTS/ARCHITECTURE/DESIGN_BASELINE/TESTING/AUDIT_VAULT + 本文件） | — |
-| （F02） | 暂停/非准星态放行 confine（_trap_enabled 纯函数 + 7 项放行断言，23 项全绿） | — |
+| `c48383f` | 暂停/非准星态放行 confine（_trap_enabled 纯函数 + 7 项放行断言，23 项全绿；F02，2026-08-02 口径统一回填） | — |
+| `00c3bfb` | warp 不引入准星跳变核查（warp 位移 ≤2px 断言，25 项全绿） | — |

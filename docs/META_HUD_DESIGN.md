@@ -26,7 +26,7 @@
 
 ```text
 屏幕抓取(hint_screen_texture，Godot 4.3+ 已 Y 归一直接采样) [R4]
- → 受击层：径向色差 + 手写 6-tap 径向模糊 [R2]
+ → 受击层：径向色差 + 手写 4-tap 径向模糊 [R2]（2026-08-02 性能优化减采样，原 6-tap）
  → 定向波纹叠加（边缘弧形，ADD）[R6]
  → 去饱和/色偏 + 晕影 [R7]
  → 裂纹合成（采样预烘焙距离场）[R3]
@@ -44,7 +44,7 @@
 | D1 | 裂纹距离场来源 | **运行时 SubViewport 单帧预烘焙**（启动一次，512²，成本 1 帧） | 离线 PNG 工具：新增资产管线与二进制资产，收益仅省 1 帧；实时 Voronoi：每帧全屏迭代 [R3] |
 | D2 | LOD 实现 | **单 shader + `u_lod` uniform 分支**（uniform 分支全像素一致，GPU 开销≈0） | 双 shader/序列帧资产：双份维护 + 显存 + 资产管线 |
 | D3 | 自适应可读性 | **注册表代理亮度**：`bullet_pool 活跃数×0.002 + 活跃爆炸数×0.15` 估算画面亮度，零 GPU 回读 | 屏幕像素回读（`get_texture().get_image()`）：Compatibility 下每帧回读是性能灾难，即使 0.25s 节流也有卡顿风险 |
-| D4 | 径向模糊 | **手写 6-tap 向心采样**，`u_radial_blur_strength < 0.001` 时整段跳过 | `textureLod`：Compatibility 无 mipmap；半分辨率中间纹理：多一次全屏拷贝 |
+| D4 | 径向模糊 | **手写 4-tap 向心采样**（2026-08-02 性能优化从 6-tap 减采样），`u_radial_blur_strength < 0.001` 时整段跳过 | `textureLod`：Compatibility 无 mipmap；半分辨率中间纹理：多一次全屏拷贝 |
 | D5 | shader 参数更新 | **epsilon 变化检测**：GDScript 缓存上次值，变化 <0.001 不调用 `set_shader_parameter`；全量稳定时 `_process` 早退 | 每帧无条件上传：uniform 更新虽廉价但 16 个参数 × 60fps 是纯浪费 |
 | D6 | 呼吸缩放 | **main.gd 组合**：`zoom = view_zoom_factor × breath_scale()`，仅 DYING 期逐帧应用 | MetaFX 直持相机引用：破坏层级；每帧无条件设 zoom：无谓脏标记 |
 | D7 | 心跳音频 | **GameState 音效池单发触发**，`generate_audio.py` 离线生成 0.28s 双脉冲 WAV | 循环 stream：启停有硬切；心率随血量变化无法表达 |
@@ -66,13 +66,13 @@
 | `u_hit_dir` | vec2 | (0,0) | 攻击方向（世界→屏幕归一化） | 定向波纹方位；零向量=全边缘均匀环 | [R6] |
 | `u_chromatic_amount` | float | 0.0 | pulse 包络 | 径向色差偏移（0..0.02） | [R2] |
 | `u_radial_blur_strength` | float | 0.0 | pulse 包络 | <0.001 整段跳过（D4） | [R2][R4] |
-| `u_ripple_phase` | float | 0.0 | GDScript 0→1 (0.4s) | 波纹推进相位 | [R6] |
+| `u_ripple_phase` | float | 1.0 | GDScript 0→1 (0.4s) | 波纹推进相位 | [R6] |
 | `u_crack_progress` | float | 0.0 | §4.2 曲线 | 裂纹蔓延进度 | [R3] |
 | `u_crack_color` | vec4 source_color | 青 | 状态插值 | 裂纹发光色 | [R3] |
 | `u_crack_density` | float | 0.0 | 状态分层上限 | 裂纹 alpha 上限 | [R3] |
-| `u_crack_spread_min` | float | 0.10 | `_ready` 读配置 | 生长门下限（满血不出裂纹） | [R3] |
+| `u_crack_spread_min` | float | 0.15 | `_ready` 读配置 | 生长门下限（满血不出裂纹） | [R3] |
 | `u_crack_edge_softness` | float | 0.08 | `_ready` 读配置 | 生长门激活柔和度 | [R3] |
-| `u_crack_width` | float | 0.03 | `_ready` 读配置 | 裂隙线半宽（场空间） | [R3] |
+| `u_crack_width` | float | 0.10 | `_ready` 读配置 | 裂隙线半宽（场空间） | [R3] |
 | `u_heal_jitter` | float | 0.0 | GDScript 修复期 0→0.35→0 | 单元错峰消散幅度 | [R3] |
 | `u_desaturation` | float | 0.0 | damage_x | 暗示层去饱和 | [R7] |
 | `u_hue_cool` | float | 0.0 | damage_x | 冷青色偏强度 | [R7] |
@@ -97,20 +97,21 @@ void fragment() {
     float dist = length(to_center * vec2(1.0, 0.5625)) * 2.0;
     float radial_w = smoothstep(0.25, 1.0, dist);              // 边缘强、中心弱 [R2]
 
-    // ── 1. 受击层：径向色差 + 6-tap 径向模糊（LOD1 整段跳过，D2/D4）──
+    // ── 1. 受击层：径向色差 + 4-tap 径向模糊（LOD1 整段跳过，D2/D4；2026-08-02 减采样至 4-tap）──
     vec3 col;
     if (u_lod == 0 && (u_chromatic_amount > 0.0001 || u_radial_blur_strength > 0.001)) {
         vec2 off = normalize(to_center + 1e-6) * radial_w * u_chromatic_amount;
-        col.r = texture(screen_texture, uv + off).r;
-        col.g = texture(screen_texture, uv).g;
-        col.b = texture(screen_texture, uv - off).b;
-        if (u_radial_blur_strength > 0.001) {                  // D4：手写 6-tap 向心
+        // P1-7：色差 3 采样 → 2 采样（G 通道取两端平均，色差感不变）
+        vec3 a = texture(screen_texture, uv + off).rgb;
+        vec3 b = texture(screen_texture, uv - off).rgb;
+        col = vec3(a.r, mix(a.g, b.g, 0.5), b.b);
+        if (u_radial_blur_strength > 0.001) {                  // D4：手写 4-tap 向心
             vec3 acc = col;
-            for (int i = 1; i <= 5; i++) {
-                float t = float(i) / 6.0 * u_radial_blur_strength * radial_w * 0.06;
+            for (int i = 1; i <= 3; i++) {
+                float t = float(i) / 4.0 * u_radial_blur_strength * radial_w * 0.06;
                 acc += texture(screen_texture, mix(uv, vec2(0.5), t)).rgb;
             }
-            col = acc / 6.0;
+            col = acc / 4.0;
         }
     } else {
         col = texture(screen_texture, uv).rgb;
@@ -219,7 +220,7 @@ crack_progress = pow(_damage_x, 1.6)            # shader 参数，采样：x=0.2
 
 | 文件 | 锚点 | 改动 |
 | --- | --- | --- |
-| `autoload/game_state.gd:18` 后 | 信号区 | 新增 `signal player_damaged(amount: float, from_pos: Vector2)`；新增 `var meta_fx_lod: int = 0`、`var reduce_flash: bool = false`（setter 持久化 profile，仿 aim_assist 模式） |
+| `autoload/game_state.gd:18` 后 | 信号区 | 新增 `signal player_damaged(amount: float, from_pos: Vector2)`；新增 `var meta_fx_lod: int = 1`（默认 LOD1 回退，MetaFX `_ready` 置 0、`_exit_tree` 置回 1）、`var reduce_flash: bool = false`（setter 持久化 profile，仿 aim_assist 模式） |
 | `scripts/player.gd:527` | `take_damage` | 签名加 `from_pos: Vector2 = Vector2.INF`（D8）；结算成功后 `GameState.player_damaged.emit(final_amount, from_pos)` |
 | `scripts/bullet.gd:196`、`scripts/enemy.gd:197`、`scripts/boss.gd:1388`、`scripts/formation_bomb.gd:87` | 玩家受击调用点 | 补传伤害源 `global_position` |
 | `scripts/main.gd:85,113` | 相机 zoom | 抽 `_apply_camera_zoom()`：`zoom = Vector2.ONE × GameState.view_zoom_factor() × (_meta_fx.breath_scale() if 激活)`（D6）；`_process` 中仅 `breath_active()` 时逐帧调用；`_ready` 创建 MetaHealthFX 并挂为子节点 |
