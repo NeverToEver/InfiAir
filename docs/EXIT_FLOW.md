@@ -81,6 +81,9 @@ func _execute_exit_cleanup(battle):
 |---|---|---|---|
 | PC | Esc | `ui_cancel`（引擎内置） | `BackNavigator._unhandled_input` |
 | 手柄 | B / Circle（joy button 1） | `ui_cancel`（引擎内置默认映射） | 同上；A = `ui_accept` 确认，方向键/摇杆走 GUI 焦点导航（焦点样式已可见） |
+| 手柄 | 左摇杆 | `move_*`（左摇杆移动） | GameState `_bind_joypad_defaults()` 启动时经 InputMap 运行时装配（`project.godot` 只存键盘，P0-1） |
+| 手柄 | 右摇杆 | `aim_x`/`aim_y`（虚拟准星，`player.aim_point`） | 灵敏度/死区在设置页「手柄」分区可调（`joy_aim_speed`/`joy_deadzone`，profile 持久化） |
+| 手柄 | A=冲刺 / RB=加速 / LB=微调 / X=母舰蓄力 / Y=返航 / L3=Buff 栏 / R3=放弃 / A=重开 | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`restart` | 同上运行时装配；B 键让位 `ui_cancel`（返回） |
 | Android | 系统返回手势 | `NOTIFICATION_WM_GO_BACK_REQUEST` | `BackNavigator._notification` → `go_back()` |
 
 确认窗内：Enter/手柄 A 触发焦点按钮（默认焦点在「取消」，安全侧）；Esc/手柄 B = 取消。
@@ -98,7 +101,7 @@ func _execute_exit_cleanup(battle):
 ## 5. 平台差异化处理
 
 - **PC**：无差异，Esc 全程可用（当前唯一实机验证平台）。
-- **手柄**：依赖引擎内置 `ui_cancel` 默认映射（含 joy button 1），零配置；按钮 focus 样式与 hover 同款高亮，键盘/手柄导航可见。未实机验证（无导出流程）。
+- **手柄**：依赖引擎内置 `ui_cancel` 默认映射（含 joy button 1）做返回；**移动/动作键/右摇杆瞄准由 `GameState._bind_joypad_defaults()` 在启动时经 InputMap 运行时装配**（`project.godot` 保持键盘单一事实源，P0-1：左摇杆移动、A/RB/LB/X/Y/L3/R3 动作键、右摇杆虚拟准星；B 键让位返回）。灵敏度与摇杆死区在设置页「手柄」分区可调。按钮 focus 样式与 hover 同款高亮，键盘/手柄导航可见。**尚未实机验证**（无导出流程，实机走查登记为发布前验证项）。
 - **Android**：系统返回手势接入同一状态机；导出模板配置不在本项目范围内，标注为"映射就绪、未实机验证"。
 - **教程场景**：见第 1 节，独立顶层自处理，不进状态机（避免跨场景耦合）。
 

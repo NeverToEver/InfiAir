@@ -57,7 +57,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 - 遵循 Godot 4 官方风格：**Tab 缩进**、类型标注、`CONSTANT_CASE` 常量、私有成员前缀 `_`、`signal_name.emit()` / `signal_name.connect()` 信号语法。
 - `setup()` 会在实体被加入场景、执行 `_ready()` 之前调用。此阶段不要依赖 `@onready` 缓存；改用 `$节点路径` 访问子节点。
-- 不要修改既有 autoload 或输入映射来完成无关需求。现有输入由 `project.godot` 定义，包括移动、`boost`（Shift）、`fine_move`（Ctrl）、`dash`（Space）、`dock`（H）、`homecoming`（B）、`give_up`（K）、`buff_panel`（L，展开/收起 buff 滚动栏）和 `restart`（R）。
+- 不要修改既有 autoload 或输入映射来完成无关需求。现有输入由 `project.godot` 定义，包括移动、`boost`（Shift）、`fine_move`（Ctrl）、`dash`（Space）、`dock`（H）、`homecoming`（B）、`give_up`（K）、`buff_panel`（L，展开/收起 buff 滚动栏）和 `restart`（R）。**手柄默认绑定（左摇杆移动/动作键/右摇杆瞄准）由 `GameState._bind_joypad_defaults()` 启动时经 InputMap 运行时装配**（P0-1：`project.godot` 只存键盘，手柄不落 project.godot；死区经 `GameState.set_joy_deadzone()` 应用到全部手柄动作）。
 - 教程进入时会隔离对局状态和存档，离开时必须恢复 `Engine.time_scale = 1`。运行期创建的节点要保存引用，不能依赖 Godot 自动生成的节点名。
 - **新增带 `class_name` 的脚本文件后，必须先 `godot --headless --import --path .` 刷新全局类缓存**，否则引用它的脚本会编译失败（`Identifier "X" not declared`）并连带宿主场景运行时崩坏。
 - 延迟回调不要 `await get_tree().create_timer()` 或挂起在任何计时器上的协程：进程退出时未完成的协程函数状态会泄漏，并连带其引用的资源（贴图/音频）。改用一次性 `Timer` 节点 + 信号连接（参考 `spawner.gd` 的 `_schedule()`），Timer 随场景树释放。
@@ -111,7 +111,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 ## 持久化与安全边界
 
-- 对局存档为 `user://savegame.json`，局外档案为 `user://profile.json`；二者由 `GameState` 管理并带版本字段。profile 保存最高分、难度、键位、语言、视角、窗口尺寸、教程状态等。
+- 对局存档为 `user://savegame.json`，局外档案为 `user://profile.json`；二者由 `GameState` 管理并带版本字段。profile 保存最高分、本地高分榜、难度、键位、语言、视角、窗口尺寸、教程状态、手柄参数（`joy_aim_speed`/`joy_deadzone`）等。
 - 损坏 JSON 会被隔离为 `<file>.corrupt`，并通过 `save_corrupt`/`profile_corrupt` 标记通知开始界面。不要绕过该恢复流程。
 - 当前未发现网络通信、第三方插件、远程服务、密钥或凭据文件。除本地 `user://` 持久化和离线资源生成外，游戏没有外部交互。离线数值管理器 `balance_editor.py` 只监听 127.0.0.1，不属游戏运行时。
 - `.gitignore` 排除导入缓存和导出产物（`builds/` 等）；`export_presets.cfg` 已随打包发布重启入库（2026-07-30），修改预设需同步审查 `release.sh` 与 `packaging/`。若未来增加 CI/自动部署，先补齐可审查的工作流与发布说明，再把它写入本文件。

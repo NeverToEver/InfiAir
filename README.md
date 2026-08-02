@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-开发者信息)
+[![Tests](https://img.shields.io/badge/Tests-1113%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -75,6 +75,8 @@ godot --path .
 | B 长按 | 返航基地 |
 | ESC | 暂停 / 逐级返回 / 退出确认 |
 
+**手柄**：左摇杆移动、右摇杆瞄准（虚拟准星）、A 冲刺 / RB 加速 / LB 微调 / X 蓄力母舰 / Y 返航 / L3 Buff 栏 / R3 放弃 / B 返回；右摇杆灵敏度与摇杆死区可在「设置 → 操作模式 → 手柄」调节。
+
 <details>
 <summary>完整按键（放弃出击 / 重开 / 改键）</summary>
 
@@ -119,7 +121,7 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（31 场景 / 1092 断言）</summary>
+<summary>✅ 测试与验证（31 场景 / 1113 断言）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 

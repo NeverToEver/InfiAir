@@ -55,7 +55,7 @@ Main (scripts/main.gd)
 ## 逐脚本职责
 
 - `scripts/main.gd`：对局编排，串联刷怪、里程碑、Boss、母舰召唤、返航、放弃对局、BGM、页面流转与入场衔接动画（开场/继续出击后 `_start_entry_sequence`）。
-- `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线门面。数值加载/查询、存档读写/损坏隔离、音效池、实体注册表（`GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用）分别委托 `BalanceService` / `SaveManager` / `SfxPlayer` / `EntityRegistry`（A2），对外 `GameState.*` 语法逐字不变。
+- `autoload/game_state.gd`：全局分数、HP、Buff、难度、RP、任务、路线、设置和信号总线门面。数值加载/查询、存档读写/损坏隔离、音效池、实体注册表（`GameState.enemies`、`player_ref`、`player_hitbox`、对象池引用）分别委托 `BalanceService` / `SaveManager` / `SfxPlayer` / `EntityRegistry`（A2），对外 `GameState.*` 语法逐字不变。另负责**手柄默认绑定运行时装配**（`_bind_joypad_defaults()`：左摇杆移动/动作键/右摇杆瞄准动作经 InputMap 追加，P0-1）与手柄设置（`joy_aim_speed`/`joy_deadzone` setter + 死区应用 + profile 持久化）。
 - `scripts/player.gd`：WASD 移动、鼠标瞄准、自动开火、燃料加速、微调、相位冲刺和受击处理。Buff 外观反馈由子节点 `scripts/player_buff_visuals.gd`（PlayerBuffVisuals）承担（程序化炮舱/护盾弧/光环/信标 + 尾焰 `engine_tint` 乘区），由 `GameState.buffs_changed` 信号驱动。辅助瞄准（实现细节见 `scripts/aim_crosshair.gd` / `scripts/aim_frame_layer.gd` 与 `player.aim_assist` 档位表）：敌机按 `mark_ratio`（0.25）出生掷 `Enemy.aim_marked` 标记，AimFrameLayer（挂 Main）统一画 bracket 框，AimCrosshair（挂 Player，top_level）跟随 `aim_point()` 并隐藏系统光标；准星入框时 `_fire()` 给新弹写 `Bullet.homing_target` 追踪（追踪时长 `homing_time`，近距直取、中距转向加急，螺旋收敛不环绕），未入框朝准星直射。`aim_point()` 返回平滑瞄准点（入框按 `stick_factor` 弱吸附、框外近距磁吸拉向、框外锥形弱追踪），判定/开火/准星绘制共用同一点，每渲染帧推进一次；磁吸与弱追踪共用距离衰减（`player.aim_assist.falloff`：400px 内全辅助 → 1400px 线性降至 0.3 下限）。
 - `scripts/spawner.gd`：波次化刷怪与特殊槽调度。普通波成组按间隔 ramp 刷新，每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽（激活期间暂停普通波次），击杀后追加休整波次。普通波次当前直接实例化 `enemy.tscn`；Boss-3 小怪用 `GameState.enemy_pool.spawn()`。不要把"所有敌机已经池化"当成当前事实。
 - `scripts/enemy.gd`、`mothership.gd`、`bullet.gd`、`laser_weapon.gd`：可实例化战斗实体和武器行为。

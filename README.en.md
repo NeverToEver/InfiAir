@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1092%20passed-brightgreen)](#-for-developers)
+[![Tests](https://img.shields.io/badge/Tests-1113%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -75,6 +75,8 @@ godot --path .
 | B (hold) | Homecoming — base refit |
 | ESC | Pause / back one page / exit confirmation |
 
+**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller.
+
 <details>
 <summary>Full key list (abandon / restart / rebinding)</summary>
 
@@ -119,7 +121,7 @@ main.tscn (run orchestration)
 </details>
 
 <details>
-<summary>✅ Testing (31 scenes / 1092 assertions)</summary>
+<summary>✅ Testing (31 scenes / 1113 assertions)</summary>
 
 Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
 
