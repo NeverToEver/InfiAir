@@ -250,11 +250,18 @@ static func _build_destroyed(station: Node2D) -> void:
 
 ## 全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补，
 ## 外加破碎感：主弧断弧缺口 ×3、舱段逐个掉线闪烁、破口全息碎片外飘、整站 glitch 瞬闪。
-## 全部视觉挂在 inner 下：呼吸写 station.modulate、glitch 写 inner.modulate，互不打架。
+## 全部视觉挂在 inner 下：呼吸写 BreatheRoot、glitch 写 inner.modulate，互不打架；
+## station.modulate 归调用方所有（E04，调用方压站体 alpha 不被呼吸覆盖）。
 static func _build_phantom(station: Node2D) -> void:
+	# E04 修复：全部视觉挂 BreatheRoot 呼吸容器下，4s 慢呼吸写容器 modulate:a 而非站体本身——
+	# 调用方压 station.modulate.a（return_cinematic 0.35/0.5、base_console 包装层 0.12）
+	# 不再被呼吸 tween 抬高 2.5~3 倍；两种用法统一为「站体 alpha 归调用方，呼吸只动内部容器」。
+	var breathe_root := Node2D.new()
+	breathe_root.name = "BreatheRoot"
+	station.add_child(breathe_root)
 	var inner := Node2D.new()
 	inner.name = "PhantomBody"
-	station.add_child(inner)
+	breathe_root.add_child(inner)
 	# 第 1 层：全息基底——全构件 ADD 叠加，亮青 #00d4ff 高饱和（主弧 α0.55/舱段 0.45/细节 0.35）；
 	# 主弧分段留 3 处断弧缺口（原破口 0.5–1.2 + 两处较小缺口），站已毁的破碎感
 	var refs := _build_body(inner, {
@@ -279,10 +286,11 @@ static func _build_phantom(station: Node2D) -> void:
 		seg_flicker.tween_property(seg, "modulate:a", 1.0, 0.08)
 		seg_flicker.parallel().tween_property(edge, "modulate:a", 1.0, 0.08)
 	# 整体容器 4s 慢呼吸（0.85–1.0，投影不稳定感；下限抬高保证存在感）
-	var breathe := station.create_tween().set_loops()
-	breathe.tween_property(station, "modulate:a", 0.85, 2.0
+	# E04：写 BreatheRoot 容器而非 station（调用方压 station.modulate.a 不被呼吸覆盖）
+	var breathe_tween := station.create_tween().set_loops()
+	breathe_tween.tween_property(breathe_root, "modulate:a", 0.85, 2.0
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	breathe.tween_property(station, "modulate:a", 1.0, 2.0
+	breathe_tween.tween_property(breathe_root, "modulate:a", 1.0, 2.0
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# 偶发整站 glitch 瞬闪：alpha 瞬时下跌 0.08s 内恢复，每 ~3.9s 一次
 	var glitch := station.create_tween().set_loops()

@@ -64,6 +64,10 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if GameState.buff_count(&"laser_beam") <= 0:
+		# E08：buff 归零时收束激活态光束——防未来 buff 移除机制引入后 _end_beam 不执行、
+		# autofire 卡禁（当前无 buff 移除机制不可达，兜底成本一行）
+		if _active:
+			_end_beam()
 		return
 	_cooldown = maxf(_cooldown - delta, 0.0)
 	if _active:

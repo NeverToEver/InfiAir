@@ -17,14 +17,24 @@ func delete(path: String) -> void:
 		DirAccess.remove_absolute(path)
 
 
-## 写 JSON 文件；打开失败 push_warning 并返回 false（对齐原 save_run/save_profile 行为）
+## 写 JSON 文件：先写临时文件再替换正本（E12 原子写——避免写入中途崩溃产生截断 JSON 丢进度）。
+## 打开失败 push_warning 并返回 false（对齐原 save_run/save_profile 行为）。
+## 最坏情况（删旧正本后 rename 前崩溃）：正本缺失 → load 返回 {} 无存档、不置 corrupt，
+## 优于现状（截断 JSON → 隔离 .corrupt → 丢进度 + 弹损坏提示）。
 func save(path: String, data: Dictionary) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var tmp_path := path + ".tmp"
+	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
 	if f == null:
 		push_warning("InfiAir: 无法写入 %s（错误 %d）" % [path, FileAccess.get_open_error()])
 		return false
 	f.store_string(JSON.stringify(data))
 	f.close()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var err := DirAccess.rename_absolute(tmp_path, path)
+	if err != OK:
+		push_warning("InfiAir: 无法替换 %s（错误 %d）" % [path, err])
+		return false
 	return true
 
 
