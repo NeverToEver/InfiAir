@@ -136,6 +136,9 @@ func setup(
 	can_shoot = randf() < config["fire"]
 	fire_interval = config.get("fire_interval", FIRE_INTERVAL)
 	var pool: Array = config.get("bullet_types", [&"single"])
+	# H07（健壮性审核）：空弹种池回退单发（randi()%0 越界）
+	if pool.is_empty():
+		pool = [&"single"]
 	bullet_type = p_bullet_type if p_bullet_type != &"" else pool[randi() % pool.size()]
 	speed = (
 		randf_range(config["speed"].x, config["speed"].y)

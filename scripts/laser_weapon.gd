@@ -127,16 +127,14 @@ func beam() -> Line2D:
 
 
 func _start_beam() -> void:
+	# H06（健壮性审核）：autofire 捕获必须在 _active=true 之前——旧代码在门闩之后
+	# 为不可达死代码，_end_beam 无条件恢复 true 会破坏入场期/测试关闭的 autofire 状态
+	_saved_autofire = _player.auto_fire_enabled()
 	_active = true
 	_active_time = BEAM_DURATION
 	_tick_timer = 0.0
 	_beam.visible = true
 	_glow.emitting = true
-	# 光束期间替换普通子弹
-	# G020：防御性——仅在非激活时记录初始 autofire，防未来移除 _active 门闩后二次
-	# 进入保存 false → _end_beam 恢复 false → autofire 永久关闭（当前 _active 门闩下不可达）
-	if not _active:
-		_saved_autofire = _player.auto_fire_enabled()
 	_player.set_auto_fire(false)
 	GameState.play_sfx(SFX_BEAM, -6.0)
 

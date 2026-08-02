@@ -239,11 +239,17 @@ func _physics_process(delta: float) -> void:
 				direction = to_target / dist
 				rotation = direction.angle()
 			else:
-				# 距离越近转向越急：螺旋收敛而非恒定半径环绕
-				var rate := homing_turn_rate * (1.0 + HOMING_SNAP_RADIUS * 2.0 / dist)
-				var target_angle := lerp_angle(direction.angle(), to_target.angle(), rate * delta)
-				direction = Vector2.RIGHT.rotated(target_angle)
-				rotation = target_angle
+				# H05（健壮性审核）：dist==0（追踪目标与子弹重合）时保持原向——除零产生
+				# inf/NaN 角度会污染 direction 与坐标，直到出界才自愈
+				if dist <= 0.0:
+					direction = Vector2.RIGHT
+					rotation = direction.angle()
+				else:
+					# 距离越近转向越急：螺旋收敛而非恒定半径环绕
+					var rate := homing_turn_rate * (1.0 + HOMING_SNAP_RADIUS * 2.0 / dist)
+					var target_angle := lerp_angle(direction.angle(), to_target.angle(), rate * delta)
+					direction = Vector2.RIGHT.rotated(target_angle)
+					rotation = target_angle
 	elif homing and _homing_elapsed < homing_time:
 		_homing_elapsed += delta
 		if GameState.player_ref != null:

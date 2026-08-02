@@ -68,6 +68,7 @@ var _last_buff_signature: String = ""
 var _info_plate: ChamferedPanel
 var _info_label: Label
 var _info_tween: Tween = null
+var _warning_tween: Tween = null  # H09：警告横幅闪烁 tween 互斥缓存
 # Meta HUD DYING 抖动（D9）：仅 _hp_bar 与 buff 坞两控件的静止位与补间
 var _hp_bar_rest: Vector2
 var _buff_dock_rest: Vector2
@@ -554,23 +555,34 @@ func toggle_buff_panel() -> void:
 
 
 func _show_warning(text: String) -> void:
+	# H09（健壮性审核）：互斥缓存——旧警告 tween 仍在跑时 kill 再建，防同属性竞争与 hide 竞态
+	if _warning_tween != null and _warning_tween.is_valid():
+		_warning_tween.kill()
 	_banner_label.text = text
 	_banner_plate.visible = true
 	_banner_label.visible = true
 	_banner_plate.modulate.a = 1.0
 	_banner_label.modulate.a = 1.0
+	# 闪烁对（0.25→1.0）循环 4 次 ≈2s（与 spawner 预警同步）；set_loops 作用于整链，
+	# 旧实现把淡出+hide 也包进循环，首轮末尾 hide 即永久隐藏——淡出移出循环外
 	var t1 := create_tween()
-	t1.set_loops(4)
 	t1.tween_property(_banner_plate, "modulate:a", 0.25, 0.25)
 	t1.tween_property(_banner_plate, "modulate:a", 1.0, 0.25)
-	t1.tween_property(_banner_plate, "modulate:a", 0.0, 0.4)
-	t1.tween_callback(_banner_plate.hide)
+	t1.set_loops(4)
 	var t2 := create_tween()
-	t2.set_loops(4)
 	t2.tween_property(_banner_label, "modulate:a", 0.25, 0.25)
 	t2.tween_property(_banner_label, "modulate:a", 1.0, 0.25)
-	t2.tween_property(_banner_label, "modulate:a", 0.0, 0.4)
-	t2.tween_callback(_banner_label.hide)
+	t2.set_loops(4)
+	_warning_tween = t1
+	t1.finished.connect(
+		func() -> void:
+			var fade := create_tween()
+			fade.tween_property(_banner_plate, "modulate:a", 0.0, 0.4)
+			fade.tween_callback(_banner_plate.hide)
+			var fade_label := create_tween()
+			fade_label.tween_property(_banner_label, "modulate:a", 0.0, 0.4)
+			fade_label.tween_callback(_banner_label.hide)
+	)
 
 
 func show_boss_bar(boss: Boss) -> void:

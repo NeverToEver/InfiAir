@@ -395,11 +395,14 @@ func _slot_pos(start: float, length: float, n: int, i: int) -> float:
 
 
 ## 当前分数阶段已解锁的普通机型池
+## H07（健壮性审核）：unlock_scores 异常（全正/为空）时空池回退首型，防 randi()%0 崩溃
 func unlocked_types() -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
 	for i in ENEMY_TYPES.size():
 		if GameState.score >= UNLOCK_SCORES[i]:
 			pool.append(ENEMY_TYPES[i])
+	if pool.is_empty():
+		pool = [ENEMY_TYPES[0]]
 	return pool
 
 
@@ -419,6 +422,9 @@ func _count_spread_enemies() -> int:
 ## 同屏上限按难度取（GameState.spread_enemy_cap：easy 1 / medium 2 / hard 3）。
 func _pick_bullet_type(config: Dictionary) -> StringName:
 	var pool: Array = config.get("bullet_types", [&"single"])
+	# H07（健壮性审核）：空弹种池回退单发
+	if pool.is_empty():
+		pool = [&"single"]
 	var btype: StringName = pool[randi() % pool.size()]
 	if btype == &"spread" and _count_spread_enemies() >= GameState.spread_enemy_cap():
 		btype = &"laser" if config.get("elite", false) else &"single"

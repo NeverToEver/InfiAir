@@ -146,6 +146,18 @@ func _exit_tree() -> void:
 
 
 ## 数值配置缓存（启动一次读入；默认值与 balance.json effects.meta_health.* 保持一致）
+## H08（健壮性审核）：crack.density 长度/元素校验回退——损坏 JSON 短数组/非数值时
+## 用默认档位，防每帧越界索引与 float 转换报错
+func _load_density_caps() -> Array:
+	var raw: Variant = GameState.cfg("effects.meta_health.crack.density", DENSITY_CAPS.duplicate())
+	if raw is Array and raw.size() == DENSITY_CAPS.size():
+		for v: Variant in raw:
+			if not (v is int or v is float):
+				return DENSITY_CAPS.duplicate()
+		return raw.duplicate()
+	return DENSITY_CAPS.duplicate()
+
+
 func _load_cfg() -> void:
 	_cfg = {
 		"lod": int(GameState.cfg("effects.meta_health.lod", 0)),
@@ -165,7 +177,7 @@ func _load_cfg() -> void:
 		"crack_heal_jitter": float(GameState.cfg("effects.meta_health.crack.heal_jitter", 0.35)),
 		"crack_grow_overshoot": float(GameState.cfg("effects.meta_health.crack.grow_overshoot", 0.08)),
 		"crack_grow_time": float(GameState.cfg("effects.meta_health.crack.grow_time", 0.6)),
-		"crack_density": GameState.cfg("effects.meta_health.crack.density", DENSITY_CAPS.duplicate()),
+		"crack_density": _load_density_caps(),
 		"desat_max": float(GameState.cfg("effects.meta_health.desat.max", 0.35)),
 		"desat_exponent": float(GameState.cfg("effects.meta_health.desat.exponent", 2.0)),
 		"vignette_max_alpha": float(GameState.cfg("effects.meta_health.vignette.max_alpha", 0.5)),

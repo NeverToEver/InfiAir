@@ -436,6 +436,10 @@ func _report_startup_time() -> void:
 
 func _start_bgm() -> void:
 	var stream := ResourceLoader.load(BGM_PATH, "AudioStreamWAV", ResourceLoader.CACHE_MODE_IGNORE) as AudioStreamWAV
+	# H04（健壮性审核）：运行时 load 判空——打包漏资源/磁盘异常时降级静默而非空引用崩溃
+	if stream == null:
+		push_warning("BGM 资源加载失败：" + BGM_PATH)
+		return
 	# 只设 loop_mode 即可整段循环；显式写 loop_begin/loop_end 会在退出时泄漏播放实例
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	_bgm_player = AudioStreamPlayer.new()
