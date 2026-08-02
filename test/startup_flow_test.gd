@@ -167,6 +167,15 @@ func _ready() -> void:
 	_check(player2.fuel_amount() == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
 	_check(get_node("Main/Spawner").elapsed() == 0.0, "F2：非法 elapsed 回默认 0")
 
+	# ---------- 8. E02：通关后教程按钮禁用（防重进教程触发 tutorial 的 delete_save 删档） ----------
+	GameState.tutorial_done = true
+	start_panel2.show_panel()
+	await get_tree().process_frame
+	_check(start_panel2.tutorial_button().disabled, "E02：通关后教程按钮禁用")
+	start_panel2.dismiss()
+	GameState.tutorial_done = false
+	GameState.save_profile()
+
 	_cleanup()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)

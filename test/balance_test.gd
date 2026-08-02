@@ -59,6 +59,14 @@ func _ready() -> void:
 	_check(GameState.cfg("player.fuel.drain", 0.0) == 50.0, "改值 50 生效")
 	_check(GameState.cfg("player.max_speed", 420.0) == 420.0, "缺省键回退默认")
 
+	# 4b. E03：难度段子键缺失 → 整表回退默认（不再 KeyError→0 HP/0 得分倍率）
+	f = FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"difficulty": {"easy": {"hp": 0.5}}}))
+	f.close()
+	GameState.reload_balance()
+	_check(GameState.enemy_hp_multiplier() == 1.0, "E03：难度段缺子键回退默认（medium hp 1.0）")
+	_check(GameState.score_multiplier() == 2, "E03：难度段缺子键回退默认（medium score 2）")
+
 	# 5. 恢复原文件并恢复生效配置
 	f = FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)
 	f.store_string(original)

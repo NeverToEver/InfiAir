@@ -113,9 +113,17 @@ func _ready() -> void:
 			break
 	_check(ms.state() == Mothership.State.STAY, "驻留：进入 STAY")
 	_check(not main.player().visible, "驻留：玩家保持隐藏（保护舱）")
+	# E05：H 按住时进度条可见；强制离舰（start_release）必须清掉——修复前 H 按住被强制
+	# 离舰（警告到期/弹匣耗尽）进度条残留可见
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null:
+		hud.set_early_leave_charge(0.5)
+		_check(hud.early_leave_box().visible, "E05：前置：提前离舰进度条可见（模拟 H 按住）")
 	ms.start_release()
 	await get_tree().process_frame
 	_check(main.player().visible, "释放：玩家出舱恢复显示")
+	if hud != null and is_instance_valid(hud):
+		_check(not hud.early_leave_box().visible, "E05：start_release 清除提前离舰进度条")
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
 		if not main.player().is_input_locked():

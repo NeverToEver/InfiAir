@@ -451,6 +451,23 @@ func _ready() -> void:
 	GameState.buffs.clear()
 	await get_tree().physics_frame
 
+	# ================= E01：导弹溅射对 Boss 生效（C20 静默回归修复） =================
+	# 注册表含 Boss（Boss extends Area2D 非 Enemy 子类），as Enemy cast 对 Boss 得 null
+	# 曾致母舰导弹溅射静默丢失（直击 80 仍有效）；修复改 Variant 鸭子调用 take_damage
+	var splash_boss := _make_boss(1)
+	splash_boss.set_fire_timer(999.0)
+	splash_boss.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在溅射半径内
+	var sp_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	sp_b.splash_damage = 20
+	sp_b.splash_radius = 50.0
+	sp_b.monitoring = false  # 只手动测溅射，不走碰撞
+	sp_b.position = Vector2(960.0, 400.0)
+	sp_b.splash()
+	_check(splash_boss.hp == splash_boss.max_hp - 20, "E01：导弹溅射对 Boss 生效（20 伤害）")
+	splash_boss.queue_free()
+	sp_b.queue_free()
+	await get_tree().physics_frame
+
 	# ================= A13：慢速力场全局敌机移速 ×0.8（敌弹不受影响） =================
 	var slow_e1 := _make_enemy(spawner.ENEMY_TYPES[0])
 	slow_e1.speed = 100.0

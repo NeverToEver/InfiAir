@@ -119,6 +119,11 @@ func explode() -> void:
 	_explode()
 
 
+## E01：测试/诊断经公开接口（与 explode 对称）
+func splash() -> void:
+	_splash()
+
+
 ## 物理回调内不能直改 monitoring，延迟到帧末；若子弹已被重激活（同帧复用）则跳过
 func _deferred_disable_monitoring() -> void:
 	if not _active:

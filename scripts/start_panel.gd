@@ -218,6 +218,10 @@ func continue_button() -> Button:
 	return _continue_button
 
 
+func tutorial_button() -> Button:
+	return _tutorial_button
+
+
 func corrupt_label() -> Label:
 	return _corrupt_label
 
