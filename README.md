@@ -132,7 +132,7 @@ godot --headless --path . --quit-after 300  # 运行时冒烟
 godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 项）
 ```
 
-完整 37 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#本地运行与验证)。
+完整 37 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#quick-reference)。
 
 </details>
 

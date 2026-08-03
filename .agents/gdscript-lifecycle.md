@@ -1,0 +1,14 @@
+# GDScript & Lifecycle
+
+## Overview
+
+Coding style, scene lifecycle ordering, input mapping, and coroutine discipline. Applies to all `.gd` files.
+
+## Rules
+
+- Godot 4 official style: Tab indent, type annotations, `CONSTANT_CASE`, `_` private prefix, `signal.emit()`/`connect()`.
+- `setup()` runs before `_ready()`; no `@onready` there — use `$node/path`.
+- Don't touch existing autoloads/input mappings for unrelated needs. Inputs (`project.godot`): move, `boost` (Shift), `fine_move` (Ctrl), `dash` (Space), `dock` (H), `homecoming` (B), `give_up` (K), `buff_panel` (L), `parry` (F, arcane shield, fairness mech #4), `restart` (R). Joypad defaults bound at runtime by `GameState._bind_joypad_defaults()` (P0-1: keyboard only in project.godot; deadzone via `set_joy_deadzone()`). PS detect via `GameState.is_ps_guid()` (vendor 054c; ✕○□△/L1-R1 labels).
+- Tutorial isolates run state/saves; restore `Engine.time_scale = 1` on exit. Keep refs to runtime-created nodes; never rely on auto-generated node names.
+- After adding a `class_name` script, run `godot --headless --import --path .` to refresh class cache, else "Identifier not declared" compile errors break the host scene.
+- No `await get_tree().create_timer()` or timer-hung coroutines: unfinished coroutine state leaks on exit along with referenced resources. Use one-shot `Timer` nodes + signals (see `spawner.gd` `_schedule()`).

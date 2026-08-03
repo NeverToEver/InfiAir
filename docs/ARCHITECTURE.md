@@ -1,6 +1,6 @@
 # Runtime Architecture & Config (ARCHITECTURE)
 
-> On-demand reference for `AGENTS.md`: node tree of `scenes/main.tscn`, per-script duties, stack, key configs, directory roles. **Rules & entry: `AGENTS.md`**; test commands: `docs/TESTING.md`.
+> On-demand reference for `AGENTS.md`: node tree of `scenes/main.tscn`, per-script duties, stack, key configs, directory roles. **Rules & entry: `AGENTS.md` + `.agents/*`**; test commands: `docs/TESTING.md`.
 
 ## Stack
 
@@ -82,4 +82,5 @@ Main (scripts/main.gd)
 | `data/` | Runtime config + translation sources. |
 | `test/` | Headless `.tscn + .gd` self-checks, perf bench, autoplay, screenshot tools. |
 | `docs/` | EXIT_FLOW, AUDIT_REVIEW_SOP (parallel-audit methodology), ROADMAP, DESIGN_BASELINE, ENDLESS_BALANCE_PLAN, BALANCE_MAP (generated), system design docs, screenshots; `docs/archive/` frozen history (`PORTING_PARITY.md` + `EXECUTION_LOG.md` + originals). |
+| `.agents/` | Agent entry docs linked from `AGENTS.md` (conventions, shell scripts, doc sync). |
 | `packaging/` | `linux/` (install.sh/uninstall.sh/infiair.desktop), `windows/` (install.bat/uninstall.bat). |

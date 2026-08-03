@@ -1,0 +1,2 @@
+# Godot 资源系统忽略 docs/（2026-08-03）：docs/ 仅为文档与 README 引用的截图，
+# 无游戏资源；避免 Godot 为 docs/screenshots/*.png 生成 .import 噪音。
