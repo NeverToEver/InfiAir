@@ -182,9 +182,12 @@ func _ready() -> void:
 	var hp1: float = boss.hp
 	boss.take_damage(5)
 	_check(boss.hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血")
-	# 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）
+	# 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）。
+	# flake 修复（2026-08-03 Phase 0 CI 门禁）：8 路齐射后各路以不同横向分量先后出屏，
+	# 采样窗口若晚于发射时刻则场上重弹数 <8——窗口加长至 3s（0.2s 蓄力 + 全在场期余量）
+	# 且从本处立即开始，确保覆盖发射时刻（峰值即齐射数）
 	var salvo := 0
-	for i in 30:
+	for i in 60:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss):
 			break
