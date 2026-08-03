@@ -1,111 +1,95 @@
-# 全局退出机制设计（EXIT_FLOW）
+# Global Exit Mechanism (EXIT_FLOW)
 
-统一的"返回/退出"状态机：任何页面按返回键，行为可预测、安全、流畅。
-实现：`scripts/back_navigator.gd`（状态机）+ `scripts/exit_confirm.gd`（全局退出确认窗）。
+Unified back/exit state machine: any page, predictable/safe/smooth behavior. Impl: `scripts/back_navigator.gd` (FSM) + `scripts/exit_confirm.gd` (global confirm).
 
-## 1. 页面层级（main 场景）
+## 1. Page Stack (main scene)
 
 ```
-L3 模态:  ExitConfirm（全局退出确认窗，最高优先级）
-L2 覆盖:  SettingsUI（opener = 暂停/开始面板）
-          BaseUI（基地控制台）/ GameOverUI（结算）/ BuffUI（三选一，阻塞）
-          IntroCinematic（开场过场，layer=35；播放中树暂停，Esc/任意键/点击 = 跳过）
-          ReturnCinematic（返航过场，layer=35；播放中树暂停，Esc/任意键/点击 = 跳过；
-                          结束后树保持暂停落 BaseUI，见 docs/RETURN_HOME_CINEMATIC.md §4）
-L1 对局:  Gameplay(HUD) ⇄ PauseUI
-          buff 滚动栏（HUD 内覆盖层，L 键展开/收起，不暂停对局；Esc = 收起栏）
-L0 顶层:  StartPanel（主界面/大厅）
+L3 modal:  ExitConfirm (highest priority)
+L2 overlay: SettingsUI (opener = pause/start panel)
+            BaseUI / GameOverUI / BuffUI (blocking)
+            IntroCinematic (layer=35; tree paused; Esc/any key/click = skip)
+            ReturnCinematic (layer=35; tree paused; Esc/any key/click = skip;
+                             ends on BaseUI with tree paused, docs/RETURN_HOME_CINEMATIC.md §4)
+L1 run:    Gameplay(HUD) ⇄ PauseUI
+           buff scroll bar (HUD overlay, L key; not pausing; Esc = close bar)
+L0 top:    StartPanel
 ```
 
-`scenes/tutorial.tscn` 为独立场景：自身即顶层，Esc = 退出教程回主界面（`tutorial.gd` 自处理，不进状态机）。注意基地控制台（BaseConsole）打开时树暂停，教程根节点（process_mode=inherit）收不到输入，Esc 无响应，需点「继续出击」关闭控制台——模态行为，2026-08-03 审计口径说明。
+`scenes/tutorial.tscn` standalone: its own top, Esc = exit to main menu (self-handled, outside FSM). Note: with BaseConsole open the tree is paused, tutorial root (process_mode=inherit) gets no input — click "continue sortie" to close (modal behavior, 2026-08-03 audit note).
 
-## 2. 状态机伪代码
+## 2. State Machine
 
-所有平台的返回输入统一收敛到 `BackNavigator.go_back()`（PC Esc / **鼠标右键** / 手柄 `ui_cancel` / Android 系统返回）：
+All platform back inputs converge to `BackNavigator.go_back()` (PC Esc / **right mouse** / gamepad `ui_cancel` / Android system back):
 
 ```
 func go_back():
-    match decide_back_action():            # 纯决策函数，无副作用（供测试覆盖全分支）
-        CANCEL_EXIT:          # ExitConfirm 可见
-            exit_confirm.cancel()          # 返回 = 取消退出；开始面板可见时焦点还给其主按钮
-        SKIP_INTRO:           # 开场过场播放中（Main._intro != null）
-            main.skip_intro()              # = 跳过过场直接进对局（任意键/点击由过场自身捕获）
-        SKIP_RETURN:          # 返航过场播放中（Main._return != null，优先级同 SKIP_INTRO）
-            main.skip_return()             # = 跳过过场直落基地 UI（树保持暂停；任意键/点击同上）
-        CAPTURE_PASSTHROUGH:  # 设置改键捕获中
-            pass                           # 不消费事件，让 SettingsUI 取消捕获
-        CLOSE_SETTINGS:       # 设置页可见
-            settings_ui.back()             # 返回 opener（暂停或开始面板）
-        RESUME_BASE:          # 基地控制台可见
-            base_ui.resume()               # = 继续出击
-        IGNORE:               # Buff 三选一（必须做选择）/ 死亡→结算页出现前的中间态 / 其他暂停态
-            （吞掉输入）
-        TO_MAIN_MENU:         # 结算页可见
-            paused = false + reset_run + reload_current_scene   # 回主界面（死亡时已删档）
-        CLOSE_BUFF_PANEL:     # buff 滚动栏展开中（HUD 覆盖层，不暂停对局）
-            hud.close_buff_panel()       # 返回 = 收起栏（优先于打开暂停）
-        RESUME_GAME:          # 暂停面板可见
-            pause_ui.close()
-        CONFIRM_EXIT:         # 顶层（开始面板）
-            exit_confirm.show_confirm(battle=false)
-        OPEN_PAUSE:           # 以上皆非 = 战斗中（无覆盖、未暂停）
-            pause_ui.open()                # 返回上一级 = 暂停
+    match decide_back_action():            # pure decision fn, no side effects (testable)
+        CANCEL_EXIT:          exit_confirm.cancel()       # back = cancel exit; focus back to start button
+        SKIP_INTRO:           main.skip_intro()           # skip intro → run (any key/click captured by cinematic)
+        SKIP_RETURN:          main.skip_return()          # skip return → base UI (tree stays paused)
+        CAPTURE_PASSTHROUGH:  pass                        # settings key-capture: let SettingsUI cancel
+        CLOSE_SETTINGS:       settings_ui.back()          # → opener (pause or start panel)
+        RESUME_BASE:          base_ui.resume()            # = continue sortie
+        IGNORE:               (swallow)                   # BuffUI (must choose) / dying→results interim / other paused
+        TO_MAIN_MENU:         paused=false + reset_run + reload_current_scene  # results page (save deleted on death)
+        CLOSE_BUFF_PANEL:     hud.close_buff_panel()      # back = close bar (before opening pause)
+        RESUME_GAME:          pause_ui.close()
+        CONFIRM_EXIT:         exit_confirm.show_confirm(battle=false)  # top level (start panel)
+        OPEN_PAUSE:           pause_ui.open()             # in combat with no overlay → pause
 ```
 
-判定顺序即代码顺序：模态（确认窗）→ 过场跳过（开场/返航）→ 设置/基地/阻塞态/结算 → buff 栏 → 暂停 → 顶层 → 战斗。
+Judgment order = code order: modal → cinematic skip (intro/return) → settings/base/blocking/results → buff bar → pause → top → combat.
 
-### 战斗中退出（二次确认 + 进度损失提示）
+### Battle Exit (2nd confirm + progress-loss warning)
 
 ```
-战斗中 Esc → 暂停面板（第一次确认机会）
-  → 点「退出游戏」→ ExitConfirm(battle=true)（红色警告：退出将丢失本局进度）
-    → 「确认退出」才真正退出；「取消」/ Esc 返回暂停面板
+Esc in combat → pause panel (1st chance)
+  → "Exit game" → ExitConfirm(battle=true) (red warning: run progress lost)
+    → "Confirm exit" quits; "Cancel"/Esc back to pause
 ```
 
-### 退出前统一清理（ExitConfirm 确认后）
+### Pre-Exit Cleanup (after ExitConfirm confirm)
 
 ```
 func _execute_exit_cleanup(battle):
-    GameState.save_profile()     # 最高分/设置/语言/键位落盘
+    GameState.save_profile()     # high score/settings/locale/keybinds
     if battle:
-        GameState.delete_save()  # 战斗中退出 = 放弃对局（与死亡语义一致）
-    _on_exit_cleanup()           # hook：停止未播完音效（避免退出时播放实例泄漏）；网络断开等预留
-    # 随后淡出黑屏 0.3s（过渡动画）→ get_tree().quit()
+        GameState.delete_save()  # battle exit = abandon run (same semantics as death)
+    _on_exit_cleanup()           # hook: stop unfinished SFX (leak prevention); network-reserved
+    # fade black 0.3s → get_tree().quit()
 ```
 
-从开始面板退出：对局存档**保留**，下次启动可「继续对局」。
+Exit from start panel: run save **kept**; "continue run" available next start.
 
-## 3. 键位映射表
+## 3. Key Map
 
-| 平台 | 物理输入 | 映射到 | 处理 |
+| Platform | Physical | Maps to | Handling |
 |---|---|---|---|
-| PC | Esc | `ui_cancel`（引擎内置） | `BackNavigator._unhandled_input` |
-| PC | 鼠标右键 | 固定检测（不参与改键） | 同上——**右键 = 返回/取消**（惯例：确认窗取消、设置返回、暂停打开/恢复、顶层退出确认） |
-| 手柄 | B / Circle（joy button 1） | `ui_cancel`（引擎内置默认映射） | 同上；A = `ui_accept` 确认，方向键/摇杆走 GUI 焦点导航（焦点样式已可见） |
-| 手柄 | 左摇杆 | `move_*`（左摇杆移动） | GameState `_bind_joypad_defaults()` 启动时经 InputMap 运行时装配（`project.godot` 只存键盘，P0-1） |
-| 手柄 | 右摇杆 | `aim_x`/`aim_y`（虚拟准星，`player.aim_point`） | 灵敏度/死区在设置页「手柄」分区可调（`joy_aim_speed`/`joy_deadzone`，profile 持久化） |
-| 手柄 | A=冲刺 / RB=加速 / LB=微调 / X=母舰蓄力 / Y=返航 / L3=Buff 栏 / R3=放弃 / A=重开 | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`restart` | 同上运行时装配；B 键让位 `ui_cancel`（返回） |
-| Android | 系统返回手势 | `NOTIFICATION_WM_GO_BACK_REQUEST` | `BackNavigator._notification` → `go_back()` |
+| PC | Esc | `ui_cancel` (built-in) | `BackNavigator._unhandled_input` |
+| PC | right mouse | fixed detect (not rebindable) | same — **right mouse = back/cancel** (confirm cancel, settings back, pause open/close, top exit-confirm) |
+| Gamepad | B / Circle (joy button 1) | `ui_cancel` (built-in default) | same; A = `ui_accept` confirm; d-pad/stick via GUI focus nav |
+| Gamepad | left stick | `move_*` | `GameState._bind_joypad_defaults()` runtime InputMap assembly (keyboard-only in project.godot, P0-1) |
+| Gamepad | right stick | `aim_x`/`aim_y` (virtual cursor, `player.aim_point`) | sensitivity/deadzone in Settings "Gamepad" (`joy_aim_speed`/`joy_deadzone`, profile) |
+| Gamepad | A=dash / RB=boost / LB=fine / X=dock / Y=homecoming / L3=buff bar / R3=give up / A=restart | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`restart` | runtime assembly; B yields to `ui_cancel` |
+| Android | system back | `NOTIFICATION_WM_GO_BACK_REQUEST` | `BackNavigator._notification` → `go_back()` |
 
-确认窗内：Enter/手柄 A 触发焦点按钮（默认焦点在「取消」，安全侧）；Esc/手柄 B = 取消。
+In confirm: Enter/gamepad A triggers focused button (default focus = "Cancel", safe side); Esc/gamepad B = cancel.
 
-## 4. ExitConfirm 复用组件设计
+## 4. ExitConfirm Component
 
-- 挂载：`scenes/main.tscn`，CanvasLayer layer=40（高于一切 UI），`process_mode=Always`。
-- API：
-  - `show_confirm(battle: bool = false)` — normal/battle 双模式；battle 换 `UITheme.DANGER` 红字警告。
-  - `cancel()` — 关闭（Esc 由 BackNavigator 路由至此）。
-  - `_execute_exit_cleanup(battle)` — 退出前清理（测试可直接调用断言副作用）。
-- 布局：`ChamferedPanel` + 标题 + 消息 + 「取消」（默认焦点）/「确认退出」（danger 色）；按钮样式走 `UITheme.make_button`；文案 `EXIT_*` 翻译键，监听 `locale_changed` 刷新。
-- 复用方式：任何页面需要"确认后退出"只需 `show_confirm()`，清理/过渡/退出进程全部内部封装。
+- Mounted: `scenes/main.tscn`, CanvasLayer layer=40 (above all UI), `process_mode=Always`.
+- API: `show_confirm(battle: bool = false)` (normal/battle; battle uses `UITheme.DANGER` red warning); `cancel()` (Esc routed by BackNavigator); `_execute_exit_cleanup(battle)` (directly callable in tests for side-effect asserts).
+- Layout: `ChamferedPanel` + title + message + "Cancel" (default focus) / "Confirm exit" (danger); buttons via `UITheme.make_button`; text `EXIT_*` keys, refreshes on `locale_changed`.
+- Reuse: any page needing confirm-then-exit calls `show_confirm()`; cleanup/transition/quit fully encapsulated.
 
-## 5. 平台差异化处理
+## 5. Platform Differences
 
-- **PC**：无差异，Esc 全程可用（当前唯一实机验证平台）。
-- **手柄**：依赖引擎内置 `ui_cancel` 默认映射（含 joy button 1）做返回；**移动/动作键/右摇杆瞄准由 `GameState._bind_joypad_defaults()` 在启动时经 InputMap 运行时装配**（`project.godot` 保持键盘单一事实源，P0-1：左摇杆移动、A/RB/LB/X/Y/L3/R3 动作键、右摇杆虚拟准星；B 键让位返回）。**PlayStation 手柄自动识别**（SDL 位置一致，仅标签对应：A/B/X/Y ↔ ✕/○/□/△、LB/RB ↔ L1/R1，设置页显示当前布局）。灵敏度与摇杆死区在设置页「手柄」分区可调。按钮 focus 样式与 hover 同款高亮，键盘/手柄导航可见。**尚未实机验证**（无导出流程，实机走查登记为发布前验证项）。
-- **Android**：系统返回手势接入同一状态机；导出模板配置不在本项目范围内，标注为"映射就绪、未实机验证"。
-- **教程场景**：见第 1 节，独立顶层自处理，不进状态机（避免跨场景耦合）。
+- **PC**: no difference; Esc everywhere (only verified platform so far).
+- **Gamepad**: engine built-in `ui_cancel` (incl. joy button 1); **move/action/right-stick aim assembled at runtime by `_bind_joypad_defaults()`** (project.godot = keyboard single source, P0-1; B yields to back). **PS auto-detect** (same positions, A/B/X/Y ↔ ✕/○/□/△, LB/RB ↔ L1/R1; Settings shows layout). Sensitivity/deadzone in Settings "Gamepad". **Not hardware-verified** (no export flow; on-device walkthrough = pre-release item).
+- **Android**: system back → same FSM; export config out of scope — "mapping ready, not device-verified".
+- **Tutorial**: §1, standalone top, outside FSM.
 
-## 6. 测试
+## 6. Tests
 
-`test/back_navigation_test.tscn`：`decide_back_action()` 全分支覆盖 + 集成路径（Esc→暂停→恢复、设置返回、顶层 Esc→确认窗→取消、战斗退出确认链、清理副作用）。开场过场的 SKIP_INTRO 分支与 Esc 跳过路径由 `test/intro_cinematic_test.tscn` 覆盖（设计见 docs/INTRO_CINEMATIC.md）；返航过场的 SKIP_RETURN 分支（决策 + 真实 Esc 注入 + 跳过后落基地 UI 且树保持暂停）由 `test/return_cinematic_test.tscn` 覆盖（设计见 docs/RETURN_HOME_CINEMATIC.md §4），back_navigation_test 另断言其决策分支。回归：`esc_navigation_test`（真实按键注入）与 `smoke_test` 必须全绿。
+`test/back_navigation_test.tscn`: full `decide_back_action()` branch coverage + integration (Esc→pause→resume, settings back, top Esc→confirm→cancel, battle exit chain, cleanup side effects). SKIP_INTRO by `test/intro_cinematic_test.tscn` (docs/INTRO_CINEMATIC.md); SKIP_RETURN (decision + real Esc injection + lands on base UI, tree paused) by `test/return_cinematic_test.tscn` (docs/RETURN_HOME_CINEMATIC.md §4); back_navigation_test also asserts its decision branch. Regression: `esc_navigation_test` (real key injection) + `smoke_test` green.

@@ -1,33 +1,23 @@
-# 本地运行、验证与测试
+# Local Run, Verification & Testing (TESTING)
 
-> 本文是 `AGENTS.md` 的按需读取参考文档：完整本地运行命令、专项测试场景、视觉截图工具与测试策略副作用明细。**最小必跑集与行为准则见 `AGENTS.md`**。
+> On-demand reference for `AGENTS.md`: full commands, per-system scenes, screenshots, side effects. **Minimal set & rules: `AGENTS.md`**.
 
-在项目根目录运行。当前开发机可使用 `~/.local/bin/godot`；若 `godot` 已在 PATH 中，也可以直接替换命令。`./run.sh` 会自动定位引擎。
+Run at repo root. Engine: `~/.local/bin/godot` (or `godot` if on PATH); `./run.sh` auto-locates.
 
 ```bash
-# 本地运行
-./run.sh
-godot --path .
-
-# 资源导入与脚本解析
-godot --headless --import --path .
-
-# 启动主场景并运行 300 帧
-godot --headless --path . --quit-after 300
-
-# 最小必跑主流程冒烟测试
-godot --headless --path . res://test/smoke_test.tscn
-
-# 存档、RP、任务、基地整备数据层
-godot --headless --path . res://test/base_system_test.tscn
+./run.sh                                   # run locally
+godot --headless --import --path .         # import + script parse
+godot --headless --path . --quit-after 300 # main scene, 300 frames
+godot --headless --path . res://test/smoke_test.tscn          # minimal smoke
+godot --headless --path . res://test/base_system_test.tscn    # saves/RP/tasks/base
 ```
 
-推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。涉及存档、基地或母舰时额外运行 `base_system_test.tscn`；涉及对应子系统时运行下列专项场景。
+Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; run subsystem scenes when touching that subsystem.
 
-## 专项测试场景
+## Subsystem Scenes
 
 ```bash
-# 对局机制与配置
+# Mechanics & config
 godot --headless --path . res://test/enemy_combat_test.tscn
 godot --headless --path . res://test/wave_pacing_test.tscn
 godot --headless --path . res://test/buff33_test.tscn
@@ -37,8 +27,7 @@ godot --headless --path . res://test/boss_enrage_test.tscn
 godot --headless --path . res://test/boss_phase_test.tscn
 godot --headless --path . res://test/boss_pattern_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
-
-# 公平感机制（2026-08-03 落地，docs/archive/2026-08-03-combat-fairness-plan.md）
+# Fairness (2026-08-03; docs/archive/2026-08-03-combat-fairness-plan.md)
 godot --headless --path . res://test/grace_period_test.tscn
 godot --headless --path . res://test/graze_test.tscn
 godot --headless --path . res://test/boss_phase_transition_test.tscn
@@ -50,8 +39,7 @@ godot --headless --path . res://test/formation_strike_event_test.tscn
 godot --headless --path . res://test/orbital_strike_test.tscn
 godot --headless --path . res://test/mothership_summon_test.tscn
 godot --headless --path . res://test/meta_health_fx_test.tscn
-
-# 设置、启动、导航与教程
+# Settings / startup / navigation / tutorial
 godot --headless --path . res://test/keybind_test.tscn
 godot --headless --path . res://test/i18n_test.tscn
 godot --headless --path . res://test/view_zoom_test.tscn
@@ -63,75 +51,57 @@ godot --headless --path . res://test/back_navigation_test.tscn
 godot --headless --path . res://test/esc_navigation_test.tscn
 godot --headless --path . res://test/intro_cinematic_test.tscn
 godot --headless --path . res://test/tutorial_test.tscn
-
-# 对象池与性能
+# Pools & perf
 godot --headless --path . res://test/pool_reuse_test.tscn
 godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
-
-# 自动游玩异常探针（默认真实时间 480 秒；不是普通断言测试）
+# Autoplay anomaly probe (~480s real time; not a normal assertion test)
 godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
 ```
 
-无头模式的帧率不等同于真实时间；依赖计时的测试应等待真实计时器/物理帧，参考现有测试实现。视觉测试不能使用 headless dummy 渲染器：
+Headless FPS ≠ real time; time-dependent tests wait on real timers/physics frames (see existing tests). Visual tests need windowed mode (headless renders nothing):
 
-## 视觉截图（窗口模式）
+## Screenshots (windowed)
 
 ```bash
-# 窗口模式：游戏画面，输出 /tmp/infiair_capture.png
-godot --path . res://test/visual_capture.tscn
-
-# 窗口模式：UI 页面，输出 /tmp/ui_*.png
-godot --path . res://test/ui_capture.tscn
-
-# 窗口模式：返航过场逐镜头（8s/镜头拉长时轴），输出 /tmp/return_shot*.png
-godot --path . res://test/return_capture.tscn
-
-# 窗口模式：开场过场逐镜头（8s/镜头拉长时轴），输出 /tmp/intro_shot*.png
-godot --path . res://test/intro_capture.tscn
-
-# 窗口模式：母舰召唤全序列（蓄力/小窗/穿梭门/牵引/驻留），输出 /tmp/summon_*.png
-godot --path . res://test/summon_capture.tscn
-
-# 窗口模式：Meta HUD 血量/受击反馈各血量档，输出 /tmp/meta_fx_*.png
-godot --path . res://test/meta_fx_capture.tscn
-
-# 窗口模式：HUD 常态/极端（全 buff 满层）布局，输出 /tmp/hud_*.png
-godot --path . res://test/hud_capture.tscn
+godot --path . res://test/visual_capture.tscn     # game frame → /tmp/infiair_capture.png
+godot --path . res://test/ui_capture.tscn         # UI pages → /tmp/ui_*.png
+godot --path . res://test/return_capture.tscn     # return shots → /tmp/return_shot*.png
+godot --path . res://test/intro_capture.tscn      # intro shots → /tmp/intro_shot*.png
+godot --path . res://test/summon_capture.tscn     # summon sequence → /tmp/summon_*.png
+godot --path . res://test/meta_fx_capture.tscn    # meta HUD tiers → /tmp/meta_fx_*.png
+godot --path . res://test/hud_capture.tscn        # HUD normal/all-buffs → /tmp/hud_*.png
 ```
 
-## 统一检查流程（提交前 / CI 门禁）
+## Unified Check Flow (pre-commit / CI gate)
 
-五层自动检查，CI（`.github/workflows/ci.yml`）全部自动执行；本地用下命令等价复现：
+Five layers; CI (`.github/workflows/ci.yml`) runs all; reproduce locally:
 
 ```bash
-# 1. 格式：GDScript 格式一致性（行宽 140，gdformatrc）
-gdformat --check autoload/ scripts/
-# 2. 静态：风格/未使用参数/命名规则（.gdlintrc 规则取舍）
-gdlint autoload/ scripts/
-# 3. 引擎编译警告：error 级零容忍（CI 出现 "Warning treated as error" 即失败）；
-#    warn 级（unsafe_cast/未类型声明等）编辑器脚本状态栏可见，持续改进清单见 AUDIT_VAULT
-godot --headless --import --path .
-# 4. 编译 + 运行时冒烟
-godot --headless --path . --quit-after 300
+gdformat --check autoload/ scripts/            # 1. format (width 140, gdformatrc)
+gdlint autoload/ scripts/                      # 2. static (style/unused/.gdlintrc)
+godot --headless --import --path .             # 3. warnings: error-level zero tolerance
+                                               #    ("Warning treated as error" fails CI);
+                                               #    warn-level (unsafe/untyped) = AUDIT_VAULT list
+godot --headless --path . --quit-after 300     # 4. compile + runtime smoke
 godot --headless --path . res://test/smoke_test.tscn
-# 5. 全量断言：37 个场景逐个跑（排除 autoplay_test 长时探针），任一 FAIL 退出码非零
+# 5. all 37 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
 ```
 
-- **工具安装**（一次性，装于项目内 `.venv/`，已被 `.gitignore` 排除不入库；复用 pip 本地 wheel 缓存无需重复下载）：`python3 -m venv .venv && .venv/bin/pip install gdtoolkit`，之后用 `.venv/bin/gdformat` / `.venv/bin/gdlint`。
-- **规则取舍**：`gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` 段的取舍依据见各自文件内注释与 `docs/AUDIT_VAULT.md`「GDScript 引擎警告分层」；新增禁用/放宽规则须同步这三处配置与 `AGENTS.md`。
-- **三层分工**：gdformat（格式）→ gdlint（风格）→ 引擎警告（编译期暗病）→ import/冒烟（编译+启动）→ 断言场景（运行时行为）。
+- **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit` → `.venv/bin/gdformat`/`.venv/bin/gdlint`.
+- **Rule rationale**: `gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` comments + `docs/AUDIT_VAULT.md`; new disables/relaxes sync those configs + `AGENTS.md`.
+- Layers: format → style → engine warnings → compile/start → runtime behavior.
 
-## CI 执行（GitHub Actions）
+## CI
 
-`.github/workflows/ci.yml` 在 push/PR 时自动跑：GDScript 静态检查（`gdlint` + `gdformat --check`，见上节 1-2）→ 引擎警告门禁（import 步骤 grep "Warning treated as error"，见上节 3）→ 主场景冒烟（`--quit-after 300`）→ 全量 37 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针；35 既有 + 2 架构断言新增 `buff_effects_test`/`boss_registry_test`）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action（gdtoolkit 经 pip 安装）。CI 全绿是合入门槛；本地可用上文命令等价复现。
+push/PR: gdlint + gdformat --check → warning gate (import grep) → main smoke → all 37 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 35 existing + 2 architecture: `buff_effects_test`/`boss_registry_test`) with exit-code checks; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
 
-## 测试策略与副作用
+## Strategy & Side Effects
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 46 个场景：37 个断言场景（35 既有 + 2 架构断言新增：`buff_effects_test`（A4 效果表）/ `boss_registry_test`（A3 注册表）），外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
+Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 46 scenes: 37 assertions (35 + `buff_effects_test` A4 + `boss_registry_test` A3) + `autoplay_test` + `perf_bench` + 7 screenshot tools.
 
-- 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
-- `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。
-- `test/autoplay_test.tscn` 是长时自动游玩与 `[ANOMALY]` 不变量监控探针，不以常规断言失败形式代表所有问题。注册表一致性按 "enemy" 组集合双向比对（含炮台/编队战机注册者，跳过池化 deferred 回收窗口）；另覆盖 Buff 卡确认动效路径（10% 真实三参选取）、返航过场期豁免的卡死计时、狂暴减速复位、buff 层数封顶与事件/Boss 阶段计数（SUMMARY 输出）。
-- `test/perf_bench.tscn` 必须带 `--fixed-fps 1000`；无头默认帧率行为不适合直接比较纯帧耗时。做性能 A/B 时交错运行并使用中位数。
-- 修改 UI 后使用窗口模式截图人工核对；headless 不会输出可用游戏截图。
-- **既有失败基线**：`smoke_test` 的「母舰击杀 1/3 分」曾偶发失败（重跑可过），2026-08-01 复核已通过、应视为已自愈，若再现先排查近期改动。`hit_logic_test` 的 A21「Boss 入场降入期玩家弹可伤 Boss」曾登记为稳定失败基线（2026-07-31）；2026-08-01 复核通过实为 `user://profile.json` 视角档巧合（medium 档），根因未除——**2026-08-02 已根因修复**：测试硬编码绝对坐标 `(960,100)`，在 `view_zoom=large` 档（可见区顶缘 y=222）下玩家弹被 `view_world_rect(80)` 出界判定销毁、从未命中 Boss；现改按战斗锚线 `fight_anchor_y()` 动态定位，9 组合矩阵（视角档×难度）+ 多轮连跑全绿。根因与修复记录见 `docs/AUDIT_VAULT.md`「既有失败基线处置记录（A21）」。**A21 不再是失败基线**，涉及视角档或 Boss 锚线的改动后应重跑 `hit_logic_test`。
+- Tests may touch `user://savegame.json`/`profile.json`: new tests `GameState.delete_save()` first + clean/restore own state.
+- `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.
+- `autoplay_test`: long probe with `[ANOMALY]` invariants (not ordinary assertions); registry bidirectional check vs `enemy` group (incl. turret/formation, skipping pooled deferred-recycle), buff-confirm anim path (10% real roll), return-cinematic stall exemption, enrage-slow reset, buff caps, event/boss phase counts (SUMMARY).
+- `perf_bench` needs `--fixed-fps 1000`; interleave runs + medians for A/B.
+- UI changes: human-check windowed screenshots (headless produces none).
+- **Known-failure baseline**: `smoke_test` "mothership kill 1/3 score" flaked (rerun passes; re-verified 2026-08-01, self-healed). `hit_logic_test` A21 was a stable baseline (2026-07-31); 2026-08-01 found `user://profile.json` zoom coincidence; **root-caused + fixed 2026-08-02**: test hardcoded `(960,100)`; at `view_zoom=large` (visible top y=222) player bullets died to `view_world_rect(80)` out-of-bounds before reaching the boss; now positioned via `fight_anchor_y()`; 9-combo (zoom×difficulty) green. Record: `docs/AUDIT_VAULT.md` A21. **A21 no longer a baseline** — rerun `hit_logic_test` after zoom-tier/boss-anchor changes.

@@ -1,71 +1,49 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) on this repo.
 
-**本仓库的权威约定文档是 `AGENTS.md`**（碰撞层、测试策略、性能约定、i18n、调参流程、GDScript 风格），改动前必读；本文件只提供入口级概览。未来方向与阶段计划见 `docs/ROADMAP.md`。**`docs/AUDIT_VAULT.md` 为专有代码审计档案（不可移除）**，登记 SOLID 审核发现与修复起效记录，改动核心逻辑前应查阅。
+**Authoritative conventions: `AGENTS.md`** (collision layers, testing, perf, i18n, tuning, GDScript style) — read before changes. This file: entry-level overview only. Direction/plans: `docs/ROADMAP.md`. **`docs/AUDIT_VAULT.md` is a proprietary audit archive — never remove**; consult before core-logic changes.
 
-## 项目概览
+## Project
 
-InfiAir：2D 俯视空战射击游戏，Godot 4.6 + GDScript（gl_compatibility 渲染器，无外部插件）。早期重制自 `airwar-game`（Python/Pygame），经大规模扩展后已独立演进（历史对齐记录归档于 `docs/archive/PORTING_PARITY.md`）。竖向卷动星空、波次敌机、里程碑 Buff 三选一、周期 Boss 战 + 狂暴、母舰补给、返航中场整备。纯得分制。
+InfiAir: 2D top-down shooter, Godot 4.6 + GDScript (gl_compatibility, no external plugins). Remade from `airwar-game` (Python/Pygame), now independently evolved (`docs/archive/PORTING_PARITY.md`). Vertical-scroll starfield, waves, milestone buff 3-choice, rotating bosses + enrage, mothership resupply, return-to-base restock. Score-only.
 
-- 主场景 `scenes/main.tscn`，窗口 1920×1080（stretch = canvas_items / keep）。
-- 唯一 autoload：`GameState`（`autoload/game_state.gd`）——全局状态/信号总线、音效池、`GameState.cfg()` 数值访问、存档持久化。
-- 无构建系统、无包管理器、无 CI；唯一依赖是 Godot 4.6（本机 4.6.2 标准版，无 .NET，纯 GDScript），二进制在 `~/.local/bin/godot`（不在 PATH，需写全路径）。推荐用 `./run.sh` 启动——它自动探测 PATH → `~/.local/bin/godot` → `/Applications/Godot.app` 并校验版本，参数原样透传。
+- Main scene `scenes/main.tscn`; 1920×1080 (stretch `canvas_items`/`keep`).
+- Only autoload `GameState` (`autoload/game_state.gd`): global state/signal bus, sfx pool, `GameState.cfg()` config access, persistence.
+- No build system/package manager; CI via GitHub Actions. Godot 4.6 only (4.6.2 std, no .NET); binary `~/.local/bin/godot` (not on PATH). Prefer `./run.sh` — auto-detects PATH → `~/.local/bin/godot` → `/Applications/Godot.app`, validates version, passes args through.
 
-## 常用命令
+## Commands
 
 ```bash
 G=~/.local/bin/godot
-$G --path .                                    # 本地运行
-$G --headless --import --path .                # 无头导入（验证资源与脚本解析）
-$G --headless --path . --quit-after 300        # 无头跑 300 帧（验证无运行时错误）
-# 无头测试：test/*.tscn 场景脚本，[PASS]/[FAIL] 自检，29 个断言场景（共 38 个场景）；完整清单见 docs/TESTING.md
-$G --headless --path . res://test/smoke_test.tscn          # 主流程（改动后必跑）
-$G --headless --path . res://test/base_system_test.tscn    # 存档/RP/任务/路线（涉存档/基地/母舰加跑）
-# 对局机制与配置
-$G --headless --path . res://test/enemy_combat_test.tscn   # 敌机战斗
-$G --headless --path . res://test/wave_pacing_test.tscn    # 波次节奏
-$G --headless --path . res://test/buff33_test.tscn         # Buff 三选一
-$G --headless --path . res://test/buff_panel_test.tscn     # Buff 滚动栏
-$G --headless --path . res://test/buff_visuals_test.tscn   # Buff 外观反馈
-$G --headless --path . res://test/difficulty_test.tscn     # 难度/里程碑/设置
-$G --headless --path . res://test/boss_enrage_test.tscn    # Boss 狂暴
-$G --headless --path . res://test/boss_phase_test.tscn     # Boss 阶段模式表
-$G --headless --path . res://test/boss_pattern_test.tscn   # Boss 弹幕模式
-$G --headless --path . res://test/balance_test.tscn        # 数值配置中心
-$G --headless --path . res://test/hit_logic_test.tscn      # 受击/碰撞判定
-$G --headless --path . res://test/elite_turret_event_test.tscn # 精英炮塔事件
-$G --headless --path . res://test/formation_strike_event_test.tscn # 轰炸编队事件
-$G --headless --path . res://test/orbital_strike_test.tscn # 轨道打击清场
-$G --headless --path . res://test/mothership_summon_test.tscn # 母舰召唤演出
-$G --headless --path . res://test/meta_health_fx_test.tscn # Meta HUD 血量反馈
-# 设置、启动、导航与教程
-$G --headless --path . res://test/keybind_test.tscn        # 可改键
-$G --headless --path . res://test/i18n_test.tscn           # 中英双语
-$G --headless --path . res://test/tutorial_test.tscn       # 新手教程
-$G --headless --path . res://test/view_zoom_test.tscn      # 视角缩放
-$G --headless --path . res://test/window_size_test.tscn    # 窗口大小档位
-$G --headless --path . res://test/startup_flow_test.tscn   # 启动链路/损坏存档隔离
-$G --headless --path . res://test/back_navigation_test.tscn # 返回/退出状态机
-$G --headless --path . res://test/esc_navigation_test.tscn  # Esc 真实输入管线回归
-$G --headless --path . res://test/intro_cinematic_test.tscn # 开场过场
-$G --headless --path . res://test/return_cinematic_test.tscn # 返航过场
-# 对象池与性能
-$G --headless --path . res://test/pool_reuse_test.tscn      # 对象池复用回归
-$G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]  # 模拟人工游玩探针
-# 性能基准（必须 --fixed-fps 才能测出纯帧耗时）
-$G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
+$G --path .                                    # run locally
+$G --headless --import --path .                # import + script parse check
+$G --headless --path . --quit-after 300        # 300-frame runtime check
+# Headless tests: test/*.tscn self-check via [PASS]/[FAIL] + exit code.
+# 37 assertion scenes (46 total); full list & known baseline: docs/TESTING.md
+$G --headless --path . res://test/smoke_test.tscn           # main flow — always after changes
+$G --headless --path . res://test/base_system_test.tscn     # saves/base/mothership changes
+$G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
+$G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn  # perf (needs --fixed-fps)
+# All other scenes, one-liner:
+for t in enemy_combat wave_pacing buff33 buff_panel buff_visuals difficulty \
+  boss_enrage boss_phase boss_pattern balance hit_logic elite_turret_event \
+  formation_strike_event orbital_strike mothership_summon meta_health_fx keybind \
+  i18n tutorial view_zoom window_size startup_flow back_navigation \
+  esc_navigation intro_cinematic return_cinematic pool_reuse; do
+  $G --headless --path . "res://test/$t.tscn" || break
+done
 ```
 
-改动后至少跑：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`；涉及存档/基地/母舰时加跑 `base_system_test.tscn`。视觉截图需窗口模式运行（headless 截不到画面）：`test/visual_capture.tscn`（游戏画面 → /tmp/infiair_capture.png）、`test/ui_capture.tscn`（UI 页面 → /tmp/ui_*.png）。
+Minimum after changes: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership. Screenshots need windowed mode (headless captures nothing): `test/visual_capture.tscn` (game → /tmp/infiair_capture.png), `test/ui_capture.tscn` (UI → /tmp/ui_*.png).
 
-## 架构要点（多文件协作的关键）
+## Architecture Essentials
 
-- `main.gd` 是对局编排核心：刷怪、里程碑 Buff、Boss 调度、母舰蓄力、返航计时都在此串联。
-- 数值配置中心：所有可调数值在 `data/balance.json`，统一经 `GameState.cfg("player.fuel.drain" 式路径, 默认值)` 访问；**调参只改 JSON 不改脚本常量**（脚本内同名 var 是回退默认值，需与 JSON 一致）；热路径在 `_ready()` 一次性读入，禁止每帧 cfg 查询。
-- 碰撞层：`1=player 2=player_bullet 3=enemy(含boss) 4=enemy_bullet`；子弹侧结算伤害；玩家受击只看 `Hitbox` Area2D（设计值 r=7 × `world_scale`，当前 0.4 → 运行 2.8）；敌机/Boss 身体撞击走逐帧 `overlaps_area` 轮询；狂暴前非致死伤害钳到 30% 阈值（`boss.gd` `ENRAGE_HP_RATIO`）。
-- 实体 `setup()` 在 `_ready()` 之前调用，其中不能用 `@onready` 变量，需用 `$节点路径`。
-- 视角缩放与窗口大小各三档（两套独立设置）：相机固定 (960,540) 只设 `zoom`，一切"屏幕边缘/刷怪位置"逻辑必须走 `GameState.view_world_rect()`，不得写死 1920×1080。
-- 性能约定：子弹/敌机走对象池（`GameState.bullet_pool.fire()` / `enemy_pool.spawn()`），热路径禁止每帧 `get_nodes_in_group`（用 `GameState.enemies` / `player_ref` 注册表），禁止 `_physics_process` 直接调 sin/cos（用 `Enemy.sin_fast/cos_fast` 查表）。
-- 双语：文案一律 `tr("KEY")`，新增 key 必须同时在 `data/translations.csv` 加 zh/en 两列（改后需重新 import）；切换走 `GameState.set_locale()`。
-- 暂停类 UI `process_mode = Always`；BGM 循环只设 `loop_mode = LOOP_FORWARD`（不要在 `_exit_tree` 里 `stop()`，会泄漏播放实例）。
+- `main.gd` orchestrates: spawns, milestone buffs, boss schedule, mothership charge, return timer.
+- Config: all tunables in `data/balance.json`, read via `GameState.cfg("player.fuel.drain", default)`; **tune JSON only, never script constants** (script vars are fallbacks, must match JSON); cache in `_ready()`, no per-frame cfg.
+- Collision layers: 1=player 2=player_bullet 3=enemy(+boss) 4=enemy_bullet; bullets resolve damage; player hit only via `Hitbox` Area2D (r=7 × `world_scale` 0.4 → 2.8); enemy/boss ramming via per-frame `overlaps_area`; pre-enrage non-lethal damage clamped to 30% (`boss.gd` `ENRAGE_HP_RATIO`).
+- `setup()` runs before `_ready()` — no `@onready` there; use `$node/path`.
+- Zoom & window size: independent profiles; camera fixed (960, 540), zoom only; edge/spawn math via `GameState.view_world_rect()`, never hardcode 1920×1080.
+- Perf: pools (`GameState.bullet_pool.fire()` / `enemy_pool.spawn()`); no per-frame `get_nodes_in_group` (use `GameState.enemies`/`player_ref`); no direct sin/cos in `_physics_process` (use `Enemy.sin_fast/cos_fast`).
+- i18n: all text via `tr("KEY")`; new keys in `data/translations.csv` zh+en (re-import after); locale switch via `GameState.set_locale()`.
+- Pausing UI: `process_mode = Always`; BGM: `loop_mode = LOOP_FORWARD` only (no `stop()` in `_exit_tree` — leaks instances).
