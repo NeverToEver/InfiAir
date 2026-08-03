@@ -1069,3 +1069,14 @@
 - 本地编译探针 46 场景 0 错误（新门禁）
 - 针对性场景全 PASS：smoke 143 / formation_strike_event 49 / elite_turret_event 59 / mothership_summon 32 / boss_phase 37 / boss_pattern 55 / buff_visuals 30 / hit_logic 61 / graze 12 / parry 36 / entry_animation 13 / buff33 29 / startup_flow 38 / i18n 9
 - 全量断言场景回归：35/37 一次通过；boss_enrage 一次 FAIL 系计时敏感 flake（重跑 0 FAIL，断言与本次改动无关）；formation 2 FAIL 系 L13 中间态（虚影拦截，修复后 49 PASS）
+
+## CI 门禁 flake 修复补记（2026-08-03，Phase 0 批次后）
+
+> GitHub Actions 三次复现的两个时序敏感断言，根因修复后 CI success（run 30827498885）。
+
+| 断言 | 根因 | 处置 |
+| --- | --- | --- |
+| `boss_enrage_test`「RELEASE_HOLD 蓄力后 8 路重炮齐射」 | 8 路 360° 齐射向上路 ~0.27s 即出屏，场上计数依赖「发射时刻 vs 采样开始」竞争——慢 runner 上稳定失败（本地机器快、偶发） | `enrage_sequence.gd` 新增公开查询 `release_salvo_done()`（RELEASE_HOLD 复位、发射置位且保持），断言发射标记本身——不依赖弹在场时序；删除不再使用的 `_count_heavy_bullets` |
+| `view_zoom_test`「刷怪 x 在可见区域内（60px 边距）」 | 敌机入场到达锚点后围绕锚点水平机动，固定 0.7s 后检查会测到机动后的 x（可越出 30px 边距）；生成范围 [left+60, right-60] 本应满足断言 | 改为轮询等敌机出现后立即检查出机位置（垂直下降阶段 x 不变 = 预告线 x） |
+
+验证：两场景本地各连跑 3 次 0 FAIL；全量 37 断言场景本地 0 FAIL；GitHub CI 全绿（gdformat/gdlint 含 test/、import 门禁、编译探针、37 场景）。
