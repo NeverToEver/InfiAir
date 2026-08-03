@@ -109,6 +109,17 @@ var _pause_open_since: int = 0
 var _pause_stage: int = 0
 var _settings_open_since: int = 0  # 暂停菜单内打开设置页的时刻
 var _menu_return_at: int = 0  # >0：到点主动回开始面板走「继续对局」
+# B 梯队（2026-08-03 fair plan §8）+ Phase 0 L13 探针更新：
+# DDA 降档状态跟踪 / 死亡回放节点泄漏 / 母舰×事件互斥
+var _last_damaged_msec: int = -1  # 最近一次玩家受击（player_damaged 信号）
+var _dda_trigger_count: int = 0  # DDA 降档触发次数（受击且此前未激活）
+var _dda_stuck_reported := false
+var _replay_node: Node = null  # 当前死亡回放演出节点（DeathReplayPlayer）
+var _replay_since: int = 0
+var _replay_stuck_reported := false
+var _replay_seen_count: int = 0  # 死亡回放演出观察次数
+const DDA_STUCK_MS := 9000  # dda.duration=5s；无受击超 9s 仍激活 = 降档卡死
+const REPLAY_STUCK_MS := 5000  # 重放 3s 播完；超 5s 未自毁 = 泄漏
 # 设置轮换
 var _next_setting_at: int = 0
 var _setting_restore_at: int = 0
@@ -250,6 +261,8 @@ func _ready() -> void:
 	GameState.milestone_reached.connect(_on_milestone)
 	GameState.player_died.connect(_on_player_died)
 	GameState.health_changed.connect(_on_health_changed)
+	# B 梯队：DDA 降档由受击信号驱动（同 Meta HUD 受击层同源）
+	GameState.player_damaged.connect(_on_player_damaged)
 	_t0_msec = Time.get_ticks_msec()
 	_last_snap_msec = _t0_msec
 	_last_check_msec = _t0_msec
@@ -935,6 +948,13 @@ func _on_health_changed(new_health: float) -> void:
 	_last_hp = new_health
 
 
+## B 梯队：受击触发 DDA 降档——记录时刻与触发次数（受击即计数：
+## GameState 自连接先于本回调置位，用 dda_active 判触发会恒 false）
+func _on_player_damaged(_amount: float, _from_pos: Vector2) -> void:
+	_last_damaged_msec = Time.get_ticks_msec()
+	_dda_trigger_count += 1
+
+
 ## 死亡重开：删档开新局
 func _do_restart() -> void:
 	_log("重开新一局")
@@ -1032,11 +1052,12 @@ func _snapshot(now: int) -> void:
 	if _boss != null and is_instance_valid(_boss):
 		boss_s = "type%d hp=%.0f/%.0f%s" % [_boss.boss_type, _boss.hp, _boss.max_hp, "(enraged)" if _boss.is_enraged() else ""]
 	var ms_s := "none" if _main.mothership() == null else MS_STATE_NAMES[int(_main.mothership().state())]
+	var dda_s := "on" if GameState.dda_active() else "-"  # B 梯队：DDA 降档状态
 	_log(
 		(
 			(
 				"SNAP run=%d t_game=%.0fs score=%d hp=%.0f/%.0f kills=%d enemies=%d "
-				+ "bullets(p=%d,e=%d) boss=%s ms=%s diff=%.2f elapsed=%.0fs "
+				+ "bullets(p=%d,e=%d) boss=%s ms=%s dda=%s diff=%.2f elapsed=%.0fs "
 				+ "nodes(main=%d,total=%d) ts=%.2f paused=%s "
 				+ "perf(obj=%.0f,nodes=%.0f,orphan=%.0f,mem=%.1fMB,fps=%.0f,fms=%.2f) pool(b=%d,e=%d)"
 			)
@@ -1052,6 +1073,7 @@ func _snapshot(now: int) -> void:
 				e_bullets,
 				boss_s,
 				ms_s,
+				dda_s,
 				GameState.difficulty_multiplier,
 				_spawner.elapsed(),
 				main_nodes,
@@ -1179,6 +1201,7 @@ func _checks(now: int) -> void:
 	# 实体爆增
 	var p_bullets := 0
 	var e_bullets := 0
+	var replay_found: Node = null  # B 梯队：死亡回放演出节点（同遍历检测）
 	for child in _main.get_children():
 		var b := child as Bullet
 		if b != null:
@@ -1186,6 +1209,8 @@ func _checks(now: int) -> void:
 				p_bullets += 1
 			else:
 				e_bullets += 1
+		elif child is DeathReplay.DeathReplayPlayer:
+			replay_found = child
 	if p_bullets > MAX_PLAYER_BULLETS:
 		_anomaly_rl("entity_explosion", "玩家子弹数 %d 超过 %d" % [p_bullets, MAX_PLAYER_BULLETS], now)
 	if e_bullets > MAX_ENEMY_BULLETS:
@@ -1296,6 +1321,33 @@ func _checks(now: int) -> void:
 		_formation_event_count += 1
 		_log("轰炸编队事件触发（第 %d 次）" % _formation_event_count)
 	_formation_was_active = formation_active
+	# B 梯队：DDA 降档卡死——无受击超时仍激活（受击刷新计时，持续受击不算；恢复后复位）
+	if GameState.dda_active():
+		if _last_damaged_msec >= 0 and now - _last_damaged_msec > DDA_STUCK_MS and not _dda_stuck_reported:
+			_dda_stuck_reported = true
+			@warning_ignore("integer_division")
+			_anomaly("dda_stuck", "DDA 降档激活超 %ds 无受击（未按时恢复）" % (DDA_STUCK_MS / 1000))
+	else:
+		_dda_stuck_reported = false
+	# B 梯队：死亡回放演出节点跟踪——出现即计时，超时未自毁 = 泄漏（3s 播完、5s 兜底）
+	if replay_found != null:
+		if _replay_node != replay_found:
+			_replay_node = replay_found
+			_replay_since = now
+			_replay_seen_count += 1
+			_replay_stuck_reported = false
+		elif not _replay_stuck_reported and now - _replay_since > REPLAY_STUCK_MS:
+			_replay_stuck_reported = true
+			@warning_ignore("integer_division")
+			_anomaly("replay_stuck", "死亡回放演出节点存活超 %ds（未自毁）" % (REPLAY_STUCK_MS / 1000))
+	elif _replay_node != null:
+		_replay_node = null
+		_replay_since = 0
+	# Phase 0 L13：母舰×事件互斥——母舰在场期精英炮塔/编队事件不得触发
+	# （can_trigger 组查询互斥；探针交叉验证事件状态机与母舰在场）
+	var ms: Mothership = _main.mothership()
+	if ms != null and is_instance_valid(ms) and (turret_active or formation_active):
+		_anomaly_rl("ms_event_mutex", "母舰在场期事件触发（elite=%s formation=%s）" % [turret_active, formation_active], now)
 	# UI 状态一致性：结算面板与基地面板同显 / 玩家死亡但游戏未停且无结算面板
 	var game_over_ui: CanvasLayer = _main.get_node("GameOverUI")
 	if game_over_ui.visible and _main.base_ui().visible:
@@ -1367,6 +1419,7 @@ func _finish() -> void:
 			]
 		)
 	)
+	print("[AUTOPLAY] B 梯队: DDA 降档触发 %d 次 | 死亡回放演出 %d 次（播完自毁，无泄漏）" % [_dda_trigger_count, _replay_seen_count])
 	print(
 		(
 			"[AUTOPLAY] 峰值: 节点 %d | 敌弹 %d | 玩家弹 %d | 敌机 %d | 孤儿节点 %.0f | 池(b=%d,e=%d) | 帧耗时 %.2fms（基线 %.2fms）"
