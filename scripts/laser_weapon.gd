@@ -85,7 +85,9 @@ func _physics_process(delta: float) -> void:
 		if _tick_timer <= 0.0:
 			_tick_timer += TICK_INTERVAL
 			_damage_tick(start, end)
-	elif _cooldown <= 0.0 and not _player.is_dead() and not _player.is_input_locked():
+	elif _cooldown <= 0.0 and not _player.is_dead() and not _player.is_input_locked() and not _player.is_entry_playing():
+		# K02：入场动画期不触发激光——入场期 autofire 被入场序列置 false，_start_beam 捕获后
+		# _end_beam 恢复会把入场结束恢复的 true 覆盖成 false，自动开火永久关闭
 		# B7 修复：触发判定随瞄准点（含磁吸/粘性）而非原始鼠标，与准星一致
 		if (_player.aim_point() - _player.global_position).length() > 1.0:
 			_start_beam()
@@ -127,6 +129,9 @@ func beam() -> Line2D:
 
 
 func _start_beam() -> void:
+	# K02 双保险：入场期直接调用（测试/其他路径）也不进入光束
+	if _player.is_entry_playing():
+		return
 	# H06（健壮性审核）：autofire 捕获必须在 _active=true 之前——旧代码在门闩之后
 	# 为不可达死代码，_end_beam 无条件恢复 true 会破坏入场期/测试关闭的 autofire 状态
 	_saved_autofire = _player.auto_fire_enabled()

@@ -5,12 +5,15 @@
 [ext_resource type="Script" path="res://scripts/laser_weapon.gd" id="4"]
 
 [sub_resource type="CircleShape2D" id="1"]
+resource_local_to_scene = true
 radius = 22.0
 
 [sub_resource type="CircleShape2D" id="2"]
+resource_local_to_scene = true
 radius = 7.0
 
 [sub_resource type="CircleShape2D" id="4"]
+resource_local_to_scene = true
 radius = 20.0
 
 [sub_resource type="ParticleProcessMaterial" id="3"]

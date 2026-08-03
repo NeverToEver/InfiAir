@@ -689,25 +689,27 @@ func set_mouse_lock(enabled: bool) -> void:
 	mouse_lock_changed.emit(enabled)
 
 
-## P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）
+## P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。
+## K06：只更新内存 + 广播（灵敏度不影响 InputMap 死区）；持久化由设置页 drag_ended 统一
+## 提交——原实现每步全量原子写盘，滑杆拖动（数十次 value_changed）放大为磁盘写风暴
 func set_joy_aim_speed(value: float) -> void:
 	joy_aim_speed = clampf(value, 200.0, 4000.0)
-	_apply_joy_settings()
+	joy_settings_changed.emit(joy_aim_speed, joy_deadzone)
 
 
-## P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）
+## P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。
+## K06：立即应用死区（InputMap 全局生效，base_system_test 契约）+ 广播；不自动写盘
 func set_joy_deadzone(value: float) -> void:
 	joy_deadzone = clampf(value, 0.05, 0.9)
-	_apply_joy_settings()
-
-
-## 应用手柄设置：死区写入 InputMap（手柄动作全局生效）+ 持久化 + 广播
-func _apply_joy_settings() -> void:
 	for a in JOYPAD_ACTIONS:
 		if InputMap.has_action(a):
 			InputMap.action_set_deadzone(a, joy_deadzone)
-	save_profile()
 	joy_settings_changed.emit(joy_aim_speed, joy_deadzone)
+
+
+## 手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）
+func persist_joy_settings() -> void:
+	save_profile()
 
 
 ## 当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。

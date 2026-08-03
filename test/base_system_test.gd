@@ -174,6 +174,7 @@ func _ready() -> void:
 	_check(GameState.joy_deadzone == 0.7, "P0-1：死区持久化往返")
 	GameState.set_joy_deadzone(0.5)
 	GameState.set_joy_aim_speed(GameState.cfg("player.aim_assist.joy_speed", 1400.0))
+	GameState.save_profile()  # K06：setter 不再自动写盘，收尾恢复默认值须显式落盘（否则 profile 留存 0.7/1800 污染后续场景）
 
 	# 13. PS 布局适配（P0-1 延伸）：GUID 判定纯函数 + 按钮标签映射（默认 Xbox / 切 PS）
 	_check(GameState.is_ps_guid("030000004c050000c405000000010000"), "P0-1：Sony GUID 判定（vendor 054c）")

@@ -44,7 +44,9 @@ func start(input_dir: Vector2, player: Player) -> void:
 	if input_dir != Vector2.ZERO:
 		dash_dir = input_dir.normalized()
 	else:
-		dash_dir = (player.get_global_mouse_position() - player.global_position).normalized()
+		# K04：无方向输入时向虚拟准星方向冲刺（aim_point 为键鼠+右摇杆统一平滑点）——
+		# 原实现取真实鼠标位置，纯手柄玩家鼠标停在任意处，冲刺方向与机头/瞄准无关
+		dash_dir = (player.aim_point() - player.global_position).normalized()
 		if dash_dir == Vector2.ZERO:
 			dash_dir = Vector2.UP
 	dash_cooldown = player.dash_cooldown_max()

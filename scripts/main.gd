@@ -74,7 +74,7 @@ func _ready() -> void:
 	GIVE_UP_HOLD_TIME = maxf(GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
 	ENRAGE_SLOW_SCALE = GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE)
 	ENRAGE_BULLET_TIME = GameState.cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME)
-	ENRAGE_RAMP_TIME = GameState.cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME)
+	ENRAGE_RAMP_TIME = maxf(GameState.cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME), 0.01)  # K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
 	# 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
 	Engine.time_scale = 1.0
 	RenderingServer.set_default_clear_color(Color(0.02, 0.02, 0.06))
@@ -89,6 +89,7 @@ func _ready() -> void:
 	# 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
 	_formation = FormationStrikeEvent.new()
 	add_child(_formation)
+	_formation.set_spawner(_spawner)  # K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
 	_spawner.set_formation_event(_formation)
 	GameState.player_died.connect(_on_player_died)
 	_start_panel.continue_chosen.connect(_on_continue_run)
@@ -665,6 +666,10 @@ func _start_homecoming() -> void:
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
 	_player.lock_input()
+	# K01：返航统一清除召唤/对接期残留的 999s 无敌——_summon_mothership 设 set_invincible(999.0)，
+	# 提前收回路径（下方 queue_free → mothership._exit_tree 仅 exit_pod 恢复显示）不重置无敌，
+	# 正常 RELEASE 路径有 set_invincible(2.0) 覆盖；此处复位后继续出击的无敌由入场序列接管
+	_player.set_invincible(0.0)
 	_player.abort_entry()  # D06：入场中按 B 返航时复位入场状态机（防新入场被守卫跳过）
 	_player.velocity = Vector2.ZERO
 	_spawner.set_process(false)

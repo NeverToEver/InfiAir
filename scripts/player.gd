@@ -1023,6 +1023,9 @@ func _die() -> void:
 	_enrage_slow = 1.0  # 死亡/重生路径兜底：狂暴减速必复位（Boss 侧另有解锁与离场兜底）
 	hide()
 	_hitbox.set_deferred("monitoring", false)
+	# K03 延续：死亡时关闭弹反盾判定（physics_process 已停，盾 monitoring 不再由相位同步管理）
+	if _parry_shield != null:
+		_parry_shield.monitoring = false
 	set_physics_process(false)
 	Explosion.spawn_at(get_parent(), position, 2.0)
 
@@ -1032,6 +1035,11 @@ func _die() -> void:
 func enter_pod() -> void:
 	hide()
 	_hitbox.set_deferred("monitoring", false)
+	# K03：进舱同步关闭擦弹环与弹反盾判定——玩家隐藏后敌弹飞过停驻点
+	# 不应再触发擦弹计分（纯得分制只认玩家操作）或盾弹反（隐藏残留态）
+	$GrazeArea.monitoring = false
+	if _parry_shield != null:
+		_parry_shield.monitoring = false
 
 
 ## 离开保护舱（释放抛下时调用）：恢复显示与受击判定；准星随对局活跃条件自动重现
@@ -1040,6 +1048,8 @@ func exit_pod() -> void:
 		return
 	show()
 	_hitbox.set_deferred("monitoring", true)
+	$GrazeArea.monitoring = true
+	# 弹反盾 monitoring 由 _physics_process 按 ACTIVE 相位同步，此处不强制恢复
 
 
 func _exit_tree() -> void:

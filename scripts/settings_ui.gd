@@ -184,6 +184,13 @@ func _on_reset_keys() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or _capturing_action == &"":
 		return
+	# K06：手柄 B（ui_cancel）在捕获态同样取消捕获——BackNavigator 对捕获态放行不消费，
+	# 事件会传到本节点；原实现只处理 InputEventKey，手柄 B 按下无人消费（唯一 B 失灵的界面态）
+	if event.is_action_pressed(&"ui_cancel"):
+		_hint_label.text = tr("SET_CANCELLED")
+		_capturing_action = &""
+		get_viewport().set_input_as_handled()
+		return
 	@warning_ignore("unsafe_property_access")
 	if event is InputEventKey and event.pressed and not event.echo:
 		@warning_ignore("unsafe_property_access")
@@ -363,6 +370,8 @@ func _make_joy_slider(
 			value_label.text = format % v
 			on_changed.call(v)
 	)
+	# K06：拖动结束才持久化一次（value_changed 高频触发，setter 已不自动写盘）
+	slider.drag_ended.connect(func(_changed: bool) -> void: GameState.persist_joy_settings())
 	return slider
 
 
