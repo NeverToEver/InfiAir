@@ -193,10 +193,18 @@ func _ready() -> void:
 		var view := GameState.view_world_rect()
 		_check(tel.position.x > view.position.x and tel.position.x < view.end.x, "预告线 x 在可见区域内")
 	await get_tree().create_timer(0.7).timeout
+	# flake 修复（2026-08-03 CI 门禁）：敌机入场到达锚点后围绕锚点水平机动，固定延迟
+	# 后检查会测到机动后的 x（可越出 30px 边距）——改为轮询等敌机出现后立即检查
+	# （出机位置 = 预告线 x，垂直下降阶段 x 不变）
 	var spawned: Enemy = null
-	for child in get_node("Main").get_children():
-		if child is Enemy:
-			spawned = child
+	for i in 60:
+		await get_tree().process_frame
+		for child in get_node("Main").get_children():
+			if child is Enemy:
+				spawned = child
+				break
+		if spawned != null:
+			break
 	_check(spawned != null, "敌机已刷出")
 	if spawned != null:
 		var view := GameState.view_world_rect()

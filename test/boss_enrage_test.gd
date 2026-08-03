@@ -34,16 +34,6 @@ func _count_enrage_bullets() -> int:
 	return n
 
 
-## 指定弹速的重弹数（蓄力重炮/狂暴齐射重弹：无 meta + 弹速标识）
-func _count_heavy_bullets(p_speed: float) -> int:
-	var n := 0
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet and not child.has_meta("bullet_type"):
-			if is_equal_approx((child as Bullet).speed, p_speed):
-				n += 1
-	return n
-
-
 func _clear_enemy_bullets() -> void:
 	for child in get_node("Main").get_children():
 		if child is Bullet and not child.is_player_bullet:
@@ -180,18 +170,19 @@ func _ready() -> void:
 	_check(hold, "场景1：ACTIVE 结束进入 RELEASE_HOLD")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "场景1：RELEASE_HOLD 复位玩家减速")
 	# 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）。
-	# flake 修复（2026-08-03 Phase 0 CI 门禁）：8 路 360° 齐射中向上路 ~0.27s 即出屏，
-	# 采样若晚于发射时刻（下方断言消耗时间）则场上重弹数峰值 <8——采样必须在发射前开始
-	# 并覆盖 0.2s 蓄力 + 发射瞬间（3s 窗口，峰值即齐射数）；解血锁检查移到采样后
-	var salvo := 0
+	# flake 修复（2026-08-03 CI 门禁，第三次复现后根因确认）：8 路 360° 齐射向上路
+	# ~0.27s 即出屏，场上计数依赖「发射时刻 vs 采样开始」竞争，慢 runner 上稳定失败；
+	# 改断言发射标记本身（release_salvo_done，RELEASE_HOLD 复位、发射置位且保持）——
+	# 不依赖弹在场时序
+	var salvo := false
 	for i in 60:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss):
 			break
-		salvo = maxi(salvo, _count_heavy_bullets(boss.E1_SALVO_SPEED))
-		if salvo >= 8:
+		if boss.enrage_sequence().release_salvo_done():
+			salvo = true
 			break
-	_check(salvo >= 8, "场景1：RELEASE_HOLD 蓄力后 8 路重炮齐射")
+	_check(salvo, "场景1：RELEASE_HOLD 蓄力后 8 路重炮齐射")
 	var hp1: float = boss.hp
 	boss.take_damage(5)
 	_check(boss.hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血")

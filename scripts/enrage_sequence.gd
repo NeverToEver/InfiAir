@@ -102,6 +102,12 @@ func phase() -> int:
 	return _phase
 
 
+## 1/2 型 RELEASE 一次性收尾是否已结算（测试观测；不依赖弹在场时序——
+## 8 路齐射向上路 ~0.27s 即出屏，场上计数在慢 runner 上与发射时刻竞争失败）
+func release_salvo_done() -> bool:
+	return _release_salvo_done
+
+
 func attack_index() -> int:
 	return _attack_index
 
