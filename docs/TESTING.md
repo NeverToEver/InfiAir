@@ -77,8 +77,8 @@ godot --path . res://test/hud_capture.tscn        # HUD normal/all-buffs → /tm
 Five layers; CI (`.github/workflows/ci.yml`) runs all; reproduce locally:
 
 ```bash
-gdformat --check autoload/ scripts/            # 1. format (width 140, gdformatrc)
-gdlint autoload/ scripts/                      # 2. static (style/unused/.gdlintrc)
+gdformat --check autoload/ scripts/ test/     # 1. format (width 140, gdformatrc)
+gdlint autoload/ scripts/ test/               # 2. static (style/unused/.gdlintrc)
 godot --headless --import --path .             # 3. warnings: error-level zero tolerance
                                                #    ("Warning treated as error" fails CI);
                                                #    warn-level (unsafe/untyped) = AUDIT_VAULT list
@@ -93,7 +93,7 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI
 
-push/PR: gdlint + gdformat --check → warning gate (import grep) → main smoke → all 37 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 35 existing + 2 architecture: `buff_effects_test`/`boss_registry_test`) with exit-code checks; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
+push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 37 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 35 existing + 2 architecture: `buff_effects_test`/`boss_registry_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
 
 ## Strategy & Side Effects
 

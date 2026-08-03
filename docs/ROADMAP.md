@@ -9,6 +9,7 @@
 - **Audit archive** (est. 2026-07-31): `docs/AUDIT_VAULT.md` proprietary; ten audits (A–L) resolved, no P0; A-series open: A5 (residual dep convergence) + A8 (Player visual split). Fix status/efficacy: vault only.
 - **Collaboration ready**: privacy audit passed (no keys/PII, history cleaned); UI font → OFL NotoSansSC; doc baseline (README/AGENTS/PORTING_PARITY/EXIT_FLOW) line-checked vs code.
 - **Four fairness mechanics landed** (2026-08-03, `docs/archive/2026-08-03-combat-fairness-plan.md`; values final in `DESIGN_BASELINE.md` §1.13): hit grace frames, graze scoring, boss transition clear + brief invincibility + segmented bar, F parry shield (3.8s cycle). Validation: 37 scenes 0 FAIL + 180s autoplay no new anomalies; on-device feel (15+ min run) = pre-release manual item. Next (B-tier, plan §8): per-attack tells, DDA bullet-density downshift, death replay.
+- **Phase 0 closed** (2026-08-03): test/ gate blind spot fixed (test/ into gdformat/gdlint, CI compile probe + per-scene timeout; L15/L16), L18 release.yml version commit, P2 cleanup (ACTION_LABELS/back_pressed/profile_corrupt toast), L13 mothership×event mutex, L14 boss phase-shift y smooth transition, **A8 PlayerVisuals split** (last architecture debt). Records: `AUDIT_VAULT.md` Phase 0 batch + `docs/archive/EXECUTION_LOG.md`.
 
 ## Direction Shift
 
@@ -25,12 +26,15 @@
 
 **Done (2026-07-31~08-03; items in `AUDIT_VAULT.md` A-series + `archive/EXECUTION_LOG.md`)**: spawn path unified to pool (`920e5e9`), A2 4-service split, A3/A4 registry + declarative effect table (`310e0b9`), four fairness mechanics (`b2bc8a5`), CI/CD + 5-layer gate.
 
-**Open**:
-- **A8**: extract `PlayerVisuals` from Player (`DESIGN_BASELINE.md` §7.1; only unconverged architecture debt).
-- **L-series** (2026-08-03 10th review, `archive/2026-08-03-code-review.md`): **L13** turret/formation mutex during dock (pod-hang profit; design decision); **L14** smooth vertical transition on phase shift (P1 band → P2 bob; behavior change); **L18** release.yml version sync (sed edits CI workspace only — tag's `config/version` lags).
-- **test/ gate blind spot** (top priority): test/ excluded from gdformat + import gate; two P1s (screenshot chain compile error, autoplay mothership table drift) lingered via it; L15 profile snapshot restore + L16 smoke weak assertions batched here.
-- Audit P2 cleanup (`archive/2026-07-22-audit-fix-plan.md`): dead code (`main.gd` unused refs, `hud.gd` false branch, zero-connect signals), `_start_release()` idempotency guard, `profile_corrupt` toast. Status 2026-08-02: several covered later (C21 pool cleanup, D-series); rest in `DESIGN_BASELINE.md` §7.3.
-- Acceptance: all tests 0 FAIL; items marked done in audit docs.
+**Closed 2026-08-03 (Phase 0 batch, `AUDIT_VAULT.md`)**:
+- **test/ gate blind spot**: test/ into `gdformat --check` + `gdlint` (23 files formatted, 18 lint issues fixed); CI compile probe step (every `test/*.tscn` `--quit-after 2` + error grep) + per-scene 300s timeout — L01a/L01b-type blind spots can no longer linger. L15 profile snapshot/restore (20 scenes), L16 weak assertion fixed.
+- **L18**: release.yml commits `config/version` before tagging (tag carries the version commit).
+- **P2 cleanup**: `ACTION_LABELS` dead dict removed, `back_pressed` dead signal documented (E13 precedent), `profile_corrupt` toast consumed in start panel (+`START_PROFILE_CORRUPT` key).
+- **L13**: mothership in-field mutex for elite-turret/formation events (group registration; charge ghost excluded from group).
+- **L14**: boss P1→P2 phase shift y smooth transition (0.6s ease-out to anchor; `reset_press` clears type-3 band too; boss_phase_test assertions updated).
+- **A8**: `PlayerVisuals` extracted (RefCounted composition, same as PlayerDamage/PlayerDash/PlayerParry) — tail/afterimage/body tint/hitbox dot/parry visuals/graze flash out of player.gd. Last open architecture debt.
+
+**Acceptance**: all tests 0 FAIL (37 scenes; boss_enrage one-off flake reruns clean); items marked done in audit docs.
 
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 

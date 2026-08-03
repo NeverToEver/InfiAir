@@ -2,7 +2,7 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-03)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 37 assertion scenes 0 FAIL; A-series leftovers: **A8** (Player visual split) + **A5** (residual dep convergence, injection landed) open (§7); perf optimization + 4 fairness mechanics landed.
+> **Snapshot (2026-08-03)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 37 assertion scenes 0 FAIL; A-series leftover **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) — **A5** partial (injection landed) only remaining open item (§7); perf optimization + 4 fairness mechanics landed; Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
@@ -224,7 +224,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/
 | A3 | Boss attack match → registries; per-type → data-driven (2026-08-03) | ✅ 3 registries + param tables; new type = registration (O) |
 | A4 | OCP: player.gd buffs → declarative effect table (2026-08-03) | ✅ `BUFF_EFFECTS` (pow/cap/bool); new numeric buff = 1 row |
 | A5 | DIP: Boss/events → Spawner via injection, not group lookup | ⚠️ injection landed (`bdb0274`): `set_spawner()`; GameState as config center intentional; direction: residual dep convergence |
-| A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ⚠️ direction: extract `PlayerVisuals` |
+| A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ✅ `PlayerVisuals` extracted 2026-08-03 (`scripts/player_visuals.gd`, RefCounted composition): tail/afterimage pool/body tint/hitbox dot/parry visuals/graze flash delegated; `spawn_afterimage`/`engine_tint` public API kept; ~120 lines out of player.gd |
 
 ### 7.2 Style/Perf
 | ID | Item | Status |
@@ -233,17 +233,17 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/
 | spawn path | waves vs boss-3 minions two paths | ✅ unified 2026-08-02: waves via `EnemyPool.spawn()` (+ optional `p_bullet_type`); `USE_POOL` kept for A/B; smoke 142/pool_reuse 12/enemy_combat 33 PASS |
 
 ### 7.3 Phase Leftovers (ROADMAP Phase 0)
-- Dead code: `main.gd` unused refs, `hud.gd` false branch, zero-connect signals (`docs/archive/2026-07-22-audit-fix-plan.md`).
-- `_start_release()` idempotency guard; `profile_corrupt` toast consumption.
+- ~~Dead code: `main.gd` unused refs, `hud.gd` false branch, zero-connect signals~~ ✅ verified covered/fixed: `_buff_ui` gone, `_tag_labels` in use, `ACTION_LABELS` removed, dead signals documented (E13), `toggle()` used by tests; `_start_release()` guard landed (I010).
+- ~~`profile_corrupt` toast consumption~~ ✅ start panel shows profile-corrupt notice (`START_PROFILE_CORRUPT`).
 - Cinematic stage 4 (low-spec/gamepad-mobile/README).
 
 ## 8. Future Directions
 > Direction decisions: `docs/ROADMAP.md` (single source). Here: breakdown + landing points.
 
 ### 8.1 Near Term (debt finish, no new gameplay)
-1. A3 ✅ + A4 ✅ landed (2026-08-03, 0 FAIL); remaining **A8** (extract `PlayerVisuals`). Keep §3 invariants + 0 FAIL.
+1. A3 ✅ + A4 ✅ landed (2026-08-03, 0 FAIL); **A8 ✅ landed 2026-08-03** (PlayerVisuals split, §7.1). Keep §3 invariants + 0 FAIL.
 2. Spawn path unification ✅ (2026-08-02); `USE_POOL` kept.
-3. Dead-code cleanup + guards (§7.3).
+3. Dead-code cleanup + guards (§7.3) ✅ 2026-08-03 (Phase 0 batch).
 
 ### 8.2 Mid Term
 - Endless calibration: tune `progression.*` for deep runs (>15 min) in balance.json + append `ENDLESS_BALANCE_PLAN §6`; verify via `autoplay_test` (no "HP-only inflation, zero pressure" steady state).

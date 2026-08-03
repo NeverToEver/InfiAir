@@ -1042,3 +1042,30 @@
 - **改了什么**：8 个源码/工具文件（enemy/player/spawner/boss/base_console/settings_ui/game_state/gen_balance_map）+ 6 个测试文件（pool_reuse 增断言、intro/return_capture 修复、autoplay 状态表、perf_bench 注释）+ 6 个文档/配置（BALANCE_MAP 重跑、TESTING、README×2、CONTRIBUTING、CHANGELOG、ci.yml 注释）+ 审查报告 `docs/archive/2026-08-03-code-review.md`。
 - **为什么起效**：L02 把「断开→重连」在池化复用点补对称（`_ready` 不重跑的 Godot 语义下，只有 `reactivate` 是可靠重连点），`_on_buffs_changed()` 立即刷新保证缓存不陈旧；L01a 消除对 void 返回值的非法链式调用；L01b 使探针状态表与枚举序一一对应（阈值/名称/日志三处同源）；L03-L07 均为「既有防护族存在、此处遗漏」补齐（bool 排除、元素判型、域钳制），默认值/回退值逐位一致、行为零变化；L08 两处焦点归还对齐全项目模态页聚焦约定；L09/L10 让生成器覆盖声明式效果表并消除行号漂移（双向反查 0 缺失键）。
 - **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（autoload/ + scripts/，CI 口径）全绿；12 个针对性场景（smoke/pool_reuse/enemy_combat/difficulty/graze/boss_pattern/boss_phase/boss_registry/base_system/i18n/back_navigation/entry_animation）全 PASS 0 FAIL；`pool_reuse_test` 14 PASS 含 2 条新 L02 断言（逆验证：移除修复→FAIL，恢复→PASS）；capture 场景加载无 Compile Error；autoplay 短帧编译无 Parse Error；perf_bench 正常出结果；`--quit-after 300` 0 错误。
+
+---
+
+# Phase 0 技术债收尾批次（2026-08-03，ROADMAP Phase 0 全部开放项）
+
+> 依据 `docs/ROADMAP.md` Phase 0（技术债收尾）执行；L 系列登记待办（L13-L16/L18）、A8、P2 清理、test/ 门禁盲区一次性收敛。验证见批次底部。
+
+## 修复起效记录（回填）
+
+| 编号 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- |
+| L13 | ✅ **母舰×事件互斥**：`mothership.gd` `_ready` 注册 `add_to_group("mothership")`；`elite_turret_event`/`formation_strike_event` `can_trigger` 增加组查询——母舰在场（召唤/驻留/离场全程）事件不触发（母舰自动火力清事件单位全额发奖、玩家进舱零参与挂机）。**关键坑**：main 常驻蓄力虚影（`MOTHERSHIP_SCENE.instantiate()`）同样走 `_ready` 入组，会恒拦截事件——`main.gd` 创建虚影后 `remove_from_group("mothership")` 排除。验证：formation/elite 测试各 +2 断言（在场不可触发/离场恢复），49/59 PASS 0 FAIL；mothership_summon 32 PASS |
+| L14 | ✅ **Boss 段切换 y 平滑过渡**：`boss_movement.gd` 新增 `begin_bob_smooth()` + `_move_bob` 过渡（`BOB_SMOOTH_TIME` 0.6s ease-out，从切换前 y 收敛到锚线正弦轨迹）；`reset_press` 补清三型 `_band_offset`（C11 只清一型 press）；`boss.gd _enter_phase` 切换帧记录当前 y。**语义变更**：C11「切换后立即回锚线」改为「平滑过渡不跳变」——`boss_phase_test` 断言同步更新（无跳变 <4px + 过渡后采样，采样窗口相位无关化：原峰谷差断言依赖相位从 0 起步，过渡等待后窗口相位任意会 flake，改「最大偏离锚线 ≥10px」）。验证：boss_phase 37 PASS（含新断言），boss_pattern 55 PASS |
+| L15 | ✅ **测试 profile 快照还原**：20 个断言场景（smoke/i18n/tutorial/base_system 等开头 `high_score = 0` 落盘者）开头快照 `orig_high_score`、结尾还原 + `save_profile()`（ui_capture 范式推广；buff_visuals 双退出路径均还原）。为什么起效：high_score setter 自动落盘，测试跑完不再清空用户最高分。验证：受影响场景全量回归 0 FAIL |
+| L16 | ✅ **smoke_test 弱断言**：分支内 `wb2` 断言补 `_check(wb2 != null)` 前置（与 666/785 行同款）。验证：smoke 143 PASS |
+| L18 | ✅ **release.yml 版本同步落地**：Sync 步骤 sed 后 `git config` + `git add project.godot` + `git commit`（tag 前提交，tag push 携带该 commit 为祖先，`config/version` 不再滞后）。CI 改动本地无法实跑，语法经 yaml 结构审阅 |
+| A8 | ✅ **PlayerVisuals 拆分**（架构债收敛，DESIGN_BASELINE §7.1 关闭）：新建 `scripts/player_visuals.gd`（`class_name PlayerVisuals extends RefCounted`，组合委托同 PlayerDamage/PlayerDash/PlayerParry 模式）聚合尾焰/残影池/机身色调四源/受击点脉动/弹反盾视觉/擦弹闪光状态；`player.gd` 删除对应 ~120 行与字段，`_visuals` 委托；`spawn_afterimage()` 公开接口保留转发（player_dash 依赖）；`engine_tint` 公开字段保留（PlayerBuffVisuals 写、buff_visuals_test 断言）。为什么起效：视觉状态与战斗逻辑（无敌倒计时/受击）解耦，无敌递减留在 player（视觉分支冻结 bug 的既有修复 E01 语义不变）。验证：smoke/buff_visuals/hit_logic/graze/parry/entry_animation/buff33 全 PASS（143/30/61/12/36/13/29） |
+| P2 清理 | ✅ 三项：`game_state.gd` 删 `ACTION_LABELS` 死代码（全仓零引用）；`settings_ui.gd` `back_pressed` 死信号加「保留 API」注释（E13 先例）；`start_panel.gd` 补 `profile_corrupt` 生产侧提示（`START_PROFILE_CORRUPT` 双语键，与 save_corrupt 并列）。其余 P2 已由后续轮次覆盖（核实：main `_buff_ui` 已清、hud 假分支已修、`_start_release` 幂等 I010 已落地、toggle 测试在用） |
+| test/ 门禁盲区 | ✅ **test/ 纳入 gdformat + gdlint**（23 文件格式化 + 18 条 gdlint 问题修复：4 处 `var A` 改名、3 处超长行折行、smoke/tutorial 重复 load 改 `preload` 常量）；**CI 新增编译探针步骤**（逐 `test/*.tscn` `--quit-after 2` + Parse/Compile/SCRIPT ERROR grep + timeout 60 兜底挂起——捕获 `--import` 不解析未引用场景的盲区，L01a/L01b 型问题不再潜伏）；断言场景循环加单场景 300s 超时。为什么起效：test/ 首次受格式/静态/编译三把锁约束。验证：`gdformat --check` + `gdlint`（autoload/ scripts/ test/）全绿，本地探针 46 场景 0 错误 |
+
+## 验证
+
+- `--headless --import` 0 error（警告门禁干净；PlayerVisuals class_name 注册）
+- `gdformat --check` + `gdlint`（autoload/ scripts/ test/，CI 新口径）全绿
+- 本地编译探针 46 场景 0 错误（新门禁）
+- 针对性场景全 PASS：smoke 143 / formation_strike_event 49 / elite_turret_event 59 / mothership_summon 32 / boss_phase 37 / boss_pattern 55 / buff_visuals 30 / hit_logic 61 / graze 12 / parry 36 / entry_animation 13 / buff33 29 / startup_flow 38 / i18n 9
+- 全量断言场景回归：35/37 一次通过；boss_enrage 一次 FAIL 系计时敏感 flake（重跑 0 FAIL，断言与本次改动无关）；formation 2 FAIL 系 L13 中间态（虚影拦截，修复后 49 PASS）
