@@ -130,6 +130,25 @@ offset_bottom = -28.0
 vertical_alignment = 1
 text = "冲刺"
 
+[node name="ParryBar" type="Control" parent="HUD"]
+script = ExtResource("15")
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = -34.0
+offset_right = 264.0
+offset_bottom = -18.0
+
+[node name="ParryTag" type="Label" parent="HUD"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 276.0
+offset_top = -34.0
+offset_right = 356.0
+offset_bottom = -14.0
+vertical_alignment = 1
+text = "弹反"
+
 [node name="DockTag" type="Label" parent="HUD"]
 anchor_top = 1.0
 anchor_bottom = 1.0

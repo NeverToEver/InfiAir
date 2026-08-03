@@ -101,6 +101,9 @@ var ENRAGE_SPEED_MULT := 1.3
 var ENRAGE_PLAYER_SLOW := 0.35
 ## 段切换演出时长（蓄力辉光 + 停火，§4.1）
 var PHASE_SHIFT_DURATION := 0.6
+## 阶段转场公平感（2026-08-03 机制三）：切换时清全部活跃弹丸 + 给玩家短暂无敌
+var CLEAR_ON_SHIFT := true
+var TRANSITION_INVINCIBLE := 1.0
 ## 狙击 telegraph（§4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹
 var SNIPER_AIM_TIME := 0.35
 var SNIPER_TRACK_TIME := 0.2
@@ -472,6 +475,8 @@ func _ready() -> void:
 	BULLET_DAMAGE_SNAPSHOT_LASER = GameState.cfg("boss.bullet_damage.snapshot_laser", BULLET_DAMAGE_SNAPSHOT_LASER)
 	BULLET_DAMAGE_SNAPSHOT_RING = GameState.cfg("boss.bullet_damage.snapshot_ring", BULLET_DAMAGE_SNAPSHOT_RING)
 	PHASE_SHIFT_DURATION = GameState.cfg("boss.phases.phase_shift_duration", PHASE_SHIFT_DURATION)
+	CLEAR_ON_SHIFT = bool(GameState.cfg("boss.phases.clear_on_shift", CLEAR_ON_SHIFT))
+	TRANSITION_INVINCIBLE = float(GameState.cfg("boss.phases.transition_invincible", TRANSITION_INVINCIBLE))
 	SNIPER_AIM_TIME = GameState.cfg("boss.phases.telegraph.sniper_aim", SNIPER_AIM_TIME)
 	SNIPER_TRACK_TIME = GameState.cfg("boss.phases.telegraph.sniper_track", SNIPER_TRACK_TIME)
 	PRESS_INTERVAL = GameState.cfg("boss.phases.press_interval", PRESS_INTERVAL)
@@ -762,10 +767,26 @@ func _enter_phase(p_phase: int) -> void:
 	# C11 修复：段切换归零一型纵向下压偏移，避免 P2 以残留下压永久停在锚线下方
 	_movement.reset_press()
 	_attacks.cancel_all()
+	_transition_cleanup()  # 机制三：转场清弹 + 玩家短暂无敌（公平感喘息）
 	_attacks.charge_glow(self, PHASE_SHIFT_DURATION)
 	GameState.shake(GameState.cfg("effects.shake.enrage", 16.0) * 0.5)
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG, -10.0, 0.7)
 	phase_changed.emit(p_phase)
+
+
+## 阶段转场公平感清理（2026-08-03 机制三）：清全部活跃弹丸（含编队炸弹，复用
+## main._on_orbital_struck 同款遍历）+ 给玩家短暂无敌——喘息 + 「阶段边界」明确信号，
+## 避免「惊喜阶段」后被残余弹幕压制。逃跑期不走本路径（_begin_escape 不经阶段切换）。
+## 低频（一局数次）直接遍历可接受，无逐帧轮询。无敌只增不减（不覆盖受击 1.5s 等更长无敌）。
+func _transition_cleanup() -> void:
+	if not CLEAR_ON_SHIFT:
+		return
+	for child in get_parent().get_children():
+		if child is Bullet or child is FormationBomb:
+			child.queue_free()
+	var player := GameState.player_ref as Player
+	if player != null and player.invincible_remaining() < TRANSITION_INVINCIBLE:
+		player.set_invincible(TRANSITION_INVINCIBLE)
 
 
 # ---------------- 走位（与攻击解耦；阶段 A 仅一型 P1 纵向下压，其余保持现状） ----------------
@@ -895,6 +916,7 @@ func _enrage() -> void:
 	# 中断进行中的常规攻击/telegraph，启动狂暴序列：锁血 30% 检查点 + 快照玩家位置 + 玩家减速
 	# （狂暴数据初始化 + 锁血 + 玩家减速委托 EnrageSequence，A3）
 	_attacks.cancel_all()
+	_transition_cleanup()  # 机制三：ENRAGE 转场同款清弹 + 玩家短暂无敌
 	_enrage_seq.begin(
 		self, GameState.player_ref.global_position if GameState.player_ref != null else GameState.view_world_rect().get_center(), _boss_size
 	)

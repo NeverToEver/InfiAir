@@ -24,6 +24,18 @@
 			"rush_hspeed_ratio": 0.6
 		},
 		"bullet_clear_radius": 250,
+		"grace_period": 0.05,
+		"graze_radius": 20,
+		"graze_score": 10,
+		"parry": {
+			"duration": 0.8,
+			"active_time": 0.5,
+			"cooldown": 3.0,
+			"arc_deg": 140,
+			"radius": 60,
+			"reflect_speed_mult": 2.0,
+			"reflect_damage_mult": 1.5
+		},
 		"fuel": {
 			"max": 100,
 			"drain": 35,
@@ -322,6 +334,8 @@
 		},
 		"phases": {
 			"phase_shift_duration": 0.6,
+			"clear_on_shift": true,
+			"transition_invincible": 1.0,
 			"telegraph": {
 				"sniper_aim": 0.35,
 				"sniper_track": 0.2
@@ -502,6 +516,9 @@
 			"accel": 420,
 			"countdown_visible_from": 10
 		}
+	},
+	"hud": {
+		"boss_bar_segments": 3
 	},
 	"spawner": {
 		"wave_interval_start": 7,

@@ -65,6 +65,16 @@ var DASH_COOLDOWN := 4.0
 var AFTERIMAGE_INTERVAL := 0.08
 var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 phase_dash COST_RATIO）
 
+## 擦弹（2026-08-03 公平感机制二）：受击盒外环形带（GrazeArea，r=graze_radius）进入即计分。
+## 游戏性范围族：graze_radius 运行值不乘 world_scale；graze_score 经 add_score 乘难度倍率。
+var GRAZE_RADIUS := 20.0
+var GRAZE_SCORE := 10
+## 擦弹机身短闪光时长（金色微闪，独立短计时）
+var GRAZE_FLASH_TIME := 0.12
+var _graze_flash: float = 0.0
+## 受击盒运行半径（_ready 缓存：设计值 7 × world_scale；擦弹受击区排除距离判定用）
+var _hitbox_radius := 2.8
+
 var HOMING_TIME := 1.2  # 辅助瞄准追踪时限（≈玩家弹出屏寿命 1920/1800≈1.07s；balance.json player.aim_assist.homing_time）
 ## 辅助瞄准当前档位参数（balance.json player.aim_assist.levels + GameState.aim_assist_level，信号联动刷新）
 var _homing_turn_rate := 5.5  # 准星入标记框时出膛弹的追踪转向速率
@@ -103,6 +113,16 @@ var _auto_fire_enabled: bool = true  # 冒烟测试可关闭全自动开火
 ## A8：受击/回血与冲刺组件（组合委托）
 var _damage := PlayerDamage.new()
 var _dash := PlayerDash.new()
+## 2026-08-03 机制四：弧光弹反盾组件（组合委托，同 PlayerDash 模式）
+var _parry := PlayerParry.new()
+
+## 弹反盾（2026-08-03 机制四，balance.json player.parry.*）：
+## arc/radius 属游戏性范围族（不乘 world_scale）；时长/冷却经 _load_balance 注入 PlayerParry
+var PARRY_ARC_DEG := 140.0  # 盾扇区角度（度），机头前方固定方向（不随瞄准旋转）
+var PARRY_RADIUS := 60.0  # 盾判定半径（运行值）
+var _parry_shield: Area2D = null  # ParryShield（player.tscn 占位节点，_ready 按配置重建扇形）
+var _parry_arc: Polygon2D = null  # 盾弧视觉（程序化金色半透明）
+var _parry_shine: Polygon2D = null  # 珍珠流光高光带（ACTIVE 期自弧线左端扫至右端）
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
@@ -250,6 +270,17 @@ func _load_balance() -> void:
 	DASH_COOLDOWN = GameState.cfg("player.dash.cooldown", DASH_COOLDOWN)
 	DASH_FUEL_RATIO = GameState.cfg("player.dash.fuel_ratio", DASH_FUEL_RATIO)
 	AFTERIMAGE_INTERVAL = GameState.cfg("player.dash.afterimage_interval", AFTERIMAGE_INTERVAL)
+	# 机制二：擦弹数值缓存（游戏性范围族，不乘 world_scale）
+	GRAZE_RADIUS = float(GameState.cfg("player.graze_radius", GRAZE_RADIUS))
+	GRAZE_SCORE = int(GameState.cfg("player.graze_score", GRAZE_SCORE))
+	# 机制四：弹反盾数值缓存（arc/radius 游戏性范围族不乘 ws；时长/冷却注入组件）
+	PARRY_ARC_DEG = float(GameState.cfg("player.parry.arc_deg", PARRY_ARC_DEG))
+	PARRY_RADIUS = float(GameState.cfg("player.parry.radius", PARRY_RADIUS))
+	_parry.configure(
+		float(GameState.cfg("player.parry.duration", 0.8)),
+		float(GameState.cfg("player.parry.active_time", 0.5)),
+		float(GameState.cfg("player.parry.cooldown", 3.0))
+	)
 	# A8：配置注入受击/回血与冲刺组件（缓存值从 balance 覆盖后传入）
 	_damage.configure(INVINCIBLE_TIME, ARMOR_MULT, EVASION_CHANCE, REGEN_PER_SEC, SHAKE_HIT)
 	_dash.configure(DASH_DISTANCE, DASH_TIME, DASH_COOLDOWN, AFTERIMAGE_INTERVAL)
@@ -266,6 +297,30 @@ func _load_balance() -> void:
 	_sprite.scale = Vector2.ONE * 0.65 * ws
 	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 22.0 * ws
 	(($Hitbox/CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 7.0 * ws
+	_hitbox_radius = 7.0 * ws
+	# 机制二：擦弹环（GrazeArea）——游戏性范围族运行值，不乘 world_scale；幂等赋值
+	var graze_shape := ($GrazeArea/CollisionShape2D as CollisionShape2D).shape as CircleShape2D
+	graze_shape.radius = GRAZE_RADIUS
+	$GrazeArea.area_entered.connect(_on_graze_entered)
+	# 机制四：弹反盾——tscn 占位节点；判定用圆盘 shape（触发进入检测），回调内做精确
+	# 扇形过滤（距离 + 角度，与视觉几何严格一致；ConvexPolygonShape2D 对圆心+弧扇形的
+	# 内外判定不可靠，实测后方扇区外弹被误弹反）
+	_parry_shield = $ParryShield
+	_parry_shield.area_entered.connect(_on_parry_shield_entered)
+	var shield_shape := CircleShape2D.new()
+	shield_shape.radius = PARRY_RADIUS
+	($ParryShield/CollisionShape2D as CollisionShape2D).shape = shield_shape
+	# 盾视觉：金色半透明弧形 + 珍珠流光高光带（程序化，随流程驱动显隐/展开/扫动）
+	var shield_pts := _parry_sector_points(PARRY_RADIUS, 12)
+	_parry_arc = Polygon2D.new()
+	_parry_arc.polygon = shield_pts
+	_parry_arc.color = Color(1.0, 0.8, 0.3, 0.28)
+	_parry_arc.visible = false
+	add_child(_parry_arc)
+	_parry_shine = Polygon2D.new()
+	_parry_shine.color = Color(1.0, 0.95, 0.6, 0.85)
+	_parry_shine.visible = false
+	add_child(_parry_shine)
 	_thruster.position = Vector2(0.0, 70.0 * ws)
 	var thruster_mat := _thruster.process_material as ParticleProcessMaterial
 	thruster_mat.scale_min = 2.5 * ws
@@ -531,6 +586,15 @@ func _physics_process(delta: float) -> void:
 
 	# 相位冲刺（燃料不足 25% 满值时禁用；A8 委托 PlayerDash）
 	_dash.tick_cooldown(delta)
+	# 机制四：弹反盾——流程/冷却推进 + F 键输入（暂停随玩家 process_mode 冻结）
+	_parry.tick(delta)
+	if Input.is_action_just_pressed("parry"):
+		_parry.try_start()
+	# 盾判定仅 ACTIVE 期启用（物理回调外直接写 monitoring 安全；冷却期 disabled 零常驻开销）
+	var shield_on := _parry.phase == PlayerParry.ParryPhase.ACTIVE
+	if _parry_shield != null and _parry_shield.monitoring != shield_on:
+		_parry_shield.monitoring = shield_on
+	_update_parry_visuals()
 	if (
 		dash_unlocked()
 		and not movement_locked
@@ -602,9 +666,15 @@ func _physics_process(delta: float) -> void:
 
 	# 慢速力场已改为全局敌机移速（A13），不再有玩家侧环视觉
 
-	# 无敌帧闪烁
+	# 机身色调四源（优先级从高到低）：弹反金 tint > 擦弹金色微闪 > 无敌帧闪烁
 	var now_ms := Time.get_ticks_msec()  # 每帧一次（P2：闪烁与光点共用）
-	if _invincible > 0.0:
+	var parry_tint := _parry.tint_strength()
+	if parry_tint > 0.0:
+		_sprite.modulate = Color(1.0, 1.0, 1.0).lerp(Color(1.7, 1.25, 0.5), parry_tint)
+	elif _graze_flash > 0.0:
+		_graze_flash -= delta
+		_sprite.modulate = Color(1.7, 1.35, 0.5)
+	elif _invincible > 0.0:
 		_invincible -= delta
 		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(now_ms * 0.02))
 	else:
@@ -842,6 +912,107 @@ func clear_nearby_enemy_bullets() -> void:
 		if b != null and not b.is_player_bullet:
 			if b.global_position.distance_to(global_position) <= BULLET_CLEAR_RADIUS:
 				b.despawn()
+
+
+## 机制二（2026-08-03）：擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。
+## 事件驱动（物理引擎 overlap 信号，零逐帧遍历/零距离计算）；同一弹至多 1 次（bullet.try_graze）。
+## 受击区排除：弹直接生成在受击盒内等边界情形（area_entered 时刻已深入）不计擦弹；
+## 正常从环外飞入的弹在进入瞬间必位于环形带（受击盒外），不受此检查影响。
+## 弹反后的弹转玩家弹（层排除，天然不触发）。纯得分：add_score 内按难度倍率入账。
+func _on_graze_entered(area: Area2D) -> void:
+	var b := area as Bullet
+	if b == null or b.is_player_bullet or not b.is_active():
+		return
+	# 受击区排除：弹与受击盒重叠（中心距 < 盒半径 + 弹碰撞半径）不计擦弹——只环形带计分。
+	# 物理回调内 overlaps_area 会返回陈旧结果（实测 false 误放行受击盒内弹），改单次距离
+	# 判定（事件驱动一次计算，非逐帧遍历）；正常飞行弹必先穿环（入环时刻在环形带），
+	# 仅受击盒内生成/高速穿帧等边界情形在此拦截。
+	# 注意 area_entered 信号延迟 flush：回调执行时弹可能已被清弹回收（位置移到池位），
+	# 上面的 is_active 守卫已排除回收弹；仍在场的弹以 flush 时刻实时位置判定。
+	if global_position.distance_to(area.global_position) <= _hitbox_radius + 6.0 * GameState.world_scale:
+		return
+	if not b.try_graze():
+		return
+	GameState.add_score(GRAZE_SCORE)
+	# 反馈三件套：机身金色短闪 + 小粒子迸发 + 音效（缺专用擦弹音效，暂用 buff_pick 占位，
+	# 登记为后续音频项——计划书 §3.3）
+	_graze_flash = GRAZE_FLASH_TIME
+	Explosion.spawn_at(get_parent(), global_position, 0.25)
+	GameState.play_sfx(GameState.SFX_BUFF_PICK, -8.0)
+
+
+## 机制四：弹反盾公开接口（测试/诊断与 HUD 读取，A1 约定禁止跨类直读私有）
+func try_parry() -> bool:
+	return _parry.try_start()
+
+
+func parry_phase() -> int:
+	return _parry.phase
+
+
+func parry_energy_ratio() -> float:
+	return _parry.energy_ratio()
+
+
+func parry_cooldown_remaining() -> float:
+	return _parry.cooldown_remaining()
+
+
+## 盾区弹反（2026-08-03 机制四）：圆盘 shape 触发进入检测后做精确扇形过滤
+## （距离 ≤ 半径 且 角度在机头前方 ±arc 内），几何与视觉一致。仅 ACTIVE 期盾 monitoring
+## 开启，进入盾区的敌弹必在有效窗口内（再查相位双保险）。O(1) 阵营翻转（bullet.reflect），
+## 弹反点金色爆点 + 音效。弹反后弹转玩家弹：不再触发盾/擦弹/受击宽限（reflect 内已取消宽限）。
+func _on_parry_shield_entered(area: Area2D) -> void:
+	if _parry.phase != PlayerParry.ParryPhase.ACTIVE:
+		return
+	var b := area as Bullet
+	if b == null or b.is_player_bullet:
+		return
+	# 扇形精确判定（圆盘触发范围大于扇区，此处过滤扇区外弹；弹中心判定，边界 2.4px 误差可接受）
+	var rel := area.global_position - global_position
+	if rel.length() > PARRY_RADIUS:
+		return
+	var arc := deg_to_rad(PARRY_ARC_DEG) * 0.5
+	if absf(angle_difference(rel.angle(), -PI / 2.0)) > arc:
+		return
+	b.reflect()
+	Explosion.spawn_at(get_parent(), global_position, 0.5)
+	GameState.play_sfx(GameState.SFX_DASH, -6.0)  # 弹反音效占位（缺专用资产，登记后续音频项）
+
+
+## 盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。供盾视觉 Polygon2D 使用
+## （判定走圆盘 shape + 回调内扇形过滤，见 _on_parry_shield_entered）
+func _parry_sector_points(radius: float, count: int) -> PackedVector2Array:
+	var arc := deg_to_rad(PARRY_ARC_DEG) * 0.5
+	var pts := PackedVector2Array([Vector2.ZERO])
+	for i in count + 1:
+		var a := -PI / 2.0 + arc - (2.0 * arc) * float(i) / float(count)
+		pts.append(Vector2(cos(a), sin(a)) * radius)
+	return pts
+
+
+## 盾视觉逐物理帧驱动：WINDUP 小弧展开到全弧（缩放）、ACTIVE 珍珠流光自弧线左端扫至右端、
+## RECOVER 保持全弧、IDLE 隐藏；高光带角度按 active 进度线性插值（零 shader 依赖）
+func _update_parry_visuals() -> void:
+	var expand := _parry.shield_expand()
+	_parry_arc.visible = expand > 0.0
+	if not _parry_arc.visible:
+		_parry_shine.visible = false
+		return
+	var scale := 0.3 + 0.7 * expand
+	_parry_arc.scale = Vector2.ONE * scale
+	var shine := _parry.shine_progress()
+	_parry_shine.visible = shine > 0.0
+	if not _parry_shine.visible:
+		return
+	var arc := deg_to_rad(PARRY_ARC_DEG) * 0.5
+	var center_a := -PI / 2.0 - arc + 2.0 * arc * shine
+	var w := deg_to_rad(22.0)  # 高光带角宽
+	var sp := PackedVector2Array([Vector2.ZERO])
+	for i in 5:
+		var a := center_a - w + (2.0 * w) * float(i) / 4.0
+		sp.append(Vector2(cos(a), sin(a)) * PARRY_RADIUS * scale)
+	_parry_shine.polygon = sp
 
 
 func _die() -> void:

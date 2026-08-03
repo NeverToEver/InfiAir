@@ -195,11 +195,14 @@ func _ready() -> void:
 	event.set_cooldown_left(0.0)
 	event.DURATION = 0.8
 	event.start()
+	var rp1 := GameState.rp
 	_check(await _wait_event_state(event, EliteTurretEvent.State.TURRET_ACTIVE), "场景3：事件进入倒计时")
-	var score1 := GameState.score
 	_check(await _wait_event_state(event, EliteTurretEvent.State.CARRIER_EXIT, 5.0), "场景3：倒计时归零进入 CARRIER_EXIT")
 	_check(event.comm().full_text() == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")
-	_check(GameState.score == score1, "场景3：失败无奖励入账")
+	# 失败无奖励入账：RP 为事件奖励载体（炮台未击杀无击杀分）。
+	# 注：玩家在弹幕中会自然擦弹得分（2026-08-03 机制二设计行为），score 不再恒等，
+	# 故断言改为奖励载体 RP 不变
+	_check(GameState.rp == rp1, "场景3：失败无奖励入账")
 	var turrets_gone := true
 	for turret in event.turrets():
 		if is_instance_valid(turret) and not turret.ceased():

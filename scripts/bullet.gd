@@ -34,6 +34,12 @@ var VISUAL_SCALE := 1.3
 var ENEMY_VISUAL_SCALE := 2.4
 ## 辅助瞄准追踪近距收敛半径：低于此距离直取目标（避免低转向档擦弹后绕目标永动圆）
 var HOMING_SNAP_RADIUS := 36.0
+## 受击宽限帧（2026-08-03 公平感机制一）：敌弹进入玩家 Hitbox 后暂缓结算的窗口（秒），
+## 窗口内离开（擦过边缘）不计伤；balance.json player.grace_period（钳制 (0, 0.15]）
+var GRACE_PERIOD := 0.05
+## 弹反倍率（2026-08-03 公平感机制四）：弹反后返回速度倍率 / 伤害倍率（player.parry.*）
+var REFLECT_SPEED_MULT := 2.0
+var REFLECT_DAMAGE_MULT := 1.5
 
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
@@ -41,6 +47,12 @@ var _pool: Node = null
 var _active: bool = false
 ## 回收 reparent 保护：4.6 实测 reparent 也会触发 _exit_tree，置位期间禁止 forget 误清池清单
 var _repooling: bool = false
+## 受击宽限 Timer（机制一）：进入 Hitbox 时启动，窗口内 area_exited 取消；null = 未在宽限期
+var _grace_timer: Timer = null
+## 宽限结算复核目标（机制一）：Timer 到期时单次 overlaps 查询的 Hitbox 引用
+var _grace_hitbox: Area2D = null
+## 擦弹单次计数（机制二）：同一敌弹至多计 1 次擦弹分（池化 activate 复位）
+var _graze_done: bool = false
 
 @onready var _polygon: Polygon2D = $Polygon2D
 
@@ -69,6 +81,7 @@ func activate(
 	_active = true
 	_homing_elapsed = 0.0
 	homing_target = null
+	_graze_done = false
 	pierce = 0
 	explosive = false
 	splash_damage = 0
@@ -87,6 +100,7 @@ func deactivate() -> void:
 	visible = false
 	set_physics_process(false)  # C04：与 activate 的物理帧开关配对
 	position = Vector2(-500.0, -500.0)
+	_cancel_grace()  # 机制一：回收即停宽限 Timer（清弹/离屏回收防悬挂）
 	_deferred_disable_monitoring.call_deferred()
 
 
@@ -125,10 +139,16 @@ func _deferred_disable_monitoring() -> void:
 
 func _ready() -> void:
 	area_entered.connect(_on_area_entered)
+	area_exited.connect(_on_area_exited)
 	EXPLOSIVE_RADIUS = GameState.cfg("buffs.explosive.radius_per_level", EXPLOSIVE_RADIUS)
 	EXPLOSIVE_DAMAGE = GameState.cfg("buffs.explosive.damage_per_level", EXPLOSIVE_DAMAGE)
 	VISUAL_SCALE = GameState.cfg("effects.bullet_visual_scale", VISUAL_SCALE) * GameState.world_scale
 	ENEMY_VISUAL_SCALE = GameState.cfg("effects.enemy_bullet_visual_scale", ENEMY_VISUAL_SCALE) * GameState.world_scale
+	# 机制一：宽限窗口钳制 (0, 0.15]（超长宽限会让「明显该中的弹穿过」，破坏公平感）
+	GRACE_PERIOD = clampf(float(GameState.cfg("player.grace_period", GRACE_PERIOD)), 0.001, 0.15)
+	# 机制四：弹反倍率（player.parry.reflect_*）
+	REFLECT_SPEED_MULT = float(GameState.cfg("player.parry.reflect_speed_mult", REFLECT_SPEED_MULT))
+	REFLECT_DAMAGE_MULT = float(GameState.cfg("player.parry.reflect_damage_mult", REFLECT_DAMAGE_MULT))
 	# 碰撞半径：设计值 6 × 全局缩放（幂等赋值；池化实例共享 shape 也只写同值）
 	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 6.0 * GameState.world_scale
 	_apply_faction()
@@ -303,13 +323,76 @@ func _on_area_entered(area: Area2D) -> void:
 			else:
 				_despawn()
 	elif area.is_in_group("player_hitbox"):
-		# 命中生效才销毁；无敌/单帧已结算/闪避则穿过（对齐原作 single-hit 语义）
-		# 补传弹丸位置作伤害源方向（Meta HUD 定向波纹，D8）
-		# A1：用注册表引用替代父节点硬强转（Hitbox 由 Player 维护，二者等价）
-		var player := GameState.player_ref as Player
-		if player != null and player.take_damage(float(damage), global_position):
-			# P2-10（竞品调研）：致死一击弹丸高亮残留，让玩家看清"是什么杀了自己"
-			if player.is_dead():
-				_linger_fatal()
-			else:
-				_despawn()
+		# 机制一（2026-08-03）：受击宽限帧——进入 Hitbox 不立即结算，暂缓 GRACE_PERIOD 秒，
+		# 窗口内离开（area_exited 取消）视为擦过边缘不计伤；停留超窗才走既有结算链路。
+		# 消灭「回放里明明躲过却被判死」的 ghost hit；take_damage 内部守卫（无敌/闪避/单帧）零改动。
+		_start_grace_check(area)
+
+
+## 机制一：弹离开玩家 Hitbox（窗口内擦过）→ 取消宽限 Timer，不计伤，弹继续飞行
+func _on_area_exited(area: Area2D) -> void:
+	if area.is_in_group("player_hitbox"):
+		_cancel_grace()
+
+
+## 机制一：启动宽限窗口（事件驱动，无候选表/零逐帧轮询）。
+## 一次性 Timer 挂子弹下随场景释放（AGENTS 协程纪律）；同一弹重复进入忽略（已挂窗口）。
+func _start_grace_check(hitbox: Area2D) -> void:
+	if _grace_timer != null and not _grace_timer.is_stopped():
+		return
+	_grace_hitbox = hitbox
+	if _grace_timer == null:
+		_grace_timer = Timer.new()
+		_grace_timer.one_shot = true
+		_grace_timer.timeout.connect(_on_grace_timeout)
+		add_child(_grace_timer)
+	_grace_timer.wait_time = GRACE_PERIOD
+	_grace_timer.start()
+
+
+func _cancel_grace() -> void:
+	if _grace_timer != null:
+		_grace_timer.stop()
+
+
+## 宽限到期：单次 overlaps 复核——仍与 Hitbox 重叠才结算（每颗进入的弹至多 1 次查询，
+## 非逐帧轮询）；已离开（窗口边界情形）放弃结算，弹按原路径继续飞行。
+func _on_grace_timeout() -> void:
+	if not _active or _grace_hitbox == null or not is_instance_valid(_grace_hitbox):
+		return
+	var hitbox := _grace_hitbox
+	_grace_hitbox = null
+	if not overlaps_area(hitbox):
+		return
+	# 既有受击结算链路（含无敌/闪避/单帧守卫、受击清弹、致死高亮 _linger_fatal）
+	var player := GameState.player_ref as Player
+	if player != null and player.take_damage(float(damage), global_position):
+		# P2-10（竞品调研）：致死一击弹丸高亮残留，让玩家看清"是什么杀了自己"
+		if player.is_dead():
+			_linger_fatal()
+		else:
+			_despawn()
+
+
+## 机制二（2026-08-03）：擦弹单次计数——同一敌弹至多计 1 次（池化 activate 复位）。
+## 返回 true 表示本次计入（调用方据此加分与触发反馈）。
+func try_graze() -> bool:
+	if _graze_done:
+		return false
+	_graze_done = true
+	return true
+
+
+## 机制四（2026-08-03）：弧光弹反——敌弹被盾区弹反：转玩家弹、镜面反射
+## （以盾法线=机头前方为对称轴，即 2D 下 direction.y 取反）、×REFLECT_SPEED_MULT 返回、
+## 伤害 ×REFLECT_DAMAGE_MULT；追踪语义终止（反射后直行）。O(1) 阵营翻转，零池新增。
+## 弹反后不可能再伤害玩家（转玩家弹层），并取消受击宽限（防反射瞬间同帧重叠误结算）。
+func reflect() -> void:
+	is_player_bullet = true
+	direction = Vector2(direction.x, -direction.y)
+	speed *= REFLECT_SPEED_MULT
+	damage = maxi(1, int(roundf(damage * REFLECT_DAMAGE_MULT)))
+	homing = false
+	homing_target = null
+	_cancel_grace()
+	_apply_faction()

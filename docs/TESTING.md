@@ -37,6 +37,12 @@ godot --headless --path . res://test/boss_enrage_test.tscn
 godot --headless --path . res://test/boss_phase_test.tscn
 godot --headless --path . res://test/boss_pattern_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
+
+# 公平感机制（2026-08-03 落地，docs/2026-08-03-combat-fairness-plan.md）
+godot --headless --path . res://test/grace_period_test.tscn
+godot --headless --path . res://test/graze_test.tscn
+godot --headless --path . res://test/boss_phase_transition_test.tscn
+godot --headless --path . res://test/parry_test.tscn
 godot --headless --path . res://test/balance_test.tscn
 godot --headless --path . res://test/elite_turret_event_test.tscn
 godot --headless --path . res://test/buff_panel_test.tscn
@@ -117,11 +123,11 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI 执行（GitHub Actions）
 
-`.github/workflows/ci.yml` 在 push/PR 时自动跑：GDScript 静态检查（`gdlint` + `gdformat --check`，见上节 1-2）→ 引擎警告门禁（import 步骤 grep "Warning treated as error"，见上节 3）→ 主场景冒烟（`--quit-after 300`）→ 全量 31 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action（gdtoolkit 经 pip 安装）。CI 全绿是合入门槛；本地可用上文命令等价复现。
+`.github/workflows/ci.yml` 在 push/PR 时自动跑：GDScript 静态检查（`gdlint` + `gdformat --check`，见上节 1-2）→ 引擎警告门禁（import 步骤 grep "Warning treated as error"，见上节 3）→ 主场景冒烟（`--quit-after 300`）→ 全量 35 断言场景（`test/*_test.tscn` 排除 `autoplay_test` 长时探针；31 既有 + 4 公平感机制新增）逐场景跑并校验退出码，任一失败即 job 失败并上传失败日志产物。引擎用官方 Godot 4.6.2 stable headless 二进制（Linux x86_64，自官方 Release 下载），无第三方 action（gdtoolkit 经 pip 安装）。CI 全绿是合入门槛；本地可用上文命令等价复现。
 
 ## 测试策略与副作用
 
-测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 40 个场景：31 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
+测试不是单元测试框架；每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检。`test/` 下共 44 个场景：35 个断言场景（31 既有 + 4 公平感机制新增：`grace_period_test` / `graze_test` / `boss_phase_transition_test` / `parry_test`），外加 `autoplay_test`（探针）、`perf_bench`（性能基准）、`visual_capture` / `ui_capture` / `return_capture` / `intro_capture` / `summon_capture` / `meta_fx_capture` / `hud_capture`（窗口模式截图工具）。
 
 - 测试可能读写 `user://savegame.json` 与 `user://profile.json`。新测试应先 `GameState.delete_save()`，并在结束时清理或恢复自己创建的持久化状态，保证可重复执行。
 - `test/balance_test.gd` 会暂时**覆盖项目内** `data/balance.json` 来验证损坏和回退路径，然后恢复原文件。不要在手工编辑该文件时并发运行它，也不要中断它后假设文件仍然完好。

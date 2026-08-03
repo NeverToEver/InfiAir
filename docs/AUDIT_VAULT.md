@@ -805,6 +805,8 @@
 | I034 | P3 | 多文件（player_dash 等） | 热路径缓存 | `dash_cooldown_max()` HUD 轮询路径每调用查 cfg（A5 缓存模式未覆盖） | ✅ 已修复（批次2）：并入 buffs_changed 缓存。验证：buff_panel 0 FAIL |
 | I035 | P3 | `warp_gate.gd:163` | 注释失实 | 注释称附件走 set_point_position 不随 scale 变，实 `_swirls/_lip` 用节点 scale | ✅ 已修复（批次3）：注释修正（不改实现） |
 | I036 | P3 | `formation_bomb.gd:38` | 死配置 | `collision_mask=1` 无碰撞信号连接 | ✅ 已修复（批次1）：加注释说明保留为语义文档 |
+| I037 | P3 | `player.gd` 弹反盾判定 | Godot API 行为陷阱 | `ConvexPolygonShape2D` 对「圆心+弧」扇形（顶点含圆心、跨 140°）的内外判定不可靠——实测扇区外（玩家正下方 20px 处）弹被误判命中弹反；反转顶点环序无效 | ✅ 已规避（2026-08-03，公平感机制四实现期）：盾判定改**圆盘 shape 触发 + 回调内精确扇形过滤**（距离 ≤ 半径 且 角度在机头前方 ±arc），几何与视觉严格一致；`parry_test` 扇区外用例覆盖 |
+| I038 | P3 | `player.gd` 擦弹受击区排除 | Godot API 行为陷阱 | 物理回调内（area_entered flush 阶段）`Area2D.overlaps_area()` 返回陈旧结果——受击盒内生成的弹实测查询 false 被误放行计擦弹分；另 `area_entered` 信号延迟 flush：回调执行时弹可能已被清弹回收（位置移入池位），实时位置判定失效 | ✅ 已规避（2026-08-03，公平感机制二实现期）：受击区排除改**单次距离判定**（事件驱动一次计算非逐帧），并加 `Bullet.is_active()` 守卫排除已回收弹；`graze_test` 用例 3/2 覆盖 |
 
 ## 测试基础设施补记（2026-08-02）
 
@@ -813,3 +815,8 @@
 - **建议（待定）**：① `test/` 纳入 `gdformat --check` 范围（当前仅 `autoload/ scripts/`，test/ 长期未格式化）；② CI 断言场景循环加单场景超时，防单场景挂起阻塞整个 job（当前依赖 job 级 30min timeout 兜底）。
 
 > 修复后回归（2026-08-02 晚）：`--headless --import` 0 错误 / `--quit-after 300` 0 错误 / **全量 31 断言场景 0 FAIL**（修复前 boss_pattern/wave_pacing 编译错误挂起、hit_logic A12 我方 has_method 语义缺陷已修正，全绿为修复后最终口径）。
+
+## 测试基础设施补记（2026-08-03）
+
+- **问题**：`autoplay_test.gd` 自 66c1c9e（2026-08-02）integer_division 升级 error 级后**编译失败**（7 处毫秒→秒显示除法，`X / 1000`）——探针场景启动即挂起，此前从未被 CI/本地流程执行（CI 显式跳过 autoplay、本地未跑），属**未登记失败基线**。2026-08-03 首次执行验证清单「autoplay_test 长局探针」时暴露。
+- **已修复**：7 处加 `@warning_ignore("integer_division")`（对齐 66c1c9e「有意整数除法注解」先例，语义不变）。验证：60s + 180s 探针 0 异常。

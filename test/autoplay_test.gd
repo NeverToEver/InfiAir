@@ -857,6 +857,7 @@ func _track_mothership(now: int) -> void:
 	elif state >= 0 and not _ms_stuck_reported:
 		if now - _ms_state_since > MS_STATE_TIMEOUTS[state]:
 			_ms_stuck_reported = true
+			@warning_ignore("integer_division")
 			_anomaly("mothership_stuck", "母舰状态 %s 超过 %ds 未推进" % [MS_STATE_NAMES[state], MS_STATE_TIMEOUTS[state] / 1000])
 
 
@@ -1200,11 +1201,13 @@ func _checks(now: int) -> void:
 	if _buff_ui != null and is_instance_valid(_buff_ui) and _buff_ui.visible:
 		if _buff_open_since > 0 and now - _buff_open_since > BUFF_STUCK_MS and not _buff_stuck_reported:
 			_buff_stuck_reported = true
+			@warning_ignore("integer_division")
 			_anomaly("buff_ui_stuck", "Buff UI 可见超过 %ds 未关闭" % (BUFF_STUCK_MS / 1000))
 	# Boss 超时
 	if _boss != null and is_instance_valid(_boss) and not _boss_timeout_reported:
 		if now - _boss_since > BOSS_TIMEOUT_MS:
 			_boss_timeout_reported = true
+			@warning_ignore("integer_division")
 			_anomaly("boss_timeout", "Boss type=%d 在场超过 %ds" % [_boss.boss_type, BOSS_TIMEOUT_MS / 1000])
 	# 返航/基地卡死（返航过场播放期不计时：过场真实时长可达数十秒，计时起点顺延到结束）
 	if _main.is_homecoming():
@@ -1216,11 +1219,13 @@ func _checks(now: int) -> void:
 			_home_stuck_reported = false
 		elif not _home_stuck_reported and not _main.base_ui().visible and now - _homecoming_pending_since_ms > HOME_STUCK_MS:
 			_home_stuck_reported = true
+			@warning_ignore("integer_division")
 			_anomaly("homecoming_stuck", "返航过场结束 %ds 后基地 UI 仍未显示" % (HOME_STUCK_MS / 1000))
 	else:
 		_homecoming_pending_since_ms = 0
 	if _main.base_ui().visible and _base_since > 0 and now - _base_since > BASE_STUCK_MS and not _base_stuck_reported:
 		_base_stuck_reported = true
+		@warning_ignore("integer_division")
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
 	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
 	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss.is_enraged()
@@ -1234,6 +1239,7 @@ func _checks(now: int) -> void:
 			_slow_since = now
 		elif not _slow_reported and now - _slow_since > SLOW_STUCK_MS:
 			_slow_reported = true
+			@warning_ignore("integer_division")
 			_anomaly("enrage_slow_stuck", "玩家狂暴减速 %.2f 持续 %ds 但无狂暴 Boss" % [_player.enrage_slow(), SLOW_STUCK_MS / 1000])
 	else:
 		_slow_since = 0
@@ -1270,6 +1276,7 @@ func _checks(now: int) -> void:
 		and not _main.is_game_over()
 	):
 		_score_stag_reported = true
+		@warning_ignore("integer_division")
 		_anomaly("score_stagnant", "分数 %ds 未增长且场上无敌机（疑似不刷怪）" % (SCORE_STAGNANT_MS / 1000))
 
 

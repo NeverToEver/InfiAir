@@ -121,6 +121,13 @@
 - 战斗中退出需二次确认（红色警告丢进度），确认后 `_execute_exit_cleanup`：存 profile、战斗中删 save、停止未播完音效、淡出退出。
 - 平台：PC Esc / 手柄 `ui_cancel` / Android 系统返回手势，同一状态机。
 
+### 1.13 战斗公平感机制（单一事实源 `docs/2026-08-03-combat-fairness-plan.md`）
+
+- **受击宽限帧**：敌弹进入玩家 Hitbox 暂缓 `player.grace_period`（0.05s）结算，窗口内离开（擦过边缘）不计伤——消灭 ghost hit；只改敌弹→玩家的结算时序，`take_damage` 守卫（无敌/闪避/单帧）零改动。
+- **擦弹得分**：受击盒外环形带（`player.graze_radius` 20，游戏性范围族不乘 world_scale）进入即计 `player.graze_score`（10，经难度倍率入账），同一弹至多 1 次；纯得分制不接 buff/天赋；受击区（受击盒内）不计擦弹。
+- **Boss 阶段转场公平感**：P1→P2 与 ENRAGE 切换清全部活跃弹丸（含编队炸弹）+ 玩家短暂无敌（`boss.phases.transition_invincible` 1.0s，只增不减）；逃跑期不清弹不给无敌。Boss 血条分段（`hud.boss_bar_segments` 3，段序 P1 琥珀/P2 橙/ENRAGE 红，段界 = 阶段阈值宽占比，消耗从左端开始）。
+- **F 键弧光弹反盾**：140° 机头前方扇区 0.5s 有效窗（前摇 0.15/后摇 0.15），弹反 = 镜面反射（y 取反）×2 速 ×1.5 伤（四舍五入）转玩家弹；硬冷却 3.0s 自流程结束起算（完整周期 3.8s，决策性资源）；`player.parry.*` 数值全部入 balance.json。手柄 LT 装配。
+
 ---
 
 ## 2. 技术架构基线
@@ -173,7 +180,7 @@ Main (scripts/main.gd)
 
 ### 2.5 输入与设置
 
-- 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。**手柄默认绑定运行时装配**（P0-1）：`GameState._bind_joypad_defaults()` 启动时经 InputMap 追加左摇杆移动/动作键（A/RB/LB/X/Y/L3/R3）/右摇杆瞄准动作（`aim_x`/`aim_y`，`player.aim_point` 增量驱动虚拟准星）；死区经 `set_joy_deadzone()` 应用到全部手柄动作。**PS 手柄自动识别**（GUID vendor 054c，位置一致仅标签对应 ✕○□△/L1-R1，`joy_button_label()` 供 UI 显示）。
+- 输入映射由 `project.godot` 定义（移动/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`/`parry`（F，弧光弹反盾）），不改既有映射完成无关需求；键位可改（`keybind`），持久化于 profile。**手柄默认绑定运行时装配**（P0-1）：`GameState._bind_joypad_defaults()` 启动时经 InputMap 追加左摇杆移动/动作键（A/RB/LB/X/Y/L3/R3）/LT（`parry` 弹反盾）/右摇杆瞄准动作（`aim_x`/`aim_y`，`player.aim_point` 增量驱动虚拟准星）；死区经 `set_joy_deadzone()` 应用到全部手柄动作。**PS 手柄自动识别**（GUID vendor 054c，位置一致仅标签对应 ✕○□△/L1-R1，`joy_button_label()` 供 UI 显示）。
 - 设置项：难度、键位、语言、视角缩放、窗口尺寸、辅助瞄准档位、`reduce_flash`、`mouse_lock`（鼠标锁定窗口内，默认开启：仅对局准星活跃且窗口聚焦时把移出内容区的鼠标拉回边缘内侧，防准星出框失控；暂停/非准星态与失焦放行）、手柄参数（`joy_aim_speed` 右摇杆瞄准灵敏度、`joy_deadzone` 摇杆死区，设置页「手柄」分区滑杆调节）、音效/音量；语言切换经 `GameState.set_locale()`，UI 监听 `locale_changed` 刷新。
 - 视角缩放与窗口尺寸是**两套独立** profile 设置。
 

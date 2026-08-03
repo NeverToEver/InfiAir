@@ -14,8 +14,10 @@ const FONT: FontFile = preload("res://assets/fonts/NotoSansSC.ttf")
 @onready var _boss_bar: SegmentedBar = $BossBar
 @onready var _fuel_bar: SegmentedBar = $FuelBar
 @onready var _dash_bar: SegmentedBar = $DashBar
+@onready var _parry_bar: SegmentedBar = $ParryBar
 @onready var _fuel_tag: Label = $FuelTag
 @onready var _dash_tag: Label = $DashTag
+@onready var _parry_tag: Label = $ParryTag
 @onready var _dock_tag: Label = $DockTag
 
 var _banner_plate: ChamferedPanel
@@ -44,6 +46,12 @@ var _boss_countdown: Label
 var _boss_name: Label  # Boss 名牌（型号 + 阶段），血条子节点随其显隐
 var _boss_phase: int = Boss.FightPhase.P1
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
+## 分段血条（2026-08-03 机制三）：段数 + 段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]（段界 = 阶段
+## 阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
+## （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）
+var BOSS_BAR_SEGMENTS := 3
+const BOSS_SEG_WEIGHTS := [0.3, 0.4, 0.3]
+const BOSS_SEG_COLORS := [Color(1.0, 0.72, 0.3), Color(1.0, 0.5, 0.15), UITheme.DANGER]
 # 受击/低血屏幕反馈（effects.hit_flash / effects.low_hp，_ready 缓存）
 var HIT_FLASH_ALPHA := 0.55
 var HIT_FLASH_TIME := 0.25
@@ -92,6 +100,7 @@ func _ready() -> void:
 	add_to_group("hud")
 	_main = get_parent()  # A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
 	POLL_INTERVAL = maxf(GameState.cfg("effects.hud_poll_interval", POLL_INTERVAL), 0.01)  # H15：≤0 节流失效
+	BOSS_BAR_SEGMENTS = maxi(int(GameState.cfg("hud.boss_bar_segments", BOSS_BAR_SEGMENTS)), 1)
 	HIT_FLASH_ALPHA = GameState.cfg("effects.hit_flash.alpha", HIT_FLASH_ALPHA)
 	HIT_FLASH_TIME = GameState.cfg("effects.hit_flash.time", HIT_FLASH_TIME)
 	LOW_HP_RATIO = GameState.cfg("effects.low_hp.ratio", LOW_HP_RATIO)
@@ -116,6 +125,11 @@ func _ready() -> void:
 	_hp_bar.fill_color = UITheme.ACCENT
 	_fuel_bar.fill_color = UITheme.ACCENT
 	_dash_bar.fill_color = UITheme.ACCENT
+	# 机制四：弹反能量槽（金色，DashBar 下方；满格=可用，流程清空，冷却匀速充能）
+	_parry_bar.fill_color = UITheme.ACCENT_GOLD
+	_parry_tag.add_theme_font_override("font", FONT)
+	_parry_tag.add_theme_font_size_override("font_size", UITheme.FONT_SMALL)
+	_parry_tag.add_theme_color_override("font_color", UITheme.TEXT_DIM)
 	# HpBar 全息化（META_HUD_DESIGN §4.3/§6 明示层）：底盘更透 + 填充段 ADD 伪泛光
 	_hp_bar.empty_color = Color(0.05, 0.09, 0.14, 0.25)
 	var hp_holo := CanvasItemMaterial.new()
@@ -131,6 +145,7 @@ func _ready() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
+	_parry_tag.text = tr("UI_PARRY")
 	_build_backplates()
 	_build_banner()
 	_build_magazine_bar()
@@ -358,6 +373,8 @@ func _process(delta: float) -> void:
 	_fuel_bar.value = fuel * 100.0
 	_fuel_bar.fill_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
 	_dash_bar.value = player.dash_ready_ratio() * 100.0
+	# 机制四：弹反能量槽（满格=可用；流程期清空；冷却匀速充能——player.parry_energy_ratio）
+	_parry_bar.value = player.parry_energy_ratio() * 100.0
 	if _main != null:
 		var dock_text: String = _main.dock_status_text()
 		if dock_text != _last_dock_text:
@@ -589,6 +606,10 @@ func _show_warning(text: String) -> void:
 
 func show_boss_bar(boss: Boss) -> void:
 	_boss_bar.fill_color = UITheme.ACCENT  # 重置上一只 Boss 狂暴留下的红色
+	# 机制三：分段血条——段数/段权/段色按配置登记（段界 = 阶段阈值宽占比）
+	_boss_bar.segments = BOSS_BAR_SEGMENTS
+	_boss_bar.seg_weights = BOSS_SEG_WEIGHTS
+	_boss_bar.seg_colors = BOSS_SEG_COLORS
 	_boss_bar.visible = true
 	_boss_bar.value = 100.0
 	_boss = boss
@@ -649,6 +670,7 @@ func _on_locale_changed() -> void:
 	_refresh_difficulty_label()
 	_fuel_tag.text = tr("UI_FUEL")
 	_dash_tag.text = tr("UI_DASH")
+	_parry_tag.text = tr("UI_PARRY")
 	_refresh_tag_labels()
 	if _buff_tag != null:
 		_refresh_buff_tag()

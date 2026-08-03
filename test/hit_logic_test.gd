@@ -257,8 +257,7 @@ func _ready() -> void:
 	if laser_b != null:
 		laser_b.speed = 0.0
 		laser_b.position = player.position
-	await get_tree().physics_frame
-	await get_tree().physics_frame
+	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	_check(GameState.health == 100.0 - exp20, "A4：laser 敌弹命中 -%d HP" % exp20)
 	laser_e.queue_free()
 	await _free_enemy_bullets()
@@ -278,8 +277,7 @@ func _ready() -> void:
 	if single_b != null:
 		single_b.speed = 0.0
 		single_b.position = player.position
-	await get_tree().physics_frame
-	await get_tree().physics_frame
+	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	_check(GameState.health == 100.0 - exp12, "A4：single 敌弹命中 -%d HP" % exp12)
 	single_e.queue_free()
 	await _free_enemy_bullets()
@@ -372,8 +370,7 @@ func _ready() -> void:
 	# 用一发独立敌弹触发受击
 	var hit_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
 	hit_b.position = player.position
-	await get_tree().physics_frame
-	await get_tree().physics_frame
+	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	var near_cleared := true
 	for nb in near_bullets:
 		if nb.visible:
@@ -389,8 +386,7 @@ func _ready() -> void:
 	b1.position = player.position
 	var b2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
 	b2.position = player.position
-	await get_tree().physics_frame
-	await get_tree().physics_frame
+	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：同帧入窗同点到期，单帧守卫只结算第一发
 	_check(GameState.health == 88.0, "A16：同帧只结算第一发（-12 而非 -24）")
 	# 无敌期内敌弹直接穿过：不结算、不销毁
 	var b3 := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 12, false)

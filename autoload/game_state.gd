@@ -248,6 +248,7 @@ const JOYPAD_ACTIONS: Array[StringName] = [
 	&"give_up",
 	&"buff_panel",
 	&"restart",
+	&"parry",
 ]
 ## 竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）
 var highscores: Array[Dictionary] = []
@@ -823,6 +824,7 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"homecoming",
 	&"give_up",
 	&"buff_panel",
+	&"parry",
 ]
 const ACTION_LABELS: Dictionary = {
 	&"move_up": "上移",
@@ -836,6 +838,7 @@ const ACTION_LABELS: Dictionary = {
 	&"homecoming": "返航",
 	&"give_up": "放弃出击",
 	&"buff_panel": "增益面板",
+	&"parry": "弹反盾",
 }
 
 ## action -> Array[int]（keycode，最多 2 个）；restart/pause 固定不可改
@@ -896,6 +899,7 @@ func _bind_joypad_defaults() -> void:
 	_add_joy_button(&"give_up", 7)  # R3（长按放弃）
 	_add_joy_button(&"buff_panel", 6)  # L3（展开/收起 buff 栏）
 	_add_joy_button(&"restart", 0)  # A（结算/暂停重开）
+	_add_joy_axis(&"parry", 4, -1.0)  # LT 左扳机（弧光弹反盾，轴 4 负向按下；阈值经 deadzone）
 	# 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。
 	# H01（健壮性审核）：必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
 	# 同一动作正负双向传会恒为零（右摇杆瞄准完全失效）
