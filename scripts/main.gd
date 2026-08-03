@@ -26,6 +26,8 @@ var ENRAGE_RAMP_TIME := 0.3
 @onready var _camera: Camera2D = $Camera2D
 
 var _game_over: bool = false
+## B 梯队（fair plan §8）：死亡回放录制器（main._process 采样，死亡时生成重放演出）
+var _replay := DeathReplay.new()
 var _homecoming: bool = false
 var _bgm_player: AudioStreamPlayer
 var _dock_cooldown: float = 0.0
@@ -368,6 +370,8 @@ func _process(delta: float) -> void:
 	if breath_on or _breath_was_active:
 		_apply_camera_zoom()
 	_breath_was_active = breath_on
+	# B 梯队：死亡回放录制（每渲染帧采样敌弹轨迹；死亡后树暂停本函数不再执行）
+	_replay.record(get_children())
 
 
 func _stop_charging() -> void:
@@ -462,6 +466,8 @@ func _start_bgm() -> void:
 ## 新对局（无存档或开始面板选「新游戏」）：数据层已由 reset_run/读档就绪，无需额外处理。
 ## 仅正常启动入口播放开场过场（测试以子节点实例化 main.tscn 时 current_scene != self，不播）
 func _apply_new_run() -> void:
+	# B 梯队：死亡回放录制开始（缓冲清空重录；死亡后 main._process 冻结自然停止）
+	_replay.begin()
 	if get_tree().current_scene == self:
 		_play_intro_cinematic()
 
@@ -542,6 +548,8 @@ func _on_player_died() -> void:
 	_reset_global_time_scale()
 	# C25：死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
 	_stop_charging()
+	# B 梯队：死亡回放演出（幽灵弹幕重放死因 3s，播完自毁；process_mode=ALWAYS 暂停中照常）
+	add_child(_replay.play())
 
 
 ## 对局终态复位全局速度（B2 修复）：返航/死亡/放弃路径会冻结 _process，

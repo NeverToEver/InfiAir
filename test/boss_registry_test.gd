@@ -33,6 +33,13 @@ func _ready() -> void:
 	]:
 		_check(attacks.has_attack(id), "攻击注册表包含 %s" % id)
 	_check(attacks.attack_ids().size() == 9, "攻击注册表共 9 项")
+	# B 梯队（fair plan §8）：每攻击独特 tell——注册的攻击 id 全部有 tell 配置
+	# （新攻击漏配 tell 时此断言拦截；ATTACK_TELLS 缺失键 = 无 tell）
+	var tell_missing: Array = []
+	for id: StringName in attacks.attack_ids():
+		if not attacks.ATTACK_TELLS.has(id):
+			tell_missing.append(id)
+	_check(tell_missing.is_empty(), "全部攻击 id 有独特 tell 配置（缺失: %s）" % tell_missing)
 
 	# 2. 模式表交叉验证：脚本默认表 + balance.json 运行表引用的攻击 id 全在注册表
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(GameState.BALANCE_PATH))

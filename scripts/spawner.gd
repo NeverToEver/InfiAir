@@ -432,7 +432,13 @@ func _current_interval() -> float:
 	var base := lerpf(WAVE_INTERVAL_START, WAVE_INTERVAL_END, clampf(_elapsed / RAMP_TIME, 0.0, 1.0))
 	# 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
 	var interval: float = base * GameState.spawn_interval_multiplier() / (1.0 + DIFFICULTY_FACTOR * (GameState.difficulty_multiplier - 1.0))
-	return clampf(interval, INTERVAL_MIN, WAVE_INTERVAL_START * GameState.spawn_interval_multiplier())
+	# B 梯队（fair plan §8）：DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
+	# clamp 上界同步乘因子，避免拉长效果被上限吞掉
+	return clampf(
+		interval * GameState.dda_factor(),
+		INTERVAL_MIN,
+		WAVE_INTERVAL_START * GameState.spawn_interval_multiplier() * GameState.dda_factor()
+	)
 
 
 ## 当前波次规模：随对局时间 ramp（WAVE_SIZE_START → WAVE_SIZE_END）

@@ -71,6 +71,26 @@ static func _player_dir(from: Node2D) -> Vector2:
 ## 新增攻击只需注册一行 + 模式表加 id，不再改 execute 分发本身（O 原则达成）。
 var _attack_handlers: Dictionary = {}
 
+## B 梯队（fair plan §8）：每攻击独特 tell——起手音效变体 + 视觉前兆冲击环。
+## 玩家凭音效/闪光区分「来的是什么」；音效复用现有资源变体（缺专属资产，登记后续音频项）。
+const TELL_FIRE_A: AudioStream = preload("res://assets/audio/bullet_fire.wav")
+const TELL_FIRE_B: AudioStream = preload("res://assets/audio/bullet_fire_b.wav")
+const TELL_FIRE_C: AudioStream = preload("res://assets/audio/bullet_fire_c.wav")
+const TELL_DASH: AudioStream = preload("res://assets/audio/dash.wav")
+const TELL_EXPLOSION: AudioStream = preload("res://assets/audio/explosion.wav")
+## attack id → tell 配置（sfx 变体/音高/视觉环色）；缺失键 = 该攻击无 tell（新攻击须补配）
+const ATTACK_TELLS: Dictionary = {
+	&"fan5": {"sfx": TELL_FIRE_A, "pitch": 1.0, "color": Color(1.0, 0.6, 0.2, 0.55)},
+	&"fan7": {"sfx": TELL_FIRE_A, "pitch": 1.15, "color": Color(1.0, 0.6, 0.2, 0.55)},
+	&"homing": {"sfx": TELL_FIRE_B, "pitch": 1.0, "color": Color(1.0, 0.3, 0.3, 0.55)},
+	&"sniper3": {"sfx": TELL_FIRE_C, "pitch": 1.0, "color": Color(0.95, 0.95, 1.0, 0.6)},
+	&"cross": {"sfx": TELL_FIRE_A, "pitch": 1.25, "color": Color(0.8, 0.4, 1.0, 0.55)},
+	&"charged_cannon": {"sfx": TELL_DASH, "pitch": 0.8, "color": Color(1.0, 0.85, 0.3, 0.6)},
+	&"dash_sweep": {"sfx": TELL_EXPLOSION, "pitch": 0.7, "color": Color(0.4, 0.9, 1.0, 0.55)},
+	&"minion_volley": {"sfx": TELL_FIRE_C, "pitch": 0.8, "color": Color(0.5, 1.0, 0.5, 0.55)},
+	&"bullet_wall": {"sfx": TELL_FIRE_B, "pitch": 1.2, "color": Color(0.4, 0.6, 1.0, 0.55)},
+}
+
 
 func _init() -> void:
 	_attack_handlers = {
@@ -90,9 +110,33 @@ func _init() -> void:
 func execute(attack: StringName, boss) -> void:
 	var handler: Variant = _attack_handlers.get(attack)
 	if handler is Callable:
+		# B 梯队：起手 tell（音效变体 + 视觉前兆环），玩家可区分「来的是什么」
+		_play_tell(attack, boss)
 		(handler as Callable).call(boss)
 	else:
 		push_warning("[BOSS] 未知攻击 id: %s" % attack)
+
+
+## 起手 tell：音效（独特变体 + 音高）+ 低频视觉冲击环（起手一次性事件，直接实例化可接受）
+func _play_tell(attack: StringName, boss) -> void:
+	var tell: Variant = ATTACK_TELLS.get(attack)
+	if tell == null:
+		return
+	GameState.play_sfx(tell["sfx"], -8.0, tell["pitch"])
+	var ring := (
+		CinematicFx
+		. shockwave(
+			{
+				"radius": 26.0,
+				"time": 0.22,
+				"color": tell["color"],
+				"core_color": (tell["color"] as Color).lightened(0.4),
+				"width": 5.0,
+			}
+		)
+	)
+	ring.position = boss.position
+	boss.get_parent().add_child(ring)
 
 
 ## 注册表完整性查询（A3 架构断言测试经公开接口访问）

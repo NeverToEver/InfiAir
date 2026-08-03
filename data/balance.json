@@ -927,5 +927,9 @@
 	},
 	"tutorial": {
 		"boss_hp": 120
+	},
+	"dda": {
+		"duration": 5.0,
+		"factor": 1.3
 	}
 }

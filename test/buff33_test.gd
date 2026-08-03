@@ -129,6 +129,14 @@ func _ready() -> void:
 	_check(player.fuel_amount() > 80.0, "提升后的恢复速率实际生效（1s 回 45）")
 
 	# 5. 长按 K 放弃出击：蓄力可取消，蓄满 3s 自毁进死亡结算
+	# 制造敌弹供死亡回放录制（B 梯队：回放重演死因片段；蓄力 3.3s 期间 main._process
+	# 持续采样填充环形缓冲）
+	var eb := (load("res://scenes/bullet.tscn") as PackedScene).instantiate() as Bullet
+	eb.setup(Vector2.DOWN, 200.0, 1, false)
+	eb.position = Vector2(960.0, 300.0)
+	main.add_child(eb)
+	await get_tree().process_frame
+	await get_tree().process_frame
 	Input.action_press("give_up")
 	await get_tree().create_timer(1.0).timeout
 	_check(main.give_up_charge() > 0.0, "K 蓄力进行中")
@@ -145,6 +153,17 @@ func _ready() -> void:
 	_check(player.is_dead(), "自毁后玩家死亡")
 	_check(get_node("Main/GameOverUI").visible, "自毁进入死亡结算面板")
 	_check(get_tree().paused, "结算时游戏暂停")
+	# B 梯队（fair plan §8）：死亡回放演出已挂树（幽灵弹幕重放死因；process_mode=ALWAYS
+	# 暂停树中照常播放，播完自毁）
+	var replay_node: Node = null
+	for child in main.get_children():
+		if child is DeathReplay.DeathReplayPlayer:
+			replay_node = child
+			break
+	_check(replay_node != null, "死亡回放演出已启动")
+	if replay_node != null:
+		await get_tree().create_timer(0.2, true, false, true).timeout  # process_always：暂停树中计时
+		_check(is_instance_valid(replay_node), "回放演出播放中（0.2s 后未结束）")
 
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score

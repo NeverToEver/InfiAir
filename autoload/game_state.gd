@@ -145,6 +145,9 @@ func _apply_balance() -> void:
 		DIFFICULTY_DEFS = diff
 	# P0-2：回血链数值一次性缓存（热路径禁 cfg 约定）
 	_refresh_regen_cache()
+	# B 梯队：DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）
+	DDA_DURATION = maxf(float(cfg("dda.duration", DDA_DURATION)), 0.1)
+	DDA_FACTOR = maxf(float(cfg("dda.factor", DDA_FACTOR)), 1.0)
 	_max_hp_base = maxf(float(cfg("player.max_health", _max_hp_base)), 0.1)  # H15 同款：≤0 使 max_health 归零/负值，玩家秒死
 	# 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
 	_max_hp_bonus = maxf(float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus)), 0.0)
@@ -312,6 +315,11 @@ var _prog_per_boss_kill: float = 0.5
 var _prog_per_ten_minutes: float = 1.0
 var _prog_time_step_seconds: float = 30.0
 var _survive_sec_cached: int = -1  # 任务进度整秒缓存（_process 热路径免每帧字典访问）
+## B 梯队（fair plan §8）：DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
+## （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存
+var DDA_DURATION := 5.0
+var DDA_FACTOR := 1.3
+var _dda_timer: float = 0.0
 ## 回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存；regen 档位难度变更时刷新。
 ## 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。
 var _max_hp_base: float = 100.0
@@ -405,6 +413,8 @@ func _ready() -> void:
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_detect_joy_layout()
 	_next_milestone = milestone_threshold(0)
+	# B 梯队：受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
+	player_damaged.connect(_on_player_damaged_dda)
 
 
 # 暂停（Buff/结算 UI）时不计存活时间
@@ -419,6 +429,9 @@ func _process(delta: float) -> void:
 	if int(floorf(run_time / _prog_time_step_seconds)) != _difficulty_time_step:
 		if _recompute_difficulty():
 			difficulty_changed.emit(difficulty_multiplier)
+	# DDA 降档计时（受击触发；暂停时 process 冻结，与对局节奏一致）
+	if _dda_timer > 0.0:
+		_dda_timer -= delta
 
 
 func play_sfx(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
@@ -484,11 +497,32 @@ func difficulty_label() -> String:
 	return tr("DIFF_" + String(difficulty).to_upper())
 
 
+## B 梯队：受击触发 DDA 降档（重入安全——幂等置位，重复受击刷新计时）
+func _on_player_damaged_dda(_amount: float, _from_pos: Vector2) -> void:
+	_dda_timer = DDA_DURATION
+
+
 func score_multiplier() -> int:
 	# 2026-08-03 审计回退：曾尝试缓存 _score_multiplier_cache，但 difficulty 是公开字段，
 	# 测试/调用方直写不触发 _refresh_regen_cache（白盒契约），缓存会返回旧值；与同族
 	# enemy_hp_multiplier/enemy_speed_multiplier/spawn_interval_multiplier 一致保持直接查表
 	return int(DIFFICULTY_DEFS[difficulty]["score"])
+
+
+## B 梯队（fair plan §8）：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
+## （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔
+func dda_active() -> bool:
+	return _dda_timer > 0.0
+
+
+## DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）
+func dda_factor() -> float:
+	return DDA_FACTOR if _dda_timer > 0.0 else 1.0
+
+
+## 测试/诊断：立即结束降档（对齐「测试经公开接口」白盒契约）
+func reset_dda() -> void:
+	_dda_timer = 0.0
 
 
 func enemy_hp_multiplier() -> float:

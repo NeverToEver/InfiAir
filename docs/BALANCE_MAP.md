@@ -144,8 +144,8 @@
 | 552 | `boss.difficulty_scaling.interval_mult` | `DIFF_INTERVAL_MULT` |
 | 553 | `boss.difficulty_scaling.speed_mult` | `DIFF_SPEED_MULT` |
 | 554 | `boss.difficulty_scaling.counts` | `DIFF_COUNT_DELTAS` |
-| 792 | `effects.shake.enrage` | `16.0` |
-| 929 | `effects.shake.enrage` | `16.0` |
+| 796 | `effects.shake.enrage` | `16.0` |
+| 933 | `effects.shake.enrage` | `16.0` |
 
 ### `scripts/buff_select.gd`
 
@@ -189,7 +189,7 @@
 | 120 | `elite_turret_event.reward_score` | `REWARD_SCORE` |
 | 121 | `elite_turret_event.carrier.hover_y` | `HOVER_Y` |
 | 122 | `elite_turret_event.cooldown` | `COOLDOWN` |
-| 160 | `elite_turret_event.carrier.shake` | `4.0` |
+| 166 | `elite_turret_event.carrier.shake` | `4.0` |
 
 ### `scripts/enemy.gd`
 
@@ -302,9 +302,9 @@
 | 75 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 76 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 77 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 635 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 646 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 686 | `mothership.depart_cooldown` | `60.0` |
+| 638 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 649 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 689 | `mothership.depart_cooldown` | `60.0` |
 
 ### `scripts/meta_health_fx.gd`
 
@@ -353,55 +353,55 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 121 | `mothership.hover_y` | `HOVER_Y` |
-| 122 | `mothership.release_invincible` | `RELEASE_INVINCIBLE` |
-| 123 | `mothership.dock_tween_time` | `DOCK_TWEEN_TIME` |
-| 124 | `mothership.dock_offset_y` | `DOCK_OFFSET_Y` |
-| 125 | `mothership.resupply_delay` | `RESUPPLY_DELAY` |
-| 126 | `mothership.release_time` | `RELEASE_TIME` |
-| 127 | `mothership.release_drop` | `RELEASE_DROP` |
-| 128 | `mothership.mag_cells` | `MAG_CELLS` |
-| 129 | `mothership.mag_cell_time` | `MAG_CELL_TIME` |
-| 130 | `mothership.mag_warn_cells` | `MAG_WARN_CELLS` |
-| 131 | `mothership.warn_eject_delay` | `WARN_EJECT_DELAY` |
-| 132 | `mothership.early_hold_time` | `EARLY_HOLD_TIME` |
-| 133 | `mothership.early_max_discount` | `EARLY_MAX_DISCOUNT` |
-| 134 | `mothership.early_prefill_max` | `EARLY_PREFILL_MAX` |
-| 135 | `mothership.early_prefill_ratio` | `EARLY_PREFILL_RATIO` |
-| 136 | `mothership.depart_cooldown` | `DEPART_COOLDOWN` |
-| 137 | `mothership.depart_start_speed` | `DEPART_START_SPEED` |
-| 138 | `mothership.depart_accel` | `DEPART_ACCEL` |
-| 139 | `mothership.drive.accel` | `DRIVE_ACCEL` |
-| 140 | `mothership.drive.max_speed` | `DRIVE_MAX_SPEED` |
-| 144 | `mothership.drive.margin_x` | `DRIVE_MARGIN_X` |
-| 145 | `mothership.drive.margin_top` | `DRIVE_MARGIN_TOP` |
-| 146 | `mothership.drive.margin_bottom` | `DRIVE_MARGIN_BOTTOM` |
-| 147 | `mothership.gatling.interval` | `GATLING_INTERVAL` |
-| 148 | `mothership.gatling.bullet_speed` | `GATLING_BULLET_SPEED` |
-| 149 | `mothership.gatling.damage` | `GATLING_DAMAGE` |
-| 150 | `mothership.gatling.score_scale` | `GATLING_SCORE_SCALE` |
-| 151 | `mothership.gatling.sweep_left_min` | `GATLING_SWEEP_LEFT_MIN` |
-| 152 | `mothership.gatling.sweep_left_max` | `GATLING_SWEEP_LEFT_MAX` |
-| 153 | `mothership.gatling.sweep_right_min` | `GATLING_SWEEP_RIGHT_MIN` |
-| 154 | `mothership.gatling.sweep_right_max` | `GATLING_SWEEP_RIGHT_MAX` |
-| 155 | `mothership.gatling.sweep_left_period` | `GATLING_SWEEP_LEFT_PERIOD` |
-| 156 | `mothership.gatling.sweep_right_period` | `GATLING_SWEEP_RIGHT_PERIOD` |
-| 157 | `mothership.gatling.sweep_right_phase` | `GATLING_SWEEP_RIGHT_PHASE` |
-| 158 | `mothership.missile.interval` | `MISSILE_INTERVAL` |
-| 159 | `mothership.missile.damage` | `MISSILE_DAMAGE` |
-| 160 | `mothership.missile.speed` | `MISSILE_SPEED` |
-| 161 | `mothership.missile.target_count` | `MISSILE_TARGET_COUNT` |
-| 162 | `mothership.missile.splash_damage` | `MISSILE_SPLASH_DAMAGE` |
-| 163 | `mothership.missile.splash_radius` | `MISSILE_SPLASH_RADIUS` |
-| 164 | `effects.mothership_summon.warp_in_time` | `WARP_IN_TIME` |
-| 165 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
-| 166 | `effects.mothership_summon.slow.radius` | `SLOW_RADIUS` |
-| 167 | `effects.mothership_summon.slow.duration` | `SLOW_DURATION` |
-| 168 | `effects.mothership_summon.slow.factor` | `SLOW_FACTOR` |
-| 169 | `effects.mothership_summon.slow.ring_time` | `SLOW_RING_TIME` |
-| 170 | `effects.mothership_summon.shake_slow` | `SHAKE_SLOW` |
-| 300 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
-| 688 | `effects.shake.mothership` | `4.0` |
+| 124 | `mothership.hover_y` | `HOVER_Y` |
+| 125 | `mothership.release_invincible` | `RELEASE_INVINCIBLE` |
+| 126 | `mothership.dock_tween_time` | `DOCK_TWEEN_TIME` |
+| 127 | `mothership.dock_offset_y` | `DOCK_OFFSET_Y` |
+| 128 | `mothership.resupply_delay` | `RESUPPLY_DELAY` |
+| 129 | `mothership.release_time` | `RELEASE_TIME` |
+| 130 | `mothership.release_drop` | `RELEASE_DROP` |
+| 131 | `mothership.mag_cells` | `MAG_CELLS` |
+| 132 | `mothership.mag_cell_time` | `MAG_CELL_TIME` |
+| 133 | `mothership.mag_warn_cells` | `MAG_WARN_CELLS` |
+| 134 | `mothership.warn_eject_delay` | `WARN_EJECT_DELAY` |
+| 135 | `mothership.early_hold_time` | `EARLY_HOLD_TIME` |
+| 136 | `mothership.early_max_discount` | `EARLY_MAX_DISCOUNT` |
+| 137 | `mothership.early_prefill_max` | `EARLY_PREFILL_MAX` |
+| 138 | `mothership.early_prefill_ratio` | `EARLY_PREFILL_RATIO` |
+| 139 | `mothership.depart_cooldown` | `DEPART_COOLDOWN` |
+| 140 | `mothership.depart_start_speed` | `DEPART_START_SPEED` |
+| 141 | `mothership.depart_accel` | `DEPART_ACCEL` |
+| 142 | `mothership.drive.accel` | `DRIVE_ACCEL` |
+| 143 | `mothership.drive.max_speed` | `DRIVE_MAX_SPEED` |
+| 147 | `mothership.drive.margin_x` | `DRIVE_MARGIN_X` |
+| 148 | `mothership.drive.margin_top` | `DRIVE_MARGIN_TOP` |
+| 149 | `mothership.drive.margin_bottom` | `DRIVE_MARGIN_BOTTOM` |
+| 150 | `mothership.gatling.interval` | `GATLING_INTERVAL` |
+| 151 | `mothership.gatling.bullet_speed` | `GATLING_BULLET_SPEED` |
+| 152 | `mothership.gatling.damage` | `GATLING_DAMAGE` |
+| 153 | `mothership.gatling.score_scale` | `GATLING_SCORE_SCALE` |
+| 154 | `mothership.gatling.sweep_left_min` | `GATLING_SWEEP_LEFT_MIN` |
+| 155 | `mothership.gatling.sweep_left_max` | `GATLING_SWEEP_LEFT_MAX` |
+| 156 | `mothership.gatling.sweep_right_min` | `GATLING_SWEEP_RIGHT_MIN` |
+| 157 | `mothership.gatling.sweep_right_max` | `GATLING_SWEEP_RIGHT_MAX` |
+| 158 | `mothership.gatling.sweep_left_period` | `GATLING_SWEEP_LEFT_PERIOD` |
+| 159 | `mothership.gatling.sweep_right_period` | `GATLING_SWEEP_RIGHT_PERIOD` |
+| 160 | `mothership.gatling.sweep_right_phase` | `GATLING_SWEEP_RIGHT_PHASE` |
+| 161 | `mothership.missile.interval` | `MISSILE_INTERVAL` |
+| 162 | `mothership.missile.damage` | `MISSILE_DAMAGE` |
+| 163 | `mothership.missile.speed` | `MISSILE_SPEED` |
+| 164 | `mothership.missile.target_count` | `MISSILE_TARGET_COUNT` |
+| 165 | `mothership.missile.splash_damage` | `MISSILE_SPLASH_DAMAGE` |
+| 166 | `mothership.missile.splash_radius` | `MISSILE_SPLASH_RADIUS` |
+| 167 | `effects.mothership_summon.warp_in_time` | `WARP_IN_TIME` |
+| 168 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
+| 169 | `effects.mothership_summon.slow.radius` | `SLOW_RADIUS` |
+| 170 | `effects.mothership_summon.slow.duration` | `SLOW_DURATION` |
+| 171 | `effects.mothership_summon.slow.factor` | `SLOW_FACTOR` |
+| 172 | `effects.mothership_summon.slow.ring_time` | `SLOW_RING_TIME` |
+| 173 | `effects.mothership_summon.shake_slow` | `SHAKE_SLOW` |
+| 303 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
+| 691 | `effects.shake.mothership` | `4.0` |
 
 ### `scripts/mothership_summon_window.gd`
 
@@ -427,51 +427,51 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 251 | `player.max_speed` | `MAX_SPEED` |
-| 252 | `player.accel` | `ACCEL` |
-| 253 | `player.decel` | `DECEL` |
-| 254 | `player.boost_mult` | `BOOST_MULT` |
-| 255 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
-| 256 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
-| 257 | `player.bullet_speed` | `BULLET_SPEED` |
-| 258 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
-| 259 | `player.bullet_damage` | `BULLET_DAMAGE` |
-| 260 | `player.invincible_time` | `INVINCIBLE_TIME` |
-| 261 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
-| 262 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
-| 263 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
-| 264 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
-| 265 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
-| 266 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
-| 267 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
-| 268 | `player.entry.spawn_clearance` | `ENTRY_SPAWN_CLEARANCE` |
-| 269 | `player.entry.rush_hspeed_ratio` | `ENTRY_RUSH_HS_RATIO` |
-| 270 | `buffs.armor.multiplier` | `ARMOR_MULT` |
-| 271 | `buffs.evasion.chance` | `EVASION_CHANCE` |
-| 272 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
-| 273 | `effects.shake.player_hit` | `SHAKE_HIT` |
-| 275 | `player.fuel.max` | `fuel_max` |
-| 277 | `player.fuel.drain` | `FUEL_DRAIN` |
-| 278 | `player.fuel.regen` | `FUEL_REGEN` |
-| 279 | `player.fuel.restart` | `FUEL_RESTART` |
-| 280 | `player.dash.distance` | `DASH_DISTANCE` |
-| 281 | `player.dash.time` | `DASH_TIME` |
-| 282 | `player.dash.cooldown` | `DASH_COOLDOWN` |
-| 283 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
-| 284 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
-| 286 | `player.graze_radius` | `GRAZE_RADIUS` |
-| 287 | `player.graze_score` | `GRAZE_SCORE` |
-| 289 | `player.parry.arc_deg` | `PARRY_ARC_DEG` |
-| 290 | `player.parry.radius` | `PARRY_RADIUS` |
-| 292 | `player.parry.duration` | `0.8` |
-| 293 | `player.parry.active_time` | `0.5` |
-| 294 | `player.parry.cooldown` | `3.0` |
-| 300 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
-| 301 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
-| 302 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
-| 303 | `player.aim_assist.falloff.end` | `_falloff_end` |
-| 304 | `player.aim_assist.falloff.min` | `_falloff_min` |
-| 763 | `player.aim_assist.homing_time` | `HOMING_TIME` |
+| 231 | `player.max_speed` | `MAX_SPEED` |
+| 232 | `player.accel` | `ACCEL` |
+| 233 | `player.decel` | `DECEL` |
+| 234 | `player.boost_mult` | `BOOST_MULT` |
+| 235 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
+| 236 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
+| 237 | `player.bullet_speed` | `BULLET_SPEED` |
+| 238 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
+| 239 | `player.bullet_damage` | `BULLET_DAMAGE` |
+| 240 | `player.invincible_time` | `INVINCIBLE_TIME` |
+| 241 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
+| 242 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
+| 243 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
+| 244 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
+| 245 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
+| 246 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
+| 247 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
+| 248 | `player.entry.spawn_clearance` | `ENTRY_SPAWN_CLEARANCE` |
+| 249 | `player.entry.rush_hspeed_ratio` | `ENTRY_RUSH_HS_RATIO` |
+| 250 | `buffs.armor.multiplier` | `ARMOR_MULT` |
+| 251 | `buffs.evasion.chance` | `EVASION_CHANCE` |
+| 252 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
+| 253 | `effects.shake.player_hit` | `SHAKE_HIT` |
+| 255 | `player.fuel.max` | `fuel_max` |
+| 257 | `player.fuel.drain` | `FUEL_DRAIN` |
+| 258 | `player.fuel.regen` | `FUEL_REGEN` |
+| 259 | `player.fuel.restart` | `FUEL_RESTART` |
+| 260 | `player.dash.distance` | `DASH_DISTANCE` |
+| 261 | `player.dash.time` | `DASH_TIME` |
+| 262 | `player.dash.cooldown` | `DASH_COOLDOWN` |
+| 263 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
+| 264 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
+| 266 | `player.graze_radius` | `GRAZE_RADIUS` |
+| 267 | `player.graze_score` | `GRAZE_SCORE` |
+| 269 | `player.parry.arc_deg` | `PARRY_ARC_DEG` |
+| 270 | `player.parry.radius` | `PARRY_RADIUS` |
+| 272 | `player.parry.duration` | `0.8` |
+| 273 | `player.parry.active_time` | `0.5` |
+| 274 | `player.parry.cooldown` | `3.0` |
+| 280 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
+| 281 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
+| 282 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
+| 283 | `player.aim_assist.falloff.end` | `_falloff_end` |
+| 284 | `player.aim_assist.falloff.min` | `_falloff_min` |
+| 728 | `player.aim_assist.homing_time` | `HOMING_TIME` |
 | 52 | `buffs.rapid_fire.factor` | `—` |
 | 53 | `buffs.power_shot.factor` | `—` |
 | 54 | `buffs.efficient_boost.factor` | `—` |
@@ -513,8 +513,8 @@
 | 211 | `formation_strike_event.trigger_chance` | `FS_TRIGGER_CHANCE` |
 | 215 | `enemies.types` | `[]` |
 | 218 | `elites.types` | `[]` |
-| 533 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
-| 571 | `effects.shake.boss_warning` | `14.0` |
+| 537 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
+| 575 | `effects.shake.boss_warning` | `14.0` |
 
 ### `scripts/starfield.gd`
 
@@ -577,11 +577,13 @@
 | 139 | `progression.per_ten_minutes` | `1.0` |
 | 140 | `progression.time_step_seconds` | `30.0` |
 | 143 | `difficulty` | `{}` |
-| 148 | `player.max_health` | `_max_hp_base` |
-| 150 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
-| 152 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 771 | `milestones.boss_kill_base` | `500.0` |
-| 1329 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 149 | `dda.duration` | `DDA_DURATION` |
+| 150 | `dda.factor` | `DDA_FACTOR` |
+| 151 | `player.max_health` | `_max_hp_base` |
+| 153 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
+| 155 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 800 | `milestones.boss_kill_base` | `500.0` |
+| 1344 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 

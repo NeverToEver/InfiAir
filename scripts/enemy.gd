@@ -457,7 +457,9 @@ func _physics_process(delta: float) -> void:
 			_hovering = true
 
 	if can_shoot:
-		_fire_timer -= delta
+		# B 梯队（fair plan §8）：DDA 降档拉长开火间隔（dda_factor 除入计时 = 间隔 ×因子；
+		# 只拉间隔不降收益，分数公平）
+		_fire_timer -= delta / GameState.dda_factor()
 		if _fire_timer <= 0.0:
 			_fire_timer = fire_interval
 			_fire_at_player()

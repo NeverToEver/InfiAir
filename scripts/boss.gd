@@ -650,7 +650,8 @@ func _exit_tree() -> void:
 
 
 func _base_fire_interval() -> float:
-	return float(FIRE_INTERVALS[clampi(boss_type - 1, 0, FIRE_INTERVALS.size() - 1)])
+	# B 梯队（fair plan §8）：DDA 降档拉长 Boss 攻击间隔（不降弹数/收益，分数公平）
+	return float(FIRE_INTERVALS[clampi(boss_type - 1, 0, FIRE_INTERVALS.size() - 1)]) * GameState.dda_factor()
 
 
 ## 慢速力场因子（全局机体移速 ×0.8；与狂暴移速倍率相乘）

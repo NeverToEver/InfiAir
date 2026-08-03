@@ -530,6 +530,18 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 	player.set_invincible(999.0)
 
+	# B 梯队（fair plan §8）：DDA 弹幕密度降档——受击触发、激活期因子、到期恢复、间隔拉长
+	GameState.player_damaged.emit(1.0, Vector2.ZERO)
+	_check(GameState.dda_active(), "DDA：受击后降档激活")
+	_check(is_equal_approx(GameState.dda_factor(), GameState.DDA_FACTOR), "DDA：激活期返回配置因子")
+	var interval_active: float = spawner.current_interval()
+	GameState.reset_dda()
+	_check(not GameState.dda_active(), "DDA：计时归零后恢复")
+	_check(is_equal_approx(GameState.dda_factor(), 1.0), "DDA：非激活期因子 = 1.0（零开销常态）")
+	var interval_normal: float = spawner.current_interval()
+	# 1.3× 拉长远大于同刻 ramp 增量（毫秒级 elapsed 差异），比较稳定
+	_check(interval_active > interval_normal, "DDA：激活期波次间隔拉长（%.2f > %.2f）" % [interval_active, interval_normal])
+
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
