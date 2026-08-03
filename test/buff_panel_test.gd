@@ -39,7 +39,7 @@ func _ready() -> void:
 	var main := get_node("Main")
 	var hud: CanvasLayer = main.get_node("HUD")
 	var nav := main.get_node("BackNavigator")
-	var A = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 	var start_panel: CanvasLayer = main.get_node("StartPanel")
 	if start_panel.visible:
 		start_panel.press_new_game()
@@ -77,7 +77,7 @@ func _ready() -> void:
 	_check(hud.buff_rows().get_child_count() == 6, "滚动栏 6 行明细")
 
 	# ---------- 5. Esc 路由：优先关栏而非打开暂停 ----------
-	_check(nav.decide_back_action() == A.CLOSE_BUFF_PANEL, "栏展开：Esc 决策=关栏")
+	_check(nav.decide_back_action() == act.CLOSE_BUFF_PANEL, "栏展开：Esc 决策=关栏")
 	nav.go_back()
 	_check(not hud.is_buff_panel_open(), "Esc 执行：滚动栏关闭")
 	_check(not main.get_node("PauseUI").visible, "Esc 关栏后未误开暂停")

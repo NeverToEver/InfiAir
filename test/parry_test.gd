@@ -108,6 +108,8 @@ func _ready() -> void:
 
 	# ================= 场景级环境 =================
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
@@ -242,6 +244,9 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("PARRY TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

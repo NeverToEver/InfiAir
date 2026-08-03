@@ -31,8 +31,9 @@ jobs:
       - name: GDScript lint (gdlint)
         run: |
           python3 -m pip install --quiet gdtoolkit
-          gdlint autoload/ scripts/
-          gdformat --check autoload/ scripts/
+          # test/ 纳入门禁（2026-08-03 L 系列盲区修复）：gdformat + gdlint 全量覆盖
+          gdlint autoload/ scripts/ test/
+          gdformat --check autoload/ scripts/ test/
 
       - name: Import project resources (warning gate)
         run: |
@@ -53,6 +54,33 @@ jobs:
             || { echo "::error::main scene smoke failed"; tail -30 /tmp/smoke.log; exit 1; }
           tail -3 /tmp/smoke.log
 
+      - name: Compile probe all test scenes (gate blind spot)
+        run: |
+          # test/ 场景不被主场景引用，--import 不解析其脚本——L01a（截图工具链式
+          # 调用编译错误）与 L01b（autoplay 状态表漂移）曾因此长期潜伏。
+          # --quit-after 2 逐场景编译探针：Parse/Compile/SCRIPT ERROR 即失败；
+          # timeout 60 兜底编译错误场景的静默挂起（AGENTS 已知 gotcha）。
+          bad=0
+          for tscn in test/*.tscn; do
+            name="$(basename "$tscn" .tscn)"
+            log="/tmp/probe-$name.log"
+            timeout 60 godot --headless --path . "res://$tscn" --quit-after 2 >"$log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+              echo "::error::$name compile probe failed (exit $code)"
+              tail -20 "$log"
+              bad=1
+            elif grep -q "SCRIPT ERROR\|Parse Error\|Compile Error" "$log"; then
+              echo "::error::$name compile probe SCRIPT ERROR"
+              grep -B2 "SCRIPT ERROR\|Parse Error\|Compile Error" "$log" | head -20
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            exit 1
+          fi
+          echo "compile probe: $(ls test/*.tscn | wc -l) scenes clean"
+
       - name: Run assertion scenes (37)
         run: |
           passed=0
@@ -64,7 +92,8 @@ jobs:
             esac
             echo "== $name =="
             log="/tmp/$name.log"
-            if godot --headless --path . "res://$tscn" >"$log" 2>&1; then
+            # 单场景 5 分钟超时：防止单个场景挂起阻塞整个 job（30min 兜底之上）
+            if timeout 300 godot --headless --path . "res://$tscn" >"$log" 2>&1; then
               passed=$((passed + 1))
             else
               code=$?

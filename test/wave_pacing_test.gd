@@ -24,6 +24,8 @@ func _enemies() -> Array[Enemy]:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -50,7 +52,10 @@ func _ready() -> void:
 	var wave := _enemies()
 	_check(wave.size() == n, "普通波成组刷出（%d 架）" % n)
 	var slot_w := (view.size.x - 120.0) / float(n)
-	var band := Vector2(view.position.y + spawner.hover_band().x, view.position.y + spawner.hover_band().y)  # 悬停带为 view 顶缘偏移（2026-07-30 view 适配）
+	var band := Vector2(
+		view.position.y + spawner.hover_band().x,
+		view.position.y + spawner.hover_band().y,
+	)  # 悬停带为 view 顶缘偏移（2026-07-30 view 适配）
 	var slots_ok := true
 	var anchor_ok := true
 	for e in wave:
@@ -139,6 +144,9 @@ func _ready() -> void:
 	spawner.notify_boss_died()
 	_check(spawner.waves_since_special() == -spawner.REST_WAVES_AFTER_KILL, "Boss 击杀后进入休整波次")
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("WAVE PACING TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

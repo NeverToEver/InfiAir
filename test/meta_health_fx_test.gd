@@ -27,6 +27,8 @@ func _reset_hit_state(player: Player) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性（含 reduce_flash 默认关、跳过欢迎页暂停）
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.reduce_flash = false
 	GameState.save_profile()
@@ -54,15 +56,12 @@ func _ready() -> void:
 	_reset_hit_state(player)
 	player.take_damage(10.0, Vector2(400.0, 300.0))
 	_check(records.size() == 1, "1：受击发射 player_damaged")
-	_check(
-		records.size() == 1 and records[0][0] == 10.0 and records[0][1] == Vector2(400.0, 300.0),
-		"1：信号携带 amount 与 from_pos"
-	)
+	_check(records.size() == 1 and records[0][0] == 10.0 and records[0][1] == Vector2(400.0, 300.0), "1：信号携带 amount 与 from_pos")
 	player.take_damage(10.0)  # 无敌帧期内
 	_check(records.size() == 1, "1：无敌帧期不发射")
 
 	# ================= 2：hit_pulse max 池化 =================
-	fx.set_test_state({"hit_pulse": 0.0  })# 清掉测试 1 的 0.25 残留，隔离验证池化
+	fx.set_test_state({"hit_pulse": 0.0})  # 清掉测试 1 的 0.25 残留，隔离验证池化
 	for i in 10:
 		_reset_hit_state(player)
 		GameState.health = 100.0
@@ -157,6 +156,9 @@ func _ready() -> void:
 	_check(fx.early_out_count() >= 60, "7：早退命中（_process 早退）")
 	_check(not fx.rect().visible, "7：满血稳态隐藏全屏 ColorRect（零 GPU）")
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("META HEALTH FX TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	GameState.reduce_flash = false

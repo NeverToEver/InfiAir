@@ -66,7 +66,7 @@ func _ready() -> void:
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
 	var base_ui: CanvasLayer = main.get_node("BaseUI")
-	var A = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
 	# ---------- 1. 直接触发：过场节点存在、树暂停 ----------
 	var timer_baseline := _count_timers(get_tree().root)
@@ -132,10 +132,7 @@ func _ready() -> void:
 			var shot_name: String = ret2.current_shot().name
 			if not seen_shots.has(shot_name):
 				seen_shots.append(shot_name)
-			_check(
-				ret2.shot_root().get_child_count() == 1,
-				"时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1)
-			)
+			_check(ret2.shot_root().get_child_count() == 1, "时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1))
 			_check(ret2.subtitle().text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
 	# 镜头 7 末尾渐暗后 finished（渐暗含在时长内），等待窗口放宽
 	for i in 80:
@@ -156,7 +153,7 @@ func _ready() -> void:
 	main.play_return()
 	await get_tree().process_frame
 	var ret3: ReturnCinematic = main.return_cinematic()
-	_check(nav.decide_back_action() == A.SKIP_RETURN, "过场播放中：决策 = SKIP_RETURN")
+	_check(nav.decide_back_action() == act.SKIP_RETURN, "过场播放中：决策 = SKIP_RETURN")
 	await get_tree().create_timer(1.4).timeout  # 越过输入宽限后 Esc 才生效
 	await _press_esc()
 	_check(main.return_cinematic() == null and not is_instance_valid(ret3), "Esc：经 BackNavigator 跳过过场")

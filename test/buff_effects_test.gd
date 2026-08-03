@@ -28,6 +28,8 @@ func _json_at(data: Variant, path: String) -> Variant:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -183,6 +185,9 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BUFF_EFFECTS TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

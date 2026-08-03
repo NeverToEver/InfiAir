@@ -120,6 +120,9 @@ func cooldown_left() -> float:
 func can_trigger() -> bool:
 	if _state != State.IDLE or _cooldown_left > 0.0 or GameState.score < MIN_SCORE:
 		return false
+	# L13：母舰在场期不触发（同 elite：母舰自动火力清事件单位全额发奖，玩家零参与挂机）
+	if get_tree().get_first_node_in_group("mothership") != null:
+		return false
 	if _spawner != null and is_instance_valid(_spawner):
 		if _spawner.is_boss_active():
 			return false

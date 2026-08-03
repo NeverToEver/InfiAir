@@ -32,7 +32,7 @@ func _ready() -> void:
 		e.position = Vector2(500.0 + i * 220.0, 300.0 + (i % 2) * 120.0)
 		main.add_child(e)
 	player.position = Vector2(960.0, 800.0)
-	player.set_since_damage(0.0  )# 关闭被动回血，保持各血量档稳定
+	player.set_since_damage(0.0)  # 关闭被动回血，保持各血量档稳定
 	for i in 30:  # 等裂纹距离场烘焙与首帧稳定
 		await get_tree().process_frame
 

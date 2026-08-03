@@ -117,6 +117,9 @@ var _muzzles: Array[GPUParticles2D] = []
 
 
 func _ready() -> void:
+	# L13：注册在场组——事件（精英炮塔/编队）can_trigger 据此互斥：
+	# 母舰在场期事件不触发（母舰自动火力会摧毁事件单位并全额发奖，玩家进舱零参与挂机）
+	add_to_group("mothership")
 	# 数值配置缓存（启动一次读入）
 	HOVER_Y = GameState.cfg("mothership.hover_y", HOVER_Y)
 	RELEASE_INVINCIBLE = GameState.cfg("mothership.release_invincible", RELEASE_INVINCIBLE)

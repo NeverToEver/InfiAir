@@ -786,6 +786,9 @@ func _enter_phase(p_phase: int) -> void:
 	_fire_timer = PHASE_SHIFT_DURATION  # 段切换蓄力期停火
 	# C11 修复：段切换归零一型纵向下压偏移，避免 P2 以残留下压永久停在锚线下方
 	_movement.reset_press()
+	# L14：段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）当前偏移未补偿，
+	# P2 绝对赋值锚线会 1/4 屏瞬移；从当前 y 平滑追锚线（过渡期由 _move_bob 收敛）
+	_movement.begin_bob_smooth(position.y)
 	_attacks.cancel_all()
 	_transition_cleanup()  # 机制三：转场清弹 + 玩家短暂无敌（公平感喘息）
 	_attacks.charge_glow(self, PHASE_SHIFT_DURATION)

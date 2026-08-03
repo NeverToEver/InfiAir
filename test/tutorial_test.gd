@@ -1,6 +1,8 @@
 extends Node
 ## 教程流程测试：6 阶段推进、锁血、对接、返航开基地、狂暴过关、Esc 退出、profile 写入。
 
+const TUTORIAL_SCENE: PackedScene = preload("res://scenes/tutorial.tscn")
+
 var _failures: int = 0
 
 
@@ -15,12 +17,14 @@ func _check(cond: bool, label: String) -> void:
 func _ready() -> void:
 	# 清理持久化状态
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.tutorial_done = false
 	GameState.save_profile()
 
 	# ---------- 软锁路径 a：玩家死亡 → 显示任务失败提示（独立实例，不影响主流程） ----------
-	var tut_a: Node2D = (load("res://scenes/tutorial.tscn") as PackedScene).instantiate()
+	var tut_a: Node2D = TUTORIAL_SCENE.instantiate()
 	add_child(tut_a)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -39,7 +43,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ---------- 主流程：6 阶段推进 ----------
-	add_child(load("res://scenes/tutorial.tscn").instantiate())
+	add_child(TUTORIAL_SCENE.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var tut := get_node("Tutorial")
@@ -155,6 +159,9 @@ func _ready() -> void:
 	GameState.tutorial_done = false
 	GameState.save_profile()
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("TUTORIAL TEST DONE, failures = ", _failures)
 	# Esc 退出：触发场景切换（本节点随后被释放），用绑定 SceneTree 的定时器收尾
 	# C31：注入 ui_cancel 动作走公开输入路径，不直调私有 _exit_tutorial

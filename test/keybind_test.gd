@@ -21,6 +21,8 @@ func _action_has_key(action: StringName, keycode: int) -> bool:
 
 func _ready() -> void:
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	GameState.reset_key_bindings()
@@ -97,5 +99,8 @@ func _ready() -> void:
 	# 收尾：恢复默认并落盘，避免污染其他测试/本机 profile
 	GameState.reset_key_bindings()
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("KEYBIND TEST DONE, failures = ", _failures)
 	get_tree().quit(_failures)

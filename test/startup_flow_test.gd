@@ -112,10 +112,7 @@ func _ready() -> void:
 	var start_panel2: CanvasLayer = get_node("Main/StartPanel")
 	_check(start_panel2.visible, "有存档启动直达开始面板")
 	_check(get_tree().paused, "有存档启动后面板暂停游戏")
-	_check(
-		start_panel2.get_viewport().gui_get_focus_owner() == start_panel2.continue_button(),
-		"有存档时焦点在继续对局"
-	)
+	_check(start_panel2.get_viewport().gui_get_focus_owner() == start_panel2.continue_button(), "有存档时焦点在继续对局")
 	# Enter 直接触发继续对局（无欢迎页拦截）
 	var continued := [false]
 	start_panel2.continue_chosen.connect(func() -> void: continued[0] = true)
@@ -136,20 +133,28 @@ func _ready() -> void:
 	_check(GameState.has_save(), "继续对局未删档")
 
 	# ---------- 7. F2：语法合法但结构非法的存档 → 继续对局不崩、异常字段回默认 ----------
-	_write_file(GameState.SAVE_PATH, JSON.stringify({
-		"version": 2,
-		"score": "lots",
-		"kills": [1, 2],
-		"health": "full",
-		"fuel": "half",
-		"elapsed": "long",
-		"buffs": [1, 2],
-		"missions": {"kill_5": "done"},
-		"chosen_routes": [3],
-		"locked_routes": {"line": 7},
-		"rp": "rich",
-		"difficulty_multiplier": "high",
-	}))
+	_write_file(
+		GameState.SAVE_PATH,
+		(
+			JSON
+			. stringify(
+				{
+					"version": 2,
+					"score": "lots",
+					"kills": [1, 2],
+					"health": "full",
+					"fuel": "half",
+					"elapsed": "long",
+					"buffs": [1, 2],
+					"missions": {"kill_5": "done"},
+					"chosen_routes": [3],
+					"locked_routes": {"line": 7},
+					"rp": "rich",
+					"difficulty_multiplier": "high",
+				}
+			)
+		)
+	)
 	var bad_data := GameState.load_run_data()
 	_check(not bad_data.is_empty(), "F2：结构非法存档可解析（语法合法不隔离）")
 	GameState.reset_run()

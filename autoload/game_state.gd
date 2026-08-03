@@ -849,20 +849,6 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"buff_panel",
 	&"parry",
 ]
-const ACTION_LABELS: Dictionary = {
-	&"move_up": "上移",
-	&"move_down": "下移",
-	&"move_left": "左移",
-	&"move_right": "右移",
-	&"boost": "加速",
-	&"fine_move": "微调",
-	&"dash": "相位冲刺",
-	&"dock": "召唤母舰",
-	&"homecoming": "返航",
-	&"give_up": "放弃出击",
-	&"buff_panel": "增益面板",
-	&"parry": "弹反盾",
-}
 
 ## action -> Array[int]（keycode，最多 2 个）；restart/pause 固定不可改
 var key_bindings: Dictionary = {}

@@ -16,6 +16,11 @@ var _press_offset: float = 0.0
 var _bob_phase: float = 0.0  # 纵向正弦相位累计（段切换归零，sin 0 = 0 无跳变）
 var _band_timer: float = 0.0  # 三型 P1 下压周期计时（独立于 press）
 var _band_offset: float = 0.0  # 三型 P1 下压偏移（target 从 0 起步，无初始跳变）
+# L14：段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）的当前偏移未补偿，
+# P2 绝对赋值锚线会瞬间跳变（三型可达 ~280px）；切换后从当前 y 平滑追锚线（ease-out）
+var _bob_smooth_t: float = 0.0
+var _bob_smooth_from: float = 0.0
+const BOB_SMOOTH_TIME := 0.6
 
 
 ## 同步下压周期初始值（Boss._ready 在 PRESS_INTERVAL 从 balance 覆盖后调用，保持精确一致）
@@ -23,11 +28,20 @@ func sync_press_timer(interval: float) -> void:
 	_press_timer = interval
 
 
-## C11 修复：段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
-## _press_offset 保留非零值而 _update_press 不再被调用，机身会以偏移永久留在锚线下方
+## C11 + L14：段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
+## _press_offset/_band_offset 保留非零值而 _update_press/_move_band 不再被调用，
+## 机身会以偏移永久留在锚线下方（C11 原只清 press，L14 补清三型 band）
 func reset_press() -> void:
 	_press_offset = 0.0  # 仅清偏移，保留下压周期相位（_press_timer 不动）
+	_band_offset = 0.0  # L14：三型 band 同族清理
 	_bob_phase = 0.0  # D05：段切换归零纵向正弦（sin 0 = 0 平滑衔接锚线）
+
+
+## L14：段切换入口——记录当前 y 作为平滑过渡起点（由 boss._enter_phase 在切换帧调用）。
+## 不在此处直接写 y（走位由各 mover 每帧驱动），过渡在 _move_bob 内收敛到锚线正弦轨迹。
+func begin_bob_smooth(current_y: float) -> void:
+	_bob_smooth_t = BOB_SMOOTH_TIME
+	_bob_smooth_from = current_y
 
 
 ## A3 收敛：机型移动器注册表（boss_type → 移动策略方法，_init 装配）。
@@ -109,9 +123,17 @@ func _update_press(delta: float, boss) -> void:
 ## 纵向正弦（P2 通用，D05）：围绕锚线 ±amp 正弦往复。
 ## 直接设置 y（_in_fight 后才被调用，入场/逃跑/狂暴序列均早退不干扰；fight_anchor_y()
 ## 逐帧求值支持战斗中切视角档）。相位累计驱动，Enemy.sin_fast 查表零分配。
+## L14：段切换后 BOB_SMOOTH_TIME 内从切换前 y 平滑收敛到锚线正弦轨迹（ease-out），
+## 消除 P1 增量式下压（press/band）残留偏移的瞬间跳变。
 func _move_bob(delta: float, boss, amp: float, period: float) -> void:
 	_bob_phase += TAU * delta / maxf(period, 0.01)
-	boss.position.y = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp
+	var target: float = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp
+	if _bob_smooth_t > 0.0:
+		_bob_smooth_t -= delta
+		var k := 1.0 - _bob_smooth_t / BOB_SMOOTH_TIME
+		k = 1.0 - pow(1.0 - k, 3.0)  # ease-out：先快后慢追锚线（视觉上「回落」而非「漂移」）
+		target = lerpf(_bob_smooth_from, target, k)
+	boss.position.y = target
 
 
 ## 三型 P1「缓慢下压/回升」（§5.3）：周期内正弦下压到锚线下 [y_lo, y_hi] 区间再回升。

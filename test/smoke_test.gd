@@ -1,6 +1,8 @@
 extends Node
 ## 临时冒烟测试：覆盖里程碑 Buff UI、Boss 生成、玩家死亡结算路径。
 
+const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
+
 var _failures: int = 0
 
 
@@ -15,6 +17,8 @@ func _check(cond: bool, label: String) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	# 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
@@ -83,7 +87,7 @@ func _ready() -> void:
 
 	# 3.1 新移动模式特征
 	# spiral：横向振幅 + 整体下压（机动相位随机，采样窗口取最大偏离）
-	var spiral := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var spiral := ENEMY_SCENE.instantiate() as Enemy
 	spiral.setup(spawner.ENEMY_TYPES[2], &"spiral", 1.0)
 	spiral.can_shoot = false
 	spiral.position = Vector2(960.0, 200.0)
@@ -97,7 +101,7 @@ func _ready() -> void:
 	spiral.queue_free()
 
 	# noise：横向速度不规则（采样位移变化量有显著差异）
-	var noise := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var noise := ENEMY_SCENE.instantiate() as Enemy
 	noise.setup(spawner.ENEMY_TYPES[3], &"noise", 1.0)
 	noise.can_shoot = false
 	noise.position = Vector2(960.0, 200.0)
@@ -113,7 +117,7 @@ func _ready() -> void:
 	noise.queue_free()
 
 	# hover：下行 → 到达锚点后停驻机动（不再净下降，直到寿命离场）
-	var hov := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var hov := ENEMY_SCENE.instantiate() as Enemy
 	hov.setup(spawner.ENEMY_TYPES[2], &"hover", 1.0)
 	hov.can_shoot = false
 	hov.position = Vector2(960.0, 250.0)
@@ -222,7 +226,7 @@ func _ready() -> void:
 		fired.queue_free()
 
 	# 3.6 慢速力场：全局敌机移速 ×0.8（A13，敌弹不受影响）
-	var slow_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var slow_e := ENEMY_SCENE.instantiate() as Enemy
 	slow_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	slow_e.can_shoot = false
 	slow_e.speed = 100.0
@@ -232,7 +236,7 @@ func _ready() -> void:
 	var slow_d1: float = slow_e.position.y - 100.0
 	slow_e.queue_free()
 	GameState.add_buff(&"slow_field")
-	var slow_e2 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var slow_e2 := ENEMY_SCENE.instantiate() as Enemy
 	slow_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	slow_e2.can_shoot = false
 	slow_e2.speed = 100.0
@@ -246,7 +250,7 @@ func _ready() -> void:
 	# 3.7 相位冲刺：触发、无敌、位移、冷却
 	GameState.add_buff(&"phase_dash")
 	var health_before := GameState.health
-	player.set_since_damage(0.0  )# 冻结被动回血，避免干扰 HP 断言
+	player.set_since_damage(0.0)  # 冻结被动回血，避免干扰 HP 断言
 	var pos_before := player.position
 	player.set_invincible(0.0)
 	Input.action_press("dash")
@@ -277,17 +281,14 @@ func _ready() -> void:
 	_check(is_equal_approx(player.fuel_drain_rate(), 35.0 * 0.75), "高效推进消耗 -25%")
 
 	# 3.9 精英击毁：高分奖励（得分制，无掉落物）
-	var elite := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var elite := ENEMY_SCENE.instantiate() as Enemy
 	elite.setup(spawner.ELITE_TYPES[0], &"straight", 1.0)
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
 	var score_before_elite := GameState.score
 	elite.take_damage(9999)
 	await get_tree().process_frame
-	_check(
-		GameState.score >= score_before_elite + int(spawner.ELITE_TYPES[0]["score"]),
-		"精英击毁得分奖励"
-	)
+	_check(GameState.score >= score_before_elite + int(spawner.ELITE_TYPES[0]["score"]), "精英击毁得分奖励")
 	# 得分可能再次触发里程碑，关闭之
 	if buff_ui.visible:
 		buff_ui.pick_buff(&"rapid_fire")
@@ -312,8 +313,7 @@ func _ready() -> void:
 	# 蓄力虚影：复用真实母舰场景实例（贴图/尺寸/炮塔一致），仅半透明预告、禁用状态机
 	_check(main.charge_ghost().visible, "蓄力中显示母舰虚影")
 	_check(
-		(main.charge_ghost().get_node("Sprite2D") as Sprite2D).texture.resource_path
-			== "res://assets/sprites/mothership.png",
+		(main.charge_ghost().get_node("Sprite2D") as Sprite2D).texture.resource_path == "res://assets/sprites/mothership.png",
 		"虚影贴图 = 真实母舰贴图"
 	)
 	_check(main.charge_ghost().has_node("TurretL") and main.charge_ghost().has_node("TurretR"), "虚影含双炮塔")
@@ -331,9 +331,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(main.mothership() != null, "小窗结束后召唤母舰")
 	var ms: Mothership = main.mothership()
-	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场（0.8s）
+	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场（0.8s）
 	# 到位即自动对接（无区域判定，点吸附补间）
-	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var tgt := ENEMY_SCENE.instantiate() as Enemy
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	tgt.can_shoot = false
 	tgt.hp = 9999  # 靶机不死，保证场内始终有目标
@@ -374,19 +374,13 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	Input.action_release("move_right")
 	_check(ms.position.x > ms_x_before + 20.0, "驻留期间 WASD 驾驶母舰")
-	_check(
-		player.global_position.distance_to(ms.global_position + Vector2(0.0, ms.DOCK_OFFSET_Y)) < 5.0,
-		"驾驶时玩家钉在对接点"
-	)
+	_check(player.global_position.distance_to(ms.global_position + Vector2(0.0, ms.DOCK_OFFSET_Y)) < 5.0, "驾驶时玩家钉在对接点")
 	# 驾驶边界钳制：持续左行被钳在视野内（x ≥ 视图左缘 + DRIVE_MARGIN_X）
 	# small 档（zoom=1.0）视野最宽，1045→43 约 1000px @180px/s 需 ~5.6s，留足余量
 	Input.action_press("move_left")
 	await get_tree().create_timer(6.5).timeout
 	Input.action_release("move_left")
-	_check(
-		absf(ms.position.x - (GameState.view_world_rect().position.x + ms.DRIVE_MARGIN_X)) < 30.0,
-		"母舰驾驶边界钳制"
-	)
+	_check(absf(ms.position.x - (GameState.view_world_rect().position.x + ms.DRIVE_MARGIN_X)) < 30.0, "母舰驾驶边界钳制")
 	if buff_ui.visible:
 		buff_ui.pick_buff(&"rapid_fire")
 	get_tree().paused = false
@@ -403,20 +397,13 @@ func _ready() -> void:
 	Input.action_press("dock")
 	await get_tree().create_timer(1.0).timeout
 	_check(main.hud().early_leave_box().visible, "提前离舰蓄力进度条显示")
-	_check(
-		main.hud().early_leave_fill().anchor_right > 0.3
-		and main.hud().early_leave_fill().anchor_right < 0.7,
-		"提前离舰进度条进度 ~50%"
-	)
+	_check(main.hud().early_leave_fill().anchor_right > 0.3 and main.hud().early_leave_fill().anchor_right < 0.7, "提前离舰进度条进度 ~50%")
 	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
 	_check(ms.state() >= Mothership.State.RELEASE, "提前离舰触发")
 	_check(not main.hud().early_leave_box().visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
-	_check(
-		player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0,
-		"释放后 2s 保护（重制版 QoL）"
-	)
+	_check(player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0, "释放后 2s 保护（重制版 QoL）")
 	await get_tree().create_timer(0.2).timeout
 	_check(main.dock_cooldown() > 42.5 and main.dock_cooldown() < 45.2, "提前离舰冷却双机制折扣")
 	_check(not player.is_input_locked(), "脱离后输入解锁")
@@ -430,7 +417,7 @@ func _ready() -> void:
 		if (child.is_in_group("enemy") and not (child is Boss)) or child is Bullet:
 			child.queue_free()
 	await get_tree().process_frame
-	var e33 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var e33 := ENEMY_SCENE.instantiate() as Enemy
 	e33.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e33.hp = 1
 	e33.position = Vector2(960.0, 400.0)
@@ -452,14 +439,14 @@ func _ready() -> void:
 	main.summon_window().skip()
 	await get_tree().process_frame
 	var ms2: Mothership = main.mothership()
-	ms2.set_state_timer(ms2.WARP_IN_TIME  )# 快进穿梭入场
+	ms2.set_state_timer(ms2.WARP_IN_TIME)  # 快进穿梭入场
 	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
 	_check(ms2.state() == Mothership.State.STAY, "第二艘母舰进入驻留")
 	ms2.set_mag_cells(5)
 	ms2.set_mag_cell_timer(0.0)
 	await get_tree().create_timer(2.3).timeout
 	_check(ms2.mag_warned(), "第二艘母舰弹匣警告")
-	ms2.set_warn_eject_timer(0.5  )# 缩短横幅等待，直接验证强制离舰
+	ms2.set_warn_eject_timer(0.5)  # 缩短横幅等待，直接验证强制离舰
 	await get_tree().create_timer(1.0).timeout
 	_check(ms2.state() >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
 	if main.mothership() != null:
@@ -509,7 +496,7 @@ func _ready() -> void:
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")
 	# 放一个敌机 + 一枚编队炸弹（长引信不爆）验证轨道打击清场
-	var orbit_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var orbit_e := ENEMY_SCENE.instantiate() as Enemy
 	orbit_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	orbit_e.can_shoot = false
 	orbit_e.position = Vector2(400.0, 300.0)
@@ -638,7 +625,7 @@ func _ready() -> void:
 	# （瞄准点用 aim_point_override 注入：相机震动 offset 会让合成鼠标事件的世界落点漂移）
 	player.position = Vector2(960.0, 800.0)
 	player.velocity = Vector2.ZERO
-	var aim_e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var aim_e := ENEMY_SCENE.instantiate() as Enemy
 	aim_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e.can_shoot = false
 	aim_e.hp = 9999  # 防止被测试弹击毁触发里程碑
@@ -702,25 +689,36 @@ func _ready() -> void:
 	var default_stick: float = player.aim_assist_params()["stick_factor"]
 	GameState.set_aim_assist_level(&"low")
 	_check(
-		frames.frame_pad() < default_pad and player.aim_assist_params()["homing_turn_rate"] < default_turn and player.aim_assist_params()["stick_factor"] > default_stick,
+		(
+			frames.frame_pad() < default_pad
+			and player.aim_assist_params()["homing_turn_rate"] < default_turn
+			and player.aim_assist_params()["stick_factor"] > default_stick
+		),
 		"弱档：框内边距与追踪速率降低、吸附减弱"
 	)
 	GameState.set_aim_assist_level(&"high")
 	_check(
-		frames.frame_pad() > default_pad and player.aim_assist_params()["homing_turn_rate"] > default_turn and player.aim_assist_params()["stick_factor"] < default_stick,
+		(
+			frames.frame_pad() > default_pad
+			and player.aim_assist_params()["homing_turn_rate"] > default_turn
+			and player.aim_assist_params()["stick_factor"] < default_stick
+		),
 		"强档：框内边距与追踪速率提高、吸附增强"
 	)
 	GameState.set_aim_assist_level(&"off")
 	_check(GameState.aim_assist_level == &"high", "辅助瞄准无关闭档（非法档位被拒绝）")
 	GameState.set_aim_assist_level(&"medium")
 	_check(
-		is_equal_approx(frames.frame_pad(), default_pad) and is_equal_approx(player.aim_assist_params()["homing_turn_rate"], default_turn)
-			and is_equal_approx(player.aim_assist_params()["stick_factor"], default_stick),
+		(
+			is_equal_approx(frames.frame_pad(), default_pad)
+			and is_equal_approx(player.aim_assist_params()["homing_turn_rate"], default_turn)
+			and is_equal_approx(player.aim_assist_params()["stick_factor"], default_stick)
+		),
 		"恢复中档后参数还原"
 	)
 
 	# 6.1c 辅助瞄准算法优化（P1-3）：准星磁吸 / 框外锥形弱追踪 / 输入反比 / 距离衰减
-	var aim_e2 := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var aim_e2 := ENEMY_SCENE.instantiate() as Enemy
 	aim_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e2.can_shoot = false
 	aim_e2.hp = 9999
@@ -734,10 +732,12 @@ func _ready() -> void:
 	GameState.set_aim_assist_level(&"high")
 	var pa_high: Dictionary = player.aim_assist_params()
 	_check(
-		pa_low["magnet_range"] < pa_high["magnet_range"]
+		(
+			pa_low["magnet_range"] < pa_high["magnet_range"]
 			and pa_low["magnet_strength"] < pa_high["magnet_strength"]
 			and pa_low["cone_angle_deg"] < pa_high["cone_angle_deg"]
-			and pa_low["cone_strength"] < pa_high["cone_strength"],
+			and pa_low["cone_strength"] < pa_high["cone_strength"]
+		),
 		"弱/强档：磁吸与锥形参数梯度"
 	)
 	GameState.set_aim_assist_level(&"medium")
@@ -762,10 +762,12 @@ func _ready() -> void:
 	var pull_far_d: Vector2 = frames.magnet_pull(aim_e2.global_position + Vector2(half2 + 40.0, 0.0), Vector2(6.0, 0.0))
 	_check(pull_far_d.length() < pull.length() * 0.6, "磁吸随玩家-目标距离衰减")
 	_check(
-		player.aim_dist_falloff(300.0) == 1.0
+		(
+			player.aim_dist_falloff(300.0) == 1.0
 			and player.aim_dist_falloff(900.0) < 1.0
 			and player.aim_dist_falloff(900.0) > player.aim_dist_falloff(1300.0)
-			and player.aim_dist_falloff(1500.0) == player.aim_assist_params()["falloff_min"],
+			and player.aim_dist_falloff(1500.0) == player.aim_assist_params()["falloff_min"]
+		),
 		"距离衰减曲线单调（400 平台 / 1400 下限）"
 	)
 	# 框外锥形弱追踪：目标复位玩家上方 400（falloff=1.0），准星置框沿外测角距（中档锥角 6°）
@@ -798,6 +800,8 @@ func _ready() -> void:
 		if child is Bullet and child.is_player_bullet:
 			wb2 = child
 			break
+	# L16：弱断言修复——分支内断言补生成前置（弹未生成时用例不得静默通过）
+	_check(wb2 != null, "框沿外 8px 处生成弱追踪弹")
 	if wb2 != null:
 		_check(wb2.homing_turn_rate < wb_rate, "锥内转向率随角距渐变（框缘更低）")
 		wb2.queue_free()
@@ -851,6 +855,9 @@ func _ready() -> void:
 	_check(full_speed > player.MAX_SPEED * 0.9, "无微调时接近满速")
 	_check(absf(fine_speed - player.MAX_SPEED * 0.35) < 25.0, "Ctrl 按住移速 ×0.35")
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("SMOKE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	# 恢复默认难度并落盘，避免污染其他测试进程的 profile

@@ -43,12 +43,7 @@ func _ready() -> void:
 			spawner.spawn_minion(Vector2(randf_range(60.0, 1860.0), -60.0))
 	var elapsed := Time.get_ticks_msec() - t0
 	var avg := float(elapsed) / float(FRAMES)
-	print(
-		(
-			"PERF_RESULT frames=%d total_ms=%d avg_frame_ms=%.3f equivalent_fps=%.1f"
-			% [FRAMES, elapsed, avg, 1000.0 / avg]
-		)
-	)
+	print("PERF_RESULT frames=%d total_ms=%d avg_frame_ms=%.3f equivalent_fps=%.1f" % [FRAMES, elapsed, avg, 1000.0 / avg])
 	Engine.physics_ticks_per_second = 60
 	GameState.delete_save()
 	get_tree().quit()

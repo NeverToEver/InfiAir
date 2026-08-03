@@ -81,9 +81,8 @@ var DASH_FUEL_RATIO := 0.25  # 冲刺消耗满值燃料的 25%（对齐原作 ph
 ## 游戏性范围族：graze_radius 运行值不乘 world_scale；graze_score 经 add_score 乘难度倍率。
 var GRAZE_RADIUS := 20.0
 var GRAZE_SCORE := 10
-## 擦弹机身短闪光时长（金色微闪，独立短计时）
+## 擦弹机身短闪光时长（金色微闪，独立短计时；状态与递减在 PlayerVisuals）
 var GRAZE_FLASH_TIME := 0.12
-var _graze_flash: float = 0.0
 ## 受击盒运行半径（_ready 缓存：设计值 7 × world_scale；擦弹受击区排除距离判定用）
 var _hitbox_radius := 2.8
 
@@ -127,14 +126,14 @@ var _damage := PlayerDamage.new()
 var _dash := PlayerDash.new()
 ## 2026-08-03 机制四：弧光弹反盾组件（组合委托，同 PlayerDash 模式）
 var _parry := PlayerParry.new()
+## A8：视觉职责聚合（尾焰/残影/机身色调/受击点/弹反视觉/擦弹闪光）——组合委托，同组件模式
+var _visuals := PlayerVisuals.new()
 
 ## 弹反盾（2026-08-03 机制四，balance.json player.parry.*）：
 ## arc/radius 属游戏性范围族（不乘 world_scale）；时长/冷却经 _load_balance 注入 PlayerParry
 var PARRY_ARC_DEG := 140.0  # 盾扇区角度（度），机头前方固定方向（不随瞄准旋转）
 var PARRY_RADIUS := 60.0  # 盾判定半径（运行值）
 var _parry_shield: Area2D = null  # ParryShield（player.tscn 占位节点，_ready 按配置重建扇形）
-var _parry_arc: Polygon2D = null  # 盾弧视觉（程序化金色半透明）
-var _parry_shine: Polygon2D = null  # 珍珠流光高光带（ACTIVE 期自弧线左端扫至右端）
 
 var _fire_cooldown: float = 0.0
 var _sound_index: int = 0
@@ -200,8 +199,6 @@ var _afterimage_timer: float = 0.0:
 ## 测试瞄准注入点（!=INF 时代替鼠标位置；headless 合成鼠标事件之外的直接注入路径）
 var aim_point_override := Vector2.INF
 var _crosshair: AimCrosshair = null  # 鼠标跟随准星（P1-1，_load_balance 创建）
-var _hitbox_dot: Polygon2D = null
-var _hitbox_halo: Line2D = null
 var _muzzle_offset: float  # 出弹点偏移（50 × world_scale，_load_balance 缓存）
 var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
 var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
@@ -210,14 +207,6 @@ var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
 @onready var _hitbox: Area2D = $Hitbox
 @onready var _thruster: GPUParticles2D = $Thruster
-
-## P1-5：冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）
-const AFTERIMAGE_POOL_SIZE := 4
-const AFTERIMAGE_FADE_TIME := 0.3
-const AFTERIMAGE_COLOR := Color(0.5, 0.9, 1.0, 0.5)
-var _afterimage_pool: Array[Sprite2D] = []
-var _afterimage_idx: int = 0
-var _active_afterimages: Array[Sprite2D] = []
 
 
 func _ready() -> void:
@@ -230,20 +219,11 @@ func _ready() -> void:
 	# P0-1：手柄右摇杆瞄准灵敏度由设置页驱动（joy_settings_changed 广播重读）
 	_aim_joy_speed = GameState.joy_aim_speed
 	GameState.joy_settings_changed.connect(_on_joy_settings_changed)
-	# P1-5：冲刺残影小池预建（消灭每次冲刺的节点+Tween 新建/销毁抖动）。
-	# 挂 Main 下（残影固定在世界坐标，不随玩家移动）；Main 场景构建期 add_child 会报
-	# "busy setting up children"，延迟到帧末执行
-	for i in AFTERIMAGE_POOL_SIZE:
-		var g := Sprite2D.new()
-		g.visible = false
-		g.modulate = AFTERIMAGE_COLOR
-		get_parent().add_child.call_deferred(g)
-		_afterimage_pool.append(g)
 
 
-## P1-5：残影逐帧淡出（渲染帧；池节点 alpha 归零即隐藏回收，零分配）
+## A8：残影逐帧淡出（渲染帧；池节点 alpha 归零即隐藏回收，零分配）——委托 PlayerVisuals
 func _process(delta: float) -> void:
-	_update_afterimages(delta)
+	_visuals.update_afterimages(delta)
 
 
 ## 数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）
@@ -322,17 +302,17 @@ func _load_balance() -> void:
 	var shield_shape := CircleShape2D.new()
 	shield_shape.radius = PARRY_RADIUS
 	($ParryShield/CollisionShape2D as CollisionShape2D).shape = shield_shape
-	# 盾视觉：金色半透明弧形 + 珍珠流光高光带（程序化，随流程驱动显隐/展开/扫动）
-	var shield_pts := _parry_sector_points(PARRY_RADIUS, 12)
-	_parry_arc = Polygon2D.new()
-	_parry_arc.polygon = shield_pts
-	_parry_arc.color = Color(1.0, 0.8, 0.3, 0.28)
-	_parry_arc.visible = false
-	add_child(_parry_arc)
-	_parry_shine = Polygon2D.new()
-	_parry_shine.color = Color(1.0, 0.95, 0.6, 0.85)
-	_parry_shine.visible = false
-	add_child(_parry_shine)
+	# 盾视觉：金色半透明弧形 + 珍珠流光高光带（程序化，随流程驱动显隐/展开/扫动）。
+	# A8：节点归属 player 场景树，PlayerVisuals 经引用驱动（不持有所有权）
+	var parry_arc := Polygon2D.new()
+	parry_arc.polygon = _parry_sector_points(PARRY_RADIUS, 12)
+	parry_arc.color = Color(1.0, 0.8, 0.3, 0.28)
+	parry_arc.visible = false
+	add_child(parry_arc)
+	var parry_shine := Polygon2D.new()
+	parry_shine.color = Color(1.0, 0.95, 0.6, 0.85)
+	parry_shine.visible = false
+	add_child(parry_shine)
 	_thruster.position = Vector2(0.0, 70.0 * ws)
 	var thruster_mat := _thruster.process_material as ParticleProcessMaterial
 	thruster_mat.scale_min = 2.5 * ws
@@ -353,28 +333,31 @@ func _load_balance() -> void:
 	glow.z_index = -1
 	_sprite.add_child(glow)
 	# 碰撞点指示：受击判定点（Hitbox r=7）的闪烁小光点 + 淡色光圈（街机 shmup 惯例）
-	_hitbox_dot = Polygon2D.new()
+	var hitbox_dot := Polygon2D.new()
 	var dot_pts := PackedVector2Array()
 	for i in 10:
 		var a := TAU * float(i) / 10.0
 		dot_pts.append(Vector2(cos(a), sin(a)) * 3.5)
-	_hitbox_dot.polygon = dot_pts
-	_hitbox_dot.color = Color(0.65, 0.95, 1.0)
-	add_child(_hitbox_dot)
-	_hitbox_halo = Line2D.new()
-	_hitbox_halo.width = 1.5
-	_hitbox_halo.default_color = Color(0.5, 0.9, 1.0, 0.45)
-	_hitbox_halo.closed = true
+	hitbox_dot.polygon = dot_pts
+	hitbox_dot.color = Color(0.65, 0.95, 1.0)
+	add_child(hitbox_dot)
+	var hitbox_halo := Line2D.new()
+	hitbox_halo.width = 1.5
+	hitbox_halo.default_color = Color(0.5, 0.9, 1.0, 0.45)
+	hitbox_halo.closed = true
 	for i in 16:
 		var a := TAU * float(i) / 16.0
-		_hitbox_halo.add_point(Vector2(cos(a), sin(a)) * 8.0)
-	add_child(_hitbox_halo)
+		hitbox_halo.add_point(Vector2(cos(a), sin(a)) * 8.0)
+	add_child(hitbox_halo)
 	# Buff 外观反馈附件（程序化炮舱/护盾弧/光环/尾焰染色，buffs_changed 信号驱动）
 	# 附件几何按 0.6 基准机体系数设计，随实际机体缩放等比放大以贴合部位
 	var buff_visuals := PlayerBuffVisuals.new()
 	buff_visuals.scale = _sprite.scale / PlayerBuffVisuals.BASE_SHIP_SCALE
 	add_child(buff_visuals)
 	buff_visuals.init(_sprite, self)
+	# A8：视觉组件初始化——节点引用 + 残影池预建（挂 Main 下：固定世界坐标，不随玩家移动；
+	# Main 场景构建期 add_child 报 "busy setting up children"，PlayerVisuals 内延迟到帧末）
+	_visuals.init(_sprite, _thruster, hitbox_dot, parry_arc, parry_shine, get_parent())
 
 
 ## 对外公开接口（A1 修复）：封装内部状态，禁止跨类直接写 _ 私有字段
@@ -620,7 +603,8 @@ func _physics_process(delta: float) -> void:
 	var shield_on := _parry.phase == PlayerParry.ParryPhase.ACTIVE
 	if _parry_shield != null and _parry_shield.monitoring != shield_on:
 		_parry_shield.monitoring = shield_on
-	_update_parry_visuals()
+	# A8：盾视觉帧驱动委托 PlayerVisuals（expand/shine 参数化，视觉不感知 parry 组件）
+	_visuals.update_parry_visuals(_parry.shield_expand(), _parry.shine_progress(), PARRY_RADIUS, PARRY_ARC_DEG)
 	if (
 		dash_unlocked()
 		and not movement_locked
@@ -633,7 +617,7 @@ func _physics_process(delta: float) -> void:
 	if _dash.is_dashing():
 		_dash.update_move(delta, self)
 		# 冲刺尾焰（视觉保留 player 侧）
-		_set_thruster(1.7, 1.0, 1.0)
+		_visuals.set_thruster(1.7, 1.0, 1.0, engine_tint)
 		return
 
 	# 燃料与加速（shift_toggle_mode：按一下切换开/关）
@@ -664,13 +648,13 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	position = clamp_to_view(position)
 
-	# 尾焰：加速变长变亮，静止减弱
+	# 尾焰：加速变长变亮，静止减弱（A8 委托 PlayerVisuals）
 	if boosting and input_dir != Vector2.ZERO:
-		_set_thruster(1.7, 1.0, 1.0)
+		_visuals.set_thruster(1.7, 1.0, 1.0, engine_tint)
 	elif input_dir != Vector2.ZERO:
-		_set_thruster(1.0, 0.8, 0.85)
+		_visuals.set_thruster(1.0, 0.8, 0.85, engine_tint)
 	else:
-		_set_thruster(0.6, 0.35, 0.6)
+		_visuals.set_thruster(0.6, 0.35, 0.6, engine_tint)
 
 	var aim := aim_point() - global_position
 	if aim.length() > 1.0:
@@ -684,26 +668,14 @@ func _physics_process(delta: float) -> void:
 
 	# 慢速力场已改为全局敌机移速（A13），不再有玩家侧环视觉
 
-	# 机身色调四源（优先级从高到低）：弹反金 tint > 擦弹金色微闪 > 无敌帧闪烁
+	# 机身色调四源 + 受击点脉动（A8 委托 PlayerVisuals）：弹反金 tint > 擦弹金色微闪 >
+	# 无敌帧闪烁 > 常态基底；擦弹闪光递减在 visuals 内，无敌倒计时递减留在本函数（战斗状态）
 	var now_ms := Time.get_ticks_msec()  # 每帧一次（P2：闪烁与光点共用）
-	# 无敌倒计时无条件递减（置于视觉分支之外）：弹反/擦弹/冲刺期间若冻结，
+	# 无敌倒计时无条件递减（置于视觉委托之外）：弹反/擦弹/冲刺期间若冻结，
 	# 受击无敌会被视觉分支实际延长，Boss 转场注入与受击判定的时序随之失真
 	if _invincible > 0.0:
 		_invincible -= delta
-	var parry_tint := _parry.tint_strength()
-	if parry_tint > 0.0:
-		_sprite.modulate = BODY_TINT_BASE.lerp(Color(1.7, 1.25, 0.5), parry_tint)
-	elif _graze_flash > 0.0:
-		_graze_flash -= delta
-		_sprite.modulate = BODY_TINT_BASE.lerp(Color(1.7, 1.35, 0.5), 1.0)
-	elif _invincible > 0.0:
-		_sprite.modulate = BODY_TINT_BASE
-		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(now_ms * 0.02))
-	else:
-		_sprite.modulate = BODY_TINT_BASE
-
-	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
-	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(now_ms * 0.006))
+	_visuals.update_frame(delta, _parry.tint_strength(), _invincible, now_ms)
 
 	# 回血（A8 委托 PlayerDamage）：regen buff 固定 +2 HP/s；无 buff 时被动回血
 	_damage.heal_tick(delta)
@@ -713,13 +685,6 @@ func _physics_process(delta: float) -> void:
 func clamp_to_view(p: Vector2) -> Vector2:
 	var view := GameState.view_world_rect()
 	return p.clamp(view.position + Vector2(40.0, 40.0), view.end - Vector2(40.0, 40.0))
-
-
-## 尾焰档位应用（冲刺/加速/巡航/静止/入场五处共用；2026-08-03 审计提取去重）
-func _set_thruster(speed_scale: float, amount_ratio: float, alpha: float) -> void:
-	_thruster.speed_scale = speed_scale
-	_thruster.amount_ratio = amount_ratio
-	_thruster.self_modulate = Color(1.0, 1.0, 1.0, alpha) * engine_tint
 
 
 ## 当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（与准星/开火同一来源）。
@@ -779,33 +744,9 @@ func _on_joy_settings_changed(aim_speed: float, _deadzone: float) -> void:
 	_aim_joy_speed = aim_speed
 
 
+## A8：冲刺残影公开入口（player_dash 冲刺时调用）——委托 PlayerVisuals 池化生成
 func spawn_afterimage() -> void:
-	# P1-5：循环复用池节点；同一节点淡出中被再次冲刺命中时 alpha 重置重新淡出
-	var ghost := _afterimage_pool[_afterimage_idx]
-	_afterimage_idx = (_afterimage_idx + 1) % AFTERIMAGE_POOL_SIZE
-	ghost.texture = _sprite.texture
-	ghost.scale = _sprite.scale
-	ghost.global_position = global_position
-	ghost.global_rotation = rotation
-	ghost.modulate = AFTERIMAGE_COLOR
-	ghost.visible = true
-	if not _active_afterimages.has(ghost):
-		_active_afterimages.append(ghost)
-
-
-## P1-5：残影淡出推进（_process 每帧调用；池内每节点 alpha 线性衰减，归零隐藏）
-func _update_afterimages(delta: float) -> void:
-	if _active_afterimages.is_empty():
-		return
-	var i := 0
-	while i < _active_afterimages.size():
-		var g: Sprite2D = _active_afterimages[i]
-		g.modulate.a -= delta / AFTERIMAGE_FADE_TIME
-		if g.modulate.a <= 0.0:
-			g.visible = false
-			_active_afterimages.remove_at(i)
-		else:
-			i += 1
+	_visuals.spawn_afterimage(_sprite.texture, _sprite.scale, global_position, rotation)
 
 
 ## 入场动画（开场/返航继续出击后由 main 调用）：高速冲入定位到屏幕下 1/3，再向后缓移一小节。
@@ -825,7 +766,7 @@ func play_entry_animation() -> void:
 	_auto_fire_enabled = false
 	position = Vector2(rect.get_center().x, rect.end.y + ENTRY_SPAWN_CLEARANCE)
 	# 高功率引擎冲入（尾焰拉满；减速后随拖尾渐隐）
-	_set_thruster(2.0, 1.0, 1.0)
+	_visuals.set_thruster(2.0, 1.0, 1.0, engine_tint)
 	_entry_tween = create_tween()
 	_entry_tween.tween_property(self, "position:y", land_y, ENTRY_RUSH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_entry_tween.tween_callback(_on_entry_landed)
@@ -965,7 +906,7 @@ func _on_graze_entered(area: Area2D) -> void:
 	GameState.add_score(GRAZE_SCORE)
 	# 反馈三件套：机身金色短闪 + 小粒子迸发 + 音效（缺专用擦弹音效，暂用 buff_pick 占位，
 	# 登记为后续音频项——计划书 §3.3）
-	_graze_flash = GRAZE_FLASH_TIME
+	_visuals.set_graze_flash(GRAZE_FLASH_TIME)
 	Explosion.spawn_at(get_parent(), global_position, 0.25)
 	GameState.play_sfx(GameState.SFX_BUFF_PICK, -8.0)
 
@@ -1022,27 +963,7 @@ func _parry_sector_points(radius: float, count: int) -> PackedVector2Array:
 
 
 ## 盾视觉逐物理帧驱动：WINDUP 小弧展开到全弧（缩放）、ACTIVE 珍珠流光自弧线左端扫至右端、
-## RECOVER 保持全弧、IDLE 隐藏；高光带角度按 active 进度线性插值（零 shader 依赖）
-func _update_parry_visuals() -> void:
-	var expand := _parry.shield_expand()
-	_parry_arc.visible = expand > 0.0
-	if not _parry_arc.visible:
-		_parry_shine.visible = false
-		return
-	var scale := 0.3 + 0.7 * expand
-	_parry_arc.scale = Vector2.ONE * scale
-	var shine := _parry.shine_progress()
-	_parry_shine.visible = shine > 0.0
-	if not _parry_shine.visible:
-		return
-	var arc := deg_to_rad(PARRY_ARC_DEG) * 0.5
-	var center_a := -PI / 2.0 - arc + 2.0 * arc * shine
-	var w := deg_to_rad(22.0)  # 高光带角宽
-	var sp := PackedVector2Array([Vector2.ZERO])
-	for i in 5:
-		var a := center_a - w + (2.0 * w) * float(i) / 4.0
-		sp.append(Vector2(cos(a), sin(a)) * PARRY_RADIUS * scale)
-	_parry_shine.polygon = sp
+## RECOVER 保持全弧、IDLE 隐藏——已随 A8 委托 PlayerVisuals.update_parry_visuals（参数化）
 
 
 func _die() -> void:

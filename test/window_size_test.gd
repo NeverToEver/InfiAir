@@ -76,10 +76,7 @@ func _ready() -> void:
 	add_child(settings)
 	settings.show_settings()
 	_check(settings.window_buttons().size() == 3, "设置页窗口大小三选按钮")
-	_check(
-		(settings.window_buttons()[&"large"] as Button).button_pressed,
-		"窗口大小按钮选中态 = 当前档"
-	)
+	_check((settings.window_buttons()[&"large"] as Button).button_pressed, "窗口大小按钮选中态 = 当前档")
 	(settings.window_buttons()[&"medium"] as Button).pressed.emit()
 	_check(GameState.window_size == &"medium", "窗口大小按钮点击切换档位")
 	settings.queue_free()

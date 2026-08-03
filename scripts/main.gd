@@ -112,6 +112,9 @@ func _ready() -> void:
 	# 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
 	_charge_ghost = MOTHERSHIP_SCENE.instantiate() as Mothership
 	add_child(_charge_ghost)
+	# L13：蓄力虚影非在场母舰——事件互斥（can_trigger 查 group "mothership"）须排除
+	# 常驻虚影：虚影 main 场景常驻且 _ready 已入组，不退组则事件在整个对局恒被虚影拦截
+	_charge_ghost.remove_from_group("mothership")
 	# 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
 	_charge_ghost.set_physics_process(false)
 	# C14：蓄力虚影居中取可见世界中心，不写死 960

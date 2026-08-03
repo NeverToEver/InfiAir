@@ -47,7 +47,7 @@ func _ready() -> void:
 	get_tree().paused = true
 	main.set_homecoming(true)
 	main.player().lock_input()
-	main.player().set_invincible(999.0  )# 驻留态无敌
+	main.player().set_invincible(999.0)  # 驻留态无敌
 	spawner.set_process(false)
 	main.resume_from_base()
 	await get_tree().process_frame
@@ -82,8 +82,7 @@ func _ready() -> void:
 	_check(not main.is_homecoming(), "命中：homecoming 标志复位")
 	_check(
 		not is_instance_valid(b),
-		"命中：既有弹丸被清除（valid=%s parent=%s）"
-		% [is_instance_valid(b), b.get_parent().name if is_instance_valid(b) else "-"]
+		"命中：既有弹丸被清除（valid=%s parent=%s）" % [is_instance_valid(b), b.get_parent().name if is_instance_valid(b) else "-"]
 	)
 	# 等入场动画结束（约 1.65s），敌机生成恢复
 	var t_entry := 0.0

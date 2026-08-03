@@ -126,8 +126,12 @@ func _ready() -> void:
 
 	# 11. 手柄默认绑定（P0-1 竞品调研）：运行时装配 + 右摇杆四向动作（H01 修正）
 	_check(
-		InputMap.has_action(&"aim_left") and InputMap.has_action(&"aim_right")
-		and InputMap.has_action(&"aim_up") and InputMap.has_action(&"aim_down"),
+		(
+			InputMap.has_action(&"aim_left")
+			and InputMap.has_action(&"aim_right")
+			and InputMap.has_action(&"aim_up")
+			and InputMap.has_action(&"aim_down")
+		),
 		"H01：右摇杆四向瞄准动作已注册",
 	)
 	var aim_events := InputMap.action_get_events(&"aim_right")

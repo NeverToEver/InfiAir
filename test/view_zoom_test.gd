@@ -40,10 +40,7 @@ func _expect_rect(factor: float) -> Rect2:
 
 
 func _rect_close(a: Rect2, b: Rect2, tol: float = 0.5) -> bool:
-	return (
-		a.position.distance_to(b.position) < tol
-		and a.size.distance_to(b.size) < tol
-	)
+	return a.position.distance_to(b.position) < tol and a.size.distance_to(b.size) < tol
 
 
 func _ready() -> void:
@@ -75,10 +72,7 @@ func _ready() -> void:
 	GameState.set_view_zoom(&"large")
 	_check(_rect_close(GameState.view_world_rect(), _expect_rect(1.7)), "large 可见区域 ≈ 1131×635")
 	GameState.set_view_zoom(&"small")
-	_check(
-		_rect_close(GameState.view_world_rect(80.0), Rect2(-80.0, -80.0, 2080.0, 1240.0)),
-		"margin 外扩与旧子弹边界一致"
-	)
+	_check(_rect_close(GameState.view_world_rect(80.0), Rect2(-80.0, -80.0, 2080.0, 1240.0)), "margin 外扩与旧子弹边界一致")
 
 	# ---------- 3. profile 持久化 ----------
 	GameState.set_view_zoom(&"large")
@@ -104,10 +98,7 @@ func _ready() -> void:
 	add_child(settings)
 	settings.show_settings()
 	_check(settings.zoom_buttons().size() == 3, "设置页视角三选按钮")
-	_check(
-		(settings.zoom_buttons()[&"medium"] as Button).button_pressed,
-		"视角按钮选中态 = 当前档"
-	)
+	_check((settings.zoom_buttons()[&"medium"] as Button).button_pressed, "视角按钮选中态 = 当前档")
 	(settings.zoom_buttons()[&"large"] as Button).pressed.emit()
 	_check(GameState.view_zoom == &"large", "视角按钮点击切换档位")
 	settings.queue_free()
@@ -198,15 +189,9 @@ func _ready() -> void:
 			tel = child
 	_check(tel != null, "入场预告线已生成")
 	if tel != null:
-		_check(
-			absf(tel.position.y - GameState.view_world_rect().position.y) < 1.0,
-			"预告线贴在可见区域顶部"
-		)
+		_check(absf(tel.position.y - GameState.view_world_rect().position.y) < 1.0, "预告线贴在可见区域顶部")
 		var view := GameState.view_world_rect()
-		_check(
-			tel.position.x > view.position.x and tel.position.x < view.end.x,
-			"预告线 x 在可见区域内"
-		)
+		_check(tel.position.x > view.position.x and tel.position.x < view.end.x, "预告线 x 在可见区域内")
 	await get_tree().create_timer(0.7).timeout
 	var spawned: Enemy = null
 	for child in get_node("Main").get_children():
@@ -215,18 +200,9 @@ func _ready() -> void:
 	_check(spawned != null, "敌机已刷出")
 	if spawned != null:
 		var view := GameState.view_world_rect()
-		_check(
-			spawned.position.x > view.position.x + 30.0 and spawned.position.x < view.end.x - 30.0,
-			"刷怪 x 在可见区域内（60px 边距）"
-		)
-		_check(
-			absf(spawned.position.y - (view.position.y - 60.0)) < 100.0,
-			"刷怪 y 在可见区域顶上方"
-		)
-		_check(
-			spawned.anchor_y >= view.position.y,
-			"large 档刷怪锚点 ≥ 可见顶（spawner 分配加 view 基线）"
-		)
+		_check(spawned.position.x > view.position.x + 30.0 and spawned.position.x < view.end.x - 30.0, "刷怪 x 在可见区域内（60px 边距）")
+		_check(absf(spawned.position.y - (view.position.y - 60.0)) < 100.0, "刷怪 y 在可见区域顶上方")
+		_check(spawned.anchor_y >= view.position.y, "large 档刷怪锚点 ≥ 可见顶（spawner 分配加 view 基线）")
 		spawned.queue_free()
 	await get_tree().process_frame
 	# 锚点 fallback：spawner 未分配时 _resolve_anchor 自取，钳入「view 顶 + 悬停带」
@@ -238,10 +214,7 @@ func _ready() -> void:
 	get_node("Main").add_child(e_fb)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(
-		e_fb.anchor_y >= GameState.view_world_rect().position.y + e_fb.HOVER_BAND.x,
-		"large 档敌机自取锚点 ≥ 可见顶 + 悬停带顶缘偏移"
-	)
+	_check(e_fb.anchor_y >= GameState.view_world_rect().position.y + e_fb.HOVER_BAND.x, "large 档敌机自取锚点 ≥ 可见顶 + 悬停带顶缘偏移")
 	e_fb.queue_free()
 	await get_tree().process_frame
 
@@ -254,38 +227,23 @@ func _ready() -> void:
 	_check(boss != null, "Boss 已生成")
 	if boss != null:
 		# 出场 y 在降入移动前断言（不等帧，避免 ENTER_SPEED 位移干扰）
-		_check(
-			absf(boss.position.y - (GameState.view_world_rect().position.y - 160.0)) < 1.0,
-			"Boss 出场 y 在可见区域顶上方"
-		)
+		_check(absf(boss.position.y - (GameState.view_world_rect().position.y - 160.0)) < 1.0, "Boss 出场 y 在可见区域顶上方")
 		boss.queue_free()
 	await get_tree().process_frame
 	var range_boss := BOSS_SCENE.instantiate() as Boss
 	GameState.set_view_zoom(&"small")
 	var small_range := range_boss.strafe_range()
 	_check(small_range == Vector2(300.0, 1620.0), "small 档 Boss 巡航范围 = 配置 300..1620")
-	_check(
-		absf(range_boss.fight_anchor_y() - range_boss.FIGHT_Y) < 0.001,
-		"small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）"
-	)
+	_check(absf(range_boss.fight_anchor_y() - range_boss.FIGHT_Y) < 0.001, "small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）")
 	GameState.set_view_zoom(&"large")
 	var large_range := range_boss.strafe_range()
 	var expect_lo := GameState.view_world_rect().position.x + 300.0
 	var expect_hi := GameState.view_world_rect().end.x - 300.0
-	_check(
-		absf(large_range.x - expect_lo) < 1.0 and absf(large_range.y - expect_hi) < 1.0,
-		"large 档 Boss 巡航范围随可见区域收窄"
-	)
+	_check(absf(large_range.x - expect_lo) < 1.0 and absf(large_range.y - expect_hi) < 1.0, "large 档 Boss 巡航范围随可见区域收窄")
 	var view_anchor := GameState.view_world_rect()
 	var anchor_large := range_boss.fight_anchor_y()
-	_check(
-		absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001,
-		"large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y"
-	)
-	_check(
-		anchor_large > view_anchor.position.y and anchor_large < view_anchor.end.y,
-		"large 档 Boss 战斗锚线落在可见区域内"
-	)
+	_check(absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001, "large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y")
+	_check(anchor_large > view_anchor.position.y and anchor_large < view_anchor.end.y, "large 档 Boss 战斗锚线落在可见区域内")
 	range_boss.free()
 	# ---------- 11. 母舰召唤位置（小窗演出直推，母舰穿梭入场于停驻点） ----------
 	var main := get_node("Main")
@@ -295,10 +253,7 @@ func _ready() -> void:
 		main.summon_window().skip()  # 幂等直推：finished → main 开穿梭门并实例化母舰
 	_check(main.mothership() != null, "母舰已召唤")
 	if main.mothership() != null:
-		_check(
-			absf(main.mothership().position.x - GameState.view_world_rect().get_center().x) < 1.0,
-			"母舰出场 x = 可见区域中心"
-		)
+		_check(absf(main.mothership().position.x - GameState.view_world_rect().get_center().x) < 1.0, "母舰出场 x = 可见区域中心")
 		var warp_drop: float = GameState.cfg("effects.mothership_summon.warp_in_drop", 260.0)
 		_check(
 			absf(main.mothership().position.y - (GameState.cfg("mothership.hover_y", 270.0) - warp_drop * GameState.world_scale)) < 1.0,

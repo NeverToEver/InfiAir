@@ -2,7 +2,9 @@ extends Node
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
-## MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/ boss_fight（Boss 名牌 + 血条 + 狂暴态）/ start_panel（存档开始面板）/ base（基地控制台）/ mothership（母舰驻留）/ summon（召唤机库小窗）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
+## MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/
+## boss_fight（Boss 名牌 + 血条 + 狂暴态）/ start_panel（存档开始面板）/ base（基地控制台）/
+## mothership（母舰驻留）/ summon（召唤机库小窗）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
 
 const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
@@ -83,7 +85,7 @@ func _ready() -> void:
 			main.summon_window().skip()
 			await get_tree().process_frame
 			var ms: Mothership = main.mothership()
-			ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场，到位触发自动对接
+			ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场，到位触发自动对接
 			var spawner := get_node("Main/Spawner")
 			var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
 			tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)

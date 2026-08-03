@@ -245,8 +245,11 @@ func _refresh_texts() -> void:
 	var board := GameState.highscores_text(3)
 	_board_label.visible = board != ""
 	_board_label.text = tr("START_BOARD") + "\n" + board
-	_corrupt_label.visible = GameState.save_corrupt
-	_corrupt_label.text = tr("START_SAVE_CORRUPT")
+	# P2 清理：损坏档案提示与损坏存档并列（save_corrupt 已有，profile_corrupt 补全）
+	_corrupt_label.visible = GameState.save_corrupt or GameState.profile_corrupt
+	_corrupt_label.text = (
+		tr("START_PROFILE_CORRUPT") if GameState.profile_corrupt and not GameState.save_corrupt else tr("START_SAVE_CORRUPT")
+	)
 	_continue_button.text = tr("START_CONTINUE")
 	_new_button.text = tr("START_NEW") if has_save else tr("START_BEGIN")
 	_tutorial_button.text = tr("START_TUTORIAL_DONE") if GameState.tutorial_done else tr("START_TUTORIAL")

@@ -57,6 +57,8 @@ func _spawn_test_boss(p_type: int) -> Boss:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -67,8 +69,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
-	player.set_invincible(999.0  )# 弹幕期间不被误伤
+	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
+	player.set_invincible(999.0)  # 弹幕期间不被误伤
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -80,13 +82,19 @@ func _ready() -> void:
 	_check(boss != null, "场景1：Boss 已生成")
 	boss.phase_changed.connect(func(p: int) -> void: _phase_signal = p)
 	# 缩短模式表便于观测循环推进（实例 var 覆盖，不影响 balance.json）
-	boss.set_patterns({
-		"p1": [
-			{"attack": &"fan5", "waves": 2, "interval": 0.25},
-			{"attack": &"homing", "waves": 1, "interval": 0.25},
-		],
-		"p2": [{"attack": &"fan7", "waves": 2, "interval": 0.25}],
-	})
+	(
+		boss
+		. set_patterns(
+			{
+				"p1":
+				[
+					{"attack": &"fan5", "waves": 2, "interval": 0.25},
+					{"attack": &"homing", "waves": 1, "interval": 0.25},
+				],
+				"p2": [{"attack": &"fan7", "waves": 2, "interval": 0.25}],
+			}
+		)
+	)
 	boss.set_pattern_index(0)
 	boss.start_pattern()
 	await _wait_real(0.3)
@@ -103,24 +111,24 @@ func _ready() -> void:
 	_check(advanced, "场景1：模式表波次播完推进到下一模式")
 	_check(_enemy_bullets().size() >= 5, "场景1：模式攻击出弹（5 路扇形波次）")
 	# P1→P2：打到 65%（≤70% 阈值）
+	var y_before_phase: float = boss.position.y  # L14：段切换前 y（验证切换无跳变）
 	boss.take_damage(int(boss.max_hp * 0.35))
 	await get_tree().process_frame
 	_check(boss.fight_phase() == Boss.FightPhase.P2, "场景1：HP ≤70% 进入 P2")
 	_check(_phase_signal == Boss.FightPhase.P2, "场景1：段切换发出 phase_changed")
-	_check(
-		is_equal_approx(boss.hp, boss.max_hp * 0.65),
-		"场景1：P2 阈值不钳血（锁血仅狂暴 30% 语义不变）"
-	)
+	_check(is_equal_approx(boss.hp, boss.max_hp * 0.65), "场景1：P2 阈值不钳血（锁血仅狂暴 30% 语义不变）")
 	_check(not boss.enrage_sequence().is_health_locked(), "场景1：P2 段切换不触发锁血")
 	_check(boss.pattern_index() == 0, "场景1：段切换重置模式表循环")
-	# C11：段切换归零纵向下压偏移——若切换恰在下压窗口内，机身不得残留 80px 级偏移。
-	# 容差 4px 容纳入场降入的逼近残差（非 C11 范畴）；重点排除下压偏移残留（80px 量级）。
-	_check(
-		absf(boss.position.y - boss.fight_anchor_y()) < 4.0,
-		"场景1：P2 段切换后机身回到战斗锚线（无残留下压偏移）"
-	)
+	# C11 + L14：段切换 y 平滑过渡——不再「立即回锚线」（原实现 P2 首帧绝对赋值，
+	# 切换恰在下压窗口内会瞬间跳变）；切换后机身从当前 y 平滑追锚线，首帧不得跳变
+	_check(absf(boss.position.y - y_before_phase) < 4.0, "场景1：P2 段切换瞬间机身无 y 跳变")
 	# D05：P2 走位——strafe 提速 200 + 纵向正弦往复（采样 1s 物理帧）
-	# C11 断言已保证切换瞬间回锚线（sin 0 = 0 无跳变）；此处验证 bob 摆动存在且幅度受控
+	# L14：先等 0.7s 过渡收敛（BOB_SMOOTH_TIME 0.6s + 余量），再采样验证正弦轨迹
+	# （过渡期 y 从切换前位置回落，混入采样会破坏「振幅在 ±amp 内」断言）
+	for i in 7:
+		await _wait_real(0.1)
+		if not is_instance_valid(boss):
+			break
 	var y_min := INF
 	var y_max := -INF
 	var x_min := INF
@@ -135,18 +143,15 @@ func _ready() -> void:
 		x_max = maxf(x_max, boss.position.x)
 	var anchor_y: float = boss.fight_anchor_y()
 	var amp: float = boss.TYPE1_P2_BOB_AMP
+	# L14：采样窗口相位无关断言——1s 采样（60° 相位窗口）内最大偏离必 ≥20px（amp=40），
+	# 用「偏离锚线」替代原「峰谷差」断言（原断言依赖切换后相位从 0 起步的上升段，
+	# 过渡等待后采样窗口相位任意，峰谷差可能 <20px）
 	_check(
-		y_max - y_min > 20.0,
-		"场景1：P2 纵向正弦往复（采样期 y 波动 ≥20px，实测 %.1f）" % (y_max - y_min)
+		maxf(absf(y_max - anchor_y), absf(y_min - anchor_y)) > 10.0,
+		"场景1：P2 纵向正弦偏离锚线（最大偏离 ≥10px，实测 %.1f）" % maxf(absf(y_max - anchor_y), absf(y_min - anchor_y))
 	)
-	_check(
-		y_max <= anchor_y + amp + 4.0 and y_min >= anchor_y - amp - 4.0,
-		"场景1：P2 纵向振幅在 ±amp 内（amp=%.0f）" % amp
-	)
-	_check(
-		x_max - x_min > 30.0,
-		"场景1：P2 横向 strafe 持续移动（采样期 x 位移 %.1fpx）" % (x_max - x_min)
-	)
+	_check(y_max <= anchor_y + amp + 4.0 and y_min >= anchor_y - amp - 4.0, "场景1：P2 纵向振幅在 ±amp 内（amp=%.0f）" % amp)
+	_check(x_max - x_min > 30.0, "场景1：P2 横向 strafe 持续移动（采样期 x 位移 %.1fpx）" % (x_max - x_min))
 	# P2→ENRAGE：打到 25%（钳 30% 触发狂暴；一击跨两段狂暴优先）
 	boss.take_damage(int(boss.max_hp * 0.4))
 	await get_tree().process_frame
@@ -174,10 +179,12 @@ func _ready() -> void:
 	# ================= 场景 2：二型狙击 telegraph 时序 =================
 	var boss2: Boss = await _spawn_test_boss(2)
 	_check(boss2 != null, "场景2：Boss 已生成")
-	boss2.set_patterns({"p1": [{"attack": &"sniper3", "waves": 1, "interval": 1.2}], "p2": [{"attack": &"sniper3", "waves": 1, "interval": 1.2}]})
+	boss2.set_patterns(
+		{"p1": [{"attack": &"sniper3", "waves": 1, "interval": 1.2}], "p2": [{"attack": &"sniper3", "waves": 1, "interval": 1.2}]}
+	)
 	boss2.set_pattern_index(0)
 	boss2.start_pattern()
-	boss2.set_fire_timer(0.1  )# 立即起手
+	boss2.set_fire_timer(0.1)  # 立即起手
 	var line_appeared := false
 	var line_tick := 0
 	for i in 30:
@@ -230,10 +237,7 @@ func _ready() -> void:
 		t3_y_min = minf(t3_y_min, boss3.position.y)
 		t3_y_max = maxf(t3_y_max, boss3.position.y)
 	var t3_anchor: float = boss3.fight_anchor_y()
-	_check(
-		t3_y_max - t3_y_min > 30.0,
-		"场景3：P1 缓慢下压/回升（采样期 y 位移 ≥30px，实测 %.1f）" % (t3_y_max - t3_y_min)
-	)
+	_check(t3_y_max - t3_y_min > 30.0, "场景3：P1 缓慢下压/回升（采样期 y 位移 ≥30px，实测 %.1f）" % (t3_y_max - t3_y_min))
 	_check(
 		t3_y_max <= t3_anchor + boss3.TYPE3_P1_BOB_MAX + 6.0,
 		"场景3：P1 下压不超过锚线下 max（max=%.0f，实测 y_max=%.1f）" % [boss3.TYPE3_P1_BOB_MAX, t3_y_max - t3_anchor]
@@ -251,15 +255,12 @@ func _ready() -> void:
 	_check(get_node("Main/HUD/BossBar").get_child_count() >= 1, "场景4：血条有阶段刻度线覆盖层")
 	var boss4: Boss = await _spawn_test_boss(1)
 	_check(boss4 != null, "场景4：Boss 已生成")
-	boss4.set_fire_timer(999.0  )# 屏蔽开火，保持场内干净
+	boss4.set_fire_timer(999.0)  # 屏蔽开火，保持场内干净
 	await _wait_real(0.3)
 	_check(not hud.boss_countdown().visible, "场景4：剩余 >10s 不显示倒计时")
-	boss4.set_survival(boss4.ESCAPE_TIME - 5.0  )# 剩余 5s ≤ countdown_visible_from(10s)
+	boss4.set_survival(boss4.ESCAPE_TIME - 5.0)  # 剩余 5s ≤ countdown_visible_from(10s)
 	await _wait_real(0.3)
-	_check(
-		hud.boss_countdown().visible and hud.boss_countdown().text != "",
-		"场景4：剩余 ≤10s 血条下方显示逃跑倒计时"
-	)
+	_check(hud.boss_countdown().visible and hud.boss_countdown().text != "", "场景4：剩余 ≤10s 血条下方显示逃跑倒计时")
 	boss4.take_damage(9999)
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
@@ -273,6 +274,9 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BOSS PHASE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

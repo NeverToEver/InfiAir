@@ -46,7 +46,7 @@ func _ready() -> void:
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
 	var start_panel: CanvasLayer = main.get_node("StartPanel")
-	var A = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
 	# ---------- 1. 门禁路径：测试场景（current_scene != Main）点击新游戏不触发过场 ----------
 	_check(start_panel.visible, "无存档时开始面板自显")
@@ -97,10 +97,7 @@ func _ready() -> void:
 			var shot_name: String = intro2.current_shot().name
 			if not seen_shots.has(shot_name):
 				seen_shots.append(shot_name)
-			_check(
-				intro2.shot_root().get_child_count() == 1,
-				"时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1)
-			)
+			_check(intro2.shot_root().get_child_count() == 1, "时序：镜头 %d 旧节点已销毁（仅当前镜头在场）" % (expected + 1))
 			_check(intro2.subtitle().text != "", "时序：镜头 %d 叙事字幕已设置" % (expected + 1))
 	# 收尾标题定格额外 1.8s（§2），等待窗口放宽
 	for i in 80:
@@ -118,7 +115,7 @@ func _ready() -> void:
 	main.play_intro()
 	await get_tree().process_frame
 	var intro3: IntroCinematic = main.intro()
-	_check(nav.decide_back_action() == A.SKIP_INTRO, "过场播放中：决策 = SKIP_INTRO")
+	_check(nav.decide_back_action() == act.SKIP_INTRO, "过场播放中：决策 = SKIP_INTRO")
 	await _press_esc()
 	_check(main.intro() == null and not is_instance_valid(intro3), "Esc：经 BackNavigator 跳过过场")
 	_check(not get_tree().paused, "Esc 跳过后树恢复非暂停")

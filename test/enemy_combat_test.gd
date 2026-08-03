@@ -39,6 +39,8 @@ func _free_enemy_bullets() -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -49,12 +51,12 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 禁用自动开火，避免误伤与意外得分里程碑
+	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
-	player.set_invincible(999.0  )# 弹幕流弹不干扰流程
+	player.set_invincible(999.0)  # 弹幕流弹不干扰流程
 	player.position = Vector2(960.0, 800.0)
 
 	# 1. 弹种配置表约束：普通机仅 single/spread，精英仅 spread/laser
@@ -95,9 +97,7 @@ func _ready() -> void:
 				fan_ok = false
 		_check(fan_ok, "spread 弹向以瞄准方向为中心均匀扇形展开")
 		_check(
-			is_equal_approx(fan[0].speed, spread_e.SPREAD_BULLET_SPEED)
-			and fan[0].speed < spread_e.ENEMY_BULLET_SPEED,
-			"spread 弹速稍慢于普通弹"
+			is_equal_approx(fan[0].speed, spread_e.SPREAD_BULLET_SPEED) and fan[0].speed < spread_e.ENEMY_BULLET_SPEED, "spread 弹速稍慢于普通弹"
 		)
 	spread_e.queue_free()
 	_free_enemy_bullets()
@@ -117,10 +117,7 @@ func _ready() -> void:
 	_check(lasers.size() == 1, "laser 敌机发射单发弹")
 	if lasers.size() == 1:
 		_check(lasers[0].speed > laser_e.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
-		_check(
-			(lasers[0].get_node("Polygon2D") as Polygon2D).scale.x > 1.5,
-			"laser 弹细长化表现"
-		)
+		_check((lasers[0].get_node("Polygon2D") as Polygon2D).scale.x > 1.5, "laser 弹细长化表现")
 	laser_e.queue_free()
 	_free_enemy_bullets()
 
@@ -183,16 +180,10 @@ func _ready() -> void:
 	_check(life_e.is_exiting(), "敌机 15s 寿命到期进入离场")
 	var exit_p0 := life_e.position
 	await get_tree().create_timer(0.4).timeout
-	_check(
-		life_e.position.y < exit_p0.y - 20.0 or absf(life_e.position.x - exit_p0.x) > 20.0,
-		"离场向上或侧方加速"
-	)
+	_check(life_e.position.y < exit_p0.y - 20.0 or absf(life_e.position.x - exit_p0.x) > 20.0, "离场向上或侧方加速")
 	await get_tree().create_timer(3.0).timeout
 	_check(not is_instance_valid(life_e), "离场后销毁")
-	_check(
-		GameState.score == score_before_life and GameState.kills == kills_before_life,
-		"离场不给分不计击杀"
-	)
+	_check(GameState.score == score_before_life and GameState.kills == kills_before_life, "离场不给分不计击杀")
 
 	# 8. Boss 逃跑：50s 未击杀 → 最后 3s 警告 + 上飘 → 离场无奖励
 	spawner.spawn_boss(1)
@@ -213,12 +204,12 @@ func _ready() -> void:
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.escaped.connect(func() -> void: escaped_flag[0] = true)
-	boss.set_survival(boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5  )# 距警告 0.5s
+	boss.set_survival(boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5)  # 距警告 0.5s
 	var warn_y0 := boss.position.y
 	await get_tree().create_timer(0.8).timeout
 	_check(boss.escape_warned(), "逃跑前 3s 触发逃跑警告")
 	_check(boss.position.y < warn_y0 - 3.0, "警告期间上飘")
-	boss.set_survival(boss.ESCAPE_TIME - 0.05  )# 距逃跑 0.05s
+	boss.set_survival(boss.ESCAPE_TIME - 0.05)  # 距逃跑 0.05s
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
 	# G02：逃跑期 take_damage 必须无效（激光/溅射按注册表+距离判定绕碰撞层，防补刀致奖励失真）
@@ -245,6 +236,9 @@ func _ready() -> void:
 		boss_next.queue_free()
 	_free_enemy_bullets()
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("ENEMY COMBAT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

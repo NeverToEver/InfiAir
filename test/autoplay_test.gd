@@ -58,8 +58,14 @@ const OBJECT_LEAK_RATIO := 1.8
 
 const MOVE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down"]
 const SETTING_KINDS: Array[StringName] = [
-	&"view_zoom", &"window_size", &"locale", &"difficulty",
-	&"aim_assist", &"reduce_flash", &"ctrl_toggle", &"shift_toggle",
+	&"view_zoom",
+	&"window_size",
+	&"locale",
+	&"difficulty",
+	&"aim_assist",
+	&"reduce_flash",
+	&"ctrl_toggle",
+	&"shift_toggle",
 ]
 const BUFF_POOL_SIZE := 16  # buff_select.gd BUFF_POOL 种类数（覆盖率统计分母）
 
@@ -341,6 +347,7 @@ func _reassert_time_scale() -> void:
 
 # ---------------- bot 行为 ----------------
 
+
 func _bot_tick(now: int) -> void:
 	# 死亡重开
 	if _restart_at > 0 and now >= _restart_at:
@@ -428,7 +435,12 @@ func _handle_buff_ui(now: int) -> void:
 				var cap := int(GameState.cfg("buffs.%s.max_stacks" % pick["id"], pool_max))
 				if GameState.buff_count(pick["id"]) > cap:
 					_anomaly_rl("buff_over_cap", "Buff %s 层数 %d 超过上限 %d" % [pick["id"], GameState.buff_count(pick["id"]), cap], now)
-				_log("Buff 选择: %s（层数 %d，已覆盖种类 %d/%d%s）" % [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE, "，动效路径" if animated else ""])
+				_log(
+					(
+						"Buff 选择: %s（层数 %d，已覆盖种类 %d/%d%s）"
+						% [pick["id"], GameState.buff_count(pick["id"]), _buffs_seen.size(), BUFF_POOL_SIZE, "，动效路径" if animated else ""]
+					)
+				)
 			_buff_open_since = 0
 	else:
 		_buff_open_since = 0
@@ -455,11 +467,7 @@ func _handle_base_ui(now: int) -> void:
 				_log("基地维修：HP -> %.0f（RP=%d）" % [GameState.health, GameState.rp])
 		elif _base_stage == 1 and t >= 1000:
 			_base_stage = 2
-			if (
-				GameState.rp >= GameState.RP_RECHARGE_COST
-				and _player != null
-				and _player.fuel_amount() < _player.fuel_max - 1.0
-			):
+			if GameState.rp >= GameState.RP_RECHARGE_COST and _player != null and _player.fuel_amount() < _player.fuel_max - 1.0:
 				base_ui.recharge()
 				_base_recharges += 1
 				_log("基地补给燃料：-> %.0f（RP=%d）" % [_player.fuel_amount(), GameState.rp])
@@ -642,10 +650,9 @@ func _update_movement(now: int) -> void:
 	var view := GameState.view_world_rect()
 	if _player.position.distance_to(_move_target) < 80.0 or randf() < 0.1:
 		_move_target = Vector2(
-			randf_range(view.position.x + 100.0, view.end.x - 100.0),
-			randf_range(view.position.y + 100.0, view.end.y - 100.0)
+			randf_range(view.position.x + 100.0, view.end.x - 100.0), randf_range(view.position.y + 100.0, view.end.y - 100.0)
 		)
-	var steer := (_move_target - _player.position)
+	var steer := _move_target - _player.position
 	steer = steer.normalized() if steer.length() > 60.0 else Vector2.ZERO
 	# 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和
 	var dodge := Vector2.ZERO
@@ -720,9 +727,7 @@ func _update_dash(now: int) -> void:
 	if now < _next_dash_try:
 		return
 	var enrage_active: bool = (
-		(_boss != null and is_instance_valid(_boss) and _boss.is_enraged())
-		or _main.bullet_time() > 0.0
-		or _main.time_scale_ramp() >= 0.0
+		(_boss != null and is_instance_valid(_boss) and _boss.is_enraged()) or _main.bullet_time() > 0.0 or _main.time_scale_ramp() >= 0.0
 	)
 	_next_dash_try = now + (250 if enrage_active else 500)
 	if not _player.dash_unlocked() or _player.dash_cooldown() > 0.0 or _player.is_dashing():
@@ -866,6 +871,7 @@ func _track_mothership(now: int) -> void:
 
 # ---------------- 事件 ----------------
 
+
 func _on_milestone(milestone_score: int) -> void:
 	_milestones += 1
 	_log("里程碑达成 score=%d（第 %d 次）" % [milestone_score, _milestones])
@@ -876,16 +882,18 @@ func _on_boss_spawned(boss: Boss) -> void:
 	_boss_since = Time.get_ticks_msec()
 	_boss_timeout_reported = false
 	_log("Boss 出现 type=%d hp=%.0f" % [boss.boss_type, boss.max_hp])
-	boss.enraged.connect(func() -> void:
-		_boss_enrage_count += 1
-		_log("Boss 狂暴 type=%d（第 %d 次）" % [boss.boss_type, _boss_enrage_count])
+	boss.enraged.connect(
+		func() -> void:
+			_boss_enrage_count += 1
+			_log("Boss 狂暴 type=%d（第 %d 次）" % [boss.boss_type, _boss_enrage_count])
 	)
 	boss.phase_changed.connect(_on_boss_phase_changed)
 	boss.died.connect(_on_boss_died.bind(boss))
-	boss.escaped.connect(func() -> void:
-		_boss_escapes += 1
-		_log("Boss 逃跑 type=%d（第 %d 次）" % [boss.boss_type, _boss_escapes])
-		_clear_boss(boss)
+	boss.escaped.connect(
+		func() -> void:
+			_boss_escapes += 1
+			_log("Boss 逃跑 type=%d（第 %d 次）" % [boss.boss_type, _boss_escapes])
+			_clear_boss(boss)
 	)
 	boss.tree_exited.connect(func() -> void: _clear_boss(boss))
 
@@ -979,6 +987,7 @@ func _release_all_inputs() -> void:
 
 # ---------------- 快照与不变量检查 ----------------
 
+
 func _snapshot(now: int) -> void:
 	var p_bullets := 0
 	var e_bullets := 0
@@ -1025,14 +1034,38 @@ func _snapshot(now: int) -> void:
 	var ms_s := "none" if _main.mothership() == null else MS_STATE_NAMES[int(_main.mothership().state())]
 	_log(
 		(
-			"SNAP run=%d t_game=%.0fs score=%d hp=%.0f/%.0f kills=%d enemies=%d bullets(p=%d,e=%d) boss=%s ms=%s diff=%.2f elapsed=%.0fs nodes(main=%d,total=%d) ts=%.2f paused=%s perf(obj=%.0f,nodes=%.0f,orphan=%.0f,mem=%.1fMB,fps=%.0f,fms=%.2f) pool(b=%d,e=%d)"
+			(
+				"SNAP run=%d t_game=%.0fs score=%d hp=%.0f/%.0f kills=%d enemies=%d "
+				+ "bullets(p=%d,e=%d) boss=%s ms=%s diff=%.2f elapsed=%.0fs "
+				+ "nodes(main=%d,total=%d) ts=%.2f paused=%s "
+				+ "perf(obj=%.0f,nodes=%.0f,orphan=%.0f,mem=%.1fMB,fps=%.0f,fms=%.2f) pool(b=%d,e=%d)"
+			)
 			% [
-				_run_index, GameState.run_time, GameState.score, GameState.health, GameState.max_health(),
-				GameState.kills, GameState.enemies.size(), p_bullets, e_bullets, boss_s, ms_s,
-				GameState.difficulty_multiplier, _spawner.elapsed(), main_nodes, total_nodes,
-				Engine.time_scale, str(get_tree().paused),
-				obj_count, node_count, orphans, mem_static / 1048576.0, fps, frame_ms,
-				bullet_pool_n, enemy_pool_n,
+				_run_index,
+				GameState.run_time,
+				GameState.score,
+				GameState.health,
+				GameState.max_health(),
+				GameState.kills,
+				GameState.enemies.size(),
+				p_bullets,
+				e_bullets,
+				boss_s,
+				ms_s,
+				GameState.difficulty_multiplier,
+				_spawner.elapsed(),
+				main_nodes,
+				total_nodes,
+				Engine.time_scale,
+				str(get_tree().paused),
+				obj_count,
+				node_count,
+				orphans,
+				mem_static / 1048576.0,
+				fps,
+				frame_ms,
+				bullet_pool_n,
+				enemy_pool_n,
 			]
 		)
 	)
@@ -1084,7 +1117,13 @@ func _snapshot(now: int) -> void:
 			_frame_slow_streak += 1
 			if _frame_slow_streak >= 3:
 				_frame_slow_streak = 0
-				_anomaly("frame_time", "帧耗时恶化 %.2fms（基线 %.2fms，enemies=%d bullets=%d）" % [frame_ms, _frame_ms_baseline, GameState.enemies.size(), p_bullets + e_bullets])
+				_anomaly(
+					"frame_time",
+					(
+						"帧耗时恶化 %.2fms（基线 %.2fms，enemies=%d bullets=%d）"
+						% [frame_ms, _frame_ms_baseline, GameState.enemies.size(), p_bullets + e_bullets]
+					)
+				)
 		else:
 			_frame_slow_streak = 0
 
@@ -1183,14 +1222,18 @@ func _checks(now: int) -> void:
 			var k := _class_label(e)
 			reg_extra[k] = int(reg_extra.get(k, 0)) + 1
 	if not reg_extra.is_empty():
-		_anomaly_rl("registry_mismatch", "注册表多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(reg_extra), registry_set.size(), scene_set.size()], now)
+		_anomaly_rl(
+			"registry_mismatch", "注册表多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(reg_extra), registry_set.size(), scene_set.size()], now
+		)
 	var scene_extra: Dictionary = {}
 	for node in scene_set:
 		if not registry_set.has(node):
 			var k := _class_label(node)
 			scene_extra[k] = int(scene_extra.get(k, 0)) + 1
 	if not scene_extra.is_empty():
-		_anomaly_rl("registry_mismatch", "场景多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(scene_extra), registry_set.size(), scene_set.size()], now)
+		_anomaly_rl(
+			"registry_mismatch", "场景多出: %s（注册表 %d vs 场景 %d）" % [_fmt_class_counts(scene_extra), registry_set.size(), scene_set.size()], now
+		)
 	# 引用有效性：player_ref / 对象池
 	if _player != null and is_instance_valid(_player) and GameState.player_ref != _player:
 		_anomaly_rl("player_ref_mismatch", "GameState.player_ref 未指向当前玩家", now)
@@ -1232,12 +1275,7 @@ func _checks(now: int) -> void:
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
 	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
 	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss.is_enraged()
-	if (
-		_player != null
-		and is_instance_valid(_player)
-		and absf(_player.enrage_slow() - 1.0) > 0.001
-		and not boss_enraged
-	):
+	if _player != null and is_instance_valid(_player) and absf(_player.enrage_slow() - 1.0) > 0.001 and not boss_enraged:
 		if _slow_since == 0:
 			_slow_since = now
 		elif not _slow_reported and now - _slow_since > SLOW_STUCK_MS:
@@ -1285,6 +1323,7 @@ func _checks(now: int) -> void:
 
 # ---------------- 收尾 ----------------
 
+
 func _finish() -> void:
 	if _finished:
 		return
@@ -1300,12 +1339,50 @@ func _finish() -> void:
 	print("[AUTOPLAY] ==================== SUMMARY ====================")
 	print("[AUTOPLAY] 真实时长 %.0fs | 对局数 %d | 死亡 %d 次 | seed=%d" % [_elapsed_s(), _run_index, _deaths, _seed])
 	print("[AUTOPLAY] 每局得分 %s | 总击杀 %d | Boss 击杀 %d" % [str(_run_scores), _total_kills, _total_boss_kills])
-	print("[AUTOPLAY] Buff 选取 %d 次（覆盖种类 %d/%d）| 母舰召唤 %d 次 | 返航 %d 次" % [_buff_picks, _buffs_seen.size(), BUFF_POOL_SIZE, _ms_summons, _homecomings])
+	print(
+		(
+			"[AUTOPLAY] Buff 选取 %d 次（覆盖种类 %d/%d）| 母舰召唤 %d 次 | 返航 %d 次"
+			% [_buff_picks, _buffs_seen.size(), BUFF_POOL_SIZE, _ms_summons, _homecomings]
+		)
+	)
 	print("[AUTOPLAY] 母舰边界：蓄力取消 %d | 提前离舰 %d | 强制弹射 %d" % [_charge_cancels, _early_leaves, _forced_ejects])
-	print("[AUTOPLAY] 暂停存档 %d 次 | 暂停开设置页 %d 次 | 继续对局 %d 次 | 退出确认探针 %d 次 | 设置切换 %d 次" % [_pause_saves, _settings_opens, _continue_resumes, _exit_probes, _setting_switches])
+	print(
+		(
+			"[AUTOPLAY] 暂停存档 %d 次 | 暂停开设置页 %d 次 | 继续对局 %d 次 | 退出确认探针 %d 次 | 设置切换 %d 次"
+			% [_pause_saves, _settings_opens, _continue_resumes, _exit_probes, _setting_switches]
+		)
+	)
 	print("[AUTOPLAY] 基地：维修 %d | 补给 %d | 路线选择 %d | 任务领奖 %d" % [_base_repairs, _base_recharges, _route_choices, _mission_claims])
-	print("[AUTOPLAY] Buff 动效路径选取 %d 次 | Boss P2 %d 次 | 狂暴 %d 次 | 逃跑 %d 次 | 里程碑 %d 次 | 炮塔事件 %d 次 | 编队事件 %d 次" % [_buff_animated_picks, _boss_p2_count, _boss_enrage_count, _boss_escapes, _milestones, _turret_event_count, _formation_event_count])
-	print("[AUTOPLAY] 峰值: 节点 %d | 敌弹 %d | 玩家弹 %d | 敌机 %d | 孤儿节点 %.0f | 池(b=%d,e=%d) | 帧耗时 %.2fms（基线 %.2fms）" % [_max_nodes, _max_enemy_bullets, _max_player_bullets, _max_enemies, _max_orphans, _max_bullet_pool, _max_enemy_pool, _max_frame_ms, _frame_ms_baseline])
+	print(
+		(
+			"[AUTOPLAY] Buff 动效路径选取 %d 次 | Boss P2 %d 次 | 狂暴 %d 次 | 逃跑 %d 次 | 里程碑 %d 次 | 炮塔事件 %d 次 | 编队事件 %d 次"
+			% [
+				_buff_animated_picks,
+				_boss_p2_count,
+				_boss_enrage_count,
+				_boss_escapes,
+				_milestones,
+				_turret_event_count,
+				_formation_event_count
+			]
+		)
+	)
+	print(
+		(
+			"[AUTOPLAY] 峰值: 节点 %d | 敌弹 %d | 玩家弹 %d | 敌机 %d | 孤儿节点 %.0f | 池(b=%d,e=%d) | 帧耗时 %.2fms（基线 %.2fms）"
+			% [
+				_max_nodes,
+				_max_enemy_bullets,
+				_max_player_bullets,
+				_max_enemies,
+				_max_orphans,
+				_max_bullet_pool,
+				_max_enemy_pool,
+				_max_frame_ms,
+				_frame_ms_baseline
+			]
+		)
+	)
 	var total_anomalies := 0
 	for k in _anomaly_counts:
 		total_anomalies += int(_anomaly_counts[k])

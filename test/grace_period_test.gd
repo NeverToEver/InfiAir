@@ -40,6 +40,8 @@ func _reset_hit_state(player: Player) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
@@ -153,6 +155,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout  # 演出/高亮 tween 播完，避免退出时对象泄漏
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("GRACE PERIOD TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

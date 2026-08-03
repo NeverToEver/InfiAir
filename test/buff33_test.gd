@@ -16,6 +16,8 @@ func _check(cond: bool, label: String) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	# give_up 输入映射由 project.godot 提供；缺失时运行时补齐（不影响断言语义）
@@ -144,6 +146,9 @@ func _ready() -> void:
 	_check(get_node("Main/GameOverUI").visible, "自毁进入死亡结算面板")
 	_check(get_tree().paused, "结算时游戏暂停")
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BUFF33 TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

@@ -52,6 +52,8 @@ func _spawn_test_boss(p_type: int) -> Boss:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -219,6 +221,9 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BOSS PHASE TRANSITION TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

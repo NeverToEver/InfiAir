@@ -58,13 +58,13 @@ func _ready() -> void:
 	var buff_ui: CanvasLayer = main.get_node("BuffUI")
 	var game_over_ui: CanvasLayer = main.get_node("GameOverUI")
 	var exit_confirm: CanvasLayer = main.get_node("ExitConfirm")
-	var A = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
 	# ---------- 1. 顶层：开始面板 → 退出确认 ----------
-	_check(start_panel.visible and nav.decide_back_action() == A.CONFIRM_EXIT, "开始面板（顶层）：决策=退出确认")
+	_check(start_panel.visible and nav.decide_back_action() == act.CONFIRM_EXIT, "开始面板（顶层）：决策=退出确认")
 	await _press_esc()
 	_check(exit_confirm.visible and not exit_confirm.battle_mode(), "顶层 Esc：弹出退出确认（normal 模式）")
-	_check(nav.decide_back_action() == A.CANCEL_EXIT, "确认窗可见：决策=取消退出")
+	_check(nav.decide_back_action() == act.CANCEL_EXIT, "确认窗可见：决策=取消退出")
 	await _press_esc()
 	_check(not exit_confirm.visible and start_panel.visible, "确认窗 Esc：取消退出回到开始面板")
 	_check(
@@ -75,17 +75,17 @@ func _ready() -> void:
 	# ---------- 1b. 顶层右键：退出确认（惯例：右键=返回/取消） ----------
 	await _press_rmb()
 	_check(exit_confirm.visible, "顶层右键：弹出退出确认")
-	_check(nav.decide_back_action() == A.CANCEL_EXIT, "右键确认窗可见：决策=取消退出")
+	_check(nav.decide_back_action() == act.CANCEL_EXIT, "右键确认窗可见：决策=取消退出")
 	await _press_rmb()
 	_check(not exit_confirm.visible and start_panel.visible, "确认窗右键：取消退出回到开始面板")
 
 	# ---------- 2. 对局层：Esc ⇄ 暂停 ----------
 	start_panel.press_new_game()
 	await get_tree().process_frame
-	_check(nav.decide_back_action() == A.OPEN_PAUSE, "战斗中：决策=打开暂停")
+	_check(nav.decide_back_action() == act.OPEN_PAUSE, "战斗中：决策=打开暂停")
 	await _press_esc()
 	_check(pause_ui.visible and get_tree().paused, "战斗中 Esc：打开暂停")
-	_check(nav.decide_back_action() == A.RESUME_GAME, "暂停中：决策=继续游戏")
+	_check(nav.decide_back_action() == act.RESUME_GAME, "暂停中：决策=继续游戏")
 	await _press_esc()
 	_check(not pause_ui.visible and not get_tree().paused, "暂停中 Esc：恢复游戏")
 
@@ -98,9 +98,9 @@ func _ready() -> void:
 	# ---------- 3. 设置页：返回 opener + 改键捕获态放行 ----------
 	pause_ui.open()
 	pause_ui.open_settings()
-	_check(settings_ui.visible and nav.decide_back_action() == A.CLOSE_SETTINGS, "设置页：决策=返回 opener")
+	_check(settings_ui.visible and nav.decide_back_action() == act.CLOSE_SETTINGS, "设置页：决策=返回 opener")
 	settings_ui.start_capture(&"dash")
-	_check(nav.decide_back_action() == A.CAPTURE_PASSTHROUGH, "改键捕获中：决策=放行")
+	_check(nav.decide_back_action() == act.CAPTURE_PASSTHROUGH, "改键捕获中：决策=放行")
 	await _press_esc()
 	_check(settings_ui.capturing_action() == &"" and settings_ui.visible, "捕获中 Esc：取消捕获留在设置页")
 	await _press_esc()
@@ -117,25 +117,25 @@ func _ready() -> void:
 	# ---------- 5. 覆盖/阻塞态决策（不执行动作，仅断言决策） ----------
 	main.play_return()
 	await get_tree().process_frame
-	_check(main.return_cinematic() != null and nav.decide_back_action() == A.SKIP_RETURN, "返航过场：决策=跳过过场")
+	_check(main.return_cinematic() != null and nav.decide_back_action() == act.SKIP_RETURN, "返航过场：决策=跳过过场")
 	# skip() 有 SKIP_GRACE（1.2s）误触宽限期，期内忽略跳过；先等宽限期结束（真实时间，树已暂停）
 	await get_tree().create_timer(1.3).timeout
 	main.skip_return()
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(base_ui.visible and nav.decide_back_action() == A.RESUME_BASE, "返航过场跳过后：基地控制台决策=继续出击")
+	_check(base_ui.visible and nav.decide_back_action() == act.RESUME_BASE, "返航过场跳过后：基地控制台决策=继续出击")
 	base_ui.resume()  # 恢复对局态，避免影响后续分支断言
 	await get_tree().process_frame
 	await get_tree().process_frame
 	buff_ui.visible = true
-	_check(nav.decide_back_action() == A.IGNORE, "Buff 三选一：决策=忽略")
+	_check(nav.decide_back_action() == act.IGNORE, "Buff 三选一：决策=忽略")
 	buff_ui.visible = false
 	base_ui.visible = true
-	_check(nav.decide_back_action() == A.RESUME_BASE, "基地控制台：决策=继续出击")
+	_check(nav.decide_back_action() == act.RESUME_BASE, "基地控制台：决策=继续出击")
 	base_ui.visible = false
 	main.set_game_over(true)
 	game_over_ui.visible = true
-	_check(nav.decide_back_action() == A.TO_MAIN_MENU, "结算页：决策=返回主界面")
+	_check(nav.decide_back_action() == act.TO_MAIN_MENU, "结算页：决策=返回主界面")
 	game_over_ui.visible = false
 	main.set_game_over(false)
 

@@ -130,7 +130,13 @@ func is_active() -> bool:
 
 ## 触发条件：IDLE 且冷却结束（Boss 互斥由 spawner 侧检查）
 func can_trigger() -> bool:
-	return _state == State.IDLE and _cooldown_left <= 0.0
+	if _state != State.IDLE or _cooldown_left > 0.0:
+		return false
+	# L13：母舰在场期不触发——母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖，
+	# 玩家进保护舱零参与挂机收益；在场判定经组查询（节点释放自动退组）
+	if get_tree().get_first_node_in_group("mothership") != null:
+		return false
+	return true
 
 
 ## 事件启动（互斥检查通过后由 spawner 调用）

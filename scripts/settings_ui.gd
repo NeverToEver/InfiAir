@@ -3,6 +3,8 @@ extends CanvasLayer
 ## 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）。
 ## 改键：点「改键」进入捕获态，下一按键即绑定（Esc 取消），冲突键从占用者移除。
 
+# 关闭信号（设置页已关闭）：生产侧暂无消费方（BackNavigator 以可见态路由），
+# E13 先例——保留 API 供外部/未来 UI 连接，勿当死代码删除
 signal back_pressed
 
 var _ctrl_hold: Button

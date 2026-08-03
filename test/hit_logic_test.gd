@@ -59,12 +59,14 @@ func _reset_hit_state(player: Player) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 禁用自动开火，避免误伤与意外得分里程碑
+	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -112,7 +114,7 @@ func _ready() -> void:
 	player.set_since_damage(999.0)
 	await get_tree().create_timer(0.6).timeout
 	_check(GameState.health > 50.5 and GameState.health < 52.5, "A5：被动回血按速率回复")
-	player.set_since_damage(0.0  )# 关闭被动回血，避免干扰后续精确断言
+	player.set_since_damage(0.0)  # 关闭被动回血，避免干扰后续精确断言
 
 	# lifesteal：击毁回复 10% 上限（每帧至多一次）
 	GameState.health = 50.0
@@ -155,16 +157,13 @@ func _ready() -> void:
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	var boss_fight := _make_boss(1)
-	boss_fight.set_in_fight(true  )# 直接置战斗态（重叠事件由传送产生，避开降入时序）
-	boss_fight.set_fire_timer(999.0  )# 屏蔽开火，保证场内无杂弹
+	boss_fight.set_in_fight(true)  # 直接置战斗态（重叠事件由传送产生，避开降入时序）
+	boss_fight.set_fire_timer(999.0)  # 屏蔽开火，保证场内无杂弹
 	boss_fight.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check(GameState.health == 70.0, "A2：撞 Boss 身体玩家 -30 HP")
-	_check(
-		is_instance_valid(boss_fight) and boss_fight.hp == boss_fight.max_hp,
-		"A2：撞击后 Boss 不掉血不死"
-	)
+	_check(is_instance_valid(boss_fight) and boss_fight.hp == boss_fight.max_hp, "A2：撞击后 Boss 不掉血不死")
 	boss_fight.queue_free()
 	await get_tree().physics_frame
 
@@ -209,17 +208,11 @@ func _ready() -> void:
 	# 非致死大额伤害：应钳到 30% 阈值并触发狂暴（而非打到阈值以下）
 	boss3.take_damage(int(boss3.max_hp * 0.75))
 	await get_tree().process_frame
-	_check(
-		is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO),
-		"A3：非致死伤害钳到 30% 阈值"
-	)
+	_check(is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO), "A3：非致死伤害钳到 30% 阈值")
 	_check(boss3.is_enraged(), "A3：钳到阈值触发狂暴")
 	# 锁血期（触发→RELEASE_HOLD 前）：任何伤害不掉血不死
 	boss3.take_damage(1)
-	_check(
-		is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO),
-		"A3：锁血期伤害不掉血"
-	)
+	_check(is_equal_approx(boss3.hp, boss3.max_hp * boss3.ENRAGE_HP_RATIO), "A3：锁血期伤害不掉血")
 	# 序列中断/RELEASE_HOLD 解锁后：小额伤害正常扣血
 	boss3.abort_enrage_sequence()
 	boss3.take_damage(1)
@@ -298,7 +291,7 @@ func _ready() -> void:
 	# Boss 弹种取值（基准）：fan=14，homing=12，狙击=21，cross=12，快照激光=21，快照环弹=12
 	var boss5 := _make_boss(1)
 	boss5.position = Vector2(960.0, 300.0)
-	boss5.set_fire_timer(999.0  )# 屏蔽常规开火，保证弹丸计数纯净
+	boss5.set_fire_timer(999.0)  # 屏蔽常规开火，保证弹丸计数纯净
 	boss5.fire_tool().fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)
 	var fan_dmg_ok := true
 	var fan_count := 0
@@ -344,14 +337,8 @@ func _ready() -> void:
 			snap_rings += 1
 			if b.damage != exp12:
 				snap_ring_dmg_ok = false
-	_check(
-		snap_lasers == boss5.ENRAGE_SNAPSHOT_LASERS and snap_laser_dmg_ok,
-		"A4：Boss 狂暴快照激光 damage（基准 21，期望 %d）" % exp21
-	)
-	_check(
-		snap_rings == boss5.ENRAGE_SNAPSHOT_RING and snap_ring_dmg_ok,
-		"A4：Boss 狂暴快照环弹 damage（基准 12，期望 %d）" % exp12
-	)
+	_check(snap_lasers == boss5.ENRAGE_SNAPSHOT_LASERS and snap_laser_dmg_ok, "A4：Boss 狂暴快照激光 damage（基准 21，期望 %d）" % exp21)
+	_check(snap_rings == boss5.ENRAGE_SNAPSHOT_RING and snap_ring_dmg_ok, "A4：Boss 狂暴快照环弹 damage（基准 12，期望 %d）" % exp12)
 	boss5.queue_free()
 	await _free_enemy_bullets()
 
@@ -538,14 +525,14 @@ func _ready() -> void:
 	pb.position = boss_early.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(
-		not boss_early.is_in_fight() and boss_early.hp < boss_early.max_hp,
-		"A21：入场降入期玩家弹可伤 Boss（与原作一致）"
-	)
+	_check(not boss_early.is_in_fight() and boss_early.hp < boss_early.max_hp, "A21：入场降入期玩家弹可伤 Boss（与原作一致）")
 	boss_early.queue_free()
 	await _free_enemy_bullets()
 	player.set_invincible(999.0)
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("HIT LOGIC TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

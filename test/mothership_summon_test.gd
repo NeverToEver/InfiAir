@@ -77,14 +77,11 @@ func _ready() -> void:
 	_check(ms != null, "穿梭门：母舰已创建")
 	_check(ms.state() == Mothership.State.DESCEND, "穿梭入场：DESCEND 态")
 	_check(ms.scale.x < 1.0, "穿梭入场：穿出期缩放小于 1（%.2f）" % ms.scale.x)
-	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场
+	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场
 	await get_tree().create_timer(0.3).timeout
 	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场：到位后自动对接")
 	_check(ms.scale.is_equal_approx(Vector2.ONE), "穿梭入场：到位缩放收敛为 1")
-	_check(
-		ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0,
-		"穿梭入场：停驻点收敛"
-	)
+	_check(ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0, "穿梭入场：停驻点收敛")
 	_check(gate == null or not is_instance_valid(gate) or gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
 	_check(tgt.summon_slow_timer() > 0.0, "减速带：敌机被施加短时减速")
 

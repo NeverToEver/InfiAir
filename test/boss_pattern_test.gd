@@ -95,6 +95,8 @@ func _force_p2_patterns(boss: Boss, p2: Array) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.difficulty = &"medium"  # 场景1-5 弹速/弹数断言基于 medium 基准档
 	GameState.save_profile()
@@ -468,6 +470,9 @@ func _ready() -> void:
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")
 	await _clear_field()
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BOSS PATTERN TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

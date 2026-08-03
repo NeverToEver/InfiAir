@@ -41,7 +41,7 @@ func _ready() -> void:
 
 	# ---------- 1. 蓄力中段（虚影 + 蓄力特效） ----------
 	Input.action_press("dock")
-	main.set_charge_time(main.DOCK_CHARGE_TIME * 0.55  )# 预填到中段，让环收缩/背光可读
+	main.set_charge_time(main.DOCK_CHARGE_TIME * 0.55)  # 预填到中段，让环收缩/背光可读
 	await get_tree().create_timer(0.35).timeout
 	await _shot("/tmp/summon_charge.png")
 	Input.action_release("dock")

@@ -94,6 +94,8 @@ func _wait_time_scale_restored() -> bool:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -104,8 +106,8 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 全程禁用全自动开火，避免误杀 Boss/触发里程碑
-	player.set_invincible(999.0  )# 狂暴弹幕期间不被误伤
+	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
+	player.set_invincible(999.0)  # 狂暴弹幕期间不被误伤
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
@@ -123,10 +125,7 @@ func _ready() -> void:
 	_check(boss.enrage_sequence().phase() == Boss.EnragePhase.TRANSITION, "场景1：触发进入 TRANSITION")
 	_check(is_equal_approx(Engine.time_scale, 0.24), "场景1：狂暴瞬间进入子弹时间 time_scale=0.24")
 	_check(is_equal_approx(player.enrage_slow(), 0.35), "场景1：触发即施加玩家减速 ×0.35")
-	_check(
-		boss.enrage_sequence().snapshot_target().distance_to(player.global_position) < 5.0,
-		"场景1：轨道中心为触发时玩家位置快照"
-	)
+	_check(boss.enrage_sequence().snapshot_target().distance_to(player.global_position) < 5.0, "场景1：轨道中心为触发时玩家位置快照")
 	# 锁血（触发→RELEASE_HOLD 前）：普通/致死伤害都不掉血不死
 	var hp0: float = boss.hp
 	boss.take_damage(50)
@@ -167,10 +166,7 @@ func _ready() -> void:
 		for j in i:
 			max_d = maxf(max_d, samples[i].distance_to(samples[j]))
 	_check(max_d < 20.0, "场景1：ACTIVE 期 Boss 悬停原地（旋转堡垒）")
-	_check(
-		boss.enrage_sequence().attack_index() >= 1 and boss.enrage_sequence().ring_angle() > 0.01,
-		"场景1：环弹波次开火且起始角随波次进动"
-	)
+	_check(boss.enrage_sequence().attack_index() >= 1 and boss.enrage_sequence().ring_angle() > 0.01, "场景1：环弹波次开火且起始角随波次进动")
 	_check(_count_enrage_bullets() > 0, "场景1：ACTIVE 期环弹开火")
 	# 等 ACTIVE 计时耗尽进入 RELEASE_HOLD
 	var hold := false
@@ -229,7 +225,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(boss2.is_enraged() and is_equal_approx(player.enrage_slow(), 0.35), "场景2：狂暴触发并减速玩家")
 	_check(is_equal_approx(Engine.time_scale, 0.24), "场景2：子弹时间启动")
-	boss2.set_survival(boss2.ESCAPE_TIME - 0.02  )# 下一秒到点：序列中照样逃跑
+	boss2.set_survival(boss2.ESCAPE_TIME - 0.02)  # 下一秒到点：序列中照样逃跑
 	var escaping := false
 	for i in 40:
 		await _wait_real(0.1)
@@ -246,6 +242,9 @@ func _ready() -> void:
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	await _wait_real(2.0)  # 让场景2 逃跑 Boss 出屏释放、演出 tween 播完，避免退出时对象泄漏
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("BOSS ENRAGE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

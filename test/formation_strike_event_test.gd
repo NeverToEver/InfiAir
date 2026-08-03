@@ -73,6 +73,8 @@ func _start_fast_event(event: FormationStrikeEvent) -> void:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	GameState.set_difficulty(&"medium")
@@ -82,7 +84,7 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 禁用自动开火，击杀全部走断言路径
+	player.set_auto_fire(false)  # 禁用自动开火，击杀全部走断言路径
 	player.set_invincible(999.0)
 	player.position = Vector2(960.0, 800.0)
 	await get_tree().process_frame
@@ -116,6 +118,14 @@ func _ready() -> void:
 	GameState.score = event.MIN_SCORE - 1
 	_check(not event.can_trigger(), "场景1：分数不足不可触发")
 	GameState.score = 1000
+	# L13：母舰在场期事件不触发（组查询互斥；节点释放自动退组）
+	var ms_probe := Node.new()
+	add_child(ms_probe)
+	ms_probe.add_to_group("mothership")
+	_check(not event.can_trigger(), "场景1：母舰在场时不可触发")
+	ms_probe.remove_from_group("mothership")
+	ms_probe.queue_free()
+	_check(event.can_trigger(), "场景1：母舰离场恢复可触发")
 
 	# ================= 场景 2：状态推进 + 投弹计数（击坠机跳过） =================
 	_start_fast_event(event)
@@ -213,6 +223,9 @@ func _ready() -> void:
 	_check(event.get_child_count() == 1, "场景6：事件节点无 Timer 残留（仅通讯浮层）")
 	_check(_count_crafts() == 0 and _count_bombs() == 0, "场景6：Main 下无编队实体残留")
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：time_scale = 1.0")
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("FORMATION STRIKE EVENT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

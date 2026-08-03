@@ -68,6 +68,8 @@ func _kill_turrets(event: EliteTurretEvent, n: int) -> int:
 func _ready() -> void:
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
 	GameState.set_difficulty(&"medium")
@@ -77,7 +79,7 @@ func _ready() -> void:
 	if start_panel.visible:
 		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
-	player.set_auto_fire(false  )# 禁用自动开火，炮台击杀全部走断言路径
+	player.set_auto_fire(false)  # 禁用自动开火，炮台击杀全部走断言路径
 	player.set_invincible(999.0)
 	player.position = Vector2(960.0, 800.0)
 	await get_tree().process_frame
@@ -157,8 +159,8 @@ func _ready() -> void:
 
 	# ================= 场景 2：Boss 冻结/恢复（单次不累积） =================
 	spawner.set_boss_pending(false)
-	spawner.set_next_boss_score(GameState.score  )# Boss 分数步进立即到期
-	spawner.set_boss_timer(spawner.BOSS_MIN_INTERVAL  )# 越过最小间隔时间门（分数触发需同时满足）
+	spawner.set_next_boss_score(GameState.score)  # Boss 分数步进立即到期
+	spawner.set_boss_timer(spawner.BOSS_MIN_INTERVAL)  # 越过最小间隔时间门（分数触发需同时满足）
 	spawner.set_process(true)  # 恢复 spawner 主循环：pending 标记由它记录
 	_start_fast_event(event)
 	await _wait_real(0.5)
@@ -210,6 +212,15 @@ func _ready() -> void:
 	_check(turrets_gone, "场景3：存活炮台停火收回盖板")
 	_check(await _wait_event_state(event, EliteTurretEvent.State.IDLE, 12.0), "场景3：航母完整撤离后回 IDLE")
 	_check(not event.can_trigger(), "场景3：冷却期内不可再次触发")
+	# L13：母舰在场期事件不触发（组查询互斥）
+	event.set_cooldown_left(0.0)
+	var ms_probe := Node.new()
+	add_child(ms_probe)
+	ms_probe.add_to_group("mothership")
+	_check(not event.can_trigger(), "场景3：母舰在场时不可触发")
+	ms_probe.remove_from_group("mothership")
+	ms_probe.queue_free()
+	_check(event.can_trigger(), "场景3：母舰离场恢复可触发")
 
 	# ================= 场景 4：返航中止（abort） =================
 	var main := get_node("Main")
@@ -259,6 +270,9 @@ func _ready() -> void:
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：time_scale = 1.0")
 	await _wait_real(1.5)  # 让撤退 tween/爆炸粒子播完，避免退出时对象泄漏
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("ELITE TURRET EVENT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

@@ -14,6 +14,8 @@ func _check(cond: bool, label: String) -> void:
 
 func _ready() -> void:
 	GameState.delete_save()
+	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
+	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.set_locale("zh")
 
@@ -28,8 +30,16 @@ func _ready() -> void:
 
 	# 3. 抽查 10 个 key 中英对照（均非 key 本身且互不相同）
 	var keys := [
-		"UI_SCORE", "BUFF_POWER_SHOT_NAME", "BASE_TITLE", "GO_TITLE", "PAUSE_TITLE",
-		"START_CONTINUE", "SET_CONTROLS", "ACT_DASH", "TUT_S1_TITLE", "WARN_BOSS",
+		"UI_SCORE",
+		"BUFF_POWER_SHOT_NAME",
+		"BASE_TITLE",
+		"GO_TITLE",
+		"PAUSE_TITLE",
+		"START_CONTINUE",
+		"SET_CONTROLS",
+		"ACT_DASH",
+		"TUT_S1_TITLE",
+		"WARN_BOSS",
 	]
 	var all_ok := true
 	for k in keys:
@@ -64,5 +74,8 @@ func _ready() -> void:
 	# 收尾：恢复 zh 并落盘
 	GameState.set_locale("zh")
 
+	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
+	GameState.high_score = orig_high_score
+	GameState.save_profile()
 	print("I18N TEST DONE, failures = ", _failures)
 	get_tree().quit(_failures)

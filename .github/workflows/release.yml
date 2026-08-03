@@ -58,6 +58,13 @@ jobs:
           sed -i.bak 's/^config\/version=.*/config\/version="'"$VERSION"'"/' project.godot
           rm -f project.godot.bak
           grep -n 'config/version' project.godot
+          # L18：版本号落地到 tag 指向的提交（此前只改 CI 工作区不 commit，
+          # tag 指向的提交 config/version 永远滞后于实际版本）。tag push 会带上
+          # 该 commit 作为祖先，无需单独 push 分支。
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add project.godot
+          git commit -m "chore: sync config/version to v$VERSION [skip ci]"
         env:
           VERSION: ${{ github.event.inputs.version }}
 
