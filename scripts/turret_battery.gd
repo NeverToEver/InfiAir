@@ -109,7 +109,11 @@ func _exit_tree() -> void:
 ## 升起充能动画（盖板旋开炮塔升起，约 rise_time 秒；期间不可被攻击）
 func rise(duration: float) -> void:
 	_rising = true
+	# K09：monitorable=false 才是「不可被攻击」的正确机制——monitoring 只控制本 Area
+	# 检测别人，玩家弹命中与否取决于弹侧 monitoring + 本侧 monitorable；原 monitoring=false
+	# 不阻止玩家弹 area_entered（弹丸命中被 take_damage 守卫吃掉，白白销毁）
 	monitoring = false
+	monitorable = false
 	scale = Vector2.ZERO
 	modulate.a = 0.0
 	var tween := create_tween()
@@ -122,6 +126,7 @@ func rise(duration: float) -> void:
 func activate() -> void:
 	_rising = false
 	monitoring = true
+	monitorable = true
 
 
 ## 超时撤退：停火并收回盖板（弹药不再产生）
@@ -130,6 +135,7 @@ func cease_fire_and_retract() -> void:
 		return
 	_ceased = true
 	monitoring = false
+	monitorable = false  # K09：同 rise 期——收回动画期间玩家弹应穿过而非被白吃
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector2.ZERO, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -198,7 +204,7 @@ func _spawn_bullet(dir: Vector2, bullet_speed: float, dmg: int, p_type: StringNa
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-		var poly := b.get_node("Polygon2D") as Polygon2D
+		var poly := b.polygon_node()  # K11：C24 缓存模式延续（原 get_node 每发射字符串查找）
 		poly.scale = Vector2(2.2, 0.55)
 		poly.color = Color(1.0, 0.85, 0.35)
 

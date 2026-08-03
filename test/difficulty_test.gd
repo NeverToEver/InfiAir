@@ -67,14 +67,11 @@ func _ready() -> void:
 		GameState.difficulty = case[0]
 		GameState.set_milestone_override(999999999)  # 屏蔽里程碑干扰
 		GameState.add_score(100)
-		_check(
-			GameState.score == int(case[1]),
-			"难度 %s 分数倍率：+100 → %d" % [GameState.difficulty_label(), int(case[1])]
-		)
+		_check(GameState.score == int(case[1]), "难度 %s 分数倍率：+100 → %d" % [GameState.difficulty_label(), int(case[1])])
 
 	# ---------- 2. 敌机 HP/速度缩放（同 seed 对比，randf 序列对齐） ----------
-	var normal_cfg: Dictionary = SpawnerScript.ENEMY_TYPES[0]  # hp 75-85, speed 140-180
-	var elite_cfg: Dictionary = SpawnerScript.ELITE_TYPES[0]  # hp 210-230, speed 90-110
+	var normal_cfg: Dictionary = SpawnerScript.ENEMY_TYPES[0]  # hp 65-72, speed 115-145（K16：注释数值随 spawner 静态表修正）
+	var elite_cfg: Dictionary = SpawnerScript.ELITE_TYPES[0]  # hp 190-210, speed 75-95
 	seed(1001)
 	GameState.difficulty = &"easy"
 	var easy_batch := _sample_batch(normal_cfg, 30)
@@ -105,7 +102,7 @@ func _ready() -> void:
 	_free_batch(easy_batch)
 	_free_batch(med_batch)
 	_free_batch(hard_batch)
-	# 精英大 HP 池：三档区间互不重叠（easy 158-173 / medium 210-230 / hard 315-345）
+	# 精英大 HP 池：三档区间互不重叠（easy 143-158 / medium 190-210 / hard 285-315）
 	seed(2002)
 	GameState.difficulty = &"easy"
 	var elite_e := _sample_batch(elite_cfg, 30)
@@ -310,10 +307,7 @@ func _ready() -> void:
 	GameState.set_ctrl_toggle_mode(true)
 	GameState.set_shift_toggle_mode(true)
 	var profile := _read_profile()
-	_check(
-		bool(profile.get("ctrl_toggle_mode", false)) and bool(profile.get("shift_toggle_mode", false)),
-		"设置模式写入 profile"
-	)
+	_check(bool(profile.get("ctrl_toggle_mode", false)) and bool(profile.get("shift_toggle_mode", false)), "设置模式写入 profile")
 	GameState.ctrl_toggle_mode = false
 	GameState.shift_toggle_mode = false
 	GameState.load_profile()
@@ -321,10 +315,7 @@ func _ready() -> void:
 	# reset_run 不清难度与设置模式（profile 级偏好）
 	GameState.difficulty = &"hard"
 	GameState.reset_run()
-	_check(
-		GameState.difficulty == &"hard" and GameState.ctrl_toggle_mode,
-		"reset_run 保留难度与设置模式"
-	)
+	_check(GameState.difficulty == &"hard" and GameState.ctrl_toggle_mode, "reset_run 保留难度与设置模式")
 
 	# ---------- 8. Boss 触发最小间隔（BOSS_MIN_INTERVAL，防分数暴涨期连出 Boss） ----------
 	GameState.difficulty = &"medium"
@@ -335,7 +326,7 @@ func _ready() -> void:
 	spawner.set_boss_pending(false)
 	spawner.set_next_boss_score(spawner.BOSS_SCORE_STEP)
 	GameState.score = spawner.BOSS_SCORE_STEP  # 分数已跨步进（直接赋值，避开倍率/里程碑）
-	spawner.set_boss_timer(10.0  )# 距上次 Boss 仅 10s（模拟 Boss 刚死、分数立刻跨步进）
+	spawner.set_boss_timer(10.0)  # 距上次 Boss 仅 10s（模拟 Boss 刚死、分数立刻跨步进）
 	spawner.set_process(true)
 	await get_tree().process_frame
 	await get_tree().process_frame

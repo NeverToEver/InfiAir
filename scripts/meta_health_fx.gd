@@ -126,6 +126,8 @@ func _ready() -> void:
 	_mat.set_shader_parameter("u_crack_spread_min", _cfg["crack_spread_min"])
 	_mat.set_shader_parameter("u_crack_edge_softness", _cfg["crack_edge_softness"])
 	_mat.set_shader_parameter("u_crack_width", _cfg["crack_width"])
+	# K04：crack_glow 死配置键接线——shader ADD 伪泛光强度原为字面 0.8，改由配置驱动
+	_mat.set_shader_parameter("u_crack_glow", _cfg["crack_glow"])
 	_vig_inner = float(_cfg["vignette_inner"])
 	# 启动即对齐当前血量（读档续局/场景重载），不产生过渡演出
 	_target_x = 1.0 - clampf(GameState.health / GameState.max_health(), 0.0, 1.0)
@@ -177,7 +179,7 @@ func _load_cfg() -> void:
 		"crack_glow": float(GameState.cfg("effects.meta_health.crack.glow", 0.8)),
 		"crack_heal_jitter": float(GameState.cfg("effects.meta_health.crack.heal_jitter", 0.35)),
 		"crack_grow_overshoot": float(GameState.cfg("effects.meta_health.crack.grow_overshoot", 0.08)),
-		"crack_grow_time": float(GameState.cfg("effects.meta_health.crack.grow_time", 0.6)),
+		"crack_grow_time": maxf(float(GameState.cfg("effects.meta_health.crack.grow_time", 0.6)), 0.001),  # K03：H15 同族遗漏（=0 时 _grow_boost 衰减除零）
 		"crack_density": _load_density_caps(),
 		"desat_max": float(GameState.cfg("effects.meta_health.desat.max", 0.35)),
 		"desat_exponent": float(GameState.cfg("effects.meta_health.desat.exponent", 2.0)),

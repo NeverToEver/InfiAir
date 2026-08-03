@@ -61,19 +61,19 @@ func _ready() -> void:
 	# ---------- 5. MouseTrap 边界 clamp 纯函数 ----------
 	const MOUSE_TRAP: GDScript = preload("res://scripts/mouse_trap.gd")
 	_check(
-		MOUSE_TRAP._warp_target(Vector2(-50, -50), Vector2i(1920, 1080)) == Vector2(1, 1),
+		MOUSE_TRAP.warp_target(Vector2(-50, -50), Vector2i(1920, 1080)) == Vector2(1, 1),
 		"clamp 左上越界到 (1,1)",
 	)
 	_check(
-		MOUSE_TRAP._warp_target(Vector2(5000, 5000), Vector2i(1920, 1080)) == Vector2(1919, 1079),
+		MOUSE_TRAP.warp_target(Vector2(5000, 5000), Vector2i(1920, 1080)) == Vector2(1919, 1079),
 		"clamp 右下越界到 (size-1)",
 	)
 	_check(
-		MOUSE_TRAP._warp_target(Vector2(960, 540), Vector2i(1920, 1080)) == Vector2(960, 540),
+		MOUSE_TRAP.warp_target(Vector2(960, 540), Vector2i(1920, 1080)) == Vector2(960, 540),
 		"窗口内点不变",
 	)
 	_check(
-		MOUSE_TRAP._warp_target(Vector2(0, 0), Vector2i(1920, 1080)) == Vector2(1, 1),
+		MOUSE_TRAP.warp_target(Vector2(0, 0), Vector2i(1920, 1080)) == Vector2(1, 1),
 		"原点 (0,0) clamp 到边缘内侧 (1,1)",
 	)
 
@@ -95,43 +95,43 @@ func _ready() -> void:
 
 	# ---------- 7. confine 放行判定纯函数（仅对局准星态生效；暂停/非准星态放行） ----------
 	_check(
-		MOUSE_TRAP._trap_enabled(true, true, true, true, true, true),
+		MOUSE_TRAP.trap_enabled(true, true, true, true, true, true),
 		"对局准星活跃态 confine 生效",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(true, true, true, true, false, true),
+		not MOUSE_TRAP.trap_enabled(true, true, true, true, false, true),
 		"暂停态放行（暂停后可自由移出窗口，如点系统关闭按钮）",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(true, true, true, true, true, false),
+		not MOUSE_TRAP.trap_enabled(true, true, true, true, true, false),
 		"系统光标可见态放行（菜单/设置/基地等非准星态）",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(false, true, true, true, true, true),
+		not MOUSE_TRAP.trap_enabled(false, true, true, true, true, true),
 		"设置关闭不 confine",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(true, false, true, true, true, true),
+		not MOUSE_TRAP.trap_enabled(true, false, true, true, true, true),
 		"窗口不可见不 confine",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(true, true, false, true, true, true),
+		not MOUSE_TRAP.trap_enabled(true, true, false, true, true, true),
 		"窗口失焦不 confine",
 	)
 	_check(
-		not MOUSE_TRAP._trap_enabled(true, true, true, false, true, true),
+		not MOUSE_TRAP.trap_enabled(true, true, true, false, true, true),
 		"无窗口尺寸（headless）不 confine",
 	)
 
 	# ---------- 8. warp 不引入准星跳变：warp 目标 ≈ 出框前最后位置（位移 ≤ 2px） ----------
 	var edge_pos := Vector2(1918, 500)  # 右缘附近出框前最后内部位置
 	_check(
-		(MOUSE_TRAP._warp_target(edge_pos, Vector2i(1920, 1080)) - edge_pos).length() <= 2.0,
+		(MOUSE_TRAP.warp_target(edge_pos, Vector2i(1920, 1080)) - edge_pos).length() <= 2.0,
 		"右缘出框 warp 位移 ≤ 2px（aim_point 平滑增量≈0，无准星跳变）",
 	)
 	var edge_top := Vector2(500, 0)  # 上缘第 0 行（clamp 边界）
 	_check(
-		(MOUSE_TRAP._warp_target(edge_top, Vector2i(1920, 1080)) - edge_top).length() <= 2.0,
+		(MOUSE_TRAP.warp_target(edge_top, Vector2i(1920, 1080)) - edge_top).length() <= 2.0,
 		"上缘出框 warp 位移 ≤ 2px（第 0 行仅 1px 回拉）",
 	)
 

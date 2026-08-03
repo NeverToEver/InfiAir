@@ -601,8 +601,8 @@ func _live_targets() -> Array[Node2D]:
 	return _targets_buf
 
 
-## 加特林扫射压制（对齐原作）：仅驻留且有目标时开火；双塔向上半球各扫 80°，
-## 左塔 [-60°,+20°] 周期 1.6s，右塔 [-20°,+60°] 周期 1.8s 相位 +0.35s（总覆盖 120°）。
+## 加特林扫射压制（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期有目标时开火；
+## 双塔向上半球各扫 80°，左塔 [-60°,+20°] 周期 1.6s，右塔 [-20°,+60°] 周期 1.8s 相位 +0.35s（总覆盖 120°）。
 func _update_gatling(delta: float) -> void:
 	_sweep_time += delta
 	_gatling_timer -= delta
@@ -636,7 +636,7 @@ func _update_gatling(delta: float) -> void:
 	GameState.play_sfx(GATLING_SFX, -8.0)
 
 
-## 导弹齐射（对齐原作）：仅驻留，每 0.3s 一波，锁定距对接点最近的 ≤5 个目标
+## 导弹齐射（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期，每 0.3s 一波，锁定距对接点最近的 ≤5 个目标
 ## （敌机+Boss 混合），发射瞬间定向的直线弹（无追踪），直击 80 + 80px 溅射 20。
 func _update_missiles(delta: float) -> void:
 	_missile_timer -= delta

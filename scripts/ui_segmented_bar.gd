@@ -33,7 +33,8 @@ var value: float = 100.0:
 		queue_redraw()
 ## 分段血条段权（非空启用分段模式；空 = 既有等分）。段序从左到右 = 阶段顺序
 ## （P1→P2→ENRAGE），值变化才 queue_redraw（setter）。未类型化 Array：调用方
-## （hud 配置数组/测试字面量）直接赋值，绘制时逐元素 float()/as Color 取值
+## （hud 配置数组/测试字面量）直接赋值，绘制时取 seg_weights[i]（须传 Color 元素，
+## 与 seg_weights 的 float() 防御不对称——当前唯一调用方恒传 const Color 数组）
 var seg_weights: Array = []:
 	set(v):
 		seg_weights = v

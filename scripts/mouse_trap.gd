@@ -54,7 +54,7 @@ func _on_focus_entered() -> void:
 ## 鼠标可自由移出窗口（如点系统标题栏关闭按钮退出游戏）。
 func _trap_active() -> bool:
 	var win := get_window()
-	return _trap_enabled(
+	return trap_enabled(
 		GameState.mouse_lock,
 		win.visible,
 		_focused,
@@ -64,9 +64,10 @@ func _trap_active() -> bool:
 	)
 
 
-## confine 放行判定纯函数（可测）：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
+## confine 放行判定纯函数（公开供测试）：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
 ## 暂停/非准星态必须放行，否则暂停后鼠标无法移出窗口点系统关闭按钮退出游戏
-static func _trap_enabled(
+## K16：K8 审计——A7 清理后测试白盒直调 _ 前缀函数再现，公开化（纯函数无状态，公开测试接口合法）
+static func trap_enabled(
 	mouse_lock: bool,
 	window_visible: bool,
 	focused: bool,
@@ -81,7 +82,7 @@ func _trap() -> void:
 	if not _trap_active() or _last_known_pos.x < 0.0 or _last_known_pos.y < 0.0:
 		return
 	var win := get_window()
-	Input.warp_mouse(Vector2(win.get_position()) + _warp_target(_last_known_pos, win.size))
+	Input.warp_mouse(Vector2(win.get_position()) + warp_target(_last_known_pos, win.size))
 
 
 ## 每帧防御：已知位置经 clamp 改变（窗口尺寸/位置变化等偶发越界）时即时拉回
@@ -89,12 +90,13 @@ func _trap_if_out_of_bounds() -> void:
 	if not _trap_active() or _last_known_pos.x < 0.0 or _last_known_pos.y < 0.0:
 		return
 	var win := get_window()
-	var target := _warp_target(_last_known_pos, win.size)
+	var target := warp_target(_last_known_pos, win.size)
 	if target != _last_known_pos:
 		Input.warp_mouse(Vector2(win.get_position()) + target)
 
 
 ## warp 目标：已知窗口内位置 clamp 到内容区边缘内侧 1px（窗口相对坐标）。
 ## 避免系统判定鼠标仍在窗外造成 exited/warp 循环；窗口最小边假设 ≥ 2px。
-static func _warp_target(known_pos: Vector2, win_size: Vector2i) -> Vector2:
+## K16：公开供测试（纯函数，见 trap_enabled）
+static func warp_target(known_pos: Vector2, win_size: Vector2i) -> Vector2:
 	return known_pos.clamp(Vector2.ONE, Vector2(win_size - Vector2i.ONE))

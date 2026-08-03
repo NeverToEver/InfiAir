@@ -274,6 +274,9 @@ var _flash_total: float = 0.1
 
 
 func setup(p_difficulty: float, p_type: int) -> void:
+	# K12：p_type 越界钳制（公开接口，spawner 轮换路径恒 1..3）——保护下方
+	# hp_mults[p_type-1] 与 TEXTURES[p_type-1] 双双越界（H11 只校验了数组长度）
+	p_type = clampi(p_type, 1, 3)
 	boss_type = p_type
 	# HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
 	# H11（健壮性审核）：hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默

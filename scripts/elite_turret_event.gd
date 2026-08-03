@@ -102,7 +102,14 @@ func _ready() -> void:
 	RISE_TIME = GameState.cfg("elite_turret_event.rise_time", RISE_TIME)
 	BOSS_RESUME_DELAY = GameState.cfg("elite_turret_event.boss_resume_delay", BOSS_RESUME_DELAY)
 	TURRET_HP_BASE = GameState.cfg("elite_turret_event.turret_hp_base", TURRET_HP_BASE)
-	TURRET_COUNTS = GameState.cfg("elite_turret_event.turret_counts", TURRET_COUNTS)
+	# K14（H13 同族延续）：turret_counts/ammo_sequences 判型回退——非 Dictionary 时
+	# 后续 .get() 在 Variant 上调用会运行时崩溃（G06 口径只覆盖了 fire_interval 等标量）
+	var tc: Variant = GameState.cfg("elite_turret_event.turret_counts", TURRET_COUNTS)
+	if tc is Dictionary:
+		TURRET_COUNTS = tc
+	var am: Variant = GameState.cfg("elite_turret_event.ammo_sequences", AMMO_SEQUENCES)
+	if am is Dictionary:
+		AMMO_SEQUENCES = am
 	# H13（健壮性审核）：fire_interval 判型回退（G06 口径，防非数组/短数组 _ready 崩溃）
 	var fi: Variant = GameState.cfg("elite_turret_event.fire_interval", [FIRE_INTERVAL.x, FIRE_INTERVAL.y])
 	if fi is Array and fi.size() >= 2:
@@ -110,7 +117,6 @@ func _ready() -> void:
 	else:
 		FIRE_INTERVAL = Vector2(FIRE_INTERVAL.x, FIRE_INTERVAL.y)
 	WEAK_LOCK = GameState.cfg("elite_turret_event.weak_lock", WEAK_LOCK)
-	AMMO_SEQUENCES = GameState.cfg("elite_turret_event.ammo_sequences", AMMO_SEQUENCES)
 	REWARD_SCORE = GameState.cfg("elite_turret_event.reward_score", REWARD_SCORE)
 	HOVER_Y = GameState.cfg("elite_turret_event.carrier.hover_y", HOVER_Y)
 	COOLDOWN = GameState.cfg("elite_turret_event.cooldown", COOLDOWN)

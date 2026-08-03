@@ -178,7 +178,9 @@ func core_node() -> Polygon2D:
 func _exit_tree() -> void:
 	# 被外部 queue_free（清场/测试/场景重载）时通知池移除引用；
 	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
-	if _pool != null and not _repooling:
+	# K10：与 enemy.gd 对称补 is_instance_valid——池节点先于活跃子弹释放（场景卸载时序）时
+	# _pool 为悬空引用，forget 调用会踩已释放对象
+	if _pool != null and is_instance_valid(_pool) and not _repooling:
 		_pool.forget(self)
 
 

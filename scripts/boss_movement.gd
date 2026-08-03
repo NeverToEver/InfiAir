@@ -56,6 +56,10 @@ func update(delta: float, boss) -> void:
 				_move_bob(delta, boss, float(boss.TYPE3_P2_BOB_AMP), float(boss.TYPE3_P2_BOB_PERIOD))
 			else:  # ENRAGE 现状
 				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
+		_:
+			# K13：非法 boss_type（防御，正常路径恒 1..3）回退一型走位，防非法值下完全静止
+			_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
+			_update_press(delta, boss)
 
 
 ## 一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（§5.1）
@@ -73,12 +77,12 @@ func _update_press(delta: float, boss) -> void:
 	_press_offset = target
 
 
-## 纵向正弦（P2 通用，D05）：围绕锚线 ±amp 正弦往复；y_center 为锚线下附加偏移。
+## 纵向正弦（P2 通用，D05）：围绕锚线 ±amp 正弦往复。
 ## 直接设置 y（_in_fight 后才被调用，入场/逃跑/狂暴序列均早退不干扰；fight_anchor_y()
 ## 逐帧求值支持战斗中切视角档）。相位累计驱动，Enemy.sin_fast 查表零分配。
-func _move_bob(delta: float, boss, amp: float, period: float, y_center: float = 0.0) -> void:
+func _move_bob(delta: float, boss, amp: float, period: float) -> void:
 	_bob_phase += TAU * delta / maxf(period, 0.01)
-	boss.position.y = boss.fight_anchor_y() + y_center + Enemy.sin_fast(_bob_phase) * amp
+	boss.position.y = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp
 
 
 ## 三型 P1「缓慢下压/回升」（§5.3）：周期内正弦下压到锚线下 [y_lo, y_hi] 区间再回升。

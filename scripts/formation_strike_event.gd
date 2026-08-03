@@ -57,6 +57,11 @@ var _comm: CommOverlay = null
 var _spawner: Node = null
 
 
+## K15：spawner 依赖注入（main._ready 调用，A5 延续——替代 group 现找，与 EliteTurretEvent 同款）
+func set_spawner(spawner: Node) -> void:
+	_spawner = spawner
+
+
 func _ready() -> void:
 	add_to_group("formation_strike_event")
 	MIN_SCORE = GameState.cfg("formation_strike_event.min_score", MIN_SCORE)
@@ -77,7 +82,9 @@ func _ready() -> void:
 	REWARD_ALL_CLEAR = GameState.cfg("formation_strike_event.reward_all_clear", REWARD_ALL_CLEAR)
 	_comm = COMM_OVERLAY_SCRIPT.new() as CommOverlay
 	add_child(_comm)
-	_spawner = get_tree().get_first_node_in_group("spawner")
+	# K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
+	#（原实现事件节点先于 spawner 入树时 _spawner=null，互斥检查与波次暂停钩子静默失效）
+	_spawner = get_tree().get_first_node_in_group("spawner") if _spawner == null else _spawner
 
 
 func is_active() -> bool:

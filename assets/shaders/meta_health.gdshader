@@ -16,6 +16,7 @@ uniform float u_radial_blur_strength = 0.0;  // <0.001 整段跳过（D4）
 uniform float u_ripple_phase = 1.0;          // 波纹推进相位 0→1（0.4s）
 uniform float u_crack_progress = 0.0;        // 裂纹蔓延进度（含生长过冲）
 uniform vec4 u_crack_color : source_color = vec4(0.208, 0.878, 1.0, 1.0);
+uniform float u_crack_glow = 0.8;            // 裂纹 ADD 伪泛光强度（effects.meta_health.crack.glow）
 uniform float u_crack_density = 0.0;         // 裂纹 alpha 上限（状态分层）
 uniform float u_heal_jitter = 0.0;           // 修复期单元错峰消散幅度
 uniform float u_crack_spread_min = 0.15;     // 生长门下限（边缘最早激活，满血不出裂纹）
@@ -86,7 +87,7 @@ void fragment() {
 	float line = 1.0 - smoothstep(0.0, u_crack_width, field.r);
 	float mask = line * on * u_crack_density;
 	col = mix(col, u_crack_color.rgb * 0.25, mask * 0.6);         // 裂隙暗底
-	col += u_crack_color.rgb * mask * 0.8 * u_adapt_gain;         // ADD 伪泛光
+	col += u_crack_color.rgb * mask * u_crack_glow * u_adapt_gain;       // ADD 伪泛光
 
 	COLOR = vec4(col, 1.0);
 }

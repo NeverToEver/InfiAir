@@ -66,13 +66,13 @@ func _ready() -> void:
 		Input.action_release("boost")
 		await get_tree().physics_frame
 	for i in 2:
-		player.set_dash_cooldown(0.0  )# 绕过 4s 冲刺冷却，缩短测试
+		player.set_dash_cooldown(0.0)  # 绕过 4s 冲刺冷却，缩短测试
 		Input.action_press("dash")
 		await get_tree().physics_frame
 		await get_tree().physics_frame
 		Input.action_release("dash")
 		await get_tree().create_timer(0.4).timeout
-	print("[dbg] boost=", tut.boost_count(), " dash=", tut.dash_count())
+	print("tutorial stage2 counts: boost=", tut.boost_count(), " dash=", tut.dash_count())
 	_check(tut.boost_count() == 2 and tut.dash_count() == 2, "阶段 2 输入计数")
 	await get_tree().create_timer(1.3).timeout
 	_check(tut.stage() == 2, "阶段 2 → 3")
@@ -116,8 +116,8 @@ func _ready() -> void:
 	Input.action_release("dock")
 	_check(tut.mothership() != null, "阶段 4 蓄力完成后母舰已召唤")
 	var ms: Mothership = tut.mothership()
-	ms.set_state_timer(ms.WARP_IN_TIME  )# 快进穿梭入场，到位触发自动对接
-	ms.set_mag_cells(1  )# 加速演示：1 格弹匣 2s 后自动释放
+	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场，到位触发自动对接
+	ms.set_mag_cells(1)  # 加速演示：1 格弹匣 2s 后自动释放
 	await get_tree().create_timer(6.0).timeout
 	_check(tut.stage() == 4, "对接完成 → 阶段 5")
 
@@ -141,10 +141,7 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	_check(not is_instance_valid(boss), "阶段 6：未狂暴 Boss 逃跑离场")
 	_check(tut.stage() == 5 and not tut.finished(), "阶段 6：逃跑后仍在阶段 6 未过关")
-	_check(
-		tut.boss() != null and is_instance_valid(tut.boss()) and tut.boss() != boss,
-		"阶段 6：逃跑后重置重刷 Boss"
-	)
+	_check(tut.boss() != null and is_instance_valid(tut.boss()) and tut.boss() != boss, "阶段 6：逃跑后重置重刷 Boss")
 	boss = tut.boss()
 	boss.take_damage(int(boss.max_hp * 0.75))
 	await get_tree().create_timer(0.3).timeout
@@ -152,6 +149,11 @@ func _ready() -> void:
 	_check(tut.complete_panel() != null, "教程完成面板显示")
 	_check(GameState.tutorial_done, "tutorial_done 已写 profile")
 	_check(Engine.time_scale == 1.0, "time_scale 正常")
+
+	# K16：教程通关写盘的持久化状态收尾恢复（TESTING.md 约定：结束时清理自己创建的持久化状态；
+	# 测试开头已把 tutorial_done 置 false，此处恢复 false 不污染用户 profile）
+	GameState.tutorial_done = false
+	GameState.save_profile()
 
 	print("TUTORIAL TEST DONE, failures = ", _failures)
 	# Esc 退出：触发场景切换（本节点随后被释放），用绑定 SceneTree 的定时器收尾
