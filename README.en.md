@@ -122,7 +122,7 @@ main.tscn (run orchestration)
 </details>
 
 <details>
-<summary>✅ Testing (31 scenes / 1113 assertions)</summary>
+<summary>✅ Testing (37 assertion scenes)</summary>
 
 Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
 
@@ -132,7 +132,7 @@ godot --headless --path . --quit-after 300  # runtime smoke
 godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (142 assertions)
 ```
 
-The full 31-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
+The full 37-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
 
 </details>
 

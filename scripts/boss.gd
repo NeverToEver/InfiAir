@@ -567,8 +567,16 @@ func _load_patterns() -> void:
 	if cfg_patterns is Dictionary:
 		for key in ["p1", "p2"]:
 			var list: Variant = (cfg_patterns as Dictionary).get(key, [])
-			if list is Array and not (list as Array).is_empty():
-				_patterns[key] = (list as Array).duplicate(true)
+			# L07（2026-08-03 审查）：元素级判型（G06 只判容器层）——混入非 Dictionary 元素
+			# 时 _current_pattern() typed 返回运行时类型错误、pattern.has 崩溃；坏元素跳过，
+			# 全坏时保留脚本默认表（「损坏回退默认」口径）；深拷贝同样逐元素隔离共享 JSON
+			if list is Array:
+				var cleaned: Array = []
+				for pattern in list:
+					if pattern is Dictionary:
+						cleaned.append((pattern as Dictionary).duplicate(true))
+				if not cleaned.is_empty():
+					_patterns[key] = cleaned
 
 
 ## 难度分档统一应用（§4.4）：档位 = GameState.difficulty（easy/medium/hard → 索引 0/1/2），

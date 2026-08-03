@@ -35,8 +35,11 @@ const BASE_STUCK_MS := 20000
 const SCORE_STAGNANT_MS := 60000
 const SLOW_STUCK_MS := 15000  # 狂暴减速残留判定（无狂暴 Boss 但 _enrage_slow 未复位）
 # 母舰各状态预期最长停留（State 枚举序 -> ms）
-const MS_STATE_TIMEOUTS: Array[int] = [20000, 10000, 10000, 10000, 70000, 10000, 30000]
-const MS_STATE_NAMES: Array[String] = ["DESCEND", "HOVER", "DOCKING", "RESUPPLY", "STAY", "RELEASE", "DEPART"]
+# L01（2026-08-03 审查）：母舰状态表与 Mothership.State 枚举对齐（6 态，无 HOVER——
+# 原 7 项表把 DOCKING/RESUPPLY/STAY/RELEASE/DEPART 整体错位一档：真实 STAY 被配 10s
+# 阈值导致驻留期必误报 mothership_stuck，RELEASE 被配 70s 卡死漏报）
+const MS_STATE_TIMEOUTS: Array[int] = [20000, 10000, 10000, 70000, 10000, 30000]
+const MS_STATE_NAMES: Array[String] = ["DESCEND", "DOCKING", "RESUPPLY", "STAY", "RELEASE", "DEPART"]
 # 实体爆增阈值
 const MAX_PLAYER_BULLETS := 300
 const MAX_ENEMY_BULLETS := 800
@@ -855,7 +858,7 @@ func _track_mothership(now: int) -> void:
 		_ms_state_since = now
 		_ms_stuck_reported = false
 	elif state >= 0 and not _ms_stuck_reported:
-		if now - _ms_state_since > MS_STATE_TIMEOUTS[state]:
+		if state < MS_STATE_TIMEOUTS.size() and now - _ms_state_since > MS_STATE_TIMEOUTS[state]:
 			_ms_stuck_reported = true
 			@warning_ignore("integer_division")
 			_anomaly("mothership_stuck", "母舰状态 %s 超过 %ds 未推进" % [MS_STATE_NAMES[state], MS_STATE_TIMEOUTS[state] / 1000])

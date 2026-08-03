@@ -173,20 +173,26 @@ func _ready() -> void:
 
 ## 数值配置注入：机型表数值覆盖（贴图/策略/弹种池留在脚本），常量读入
 func _apply_balance() -> void:
-	WAVE_INTERVAL_START = GameState.cfg("spawner.wave_interval_start", WAVE_INTERVAL_START)
-	WAVE_INTERVAL_END = GameState.cfg("spawner.wave_interval_end", WAVE_INTERVAL_END)
-	RAMP_TIME = GameState.cfg("spawner.ramp_time", RAMP_TIME)
+	# L06（2026-08-03 审查）：间隔键下限钳制（H15 同族遗漏）——wave_interval_start ≤ 0 时
+	# _current_interval 的 clampf 上界 ≤0 返回负值，_wave_timer 恒 ≤0 每帧刷一波（预告线
+	# /Timer 无界增长挂死）；ramp_time ≤ 0 时 ramp 曲线瞬时跳变
+	WAVE_INTERVAL_START = maxf(float(GameState.cfg("spawner.wave_interval_start", WAVE_INTERVAL_START)), 0.05)
+	WAVE_INTERVAL_END = maxf(float(GameState.cfg("spawner.wave_interval_end", WAVE_INTERVAL_END)), 0.05)
+	RAMP_TIME = maxf(float(GameState.cfg("spawner.ramp_time", RAMP_TIME)), 0.01)
+	INTERVAL_MIN = maxf(float(GameState.cfg("spawner.interval_min", INTERVAL_MIN)), 0.0)
 	BOSS_SCORE_STEP = GameState.cfg("spawner.boss_score_step", BOSS_SCORE_STEP)
 	BOSS_MIN_INTERVAL = GameState.cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL)
 	BOSS_TIME_LIMIT = GameState.cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT)
 	DIFFICULTY_FACTOR = GameState.cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR)
-	INTERVAL_MIN = GameState.cfg("spawner.interval_min", INTERVAL_MIN)
 	# C18：cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
 	var us: Variant = GameState.cfg("spawner.unlock_scores", UNLOCK_SCORES)
 	var us_arr: Array[int] = []
 	if us is Array:
 		for v in us:
-			us_arr.append(int(v))
+			# L05（2026-08-03 审查）：元素级判型（E04 同族遗漏）——Dict 元素 int() 抛运行时
+			# 错误（启动即崩）、字符串静默转 0 使全部机型开局解锁；非数字元素跳过
+			if (v is int or v is float) and not v is bool:
+				us_arr.append(int(v))
 	UNLOCK_SCORES = us_arr if not us_arr.is_empty() else [0, 300, 800, 1500]
 	WAVE_SIZE_START = int(GameState.cfg("spawner.wave_size_start", WAVE_SIZE_START))
 	WAVE_SIZE_END = int(GameState.cfg("spawner.wave_size_end", WAVE_SIZE_END))
@@ -217,9 +223,27 @@ func _apply_balance() -> void:
 func _merge_type(dst: Dictionary, src: Variant) -> void:
 	if not src is Dictionary:
 		return  # G06：结构损坏的机型条目整体跳过（回退脚本默认）
-	if src.has("hp") and src["hp"] is Array and src["hp"].size() >= 2:
+	# L05（2026-08-03 审查）：嵌套数组元素级判型（G06 只判容器形状）——Dict 元素
+	# int()/float() 启动即崩、字符串静默 0（敌机 0 HP 秒死）；元素非数字整组跳过
+	if (
+		src.has("hp")
+		and src["hp"] is Array
+		and src["hp"].size() >= 2
+		and (src["hp"][0] is int or src["hp"][0] is float)
+		and not src["hp"][0] is bool
+		and (src["hp"][1] is int or src["hp"][1] is float)
+		and not src["hp"][1] is bool
+	):
 		dst["hp"] = Vector2i(int(src["hp"][0]), int(src["hp"][1]))
-	if src.has("speed") and src["speed"] is Array and src["speed"].size() >= 2:
+	if (
+		src.has("speed")
+		and src["speed"] is Array
+		and src["speed"].size() >= 2
+		and (src["speed"][0] is int or src["speed"][0] is float)
+		and not src["speed"][0] is bool
+		and (src["speed"][1] is int or src["speed"][1] is float)
+		and not src["speed"][1] is bool
+	):
 		dst["speed"] = Vector2(float(src["speed"][0]), float(src["speed"][1]))
 	for k in ["score", "fire", "fire_interval", "scale", "radius"]:
 		var v: Variant = src.get(k)

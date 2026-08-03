@@ -58,6 +58,7 @@ var _title_labels: Dictionary = {}
 var _columns: HBoxContainer
 var _route_hint_label: Label
 var _panels: Array[ChamferedPanel] = []
+var _resume_button: Button  # L08（2026-08-03 审查）：成员引用——焦点归还 + locale 刷新
 var _glow_texture: GradientTexture2D
 
 
@@ -156,6 +157,7 @@ func _ready() -> void:
 	right.add_child(_build_missions())
 
 	var resume_button := UITheme.make_button(tr("BASE_RESUME"), true)
+	_resume_button = resume_button
 	resume_button.custom_minimum_size = Vector2(280.0, 52.0)
 	resume_button.pressed.connect(_on_resume_pressed)
 	# 底部 2px 投影线 + 1.5s 呼吸辉光（§3.3.4，只动 alpha；尺寸/位置/回调不变）
@@ -299,6 +301,9 @@ func show_base() -> void:
 	visible = true
 	_holo_boot()
 	UITheme.animate_open(_columns)
+	# L08（2026-08-03 审查）：全项目模态页唯一无焦点初始化的页面——手柄/键盘玩家
+	# 进入基地后方向键+Enter 无法操作（对齐 settings/pause/buff_select 的聚焦约定）
+	_resume_button.grab_focus()
 
 
 ## 全息启动（§3.3.5）：四面板 α0 + scale 0.98→1.0，stagger 60ms；
@@ -337,6 +342,7 @@ func _refresh() -> void:
 	_route_hint_label.text = tr("BASE_ROUTE_HINT")
 	_repair_button.text = tr("BASE_REPAIR")
 	_recharge_button.text = tr("BASE_RECHARGE")
+	_resume_button.text = tr("BASE_RESUME")  # L08：locale 刷新路径补齐（其余按钮均在此刷新）
 	# 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
 	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.health >= GameState.max_health()
 	_recharge_button.disabled = (GameState.rp < GameState.RP_RECHARGE_COST or player == null or player.fuel_amount() >= player.fuel_max)

@@ -32,6 +32,10 @@ RE_FORMAT = re.compile(r'GameState\.cfg\(\s*"([^"]*?)%[^"]*"\s*%')
 # RE_CFG_WITH_VAR 把用该变量作首参的 cfg 调用登记为动态前缀（P1-3 起 aim_frame_layer 采用此写法）。
 RE_PREFIX_VAR = re.compile(r'var\s+(\w+)\s*(?::\s*[\w.]*\s*)?=\s*"([^"]+)"\s*\+')
 RE_CFG_WITH_VAR = re.compile(r'GameState\.cfg\(\s*(\w+)\s*\+')
+# 声明式效果表（player.gd BUFF_EFFECTS 等）："cfg": "buffs.rapid_fire.factor" 字符串键。
+# L09（2026-08-03 审查）：A3 收敛声明式效果表后此类键不经 GameState.cfg 调用，
+# 原扫描全盲区——7 个效果表键不参与缺失键检测（拼错/改名不报）、被消费键误列疑似死键
+RE_EFFECT_CFG = re.compile(r'"cfg"\s*:\s*"([^"]+)"')
 
 
 def _in_comment(text: str, pos: int) -> bool:
@@ -70,7 +74,7 @@ def main() -> None:
         for gd in sorted(d.rglob("*.gd")):
             rel = gd.relative_to(ROOT)
             text = gd.read_text(encoding="utf-8")
-            patterns = [RE_STATIC]
+            patterns = [RE_STATIC, RE_EFFECT_CFG]
             if gd.name in ("game_state.gd", "balance_service.gd"):
                 # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
@@ -79,7 +83,8 @@ def main() -> None:
                     if _in_comment(text, m.start()) or text[max(0, m.start() - 5):m.start()].endswith("func "):
                         continue
                     line = text.count("\n", 0, m.start()) + 1
-                    default = re.sub(r"\s+", " ", (m.group(2) or "—").strip())
+                    # RE_EFFECT_CFG 仅一个捕获组（键），无默认值列
+                    default = "—" if pat is RE_EFFECT_CFG else re.sub(r"\s+", " ", (m.group(2) or "—").strip())
                     if len(default) > 60:
                         default = default[:57] + "..."
                     static_calls.append((str(rel), line, m.group(1), default))

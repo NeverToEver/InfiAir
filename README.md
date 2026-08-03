@@ -122,7 +122,7 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（31 场景 / 1113 断言）</summary>
+<summary>✅ 测试与验证（37 断言场景）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 
@@ -132,7 +132,7 @@ godot --headless --path . --quit-after 300  # 运行时冒烟
 godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 项）
 ```
 
-完整 31 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#本地运行与验证)。
+完整 37 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#本地运行与验证)。
 
 </details>
 

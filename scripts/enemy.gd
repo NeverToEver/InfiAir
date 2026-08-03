@@ -338,6 +338,12 @@ func reactivate(
 	p_difficulty: float,
 	p_bullet_type: StringName = &"",
 ) -> void:
+	# L02（2026-08-03 审查）：池化复用重连 buff 信号——_ready 只执行一次，而 _exit_tree
+	# 在每次 reparent（release→pool / spawn→Main）都断开连接；不重连则 _slow_field_on
+	# 冻结在陈旧值，首个回收循环后 slow_field buff 对该机静默失效。连接后立即刷新缓存。
+	if not GameState.buffs_changed.is_connected(_on_buffs_changed):
+		GameState.buffs_changed.connect(_on_buffs_changed)
+	_on_buffs_changed()
 	_active = true
 	_time = 0.0
 	_hovering = false
@@ -392,7 +398,8 @@ func _despawn() -> void:
 
 func _exit_tree() -> void:
 	GameState.unregister_enemy(self)
-	# 2026-08-03 审计：buff 信号断开（C22 模式，池化 reparent 复用不重复连接）
+	# L02（2026-08-03 审查）：buff 信号断开（C22 模式）；池化 reparent 复用由
+	# reactivate() 对称重连（_ready 只执行一次，断开后必须重连，见 reactivate 注释）
 	if GameState.buffs_changed.is_connected(_on_buffs_changed):
 		GameState.buffs_changed.disconnect(_on_buffs_changed)
 	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池

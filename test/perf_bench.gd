@@ -1,5 +1,5 @@
 extends Node
-## 性能基准：固定压力场景（main + 30 敌机 + 玩家强制开火 + 每 20 物理帧一次爆炸），
+## 性能基准：固定压力场景（main + 200 敌机 + 玩家强制开火 + 每 20 物理帧一次爆炸），
 ## 跑 1800 物理帧统计平均帧耗时。headless + 高物理频率下帧耗时≈纯 CPU 成本。
 ## 用法：godot --headless --path . res://test/perf_bench.tscn
 
@@ -21,7 +21,7 @@ func _ready() -> void:
 	var main := get_node("Main")
 	var spawner := main.get_node("Spawner")
 	spawner.set_process(false)  # 自己控制刷怪节奏
-	# 30 只敌机（各机型/策略混合，部分可开火）
+	# 200 只敌机（各机型/策略混合，部分可开火）——L10：注释口径同步（原「30 只」落后于常量）
 	for i in ENEMY_COUNT:
 		var cfg: Dictionary = spawner.ENEMY_TYPES[i % spawner.ENEMY_TYPES.size()]
 		var e := load("res://scenes/enemy.tscn").instantiate() as Enemy

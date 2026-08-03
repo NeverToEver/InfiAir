@@ -144,8 +144,8 @@
 | 552 | `boss.difficulty_scaling.interval_mult` | `DIFF_INTERVAL_MULT` |
 | 553 | `boss.difficulty_scaling.speed_mult` | `DIFF_SPEED_MULT` |
 | 554 | `boss.difficulty_scaling.counts` | `DIFF_COUNT_DELTAS` |
-| 784 | `effects.shake.enrage` | `16.0` |
-| 921 | `effects.shake.enrage` | `16.0` |
+| 792 | `effects.shake.enrage` | `16.0` |
+| 929 | `effects.shake.enrage` | `16.0` |
 
 ### `scripts/buff_select.gd`
 
@@ -472,6 +472,13 @@
 | 303 | `player.aim_assist.falloff.end` | `_falloff_end` |
 | 304 | `player.aim_assist.falloff.min` | `_falloff_min` |
 | 763 | `player.aim_assist.homing_time` | `HOMING_TIME` |
+| 52 | `buffs.rapid_fire.factor` | `—` |
+| 53 | `buffs.power_shot.factor` | `—` |
+| 54 | `buffs.efficient_boost.factor` | `—` |
+| 55 | `buffs.boost_recovery.factor` | `—` |
+| 56 | `player.dash.cooldown_stack_factor` | `—` |
+| 57 | `buffs.spread_shot.max_stacks` | `—` |
+| 58 | `buffs.piercing.max_stacks` | `—` |
 
 ### `scripts/return_cinematic.gd`
 
@@ -483,31 +490,31 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 176 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
-| 177 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
-| 178 | `spawner.ramp_time` | `RAMP_TIME` |
-| 179 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
-| 180 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
-| 181 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
-| 182 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
-| 183 | `spawner.interval_min` | `INTERVAL_MIN` |
-| 185 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
-| 191 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
-| 192 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
-| 193 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
-| 194 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
-| 195 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
-| 196 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
-| 198 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
-| 201 | `elite_turret_event.min_score` | `ETV_MIN_SCORE` |
-| 202 | `elite_turret_event.trigger_interval` | `ETV_TRIGGER_INTERVAL` |
-| 203 | `elite_turret_event.trigger_chance` | `ETV_TRIGGER_CHANCE` |
-| 204 | `formation_strike_event.trigger_interval` | `FS_TRIGGER_INTERVAL` |
-| 205 | `formation_strike_event.trigger_chance` | `FS_TRIGGER_CHANCE` |
-| 209 | `enemies.types` | `[]` |
-| 212 | `elites.types` | `[]` |
-| 509 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
-| 547 | `effects.shake.boss_warning` | `14.0` |
+| 179 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
+| 180 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
+| 181 | `spawner.ramp_time` | `RAMP_TIME` |
+| 182 | `spawner.interval_min` | `INTERVAL_MIN` |
+| 183 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
+| 184 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
+| 185 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
+| 186 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
+| 188 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
+| 197 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
+| 198 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
+| 199 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
+| 200 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
+| 201 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
+| 202 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
+| 204 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
+| 207 | `elite_turret_event.min_score` | `ETV_MIN_SCORE` |
+| 208 | `elite_turret_event.trigger_interval` | `ETV_TRIGGER_INTERVAL` |
+| 209 | `elite_turret_event.trigger_chance` | `ETV_TRIGGER_CHANCE` |
+| 210 | `formation_strike_event.trigger_interval` | `FS_TRIGGER_INTERVAL` |
+| 211 | `formation_strike_event.trigger_chance` | `FS_TRIGGER_CHANCE` |
+| 215 | `enemies.types` | `[]` |
+| 218 | `elites.types` | `[]` |
+| 533 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
+| 571 | `effects.shake.boss_warning` | `14.0` |
 
 ### `scripts/starfield.gd`
 
@@ -546,10 +553,10 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 110 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
-| 111 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
-| 183 | `tutorial.boss_hp` | `120.0` |
-| 255 | `mothership.hover_y` | `270.0` |
+| 109 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
+| 110 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
+| 182 | `tutorial.boss_hp` | `120.0` |
+| 254 | `mothership.hover_y` | `270.0` |
 
 ### `scripts/warp_gate.gd`
 
@@ -586,7 +593,6 @@
 
 （经动态键或整段读取覆盖的不列出；剩下的请人工判断是否为死键）
 
-- `player.dash.cooldown_stack_factor`
 - `version`
 
 ## 脚本引用但 json 缺失的键（走回退值，建议补进 json 或确认为有意兜底）

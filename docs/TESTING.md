@@ -114,7 +114,7 @@ godot --headless --import --path .
 # 4. 编译 + 运行时冒烟
 godot --headless --path . --quit-after 300
 godot --headless --path . res://test/smoke_test.tscn
-# 5. 全量断言：35 个场景逐个跑（排除 autoplay_test 长时探针），任一 FAIL 退出码非零
+# 5. 全量断言：37 个场景逐个跑（排除 autoplay_test 长时探针），任一 FAIL 退出码非零
 ```
 
 - **工具安装**（一次性，装于项目内 `.venv/`，已被 `.gitignore` 排除不入库；复用 pip 本地 wheel 缓存无需重复下载）：`python3 -m venv .venv && .venv/bin/pip install gdtoolkit`，之后用 `.venv/bin/gdformat` / `.venv/bin/gdlint`。

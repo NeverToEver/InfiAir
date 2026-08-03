@@ -489,6 +489,9 @@ func _on_locale_changed() -> void:
 		p.visible = false
 	_refresh_rebind_rows()
 	show_page(current)
+	# L08（2026-08-03 审查）：重建后归还焦点——旧按钮已 queue_free，焦点丢失使
+	# 键盘 Tab 循环与手柄方向键导航中断（对齐 show_settings 的 grab_focus 约定）
+	(_nav_buttons[current] as Button).grab_focus()
 	# 操作模式按钮选中态刷新
 	_ctrl_hold.set_pressed_no_signal(not GameState.ctrl_toggle_mode)
 	_ctrl_toggle.set_pressed_no_signal(GameState.ctrl_toggle_mode)

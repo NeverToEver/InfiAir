@@ -178,7 +178,9 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 		var def: Dictionary = d[key]
 		for k in DIFFICULTY_DEF_KEYS:
 			var v: Variant = def.get(k)  # 缺键时 get 返回 null，一并落入类型校验
-			if (not v is int) and (not v is float):
+			# L04（2026-08-03 审查）：bool 是 int 子类需显式排除（E21 已修 spawner 同型
+			# 遗漏）——"score": false 通过校验后得分倍率恒 0，里程碑永不触发（Buff 系统软锁）
+			if ((not v is int) and (not v is float)) or v is bool:
 				return false
 		# H03（健壮性审核）：数值域校验——milestone ≤ 0 会破坏阈值单调性，
 		# 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴。

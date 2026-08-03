@@ -25,9 +25,12 @@ func _ready() -> void:
 	var cine: ReturnCinematic = load("res://scenes/return_cinematic.tscn").instantiate()
 	add_child(cine)
 	# add_child 同帧替换时长表（首镜头延后到帧末启动，见 return_cinematic._ready）
-	cine.set_shot_durations([])
+	# L01（2026-08-03 审查）：set_shot_durations 返回 void，原链式调用为编译错误
+	# （A7 重构把 setter 改 void 时未同步工具，窗口模式截图工具已坏）；整表一次传入
+	var shots: Array[float] = []
 	for i in 7:
-		cine.set_shot_durations().append(SHOT_LEN)
+		shots.append(SHOT_LEN)
+	cine.set_shot_durations(shots)
 	var t := 0.0
 	for item in SCHEDULE:
 		await get_tree().create_timer(item[0] - t).timeout

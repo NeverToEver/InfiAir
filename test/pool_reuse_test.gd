@@ -66,6 +66,16 @@ func _test_enemy_pool() -> void:
 	var e2 := pool.spawn(config, &"straight", 1.0, Vector2(200, 100))
 	_check(e2 == e1, "enemy: 再次 spawn 复用同一实例")
 	_check(GameState.enemies.has(e2), "enemy: 复用后重新注册")
+	# L02（2026-08-03 审查）：池化复用后 buff 信号必须重连——_ready 只执行一次而 _exit_tree
+	# 每次 reparent 都断开连接，漏重连则 _slow_field_on 缓存冻结在陈旧值（首个回收循环后
+	# slow_field buff 对该机静默失效）。白盒断言连接状态与刷新行为（E22 缓存字段；
+	# buffs 为进程内存态，退出即清，无需收尾）
+	_check(
+		GameState.buffs_changed.is_connected(e2._on_buffs_changed),
+		"enemy: 池化复用后 buffs_changed 保持连接（L02 slow_field 回归）",
+	)
+	GameState.add_buff(&"slow_field")
+	_check(e2._slow_field_on, "enemy: 复用后 buff 变更即时刷新 slow_field 缓存")
 	pool.release(e2)
 	await get_tree().process_frame
 	main.queue_free()

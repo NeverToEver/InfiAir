@@ -1051,6 +1051,9 @@ func _die() -> void:
 	_enrage_slow = 1.0  # 死亡/重生路径兜底：狂暴减速必复位（Boss 侧另有解锁与离场兜底）
 	hide()
 	_hitbox.set_deferred("monitoring", false)
+	# L03（2026-08-03 审查）：K03 延续遗漏——死亡路径未关擦弹环，尸体位置仍可
+	# 计擦弹分/出特效/播音效（死亡当帧物理批次与死亡后飞过尸体的敌弹均触发）
+	$GrazeArea.monitoring = false
 	# K03 延续：死亡时关闭弹反盾判定（physics_process 已停，盾 monitoring 不再由相位同步管理）
 	if _parry_shield != null:
 		_parry_shield.monitoring = false
