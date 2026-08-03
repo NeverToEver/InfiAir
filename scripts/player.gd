@@ -68,6 +68,9 @@ var FUEL_RESTART := 30.0
 ## 尾焰染色乘区（Buff 外观反馈：高效推进/燃料再生写入，每帧乘算进尾焰基色）
 var engine_tint := Color(1.0, 1.0, 1.0)
 
+## 机身基准色调（可视性增强：深色机体提亮青白；弹反/擦弹/无敌/常态分支均以此为基底叠加）
+const BODY_TINT_BASE := Color(1.35, 1.4, 1.55)
+
 var DASH_DISTANCE := 200.0
 var DASH_TIME := 0.25
 var DASH_COOLDOWN := 4.0
@@ -342,7 +345,7 @@ func _load_balance() -> void:
 	add_child(_crosshair)
 	# 可视性增强（深色机体在星空背景上易丢失）：机体提亮 + 青色描边辉光
 	# （辉光挂 _sprite 下，跟随旋转/缩放/无敌帧闪烁）
-	_sprite.modulate = Color(1.35, 1.4, 1.55)
+	_sprite.modulate = BODY_TINT_BASE
 	var glow := Sprite2D.new()
 	glow.texture = _sprite.texture
 	glow.scale = Vector2(1.2, 1.2)
@@ -630,9 +633,7 @@ func _physics_process(delta: float) -> void:
 	if _dash.is_dashing():
 		_dash.update_move(delta, self)
 		# 冲刺尾焰（视觉保留 player 侧）
-		_thruster.speed_scale = 1.7
-		_thruster.amount_ratio = 1.0
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
+		_set_thruster(1.7, 1.0, 1.0)
 		return
 
 	# 燃料与加速（shift_toggle_mode：按一下切换开/关）
@@ -665,17 +666,11 @@ func _physics_process(delta: float) -> void:
 
 	# 尾焰：加速变长变亮，静止减弱
 	if boosting and input_dir != Vector2.ZERO:
-		_thruster.speed_scale = 1.7
-		_thruster.amount_ratio = 1.0
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
+		_set_thruster(1.7, 1.0, 1.0)
 	elif input_dir != Vector2.ZERO:
-		_thruster.speed_scale = 1.0
-		_thruster.amount_ratio = 0.8
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.85) * engine_tint
+		_set_thruster(1.0, 0.8, 0.85)
 	else:
-		_thruster.speed_scale = 0.6
-		_thruster.amount_ratio = 0.35
-		_thruster.self_modulate = Color(1.0, 1.0, 1.0, 0.6) * engine_tint
+		_set_thruster(0.6, 0.35, 0.6)
 
 	var aim := aim_point() - global_position
 	if aim.length() > 1.0:
@@ -691,17 +686,21 @@ func _physics_process(delta: float) -> void:
 
 	# 机身色调四源（优先级从高到低）：弹反金 tint > 擦弹金色微闪 > 无敌帧闪烁
 	var now_ms := Time.get_ticks_msec()  # 每帧一次（P2：闪烁与光点共用）
+	# 无敌倒计时无条件递减（置于视觉分支之外）：弹反/擦弹/冲刺期间若冻结，
+	# 受击无敌会被视觉分支实际延长，Boss 转场注入与受击判定的时序随之失真
+	if _invincible > 0.0:
+		_invincible -= delta
 	var parry_tint := _parry.tint_strength()
 	if parry_tint > 0.0:
-		_sprite.modulate = Color(1.0, 1.0, 1.0).lerp(Color(1.7, 1.25, 0.5), parry_tint)
+		_sprite.modulate = BODY_TINT_BASE.lerp(Color(1.7, 1.25, 0.5), parry_tint)
 	elif _graze_flash > 0.0:
 		_graze_flash -= delta
-		_sprite.modulate = Color(1.7, 1.35, 0.5)
+		_sprite.modulate = BODY_TINT_BASE.lerp(Color(1.7, 1.35, 0.5), 1.0)
 	elif _invincible > 0.0:
-		_invincible -= delta
+		_sprite.modulate = BODY_TINT_BASE
 		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(now_ms * 0.02))
 	else:
-		_sprite.modulate.a = 1.0
+		_sprite.modulate = BODY_TINT_BASE
 
 	# 碰撞点光点脉动（常亮低频闪烁，提示实际受击判定位置）
 	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(now_ms * 0.006))
@@ -714,6 +713,13 @@ func _physics_process(delta: float) -> void:
 func clamp_to_view(p: Vector2) -> Vector2:
 	var view := GameState.view_world_rect()
 	return p.clamp(view.position + Vector2(40.0, 40.0), view.end - Vector2(40.0, 40.0))
+
+
+## 尾焰档位应用（冲刺/加速/巡航/静止/入场五处共用；2026-08-03 审计提取去重）
+func _set_thruster(speed_scale: float, amount_ratio: float, alpha: float) -> void:
+	_thruster.speed_scale = speed_scale
+	_thruster.amount_ratio = amount_ratio
+	_thruster.self_modulate = Color(1.0, 1.0, 1.0, alpha) * engine_tint
 
 
 ## 当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（与准星/开火同一来源）。
@@ -819,9 +825,7 @@ func play_entry_animation() -> void:
 	_auto_fire_enabled = false
 	position = Vector2(rect.get_center().x, rect.end.y + ENTRY_SPAWN_CLEARANCE)
 	# 高功率引擎冲入（尾焰拉满；减速后随拖尾渐隐）
-	_thruster.speed_scale = 2.0
-	_thruster.amount_ratio = 1.0
-	_thruster.self_modulate = Color(1.0, 1.0, 1.0, 1.0) * engine_tint
+	_set_thruster(2.0, 1.0, 1.0)
 	_entry_tween = create_tween()
 	_entry_tween.tween_property(self, "position:y", land_y, ENTRY_RUSH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_entry_tween.tween_callback(_on_entry_landed)
@@ -1001,7 +1005,8 @@ func _on_parry_shield_entered(area: Area2D) -> void:
 	if absf(angle_difference(rel.angle(), -PI / 2.0)) > arc:
 		return
 	b.reflect()
-	Explosion.spawn_at(get_parent(), global_position, 0.5)
+	# 2026-08-03 审计：爆点取弹反命中处（盾缘），而非玩家中心（原实现爆点偏移到机腹）
+	Explosion.spawn_at(get_parent(), area.global_position, 0.5)
 	GameState.play_sfx(GameState.SFX_DASH, -6.0)  # 弹反音效占位（缺专用资产，登记后续音频项）
 
 
@@ -1083,6 +1088,11 @@ func _exit_tree() -> void:
 		GameState.aim_assist_changed.disconnect(_on_aim_assist_level_changed)
 	if GameState.joy_settings_changed.is_connected(_on_joy_settings_changed):
 		GameState.joy_settings_changed.disconnect(_on_joy_settings_changed)
+	# 2026-08-03 审计（C22 补齐）：子节点信号断开——节点未 free 重入树防双连回调
+	if $GrazeArea.area_entered.is_connected(_on_graze_entered):
+		$GrazeArea.area_entered.disconnect(_on_graze_entered)
+	if _parry_shield != null and _parry_shield.area_entered.is_connected(_on_parry_shield_entered):
+		_parry_shield.area_entered.disconnect(_on_parry_shield_entered)
 	if GameState.player_ref == self:
 		GameState.player_ref = null
 	if GameState.player_hitbox == _hitbox:

@@ -14,6 +14,7 @@ var _plate: ChamferedPanel
 var _content: VBoxContainer
 var _settings_ui: CanvasLayer  # 惰性绑定（SettingsUI 的 _ready 晚于本节点）
 var _dim: ColorRect
+var _saved: bool = false  # 保存态标志（2026-08-03 审计：跨语言文本比较判保存态会误判）
 
 
 func _ready() -> void:
@@ -62,11 +63,12 @@ func _on_locale_changed() -> void:
 	_hint_label.text = tr("PAUSE_HINT")
 	_settings_button.text = tr("PAUSE_SETTINGS")
 	_quit_button.text = tr("PAUSE_QUIT")
-	if _save_button.text != tr("PAUSE_SAVED"):
-		_save_button.text = tr("PAUSE_SAVE")
+	# 2026-08-03 审计：按保存态标志选文案（跨语言文本比较在切换语言后会误判为未保存）
+	_save_button.text = tr("PAUSE_SAVED") if _saved else tr("PAUSE_SAVE")
 
 
 func open() -> void:
+	_saved = false
 	_save_button.text = tr("PAUSE_SAVE")
 	get_tree().paused = true
 	visible = true
@@ -123,6 +125,7 @@ func _on_save_pressed() -> void:
 	var fuel: float = player.fuel_amount() if player != null else 100.0
 	var elapsed: float = spawner.elapsed() if spawner != null else 0.0
 	GameState.save_run(fuel, elapsed)
+	_saved = true
 	_save_button.text = tr("PAUSE_SAVED")
 	# 用信号连接而非协程：退出时挂起的协程函数状态会泄漏
 	var timer := Timer.new()
@@ -134,6 +137,7 @@ func _on_save_pressed() -> void:
 
 
 func _reset_save_label() -> void:
+	_saved = false
 	_save_button.text = tr("PAUSE_SAVE")
 
 

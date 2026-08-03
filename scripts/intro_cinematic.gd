@@ -336,10 +336,12 @@ func _build_shot1() -> Node2D:
 		wave_ring.material = wave_mat
 		wave_ring.scale = Vector2.ONE * 0.2
 		station.add_child(wave_ring)
-		var wt := root.create_tween().set_parallel(true)
+		var wt := root.create_tween()
 		wt.tween_interval(0.2 + 0.3 * wave)
-		wt.chain().tween_property(wave_ring, "scale", Vector2.ONE * 4.5, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		wt.tween_property(wave_ring, "modulate:a", 0.0, 0.8)
+		# 2026-08-03 审计：扩散与淡出同步起播（原 parallel 模式把淡出从 tween 起点开始，
+		# 第二波环在扩散中段即不可见）；改为 interval 后 scale/alpha 并行（与镜头 2 ripple 同款）
+		wt.tween_property(wave_ring, "scale", Vector2.ONE * 4.5, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		wt.parallel().tween_property(wave_ring, "modulate:a", 0.0, 0.8)
 		# 起爆同步一次主爆颤动（幅度略大于镜头 2 单节点）
 		var kt := root.create_tween()
 		kt.tween_interval(0.2 + 0.3 * wave)

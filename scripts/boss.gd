@@ -593,6 +593,10 @@ func _apply_difficulty_scaling() -> void:
 	E1_RING_INTERVAL *= interval_mult
 	E2_POINT_INTERVAL *= interval_mult
 	E3_SUMMON_INTERVAL *= interval_mult
+	# 2026-08-03 审计：三型普通阶段召唤间隔随难度分档（对齐 §8.3「各内部节奏 ×interval_mult」）；
+	# 同步首唤计时，否则第一个召唤用 _ready 时的未分档间隔
+	_summon_interval *= interval_mult
+	_summon_timer = _summon_interval
 	E3_RING_INTERVAL *= interval_mult
 	# 弹速（不含 main 编排的快照激光/环弹）
 	FAN_BULLET_SPEED *= speed_mult
@@ -838,21 +842,6 @@ func fire_enrage_snapshot() -> void:
 	)
 
 
-## RELEASE_HOLD 密集释放（未差异化回退路径）：同构弹幕但用慢速。委托 BossFire。
-func _fire_enrage_release() -> void:
-	if _escaping:
-		return
-	_fire.fire_enrage_wave(
-		self,
-		ENRAGE_RELEASE_LASER_SPEED,
-		ENRAGE_RELEASE_RING_SPEED,
-		BULLET_DAMAGE_SNAPSHOT_LASER,
-		BULLET_DAMAGE_SNAPSHOT_RING,
-		ENRAGE_SNAPSHOT_LASERS,
-		ENRAGE_SNAPSHOT_RING
-	)
-
-
 ## 狂暴序列驱动：TRANSITION（蓄力抖动滑入轨道，1 型悬停原地）→ ACTIVE（各型差异化攻击）
 ## → RELEASE_HOLD（各型收尾爆发，§5.4 峰值）→ RETURN（飞回战斗位）→ NONE（常规「余怒」循环）
 ## 序列中断（逃跑/死亡/离场/教程收尾）：清状态 + 解血锁 + 复位减速 + 清 telegraph，幂等
@@ -867,8 +856,8 @@ func _abort_enrage_sequence() -> void:
 func take_damage(amount: int, score_scale: float = 1.0) -> void:
 	if _escaping:
 		return  # G02：逃跑期不再受任何伤害——激光 _damage_tick/溅射 _splash 按注册表+距离判定
-		# 绕开 collision_layer=0，此处统一拦截，防逃跑窗口内补刀致死触发击杀奖励（与
-		# fire_enrage_snapshot/_fire_enrage_release 的 _escaping 防护同模式）
+		# 绕开 collision_layer=0，此处统一拦截，防逃跑窗口内补刀致死触发击杀奖励
+		#（2026-08-03 审计：同模式防护在 EnrageSequence._release_fallback，旧 Boss._fire_enrage_release 已删）
 	if hp <= 0.0:
 		return  # 已死亡待释放（同帧多发命中防重复结算）
 	if _enrage_seq.is_health_locked():

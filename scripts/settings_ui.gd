@@ -191,23 +191,28 @@ func _unhandled_input(event: InputEvent) -> void:
 		_capturing_action = &""
 		get_viewport().set_input_as_handled()
 		return
+	# 鼠标右键：与 Esc 同路由的固定取消触发器（BackNavigator 对捕获态放行不消费，事件传到本节点）
+	@warning_ignore("unsafe_property_access")
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		_hint_label.text = tr("SET_CANCELLED")
+		_capturing_action = &""
+		get_viewport().set_input_as_handled()
+		return
 	@warning_ignore("unsafe_property_access")
 	if event is InputEventKey and event.pressed and not event.echo:
+		# 2026-08-03 审计：删除不可达的 KEY_ESCAPE 分支——ui_cancel 不在 REBINDABLE_ACTIONS，
+		# 捕获态下 Esc 必先命中上方 ui_cancel 取消分支并 return，到不了此处
 		@warning_ignore("unsafe_property_access")
-		if event.keycode == KEY_ESCAPE:
-			_hint_label.text = tr("SET_CANCELLED")
-		else:
-			@warning_ignore("unsafe_property_access")
-			GameState.rebind_action(_capturing_action, event.keycode)
-			# 提取局部变量：@warning_ignore 注解不能放数组元素中间（Godot 解析错误）
-			var bound_key := OS.get_keycode_string(event.keycode)
-			_hint_label.text = (
-				tr("SET_BOUND")
-				% [
-					tr("ACT_" + String(_capturing_action).to_upper()),
-					bound_key,
-				]
-			)
+		GameState.rebind_action(_capturing_action, event.keycode)
+		# 提取局部变量：@warning_ignore 注解不能放数组元素中间（Godot 解析错误）
+		var bound_key := OS.get_keycode_string(event.keycode)
+		_hint_label.text = (
+			tr("SET_BOUND")
+			% [
+				tr("ACT_" + String(_capturing_action).to_upper()),
+				bound_key,
+			]
+		)
 		_capturing_action = &""
 		get_viewport().set_input_as_handled()
 
@@ -463,9 +468,15 @@ func _on_locale_changed() -> void:
 	_reset_button.text = tr("SET_RESET")
 	_version_label.text = tr("SET_VERSION") % Engine.get_version_info().string
 	_cheatsheet_label.text = tr("SET_CHEATSHEET")
-	_refresh_rebind_rows()
 	_refresh_lang_buttons()
 	_refresh_nav_labels()
+	# 2026-08-03 审计：重建前记录当前页并恢复（原实现无条件跳回「控制」页）；
+	# 旧行的一次冗余刷新随旧页一起销毁，统一由重建后 _refresh_rebind_rows 刷新
+	var current := &"controls"
+	for p in _pages:
+		if _pages[p].visible:
+			current = p
+			break
 	# 重建内容区文本（重建代价低，保证全部文案换语言）
 	var content: Container = _pages.values()[0].get_parent()
 	for p in _pages.values():
@@ -477,7 +488,7 @@ func _on_locale_changed() -> void:
 		content.add_child(p)
 		p.visible = false
 	_refresh_rebind_rows()
-	show_page(&"controls")
+	show_page(current)
 	# 操作模式按钮选中态刷新
 	_ctrl_hold.set_pressed_no_signal(not GameState.ctrl_toggle_mode)
 	_ctrl_toggle.set_pressed_no_signal(GameState.ctrl_toggle_mode)

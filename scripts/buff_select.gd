@@ -256,9 +256,10 @@ func _on_card_gui_input(event: InputEvent, id: StringName, card: Control = null)
 		return
 	@warning_ignore("unsafe_property_access")
 	var picked: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
-	# 键盘导航：焦点卡上按 Enter/Space 选取
+	# 键盘/手柄统一选取：ui_accept（Enter/Space/手柄 A）——卡片是自定义 Control，
+	# Godot 把 action 以原始事件类型路由给焦点控件，若限 InputEventKey 则手柄 A 被排除（手柄软锁）
 	@warning_ignore("unsafe_property_access")
-	if event is InputEventKey and event.pressed and not event.echo and event.is_action(&"ui_accept"):
+	if event.is_action(&"ui_accept") and event.pressed and not (event is InputEventKey and event.echo):
 		picked = true
 	if picked:
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
@@ -266,11 +267,7 @@ func _on_card_gui_input(event: InputEvent, id: StringName, card: Control = null)
 		if id == &"extra_life":
 			# 对齐原作：选取瞬时 +30 HP（上限 +50 由 max_health() 按层数自动生效）
 			GameState.heal(GameState.cfg("buffs.extra_life.heal_on_pick", 30))
-		if card == null:
-			# 无卡片上下文（脚本/测试直调）：保持立即关闭语义
-			visible = false
-			get_tree().paused = false
-			return
+		# 2026-08-03 审计：card == null 死分支删除——唯一连接点恒传非空 card，直调走 pick_buff()
 		# 选取确认动效：被选中卡缩至 0.95 + 金色提亮，随后整体 ~200ms 内淡出关闭（其余两卡随面板隐藏）
 		_closing = true
 		if card.has_meta("hover_tween"):

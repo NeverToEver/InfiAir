@@ -253,20 +253,6 @@ static func _line(points: PackedVector2Array, color: Color, width: float = 2.0) 
 	return l
 
 
-## 引爆冲击颤动：随机方向脉冲偏移，0.27s 内衰减回基线（tween 驱动，不加 _process）。
-static func _kick_shake(host: Node2D, amp: float, state: Array) -> void:
-	if state[0] != null and (state[0] as Tween).is_valid():
-		(state[0] as Tween).kill()
-	var dir := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))
-	if dir.length_squared() < 0.01:
-		dir = Vector2.RIGHT
-	var st := host.create_tween()
-	state[0] = st
-	st.tween_property(host, "position", dir.normalized() * amp, 0.04).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	st.tween_property(host, "position", dir.normalized() * -amp * 0.4, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-	st.tween_property(host, "position", Vector2.ZERO, 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-
 ## 粒子工厂：全局委托 CinematicFx（同 dict 契约，默认挂软点贴图，scale 语义保持"像素直径"）
 static func _particles(cfg: Dictionary) -> GPUParticles2D:
 	return CinematicFx.particles(cfg)

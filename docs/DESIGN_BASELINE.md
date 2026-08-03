@@ -69,7 +69,7 @@
 - **阶段模式表驱动**：P1/P2/ENRAGE，模式表 `boss.phases.typeN` + telegraph 前摇；三型差异化狂暴（`boss.enrage.type_*`），狂暴期玩家减速 ×0.35 而非定身；难度分档在 `_ready` 一次性乘算（`boss.difficulty_scaling`：弹数/间隔/弹速三档）。
 - **战斗锚线**：`FIGHT_Y` 为距 view 顶缘偏移，使用点一律走 `_fight_anchor_y()`。
 - **逃跑机制**：50s 超时逃跑（DPS 检查的压力阀）；逃跑**不推进轮换、不给休整**（B3 契约），血条隐藏 + 生成器重排。
-- **实现结构**：门面 `Boss` + 4 职责类 `BossFire`（弹幕）/`BossAttacks`（攻击状态机）/`BossMovement`（移动 + P1 下压）/`EnrageSequence`（狂暴状态机）。**已知遗留**：集中 `match` 仅搬迁、按机型分支残留 7 处（见 §7 A3/A4）。
+- **实现结构**：门面 `Boss` + 4 职责类 `BossFire`（弹幕）/`BossAttacks`（攻击状态机）/`BossMovement`（移动 + P1 下压）/`EnrageSequence`（狂暴状态机）。已随 A3/A4 收敛（2026-08-03）：攻击/移动/狂暴三张注册表 + 机型参数表驱动，无按机型分支特判（原「集中 match 仅搬迁、残留 7 处」遗留已关闭）。
 
 ### 1.7 母舰与返航
 

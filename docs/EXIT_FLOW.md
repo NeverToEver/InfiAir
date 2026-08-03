@@ -17,7 +17,7 @@ L1 对局:  Gameplay(HUD) ⇄ PauseUI
 L0 顶层:  StartPanel（主界面/大厅）
 ```
 
-`scenes/tutorial.tscn` 为独立场景：自身即顶层，Esc = 退出教程回主界面（`tutorial.gd` 自处理，不进状态机）。
+`scenes/tutorial.tscn` 为独立场景：自身即顶层，Esc = 退出教程回主界面（`tutorial.gd` 自处理，不进状态机）。注意基地控制台（BaseConsole）打开时树暂停，教程根节点（process_mode=inherit）收不到输入，Esc 无响应，需点「继续出击」关闭控制台——模态行为，2026-08-03 审计口径说明。
 
 ## 2. 状态机伪代码
 

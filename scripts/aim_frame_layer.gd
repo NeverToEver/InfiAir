@@ -69,23 +69,25 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## 框半宽：碰撞半径（机体尺寸族，setup 已 ×ws）× 实例缩放 + frame_pad
+## 框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 写入 meta）+ frame_pad
 ## A7：测试/诊断白盒断言经公开接口
 func frame_pad() -> float:
 	return _frame_pad
 
 
 func frame_half_size(e: Enemy) -> float:
-	var r := 0.0
 	# C23：碰撞半径经 meta 缓存——setup 后恒定（仅 scale.x 随缩放变化），
-	# 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")
+	# 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
+	# 2026-08-03 审计：meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
+	#（scale.x 同样含 ws，再乘即 ws 平方，0.5 钳制恰好掩盖；ws 上调时框尺寸非线性暴涨）
+	var r := 0.0
 	if not e.has_meta("aim_frame_radius"):
 		var shape_node := e.get_node_or_null("CollisionShape2D") as CollisionShape2D
 		var r_base := 0.0
 		if shape_node != null and shape_node.shape is CircleShape2D:
 			r_base = (shape_node.shape as CircleShape2D).radius
 		e.set_meta("aim_frame_radius", r_base)
-	r = float(e.get_meta("aim_frame_radius")) * maxf(e.scale.x, 0.5)
+	r = float(e.get_meta("aim_frame_radius"))
 	return r + _frame_pad
 
 

@@ -12,7 +12,7 @@ extends Area2D
 
 signal departed(cooldown: float)
 
-enum State { DESCEND, HOVER, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
+enum State { DESCEND, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
 ## G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）
 var SHIP_SCALE := 1.25
@@ -308,8 +308,6 @@ func state_text() -> String:
 	match _state:
 		State.DESCEND:
 			return tr("MS_DESCEND")
-		State.HOVER:
-			return tr("MS_HOVER")
 		State.DOCKING, State.RESUPPLY:
 			return tr("MS_DOCKING")
 		State.STAY:
@@ -408,8 +406,6 @@ func _physics_process(delta: float) -> void:
 				if hud != null:
 					hud.show_info_banner(tr("BANNER_MOTHERSHIP_ARRIVED"))
 				_start_docking(GameState.player_ref as Player)
-		State.HOVER:
-			pass  # 兼容保留：自动对接流程下不再经过（见 _start_docking 守卫）
 		State.DOCKING:
 			# 回收牵引期间火力掩护（加特林+导弹，不耗驻留弹匣）
 			_update_gatling(delta)

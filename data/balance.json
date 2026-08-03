@@ -675,7 +675,6 @@
 	},
 	"difficulty": {
 		"easy": {
-			"label": "易",
 			"hp": 0.75,
 			"speed": 0.85,
 			"spawn": 1.25,
@@ -686,7 +685,6 @@
 			"regen_rate": 4
 		},
 		"medium": {
-			"label": "中",
 			"hp": 1,
 			"speed": 1,
 			"spawn": 1,
@@ -697,7 +695,6 @@
 			"regen_rate": 2
 		},
 		"hard": {
-			"label": "难",
 			"hp": 1.5,
 			"speed": 1.2,
 			"spawn": 0.8,

@@ -62,12 +62,11 @@ func _on_locale_changed() -> void:
 	_rank_label.text = tr("GO_RANK") % [_last_rank]
 	_board_title_label.text = tr("GO_BOARD")
 	_hint_label.text = tr("GO_RESTART")
-	if visible:
-		_stats_label.text = (
-			(tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS"))
-			% [GameState.high_score, GameState.kills, GameState.boss_kills]
-		)
-		_board_label.text = GameState.highscores_text(5)
+	# 2026-08-03 审计：去掉 if visible 恒假包裹（死亡态无语言切换入口），刷新不可见文本无害
+	_stats_label.text = (
+		(tr("GO_BEST") + "\n" + tr("GO_KILLS") + "\n" + tr("GO_BOSS_KILLS")) % [GameState.high_score, GameState.kills, GameState.boss_kills]
+	)
+	_board_label.text = GameState.highscores_text(5)
 
 
 func _on_player_died() -> void:

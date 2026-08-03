@@ -895,3 +895,80 @@
 - **改了什么**：18 个源码/场景/测试文件 + 1 shader + 4 文档（见上表逐条）。
 - **为什么起效**：K01 把「召唤残留 999s 无敌」与「返航基线（无敌=0）」在统一复位点对齐，RELEASE 2s 保护与入场序列保护均不受影响；K02 双守卫消除入场期激光触发窗口（`_saved_autofire` 不再能捕获入场禁火态）；K03-K05/K07-K15 均为「同类防护/机制已存在、此处遗漏」补齐或语义收束，行为零变化；K06 把磁盘写从「每步」降为「每次拖动结束一次」且消除无谓死区循环；K17 配置键从死键变为生效（默认值与现状逐位一致）。
 - **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（autoload/ + scripts/，CI 口径）全绿；20 个针对性场景（smoke/base_system/mouse_lock/tutorial/entry_animation/mothership_summon/elite_turret_event/formation_strike_event/boss_pattern/boss_enrage/boss_phase/meta_health_fx/graze/parry/hit_logic/enemy_combat/pool_reuse/difficulty/grace_period/boss_phase_transition）全 PASS；全量 35 断言场景 0 FAIL（回归结果见当次提交记录）；`--quit-after 300` 0 错误；BALANCE_MAP 双向反查 0 缺失键。
+
+---
+
+# 第九轮审核（2026-08-03 全库薄弱点与业务冗杂点审计重构）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 全库程序薄弱点 + 业务逻辑冗杂点审计重构（AgentSwarm 9 路并行 + 主控逐条复核 P1/P2 + 分批修复即时验证） |
+| 工作时间 | 2026-08-03 |
+| 审核区域 | `scripts/` 63 文件 + `autoload/game_state.gd` + `scenes/return_cinematic.tscn` + `data/balance.json`/`translations.csv` + 相关 docs |
+| 审核方法 | 9 路 explore 子代理并行只读审计（对局编排核心 / 玩家与辅助瞄准 / 刷怪与对象池 / Boss 体系 / 母舰与事件系统 / 过场与编队演出 / HUD 与战斗 UI / 页面与导航 / 数值与配置三方一致性），每路对照 DESIGN_BASELINE 与专项设计文档；主控对全部 P1/P2 逐条读码复核后才修复；每批修复跑针对性测试 |
+| 结论 | P1×3 + P2×7 + P3×33（修复 29 项）；登记不修 5 项。无 P0 |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+
+## E 系列发现与处置
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| E01 | P1 | `player.gd` 机身色调 if/elif 状态机（694-704 区） | 纯 bug | 弹反/擦弹分支整体赋值 `_sprite.modulate` 后 RGB 基准残留不恢复（弹反后提亮 `(1.35,1.4,1.55)` 永久丢失、擦弹后机身永久金色）；且 `_invincible -= delta` 位于 elif 内，弹反（0.8s）/擦弹（0.12s）/冲刺（0.25s return 早退）期间无敌倒计时冻结，受击无敌被视觉分支实际延长，Boss 转场注入的无敌读取失真 | ✅ 修复：提取 `BODY_TINT_BASE` 常量，弹反/擦弹改 `base.lerp(金色, t)` 基底；`_invincible` 递减移至视觉分支之前无条件执行；无敌/常态分支整体重置基准色再调 alpha |
+| E02 | P1 | `boss_attacks.gd` `_start_dash_sweep`/`_update_sweep` | 设计目标未达 | 二型 P2「冲刺掠过」实际未横穿玩家高度：预警线画在玩家高度（`dy` 偏移），DASH 阶段只动 x、y 恒为 AIM 开始时 Boss 锚线（≈230），玩家常驻 400-900 区间 → 机身撞击与 3 枚拖弹全部落空，预警成虚假引导；`boss_pattern_test` 只断言 x 位移未覆盖 y | ✅ 修复：`_sweep_dash_y = boss.position.y + dy`（AIM 开始时玩家高度快照），AIM→DASH 转换时落位该 y；RETURN 复用锚线回位逻辑 |
+| E03 | P1 | `buff_select.gd:254-262` | 纯 bug（手柄软锁） | 卡片确认分支被 `event is InputEventKey` 类型守卫锁死：Godot 把 ui_accept 以原始事件类型路由给焦点控件，手柄 A（InputEventJoypadButton）被排除；卡片是自定义 Control（非 Button），无其他输入路径 → 手柄玩家每次里程碑三选一被软锁，且 BackNavigator 对 buff_ui 可见态返回 IGNORE 无绕行 | ✅ 修复：去掉类型守卫，改 `event.is_action(&"ui_accept") and event.pressed and not (event is InputEventKey and event.echo)`（键盘+手柄通吃，echo 守卫保留） |
+| E04 | P2 | `game_state.gd` `_apply_balance` milestones.base 元素 | 设计目标未达（健壮性） | `int(v)` 对字符串元素返回 0（阈值全 0 → 每次加分触发里程碑风暴）、对 Array/Dict 抛运行时错误（启动即崩）；C03 只防空数组，与「损坏回退默认」宣称矛盾 | ✅ 修复：元素级 `is int or is float` 判型 + `maxi(int(v), 1)`，非法元素跳过 |
+| E05 | P2 | `game_state.gd` `_process` | 性能（热路径违规） | 每帧 `int(run_time)` + `_set_mission_progress` 内 `missions.has/索引` 字典访问（P0-3 只优化了整秒跳过写，字典读仍每帧） | ✅ 修复：`_survive_sec_cached` 整秒缓存，秒值变化才调 `_set_mission_progress` |
+| E06 | P2 | `aim_frame_layer.gd:78-89` `frame_half_size` | 设计目标未达（缩放杠杆） | meta `aim_frame_radius` 已含 ws（enemy.setup 写入），再乘 `e.scale.x`（同样含 ws）= ws 平方；当前 ws=0.4 恰被 `maxf(scale.x, 0.5)` 钳制掩盖，ws 上调时框尺寸非线性暴涨，入框判定面积口径不符注释 | ✅ 修复：删 `* maxf(e.scale.x, 0.5)`，直接取 meta 半径 + frame_pad |
+| E07 | P2 | `orbital_strike.gd:64-67` | 纯 bug（软锁） | `p >= 1.0` 分支先于 `struck.emit()`：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达完成，`finished` 先发而 `struck` 不发——main 恢复对局（paused=false + unlock_input）的唯一入口缺失 → 树永久暂停 + 输入锁软锁，无 UI 可恢复 | ✅ 修复：`p >= 1.0` 分支补发 struck 兜底（`_impacted` 幂等，struck 消费方幂等） |
+| E08 | P2 | `formation_strike_event.gd:204` BOMBING_RUN 离场判定 | 设计目标未达 | 出界（±120px 余量）与投弹完成是 or 关系：hard 5 机投弹表最长 3.6s（x 位移需 ~1224px），向右分支最坏窗口仅 ~1035px → 约 1/3 概率末机炸弹（3.2s/3.6s 时刻）被截断，最坏第 5 机 0 投弹；`formation_strike_event_test` 只用 4 机（2.8s）未暴露 | ✅ 修复：出界余量按投弹表末弹时刻 × RUN_SPEED 动态折算（`_drop_times.back() * RUN_SPEED`） |
+| E09 | P2 | `back_navigator.gd:37-39` + `settings_ui.gd` 捕获态 | 文档-代码矛盾 | 右键分支无条件 `set_input_as_handled()`：改键捕获态（CAPTURE_PASSTHROUGH）被吞，SettingsUI 只处理 ui_cancel/InputEventKey 不处理鼠标 → 捕获态右键无反应，与 EXIT_FLOW「右键=返回/取消（与 Esc 同路由）」矛盾 | ✅ 修复：右键分支 CAPTURE_PASSTHROUGH 时不消费（改走 `_mark_handled` null 防御）；settings_ui 捕获态补右键取消（与 Esc 同路径） |
+| E10 | P2 | `docs/BALANCE_MAP.md` | 文档-代码矛盾 | 310e0b9（A3/A4）改 boss.gd/player.gd 后未重跑生成器：boss.gd 全部 cfg 行号 +5 漂移、player.gd +9~+23 漂移、7 条 STALE 行指向已删除代码 | ✅ 修复：重跑 `gen_balance_map.py`（425 静态调用，0 缺失键） |
+| E11 | P3 | `game_state.gd:148` `_max_hp_bonus` | 健壮性 | 负值使 extra_life 叠层降血上限，与 `_max_hp_base` 钳制不对称 | ✅ 修复：`maxf(..., 0.0)` |
+| E12 | P3 | `game_state.gd` `_valid_difficulty_defs` | 健壮性 | hp/speed/spawn/score/spread_cap 负值致敌机 0 HP 秒死/反向移动/负得分倍率，仅 milestone 有域校验 | ✅ 修复：五个键补 ≥0 校验，任一负值整表回退默认 |
+| E13 | P3 | `game_state.gd:14-16` rp_changed/mission_completed/route_chosen | 冗杂（死信号） | 生产代码零 connect（A7 零 connect 信号清理项残留），base_console 拉取驱动 | ✅ 修复：声明处注释「暂无消费方，轮询驱动」，保留 API |
+| E14 | P3 | `game_state.gd` `try_lifesteal` | 性能 | 击杀帧每次 `cfg("buffs.lifesteal.max_hp_fraction")` 路径解析（P0-2 regen 缓存同款遗漏） | ✅ 修复：`_apply_balance` 缓存 `_lifesteal_fraction` |
+| E15 | P3 | `game_state.gd` `score_multiplier` | 性能 | 每次加分双层字典查找，难度档是低频变更项；曾尝试缓存 | ⏸ 回退（测试证伪）：difficulty 是公开字段，测试/调用方直写不触发 `_refresh_regen_cache`（白盒契约），缓存返回旧值致 difficulty_test 分数倍率断言失败；与同族 enemy_hp_multiplier 等 4 函数一致保持直接查表（事件路径非每帧，收益低） |
+| E16 | P3 | `game_state.gd` `_detect_joy_layout` | 边界缺陷 | 拔掉 PS 手柄后 `joy_layout` 保持 `&"ps"` 不回落，设置页按钮标签残留误导 | ✅ 修复：无手柄时回落 xbox + 广播 |
+| E17 | P3 | `game_state.gd:766` `add_boss_kill` | 冗杂 | 门面内部用 `GameState.cfg` 自引用而非 `_balance_service.cfg`（A2 委托不彻底） | ✅ 修复：改类内 `cfg()` |
+| E18 | P3 | `main.gd:75-76` ENRAGE_SLOW_SCALE/ENRAGE_BULLET_TIME | 健壮性 | 同块其它 5 个 cfg 读取均有 H15 钳制，唯这两行裸读（0 值全冻结/跳过演出） | ✅ 修复：`maxf(..., 0.01)` |
+| E19 | P3 | `bullet.gd` `_on_area_entered` | 边界缺陷 | pierce=0 弹同物理帧重叠双敌：首命中已回收（deactivate/queue_free）但 monitoring 关闭延迟到帧末，第二目标仍被结算「无接触受击」 | ✅ 修复：入口加 `not _active and (_pool != null or is_queued_for_deletion())` 守卫（池化回收与直实例化 queue_free 双路径） |
+| E20 | P3 | `bullet.gd` `_cancel_grace` | 生命周期 | 回收弹 `_grace_hitbox` 引用驻留（只停 timer 不清引用） | ✅ 修复：`_cancel_grace` 内置 null |
+| E21 | P3 | `spawner.gd` `_merge_type` 标量字段 | 健壮性 | score/fire/fire_interval/scale/radius 无判型透传，坏值在击杀结算 `int()` 报类型错误 | ✅ 修复：标量 `is int/float`（排除 bool）判型，坏值跳过 |
+| E22 | P3 | `enemy.gd:409` slow_field | 性能 | 每敌每物理帧 `GameState.buff_count(&"slow_field")` 字典查询（20-30 敌 × 60fps） | ✅ 修复：`buffs_changed` 信号缓存 `_slow_field_on` 布尔（`_ready` 连接、`_exit_tree` 断开，C22 模式） |
+| E23 | P3 | `pause_ui.gd:65` 保存态 | 纯 bug | 跨语言文本比较判保存态：保存后切语言，旧语言「已保存」与新语言 `tr("PAUSE_SAVED")` 不等 → 误判未保存覆盖为 PAUSE_SAVE | ✅ 修复：`_saved` 布尔标志驱动文案 |
+| E24 | P3 | `elite_turret_event.gd` `_on_event_timeout` | 生命周期 | 超时收回的炮塔引用驻留 `_turrets` 最长 ~6s（BOSS_DELAY 窗口），期间数组语义失真 | ✅ 修复：timeout 内 retract 后立即 clear 两数组（`_on_boss_delay_end` clear 幂等） |
+| E25 | P3 | `tutorial.gd` 阶段 2 补刷轮询 | 性能 | 每物理帧 `get_children()` 全子节点遍历（分配数组）；曾尝试 0.25s 节流优化 | ⏸ 回退（测试证伪）：tutorial_test 依赖 queue_free 释放与检查窗口的即时性，节流窗口与释放帧交错会跳过补刷（连跑两次一次 105 行 FAIL 一次 PASS 证实竞态）；教程阶段 2 节点少开销可忽略，恢复每帧检查并注释说明契约依赖 |
+| E26 | P3 | `ui_segmented_bar.gd:100` | 性能 | 段循环内每段重复 `_weights_total()` 全量累加 | ✅ 修复：循环外缓存 |
+| E27 | P3 | `player.gd` 尾焰 | 冗杂 | 冲刺/加速/巡航/静止/入场五处重复三行参数 | ✅ 修复：提取 `_set_thruster()` |
+| E28 | P3 | `player.gd:1011` 弹反爆点 | 文档-代码矛盾 | 爆点用玩家中心而非弹反命中处（计划书 §6「弹反点金色爆点」） | ✅ 修复：改 `area.global_position` |
+| E29 | P3 | `player.gd`/`mouse_trap.gd` 信号 | 生命周期 | GrazeArea/弹反盾/Window 信号连接无 `_exit_tree` 断开（C22 模式不一致） | ✅ 修复：两文件补断开（is_connected 守卫） |
+| E30 | P3 | `intro_cinematic.gd:339-342` 冲击波环 | 纯 bug（视觉） | parallel tween 把 modulate 淡出从起点开始，第二波环（interval 0.5s）扩散中段即不可见 | ✅ 修复：改顺序 tween + interval 后 scale/alpha 并行（与镜头 2 ripple 同款） |
+| E31 | P3 | `boss.gd:842` `_fire_enrage_release` | 冗杂（死代码） | 零调用者，其职责与 `EnrageSequence._release_fallback` 重复实现 | ✅ 修复：删除函数 + 871 注释同步 |
+| E32 | P3 | `boss_attacks.gd` homing2 | 冗杂 + 设计目标未达 | homing2 为死注册项（模式表/balance 均无此 id），`homing_delta` 只被它消费 → easy/hard 追踪弹数恒 1，§4.4「弹数 ±1」分档承诺未兑现 | ✅ 修复：删 homing2 注册与实现；`_handle_homing` 应用 `maxi(1, 1 + homing_delta)` 横向 80px 散开（medium 档恒单发行为不变）；`boss_registry_test` 断言 10→9 同步 |
+| E33 | P3 | `boss.gd:542` `_summon_interval` | 设计目标未达 | 三型普通阶段召唤间隔未随难度分档（狂暴 E3 已乘 interval_mult），§8.3「各内部节奏 ×interval_mult」不完整 | ✅ 修复：分档乘算 + 同步首唤计时 |
+| E34 | P3 | `return_cinematic.gd:257` `_kick_shake` + `return_cinematic.tscn` Flash 节点 | 冗杂（死代码） | 静态函数零调用、场景 Flash 节点无脚本引用（开场模板复制遗留） | ✅ 修复：两处删除 |
+| E35 | P3 | `cinematic_fx.gd` `speed_lines`/`SpeedLineField` | 冗杂（死工厂） | 全仓零调用，约 60 行无人消费 | ✅ 修复：删除类与工厂，ARCHITECTURE 描述同步 |
+| E36 | P3 | `formation_strike_event.gd:66` group 注册 | 冗杂（死注册） | 组零查询（K15 依赖注入后无消费方） | ✅ 修复：删除 |
+| E37 | P3 | `buff_select.gd:269-273` card==null 分支 | 冗杂（死代码） | 唯一连接点恒传非空 card，直调走 pick_buff() | ✅ 修复：删除分支 |
+| E38 | P3 | `settings_ui.gd` ESC 死分支 + locale 跳页 | 冗杂 | ① KEY_ESCAPE 分支不可达（ui_cancel 不可改键，先命中取消分支）；② `_on_locale_changed` 无条件跳回「控制」页 + 重建前重复刷新 | ✅ 修复：删死分支；记录当前页并恢复 + 删一次冗余刷新 |
+| E39 | P3 | `game_over_ui.gd:65-70` `if visible` | 冗杂（恒假分支） | 死亡态无语言切换入口，locale_changed 不可能在 visible 时触发 | ✅ 修复：去掉包裹（刷新不可见文本无害） |
+| E40 | P3 | `start_panel.gd:184-185` | 冗杂 | `_hero` 叠 animate_open + stagger_open 双 tween 重叠淡入 | ✅ 修复：删多余 animate_open |
+| E41 | P3 | `mothership.gd` HOVER 死状态 + MS_HOVER 键 | 冗杂 | 枚举成员/state_text 分支/_physics_process pass 分支全无可达路径；translations.csv MS_HOVER 死键 | ✅ 修复：枚举/分支/翻译键删除 |
+| E42 | P3 | `balance.json` difficulty.*.label + 脚本 DIFFICULTY_DEFS label | 冗杂（死键） | D04 已改走 tr()，全仓零消费者，调参者改 label 无效 | ✅ 修复：json 3 键 + 脚本 3 键删除 |
+| E43 | P3 | 文档同步 | 文档-代码矛盾 | ARCHITECTURE.md:26「31 断言场景」落后（CI 实跑 37）、:60 生成路径旧描述、:66 cinematic_fx 描述含已删 speed_lines；DESIGN_BASELINE §1.6 A3/A4 遗留表述未关闭；ELITE_TURRET_EVENT.md:271 monitoring 单关表述滞后 K09；EXIT_FLOW 教程基地态例外未标注 | ✅ 修复：全部口径同步（31→37、池化路径、A3/A4 已收敛、monitoring/monitorable 双关、教程模态例外） |
+
+## 登记不修（论证后收敛）
+
+1. **`formation_bomb.gd:98` 引爆时 `cfg` 查询未缓存**：炸弹为一次性短生命对象，引爆频率极低（单事件 ≤10 弹），与 formation_craft 每帧热路径不同 → 缓存无收益，登记不修。
+2. **`starfield.gd` 运行期切视角不重布星点**：当前 `VIEW_ZOOM_LEVELS` 均 ≥1（视野收窄），[0,1920]×[0,1080] 范围恒覆盖可见区，仅分布密度不均的视觉小瑕疵；重布涉及随机重生成与性能波动，风险/收益比低 → 登记不修（注释口径已澄清为启动快照）。
+3. **`boss_attacks.gd:180` 狙击 3 连发内部间隔 0.12s 硬编码**：§4.4 分档承诺口径为「开火间隔」，burst 内部连发间隔属弹幕细节非承诺范围；入配置属平衡决策 → 登记待产品判断。
+4. **`hud.gd` 血条变红阈值 0.3 硬编码**：与 `effects.low_hp.ratio`（0.2）是有意的两级口径（血条警示 vs 低血反馈），0.3 入配置为纯配置化改进无行为收益 → 登记待数值管理统一。
+5. **编队楔形偏移方向**（`formation_strike_event.gd` 僚机偏移经 `rotated(_heading-PI/2)` 后可能落在飞行方向前方）：缺乏渲染验证且注释自洽，需窗口模式截图核对后定夺 → 登记待视觉确认。
+
+## 修复起效记录（回填）
+
+- **改了什么**：33 个源码/场景/数据/测试/文档文件（见上表逐条；另含 `test/boss_registry_test.gd` 注册表断言同步、`data/translations.csv` MS_HOVER 删除、`data/balance.json` label 死键删除、`docs/EXIT_FLOW.md` 教程例外说明）。
+- **为什么起效**：E01 把无敌递减移出视觉分支并统一基准色基底，受击无敌时序恢复语义正确且弹反/擦弹后机身回归基准；E02 让冲刺路径与预警线同一高度快照（机身撞击/拖弹重新生效，消除虚假预警）；E03 放开类型守卫后手柄 A 经 Godot 焦点路由正常选取；E04-E06/E11/E12/E14-E18/E21/E22 均为「既有防护族存在、此处遗漏」补齐或热路径缓存化，行为零变化（默认值/回退值逐位一致）；E07/E08/E09 为确定性缺陷根因修复（软锁入口补全、投弹表余量折算、捕获态事件路由放行）；E19/E20/E24/E29 补齐生命周期守卫与引用清理；E30-E42 为死代码/死键/死注册清理与文档口径统一，均无可达路径或消费方，零回归风险。
+- **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（scripts/ + autoload/ + 相关 test，CI 口径）全绿；针对性场景 15+（smoke/pool_reuse/boss_registry/boss_pattern/buff33/buff_effects/mothership_summon/formation_strike_event/back_navigation/intro_cinematic/return_cinematic/tutorial/i18n/difficulty/orbital_strike 等）全 PASS 0 FAIL；全量断言场景回归 0 FAIL（结果见当次提交记录）；`--quit-after 300` 0 错误；BALANCE_MAP 重跑后 0 缺失键、双向反查一致。

@@ -26,13 +26,13 @@ func _json_at(data: Variant, path: String) -> Variant:
 
 
 func _ready() -> void:
-	# 1. 攻击注册表：10 个已知攻击 id 全覆盖
+	# 1. 攻击注册表：9 个已知攻击 id 全覆盖（homing2 于 2026-08-03 审计删除，弹数分档并入 homing）
 	var attacks := BossAttacks.new()
 	for id: StringName in [
-		&"fan5", &"fan7", &"homing", &"homing2", &"sniper3", &"cross", &"charged_cannon", &"dash_sweep", &"minion_volley", &"bullet_wall"
+		&"fan5", &"fan7", &"homing", &"sniper3", &"cross", &"charged_cannon", &"dash_sweep", &"minion_volley", &"bullet_wall"
 	]:
 		_check(attacks.has_attack(id), "攻击注册表包含 %s" % id)
-	_check(attacks.attack_ids().size() == 10, "攻击注册表共 10 项")
+	_check(attacks.attack_ids().size() == 9, "攻击注册表共 9 项")
 
 	# 2. 模式表交叉验证：脚本默认表 + balance.json 运行表引用的攻击 id 全在注册表
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(GameState.BALANCE_PATH))

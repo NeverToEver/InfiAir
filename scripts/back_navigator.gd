@@ -36,7 +36,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	@warning_ignore("unsafe_property_access")
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		go_back()
-		get_viewport().set_input_as_handled()
+		# 改键捕获态放行（与 ui_cancel 同路由）：不消费事件，让 settings_ui 取消捕获；
+		# 顺带统一走 _mark_handled 的 null 防御（3.12 实机退出报错同源）
+		if decide_back_action() != BackAction.CAPTURE_PASSTHROUGH:
+			_mark_handled()
 		return
 	if event.is_action_pressed("ui_cancel"):
 		go_back()

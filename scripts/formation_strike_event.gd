@@ -63,7 +63,6 @@ func set_spawner(spawner: Node) -> void:
 
 
 func _ready() -> void:
-	add_to_group("formation_strike_event")
 	MIN_SCORE = GameState.cfg("formation_strike_event.min_score", MIN_SCORE)
 	COOLDOWN = GameState.cfg("formation_strike_event.cooldown", COOLDOWN)
 	CRAFT_COUNTS = GameState.cfg("formation_strike_event.craft_counts", CRAFT_COUNTS)
@@ -201,7 +200,14 @@ func _process(delta: float) -> void:
 			_anchor += Vector2.RIGHT.rotated(_heading) * RUN_SPEED * delta
 			_process_drops()
 			var view := GameState.view_world_rect()
-			if _drop_index >= _drop_times.size() or _anchor.x < view.position.x - 120.0 or _anchor.x > view.end.x + 120.0:
+			# 出界余量按投弹表剩余最大时长折算（2026-08-03 审计）：原固定 ±120 会在 hard 5 机
+			# 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
+			var run_margin: float = _drop_times.back() * RUN_SPEED if not _drop_times.is_empty() else 0.0
+			if (
+				_drop_index >= _drop_times.size()
+				or _anchor.x < view.position.x - run_margin - 120.0
+				or _anchor.x > view.end.x + run_margin + 120.0
+			):
 				_begin_exit()
 		State.FORMATION_EXIT:
 			_exit_speed += 420.0 * delta

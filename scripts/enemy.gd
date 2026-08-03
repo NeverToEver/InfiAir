@@ -104,6 +104,7 @@ var _exit_speed: float = 0.0
 ## 母舰召唤减速带：短时减速乘区（仅位移，不影响射速/寿命/计时）
 var _summon_slow_timer: float = 0.0
 var _summon_slow_factor: float = 1.0
+var _slow_field_on: bool = false  # slow_field buff 层数缓存（buffs_changed 刷新，物理帧免每帧字典查询）
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _shape: CollisionShape2D = $CollisionShape2D
@@ -252,6 +253,15 @@ func _ready() -> void:
 	# P1-6：击杀/精英击杀震动强度一次性缓存（热路径禁 cfg）
 	_shake_die_normal = float(GameState.cfg("effects.shake.enemy_die", _shake_die_normal))
 	_shake_die_elite = float(GameState.cfg("effects.shake.elite_die", _shake_die_elite))
+	# 2026-08-03 审计：slow_field 层数缓存（物理帧免每帧字典查询）；池化复用不重跑 _ready，
+	# 初始值即对局开局 buff 状态，后续由 buffs_changed 增量刷新
+	_slow_field_on = GameState.buff_count(&"slow_field") > 0
+	GameState.buffs_changed.connect(_on_buffs_changed)
+
+
+## slow_field 缓存刷新（2026-08-03 审计，热路径禁字典约定）
+func _on_buffs_changed() -> void:
+	_slow_field_on = GameState.buff_count(&"slow_field") > 0
 
 
 ## A4a：按 strategy 构建移动策略实例（共享悬停常量从 balance 缓存值注入，行为逐字节等价）
@@ -382,6 +392,9 @@ func _despawn() -> void:
 
 func _exit_tree() -> void:
 	GameState.unregister_enemy(self)
+	# 2026-08-03 审计：buff 信号断开（C22 模式，池化 reparent 复用不重复连接）
+	if GameState.buffs_changed.is_connected(_on_buffs_changed):
+		GameState.buffs_changed.disconnect(_on_buffs_changed)
 	# 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
 	# is_instance_valid 防护与 _despawn 对称：池对象先于实例释放的时序下 _pool 已失效
 	if _pool != null and is_instance_valid(_pool) and not _repooling:
@@ -406,7 +419,8 @@ func _physics_process(delta: float) -> void:
 	if anchor_y < 0.0:
 		_resolve_anchor()  # 惰性解析：取首个物理帧的最终出生位置
 	# 慢速力场：全局移速 ×0.8（仅移动位移，不影响射速/寿命/计时）
-	var slow_mult := SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
+	# 2026-08-03 审计：层数经 buffs_changed 缓存为布尔（每敌每帧字典查询违规）
+	var slow_mult := SLOW_FIELD_FACTOR if _slow_field_on else 1.0
 	# 母舰召唤减速带：短时乘区叠加（同语义，仅位移）
 	if _summon_slow_timer > 0.0:
 		_summon_slow_timer -= delta

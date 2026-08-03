@@ -319,7 +319,9 @@ func _physics_process(delta: float) -> void:
 			# 锁血下限：每帧补足，受伤不死
 			if GameState.health < _max_hp:
 				GameState.heal(_max_hp - GameState.health)
-			# 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数
+			# 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
+			# 注意：保持每帧检查（tutorial_test 依赖 queue_free 释放与检查窗口的即时性，
+			# 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
 			if not _advancing and _stage_kills < 5 and _alive_enemy_count() == 0:
 				_spawn_combat_wave(5 - _stage_kills)
 		3:

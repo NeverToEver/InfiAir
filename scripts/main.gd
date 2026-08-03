@@ -72,8 +72,8 @@ func _ready() -> void:
 	DOCK_CHARGE_TIME = maxf(GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME), 0.01)  # H15：=0 除零
 	HOME_CHARGE_TIME = maxf(GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
 	GIVE_UP_HOLD_TIME = maxf(GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
-	ENRAGE_SLOW_SCALE = GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE)
-	ENRAGE_BULLET_TIME = GameState.cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME)
+	ENRAGE_SLOW_SCALE = maxf(GameState.cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE), 0.01)  # H15 族：=0 使狂暴慢速完全冻结
+	ENRAGE_BULLET_TIME = maxf(GameState.cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME), 0.01)  # H15 族：=0 跳过子弹时间演出
 	ENRAGE_RAMP_TIME = maxf(GameState.cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME), 0.01)  # K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
 	# 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
 	Engine.time_scale = 1.0

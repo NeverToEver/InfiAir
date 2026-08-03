@@ -36,6 +36,7 @@ var _sweep_timer: float = 0.0
 var _sweep_dir: float = 1.0
 var _sweep_origin := Vector2.ZERO
 var _sweep_return_target := Vector2.ZERO
+var _sweep_dash_y: float = 0.0  # 冲刺横穿高度（AIM 开始时玩家高度快照，与预警线同语义）
 var _sweep_drop_x: Array[float] = []
 var _sweep_line: Line2D = null
 # 编队齐射（三型 P2）
@@ -76,7 +77,6 @@ func _init() -> void:
 		&"fan5": _handle_fan5,
 		&"fan7": _handle_fan7,
 		&"homing": _handle_homing,
-		&"homing2": _handle_homing2,
 		&"sniper3": _handle_sniper3,
 		&"cross": _handle_cross,
 		&"charged_cannon": _handle_charged_cannon,
@@ -113,17 +113,15 @@ func _handle_fan7(boss) -> void:
 
 
 func _handle_homing(boss) -> void:
-	_fire.fire_homing(boss, Vector2(0.0, 100.0), float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING))
-
-
-func _handle_homing2(boss) -> void:
-	var homing_count: int = maxi(1, 2 + homing_delta)
-	for i in homing_count:
+	# 2026-08-03 审计：难度分档弹数生效（原 homing_delta 只被已删除的死代码 homing2 消费，
+	# easy/hard 追踪弹数恒 1；现并入单发路径，多弹横向 80px 散开；medium 档恒单发与原行为一致）
+	var count := maxi(1, 1 + homing_delta)
+	for i in count:
 		(
 			_fire
 			. fire_homing(
 				boss,
-				Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
+				Vector2((float(i) - float(count - 1) * 0.5) * 80.0, 100.0),
 				float(boss.HOMING_BULLET_SPEED),
 				int(boss.BULLET_DAMAGE_HOMING),
 			)
@@ -279,6 +277,8 @@ func _start_dash_sweep(boss) -> void:
 	if GameState.player_ref != null:
 		player_x = GameState.player_ref.global_position.x
 		dy = GameState.player_ref.global_position.y - boss.position.y
+	# 横穿高度 = 预警线所在高度（玩家 AIM 开始时的 y 快照，DASH 阶段据此落位）
+	_sweep_dash_y = boss.position.y + dy
 	_sweep_dir = signf(player_x - boss.position.x)
 	if _sweep_dir == 0.0:
 		_sweep_dir = 1.0
@@ -306,6 +306,8 @@ func _update_sweep(delta: float, boss) -> void:
 			if _sweep_timer <= 0.0:
 				_cancel_sweep_line()
 				_sweep_state = SWEEP_DASH
+				# 横穿落位到玩家高度（AIM 开始时快照，与预警线同语义）；RETURN 复用锚线回位逻辑
+				boss.position.y = _sweep_dash_y
 				# 拖弹点：横穿路径 1/4、1/2、3/4 处
 				var bounds: Vector2 = boss.strafe_range()
 				var end_x := bounds.y if _sweep_dir > 0.0 else bounds.x

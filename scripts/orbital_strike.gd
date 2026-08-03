@@ -62,6 +62,15 @@ func _process(delta: float) -> void:
 	_t += delta
 	var p := _t / DURATION
 	if p >= 1.0:
+		# 兜底（2026-08-03 审计）：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达 1.0，
+		# 必须先补发 struck——它是 main 恢复对局（paused=false + unlock_input）的唯一入口，缺发则软锁
+		if not _impacted:
+			_impacted = true
+			_missile.hide()
+			_reticle.hide()
+			GameState.play_sfx(GameState.SFX_EXPLOSION_BIG)
+			GameState.shake(GameState.cfg("effects.shake.boss_seq_final", 24.0))
+			struck.emit()
 		finished.emit()
 		queue_free()
 		return

@@ -181,8 +181,7 @@ func show_panel() -> void:
 	visible = true
 	UITheme.animate_open(_plate)
 	UITheme.stagger_open(_content)
-	UITheme.animate_open(_hero)
-	UITheme.stagger_open(_hero)
+	UITheme.stagger_open(_hero)  # 2026-08-03 审计：去掉重复的 animate_open(_hero)（双 tween 重叠淡入）
 	if has_save:
 		_continue_button.grab_focus()
 	else:

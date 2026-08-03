@@ -310,6 +310,10 @@ func _splash() -> void:
 
 
 func _on_area_entered(area: Area2D) -> void:
+	# 2026-08-03 审计：同物理帧重复命中守卫——monitoring 关闭延迟到帧末，首命中已回收的
+	# 弹（池化 deactivate 或直实例化 queue_free）仍会收到后续 area_entered；已消失的弹不再结算
+	if not _active and (_pool != null or is_queued_for_deletion()):
+		return
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
 			area.take_damage(damage, score_scale)
@@ -355,6 +359,7 @@ func _start_grace_check(hitbox: Area2D) -> void:
 func _cancel_grace() -> void:
 	if _grace_timer != null:
 		_grace_timer.stop()
+	_grace_hitbox = null  # 2026-08-03 审计：回收弹不携带旧 Hitbox 悬空引用（与 _cancel_grace 成对）
 
 
 ## 宽限到期：单次 overlaps 复核——仍与 Hitbox 重叠才结算（每颗进入的弹至多 1 次查询，

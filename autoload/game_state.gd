@@ -11,6 +11,7 @@ signal player_died
 @warning_ignore("unused_signal")
 signal player_damaged(amount: float, from_pos: Vector2)
 signal screen_shake(strength: float)
+## RP 经济/任务/路线信号：暂无消费方（base_console 拉取驱动），保留 API 供未来事件驱动
 signal rp_changed(new_rp: int)
 signal mission_completed(id: StringName)
 signal route_chosen(line: StringName, buff_id: StringName)
@@ -35,7 +36,6 @@ signal buffs_changed
 var DIFFICULTY_DEFS: Dictionary = {
 	&"easy":
 	{
-		"label": "易",
 		"hp": 0.75,
 		"speed": 0.85,
 		"spawn": 1.25,
@@ -47,7 +47,6 @@ var DIFFICULTY_DEFS: Dictionary = {
 	},
 	&"medium":
 	{
-		"label": "中",
 		"hp": 1.0,
 		"speed": 1.0,
 		"spawn": 1.0,
@@ -59,7 +58,6 @@ var DIFFICULTY_DEFS: Dictionary = {
 	},
 	&"hard":
 	{
-		"label": "难",
 		"hp": 1.5,
 		"speed": 1.2,
 		"spawn": 0.8,
@@ -127,7 +125,10 @@ func _apply_balance() -> void:
 	var base_arr: Array[int] = []
 	if base is Array and not (base as Array).is_empty():
 		for v in base:
-			base_arr.append(int(v))
+			# 元素级判型（2026-08-03 审计）：int(v) 对字符串返回 0（阈值全 0 → 里程碑风暴）、
+			# 对 Array/Dict 抛运行时错误（启动即崩）；非数字元素跳过，与「损坏回退默认」宣称一致
+			if v is int or v is float:
+				base_arr.append(maxi(int(v), 1))
 	milestone_base = base_arr if not base_arr.is_empty() else MILESTONE_BASE.duplicate()
 	# H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——≤0 使阈值曲线平台化，
 	# apply_run_save 的 while 里程碑推进永不退出（挂死）。difficulty 子表无 cycle_mult 键
@@ -145,7 +146,10 @@ func _apply_balance() -> void:
 	# P0-2：回血链数值一次性缓存（热路径禁 cfg 约定）
 	_refresh_regen_cache()
 	_max_hp_base = maxf(float(cfg("player.max_health", _max_hp_base)), 0.1)  # H15 同款：≤0 使 max_health 归零/负值，玩家秒死
-	_max_hp_bonus = float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus))
+	# 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
+	_max_hp_bonus = maxf(float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus)), 0.0)
+	# 2026-08-03 审计：吸血比例缓存（击杀帧免 cfg 路径解析，P0-2 同款）
+	_lifesteal_fraction = maxf(float(cfg("buffs.lifesteal.max_hp_fraction", 0.1)), 0.0)
 
 
 ## C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -182,6 +186,11 @@ func _valid_difficulty_defs(diff: Variant) -> bool:
 		# 全局 milestones.cycle_mult 的 >0 域校验已移至 _apply_balance
 		if float(def.get("milestone", 1.0)) <= 0.0:
 			return false
+		# 2026-08-03 审计：hp/speed/spawn/score/spread_cap 负值会使敌机 0 HP 秒死/反向移动/负得分倍率，
+		# 与 milestone 同款域校验——任一负值整表回退默认（「损坏回退默认」宣称）
+		for k2 in [&"hp", &"speed", &"spawn", &"score", &"spread_cap"]:
+			if float(def.get(k2, 0.0)) < 0.0:
+				return false
 	return true
 
 
@@ -300,6 +309,7 @@ var _milestone_count: int = 0
 var _prog_per_boss_kill: float = 0.5
 var _prog_per_ten_minutes: float = 1.0
 var _prog_time_step_seconds: float = 30.0
+var _survive_sec_cached: int = -1  # 任务进度整秒缓存（_process 热路径免每帧字典访问）
 ## 回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存；regen 档位难度变更时刷新。
 ## 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。
 var _max_hp_base: float = 100.0
@@ -398,7 +408,11 @@ func _ready() -> void:
 # 暂停（Buff/结算 UI）时不计存活时间
 func _process(delta: float) -> void:
 	run_time += delta
-	_set_mission_progress(&"survive_180", int(run_time))
+	# 整秒边界才推进任务（缓存秒值：避免每帧 int(run_time) + missions 字典访问——热路径禁字典约定）
+	var survive_sec := int(run_time)
+	if survive_sec != _survive_sec_cached:
+		_survive_sec_cached = survive_sec
+		_set_mission_progress(&"survive_180", survive_sec)
 	# 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
 	if int(floorf(run_time / _prog_time_step_seconds)) != _difficulty_time_step:
 		if _recompute_difficulty():
@@ -469,6 +483,9 @@ func difficulty_label() -> String:
 
 
 func score_multiplier() -> int:
+	# 2026-08-03 审计回退：曾尝试缓存 _score_multiplier_cache，但 difficulty 是公开字段，
+	# 测试/调用方直写不触发 _refresh_regen_cache（白盒契约），缓存会返回旧值；与同族
+	# enemy_hp_multiplier/enemy_speed_multiplier/spawn_interval_multiplier 一致保持直接查表
 	return int(DIFFICULTY_DEFS[difficulty]["score"])
 
 
@@ -749,7 +766,7 @@ func add_kill() -> void:
 func add_boss_kill(score_scale: float = 1.0) -> void:
 	boss_kills += 1
 	# G012：加分基准入 balance.json（milestones.boss_kill_base；击杀低频，非热路径可直查）
-	add_score(int(GameState.cfg("milestones.boss_kill_base", 500.0) * score_scale))
+	add_score(int(cfg("milestones.boss_kill_base", 500.0) * score_scale))
 	add_rp(RP_BOSS_KILL)
 	_set_mission_progress(&"boss_1", boss_kills)
 	if _recompute_difficulty():
@@ -791,6 +808,8 @@ func heal(amount: float) -> void:
 
 ## 吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次
 var _lifesteal_frame: int = -1
+## 吸血比例缓存（P0-2 同款：_apply_balance 刷新，击杀帧免 cfg 路径解析）
+var _lifesteal_fraction: float = 0.1
 
 
 func try_lifesteal() -> void:
@@ -800,7 +819,7 @@ func try_lifesteal() -> void:
 	if frame == _lifesteal_frame:
 		return
 	_lifesteal_frame = frame
-	heal(maxi(1, int(max_health() * cfg("buffs.lifesteal.max_hp_fraction", 0.1))))
+	heal(maxi(1, int(max_health() * _lifesteal_fraction)))
 
 
 func buff_count(id: StringName) -> int:
@@ -951,6 +970,10 @@ func _detect_joy_layout() -> void:
 			break
 	if found != &"" and found != joy_layout:
 		joy_layout = found
+		joy_layout_changed.emit(joy_layout)
+	elif found == &"" and joy_layout != &"xbox":
+		# 2026-08-03 审计：全部手柄拔出时回落 Xbox/SDL 布局，防 PS 标签残留误导设置页
+		joy_layout = &"xbox"
 		joy_layout_changed.emit(joy_layout)
 
 

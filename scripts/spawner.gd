@@ -222,8 +222,11 @@ func _merge_type(dst: Dictionary, src: Variant) -> void:
 	if src.has("speed") and src["speed"] is Array and src["speed"].size() >= 2:
 		dst["speed"] = Vector2(float(src["speed"][0]), float(src["speed"][1]))
 	for k in ["score", "fire", "fire_interval", "scale", "radius"]:
-		if src.has(k):
-			dst[k] = src[k]
+		var v: Variant = src.get(k)
+		# 2026-08-03 审计（G06 口径对齐）：标量判型——坏值（字符串/数组）会在击杀结算
+		# int(score_value) 处报类型错误；非数字整体跳过，回退脚本默认（bool 是 int 子类，排除）
+		if (v is int or v is float) and not v is bool:
+			dst[k] = v
 
 
 ## 对外公开接口（A1 修复）：事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段

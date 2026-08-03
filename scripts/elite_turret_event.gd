@@ -268,6 +268,10 @@ func _on_event_timeout() -> void:
 	for turret in _turrets:
 		if is_instance_valid(turret):
 			turret.cease_fire_and_retract()
+	# 2026-08-03 审计：收回中的炮塔已无 died 依赖（_ceased 守卫），立即清引用数组，
+	# 消除最长 ~6s（BOSS_RESUME_DELAY 窗口）的失效引用驻留（_on_boss_delay_end 的 clear 幂等）
+	_turrets.clear()
+	_turret_sockets.clear()
 	_comm.show_line("ETQ_RETREAT")
 	if _hud != null:
 		_hud.hide_event_bar()

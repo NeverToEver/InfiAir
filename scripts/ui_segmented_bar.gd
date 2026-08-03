@@ -96,8 +96,9 @@ func _draw() -> void:
 func _draw_weighted(gap: float) -> void:
 	var ratio := clampf(value / max_value, 0.0, 1.0)
 	var x := gap
+	var total := _weights_total()  # 2026-08-03 审计：循环外缓存（段循环内每段重复全量累加）
 	for i in seg_weights.size():
-		var w := float(seg_weights[i]) / _weights_total() * (size.x - gap * (seg_weights.size() + 1))
+		var w := float(seg_weights[i]) / total * (size.x - gap * (seg_weights.size() + 1))
 		var consumed := segment_fill(ratio, seg_weights, i)
 		var rect := Rect2(x, gap, w, size.y - gap * 2.0)
 		var col: Color = seg_colors[i] if i < seg_colors.size() else fill_color

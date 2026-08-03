@@ -27,6 +27,18 @@ func _ready() -> void:
 	_focused = win.has_focus()
 
 
+func _exit_tree() -> void:
+	# 2026-08-03 审计（C22 模式）：Window 信号断开——节点未 free 重入树防双连回调
+	var win := get_window()
+	if win != null:
+		if win.mouse_exited.is_connected(_on_mouse_exited):
+			win.mouse_exited.disconnect(_on_mouse_exited)
+		if win.focus_exited.is_connected(_on_focus_exited):
+			win.focus_exited.disconnect(_on_focus_exited)
+		if win.focus_entered.is_connected(_on_focus_entered):
+			win.focus_entered.disconnect(_on_focus_entered)
+
+
 func _process(_delta: float) -> void:
 	if DisplayServer.get_name() == "headless":
 		return  # headless 无真实鼠标/窗口事件，confine 逻辑全部跳过
