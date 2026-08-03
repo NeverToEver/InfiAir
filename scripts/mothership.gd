@@ -376,9 +376,10 @@ func _physics_process(delta: float) -> void:
 		_beam_fx.visible = _beam.visible
 		_beam_dust.emitting = _beam.visible
 	if _beam.visible:
-		# 淡光束：低调脉动，不刺眼（P2：查表 sin）
-		_beam.modulate.a = 0.55 + 0.45 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 8.0)
-		_update_beam_fx(delta)
+		# 淡光束：低调脉动，不刺眼（P2：查表 sin）；时钟取一次，脉动与附件共用
+		var now_s := Time.get_ticks_msec() / 1000.0
+		_beam.modulate.a = 0.55 + 0.45 * Enemy.sin_fast(now_s * 8.0)
+		_update_beam_fx(delta, now_s)
 	_state_timer += delta
 	match _state:
 		State.DESCEND:
@@ -539,9 +540,8 @@ func _deploy_slow_field() -> void:
 
 
 ## 牵引光束附件帧驱动（仅 _beam.visible 时调用，零分配）：
-## 捕获流环自窄端向宽端循环流动，两侧描边微闪
-func _update_beam_fx(delta: float) -> void:
-	var ft := Time.get_ticks_msec() / 1000.0
+## 捕获流环自窄端向宽端循环流动，两侧描边微闪；now_s 由调用方帧首取一次共用
+func _update_beam_fx(delta: float, now_s: float) -> void:
 	for i in _beam_rings.size():
 		_beam_ring_u[i] = fposmod(_beam_ring_u[i] + delta * 0.55, 1.0)
 		var u := _beam_ring_u[i]
@@ -551,7 +551,7 @@ func _update_beam_fx(delta: float) -> void:
 		ring.scale = Vector2(k, k)
 		ring.modulate.a = 0.75 * Enemy.sin_fast(PI * u)
 	for i in _beam_edges.size():
-		_beam_edges[i].modulate.a = 0.5 + 0.25 * Enemy.sin_fast(ft * 9.0 + float(i) * 2.1)
+		_beam_edges[i].modulate.a = 0.5 + 0.25 * Enemy.sin_fast(now_s * 9.0 + float(i) * 2.1)
 
 
 ## 一次性软闪（进舱/释放等瞬时反馈）：软光晕快速淡出后自毁

@@ -61,10 +61,14 @@ var _meta_fx: MetaHealthFX = null
 ## 辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）
 var _aim_frames: AimFrameLayer = null
 var _breath_was_active: bool = false
+## give_up（K 键自毁）动作静态绑定判定（project.godot 定义，改键系统不删动作，结果全程不变）：
+## _ready 缓存一次，避免 _process 每帧 InputMap.has_action 字典查找
+var _give_up_bound := false
 
 
 func _ready() -> void:
 	add_to_group("main")
+	_give_up_bound = InputMap.has_action(&"give_up")  # 静态动作绑定缓存（_process 每帧读取）
 	DOCK_CHARGE_TIME = maxf(GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME), 0.01)  # H15：=0 除零
 	HOME_CHARGE_TIME = maxf(GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
 	GIVE_UP_HOLD_TIME = maxf(GameState.cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME), 0.01)  # H15：=0 除零（蓄力进度比例）
@@ -345,13 +349,7 @@ func _process(delta: float) -> void:
 		_home_charge_time = 0.0
 		_hud.set_home_charge(-1.0)
 	# 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
-	if (
-		InputMap.has_action(&"give_up")
-		and not _game_over
-		and not _homecoming
-		and not _player.is_dead()
-		and Input.is_action_pressed(&"give_up")
-	):
+	if _give_up_bound and not _game_over and not _homecoming and not _player.is_dead() and Input.is_action_pressed(&"give_up"):
 		_give_up_charge += delta
 		_hud.set_give_up_charge(_give_up_charge / GIVE_UP_HOLD_TIME)
 		if _give_up_charge >= GIVE_UP_HOLD_TIME:

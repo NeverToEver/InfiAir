@@ -13,7 +13,7 @@ extends Node
 ## 可接受，用户可在设置中关闭本功能规避）。
 
 var _focused: bool = false
-## 最后已知窗口内容区内的鼠标位置（每帧缓存；移出后 Window.mouse_position 不再更新，
+## 最后已知窗口内容区内的鼠标位置（每帧缓存；移出后 get_mouse_position() 不再更新，
 ## 供 mouse_exited 时生成 warp 目标；从未进入窗口内时为负，此时不拉回）
 var _last_known_pos := Vector2(-1.0, -1.0)
 
@@ -31,7 +31,7 @@ func _process(_delta: float) -> void:
 	if DisplayServer.get_name() == "headless":
 		return  # headless 无真实鼠标/窗口事件，confine 逻辑全部跳过
 	var win := get_window()
-	var mp: Vector2 = win.mouse_position
+	var mp: Vector2 = win.get_mouse_position()
 	if mp.x >= 0.0 and mp.y >= 0.0 and mp.x < win.size.x and mp.y < win.size.y:
 		_last_known_pos = mp
 	_trap_if_out_of_bounds()

@@ -176,7 +176,7 @@ func _layout(scale_p: float, alpha_p: float) -> void:
 		var a0 := TAU * float(i) / 3.0
 		for j in 10:
 			var a := a0 + deg_to_rad(50.0) * float(j) / 9.0
-			arc.set_point_position(j, Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * r)
+			arc.set_point_position(j, Vector2(Enemy.cos_fast(a), Enemy.sin_fast(a) * ELLIPSE_RATIO) * r)
 		arc.default_color = Color(CYAN, 0.7 * alpha_p)
 
 
@@ -194,7 +194,7 @@ func _arc_points(radius: float, span_deg: float, count: int) -> PackedVector2Arr
 func _layout_ellipse(line: Line2D, radius: float, count: int) -> void:
 	for i in count:
 		var a := TAU * float(i) / float(count)
-		line.set_point_position(i, Vector2(cos(a), sin(a) * ELLIPSE_RATIO) * radius)
+		line.set_point_position(i, Vector2(Enemy.cos_fast(a), Enemy.sin_fast(a) * ELLIPSE_RATIO) * radius)
 
 
 func _make_ring(width: float, color: Color) -> Line2D:

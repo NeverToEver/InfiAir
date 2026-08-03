@@ -695,6 +695,23 @@
 
 > 回归：`--headless --import` / `--quit-after 300` 0 错误；smoke 142 / pool_reuse 12 / base_system 46 / 全量 31 断言场景 0 FAIL（落地时点实际为 31，含 mouse_lock_test；原记 27 系口径笔误，2026-08-02 订正）；perf_bench 同环境 A/B 中位数 0.131→0.120 ms/帧（约 -8~9% CPU 逻辑耗时）。
 
+# 第二轮性能优化落地记录（2026-08-03）
+
+> 依据第二轮性能目标（2026-08-03：剖析 → 修复 → A/B → 全量回归）落地。剖析范围：8-03 公平感机制新增代码（player_parry / graze / grace / ui_segmented_bar / boss 转场清弹——均事件驱动、无常驻热点，与 perf_bench 基线持平印证）+ 约 50 处每帧回调全量静态扫描（explore 子代理）+ 窗口模式渲染基准（临时诊断场景，跑完即删）。改动 6 个源码文件。验证：perf_bench 无回归（基线 0.121 → 优化后 0.122 ms/帧中位数，0.113-0.126 同分布噪声）+ 窗口渲染基准 0 SCRIPT ERROR + 全量 **35** 断言场景 0 FAIL。
+
+| 编号 | 等级 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- | --- |
+| J01 | P0 | **`mouse_trap.gd` Godot 4.6 API 变更 bug**：`win.mouse_position` 属性在 4.6 移除（改为 `get_mouse_position()` 方法），窗口模式下 `_process` **每帧 SCRIPT ERROR**——报错打印开销 + 鼠标锁定功能从未真机生效（F01「warp 需真机验收」验证缺口；headless 首行早退不可见）。改 `win.get_mouse_position()`（同步更新注释）。验证：窗口模式渲染基准 0 SCRIPT ERROR；mouse_lock_test 0 FAIL。**本轮实际收益最大项**（headless perf_bench 测不到：首行早退） |
+| J02 | P1 | `main.gd:349` 每帧 `InputMap.has_action(&"give_up")` 字典查找（give_up 静态定义，结果全程不变）→ `_ready` 缓存 `_give_up_bound`。验证：smoke 0 FAIL |
+| J03 | P1 | `player.aim_point()` 鼠标/摇杆采样（`get_global_mouse_position` + `Input.get_vector`）移入渲染帧守卫——同帧 Player/LaserWeapon 双采样（120 次/秒）消除；同帧采样值一致，行为零变化。验证：smoke / parry / graze / hit_logic 0 FAIL |
+| J04 | P2 | `warp_gate` 召唤期每帧 ~126 次直接 cos/sin（椭圆环 48×2 + 弧 3×10，全程每帧）→ `Enemy.sin_fast/cos_fast`（G017 同族最后一处多点循环）。验证：mothership_summon 0 FAIL |
+| J05 | P2 | `mothership` 牵引光束同帧 2 次 `Time.get_ticks_msec()` 合并为帧首一次（`_update_beam_fx` 增 now_s 参数）。验证：mothership_summon / base_system 0 FAIL |
+| J06 | P2 | `orbital_strike` 瞄准环脉冲 3 次直接 sin → `Enemy.sin_fast`。验证：orbital_strike 0 FAIL |
+
+> **登记不修（论证后收敛）**：① E15 延续 3 个未登记位置——`player.gd:565,570`（fuel_drain/regen 率）/`boss.gd:639`（slow_factor）/`laser_weapon.gd:66` 每帧 `buff_count` 字典 get（StringName 键无分配，与 E15 口径一致，补注）；② G007 收敛登记——`aim_frame_layer.gd:82-88` 碰撞半径 meta 缓存对池化异半径复用的过期失配，当前唯一池化路径恒同半径未触发，登记不修；③ `player._update_parry_visuals` ACTIVE 期每帧 6 元素 PackedVector2Array（Polygon2D 赋值值语义，无法像 Line2D 那样预建原地写；占空比 ~13% 收益微小）；④ `start_radar` 主菜单每帧 ~400 draw_arc（静态几何与扫描线同节点，视觉设计取舍）；⑤ `tutorial` 阶段 2 每帧 `get_children()` 计数（教程瞬态，收益低）。
+
+> 回归：`--headless --import` 0 错误 / `--quit-after 300` 0 错误 / gdformat + gdlint 全绿 / 全量 **35** 断言场景 0 FAIL（31 既有 + 4 公平感机制新增：grace_period / graze / boss_phase_transition / parry）/ perf_bench 中位数 0.121→0.122 ms/帧（同分布噪声，无回归）/ 窗口渲染基准（200 敌机压力、600 渲染帧）：avg 22.4ms（44.7fps）、draw calls 均值 ~944 峰值 1130、**0 SCRIPT ERROR**。
+
 ---
 
 # 第六轮审核（2026-08-02 健壮性专项）

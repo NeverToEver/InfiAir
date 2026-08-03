@@ -700,15 +700,17 @@ func clamp_to_view(p: Vector2) -> Vector2:
 func aim_point() -> Vector2:
 	if aim_point_override != Vector2.INF:
 		return aim_point_override
-	var raw := get_global_mouse_position()
-	# H01（健壮性审核）：右摇杆虚拟准星——四向独立动作（get_vector 语义：差值驱动）；
-	# 摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
-	var joy := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")
-	if joy.length_squared() > 0.01:
-		raw += joy * _aim_joy_speed * get_process_delta_time()
+	# 性能：采样（鼠标位置 + 摇杆向量）与平滑推进一并收进渲染帧守卫——同帧内 Player 与
+	# LaserWeapon 等多处取值时，get_global_mouse_position/Input.get_vector 每渲染帧只执行一次
 	var frame := Engine.get_process_frames()
 	if frame != _aim_smoothed_frame:  # 每渲染帧只推一次（准星/框层/开火多处取值）
 		_aim_smoothed_frame = frame
+		var raw := get_global_mouse_position()
+		# H01（健壮性审核）：右摇杆虚拟准星——四向独立动作（get_vector 语义：差值驱动）；
+		# 摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
+		var joy := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")
+		if joy.length_squared() > 0.01:
+			raw += joy * _aim_joy_speed * get_process_delta_time()
 		var factor := 1.0
 		var magnet := Vector2.ZERO
 		if _aim_initialized and GameState.aim_frame_layer != null:
