@@ -972,3 +972,73 @@
 - **改了什么**：33 个源码/场景/数据/测试/文档文件（见上表逐条；另含 `test/boss_registry_test.gd` 注册表断言同步、`data/translations.csv` MS_HOVER 删除、`data/balance.json` label 死键删除、`docs/EXIT_FLOW.md` 教程例外说明）。
 - **为什么起效**：E01 把无敌递减移出视觉分支并统一基准色基底，受击无敌时序恢复语义正确且弹反/擦弹后机身回归基准；E02 让冲刺路径与预警线同一高度快照（机身撞击/拖弹重新生效，消除虚假预警）；E03 放开类型守卫后手柄 A 经 Godot 焦点路由正常选取；E04-E06/E11/E12/E14-E18/E21/E22 均为「既有防护族存在、此处遗漏」补齐或热路径缓存化，行为零变化（默认值/回退值逐位一致）；E07/E08/E09 为确定性缺陷根因修复（软锁入口补全、投弹表余量折算、捕获态事件路由放行）；E19/E20/E24/E29 补齐生命周期守卫与引用清理；E30-E42 为死代码/死键/死注册清理与文档口径统一，均无可达路径或消费方，零回归风险。
 - **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（scripts/ + autoload/ + 相关 test，CI 口径）全绿；针对性场景 15+（smoke/pool_reuse/boss_registry/boss_pattern/buff33/buff_effects/mothership_summon/formation_strike_event/back_navigation/intro_cinematic/return_cinematic/tutorial/i18n/difficulty/orbital_strike 等）全 PASS 0 FAIL；全量断言场景回归 0 FAIL（结果见当次提交记录）；`--quit-after 300` 0 错误；BALANCE_MAP 重跑后 0 缺失键、双向反查一致。
+
+---
+
+# 第十轮审核（2026-08-03 L 系列：软件工程维度全面审查）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 全仓库软件工程维度审查（代码质量 / 架构 / 健壮性 / 性能 / 测试 / UI 输入 / 文档 / 配置构建工具链 / 安全持久化 / 提交规范），评价正文见 `docs/2026-08-03-code-review.md` |
+| 工作时间 | 2026-08-03 |
+| 审核区域 | `scripts/` 62 文件 + `autoload/game_state.gd` + `test/` 46 场景 + `scenes/` + `data/` + `project.godot` + `.github/workflows/` + 启动/打包脚本 + `scripts/tools/` + 全部 docs |
+| 审核方法 | 8 路 explore 并行只读审查（按子系统分组），每路对照既有登记去重；主控对全部 P1 与关键 P2 逐条读码复核（含 Godot 源码级生命周期验证与生成器复现验证）；修复后逐批跑针对性测试 + 逆验证 |
+| 结论 | P1×3（全部修复并验证）+ P2×15（修复 10、登记待办 6）+ P3×40+（修复 6、登记 30+）。无 P0 |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+
+## L 系列发现与处置
+
+### P1（严重，全部修复）
+
+| 编号 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- |
+| L01a | `test/intro_capture.gd:29`、`test/return_capture.gd:30` | 纯 bug（工具已坏） | 截图工具 `set_shot_durations().append(SHOT_LEN)` 链式调用 void 返回值——A7 重构把 setter 改 void 时未同步工具，编译错误已坏；CI 三道门禁全部无感知（静态检查只扫 autoload/+scripts/、import 不解析未引用场景、断言场景白名单不含 capture） | ✅ 修复：`var shots: Array[float]` 收集后整表一次传入 `set_shot_durations(shots)`；场景加载验证无 Compile Error |
+| L01b | `test/autoplay_test.gd:38-39,858` | 纯 bug（探针漂移） | 母舰状态表 7 项 vs `Mothership.State` 实际 6 态（无 HOVER，`mothership.gd:15`）——整体错位一档：真实 STAY 被配 10s（驻留期必误报 mothership_stuck）、RELEASE 被配 70s（卡死漏报）、DEPART 被配 10s（误报），日志把 DOCKING 打印为 HOVER；下标越界无守卫 | ✅ 修复：重排 6 项 `[20000,10000,10000,70000,10000,30000]` 对齐枚举序 + `state < MS_STATE_TIMEOUTS.size()` 守卫 |
+| L02 | `scripts/enemy.gd` `_exit_tree:393-397` / `reactivate` | 纯 bug（回归） | **slow_field 静默失效回归**（E22 引入）：`_ready` 每实例仅首次入树执行一次（Godot 4.5/4.6 node.cpp `_propagate_ready` 由 `ready_first` 守卫），而 `_exit_tree` 在每次 reparent（池化 release→pool、spawn→Main 均触发）断开 `buffs_changed` 连接且无重连 → `_slow_field_on`（E22 缓存字段）冻结陈旧值，首个回收循环后玩家获得 slow_field buff 时所有被复用敌机不受减速；注释自相矛盾（enemy.gd:256 vs :395）；`hit_logic_test` A13 只用全新实例未覆盖池化复用路径 | ✅ 修复：`reactivate()` 幂等重连 + 立即 `_on_buffs_changed()` 刷新；注释同步；`pool_reuse_test` 补 2 条池化复用断言（连接保持 + 加 buff 即时刷新）；**逆验证**：临时移除重连 → 2 断言 FAIL，恢复 → 14 PASS 0 FAIL |
+
+### P2（中等：修复 9 项 / 登记待办 6 项）
+
+| 编号 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- |
+| L03 | `scripts/player.gd:1048-1058` `_die` | 纯 bug（K03 补全遗漏） | 死亡路径关 Hitbox/弹反盾但漏关 GrazeArea：`_on_graze_entered` 由物理引擎驱动无 `_dead` 守卫，死亡当帧/死亡后敌弹飞过尸体位置仍计擦弹分+特效+音效（玩家隐藏凭空得分）；死亡无重生路径，关闭无副作用 | ✅ 补 `$GrazeArea.monitoring = false`（与 `enter_pod:1068` 对称） |
+| L04 | `autoload/game_state.gd:181` `_valid_difficulty_defs` | 边界缺陷（bool 判型漏网） | bool 是 int 子类：`"score": false` 通过校验 → 得分倍率恒 0 → 里程碑永不触发（Buff 三选一软锁）；`"hp": false` → 敌机 0 HP 秒死。E21 已修 spawner 标量同型，此处 3 处遗漏 | ✅ 判型统一追加 `not v is bool` |
+| L05 | `scripts/spawner.gd:188-189,220-223` | 边界缺陷（元素判型） | `unlock_scores` 元素无判型：Dict 元素 `int()` 启动即崩、字符串静默转 0（全部机型开局解锁）；`_merge_type` 的 hp/speed 嵌套数组同型（Dict 崩溃/字符串 0 HP）。E04/G06 只修容器层 | ✅ 元素级 `is int/float and not is bool` 判型，坏值跳过 |
+| L06 | `scripts/spawner.gd:176-183` | 边界缺陷（钳制遗漏） | 波次间隔键无下限钳制：`wave_interval_start ≤ 0` 时 `_current_interval:411` 的 clampf 上界 ≤0 返回负值 → `_wave_timer` 恒 ≤0 → **每帧刷一波**（预告线/Timer 无界增长挂死） | ✅ `maxf(…, 0.05/0.01)` 钳制 wave_interval_start/end/ramp_time/interval_min |
+| L07 | `scripts/boss.gd:566-571` `_load_patterns` | 边界缺陷（元素判型） | 模式表只判数组层：混入非 Dictionary 元素时 `_current_pattern()` typed 返回运行时类型错误、`pattern.has` 崩溃（战斗中途 SCRIPT ERROR） | ✅ 元素级 `is Dictionary` 判型 + 逐元素深拷贝，全坏回退默认表 |
+| L08 | `scripts/base_console.gd:297` `show_base`；`scripts/settings_ui.gd:461-501` | 设计目标未达（焦点链） | ①基地控制台打开无 `grab_focus()`——全项目模态页唯一缺失（settings/pause/buff_select/exit_confirm/start_panel 均聚焦主按钮），手柄/键盘玩家进基地后方向键+Enter 无法操作；②设置页 locale 重建（queue_free 旧按钮）后焦点丢失，Tab 循环/手柄导航中断 | ✅ ①`show_base` 末尾 `_resume_button.grab_focus()`（按钮提升为成员）；②重建后 `(_nav_buttons[current] as Button).grab_focus()`；顺带修 L30 resume_button locale 刷新 |
+| L09 | `scripts/tools/gen_balance_map.py:22-34` | 设计目标未达（生成器盲区） | 声明式效果表 `"cfg": "buffs.rapid_fire.factor"` 字符串键（player.gd BUFF_EFFECTS）不经 GameState.cfg 调用——7 键不参与缺失键检测（拼错/改名不报），`player.dash.cooldown_stack_factor` 被误列疑似死键（BALANCE_MAP.md:589） | ✅ 新增 `RE_EFFECT_CFG` 正则（`"cfg"\s*:\s*"([^"]+)"`）纳入扫描；重跑后 432 静态调用、0 缺失键、未引用仅剩 `version` |
+| L10 | `docs/BALANCE_MAP.md` | 文档-代码矛盾 | 行号漂移 6 处（93837ba 同批改脚本未重跑生成器：tutorial.gd×4、game_state.gd×2，实测漂移 +1/+2 行） | ✅ 重跑生成器（含 L09 改动），双向反查一致 |
+| L11 | `README.md`×2、`README.en.md`×2、`CONTRIBUTING.md`×2、`CHANGELOG.md`、`docs/TESTING.md:117`、`ci.yml:3` 注释 | 文档-代码矛盾 | 「31/35/37」断言场景计数残留 8 处（实际 37） | ✅ 全部统一为 37 |
+| L12 | `test/perf_bench.gd:2,24` | 注释失实 | 基准注释「30 只敌机」落后于常量 200（压力场景口径失实） | ✅ 注释同步为 200 |
+| L13 | `spawner.gd:394,401` × `mothership.gd:586-597` | 机制交叉（设计判断） | 母舰驻留/对接期精英炮塔与编队事件仍可触发（`can_trigger` 只查 IDLE+冷却不查母舰在场），母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖——玩家进保护舱零参与挂机收益 | ⏸ 登记待办：事件 `can_trigger` 加母舰在场检查，或母舰火力排除事件单位（设计决策，勿擅自改） |
+| L14 | `boss.gd:780` × `boss_movement.gd:112-130` | 纯 bug（视觉，行为修改） | 段切换瞬间 y 垂直跳变：三型 P1 `_move_band` 增量式偏移（target 可达 depth+wob≈280px，band_offset 未在 reset_press 清理）→ P2 `_move_bob` 绝对赋值锚线 → 1/4 屏瞬移；一型 P1 press 窗口内切换 ≤80px 跳变（C11 只清 offset 不补偿当前 y） | ⏸ 登记待办：段切换从当前 y 平滑过渡到锚线（需 boss_phase/pattern 测试验证，行为修改） |
+| L15 | `test/` 21 个断言场景（smoke/i18n/tutorial/base_system 等） | 纯 bug（测试副作用） | 测试清空 `user://profile.json` 高分数据无快照还原（`GameState.high_score = 0` 经 setter 自动落盘；base_system/tutorial 直接清/改后落盘）——唯一正确范式在 `ui_capture.gd:12,111-113` | ⏸ 登记待办：测试开头快照 profile、结尾还原（批量改动，本地跑测试前已手动备份恢复） |
+| L16 | `test/smoke_test.gd:796-800` | 弱断言 | 分支内断言 `wb2` 无 `!= null` 前置，弹未生成时用例静默通过（同文件 666/785 均有前置） | ⏸ 登记待办：补 `_check(wb2 != null)` |
+| L17 | `scripts/settings_ui.gd:53,77` × `ui_chamfered_panel.gd:39-54` | 设计目标未达（布局） | 「操作模式」页内容 895px+ 溢出 480px 容器：面板被自适应撑到 ~1150px（>1080 屏幕，标题出屏），且自适应只放大不缩小（切页后不回落） | ⏸ 登记待办：页容器加 ScrollContainer 或压缩垂直节奏，窗口模式实测像素后定方案 |
+| L18 | `.github/workflows/release.yml:56-59` | 设计目标未达（CI） | 版本同步不落地：sed 仅改 CI 工作区不 commit，`git tag v3.27` 指向的提交 `config/version` 仍是 3.26——AGENTS.md「输入版本自动同步 project.godot」只对构建产物生效 | ⏸ 登记待办：tag 前 commit 版本号改动，或改写文档口径（CI 改动本地无法实跑验证） |
+
+### P3（轻微：修复 3 / 登记 30+，按类别合并）
+
+- **修复**：L30 `resume_button` locale 刷新（随 L08）；`spawner.gd:548` Boss 预警 2.0s 硬编码（入报告待产品判断）；其余见下表类别。
+- **登记清单（类别合并，位置详见报告 §4.3）**：
+  - 判型/域校验同族遗漏（10 处）：starfield far/near_count、apply_run_save 负值、telegraph_duration、WEAK_LOCK、craft_counts、hp_mults 值域、狂暴计时键（E1_RING_INTERVAL/E2_POINT_COUNT/E3_SUMMON_INTERVAL 等）、mothership 时轴键 0 值 NaN、`bullet.gd` 零速度弹、`player.gd` dist_falloff/aim_frame 零距离除零。
+  - 注释失实/文档-代码矛盾（5 处）：turret_battery:6 monitoring 表述、hud_capture 还原声称、AGENTS 与 run.sh set -e 表述、README 手柄键表漏 LT、README「CI 规划中」陈旧。
+  - 防御缺口（低概率，5 处）：返航锁输入期弹反盾 monitoring 残留、boss volley 无进行中守卫、formation APPROACH_SPEED=0 卡死无兜底、boss `_begin_escape` 未 cancel_all、bullet 爆炸弹对炮台/编队机零 AoE（注释口径待确认）。
+  - 性能遗留（4 处）：enemy 每帧 overlaps_area（perf 候选）、orbital_strike 每帧 288 次三角函数、player 弹反高光每帧重建点集、右摇杆 delta 上下文依赖。
+  - 测试侧（6 处）：tutorial_test:75 调试 print、mothership_summon_test OR 弱断言、buff33 InputMap 无收尾清理、test/ 23 文件 gdformat 不合规（CI 盲区）、22 处括号尾随空格、hud_capture 注释。
+  - 工具链/脚本（7 处）：run.bat 无版本判定、run.sh 与 run.command 策略不一致、release.sh zip 无前置检查、PIL 依赖未声明、balance_editor 500 裸异常、gdtoolkit 未锁版本、boss_fire/敌机机动参数硬编码魔法数。
+
+## 登记不修（论证后收敛）
+
+1. **`bullet.gd` 爆炸弹对炮台/编队机零 AoE 伤害**（`_explode` 只 `as Enemy` 结算，`formation_craft`/`turret_battery` 注册在表内但被类型过滤跳过）：涉及「事件单位是否可被 AoE 清」的设计口径（玩家弹爆炸 AoE 是清场手段还是仅限普通敌机），现行行为无害（仅少一种清场路径）→ 登记待设计确认，不改。
+2. **`enemy.gd:327` 每帧 `overlaps_area` 空间查询**（200 敌 ≈ 1.2 万次/秒）：注释自述「对齐原作逐帧轮询」，玩家受击判定语义依赖每帧重试（闪避重掷/无敌结束重命中），改信号驱动需重构受击语义 → 登记 perf 候选，不擅改。
+3. **`player.gd:742` 右摇杆虚拟准星位移依赖 `get_process_delta_time()`**：60Hz 下物理/渲染步长无差异；高刷屏行为差异需实证（引擎内部赋值时序未确认）→ 登记待实证，不臆改。
+4. **`smoke_test.gd` 其余分支内断言**（除 L16 外的同族弱断言）：L16 已登记，全量排查分支内断言属测试质量治理批次，不混入本轮。
+
+## 修复起效记录（回填）
+
+- **改了什么**：8 个源码/工具文件（enemy/player/spawner/boss/base_console/settings_ui/game_state/gen_balance_map）+ 6 个测试文件（pool_reuse 增断言、intro/return_capture 修复、autoplay 状态表、perf_bench 注释）+ 6 个文档/配置（BALANCE_MAP 重跑、TESTING、README×2、CONTRIBUTING、CHANGELOG、ci.yml 注释）+ 审查报告 `docs/2026-08-03-code-review.md`。
+- **为什么起效**：L02 把「断开→重连」在池化复用点补对称（`_ready` 不重跑的 Godot 语义下，只有 `reactivate` 是可靠重连点），`_on_buffs_changed()` 立即刷新保证缓存不陈旧；L01a 消除对 void 返回值的非法链式调用；L01b 使探针状态表与枚举序一一对应（阈值/名称/日志三处同源）；L03-L07 均为「既有防护族存在、此处遗漏」补齐（bool 排除、元素判型、域钳制），默认值/回退值逐位一致、行为零变化；L08 两处焦点归还对齐全项目模态页聚焦约定；L09/L10 让生成器覆盖声明式效果表并消除行号漂移（双向反查 0 缺失键）。
+- **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（autoload/ + scripts/，CI 口径）全绿；12 个针对性场景（smoke/pool_reuse/enemy_combat/difficulty/graze/boss_pattern/boss_phase/boss_registry/base_system/i18n/back_navigation/entry_animation）全 PASS 0 FAIL；`pool_reuse_test` 14 PASS 含 2 条新 L02 断言（逆验证：移除修复→FAIL，恢复→PASS）；capture 场景加载无 Compile Error；autoplay 短帧编译无 Parse Error；perf_bench 正常出结果；`--quit-after 300` 0 错误。
