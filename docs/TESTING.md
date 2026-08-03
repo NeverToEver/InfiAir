@@ -38,7 +38,7 @@ godot --headless --path . res://test/boss_phase_test.tscn
 godot --headless --path . res://test/boss_pattern_test.tscn
 godot --headless --path . res://test/hit_logic_test.tscn
 
-# 公平感机制（2026-08-03 落地，docs/2026-08-03-combat-fairness-plan.md）
+# 公平感机制（2026-08-03 落地，docs/archive/2026-08-03-combat-fairness-plan.md）
 godot --headless --path . res://test/grace_period_test.tscn
 godot --headless --path . res://test/graze_test.tscn
 godot --headless --path . res://test/boss_phase_transition_test.tscn

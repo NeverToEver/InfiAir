@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1113%20passed-brightgreen)](#-开发者信息)
+[![Tests](https://img.shields.io/badge/Tests-37%20scenes%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -158,7 +158,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 �
 <details>
 <summary>🗺️ 路线图 / 🤝 贡献 / 🙏 致谢 / 📄 许可证</summary>
 
-**路线图**：内容演进（新 Buff / 新敌机与 Boss 型 / 移动端操控等）暂缓，重启需重新立项；CI 与语义化版本流程规划中。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
+**路线图**：内容演进（新 Buff / 新敌机与 Boss 型 / 移动端操控等）暂缓，重启需重新立项；CI（GitHub Actions 五层门禁）与双平台发布（GitHub Releases）已落地。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
 
 **贡献**：欢迎 Issue 和 PR！提交前请确认：全部无头断言场景通过；遵循 [AGENTS.md](./AGENTS.md) 中的约定；方向类决策（新内容立项、暂缓 / 重启）请先在 [docs/ROADMAP.md](./docs/ROADMAP.md) 登记。
 

@@ -1,5 +1,5 @@
 extends Node
-## F 键弧光弹反盾测试（2026-08-03 机制四，docs/2026-08-03-combat-fairness-plan.md §5）：
+## F 键弧光弹反盾测试（2026-08-03 机制四，docs/archive/2026-08-03-combat-fairness-plan.md §5）：
 ## 组件级：完整时间轴（WINDUP 前摇无判定 → ACTIVE 有效 → RECOVER 后摇）、硬冷却自流程
 ## 结束起算（完整周期 3.8s）、机身 tint 三阶段。
 ## 场景级：ACTIVE 弹反属性（转玩家弹/镜面反射 y 取反/×2 速/×1.5 伤）、命中敌机与 Boss、

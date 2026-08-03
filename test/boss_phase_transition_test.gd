@@ -1,5 +1,5 @@
 extends Node
-## Boss 阶段转场公平感测试（2026-08-03 机制三，docs/2026-08-03-combat-fairness-plan.md §4）：
+## Boss 阶段转场公平感测试（2026-08-03 机制三，docs/archive/2026-08-03-combat-fairness-plan.md §4）：
 ## P1→P2 / ENRAGE 切换清弹 + 玩家转场无敌（只增不减）、转场瞬间受击不结算、
 ## 逃跑期不清弹不给无敌（回归既有逃跑流程）、分段血条段权/段色登记与绘制语义
 ## （segment_fill 纯函数）、非 Boss 条默认等分回归、清弹为单次遍历无逐帧轮询。

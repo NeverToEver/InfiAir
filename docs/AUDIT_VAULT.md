@@ -981,7 +981,7 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 审核类型 | 全仓库软件工程维度审查（代码质量 / 架构 / 健壮性 / 性能 / 测试 / UI 输入 / 文档 / 配置构建工具链 / 安全持久化 / 提交规范），评价正文见 `docs/2026-08-03-code-review.md` |
+| 审核类型 | 全仓库软件工程维度审查（代码质量 / 架构 / 健壮性 / 性能 / 测试 / UI 输入 / 文档 / 配置构建工具链 / 安全持久化 / 提交规范），评价正文见 `docs/archive/2026-08-03-code-review.md` |
 | 工作时间 | 2026-08-03 |
 | 审核区域 | `scripts/` 62 文件 + `autoload/game_state.gd` + `test/` 46 场景 + `scenes/` + `data/` + `project.godot` + `.github/workflows/` + 启动/打包脚本 + `scripts/tools/` + 全部 docs |
 | 审核方法 | 8 路 explore 并行只读审查（按子系统分组），每路对照既有登记去重；主控对全部 P1 与关键 P2 逐条读码复核（含 Godot 源码级生命周期验证与生成器复现验证）；修复后逐批跑针对性测试 + 逆验证 |
@@ -1039,6 +1039,6 @@
 
 ## 修复起效记录（回填）
 
-- **改了什么**：8 个源码/工具文件（enemy/player/spawner/boss/base_console/settings_ui/game_state/gen_balance_map）+ 6 个测试文件（pool_reuse 增断言、intro/return_capture 修复、autoplay 状态表、perf_bench 注释）+ 6 个文档/配置（BALANCE_MAP 重跑、TESTING、README×2、CONTRIBUTING、CHANGELOG、ci.yml 注释）+ 审查报告 `docs/2026-08-03-code-review.md`。
+- **改了什么**：8 个源码/工具文件（enemy/player/spawner/boss/base_console/settings_ui/game_state/gen_balance_map）+ 6 个测试文件（pool_reuse 增断言、intro/return_capture 修复、autoplay 状态表、perf_bench 注释）+ 6 个文档/配置（BALANCE_MAP 重跑、TESTING、README×2、CONTRIBUTING、CHANGELOG、ci.yml 注释）+ 审查报告 `docs/archive/2026-08-03-code-review.md`。
 - **为什么起效**：L02 把「断开→重连」在池化复用点补对称（`_ready` 不重跑的 Godot 语义下，只有 `reactivate` 是可靠重连点），`_on_buffs_changed()` 立即刷新保证缓存不陈旧；L01a 消除对 void 返回值的非法链式调用；L01b 使探针状态表与枚举序一一对应（阈值/名称/日志三处同源）；L03-L07 均为「既有防护族存在、此处遗漏」补齐（bool 排除、元素判型、域钳制），默认值/回退值逐位一致、行为零变化；L08 两处焦点归还对齐全项目模态页聚焦约定；L09/L10 让生成器覆盖声明式效果表并消除行号漂移（双向反查 0 缺失键）。
 - **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（autoload/ + scripts/，CI 口径）全绿；12 个针对性场景（smoke/pool_reuse/enemy_combat/difficulty/graze/boss_pattern/boss_phase/boss_registry/base_system/i18n/back_navigation/entry_animation）全 PASS 0 FAIL；`pool_reuse_test` 14 PASS 含 2 条新 L02 断言（逆验证：移除修复→FAIL，恢复→PASS）；capture 场景加载无 Compile Error；autoplay 短帧编译无 Parse Error；perf_bench 正常出结果；`--quit-after 300` 0 错误。

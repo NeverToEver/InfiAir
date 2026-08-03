@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-1113%20passed-brightgreen)](#-for-developers)
+[![Tests](https://img.shields.io/badge/Tests-37%20scenes%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -158,7 +158,7 @@ The full 37-scene list, the `perf_bench` performance benchmark, the autoplay sim
 <details>
 <summary>🗺️ Roadmap / 🤝 Contributing / 🙏 Acknowledgments / 📄 License</summary>
 
-**Roadmap**: content evolution (new buffs / new enemy & boss types / mobile controls) is deferred and needs re-proposal to restart; CI and semantic versioning are planned. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
+**Roadmap**: content evolution (new buffs / new enemy & boss types / mobile controls) is deferred and needs re-proposal to restart; CI (GitHub Actions 5-layer gate) and dual-platform releases (GitHub Releases) are live. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
 
 **Contributing**: issues and PRs are welcome! Before submitting: make sure all headless assertion scenes pass; follow the conventions in [AGENTS.md](./AGENTS.md); record direction-level decisions (new content, defer / restart) in [docs/ROADMAP.md](./docs/ROADMAP.md) first.
 

@@ -4,7 +4,7 @@
 >
 > **维护约定**：任何方向/架构/数值口径调整，须在此登记并同步 `AGENTS.md`「文档同步要求」；技术债修复后在此回填状态并同步 `docs/AUDIT_VAULT.md`。
 >
-> **状态快照（2026-08-02 修订）**：C 系列（Godot 最佳实践与语法规范）35 项已处理收尾（含设计确认不改码/核实无风险，详见档案）；31 个无头断言场景 0 FAIL（1113 断言）；A 系列 SOLID 审计遗留 A3/A4/A5/A8 部分项未收敛（见 §7）；性能优化计划全量落地（敌机生成路径已统一池化，见 §7.2 与 `docs/archive/2026-08-02-performance-optimization-plan.md` §12）。
+> **状态快照（2026-08-03 修订）**：十轮系统审计（A–L 系列，含 2026-08-03 软件工程维度全面评价，见 `docs/AUDIT_VAULT.md`）全部处置完毕，无 P0 遗留；37 个无头断言场景 0 FAIL（2026-08-03 实测）；A 系列 SOLID 遗留仅 **A8**（Player 视觉职责抽离）与 **A5**（残余依赖收敛，注入已落地）未收敛（见 §7）；性能优化与公平感四机制（2026-08-03）全量落地。
 
 ---
 
@@ -121,7 +121,7 @@
 - 战斗中退出需二次确认（红色警告丢进度），确认后 `_execute_exit_cleanup`：存 profile、战斗中删 save、停止未播完音效、淡出退出。
 - 平台：PC Esc / 手柄 `ui_cancel` / Android 系统返回手势，同一状态机。
 
-### 1.13 战斗公平感机制（单一事实源 `docs/2026-08-03-combat-fairness-plan.md`）
+### 1.13 战斗公平感机制（机制与数值定稿见本小节；实现与验证细节见 `docs/archive/2026-08-03-combat-fairness-plan.md`）
 
 - **受击宽限帧**：敌弹进入玩家 Hitbox 暂缓 `player.grace_period`（0.05s）结算，窗口内离开（擦过边缘）不计伤——消灭 ghost hit；只改敌弹→玩家的结算时序，`take_damage` 守卫（无敌/闪避/单帧）零改动。
 - **擦弹得分**：受击盒外环形带（`player.graze_radius` 20，游戏性范围族不乘 world_scale）进入即计 `player.graze_score`（10，经难度倍率入账），同一弹至多 1 次；纯得分制不接 buff/天赋；受击区（受击盒内）不计擦弹。
@@ -296,7 +296,7 @@ Main (scripts/main.gd)
 > 完整命令清单见 `docs/TESTING.md`。测试不是单元测试框架：`test/*.tscn` 启动 GDScript 场景，以 `[PASS]/[FAIL]` 输出和退出码自检。
 
 - **最小必跑集**：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`；涉存档/基地/母舰加跑 `base_system_test.tscn`。
-- **全量断言**：35 个断言场景（31 既有 + 4 公平感机制，断言数以 CI 实跑为准）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
+- **全量断言**：37 个断言场景（35 既有 + 2 架构断言：`buff_effects_test`（A4 效果表）/ `boss_registry_test`（A3 注册表），断言数以 CI 实跑为准）；专项按子系统选跑（boss/事件/过场/对象池/i18n/导航等）。
 - **特殊场景**：`perf_bench` 必须 `--fixed-fps 1000`；`autoplay_test` 长时异常探针（注册表一致性双向比对、动效路径、卡死计时、buff 封顶、阶段计数）。
 - **测试副作用**：测试可能读写 `user://savegame.json` / `profile.json`，新测试先 `GameState.delete_save()` 并清理自身持久化；`balance_test` 会覆盖 `data/balance.json` 验证损坏回退再恢复，勿并发手编。
 - **视觉验证**：窗口模式截图人工核对（headless 无可用截图）；`visual/ui/return/intro/summon/meta_fx/hud` capture 工具。
@@ -321,8 +321,8 @@ Main (scripts/main.gd)
 
 | 编号 | 内容 | 状态 | 影响与修复方向 |
 | --- | --- | --- | --- |
-| A3 | Boss 攻击集中 `match` 收敛为注册表、按机型分支收敛为数据驱动（2026-08-03） | ✅ | 攻击处理器注册表（10 攻击 id）+ 移动器注册表 + 狂暴三阶段处理器注册表 + 机型参数表（召唤/闪白/过渡悬停）；新增机型/攻击仅需注册，O 原则达成 |
-| A4 | 开闭原则：Boss 攻击 match + 机型分支已随 A3 收敛；`player.gd` Buff 已改声明式效果表（2026-08-03） | ✅ | A4a/A4b 落地后，剩余 Boss 分支（随 A3）与 Player buff（`BUFF_EFFECTS` 表：pow/cap/bool 三类效果定义）已治理；新增数值型 buff 只需表加一行 |
+| A3 | Boss 攻击集中 `match` 收敛为注册表、按机型分支收敛为数据驱动（2026-08-03） | ✅ | 攻击/移动/狂暴三注册表 + 机型参数表，新增机型/攻击仅需注册，O 原则达成 |
+| A4 | 开闭原则：Boss 攻击 match + 机型分支已随 A3 收敛；`player.gd` Buff 已改声明式效果表（2026-08-03） | ✅ | `BUFF_EFFECTS` 声明式效果表（pow/cap/bool 三类），新增数值型 buff 只需表加一行 |
 | A5 | 依赖倒置：Boss/事件对 Spawner 依赖应注入而非 group 查找 | ⚠️ | **注入已落地（2026-08-02 订正，`bdb0274`）**：Boss/精英炮塔经 `set_spawner()` 注入引用，替换 group 查找；GameState 作配置中心+注册表是有意性能权衡，保留。方向：残余依赖收敛 |
 | A8 | Player 职责拆分：受击/冲刺已抽组件，**视觉职责（尾焰/残影/准星/碰撞点/PlayerBuffVisuals）仍驻留 Player**（约 697 行） | ⚠️ | 方向：视觉类抽 `PlayerVisuals` 组件 |
 
@@ -365,7 +365,7 @@ Main (scripts/main.gd)
 1. 维持 §3 全部全局不变量（碰撞层/world_scale/view_world_rect/cfg/协程/i18n/热路径/池防护）。
 2. 可调数值只改 `balance.json`，跑 `gen_balance_map.py` 与最小验证集。
 3. 新增功能在本文 §8 与 `ROADMAP.md` 登记方向，专项设计文档落实现级规格。
-4. 修复/新代码全量测试 0 FAIL（35 断言 + autoplay 探针），视觉改动窗口截图核对。
+4. 修复/新代码全量测试 0 FAIL（37 断言 + autoplay 探针），视觉改动窗口截图核对。
 5. 技术债修复在 `AUDIT_VAULT.md` 回填"修复起效记录"。
 
 ---

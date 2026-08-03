@@ -77,7 +77,7 @@
 - 每次改动后：`--headless --import` + 相关专项测试。
 - 涉及平衡数值：加跑 `balance_test`（损坏回退路径）。
 - 涉及对象池/注册表：加跑 `pool_reuse_test`。
-- 全量收尾：**29 断言场景全绿 0 FAIL** + `--quit-after 300` + `autoplay_test` 短跑（探针监控注册表一致性 / 孤儿节点 / 帧耗时）。
+- 全量收尾：**全量 37 断言场景全绿 0 FAIL**（口径随 TESTING.md，见 `docs/TESTING.md`「统一检查流程」）+ `--quit-after 300` + `autoplay_test` 短跑（探针监控注册表一致性 / 孤儿节点 / 帧耗时）。
 
 ---
 

@@ -2,13 +2,13 @@
 
 > 2026-07-24 立项。本文是项目方向的单一事实源；阶段调整时更新本文并在 AGENTS.md「文档同步要求」登记。
 
-## 现状快照（2026-07-24）
+## 现状快照（2026-08-03 更新）
 
 - **移植对齐收官**（2026-07-24 快照）：Python/Pygame 原作的全部核心机制已重制并对齐（逐项对照见 `docs/archive/PORTING_PARITY.md` 差距清单，仅剩「本地排行榜页」一个可选项）；**收官后进入独立演进，原作仅作历史溯源/数值参考，不再作逐项对齐对象**。
-- **质量基线**：31 个无头断言测试场景全绿（1113 断言，含 `entry_animation_test`/`mouse_lock_test`）；长时 autoplay 探针 + 性能基准可用。
-- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，登记 SOLID 审核发现 A1–A8。**修复状态（2026-08-01 按 git 历史与代码实况订正，见档案 A 系列回填；2026-08-02 再订正 A5；2026-08-03 订正 A3/A4）**：A1 封装穿透 ✅、A2 GameState 四服务拆分 ✅、A3 Boss 四类拆分 ⚠️ 拆分落地但 O 原则未达成（match 仅搬迁）→ **✅ 2026-08-03 注册表收敛**（攻击/移动/狂暴处理器注册表 + 机型参数表，新增机型/攻击仅需注册）、A4 开闭违反 ⚠️ 部分完成（A4a 敌机策略/A4b 事件触发基类已落地，Boss 分支与 Player buff 未治理）→ **✅ 2026-08-03**（Boss 分支随 A3 收敛；Player buff 声明式效果表 `BUFF_EFFECTS`）、A5 依赖倒置 ⚠️ 部分完成（Boss/事件对 Spawner 依赖注入已落地，GameState 作配置中心+注册表为有意性能权衡保留）、A6 语义化特判 ✅、A7 测试白盒全清 ✅（档案口径：测试侧 28 处 + 游戏侧 5 处，855 为 sed 批量替换计数）、A8 Player 组件拆分 ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽）。2026-08-01 并行复核另登记 B1–B16（见档案）。
+- **质量基线**：37 个无头断言测试场景全绿（0 FAIL，2026-08-03 实测）；长时 autoplay 探针 + 性能基准可用。
+- **代码审计档案（2026-07-31 建立）**：`docs/AUDIT_VAULT.md` 为专有审计档案，十轮系统审计（A–L 系列）全部处置、无 P0 遗留；A 系列仅 A5（残余依赖收敛）与 A8（Player 视觉抽离）未收敛。修复状态与起效记录一律以档案为准，本文件不复述细节。
 - **协作就绪**：隐私隔离审计通过（无密钥/个人信息泄露、git 历史已清洗）、UI 字体替换为 OFL 开源的 NotoSansSC、文档基线（README / AGENTS / PORTING_PARITY / EXIT_FLOW）已与代码逐条核对。
-- **战斗公平感四机制已落地**（2026-08-03，`docs/2026-08-03-combat-fairness-plan.md`）：受击宽限帧（ghost hit 消灭）、擦弹得分（风险-回报技巧轴）、Boss 阶段转场清弹 + 玩家短暂无敌 + 分段血条（惊喜阶段公平感）、F 键弧光弹反盾（主动防御反击，3.8s 决策周期）。全量验证通过（35 断言场景 0 FAIL + 180s autoplay 探针无新异常）；实机手感验证（15 分钟+ 长局）登记为发布前人工项。后续方向（B 档）见计划书 §8：每攻击独特 tell、DDA 弹密度动态降档、死亡回放。
+- **战斗公平感四机制已落地**（2026-08-03，`docs/archive/2026-08-03-combat-fairness-plan.md`；机制与数值定稿见 `docs/DESIGN_BASELINE.md` §1.13）：受击宽限帧（ghost hit 消灭）、擦弹得分（风险-回报技巧轴）、Boss 阶段转场清弹 + 玩家短暂无敌 + 分段血条（惊喜阶段公平感）、F 键弧光弹反盾（主动防御反击，3.8s 决策周期）。全量验证通过（37 断言场景 0 FAIL + 180s autoplay 探针无新异常）；实机手感验证（15 分钟+ 长局）登记为发布前人工项。后续方向（B 档）见计划书 §8：每攻击独特 tell、DDA 弹密度动态降档、死亡回放。
 
 ## 方向转变
 
@@ -16,17 +16,21 @@
 | --- | --- | --- |
 | 目标 | 逐项对齐原作，消除移植差距 | 以重制版自身路线独立演进；原作仅作数值/设计参考，不再逐行对齐 |
 | 开发模式 | 单人开发 | 协作开发（仓库已具备协作者条件） |
-| 发布 | 明确暂缓打包 | 2026-07-30 重启打包：导出预设入库 + `release.sh` 双平台导出 + Linux/Windows 安装卸载脚本；CI 与语义化版本流程仍暂缓 |
+| 发布 | 明确暂缓打包 | 2026-07-30 重启打包：导出预设入库 + `release.sh` 双平台导出 + Linux/Windows 安装卸载脚本；CI/CD（五层门禁 + 手动发布工作流）已于 2026-08-02 落地 |
 | 内容 | 机制补全 | 维持现有内容；体验深化与新内容 2026-07-30 已随 Phase 2 一并砍掉，重启需重新立项 |
 
 ## 阶段计划
 
 ### Phase 0 — 技术债收尾（近期，无新玩法）
 
+**已完成（2026-07-31 ~ 08-03，逐项记录见 `docs/AUDIT_VAULT.md` A 系列与 `docs/archive/EXECUTION_LOG.md`）**：敌机生成路径统一池化（`920e5e9`）、A2 GameState 四服务拆分、A3/A4 注册表与声明式效果表收敛（`310e0b9`）、公平感四机制（`b2bc8a5`）、CI/CD 与五层门禁。
+
+**剩余待办**：
+
+- **A8**：Player 视觉职责抽 `PlayerVisuals` 组件（`docs/DESIGN_BASELINE.md` §7.1，唯一未收敛架构债）。
+- **L 系列行为/流程待办**（2026-08-03 第十轮审查登记，详见 `docs/archive/2026-08-03-code-review.md`）：**L13** 母舰驻留/对接期精英炮塔与编队事件互斥（进保护舱挂机收益，设计决策）；**L14** Boss 段切换 y 垂直跳变平滑过渡（三型 P1 band → P2 bob，行为修改）；**L18** `release.yml` 版本号同步落地（sed 只改 CI 工作区不 commit，tag 指向提交的 `config/version` 永远滞后）。
+- **test/ 门禁盲区**（L 系列最高优先建议）：test/ 未纳入 `gdformat --check` 与 import 门禁，两次 P1（截图工具链式调用编译错误、autoplay 母舰状态表漂移）均因该盲区长期潜伏；L15 profile 快照还原、L16 smoke 弱断言随批处置。
 - 审计 P2 待办清理（`docs/archive/2026-07-22-audit-fix-plan.md`）：死代码删除（`main.gd` 未用引用、`hud.gd` 恒假分支、零 connect 信号等）、母舰 `_start_release()` 幂等守卫、`profile_corrupt` 损坏档案提示消费。**状态（2026-08-02）**：多项已被后续审计轮次覆盖处置（C21 对象池 `_exit_tree` 清注册、D 系列若干项），未处置项仍见 `docs/DESIGN_BASELINE.md` §7.3。
-- 敌机生成路径统一：普通波次直接实例化 vs Boss-3 小怪走 `enemy_pool` 两条路径并存。**✅ 已统一（2026-08-02，随性能优化计划 `920e5e9`）**：普通波次已统一经 `GameState.enemy_pool.spawn()` 入池，`USE_POOL` 开关保留作 A/B 对照（见 `docs/archive/2026-08-02-performance-optimization-plan.md`）。
-- **A2 GameState 拆分**（2026-07-31 **已全部完成**，`docs/AUDIT_VAULT.md` A2）：四阶段委托式剥离全部落地——①数值配置读操作 `BalanceService` → ②持久化 `SaveManager` → ③音效池 `SfxPlayer` → ④实体注册表 `EntityRegistry`。GameState 公开 API 保留并转发（注册表用属性 getter/setter），调用方与测试零破坏；29 断言场景全绿、数值地图 0 失配、`game_state.gd` 直接文件 IO 清零。
-- **A3 Boss 单类拆分**（2026-07-31 **拆分落地**，`docs/AUDIT_VAULT.md` A3）：1488 行单类拆为门面 Boss + 4 职责类（`BossFire` 弹幕发射 / `BossAttacks` 攻击状态机 / `BossMovement` 移动策略 / `EnrageSequence` 狂暴状态机）；`boss.gd` 瘦身至 802 行，无跨类私有访问复发；29 断言场景全绿。**订正（2026-08-01）**：集中 match 仅是搬迁进 `BossAttacks.execute()`，非查表/工厂取代；机型分支在 BossMovement/EnrageSequence/Boss 残留 7 处，O 原则未达成（见 A3 复核订正）。**✅ 收敛（2026-08-03）**：10 分支攻击 match → 攻击处理器注册表；7 处机型分支 → 移动器/狂暴处理器注册表 + 机型参数表（`SUMMONER_TYPES`/`HIT_FLASH_BY_TYPE`/`TRANSITION_HOVER_TYPES`）；新增机型/攻击仅需注册一行。新增 `boss_registry_test` 29 断言；全量 37 断言场景 0 FAIL。
 - 验收：全部既有测试 0 FAIL；改动条目在审计文档标注完成。
 
 ### Phase 3 — 暂缓/已砍项的重启条件（均需用户明确决策）
