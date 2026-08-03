@@ -82,6 +82,21 @@
 - **发布前验证项**：手柄实机走查、15 分钟+ 长局公平感、BGM 循环听感（登记于原文 §6）。
 - **原文**：`docs/archive/2026-08-02-competitor-review-audit.md`
 
+## 2026-08-03 · 战斗公平感四机制落地（公平感专项）
+
+- **落地**：`b2bc8a5`（四机制全量执行）→ `310e0b9`（A3/A4 架构债收尾）→ 后续 K/L 系列修复提交（口径随各轮登记）
+- **摘要**：受击宽限帧（`player.grace_period`，消灭 ghost hit）、擦弹得分（`player.graze_radius`/`graze_score`，风险-回报技巧轴）、Boss 阶段转场清弹 + 玩家短暂无敌 + 分段血条（`boss.phases.clear_on_shift`/`transition_invincible`/`hud.boss_bar_segments`）、F 键弧光弹反盾（`player.parry.*`，前摇 0.15/有效 0.5/后摇 0.15 + 3.0s 硬冷却，完整周期 3.8s）。新增 4 断言场景（grace_period 14 / graze 12 / boss_phase_transition 31 / parry 36）+ 180s autoplay 探针；落地时全量 35 断言场景 0 FAIL。
+- **关键决策**：擦弹环与弹反盾半径属游戏性范围族不乘 `world_scale`；弹反盾判定从扇形 shape 改圆盘触发 + 回调内扇形过滤（实测扇形 shape 内外判定不可靠）；擦弹音效暂用 `SFX_BUFF_PICK`、弹反音效暂用 `SFX_DASH` 占位（登记为后续音频项）。
+- **发布前验证项**：实机 15 分钟+ 长局手感（擦弹反馈/阶段转场喘息/弹反手感）登记为人工验证项。
+- **原文**：`docs/archive/2026-08-03-combat-fairness-plan.md`（定稿语义已浓缩进 `docs/DESIGN_BASELINE.md` §1.13）
+
+## 2026-08-03 · L 系列第十轮全仓库软件工程维度审查
+
+- **落地**：`293d174`（P1×3/P2×9 修复）→ `4fad614`（审查报告与档案登记）
+- **摘要**：8 路并行只读审查（对局编排/玩家/敌机池/Boss/母舰事件/UI 导航/测试/配置卫生）对照既有登记去重；结论 P1×3（全部修复并验证）+ P2×15（修复 10、登记待办 5）+ P3×40+（修复 6、登记 30+），无 P0。核心发现：测试维护盲区（test/ 截图工具链式调用编译错误、autoplay 母舰状态表漂移，CI 三道门禁全部无感知）、池化复用 buff 信号重连回归（slow_field 静默失效）、判型只到容器层不到元素层。
+- **关键教训**：防御惯例在逐文件扩散时偶有漏网（判型只到容器层、修复只覆盖被登记路径）；test/ 目录处于引擎解析正确性盲区，建议纳入 gdformat/import 门禁。
+- **原文**：`docs/archive/2026-08-03-code-review.md`（登记见 `docs/AUDIT_VAULT.md` L 系列）
+
 ---
 
 *本索引由 2026-08-02 文档口径统一期间建立（详见 `docs/AUDIT_VAULT.md`「文档口径统一处置记录」）。*
