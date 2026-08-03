@@ -1,132 +1,128 @@
-# 开场过场动画（Intro Cinematic）指导文档
+# Intro Cinematic (Design & Decision Doc)
 
-本文档是开场过场动画的单一事实源：分镜脚本、技术方案、阶段划分、验收指标与进度记录。
-改动过场相关内容时必须同步更新本文档的「进度记录」与「验收指标」勾选状态。
+Single source of truth for the intro cinematic: storyboard, tech design, phases, DoD acceptance, progress log. Any intro change must sync the progress log (§7) and acceptance checkboxes (§6).
 
-## 1. 目标与触发时机
+## 1. Goal & Trigger
 
-- 内容：6 镜头硬科幻开场动画（空间站爆炸 → 驾驶员弹射 → 战机驶离），交代游戏背景叙事。
-- 触发：开始面板点击「新游戏 / 开始游戏」（`StartPanel.new_game_chosen` → `Main._apply_new_run()`）后播放，播完（或跳过）无缝进入对局。
-- **不触发**：「继续对局」、教程、测试场景（测试以子节点方式实例化 main.tscn，`get_tree().current_scene != Main` 时一律不播，保证现有 10 个调用 `_on_new_game_pressed()` 的测试/截图工具零改动）。
-- 跳过：Esc（经 BackNavigator 路由）、任意按键或鼠标点击立即跳过，直接进入对局。
-- 实现方式：纯程序化 2D 实时渲染（Polygon2D / Line2D / GPUParticles2D / Tween / Label），不引入视频文件、不新增外部依赖，与项目「离线生成资产」方针一致。
+- 6-shot hard-SF intro (station explosion → pilot sprint → cockpit launch → eject → departure), sets up the backstory.
+- Trigger: start panel "New Game" (`StartPanel.new_game_chosen` → `Main._apply_new_run()`); seamless entry into the run after play or skip.
+- No trigger: "Continue Run", tutorial, test scenes (tests instance main.tscn as child; `get_tree().current_scene != Main` blocks it, keeping the 10 existing `_on_new_game_pressed()` callers unchanged).
+- Skip: Esc (via BackNavigator), any key or click → straight into run.
+- Implementation: fully procedural 2D (Polygon2D / Line2D / GPUParticles2D / Tween / Label); no video files, no new deps — per offline-assets policy.
 
-## 2. 分镜脚本
+## 2. Storyboard
 
-总时长 17.3s = 六镜头 16.1s（含镜头间转场与结尾 0.7s 淡出）+ 收尾标题定格 1.2s（淡入 0.2s + 停留 0.8s + 淡出 0.2s）。每镜头为独立子场景构件（代码内建节点树），由导演按时序切换。全程 2.35:1 letterbox（上下各 132px 设计坐标黑边），每镜头底部黑边内叙事字幕卡（`INTRO_SUB_1..6`，中英双语，随镜头淡入淡出，淡入 0.3s，每行完整可读时间 ≥1.2s）。
+Total 17.3s = six shots 16.1s (incl. transitions + 0.7s end fade) + title card 1.2s (0.2s in + 0.8s hold + 0.2s out). Each shot = in-code node tree, director-built/switched. 2.35:1 letterbox (132px bars top/bottom, design coords); per-shot subtitle card (`INTRO_SUB_1..6`, zh+en, fade-in 0.3s, readable ≥1.2s).
 
-| # | 名称 | 时长 | 画面内容（需求原文要点） | 视觉实现要点 | 音效 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 远景推近 | 2.8s | 超巨型环形空间站深空爆炸，镜头极远景缓慢匀速推近；火光暗红→刺目橙白；碎片与尘埃前景层次；密集结构细节与破损舱段；深邃星空+远处星云；冷底暖高光 | 复用 Starfield 做星空底；环形站用多段 Polygon2D 弧段+舱段矩形拼装（DawnStation 毁灭态）；整体容器 scale 0.7→1.0 匀速推近；爆炸核心=soft_glow 软辉光 modulate 从暗红升到橙白并放大；GPUParticles2D 三组（碎片高速外抛、尘埃前景、全镜头余烬慢速上飘）；8 盏舱段舷窗灯按距破口角距逐盏熄灭；dur*0.45 破口对侧二次殉爆（软闪核+CinematicFx.shockwave 双层扩散环+颤动+递减音量）；前景残骸顶缘暖色软轮廓光 | 爆炸 SFX（既有 `GameState.SFX_*` 爆炸音）+ 殉爆递减音量 |
-| 2 | X光链式爆炸 | 2.5s | 空间站内部蓝白 X 光透视；橙红能量流沿舱室走廊/管道线性链式传导、逐层引爆；多层甲板/支撑骨架/舱室隔断层级清晰；冷蓝×橙红双色对比 | 冷蓝底(0.02,0.05,0.12)；Line2D 绘制站体剖面线框（4 层甲板横线+骨架竖线+隔断）；链式路径=预设折线逐点亮起（橙红、宽度渐粗）；节点处依次爆开 soft_glow 软圆闪（scale 0→1.4→淡出）+ 一次性火花溅射（one_shot 24 粒），节奏 0.2s/节点；顶层甲板 12 盏状态灯随链爆波前由青转红（Timer 步进内重着色） | 短促爆炸音×3 连发 |
-| 3 | 驾驶员冲刺 | 2.5s | 轻型飞行服驾驶员在狭窄弹射准备舱全速冲刺，姿态前倾手臂大幅摆动；红色应急灯高频闪烁；墙壁管道蒸汽泄漏；地面黄色警示标线；体积光、动态模糊 | 侧视走廊：天花板/地面透视线+黄色警示条纹（向反方向滚动表现冲刺）；驾驶员=多段式飞行服人物（双关节四肢两拍奔跑循环，`_process` 相位驱动）；红色全屏 ColorRect 以 6Hz 正弦呼吸闪烁；蒸汽=白色半透明软点粒子上飘；五条锥形体积光带；前景近景支杆 ×4 以 -1600px/s 反向横扫回卷（强视差，快于中景 -900）；速度线若干 | 警报感可用既有命中音低频重复（可选，阶段2再定） |
-| 4 | 操作台紧急启动 | 2.5s | 驾驶舱内，双手在按钮/触控屏控制面板快速精准操作；屏幕红色倒计时与警告 UI；随后双手猛抓两侧金属把手、指节发白、身体 anticipating 后仰；仪表灯光映面 | 驾驶舱前景框架（深色舱壁多边形容器）；控制台=三分区航电台（按钮簇+滑槽/旋钮/拨杆）高频亮灭；主屏=红底 Label 倒计时 3→2→1 + tr("INTRO_WARNING") 警告行闪烁 + INTRO_LOG_1..4 四条 i18n 日志轮换；左副屏雷达（距圈+旋转扫掠针+2 枚回波亮点，扫过点亮余晖衰减，`_ConsoleShot._process` 零分配驱动）；按钮簇板角状态 LED；两侧金属把手；结尾 0.5s 整体后仰（rotation -3°）+ 屏幕白光渐强 | 倒计时结束接镜头5引擎音 |
-| 5 | 弹射尾追视角 | 2.8s | 战机正后方尾部视角，从弹射轨道高速射出；机身两侧橙红火焰舌舔舐未吞噬；强动态模糊与镜头震动；轨道金属结构向画面边缘飞速后退；冷底暖焰对比 | 复用玩家机贴图（尾部视角缩 1.4 倍置于画面中心偏下，modulate 调暗 (0.85,0.85,0.92) + 暖色软轮廓光托底，对齐镜头 6 剪影光比）；点火预热 ~0.3s（随 dur 缩放）：尾焰 amount_ratio 0→1 + 喷口软辉光弹起 + 白闪脉冲；弹射轨道=两侧透视收缩壁面+斜向结构线加速度向后流动；火焰=尾部双喷流+亮白内芯+机身两侧舔舐火舌（软点 textured 粒子，尺寸加大一档补偿边缘衰减）；双壁轨道电火花顺轨喷洒；全屏速度线+边缘放射线；容器 ±6px 震动 | 引擎/加速音（既有 SFX） |
-| 6 | 远景收束 | 3.0s | 史诗远景：左下燃烧残骸废墟，中央偏右战机加速驶离，远处补给舰编队光点阵列同向；壮丽星云与恒星背光勾勒剪影；画面底部行星弧线压底；三分法构图；静谧与毁灭并存 | 星云=3 个 soft_glow 大半径低透明度软辉光（紫/蓝，缓慢异向漂移）；恒星背光=右上 soft_glow 强辉光点+横向 anamorphic 光晕（宽蓝白亮条脉动）；行星弧线=巨大半径 64 段圆弧（圆心远在屏下）+暗色星体填充+横向拉扁的青蓝大气辉光带；残骸=左下深色不规则多边形剪影+橙色余烬闪烁点；战机=小剪影向右上加速移动（ease_in）；补给舰编队=两列×三行小光点阵列同向跟随（各带引擎拖尾短线）；最后 0.7s 全屏淡黑衔接标题定格 | 无（静音收束，由对局 BGM 接管） |
-| 7 | 标题定格 | 1.2s | 六镜头播完后黑场中浮现 InfiAir 标题，停留后淡出进对局 | 全屏 CenterContainer + 大标题 Label（UITheme.FONT_DISPLAY/ACCENT）+ accent 短线，初始 modulate.a=0，导演 tween 串联（0.2s 淡入 → 0.8s 停留 → 0.2s 淡出 → skip 统一出口） | 无 |
+| # | Shot | Dur | Visual implementation | SFX |
+| --- | --- | --- | --- | --- |
+| 1 | Far push-in | 2.8s | Starfield bg; ring station = Polygon2D arcs + bay rects (DawnStation destroyed); scale 0.7→1.0; blast core = soft_glow dark-red→orange-white + grow; GPUParticles2D ×3 (debris/dust FG/embers); 8 bay lights off by angle to breach; 2nd detonation dur*0.45 (flash + CinematicFx.shockwave double ring + shake + decaying vol); FG wreck warm rim | `GameState.SFX_*` explosion + decaying 2nd blast |
+| 2 | X-ray chain | 2.5s | cold-blue base (0.02,0.05,0.12); Line2D wireframe (4 decks + frames + bulkheads); chain = preset polyline lights up (orange-red, widening); node soft_glow flash (0→1.4→fade) + one-shot 24 sparks, 0.2s/node; 12 top LEDs cyan→red w/ wavefront (Timer-step recolor) | 3 short blasts |
+| 3 | Pilot sprint | 2.5s | side corridor: perspective lines + yellow stripes scroll back; pilot = multi-segment flightsuit figure (2-joint limbs, 2-phase run, `_process` phase-driven); red fullscreen ColorRect 6Hz sine; steam = white soft-dot particles up; 5 volumetric cones; FG struts ×4 at -1600px/s (> mid -900); speed lines | optional low-freq alarm (P2) |
+| 4 | Console launch | 2.5s | cockpit FG frame; 3-zone flight deck (buttons + slider/knob/lever) hi-freq blink; main = red Label 3→2→1 + tr("INTRO_WARNING") flash + INTRO_LOG_1..4 logs; left radar (ring + sweep + 2 blips w/ afterglow, `_ConsoleShot._process` zero-alloc); status LEDs; 2 grips; end 0.5s lean-back (rotation -3°) + white glow | countdown end → shot-5 engine |
+| 5 | Eject chase | 2.8s | ship texture (tail view, 1.4×, center-low, modulate (0.85,0.85,0.92) + warm rim, shot-6 silhouette ratio); warm-up ~0.3s (scaled by dur): amount_ratio 0→1 + glow pop + white flash; rails = perspective walls + slanted lines; flames = twin jets + white core + side tongues (soft-dot, one size step larger); rail sparks; speed lines + radial lines; ±6px shake | engine/accel (existing) |
+| 6 | Wide closure | 3.0s | nebula = 3 large soft_glow (purple/blue, drift); star = top-right soft_glow + anamorphic flare (wide pulsing bar); planet arc = 64-seg huge radius + dark fill + squashed cyan atmosphere band; wreck = bottom-left dark polygon + ember flickers; ship = small silhouette accel top-right (ease_in); fleet = 2×3 dots + trails; last 0.7s fade black | none (BGM takes over) |
+| 7 | Title card | 1.2s | fullscreen CenterContainer + title Label (UITheme.FONT_DISPLAY/ACCENT) + accent dash; modulate.a=0; director tween (0.2 in → 0.8 hold → 0.2 out → shared skip exit) | none |
 
-转场：差异化——镜头 1→2（链爆）与 4→5（点火弹射）用 0.10s 白闪（白色 ColorRect 0→1，下一镜头 0.28s 回收），其余镜头间 0.3s 黑场（黑色 ColorRect alpha 0→1→下一镜头 1→0）；镜头 6 末尾淡黑 0.7s 后接标题定格，定格淡出后进入对局。导演级手持漂移：共享容器低频正弦 ±3px 位移 + 微旋转，单 `_process` 零堆分配。
+Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1, next recovers 0.28s); others = 0.3s blackout (0→1 / next 1→0); shot 6: 0.7s fade → title → fade-out → run. Handheld drift: shared container low-freq sine ±3px + micro rotation, single `_process`, zero heap alloc.
 
-## 3. 技术方案
+## 3. Technical Design
 
-### 3.1 文件清单
+### 3.1 File list
 
-| 文件 | 职责 |
+| File | Duty |
 | --- | --- |
-| `scenes/intro_cinematic.tscn` | 过场根场景：CanvasLayer（layer=35，process_mode=Always）+ 黑底 + 跳过提示 |
-| `scripts/intro_cinematic.gd` | 导演逻辑：镜头时序、构建/切换/销毁各镜头节点树、跳过、结束信号 |
-| `scripts/main.gd` | `_apply_new_run()` 内接入：仅当 `get_tree().current_scene == self` 时播放；播放期间 `get_tree().paused = true`，结束/跳过恢复 |
-| `scripts/back_navigator.gd` | 新增 `BackAction.SKIP_INTRO`：过场播放中 Esc = 跳过过场（优先级在基地/Buff 之前、暂停 IGNORE 分支之前） |
-| `data/translations.csv` | 新增键：`INTRO_SKIP`（按 Esc 跳过 / Esc to Skip）、`INTRO_WARNING`（警告 / WARNING）、`INTRO_SUB_1..6`（六镜头叙事字幕，中英双语）、`INTRO_ZONE_PROP/NAV/WPN`（控制台分区铭牌）、`INTRO_LOG_1..4`（镜头 4 主屏滚动日志，中英双语） |
-| `scripts/cinematic_fx.gd` | 过场共享特效工具（CinematicFx）：软径向光晕 soft_glow、带软点纹理粒子工厂、双层冲击波环 shockwave 等；`_particles` 与大半径辉光（≥10）已全面改为委托/复用，小 LED 点（r≤4）保留硬边 _GlowDot |
-| `test/intro_cinematic_test.tscn/.gd` | 无头自检测试（见 §5） |
-| `test/intro_capture.tscn/.gd` | 窗口模式逐镜头截图工具（每镜头 8s 拉长时间轴，/tmp/intro_shot1..6.png + 标题定格，人工核对用） |
-| `docs/EXIT_FLOW.md` | 登记过场层级的返回行为（Esc=跳过过场） |
+| `scenes/intro_cinematic.tscn` | root: CanvasLayer (layer=35, process_mode=Always) + black bg + skip hint |
+| `scripts/intro_cinematic.gd` | director: timeline, build/switch/destroy shots, skip, `finished` signal |
+| `scripts/main.gd` | in `_apply_new_run()`: play only when `get_tree().current_scene == self`; `get_tree().paused = true` during play, restored on finish/skip |
+| `scripts/back_navigator.gd` | new `BackAction.SKIP_INTRO`: Esc = skip (before base/Buff branches, before paused-IGNORE branch) |
+| `data/translations.csv` | new keys: `INTRO_SKIP`, `INTRO_WARNING`, `INTRO_SUB_1..6` (zh+en), `INTRO_ZONE_PROP/NAV/WPN` (zone plates), `INTRO_LOG_1..4` (shot-4 logs) |
+| `scripts/cinematic_fx.gd` | CinematicFx: soft_glow, soft-dot particle factory, shockwave double ring; `_particles` + glows r≥10 delegated/reused; LEDs r≤4 keep `_GlowDot` |
+| `test/intro_cinematic_test.tscn/.gd` | headless self-check (§5) |
+| `test/intro_capture.tscn/.gd` | windowed per-shot screenshot tool (8s/shot, /tmp/intro_shot1..6.png + title) |
+| `docs/EXIT_FLOW.md` | registers return behavior (Esc = skip intro) |
 
-### 3.2 关键设计
+### 3.2 Key decisions
 
-- **时序**：禁止 `await get_tree().create_timer()` 协程（AGENTS.md 约束：退出时协程状态泄漏）。用一次性 `Timer` 节点+信号串联镜头；镜头内动画用 `create_tween()`（绑定节点，随节点销毁自清）与 `_process()` 驱动。
-- **暂停语义**：过场播放时 `get_tree().paused = true`（对局在帧 0 冻结，玩家不会在看动画时被杀）；过场根 `process_mode = Always`。开始面板 `_dismiss()` 已先解除暂停，由 main 重新暂停。
-- **跳过路径**：`skip()` 幂等——停全部 Timer、发 `finished` 信号、queue_free；main 统一在 `finished` 回调里恢复 `paused = false` 并进入对局。跳过与自然结束走同一出口，不允许两份收尾逻辑。
-- **Esc 路由**：过场播放中 BackNavigator `decide_back_action()` 返回 `SKIP_INTRO`（新增枚举），`go_back()` 调 `Main._skip_intro()`；其余按键/点击由过场自身 `_unhandled_input` 捕获跳过。开始面板已隐藏、树已暂停，现有分支不会误触（暂停IGNORE分支之前拦截）。
-- **测试门禁**：播放条件 `get_tree().current_scene == self`（仅正常启动入口）。测试需要过场时直接调 `Main._play_intro_cinematic()`。
-- **资源复用**：星空复用 `scripts/starfield.gd`；爆炸/火焰粒子参照 `scripts/explosion.gd` 的叠加态配色；字体/颜色用 `UITheme` token；音效用 `GameState.play_sfx()` 既有常量，不新增音频资产（阶段2再评估专属配乐）；**音频统一策略**：全部音量经 `AUDIO_VOL_OFFSET`（-6dB）下移 + `AUDIO_PITCH`（0.88）变调下沉柔和化，避免过场音频突兀炸耳。
-- **视口**：全部按 1920×1080 设计坐标布局（CanvasLayer 随 canvas_items 拉伸自适应，勿用运行时窗口物理尺寸）。
-- **清理**：`finished` 后整棵过场树 queue_free；不留 Timer/tween/粒子残留；`Engine.time_scale` 不被动过（本过场不使用子弹时间）。
+- **Timing**: no `await get_tree().create_timer()` coroutines (AGENTS.md: leaks on exit); one-shot `Timer` + signals chain shots; in-shot animation via `create_tween()` (node-bound) + `_process()`.
+- **Pause**: `get_tree().paused = true` during play (run frozen at frame 0); root `process_mode = Always`; start panel `_dismiss()` unpauses first, main re-pauses.
+- **Skip**: `skip()` idempotent — stop all Timers, emit `finished`, queue_free; main restores `paused = false` in `finished` callback. Skip and natural end share one exit; no duplicate cleanup.
+- **Esc routing**: BackNavigator `decide_back_action()` → `SKIP_INTRO`; `go_back()` → `Main._skip_intro()`; other keys/clicks via `_unhandled_input`. Start panel hidden + paused → existing branches can't misfire (before paused-IGNORE branch).
+- **Test gate**: `get_tree().current_scene == self` (normal launch only); tests call `Main._play_intro_cinematic()` directly.
+- **Reuse**: Starfield via `scripts/starfield.gd`; explosion/fire per `scripts/explosion.gd` additive palette; UITheme tokens; SFX via `GameState.play_sfx()` existing constants, no new audio; **audio policy**: volumes shifted by `AUDIO_VOL_OFFSET` (-6dB) + pitch `AUDIO_PITCH` (0.88).
+- **Viewport**: 1920×1080 design coords (CanvasLayer stretches via canvas_items; never runtime window size).
+- **Cleanup**: whole tree queue_free after `finished`; no Timer/tween/particle leftovers; `Engine.time_scale` untouched.
 
-## 4. 阶段划分
+## 4. Phases
 
-- **阶段 1（本次交付）**：本文档 + 导演框架（时序/转场/跳过/清理）+ 全部 6 镜头的构图层实现（主体元素、相机运动、配色基调到位，风格化可看）+ 流程接入与 Esc/点击跳过 + i18n 键 + 无头测试 + EXIT_FLOW.md/AGENTS.md 同步。
-- **阶段 2（后续）**：视觉精修——结构细节密度、X光分层甲板厚度、体积光/动态模糊（shader 或多层残影）、电影调色（整体色阶渐变叠加）；逐镜头音效细化与音量平衡；镜头3/4 人物与舱内细节强化。
-- **阶段 3（本次交付）**：美化深化 + 性能预算落地。美化参考同类太空射击过场的成熟手法（Wing Commander / Star Fox 式 letterbox 与尾追、R-Type 式侧视走廊、Everspace 式星云体积光、FTL 式叙事字幕卡）：
-  - 全程 2.35:1 letterbox 黑边（上下各约 **132px** 设计坐标，`intro_cinematic.tscn` LetterboxTop 0–132 / LetterboxBottom 948–1080，与 §2 及 RETURN 文档 §0.1 口径一致），跳过提示移至黑边上；
-  - 每镜头底部叙事字幕卡（中英双语、淡入淡出），串起完整故事；
-  - 多层视差（镜头1 星空远近双层漂移+前景碎片层，镜头6 星云分层）；
-  - 转场差异化：1→2、4→5 用白闪（爆炸/弹射余波），其余黑场；
-  - 每镜头轻微手持漂移（低频正弦 offset+微 rotation），消除"贴图幻灯片"感；
-  - 逐镜头强化：镜头2 扫描线网格底+节点冲击波纹；镜头3 顶部旋转扫光红灯+面罩高光；镜头4 主屏 HUD 元素+顶部灯带+指节细节；镜头5 尾焰亮白内芯分层+壁面防撞灯点流+边缘放射速度线；镜头6 恒星横向光晕（anamorphic flare）+编队引擎拖尾，末尾淡黑画面可出 InfiAir 标题定格（若加标题定格，总时长上调至 ≤25s 并同步本文件时长指标）；
-  - 性能：单粒子发射器 ≤96、同时存活粒子 ≤400、每镜头至多一个 `_process` 驱动器且其内零堆分配、静态元素合并绘制（能一条 Line2D/Polygon2D 解决的不拆节点）、tween 优先于逐帧代码；窗口模式用 Performance 计数器逐镜头采样 draw calls / 对象数 / 帧耗时并记录到 §7。
-- **阶段 4（后续）**：验收收尾——低配机复测、手柄/移动端输入适配确认、README 玩法说明补一句开场过场。
+- **P1 (delivered)**: doc + director framework (timeline/transitions/skip/cleanup) + 6-shot layers + hookup + Esc/click skip + i18n keys + headless test + EXIT_FLOW.md/AGENTS.md sync.
+- **P2 (done later)**: visual polish — density, deck thickness, volumetric light/motion blur, color grading; per-shot SFX balance; shots 3/4 detail.
+- **P3 (delivered)**: polish + perf budget:
+  - letterbox 132px (`intro_cinematic.tscn` LetterboxTop 0–132 / LetterboxBottom 948–1080, consistent w/ §2 and RETURN doc §0.1); skip hint in top bar
+  - per-shot subtitle cards (zh+en); multi-layer parallax (shot1 starfield + FG debris, shot6 nebula); transitions (1→2, 4→5 white flash, rest blackout); handheld drift (low-freq sine + micro rotation)
+  - per-shot extras: shot2 scan grid + node ripples; shot3 rotating light + visor highlight; shot4 HUD + top strip + knuckles; shot5 white-hot core + strobe dots + radial lines; shot6 anamorphic flare + fleet trails; optional title card (if added, total ≤25s — sync duration metric)
+  - Perf: emitter ≤96, alive ≤400, ≤1 `_process`/shot zero-alloc, merge static elements, tween over per-frame code; sample draw calls/objects/frame time into §7.
+- **P4 (pending)**: low-end retest, gamepad/mobile input check, one README line.
 
-## 5. 测试方案（阶段 1 交付物）
+## 5. Testing (P1 deliverable)
 
-`test/intro_cinematic_test.tscn`（无头，[PASS]/[FAIL] 断言）：
+`test/intro_cinematic_test.tscn` (headless, [PASS]/[FAIL]):
 
-1. 直接调 `Main._play_intro_cinematic()`：过场节点存在、树进入暂停、开始面板已隐藏。
-2. `skip()` 路径：过场销毁、`finished` 发出、树恢复非暂停、无残留 Timer。
-3. 时序路径：将镜头时长表替换为极短值（过场暴露 `_shot_durations` 数组可写），依次推进 6 个镜头，断言每镜头节点创建/销毁与最终 `finished`；全程用真实 Timer 等待，不 mock 引擎。
-4. 门禁路径：在测试场景（`current_scene != Main`）点击 `_on_new_game_pressed()` 不触发过场。
-5. 回归：`smoke_test`、`startup_flow_test`、`back_navigation_test`、`esc_navigation_test`、`ui_capture`（窗口）全绿。
+1. `Main._play_intro_cinematic()`: node exists, tree paused, start panel hidden.
+2. `skip()`: destroyed, `finished` emitted, tree unpaused, no Timer leftovers.
+3. Timeline: durations → very short (`_shot_durations` writable), advance 6 shots, assert per-shot create/destroy + final `finished`; real Timers, no mock.
+4. Gate: in test scene (`current_scene != Main`) `_on_new_game_pressed()` doesn't trigger.
+5. Regression: `smoke_test`, `startup_flow_test`, `back_navigation_test`, `esc_navigation_test`, `ui_capture` green.
 
-## 6. 验收指标（完成 Definition of Done）
+## 6. Acceptance (DoD)
 
-### 阶段 1
+### Phase 1 — all checked
 
-- [x] 点击「新游戏」→ 过场自动播放 → 播完自动进入对局（帧 0 状态无损）（`intro_cinematic_test` 断言触发/暂停/finished/恢复）
-- [x] 「继续对局」不播放过场；教程不受影响（`_on_continue_run()` 未改动；过场门禁 `current_scene == self`）
-- [x] Esc / 任意键 / 点击均可跳过，跳过后立即进对局，树不残留暂停（三条路径均有测试断言）
-- [x] 6 镜头按 §2 时序播放，总时长 17.3s±0.5s（六镜头 16.1s + 标题定格 1.2s），转场无闪烁穿帮（时长表 2.8+2.5+2.5+2.5+2.8+3.0=16.1s，转场含在各镜头时长内；时序测试验证逐镜头推进与旧节点销毁，finished 等待窗口含标题定格段）
-- [x] 跳过/播完均无节点、Timer、tween 泄漏（测试断言：Timer 计数回到基线、过场实例销毁）
-- [x] `INTRO_SKIP`/`INTRO_WARNING` 中英双语文本正常显示（zh 经截图核对；en 同一 tr() 机制）
-- [x] `intro_cinematic_test` + §5 回归清单全绿（smoke / startup_flow / back_navigation / esc_navigation / ui_capture 全过）
-- [x] 窗口模式每镜头至少 1 张截图人工核对（/tmp/intro_shot1..6.png，2026-07-27 核对：6 镜头主体元素/相机运动/配色基调均到位，无大面积空白、无元素堆叠、无文字溢出）
+- [x] New Game → cinematic → auto-run (frame-0 intact) (`intro_cinematic_test` asserts trigger/pause/finished/resume)
+- [x] Continue Run / tutorial don't play (`_on_continue_run()` unchanged; gate `current_scene == self`)
+- [x] Esc / any key / click skip → immediate run, no pause leftover (3 paths asserted)
+- [x] 6 shots per §2, total 17.3s±0.5s (16.1s + title 1.2s), no flash-through (2.8+2.5+2.5+2.5+2.8+3.0=16.1s; transitions inside shot durations; `finished` window covers title)
+- [x] No node/Timer/tween leaks (Timer count → baseline, instance destroyed)
+- [x] `INTRO_SKIP`/`INTRO_WARNING` zh+en (zh via screenshots; en same tr() path)
+- [x] `intro_cinematic_test` + §5 regression green (smoke / startup_flow / back_navigation / esc_navigation / ui_capture)
+- [x] ≥1 screenshot/shot checked (/tmp/intro_shot1..6.png, 2026-07-27: all in place, no blanks/overlaps/overflow)
 
-### 阶段 2
+### Phase 2 — [x] 2026-07-27 (/tmp/intro_p2_shot1..6.png: per-shot polish verified; global vignette + cold tone; no overlap/overflow/occlusion)
 
-- [x] （阶段2）精修项逐镜头核对通过（2026-07-27，/tmp/intro_p2_shot1..6.png 逐镜头截图核对：镜头1 结构密度/冲击波环/远星云、镜头2 甲板厚度/能量外发光、镜头3 人物提亮+边缘光/体积光/残影/舱内细节、镜头4 双手点按+副屏+缝线+结尾张力、镜头5 壁面流动取代梯子横档+拖影+两侧火焰舌、镜头6 战机剪影+引擎亮斑+残骸轮廓与漂浮碎片均已到位；全局 vignette 暗角 + 冷底色调统一观感；无元素堆叠/溢出/文字遮挡）
+### Phase 3 / 4
 
-### 阶段 3 / 4
+- [x] P3 polish verified 2026-07-27 (/tmp/intro_p3_shot1..7.png: 132px bars + cards per shot; shot1 FG debris parallax, shot2 scan grid + band + ripples, shot3 light cone + visor highlight, shot4 progress ring + scan arc + logs + strip + knuckles, shot5 white-hot core + strobe dots + radial lines, shot6 nebula drift + anamorphic flare + fleet trails; title ok; subtitles don't cover subjects)
+- [x] P3 perf met (§7): draw calls peak 296 < 400; objects 315; CPU 0.20ms no >4ms spike; particles shot5 40×2+32×2+24×2=192 ≤ 400, emitter ≤96; ≤1 `_process`/shot zero-alloc (1/2/6 none, 3/4/5 one each); `intro_cinematic_test` (40 asserts) + smoke + back/esc_navigation + quit-after-300 green
+- [ ] P4 pending
 
-- [x] （阶段3）美化深化逐项落地：letterbox / 叙事字幕卡（中英）/ 多层视差 / 差异化转场 / 手持漂移 / 各镜头强化项，逐镜头截图核对通过（2026-07-27，/tmp/intro_p3_shot1..7.png：上下 132px 黑边与字幕卡逐镜头到位；镜头1 前景碎片视差、镜头2 扫描网格+扫描带+节点冲击波纹、镜头3 旋转警灯光锥+面罩高光、镜头4 进度环+扫描弧+滚动日志+顶梁灯带+两段指节、镜头5 尾焰亮白内芯+壁面防撞灯点流+边缘放射速度线、镜头6 星云漂移+anamorphic 光晕+编队拖尾；标题定格出字正常；构图均在黑边安全区内、字幕不挡主体）
-- [x] （阶段3）性能预算达标：逐镜头 Performance 采样记录到 §7（draw calls 峰值 296 < 400；对象数峰值 315；headless CPU 帧耗时峰值 0.20ms 无尖峰）；粒子预算（峰值在镜头 5：40×2+32×2+24×2=192 ≤ 400，单发射器 ≤96 cap 保持）；每镜头至多一个 `_process` 且零堆分配（镜头 1/2/6 无驱动器，3/4/5 各一，导演漂移为共享容器）；`intro_cinematic_test`（40 断言）+ smoke + back/esc_navigation + quit-after-300 回归全绿
-- [ ] （阶段4）性能/多端/文档收尾完成
+## 7. Progress Log
 
-## 7. 进度记录
+Append a new entry on every change.
 
-| 日期 | 阶段 | 内容 | 状态 |
+| Date | Phase | Entry | Status |
 | --- | --- | --- | --- |
-| 2026-07-27 | 阶段1 | 指导文档建立：分镜/技术方案/阶段划分/验收指标 | 已完成 |
-| 2026-07-27 | 阶段1 | 实现：导演框架+6镜头构图层+流程接入+跳过+测试；§6 阶段1 验收指标全部勾选（含逐镜头截图核对） | 已完成 |
-| 2026-07-27 | 阶段2 | 视觉精修：镜头1结构密度/冲击波环、镜头2甲板厚度/能量辉光、镜头3人物可读性/体积光/残影、镜头4双手操作/副屏/结尾张力、镜头5轨道壁面流动/拖影/两侧火焰、镜头6战机剪影化/漂浮碎片、全局vignette调色、逐镜头音效音量平衡；§6 阶段2 验收勾选 | 已完成 |
-| 2026-07-27 | 阶段3 | 美化深化：2.35:1 letterbox、叙事字幕卡（INTRO_SUB_1..6）、镜头1前景碎片/镜头6星云多层视差、白闪差异化转场（1→2、4→5）、导演级手持漂移、逐镜头强化项、收尾标题定格（总时长 24.8s）；性能采样全部达标（见下表）；§6 阶段3 验收勾选 | 已完成 |
-| 2026-07-27 | 阶段3 | 时长压缩 24.8→17.3s（用户反馈偏长）：时长表 2.8/2.5/2.5/2.5/2.8/3.0 + 标题定格 1.2s；子节奏同步提速——镜头2 链爆 0.25→0.2s/节点、镜头4 倒计时 1.0→0.6s/数字（扫描弧同步）、镜头3 警报 1.0→0.7s、镜头5 引擎音续发 1.6→1.1s、镜头1 冲击波环 0.3/0.7→0.2/0.5s 触发、字幕淡入 0.5→0.3s、黑场 0.4→0.3s、白闪 0.12/0.35→0.10/0.28s、结尾淡黑 1.0→0.7s；粒子寿命/震动频率/残影间隔等与时长无关项未动；intro_cinematic_test（40 断言）+ smoke/back/esc 回归全绿，窗口截图核对链爆路径走完、倒计时演完+抓把手、标题定格正常（/tmp/intro_fast_shot1/2/4/title.png） | 已完成 |
-| 2026-07-27 | 阶段3 | 镜头3/4 精细化（用户反馈驾驶员/控制台太简笔）：镜头3 火柴人→多段式飞行服人物（头盔/颈/胸廓/骨盆/双关节四肢/飞行靴 + 胸包/维生背包/肩甲/腰侧挂点 + 分件边缘线），两拍奔跑循环（髋 ±0.72rad、膝后勾 1.3rad 相位窗、肩对侧反相、肘保持弯曲、躯干 2 倍频 bob，`_process` 相位驱动零堆分配，前倾 0.3rad 不变）；镜头4 Excel 网格→斜切梯形台体三分区航电台（推进=按钮簇+双节流滑槽、导航=双旋钮+按钮排、武器=三拨杆+按钮簇，LED 指示排+分区铭牌 INTRO_ZONE_PROP/NAV/WPN），主屏 bezel+玻璃高光，手形改 4 指+拇指剪影带按下起伏、结尾换握拳剪影扣把手；两轮窗口截图迭代（第1轮后：人物整体提亮一档+背光加强、抓握从整手旋转改局部握拳换形——修复前臂被带横）；回归全绿并顺手修复镜头5引擎音 Timer 挂导演导致快进时 lambda 捕获已释放报错（改挂镜头 root）；性能：镜头3 97 draw calls/115 对象、镜头4 137/195，均 <400 预算；截图 /tmp/refine_s3_a|b.png、/tmp/refine_s4_press|grip.png | 已完成 |
-| 2026-07-27 | 阶段3 | 镜头3 奔跑循环修正（用户反馈"反着跑"）：6 相位截图核查（/tmp/gait_p0..p5.png）定位三处符号/相位错误——①膝弯方向反：公式负号在节点坐标系下产生向前踢（人类膝只向后弯），改 `0.08+max(0,sin(p-1.8))*1.35`（摆动相脚跟踢臀、触地前基本伸直）；②肘弯方向反：+1.0 让前臂朝后，改 `-(1.0+sin(p+0.8)*0.25)` 前臂保持朝前；③bob 相位反：原最低点对齐蹬地/触地，改 `0.5+0.5cos(2·run_phase)` 最低点对齐支撑相中点；面向（+x）与背景反向滚动（-x）、肩反相、前倾方向核查无误未动；修正后逐相位截图复核支撑/摆动/摆臂全部正确；intro_cinematic_test + smoke + quit-after 300 回归全绿 | 已完成 |
-| 2026-07-27 | 阶段3 | 引爆颤动反馈（用户反馈镜头2 链爆缺冲击感）：新增静态辅助 `_kick_shake(host, amp, state)`——tween 三段脉冲（随机方向 amp 峰值 0.04s → 反向 40% 回弹 0.08s → 回基线 0.15s，共 0.27s），state[0] 杀旧 tween 刷新峰值形成连锁叠加；挂在镜头自己的 root（基线 ZERO）上，与导演 `_shot_root` 手持漂移不冲突，零 `_process` 预算消耗；镜头2 每个节点引爆 amp=4.0，镜头1 两波冲击波起爆 amp=6.0；数值采样确认峰值 ≈3.5px、逐爆刷新、链末精确回 (0,0) 无残留偏移；截图 /tmp/shake_t26.png（引爆中段）/tmp/shake_t229.png（链末基线）构图无跑偏；回归全绿 | 已完成 |
-| 2026-07-30 | 阶段3 | 视觉升级（CinematicFx 工具化 + 逐镜头增丰）：`_particles` 委托 CinematicFx.particles（软点贴图，尾焰/碎片等尺寸加大一档补偿边缘衰减），全部 r≥10 辉光改 soft_glow（r≤4 LED 保留硬边点，1:1 替换 draw call 中性）；镜头1 余烬上飘层+8 舷窗灯按角距逐盏熄灭+dur*0.45 二次殉爆（shockwave 双层环）+前景残骸暖轮廓光；镜头2 节点软闪+one_shot 火花+顶层甲板 12 状态灯随链爆转红；镜头3 前景支杆 ×4（-1600px/s 强视差）+体积光锥 3→5；镜头4 日志改 INTRO_LOG_1..4 i18n 轮换+左副屏雷达扫掠（回波余晖，_ConsoleShot 零分配驱动）+按钮簇状态 LED；镜头5 点火预热（amount_ratio 0→1+喷口辉光弹起+白闪，随 dur 缩放）+双壁轨道电火花+机身调暗与暖轮廓光（对齐镜头 6 剪影光比，阶段1 遗留的风格不一致备注就此闭环并从 §6 移除）；镜头6 行星弧线+大气辉光带压底+编队改两列三行+恒星 soft_glow；新增 test/intro_capture 逐镜头截图工具（8s/镜头）；两轮窗口截图迭代核对（/tmp/intro_shot1..6.png + intro_title.png）；intro_cinematic_test 40 断言全绿 exit 0；性能预算保持：单发射器 ≤96、镜头5 存活峰值 248 ≤400、镜头1 峰值 128、每镜头至多一个 `_process` 且零堆分配 | 已完成 |
+| 2026-07-27 | P1 | doc created | done |
+| 2026-07-27 | P1 | impl: director + 6-shot layers + hookup + skip + tests; §6 P1 checked | done |
+| 2026-07-27 | P2 | polish per shot (density/shockwave, deck thickness/glow, pilot readability, hands/sub-screen/tension, wall flow/trail/flames, silhouette/debris) + vignette + SFX balance; §6 P2 checked | done |
+| 2026-07-27 | P3 | letterbox, subtitle cards, parallax, white-flash transitions (1→2, 4→5), drift, per-shot extras, title card (total then 24.8s); §6 P3 checked | done |
+| 2026-07-27 | P3 | duration cut 24.8→17.3s: 2.8/2.5/2.5/2.5/2.8/3.0 + title 1.2s; sub-rhythms — shot2 chain 0.25→0.2s/node, shot4 countdown 1.0→0.6s/digit (scan arc synced), shot3 alarm 1.0→0.7s, shot5 engine 1.6→1.1s, shot1 shockwave 0.3/0.7→0.2/0.5s, subtitle fade 0.5→0.3s, blackout 0.4→0.3s, white flash 0.12/0.35→0.10/0.28s, end fade 1.0→0.7s; others untouched; tests green | done |
+| 2026-07-27 | P3 | shot3/4 refinement: shot3 → multi-segment flightsuit figure (helmet/neck/ribcage/pelvis/2-joint limbs/boots + chest pack/life pack/shoulder pads/waist mounts), 2-phase run (hip ±0.72rad, knee back-kick 1.3rad, shoulder anti-phase, elbow bent, torso bob 2×, zero-alloc, lean 0.3rad); shot4 → slanted 3-zone deck (PROP: button cluster + dual throttle slots; NAV: dual knobs + button row; WPN: 3 levers + button cluster; LED row + plates INTRO_ZONE_PROP/NAV/WPN) + bezel/glass highlight + 4-finger+thumb hands w/ press motion + grip-fist ending; fixed shot-5 engine Timer on director → lambda capture-after-free on fast-forward (moved to shot root); perf shot3 97dc/115objs, shot4 137/195 <400; regression green | done |
+| 2026-07-27 | P3 | shot3 run-cycle fix: 3 sign/phase errors — ① knee `0.08+max(0,sin(p-1.8))*1.35` (was kicking forward); ② elbow `-(1.0+sin(p+0.8)*0.25)` (forearm forward); ③ bob `0.5+0.5cos(2·run_phase)` (lowest at mid-stance); facing (+x) vs bg (-x), shoulder anti-phase, lean 0.3rad untouched; tests green | done |
+| 2026-07-27 | P3 | detonation shake: static `_kick_shake(host, amp, state)` — 3 tween pulses (amp peak 0.04s → 40% rebound 0.08s → baseline 0.15s, total 0.27s); state[0] kills old tween for chained refresh; on shot root (baseline ZERO), no clash w/ `_shot_root` drift, zero `_process` cost; shot2 amp=4.0/node, shot1 amp=6.0; peak ≈3.5px, exact (0,0) at chain end | done |
+| 2026-07-30 | P3 | visual upgrade: `_particles` → CinematicFx.particles (soft-dot, one size step larger); r≥10 glows → soft_glow (r≤4 `_GlowDot`); per-shot enrichment per §2 (ember layer, 8 bay lights, dur*0.45 2nd detonation, wreck rim, sparks, 12 LEDs → red, struts ×4, cones 3→5, INTRO_LOG_1..4 rotation, radar sweep, warm-up, rail sparks, ship dim + rim, planet arc, fleet 2×3, star soft_glow); added test/intro_capture; shot5 alive peak 248 ≤400, shot1 128, emitter ≤96; 40 asserts exit 0; perf maintained | done |
 
-### 阶段 3 性能采样（2026-07-27）
+### P3 perf sampling (2026-07-27)
 
-窗口模式逐镜头取 5 帧峰值（draw calls / 对象数）；CPU 帧耗时为 headless `--fixed-fps 1000` 下每镜头 200 帧峰值。采样用临时场景完成后已删除。
+Windowed 5-frame peaks (draw calls / objects); CPU = headless `--fixed-fps 1000`, 200-frame peak/shot. Sampling scene deleted after.
 
-| 镜头 | draw calls | 对象数 | CPU 帧峰值 |
+| Shot | Draw calls | Objects | CPU frame peak |
 | --- | --- | --- | --- |
-| 1 远景推近 | 296 | 315 | 0.18ms |
-| 2 X光链爆 | 48 | 69 | 0.01ms |
-| 3 驾驶员冲刺 | 75 | 93 | 0.03ms |
-| 4 操作台启动 | 93 | 154 | 0.01ms |
-| 5 弹射尾追 | 56 | 73 | 0.08ms |
-| 6 远景收束 | 271 | 287 | 0.20ms |
-| 标题定格 | 6 | 20 | — |
+| 1 | 296 | 315 | 0.18ms |
+| 2 | 48 | 69 | 0.01ms |
+| 3 | 75 | 93 | 0.03ms |
+| 4 | 93 | 154 | 0.01ms |
+| 5 | 56 | 73 | 0.08ms |
+| 6 | 271 | 287 | 0.20ms |
+| Title | 6 | 20 | — |
 
-预算核对：draw calls <400 ✓（峰值 296）；同时存活粒子 ≤400 ✓（峰值在镜头 5：40×2+32×2+24×2=192；单发射器 ≤96 cap 保持）；每镜头至多一个 `_process` 且零堆分配 ✓（镜头 1/2/6 无驱动器，3/4/5 各一，导演漂移为共享容器单 `_process`）；CPU 帧耗时无 >4ms 尖峰 ✓（峰值 0.20ms）。备注：窗口模式下 Performance 计数器在窗口被遮挡时读 0（渲染跳过），采样改为截图同帧（frame_post_draw + 像素读回）保证真实渲染帧。
+Budget: draw calls <400 ✓ (296); alive particles ≤400 ✓ (shot5 192; emitter ≤96); ≤1 `_process`/shot zero-alloc ✓ (1/2/6 none); CPU no >4ms spike ✓ (0.20ms). Note: windowed Performance counters read 0 when occluded; sample on screenshot frames (frame_post_draw + pixel readback).

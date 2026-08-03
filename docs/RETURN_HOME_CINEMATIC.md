@@ -1,276 +1,207 @@
-# 返航过场（Return Home Cinematic）与虚影基地 UI 设计文档
+# Return Home Cinematic & Phantom Base UI
 
-本文档是「返航过场动画 + 虚影空间站基地 UI」的单一事实源：采样结论、概念设计、分镜脚本、UI 变革方案、过渡机制。
-实现时改动过场/UI 相关内容必须同步更新本文档。与开场过场的对称关系见 `docs/INTRO_CINEMATIC.md`。
+Single source of truth: return-home cinematic + phantom station base UI (sampling, concept, storyboard, base-UI re-skin, transition). Any cinematic/UI change must sync this doc. Intro symmetry: `docs/INTRO_CINEMATIC.md`.
 
----
+## 0. Pre-analysis (2026-07-28)
 
-## 0. 前期采样分析摘要（2026-07-28 采样）
+### 0.1 Intro structure (src `scripts/intro_cinematic.gd` + `docs/INTRO_CINEMATIC.md`)
+Total 17.3s = 6 shots 16.1s (transitions inside shot times) + title freeze 1.2s (0.2 in / 0.8 hold / 0.2 out). Durations `[2.8, 2.5, 2.5, 2.5, 2.8, 3.0]` (`_shot_durations` writable, for tests).
 
-### 0.1 开场动画分镜结构（来源：`scripts/intro_cinematic.gd` + `docs/INTRO_CINEMATIC.md`）
+| # | Shot | Dur | Content | Trans |
+| --- | --- | --- | --- | --- |
+| 1 | wide push-in | 2.8s | Dawn deep-space explosion, debris/dust 2 layers, scale 0.7→1.0 | →2 flash 0.10s (reclaim next 0.28s) |
+| 2 | X-ray chain blast | 2.5s | cold-blue wireframe, energy chain 0.2s/node, tremble | →3 black 0.3s |
+| 3 | pilot sprint | 2.5s | multi-segment figure 2-frame run loop (phase-driven), red alert 0.7s | →4 black 0.3s |
+| 4 | console boot | 2.5s | 3-zone comm, countdown 0.6s/digit, end tilt −2° | →5 flash |
+| 5 | eject chase | 2.8s | rail back + ±6px shake, ship 180°×1.4, white-hot core, speed lines | →6 black 0.3s |
+| 6 | wide close | 3.0s | nebula/anamorphic glow/debris/supply dots, ease_in exit, fade black 0.7s | →title |
+| 7 | title freeze | 1.2s | InfiAir in/hold/out | `skip()` |
 
-- **总时长 17.3s** = 6 镜头 16.1s（转场含在各镜头时长内）+ 标题定格 1.2s（0.2 淡入 / 0.8 停留 / 0.2 淡出）。
-- **时长表**：`[2.8, 2.5, 2.5, 2.5, 2.8, 3.0]`（导演暴露 `_shot_durations` 可写，测试用）。
+Norms: 2.35:1 letterbox (132px bars); subtitle cards `INTRO_SUB_1..6` (0.3s in, fade with transition); handheld drift (shared container sine ±3px + micro rotation, single `_process` zero-alloc); 1920×1080 design coords. Skeleton: `CanvasLayer(layer=35, process_mode=Always)`; `get_tree().paused = true`; one-shot `Timer` chain (no `create_timer`); in-shot `create_tween()`; `skip()` idempotent exit; Esc via BackNavigator `SKIP_INTRO`. Factories: `_glow()`, `_line()`, `_rect_poly()`, `_bg_rect()`, `_particles()` (≤96/emitter), `_kick_shake()`. Budget: draws <400, live ≤400, ≤1 `_process`/shot.
 
-| # | 名称 | 时长 | 运镜 | 内容 | 转场 |
+### 0.2 Dawn station anchors (src `_build_shot1()`, center (960,470))
+
+| Part | Geometry | Color |
+| --- | --- | --- |
+| main arc | r260, 48-seg closed Line2D w26 | (0.38, 0.45, 0.58) |
+| detail rings | r232 / r288, 64 seg, w2 | (0.55, 0.65, 0.8, 0.5) |
+| 16 ticks | radial r244→276, w3 | (0.18, 0.22, 0.3) |
+| 8 modules | 64×40 @ r260 + 70×46 outline + spokes r70→240 w8 | (0.48,0.56,0.68)/(0.6,0.7,0.85,0.35)/(0.3,0.36,0.48) |
+| hub | glow disc r66 (non-add) + ring r46 w2.5 | (0.28,0.34,0.45)/(0.5,0.6,0.75,0.6) |
+| breach | 0.5–1.2 rad: dark arc w30 (0.05,0.05,0.08) + jagged poly + 3 shards | near-black |
+| story | `INTRO_SUB_1`: Dawn ring station · core overload → destroyed | — |
+
+Keywords: ring + 8 segments + spokes + hub; cold steel blue-gray low-sat; breach right-bottom (0.5–1.2 rad). Phantom keeps geometry + breach (recognition anchor).
+
+### 0.3 Base UI current (src `scripts/base_console.gd` + `scripts/ui_theme.gd` + `docs/screenshots/base.png`)
+- Chain: hold B in-run (`HOME_CHARGE_TIME`) → `Main._start_homecoming()`: lock input, stop spawner, recall mothership, `GameState.save_run()`, `_starfield.warp(18.0)`, white flash (0.5+0.5+0.3s), `_base_ui.show_base()`, tree paused. Return: `resume_requested` → `_resume_from_base()` → orbital strike anim (`scripts/orbital_strike.gd`, clears on hit frame, resumes same run).
+- Layout: CanvasLayer > dim ColorRect(0.02,0.03,0.08,0.95) > CenterContainer > VBox: title BASE_TITLE 44 → gold RP → HBox 2 cols sep 20 → primary 280×52. Left: hangar (status) + supply (repair/recharge); right: routes (attack/mobility 2 rows) + missions (list + claim). ChamferedPanel min w560.
+- Tokens: panel (0.039,0.063,0.102,0.78), border 1px (0,0.83,1,0.5), accent `#00d4ff`, secondary `#0080ff`, gold `#d8a868`, text `#e0e8f0`/`#8a9bb0`, sizes 72/40/28/24/18, NotoSansSC, `animate_open` 200ms / `stagger_open` 60ms (modulate.a only).
+- Ports: `_on_repair_pressed` (2RP full HP), `_on_recharge_pressed` (2RP full fuel), `_on_route_pressed`, `_on_claim_pressed`, `_on_resume_pressed`; data via GameState (rp/buff_count/choose_route/claim_mission/mission_progress).
+
+### 0.4 FX/asset inventory
+
+| Need | Reuse | Gap |
+| --- | --- | --- |
+| warp charge | `Starfield.warp(factor)` (stretch, lerp back); already `warp(18.0)`; shot-5 nozzle recipe | nozzle red→white gradient new (glow + tween) |
+| portal | shockwave-ring recipe, shot-2 wireframe style, flash pieces | portal body new |
+| track | `mothership.tscn` `TractorBeam` (8Hz `0.55+0.45·sin`) + dock tween 1.5s TRANS_CUBIC EASE_IN_OUT | energy track new |
+| comm | subtitle cards; `CommOverlay` typewriter (layer 12) | `RETURN_SUB_1..7` new (zh+en) |
+| pilot | no texture; intro 3/4 procedural rig (phase-driven, zero-alloc) | sit/lie/eyes-closed poses |
+| ship | `assets/sprites/player_ship.png` | none |
+| deck/lounge | **none**; mothership only reference | all new §1.3 |
+| audio | 10 SFX only: bgm_loop / buff_pick / bullet_fire×3 / dash / explosion / explosion_big / player_hit / resupply | map §2 (reuse + pitch; offline gen phase 2) |
+
+## 1. Phantom station "Dawn · Echo"
+
+### 1.1 External phantom FX (constant far/mid)
+§0.2 geometry + 4 layers:
+
+1. **Hologram base** (brightened 2026-07-28): all BLEND_MODE_ADD, cyan `#00d4ff` family — arc α0.55, modules α0.45, details/spokes/ticks/hub-ring α0.35, hub core α0.50. Breath on station `modulate` (0.85↔1.0, 4s); separate inner container glitch flash (every 3.8s, 0.3→1.0 two steps 0.04s); independent.
+2. **Scan band**: α0.12 cyan ADD sweep vertical 3.5s/pass; outer ring α0.15 halo.
+3. **Data particles**: 2 GPUParticles2D (≤96/emitter, ≤400): ①edge escape α0.4; ②inner flow α0.3 (ring emission ≈ radial).
+4. **Breakage** (2026-07-28): a) main-arc gaps `[[0.5,1.2],[2.4,2.62],[4.9,5.06]]` via `_build_body` `gaps` param (empty = destroyed look unchanged); b) 6 segments dropout 0.1s, phase 0.13s; c) energy grid 2.5px α0.75, flicker 0.3↔0.95, dropout 0.5+0.15×(grid%3)s; jagged outline α0.8 w2.5; d) 3 shards α0.35 ADD drift out; e) station glitch (see 1). "Destroyed station; data core weaves its memory."
+
+### 1.2 vs intro shot 1
+
+| | Intro 1 (destroy) | Return 4 (return) |
+| --- | --- | --- |
+| framing | center (960,470) push-in | same position/structure, slow pull-back/side |
+| palette | cold + red→orange-white explosion | cold + cyan hologram (no warm) |
+| breach | explosion core, shards out | grid mending, particles in |
+| mood | disintegration | reconstruction |
+
+### 1.3 Internal solid regions (procedural, shots 5–7)
+- **Hangar** (ring-segment wall): hex deck (dark solid + cyan glow edges + guide-light strip), X-ray wireframe bg (translucent, cyan), gate at end.
+- **Corridor** (spoke): side view, ceiling/floor perspective + wall pipes; ceiling sensor lights node-by-node (cyan-white 0.15s/node); distant phantom glow.
+- **Rest room** (hub core): sleep bed (rounded-rect + headboard hologram mini-screen), 1 warm top light (only warm source, "home" anchor), window shows phantom ring rotating slowly.
+
+## 2. Return storyboard (total 11.8s)
+
+Durations `[1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]` (transitions inside; tuned 2026-07-28 from 16.8s, keyframes scaled). Intro norms apply: letterbox, `RETURN_SUB_1..7`, drift, Timer chain, `skip()`, Esc/any key/click. Audio = existing `GameState.SFX_*` (dB/pitch in parens).
+
+| # | Shot | Dur | Camera/KF | FX | SFX |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 远景推近 | 2.8s | 容器 scale 0.7→1.0 匀速推近 | 环带站「曙光」深空爆炸，碎片/尘埃双层粒子 | →2 白闪 0.10s（下一镜头 0.28s 回收） |
-| 2 | X光链式爆炸 | 2.5s | 固定 | 冷蓝剖面线框，橙红能量沿折线 0.2s/节点链式引爆，节点颤动 | →3 黑场 0.3s |
-| 3 | 驾驶员冲刺 | 2.5s | 背景反向滚动 | 多段式飞行服人物两拍奔跑循环（相位驱动），红色警报 0.7s 呼吸 | →4 黑场 0.3s |
-| 4 | 操作台紧急启动 | 2.5s | 固定+结尾后仰 -2° | 三分区航电台、倒计时 0.6s/数字、抓把手 | →5 白闪 |
-| 5 | 弹射尾追视角 | 2.8s | 轨道横档加速后退 + ±6px 震动 | 玩家机贴图旋转 180°×1.4，尾焰亮白内芯，放射速度线 | →6 黑场 0.3s |
-| 6 | 远景收束 | 3.0s | 战机 ease_in 驶离 | 星云分层、anamorphic 光晕、残骸剪影、补给舰编队光点；末尾淡黑 0.7s | →标题定格 |
-| 7 | 标题定格 | 1.2s | — | InfiAir 标题淡入停留淡出 | 统一出口 `skip()` |
+| 1 | wide: ship hovers center-below; charge — nozzle (0.5,0.1,0.05)→(1,0.95,0.85), scale 1→1.8; particles converge in | 1.6s | fixed; end 0.4s distortion (concentric thin rings + 2 offset shock rings pass) | `Starfield.warp(12.0)` start (continues `warp(18.0)` stretch, decays); ship = player_ship.png tail (180°, intro shot-5 pose); nozzle `CinematicFx.soft_glow()` ×2 + modulate/scale tween; converge `CinematicFx.particles()` inward (negative vel); peak `CinematicFx.shockwave()` ×2 (offset 0.14s, ry 0.6) | SFX_DASH −6dB 0.6× |
+| 2 | FX: portal tears — ellipse Line2D cyan α0.9 point→full 0.5s; 12 glow dots circling; interior phantom blur (α0.1 + jitter) + 2 counter-rotating vortex arcs + inflow | 1.2s | push scale 1.0→1.06 | ring = shockwave recipe reversed; dots per-frame (only `_process`, zero-alloc, drives vortices); throat `CinematicFx.soft_glow()` pad α0.15; inflow ring emission (DawnStation recipe) + negative radial accel, y-squash, from 0.45s; interior §1.1 minimal | SFX_EXPLOSION −12dB 0.5× |
+| 3 | match cut: ship into portal (scale 1→0.2, flare), closes + flash → hard cut to phantom space: out (0.2→1, ease_out), closes | 1.4s | 0.63s real + 0.10s flash + 0.77s phantom; direction up-right | `CinematicFx.radial_streaks()` (hidden with flash at part_a); `shockwave()` white-cyan 0.4s; flash = intro 1→2 same; bg dim nebula + phantom silhouette α0.15; trail 40 | SFX_DASH 0dB; exit −10dB |
+| 4 | wide→mid: station full reveal (§1.1 all 4 layers); energy capture beam pulls ship; 8 nav lights chase | 2.2s | side pan (sine 60px + scale 1.0→1.12) | `CinematicFx.beam()` (glow + core + 3 flow dots, bezier 24 pts); 8 lights r=RING_RADIUS+4, `_CaptureShot` phase pulse; short tail; pull tween TRANS_SINE; scan band | SFX_RESUPPLY −8dB |
+| 5 | hangar: land drop 40px ease_out + bounce + dust; lights chase to landing point; engine off 0.3s; canopy up 0.4s + glass highlight; pilot jump down 0.5s | 1.8s | fixed low angle (horizon lower 1/3, elements −60px) | 8 lights by landing distance (tweens at build); highlight alpha Polygon2D slide + fade; pilot = shot-3 rig new poses; dust soft-dot | land SFX_EXPLOSION −18dB; jump SFX_DASH −14dB |
+| 6 | side follow: walk corridor; ceiling lights per x (trailing dim 0.5s later); stop at door, slides open (2 panels + light leak) | 1.6s | pan, pilot at left 1/3 | walk = shot-3 run slowed (~90px/s, half stride); 12 Line2D lights by x threshold (only `_process`); ribs ×12 + plates + 3 cones ADD α0.05 parallax + floor strip; door 2 Polygon2D | steps SFX_BUFF_PICK −20dB ×6 @0.4s; door SFX_DASH −10dB 0.7× |
+| 7 | room: walk to bed; sit→lie (0.6s); stretch; breathing; close-up scale→1.6: eyelids 0.8s; dim 0.9s | 2.0s | mid 0.8s → close-up 0.7s → dim 0.9s overlap | `_RoomShot` (only `_process`): walk 0.6u (limb = `_WalkShot`, weight fade, ends upright) + breath 1.7u (scale.y ±2.5% sine) + 3 star dots; sit/lie/eyelid/push 0.6s KF tweens; dim fullscreen ColorRect; BGM fadeout | lie SFX_RESUPPLY −16dB; BGM → −40dB |
 
-- **全局规范**：2.35:1 letterbox（上下各 132px 设计坐标黑边）；每镜头底部叙事字幕卡 `INTRO_SUB_1..6`（淡入 0.3s，随转场淡出）；导演级手持漂移（共享容器低频正弦 ±3px + 微旋转，单 `_process` 零堆分配）；全按 1920×1080 设计坐标。
-- **技术骨架**：根场景 `CanvasLayer(layer=35, process_mode=Always)`；播过场时 `get_tree().paused = true`；一次性 `Timer` 节点串联镜头（禁用 `create_timer` 协程）；镜头内动画 `create_tween()` 绑定节点；`skip()` 幂等统一出口；Esc 经 BackNavigator `SKIP_INTRO` 路由。
-- **构图辅助（可直接复用的工厂）**：`_glow()`（叠加态辉光点）、`_line()`、`_rect_poly()`、`_bg_rect()`、`_particles()`（单发射器 ≤96 硬上限）、`_kick_shake()`（引爆颤动，state 数组刷新叠加）。
-- **性能预算**：draw calls <400、同时存活粒子 ≤400、每镜头至多一个 `_process` 且零堆分配、静态元素合并绘制。
+Transitions: 1→2 black 0.3s (suspense); 2→3 continuous; 3 internal flash 0.10s; 3→4 black 0.3s; 4→5 black 0.3s; 5→6, 6→7 black 0.3s; 7 end dim 0.9s → base UI directly (no title freeze; its slot = base UI fade-in, §4).
 
-### 0.2 初代空间站「曙光」视觉关键点（来源：`_build_shot1()`，站体中心 (960,470)）
+Symmetry: intro "destroy → escape → deep space (tense, warm)" ↔ return "jump → captured → sleep (calm, cold)"; intro1 ↔ return4 station; intro5 (away) ↔ return3 (arrive); intro3/4 indoor ↔ return6/7; intro title ↔ return UI fade-in.
 
-| 构件 | 几何 | 颜色 |
+## 3. Base UI re-skin
+
+### 3.1 Principle
+**Zero logic change**: `base_console.gd` signals/bindings/GameState API/callbacks untouched. Only ①UITheme phantom tokens + factories; ②`base_console.gd` `_ready()` visuals (dim, panel style, bg + decor layers). Existing tests (`base_system_test` etc.) must stay green.
+
+### 3.2 New tokens (coexist, no replace)
+
+| Token | Value | Use |
 | --- | --- | --- |
-| 环体主弧 | r=260，48 段闭合 Line2D，宽 26 | (0.38, 0.45, 0.58) 冷钢蓝灰 |
-| 内外廓细节环 | r=232 / r=288，64 段，宽 2 | (0.55, 0.65, 0.8, 0.5) |
-| 舱段分块刻线 | 16 条径向短刻线 r244→276，宽 3 | (0.18, 0.22, 0.3) |
-| 舱段模块 ×8 | 64×40 矩形 at r=260（切向放置）+ 70×46 描边 + 辐条 r70→240 宽 8 | (0.48, 0.56, 0.68) / 描边 (0.6, 0.7, 0.85, 0.35) / 辐条 (0.3, 0.36, 0.48) |
-| 中心毂 | 辉光盘 r=66（非叠加）+ 细节环 r=46 宽 2.5 | (0.28, 0.34, 0.45) / (0.5, 0.6, 0.75, 0.6) |
-| 破损段 | 角度 0.5–1.2 rad：暗色弧覆盖（宽 30，(0.05,0.05,0.08)）+ 锯齿破口多边形 + 3 块剥落碎片外飘翻滚 | 近黑 |
-| 叙事身份 | `INTRO_SUB_1`：环带站「曙光」· 核心过载 → 镜头 2 逐层链爆吞噬 → 已毁灭 | — |
+| `PHANTOM_BG` | (0.01, 0.03, 0.06, 0.90) | fullscreen bg (colder/deeper) |
+| `PHANTOM_PANEL_BG` | (0.03, 0.08, 0.12, 0.55) | more transparent, holographic |
+| `PHANTOM_BORDER` | (0.0, 0.83, 1.0, 0.65) | border, brighter than PANEL_BORDER |
+| `PHANTOM_SCAN` | (0.0, 0.83, 1.0, 0.06) | scanline overlay |
+| `PHANTOM_TEXT_FLICKER` | α 0.92–1.0 jitter | decor labels only |
 
-**造型关键词**：巨环 + 8 舱段 + 辐条 + 中心毂；冷钢蓝灰低饱和；破口位于右下象限（0.5–1.2 rad）。虚影化必须保留这套几何与破口位置，是玩家的识别锚点。
+Panel = ChamferedPanel (PHANTOM_PANEL_BG + PHANTOM_BORDER) + scanlines (1px/4px or sweep band, mouse_filter=IGNORE) + frosted ≈ lower alpha + radial glow pad (no blur shader, gl_compatibility). Hover float: ACCENT_DIM line 2px below + boost on hover (no callback change). Icons: 16×16 Line2D glyphs (ship/wrench/cross/flag) left of 4 titles. Flicker: RP + titles only — 3Hz sine 0.92–1.0 + 1px offset 0.06s every 2.7s (tween loop, no `_process`); body static.
 
-### 0.3 基地 UI 现状（来源：`scripts/base_console.gd` + `scripts/ui_theme.gd` + `docs/screenshots/base.png`）
+### 3.3 Layout (zones/logic reused)
+Old: dim → title 44 → gold RP → HBox sep20 → primary. New: PHANTOM_BG + phantom concept layer (ring r≈520 @ (960,540) α0.10 + light particles + 8s/pass band; after dim, before CenterContainer) → title (flicker) → RP (flicker) → HBox sep 140 (120px gap reveals ring axis = "panels around core"; containers/focus unchanged; floating-ring option B rejected) → phantom panels → primary (hologram).
 
-- **触发链路**：局内长按 B（`HOME_CHARGE_TIME` 蓄力）→ `Main._start_homecoming()`：锁输入 → 停 spawner → 收回母舰 → `GameState.save_run()` → `_starfield.warp(18.0)` → 白闪（0.5s 淡入 + 0.5s 停留 + 0.3s 淡出）→ `_base_ui.show_base()` → 树暂停。返回：`resume_requested` → `_resume_from_base()` 触发轨道打击清场动画（`scripts/orbital_strike.gd`，命中帧清场并恢复同一局；早期版本为静默清屏 + 短白闪，后补为完整动画）。
-- **布局**：CanvasLayer > 全屏 dim ColorRect(0.02,0.03,0.08,0.95) > CenterContainer > VBox（标题 BASE_TITLE 字号44 → RP 余额金色 → HBox 双列 separation 20 → 主按钮「继续出击」280×52）。左列：战机库（状态总览）+ 维修补给（维修/充能两按钮）；右列：武器挂载·天赋路线（进攻线/机动线各两选项按钮行）+ 任务规划（任务行+领取按钮）。四块均为 ChamferedPanel（min 宽 560）。
-- **风格规范（UITheme token）**：面板底 藏青 (0.039,0.063,0.102,0.78)、边框 1px 青 (0,0.83,1,0.5)、主强调青 `#00d4ff`、辅助全息蓝 `#0080ff`、数值金 `#d8a868`、文字 `#e0e8f0`/`#8a9bb0`、切角直角面板、按钮 normal 透明底+青边/hover 12% 青底/pressed 25%、字号阶梯 72/40/28/24/18、字体仅 NotoSansSC、动效 `animate_open` 200ms 淡入 / `stagger_open` 60ms 逐子项淡入（均只动 modulate.a 不动 position）。
-- **功能端口（逻辑复用对象）**：`_on_repair_pressed`（2RP 回满）、`_on_recharge_pressed`（2RP 满燃料）、`_on_route_pressed`（天赋二选一）、`_on_claim_pressed`（任务领取）、`_on_resume_pressed`（继续出击）；数据全部经 `GameState`（rp/buff_count/choose_route/claim_mission/mission_progress）。
+Changes: ①bg layer; ②sep 20→140; ③panel style + scanlines + icons; ④primary + bottom line + 1.5s breath glow (size/pos/callback same); ⑤open: 0.25s hologram boot (α0 + scale 0.98→1.0) before `animate_open`; `stagger_open` 60ms kept.
 
-### 0.4 可用特效与资产清单
+### 3.4 Ports (design coords, panel top-left after centering)
 
-| 需求特效 | 现有可复用资源 | 缺口 |
-| --- | --- | --- |
-| 曲率引擎充能/跃迁 | `Starfield.warp(factor)`（星光拉伸，warp_factor 每帧 lerp 回 1）；返航已用 `warp(18.0)`；镜头 5 尾焰粒子配方（亮白内芯分层） | 引擎喷口暗红→炽白渐变需新做（glow dot + modulate tween 即可） |
-| 传送门开启 | 无现成门户；可复用：冲击波扩散环配方（薄环急扩+淡出，叠加态）、镜头 2 剖面线框风格、白闪/黑场转场件 | 门户本体（能量翻涌环+内部景象）需新做 |
-| 捕获轨道/牵引光束 | `mothership.tscn` 的 `TractorBeam` Polygon2D（淡光束 8Hz 脉动 `0.55+0.45·sin`）+ 对接吸附补间（1.5s TRANS_CUBIC EASE_IN_OUT） | 半透明能量轨道（长条 Line2D 流光）需新做 |
-| 通讯/字幕 | 过场字幕卡机制（INTRO_SUB_*）；`CommOverlay` 打字机通讯框（layer=12，可换描边色复用） | 返航字幕键 RETURN_SUB_1..7 需新增（中英双列） |
-| 主角人物 | 无贴图；开场镜头 3/4 的多段式飞行服人物为程序化构件（头盔/胸廓/骨盆/双关节四肢，相位驱动 `_process` 零堆分配）——行走循环可在此基础上改相位参数得到 | 坐姿/躺姿/闭眼为新姿态，工作量小（同构件换关键帧） |
-| 战机 | `assets/sprites/player_ship.png`（深色后掠翼、青蓝座舱，开场镜头 5/6 已复用为尾追/剪影） | 无 |
-| 停机坪/休息室 | **无任何现成场景资产**；母舰贴图为唯一「大型平台」参照 | 全部程序化新做（本设计 §1.3 划定内部实体化区域） |
-| 音频 | 仅 10 个 SFX：bgm_loop / buff_pick / bullet_fire×3 / dash / explosion / explosion_big / player_hit / resupply | 无脚步/舱门/跃迁专属音；映射方案见 §2 音频列（全部复用既有常量+变调，不新增资产，阶段 2 再评估离线生成） |
+| Port | New |
+| --- | --- |
+| hangar `_build_hangar` | (320, 300) |
+| supply `_build_supply` | (320, 520) |
+| routes `_build_routes` | (1040, 300) |
+| missions `_build_missions` | (1040, 520) |
+| continue `_on_resume_pressed` | (820, 810), 280×52 |
+| title/RP `_refresh` | top center + flicker |
 
----
+(Coords indicative; real layout from CenterContainer; for screenshot checks.)
 
-## 1. 虚影空间站「曙光·残响」概念设计
+## 4. Cinematic → base UI transition
 
-### 1.1 外部虚影效果（远/中景恒定状态）
-
-以 §0.2 的站体几何为底（环 r260 / 8 舱段 / 辐条 / 中心毂 / 破口 0.5–1.2 rad 原位保留），施加四层虚影变换：
-
-1. **全息基底**（2026-07-28 提亮调优后）：所有构件改叠加态（BLEND_MODE_ADD），配色映射到全息青 `#00d4ff` 系——主弧 α0.55，舱段模块 α0.45，细节环/辐条/刻线/毂环 α0.35，毂心 α0.50。呼吸写在站体容器 `modulate`（0.85↔1.0，周期 4s）；另有独立 inner 容器承载 glitch 瞬闪（每 3.8s 一次 0.3→1.0 两段各 0.04s），两者互不覆盖。
-2. **扫描线光晕**：一道亮扫描带（α0.12 青色渐变，叠加态）沿站体纵向匀速扫过（3.5s/趟，到底回顶）；环体外缘常亮一圈 α0.15 的大半径辉光晕。
-3. **数据流粒子**：两组 GPUParticles2D（遵守 ≤96/发射器、总量 ≤400 预算）：①边缘逸散（α0.4）；②内部结构流（α0.3，环形发射域近似径向流动）。
-4. **破碎感**（2026-07-28 新增五件套）：a) 主弧断弧——主环按缺口表 `[[0.5,1.2],[2.4,2.62],[4.9,5.06]]` 分段绘制，留出 3 处断口（`_build_body` 的 `gaps` 参数，毁灭态传空表视觉不变）；b) 舱段逐个掉线——6 舱段各自 0.1s 掉线闪烁，相位错开 0.13s；c) 破口能量网格加亮加粗（2.5px、α0.75，闪烁 0.3↔0.95，掉线间隔 0.5+0.15×(格号%3)s，更频繁），缺口锯齿轮廓 α0.8 宽 2.5 亮线描出；d) 破口处 3 块全息碎片（α0.35，叠加态）往复外飘；e) 整站 glitch 瞬闪（见第 1 条 inner 容器）。意象：站已毁，数据核心在用能量织补自己的记忆。
-
-### 1.2 与开场镜头 1 的对位关系
-
-| | 开场镜头 1（毁灭） | 返航镜头 4（归来） |
-| --- | --- | --- |
-| 构图 | 站体居中 (960,470)，推近 | 站体同位同构，**缓慢拉远/侧移**展现全貌 |
-| 配色 | 冷底 + 暗红→橙白爆炸高光 | 冷底 + 青蓝全息高光（无暖色） |
-| 破口 | 爆炸核心，碎片外抛 | 能量网格修补，粒子内聚 |
-| 情绪 | 崩解 | 重组 |
-
-### 1.3 内部实体化区域划分
-
-虚影站内部空间对主角是「实体」的（数据具现化），镜头 5–7 在此拍摄。三个区域，全部程序化新做：
-
-- **停机坪**（环体某舱段内壁）：六边形甲板平台（深色实体底 + 青色发光边界线 + 中线引导灯带），背景为虚影站内部线框剖面（半透明，沿用镜头 2 的 X 光线框语言但改青色调）；甲板尽头是通道闸门。
-- **通道**（辐条走廊）：侧视走廊，天花板/地面透视线 + 两侧舱壁管线；顶部感应灯带随主角行进逐节点亮起（青白，0.15s/节点）；远景透出虚影站结构的微光。
-- **休息室**（中心毂内舱）：小舱室，核心道具是休眠床（圆角矩形平台 + 床头全息小屏微光）；顶部一盏暖调小灯（全场景唯一暖光源，「家」的视觉锚点）；舱壁一侧为观察窗，窗外可见虚影环体的缓慢旋转轮廓——提醒观众此处仍在虚影站内。
-
----
-
-## 2. 返航过场分镜脚本（总时长 11.8s）
-
-时长表 `[1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]` = 11.8s（转场含在各镜头时长内；2026-07-28 调优自 16.8s 初版，各镜头内部关键帧等比压缩）。沿用开场全部全局规范：2.35:1 letterbox、字幕卡（新键 `RETURN_SUB_1..7`）、手持漂移、Timer 串联、`skip()` 统一出口、Esc/任意键/点击跳过。音频全部映射既有 `GameState.SFX_*` 常量（括号内为建议音量/变调处理）。
-
-| # | 景别与内容 | 时长 | 运镜与关键帧 | 特效实现（复用配方） | 音效 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | **远景**：深空，主角战机悬停画面中心偏下；曲率引擎充能——喷口辉光暗红 (0.5,0.1,0.05) → 炽白 (1,0.95,0.85) 并放大 1→1.8；机身周围细小能量粒子向内收束 | 1.6s | 固定机位；结尾 0.4s 画面中心开始出现空间扭曲（同心细环微缩脉动 + 两道错位同心冲击环掠过观察者） | 星空复用 Starfield（开播 `warp(12.0)` 承接对局 `warp(18.0)` 的星光拉伸，自然衰减回 1）；战机=player_ship.png 尾部视角（旋转 180°，同开场镜头 5 摆位）；喷口=`CinematicFx.soft_glow()` 双层软辉光 + modulate/scale tween；收束粒子=`CinematicFx.particles()` 软点纹理、方向朝内（vel 取负）；峰值冲击环=`CinematicFx.shockwave()` ×2（错位 0.14s，ry 0.6） | SFX_DASH（-6dB，0.6 倍速拉长为充能上升感） |
-| 2 | **特效镜头**：战机前方撕裂传送端口——竖直长圆环（Line2D 椭圆，青色 α0.9）从一点撕开扩到全尺寸（0.5s），环缘能量翻涌（环上 12 个小 glow 点沿环快速游走）；环内显现虚影站模糊景象（站体线框 α0.1 + 水平弥散抖动）+ 双旋涡弧反向搅动 + 环缘粒子内流 | 1.2s | 镜头稍推（容器 scale 1.0→1.06），聚焦端口 | 端口环=冲击波扩散环配方逆向使用（放大但 α 渐实）；翻涌=glow 点沿参数方程逐帧换位（本镜头唯一 `_process`，零堆分配，同驱动双旋涡弧 rotation 累加）；口腔=`CinematicFx.soft_glow()` 椭圆压扁垫底（α0.15）；内流粒子=环形发射域（参考 DawnStation 配方）+ 负径向加速度拉向环心，节点 y 压扁贴椭圆，0.45s 起发射；内部景象=§1.1 站体构件极简版 | SFX_EXPLOSION（-12dB，0.5 倍速做低沉撕裂感） |
-| 3 | **匹配剪辑**：战机从镜头后方加速冲入端口（尾焰骤亮、战机 scale 1→0.2 冲入环心），端口闭合（环急缩成一点白闪）→ 硬切到虚影站星域远景：同一位置端口再度张开，战机减速飞出（scale 0.2→1，ease_out），端口闭合消散 | 1.4s | 前半 0.63s 原星域，白闪 0.10s（复用差异化转场件）→ 后半 0.77s 虚影站星域（按镜头时长等比）；飞行方向两段保持一致（向右上） | 前半=`CinematicFx.radial_streaks()` 跃迁隧道放射条纹（端口中心，白闪随 part_a 隐藏）；白闪瞬间端口中心 `CinematicFx.shockwave()`（白青，0.4s）；白闪转场=开场 1→2 同款；远景背景先露淡星云 + 远处虚影站剪影（α0.15，为镜头 4 铺垫）；战机减速拖短粒子尾迹（软点纹理，40 粒） | 白闪瞬间 SFX_DASH（0dB 正常速）；飞出段 SFX_DASH（-10dB 尾音） |
-| 4 | **远景→中景**：虚影站「曙光·残响」全貌首次完整亮相（§1.1 四层虚影效果全开）；站体伸出一条半透明能量捕获轨道牵引战机滑向停机坪入口；站体环缘 8 盏航行灯慢速追逐明灭 | 2.2s | 镜头缓慢侧跟（容器 position 正弦平移 60px + scale 1.0→1.12 缓推），展现站体宏伟 | 站体=§1.1 完整构件；轨道=`CinematicFx.beam()` 分层能量束（辉光层 + 亮芯层 + 3 个循环流光软点，复用构建期预采样贝塞尔 24 点，内部零分配 `_process`）；航行灯=8 个软光点绕环（r=RING_RADIUS+4），`_CaptureShot` 相位驱动 alpha 窄脉冲；机尾短距软点拖尾；牵引吸附感=战机位置沿采样弧 tween（TRANS_SINE）；扫描带照常扫过站体 | SFX_RESUPPLY（-8dB，对接感） |
-| 5 | **停机坪内景**：战机沿引导灯带中线平稳降落（垂直下落 40px，ease_out，落地瞬间轻微下压回弹 + 细尘粒子）；降落窗口内引导灯由两侧向落点依次追逐点亮；引擎熄火（喷口辉光 0.3s 缩没）；座舱开启（座舱盖多边形上翻 0.4s，玻璃高光条同程滑过舱面）；主角小人从座舱跃下落地（弧线跳跃 0.5s + 落地微尘） | 1.8s | 固定机位，轻微低角度仰拍（地平线压在画面下 1/3，机位元素整体下移 ~60px 模拟仰视） | 停机坪=§1.3 构件；引导灯追逐=8 灯按落点距离排序的错位 alpha tween（构建时起）；高光条=白色小 alpha Polygon2D 挂座舱盖、滑动 + 末段消隐；主角=开场镜头 3 的多段式人物构件（站立/跳跃新姿态，复用肢体节点树）；座舱盖=战机贴图上方叠加的可动多边形（简化表现）；尘粒=软点纹理 | 落地 SFX_EXPLOSION（-18dB 极轻闷响）；跃下 SFX_DASH（-14dB 短） |
-| 6 | **侧面跟拍**：主角步行穿过停机坪通道；顶部感应灯带随其位置逐节点亮起（身后节点 0.5s 后缓灭）；走到尽头休息室舱门前停步，舱门滑开（左右双扇门片平移 + 门缝光线泄出） | 1.6s | 平滑轨道平移（镜头容器跟随主角 x 匀速移动，主角始终位于画面左 1/3） | 行走循环=开场镜头 3 奔跑构件降频改相位（步速 ~90px/s，步幅减半）；灯带=12 节点 Line2D 分段，按主角 x 阈值点亮（并入本镜头唯一 `_process`）；舱壁层次=肋板 ×12 宽窄/深浅交替 + 肋间小壁板（顶部刻线）+ 顶灯光锥 ×3（叠加态 α0.05，挂世界容器随滚动视差）+ 地面反光提示条；舱门=双 Polygon2D 平移 tween | 脚步 SFX_BUFF_PICK（-20dB 短促 ×6 步，0.4s 间隔）；舱门 SFX_DASH（-10dB 0.7 倍速） |
-| 7 | **休息室内景**：舱门滑开，主角步行循环走入径直走向休眠床；坐下→躺下（三姿态关键帧：站立/坐/平躺，0.6s 间隔）；身体舒展（四肢角度微调 tween）；躺下后躯干呼吸起伏；**面部特写**（镜头推近至头部，scale→1.6）：眼睑多边形缓缓闭合（0.8s）；闭眼末段画面开始渐暗（0.9s 淡黑） | 2.0s | 先中景交代环境（0.8s）→ 推近面部特写（0.7s）→ 渐暗（0.9s 与闭眼末段重叠） | 休息室=§1.3 构件（顶部暖灯 + 床头全息屏微光 + 观察窗外环体缓转 + 3 星点窗内漂移回卷）；本镜头专属 `_RoomShot` 驱动（唯一 `_process`，零堆分配）：走入段 0.6u 步行循环（肢体公式同 `_WalkShot`，窗口两端权重淡入淡出，结束缓回直立）+ 躺后呼吸（躯干微小缩放/位移正弦）+ 星点漂移；坐/躺/眼睑/推近仍按 0.6s 间隔关键帧 tween；渐暗=全屏黑 ColorRect tween（复用过场淡出件）；渐暗末段 BGM 同步淡出 | 躺下 SFX_RESUPPLY（-16dB 轻柔）；渐暗期 BGM volume_db tween → -40dB |
-
-**转场表**：1→2 黑场 0.3s（充能完、端口未开的悬念）；2→3 保持画面连续（端口内推）；3 内部白闪 0.10s（跃迁）；3→4 黑场 0.3s；4→5 黑场 0.3s；5→6、6→7 黑场 0.3s；7 末尾渐暗 0.9s 直接接基地 UI（无标题定格——对位开场标题定格的位置由「基地 UI 淡入」取代，见 §4）。
-
-**与开场的对称总表**：开场「站毁→逃生→驶向深空（紧张，暖色破坏）」↔ 返航「跃迁→被站捕获→入睡（安宁，冷色重组）」；开场镜头 1 站体 ↔ 返航镜头 4 站体；开场镜头 5 战机加速远离 ↔ 返航镜头 3 战机减速抵达；开场镜头 3/4 人物室内 ↔ 返航镜头 6/7 人物室内；开场标题定格 ↔ 返航基地 UI 淡入。
-
----
-
-## 3. 基地 UI 变革方案
-
-### 3.1 原则
-
-**零逻辑改动**：`base_console.gd` 的全部信号、事件绑定、GameState 数据接口、按钮回调一行不动。变革只发生在两处——①`UITheme` 新增一组「虚影」样式 token 与样式工厂；②`base_console.gd` 的 `_ready()` 视觉搭建部分（dim 底色、面板样式、新增背景层与装饰层）。所有现有测试（`base_system_test` 等）不应因逻辑层而失效。
-
-### 3.2 视觉 token 新增（UITheme，与现有 token 并存不替换）
-
-| 新 token | 值 | 用途 |
-| --- | --- | --- |
-| `PHANTOM_BG` | (0.01, 0.03, 0.06, 0.90) | 基地全屏底（比原 dim 更冷更深） |
-| `PHANTOM_PANEL_BG` | (0.03, 0.08, 0.12, 0.55) | 面板底：更透（全息感），让背景结构隐约透出 |
-| `PHANTOM_BORDER` | (0.0, 0.83, 1.0, 0.65) | 面板边框：比原 PANEL_BORDER 更亮一档 |
-| `PHANTOM_SCAN` | (0.0, 0.83, 1.0, 0.06) | 扫描线/毛玻璃叠加层 |
-| `PHANTOM_TEXT_FLICKER` | α 0.92–1.0 抖动 | 数据字体不稳定感（仅装饰性 Label，不影响可读正文） |
-
-面板新材质 = ChamferedPanel（PHANTOM_PANEL_BG + PHANTOM_BORDER）+ 两层程序化叠加：**扫描线层**（面板内每 4px 一条 1px 横线 ColorRect 集合或单条循环扫描带，PHANTOM_SCAN，mouse_filter=IGNORE）；**毛玻璃感**以「面板底 alpha 降低 + 背景高斯感大辉光垫」近似（gl_compatibility 无现成模糊 shader，用径向渐变 glow 垫在面板底后模拟，避免引入 shader 依赖）。按钮悬浮感 = 按钮下方 2px 处加一条 ACCENT_DIM 投影线 + hover 时投影线 alpha 增强（复用现有 hover 机制，不改回调）。图标线性发光体 = 四个面板标题左侧各加一个 16×16 程序化 Line2D 字形图标（战机/扳手/交叉线/旗帜的极简折线，青色发光），纯装饰新节点。
-
-数据字体抖动：仅 RP 余额与各面板标题应用——`modulate.a` 在 0.92–1.0 间做 3Hz 正弦抖动 + 每 2.7s 一次 0.06s 的 1px 横向错位闪（tween 循环实现，不加 `_process`）。正文（任务列表、按钮文字）保持静止，保证可读性。
-
-### 3.3 布局：原布局 vs 新布局（交互热区与逻辑完全复用）
+### 4.1 Chain (`main.gd`)
 
 ```
-原布局（现状）                              新布局（虚影版）
-┌──────────────────────────────┐          ┌──────────────────────────────┐
-│  dim 纯色遮罩                  │          │  虚影站内部线框概念背景层         │
-│      基地整备 (44)            │          │  （环体剖面+流动粒子，α0.10）     │
-│      RP 余额：10 (金)         │          │      基地整备 (44，抖动)        │
-│  ┌─────────┐ ┌─────────┐     │          │   RP 余额：10 (金，抖动)        │
-│  │ 战机库   │ │ 武器挂载 │     │          │  ┌─────────┐   ┌─────────┐   │
-│  ├─────────┤ ├─────────┤     │    →     │  │◇战机库   │   │◇武器挂载 │   │
-│  │ 维修补给 │ │ 任务规划 │     │          │  ├─────────┤ ○ ├─────────┤   │
-│  └─────────┘ └─────────┘     │          │  │◇维修补给 │   │◇任务规划 │   │
-│  [    继续出击 (主按钮)   ]     │          │  └─────────┘   └─────────┘   │
-└──────────────────────────────┘          │  [    继续出击 (全息投影感)  ]    │
-                                          └──────────────────────────────┘
+func _start_homecoming():                      # current skeleton kept
+    _homecoming=true; lock input; stop spawner; recall mothership; save_run()
+    _starfield.warp(18.0)                      # feeds shot-1 charge/stretch
+    _play_return_cinematic()                   # replaces _flash_white + show_base
+
+func _play_return_cinematic():                 # like _play_intro_cinematic
+    _return = RETURN_SCENE.instantiate(); _return.finished.connect(_on_return_finished)
+    add_child(_return)                         # CanvasLayer layer=35, Always
+    get_tree().paused = true
+
+func _on_return_finished():                    # skip & natural end same exit
+    _return = null; _base_ui.show_base()       # §3 skin; tree stays paused
+    # BGM: shot-7 fadeout → base ambience (bgm_loop quiet, −30dB in)
 ```
 
-变化点（均为视觉/位置数据，不动容器层级与信号）：
-
-1. **背景层**：原 dim ColorRect(0.02,0.03,0.08,0.95) → 两层：PHANTOM_BG 底 + 「虚影站内部概念图」Node2D 层（环体剖面线框 r≈520 以 (960,540) 为圆心、α0.10，叠加 §1.1 的数据流粒子小剂量版与一道 8s/趟的慢扫描带；该层放在 dim 之后、CenterContainer 之前）。
-2. **双列 HBox 加宽 separation 20→140**：两列之间让出 120px 宽的垂直空隙，露出背景中央的环体轴心（○ 处），形成「面板环绕数据核心」的视觉重心——即需求中「环状布局感」的低风险实现：容器仍是原 HBox/VBox，热区/Tab 顺序/焦点链完全不变。（中央悬浮环状布局为备选 B 方案，需改容器结构，本设计不采纳——违反零逻辑改动原则且收益纯视觉。）
-3. **面板换材质**：四块 ChamferedPanel 套用 §3.2 新样式 + 扫描线叠加层；标题行加线性发光图标。
-4. **主按钮「继续出击」**：primary 样式基础上加底部投影线与 1.5s 呼吸辉光，强化全息悬浮感；尺寸/位置/回调不变。
-5. **打开动效**：`animate_open` 淡入前增加 0.25s「全息启动」——四面板从 α0 + scale 0.98 → 1.0（仅本次打开，stagger_open 60ms 间隔保留）。
-
-### 3.4 复用端口映射表（新布局坐标）
-
-| 功能端口（逻辑不变） | 原位置 | 新位置（设计坐标，面板左上角，居中容器偏移后） | 说明 |
-| --- | --- | --- | --- |
-| 战机库 `_build_hangar` | 左列上 | (320, 300) | 面板 560 宽不变 |
-| 维修补给 `_build_supply` | 左列下 | (320, 520) | 维修/充能按钮回调不动 |
-| 武器挂载·天赋路线 `_build_routes` | 右列上 | (1040, 300) | 路线按钮行/锁定逻辑不动 |
-| 任务规划 `_build_missions` | 右列下 | (1040, 520) | 领取按钮逻辑不动 |
-| 继续出击 `_on_resume_pressed` | 底部居中 | (820, 810)，280×52 不变 | 仅换样式 |
-| 标题/RP `_refresh` | 顶部居中 | 顶部居中不变 | 加抖动装饰 |
-
-（坐标为示意值，实现时仍由 CenterContainer+容器自动排布得出，上表用于截图核对。）
-
----
-
-## 4. 过场 → 基地 UI 过渡机制（伪代码与时间轴）
-
-### 4.1 触发链路改动（`main.gd` 现状 → 新）
-
-现状 `_start_homecoming()` 是「warp + 白闪 → show_base」三步直切。新链路把白闪直切替换为完整过场：
-
+### 4.2 Timeline (from charge complete)
 ```
-func _start_homecoming():                      # 现状骨架全部保留
-    _homecoming = true; 锁输入; 停spawner; 收回母舰; save_run()
-    _starfield.warp(18.0)                      # 保留：过场镜头1的充能与星光拉伸自然衔接
-    _play_return_cinematic()                   # 替换原 _flash_white + show_base
-
-func _play_return_cinematic():                 # 与 _play_intro_cinematic 同构
-    _return = RETURN_SCENE.instantiate()
-    _return.finished.connect(_on_return_finished)
-    add_child(_return)                         # CanvasLayer layer=35, process_mode=Always
-    get_tree().paused = true                   # 对局冻结（与开场过场同语义）
-
-func _on_return_finished():                    # 跳过与自然结束同一出口
-    _return = null
-    _base_ui.show_base()                       # 虚影皮肤版基地 UI（§3）
-    # 树保持 paused：基地界面本就是暂停态 UI（现状如此，不改）
-    # BGM 在过场镜头7已淡出 → 此处切换为基地氛围音（bgm_loop 低音量变体，-30dB 淡入）
+t=0.0   charge done: lock/spawner/save_run/warp(18)
+t=0.0   shot1 1.6s | t=1.6 shot2 1.2s | t=2.8 shot3 1.4s | t=4.2 shot4 2.2s
+t=6.4   shot5 1.8s | t=8.2 shot6 1.6s | t=9.8 shot7 2.0s (dim 0.9s + BGM out from 10.9)
+t=11.8  finished (or skip() anytime) → show_base(): boot 0.25s + animate_open 0.2s
+t≈12.3  fully operable
 ```
 
-### 4.2 时间轴（从长按 B 蓄力完成起）
+### 4.3 Mechanics
+- No async load (all procedural); sync `show_base()` in `finished`.
+- Skip: Esc (BackNavigator `SKIP_RETURN`, priority = `SKIP_INTRO`) / any key / click → `skip()` → `_on_return_finished()`; `skip()` kills BGM tween, sets target volume. **Grace `SKIP_GRACE` s (config `effects.return_skip_grace`, default 1.2)**: `skip()` ignored within — held WASD/Shift/Space don't skip; check inside `skip()`, all routes gated; natural end unaffected.
+- Save timing: `save_run()` before cinematic (current line 330); skip/crash safe.
+- Pause: tree paused through cinematic + UI (both Always); `_resume_from_base()` → orbital strike (Always, clears on hit frame, unpauses).
+- Future "skip after first view": GameState flag → old flash path; not implemented, fork reserved.
 
-```
-t=0.0s   蓄力完成：锁输入 / 停 spawner / save_run / starfield.warp(18) 开始
-t=0.0s   过场镜头1（曲率充能 1.6s）——warp 星光拉伸正是充能的延续，无缝
-t=1.6s   镜头2（端口 1.2s）
-t=2.8s   镜头3（跃迁+抵达 1.4s）
-t=4.2s   镜头4（捕获轨道+虚影站全貌 2.2s）
-t=6.4s   镜头5（停机坪降落 1.8s）
-t=8.2s   镜头6（通道步行 1.6s）
-t=9.8s   镜头7（入睡 2.0s；t=10.9s 起画面渐暗 0.9s + BGM 淡出）
-t=11.8s  过场 finished（或任意时刻 skip() 直达此点）
-t=11.8s  show_base()：基地 UI 已是黑场下就绪 → 全息启动动效 0.25s + animate_open 0.2s
-t≈12.3s  基地 UI 完全可操作
-```
+## 5. Constraints & tests
+- i18n: `RETURN_SUB_1..7`, `RETURN_SKIP` (or reuse `INTRO_SKIP`), zh+en in `data/translations.csv`, re-import.
+- Budget: ≤96/emitter, ≤400 live, ≤1 `_process`/shot zero-alloc (shots 2/4/6/7: `_PortalShot`/`_CaptureShot`/`_WalkShot`/`_RoomShot`; drift shared; CinematicFx internals zero-alloc), draws <400; station parts + base bg share one build fn.
+- Refactor: extract `_build_shot1()` station into shared fn (parametrized color/alpha/breach) — only existing-code change, pure extraction.
+- Tests: new `test/return_cinematic_test.tscn` mirror `intro_cinematic_test` (trigger/pause/finished/resume/skip-idempotent/Timer residue/`_shot_durations` stepping); regression: smoke, base_system, back/esc_navigation (`SKIP_RETURN`), quit-after-300; `test/return_capture.tscn` (8s/shot, `/tmp/return_shot*.png`) + ui_capture.
+- Docs: `docs/EXIT_FLOW.md` register Esc; `docs/PORTING_PARITY.md` no change (archived `docs/archive/`, frozen 2026-07-30); README +1 line.
 
-### 4.3 机制要点
+## 6. Implementation record (landed 2026-07-28)
+Done: `scripts/dawn_station.gd` (`DawnStation.build(Mode.DESTROYED/PHANTOM)`; intro shot1 refactored; return shot4 + base bg share), `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn` (7 shots; 16.8s→11.8s same-day 2026-08-02, §7.1; dim to full black then finished), `main.gd` chain (`_play_return_cinematic` / `_skip_return` / `_on_return_finished`; save + `_resume_from_base` unchanged), BackNavigator `SKIP_RETURN`, `play_sfx` optional `pitch_scale`, base phantom skin (UITheme PHANTOM_* + visual layer, zero logic), `test/return_cinematic_test.tscn` (42) + `test/return_capture.tscn`.
 
-- **无异步加载需求**：过场与 UI 全部程序化构件，无外部资源；`finished` 信号回调里同步 `show_base()` 即可，淡入动效天然掩盖单帧搭建开销。
-- **跳过语义统一**：Esc（BackNavigator 新增 `SKIP_RETURN`，优先级同 `SKIP_INTRO`）/任意键/点击 → `skip()` → 直接走 `_on_return_finished()`。跳过中途的 BGM 淡出由 `skip()` 内统一处理（kill 音频 tween 并立即置目标音量）。**1.2s 输入宽限（防实战按键误触）**：开播前 `SKIP_GRACE` 秒（配置 `effects.return_skip_grace`，默认 1.2）内 `skip()` 直接忽略——实战中 WASD/Shift/Space 持续按键不再瞬间跳过；宽限判断收敛在 `skip()` 内，任意键/点击/Esc 路由统一受控；自然结束（11.8s）远超宽限不受影响。
-- **存档时机不变**：`save_run()` 仍在过场开始前完成（现状行 330），过场播放/跳过/崩溃均不影响存档完整性。
-- **暂停语义**：过场与基地 UI 全程树暂停，两层 `process_mode=Always`；`_resume_from_base()`（继续出击）触发轨道打击动画（`process_mode=Always`，命中帧清场并解除暂停；动画本身为该文档之后补充，语义与原文"完全不改"的恢复路径一致）。
-- **可配置跳过**：若后续需要「多次返航不重复看过场」，在 `GameState` 加一个标记位即可走原白闪直切路径——本设计不实现，仅预留分叉点。
+Deviations from §1–§3 (adjustments follow code; back-write here):
+1. Scan band per-component α+0.15 skipped: ADD band ≈ equivalent; would need extra `_process`.
+2. Particles ② spoke to-and-fro ≈ ring emission (r80–200) + slow random (ParticleProcessMaterial lacks spoke mode).
+3. Shot 2: no ship (FX shot; enters shot 3).
+4. Shot 3 flash: in-shot ColorRect (director `_flash` for inter-shot).
+5. Button hover-line boost skipped (zero-logic first); scanline = static set (1 draw/panel); `PHANTOM_TEXT_FLICKER` inline, not constant.
+6. Skip hint reuses `INTRO_SKIP`; no `RETURN_SKIP`.
 
----
+## 7. Tuning (2026-07-28 round 2)
+1. 16.8s→11.8s: `_shot_durations` `[1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]`; KFs scaled (`u = dur/base`; shot1 ring absolute 0.4s). Shot7 dim 1.2→0.9s (`OUTRO_FADE`), BGM synced; eyelid at 1.5u, ~50% dark at close.
+2. Brighten + breakage: `_build_phantom` rewritten (`#00d4ff` family: arc 0.55 / mod 0.45 / detail 0.35); `_build_body` `gaps` param + `_ring_arc` (empty = destroyed; intro_cinematic_test regression); five-piece: 3 gaps / 6 segments 0.1s phase 0.13s / grid 2.5px α0.75 / 3 shards / glitch 3.8s (`PhantomBody` inner; breath on station container; modulates independent). Base bg (α0.12) ui_capture-checked.
+3. Proportions: shot5 ship 2.8 (~420px), person 0.55 (~64px), ≈6.6:1 (target 5–8:1); hide (960,425), apex (935,390), land (905,686), deck top 710. Shot6 door 280px (frame 540..820, panels 76×272, slide ±85) vs person 185px; walk via `_stop_scroll` / `_time_u = dur/2.4`, 90px/s. Shot7 bed 260px, lying 185px, focus (981,744).
+4. Verify: return_capture 8 shots + ui_capture pass; headless return_cinematic 42 / intro_cinematic 40 / smoke 116 / base_system 46 PASS.
 
-## 5. 实现约束与测试要点（实现阶段遵循）
+## 8. Tuning (2026-07-30 round 3, CinematicFx)
+Adopt `scripts/cinematic_fx.gd` (soft_glow / soft-dot particles / shockwave / beam / radial_streaks); storyboard/durations/skip/subtitles/BGM unchanged; `u = dur/base` kept (shot1 ring absolute 0.4s).
+- Global: `_particles()` → `CinematicFx.particles()` (same dict contract); soft-dot textures (scale = pixel diameter).
+- Shot1: `warp(12.0)` start (game frozen by pause; stretch decays); nozzle → `soft_glow`; peak (dur−0.4) 2 `shockwave` offset 0.14s (r700/900, ry 0.6, cyan).
+- Shot2: throat pad α0.15; 2 vortex arcs ~200° (2.4 / −1.7 rad/s, in `_PortalShot._process`); inflow 40 (`EMISSION_SHAPE_RING`, accel −140/−90, y-squash, from 0.45s).
+- Shot3: `CinematicFx.radial_streaks` 26, max_radius 1000, fade 0.3u; `shockwave` r520 0.4s white-cyan; trail 32→40.
+- Shot4: → `CinematicFx.beam` (bezier 24 pts, dot_count 3, dot_speed 0.5); `_CaptureShot` → 8 nav lights (r=RING_RADIUS+4, `0.12+0.78·max(sin)^4`); tail 24.
+- Shot5: lights α0.2 → chase by distance (fall 0.7 after peak); glass highlight slide 0.4u, fade 0.12u.
+- Shot6: ribs ×12 width 22/14 + 6 plates; 3 cones ADD α0.05 + floor strip parallax.
+- Shot7: `_RoomShot` (only `_process`): walk 0.6u (limb = `_WalkShot`, fade at ends) + breath 1.7u (scale.y ±2.5% sine) + 3 star dots; §6 item 4 resolved.
+- Budget: max new emitter 40; ≤96 / ≤400; ≤1 `_process`/shot; no `world_scale`.
+- Verify: `--headless --quit-after 5` clean; 8 screenshots reviewed (transients validated by code path).
 
-- **i18n**：新增键 `RETURN_SUB_1..7`、`RETURN_SKIP`（或复用 `INTRO_SKIP`），`data/translations.csv` 中英双列同加，改后重新 import。
-- **性能预算**：沿用开场——单发射器 ≤96、存活粒子 ≤400、每镜头至多一个 `_process` 零堆分配（镜头 2/4/6/7 各一：`_PortalShot`/`_CaptureShot`/`_WalkShot`/`_RoomShot`，导演漂移共享；`CinematicFx` 构件内部的 beam/streaks/shockwave 驱动同为零堆分配）、draw calls <400；虚影站构件与基地背景层共用一套站体构建函数，避免两份几何漂移。
-- **重构建议（实现时）**：把开场 `_build_shot1()` 的站体构件抽为共享函数（参数化配色/alpha/破口表现），开场与返航/基地背景三处复用——这是本设计唯一建议的既有代码改动，纯提取不改行为。
-- **测试**：新增 `test/return_cinematic_test.tscn` 镜像 `intro_cinematic_test`（触发/暂停/finished/恢复/跳过幂等/Timer 无残留/时长表可写逐镜头推进）；回归清单：smoke、base_system（基地逻辑零改动验证）、back/esc_navigation（新 SKIP_RETURN 路由）、quit-after-300；窗口模式逐镜头截图人工核对（`test/return_capture.tscn`，8s/镜头拉长时轴，输出 `/tmp/return_shot*.png`）+ ui_capture 核对基地新皮肤。
-- **文档同步**：`docs/EXIT_FLOW.md` 登记返航过场 Esc 行为；`docs/PORTING_PARITY.md` 无需改动（纯表现层，无玩法移植对齐变化；该文档 2026-07-30 已归档至 `docs/archive/` 并冻结）；README 玩法说明补一句返航过场。
-
----
-
-## 6. 实现记录（2026-07-28 落地）
-
-已全量实现：共享站体工厂 `scripts/dawn_station.gd`（`DawnStation.build(Mode.DESTROYED/PHANTOM)`，开场镜头 1 已重构复用、返航镜头 4 与基地背景层共用）、返航过场 `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn`（7 镜头，初版 16.8s 无标题定格，**2026-08-02 同日压缩至 11.8s**，见 §7.1；渐暗停在全黑后发 finished）、`main.gd` 新触发链路（`_play_return_cinematic` / `_skip_return` / `_on_return_finished`，存档时机与 `_resume_from_base` 不变）、BackNavigator `SKIP_RETURN` 路由、`play_sfx` 可选 `pitch_scale`、基地虚影皮肤（UITheme PHANTOM_* token + base_console 视觉层，逻辑零改动）、`test/return_cinematic_test.tscn`（42 断言）与 `test/return_capture.tscn`（逐镜头截图工具）。
-
-与 §1–§3 设计的既定偏差（实现时判断，后续如调整以代码为准并回写此处）：
-
-1. §1.1 扫描带「扫过处构件 alpha +0.15」未逐构件实现：叠加态扫描带加色已视觉等效，逐构件检测需额外 `_process`，违反零堆分配预算。
-2. 数据流粒子②「沿辐条径向往返」以环形发射域（r80–200）+ 低速随机方向近似（ParticleProcessMaterial 无辐条对齐/往返模式）。
-3. 镜头 2 战机本体未出镜（该镜头为聚焦端口的特效镜头，战机在镜头 3 冲入时衔接）。
-4. 镜头 3 跃迁白闪用镜头内 ColorRect（导演 `_flash` 节点留给镜头间转场）。
-5. 基地按钮「hover 投影线增强」未做（§3.1 零逻辑改动铁律优先，不新增信号绑定）；扫描线层选静态横线集合方案（每面板 1 draw call）；`PHANTOM_TEXT_FLICKER` 未建常量（alpha 区间参数直接写在抖动函数内）。
-6. 跳过提示复用 `INTRO_SKIP`，未新增 `RETURN_SKIP`。
-
-## 7. 调优记录（2026-07-28 第二轮，三点反馈）
-
-1. **时长压缩 16.8s→11.8s**：`_shot_durations` 改 `[1.6, 1.2, 1.4, 2.2, 1.8, 1.6, 2.0]`，各镜头内部关键帧等比压缩（镜头 3/5/6/7 以 `u = dur/基准` 驱动自动缩放；镜头 1 扭曲环仍为结尾 0.4s 绝对值）。镜头 7 渐暗 1.2s→0.9s（`OUTRO_FADE`），BGM 淡出同步；眼睑闭合提前到 1.5u，闭眼完成时画面约五成暗。
-2. **PHANTOM 站体提亮 + 破碎感**：`dawn_station.gd` 的 `_build_phantom` 重写——配色全提至 `#00d4ff` 系（主弧 α0.55 / 舱段 0.45 / 细节 0.35）；`_build_body` 新增 `gaps` 参数按缺口分段绘制主弧（新增 `_ring_arc`，毁灭态传空表视觉不变，已用 intro_cinematic_test 回归）；破碎五件套 = 主弧 3 处断弧 / 6 舱段逐个 0.1s 掉线闪烁（相位 0.13s）/ 能量网格加粗 2.5px α0.75 掉线更频繁 / 破口 3 块全息碎片外飘 / 整站 3.8s 一次 glitch 瞬闪（独立 `PhantomBody` inner 容器，与站体容器呼吸 0.85↔1.0 分写 modulate 互不覆盖）。基地背景层（`base_console.gd` 父容器 α0.12）经 ui_capture 核对不抢戏。
-3. **比例校正**：镜头 5 船 scale 2.8（可见舰长约 420px）、人物 scale 0.55（约 64px 高），舰人比例锚定 ≈6.6:1（目标 5–8:1）；藏舱点 (960,425)、跳跃 apex (935,390)、落点 (905,686) 脚贴甲板顶 710。镜头 6 门高 280px（frame 540..820，门片 76×272，滑开 ±85）明显高于 185px 人物；步行距离按时长缩放（`_stop_scroll`/`_time_u = dur/2.4`，步速 90px/s 不变）。镜头 7 床加宽至 260px，人物平躺 185px 贴合床面，推近焦点移至头部 (981,744)。
-4. 验证：窗口模式 `return_capture` 8 张逐镜头截图一轮通过（无迭代返工）+ `ui_capture` 基地页核对；无头回归 return_cinematic 42 / intro_cinematic 40 / smoke 116 / base_system 46 全 PASS。
-
-## 8. 调优记录（2026-07-30 第三轮，CinematicFx 视觉升级）
-
-全面接入共享特效工具 `scripts/cinematic_fx.gd`（软径向光晕/软点纹理粒子/冲击波环/分层能量束/放射条纹），分镜结构、时长表、跳过语义、字幕绑定与 BGM 淡出全部不变；所有定时元素仍按各镜头 `u = dur/基准` 归一化（镜头 1 冲击环沿用结尾 0.4s 绝对值惯例）。
-
-- **全局**：`_particles()` 工厂委托 `CinematicFx.particles()`（同 dict 契约），全过场粒子改软点贴图（scale 语义保持「像素直径」），消除硬边方块粒子。
-- **镜头 1**：开播 `Starfield.warp(12.0)` 承接对局 `warp(18.0)`（对局星空随树暂停冻结，过场星空延续拉伸并自然衰减）；喷口双层 `_glow` 改 `CinematicFx.soft_glow`（同款放大 tween，基准 scale 相对放大）；充能峰值（dur−0.4）两道错位 0.14s 的 `shockwave`（r700/900、ry 0.6、青色）掠过观察者。
-- **镜头 2**：端口口腔加椭圆压扁软辉光垫（α0.15，垫在虚影站下，随撕裂张开）；环内新增 2 条约 200° 旋涡弧（反向 2.4/−1.7 rad/s，随撕裂张开，并入 `_PortalShot._process` 仅累加 rotation）；环缘内流粒子 40 粒（`EMISSION_SHAPE_RING` 环形发射域 + 负径向加速度 −140/−90 拉向环心，节点 y 压扁 ry/rx 贴椭圆，撕裂近完成 0.45s 起发射）。
-- **镜头 3**：前半端口中心 `radial_streaks`（26 条，max_radius 1000，0.3u 淡入，白闪随 part_a 隐藏）；白闪瞬间端口中心 `shockwave`（r520、0.4s、白青）；飞出段尾迹 32→40 粒。
-- **镜头 4**：手搓能量束（辉光 Line2D + 芯 Line2D + 2 游走亮点）整体替换为 `CinematicFx.beam`（复用同一预采样贝塞尔 24 点，dot_count 3、dot_speed 0.5）；`_CaptureShot` 移除流光点驱动，改为驱动站体环缘 8 盏航行灯（r=RING_RADIUS+4，alpha 窄脉冲 `0.12+0.78·max(sin)^4` 慢追逐）；新增机尾短距拖尾（24 粒，弱于镜头 3 配方）。战机沿轨定位/朝向逻辑不变。
-- **镜头 5**：8 盏甲板引导灯初始压暗 α0.2，降落窗口内按落点距离排序错位追逐点亮（构建时起 tween，峰值后回落 0.7）；座舱盖开舱同程加玻璃高光条（白色小 alpha Polygon2D 挂舱盖滑动 0.4u，末段 0.12u 消隐）。
-- **镜头 6**：舱壁肋板 ×12 改宽窄（22/14）与深浅交替；肋间加 6 块小壁板（带顶部刻线）；顶部 3 个 ADD 光锥（α0.05）与地面反光提示条挂世界容器，随滚动自然视差。
-- **镜头 7**：新增专属驱动 `_RoomShot`（本镜头唯一 `_process`，零堆分配）——走入段 0.6u 步行循环（肢体公式同 `_WalkShot`，窗口两端权重淡入淡出、结束自动缓回直立，位置仍由原 tween 推进）；1.7u 后躯干呼吸（scale.y ±2.5% + 微位移正弦，权重缓入）；观察窗 3 星点缓慢漂移（窗框内缘留边回卷）。坐/躺/眼睑/推近/BGM 淡出关键帧一行未动；§6 偏差清单第 4 条（走入平移 tween）就此消除。
-- **预算核对**：新增发射器最大 40 粒（镜头 2 内流），单发射器 ≤96、同屏存活 ≤400 不变；每镜头仍至多一个镜头级 `_process`（镜头 7 新增 `_RoomShot` 一个，beam/streaks/shockwave 内部驱动零堆分配）；无 `world_scale` 相关数值（纯屏幕空间）。
-- **验证**：`--headless --quit-after 5` 无解析错误；窗口模式 `return_capture` 8s/镜头拉长时轴 8 张截图逐张人工核对（新元素可见且不抢戏：端口旋涡/内流、隧道条纹、能量束+航行灯、引导灯带、走廊光锥/壁板、镜头 7 平躺特写与渐暗均正确；峰值冲击环/白闪冲击环/高光条等末段瞬时件不在截图时刻，按同款既有模式校验代码路径）。
-
-## 9. 音频口径说明（2026-08-02 复核登记，D18）
-
-- 返航过场音效**沿用 §2 镜头表的既有各自压低口径**（-6/-8/-10/-12/-14/-16/-18/-20dB + 变速），与开场过场 8-02 统一的 `AUDIO_VOL_OFFSET=-6dB` / `AUDIO_PITCH=0.88` 策略**不一致**——属产品判断：返航音效本就逐镜头压低以配合柔和收束氛围，故本轮不统一、不改行为。
-- 若后续统一两过场音频策略，需同步修改 `scripts/return_cinematic.gd` 全部 `play_sfx` 调用并回写本段与 §2 镜头表；开场策略见 `docs/INTRO_CINEMATIC.md`。
+## 9. Audio policy (2026-08-02, D18)
+- Return SFX **keep per-shot levels of §2** (−6/−8/−10/−12/−14/−16/−18/−20dB + pitch) — deliberately **not unified** with intro `AUDIO_VOL_OFFSET=-6dB` / `AUDIO_PITCH=0.88` (product judgment; no change).
+- To unify later: edit all `play_sfx` in `scripts/return_cinematic.gd` + back-write §9 & §2; intro policy in `docs/INTRO_CINEMATIC.md`.
