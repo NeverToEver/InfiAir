@@ -837,3 +837,57 @@
 
 - **问题**：`autoplay_test.gd` 自 66c1c9e（2026-08-02）integer_division 升级 error 级后**编译失败**（7 处毫秒→秒显示除法，`X / 1000`）——探针场景启动即挂起，此前从未被 CI/本地流程执行（CI 显式跳过 autoplay、本地未跑），属**未登记失败基线**。2026-08-03 首次执行验证清单「autoplay_test 长局探针」时暴露。
 - **已修复**：7 处加 `@warning_ignore("integer_division")`（对齐 66c1c9e「有意整数除法注解」先例，语义不变）。验证：60s + 180s 探针 0 异常。
+
+
+---
+
+# 第八轮审核（2026-08-03 K 系列全面代码审计与修复）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 全仓库游戏逻辑全面审计（AgentSwarm 8 路并行 + 主控交叉核对 + 分批修复） |
+| 工作时间 | 2026-08-03 |
+| 审核区域 | `scripts/` 62 文件 + `autoload/game_state.gd` + `scenes/*.tscn` + `test/` 44 场景 + `assets/shaders/meta_health.gdshader` + 相关 docs |
+| 审核方法 | 8 路 explore 子代理并行只读审计（对局编排与 HUD / 玩家辅助瞄准输入 / 刷怪池与敌人体系 / Boss 与母舰 / 事件演出过场 / 系统服务 UI 基础设施 / 数值三方一致性 / 测试契约），每路对照对应设计文档；主控对全部 P1/P2 与代表性 P3 逐条读码复核（K1 与 K4 两路独立发现同一 P1 互相印证）；判定分类后分批修复，每批跑针对性测试 |
+| 结论 | P1×2（其中一条为两路独立发现的同一根因）+ P2×5 + P3×17；登记不修 5 项。无 P0 |
+| 审核人 | Kimi Code CLI（依据用户指示执行） |
+
+## K 系列发现与处置（全量修复，分批提交）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| K01 | P1 | `main.gd` `_start_homecoming` / `_summon_mothership` / `_on_orbital_struck`；`mothership.gd` `_exit_tree`；`player.gd` `exit_pod` | 纯 bug（exploit） | 召唤/对接/驻留期长按 B 返航：`_summon_mothership` 设 `set_invincible(999.0)`，`_start_homecoming` 直接 `queue_free` 母舰，`_exit_tree` 仅 `exit_pod()`（恢复显示不清无敌）→ 玩家带 ~960s 无敌进入返航过场（树暂停冻结）与基地，「继续出击」后无敌继续倒计时约 16 分钟；正常 RELEASE 路径有 `set_invincible(2.0)` 覆盖，提前收回路径无。homecoming 检测（main.gd:341）不检查输入锁定，DOCKING/STAY 期对局不暂停故必然可触发；可反复 exploit | ✅ 修复（K 批次 1）：`_start_homecoming` 在 `_player.lock_input()` 后统一 `set_invincible(0.0)`（覆盖召唤后任意母舰状态），继续出击后的保护由入场序列接管（与正常返航基线一致） |
+| K02 | P1 | `laser_weapon.gd:88,129` × `player.gd:795-796,854` | 纯 bug（跨组件竞态） | 入场动画期（不锁输入）激光冷却就绪即触发：`_start_beam` 的 `_saved_autofire` 捕获入场序列置的 **false**，`_finish_entry` 恢复的 true 被 3s 后 `_end_beam` 恢复的 false 覆盖 → **自动开火永久关闭**（纯自动射击游戏=失去输出，仅剩每 8s 的 3s 激光）；持有 laser_beam buff + 返航继续出击时必然触发；`entry_animation_test` 只测无 buff 场景未覆盖 | ✅ 修复（K 批次 1）：触发条件加 `not _player.is_entry_playing()` 守卫 + `_start_beam` 内部双保险早退（防直调路径） |
+| K03 | P2 | `player.gd` `enter_pod`/`exit_pod`/`_die` | 纯 bug | 进舱只关 Hitbox monitoring，GrazeArea（擦弹环）仍开：驻留期敌弹飞过停驻点仍计擦弹分 + 特效 + 音效（玩家隐藏凭空得分，违背「擦弹=主动技巧」纯得分制）；`_die` 后 physics_process 停、弹反盾 monitoring 保持冻结残留 | ✅ 修复（K 批次 1）：`enter_pod` 同步关 `$GrazeArea` + `_parry_shield` monitoring，`exit_pod` 恢复 GrazeArea（盾由相位同步管理不强制恢复）；`_die` 关盾 |
+| K04 | P2 | `player_dash.gd:47` | 设计目标未达 | 手柄玩家无方向冲刺回退取**真实鼠标位置**（P0-1 手柄瞄准语义是右摇杆虚拟准星），纯手柄玩家鼠标停在任意处，冲刺方向与机头/瞄准无关、基本随机 | ✅ 修复（K 批次 1）：回退改用 `player.aim_point()`（键鼠+摇杆统一平滑点，键鼠玩家语义不变） |
+| K05 | P3 | `meta_health_fx.gd:187`（crack_grow_time）/ `main.gd:77`（ENRAGE_RAMP_TIME） | 边界缺陷 | 两键无 `maxf` 下限（H15 同族遗漏，同文件 193-195 均有防护）：损坏 JSON =0 时 `_grow_boost` 衰减除零（0/0=NaN 污染裂纹进度）、`_time_scale_ramp` 除零（狂暴恢复瞬间完成） | ✅ 修复（K 批次 1）：`maxf(..., 0.001)` / `maxf(..., 0.01)` |
+| K06 | P2 | `game_state.gd` `set_joy_aim_speed`/`set_joy_deadzone`/`_apply_joy_settings`；`settings_ui.gd:361-365` | 纯 bug（性能） | 手柄滑杆拖动每步 value_changed → setter 无条件全量原子写盘（tmp 写+删旧+rename）+ aim_speed 变更时重设全部 17 个 action 死区（纯浪费）+ 广播；一次拖动几十至数百次磁盘写（HDD 可感知卡顿）；对比其它设置项均为点击提交 | ✅ 修复（K 批次 1）：setter 只更新内存 + 广播（deadzone setter 保留 InputMap 应用，`base_system_test` 契约）；新增 `persist_joy_settings()`，settings 滑杆 `drag_ended` 提交一次写盘 |
+| K07 | P3 | `settings_ui.gd:184-206`；`back_navigator.gd:62-63` | 纯 bug | 改键捕获态下手柄 B（ui_cancel）无法取消捕获：BackNavigator 对捕获态 `CAPTURE_PASSTHROUGH` 放行不消费，SettingsUI `_unhandled_input` 只处理 `InputEventKey`，Joypad 事件无人消费——EXIT_FLOW「B=返回/取消」惯例唯一失灵的界面态 | ✅ 修复（K 批次 2）：捕获态先判 `event.is_action_pressed(&"ui_cancel")` 取消并 handled |
+| K08 | P2 | `formation_bomb.gd:102` | 纯 bug（潜在） | `(hitbox.get_parent() as Player)` 硬强转——A1 已把 `bullet.gd` 同类改为 `GameState.player_ref` 注册表引用，本文件遗漏；Player 节点结构变动即 null 调用 SCRIPT ERROR | ✅ 修复（K 批次 2）：改 `GameState.player_ref as Player` 判空后调用（距离判定不变） |
+| K09 | P3 | `turret_battery.gd` `rise`/`activate`/`cease_fire_and_retract` | 设计目标未达（机制归因错误） | 升起/收回期 `monitoring=false` **不阻止玩家弹命中**——Area2D 语义：A 检测 B 取决于 A.monitoring + A.mask∩B.layer + B.monitorable，B 自身 monitoring 与子弹侧检测无关；真实防护是 `take_damage` 的 `_rising/_ceased` 守卫，弹丸命中被守卫吃掉后正常销毁（被白吃，DPS 静默消耗）；`ELITE_TURRET_EVENT.md:169` 注释同步失实 | ✅ 修复（K 批次 2）：rise/cease 改 `monitorable = false`（activate 恢复 true），monitoring 保留；同步文档表述 |
+| K10 | P3 | `bullet.gd:181` `_exit_tree` | 纯 bug（潜在） | 缺 `is_instance_valid(_pool)`（`enemy.gd:387` 已防护且注释承认该时序真实存在）：池节点先于活跃子弹释放（场景卸载时序）时悬空调用 `forget` | ✅ 修复（K 批次 2）：与 enemy 对称补判空 |
+| K11 | P3 | `turret_battery.gd:201` | 风格未跟进 | 炮台 laser 弹每发射一次 `get_node("Polygon2D")` 字符串查找——C24 缓存模式（`b.polygon_node()`）后新增调用方漏改 | ✅ 修复（K 批次 2）：改 `b.polygon_node()` |
+| K12 | P3 | `boss.gd:279` `setup` | 纯 bug（潜在） | `TEXTURES[p_type-1]` / `hp_mults[p_type-1]` 按公开接口入参 p_type 索引无越界钳制（H11 只校验了数组长度）；外部/测试传 >3 或 ≤0 越界崩溃 | ✅ 修复（K 批次 2）：入口 `clampi(p_type, 1, 3)` |
+| K13 | P3 | `boss_movement.gd:35-58,79` | 边界缺陷/死代码 | `match int(boss.boss_type)` 无 `_` 分支（enrage_sequence 同型 match 有回退对比），非法值 Boss 完全静止；`_move_bob` 的 `y_center` 参数三处调用均未传（死参数，注释声称的偏移能力不存在） | ✅ 修复（K 批次 2）：补 `_` 分支回退一型走位；删死参数并修正注释 |
+| K14 | P3 | `elite_turret_event.gd:105,113` | 边界缺陷 | `TURRET_COUNTS`/`AMMO_SEQUENCES` 无判型回退（H13/G06 口径只覆盖了 fire_interval 等标量）：非 Dictionary 时后续 `.get()` 在 Variant 上运行时崩溃，或空字典致事件空转 30s 无结算 | ✅ 修复（K 批次 2）：`is Dictionary` 判型回退默认 |
+| K15 | P3 | `formation_strike_event.gd:80`；`main.gd` `_ready` | 设计目标未达 | A5 依赖注入（2026-07-31）只覆盖 Boss 与精英炮塔事件，编队事件仍 `get_first_node_in_group("spawner")` 现找——事件先于 spawner 入树时 `_spawner=null`，互斥检查与波次暂停钩子静默失效 | ✅ 修复（K 批次 2）：main 注入 `_formation.set_spawner(_spawner)`（新增 setter，仿 elite），`_ready` 保留兜底 |
+| K16 | P3 | 测试侧：`mouse_lock_test.gd` / `tutorial_test.gd` / `difficulty_test.gd` | 纯 bug/痕迹/注释失实 | ① `MOUSE_TRAP._warp_target`/`_trap_enabled` 白盒直调 `_` 私有（A7 全清后新出现，且 6 个裸 bool 位置参数签名扩展即静默错位）；② `tutorial_test.gd:75` 残留 `[dbg]` 调试输出；③ tutorial 通关写 `tutorial_done=true` 入 profile 后不恢复（违反 TESTING.md「清理自身持久化」约定）；④ `difficulty_test.gd` 注释 HP/速度区间与 spawner 静态表不符 | ✅ 修复（K 批次 2）：`mouse_trap` 公开化两个 static 纯函数（`trap_enabled`/`warp_target`）+ 测试改公开调用；删 dbg；断言后恢复 `tutorial_done=false` 并写盘；注释修正为实际区间（easy 143-158 / medium 190-210 / hard 285-315） |
+| K17 | P3 | `meta_health_fx.gd:177` + `meta_health.gdshader:89` | 文档-代码矛盾（死配置） | `crack_glow` 键读入后零使用（全项目无引用），用户调 `effects.meta_health.crack.glow` 无效；shader 裂纹 ADD 泛光强度为字面 0.8；balance.json 与 META_HUD_DESIGN §4.4 均登记该键 | ✅ 修复（K 批次 3）：接线——shader 增 `u_crack_glow` uniform（默认 0.8 与现状逐位一致），GDScript `set_shader_parameter` 传 cfg 值 |
+| K18 | P3 | `TESTING.md:117` / `DESIGN_BASELINE.md:299,368` / `BALANCE_MAP.md` / `return_cinematic.gd:433,548,679,816` / `mothership.gd:604,639` / `ui_segmented_bar.gd:34-36` | 文档-代码矛盾 | ① 「31 断言场景」落后于实际 35（公平感 4 场景）；② BALANCE_MAP 行号漂移（J 系列提交改行后未重跑生成器，重跑 diff 189 行）；③ return_cinematic 镜头 1-4 注释时长仍为压缩前旧值（2.4/1.6/2.0/3.0 vs 实际 1.6/1.2/1.4/2.2）；④ mothership 加特林/导弹注释自称「仅驻留」但 DOCKING 火力掩护是有意设计；⑤ ui_segmented_bar 注释声称绘制时逐元素 float()/as Color 转换，代码未实现（当前唯一调用方恒传 const Color 数组） | ✅ 修复（K 批次 3）：口径统一（31→35；重跑生成器提交新 BALANCE_MAP；注释修正；seg_bar 注释如实描述防御不对称） |
+| K19 | P3 | `scenes/player.tscn:7-14` | 约定违反 | 3 个 CircleShape2D 运行时被写半径但缺 `resource_local_to_scene = true`（AGENTS 明文约定；enemy.tscn 已修同型，当前 Player 单实例幂等赋值未暴露） | ✅ 修复（K 批次 3）：tscn 三处补字段 |
+
+## 登记不修（论证后收敛）
+
+1. **普通阶段召唤间隔不参与难度分档**（`boss.gd:534` vs `:587` 狂暴 E3 乘 `interval_mult`）：BOSS_REDESIGN §4.4 分档口径「开火间隔 ×1.15/×1/×0.85」未明确召唤间隔归属，改动属平衡性游戏决策 → 登记待产品判断，不擅自改。
+2. **`boss_attacks` 编队齐射池引用复用**（`_volley_minions` 存池化小怪引用，0.8s 延迟内击杀 repool 后旧引用可能指向新激活对象误伤）：`minion_volley_fire` 为 P2 编队与狂暴倾巢**共用路径**，加 `hive_volley` meta 复查会破坏狂暴路径；触发概率极低（0.8s 窗口 + 池恰好复用）且后果轻微（向玩家多射一枚普通弹）→ 登记不修，修复需先梳理双路径身份标记。
+3. **精英炮台与航母 HOVER 浮动 ±6px 周期错位**（`elite_turret_event.gd:189` 一次性锚定 vs `strike_carrier.gd:123-125` 正弦浮动）：纯视觉瑕疵，可接受。
+4. **10 个 buff 无 `max_stacks` 键**（仅 6/16 在 balance.json 有）：叠加上限锁死在 `buff_select.gd` BUFF_POOL 池内值（`cfg("buffs.%s.max_stacks", b["max"])` 缺省用池内值，`:59` 注释已声明有意兜底），balance_editor 不可调 → 登记有意设计，如未来需要全部 buff 可调再补键。
+5. **输入锁定期弹反盾保持 ACTIVE**（锁定瞬间恰在 ACTIVE 时，锁定全程盾持续弹反敌弹）：行为无害（弹反转玩家弹），与「输入锁定≠暂停」语义一致（计划书 §5.3）；死亡/进舱残留路径已由 K03 收束。
+
+## 修复起效记录（回填）
+
+- **改了什么**：18 个源码/场景/测试文件 + 1 shader + 4 文档（见上表逐条）。
+- **为什么起效**：K01 把「召唤残留 999s 无敌」与「返航基线（无敌=0）」在统一复位点对齐，RELEASE 2s 保护与入场序列保护均不受影响；K02 双守卫消除入场期激光触发窗口（`_saved_autofire` 不再能捕获入场禁火态）；K03-K05/K07-K15 均为「同类防护/机制已存在、此处遗漏」补齐或语义收束，行为零变化；K06 把磁盘写从「每步」降为「每次拖动结束一次」且消除无谓死区循环；K17 配置键从死键变为生效（默认值与现状逐位一致）。
+- **如何验证**：`--headless --import` 0 error（警告门禁干净）；`gdformat --check` + `gdlint`（autoload/ + scripts/，CI 口径）全绿；20 个针对性场景（smoke/base_system/mouse_lock/tutorial/entry_animation/mothership_summon/elite_turret_event/formation_strike_event/boss_pattern/boss_enrage/boss_phase/meta_health_fx/graze/parry/hit_logic/enemy_combat/pool_reuse/difficulty/grace_period/boss_phase_transition）全 PASS；全量 35 断言场景 0 FAIL（回归结果见当次提交记录）；`--quit-after 300` 0 错误；BALANCE_MAP 双向反查 0 缺失键。
