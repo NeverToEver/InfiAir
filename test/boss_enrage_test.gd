@@ -179,13 +179,10 @@ func _ready() -> void:
 			break
 	_check(hold, "场景1：ACTIVE 结束进入 RELEASE_HOLD")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "场景1：RELEASE_HOLD 复位玩家减速")
-	var hp1: float = boss.hp
-	boss.take_damage(5)
-	_check(boss.hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血")
 	# 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）。
-	# flake 修复（2026-08-03 Phase 0 CI 门禁）：8 路齐射后各路以不同横向分量先后出屏，
-	# 采样窗口若晚于发射时刻则场上重弹数 <8——窗口加长至 3s（0.2s 蓄力 + 全在场期余量）
-	# 且从本处立即开始，确保覆盖发射时刻（峰值即齐射数）
+	# flake 修复（2026-08-03 Phase 0 CI 门禁）：8 路 360° 齐射中向上路 ~0.27s 即出屏，
+	# 采样若晚于发射时刻（下方断言消耗时间）则场上重弹数峰值 <8——采样必须在发射前开始
+	# 并覆盖 0.2s 蓄力 + 发射瞬间（3s 窗口，峰值即齐射数）；解血锁检查移到采样后
 	var salvo := 0
 	for i in 60:
 		await _wait_real(0.05)
@@ -195,6 +192,9 @@ func _ready() -> void:
 		if salvo >= 8:
 			break
 	_check(salvo >= 8, "场景1：RELEASE_HOLD 蓄力后 8 路重炮齐射")
+	var hp1: float = boss.hp
+	boss.take_damage(5)
+	_check(boss.hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血")
 	# 等 RETURN 结束回归常规狂暴循环
 	var done := false
 	for i in 60:
