@@ -30,36 +30,65 @@ func reset_press() -> void:
 	_bob_phase = 0.0  # D05：段切换归零纵向正弦（sin 0 = 0 平滑衔接锚线）
 
 
+## A3 收敛：机型移动器注册表（boss_type → 移动策略方法，_init 装配）。
+## 新增机型只需注册一行 + 一个策略方法，不再改 update 的 match（O 原则达成）。
+var _movers: Dictionary = {}
+
+
+func _init() -> void:
+	_movers = {
+		1: _move_type1,
+		2: _move_type2,
+		3: _move_type3,
+	}
+
+
 func update(delta: float, boss) -> void:
+	var mover: Variant = _movers.get(int(boss.boss_type))
+	if mover is Callable:
+		(mover as Callable).call(delta, boss)
+	else:
+		# K13：非法 boss_type（防御，正常路径恒 1..3）回退一型走位，防非法值下完全静止
+		_move_type1(delta, boss)
+
+
+## 注册表完整性查询（A3 架构断言测试经公开接口访问）
+func has_mover(type: int) -> bool:
+	return _movers.has(type)
+
+
+## 一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（§5.1）
+func _move_type1(delta: float, boss) -> void:
 	var phase: int = boss.fight_phase()
-	match int(boss.boss_type):
-		1:
-			if phase == FIGHT_P1:
-				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
-				_update_press(delta, boss)
-			elif phase == 1:  # FightPhase.P2
-				# D05：strafe 提速 + 纵向正弦往复
-				_move_strafe(delta, boss, float(boss.TYPE1_P2_STRAFE))
-				_move_bob(delta, boss, float(boss.TYPE1_P2_BOB_AMP), float(boss.TYPE1_P2_BOB_PERIOD))
-			else:  # ENRAGE：狂暴轨道由 enrage_sequence 接管，走位维持现状
-				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
-		2:
-			_move_dash(delta, boss)
-		3:
-			if phase == FIGHT_P1:
-				# D05：三型 P1 缓慢下压/回升（锚线下 [lo, hi] 区间，周期 9s）
-				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
-				_move_band(delta, boss, float(boss.TYPE3_P1_BOB_MIN), float(boss.TYPE3_P1_BOB_MAX), float(boss.TYPE3_P1_BOB_PERIOD))
-			elif phase == 1:  # FightPhase.P2
-				# D05：strafe 提速 + 纵向正弦往复
-				_move_strafe(delta, boss, float(boss.TYPE3_P2_STRAFE))
-				_move_bob(delta, boss, float(boss.TYPE3_P2_BOB_AMP), float(boss.TYPE3_P2_BOB_PERIOD))
-			else:  # ENRAGE 现状
-				_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
-		_:
-			# K13：非法 boss_type（防御，正常路径恒 1..3）回退一型走位，防非法值下完全静止
-			_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
-			_update_press(delta, boss)
+	if phase == FIGHT_P1:
+		_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
+		_update_press(delta, boss)
+	elif phase == 1:  # FightPhase.P2
+		# D05：strafe 提速 + 纵向正弦往复
+		_move_strafe(delta, boss, float(boss.TYPE1_P2_STRAFE))
+		_move_bob(delta, boss, float(boss.TYPE1_P2_BOB_AMP), float(boss.TYPE1_P2_BOB_PERIOD))
+	else:  # ENRAGE：狂暴轨道由 enrage_sequence 接管，走位维持现状
+		_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[0]))
+
+
+## 二型「游击」：周期性冲刺换向（偏向屏幕中心，避免长期贴边）
+func _move_type2(delta: float, boss) -> void:
+	_move_dash(delta, boss)
+
+
+## 三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（§5.3）
+func _move_type3(delta: float, boss) -> void:
+	var phase: int = boss.fight_phase()
+	if phase == FIGHT_P1:
+		# D05：三型 P1 缓慢下压/回升（锚线下 [lo, hi] 区间，周期 9s）
+		_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
+		_move_band(delta, boss, float(boss.TYPE3_P1_BOB_MIN), float(boss.TYPE3_P1_BOB_MAX), float(boss.TYPE3_P1_BOB_PERIOD))
+	elif phase == 1:  # FightPhase.P2
+		# D05：strafe 提速 + 纵向正弦往复
+		_move_strafe(delta, boss, float(boss.TYPE3_P2_STRAFE))
+		_move_bob(delta, boss, float(boss.TYPE3_P2_BOB_AMP), float(boss.TYPE3_P2_BOB_PERIOD))
+	else:  # ENRAGE 现状
+		_move_strafe(delta, boss, float(boss.STRAFE_SPEEDS[2]))
 
 
 ## 一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（§5.1）

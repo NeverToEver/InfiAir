@@ -53,7 +53,7 @@ jobs:
             || { echo "::error::main scene smoke failed"; tail -30 /tmp/smoke.log; exit 1; }
           tail -3 /tmp/smoke.log
 
-      - name: Run assertion scenes (35)
+      - name: Run assertion scenes (37)
         run: |
           passed=0
           failed=0

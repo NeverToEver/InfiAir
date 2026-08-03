@@ -43,14 +43,23 @@ var EVASION_CHANCE := 0.2
 ## 自我修复 buff：每秒回 2 HP（对齐原作 RegenerationBuff，二元）
 var REGEN_PER_SEC := 2.0
 var SHAKE_HIT := 12.0
-## A5 阶段1：buff 缩放系数热路径缓存（buffs_changed 驱动刷新，避免每帧/每发射查 cfg）
-var _rapid_fire_factor: float = 0.75
-var _power_shot_factor: float = 1.25
-var _spread_max: int = 3
-var _pierce_max: int = 2
-var _efficient_factor: float = 0.75
-var _boost_recovery_factor: float = 1.5
-var _dash_cooldown_stack_factor: float = 0.8  # 冲刺冷却逐层堆叠系数（player.dash.cooldown_stack_factor）
+## A4：声明式 buff 效果表（buff id → 效果定义；单一事实源）。
+## 新增数值型 buff 只需在此登记一条记录，无需再改 _refresh_buff_factors 或既有公式。
+## kind：pow = 乘算因子（求值 factor^count，factor<1 衰减、>1 增幅，经 _buff_scale）；
+##       cap = 堆叠上限（求值 min(count, max_stacks)，经 _buff_cap）；
+##       bool = 启用开关（求值 count>0，经 _buff_enabled）。
+const BUFF_EFFECTS: Dictionary = {
+	&"rapid_fire": {"kind": "pow", "cfg": "buffs.rapid_fire.factor", "default": 0.75},
+	&"power_shot": {"kind": "pow", "cfg": "buffs.power_shot.factor", "default": 1.25},
+	&"efficient_boost": {"kind": "pow", "cfg": "buffs.efficient_boost.factor", "default": 0.75},
+	&"boost_recovery": {"kind": "pow", "cfg": "buffs.boost_recovery.factor", "default": 1.5},
+	&"phase_dash": {"kind": "pow", "cfg": "player.dash.cooldown_stack_factor", "default": 0.8},
+	&"spread_shot": {"kind": "cap", "cfg": "buffs.spread_shot.max_stacks", "default": 3},
+	&"piercing": {"kind": "cap", "cfg": "buffs.piercing.max_stacks", "default": 2},
+	&"explosive": {"kind": "bool"},
+}
+## A4：buff 效果值缓存（BUFF_EFFECTS 表驱动，buffs_changed 信号刷新；热路径免查 cfg）
+var _buff_values: Dictionary = {}
 
 var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
@@ -513,24 +522,38 @@ func is_dashing() -> bool:
 	return _dash.is_dashing()
 
 
-## A5 阶段1：刷新 buff 缩放系数缓存（_ready 初始 + buffs_changed 信号驱动）
+## A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + buffs_changed 信号驱动；bool 类无参数不缓存）
 func _refresh_buff_factors() -> void:
-	_rapid_fire_factor = GameState.cfg("buffs.rapid_fire.factor", _rapid_fire_factor)
-	_power_shot_factor = GameState.cfg("buffs.power_shot.factor", _power_shot_factor)
-	_spread_max = int(GameState.cfg("buffs.spread_shot.max_stacks", _spread_max))
-	_pierce_max = int(GameState.cfg("buffs.piercing.max_stacks", _pierce_max))
-	_efficient_factor = GameState.cfg("buffs.efficient_boost.factor", _efficient_factor)
-	_boost_recovery_factor = GameState.cfg("buffs.boost_recovery.factor", _boost_recovery_factor)
-	_dash_cooldown_stack_factor = GameState.cfg("player.dash.cooldown_stack_factor", _dash_cooldown_stack_factor)
+	for id: StringName in BUFF_EFFECTS:
+		var effect: Dictionary = BUFF_EFFECTS[id]
+		if effect["kind"] == "bool":
+			continue
+		var value: Variant = GameState.cfg(effect["cfg"], effect["default"])
+		_buff_values[id] = int(value) if effect["kind"] == "cap" else float(value)
+
+
+## A4：乘算因子求值——base × factor^count（factor<1 衰减、>1 增幅；语义与既有 pow 族一致）
+func _buff_scale(id: StringName, base: float, count: int) -> float:
+	return base * pow(_buff_values[id], count)
+
+
+## A4：堆叠上限截断——min(count, max_stacks)
+func _buff_cap(id: StringName) -> int:
+	return mini(GameState.buff_count(id), int(_buff_values[id]))
+
+
+## A4：布尔启用——count > 0
+func _buff_enabled(id: StringName) -> bool:
+	return GameState.buff_count(id) > 0
 
 
 func fire_interval() -> float:
-	return BASE_FIRE_INTERVAL * pow(_rapid_fire_factor, GameState.buff_count(&"rapid_fire"))
+	return _buff_scale(&"rapid_fire", BASE_FIRE_INTERVAL, GameState.buff_count(&"rapid_fire"))
 
 
 func bullet_damage() -> int:
 	# power_shot：每层 ×1.25 乘算（对齐原作 PowerShotBuff int(base × 1.25^level)，int() 截断）
-	return maxi(1, int(BULLET_DAMAGE * pow(_power_shot_factor, GameState.buff_count(&"power_shot"))))
+	return maxi(1, int(_buff_scale(&"power_shot", BULLET_DAMAGE, GameState.buff_count(&"power_shot"))))
 
 
 func fuel_ratio() -> float:
@@ -543,12 +566,12 @@ func refill_fuel() -> void:
 
 
 func dash_unlocked() -> bool:
-	return GameState.buff_count(&"phase_dash") > 0
+	return _buff_enabled(&"phase_dash")
 
 
 func dash_cooldown_max() -> float:
-	# 首次选择解锁，之后每次选择冷却 -20%（最多 2 次）；系数经 buffs_changed 缓存（热路径免查 cfg）
-	return DASH_COOLDOWN * pow(_dash_cooldown_stack_factor, maxi(GameState.buff_count(&"phase_dash") - 1, 0))
+	# 首次选择解锁，之后每次选择冷却 -20%（最多 2 次）；系数经效果表缓存（热路径免查 cfg）
+	return _buff_scale(&"phase_dash", DASH_COOLDOWN, maxi(GameState.buff_count(&"phase_dash") - 1, 0))
 
 
 func dash_fuel_cost() -> float:
@@ -562,12 +585,12 @@ func dash_ready_ratio() -> float:
 
 
 func fuel_drain_rate() -> float:
-	return FUEL_DRAIN * pow(_efficient_factor, GameState.buff_count(&"efficient_boost"))
+	return _buff_scale(&"efficient_boost", FUEL_DRAIN, GameState.buff_count(&"efficient_boost"))
 
 
 func fuel_regen_rate() -> float:
 	# boost_recovery buff：恢复速率每层 ×1.5（乘算）
-	return FUEL_REGEN * pow(_boost_recovery_factor, GameState.buff_count(&"boost_recovery"))
+	return _buff_scale(&"boost_recovery", FUEL_REGEN, GameState.buff_count(&"boost_recovery"))
 
 
 func _physics_process(delta: float) -> void:
@@ -857,9 +880,9 @@ func _finish_entry() -> void:
 
 
 func _fire(aim: Vector2) -> void:
-	var spread := mini(GameState.buff_count(&"spread_shot"), _spread_max)
-	var pierce := mini(GameState.buff_count(&"piercing"), _pierce_max)
-	var explosive := GameState.buff_count(&"explosive") > 0
+	var spread := _buff_cap(&"spread_shot")
+	var pierce := _buff_cap(&"piercing")
+	var explosive := _buff_enabled(&"explosive")
 	# 辅助瞄准（P1-1）：准星在某标记敌框内 → 本轮出膛弹全部获得对该敌的追踪修正。
 	# P1-3：框外但目标在瞄准锥角内 → 弱追踪（转向率随角距与距离渐变，锥缘/远距退化为直射）
 	var homing_target: Enemy = null

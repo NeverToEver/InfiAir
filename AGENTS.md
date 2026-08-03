@@ -17,7 +17,7 @@ InfiAir（无限空域）是一个单机 2D 俯视空战射击游戏，使用 **
 
 - **引擎/语言：** Godot 4.6（gl_compatibility，无 .NET），纯 GDScript。`scripts/tools/` 下的 Python 文件是离线工具（数值管理器、文档生成器、资产生成器），不属于游戏运行时依赖。
 - **数据源：** `data/balance.json` 为可调数值源（由 `scripts/tools/balance_editor.py` 维护落盘），`data/translations.csv` 是中英文本源。详细配置与发布交付现状见 `docs/ARCHITECTURE.md`。
-- **发布：** 无包管理器；CI 为 GitHub Actions（`.github/workflows/ci.yml`：无头导入 + 主场景冒烟 + 31 断言场景全量回归，push/PR 触发）；发布经 `export_presets.cfg` + `release.sh` 双平台导出，产物以 GitHub Releases 附件分发（不入库）；手动触发发布工作流 `.github/workflows/release.yml`（导出打包 → tag `v<版本>` → 创建 GitHub Release，输入版本自动同步 `project.godot` `config/version`）。CI/CD 步骤增改须同步本文件与 `release.sh`；不为常规修改引入第三方插件/依赖（CI/CD 仅用官方 checkout action + 官方 Godot 二进制与导出模板）。
+- **发布：** 无包管理器；CI 为 GitHub Actions（`.github/workflows/ci.yml`：无头导入 + 主场景冒烟 + 37 断言场景全量回归，push/PR 触发）；发布经 `export_presets.cfg` + `release.sh` 双平台导出，产物以 GitHub Releases 附件分发（不入库）；手动触发发布工作流 `.github/workflows/release.yml`（导出打包 → tag `v<版本>` → 创建 GitHub Release，输入版本自动同步 `project.godot` `config/version`）。CI/CD 步骤增改须同步本文件与 `release.sh`；不为常规修改引入第三方插件/依赖（CI/CD 仅用官方 checkout action + 官方 Godot 二进制与导出模板）。
 
 ## 本地运行与验证
 
@@ -29,7 +29,7 @@ godot --headless --path . res://test/smoke_test.tscn
 godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/母舰时加跑
 ```
 
-推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**提交/PR 由五层检查门禁**（详见 `docs/TESTING.md`「统一检查流程」）：① `gdformat --check`（格式，行宽 140）→ ② `gdlint`（风格/未使用参数）→ ③ 引擎警告门禁（`project.godot` `[debug]` 段：error 级零容忍，CI import 出现 "Warning treated as error" 即失败；warn 级 unsafe/未类型类为编辑器可见的持续改进清单）→ ④ 编译+冒烟 → ⑤ 全量 31 断言场景。CI（`.github/workflows/ci.yml`）自动跑全部五层，全绿是合入门槛。**新增 .gd 文件须经 `gdformat` 格式化**；`gdformatrc`/`.gdlintrc`/`project.godot` 的规则取舍依据见各自注释与 `docs/AUDIT_VAULT.md`，禁用/放宽规则须同步配置文件与本文件。
+推荐的最小验证集为：`--headless --import`、`--quit-after 300`、`smoke_test.tscn`。**提交/PR 由五层检查门禁**（详见 `docs/TESTING.md`「统一检查流程」）：① `gdformat --check`（格式，行宽 140）→ ② `gdlint`（风格/未使用参数）→ ③ 引擎警告门禁（`project.godot` `[debug]` 段：error 级零容忍，CI import 出现 "Warning treated as error" 即失败；warn 级 unsafe/未类型类为编辑器可见的持续改进清单）→ ④ 编译+冒烟 → ⑤ 全量 37 断言场景。CI（`.github/workflows/ci.yml`）自动跑全部五层，全绿是合入门槛。**新增 .gd 文件须经 `gdformat` 格式化**；`gdformatrc`/`.gdlintrc`/`project.godot` 的规则取舍依据见各自注释与 `docs/AUDIT_VAULT.md`，禁用/放宽规则须同步配置文件与本文件。
 
 ## 运行时架构
 
@@ -107,7 +107,7 @@ godot --headless --path . res://test/base_system_test.tscn  # 涉存档/基地/�
 
 ## 测试策略
 
-每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检（非单元测试框架）。`test/` 下共 40 个场景：31 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）与 7 个窗口模式截图工具。**运行命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`**。
+每个 `test/*.tscn` 启动相应 GDScript 场景，并以 `[PASS]`/`[FAIL]` 输出和退出码自检（非单元测试框架）。`test/` 下共 46 个场景：37 个断言场景，外加 `autoplay_test`（探针）、`perf_bench`（性能基准）与 7 个窗口模式截图工具。**运行命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`**。
 
 ## 持久化与安全边界
 

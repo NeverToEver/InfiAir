@@ -77,6 +77,11 @@ const DEFAULT_PATTERNS: Dictionary = {
 		],
 	},
 }
+## A3 机型参数表：数据驱动取代散落的机型特判（新增机型只加表行，不改既有函数）。
+## 独立召唤计时（不占模式表）：3 型「母舰」专属（_physics_process 查询）。
+const SUMMONER_TYPES: Dictionary = {3: true}
+## 受击闪白总时长（游击型更短）：_flash_hit 查询。
+const HIT_FLASH_BY_TYPE: Dictionary = {1: 0.1, 2: 0.05, 3: 0.1}
 var ENTER_SPEED := 140.0
 ## 战斗锚线距可见区域顶缘的偏移（small 档 view.position.y=0 时即绝对 y；使用点一律走 fight_anchor_y()）
 var FIGHT_Y := 230.0
@@ -725,8 +730,8 @@ func _physics_process(delta: float) -> void:
 		# 持续型攻击轮询（狙击 telegraph / 3 连发 / 蓄力重炮 / 编队齐射 / 冲刺掠过）
 		_attacks.update(delta, self)
 
-	# 母舰型召唤小怪（独立计时，不占模式表）
-	if boss_type == 3:
+	# 母舰型召唤小怪（独立计时，不占模式表；机型参数表驱动）
+	if bool(SUMMONER_TYPES.get(boss_type, false)):
 		_summon_timer -= delta
 		if _summon_timer <= 0.0:
 			_summon_timer = _summon_interval  # G024：间隔入配置
@@ -886,8 +891,8 @@ func take_damage(amount: int, score_scale: float = 1.0) -> void:
 ## 受击闪白（锁血期复用；P1-2 手动衰减替代 Tween，高频命中零分配）
 func _flash_hit() -> void:
 	_sprite.modulate = Color(2.0, 2.0, 2.0)
-	# 游击型受击硬直（闪白）更短
-	_flash_total = 0.05 if boss_type == 2 else 0.1
+	# 游击型受击硬直（闪白）更短（机型参数表驱动）
+	_flash_total = float(HIT_FLASH_BY_TYPE.get(boss_type, 0.1))
 	_flash_timer = _flash_total
 
 

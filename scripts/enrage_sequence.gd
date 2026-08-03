@@ -46,6 +46,46 @@ var _release_origin := Vector2.ZERO  # 2 型 RELEASE 回轨道底部起点
 var _aim_line: Line2D = null
 var _sniper_dir: Vector2 = Vector2.DOWN
 
+## A3 收敛：狂暴各阶段机型处理器注册表（boss_type → 处理器，_init 装配）。
+## 新增机型只需注册一行 + 一个处理器方法，不再改 update/_begin_release_hold 的 match（O 原则达成）。
+var _active_handlers: Dictionary = {}
+var _release_handlers: Dictionary = {}
+var _release_begin_handlers: Dictionary = {}
+
+## A3 机型参数表：TRANSITION 阶段悬停原地不滑入轨道（1 型「旋转堡垒」专属）
+const TRANSITION_HOVER_TYPES: Dictionary = {1: true}
+
+
+func _init() -> void:
+	_active_handlers = {
+		1: _active_bulwark,
+		2: _active_stalker,
+		3: _active_hive,
+	}
+	_release_handlers = {
+		1: _release_bulwark,
+		2: _release_stalker,
+		3: _release_hive,
+	}
+	_release_begin_handlers = {
+		1: _release_begin_bulwark,
+		2: _release_begin_stalker,
+		3: _release_begin_hive,
+	}
+
+
+## 注册表完整性查询（A3 架构断言测试经公开接口访问）
+func has_active_handler(type: int) -> bool:
+	return _active_handlers.has(type)
+
+
+func has_release_handler(type: int) -> bool:
+	return _release_handlers.has(type)
+
+
+func has_release_begin_handler(type: int) -> bool:
+	return _release_begin_handlers.has(type)
+
 
 func configure(fire: BossFire, attacks: BossAttacks, ws: float) -> void:
 	_fire = fire
@@ -138,8 +178,8 @@ func update(delta: float, boss) -> void:
 			var t := clampf(1.0 - _transition_timer / float(boss.ENRAGE_TRANSITION_DURATION), 0.0, 1.0)
 			var eased := 1.0 - pow(1.0 - t, 3.0)
 			var shake := Vector2(Enemy.sin_fast(t * TAU * 7.0) * (1.0 - t) * 13.0, Enemy.cos_fast(t * TAU * 5.0) * (1.0 - t) * 8.0)
-			# 1 型「旋转堡垒」悬停原地，不滑入轨道
-			var target_pos := _transition_origin if int(boss.boss_type) == 1 else _path_center(_progress(boss), boss)
+			# 机型参数表：1 型「旋转堡垒」悬停原地，不滑入轨道
+			var target_pos := _transition_origin if _hover_in_transition(boss) else _path_center(_progress(boss), boss)
 			boss.position = _transition_origin.lerp(target_pos, eased) + shake
 			if _transition_timer <= 0.0:
 				_phase = ENRAGE_ACTIVE
@@ -147,77 +187,20 @@ func update(delta: float, boss) -> void:
 				_attack_index = 0
 		ENRAGE_ACTIVE:
 			_timer = maxf(_timer - delta, 0.0)
-			match int(boss.boss_type):
-				1:
-					_active_bulwark(delta, boss)
-				2:
-					_active_stalker(delta, boss)
-				3:
-					_active_hive(delta, boss)
-				_:
-					boss.position = _path_center(_progress(boss), boss)
-					_attack_timer -= delta
-					if _attack_timer <= 0.0:
-						_attack_timer = float(boss.ENRAGE_ATTACK_INTERVAL)
-						_attack_index += 1
-						(
-							_fire
-							. fire_enrage_wave(
-								boss,
-								float(boss.ENRAGE_LASER_SPEED),
-								float(boss.ENRAGE_RING_SPEED),
-								int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
-								int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
-								int(boss.ENRAGE_SNAPSHOT_LASERS),
-								int(boss.ENRAGE_SNAPSHOT_RING),
-							)
-						)
+			var active: Variant = _active_handlers.get(int(boss.boss_type))
+			if active is Callable:
+				(active as Callable).call(delta, boss)
+			else:
+				_active_fallback(delta, boss)
 			if _timer <= 0.0:
 				_begin_release_hold(boss)
 		ENRAGE_RELEASE_HOLD:
 			_release_hold_timer -= delta
-			match int(boss.boss_type):
-				1:
-					# 8 路蓄力重炮齐射（蓄力辉光 telegraph 已在 _begin_release_hold 起手）
-					if not _release_salvo_done:
-						_attack_timer -= delta
-						if _attack_timer <= 0.0:
-							_release_salvo_done = true
-							for i in int(boss.E1_SALVO_COUNT):
-								var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(boss.E1_SALVO_COUNT))
-								_fire.fire_heavy(boss, dir, float(boss.E1_SALVO_SPEED), int(boss.E1_SALVO_DAMAGE))
-				2:
-					# 回轨道底部放 12 向慢速环弹
-					var t := clampf(1.0 - _release_hold_timer / float(boss.ENRAGE_RELEASE_HOLD_DURATION), 0.0, 1.0)
-					var eased := t * t * (3.0 - 2.0 * t)
-					boss.position = _release_origin.lerp(_snapshot_target + Vector2(0.0, _path_radius(boss)), eased)
-					if not _release_salvo_done and t >= 0.5:
-						_release_salvo_done = true
-						_fire.fire_ring(
-							boss,
-							int(boss.E2_RELEASE_RING_COUNT),
-							float(boss.E2_RELEASE_RING_SPEED),
-							int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
-							0.0
-						)
-				3:
-					pass  # 16 向环弹 + 小怪齐射已在 _begin_release_hold 一次性结算
-				_:
-					_attack_timer -= delta
-					if _attack_timer <= 0.0:
-						_attack_timer = float(boss.ENRAGE_RELEASE_INTERVAL)
-						(
-							_fire
-							. fire_enrage_wave(
-								boss,
-								float(boss.ENRAGE_RELEASE_LASER_SPEED),
-								float(boss.ENRAGE_RELEASE_RING_SPEED),
-								int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
-								int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
-								int(boss.ENRAGE_SNAPSHOT_LASERS),
-								int(boss.ENRAGE_SNAPSHOT_RING),
-							)
-						)
+			var release: Variant = _release_handlers.get(int(boss.boss_type))
+			if release is Callable:
+				(release as Callable).call(delta, boss)
+			else:
+				_release_fallback(delta, boss)
 			if _release_hold_timer <= 0.0:
 				_begin_return(boss)
 		ENRAGE_RETURN:
@@ -344,19 +327,11 @@ func _begin_release_hold(boss) -> void:
 	_free_aim_line()
 	_aim_elapsed = -1.0
 	_release_salvo_done = false
-	match int(boss.boss_type):
-		1:
-			_attack_timer = float(boss.E1_SALVO_CHARGE)
-			_attacks.charge_glow(boss, float(boss.E1_SALVO_CHARGE))
-		2:
-			_release_origin = boss.position
-		3:
-			_fire.fire_ring(
-				boss, int(boss.E3_RELEASE_RING_COUNT), float(boss.E3_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0
-			)
-			_hive_volley_all_minions(boss)
-		_:
-			_attack_timer = 0.0  # 回退路径：立即放第一波
+	var release_begin: Variant = _release_begin_handlers.get(int(boss.boss_type))
+	if release_begin is Callable:
+		(release_begin as Callable).call(boss)
+	else:
+		_attack_timer = 0.0  # 回退路径：立即放第一波
 
 
 ## 倾巢收尾：全部在场小怪齐射一轮自机狙
@@ -398,3 +373,93 @@ static func _player_dir(from: Node2D) -> Vector2:
 	if GameState.player_ref != null:
 		return (GameState.player_ref.global_position - from.global_position).normalized()
 	return Vector2.DOWN
+
+
+## A3：TRANSITION 悬停判定（机型参数表驱动，取代散落的类型特判）
+func _hover_in_transition(boss) -> bool:
+	return bool(TRANSITION_HOVER_TYPES.get(int(boss.boss_type), false))
+
+
+## A3：ACTIVE 回退处理器（非法 boss_type，防御路径：轨道环绕 + 定时狂暴波）
+func _active_fallback(delta: float, boss) -> void:
+	boss.position = _path_center(_progress(boss), boss)
+	_attack_timer -= delta
+	if _attack_timer <= 0.0:
+		_attack_timer = float(boss.ENRAGE_ATTACK_INTERVAL)
+		_attack_index += 1
+		(
+			_fire
+			. fire_enrage_wave(
+				boss,
+				float(boss.ENRAGE_LASER_SPEED),
+				float(boss.ENRAGE_RING_SPEED),
+				int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
+				int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+				int(boss.ENRAGE_SNAPSHOT_LASERS),
+				int(boss.ENRAGE_SNAPSHOT_RING),
+			)
+		)
+
+
+## A3：1 型「旋转堡垒」释放——8 路蓄力重炮齐射（蓄力辉光 telegraph 已在 _release_begin_bulwark 起手）
+func _release_bulwark(delta: float, boss) -> void:
+	if not _release_salvo_done:
+		_attack_timer -= delta
+		if _attack_timer <= 0.0:
+			_release_salvo_done = true
+			for i in int(boss.E1_SALVO_COUNT):
+				var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(boss.E1_SALVO_COUNT))
+				_fire.fire_heavy(boss, dir, float(boss.E1_SALVO_SPEED), int(boss.E1_SALVO_DAMAGE))
+
+
+## A3：2 型「猎杀环绕」释放——回轨道底部放 12 向慢速环弹
+func _release_stalker(_delta: float, boss) -> void:
+	var t := clampf(1.0 - _release_hold_timer / float(boss.ENRAGE_RELEASE_HOLD_DURATION), 0.0, 1.0)
+	var eased := t * t * (3.0 - 2.0 * t)
+	boss.position = _release_origin.lerp(_snapshot_target + Vector2(0.0, _path_radius(boss)), eased)
+	if not _release_salvo_done and t >= 0.5:
+		_release_salvo_done = true
+		_fire.fire_ring(
+			boss, int(boss.E2_RELEASE_RING_COUNT), float(boss.E2_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0
+		)
+
+
+## A3：3 型「倾巢」释放——无持续结算（16 向环弹 + 小怪齐射已在 _release_begin_hive 一次性结算）
+func _release_hive(_delta: float, _boss) -> void:
+	pass
+
+
+## A3：RELEASE_HOLD 回退处理器（非法 boss_type，防御路径：按固定间隔放狂暴波）
+func _release_fallback(delta: float, boss) -> void:
+	_attack_timer -= delta
+	if _attack_timer <= 0.0:
+		_attack_timer = float(boss.ENRAGE_RELEASE_INTERVAL)
+		(
+			_fire
+			. fire_enrage_wave(
+				boss,
+				float(boss.ENRAGE_RELEASE_LASER_SPEED),
+				float(boss.ENRAGE_RELEASE_RING_SPEED),
+				int(boss.BULLET_DAMAGE_SNAPSHOT_LASER),
+				int(boss.BULLET_DAMAGE_SNAPSHOT_RING),
+				int(boss.ENRAGE_SNAPSHOT_LASERS),
+				int(boss.ENRAGE_SNAPSHOT_RING),
+			)
+		)
+
+
+## A3：1 型释放起手——蓄力辉光 telegraph
+func _release_begin_bulwark(boss) -> void:
+	_attack_timer = float(boss.E1_SALVO_CHARGE)
+	_attacks.charge_glow(boss, float(boss.E1_SALVO_CHARGE))
+
+
+## A3：2 型释放起手——记录当前位置为回轨道底部起点
+func _release_begin_stalker(boss) -> void:
+	_release_origin = boss.position
+
+
+## A3：3 型释放起手——16 向环弹 + 全部在场小怪齐射（§5.4 峰值一次性结算）
+func _release_begin_hive(boss) -> void:
+	_fire.fire_ring(boss, int(boss.E3_RELEASE_RING_COUNT), float(boss.E3_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0)
+	_hive_volley_all_minions(boss)

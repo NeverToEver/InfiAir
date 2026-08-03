@@ -105,6 +105,8 @@
   - **⚠️ 2026-08-01 复核订正（勿再据此断言 O 原则达成）**：拆分确为真·职责迁移，但「集中 match 分发被查表/委托取代（O 原则）」表述过誉。事实核查：原 `_execute_attack` 的 10 分支 `match attack:` 只是**逐字搬进** `BossAttacks.execute()`（既非查表也非工厂实例化）；按机型分支在 `BossMovement.update`（1 处 match）+ `EnrageSequence`（4 处机型 if）+ `Boss`（召唤、受击硬直 2 处）共残留 **7 处**——新增机型仍须改 7 处既有函数。且该声明与同档案 **A4 条目「boss 攻击 match / 按类型嵌套未修复」对同一事实给出相反结论**（两者实际都是"match 仍在、仅换文件"），档案自洽性已被破坏，本表 A4 已回填澄清。
   - **如何验证**：`--headless --import` 通过；`--quit-after 300` 无运行时错误；29 个断言场景全绿 0 FAIL（boss_phase 31 / boss_pattern 55 / boss_enrage 34 / enemy_combat 32 / hit_logic 60 / smoke 128 等）；测试白盒断言改走子类公开查询（`boss._enrage_seq.phase()` 等）。
   - **遗留**：测试仍白盒访问 `boss._attacks`/`boss._enrage_seq` 组件字段（归 A7）；`Boss.SweepState`/`EnragePhase` enum 仍驻留 Boss 供测试引用。
+  - **✅ 2026-08-03 注册表收敛（O 原则达成）**：攻击集中 match 与按机型分支全部收敛为注册表/数据表驱动——`BossAttacks.execute()` 10 分支 match → **攻击处理器注册表**（attack id → Callable，`_init` 装配，`execute` 查表委托 + 未知 id 回退警告）；`BossMovement.update` 机型 match → **移动器注册表**（`_movers`：1/2/3 型策略方法）；`EnrageSequence` ACTIVE/RELEASE_HOLD/释放起手 3 处机型 match → **三张处理器注册表**（`_active_handlers`/`_release_handlers`/`_release_begin_handlers`），TRANSITION 悬停特判 → `TRANSITION_HOVER_TYPES` 机型参数表；`Boss` 召唤特判 → `SUMMONER_TYPES`、受击闪白特判 → `HIT_FLASH_BY_TYPE`。**新增机型/攻击只需注册一行 + 一个策略方法，不再改既有分发函数**（原 7 处机型分支与 10 分支攻击 match 全部消除）。
+  - **如何验证（2026-08-03）**：新增 `boss_registry_test` 29 断言（攻击注册表覆盖 10 已知 id、模式表（脚本默认 + balance.json 运行表）交叉引用全注册、移动/狂暴注册表覆盖 3 机型、机型参数表正确）；boss_phase/boss_pattern/boss_enrage/enemy_combat 0 FAIL；全量 37 断言场景 0 FAIL（265s）；import 0 error / gdformat+gdlint 全绿。
 
 ---
 
@@ -118,6 +120,8 @@
     - A4a 敌机移动策略抽类（`cea806e`）：`EnemyMoveStrategy` 基类 + 8 策略子类，`enemy.gd` `_physics_process` 的策略 match 委托给 `_strategy.update()`；`_make_strategy()` 仅余工厂 match（构造分发，可接受）。
     - A4b spawner 事件触发基类（`955f8a5`）：`ScheduledEventTrigger` 统一精英/编队触发策略，原 spawner 两事件内联分支委托。
   - **未完成子项**：Boss 攻击 match（现 `BossAttacks.execute()` 仍为 10 分支 match，见 A3 订正）与按机型分支（BossMovement/EnrageSequence/Boss 共残留 7 处）；`player.gd` Buff 效果仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, GameState.buff_count())` 族），未改声明式效果表。
+  - **✅ Player buff 声明式效果表（2026-08-03）**：`player.gd` 新增 `BUFF_EFFECTS` 声明式效果表（buff id → 效果定义：kind=pow/cap/bool + cfg 数值键 + 回退默认值），`_refresh_buff_factors` 遍历表批量缓存（原 7 个分散因子变量与 7 行 cfg 分支删除）；求值统一走 `_buff_scale`（pow 乘算）/`_buff_cap`（堆叠截断）/`_buff_enabled`（布尔启用），`_fire` 的 spread/pierce/explosive 同步表化。**新增数值型 buff 只需表加一行 + 使用处一行求值调用**，不再改 `_refresh_buff_factors` 或既有公式；数值来源保持 balance.json 语义（cfg 路径 + 脚本回退默认值，AGENTS 约定不变）。
+  - **如何验证（2026-08-03）**：新增 `buff_effects_test` 38 断言（表键集覆盖 8 项 player 侧 buff、pow/cap 的 cfg 键存在于 balance.json、pow/cap/bool 三类求值与重构前公式逐点一致、穿透/溅射/齐射行为断言）；buff33/buff_visuals/smoke 等 0 FAIL；全量 37 断言场景 0 FAIL。**范围说明**：`ARMOR_MULT`/`EVASION_CHANCE`/`REGEN_PER_SEC`（`_load_balance` 单点 cfg 读取、PlayerDamage 组件消费）非逐 buff 分支，保持原位。
 
 ---
 
@@ -182,8 +186,8 @@
 | --- | --- | --- | --- |
 | A1 封装穿透 | 危险 | ✅ 已修复 | 2026-07-31 |
 | A2 上帝对象 | 危险 | ✅ 已修复 | 2026-07-31 |
-| A3 boss 单类 | 严重 | ⚠️ 拆分落地、O 原则未达成（2026-08-01 订正） | 2026-07-31 |
-| A4 开闭违反 | 严重 | ⚠️ 部分完成（A4a/A4b 落地，Boss 分支与 Player buff 未治理） | 2026-07-31 |
+| A3 boss 单类 | 严重 | ✅ 已修复（2026-08-03 注册表收敛，O 原则达成） | 2026-07-31 |
+| A4 开闭违反 | 严重 | ✅ 已修复（2026-08-03：Boss 分支随 A3 收敛；Player buff 声明式效果表） | 2026-07-31 |
 | A5 依赖倒置 | 严重 | ⚠️ 部分完成（依赖注入已落地 `bdb0274`；GameState 配置中心有意保留，2026-08-02 订正） | 2026-07-31 |
 | A6 L 违反 | 中等 | ✅ 已修复（is_boss 语义化特判，2026-08-01 回填） | 2026-07-31 |
 | A7 测试耦合 | 中等 | ✅ 已修复 | 2026-07-31 |

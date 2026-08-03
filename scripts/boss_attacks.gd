@@ -66,43 +66,92 @@ static func _player_dir(from: Node2D) -> Vector2:
 	return Vector2.DOWN
 
 
-## 攻击分发：模式表只存 attack id（原 Boss._execute_attack）
+## A3 收敛：攻击处理器注册表（attack id → 处理器，_init 装配）。
+## 新增攻击只需注册一行 + 模式表加 id，不再改 execute 分发本身（O 原则达成）。
+var _attack_handlers: Dictionary = {}
+
+
+func _init() -> void:
+	_attack_handlers = {
+		&"fan5": _handle_fan5,
+		&"fan7": _handle_fan7,
+		&"homing": _handle_homing,
+		&"homing2": _handle_homing2,
+		&"sniper3": _handle_sniper3,
+		&"cross": _handle_cross,
+		&"charged_cannon": _handle_charged_cannon,
+		&"dash_sweep": _handle_dash_sweep,
+		&"minion_volley": _handle_minion_volley,
+		&"bullet_wall": _handle_bullet_wall,
+	}
+
+
+## 攻击分发：查表委托（原 10 分支 match；模式表只存 attack id）
 func execute(attack: StringName, boss) -> void:
-	match attack:
-		&"fan5":
-			_fire.fire_fan(boss, maxi(3, 5 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
-		&"fan7":
-			_fire.fire_fan(boss, maxi(3, 7 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
-		&"homing":
-			_fire.fire_homing(boss, Vector2(0.0, 100.0), float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING))
-		&"homing2":
-			var homing_count: int = maxi(1, 2 + homing_delta)
-			for i in homing_count:
-				(
-					_fire
-					. fire_homing(
-						boss,
-						Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
-						float(boss.HOMING_BULLET_SPEED),
-						int(boss.BULLET_DAMAGE_HOMING),
-					)
-				)
-		&"sniper3":
-			_start_sniper_volley(boss)
-		&"cross":
-			_fire.fire_cross(boss, float(boss.CROSS_BULLET_SPEED), int(boss.BULLET_DAMAGE_CROSS))
-		&"charged_cannon":
-			_start_charged_cannon(boss)
-		&"dash_sweep":
-			_start_dash_sweep(boss)
-		&"minion_volley":
-			_start_minion_volley(boss)
-		&"bullet_wall":
-			_fire.fire_bullet_wall(
-				boss, int(boss.WALL_COUNT), float(boss.WALL_BULLET_SPEED), int(boss.WALL_DAMAGE), float(boss.WALL_ARC_DEG)
+	var handler: Variant = _attack_handlers.get(attack)
+	if handler is Callable:
+		(handler as Callable).call(boss)
+	else:
+		push_warning("[BOSS] 未知攻击 id: %s" % attack)
+
+
+## 注册表完整性查询（A3 架构断言测试经公开接口访问）
+func has_attack(id: StringName) -> bool:
+	return _attack_handlers.has(id)
+
+
+func attack_ids() -> Array:
+	return _attack_handlers.keys()
+
+
+func _handle_fan5(boss) -> void:
+	_fire.fire_fan(boss, maxi(3, 5 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
+
+
+func _handle_fan7(boss) -> void:
+	_fire.fire_fan(boss, maxi(3, 7 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
+
+
+func _handle_homing(boss) -> void:
+	_fire.fire_homing(boss, Vector2(0.0, 100.0), float(boss.HOMING_BULLET_SPEED), int(boss.BULLET_DAMAGE_HOMING))
+
+
+func _handle_homing2(boss) -> void:
+	var homing_count: int = maxi(1, 2 + homing_delta)
+	for i in homing_count:
+		(
+			_fire
+			. fire_homing(
+				boss,
+				Vector2((float(i) - float(homing_count - 1) * 0.5) * 80.0, 100.0),
+				float(boss.HOMING_BULLET_SPEED),
+				int(boss.BULLET_DAMAGE_HOMING),
 			)
-		_:
-			push_warning("[BOSS] 未知攻击 id: %s" % attack)
+		)
+
+
+func _handle_sniper3(boss) -> void:
+	_start_sniper_volley(boss)
+
+
+func _handle_cross(boss) -> void:
+	_fire.fire_cross(boss, float(boss.CROSS_BULLET_SPEED), int(boss.BULLET_DAMAGE_CROSS))
+
+
+func _handle_charged_cannon(boss) -> void:
+	_start_charged_cannon(boss)
+
+
+func _handle_dash_sweep(boss) -> void:
+	_start_dash_sweep(boss)
+
+
+func _handle_minion_volley(boss) -> void:
+	_start_minion_volley(boss)
+
+
+func _handle_bullet_wall(boss) -> void:
+	_fire.fire_bullet_wall(boss, int(boss.WALL_COUNT), float(boss.WALL_BULLET_SPEED), int(boss.WALL_DAMAGE), float(boss.WALL_ARC_DEG))
 
 
 ## 持续型攻击轮询（sniper telegraph / 3 连发 / 蓄力重炮 / 编队齐射 / 冲刺掠过），Boss._physics_process 调用
