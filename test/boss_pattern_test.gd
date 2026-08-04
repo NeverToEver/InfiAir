@@ -471,6 +471,41 @@ func _ready() -> void:
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
+	# ================= 场景 7：四型「月蚀」ring_burst 环弹 + P2 混合 =================
+	await _clear_field()
+	var boss7: Boss = await _spawn_test_boss(4)
+	_check(boss7 != null, "场景7：月蚀已生成")
+	boss7.set_patterns({"p1": [{"attack": &"ring_burst", "waves": 1, "interval": 0.5}], "p2": []})
+	boss7.set_fight_phase(Boss.FightPhase.P1)
+	boss7.set_pattern_index(0)
+	boss7.start_pattern()
+	boss7.set_fire_timer(0.1)
+	var ring_seen := false
+	for i in 40:
+		await _wait_real(0.05)
+		if _count_meta_bullets(&"enrage_ring") >= 12:
+			ring_seen = true
+			break
+	_check(ring_seen, "场景7：ring_burst 12 向全圆环弹（enrage_ring meta）")
+	await _clear_field()
+	# P2：ring_burst + cross + sniper3（telegraph 起手）混合不崩、攻击可触发
+	_force_p2_patterns(
+		boss7,
+		[
+			{"attack": &"ring_burst", "waves": 1, "interval": 0.5},
+			{"attack": &"cross", "duration": 2.0, "interval": 0.5},
+			{"attack": &"sniper3", "waves": 1, "interval": 0.5},
+		]
+	)
+	var p2_attacks := 0
+	for i in 80:
+		await _wait_real(0.05)
+		if _count_meta_bullets(&"enrage_ring") >= 12 or _count_meta_bullets(&"cross") >= 4:
+			p2_attacks += 1
+			if p2_attacks >= 2:
+				break
+	_check(p2_attacks >= 2, "场景7：P2 ring_burst + cross 轮转触发")
+
 	print("BOSS PATTERN TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

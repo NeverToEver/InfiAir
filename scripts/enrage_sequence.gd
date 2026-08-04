@@ -53,7 +53,7 @@ var _release_handlers: Dictionary = {}
 var _release_begin_handlers: Dictionary = {}
 
 ## A3 机型参数表：TRANSITION 阶段悬停原地不滑入轨道（1 型「旋转堡垒」专属）
-const TRANSITION_HOVER_TYPES: Dictionary = {1: true}
+const TRANSITION_HOVER_TYPES: Dictionary = {1: true, 4: true}
 
 
 func _init() -> void:
@@ -61,16 +61,19 @@ func _init() -> void:
 		1: _active_bulwark,
 		2: _active_stalker,
 		3: _active_hive,
+		4: _active_eclipse,
 	}
 	_release_handlers = {
 		1: _release_bulwark,
 		2: _release_stalker,
 		3: _release_hive,
+		4: _release_eclipse,
 	}
 	_release_begin_handlers = {
 		1: _release_begin_bulwark,
 		2: _release_begin_stalker,
 		3: _release_begin_hive,
+		4: _release_begin_eclipse,
 	}
 
 
@@ -270,6 +273,28 @@ func _active_hive(delta: float, boss) -> void:
 			_summon_waves += 1
 			for i in int(boss.E3_SUMMON_COUNT):
 				boss.spawn_minion_at(boss.position + Vector2(randf_range(-80.0, 80.0), 110.0) * world_scale)
+
+
+## 4 型「月蚀」ACTIVE（2026-08-04）：中心悬停 + 双环反向进动——正环 + 反角环
+## 交替成波（各环起始角 ±_ring_angle，每波进动 E4_PRECESSION_DEG）
+func _active_eclipse(delta: float, boss) -> void:
+	_attack_timer -= delta
+	if _attack_timer <= 0.0:
+		_attack_timer = float(boss.E4_RING_INTERVAL)
+		var angle := deg_to_rad(float(boss.E4_PRECESSION_DEG)) * _attack_index
+		_fire.fire_ring(boss, int(boss.E4_RING_COUNT), float(boss.E4_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), angle)
+		_fire.fire_ring(boss, int(boss.E4_RING_COUNT), float(boss.E4_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), -angle)
+		_attack_index += 1
+
+
+## 4 型「月蚀」释放——无持续结算（环阵已在 RELEASE_BEGIN 一次性结算）
+func _release_eclipse(_delta: float, _boss) -> void:
+	pass
+
+
+## 4 型「月蚀」释放起手——蓄力环阵（20 向快慢双环）
+func _release_begin_eclipse(boss) -> void:
+	_fire.fire_ring(boss, int(boss.E4_RELEASE_RING_COUNT), float(boss.E4_RELEASE_RING_SPEED), int(boss.BULLET_DAMAGE_SNAPSHOT_RING), 0.0)
 
 
 ## 序列进度 0→1（TRANSITION 起算，ACTIVE 结束到 1；对齐原作 enrage_progress）

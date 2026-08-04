@@ -612,7 +612,7 @@ func _trigger_boss() -> void:
 func _spawn_boss(p_type: int = 0) -> void:
 	_boss_active = true
 	if p_type <= 0:
-		p_type = GameState.boss_kills % 3 + 1
+		p_type = GameState.boss_kills % 4 + 1  # 2026-08-04：轮换扩 4 型（月蚀）
 	var boss := BOSS_SCENE.instantiate() as Boss
 	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.set_spawner(self)  # A5：依赖注入，替代 Boss 侧 group 现找

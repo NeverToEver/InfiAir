@@ -237,6 +237,49 @@ func _ready() -> void:
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
+	# ================= 场景 5：四型「月蚀」狂暴（双环反向进动 + 蓄力环阵） =================
+	await get_tree().process_frame
+	var spawner5: Node = get_node("Main/Spawner")
+	spawner5.spawn_boss(4)
+	await get_tree().process_frame
+	var boss5: Boss = null
+	for child in get_node("Main").get_children():
+		if child is Boss:
+			boss5 = child
+	_check(boss5 != null, "场景5：月蚀已生成")
+	boss5.ENRAGE_DURATION = 1.5
+	boss5.ENRAGE_TRANSITION_DURATION = 0.2
+	boss5.ENRAGE_ATTACK_WINDUP = 0.1
+	boss5.ENRAGE_ATTACK_INTERVAL = 0.4
+	boss5.ENRAGE_RELEASE_HOLD_DURATION = 0.4
+	boss5.ENRAGE_RETURN_DURATION = 0.4
+	boss5.position.y = boss5.fight_anchor_y()
+	player.position = Vector2(960.0, 540.0)
+	await _wait_real(0.3)
+	boss5.take_damage(int(boss5.max_hp * 0.75))
+	await get_tree().process_frame
+	_check(boss5.is_enraged(), "场景5：月蚀血量 <30% 触发狂暴")
+	var e5 := boss5.enrage_sequence()
+	# 狂暴子弹时间（time_scale 0.24）拉伸序列 4 倍：压缩序列 1.5s → 真实 ~6.3s，
+	# 采样窗口须覆盖全程（6s 真实 = 1.44s 缩放）
+	var double_ring_seen := false
+	var release_ring_seen := false
+	var phase_seen_release := false
+	for i in 120:
+		await _wait_real(0.05)
+		if not is_instance_valid(boss5):
+			break
+		var now_rings := _count_enrage_bullets()
+		if now_rings >= 20:
+			double_ring_seen = true
+		if now_rings >= 40:
+			release_ring_seen = true
+		if e5.phase() == Boss.EnragePhase.RELEASE_HOLD:
+			phase_seen_release = true
+	_check(double_ring_seen, "场景5：ACTIVE 双环同帧 ≥20 向（正环+反环）")
+	_check(phase_seen_release, "场景5：序列推进到 RELEASE_HOLD")
+	_check(release_ring_seen, "场景5：收尾蓄力环阵（20 向 + 残留环）")
+
 	print("BOSS ENRAGE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

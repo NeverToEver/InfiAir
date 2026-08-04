@@ -17,6 +17,7 @@ var world_scale: float = 1.0
 ## 难度分档弹数增量（Boss._apply_difficulty_scaling 写入，供 fan/homing 取用）
 var fan_delta: int = 0
 var homing_delta: int = 0
+var ring_delta: int = 0  # 4 型环弹难度分档（counts.ring_burst）
 
 # 狙击 telegraph（游击型）
 var _aim_line: Line2D = null
@@ -89,6 +90,7 @@ const ATTACK_TELLS: Dictionary = {
 	&"dash_sweep": {"sfx": TELL_EXPLOSION, "pitch": 0.7, "color": Color(0.4, 0.9, 1.0, 0.55)},
 	&"minion_volley": {"sfx": TELL_FIRE_C, "pitch": 0.8, "color": Color(0.5, 1.0, 0.5, 0.55)},
 	&"bullet_wall": {"sfx": TELL_FIRE_B, "pitch": 1.2, "color": Color(0.4, 0.6, 1.0, 0.55)},
+	&"ring_burst": {"sfx": TELL_FIRE_A, "pitch": 1.4, "color": Color(1.0, 0.3, 0.9, 0.55)},
 }
 
 
@@ -103,6 +105,7 @@ func _init() -> void:
 		&"dash_sweep": _handle_dash_sweep,
 		&"minion_volley": _handle_minion_volley,
 		&"bullet_wall": _handle_bullet_wall,
+		&"ring_burst": _handle_ring_burst,
 	}
 
 
@@ -154,6 +157,20 @@ func _handle_fan5(boss) -> void:
 
 func _handle_fan7(boss) -> void:
 	_fire.fire_fan(boss, maxi(3, 7 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
+
+
+## 4 型「月蚀」ring_burst（2026-08-04）：360° 全圆环弹（难度分档弹数，counts.ring_burst）
+func _handle_ring_burst(boss) -> void:
+	(
+		_fire
+		. fire_ring(
+			boss,
+			maxi(6, int(boss.RING_BURST_COUNT) + ring_delta),
+			float(boss.RING_BURST_SPEED),
+			int(boss.BULLET_DAMAGE_RING),
+			0.0,
+		)
+	)
 
 
 func _handle_homing(boss) -> void:

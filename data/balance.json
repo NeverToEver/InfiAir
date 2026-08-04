@@ -277,17 +277,20 @@
 		"hp_mults": [
 			1.3,
 			0.7,
-			1.6
+			1.6,
+			1.2
 		],
 		"strafe_speeds": [
 			150,
 			400,
-			60
+			60,
+			40
 		],
 		"fire_intervals": [
 			1.6,
 			1.8,
-			0.9
+			0.9,
+			1.2
 		],
 		"fan_bullet_speed": 380,
 		"homing_bullet_speed": 300,
@@ -299,7 +302,8 @@
 			"sniper": 21,
 			"cross": 12,
 			"snapshot_laser": 21,
-			"snapshot_ring": 12
+			"snapshot_ring": 12,
+			"ring": 14
 		},
 		"collision_damage": 30,
 		"phase2_hp_ratio": 0.7,
@@ -359,6 +363,11 @@
 					-1,
 					0,
 					1
+				],
+				"ring_burst": [
+					10,
+					12,
+					14
 				]
 			}
 		},
@@ -470,6 +479,37 @@
 					"damage": 12,
 					"arc_deg": 150
 				}
+			},
+			"type4": {
+				"p1": [
+					{
+						"attack": "ring_burst",
+						"waves": 3,
+						"interval": 1.7
+					},
+					{
+						"attack": "homing",
+						"waves": 2,
+						"interval": 1.5
+					}
+				],
+				"p2": [
+					{
+						"attack": "ring_burst",
+						"waves": 3,
+						"interval": 1.4
+					},
+					{
+						"attack": "cross",
+						"duration": 5.0,
+						"interval": 0.8
+					},
+					{
+						"attack": "sniper3",
+						"waves": 1,
+						"interval": 1.6
+					}
+				]
 			}
 		},
 		"movement": {
@@ -483,7 +523,10 @@
 			"type3_p1_bob_period": 9,
 			"type3_p2_strafe": 100,
 			"type3_p2_bob_amp": 50,
-			"type3_p2_bob_period": 8
+			"type3_p2_bob_period": 8,
+			"type4_bob_amp": 30,
+			"type4_bob_period": 2.4,
+			"type4_speed": 40
 		},
 		"enrage": {
 			"hp_ratio": 0.3,
@@ -536,6 +579,14 @@
 				"ring_speed": 240,
 				"release_ring_count": 16,
 				"release_ring_speed": 120
+			},
+			"type_4": {
+				"ring_count": 10,
+				"ring_interval": 0.8,
+				"ring_speed": 200,
+				"precession_deg": 15,
+				"release_ring_count": 20,
+				"release_ring_speed": 130
 			}
 		},
 		"escape": {
@@ -545,6 +596,10 @@
 			"start_speed": 120,
 			"accel": 420,
 			"countdown_visible_from": 10
+		},
+		"ring_burst": {
+			"count": 12,
+			"bullet_speed": 340
 		}
 	},
 	"hud": {

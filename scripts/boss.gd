@@ -34,11 +34,11 @@ enum FightPhase { P1, P2, ENRAGE }
 ## 冲刺掠过（二型 P2 攻击）子状态
 enum SweepState { NONE, AIM, DASH, RETURN }
 
-const TEXTURES: Array[Texture2D] = [
-	preload("res://assets/sprites/boss_ship_1.png"),
-	preload("res://assets/sprites/boss_ship_2.png"),
-	preload("res://assets/sprites/boss_ship_3.png"),
-]
+const BOSS_SPRITE_1: Texture2D = preload("res://assets/sprites/boss_ship_1.png")
+const BOSS_SPRITE_2: Texture2D = preload("res://assets/sprites/boss_ship_2.png")
+const BOSS_SPRITE_3: Texture2D = preload("res://assets/sprites/boss_ship_3.png")
+## 4 型「月蚀」复用 1 型贴图（环弹术士以弹幕形态区分，2026-08-04）
+const TEXTURES: Array[Texture2D] = [BOSS_SPRITE_1, BOSS_SPRITE_2, BOSS_SPRITE_3, BOSS_SPRITE_1]
 ## 猎杀环绕瞬停点（右→上→左→下→右→上，共 6 点；末点为顶部，RELEASE 回底部）
 const STALKER_POINT_ANGLES_DEG: Array[float] = [0.0, -90.0, 180.0, 90.0, 0.0, -90.0]
 ## 模式表脚本默认值（与 balance.json boss.phases.typeN 保持一致，AGENTS.md 约定）：
@@ -76,12 +76,26 @@ const DEFAULT_PATTERNS: Dictionary = {
 			{"attack": &"bullet_wall", "waves": 1, "interval": 1.5},
 		],
 	},
+	4:
+	{
+		"p1":
+		[
+			{"attack": &"ring_burst", "waves": 3, "interval": 1.7},
+			{"attack": &"homing", "waves": 2, "interval": 1.5},
+		],
+		"p2":
+		[
+			{"attack": &"ring_burst", "waves": 3, "interval": 1.4},
+			{"attack": &"cross", "duration": 5.0, "interval": 0.8},
+			{"attack": &"sniper3", "waves": 1, "interval": 1.6},
+		],
+	},
 }
 ## A3 机型参数表：数据驱动取代散落的机型特判（新增机型只加表行，不改既有函数）。
 ## 独立召唤计时（不占模式表）：3 型「母舰」专属（_physics_process 查询）。
-const SUMMONER_TYPES: Dictionary = {3: true}
+const SUMMONER_TYPES: Dictionary = {3: true, 4: false}
 ## 受击闪白总时长（游击型更短）：_flash_hit 查询。
-const HIT_FLASH_BY_TYPE: Dictionary = {1: 0.1, 2: 0.05, 3: 0.1}
+const HIT_FLASH_BY_TYPE: Dictionary = {1: 0.1, 2: 0.05, 3: 0.1, 4: 0.1}
 var ENTER_SPEED := 140.0
 ## 战斗锚线距可见区域顶缘的偏移（small 档 view.position.y=0 时即绝对 y；使用点一律走 fight_anchor_y()）
 var FIGHT_Y := 230.0
@@ -90,12 +104,16 @@ var STRAFE_MAX_X := 1620.0
 ## HP 基底（× 类型系数 × 难度乘数；对齐原作首发 Boss ≈12s TTK 量级）
 var HP_BASE := 800.0
 ## 各类型移动速度 / 开火间隔（模式表 interval 缺键时的回退基准）/ 弹速
-var STRAFE_SPEEDS: Array[float] = [150.0, 400.0, 60.0]
-var FIRE_INTERVALS: Array = [1.6, 1.8, 0.9]
+var STRAFE_SPEEDS: Array[float] = [150.0, 400.0, 60.0, 40.0]
+var FIRE_INTERVALS: Array = [1.6, 1.8, 0.9, 1.2]
 var FAN_BULLET_SPEED := 380.0
 var HOMING_BULLET_SPEED := 300.0
 var SNIPER_BULLET_SPEED := 650.0
 var CROSS_BULLET_SPEED := 260.0
+## 4 型「月蚀」ring_burst 环弹攻击参数（2026-08-04；默认值与 balance.json 双写）
+var RING_BURST_COUNT := 12
+var RING_BURST_SPEED := 340.0
+var BULLET_DAMAGE_RING := 14
 ## 阶段阈值：P2 = 70%（新增），ENRAGE = 30%（沿用原作）
 var PHASE2_HP_RATIO := 0.7
 var ENRAGE_HP_RATIO := 0.3
@@ -224,6 +242,17 @@ var E3_RING_COUNT := 8
 var E3_RING_SPEED := 240.0
 var E3_RELEASE_RING_COUNT := 16
 var E3_RELEASE_RING_SPEED := 120.0
+## 4 型「月蚀」狂暴：双环反向进动 + 蓄力环阵（boss.enrage.type_4）
+var E4_RING_COUNT := 10
+var E4_RING_INTERVAL := 0.8
+var E4_RING_SPEED := 200.0
+var E4_PRECESSION_DEG := 15.0
+var E4_RELEASE_RING_COUNT := 20
+var E4_RELEASE_RING_SPEED := 130.0
+## 4 型「月蚀」中心悬停微摆（boss.movement.type4）
+var MOVE4_BOB_AMP := 30.0
+var MOVE4_BOB_PERIOD := 2.4
+var MOVE4_SPEED := 40.0
 ## 逃跑：进入战斗 50s 未击杀触发，最后 3s 警告 + 上飘（对齐原作 3000/180 帧@60fps）
 var ESCAPE_TIME := 50.0
 var ESCAPE_WARNING := 3.0
@@ -548,6 +577,19 @@ func _ready() -> void:
 	E3_RING_SPEED = GameState.cfg("boss.enrage.type_3.ring_speed", E3_RING_SPEED)
 	E3_RELEASE_RING_COUNT = GameState.cfg("boss.enrage.type_3.release_ring_count", E3_RELEASE_RING_COUNT)
 	E3_RELEASE_RING_SPEED = GameState.cfg("boss.enrage.type_3.release_ring_speed", E3_RELEASE_RING_SPEED)
+	# 4 型「月蚀」（2026-08-04）
+	RING_BURST_COUNT = int(GameState.cfg("boss.ring_burst.count", RING_BURST_COUNT))
+	RING_BURST_SPEED = float(GameState.cfg("boss.ring_burst.bullet_speed", RING_BURST_SPEED))
+	BULLET_DAMAGE_RING = int(GameState.cfg("boss.bullet_damage.ring", BULLET_DAMAGE_RING))
+	MOVE4_BOB_AMP = float(GameState.cfg("boss.movement.type4.bob_amp", MOVE4_BOB_AMP))
+	MOVE4_BOB_PERIOD = float(GameState.cfg("boss.movement.type4.bob_period", MOVE4_BOB_PERIOD))
+	MOVE4_SPEED = float(GameState.cfg("boss.movement.type4.speed", MOVE4_SPEED))
+	E4_RING_COUNT = int(GameState.cfg("boss.enrage.type_4.ring_count", E4_RING_COUNT))
+	E4_RING_INTERVAL = float(GameState.cfg("boss.enrage.type_4.ring_interval", E4_RING_INTERVAL))
+	E4_RING_SPEED = float(GameState.cfg("boss.enrage.type_4.ring_speed", E4_RING_SPEED))
+	E4_PRECESSION_DEG = float(GameState.cfg("boss.enrage.type_4.precession_deg", E4_PRECESSION_DEG))
+	E4_RELEASE_RING_COUNT = int(GameState.cfg("boss.enrage.type_4.release_ring_count", E4_RELEASE_RING_COUNT))
+	E4_RELEASE_RING_SPEED = float(GameState.cfg("boss.enrage.type_4.release_ring_speed", E4_RELEASE_RING_SPEED))
 	_movement.sync_press_timer(PRESS_INTERVAL)
 	DIFF_INTERVAL_MULT = GameState.cfg("boss.difficulty_scaling.interval_mult", DIFF_INTERVAL_MULT)
 	DIFF_SPEED_MULT = GameState.cfg("boss.difficulty_scaling.speed_mult", DIFF_SPEED_MULT)
@@ -624,6 +666,7 @@ func _apply_difficulty_scaling() -> void:
 	# 弹数：逐参数分档增减，按攻击语义钳制下限（A3：增量迁入 BossAttacks）
 	_attacks.fan_delta = _count_delta("fan", tier)
 	_attacks.homing_delta = _count_delta("homing", tier)
+	_attacks.ring_delta = _count_delta("ring_burst", tier)
 	CANNON_SHOTS = maxi(1, CANNON_SHOTS + _count_delta("cannon", tier))
 	VOLLEY_COUNT = maxi(1, VOLLEY_COUNT + _count_delta("volley", tier))
 	WALL_COUNT = maxi(6, WALL_COUNT + _count_delta("wall", tier))

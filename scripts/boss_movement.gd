@@ -54,6 +54,7 @@ func _init() -> void:
 		1: _move_type1,
 		2: _move_type2,
 		3: _move_type3,
+		4: _move_type4,
 	}
 
 
@@ -88,6 +89,14 @@ func _move_type1(delta: float, boss) -> void:
 ## 二型「游击」：周期性冲刺换向（偏向屏幕中心，避免长期贴边）
 func _move_type2(delta: float, boss) -> void:
 	_move_dash(delta, boss)
+
+
+## 4 型「月蚀」（2026-08-04）：中心悬停微摆——不 strafe，纵向小振幅正弦（相位归零平滑衔接锚线）
+func _move_type4(delta: float, boss) -> void:
+	_bob_phase += delta * TAU / float(boss.MOVE4_BOB_PERIOD)
+	var bob := float(boss.MOVE4_BOB_AMP) * Enemy.sin_fast(_bob_phase)
+	var target := Vector2(boss.position.x, boss.fight_anchor_y() + bob)
+	boss.position = boss.position.move_toward(target, float(boss.MOVE4_SPEED) * delta)
 
 
 ## 三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（§5.3）
