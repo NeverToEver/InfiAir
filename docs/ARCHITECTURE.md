@@ -23,7 +23,9 @@
 
 No `package.json`/`pyproject.toml`/`requirements*`/`Cargo.toml`/`go.mod`/Makefile/Docker. Packaging resumed 2026-07-30: `export_presets.cfg` committed, `release.sh` one-shot, `packaging/linux/` (user-space install.sh/uninstall.sh[--purge]/infiair.desktop) + `packaging/windows/` (per-user install.bat/uninstall.bat[/purge], Start-menu shortcut). No third-party deps for routine changes.
 
-**Release/CI status (2026-08-02)**: export templates installed (`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`), `release.sh` proven, artifacts `builds/release/InfiAir-<ver>-linux-x86_64.tar.gz` / `-windows-x86_64.zip` (embedded pck + install scripts, gitignored). **Distributed as GitHub Releases attachments (not in repo)**: `gh release create v<ver> builds/release/InfiAir-<ver>-*.{tar.gz,zip}`. macOS can't run Linux/Windows binaries — platform validation needed on those hosts. CI `.github/workflows/ci.yml`: official Godot 4.6.2 stable binary (Linux x86_64, from official Release, no 3rd-party action) + headless import + main smoke + 37 assertion scenes (2026-08-03 count; CI run is authority), push/PR; green = merge gate (see `CONTRIBUTING.md`). CD `.github/workflows/release.yml` (manual): install Godot + templates → smoke → `release.sh` → tag `v<ver>` → GitHub Release with attachments; input version syncs `project.godot` `config/version`.
+**Entry (2026-08-04)**: `project.godot` `run/main_scene = res://scenes/welcome.tscn` — accounts (UserDB: PBKDF2 users.json, per-user saves/settings, local leaderboard) + StartPanel retired (merged into welcome). GameOver「回主菜单」and tutorial exit return to welcome. Per-user save path `user://savegame_<user>_<sha256[:12]>.json` (see `docs/2026-08-04-local-accounts-plan.md`).
+
+**Release/CI status (2026-08-02)**: export templates installed (`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`), `release.sh` proven, artifacts `builds/release/InfiAir-<ver>-linux-x86_64.tar.gz` / `-windows-x86_64.zip` (embedded pck + install scripts, gitignored). **Distributed as GitHub Releases attachments (not in repo)**: `gh release create v<ver> builds/release/InfiAir-<ver>-*.{tar.gz,zip}`. macOS can't run Linux/Windows binaries — platform validation needed on those hosts. CI `.github/workflows/ci.yml`: official Godot 4.6.2 stable binary (Linux x86_64, from official Release, no 3rd-party action) + headless import + main smoke + 40 assertion scenes (2026-08-04 count; CI run is authority), push/PR; green = merge gate (see `CONTRIBUTING.md`). CD `.github/workflows/release.yml` (manual): install Godot + templates → smoke → `release.sh` → tag `v<ver>` → GitHub Release with attachments; input version syncs `project.godot` `config/version`.
 
 ## Main Node Tree
 
@@ -35,7 +37,7 @@ Main (scripts/main.gd)
 ├─ BulletPool / EnemyPool
 ├─ HUD (layer=2; layer=1 freed for MetaHealthFX "above world, below HUD")
 ├─ BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ StartPanel / ExitConfirm
+├─ ExitConfirm
 ├─ BackNavigator
 ├─ MetaHealthFX (runtime-created in _ready, layer=1, fullscreen health/hit FX)
 ├─ AimFrameLayer (runtime _ready, world coords, aim-assist brackets, registered `GameState.aim_frame_layer`)

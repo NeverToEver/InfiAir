@@ -6,7 +6,7 @@ InfiAir: single-player 2D top-down shooter; Godot 4.6 + GDScript, GL Compatibili
 
 Game loop: auto-fire + wave spawns → milestone buff 3-choice → 3 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
 
-- Entry: `project.godot` `run/main_scene = res://scenes/main.tscn`.
+- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (2026-08-04 accounts; main.tscn = battle scene, explicitly instanced by tests).
 - Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
 - Only autoload: `GameState` (`autoload/game_state.gd`) — facade over 4 non-autoload services: `scripts/balance_service.gd`/`save_manager.gd`/`sfx_player.gd`/`entity_registry.gd`; public API forwarded, callers/tests unaffected.
 - Game text: zh+en bilingual (UI default `zh`; new keys fill both `translations.csv` columns). Docs in English; `docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese.
@@ -26,7 +26,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 3 rotating bo
 
 ## Architecture & Directory Roles
 
-`scenes/main.tscn` = main tree & run container (runtime-created MetaHealthFX/AimFrameLayer/cutscenes/mothership/events); `scripts/main.gd` orchestrates; dynamic entities attach under Main for cleanup/test visibility. Full tree, per-script duties, directory roles: `docs/ARCHITECTURE.md`.
+`scenes/welcome.tscn` = entry (accounts: login/register/guest/delete + difficulty/tutorial/settings/local leaderboard, `scripts/welcome.gd`); `scenes/main.tscn` = main tree & run container (runtime-created MetaHealthFX/AimFrameLayer/cutscenes/mothership/events); `scripts/main.gd` orchestrates; dynamic entities attach under Main for cleanup/test visibility. Full tree, per-script duties, directory roles: `docs/ARCHITECTURE.md`.
 
 ## Conventions
 

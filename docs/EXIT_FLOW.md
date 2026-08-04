@@ -13,7 +13,7 @@ L2 overlay: SettingsUI (opener = pause/start panel)
                              ends on BaseUI with tree paused, docs/RETURN_HOME_CINEMATIC.md §4)
 L1 run:    Gameplay(HUD) ⇄ PauseUI
            buff scroll bar (HUD overlay, L key; not pausing; Esc = close bar)
-L0 top:    StartPanel
+L0 top:    welcome scene (accounts entry; Esc = exit confirm, self-handled, outside FSM)
 ```
 
 `scenes/tutorial.tscn` standalone: its own top, Esc = exit to main menu (self-handled, outside FSM). Note: with BaseConsole open the tree is paused, tutorial root (process_mode=inherit) gets no input — click "continue sortie" to close (modal behavior, 2026-08-03 audit note).

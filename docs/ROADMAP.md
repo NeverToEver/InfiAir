@@ -39,7 +39,7 @@
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 
 **Restart 2026-08-04 (deferred plans, excl. mobile touch)**:
-- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`
+- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
 - **Mothership expansion**: `docs/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers)
 - **Content evolution**: `docs/2026-08-04-content-evolution-plan.md` (3 buffs + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse")
 
