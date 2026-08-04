@@ -608,7 +608,7 @@ func _trigger_boss() -> void:
 	_schedule(2.0, _spawn_boss)
 
 
-## p_type <= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%3+1 种
+## p_type <= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（2026-08-04：轮换扩 4 型含月蚀）
 func _spawn_boss(p_type: int = 0) -> void:
 	_boss_active = true
 	if p_type <= 0:

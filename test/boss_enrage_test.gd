@@ -247,6 +247,7 @@ func _ready() -> void:
 		if child is Boss:
 			boss5 = child
 	_check(boss5 != null, "场景5：月蚀已生成")
+	_check(boss5 != null and boss5.boss_type == 4, "场景5：type4 轮换可达（clampi 上限 4）")
 	boss5.ENRAGE_DURATION = 1.5
 	boss5.ENRAGE_TRANSITION_DURATION = 0.2
 	boss5.ENRAGE_ATTACK_WINDUP = 0.1

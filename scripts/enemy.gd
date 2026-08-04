@@ -38,7 +38,7 @@ var SPIRAL_DRIFT_AMP := 56.0  # spiral 悬停期绕转中心水平漂移振幅
 var SPIRAL_DRIFT_FREQ := 0.7  # spiral 漂移角频率
 var SPIRAL_RADIUS := 50.0
 ## 敌机 HP 对局进程 ramp 系数：HP ×(1 + 系数×(Boss 击杀难度乘数-1))，对齐同类游戏的敌 HP 线性成长惯例
-var HP_RAMP_FACTOR := 0.12
+var HP_RAMP_FACTOR := 0.25  # 与 balance.json enemies.hp_ramp_factor 同步（2026-08-04 深局校准）
 var SPEED_RAMP_FACTOR := 0.1  # 敌机速度对局进程 ramp（B12：原硬编码 0.1 无 json 键，现补 enemies.speed_ramp_factor）
 
 ## 尾焰软光点（P0-5 副轨，运行时辨识增强）：红/品红低 alpha 软光贴舰尾，尺寸族设计值 ×ws；

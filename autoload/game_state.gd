@@ -137,8 +137,8 @@ func _apply_balance() -> void:
 	# （原 _valid_difficulty_defs 内检查恒真为死代码），此处对全局键钳制下限（同 world_scale 款）
 	milestone_cycle_mult = maxf(float(cfg("milestones.cycle_mult", MILESTONE_CYCLE_MULT)), 0.01)
 	# 难度进程曲线参数：负值会使难度乘数随时间/Boss 击杀下行，钳制 ≥0 保曲线单调不减
-	_prog_per_boss_kill = maxf(float(cfg("progression.per_boss_kill", 0.5)), 0.0)
-	_prog_per_ten_minutes = maxf(float(cfg("progression.per_ten_minutes", 1.0)), 0.0)
+	_prog_per_boss_kill = maxf(float(cfg("progression.per_boss_kill", 0.6)), 0.0)
+	_prog_per_ten_minutes = maxf(float(cfg("progression.per_ten_minutes", 1.5)), 0.0)
 	_prog_time_step_seconds = maxf(float(cfg("progression.time_step_seconds", 30.0)), 0.1)  # H15：=0 除零挂死
 	# C03 修复：难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
 	# （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
@@ -318,8 +318,8 @@ var _next_milestone: int = MILESTONE_BASE[0]
 var _milestone_count: int = 0
 
 ## 难度进程曲线参数（_apply_balance 从 balance.json progression 段读取缓存，热路径免查 JSON）
-var _prog_per_boss_kill: float = 0.5
-var _prog_per_ten_minutes: float = 1.0
+var _prog_per_boss_kill: float = 0.6
+var _prog_per_ten_minutes: float = 1.5
 var _prog_time_step_seconds: float = 30.0
 var _survive_sec_cached: int = -1  # 任务进度整秒缓存（_process 热路径免每帧字典访问）
 ## B 梯队（fair plan §8）：DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔

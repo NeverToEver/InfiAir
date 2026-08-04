@@ -9,8 +9,8 @@ extends RefCounted
 
 var _balance: Dictionary = {}
 ## G09：ramp 因子 load() 时缓存一次——热路径（每发敌弹创建）免 path.split/字典遍历 JSON 查询
-var _hp_ramp_factor := 0.12
-var _damage_ramp_factor := 0.08
+var _hp_ramp_factor := 0.25
+var _damage_ramp_factor := 0.20
 
 
 func load(path: String) -> void:
@@ -21,8 +21,8 @@ func load(path: String) -> void:
 	if parsed is Dictionary:
 		_balance = parsed
 	# G09：缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
-	_hp_ramp_factor = float(cfg("enemies.hp_ramp_factor", 0.12))
-	_damage_ramp_factor = float(cfg("enemies.damage_ramp_factor", 0.08))
+	_hp_ramp_factor = float(cfg("enemies.hp_ramp_factor", 0.25))
+	_damage_ramp_factor = float(cfg("enemies.damage_ramp_factor", 0.20))
 
 
 ## 配置字典是否为空（缺失/损坏 JSON 时为空，全部回退脚本默认值）

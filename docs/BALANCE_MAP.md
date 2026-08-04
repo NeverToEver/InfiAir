@@ -25,8 +25,8 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 24 | `enemies.hp_ramp_factor` | `0.12` |
-| 25 | `enemies.damage_ramp_factor` | `0.08` |
+| 24 | `enemies.hp_ramp_factor` | `0.25` |
+| 25 | `enemies.damage_ramp_factor` | `0.20` |
 
 ### `scripts/boss.gd`
 
@@ -591,8 +591,8 @@
 | 123 | `world_scale` | `world_scale` |
 | 126 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
 | 138 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
-| 140 | `progression.per_boss_kill` | `0.5` |
-| 141 | `progression.per_ten_minutes` | `1.0` |
+| 140 | `progression.per_boss_kill` | `0.6` |
+| 141 | `progression.per_ten_minutes` | `1.5` |
 | 142 | `progression.time_step_seconds` | `30.0` |
 | 145 | `difficulty` | `{}` |
 | 151 | `dda.duration` | `DDA_DURATION` |
