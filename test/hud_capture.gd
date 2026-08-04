@@ -11,15 +11,11 @@ func _ready() -> void:
 	GameState.delete_save()
 
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# 直接开新局（测试实例化 main 不是 current_scene，不播开场过场）
-	var sp: CanvasLayer = get_node("Main/StartPanel")
-	if sp.visible:
-		sp.press_new_game()
-		await get_tree().process_frame
 	# 屏蔽里程碑触发，避免 Buff UI 叠屏（确定性截图）
 	GameState.set_milestone_override(999999999)
 	GameState.add_score(12340)

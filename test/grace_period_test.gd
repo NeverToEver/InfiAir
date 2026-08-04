@@ -46,9 +46,6 @@ func _ready() -> void:
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame

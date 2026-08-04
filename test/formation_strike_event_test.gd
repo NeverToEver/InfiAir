@@ -79,10 +79,8 @@ func _ready() -> void:
 	GameState.save_profile()
 	GameState.set_difficulty(&"medium")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 禁用自动开火，击杀全部走断言路径
 	player.set_invincible(999.0)

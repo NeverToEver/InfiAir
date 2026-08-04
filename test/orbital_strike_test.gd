@@ -18,13 +18,13 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 	var main := get_node("Main")
 	var spawner := main.get_node("Spawner")
-	(main.get_node("StartPanel") as CanvasLayer).hide()
 	# 全程禁用刷怪与随机事件编排：本测试只验证轨道打击自身，排除波次/事件注册新敌人的时序干扰
 	spawner.set_process(false)
 	main.event().set_process(false)

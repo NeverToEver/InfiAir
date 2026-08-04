@@ -24,12 +24,10 @@ func _ready() -> void:
 	if not InputMap.has_action(&"give_up"):
 		InputMap.add_action(&"give_up")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	var hud: CanvasLayer = get_node("Main/HUD")
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")

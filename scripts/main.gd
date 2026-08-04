@@ -122,9 +122,12 @@ func _ready() -> void:
 	_charge_ghost.visible = false
 	_build_charge_fx()
 	# 账户系统（2026-08-04）：welcome 主场景已确认入口——有存档=「继续对局」启动即恢复
-	# （main 侧自加载，welcome 不重复加载）；无存档=新开局（开场演出自行启动）
+	# （main 侧自加载，welcome 不重复加载）；无存档=新开局（_apply_new_run 负责开场演出与
+	# 死亡回放录制起点，原由 StartPanel 信号触发）
 	if GameState.has_save():
 		_on_continue_run()
+	else:
+		_apply_new_run()
 
 
 func _exit_tree() -> void:

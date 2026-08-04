@@ -22,13 +22,10 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
-	# 无存档时开始面板自显并暂停：先关闭恢复运行（不播开场过场）
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

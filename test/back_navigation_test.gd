@@ -45,13 +45,13 @@ func _press_rmb() -> void:
 func _ready() -> void:
 	GameState.delete_save()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
-	var start_panel: CanvasLayer = main.get_node("StartPanel")
 	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 	var settings_ui: CanvasLayer = main.get_node("SettingsUI")
 	var base_ui: CanvasLayer = main.get_node("BaseUI")
@@ -60,27 +60,7 @@ func _ready() -> void:
 	var exit_confirm: CanvasLayer = main.get_node("ExitConfirm")
 	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
-	# ---------- 1. 顶层：开始面板 → 退出确认 ----------
-	_check(start_panel.visible and nav.decide_back_action() == act.CONFIRM_EXIT, "开始面板（顶层）：决策=退出确认")
-	await _press_esc()
-	_check(exit_confirm.visible and not exit_confirm.battle_mode(), "顶层 Esc：弹出退出确认（normal 模式）")
-	_check(nav.decide_back_action() == act.CANCEL_EXIT, "确认窗可见：决策=取消退出")
-	await _press_esc()
-	_check(not exit_confirm.visible and start_panel.visible, "确认窗 Esc：取消退出回到开始面板")
-	_check(
-		start_panel.get_viewport().gui_get_focus_owner() == start_panel.new_button(),
-		"取消后焦点还给主按钮",
-	)
-
-	# ---------- 1b. 顶层右键：退出确认（惯例：右键=返回/取消） ----------
-	await _press_rmb()
-	_check(exit_confirm.visible, "顶层右键：弹出退出确认")
-	_check(nav.decide_back_action() == act.CANCEL_EXIT, "右键确认窗可见：决策=取消退出")
-	await _press_rmb()
-	_check(not exit_confirm.visible and start_panel.visible, "确认窗右键：取消退出回到开始面板")
-
-	# ---------- 2. 对局层：Esc ⇄ 暂停 ----------
-	start_panel.press_new_game()
+	# ---------- 1. 对局层：Esc ⇄ 暂停（顶层退出确认已由 welcome_flow_test 覆盖） ----------
 	await get_tree().process_frame
 	_check(nav.decide_back_action() == act.OPEN_PAUSE, "战斗中：决策=打开暂停")
 	await _press_esc()
@@ -139,13 +119,17 @@ func _ready() -> void:
 	game_over_ui.visible = false
 	main.set_game_over(false)
 
-	# ---------- 6. 退出前清理副作用 ----------
+	# ---------- 6. 退出前清理副作用（游客不存档，切真实用户验证） ----------
+	if not GameState.user_exists("nav_user"):
+		GameState.create_user("nav_user", "pass123")
+	GameState.login_user("nav_user")
 	GameState.save_run(50.0, 10.0)
 	exit_confirm.execute_exit_cleanup(true)
 	_check(not GameState.has_save(), "战斗中退出清理：对局存档删除（放弃进度）")
 	GameState.save_run(50.0, 10.0)
 	exit_confirm.execute_exit_cleanup(false)
 	_check(GameState.has_save(), "主界面退出清理：对局存档保留（可继续对局）")
+	GameState.logout_user()
 
 	# ---------- 7. Android 返回手势走同一状态机 ----------
 	pause_ui.open()

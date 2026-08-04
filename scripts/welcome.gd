@@ -581,6 +581,22 @@ func username_line() -> LineEdit:
 	return _username_line
 
 
+func corrupt_label() -> Label:
+	return _corrupt_label
+
+
+func continue_button() -> Button:
+	return _continue_button
+
+
+func new_button() -> Button:
+	return _new_button
+
+
+func tutorial_button() -> Button:
+	return _tutorial_button
+
+
 func password_line() -> LineEdit:
 	return _password_line
 

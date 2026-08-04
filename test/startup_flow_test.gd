@@ -1,6 +1,9 @@
 extends Node
-## 启动链路测试：损坏存档/档案的隔离恢复、启动直达开始面板键盘-only 链路、
-## 主按钮焦点策略（无存档=开始游戏，有存档=继续对局）、损坏提示显隐。
+## 启动流程测试（2026-08-04 账户系统 T4 重写）：welcome 主场景入口状态、
+## 存档/档案损坏隔离提示、教程按钮门控、main 启动自动读档继续。
+
+const WELCOME_SCENE: PackedScene = preload("res://scenes/welcome.tscn")
+const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 
 var _failures: int = 0
 
@@ -13,185 +16,161 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
-func _write_file(path: String, content: String) -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	f.store_string(content)
-	f.close()
+func _wipe_user_files() -> void:
+	for f in [
+		"user://users.json",
+		"user://users.json.corrupt",
+		"user://profile.json",
+		"user://profile.json.corrupt",
+		"user://savegame.json",
+		"user://savegame.json.corrupt",
+	]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
 
 
-func _cleanup() -> void:
-	GameState.delete_save()
-	for p in [GameState.SAVE_PATH + ".corrupt", GameState.PROFILE_PATH + ".corrupt"]:
-		if FileAccess.file_exists(p):
-			DirAccess.remove_absolute(p)
+func _wipe_user_saves() -> void:
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while name != "":
+		if name.begins_with("savegame_") or name.ends_with(".corrupt"):
+			DirAccess.remove_absolute("user://" + name)
+		name = dir.get_next()
+	dir.list_dir_end()
 
 
 func _ready() -> void:
-	_cleanup()
-	GameState.reset_run()
-
-	# ---------- 1. 损坏对局存档：隔离 + 标记 + 按无存档处理 ----------
-	_write_file(GameState.SAVE_PATH, "{oops not json")
-	var data := GameState.load_run_data()
-	_check(data.is_empty(), "损坏存档读取返回空")
-	_check(GameState.save_corrupt, "损坏存档置 save_corrupt 标记")
-	_check(not GameState.has_save(), "损坏存档被移走，has_save 为 false")
-	_check(FileAccess.file_exists(GameState.SAVE_PATH + ".corrupt"), "损坏存档备份为 .corrupt")
-
-	# 1b. 正常存档读取后标记复位
-	GameState.save_run(50.0, 10.0)
-	data = GameState.load_run_data()
-	_check(not data.is_empty() and not GameState.save_corrupt, "正常存档读取后 save_corrupt 复位")
+	GameState.logout_user()
 	GameState.delete_save()
+	_wipe_user_files()
+	_wipe_user_saves()
+	GameState.high_score = 0
+	GameState.profile_corrupt = false
+	GameState.save_corrupt = false
 
-	# ---------- 2. 损坏档案：备份 + 默认值继续 ----------
-	var high_score_before := GameState.high_score
-	_write_file(GameState.PROFILE_PATH, "### broken")
+	# 1. 注册 + 登录（无存档）：主区显示「开始游戏」且无「继续对局」
+	var welcome: CanvasLayer = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
+	await get_tree().process_frame
+	_check(not welcome.main_zone_visible(), "未登录时处于登录阶段")
+	_check(GameState.create_user("flow", "pass123"), "注册测试用户")
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
+	await get_tree().process_frame
+	_check(welcome.main_zone_visible(), "登录放行进入主区")
+	_check(not GameState.has_save(), "无存档时 has_save 为 false")
+	_check(not welcome.continue_button().visible, "无存档时不显示继续对局")
+	welcome.queue_free()
+	await get_tree().process_frame
+
+	# 2. 有存档：主区显示「继续对局」+ 开始游戏为次按钮
+	GameState.login_user("flow")
+	GameState.save_run(50.0, 10.0)
+	_check(GameState.has_save(), "登录用户存档存在")
+	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
+	await get_tree().process_frame
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
+	await get_tree().process_frame
+	_check(welcome.continue_button().visible, "有存档时显示继续对局")
+	_check(welcome.new_button().text != "", "开始游戏按钮存在")
+	welcome.queue_free()
+	await get_tree().process_frame
+
+	# 3. 损坏存档：隔离备份 + 继续按钮隐藏 + 损坏提示可见
+	var save_path := GameState.user_db_savefile_for("flow")
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
+	f.store_string("{broken json")
+	f.close()
+	GameState.login_user("flow")
+	_check(GameState.load_run_data().is_empty() and GameState.save_corrupt, "损坏存档隔离并按无存档处理")
+	_check(not GameState.has_save(), "损坏存档隔离后 has_save 为 false")
+	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
+	await get_tree().process_frame
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
+	await get_tree().process_frame
+	_check(not welcome.continue_button().visible, "损坏存档后继续对局隐藏")
+	_check(welcome.corrupt_label().visible, "损坏存档提示可见")
+	_check(welcome.corrupt_label().text != "START_SAVE_CORRUPT", "损坏提示文案已翻译（tr 命中）")
+	welcome.queue_free()
+	await get_tree().process_frame
+
+	# 4. 损坏档案（profile.json）：损坏提示可见且文案为档案口径
+	GameState.logout_user()
+	var legacy := FileAccess.open("user://profile.json", FileAccess.WRITE)
+	legacy.store_string("{broken profile")
+	legacy.close()
+	GameState.profile_corrupt = false
 	GameState.load_profile()
-	_check(GameState.profile_corrupt, "损坏档案置 profile_corrupt 标记")
-	_check(GameState.high_score == high_score_before, "损坏档案保留内存默认值")
-	_check(FileAccess.file_exists(GameState.PROFILE_PATH + ".corrupt"), "损坏档案备份为 .corrupt")
-	DirAccess.remove_absolute(GameState.PROFILE_PATH + ".corrupt")
-	GameState.save_profile()  # 重建正常档案
-	GameState.load_profile()
-	_check(not GameState.profile_corrupt, "正常档案读取后 profile_corrupt 复位")
+	_check(GameState.profile_corrupt, "损坏档案隔离置 profile_corrupt")
+	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
+	await get_tree().process_frame
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
+	await get_tree().process_frame
+	_check(welcome.corrupt_label().visible, "损坏档案提示可见")
+	_check(welcome.corrupt_label().text != "START_SAVE_CORRUPT", "损坏档案文案区分于存档")
+	welcome.queue_free()
+	await get_tree().process_frame
 
-	# ---------- 3. 键盘-only 链路：无存档启动直达开始面板，Enter 开新局 ----------
-	GameState.delete_save()
-	var main_scene: PackedScene = load("res://scenes/main.tscn")
-	add_child(main_scene.instantiate())
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	_check(start_panel.visible, "无存档启动直达开始面板")
-	_check(get_tree().paused, "开始面板显示期间游戏暂停")
-	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel.new_button(), "无存档时主按钮（开始游戏）持有焦点")
-	_check(not start_panel.corrupt_label().visible, "无损坏存档时提示隐藏")
-
-	# 按钮 action_mode 默认为释放触发：pressed + released 才算一次完整点击
-	var accept := InputEventAction.new()
-	accept.action = &"ui_accept"
-	accept.pressed = true
-	Input.parse_input_event(accept)
-	await get_tree().process_frame
-	var accept_up := InputEventAction.new()
-	accept_up.action = &"ui_accept"
-	accept_up.pressed = false
-	Input.parse_input_event(accept_up)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_check(not start_panel.visible and not get_tree().paused, "Enter 触发开始游戏并恢复运行")
-
-	# ---------- 4. 有存档：主按钮为继续对局 ----------
+	# 5. 教程门控：进行中存档禁用教程；通关且无存档时放行
+	GameState.login_user("flow")
 	GameState.save_run(50.0, 10.0)
-	start_panel.show_panel()
+	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
 	await get_tree().process_frame
-	_check(start_panel.continue_button().visible, "有存档时显示继续对局")
-	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel.continue_button(), "有存档时焦点在继续对局")
-	start_panel.dismiss()
-	GameState.delete_save()
-
-	# ---------- 5. 损坏存档：面板降级为新对局 + 提示可见 ----------
-	_write_file(GameState.SAVE_PATH, "{still broken")
-	start_panel.show_panel()
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
 	await get_tree().process_frame
-	_check(not start_panel.continue_button().visible, "损坏存档不再显示继续对局")
-	_check(start_panel.corrupt_label().visible, "损坏存档提示可见")
-	_check(start_panel.corrupt_label().text != "START_SAVE_CORRUPT", "损坏提示文案已翻译（tr 命中）")
-	_check(start_panel.get_viewport().gui_get_focus_owner() == start_panel.new_button(), "损坏存档焦点落到开始游戏")
-	start_panel.dismiss()
-
-	# ---------- 6. 有存档启动：直达开始面板，主按钮为继续对局 ----------
-	GameState.save_run(50.0, 10.0)
-	get_node("Main").queue_free()
+	_check(welcome.tutorial_button().disabled, "进行中存档时教程按钮禁用（防删档）")
+	welcome.queue_free()
 	await get_tree().process_frame
-	await get_tree().process_frame
-	add_child(main_scene.instantiate())
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var start_panel2: CanvasLayer = get_node("Main/StartPanel")
-	_check(start_panel2.visible, "有存档启动直达开始面板")
-	_check(get_tree().paused, "有存档启动后面板暂停游戏")
-	_check(start_panel2.get_viewport().gui_get_focus_owner() == start_panel2.continue_button(), "有存档时焦点在继续对局")
-	# Enter 直接触发继续对局（无欢迎页拦截）
-	var continued := [false]
-	start_panel2.continue_chosen.connect(func() -> void: continued[0] = true)
-	var accept2 := InputEventAction.new()
-	accept2.action = &"ui_accept"
-	accept2.pressed = true
-	Input.parse_input_event(accept2)
-	await get_tree().process_frame
-	var accept2_up := InputEventAction.new()
-	accept2_up.action = &"ui_accept"
-	accept2_up.pressed = false
-	Input.parse_input_event(accept2_up)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_check(not start_panel2.visible, "Enter 触发继续对局并关闭面板")
-	_check(not get_tree().paused, "继续对局恢复运行")
-	_check(continued[0], "Enter 触发 continue_chosen")
-	_check(GameState.has_save(), "继续对局未删档")
-
-	# ---------- 7. F2：语法合法但结构非法的存档 → 继续对局不崩、异常字段回默认 ----------
-	_write_file(
-		GameState.SAVE_PATH,
-		(
-			JSON
-			. stringify(
-				{
-					"version": 2,
-					"score": "lots",
-					"kills": [1, 2],
-					"health": "full",
-					"fuel": "half",
-					"elapsed": "long",
-					"buffs": [1, 2],
-					"missions": {"kill_5": "done"},
-					"chosen_routes": [3],
-					"locked_routes": {"line": 7},
-					"rp": "rich",
-					"difficulty_multiplier": "high",
-				}
-			)
-		)
-	)
-	var bad_data := GameState.load_run_data()
-	_check(not bad_data.is_empty(), "F2：结构非法存档可解析（语法合法不隔离）")
-	GameState.reset_run()
-	GameState.apply_run_save(bad_data)
-	_check(GameState.score == 0, "F2：非法 score 回默认 0")
-	_check(GameState.buffs.is_empty(), "F2：非法 buffs 回默认空")
-	_check(GameState.health == GameState.max_health(), "F2：非法 health 回默认满血")
-	_check(GameState.rp == 0, "F2：非法 rp 回默认 0")
-	_check(GameState.chosen_routes.is_empty() and GameState.locked_routes.is_empty(), "F2：非法路线字段回默认空")
-	_check(int(GameState.missions[&"kill_5"]["progress"]) == 0, "F2：非法 mission 条目回默认进度")
-	# main 的继续对局路径（fuel/elapsed 判型）
-	var main2 := get_node("Main")
-	var player2: Player = get_node("Main/Player")
-	main2.continue_run()
-	_check(player2.fuel_amount() == player2.fuel_max, "F2：非法 fuel 回默认满燃料")
-	_check(get_node("Main/Spawner").elapsed() == 0.0, "F2：非法 elapsed 回默认 0")
-
-	# ---------- 8. E02 + P1-6：教程可重看（通关后无存档不禁用；有存档才禁用防删档） ----------
 	GameState.delete_save()
 	GameState.tutorial_done = true
-	start_panel2.show_panel()
-	await get_tree().process_frame
-	_check(not start_panel2.tutorial_button().disabled, "E02：通关后无存档可重看教程（P1-6）")
-	start_panel2.dismiss()
-	GameState.tutorial_done = false
 	GameState.save_profile()
+	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
+	add_child(welcome)
+	await get_tree().process_frame
+	welcome.username_line().text = "flow"
+	welcome.password_line().text = "pass123"
+	welcome.press_login()
+	await get_tree().process_frame
+	_check(not welcome.tutorial_button().disabled, "通关且无存档时教程按钮放行")
+	welcome.queue_free()
+	await get_tree().process_frame
 
-	# ---------- 8b. G03：有进行中存档（未通关）时教程按钮禁用（E02 漏网路径） ----------
-	GameState.delete_save()
+	# 6. main 启动自动继续：登录用户有档 → 实例化 main → 分数/对局恢复（T3 新逻辑）
+	GameState.login_user("flow")
+	GameState.score = 12345
+	GameState.kills = 7
 	GameState.save_run(50.0, 10.0)
-	start_panel2.show_panel()
+	GameState.score = 0
+	var main: Node2D = MAIN_SCENE.instantiate() as Node2D
+	add_child(main)
 	await get_tree().process_frame
-	_check(start_panel2.tutorial_button().disabled, "G03：有存档（未通关）时教程按钮禁用")
-	start_panel2.dismiss()
-	GameState.delete_save()
+	await get_tree().process_frame
+	_check(GameState.score == 12345, "main 启动自动读档恢复分数")
+	_check(GameState.kills == 7, "main 启动自动读档恢复击杀")
+	_check(not get_tree().paused, "继续对局不冻结（无开始面板暂停门控）")
+	main.queue_free()
+	await get_tree().process_frame
 
-	_cleanup()
-	GameState.save_profile()
-	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	print("STARTUP FLOW TEST DONE, failures = ", _failures)
+	GameState.logout_user()
+	GameState.delete_save()
+	GameState.reset_run()
+	_wipe_user_files()
+	_wipe_user_saves()
+	get_tree().quit(_failures)

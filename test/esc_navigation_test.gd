@@ -43,12 +43,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var start_panel: CanvasLayer = main.get_node("StartPanel")
-	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 	var settings_ui: CanvasLayer = main.get_node("SettingsUI")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	await get_tree().process_frame
+
+	var pause_ui: CanvasLayer = main.get_node("PauseUI")
 
 	# 1. Esc → 暂停（未暂停时注入，main/pause 均可收）
 	await _press_key(KEY_ESCAPE)

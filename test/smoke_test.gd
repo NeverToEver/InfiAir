@@ -24,11 +24,8 @@ func _ready() -> void:
 	# 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
 	GameState.set_difficulty(&"easy")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
-	# 无存档时开始面板会自显：直接走「开始游戏」关闭之（难度选择见 difficulty_test）
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	# 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
 	get_node("Main/Player").set_auto_fire(false)
 	await get_tree().process_frame
@@ -452,7 +449,10 @@ func _ready() -> void:
 	if main.mothership() != null:
 		main.mothership().queue_free()
 
-	# 3.11 对局存档：写入 → 清空 → 恢复
+	# 3.11 对局存档：写入 → 清空 → 恢复（游客不存档，切真实用户验证；结束后恢复游客）
+	if not GameState.user_exists("smoke_user"):
+		GameState.create_user("smoke_user", "pass123")
+	GameState.login_user("smoke_user")
 	var saved_score := GameState.score
 	GameState.add_buff(&"power_shot")
 	GameState.health = 66.0
@@ -524,6 +524,7 @@ func _ready() -> void:
 	_check(GameState.score == score_before_hc, "返回同一局：分数保留")
 	_check(GameState.buff_count(&"power_shot") == power_before, "返回同一局：buff 保留")
 	_check(GameState.has_save(), "返航后存档保留")
+	GameState.login_guest()  # 恢复游客会话（§3.11 起的用户档断言已结束）
 	# 注册表驱动清场：非 Boss 实体（Enemy/FormationCraft/事件残留）全清
 	var enemy_left := false
 	for e in GameState.enemies:
@@ -591,9 +592,7 @@ func _ready() -> void:
 	pause_ui.toggle()
 	_check(not pause_ui.visible and not get_tree().paused, "Esc 恢复")
 
-	# 5.1 设置面板 opener 回归：开始/暂停面板打开设置时必须让位（layer 30 会挡住 16），
-	# 返回/Esc 后恢复打开者，而不是一律弹暂停菜单
-	var start_panel5: CanvasLayer = get_node("Main/StartPanel")
+	# 5.1 设置面板 opener 回归：暂停面板打开设置时必须让位，返回/Esc 后恢复打开者
 	var settings_ui: CanvasLayer = get_node("Main/SettingsUI")
 	pause_ui.toggle()
 	pause_ui.open_settings()
@@ -603,13 +602,6 @@ func _ready() -> void:
 	_check(pause_ui.visible and not settings_ui.visible, "设置返回：恢复暂停面板")
 	pause_ui.toggle()
 	_check(not pause_ui.visible, "设置回归：暂停面板已关闭")
-	start_panel5.show_panel()
-	start_panel5.press_settings()
-	_check(not start_panel5.visible and settings_ui.visible, "开始→设置：开始面板让位不遮挡")
-	get_node("Main/BackNavigator").go_back()  # Esc 全局路由已移交 BackNavigator
-	_check(start_panel5.visible and not settings_ui.visible, "设置中 Esc：返回开始面板")
-	_check(not pause_ui.visible, "设置中 Esc：未误弹暂停菜单")
-	start_panel5.dismiss()
 
 	# 6. 迭代 3.3 玩家侧：瞄准辅助 / 冲刺耗燃料 / Ctrl 微调
 	# 第 4 节玩家已受击至死：复活以便继续测试（不重开 hitbox，避免杂散碰撞）
@@ -859,7 +851,10 @@ func _ready() -> void:
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
 	print("SMOKE TEST DONE, failures = ", _failures)
+	GameState.logout_user()
 	GameState.delete_save()
+	if FileAccess.file_exists(GameState.user_db_savefile_for("smoke_user")):
+		DirAccess.remove_absolute(GameState.user_db_savefile_for("smoke_user"))
 	# 恢复默认难度并落盘，避免污染其他测试进程的 profile
 	GameState.set_difficulty(&"medium")
 	get_tree().quit(_failures)

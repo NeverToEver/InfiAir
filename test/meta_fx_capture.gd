@@ -14,11 +14,6 @@ func _ready() -> void:
 	var main := get_node("Main")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	get_tree().paused = false  # 开始面板路径可能带暂停态
-	# 关闭开始面板（无存档时它开场自显会遮挡画面，参照 visual_capture.gd）
-	var sp: CanvasLayer = get_node("Main/StartPanel")
-	if sp.visible:
-		sp.press_new_game()
 	var spawner := get_node("Main/Spawner")
 	spawner.set_process(false)
 	var player: Player = get_node("Main/Player")

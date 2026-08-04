@@ -1,5 +1,5 @@
 extends Node
-## i18n 测试：locale 切换生效、10 个 key 中英对照、profile 往返、HUD 英文刷新、缺 key 回退。
+## i18n 测试：locale 切换生效、14 个 key 中英对照、profile 往返、HUD 英文刷新、缺 key 回退。
 
 var _failures: int = 0
 
@@ -28,7 +28,7 @@ func _ready() -> void:
 	_check(GameState.locale == "en", "set_locale 切换 en")
 	_check(tr("UI_SCORE") == "Score: %d", "en 列生效")
 
-	# 3. 抽查 10 个 key 中英对照（均非 key 本身且互不相同）
+	# 3. 抽查 key 中英对照（均非 key 本身且互不相同；2026-08-04 扩 welcome/排行榜键）
 	var keys := [
 		"UI_SCORE",
 		"BUFF_POWER_SHOT_NAME",
@@ -40,6 +40,10 @@ func _ready() -> void:
 		"ACT_DASH",
 		"TUT_S1_TITLE",
 		"WARN_BOSS",
+		"WELCOME_LOGIN",
+		"WELCOME_GUEST_CONFIRM",
+		"WELCOME_MSG_BAD_CRED",
+		"LEAD_TITLE",
 	]
 	var all_ok := true
 	for k in keys:
@@ -50,7 +54,7 @@ func _ready() -> void:
 		if zh_text == k or en_text == k or zh_text == en_text:
 			all_ok = false
 			printerr("  key 异常: ", k, " zh=", zh_text, " en=", en_text)
-	_check(all_ok, "10 个 key 中英对照齐全")
+	_check(all_ok, "14 个 key 中英对照齐全")
 
 	# 4. profile 往返
 	GameState.set_locale("en")

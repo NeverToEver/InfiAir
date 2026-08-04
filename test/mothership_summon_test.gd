@@ -19,15 +19,14 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 	var main := get_node("Main")
 	var spawner := main.get_node("Spawner")
-	(main.get_node("StartPanel") as CanvasLayer).hide()
-	get_tree().paused = false  # 开始面板路径可能带暂停态；小窗 process_mode 跟随树，需非暂停
-	# 全程禁用刷怪与随机事件编排：只验证召唤序列自身
+	get_tree().paused = false  # 全程禁用刷怪与随机事件编排：只验证召唤序列自身
 	spawner.set_process(false)
 	main.event().set_process(false)
 	main.formation().set_process(false)

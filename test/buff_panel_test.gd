@@ -32,6 +32,7 @@ func _ready() -> void:
 	var orig_locale: String = GameState.locale
 	GameState.delete_save()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -40,10 +41,7 @@ func _ready() -> void:
 	var hud: CanvasLayer = main.get_node("HUD")
 	var nav := main.get_node("BackNavigator")
 	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
-	var start_panel: CanvasLayer = main.get_node("StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
-		await get_tree().process_frame
+	await get_tree().process_frame
 	# 屏蔽里程碑三选一叠屏
 	GameState.set_milestone_override(999999999)
 

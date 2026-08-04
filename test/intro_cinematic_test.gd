@@ -39,31 +39,27 @@ func _press_esc() -> void:
 func _ready() -> void:
 	GameState.delete_save()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
-	var start_panel: CanvasLayer = main.get_node("StartPanel")
 	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
 
-	# ---------- 1. 门禁路径：测试场景（current_scene != Main）点击新游戏不触发过场 ----------
-	_check(start_panel.visible, "无存档时开始面板自显")
-	start_panel.press_new_game()
+	# ---------- 1. 门禁路径：测试场景（current_scene != Main）实例化不自动播过场 ----------
 	await get_tree().process_frame
-	_check(main.intro() == null, "门禁：测试场景点击新游戏不播过场")
+	_check(main.intro() == null, "门禁：测试场景实例化 main 不播过场")
 	_check(not get_tree().paused, "门禁：未残留暂停")
-	_check(not start_panel.visible, "开始面板已隐藏")
 
-	# ---------- 2. 直接触发：过场节点存在、树暂停、面板隐藏 ----------
+	# ---------- 2. 直接触发：过场节点存在、树暂停 ----------
 	var timer_baseline := _count_timers(get_tree().root)
 	main.play_intro()
 	await get_tree().process_frame
 	var intro: IntroCinematic = main.intro()
 	_check(intro != null, "直接触发：过场节点存在")
 	_check(get_tree().paused, "过场播放期间树暂停")
-	_check(not start_panel.visible, "过场播放期间开始面板隐藏")
 
 	# ---------- 3. skip() 路径：销毁、finished、恢复非暂停、无 Timer 残留 ----------
 	var finished_fired := [false]

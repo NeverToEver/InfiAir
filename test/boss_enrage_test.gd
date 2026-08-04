@@ -89,12 +89,10 @@ func _ready() -> void:
 	GameState.high_score = 0
 	GameState.save_profile()
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var start_panel: CanvasLayer = get_node("Main/StartPanel")
-	if start_panel.visible:
-		start_panel.press_new_game()
 	var player: Player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0)  # 狂暴弹幕期间不被误伤

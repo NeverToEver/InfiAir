@@ -3,10 +3,8 @@ extends Node
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
 ## MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/
-## boss_fight（Boss 名牌 + 血条 + 狂暴态）/ start_panel（存档开始面板）/ base（基地控制台）/
+## boss_fight（Boss 名牌 + 血条 + 狂暴态）/ welcome（登录面板）/ base（基地控制台）/
 ## mothership（母舰驻留）/ summon（召唤机库小窗）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
-
-const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
 const MODE := "gameplay"
 const FORCE_LOCALE := ""  # "en" 时强制英文截图
@@ -15,16 +13,21 @@ const FORCE_LOCALE := ""  # "en" 时强制英文截图
 func _ready() -> void:
 	if FORCE_LOCALE != "":
 		GameState.set_locale(FORCE_LOCALE)
-	if MODE == "start_panel":
-		GameState.save_run(50.0, 10.0)  # 伪造存档让开始面板出现
+	if MODE == "welcome":
+		# 登录面板截图（welcome 主场景，非对局画面）
+		GameState.login_guest()
+		var wl: CanvasLayer = load("res://scenes/welcome.tscn").instantiate() as CanvasLayer
+		add_child(wl)
+		for i in 30:
+			await get_tree().process_frame
+		var img := get_viewport().get_texture().get_image()
+		img.save_png(SHOT_PATH)
+		print("saved: ", SHOT_PATH)
+		get_tree().quit(0)
+		return
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
-	if MODE != "start_panel":
-		# 关闭开始面板（无存档时它开场自显会遮挡画面）
-		await get_tree().process_frame
-		var sp: CanvasLayer = get_node("Main/StartPanel")
-		if sp.visible:
-			sp.press_new_game()
 	match MODE:
 		"exit_confirm":
 			# 暂停面板 + 战斗退出确认窗（battle 模式进度损失警告）
@@ -63,9 +66,6 @@ func _ready() -> void:
 				boss.take_damage(int(boss.max_hp * 0.75))
 				for i in 120:  # 狂暴转场演出一段后截图
 					await get_tree().process_frame
-		"start_panel":
-			for i in 30:
-				await get_tree().process_frame
 		"base":
 			# 基地控制台界面
 			await get_tree().process_frame

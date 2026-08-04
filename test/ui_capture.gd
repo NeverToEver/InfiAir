@@ -1,6 +1,5 @@
 extends Node
-## UI 样式巡检截图：依次展示 开始面板/设置/Buff 三选一/暂停/基地控制台/结算 六个界面，
-## 每屏截图存 /tmp/ui_<name>.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
+### 每屏截图存 /tmp/ui_<name>.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ##   godot --path . res://test/ui_capture.tscn
 ## 结束恢复现场：删除测试产生的存档，profile 原始值（最高分）还原落盘。
 
@@ -11,30 +10,26 @@ func _ready() -> void:
 	# 快照 profile 原始值，结束还原（测试要伪造最高分/新纪录）
 	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 12345
-	GameState.save_run(50.0, 10.0)  # 伪造存档让开始面板显示「继续对局」形态
-
+	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# 1. 开始面板（有存档：继续对局 primary + 最高分副信息行）
-	var sp: CanvasLayer = get_node("Main/StartPanel")
-	if not sp.visible:
-		sp.show_panel()
+	# 1. 入口界面（welcome 登录面板，StartPanel 已退役）
+	var wl: CanvasLayer = load("res://scenes/welcome.tscn").instantiate() as CanvasLayer
+	add_child(wl)
 	await _settle()
-	_shot("start")
-
-	# 2. 设置页（从开始面板进入，默认控制分区）
-	sp.press_settings()
-	await _settle()
-	_shot("settings")
-	var settings: CanvasLayer = get_node("Main/SettingsUI")
-	settings.back()
+	_shot("welcome")
+	wl.queue_free()
 	await get_tree().process_frame
 
-	# 开新局，后续界面在对局内展示
-	sp.press_new_game()
+	# 2. 设置页（对局内打开）
+	var settings: CanvasLayer = get_tree().get_first_node_in_group("settings_ui")
+	settings.show_settings()
+	await _settle()
+	_shot("settings")
+	settings.back()
 	await get_tree().process_frame
 
 	# 3. Buff 三选一（含层数标记：先垫一层 power_shot 候选必含时可见，随缘即可）
