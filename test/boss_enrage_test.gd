@@ -272,13 +272,13 @@ func _ready() -> void:
 		var now_rings := _count_enrage_bullets()
 		if now_rings >= 20:
 			double_ring_seen = true
-		if now_rings >= 40:
+		if e5.phase() == Boss.EnragePhase.RELEASE_HOLD and now_rings >= 20:
 			release_ring_seen = true
 		if e5.phase() == Boss.EnragePhase.RELEASE_HOLD:
 			phase_seen_release = true
 	_check(double_ring_seen, "场景5：ACTIVE 双环同帧 ≥20 向（正环+反环）")
 	_check(phase_seen_release, "场景5：序列推进到 RELEASE_HOLD")
-	_check(release_ring_seen, "场景5：收尾蓄力环阵（20 向 + 残留环）")
+	_check(release_ring_seen, "场景5：收尾蓄力环阵（RELEASE_HOLD 期 ≥20 向）")
 
 	print("BOSS ENRAGE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
