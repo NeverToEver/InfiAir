@@ -97,6 +97,16 @@ Bar shown + ≥40s: countdown under bar (10→0, red flicker); escape at 50s unc
 ### 5.4 Climax Burst (principle 3)
 ENRAGE RELEASE_HOLD = "last stand" peak (above); then RETURN → "afterburn": fire ×1.3 (down from ×1.5).
 
+### 5.6 Type 4 "Eclipse" (2026-08-04) — ring-weaving mage
+
+4th boss (content evolution 3.1): **stationary center-weaver** — no strafe, small vertical sine bob at anchor (amp 30px / period 2.4s / `boss.movement.type4`). Distinguishes via bullet geometry, not movement.
+
+- **P1**: `ring_burst` (360° ring, 12 shots @340, `boss.ring_burst`) alternating `homing`
+- **P2**: `ring_burst` + `cross` + `sniper3` (0.35s telegraph — same shared skeleton)
+- **Enrage "Lunar Eclipse"** (`boss.enrage.type_4`): TRANSITION hover (same as type1) → ACTIVE counter-rotating double ring (forward ring at +angle, reverse at -angle, precess 15°/wave, 10 shots each @200) → RELEASE 20-shot charged ring volley → RETURN; shared afterburn ×1.3
+- Rotation `spawner` `%4+1`; `hp_mults` 1.2; tell: `ATTACK_TELLS.ring_burst` (fire-A pitch 1.4, magenta ring); sprite reuses boss_ship_1 (bullet-geometry identity)
+- Difficulty tier: `counts.ring_burst` [10, 12, 14]
+
 ### 5.5 P2 Movement Upgrade (2026-08-02, D05 landed)
 > §5.1-5.3 P2 movements were unimplemented since phase B (D05, 2026-08-02). Landed per table; vertical = **sine bob**, reusing `EnemyMoveStrategy` (`anchor + Enemy.sin_fast(time * freq + phase) * amp`, LUT zero alloc, C05/C09) and `BossMovement._update_press` incremental-y pattern — no new primitives.
 

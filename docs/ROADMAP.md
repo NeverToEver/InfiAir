@@ -41,7 +41,7 @@
 **Restart 2026-08-04 (deferred plans, excl. mobile touch)**:
 - **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
 - **Mothership expansion**: `docs/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers); **landed** — milestone-gated gatling/missile upgrade
-- **Content evolution**: `docs/2026-08-04-content-evolution-plan.md` (3 buffs + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse")
+- **Content evolution**: `docs/2026-08-04-content-evolution-plan.md`; **landed** — 3 buffs (crit_shot/shield/bullet_speed) + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse" (ring-weaving mage)
 
 - **Local accounts**: spec at commit `7aacd3f` (UserDB/PBKDF2/per-user saves; also PORTING_PARITY Appendix B); reuse on restart.
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.

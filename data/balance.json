@@ -524,9 +524,11 @@
 			"type3_p2_strafe": 100,
 			"type3_p2_bob_amp": 50,
 			"type3_p2_bob_period": 8,
-			"type4_bob_amp": 30,
-			"type4_bob_period": 2.4,
-			"type4_speed": 40
+			"type4": {
+				"bob_amp": 30,
+				"bob_period": 2.4,
+				"speed": 40
+			}
 		},
 		"enrage": {
 			"hp_ratio": 0.3,
