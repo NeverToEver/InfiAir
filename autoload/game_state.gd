@@ -607,6 +607,11 @@ func set_milestone_override(threshold: int) -> void:
 
 
 ## A7：测试/诊断白盒断言经公开接口
+## 当前已触发的里程碑数（2026-08-04 母舰升级档位等消费点）
+func milestone_count() -> int:
+	return _milestone_count
+
+
 func next_milestone() -> int:
 	return _next_milestone
 

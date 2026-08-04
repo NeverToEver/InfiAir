@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 玩法（2026-08-04，母舰扩展）
+
+- **母舰火力随里程碑升级**（`docs/2026-08-04-mothership-expansion-plan.md`）：对局里程碑 ≥5 后加特林/导弹伤害 ×1.5、射速 +25%（`mothership.upgrade` 配置段）；驻留状态栏显示「火力升级 ★」提示
+
 ### 账户与入口（2026-08-04，本地账户系统）
 
 - **本地用户系统**（`docs/2026-08-04-local-accounts-plan.md`，重启 Phase 3）：`UserDB`（`user://users.json`，PBKDF2-HMAC-SHA256 密码 + 盐、注册/登录/游客/删除、last-login 排序、每用户设置与统计）；删号连带清理该用户存档

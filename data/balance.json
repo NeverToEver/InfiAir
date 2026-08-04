@@ -590,7 +590,12 @@
 			"splash_damage": 20,
 			"splash_radius": 80
 		},
-		"dock_charge_time": 3
+		"dock_charge_time": 3,
+		"upgrade": {
+			"threshold": 5,
+			"damage_mult": 1.5,
+			"interval_mult": 0.8
+		}
 	},
 	"buffs": {
 		"power_shot": {

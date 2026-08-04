@@ -57,6 +57,10 @@ var GATLING_DAMAGE := 8
 var GATLING_SCORE_SCALE := 1.0 / 3.0
 ## G030：导弹得分系数独立命名（与加特林同为 1/3，分别调参时不误改）
 var MISSILE_SCORE_SCALE := 1.0 / 3.0
+# 2026-08-04 母舰扩展：火力随里程碑升级（阈值/伤害/射速倍率；默认值与 balance.json 双写）
+var _upgrade_threshold: int = 5
+var _upgrade_damage_mult: float = 1.5
+var _upgrade_interval_mult: float = 0.8
 var GATLING_SWEEP_LEFT_MIN := -60.0
 var GATLING_SWEEP_LEFT_MAX := 20.0
 var GATLING_SWEEP_RIGHT_MIN := -20.0
@@ -147,6 +151,10 @@ func _ready() -> void:
 	DRIVE_MARGIN_X = GameState.cfg("mothership.drive.margin_x", DRIVE_MARGIN_X) * GameState.world_scale
 	DRIVE_MARGIN_TOP = GameState.cfg("mothership.drive.margin_top", DRIVE_MARGIN_TOP) * GameState.world_scale
 	DRIVE_MARGIN_BOTTOM = GameState.cfg("mothership.drive.margin_bottom", DRIVE_MARGIN_BOTTOM) * GameState.world_scale
+	# 2026-08-04 母舰扩展：升级档位配置（阈值/伤害/射速倍率）
+	_upgrade_threshold = int(GameState.cfg("mothership.upgrade.threshold", _upgrade_threshold))
+	_upgrade_damage_mult = float(GameState.cfg("mothership.upgrade.damage_mult", _upgrade_damage_mult))
+	_upgrade_interval_mult = float(GameState.cfg("mothership.upgrade.interval_mult", _upgrade_interval_mult))
 	GATLING_INTERVAL = GameState.cfg("mothership.gatling.interval", GATLING_INTERVAL)
 	GATLING_BULLET_SPEED = GameState.cfg("mothership.gatling.bullet_speed", GATLING_BULLET_SPEED)
 	GATLING_DAMAGE = GameState.cfg("mothership.gatling.damage", GATLING_DAMAGE)
@@ -314,7 +322,10 @@ func state_text() -> String:
 		State.DOCKING, State.RESUPPLY:
 			return tr("MS_DOCKING")
 		State.STAY:
-			return tr("MS_STAY") % ceili(_mag_cells * MAG_CELL_TIME - _mag_cell_timer)
+			var stay := tr("MS_STAY") % ceili(_mag_cells * MAG_CELL_TIME - _mag_cell_timer)
+			if tier() == 1:
+				stay += "  " + tr("MS_UPGRADED")
+			return stay
 		State.RELEASE, State.DEPART:
 			return tr("MS_LEAVE")
 	return ""
@@ -600,6 +611,19 @@ func _live_targets() -> Array[Node2D]:
 	return _targets_buf
 
 
+## 2026-08-04 母舰扩展：升级档位——里程碑数 ≥ 阈值即升档（0 或 1）
+func tier() -> int:
+	return 1 if GameState.milestone_count() >= _upgrade_threshold else 0
+
+
+func damage_mult() -> float:
+	return _upgrade_damage_mult if tier() == 1 else 1.0
+
+
+func interval_mult() -> float:
+	return _upgrade_interval_mult if tier() == 1 else 1.0
+
+
 ## 加特林扫射压制（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期有目标时开火；
 ## 双塔向上半球各扫 80°，左塔 [-60°,+20°] 周期 1.6s，右塔 [-20°,+60°] 周期 1.8s 相位 +0.35s（总覆盖 120°）。
 func _update_gatling(delta: float) -> void:
@@ -607,7 +631,7 @@ func _update_gatling(delta: float) -> void:
 	_gatling_timer -= delta
 	if _gatling_timer > 0.0:
 		return
-	_gatling_timer = GATLING_INTERVAL  # G027：先置位再判空——空目标不每物理帧分配数组+扫注册表
+	_gatling_timer = GATLING_INTERVAL * interval_mult()  # G027：先置位再判空——空目标不每物理帧分配数组+扫注册表
 	if _live_targets().is_empty():
 		return
 	for i in _turrets.size():
@@ -623,7 +647,7 @@ func _update_gatling(delta: float) -> void:
 			angle = center + half * Enemy.sin_fast((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
 		var dir := Vector2.UP.rotated(angle)
 		turret.global_rotation = dir.angle()
-		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, GATLING_DAMAGE, true)
+		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, int(GATLING_DAMAGE * damage_mult()), true)
 		b.score_scale = GATLING_SCORE_SCALE
 		b.position = turret.global_position
 		# 比玩家弹更细更亮
@@ -641,7 +665,7 @@ func _update_missiles(delta: float) -> void:
 	_missile_timer -= delta
 	if _missile_timer > 0.0:
 		return
-	_missile_timer = MISSILE_INTERVAL  # G027：先置位再判空——空目标不每物理帧扫描
+	_missile_timer = MISSILE_INTERVAL * interval_mult()  # G027：先置位再判空——空目标不每物理帧扫描
 	var targets := _live_targets()
 	if targets.is_empty():
 		return
@@ -653,7 +677,7 @@ func _update_missiles(delta: float) -> void:
 		var dir: Vector2 = (t.global_position - dock).normalized()
 		if dir == Vector2.ZERO:
 			dir = Vector2.UP
-		var b: Bullet = GameState.bullet_pool.fire(dir, MISSILE_SPEED, MISSILE_DAMAGE, true)
+		var b: Bullet = GameState.bullet_pool.fire(dir, MISSILE_SPEED, int(MISSILE_DAMAGE * damage_mult()), true)
 		b.score_scale = MISSILE_SCORE_SCALE  # G030：独立常量（原复用 GATLING_SCORE_SCALE 语义混用）
 		b.splash_damage = MISSILE_SPLASH_DAMAGE
 		b.splash_radius = MISSILE_SPLASH_RADIUS
