@@ -15,6 +15,10 @@
 - **A 审计稳健性 ×5**：`reset_run` 清 DDA 计时（跨对局降档残留）；`milestone_threshold` pow 溢出钳制 + 空表守卫；`apply_run_save` 里程碑定位迭代上限（异常配置大分数读档防挂死）；`cfg()` Array/Dictionary 返回浅拷贝（防误写污染配置真值）；`SaveManager` 原子写 rename 优先（rename 失败不再丢正本）
 - **CI 编译探针修复**：恢复 `autoplay_test.gd` 被误注释的 `_handle_pause_ui`/`_do_menu_return`（适配 StartPanel 退役：重进 main 启动自动读档）；`visual_capture.gd` 补回 `FRAMES_BEFORE_SHOT` 常量
 
+### 修复（2026-08-04，M06 图标字形）
+
+- **新 buff 专属字形 + 分类色**（`scripts/ui_buff_icons.gd`，M06 遗留落地）：`crit_shot`/`shield`/`bullet_speed` 不再走回退圆环——补几何字形（暴击=十字准星+中心点、护盾=圆盾外环+菱形脊、弹速=水平弹头+三条速度线），分类色归位（暴击/弹速→进攻青、护盾→维生绿），16→19 字形全覆盖；HUD 图标格与 Buff 三选一卡片共用
+
 ### 玩法（2026-08-04，内容演化，`docs/archive/2026-08-04-content-evolution-plan.md`）
 
 - **新 buff ×3**：暴击 `crit_shot`（12%/层 ×2 伤害，真实命中路径测试）、护盾 `shield`（每层吸收一次全额伤害，`GameState.consume_buff` 层消耗 API）、弹速 `bullet_speed`（+20%/层，声明式 pow 表）

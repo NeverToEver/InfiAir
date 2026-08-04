@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) on this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **Authoritative conventions: `AGENTS.md` + `.agents/*`** (collision layers, testing, perf, i18n, tuning, GDScript style) — read before changes. This file: entry-level overview only. Direction/plans: `docs/ROADMAP.md`. **`docs/AUDIT_VAULT.md` is a proprietary audit archive — never remove**; consult before core-logic changes.
 
@@ -25,17 +25,19 @@ $G --headless --path . res://test/smoke_test.tscn           # main flow — alwa
 $G --headless --path . res://test/base_system_test.tscn     # saves/base/mothership changes
 $G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
 $G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn  # perf (needs --fixed-fps)
-# All other scenes, one-liner:
-for t in enemy_combat wave_pacing buff33 buff_panel buff_visuals difficulty \
-  boss_enrage boss_phase boss_pattern balance hit_logic elite_turret_event \
-  formation_strike_event orbital_strike mothership_summon meta_health_fx keybind \
-  i18n tutorial view_zoom window_size startup_flow back_navigation \
-  esc_navigation intro_cinematic return_cinematic pool_reuse; do
-  $G --headless --path . "res://test/$t.tscn" || break
+# All 41 assertion scenes, one-liner (same selection as CI: test/*_test.tscn minus autoplay probe):
+for t in test/*_test.tscn; do
+  case "$t" in *autoplay_test.tscn) continue;; esac
+  $G --headless --path . "res://$t" || break
 done
 ```
 
 Minimum after changes: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership. Screenshots need windowed mode (headless captures nothing): `test/visual_capture.tscn` (game → /tmp/infiair_capture.png), `test/ui_capture.tscn` (UI → /tmp/ui_*.png).
+
+# Pre-commit gate (5 layers; CI runs all): format + static first, then the above engine checks
+python3 -m venv .venv && .venv/bin/pip install gdtoolkit   # one-time; .venv/ gitignored
+.venv/bin/gdformat --check autoload/ scripts/ test/        # layer 1: format (w=140)
+.venv/bin/gdlint autoload/ scripts/ test/                  # layer 2: style/unused
 
 ## Architecture Essentials
 

@@ -1,11 +1,13 @@
 class_name BuffIcons
 extends RefCounted
-## Buff 程序化字形图标库：16 种 buff 各一个几何字形（24 单位坐标系按尺寸缩放），
+## Buff 程序化字形图标库：19 种 buff 各一个几何字形（24 单位坐标系按尺寸缩放），
 ## 供 HUD 图标格（ui_theme.make_buff_tile）与 Buff 三选一卡片共用同一套图形语言。
 ## 分类配色：进攻=ACCENT 青，维生=SUCCESS 绿，通用=ACCENT_GOLD 金。
 
-const _OFFENSE: Array[StringName] = [&"power_shot", &"rapid_fire", &"spread_shot", &"piercing", &"explosive", &"laser_beam"]
-const _SUSTAIN: Array[StringName] = [&"extra_life", &"regen", &"lifesteal", &"armor", &"evasion"]
+const _OFFENSE: Array[StringName] = [
+	&"power_shot", &"rapid_fire", &"spread_shot", &"piercing", &"explosive", &"laser_beam", &"crit_shot", &"bullet_speed"
+]
+const _SUSTAIN: Array[StringName] = [&"extra_life", &"regen", &"lifesteal", &"armor", &"evasion", &"shield"]
 # 其余归入通用：phase_dash / slow_field / efficient_boost / boost_recovery / mothership_recall
 
 
@@ -114,6 +116,26 @@ class _Glyph:
 				# 发射镜 + 光束
 				draw_polyline(_pts(u, [5, 8.5, 8.5, 12, 5, 15.5, 1.5, 12, 5, 8.5]), c, w, true)
 				draw_line(Vector2(10, 12) * u, Vector2(22, 12) * u, c, 3.5 * u, true)
+			&"crit_shot":
+				# 十字准星 + 中心点（命中要害，与 explosive 放射星芒区分）
+				draw_circle(Vector2(12, 12) * u, 2.0 * u, c)
+				_line(u, 12, 4, 12, 9, c, w)
+				_line(u, 12, 15, 12, 20, c, w)
+				_line(u, 4, 12, 9, 12, c, w)
+				_line(u, 15, 12, 20, 12, c, w)
+			&"shield":
+				# 圆盾：外环 + 中央菱形脊（吸收伤害，与 armor 三角盾区分）
+				draw_arc(Vector2(12, 12) * u, 8.0 * u, 0.0, TAU, 24, c, w, true)
+				_line(u, 12, 5, 8.5, 12, c, w)
+				_line(u, 8.5, 12, 12, 19, c, w)
+				_line(u, 12, 5, 15.5, 12, c, w)
+				_line(u, 15.5, 12, 12, 19, c, w)
+			&"bullet_speed":
+				# 水平飞行弹头（右尖）+ 三条速度线（与 power_shot 上指弹头区分）
+				draw_colored_polygon(_pts(u, [7, 12, 13, 6, 21, 12, 13, 18]), c)
+				_line(u, 3, 9, 6, 9, c, w)
+				_line(u, 1.5, 12, 6, 12, c, w)
+				_line(u, 3, 15, 6, 15, c, w)
 			_:
 				# 未登记字形回退：圆环
 				draw_arc(Vector2(12, 12) * u, 8 * u, 0.0, TAU, 24, c, w, true)

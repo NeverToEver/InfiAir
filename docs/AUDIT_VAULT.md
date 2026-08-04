@@ -1118,12 +1118,12 @@
 | M03 | `data/translations.csv` | **翻译键缺失 2 个**：`BOSS_TYPE_4`（第 4 型 Boss 名牌 `tr("BOSS_TYPE_%d")` 回退显示字面）、`ACT_PARRY`（`REBINDABLE_ACTIONS` 12 动作 vs CSV 11 键，改键页「弹反」行回退字面） | ✅ 补 `BOSS_TYPE_4`（Ⅳ型 · 月蚀 / Type IV · Eclipse）+ `ACT_PARRY`（弧光弹反 / Arc Parry）。验证：i18n_test 9 PASS |
 | M04 | `scripts/welcome.gd:391-397` | **welcome「设置」按钮静默死钮**：`_on_settings_pressed()` 经 `get_first_node_in_group("settings_ui")` 查找，welcome.tscn 无 SettingsUI 实例 → 返回 null 静默 return，按钮无任何反馈（账户计划声明 welcome 含设置入口） | ✅ `scenes/welcome.tscn` 挂载 SettingsUI（layer=16, process_mode=Always，与 main 配置一致）。验证：welcome_flow_test 28 PASS；设置开→关恢复 welcome 可见链路经代码核对 |
 | M05 | 全仓库文档 | **文档-事实口径过期批量**（37 断言场景→41、46 场景→50、3 Boss→4 型、16 buff→19、校准旧值 0.5/1.0/0.08→0.6/1.5/0.25/0.20、StartPanel 残留→welcome、存档路径旧描述→账户后事实、计划文档路径缺 `archive/` 前缀等约 60 处；另 META_HUD_DESIGN Status 改 Implemented、INTRO P4 标注 README 子项完成） | ✅ 三路并行修正 + 主控全局残留扫描补齐（AGENTS/CLAUDE/README×2/CONTRIBUTING/ci.yml/ROADMAP/DESIGN_BASELINE/ARCHITECTURE/EXIT_FLOW/TESTING/ENDLESS_BALANCE_PLAN/ELITE_TURRET_EVENT/AUDIT_REVIEW_SOP/META_HUD_DESIGN/INTRO_CINEMATIC/RETURN_HOME_CINEMATIC/CHANGELOG/.agents×2）。验证：残留扫描 0 过期引用（历史记录与 archive 快照按规则保留） |
+| M06 | `scripts/ui_buff_icons.gd:42-116` | **新 buff 无专属字形**（登记遗留后落地）：16 个 glyph 分支 vs 19 种 buff——`crit_shot`/`shield`/`bullet_speed`（2026-08-04 新增）走 `_` 回退圆环，HUD 图标格与三选一卡片无专属字形与分类色 | ✅ 补三字形 match 分支（暴击=十字准星+中心点、护盾=圆盾外环+菱形脊、弹速=水平弹头+三条速度线，均 24 单位坐标系与既有 glyph 同风格），分类色归位（`crit_shot`/`bullet_speed`→`_OFFENSE` 青、`shield`→`_SUSTAIN` 绿），头部注释 16→19。验证：CPU 渲染 19 字形一览目检（三新字形语义清晰、与 explosive/armor/regen/power_shot 区分、无越界）+ 全量测试 |
 
 ## 登记遗留（不修，保留待办）
 
 | 编号 | 严重度 | 位置 | 描述 | 处置建议 |
 | --- | --- | --- | --- | --- |
-| M06 | P3 | `scripts/ui_buff_icons.gd:42-116` | 16 个 glyph 分支 vs 19 种 buff：`crit_shot`/`shield`/`bullet_speed`（2026-08-04 新增）走 `_` 回退圆环，HUD/卡片无专属字形与分类色（`.agents/ui-navigation.md` 已同步标注） | 设计项：为新 buff 绘制几何字形后补 match 分支 + 分类色（`_OFFENSE`/`_SUSTAIN`） |
 | M07 | P3 | `scripts/back_navigator.gd:19,94-96` | `CONFIRM_EXIT` 枚举+分支为死代码：`decide_back_action()` 决策表（:107-130）任何状态不返回该分支，顶层退出确认已由 welcome 场景自处理 | 低危死代码，择机删除枚举+分支并同步 `docs/EXIT_FLOW.md` 状态机清单（已标注 retired） |
 | M08 | P3 | `scripts/start_panel.gd`、`scripts/start_radar.gd` | 孤儿脚本：StartPanel 2026-08-01 退役后无任何场景引用（`start_backdrop.gd` 由 welcome 复用，保留） | 确认无保留价值后删除两文件（含 README/ARCHITECTURE 已改口径） |
 | M09 | P4 | `data/translations.csv:170-171` | `SET_LANGUAGE_ZH/EN` 孤儿键：语言按钮硬编码「中文/English」，全仓无 `tr()` 引用 | 无害冗余，择机删除或接 i18n 动态标签 |
@@ -1132,5 +1132,6 @@
 ## 验证
 
 - 代码改动（M01-M04）：boss_enrage 40 / boss_pattern 58 / boss_registry 35 / i18n 9 / welcome_flow 28 / difficulty 63 全部 0 FAIL。
+- 代码改动（M06）：`ui_buff_icons.gd` 3 个新字形分支 + 分类色归属；CPU 渲染 19 字形一览目检（暴击准星/圆盾/弹头+速度线语义清晰、与既有字形区分、无越界）；全量断言场景 0 FAIL。
 - 文档改动（M05）：全局残留扫描（37 断言 / 46 场景 / 16 buff / 3 型轮换 / StartPanel 活跃表述 / 旧校准值 / 缺 archive 路径）0 命中（历史记录与 archive 快照按规则保留）。
 - 未改动：`docs/archive/`（历史快照豁免）、AUDIT_VAULT 历史条目、CHANGELOG 历史版本条目、BALANCE_MAP（生成文件，已重跑）。

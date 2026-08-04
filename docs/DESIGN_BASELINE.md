@@ -33,7 +33,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - New top-level `progression`; script `cfg()` fallbacks match json.
 
 ### 1.5 Buffs
-- 19 buffs (`ui_buff_icons` 16 glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
+- 19 buffs (`ui_buff_icons` 19 glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
 - Card text via `BUFF_%s_DESC` keys (single source).
 - Key scaling: `rapid_fire.factor` (interval ×0.75 = +33%/stack), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3`), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `aim_point()`; in-frame → `Bullet.homing_target` (bounded `homing_time`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
