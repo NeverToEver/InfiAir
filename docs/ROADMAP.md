@@ -38,6 +38,11 @@
 
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 
+**Restart 2026-08-04 (deferred plans, excl. mobile touch)**:
+- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`
+- **Mothership expansion**: `docs/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers)
+- **Content evolution**: `docs/2026-08-04-content-evolution-plan.md` (3 buffs + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse")
+
 - **Local accounts**: spec at commit `7aacd3f` (UserDB/PBKDF2/per-user saves; also PORTING_PARITY Appendix B); reuse on restart.
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.
 - **Packaging**: resumed 2026-07-30, proven 07-31 — presets committed (Linux/X11 + Windows Desktop, embedded pck), `release.sh` → `builds/release/` (gitignored), `packaging/` scripts (Linux user-space + .desktop / Windows per-user + Start menu). Platform validation pending.
