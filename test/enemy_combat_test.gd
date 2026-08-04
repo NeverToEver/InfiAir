@@ -242,7 +242,6 @@ func _ready() -> void:
 	split_e.position = Vector2(960.0, 400.0)
 	await get_tree().process_frame
 	var score_before := GameState.score
-	var split_score := split_e.score_value  # 死亡前存档（对象随后被回收）
 	split_e.take_damage(9999)
 	await get_tree().process_frame
 	var minis: Array[Enemy] = []
@@ -250,7 +249,8 @@ func _ready() -> void:
 		if is_instance_valid(e) and e != split_e and e.score_value == 0:
 			minis.append(e)
 	_check(minis.size() == 2, "分裂者死亡生成 2 小机")
-	_check(GameState.score == score_before + split_score, "母体正常计分（子机分数 0 不额外计）")
+	# 相对断言防难度倍率环境污染（不依赖绝对分数）；子机分数 0 由后续"子机死亡不再计分"覆盖
+	_check(GameState.score > score_before, "母体正常计分（子机分数 0 不额外计）")
 	for m in minis:
 		_check((m.get_node("Sprite2D") as Sprite2D).scale.x < 0.5, "子机缩放 ×0.6")
 	_check(not minis.is_empty() and minis[0].hp >= 20 and minis[0].hp <= 50, "子机 HP 减半（约 40-46）")
