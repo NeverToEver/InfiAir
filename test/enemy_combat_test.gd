@@ -237,6 +237,34 @@ func _ready() -> void:
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
+	# 分裂者（2026-08-04）：死亡分裂 2 小机——缩放 ×0.6 / HP 半 / 无分数 / 不再分裂
+	var split_e := _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight")
+	split_e.position = Vector2(960.0, 400.0)
+	await get_tree().process_frame
+	var score_before := GameState.score
+	var split_score := split_e.score_value  # 死亡前存档（对象随后被回收）
+	split_e.take_damage(9999)
+	await get_tree().process_frame
+	var minis: Array[Enemy] = []
+	for e: Enemy in GameState.enemies:
+		if is_instance_valid(e) and e != split_e and e.score_value == 0:
+			minis.append(e)
+	_check(minis.size() == 2, "分裂者死亡生成 2 小机")
+	_check(GameState.score == score_before + split_score, "母体正常计分（子机分数 0 不额外计）")
+	for m in minis:
+		_check((m.get_node("Sprite2D") as Sprite2D).scale.x < 0.5, "子机缩放 ×0.6")
+	_check(not minis.is_empty() and minis[0].hp >= 20 and minis[0].hp <= 50, "子机 HP 减半（约 40-46）")
+	var score_after_split := GameState.score
+	for m in minis:
+		m.take_damage(9999)
+	await get_tree().process_frame
+	_check(GameState.score == score_after_split, "子机死亡不再计分")
+	var left := 0
+	for e: Enemy in GameState.enemies:
+		if is_instance_valid(e):
+			left += 1
+	_check(left == 0, "子机死亡不再分裂")
+
 	print("ENEMY COMBAT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

@@ -16,6 +16,10 @@ const BOSS_SCENE: PackedScene = preload("res://scenes/boss.tscn")
 ## 普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
 ## scale 为纯视觉缩放：以锁定环/碰撞提示等指示器尺寸为锚（不动指示器），舰船视觉应明显大于指示器
 ## HP 定标（A11）：玩家弹伤 10、射速 0.15s 下 TTK≈1.2s（对齐原作 DPS 平衡器稳态）
+## 贴图复用常量（2026-08-04：分裂者复用 3 型、重装炮台复用精英 1 型；gdlint 防重复 preload）
+const ENEMY_SPRITE_3: Texture2D = preload("res://assets/sprites/enemy_ship_3.png")
+const ELITE_SPRITE_1: Texture2D = preload("res://assets/sprites/elite_ship_1.png")
+
 static var ENEMY_TYPES: Array[Dictionary] = [
 	{  # 1 型 均衡
 		"texture": preload("res://assets/sprites/enemy_ship_1.png"),
@@ -42,7 +46,7 @@ static var ENEMY_TYPES: Array[Dictionary] = [
 		"bullet_types": [&"single", &"spread"] as Array[StringName],
 	},
 	{  # 3 型 高 HP 慢速
-		"texture": preload("res://assets/sprites/enemy_ship_3.png"),
+		"texture": ENEMY_SPRITE_3,
 		"strategies": [&"spiral", &"hover"] as Array[StringName],
 		"hp": Vector2i(95, 112),
 		"speed": Vector2(75, 100),
@@ -65,6 +69,19 @@ static var ENEMY_TYPES: Array[Dictionary] = [
 		"radius": 34.0,
 		"bullet_types": [&"spread", &"single"] as Array[StringName],
 	},
+	{  # 5 型 分裂者（2026-08-04）：死亡分裂 2 小机（×0.6 缩放/HP 半/无分数/不开火）
+		"texture": ENEMY_SPRITE_3,
+		"strategies": [&"straight", &"hover"] as Array[StringName],
+		"hp": Vector2i(80, 92),
+		"speed": Vector2(100, 130),
+		"score": 220,
+		"fire": 0.3,
+		"fire_interval": 2.2,
+		"scale": 0.66,
+		"radius": 36.0,
+		"bullet_types": [&"single", &"spread"] as Array[StringName],
+		"split": true,
+	},
 ]
 
 ## 精英机型配置表（弹种池仅 spread/laser）
@@ -72,7 +89,7 @@ static var ENEMY_TYPES: Array[Dictionary] = [
 ## （A10：原作精英碰撞盒不大于普通机，"精英更大"为疑似 bug 不移植）
 static var ELITE_TYPES: Array[Dictionary] = [
 	{  # 重甲
-		"texture": preload("res://assets/sprites/elite_ship_1.png"),
+		"texture": ELITE_SPRITE_1,
 		"strategies": [&"straight", &"sine"] as Array[StringName],
 		"hp": Vector2i(190, 210),
 		"speed": Vector2(75, 95),
@@ -107,6 +124,19 @@ static var ELITE_TYPES: Array[Dictionary] = [
 		"fire_interval": 1.5,
 		"scale": 0.78,
 		"radius": 38.0,
+		"elite": true,
+		"bullet_types": [&"spread", &"laser"] as Array[StringName],
+	},
+	{  # 重装炮台（2026-08-04）：最高 HP 慢速弹幕机
+		"texture": ELITE_SPRITE_1,
+		"strategies": [&"hover", &"straight"] as Array[StringName],
+		"hp": Vector2i(240, 270),
+		"speed": Vector2(55, 75),
+		"score": 550,
+		"fire": 0.7,
+		"fire_interval": 1.8,
+		"scale": 1.0,
+		"radius": 42.0,
 		"elite": true,
 		"bullet_types": [&"spread", &"laser"] as Array[StringName],
 	},

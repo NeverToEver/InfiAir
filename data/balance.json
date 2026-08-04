@@ -185,6 +185,21 @@
 				"fire_interval": 1.8,
 				"scale": 0.62,
 				"radius": 34
+			},
+			{
+				"hp": [
+					80,
+					92
+				],
+				"speed": [
+					100,
+					130
+				],
+				"score": 220,
+				"fire": 0.3,
+				"fire_interval": 2.2,
+				"scale": 0.66,
+				"radius": 36
 			}
 		],
 		"speed_ramp_factor": 0.1
@@ -235,6 +250,21 @@
 				"fire_interval": 1.5,
 				"scale": 0.78,
 				"radius": 38
+			},
+			{
+				"hp": [
+					240,
+					270
+				],
+				"speed": [
+					55,
+					75
+				],
+				"score": 550,
+				"fire": 0.7,
+				"fire_interval": 1.8,
+				"scale": 1.0,
+				"radius": 42
 			}
 		]
 	},

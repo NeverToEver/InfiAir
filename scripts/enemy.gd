@@ -49,6 +49,9 @@ const TAIL_GLOW_COLOR := Color(1.0, 0.22, 0.38, 0.32)
 const TAIL_GLOW_COLOR_ELITE := Color(1.0, 0.25, 0.42, 0.46)
 
 var strategy: StringName = &"straight"
+## 分裂者标记（2026-08-04）：死亡生成 2 小机（config 表行 "split": true 置位；子机取消防无限分裂）
+var _split := false
+var _type_config: Dictionary = {}
 var is_elite: bool = false
 var hp: int = 2
 var speed: float = 140.0
@@ -120,6 +123,8 @@ var _tail_glow: Sprite2D = null
 ## ×(1 + hp_ramp_factor ×(Boss 击杀难度乘数-1))；速度按难度档 ×0.85/×1/×1.2 与同一 ramp ×0.1 系数成长。
 func setup(config: Dictionary, p_strategy: StringName, p_difficulty: float, p_bullet_type: StringName = &"") -> void:
 	strategy = p_strategy
+	_type_config = config
+	_split = config.get("split", false)
 	is_elite = config.get("elite", false)
 	# HP 三级乘算：机型区间 × 难度档 × 对局进程 ramp（随 Boss 击杀线性成长）
 	hp = maxi(
@@ -160,6 +165,27 @@ func setup(config: Dictionary, p_strategy: StringName, p_difficulty: float, p_bu
 	(shape_node.shape as CircleShape2D).radius = hit_r
 	# G07：辅助框半径缓存随 setup 刷新（池化实例复用不同半径机型时 meta 不得过期）
 	set_meta("aim_frame_radius", hit_r)
+
+
+## 分裂者标记（2026-08-04；子机复用 config 后取消，防止无限分裂）
+func set_split(enabled: bool) -> void:
+	_split = enabled
+
+
+## 分裂者死亡生成 2 小机：缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂
+func _spawn_split_minis() -> void:
+	var pool := GameState.enemy_pool
+	if pool == null:
+		return
+	for i in 2:
+		var mini_enemy := pool.spawn(_type_config, strategy, 1.0, global_position + Vector2(24.0 if i == 0 else -24.0, 0.0))
+		if mini_enemy == null or not is_instance_valid(mini_enemy):
+			continue
+		(mini_enemy.get_node("Sprite2D") as Sprite2D).scale *= 0.6
+		mini_enemy.hp = maxi(1, int(roundf(mini_enemy.hp * 0.5)))
+		mini_enemy.score_value = 0
+		mini_enemy.can_shoot = false
+		mini_enemy.set_split(false)
 
 
 ## 对外公开接口（A1 修复）：对象池/生成器/事件读取内部状态，禁止跨类直接写 _ 私有字段
@@ -556,6 +582,9 @@ func _update_flash(delta: float) -> void:
 
 
 func die() -> void:
+	# 分裂者（2026-08-04）：死亡生成 2 小机（子机独立结算，母体分数照常给）
+	if _split:
+		_spawn_split_minis()
 	# 母舰弹丸击毁只给 1/3 分（向下取整）
 	GameState.add_score(int(score_value * _score_scale))
 	GameState.add_kill()
