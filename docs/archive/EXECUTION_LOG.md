@@ -99,4 +99,12 @@
 
 ---
 
+## 2026-08-04 · 被推迟计划重启执行（账户系统 / 母舰扩展 / 内容演化）
+
+- **落地**：账户系统 `5668c38`（UserDB 数据层）→`75e23bf`（会话/存档隔离）→`0aa8973`（welcome 主场景）→`f946f48`（测试适配）→`e301997`（i18n+文档）；母舰 `c0be71e`；内容演化 `19776b2`（3 buff）→`9ca35bf`（分裂者/重装精英）→`d83b138`（第 4 Boss 月蚀）→`88dcdd7`（文档）
+- **摘要**：ROADMAP Phase 3 重启（移动触控除外）：①本地账户系统——UserDB（PBKDF2-HMAC-SHA256 50k 迭代，实测 100k=330ms 超 300ms 判定线降档）、每用户存档/设置隔离、profile.json 迁移、本地排行榜、welcome 主场景（StartPanel 退役）；②母舰火力随里程碑升级（≥5 里程碑伤害 ×1.5/射速 +25%）；③内容演化——crit_shot/shield/bullet_speed 三 buff、分裂者敌机、重装炮台精英、第 4 Boss「月蚀」（ring_burst 环弹/双环狂暴）
+- **关键决策**：UserDB 做成非 autoload 服务（A2 模式，保持单 autoload 约定）；本地排行榜与入口页被账户系统吸收（不重复立项）；PBKDF2 迭代数存用户记录（测试可降档）；双模式档案（未登录走旧 profile.json 兼容路径，测试过渡期不红）
+- **教训**：GDScript 字符串乘法不支持（`"a"*17` → `.repeat()`）；`PackedByteArray.hex/from_hex` 与 `Crypto.hash` 非跨版本 API（自实现）；批量文本替换易误删 emit/缩进（add_buff 的 buffs_changed.emit 被插入错位致 buff_panel/buff_visuals 大面积失败）；balance.json 尾随逗号与闭合行匹配（用 `indent='\t'` 重建保持格式）；狂暴子弹时间拉伸测试序列 4 倍（采样窗口须按 time_scale 折算）
+- **原文**：`docs/archive/2026-08-04-{local-accounts,mothership-expansion,content-evolution}-plan.md`
+
 *本索引由 2026-08-02 文档口径统一期间建立（详见 `docs/AUDIT_VAULT.md`「文档口径统一处置记录」）。*

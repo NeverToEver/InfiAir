@@ -87,7 +87,7 @@ godot --headless --import --path .             # 3. warnings: error-level zero t
                                                #    warn-level (unsafe/untyped) = AUDIT_VAULT list
 godot --headless --path . --quit-after 300     # 4. compile + runtime smoke
 godot --headless --path . res://test/smoke_test.tscn
-# 5. all 40 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
+# 5. all 41 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
 ```
 
 - **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit` → `.venv/bin/gdformat`/`.venv/bin/gdlint`.
@@ -96,11 +96,11 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI
 
-push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 40 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
+push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 41 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 49 scenes: 40 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.
+Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 50 scenes: 41 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.
 
 - Tests may touch `user://savegame.json`/`profile.json`: new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.
