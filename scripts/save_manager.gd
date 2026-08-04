@@ -19,8 +19,9 @@ func delete(path: String) -> void:
 
 ## 写 JSON 文件：先写临时文件再替换正本（E12 原子写——避免写入中途崩溃产生截断 JSON 丢进度）。
 ## 打开失败 push_warning 并返回 false（对齐原 save_run/save_profile 行为）。
-## 最坏情况（删旧正本后 rename 前崩溃）：正本缺失 → load 返回 {} 无存档、不置 corrupt，
-## 优于现状（截断 JSON → 隔离 .corrupt → 丢进度 + 弹损坏提示）。
+## A 审计：原实现先删正本再 rename，rename 失败时正本消失 + tmp 孤立 = 数据丢失。
+## 改为先尝试原子 rename（多数平台支持覆盖已存在文件），仅当首次失败（目标已存在
+## 且平台不支持原子覆盖）才删后重试——此时正本已删但 tmp 仍在，与原实现风险窗口等价。
 func save(path: String, data: Dictionary) -> bool:
 	var tmp_path := path + ".tmp"
 	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
@@ -29,9 +30,12 @@ func save(path: String, data: Dictionary) -> bool:
 		return false
 	f.store_string(JSON.stringify(data))
 	f.close()
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	# 原子替换优先：先尝试 rename（多数平台支持覆盖已存在文件），保留正本直至替换成功。
+	# 首次失败时正本仍在——此时删后重试，风险窗口与原实现等价但仅在回退路径才触发。
 	var err := DirAccess.rename_absolute(tmp_path, path)
+	if err != OK and FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+		err = DirAccess.rename_absolute(tmp_path, path)
 	if err != OK:
 		push_warning("InfiAir: 无法替换 %s（错误 %d）" % [path, err])
 		return false

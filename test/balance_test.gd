@@ -74,5 +74,12 @@ func _ready() -> void:
 	GameState.reload_balance()
 	_check(GameState.cfg("player.fuel.drain", 0.0) == 35.0, "原文件已恢复")
 
+	# 6. A 审计：cfg 返回 Dictionary/Array 是拷贝而非内部引用（防止误写污染配置真值）
+	var diff_cfg: Variant = GameState.cfg("difficulty", {})
+	_check(diff_cfg is Dictionary, "cfg difficulty 返回 Dictionary")
+	if diff_cfg is Dictionary:
+		(diff_cfg as Dictionary).clear()  # 修改返回值不应影响内部配置
+	_check(GameState.enemy_hp_multiplier() == 1.0, "A审计：cfg 返回 Dictionary 拷贝隔离（清空不影响配置）")
+
 	print("BALANCE TEST DONE, failures = ", _failures)
 	get_tree().quit(_failures)

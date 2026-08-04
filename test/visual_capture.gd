@@ -5,6 +5,7 @@ extends Node
 ## MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/
 ## boss_fight（Boss 名牌 + 血条 + 狂暴态）/ welcome（登录面板）/ base（基地控制台）/
 ## mothership（母舰驻留）/ summon（召唤机库小窗）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
+const FRAMES_BEFORE_SHOT := 100
 const SHOT_PATH := "/tmp/infiair_capture.png"
 const MODE := "gameplay"
 const FORCE_LOCALE := ""  # "en" 时强制英文截图

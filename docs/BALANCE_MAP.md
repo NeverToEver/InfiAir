@@ -600,8 +600,8 @@
 | 153 | `player.max_health` | `_max_hp_base` |
 | 155 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
 | 157 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 818 | `milestones.boss_kill_base` | `500.0` |
-| 1524 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 824 | `milestones.boss_kill_base` | `500.0` |
+| 1534 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 
@@ -613,13 +613,7 @@
 
 （经动态键或整段读取覆盖的不列出；剩下的请人工判断是否为死键）
 
-- `boss.movement.type4_bob_amp`
-- `boss.movement.type4_bob_period`
-- `boss.movement.type4_speed`
 - `version`
 
 ## 脚本引用但 json 缺失的键（走回退值，建议补进 json 或确认为有意兜底）
 
-- `boss.movement.type4.bob_amp`（`scripts/boss.gd:584`，回退 `MOVE4_BOB_AMP`）
-- `boss.movement.type4.bob_period`（`scripts/boss.gd:585`，回退 `MOVE4_BOB_PERIOD`）
-- `boss.movement.type4.speed`（`scripts/boss.gd:586`，回退 `MOVE4_SPEED`）

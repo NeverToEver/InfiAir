@@ -1,11 +1,14 @@
 extends Node
-### 用合成输入（Input.action_press + 合成鼠标移动）像真人一样游玩一整局，全程日志化。
+## 模拟人工游玩探针：实例化真实对局（scenes/main.tscn），登录固定探针用户真实开局，
+## 用合成输入（Input.action_press + 合成鼠标移动）像真人一样游玩一整局，全程日志化。
 ##
 ## 行为覆盖：随机走位/规避、Buff 三选一（优先未拥有过的种类，争取覆盖 16 种）、
 ## 低血返航 B（基地 4 模块全操作：维修/补给/天赋路线/任务领奖）、召唤母舰 H
 ## （含蓄力主动取消、非驻留态乱按、驻留驾驶、提前离舰、驻留到超时强制弹射）、
 ## 狂暴子弹时间高频冲刺、随机暂停/恢复 + 暂停菜单「保存进度」、
-####
+## 主动重进 main 走启动自动读档恢复（StartPanel 已退役后的「继续对局」路径）、
+## 对局中轮换设置（视角/窗口/语言/难度，数秒后切回）、
+## 暂停菜单退出确认窗「打开→取消」探针（永不确认退出，避免杀掉测试进程）。
 ## 监控维度：每 5s 快照记录 Performance 监控器（对象/节点/孤儿节点/静态内存/FPS）、
 ## 节点数与对象数上涨趋势、GameState.enemies 注册表 vs enemy 组场景集合双向差集一致性、
 ## player_ref/对象池引用有效性、池规模上界、帧耗时恶化趋势，外加既有的
@@ -48,7 +51,8 @@ const MAX_ENEMY_POOL := 100
 const PAUSE_GAP_MS := 20000  # 随机暂停最小间隔
 const SETTING_GAP_MS := 25000  # 设置切换最小间隔
 const SETTING_RESTORE_MS := 4500  # 切出后多久切回
-const MENU_RETURN_DELAY_MS := 1200  # 对象数泄漏判定（快照连续上涨次数与相对基线倍数）
+const MENU_RETURN_DELAY_MS := 1200  # 暂停存档后重进 main 的延迟
+# 对象数泄漏判定（快照连续上涨次数与相对基线倍数）
 const OBJECT_LEAK_STREAK := 4
 const OBJECT_LEAK_RATIO := 1.8
 
@@ -104,7 +108,8 @@ var _next_pause_consider: int = 0
 var _pause_open_since: int = 0
 var _pause_stage: int = 0
 var _settings_open_since: int = 0  # 暂停菜单内打开设置页的时刻
-var _menu_return_at: int = 0  # B 梯队（2026-08-03 fair plan §8）+ Phase 0 L13 探针更新：
+var _menu_return_at: int = 0  # >0：到点重进 main 走自动读档恢复
+# B 梯队（2026-08-03 fair plan §8）+ Phase 0 L13 探针更新：
 # DDA 降档状态跟踪 / 死亡回放节点泄漏 / 母舰×事件互斥
 var _last_damaged_msec: int = -1  # 最近一次玩家受击（player_damaged 信号）
 var _dda_trigger_count: int = 0  # DDA 降档触发次数（受击且此前未激活）
@@ -362,6 +367,7 @@ func _bot_tick(now: int) -> void:
 		else:
 			_finish()
 		return
+	# 主动重进 main（存档保留，启动自动读档恢复）
 	if _menu_return_at > 0 and now >= _menu_return_at:
 		_menu_return_at = 0
 		_do_menu_return()
@@ -520,7 +526,9 @@ func _update_pause(now: int) -> void:
 			_pause_stage = 0
 			_log("暂停：Esc 打开暂停菜单")
 
-#func _handle_pause_ui(now: int) -> void:
+
+## 暂停菜单链路：「保存进度」写档 →（50% 打开设置页再返回）→ 恢复对局（或重进 main 走自动读档）
+func _handle_pause_ui(now: int) -> void:
 	if _pause_open_since == 0:
 		return
 	var pause_ui: CanvasLayer = _main.pause_ui()
@@ -557,9 +565,10 @@ func _update_pause(now: int) -> void:
 		_pause_stage = 4
 		_pause_open_since = 0
 		if randf() < 0.35 and GameState.has_save():
+			# 重进 main → 启动自动读档恢复（与新游戏不同的代码路径）
 			pause_ui.close()
 			_menu_return_at = now + MENU_RETURN_DELAY_MS
-			_log("暂停恢复，稍后主动回开始面板走继续对局")
+			_log("暂停恢复，稍后重进 main 走自动读档继续")
 		else:
 			_main.get_node("BackNavigator").go_back()  # 暂停中 → RESUME_GAME
 			_log("暂停：Esc 恢复对局")
@@ -953,8 +962,10 @@ func _do_restart() -> void:
 	GameState.reset_run()
 	_start_run()
 
-#func _do_menu_return() -> void:
-	_log("主动回开始面板（保留存档 score=%d）" % GameState.score)
+
+## 主动重进 main：保留存档重新实例化 main（启动自动读档，等价于回主界面再进对局）
+func _do_menu_return() -> void:
+	_log("主动重进 main 读档继续（保留存档 score=%d）" % GameState.score)
 	_reset_transition_state()
 	await get_tree().process_frame
 	await get_tree().process_frame

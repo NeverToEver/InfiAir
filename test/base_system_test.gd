@@ -99,6 +99,21 @@ func _ready() -> void:
 	_check(GameState.chosen_routes.is_empty() and GameState.locked_routes.is_empty(), "reset_run 清零路线")
 	_check(not GameState.is_buff_locked(&"laser_beam"), "reset_run 解除锁定")
 
+	# 9b. A 审计：SaveManager 原子写——save 后正本存在、数据正确、重复 save（覆盖）不丢
+	var sm := SaveManager.new()
+	var test_path := "user://audit_save_test.json"
+	sm.delete(test_path)
+	_check(sm.save(test_path, {"version": 2, "score": 500}), "A审计：save 成功")
+	_check(sm.exists(test_path), "A审计：save 后正本存在（rename 成功，非孤立 tmp）")
+	var loaded := sm.load(test_path)
+	_check(int(loaded.get("score", -1)) == 500, "A审计：save/load 数据正确（500）")
+	# 覆盖写（原实现先删正本再 rename 致 rename 失败丢数据；修复后原子覆盖）
+	_check(sm.save(test_path, {"version": 2, "score": 999}), "A审计：覆盖 save 成功")
+	loaded = sm.load(test_path)
+	_check(int(loaded.get("score", -1)) == 999, "A审计：覆盖后数据正确（999）")
+	# 损坏隔离不影响正本
+	sm.delete(test_path)
+
 	# 10. 本地高分榜（P0-3）：排序 / 同分排后 / 上限截断 / 持久化往返
 	GameState.highscores.clear()
 	GameState.save_profile()

@@ -44,8 +44,12 @@ func cfg(path: String, default: Variant) -> Variant:
 		if node is int or node is float:
 			return int(node) if default is int else float(node)
 		return default
+	# A 审计：Array/Dictionary 返回可变引用——调用方若误写会污染 _balance 配置真值。
+	# 返回浅拷贝隔离可变性（cfg 不在热路径，分配开销可接受）
 	if node is Array and default is Array:
-		return node
+		return (node as Array).duplicate()
+	if node is Dictionary and default is Dictionary:
+		return (node as Dictionary).duplicate()
 	if typeof(node) == typeof(default):
 		return node
 	return default

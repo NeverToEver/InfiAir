@@ -270,6 +270,19 @@ func _ready() -> void:
 	GameState.apply_run_save(GameState.load_run_data())
 	_check(GameState.next_milestone() == 15000, "存档恢复后里程碑定位到 15000")
 
+	# A 审计验证：apply_run_save 大分数 + 极小 cycle_mult 不应挂死（迭代上限保护）
+	# cycle_mult 钳至 0.01 时阈值增量收敛，大分数下原 while 无界 → 挂死；10000 迭代上限保护
+	var orig_cycle_mult := GameState.milestone_cycle_mult
+	GameState.milestone_cycle_mult = 0.01
+	GameState.score = 999999999  # 远超阈值上限（~80808），原实现会无限循环
+	GameState.apply_run_save({"version": 2, "score": 999999999})
+	_check(GameState.score == 999999999, "A审计：大分数 apply_run_save 不挂死（迭代上限保护）")
+	# milestone_threshold 极大 index 不溢出（pow 钳至 finite）
+	var mt_huge := GameState.milestone_threshold(99999)
+	_check(mt_huge >= 0 and mt_huge != 2147483647, "A审计：极大 index milestone_threshold 不溢出 UB")
+	GameState.milestone_cycle_mult = orig_cycle_mult
+	GameState.reset_run()
+
 	# ---------- 6. 难度持久化（profile 往返 + 旧档兼容） ----------
 	GameState.set_difficulty(&"hard")
 	_check(StringName(_read_profile().get("difficulty", "")) == &"hard", "难度写入 profile")

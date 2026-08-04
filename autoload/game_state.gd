@@ -475,6 +475,7 @@ func reset_run() -> void:
 	locked_routes.clear()
 	_milestone_count = 0
 	_next_milestone = milestone_threshold(0)
+	_dda_timer = 0.0  # A 审计：DDA 计时跨对局残留——旧局受击降档渗透新局
 	buffs_changed.emit()
 
 
@@ -585,14 +586,19 @@ func _refresh_regen_cache() -> void:
 
 ## 第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
 ## 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
+## A 审计：极大 index 时 pow 可能溢出至 inf，钳制 mult 上限避免 int(roundf(inf)) UB。
 func milestone_threshold(index: int) -> int:
 	var n := milestone_base.size()
+	if n <= 0:
+		return 0
 	@warning_ignore("integer_division")
 	var cycle := maxi(index, 0) / n
 	var step := maxi(index, 0) % n
 	var total := 0.0
 	for c in cycle + 1:
-		var mult := pow(milestone_cycle_mult, c)
+		# A 审计：cycle_mult >1 时 pow 指数增长，极大 cycle 溢出至 inf；钳至 finite
+		# 防止 total 累积为 inf 后 int(roundf(inf)) 行为未定义
+		var mult := minf(pow(milestone_cycle_mult, c), 1e15)
 		var last_step := step if c == cycle else n - 1
 		var prev := 0.0
 		for i in last_step + 1:
@@ -1427,8 +1433,12 @@ func apply_run_save(data: Dictionary) -> void:
 	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
 	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
 	# 里程碑曲线：恢复到大于当前分数的第一档
+	# A 审计：原 while 无上界——若 milestone_base 被手改为非单调或 cycle_mult 极小
+	# （钳 ≥0.01），阈值增量收敛至有限值，大分数时 while 永不退出（挂死）。
+	# 迭代上限 10000 足以覆盖任何合理分数（cycle_mult=1.01 时 10000 档阈值已超百亿）
 	_milestone_count = 0
-	while milestone_threshold(_milestone_count) <= score:
+	var ms_cap := 10000
+	while _milestone_count < ms_cap and milestone_threshold(_milestone_count) <= score:
 		_milestone_count += 1
 	_next_milestone = milestone_threshold(_milestone_count)
 	score_changed.emit(score)

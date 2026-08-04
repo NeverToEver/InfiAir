@@ -545,6 +545,13 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 	player.set_invincible(999.0)
 
+	# A 审计验证：reset_run 必须清 DDA 计时——触发后 reset_run 应归位
+	GameState.player_damaged.emit(1.0, Vector2.ZERO)
+	_check(GameState.dda_active(), "DDA：受击后降档激活")
+	GameState.reset_run()
+	_check(not GameState.dda_active(), "A审计：reset_run 清 DDA 计时（跨对局残留修复）")
+	_check(is_equal_approx(GameState.dda_factor(), 1.0), "A审计：reset_run 后 DDA 因子归 1.0")
+
 	# B 梯队（fair plan §8）：DDA 弹幕密度降档——受击触发、激活期因子、到期恢复、间隔拉长
 	GameState.player_damaged.emit(1.0, Vector2.ZERO)
 	_check(GameState.dda_active(), "DDA：受击后降档激活")

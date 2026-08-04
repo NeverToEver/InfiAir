@@ -1080,3 +1080,25 @@
 | `view_zoom_test`「刷怪 x 在可见区域内（60px 边距）」 | 敌机入场到达锚点后围绕锚点水平机动，固定 0.7s 后检查会测到机动后的 x（可越出 30px 边距）；生成范围 [left+60, right-60] 本应满足断言 | 改为轮询等敌机出现后立即检查出机位置（垂直下降阶段 x 不变 = 预告线 x） |
 
 验证：两场景本地各连跑 3 次 0 FAIL；全量 37 断言场景本地 0 FAIL；GitHub CI 全绿（gdformat/gdlint 含 test/、import 门禁、编译探针、37 场景）。
+
+---
+
+# A 审计稳健性批次 + CI 编译探针事故修复（2026-08-04）
+
+> A 审计（对局生命周期 / 数值边界 / 持久化）5 项修复落地；另修复 `f946f48`（accounts plan T4）引入的 test/ 编译探针事故 2 文件（远端 CI run 30875756367 失败的直接原因）。验证见批次底部。
+
+## 修复起效记录（回填）
+
+| 编号 | 改了什么 / 为什么起效 / 验证 |
+| --- | --- |
+| A 审计-1 | ✅ **reset_run 清 DDA 计时**：`game_state.gd reset_run()` 补 `_dda_timer = 0.0`——旧局受击降档残留渗透新局（新局开场弹幕密度被旧局降档）。验证：`hit_logic_test` 新增断言（受击激活 → reset_run → `dda_active()` false 且因子归 1.0） |
+| A 审计-2 | ✅ **milestone_threshold 溢出钳制**：极大 index 时 `pow(cycle_mult, c)` 溢出 inf → `int(roundf(inf))` 行为未定义；`minf(pow(...), 1e15)` 钳至 finite，并补 `milestone_base` 空表守卫（除零）。验证：`difficulty_test` 新增断言（`milestone_threshold(99999)` 有限且非 INT32_MAX） |
+| A 审计-3 | ✅ **apply_run_save 读档挂死保护**：里程碑定位 `while milestone_threshold(count) <= score` 原无上界——`milestone_base` 被手改非单调或 `cycle_mult` 极小（钳 0.01）时阈值增量收敛至有限值，大分数存档读档死循环。加 10000 迭代上限（1.01 倍率下万档阈值已超百亿，覆盖任何合理分数）。验证：`difficulty_test` 新增断言（`cycle_mult=0.01` + `score=999999999` 不挂死） |
+| A 审计-4 | ✅ **cfg() 可变引用隔离**：`balance_service.gd cfg()` 对 Array/Dictionary 原返回 `_balance` 内部可变引用，调用方误写即污染配置真值；改返回浅拷贝（cfg 不在热路径，分配开销可接受）。验证：`balance_test` 新增断言（清空返回的 difficulty 字典后 `enemy_hp_multiplier()` 仍 1.0） |
+| A 审计-5 | ✅ **SaveManager 原子写 rename 优先**：原实现先删正本再 rename——rename 失败则正本消失 + tmp 孤立 = 丢进度。改先尝试 rename（多数平台支持原子覆盖已存在文件），仅首次失败才删正本重试（回退路径风险窗口与原实现等价）。验证：`base_system_test` 新增断言（save 成功 / 正本存在非孤立 tmp / 覆盖写 999 往返正确） |
+| CI 探针事故 | ✅ **f946f48 编译探针事故 2 文件**：① `autoplay_test.gd` 适配 StartPanel 退役时把 `_handle_pause_ui`/`_do_menu_return` 的 `func` 头注释而保留函数体与调用点——函数体游离并入前序函数（`_update_pause`/`_do_restart`），调用点 Parse Error「not found in base self」；且暂停链路状态机被并入 `_update_pause` 的间隔门之后（每 PAUSE_GAP_MS 才推进一次），行为亦失真。恢复两函数定义，语义文案同步（回开始面板 → StartPanel 退役后的「重进 main 启动自动读档」）。② `visual_capture.gd` 同提交误删 `const FRAMES_BEFORE_SHOT := 100`（gameplay/hud 两分支仍引用），恢复常量。验证：本地复刻 CI 编译探针 50 场景 0 错误（修复前本地可复现 2 文件 SCRIPT ERROR，与远端 run 30875756367 日志一致） |
+
+## 验证
+
+- 本地全量复刻 CI 五阶段全绿：`gdformat --check` + `gdlint`（autoload/ scripts/ test/）；`--headless --import` 警告门禁干净；主场景冒烟 300 帧正常退出；编译探针 50 场景 0 错误；断言场景 41/41 PASS 0 FAIL（autoplay_test 按 CI 口径跳过）
+- 附带文档同步：`docs/BALANCE_MAP.md` 重生成（`88dcdd7` movement.type4 键统一后未重跑——「未引用键」「json 缺失键」两段 type4 条目消除 + 两处行号漂移修正）
