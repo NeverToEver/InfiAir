@@ -28,6 +28,9 @@ var DECEL := 1800.0
 var BOOST_MULT := 1.8
 var BASE_FIRE_INTERVAL := 0.15
 var BULLET_SPEED := 1800.0
+## crit_shot 暴击参数（默认值，与 balance.json 双写）
+var CRIT_CHANCE_BASE := 0.12
+var CRIT_MULTIPLIER := 2.0
 var BULLET_SPREAD_DEG := 15.0
 ## 单发弹伤基底（对齐原作 BULLET_DAMAGE=10 口径；power_shot 每层 ×1.25 乘算）
 var BULLET_DAMAGE := 10
@@ -57,9 +60,13 @@ const BUFF_EFFECTS: Dictionary = {
 	&"spread_shot": {"kind": "cap", "cfg": "buffs.spread_shot.max_stacks", "default": 3},
 	&"piercing": {"kind": "cap", "cfg": "buffs.piercing.max_stacks", "default": 2},
 	&"explosive": {"kind": "bool"},
+	&"bullet_speed": {"kind": "pow", "cfg": "buffs.bullet_speed.factor", "default": 1.2},
 }
 ## A4：buff 效果值缓存（BUFF_EFFECTS 表驱动，buffs_changed 信号刷新；热路径免查 cfg）
 var _buff_values: Dictionary = {}
+## crit_shot 暴击参数缓存（buffs_changed 刷新；bullet 命中经 player_ref 读取，热路径免查 cfg）
+var crit_chance: float = 0.0
+var crit_multiplier: float = 1.0
 
 var FUEL_DRAIN := 35.0
 var FUEL_REGEN := 20.0
@@ -235,6 +242,8 @@ func _load_balance() -> void:
 	FINE_MOVE_MULT = GameState.cfg("player.fine_move_mult", FINE_MOVE_MULT)
 	BASE_FIRE_INTERVAL = GameState.cfg("player.base_fire_interval", BASE_FIRE_INTERVAL)
 	BULLET_SPEED = GameState.cfg("player.bullet_speed", BULLET_SPEED)
+	CRIT_CHANCE_BASE = float(GameState.cfg("buffs.crit_shot.chance", CRIT_CHANCE_BASE))
+	CRIT_MULTIPLIER = float(GameState.cfg("buffs.crit_shot.multiplier", CRIT_MULTIPLIER))
 	BULLET_SPREAD_DEG = GameState.cfg("player.bullet_spread_deg", BULLET_SPREAD_DEG)
 	BULLET_DAMAGE = GameState.cfg("player.bullet_damage", BULLET_DAMAGE)
 	INVINCIBLE_TIME = GameState.cfg("player.invincible_time", INVINCIBLE_TIME)
@@ -516,6 +525,10 @@ func _refresh_buff_factors() -> void:
 			continue
 		var value: Variant = GameState.cfg(effect["cfg"], effect["default"])
 		_buff_values[id] = int(value) if effect["kind"] == "cap" else float(value)
+	# crit_shot 特殊型（概率暴击，非乘算/上限/开关）：层数 × 基础概率
+	var crit_stacks := GameState.buff_count(&"crit_shot")
+	crit_chance = 0.0 if crit_stacks == 0 else CRIT_CHANCE_BASE * crit_stacks
+	crit_multiplier = CRIT_MULTIPLIER
 
 
 ## A4：乘算因子求值——base × factor^count（factor<1 衰减、>1 增幅；语义与既有 pow 族一致）
@@ -540,6 +553,11 @@ func fire_interval() -> float:
 func bullet_damage() -> int:
 	# power_shot：每层 ×1.25 乘算（对齐原作 PowerShotBuff int(base × 1.25^level)，int() 截断）
 	return maxi(1, int(_buff_scale(&"power_shot", BULLET_DAMAGE, GameState.buff_count(&"power_shot"))))
+
+
+## bullet_speed buff 后的当前弹速（2026-08-04；A1 公开接口，测试/诊断）
+func bullet_speed_value() -> float:
+	return _buff_scale(&"bullet_speed", BULLET_SPEED, GameState.buff_count(&"bullet_speed"))
 
 
 func fuel_ratio() -> float:
@@ -851,7 +869,8 @@ func _fire(aim: Vector2) -> void:
 	var count := 1 + spread
 	for i in count:
 		var offset := deg_to_rad(BULLET_SPREAD_DEG * (float(i) - float(spread) / 2.0))
-		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), BULLET_SPEED, bullet_damage(), true)
+		var speed := _buff_scale(&"bullet_speed", BULLET_SPEED, GameState.buff_count(&"bullet_speed"))
+		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), speed, bullet_damage(), true)
 		b.pierce = pierce
 		b.explosive = explosive
 		if homing_target != null:

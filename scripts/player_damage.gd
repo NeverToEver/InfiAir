@@ -44,6 +44,12 @@ func take_damage(amount: float, from_pos: Vector2, player: Player) -> bool:
 	# 闪避 buff：20% 完全免伤（不置无敌、不清弹）
 	if GameState.buff_count(&"evasion") > 0 and randf() < EVASION_CHANCE:
 		return false
+	# 护盾 buff（2026-08-04）：每层吸收一次全额伤害——扣层并销毁子弹，不置无敌/不清弹/
+	# 不掉血（盾碎后下一发照常结算）；吸收反馈轻震屏
+	if GameState.buff_count(&"shield") > 0:
+		GameState.consume_buff(&"shield")
+		GameState.shake(2.0)
+		return true
 	# 护甲 buff：固定 ×0.85 减伤
 	if GameState.buff_count(&"armor") > 0:
 		amount *= ARMOR_MULT

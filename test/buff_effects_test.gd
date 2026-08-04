@@ -54,9 +54,17 @@ func _ready() -> void:
 
 	# 1. 效果表完整性：键集覆盖全部 player 侧 buff，kind 合法，cfg 键存在于 balance.json
 	var effects: Dictionary = player.BUFF_EFFECTS
-	_check(effects.size() == 8, "BUFF_EFFECTS 表登记 8 项 player 侧 buff 效果")
+	_check(effects.size() == 9, "BUFF_EFFECTS 表登记 9 项 player 侧 buff 效果")
 	for id: StringName in [
-		&"rapid_fire", &"power_shot", &"efficient_boost", &"boost_recovery", &"phase_dash", &"spread_shot", &"piercing", &"explosive"
+		&"rapid_fire",
+		&"power_shot",
+		&"efficient_boost",
+		&"boost_recovery",
+		&"phase_dash",
+		&"spread_shot",
+		&"piercing",
+		&"explosive",
+		&"bullet_speed"
 	]:
 		_check(effects.has(id), "效果表包含 %s" % id)
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(GameState.BALANCE_PATH))
@@ -69,7 +77,19 @@ func _ready() -> void:
 			continue
 		pow_cap += 1
 		_check(_json_at(parsed, effect["cfg"]) != null, "效果表 %s 的 cfg 键存在于 balance.json" % id)
-	_check(pow_cap == 7, "pow/cap 效果 7 项（bool 1 项）")
+	_check(pow_cap == 8, "pow/cap 效果 8 项（bool 1 项）")
+	# bullet_speed：弹速乘算因子（2026-08-04 新 buff）
+	GameState.add_buff(&"bullet_speed")
+	_check(is_equal_approx(player.bullet_speed_value(), 1800.0 * 1.2), "bullet_speed 1 层弹速 ×1.2")
+	GameState.add_buff(&"bullet_speed")
+	_check(is_equal_approx(player.bullet_speed_value(), 1800.0 * pow(1.2, 2)), "bullet_speed 2 层弹速 ×1.2²")
+	# crit_shot：概率暴击参数缓存（层数 × 基础概率；选取路径会广播 buffs_changed，此处模拟）
+	_check(is_equal_approx(player.crit_chance, 0.0), "无 crit_shot 暴击概率 0")
+	GameState.add_buff(&"crit_shot")
+	GameState.add_buff(&"crit_shot")
+	GameState.buffs_changed.emit()
+	_check(is_equal_approx(player.crit_chance, 0.12 * 2.0), "crit_shot 2 层暴击概率 24%")
+	_check(is_equal_approx(player.crit_multiplier, 2.0), "crit_shot 暴击倍率 ×2")
 
 	# 2. 乘算因子（pow）求值：与重构前公式逐点一致
 	_check(is_equal_approx(player.fire_interval(), 0.15), "无 buff 开火间隔 0.15s")
@@ -126,6 +146,36 @@ func _ready() -> void:
 	player.set_auto_fire(false)
 	_check(is_instance_valid(e1) and e1.hp < 9999, "穿透弹命中前敌")
 	_check(is_instance_valid(e2) and e2.hp < 9999, "piercing 1 层弹穿透命中后敌")
+
+	# 4b. crit_shot（2026-08-04）：真实命中路径——固定 seed 后多发命中出现暴击（×2）与非暴击混合
+	for child in main.get_children():
+		if child is Enemy or child is Bullet:
+			child.queue_free()
+	await get_tree().process_frame
+	GameState.buffs.clear()  # 清掉 §1-§4 累积（rapid_fire/power_shot/crit），保证 16 发 × 10/20 的假设成立
+	GameState.add_buff(&"crit_shot")
+	GameState.add_buff(&"crit_shot")
+	GameState.add_buff(&"crit_shot")
+	GameState.buffs_changed.emit()
+	_check(is_equal_approx(player.crit_chance, 0.36), "crit_shot 3 层暴击概率 36%")
+	var ce := enemy_scene.instantiate() as Enemy
+	ce.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
+	ce.hp = 99999
+	ce.speed = 0.0
+	ce.can_shoot = false
+	ce.position = player.global_position + Vector2(0.0, -200.0)
+	main.add_child(ce)
+	player.aim_point_override = player.global_position + Vector2(0.0, -200.0)
+	player.BULLET_SPEED = 600.0
+	player.set_auto_fire(true)
+	seed(20260804)
+	await get_tree().create_timer(2.4).timeout  # ~16 发（0.15s 间隔）
+	player.set_auto_fire(false)
+	_check(is_instance_valid(ce) and ce.hp < 99999, "暴击测试：敌机受到伤害")
+	if is_instance_valid(ce):
+		var dealt := int(99999.0 - ce.hp)
+		# 16 发 × (10 或 20)：纯普通 160、纯暴击 320；固定 seed 下应混合出现
+		_check(dealt > 160 and dealt < 320, "crit_shot：命中序列出现暴击与非暴击混合（%d 点）" % dealt)
 
 	# 5. 布尔（bool）：explosive 击毁目标溅射侧向近邻（40px，不在弹道上）
 	for child in main.get_children():

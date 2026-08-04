@@ -316,7 +316,12 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	if is_player_bullet:
 		if area.is_in_group("enemy"):
-			area.take_damage(damage, score_scale)
+			# crit_shot 暴击（2026-08-04）：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
+			var hit_damage := damage
+			var p_ref := GameState.player_ref as Player
+			if p_ref != null and p_ref.crit_chance > 0.0 and randf() < p_ref.crit_chance:
+				hit_damage = int(damage * p_ref.crit_multiplier)
+			area.take_damage(hit_damage, score_scale)
 			# 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
 			# TurretBattery/FormationCraft 为 Area2D 无 is_boss() 方法：先查方法存在（防命中时报错+子弹不销毁），
 			# 再取返回值语义——Boss/精英 is_boss()==true 不爆炸，普通 Enemy 返回 false 爆炸

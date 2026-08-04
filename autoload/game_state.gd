@@ -880,6 +880,15 @@ func add_buff(id: StringName) -> void:
 	buffs_changed.emit()
 
 
+## 消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 buffs_changed）
+func consume_buff(id: StringName) -> bool:
+	if buff_count(id) <= 0:
+		return false
+	buffs[id] = buff_count(id) - 1
+	buffs_changed.emit()
+	return true
+
+
 # ---------------- 可改键系统 ----------------
 
 const REBINDABLE_ACTIONS: Array[StringName] = [

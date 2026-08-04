@@ -649,6 +649,18 @@
 		"mothership_recall": {
 			"cooldown_factor": 0.5
 		},
+		"crit_shot": {
+			"chance": 0.12,
+			"multiplier": 2.0,
+			"max_stacks": 3
+		},
+		"shield": {
+			"max_stacks": 2
+		},
+		"bullet_speed": {
+			"factor": 1.2,
+			"max_stacks": 3
+		},
 		"laser_beam": {
 			"duration": 3,
 			"cooldown": 8,

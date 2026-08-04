@@ -18,6 +18,9 @@ const BUFF_POOL: Array[Dictionary] = [
 	{"id": &"laser_beam", "max": 1},
 	{"id": &"boost_recovery", "max": 2},
 	{"id": &"mothership_recall", "max": 2},
+	{"id": &"crit_shot", "max": 3},
+	{"id": &"shield", "max": 2},
+	{"id": &"bullet_speed", "max": 3},
 ]
 
 var _center: CenterContainer

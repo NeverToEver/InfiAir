@@ -200,6 +200,21 @@ func _ready() -> void:
 	_check(dodges >= 1, "A7：闪避可触发（60 次至少 1 次）")
 	_check(dodges <= 24, "A7：闪避率约 20% 而非全闪")
 	GameState.buffs.clear()
+	# 护盾（2026-08-04 新 buff）：每层吸收一次全额伤害——子弹销毁（返回 true）、不掉血、不置无敌
+	GameState.add_buff(&"shield")
+	GameState.add_buff(&"shield")
+	GameState.health = 100.0
+	_reset_hit_state(player)
+	_check(player.take_damage(20.0), "护盾：吸收伤害（子弹销毁）")
+	_check(is_equal_approx(GameState.health, 100.0), "护盾：吸收后血量不变")
+	_check(GameState.buff_count(&"shield") == 1, "护盾：吸收消耗 1 层")
+	_check(player.take_damage(20.0), "护盾：第二层继续吸收")
+	_check(GameState.buff_count(&"shield") == 0, "护盾：两层消耗完毕")
+	_check(is_equal_approx(GameState.health, 100.0), "护盾：两层吸收后仍满血")
+	_reset_hit_state(player)
+	_check(player.take_damage(20.0), "护盾耗尽：后续受击正常结算")
+	_check(is_equal_approx(GameState.health, 80.0), "护盾耗尽：20 伤害正常结算")
+	GameState.buffs.clear()
 	# 子弹伤害同样过闪避/护甲（去 bug 统一版：不再仅限撞击）——由上方 take_damage 直接覆盖
 
 	# ================= A3：狂暴锁血 =================
