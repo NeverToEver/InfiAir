@@ -86,6 +86,8 @@ var _balance_service := BalanceService.new()
 var _save_manager := SaveManager.new()
 var _sfx_player := SfxPlayer.new()
 var _registry := EntityRegistry.new()
+## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/2026-08-04-local-accounts-plan.md）
+var _user_db := UserDB.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array[int] = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
@@ -231,6 +233,11 @@ const SAVE_PATH := "user://savegame.json"
 const PROFILE_PATH := "user://profile.json"
 ## v2：3 命制 lives 字段废弃，改 100 HP 制 health（v1 存档 health 回默认满血）
 const PERSIST_VERSION := 2
+## 2026-08-04 账户系统：当前用户会话——"" = 未登录（welcome 前/测试兼容，档案走旧 profile.json 路径）、
+## "Guest" = 游客（设置仅内存、不存档、不写统计，B7-8）、否则为已登录用户名（档案/存档走 user_db）。
+var current_user: String = ""
+## profile.json 退役迁移缓存：启动时存在旧 profile 且用户表为空 → 首个注册用户合并后删除（B5）
+var _pending_legacy_profile: Dictionary = {}
 
 var high_score: int = 0
 ## P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）
@@ -399,6 +406,7 @@ func _ready() -> void:
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
+	_maybe_migrate_legacy_profile()  # 账户系统：旧 profile.json 迁移缓存（首个注册用户合并）
 	_apply_window_size()  # 无 profile 时 load_profile 不会应用窗口尺寸，这里补一次默认档位
 	var tr_zh := load("res://data/translations.zh.translation") as Translation
 	var tr_en := load("res://data/translations.en.translation") as Translation
@@ -1167,10 +1175,131 @@ func is_buff_locked(buff_id: StringName) -> bool:
 	return buff_id in locked_routes.values()
 
 
-# ---------------- 对局存档（user://savegame.json） ----------------
+# ---------------- 用户会话（2026-08-04 账户系统） ----------------
+
+
+## 登录已有用户：载入其设置/最高分并即时生效（locale 即时 set_locale——B7-11）
+func login_user(name: String) -> void:
+	if not _user_db.user_exists(name):
+		return
+	current_user = name
+	_user_db.record_login(name)
+	_load_session_settings()
+	TranslationServer.set_locale(locale)
+	apply_key_bindings()
+	_apply_window_size()
+	_invalidate_view_rect_cache()
+
+
+## 游客进入：设置仅内存、不存档、不写统计（B7-8）；保留当前内存值（启动 profile 值视作游客会话）
+func login_guest() -> void:
+	current_user = "Guest"
+
+
+## 退出：登录用户落盘设置；游客丢弃（内存）；复位未登录
+func logout_user() -> void:
+	if current_user != "" and current_user != "Guest":
+		save_profile()
+	current_user = ""
+
+
+func is_guest() -> bool:
+	return current_user == "Guest"
+
+
+## 当前会话存档路径：登录用户 = 每用户文件；未登录 = 旧单文件；游客无路径（不存档）
+func _save_path_for_current() -> String:
+	if current_user == "":
+		return SAVE_PATH
+	if is_guest():
+		return ""
+	return _user_db.savefile_for_user(current_user)
+
+
+## 载入当前会话档案：登录用户 → user_db settings + 统计；游客/未登录 → 保留内存（游客不落盘）
+func _load_session_settings() -> void:
+	if current_user == "" or is_guest():
+		return
+	_apply_settings_dict(_user_db.get_user_settings(current_user))
+	high_score = int(_user_db.get_user_data(current_user).get("high_score", 0))
+
+
+## profile.json 退役迁移（B5）：启动时存在旧 profile 且用户表为空 → 缓存待首个注册用户合并
+func _maybe_migrate_legacy_profile() -> void:
+	if not _pending_legacy_profile.is_empty():
+		return
+	if _save_manager.exists(PROFILE_PATH) and _user_db.list_usernames().is_empty():
+		var parsed := _save_manager.load(PROFILE_PATH)
+		if not parsed.is_empty():
+			_pending_legacy_profile = parsed
+
+
+## 注册用户（转发 user_db.create_user）；成功后合并旧 profile 迁移数据并删除 profile.json（B5）
+func create_user(name: String, password: String) -> bool:
+	if not _user_db.create_user(name, password):
+		return false
+	if not _pending_legacy_profile.is_empty():
+		var legacy := _pending_legacy_profile.duplicate()
+		_pending_legacy_profile = {}
+		_user_db.update_high_score(name, int(save_num(legacy.get("high_score", 0), 0.0)))
+		legacy.erase("high_score")
+		legacy.erase("version")
+		legacy.erase("highscores")
+		_user_db.update_user_settings(name, legacy)
+		_save_manager.delete(PROFILE_PATH)
+	return true
+
+
+## 用户数据库转发（A2 组合服务；供 welcome 登录面板使用）
+func verify_user(name: String, password: String) -> bool:
+	return _user_db.verify_user(name, password)
+
+
+func user_exists(name: String) -> bool:
+	return _user_db.user_exists(name)
+
+
+func list_usernames() -> Array[String]:
+	return _user_db.list_usernames()
+
+
+func get_last_login_user() -> String:
+	return _user_db.get_last_login_user()
+
+
+func delete_user(name: String, password: String) -> bool:
+	return _user_db.delete_user(name, password)
+
+
+func get_leaderboard() -> Array:
+	return _user_db.get_leaderboard()
+
+
+func get_user_settings(name: String) -> Dictionary:
+	return _user_db.get_user_settings(name)
+
+
+func update_user_settings(name: String, settings: Dictionary) -> void:
+	_user_db.update_user_settings(name, settings)
+
+
+func get_user_data(name: String) -> Dictionary:
+	return _user_db.get_user_data(name)
+
+
+func user_db_savefile_for(name: String) -> String:
+	return _user_db.savefile_for_user(name)
+
+
+# ---------------- 对局存档（登录用户 = user://savegame_<user>_<hash12>.json；游客不存档） ----------------
 
 
 func save_run(fuel: float, elapsed: float) -> void:
+	if is_guest():
+		return  # 游客不存档（B7-8）
+	var path := _save_path_for_current()
+	if path == "":
+		return
 	var data := {
 		"version": PERSIST_VERSION,
 		"score": score,
@@ -1188,22 +1317,32 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,
 	}
+	if current_user != "":
+		data["username"] = current_user
 	# A2 阶段 2：文件 IO 委托 SaveManager
-	_save_manager.save(SAVE_PATH, data)
+	_save_manager.save(path, data)
 
 
 func has_save() -> bool:
-	return _save_manager.exists(SAVE_PATH)
+	if is_guest():
+		return false
+	return _save_manager.exists(_save_path_for_current())
 
 
 func load_run_data() -> Dictionary:
 	save_corrupt = false
-	if not _save_manager.exists(SAVE_PATH):
+	var path := _save_path_for_current()
+	if path == "" or not _save_manager.exists(path):
 		return {}
-	var data := _save_manager.load(SAVE_PATH)
+	var data := _save_manager.load(path)
 	if _save_manager.last_was_corrupt:
 		# 损坏存档已由 SaveManager 隔离备份，按无存档处理（不留死路径）
 		save_corrupt = true
+	if current_user != "" and String(data.get("username", "")) != current_user:
+		# B5 读档校验：档主不匹配（手改/旧匿名档）→ 隔离备份按无存档处理
+		_save_manager.quarantine(path)
+		save_corrupt = true
+		return {}
 	return data
 
 
@@ -1285,16 +1424,20 @@ func apply_run_save(data: Dictionary) -> void:
 
 
 func delete_save() -> void:
-	_save_manager.delete(SAVE_PATH)
+	var path := _save_path_for_current()
+	if path != "":
+		_save_manager.delete(path)
 
 
-# ---------------- 局外档案（user://profile.json） ----------------
+# ---------------- 局外档案（登录用户 = user_db settings；游客仅内存；未登录 = 旧 profile.json 兼容路径） ----------------
 
 
 ## 局外档案：最高分 + 难度档位 + 设置项（旧版 talents/talent_points 字段读取时忽略；
 ## 旧档案缺少新字段时保留当前内存值，保证兼容；损坏文件隔离备份后按默认值继续）
 func load_profile() -> void:
 	profile_corrupt = false
+	if current_user != "":
+		return  # 会话模式下档案由登录流程管理（_load_session_settings）
 	var parsed := _save_manager.load(PROFILE_PATH)
 	if _save_manager.last_was_corrupt:
 		profile_corrupt = true
@@ -1302,56 +1445,7 @@ func load_profile() -> void:
 	if parsed.is_empty():
 		return
 	high_score = int(save_num(parsed.get("high_score", 0), 0.0))  # save_num 判型：手改档案字符串等非法类型回默认
-	tutorial_done = save_bool(parsed.get("tutorial_done", false), false)
-	# E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持默认 zh，
-	# 避免 locale 变量与 TranslationServer 状态（启动默认 zh）不一致；
-	# 不调 set_locale 以免 load 阶段触发 save_profile / locale_changed 副作用
-	var saved_locale := str(parsed.get("locale", "zh"))
-	if saved_locale == "zh" or saved_locale == "en":
-		locale = saved_locale
-	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
-	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
-	key_bindings.clear()
-	var saved_keys: Variant = parsed.get("key_bindings", {})
-	if saved_keys is Dictionary:
-		for a in saved_keys.keys():
-			var raw: Variant = saved_keys[a]
-			if not raw is Array:
-				continue
-			var keys: Array[int] = []
-			for k: Variant in raw:
-				# E11：元素级判型（C02 外层守卫的补全）——手改字符串 keycode 直接跳过，
-				# 不再 int() 转换错误刷屏（不崩溃但不干净）
-				if (not k is int) and (not k is float):
-					continue
-				keys.append(int(k))
-			key_bindings[StringName(a)] = keys
-	var saved_difficulty := StringName(parsed.get("difficulty", ""))
-	if DIFFICULTY_DEFS.has(saved_difficulty):
-		difficulty = saved_difficulty
-	ctrl_toggle_mode = save_bool(parsed.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
-	shift_toggle_mode = save_bool(parsed.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
-	var saved_zoom := StringName(parsed.get("view_zoom", ""))
-	if VIEW_ZOOM_LEVELS.has(saved_zoom):
-		view_zoom = saved_zoom
-		_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
-		_invalidate_view_rect_cache()
-	var saved_window := StringName(parsed.get("window_size", ""))
-	if WINDOW_SIZE_LEVELS.has(saved_window):
-		window_size = saved_window
-		_apply_window_size()
-	var saved_aim := StringName(parsed.get("aim_assist", ""))
-	if AIM_ASSIST_ORDER.has(saved_aim):
-		aim_assist_level = saved_aim
-	reduce_flash = save_bool(parsed.get("reduce_flash", reduce_flash), reduce_flash)
-	mouse_lock = save_bool(parsed.get("mouse_lock", mouse_lock), mouse_lock)
-	# P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
-	var joy_speed: Variant = parsed.get("joy_aim_speed", cfg("player.aim_assist.joy_speed", joy_aim_speed))
-	if joy_speed is float or joy_speed is int:
-		joy_aim_speed = clampf(float(joy_speed), 200.0, 4000.0)
-	var joy_dz: Variant = parsed.get("joy_deadzone", joy_deadzone)
-	if joy_dz is float or joy_dz is int:
-		joy_deadzone = clampf(float(joy_dz), 0.05, 0.9)
+	_apply_settings_dict(parsed)
 	# P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
 	highscores.clear()
 	var saved_highscores: Variant = parsed.get("highscores", [])
@@ -1368,10 +1462,62 @@ func load_profile() -> void:
 			highscores.resize(HIGHSCORE_LIMIT)
 
 
-func save_profile() -> void:
-	var data := {
-		"version": PERSIST_VERSION,
-		"high_score": high_score,
+## 设置字段应用（profile.json 与 user_db settings 共用；含键位/窗口/视图缓存副作用，对齐原 load_profile）
+func _apply_settings_dict(data: Dictionary) -> void:
+	tutorial_done = save_bool(data.get("tutorial_done", tutorial_done), tutorial_done)
+	# E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持当前语言，
+	# 避免 locale 变量与 TranslationServer 状态不一致
+	var saved_locale := str(data.get("locale", locale))
+	if saved_locale == "zh" or saved_locale == "en":
+		locale = saved_locale
+	# C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
+	# 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
+	key_bindings.clear()
+	var saved_keys: Variant = data.get("key_bindings", {})
+	if saved_keys is Dictionary:
+		for a in saved_keys.keys():
+			var raw: Variant = saved_keys[a]
+			if not raw is Array:
+				continue
+			var keys: Array[int] = []
+			for k: Variant in raw:
+				# E11：元素级判型（C02 外层守卫的补全）——手改字符串 keycode 直接跳过，
+				# 不再 int() 转换错误刷屏（不崩溃但不干净）
+				if (not k is int) and (not k is float):
+					continue
+				keys.append(int(k))
+			key_bindings[StringName(a)] = keys
+	var saved_difficulty := StringName(data.get("difficulty", ""))
+	if DIFFICULTY_DEFS.has(saved_difficulty):
+		difficulty = saved_difficulty
+	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
+	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
+	var saved_zoom := StringName(data.get("view_zoom", ""))
+	if VIEW_ZOOM_LEVELS.has(saved_zoom):
+		view_zoom = saved_zoom
+		_view_zoom_factor = VIEW_ZOOM_LEVELS[saved_zoom]
+		_invalidate_view_rect_cache()
+	var saved_window := StringName(data.get("window_size", ""))
+	if WINDOW_SIZE_LEVELS.has(saved_window):
+		window_size = saved_window
+		_apply_window_size()
+	var saved_aim := StringName(data.get("aim_assist", ""))
+	if AIM_ASSIST_ORDER.has(saved_aim):
+		aim_assist_level = saved_aim
+	reduce_flash = save_bool(data.get("reduce_flash", reduce_flash), reduce_flash)
+	mouse_lock = save_bool(data.get("mouse_lock", mouse_lock), mouse_lock)
+	# P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
+	var joy_speed: Variant = data.get("joy_aim_speed", cfg("player.aim_assist.joy_speed", joy_aim_speed))
+	if joy_speed is float or joy_speed is int:
+		joy_aim_speed = clampf(float(joy_speed), 200.0, 4000.0)
+	var joy_dz: Variant = data.get("joy_deadzone", joy_deadzone)
+	if joy_dz is float or joy_dz is int:
+		joy_deadzone = clampf(float(joy_dz), 0.05, 0.9)
+
+
+## 当前设置字段收集（profile.json 与 user_db settings 共用；统计类字段不在此列）
+func _collect_settings_dict() -> Dictionary:
+	return {
 		"tutorial_done": tutorial_done,
 		"key_bindings": key_bindings,
 		"locale": locale,
@@ -1385,23 +1531,41 @@ func save_profile() -> void:
 		"mouse_lock": mouse_lock,
 		"joy_aim_speed": joy_aim_speed,
 		"joy_deadzone": joy_deadzone,
-		"highscores": highscores,
 	}
+
+
+func save_profile() -> void:
+	if is_guest():
+		return  # 游客设置仅内存（B7-8）
+	if current_user != "":
+		_user_db.update_user_settings(current_user, _collect_settings_dict())
+		return
+	var data := _collect_settings_dict()
+	data["version"] = PERSIST_VERSION
+	data["high_score"] = high_score
+	data["highscores"] = highscores
 	_save_manager.save(PROFILE_PATH, data)
 
 
-## 记录最高分，破纪录返回 true
+## 记录最高分，破纪录返回 true（登录用户写 user_db；游客仅内存；未登录写旧 profile.json）
 func record_score() -> bool:
 	if score > high_score:
 		high_score = score
-		save_profile()
+		if is_guest():
+			return true
+		if current_user != "":
+			_user_db.update_high_score(current_user, score)
+		else:
+			save_profile()
 		return true
 	return false
 
 
-## 竞品调研 P0-3：提交本局分数入本地榜，返回名次（1-based；未上榜返回 0）。
-## 同分新条目排后（先到先得）；超出上限的分数不入榜。
+## 提交本局分数入本地榜，返回名次（1-based；未上榜返回 0）。
+## 同分新条目排后（先到先得）；超出上限的分数不入榜。登录/游客走 user_db 排行榜（游客以 "Guest" 提交，B7-8）。
 func submit_highscore(run_score: int) -> int:
+	if current_user != "":
+		return _user_db.submit_score(current_user, run_score)
 	if run_score <= 0:
 		return 0
 	var rank := 1
@@ -1421,6 +1585,14 @@ func submit_highscore(run_score: int) -> int:
 
 ## 榜单文本（供结算页/开始页展示）："1. 12345\n2. 9876..."；空榜返回空串
 func highscores_text(limit: int = 5) -> String:
+	if current_user != "":
+		var board := _user_db.get_leaderboard()
+		if board.is_empty():
+			return ""
+		var lines: Array[String] = []
+		for i in mini(limit, board.size()):
+			lines.append("%d. %d" % [i + 1, int(board[i]["score"])])
+		return "\n".join(lines)
 	if highscores.is_empty():
 		return ""
 	var lines: Array[String] = []
