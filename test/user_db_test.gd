@@ -1,0 +1,132 @@
+extends Node
+## 本地账户数据层测试（2026-08-04 账户系统 T1）：注册/验密/保留名/排序/统计/
+## 删号连档清理/排行榜 cap 与名次/损坏隔离重置。只操作 user:// 文件，不加载 main 场景。
+
+var _failures: int = 0
+var _db: UserDB
+
+
+func _check(cond: bool, label: String) -> void:
+	if cond:
+		print("[PASS] ", label)
+	else:
+		_failures += 1
+		printerr("[FAIL] ", label)
+
+
+func _cleanup() -> void:
+	var paths := ["user://users.json", "user://users.json.corrupt"]
+	for p in paths:
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(p)
+
+
+func _ready() -> void:
+	_cleanup()
+	_db = UserDB.new()
+	_db.iterations = 1000  # 测试降档加速（生产 100_000）
+
+	# 1. 注册 / 验密 / 存在性
+	_check(_db.create_user("alice", "s3cret"), "注册 alice 成功")
+	_check(_db.create_user("bob", "pass123"), "注册 bob 成功")
+	_check(not _db.create_user("alice", "other"), "重名注册被拒绝")
+	_check(_db.user_exists("alice") and _db.user_exists("bob"), "user_exists 命中")
+	_check(_db.verify_user("alice", "s3cret"), "正确密码验密通过")
+	_check(not _db.verify_user("alice", "wrong"), "错误密码验密失败")
+	_check(not _db.verify_user("nobody", "s3cret"), "不存在用户验密失败")
+
+	# 2. 长度与保留名约束（B3 16 上限 / B7-7 保留名）
+	_check(not _db.create_user("ab", "pass123"), "用户名 <3 拒绝")
+	_check(not _db.create_user("a".repeat(17), "pass123"), "用户名 >16 拒绝")
+	_check(not _db.create_user("carol", "pw"), "密码 <3 拒绝")
+	_check(not _db.create_user("carol", "p".repeat(17)), "密码 >16 拒绝")
+	_check(not _db.create_user("_leaderboard", "pass123"), "保留名 _leaderboard 拒绝")
+	_check(not _db.create_user("Guest", "pass123"), "保留名 Guest 拒绝")
+	_check(not _db.user_exists("_leaderboard"), "保留名未入库")
+
+	# 3. last_login 排序：序号降序 + 名字典序
+	_db.record_login("bob")
+	_db.record_login("alice")
+	var names := _db.list_usernames()
+	_check(names == ["alice", "bob"], "list_usernames 按最近登录降序")
+	_check(_db.get_last_login_user() == "alice", "get_last_login_user 取最近登录")
+	_db.record_login("bob")
+	_check(_db.list_usernames()[0] == "bob", "record_login 推进排序")
+
+	# 4. 统计更新：合并写 / 最高分仅更高才写
+	_check(_db.get_user_data("alice")["high_score"] == 0, "初始最高分 0")
+	_db.update_high_score("alice", 100)
+	_db.update_high_score("alice", 50)
+	_check(int(_db.get_user_data("alice")["high_score"]) == 100, "update_high_score 仅更高才写")
+	_db.update_user_data("alice", {"total_kills": 5})
+	_db.update_user_data("alice", {"total_kills": 9})
+	_check(int(_db.get_user_data("alice")["total_kills"]) == 9, "update_user_data 合并累加")
+	_db.update_user_data("alice", {"password": "hacked"})
+	_check(_db.verify_user("alice", "s3cret"), "update_user_data 不可覆盖密码")
+
+	# 5. 设置隔离
+	_db.update_user_settings("alice", {"difficulty": &"hard"})
+	_db.update_user_settings("alice", {"locale": "en"})
+	var settings := _db.get_user_settings("alice")
+	_check(settings.get("difficulty") == &"hard" and settings.get("locale") == "en", "update_user_settings 合并")
+	_check(_db.get_user_settings("bob").is_empty(), "用户设置互不泄漏")
+
+	# 6. 每用户存档路径
+	var alice_save := _db.savefile_for_user("alice")
+	_check(alice_save.begins_with("user://savegame_alice_"), "存档路径含清洗后用户名")
+	_check(alice_save.ends_with(".json") and alice_save.length() == len("user://savegame_alice_.json") + 12, "存档路径含 sha256[:12]")
+	_check(_db.savefile_for_user("Alice") != alice_save, "大小写不同的用户路径不同")
+	_check(_db.savefile_for_user("@@@").begins_with("user://savegame_user_"), "纯符号用户名回退 user 前缀")
+
+	# 7. 删号：验密 + 连带清理存档（B7-12）
+	_check(not _db.delete_user("bob", "wrongpw"), "删号错误密码被拒")
+	var bob_save := _db.savefile_for_user("bob")
+	var f := FileAccess.open(bob_save, FileAccess.WRITE)
+	f.store_string("{}")
+	f.close()
+	_check(_db.delete_user("bob", "pass123"), "删号正确密码成功")
+	_check(not _db.user_exists("bob"), "删号后用户消失")
+	_check(not FileAccess.file_exists(bob_save), "删号连带删除该用户存档文件")
+	_check(not _db.verify_user("bob", "pass123"), "删号后验密失败")
+
+	# 8. 排行榜：0 分不入榜 / 排序 / 同分后 / cap / 名次
+	_check(_db.submit_score("alice", 0) == 0, "排行榜：0 分不入榜")
+	_check(_db.submit_score("alice", 100) == 1, "排行榜：首条排第 1")
+	_check(_db.submit_score("bob", 50) == 2, "排行榜：低分排第 2")
+	_check(_db.submit_score("alice", 80) == 2, "排行榜：中间分插入第 2")
+	_check(_db.submit_score("alice", 100) == 2, "排行榜：同分新条目排后")
+	_check(_db.submit_score("carol", -5) == 0, "排行榜：负分不入榜")
+	var board := _db.get_leaderboard()
+	_check(board.size() == 4, "排行榜：条目数正确")
+	_check(int(board[0]["score"]) == 100 and int(board[1]["score"]) == 100, "排行榜：榜首与同分先到先得")
+	_check(String(board[0]["player_name"]) == "alice", "排行榜：榜首玩家名正确")
+	for i in range(100):
+		_db.submit_score("alice", 200 - i)
+	board = _db.get_leaderboard()
+	_check(board.size() == UserDB.LEADERBOARD_CAP, "排行榜：上限截断")
+	_check(int(board[0]["score"]) == 200, "排行榜：截断后榜首不变")
+	_check(_db.submit_score("alice", 1) == 0, "排行榜：超出上限的分数不入榜")
+
+	# 9. 持久化往返：重载后数据一致
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(_db.user_exists("alice"), "持久化往返：用户保留")
+	_check(_db.verify_user("alice", "s3cret"), "持久化往返：验密一致")
+	board = _db.get_leaderboard()
+	_check(board.size() == UserDB.LEADERBOARD_CAP and int(board[0]["score"]) == 200, "持久化往返：榜单一致")
+
+	# 10. 损坏隔离重置（B4：备份 .corrupt + 按空库处理）
+	_cleanup()
+	var corrupted := FileAccess.open("user://users.json", FileAccess.WRITE)
+	corrupted.store_string("{not valid json")
+	corrupted.close()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(_db.create_user("dave", "pass123"), "损坏后按空库重建可注册")
+	_check(FileAccess.file_exists("user://users.json.corrupt"), "损坏文件隔离为 .corrupt 备份")
+	_check(not _db.user_exists("alice"), "损坏库不残留旧用户")
+	_check(_db.get_leaderboard().is_empty(), "损坏库不残留旧榜单")
+
+	print("USER DB TEST DONE, failures = ", _failures)
+	_cleanup()
+	get_tree().quit(_failures)

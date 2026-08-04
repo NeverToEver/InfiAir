@@ -14,7 +14,7 @@
 - GameState remains the only autoload. New `class_name UserDB extends RefCounted` lives in `scripts/`, held + API-forwarded by GameState (A2 pattern, same as SaveManager/SfxPlayer/BalanceService/EntityRegistry).
 - All game text zh+en via `data/translations.csv` (`keys,zh,en`); new keys prefix `WELCOME_` / `USER_` / `LEAD_`.
 - Do not port original bugs: B7-1..B7-13 list is normative (fix all), B7-table "不移植" row (fcntl lock, remote leaderboard) stays out.
-- PBKDF2: 16-byte salt hex, 100_000 iterations via `Crypto.hmac_digest`. If measured login verify >300 ms on dev machine, lower to 50_000 and note the change in this plan + commit message.
+- PBKDF2: 16-byte salt hex, iterations per plan: 100_000 measured at 330 ms on dev machine (create+verify), **exceeds the 300 ms judgement line → landed at 50_000 (~165 ms, commit `pending T1`)**. Stored per-user record; local offline file, not a compat constraint.
 - `user://users.json` write = tmp+rename atomic (SaveManager pattern); corrupt → backup `users.json.corrupted.<ts>.bak` + reset to empty; never fcntl.
 - Tests may touch `user://` files: each new test cleans its own state first (existing convention).
 
