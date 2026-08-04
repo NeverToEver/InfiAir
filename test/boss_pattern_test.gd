@@ -175,7 +175,6 @@ func _ready() -> void:
 	_check(sweep_aimed, "场景2：冲刺掠过水平瞄准线 telegraph 先行")
 	# C34：弹速/伤害从 boss 实例常量读取，改 JSON 不漂移
 	var drop_speed: float = boss2.SWEEP_DROP_SPEED
-	var drop_dmg: int = boss2.SWEEP_DROP_DAMAGE
 	_check(_bullets_by_speed(drop_speed).is_empty(), "场景2：瞄准期间未拖弹")
 	var dashing := false
 	var x0 := 0.0
@@ -202,11 +201,12 @@ func _ready() -> void:
 			sweep_done = true
 			break
 	_check(drops >= 3, "场景2：路径等距拖 3 枚减速弹（%d 弹速）" % int(drop_speed))
+	var drop_dmg_expected := maxi(1, int(roundf(float(boss2.SWEEP_DROP_DAMAGE) * GameState.enemy_damage_ramp())))
 	var drop_dmg_ok := true
 	for b in _bullets_by_speed(drop_speed):
-		if b.damage != drop_dmg:
+		if b.damage != drop_dmg_expected:
 			drop_dmg_ok = false
-	_check(drop_dmg_ok, "场景2：减速弹伤害 %d" % drop_dmg)
+	_check(drop_dmg_ok, "场景2：减速弹伤害 %d（×ramp）" % drop_dmg_expected)
 	_check(sweep_done, "场景2：穿屏后回到巡航流程")
 	if is_instance_valid(boss2):
 		_check(absf(boss2.position.y - boss2.fight_anchor_y()) < 40.0, "场景2：归位回 FIGHT_Y 战斗位")

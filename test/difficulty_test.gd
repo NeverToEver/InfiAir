@@ -214,10 +214,10 @@ func _ready() -> void:
 	_check(GameState.difficulty_multiplier == 1.0, "进程曲线：开局 ×1.0")
 	GameState.boss_kills = 2
 	GameState.recompute_difficulty()
-	_check(absf(GameState.difficulty_multiplier - 2.0) < 0.001, "进程曲线：2 杀 ×2.0（线性 0.5/杀）")
+	_check(absf(GameState.difficulty_multiplier - 2.2) < 0.001, "进程曲线：2 杀 ×2.2（线性 0.6/杀）")
 	GameState.run_time = 65.0
 	GameState.recompute_difficulty()
-	_check(absf(GameState.difficulty_multiplier - 2.1) < 0.001, "进程曲线：65s 量化两档 +0.1（30s/档）")
+	_check(absf(GameState.difficulty_multiplier - 2.35) < 0.001, "进程曲线：65s 量化两档 +0.15（30s/档，per_ten_minutes 1.5）")
 	GameState.boss_kills = 20
 	GameState.recompute_difficulty()
 	_check(GameState.difficulty_multiplier > 11.0, "进程曲线：20 杀无硬顶（>×11，原 ×8 封顶废弃）")

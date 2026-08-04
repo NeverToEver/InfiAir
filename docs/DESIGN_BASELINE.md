@@ -246,7 +246,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/
 3. Dead-code cleanup + guards (§7.3) ✅ 2026-08-03 (Phase 0 batch).
 
 ### 8.2 Mid Term
-- Endless calibration: tune `progression.*` for deep runs (>15 min) in balance.json + append `ENDLESS_BALANCE_PLAN §6`; verify via `autoplay_test` (no "HP-only inflation, zero pressure" steady state).
+- Endless calibration: ✅ **done 2026-08-04** — `progression.*` + ramp factors tuned for deep runs (>15 min), recorded in `ENDLESS_BALANCE_PLAN §6.1`; verified via 3 × 900s autoplay probes (0 anomalies; no "HP-only inflation, zero pressure" steady state — HP min 40–69 sustained, 0 deaths).
 - Cinematic stage 4.
 
 ### 8.3 Deferred/Cut (restart needs explicit decision; ROADMAP Phase 3)

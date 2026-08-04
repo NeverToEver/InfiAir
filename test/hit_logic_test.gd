@@ -377,7 +377,8 @@ func _ready() -> void:
 	for nb in near_bullets:
 		if nb.visible:
 			near_cleared = false
-	_check(GameState.health == 90.0, "A9：触发受击 -10 HP")
+	var a9_exp := 100.0 - float(maxi(1, int(roundf(10.0 * GameState.enemy_damage_ramp()))))
+	_check(GameState.health == a9_exp, "A9：触发受击 -%d HP" % (100.0 - a9_exp))
 	_check(near_cleared, "A9：250px 内敌弹全部清除")
 	_check(far_b.visible, "A9：250px 外敌弹保留")
 
@@ -389,13 +390,14 @@ func _ready() -> void:
 	var b2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
 	b2.position = player.position
 	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：同帧入窗同点到期，单帧守卫只结算第一发
-	_check(GameState.health == 88.0, "A16：同帧只结算第一发（-12 而非 -24）")
+	var a16_exp := 100.0 - float(maxi(1, int(roundf(12.0 * GameState.enemy_damage_ramp()))))
+	_check(GameState.health == a16_exp, "A16：同帧只结算第一发（-%d 而非双倍）" % (100.0 - a16_exp))
 	# 无敌期内敌弹直接穿过：不结算、不销毁
 	var b3 := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 12, false)
 	b3.position = player.position + Vector2(0.0, -60.0)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(GameState.health == 88.0, "A16：无敌期内敌弹穿过不结算")
+	_check(GameState.health == a16_exp, "A16：无敌期内敌弹穿过不结算")
 	_check(b3.visible, "A16：穿过的敌弹不销毁")
 	await _free_enemy_bullets()
 

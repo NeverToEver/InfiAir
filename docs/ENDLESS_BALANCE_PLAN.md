@@ -81,7 +81,29 @@ Two paradigms; project had neither:
 - Number changes → run `balance_test.tscn`, `difficulty_test.tscn`, `boss_enrage_test.tscn`, `wave_pacing_test.tscn`, then `autoplay_test.tscn` probe (SUMMARY kills/time).
 - P2 text → `i18n_test.tscn`.
 
+### 6.1 Deep-run calibration (2026-08-04, `docs/2026-08-04-endless-calibration-plan.md`)
+
+**Landed values** (balance.json, cfg fallbacks in `game_state.gd:140-142` unchanged — only numbers):
+
+| Key | Old | New | Rationale |
+| --- | --- | --- | --- |
+| `progression.per_boss_kill` | 0.5 | **0.6** | Boss-kill contribution +20% |
+| `progression.per_ten_minutes` | 1.0 | **1.5** | Time-axis +50% (0.075/30s tier) |
+| `enemies.hp_ramp_factor` | 0.12 | **0.25** | HP ×(1+0.25×(mult−1)); kill-efficiency must visibly drop in deep runs |
+| `enemies.damage_ramp_factor` | 0.08 | **0.20** | Damage ×(1+0.20×(mult−1)); bullet 12→~19 at mult 4 |
+
+**Baseline probe (pre-calibration, 900s real, seed 20260729, ~27 min game time)**: diff 1.15→4.20, 0 deaths, 23 hits, HP mostly full (138–150 avg, min 80–150) — **zero-pressure steady state confirmed** (the exact failure mode §8.2 warns about); 1/9 boss kills (50s escape valve).
+
+**Calibration iterations** (same probe command, same seed):
+
+| Round | Values (per_boss/per_ten/hp_ramp/dmg_ramp) | Result |
+| --- | --- | --- |
+| 1 | 0.6/1.2/0.20/0.15 | HP pressure up (min 65–100) but late-run still full HP, kills not dropping → insufficient |
+| 2 (final) | **0.6/1.5/0.25/0.20** | diff 1.38→6.33 @27min (no plateau); HP min 40–69 sustained from 6 min on, DDA 15–29% windows, 0 deaths (no cliff); hits spread across whole run (83→888s) |
+
+**Acceptance**: 3 × 900s probes 0 `[ANOMALY]`; 41 assertion scenes 0 FAIL; difficulty_test curve pins updated (2 kills ×2.2, 65s two tiers +0.15 → 2.35); gdformat/gdlint clean. Manual feel check (15+ min real play) remains a pre-release item.
+
 ## 7. Maintenance
 
 - Covers endless-section balance only; new buffs/enemies → `docs/ROADMAP.md` Phase 2.
-- Calibration (per_boss_kill/per_ten_minutes/ramp feel) edits `progression` in `balance.json`, record to §6.
+- **Calibration done 2026-08-04** (§6.1): progression/ramp values tuned for >15 min runs via autoplay probes. Future re-calibration: edit `progression`/ramp factors in `balance.json`, record to §6.1.

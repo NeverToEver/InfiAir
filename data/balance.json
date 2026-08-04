@@ -108,8 +108,8 @@
 			"laser": 20
 		},
 		"collision_damage": 20,
-		"hp_ramp_factor": 0.12,
-		"damage_ramp_factor": 0.08,
+		"hp_ramp_factor": 0.25,
+		"damage_ramp_factor": 0.2,
 		"lifetime": 15,
 		"exit_accel": 520,
 		"aggressive_chase_speed": 140,
@@ -773,8 +773,8 @@
 		"boss_kill_base": 500.0
 	},
 	"progression": {
-		"per_boss_kill": 0.5,
-		"per_ten_minutes": 1,
+		"per_boss_kill": 0.6,
+		"per_ten_minutes": 1.5,
 		"time_step_seconds": 30
 	},
 	"difficulty": {

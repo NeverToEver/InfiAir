@@ -107,4 +107,12 @@
 - **教训**：GDScript 字符串乘法不支持（`"a"*17` → `.repeat()`）；`PackedByteArray.hex/from_hex` 与 `Crypto.hash` 非跨版本 API（自实现）；批量文本替换易误删 emit/缩进（add_buff 的 buffs_changed.emit 被插入错位致 buff_panel/buff_visuals 大面积失败）；balance.json 尾随逗号与闭合行匹配（用 `indent='\t'` 重建保持格式）；狂暴子弹时间拉伸测试序列 4 倍（采样窗口须按 time_scale 折算）
 - **原文**：`docs/archive/2026-08-04-{local-accounts,mothership-expansion,content-evolution}-plan.md`
 
+## 2026-08-04 · 无限段深局校准（ENDLESS_BALANCE_PLAN §7 deferred 项）
+
+- **落地**：本次提交（balance.json 4 值 + difficulty_test 断言同步 + 文档回填）
+- **摘要**：>15 min 深局校准落地——基线探针确认 zero-pressure 稳态（27 min 游戏内 0 死亡、血量长期满、击杀率不降、9 出 1 杀 Boss）；三轮 900s 探针迭代定稿：`per_boss_kill` 0.5→0.6、`per_ten_minutes` 1.0→1.5、`hp_ramp_factor` 0.12→0.25、`damage_ramp_factor` 0.08→0.20。定稿形态：diff 1.38→6.33 @27min 无平台期、HP min 40–69 持续压力、DDA 15–29% 窗口、0 死亡无崩盘、全程 0 ANOMALY
+- **关键决策**：只动 balance.json 数值不动代码（设计基线 §8.4）；玩家侧成长不动，纯敌方/曲线杠杆；per_boss_kill 保持 ≤0.6 防 Boss 逃逸阀恶性循环；回归以探针曲线形态为准，手感留人工发布前验证
+- **教训**：探针 `--autoplay-seconds` 是**真实时间**预算（time_scale=2 → 游戏内约 2 倍），900s ≈ 27 min 游戏内；窗口聚合按 t_game 跨局混叠失真，深局结论须以单局连续段/事件时点为准；difficulty_test 断言与 progression 数值强耦合，改数必须同步（0.6→2 杀 ×2.2；1.5→65s 两档 +0.15）
+- **原文**：`docs/archive/2026-08-04-endless-calibration-plan.md`（记录回填 `ENDLESS_BALANCE_PLAN §6.1`）
+
 *本索引由 2026-08-02 文档口径统一期间建立（详见 `docs/AUDIT_VAULT.md`「文档口径统一处置记录」）。*

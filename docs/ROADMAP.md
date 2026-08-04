@@ -42,13 +42,14 @@
 - **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
 - **Mothership expansion**: `docs/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers); **landed** — milestone-gated gatling/missile upgrade
 - **Content evolution**: `docs/2026-08-04-content-evolution-plan.md`; **landed** — 3 buffs (crit_shot/shield/bullet_speed) + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse" (ring-weaving mage)
+- **Endless k-value calibration**: `docs/2026-08-04-endless-calibration-plan.md`; **landed** — `progression.per_boss_kill` 0.6 / `per_ten_minutes` 1.5 / `hp_ramp_factor` 0.25 / `damage_ramp_factor` 0.20; 3 × 900s probes 0 anomalies, zero-pressure steady state eliminated (ENDLESS_BALANCE_PLAN §6.1)
 
 - **Local accounts**: spec at commit `7aacd3f` (UserDB/PBKDF2/per-user saves; also PORTING_PARITY Appendix B); reuse on restart.
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.
 - **Packaging**: resumed 2026-07-30, proven 07-31 — presets committed (Linux/X11 + Windows Desktop, embedded pck), `release.sh` → `builds/release/` (gitignored), `packaging/` scripts (Linux user-space + .desktop / Windows per-user + Start menu). Platform validation pending.
 - **Online leaderboard**: decided NO (2026-07-20); reversal needs explicit override.
 - **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 37 scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.26).
-- **Content evolution** (ex-Phase 2): cut 2026-07-30 — leaderboard page, new buffs/enemies/elites/4th boss/mobile touch, mothership expansion, endless k-value calibration (plan landed, `ENDLESS_BALANCE_PLAN.md`); restart needs re-scoping + registration here.
+- **Content evolution** (ex-Phase 2): cut 2026-07-30 — leaderboard page, new buffs/enemies/elites/4th boss/mobile touch, mothership expansion, endless k-value calibration (plan landed, `ENDLESS_BALANCE_PLAN.md`; **calibration landed 2026-08-04**); restart needs re-scoping + registration here.
 
 ## Maintenance
 
