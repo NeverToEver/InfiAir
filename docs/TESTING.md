@@ -22,10 +22,12 @@ godot --headless --path . res://test/enemy_combat_test.tscn
 godot --headless --path . res://test/wave_pacing_test.tscn
 godot --headless --path . res://test/buff33_test.tscn
 godot --headless --path . res://test/buff_visuals_test.tscn
+godot --headless --path . res://test/buff_effects_test.tscn  # declarative effect table (architecture assertion)
 godot --headless --path . res://test/difficulty_test.tscn
 godot --headless --path . res://test/boss_enrage_test.tscn
 godot --headless --path . res://test/boss_phase_test.tscn
 godot --headless --path . res://test/boss_pattern_test.tscn
+godot --headless --path . res://test/boss_registry_test.tscn  # boss registry / 4 types (architecture assertion)
 godot --headless --path . res://test/hit_logic_test.tscn
 # Fairness (2026-08-03; docs/archive/2026-08-03-combat-fairness-plan.md)
 godot --headless --path . res://test/grace_period_test.tscn
@@ -38,6 +40,7 @@ godot --headless --path . res://test/buff_panel_test.tscn
 godot --headless --path . res://test/formation_strike_event_test.tscn
 godot --headless --path . res://test/orbital_strike_test.tscn
 godot --headless --path . res://test/mothership_summon_test.tscn
+godot --headless --path . res://test/mothership_upgrade_test.tscn  # mothership upgrades (2026-08-04)
 godot --headless --path . res://test/meta_health_fx_test.tscn
 # Settings / startup / navigation / tutorial
 godot --headless --path . res://test/keybind_test.tscn
@@ -53,6 +56,7 @@ godot --headless --path . res://test/entry_animation_test.tscn
 godot --headless --path . res://test/back_navigation_test.tscn
 godot --headless --path . res://test/esc_navigation_test.tscn
 godot --headless --path . res://test/intro_cinematic_test.tscn
+godot --headless --path . res://test/return_cinematic_test.tscn  # return cinematic (homecoming, 7 shots)
 godot --headless --path . res://test/tutorial_test.tscn
 # Pools & perf
 godot --headless --path . res://test/pool_reuse_test.tscn
@@ -96,7 +100,7 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI
 
-push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 41 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
+push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 41 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
 
 ## Strategy & Side Effects
 

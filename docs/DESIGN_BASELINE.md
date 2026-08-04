@@ -11,7 +11,7 @@ Single-player 2D top-down shmup; Godot 4.6 + GDScript, GL Compatibility, 1920×1
 
 ### 1.2 Core Loop
 ```
-auto-fire + waves → milestone buff 3-choice → 3 rotating bosses + enrage
+auto-fire + waves → milestone buff 3-choice → 4 rotating bosses + enrage
 → mothership supply/fire platform → return-to-base restock → same run continues
 ```
 Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded player growth, unbounded enemy pressure).
@@ -24,23 +24,23 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.4 Difficulty & Endless Curve (single source `docs/ENDLESS_BALANCE_PLAN.md`)
 **Endgame (D1)**: inevitable-death curve.
-- `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time`. Time: quantized by `progression.time_step_seconds` (30s), + `progression.per_ten_minutes` (1.0)/10min → `floor(run_time/30) × 0.05`; counts live `run_time` only (tree-pause excluded); quantization pins HUD/tests.
+- `mult = 1 + progression.per_boss_kill(0.6) × boss_kills + time`. Time: quantized by `progression.time_step_seconds` (30s), + `progression.per_ten_minutes` (1.5)/10min → `floor(run_time/30) × 0.075`; counts live `run_time` only (tree-pause excluded); quantization pins HUD/tests.
 - No hard cap (old `2^n + ×8` removed). `_recompute_difficulty()` unified (kill + time tier + save-restore); broadcasts `difficulty_changed`.
-- Enemy growth: Boss HP linear × mult (50s-escape DPS check = "can't kill → flees" valve); `enemies.hp_ramp_factor`/`damage_ramp_factor` (k=0.08)/spawn ramp unbounded.
+- Enemy growth: Boss HP linear × mult (50s-escape DPS check = "can't kill → flees" valve); `enemies.hp_ramp_factor`/`damage_ramp_factor` (k=0.25 HP / 0.20 dmg, 2026-08-04 校准)/spawn ramp unbounded.
 - Survival: `extra_life` cap 99→**10** (HP 100+500=600); card "unlimited"→"max 10"; lifesteal ≤10% feedback offset by HP cap + ramp.
 - Event units scale: turret/formation HP × `GameState.enemy_hp_ramp()`.
 - **D2**: Hard-mode buff pacing fastest (×3 score, ×1.5 thresholds) is **intentional**; unchanged.
 - New top-level `progression`; script `cfg()` fallbacks match json.
 
 ### 1.5 Buffs
-- 16 buffs (`ui_buff_icons` glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
+- 19 buffs (`ui_buff_icons` 16 glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
 - Card text via `BUFF_%s_DESC` keys (single source).
 - Key scaling: `rapid_fire.factor` (interval ×0.75 = +33%/stack), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3`), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `aim_point()`; in-frame → `Bullet.homing_target` (bounded `homing_time`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
 
 ### 1.6 Bosses (single source `docs/BOSS_REDESIGN.md`)
-- Rotation: Nth boss = type `(N-1)%3+1` via `spawner._spawn_boss()`.
-- Phase tables P1/P2/ENRAGE (`boss.phases.typeN` + telegraph); 3-type enrage (`boss.enrage.type_*`, player slow ×0.35, no freeze); difficulty tiers × once in `_ready` (`boss.difficulty_scaling`: count/interval/speed).
+- Rotation: Nth boss = type `(N-1)%4+1` via `spawner._spawn_boss()`.
+- Phase tables P1/P2/ENRAGE (`boss.phases.typeN` + telegraph); 4-type enrage (`boss.enrage.type_*`, player slow ×0.35, no freeze); difficulty tiers × once in `_ready` (`boss.difficulty_scaling`: count/interval/speed).
 - Anchor: `FIGHT_Y` = offset from view top; all via `_fight_anchor_y()`.
 - Escape: 50s timeout flee; fleeing **no rotation advance, no rest** (B3); bar hidden + reorder.
 - Structure: facade `Boss` + `BossFire` (danmaku)/`BossAttacks` (FSM)/`BossMovement` (+P1 press-down)/`EnrageSequence`. A3/A4-converged: 3 registries + type param tables, no per-type branches.
@@ -67,7 +67,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Brightness proxy from registries (bullets ×0.002 + explosions ×0.15), zero GPU readback; LOD1 skips CA/blur/ripple.
 
 ### 1.10 Cinematics
-- Intro (`docs/INTRO_CINEMATIC.md`): 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; StartPanel "New Game"; gate `current_scene == Main`; Esc/any key/click skip; tree paused, root `process_mode=Always`. Shots 1–3 done; **stage 4 (low-spec retest/gamepad-mobile/README) incomplete**.
+- Intro (`docs/INTRO_CINEMATIC.md`): 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `current_scene == Main`; Esc/any key/click skip; tree paused, root `process_mode=Always`. Shots 1–6 done (P1–P3); **P4 leftover: low-spec retest + gamepad/mobile check (manual)**.
 - Return (`docs/RETURN_HOME_CINEMATIC.md`): 7 shots 11.8s, mirrors intro; Esc via `SKIP_RETURN` (1.2s grace `effects.return_skip_grace`); both paths land on base UI (tree paused); BGM −40dB in shot 7.
 - Shared factories: `cinematic_fx.gd` (soft_glow/particles/shockwave/beam/radial_streaks; `speed_lines` removed 2026-08-03; zero heap alloc in drive `_process`), `dawn_station.gd`.
 
@@ -76,7 +76,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.12 Exit/Back Navigation (single source `docs/EXIT_FLOW.md`)
 - All back inputs → `BackNavigator.go_back()` via pure `decide_back_action()` (confirm → cinematic skip → settings/base/blocking/results → buff bar → pause → top → combat).
-- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/Buff/cinematics) → L1 run (HUD⇄Pause + buff bar) → L0 StartPanel.
+- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/Buff/cinematics) → L1 run (HUD⇄Pause + buff bar) → L0 Welcome (accounts entry).
 - Battle exit: 2nd confirm (progress-loss warning); `_execute_exit_cleanup`: save profile, delete save in battle, stop SFX, fade quit.
 - PC Esc / gamepad `ui_cancel` / Android back, one state machine.
 
@@ -97,7 +97,7 @@ Main (scripts/main.gd)
 ├─ Starfield / Camera2D ├─ Player ├─ Spawner
 ├─ BulletPool / EnemyPool
 ├─ HUD (layer=2) / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ StartPanel / ExitConfirm ├─ BackNavigator
+├─ Welcome (entry) / ExitConfirm ├─ BackNavigator
 ├─ MetaHealthFX (runtime _ready, layer=1) ├─ AimFrameLayer (runtime _ready, world)
 ├─ IntroCinematic / ReturnCinematic (layer=35, on-demand)
 ├─ OrbitalStrike (layer=24) ├─ MothershipSummonWindow (layer=24) + WarpGate (world)
@@ -203,7 +203,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/
 ## 5. Testing Baseline
 > Full commands: `docs/TESTING.md`. Not a unit framework; `[PASS]/[FAIL]` + exit code.
 - Minimal: `--import`, `--quit-after 300`, `smoke_test.tscn`; + `base_system_test.tscn` for saves/base/mothership.
-- Full: 37 scenes (35 + `buff_effects_test` A4 + `boss_registry_test` A3; per CI run).
+- Full: 41 scenes (35 + `buff_effects_test` A4 + `boss_registry_test` A3; per CI run).
 - `perf_bench` needs `--fixed-fps 1000`; `autoplay_test` long probe.
 - Side effects: tests may touch `user://` saves; new tests `GameState.delete_save()` first + clean up; `balance_test` overwrites balance.json (corruption/fallback) then restores — no concurrent manual edits.
 - Visual: windowed screenshots, human check; `visual/ui/return/intro/summon/meta_fx/hud` capture.
@@ -256,7 +256,7 @@ Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online l
 1. Preserve §3 invariants.
 2. Tunables only in balance.json + `gen_balance_map.py` + minimal set.
 3. New features register in §8 + `ROADMAP.md`; system docs carry specs.
-4. 0 FAIL (37 + autoplay); visual changes screenshot-checked.
+4. 0 FAIL (41 + autoplay); visual changes screenshot-checked.
 5. Debt fixes backfill `AUDIT_VAULT.md`.
 
 ---

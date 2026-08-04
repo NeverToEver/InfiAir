@@ -6,14 +6,14 @@ Unified back/exit state machine: any page, predictable/safe/smooth behavior. Imp
 
 ```
 L3 modal:  ExitConfirm (highest priority)
-L2 overlay: SettingsUI (opener = pause/start panel)
+L2 overlay: SettingsUI (opener = pause panel (main) / welcome (settings in welcome scene))
             BaseUI / GameOverUI / BuffUI (blocking)
             IntroCinematic (layer=35; tree paused; Esc/any key/click = skip)
             ReturnCinematic (layer=35; tree paused; Esc/any key/click = skip;
                              ends on BaseUI with tree paused, docs/RETURN_HOME_CINEMATIC.md §4)
 L1 run:    Gameplay(HUD) ⇄ PauseUI
            buff scroll bar (HUD overlay, L key; not pausing; Esc = close bar)
-L0 top:    welcome scene (accounts entry; Esc = exit confirm, self-handled, outside FSM)
+L0 top:    welcome scene (accounts entry; Esc hierarchy: overlay → modal → username dropdown → exit confirm, self-handled, outside FSM)
 ```
 
 `scenes/tutorial.tscn` standalone: its own top, Esc = exit to main menu (self-handled, outside FSM). Note: with BaseConsole open the tree is paused, tutorial root (process_mode=inherit) gets no input — click "continue sortie" to close (modal behavior, 2026-08-03 audit note).
@@ -25,17 +25,17 @@ All platform back inputs converge to `BackNavigator.go_back()` (PC Esc / **right
 ```
 func go_back():
     match decide_back_action():            # pure decision fn, no side effects (testable)
-        CANCEL_EXIT:          exit_confirm.cancel()       # back = cancel exit; focus back to start button
+        CANCEL_EXIT:          exit_confirm.cancel()       # back = cancel exit; focus back to pause-resume button
         SKIP_INTRO:           main.skip_intro()           # skip intro → run (any key/click captured by cinematic)
         SKIP_RETURN:          main.skip_return()          # skip return → base UI (tree stays paused)
         CAPTURE_PASSTHROUGH:  pass                        # settings key-capture: let SettingsUI cancel
-        CLOSE_SETTINGS:       settings_ui.back()          # → opener (pause or start panel)
+        CLOSE_SETTINGS:       settings_ui.back()          # → opener (pause or welcome)
         RESUME_BASE:          base_ui.resume()            # = continue sortie
         IGNORE:               (swallow)                   # BuffUI (must choose) / dying→results interim / other paused
-        TO_MAIN_MENU:         paused=false + reset_run + reload_current_scene  # results page (save deleted on death)
+        TO_MAIN_MENU:         paused=false → reset_run → logout_user → change_scene_to_file(welcome.tscn)  # results page (save deleted on death)
         CLOSE_BUFF_PANEL:     hud.close_buff_panel()      # back = close bar (before opening pause)
         RESUME_GAME:          pause_ui.close()
-        CONFIRM_EXIT:         exit_confirm.show_confirm(battle=false)  # top level (start panel)
+        CONFIRM_EXIT:         exit_confirm.show_confirm(battle=false)  # top level (start panel); retired — welcome scene self-handles exit confirm (BackNavigator no longer returns CONFIRM_EXIT; back_navigator.gd:107-130 decision table has no this branch)
         OPEN_PAUSE:           pause_ui.open()             # in combat with no overlay → pause
 ```
 
@@ -60,14 +60,14 @@ func _execute_exit_cleanup(battle):
     # fade black 0.3s → get_tree().quit()
 ```
 
-Exit from start panel: run save **kept**; "continue run" available next start.
+Exit from welcome: run save **kept**; "continue run" available next start.
 
 ## 3. Key Map
 
 | Platform | Physical | Maps to | Handling |
 |---|---|---|---|
 | PC | Esc | `ui_cancel` (built-in) | `BackNavigator._unhandled_input` |
-| PC | right mouse | fixed detect (not rebindable) | same — **right mouse = back/cancel** (confirm cancel, settings back, pause open/close, top exit-confirm) |
+| PC | right mouse | fixed detect (not rebindable) | same — **right mouse = back/cancel** (confirm cancel, settings back, pause open/close) |
 | Gamepad | B / Circle (joy button 1) | `ui_cancel` (built-in default) | same; A = `ui_accept` confirm; d-pad/stick via GUI focus nav |
 | Gamepad | left stick | `move_*` | `GameState._bind_joypad_defaults()` runtime InputMap assembly (keyboard-only in project.godot, P0-1) |
 | Gamepad | right stick | `aim_x`/`aim_y` (virtual cursor, `player.aim_point`) | sensitivity/deadzone in Settings "Gamepad" (`joy_aim_speed`/`joy_deadzone`, profile) |
@@ -92,4 +92,4 @@ In confirm: Enter/gamepad A triggers focused button (default focus = "Cancel", s
 
 ## 6. Tests
 
-`test/back_navigation_test.tscn`: full `decide_back_action()` branch coverage + integration (Esc→pause→resume, settings back, top Esc→confirm→cancel, battle exit chain, cleanup side effects). SKIP_INTRO by `test/intro_cinematic_test.tscn` (docs/INTRO_CINEMATIC.md); SKIP_RETURN (decision + real Esc injection + lands on base UI, tree paused) by `test/return_cinematic_test.tscn` (docs/RETURN_HOME_CINEMATIC.md §4); back_navigation_test also asserts its decision branch. Regression: `esc_navigation_test` (real key injection) + `smoke_test` green.
+`test/back_navigation_test.tscn`: full `decide_back_action()` branch coverage + integration (Esc→pause→resume, settings back, battle exit chain, cleanup side effects); top-level exit confirm (top Esc→confirm→cancel) covered by `test/welcome_flow_test.tscn` (welcome self-handled, outside FSM). SKIP_INTRO by `test/intro_cinematic_test.tscn` (docs/INTRO_CINEMATIC.md); SKIP_RETURN (decision + real Esc injection + lands on base UI, tree paused) by `test/return_cinematic_test.tscn` (docs/RETURN_HOME_CINEMATIC.md §4); back_navigation_test also asserts its decision branch. Regression: `esc_navigation_test` (real key injection) + `smoke_test` green.

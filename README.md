@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-37%20scenes%20passed-brightgreen)](#-开发者信息)
+[![Tests](https://img.shields.io/badge/Tests-41%20scenes%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -30,8 +30,8 @@ InfiAir 是一款单机得分制街机射击游戏：驾驶战机迎战波次化
 **玩法**
 
 - 🔄 **完整出击循环** —— 刷怪成长 → 里程碑 Buff → Boss 战 → 返航整备 → 再次出击
-- 🃏 **16 种可叠加 Buff** —— 伤害 / 射速 / 散射 / 穿透 / 爆炸 / 吸血 / 护甲 / 闪避 / 相位冲刺 / 激光光束……
-- 👾 **3 类轮换 Boss** —— HP 阶段模式表（P1 / P2 / 狂暴）驱动，限时未击杀会逃跑
+- 🃏 **19 种可叠加 Buff** —— 伤害 / 射速 / 散射 / 穿透 / 爆炸 / 吸血 / 护甲 / 闪避 / 相位冲刺 / 激光光束……
+- 👾 **4 类轮换 Boss** —— HP 阶段模式表（P1 / P2 / 狂暴）驱动，限时未击杀会逃跑
 - 🛰️ **母舰火力平台** —— 蓄力召唤 → 自动对接 → 驻留驾驶（WASD + 双炮塔 + 导弹）→ 牵引回收
 - 💥 **双随机事件** —— 精英炮塔突袭与轰炸编队，见缝插针的节奏挑战
 - 🏠 **基地中场整备** —— 维修 / 补给 / 天赋路线 / 任务领奖，整备后回到同一局
@@ -42,6 +42,7 @@ InfiAir 是一款单机得分制街机射击游戏：驾驶战机迎战波次化
 - ❤️ **血量反馈 HUD** —— 受击色差 / 定向波纹 / 低血裂纹 / 晕影心跳，带「减少闪光」无障碍开关
 - 🎯 **辅助瞄准** —— 跟随准星 + 敌机辅助框 + 框内追踪弹（弱 / 中 / 强三档）
 - 🎨 **纯程序化资产** —— 贴图 / 音效 / BGM 全部脚本合成，零外部素材
+- 👤 **本地账户系统** —— 注册 / 登录 / 游客 / 删除 + 本地排行榜（welcome 入口）
 
 ## 🖼️ 截图
 
@@ -92,7 +93,7 @@ godot --path .
 - **生命与得分**：100 HP 开局，受击有无敌帧与清弹保护；纯得分制，无掉落拾取，死亡即终局。
 - **成长**：分数里程碑三选一 Buff；Boss 击毁与基地任务提供 RP，用于维修与补给。
 - **节奏**：敌潮随分数解锁新机型与精英，难度随击杀与时长无封顶增长——活得越久分越高。
-- **存档**：本局进度自动保存（`user://savegame.json`），死亡即清档；返航自动更新；个人设置 / 最高分 / 本地榜单存 `user://profile.json`。损坏存档自动隔离备份，不阻塞启动。
+- **存档**：登录用户本局进度自动保存（`user://savegame_<user>_<hash>.json`，游客不存档），死亡即清档；返航自动更新；用户表 / 设置 / 本地榜单存 `user://users.json`；`profile.json` 仅未登录 / 兼容。损坏存档自动隔离备份，不阻塞启动。
 - **上手**：启动直达主菜单，首次进入有 6 阶段教程（移动 / 冲刺 / 战斗 / 母舰 / 返航 / Boss）。
 
 ## 📁 开发者信息
@@ -105,10 +106,10 @@ main.tscn（对局编排）
  ├─ Player（移动 / 瞄准辅助 / 全自动开火 / 燃料 / 相位冲刺 / 激光武器）
  ├─ Spawner（波次化刷怪 + 精英 / Boss / 事件特殊槽调度）
  ├─ Mothership（召唤 → 对接 → 驻留驾驶 → 牵引回收 → 离场 状态机）
- ├─ Boss（3 型轮换 + HP 阶段模式表 + 三型差异化狂暴）
+ ├─ Boss（4 型轮换 + HP 阶段模式表 + 四型差异化狂暴）
  ├─ EliteTurretEvent / FormationStrikeEvent（精英炮塔 / 轰炸编队事件）
  ├─ IntroCinematic / ReturnCinematic / OrbitalStrike（过场与演出导演）
- ├─ HUD / BuffSelect / BaseConsole / Pause / Settings / GameOver / StartPanel
+ ├─ HUD / BuffSelect / BaseConsole / Pause / Settings / GameOver / Welcome（入口）
  ├─ BackNavigator（全局返回 / 退出状态机：PC Esc、手柄 B、Android 返回统一路由）
  └─ GameState（autoload：分数 / HP / Buff / RP / 任务 / 存档 / 设置 / 音效池 / 实体注册表）
 ```
@@ -117,22 +118,22 @@ main.tscn（对局编排）
 - **UI 设计系统**：`scripts/ui_theme.gd` 统一色板 token、字号阶梯与组件工厂，所有页面同一风格。
 - **性能**：子弹 / 敌机 / 爆炸对象池，注册表替代组查询，三角函数查表，HUD 节流；`perf_bench` 基准场景可测纯帧耗时。
 - **碰撞分层**：`1=player 2=player_bullet 3=enemy 4=enemy_bullet`，子弹侧结算伤害；受击只看 r=7 判定点。
-- **持久化**：`user://savegame.json` 与 `user://profile.json` 均带版本号，损坏自动隔离备份。
+- **持久化**：每用户存档 `user://savegame_<user>_<hash>.json`（游客不存档）、用户表 / 设置 / 榜单 `user://users.json`；`profile.json` 仅未登录 / 兼容。损坏自动隔离备份。
 
 </details>
 
 <details>
-<summary>✅ 测试与验证（37 断言场景）</summary>
+<summary>✅ 测试与验证（41 断言场景）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 
 ```bash
 godot --headless --import --path .          # 资源导入与脚本解析
 godot --headless --path . --quit-after 300  # 运行时冒烟
-godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 项）
+godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（141 项）
 ```
 
-完整 37 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#quick-reference)。
+完整 41 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#quick-reference)。
 
 </details>
 

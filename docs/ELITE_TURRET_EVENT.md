@@ -26,7 +26,7 @@ All bullets via `scenes/bullet.tscn` + `GameState.bullet_pool.fire()`; faction i
 
 `balance.json → enemies.types[].hp` (medium baseline):
 
-- Range **48 ~ 112 HP** (types 65-72 / 48-56 / 95-112 / 56-66, resampled 2026-08-02); typical **~65-72 HP**
+- Range **48 ~ 112 HP** (types 65-72 / 48-56 / 95-112 / 56-66 / 80-92 (Splitter, 2026-08-04), resampled 2026-08-02); typical **~65-72 HP**
 - `difficulty.hp`: easy ×0.75 / medium ×1.0 / hard ×1.5
 - Ref: elite 135-210; Boss 800 × hp_mults; turrets = normal-unit tier HP.
 
@@ -46,7 +46,7 @@ All bullets via `scenes/bullet.tscn` + `GameState.bullet_pool.fire()`; faction i
 ## 2. Strike carrier visual redesign
 
 ### 2.1 Role
-Background-scale giant (not Boss, not in boss rotation); descends from off-screen top, hovers rear upper-mid (`hover_y=270` tier, ≥60% screen width) as deployment "stage". Hull **not attackable** (no collision layer); only raised turrets destructible.
+Background-scale giant (not Boss, not in boss rotation); descends from off-screen top, hovers rear upper-mid (`hover_y=300` tier, ≥60% screen width) as deployment "stage". Hull **not attackable** (no collision layer); only raised turrets destructible.
 
 ### 2.2 Shape & color
 - Elongated hex spindle, ~1.6-1.8× Boss sprite (410px); Boss-3 "pillar" hex-fortress facets spread horizontally: central tall hex prism + stepped shrinking "deck wing platforms" (tops = turret bases); bridge = three-tier tapered hex tower (boss_3 style) + horizontal magenta neon "observation slit".
@@ -62,7 +62,7 @@ Background-scale giant (not Boss, not in boss rotation); descends from off-scree
 
 ### 3.1 Common mechanics
 - **Raise**: carrier entry (~2s to hover) → lids open, turrets rise & charge (~1.5s) → **30s countdown starts at charge completion**.
-- **Targeting**: per-turret independent rotation toward player (`lerp_angle` eased, capped turn speed = "mechanical turntable"); fire direction = turret heading + random spread, not exact — "**weak lock**".
+- **Targeting**: per-turret independent rotation toward player (speed-limited rotation — `turn_rate` rad/s cap, per-frame stepped increment, "mechanical turntable"); fire direction = turret heading + random spread, not exact — "**weak lock**".
 - **Weak-lock params** (`elite_turret_event.weak_lock`): homing turn rate **1.5** (existing 4.0), `homing_time` only 0.6s; straight ammo +**±7°** muzzle spread; hit-rate target ~50-60% on stationary player, lateral strafing reliably evades.
 - **Fire cadence**: per-turret timer, 2.0~2.4s interval (normal `fire_interval` scale); ammo from preset pool rotated **by preset sequence** (below; config may switch to `random`).
 - **Destructible**: each turret = independent Area2D (layer 3=enemy, `enemy` group, registered `GameState.enemies`); hit-flash + individual segmented HP bar (`ui_segmented_bar` style); destroyed → `Explosion.spawn_at()` + base ring off.
@@ -86,7 +86,7 @@ Config example (`balance.json` new block):
 	"turret_hp_base": 80,
 	"turret_counts": { "easy": 3, "medium": 4, "hard": 5 },
 	"fire_interval": [2.0, 2.4],
-	"weak_lock": { "homing_turn_rate": 1.5, "homing_time": 0.6, "spread_deg": 7.0 },
+	"weak_lock": { "turn_rate": 2.0, "homing_turn_rate": 1.5, "homing_time": 0.6, "spread_deg": 7.0 },
 	"reward_score": 500
 }
 ```
@@ -139,7 +139,7 @@ Normal wave spawning **paused** during event (aligns with spawner suppression du
 ## 6. Boss-event mutex state machine
 
 ### 6.1 Constraints
-Boss scheduling in `spawner.gd` (`boss_score_step=1500` score steps + `boss_time_limit=90s`). Mutex: both never on screen; boss trigger frozen at most once, never accumulated.
+Boss scheduling in `spawner.gd` (`boss_score_step=1500` score steps + `boss_time_limit=120s`). Mutex: both never on screen; boss trigger frozen at most once, never accumulated.
 
 ### 6.2 State machine
 ```text

@@ -56,12 +56,12 @@ Two paradigms; project had neither:
 
 - `2^n`→linear/log (e.g. `1 + 0.5 × boss_kills`); ×8→slow growth (e.g. `8 + 0.2 × (bk − 5)`).
 - §5-gated: A must drop cap; B may keep.
-- Landed: D1 = A; **cap-free linear** `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time term` (plan 4); `GameState._recompute_difficulty()` (kill + time-tier + save-restore); `2^n + ×8` dropped. Boss HP scales uncapped (50s DPS check → escape valve); `enemies.hp_ramp`/`damage_ramp`/spawn ramps ∞; player fixed (DPS ×9.5, HP 600).
+- Landed: D1 = A; **cap-free linear** `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time term` (plan 4); `GameState._recompute_difficulty()` (kill + time-tier + save-restore); `2^n + ×8` dropped. Boss HP scales uncapped (50s DPS check → escape valve); `enemies.hp_ramp`/`damage_ramp`/spawn ramps ∞; player fixed (DPS ×9.5, HP 600). (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
 
 ### Plan 4 — Time/score factor (P1-5) [landed]
 
 - e.g. `mult = f(boss_kills) + elapsed / 600`; low weight plugs dodge-stall.
-- Landed: time **quantized** — `progression.time_step_seconds`(30s) + `progression.per_ten_minutes`(1.0)/10 min = `floor(run_time/30) × 0.05`; stable HUD, pinnable tests; in-run `run_time` only (pause excluded); dodging still pressures. New `progression` section, cached `_apply_balance()`, recomputed on tier crossing in `_process`, broadcast `difficulty_changed`.
+- Landed: time **quantized** — `progression.time_step_seconds`(30s) + `progression.per_ten_minutes`(1.0)/10 min = `floor(run_time/30) × 0.05`; stable HUD, pinnable tests; in-run `run_time` only (pause excluded); dodging still pressures. New `progression` section, cached `_apply_balance()`, recomputed on tier crossing in `_process`, broadcast `difficulty_changed`. (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
 
 ### Plan 5 — Text/config cleanup (P2) [landed]
 
@@ -81,7 +81,7 @@ Two paradigms; project had neither:
 - Number changes → run `balance_test.tscn`, `difficulty_test.tscn`, `boss_enrage_test.tscn`, `wave_pacing_test.tscn`, then `autoplay_test.tscn` probe (SUMMARY kills/time).
 - P2 text → `i18n_test.tscn`.
 
-### 6.1 Deep-run calibration (2026-08-04, `docs/2026-08-04-endless-calibration-plan.md`)
+### 6.1 Deep-run calibration (2026-08-04, `docs/archive/2026-08-04-endless-calibration-plan.md`)
 
 **Landed values** (balance.json, cfg fallbacks in `game_state.gd:140-142` unchanged — only numbers):
 

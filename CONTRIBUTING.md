@@ -31,7 +31,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 �
 
    涉及子系统时加跑对应专项场景（完整清单见 `docs/TESTING.md`）；改动数值键后重跑 `python3 scripts/tools/gen_balance_map.py` 刷新 `docs/BALANCE_MAP.md`。
 4. **提交**：单主题提交，信息遵循项目风格——`类型: 简述——要点列表（日期）`，类型取 `fix`/`feat`/`docs`/`test`/`refactor`/`perf`/`chore`（可参考 `git log --oneline` 近期风格）。
-5. **推送并开 PR**：PR 会自动触发 GitHub Actions CI（无头导入 + 主场景冒烟 + 37 断言场景全量回归），**CI 全绿是合入门槛**。
+5. **推送并开 PR**：PR 会自动触发 GitHub Actions CI（无头导入 + 主场景冒烟 + 41 断言场景全量回归），**CI 全绿是合入门槛**。
 
 ## PR 检查清单
 
@@ -45,7 +45,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（142 �
 ## 测试体系说明
 
 - 测试是无头场景脚本（非单元测试框架），每个 `test/*.tscn` 启动 GDScript 场景，以 `[PASS]`/`[FAIL]` 输出与退出码自检。
-- 37 个断言场景（`test/*_test.tscn` 中除 `autoplay_test` 的探针外）+ `autoplay_test`（长时异常探针，本地按需跑）+ `perf_bench`（性能基准，需 `--fixed-fps 1000`）+ 7 个窗口模式截图工具。
+- 41 个断言场景（`test/*_test.tscn` 中除 `autoplay_test` 的探针外）+ `autoplay_test`（长时异常探针，本地按需跑）+ `perf_bench`（性能基准，需 `--fixed-fps 1000`）+ 7 个窗口模式截图工具。
 - 命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`。
 
 ## 许可

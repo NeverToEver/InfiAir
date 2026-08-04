@@ -5,7 +5,7 @@
 ## Snapshot (2026-08-03)
 
 - **Porting alignment closed** (2026-07-24): all original `airwar-game` mechanics remade + aligned (gap list: `docs/archive/PORTING_PARITY.md`; only optional "local leaderboard page" left); independent evolution now — original is reference only.
-- **Quality**: 37 assertion scenes 0 FAIL (2026-08-03); autoplay probe + perf bench usable.
+- **Quality**: 41 assertion scenes 0 FAIL (2026-08-04); autoplay probe + perf bench usable.
 - **Audit archive** (est. 2026-07-31): `docs/AUDIT_VAULT.md` proprietary; ten audits (A–L) resolved, no P0; A-series open: A5 (residual dep convergence) + A8 (Player visual split). Fix status/efficacy: vault only.
 - **Collaboration ready**: privacy audit passed (no keys/PII, history cleaned); UI font → OFL NotoSansSC; doc baseline (README/AGENTS/PORTING_PARITY/EXIT_FLOW) line-checked vs code.
 - **Four fairness mechanics landed** (2026-08-03, `docs/archive/2026-08-03-combat-fairness-plan.md`; values final in `DESIGN_BASELINE.md` §1.13): hit grace frames, graze scoring, boss transition clear + brief invincibility + segmented bar, F parry shield (3.8s cycle). Validation: 37 scenes 0 FAIL + 180s autoplay no new anomalies; on-device feel (15+ min run) = pre-release manual item. **B-tier landed 2026-08-03**: per-attack tells, DDA density downshift (score-fair), death replay (3s ghost replay). Next: on-device feel validation.
@@ -48,7 +48,7 @@
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.
 - **Packaging**: resumed 2026-07-30, proven 07-31 — presets committed (Linux/X11 + Windows Desktop, embedded pck), `release.sh` → `builds/release/` (gitignored), `packaging/` scripts (Linux user-space + .desktop / Windows per-user + Start menu). Platform validation pending.
 - **Online leaderboard**: decided NO (2026-07-20); reversal needs explicit override.
-- **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 37 scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.26).
+- **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 41 scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.26).
 - **Content evolution** (ex-Phase 2): cut 2026-07-30 — leaderboard page, new buffs/enemies/elites/4th boss/mobile touch, mothership expansion, endless k-value calibration (plan landed, `ENDLESS_BALANCE_PLAN.md`; **calibration landed 2026-08-04**); restart needs re-scoping + registration here.
 
 ## Maintenance

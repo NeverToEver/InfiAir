@@ -1,6 +1,6 @@
 # Meta HUD Health & Hit-Feedback - Implementation Spec
 
-Status: implementation-ready; self-contained (params named, anchors file+line, decisions final, perf-biased). Acceptance: §7.
+Status: Implemented (landed 2026-08-02; meta_health_fx.gd + meta_health_fx_test + meta_health.gdshader/crack_field_bake.gdshader + effects.meta_health; §7 七项测试 + ui_capture 已验); self-contained (params named, anchors file+line, decisions final, perf-biased). Acceptance: §7.
 
 Premises: Godot 4.6 GL Compatibility, pure GDScript, 1920x1080. No HDR bloom/Compositor: glow via `_glow()`; post-FX = canvas_item shader + `hint_screen_texture` ColorRect [R4]. Pitfalls: screen Y may flip (per-renderer detect); no mipmap/`textureLod` - hand multi-tap blur [R4].
 
@@ -118,13 +118,13 @@ vignette = min(0.5, crack_progress * 0.55); DYING: u_vignette_inner 0.62->0.56 (
 
 ### 4.3 Integration points
 
-- `autoload/game_state.gd:18` signal zone: +`signal player_damaged(amount: float, from_pos: Vector2)`; +`var meta_fx_lod: int = 1` (LOD1 fallback; `_ready`->0, `_exit_tree`->1); +`var reduce_flash: bool = false` (setter persists profile, aim_assist)
-- `scripts/player.gd:527` `take_damage`: +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)`
-- `scripts/bullet.gd:196` / `scripts/enemy.gd:197` / `scripts/boss.gd:1388` / `scripts/formation_bomb.gd:87` (player-hit sites): pass `global_position`
-- `scripts/main.gd:85,113` camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
-- `scripts/hud.gd:597-608` `_update_vignette`: top `if GameState.meta_fx_lod == 0: return` (LOD0 -> MetaFX, `_vignette` 0; LOD1 keeps current, D2)
+- `autoload/game_state.gd` signal zone (`player_damaged`, line 12): +`signal player_damaged(amount: float, from_pos: Vector2)`; +`var meta_fx_lod: int = 1` (LOD1 fallback; `_ready`->0, `_exit_tree`->1); +`var reduce_flash: bool = false` (setter persists profile, aim_assist)
+- `scripts/player.gd` `take_damage()` (line 891): +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)`
+- `scripts/bullet.gd` `_on_grace_timeout()` (line 381) / `scripts/enemy.gd` `_check_body_collision()` (line 355) / `scripts/boss.gd` `_check_body_collision()` (line 960) / `scripts/formation_bomb.gd` `_detonate()` (line 105) (player-hit sites): pass `global_position`
+- `scripts/main.gd` `_apply_camera_zoom()` (100-101/300) camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
+- `scripts/hud.gd` `_update_vignette()` (755-772): top `if GameState.meta_fx_lod == 0: return` (LOD0 -> MetaFX, `_vignette` 0; LOD1 keeps current, D2)
 - `scripts/hud.gd` `_hp_bar` build: holographic: base alpha 0.25, fill `CanvasItemMaterial BLEND_MODE_ADD`; +`meta_jitter()` (D9: +-2px, 80ms, only `_hp_bar`+`_buff_flow`)
-- `scripts/settings_ui.gd:214` after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
+- `scripts/settings_ui.gd` `_build_modes_page()` (line 326) after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
 - `data/translations.csv`: `SET_ACCESSIBILITY` 无障碍/Accessibility; `SET_REDUCE_FLASH` 减少闪光/Reduce flashes
 - `scripts/tools/generate_audio.py`: +`heartbeat.wav` - 55Hz sine double-pulse (lub-dub), 0.28s, exp envelope (D7)
 

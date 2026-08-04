@@ -8,7 +8,7 @@ Guidance for Claude Code (claude.ai/code) on this repo.
 
 InfiAir: 2D top-down shooter, Godot 4.6 + GDScript (gl_compatibility, no external plugins). Remade from `airwar-game` (Python/Pygame), now independently evolved (`docs/archive/PORTING_PARITY.md`). Vertical-scroll starfield, waves, milestone buff 3-choice, rotating bosses + enrage, mothership resupply, return-to-base restock. Score-only.
 
-- Main scene `scenes/main.tscn`; 1920×1080 (stretch `canvas_items`/`keep`).
+- Entry scene `scenes/welcome.tscn` (accounts/login); battle scene `scenes/main.tscn`; 1920×1080 (stretch `canvas_items`/`keep`).
 - Only autoload `GameState` (`autoload/game_state.gd`): global state/signal bus, sfx pool, `GameState.cfg()` config access, persistence.
 - No build system/package manager; CI via GitHub Actions. Godot 4.6 only (4.6.2 std, no .NET); binary `~/.local/bin/godot` (not on PATH). Prefer `./run.sh` — auto-detects PATH → `~/.local/bin/godot` → `/Applications/Godot.app`, validates version, passes args through.
 
@@ -20,7 +20,7 @@ $G --path .                                    # run locally
 $G --headless --import --path .                # import + script parse check
 $G --headless --path . --quit-after 300        # 300-frame runtime check
 # Headless tests: test/*.tscn self-check via [PASS]/[FAIL] + exit code.
-# 37 assertion scenes (46 total); full list & known baseline: docs/TESTING.md
+# 41 assertion scenes (50 total); full list & known baseline: docs/TESTING.md
 $G --headless --path . res://test/smoke_test.tscn           # main flow — always after changes
 $G --headless --path . res://test/base_system_test.tscn     # saves/base/mothership changes
 $G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]

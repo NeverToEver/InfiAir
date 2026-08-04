@@ -10,7 +10,7 @@
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.26-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-37%20scenes%20passed-brightgreen)](#-for-developers)
+[![Tests](https://img.shields.io/badge/Tests-41%20scenes%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -30,8 +30,8 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 **Gameplay**
 
 - 🔄 **A complete sortie loop** — fight waves → draft milestone buffs → boss fights → base refit → sortie again
-- 🃏 **16 stackable buffs** — damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…
-- 👾 **3 rotating bosses** — driven by an HP-phase pattern table (P1 / P2 / enrage); fail to kill in time and the boss flees
+- 🃏 **19 stackable buffs** — damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…
+- 👾 **4 rotating bosses** — driven by an HP-phase pattern table (P1 / P2 / enrage); fail to kill in time and the boss flees
 - 🛰️ **Mothership weapons platform** — charge-up summon → auto-docking → piloted stay (WASD + twin turrets + missiles) → tractor-beam recovery
 - 💥 **Two random events** — elite turret strikes and formation bombing runs for rhythm-breaking challenges
 - 🏠 **Mid-run base refit** — repair / resupply / talent routes / mission rewards, then back to the same battle
@@ -42,6 +42,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 - ❤️ **Health-feedback HUD** — hit chromatic aberration / directional ripples / low-HP cracks / vignette heartbeat, with a "reduce flashes" accessibility toggle
 - 🎯 **Aim assist** — follow-the-crosshair aiming with enemy aim frames and in-frame homing shots (Low / Medium / High)
 - 🎨 **Fully procedural assets** — every sprite, SFX and BGM synthesized by scripts, zero external assets
+- 👤 **Local account system** — register / login / guest / delete + local leaderboard (welcome entry)
 
 ## 🖼️ Screenshots
 
@@ -92,7 +93,7 @@ godot --path .
 - **Health & score**: start with 100 HP; taking a hit grants invulnerability and clears nearby enemy bullets. Pure score-based — no item drops; death ends the run.
 - **Growth**: draft 1-of-3 buffs at score milestones; boss kills and base missions earn RP for repairs and resupply.
 - **Pacing**: new enemy classes and elites unlock as your score rises; difficulty grows with no cap as kills and time add up — survive longer, score higher.
-- **Saves**: run progress auto-saves to `user://savegame.json` (cleared on death); homecoming updates it automatically; settings / best score / local leaderboard live in `user://profile.json`. Corrupt saves are quarantined and backed up, never blocking startup.
+- **Saves**: logged-in run progress auto-saves to `user://savegame_<user>_<hash>.json` (guests don't save; cleared on death); homecoming updates it automatically; user table / settings / local leaderboard live in `user://users.json`; `profile.json` only for not-logged-in / compatibility. Corrupt saves are quarantined and backed up, never blocking startup.
 - **Getting started**: the game boots straight to the main menu; a 6-stage tutorial (movement / dash / combat / mothership / homecoming / boss enrage) awaits on first entry.
 
 ## 📁 For Developers
@@ -105,10 +106,10 @@ main.tscn (run orchestration)
  ├─ Player (movement / aim assist / auto-fire / fuel / phase dash / laser weapon)
  ├─ Spawner (wave-based spawning + elite / boss / event special-slot scheduling)
  ├─ Mothership (state machine: summon → dock → piloted stay → tractor recovery → depart)
- ├─ Boss (3-type rotation + HP-phase pattern table + per-type enrage)
+ ├─ Boss (4-type rotation + HP-phase pattern table + per-type enrage)
  ├─ EliteTurretEvent / FormationStrikeEvent (elite turret / formation strike events)
  ├─ IntroCinematic / ReturnCinematic / OrbitalStrike (cinematic & set-piece directors)
- ├─ HUD / BuffSelect / BaseConsole / Pause / Settings / GameOver / StartPanel
+ ├─ HUD / BuffSelect / BaseConsole / Pause / Settings / GameOver / Welcome (entry)
  ├─ BackNavigator (global back/exit state machine: PC Esc, gamepad B, Android back)
  └─ GameState (autoload: score / HP / buffs / RP / missions / saves / settings / SFX pool / entity registries)
 ```
@@ -117,22 +118,22 @@ main.tscn (run orchestration)
 - **UI design system**: `scripts/ui_theme.gd` provides color tokens, a type scale and component factories shared by every screen.
 - **Performance**: bullet / enemy / explosion object pooling, registries instead of group queries, trig lookup tables, throttled HUD; the `perf_bench` scene measures raw frame time.
 - **Collision layers**: `1=player 2=player_bullet 3=enemy 4=enemy_bullet`; bullets resolve damage on their side; hits only count on the r=7 hitbox point.
-- **Persistence**: `user://savegame.json` and `user://profile.json` are versioned; corrupted files are quarantined automatically.
+- **Persistence**: per-user saves `user://savegame_<user>_<hash>.json` (guests don't save); user table / settings / leaderboard in `user://users.json`; `profile.json` only for not-logged-in / compatibility. Corrupted files are quarantined automatically.
 
 </details>
 
 <details>
-<summary>✅ Testing (37 assertion scenes)</summary>
+<summary>✅ Testing (41 assertion scenes)</summary>
 
 Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
 
 ```bash
 godot --headless --import --path .          # assets & script parsing
 godot --headless --path . --quit-after 300  # runtime smoke
-godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (142 assertions)
+godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (141 assertions)
 ```
 
-The full 37-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
+The full 41-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
 
 </details>
 

@@ -173,7 +173,7 @@ t≈12.3  fully operable
 - Docs: `docs/EXIT_FLOW.md` register Esc; `docs/PORTING_PARITY.md` no change (archived `docs/archive/`, frozen 2026-07-30); README +1 line.
 
 ## 6. Implementation record (landed 2026-07-28)
-Done: `scripts/dawn_station.gd` (`DawnStation.build(Mode.DESTROYED/PHANTOM)`; intro shot1 refactored; return shot4 + base bg share), `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn` (7 shots; 16.8s→11.8s same-day 2026-08-02, §7.1; dim to full black then finished), `main.gd` chain (`_play_return_cinematic` / `_skip_return` / `_on_return_finished`; save + `_resume_from_base` unchanged), BackNavigator `SKIP_RETURN`, `play_sfx` optional `pitch_scale`, base phantom skin (UITheme PHANTOM_* + visual layer, zero logic), `test/return_cinematic_test.tscn` (42) + `test/return_capture.tscn`.
+Done: `scripts/dawn_station.gd` (`DawnStation.build(Mode.DESTROYED/PHANTOM)`; intro shot1 refactored; return shot4 + base bg share), `scripts/return_cinematic.gd` + `scenes/return_cinematic.tscn` (7 shots; 16.8s→11.8s same-day 2026-07-28 (§7); dim to full black then finished), `main.gd` chain (`_play_return_cinematic` / `_skip_return` / `_on_return_finished`; save + `_resume_from_base` unchanged), BackNavigator `SKIP_RETURN`, `play_sfx` optional `pitch_scale`, base phantom skin (UITheme PHANTOM_* + visual layer, zero logic), `test/return_cinematic_test.tscn` (42) + `test/return_capture.tscn`.
 
 Deviations from §1–§3 (adjustments follow code; back-write here):
 1. Scan band per-component α+0.15 skipped: ADD band ≈ equivalent; would need extra `_process`.

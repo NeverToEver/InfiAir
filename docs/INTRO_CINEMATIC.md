@@ -62,7 +62,7 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
   - per-shot subtitle cards (zh+en); multi-layer parallax (shot1 starfield + FG debris, shot6 nebula); transitions (1→2, 4→5 white flash, rest blackout); handheld drift (low-freq sine + micro rotation)
   - per-shot extras: shot2 scan grid + node ripples; shot3 rotating light + visor highlight; shot4 HUD + top strip + knuckles; shot5 white-hot core + strobe dots + radial lines; shot6 anamorphic flare + fleet trails; optional title card (if added, total ≤25s — sync duration metric)
   - Perf: emitter ≤96, alive ≤400, ≤1 `_process`/shot zero-alloc, merge static elements, tween over per-frame code; sample draw calls/objects/frame time into §7.
-- **P4 (pending)**: low-end retest, gamepad/mobile input check, one README line.
+- **P4 (registered leftover)**: low-end retest + gamepad/mobile input check (manual); README line done (README.md:41); gamepad skip: only B=ui_cancel via BackNavigator, other buttons don't skip
 
 ## 5. Testing (P1 deliverable)
 
@@ -93,7 +93,7 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 
 - [x] P3 polish verified 2026-07-27 (/tmp/intro_p3_shot1..7.png: 132px bars + cards per shot; shot1 FG debris parallax, shot2 scan grid + band + ripples, shot3 light cone + visor highlight, shot4 progress ring + scan arc + logs + strip + knuckles, shot5 white-hot core + strobe dots + radial lines, shot6 nebula drift + anamorphic flare + fleet trails; title ok; subtitles don't cover subjects)
 - [x] P3 perf met (§7): draw calls peak 296 < 400; objects 315; CPU 0.20ms no >4ms spike; particles shot5 40×2+32×2+24×2=192 ≤ 400, emitter ≤96; ≤1 `_process`/shot zero-alloc (1/2/6 none, 3/4/5 one each); `intro_cinematic_test` (40 asserts) + smoke + back/esc_navigation + quit-after-300 green
-- [ ] P4 pending
+- [ ] P4 leftover (manual: low-end retest + gamepad/mobile check)
 
 ## 7. Progress Log
 

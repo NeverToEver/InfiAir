@@ -4,7 +4,7 @@
 
 InfiAir: single-player 2D top-down shooter; Godot 4.6 + GDScript, GL Compatibility. Remade from Python/Pygame `airwar-game` (`docs/archive/PORTING_PARITY.md`); runs standalone, no runtime dep on the original.
 
-Game loop: auto-fire + wave spawns → milestone buff 3-choice → 3 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
+Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
 
 - Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (2026-08-04 accounts; main.tscn = battle scene, explicitly instanced by tests).
 - Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
@@ -18,11 +18,11 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 3 rotating bo
 - **Stack:** Godot 4.6 (gl_compatibility, no .NET), pure GDScript; no package manager. `scripts/tools/*.py` = offline tools, not runtime deps.
 - **Run:** `./run.sh` (auto-locates engine). Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership. Full commands: `docs/TESTING.md`.
 - **Tunables:** `data/balance.json` via `scripts/tools/balance_editor.py`; texts: `data/translations.csv`. Details: `docs/ARCHITECTURE.md`.
-- **CI/CD:** `.github/workflows/ci.yml` (headless import + main smoke + 37 assertion scenes; push/PR). Release: `export_presets.cfg` + `release.sh` → GitHub Releases (not in repo); manual `.github/workflows/release.yml` (export → tag `v<ver>` → release, syncs `config/version`). CI/CD changes sync these entry docs + `release.sh`; no 3rd-party deps beyond official checkout action + Godot binary/templates.
+- **CI/CD:** `.github/workflows/ci.yml` (headless import + main smoke + 41 assertion scenes; push/PR). Release: `export_presets.cfg` + `release.sh` → GitHub Releases (not in repo); manual `.github/workflows/release.yml` (export → tag `v<ver>` → release, syncs `config/version`). CI/CD changes sync these entry docs + `release.sh`; no 3rd-party deps beyond official checkout action + Godot binary/templates.
 
 ## Merge Gate & Testing
 
-5 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 37 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (46 scenes: 37 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
+5 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 41 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (50 scenes: 41 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
 
 ## Architecture & Directory Roles
 

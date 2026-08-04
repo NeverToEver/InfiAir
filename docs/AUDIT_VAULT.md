@@ -1102,3 +1102,35 @@
 
 - 本地全量复刻 CI 五阶段全绿：`gdformat --check` + `gdlint`（autoload/ scripts/ test/）；`--headless --import` 警告门禁干净；主场景冒烟 300 帧正常退出；编译探针 50 场景 0 错误；断言场景 41/41 PASS 0 FAIL（autoplay_test 按 CI 口径跳过）
 - 附带文档同步：`docs/BALANCE_MAP.md` 重生成（`88dcdd7` movement.type4 键统一后未重跑——「未引用键」「json 缺失键」两段 type4 条目消除 + 两处行号漂移修正）
+
+---
+
+# M 系列（2026-08-04，全仓库文档-事实口径统一轮）
+
+> 依据用户指示「将目前所有和事实不符的文档做统一口径,留下真正的遗留项」执行;5 路并行只读核查(计数门禁/平衡数值/结构与入口/设计状态/翻译引用)对照代码与配置逐项取证,3 路并行文档修正 + 主控复核。本系列分「发现修复」与「登记遗留」两部分。
+
+## 发现与修复（2026-08-04 本轮落地）
+
+| 编号 | 位置 | 描述 | 修复与验证 |
+| --- | --- | --- | --- |
+| M01 | `scripts/boss.gd:313` | **第 4 Boss「月蚀」轮换不可达**（内容演化落地遗漏）：`setup()` 中 `clampi(p_type, 1, 3)` 系 K12（2026-08-03）越界钳制，注释称「spawner 轮换路径恒 1..3」；2026-08-04 内容演化把 `spawner.gd:615` 改为 `%4+1` 后上限未同步放开 → type4 被钳成 3，`hp_mults[3]`/`phases.type4`/`movement.type4`/`enrage.type_4` 全部不可达，轮换实际只有 3 型（Hive 重复出现）；`boss_enrage_test` 场景5 只数弹量未查 `boss_type` | ✅ `clampi(p_type, 1, 4)` + 注释同步（含 spawner.gd 轮换注释 `(N-1)%4+1`）；`boss_enrage_test` 场景5 补断言 `boss_type == 4`。验证：boss_enrage 40 PASS（含新断言）/boss_pattern 58/boss_registry 35 全绿 |
+| M02 | `balance_service.gd:12-13,24-25`、`enemy.gd:41`、`game_state.gd:140-141,321-322` | **脚本回退值与 json 定稿值漂移**（2026-08-04 深局校准只改 json 未同步回退）：`hp_ramp_factor` 回退 0.12 vs json 0.25、`damage_ramp_factor` 0.08 vs 0.2、`per_boss_kill` 0.5 vs 0.6、`per_ten_minutes` 1.0 vs 1.5——json 缺失/损坏时回退旧值，违反 `.agents/balance-config.md`「script defaults must match」约定 | ✅ 4 处回退/初始值同步为 0.25/0.20/0.6/1.5，重跑 `gen_balance_map.py`（BALANCE_MAP 回退列 4 值更新）。验证：difficulty_test 63 PASS（曲线断言未受影响，cfg 路径读 json） |
+| M03 | `data/translations.csv` | **翻译键缺失 2 个**：`BOSS_TYPE_4`（第 4 型 Boss 名牌 `tr("BOSS_TYPE_%d")` 回退显示字面）、`ACT_PARRY`（`REBINDABLE_ACTIONS` 12 动作 vs CSV 11 键，改键页「弹反」行回退字面） | ✅ 补 `BOSS_TYPE_4`（Ⅳ型 · 月蚀 / Type IV · Eclipse）+ `ACT_PARRY`（弧光弹反 / Arc Parry）。验证：i18n_test 9 PASS |
+| M04 | `scripts/welcome.gd:391-397` | **welcome「设置」按钮静默死钮**：`_on_settings_pressed()` 经 `get_first_node_in_group("settings_ui")` 查找，welcome.tscn 无 SettingsUI 实例 → 返回 null 静默 return，按钮无任何反馈（账户计划声明 welcome 含设置入口） | ✅ `scenes/welcome.tscn` 挂载 SettingsUI（layer=16, process_mode=Always，与 main 配置一致）。验证：welcome_flow_test 28 PASS；设置开→关恢复 welcome 可见链路经代码核对 |
+| M05 | 全仓库文档 | **文档-事实口径过期批量**（37 断言场景→41、46 场景→50、3 Boss→4 型、16 buff→19、校准旧值 0.5/1.0/0.08→0.6/1.5/0.25/0.20、StartPanel 残留→welcome、存档路径旧描述→账户后事实、计划文档路径缺 `archive/` 前缀等约 60 处；另 META_HUD_DESIGN Status 改 Implemented、INTRO P4 标注 README 子项完成） | ✅ 三路并行修正 + 主控全局残留扫描补齐（AGENTS/CLAUDE/README×2/CONTRIBUTING/ci.yml/ROADMAP/DESIGN_BASELINE/ARCHITECTURE/EXIT_FLOW/TESTING/ENDLESS_BALANCE_PLAN/ELITE_TURRET_EVENT/AUDIT_REVIEW_SOP/META_HUD_DESIGN/INTRO_CINEMATIC/RETURN_HOME_CINEMATIC/CHANGELOG/.agents×2）。验证：残留扫描 0 过期引用（历史记录与 archive 快照按规则保留） |
+
+## 登记遗留（不修，保留待办）
+
+| 编号 | 严重度 | 位置 | 描述 | 处置建议 |
+| --- | --- | --- | --- | --- |
+| M06 | P3 | `scripts/ui_buff_icons.gd:42-116` | 16 个 glyph 分支 vs 19 种 buff：`crit_shot`/`shield`/`bullet_speed`（2026-08-04 新增）走 `_` 回退圆环，HUD/卡片无专属字形与分类色（`.agents/ui-navigation.md` 已同步标注） | 设计项：为新 buff 绘制几何字形后补 match 分支 + 分类色（`_OFFENSE`/`_SUSTAIN`） |
+| M07 | P3 | `scripts/back_navigator.gd:19,94-96` | `CONFIRM_EXIT` 枚举+分支为死代码：`decide_back_action()` 决策表（:107-130）任何状态不返回该分支，顶层退出确认已由 welcome 场景自处理 | 低危死代码，择机删除枚举+分支并同步 `docs/EXIT_FLOW.md` 状态机清单（已标注 retired） |
+| M08 | P3 | `scripts/start_panel.gd`、`scripts/start_radar.gd` | 孤儿脚本：StartPanel 2026-08-01 退役后无任何场景引用（`start_backdrop.gd` 由 welcome 复用，保留） | 确认无保留价值后删除两文件（含 README/ARCHITECTURE 已改口径） |
+| M09 | P4 | `data/translations.csv:170-171` | `SET_LANGUAGE_ZH/EN` 孤儿键：语言按钮硬编码「中文/English」，全仓无 `tr()` 引用 | 无害冗余，择机删除或接 i18n 动态标签 |
+| M10 | P4 | `docs/INTRO_CINEMATIC.md` §4 P4 | 真实人工遗留：低端机重测 + gamepad/mobile 输入检查（README 子项已由 README.md:41 覆盖完成；附注手柄跳过仅 B=ui_cancel 可用） | 发布前人工验证项，文档已标注为 leftover |
+
+## 验证
+
+- 代码改动（M01-M04）：boss_enrage 40 / boss_pattern 58 / boss_registry 35 / i18n 9 / welcome_flow 28 / difficulty 63 全部 0 FAIL。
+- 文档改动（M05）：全局残留扫描（37 断言 / 46 场景 / 16 buff / 3 型轮换 / StartPanel 活跃表述 / 旧校准值 / 缺 archive 路径）0 命中（历史记录与 archive 快照按规则保留）。
+- 未改动：`docs/archive/`（历史快照豁免）、AUDIT_VAULT 历史条目、CHANGELOG 历史版本条目、BALANCE_MAP（生成文件，已重跑）。
