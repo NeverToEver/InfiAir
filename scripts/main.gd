@@ -19,7 +19,6 @@ var ENRAGE_RAMP_TIME := 0.3
 @onready var _spawner: Node = $Spawner
 @onready var _hud: CanvasLayer = $HUD
 @onready var _pause_ui: CanvasLayer = $PauseUI
-@onready var _start_panel: CanvasLayer = $StartPanel
 @onready var _base_ui: CanvasLayer = $BaseUI
 @onready var _player: Player = $Player
 @onready var _starfield: Starfield = $Starfield
@@ -94,8 +93,6 @@ func _ready() -> void:
 	_formation.set_spawner(_spawner)  # K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
 	_spawner.set_formation_event(_formation)
 	GameState.player_died.connect(_on_player_died)
-	_start_panel.continue_chosen.connect(_on_continue_run)
-	_start_panel.new_game_chosen.connect(_apply_new_run)
 	_base_ui.resume_requested.connect(_resume_from_base)
 	# 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
 	GameState.camera_ref = _camera
@@ -124,9 +121,10 @@ func _ready() -> void:
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
 	_build_charge_fx()
-	# 有存档则显示开始面板；无存档时开始面板由自身逻辑自显（并非"直接开新局"）。
+	# 账户系统（2026-08-04）：welcome 主场景已确认入口——有存档=「继续对局」启动即恢复
+	# （main 侧自加载，welcome 不重复加载）；无存档=新开局（开场演出自行启动）
 	if GameState.has_save():
-		_start_panel.show_panel()
+		_on_continue_run()
 
 
 func _exit_tree() -> void:

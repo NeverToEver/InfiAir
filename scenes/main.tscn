@@ -9,7 +9,6 @@
 [ext_resource type="Script" path="res://scripts/game_over_ui.gd" id="7"]
 [ext_resource type="Script" path="res://scripts/pause_ui.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/camera_shake.gd" id="9"]
-[ext_resource type="Script" path="res://scripts/start_panel.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/base_console.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/bullet_pool.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/enemy_pool.gd" id="14"]
@@ -195,11 +194,6 @@ script = ExtResource("7")
 process_mode = 3
 layer = 25
 script = ExtResource("11")
-
-[node name="StartPanel" type="CanvasLayer" parent="."]
-process_mode = 3
-layer = 30
-script = ExtResource("10")
 
 [node name="ExitConfirm" type="CanvasLayer" parent="."]
 process_mode = 3

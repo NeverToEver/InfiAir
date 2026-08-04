@@ -26,7 +26,6 @@ enum BackAction {
 @onready var _settings_ui: CanvasLayer = get_parent().get_node("SettingsUI")
 @onready var _game_over_ui: CanvasLayer = get_parent().get_node("GameOverUI")
 @onready var _base_ui: CanvasLayer = get_parent().get_node("BaseUI")
-@onready var _start_panel: CanvasLayer = get_parent().get_node("StartPanel")
 @onready var _exit_confirm: CanvasLayer = get_parent().get_node("ExitConfirm")
 
 
@@ -56,10 +55,8 @@ func go_back() -> void:
 	match action:
 		BackAction.CANCEL_EXIT:
 			_exit_confirm.cancel()
-			# 焦点还给来源页面（确认窗打开时抢走了焦点）：开始面板主按钮 / 暂停面板恢复按钮
-			if _start_panel.visible:
-				_start_panel.grab_primary_focus()
-			elif _pause_ui.visible:
+			# 焦点还给来源页面（确认窗打开时抢走了焦点）：暂停面板恢复按钮
+			if _pause_ui.visible:
 				_pause_ui.grab_primary_focus()
 			_mark_handled()
 		BackAction.CAPTURE_PASSTHROUGH:
@@ -82,9 +79,11 @@ func go_back() -> void:
 		BackAction.IGNORE:
 			_mark_handled()
 		BackAction.TO_MAIN_MENU:
+			# 账户系统（2026-08-04）：结算页回主菜单 = 回 welcome 主场景（welcome 重进时全量重置）
 			get_tree().paused = false
 			GameState.reset_run()
-			get_tree().reload_current_scene()
+			GameState.logout_user()
+			get_tree().change_scene_to_file("res://scenes/welcome.tscn")
 			_mark_handled()
 		BackAction.RESUME_GAME:
 			_pause_ui.close()
@@ -126,8 +125,6 @@ func decide_back_action() -> BackAction:
 		return BackAction.CLOSE_BUFF_PANEL  # buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
 	if _pause_ui.visible:
 		return BackAction.RESUME_GAME
-	if _start_panel.visible:
-		return BackAction.CONFIRM_EXIT
 	if _main.is_homecoming() or get_tree().paused:
 		return BackAction.IGNORE  # 其他暂停态不响应
 	return BackAction.OPEN_PAUSE

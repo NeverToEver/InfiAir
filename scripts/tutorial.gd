@@ -424,7 +424,7 @@ func _exit_tutorial() -> void:
 	Engine.time_scale = 1.0  # 防御性复位
 	get_tree().paused = false
 	GameState.reset_run()  # 不污染正常对局
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	get_tree().change_scene_to_file("res://scenes/welcome.tscn")
 
 
 func _unhandled_input(event: InputEvent) -> void:
