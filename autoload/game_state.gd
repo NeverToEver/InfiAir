@@ -85,7 +85,7 @@ const BALANCE_PATH := "res://data/balance.json"
 var _balance_service := BalanceService.new()
 var _save_manager := SaveManager.new()
 var _sfx_player := SfxPlayer.new()
-var _registry := EntityRegistry.new()
+var _registry := EntityManager.new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
 ## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
 var _fog_events := FogEventManager.new()
@@ -384,7 +384,8 @@ func _enter_tree() -> void:
 	boot_ticks_msec = Time.get_ticks_msec()
 
 
-## 实体注册表（A2 阶段 4：数据归 EntityRegistry，属性转发保持外部语法不变）。
+## 实体管理器（A2 阶段 4 起数据归 EntityManager，2026-08-05 演进：绑定样板/生命周期信号/
+## 批量操作 API；docs/ENTITY_MANAGER.md。属性转发保持外部语法不变）。
 ## 热路径缓存，避免每帧 get_nodes_in_group 分配。
 ## enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。
 var enemies: Array[Node] = []:
