@@ -500,8 +500,8 @@ func _handle_base_ui(now: int) -> void:
 				_log("天赋路线选择：%s -> %s（合并后 %d 层）" % [line, opt, GameState.buff_count(opt)])
 		elif _base_stage == 3 and t >= 1800:
 			_base_stage = 4
-			for def in GameState.MISSION_DEFS:
-				var id: StringName = def["id"]
+			# 任务轮换：领取在场已完成任务（active_mission_ids，非固定 MISSION_DEFS）
+			for id in GameState.active_mission_ids():
 				if GameState.is_mission_done(id) and not GameState.is_mission_claimed(id):
 					base_ui.claim_mission(id)
 					_mission_claims += 1

@@ -772,6 +772,10 @@
 		"cycle_mult": 1.35,
 		"boss_kill_base": 500.0
 	},
+	"base_task": {
+		"refresh_cost": 2,
+		"grant_per_visit": 1
+	},
 	"progression": {
 		"per_boss_kill": 0.6,
 		"per_ten_minutes": 1.5,
@@ -1028,6 +1032,38 @@
 		"bomb_damage": 20,
 		"bomb_radius": 120,
 		"reward_all_clear": 200
+	},
+	"fog_events": {
+		"enabled": true,
+		"trigger_chance": 0.35,
+		"check_interval": 3.0,
+		"min_interval": 12.0,
+		"first_delay": 25.0,
+		"weights": {
+			"fake_enemies": 1.0,
+			"mental_confusion": 1.0,
+			"bullet_malfunction": 1.0,
+			"direction_shift": 1.0
+		},
+		"durations": {
+			"fake_enemies": 8.0,
+			"mental_confusion": 6.0,
+			"bullet_malfunction": 7.0,
+			"direction_shift": 6.0
+		},
+		"fake_enemies": {
+			"count": 5,
+			"spawn_interval": 0.8
+		},
+		"bullet_malfunction": {
+			"jitter_deg": 20.0,
+			"misfire_chance": 0.15,
+			"interval_jitter": 0.3
+		},
+		"direction_shift": {
+			"shift_interval": 0.7,
+			"hold_time": 0.3
+		}
 	},
 	"tutorial": {
 		"boss_hp": 120

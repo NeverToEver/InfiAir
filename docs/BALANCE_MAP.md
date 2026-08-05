@@ -171,13 +171,13 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 143 | `buffs.explosive.radius_per_level` | `EXPLOSIVE_RADIUS` |
-| 144 | `buffs.explosive.damage_per_level` | `EXPLOSIVE_DAMAGE` |
-| 145 | `effects.bullet_visual_scale` | `VISUAL_SCALE` |
-| 146 | `effects.enemy_bullet_visual_scale` | `ENEMY_VISUAL_SCALE` |
-| 148 | `player.grace_period` | `GRACE_PERIOD` |
-| 150 | `player.parry.reflect_speed_mult` | `REFLECT_SPEED_MULT` |
-| 151 | `player.parry.reflect_damage_mult` | `REFLECT_DAMAGE_MULT` |
+| 220 | `buffs.explosive.radius_per_level` | `EXPLOSIVE_RADIUS` |
+| 221 | `buffs.explosive.damage_per_level` | `EXPLOSIVE_DAMAGE` |
+| 222 | `effects.bullet_visual_scale` | `VISUAL_SCALE` |
+| 223 | `effects.enemy_bullet_visual_scale` | `ENEMY_VISUAL_SCALE` |
+| 225 | `player.grace_period` | `GRACE_PERIOD` |
+| 227 | `player.parry.reflect_speed_mult` | `REFLECT_SPEED_MULT` |
+| 228 | `player.parry.reflect_damage_mult` | `REFLECT_DAMAGE_MULT` |
 
 ### `scripts/camera_shake.gd`
 
@@ -207,44 +207,60 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 137 | `enemies.hp_ramp_factor` | `HP_RAMP_FACTOR` |
-| 152 | `enemies.speed_ramp_factor` | `SPEED_RAMP_FACTOR` |
-| 160 | `player.aim_assist.mark_ratio` | `0.25` |
-| 238 | `enemies.bullet_speed` | `ENEMY_BULLET_SPEED` |
-| 239 | `enemies.spread_bullet_speed` | `SPREAD_BULLET_SPEED` |
-| 240 | `enemies.laser_bullet_speed` | `LASER_BULLET_SPEED` |
-| 241 | `enemies.bullet_damage.single` | `BULLET_DAMAGE_SINGLE` |
-| 242 | `enemies.bullet_damage.spread` | `BULLET_DAMAGE_SPREAD` |
-| 243 | `enemies.bullet_damage.laser` | `BULLET_DAMAGE_LASER` |
-| 244 | `enemies.collision_damage` | `COLLISION_DAMAGE` |
-| 245 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
-| 246 | `enemies.spread_fan_step` | `SPREAD_FAN_STEP` |
-| 247 | `enemies.lifetime` | `LIFETIME` |
-| 248 | `enemies.exit_accel` | `EXIT_ACCEL` |
-| 249 | `enemies.aggressive_chase_speed` | `AGGR_CHASE_SPEED` |
-| 250 | `enemies.fire_interval` | `FIRE_INTERVAL` |
-| 252 | `enemies.hover_band` | `[HOVER_BAND.x, HOVER_BAND.y]` |
-| 257 | `enemies.hover_bob_amp` | `HOVER_BOB_AMP` |
-| 258 | `enemies.hover_bob_freq` | `HOVER_BOB_FREQ` |
-| 259 | `enemies.hover_sway_amp` | `HOVER_SWAY_AMP` |
-| 260 | `enemies.hover_sway_freq` | `HOVER_SWAY_FREQ` |
-| 261 | `enemies.spiral_drift_amp` | `SPIRAL_DRIFT_AMP` |
-| 262 | `enemies.spiral_drift_freq` | `SPIRAL_DRIFT_FREQ` |
-| 263 | `enemies.spiral_radius` | `SPIRAL_RADIUS` |
-| 280 | `effects.shake.enemy_die` | `_shake_die_normal` |
-| 281 | `effects.shake.elite_die` | `_shake_die_elite` |
+| 141 | `enemies.hp_ramp_factor` | `HP_RAMP_FACTOR` |
+| 156 | `enemies.speed_ramp_factor` | `SPEED_RAMP_FACTOR` |
+| 164 | `player.aim_assist.mark_ratio` | `0.25` |
+| 242 | `enemies.bullet_speed` | `ENEMY_BULLET_SPEED` |
+| 243 | `enemies.spread_bullet_speed` | `SPREAD_BULLET_SPEED` |
+| 244 | `enemies.laser_bullet_speed` | `LASER_BULLET_SPEED` |
+| 245 | `enemies.bullet_damage.single` | `BULLET_DAMAGE_SINGLE` |
+| 246 | `enemies.bullet_damage.spread` | `BULLET_DAMAGE_SPREAD` |
+| 247 | `enemies.bullet_damage.laser` | `BULLET_DAMAGE_LASER` |
+| 248 | `enemies.collision_damage` | `COLLISION_DAMAGE` |
+| 249 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
+| 250 | `enemies.spread_fan_step` | `SPREAD_FAN_STEP` |
+| 251 | `enemies.lifetime` | `LIFETIME` |
+| 252 | `enemies.exit_accel` | `EXIT_ACCEL` |
+| 253 | `enemies.aggressive_chase_speed` | `AGGR_CHASE_SPEED` |
+| 254 | `enemies.fire_interval` | `FIRE_INTERVAL` |
+| 256 | `enemies.hover_band` | `[HOVER_BAND.x, HOVER_BAND.y]` |
+| 261 | `enemies.hover_bob_amp` | `HOVER_BOB_AMP` |
+| 262 | `enemies.hover_bob_freq` | `HOVER_BOB_FREQ` |
+| 263 | `enemies.hover_sway_amp` | `HOVER_SWAY_AMP` |
+| 264 | `enemies.hover_sway_freq` | `HOVER_SWAY_FREQ` |
+| 265 | `enemies.spiral_drift_amp` | `SPIRAL_DRIFT_AMP` |
+| 266 | `enemies.spiral_drift_freq` | `SPIRAL_DRIFT_FREQ` |
+| 267 | `enemies.spiral_radius` | `SPIRAL_RADIUS` |
+| 284 | `effects.shake.enemy_die` | `_shake_die_normal` |
+| 285 | `effects.shake.elite_die` | `_shake_die_elite` |
 
 ### `scripts/explosion.gd`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 23 | `effects.explosion.pool_cap` | `POOL_CAP` |
-| 31 | `effects.explosion_visual_scale` | `1.6` |
-| 50 | `effects.shake.boss_seq_initial` | `20.0` |
-| 63 | `effects.shake.boss_seq_step` | `8.0` |
-| 74 | `effects.shake.boss_seq_final` | `24.0` |
-| 82 | `effects.explosion.amount` | `24` |
-| 102 | `effects.explosion.debris_amount` | `10` |
+| 53 | `effects.explosion.pool_cap` | `POOL_CAP` |
+| 61 | `effects.explosion_visual_scale` | `1.6` |
+| 80 | `effects.shake.boss_seq_initial` | `20.0` |
+| 93 | `effects.shake.boss_seq_step` | `8.0` |
+| 104 | `effects.shake.boss_seq_final` | `24.0` |
+| 112 | `effects.explosion.amount` | `24` |
+| 132 | `effects.explosion.debris_amount` | `10` |
+
+### `scripts/fog_event_manager.gd`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 82 | `fog_events.enabled` | `ENABLED` |
+| 83 | `fog_events.trigger_chance` | `TRIGGER_CHANCE` |
+| 84 | `fog_events.check_interval` | `CHECK_INTERVAL` |
+| 85 | `fog_events.min_interval` | `MIN_INTERVAL` |
+| 86 | `fog_events.first_delay` | `FIRST_DELAY` |
+| 87 | `fog_events.weights` | `WEIGHTS` |
+| 90 | `fog_events.durations` | `EVENT_DURATIONS` |
+| 93 | `fog_events.fake_enemies.count` | `FAKE_ENEMY_COUNT` |
+| 94 | `fog_events.fake_enemies.spawn_interval` | `FAKE_ENEMY_SPAWN_INTERVAL` |
+| 95 | `fog_events.direction_shift.shift_interval` | `SHIFT_INTERVAL` |
+| 96 | `fog_events.direction_shift.hold_time` | `SHIFT_HOLD` |
 
 ### `scripts/formation_bomb.gd`
 
@@ -314,52 +330,52 @@
 | 76 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 77 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 78 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 647 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 658 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 698 | `mothership.depart_cooldown` | `60.0` |
+| 655 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 666 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 708 | `mothership.depart_cooldown` | `60.0` |
 
 ### `scripts/meta_health_fx.gd`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 155 | `effects.meta_health.crack.density` | `DENSITY_CAPS.duplicate(` |
-| 166 | `effects.meta_health.lod` | `0` |
-| 167 | `effects.meta_health.pulse.scale` | `2.5` |
-| 168 | `effects.meta_health.pulse.min` | `0.15` |
-| 169 | `effects.meta_health.pulse.decay_tau` | `0.09` |
-| 170 | `effects.meta_health.chromatic.base` | `0.006` |
-| 171 | `effects.meta_health.chromatic.peak` | `0.014` |
-| 172 | `effects.meta_health.blur.strength` | `0.6` |
-| 173 | `effects.meta_health.ripple.duration` | `0.4` |
-| 174 | `effects.meta_health.ripple.alpha` | `0.8` |
-| 175 | `effects.meta_health.crack.exponent` | `1.6` |
-| 176 | `effects.meta_health.crack.spread_min` | `0.10` |
-| 177 | `effects.meta_health.crack.edge_softness` | `0.08` |
-| 178 | `effects.meta_health.crack.width` | `0.03` |
-| 179 | `effects.meta_health.crack.glow` | `0.8` |
-| 180 | `effects.meta_health.crack.heal_jitter` | `0.35` |
-| 181 | `effects.meta_health.crack.grow_overshoot` | `0.08` |
-| 182 | `effects.meta_health.crack.grow_time` | `0.6` |
-| 184 | `effects.meta_health.desat.max` | `0.35` |
-| 185 | `effects.meta_health.desat.exponent` | `2.0` |
-| 186 | `effects.meta_health.vignette.max_alpha` | `0.5` |
-| 187 | `effects.meta_health.vignette.inner` | `0.62` |
-| 188 | `effects.meta_health.vignette.dying_shrink` | `0.06` |
-| 189 | `effects.meta_health.dying.threshold` | `0.2` |
-| 190 | `effects.meta_health.dying.heart_min_hz` | `1.0` |
-| 191 | `effects.meta_health.dying.heart_max_hz` | `1.2` |
-| 192 | `effects.meta_health.dying.breath` | `0.015` |
-| 193 | `effects.meta_health.dying.jitter_px` | `2.0` |
-| 194 | `effects.meta_health.dying.warn_hz` | `2.5` |
-| 195 | `effects.meta_health.dying.fade` | `0.3` |
-| 196 | `effects.meta_health.smooth.down_tau` | `0.10` |
-| 197 | `effects.meta_health.smooth.up_tau` | `0.80` |
-| 198 | `effects.meta_health.adapt.interval` | `0.25` |
-| 199 | `effects.meta_health.adapt.min` | `0.8` |
-| 200 | `effects.meta_health.adapt.max` | `1.3` |
-| 201 | `effects.meta_health.adapt.bullet_weight` | `0.002` |
-| 202 | `effects.meta_health.adapt.explosion_weight` | `0.15` |
-| 203 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4` |
+| 158 | `effects.meta_health.crack.density` | `DENSITY_CAPS.duplicate(` |
+| 169 | `effects.meta_health.lod` | `0` |
+| 170 | `effects.meta_health.pulse.scale` | `2.5` |
+| 171 | `effects.meta_health.pulse.min` | `0.15` |
+| 172 | `effects.meta_health.pulse.decay_tau` | `0.09` |
+| 173 | `effects.meta_health.chromatic.base` | `0.006` |
+| 174 | `effects.meta_health.chromatic.peak` | `0.014` |
+| 175 | `effects.meta_health.blur.strength` | `0.6` |
+| 176 | `effects.meta_health.ripple.duration` | `0.4` |
+| 177 | `effects.meta_health.ripple.alpha` | `0.8` |
+| 178 | `effects.meta_health.crack.exponent` | `1.6` |
+| 179 | `effects.meta_health.crack.spread_min` | `0.10` |
+| 180 | `effects.meta_health.crack.edge_softness` | `0.08` |
+| 181 | `effects.meta_health.crack.width` | `0.03` |
+| 182 | `effects.meta_health.crack.glow` | `0.8` |
+| 183 | `effects.meta_health.crack.heal_jitter` | `0.35` |
+| 184 | `effects.meta_health.crack.grow_overshoot` | `0.08` |
+| 185 | `effects.meta_health.crack.grow_time` | `0.6` |
+| 187 | `effects.meta_health.desat.max` | `0.35` |
+| 188 | `effects.meta_health.desat.exponent` | `2.0` |
+| 189 | `effects.meta_health.vignette.max_alpha` | `0.5` |
+| 190 | `effects.meta_health.vignette.inner` | `0.62` |
+| 191 | `effects.meta_health.vignette.dying_shrink` | `0.06` |
+| 192 | `effects.meta_health.dying.threshold` | `0.2` |
+| 193 | `effects.meta_health.dying.heart_min_hz` | `1.0` |
+| 194 | `effects.meta_health.dying.heart_max_hz` | `1.2` |
+| 195 | `effects.meta_health.dying.breath` | `0.015` |
+| 196 | `effects.meta_health.dying.jitter_px` | `2.0` |
+| 197 | `effects.meta_health.dying.warn_hz` | `2.5` |
+| 198 | `effects.meta_health.dying.fade` | `0.3` |
+| 199 | `effects.meta_health.smooth.down_tau` | `0.10` |
+| 200 | `effects.meta_health.smooth.up_tau` | `0.80` |
+| 201 | `effects.meta_health.adapt.interval` | `0.25` |
+| 202 | `effects.meta_health.adapt.min` | `0.8` |
+| 203 | `effects.meta_health.adapt.max` | `1.3` |
+| 204 | `effects.meta_health.adapt.bullet_weight` | `0.002` |
+| 205 | `effects.meta_health.adapt.explosion_weight` | `0.15` |
+| 206 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4` |
 
 ### `scripts/mothership.gd`
 
@@ -442,53 +458,56 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 238 | `player.max_speed` | `MAX_SPEED` |
-| 239 | `player.accel` | `ACCEL` |
-| 240 | `player.decel` | `DECEL` |
-| 241 | `player.boost_mult` | `BOOST_MULT` |
-| 242 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
-| 243 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
-| 244 | `player.bullet_speed` | `BULLET_SPEED` |
-| 245 | `buffs.crit_shot.chance` | `CRIT_CHANCE_BASE` |
-| 246 | `buffs.crit_shot.multiplier` | `CRIT_MULTIPLIER` |
-| 247 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
-| 248 | `player.bullet_damage` | `BULLET_DAMAGE` |
-| 249 | `player.invincible_time` | `INVINCIBLE_TIME` |
-| 250 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
-| 251 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
-| 252 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
-| 253 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
-| 254 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
-| 255 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
-| 256 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
-| 257 | `player.entry.spawn_clearance` | `ENTRY_SPAWN_CLEARANCE` |
-| 258 | `player.entry.rush_hspeed_ratio` | `ENTRY_RUSH_HS_RATIO` |
-| 259 | `buffs.armor.multiplier` | `ARMOR_MULT` |
-| 260 | `buffs.evasion.chance` | `EVASION_CHANCE` |
-| 261 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
-| 262 | `effects.shake.player_hit` | `SHAKE_HIT` |
-| 264 | `player.fuel.max` | `fuel_max` |
-| 266 | `player.fuel.drain` | `FUEL_DRAIN` |
-| 267 | `player.fuel.regen` | `FUEL_REGEN` |
-| 268 | `player.fuel.restart` | `FUEL_RESTART` |
-| 269 | `player.dash.distance` | `DASH_DISTANCE` |
-| 270 | `player.dash.time` | `DASH_TIME` |
-| 271 | `player.dash.cooldown` | `DASH_COOLDOWN` |
-| 272 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
-| 273 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
-| 275 | `player.graze_radius` | `GRAZE_RADIUS` |
-| 276 | `player.graze_score` | `GRAZE_SCORE` |
-| 278 | `player.parry.arc_deg` | `PARRY_ARC_DEG` |
-| 279 | `player.parry.radius` | `PARRY_RADIUS` |
-| 281 | `player.parry.duration` | `0.8` |
-| 282 | `player.parry.active_time` | `0.5` |
-| 283 | `player.parry.cooldown` | `3.0` |
-| 289 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
-| 290 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
-| 291 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
-| 292 | `player.aim_assist.falloff.end` | `_falloff_end` |
-| 293 | `player.aim_assist.falloff.min` | `_falloff_min` |
-| 746 | `player.aim_assist.homing_time` | `HOMING_TIME` |
+| 251 | `player.max_speed` | `MAX_SPEED` |
+| 252 | `player.accel` | `ACCEL` |
+| 253 | `player.decel` | `DECEL` |
+| 254 | `player.boost_mult` | `BOOST_MULT` |
+| 255 | `player.fine_move_mult` | `FINE_MOVE_MULT` |
+| 256 | `player.base_fire_interval` | `BASE_FIRE_INTERVAL` |
+| 257 | `player.bullet_speed` | `BULLET_SPEED` |
+| 258 | `buffs.crit_shot.chance` | `CRIT_CHANCE_BASE` |
+| 259 | `buffs.crit_shot.multiplier` | `CRIT_MULTIPLIER` |
+| 260 | `player.bullet_spread_deg` | `BULLET_SPREAD_DEG` |
+| 261 | `player.bullet_damage` | `BULLET_DAMAGE` |
+| 262 | `player.invincible_time` | `INVINCIBLE_TIME` |
+| 263 | `player.spawn_invincible_time` | `SPAWN_INVINCIBLE_TIME` |
+| 264 | `player.bullet_clear_radius` | `BULLET_CLEAR_RADIUS` |
+| 265 | `player.entry.land_ratio` | `ENTRY_LAND_RATIO` |
+| 266 | `player.entry.rush_time` | `ENTRY_RUSH_TIME` |
+| 267 | `player.entry.retreat_speed` | `ENTRY_RETREAT_SPEED` |
+| 268 | `player.entry.retreat_time` | `ENTRY_RETREAT_TIME` |
+| 269 | `player.entry.invincible` | `ENTRY_INVINCIBLE` |
+| 270 | `player.entry.spawn_clearance` | `ENTRY_SPAWN_CLEARANCE` |
+| 271 | `player.entry.rush_hspeed_ratio` | `ENTRY_RUSH_HS_RATIO` |
+| 272 | `buffs.armor.multiplier` | `ARMOR_MULT` |
+| 273 | `buffs.evasion.chance` | `EVASION_CHANCE` |
+| 274 | `buffs.regen.heal_per_sec` | `REGEN_PER_SEC` |
+| 275 | `effects.shake.player_hit` | `SHAKE_HIT` |
+| 277 | `player.fuel.max` | `fuel_max` |
+| 279 | `player.fuel.drain` | `FUEL_DRAIN` |
+| 280 | `player.fuel.regen` | `FUEL_REGEN` |
+| 281 | `player.fuel.restart` | `FUEL_RESTART` |
+| 282 | `player.dash.distance` | `DASH_DISTANCE` |
+| 283 | `player.dash.time` | `DASH_TIME` |
+| 284 | `player.dash.cooldown` | `DASH_COOLDOWN` |
+| 285 | `player.dash.fuel_ratio` | `DASH_FUEL_RATIO` |
+| 286 | `player.dash.afterimage_interval` | `AFTERIMAGE_INTERVAL` |
+| 288 | `player.graze_radius` | `GRAZE_RADIUS` |
+| 289 | `player.graze_score` | `GRAZE_SCORE` |
+| 291 | `player.parry.arc_deg` | `PARRY_ARC_DEG` |
+| 292 | `player.parry.radius` | `PARRY_RADIUS` |
+| 294 | `player.parry.duration` | `0.8` |
+| 295 | `player.parry.active_time` | `0.5` |
+| 296 | `player.parry.cooldown` | `3.0` |
+| 302 | `player.aim_assist.input.magnet_input_min` | `_magnet_input_min` |
+| 303 | `player.aim_assist.input.magnet_input_full` | `_magnet_input_full` |
+| 304 | `player.aim_assist.falloff.peak` | `_falloff_peak` |
+| 305 | `player.aim_assist.falloff.end` | `_falloff_end` |
+| 306 | `player.aim_assist.falloff.min` | `_falloff_min` |
+| 473 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
+| 474 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
+| 475 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
+| 822 | `player.aim_assist.homing_time` | `HOMING_TIME` |
 | 55 | `buffs.rapid_fire.factor` | `—` |
 | 56 | `buffs.power_shot.factor` | `—` |
 | 57 | `buffs.efficient_boost.factor` | `—` |
@@ -588,20 +607,22 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 123 | `world_scale` | `world_scale` |
-| 126 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
-| 138 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
-| 140 | `progression.per_boss_kill` | `0.6` |
-| 141 | `progression.per_ten_minutes` | `1.5` |
-| 142 | `progression.time_step_seconds` | `30.0` |
-| 145 | `difficulty` | `{}` |
-| 151 | `dda.duration` | `DDA_DURATION` |
-| 152 | `dda.factor` | `DDA_FACTOR` |
-| 153 | `player.max_health` | `_max_hp_base` |
-| 155 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
-| 157 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 824 | `milestones.boss_kill_base` | `500.0` |
-| 1534 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 126 | `world_scale` | `world_scale` |
+| 129 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
+| 141 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
+| 143 | `progression.per_boss_kill` | `0.6` |
+| 144 | `progression.per_ten_minutes` | `1.5` |
+| 145 | `progression.time_step_seconds` | `30.0` |
+| 148 | `difficulty` | `{}` |
+| 154 | `dda.duration` | `DDA_DURATION` |
+| 155 | `dda.factor` | `DDA_FACTOR` |
+| 156 | `player.max_health` | `_max_hp_base` |
+| 158 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
+| 160 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 162 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 163 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 879 | `milestones.boss_kill_base` | `500.0` |
+| 1674 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 

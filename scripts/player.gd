@@ -210,6 +210,15 @@ var _muzzle_offset: float  # 出弹点偏移（50 × world_scale，_load_balance
 var _boost_toggle_on: bool = false  # shift_toggle_mode 下的加速开关
 var _fine_toggle_on: bool = false  # ctrl_toggle_mode 下的微调开关
 
+## 迷雾事件效果状态（2026-08-05）：FogEventManager 信号驱动（fog_event_started/ended
+## 与 fog_direction_shift），事件结束信号自动复位；数值随各事件档位读 balance.json
+var _fog_invert_input := false  # 精神错乱：输入方向反转（上下/左右颠倒）
+var _fog_bullet_jitter_deg := 0.0  # 子弹错误：出膛弹随机角度偏移幅度（0 = 关闭）
+var _fog_misfire_chance := 0.0  # 子弹错误：偶发慢速失误弹概率
+var _fog_interval_jitter := 0.0  # 子弹错误：开火间隔随机扰动比例
+var _fog_forced_dir := Vector2.ZERO  # 短间隔随机方向：当前强制方向（零向量 = 无）
+var _fog_forced_hold := 0.0  # 强制方向剩余生效秒数
+
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _audio: AudioStreamPlayer2D = $AudioStreamPlayer2D
 @onready var _hitbox: Area2D = $Hitbox
@@ -226,6 +235,10 @@ func _ready() -> void:
 	# P0-1：手柄右摇杆瞄准灵敏度由设置页驱动（joy_settings_changed 广播重读）
 	_aim_joy_speed = GameState.joy_aim_speed
 	GameState.joy_settings_changed.connect(_on_joy_settings_changed)
+	# 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用，事件编排在 FogEventManager）
+	GameState.fog_events.fog_event_started.connect(_on_fog_event_started)
+	GameState.fog_events.fog_event_ended.connect(_on_fog_event_ended)
+	GameState.fog_events.fog_direction_shift.connect(_on_fog_direction_shift)
 
 
 ## A8：残影逐帧淡出（渲染帧；池节点 alpha 归零即隐藏回收，零分配）——委托 PlayerVisuals
@@ -428,6 +441,58 @@ func reset_fire_cooldown() -> void:
 	_fire_cooldown = 0.0
 
 
+# ---------------- 迷雾事件效果（FogEventManager 信号驱动，事件结束自动复位） ----------------
+
+
+## A7：测试/诊断公开查询（禁跨类直读私有）
+func fog_invert_active() -> bool:
+	return _fog_invert_input
+
+
+func fog_bullet_jitter() -> float:
+	return _fog_bullet_jitter_deg
+
+
+func fog_misfire_chance() -> float:
+	return _fog_misfire_chance
+
+
+func fog_forced_dir() -> Vector2:
+	return _fog_forced_dir
+
+
+func fog_forced_hold() -> float:
+	return _fog_forced_hold
+
+
+func _on_fog_event_started(event_id: StringName, _duration: float) -> void:
+	match event_id:
+		&"mental_confusion":
+			_fog_invert_input = true
+		&"bullet_malfunction":
+			_fog_bullet_jitter_deg = float(GameState.cfg("fog_events.bullet_malfunction.jitter_deg", 20.0))
+			_fog_misfire_chance = float(GameState.cfg("fog_events.bullet_malfunction.misfire_chance", 0.15))
+			_fog_interval_jitter = float(GameState.cfg("fog_events.bullet_malfunction.interval_jitter", 0.3))
+
+
+func _on_fog_event_ended(event_id: StringName) -> void:
+	match event_id:
+		&"mental_confusion":
+			_fog_invert_input = false
+		&"bullet_malfunction":
+			_fog_bullet_jitter_deg = 0.0
+			_fog_misfire_chance = 0.0
+			_fog_interval_jitter = 0.0
+		&"direction_shift":
+			_fog_forced_hold = 0.0
+
+
+## 短间隔随机方向脉冲：hold 秒内移动向量被替换为 dir（事件结束信号统一清零）
+func _on_fog_direction_shift(dir: Vector2, hold: float) -> void:
+	_fog_forced_dir = dir
+	_fog_forced_hold = maxf(hold, 0.0)
+
+
 func boost_toggle_active() -> bool:
 	return _boost_toggle_on
 
@@ -605,6 +670,13 @@ func _physics_process(delta: float) -> void:
 		_entry_physics(delta)
 		return
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# 迷雾事件·精神错乱：输入方向反转（上下/左右颠倒）
+	if _fog_invert_input:
+		input_dir = -input_dir
+	# 迷雾事件·短间隔随机方向：强制方向覆盖输入（hold 秒，事件周期脉冲刷新）
+	if _fog_forced_hold > 0.0:
+		_fog_forced_hold -= delta
+		input_dir = _fog_forced_dir
 	# Boss 狂暴锁定：移动/冲刺冻结（原作 controls_locked 语义），瞄准与开火照常
 	if movement_locked:
 		input_dir = Vector2.ZERO
@@ -682,7 +754,11 @@ func _physics_process(delta: float) -> void:
 	_fire_cooldown -= delta
 	if _auto_fire_enabled and _fire_cooldown <= 0.0 and aim.length() > 1.0:
 		_fire(aim.normalized())
-		_fire_cooldown = fire_interval()
+		var interval := fire_interval()
+		# 迷雾事件·子弹错误：开火间隔随机扰动（射速异常，±interval_jitter 比例）
+		if _fog_interval_jitter > 0.0:
+			interval *= randf_range(1.0 - _fog_interval_jitter, 1.0 + _fog_interval_jitter)
+		_fire_cooldown = maxf(interval, 0.01)
 
 	# 慢速力场已改为全局敌机移速（A13），不再有玩家侧环视觉
 
@@ -873,14 +949,21 @@ func _fire(aim: Vector2) -> void:
 	var loop_damage := bullet_damage()
 	for i in count:
 		var offset := deg_to_rad(BULLET_SPREAD_DEG * (float(i) - float(spread) / 2.0))
-		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), loop_speed, loop_damage, true)
+		var aim_rot := aim.rotated(offset)
+		var bspeed := loop_speed
+		# 迷雾事件·子弹错误：出膛弹随机角度偏移 + 偶发慢速失误弹（轨迹/射速异常）
+		if _fog_bullet_jitter_deg > 0.0:
+			aim_rot = aim_rot.rotated(deg_to_rad(randf_range(-_fog_bullet_jitter_deg, _fog_bullet_jitter_deg)))
+		if _fog_misfire_chance > 0.0 and randf() < _fog_misfire_chance:
+			bspeed *= 0.45
+		var b: Bullet = GameState.bullet_pool.fire(aim_rot, bspeed, loop_damage, true)
 		b.pierce = pierce
 		b.explosive = explosive
 		if homing_target != null:
 			b.homing_target = homing_target
 			b.homing_time = HOMING_TIME
 			b.homing_turn_rate = homing_rate
-		b.position = position + aim.rotated(offset) * _muzzle_offset
+		b.position = position + aim_rot * _muzzle_offset
 	_audio.stream = FIRE_SOUNDS[_sound_index]
 	_sound_index = (_sound_index + 1) % FIRE_SOUNDS.size()
 	_audio.play()
@@ -1034,6 +1117,13 @@ func _exit_tree() -> void:
 		GameState.aim_assist_changed.disconnect(_on_aim_assist_level_changed)
 	if GameState.joy_settings_changed.is_connected(_on_joy_settings_changed):
 		GameState.joy_settings_changed.disconnect(_on_joy_settings_changed)
+	# 2026-08-05：迷雾事件信号断开（C22 模式——重入树不重复连接）
+	if GameState.fog_events.fog_event_started.is_connected(_on_fog_event_started):
+		GameState.fog_events.fog_event_started.disconnect(_on_fog_event_started)
+	if GameState.fog_events.fog_event_ended.is_connected(_on_fog_event_ended):
+		GameState.fog_events.fog_event_ended.disconnect(_on_fog_event_ended)
+	if GameState.fog_events.fog_direction_shift.is_connected(_on_fog_direction_shift):
+		GameState.fog_events.fog_direction_shift.disconnect(_on_fog_direction_shift)
 	# 2026-08-03 审计（C22 补齐）：子节点信号断开——节点未 free 重入树防双连回调
 	if $GrazeArea.area_entered.is_connected(_on_graze_entered):
 		$GrazeArea.area_entered.disconnect(_on_graze_entered)

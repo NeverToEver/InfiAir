@@ -94,6 +94,11 @@ func _ready() -> void:
 	_spawner.set_formation_event(_formation)
 	GameState.player_died.connect(_on_player_died)
 	_base_ui.resume_requested.connect(_resume_from_base)
+	# 迷雾事件：仅真实对局（main 为 current_scene）开启自动触发。
+	# 测试以子节点实例化 main.tscn 时 current_scene 为测试场景 → 保持关闭，
+	# 防止随机迷雾事件（如方向偏转把测试玩家推入弹幕触发擦弹得分）破坏测试断言确定性；
+	# 需要测迷雾的用例显式 set_run_active(true)（同 intro 过场的 current_scene 判定惯例）
+	GameState.fog_events.set_run_active(get_tree().current_scene == self)
 	# 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
 	GameState.camera_ref = _camera
 	# Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
@@ -135,6 +140,7 @@ func _exit_tree() -> void:
 	Engine.time_scale = 1.0
 	if GameState.camera_ref == _camera:
 		GameState.camera_ref = null
+	GameState.fog_events.set_run_active(false)
 
 
 ## 对外公开接口（A1 修复）：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段
@@ -545,6 +551,8 @@ func _on_continue_run() -> void:
 
 func _on_player_died() -> void:
 	_game_over = true
+	# 迷雾事件：死亡终局清除进行中的事件（伪敌机/变色层/玩家效果信号复位）
+	GameState.fog_events.end_active()
 	# 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
 	_player.unlock_input()
 	_player.movement_locked = false
@@ -681,6 +689,8 @@ func _start_homecoming() -> void:
 	_home_charge_time = 0.0
 	_hud.set_home_charge(-1.0)
 	_player.lock_input()
+	# 迷雾事件：返航中场整备清除进行中的干扰效果（继续出击后干净开局）
+	GameState.fog_events.end_active()
 	# K01：返航统一清除召唤/对接期残留的 999s 无敌——_summon_mothership 设 set_invincible(999.0)，
 	# 提前收回路径（下方 queue_free → mothership._exit_tree 仅 exit_pod 恢复显示）不重置无敌，
 	# 正常 RELEASE 路径有 set_invincible(2.0) 覆盖；此处复位后继续出击的无敌由入场序列接管

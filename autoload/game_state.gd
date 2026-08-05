@@ -86,6 +86,9 @@ var _balance_service := BalanceService.new()
 var _save_manager := SaveManager.new()
 var _sfx_player := SfxPlayer.new()
 var _registry := EntityRegistry.new()
+## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
+## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
+var _fog_events := FogEventManager.new()
 ## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/2026-08-04-local-accounts-plan.md）
 var _user_db := UserDB.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
@@ -155,6 +158,9 @@ func _apply_balance() -> void:
 	_max_hp_bonus = maxf(float(cfg("buffs.extra_life.max_hp_bonus", _max_hp_bonus)), 0.0)
 	# 2026-08-03 审计：吸血比例缓存（击杀帧免 cfg 路径解析，P0-2 同款）
 	_lifesteal_fraction = maxf(float(cfg("buffs.lifesteal.max_hp_fraction", 0.1)), 0.0)
+	# 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
+	REFRESH_COST = maxi(int(cfg("base_task.refresh_cost", REFRESH_COST)), 1)
+	GRANT_PER_VISIT = maxi(int(cfg("base_task.grant_per_visit", GRANT_PER_VISIT)), 0)
 
 
 ## C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -207,12 +213,40 @@ const RP_MISSION_REWARD := 3
 const RP_REPAIR_COST := 2
 const RP_RECHARGE_COST := 2
 
-# 常驻基地任务（对齐原作 base_talent_console 三任务）
+# 常驻基地任务（对齐原作 base_talent_console 三任务）：
+# 初始手牌 = MISSION_DEFS 三项（保持既有 id 语义）；刷新（refresh_missions）从
+# MISSION_POOL 无放回重抽 3 个槽位。kind 决定进度来源（kill=击杀数 / survive=存活
+# 秒 / boss=Boss 击杀数），goal 为各自目标——任务轮换后 id 变化，进度源按 kind 分发。
 const MISSION_DEFS: Array[Dictionary] = [
-	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5},
-	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180},
-	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1},
+	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5, "kind": &"kill"},
+	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180, "kind": &"survive"},
+	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1, "kind": &"boss"},
 ]
+
+## 基地任务池（TaskPool 数据源，任务轮换随机抽取）：9 项 = 3 类 × 3 档目标
+const MISSION_POOL: Array[Dictionary] = [
+	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5, "kind": &"kill"},
+	{"id": &"kill_15", "name": "肃清行动", "desc": "击杀 15 个敌人", "goal": 15, "kind": &"kill"},
+	{"id": &"kill_30", "name": "铁雨犁地", "desc": "击杀 30 个敌人", "goal": 30, "kind": &"kill"},
+	{"id": &"survive_60", "name": "坚守六十秒", "desc": "存活 60 秒", "goal": 60, "kind": &"survive"},
+	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180, "kind": &"survive"},
+	{"id": &"survive_300", "name": "无声防线", "desc": "存活 300 秒", "goal": 300, "kind": &"survive"},
+	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1, "kind": &"boss"},
+	{"id": &"boss_2", "name": "双王陨落", "desc": "击杀 2 个 Boss", "goal": 2, "kind": &"boss"},
+	{"id": &"boss_3", "name": "弑神者", "desc": "击杀 3 个 Boss", "goal": 3, "kind": &"boss"},
+]
+## 在场任务槽位数（刷新后重抽的目标数量）
+const MISSION_SLOTS := 3
+## 刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
+## （balance.json base_task 段覆盖；默认 1 点/次进基地、2 点/次刷新 = 攒两次基地换一次刷新）
+var refresh_points: int = 0
+var REFRESH_COST := 2
+var GRANT_PER_VISIT := 1
+signal refresh_points_changed(points: int)
+## 任务池实例（_init_missions 重建，保证每次对局从全新洗牌序列开始）
+var _task_pool: TaskPool = null
+## kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）
+var _missions_by_kind: Dictionary = {}
 
 # 互斥天赋路线：line -> 两个候选 buff（对齐原作 talent_balance_manager）
 const ROUTE_LINES: Dictionary = {
@@ -386,6 +420,10 @@ var aim_frame_layer: AimFrameLayer = null:
 		return _registry.aim_frame_layer
 	set(value):
 		_registry.aim_frame_layer = value
+## 迷雾事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
+var fog_events: FogEventManager:
+	get:
+		return _fog_events
 
 
 func register_enemy(node: Node) -> void:
@@ -416,6 +454,8 @@ func _ready() -> void:
 	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
 	add_child(_sfx_player)
 	_sfx_player.build_pool(SFX_POOL_SIZE)
+	# 迷雾事件管理器挂载（balance 已在 _apply_balance 就绪；管理器 _ready 读 cfg）
+	add_child(_fog_events)
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
@@ -445,7 +485,7 @@ func _process(delta: float) -> void:
 	var survive_sec := int(run_time)
 	if survive_sec != _survive_sec_cached:
 		_survive_sec_cached = survive_sec
-		_set_mission_progress(&"survive_180", survive_sec)
+		_set_kind_progress(&"survive", survive_sec)
 	# 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
 	if int(floorf(run_time / _prog_time_step_seconds)) != _difficulty_time_step:
 		if _recompute_difficulty():
@@ -484,6 +524,8 @@ func reset_run() -> void:
 	rp = 0
 	run_time = 0.0
 	_init_missions()
+	refresh_points = 0
+	refresh_points_changed.emit(refresh_points)
 	chosen_routes.clear()
 	locked_routes.clear()
 	_milestone_count = 0
@@ -828,7 +870,7 @@ func _cached_view_rect() -> Rect2:
 
 func add_kill() -> void:
 	kills += 1
-	_set_mission_progress(&"kill_5", kills)
+	_set_kind_progress(&"kill", kills)
 
 
 func add_boss_kill(score_scale: float = 1.0) -> void:
@@ -836,7 +878,7 @@ func add_boss_kill(score_scale: float = 1.0) -> void:
 	# G012：加分基准入 balance.json（milestones.boss_kill_base；击杀低频，非热路径可直查）
 	add_score(int(cfg("milestones.boss_kill_base", 500.0) * score_scale))
 	add_rp(RP_BOSS_KILL)
-	_set_mission_progress(&"boss_1", boss_kills)
+	_set_kind_progress(&"boss", boss_kills)
 	if _recompute_difficulty():
 		difficulty_changed.emit(difficulty_multiplier)
 
@@ -1130,8 +1172,21 @@ func spend_rp(amount: int) -> bool:
 func _init_missions() -> void:
 	missions.clear()
 	for def in MISSION_DEFS:
-		# P0-3：goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_DEFS
+		# P0-3：goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL
 		missions[def["id"]] = {"progress": 0, "claimed": false, "goal": int(def["goal"])}
+	# 任务轮换：每局从全新洗牌序列开始（初始手牌固定 MISSION_DEFS，刷新才随机）
+	_task_pool = TaskPool.new(MISSION_POOL)
+	_rebuild_kind_index()
+
+
+## kind -> 池内 id 索引重建（MISSION_POOL 为 const，仅 _init_missions 调用一次）
+func _rebuild_kind_index() -> void:
+	_missions_by_kind.clear()
+	for def in MISSION_POOL:
+		var kind: StringName = def["kind"]
+		if not _missions_by_kind.has(kind):
+			_missions_by_kind[kind] = []
+		(_missions_by_kind[kind] as Array).append(def["id"])
 
 
 ## C32 修复：公开任务重置口（仅清任务进度，不清 rp/buffs——比 reset_run 副作用小，
@@ -1144,7 +1199,7 @@ func _set_mission_progress(id: StringName, value: int) -> void:
 	if not missions.has(id):
 		return
 	var m: Dictionary = missions[id]
-	# P0-3：survive_180 每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
+	# P0-3：survive 类每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
 	if int(m["progress"]) == value:
 		return
 	var goal := int(m.get("goal", 0))
@@ -1154,11 +1209,31 @@ func _set_mission_progress(id: StringName, value: int) -> void:
 		mission_completed.emit(id)
 
 
-func mission_goal(id: StringName) -> int:
-	for def in MISSION_DEFS:
+## 按 kind 推进全部该类型在场任务的进度（任务轮换后 id 变化，进度源按 kind 分发；
+## 已不在场的 id 由 _set_mission_progress 的 missions.has 守卫自动跳过）
+func _set_kind_progress(kind: StringName, value: int) -> void:
+	for id in _missions_by_kind.get(kind, []):
+		_set_mission_progress(id, value)
+
+
+## 在场任务 id 列表（base_console 任务面板据此渲染；任务轮换后不再等于 MISSION_DEFS）
+func active_mission_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id in missions:
+		out.append(id)
+	return out
+
+
+## 任务定义查询（MISSION_POOL 无命中返回 {}，供 goal/存档恢复校验共用）
+func _mission_def(id: StringName) -> Dictionary:
+	for def in MISSION_POOL:
 		if def["id"] == id:
-			return int(def["goal"])
-	return 0
+			return def
+	return {}
+
+
+func mission_goal(id: StringName) -> int:
+	return int(_mission_def(id).get("goal", 0))
 
 
 func mission_progress(id: StringName) -> int:
@@ -1179,6 +1254,47 @@ func claim_mission(id: StringName) -> bool:
 		return false
 	missions[id]["claimed"] = true
 	add_rp(RP_MISSION_REWARD)
+	return true
+
+
+# ---------------- 基地任务轮换（RefreshPoints 经济 + TaskPool 重抽） ----------------
+
+
+## 进基地发放刷新点数（amount < 0 用 GRANT_PER_VISIT 档位值；base_console.show_base 调用）
+func grant_refresh_points(amount: int = -1) -> void:
+	refresh_points += GRANT_PER_VISIT if amount < 0 else amount
+	refresh_points_changed.emit(refresh_points)
+
+
+## 刷新资格校验（点数不足禁止刷新；UI 据此禁用按钮并提示）
+func can_refresh_missions() -> bool:
+	return refresh_points >= REFRESH_COST
+
+
+## 刷新任务：消耗 RefreshPoints 重抽任务（槽位数 MISSION_SLOTS）。
+## 已完成未领取的任务保留（防止刷新吞掉待领奖励），其余槽位从任务池无放回重抽
+## （排除在场 id，避免与保留槽位重号）。余额不足返回 false 且不扣减。
+func refresh_missions() -> bool:
+	if not can_refresh_missions():
+		return false
+	if _task_pool == null:
+		_init_missions()  # 防御：池未初始化（异常时序）时重建
+	refresh_points -= REFRESH_COST
+	refresh_points_changed.emit(refresh_points)
+	# 收集保留条目（已完成未领取）与在场 id（重抽排除全部在场 id：
+	# 既防抽回刚换下的任务，也防与保留任务重号覆盖其进度）
+	var kept: Dictionary = {}
+	var exclude: Array[StringName] = []
+	for id in missions:
+		if is_mission_done(id) and not is_mission_claimed(id):
+			kept[id] = missions[id]
+		exclude.append(id)
+	var drawn := _task_pool.draw(MISSION_SLOTS - kept.size(), exclude)
+	missions.clear()
+	for id in kept:
+		missions[id] = kept[id]
+	for def in drawn:
+		missions[def["id"]] = {"progress": 0, "claimed": false, "goal": int(def["goal"])}
 	return true
 
 
@@ -1344,6 +1460,7 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"buffs": buffs.duplicate(),
 		"elapsed": elapsed,
 		"rp": rp,
+		"refresh_points": refresh_points,
 		"missions": missions.duplicate(true),
 		"chosen_routes": chosen_routes.duplicate(),
 		"locked_routes": locked_routes.duplicate(),
@@ -1416,20 +1533,30 @@ func apply_run_save(data: Dictionary) -> void:
 	# 难度乘数按曲线从 boss_kills + run_time 重算（旧档的 difficulty_multiplier 字段仅作读入兼容）
 	_recompute_difficulty()
 	rp = int(save_num(data.get("rp", 0), 0.0))
+	# 任务轮换：刷新点数随存档往返（手改负值钳制 ≥0）
+	refresh_points = maxi(int(save_num(data.get("refresh_points", 0), 0.0)), 0)
+	refresh_points_changed.emit(refresh_points)
 	_init_missions()
+	# 任务轮换：先清空初始手牌再恢复存档任务——存档集合可能含池内非手牌 id
+	# （如 kill_15），不清空会使初始手牌未在存档中的 id（survive_180/boss_1）残留
+	missions.clear()
 	var saved_missions: Variant = data.get("missions", {})
 	if saved_missions is Dictionary:
 		for key in saved_missions.keys():
-			if missions.has(StringName(key)) and saved_missions[key] is Dictionary:
-				var m: Dictionary = saved_missions[key]
-				var claimed: Variant = m.get("claimed", false)
-				# H18（健壮性审核）：恢复保留 goal 键——整体替换会丢 goal 致
-				# mission_completed 判定 progress >= 0 恒真而永久哑火（潜伏）
-				missions[StringName(key)] = {
-					"progress": int(save_num(m.get("progress", 0), 0.0)),
-					"claimed": claimed if claimed is bool else false,
-					"goal": int(m.get("goal", mission_goal(StringName(key)))),
-				}
+			var id := StringName(key)
+			# 任务轮换：恢复条件从「初始手牌包含」放宽为「id 属于任务池」——
+			# 轮换后的任务（如 kill_15）不在初始手牌，必须能随存档恢复
+			if _mission_def(id).is_empty() or not saved_missions[key] is Dictionary:
+				continue
+			var m: Dictionary = saved_missions[key]
+			var claimed: Variant = m.get("claimed", false)
+			# H18（健壮性审核）：恢复保留 goal 键——整体替换会丢 goal 致
+			# mission_completed 判定 progress >= 0 恒真而永久哑火（潜伏）
+			missions[id] = {
+				"progress": int(save_num(m.get("progress", 0), 0.0)),
+				"claimed": claimed if claimed is bool else false,
+				"goal": int(m.get("goal", mission_goal(id))),
+			}
 	chosen_routes.clear()
 	var saved_chosen: Variant = data.get("chosen_routes", {})
 	if saved_chosen is Dictionary:

@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 玩法（2026-08-05，基地任务轮换 + 迷雾事件，`docs/FOG_EVENTS.md`）
+
+- **基地任务轮换**：任务池（`MISSION_POOL` 9 任务 = 3 类 × 3 档）+ `TaskPool` 无放回抽取（洗牌游标，排除在场 id）；刷新点数经济（进基地 +1 / 刷新 −2，`base_task.refresh_cost`/`grant_per_visit`，存档往返）；刷新保留已完成未领取任务（不吞待领奖励）；任务进度改按 `kind` 分发（kill/survive/boss），轮换后 id 变化仍自动推进；基地任务面板渲染 `active_mission_ids()` + 刷新按钮/点数不足提示
+- **迷雾事件系统**：全局单例 `FogEventManager`（挂 GameState 下，维持唯一 autoload 约定）——概率触发（`trigger_chance`/`check_interval`）+ 开局保护（`first_delay`）+ MinInterval 冷却 + Duration 到期自动清除 + 单事件并发；信号（`fog_event_started/ended/fog_direction_shift`）解耦触发与效果
+- **事件类接口（可扩展基底）**：通用 `GameEvent`（纯生命周期接口：context 注入/幂等 end/重复 start 自愈/浅拷贝隔离，零系统耦合）→ 迷雾专门化 `FogEvent` → 具体事件；`EVENT_FACTORIES` 注册表一行注册即接入；自动触发仅真实对局（`current_scene == main`）开启，测试上下文默认关闭（确定性）
+- **事件宽容性**（2026-08-05 调研官方 OOP 实践/社区后落地）：同一接口同时接受简单（仅 `event_id()`）与复杂（`_on_start/_on_tick/_on_end` 全钩子）事件；新增 `request_end()`（复杂事件内部目标达成可主动提前结束，经 context 回调）与 `get_ctx()`（简单事件一行读自定义数据）；fog_event_test §10 新增 12 项宽容性断言（复杂事件 request_end/极简事件全生命周期/get_ctx 缺键降级）
+- **4 种干扰事件**：伪敌机（无伤害/无碰撞幽灵机群，`FakeEnemy`）、精神错乱（输入反转 + 全屏变色层）、子弹错误（出膛弹角度偏移/慢速失误弹/射速扰动）、短间隔随机方向（周期强制移动向量偏转）；返航/死亡自动清除
+- 健壮性（2026-08-05 审计）：事件类作为后续所有事件的唯一入口——空注册表/非 Callable 防御、Timer 先行防事件 start 抛错挂死、context 缺键降级不崩；`fog_event_test` 新增 §8 事件类生命周期守卫与 §9 编排器防御路径共 14 项断言
+- 验证：gdformat/gdlint/import 无新增告警；新增 `base_task_refresh_test`/`fog_event_test` 断言场景（43 总），既有 41 场景 0 FAIL 回归通过（base_system/elite_turret/formation/mothership_summon/return_cinematic/hit_logic/grace/parry/buff_effects/i18n 等）
+
 ### 性能（2026-08-05，主架构运行效率审计全量执行，`docs/archive/2026-08-05-main-architecture-optimization-report.md`）
 
 - **P0-1 死亡回放录制零分配化**：数据源 `get_children()` 改敌弹注册表（`EntityRegistry.enemy_bullets`），帧缓冲改固定容量环形缓冲（删 `pop_front` O(n) 移位），内层 `[x,y]` 改 `PackedFloat32Array` 复用槽——全对局唯一高危常驻分配链消除

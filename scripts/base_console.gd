@@ -54,6 +54,10 @@ var _repair_button: Button
 var _recharge_button: Button
 var _routes_box: VBoxContainer
 var _missions_box: VBoxContainer
+var _refresh_button: Button  # 2026-08-05：任务轮换——刷新任务按钮
+var _refresh_points_label: Label
+var _refresh_hint_label: Label  # 点数不足提示（临时显示，2s 后隐藏）
+var _refresh_hint_timer: Timer = null
 var _title_labels: Dictionary = {}
 var _columns: HBoxContainer
 var _route_hint_label: Label
@@ -293,10 +297,29 @@ func _build_missions() -> Control:
 	_missions_box = VBoxContainer.new()
 	_missions_box.add_theme_constant_override("separation", 8)
 	panel.get_node("Body").add_child(_missions_box)
+	# 任务轮换（2026-08-05）：刷新点数 + 刷新按钮 + 点数不足提示
+	var refresh_row := HBoxContainer.new()
+	refresh_row.add_theme_constant_override("separation", 10)
+	_refresh_points_label = _make_label("", 18)
+	_refresh_points_label.add_theme_color_override("font_color", UITheme.ACCENT_GOLD)
+	_refresh_points_label.custom_minimum_size = Vector2(150.0, 0.0)
+	_refresh_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	refresh_row.add_child(_refresh_points_label)
+	_refresh_button = _make_button("")
+	_refresh_button.pressed.connect(_on_refresh_pressed)
+	refresh_row.add_child(_refresh_button)
+	panel.get_node("Body").add_child(refresh_row)
+	_refresh_hint_label = _make_label("", 16)
+	_refresh_hint_label.add_theme_color_override("font_color", UITheme.DANGER)
+	_refresh_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_refresh_hint_label.visible = false
+	panel.get_node("Body").add_child(_refresh_hint_label)
 	return panel
 
 
 func show_base() -> void:
+	# 任务轮换：进基地发放刷新点数（GRANT_PER_VISIT 档位，攒两次基地换一次刷新）
+	GameState.grant_refresh_points()
 	_refresh()
 	visible = true
 	_holo_boot()
@@ -346,6 +369,10 @@ func _refresh() -> void:
 	# 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
 	_repair_button.disabled = GameState.rp < GameState.RP_REPAIR_COST or GameState.health >= GameState.max_health()
 	_recharge_button.disabled = (GameState.rp < GameState.RP_RECHARGE_COST or player == null or player.fuel_amount() >= player.fuel_max)
+	# 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 _on_refresh_pressed 内）
+	_refresh_points_label.text = tr("BASE_REFRESH_POINTS") % GameState.refresh_points
+	_refresh_button.text = tr("BASE_REFRESH_FMT") % GameState.REFRESH_COST
+	_refresh_button.disabled = not GameState.can_refresh_missions()
 	_refresh_routes()
 	_refresh_missions()
 
@@ -382,8 +409,8 @@ func _refresh_routes() -> void:
 func _refresh_missions() -> void:
 	for child in _missions_box.get_children():
 		child.queue_free()
-	for def in GameState.MISSION_DEFS:
-		var id: StringName = def["id"]
+	# 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS
+	for id in GameState.active_mission_ids():
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		var progress := GameState.mission_progress(id)
@@ -467,6 +494,39 @@ func _on_claim_pressed(id: StringName) -> void:
 	if GameState.claim_mission(id):
 		GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	_refresh()
+
+
+## 刷新任务：消耗 RefreshPoints 重抽（余额不足时提示；成功播音效并重绘任务面板）
+func _on_refresh_pressed() -> void:
+	if GameState.refresh_missions():
+		GameState.play_sfx(GameState.SFX_BUFF_PICK)
+		_hide_refresh_hint()
+	else:
+		_show_refresh_hint(tr("BASE_NO_REFRESH_POINTS"))
+	_refresh()
+
+
+func _show_refresh_hint(text: String) -> void:
+	_refresh_hint_label.text = text
+	_refresh_hint_label.visible = true
+	if _refresh_hint_timer != null and is_instance_valid(_refresh_hint_timer):
+		_refresh_hint_timer.stop()
+		_refresh_hint_timer.queue_free()
+	_refresh_hint_timer = Timer.new()
+	_refresh_hint_timer.one_shot = true
+	_refresh_hint_timer.wait_time = 2.0
+	_refresh_hint_timer.timeout.connect(_hide_refresh_hint)
+	add_child(_refresh_hint_timer)
+	_refresh_hint_timer.start()
+
+
+func _hide_refresh_hint() -> void:
+	_refresh_hint_label.visible = false
+
+
+## A7：测试/诊断经公开接口（动作包装）
+func refresh_tasks() -> void:
+	_on_refresh_pressed()
 
 
 func _on_resume_pressed() -> void:

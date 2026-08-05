@@ -8,7 +8,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 - Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (2026-08-04 accounts; main.tscn = battle scene, explicitly instanced by tests).
 - Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
-- Only autoload: `GameState` (`autoload/game_state.gd`) — facade over 4 non-autoload services: `scripts/balance_service.gd`/`save_manager.gd`/`sfx_player.gd`/`entity_registry.gd`; public API forwarded, callers/tests unaffected.
+- Only autoload: `GameState` (`autoload/game_state.gd`) — facade over 5 non-autoload services: `scripts/balance_service.gd`/`save_manager.gd`/`sfx_player.gd`/`entity_registry.gd` + `scripts/fog_event_manager.gd` (迷雾事件全局单例，挂 GameState 下，`GameState.fog_events` 访问；`docs/FOG_EVENTS.md`); public API forwarded, callers/tests unaffected.
 - Game text: zh+en bilingual (UI default `zh`; new keys fill both `translations.csv` columns). Docs in English; `docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese.
 - `CLAUDE.md` = entry overview only; this file wins on conflict.
 - Design intent / architecture baseline amended only via `docs/DESIGN_BASELINE.md`.
@@ -17,8 +17,8 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 - **Stack:** Godot 4.6 (gl_compatibility, no .NET), pure GDScript; no package manager. `scripts/tools/*.py` = offline tools, not runtime deps.
 - **Run:** `./run.sh` (auto-locates engine). Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership. Full commands: `docs/TESTING.md`.
-- **Tunables:** `data/balance.json` via `scripts/tools/balance_editor.py`; texts: `data/translations.csv`. Details: `docs/ARCHITECTURE.md`.
-- **CI/CD:** `.github/workflows/ci.yml` (headless import + main smoke + 41 assertion scenes; push/PR). Release: `export_presets.cfg` + `release.sh` → GitHub Releases (not in repo); manual `.github/workflows/release.yml` (export → tag `v<ver>` → release, syncs `config/version`). CI/CD changes sync these entry docs + `release.sh`; no 3rd-party deps beyond official checkout action + Godot binary/templates.
+- **Tunables:** `data/balance.json` via `scripts/tools/balance_editor.py` (top sections incl. `base_task` 刷新任务经济 + `fog_events` 迷雾事件参数); texts: `data/translations.csv`. Details: `docs/ARCHITECTURE.md` + `docs/FOG_EVENTS.md`.
+- **CI/CD:** `.github/workflows/ci.yml` (headless import + main smoke + 43 assertion scenes; push/PR). Release: `export_presets.cfg` + `release.sh` → GitHub Releases (not in repo); manual `.github/workflows/release.yml` (export → tag `v<ver>` → release, syncs `config/version`). CI/CD changes sync these entry docs + `release.sh`; no 3rd-party deps beyond official checkout action + Godot binary/templates.
 
 ## Merge Gate & Testing
 

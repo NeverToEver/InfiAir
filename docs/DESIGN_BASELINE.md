@@ -20,6 +20,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - `GameState.add_score(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
 - Boss kill: `add_boss_kill(score_scale)` → `add_score(500 × score_scale)`; advances RP/boss_kills/difficulty.
 - RP: run economy from kills/score, spent at mothership; not carried between runs.
+- **RefreshPoints (2026-08-05, `docs/FOG_EVENTS.md` §1)**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
 - Milestones: score thresholds → buff 3-choice (`buff_select`); covered by `buff33_test`/`buff_panel_test`.
 
 ### 1.4 Difficulty & Endless Curve (single source `docs/ENDLESS_BALANCE_PLAN.md`)
@@ -57,7 +58,9 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 **Formation strike** (`docs/FORMATION_STRIKE_EVENT.md`, lowest priority): 3/4/5 (by difficulty) wedge dive → 90° cross → fuse bombs (ring shrinks, AoE hits player only) → exit; full kill = reward. Does **not** freeze Boss but **occupies wave slot** (shared `_waves_paused`; mutex with turret); `abort()`-able by return. Trigger: Boss+turret inactive, cooldown done, score ≥`min_score`(500).
 
-**Priority chain** (spawner `_process` tick): Boss → elite turret → formation strike.
+**Fog events** (`docs/FOG_EVENTS.md` §2, 2026-08-05, light interference, independent of spawner chain): global singleton `FogEventManager` (child of GameState) — probability roll (`fog_events.trigger_chance`/`check_interval`), `first_delay` opening protection, `min_interval` cooldown after each event, explicit `duration` auto-clear, single-event concurrency; effects via signals (`fog_event_started/ended/fog_direction_shift`) to Player + manager-owned visuals. 4 events: fake_enemies (no-damage/no-collision ghost ships), mental_confusion (input inversion + full-screen tint), bullet_malfunction (bullet angle jitter / misfire / fire-interval jitter), direction_shift (periodic forced movement vector). Cleared on return (`end_active`) and death; no score/economic interaction.
+
+**Priority chain** (spawner `_process` tick): Boss → elite turret → formation strike. Fog events trigger from the manager independently (no wave-slot occupancy, no Boss mutex).
 
 ### 1.9 Meta HUD (single source `docs/META_HUD_DESIGN.md`)
 - Fullscreen FX CanvasLayer layer=1 (above world, below HUD→layer=2); `meta_health.gdshader` + `hint_screen_texture`.
