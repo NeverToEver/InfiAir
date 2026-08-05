@@ -1166,3 +1166,72 @@
 - 定向回归：enemy_combat / grace_period / graze / parry / pool_reuse（14 PASS）/ meta_health_fx 全绿；P0-2 修复点（直实例化敌机 `_active` 恒 false 语义缺口，`_try_body_collision` 不加 `_active` 守卫）经 hit_logic A6 验证
 - **P0-3 渲染实测**（窗口模式 Apple M2 / GL Compatibility）：改造前 81 敌弹 ≈109 draw calls、+100 玩家弹 ≈245；改造后 181 颗总弹 ≈38（-85%）；单像素 ASCII 目检金体白芯箭头 / 敌弹红体形状正确
 - **perf_bench A/B**（同环境交错 3 次取中位数，`--fixed-fps 1000`，baseline=HEAD worktree）：BASE 0.622/0.483/0.759 → 中位数 **0.622ms**；CUR 0.587/0.553/0.811 → 中位数 **0.587ms**（约 **-5.6%**；噪声区间内方向一致，CPU 逻辑压力场景下 P0-1 分配链消除 + P0-2 空间查询归零的预期收益）
+
+---
+
+# Q 系列（2026-08-05，全仓库深度 review，只审计未修复）
+
+> 依据用户指示「goal 模式，对仓库进行深度 review，不设 token 限制」执行；按 AUDIT_REVIEW_SOP（并行审计 → 分类 → 登记）。7 路并行只读审计（对局编排/战斗系统/服务层/事件系统/UI 导航文本/测试 CI 工具链/平衡数值内容），每路对照「设计文档 × 代码 × git 历史」三角验证；主控对全部 P1/P2 与部分 P3 亲自复核代码证据。完整报告：`docs/archive/2026-08-05-deep-review-report.md`。本批**只登记不修复**，修复待用户指示。
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 全仓库深度 review（代码质量/架构一致性/测试/文档/安全/性能/生命周期） |
+| 工作时间 | 2026-08-05（单次集中审核会话，goal 模式，无 token 限制） |
+| 审核区域 | `scripts/` 75 文件 24218 行 + `autoload/` + `test/` 54 文件 + 11 场景 + CI/工具链/文档 |
+| 审核方法 | 7 路并行只读审计 + 主控交叉复核（含 BALANCE_MAP 重跑对比、TaskPool 概率模拟、CanvasLayer 语义查证） |
+| 结论 | 无 P0；P1×1 / P2×9 / P3×20 / P4×20+；三类结构性缺口：①2026-08-04 内容演化（4 型扩容）伴生遗漏；②2026-08-05 事件/实体管理器迁移语义残留；③2026-08-04 账户批次新测试约定回退 |
+
+## 发现清单（Q 系列，登记待修复）
+
+| 编号 | 严重度 | 位置 | 描述 | 修复指引 |
+| --- | --- | --- | --- | --- |
+| Q01 | P1 | `boss.gd:668` × `boss_attacks.gd:163-173` × `balance.json:367` × `BOSS_REDESIGN.md:108` | ring_burst 难度弹数按增量语义消费绝对值：json `[10,12,14]`（§5.6 设计为每档弹数）被加到基准 12 上 → 实际 22/24/26 发，正常路径每局必现、密度约 2× 设计；counts 表其余 9 键均为增量格式，唯此键绝对值 | 消费侧改绝对值 `maxi(6, ring_delta)`（推荐）或 json 改增量 `[-2,0,2]`——需设计拍板；补 easy/hard 弹数断言 |
+| Q02 | P2 | `boss.gd:317-324` | hp_mults 校验 `>=3` 与回退数组 `[1.3,0.7,1.6]` 未随 4 型扩容：json 缺键/截断时 type4 越界 → `float(null)=0` → `max_hp=0` → **type4 Boss 免疫伤害**（H11 防线被 3 元素回退绕过；M01 只改 setup 钳制） | 校验与回退扩至 4 元素；补「3 元素 + type4」组合断言 |
+| Q03 | P2 | `boss.gd:605` | `_load_patterns` 的 `clampi(boss_type,1,3)` 未放开：DEFAULT_PATTERNS 键 4 死数据；type4 配置损坏时静默回退三型（母舰）模式表 | 改 `clampi(boss_type,1,4)`；补 type4 回退断言 |
+| Q04 | P2 | `game_state.gd:159,598,675` × `:1697-1699` | regen 缓存重登录不刷新：`_refresh_regen_cache` 仅启动（默认 medium）与 set_difficulty 调用；`_apply_settings_dict` 恢复存档难度后不刷新 → hard 玩家重启后回血按 medium，easy 减半 | `_apply_settings_dict` 设置难度后补调用；补断言 |
+| Q05 | P2 | `task_pool.gd:30-34` | TaskPool 批次耗尽不足额刷新：排除在场任务使批次提前耗尽（全池可用恒 ≥ 需求），Python 模拟 2000 局 99.3% 出现 ≥1 次 1-2/3 槽，REFRESH_COST 照扣 | 批次耗尽且全池可用 ≥ 剩余需求时 `_refill()` 继续；补槽位恒定断言 |
+| Q06 | P2 | `user_db.gd:119-120` | game_over_stats 死亡统计缺失：total_kills/games_played 全仓无写入点（账户计划 Task 2 承诺未实现），game_over_ui 只 record_score | 按计划补 GameState 转发 + 结算调用（游客跳过） |
+| Q07 | P2 | `event_manager.gd:306-316` × `:198-208` | `fog_events.enabled` 总开关在自动触发路径失效：`_process` fog 分支不查 FOG_ENABLED（仅 can_trigger_group 检查，生产无人调用）；json `enabled=false` 迷雾照常触发 | fog 分支头部补 `if not FOG_ENABLED: return` + 测试 |
+| Q08 | P2 | `docs/BALANCE_MAP.md` | 生成物过期：未随 2026-08-05 事件管理器重构重跑，重跑 diff +228/-217（缺 event_manager 区块/残留已迁走区块/行号漂移） | 重跑 `gen_balance_map.py` 并提交 |
+| Q09 | P2 | `welcome.gd:514-530` × `settings_ui.gd:186-187` × `welcome.tscn:9-11` | welcome 设置页打开时 Esc 断链：ui_cancel 分支无 settings 可见性检查 → Esc 打开隐藏层 exit_confirm（不可见但被 grab_focus），设置页 Esc 关不掉，与 EXIT_FLOW「settings back = Esc」矛盾（**注**：「设置黑屏」推断不成立——官方文档 CanvasLayer.visible 不传播到子 CanvasLayer） | ui_cancel 分支前查 settings_ui 可见则调 `settings.back()`；补「设置打开时 Esc」用例 |
+| Q10 | P2 | `event_manager.gd:149-155` × `main.gd:97-100` | 遭遇事件触发计时器跨对局继承：`_encounter_timers` 挂 autoload 且 register_encounter 仅键缺失时初始化，`set_run_active(true)` 不重置 → 新局开局继承旧剩余值（可 ≤0）即触发；旧 ScheduledEventTrigger 每局归零，迁移改变语义未声明 | `set_run_active(true)` 时重置计时器 |
+| Q11 | P3 | `welcome.gd:210-217` | `_show_msg` 消息互踩：SceneTreeTimer `time_left=0` 不取消，回调无条件清空 → 2s 内连发消息被下一帧清掉 | 代次计数或 disconnect 旧回调 |
+| Q12 | P3 | `event_manager.gd:132-144` | fog first_delay 开局保护每进程一次而非每局一次（activate_fog 仅 wire 调一次）→ 同进程第二局开局 ~3s 可触发迷雾，与 FOG_EVENTS §2.2 不符 | set_run_active(true) 重置 first_delay |
+| Q13 | P3 | `event_manager.gd:248-260,378-387` | 遭遇 abort 路径 event_ended 双发且发在事件仍活跃时（FSM 未回 IDLE，轮询重新登记）；当前无消费者 | end_active 记 pending 由轮询统一发信号 |
+| Q14 | P3 | `formation_strike_event.gd:68` | CRAFT_COUNTS 直赋无判型（K14 只修精英侧），损坏配置 `:150` 崩溃 | 同 K14 口径加 `is Dictionary` 回退 |
+| Q15 | P3 | `formation_strike_event.gd:192-194` | 编队事件无超时兜底：approach_speed ≤ 0（无 clamp）时永驻 FORMATION_ENTER + `_waves_paused` 常驻 → 波次与 Boss 调度全冻结 | 速度下限钳制或状态超时 |
+| Q16 | P3 | `elite_turret_event.gd:194-201` | turret_counts 无上限钳制，>5 时 `SOCKETS[i]` 越界崩溃 | `mini(…, SOCKETS.size())` |
+| Q17 | P3 | `user_db.gd:110,129-137,232` | users.json 结构守卫薄弱：`_users` 非 Dictionary/条目非 Dictionary 时直接报错，与 GameState 层守卫口径不一致 | `_ensure_loaded` 结构校验 + 隔离重建 |
+| Q18 | P3 | `user_db.gd:83-87` | `_hex_decode` 奇数长度 hex 越界 + `-1` append PackedByteArray（手改 salt/password 触发） | 长度/白名单校验，非法回退空盐 |
+| Q19 | P3 | `enemy.gd:453` × `:412` | 池化 reparent 无条件 unbind_enemy 误发 entity_unregistered，reactivate 只 register 不发信号——信号流不对称，与 ENTITY_MANAGER §4.2 矛盾（当前无消费者） | `_exit_tree` 按 `_repooling` 分流 unregister/bind |
+| Q20 | P3 | `user_db.gd:292-300` × `welcome.gd:481-491` | 排行榜渲染无判型：非 Dictionary 条目 sort 崩溃、字符串 score 静默转 0 | sort 前过滤 `is Dictionary and score 数字` |
+| Q21 | P3 | `welcome.gd:474-497` | 排行榜 overlay 打开无 grab_focus（welcome 唯一不聚焦模态），焦点停留被遮挡按钮，Enter 重复打开 | 打开时 close_button.grab_focus() |
+| Q22 | P3 | `hud.gd:852-856` | buff 滚动明细栏 ScrollContainer 未设 vertical EXPAND_FILL → 内容超出不滚动、面板被撑大（buff ≥15 种触发） | 补 `size_flags_vertical = SIZE_EXPAND_FILL` |
+| Q23 | P3 | `startup_flow_test.gd:48,174` / `welcome_flow_test.gd:35,145` / `user_session_test.gd:59,171` | 3 个账户批次测试 `_wipe_user_files()` 删 profile/users/存档且不还原——本地跑测试永久销毁开发者账户数据（L15 快照范式未推广） | 开头备份结尾还原（ui_capture 范式） |
+| Q24 | P3 | `welcome_flow_test.gd:26-31,140` | 直调 `_unhandled_input` 绕过输入管线（C30 已修复模式回归，esc_navigation_test 同批已用 parse_input_event） | 改 `Input.parse_input_event` |
+| Q25 | P3 | `user_session_test.gd:54,88-89,97` | 直读写私有 `_pending_legacy_profile`/直调私有迁移方法（A7 残留，无公开 API） | 补公开查询/触发接口 |
+| Q26 | P3 | `.github/workflows/ci.yml:67-77` | 编译探针非零退出处理死代码：GH Actions `bash -e` 下非零直接中止，错误诊断/日志上传不执行；124=挂起语义本地(放行)与 CI(失败)相反 | timeout 包进 if + 日志加入上传路径 |
+| Q27 | P3 | `boss_movement.gd:95-99` | 月蚀中心微摆振幅被 move_toward 速度上限压缩 ~一半（正弦峰值 78.5 > MOVE4_SPEED 40 px/s → 实际 ±15px 非 ±30px，波形低通失真） | MOVE4_SPEED ≥80 或直接绝对赋值；或文档注明实际振幅 |
+| Q28 | P3 | `boss.gd:177-186,683` | DIFF_COUNT_DELTAS 回退表缺 ring_burst 键：json 缺键时三档恒 12 不分档（随 Q01 修） | 回退表补 `[10,12,14]` |
+| Q29 | P3 | `enemy_move_strategy.gd:88-229` | 移动策略参数部分入库部分硬编码（sine 90/3.0、zigzag 0.7/0.9/0.15、dive 1.7/1.2、noise 谐波等）——平衡调整无法全经 balance.json | 入库或登记为有意保留 |
+| Q30 | P3 | `boss_attacks.gd:239` | sniper3 三连发间隔 0.12s 硬编码（§8 设计数值），同族 charged_cannon.interval 有键——入库不一致 | 加键或登记为有意保留 |
+
+## P4 观察项（按类别合并，详见报告 §6）
+
+注释失实/文档口径 6 项（main.gd:43-44 B2 残留、cfg 注释、TESTING.md 53→54、autoplay BUFF_POOL_SIZE 16→19、comm_overlay 台词时长、main.tscn 7 处中文初始文本、MISSION_DEFS 双源）；硬编码坐标 2 项（boss strafe_range 1920、base_console 慢扫描带）；性能观察 5 项（orbital_strike 每帧 96 次三角、welcome 下拉重建、set_joy_deadzone 全量遍历、sfx 覆盖重播、排行榜路径）；边界/防御 7 项（missions progress 无钳制、difficulty score 无上限、delete_user 后 current_user 残留、全零权重退化、ConfusionEvent 降级信号不同步、reload_balance 不刷事件配置、hex 解码）；工具链/CI 5 项（gen_balance_map 裸异常、release.yml 重复版本/主分支版本滞后、event_manager_test 直写配置、smoke `== +33` 精确断言 flake 风险、entity_manager_test 断言顺序弱化）。
+
+## 判定分类记录
+
+- **真 bug（修复无需拍板）**：Q02/Q03/Q04/Q05/Q07/Q09/Q10/Q11/Q13/Q14/Q16-Q26 及 P4 项。
+- **需设计拍板**：Q01（绝对值 vs 增量，消费与文档矛盾确定）、Q27（振幅可接受度）、Q15/Q29/Q30（入库 vs 有意保留）。
+- **设计目标未达（计划未完成）**：Q06（账户计划 Task 2）、Q12（FOG_EVENTS §2.2）。
+- **文档-代码矛盾（重跑生成物）**：Q08 + P4 注释口径项。
+- 本批无「设计确认不改码」项。
+
+## 验证
+
+- 基线：`--headless --import` 0 error；smoke_test PASS exit=0；git 工作树干净（HEAD d6a1951）。
+- 主控复核：Q01（json counts 表 9 键增量 vs ring_burst 绝对值 + §5.6 原文 + 消费链三方印证）、Q02/Q03（M01 只改 setup 钳制，git 确认）、Q04（两条调用路径确认）、Q05（Python 逐行模拟 2000 局 99.3%）、Q07（_process 分支无 FOG_ENABLED）、Q08（重跑生成器 diff +228/-217 后恢复原文件）、Q09（官方文档确认 CanvasLayer.visible 不传播，黑屏推断证伪；Esc 断链成立）。
+- 待验证项（见报告 §7）：Q09 grab_focus 隐藏控件行为（是否升级手柄死锁）、遭遇自动触发对长跑测试暴露面、Q27 实机目检、smoke 精确相等断言、player/bullet 镜像字面量。
