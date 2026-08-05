@@ -6,9 +6,9 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 **Lowest-priority** encounter: no Boss + no elite turret event; ~12s.
 
-(2026-07-29): occupies a wave slot: pauses normal waves (spawner `_waves_paused` hook; restore on end/interrupt); trigger resets spawner special-slot counter (same as elite/Boss).
+(2026-07-29): occupies a wave slot: pauses normal waves (spawner `_waves_paused` hook; restore on end/interrupt); trigger resets spawner special-slot counter (same as elite/Boss). **2026-08-05**: trigger policy moved to unified event manager (`GameEventManager`, `docs/EVENT_MANAGER.md`) — same `formation_strike_event.trigger_*`/`min_score`/`cooldown` balance keys, same priority/mutex chain.
 
-(spawner `_process` per tick; first active skips rest):
+(spawner `_process` per tick; first active skips rest → 2026-08-05 起由统一事件管理器按注册序检查):
 
 1. **Boss** (score/time thresholds, highest)
 2. **Elite turret event** (`elite_turret_event`, 30s heavy; freezes Boss + pauses waves)

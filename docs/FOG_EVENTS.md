@@ -83,9 +83,12 @@ func draw(count: int, exclude_ids: Array[StringName] = []) -> Array[Dictionary]:
 
 ```
 GameState (autoload, 唯一 autoload)
-└─ FogEventManager (class_name, 服务单例; GameState.fog_events)
-   ├─ EVENT_FACTORIES 事件工厂注册表（id → FogEvent 子类构造）
-   ├─ 当前事件对象 (FogEvent 子类；start/tick/end 由 manager 统一驱动)
+├─ GameEventManager (class_name, 统一事件管理器; GameState.events)  ← 2026-08-05 收敛:
+│   统一注册表 EVENT_FACTORIES（迷雾 4 + 遭遇 2）+ 分组并发(fog‖encounter) +
+│   触发策略 + 生命周期驱动 + 信号 event_started/ended
+└─ FogEventManager (class_name, 迷雾效果层/API 门面; GameState.fog_events)  ← 转发到 events
+   ├─ EVENT_FACTORIES 事件工厂注册表（代理：唯一事实源在 GameState.events）
+   ├─ 当前事件对象 (FogEvent 子类；start/tick/end 由统一管理器驱动)
    ├─ FakeEnemy 容器 (Node2D, z=10)     ← 伪敌机实例（FakeEnemiesEvent 挂接）
    ├─ 精神错乱覆盖层 (CanvasLayer layer=2: 全屏紫调 ColorRect；ConfusionEvent 驱动)
    └─ 事件横幅 (CanvasLayer layer=30: 顶部事件名 Label)
@@ -126,20 +129,21 @@ GameEvent (scripts/game_event.gd，通用事件基底，任意系统可继承)
   `emit_direction_shift`（Callable，转发 `fog_direction_shift` 信号）。
 - 玩家状态效果（输入反转/子弹参数）一律走 manager 统一信号，**事件类不触碰 Player**。
 
-### 2.2 触发纪律（`scripts/fog_event_manager.gd`）
+### 2.2 触发纪律（统一事件管理器 fog 组，`scripts/event_manager.gd`；2026-08-05 自 FogEventManager 收敛）
 
 ```
 set_run_active(true)  [main._ready]
   → 开局 first_delay 秒内不触发（保护早期对局）
   → 每 check_interval 秒掷签一次（randf() < trigger_chance）
-  → 命中则按 weights 加权抽事件 → _start_event(id)
-      - 单事件并发：进行中不再触发（force_trigger 同样被拒）
-      - 启动 duration 一次性 Timer → 到期 _end_event()：清效果 + 信号 fog_event_ended
+  → 命中则按 weights 加权抽事件 → _start_fog(id)
+      - 单事件并发：组内进行中不再触发（force_trigger 同样被拒）
+      - 启动 duration 一次性 Timer → 到期 _end_fog()：清效果 + 信号 event_ended
   → 事件结束进入 min_interval 冷却（防事件过于频繁）
+遭遇组（elite_turret/formation_strike）独立并行动作：fog 进行中遭遇仍可触发（保持现状）；
 树暂停（基地/过场/Buff 选择）随 autoload 继承冻结 → 不触发、效果冻结
 ```
 
-信号解耦（玩家侧仅连接信号应用效果，无对管理器依赖）：
+信号解耦（玩家侧仅连接信号应用效果，无对管理器依赖；迷雾信号由门面重发）：
 
 | 信号 | 消费方 | 效果 |
 | --- | --- | --- |
@@ -216,15 +220,20 @@ set_run_active(true)  [main._ready]
      `fake_enemies_event.gd` / `confusion_event.gd` / `direction_shift_event.gd`。
    - 纯玩家状态事件（如新 debuff）：只需 `event_id()`（参照 `bullet_malfunction_event.gd`），
      效果在 player.gd 的 `_on_fog_event_started/ended` 各加一个 match 分支。
-2. **注册**：`FogEventManager.EVENT_FACTORIES` 加一行
-   `&"my_event": func() -> FogEvent: return MyEvent.new()`。
+2. **注册**：`GameEventManager.EVENT_FACTORIES` 加一行
+   `&"my_event": func() -> FogEvent: return MyEvent.new()`（2026-08-05 起统一注册表
+   `GameState.events` 与遭遇事件同处；`GameState.fog_events.EVENT_FACTORIES` 为代理）。
 3. **配置与文案**（可选）：`fog_events.durations`/`weights` 与子参数段（balance.json）、
    `FOG_EVENT_MY_EVENT_NAME`（translations.csv）；`gen_balance_map.py` 重新生成
    `docs/BALANCE_MAP.md`。
 
 **非迷雾系统复用事件机制**：直接继承 `GameEvent`（不经过 FogEvent），即可获得统一的
 start/tick/end 生命周期与幂等守卫；系统专属上下文经自己的中间层基类提供访问器（参照
-`FogEvent`），编排器按 `GameEvent` 生命周期契约驱动即可。
+`FogEvent`），编排器按 `GameEvent` 生命周期契约驱动即可。2026-08-05 落地：统一事件管理器
+`GameEventManager`（`docs/EVENT_MANAGER.md`）以统一注册表/分组并发/触发策略/信号批量管理
+全部随机事件——迷雾事件走 `GameEvent` 生命周期；遭遇事件（精英炮塔/轰炸编队）保持 Node
+形态（实体生成/FSM 自驱），管理器经鸭子类型契约驱动（`is_active`/`start`/`abort`/
+`can_trigger`，测试 API 不变）。
 
 约束：事件类不直接触碰 Player（状态效果走编排器统一信号）；`end()` 幂等由 `GameEvent`
 守卫（返航/死亡会在 duration 前提前调用）；duration 计时由编排器统一负责。

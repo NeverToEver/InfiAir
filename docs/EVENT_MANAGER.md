@@ -151,9 +151,11 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 ### 3.6 Public API (tests / diagnostics)
 
 `set_run_active` / `is_run_active` / `force_trigger(id)` / `try_trigger_group(group)` /
-`end_active(group="")` / `abort_group(group)` / `active_id(group)` / `active_event(group)`
-/ `event(id)` / `event_ids()` / `can_trigger_group(group)` / `set_cooldown_left(id, s)` /
-`cooldown_left(id)` / `set_first_delay_left(id, s)` / signals `event_started`/`event_ended`.
+`end_active(group="")` / `end_all()` / `active_id(group)` / `active_event(group)` /
+`event(id)` / `event_ids()` / `group_of(id)` / `can_trigger_group(group)` /
+`set_cooldown_left(seconds)` / `cooldown_left()` / `set_first_delay_left(seconds)` /
+`set_encounter_timer_remaining(id, seconds)` / `active_remaining()` / signals
+`event_started(event_id, duration)` / `event_ended(event_id)`.
 
 ## 4. Migration map
 

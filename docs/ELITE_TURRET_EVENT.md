@@ -158,6 +158,8 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 
 ## Implementation notes (landed 2026-07-28)
 
+> **2026-08-05**: trigger policy moved from `spawner._process` into the unified event manager (`GameEventManager`, `docs/EVENT_MANAGER.md`) — same `elite_turret_event.trigger_*`/`min_score`/`cooldown` balance keys, same mutex semantics (Boss/waves/mothership); event keeps its FSM + spawner hooks. `ScheduledEventTrigger` retired.
+
 ### Files
 
 | File | Content |

@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 架构（2026-08-05，统一事件管理器，`docs/EVENT_MANAGER.md`）
+
+- **统一事件管理器 `GameEventManager`**（`GameState.events`，挂 GameState 下）：全部随机游戏事件（迷雾 4 + 遭遇 2）收敛进单一注册表 `EVENT_FACTORIES`——统一触发策略（balance key 零变化：`fog_events.*`/`elite_turret_event.trigger_*`/`formation_strike_event.trigger_*`）+ 分组并发（`fog`‖`encounter`，组内单事件并发、组间并行，保持现状行为）+ 统一生命周期 + 信号 `event_started/event_ended`
+- **遭遇事件迁移**：精英炮塔/轰炸编队触发策略移出 `spawner._process`（`ScheduledEventTrigger` 退役）；事件保持 Node 状态机（实体生成/FSM 自驱），管理器经鸭子类型契约驱动（`is_active`/`start`/`abort`/`can_trigger`），测试 API（`main.event()`/`main.formation()`/`spawner.elite_event()` 等）零改动；触发门控 = 注入 spawner 处理中（`set_process(false)` 语义与现状一致）
+- **迷雾收敛**：`FogEventManager` 重构为迷雾效果层 + API 门面（视觉基座/迷雾信号重发/context 构建保留；公开 API 与配置 var 全部转发到 `GameState.events` fog 组）——`fog_event_test` 零改动通过
+- 验证：新增 `event_manager_test`（统一注册表/实例同一性/强制触发/组并发/自动触发门控/跨组并行/门面委托）；全量 44 断言场景 0 FAIL（2026-08-05 回归）；240s autoplay 探针实测遭遇事件经管理器正常触发（37.3s 炮塔 / 177.9s 编队，无 ANOMALY）
+
 ### 玩法（2026-08-05，基地任务轮换 + 迷雾事件，`docs/FOG_EVENTS.md`）
 
 - **基地任务轮换**：任务池（`MISSION_POOL` 9 任务 = 3 类 × 3 档）+ `TaskPool` 无放回抽取（洗牌游标，排除在场 id）；刷新点数经济（进基地 +1 / 刷新 −2，`base_task.refresh_cost`/`grant_per_visit`，存档往返）；刷新保留已完成未领取任务（不吞待领奖励）；任务进度改按 `kind` 分发（kill/survive/boss），轮换后 id 变化仍自动推进；基地任务面板渲染 `active_mission_ids()` + 刷新按钮/点数不足提示
@@ -12,7 +19,7 @@
 - **事件宽容性**（2026-08-05 调研官方 OOP 实践/社区后落地）：同一接口同时接受简单（仅 `event_id()`）与复杂（`_on_start/_on_tick/_on_end` 全钩子）事件；新增 `request_end()`（复杂事件内部目标达成可主动提前结束，经 context 回调）与 `get_ctx()`（简单事件一行读自定义数据）；fog_event_test §10 新增 12 项宽容性断言（复杂事件 request_end/极简事件全生命周期/get_ctx 缺键降级）
 - **4 种干扰事件**：伪敌机（无伤害/无碰撞幽灵机群，`FakeEnemy`）、精神错乱（输入反转 + 全屏变色层）、子弹错误（出膛弹角度偏移/慢速失误弹/射速扰动）、短间隔随机方向（周期强制移动向量偏转）；返航/死亡自动清除
 - 健壮性（2026-08-05 审计）：事件类作为后续所有事件的唯一入口——空注册表/非 Callable 防御、Timer 先行防事件 start 抛错挂死、context 缺键降级不崩；`fog_event_test` 新增 §8 事件类生命周期守卫与 §9 编排器防御路径共 14 项断言
-- 验证：gdformat/gdlint/import 无新增告警；新增 `base_task_refresh_test`/`fog_event_test` 断言场景（43 总），既有 41 场景 0 FAIL 回归通过（base_system/elite_turret/formation/mothership_summon/return_cinematic/hit_logic/grace/parry/buff_effects/i18n 等）
+- 验证：gdformat/gdlint/import 无新增告警；新增 `base_task_refresh_test`/`fog_event_test` 断言场景，既有 41 场景 0 FAIL 回归通过（base_system/elite_turret/formation/mothership_summon/return_cinematic/hit_logic/grace/parry/buff_effects/i18n 等）
 
 ### 性能（2026-08-05，主架构运行效率审计全量执行，`docs/archive/2026-08-05-main-architecture-optimization-report.md`）
 

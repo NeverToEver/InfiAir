@@ -60,7 +60,9 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 **Fog events** (`docs/FOG_EVENTS.md` §2, 2026-08-05, light interference, independent of spawner chain): global singleton `FogEventManager` (child of GameState) — probability roll (`fog_events.trigger_chance`/`check_interval`), `first_delay` opening protection, `min_interval` cooldown after each event, explicit `duration` auto-clear, single-event concurrency; effects via signals (`fog_event_started/ended/fog_direction_shift`) to Player + manager-owned visuals. 4 events: fake_enemies (no-damage/no-collision ghost ships), mental_confusion (input inversion + full-screen tint), bullet_malfunction (bullet angle jitter / misfire / fire-interval jitter), direction_shift (periodic forced movement vector). Cleared on return (`end_active`) and death; no score/economic interaction.
 
-**Priority chain** (spawner `_process` tick): Boss → elite turret → formation strike. Fog events trigger from the manager independently (no wave-slot occupancy, no Boss mutex).
+**Priority chain** (spawner `_process` tick → 2026-08-05 起由统一事件管理器 `GameEventManager` 按注册序检查, `docs/EVENT_MANAGER.md`): Boss → elite turret → formation strike. Fog events trigger from the manager independently (no wave-slot occupancy, no Boss mutex).
+
+**Unified event manager** (`docs/EVENT_MANAGER.md`, 2026-08-05): all random events (fog 4 + encounters 2) share one `EVENT_FACTORIES` registry, grouped concurrency (`fog`‖`encounter` — fog may fire during encounters, encounters never overlap each other/Boss), unified trigger policy (balance keys unchanged) and signals `event_started/event_ended`. Encounter trigger gate = injected spawner processing; fog gate = `run_active` (real run only). `FogEventManager` = fog effects layer/API facade (public API unchanged).
 
 ### 1.9 Meta HUD (single source `docs/META_HUD_DESIGN.md`)
 - Fullscreen FX CanvasLayer layer=1 (above world, below HUD→layer=2); `meta_health.gdshader` + `hint_screen_texture`.
