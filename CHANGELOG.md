@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 性能（2026-08-05，主架构运行效率审计全量执行，`docs/archive/2026-08-05-main-architecture-optimization-report.md`）
+
+- **P0-1 死亡回放录制零分配化**：数据源 `get_children()` 改敌弹注册表（`EntityRegistry.enemy_bullets`），帧缓冲改固定容量环形缓冲（删 `pop_front` O(n) 移位），内层 `[x,y]` 改 `PackedFloat32Array` 复用槽——全对局唯一高危常驻分配链消除
+- **P0-2 敌机体碰事件驱动**：`area_entered/exited` 标记重叠 + 重叠期 O(1) 守卫重掷替代每物理帧 N 次 `overlaps_area` 空间查询（无敌/闪避/单帧语义与轮询完全等价）
+- **P0-3 子弹渲染合并**：弹体+白芯双 Polygon2D 合并为单 Sprite2D + 共享图集（扫描线光栅化），同阵营同色触发 compat batcher 合批——**窗口实测 181 颗子弹 draw calls 245→38（-85%）**，视觉经像素级核验一致
+- **P1**：爆炸/溅射遍历去 `duplicate()` 拷贝（倒序索引）；玩家 spread 循环外提 `pow()`；HUD 仪表 epsilon 守卫；BGM 改 `CACHE_MODE_REUSE`（不再每次进 main 重新解码）+ 裂纹场烘焙延后首帧后；爆炸池回池 reparent 统一 `ExplosionPool` 节点
+- **P2**：Meta HUD 自适应增益改注册表/静态计数（`Bullet.active_count`/`Explosion.live_count`）；同屏敌弹显式硬上限 500（仅敌弹，15 处调用方判空）；碰撞 mask 自查通过（无隐形碰撞对）
+- 验证：gdformat/gdlint/import/quit-after/smoke 全绿，41 断言场景 0 FAIL；窗口 draw call 实测 + 像素视觉核验；AUDIT_VAULT P 系列登记回填
+
 ### 美工（2026-08-05，buff 槽位与图标重构）
 
 - **buff 槽位 socket 化**（纯视觉，无逻辑链路改动）：`ChamferedPanel` 新增可选 `inner_frame`（外轮廓内缩 3px 的嵌套切角细线，默认关）；`UITheme.make_buff_socket()` 统一槽位工厂——分类色描边（0.7）+ 同色内框（0.28）+ 面板底向分类色微倾 16% 底，HUD 图标坞瓦片（46×46）与 Buff 三选一卡片图标位（76×76）共用同一套槽位语言

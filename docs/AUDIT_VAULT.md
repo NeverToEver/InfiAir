@@ -1135,3 +1135,34 @@
 - 代码改动（M06）：`ui_buff_icons.gd` 3 个新字形分支 + 分类色归属；CPU 渲染 19 字形一览目检（暴击准星/圆盾/弹头+速度线语义清晰、与既有字形区分、无越界）；全量断言场景 0 FAIL。
 - 文档改动（M05）：全局残留扫描（37 断言 / 46 场景 / 16 buff / 3 型轮换 / StartPanel 活跃表述 / 旧校准值 / 缺 archive 路径）0 命中（历史记录与 archive 快照按规则保留）。
 - 未改动：`docs/archive/`（历史快照豁免）、AUDIT_VAULT 历史条目、CHANGELOG 历史版本条目、BALANCE_MAP（生成文件，已重跑）。
+
+---
+
+# P 系列（2026-08-05，主架构运行效率审计全量执行，`docs/archive/2026-08-05-main-architecture-optimization-report.md`）
+
+> 依据用户指示「全量级执行今日审计报告」执行（goal 模式）；报告为官方文档 + 社区实践双源审计 + 本机 `perf_bench` 实测（只读完成），本批 P0×3 + P1×5 + P2 可行条目全部落地。按 AUDIT_REVIEW_SOP：每项即时定向验证，批次底部全量回归。
+
+## 发现登记与修复起效记录（回填）
+
+| 编号 | 严重度 | 位置 | 发现 | 处置：改了什么 / 为什么起效 / 如何验证 |
+| --- | --- | --- | --- | --- |
+| P0-1 | 高 | `death_replay.gd`、`main.gd:375`、`entity_registry.gd`、`bullet.gd` | 死亡回放每渲染帧 `get_children()` 新建 Array + 全子节点 `as Bullet` cast + 每弹内层 `[x,y]` 小数组分配 + 缓冲满 `pop_front()` O(n) 整表移位——全对局唯一高危常驻分配链（官方 data_preferences 点名反模式） | ✅ 录制数据源改敌弹注册表（`EntityRegistry.enemy_bullets` + `_enemy_bullet_set`；`bullet._apply_faction` 按阵营幂等注册/注销——覆盖池化激活/直实例化/reflect 翻转，`deactivate`/`_exit_tree` 对称清理，池内 reparent 幂等无害）；帧缓冲改固定容量环形缓冲（`_write_idx` 取模写入，删除 `pop_front`；`play()` 环绕序化引用传递零拷贝）；内层 `[x,y]` 改 `PackedFloat32Array` 交错存储（帧槽 clear 复用保留容量，录制循环零分配）。验证：smoke/enemy_combat/grace_period/graze/parry/pool_reuse 0 FAIL；`--quit-after 300` 0 error |
+| P0-2 | 高 | `enemy.gd:351-357` | 每物理帧每敌 1 次 `overlaps_area` 空间查询（N=在屏敌数，perf_bench 压力 200 只）——碰撞对/空间查询类社区点名隐藏瓶颈 | ✅ 信号事件驱动：`area_entered/exited` 标记 `_body_contact`（Enemy `collision_mask=3` 已含 player Hitbox 层 1，几何等价于原 `overlaps_area(hb)`）；重叠期每物理帧 O(1) `_try_body_collision()` 守卫重掷——`take_damage` 的无敌/闪避/单帧守卫使语义与逐帧轮询**完全等价**（无敌结束仍重叠再命中、闪避每帧重掷），空间查询从每帧 N 次降到事件 0 次。`reactivate`/`deactivate` 复位 `_body_contact` 防池残留；`_active` 守卫防物理回调延迟 flush 的陈旧事件（社区 §5.3 幽灵事件教训）。Boss 体碰（每帧 1 次查询）按最小改动原则保持轮询。验证：enemy_combat/grace_period/graze/parry/pool_reuse 0 FAIL |
+| P0-3 | 中 | `scenes/bullet.tscn`、`bullet.gd`、`boss_fire.gd`、`turret_battery.gd`、`enemy.gd` | 每颗子弹 2 个 Polygon2D = 2 CanvasItem/draw call（峰值 300 弹 = 600）；GL Compatibility 下 draw call 更贵（官方 GPU 文档 + godot#85320 modulate 裂批次） | ✅ 弹体+白芯合并为**单 Sprite2D + 共享图集**：`Image` 扫描线填充光栅化共享纹理（4.6.2 实测无 `Image.draw_polygon`——三角扇分解 + 扫描线填充自实现；玩家金体白芯 / 敌弹红体两共享纹理，24×8px 箭头几何中心对齐）；`_apply_faction` 切纹理 + scale（语义与 polygon 等价），laser/heavy/linger 改 `self_modulate` tint（同色组内仍合批）；`polygon_node`/`core_node` 合并为 `sprite_node()`，4 个调用方同步。**窗口实测（Apple M2 / OpenGL 4.1 Metal）**：改造前 81 敌弹 ≈109 draw calls、+100 玩家弹 ≈245；改造后 181 颗总弹 ≈38（-85%，含场景基线）；单像素 ASCII 目检金体白芯箭头/敌弹红体形状与多边形设计一致。`enemy_combat_test` laser 细长化断言改 `Sprite2D` 路径 |
+| P1-1 | 中 | `bullet.gd:288,303` | 爆炸/溅射命中对整张敌人注册表 `duplicate()` 浅拷贝（O(n) + 分配）——laser_weapon 已有同款倒序遍历已验证模式 | ✅ 倒序索引遍历（`take_damage→die→注销注册表 erase` 只影响已处理的高索引区，倒序不受突变破坏；`e.global_position.distance_to` 计算不变）。验证：enemy_combat 0 FAIL（爆炸弹 buff 路径覆盖） |
+| P1-2 | 低 | `player.gd:869-880` | spread 循环内每弹重算 `_buff_scale`（含 `pow()`）与 `bullet_damage()`——同帧为恒定值（社区「循环不变量外提」直接靶点） | ✅ `loop_speed`/`loop_damage` 提出循环（纯函数依赖 buff_count，循环内不变，语义逐位等价）。验证：smoke/buff_effects/buff33 全绿 |
+| P1-3 | 低 | `hud.gd:372-377` | 仪表轮询 0.1s 无条件写 setter（ProgressBar setter 内部 queue_redraw），值未变也触发无意义重绘 | ✅ epsilon 守卫（fuel/dash/parry 三 bar 值变化 >0.001 才写）。验证：hud_capture 窗口截图目测正常 |
+| P1-4 | 中 | `main.gd:452-464`、`meta_health_fx.gd:437-463` | 启动一次性 stall：BGM 3.5MB WAV `CACHE_MODE_IGNORE` 每次进 main 重新 load+解码；裂纹场 SubViewport 512² 渲染 + `get_image()` GPU 回读占首帧 | ✅ BGM 改 `CACHE_MODE_REUSE`（静态音频缓存复用零副作用；音频路径保持等价——AGENTS.md「paths must stay equivalent」，不转 OGG）；裂纹场烘焙延后到首帧后（`_defer_bake` await 首帧 + `is_inside_tree` 守卫，C15 同款；`_field_ready=false` 期间 shader 已早退不显示裂纹，满血开局无感知）。验证：`--quit-after 300` 0 error；meta_health_fx_test 全绿 |
+| P1-5 | 低 | `explosion.gd:131-135` | 池化爆炸回池不 reparent 统一池节点——隐藏爆炸堆积在各 parent（多为 Main）下，放大 Main 子节点数与死亡回放遍历成本（上限 24 有界，低危） | ✅ 回池 reparent 到统一 `ExplosionPool` 节点（`_ensure_pool_node` 挂 current_scene 下、跨场景重载失效重建）；`_repooling` 置位防 reparent 触发 `_exit_tree` 误清池清单。验证：pool_reuse 14 PASS |
+| P2-1 | 低 | `meta_health_fx.gd:353-363` | 自适应增益扫描 4 次/秒 `get_parent().get_children()` 树遍历 | ✅ 注册表/静态计数替代：`Bullet.active_count()`（`activate`/`deactivate` 成对维护、`_exit_tree` 补减防泄漏） + `Explosion.live_count()`（`_ready`+1、finished/外部销毁 -1，`_settled` 防双减、池内 reparent 置位不计）——语义与原 get_children + is_active/visible 过滤等价。验证：meta_health_fx_test 全绿 |
+| P2-2 | 低 | `enemy.gd:465-473` | `_move_ctx` 字典每物理帧每敌 8 次 dict hash | 按报告结论「收益最低，可保持现状」**不修**（C06 字典复用已是最优折中，改成员字段收益可忽略）——登记为设计确认 |
+| P2-3 | 低 | `bullet_pool.gd` | 同屏弹量无显式硬上限（现靠 DDA 降档 + 出屏 margin 回收间接控制） | ✅ 敌弹硬上限 `MAX_ENEMY_ACTIVE=500`（远高于 perf_bench 实测 300+ 峰值，正常对局永不触发；**仅敌弹**——弹幕主力，玩家火力射速自限不受影响），超限 `fire` 返回 null，全部 15 处敌弹调用方判空（enemy/boss_fire×9/turret_battery×2/boss_attacks×2；sweep drop 循环内 break 防 cap 期死循环，其余 return/continue）。验证：全量断言场景 0 FAIL |
+| P2-4 | 低 | 全仓碰撞配置 | 碰撞 mask 自查（§5.2 关注「能碰但代码过滤」的隐形碰撞对） | ✅ 自查通过无修复项：player 身体/Hitbox(layer1)/GrazeArea(mask8)/ParryShield(mask8)/enemy·Boss(mask3)/Turret·FormationCraft(mask0)/玩家弹(mask4)/敌弹(mask1)/FormationBomb(layer8 引信制) 各 layer/mask 精确细分；敌弹与 Enemy 的 `body_entered`（身体层 1）均未连接——`as Bullet`/`player_hitbox` 组判定天然分流，无隐形碰撞对 |
+| 6-11/6-12 | 观察 | — | 爆炸池 reparent（6-11）、同屏弹量硬上限（6-12） | ✅ 观察项转修复落地（P1-5 / P2-3） |
+
+## 验证
+
+- 五层门禁：`gdformat --check` + `gdlint`（autoload/ scripts/ test/）全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；smoke 0 FAIL；**41 断言场景全量 0 FAIL**（back_navigation/balance/base_system/boss_enrage/boss_pattern/boss_phase/boss_phase_transition/boss_registry/buff_effects/buff_panel/buff_visuals/buff33/difficulty/elite_turret_event/enemy_combat/entry_animation/esc_navigation/formation_strike_event/grace_period/graze/hit_logic/i18n/intro_cinematic/keybind/meta_health_fx/mothership_summon/mothership_upgrade/mouse_lock/orbital_strike/parry/pool_reuse/return_cinematic/smoke/startup_flow/tutorial/user_db/user_session/view_zoom/wave_pacing/welcome_flow/window_size）
+- 定向回归：enemy_combat / grace_period / graze / parry / pool_reuse（14 PASS）/ meta_health_fx 全绿；P0-2 修复点（直实例化敌机 `_active` 恒 false 语义缺口，`_try_body_collision` 不加 `_active` 守卫）经 hit_logic A6 验证
+- **P0-3 渲染实测**（窗口模式 Apple M2 / GL Compatibility）：改造前 81 敌弹 ≈109 draw calls、+100 玩家弹 ≈245；改造后 181 颗总弹 ≈38（-85%）；单像素 ASCII 目检金体白芯箭头 / 敌弹红体形状正确
+- **perf_bench A/B**（同环境交错 3 次取中位数，`--fixed-fps 1000`，baseline=HEAD worktree）：BASE 0.622/0.483/0.759 → 中位数 **0.622ms**；CUR 0.587/0.553/0.811 → 中位数 **0.587ms**（约 **-5.6%**；噪声区间内方向一致，CPU 逻辑压力场景下 P0-1 分配链消除 + P0-2 空间查询归零的预期收益）
