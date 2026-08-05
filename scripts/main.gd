@@ -740,12 +740,14 @@ func _resume_from_base() -> void:
 ## 轨道打击命中：注册表驱动清场——Enemy（含池化）/FormationCraft/事件残留逐机触发爆炸
 ## 后移除（Boss 保留），再清全部弹丸与编队炸弹，恢复同一局
 func _on_orbital_struck() -> void:
-	for e in GameState.enemies.duplicate():
-		if e is Boss or not is_instance_valid(e):
-			continue
-		if e is Node2D:
-			Explosion.spawn_at(self, (e as Node2D).global_position)
-		e.queue_free()
+	# 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：非 Boss 单位逐机播爆炸后批量清除
+	GameState.for_each_enemy(
+		func(e: Node) -> void:
+			if e is Node2D:
+				Explosion.spawn_at(self, (e as Node2D).global_position),
+		func(e: Node) -> bool: return not (e is Boss)
+	)
+	GameState.clear_enemies(func(e: Node) -> bool: return e is Boss)
 	for child in get_children():
 		if child is Bullet or child is FormationBomb:
 			child.queue_free()

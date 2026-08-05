@@ -478,13 +478,11 @@ func unlocked_types() -> Array[Dictionary]:
 ## 当前在屏的 spread 弹种敌机数（离场中的不计）。
 ## B8 修复：改遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
 ## 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
+## 2026-08-05：统一实体管理器 count_enemies 批量 API（docs/ENTITY_MANAGER.md）
 func _count_spread_enemies() -> int:
-	var n := 0
-	for node in GameState.enemies:
-		var e := node as Enemy
-		if e != null and e.bullet_type == &"spread" and not e.is_exiting():
-			n += 1
-	return n
+	return GameState.count_enemies(
+		func(e: Node) -> bool: return e is Enemy and (e as Enemy).bullet_type == &"spread" and not (e as Enemy).is_exiting()
+	)
 
 
 ## 从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）。

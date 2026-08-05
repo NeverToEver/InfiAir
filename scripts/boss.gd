@@ -441,8 +441,7 @@ func spawn_minion_at(pos: Vector2) -> Enemy:
 
 
 func _ready() -> void:
-	add_to_group("enemy")
-	GameState.register_enemy(self)
+	GameState.bind_enemy(self)  # 统一绑定（docs/ENTITY_MANAGER.md）
 	# 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
 	_ws = GameState.world_scale
 	_sprite.scale = Vector2.ONE * 1.15 * _ws
@@ -688,7 +687,7 @@ func _count_delta(key: String, tier: int) -> int:
 
 
 func _exit_tree() -> void:
-	GameState.unregister_enemy(self)
+	GameState.unbind_enemy(self)  # 统一解绑（docs/ENTITY_MANAGER.md）
 	_enrage_seq.unlock_player()  # 兜底：离场必复位玩家减速，不留残留（A3 归 EnrageSequence）
 
 

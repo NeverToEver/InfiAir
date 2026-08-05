@@ -41,8 +41,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	add_to_group("enemy")
-	GameState.register_enemy(self)
+	GameState.bind_enemy(self)  # 统一绑定（docs/ENTITY_MANAGER.md）
 	# P1-6：击杀震动强度缓存
 	_shake_die = float(GameState.cfg("effects.shake.enemy_die", _shake_die))
 
@@ -59,7 +58,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _exit_tree() -> void:
-	GameState.unregister_enemy(self)
+	GameState.unbind_enemy(self)  # 统一解绑（docs/ENTITY_MANAGER.md）
 
 
 func take_damage(amount: int, _score_scale: float = 1.0) -> void:

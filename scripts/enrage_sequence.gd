@@ -368,9 +368,10 @@ func _begin_release_hold(boss) -> void:
 ## 倾巢收尾：全部在场小怪齐射一轮自机狙
 func _hive_volley_all_minions(boss) -> void:
 	var minions: Array = []
-	for e in GameState.enemies:
-		if e is Enemy and (e as Enemy).is_active():
-			minions.append(e)
+	# 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：收集在场活跃小怪
+	GameState.for_each_enemy(
+		func(e: Node) -> void: minions.append(e), func(e: Node) -> bool: return e is Enemy and (e as Enemy).is_active()
+	)
 	_attacks.minion_volley_fire(boss, minions)
 
 

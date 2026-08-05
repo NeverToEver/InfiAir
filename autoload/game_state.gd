@@ -85,6 +85,10 @@ const BALANCE_PATH := "res://data/balance.json"
 var _balance_service := BalanceService.new()
 var _save_manager := SaveManager.new()
 var _sfx_player := SfxPlayer.new()
+## 实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）
+signal entity_registered(node: Node)
+signal entity_unregistered(node: Node)
+
 var _registry := EntityManager.new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
 ## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
@@ -438,6 +442,31 @@ func register_enemy(node: Node) -> void:
 	_registry.register_enemy(node)
 
 
+## 统一单位绑定样板（docs/ENTITY_MANAGER.md）：add_to_group("enemy") + 注册 + entity_registered
+func bind_enemy(node: Node) -> void:
+	_registry.bind_enemy(node)
+
+
+## 统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）
+func unbind_enemy(node: Node) -> void:
+	_registry.unbind_enemy(node)
+
+
+## 批量遍历注册表（失效实例跳过；谓词可选过滤）。清场/索敌/冻结等非热路径统一入口
+func for_each_enemy(action: Callable, predicate: Callable = Callable()) -> void:
+	_registry.for_each_enemy(action, predicate)
+
+
+## 批量清除注册表实体（predicate 为保留项过滤，如 Boss）；返回清除数
+func clear_enemies(predicate: Callable = Callable()) -> int:
+	return _registry.clear_enemies(predicate)
+
+
+## 计数（谓词可选过滤）。spread 上限/统计用
+func count_enemies(predicate: Callable = Callable()) -> int:
+	return _registry.count_enemies(predicate)
+
+
 ## P0-1：敌弹注册/注销转发（bullet.gd 维护）
 func register_enemy_bullet(b: Bullet) -> void:
 	_registry.register_enemy_bullet(b)
@@ -459,6 +488,9 @@ func unregister_enemy(node: Node) -> void:
 func _ready() -> void:
 	_load_balance()
 	_apply_balance()
+	# 实体生命周期信号转发（EntityManager 非 Node，无树内信号；GameState 收口转发）
+	_registry.entity_registered.connect(entity_registered.emit)
+	_registry.entity_unregistered.connect(entity_unregistered.emit)
 	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
 	add_child(_sfx_player)
 	_sfx_player.build_pool(SFX_POOL_SIZE)

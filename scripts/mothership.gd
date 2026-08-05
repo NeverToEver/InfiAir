@@ -513,9 +513,10 @@ func _physics_process(delta: float) -> void:
 func _deploy_slow_field() -> void:
 	GameState.shake(SHAKE_SLOW)
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG, -10.0, 0.6)
-	for e in GameState.enemies:
-		if is_instance_valid(e) and e.has_method("apply_slow"):
-			e.apply_slow(SLOW_DURATION, SLOW_FACTOR)
+	# 统一实体管理器批量 API：duck-typing 仅 Enemy/Boss 响应（docs/ENTITY_MANAGER.md）
+	GameState.for_each_enemy(
+		func(e: Node) -> void: e.apply_slow(SLOW_DURATION, SLOW_FACTOR), func(e: Node) -> bool: return e.has_method("apply_slow")
+	)
 	var sw := (
 		CinematicFx
 		. shockwave(
@@ -596,19 +597,29 @@ var _targets_buf: Array[Node2D] = []
 
 
 ## 场上有效目标（敌机注册表筛掉离场中；Boss 筛掉逃跑中）
-## P2：复用 _targets_buf，调用方仅当帧消费（is_empty/排序后不再保留引用）
+## P2：复用 _targets_buf，调用方仅当帧消费（is_empty/排序后不再保留引用）；
+## 2026-08-05 统一实体管理器批量 API 迁移（方法引用零分配，docs/ENTITY_MANAGER.md）
 func _live_targets() -> Array[Node2D]:
 	_targets_buf.clear()
-	for node in GameState.enemies:
-		var e := node as Node2D
-		if e == null:
-			continue
-		if e is Enemy and e.is_exiting():
-			continue
-		if e is Boss and e.is_escaped:
-			continue
-		_targets_buf.append(e)
+	GameState.for_each_enemy(_append_live_target, _is_live_target)
 	return _targets_buf
+
+
+## _live_targets 收集回调（for_each_enemy 动作；注册表已跳过失效实例）
+func _append_live_target(e: Node) -> void:
+	_targets_buf.append(e as Node2D)
+
+
+## _live_targets 过滤谓词：非 Node2D/离场中的 Enemy/逃跑中的 Boss 排除
+func _is_live_target(e: Node) -> bool:
+	var n2d := e as Node2D
+	if n2d == null:
+		return false
+	if e is Enemy and (e as Enemy).is_exiting():
+		return false
+	if e is Boss and (e as Boss).is_escaped:
+		return false
+	return true
 
 
 ## 2026-08-04 母舰扩展：升级档位——里程碑数 ≥ 阈值即升档（0 或 1）

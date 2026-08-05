@@ -71,8 +71,7 @@ func setup(p_hp: int, p_ammo: Array, p_fire_interval: Vector2, weak_lock: Dictio
 
 
 func _ready() -> void:
-	add_to_group("enemy")
-	GameState.register_enemy(self)
+	GameState.bind_enemy(self)  # 统一绑定（docs/ENTITY_MANAGER.md）
 	# 数值配置缓存（启动一次读入）
 	SINGLE_SPEED = GameState.cfg("enemies.bullet_speed", SINGLE_SPEED)
 	SPREAD_SPEED = GameState.cfg("enemies.spread_bullet_speed", SPREAD_SPEED)
@@ -103,7 +102,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	GameState.unregister_enemy(self)
+	GameState.unbind_enemy(self)  # 统一解绑（docs/ENTITY_MANAGER.md）
 
 
 ## 升起充能动画（盖板旋开炮塔升起，约 rise_time 秒；期间不可被攻击）

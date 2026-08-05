@@ -236,8 +236,7 @@ func summon_slow_timer() -> float:
 
 
 func _ready() -> void:
-	add_to_group("enemy")
-	GameState.register_enemy(self)
+	GameState.bind_enemy(self)  # 统一绑定：add_to_group("enemy") + 注册 + entity_registered（docs/ENTITY_MANAGER.md）
 	# 数值配置缓存（启动一次读入）
 	ENEMY_BULLET_SPEED = GameState.cfg("enemies.bullet_speed", ENEMY_BULLET_SPEED)
 	SPREAD_BULLET_SPEED = GameState.cfg("enemies.spread_bullet_speed", SPREAD_BULLET_SPEED)
@@ -451,7 +450,7 @@ func _despawn() -> void:
 
 
 func _exit_tree() -> void:
-	GameState.unregister_enemy(self)
+	GameState.unbind_enemy(self)  # 统一解绑：注销 + entity_unregistered（docs/ENTITY_MANAGER.md）
 	# L02（2026-08-03 审查）：buff 信号断开（C22 模式）；池化 reparent 复用由
 	# reactivate() 对称重连（_ready 只执行一次，断开后必须重连，见 reactivate 注释）
 	if GameState.buffs_changed.is_connected(_on_buffs_changed):
