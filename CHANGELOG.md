@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 审计（2026-08-05，R 系列独立审计修复，`docs/archive/2026-08-05-independent-audit-report.md`）
+
+- **发布包净化（R01）**：`export_presets.cfg` 两预设 `exclude_filter="test/*"`——此前全部 45+ 测试场景/脚本随发布包分发（PCK 实锤），重出即净
+- **BGM 交叉淡化修复（R02）**：`generate_audio.py` 和弦权重有效区间扩至 `CHORD_DUR+XFade`（原严格截断 → 每 5s 交界零谷塌陷，已烘焙进旧资产）；`bullet_fire` 三变体生成前重置随机种子对齐提交资产（消除生成器-资产漂移）；重生成后仅 `bgm_loop.wav` 变化
+- **离线工具链（R03/R08/R09）**：sprite 三生成器输出路径锚定脚本位置（非仓库根运行不再错落盘）；balance_editor 读侧损坏友好 400；release.sh tar/zip 前置检查 + 版本自动读 project.godot；run.bat 版本判定 + 退出码保真；CI gdtoolkit 锁 4.5.0
+- **防御纵深（R04-R07/R13/R14）**：Q19/Q23 修复两侧遗漏补齐（池化 spawn 信号流对称、startup_flow 快照顺序）；判型族 10 处（starfield/spawner/WEAK_LOCK/狂暴 interval/hp_mults 正值域/存档负值/bullet 零速）；防御缺口 3 处（锁输入弹反盾残留/volley 进行中守卫/escape 常规攻击清理）；`Bullet.COLLISION_RADIUS` 常量（player 擦弹判定互引）；移动策略 freqs/phases 长度校验
+- **清理与文档（R10-R12/R15）**：测试规范 3 处（调试 print/OR 弱断言/InputMap 收尾）；注释失实 6 处；M07-M09 落地（back_navigator CONFIRM_EXIT 死分支/start_panel+start_radar 孤儿脚本/SET_LANGUAGE_ZH+EN 孤儿键）；RING_BURST_COUNT 死数据删除；load_steps/AGENTS 计数/EXIT_FLOW/金库状态表/BALANCE_MAP 同步
+- 验证：gdformat/gdlint/import 0 error/18 定向场景/45 断言场景 0 FAIL；生成器实证（音频逐字节 A/B、BALANCE_MAP 469 调用、sprite 零 diff）
+
 ### 架构（2026-08-05，统一实体管理器，`docs/ENTITY_MANAGER.md`）
 
 - **统一实体管理器 `EntityManager`**（`EntityRegistry` 演进）：实体注册样板收敛——`bind_enemy`/`unbind_enemy` 一行（`add_to_group("enemy")` + 注册/注销 + `entity_registered`/`entity_unregistered` 生命周期信号，新功能订阅零改动单位类），enemy/boss/turret_battery/formation_craft 四处重复样板消除

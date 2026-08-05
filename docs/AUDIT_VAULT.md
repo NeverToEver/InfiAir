@@ -1012,12 +1012,12 @@
 | L10 | `docs/BALANCE_MAP.md` | 文档-代码矛盾 | 行号漂移 6 处（93837ba 同批改脚本未重跑生成器：tutorial.gd×4、game_state.gd×2，实测漂移 +1/+2 行） | ✅ 重跑生成器（含 L09 改动），双向反查一致 |
 | L11 | `README.md`×2、`README.en.md`×2、`CONTRIBUTING.md`×2、`CHANGELOG.md`、`docs/TESTING.md:117`、`ci.yml:3` 注释 | 文档-代码矛盾 | 「31/35/37」断言场景计数残留 8 处（实际 37） | ✅ 全部统一为 37 |
 | L12 | `test/perf_bench.gd:2,24` | 注释失实 | 基准注释「30 只敌机」落后于常量 200（压力场景口径失实） | ✅ 注释同步为 200 |
-| L13 | `spawner.gd:394,401` × `mothership.gd:586-597` | 机制交叉（设计判断） | 母舰驻留/对接期精英炮塔与编队事件仍可触发（`can_trigger` 只查 IDLE+冷却不查母舰在场），母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖——玩家进保护舱零参与挂机收益 | ⏸ 登记待办：事件 `can_trigger` 加母舰在场检查，或母舰火力排除事件单位（设计决策，勿擅自改） |
-| L14 | `boss.gd:780` × `boss_movement.gd:112-130` | 纯 bug（视觉，行为修改） | 段切换瞬间 y 垂直跳变：三型 P1 `_move_band` 增量式偏移（target 可达 depth+wob≈280px，band_offset 未在 reset_press 清理）→ P2 `_move_bob` 绝对赋值锚线 → 1/4 屏瞬移；一型 P1 press 窗口内切换 ≤80px 跳变（C11 只清 offset 不补偿当前 y） | ⏸ 登记待办：段切换从当前 y 平滑过渡到锚线（需 boss_phase/pattern 测试验证，行为修改） |
-| L15 | `test/` 21 个断言场景（smoke/i18n/tutorial/base_system 等） | 纯 bug（测试副作用） | 测试清空 `user://profile.json` 高分数据无快照还原（`GameState.high_score = 0` 经 setter 自动落盘；base_system/tutorial 直接清/改后落盘）——唯一正确范式在 `ui_capture.gd:12,111-113` | ⏸ 登记待办：测试开头快照 profile、结尾还原（批量改动，本地跑测试前已手动备份恢复） |
-| L16 | `test/smoke_test.gd:796-800` | 弱断言 | 分支内断言 `wb2` 无 `!= null` 前置，弹未生成时用例静默通过（同文件 666/785 均有前置） | ⏸ 登记待办：补 `_check(wb2 != null)` |
-| L17 | `scripts/settings_ui.gd:53,77` × `ui_chamfered_panel.gd:39-54` | 设计目标未达（布局） | 「操作模式」页内容 895px+ 溢出 480px 容器：面板被自适应撑到 ~1150px（>1080 屏幕，标题出屏），且自适应只放大不缩小（切页后不回落） | ⏸ 登记待办：页容器加 ScrollContainer 或压缩垂直节奏，窗口模式实测像素后定方案 |
-| L18 | `.github/workflows/release.yml:56-59` | 设计目标未达（CI） | 版本同步不落地：sed 仅改 CI 工作区不 commit，`git tag v3.27` 指向的提交 `config/version` 仍是 3.26——AGENTS.md「输入版本自动同步 project.godot」只对构建产物生效 | ⏸ 登记待办：tag 前 commit 版本号改动，或改写文档口径（CI 改动本地无法实跑验证） |
+| L13 | `spawner.gd:394,401` × `mothership.gd:586-597` | 机制交叉（设计判断） | 母舰驻留/对接期精英炮塔与编队事件仍可触发（`can_trigger` 只查 IDLE+冷却不查母舰在场），母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖——玩家进保护舱零参与挂机收益 | ✅ 已修复（cc422d1 Phase 0）：事件 `can_trigger` 加 `get_first_node_in_group("mothership") != null` 母舰在场检查（elite_turret_event.gd:135-138 / formation_strike_event.gd:129-131） |
+| L14 | `boss.gd:780` × `boss_movement.gd:112-130` | 纯 bug（视觉，行为修改） | 段切换瞬间 y 垂直跳变：三型 P1 `_move_band` 增量式偏移（target 可达 depth+wob≈280px，band_offset 未在 reset_press 清理）→ P2 `_move_bob` 绝对赋值锚线 → 1/4 屏瞬移；一型 P1 press 窗口内切换 ≤80px 跳变（C11 只清 offset 不补偿当前 y） | ✅ 已修复（cc422d1 Phase 0）：BOB_SMOOTH ease-out 收敛 + reset_press 清 `_band_offset`（boss_movement.gd:19-23,34-37,42-44,136-146） |
+| L15 | `test/` 21 个断言场景（smoke/i18n/tutorial/base_system 等） | 纯 bug（测试副作用） | 测试清空 `user://profile.json` 高分数据无快照还原（`GameState.high_score = 0` 经 setter 自动落盘；base_system/tutorial 直接清/改后落盘）——唯一正确范式在 `ui_capture.gd:12,111-113` | ✅ 已修复（Q23 2026-08-05：三账户测试快照还原；R07 2026-08-05 补 startup_flow 备份顺序——delete_save 原在快照前，savegame 还原后仍缺失） |
+| L16 | `test/smoke_test.gd:796-800` | 弱断言 | 分支内断言 `wb2` 无 `!= null` 前置，弹未生成时用例静默通过（同文件 666/785 均有前置） | ✅ 已修复（cc422d1 Phase 0）：补 `_check(wb2 != null)` 前置 + 守卫（smoke_test.gd:795-799） |
+| L17 | `scripts/settings_ui.gd:53,77` × `ui_chamfered_panel.gd:39-54` | 设计目标未达（布局） | 「操作模式」页内容 895px+ 溢出 480px 容器：面板被自适应撑到 ~1150px（>1080 屏幕，标题出屏），且自适应只放大不缩小（切页后不回落） | ⏸ 登记待办：页容器加 ScrollContainer 或压缩垂直节奏，窗口模式实测像素后定方案（R07 复核仍存：modes 页内容已增至手柄/无障碍段，溢出更甚） |
+| L18 | `.github/workflows/release.yml:56-59` | 设计目标未达（CI） | 版本同步不落地：sed 仅改 CI 工作区不 commit，`git tag v3.27` 指向的提交 `config/version` 仍是 3.26——AGENTS.md「输入版本自动同步 project.godot」只对构建产物生效 | ✅ 已修复（P4 2026-08-05）：同步提交 `[skip ci]` + `git push origin HEAD:main`（release.yml:71-75）；R07 清理 L18 旧注释残留 |
 
 ### P3（轻微：修复 3 / 登记 30+，按类别合并）
 
@@ -1277,3 +1277,61 @@
 
 - 五层门禁：gdformat --check（全量 130 文件）+ gdlint（autoload/scripts/test）全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；smoke_test PASS；45 断言场景全量 0 FAIL（含改动相关定向：boss_pattern/boss_phase/boss_registry/boss_phase_transition/boss_enrage/difficulty/base_task_refresh/user_session/user_db/welcome_flow/startup_flow/event_manager/entity_manager/elite_turret_event/formation_strike_event/enemy_combat/pool_reuse/esc_navigation/view_zoom/fog_event）。
 - 测试过程中修复的测试自身缺陷：Q04 断言构造（set_difficulty 会写 profile，改直写档再恢复）；Q10 断言值（formation interval=40 非 44）；Q13 计数（GDScript lambda 捕获 int 为值拷贝，改数组承载）；Q09 残留实例（测试重建未释放）；Q24 输入框 Enter 被 LineEdit 消费（真实断链，补 text_submitted）。
+
+---
+
+# R 系列（2026-08-05，独立审计：Q 系列未涉及内容，审计+修复）
+
+> 依据用户指示「goal 模式，参照上一次审计没涉及的内容进行独立审计，仅提交不推送」执行；按 AUDIT_REVIEW_SOP（并行审计 → 分类 → 批处理提交 → 迭代修复+即时验证 → 归档回填）。6 路并行只读审计（金库遗留复核 / 资产与场景 / 发布打包与项目配置 / 离线工具链 / Q 修复批次复核 / 待验证点与数据质量），主控对全部 P2 与关键 P3 亲自读码复核 + 生成器实证（音频重生成逐字节对比、BALANCE_MAP 实跑、sprite 生成器非根目录实跑）。完整报告：`docs/archive/2026-08-05-independent-audit-report.md`。
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | Q 系列排除项/遗留项复核 + 未覆盖区域（资产/场景/发布打包/工具链）+ Q 修复批次复核 |
+| 工作时间 | 2026-08-05（单次集中审核会话，goal 模式） |
+| 审核区域 | `assets/`（26 .import + 2 shader）+ `scenes/` 11 场景 + `export_presets.cfg`/`release.sh`/`run.bat`/`packaging/`/`project.godot`/CI 工作流 + `scripts/tools/` 6 工具 + 金库遗留（M07-M10/L13-L18/C17/L 系列 P3 清单）+ Q 系列 §7 待验证点 + dac5d3f 修复批次 30 项复核 + 翻译数据完整性 |
+| 审核方法 | 6 路并行只读 + 主控复核；生成器实跑（音频逐字节 A/B、BALANCE_MAP、sprite 非根目录） |
+| 结论 | 无 P0；P2×3 / P3×12 / P4×15（观察）；复核误报 3 项；修复 15 项 + 登记不修 15 项 |
+
+## 发现与处置（R 系列）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| R01 | P2 | `export_presets.cfg:8-10,36-38` | 纯 bug（打包泄露） | `exclude_filter=""` → 全部 test/ 场景与脚本随发布包分发（3.26 PCK 实锤：`test/window_size_test.tscn.remap` 明文、91 个 `res://test/*.gd`）；test/ 无 .gdignore（docs/ 有，8-03 只修了 docs 泄露） | ✅ 两 preset `exclude_filter="test/*"` |
+| R02 | P2 | `generate_audio.py:206-214` × `assets/audio/bgm_loop.wav` | 纯 bug（已烘焙进资产） | `chord_weight` 有效区间 `[0,CHORD_DUR)` 严格截断 → 相邻和弦交界权重和 = 0，每 5s 一次 pad/bass 零谷塌陷（资产实测 RMS 0.27→0.045）；**顺带**：HEAD 生成器全量重跑 bf×3 ≠ 提交资产（~3% RMS）——资产为 random 流起点独立生成的历史产物 | ✅ 区间扩至 `CHORD_DUR+XFade`（交界权重和恒 1）+ main() bf×3 前重置 `random.seed(20260720)` 对齐资产；重生成后仅 bgm_loop.wav 变化，bf×3 逐字节一致 |
+| R03 | P2 | `generate_{enemy,player,mothership}_sprite.py` | 纯 bug（工具口径） | 三生成器输出路径 cwd 相对 `"assets/sprites/"`——非仓库根运行在别处落盘或崩溃（同目录其余 3 工具均 `__file__` 锚定） | ✅ 统一 `os.path.join(os.path.dirname(__file__),"..","..",...)`；/tmp 实跑落盘正确、14 PNG 零变化 |
+| R04 | P3 | `enemy_pool.gd:46-47` | 纯 bug（Q19 修复不完整） | Q19 只修回收侧：spawn 侧 `reparent` 时 `_repooling=false` → 每次池化 spawn 发无配对 `entity_unregistered`（reactivate 只 register 不发信号，ENTITY_MANAGER §4.2 矛盾仍存） | ✅ spawn 侧 reparent 包 `set_repooling(true/false)`（与 `_reparent_deferred` 对称） |
+| R05 | P3 | `startup_flow_test.gd:86-87` | 纯 bug（Q23 修复不完整） | `delete_save()` 在 `_backup_user_files()` 之前 → savegame.json 快照为空，还原后进行中存档仍缺失（Q23「三测试全部还原」登记夸大） | ✅ 快照移到 `_ready` 首行 |
+| R06 | P3 | `starfield.gd:29-30`/`spawner.gd:546`/`elite_turret_event.gd:119`/`boss.gd`（interval×6 + hp_mults 正值域）/`game_state.gd:1579-1581`/`bullet.gd:140` | 纯 bug（判型/域校验同族，L 系列登记遗留） | starfield count 负值负尺寸 resize；telegraph_duration 0/负立即触发；WEAK_LOCK 非 Dictionary 消费方崩溃；狂暴 interval 0/负每帧攻击风暴；hp_mults 0/负 → max_hp≤0 → Boss 免疫伤害（Q02 缺失分支）；存档 score/kills/boss_kills 负值；bullet 零速弹永驻视野 | ✅ 判型/钳制（口径同 G06/H11/E04/L04/Q02），默认/回退值逐位不变，行为零变化 |
+| R07 | P3 | `player.gd:666-667`/`boss_attacks.gd:428`/`boss.gd:1012` | 防御缺口（L 系列登记遗留） | ①锁输入期（母舰召唤/返航过场）早退使弹反盾 monitoring 残留，ACTIVE 期锁定则盾全程被动生效；②`_start_minion_volley` 无进行中守卫；③`_begin_escape` 常规攻击（瞄准线/蓄力/齐射计时）不清理 | ✅ ①锁输入强制关盾；②`_volley_timer>0` 早退；③补 `_attacks.cancel_all()` |
+| R08 | P3 | `balance_editor.py:276` | 纯 bug（L 系列登记遗留） | 读侧 `json.loads` 无 try——balance.json 损坏裸 traceback 500（Q/P4 只修 gen_balance_map 侧） | ✅ 读失败友好 400 |
+| R09 | P3 | `release.sh`/`run.bat`/`ci.yml:33` | 工具链（L 系列登记遗留） | release.sh tar/zip 无前置检查 + 版本不自动读 project.godot；run.bat 无版本判定 + pause 归零退出码；gdtoolkit 未锁版本 | ✅ `command -v` 检查 + VERSION 自动读取；`--version` <4.6 警告 + `endlocal & exit /b %EXIT_CODE%`；`gdtoolkit==4.5.0` |
+| R10 | P3 | `tutorial_test.gd:79`/`mothership_summon_test.gd:84`/`buff33_test.gd:24-25` | 测试规范（L 系列登记遗留） | 调试 print 残留；穿梭门三重 OR 弱断言可空过；InputMap.add_action 无收尾 | ✅ 删 print；拆状态断言；`added_give_up` 标记收尾 erase |
+| R11 | P3 | `turret_battery.gd:6`/`boss_movement.gd:97`/`elite_turret_event.gd:199`/`hud_capture.gd:2,34,60`/`autoplay_test.gd:5`/`README.md:80` | 文档-代码矛盾（L 系列登记遗留） | monitoring 表述未随 K09；「战斗期独占 y」未含警告期；「防负循环」表述失实；「全 16 种 buff」实为 15 distinct/池 19；手柄键表漏 LT | ✅ 全部同步 |
+| R12 | P3 | `boss.gd:113-117,590`+`balance.json:647`/`back_navigator.gd:19,94-96`/`scripts/start_panel.gd`、`start_radar.gd`/`translations.csv:171-172` | 死代码/孤儿（M07/M08/M09 落地） | RING_BURST_COUNT 与 json 键 `boss.ring_burst.count` 零消费方（Q01 后死数据）；CONFIRM_EXIT 决策表无可达路径；start_panel/start_radar 退役零引用；SET_LANGUAGE_ZH/EN 零 tr() 引用 | ✅ 删除（EXIT_FLOW.md 同步；BALANCE_MAP 重跑 469 调用 0 缺失） |
+| R13 | P4 | `bullet.gd:230`×`player.gd:1007` | 观察（Q §7 待验证点 5） | 弹碰撞半径 6.0 与擦弹环形带判定镜像字面量，双改风险成立 | ✅ `Bullet.COLLISION_RADIUS := 6.0` 常量互引 |
+| R14 | P4 | `enemy_move_strategy.gd:212-214,241-243` | 边界防御遗漏 | Q29 入库的 freqs/phases 数组长度无校验——短数组 `_freqs[2]` 越界崩溃（Q02 同族未推广） | ✅ `_init` 注入处长度 ≥3 校验，坏值回退默认 |
+| R15 | P4 | `main.tscn:1`/`player.tscn:1`/`AGENTS.md:25`/`shell-scripts.md:12`/`release.yml:66-68`/`AUDIT_VAULT` L 系列状态表/`docs/BALANCE_MAP.md` | 文档-代码矛盾/陈旧计数 | load_steps 20→18、7→8；AGENTS 53→54；shell-scripts version_ok 归属（在 run.command）；release.yml L18 注释残留；L13/L14/L15/L16/L18 状态表未同步；BALANCE_MAP 行号漂移（dac5d3f 改码后未重跑，24+24 行） | ✅ 全部同步/重跑 |
+
+## 登记不修（论证后收敛，R 系列复核）
+
+1. **L17 设置页溢出**：复核仍存（modes 页内容已增至手柄/无障碍段，溢出更甚）——维持登记待办，需窗口模式实测像素后定方案（ScrollContainer vs 压缩节奏）。
+2. **M10 INTRO 人工验证项**：保留（发布前人工验证，文档已标注 leftover）。
+3. **C17 back_navigator 7 处裸 get_node**：合理模式维持（main.tscn 固定子节点，风险低）。
+4. **mothership 时轴 30+ 键 0 值**：维持 L 系列登记（手改 json 触发、改动面大收益低；tween 时长 0 为演出崩坏非系统崩溃）。
+5. **dist_falloff/aim_frame「除零」**：**复核误报**——`d<=peak` 与 `d>=end` 分支覆盖全部定义域，`peak==end` 时 lerpf 不可达，无除零路径（NaN 配置才可达，理论级）。
+6. **boss_fire 20°/15° 弹幕几何魔法数**：登记观察（几何常量非平衡数值，入库收益低；与 Q29 移动策略参数不同族）。
+7. **SCORE_CAP 乘法后钳制**：登记观察（倍率 ≥1e13 理论溢出 int64，现实量级 ≤1e6 防御成立）。
+8. **smoke `== +33` 精确断言**：登记观察（受控条件取整确定性成立，TESTING.md 已登记 flake 基线）。
+9. **遭遇自动触发暴露面**：各长跑测试已核实安全（smoke 累计处理 ~6-8s ≪ 40s 阈值）——建议后续在 smoke 敏感段补遭遇契约断言，登记待办。
+10. **`.godot/imported` 孤儿 ctex×4**：登记观察（源已删缓存残留，.gitignore 排除，不影响构建）。
+11. **gen_balance_map 惰性正则局限 / balance_editor 新增键静默放行**：工具启发式已知局限，登记观察。
+12. **builds/ 旧产物过期**：登记观察（3.26 含 docs 截图已随 .gdignore 修复；test/ 泄露随 R01 修复，下次重出即净）。
+13. **Q09 焦点细节 / Q27 目检 / smoke flake / 镜像字面量**：Q §7 待验证点已全部定论（见报告 §6），无需再修。
+
+## 修复起效记录（回填）
+
+- **改了什么**：21 个文件 + 1 资产重生成 + 2 文件删除 + 2 生成物重跑（详见上表；另含 `docs/EXIT_FLOW.md` CONFIRM_EXIT 行删除、`docs/archive/2026-08-05-independent-audit-report.md` 报告新增）。
+- **为什么起效**：R01 排除 filter 使 test/ 不再进入 PCK（重出即净）；R02 区间扩至 CHORD_DUR+XFade 后槽尾衰减与下一槽上升重叠、交界权重和恒 1（零谷消除），bf 种子重置使生成器全量重跑与资产逐字节一致（消除工具-资产漂移）；R03 路径锚定脚本位置（非仓库根运行不再错落盘）；R04/R05 补齐 Q19/Q23 的两侧遗漏（信号流对称、快照捕获原始状态）；R06/R07 判型/钳制/守卫与既有防护族口径一致、默认值与回退值逐位不变（行为零变化）；R08/R09 工具链诊断与退出码保真；R10-R15 测试规范、注释口径、死数据清理与文档同步，均无可达路径或行为差异。
+- **如何验证**：五层门禁——gdformat --check（128 文件）/gdlint 全绿；`--headless --import` 0 error；18 个定向场景（startup_flow/mothership_summon/tutorial/buff33/entity_manager/pool_reuse/boss_pattern/boss_phase/boss_enrage/boss_phase_transition/difficulty/i18n/esc_navigation/base_task_refresh/event_manager/user_session/welcome_flow/smoke）全 PASS；全量 45 断言场景 0 FAIL（见当次提交记录）；生成器实证——BALANCE_MAP 实跑 469 静态调用 0 缺失、音频重生成仅 bgm_loop.wav 变化、sprite 三生成器非根目录实跑零 diff、release.sh `bash -n` + 6 Python 工具 `py_compile` 通过。

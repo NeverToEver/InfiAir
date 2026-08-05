@@ -22,7 +22,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 ## Merge Gate & Testing
 
-5 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 45 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (53 scenes: 45 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
+5 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 45 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (54 scenes: 45 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
 
 ## Architecture & Directory Roles
 

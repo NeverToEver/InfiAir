@@ -35,7 +35,6 @@ func go_back():
         TO_MAIN_MENU:         paused=false → reset_run → logout_user → change_scene_to_file(welcome.tscn)  # results page (save deleted on death)
         CLOSE_BUFF_PANEL:     hud.close_buff_panel()      # back = close bar (before opening pause)
         RESUME_GAME:          pause_ui.close()
-        CONFIRM_EXIT:         exit_confirm.show_confirm(battle=false)  # top level (start panel); retired — welcome scene self-handles exit confirm (BackNavigator no longer returns CONFIRM_EXIT; back_navigator.gd:107-130 decision table has no this branch)
         OPEN_PAUSE:           pause_ui.open()             # in combat with no overlay → pause
 ```
 
