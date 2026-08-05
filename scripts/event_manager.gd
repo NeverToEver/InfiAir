@@ -228,10 +228,14 @@ func force_trigger(p_id: StringName) -> bool:
 	if not factory is Callable:
 		return false
 	if _group_of(p_id) == GROUP_FOG:
-		if _fog_active_id != &"":
+		# 迷雾组未接线（分阶段迁移期间）或已有进行中事件 → 拒触发
+		if not _fog_wired or _fog_active_id != &"":
 			return false
 		return _start_fog(p_id)
 	if _group_of(p_id) == GROUP_ENCOUNTER:
+		# 遭遇组单事件并发（含手动 start 兜底登记，_encounter_active_id 为准）
+		if _encounter_active_id != &"":
+			return false
 		var ev: Node = factory.call() as Node
 		if ev == null or not is_instance_valid(ev) or (ev.has_method("is_active") and ev.is_active()):
 			return false
@@ -276,6 +280,11 @@ func set_first_delay_left(seconds: float) -> void:
 	_fog_first_delay_left = seconds
 
 
+## 测试/诊断：直接设定遭遇事件触发计时剩余（压缩时长确定性测试）
+func set_encounter_timer_remaining(p_id: StringName, seconds: float) -> void:
+	_encounter_timers[p_id] = maxf(seconds, 0.0)
+
+
 ## 当前 fog 事件剩余时长（无事件返回 0）
 func active_remaining() -> float:
 	if _fog_timer == null or not is_instance_valid(_fog_timer):
@@ -305,8 +314,9 @@ func _process(delta: float) -> void:
 					_fog_check_timer = FOG_CHECK_INTERVAL
 					if randf() < FOG_TRIGGER_CHANCE:
 						_start_fog(_pick_fog_id())
-	# encounter 组（门控：注入 spawner 处理中——set_process(false) 语义与现状一致）
-	if _spawner != null and is_instance_valid(_spawner) and _spawner.can_process():
+	# encounter 组（门控：注入 spawner 处理中——set_process(false)/暂停语义与现状一致；
+	# is_processing() 反映 set_process 维度，can_process() 反映树/暂停维度）
+	if _spawner != null and is_instance_valid(_spawner) and _spawner.is_processing() and _spawner.can_process():
 		_tick_encounter_triggers(delta)
 
 

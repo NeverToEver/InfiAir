@@ -1,7 +1,9 @@
 extends Node
 ## 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
 ## （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
-## + Boss 触发（3 种轮换）。
+## + Boss 触发（3 种轮换）。遭遇事件（精英炮塔/轰炸编队）触发策略自 2026-08-05 起由
+## 统一事件管理器接管（GameState.events，docs/EVENT_MANAGER.md）：本类仅保留互斥钩子
+## （Boss 冻结/波次暂停）与特殊槽登记（notify_event_triggered）。
 
 signal boss_spawned(boss: Boss)
 signal boss_warning
@@ -163,13 +165,6 @@ var BOSS_SCORE_STEP := 1500
 ## Boss 触发最小间隔：分数步进触发需同时满足该时间门（防分数暴涨期连出 Boss）
 var BOSS_MIN_INTERVAL := 80.0
 var BOSS_TIME_LIMIT := 120.0
-## 精英炮塔事件触发参数（docs/ELITE_TURRET_EVENT.md 第 6 节）
-var ETV_MIN_SCORE := 800
-var ETV_TRIGGER_INTERVAL := 45.0
-var ETV_TRIGGER_CHANCE := 0.35
-## 轰炸编队事件触发参数（docs/FORMATION_STRIKE_EVENT.md 第 5 节；最低优先级，其余条件由事件 can_trigger 检查）
-var FS_TRIGGER_INTERVAL := 40.0
-var FS_TRIGGER_CHANCE := 0.30
 
 var _wave_timer: float = 1.5
 var _elapsed: float = 0.0
@@ -187,13 +182,11 @@ var _boss_frozen: bool = false
 var _boss_pending: bool = false
 ## 事件期间普通波次暂停
 var _waves_paused: bool = false
-## 事件编排节点（main 在 _ready 登记）
+## 事件编排节点（main 在 _ready 登记；遭遇事件触发策略由统一事件管理器接管，
+## 本引用供互斥查询（formation.can_trigger 检查 elite active）与测试访问器）
 var _event: EliteTurretEvent = null
-## 轰炸编队事件编排节点（main 在 _ready 登记；与 Boss/精英炮塔事件按优先级链互斥）
+## 轰炸编队事件编排节点（main 在 _ready 登记；互斥/访问器同上）
 var _formation: FormationStrikeEvent = null
-## A4b：事件触发策略统一骨架（定时 + 概率 + 分数门槛，替代原 _event_check_timer 内联）
-var _elite_trigger := ScheduledEventTrigger.new(ETV_TRIGGER_INTERVAL, ETV_TRIGGER_CHANCE, ETV_MIN_SCORE)
-var _formation_trigger := ScheduledEventTrigger.new(FS_TRIGGER_INTERVAL, FS_TRIGGER_CHANCE)
 
 
 func _ready() -> void:
@@ -234,14 +227,8 @@ func _apply_balance() -> void:
 	var band: Variant = GameState.cfg("enemies.hover_band", [_hover_band.x, _hover_band.y])
 	if band is Array and band.size() >= 2:
 		_hover_band = Vector2(float(band[0]), float(band[1]))
-	ETV_MIN_SCORE = GameState.cfg("elite_turret_event.min_score", ETV_MIN_SCORE)
-	ETV_TRIGGER_INTERVAL = GameState.cfg("elite_turret_event.trigger_interval", ETV_TRIGGER_INTERVAL)
-	ETV_TRIGGER_CHANCE = GameState.cfg("elite_turret_event.trigger_chance", ETV_TRIGGER_CHANCE)
-	FS_TRIGGER_INTERVAL = GameState.cfg("formation_strike_event.trigger_interval", FS_TRIGGER_INTERVAL)
-	FS_TRIGGER_CHANCE = GameState.cfg("formation_strike_event.trigger_chance", FS_TRIGGER_CHANCE)
-	# A4b：balance 覆盖后同步触发策略配置（_timer 不重置，保持现有节奏）
-	_elite_trigger.configure(ETV_TRIGGER_INTERVAL, ETV_TRIGGER_CHANCE, ETV_MIN_SCORE)
-	_formation_trigger.configure(FS_TRIGGER_INTERVAL, FS_TRIGGER_CHANCE)
+	# 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）自 2026-08-05 起由
+	# 统一事件管理器读取（scripts/event_manager.gd _load_balance，键不变）
 	var normal: Array = GameState.cfg("enemies.types", [])
 	for i in mini(normal.size(), ENEMY_TYPES.size()):
 		_merge_type(ENEMY_TYPES[i], normal[i])
@@ -409,6 +396,11 @@ func elite_event() -> EliteTurretEvent:
 	return _event
 
 
+## 事件占用特殊槽（统一事件管理器触发遭遇事件时调用；镜像原 _waves_since_special = 0）
+func notify_event_triggered() -> void:
+	_waves_since_special = 0
+
+
 ## 读取并清除一次 Boss pending（事件解冻时若期间触发过 Boss 则补触发）
 func consume_boss_pending() -> bool:
 	var was := _boss_pending
@@ -443,19 +435,6 @@ func _process(delta: float) -> void:
 			_boss_pending = true
 		else:
 			_trigger_boss()
-	# 精英炮塔事件触发检查：Boss 优先（Boss 未预警/入场/战斗中且事件可触发时才允许启动；
-	# 编队事件激活期间不启动，避免两事件的波次暂停钩子互相提前恢复）
-	if _event != null and not _boss_active and (_formation == null or not _formation.is_active()) and _event.can_trigger():
-		# A4b：触发策略（定时/概率/分数门槛）委托 ScheduledEventTrigger
-		if _elite_trigger.tick(delta, GameState.score):
-			_event.start()
-			_waves_since_special = 0  # 事件占用特殊槽
-	# 轰炸编队事件触发检查（最低优先级，在精英炮塔事件检查之后；
-	# Boss 激活/精英事件 active/冷却/分数门槛由事件 can_trigger 内检查）
-	if _formation != null and _formation.can_trigger():
-		if _formation_trigger.tick(delta, GameState.score):
-			_formation.start()
-			_waves_since_special = 0  # 事件占用特殊槽
 
 
 func _current_interval() -> float:

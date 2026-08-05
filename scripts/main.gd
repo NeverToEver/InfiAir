@@ -92,6 +92,12 @@ func _ready() -> void:
 	add_child(_formation)
 	_formation.set_spawner(_spawner)  # K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
 	_spawner.set_formation_event(_formation)
+	# 统一事件管理器接线（docs/EVENT_MANAGER.md）：遭遇事件注册进统一注册表（缓存单例），
+	# 触发策略/信号由管理器接管；spawner 注入用于触发门控与特殊槽通知
+	GameState.events.set_spawner(_spawner)
+	GameState.events.register_encounter(&"elite_turret", _event)
+	GameState.events.register_encounter(&"formation_strike", _formation)
+	GameState.events.set_run_active(get_tree().current_scene == self)
 	GameState.player_died.connect(_on_player_died)
 	_base_ui.resume_requested.connect(_resume_from_base)
 	# 迷雾事件：仅真实对局（main 为 current_scene）开启自动触发。
@@ -185,12 +191,14 @@ func meta_fx() -> MetaHealthFX:
 	return _meta_fx
 
 
+## A7：测试/诊断白盒断言经公开接口（命名语义化）；遭遇事件实例由统一事件管理器
+## 持有（main._ready 注册），访问器经管理器注册表取缓存单例
 func event() -> EliteTurretEvent:
-	return _event
+	return GameState.events.event(&"elite_turret") as EliteTurretEvent
 
 
 func formation() -> FormationStrikeEvent:
-	return _formation
+	return GameState.events.event(&"formation_strike") as FormationStrikeEvent
 
 
 func strike() -> OrbitalStrike:
@@ -709,12 +717,9 @@ func _start_homecoming() -> void:
 	if _mothership != null:
 		_mothership.queue_free()
 		_on_mothership_departed(GameState.cfg("mothership.depart_cooldown", 60.0))
-	# 轰炸编队进行中则打断：编队解散离场，无结算，冷却照计
-	if _formation != null:
-		_formation.abort()
-	# 精英炮塔事件同样中止：清炮塔、隐藏事件条、航母完整撤离，Boss 解冻走 BOSS_DELAY
-	if _event != null:
-		_event.abort()
+	# 遭遇事件（轰炸编队/精英炮塔）进行中则打断：编队解散离场/航母完整撤离，无结算，
+	# 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
+	GameState.events.end_active(GameEventManager.GROUP_ENCOUNTER)
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player.fuel_amount(), _spawner.elapsed())
 	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
