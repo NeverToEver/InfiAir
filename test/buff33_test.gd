@@ -21,8 +21,11 @@ func _ready() -> void:
 	GameState.high_score = 0
 	GameState.save_profile()
 	# give_up 输入映射由 project.godot 提供；缺失时运行时补齐（不影响断言语义）
+	# R07：补齐动作记录标记，收尾还原（L 系列测试登记遗留——原实现 add 后不清理）
+	var added_give_up := false
 	if not InputMap.has_action(&"give_up"):
 		InputMap.add_action(&"give_up")
+		added_give_up = true
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
@@ -166,6 +169,9 @@ func _ready() -> void:
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
+	# R07：还原运行时补齐的输入动作（与补齐对称）
+	if added_give_up:
+		InputMap.erase_action(&"give_up")
 	print("BUFF33 TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

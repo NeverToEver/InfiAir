@@ -27,6 +27,17 @@ if not defined GODOT (
 )
 
 echo [InfiAir] 使用引擎：%GODOT%
+
+REM R07：版本判定（L 系列工具链登记遗留）——探测版本 <4.6 仅警告继续（对齐 run.sh 口径）
+for /f "tokens=1,2 delims=. " %%a in ('"%GODOT%" --version 2^>nul') do (
+    if %%a geq 4 if %%b geq 6 set "GVER_OK=1"
+)
+if not defined GVER_OK (
+    echo [InfiAir] 警告：检测到 Godot 版本低于 4.6（需要 4.6+ 标准版），可能无法正常运行。
+)
+
+REM R07：保留真实退出码——原 `if errorlevel 1 pause` 使 pause 把退出码归零，脚本恒返回 0
 "%GODOT%" --path . %*
-if errorlevel 1 pause
-endlocal
+set "EXIT_CODE=%ERRORLEVEL%"
+if not "%EXIT_CODE%"=="0" pause
+endlocal & exit /b %EXIT_CODE%

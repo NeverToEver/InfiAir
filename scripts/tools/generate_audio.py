@@ -204,13 +204,18 @@ XFade = 0.5  # 和弦间交叉淡化时长
 
 
 def chord_weight(t: float, slot: int) -> float:
-    """第 slot 个和弦槽在时刻 t 的权重，对 ±LOOP_DUR 平移周期化以保证无缝循环。"""
+    """第 slot 个和弦槽在时刻 t 的权重，对 ±LOOP_DUR 平移周期化以保证无缝循环。
+    R07（2026-08-05 独立审计）：有效区间原为 [0, CHORD_DUR)，槽边界处权重严格
+    截断 → 相邻和弦在交界点权重和 = 0（每 5s 一次 pad/bass 零谷塌陷，已烘焙进
+    旧 bgm_loop.wav）。区间扩至 CHORD_DUR + XFade 后槽尾衰减与下一槽头上升重叠，
+    交界处权重和恒为 1（线性交叉淡化）。
+    """
     w = 0.0
     for shift in (-LOOP_DUR, 0.0, LOOP_DUR):
         start = slot * CHORD_DUR + shift
         local = t - start
-        if 0.0 <= local < CHORD_DUR:
-            w += min(local / XFade, 1.0) * min((CHORD_DUR - local) / XFade, 1.0)
+        if 0.0 <= local < CHORD_DUR + XFade:
+            w += min(local / XFade, 1.0) * min((CHORD_DUR + XFade - local) / XFade, 1.0)
     return w
 
 
@@ -281,6 +286,11 @@ def main() -> None:
     write_wav("resupply.wav", make_resupply())
     write_wav("heartbeat.wav", make_heartbeat())
     write_wav("bgm_loop.wav", make_bgm())
+    # R07（2026-08-05 独立审计）：bullet_fire 三变体资产为「random 流起点独立生成」的
+    # 历史产物（在全序列流中生成会得到不同音色，实测 max 差 ~3000/16bit）——调用前
+    # 重置种子对齐资产，保证全量重跑输出与提交资产逐字节一致（bf 是 main() 末段，
+    # 重置不影响其他音效）
+    random.seed(20260720)
     write_wav("bullet_fire.wav", make_bullet_fire(135.0, 0.8), peak_target=0.42)
     write_wav("bullet_fire_b.wav", make_bullet_fire(115.0, 0.65), peak_target=0.42)
     write_wav("bullet_fire_c.wav", make_bullet_fire(160.0, 1.0), peak_target=0.42)

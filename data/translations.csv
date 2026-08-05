@@ -168,8 +168,6 @@ Hold H Mothership · Hold B Home · Hold K Abandon
 Esc Pause · R Restart (fixed)"
 SET_VERSION,"InfiAir · Godot %s · GL Compatibility","InfiAir · Godot %s · GL Compatibility"
 SET_LANGUAGE,"语言","Language"
-SET_LANGUAGE_ZH,"中文","中文"
-SET_LANGUAGE_EN,"English","English"
 SET_AIM_ASSIST,"辅助瞄准","Aim Assist"
 SET_AIM_LOW,"弱","Low"
 SET_AIM_MEDIUM,"中","Medium"

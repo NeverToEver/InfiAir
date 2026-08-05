@@ -76,7 +76,6 @@ func _ready() -> void:
 		await get_tree().physics_frame
 		Input.action_release("dash")
 		await get_tree().create_timer(0.4).timeout
-	print("tutorial stage2 counts: boost=", tut.boost_count(), " dash=", tut.dash_count())
 	_check(tut.boost_count() == 2 and tut.dash_count() == 2, "阶段 2 输入计数")
 	await get_tree().create_timer(1.3).timeout
 	_check(tut.stage() == 2, "阶段 2 → 3")

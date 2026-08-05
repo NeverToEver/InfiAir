@@ -1576,9 +1576,10 @@ func save_bool(v: Variant, default: bool) -> bool:
 
 func apply_run_save(data: Dictionary) -> void:
 	# 逐字段判型：语法合法但结构非法的存档（手改）不崩，异常字段回默认值
-	score = int(save_num(data.get("score", 0), 0.0))
-	kills = int(save_num(data.get("kills", 0), 0.0))
-	boss_kills = int(save_num(data.get("boss_kills", 0), 0.0))
+	# R07：负值钳 0（L 系列判型族登记遗留）——手改负 score/kills 破坏统计与排行榜
+	score = int(maxf(save_num(data.get("score", 0), 0.0), 0.0))
+	kills = int(maxf(save_num(data.get("kills", 0), 0.0), 0.0))
+	boss_kills = int(maxf(save_num(data.get("boss_kills", 0), 0.0), 0.0))
 	difficulty_multiplier = save_num(data.get("difficulty_multiplier", 1.0), 1.0)
 	buffs.clear()
 	var saved_buffs: Variant = data.get("buffs", {})

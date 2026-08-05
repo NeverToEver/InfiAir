@@ -663,7 +663,13 @@ func fuel_regen_rate() -> float:
 
 
 func _physics_process(delta: float) -> void:
-	if _dead or _input_locked:
+	if _dead:
+		return
+	if _input_locked:
+		# R07：锁输入期（母舰召唤演出/返航过场）关闭弹反盾物理判定——原实现整体早退
+		# 使 monitoring 停留在锁定前值，锁定恰逢 ACTIVE 期则盾全程被动生效
+		if _parry_shield != null and _parry_shield.monitoring:
+			_parry_shield.monitoring = false
 		return
 	# 入场动画接管移动/输入（开场/继续出击后），无敌照常倒计时但不闪烁
 	if _entry_phase != 0:
@@ -1004,7 +1010,7 @@ func _on_graze_entered(area: Area2D) -> void:
 	# 仅受击盒内生成/高速穿帧等边界情形在此拦截。
 	# 注意 area_entered 信号延迟 flush：回调执行时弹可能已被清弹回收（位置移到池位），
 	# 上面的 is_active 守卫已排除回收弹；仍在场的弹以 flush 时刻实时位置判定。
-	if global_position.distance_to(area.global_position) <= _hitbox_radius + 6.0 * GameState.world_scale:
+	if global_position.distance_to(area.global_position) <= _hitbox_radius + Bullet.COLLISION_RADIUS * GameState.world_scale:
 		return
 	if not b.try_graze():
 		return

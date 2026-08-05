@@ -26,8 +26,14 @@ func warp(factor: float) -> void:
 
 func _ready() -> void:
 	z_index = -10
-	FAR_COUNT = GameState.cfg("effects.starfield.far_count", FAR_COUNT)
-	NEAR_COUNT = GameState.cfg("effects.starfield.near_count", NEAR_COUNT)
+	# R07：判型 + 非负钳制（L 系列判型族登记遗留）——字符串/负数手改配置不崩、
+	# 不做负尺寸 resize
+	var fc: Variant = GameState.cfg("effects.starfield.far_count", FAR_COUNT)
+	if fc is int and not fc is bool and fc >= 0:
+		FAR_COUNT = fc
+	var nc: Variant = GameState.cfg("effects.starfield.near_count", NEAR_COUNT)
+	if nc is int and not nc is bool and nc >= 0:
+		NEAR_COUNT = nc
 	FAR_SPEED = GameState.cfg("effects.starfield.far_speed", FAR_SPEED)
 	NEAR_SPEED = GameState.cfg("effects.starfield.near_speed", NEAR_SPEED)
 	var rng := RandomNumberGenerator.new()

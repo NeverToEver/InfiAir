@@ -48,7 +48,14 @@ func _init(params: Dictionary = {}) -> void:
 				"hover_speed_scale",
 			]
 		):
-			set(k, params[k])
+			if k == "freqs" or k == "phases":
+				# R07：Q29 入库后数组长度校验——json 给短数组时 noise/aggressive 的
+				# _freqs[2]/_phases[2] 运行时越界崩溃（与 Q02 hp_mults 同族）；坏值回退默认
+				var arr: Variant = params[k]
+				if arr is Array and arr.size() >= 3:
+					set(k, arr)
+			else:
+				set(k, params[k])
 
 
 func update(_delta: float, _enemy: Enemy, _ctx: Dictionary) -> void:

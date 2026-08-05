@@ -112,8 +112,8 @@ var SNIPER_BULLET_SPEED := 650.0
 var CROSS_BULLET_SPEED := 260.0
 ## 4 型「月蚀」ring_burst 环弹攻击参数（2026-08-04；默认值与 balance.json 双写）
 ## 2026-08-05 Q01：难度分档为绝对值（counts.ring_burst = [10,12,14]，§5.6），
-## RING_BURST_COUNT 仅作 json 缺键时 `_count_delta` 回退外的基准（攻击侧不再叠加）
-var RING_BURST_COUNT := 12
+## R07（2026-08-05 独立审计）：RING_BURST_COUNT 与 json 键 boss.ring_burst.count
+## 删除——Q01 后无任何消费方（弹数全走 _count_delta 回退表），死数据
 var RING_BURST_SPEED := 340.0
 var BULLET_DAMAGE_RING := 14
 ## 阶段阈值：P2 = 70%（新增），ENRAGE = 30%（沿用原作）
@@ -324,7 +324,9 @@ func setup(p_difficulty: float, p_type: int) -> void:
 	var hp_mults_valid: bool = hp_mults_raw is Array and hp_mults_raw.size() >= 4
 	if hp_mults_valid:
 		for v: Variant in hp_mults_raw:
-			if not (v is int or v is float):
+			# R07：正值域校验（L 系列判型族登记遗留）——0/负倍率经 float() 后
+			# max_hp≤0 → take_damage 首行早退 → Boss 出生即免疫伤害（与 Q02 同根因）
+			if v is bool or not (v is int or v is float) or float(v) <= 0.0:
 				hp_mults_valid = false
 				break
 	var hp_mults: Array = hp_mults_raw if hp_mults_valid else [1.3, 0.7, 1.6, 1.2]
@@ -557,40 +559,40 @@ func _ready() -> void:
 	WALL_DAMAGE = GameState.cfg("boss.phases.attacks.bullet_wall.damage", WALL_DAMAGE)
 	WALL_ARC_DEG = GameState.cfg("boss.phases.attacks.bullet_wall.arc_deg", WALL_ARC_DEG)
 	# 差异化狂暴参数（boss.enrage.type_*）
-	E1_RING_INTERVAL = GameState.cfg("boss.enrage.type_1.ring_interval", E1_RING_INTERVAL)
+	# R07：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
+	E1_RING_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_1.ring_interval", E1_RING_INTERVAL)), 0.05)
 	E1_RING_COUNT = GameState.cfg("boss.enrage.type_1.ring_count", E1_RING_COUNT)
 	E1_RING_SPEED = GameState.cfg("boss.enrage.type_1.ring_speed", E1_RING_SPEED)
 	E1_RING_PRECESSION_DEG = GameState.cfg("boss.enrage.type_1.ring_precession_deg", E1_RING_PRECESSION_DEG)
-	E1_SALVO_CHARGE = GameState.cfg("boss.enrage.type_1.salvo_charge", E1_SALVO_CHARGE)
+	E1_SALVO_CHARGE = maxf(float(GameState.cfg("boss.enrage.type_1.salvo_charge", E1_SALVO_CHARGE)), 0.05)
 	E1_SALVO_COUNT = GameState.cfg("boss.enrage.type_1.salvo_count", E1_SALVO_COUNT)
 	E1_SALVO_SPEED = GameState.cfg("boss.enrage.type_1.salvo_speed", E1_SALVO_SPEED)
 	E1_SALVO_DAMAGE = GameState.cfg("boss.enrage.type_1.salvo_damage", E1_SALVO_DAMAGE)
 	E2_POINT_COUNT = GameState.cfg("boss.enrage.type_2.point_count", E2_POINT_COUNT)
-	E2_POINT_INTERVAL = GameState.cfg("boss.enrage.type_2.point_interval", E2_POINT_INTERVAL)
+	E2_POINT_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_2.point_interval", E2_POINT_INTERVAL)), 0.05)
 	E2_AIM = GameState.cfg("boss.enrage.type_2.aim", E2_AIM)
 	E2_SNIPER_SPEED = GameState.cfg("boss.enrage.type_2.sniper_speed", E2_SNIPER_SPEED)
 	E2_SNIPER_DAMAGE = GameState.cfg("boss.enrage.type_2.sniper_damage", E2_SNIPER_DAMAGE)
 	E2_RELEASE_RING_COUNT = GameState.cfg("boss.enrage.type_2.release_ring_count", E2_RELEASE_RING_COUNT)
 	E2_RELEASE_RING_SPEED = GameState.cfg("boss.enrage.type_2.release_ring_speed", E2_RELEASE_RING_SPEED)
-	E3_SUMMON_INTERVAL = GameState.cfg("boss.enrage.type_3.summon_interval", E3_SUMMON_INTERVAL)
+	E3_SUMMON_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_3.summon_interval", E3_SUMMON_INTERVAL)), 0.05)
 	# G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
 	_summon_interval = float(GameState.cfg("boss.phases.type3.summon_interval", _summon_interval))
 	_summon_timer = _summon_interval
 	E3_SUMMON_WAVES = GameState.cfg("boss.enrage.type_3.summon_waves", E3_SUMMON_WAVES)
 	E3_SUMMON_COUNT = GameState.cfg("boss.enrage.type_3.summon_count", E3_SUMMON_COUNT)
-	E3_RING_INTERVAL = GameState.cfg("boss.enrage.type_3.ring_interval", E3_RING_INTERVAL)
+	E3_RING_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_3.ring_interval", E3_RING_INTERVAL)), 0.05)
 	E3_RING_COUNT = GameState.cfg("boss.enrage.type_3.ring_count", E3_RING_COUNT)
 	E3_RING_SPEED = GameState.cfg("boss.enrage.type_3.ring_speed", E3_RING_SPEED)
 	E3_RELEASE_RING_COUNT = GameState.cfg("boss.enrage.type_3.release_ring_count", E3_RELEASE_RING_COUNT)
 	E3_RELEASE_RING_SPEED = GameState.cfg("boss.enrage.type_3.release_ring_speed", E3_RELEASE_RING_SPEED)
 	# 4 型「月蚀」（2026-08-04）
-	RING_BURST_COUNT = int(GameState.cfg("boss.ring_burst.count", RING_BURST_COUNT))
 	RING_BURST_SPEED = float(GameState.cfg("boss.ring_burst.bullet_speed", RING_BURST_SPEED))
 	BULLET_DAMAGE_RING = int(GameState.cfg("boss.bullet_damage.ring", BULLET_DAMAGE_RING))
 	MOVE4_BOB_AMP = float(GameState.cfg("boss.movement.type4.bob_amp", MOVE4_BOB_AMP))
 	MOVE4_BOB_PERIOD = float(GameState.cfg("boss.movement.type4.bob_period", MOVE4_BOB_PERIOD))
 	E4_RING_COUNT = int(GameState.cfg("boss.enrage.type_4.ring_count", E4_RING_COUNT))
-	E4_RING_INTERVAL = float(GameState.cfg("boss.enrage.type_4.ring_interval", E4_RING_INTERVAL))
+	E4_RING_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_4.ring_interval", E4_RING_INTERVAL)), 0.05)
 	E4_RING_SPEED = float(GameState.cfg("boss.enrage.type_4.ring_speed", E4_RING_SPEED))
 	E4_PRECESSION_DEG = float(GameState.cfg("boss.enrage.type_4.precession_deg", E4_PRECESSION_DEG))
 	E4_RELEASE_RING_COUNT = int(GameState.cfg("boss.enrage.type_4.release_ring_count", E4_RELEASE_RING_COUNT))
@@ -1011,6 +1013,7 @@ func _show_escape_warning() -> void:
 ## 50s 未被击杀：逃跑（无 add_boss_kill / 加分 / 难度提升 / 轮换推进）
 func _begin_escape() -> void:
 	_abort_enrage_sequence()  # 序列中断：解血锁 + 复位减速 + 清 telegraph
+	_attacks.cancel_all()  # R07：常规攻击中断（瞄准线/蓄力/齐射计时/拖弹点），防逃跑期残留攻击继续结算
 	_escaping = true
 	is_escaped = true
 	_escape_speed = ESCAPE_START_SPEED

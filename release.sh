@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # InfiAir 发布构建：资源导入 → 导出 Linux/Windows → 打包（含安装/卸载脚本）
 # 用法：./release.sh           输出 builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>
-# 环境变量：VERSION（默认 3.26）、GODOT（默认 ~/.local/bin/godot，回退 PATH）
+# 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH）
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# R07：版本号自动读取 project.godot（L 系列工具链登记遗留）——本地跑 release.sh 忘传
+# VERSION 不再产出与项目版本不符的包名（sed 取不到时回退 3.26）
+VERSION="${VERSION:-$(sed -n 's/^config\/version="\([^"]*\)"/\1/p' project.godot)}"
 VERSION="${VERSION:-3.26}"
 GODOT="${GODOT:-$HOME/.local/bin/godot}"
 command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
@@ -23,6 +26,15 @@ mkdir -p "$BUILD_DIR/linux"
 echo "==> 导出 Windows Desktop"
 mkdir -p "$BUILD_DIR/windows"
 "$GODOT" --headless --path . --export-release "Windows Desktop" "$BUILD_DIR/windows/InfiAir.exe"
+
+# R07：打包工具前置检查（L 系列工具链登记遗留）——缺 tar/zip 时 set -e 中止但
+# 无诊断且 stage 残留；提前检查给出明确报错
+for tool in tar zip; do
+	command -v "$tool" >/dev/null 2>&1 || {
+		echo "[release] 缺少打包工具: $tool（macOS: brew install $tool）"
+		exit 1
+	}
+done
 
 echo "==> 打包"
 rm -rf "$STAGE_DIR"

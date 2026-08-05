@@ -160,8 +160,8 @@ func _handle_fan7(boss) -> void:
 
 
 ## 4 型「月蚀」ring_burst（2026-08-04）：360° 全圆环弹（难度分档弹数绝对值，counts.ring_burst）
-## 2026-08-05 Q01：counts.ring_burst 是每档弹数绝对值（§5.6）——直接消费档值，
-## 不再叠加基准 RING_BURST_COUNT（原实现 easy 22/medium 24/hard 26 ≈ 2× 设计密度）
+## 2026-08-05 Q01：counts.ring_burst 是每档弹数绝对值（§5.6）——直接消费档值
+##（原实现基准 12 上叠加增量 → easy 22/medium 24/hard 26 ≈ 2× 设计密度）
 func _handle_ring_burst(boss) -> void:
 	(
 		_fire
@@ -426,6 +426,8 @@ func _cancel_sweep() -> void:
 
 ## 编队齐射（三型 P2）：召唤 VOLLEY_COUNT 小怪列横队（meta 标记），0.8s 后齐射由 update 驱动
 func _start_minion_volley(boss) -> void:
+	if _volley_timer > 0.0:
+		return  # R07：进行中守卫（L 系列防御缺口登记遗留）——待发期间重复触发清空重召
 	_volley_minions.clear()
 	for i in int(boss.VOLLEY_COUNT):
 		var e: Enemy = boss.spawn_minion_at(

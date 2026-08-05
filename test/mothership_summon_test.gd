@@ -81,7 +81,9 @@ func _ready() -> void:
 	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场：到位后自动对接")
 	_check(ms.scale.is_equal_approx(Vector2.ONE), "穿梭入场：到位缩放收敛为 1")
 	_check(ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0, "穿梭入场：停驻点收敛")
-	_check(gate == null or not is_instance_valid(gate) or gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
+	# R07：拆 OR 弱断言（L 系列测试登记遗留）——原三重 OR（null/失效/CLOSING 任一即过）
+	# 可空过；gate 已在上方断言非空，此处直接验证状态
+	_check(gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
 	_check(tgt.summon_slow_timer() > 0.0, "减速带：敌机被施加短时减速")
 
 	# ---------- 4. DOCKING 火力掩护 + 回收进保护舱 ----------

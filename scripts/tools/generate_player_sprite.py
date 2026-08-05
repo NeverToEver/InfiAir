@@ -18,6 +18,8 @@
 用法：python3 scripts/tools/generate_player_sprite.py
 """
 
+import os
+
 from PIL import Image, ImageDraw, ImageFilter
 
 S = 4  # 超采样抗锯齿
@@ -234,7 +236,12 @@ def player_ship() -> Ship:
 
 
 def main() -> None:
-    player_ship().finish("assets/sprites/player_ship.png")
+    # R07（2026-08-05 独立审计）：输出路径锚定脚本位置（同 generate_audio 口径），
+    # 不再依赖调用时 cwd——非仓库根运行不会在别处落盘或崩溃
+    out = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites", "player_ship.png")
+    )
+    player_ship().finish(out)
 
 
 if __name__ == "__main__":

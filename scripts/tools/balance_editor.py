@@ -273,7 +273,13 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, KeyError) as e:
             self._send(400, f"保存失败：JSON 解析错误 {e}")
             return
-        current = json.loads(BALANCE.read_text(encoding="utf-8"))
+        try:
+            current = json.loads(BALANCE.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as e:
+            # R07：读侧裸异常修复（L 系列工具链登记遗留）——balance.json 损坏时
+            # 原实现裸 traceback 500，编辑器无法给出可读诊断
+            self._send(400, f"保存失败：读取 balance.json 失败（文件损坏？）{e}")
+            return
         errors = _check_shape(payload, current)
         if errors:
             self._send(400, "保存失败：结构/类型与现文件不一致\n" + "\n".join(errors[:10]))

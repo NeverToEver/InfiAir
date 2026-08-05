@@ -1,8 +1,10 @@
 extends Node
-## HUD 布局巡检截图：常态（2 个 buff）与极端（全 16 种 buff 满层）两种形态，
+## HUD 布局巡检截图：常态（2 个 buff）与极端（已解锁 buff 满层：BUFF_POOL_SIZE=19
+## 池中当前 15 种 distinct 加满，R07 注释修正）两种形态，
 ## 每屏截图存 /tmp/hud_<name>.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ##   godot --path . res://test/hud_capture.tscn
-## 结束恢复现场：删除测试产生的存档，profile 原始值还原落盘。
+## 结束恢复现场：删除测试产生的存档，profile 按备份内容还原落盘（R07：注释修正——
+## 原「原始值还原」措辞失实，实际为删除测试存档 + save_profile 落盘当前值）。
 
 const SETTLE_SECONDS := 0.6  # 等重建/淡入动效播完（真实时间）
 
@@ -29,7 +31,7 @@ func _ready() -> void:
 	await _settle()
 	_shot("normal")
 
-	# 2. 极端：全 16 种 buff，叠层拉满（验证图标坞密度与分角隔离）
+	# 2. 极端：全部已解锁 buff 叠层拉满（BUFF_POOL_SIZE=19 池中 15 种 distinct，R07 修正）
 	for i in 3:
 		GameState.add_buff(&"power_shot")  # 共 5 层
 	for i in 4:
@@ -55,7 +57,7 @@ func _ready() -> void:
 	await get_tree().create_timer(3.4).timeout
 	_shot("stress")
 
-	# 3. L 展开 buff 滚动栏（全 16 种明细行）
+	# 3. L 展开 buff 滚动栏（已解锁 15 种 distinct 明细行，R07 修正）
 	get_node("Main/HUD").toggle_buff_panel()
 	await _settle()
 	_shot("panel")

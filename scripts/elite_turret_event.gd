@@ -116,7 +116,11 @@ func _ready() -> void:
 		FIRE_INTERVAL = Vector2(float(fi[0]), float(fi[1]))
 	else:
 		FIRE_INTERVAL = Vector2(FIRE_INTERVAL.x, FIRE_INTERVAL.y)
-	WEAK_LOCK = GameState.cfg("elite_turret_event.weak_lock", WEAK_LOCK)
+	# R07：WEAK_LOCK 判型（K14 同族延续）——非 Dictionary 时 :203 透传给
+	# turret.setup 的弱锁参数会在消费方崩溃，与 TURRET_COUNTS 同口径回退
+	var wl: Variant = GameState.cfg("elite_turret_event.weak_lock", WEAK_LOCK)
+	if wl is Dictionary:
+		WEAK_LOCK = wl
 	REWARD_SCORE = GameState.cfg("elite_turret_event.reward_score", REWARD_SCORE)
 	HOVER_Y = GameState.cfg("elite_turret_event.carrier.hover_y", HOVER_Y)
 	COOLDOWN = GameState.cfg("elite_turret_event.cooldown", COOLDOWN)
@@ -192,7 +196,8 @@ func abort() -> void:
 ## 航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）
 func _on_carrier_entered() -> void:
 	# Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
-	#（StrikeCarrier.SOCKETS 固定 5 槽；负数同样钳 0 防负循环）
+	#（StrikeCarrier.SOCKETS 固定 5 槽；R07：注释修正——负数经 clampi 钳 0，
+	# GDScript for 负整数本不迭代，「防负循环」表述失实，钳制仅为与上限对称）
 	var raw_total := int(TURRET_COUNTS.get(String(GameState.difficulty), 4))
 	_total = clampi(raw_total, 0, StrikeCarrier.SOCKETS.size())
 	# HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）

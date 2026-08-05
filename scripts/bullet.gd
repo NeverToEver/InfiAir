@@ -3,6 +3,10 @@ extends Area2D
 ## 直线子弹，玩家弹与敌弹共用此场景，通过 setup()/activate() 区分阵营。
 ## 正常产弹走 GameState.bullet_pool（对象池复用）；直接实例化（测试）走兼容路径。
 
+## R07（2026-08-05 独立审计）：碰撞半径唯一事实源——player.gd 擦弹环形带判定
+## （受击盒 + 弹半径）引用此常量，防两侧独立字面量双改风险（Q 系列 §7 待验证点 5）
+const COLLISION_RADIUS := 6.0
+
 var direction: Vector2 = Vector2.DOWN
 var speed: float = 900.0
 var damage: int = 1
@@ -137,7 +141,9 @@ func setup(
 	# H10（健壮性审核）：零方向弹回退 DOWN（对齐 G026 口径，防静止弹永驻场景）
 	if direction == Vector2.ZERO:
 		direction = Vector2.DOWN
-	speed = p_speed
+	# R07：零速钳制（L 系列判型族登记遗留）——0 速弹在视野内不位移不脱界，永驻场景；
+	# 测试直写字段的 0 速用例不受影响（绕过 setup）
+	speed = maxf(p_speed, 1.0)
 	# 敌方子弹伤害随对局进程 ramp（Boss 击杀难度乘数驱动，GameState.enemy_damage_ramp）
 	damage = p_damage if p_is_player else maxi(1, int(roundf(p_damage * GameState.enemy_damage_ramp())))
 	is_player_bullet = p_is_player
@@ -226,8 +232,8 @@ func _ready() -> void:
 	# 机制四：弹反倍率（player.parry.reflect_*）
 	REFLECT_SPEED_MULT = float(GameState.cfg("player.parry.reflect_speed_mult", REFLECT_SPEED_MULT))
 	REFLECT_DAMAGE_MULT = float(GameState.cfg("player.parry.reflect_damage_mult", REFLECT_DAMAGE_MULT))
-	# 碰撞半径：设计值 6 × 全局缩放（幂等赋值；池化实例共享 shape 也只写同值）
-	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = 6.0 * GameState.world_scale
+	# 碰撞半径：设计值 × 全局缩放（幂等赋值；池化实例共享 shape 也只写同值）
+	(($CollisionShape2D as CollisionShape2D).shape as CircleShape2D).radius = COLLISION_RADIUS * GameState.world_scale
 	_apply_faction()
 
 

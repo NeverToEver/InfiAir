@@ -542,8 +542,11 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	_pending_telegraphs.append(telegraph)
 	# 预告线自毁（0.6s 超时 / clear_pending 释放）时解除登记，与 _pending_timers 的 _on_pending_timer_fired 对称
 	telegraph.tree_exited.connect(_on_telegraph_freed.bind(telegraph))
+	# R07：telegraph 时长判型 + 下限钳制（L 系列判型族登记遗留）——0/负值使
+	# 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认
+	var td: Variant = GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION)
 	_schedule(
-		GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION),
+		maxf(float(td) if td is float or td is int else SpawnTelegraph.DURATION, 0.01),
 		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special)
 	)
 

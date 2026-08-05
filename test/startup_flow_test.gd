@@ -82,9 +82,12 @@ func _restore_user_files() -> void:
 
 
 func _ready() -> void:
+	# R07（2026-08-05 独立审计）：Q23 修复顺序遗漏——delete_save() 原在快照之前执行，
+	# savegame.json 快照捕捉的是已删除状态，结尾还原后进行中存档仍缺失（开发者存档
+	# 被销毁）；备份必须捕获全部改动路径之前的原始状态
+	_backup_user_files()
 	GameState.logout_user()
 	GameState.delete_save()
-	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
 	_wipe_user_saves()
 	GameState.high_score = 0

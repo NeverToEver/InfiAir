@@ -644,7 +644,6 @@
 			"countdown_visible_from": 10
 		},
 		"ring_burst": {
-			"count": 12,
 			"bullet_speed": 340
 		}
 	},

@@ -16,7 +16,8 @@ enum BackAction {
 	TO_MAIN_MENU,  # 结算页 → 返回主界面
 	RESUME_GAME,  # 暂停中 → 继续游戏
 	OPEN_PAUSE,  # 战斗中 → 打开暂停（返回上一级）
-	CONFIRM_EXIT,  # 顶层（开始面板）→ 弹出全局退出确认
+	# R07（M07 落地，2026-08-05）：CONFIRM_EXIT 已删——决策表无任何状态返回该动作，
+	# 顶层退出确认由 welcome 场景自处理（EXIT_FLOW.md 同步）
 }
 
 @onready var _main: Node2D = get_parent()
@@ -90,9 +91,6 @@ func go_back() -> void:
 			_mark_handled()
 		BackAction.OPEN_PAUSE:
 			_pause_ui.open()
-			_mark_handled()
-		BackAction.CONFIRM_EXIT:
-			_exit_confirm.show_confirm(false)
 			_mark_handled()
 
 

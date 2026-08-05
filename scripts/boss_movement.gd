@@ -94,7 +94,7 @@ func _move_type2(delta: float, boss) -> void:
 ## 4 型「月蚀」（2026-08-04）：中心悬停微摆——不 strafe，纵向小振幅正弦（相位归零平滑衔接锚线）
 ## Q27（2026-08-05）：正弦峰值速度（AMP×TAU/PERIOD ≈ 78.5px/s）> 原 MOVE4_SPEED 40 时，
 ## move_toward 速度上限把振幅压到 ±15px 且波形低通失真——与 _move_bob 同款直接绝对赋值
-## （战斗期独占 y，入场/逃跑/狂暴序列均早退不干扰；MOVE4_SPEED 键已随修复移除）
+## （战斗与逃跑警告期独占 y，入场/逃跑/狂暴序列均早退不干扰；MOVE4_SPEED 键已随修复移除）
 func _move_type4(delta: float, boss) -> void:
 	_bob_phase += delta * TAU / float(boss.MOVE4_BOB_PERIOD)
 	boss.position.y = boss.fight_anchor_y() + float(boss.MOVE4_BOB_AMP) * Enemy.sin_fast(_bob_phase)

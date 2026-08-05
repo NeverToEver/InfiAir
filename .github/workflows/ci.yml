@@ -30,7 +30,7 @@ jobs:
 
       - name: GDScript lint (gdlint)
         run: |
-          python3 -m pip install --quiet gdtoolkit
+          python3 -m pip install --quiet gdtoolkit==4.5.0
           # test/ 纳入门禁（2026-08-03 L 系列盲区修复）：gdformat + gdlint 全量覆盖
           gdlint autoload/ scripts/ test/
           gdformat --check autoload/ scripts/ test/

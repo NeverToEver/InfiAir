@@ -13,6 +13,7 @@
 """
 
 import math
+import os
 
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -778,7 +779,9 @@ def turret() -> Ship:  # 小型六棱柱基座 + 单管晶体炮身（炮口朝�
 
 
 def main() -> None:
-    base = "assets/sprites/"
+    # R07（2026-08-05 独立审计）：输出路径锚定脚本位置（同 generate_audio 口径），
+    # 不再依赖调用时 cwd——非仓库根运行不会在别处落盘或崩溃
+    base = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites")) + os.sep
     ships = [
         (enemy_1, "enemy_ship_1.png", PALETTE_BRIGHT), (enemy_2, "enemy_ship_2.png", PALETTE_BRIGHT),
         (enemy_3, "enemy_ship_3.png", PALETTE_BRIGHT), (enemy_4, "enemy_ship_4.png", PALETTE_BRIGHT),

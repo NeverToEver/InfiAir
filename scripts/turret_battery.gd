@@ -3,7 +3,8 @@ extends Area2D
 ## 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位（docs/ELITE_TURRET_EVENT.md）。
 ## 弱锁定索敌：炮塔以限速转向玩家，开火朝向 = 当前朝向 + ±spread_deg 出膛散布；
 ## 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
-## 升起期间不可被攻击（monitoring=false）；被毁时爆炸 + 基座环熄灭（由事件编排处理）。
+## 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
+## 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
 
 signal died(turret: TurretBattery)
 
