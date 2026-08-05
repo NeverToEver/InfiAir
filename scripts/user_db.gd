@@ -32,7 +32,16 @@ func _ensure_loaded() -> void:
 		return
 	_loaded = true
 	var data := _save.load(USERS_PATH)
-	_db = data if data.size() > 0 else {"_users": {}, "_leaderboard": []}
+	# Q17（2026-08-05）：结构守卫——用户表非 Dictionary 时按空库重建
+	# （原实现直接沿用，users.has()/rec.get 在非 Dictionary 上运行时报错；
+	# 对齐 GameState 层元素级守卫口径，与损坏 JSON 隔离同语义）。
+	# 榜单键缺失/非 Array（旧数据或手改）单独补空，不连带丢弃有效用户表
+	if data.get("_users") is Dictionary:
+		_db = data
+		if not _db.get("_leaderboard") is Array:
+			_db["_leaderboard"] = []
+	else:
+		_db = {"_users": {}, "_leaderboard": []}
 
 
 func _save_db() -> bool:
@@ -82,8 +91,17 @@ func _hex_encode(bytes: PackedByteArray) -> String:
 
 func _hex_decode(hex: String) -> PackedByteArray:
 	var out := PackedByteArray()
+	# Q18（2026-08-05）：长度/白名单校验——奇数长度时 hex[i+1] 越界、非法字符 find 返回
+	# -1 会被 append 进 PackedByteArray（手改 salt/password 触发）；非法输入回退空盐
+	#（验密必然失败，杜绝异常值与越界）
+	if hex.length() % 2 != 0:
+		return out
 	for i in range(0, hex.length(), 2):
-		out.append(_HEX_DIGITS.find(hex[i]) << 4 | _HEX_DIGITS.find(hex[i + 1]))
+		var hi := _HEX_DIGITS.find(hex[i])
+		var lo := _HEX_DIGITS.find(hex[i + 1])
+		if hi < 0 or lo < 0:
+			return PackedByteArray()
+		out.append(hi << 4 | lo)
 	return out
 
 
@@ -284,17 +302,30 @@ func submit_score(name: String, score: int) -> int:
 
 func get_leaderboard() -> Array:
 	_ensure_loaded()
-	var board: Array = _db.get("_leaderboard", []).duplicate()
+	# Q20（2026-08-05）：条目判型——手改 users.json 的非 Dictionary 条目/非数字 score 跳过
+	#（原实现原样返回，渲染与排序时类型错误崩溃/字符串 score 静默转 0）
+	var board: Array = []
+	for entry: Variant in _db.get("_leaderboard", []):
+		if not (entry is Dictionary):
+			continue
+		var score: Variant = (entry as Dictionary).get("score", 0)
+		if not (score is int or score is float):
+			continue
+		board.append(entry)
 	_sort_board(board)
 	return board
 
 
 func _sort_board(board: Array) -> void:
 	board.sort_custom(
-		func(a: Dictionary, b: Dictionary) -> bool:
-			var sa := int(a.get("score", 0))
-			var sb := int(b.get("score", 0))
+		func(a: Variant, b: Variant) -> bool:
+			# Q20：排序回调防御（get_leaderboard 已过滤，submit_score 内部数组全合法——
+			# 此处兜底手改数据在排序时不再报类型错误）
+			if not (a is Dictionary and b is Dictionary):
+				return false
+			var sa := int((a as Dictionary).get("score", 0))
+			var sb := int((b as Dictionary).get("score", 0))
 			if sa != sb:
 				return sa > sb
-			return int(a.get("seq", 0)) < int(b.get("seq", 0))
+			return int((a as Dictionary).get("seq", 0)) < int((b as Dictionary).get("seq", 0))
 	)

@@ -115,15 +115,18 @@ func _ready() -> void:
 	station.position = Vector2(960.0, 540.0)
 	station.scale = Vector2.ONE * 2.0
 	bg_wrap.add_child(station)
+	# 慢扫描带（纯装饰；2026-08-05 P4：尺寸/行程改 viewport 可见区——原硬编码 1920×1080）
+	var viewport_size := get_viewport().get_visible_rect().size
+	var scan_h := 140.0
 	var slow_scan := ColorRect.new()
 	slow_scan.color = UITheme.PHANTOM_SCAN
 	slow_scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slow_scan.size = Vector2(1920.0, 140.0)
-	slow_scan.position = Vector2(0.0, -140.0)
+	slow_scan.size = Vector2(viewport_size.x, scan_h)
+	slow_scan.position = Vector2(0.0, -scan_h)
 	add_child(slow_scan)
 	var scan_tween := create_tween().set_loops()
-	scan_tween.tween_property(slow_scan, "position:y", 1080.0, 8.0).set_trans(Tween.TRANS_LINEAR)
-	scan_tween.tween_property(slow_scan, "position:y", -140.0, 0.0)
+	scan_tween.tween_property(slow_scan, "position:y", viewport_size.y, 8.0).set_trans(Tween.TRANS_LINEAR)
+	scan_tween.tween_property(slow_scan, "position:y", -scan_h, 0.0)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)

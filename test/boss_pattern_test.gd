@@ -443,6 +443,7 @@ func _ready() -> void:
 	_check(boss6e.E1_RING_COUNT == 10, "场景6：easy 狂暴环弹 12-2=10（实测 %d）" % boss6e.E1_RING_COUNT)
 	_check(boss6e.CANNON_SHOTS == 2, "场景6：easy 蓄力重炮 3-1=2 发（实测 %d）" % boss6e.CANNON_SHOTS)
 	_check(boss6e.attacks().fan_delta == -1 and boss6e.attacks().homing_delta == -1, "场景6：easy 扇形/追踪弹数 -1")
+	_check(boss6e.attacks().ring_delta == 10, "场景6：easy ring_burst 绝对值 10（Q01：原 22 发超标，实测 %d）" % boss6e.attacks().ring_delta)
 	var p2_interval_e: float = boss6e.patterns()["p2"][0]["interval"]
 	_check(absf(p2_interval_e - 2.4 * 1.15) < 0.01, "场景6：easy 开火间隔 ×1.15（实测 %.3f）" % p2_interval_e)
 	_check(absf(boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, "场景6：easy 弹速 ×0.9（实测 %.1f）" % boss6e.FAN_BULLET_SPEED)
@@ -456,6 +457,7 @@ func _ready() -> void:
 	_check(boss6h.E1_RING_COUNT == 14, "场景6：hard 狂暴环弹 12+2=14（实测 %d）" % boss6h.E1_RING_COUNT)
 	_check(boss6h.CANNON_SHOTS == 4, "场景6：hard 蓄力重炮 3+1=4 发（实测 %d）" % boss6h.CANNON_SHOTS)
 	_check(boss6h.attacks().fan_delta == 1 and boss6h.attacks().homing_delta == 1, "场景6：hard 扇形/追踪弹数 +1")
+	_check(boss6h.attacks().ring_delta == 14, "场景6：hard ring_burst 绝对值 14（Q01，实测 %d）" % boss6h.attacks().ring_delta)
 	var p2_interval_h: float = boss6h.patterns()["p2"][0]["interval"]
 	_check(absf(p2_interval_h - 2.4 * 0.85) < 0.01, "场景6：hard 开火间隔 ×0.85（实测 %.3f）" % p2_interval_h)
 	_check(absf(boss6h.FAN_BULLET_SPEED - 380.0 * 1.1) < 0.01, "场景6：hard 弹速 ×1.1（实测 %.1f）" % boss6h.FAN_BULLET_SPEED)
@@ -475,6 +477,7 @@ func _ready() -> void:
 	await _clear_field()
 	var boss7: Boss = await _spawn_test_boss(4)
 	_check(boss7 != null, "场景7：月蚀已生成")
+	_check(boss7.attacks().ring_delta == 12, "场景7：medium ring_burst 绝对值 12（Q01，实测 %d）" % boss7.attacks().ring_delta)
 	boss7.set_patterns({"p1": [{"attack": &"ring_burst", "waves": 1, "interval": 0.5}], "p2": []})
 	boss7.set_fight_phase(Boss.FightPhase.P1)
 	boss7.set_pattern_index(0)

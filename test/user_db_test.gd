@@ -127,6 +127,57 @@ func _ready() -> void:
 	_check(not _db.user_exists("alice"), "损坏库不残留旧用户")
 	_check(_db.get_leaderboard().is_empty(), "损坏库不残留旧榜单")
 
+	# 11. Q17/Q18/Q20（2026-08-05）：结构守卫 / hex 校验 / 榜单判型
+	_cleanup()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(_db.create_user("alice", "s3cret"), "Q17：重建后注册 alice")
+	_check(_db.submit_score("alice", 100) == 1, "Q17：提交榜单条目")
+	# 用户表非 Dictionary → 空库重建不崩溃（原 users.has() 运行时错误）
+	var q17_fh := FileAccess.open("user://users.json", FileAccess.WRITE)
+	q17_fh.store_string(JSON.stringify({"_users": "not-a-dict", "_leaderboard": [1, 2]}))
+	q17_fh.close()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(not _db.user_exists("alice"), "Q17：用户表非 Dictionary → 空库重建（不崩溃）")
+	_check(_db.get_leaderboard().is_empty(), "Q17：非法榜单结构重建为空")
+	_check(_db.create_user("bob", "pass123"), "Q17：重建后可注册")
+	# 榜单条目判型：非 Dictionary 条目/字符串 score 跳过（原渲染与排序崩溃/静默转 0）
+	var q20_fh := FileAccess.open("user://users.json", FileAccess.WRITE)
+	(
+		q20_fh
+		. store_string(
+			(
+				JSON
+				. stringify(
+					{
+						"_users": {"bob": {"last_login_order": 0}},
+						"_leaderboard":
+						[{"player_name": "bob", "score": 50, "seq": 1}, "junk", {"player_name": "bad", "score": "100", "seq": 2}],
+					}
+				)
+			)
+		)
+	)
+	q20_fh.close()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	var q20_board := _db.get_leaderboard()
+	_check(q20_board.size() == 1 and int(q20_board[0]["score"]) == 50, "Q20：非 Dictionary/字符串 score 条目被过滤（保留 1 条）")
+	# Q18：手改奇数长度/非法 hex salt → 验密安全失败（原 hex[i+1] 越界 / -1 append 崩溃）
+	var q18_fh := FileAccess.open("user://users.json", FileAccess.WRITE)
+	q18_fh.store_string(JSON.stringify({"_users": {"bob": {"password": "00", "salt": "abc", "iterations": 1000, "last_login_order": 0}}}))
+	q18_fh.close()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(not _db.verify_user("bob", "pass123"), "Q18：奇数长度 salt 验密安全失败（无越界崩溃）")
+	q18_fh = FileAccess.open("user://users.json", FileAccess.WRITE)
+	q18_fh.store_string(JSON.stringify({"_users": {"bob": {"password": "zz", "salt": "zz", "iterations": 1000, "last_login_order": 0}}}))
+	q18_fh.close()
+	_db = UserDB.new()
+	_db.iterations = 1000
+	_check(not _db.verify_user("bob", "pass123"), "Q18：非法 hex 盐/密文验密安全失败（不 append -1）")
+
 	print("USER DB TEST DONE, failures = ", _failures)
 	_cleanup()
 	get_tree().quit(_failures)

@@ -1,6 +1,8 @@
 extends Node
 ## 全局状态与信号总线：分数、击杀、生命、难度乘数、已选 buff。
 
+## 得分总量上限（P4 防御：手改 difficulty score 倍率防 int64 溢出；正常对局远达不到）
+const SCORE_CAP := 1_000_000_000
 signal score_changed(new_score: int)
 signal health_changed(new_health: float)
 signal difficulty_changed(new_multiplier: float)
@@ -121,6 +123,10 @@ func has_balance() -> bool:
 func reload_balance() -> void:
 	_load_balance()
 	_apply_balance()
+	# P4（2026-08-05）：事件管理器配置联动重载——原实现只刷平衡缓存，事件触发策略/
+	# fog 配置停留旧值，诊断/测试注入路径与运行时不一致
+	if events != null and is_instance_valid(events):
+		events.reload_config()
 
 
 ## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。
@@ -224,23 +230,24 @@ const RP_RECHARGE_COST := 2
 # 初始手牌 = MISSION_DEFS 三项（保持既有 id 语义）；刷新（refresh_missions）从
 # MISSION_POOL 无放回重抽 3 个槽位。kind 决定进度来源（kill=击杀数 / survive=存活
 # 秒 / boss=Boss 击杀数），goal 为各自目标——任务轮换后 id 变化，进度源按 kind 分发。
+# 显示文本全走 tr()（翻译表 TASK_* 键），此处不保留 name/desc（2026-08-05 P4 去双源）。
 const MISSION_DEFS: Array[Dictionary] = [
-	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5, "kind": &"kill"},
-	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180, "kind": &"survive"},
-	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1, "kind": &"boss"},
+	{"id": &"kill_5", "goal": 5, "kind": &"kill"},
+	{"id": &"survive_180", "goal": 180, "kind": &"survive"},
+	{"id": &"boss_1", "goal": 1, "kind": &"boss"},
 ]
 
 ## 基地任务池（TaskPool 数据源，任务轮换随机抽取）：9 项 = 3 类 × 3 档目标
 const MISSION_POOL: Array[Dictionary] = [
-	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5, "kind": &"kill"},
-	{"id": &"kill_15", "name": "肃清行动", "desc": "击杀 15 个敌人", "goal": 15, "kind": &"kill"},
-	{"id": &"kill_30", "name": "铁雨犁地", "desc": "击杀 30 个敌人", "goal": 30, "kind": &"kill"},
-	{"id": &"survive_60", "name": "坚守六十秒", "desc": "存活 60 秒", "goal": 60, "kind": &"survive"},
-	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180, "kind": &"survive"},
-	{"id": &"survive_300", "name": "无声防线", "desc": "存活 300 秒", "goal": 300, "kind": &"survive"},
-	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1, "kind": &"boss"},
-	{"id": &"boss_2", "name": "双王陨落", "desc": "击杀 2 个 Boss", "goal": 2, "kind": &"boss"},
-	{"id": &"boss_3", "name": "弑神者", "desc": "击杀 3 个 Boss", "goal": 3, "kind": &"boss"},
+	{"id": &"kill_5", "goal": 5, "kind": &"kill"},
+	{"id": &"kill_15", "goal": 15, "kind": &"kill"},
+	{"id": &"kill_30", "goal": 30, "kind": &"kill"},
+	{"id": &"survive_60", "goal": 60, "kind": &"survive"},
+	{"id": &"survive_180", "goal": 180, "kind": &"survive"},
+	{"id": &"survive_300", "goal": 300, "kind": &"survive"},
+	{"id": &"boss_1", "goal": 1, "kind": &"boss"},
+	{"id": &"boss_2", "goal": 2, "kind": &"boss"},
+	{"id": &"boss_3", "goal": 3, "kind": &"boss"},
 ]
 ## 在场任务槽位数（刷新后重抽的目标数量）
 const MISSION_SLOTS := 3
@@ -579,7 +586,8 @@ func reset_run() -> void:
 
 func add_score(points: int) -> void:
 	# 难度分数倍率统一在此乘算（easy ×1 / medium ×2 / hard ×3，配置表里的分值不变）
-	score += points * score_multiplier()
+	# P4（2026-08-05）：得分总量钳制——手改配置 score 倍率极大时 int64 溢出（1e308 级）
+	score = mini(score + points * score_multiplier(), SCORE_CAP)
 	score_changed.emit(score)
 	if score >= _next_milestone:
 		_milestone_count += 1
@@ -1242,13 +1250,15 @@ func _set_mission_progress(id: StringName, value: int) -> void:
 	if not missions.has(id):
 		return
 	var m: Dictionary = missions[id]
+	# P4（2026-08-05）：进度负值钳 0（防御；正常路径 value 恒 ≥0，手改存档/异常注入不产生负进度）
+	var clamped := maxi(value, 0)
 	# P0-3：survive 类每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
-	if int(m["progress"]) == value:
+	if int(m["progress"]) == clamped:
 		return
 	var goal := int(m.get("goal", 0))
 	var was_done: bool = int(m["progress"]) >= goal
-	m["progress"] = value
-	if not was_done and value >= goal:
+	m["progress"] = clamped
+	if not was_done and clamped >= goal:
 		mission_completed.emit(id)
 
 
@@ -1424,6 +1434,20 @@ func _maybe_migrate_legacy_profile() -> void:
 		var parsed := _save_manager.load(PROFILE_PATH)
 		if not parsed.is_empty():
 			_pending_legacy_profile = parsed
+
+
+## Q25（2026-08-05）：旧 profile 迁移缓存查询/触发/清空公开化（A7 私有访问残留收敛，
+## 测试经公开接口；生产路径不变——create_user 消费后自清）
+func legacy_migration_pending() -> bool:
+	return not _pending_legacy_profile.is_empty()
+
+
+func scan_legacy_migration() -> void:
+	_maybe_migrate_legacy_profile()
+
+
+func clear_legacy_migration() -> void:
+	_pending_legacy_profile = {}
 
 
 ## 注册用户（转发 user_db.create_user）；成功后合并旧 profile 迁移数据并删除 profile.json（B5）
@@ -1697,6 +1721,9 @@ func _apply_settings_dict(data: Dictionary) -> void:
 	var saved_difficulty := StringName(data.get("difficulty", ""))
 	if DIFFICULTY_DEFS.has(saved_difficulty):
 		difficulty = saved_difficulty
+		# Q04（2026-08-05）：存档/账户设置恢复难度后刷新被动回血缓存——
+		# 原实现仅 _apply_balance 与 set_difficulty 刷新，重启后 hard 玩家按 medium 回血
+		_refresh_regen_cache()
 	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
 	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
 	var saved_zoom := StringName(data.get("view_zoom", ""))
@@ -1766,6 +1793,24 @@ func record_score() -> bool:
 			save_profile()
 		return true
 	return false
+
+
+## Q06（2026-08-05）：一局对局统计落地（账户计划 Task 2 game_over_stats）——死亡结算调用。
+## 登录用户累计 total_kills/games_played；游客/未登录跳过（游客不写统计，B7-8）
+func record_game_over() -> void:
+	if current_user == "" or is_guest() or not _user_db.user_exists(current_user):
+		return
+	var data := _user_db.get_user_data(current_user)
+	(
+		_user_db
+		. update_user_data(
+			current_user,
+			{
+				"total_kills": int(data.get("total_kills", 0)) + kills,
+				"games_played": int(data.get("games_played", 0)) + 1,
+			}
+		)
+	)
 
 
 ## 提交本局分数入本地榜，返回名次（1-based；未上榜返回 0）。

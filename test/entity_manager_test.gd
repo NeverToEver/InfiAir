@@ -72,12 +72,12 @@ func _ready() -> void:
 	_check(visited.size() == 1 and visited[0] == e1, "场景3：for_each_enemy 谓词过滤（排除保留项）")
 	# 失效实例跳过：queue_free 一帧后注册表可能仍持有（帧末释放），先确认 for_each 不崩
 	var before := GameState.count_enemies()
+	_check(before >= 2, "场景3：清理前注册表 ≥2（P4：基准断言前置，原在清理后检查失去意义）")
 	var cleared := GameState.clear_enemies(func(e: Node) -> bool: return e.has_meta("keep"))
 	_check(cleared == 1, "场景3：clear_enemies 清除 1 个（保留 keep 项）")
 	await get_tree().process_frame
 	_check(GameState.count_enemies() == 1, "场景3：清除后注册表仅剩保留项")
 	_check(GameState.enemies_has(e2), "场景3：保留项 e2 仍在注册表")
-	_check(before > 0, "场景3：清理前注册表非空（基准断言）")
 	# 清理遗留：e2 释放（enemy._exit_tree 自动从池清单移除，幂等）
 	e2.queue_free()
 	await get_tree().process_frame

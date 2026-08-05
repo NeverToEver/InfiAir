@@ -37,6 +37,46 @@ func _wipe_user_files() -> void:
 	dir.list_dir_end()
 
 
+## Q23（2026-08-05）：开头备份、结尾还原用户文件——本地跑测试不再永久销毁开发者账户表
+## （L15 快照范式推广；原 _wipe_user_files 删档不还原）
+var _file_backups: Dictionary = {}
+
+
+func _backup_user_files() -> void:
+	_file_backups = {}
+	var files := [
+		"user://profile.json",
+		"user://profile.json.corrupt",
+		"user://savegame.json",
+		"user://savegame.json.corrupt",
+		"user://users.json",
+		"user://users.json.corrupt",
+	]
+	var dir := DirAccess.open("user://")
+	if dir != null:
+		dir.list_dir_begin()
+		var name := dir.get_next()
+		while name != "":
+			if name.begins_with("savegame_") or name.ends_with(".corrupt"):
+				files.append("user://" + name)
+			name = dir.get_next()
+		dir.list_dir_end()
+	for f in files:
+		var exists := FileAccess.file_exists(f)
+		_file_backups[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_user_files() -> void:
+	for f in _file_backups:
+		var b: Dictionary = _file_backups[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 func _reset_members() -> void:
 	GameState.high_score = 0
 	GameState.tutorial_done = false
@@ -51,11 +91,12 @@ func _reset_members() -> void:
 	GameState.mouse_lock = true
 	GameState.highscores.clear()
 	GameState.key_bindings.clear()
-	GameState._pending_legacy_profile = {}
+	GameState.clear_legacy_migration()  # Q25：公开接口复位（原直写 _pending_legacy_profile）
 
 
 func _ready() -> void:
 	GameState.logout_user()
+	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
 	_reset_members()
 	# 1. profile.json 退役迁移：存在旧档案且无用户 → 首个注册用户合并后删除
@@ -85,8 +126,8 @@ func _ready() -> void:
 		)
 	)
 	legacy.close()
-	GameState._maybe_migrate_legacy_profile()
-	_check(not GameState._pending_legacy_profile.is_empty(), "迁移缓存旧 profile")
+	GameState.scan_legacy_migration()  # Q25：公开触发（原直调 _maybe_migrate_legacy_profile）
+	_check(GameState.legacy_migration_pending(), "迁移缓存旧 profile")  # Q25：公开查询
 	_check(GameState.create_user("migrator", "pass123"), "迁移后注册用户成功")
 	_check(not FileAccess.file_exists("user://profile.json"), "迁移后 profile.json 删除")
 	var migrator_settings := GameState.get_user_settings("migrator")
@@ -94,7 +135,7 @@ func _ready() -> void:
 	_check(migrator_settings.get("locale") == "en", "迁移：locale 并入新用户设置")
 	_check(migrator_settings.get("tutorial_done") == true, "迁移：教程标记并入新用户设置")
 	_check(int(GameState.get_user_data("migrator").get("high_score", 0)) == 5000, "迁移：最高分并入新用户统计")
-	_check(GameState._pending_legacy_profile.is_empty(), "迁移后缓存清空")
+	_check(not GameState.legacy_migration_pending(), "迁移后缓存清空")
 
 	# 2. 登录会话：载入用户设置并即时生效（B7-11 locale）
 	_check(GameState.create_user("alice", "pass123"), "注册 alice")
@@ -165,8 +206,26 @@ func _ready() -> void:
 	_check(String(board[0]["player_name"]) == "Guest" and int(board[0]["score"]) == 150, "榜首为 Guest（150 高于 alice 100）")
 	_check(String(board[1]["player_name"]) == "alice", "次席为 alice")
 
+	# 5b. Q06（2026-08-05）：game_over_stats 死亡统计——登录用户累计，游客/未登录跳过
+	GameState.login_user("alice")
+	GameState.kills = 7
+	GameState.record_game_over()
+	GameState.kills = 3
+	GameState.record_game_over()
+	var stats := GameState.get_user_data("alice")
+	_check(int(stats.get("total_kills", 0)) == 10, "Q06：total_kills 两局累计 7+3=10（实测 %d）" % int(stats.get("total_kills", 0)))
+	_check(int(stats.get("games_played", 0)) == 2, "Q06：games_played 累计 2 局（实测 %d）" % int(stats.get("games_played", 0)))
+	GameState.login_guest()
+	GameState.kills = 99
+	GameState.record_game_over()
+	_check(int(GameState.get_user_data("alice").get("total_kills", 0)) == 10, "Q06：游客局不写统计")
+	GameState.logout_user()
+	GameState.record_game_over()
+	_check(int(GameState.get_user_data("alice").get("games_played", 0)) == 2, "Q06：未登录局不写统计")
+	GameState.kills = 0
+
 	print("USER SESSION TEST DONE, failures = ", _failures)
 	GameState.logout_user()
 	GameState.delete_save()
-	_wipe_user_files()
+	_restore_user_files()  # Q23：还原用户文件快照
 	get_tree().quit(_failures)

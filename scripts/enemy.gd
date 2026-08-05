@@ -297,7 +297,8 @@ func _on_buffs_changed() -> void:
 	_slow_field_on = GameState.buff_count(&"slow_field") > 0
 
 
-## A4a：按 strategy 构建移动策略实例（共享悬停常量从 balance 缓存值注入，行为逐字节等价）
+## A4a：按 strategy 构建移动策略实例（共享悬停常量从 balance 缓存值注入，行为逐字节等价；
+## Q29：策略专属参数从 enemies.move_strategies 读取，缺键/非 Dictionary 回退脚本默认值）
 func _make_strategy() -> EnemyMoveStrategy:
 	var params := {
 		"hover_bob_amp": HOVER_BOB_AMP,
@@ -309,6 +310,12 @@ func _make_strategy() -> EnemyMoveStrategy:
 		"spiral_radius": SPIRAL_RADIUS,
 		"aggressive_chase_speed": AGGR_CHASE_SPEED,
 	}
+	var ms_raw: Variant = GameState.cfg("enemies.move_strategies", {})
+	if ms_raw is Dictionary:
+		var strategy_cfg: Variant = (ms_raw as Dictionary).get(strategy, {})
+		if strategy_cfg is Dictionary:
+			for k in strategy_cfg:
+				params[k] = strategy_cfg[k]  # Q29：策略专属参数覆盖（sine/zigzag/dive/noise/aggressive）
 	match strategy:
 		&"sine":
 			return EnemyMoveStrategy.SineMove.new(params)
@@ -450,7 +457,13 @@ func _despawn() -> void:
 
 
 func _exit_tree() -> void:
-	GameState.unbind_enemy(self)  # 统一解绑：注销 + entity_unregistered（docs/ENTITY_MANAGER.md）
+	# Q19（2026-08-05）：池化 reparent 只注销注册表、不发 entity_unregistered——
+	# 原实现无条件 unbind_enemy 误发信号，而 reactivate 只 register 不发，
+	# 信号流不对称（ENTITY_MANAGER §4.2「池化路径不受影响」；无消费者但埋雷）
+	if _repooling:
+		GameState.unregister_enemy(self)
+	else:
+		GameState.unbind_enemy(self)  # 统一解绑：注销 + entity_unregistered（docs/ENTITY_MANAGER.md）
 	# L02（2026-08-03 审查）：buff 信号断开（C22 模式）；池化 reparent 复用由
 	# reactivate() 对称重连（_ready 只执行一次，断开后必须重连，见 reactivate 注释）
 	if GameState.buffs_changed.is_connected(_on_buffs_changed):

@@ -31,6 +31,7 @@ var _impact_point := Vector2.ZERO
 var _reticle: Node2D = null  # 瞄准具（3 脉冲环 + 十字线）
 var _reticle_rings: Array[Line2D] = []
 var _reticle_cross: Node2D = null
+var _unit_circle: PackedVector2Array = []  # P4：单位圆点集缓存（_layout_ring 帧内免重算三角）
 var _missile: Node2D = null  # 导弹容器（拖尾/弹体/辉光）
 var _missile_trail: Line2D = null
 var _flash: ColorRect = null
@@ -219,9 +220,12 @@ func _make_ring_line(radius: float, width: float, color: Color) -> Line2D:
 func _layout_ring(ring: Line2D, radius: float) -> void:
 	# C28：原地写点集元素（set_point_position 直写内部数组），不重建 PackedVector2Array、
 	# 不缩放节点（缩放会连带放大线宽）
+	# P4（2026-08-05）：单位圆点集缓存一次——原每帧重算 RING_POINTS 次常数 cos/sin
+	#（reticle/瞄准环多环叠加帧内数十次三角调用）
+	if _unit_circle.is_empty():
+		_unit_circle = _circle_points(1.0, RING_POINTS)
 	for i in RING_POINTS:
-		var a := TAU * float(i) / float(RING_POINTS)
-		ring.set_point_position(i, Vector2(cos(a), sin(a)) * radius)
+		ring.set_point_position(i, _unit_circle[i] * radius)
 
 
 func _circle_points(radius: float, count: int) -> PackedVector2Array:

@@ -1235,3 +1235,45 @@
 - 基线：`--headless --import` 0 error；smoke_test PASS exit=0；git 工作树干净（HEAD d6a1951）。
 - 主控复核：Q01（json counts 表 9 键增量 vs ring_burst 绝对值 + §5.6 原文 + 消费链三方印证）、Q02/Q03（M01 只改 setup 钳制，git 确认）、Q04（两条调用路径确认）、Q05（Python 逐行模拟 2000 局 99.3%）、Q07（_process 分支无 FOG_ENABLED）、Q08（重跑生成器 diff +228/-217 后恢复原文件）、Q09（官方文档确认 CanvasLayer.visible 不传播，黑屏推断证伪；Esc 断链成立）。
 - 待验证项（见报告 §7）：Q09 grab_focus 隐藏控件行为（是否升级手柄死锁）、遭遇自动触发对长跑测试暴露面、Q27 实机目检、smoke 精确相等断言、player/bullet 镜像字面量。
+
+## 修复登记（2026-08-05 全量修复批次，一次性落地）
+
+> 依据用户指示「goal 模式，最新报告，全量修复，仅提交」执行；五层门禁验证后提交。全部 30 项按报告修复指引落地，需设计拍板项按推荐方向执行（Q01 消费侧绝对值、Q27 绝对赋值、Q15 下限钳制、Q29/Q30 入库）。
+
+- **Q01 ✅**：`boss_attacks._handle_ring_burst` 改 `maxi(6, ring_delta)` 绝对值消费（§5.6 语义）；`boss.gd:668` 注释标注例外；补 easy=10/medium=12/hard=14 断言（boss_pattern_test 场景 6/7）。
+- **Q02 ✅**：hp_mults 校验 `>=4` + 回退数组扩 `[1.3,0.7,1.6,1.2]`；boss_phase_test 场景 5「3 元素 + type4」组合断言（max_hp>0 且模式表含 ring_burst）。
+- **Q03 ✅**：`_load_patterns` clampi 放开 1..4；场景 5 断言 type4 配置缺失回退脚本默认表。
+- **Q04 ✅**：`_apply_settings_dict` 恢复难度后补 `_refresh_regen_cache()`；difficulty_test Q04 断言（恢复 hard 后 rate=0.67/delay=5.0，修复前残留 medium 值）。
+- **Q05 ✅**：TaskPool 批次耗尽且可用候选未抽完时 `_refill()` 继续（drawn_ids 防跨批重复）；Python 模拟 0/10000 不足额 0 重复；base_task_refresh_test 场景 9 固定种子 20 轮槽位恒满断言。
+- **Q06 ✅**：GameState `record_game_over()`（登录用户累计 total_kills/games_played，游客/未登录跳过）+ game_over_ui 死亡结算调用；user_session_test 5b 断言。
+- **Q07 ✅**：`_process` fog 自动触发分支加 `FOG_ENABLED` 短路（进行中事件不受影响）；event_manager_test 场景 6 enabled=false 惰性 + true 对照组。
+- **Q08 ✅**：重跑 `gen_balance_map.py`（470 静态调用，+245/-233；event_manager 区块恢复、fog_event_manager 残留区块移除、type4.speed/sniper3 新键同步）。
+- **Q09 ✅**：welcome `_unhandled_input` ui_cancel 最前查 settings_ui 可见则 `back()`；welcome_flow_test 场景 12（设置页 Esc 关闭 + 主层恢复）；**附带修复**：测试场景 8/9 重建实例未释放残留 SettingsUI 抢占 group；输入框 Enter 被 LineEdit 消费致真实登录断链 → 补 `text_submitted` 连接（Q24 走真实管线后暴露）。
+- **Q10 ✅**：`set_run_active(true)` 重置 `_encounter_timers`（按 ENCOUNTER_CONFIG interval）+ `_fog_first_delay_left`/`_fog_check_timer`（Q12 同处）；event_manager_test 场景 6 断言计时回 interval。
+- **Q11 ✅**：`_show_msg` 代次计数（旧 SceneTreeTimer 回调仅最新代清空）；删除 `_msg_timer` 声明。
+- **Q12 ✅**：见 Q10（同处重置，测试断言 first_delay 回 FOG_FIRST_DELAY）。
+- **Q13 ✅**：end_active 打断后按 is_active 分流——同步回 IDLE 即发、异步记 `_encounter_end_pending` 由轮询在 FSM 回 IDLE 后统一补发（恒一次且不早发）；event_manager_test 场景 6 断言恰好 1 次。
+- **Q14 ✅**：`CRAFT_COUNTS` 判型回退（K14 同口径）。
+- **Q15 ✅**：`APPROACH_SPEED` 下限钳制 `maxf(...,1.0)`（防永驻 FORMATION_ENTER 冻结波次调度）。
+- **Q16 ✅**：`_total = clampi(raw, 0, StrikeCarrier.SOCKETS.size())`。
+- **Q17 ✅**：`_ensure_loaded` 结构守卫（用户表非 Dictionary 按空库重建；榜单键缺失单独补空不丢用户表）；user_db_test 场景 11 断言。
+- **Q18 ✅**：`_hex_decode` 奇数长度/非法字符回退空（不越界不 append -1）；user_db_test 场景 11 验密安全失败断言。
+- **Q19 ✅**：enemy `_exit_tree` 按 `_repooling` 分流（池化 reparent 只 unregister 不发 entity_unregistered，与 reactivate 信号流对称）。
+- **Q20 ✅**：welcome 榜单渲染条目级判型（非 Dictionary/字符串 score 跳过）+ user_db `get_leaderboard` 过滤 + `_sort_board` 回调兜底；user_db_test 场景 11 + welcome_flow 覆盖。
+- **Q21 ✅**：`_open_leaderboard` 末尾 `_leaderboard_close.grab_focus()`（welcome 唯一缺失聚焦的模态）。
+- **Q22 ⚪ 复核无误报**：`size_flags_vertical = SIZE_EXPAND_FILL` 自 2026-07-30（d51a03f）已具备，报告行号与当前代码一致但属性已在——登记为审计误报，无代码改动。
+- **Q23 ✅**：startup_flow/welcome_flow/user_session 三测试开头快照、结尾还原全部用户文件（含 savegame_* 与 .corrupt 枚举），本地跑测试不再销毁开发者账户表。
+- **Q24 ✅**：welcome_flow_test `_press_esc`/`_press_enter` 改 `Input.parse_input_event` 真实按键管线（esc_navigation_test 同款）；暴露并修复输入框 Enter 登录断链（见 Q09 附带）。
+- **Q25 ✅**：GameState 补 `legacy_migration_pending()/scan_legacy_migration()/clear_legacy_migration()` 公开接口，user_session_test 私有访问收敛。
+- **Q26 ✅**：ci.yml compile probe 裸 timeout 改包进 if 条件（`bash -e` 下非零不再中止步骤，::error::/tail 诊断生效；124 挂起统一按失败）。
+- **Q27 ✅**：`_move_type4` 改直接绝对赋值（与 `_move_bob` 同模式，正弦峰值 78.5px/s 不再被速度上限压缩）；MOVE4_SPEED 变量与 json 键移除。
+- **Q28 ✅**：DIFF_COUNT_DELTAS 补 `"ring_burst": [10,12,14]` 回退（json 缺键时绝对值分档仍成立）。
+- **Q29 ✅**：sine/zigzag/dive/noise/aggressive 策略参数全部入库 `enemies.move_strategies`（含噪声谐波/相移/悬停系数；缺键回退脚本默认=现值，行为逐字节等价），`_make_strategy` 注入。
+- **Q30 ✅**：`boss.phases.attacks.sniper3.burst_interval` 入库（0.12），`_burst_timer` 消费之。
+- **P4 已修**：注释失实 6 项（main.gd B2 残留、cfg 浅拷贝口径、TESTING.md 53→54、autoplay BUFF_POOL_SIZE 16→19、comm_overlay 淡出段注释、main.tscn 7 处中文初始文本改英文占位）；MISSION_DEFS/POOL 删内嵌中文 name/desc（显示全走 tr()）；orbital_strike 单位圆点集缓存（帧内免 96 次三角）；missions progress 负值钳 0；add_score 得分总量钳 `SCORE_CAP=1e9`（防配置 score 倍率 int64 溢出）；event_manager 全零权重均匀回退；ConfusionEvent 缺键降级改空转（信号与生命周期统一由编排器驱动）；`reload_balance` 联动 `events.reload_config()`；gen_balance_map.py 损坏 JSON 友好报错；release.yml 重复版本友好失败 + 版本同步提交推 main；event_manager_test 直写配置结尾还原；entity_manager_test 基准断言前置。
+- **P4 复核不改**：boss strafe_range `1920.0 - STRAFE_MAX_X` 为设计宽度常量（view_zoom_test 断言 large 档 hi = view.end.x − 300 固定边距，2026-08-05 复核后保留原语义仅补注释）；smoke `== +33` 精确断言（TESTING.md 已登记 flake 自愈基线）；welcome 下拉重建/set_joy_deadzone 遍历/sfx 覆盖重播/排行榜路径（性能观察，收益低保持现状）；delete_user 后 current_user 残留（报告已逐路径验证无幽灵路径）。
+
+## 修复验证（2026-08-05 批次）
+
+- 五层门禁：gdformat --check（全量 130 文件）+ gdlint（autoload/scripts/test）全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；smoke_test PASS；45 断言场景全量 0 FAIL（含改动相关定向：boss_pattern/boss_phase/boss_registry/boss_phase_transition/boss_enrage/difficulty/base_task_refresh/user_session/user_db/welcome_flow/startup_flow/event_manager/entity_manager/elite_turret_event/formation_strike_event/enemy_combat/pool_reuse/esc_navigation/view_zoom/fog_event）。
+- 测试过程中修复的测试自身缺陷：Q04 断言构造（set_difficulty 会写 profile，改直写档再恢复）；Q10 断言值（formation interval=40 非 44）；Q13 计数（GDScript lambda 捕获 int 为值拷贝，改数组承载）；Q09 残留实例（测试重建未释放）；Q24 输入框 Enter 被 LineEdit 消费（真实断链，补 text_submitted）。

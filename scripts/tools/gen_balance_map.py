@@ -13,6 +13,7 @@
 
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,7 +67,12 @@ def json_get(node: object, path: str) -> bool:
 
 
 def main() -> None:
-    balance = json.loads((ROOT / "data" / "balance.json").read_text(encoding="utf-8"))
+    try:
+        balance = json.loads((ROOT / "data" / "balance.json").read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        # P4（2026-08-05）：损坏/缺失 balance.json 时友好报错退出（原裸异常无上下文）
+        print(f"[gen_balance_map] ERROR: data/balance.json 读取或解析失败: {exc}")
+        sys.exit(1)
 
     static_calls: list[tuple[str, int, str, str]] = []  # file, line, key, default
     dynamic_prefixes: set[str] = set()

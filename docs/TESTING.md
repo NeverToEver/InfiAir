@@ -108,7 +108,7 @@ push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 53 scenes: 45 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.
+Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 54 scenes: 45 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. (2026-08-05 P4: 53→54)
 
 - Tests may touch `user://savegame.json`/`profile.json`: new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.

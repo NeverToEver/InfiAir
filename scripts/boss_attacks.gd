@@ -17,7 +17,7 @@ var world_scale: float = 1.0
 ## 难度分档弹数增量（Boss._apply_difficulty_scaling 写入，供 fan/homing 取用）
 var fan_delta: int = 0
 var homing_delta: int = 0
-var ring_delta: int = 0  # 4 型环弹难度分档（counts.ring_burst）
+var ring_delta: int = 0  # 4 型环弹难度分档绝对值（counts.ring_burst = [10,12,14]，Q01）
 
 # 狙击 telegraph（游击型）
 var _aim_line: Line2D = null
@@ -159,13 +159,15 @@ func _handle_fan7(boss) -> void:
 	_fire.fire_fan(boss, maxi(3, 7 + fan_delta), float(boss.FAN_BULLET_SPEED), int(boss.BULLET_DAMAGE_FAN))
 
 
-## 4 型「月蚀」ring_burst（2026-08-04）：360° 全圆环弹（难度分档弹数，counts.ring_burst）
+## 4 型「月蚀」ring_burst（2026-08-04）：360° 全圆环弹（难度分档弹数绝对值，counts.ring_burst）
+## 2026-08-05 Q01：counts.ring_burst 是每档弹数绝对值（§5.6）——直接消费档值，
+## 不再叠加基准 RING_BURST_COUNT（原实现 easy 22/medium 24/hard 26 ≈ 2× 设计密度）
 func _handle_ring_burst(boss) -> void:
 	(
 		_fire
 		. fire_ring(
 			boss,
-			maxi(6, int(boss.RING_BURST_COUNT) + ring_delta),
+			maxi(6, ring_delta),
 			float(boss.RING_BURST_SPEED),
 			int(boss.BULLET_DAMAGE_RING),
 			0.0,
@@ -236,7 +238,7 @@ func update(delta: float, boss) -> void:
 	if _burst_left > 0:
 		_burst_timer -= delta
 		if _burst_timer <= 0.0:
-			_burst_timer = 0.12
+			_burst_timer = float(boss.SNIPER_BURST_INTERVAL)  # Q30：三连发间隔入库（原硬编码 0.12）
 			_burst_left -= 1
 			_fire.fire_sniper(boss, _burst_dir, float(boss.SNIPER_BULLET_SPEED), int(boss.BULLET_DAMAGE_SNIPER))
 			if _burst_left == 0:

@@ -30,12 +30,12 @@ var _high_score_label: Label
 var _board_label: Label
 var _corrupt_label: Label
 var _leaderboard_overlay: CanvasLayer
+var _leaderboard_close: Button  # Q21：排行榜关闭按钮（打开时 grab_focus）
 var _leaderboard_rows: VBoxContainer
 ## 模态结构：{"layer": CanvasLayer, "ok": Button, "cancel": Button}
 var _guest_confirm: Dictionary = {}
 var _delete_confirm: Dictionary = {}
 var _exit_confirm: Dictionary = {}
-var _msg_timer: SceneTreeTimer
 
 
 func _ready() -> void:
@@ -142,6 +142,11 @@ func _build_login_panel() -> void:
 	_password_line.max_length = PASSWORD_MAX
 	# 密码框获得焦点时关闭下拉（B3）
 	_password_line.focus_entered.connect(_close_dropdown)
+	# Q24（2026-08-05）：输入框内按 Enter 直接提交（text_submitted）——原实现依赖
+	# _unhandled_input 的 ui_accept 分派，但焦点在输入框时 Enter 被 LineEdit 消费，
+	# 键盘玩家在输入框内按 Enter 永远无法登录（B7-13「输入框 = 登录路径」承诺未达成）
+	_username_line.text_submitted.connect(func(_t: String) -> void: _do_login())
+	_password_line.text_submitted.connect(func(_t: String) -> void: _do_login())
 
 
 func _make_line_edit(placeholder: String, secret: bool) -> LineEdit:
@@ -207,14 +212,22 @@ func _prefill_last_login() -> void:
 		_username_line.grab_focus()
 
 
+var _msg_gen := 0  # Q11：消息代次计数（防 2s 内连发消息被旧计时器回调清空）
+
+
 func _show_msg(text: String, is_error: bool) -> void:
 	_msg_label.text = text
 	_msg_label.add_theme_color_override("font_color", UITheme.DANGER if is_error else UITheme.ACCENT_GOLD)
-	# 2s 自动清除（B3 对齐 120 帧）
-	if _msg_timer != null and _msg_timer.time_left > 0.0:
-		_msg_timer.time_left = 0.0
-	_msg_timer = get_tree().create_timer(2.0)
-	_msg_timer.timeout.connect(func() -> void: _msg_label.text = "")
+	# 2s 自动清除（B3 对齐 120 帧）；Q11（2026-08-05）：SceneTreeTimer 无法取消、
+	# 旧回调无条件清空会让连发消息被清——代次计数只让最新一代的清空生效
+	_msg_gen += 1
+	var gen := _msg_gen
+	var timer := get_tree().create_timer(2.0)
+	timer.timeout.connect(
+		func() -> void:
+			if gen == _msg_gen:
+				_msg_label.text = ""
+	)
 
 
 # ---------------- 登录/注册/游客/删除 动作 ----------------
@@ -421,6 +434,7 @@ func _build_overlays() -> void:
 	close_button.custom_minimum_size = Vector2(200.0, 48.0)
 	close_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	close_button.pressed.connect(_close_leaderboard)
+	_leaderboard_close = close_button
 	(shell["content"] as VBoxContainer).add_child(close_button)
 	shell["content"].add_theme_constant_override("separation", 12)
 
@@ -478,23 +492,34 @@ func _open_leaderboard() -> void:
 	var board := GameState.get_leaderboard()
 	if board.is_empty():
 		_leaderboard_rows.add_child(UITheme.make_label(tr("LEAD_EMPTY"), UITheme.FONT_BODY, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER))
-	for i in mini(10, board.size()):
-		var entry := board[i] as Dictionary
+	# Q20（2026-08-05）：条目级判型——手改 users.json 的非 Dictionary 条目/字符串 score 跳过
+	# （原实现 as Dictionary 直接解引用崩溃、字符串 score 静默转 0）
+	var row_idx := 0
+	for entry: Variant in board:
+		if row_idx >= 10:
+			break
+		if not (entry is Dictionary):
+			continue
+		var score: Variant = (entry as Dictionary).get("score", 0)
+		if not (score is int or score is float):
+			continue
 		var color := UITheme.TEXT
-		if i == 0:
+		if row_idx == 0:
 			color = UITheme.ACCENT_GOLD
-		elif i == 1:
+		elif row_idx == 1:
 			color = UITheme.ACCENT
-		elif i == 2:
+		elif row_idx == 2:
 			color = UITheme.TEXT_DIM
 		var line := UITheme.make_label(
-			"%d. %s  %d" % [i + 1, String(entry.get("player_name", "")), int(entry.get("score", 0))],
+			"%d. %s  %d" % [row_idx + 1, String((entry as Dictionary).get("player_name", "")), int(score)],
 			UITheme.FONT_BODY,
 			color,
 			HORIZONTAL_ALIGNMENT_LEFT
 		)
 		_leaderboard_rows.add_child(line)
+		row_idx += 1
 	_leaderboard_overlay.visible = true
+	_leaderboard_close.grab_focus()  # Q21：模态打开聚焦关闭按钮（原无 grab_focus，焦点停留被遮挡按钮，Enter 重复打开）
 
 
 func _close_leaderboard() -> void:
@@ -513,6 +538,14 @@ func _on_exit_ok() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		# Q09（2026-08-05）：设置页打开时 Esc 关闭设置页——welcome 无 BackNavigator，
+		# 原实现 Esc 落到 welcome 的隐藏层 _exit_confirm（被 grab_focus 的不可见按钮），
+		# 设置页永远关不掉（与 EXIT_FLOW「settings back = Esc」矛盾）
+		var settings := get_tree().get_first_node_in_group("settings_ui")
+		if settings != null and settings.visible:
+			settings.back()
+			get_viewport().set_input_as_handled()
+			return
 		if _leaderboard_overlay.visible:
 			_close_leaderboard()
 		elif _guest_confirm["layer"].visible:

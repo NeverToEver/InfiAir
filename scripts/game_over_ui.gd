@@ -73,6 +73,7 @@ func _on_player_died() -> void:
 	# 死亡删档：防止一死档永存
 	GameState.delete_save()
 	var new_record := GameState.record_score()
+	GameState.record_game_over()  # Q06：登录用户累计 total_kills/games_played（游客跳过）
 	# P0-3：本局分数提交本地榜并显示名次与 Top5
 	_last_rank = GameState.submit_highscore(GameState.score)
 	_score_label.text = str(GameState.score)

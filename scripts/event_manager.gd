@@ -80,6 +80,9 @@ var _encounter_order: Array[StringName] = []
 var _encounter_timers: Dictionary = {}
 ## 遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）
 var _encounter_active: Dictionary = {}
+## Q13（2026-08-05）：遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
+## 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）
+var _encounter_end_pending: Dictionary = {}
 ## 当前激活的遭遇事件 id（无则 &""）
 var _encounter_active_id: StringName = &""
 ## spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，A5 依赖注入延续）
@@ -121,6 +124,12 @@ func _load_balance() -> void:
 	}
 
 
+## P4（2026-08-05）：配置重载公开入口（GameState.reload_balance 联动——原诊断/测试注入
+## 路径只刷平衡缓存，事件触发策略/fog 配置停留旧值，与运行时不一致）
+func reload_config() -> void:
+	_load_balance()
+
+
 # ---------------- 对外公开接口（A1 约定：测试/诊断经公开接口） ----------------
 
 
@@ -129,12 +138,21 @@ func is_run_active() -> bool:
 
 
 ## 对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）
+## Q10/Q12（2026-08-05）：激活时重置遭遇触发计时与 fog 开局保护/检查计时——
+## 原实现两者仅注册/接线时初始化且挂 autoload，死亡重开/重进 main 继承上局剩余值
+## （遭遇计时可 ≤0 → 新局开局即触发精英/编队；fog 每进程一次保护、第二局开局即触发）
 func set_run_active(active: bool) -> void:
 	if active == _run_active:
 		return
 	_run_active = active
 	if not active:
 		_end_fog()
+		return
+	for id in _encounter_timers:
+		var cfg: Dictionary = ENCOUNTER_CONFIG.get(id, {})
+		_encounter_timers[id] = maxf(float(cfg.get("interval", 45.0)), 0.1)
+	_fog_first_delay_left = FOG_FIRST_DELAY
+	_fog_check_timer = FOG_CHECK_INTERVAL
 
 
 ## 迷雾组接线（GameState 在迷雾门面 wire() 时调用；开启后本组触发/生命周期由本管理器接管）
@@ -256,8 +274,14 @@ func end_active(p_group: StringName) -> void:
 		if ev != null and is_instance_valid(ev) and ev.has_method("abort"):
 			ev.abort()
 		_encounter_active_id = &""
-		_encounter_active[id] = false
-		event_ended.emit(id)
+		# Q13（2026-08-05）：event_ended 统一由轮询在 FSM 回 IDLE 后发——
+		# 原实现此处即发 + 轮询再发 = 双发且第二次发在事件仍活跃时；
+		# 同步回 IDLE 则本处补发，异步则记 pending 由轮询补发
+		var still_active: bool = ev != null and is_instance_valid(ev) and (ev.has_method("is_active") and ev.is_active())
+		if still_active:
+			_encounter_end_pending[id] = true
+		else:
+			event_ended.emit(id)
 
 
 ## 全部事件终止（返航/死亡路径：迷雾清除 + 遭遇打断）
@@ -280,6 +304,21 @@ func set_first_delay_left(seconds: float) -> void:
 	_fog_first_delay_left = seconds
 
 
+## 测试/诊断：fog 开局保护剩余（Q12 断言用）
+func first_delay_left() -> float:
+	return _fog_first_delay_left
+
+
+## 测试/诊断：直接设定 fog 检查计时剩余（压缩检查周期，确定性测试）
+func set_check_timer_left(seconds: float) -> void:
+	_fog_check_timer = maxf(seconds, 0.0)
+
+
+## 测试/诊断：遭遇事件触发计时剩余（Q10 断言用）
+func encounter_timer_remaining(p_id: StringName) -> float:
+	return float(_encounter_timers.get(p_id, 0.0))
+
+
 ## 测试/诊断：直接设定遭遇事件触发计时剩余（压缩时长确定性测试）
 func set_encounter_timer_remaining(p_id: StringName, seconds: float) -> void:
 	_encounter_timers[p_id] = maxf(seconds, 0.0)
@@ -300,10 +339,11 @@ func _process(delta: float) -> void:
 	# fog 组（未接线前惰性，避免与旧 FogEventManager 双驱动）
 	if _fog_wired:
 		if _fog_active_id != &"":
-			# 事件进行中：逐帧驱动事件自持效果（duration 计时由 _fog_timer 负责）
+			# 事件进行中：逐帧驱动事件自持效果（duration 计时由 _fog_timer 负责；
+			# 运行中事件不受 enabled 总开关关闭影响，跑完自然结束）
 			if _fog_active_event != null:
 				_fog_active_event.tick(delta)
-		elif _run_active:
+		elif _run_active and FOG_ENABLED:  # Q07：总开关关闭时自动触发路径完全惰性（原仅 can_trigger_group 检查，生产无人调用）
 			if _fog_first_delay_left > 0.0:
 				_fog_first_delay_left -= delta
 			elif _fog_cooldown_left > 0.0:
@@ -374,20 +414,26 @@ func _start_encounter(p_id: StringName, ev: Node) -> void:
 		_spawner.notify_event_triggered()
 
 
-## 轮询遭遇事件结束（FSM 回 IDLE → 广播 event_ended；手动 start 亦被覆盖检测）
+## 轮询遭遇事件结束（FSM 回 IDLE → 广播 event_ended；手动 start 亦被覆盖检测；
+## Q13：pending 打断在检测到回 IDLE 后补发，信号恒在事件不活跃时发、恒只发一次）
 func _poll_encounters() -> void:
 	for id in _encounter_order:
 		var ev := _event_for(id)
 		var active: bool = ev != null and is_instance_valid(ev) and (ev.has_method("is_active") and ev.is_active())
 		_encounter_active[id] = active
-		if _encounter_active_id == id and not active:
+		if _encounter_end_pending.has(id) and not active:
+			_encounter_end_pending.erase(id)
+			_encounter_active_id = &""
+			event_ended.emit(id)
+		elif _encounter_active_id == id and not active:
 			_encounter_active_id = &""
 			event_ended.emit(id)
 		elif active and _encounter_active_id == &"":
 			_encounter_active_id = id  # 手动 start 兜底登记
 
 
-## 加权随机选 fog 事件（weights 缺键回退 1.0；注册表为空返回 &""）
+## 加权随机选 fog 事件（weights 缺键回退 1.0；注册表为空返回 &""；
+## P4：全零权重退化为均匀随机——原实现恒选首个（roll=0 立即命中第一项））
 func _pick_fog_id() -> StringName:
 	var ids: Array[StringName] = []
 	for id in EVENT_FACTORIES:
@@ -398,6 +444,8 @@ func _pick_fog_id() -> StringName:
 	var total := 0.0
 	for id in ids:
 		total += maxf(float(FOG_WEIGHTS.get(id, 1.0)), 0.0)
+	if total <= 0.0:
+		return ids[randi() % ids.size()]  # 全零权重：均匀回退
 	var roll := randf() * total
 	for id in ids:
 		roll -= maxf(float(FOG_WEIGHTS.get(id, 1.0)), 0.0)

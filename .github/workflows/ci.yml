@@ -60,17 +60,27 @@ jobs:
           # 调用编译错误）与 L01b（autoplay 状态表漂移）曾因此长期潜伏。
           # --quit-after 2 逐场景编译探针：Parse/Compile/SCRIPT ERROR 即失败；
           # timeout 60 兜底编译错误场景的静默挂起（AGENTS 已知 gotcha）。
+          # Q26（2026-08-05）：probe 裸命令改包进 if 条件——GH Actions bash -e 下
+          # 裸 timeout 非零（含 124 挂起）直接中止步骤，原 ::error:: 诊断与日志 tail
+          # 全是死代码；且 124 本地放行/CI 失败语义相反。现在失败打印诊断、124 统一按失败。
           bad=0
           for tscn in test/*.tscn; do
             name="$(basename "$tscn" .tscn)"
             log="/tmp/probe-$name.log"
-            timeout 60 godot --headless --path . "res://$tscn" --quit-after 2 >"$log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
-              echo "::error::$name compile probe failed (exit $code)"
+            if timeout 60 godot --headless --path . "res://$tscn" --quit-after 2 >"$log" 2>&1; then
+              :
+            else
+              code=$?
+              if [ "$code" -eq 124 ]; then
+                echo "::error::$name compile probe timed out (hang)"
+              else
+                echo "::error::$name compile probe failed (exit $code)"
+              fi
               tail -20 "$log"
               bad=1
-            elif grep -q "SCRIPT ERROR\|Parse Error\|Compile Error" "$log"; then
+              continue
+            fi
+            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error" "$log"; then
               echo "::error::$name compile probe SCRIPT ERROR"
               grep -B2 "SCRIPT ERROR\|Parse Error\|Compile Error" "$log" | head -20
               bad=1

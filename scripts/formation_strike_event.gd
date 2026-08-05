@@ -65,10 +65,16 @@ func set_spawner(spawner: Node) -> void:
 func _ready() -> void:
 	MIN_SCORE = GameState.cfg("formation_strike_event.min_score", MIN_SCORE)
 	COOLDOWN = GameState.cfg("formation_strike_event.cooldown", COOLDOWN)
-	CRAFT_COUNTS = GameState.cfg("formation_strike_event.craft_counts", CRAFT_COUNTS)
+	# Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
+	# 时 start() 的 .get() 在 Variant 上运行时崩溃
+	var cc: Variant = GameState.cfg("formation_strike_event.craft_counts", CRAFT_COUNTS)
+	if cc is Dictionary:
+		CRAFT_COUNTS = cc
 	CRAFT_HP_BASE = GameState.cfg("formation_strike_event.craft_hp_base", CRAFT_HP_BASE)
 	CRAFT_SCORE = GameState.cfg("formation_strike_event.craft_score", CRAFT_SCORE)
-	APPROACH_SPEED = GameState.cfg("formation_strike_event.approach_speed", APPROACH_SPEED)
+	# Q15（2026-08-05）：approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
+	# _waves_paused 常驻 → 普通波次与 Boss 调度全冻结
+	APPROACH_SPEED = maxf(float(GameState.cfg("formation_strike_event.approach_speed", APPROACH_SPEED)), 1.0)
 	APPROACH_Y = GameState.cfg("formation_strike_event.approach_y", APPROACH_Y)
 	TURN_TIME = GameState.cfg("formation_strike_event.turn_time", TURN_TIME)
 	RUN_SPEED = GameState.cfg("formation_strike_event.run_speed", RUN_SPEED)

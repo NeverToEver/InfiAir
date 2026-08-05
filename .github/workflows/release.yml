@@ -50,6 +50,11 @@ jobs:
             echo "::error::invalid version '$VERSION' (expect MAJOR.MINOR, e.g. 3.27)"
             exit 1
           fi
+          # P4（2026-08-05）：重复触发同版本友好失败（原 git tag 已存在时裸失败无上下文）
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::tag v$VERSION already exists on origin; pick a new version"
+            exit 1
+          fi
         env:
           VERSION: ${{ github.event.inputs.version }}
 
@@ -61,10 +66,13 @@ jobs:
           # L18：版本号落地到 tag 指向的提交（此前只改 CI 工作区不 commit，
           # tag 指向的提交 config/version 永远滞后于实际版本）。tag push 会带上
           # 该 commit 作为祖先，无需单独 push 分支。
+          # P4（2026-08-05）：同步提交同时推 main——原实现只上 tag 不上 main，
+          # 主分支 config/version 永久滞后于最新发布版本
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add project.godot
           git commit -m "chore: sync config/version to v$VERSION [skip ci]"
+          git push origin HEAD:main
         env:
           VERSION: ${{ github.event.inputs.version }}
 

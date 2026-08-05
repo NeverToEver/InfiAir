@@ -141,6 +141,63 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 
+	# ================= 场景 6：Q07/Q10/Q12/Q13（2026-08-05 全量修复批次） =================
+	# Q13：end_active 打断后 event_ended 恒只发一次（原实现 abort 处 + 轮询双发）。
+	# 注：lambda 捕获 int 是值拷贝，计数用数组（引用类型）承载
+	var ended_count: Array[int] = [0]
+	manager.event_ended.connect(
+		func(id: StringName) -> void:
+			if id == &"formation_strike":
+				ended_count[0] += 1
+	)
+	# Q07：enabled=false 时 _process 自动触发路径惰性（掷签前短路，原实现照常触发）
+	manager.FOG_ENABLED = false
+	manager.FOG_TRIGGER_CHANCE = 1.0  # 固定掷签（对照组用）
+	manager.set_cooldown_left(0.0)
+	manager.set_first_delay_left(0.0)
+	manager.set_check_timer_left(0.0)
+	manager.set_run_active(false)  # 先退出再激活 → 触发 Q10/Q12 重置路径
+	manager.set_run_active(true)
+	_check(
+		is_equal_approx(manager.first_delay_left(), manager.FOG_FIRST_DELAY),
+		"Q12：激活对局重置 fog first_delay = %.0f（实测 %.1f，原实现每进程一次、第二局开局即触发）" % [manager.FOG_FIRST_DELAY, manager.first_delay_left()]
+	)
+	_check(
+		manager.encounter_timer_remaining(&"formation_strike") >= 39.0,
+		"Q10：激活对局重置遭遇计时回 interval 40（实测 %.1f，原实现继承上局 ≤0 即触发）" % manager.encounter_timer_remaining(&"formation_strike")
+	)
+	await get_tree().create_timer(0.3).timeout  # 覆盖 ≥1 个检查周期（check_timer 已压零）
+	_check(manager.active_id(GameEventManager.GROUP_FOG) == &"", "Q07：enabled=false 时自动触发不启动")
+	# Q07 对照组：enabled=true 且条件就绪 → 自动触发正常启动
+	manager.FOG_ENABLED = true
+	manager.set_cooldown_left(0.0)
+	manager.set_first_delay_left(0.0)
+	manager.set_check_timer_left(0.0)
+	var fog_auto := false
+	for i in 10:
+		await get_tree().create_timer(0.1).timeout
+		if manager.active_id(GameEventManager.GROUP_FOG) != &"":
+			fog_auto = true
+			break
+	_check(fog_auto, "Q07：enabled=true 且条件就绪时自动触发正常启动（对照组）")
+	manager.end_all()
+	await get_tree().process_frame
+	# Q13：打断后信号恰好 1 次且 FSM 回 IDLE
+	manager.force_trigger(&"formation_strike")
+	manager.end_active(GameEventManager.GROUP_ENCOUNTER)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(ended_count[0] == 1, "Q13：end_active 打断后 event_ended 恰好 1 次（实测 %d，原实现双发）" % ended_count[0])
+	_check(formation.state() == FormationStrikeEvent.State.IDLE, "Q13：打断后 FSM 回 IDLE")
+	for child in main.get_children():
+		if child is FormationBomb:
+			child.queue_free()
+	await get_tree().process_frame
+
 	print("EVENT MANAGER TEST DONE, failures = ", _failures)
+	# P4（2026-08-05）：还原直写配置（测试不污染内存配置表；A7 同族）
+	manager.FOG_ENABLED = true
+	manager.FOG_TRIGGER_CHANCE = 0.35
+	manager.ENCOUNTER_CONFIG[&"formation_strike"]["chance"] = 0.30
 	GameState.delete_save()
 	get_tree().quit(_failures)

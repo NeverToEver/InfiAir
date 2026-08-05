@@ -301,6 +301,25 @@ func _ready() -> void:
 	GameState.set_difficulty(&"medium")
 	_check(GameState.difficulty == &"medium", "难度恢复 medium")
 
+	# Q04（2026-08-05）：load_profile 恢复存档难度后必须刷新被动回血缓存——
+	# 原实现缓存仅 set_difficulty/启动刷新，重启后 hard 玩家按 medium(2.0/4.0) 回血。
+	# 注：set_difficulty 会写 profile，故先用 setter 置 medium 缓存、再直写档为 hard，
+	# 确保 load_profile 前缓存与档案不一致（修复前缓存残留 medium 值）
+	GameState.set_difficulty(&"medium")
+	_write_profile({"version": 1, "high_score": 0, "difficulty": "hard"})
+	GameState.difficulty = &"easy"  # 篡改内存（不经 setter，缓存仍为 medium 值）
+	GameState.load_profile()  # 档案 difficulty=hard
+	_check(GameState.difficulty == &"hard", "Q04：难度从 profile 恢复 hard")
+	_check(
+		is_equal_approx(GameState.passive_regen_rate(), 0.67),
+		"Q04：恢复后 regen_rate=0.67（实测 %.3f，修复前残留 medium 2.0）" % GameState.passive_regen_rate()
+	)
+	_check(
+		is_equal_approx(GameState.passive_regen_delay(), 5.0),
+		"Q04：恢复后 regen_delay=5.0（实测 %.1f，修复前残留 medium 4.0）" % GameState.passive_regen_delay()
+	)
+	GameState.set_difficulty(&"medium")
+
 	# ---------- 7. Ctrl/Shift 模式标志序列化 ----------
 	_check(not GameState.ctrl_toggle_mode and not GameState.shift_toggle_mode, "设置模式默认均为按住")
 	# 对局存档往返

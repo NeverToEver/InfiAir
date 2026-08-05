@@ -23,15 +23,61 @@ func _wipe_user_files() -> void:
 			DirAccess.remove_absolute(f)
 
 
+## Q23（2026-08-05）：开头备份、结尾还原用户文件——本地跑测试不再永久销毁开发者账户表
+var _file_backups: Dictionary = {}
+
+
+func _backup_user_files() -> void:
+	_file_backups = {}
+	for f in ["user://users.json", "user://users.json.corrupt", "user://profile.json", "user://savegame.json"]:
+		var exists := FileAccess.file_exists(f)
+		_file_backups[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_user_files() -> void:
+	for f in _file_backups:
+		var b: Dictionary = _file_backups[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
+## Q24（2026-08-05）：真实按键事件走完整输入管线（原直调 _unhandled_input 绕过输入管线，
+## C30 已修模式回归；esc_navigation_test 同款 InputEventKey + parse_input_event）
 func _press_esc() -> void:
-	var ev := InputEventAction.new()
-	ev.action = "ui_cancel"
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_ESCAPE
 	ev.pressed = true
-	_welcome._unhandled_input(ev)
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var up := InputEventKey.new()
+	up.keycode = KEY_ESCAPE
+	up.pressed = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+
+
+func _press_enter() -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_ENTER
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var up := InputEventKey.new()
+	up.keycode = KEY_ENTER
+	up.pressed = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
 
 
 func _ready() -> void:
 	GameState.logout_user()
+	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
 	GameState.high_score = 0
 	GameState.difficulty = &"medium"
@@ -90,7 +136,7 @@ func _ready() -> void:
 	# 7. 排行榜 overlay：打开（空榜显示占位）→ 关闭
 	_welcome.press_leaderboard()
 	_check(_welcome.leaderboard_overlay().visible, "排行榜 overlay 打开")
-	_press_esc()
+	await _press_esc()
 	_check(not _welcome.leaderboard_overlay().visible, "ESC 关闭排行榜 overlay（B7-1）")
 	_welcome.press_leaderboard()
 	_welcome.close_leaderboard()
@@ -98,12 +144,14 @@ func _ready() -> void:
 
 	# 8. 游客流程：确认框（B7-6 统一走确认；B7-5 默认焦点返回）
 	GameState.logout_user()
+	_welcome.queue_free()  # 释放旧实例（Q09 修复：残留实例的 SettingsUI 抢占 group，press_settings 命中错误节点）
+	await get_tree().process_frame
 	_welcome = WELCOME_SCENE.instantiate() as CanvasLayer
 	add_child(_welcome)
 	await get_tree().process_frame
 	_welcome.press_guest()
 	_check(_welcome.guest_confirm().visible, "游客按钮弹确认框")
-	_press_esc()
+	await _press_esc()
 	_check(not _welcome.guest_confirm().visible, "ESC 关闭游客确认（B7-2）")
 	_welcome.press_guest()
 	_welcome.confirm_guest()
@@ -111,6 +159,8 @@ func _ready() -> void:
 
 	# 9. 删除流程：确认前密码非空校验；确认后删号清空表单
 	GameState.logout_user()
+	_welcome.queue_free()  # 释放旧实例（Q09 修复，同场景 8）
+	await get_tree().process_frame
 	_welcome = WELCOME_SCENE.instantiate() as CanvasLayer
 	add_child(_welcome)
 	await get_tree().process_frame
@@ -126,21 +176,31 @@ func _ready() -> void:
 	_check(_welcome.username_line().text == "", "删除成功清空用户名（B7-9）")
 
 	# 10. ESC 层级：无 overlay/模态时 → 退出确认；退出确认关闭
-	_press_esc()
+	await _press_esc()
 	_check(_welcome.exit_confirm_layer().visible, "顶层 ESC 弹退出确认")
-	_press_esc()
+	await _press_esc()
 	_check(not _welcome.exit_confirm_layer().visible, "ESC 关闭退出确认")
 
 	# 11. 空凭证 ENTER → 游客确认框（B7-5 防连按游客开局）
 	_welcome.username_line().text = ""
 	_welcome.password_line().text = ""
-	var ev := InputEventAction.new()
-	ev.action = "ui_accept"
-	ev.pressed = true
-	_welcome._unhandled_input(ev)
+	await _press_enter()
 	_check(_welcome.guest_confirm().visible, "空凭证 ENTER 弹游客确认框")
+	await _press_esc()
+	_check(not _welcome.guest_confirm().visible, "ENTER 后的游客确认 ESC 关闭")
+
+	# 12. Q09（2026-08-05）：设置页打开时 Esc 关闭设置页（原 Esc 落到隐藏层退出确认，
+	# 设置页永远关不掉——与 EXIT_FLOW「settings back = Esc」矛盾）
+	_welcome.press_settings()
+	await get_tree().process_frame
+	var settings_ui: CanvasLayer = _welcome.get_node("SettingsUI")
+	_check(settings_ui.visible, "Q09：设置页打开")
+	_check(not _welcome.visible, "Q09：welcome 主层随设置页打开隐藏")
+	await _press_esc()
+	_check(not settings_ui.visible, "Q09：设置页 Esc 关闭")
+	_check(_welcome.visible, "Q09：welcome 主层恢复显示")
 
 	print("WELCOME FLOW TEST DONE, failures = ", _failures)
 	GameState.logout_user()
-	_wipe_user_files()
+	_restore_user_files()  # Q23：还原用户文件快照
 	get_tree().quit(_failures)

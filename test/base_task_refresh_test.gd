@@ -178,6 +178,22 @@ func _ready() -> void:
 	var all_excl := tiny_pool.draw(2, [&"a", &"b"])
 	_check(all_excl.is_empty(), "TaskPool：排除覆盖全池时安全返回空（不死循环）")
 
+	# 9. Q05（2026-08-05）：批次耗尽跨批补足——固定种子 20 轮刷新槽位恒 = MISSION_SLOTS
+	# （原实现「本批已产出即 break」在排除在场任务时提前耗尽，模拟 14% 刷新不足额、99.3% 对局命中）
+	seed(20260805)
+	var pool_q05 := TaskPool.new(GameState.MISSION_POOL)
+	var in_field: Array[StringName] = []
+	var q05_all_full := true
+	for i in 20:
+		var d := pool_q05.draw(GameState.MISSION_SLOTS, in_field)
+		if d.size() != GameState.MISSION_SLOTS:
+			q05_all_full = false
+		in_field.clear()
+		for def in d:
+			in_field.append(def["id"])
+	_check(q05_all_full, "Q05：20 轮刷新槽位恒 = %d（原实现不足额 1-2/3 槽）" % GameState.MISSION_SLOTS)
+	seed(0)
+
 	print("BASE TASK REFRESH TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

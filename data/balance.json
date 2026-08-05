@@ -202,7 +202,49 @@
 				"radius": 36
 			}
 		],
-		"speed_ramp_factor": 0.1
+		"speed_ramp_factor": 0.1,
+		"move_strategies": {
+			"sine": {
+				"amp": 90.0,
+				"freq": 3.0
+			},
+			"zigzag": {
+				"flip_interval": 0.7,
+				"speed_scale": 0.9,
+				"reset_flip_min": 0.15
+			},
+			"dive": {
+				"speed_scale": 1.7,
+				"duration": 1.2
+			},
+			"noise": {
+				"freqs": [
+					1.7,
+					2.9,
+					4.3
+				],
+				"phases": [
+					0.0,
+					1.3,
+					2.1
+				],
+				"speed_scale": 1.2
+			},
+			"aggressive": {
+				"freqs": [
+					2.1,
+					3.4,
+					5.3
+				],
+				"phases": [
+					0.0,
+					1.7,
+					0.6
+				],
+				"speed_scale": 1.1,
+				"hover_speed_scale": 0.9
+			}
+		}
 	},
 	"elites": {
 		"types": [
@@ -478,6 +520,9 @@
 					"bullet_speed": 220,
 					"damage": 12,
 					"arc_deg": 150
+				},
+				"sniper3": {
+					"burst_interval": 0.12
 				}
 			},
 			"type4": {
@@ -526,8 +571,7 @@
 			"type3_p2_bob_period": 8,
 			"type4": {
 				"bob_amp": 30,
-				"bob_period": 2.4,
-				"speed": 40
+				"bob_period": 2.4
 			}
 		},
 		"enrage": {

@@ -94,7 +94,9 @@ func _process(delta: float) -> void:
 	else:
 		_hold_left -= delta
 		if _hold_left <= 0.0:
-			_hold_left = FADE_TIME + 1.0  # 进入淡出段（复用同一计时）
+			# 进入淡出段（复用同一计时；FADE_TIME+1.0 余量防淡出期间本分支重入——
+			# 实际视觉 = HOLD_TIME 3.5s hold + 0.5s fade，与 ELITE_TURRET_EVENT 文档「3.5s then fade」一致）
+			_hold_left = FADE_TIME + 1.0
 			_fade_tween = create_tween()
 			_fade_tween.tween_property(_panel, "modulate:a", 0.0, FADE_TIME)
 			_fade_tween.tween_callback(

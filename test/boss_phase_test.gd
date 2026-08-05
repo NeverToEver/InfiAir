@@ -265,6 +265,27 @@ func _ready() -> void:
 	await _wait_real(0.3)
 	_check(not hud.boss_countdown().visible, "场景4：Boss 死亡后倒计时隐藏")
 
+	# ================= 场景 5：Q02/Q03 配置损坏回退（4 型守卫，2026-08-05） =================
+	var orig_balance: String = FileAccess.get_file_as_string(GameState.BALANCE_PATH)
+	var bf := FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)
+	bf.store_string(JSON.stringify({"boss": {"hp_mults": [1.3, 0.7, 1.6]}}))  # 3 元素截断 + type4 区块缺失
+	bf.close()
+	GameState.reload_balance()
+	var boss5: Boss = await _spawn_test_boss(4)
+	_check(boss5 != null, "场景5：损坏配置下月蚀已生成")
+	_check(boss5.max_hp > 0.0, "场景5：Q02 3 元素 hp_mults 回退 4 元素默认——type4 max_hp=%.0f > 0（原越界免疫伤害）" % boss5.max_hp)
+	_check(
+		boss5.patterns()["p1"][0]["attack"] == &"ring_burst",
+		"场景5：Q03 type4 配置缺失回退脚本默认表（含 ring_burst，实测 %s，原钳 3 回退三型表）" % str(boss5.patterns()["p1"][0]["attack"])
+	)
+	boss5.take_damage(9999)
+	await get_tree().process_frame
+	_close_buff_ui_if_open()
+	bf = FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)
+	bf.store_string(orig_balance)
+	bf.close()
+	GameState.reload_balance()
+
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")
 	for child in get_node("Main").get_children():

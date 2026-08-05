@@ -67,7 +67,7 @@ const SETTING_KINDS: Array[StringName] = [
 	&"ctrl_toggle",
 	&"shift_toggle",
 ]
-const BUFF_POOL_SIZE := 16  # buff_select.gd BUFF_POOL 种类数（覆盖率统计分母）
+const BUFF_POOL_SIZE := 19  # buff_select.gd BUFF_POOL 种类数（覆盖率统计分母；2026-08-05 P4 修正 16→19）
 
 var _run_seconds: float = DEFAULT_RUN_SECONDS
 var _seed := 20260722

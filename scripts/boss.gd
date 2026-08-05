@@ -111,6 +111,8 @@ var HOMING_BULLET_SPEED := 300.0
 var SNIPER_BULLET_SPEED := 650.0
 var CROSS_BULLET_SPEED := 260.0
 ## 4 型「月蚀」ring_burst 环弹攻击参数（2026-08-04；默认值与 balance.json 双写）
+## 2026-08-05 Q01：难度分档为绝对值（counts.ring_burst = [10,12,14]，§5.6），
+## RING_BURST_COUNT 仅作 json 缺键时 `_count_delta` 回退外的基准（攻击侧不再叠加）
 var RING_BURST_COUNT := 12
 var RING_BURST_SPEED := 340.0
 var BULLET_DAMAGE_RING := 14
@@ -130,6 +132,7 @@ var TRANSITION_INVINCIBLE := 1.0
 ## 狙击 telegraph（§4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹
 var SNIPER_AIM_TIME := 0.35
 var SNIPER_TRACK_TIME := 0.2
+var SNIPER_BURST_INTERVAL := 0.12  # 三连发间隔（§8 设计数值；Q30 入库：boss.phases.attacks.sniper3.burst_interval）
 ## 一型 P1 纵向下压（§5.1）：每 6s 下压 80px 再回
 var PRESS_INTERVAL := 6.0
 var PRESS_DEPTH := 80.0
@@ -184,6 +187,8 @@ var DIFF_COUNT_DELTAS: Dictionary = {
 	"salvo": [-2, 0, 2],
 	"summon": [-1, 0, 1],
 	"drops": [-1, 0, 1],
+	# 2026-08-05 Q28：ring_burst 为绝对值分档（json 缺键时回退此表，与 §5.6 一致）
+	"ring_burst": [10, 12, 14],
 }
 var ENRAGE_SNAPSHOT_LASERS := 4
 var ENRAGE_SNAPSHOT_RING := 8
@@ -252,7 +257,6 @@ var E4_RELEASE_RING_SPEED := 130.0
 ## 4 型「月蚀」中心悬停微摆（boss.movement.type4）
 var MOVE4_BOB_AMP := 30.0
 var MOVE4_BOB_PERIOD := 2.4
-var MOVE4_SPEED := 40.0
 ## 逃跑：进入战斗 50s 未击杀触发，最后 3s 警告 + 上飘（对齐原作 3000/180 帧@60fps）
 var ESCAPE_TIME := 50.0
 var ESCAPE_WARNING := 3.0
@@ -314,14 +318,16 @@ func setup(p_difficulty: float, p_type: int) -> void:
 	boss_type = p_type
 	# HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
 	# H11（健壮性审核）：hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默
-	var hp_mults_raw: Variant = GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6])
-	var hp_mults_valid: bool = hp_mults_raw is Array and hp_mults_raw.size() >= 3
+	# Q02（2026-08-05）：校验与回退数组随 4 型扩容——原 3 元素校验/回退在 json 缺键/截断时
+	# 令 hp_mults[3] 越界 → max_hp=0 → type4 出生即免疫伤害（仅 50s 逃跑兜底）
+	var hp_mults_raw: Variant = GameState.cfg("boss.hp_mults", [1.3, 0.7, 1.6, 1.2])
+	var hp_mults_valid: bool = hp_mults_raw is Array and hp_mults_raw.size() >= 4
 	if hp_mults_valid:
 		for v: Variant in hp_mults_raw:
 			if not (v is int or v is float):
 				hp_mults_valid = false
 				break
-	var hp_mults: Array = hp_mults_raw if hp_mults_valid else [1.3, 0.7, 1.6]
+	var hp_mults: Array = hp_mults_raw if hp_mults_valid else [1.3, 0.7, 1.6, 1.2]
 	max_hp = (float(GameState.cfg("boss.hp_base", HP_BASE)) * float(hp_mults[p_type - 1]) * p_difficulty * GameState.enemy_hp_multiplier())
 	hp = max_hp
 	# setup() 在 _ready() 之前调用，不能用 @onready 变量
@@ -515,6 +521,7 @@ func _ready() -> void:
 	TRANSITION_INVINCIBLE = float(GameState.cfg("boss.phases.transition_invincible", TRANSITION_INVINCIBLE))
 	SNIPER_AIM_TIME = GameState.cfg("boss.phases.telegraph.sniper_aim", SNIPER_AIM_TIME)
 	SNIPER_TRACK_TIME = GameState.cfg("boss.phases.telegraph.sniper_track", SNIPER_TRACK_TIME)
+	SNIPER_BURST_INTERVAL = GameState.cfg("boss.phases.attacks.sniper3.burst_interval", SNIPER_BURST_INTERVAL)
 	PRESS_INTERVAL = GameState.cfg("boss.phases.press_interval", PRESS_INTERVAL)
 	PRESS_DEPTH = GameState.cfg("boss.phases.press_depth", PRESS_DEPTH)
 	TYPE1_P2_STRAFE = int(GameState.cfg("boss.movement.type1_p2_strafe", TYPE1_P2_STRAFE))
@@ -582,7 +589,6 @@ func _ready() -> void:
 	BULLET_DAMAGE_RING = int(GameState.cfg("boss.bullet_damage.ring", BULLET_DAMAGE_RING))
 	MOVE4_BOB_AMP = float(GameState.cfg("boss.movement.type4.bob_amp", MOVE4_BOB_AMP))
 	MOVE4_BOB_PERIOD = float(GameState.cfg("boss.movement.type4.bob_period", MOVE4_BOB_PERIOD))
-	MOVE4_SPEED = float(GameState.cfg("boss.movement.type4.speed", MOVE4_SPEED))
 	E4_RING_COUNT = int(GameState.cfg("boss.enrage.type_4.ring_count", E4_RING_COUNT))
 	E4_RING_INTERVAL = float(GameState.cfg("boss.enrage.type_4.ring_interval", E4_RING_INTERVAL))
 	E4_RING_SPEED = float(GameState.cfg("boss.enrage.type_4.ring_speed", E4_RING_SPEED))
@@ -602,7 +608,9 @@ func _ready() -> void:
 ## 注意：cfg 返回的是 GameState 缓存 JSON 的共享引用，必须深拷贝，
 ## 否则 _apply_difficulty_scaling 的 interval 乘算会污染缓存、叠加到后续 Boss 实例
 func _load_patterns() -> void:
-	var defaults: Dictionary = DEFAULT_PATTERNS[clampi(boss_type, 1, 3)]
+	# Q03（2026-08-05）：clampi 随 4 型扩容放开——原钳为 3 时 DEFAULT_PATTERNS 键 4 死数据、
+	# type4 配置损坏时静默回退三型（母舰）模式表，违背「脚本回退镜像 json」约定
+	var defaults: Dictionary = DEFAULT_PATTERNS[clampi(boss_type, 1, 4)]
 	_patterns = defaults.duplicate(true)
 	var cfg_patterns: Variant = GameState.cfg("boss.phases.type%d" % boss_type, defaults)
 	if cfg_patterns is Dictionary:
@@ -662,7 +670,8 @@ func _apply_difficulty_scaling() -> void:
 	E2_RELEASE_RING_SPEED *= speed_mult
 	E3_RING_SPEED *= speed_mult
 	E3_RELEASE_RING_SPEED *= speed_mult
-	# 弹数：逐参数分档增减，按攻击语义钳制下限（A3：增量迁入 BossAttacks）
+	# 弹数：逐参数分档增减，按攻击语义钳制下限（A3：增量迁入 BossAttacks）；
+	# ring_burst 例外：counts.ring_burst 为每档弹数绝对值（Q01），直接写入 ring_delta
 	_attacks.fan_delta = _count_delta("fan", tier)
 	_attacks.homing_delta = _count_delta("homing", tier)
 	_attacks.ring_delta = _count_delta("ring_burst", tier)
@@ -865,7 +874,9 @@ func fight_anchor_y() -> float:
 	return GameState.view_world_rect().position.y + FIGHT_Y
 
 
-## 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）
+## 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）。
+## 右缘边距 = 设计宽 1920 − STRAFE_MAX_X = 300px，随 view.end.x 平移保持（view_zoom_test
+## 断言 large 档 hi = view.end.x − 300；2026-08-05 P4 复核后保留原语义，1920 为设计宽度常量）
 func strafe_range() -> Vector2:
 	var view := GameState.view_world_rect()
 	var lo := view.position.x + STRAFE_MIN_X

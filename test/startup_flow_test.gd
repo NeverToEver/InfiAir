@@ -42,9 +42,49 @@ func _wipe_user_saves() -> void:
 	dir.list_dir_end()
 
 
+## Q23（2026-08-05）：开头备份、结尾还原用户文件——本地跑测试不再永久销毁开发者账户表
+var _file_backups: Dictionary = {}
+
+
+func _backup_user_files() -> void:
+	_file_backups = {}
+	var files := [
+		"user://users.json",
+		"user://users.json.corrupt",
+		"user://profile.json",
+		"user://profile.json.corrupt",
+		"user://savegame.json",
+		"user://savegame.json.corrupt",
+	]
+	var dir := DirAccess.open("user://")
+	if dir != null:
+		dir.list_dir_begin()
+		var name := dir.get_next()
+		while name != "":
+			if name.begins_with("savegame_") or name.ends_with(".corrupt"):
+				files.append("user://" + name)
+			name = dir.get_next()
+		dir.list_dir_end()
+	for f in files:
+		var exists := FileAccess.file_exists(f)
+		_file_backups[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_user_files() -> void:
+	for f in _file_backups:
+		var b: Dictionary = _file_backups[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 func _ready() -> void:
 	GameState.logout_user()
 	GameState.delete_save()
+	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
 	_wipe_user_saves()
 	GameState.high_score = 0
@@ -171,6 +211,6 @@ func _ready() -> void:
 	GameState.logout_user()
 	GameState.delete_save()
 	GameState.reset_run()
-	_wipe_user_files()
+	_restore_user_files()  # Q23：还原用户文件快照（原 wipe 不还原，永久销毁开发者账户表）
 	_wipe_user_saves()
 	get_tree().quit(_failures)

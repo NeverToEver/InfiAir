@@ -123,3 +123,12 @@
 - **摘要**：7 路并行只读审计（对局编排/战斗系统/服务层/事件系统/UI 导航文本/测试 CI 工具链/平衡数值内容），三角验证（设计文档 × 代码 × git 历史）；无 P0，P1×1（ring_burst 弹数按增量语义消费绝对值 → 实际 22/24/26 发 vs 设计 10/12/14）+ P2×9（hp_mults/_load_patterns 4 型守卫遗漏、regen 缓存重登录不刷新、TaskPool 99.3% 不足额、死亡统计缺失、fog 总开关失效、BALANCE_MAP 过期、welcome 设置页 Esc 断链、遭遇计时器跨局继承）+ P3×20 + P4×20+
 - **关键决策**：三类结构性缺口——①2026-08-04 内容演化（4 型扩容）伴生遗漏（Q01-Q03/Q28 同根因）；②2026-08-05 统一事件/实体管理器迁移语义残留（Q07/Q10/Q12/Q13/Q19）；③账户批次新测试约定回退（Q23-Q25 破坏性/直调私有）；「设置黑屏」推断经官方文档证伪（CanvasLayer.visible 不传播到子 CanvasLayer），Esc 断链成立
 - **原文**：`docs/archive/2026-08-05-deep-review-report.md`（登记：`docs/AUDIT_VAULT.md` Q 系列）
+
+## 2026-08-05 · Q 系列全量修复（deep review 批次落地）
+
+- **落地**：本次提交（Q01-Q30 全量 + P4 合理项；五层门禁全绿后提交，仅 commit 不 push）
+- **摘要**：按用户指示「goal 模式，最新报告，全量修复，仅提交」执行 2026-08-05 deep review 报告全部登记项。P1×1 + P2×9 + P3×20 全部修复落地（Q22 复核为审计误报——`size_flags_vertical` 自 2026-07-30 已具备，无改动）；P4 注释失实/文档计数/硬编码坐标/性能观察（orbital 单位圆缓存）/边界防御（progress 钳 0、score 上限、全零权重、ConfusionEvent 空转降级、reload_balance 联动）/工具链（gen_balance_map 报错、release.yml 重复版本与主分支版本同步、测试配置还原）等合理项修复；strafe_range 1920 复核为设计宽度常量保留。
+- **关键决策**：需设计拍板项按报告推荐方向执行——Q01 消费侧改绝对值（与 §5.6 一致，easy 22→10/medium 24→12/hard 26→14 发）、Q27 直接绝对赋值（与 `_move_bob` 同模式，MOVE4_SPEED 键随修移除）、Q15 approach_speed 下限钳制、Q29/Q30 全量入库（`enemies.move_strategies` + `sniper3.burst_interval`，缺键回退脚本默认=现值行为逐字节等价）。
+- **修复过程中发现的测试/实现缺陷**：Q24 走真实输入管线后暴露「输入框内 Enter 被 LineEdit 消费 → 键盘登录断链」（补 text_submitted 连接，B7-13 承诺真正达成）；welcome_flow_test 场景 8/9 重建实例未释放导致残留 SettingsUI 抢占 group（Q09 修复验证中暴露）；GDScript lambda 捕获 int 为值拷贝（Q13 计数改数组承载）；Q04 断言构造需直写档避免 set_difficulty 覆盖 profile。
+- **教训**：审计报告行号与修复后代码漂移（Q30 编辑误缩进 sniper3 连发块致 3 连发只出 1 发，boss_phase 场景 2 捕获）；P4「硬编码 1920」类项需对照断言语义再改（strafe_range 固定边距是设计，view_zoom_test 锁死）；测试进程共享 user:// 目录（Q23 快照还原后仍需独立进程隔离认知）。
+- **原文**：`docs/archive/2026-08-05-deep-review-report.md`（修复登记：`docs/AUDIT_VAULT.md` Q 系列「修复登记」段）

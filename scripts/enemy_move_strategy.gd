@@ -35,6 +35,17 @@ func _init(params: Dictionary = {}) -> void:
 				"spiral_drift_freq",
 				"spiral_radius",
 				"aggressive_chase_speed",
+				# Q29（2026-08-05）：策略专属参数入库（balance.json enemies.move_strategies，
+				# 缺键回退脚本默认值 = 现值，行为逐字节等价）
+				"amp",
+				"freq",
+				"flip_interval",
+				"speed_scale",
+				"reset_flip_min",
+				"duration",
+				"freqs",
+				"phases",
+				"hover_speed_scale",
 			]
 		):
 			set(k, params[k])
@@ -80,31 +91,37 @@ class HoverMove:
 			enemy.position.y += ctx.speed * ctx.mdelta
 
 
-## sine：横向正弦 + 悬停微浮
+## sine：横向正弦 + 悬停微浮（参数：enemies.move_strategies.sine，Q29 入库）
 class SineMove:
 	extends EnemyMoveStrategy
 
+	var _amp: float = 90.0
+	var _freq: float = 3.0
+
 	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
-		enemy.position.x = ctx.spawn_x + Enemy.sin_fast(ctx.time * 3.0 + ctx.phase) * 90.0
+		enemy.position.x = ctx.spawn_x + Enemy.sin_fast(ctx.time * _freq + ctx.phase) * _amp
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
 		else:
 			enemy.position.y += ctx.speed * ctx.mdelta
 
 
-## zigzag：折返横移 + 悬停微浮
+## zigzag：折返横移 + 悬停微浮（参数：enemies.move_strategies.zigzag，Q29 入库）
 class ZigzagMove:
 	extends EnemyMoveStrategy
 
 	var _zig_dir: float = 1.0
 	var _zig_timer: float = 0.7
+	var _flip_interval: float = 0.7
+	var _speed_scale: float = 0.9
+	var _reset_flip_min: float = 0.15
 
 	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		_zig_timer -= delta
 		if _zig_timer <= 0.0:
 			_zig_dir = -_zig_dir
-			_zig_timer = 0.7
-		enemy.position.x += _zig_dir * ctx.speed * 0.9 * ctx.mdelta
+			_zig_timer = _flip_interval
+		enemy.position.x += _zig_dir * ctx.speed * _speed_scale * ctx.mdelta
 		if enemy.position.x < ctx.view.position.x + 40.0 or enemy.position.x > ctx.view.end.x - 40.0:
 			_zig_dir = -_zig_dir
 			enemy.position.x = clampf(enemy.position.x, ctx.view.position.x + 40.0, ctx.view.end.x - 40.0)
@@ -115,22 +132,24 @@ class ZigzagMove:
 
 	func reset(_enemy: Enemy) -> void:
 		_zig_dir = 1.0
-		_zig_timer = randf_range(0.15, 0.7)
+		_zig_timer = randf_range(_reset_flip_min, _flip_interval)
 
 
-## dive：入场冲刺直扑玩家 → 转悬停（冲刺期例外，见 is_diving）
+## dive：入场冲刺直扑玩家 → 转悬停（冲刺期例外，见 is_diving；参数：enemies.move_strategies.dive，Q29 入库）
 class DiveMove:
 	extends EnemyMoveStrategy
 
 	var _dive_target: Vector2 = Vector2.ZERO
 	var _dive_timer: float = 0.0
+	var _speed_scale: float = 1.7
+	var _duration: float = 1.2
 
 	func update(delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		if _dive_timer > 0.0:
 			# 入场冲刺：直扑玩家当前位置（钳制不越过屏幕下缘安全线）
 			_dive_timer -= delta
 			var dir := (_dive_target - enemy.position).normalized()
-			enemy.position += dir * ctx.speed * 1.7 * ctx.mdelta
+			enemy.position += dir * ctx.speed * _speed_scale * ctx.mdelta
 			enemy.position.y = minf(enemy.position.y, ctx.view.end.y - 200.0)
 			if _dive_timer <= 0.0:
 				# 冲刺结束后以当前深度与锚点较深者为新锚点，转入悬停（悬停带下界加 view 基线）
@@ -146,7 +165,7 @@ class DiveMove:
 		return _dive_timer > 0.0
 
 	func reset(enemy: Enemy) -> void:
-		_dive_timer = 1.2
+		_dive_timer = _duration
 		if GameState.player_ref != null:
 			_dive_target = GameState.player_ref.global_position
 		else:
@@ -179,20 +198,24 @@ class SpiralMove:
 		_center = enemy.position
 
 
-## noise：三正弦叠加伪噪声横移 + 悬停微浮
+## noise：三正弦叠加伪噪声横移 + 悬停微浮（参数：enemies.move_strategies.noise，Q29 入库）
 class NoiseMove:
 	extends EnemyMoveStrategy
+
+	var _freqs: Array = [1.7, 2.9, 4.3]
+	var _phases: Array = [0.0, 1.3, 2.1]
+	var _speed_scale: float = 1.2
 
 	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
-				Enemy.sin_fast(ctx.time * 1.7 + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * 2.9 + 1.3 + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * 4.3 + 2.1 + ctx.phase)
+				Enemy.sin_fast(ctx.time * float(_freqs[0]) + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * float(_freqs[1]) + float(_phases[1]) + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * float(_freqs[2]) + float(_phases[2]) + ctx.phase)
 			)
 			/ 3.0
 			* ctx.speed
-			* 1.2
+			* _speed_scale
 		)
 		enemy.position.x += vx * ctx.mdelta
 		enemy.position.x = clampf(enemy.position.x, ctx.view.position.x + 40.0, ctx.view.end.x - 40.0)
@@ -203,19 +226,25 @@ class NoiseMove:
 
 
 ## aggressive：追踪性噪声漂移（持续偏向玩家 x）+ 悬停微浮
+## （参数：enemies.move_strategies.aggressive，Q29 入库；悬停下移系数 hover_speed_scale）
 class AggressiveMove:
 	extends EnemyMoveStrategy
+
+	var _freqs: Array = [2.1, 3.4, 5.3]
+	var _phases: Array = [0.0, 1.7, 0.6]
+	var _speed_scale: float = 1.1
+	var _hover_speed_scale: float = 0.9
 
 	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
 		var vx: float = (
 			(
-				Enemy.sin_fast(ctx.time * 2.1 + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * 3.4 + 1.7 + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * 5.3 + 0.6 + ctx.phase)
+				Enemy.sin_fast(ctx.time * float(_freqs[0]) + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * float(_freqs[1]) + float(_phases[1]) + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * float(_freqs[2]) + float(_phases[2]) + ctx.phase)
 			)
 			/ 3.0
 			* ctx.speed
-			* 1.1
+			* _speed_scale
 		)
 		var player: Node2D = ctx.player
 		if player != null:
@@ -226,4 +255,4 @@ class AggressiveMove:
 		if ctx.hovering:
 			enemy.position.y = _hover_y(ctx)
 		else:
-			enemy.position.y += ctx.speed * 0.9 * ctx.mdelta
+			enemy.position.y += ctx.speed * _hover_speed_scale * ctx.mdelta

@@ -191,7 +191,10 @@ func abort() -> void:
 
 ## 航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）
 func _on_carrier_entered() -> void:
-	_total = int(TURRET_COUNTS.get(String(GameState.difficulty), 4))
+	# Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
+	#（StrikeCarrier.SOCKETS 固定 5 槽；负数同样钳 0 防负循环）
+	var raw_total := int(TURRET_COUNTS.get(String(GameState.difficulty), 4))
+	_total = clampi(raw_total, 0, StrikeCarrier.SOCKETS.size())
 	# HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
 	var hp := maxi(1, int(roundf(TURRET_HP_BASE * GameState.enemy_hp_multiplier() * GameState.enemy_hp_ramp())))
 	var ammo: Array = AMMO_SEQUENCES.get(String(GameState.difficulty), AMMO_SEQUENCES["medium"])
