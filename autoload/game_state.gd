@@ -463,8 +463,9 @@ func _ready() -> void:
 	_sfx_player.build_pool(SFX_POOL_SIZE)
 	# 迷雾事件管理器挂载（balance 已在 _apply_balance 就绪；管理器 _ready 读 cfg）
 	add_child(_fog_events)
-	# 统一事件管理器挂载（fog 组待迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
+	# 统一事件管理器挂载（fog 组经迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
 	add_child(_events)
+	_fog_events.wire(_events)
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()

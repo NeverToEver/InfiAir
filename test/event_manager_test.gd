@@ -115,6 +115,32 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 
+	# ================= 场景 5：fog 组经统一管理器 + 跨组并发 =================
+	# fog 组生命周期由统一管理器接管；fog 信号经门面重发（player 消费面不变）
+	GameState.fog_events.set_run_active(true)
+	var fog_seen: Array[StringName] = []
+	GameState.fog_events.fog_event_started.connect(func(id: StringName, _d: float) -> void: fog_seen.append(id))
+	ok = manager.force_trigger(&"fake_enemies")
+	_check(ok, "场景5：统一管理器可启动迷雾事件")
+	_check(manager.active_id(GameEventManager.GROUP_FOG) == &"fake_enemies", "场景5：fog 组 active_id 正确")
+	_check(fog_seen.has(&"fake_enemies"), "场景5：fog_event_started 经门面重发")
+	_check(GameState.fog_events.spawned_fakes().size() > 0, "场景5：门面 spawned_fakes 委托生效")
+	# 跨组并发：fog 进行中遭遇仍可并行启动（保持现状行为）
+	ok = manager.force_trigger(&"formation_strike")
+	_check(ok, "场景5：fog 进行中遭遇组仍可并行启动")
+	_check(manager.active_id(GameEventManager.GROUP_ENCOUNTER) == &"formation_strike", "场景5：遭遇组 active")
+	_check(manager.active_id(GameEventManager.GROUP_FOG) == &"fake_enemies", "场景5：fog 组保持 active（并行）")
+	# end_all 双组复位
+	manager.end_all()
+	await get_tree().process_frame
+	_check(manager.active_id(GameEventManager.GROUP_FOG) == &"", "场景5：end_all fog 组复位")
+	_check(manager.active_id(GameEventManager.GROUP_ENCOUNTER) == &"", "场景5：end_all 遭遇组复位")
+	_check(formation.state() == FormationStrikeEvent.State.IDLE, "场景5：end_all 遭遇回 IDLE")
+	for child in main.get_children():
+		if child is FormationBomb:
+			child.queue_free()
+	await get_tree().process_frame
+
 	print("EVENT MANAGER TEST DONE, failures = ", _failures)
 	GameState.delete_save()
 	get_tree().quit(_failures)

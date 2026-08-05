@@ -227,12 +227,12 @@ func force_trigger(p_id: StringName) -> bool:
 	var factory: Variant = EVENT_FACTORIES.get(p_id)
 	if not factory is Callable:
 		return false
-	if _group_of(p_id) == GROUP_FOG:
+	if group_of(p_id) == GROUP_FOG:
 		# 迷雾组未接线（分阶段迁移期间）或已有进行中事件 → 拒触发
 		if not _fog_wired or _fog_active_id != &"":
 			return false
 		return _start_fog(p_id)
-	if _group_of(p_id) == GROUP_ENCOUNTER:
+	if group_of(p_id) == GROUP_ENCOUNTER:
 		# 遭遇组单事件并发（含手动 start 兜底登记，_encounter_active_id 为准）
 		if _encounter_active_id != &"":
 			return false
@@ -391,7 +391,7 @@ func _poll_encounters() -> void:
 func _pick_fog_id() -> StringName:
 	var ids: Array[StringName] = []
 	for id in EVENT_FACTORIES:
-		if _group_of(id) == GROUP_FOG:
+		if group_of(id) == GROUP_FOG:
 			ids.append(id)
 	if ids.is_empty():
 		return &""  # 空注册表防御
@@ -466,7 +466,7 @@ func _event_for(p_id: StringName) -> Node:
 
 
 ## 事件所属分组（遭遇注册序表为准；其余按注册表默认 fog）
-func _group_of(p_id: StringName) -> StringName:
+func group_of(p_id: StringName) -> StringName:
 	if _encounter_order.has(p_id):
 		return GROUP_ENCOUNTER
 	return GROUP_FOG
