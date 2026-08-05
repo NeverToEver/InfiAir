@@ -1,6 +1,6 @@
 name: CI
 
-# InfiAir 持续集成：无头导入 → 主场景冒烟 → 44 断言场景全量回归。
+# InfiAir 持续集成：无头导入 → 主场景冒烟 → 45 断言场景全量回归。
 # 引擎使用官方 Godot 4.6.2 stable headless（Linux x86_64）二进制，不依赖第三方 action（仅官方 checkout）。
 # 本地等价验证：`godot --headless --import --path .` + 逐个 `godot --headless --path . res://test/<场景>.tscn`
 
@@ -81,7 +81,7 @@ jobs:
           fi
           echo "compile probe: $(ls test/*.tscn | wc -l) scenes clean"
 
-      - name: Run assertion scenes (44)
+      - name: Run assertion scenes (45)
         run: |
           passed=0
           failed=0

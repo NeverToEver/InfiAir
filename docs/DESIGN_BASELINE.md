@@ -112,7 +112,7 @@ Main (scripts/main.gd)
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Four non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityRegistry` (RefCounted: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref`).
+- Four non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs).
 - Hot paths: no per-frame `get_nodes_in_group`; use registries.
 
 ### 2.4 Pools & Registries

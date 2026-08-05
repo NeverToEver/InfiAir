@@ -53,6 +53,7 @@
 
 ## Decisions
 
+- **2026-08-05 — 统一实体管理器**：`EntityRegistry` 演进为 `EntityManager`（`docs/ENTITY_MANAGER.md`，Playwright 调研佐证：真实 Godot 项目 underkingdom 的 Autoload EntityManager + 对象池社区指南）——注册样板收敛（`bind_enemy`/`unbind_enemy` 一行，enemy/boss/turret_battery/formation_craft 四处重复消除）+ 生命周期信号（`entity_registered`/`entity_unregistered`，新功能订阅口）+ 批量操作 API（`for_each_enemy`/`clear_enemies`/`count_enemies`，轨道打击清场/母舰索敌/狂暴齐射/spawner 计数迁移）；池化语义/GameState 转发/autoplay 组↔注册表一致性不变；低频实体不池化（社区共识）。
 - **2026-08-05 — 统一事件管理器**：全部随机游戏事件（迷雾 4 + 遭遇 2）收敛进 `GameEventManager`（`GameState.events`，`docs/EVENT_MANAGER.md`）——统一 `EVENT_FACTORIES` 注册表 / `fog|encounter` 分组并发 / 触发策略 / 生命周期 / `event_started/ended` 信号；遭遇事件触发移出 spawner（`ScheduledEventTrigger` 退役），`FogEventManager` 重构为迷雾效果层+API 门面（公开 API 不变，fog 测试零改动）。行为保持：迷雾可与遭遇并行；`spawner.set_process(false)` 仍禁用遭遇自动触发；balance key 零变化。
 - **2026-08-05 — 不引入 C# 混合编译**：评估 `docs/C_SHARP_ASSESSMENT.md`（实测 perf_bench 1.011ms/帧 ≈989 FPS 等效，性能无瓶颈；仅 Linux/Windows 平台目标，无 Web/移动推力；跨语言继承禁止 + 热路径动态派发 + CI/发布/本地工具链三重成本 > 收益）。维持纯 GDScript。触发条件（性能瓶颈 / 平台需求 / 团队构成 / 架构重写窗口）见评估文档 §8。
 

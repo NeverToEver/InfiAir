@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 架构（2026-08-05，统一实体管理器，`docs/ENTITY_MANAGER.md`）
+
+- **统一实体管理器 `EntityManager`**（`EntityRegistry` 演进）：实体注册样板收敛——`bind_enemy`/`unbind_enemy` 一行（`add_to_group("enemy")` + 注册/注销 + `entity_registered`/`entity_unregistered` 生命周期信号，新功能订阅零改动单位类），enemy/boss/turret_battery/formation_craft 四处重复样板消除
+- **批量操作 API**：`for_each_enemy`（失效实例跳过 + 谓词过滤）/`clear_enemies`（保留项谓词，如轨道打击保 Boss）/`count_enemies`——main 轨道打击清场、母舰慢速场与索敌（方法引用保 P2 缓冲零分配）、狂暴倾巢齐射、spawner spread 计数统一迁移
+- **可行性与收益**（Playwright 调研）：真实 Godot 项目 underkingdom 的 Autoload EntityManager 实战印证模式；对象池社区指南确认低频实体不池化（Godot 4 节点创建快）——Boss/炮塔/编队保持直建，仅敌机/子弹/爆炸池化不变
+- 验证：新增 `entity_manager_test`（绑定幂等/组同步/信号/批量谓词过滤/保留项清除）；池化语义、GameState 转发面、autoplay 组↔注册表一致性回归不变；全量 45 断言场景门禁
+
 ### 架构（2026-08-05，统一事件管理器，`docs/EVENT_MANAGER.md`）
 
 - **统一事件管理器 `GameEventManager`**（`GameState.events`，挂 GameState 下）：全部随机游戏事件（迷雾 4 + 遭遇 2）收敛进单一注册表 `EVENT_FACTORIES`——统一触发策略（balance key 零变化：`fog_events.*`/`elite_turret_event.trigger_*`/`formation_strike_event.trigger_*`）+ 分组并发（`fog`‖`encounter`，组内单事件并发、组间并行，保持现状行为）+ 统一生命周期 + 信号 `event_started/event_ended`
