@@ -135,7 +135,10 @@ func _ready() -> void:
 	_state = _state_for_x(_damage_x)
 	if _state == STATE_DYING and GameState.health > 0.0:
 		_heart_phase = 0.0
-	_bake_crack_field()
+	# P1-4（2026-08-05 审计）：裂纹场烘焙延后到首帧后——SubViewport 512² GPU 回读是
+	# 启动一次性 pipeline stall，不占首帧关键路径；烘焙完成前 _field_ready=false，
+	# shader 侧已早退不显示裂纹（379 行），满血开局无感知、读档续局延迟一帧
+	_defer_bake()
 	GameState.health_changed.connect(_on_health_changed)
 	GameState.player_damaged.connect(_on_player_damaged)
 	GameState.player_died.connect(_on_player_died)
@@ -350,15 +353,11 @@ func _process(delta: float) -> void:
 	_adapt_timer -= delta
 	if _adapt_timer <= 0.0:
 		_adapt_timer = float(_cfg["adapt_interval"])
-		var bullets := 0
-		var explosions := 0
-		for child in get_parent().get_children():
-			if child is Bullet:
-				if child.is_active():
-					bullets += 1
-			elif child is Explosion:
-				if child.visible:
-					explosions += 1
+		# P2-1（2026-08-05 审计）：注册表/静态计数替代 get_children 扫描——活跃子弹数
+		# （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion _live_count），
+		# 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历
+		var bullets := Bullet.active_count()
+		var explosions := Explosion.live_count()
 		var proxy := bullets * float(_cfg["adapt_bullet_weight"]) + explosions * float(_cfg["adapt_explosion_weight"])
 		_adapt_gain = clampf(1.0 - proxy, float(_cfg["adapt_min"]), float(_cfg["adapt_max"]))
 
@@ -431,6 +430,16 @@ func set_lod(v: int) -> void:
 
 
 # ---------------- 裂纹距离场预烘焙（D1） ----------------
+
+
+## P1-4（2026-08-05 审计）：延后烘焙——await 首帧后执行，SubViewport GPU 回读不占
+## 启动关键路径；headless CPU 回退与窗口 GPU 路径均延后（等价性不变量保持）。
+func _defer_bake() -> void:
+	await get_tree().process_frame
+	# C15 同款守卫：首帧前本节点被释放（无头测试同帧实例化释放）则不再操作 freed 实例
+	if not is_inside_tree():
+		return
+	_bake_crack_field()
 
 
 ## 运行时 SubViewport 单帧烘焙（启动一次，512²，成本 1 帧）；headless dummy 渲染走 CPU 回退。

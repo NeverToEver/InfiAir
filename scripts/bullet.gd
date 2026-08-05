@@ -41,6 +41,17 @@ var GRACE_PERIOD := 0.05
 var REFLECT_SPEED_MULT := 2.0
 var REFLECT_DAMAGE_MULT := 1.5
 
+## P2-1（2026-08-05 审计）：场上活跃子弹总数（池化 activate/deactivate 成对维护；
+## 直实例化测试弹 _active 恒 false 不计，语义同 Meta HUD 原 is_active 过滤）。
+## 供 Meta HUD D3 自适应亮度代理，替代 4 次/秒 get_children 扫描。
+static var _active_count := 0
+
+
+## P2-1：活跃子弹总数（Meta HUD D3 亮度代理查询）
+static func active_count() -> int:
+	return _active_count
+
+
 var _homing_elapsed: float = 0.0
 var _pool: Node = null
 ## 池活跃标记：回收的延迟调用（monitoring=false / reparent）在重激活后必须失效
@@ -54,7 +65,68 @@ var _grace_hitbox: Area2D = null
 ## 擦弹单次计数（机制二）：同一敌弹至多计 1 次擦弹分（池化 activate 复位）
 var _graze_done: bool = false
 
-@onready var _polygon: Polygon2D = $Polygon2D
+@onready var _sprite: Sprite2D = $Sprite2D
+
+## P0-3（2026-08-05 审计）：共享图集 Sprite2D——弹体+白芯光栅化进单张共享纹理
+## （玩家金体白芯 / 敌弹红体），每颗子弹 1 个 CanvasItem；同阵营同色 → compat batcher
+## 合批（窗口实测 100 颗共享纹理同色 Sprite2D 仅 +4 draw calls，原双 Polygon2D 1.36/弹）。
+## 纹理 24×8 像素，箭头几何中心对齐纹理中心（偏移 +11,+4），scale 语义与原 polygon 等价。
+const TEX_SIZE := Vector2i(24, 8)
+const TEX_OFFSET := Vector2(11.0, 4.0)
+## 弹体/白芯多边形（数组字面量——PackedVector2Array 构造非常量表达式，_stamp 内转换）
+const ARROW_BODY: Array = [Vector2(-10, -3), Vector2(4, -3), Vector2(12, 0), Vector2(4, 3), Vector2(-10, 3)]
+const ARROW_CORE: Array = [Vector2(-4.5, -1.5), Vector2(2, -1.5), Vector2(5.5, 0), Vector2(2, 1.5), Vector2(-4.5, 1.5)]
+
+static var _player_tex: Texture2D = null
+static var _enemy_tex: Texture2D = null
+
+
+## P0-3：共享纹理惰性生成（静态，全实例共用；首次调用光栅化一次）
+static func _ensure_textures() -> void:
+	if _player_tex != null:
+		return
+	_player_tex = _stamp_texture(ARROW_BODY, Color(1.0, 0.9, 0.25), ARROW_CORE, Color.WHITE)
+	_enemy_tex = _stamp_texture(ARROW_BODY, Color(1.0, 0.38, 0.3), PackedVector2Array(), Color.TRANSPARENT)
+
+
+## P0-3：把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）。
+## Image 无 draw_polygon（4.6.2 实测不存在），用凸多边形三角扇分解 + 扫描线填充。
+static func _stamp_texture(body: Array, body_color: Color, core: Array, core_color: Color) -> ImageTexture:
+	var img := Image.create(TEX_SIZE.x, TEX_SIZE.y, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	_fill_polygon(img, body, body_color)
+	if core.size() > 0:
+		_fill_polygon(img, core, core_color)
+	return ImageTexture.create_from_image(img)
+
+
+## 凸多边形扫描线填充（三角扇分解：以第一个点为公共顶点，全部顶点平移纹理偏移）
+static func _fill_polygon(img: Image, pts: Array, color: Color) -> void:
+	for i in range(1, pts.size() - 1):
+		_fill_triangle(img, (pts[0] as Vector2) + TEX_OFFSET, (pts[i] as Vector2) + TEX_OFFSET, (pts[i + 1] as Vector2) + TEX_OFFSET, color)
+
+
+## 三角形扫描线填充（按 y 排序，逐行求两条边交点的 x 区间）
+static func _fill_triangle(img: Image, a: Vector2, b: Vector2, c: Vector2, color: Color) -> void:
+	var pts: Array[Vector2] = [a, b, c]
+	pts.sort_custom(func(p: Vector2, q: Vector2) -> bool: return p.y < q.y)
+	var y0 := maxi(0, int(ceilf(pts[0].y)))
+	var y1 := mini(img.get_height() - 1, int(floorf(pts[2].y)))
+	for y in range(y0, y1 + 1):
+		var fy := float(y) + 0.5
+		var x_a := _edge_intersect(pts[0], pts[2], fy)
+		var x_b := _edge_intersect(pts[0], pts[1], fy) if fy < pts[1].y else _edge_intersect(pts[1], pts[2], fy)
+		var xa := maxi(0, int(ceilf(minf(x_a, x_b))))
+		var xb := mini(img.get_width() - 1, int(floorf(maxf(x_a, x_b))))
+		for x in range(xa, xb + 1):
+			img.set_pixel(x, y, color)
+
+
+## 线段在指定 y 处的 x（水平边退化返回起点 x）
+static func _edge_intersect(p: Vector2, q: Vector2, y: float) -> float:
+	if absf(q.y - p.y) < 1.0e-6:
+		return p.x
+	return p.x + (y - p.y) * (q.x - p.x) / (q.y - p.y)
 
 
 ## 兼容路径：直接实例化时 setup() 后由 _ready() 应用阵营外观。
@@ -79,6 +151,7 @@ func activate(
 ) -> void:
 	setup(p_direction, p_speed, p_damage, p_is_player, p_homing, p_homing_time)
 	_active = true
+	_active_count += 1  # P2-1：活跃计数（deactivate/_exit_tree 对称减）
 	_homing_elapsed = 0.0
 	homing_target = null
 	_graze_done = false
@@ -97,9 +170,13 @@ func activate(
 ## 池化回收：停用但保留实例。
 func deactivate() -> void:
 	_active = false
+	_active_count -= 1  # P2-1：活跃计数对称减（防边缘：理论上 activate 必配对）
 	visible = false
 	set_physics_process(false)  # C04：与 activate 的物理帧开关配对
 	position = Vector2(-500.0, -500.0)
+	# P0-1（2026-08-05 审计）：回收弹移出敌弹注册表（death_replay 录制数据源，防录制池位）
+	if not is_player_bullet:
+		GameState.unregister_enemy_bullet(self)
 	_cancel_grace()  # 机制一：回收即停宽限 Timer（清弹/离屏回收防悬挂）
 	_deferred_disable_monitoring.call_deferred()
 
@@ -154,25 +231,16 @@ func _ready() -> void:
 	_apply_faction()
 
 
-## C24 修复：Polygon2D 懒加载缓存——池化复用生命周期内引用稳定，
-## 调用方（boss_fire/enemy/mothership）不再每次发射 get_node("Polygon2D")
-var _polygon_cache: Polygon2D = null
-
-## 竞品调研 P0-2：玩家弹白芯高光（描边感，敌我弹可读性）——内芯子节点引用缓存
-var _core_cache: Polygon2D = null
+## C24 修复：Sprite2D 懒加载缓存——池化复用生命周期内引用稳定，
+## 调用方（boss_fire/enemy/mothership）不再每次发射 get_node("Sprite2D")
+var _sprite_cache: Sprite2D = null
 
 
-func polygon_node() -> Polygon2D:
-	if _polygon_cache == null:
-		_polygon_cache = get_node_or_null("Polygon2D") as Polygon2D
-	return _polygon_cache
-
-
-## P0-2：内芯高光节点懒加载（与 polygon_node 同模式，热路径零字符串查找）
-func core_node() -> Polygon2D:
-	if _core_cache == null:
-		_core_cache = get_node_or_null("Polygon2D/Core") as Polygon2D
-	return _core_cache
+## P0-3：视觉节点公开接口（替代原 polygon_node/core_node 双节点——已合并为单 Sprite2D）
+func sprite_node() -> Sprite2D:
+	if _sprite_cache == null:
+		_sprite_cache = get_node_or_null("Sprite2D") as Sprite2D
+	return _sprite_cache
 
 
 func _exit_tree() -> void:
@@ -182,6 +250,14 @@ func _exit_tree() -> void:
 	# _pool 为悬空引用，forget 调用会踩已释放对象
 	if _pool != null and is_instance_valid(_pool) and not _repooling:
 		_pool.forget(self)
+	# P2-1（2026-08-05 审计）：池化弹被外部销毁（未走 deactivate）时补减活跃计数；
+	# deactivate 后 reparent 触发本回调时 _active 已为 false 不重复减
+	if _active:
+		_active = false
+		_active_count -= 1
+	# P0-1（2026-08-05 审计）：外部销毁同步移出敌弹注册表（幂等，防 death_replay 悬空引用）
+	if not is_player_bullet:
+		GameState.unregister_enemy_bullet(self)
 
 
 func _apply_faction() -> void:
@@ -189,21 +265,25 @@ func _apply_faction() -> void:
 	# 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
 	scale = Vector2.ONE
 	modulate = Color.WHITE
-	_polygon.scale = Vector2.ONE * (VISUAL_SCALE if is_player_bullet else ENEMY_VISUAL_SCALE)
+	_ensure_textures()  # P0-3：共享图集惰性生成（静态，首次调用）
+	# P0-3：单 Sprite2D + 共享纹理（弹体+白芯已光栅化进纹理；同阵营同色 → compat 合批）
+	_sprite.texture = _player_tex if is_player_bullet else _enemy_tex
+	_sprite.scale = Vector2.ONE * (VISUAL_SCALE if is_player_bullet else ENEMY_VISUAL_SCALE)
 	if has_meta("bullet_type"):
 		remove_meta("bullet_type")
 	if is_player_bullet:
 		collision_layer = 2  # 第 2 层：player_bullet
 		collision_mask = 4  # 命中第 3 层：enemy
-		_polygon.color = Color(1.0, 0.9, 0.25)
 	else:
 		collision_layer = 8  # 第 4 层：enemy_bullet
 		collision_mask = 1  # 命中第 1 层：player
-		_polygon.color = Color(1.0, 0.38, 0.3)
-	# P0-2 可读性：玩家弹显示白色高光内芯（金边白芯，满屏弹幕下敌我火力可区分）；敌弹隐藏
-	var core := core_node()
-	if core != null:
-		core.visible = is_player_bullet
+	# P0-1（2026-08-05 审计）：敌弹注册表维护（幂等）——death_replay 录制数据源。
+	# activate/_ready/reflect 均经此路径：池化激活登记、直实例化 _ready 登记、
+	# reflect 阵营翻转自动切换（反射弹转玩家弹即移出注册表）
+	if is_player_bullet:
+		GameState.unregister_enemy_bullet(self)
+	else:
+		GameState.register_enemy_bullet(self)
 
 
 func _despawn() -> void:
@@ -219,7 +299,7 @@ func _linger_fatal(duration: float = 0.5) -> void:
 	set_physics_process(false)
 	monitoring = false
 	modulate = Color(2.0, 0.7, 0.7)
-	_polygon.color = Color(1.2, 0.35, 0.35)
+	_sprite.self_modulate = Color(1.2, 0.35, 0.35)  # P0-3：Sprite2D 高亮（原 Polygon2D.color）
 	var t := Timer.new()
 	t.one_shot = true
 	t.wait_time = duration
@@ -281,16 +361,18 @@ func _physics_process(delta: float) -> void:
 ## 爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
 ## 原作公式为 半径/伤害 ×层数；本作 explosive 锁 1 层（PORTING_PARITY #13「近似一次性」），
 ## 2026-07-29 清理不可达的 per-level 缩放，取固定值（P2-8）。
-## 遍历副本防 take_damage→die→注销注册表造成的遍历中突变。
+## P1-1（2026-08-05 审计）：去整表 duplicate 拷贝——倒序索引遍历（take_damage→die→注销
+## 注册表 erase 只影响已处理的高索引区，倒序不受突变破坏；复用 laser_weapon 已验证模式）。
 ## E07 修正：注册表含 Enemy 与 Boss（Boss extends Area2D 非 Enemy 子类），as Enemy 对 Boss
 ## cast 得 null 恰落在 e == null 跳过——Boss 排除为有意设计（与 _on_area_entered 直击路径一致）。
 func _explode() -> void:
-	for node in GameState.enemies.duplicate():
-		var e := node as Enemy  # C20：静态类型化访问 is_boss/take_damage（Boss 由 null 排除）
-		if e == null or e.is_boss():
-			continue
-		if e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
+	var arr: Array[Node] = GameState.enemies
+	var i := arr.size() - 1
+	while i >= 0:
+		var e := arr[i] as Enemy  # C20：静态类型化访问 is_boss/take_damage（Boss 由 null 排除）
+		if e != null and not e.is_boss() and e.global_position.distance_to(global_position) <= EXPLOSIVE_RADIUS:
 			e.take_damage(EXPLOSIVE_DAMAGE)
+		i -= 1
 	Explosion.spawn_at(get_parent(), global_position, 0.6)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 
@@ -299,12 +381,15 @@ func _explode() -> void:
 ## E01 修复：注册表含 Boss（Boss 非 Enemy 子类），as Enemy 对 Boss cast 得 null 使溅射伤害
 ## 静默丢失（直击 80 仍有效）；改 Variant 鸭子调用 take_damage(amount, score_scale)——
 ## Enemy/Boss 均实现同签名（与 laser_weapon._damage_tick「含 Boss」同模式）。
+## P1-1（2026-08-05 审计）：同上倒序索引遍历，去整表 duplicate 拷贝。
 func _splash() -> void:
-	for node in GameState.enemies.duplicate():
-		if not (node is Area2D):
-			continue
-		if node.global_position.distance_to(global_position) <= splash_radius:
+	var arr: Array[Node] = GameState.enemies
+	var i := arr.size() - 1
+	while i >= 0:
+		var node: Node = arr[i]
+		if node is Area2D and node.global_position.distance_to(global_position) <= splash_radius:
 			node.take_damage(splash_damage, score_scale)
+		i -= 1
 	Explosion.spawn_at(get_parent(), global_position, 0.8)
 	GameState.play_sfx(GameState.SFX_EXPLOSION, -6.0)
 

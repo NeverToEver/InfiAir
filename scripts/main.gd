@@ -372,7 +372,8 @@ func _process(delta: float) -> void:
 		_apply_camera_zoom()
 	_breath_was_active = breath_on
 	# B 梯队：死亡回放录制（每渲染帧采样敌弹轨迹；死亡后树暂停本函数不再执行）
-	_replay.record(get_children())
+	# P0-1（2026-08-05 审计）：数据源改敌弹注册表，消除每帧 get_children + cast 分配链
+	_replay.record()
 
 
 func _stop_charging() -> void:
@@ -450,7 +451,9 @@ func _report_startup_time() -> void:
 
 
 func _start_bgm() -> void:
-	var stream := ResourceLoader.load(BGM_PATH, "AudioStreamWAV", ResourceLoader.CACHE_MODE_IGNORE) as AudioStreamWAV
+	# P1-4（2026-08-05 审计）：CACHE_MODE_IGNORE 每次进 main 重新 load + 解码 3.5MB WAV；
+	# 改 CACHE_MODE_REUSE 复用资源缓存（静态音频，缓存复用无副作用；音频路径保持等价不变）
+	var stream := ResourceLoader.load(BGM_PATH, "AudioStreamWAV", ResourceLoader.CACHE_MODE_REUSE) as AudioStreamWAV
 	# H04（健壮性审核）：运行时 load 判空——打包漏资源/磁盘异常时降级静默而非空引用崩溃
 	if stream == null:
 		push_warning("BGM 资源加载失败：" + BGM_PATH)

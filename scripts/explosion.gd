@@ -2,17 +2,47 @@ class_name Explosion
 extends GPUParticles2D
 ## 一次性爆炸粒子（主火花 + 飞散碎片双发射器），纯代码构建。
 ## 池化复用：发射完毕后回收到静态池（上限 24），超出上限的临时实例照旧销毁。
+## P1-5（2026-08-05 审计）：回池爆炸 reparent 到统一 ExplosionPool 节点（不再堆积在各
+## parent 下放大 Main 子节点数）；P2-1：活跃实例计数供 Meta HUD D3 自适应亮度代理
+## （替代 4 次/秒 get_children 树遍历扫描）。
 
 const POOL_CAP := 24
 
 static var _pool: Array[Explosion] = []
+## P2-1：当前场景树中活跃（未结算）的爆炸实例数（_ready +1；finished/外部销毁 -1，
+## _settled 防双减；池内 reparent 置位不计）
+static var _live_count := 0
 ## G022：爆炸视觉比例缓存（首次读取；中频事件免每次 spawn_at JSON 查询）
 static var _visual_scale := -1.0
 ## P2：池容量缓存（首次读取；免每次新建实例查 cfg）
 static var _pool_cap := -1
+## P1-5：统一池节点（挂 main 场景下；跨场景重载失效后重建）
+static var _pool_node: Node = null
 
 var _debris: GPUParticles2D
 var _pooled: bool = false
+## P1-5：回池 reparent 保护（reparent 触发 _exit_tree，置位期间不清池清单/不减计数）
+var _repooling := false
+## P2-1：生命周期结算标记（finished 或外部销毁时置位，防 _live_count 双减）
+var _settled := false
+
+
+## P2-1：活跃爆炸实例数（Meta HUD D3 亮度代理查询）
+static func live_count() -> int:
+	return _live_count
+
+
+## P1-5：统一池节点惰性创建（挂 current_scene 下，即 Main 场景；跨场景重载失效重建）
+static func _ensure_pool_node() -> Node:
+	if _pool_node != null and is_instance_valid(_pool_node):
+		return _pool_node
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.current_scene == null:
+		return null
+	_pool_node = Node.new()
+	_pool_node.name = "ExplosionPool"
+	tree.current_scene.add_child(_pool_node)
+	return _pool_node
 
 
 static func spawn_at(parent: Node, pos: Vector2, p_scale: float = 1.0) -> void:
@@ -119,18 +149,33 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	_live_count += 1
+	_settled = false
 	emitting = true
 	_debris.emitting = true
 
 
 func _exit_tree() -> void:
-	# 场景重载/外部销毁时从池中移除引用
-	_pool.erase(self)
+	# 场景重载/外部销毁时从池中移除引用（池内 reparent 置位跳过）；未结算实例补减活跃计数
+	if not _repooling:
+		if not _settled:
+			_settled = true
+			_live_count -= 1
+		_pool.erase(self)
 
 
 func _on_finished() -> void:
+	if not _settled:
+		_settled = true
+		_live_count -= 1
 	if _pooled:
 		visible = false
 		_pool.append(self)
+		# P1-5（2026-08-05 审计）：回池统一池节点——隐藏爆炸不再堆积在各 parent（多为 Main）下
+		_repooling = true
+		var pool := _ensure_pool_node()
+		if pool != null and pool != get_parent():
+			reparent(pool)
+		_repooling = false
 	else:
 		queue_free()

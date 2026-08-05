@@ -867,10 +867,13 @@ func _fire(aim: Vector2) -> void:
 				if homing_rate <= 0.0:
 					homing_target = null  # 锥缘/远距退化为直射
 	var count := 1 + spread
+	# P1-2（2026-08-05 审计）：循环不变量外提——弹速/伤害在 spread 循环内为恒定值
+	# （_buff_scale 含 pow()，社区「循环外提」直接靶点），同帧只计算一次
+	var loop_speed := _buff_scale(&"bullet_speed", BULLET_SPEED, GameState.buff_count(&"bullet_speed"))
+	var loop_damage := bullet_damage()
 	for i in count:
 		var offset := deg_to_rad(BULLET_SPREAD_DEG * (float(i) - float(spread) / 2.0))
-		var speed := _buff_scale(&"bullet_speed", BULLET_SPEED, GameState.buff_count(&"bullet_speed"))
-		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), speed, bullet_damage(), true)
+		var b: Bullet = GameState.bullet_pool.fire(aim.rotated(offset), loop_speed, loop_damage, true)
 		b.pierce = pierce
 		b.explosive = explosive
 		if homing_target != null:

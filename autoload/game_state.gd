@@ -353,6 +353,10 @@ func _enter_tree() -> void:
 var enemies: Array[Node] = []:
 	get:
 		return _registry.enemies
+## P0-1（2026-08-05 审计）：敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）
+var enemy_bullets: Array[Bullet] = []:
+	get:
+		return _registry.enemy_bullets
 var player_ref: Node2D = null:
 	get:
 		return _registry.player_ref
@@ -386,6 +390,15 @@ var aim_frame_layer: AimFrameLayer = null:
 
 func register_enemy(node: Node) -> void:
 	_registry.register_enemy(node)
+
+
+## P0-1：敌弹注册/注销转发（bullet.gd 维护）
+func register_enemy_bullet(b: Bullet) -> void:
+	_registry.register_enemy_bullet(b)
+
+
+func unregister_enemy_bullet(b: Bullet) -> void:
+	_registry.unregister_enemy_bullet(b)
 
 
 ## G010：注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）

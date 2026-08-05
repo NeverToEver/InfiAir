@@ -181,6 +181,8 @@ func _fire_current_ammo() -> void:
 		&"weak_homing":
 			var dir := _fire_dir()
 			var b: Bullet = GameState.bullet_pool.fire(dir, HOMING_SPEED, DMG_HOMING, false, true, homing_time)
+			if b == null:
+				return  # P2-3：同屏敌弹硬上限，本次开火放弃
 			b.homing_turn_rate = homing_turn_rate
 			b.position = global_position + dir * _muzzle_offset
 			b.set_meta("bullet_type", &"homing")
@@ -200,13 +202,15 @@ func _fire_fan(count: int) -> void:
 
 func _spawn_bullet(dir: Vector2, bullet_speed: float, dmg: int, p_type: StringName) -> void:
 	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
+	if b == null:
+		return  # P2-3：同屏敌弹硬上限，本次开火放弃
 	b.position = global_position + dir * _muzzle_offset
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-		var poly := b.polygon_node()  # K11：C24 缓存模式延续（原 get_node 每发射字符串查找）
+		var poly := b.sprite_node()  # K11：C24 缓存模式延续（原 get_node 每发射字符串查找）
 		poly.scale = Vector2(2.2, 0.55)
-		poly.color = Color(1.0, 0.85, 0.35)
+		poly.self_modulate = Color(1.0, 0.85, 0.35)  # P0-3：Sprite2D 无 color，用 self_modulate
 
 
 func take_damage(amount: int, _score_scale: float = 1.0) -> void:

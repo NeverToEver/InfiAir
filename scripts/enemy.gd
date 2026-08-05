@@ -79,6 +79,10 @@ var _pool: EnemyPool = null
 var _active: bool = false
 ## 回收 reparent 保护：4.6 实测 reparent 也会触发 _exit_tree，置位期间禁止 forget 误清池清单
 var _repooling: bool = false
+## P0-2（2026-08-05 审计）：与玩家 Hitbox 重叠状态（area_entered/exited 事件驱动标记）。
+## 重叠期每物理帧做 O(1) 守卫重掷（语义与逐帧 overlaps_area 完全等价：无敌结束仍重叠
+## 会再次命中、闪避每帧重掷），空间查询从每物理帧 N 次降到事件 0 次。
+var _body_contact := false
 
 # 三角函数查表（2048 项循环表 + 线性插值，全敌机共享一份）
 const TRIG_SIZE := 2048
@@ -283,6 +287,10 @@ func _ready() -> void:
 	# 初始值即对局开局 buff 状态，后续由 buffs_changed 增量刷新
 	_slow_field_on = GameState.buff_count(&"slow_field") > 0
 	GameState.buffs_changed.connect(_on_buffs_changed)
+	# P0-2（2026-08-05 审计）：体碰改信号事件驱动——area_entered/exited 标记重叠状态
+	# （collision_mask=3 已含 player Hitbox 层 1），替代每物理帧 overlaps_area 空间查询
+	area_entered.connect(_on_area_entered)
+	area_exited.connect(_on_area_exited)
 
 
 ## slow_field 缓存刷新（2026-08-03 审计，热路径禁字典约定）
@@ -346,15 +354,31 @@ func _resolve_anchor() -> void:
 			anchor_y = clampf(position.y + randf_range(120.0, 240.0), band_top, band_bottom)
 
 
-## 撞击玩家（对齐原作逐帧轮询）：重叠期间每帧尝试结算——闪避逐帧重掷、
-## 无敌结束仍重叠会再次命中；闪避/护甲/无敌/单帧守卫统一在 take_damage 内。
-func _check_body_collision() -> void:
-	var hb := GameState.player_hitbox
-	if hb != null and overlaps_area(hb):
-		# 撞体伤害随对局进程 ramp（与敌弹同一系数）；补传撞体位置作伤害源方向（D8）
-		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position
-		)
+## 撞击结算（P0-2 信号驱动版）：重叠标记置位期每物理帧调用——take_damage 守卫
+## （无敌/闪避/单帧）与逐帧轮询完全等价：无敌结束仍重叠会再次命中、闪避每帧重掷。
+## 无 _active 守卫：直实例化敌机（测试/瞬发路径）_active 恒 false（enemy.gd 语义缺口），
+## 守卫会拦截其体碰；陈旧调用由 deactivate 复位 _body_contact + set_physics_process(false) 防住。
+func _try_body_collision() -> void:
+	var player := GameState.player_ref as Player
+	if player == null:
+		return
+	# 撞体伤害随对局进程 ramp（与敌弹同一系数）；补传撞体位置作伤害源方向（D8）；
+	# is_dead 守卫由 take_damage 内部处理（对齐原实现）
+	player.take_damage(maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position)
+
+
+## P0-2：进入玩家 Hitbox → 标记重叠并立即结算（守卫放行则命中，否则下物理帧重掷）
+func _on_area_entered(area: Area2D) -> void:
+	if not area.is_in_group("player_hitbox"):
+		return  # 玩家弹等其他 Area 忽略
+	_body_contact = true
+	_try_body_collision()
+
+
+## P0-2：离开玩家 Hitbox → 清除重叠标记（停止每帧重掷）
+func _on_area_exited(area: Area2D) -> void:
+	if area.is_in_group("player_hitbox"):
+		_body_contact = false
 
 
 ## 池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）
@@ -382,6 +406,8 @@ func reactivate(
 	visible = true
 	monitoring = true
 	set_physics_process(true)
+	# P0-2：重叠标记复位（池化复用——上一任使用者的重叠状态不得残留到新激活）
+	_body_contact = false
 	_sprite.modulate = Color.WHITE
 	_flash_timer = 0.0  # P1-2：闪白计时复位（池化复用）
 	GameState.register_enemy(self)
@@ -402,6 +428,8 @@ func deactivate() -> void:
 	aim_marked = false  # 辅助瞄准标记复位，防池残留串到下一任使用者
 	visible = false
 	set_physics_process(false)
+	# P0-2：重叠标记复位（回收后 area_exited 未必投递，防陈旧重叠状态残留）
+	_body_contact = false
 	GameState.unregister_enemy(self)
 	for c in died.get_connections():
 		died.disconnect(c["callable"])
@@ -490,7 +518,9 @@ func _physics_process(delta: float) -> void:
 			_fire_timer = fire_interval
 			_fire_at_player()
 
-	_check_body_collision()
+	# P0-2（2026-08-05 审计）：仅重叠标记期做 O(1) 守卫重掷（原每物理帧 overlaps_area 空间查询）
+	if _body_contact:
+		_try_body_collision()
 
 	# C06：复用主路径已取的 view（391 行），避免同帧重复 view_world_rect()
 	if position.y > view.end.y + 60.0:
@@ -521,14 +551,16 @@ func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) 
 	elif p_type == &"laser":
 		dmg = BULLET_DAMAGE_LASER
 	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
+	if b == null:
+		return  # P2-3：同屏敌弹硬上限
 	b.position = position
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（polygon 尖端朝 +x，即飞行方向）
-		var poly := b.polygon_node()  # C24：缓存引用，不再每次 get_node
+		var poly := b.sprite_node()  # C24：缓存引用，不再每次 get_node
 		if poly != null:
 			poly.scale = Vector2(2.2, 0.55)
-			poly.color = Color(1.0, 0.85, 0.35)
+			poly.self_modulate = Color(1.0, 0.85, 0.35)  # P0-3：Sprite2D 无 color，用 self_modulate
 
 
 ## 寿命到期：向上或侧方加速离场（停火，不给分、不计击杀）。

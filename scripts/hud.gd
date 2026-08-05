@@ -370,11 +370,19 @@ func _process(delta: float) -> void:
 	if player == null:
 		return
 	var fuel := player.fuel_ratio()
-	_fuel_bar.value = fuel * 100.0
+	# P1-3（2026-08-05 审计）：值变化才写 setter（ProgressBar setter 内部 queue_redraw，
+	# 0.1s 轮询下值未变也触发无意义重绘；epsilon 守卫只写变化帧）
+	var fuel_val := fuel * 100.0
+	if absf(fuel_val - _fuel_bar.value) > 0.001:
+		_fuel_bar.value = fuel_val
 	_fuel_bar.fill_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
-	_dash_bar.value = player.dash_ready_ratio() * 100.0
+	var dash_val := player.dash_ready_ratio() * 100.0
+	if absf(dash_val - _dash_bar.value) > 0.001:
+		_dash_bar.value = dash_val
 	# 机制四：弹反能量槽（满格=可用；流程期清空；冷却匀速充能——player.parry_energy_ratio）
-	_parry_bar.value = player.parry_energy_ratio() * 100.0
+	var parry_val := player.parry_energy_ratio() * 100.0
+	if absf(parry_val - _parry_bar.value) > 0.001:
+		_parry_bar.value = parry_val
 	if _main != null:
 		var dock_text: String = _main.dock_status_text()
 		if dock_text != _last_dock_text:

@@ -4,6 +4,10 @@ extends Node
 ## 活跃弹挂在 Main 下（保持清场/测试遍历可见），闲置弹收回池节点下。
 
 const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
+## P2-3（2026-08-05 审计）：同屏敌弹显式硬上限——防极端场景（Boss 狂暴+多事件叠加）
+## 弹数失控。阈值 500 远高于 perf_bench 实测 300+ 峰值，正常对局永不触发；
+## 仅限制敌弹（弹幕主力），玩家火力（射速自限）不受影响。
+const MAX_ENEMY_ACTIVE := 500
 
 var _free: Array[Bullet] = []
 
@@ -23,10 +27,13 @@ func free_count() -> int:
 	return _free.size()
 
 
-## 取一枚子弹并激活（参数同 Bullet.setup）。
+## 取一枚子弹并激活（参数同 Bullet.setup）。敌弹超硬上限时返回 null（调用方判空跳过）。
 func fire(
 	p_direction: Vector2, p_speed: float, p_damage: int, p_is_player: bool, p_homing: bool = false, p_homing_time: float = 0.0
 ) -> Bullet:
+	# P2-3（2026-08-05 审计）：同屏敌弹显式硬上限（防极端场景失控；玩家弹永不限制）
+	if not p_is_player and Bullet.active_count() >= MAX_ENEMY_ACTIVE:
+		return null
 	var b: Bullet = null
 	while not _free.is_empty():
 		b = _free.pop_back()

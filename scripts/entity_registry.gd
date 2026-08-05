@@ -12,6 +12,9 @@ extends RefCounted
 var enemies: Array[Node] = []
 ## G010：enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定，Array 线性扫描热路径开销）
 var _enemy_set: Dictionary = {}  # node -> true
+## P0-1（2026-08-05 审计）：敌弹注册表——death_replay 录制数据源（替代每帧 get_children + cast）
+var enemy_bullets: Array[Bullet] = []
+var _enemy_bullet_set: Dictionary = {}  # node -> true
 var player_ref: Node2D = null
 var player_hitbox: Area2D = null
 var bullet_pool: BulletPool = null
@@ -34,3 +37,17 @@ func unregister_enemy(node: Node) -> void:
 ## G010：注册表存在性判定 O(1)（替代 enemies.has() 线性扫描；语义同注册表包含，deactivate 即移除）
 func has_enemy(node: Node) -> bool:
 	return _enemy_set.has(node)
+
+
+## P0-1：敌弹登记（幂等）。维护点：bullet._apply_faction（activate/_ready/reflect 阵营翻转）、
+## bullet.deactivate（回收）、bullet._exit_tree（外部销毁）。reflect 翻转阵营自动切换注册。
+func register_enemy_bullet(b: Bullet) -> void:
+	if not enemy_bullets.has(b):
+		enemy_bullets.append(b)
+	_enemy_bullet_set[b] = true
+
+
+## P0-1：敌弹注销（幂等）
+func unregister_enemy_bullet(b: Bullet) -> void:
+	enemy_bullets.erase(b)
+	_enemy_bullet_set.erase(b)

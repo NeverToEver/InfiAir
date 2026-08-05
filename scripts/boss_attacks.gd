@@ -384,6 +384,8 @@ func _update_sweep(delta: float, boss) -> void:
 					var b: Bullet = GameState.bullet_pool.fire(
 						Vector2.DOWN, float(boss.SWEEP_DROP_SPEED), int(boss.SWEEP_DROP_DAMAGE), false
 					)
+					if b == null:
+						break  # P2-3：同屏敌弹硬上限——跳出本轮撒弹（cap 持续期剩余 drop 下轮重试，防死循环）
 					b.position = boss.position + Vector2(0.0, 60.0) * world_scale
 				else:
 					break
@@ -444,6 +446,8 @@ func minion_volley_fire(boss, minions: Array) -> void:
 			if dir == Vector2.ZERO:
 				dir = Vector2.DOWN
 			var b: Bullet = GameState.bullet_pool.fire(dir, float(boss.VOLLEY_BULLET_SPEED), int(boss.VOLLEY_BULLET_DAMAGE), false)
+			if b == null:
+				continue  # P2-3：同屏敌弹硬上限，跳过该僚机本轮齐射
 			b.position = e.position + dir * 40.0 * world_scale
 
 

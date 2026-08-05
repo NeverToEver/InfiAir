@@ -115,7 +115,7 @@ func _ready() -> void:
 	_check(lasers.size() == 1, "laser 敌机发射单发弹")
 	if lasers.size() == 1:
 		_check(lasers[0].speed > laser_e.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
-		_check((lasers[0].get_node("Polygon2D") as Polygon2D).scale.x > 1.5, "laser 弹细长化表现")
+		_check((lasers[0].get_node("Sprite2D") as Sprite2D).scale.x > 1.5, "laser 弹细长化表现")
 	laser_e.queue_free()
 	_free_enemy_bullets()
 
