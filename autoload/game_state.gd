@@ -89,6 +89,9 @@ var _registry := EntityRegistry.new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
 ## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
 var _fog_events := FogEventManager.new()
+## 统一游戏事件管理器（docs/EVENT_MANAGER.md）：批量管理全部随机游戏事件（迷雾 +
+## 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd
+var _events := GameEventManager.new()
 ## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/2026-08-04-local-accounts-plan.md）
 var _user_db := UserDB.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
@@ -424,6 +427,10 @@ var aim_frame_layer: AimFrameLayer = null:
 var fog_events: FogEventManager:
 	get:
 		return _fog_events
+## 统一事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
+var events: GameEventManager:
+	get:
+		return _events
 
 
 func register_enemy(node: Node) -> void:
@@ -456,6 +463,8 @@ func _ready() -> void:
 	_sfx_player.build_pool(SFX_POOL_SIZE)
 	# 迷雾事件管理器挂载（balance 已在 _apply_balance 就绪；管理器 _ready 读 cfg）
 	add_child(_fog_events)
+	# 统一事件管理器挂载（fog 组待迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
+	add_child(_events)
 	_capture_default_bindings()
 	_init_missions()
 	load_profile()
