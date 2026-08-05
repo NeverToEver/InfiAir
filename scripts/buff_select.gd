@@ -143,10 +143,10 @@ func _make_card(buff: Dictionary) -> Control:
 	# 上限口径与 _available_buffs() 相同：balance.json 可覆盖池内值
 	var max_stacks := int(GameState.cfg("buffs.%s.max_stacks" % String(id), buff["max"]))
 
-	# 顶部大字形槽：三卡统一槽位高度，保证垂直节奏一致
+	# 顶部大字形槽：坞瓦片同款 socket（分类色描边 + 内框，76×76），三卡统一槽位高度，保证垂直节奏一致
 	var glyph_slot := CenterContainer.new()
-	glyph_slot.custom_minimum_size = Vector2(0.0, 64.0)
-	glyph_slot.add_child(BuffIcons.make_glyph(id, kind_color, 52.0))
+	glyph_slot.custom_minimum_size = Vector2(0.0, 80.0)
+	glyph_slot.add_child(UITheme.make_buff_socket(id, 76.0))
 	vbox.add_child(glyph_slot)
 
 	# 名称行：名称 + NEW! 徽标（首次获得时）

@@ -103,29 +103,52 @@ static func make_toggle_button(text: String, group: ButtonGroup) -> Button:
 	return button
 
 
-## Buff 图标格：46×46 ChamferedPanel 瓦片（无括号），中央分类色程序化字形
-## （BuffIcons，与 Buff 三选一卡片同一套图形语言），层数 >1 时右下角放 "×N" 数字徽标。
-## 网格坞内高密度排布用，避免长文芯片互相遮挡。
-static func make_buff_tile(id: StringName, stacks: int) -> Control:
+## Buff 字形槽（socket）：ChamferedPanel 瓦片，分类色描边 + 同色内框 + 淡色底，
+## 中央程序化字形（BuffIcons，与 Buff 三选一卡片同一套图形语言）。
+## HUD 图标坞（make_buff_tile）与三选一卡片图标位共用，保证两处视觉一致。
+static func make_buff_socket(id: StringName, tile_px: float = 46.0) -> Control:
 	var color: Color = BuffIcons.color_for(id)
 	var panel := ChamferedPanel.new()
-	panel.chamfer = 7.0
+	panel.chamfer = maxf(tile_px * 0.15, 4.0)
 	panel.padding = 0.0
-	panel.custom_minimum_size = Vector2(46.0, 46.0)
-	panel.border_color = Color(color, 0.55)
+	panel.custom_minimum_size = Vector2(tile_px, tile_px)
+	# 底 = 藏青面板底向分类色微倾（16%）：暗底不变，色相暗示分类
+	panel.bg_color = PANEL_BG.lerp(Color(color, PANEL_BG.a), 0.16)
+	panel.border_color = Color(color, 0.7)
+	panel.inner_frame = true
+	panel.inner_frame_color = Color(color, 0.28)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var glyph := BuffIcons.make_glyph(id, color, 22.0)
-	glyph.position = Vector2(12.0, 12.0)  # (46-22)/2，面板尺寸固定 46
-	panel.add_child(glyph)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(BuffIcons.make_glyph(id, color, tile_px * 0.57))  # 46→26px / 76→43px，留白一致
+	panel.add_child(center)
+	return panel
 
+
+## Buff 图标格：46×46 socket 瓦片（make_buff_socket），层数 >1 时右下角叠一枚
+## 切角 ×N 徽标芯片（深底 + 分类色描边 + 金色数字，与滚动栏明细行 ×N 同色）。
+## 网格坞内高密度排布用，避免长文芯片互相遮挡。
+static func make_buff_tile(id: StringName, stacks: int) -> Control:
+	var panel := make_buff_socket(id)
 	if stacks > 1:
-		var badge := make_label("×%d" % stacks, 12, TEXT, HORIZONTAL_ALIGNMENT_RIGHT)
-		badge.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-		badge.position = Vector2(-22.0, -17.0)
-		badge.custom_minimum_size = Vector2(19.0, 15.0)
+		var color: Color = BuffIcons.color_for(id)
+		var chip := ChamferedPanel.new()
+		chip.chamfer = 4.0
+		chip.padding = 0.0
+		chip.custom_minimum_size = Vector2(24.0, 16.0)
+		chip.bg_color = Color(BG_DEEP, 0.95)
+		chip.border_color = Color(color, 0.6)
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		chip.position = Vector2(-26.0, -18.0)  # 右下 2px 内缩，芯片留在瓦片内
+		var badge := make_label("×%d" % stacks, 12, ACCENT_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		badge.set_anchors_preset(Control.PRESET_FULL_RECT)
+		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(badge)
+		chip.add_child(badge)
+		panel.add_child(chip)
 	return panel
 
 

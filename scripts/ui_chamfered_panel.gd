@@ -24,6 +24,16 @@ extends Control
 	set(v):
 		bracket_color = v
 		queue_redraw()
+## 内框线（嵌套切角细线，槽位/socket 质感）：默认关，buff 瓦片类开启
+@export var inner_frame: bool = false:
+	set(v):
+		inner_frame = v
+		queue_redraw()
+## 内框颜色；alpha=0 时回退为 border_color 半透明
+@export var inner_frame_color: Color = Color(0.0, 0.0, 0.0, 0.0):
+	set(v):
+		inner_frame_color = v
+		queue_redraw()
 
 ## 内容自适应边距（面板尺寸 = max(custom_minimum_size, 内容最小尺寸 + padding)）
 @export var padding: float = 28.0
@@ -99,3 +109,23 @@ func _draw() -> void:
 		]
 		for corner in corners:
 			draw_polyline(PackedVector2Array(corner), bracket_color, 1.5, true)
+	if inner_frame:
+		# 嵌套内框：外轮廓内缩 3px 的同款切角细线（socket 质感），角部随外框收小
+		var d := 3.0
+		var ic := maxf(c - d, 2.0)
+		if w >= (d + ic) * 2.0 and h >= (d + ic) * 2.0:
+			var col := inner_frame_color if inner_frame_color.a > 0.0 else Color(border_color, border_color.a * 0.5)
+			var ipts := PackedVector2Array(
+				[
+					Vector2(d + ic, d),
+					Vector2(w - d - ic, d),
+					Vector2(w - d, d + ic),
+					Vector2(w - d, h - d - ic),
+					Vector2(w - d - ic, h - d),
+					Vector2(d + ic, h - d),
+					Vector2(d, h - d - ic),
+					Vector2(d, d + ic),
+				]
+			)
+			for i in ipts.size():
+				draw_line(ipts[i], ipts[(i + 1) % ipts.size()], col, 1.0, true)

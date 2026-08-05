@@ -868,13 +868,16 @@ func _make_buff_row(id: StringName, stacks: int) -> Control:
 	return row
 
 
-## 收起态溢出格：46×46 同尺寸瓦片，中央 "+N"
+## 收起态溢出格：46×46 同尺寸瓦片（与 buff socket 同一套：淡色底 + 内框），中央 "+N"
 func _make_overflow_tile(count: int) -> Control:
 	var panel := ChamferedPanel.new()
 	panel.chamfer = 7.0
 	panel.padding = 0.0
 	panel.custom_minimum_size = Vector2(46.0, 46.0)
-	panel.border_color = Color(UITheme.ACCENT, 0.55)
+	panel.bg_color = UITheme.PANEL_BG.lerp(Color(UITheme.ACCENT, UITheme.PANEL_BG.a), 0.16)
+	panel.border_color = Color(UITheme.ACCENT, 0.7)
+	panel.inner_frame = true
+	panel.inner_frame_color = Color(UITheme.ACCENT, 0.28)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_buff_overflow_label = UITheme.make_label("+%d" % count, UITheme.FONT_CAPTION, UITheme.ACCENT)
 	_buff_overflow_label.set_anchors_preset(Control.PRESET_FULL_RECT)

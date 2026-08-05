@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 美工（2026-08-05，buff 槽位与图标重构）
+
+- **buff 槽位 socket 化**（纯视觉，无逻辑链路改动）：`ChamferedPanel` 新增可选 `inner_frame`（外轮廓内缩 3px 的嵌套切角细线，默认关）；`UITheme.make_buff_socket()` 统一槽位工厂——分类色描边（0.7）+ 同色内框（0.28）+ 面板底向分类色微倾 16% 底，HUD 图标坞瓦片（46×46）与 Buff 三选一卡片图标位（76×76）共用同一套槽位语言
+- **×N 层数徽标芯片化**：坞瓦片右下角由裸文字改为切角小芯片（深底 + 分类色描边 + 金色数字，与滚动栏明细行 ×N 同色）；收起态 +N 溢出格同步 socket 样式（淡色底 + 内框）
+- **字形小尺寸可读性**：`ui_buff_icons.gd` 线宽加 2px 下限（`maxf(2.0u, 2.0)`），HUD 瓦片 26px 下不糊、卡片大尺寸随缩放自然放大；19 字形设计不变
+- 验证：gdformat/gdlint/import 无新增告警，41 断言场景 0 FAIL（buff_panel/buff33/buff_visuals/buff_effects 重点回归），hud_capture（常态/极端/展开三形态）+ ui_capture 窗口截图人工核验
+
 ### 平衡（2026-08-04，无限段深局校准，`docs/archive/2026-08-04-endless-calibration-plan.md`）
 
 - **无限段深局校准落地**（ENDLESS_BALANCE_PLAN §6.1，此前 >15 min 校准 deferred）：`progression.per_boss_kill` 0.5→**0.6**、`per_ten_minutes` 1.0→**1.5**（时间档 +0.075/30s）、`enemies.hp_ramp_factor` 0.12→**0.25**、`damage_ramp_factor` 0.08→**0.20**

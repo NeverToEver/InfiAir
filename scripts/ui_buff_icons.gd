@@ -1,7 +1,7 @@
 class_name BuffIcons
 extends RefCounted
 ## Buff 程序化字形图标库：19 种 buff 各一个几何字形（24 单位坐标系按尺寸缩放），
-## 供 HUD 图标格（ui_theme.make_buff_tile）与 Buff 三选一卡片共用同一套图形语言。
+## 供 HUD 图标格与 Buff 三选一卡片图标位共用（经 ui_theme.make_buff_socket 统一槽位样式）。
 ## 分类配色：进攻=ACCENT 青，维生=SUCCESS 绿，通用=ACCENT_GOLD 金。
 
 const _OFFENSE: Array[StringName] = [
@@ -39,7 +39,8 @@ class _Glyph:
 	func _draw() -> void:
 		var u := size.x / 24.0
 		var c := glyph_color
-		var w := 2.0 * u
+		# 线宽下限 2px：小尺寸（HUD 瓦片 26px）下字形不糊，卡片大尺寸随 u 自然放大
+		var w := maxf(2.0 * u, 2.0)
 		match glyph_id:
 			&"power_shot":
 				# 大弹头上指 + 底托线
