@@ -12,6 +12,7 @@
 - **`.gitattributes` 新增**（官方 VCS 页推荐、仓库缺失）：全文本 LF 规范化 + `*.bat` 检出 CRLF（cmd.exe goto/label 边界）+ `*.sh` 强制 LF
 - **`builds/.gdignore`**：导出产物目录退出编辑器文件系统扫描（对齐 `docs/.gdignore` 约定）
 - **release.sh 版本回退硬失败化**：sed 取不到 `config/version` 时由静默回退 3.26（产出与 project.godot 脱节包名）改为 stderr 报错退出
+- **入口提示词精简（agent-md-refactor 流程，快照 /tmp 留存）**：CLAUDE.md 删除 `## Architecture Essentials` 整节（8 条要点与 `.agents/*` 逐条重复，且体碰描述已随 P0-2 漂移失实——独有信息迁入 collision-view.md：ENRAGE_HP_RATIO 锁血 30% + enemy 事件驱动/boss 有意轮询体碰机制修正）；CLAUDE.md 另修 godot "not on PATH" 失实表述（本机即在 PATH）与 pre-commit 段代码围栏缺失（`#` 标题误渲染）；剔除审计考古注记（start_radar 删除/gdtoolkit R09/run.bat 原实现叙述/world_scale 日期）与 game-ui-ux 技能溯源元数据——提示词载体 207→199 行，零规则丢失逐条核对
 
 ### 审计（2026-08-05，R 系列独立审计修复，`docs/archive/2026-08-05-independent-audit-report.md`）
 

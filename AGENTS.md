@@ -6,7 +6,7 @@ InfiAir: single-player 2D top-down shooter; Godot 4.6 + GDScript, GL Compatibili
 
 Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
 
-- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (2026-08-04 accounts; main.tscn = battle scene, explicitly instanced by tests).
+- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (accounts; main.tscn = battle scene, explicitly instanced by tests).
 - Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
 - Only autoload: `GameState` (`autoload/game_state.gd`) — facade over 6 non-autoload services: `scripts/balance_service.gd`/`save_manager.gd`/`sfx_player.gd`/`entity_manager.gd`（统一实体管理器，`GameState.enemies`/`bind_enemy`/批量 API；`docs/ENTITY_MANAGER.md`） + `scripts/fog_event_manager.gd` (迷雾效果层/API 门面，挂 GameState 下，`GameState.fog_events` 访问；`docs/FOG_EVENTS.md`) + `scripts/event_manager.gd` (统一事件管理器，`GameState.events`，批量管理全部随机事件——迷雾/遭遇统一注册/触发/信号；`docs/EVENT_MANAGER.md`); public API forwarded, callers/tests unaffected.
 - Game text: zh+en bilingual (UI default `zh`; new keys fill both `translations.csv` columns). Docs in English; `docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese.
