@@ -6,9 +6,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # R07：版本号自动读取 project.godot（L 系列工具链登记遗留）——本地跑 release.sh 忘传
-# VERSION 不再产出与项目版本不符的包名（sed 取不到时回退 3.26）
+# VERSION 不再产出与项目版本不符的包名；sed 取不到时硬失败并提示显式传 VERSION
+# （原回退 3.26 会静默产出与 project.godot 脱节的包名，2026-08-06 规范化修正）
 VERSION="${VERSION:-$(sed -n 's/^config\/version="\([^"]*\)"/\1/p' project.godot)}"
-VERSION="${VERSION:-3.26}"
+if [ -z "$VERSION" ]; then
+    echo "[release] 无法从 project.godot 读取 config/version；请显式传入 VERSION=x.y" >&2
+    exit 1
+fi
 GODOT="${GODOT:-$HOME/.local/bin/godot}"
 command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
 

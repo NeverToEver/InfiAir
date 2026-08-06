@@ -12,8 +12,9 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Exported builds
-builds/
+# Exported builds（保留 builds/.gdignore 哨兵：导出产物目录不参与编辑器文件系统扫描）
+builds/*
+!builds/.gdignore
 exports/
 android/build/
 *.apk

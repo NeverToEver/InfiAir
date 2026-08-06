@@ -4,6 +4,15 @@
 
 ## [3.27] - 2026-08-06
 
+### 规范化（2026-08-06，项目安排对齐官方/社区实践，Playwright 调研 + 本机实证）
+
+- **config/version 腐蚀修复（技术修正）**：`project.godot` 版本注释误用 `#`（ConfigFile 仅认 `;`）——引擎加载时注释行与下一行键名熔合，`application/config/version` 对引擎长期不可读（`get_setting` 实测返回空）；改 `;` 注释后恢复读取（探针实证 3.27）
+- **project.godot 引擎规范化**：以 `ProjectSettings.save()` 实际输出对齐——`[debug]` 段归位字母序（原置文件尾，编辑器每次重存必产生噪声 diff）；剔除默认值冗余行（`window/stretch/aspect="keep"`、`gdscript/warnings/enable=true`，均为引擎默认值）；规范化后引擎重存零 diff 实证
+- **导出配置实证复核（结论：原配置正确，零改动）**：`--export-pack` + 独立 PCK 虚拟文件系统转储逐项核验——`exclude_filter="test/*"` 在 4.6.2 真实生效（R01 结论成立）；`data/balance.json` 作为 JSON 资源随 `all_resources` 自动进包（官方文档"json 需 include_filter"表述对 4.6 已过时）；0 个 .py/.sh/.md/builds 产物泄漏。注：strings 提取法对 PCK v3 不可靠，初审曾误判 test 泄漏与 json 缺失，须以引擎转储为准
+- **`.gitattributes` 新增**（官方 VCS 页推荐、仓库缺失）：全文本 LF 规范化 + `*.bat` 检出 CRLF（cmd.exe goto/label 边界）+ `*.sh` 强制 LF
+- **`builds/.gdignore`**：导出产物目录退出编辑器文件系统扫描（对齐 `docs/.gdignore` 约定）
+- **release.sh 版本回退硬失败化**：sed 取不到 `config/version` 时由静默回退 3.26（产出与 project.godot 脱节包名）改为 stderr 报错退出
+
 ### 审计（2026-08-05，R 系列独立审计修复，`docs/archive/2026-08-05-independent-audit-report.md`）
 
 - **发布包净化（R01）**：`export_presets.cfg` 两预设 `exclude_filter="test/*"`——此前全部 45+ 测试场景/脚本随发布包分发（PCK 实锤），重出即净

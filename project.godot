@@ -12,7 +12,7 @@ config_version=5
 
 config/name="InfiAir"
 config/description="2D 俯视空战射击游戏 —— Python airwar 的 Godot 重制版"
-# 发布版本（与 release.sh VERSION 及 Release workflow 输入一致，发布时同步更新）
+; 发布版本（与 release.sh VERSION 及 Release workflow 输入一致，发布时同步更新）
 config/version="3.27"
 run/main_scene="res://scenes/welcome.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
@@ -21,12 +21,38 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 GameState="*res://autoload/game_state.gd"
 
+[debug]
+
+gdscript/warnings/unused_variable=2
+gdscript/warnings/unused_private_class_variable=2
+gdscript/warnings/unused_signal=2
+gdscript/warnings/shadowed_variable=2
+gdscript/warnings/shadowed_global_identifier=2
+gdscript/warnings/standalone_expression=2
+gdscript/warnings/untyped_declaration=1
+gdscript/warnings/unsafe_property_access=1
+gdscript/warnings/unsafe_method_access=1
+gdscript/warnings/unsafe_cast=1
+gdscript/warnings/redundant_await=2
+gdscript/warnings/integer_division=2
+gdscript/warnings/narrowing_conversion=2
+gdscript/warnings/confusable_local_usage=2
+gdscript/warnings/confusable_global_usage=2
+gdscript/warnings/orphan_argument=2
+gdscript/warnings/get_node_default=2
+gdscript/warnings/annotation_order=2
+gdscript/warnings/function_state_conflict=2
+gdscript/warnings/ambiguous_identifier=2
+gdscript/warnings/redundant_await_on_return=2
+gdscript/warnings/unsupported_method_override=2
+gdscript/warnings/untyped_variable=1
+gdscript/warnings/unsafe_line=1
+
 [display]
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [input]
 
@@ -104,33 +130,3 @@ parry={
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-
-[debug]
-
-gdscript/warnings/enable=true
-gdscript/warnings/unused_variable=2
-gdscript/warnings/unused_private_class_variable=2
-gdscript/warnings/unused_signal=2
-gdscript/warnings/shadowed_variable=2
-gdscript/warnings/shadowed_global_identifier=2
-gdscript/warnings/integer_division=2
-gdscript/warnings/narrowing_conversion=2
-gdscript/warnings/standalone_expression=2
-gdscript/warnings/confusable_local_usage=2
-gdscript/warnings/confusable_global_usage=2
-gdscript/warnings/orphan_argument=2
-gdscript/warnings/get_node_default=2
-gdscript/warnings/redundant_await=2
-gdscript/warnings/annotation_order=2
-gdscript/warnings/function_state_conflict=2
-gdscript/warnings/ambiguous_identifier=2
-gdscript/warnings/redundant_await_on_return=2
-gdscript/warnings/unsupported_method_override=2
-gdscript/warnings/unsafe_cast=1
-gdscript/warnings/unsafe_method_access=1
-gdscript/warnings/unsafe_property_access=1
-gdscript/warnings/untyped_declaration=1
-gdscript/warnings/untyped_variable=1
-gdscript/warnings/unsafe_line=1
-gdscript/warnings/inferred_declaration=0
-gdscript/warnings/return_value_discarded=0

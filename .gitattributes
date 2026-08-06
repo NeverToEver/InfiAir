@@ -1,0 +1,11 @@
+# 行尾规范化（Godot 官方 VCS 建议：新建项目勾选 Git 时由引擎自动生成同名文件）
+# https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html
+
+# 所有被 Git 判定为文本的文件，仓库内统一 LF
+* text=auto eol=lf
+
+# Windows 批处理检出时恢复 CRLF（cmd.exe 对 LF-only 脚本的 goto/label 存在边界问题）
+*.bat text eol=crlf
+
+# Shell 脚本始终 LF（Windows 贡献者 core.autocrlf=true 也不会破坏可执行性）
+*.sh text eol=lf
