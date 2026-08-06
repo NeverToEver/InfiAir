@@ -19,7 +19,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.3 Scoring & Economy
 - `GameState.add_score(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
 - Boss kill: `add_boss_kill(score_scale)` → `add_score(500 × score_scale)`; advances RP/boss_kills/difficulty.
-- RP: run economy from kills/score, spent at mothership; not carried between runs.
+- RP: earned from boss kills (+5) and mission claims (+3) only (2026-08-06 audit: baseline claimed "run economy from kills/score" — kills don't grant RP; spent at base console, not carried between runs).
 - **RefreshPoints (2026-08-05, `docs/FOG_EVENTS.md` §1)**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
 - Milestones: score thresholds → buff 3-choice (`buff_select`); covered by `buff33_test`/`buff_panel_test`.
 

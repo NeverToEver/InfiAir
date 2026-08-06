@@ -32,131 +32,131 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 323 | `boss.hp_mults` | `[1.3, 0.7, 1.6, 1.2]` |
-| 333 | `boss.hp_base` | `HP_BASE` |
-| 463 | `boss.enter_speed` | `ENTER_SPEED` |
-| 464 | `boss.fight_y` | `FIGHT_Y` |
-| 465 | `boss.strafe_min_x` | `STRAFE_MIN_X` |
-| 466 | `boss.strafe_max_x` | `STRAFE_MAX_X` |
-| 467 | `boss.phase2_hp_ratio` | `PHASE2_HP_RATIO` |
-| 468 | `boss.enrage.hp_ratio` | `ENRAGE_HP_RATIO` |
-| 469 | `boss.enrage.rate_mult` | `ENRAGE_RATE_MULT` |
-| 470 | `boss.enrage.speed_mult` | `ENRAGE_SPEED_MULT` |
-| 471 | `boss.enrage.player_slow` | `ENRAGE_PLAYER_SLOW` |
-| 472 | `boss.enrage.snapshot_lasers` | `ENRAGE_SNAPSHOT_LASERS` |
-| 473 | `boss.enrage.snapshot_ring` | `ENRAGE_SNAPSHOT_RING` |
-| 474 | `boss.enrage.laser_speed` | `ENRAGE_LASER_SPEED` |
-| 475 | `boss.enrage.ring_speed` | `ENRAGE_RING_SPEED` |
-| 476 | `boss.enrage.duration` | `ENRAGE_DURATION` |
-| 477 | `boss.enrage.transition_duration` | `ENRAGE_TRANSITION_DURATION` |
-| 478 | `boss.enrage.attack_interval` | `ENRAGE_ATTACK_INTERVAL` |
-| 479 | `boss.enrage.attack_windup` | `ENRAGE_ATTACK_WINDUP` |
-| 480 | `boss.enrage.release_interval` | `ENRAGE_RELEASE_INTERVAL` |
-| 481 | `boss.enrage.release_hold_duration` | `ENRAGE_RELEASE_HOLD_DURATION` |
-| 482 | `boss.enrage.return_duration` | `ENRAGE_RETURN_DURATION` |
-| 483 | `boss.enrage.path_radius_scale` | `ENRAGE_PATH_RADIUS_SCALE` |
-| 485 | `boss.enrage.square_path_ratio` | `ENRAGE_SQUARE_PATH_RATIO` |
-| 486 | `boss.enrage.release_laser_speed` | `ENRAGE_RELEASE_LASER_SPEED` |
-| 487 | `boss.enrage.release_ring_speed` | `ENRAGE_RELEASE_RING_SPEED` |
-| 489 | `boss.escape.time` | `ESCAPE_TIME` |
-| 490 | `boss.escape.warning` | `ESCAPE_WARNING` |
-| 491 | `boss.escape.drift` | `ESCAPE_DRIFT` |
-| 492 | `boss.escape.start_speed` | `ESCAPE_START_SPEED` |
-| 493 | `boss.escape.accel` | `ESCAPE_ACCEL` |
-| 494 | `boss.escape.countdown_visible_from` | `ESCAPE_COUNTDOWN_FROM` |
-| 495 | `boss.hp_base` | `HP_BASE` |
-| 497 | `boss.strafe_speeds` | `STRAFE_SPEEDS` |
-| 507 | `boss.fire_intervals` | `FIRE_INTERVALS` |
-| 509 | `boss.fan_bullet_speed` | `FAN_BULLET_SPEED` |
-| 510 | `boss.homing_bullet_speed` | `HOMING_BULLET_SPEED` |
-| 511 | `boss.sniper_bullet_speed` | `SNIPER_BULLET_SPEED` |
-| 512 | `boss.cross_bullet_speed` | `CROSS_BULLET_SPEED` |
-| 513 | `boss.collision_damage` | `COLLISION_DAMAGE` |
-| 514 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
-| 515 | `boss.bullet_damage.fan` | `BULLET_DAMAGE_FAN` |
-| 516 | `boss.bullet_damage.homing` | `BULLET_DAMAGE_HOMING` |
-| 517 | `boss.bullet_damage.sniper` | `BULLET_DAMAGE_SNIPER` |
-| 518 | `boss.bullet_damage.cross` | `BULLET_DAMAGE_CROSS` |
-| 519 | `boss.bullet_damage.snapshot_laser` | `BULLET_DAMAGE_SNAPSHOT_LASER` |
-| 520 | `boss.bullet_damage.snapshot_ring` | `BULLET_DAMAGE_SNAPSHOT_RING` |
-| 521 | `boss.phases.phase_shift_duration` | `PHASE_SHIFT_DURATION` |
-| 522 | `boss.phases.clear_on_shift` | `CLEAR_ON_SHIFT` |
-| 523 | `boss.phases.transition_invincible` | `TRANSITION_INVINCIBLE` |
-| 524 | `boss.phases.telegraph.sniper_aim` | `SNIPER_AIM_TIME` |
-| 525 | `boss.phases.telegraph.sniper_track` | `SNIPER_TRACK_TIME` |
-| 526 | `boss.phases.attacks.sniper3.burst_interval` | `SNIPER_BURST_INTERVAL` |
-| 527 | `boss.phases.press_interval` | `PRESS_INTERVAL` |
-| 528 | `boss.phases.press_depth` | `PRESS_DEPTH` |
-| 529 | `boss.movement.type1_p2_strafe` | `TYPE1_P2_STRAFE` |
-| 530 | `boss.movement.type1_p2_bob_amp` | `TYPE1_P2_BOB_AMP` |
-| 531 | `boss.movement.type1_p2_bob_period` | `TYPE1_P2_BOB_PERIOD` |
-| 532 | `boss.movement.type2_p2_dash_time` | `TYPE2_P2_DASH_TIME` |
-| 533 | `boss.movement.type2_p2_rest_time` | `TYPE2_P2_REST_TIME` |
-| 534 | `boss.movement.type3_p1_bob_min` | `TYPE3_P1_BOB_MIN` |
-| 535 | `boss.movement.type3_p1_bob_max` | `TYPE3_P1_BOB_MAX` |
-| 536 | `boss.movement.type3_p1_bob_period` | `TYPE3_P1_BOB_PERIOD` |
-| 537 | `boss.movement.type3_p2_strafe` | `TYPE3_P2_STRAFE` |
-| 538 | `boss.movement.type3_p2_bob_amp` | `TYPE3_P2_BOB_AMP` |
-| 539 | `boss.movement.type3_p2_bob_period` | `TYPE3_P2_BOB_PERIOD` |
-| 541 | `boss.phases.attacks.charged_cannon.charge` | `CANNON_CHARGE` |
-| 542 | `boss.phases.attacks.charged_cannon.shots` | `CANNON_SHOTS` |
-| 543 | `boss.phases.attacks.charged_cannon.interval` | `CANNON_INTERVAL` |
-| 544 | `boss.phases.attacks.charged_cannon.bullet_speed` | `CANNON_BULLET_SPEED` |
-| 545 | `boss.phases.attacks.charged_cannon.damage` | `CANNON_DAMAGE` |
-| 546 | `boss.phases.attacks.charged_cannon.flash` | `CANNON_FLASH` |
-| 547 | `boss.phases.attacks.dash_sweep.aim` | `SWEEP_AIM` |
-| 548 | `boss.phases.attacks.dash_sweep.speed` | `SWEEP_SPEED` |
-| 549 | `boss.phases.attacks.dash_sweep.drop_count` | `SWEEP_DROP_COUNT` |
-| 550 | `boss.phases.attacks.dash_sweep.drop_speed` | `SWEEP_DROP_SPEED` |
-| 551 | `boss.phases.attacks.dash_sweep.drop_damage` | `SWEEP_DROP_DAMAGE` |
-| 552 | `boss.phases.attacks.dash_sweep.return_duration` | `SWEEP_RETURN_DURATION` |
-| 553 | `boss.phases.attacks.minion_volley.count` | `VOLLEY_COUNT` |
-| 554 | `boss.phases.attacks.minion_volley.delay` | `VOLLEY_DELAY` |
-| 555 | `boss.phases.attacks.minion_volley.bullet_speed` | `VOLLEY_BULLET_SPEED` |
-| 556 | `boss.phases.attacks.minion_volley.bullet_damage` | `VOLLEY_BULLET_DAMAGE` |
-| 557 | `boss.phases.attacks.bullet_wall.count` | `WALL_COUNT` |
-| 558 | `boss.phases.attacks.bullet_wall.bullet_speed` | `WALL_BULLET_SPEED` |
-| 559 | `boss.phases.attacks.bullet_wall.damage` | `WALL_DAMAGE` |
-| 560 | `boss.phases.attacks.bullet_wall.arc_deg` | `WALL_ARC_DEG` |
-| 563 | `boss.enrage.type_1.ring_interval` | `E1_RING_INTERVAL` |
-| 564 | `boss.enrage.type_1.ring_count` | `E1_RING_COUNT` |
-| 565 | `boss.enrage.type_1.ring_speed` | `E1_RING_SPEED` |
-| 566 | `boss.enrage.type_1.ring_precession_deg` | `E1_RING_PRECESSION_DEG` |
-| 567 | `boss.enrage.type_1.salvo_charge` | `E1_SALVO_CHARGE` |
-| 568 | `boss.enrage.type_1.salvo_count` | `E1_SALVO_COUNT` |
-| 569 | `boss.enrage.type_1.salvo_speed` | `E1_SALVO_SPEED` |
-| 570 | `boss.enrage.type_1.salvo_damage` | `E1_SALVO_DAMAGE` |
-| 571 | `boss.enrage.type_2.point_count` | `E2_POINT_COUNT` |
-| 572 | `boss.enrage.type_2.point_interval` | `E2_POINT_INTERVAL` |
-| 573 | `boss.enrage.type_2.aim` | `E2_AIM` |
-| 574 | `boss.enrage.type_2.sniper_speed` | `E2_SNIPER_SPEED` |
-| 575 | `boss.enrage.type_2.sniper_damage` | `E2_SNIPER_DAMAGE` |
-| 576 | `boss.enrage.type_2.release_ring_count` | `E2_RELEASE_RING_COUNT` |
-| 577 | `boss.enrage.type_2.release_ring_speed` | `E2_RELEASE_RING_SPEED` |
-| 578 | `boss.enrage.type_3.summon_interval` | `E3_SUMMON_INTERVAL` |
-| 580 | `boss.phases.type3.summon_interval` | `_summon_interval` |
-| 582 | `boss.enrage.type_3.summon_waves` | `E3_SUMMON_WAVES` |
-| 583 | `boss.enrage.type_3.summon_count` | `E3_SUMMON_COUNT` |
-| 584 | `boss.enrage.type_3.ring_interval` | `E3_RING_INTERVAL` |
-| 585 | `boss.enrage.type_3.ring_count` | `E3_RING_COUNT` |
-| 586 | `boss.enrage.type_3.ring_speed` | `E3_RING_SPEED` |
-| 587 | `boss.enrage.type_3.release_ring_count` | `E3_RELEASE_RING_COUNT` |
-| 588 | `boss.enrage.type_3.release_ring_speed` | `E3_RELEASE_RING_SPEED` |
-| 590 | `boss.ring_burst.bullet_speed` | `RING_BURST_SPEED` |
-| 591 | `boss.bullet_damage.ring` | `BULLET_DAMAGE_RING` |
-| 592 | `boss.movement.type4.bob_amp` | `MOVE4_BOB_AMP` |
-| 593 | `boss.movement.type4.bob_period` | `MOVE4_BOB_PERIOD` |
-| 594 | `boss.enrage.type_4.ring_count` | `E4_RING_COUNT` |
-| 595 | `boss.enrage.type_4.ring_interval` | `E4_RING_INTERVAL` |
-| 596 | `boss.enrage.type_4.ring_speed` | `E4_RING_SPEED` |
-| 597 | `boss.enrage.type_4.precession_deg` | `E4_PRECESSION_DEG` |
-| 598 | `boss.enrage.type_4.release_ring_count` | `E4_RELEASE_RING_COUNT` |
-| 599 | `boss.enrage.type_4.release_ring_speed` | `E4_RELEASE_RING_SPEED` |
-| 601 | `boss.difficulty_scaling.interval_mult` | `DIFF_INTERVAL_MULT` |
-| 602 | `boss.difficulty_scaling.speed_mult` | `DIFF_SPEED_MULT` |
-| 603 | `boss.difficulty_scaling.counts` | `DIFF_COUNT_DELTAS` |
-| 849 | `effects.shake.enrage` | `16.0` |
-| 988 | `effects.shake.enrage` | `16.0` |
+| 330 | `boss.hp_mults` | `[1.3, 0.7, 1.6, 1.2]` |
+| 340 | `boss.hp_base` | `HP_BASE` |
+| 470 | `boss.enter_speed` | `ENTER_SPEED` |
+| 471 | `boss.fight_y` | `FIGHT_Y` |
+| 472 | `boss.strafe_min_x` | `STRAFE_MIN_X` |
+| 473 | `boss.strafe_max_x` | `STRAFE_MAX_X` |
+| 474 | `boss.phase2_hp_ratio` | `PHASE2_HP_RATIO` |
+| 475 | `boss.enrage.hp_ratio` | `ENRAGE_HP_RATIO` |
+| 476 | `boss.enrage.rate_mult` | `ENRAGE_RATE_MULT` |
+| 477 | `boss.enrage.speed_mult` | `ENRAGE_SPEED_MULT` |
+| 478 | `boss.enrage.player_slow` | `ENRAGE_PLAYER_SLOW` |
+| 479 | `boss.enrage.snapshot_lasers` | `ENRAGE_SNAPSHOT_LASERS` |
+| 480 | `boss.enrage.snapshot_ring` | `ENRAGE_SNAPSHOT_RING` |
+| 481 | `boss.enrage.laser_speed` | `ENRAGE_LASER_SPEED` |
+| 482 | `boss.enrage.ring_speed` | `ENRAGE_RING_SPEED` |
+| 483 | `boss.enrage.duration` | `ENRAGE_DURATION` |
+| 484 | `boss.enrage.transition_duration` | `ENRAGE_TRANSITION_DURATION` |
+| 485 | `boss.enrage.attack_interval` | `ENRAGE_ATTACK_INTERVAL` |
+| 486 | `boss.enrage.attack_windup` | `ENRAGE_ATTACK_WINDUP` |
+| 487 | `boss.enrage.release_interval` | `ENRAGE_RELEASE_INTERVAL` |
+| 488 | `boss.enrage.release_hold_duration` | `ENRAGE_RELEASE_HOLD_DURATION` |
+| 489 | `boss.enrage.return_duration` | `ENRAGE_RETURN_DURATION` |
+| 490 | `boss.enrage.path_radius_scale` | `ENRAGE_PATH_RADIUS_SCALE` |
+| 492 | `boss.enrage.square_path_ratio` | `ENRAGE_SQUARE_PATH_RATIO` |
+| 493 | `boss.enrage.release_laser_speed` | `ENRAGE_RELEASE_LASER_SPEED` |
+| 494 | `boss.enrage.release_ring_speed` | `ENRAGE_RELEASE_RING_SPEED` |
+| 496 | `boss.escape.time` | `ESCAPE_TIME` |
+| 497 | `boss.escape.warning` | `ESCAPE_WARNING` |
+| 498 | `boss.escape.drift` | `ESCAPE_DRIFT` |
+| 499 | `boss.escape.start_speed` | `ESCAPE_START_SPEED` |
+| 500 | `boss.escape.accel` | `ESCAPE_ACCEL` |
+| 501 | `boss.escape.countdown_visible_from` | `ESCAPE_COUNTDOWN_FROM` |
+| 502 | `boss.hp_base` | `HP_BASE` |
+| 504 | `boss.strafe_speeds` | `STRAFE_SPEEDS` |
+| 514 | `boss.fire_intervals` | `FIRE_INTERVALS` |
+| 516 | `boss.fan_bullet_speed` | `FAN_BULLET_SPEED` |
+| 517 | `boss.homing_bullet_speed` | `HOMING_BULLET_SPEED` |
+| 518 | `boss.sniper_bullet_speed` | `SNIPER_BULLET_SPEED` |
+| 519 | `boss.cross_bullet_speed` | `CROSS_BULLET_SPEED` |
+| 520 | `boss.collision_damage` | `COLLISION_DAMAGE` |
+| 521 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
+| 522 | `boss.bullet_damage.fan` | `BULLET_DAMAGE_FAN` |
+| 523 | `boss.bullet_damage.homing` | `BULLET_DAMAGE_HOMING` |
+| 524 | `boss.bullet_damage.sniper` | `BULLET_DAMAGE_SNIPER` |
+| 525 | `boss.bullet_damage.cross` | `BULLET_DAMAGE_CROSS` |
+| 526 | `boss.bullet_damage.snapshot_laser` | `BULLET_DAMAGE_SNAPSHOT_LASER` |
+| 527 | `boss.bullet_damage.snapshot_ring` | `BULLET_DAMAGE_SNAPSHOT_RING` |
+| 528 | `boss.phases.phase_shift_duration` | `PHASE_SHIFT_DURATION` |
+| 529 | `boss.phases.clear_on_shift` | `CLEAR_ON_SHIFT` |
+| 530 | `boss.phases.transition_invincible` | `TRANSITION_INVINCIBLE` |
+| 531 | `boss.phases.telegraph.sniper_aim` | `SNIPER_AIM_TIME` |
+| 532 | `boss.phases.telegraph.sniper_track` | `SNIPER_TRACK_TIME` |
+| 533 | `boss.phases.attacks.sniper3.burst_interval` | `SNIPER_BURST_INTERVAL` |
+| 534 | `boss.phases.press_interval` | `PRESS_INTERVAL` |
+| 535 | `boss.phases.press_depth` | `PRESS_DEPTH` |
+| 536 | `boss.movement.type1_p2_strafe` | `TYPE1_P2_STRAFE` |
+| 537 | `boss.movement.type1_p2_bob_amp` | `TYPE1_P2_BOB_AMP` |
+| 538 | `boss.movement.type1_p2_bob_period` | `TYPE1_P2_BOB_PERIOD` |
+| 539 | `boss.movement.type2_p2_dash_time` | `TYPE2_P2_DASH_TIME` |
+| 540 | `boss.movement.type2_p2_rest_time` | `TYPE2_P2_REST_TIME` |
+| 541 | `boss.movement.type3_p1_bob_min` | `TYPE3_P1_BOB_MIN` |
+| 542 | `boss.movement.type3_p1_bob_max` | `TYPE3_P1_BOB_MAX` |
+| 543 | `boss.movement.type3_p1_bob_period` | `TYPE3_P1_BOB_PERIOD` |
+| 544 | `boss.movement.type3_p2_strafe` | `TYPE3_P2_STRAFE` |
+| 545 | `boss.movement.type3_p2_bob_amp` | `TYPE3_P2_BOB_AMP` |
+| 546 | `boss.movement.type3_p2_bob_period` | `TYPE3_P2_BOB_PERIOD` |
+| 548 | `boss.phases.attacks.charged_cannon.charge` | `CANNON_CHARGE` |
+| 549 | `boss.phases.attacks.charged_cannon.shots` | `CANNON_SHOTS` |
+| 550 | `boss.phases.attacks.charged_cannon.interval` | `CANNON_INTERVAL` |
+| 551 | `boss.phases.attacks.charged_cannon.bullet_speed` | `CANNON_BULLET_SPEED` |
+| 552 | `boss.phases.attacks.charged_cannon.damage` | `CANNON_DAMAGE` |
+| 553 | `boss.phases.attacks.charged_cannon.flash` | `CANNON_FLASH` |
+| 554 | `boss.phases.attacks.dash_sweep.aim` | `SWEEP_AIM` |
+| 555 | `boss.phases.attacks.dash_sweep.speed` | `SWEEP_SPEED` |
+| 556 | `boss.phases.attacks.dash_sweep.drop_count` | `SWEEP_DROP_COUNT` |
+| 557 | `boss.phases.attacks.dash_sweep.drop_speed` | `SWEEP_DROP_SPEED` |
+| 558 | `boss.phases.attacks.dash_sweep.drop_damage` | `SWEEP_DROP_DAMAGE` |
+| 559 | `boss.phases.attacks.dash_sweep.return_duration` | `SWEEP_RETURN_DURATION` |
+| 560 | `boss.phases.attacks.minion_volley.count` | `VOLLEY_COUNT` |
+| 561 | `boss.phases.attacks.minion_volley.delay` | `VOLLEY_DELAY` |
+| 562 | `boss.phases.attacks.minion_volley.bullet_speed` | `VOLLEY_BULLET_SPEED` |
+| 563 | `boss.phases.attacks.minion_volley.bullet_damage` | `VOLLEY_BULLET_DAMAGE` |
+| 564 | `boss.phases.attacks.bullet_wall.count` | `WALL_COUNT` |
+| 565 | `boss.phases.attacks.bullet_wall.bullet_speed` | `WALL_BULLET_SPEED` |
+| 566 | `boss.phases.attacks.bullet_wall.damage` | `WALL_DAMAGE` |
+| 567 | `boss.phases.attacks.bullet_wall.arc_deg` | `WALL_ARC_DEG` |
+| 570 | `boss.enrage.type_1.ring_interval` | `E1_RING_INTERVAL` |
+| 571 | `boss.enrage.type_1.ring_count` | `E1_RING_COUNT` |
+| 572 | `boss.enrage.type_1.ring_speed` | `E1_RING_SPEED` |
+| 573 | `boss.enrage.type_1.ring_precession_deg` | `E1_RING_PRECESSION_DEG` |
+| 574 | `boss.enrage.type_1.salvo_charge` | `E1_SALVO_CHARGE` |
+| 575 | `boss.enrage.type_1.salvo_count` | `E1_SALVO_COUNT` |
+| 576 | `boss.enrage.type_1.salvo_speed` | `E1_SALVO_SPEED` |
+| 577 | `boss.enrage.type_1.salvo_damage` | `E1_SALVO_DAMAGE` |
+| 578 | `boss.enrage.type_2.point_count` | `E2_POINT_COUNT` |
+| 579 | `boss.enrage.type_2.point_interval` | `E2_POINT_INTERVAL` |
+| 580 | `boss.enrage.type_2.aim` | `E2_AIM` |
+| 581 | `boss.enrage.type_2.sniper_speed` | `E2_SNIPER_SPEED` |
+| 582 | `boss.enrage.type_2.sniper_damage` | `E2_SNIPER_DAMAGE` |
+| 583 | `boss.enrage.type_2.release_ring_count` | `E2_RELEASE_RING_COUNT` |
+| 584 | `boss.enrage.type_2.release_ring_speed` | `E2_RELEASE_RING_SPEED` |
+| 585 | `boss.enrage.type_3.summon_interval` | `E3_SUMMON_INTERVAL` |
+| 587 | `boss.phases.type3.summon_interval` | `_summon_interval` |
+| 589 | `boss.enrage.type_3.summon_waves` | `E3_SUMMON_WAVES` |
+| 590 | `boss.enrage.type_3.summon_count` | `E3_SUMMON_COUNT` |
+| 591 | `boss.enrage.type_3.ring_interval` | `E3_RING_INTERVAL` |
+| 592 | `boss.enrage.type_3.ring_count` | `E3_RING_COUNT` |
+| 593 | `boss.enrage.type_3.ring_speed` | `E3_RING_SPEED` |
+| 594 | `boss.enrage.type_3.release_ring_count` | `E3_RELEASE_RING_COUNT` |
+| 595 | `boss.enrage.type_3.release_ring_speed` | `E3_RELEASE_RING_SPEED` |
+| 597 | `boss.ring_burst.bullet_speed` | `RING_BURST_SPEED` |
+| 598 | `boss.bullet_damage.ring` | `BULLET_DAMAGE_RING` |
+| 599 | `boss.movement.type4.bob_amp` | `MOVE4_BOB_AMP` |
+| 600 | `boss.movement.type4.bob_period` | `MOVE4_BOB_PERIOD` |
+| 601 | `boss.enrage.type_4.ring_count` | `E4_RING_COUNT` |
+| 602 | `boss.enrage.type_4.ring_interval` | `E4_RING_INTERVAL` |
+| 603 | `boss.enrage.type_4.ring_speed` | `E4_RING_SPEED` |
+| 604 | `boss.enrage.type_4.precession_deg` | `E4_PRECESSION_DEG` |
+| 605 | `boss.enrage.type_4.release_ring_count` | `E4_RELEASE_RING_COUNT` |
+| 606 | `boss.enrage.type_4.release_ring_speed` | `E4_RELEASE_RING_SPEED` |
+| 608 | `boss.difficulty_scaling.interval_mult` | `DIFF_INTERVAL_MULT` |
+| 609 | `boss.difficulty_scaling.speed_mult` | `DIFF_SPEED_MULT` |
+| 610 | `boss.difficulty_scaling.counts` | `DIFF_COUNT_DELTAS` |
+| 874 | `effects.shake.enrage` | `16.0` |
+| 1013 | `effects.shake.enrage` | `16.0` |
 
 ### `scripts/buff_select.gd`
 
@@ -207,39 +207,39 @@
 | 124 | `elite_turret_event.reward_score` | `REWARD_SCORE` |
 | 125 | `elite_turret_event.carrier.hover_y` | `HOVER_Y` |
 | 126 | `elite_turret_event.cooldown` | `COOLDOWN` |
-| 170 | `elite_turret_event.carrier.shake` | `4.0` |
+| 172 | `elite_turret_event.carrier.shake` | `4.0` |
 
 ### `scripts/enemy.gd`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 141 | `enemies.hp_ramp_factor` | `HP_RAMP_FACTOR` |
-| 156 | `enemies.speed_ramp_factor` | `SPEED_RAMP_FACTOR` |
-| 164 | `player.aim_assist.mark_ratio` | `0.25` |
-| 241 | `enemies.bullet_speed` | `ENEMY_BULLET_SPEED` |
-| 242 | `enemies.spread_bullet_speed` | `SPREAD_BULLET_SPEED` |
-| 243 | `enemies.laser_bullet_speed` | `LASER_BULLET_SPEED` |
-| 244 | `enemies.bullet_damage.single` | `BULLET_DAMAGE_SINGLE` |
-| 245 | `enemies.bullet_damage.spread` | `BULLET_DAMAGE_SPREAD` |
-| 246 | `enemies.bullet_damage.laser` | `BULLET_DAMAGE_LASER` |
-| 247 | `enemies.collision_damage` | `COLLISION_DAMAGE` |
-| 248 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
-| 249 | `enemies.spread_fan_step` | `SPREAD_FAN_STEP` |
-| 250 | `enemies.lifetime` | `LIFETIME` |
-| 251 | `enemies.exit_accel` | `EXIT_ACCEL` |
-| 252 | `enemies.aggressive_chase_speed` | `AGGR_CHASE_SPEED` |
-| 253 | `enemies.fire_interval` | `FIRE_INTERVAL` |
-| 255 | `enemies.hover_band` | `[HOVER_BAND.x, HOVER_BAND.y]` |
-| 260 | `enemies.hover_bob_amp` | `HOVER_BOB_AMP` |
-| 261 | `enemies.hover_bob_freq` | `HOVER_BOB_FREQ` |
-| 262 | `enemies.hover_sway_amp` | `HOVER_SWAY_AMP` |
-| 263 | `enemies.hover_sway_freq` | `HOVER_SWAY_FREQ` |
-| 264 | `enemies.spiral_drift_amp` | `SPIRAL_DRIFT_AMP` |
-| 265 | `enemies.spiral_drift_freq` | `SPIRAL_DRIFT_FREQ` |
-| 266 | `enemies.spiral_radius` | `SPIRAL_RADIUS` |
-| 283 | `effects.shake.enemy_die` | `_shake_die_normal` |
-| 284 | `effects.shake.elite_die` | `_shake_die_elite` |
-| 313 | `enemies.move_strategies` | `{}` |
+| 145 | `enemies.hp_ramp_factor` | `HP_RAMP_FACTOR` |
+| 160 | `enemies.speed_ramp_factor` | `SPEED_RAMP_FACTOR` |
+| 168 | `player.aim_assist.mark_ratio` | `0.25` |
+| 247 | `enemies.bullet_speed` | `ENEMY_BULLET_SPEED` |
+| 248 | `enemies.spread_bullet_speed` | `SPREAD_BULLET_SPEED` |
+| 249 | `enemies.laser_bullet_speed` | `LASER_BULLET_SPEED` |
+| 250 | `enemies.bullet_damage.single` | `BULLET_DAMAGE_SINGLE` |
+| 251 | `enemies.bullet_damage.spread` | `BULLET_DAMAGE_SPREAD` |
+| 252 | `enemies.bullet_damage.laser` | `BULLET_DAMAGE_LASER` |
+| 253 | `enemies.collision_damage` | `COLLISION_DAMAGE` |
+| 254 | `buffs.slow_field.factor` | `SLOW_FIELD_FACTOR` |
+| 255 | `enemies.spread_fan_step` | `SPREAD_FAN_STEP` |
+| 256 | `enemies.lifetime` | `LIFETIME` |
+| 257 | `enemies.exit_accel` | `EXIT_ACCEL` |
+| 258 | `enemies.aggressive_chase_speed` | `AGGR_CHASE_SPEED` |
+| 259 | `enemies.fire_interval` | `FIRE_INTERVAL` |
+| 261 | `enemies.hover_band` | `[HOVER_BAND.x, HOVER_BAND.y]` |
+| 266 | `enemies.hover_bob_amp` | `HOVER_BOB_AMP` |
+| 267 | `enemies.hover_bob_freq` | `HOVER_BOB_FREQ` |
+| 268 | `enemies.hover_sway_amp` | `HOVER_SWAY_AMP` |
+| 269 | `enemies.hover_sway_freq` | `HOVER_SWAY_FREQ` |
+| 270 | `enemies.spiral_drift_amp` | `SPIRAL_DRIFT_AMP` |
+| 271 | `enemies.spiral_drift_freq` | `SPIRAL_DRIFT_FREQ` |
+| 272 | `enemies.spiral_radius` | `SPIRAL_RADIUS` |
+| 289 | `effects.shake.enemy_die` | `_shake_die_normal` |
+| 290 | `effects.shake.elite_die` | `_shake_die_elite` |
+| 319 | `enemies.move_strategies` | `{}` |
 
 ### `scripts/event_manager.gd`
 
@@ -346,9 +346,9 @@
 | 76 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 77 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 78 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 666 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 677 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 719 | `mothership.depart_cooldown` | `60.0` |
+| 681 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 692 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 734 | `mothership.depart_cooldown` | `60.0` |
 
 ### `scripts/meta_health_fx.gd`
 
@@ -448,7 +448,7 @@
 | 180 | `effects.mothership_summon.slow.ring_time` | `SLOW_RING_TIME` |
 | 181 | `effects.mothership_summon.shake_slow` | `SHAKE_SLOW` |
 | 311 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
-| 726 | `effects.shake.mothership` | `4.0` |
+| 729 | `effects.shake.mothership` | `4.0` |
 
 ### `scripts/mothership_summon_window.gd`
 
@@ -543,35 +543,35 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 202 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
-| 203 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
-| 204 | `spawner.ramp_time` | `RAMP_TIME` |
-| 205 | `spawner.interval_min` | `INTERVAL_MIN` |
-| 206 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
-| 207 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
-| 208 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
-| 209 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
-| 211 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
-| 220 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
-| 221 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
-| 222 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
-| 223 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
-| 224 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
-| 225 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
-| 227 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
-| 232 | `enemies.types` | `[]` |
-| 235 | `elites.types` | `[]` |
-| 547 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
-| 587 | `effects.shake.boss_warning` | `14.0` |
+| 203 | `spawner.wave_interval_start` | `WAVE_INTERVAL_START` |
+| 204 | `spawner.wave_interval_end` | `WAVE_INTERVAL_END` |
+| 205 | `spawner.ramp_time` | `RAMP_TIME` |
+| 206 | `spawner.interval_min` | `INTERVAL_MIN` |
+| 207 | `spawner.boss_score_step` | `BOSS_SCORE_STEP` |
+| 208 | `spawner.boss_min_interval` | `BOSS_MIN_INTERVAL` |
+| 209 | `spawner.boss_time_limit` | `BOSS_TIME_LIMIT` |
+| 210 | `spawner.difficulty_factor` | `DIFFICULTY_FACTOR` |
+| 212 | `spawner.unlock_scores` | `UNLOCK_SCORES` |
+| 221 | `spawner.wave_size_start` | `WAVE_SIZE_START` |
+| 222 | `spawner.wave_size_end` | `WAVE_SIZE_END` |
+| 223 | `spawner.special_gap_min` | `SPECIAL_GAP_MIN` |
+| 224 | `spawner.special_gap_max` | `SPECIAL_GAP_MAX` |
+| 225 | `spawner.rest_waves_after_kill` | `REST_WAVES_AFTER_KILL` |
+| 226 | `spawner.elite_wave_size` | `ELITE_WAVE_SIZE` |
+| 228 | `enemies.hover_band` | `[_hover_band.x, _hover_band.y]` |
+| 233 | `enemies.types` | `[]` |
+| 236 | `elites.types` | `[]` |
+| 545 | `spawner.telegraph_duration` | `SpawnTelegraph.DURATION` |
+| 589 | `effects.shake.boss_warning` | `14.0` |
 
 ### `scripts/starfield.gd`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 31 | `effects.starfield.far_count` | `FAR_COUNT` |
-| 34 | `effects.starfield.near_count` | `NEAR_COUNT` |
-| 37 | `effects.starfield.far_speed` | `FAR_SPEED` |
-| 38 | `effects.starfield.near_speed` | `NEAR_SPEED` |
+| 44 | `effects.starfield.far_count` | `FAR_COUNT` |
+| 47 | `effects.starfield.near_count` | `NEAR_COUNT` |
+| 50 | `effects.starfield.far_speed` | `FAR_SPEED` |
+| 51 | `effects.starfield.near_speed` | `NEAR_SPEED` |
 
 ### `scripts/strike_carrier.gd`
 
@@ -632,8 +632,8 @@
 | 173 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
 | 175 | `base_task.refresh_cost` | `REFRESH_COST` |
 | 176 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
-| 930 | `milestones.boss_kill_base` | `500.0` |
-| 1745 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 939 | `milestones.boss_kill_base` | `500.0` |
+| 1759 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 

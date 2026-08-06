@@ -85,7 +85,7 @@ Bar shown + ≥40s: countdown under bar (10→0, red flicker); escape at 50s unc
 |---|---|---|
 | P1 | dash 400, 0.5s/0.7s | ① **sniper + aim line**: 0.35s lock (tracks 0.2s then fixed) → 3 shots (existing) |
 | P2 | dash 0.4s/0.5s | ② **dash sweep**: 0.5s aim line → cross at player height (body-hit stays; drops 3 slow bullets) ③ sniper |
-| ENRAGE | **Hunt circle**: bullet-time kept; ACTIVE teleport-stops at 4 quadrant points, each 0.3s aim line + 1 snipe (900, dmg 21), 6 points; finish: orbit bottom, 12-way slow ring |
+| ENRAGE | **Hunt circle**: bullet-time kept; ACTIVE teleport-stops at 4 quadrant points, each 0.35s aim line + 1 snipe (900, dmg 21), 6 points; finish: orbit bottom, 12-way slow ring |
 
 ### 5.3 Type 3 "Hive" (Mothership) — commander
 | Phase | Movement | Attacks (loop) |

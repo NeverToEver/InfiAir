@@ -1335,3 +1335,86 @@
 - **改了什么**：21 个文件 + 1 资产重生成 + 2 文件删除 + 2 生成物重跑（详见上表；另含 `docs/EXIT_FLOW.md` CONFIRM_EXIT 行删除、`docs/archive/2026-08-05-independent-audit-report.md` 报告新增）。
 - **为什么起效**：R01 排除 filter 使 test/ 不再进入 PCK（重出即净）；R02 区间扩至 CHORD_DUR+XFade 后槽尾衰减与下一槽上升重叠、交界权重和恒 1（零谷消除），bf 种子重置使生成器全量重跑与资产逐字节一致（消除工具-资产漂移）；R03 路径锚定脚本位置（非仓库根运行不再错落盘）；R04/R05 补齐 Q19/Q23 的两侧遗漏（信号流对称、快照捕获原始状态）；R06/R07 判型/钳制/守卫与既有防护族口径一致、默认值与回退值逐位不变（行为零变化）；R08/R09 工具链诊断与退出码保真；R10-R15 测试规范、注释口径、死数据清理与文档同步，均无可达路径或行为差异。
 - **如何验证**：五层门禁——gdformat --check（128 文件）/gdlint 全绿；`--headless --import` 0 error；18 个定向场景（startup_flow/mothership_summon/tutorial/buff33/entity_manager/pool_reuse/boss_pattern/boss_phase/boss_enrage/boss_phase_transition/difficulty/i18n/esc_navigation/base_task_refresh/event_manager/user_session/welcome_flow/smoke）全 PASS；全量 45 断言场景 0 FAIL（见当次提交记录）；生成器实证——BALANCE_MAP 实跑 469 静态调用 0 缺失、音频重生成仅 bgm_loop.wav 变化、sprite 三生成器非根目录实跑零 diff、release.sh `bash -n` + 6 Python 工具 `py_compile` 通过。
+
+---
+
+# 2026-08-06 全项目审核（12 领域并行 + 人工复核）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 12 领域并行审核（GDScript 纪律/平衡配置/碰撞伤害视图/UI·i18n·导航/性能与对象池/持久化安全/文档漂移/主流程状态机/战斗实体/测试与 CI/Shell 与工具/玩法数值）+ 高危与部分中危逐行人工复核 + 全量修复（goal 模式） |
+| 工作时间 | 2026-08-06（单次集中会话） |
+| 审核区域 | 全仓（报告 `docs/archive/2026-08-06-audit-report.md`：高危 2 / 中危 8 / 低危 30 项按主题归并） |
+| 审核方法 | 12 路并行只读 + 协调者人工复核（H1/H2/M1/M2/M3/M6 逐行取证）；分类口径：纯 bug / 设计目标未达成 / 应急补丁痕迹 / 文档与代码矛盾 |
+| 结论 | 高危 2 全修、中危 8 全修、低危 30 项批量处置（修复 + 登记不修）；补回归测试 9 处；CI 增 BALANCE_MAP 零 diff 闸 |
+
+## 发现与处置（2026-08-06 批次，编号延续报告）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| H1 | P0 | `spawner.gd:651-661` × `main.gd:710` | 纯 bug（状态机漏洞） | Boss 战中返航 → `clear_pending()` 无条件 `_boss_active=false` → 继续出击后双 Boss 同场（`_boss_timer` 战时持续增长、`_next_boss_score` 仅击杀推进 → 分数门控立即满足；轮换/休整/狂暴单槽编排脱节，可链式出第三只）；G01 只覆盖预警 2s 窗口 case | ✅ `clear_pending` 按注册表存活 Boss 区分：`count_enemies(e is Boss)==0` 才复位；wave_pacing_test 场景 6 双断言（在场保持占用/无 Boss 解除） |
+| H2 | P0 | `spawner.gd:467-475` × `balance.json:659` × `enemy.gd:185` | 设计目标未达成 | 分裂者（第 5 型）永不生成——`unlocked_types()` 上界 `mini(5, 4)` 截断，`unlock_scores` 自平衡化起 4 档未随 5 型机扩展（测试直注入绕过解锁路径）；子机 `p_difficulty=1.0` 固定，HP/速度不随对局 ramp 与「HP 半」语义脱节 | ✅ unlock_scores 扩 5 档（脚本默认 + json 双写 2500）；子机继承母体 `_difficulty`；enemy_combat_test 解锁路径 + 2.0 档子机 HP 断言 |
+| M1 | P1 | `bullet.gd:269-292` | 纯 bug（池状态残留） | `_apply_faction` 复位 scale/modulate 但漏 `_sprite.self_modulate`——laser 黄/Boss 重弹橙/致死红（`bullet.gd:308`/`enemy.gd:575`/`boss_fire.gd:70,104`/`turret_battery.gd:213`）无一复位，laser 高频弹种对局必然复用带旧 tint | ✅ `_apply_faction` 补 `self_modulate = WHITE`；pool_reuse_test 染色→回收→复用断言复位 |
+| M2 | P1 | `game_state.gd:1558-1562` × `save_manager.gd:66-72` | 纯 bug | 损坏存档 `.corrupt` 备份被二次隔离删除：`load()` 已 rename 并返回 `{}`，`load_run_data` 空字典档主校验必然不匹配 → `quarantine()` 先删刚生成的备份再 rename 不存在的正本（失败刷伪警告），损坏档彻底消失 | ✅ 损坏分支直接返回（不再做档主校验）；startup_flow_test 断言备份保留 + 正本已隔离 |
+| M3 | P1 | `fake_enemies_event.gd:33` × `fake_enemy.gd:78` | 设计目标未达成 | 伪敌机约 75% 出生即销毁——出生 y = 视野顶 − randf(20,260)，出屏销毁余量仅 80px，深度 >80 个体首个物理帧即 queue_free（count=5 实际可见 1-2 只） | ✅ 销毁余量扩至 280（对齐最大出生深度，保留错峰入场设计）；fog_event_test 0.2s 后全部存活断言 |
+| M4 | P1 | `boss.gd:653-691` | 设计目标未达成 | 4 型「月蚀」狂暴分档残缺——interval/speed/count 三表无 type4 行（E33 同族遗漏），狂暴参数三档恒定（easy 偏难、hard 偏易） | ✅ `_apply_difficulty_scaling` 补 E4_RING_INTERVAL/SPEED/RELEASE_SPEED/RING_BURST_SPEED × 档位 + E4_RING_COUNT/RELEASE_COUNT 增量；boss_phase_test 场景 6 easy/hard 对比断言 |
+| M5 | P1 | `starfield.gd:42,56-57` | 设计目标未达成 | zoom>1 星空不覆盖可见区右/下边缘——星点锚 (0,0) 铺 `[0,1920/zoom]×[0,1080/zoom]`，C07 改尺寸未改锚点（档案 :965「恒覆盖」论证前提被自身破坏） | ✅ 星点锚定 `view_world_rect().position`（origin 缓存 + 回绕同基线）；Starfield 补 origin()/area_size() 访问器；view_zoom_test 覆盖断言 |
+| M6 | P1 | `test/user_db_test.gd:18-21` | 应急补丁痕迹（Q23 清扫遗漏） | 测试直接删除 `user://users.json` 且无快照还原——本地跑一次即永久销毁开发者全部账户+排行榜 | ✅ Q23 快照范式补齐（备份/还原 users.json+corrupt+存档） |
+| M7 | P1 | `view_zoom/window_size/difficulty/mouse_lock/base_system_test` | 纯 bug（测试副作用） | 5 测试经「部分覆写 profile.json + load_profile」间接清零 pre-login 最高分与高分榜并落盘（L15 只修直写路径；档案称 base_system 已修与 git 事实不符） | ✅ 5 测试 profile 快照还原（含 base_system 高分榜直写段） |
+| M8 | P1 | `docs/BALANCE_MAP.md` × `ci.yml` | 文档与代码矛盾（流程反复复发） | BALANCE_MAP 行号漂移第 6 次复发（a8c97a4 后未重跑，125+/125- 纯行号）；E10/K18/L10/Q08/R15 五次同款根因「靠人记」 | ✅ CI 增「生成器重跑零 diff 闸」（改码必同步重跑）；本轮已重跑提交 |
+
+### 低危批量处置（2026-08-06，按主题归并）
+
+| 编号 | 类别 | 位置 | 处置 |
+| --- | --- | --- | --- |
+| L-a | 状态/逻辑 | `event_manager.gd:154-155` | ✅ `set_run_active(true)` 补 `_fog_cooldown_left=0`（Q12 同族遗漏；fog_event_test 断言） |
+| L-b | 状态/逻辑 | `main.gd:560-572` | ✅ `_on_player_died` 清理召唤小窗（disconnect+skip，与返航路径同款——give_up/dock 同帧完成小窗冻结永驻） |
+| L-c | 状态/逻辑 | `game_state.gd:592-595` | ✅ 里程碑推进改 while（与 apply_run_save 全补口径一致，跨档加分不漏档） |
+| L-d | 状态/逻辑 | `main.gd:340` × `elite_turret_event.gd:136-143` × `formation_strike_event.gd:126-137` | ✅ can_charge 增「遭遇事件进行中禁止蓄力」（L13 互斥只查触发期，事件中召唤母舰清场全额领奖） |
+| L-e | 状态/逻辑 | `boss.gd:774-776` × `boss_movement.gd:98-101,138-146` | ✅ 逃跑警告期上飘补三型（绝对 y 赋值走位叠加 `escape_drift_offset()`，增量走位保留直接减） |
+| L-f | 状态/逻辑 | `strike_carrier.gd:32,115` × `elite_turret_event.gd:125` | ✅ 航母悬停/炮塔行锚点加 view 基线（D10 同族） |
+| L-g | 状态/逻辑 | `mothership.gd:665` | ✅ 加特林弹仅视觉缩放（`b.scale` 改子 Sprite2D——原连带缩放碰撞半径 6→3.6×ws） |
+| L-h | 状态/逻辑 | `player_damage.gd:49-52` | 登记不修（维持现状并注释说明）——护盾吸收有意不写 `last_hit_frame`：「每层吸收一次」语义要求同帧多弹逐发吸收（计入 A16 单帧守卫则同帧第二弹被拦截免费，hit_logic_test 同帧连打回归）；「同帧盾+实伤」概率极低，原报告即「登记即可」 |
+| L-i | 状态/逻辑 | `game_state.gd:1626` | ✅ missions goal 走 `save_num` 判型（R06/R07 判型族同族遗漏） |
+| L-j | 配置/工具链 | `spawn_telegraph.gd:5,18` × `spawner.gd:547-549` | ✅ 预告线视觉寿命改实例级 `duration`（spawner 注入 `telegraph_duration`，两套时钟统一） |
+| L-k | 配置/工具链 | `elite_turret_event.gd:110-112,205` | ✅ ammo 条目级判型（难度键缺失/非 Array 回退 medium→内置默认；K14 只判容器） |
+| L-l | 配置/工具链 | `bullet_pool.gd:35` | ✅ 口径注释（active_count 全阵营，敌弹 cap ≈ 500−活跃玩家弹，偏差可忽略） |
+| L-m | 配置/工具链 | `balance_editor.py:283-292` | ✅ 写盘侧 OSError 兜底（R08 只修读侧；磁盘满/只读友好 400） |
+| L-n | 持久化/账号 | `user_db.gd:54-73` | ✅ 头注/`_derive` 注释口径修正（自建 PBKDF2 变体，非标准互通；维持实现防破坏既有账号） |
+| L-o | 持久化/账号 | `user_db.gd:150,172-175,192-193,224 等` | ✅ 条目级非 Dictionary 守卫（`_user_record` helper 全消费点收敛，Q17 只守顶层） |
+| L-p | 持久化/账号 | `user_db.gd:247-255` | ✅ delete_user 连带清理 `<save>.corrupt` |
+| L-q | 文档/翻译 | `README.md:36/136` × `README.en.md` | ✅ 特性清单补迷雾事件系统；45 场景链接改指 `docs/TESTING.md` |
+| L-r | 文档/翻译 | `translations.csv` | ✅ 删 START_HAS_SAVE/START_NO_SAVE/START_SUBTITLE/START_TUTORIAL_DONE 4 死键（零引用实证） |
+| L-s | 文档/翻译 | `game_state.gd:233` | ✅ 注释 TASK_* → MISSION_* |
+| L-t | 文档/翻译 | `AGENTS.md` | ✅ Quick Reference 6→7 服务（补 UserDB） |
+| L-u | 文档/翻译 | `ci.yml:4` | ✅ 「仅官方 checkout」→「仅官方 checkout/upload-artifact」 |
+| L-v | 文档/翻译 | `CHANGELOG.md` | ✅ 3.23 断档说明（git 无 tag/条目，疑似有意跳号）；新增 [3.28] 审计条目 |
+| L-w | 文档/翻译 | `back_navigator.gd:37` | ✅ 注释声明「右键=返回仅 main.tscn 实现，welcome 顶层无效」 |
+| L-x | 文档/翻译 | `DESIGN_BASELINE.md:22` | ✅ RP 来源口径修正（仅 Boss 击杀 +5 与任务领取 +3，非 kills/score） |
+| L-y | 玩法/数值 | `BOSS_REDESIGN.md:41,88` × `balance.json:613` × `boss.gd:239` | ✅ E2_AIM 0.3→0.35 对齐 G3 telegraph 门限（文档/配置/脚本三处同步；测试标签同步） |
+| L-z | 测试规范 | `keybind/esc_navigation/base_system_test` | ✅ 键位快照还原（reset/rebind 自动落盘防开发者键位被重置） |
+| L-ag | 测试规范 | `user_session/startup_flow/welcome_flow_test` × `user_db.gd` | ✅ **wipe 后缓存残留根因修复**——GameState._ready 的迁移探测（`_maybe_migrate_legacy_profile`）提前触发 `UserDB._ensure_loaded`，把真实用户表缓存进 `_db`；测试 wipe user:// 后缓存仍非空，「空用户表」起点失效（本机有开发者账户时迁移段/榜单断言失败，CI 干净环境不暴露）；新增 `UserDB.reload()` + `GameState.reload_user_db()`，三个 wipe 型测试 wipe 后显式刷新 |
+| L-aa | 测试规范 | `smoke_test.gd:859 等 6 处` | ✅ 结尾改 profile 全量快照还原（原「恢复默认值」覆盖用户原档） |
+| L-ab | 测试规范 | `mothership_upgrade_test.gd` | ✅ `_milestone_count` 直写 ×5 改公开 `set_milestone_count`（GameState 补 A7 setter） |
+| L-ac | 测试规范 | `boss_phase_test.gd:274-279` | ✅ 场景 5 生成失败 null 守卫——balance.json 恢复无条件执行（原崩溃跳过恢复留仓库损坏态） |
+| L-ad | Shell/音频 | `generate_audio.py:254-275` | ✅ 琶音死代码分支删除；BGM 单边 50ms 淡入改首尾互补交叉淡化（圈首 5dB 凹陷 + 回绕跳变消除） |
+| L-ae | Shell/音频 | `.agents/shell-scripts.md:9` | ✅ run.sh 实为 `set -e`（非 `-euo pipefail`）口径修正 |
+| L-af | Shell/音频 | `release.sh` | ✅ `--help`；GODOT 兜底链断裂诊断；tar/zip 前置检查移导出前 |
+
+## 登记不修（论证后收敛，2026-08-06 批次）
+
+1. **匿名 `savegame.json` 无迁移（game_state.gd:1413-1418,1430-1436）**：账户化前旧玩家进行中进度永不可达——迁移收益低（单机进度价值有限）且改动面大（涉及 B5 迁移链），登记观察；persistence-security.md 已补注 users.json 损坏静默重建口径。
+2. **里程碑循环档边界增量倒挂（game_state.gd:696-713）**：80000→84050 增量 4050 仅为前档 40%——疑似有意设计（池拿完后影响有限），SOP「不盲调平衡」，登记待设计拍板。
+3. **UserDB `_derive` 保持自建变体**：无实际弱化、改动破坏既有账号验密，口径已修（L-n），登记观察。
+4. **enemy_pool.gd:49-51 / explosion.gd:56-57 池化 spawn 侧 reparent 同步执行**：与池自身防护口径矛盾但实测无恙（R04 已双向包裹），登记观察。
+5. **fake_enemy.gd `_physics_process` 每帧 sin()×3 未走查表**：量级与 G017 判不修相当（≤4 只幽灵机），登记观察。
+6. **game_state.gd:1413-1418 游客无存档路径**：设计语义（游客不落盘），非 bug，登记说明。
+7. **死亡清理小窗（L-b）与遭遇互斥（L-d）未加独立测试**：同帧双蓄力/长按注入成本高，由 main 流程回归（fog_event_test 返航段）间接覆盖，登记待办。
+
+## 修复起效记录（回填）
+
+- **改了什么**：31 个生产/工具/测试文件 + 3 数据/文档生成物（balance.json 双写、BALANCE_MAP 重跑、CHANGELOG）——详见上表与报告；另含 `docs/archive/2026-08-06-audit-report.md` 报告（登记时点只读未改）。
+- **为什么起效**：H1 按存活 Boss 注册表区分复位（预警窗口无 Boss 才解除占用，Boss 在场保持波次/Boss 门控冻结）；H2 解锁表与机型表等长 + 子机难度继承（深局分裂者子机 HP 与母体同 ramp）；M1/M2 对等重置与损坏分支短路（备份保留）；M3 销毁余量覆盖最大出生深度；M4 分档乘区/增量与 1/3 型同族（easy/hard 不再恒定）；M5 星点锚点随可见区平移；M6/M7 快照还原（Q23 范式推广到全部本地数据污染测试）；M8 生成器零 diff 闸把「改码重跑」从人记变机器强制。
+- **如何验证**：五层门禁全绿（gdformat/gdlint/import 0 error/quit-after 300/45 断言场景，见当次提交记录）；新增回归断言 9 处（wave_pacing H1、enemy_combat H2×2、pool_reuse M1、startup_flow M2×2、fog_event M3+fog 冷却、boss_phase M4×6、view_zoom M5×2）；release.sh `--help` + `bash -n`；generate_audio.py `py_compile` + BGM 重生成实跑。

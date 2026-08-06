@@ -33,7 +33,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 - 🃏 **19 stackable buffs** — damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…
 - 👾 **4 rotating bosses** — driven by an HP-phase pattern table (P1 / P2 / enrage); fail to kill in time and the boss flees
 - 🛰️ **Mothership weapons platform** — charge-up summon → auto-docking → piloted stay (WASD + twin turrets + missiles) → tractor-beam recovery
-- 💥 **Two random events** — elite turret strikes and formation bombing runs for rhythm-breaking challenges
+- 💥 **Random event system** — elite turret strikes, formation bombing runs, and fog interference events (ghost squadrons / mental confusion / bullet malfunctions / directional jolts)
 - 🏠 **Mid-run base refit** — repair / resupply / talent routes / mission rewards, then back to the same battle
 
 **Audiovisuals**
@@ -133,7 +133,7 @@ godot --headless --path . --quit-after 300  # runtime smoke
 godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (self-checked assertions)
 ```
 
-The full 45-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [AGENTS.md](./AGENTS.md).
+The full 45-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [docs/TESTING.md](./docs/TESTING.md).
 
 </details>
 

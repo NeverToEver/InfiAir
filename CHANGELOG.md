@@ -1,6 +1,16 @@
 # Changelog
 
-本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。
+本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。版本 3.23 无发布记录（git 历史未见对应 tag/条目，疑似有意跳号，2026-08-06 审计登记）。
+
+## [3.28] - 2026-08-06
+
+### 修复（2026-08-06 全项目审计，`docs/archive/2026-08-06-audit-report.md`）
+
+- **高危**：Boss 战中返航 → 继续出击双 Boss 同场（H1：`clear_pending` 按「存活 Boss 注册表」区分复位条件 + 回归测试）；分裂者（第 5 型敌机）实战永不生成（H2：`unlock_scores` 扩展 5 档 + 子机继承母体难度随对局 ramp）
+- **中危**：子弹池 `self_modulate` 染色残留（M1，laser 复用带旧 tint）；损坏存档 `.corrupt` 备份被二次隔离删除（M2）；伪敌机约 75% 出生即销毁（M3）；4 型 Boss 狂暴分档表补齐（M4）；zoom>1 星空右/下边缘无星（M5）；`user_db_test` 销毁本地用户 + 5 测试经 profile 间接清零 pre-login 数据（M6/M7 快照还原范式）；CI 加 BALANCE_MAP 生成器重跑零 diff 闸（M8）
+- **低危批量**：give_up 与 dock 同帧完成死亡小窗冻结、遭遇事件进行中禁蓄力召唤母舰、加特林弹仅视觉缩放（不缩碰撞形状）、护盾吸收计入 A16 单帧守卫、Boss 逃跑警告期上飘三型补齐、打击航母悬停/炮塔行锚点加 view 基线、预告线视觉寿命读配置、精英炮塔弹药序列条目级判型、UserDB 条目级守卫与删号清理 `.corrupt`、`E2_AIM` 对齐 G3 telegraph 门限（0.3→0.35s）、里程碑推进改 while 与读档口径一致等
+- **测试规范**：键位/profile/用户表快照还原补齐；`boss_phase_test` 生成失败 null 守卫防仓库 balance.json 留损坏态；`_milestone_count` 直写改公开 setter
+- **验证**：gdformat / gdlint / import 0 error / 45 断言场景全绿
 
 ## [3.27] - 2026-08-06
 
