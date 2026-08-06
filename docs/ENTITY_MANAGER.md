@@ -20,20 +20,24 @@ repeating boilerplate and hunting every traversal site. This document:
    registration, lifecycle signals, pooling hooks and bulk operations;
 4. Gives the migration map and invariants that keep behavior and tests unchanged.
 
-## 2. Current entity inventory (as-is, 2026-08-05)
+## 2. Pre-migration entity inventory (snapshot, 2026-08-05)
+
+> 写作当日迁移即落地（§4–§6）——§2 为迁移前基线快照：注册样板现为 `bind_enemy`/`unbind_enemy` 一行（§2.1 列出现行行号），注册表为 `EntityManager`（§2.3）。
 
 ### 2.1 Registered units (in `GameState.enemies` + `enemy` group)
 
 | Unit | Class | Pool | Registered by |
 | --- | --- | --- | --- |
-| Enemy (normal/elite/splitter/minion) | `scripts/enemy.gd` (Area2D) | `EnemyPool` (enemy.tscn only) | `_ready` 240 / `reactivate` 413 → unreg `deactivate` 433 / `_exit_tree` 454 |
-| Boss (4 rotating types) | `scripts/boss.gd` (Area2D, **not** an Enemy subclass) | none | `_ready` 445 → `_exit_tree` 691 |
-| TurretBattery (elite-turret event) | `scripts/turret_battery.gd` (Area2D) | none | `_ready` 75 → `_exit_tree` 106 |
-| FormationCraft (formation event) | `scripts/formation_craft.gd` (Area2D) | none | `_ready` 45 → `_exit_tree` 62 |
+| Enemy (normal/elite/splitter/minion) | `scripts/enemy.gd` (Area2D) | `EnemyPool` (enemy.tscn only) | `bind_enemy` in `_ready` 239 / `unbind_enemy` in `_exit_tree` 466; pooling paths keep `register_enemy` 419 / `unregister_enemy` 439 |
+| Boss (4 rotating types) | `scripts/boss.gd` (Area2D, **not** an Enemy subclass) | none | `bind_enemy` in `_ready` 452 → `unbind_enemy` in `_exit_tree` 701 |
+| TurretBattery (elite-turret event) | `scripts/turret_battery.gd` (Area2D) | none | `bind_enemy` in `_ready` 75 → `unbind_enemy` in `_exit_tree` 106 |
+| FormationCraft (formation event) | `scripts/formation_craft.gd` (Area2D) | none | `bind_enemy` in `_ready` 44 → `unbind_enemy` in `_exit_tree` 61 |
 
-All four share the identical pattern `add_to_group("enemy")` + `GameState.register_enemy(self)`
-in `_ready` and `GameState.unregister_enemy(self)` in `_exit_tree` (differences: Enemy adds
-pooling paths `reactivate`/`deactivate` + `_pool.forget`/`_repooling` guard).
+All four share the one-line pattern `GameState.bind_enemy(self)` in `_ready` and
+`GameState.unbind_enemy(self)` in `_exit_tree` — `add_to_group("enemy")` + registry
+registration + `entity_registered`/`entity_unregistered` signals in one call (pre-migration:
+3-line boilerplate `add_to_group` + `register_enemy`/`unregister_enemy`); Enemy additionally
+keeps pooling paths `register_enemy`/`unregister_enemy` (reactivate/deactivate) + `_pool.forget`/`_repooling` guard.
 
 ### 2.2 Other run entities (not registered)
 
@@ -43,9 +47,10 @@ Explosion (own static pool), Bullet (own `BulletPool` + enemy-bullet registry fo
 replay). These are **not** `enemies`-registry members by design (fake enemies must not be
 hit/cleared; bombs/carriers are event-owned).
 
-### 2.3 Registry + pools today
+### 2.3 Registry + pools (pre-migration)
 
-- `scripts/entity_registry.gd` (`EntityRegistry`, RefCounted): `enemies` + O(1) `_enemy_set`
+- `scripts/entity_registry.gd` (`EntityRegistry`, RefCounted) — **evolved into
+  `scripts/entity_manager.gd` (`EntityManager`) the same day (2026-08-05, §4)**: `enemies` + O(1) `_enemy_set`
   (`has_enemy`, hot path for homing), `enemy_bullets` (death-replay data source), special
   refs (`player_ref`/`player_hitbox`/`bullet_pool`/`enemy_pool`/`aim_frame_layer`/
   `camera_ref`). GameState forwards every member — callers unchanged.

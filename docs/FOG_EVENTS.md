@@ -19,11 +19,12 @@
 ### 1.2 数据层（`autoload/game_state.gd`）
 
 ```gdscript
-# 初始手牌（保持既有 id 语义，测试/存档兼容）
+# 初始手牌（保持既有 id 语义，测试/存档兼容；显示文本全走 tr() 翻译表 TASK_* 键，
+# 不保留 name/desc —— 2026-08-05 P4 去双源）
 const MISSION_DEFS: Array[Dictionary] = [
-	{"id": &"kill_5", "name": "战场清扫", "desc": "击杀 5 个敌人", "goal": 5, "kind": &"kill"},
-	{"id": &"survive_180", "name": "战场生存", "desc": "存活 180 秒", "goal": 180, "kind": &"survive"},
-	{"id": &"boss_1", "name": "主宰之战", "desc": "击杀 1 个 Boss", "goal": 1, "kind": &"boss"},
+	{"id": &"kill_5", "goal": 5, "kind": &"kill"},
+	{"id": &"survive_180", "goal": 180, "kind": &"survive"},
+	{"id": &"boss_1", "goal": 1, "kind": &"boss"},
 ]
 # 任务池：9 项 = 3 类 × 3 档目标（kind 决定进度来源，goal 各自生效）
 const MISSION_POOL: Array[Dictionary] = [/* kill_5/15/30, survive_60/180/300, boss_1/2/3 */]
@@ -61,14 +62,14 @@ var _order: Array[int] = []   # 洗牌索引序列（游标只增不减，池耗
 var _cursor: int = 0
 
 func draw(count: int, exclude_ids: Array[StringName] = []) -> Array[Dictionary]:
-	# 单批内不重复；一批耗尽后若已有产出则不再跨批补足（保持无放回语义）；
+	# 单批内不重复（跨批补足也防重号）；一批耗尽后若仍有名额且全池还有可用候选
+	# 则重洗继续补足（跨 draw 尽量延迟复用；排除在场任务导致的提前耗尽不截断——Q05）；
 	# exclude 覆盖全池时安全返回空（防死循环）
 ```
 
 要点：
 - **单次 draw 内不重复**（一次刷新抽到 3 个互异任务）。
-- **跨 draw 尽量延迟复用**：一次 draw 消耗完当前批次后，若仍有名额且本批零产出才重洗，
-  刷新后短期内不会立刻抽回刚换下的任务。
+- **跨 draw 尽量延迟复用**：一次 draw 消耗完当前批次后，若仍有名额且全池还有可用候选则重洗继续补足（Q05 修正：无论本批是否有产出都会补足，排除在场任务导致的提前耗尽不再截断），刷新后短期内不会立刻抽回刚换下的任务。
 - `exclude_ids`：刷新时排除**全部在场 id**（保留任务 + 待换任务），杜绝重号。
 
 ### 1.4 UI（`scripts/base_console.gd`）

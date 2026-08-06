@@ -42,6 +42,7 @@ Render: CanvasLayer layer=1 (above world, below HUD; main HUD -> layer=2; below 
 - `u_ripple_phase` float 1.0: GDScript 0->1 (0.4s) [R6]
 - `u_crack_progress` float 0.0: §4.2 curve [R3]
 - `u_crack_color` vec4 source_color cyan: state interpolation [R3]
+- `u_crack_glow` float 0.8: crack ADD pseudo-glow strength (`effects.meta_health.crack.glow`) [R3]
 - `u_crack_density` float 0.0: state layer cap [R3]
 - `u_crack_spread_min` float 0.15: `_ready` config [R3]; gate floor (full HP = none)
 - `u_crack_edge_softness` float 0.08: `_ready` config [R3]
@@ -71,7 +72,7 @@ radial_w=smoothstep(0.25,1.0,dist)  # edge-strong [R2]
    col += vec3(0.4,0.9,1.0) * smoothstep(0.88,0.98,dist) * pow(max(cos(atan(to_center.y,to_center.x)-atan(u_hit_dir.y,u_hit_dir.x)),0.0),3.0) * (sin((dist-u_ripple_phase*1.1)*40.0)*0.5+0.5) * (1.0-u_ripple_phase) * u_hit_intensity
 3 implicit [R7]: lum=dot(col,vec3(0.299,0.587,0.114)); col=mix(col,vec3(lum),u_desaturation); col=mix(col,col*vec3(0.85,1.0,1.1),u_hue_cool)
 4 vignette [R7]: vig=smoothstep(u_vignette_inner,1.15,dist); col=mix(col,vec3(0.35,0.02,0.05), clamp(u_vignette_strength*(1.0+0.35*u_heartbeat),0.0,0.6)*u_adapt_gain*vig)
-5 crack [R3]: field=texture(u_crack_field,uv).rgb; gate=mix(u_crack_spread_min,1.0,field.b)+(field.g-0.5)*u_heal_jitter; on=smoothstep(gate,gate+u_crack_edge_softness,u_crack_progress); line=1.0-smoothstep(0.0,u_crack_width,field.r); mask=line*on*u_crack_density; col=mix(col,u_crack_color.rgb*0.25,mask*0.6)+u_crack_color.rgb*mask*0.8*u_adapt_gain
+5 crack [R3]: field=texture(u_crack_field,uv).rgb; gate=mix(u_crack_spread_min,1.0,field.b)+(field.g-0.5)*u_heal_jitter; on=smoothstep(gate,gate+u_crack_edge_softness,u_crack_progress); line=1.0-smoothstep(0.0,u_crack_width,field.r); mask=line*on*u_crack_density; col=mix(col,u_crack_color.rgb*0.25,mask*0.6)+u_crack_color.rgb*mask*u_crack_glow*u_adapt_gain
 COLOR=vec4(col,1.0)
 ```
 
@@ -103,7 +104,7 @@ _process(delta): early return if |_target_x-_damage_x|<0.001 && _hit_pulse<0.001
 _on_player_damaged(amount: float, from_pos: Vector2): r=amount/GameState.max_health(); _hit_pulse=maxf(_hit_pulse, clampf(r*2.5, 0.15, 1.0))  # max-pool [R2]; _hit_dir=world->screen (from_pos==Vector2.INF -> uniform ring); _ripple_t=0.0
 
 breath_scale() -> float: main.gd D6 composition
-breath_active() -> bool: _state == STATE_DYING && reduce-flash off
+breath_active() -> bool: _state == STATE_DYING && GameState.health > 0 && reduce-flash off
 ```
 
 ### 4.2 HP->crack mapping (in `_on_health_changed`)
@@ -118,13 +119,13 @@ vignette = min(0.5, crack_progress * 0.55); DYING: u_vignette_inner 0.62->0.56 (
 
 ### 4.3 Integration points
 
-- `autoload/game_state.gd` signal zone (`player_damaged`, line 12): +`signal player_damaged(amount: float, from_pos: Vector2)`; +`var meta_fx_lod: int = 1` (LOD1 fallback; `_ready`->0, `_exit_tree`->1); +`var reduce_flash: bool = false` (setter persists profile, aim_assist)
-- `scripts/player.gd` `take_damage()` (line 891): +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)`
-- `scripts/bullet.gd` `_on_grace_timeout()` (line 381) / `scripts/enemy.gd` `_check_body_collision()` (line 355) / `scripts/boss.gd` `_check_body_collision()` (line 960) / `scripts/formation_bomb.gd` `_detonate()` (line 105) (player-hit sites): pass `global_position`
-- `scripts/main.gd` `_apply_camera_zoom()` (100-101/300) camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
-- `scripts/hud.gd` `_update_vignette()` (755-772): top `if GameState.meta_fx_lod == 0: return` (LOD0 -> MetaFX, `_vignette` 0; LOD1 keeps current, D2)
+- `autoload/game_state.gd` signal zone (`player_damaged`, line 14): +`signal player_damaged(amount: float, from_pos: Vector2)`; +`var meta_fx_lod: int = 1` (LOD1 fallback; `_ready`->0, `_exit_tree`->1); +`var reduce_flash: bool = false` (setter persists profile, aim_assist)
+- `scripts/player.gd` `take_damage()` (line 983): +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)`
+- `scripts/bullet.gd` `_on_grace_timeout()` (line 463) / `scripts/enemy.gd` `_try_body_collision()` (line 367) / `scripts/boss.gd` `_check_body_collision()` (line 968) / `scripts/formation_bomb.gd` `_detonate()` (line 95) (player-hit sites): pass `global_position`
+- `scripts/main.gd` `_apply_camera_zoom()` (line 314) camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
+- `scripts/hud.gd` `_update_vignette()` (line 763): top `if GameState.meta_fx_lod == 0: return` (LOD0 -> MetaFX, `_vignette` 0; LOD1 keeps current, D2)
 - `scripts/hud.gd` `_hp_bar` build: holographic: base alpha 0.25, fill `CanvasItemMaterial BLEND_MODE_ADD`; +`meta_jitter()` (D9: +-2px, 80ms, only `_hp_bar`+`_buff_flow`)
-- `scripts/settings_ui.gd` `_build_modes_page()` (line 326) after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
+- `scripts/settings_ui.gd` `_build_modes_page()` (line 225) after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
 - `data/translations.csv`: `SET_ACCESSIBILITY` 无障碍/Accessibility; `SET_REDUCE_FLASH` 减少闪光/Reduce flashes
 - `scripts/tools/generate_audio.py`: +`heartbeat.wav` - 55Hz sine double-pulse (lub-dub), 0.28s, exp envelope (D7)
 

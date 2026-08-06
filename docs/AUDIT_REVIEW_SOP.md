@@ -44,7 +44,7 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 
 ### Minimal verification set
 
-- Every change: `--headless --import` + targeted tests; balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: 41 assertion scenes, 0 FAIL (per `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
+- Every change: `--headless --import` + targeted tests; balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: 45 assertion scenes, 0 FAIL (per `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
 
 ## 6. Phase 5: Archive Backfill
 

@@ -158,7 +158,7 @@ All **gameplay-range** (no `world_scale`); coords from `fight_anchor_y()` / `str
 ### 7.3 Evolution Decisions (formerly PORTING_PARITY, archived 2026-07-30)
 1. Freeze → slow ×0.35 (P4; freeze dropped).
 2. Shared enrage → per-type (P1). 3. Metronome → phase tables (P2). 4. Instant → telegraph (P3). 5. HP-only → pattern tiers (P5).
-6. `FIGHT_Y` absolute (y=230) → visible-area-top offset (2026-07-30 UX audit P0-1): `_fight_anchor_y()` = `GameState.view_world_rect().position.y + FIGHT_Y`; 3 use sites (entry stop-line, P2 dash RETURN, enrage RETURN) unified; `_strafe_range()` margins aligned; zoom=1 bit-identical.
+6. `FIGHT_Y` absolute (y=230) → visible-area-top offset (2026-07-30 UX audit P0-1): `fight_anchor_y()` = `GameState.view_world_rect().position.y + FIGHT_Y`; 3 use sites (entry stop-line, P2 dash RETURN, enrage RETURN) unified; `_strafe_range()` margins aligned; zoom=1 bit-identical.
 
 ### 7.4 Compatibility
 - Saves hold no Boss state (save_run: score/fuel/time); re-enters by schedule; no migration.

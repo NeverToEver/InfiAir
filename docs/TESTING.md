@@ -110,7 +110,7 @@ push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (
 
 Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 54 scenes: 45 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. (2026-08-05 P4: 53→54)
 
-- Tests may touch `user://savegame.json`/`profile.json`: new tests `GameState.delete_save()` first + clean/restore own state.
+- Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.
 - `autoplay_test`: long probe with `[ANOMALY]` invariants (not ordinary assertions); registry bidirectional check vs `enemy` group (incl. turret/formation, skipping pooled deferred-recycle), buff-confirm anim path (10% real roll), return-cinematic stall exemption, enrage-slow reset, buff caps, event/boss phase counts (SUMMARY).
 - `perf_bench` needs `--fixed-fps 1000`; interleave runs + medians for A/B.

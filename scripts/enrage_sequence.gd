@@ -1,7 +1,7 @@
 class_name EnrageSequence
 extends RefCounted
 ## A3 拆分：Boss 狂暴状态机（docs/AUDIT_VAULT.md A3）。
-## 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 三型差异化 ACTIVE +
+## 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
 ## 轨道路径计算 + 锁血/玩家减速。经 boss 动态访问配置与位置（无类型参数），
 ## 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问（A1 约束）。
 

@@ -9,7 +9,7 @@
 
 ## 安全属性说明
 
-InfiAir 是**纯单机游戏**：无网络通信、无远程服务、无第三方账号体系、无密钥或凭据处理。运行时唯一的外部交互是本地 `user://` 持久化（`savegame.json` / `profile.json`）与可选的离线数值编辑器（`scripts/tools/balance_editor.py`，仅监听 127.0.0.1）。因此攻击面极小，但存档/档案文件的健壮性（损坏隔离、类型守卫）仍是本项目安全相关的关注点。
+InfiAir 是**纯单机游戏**：无网络通信、无远程服务、无第三方账号体系、无密钥或凭据处理。运行时唯一的外部交互是本地 `user://` 持久化（每用户存档 `savegame_<user>_<hash>.json`、用户表/设置/榜单 `users.json`；`profile.json` 仅未登录/兼容）与可选的离线数值编辑器（`scripts/tools/balance_editor.py`，仅监听 127.0.0.1）。因此攻击面极小，但存档/档案文件的健壮性（损坏隔离、类型守卫）仍是本项目安全相关的关注点。
 
 ## 漏洞报告（Reporting a Vulnerability）
 

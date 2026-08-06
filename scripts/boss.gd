@@ -1,6 +1,6 @@
 class_name Boss
 extends Area2D
-## Boss：3 种轮换（1 重装 / 2 游击 / 3 母舰），HP 分段驱动阶段框架（BOSS_REDESIGN §4.1）：
+## Boss：4 种轮换（1 重装 / 2 游击 / 3 母舰 / 4 月蚀），HP 分段驱动阶段框架（BOSS_REDESIGN §4.1）：
 ## P1（100–70%）→ P2（70–30%）→ ENRAGE（<30%），P1/P2 各为数据驱动的模式表循环
 ## （模式 = 固定波次或持续时长，播完切下一个；段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效
 ## + 清自身开火计时）。走位与攻击解耦：每型每阶段一个走位函数，攻击在其上叠加
@@ -11,7 +11,9 @@ extends Area2D
 ##   2 型「猎杀环绕」：ACTIVE 在快照点轨道 4 象限 6 点依次瞬停，每点 0.3s 瞄准线 +
 ##     单发狙，RELEASE 回轨道底部放 12 向慢速环弹；
 ##   3 型「倾巢」：ACTIVE 每 1.2s 一波 3 小怪（共 3 波）+ 每 0.9s 一圈 8 向环弹，
-##     RELEASE 16 向慢速环弹 + 在场小怪齐射。
+##     RELEASE 16 向慢速环弹 + 在场小怪齐射；
+##   4 型「月蚀」（2026-08-04）：ACTIVE 中心悬停微摆 + 双环反向进动（正环/反角环
+##     交替成波，每波进动 E4_PRECESSION_DEG），RELEASE 蓄力环阵（E4_RELEASE_RING_COUNT 向）。
 ## 序列期间锁血在 30% 检查点、玩家移速 ×0.35 减速（替代原作定身，§4.3）；
 ## RETURN 后回到常规「余怒」循环（射速 ×1.3/移速 ×1.3）。
 ## 进入战斗 50s 未被击杀则逃跑：最后 3s 逃跑警告 + 上飘（血条倒计时自
@@ -43,7 +45,8 @@ const TEXTURES: Array[Texture2D] = [BOSS_SPRITE_1, BOSS_SPRITE_2, BOSS_SPRITE_3,
 const STALKER_POINT_ANGLES_DEG: Array[float] = [0.0, -90.0, 180.0, 90.0, 0.0, -90.0]
 ## 模式表脚本默认值（与 balance.json boss.phases.typeN 保持一致，AGENTS.md 约定）：
 ## 1 型 P1=[5路扇形,追踪弹] P2=[蓄力重炮,7路扇形]；2 型 P1=[3连狙] P2=[冲刺掠过,3连狙]；
-## 3 型 P1=[旋转cross+召唤] P2=[编队齐射,弹幕墙]（召唤为独立计时，不在模式表内）。
+## 3 型 P1=[旋转cross+召唤] P2=[编队齐射,弹幕墙]（召唤为独立计时，不在模式表内）；
+## 4 型 P1=[ring_burst×3,追踪弹] P2=[ring_burst×3,旋转cross,3连狙]。
 const DEFAULT_PATTERNS: Dictionary = {
 	1:
 	{

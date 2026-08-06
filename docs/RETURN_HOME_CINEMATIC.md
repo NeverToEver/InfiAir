@@ -12,7 +12,7 @@ Total 17.3s = 6 shots 16.1s (transitions inside shot times) + title freeze 1.2s 
 | 1 | wide push-in | 2.8s | Dawn deep-space explosion, debris/dust 2 layers, scale 0.7→1.0 | →2 flash 0.10s (reclaim next 0.28s) |
 | 2 | X-ray chain blast | 2.5s | cold-blue wireframe, energy chain 0.2s/node, tremble | →3 black 0.3s |
 | 3 | pilot sprint | 2.5s | multi-segment figure 2-frame run loop (phase-driven), red alert 0.7s | →4 black 0.3s |
-| 4 | console boot | 2.5s | 3-zone comm, countdown 0.6s/digit, end tilt −2° | →5 flash |
+| 4 | console boot | 2.5s | 3-zone comm, countdown 0.6s/digit, end tilt −3° | →5 flash |
 | 5 | eject chase | 2.8s | rail back + ±6px shake, ship 180°×1.4, white-hot core, speed lines | →6 black 0.3s |
 | 6 | wide close | 3.0s | nebula/anamorphic glow/debris/supply dots, ease_in exit, fade black 0.7s | →title |
 | 7 | title freeze | 1.2s | InfiAir in/hold/out | `skip()` |
@@ -26,12 +26,12 @@ Norms: 2.35:1 letterbox (132px bars); subtitle cards `INTRO_SUB_1..6` (0.3s in, 
 | main arc | r260, 48-seg closed Line2D w26 | (0.38, 0.45, 0.58) |
 | detail rings | r232 / r288, 64 seg, w2 | (0.55, 0.65, 0.8, 0.5) |
 | 16 ticks | radial r244→276, w3 | (0.18, 0.22, 0.3) |
-| 8 modules | 64×40 @ r260 + 70×46 outline + spokes r70→240 w8 | (0.48,0.56,0.68)/(0.6,0.7,0.85,0.35)/(0.3,0.36,0.48) |
+| 7 modules | 64×40 @ r260 + 70×46 outline + spokes r70→240 w8 | (0.48,0.56,0.68)/(0.6,0.7,0.85,0.35)/(0.3,0.36,0.48) |
 | hub | glow disc r66 (non-add) + ring r46 w2.5 | (0.28,0.34,0.45)/(0.5,0.6,0.75,0.6) |
 | breach | 0.5–1.2 rad: dark arc w30 (0.05,0.05,0.08) + jagged poly + 3 shards | near-black |
 | story | `INTRO_SUB_1`: Dawn ring station · core overload → destroyed | — |
 
-Keywords: ring + 8 segments + spokes + hub; cold steel blue-gray low-sat; breach right-bottom (0.5–1.2 rad). Phantom keeps geometry + breach (recognition anchor).
+Keywords: ring + 7 segments + spokes + hub; cold steel blue-gray low-sat; breach right-bottom (0.5–1.2 rad). Phantom keeps geometry + breach (recognition anchor). (8 slots, breach gap 0.4–1.4 rad: one module missing.)
 
 ### 0.3 Base UI current (src `scripts/base_console.gd` + `scripts/ui_theme.gd` + `docs/screenshots/base.png`)
 - Chain: hold B in-run (`HOME_CHARGE_TIME`) → `Main._start_homecoming()`: lock input, stop spawner, recall mothership, `GameState.save_run()`, `_starfield.warp(18.0)`, white flash (0.5+0.5+0.3s), `_base_ui.show_base()`, tree paused. Return: `resume_requested` → `_resume_from_base()` → orbital strike anim (`scripts/orbital_strike.gd`, clears on hit frame, resumes same run).
@@ -60,7 +60,7 @@ Keywords: ring + 8 segments + spokes + hub; cold steel blue-gray low-sat; breach
 1. **Hologram base** (brightened 2026-07-28): all BLEND_MODE_ADD, cyan `#00d4ff` family — arc α0.55, modules α0.45, details/spokes/ticks/hub-ring α0.35, hub core α0.50. Breath on station `modulate` (0.85↔1.0, 4s); separate inner container glitch flash (every 3.8s, 0.3→1.0 two steps 0.04s); independent.
 2. **Scan band**: α0.12 cyan ADD sweep vertical 3.5s/pass; outer ring α0.15 halo.
 3. **Data particles**: 2 GPUParticles2D (≤96/emitter, ≤400): ①edge escape α0.4; ②inner flow α0.3 (ring emission ≈ radial).
-4. **Breakage** (2026-07-28): a) main-arc gaps `[[0.5,1.2],[2.4,2.62],[4.9,5.06]]` via `_build_body` `gaps` param (empty = destroyed look unchanged); b) 6 segments dropout 0.1s, phase 0.13s; c) energy grid 2.5px α0.75, flicker 0.3↔0.95, dropout 0.5+0.15×(grid%3)s; jagged outline α0.8 w2.5; d) 3 shards α0.35 ADD drift out; e) station glitch (see 1). "Destroyed station; data core weaves its memory."
+4. **Breakage** (2026-07-28): a) main-arc gaps `[[0.5,1.2],[2.4,2.62],[4.9,5.06]]` via `_build_body` `gaps` param (empty = destroyed look unchanged); b) 7 segments dropout 0.1s, phase 0.13s; c) energy grid 2.5px α0.75, flicker 0.3↔0.95, dropout 0.5+0.15×(grid%3)s; jagged outline α0.8 w2.5; d) 3 shards α0.35 ADD drift out; e) station glitch (see 1). "Destroyed station; data core weaves its memory."
 
 ### 1.2 vs intro shot 1
 

@@ -1,7 +1,7 @@
 class_name BossMovement
 extends RefCounted
 ## A3 拆分：Boss 走位策略（docs/AUDIT_VAULT.md A3）。
-## 三型移动（strafe / dash / bulwark 纵向下压）与移动状态；写 boss.position（Node2D 公开属性），
+## 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.position（Node2D 公开属性），
 ## 经 boss 公开查询（slow_factor/strafe_range/is_enraged/fight_phase）交互，不访问私有字段（A1 约束）。
 ## boss 参数声明为无类型（Variant）以允许动态成员访问，从 boss 取值处显式标注类型。
 
@@ -63,7 +63,7 @@ func update(delta: float, boss) -> void:
 	if mover is Callable:
 		(mover as Callable).call(delta, boss)
 	else:
-		# K13：非法 boss_type（防御，正常路径恒 1..3）回退一型走位，防非法值下完全静止
+		# K13：非法 boss_type（防御，正常路径恒 1..4）回退一型走位，防非法值下完全静止
 		_move_type1(delta, boss)
 
 

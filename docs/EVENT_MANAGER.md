@@ -26,8 +26,8 @@ scheduling.
 
 | Class | Events | Shape | Managed by |
 | --- | --- | --- | --- |
-| **A. Fog interference** | `fake_enemies`, `mental_confusion`, `bullet_malfunction`, `direction_shift` | RefCounted `GameEvent` → `FogEvent` | `FogEventManager` (fog-only manager) |
-| **B. Special encounters** | `elite_turret` (`EliteTurretEvent`), `formation_strike` (`FormationStrikeEvent`) | Node state machines (spawn entities, FSM) | inline in `spawner._process` + `ScheduledEventTrigger` + event-owned cooldown |
+| **A. Fog interference** | `fake_enemies`, `mental_confusion`, `bullet_malfunction`, `direction_shift` | RefCounted `GameEvent` → `FogEvent` | `GameEventManager` fog group (registry/trigger/lifecycle); `FogEventManager` = effects layer + API facade |
+| **B. Special encounters** | `elite_turret` (`EliteTurretEvent`), `formation_strike` (`FormationStrikeEvent`) | Node state machines (spawn entities, FSM) | `GameEventManager` encounter group (spawner-processing gate + event-owned cooldown) |
 | **C. Flow / cinematic** | intro, return, orbital strike, mothership summon window, boss warning/spawn, boss enrage bullet-time, homecoming, death, give-up | Node sequences w/ pause + input lock | `main.gd` (orchestration) |
 | **D. Entity signals** | `Enemy.died`, `Boss.died/enraged/escaped/phase_changed`, `TurretBattery.died`, `FormationCraft.died`, `Mothership.departed`, `Player.entry_finished`, … | per-entity notifications | unchanged (signals) |
 
@@ -46,9 +46,7 @@ Random encounters that spawn entities and pause ordinary waves:
 - `EliteTurretEvent`: FSM `IDLE → CARRIER_ENTER → TURRET_ACTIVE → CARRIER_EXIT → BOSS_DELAY`; freezes Boss scheduling (`_boss_frozen`/`_boss_pending` in spawner), pauses waves, 30 s countdown, reward on all-clear, own cooldown, `abort()` on homecoming.
 - `FormationStrikeEvent`: FSM `IDLE → FORMATION_ENTER → FORMATION_TURN → BOMBING_RUN → FORMATION_EXIT`; lowest-priority random event, pauses waves (occupies wave slot), mutually exclusive with Boss + elite event, own cooldown, `abort()` on homecoming.
 
-Trigger policy today lives in `spawner._process` (elite: `ScheduledEventTrigger` with
-interval 45 s / chance 0.35 / min_score 800; formation: interval 40 s / chance 0.3) plus
-each event's `can_trigger()` (cooldown / Boss active / mothership present / elite-active).
+Trigger policy lives in `GameEventManager` (2026-08-05, §3.3): elite `trigger_interval` 45 s / `trigger_chance` 0.35 / `min_score` 800; formation 40 s / 0.3 / 500, plus each event's `can_trigger()` (cooldown / Boss active / mothership present / elite-active).
 
 ### C. Flow / cinematic
 
@@ -76,12 +74,12 @@ event. All 6 random events register here:
 
 ```gdscript
 var EVENT_FACTORIES: Dictionary = {
-    &"fake_enemies": func() -> GameEvent: return FakeEnemiesEvent.new(),
-    &"mental_confusion": func() -> GameEvent: return ConfusionEvent.new(),
-    &"bullet_malfunction": func() -> GameEvent: return BulletMalfunctionEvent.new(),
-    &"direction_shift": func() -> GameEvent: return DirectionShiftEvent.new(),
-    &"elite_turret": func() -> Node: return _elite_cached,
-    &"formation_strike": func() -> Node: return _formation_cached,
+	&"fake_enemies": func() -> GameEvent: return FakeEnemiesEvent.new(),
+	&"mental_confusion": func() -> GameEvent: return ConfusionEvent.new(),
+	&"bullet_malfunction": func() -> GameEvent: return BulletMalfunctionEvent.new(),
+	&"direction_shift": func() -> GameEvent: return DirectionShiftEvent.new(),
+	# 遭遇两条（elite_turret/formation_strike）不在字面量中——
+	# 由 main._ready 经 register_encounter() 注入缓存单例（Node，附于 Main 容器下）。
 }
 ```
 
@@ -136,7 +134,7 @@ from `current_scene == self`, unchanged).
   the manager polls `is_active()` and emits `event_ended` on return to IDLE. Cooldown
   bookkeeping stays in the event (`cooldown_left()` / `set_cooldown_left()` — test API
   preserved).
-- Unified signals: `event_started(event_id)`, `event_ended(event_id)`.
+- Unified signals: `event_started(event_id, duration)` (encounter events: duration 0 — FSM self-driven), `event_ended(event_id)`.
   `FogEventManager` re-emits `fog_event_started/ended` + `fog_direction_shift` (unchanged
   consumer surface: `player.gd`).
 
@@ -151,7 +149,7 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 ### 3.6 Public API (tests / diagnostics)
 
 `set_run_active` / `is_run_active` / `force_trigger(id)` / `try_trigger_group(group)` /
-`end_active(group="")` / `end_all()` / `active_id(group)` / `active_event(group)` /
+`end_active(group)` / `end_all()` / `active_id(group)` / `active_event(group)` /
 `event(id)` / `event_ids()` / `group_of(id)` / `can_trigger_group(group)` /
 `set_cooldown_left(seconds)` / `cooldown_left()` / `set_first_delay_left(seconds)` /
 `set_encounter_timer_remaining(id, seconds)` / `active_remaining()` / signals
@@ -199,4 +197,4 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 - New coverage: manager-level assertions (unified registry of 6 ids, group concurrency
   fog‖encounter, unified `event_started/ended` broadcast, spawner-processing gate).
 - Gate: the 5 layers of `docs/TESTING.md` (format → lint → import warnings → compile+smoke
-  → all 43 assertion scenes).
+  → all 45 assertion scenes).

@@ -101,7 +101,7 @@ Two paradigms; project had neither:
 | 1 | 0.6/1.2/0.20/0.15 | HP pressure up (min 65–100) but late-run still full HP, kills not dropping → insufficient |
 | 2 (final) | **0.6/1.5/0.25/0.20** | diff 1.38→6.33 @27min (no plateau); HP min 40–69 sustained from 6 min on, DDA 15–29% windows, 0 deaths (no cliff); hits spread across whole run (83→888s) |
 
-**Acceptance**: 3 × 900s probes 0 `[ANOMALY]`; 41 assertion scenes 0 FAIL; difficulty_test curve pins updated (2 kills ×2.2, 65s two tiers +0.15 → 2.35); gdformat/gdlint clean. Manual feel check (15+ min real play) remains a pre-release item.
+**Acceptance**: 3 × 900s probes 0 `[ANOMALY]`; 45 assertion scenes 0 FAIL; difficulty_test curve pins updated (2 kills ×2.2, 65s two tiers +0.15 → 2.35); gdformat/gdlint clean. Manual feel check (15+ min real play) remains a pre-release item.
 
 ## 7. Maintenance
 

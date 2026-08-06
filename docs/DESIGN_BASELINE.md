@@ -2,7 +2,7 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-03)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 37 assertion scenes 0 FAIL; A-series leftover **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) — **A5** partial (injection landed) only remaining open item (§7); perf optimization + 4 fairness mechanics landed; Phase 0 closed (ROADMAP).
+> **Snapshot (2026-08-06)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 45 assertion scenes 0 FAIL; A-series leftover **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) — **A5** partial (injection landed) only remaining open item (§7); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
@@ -42,7 +42,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.6 Bosses (single source `docs/BOSS_REDESIGN.md`)
 - Rotation: Nth boss = type `(N-1)%4+1` via `spawner._spawn_boss()`.
 - Phase tables P1/P2/ENRAGE (`boss.phases.typeN` + telegraph); 4-type enrage (`boss.enrage.type_*`, player slow ×0.35, no freeze); difficulty tiers × once in `_ready` (`boss.difficulty_scaling`: count/interval/speed).
-- Anchor: `FIGHT_Y` = offset from view top; all via `_fight_anchor_y()`.
+- Anchor: `FIGHT_Y` = offset from view top; all via `fight_anchor_y()`.
 - Escape: 50s timeout flee; fleeing **no rotation advance, no rest** (B3); bar hidden + reorder.
 - Structure: facade `Boss` + `BossFire` (danmaku)/`BossAttacks` (FSM)/`BossMovement` (+P1 press-down)/`EnrageSequence`. A3/A4-converged: 3 registries + type param tables, no per-type branches.
 
@@ -112,7 +112,7 @@ Main (scripts/main.gd)
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Four non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs).
+- Six non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`).
 - Hot paths: no per-frame `get_nodes_in_group`; use registries.
 
 ### 2.4 Pools & Registries
@@ -154,7 +154,7 @@ Pausing UIs `process_mode = Always` + `get_tree().paused`; BGM `loop_mode = LOOP
 - Exception: `mothership.DRIVE_MARGIN` × world_scale intentional (B11).
 
 ### 3.3 Viewport
-- Camera (960, 540), zoom only; all edge/offscreen/spawn/visibility via `GameState.view_world_rect()`; **never hardcode 1920×1080/960/±1600**. `_fight_anchor_y()` + hover bands follow. Cinematics in 1920×1080 design coords (intentional).
+- Camera (960, 540), zoom only; all edge/offscreen/spawn/visibility via `GameState.view_world_rect()`; **never hardcode 1920×1080/960/±1600**. `fight_anchor_y()` + hover bands follow. Cinematics in 1920×1080 design coords (intentional).
 
 ### 3.4 cfg
 - `GameState.cfg("path.to.key", default)`; script fallbacks match json for missing/corrupt.
@@ -195,7 +195,7 @@ Pausing UIs `process_mode = Always` + `get_tree().paused`; BGM `loop_mode = LOOP
 ## 4. Data & Balance
 
 ### 4.1 balance.json
-Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/`player`/`enemies`/`elites`/`boss`/`spawner`/`mothership`/`buffs`/`milestones`/`difficulty`/`progression`/`effects`/`tutorial`/`elite_turret_event`/`formation_strike_event`.
+Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`world_scale`/`player`/`enemies`/`elites`/`boss`/`hud`/`spawner`/`mothership`/`buffs`/`milestones`/`base_task`/`progression`/`difficulty`/`effects`/`elite_turret_event`/`formation_strike_event`/`fog_events`/`tutorial`/`dda`.
 - `difficulty`: score ×1/×2/×3, HP ×0.75/×1/×1.5, thresholds.
 - `progression`: per_boss_kill / per_ten_minutes / time_step_seconds.
 - `boss.phases`/`boss.enrage.type_*`/`boss.difficulty_scaling`.
@@ -208,13 +208,13 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `world_scale`/
 ## 5. Testing Baseline
 > Full commands: `docs/TESTING.md`. Not a unit framework; `[PASS]/[FAIL]` + exit code.
 - Minimal: `--import`, `--quit-after 300`, `smoke_test.tscn`; + `base_system_test.tscn` for saves/base/mothership.
-- Full: 41 scenes (35 + `buff_effects_test` A4 + `boss_registry_test` A3; per CI run).
+- Full: 45 assertion scenes (per CI run; list in `docs/TESTING.md`).
 - `perf_bench` needs `--fixed-fps 1000`; `autoplay_test` long probe.
 - Side effects: tests may touch `user://` saves; new tests `GameState.delete_save()` first + clean up; `balance_test` overwrites balance.json (corruption/fallback) then restores — no concurrent manual edits.
 - Visual: windowed screenshots, human check; `visual/ui/return/intro/summon/meta_fx/hud` capture.
 
 ## 6. Persistence & Security
-- `user://savegame.json` (run) + `user://profile.json` (profile; high score/leaderboard/difficulty/keybinds/locale/zoom/window/tutorial/gamepad params), versioned, GameState-managed.
+- Per-user run save `user://savegame_<user>_<sha256[:12]>.json` (owner-checked, `docs/archive/2026-08-04-local-accounts-plan.md`) + user table/settings/leaderboard `user://users.json` (UserDB) + `profile.json` only for not-logged-in/compatibility (merged into first registered user), versioned, GameState/UserDB-managed.
 - Corruption → `<file>.corrupt` + `save_corrupt`/`profile_corrupt` flags; don't bypass recovery.
 - Robustness: key_bindings type guard (C02); difficulty subkeys + `milestones.base` validation (C03); bool-safe reads (C16).
 - No network/plugins/remote/secrets; `balance_editor.py` 127.0.0.1 only.
@@ -261,7 +261,7 @@ Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online l
 1. Preserve §3 invariants.
 2. Tunables only in balance.json + `gen_balance_map.py` + minimal set.
 3. New features register in §8 + `ROADMAP.md`; system docs carry specs.
-4. 0 FAIL (41 + autoplay); visual changes screenshot-checked.
+4. 0 FAIL (45 + autoplay); visual changes screenshot-checked.
 5. Debt fixes backfill `AUDIT_VAULT.md`.
 
 ---
