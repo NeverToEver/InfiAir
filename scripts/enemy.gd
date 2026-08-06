@@ -51,6 +51,9 @@ const TAIL_GLOW_COLOR_ELITE := Color(1.0, 0.25, 0.42, 0.46)
 var strategy: StringName = &"straight"
 ## 分裂者标记（2026-08-04）：死亡生成 2 小机（config 表行 "split": true 置位；子机取消防无限分裂）
 var _split := false
+## 母体难度乘数（setup 保存；分裂者子机继承——2026-08-06 审计 H2：原硬编码 1.0 使子机
+## HP/速度不随对局 ramp，与「HP 半」基准语义不一致）
+var _difficulty := 1.0
 var _type_config: Dictionary = {}
 var is_elite: bool = false
 var hp: int = 2
@@ -129,6 +132,7 @@ func setup(config: Dictionary, p_strategy: StringName, p_difficulty: float, p_bu
 	strategy = p_strategy
 	_type_config = config
 	_split = config.get("split", false)
+	_difficulty = p_difficulty
 	is_elite = config.get("elite", false)
 	# HP 三级乘算：机型区间 × 难度档 × 对局进程 ramp（随 Boss 击杀线性成长）
 	hp = maxi(
@@ -176,13 +180,15 @@ func set_split(enabled: bool) -> void:
 	_split = enabled
 
 
-## 分裂者死亡生成 2 小机：缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂
+## 分裂者死亡生成 2 小机：缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂。
+## 2026-08-06 审计 H2：子机继承母体难度（原 1.0 固定 → HP/速度不随对局 ramp，
+## 深局分裂者子机 HP 与「母体半血」语义脱节）
 func _spawn_split_minis() -> void:
 	var pool := GameState.enemy_pool
 	if pool == null:
 		return
 	for i in 2:
-		var mini_enemy := pool.spawn(_type_config, strategy, 1.0, global_position + Vector2(24.0 if i == 0 else -24.0, 0.0))
+		var mini_enemy := pool.spawn(_type_config, strategy, _difficulty, global_position + Vector2(24.0 if i == 0 else -24.0, 0.0))
 		if mini_enemy == null or not is_instance_valid(mini_enemy):
 			continue
 		(mini_enemy.get_node("Sprite2D") as Sprite2D).scale *= 0.6

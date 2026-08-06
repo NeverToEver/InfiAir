@@ -661,8 +661,11 @@ func _update_gatling(delta: float) -> void:
 		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, int(GATLING_DAMAGE * damage_mult()), true)
 		b.score_scale = GATLING_SCORE_SCALE
 		b.position = turret.global_position
-		# 比玩家弹更细更亮
-		b.scale = Vector2(0.6, 0.6)
+		# 比玩家弹更细更亮（2026-08-06 审计：原 b.scale 连带缩放 Area2D 碰撞形状——
+		# 命中半径 6→3.6×ws 判定变严；仅视觉缩放应作用于子 Sprite2D，池化复用自动复位）
+		var b_sprite := b.sprite_node()
+		if b_sprite != null:
+			b_sprite.scale = Vector2(0.6, 0.6)
 		b.modulate = Color(1.4, 1.4, 1.1)
 		# C24：用缓存的 muzzle 引用（与 _turrets 同序），不再每次 get_node
 		if i < _muzzles.size() and _muzzles[i] != null:

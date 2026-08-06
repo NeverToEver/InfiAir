@@ -96,6 +96,14 @@ func _ready() -> void:
 	_check(manager.active_id() == &"fake_enemies", "事件进行中 active_id 正确")
 	_check(not manager.force_trigger(&"mental_confusion"), "事件进行中不可触发新事件（单并发）")
 	_check(manager.spawned_fakes().size() == int(GameState.cfg("fog_events.fake_enemies.count", 5)), "伪敌机生成数量 = count 档位")
+	# 2026-08-06 审计 M3：出生深度（顶缘上 20~260px）不得触发 280px 出屏销毁余量——
+	# 原 80px 余量使约 75% 个体首个物理帧即被销毁；等待出生销毁窗口后断言全部存活
+	await _wait_real(0.2)
+	var fakes_alive := true
+	for fake in manager.spawned_fakes():
+		if not is_instance_valid(fake) or not fake.is_inside_tree():
+			fakes_alive = false
+	_check(fakes_alive, "伪敌机出生后全部存活（出生深度在出屏销毁余量内）")
 	var fake_clean := true
 	for fake in manager.spawned_fakes():
 		if not is_instance_valid(fake) or fake.is_in_group("enemy") or GameState.enemies.has(fake):
@@ -193,6 +201,12 @@ func _ready() -> void:
 
 	# 7. 返航清除：进行中事件被 main 清除
 	manager.set_run_active(true)
+	# 2026-08-06 审计（Q12 同族遗漏）：重新激活对局时 fog 冷却必须清零——上局事件
+	# 结束残留的 _fog_cooldown_left 会额外推迟新局首个迷雾事件（最晚 12s）
+	manager.set_cooldown_left(5.0)
+	manager.set_run_active(false)
+	manager.set_run_active(true)
+	_check(manager.cooldown_left() == 0.0, "重新激活对局时 fog 冷却清零")
 	manager.set_first_delay_left(0.0)
 	manager.set_cooldown_left(0.0)
 	manager.force_trigger(&"bullet_malfunction")

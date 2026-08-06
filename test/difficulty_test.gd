@@ -53,7 +53,33 @@ func _write_profile(data: Dictionary) -> void:
 	f.close()
 
 
+## M7（2026-08-06 审计）：profile 快照还原——原测试经 _write_profile 部分覆写
+## profile.json + load_profile 间接清零 pre-login 最高分/高分榜并落盘，无快照还原
+## （L15 只修直写路径，未覆盖间接清零）；备份/还原防本地数据被永久销毁
+var _profile_backup: Dictionary = {}
+
+
+func _backup_profile() -> void:
+	_profile_backup = {}
+	for f in [GameState.PROFILE_PATH, GameState.PROFILE_PATH + ".corrupt"]:
+		var exists := FileAccess.file_exists(f)
+		_profile_backup[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_profile() -> void:
+	for f in _profile_backup:
+		var b: Dictionary = _profile_backup[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 func _ready() -> void:
+	# M7：profile 快照（须在任何覆写/落盘前捕获原始 pre-login 最高分与高分榜）
+	_backup_profile()
 	# 确定性起点：清存档，内存状态归位（难度/模式为 profile 级，reset_run 不清）
 	GameState.delete_save()
 	GameState.difficulty = &"medium"
@@ -395,4 +421,6 @@ func _ready() -> void:
 	GameState.reset_run()
 	GameState.save_profile()
 	GameState.delete_save()
+	# M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
+	_restore_profile()
 	get_tree().quit(_failures)

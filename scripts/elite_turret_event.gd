@@ -166,7 +166,9 @@ func start() -> void:
 	_carrier.entered.connect(_on_carrier_entered)
 	_carrier.exited.connect(_on_carrier_exited)
 	get_parent().add_child(_carrier)
-	_carrier.enter(HOVER_Y, ENTER_TIME)
+	# 2026-08-06 审计：HOVER_Y 为距可见区顶缘偏移（D10 同族遗漏）——原绝对 y 在
+	# 非默认视角档（zoom>1 可见区下移）偏高 140~222px，炮塔行锚点随之偏高
+	_carrier.enter(ev_view.position.y + HOVER_Y, ENTER_TIME)
 	GameState.shake(GameState.cfg("elite_turret_event.carrier.shake", 4.0))
 	_hud = get_tree().get_first_node_in_group("hud")
 
@@ -202,7 +204,14 @@ func _on_carrier_entered() -> void:
 	_total = clampi(raw_total, 0, StrikeCarrier.SOCKETS.size())
 	# HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
 	var hp := maxi(1, int(roundf(TURRET_HP_BASE * GameState.enemy_hp_multiplier() * GameState.enemy_hp_ramp())))
-	var ammo: Array = AMMO_SEQUENCES.get(String(GameState.difficulty), AMMO_SEQUENCES["medium"])
+	# 2026-08-06 审计：ammo 条目级判型（K14 只判容器 Dictionary 未判难度键条目）——
+	# 难度键缺失/非 Array 时 `for a in p_ammo` 崩溃（boss patterns 侧有 L07 元素级判型）；
+	# 缺键回退 medium，仍非 Array 回退内置默认序列
+	var ammo: Variant = AMMO_SEQUENCES.get(String(GameState.difficulty))
+	if not ammo is Array:
+		ammo = AMMO_SEQUENCES.get("medium")
+	if not ammo is Array:
+		ammo = [&"single", &"spread3", &"laser", &"weak_homing"]
 	for i in _total:
 		var turret := TURRET_SCENE.instantiate() as TurretBattery
 		turret.setup(hp, ammo, FIRE_INTERVAL, WEAK_LOCK)

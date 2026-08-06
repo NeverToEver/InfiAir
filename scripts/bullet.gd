@@ -275,6 +275,10 @@ func _apply_faction() -> void:
 	# P0-3：单 Sprite2D + 共享纹理（弹体+白芯已光栅化进纹理；同阵营同色 → compat 合批）
 	_sprite.texture = _player_tex if is_player_bullet else _enemy_tex
 	_sprite.scale = Vector2.ONE * (VISUAL_SCALE if is_player_bullet else ENEMY_VISUAL_SCALE)
+	# 2026-08-06 审计 M1：self_modulate 染色残留——laser 黄/Boss 重弹橙/致死高亮红等
+	# P0-3 改造后写入 `_sprite.self_modulate` 的 tint 无一在此复位，池化复用会带旧 tint
+	# （laser 高频弹种对局内必然复现）；与 scale/modulate 对等复位为白
+	_sprite.self_modulate = Color.WHITE
 	if has_meta("bullet_type"):
 		remove_meta("bullet_type")
 	if is_player_bullet:

@@ -142,6 +142,23 @@ func _ready() -> void:
 	spawner.notify_boss_died()
 	_check(spawner.waves_since_special() == -spawner.REST_WAVES_AFTER_KILL, "Boss 击杀后进入休整波次")
 
+	# 6. H1（2026-08-06 审计）：Boss 已在场时 clear_pending 不得复位 _boss_active——
+	# 返航链明确保留 Boss（_next_boss_score 仅击杀推进、_boss_timer 战时持续增长），
+	# 复位后 continue 分数门控立即满足 → 出第二个同型 Boss 双 Boss 同场
+	spawner.set_boss_active(true)
+	spawner.spawn_boss()  # Boss 直接生成并入注册表（跳过 2s 预警）
+	await get_tree().process_frame
+	spawner.clear_pending()
+	_check(spawner.is_boss_active(), "H1：Boss 在场时 clear_pending 保持占用（防双 Boss）")
+	# 清掉场上 Boss 后再验证对照分支（G01 原语义）：无存活 Boss 时解除占用
+	for child in get_node("Main").get_children():
+		if child is Boss:
+			child.queue_free()
+	await get_tree().process_frame
+	spawner.set_boss_active(true)
+	spawner.clear_pending()
+	_check(not spawner.is_boss_active(), "H1：无存活 Boss 时 clear_pending 解除占用（G01）")
+
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()

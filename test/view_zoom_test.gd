@@ -33,6 +33,30 @@ func _write_profile(data: Dictionary) -> void:
 	f.close()
 
 
+## M7（2026-08-06 审计）：profile 快照还原——原测试经 _write_profile 部分覆写
+## profile.json + load_profile 间接清零 pre-login 最高分/高分榜并落盘，无快照还原
+## （L15 只修直写路径，未覆盖间接清零）；备份/还原防本地数据被永久销毁
+var _profile_backup: Dictionary = {}
+
+
+func _backup_profile() -> void:
+	_profile_backup = {}
+	for f in [GameState.PROFILE_PATH, GameState.PROFILE_PATH + ".corrupt"]:
+		var exists := FileAccess.file_exists(f)
+		_profile_backup[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_profile() -> void:
+	for f in _profile_backup:
+		var b: Dictionary = _profile_backup[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 ## 期望可见区域（相机固定 (960,540)，视口 1920×1080）
 func _expect_rect(factor: float) -> Rect2:
 	var size := Vector2(1920.0, 1080.0) / factor
@@ -44,6 +68,8 @@ func _rect_close(a: Rect2, b: Rect2, tol: float = 0.5) -> bool:
 
 
 func _ready() -> void:
+	# M7：profile 快照（须在任何覆写/落盘前捕获原始 pre-login 最高分与高分榜）
+	_backup_profile()
 	# 确定性起点：清存档，视角档位归位 medium（profile 级，reset_run 不清）
 	GameState.delete_save()
 	GameState.view_zoom = &"medium"
@@ -118,6 +144,12 @@ func _ready() -> void:
 	var camera: Camera2D = get_node("Main/Camera2D")
 	_check(camera.zoom.distance_to(Vector2(1.35, 1.35)) < 0.001, "相机默认应用 medium 档 zoom=1.35")
 	_check(GameState.camera_ref == camera, "相机注册到 GameState.camera_ref")
+	# M5（2026-08-06 审计）：zoom>1 时星点区域必须锚定可见区——原锚 (0,0) 铺
+	# [0,1920/zoom]×[0,1080/zoom]，可见区右/下边缘 L 形带无星（C07 只改尺寸未改锚点）
+	var starfield: Starfield = get_node("Main/Starfield")
+	var sf_rect := Rect2(starfield.origin(), starfield.area_size())
+	_check(sf_rect.encloses(GameState.view_world_rect()), "M5：星空覆盖区域包含可见区（锚点随 view 平移）")
+	_check(sf_rect.position != Vector2.ZERO, "M5：星空锚点非 (0,0)（zoom>1 可见区缩小平移）")
 	GameState.set_view_zoom(&"small")
 	_check(camera.zoom == Vector2.ONE, "切 small 相机 zoom=1.0")
 	GameState.set_view_zoom(&"large")
@@ -274,4 +306,6 @@ func _ready() -> void:
 	GameState.reset_run()
 	GameState.save_profile()
 	GameState.delete_save()
+	# M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
+	_restore_profile()
 	get_tree().quit(_failures)

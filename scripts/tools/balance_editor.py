@@ -285,10 +285,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, "保存失败：结构/类型与现文件不一致\n" + "\n".join(errors[:10]))
             return
         # 备份 + 原子落盘（临时文件同目录 os.replace，写一半不会损坏原文件）
-        shutil.copy2(BALANCE, BALANCE.with_suffix(".json.bak"))
-        tmp = BALANCE.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
-        os.replace(tmp, BALANCE)
+        try:
+            shutil.copy2(BALANCE, BALANCE.with_suffix(".json.bak"))
+            tmp = BALANCE.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(payload, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
+            os.replace(tmp, BALANCE)
+        except OSError as e:
+            # 2026-08-06 审计：写盘侧 OSError 兜底（R08 只给读侧加了友好 400）——
+            # 磁盘满/只读/权限不足时原实现裸 traceback 且无任何响应
+            self._send(400, f"保存失败：写入/备份 balance.json 失败（磁盘满或权限不足？）{e}")
+            return
         self._send(200, "已保存（原文件备份为 balance.json.bak）")
 
 

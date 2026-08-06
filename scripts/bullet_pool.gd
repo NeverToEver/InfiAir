@@ -7,6 +7,8 @@ const BULLET_SCENE: PackedScene = preload("res://scenes/bullet.tscn")
 ## P2-3（2026-08-05 审计）：同屏敌弹显式硬上限——防极端场景（Boss 狂暴+多事件叠加）
 ## 弹数失控。阈值 500 远高于 perf_bench 实测 300+ 峰值，正常对局永不触发；
 ## 仅限制敌弹（弹幕主力），玩家火力（射速自限）不受影响。
+## 2026-08-06 审计口径：active_count() 为全阵营活跃弹总数，实际敌弹 cap ≈ 500 − 活跃
+## 玩家弹（玩家弹至多数十发，偏差可忽略；上限仍以总量计，语义登记于此）
 const MAX_ENEMY_ACTIVE := 500
 
 var _free: Array[Bullet] = []

@@ -74,6 +74,8 @@ func _physics_process(delta: float) -> void:
 		position.x = _start_x + sin(_t * SWAY_FREQ * 0.5) * SWAY_AMP * 0.5
 	else:
 		position.x = _start_x + sin(_t * SWAY_FREQ) * SWAY_AMP
-	# 出屏销毁兜底（正常路径由 FogEventManager 在事件结束时统一移除，此路径防事件异常残留）
-	if not GameState.view_world_rect(80.0).has_point(position):
+	# 出屏销毁兜底（正常路径由 FogEventManager 在事件结束时统一移除，此路径防事件异常残留）。
+	# 2026-08-06 审计 M3：余量对齐最大出生深度（事件侧出生 y = 视野顶 − randf(20,260)）——
+	# 原 80px 余量使约 75% 个体出生即被销毁（幽灵机群实际可见 1-2 只，违背错峰入场设计）
+	if not GameState.view_world_rect(280.0).has_point(position):
 		queue_free()

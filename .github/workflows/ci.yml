@@ -1,7 +1,8 @@
 name: CI
 
 # InfiAir 持续集成：无头导入 → 主场景冒烟 → 45 断言场景全量回归。
-# 引擎使用官方 Godot 4.6.2 stable headless（Linux x86_64）二进制，不依赖第三方 action（仅官方 checkout）。
+# 引擎使用官方 Godot 4.6.2 stable headless（Linux x86_64）二进制，不依赖第三方 action
+# （仅官方 checkout/upload-artifact，2026-08-06 审计口径修正）。
 # 本地等价验证：`godot --headless --import --path .` + 逐个 `godot --headless --path . res://test/<场景>.tscn`
 
 on:
@@ -47,6 +48,18 @@ jobs:
             exit 1
           fi
           tail -3 /tmp/import.log
+
+      - name: Balance map generator zero-diff gate (M8)
+        run: |
+          # 2026-08-06 审计 M8：docs/BALANCE_MAP.md 由生成器扫描 cfg() 调用点产出
+          # （含行号），改码后未重跑生成器 → 行号漂移累积（E10/K18/L10/Q08/R15 六次复发，
+          # 根因「改码后重跑生成器」靠人记）；生成器重跑零 diff 闸从流程上堵死
+          python3 scripts/tools/gen_balance_map.py
+          if ! git diff --exit-code -- docs/BALANCE_MAP.md; then
+            echo "::error::docs/BALANCE_MAP.md 过期——修改 cfg() 调用后须运行 python3 scripts/tools/gen_balance_map.py 并提交生成物"
+            git diff -- docs/BALANCE_MAP.md | head -40
+            exit 1
+          fi
 
       - name: Main scene smoke (300 frames)
         run: |

@@ -1,8 +1,11 @@
 class_name UserDB
 extends RefCounted
 ## 本地用户数据库（2026-08-04 账户系统；规格 docs/2026-08-04-local-accounts-plan.md + PORTING_PARITY 附录 B）。
-## 单文件 user://users.json 共存用户表与本地排行榜；密码 PBKDF2-HMAC-SHA256（盐 16B hex，
-## 迭代数随用户记录存档，注册时确定——测试可降档加速）；原子写 + 损坏隔离复用 SaveManager。
+## 单文件 user://users.json 共存用户表与本地排行榜；密码派生为自建 PBKDF2 变体
+## （盐 16B hex + 迭代数随用户记录存档，注册时确定——测试可降档加速；2026-08-06 审计：
+## 实现为「盐||块号拼接进异或链」的双块结构，非标准 PBKDF2-HMAC-SHA256，不与标准工具
+## 互通；本地自建自验无实际弱化，保持实现不动以免破坏既有账号，口径以本注释为准）；
+## 原子写 + 损坏隔离复用 SaveManager。
 ## 非 autoload 服务，由 GameState 持有转发（A2 组合模式，保持"唯一 autoload"约定）。
 ## 不移植：fcntl 文件锁（单进程桌面无并发）、远程排行榜（联机已砍）。
 
@@ -44,15 +47,34 @@ func _ensure_loaded() -> void:
 		_db = {"_users": {}, "_leaderboard": []}
 
 
+## 用户记录安全读取（2026-08-06 审计：Q17 只守顶层用户表，条目级非 Dictionary
+## 手改值在 .get()/索引写处抛运行时类型错误；非 Dictionary 条目回空字典）
+func _user_record(name: String) -> Dictionary:
+	var rec: Variant = _db.get("_users", {}).get(name, {})
+	return rec if rec is Dictionary else {}
+
+
 func _save_db() -> bool:
 	return _save.save(USERS_PATH, _db)
+
+
+## 强制重新加载磁盘状态（2026-08-06 审计：GameState._ready 的迁移探测（
+## _maybe_migrate_legacy_profile）会提前触发 _ensure_loaded，把真实用户表缓存进
+## _db——测试 wipe user:// 文件后缓存仍非空，「空用户表」起点失效；显式重载
+## 供测试/诊断在 wipe 后刷新。生产无调用点）
+func reload() -> void:
+	_loaded = false
+	_db = {}
+	_ensure_loaded()
 
 
 # ---------------- PBKDF2 ----------------
 
 
-## PBKDF2-HMAC-SHA256：U1 = PRF(P, S || INT_32_BE(i))，后续 Ui = PRF(P, U(i-1))，T = XOR 全部分块。
-## 派生长度固定 32 字节（SHA-256 输出 = 单块，无拼接循环）。
+## 自建 PBKDF2 变体（2026-08-06 审计口径修正，勿当标准 PBKDF2-HMAC-SHA256 使用）：
+## 块 = 盐 || INT32_BE(块号)（20 字节），T = 块号首块 ^ U1 ^ U2 …（仅前 20 字节参与异或），
+## 输出 = 各块前段拼接后截 32 字节——与标准 PBKDF2（T = U1 ^ … ^ Uc，整块 32 字节）不互通。
+## 维持既有实现：改动会破坏全部现有账号的验密，本地自验无实际弱化。
 func _derive(password: String, salt: PackedByteArray, iter: int) -> PackedByteArray:
 	var key := password.to_utf8_buffer()
 	var block := PackedByteArray()
@@ -144,10 +166,11 @@ func create_user(name: String, password: String) -> bool:
 
 func verify_user(name: String, password: String) -> bool:
 	_ensure_loaded()
-	var users: Dictionary = _db.get("_users", {})
-	if not users.has(name):
+	if not _db.get("_users", {}).has(name):
 		return false
-	var rec: Dictionary = users[name]
+	var rec := _user_record(name)
+	if rec.is_empty():
+		return false  # 条目非 Dictionary（手改）：按用户不存在处理（不刷运行期错误）
 	var salt := _hex_decode(String(rec.get("salt", "")))
 	var iter := int(rec.get("iterations", iterations))
 	var derived := _derive(password, salt, iter)
@@ -169,8 +192,8 @@ func list_usernames() -> Array[String]:
 		names.append(String(n))
 	names.sort_custom(
 		func(a: String, b: String) -> bool:
-			var oa := int(users[a].get("last_login_order", 0))
-			var ob := int(users[b].get("last_login_order", 0))
+			var oa := int(_user_record(a).get("last_login_order", 0))
+			var ob := int(_user_record(b).get("last_login_order", 0))
 			if oa != ob:
 				return oa > ob
 			return a < b
@@ -188,24 +211,25 @@ func record_login(name: String) -> void:
 	var users: Dictionary = _db.get("_users", {})
 	if not users.has(name):
 		return
+	if _user_record(name).is_empty():
+		return  # 条目非 Dictionary（手改）：跳过，防索引写运行时类型错误
 	var max_order := 0
 	for n in users:
-		max_order = maxi(max_order, int(users[n].get("last_login_order", 0)))
+		max_order = maxi(max_order, int(_user_record(String(n)).get("last_login_order", 0)))
 	users[name]["last_login_order"] = max_order + 1
 	_save_db()
 
 
 func get_user_data(name: String) -> Dictionary:
 	_ensure_loaded()
-	var rec: Dictionary = _db.get("_users", {}).get(name, {})
-	return rec.duplicate()
+	return _user_record(name).duplicate()
 
 
 ## 通用字段合并更新（统计类）；密码/盐/迭代数不可经此覆盖
 func update_user_data(name: String, data: Dictionary) -> void:
 	_ensure_loaded()
 	var users: Dictionary = _db.get("_users", {})
-	if not users.has(name):
+	if not users.has(name) or _user_record(name).is_empty():
 		return
 	for k in data:
 		if k == "password" or k == "salt" or k == "iterations":
@@ -218,25 +242,25 @@ func update_user_data(name: String, data: Dictionary) -> void:
 func update_high_score(name: String, score: int) -> void:
 	_ensure_loaded()
 	var users: Dictionary = _db.get("_users", {})
-	if not users.has(name):
+	if not users.has(name) or _user_record(name).is_empty():
 		return
 	var clamped := maxi(score, 0)
-	if clamped > int(users[name].get("high_score", 0)):
+	if clamped > int(_user_record(name).get("high_score", 0)):
 		users[name]["high_score"] = clamped
 		_save_db()
 
 
 func get_user_settings(name: String) -> Dictionary:
 	_ensure_loaded()
-	return _db.get("_users", {}).get(name, {}).get("settings", {}).duplicate()
+	return _user_record(name).get("settings", {}).duplicate()
 
 
 func update_user_settings(name: String, settings: Dictionary) -> void:
 	_ensure_loaded()
 	var users: Dictionary = _db.get("_users", {})
-	if not users.has(name):
+	if not users.has(name) or _user_record(name).is_empty():
 		return
-	var merged: Dictionary = users[name].get("settings", {}).duplicate()
+	var merged: Dictionary = _user_record(name).get("settings", {}).duplicate()
 	for k in settings:
 		merged[k] = settings[k]
 	users[name]["settings"] = merged
@@ -252,6 +276,9 @@ func delete_user(name: String, password: String) -> bool:
 	var save_path := savefile_for_user(name)
 	if FileAccess.file_exists(save_path):
 		DirAccess.remove_absolute(save_path)
+	# 2026-08-06 审计：连带清理损坏隔离备份（原遗留 <save>.corrupt 磁盘残留）
+	if FileAccess.file_exists(save_path + ".corrupt"):
+		DirAccess.remove_absolute(save_path + ".corrupt")
 	return _save_db()
 
 

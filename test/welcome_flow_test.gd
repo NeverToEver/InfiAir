@@ -79,6 +79,7 @@ func _ready() -> void:
 	GameState.logout_user()
 	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
+	GameState.reload_user_db()  # 2026-08-06 审计：GameState._ready 迁移探测缓存了真实用户表，wipe 后须刷新
 	GameState.high_score = 0
 	GameState.difficulty = &"medium"
 

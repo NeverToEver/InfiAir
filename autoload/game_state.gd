@@ -230,7 +230,7 @@ const RP_RECHARGE_COST := 2
 # 初始手牌 = MISSION_DEFS 三项（保持既有 id 语义）；刷新（refresh_missions）从
 # MISSION_POOL 无放回重抽 3 个槽位。kind 决定进度来源（kill=击杀数 / survive=存活
 # 秒 / boss=Boss 击杀数），goal 为各自目标——任务轮换后 id 变化，进度源按 kind 分发。
-# 显示文本全走 tr()（翻译表 TASK_* 键），此处不保留 name/desc（2026-08-05 P4 去双源）。
+# 显示文本全走 tr()（翻译表 MISSION_* 键），此处不保留 name/desc（2026-08-05 P4 去双源）。
 const MISSION_DEFS: Array[Dictionary] = [
 	{"id": &"kill_5", "goal": 5, "kind": &"kill"},
 	{"id": &"survive_180", "goal": 180, "kind": &"survive"},
@@ -589,7 +589,10 @@ func add_score(points: int) -> void:
 	# P4（2026-08-05）：得分总量钳制——手改配置 score 倍率极大时 int64 溢出（1e308 级）
 	score = mini(score + points * score_multiplier(), SCORE_CAP)
 	score_changed.emit(score)
-	if score >= _next_milestone:
+	# 2026-08-06 审计：里程碑推进改 while——与 apply_run_save 的全补口径一致（原单次 +1
+	# 在单次加分跨多档时漏档：如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值），
+	# 两路径行为统一（milestone_reached 按触发的档位逐档发，消费方按里程碑数计档）
+	while score >= _next_milestone:
 		_milestone_count += 1
 		_next_milestone = milestone_threshold(_milestone_count)
 		milestone_reached.emit(score)
@@ -722,6 +725,12 @@ func set_milestone_override(threshold: int) -> void:
 ## 当前已触发的里程碑数（2026-08-04 母舰升级档位等消费点）
 func milestone_count() -> int:
 	return _milestone_count
+
+
+## A7：测试/诊断白盒 setter（2026-08-06 审计：mothership_upgrade_test 曾直写
+## _milestone_count ×5，补语义化公开接口；负值钳 0）
+func set_milestone_count(count: int) -> void:
+	_milestone_count = maxi(count, 0)
 
 
 func next_milestone() -> int:
@@ -1479,6 +1488,12 @@ func list_usernames() -> Array[String]:
 	return _user_db.list_usernames()
 
 
+## 2026-08-06 审计：UserDB 显式重载（测试 wipe user:// 后刷新缓存起点——GameState
+## _ready 的迁移探测会提前缓存真实用户表；Q23 快照范式配套）
+func reload_user_db() -> void:
+	_user_db.reload()
+
+
 func get_last_login_user() -> String:
 	return _user_db.get_last_login_user()
 
@@ -1553,8 +1568,11 @@ func load_run_data() -> Dictionary:
 		return {}
 	var data := _save_manager.load(path)
 	if _save_manager.last_was_corrupt:
-		# 损坏存档已由 SaveManager 隔离备份，按无存档处理（不留死路径）
+		# 损坏存档已由 SaveManager 隔离备份（<path>.corrupt），按无存档处理（不留死路径）。
+		# 2026-08-06 审计 M2：必须直接返回——空字典继续做档主校验会走 quarantine 二次隔离，
+		# 先删刚生成的 .corrupt 备份再 rename 已不存在的正本（失败刷伪警告），损坏档彻底消失
 		save_corrupt = true
+		return {}
 	if current_user != "" and String(data.get("username", "")) != current_user:
 		# B5 读档校验：档主不匹配（手改/旧匿名档）→ 隔离备份按无存档处理
 		_save_manager.quarantine(path)
@@ -1623,7 +1641,9 @@ func apply_run_save(data: Dictionary) -> void:
 			missions[id] = {
 				"progress": int(save_num(m.get("progress", 0), 0.0)),
 				"claimed": claimed if claimed is bool else false,
-				"goal": int(m.get("goal", mission_goal(id))),
+				# 2026-08-06 审计：goal 走 save_num 判型（R06/R07 判型族同族遗漏——裸 int()
+				# 对手改字符串/数组值抛类型错误或静默转 0 使任务永久可领）
+				"goal": int(save_num(m.get("goal", mission_goal(id)), mission_goal(id))),
 			}
 	chosen_routes.clear()
 	var saved_chosen: Variant = data.get("chosen_routes", {})

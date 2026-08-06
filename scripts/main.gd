@@ -336,8 +336,17 @@ func _process(delta: float) -> void:
 	if _dock_cooldown > 0.0:
 		_dock_cooldown -= delta
 	# 长按 H 蓄力召唤母舰（松手取消，不进冷却；召唤小窗播放中不再进入蓄力，
-	# 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）
-	var can_charge := _mothership == null and _dock_cooldown <= 0.0 and not _game_over and not _homecoming and _summon_window == null
+	# 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）。
+	# 2026-08-06 审计：遭遇事件进行中禁止蓄力（L13 互斥只查触发期——事件中召唤
+	# 母舰自动火力可清场全额领奖，玩家零参与挂机收益）
+	var can_charge := (
+		_mothership == null
+		and _dock_cooldown <= 0.0
+		and not _game_over
+		and not _homecoming
+		and _summon_window == null
+		and GameState.events.active_id(GameEventManager.GROUP_ENCOUNTER) == &""
+	)
 	if can_charge and Input.is_action_pressed("dock"):
 		_charging = true
 		_charge_time += delta
@@ -568,6 +577,12 @@ func _on_player_died() -> void:
 	_reset_global_time_scale()
 	# C25：死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
 	_stop_charging()
+	# 2026-08-06 审计：死亡路径清理召唤小窗（原仅返航路径清理）——give_up 与 dock
+	# 蓄力同按 3s 同帧完成时小窗打开同帧死亡，finished 无人消费（_process 已冻结）小窗永驻
+	if _summon_window != null:
+		_summon_window.finished.disconnect(_on_summon_window_finished)
+		_summon_window.skip()
+		_summon_window = null
 	# B 梯队：死亡回放演出（幽灵弹幕重放死因 3s，播完自毁；process_mode=ALWAYS 暂停中照常）
 	add_child(_replay.play())
 

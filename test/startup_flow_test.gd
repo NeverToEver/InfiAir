@@ -90,6 +90,7 @@ func _ready() -> void:
 	GameState.delete_save()
 	_wipe_user_files()
 	_wipe_user_saves()
+	GameState.reload_user_db()  # 2026-08-06 审计：GameState._ready 迁移探测缓存了真实用户表，wipe 后须刷新
 	GameState.high_score = 0
 	GameState.profile_corrupt = false
 	GameState.save_corrupt = false
@@ -134,6 +135,11 @@ func _ready() -> void:
 	GameState.login_user("flow")
 	_check(GameState.load_run_data().is_empty() and GameState.save_corrupt, "损坏存档隔离并按无存档处理")
 	_check(not GameState.has_save(), "损坏存档隔离后 has_save 为 false")
+	# M2（2026-08-06 审计）：损坏备份必须保留——原 load_run_data 对空字典继续做档主
+	# 校验，quarantine 二次隔离先删刚生成的 .corrupt 再 rename 不存在的正本（损坏档
+	# 彻底消失 + 伪警告）；修复后备份存在、正本已隔离
+	_check(FileAccess.file_exists(save_path + ".corrupt"), "损坏存档 .corrupt 备份保留（M2）")
+	_check(not FileAccess.file_exists(save_path), "损坏存档正本已隔离（M2）")
 	welcome = WELCOME_SCENE.instantiate() as CanvasLayer
 	add_child(welcome)
 	await get_tree().process_frame

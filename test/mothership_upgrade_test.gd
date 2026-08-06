@@ -18,7 +18,7 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reset_run()
 	GameState.login_guest()
-	GameState._milestone_count = 0
+	GameState.set_milestone_count(0)
 	var main: Node2D = load("res://scenes/main.tscn").instantiate() as Node2D
 	add_child(main)
 	await get_tree().process_frame
@@ -40,7 +40,7 @@ func _ready() -> void:
 	_check(is_equal_approx(ms.damage_mult(), 1.0) and is_equal_approx(ms.interval_mult(), 1.0), "未升级倍率 1.0")
 
 	# 2. 升级档（里程碑 ≥ 阈值 5）
-	GameState._milestone_count = 5
+	GameState.set_milestone_count(5)
 	_check(ms.tier() == 1, "里程碑 5：升级")
 	_check(is_equal_approx(ms.damage_mult(), 1.5) and is_equal_approx(ms.interval_mult(), 0.8), "升级档：伤害 ×1.5 / 射速 +25%")
 
@@ -51,11 +51,11 @@ func _ready() -> void:
 
 	# 4. 发射数值路径：档位伤害按倍率缩放（加特林/导弹共用 damage_mult）
 	var base_dmg := ms.GATLING_DAMAGE
-	GameState._milestone_count = 0
+	GameState.set_milestone_count(0)
 	_check(int(base_dmg * ms.damage_mult()) == base_dmg, "未升级：发射伤害不变")
-	GameState._milestone_count = 5
+	GameState.set_milestone_count(5)
 	_check(int(base_dmg * ms.damage_mult()) == int(base_dmg * 1.5), "升级：发射伤害 ×1.5")
-	GameState._milestone_count = 0
+	GameState.set_milestone_count(0)
 
 	print("MOTHERSHIP UPGRADE TEST DONE, failures = ", _failures)
 	ms.queue_free()

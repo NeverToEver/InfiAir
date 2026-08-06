@@ -13,7 +13,49 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
+## M7（2026-08-06 审计）：profile 快照还原——base_system 的高分榜段直写
+## GameState.highscores + save_profile 清零落盘（L15 档案称已修与 git 事实不符），
+## 备份/还原防本地 pre-login 最高分与高分榜被永久销毁
+var _profile_backup: Dictionary = {}
+
+
+func _backup_profile() -> void:
+	_profile_backup = {}
+	for f in [GameState.PROFILE_PATH, GameState.PROFILE_PATH + ".corrupt"]:
+		var exists := FileAccess.file_exists(f)
+		_profile_backup[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_profile() -> void:
+	for f in _profile_backup:
+		var b: Dictionary = _profile_backup[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
+## 2026-08-06 审计：键位快照还原（H02 段 rebind/reset 自动落盘，防开发者键位被重置）
+var _key_backup: Dictionary = {}
+
+
+func _backup_keys() -> void:
+	_key_backup = GameState.key_bindings.duplicate(true)
+
+
+func _restore_keys() -> void:
+	GameState.key_bindings = _key_backup.duplicate(true)
+	GameState.apply_key_bindings()
+	GameState.save_profile()
+
+
 func _ready() -> void:
+	# M7：profile 快照（须在任何覆写/落盘前捕获原始 pre-login 最高分与高分榜）
+	_backup_profile()
+	# 键位快照（H02 改键段自动落盘）
+	_backup_keys()
 	# 清理持久化状态，保证测试确定性
 	GameState.delete_save()
 	GameState.reset_run()
@@ -206,4 +248,8 @@ func _ready() -> void:
 
 	print("BASE SYSTEM TEST DONE, failures = ", _failures)
 	GameState.delete_save()
+	# M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
+	_restore_profile()
+	# 还原用户自定义键位（H02 改键段已把测试键位落盘）
+	_restore_keys()
 	get_tree().quit(_failures)

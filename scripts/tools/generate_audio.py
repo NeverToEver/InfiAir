@@ -250,29 +250,33 @@ def make_bgm() -> list:
             w = chord_weight(t, slot)
             out[i] += 0.11 * w * math.sin(phase)
             phase += bass_inc
-        # 琶音：八分音符拨弦，跨越接缝处用周期化起始点
+        # 琶音：八分音符拨弦
+        # 2026-08-06 审计：原「跨越接缝」分支为死代码且语义写反——三元表达式
+        # 优先级致第二元素恒为 LOOP_DUR（>=LOOP_DUR 被跳过）或 None（被跳过），
+        # 等效单元素循环；删除无行为影响
         onset = slot * CHORD_DUR
         while onset < (slot + 1) * CHORD_DUR:
-            for o in (onset, onset + LOOP_DUR if onset < XFade else None):
-                if o is None or o >= LOOP_DUR:
-                    continue
-                idx = int((o / step)) % len(arp_pattern)
-                freq = FREQ[arp_notes[arp_pattern[idx]]]
-                start_i = int(o * SR)
-                pluck_len = int(0.22 * SR)
-                for j in range(pluck_len):
-                    i = start_i + j
-                    if i >= n:
-                        break
-                    lt = j / SR
-                    env = math.exp(-lt * 14.0)
-                    out[i] += 0.05 * env * math.sin(2.0 * math.pi * freq * lt)
+            idx = int((onset / step)) % len(arp_pattern)
+            freq = FREQ[arp_notes[arp_pattern[idx]]]
+            start_i = int(onset * SR)
+            pluck_len = int(0.22 * SR)
+            for j in range(pluck_len):
+                i = start_i + j
+                if i >= n:
+                    break
+                lt = j / SR
+                env = math.exp(-lt * 14.0)
+                out[i] += 0.05 * env * math.sin(2.0 * math.pi * freq * lt)
             onset += step
 
-    # 全局软起音，避免开头爆音
+    # 首尾交叉淡化（2026-08-06 审计：原单边 50ms 淡入烘焙进资产——圈首 ≈5dB/50ms
+    # 凹陷且回绕点（40s→0）波形跳变，与「40s 无缝循环」声称相悖；改首尾互补淡化，
+    # 回绕点两侧均趋于 0 连续，播放起点仍防爆音）
     fade = int(0.05 * SR)
     for i in range(fade):
-        out[i] *= i / fade
+        k = i / fade
+        out[i] *= k
+        out[n - 1 - i] *= k
     return out
 
 

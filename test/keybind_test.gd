@@ -19,12 +19,29 @@ func _action_has_key(action: StringName, keycode: int) -> bool:
 	return false
 
 
+## 2026-08-06 审计：键位快照还原——reset/rebind 自动落盘（save_profile），
+## 开发者自定义键位被覆盖且无快照；备份/还原防本地键位被永久重置
+var _key_backup: Dictionary = {}
+
+
+func _backup_keys() -> void:
+	_key_backup = GameState.key_bindings.duplicate(true)
+
+
+func _restore_keys() -> void:
+	GameState.key_bindings = _key_backup.duplicate(true)
+	GameState.apply_key_bindings()
+	GameState.save_profile()
+
+
 func _ready() -> void:
 	GameState.delete_save()
 	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
 	var orig_high_score: int = GameState.high_score
 	GameState.high_score = 0
 	GameState.save_profile()
+	# 2026-08-06 审计：键位快照（reset/rebind 自动落盘，开发者自定义键位会被重置）
+	_backup_keys()
 	GameState.reset_key_bindings()
 
 	# 1. 改键生效（InputMap 实际变化）
@@ -102,5 +119,7 @@ func _ready() -> void:
 	# L15：还原用户最高分并落盘（收尾不污染用户 profile）
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
+	# 2026-08-06 审计：还原用户自定义键位（reset_key_bindings 已把默认键位落盘）
+	_restore_keys()
 	print("KEYBIND TEST DONE, failures = ", _failures)
 	get_tree().quit(_failures)

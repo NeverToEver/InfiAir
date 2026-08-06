@@ -236,7 +236,7 @@ var E1_SALVO_DAMAGE := 21
 ## 二型狂暴「猎杀环绕」（§5.2，boss.enrage.type_2）
 var E2_POINT_COUNT := 6
 var E2_POINT_INTERVAL := 0.8
-var E2_AIM := 0.3
+var E2_AIM := 0.35
 var E2_SNIPER_SPEED := 900.0
 var E2_SNIPER_DAMAGE := 21
 var E2_RELEASE_RING_COUNT := 12
@@ -293,6 +293,10 @@ var _survival: float = 0.0
 var _escape_warned: bool = false
 var _escaping: bool = false
 var _escape_speed: float = 0.0
+## 2026-08-06 审计：逃跑警告期上飘累计偏移——直接 `position.y -= drift*delta` 会被
+## 绝对 y 赋值走位（type1 P2 / type3 P2 _move_bob、type4）逐帧覆盖，三型无上飘效果；
+## 累计偏移由绝对赋值处（BossMovement）叠加，增量式走位保留直接减
+var _escape_drift_offset: float = 0.0
 ## 母舰召唤减速带：短时减速乘区（仅位移，经 _slow_factor 生效）
 var _summon_slow_timer: float = 0.0
 var _summon_slow_factor: float = 1.0
@@ -660,6 +664,9 @@ func _apply_difficulty_scaling() -> void:
 	_summon_interval *= interval_mult
 	_summon_timer = _summon_interval
 	E3_RING_INTERVAL *= interval_mult
+	# 2026-08-06 审计 M4：4 型「月蚀」狂暴分档补齐（E33 同族遗漏）——interval/speed/count
+	# 三表原无 type4 行，狂暴参数三档恒定（easy 偏难、hard 偏易）；与 1/2/3 型同款乘区
+	E4_RING_INTERVAL *= interval_mult
 	# 弹速（不含 main 编排的快照激光/环弹）
 	FAN_BULLET_SPEED *= speed_mult
 	HOMING_BULLET_SPEED *= speed_mult
@@ -675,6 +682,10 @@ func _apply_difficulty_scaling() -> void:
 	E2_RELEASE_RING_SPEED *= speed_mult
 	E3_RING_SPEED *= speed_mult
 	E3_RELEASE_RING_SPEED *= speed_mult
+	# M4：4 型普通阶段 ring_burst 环弹速 + 狂暴双环/蓄力环阵弹速随难度档（对齐 §4.4 全弹速分档）
+	RING_BURST_SPEED *= speed_mult
+	E4_RING_SPEED *= speed_mult
+	E4_RELEASE_RING_SPEED *= speed_mult
 	# 弹数：逐参数分档增减，按攻击语义钳制下限（A3：增量迁入 BossAttacks）；
 	# ring_burst 例外：counts.ring_burst 为每档弹数绝对值（Q01），直接写入 ring_delta
 	_attacks.fan_delta = _count_delta("fan", tier)
@@ -690,6 +701,9 @@ func _apply_difficulty_scaling() -> void:
 	E3_RELEASE_RING_COUNT = maxi(4, E3_RELEASE_RING_COUNT + _count_delta("ring", tier))
 	E1_SALVO_COUNT = maxi(4, E1_SALVO_COUNT + _count_delta("salvo", tier))
 	E3_SUMMON_COUNT = maxi(1, E3_SUMMON_COUNT + _count_delta("summon", tier))
+	# M4：4 型狂暴弹数分档（ring 增量 [-2,0,2]，同 1/3 型环弹口径；下限 4 防越界）
+	E4_RING_COUNT = maxi(4, E4_RING_COUNT + _count_delta("ring", tier))
+	E4_RELEASE_RING_COUNT = maxi(4, E4_RELEASE_RING_COUNT + _count_delta("ring", tier))
 
 
 ## 弹数分档取值：boss.difficulty_scaling.counts[key][tier]，缺键/越界回退 0
@@ -734,6 +748,11 @@ func escape_remaining() -> float:
 	return ESCAPE_TIME - _survival
 
 
+## 逃跑警告期上飘偏移（BossMovement 绝对 y 赋值走位叠加用；未进警告期返回 0）
+func escape_drift_offset() -> float:
+	return _escape_drift_offset if _survival >= ESCAPE_TIME - ESCAPE_WARNING else 0.0
+
+
 func _physics_process(delta: float) -> void:
 	_update_flash(delta)
 	if _summon_slow_timer > 0.0:
@@ -772,7 +791,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _survival >= ESCAPE_TIME - ESCAPE_WARNING:
+		# 上飘双路径：增量式走位（type1 P1/type3 P1）直接减；绝对 y 赋值走位
+		# （type1 P2/type3 P2/type4）经 _escape_drift_offset 累计后在 BossMovement 叠加
 		position.y -= ESCAPE_DRIFT * delta
+		_escape_drift_offset += ESCAPE_DRIFT * delta
 		_sprite.modulate = (Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate())
 
 	# 冲刺掠过（二型 P2）接管移动与模式编排；否则走位 + 模式表循环

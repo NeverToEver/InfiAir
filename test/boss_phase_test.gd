@@ -273,18 +273,43 @@ func _ready() -> void:
 	GameState.reload_balance()
 	var boss5: Boss = await _spawn_test_boss(4)
 	_check(boss5 != null, "场景5：损坏配置下月蚀已生成")
-	_check(boss5.max_hp > 0.0, "场景5：Q02 3 元素 hp_mults 回退 4 元素默认——type4 max_hp=%.0f > 0（原越界免疫伤害）" % boss5.max_hp)
-	_check(
-		boss5.patterns()["p1"][0]["attack"] == &"ring_burst",
-		"场景5：Q03 type4 配置缺失回退脚本默认表（含 ring_burst，实测 %s，原钳 3 回退三型表）" % str(boss5.patterns()["p1"][0]["attack"])
-	)
-	boss5.take_damage(9999)
-	await get_tree().process_frame
+	# 2026-08-06 审计：null 守卫——原 _check 后无守卫直接解引用，生成失败（如 Q02 回退
+	# 异常）时崩溃跳过下方 balance.json 恢复，仓库文件留损坏态；守卫内才断言/结算
+	if boss5 != null:
+		_check(boss5.max_hp > 0.0, "场景5：Q02 3 元素 hp_mults 回退 4 元素默认——type4 max_hp=%.0f > 0（原越界免疫伤害）" % boss5.max_hp)
+		_check(
+			boss5.patterns()["p1"][0]["attack"] == &"ring_burst",
+			"场景5：Q03 type4 配置缺失回退脚本默认表（含 ring_burst，实测 %s，原钳 3 回退三型表）" % str(boss5.patterns()["p1"][0]["attack"])
+		)
+		boss5.take_damage(9999)
+		await get_tree().process_frame
+	# balance.json 恢复无条件执行（防损坏配置残留仓库）
 	_close_buff_ui_if_open()
 	bf = FileAccess.open(GameState.BALANCE_PATH, FileAccess.WRITE)
 	bf.store_string(orig_balance)
 	bf.close()
 	GameState.reload_balance()
+
+	# ================= 场景 6：M4（2026-08-06 审计）4 型狂暴分档表补齐 =================
+	# type4 的 interval/speed/count 原不在 _apply_difficulty_scaling 三表内，
+	# 狂暴参数三档恒定（easy 偏难、hard 偏易）；直改 difficulty 字段（不经 setter 不落盘）
+	var saved_diff: StringName = GameState.difficulty
+	GameState.difficulty = &"easy"
+	var boss_easy: Boss = await _spawn_test_boss(4)
+	GameState.difficulty = &"hard"
+	var boss_hard: Boss = await _spawn_test_boss(4)
+	GameState.difficulty = saved_diff
+	_check(boss_easy != null and boss_hard != null, "M4：easy/hard 月蚀已生成")
+	if boss_easy != null and boss_hard != null:
+		_check(boss_easy.E4_RING_INTERVAL > boss_hard.E4_RING_INTERVAL, "M4：ring_interval 随难度分档（easy 1.15× / hard 0.85×）")
+		_check(boss_easy.E4_RING_SPEED < boss_hard.E4_RING_SPEED, "M4：ring_speed 随难度分档（easy 0.9× / hard 1.1×）")
+		_check(boss_easy.E4_RELEASE_RING_SPEED < boss_hard.E4_RELEASE_RING_SPEED, "M4：release_ring_speed 随难度分档")
+		_check(boss_easy.E4_RING_COUNT < boss_hard.E4_RING_COUNT, "M4：ring_count 随难度分档（[-2,0,+2]）")
+		_check(boss_easy.E4_RELEASE_RING_COUNT < boss_hard.E4_RELEASE_RING_COUNT, "M4：release_ring_count 随难度分档")
+		_check(is_equal_approx(boss_easy.RING_BURST_SPEED, 340.0 * 0.9), "M4：普通阶段 ring_burst 弹速随难度分档（easy ×0.9）")
+		boss_easy.queue_free()
+		boss_hard.queue_free()
+		await get_tree().process_frame
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")

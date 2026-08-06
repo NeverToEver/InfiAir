@@ -14,6 +14,39 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
+## M6（2026-08-06 审计）：Q23 快照范式补漏——原 _cleanup 直接删除 user://users.json
+## 且无还原，本地跑一次即永久销毁开发者全部账户与用户排行榜；开头备份、结尾还原
+var _file_backups: Dictionary = {}
+
+
+func _backup_user_files() -> void:
+	_file_backups = {}
+	var files := ["user://users.json", "user://users.json.corrupt"]
+	var dir := DirAccess.open("user://")
+	if dir != null:
+		dir.list_dir_begin()
+		var name := dir.get_next()
+		while name != "":
+			if name.begins_with("savegame_") or name.ends_with(".corrupt"):
+				files.append("user://" + name)
+			name = dir.get_next()
+		dir.list_dir_end()
+	for f in files:
+		var exists := FileAccess.file_exists(f)
+		_file_backups[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_user_files() -> void:
+	for f in _file_backups:
+		var b: Dictionary = _file_backups[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 func _cleanup() -> void:
 	var paths := ["user://users.json", "user://users.json.corrupt"]
 	for p in paths:
@@ -22,6 +55,7 @@ func _cleanup() -> void:
 
 
 func _ready() -> void:
+	_backup_user_files()  # M6：快照须在任何删除/覆写之前（_cleanup 会删 users.json）
 	_cleanup()
 	_db = UserDB.new()
 	_db.iterations = 1000  # 测试降档加速（生产 100_000）
@@ -180,4 +214,5 @@ func _ready() -> void:
 
 	print("USER DB TEST DONE, failures = ", _failures)
 	_cleanup()
+	_restore_user_files()  # M6：还原开发者原始用户表/排行榜/存档
 	get_tree().quit(_failures)

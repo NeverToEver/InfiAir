@@ -13,10 +13,10 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
-## 生成测试敌机（默认停火，位置/弹种由调用方覆盖）
-func _spawn_test_enemy(config: Dictionary, strategy: StringName) -> Enemy:
+## 生成测试敌机（默认停火，位置/弹种由调用方覆盖；p_difficulty 供 H2 难度继承断言）
+func _spawn_test_enemy(config: Dictionary, strategy: StringName, p_difficulty: float = 1.0) -> Enemy:
 	var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
-	e.setup(config, strategy, 1.0)
+	e.setup(config, strategy, p_difficulty)
 	e.can_shoot = false
 	get_node("Main").add_child(e)
 	return e
@@ -259,6 +259,37 @@ func _ready() -> void:
 		m.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.score == score_after_split, "子机死亡不再计分")
+
+	# H2（2026-08-06 审计）：分裂者经解锁路径实战可达——unlock_scores 扩展 5 档后
+	# 分数 ≥2500 入池（原 4 档上界 mini(5,4) 截断，ENEMY_TYPES[4] 永不入池，
+	# 测试直注入绕过解锁路径故全绿但实战不可达）；取样前固定分数保证确定性
+	GameState.score = 0
+	var pool_low: Array = spawner.unlocked_types()
+	GameState.score = 2500
+	var pool_high: Array = spawner.unlocked_types()
+	GameState.score = 0
+	_check(not pool_low.has(spawner.ENEMY_TYPES[4]), "H2：分数 <2500 分裂者未解锁")
+	_check(pool_high.has(spawner.ENEMY_TYPES[4]), "H2：分数 ≥2500 分裂者入池（实战可达）")
+	_check(pool_low.size() == 1 and pool_high.size() == 5, "H2：解锁池随分数扩到 5 型（0 分仅型 1，2500 分全 5 型）")
+
+	# H2：子机继承母体难度——原硬编码 p_difficulty=1.0 使子机 HP/速度不随对局 ramp，
+	# 深局分裂者子机 HP 与「母体半血」语义脱节；2.0 档子机 HP 显著高于 1.0 基准（≥50）
+	var ramp_e := _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight", 2.0)
+	ramp_e.position = Vector2(960.0, 400.0)
+	await get_tree().process_frame
+	ramp_e.take_damage(9999)
+	await get_tree().process_frame
+	var hard_minis: Array[Enemy] = []
+	for e: Enemy in GameState.enemies:
+		if is_instance_valid(e) and e != ramp_e and e.score_value == 0:
+			hard_minis.append(e)
+	_check(
+		not hard_minis.is_empty() and hard_minis[0].hp >= 50,
+		"H2：子机继承母体难度（2.0 档 HP 随 ramp 提高，实测 %d）" % (hard_minis[0].hp if not hard_minis.is_empty() else -1)
+	)
+	for m in hard_minis:
+		m.take_damage(9999)
+	await get_tree().process_frame
 	var left := 0
 	for e: Enemy in GameState.enemies:
 		if is_instance_valid(e):

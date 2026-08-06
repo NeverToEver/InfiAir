@@ -610,7 +610,7 @@
 			"type_2": {
 				"point_count": 6,
 				"point_interval": 0.8,
-				"aim": 0.3,
+				"aim": 0.35,
 				"sniper_speed": 900,
 				"sniper_damage": 21,
 				"release_ring_count": 12,
@@ -660,7 +660,8 @@
 			0,
 			300,
 			800,
-			1500
+			1500,
+			2500
 		],
 		"wave_size_start": 3,
 		"wave_size_end": 5,

@@ -45,7 +45,10 @@ func take_damage(amount: float, from_pos: Vector2, player: Player) -> bool:
 	if GameState.buff_count(&"evasion") > 0 and randf() < EVASION_CHANCE:
 		return false
 	# 护盾 buff（2026-08-04）：每层吸收一次全额伤害——扣层并销毁子弹，不置无敌/不清弹/
-	# 不掉血（盾碎后下一发照常结算）；吸收反馈轻震屏
+	# 不掉血（盾碎后下一发照常结算）；吸收反馈轻震屏。
+	# 2026-08-06 审计登记：吸收分支有意不写 last_hit_frame——同帧多弹命中时每层吸收
+	# 一发（「每层吸收一次」语义优先）；若计入 A16 单帧守卫则同帧第二弹被拦截免费，
+	# 盾层数与弹数消耗不对称（hit_logic_test 同帧连打回归）。概率极低，维持现状登记
 	if GameState.buff_count(&"shield") > 0:
 		GameState.consume_buff(&"shield")
 		GameState.shake(2.0)

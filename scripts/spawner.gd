@@ -144,8 +144,9 @@ static var ELITE_TYPES: Array[Dictionary] = [
 	},
 ]
 
-## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁
-var UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500]
+## 机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁（5 档对应 5 型普通机；
+## 2026-08-06 审计 H2：分裂者落地时未扩展解锁表 → 上界 mini(5, 4) 截断永不入池）
+var UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500, 2500]
 
 ## 波次节奏：普通波成组刷新，间隔/规模随对局时间 ramp
 var WAVE_INTERVAL_START := 7.0
@@ -216,7 +217,7 @@ func _apply_balance() -> void:
 			# 错误（启动即崩）、字符串静默转 0 使全部机型开局解锁；非数字元素跳过
 			if (v is int or v is float) and not v is bool:
 				us_arr.append(int(v))
-	UNLOCK_SCORES = us_arr if not us_arr.is_empty() else [0, 300, 800, 1500]
+	UNLOCK_SCORES = us_arr if not us_arr.is_empty() else [0, 300, 800, 1500, 2500]
 	WAVE_SIZE_START = int(GameState.cfg("spawner.wave_size_start", WAVE_SIZE_START))
 	WAVE_SIZE_END = int(GameState.cfg("spawner.wave_size_end", WAVE_SIZE_END))
 	SPECIAL_GAP_MIN = int(GameState.cfg("spawner.special_gap_min", SPECIAL_GAP_MIN))
@@ -537,18 +538,19 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	var strategy := strategies[randi() % strategies.size()]
 	var btype := _pick_bullet_type(config)
 	var view := GameState.view_world_rect()
+	# R07：telegraph 时长判型 + 下限钳制（L 系列判型族登记遗留）——0/负值使
+	# 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认。
+	# 2026-08-06 审计：时长同步注入预告线实例（原视觉 DURATION 硬编码 0.6，调参时
+	# 视觉寿命与敌机出现时刻脱钩——预告线自毁与 _schedule 计时两套时钟）
+	var td: Variant = GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION)
+	var telegraph_duration := maxf(float(td) if td is float or td is int else SpawnTelegraph.DURATION, 0.01)
 	var telegraph := SpawnTelegraph.new(x, view.position.y)
+	telegraph.duration = telegraph_duration
 	get_parent().add_child(telegraph)
 	_pending_telegraphs.append(telegraph)
-	# 预告线自毁（0.6s 超时 / clear_pending 释放）时解除登记，与 _pending_timers 的 _on_pending_timer_fired 对称
+	# 预告线自毁（超时 / clear_pending 释放）时解除登记，与 _pending_timers 的 _on_pending_timer_fired 对称
 	telegraph.tree_exited.connect(_on_telegraph_freed.bind(telegraph))
-	# R07：telegraph 时长判型 + 下限钳制（L 系列判型族登记遗留）——0/负值使
-	# 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认
-	var td: Variant = GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION)
-	_schedule(
-		maxf(float(td) if td is float or td is int else SpawnTelegraph.DURATION, 0.01),
-		_on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special)
-	)
+	_schedule(telegraph_duration, _on_telegraph_timeout.bind(config, strategy, btype, x, anchor, special))
 
 
 ## 预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）
@@ -646,10 +648,16 @@ func _on_telegraph_freed(telegraph: Node2D) -> void:
 
 
 ## 清空排队回调与入场预告线（D01/G01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
-## 未入场的 Boss 预警随之取消：必须同时复位 _boss_active，否则波次/Boss/事件三守卫被永久
-## 冻结（continue 后整局空转无怪无 Boss）；复位后按分数/时间门控再触发，属预期。
+## 未入场的 Boss 预警随之取消：仅当场上已无存活 Boss 时复位 _boss_active，否则波次/Boss/事件
+## 三守卫被永久冻结（continue 后整局空转无怪无 Boss）——但 Boss 已在场（返航链明确保留 Boss，
+## 2026-08-06 审计 H1 修法）时不得复位：_boss_timer 战时持续增长、_next_boss_score 仅击杀才推进，
+## 复位后 continue 继续出击分数门控立即满足，会出第二个同型 Boss（轮换/休整/狂暴单槽编排脱节）。
+## 复位后按分数/时间门控再触发，属预期。
 func clear_pending() -> void:
-	_boss_active = false  # G01：预警 2s 窗口内取消须解除占用（_spawn_boss 未执行则无 died/escaped 复位路径）
+	# G01 修复（H1 扩展）：预警 2s 窗口内取消须解除占用（_spawn_boss 未执行则无 died/escaped 复位
+	# 路径）；Boss 已生成在场上则由注册表判定——存活 Boss 存在时保持 _boss_active 占用
+	if GameState.count_enemies(func(e: Node) -> bool: return e is Boss) == 0:
+		_boss_active = false
 	for timer in _pending_timers:
 		if is_instance_valid(timer):
 			timer.stop()

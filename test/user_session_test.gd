@@ -98,6 +98,7 @@ func _ready() -> void:
 	GameState.logout_user()
 	_backup_user_files()  # Q23：快照用户文件，结尾还原
 	_wipe_user_files()
+	GameState.reload_user_db()  # 2026-08-06 审计：GameState._ready 迁移探测缓存了真实用户表，wipe 后须刷新
 	_reset_members()
 	# 1. profile.json 退役迁移：存在旧档案且无用户 → 首个注册用户合并后删除
 	var legacy := FileAccess.open("user://profile.json", FileAccess.WRITE)

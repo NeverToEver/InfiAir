@@ -153,6 +153,9 @@ func set_run_active(active: bool) -> void:
 		_encounter_timers[id] = maxf(float(cfg.get("interval", 45.0)), 0.1)
 	_fog_first_delay_left = FOG_FIRST_DELAY
 	_fog_check_timer = FOG_CHECK_INTERVAL
+	# 2026-08-06 审计：fog 冷却重置（Q12 同族遗漏）——上局事件结束残留的
+	# _fog_cooldown_left 会额外推迟新局首个迷雾事件（最晚 12s）
+	_fog_cooldown_left = 0.0
 
 
 ## 迷雾组接线（GameState 在迷雾门面 wire() 时调用；开启后本组触发/生命周期由本管理器接管）

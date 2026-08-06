@@ -97,7 +97,8 @@ func _move_type2(delta: float, boss) -> void:
 ## （战斗与逃跑警告期独占 y，入场/逃跑/狂暴序列均早退不干扰；MOVE4_SPEED 键已随修复移除）
 func _move_type4(delta: float, boss) -> void:
 	_bob_phase += delta * TAU / float(boss.MOVE4_BOB_PERIOD)
-	boss.position.y = boss.fight_anchor_y() + float(boss.MOVE4_BOB_AMP) * Enemy.sin_fast(_bob_phase)
+	# 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘）
+	boss.position.y = boss.fight_anchor_y() + float(boss.MOVE4_BOB_AMP) * Enemy.sin_fast(_bob_phase) + boss.escape_drift_offset()
 
 
 ## 三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（§5.3）
@@ -137,7 +138,8 @@ func _update_press(delta: float, boss) -> void:
 ## 消除 P1 增量式下压（press/band）残留偏移的瞬间跳变。
 func _move_bob(delta: float, boss, amp: float, period: float) -> void:
 	_bob_phase += TAU * delta / maxf(period, 0.01)
-	var target: float = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp
+	# 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘，三型无效果）
+	var target: float = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp + boss.escape_drift_offset()
 	if _bob_smooth_t > 0.0:
 		_bob_smooth_t -= delta
 		var k := 1.0 - _bob_smooth_t / BOB_SMOOTH_TIME

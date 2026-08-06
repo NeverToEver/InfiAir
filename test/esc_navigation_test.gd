@@ -22,6 +22,21 @@ func _check(cond: bool, msg: String) -> void:
 		printerr("[FAIL] " + msg)
 
 
+## 2026-08-06 审计：键位快照还原——reset/rebind 自动落盘（save_profile），
+## 开发者自定义键位被覆盖且无快照；备份/还原防本地键位被永久重置
+var _key_backup: Dictionary = {}
+
+
+func _backup_keys() -> void:
+	_key_backup = GameState.key_bindings.duplicate(true)
+
+
+func _restore_keys() -> void:
+	GameState.key_bindings = _key_backup.duplicate(true)
+	GameState.apply_key_bindings()
+	GameState.save_profile()
+
+
 func _press_key(keycode: Key) -> void:
 	var ev := InputEventKey.new()
 	ev.keycode = keycode
@@ -38,6 +53,8 @@ func _press_key(keycode: Key) -> void:
 
 func _ready() -> void:
 	GameState.delete_save()
+	# 2026-08-06 审计：键位快照（结尾 reset_key_bindings 自动落盘，防开发者键位被重置）
+	_backup_keys()
 	var main: Node2D = load("res://scenes/main.tscn").instantiate() as Node2D
 	add_child(main)
 	await get_tree().process_frame
@@ -83,5 +100,7 @@ func _ready() -> void:
 
 	GameState.reset_key_bindings()
 	GameState.delete_save()
+	# 2026-08-06 审计：还原用户自定义键位（reset_key_bindings 已把默认键位落盘）
+	_restore_keys()
 	print("[DONE] failures=%d" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)

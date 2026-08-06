@@ -14,7 +14,33 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
+## 2026-08-06 审计：profile 全量快照还原（smoke 全程改难度/瞄准辅助/切换模式等
+## profile 级设置并落盘；备份/还原防用户设置被覆盖为测试值）
+var _profile_backup: Dictionary = {}
+
+
+func _backup_profile() -> void:
+	_profile_backup = {}
+	for f in [GameState.PROFILE_PATH, GameState.PROFILE_PATH + ".corrupt"]:
+		var exists := FileAccess.file_exists(f)
+		_profile_backup[f] = {"exists": exists, "content": FileAccess.get_file_as_string(f) if exists else ""}
+
+
+func _restore_profile() -> void:
+	for f in _profile_backup:
+		var b: Dictionary = _profile_backup[f]
+		if b["exists"]:
+			var fh := FileAccess.open(f, FileAccess.WRITE)
+			fh.store_string(b["content"])
+			fh.close()
+		elif FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+
+
 func _ready() -> void:
+	# 2026-08-06 审计：profile 全量快照（结尾还原用户难度/瞄准辅助/切换模式等设置项，
+	# 原"恢复默认难度"覆盖用户原档——持久化设置结尾恢复默认值而非用户原值）
+	_backup_profile()
 	# 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
 	GameState.delete_save()
 	# L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
@@ -855,6 +881,7 @@ func _ready() -> void:
 	GameState.delete_save()
 	if FileAccess.file_exists(GameState.user_db_savefile_for("smoke_user")):
 		DirAccess.remove_absolute(GameState.user_db_savefile_for("smoke_user"))
-	# 恢复默认难度并落盘，避免污染其他测试进程的 profile
-	GameState.set_difficulty(&"medium")
+	# 2026-08-06 审计：还原原始 profile（难度/瞄准辅助/切换模式等设置项）——
+	# 原「恢复默认难度」覆盖用户原档
+	_restore_profile()
 	get_tree().quit(_failures)

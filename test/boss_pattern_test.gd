@@ -253,7 +253,7 @@ func _ready() -> void:
 		max_index = maxi(max_index, boss3.enrage_sequence().attack_index())
 		heavy3_max = maxi(heavy3_max, _bullets_by_speed(boss3.E2_SNIPER_SPEED).size())
 		pos_samples.append(boss3.global_position)
-	_check(aim_seen, "场景3：瞬停点 0.3s 瞄准线 telegraph")
+	_check(aim_seen, "场景3：瞬停点 0.35s 瞄准线 telegraph")
 	_check(max_index >= 4, "场景3：轨道象限点依次瞬停（≥4 点，实测 %d）" % max_index)
 	var jump_max := 0.0
 	for i in pos_samples.size():
