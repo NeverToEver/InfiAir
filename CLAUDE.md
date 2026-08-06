@@ -20,12 +20,12 @@ $G --path .                                    # run locally
 $G --headless --import --path .                # import + script parse check
 $G --headless --path . --quit-after 300        # 300-frame runtime check
 # Headless tests: test/*.tscn self-check via [PASS]/[FAIL] + exit code.
-# 41 assertion scenes (50 total); full list & known baseline: docs/TESTING.md
+# 45 assertion scenes (54 total); full list & known baseline: docs/TESTING.md
 $G --headless --path . res://test/smoke_test.tscn           # main flow — always after changes
 $G --headless --path . res://test/base_system_test.tscn     # saves/base/mothership changes
 $G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
 $G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn  # perf (needs --fixed-fps)
-# All 41 assertion scenes, one-liner (same selection as CI: test/*_test.tscn minus autoplay probe):
+# All 45 assertion scenes, one-liner (same selection as CI: test/*_test.tscn minus autoplay probe):
 for t in test/*_test.tscn; do
   case "$t" in *autoplay_test.tscn) continue;; esac
   $G --headless --path . "res://$t" || break
@@ -35,7 +35,7 @@ done
 Minimum after changes: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership. Screenshots need windowed mode (headless captures nothing): `test/visual_capture.tscn` (game → /tmp/infiair_capture.png), `test/ui_capture.tscn` (UI → /tmp/ui_*.png).
 
 # Pre-commit gate (5 layers; CI runs all): format + static first, then the above engine checks
-python3 -m venv .venv && .venv/bin/pip install gdtoolkit   # one-time; .venv/ gitignored
+python3 -m venv .venv && .venv/bin/pip install gdtoolkit==4.5.0   # one-time; .venv/ gitignored（版本与 ci.yml R09 对齐）
 .venv/bin/gdformat --check autoload/ scripts/ test/        # layer 1: format (w=140)
 .venv/bin/gdlint autoload/ scripts/ test/                  # layer 2: style/unused
 

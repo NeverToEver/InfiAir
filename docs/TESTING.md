@@ -98,13 +98,13 @@ godot --headless --path . res://test/smoke_test.tscn
 # 5. all 45 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
 ```
 
-- **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit` → `.venv/bin/gdformat`/`.venv/bin/gdlint`.
+- **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit==4.5.0` (版本与 `ci.yml` 对齐, 2026-08-05 R09) → `.venv/bin/gdformat`/`.venv/bin/gdlint`.
 - **Rule rationale**: `gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` comments + `docs/AUDIT_VAULT.md`; new disables/relaxes sync those configs + `AGENTS.md`.
 - Layers: format → style → engine warnings → compile/start → runtime behavior.
 
 ## CI
 
-push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 45 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit via pip). Green = merge gate.
+push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 45 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit==4.5.0 via pip, 2026-08-05 R09 锁版本). Green = merge gate.
 
 ## Strategy & Side Effects
 

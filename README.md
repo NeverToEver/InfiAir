@@ -123,14 +123,14 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（41 断言场景）</summary>
+<summary>✅ 测试与验证（45 断言场景）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 
 ```bash
 godot --headless --import --path .          # 资源导入与脚本解析
 godot --headless --path . --quit-after 300  # 运行时冒烟
-godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（141 项）
+godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检全 PASS）
 ```
 
 完整 41 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [AGENTS.md](./AGENTS.md#quick-reference)。
