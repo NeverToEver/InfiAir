@@ -18,7 +18,7 @@
 | Enrage volley | `boss.enrage` | 820 / 240 | 21 / 12 | preset-path volleys (enrage) |
 | Mothership gatling | `mothership.gatling` | 1080 | 8 | player-side strafing |
 | Mothership missile | `mothership.missile` | 600 | 80 + splash 20/r80 | multi-homing + AoE |
-| Laser beam (buff) | `buffs.laser_beam` | — (line check) | 10/0.1s tick | player buff weapon, not a bullet |
+| Laser beam (buff) | `buffs.laser_beam` | — (line check) | 16/0.1s tick | player buff weapon, not a bullet |
 
 All bullets via `scenes/bullet.tscn` + `GameState.bullet_pool.fire()`; faction in `setup()/activate()`; homing via `bullet.gd` `homing`/`homing_time` (4.0 rad-class lerp). **Event reuses enemy-side ammo only; no new bullet types.**
 
@@ -69,7 +69,7 @@ Background-scale giant (not Boss, not in boss rotation); descends from off-scree
 
 ### 3.2 Per-difficulty config
 
-HP = normal-typical 80 × difficulty `hp` coefficient, rounded; ammo all reused from §1.1.
+HP = normal-typical 80 × difficulty `hp` coefficient × run-progression ramp (`enemy_hp_ramp()`: 1.0 + 0.25×(difficulty mult −1), grows with boss kills), rounded; ammo all reused from §1.1.
 
 | Difficulty | Turrets | HP each | Ammo sequence (rotation) |
 | --- | --- | --- | --- |
@@ -175,7 +175,7 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 | `scripts/spawner.gd` | New `_boss_frozen`/`_boss_pending`/`_waves_paused` + `_event` ref; boss check during freeze records pending only (no accumulation); event check after boss check (boss priority); waves paused while `_waves_paused`. |
 | `scripts/main.gd` | `_ready` creates `EliteTurretEvent` under Main (visible to cleanup/test traversal), registers `_spawner._event`. |
 | `scripts/bullet.gd` | New `homing_turn_rate` field (default 4.0, reset in `activate()`); weak homing = 1.5; hardcoded 4.0 replaced by field read. |
-| `test/elite_turret_event_test.tscn` | 45 assertions (below). |
+| `test/elite_turret_event_test.tscn` | 59 assertions (2026-08-07; see Validation below for the 2026-07-28 baseline record). |
 
 ### Deviations from draft (final behavior)
 - **Trigger**: score ≥ 800, then 35% chance per 45s, 60s cooldown after event end — all in `elite_turret_event` config; spawner check order → boss priority on same-frame race.
@@ -183,7 +183,7 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 - **Ring light**: standby dark-red baked into texture (5 bases); charge/destroy = runtime Line2D overlay; no separate lid parts (raise = TRANS_BACK scale-in).
 - **Dialogue boundary**: line 2 requires "before all destroyed" (mutex with line 3); cross-node last hit (splash multi-kill) → new line overrides old.
 
-### Validation (2026-07-28)
+### Validation (2026-07-28, historical baseline — test has since grown to 59 assertions)
 - `test/elite_turret_event_test.tscn`: **45/45 PASS** — state transitions, medium 4×80 HP, unattackable during raise, independent cadence, weak homing (1.5/0.6s), 3-node dialogue (⌈N/3⌉/⌈2N/3⌉/all), reward 500×2=1000, timeout no reward, boss freeze/pending single-shot/retrigger, cooldown blocks.
 - Full regression: `--headless --import`, `--quit-after 300`, smoke/base_system/enemy_combat/buff33/difficulty/boss_enrage/hit_logic/balance/pool_reuse/i18n/keybind/startup_flow/back_navigation/esc_navigation/view_zoom/window_size/intro_cinematic/tutorial all 0 failures.
 - Autoplay 150s (seed=20260728): 0 errors, 0 orphans, event registry OK; ObjectDB leak warning = HEAD baseline (pre-existing).

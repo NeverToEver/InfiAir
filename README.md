@@ -160,7 +160,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 <details>
 <summary>🗺️ 路线图 / 🤝 贡献 / 🙏 致谢 / 📄 许可证</summary>
 
-**路线图**：内容演进（新 Buff / 新敌机与 Boss 型 / 移动端操控等）暂缓，重启需重新立项；CI（GitHub Actions 五层门禁）与双平台发布（GitHub Releases）已落地。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
+**路线图**：内容演进（新 Buff / 新敌机与 Boss 型等）暂缓，重启需重新立项；移动端操控已于 2026-08-07 重启落地（触屏虚拟操控，见上方特性）；CI（GitHub Actions 五层门禁）与双平台发布（GitHub Releases）已落地。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
 
 **贡献**：欢迎 Issue 和 PR！提交前请确认：全部无头断言场景通过；遵循 [AGENTS.md](./AGENTS.md) 中的约定；方向类决策（新内容立项、暂缓 / 重启）请先在 [docs/ROADMAP.md](./docs/ROADMAP.md) 登记。
 

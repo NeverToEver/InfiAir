@@ -10,7 +10,7 @@ InfiAir: 2D top-down shooter, Godot 4.6 + GDScript (gl_compatibility, no externa
 
 - Entry scene `scenes/welcome.tscn` (accounts/login); battle scene `scenes/main.tscn`; 1920×1080 (stretch `canvas_items`/`keep`).
 - Only autoload `GameState` (`autoload/game_state.gd`): global state/signal bus, sfx pool, `GameState.cfg()` config access, persistence.
-- No build system/package manager; CI via GitHub Actions. Godot 4.6.2 std only (no .NET). Prefer `./run.sh` — auto-detects engine (PATH → `~/.local/bin/godot` → `/Applications/Godot.app`), warns below 4.6, passes args through.
+- No build system/package manager; CI via GitHub Actions. Godot 4.6.2 std only (no .NET). Prefer `./run.sh` — auto-detects engine (PATH `godot`/`godot4` → `~/.local/bin/godot` → `/Applications/Godot.app`), warns below 4.6, passes args through.
 
 ## Commands
 

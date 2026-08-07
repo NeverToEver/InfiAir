@@ -25,6 +25,8 @@ Two paradigms; project had neither:
 
 ## 3. Problems
 
+> 注：§3 行号为 2026-07-29 撰写时锚点（问题均已按 §4 [landed] 落地），改码后可能漂移——以当前代码/`docs/BALANCE_MAP.md` 为准。
+
 - **P0-1 no enemy output growth, survival uncapped**: bullet dmg const; extra_life sole late pick (rest exit pool at max stacks), +750~1000 HP/h; lifesteal 10% max snowballs — `enemies.bullet_damage`/`boss.bullet_damage` unramped; `scripts/buff_select.gd:154-156`; `autoload/game_state.gd:498-509`
 - **P0-2 events ignore mult**: turret HP 80, formation fighter HP 60 const; free points after 10 min — `scripts/elite_turret_event.gd:127-132`; `scripts/formation_strike_event.gd:115-126`
 - **P1-3** 2^n: 4th→5th kill ×4.75→×8 (+68%), then cap — `autoload/game_state.gd:470-477`
@@ -83,7 +85,7 @@ Two paradigms; project had neither:
 
 ### 6.1 Deep-run calibration (2026-08-04, `docs/archive/2026-08-04-endless-calibration-plan.md`)
 
-**Landed values** (balance.json, cfg fallbacks in `game_state.gd:140-142` unchanged — only numbers):
+**Landed values** (balance.json, cfg fallbacks in `game_state.gd:158-160` unchanged — only numbers):
 
 | Key | Old | New | Rationale |
 | --- | --- | --- | --- |

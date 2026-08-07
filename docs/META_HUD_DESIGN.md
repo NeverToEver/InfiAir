@@ -120,19 +120,19 @@ vignette = min(0.5, crack_progress * 0.55); DYING: u_vignette_inner 0.62->0.56 (
 ### 4.3 Integration points
 
 - `autoload/game_state.gd` signal zone (`player_damaged`, line 14): +`signal player_damaged(amount: float, from_pos: Vector2)`; +`var meta_fx_lod: int = 1` (LOD1 fallback; `_ready`->0, `_exit_tree`->1); +`var reduce_flash: bool = false` (setter persists profile, aim_assist)
-- `scripts/player.gd` `take_damage()` (line 983): +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)`
-- `scripts/bullet.gd` `_on_grace_timeout()` (line 463) / `scripts/enemy.gd` `_try_body_collision()` (line 367) / `scripts/boss.gd` `_check_body_collision()` (line 968) / `scripts/formation_bomb.gd` `_detonate()` (line 95) (player-hit sites): pass `global_position`
-- `scripts/main.gd` `_apply_camera_zoom()` (line 314) camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
+- `scripts/player_damage.gd` (2026-08-03 A8 split; emit lives here, line 65) / `scripts/player.gd` `take_damage()` (line 988): +`from_pos: Vector2 = Vector2.INF` (D8); after resolution emit `GameState.player_damaged.emit(final_amount, from_pos)` (player.gd delegates to `_damage.take_damage()`)
+- `scripts/bullet.gd` `_on_grace_timeout()` (line 467) / `scripts/enemy.gd` `_try_body_collision()` (line 373) / `scripts/boss.gd` `_check_body_collision()` (line 993) / `scripts/formation_bomb.gd` `_detonate()` (line 95) (player-hit sites): pass `global_position`
+- `scripts/main.gd` `_apply_camera_zoom()` (line 321) camera zoom: extract `_apply_camera_zoom()`: `zoom = Vector2.ONE x GameState.view_zoom_factor() x (_meta_fx.breath_scale() if active)` (D6); per-frame if `breath_active()`; `_ready` adds MetaHealthFX child
 - `scripts/hud.gd` `_update_vignette()` (line 763): top `if GameState.meta_fx_lod == 0: return` (LOD0 -> MetaFX, `_vignette` 0; LOD1 keeps current, D2)
 - `scripts/hud.gd` `_hp_bar` build: holographic: base alpha 0.25, fill `CanvasItemMaterial BLEND_MODE_ADD`; +`meta_jitter()` (D9: +-2px, 80ms, only `_hp_bar`+`_buff_flow`)
-- `scripts/settings_ui.gd` `_build_modes_page()` (line 225) after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
+- `scripts/settings_ui.gd` `_build_modes_page()` (line 244) after `SET_DISPLAY`: +`SET_ACCESSIBILITY` section + `SET_REDUCE_FLASH` toggle (`make_section_header`/`make_toggle_button`), bound `GameState.set_reduce_flash()`
 - `data/translations.csv`: `SET_ACCESSIBILITY` 无障碍/Accessibility; `SET_REDUCE_FLASH` 减少闪光/Reduce flashes
 - `scripts/tools/generate_audio.py`: +`heartbeat.wav` - 55Hz sine double-pulse (lub-dub), 0.28s, exp envelope (D7)
 
 ### 4.4 `data/balance.json` additions (`effects.meta_health.*`; defaults must match)
 
 ```json
-"meta_health":{"pulse":{"scale":2.5,"min":0.15,"decay_tau":0.09},"chromatic":{"base":0.006,"peak":0.014},"blur":{"strength":0.6},"ripple":{"duration":0.4,"alpha":0.8},"crack":{"exponent":1.6,"spread_min":0.1,"edge_softness":0.08,"width":0.03,"glow":0.8,"heal_jitter":0.35,"grow_overshoot":0.08,"grow_time":0.6,"density":[0.0,0.30,0.50,0.75,1.0]},"desat":{"max":0.35,"exponent":2.0},"vignette":{"max_alpha":0.5,"inner":0.62,"dying_shrink":0.06},"dying":{"threshold":0.2,"heart_min_hz":1.0,"heart_max_hz":1.2,"breath":0.015,"jitter_px":2.0,"warn_hz":2.5,"fade":0.3},"smooth":{"down_tau":0.10,"up_tau":0.80},"adapt":{"interval":0.25,"min":0.8,"max":1.3,"bullet_weight":0.002,"explosion_weight":0.15},"reduce_flash":{"chromatic_scale":0.4}}
+"meta_health":{"lod":0,"pulse":{"scale":2.5,"min":0.15,"decay_tau":0.09},"chromatic":{"base":0.006,"peak":0.014},"blur":{"strength":0.6},"ripple":{"duration":0.4,"alpha":0.8},"crack":{"exponent":1.6,"spread_min":0.1,"edge_softness":0.08,"width":0.03,"glow":0.8,"heal_jitter":0.35,"grow_overshoot":0.08,"grow_time":0.6,"density":[0.0,0.30,0.50,0.75,1.0]},"desat":{"max":0.35,"exponent":2.0},"vignette":{"max_alpha":0.5,"inner":0.62,"dying_shrink":0.06},"dying":{"threshold":0.2,"heart_min_hz":1.0,"heart_max_hz":1.2,"breath":0.015,"jitter_px":2.0,"warn_hz":2.5,"fade":0.3},"smooth":{"down_tau":0.10,"up_tau":0.80},"adapt":{"interval":0.25,"min":0.8,"max":1.3,"bullet_weight":0.002,"explosion_weight":0.15},"reduce_flash":{"chromatic_scale":0.4}}
 ```
 
 ## 5. State machine & VFX timing

@@ -39,12 +39,12 @@ InfiAir 是 Godot 4.6 + GDScript 的 2D 弹幕射击，自 Python/Pygame 原版�
 
 | 目录 | 文件数 | 行数 |
 | --- | --- | --- |
-| scripts/ | 73 | 22,287 |
-| autoload/ | 1 | 1,854 |
-| test/ | 54 | 11,512 |
-| **合计** | **128** | **35,653** |
+| scripts/ | 74 | 22,775 |
+| autoload/ | 1 | 1,894 |
+| test/ | 56 | 12,094 |
+| **合计** | **131** | **36,763** |
 
-- 唯一 autoload：`GameState`（facade，转发 6 个非 autoload 服务：balance/save/sfx/entity_manager/fog_events/event_manager；另挂 `UserDB`）。
+- 唯一 autoload：`GameState`（facade，转发 7 个非 autoload 服务：balance/save/sfx/entity_manager/fog_events/event_manager/user_db）。
 - 弹幕热路径已充分优化：`BulletPool` 对象池复用 + 同屏敌弹 500 硬上限（`bullet_pool.gd`）、`BossFire` 纯发射逻辑（RefCounted，A3 拆分）、策略/波次均由配置驱动（`data/balance.json`）。
 - 架构债务清零：A2 服务拆分、A3/A4 注册表 + 声明式效果表、A8 PlayerVisuals 拆分全部落地；45 断言场景 0 FAIL（2026-08-05）。
 
@@ -57,7 +57,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 ```
 
 - 平均帧耗时 **1.011ms**，等效 **989 FPS**；60Hz 下帧预算 16.7ms，脚本层占用 ≈ **6%**。
-- 该场景已超出正常对局压力（perf_bench 注释：同屏弹峰值 300+，远低于 500 上限），意味着**性能余量一个数量级以上**。
+- 该场景已超出正常对局压力（对局峰值约 300+ 子弹，远低于 500 硬上限——见 `docs/archive/2026-08-05-main-architecture-optimization-report.md`），意味着**性能余量一个数量级以上**。
 - 结论：当前不存在任何由 GDScript 引起的性能瓶颈；"GDScript 慢"在本项目语境下不构成引入 C# 的理由。
 
 ### 3.3 构建、CI 与发布链路
@@ -68,7 +68,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 
 ### 3.4 平台目标
 
-`export_presets.cfg` 仅两个预设：Linux/X11、Windows Desktop（均 x86_64，embedded pck）。ROADMAP 记录：移动端触控已 cut（Phase 3 重启需显式决策）；**Web 平台从未列入计划**。
+`export_presets.cfg` 仅两个预设：Linux/X11、Windows Desktop（均 x86_64，embedded pck）。ROADMAP 记录：移动端触控原已 cut，**2026-08-07 重启落地**（VirtualControls 触屏输入层 + 设置「触控」开关，`docs/archive/2026-08-07-deferred-restart-plan.md` §3）；**Web 平台从未列入计划**。
 
 ---
 
@@ -161,7 +161,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 理由（按权重排序）：
 
 1. **性能无瓶颈是实测事实**：极限压力场景 1.011ms/帧（§3.2），性能收益 ≈ 0，而"性能"是迁移 C# 最常见也最正当的理由。
-2. **无平台推力**：C# 的典型引入动因是 Web 之外的高性能/平台需求；本项目仅桌面双平台，移动端已 cut，Web 无计划（§3.4）。
+2. **无平台推力**：C# 的典型引入动因是 Web 之外的高性能/平台需求；本项目仅桌面双平台，移动端触控虽已落地（2026-08-07）但为纯 GDScript 输入层、不构成性能/平台推力，Web 无计划（§3.4）。
 3. **时机错误**：项目刚完成技术债清零并固化 5 层门禁与 CI/CD（§3.3），处于稳定期；引入 C# 等于主动拆掉刚刚稳定的构建/发布链路。
 4. **架构冲击不可小觑**：跨语言继承禁止 + 热路径动态派发（§5.3），与已优化的对象池/弹幕体系直接冲突。
 5. **既有工程化保障足够**：warning-as-error + gdlint + 47 断言场景已把 GDScript 的短板（弱类型）压缩到低风险区间（§4.2）。

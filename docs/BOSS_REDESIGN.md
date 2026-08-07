@@ -178,7 +178,7 @@ All **gameplay-range** (no `world_scale`); coords from `fight_anchor_y()` / `str
 - A: switch cease-fire = new pattern's first-wave interval; afterburn reuses P2 (×1.3); cross-phase hit → enrage wins; type3 summon timer independent; countdown plain text (no key).
 - B: ring dmg baseline 12; type2 aim line tracks throughout; type1 TRANSITION jitters; type3 RELEASE one-shot; dash_sweep pauses pattern timer; wall arc fixed downward, gaps avoid player ±30°.
 - C: tiers applied once in `_ready`; snapshot bullets (4 lasers + 8 rings), telegraph durations, body speed, HP/damage untiered; floors: wall 6 / ring 4 / others 1 (fan 3).
-- Fix: `_load_patterns` must `duplicate(true)` cfg arrays, else pollutes GameState cache (boss_pattern_test scene 6). **2026-08-01**: same in `FIRE_INTERVALS` (`boss.gd:420-421` read, `:522-523` in-place `[i] *= interval_mult`) — `_apply_difficulty_scaling` `duplicate(true)` too; AUDIT_VAULT B5. **Fixed 2026-08-01**; boss_pattern_test easy/hard pass.
+- Fix: `_load_patterns` must `duplicate(true)` cfg arrays, else pollutes GameState cache (boss_pattern_test scene 6). **2026-08-01**: same in `FIRE_INTERVALS` (`boss.gd:514-515` read, `:655-656` in-place `[i] *= interval_mult`) — `_apply_difficulty_scaling` `duplicate(true)` too; AUDIT_VAULT B5. **Fixed 2026-08-01**; boss_pattern_test easy/hard pass.
 - Movement simplification (2026-08-02, D05): upgrades unimplemented — `boss_movement.gd` only type1 P1 vertical (`_update_press` only `FIGHT_P1`), type2 dash no phase split, type3 none. `git show 3188902^` confirms gap at phase B (not A3 split). **Landed 2026-08-02 per §5.5**; now a record.
 
 ### 8.3 Difficulty Tiers Landed (§4.4)

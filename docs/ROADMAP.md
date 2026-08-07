@@ -2,7 +2,7 @@
 
 > Single source of truth for project direction (founded 2026-07-24). Update on phase/direction changes + register in `AGENTS.md` doc-sync.
 
-## Snapshot (2026-08-03)
+## Snapshot (2026-08-07)
 
 - **Porting alignment closed** (2026-07-24): all original `airwar-game` mechanics remade + aligned (gap list: `docs/archive/PORTING_PARITY.md`; only optional "local leaderboard page" left); independent evolution now — original is reference only.
 - **Quality**: 47 assertion scenes 0 FAIL (2026-08-07; 权威计数 `docs/TESTING.md`); autoplay probe + perf bench usable.
@@ -48,7 +48,7 @@
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.
 - **Packaging**: resumed 2026-07-30, proven 07-31 — presets committed (Linux/X11 + Windows Desktop, embedded pck), `release.sh` → `builds/release/` (gitignored), `packaging/` scripts (Linux user-space + .desktop / Windows per-user + Start menu). Platform validation pending.
 - **Online leaderboard**: decided NO (2026-07-20); reversal needs explicit override.
-- **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 45 scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.28).
+- **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 47 assertion scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.28).
 - **Content evolution** (ex-Phase 2): cut 2026-07-30 — leaderboard page, new buffs/enemies/elites/4th boss/mobile touch, mothership expansion, endless k-value calibration; **restarted 2026-08-04 (excl. mobile touch) and fully landed** — see Restart block above (3 buffs, Splitter, Heavy Turret, Eclipse boss, mothership upgrade, calibration); **mobile touch restarted 2026-08-07 and landed** — `VirtualControls` 触屏输入层（虚拟摇杆/按钮，Input action 注入）+ 设置「触控」开关 + `virtual_controls_test`（计划/清单 `docs/archive/2026-08-07-deferred-restart-plan.md` §3）。Remaining cut: leaderboard page (absorbed into local accounts).
 
 ## Decisions

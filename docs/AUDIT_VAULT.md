@@ -139,7 +139,7 @@
   3. `bullet.gd` 的 Player 强转改信号或接口。
 - **修复起效记录**：⚠️ **部分完成（2026-08-02 订正，此前误记「未修复」）**
   - **已落地（2026-07-31 `bdb0274`「A5 依赖注入」）**：Boss/精英炮塔对 Spawner 的依赖改为注入——`boss.gd` 新增 `_spawner` + `set_spawner()`，`spawn_minion_at()`/`_summon_minions()` 不再 `get_first_node_in_group("spawner")`；`elite_turret_event.gd` 同法替换 3 处 group 查找（指引第 2 条）；`bullet.gd` 的 Player 强转已由 A1 经 `GameState.player_ref` 落地（指引第 3 条）；指引第 1 条「GameState 作配置中心+注册表」为有意性能权衡保留。
-  - **未收敛**：残余依赖点（`hud`/`pause_ui` 等对 Main 的引用）仍经注册表/组间接获取，未全量改显式注入（详见 `DESIGN_BASELINE.md` §7.1）。**✅ 2026-08-07 收敛（S04）**：mothership 8 处 hud 组查找统一 `_hud()` 延迟缓存；welcome/pause_ui/事件类低频组查找按 R12 先例判定为合理模式保留（行为零变化）。
+  - **未收敛**：残余依赖点（`hud`/`pause_ui` 等对 Main 的引用）仍经注册表/组间接获取，未全量改显式注入（详见 `DESIGN_BASELINE.md` §7.1）。**✅ 2026-08-07 收敛（S04）**：mothership 9 处 hud 组查找统一 `_hud()` 延迟缓存；welcome/pause_ui/事件类低频组查找按 R12 先例判定为合理模式保留（行为零变化）。
 
 ---
 
@@ -188,7 +188,7 @@
 | A2 上帝对象 | 危险 | ✅ 已修复 | 2026-07-31 |
 | A3 boss 单类 | 严重 | ✅ 已修复（2026-08-03 注册表收敛，O 原则达成） | 2026-07-31 |
 | A4 开闭违反 | 严重 | ✅ 已修复（2026-08-03：Boss 分支随 A3 收敛；Player buff 声明式效果表） | 2026-07-31 |
-| A5 依赖倒置 | 严重 | ✅ 已修复（依赖注入 `bdb0274`；GameState 配置中心有意保留；2026-08-07 残余收敛：mothership 8 处 hud 组查找 → `_hud()` 延迟缓存，S04） | 2026-07-31 |
+| A5 依赖倒置 | 严重 | ✅ 已修复（依赖注入 `bdb0274`；GameState 配置中心有意保留；2026-08-07 残余收敛：mothership 9 处 hud 组查找 → `_hud()` 延迟缓存，S04） | 2026-07-31 |
 | A6 L 违反 | 中等 | ✅ 已修复（is_boss 语义化特判，2026-08-01 回填） | 2026-07-31 |
 | A7 测试耦合 | 中等 | ✅ 已修复 | 2026-07-31 |
 | A8 Player 膨胀 | 中等 | ✅ 已修复（PlayerDamage/PlayerDash 2026-07-31；PlayerVisuals 拆分 2026-08-03，见 :1061） | 2026-07-31 |
@@ -1326,7 +1326,7 @@
 7. **SCORE_CAP 乘法后钳制**：登记观察（倍率 ≥1e13 理论溢出 int64，现实量级 ≤1e6 防御成立）。
 8. **smoke `== +33` 精确断言**：登记观察（受控条件取整确定性成立，TESTING.md 已登记 flake 基线）。
 9. **遭遇自动触发暴露面**：各长跑测试已核实安全（smoke 累计处理 ~6-8s ≪ 40s 阈值）——建议后续在 smoke 敏感段补遭遇契约断言，登记待办。**✅ 已落地（2026-08-07）**：`encounter_flow_contract_test` T3a 断言 3s 窗口无自动触发 + 计时未归零 + interval 配置下界锚点（≥20s）。
-10. **`.godot/imported` 孤儿 ctex×4**：登记观察（源已删缓存残留，.gitignore 排除，不影响构建）。**✅ 2026-08-07 复核自然消解**：`.godot/imported/` 现存 ctex 均有对应 `assets/sprites/*.png` 源，孤儿 0。
+10. **`.godot/imported` 孤儿 ctex×4**：登记观察（源已删缓存残留，.gitignore 排除，不影响构建）。**✅ 2026-08-07 复核自然消解**：`.godot/imported/` 现存 18 个 ctex 均有对应源（15 个 `assets/sprites/*.png`，3 个 `docs/screenshots/*.png`），孤儿 0。
 11. **gen_balance_map 惰性正则局限 / balance_editor 新增键静默放行**：工具启发式已知局限，登记观察。
 12. **builds/ 旧产物过期**：登记观察（3.26 含 docs 截图已随 .gdignore 修复；test/ 泄露随 R01 修复，下次重出即净）。
 13. **Q09 焦点细节 / Q27 目检 / smoke flake / 镜像字面量**：Q §7 待验证点已全部定论（见报告 §6），无需再修。
@@ -1432,7 +1432,7 @@
 | --- | --- | --- | --- |
 | ROADMAP Phase 3 | mobile touch（content evolution 唯一剩余 cut） | 真实未完成（输入已全走 Input action 系，注入虚拟输入即可） | T1 重启立项 + 落地 |
 | AUDIT_VAULT L17 | 设置页 modes 页溢出 | 真实未完成（裸 VBox 无滚动、面板自适应超屏） | T2 修复 |
-| DESIGN_BASELINE §7.1 | A5 残余依赖收敛 | 部分完成（mothership 8 处 hud 组查找） | T4 收敛 |
+| DESIGN_BASELINE §7.1 | A5 残余依赖收敛 | 部分完成（mothership 9 处 hud 组查找） | T4 收敛 |
 | R 系列 #9 / 2026-08-06 #7 | 测试待办 2 项 | 真实未完成 | T3a/T3b |
 | 竞品 P2-8 / M10 / 2026-08-06 #2 | 俄语 / 人工实机验证 / 里程碑设计拍板 | 用户决策未变 / 非代码任务 / 需设计拍板 | 不推进（维持登记） |
 
@@ -1440,16 +1440,16 @@
 
 | 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
 | --- | --- | --- | --- | --- | --- |
-| S01 | P2 | 全仓（新 `scripts/virtual_controls.gd`） | 功能（mobile touch 重启立项） | 触屏虚拟输入层：左摇杆→move_*、右摇杆→aim_*（增量，同手柄语义）、按钮→boost/fine_move/dash/parry；Input.action_press/release 注入（player 读取路径零改动）；触屏瞄准基准=可见世界中心（player.aim_point 分支）；设置「触控」开关（GameState.touch_controls profile 持久化 + `touch_controls_changed` 信号联动 Main）；新增 `test/virtual_controls_test.tscn` 25 断言 | ✅ 落地：虚拟层挂 Main（layer=1 半透明）、EntityManager/GameState 转发、simulate_touch/drag 测试口（绕过窗口→视口坐标变换，MetaHealthFX.set_test_state 同款先例）；测试 25 PASS；禁用时零注入（桌面零回归） |
+| S01 | P2 | 全仓（新 `scripts/virtual_controls.gd`） | 功能（mobile touch 重启立项） | 触屏虚拟输入层：左摇杆→move_*、右摇杆→aim_*（增量，同手柄语义）、按钮→boost/fine_move/dash/parry；Input.action_press/release 注入（player 读取路径零改动）；触屏瞄准基准=可见世界中心（player.aim_point 分支）；设置「触控」开关（GameState.touch_controls profile 持久化 + `touch_controls_changed` 信号联动 Main）；新增 `test/virtual_controls_test.tscn` 26 断言 | ✅ 落地：虚拟层挂 Main（layer=1 半透明）、EntityManager/GameState 转发、simulate_touch/drag 测试口（绕过窗口→视口坐标变换，MetaHealthFX.set_test_state 同款先例）；测试 26 PASS；禁用时零注入（桌面零回归） |
 | S02 | P3 | `scripts/ui_chamfered_panel.gd` × `scripts/settings_ui.gd` | 修复（L17） | 设置页 modes 页溢出（详见 L17 行回填） | ✅ 见 L17 状态表 |
 | S03 | P3 | `test/encounter_flow_contract_test.gd` | 测试补齐 | 遭遇契约 + 互斥 + 小窗清理独立断言（详见 R09/2026-08-06#7 回填） | ✅ 13 断言全绿 |
-| S04 | P3 | `scripts/mothership.gd` | 架构收敛（A5） | HUD 引用 8 处重复 `get_first_node_in_group("hud")` → `_hud()` 延迟缓存（is_instance_valid 守卫）；welcome/pause_ui/事件类的低频组查找按 R12 先例保留（合理模式） | ✅ 行为零变化；mothership_summon/mothership_upgrade 0 FAIL |
+| S04 | P3 | `scripts/mothership.gd` | 架构收敛（A5） | HUD 引用 9 处重复 `get_first_node_in_group("hud")` → `_hud()` 延迟缓存（is_instance_valid 守卫）；welcome/pause_ui/事件类的低频组查找按 R12 先例保留（合理模式） | ✅ 行为零变化；mothership_summon/mothership_upgrade 0 FAIL |
 
 ## 修复起效记录（回填）
 
 - **改了什么**：`scripts/virtual_controls.gd`（新）+ `entity_manager.gd`/`game_state.gd`（virtual_controls 转发 + touch_controls 设置/信号/持久化）+ `main.gd`（创建虚拟层 + 开关联动）+ `player.gd`（触屏瞄准基准）+ `settings_ui.gd`（触控段 + L17 滚动/钳制）+ `ui_chamfered_panel.gd`（max_content_height）+ `translations.csv`（SET_TOUCH×3 双列）+ `test/virtual_controls_test.tscn/.gd`（新）+ `test/encounter_flow_contract_test.tscn/.gd`（新）。
 - **为什么起效**：S01 输入全走 Input action 注入——player 的 get_vector/is_action_pressed 读取路径零改动，桌面键鼠/手柄零回归（默认关）；触屏瞄准复用 H01 右摇杆虚拟准星增量语义；simulate_* 测试口避开 headless 窗口→视口坐标变换（30×）使断言稳定。S02 面板内容自适应钳制（默认 0=不限不波及他页）+ 滚动容器，面板不再超屏。S03 契约锚点（interval ≥20s）防未来把自动触发窗口调进测试时长。S04 延迟缓存与直接查找等价（hud 为 main.tscn 固定层）。
-- **如何验证**：五层门禁——gdformat --check（131 文件）/gdlint 全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；全量 **47** 断言场景 0 FAIL；L17 窗口实测（/tmp/ui_modes.png 1920×1080：面板 754px 居中、底部纯遮罩、滚动 548px 溢出）；virtual_controls_test 25 PASS、encounter_flow_contract_test 13 PASS。
+- **如何验证**：五层门禁——gdformat --check（131 文件）/gdlint 全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；全量 **47** 断言场景 0 FAIL；L17 窗口实测（/tmp/ui_modes.png 1920×1080：面板 754px 居中、底部纯遮罩、滚动 548px 溢出）；virtual_controls_test 26 PASS、encounter_flow_contract_test 13 PASS。
 
 ---
 

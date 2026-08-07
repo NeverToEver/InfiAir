@@ -28,8 +28,8 @@ repeating boilerplate and hunting every traversal site. This document:
 
 | Unit | Class | Pool | Registered by |
 | --- | --- | --- | --- |
-| Enemy (normal/elite/splitter/minion) | `scripts/enemy.gd` (Area2D) | `EnemyPool` (enemy.tscn only) | `bind_enemy` in `_ready` 239 / `unbind_enemy` in `_exit_tree` 466; pooling paths keep `register_enemy` 419 / `unregister_enemy` 439 |
-| Boss (4 rotating types) | `scripts/boss.gd` (Area2D, **not** an Enemy subclass) | none | `bind_enemy` in `_ready` 452 → `unbind_enemy` in `_exit_tree` 701 |
+| Enemy (normal/elite/splitter/minion) | `scripts/enemy.gd` (Area2D) | `EnemyPool` (enemy.tscn only) | `bind_enemy` in `_ready` 245 / `unbind_enemy` in `_exit_tree` 472; pooling paths keep `register_enemy` 425 / `unregister_enemy` 445 |
+| Boss (4 rotating types) | `scripts/boss.gd` (Area2D, **not** an Enemy subclass) | none | `bind_enemy` in `_ready` 459 → `unbind_enemy` in `_exit_tree` 718 |
 | TurretBattery (elite-turret event) | `scripts/turret_battery.gd` (Area2D) | none | `bind_enemy` in `_ready` 75 → `unbind_enemy` in `_exit_tree` 106 |
 | FormationCraft (formation event) | `scripts/formation_craft.gd` (Area2D) | none | `bind_enemy` in `_ready` 44 → `unbind_enemy` in `_exit_tree` 61 |
 

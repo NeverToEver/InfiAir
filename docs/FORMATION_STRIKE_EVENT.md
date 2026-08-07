@@ -19,7 +19,7 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 ## 2. State Machine
 
-- FORMATION_ENTER: descend `(x0, view.top - 120)` → `approach_y` (view.top + 260) (~1.5s); wedge offsets (lead centered, wingmen ±55px); `x0` central 40%–60%; `CommOverlay` → `FBQ_WARN`.
+- FORMATION_ENTER: descend `(x0, view.top - 120)` → `approach_y` (view.top + 260) (~1.5s); wedge offsets (lead centered, wingmen `±WING_STEP×step` — 内翼 ±55px / 外翼 ±110px 递增); `x0` central 40%–60%; `CommOverlay` → `FBQ_WARN`.
 - FORMATION_TURN: decelerate; heading +y → ±x (farther side) in `turn_time` 1.2s; offsets rotate with heading.
 - BOMBING_RUN: cross at `run_speed` (2.0/2.8/3.6s for 3/4/5); from turn end, craft drop staggered `bomb_interval` (lead first) × `bombs_per_craft` (0.4s gap), straight below.
 - FORMATION_EXIT: after bombing/crossing side edge, accelerate off-side (`EXIT_TIME` 1.5s) → IDLE + cooldown.
@@ -29,7 +29,7 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 - Craft `scripts/formation_craft.gd` (Area2D): `enemy` group + `GameState.enemies`; deregistered on death/exit.
 - Sprite `assets/sprites/enemy_ship_2.png`, scale 0.9.
-- HP = `craft_hp_base` × `GameState.enemy_hp_multiplier()`; kill score `craft_score` (× difficulty in `add_score`).
+- HP = `craft_hp_base` × `GameState.enemy_hp_multiplier()` × `GameState.enemy_hp_ramp()` (基准 × 难度档 × 对局进程 ramp,与普通敌机同口径); kill score `craft_score` (× difficulty in `add_score`).
 - No own AI: pos = anchor + rotated offset; rotation = heading + PI/2; `_process` drives.
 - Killed: `Explosion.spawn_at()` + SFX; bomb sequence skips destroyed craft.
 

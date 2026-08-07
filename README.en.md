@@ -160,7 +160,7 @@ The full 47-scene list (authoritative count in `docs/TESTING.md`), the `perf_ben
 <details>
 <summary>🗺️ Roadmap / 🤝 Contributing / 🙏 Acknowledgments / 📄 License</summary>
 
-**Roadmap**: content evolution (new buffs / new enemy & boss types / mobile controls) is deferred and needs re-proposal to restart; CI (GitHub Actions 5-layer gate) and dual-platform releases (GitHub Releases) are live. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
+**Roadmap**: content evolution (new buffs / new enemy & boss types) is deferred and needs re-proposal to restart; mobile controls were restarted and landed 2026-08-07 (virtual touch controls, see features above); CI (GitHub Actions 5-layer gate) and dual-platform releases (GitHub Releases) are live. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
 
 **Contributing**: issues and PRs are welcome! Before submitting: make sure all headless assertion scenes pass; follow the conventions in [AGENTS.md](./AGENTS.md); record direction-level decisions (new content, defer / restart) in [docs/ROADMAP.md](./docs/ROADMAP.md) first.
 

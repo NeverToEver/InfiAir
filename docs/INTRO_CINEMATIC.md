@@ -5,8 +5,8 @@ Single source of truth for the intro cinematic: storyboard, tech design, phases,
 ## 1. Goal & Trigger
 
 - 6-shot hard-SF intro (station explosion → pilot sprint → cockpit launch → eject → departure), sets up the backstory.
-- Trigger: start panel "New Game" (`StartPanel.new_game_chosen` → `Main._apply_new_run()`); seamless entry into the run after play or skip.
-- No trigger: "Continue Run", tutorial, test scenes (tests instance main.tscn as child; `get_tree().current_scene != Main` blocks it, keeping the 10 existing `_on_new_game_pressed()` callers unchanged).
+- Trigger: welcome "New Game" (`scripts/welcome.gd:392` `_on_new_game_pressed` → `_goto_main()` → Main `_apply_new_run()`); seamless entry into the run after play or skip.
+- No trigger: "Continue Run", tutorial, test scenes (tests instance main.tscn as child; `get_tree().current_scene != Main` blocks it).
 - Skip: Esc (via BackNavigator), any key or click → straight into run.
 - Implementation: fully procedural 2D (Polygon2D / Line2D / GPUParticles2D / Tween / Label); no video files, no new deps — per offline-assets policy.
 
@@ -45,7 +45,7 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 ### 3.2 Key decisions
 
 - **Timing**: no `await get_tree().create_timer()` coroutines (AGENTS.md: leaks on exit); one-shot `Timer` + signals chain shots; in-shot animation via `create_tween()` (node-bound) + `_process()`.
-- **Pause**: `get_tree().paused = true` during play (run frozen at frame 0); root `process_mode = Always`; start panel `_dismiss()` unpauses first, main re-pauses.
+- **Pause**: `get_tree().paused = true` during play (run frozen at frame 0); root `process_mode = Always`; `_play_intro_cinematic()` sets pause directly (StartPanel retired 2026-08-04, no `_dismiss()` path).
 - **Skip**: `skip()` idempotent — stop all Timers, emit `finished`, queue_free; main restores `paused = false` in `finished` callback. Skip and natural end share one exit; no duplicate cleanup.
 - **Esc routing**: BackNavigator `decide_back_action()` → `SKIP_INTRO`; `go_back()` → `Main._skip_intro()`; other keys/clicks via `_unhandled_input`. Start panel hidden + paused → existing branches can't misfire (before paused-IGNORE branch).
 - **Test gate**: `get_tree().current_scene == self` (normal launch only); tests call `Main._play_intro_cinematic()` directly.
@@ -62,13 +62,13 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
   - per-shot subtitle cards (zh+en); multi-layer parallax (shot1 starfield + FG debris, shot6 nebula); transitions (1→2, 4→5 white flash, rest blackout); handheld drift (low-freq sine + micro rotation)
   - per-shot extras: shot2 scan grid + node ripples; shot3 rotating light + visor highlight; shot4 HUD + top strip + knuckles; shot5 white-hot core + strobe dots + radial lines; shot6 anamorphic flare + fleet trails; optional title card (if added, total ≤25s — sync duration metric)
   - Perf: emitter ≤96, alive ≤400, ≤1 `_process`/shot zero-alloc, merge static elements, tween over per-frame code; sample draw calls/objects/frame time into §7.
-- **P4 (registered leftover)**: low-end retest + gamepad/mobile input check (manual); README line done (README.md:41); gamepad skip: only B=ui_cancel via BackNavigator, other buttons don't skip
+- **P4 (registered leftover)**: low-end retest + gamepad/mobile input check (manual); README line done (README.md:42); gamepad skip: only B=ui_cancel via BackNavigator, other buttons don't skip
 
 ## 5. Testing (P1 deliverable)
 
 `test/intro_cinematic_test.tscn` (headless, [PASS]/[FAIL]):
 
-1. `Main._play_intro_cinematic()`: node exists, tree paused, start panel hidden.
+1. `Main._play_intro_cinematic()`: node exists, tree paused.
 2. `skip()`: destroyed, `finished` emitted, tree unpaused, no Timer leftovers.
 3. Timeline: durations → very short (`_shot_durations` writable), advance 6 shots, assert per-shot create/destroy + final `finished`; real Timers, no mock.
 4. Gate: in test scene (`current_scene != Main`) `_on_new_game_pressed()` doesn't trigger.

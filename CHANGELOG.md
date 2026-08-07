@@ -25,8 +25,8 @@
 
 ### 搁置项重启（2026-08-07，`docs/archive/2026-08-07-deferred-restart-plan.md`）
 
-- **触屏虚拟操控（mobile touch 重启立项落地）**：新增 `VirtualControls` 触屏输入层——左摇杆移动 / 右摇杆瞄准（增量，同手柄语义）/ boost·fine·dash·parry 虚拟按钮，Input action 注入、键鼠/手柄零回归；设置页「触控」开关（profile 持久化 + `touch_controls_changed` 联动 Main）；player 触屏瞄准基准（无鼠标，可见世界中心）；`virtual_controls_test` 25 断言
-- **修复**：设置页「操作模式」页溢出 480px 容器（L17——ChamferedPanel 内容自适应高度钳制 + 内容页滚动容器，窗口实测面板 754px 不超屏、内容可滚动）；母舰 HUD 引用 8 处重复组查找收敛为延迟缓存（A5 残余收敛）
+- **触屏虚拟操控（mobile touch 重启立项落地）**：新增 `VirtualControls` 触屏输入层——左摇杆移动 / 右摇杆瞄准（增量，同手柄语义）/ boost·fine·dash·parry 虚拟按钮，Input action 注入、键鼠/手柄零回归；设置页「触控」开关（profile 持久化 + `touch_controls_changed` 联动 Main）；player 触屏瞄准基准（无鼠标，可见世界中心）；`virtual_controls_test` 26 断言
+- **修复**：设置页「操作模式」页溢出 480px 容器（L17——ChamferedPanel 内容自适应高度钳制 + 内容页滚动容器，窗口实测面板 754px 不超屏、内容可滚动）；母舰 HUD 引用 9 处重复组查找收敛为延迟缓存（A5 残余收敛）
 - **测试**：`encounter_flow_contract_test` 13 断言（遭遇自动触发短窗口契约 + 配置锚点 + 事件中禁蓄力 + 死亡清理召唤小窗独立断言，补 R 系列 #9 / 2026-08-06 #7 待办）
 - **验证**：gdformat / gdlint / import 0 error / quit-after 300 0 error / 47 断言场景 0 FAIL
 ### 文档重构（2026-08-07，去歪曲 + 减绕路，`docs/archive/2026-08-07-doc-refactor-plan.md`）

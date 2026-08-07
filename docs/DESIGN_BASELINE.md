@@ -102,17 +102,18 @@ Main (scripts/main.gd)
 ├─ Starfield / Camera2D ├─ Player ├─ Spawner
 ├─ BulletPool / EnemyPool
 ├─ HUD (layer=2) / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
-├─ Welcome (entry) / ExitConfirm ├─ BackNavigator
+├─ ExitConfirm ├─ BackNavigator ├─ MouseTrap
+├─ VirtualControls (runtime _ready, touch input layer, `GameState.touch_controls` switch)
 ├─ MetaHealthFX (runtime _ready, layer=1) ├─ AimFrameLayer (runtime _ready, world)
 ├─ IntroCinematic / ReturnCinematic (layer=35, on-demand)
 ├─ OrbitalStrike (layer=24) ├─ MothershipSummonWindow (layer=24) + WarpGate (world)
 └─ EliteTurretEvent / FormationStrikeEvent (registered to GameEventManager via `GameState.events.register_encounter()`, 2026-08-05)
 ```
-**Convention**: all dynamic run entities under Main (clear logic + test traversal). Same-name behavior scripts in `scripts/`.
+**Convention**: all dynamic run entities under Main (clear logic + test traversal). Same-name behavior scripts in `scripts/`. (Entry scene `scenes/welcome.tscn` is separate, not part of the Main tree — 2026-08-04 accounts.)
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
+- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref/virtual_controls` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
 - Hot paths: no per-frame `get_nodes_in_group`; use registries.
 
 ### 2.4 Pools & Registries
@@ -228,7 +229,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 | --- | --- | --- |
 | A3 | Boss attack match → registries; per-type → data-driven (2026-08-03) | ✅ 3 registries + param tables; new type = registration (O) |
 | A4 | OCP: player.gd buffs → declarative effect table (2026-08-03) | ✅ `BUFF_EFFECTS` (pow/cap/bool); new numeric buff = 1 row |
-| A5 | DIP: Boss/events → Spawner via injection, not group lookup | ✅ injection landed (`bdb0274`); **2026-08-07 residual convergence**: mothership HUD refs → `_hud()` lazy cache (8 sites); remaining group lookups (welcome/pause_ui/event classes) judged reasonable pattern (R12 precedent), behavior zero-change |
+| A5 | DIP: Boss/events → Spawner via injection, not group lookup | ✅ injection landed (`bdb0274`); **2026-08-07 residual convergence**: mothership HUD refs → `_hud()` lazy cache (9 sites); remaining group lookups (welcome/pause_ui/event classes) judged reasonable pattern (R12 precedent), behavior zero-change |
 | A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ✅ `PlayerVisuals` extracted 2026-08-03 (`scripts/player_visuals.gd`, RefCounted composition): tail/afterimage pool/body tint/hitbox dot/parry visuals/graze flash delegated; `spawn_afterimage`/`engine_tint` public API kept; ~120 lines out of player.gd |
 
 ### 7.2 Style/Perf

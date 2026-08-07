@@ -70,7 +70,7 @@ Exit from welcome: run save **kept**; "continue run" available next start.
 | Gamepad | B / Circle (joy button 1) | `ui_cancel` (built-in default) | same; A = `ui_accept` confirm; d-pad/stick via GUI focus nav |
 | Gamepad | left stick | `move_*` | `GameState._bind_joypad_defaults()` runtime InputMap assembly (keyboard-only in project.godot, P0-1) |
 | Gamepad | right stick | `aim_x`/`aim_y` (virtual cursor, `player.aim_point`) | sensitivity/deadzone in Settings "Gamepad" (`joy_aim_speed`/`joy_deadzone`, profile) |
-| Gamepad | A=dash / RB=boost / LB=fine / X=dock / Y=homecoming / L3=buff bar / R3=give up / A=restart | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`restart` | runtime assembly; B yields to `ui_cancel` |
+| Gamepad | A=dash / RB=boost / LB=fine / X=dock / Y=homecoming / L3=buff bar / R3=give up / LT=parry / A=restart | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`parry`/`restart` | runtime assembly; B yields to `ui_cancel` |
 | Android | system back | `NOTIFICATION_WM_GO_BACK_REQUEST` | `BackNavigator._notification` → `go_back()` |
 
 In confirm: Enter/gamepad A triggers focused button (default focus = "Cancel", safe side); Esc/gamepad B = cancel.
@@ -78,7 +78,7 @@ In confirm: Enter/gamepad A triggers focused button (default focus = "Cancel", s
 ## 4. ExitConfirm Component
 
 - Mounted: `scenes/main.tscn`, CanvasLayer layer=40 (above all UI), `process_mode=Always`.
-- API: `show_confirm(battle: bool = false)` (normal/battle; battle uses `UITheme.DANGER` red warning); `cancel()` (Esc routed by BackNavigator); `_execute_exit_cleanup(battle)` (directly callable in tests for side-effect asserts).
+- API: `show_confirm(battle: bool = false)` (normal/battle; battle uses `UITheme.DANGER` red warning); `cancel()` (Esc routed by BackNavigator); `execute_exit_cleanup(battle)` (public — directly callable in tests for side-effect asserts; `_execute_exit_cleanup` is the private implementation, A7 public port).
 - Layout: `ChamferedPanel` + title + message + "Cancel" (default focus) / "Confirm exit" (danger); buttons via `UITheme.make_button`; text `EXIT_*` keys, refreshes on `locale_changed`.
 - Reuse: any page needing confirm-then-exit calls `show_confirm()`; cleanup/transition/quit fully encapsulated.
 
