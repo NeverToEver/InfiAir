@@ -25,8 +25,8 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 24 | `enemies.hp_ramp_factor` | `0.25` |
-| 25 | `enemies.damage_ramp_factor` | `0.20` |
+| 37 | `enemies.hp_ramp_factor` | `0.25` |
+| 38 | `enemies.damage_ramp_factor` | `0.20` |
 
 ### `scripts/boss.gd`
 

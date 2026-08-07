@@ -6,20 +6,33 @@ extends RefCounted
 ##
 ## 既有约定不变：热路径在实体 _ready 一次性读入并缓存，禁止每帧 cfg 查询；
 ## 缺失/损坏 JSON 回退脚本默认值（脚本内同名 var 是回退默认值，需与 JSON 一致）。
+## P1-1（2026-08-07）：点路径解析核心迁移 InfiAir.Core.Config.PathResolver（C# 纯函数，
+## 见 csharp/core/Config/PathResolver.cs）——load() 装载 C# 侧配置树、cfg() 转发解析；
+## 公开签名与语义不变（469 处调用点零改动，BALANCE_MAP M8 零影响）。
 
 var _balance: Dictionary = {}
 ## G09：ramp 因子 load() 时缓存一次——热路径（每发敌弹创建）免 path.split/字典遍历 JSON 查询
 var _hp_ramp_factor := 0.25
 var _damage_ramp_factor := 0.20
+## P1-1：C# 点路径解析壳（PathResolverInterop，load 时 SetData 一次）
+var _interop: Variant = null
+
+
+func _init() -> void:
+	_interop = load("res://csharp/godot/PathResolverInterop.cs").new()
 
 
 func load(path: String) -> void:
 	_balance = {}
 	if not FileAccess.file_exists(path):
+		# 缺失：保持原语义（ramp 缓存不刷新），但 C# 壳须同步为空树
+		_interop.call("SetData", _balance)
 		return
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if parsed is Dictionary:
 		_balance = parsed
+	# P1-1：配置树同步到 C# 解析壳（损坏/缺失时为空字典，全部回退默认）
+	_interop.call("SetData", _balance)
 	# G09：缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
 	_hp_ramp_factor = float(cfg("enemies.hp_ramp_factor", 0.25))
 	_damage_ramp_factor = float(cfg("enemies.damage_ramp_factor", 0.20))
@@ -31,29 +44,9 @@ func is_empty() -> bool:
 
 
 ## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。
+## P1-1：语义（数值宽容/容器拷贝/typeof 相等）由 PathResolver 保证，本壳只做转发。
 func cfg(path: String, default: Variant) -> Variant:
-	var node: Variant = _balance
-	for key in path.split("."):
-		if node is Dictionary and node.has(key):
-			node = node[key]
-		else:
-			return default
-	# 数值宽容：JSON 整数/浮点互通；G029 按 default 类型显式转换——JSON float 赋 typed int
-	# 字段时不再漂移（对齐 C18 显式 int() 模式）
-	if default is int or default is float:
-		if node is int or node is float:
-			return int(node) if default is int else float(node)
-		return default
-	# A 审计：Array/Dictionary 返回可变引用——调用方若误写会污染 _balance 配置真值。
-	# 返回浅拷贝（单层 duplicate：嵌套 Dictionary/Array 仍共享——2026-08-05 P4 注释修正，
-	# 现有调用方均按只读消费嵌套结构，深拷贝分配成本无必要）
-	if node is Array and default is Array:
-		return (node as Array).duplicate()
-	if node is Dictionary and default is Dictionary:
-		return (node as Dictionary).duplicate()
-	if typeof(node) == typeof(default):
-		return node
-	return default
+	return _interop.call("Resolve", path, default)
 
 
 ## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
