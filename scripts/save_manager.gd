@@ -1,75 +1,52 @@
 class_name SaveManager
 extends RefCounted
-## A2 阶段 2：对局存档 / 局外档案的文件 IO 剥离（docs/AUDIT_VAULT.md A2）。
-## 只做文件读写 + JSON 解析 + 损坏隔离；数据模型（序列化字段组装/回读）仍由 GameState 负责。
-## 行为与原 game_state.gd 逐字节等价：损坏文件隔离为 <path>.corrupt 并置 last_was_corrupt。
+## A2 阶段 2：对局存档 / 局外档案的文件 IO（docs/AUDIT_VAULT.md A2）。
+## P0-1（2026-08-07）：原子写 / 损坏隔离 / JSON 序列化迁移 InfiAir.Core.Storage.SaveStore
+## （C#，见 csharp/core/Storage/SaveStore.cs + csharp/godot/SaveStoreInterop.cs），
+## 本文件为薄壳转发——公开 API 与行为等价不变（损坏隔离 <path>.corrupt + last_was_corrupt）。
+## 数据模型（序列化字段组装/回读）仍由 GameState 负责。
 
 ## 最近一次 load 是否因损坏而隔离（GameState 据此设置 save_corrupt / profile_corrupt）
 var last_was_corrupt: bool = false
 
+var _interop: Variant = null
+
+
+func _init() -> void:
+	_interop = load("res://csharp/godot/SaveStoreInterop.cs").new()
+
 
 func exists(path: String) -> bool:
-	return FileAccess.file_exists(path)
+	return bool(_interop.call("Exists", path))
 
 
 func delete(path: String) -> void:
-	if exists(path):
-		DirAccess.remove_absolute(path)
+	_interop.call("Delete", path)
 
 
-## 写 JSON 文件：先写临时文件再替换正本（E12 原子写——避免写入中途崩溃产生截断 JSON 丢进度）。
-## 打开失败 push_warning 并返回 false（对齐原 save_run/save_profile 行为）。
-## A 审计：原实现先删正本再 rename，rename 失败时正本消失 + tmp 孤立 = 数据丢失。
-## 改为先尝试原子 rename（多数平台支持覆盖已存在文件），仅当首次失败（目标已存在
-## 且平台不支持原子覆盖）才删后重试——此时正本已删但 tmp 仍在，与原实现风险窗口等价。
+## 写 JSON 文件：C# SaveStore 原子写（临时文件 + rename 回退，E12 审计口径：
+## 先尝试原子 rename 覆盖，首次失败才删正本重试——回退路径才触发风险窗口）。
+## 打开/写入失败 push_warning 并返回 false（对齐原 save_run/save_profile 行为）。
 func save(path: String, data: Dictionary) -> bool:
-	var tmp_path := path + ".tmp"
-	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
-	if f == null:
-		push_warning("InfiAir: 无法写入 %s（错误 %d）" % [path, FileAccess.get_open_error()])
-		return false
-	f.store_string(JSON.stringify(data))
-	f.close()
-	# 原子替换优先：先尝试 rename（多数平台支持覆盖已存在文件），保留正本直至替换成功。
-	# 首次失败时正本仍在——此时删后重试，风险窗口与原实现等价但仅在回退路径才触发。
-	var err := DirAccess.rename_absolute(tmp_path, path)
-	if err != OK and FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
-		err = DirAccess.rename_absolute(tmp_path, path)
-	if err != OK:
-		push_warning("InfiAir: 无法替换 %s（错误 %d）" % [path, err])
-		return false
-	return true
+	return bool(_interop.call("Save", path, data))
 
 
 ## 读 JSON 文件：不存在/读取失败返回 {}（不置损坏）；损坏则隔离备份并置 last_was_corrupt。
 func load(path: String) -> Dictionary:
 	last_was_corrupt = false
-	if not exists(path):
-		return {}
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return {}
-	var text := f.get_as_text()
-	f.close()
-	# 用 JSON 实例解析（parse_string 会把损坏内容打成 ERROR 级日志，噪音大）
-	var json := JSON.new()
-	if json.parse(text) == OK and json.data is Dictionary:
-		return json.data
-	# 损坏存档：隔离备份后按无存档处理（否则「继续对局」每次点了都无反应，形成死路径）
-	quarantine(path)
-	last_was_corrupt = true
+	var res: Variant = _interop.call("Load", path)
+	if res is Dictionary:
+		if res.get("corrupt") == true:
+			last_was_corrupt = true
+		var data: Variant = res.get("data")
+		if data is Dictionary:
+			return data
 	return {}
 
 
 ## 损坏文件隔离：重命名为 <path>.corrupt（已有备份则先删），给玩家留排查余地
 func quarantine(path: String) -> void:
-	var backup := path + ".corrupt"
-	if FileAccess.file_exists(backup):
-		DirAccess.remove_absolute(backup)
-	var err := DirAccess.rename_absolute(path, backup)
-	if err != OK:
-		push_warning("InfiAir: 无法备份损坏文件 %s（错误 %d）" % [path, err])
+	_interop.call("Quarantine", path)
 
 
 ## 存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
