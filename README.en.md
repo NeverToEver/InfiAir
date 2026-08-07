@@ -9,8 +9,8 @@
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/Release-v3.27-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-45%20scenes%20passed-brightgreen)](#-for-developers)
+[![Release](https://img.shields.io/badge/Release-v3.28-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Tests](https://img.shields.io/badge/Tests-47%20scenes%20passed-brightgreen)](#-for-developers)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -35,6 +35,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 - 🛰️ **Mothership weapons platform** — charge-up summon → auto-docking → piloted stay (WASD + twin turrets + missiles) → tractor-beam recovery
 - 💥 **Random event system** — elite turret strikes, formation bombing runs, and fog interference events (ghost squadrons / mental confusion / bullet malfunctions / directional jolts)
 - 🏠 **Mid-run base refit** — repair / resupply / talent routes / mission rewards, then back to the same battle
+- 📱 **Touch controls** — virtual sticks (move / aim) + boost / fine-move / dash / parry buttons; opt-in via Settings, mouse/keyboard/gamepad unaffected
 
 **Audiovisuals**
 
@@ -123,7 +124,7 @@ main.tscn (run orchestration)
 </details>
 
 <details>
-<summary>✅ Testing (45 assertion scenes)</summary>
+<summary>✅ Testing (47 assertion scenes)</summary>
 
 Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
 
@@ -133,7 +134,7 @@ godot --headless --path . --quit-after 300  # runtime smoke
 godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (self-checked assertions)
 ```
 
-The full 45-scene list, the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [docs/TESTING.md](./docs/TESTING.md).
+The full 47-scene list (authoritative count in `docs/TESTING.md`), the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [docs/TESTING.md](./docs/TESTING.md).
 
 </details>
 

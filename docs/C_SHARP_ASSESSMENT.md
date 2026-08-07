@@ -12,7 +12,7 @@
 | --- | --- |
 | 性能收益 | ≈ 0。perf_bench 实测极限压力下平均帧耗时 **1.011ms（等效 989 FPS）**，脚本层远未到瓶颈 |
 | 平台推力 | 无。发布目标仅 Linux/Windows；无 Web（C# 不支持 Web 导出的最大限制因此不构成问题，但也没有引入的外部理由） |
-| 工程化收益 | 有限。现有 5 层门禁（gdformat + gdlint + warning-as-error + 冒烟 + 45 断言场景）已覆盖 C# 静态类型可防的大部分错误类别 |
+| 工程化收益 | 有限。现有 5 层门禁（gdformat + gdlint + warning-as-error + 冒烟 + 47 断言场景，权威计数见 `docs/TESTING.md`）已覆盖 C# 静态类型可防的大部分错误类别 |
 | 引入成本 | 确定且横跨三处：CI 重构（换 .NET 版引擎 + dotnet build）、发布链路重构（mono 模板 + dotnet publish）、本地工具链（需安装 .NET SDK、更换编辑器为 .NET 版）；另加双语言长期维护 |
 | 架构冲击 | GDScript 与 C# **不可互相继承**（官方限制），现有 `class_name` 体系（Bullet/Enemy/Boss 等）若部分迁移会产生继承断层；热路径跨语言调用为动态派发 + marshalling，有额外开销 |
 | 最终决策 | **不引入 C#** |
@@ -62,7 +62,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 
 ### 3.3 构建、CI 与发布链路
 
-- **CI**（`.github/workflows/ci.yml`）：官方 Godot 4.6.2 **标准版** headless（非 .NET 版）→ gdlint/gdformat 门禁 → 无头导入（warning-as-error）→ 主场景冒烟 → 45 断言场景全量 + 编译探针。
+- **CI**（`.github/workflows/ci.yml`）：官方 Godot 4.6.2 **标准版** headless（非 .NET 版）→ gdlint/gdformat 门禁 → 无头导入（warning-as-error）→ 主场景冒烟 → 47 断言场景全量 + 编译探针。
 - **发布**（`.github/workflows/release.yml` + `release.sh`）：标准版引擎 + 标准导出模板（`Godot_v4.6.2-stable_export_templates.tpz`）→ Linux/Windows 双平台包 → GitHub Release。CI/CD 政策：不引入第三方依赖，仅官方 checkout action + Godot 二进制/模板。
 - **本地**：标准版 4.6.2 引擎（`run.sh` 自动定位）；**未安装 .NET SDK**。
 
@@ -85,7 +85,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 - C# 静态类型 + 编译期检查确实优于 GDScript 的动态检查，但项目已有替代防线：
   - `project.godot` 将 `unsafe_*`/`untyped_*`/`shadowed_*` 等警告设为 error 级（warning-as-error 门禁）；
   - `gdlint` 规则门禁 + `gdformat` 格式门禁；
-  - 45 断言场景回归 + 编译探针覆盖 test/ 盲区。
+  - 47 断言场景回归 + 编译探针覆盖 test/ 盲区。
 - 在此门禁下，GDScript 的类型错误在 CI 即暴露；C# 带来的增量防护有限。
 - **工程化收益评估：低**（对既有稳定代码库）。
 
@@ -126,7 +126,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 
 ### 5.4 测试与门禁（中）
 
-- 45 断言场景 + autoplay + perf_bench 全为 GDScript，CI 中可继续跑；但任何 C# 代码新增 `dotnet build` 前置步骤，测试矩阵复杂度上升。
+- 47 断言场景 + autoplay + perf_bench 全为 GDScript，CI 中可继续跑；但任何 C# 代码新增 `dotnet build` 前置步骤，测试矩阵复杂度上升。
 - 混编后"哪些逻辑在 GDScript、哪些在 C#"本身成为需要持续维护的架构文档负担（对应现有 `.agents/*` 约定体系需扩写）。
 
 ### 5.5 长期维护成本（高、确定性最高的一项）
@@ -164,7 +164,7 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 2. **无平台推力**：C# 的典型引入动因是 Web 之外的高性能/平台需求；本项目仅桌面双平台，移动端已 cut，Web 无计划（§3.4）。
 3. **时机错误**：项目刚完成技术债清零并固化 5 层门禁与 CI/CD（§3.3），处于稳定期；引入 C# 等于主动拆掉刚刚稳定的构建/发布链路。
 4. **架构冲击不可小觑**：跨语言继承禁止 + 热路径动态派发（§5.3），与已优化的对象池/弹幕体系直接冲突。
-5. **既有工程化保障足够**：warning-as-error + gdlint + 45 断言场景已把 GDScript 的短板（弱类型）压缩到低风险区间（§4.2）。
+5. **既有工程化保障足够**：warning-as-error + gdlint + 47 断言场景已把 GDScript 的短板（弱类型）压缩到低风险区间（§4.2）。
 
 ### 附带建议
 

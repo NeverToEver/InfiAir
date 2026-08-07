@@ -800,6 +800,11 @@ func aim_point() -> Vector2:
 	if frame != _aim_smoothed_frame:  # 每渲染帧只推一次（准星/框层/开火多处取值）
 		_aim_smoothed_frame = frame
 		var raw := get_global_mouse_position()
+		# mobile touch（2026-08-07）：触屏模式无鼠标——瞄准基准用可见世界中心，
+		# 右摇杆增量（含虚拟摇杆注入的 aim_*）偏移，与手柄虚拟准星同语义
+		var vc: VirtualControls = GameState.virtual_controls
+		if vc != null and vc.is_enabled():
+			raw = vc.base_aim_position()
 		# H01（健壮性审核）：右摇杆虚拟准星——四向独立动作（get_vector 语义：差值驱动）；
 		# 摇杆增量驱动瞄准点（键鼠不受影响；松开即停）
 		var joy := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")

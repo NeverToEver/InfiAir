@@ -2,7 +2,11 @@
 
 本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。版本 3.23 无发布记录（git 历史未见对应 tag/条目，疑似有意跳号，2026-08-06 审计登记）。
 
-## [3.28] - 2026-08-06
+## [3.28] - 2026-08-07
+
+> **发布状态（2026-08-07 登记）：暂缓发布。** 作者登记本版本内容尚未完善（缺项未补齐），
+> v3.28 未打 tag、未推送 GitHub Release；已构建产物留存 `builds/release/`（git 忽略不入库），
+> 环境适配等工作树改动未提交。待内容补齐后重新评估版本号再发布。
 
 ### 修复（2026-08-06 全项目审计，`docs/archive/2026-08-06-audit-report.md`）
 
@@ -11,6 +15,28 @@
 - **低危批量**：give_up 与 dock 同帧完成死亡小窗冻结、遭遇事件进行中禁蓄力召唤母舰、加特林弹仅视觉缩放（不缩碰撞形状）、护盾吸收计入 A16 单帧守卫、Boss 逃跑警告期上飘三型补齐、打击航母悬停/炮塔行锚点加 view 基线、预告线视觉寿命读配置、精英炮塔弹药序列条目级判型、UserDB 条目级守卫与删号清理 `.corrupt`、`E2_AIM` 对齐 G3 telegraph 门限（0.3→0.35s）、里程碑推进改 while 与读档口径一致等
 - **测试规范**：键位/profile/用户表快照还原补齐；`boss_phase_test` 生成失败 null 守卫防仓库 balance.json 留损坏态；`_milestone_count` 直写改公开 setter
 - **验证**：gdformat / gdlint / import 0 error / 45 断言场景全绿
+
+### 环境适配（2026-08-07，启动脚本引擎探测通用化，不写死个人路径）
+
+- **引擎探测链增加 `godot4` 候选**：`run.sh`/`run.command`/`run.bat` 三个启动器 + `release.sh` 的引擎探测统一扩展——PATH 内 `godot` 之外兼容 `godot4` 命名（多数 Linux 发行版仓库包即以此为名），纯 `command -v`/`where` 探测，无任何个人/本机路径硬编码，其他机器同样生效
+- **适配背景**：本机仅安装 `godot4`（4.6.2 stable，`/usr/local/bin`），原 `run.sh` 只认 `godot` 直接报「未找到引擎」；此改动后 `./run.sh` 开箱即用，`release.sh` 本机发布链同样打通
+- **文档同步**：`.agents/shell-scripts.md` 引擎候选口径更新（`godot`/`godot4` → `~/.local/bin/godot` → macOS `/Applications`）
+- 验证：`bash -n` 三脚本零语法错误；`./run.sh --headless --quit-after 300` 经 godot4 正常启动退出 0
+
+### 搁置项重启（2026-08-07，`docs/archive/2026-08-07-deferred-restart-plan.md`）
+
+- **触屏虚拟操控（mobile touch 重启立项落地）**：新增 `VirtualControls` 触屏输入层——左摇杆移动 / 右摇杆瞄准（增量，同手柄语义）/ boost·fine·dash·parry 虚拟按钮，Input action 注入、键鼠/手柄零回归；设置页「触控」开关（profile 持久化 + `touch_controls_changed` 联动 Main）；player 触屏瞄准基准（无鼠标，可见世界中心）；`virtual_controls_test` 25 断言
+- **修复**：设置页「操作模式」页溢出 480px 容器（L17——ChamferedPanel 内容自适应高度钳制 + 内容页滚动容器，窗口实测面板 754px 不超屏、内容可滚动）；母舰 HUD 引用 8 处重复组查找收敛为延迟缓存（A5 残余收敛）
+- **测试**：`encounter_flow_contract_test` 13 断言（遭遇自动触发短窗口契约 + 配置锚点 + 事件中禁蓄力 + 死亡清理召唤小窗独立断言，补 R 系列 #9 / 2026-08-06 #7 待办）
+- **验证**：gdformat / gdlint / import 0 error / quit-after 300 0 error / 47 断言场景 0 FAIL
+### 文档重构（2026-08-07，去歪曲 + 减绕路，`docs/archive/2026-08-07-doc-refactor-plan.md`）
+
+- **计数单一事实源**：TESTING.md 新增「Scene Counts」动态权威计数（`ls test/*_test.tscn | wc -l` − 1）；doc-sync 固化「其他文档禁止硬编码断言数」规则；全仓当前流程描述统一 47（ci.yml 步骤名去硬编码、CONTRIBUTING/C_SHARP_ASSESSMENT/ROADMAP/DESIGN_BASELINE/README 徽章 v3.28 + 47 scenes）
+- **状态回填**：AUDIT_VAULT A5/A8 状态表 ✅（与 DESIGN_BASELINE 同步）+ A4/A5/A8 详情划线 + R 复核 #1/#10、C34、L-P3 清单收口
+- **知识补齐**：TESTING.md「Headless Test Environment Notes」——输入注入坐标变换陷阱（实测 30×）/ gdtoolkit PEP 668 / translations.csv 重导 .translation / 公开测试口规范；gdscript-lifecycle 补「Tests drive public test ports」约定
+- **引用修正**：README 徽章 v3.28、DESIGN_BASELINE/ARCHITECTURE 服务 6→7（补 UserDB）、节点树注册口径（GameEventManager）、注释路径补 archive/ 前缀 ×2、审计编号修正（enemy_pool R04 / boss R06/R12 / back_navigator R12）
+- **验证**：残留扫描 0 命中（45 计数/Six services/registered to spawner/缺前缀）+ 五层门禁全绿（47 断言场景 0 FAIL）；零逻辑改动
+
 
 ## [3.27] - 2026-08-06
 

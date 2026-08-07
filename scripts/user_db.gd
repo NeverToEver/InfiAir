@@ -1,6 +1,6 @@
 class_name UserDB
 extends RefCounted
-## 本地用户数据库（2026-08-04 账户系统；规格 docs/2026-08-04-local-accounts-plan.md + PORTING_PARITY 附录 B）。
+## 本地用户数据库（2026-08-04 账户系统；规格 docs/archive/2026-08-04-local-accounts-plan.md + PORTING_PARITY 附录 B）。
 ## 单文件 user://users.json 共存用户表与本地排行榜；密码派生为自建 PBKDF2 变体
 ## （盐 16B hex + 迭代数随用户记录存档，注册时确定——测试可降档加速；2026-08-06 审计：
 ## 实现为「盐||块号拼接进异或链」的双块结构，非标准 PBKDF2-HMAC-SHA256，不与标准工具

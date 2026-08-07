@@ -90,6 +90,8 @@ var _sfx_player := SfxPlayer.new()
 ## 实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）
 signal entity_registered(node: Node)
 signal entity_unregistered(node: Node)
+## 触屏虚拟控件开关变化（mobile touch；Main 联动 VirtualControls 启用）
+signal touch_controls_changed(enabled: bool)
 
 var _registry := EntityManager.new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
@@ -98,7 +100,7 @@ var _fog_events := FogEventManager.new()
 ## 统一游戏事件管理器（docs/EVENT_MANAGER.md）：批量管理全部随机游戏事件（迷雾 +
 ## 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd
 var _events := GameEventManager.new()
-## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/2026-08-04-local-accounts-plan.md）
+## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/archive/2026-08-04-local-accounts-plan.md）
 var _user_db := UserDB.new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array[int] = MILESTONE_BASE.duplicate()
@@ -335,6 +337,8 @@ var difficulty: StringName = &"medium"
 ## 设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）
 var ctrl_toggle_mode: bool = false
 var shift_toggle_mode: bool = false
+## 触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）
+var touch_controls: bool = false
 ## 视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）
 var view_zoom: StringName = &"small"
 ## 窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）
@@ -435,6 +439,13 @@ var aim_frame_layer: AimFrameLayer = null:
 		return _registry.aim_frame_layer
 	set(value):
 		_registry.aim_frame_layer = value
+## 触屏虚拟输入层实例（mobile touch，由 main.gd 在 _ready 时创建并登记；
+## player.aim_point 查询触屏瞄准基准）
+var virtual_controls: VirtualControls = null:
+	get:
+		return _registry.virtual_controls
+	set(value):
+		_registry.virtual_controls = value
 ## 迷雾事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
 var fog_events: FogEventManager:
 	get:
@@ -754,6 +765,13 @@ func set_ctrl_toggle_mode(enabled: bool) -> void:
 func set_shift_toggle_mode(enabled: bool) -> void:
 	shift_toggle_mode = enabled
 	save_profile()
+
+
+## 触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）
+func set_touch_controls(enabled: bool) -> void:
+	touch_controls = enabled
+	save_profile()
+	touch_controls_changed.emit(enabled)
 
 
 # ---------------- 视角缩放 ----------------
@@ -1548,6 +1566,7 @@ func save_run(fuel: float, elapsed: float) -> void:
 		"locked_routes": locked_routes.duplicate(),
 		"ctrl_toggle_mode": ctrl_toggle_mode,
 		"shift_toggle_mode": shift_toggle_mode,
+		"touch_controls": touch_controls,
 	}
 	if current_user != "":
 		data["username"] = current_user
@@ -1660,6 +1679,7 @@ func apply_run_save(data: Dictionary) -> void:
 	# 设置项随存档往返（旧存档无字段时保留当前值）
 	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
 	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
+	touch_controls = save_bool(data.get("touch_controls", touch_controls), touch_controls)
 	# 里程碑曲线：恢复到大于当前分数的第一档
 	# A 审计：原 while 无上界——若 milestone_base 被手改为非单调或 cycle_mult 极小
 	# （钳 ≥0.01），阈值增量收敛至有限值，大分数时 while 永不退出（挂死）。

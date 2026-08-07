@@ -6,9 +6,11 @@
 set -e
 cd "$(dirname "$0")" || exit 1
 
-# 引擎探测：PATH → ~/.local/bin → macOS /Applications
+# 引擎探测：PATH（godot / godot4）→ ~/.local/bin → macOS /Applications
 if command -v godot >/dev/null 2>&1; then
     GODOT="godot"
+elif command -v godot4 >/dev/null 2>&1; then
+    GODOT="godot4"
 elif [ -x "$HOME/.local/bin/godot" ]; then
     GODOT="$HOME/.local/bin/godot"
 elif [ -d "/Applications/Godot.app" ]; then
@@ -16,7 +18,7 @@ elif [ -d "/Applications/Godot.app" ]; then
 else
     echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，标准版即可）。"
     echo "          下载：https://godotengine.org/download"
-    echo "          或将 godot 加入 PATH / 放置到 ~/.local/bin/godot"
+    echo "          或将 godot / godot4 加入 PATH / 放置到 ~/.local/bin/godot"
     exit 1
 fi
 

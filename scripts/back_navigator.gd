@@ -16,7 +16,7 @@ enum BackAction {
 	TO_MAIN_MENU,  # 结算页 → 返回主界面
 	RESUME_GAME,  # 暂停中 → 继续游戏
 	OPEN_PAUSE,  # 战斗中 → 打开暂停（返回上一级）
-	# R07（M07 落地，2026-08-05）：CONFIRM_EXIT 已删——决策表无任何状态返回该动作，
+	# R12（M07 落地，2026-08-05）：CONFIRM_EXIT 已删——决策表无任何状态返回该动作，
 	# 顶层退出确认由 welcome 场景自处理（EXIT_FLOW.md 同步）
 }
 

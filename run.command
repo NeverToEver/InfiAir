@@ -8,7 +8,7 @@
 # 若提示"无法验证开发者"：系统设置 → 隐私与安全性 → 仍要打开
 cd "$(dirname "$0")" || exit 1
 
-# 引擎候选：PATH → ~/.local/bin → /Applications → ~/Applications（含 Godot*.app 变体名）
+# 引擎候选：PATH（godot / godot4）→ ~/.local/bin → /Applications → ~/Applications（含 Godot*.app 变体名）
 CANDIDATES=()
 add_candidate() {
     local c
@@ -18,6 +18,7 @@ add_candidate() {
     CANDIDATES+=("$1")
 }
 if command -v godot >/dev/null 2>&1; then add_candidate "godot"; fi
+if command -v godot4 >/dev/null 2>&1; then add_candidate "godot4"; fi
 [ -x "$HOME/.local/bin/godot" ] && add_candidate "$HOME/.local/bin/godot"
 for app in "/Applications/Godot.app" "$HOME/Applications/Godot.app" \
     /Applications/Godot*.app "$HOME"/Applications/Godot*.app; do

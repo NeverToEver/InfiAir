@@ -119,7 +119,7 @@
   - **已完成子项（2026-07-31 落地）**：
     - A4a 敌机移动策略抽类（`cea806e`）：`EnemyMoveStrategy` 基类 + 8 策略子类，`enemy.gd` `_physics_process` 的策略 match 委托给 `_strategy.update()`；`_make_strategy()` 仅余工厂 match（构造分发，可接受）。
     - A4b spawner 事件触发基类（`955f8a5`）：`ScheduledEventTrigger` 统一精英/编队触发策略，原 spawner 两事件内联分支委托。
-  - **未完成子项**：Boss 攻击 match（现 `BossAttacks.execute()` 仍为 10 分支 match，见 A3 订正）与按机型分支（BossMovement/EnrageSequence/Boss 共残留 7 处）；`player.gd` Buff 效果仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, GameState.buff_count())` 族），未改声明式效果表。
+  - **未完成子项**：Boss 攻击 match（现 `BossAttacks.execute()` 仍为 10 分支 match，见 A3 订正）与按机型分支（BossMovement/EnrageSequence/Boss 共残留 7 处）；`player.gd` Buff 效果仍为函数式内联分支（`_refresh_buff_factors` + `pow(因子, GameState.buff_count())` 族），未改声明式效果表。**✅ 2026-08-03 全部收敛**：Boss 攻击/机型分支随 A3 注册表收敛（10 分支 match 与 7 处机型分支消除，见 :108）；Player buff 声明式效果表 `BUFF_EFFECTS` 落地（见 :123）。
   - **✅ Player buff 声明式效果表（2026-08-03）**：`player.gd` 新增 `BUFF_EFFECTS` 声明式效果表（buff id → 效果定义：kind=pow/cap/bool + cfg 数值键 + 回退默认值），`_refresh_buff_factors` 遍历表批量缓存（原 7 个分散因子变量与 7 行 cfg 分支删除）；求值统一走 `_buff_scale`（pow 乘算）/`_buff_cap`（堆叠截断）/`_buff_enabled`（布尔启用），`_fire` 的 spread/pierce/explosive 同步表化。**新增数值型 buff 只需表加一行 + 使用处一行求值调用**，不再改 `_refresh_buff_factors` 或既有公式；数值来源保持 balance.json 语义（cfg 路径 + 脚本回退默认值，AGENTS 约定不变）。
   - **如何验证（2026-08-03）**：新增 `buff_effects_test` 38 断言（表键集覆盖 8 项 player 侧 buff、pow/cap 的 cfg 键存在于 balance.json、pow/cap/bool 三类求值与重构前公式逐点一致、穿透/溅射/齐射行为断言）；buff33/buff_visuals/smoke 等 0 FAIL；全量 37 断言场景 0 FAIL。**范围说明**：`ARMOR_MULT`/`EVASION_CHANCE`/`REGEN_PER_SEC`（`_load_balance` 单点 cfg 读取、PlayerDamage 组件消费）非逐 buff 分支，保持原位。
 
@@ -139,7 +139,7 @@
   3. `bullet.gd` 的 Player 强转改信号或接口。
 - **修复起效记录**：⚠️ **部分完成（2026-08-02 订正，此前误记「未修复」）**
   - **已落地（2026-07-31 `bdb0274`「A5 依赖注入」）**：Boss/精英炮塔对 Spawner 的依赖改为注入——`boss.gd` 新增 `_spawner` + `set_spawner()`，`spawn_minion_at()`/`_summon_minions()` 不再 `get_first_node_in_group("spawner")`；`elite_turret_event.gd` 同法替换 3 处 group 查找（指引第 2 条）；`bullet.gd` 的 Player 强转已由 A1 经 `GameState.player_ref` 落地（指引第 3 条）；指引第 1 条「GameState 作配置中心+注册表」为有意性能权衡保留。
-  - **未收敛**：残余依赖点（`hud`/`pause_ui` 等对 Main 的引用）仍经注册表/组间接获取，未全量改显式注入（详见 `DESIGN_BASELINE.md` §7.1）。
+  - **未收敛**：残余依赖点（`hud`/`pause_ui` 等对 Main 的引用）仍经注册表/组间接获取，未全量改显式注入（详见 `DESIGN_BASELINE.md` §7.1）。**✅ 2026-08-07 收敛（S04）**：mothership 8 处 hud 组查找统一 `_hud()` 延迟缓存；welcome/pause_ui/事件类低频组查找按 R12 先例判定为合理模式保留（行为零变化）。
 
 ---
 
@@ -176,7 +176,7 @@
 - **修复指引**：受击减免（闪避/护甲/吸血）与回血抽为 `DamagePipeline` 效果组件；Dash 抽独立组件；视觉（尾焰/残影/准星/碰撞点）抽 `PlayerVisuals`。
 - **修复起效记录**：⚠️ **部分完成（2026-08-01 按 git 历史回填，状态表当时漏更新）**
   - **已完成（2026-07-31 `9174a52`「A8 Player 职责拆分」）**：受击/回血抽为 `PlayerDamage` 组件、冲刺抽为 `PlayerDash` 组件（属性经 Player 转发，外部 API 不变，A1 无穿透）。
-  - **未完成**：视觉职责（尾焰/残影/准星/碰撞点/`PlayerBuffVisuals`）仍驻留 Player 本体；Player 仍约 697 行。
+  - **未完成**：视觉职责（尾焰/残影/准星/碰撞点/`PlayerBuffVisuals`）仍驻留 Player 本体；Player 仍约 697 行。**✅ 2026-08-03 拆分落地（见 :1061）**：`PlayerVisuals` 抽出（RefCounted 组合），~120 行移出。
 
 ---
 
@@ -188,10 +188,10 @@
 | A2 上帝对象 | 危险 | ✅ 已修复 | 2026-07-31 |
 | A3 boss 单类 | 严重 | ✅ 已修复（2026-08-03 注册表收敛，O 原则达成） | 2026-07-31 |
 | A4 开闭违反 | 严重 | ✅ 已修复（2026-08-03：Boss 分支随 A3 收敛；Player buff 声明式效果表） | 2026-07-31 |
-| A5 依赖倒置 | 严重 | ⚠️ 部分完成（依赖注入已落地 `bdb0274`；GameState 配置中心有意保留，2026-08-02 订正） | 2026-07-31 |
+| A5 依赖倒置 | 严重 | ✅ 已修复（依赖注入 `bdb0274`；GameState 配置中心有意保留；2026-08-07 残余收敛：mothership 8 处 hud 组查找 → `_hud()` 延迟缓存，S04） | 2026-07-31 |
 | A6 L 违反 | 中等 | ✅ 已修复（is_boss 语义化特判，2026-08-01 回填） | 2026-07-31 |
 | A7 测试耦合 | 中等 | ✅ 已修复 | 2026-07-31 |
-| A8 Player 膨胀 | 中等 | ⚠️ 部分完成（PlayerDamage/PlayerDash 已抽，视觉未抽） | 2026-07-31 |
+| A8 Player 膨胀 | 中等 | ✅ 已修复（PlayerDamage/PlayerDash 2026-07-31；PlayerVisuals 拆分 2026-08-03，见 :1061） | 2026-07-31 |
 
 > **修复后处理**：任何一条修复落地后，须回到本表更新状态，并在对应条目回填「修复起效记录」——说明改了什么、为什么起效、用什么验证（相关测试场景：`smoke_test` / `base_system_test` / `pool_reuse_test` / `enemy_combat_test` / `hit_logic_test`）。
 
@@ -401,7 +401,7 @@
 | C31 | ✅ 已修复 | tutorial_test `_exit_tutorial`→注入 ui_cancel 动作。验证：tutorial_test 0 FAIL |
 | C32 | ✅ 已修复 | base_system_test `_init_missions`→新增公开 `reset_missions()`。验证：base_system 0 FAIL |
 | C33 | 📄 已核实无风险 | 核实：所有会改 `time_scale` 的测试关键路径已用 `_wait_real`（create_timer 4 参 ignore_time_scale，boss_*/elite/formation）；残留 ~118 处默认参数 create_timer 全部运行在 time_scale=1 段（smoke/tutorial/enemy_combat/capture 等），行为正确。判定为风格一致性而非功能 bug，机械替换回归风险超收益，不逐一替换。 |
-| C34 | ⚠️ 部分完成 | boss_pattern_test 场景 1/2/4 的弹速/伤害硬编码（700/21/150/12/220）改读 boss 实例常量（CANNON_BULLET_SPEED/CANNON_DAMAGE/SWEEP_DROP_SPEED/SWEEP_DROP_DAMAGE/WALL_BULLET_SPEED），改 JSON 不漂移；场景 4/5 的 420（enemy.ENEMY_BULLET_SPEED 与 VOLLEY 同值）补来源注释。difficulty/buff33/elite/formation 硬编码判定为逻辑验证锚点保留（改读会降低测试独立价值）。验证：boss_pattern_test 0 FAIL |
+| C34 | ✅ 已收口（2026-08-07） | boss_pattern_test 场景 1/2/4 的弹速/伤害硬编码（700/21/150/12/220）改读 boss 实例常量（CANNON_BULLET_SPEED/CANNON_DAMAGE/SWEEP_DROP_SPEED/SWEEP_DROP_DAMAGE/WALL_BULLET_SPEED），改 JSON 不漂移；场景 4/5 的 420（enemy.ENEMY_BULLET_SPEED 与 VOLLEY 同值）补来源注释。difficulty/buff33/elite/formation 硬编码判定为逻辑验证锚点保留（改读会降低测试独立价值）——按既定口径完成，仅有意锚点保留。验证：boss_pattern_test 0 FAIL |
 | C35 | ✅ 已修复 | MetaHealthFX.set_test_state 接受无 `_` 前缀语义键（内部补 `_` 写私有字段），meta_health_fx_test 全部键去 `_` 前缀，不再与实现字段名强耦合。验证：meta_health_fx_test 0 FAIL |
 
 > 修复后回归：`--import` / `--quit-after 300` / **29 断言场景全绿 0 FAIL** / autoplay 120s 探针。
@@ -1016,7 +1016,7 @@
 | L14 | `boss.gd:780` × `boss_movement.gd:112-130` | 纯 bug（视觉，行为修改） | 段切换瞬间 y 垂直跳变：三型 P1 `_move_band` 增量式偏移（target 可达 depth+wob≈280px，band_offset 未在 reset_press 清理）→ P2 `_move_bob` 绝对赋值锚线 → 1/4 屏瞬移；一型 P1 press 窗口内切换 ≤80px 跳变（C11 只清 offset 不补偿当前 y） | ✅ 已修复（cc422d1 Phase 0）：BOB_SMOOTH ease-out 收敛 + reset_press 清 `_band_offset`（boss_movement.gd:19-23,34-37,42-44,136-146） |
 | L15 | `test/` 21 个断言场景（smoke/i18n/tutorial/base_system 等） | 纯 bug（测试副作用） | 测试清空 `user://profile.json` 高分数据无快照还原（`GameState.high_score = 0` 经 setter 自动落盘；base_system/tutorial 直接清/改后落盘）——唯一正确范式在 `ui_capture.gd:12,111-113` | ✅ 已修复（Q23 2026-08-05：三账户测试快照还原；R07 2026-08-05 补 startup_flow 备份顺序——delete_save 原在快照前，savegame 还原后仍缺失） |
 | L16 | `test/smoke_test.gd:796-800` | 弱断言 | 分支内断言 `wb2` 无 `!= null` 前置，弹未生成时用例静默通过（同文件 666/785 均有前置） | ✅ 已修复（cc422d1 Phase 0）：补 `_check(wb2 != null)` 前置 + 守卫（smoke_test.gd:795-799） |
-| L17 | `scripts/settings_ui.gd:53,77` × `ui_chamfered_panel.gd:39-54` | 设计目标未达（布局） | 「操作模式」页内容 895px+ 溢出 480px 容器：面板被自适应撑到 ~1150px（>1080 屏幕，标题出屏），且自适应只放大不缩小（切页后不回落） | ⏸ 登记待办：页容器加 ScrollContainer 或压缩垂直节奏，窗口模式实测像素后定方案（R07 复核仍存：modes 页内容已增至手柄/无障碍段，溢出更甚） |
+| L17 | `scripts/settings_ui.gd:53,77` × `ui_chamfered_panel.gd:39-54` | 设计目标未达（布局） | 「操作模式」页内容 895px+ 溢出 480px 容器：面板被自适应撑到 ~1150px（>1080 屏幕，标题出屏），且自适应只放大不缩小（切页后不回落） | ✅ 已修复（2026-08-07）：ChamferedPanel 新增 `max_content_height` 内容自适应高度钳制（默认 0=不限，其他调用方零影响）+ settings 三页统一 `_wrap_scroll` 滚动容器；窗口实测面板 754px 不超屏、modes 内容 1056px 可滚动（overflow 548px）、滚动条可达、手柄焦点链保持 |
 | L18 | `.github/workflows/release.yml:56-59` | 设计目标未达（CI） | 版本同步不落地：sed 仅改 CI 工作区不 commit，`git tag v3.27` 指向的提交 `config/version` 仍是 3.26——AGENTS.md「输入版本自动同步 project.godot」只对构建产物生效 | ✅ 已修复（P4 2026-08-05）：同步提交 `[skip ci]` + `git push origin HEAD:main`（release.yml:71-75）；R07 清理 L18 旧注释残留 |
 
 ### P3（轻微：修复 3 / 登记 30+，按类别合并）
@@ -1029,6 +1029,7 @@
   - 性能遗留（4 处）：enemy 每帧 overlaps_area（perf 候选）、orbital_strike 每帧 288 次三角函数、player 弹反高光每帧重建点集、右摇杆 delta 上下文依赖。
   - 测试侧（6 处）：tutorial_test:75 调试 print、mothership_summon_test OR 弱断言、buff33 InputMap 无收尾清理、test/ 23 文件 gdformat 不合规（CI 盲区）、22 处括号尾随空格、hud_capture 注释。
   - 工具链/脚本（7 处）：run.bat 无版本判定、run.sh 与 run.command 策略不一致、release.sh zip 无前置检查、PIL 依赖未声明、balance_editor 500 裸异常、gdtoolkit 未锁版本、boss_fire/敌机机动参数硬编码魔法数。
+  - **✅ 已收口（2026-08-07 复核）**：判型/域校验族 → R06+Q14；注释失实族 → R11；防御缺口 → R07①②③ + Q15（formation APPROACH_SPEED 兜底）+ 登记不修（bullet AoE，:1035）；性能遗留 → orbital_strike 已 P4 单位圆缓存 + 登记 perf 候选/待实证（:1036-1037）+ 登记不修（:715③）；测试侧 → R10+R11；工具链 → R08/R09 + R 复核 #6。无未处置项。
 
 ## 登记不修（论证后收敛）
 
@@ -1316,7 +1317,7 @@
 
 ## 登记不修（论证后收敛，R 系列复核）
 
-1. **L17 设置页溢出**：复核仍存（modes 页内容已增至手柄/无障碍段，溢出更甚）——维持登记待办，需窗口模式实测像素后定方案（ScrollContainer vs 压缩节奏）。
+1. **L17 设置页溢出**：复核仍存（modes 页内容已增至手柄/无障碍段，溢出更甚）——维持登记待办，需窗口模式实测像素后定方案（ScrollContainer vs 压缩节奏）。**✅ 后续已修复（2026-08-07）**：见 L17 状态表（面板高度钳制 + 滚动容器，窗口实测不超屏）。
 2. **M10 INTRO 人工验证项**：保留（发布前人工验证，文档已标注 leftover）。
 3. **C17 back_navigator 7 处裸 get_node**：合理模式维持（main.tscn 固定子节点，风险低）。
 4. **mothership 时轴 30+ 键 0 值**：维持 L 系列登记（手改 json 触发、改动面大收益低；tween 时长 0 为演出崩坏非系统崩溃）。
@@ -1324,8 +1325,8 @@
 6. **boss_fire 20°/15° 弹幕几何魔法数**：登记观察（几何常量非平衡数值，入库收益低；与 Q29 移动策略参数不同族）。
 7. **SCORE_CAP 乘法后钳制**：登记观察（倍率 ≥1e13 理论溢出 int64，现实量级 ≤1e6 防御成立）。
 8. **smoke `== +33` 精确断言**：登记观察（受控条件取整确定性成立，TESTING.md 已登记 flake 基线）。
-9. **遭遇自动触发暴露面**：各长跑测试已核实安全（smoke 累计处理 ~6-8s ≪ 40s 阈值）——建议后续在 smoke 敏感段补遭遇契约断言，登记待办。
-10. **`.godot/imported` 孤儿 ctex×4**：登记观察（源已删缓存残留，.gitignore 排除，不影响构建）。
+9. **遭遇自动触发暴露面**：各长跑测试已核实安全（smoke 累计处理 ~6-8s ≪ 40s 阈值）——建议后续在 smoke 敏感段补遭遇契约断言，登记待办。**✅ 已落地（2026-08-07）**：`encounter_flow_contract_test` T3a 断言 3s 窗口无自动触发 + 计时未归零 + interval 配置下界锚点（≥20s）。
+10. **`.godot/imported` 孤儿 ctex×4**：登记观察（源已删缓存残留，.gitignore 排除，不影响构建）。**✅ 2026-08-07 复核自然消解**：`.godot/imported/` 现存 ctex 均有对应 `assets/sprites/*.png` 源，孤儿 0。
 11. **gen_balance_map 惰性正则局限 / balance_editor 新增键静默放行**：工具启发式已知局限，登记观察。
 12. **builds/ 旧产物过期**：登记观察（3.26 含 docs 截图已随 .gdignore 修复；test/ 泄露随 R01 修复，下次重出即净）。
 13. **Q09 焦点细节 / Q27 目检 / smoke flake / 镜像字面量**：Q §7 待验证点已全部定论（见报告 §6），无需再修。
@@ -1411,10 +1412,68 @@
 4. **enemy_pool.gd:49-51 / explosion.gd:56-57 池化 spawn 侧 reparent 同步执行**：与池自身防护口径矛盾但实测无恙（R04 已双向包裹），登记观察。
 5. **fake_enemy.gd `_physics_process` 每帧 sin()×3 未走查表**：量级与 G017 判不修相当（≤4 只幽灵机），登记观察。
 6. **game_state.gd:1413-1418 游客无存档路径**：设计语义（游客不落盘），非 bug，登记说明。
-7. **死亡清理小窗（L-b）与遭遇互斥（L-d）未加独立测试**：同帧双蓄力/长按注入成本高，由 main 流程回归（fog_event_test 返航段）间接覆盖，登记待办。
+7. **死亡清理小窗（L-b）与遭遇互斥（L-d）未加独立测试**：同帧双蓄力/长按注入成本高，由 main 流程回归（fog_event_test 返航段）间接覆盖，登记待办。**✅ 已落地（2026-08-07）**：`encounter_flow_contract_test` T3b——事件进行中蓄力被拒（can_charge 事件互斥）+ 死亡路径清理召唤小窗，13 断言全绿。
 
 ## 修复起效记录（回填）
 
 - **改了什么**：31 个生产/工具/测试文件 + 3 数据/文档生成物（balance.json 双写、BALANCE_MAP 重跑、CHANGELOG）——详见上表与报告；另含 `docs/archive/2026-08-06-audit-report.md` 报告（登记时点只读未改）。
 - **为什么起效**：H1 按存活 Boss 注册表区分复位（预警窗口无 Boss 才解除占用，Boss 在场保持波次/Boss 门控冻结）；H2 解锁表与机型表等长 + 子机难度继承（深局分裂者子机 HP 与母体同 ramp）；M1/M2 对等重置与损坏分支短路（备份保留）；M3 销毁余量覆盖最大出生深度；M4 分档乘区/增量与 1/3 型同族（easy/hard 不再恒定）；M5 星点锚点随可见区平移；M6/M7 快照还原（Q23 范式推广到全部本地数据污染测试）；M8 生成器零 diff 闸把「改码重跑」从人记变机器强制。
 - **如何验证**：五层门禁全绿（gdformat/gdlint/import 0 error/quit-after 300/45 断言场景，见当次提交记录）；新增回归断言 9 处（wave_pacing H1、enemy_combat H2×2、pool_reuse M1、startup_flow M2×2、fog_event M3+fog 冷却、boss_phase M4×6、view_zoom M5×2）；release.sh `--help` + `bash -n`；generate_audio.py `py_compile` + BGM 重生成实跑。
+
+---
+
+# S 系列（2026-08-07，搁置项重启：mobile touch + L17 + 测试待办 + A5 收敛）
+
+> 依据用户指示「查找最新被明确标记为暂缓推进的事务（非 3.28 发布推迟）→ 确认真实未完成项 → 筛选高价值目标 → 书写计划文档 → goal 全量推进」执行。计划/清单：`docs/archive/2026-08-07-deferred-restart-plan.md`。
+
+## 盘点结论（真实未完成项筛选）
+
+| 来源登记 | 事项 | 复核 | 处置 |
+| --- | --- | --- | --- |
+| ROADMAP Phase 3 | mobile touch（content evolution 唯一剩余 cut） | 真实未完成（输入已全走 Input action 系，注入虚拟输入即可） | T1 重启立项 + 落地 |
+| AUDIT_VAULT L17 | 设置页 modes 页溢出 | 真实未完成（裸 VBox 无滚动、面板自适应超屏） | T2 修复 |
+| DESIGN_BASELINE §7.1 | A5 残余依赖收敛 | 部分完成（mothership 8 处 hud 组查找） | T4 收敛 |
+| R 系列 #9 / 2026-08-06 #7 | 测试待办 2 项 | 真实未完成 | T3a/T3b |
+| 竞品 P2-8 / M10 / 2026-08-06 #2 | 俄语 / 人工实机验证 / 里程碑设计拍板 | 用户决策未变 / 非代码任务 / 需设计拍板 | 不推进（维持登记） |
+
+## 发现与落地（2026-08-07 批次）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| S01 | P2 | 全仓（新 `scripts/virtual_controls.gd`） | 功能（mobile touch 重启立项） | 触屏虚拟输入层：左摇杆→move_*、右摇杆→aim_*（增量，同手柄语义）、按钮→boost/fine_move/dash/parry；Input.action_press/release 注入（player 读取路径零改动）；触屏瞄准基准=可见世界中心（player.aim_point 分支）；设置「触控」开关（GameState.touch_controls profile 持久化 + `touch_controls_changed` 信号联动 Main）；新增 `test/virtual_controls_test.tscn` 25 断言 | ✅ 落地：虚拟层挂 Main（layer=1 半透明）、EntityManager/GameState 转发、simulate_touch/drag 测试口（绕过窗口→视口坐标变换，MetaHealthFX.set_test_state 同款先例）；测试 25 PASS；禁用时零注入（桌面零回归） |
+| S02 | P3 | `scripts/ui_chamfered_panel.gd` × `scripts/settings_ui.gd` | 修复（L17） | 设置页 modes 页溢出（详见 L17 行回填） | ✅ 见 L17 状态表 |
+| S03 | P3 | `test/encounter_flow_contract_test.gd` | 测试补齐 | 遭遇契约 + 互斥 + 小窗清理独立断言（详见 R09/2026-08-06#7 回填） | ✅ 13 断言全绿 |
+| S04 | P3 | `scripts/mothership.gd` | 架构收敛（A5） | HUD 引用 8 处重复 `get_first_node_in_group("hud")` → `_hud()` 延迟缓存（is_instance_valid 守卫）；welcome/pause_ui/事件类的低频组查找按 R12 先例保留（合理模式） | ✅ 行为零变化；mothership_summon/mothership_upgrade 0 FAIL |
+
+## 修复起效记录（回填）
+
+- **改了什么**：`scripts/virtual_controls.gd`（新）+ `entity_manager.gd`/`game_state.gd`（virtual_controls 转发 + touch_controls 设置/信号/持久化）+ `main.gd`（创建虚拟层 + 开关联动）+ `player.gd`（触屏瞄准基准）+ `settings_ui.gd`（触控段 + L17 滚动/钳制）+ `ui_chamfered_panel.gd`（max_content_height）+ `translations.csv`（SET_TOUCH×3 双列）+ `test/virtual_controls_test.tscn/.gd`（新）+ `test/encounter_flow_contract_test.tscn/.gd`（新）。
+- **为什么起效**：S01 输入全走 Input action 注入——player 的 get_vector/is_action_pressed 读取路径零改动，桌面键鼠/手柄零回归（默认关）；触屏瞄准复用 H01 右摇杆虚拟准星增量语义；simulate_* 测试口避开 headless 窗口→视口坐标变换（30×）使断言稳定。S02 面板内容自适应钳制（默认 0=不限不波及他页）+ 滚动容器，面板不再超屏。S03 契约锚点（interval ≥20s）防未来把自动触发窗口调进测试时长。S04 延迟缓存与直接查找等价（hud 为 main.tscn 固定层）。
+- **如何验证**：五层门禁——gdformat --check（131 文件）/gdlint 全绿；`--headless --import` 0 error；`--quit-after 300` 0 error；全量 **47** 断言场景 0 FAIL；L17 窗口实测（/tmp/ui_modes.png 1920×1080：面板 754px 居中、底部纯遮罩、滚动 548px 溢出）；virtual_controls_test 25 PASS、encounter_flow_contract_test 13 PASS。
+
+---
+
+# T 系列（2026-08-07，文档重构：去歪曲 + 减绕路）
+
+> 依据用户指示「本次工作发现的文档问题重整——制作真实且可减少 Agent 跑弯路的文档重构」执行（goal 模式）。计划/清单：`docs/archive/2026-08-07-doc-refactor-plan.md`。触发：S 系列落地中触达的文档问题——断言场景数散布 10+ 处靠人记（M8 同根因复发）、AUDIT_VAULT 状态表与 DESIGN_BASELINE 不同步、headless 输入注入坐标陷阱无提示、gdtoolkit 本地安装无 PEP 668 指引。4 路并行只读盘点 + 人工复核。
+
+## 发现与处置（2026-08-07 批次，编号延续计划）
+
+| 编号 | 严重度 | 位置 | 类别 | 描述 | 处置 |
+| --- | --- | --- | --- | --- | --- |
+| T01 | P2 | `docs/TESTING.md` | 流程（计数漂移复发根因） | 断言场景数散布全仓靠人记（M8 同根因）：TESTING.md 无动态权威计数指引，静态硬编码 47/56 + 内联历史注记 | ✅ 顶部新增「Scene Counts (authoritative)」段：`ls test/*_test.tscn | wc -l` − 1（autoplay 探针）= 47、`ls test/*.tscn | wc -l` = 56；注明 CI 以实际文件为闸、数字仅信息性、其他文档禁止硬编码 |
+| T02 | P2 | `.agents/doc-sync.md` | 规则固化 | 无「计数单一事实源」规则 | ✅ 新增规则：断言场景数以 TESTING.md 动态命令为权威，其他文档禁止硬编码；增删 test/*_test.tscn 时同步 TESTING 计数与清单 |
+| T03 | P2 | `ci.yml` / `CONTRIBUTING` / `C_SHARP_ASSESSMENT`×5 / `ROADMAP` / `DESIGN_BASELINE` / `README`×2 | 计数过期（歪曲） | 「45 断言场景」等当前流程描述过期（实际 47）；README 徽章 v3.27/45 scenes 过期；README.en:137 与 :127 自相矛盾；ROADMAP:8 A5/A8 open 表述过期 | ✅ 全部统一：ci.yml 步骤名去硬编码（Run assertion scenes，无数字）；CONTRIBUTING/C_SHARP/ROADMAP/DESIGN_BASELINE 改 47 + 权威源指引；README 徽章 v3.28 / 47 scenes；ROADMAP A5/A8 改 all closed；历史时点快照（CHANGELOG/C_SHARP:49）按惯例保留 |
+| T04 | P2 | `AUDIT_VAULT` 状态表/详情 | 文档间不同步（歪曲） | A5/A8 状态表仍 ⚠️（DESIGN_BASELINE §7.1 已 ✅）；A4 详情「残留 7 处 match」、A5「未收敛」、A8「视觉未抽」未划线；R 复核 #1（L17 已修未注）、#10（孤儿 ctex 已消解）；C34、L-P3 清单未收口 | ✅ 状态表 A5/A8 回填 ✅ + 引用 S04/:1061；A4/A5/A8 详情补划线注记；R 复核 #1/#10 收口；C34 标「已收口」；L-P3 类别清单补「已收口」注记（去向逐类核对） |
+| T05 | P3 | `enemy_pool.gd:47` / `boss.gd:118,334,569` / `back_navigator.gd:19` | 注释编号误标 | 审计编号误标：enemy_pool R07→R04（池化 spawn 侧）、boss:118 R07→R12（死数据删除）、boss:334/569 R07→R06（判型族）、back_navigator R07→R12（CONFIRM_EXIT 删除） | ✅ 四处编号修正（含盘点遗漏的 boss:334/569 判型族属 R06） |
+| T06 | P3 | `game_state.gd:103` / `user_db.gd:3` | 路径引用错位 | 注释引用 `docs/2026-08-04-local-accounts-plan.md` 缺 `archive/` 前缀（计划文档已归档） | ✅ 补 `archive/` 前缀 ×2 |
+| T07 | P3 | `DESIGN_BASELINE:115` / `ARCHITECTURE:59` | 服务口径冲突 | 「Six non-autoload services」/ 委托清单漏第 7 个 UserDB（与 AGENTS.md 7 服务冲突，2026-08-06 审计已登记 7） | ✅ 改 Seven + 补 UserDB 条目（DESIGN_BASELINE 服务清单、ARCHITECTURE 委托清单） |
+| T08 | P3 | `DESIGN_BASELINE:109` / `ELITE_TURRET_EVENT:173` | 节点树注册口径过期 | 「registered to spawner」过期（2026-08-05 起事件注册到 GameEventManager） | ✅ 改口径 ×2 |
+| T09 | P3 | `docs/TESTING.md` | 知识缺口（绕路） | ①headless `parse_input_event` 注入鼠标/触摸坐标被窗口→视口变换（实测 30×，S01 调试多轮）；②gdtoolkit PEP 668 说明；③translations.csv 改后重导 `.translation`（gitignored）机制；④模拟输入走公开测试口规范未入测试文档 | ✅ TESTING.md 新增「Headless Test Environment Notes」小节收纳①-④；`.agents/gdscript-lifecycle.md` 补「Tests drive public test ports」约定（A7/C30/Q24 先例） |
+| T10 | P3 | `docs/TESTING.md:17-69` | 场景清单遗漏 | 子系统清单漏 `virtual_controls_test` / `encounter_flow_contract_test` | ✅ 补两行 + 注明「清单可能滞后，以 ls 为准」 |
+
+## 修复起效记录（回填）
+
+- **改了什么**：文档 15 文件（TESTING/CONTRIBUTING/ROADMAP/DESIGN_BASELINE/ARCHITECTURE/ELITE_TURRET_EVENT/C_SHARP_ASSESSMENT/README×2/AUDIT_VAULT/doc-sync/CLAUDE 未动）+ `.agents/gdscript-lifecycle.md` + 代码注释 5 文件（enemy_pool/boss×3/back_navigator/game_state/user_db）——全部注释/口径，零逻辑改动。
+- **为什么起效**：T01/T02 把断言计数从「散布硬编码 + 靠人记」改为「TESTING.md 动态命令单一事实源 + doc-sync 禁硬编码规则」——M8 同根因（BALANCE_MAP 行号）已用 CI 零 diff 闸根治，计数漂移这次从规则层断根；T03 消除当前流程描述的过期数字；T04 恢复 AUDIT_VAULT 与 DESIGN_BASELINE 的一致性（A5/A8 状态表是文档间不同步的现成反例）；T05/T06 修正会误导审计追溯的编号/路径；T07/T08 消除入口文档服务口径冲突与节点树注册口径矛盾；T09 把 S01 实测的 headless 输入坐标陷阱与公开测试口规范下沉到测试入口文档——后续写测试的 Agent 不再重复调试多轮。
+- **如何验证**：残留扫描 0 命中——「45 断言/45 scenes」（排除历史时点快照与精英测试自身断言数）/「Six non-autoload」/「registered to spawner」（docs 顶层）/缺 archive 前缀；五层门禁——gdformat --check（131 文件）/gdlint 全绿、`--headless --import` 0 error、`--quit-after 300` 0 error、全量 47 断言场景 0 FAIL。

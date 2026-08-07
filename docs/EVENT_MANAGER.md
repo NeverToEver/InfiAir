@@ -197,4 +197,4 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 - New coverage: manager-level assertions (unified registry of 6 ids, group concurrency
   fog‖encounter, unified `event_started/ended` broadcast, spawner-processing gate).
 - Gate: the 5 layers of `docs/TESTING.md` (format → lint → import warnings → compile+smoke
-  → all 45 assertion scenes).
+  → all 47 assertion scenes).

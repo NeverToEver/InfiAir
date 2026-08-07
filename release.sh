@@ -2,7 +2,7 @@
 # InfiAir 发布构建：资源导入 → 导出 Linux/Windows → 打包（含安装/卸载脚本）
 # 用法：./release.sh           输出 builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>
 #       ./release.sh --help   显示用法后退出
-# 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH）
+# 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH 的 godot/godot4）
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     echo "用法: ./release.sh [--help]"
     echo "输出: builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>"
-    echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH）"
+    echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH 的 godot/godot4）"
     exit 0
 fi
 
@@ -25,6 +25,8 @@ if [ -z "$VERSION" ]; then
 fi
 GODOT="${GODOT:-$HOME/.local/bin/godot}"
 command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
+# 2026-08-07 环境适配：仅安装 godot4 命名的发行版（如多数 Linux 仓库包）也可直接发布
+command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot4"
 # 2026-08-06 审计：GODOT 兜底链断裂无诊断（原回退链末端 command not found 裸报错）——
 # 最终探测失败立即给出引擎安装指引（对齐 run.sh 诊断口径）
 if ! command -v "$GODOT" >/dev/null 2>&1; then

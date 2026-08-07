@@ -4,9 +4,12 @@ REM 需要 Godot 4.6+（标准版，无需 .NET）：https://godotengine.org/dow
 setlocal
 cd /d "%~dp0"
 
-REM 引擎探测：PATH → 常见安装位置
+REM 引擎探测：PATH（godot / godot4）→ 常见安装位置
 set "GODOT="
 where /q godot 2>nul && set "GODOT=godot"
+if not defined GODOT (
+    where /q godot4 2>nul && set "GODOT=godot4"
+)
 if not defined GODOT (
     if exist "%LOCALAPPDATA%\Godot\Godot.exe" set "GODOT=%LOCALAPPDATA%\Godot\Godot.exe"
 )
@@ -21,7 +24,7 @@ if not defined GODOT (
 if not defined GODOT (
     echo [InfiAir] 未找到 Godot 引擎（需要 4.6+，标准版即可）。
     echo           下载：https://godotengine.org/download
-    echo           或将 godot 加入 PATH 环境变量后重试。
+    echo           或将 godot / godot4 加入 PATH 环境变量后重试。
     pause
     exit /b 1
 )

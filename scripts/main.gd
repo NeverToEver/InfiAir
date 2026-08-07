@@ -61,6 +61,7 @@ var _formation: FormationStrikeEvent = null
 var _meta_fx: MetaHealthFX = null
 ## 辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）
 var _aim_frames: AimFrameLayer = null
+var _virtual_controls: VirtualControls = null  # 触屏虚拟输入层（mobile touch）
 var _breath_was_active: bool = false
 ## give_up（K 键自毁）动作静态绑定判定（project.godot 定义，改键系统不删动作，结果全程不变）：
 ## _ready 缓存一次，避免 _process 每帧 InputMap.has_action 字典查找
@@ -113,6 +114,12 @@ func _ready() -> void:
 	# 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
 	_aim_frames = AimFrameLayer.new()
 	add_child(_aim_frames)
+	# 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
+	_virtual_controls = VirtualControls.new()
+	add_child(_virtual_controls)
+	GameState.virtual_controls = _virtual_controls
+	_virtual_controls.set_enabled(GameState.touch_controls)
+	GameState.touch_controls_changed.connect(_virtual_controls.set_enabled)
 	_apply_camera_zoom()
 	GameState.view_zoom_changed.connect(_on_view_zoom_changed)
 	_start_bgm_async()

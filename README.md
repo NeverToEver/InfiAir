@@ -9,8 +9,8 @@
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
 [![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/Release-v3.27-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-45%20scenes%20passed-brightgreen)](#-开发者信息)
+[![Release](https://img.shields.io/badge/Release-v3.28-orange)](https://github.com/NeverToEver/InfiAir/releases)
+[![Tests](https://img.shields.io/badge/Tests-47%20scenes%20passed-brightgreen)](#-开发者信息)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -35,6 +35,7 @@ InfiAir 是一款单机得分制街机射击游戏：驾驶战机迎战波次化
 - 🛰️ **母舰火力平台** —— 蓄力召唤 → 自动对接 → 驻留驾驶（WASD + 双炮塔 + 导弹）→ 牵引回收
 - 💥 **随机事件系统** —— 精英炮塔突袭、轰炸编队与迷雾干扰事件（幽灵机群 / 精神错乱 / 子弹失灵 / 方向偏转）
 - 🏠 **基地中场整备** —— 维修 / 补给 / 天赋路线 / 任务领奖，整备后回到同一局
+- 📱 **触屏虚拟操控** —— 虚拟摇杆（移动 / 瞄准）+ 加速 / 微调 / 冲刺 / 弹反按钮，设置「触控」开关，键鼠 / 手柄不受影响
 
 **视听**
 
@@ -123,7 +124,7 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（45 断言场景）</summary>
+<summary>✅ 测试与验证（47 断言场景）</summary>
 
 测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
 
@@ -133,7 +134,7 @@ godot --headless --path . --quit-after 300  # 运行时冒烟
 godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检全 PASS）
 ```
 
-完整 45 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [docs/TESTING.md](./docs/TESTING.md)。
+完整 47 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [docs/TESTING.md](./docs/TESTING.md)。
 
 </details>
 

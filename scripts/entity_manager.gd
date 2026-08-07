@@ -33,6 +33,8 @@ var bullet_pool: BulletPool = null
 var enemy_pool: EnemyPool = null
 var aim_frame_layer: AimFrameLayer = null
 var camera_ref: Camera2D = null
+## 触屏虚拟输入层（mobile touch，2026-08-07）：由 Main._ready 创建并登记（参照 aim_frame_layer）
+var virtual_controls: VirtualControls = null
 
 
 func register_enemy(node: Node) -> void:

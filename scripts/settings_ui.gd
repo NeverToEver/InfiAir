@@ -23,6 +23,7 @@ var _aim_buttons: Dictionary = {}  # 瞄准辅助强度档位 -> Button
 var _window_group := ButtonGroup.new()
 var _window_buttons: Dictionary = {}  # 窗口尺寸档位 -> Button
 var _reduce_flash_btn: Button  # 无障碍·减少闪光开关
+var _touch_btn: Button  # 触控·虚拟控件开关（mobile touch）
 var _mouse_lock_btn: Button  # 显示·鼠标锁定窗口内开关
 var _joy_speed_slider: HSlider  # 手柄·右摇杆瞄准灵敏度
 var _joy_deadzone_slider: HSlider  # 手柄·摇杆死区
@@ -53,6 +54,9 @@ func _ready() -> void:
 	_dim = shell["dim"]
 	_plate = shell["panel"]
 	_plate.custom_minimum_size = Vector2(1000.0, 700.0)
+	# L17：面板内容自适应高度钳制——modes 页 895px+ 曾把面板撑到 ~1150px 超屏；
+	# 钳到 1040（1080p 留上下边距），超限内容由 _wrap_scroll 的滚动容器在内容区内滚动。
+	_plate.max_content_height = 1040.0
 	_title_label = shell["title"]
 	var vbox: VBoxContainer = shell["content"]
 	# 设置页内容从顶部排布（覆盖 shell 的居中），body 纵向填满
@@ -78,10 +82,12 @@ func _ready() -> void:
 	var content := VBoxContainer.new()
 	content.custom_minimum_size = Vector2(760.0, 480.0)
 	content.add_theme_constant_override("separation", 12)
+	# L17：纵向填满 body（面板高度受限后由滚动容器在内容区内滚动，而非撑大面板）
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(content)
-	_pages[&"controls"] = _build_controls_page()
-	_pages[&"modes"] = _build_modes_page()
-	_pages[&"about"] = _build_about_page()
+	_pages[&"controls"] = _wrap_scroll(_build_controls_page())
+	_pages[&"modes"] = _wrap_scroll(_build_modes_page())
+	_pages[&"about"] = _wrap_scroll(_build_about_page())
 	_refresh_nav_labels()
 	for p in _pages.values():
 		content.add_child(p)
@@ -102,6 +108,19 @@ func _ready() -> void:
 
 
 # ---------------- 控制（改键） ----------------
+
+
+## 内容页统一包滚动容器（L17）：面板最大高度限制后，超限内容在内容区内滚动而非撑大面板。
+## ScrollContainer 自动滚动到聚焦子控件（Godot 4 内置 ensure_visible），手柄/键盘焦点链
+## （L08 全项目模态聚焦约定）不受影响；页内容横向填满、纵向保持自身高度以启用滚动。
+func _wrap_scroll(page: Control) -> ScrollContainer:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.add_theme_constant_override("scrollbar_margin", 4)
+	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(page)
+	return scroll
 
 
 func _build_controls_page() -> VBoxContainer:
@@ -322,6 +341,15 @@ func _build_modes_page() -> VBoxContainer:
 		func(v: float) -> void: GameState.set_joy_deadzone(v / 100.0)
 	)
 	page.add_child(UITheme.make_label(tr("SET_JOY_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+	# 触控（mobile touch）：虚拟摇杆/按钮开关（触屏设备；桌面键鼠/手柄不受影响，默认关）
+	page.add_child(UITheme.make_section_header(tr("SET_TOUCH")))
+	var touch_group := ButtonGroup.new()
+	touch_group.allow_unpress = true
+	_touch_btn = UITheme.make_toggle_button(tr("SET_TOUCH_CONTROLS"), touch_group)
+	_touch_btn.custom_minimum_size = Vector2(200.0, 48.0)
+	_touch_btn.pressed.connect(_on_touch_controls)
+	page.add_child(_touch_btn)
+	page.add_child(UITheme.make_label(tr("SET_TOUCH_DESC"), UITheme.FONT_CAPTION, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT))
 	# 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
 	page.add_child(UITheme.make_section_header(tr("SET_ACCESSIBILITY")))
 	var rf_row := HBoxContainer.new()
@@ -431,6 +459,7 @@ func show_settings(opener_layer: CanvasLayer = null) -> void:
 	_refresh_aim_buttons()
 	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
 	_mouse_lock_btn.set_pressed_no_signal(GameState.mouse_lock)
+	_touch_btn.set_pressed_no_signal(GameState.touch_controls)
 	_hint_label.text = ""
 	_capturing_action = &""
 	show_page(&"controls")
@@ -504,6 +533,7 @@ func _on_locale_changed() -> void:
 	_refresh_aim_buttons()
 	_reduce_flash_btn.set_pressed_no_signal(GameState.reduce_flash)
 	_mouse_lock_btn.set_pressed_no_signal(GameState.mouse_lock)
+	_touch_btn.set_pressed_no_signal(GameState.touch_controls)
 
 
 func _on_ctrl_mode(toggle_mode: bool) -> void:
@@ -516,6 +546,10 @@ func _on_shift_mode(toggle_mode: bool) -> void:
 
 func _on_reduce_flash() -> void:
 	GameState.set_reduce_flash(_reduce_flash_btn.button_pressed)
+
+
+func _on_touch_controls() -> void:
+	GameState.set_touch_controls(_touch_btn.button_pressed)
 
 
 func _on_mouse_lock() -> void:

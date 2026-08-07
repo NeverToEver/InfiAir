@@ -115,7 +115,7 @@ var SNIPER_BULLET_SPEED := 650.0
 var CROSS_BULLET_SPEED := 260.0
 ## 4 型「月蚀」ring_burst 环弹攻击参数（2026-08-04；默认值与 balance.json 双写）
 ## 2026-08-05 Q01：难度分档为绝对值（counts.ring_burst = [10,12,14]，§5.6），
-## R07（2026-08-05 独立审计）：RING_BURST_COUNT 与 json 键 boss.ring_burst.count
+## R12（2026-08-05 独立审计）：RING_BURST_COUNT 与 json 键 boss.ring_burst.count
 ## 删除——Q01 后无任何消费方（弹数全走 _count_delta 回退表），死数据
 var RING_BURST_SPEED := 340.0
 var BULLET_DAMAGE_RING := 14
@@ -331,7 +331,7 @@ func setup(p_difficulty: float, p_type: int) -> void:
 	var hp_mults_valid: bool = hp_mults_raw is Array and hp_mults_raw.size() >= 4
 	if hp_mults_valid:
 		for v: Variant in hp_mults_raw:
-			# R07：正值域校验（L 系列判型族登记遗留）——0/负倍率经 float() 后
+			# R06：正值域校验（L 系列判型族登记遗留）——0/负倍率经 float() 后
 			# max_hp≤0 → take_damage 首行早退 → Boss 出生即免疫伤害（与 Q02 同根因）
 			if v is bool or not (v is int or v is float) or float(v) <= 0.0:
 				hp_mults_valid = false
@@ -566,7 +566,7 @@ func _ready() -> void:
 	WALL_DAMAGE = GameState.cfg("boss.phases.attacks.bullet_wall.damage", WALL_DAMAGE)
 	WALL_ARC_DEG = GameState.cfg("boss.phases.attacks.bullet_wall.arc_deg", WALL_ARC_DEG)
 	# 差异化狂暴参数（boss.enrage.type_*）
-	# R07：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
+	# R06：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
 	E1_RING_INTERVAL = maxf(float(GameState.cfg("boss.enrage.type_1.ring_interval", E1_RING_INTERVAL)), 0.05)
 	E1_RING_COUNT = GameState.cfg("boss.enrage.type_1.ring_count", E1_RING_COUNT)
 	E1_RING_SPEED = GameState.cfg("boss.enrage.type_1.ring_speed", E1_RING_SPEED)

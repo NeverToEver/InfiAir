@@ -2,7 +2,7 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-06)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 45 assertion scenes 0 FAIL; A-series leftover **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) — **A5** partial (injection landed) only remaining open item (§7); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; Phase 0 closed (ROADMAP).
+> **Snapshot (2026-08-07)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 47 assertion scenes 0 FAIL; A-series **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) + **A5 closed 2026-08-07** (residual dep convergence, §7.1); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
@@ -106,13 +106,13 @@ Main (scripts/main.gd)
 ├─ MetaHealthFX (runtime _ready, layer=1) ├─ AimFrameLayer (runtime _ready, world)
 ├─ IntroCinematic / ReturnCinematic (layer=35, on-demand)
 ├─ OrbitalStrike (layer=24) ├─ MothershipSummonWindow (layer=24) + WarpGate (world)
-└─ EliteTurretEvent / FormationStrikeEvent (_ready, registered to spawner)
+└─ EliteTurretEvent / FormationStrikeEvent (registered to GameEventManager via `GameState.events.register_encounter()`, 2026-08-05)
 ```
 **Convention**: all dynamic run entities under Main (clear logic + test traversal). Same-name behavior scripts in `scripts/`.
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Six non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`).
+- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
 - Hot paths: no per-frame `get_nodes_in_group`; use registries.
 
 ### 2.4 Pools & Registries
@@ -208,7 +208,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 ## 5. Testing Baseline
 > Full commands: `docs/TESTING.md`. Not a unit framework; `[PASS]/[FAIL]` + exit code.
 - Minimal: `--import`, `--quit-after 300`, `smoke_test.tscn`; + `base_system_test.tscn` for saves/base/mothership.
-- Full: 45 assertion scenes (per CI run; list in `docs/TESTING.md`).
+- Full: 47 assertion scenes (per CI run; list in `docs/TESTING.md`).
 - `perf_bench` needs `--fixed-fps 1000`; `autoplay_test` long probe.
 - Side effects: tests may touch `user://` saves; new tests `GameState.delete_save()` first + clean up; `balance_test` overwrites balance.json (corruption/fallback) then restores — no concurrent manual edits.
 - Visual: windowed screenshots, human check; `visual/ui/return/intro/summon/meta_fx/hud` capture.
@@ -228,7 +228,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 | --- | --- | --- |
 | A3 | Boss attack match → registries; per-type → data-driven (2026-08-03) | ✅ 3 registries + param tables; new type = registration (O) |
 | A4 | OCP: player.gd buffs → declarative effect table (2026-08-03) | ✅ `BUFF_EFFECTS` (pow/cap/bool); new numeric buff = 1 row |
-| A5 | DIP: Boss/events → Spawner via injection, not group lookup | ⚠️ injection landed (`bdb0274`): `set_spawner()`; GameState as config center intentional; direction: residual dep convergence |
+| A5 | DIP: Boss/events → Spawner via injection, not group lookup | ✅ injection landed (`bdb0274`); **2026-08-07 residual convergence**: mothership HUD refs → `_hud()` lazy cache (8 sites); remaining group lookups (welcome/pause_ui/event classes) judged reasonable pattern (R12 precedent), behavior zero-change |
 | A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ✅ `PlayerVisuals` extracted 2026-08-03 (`scripts/player_visuals.gd`, RefCounted composition): tail/afterimage pool/body tint/hitbox dot/parry visuals/graze flash delegated; `spawn_afterimage`/`engine_tint` public API kept; ~120 lines out of player.gd |
 
 ### 7.2 Style/Perf
@@ -255,13 +255,13 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 - Cinematic stage 4.
 
 ### 8.3 Deferred/Cut (restart needs explicit decision; ROADMAP Phase 3)
-Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online leaderboard (decided no), collaboration/release engineering (done: CONTRIBUTING/CI/semver), content evolution (buffs/enemies/elites/boss/mobile touch/mothership).
+Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online leaderboard (decided no), collaboration/release engineering (done: CONTRIBUTING/CI/semver), content evolution (buffs/enemies/elites/boss/mothership — **mobile touch restarted & landed 2026-08-07**, `docs/archive/2026-08-07-deferred-restart-plan.md` §3).
 
 ### 8.4 Every Change Must
 1. Preserve §3 invariants.
 2. Tunables only in balance.json + `gen_balance_map.py` + minimal set.
 3. New features register in §8 + `ROADMAP.md`; system docs carry specs.
-4. 0 FAIL (45 + autoplay); visual changes screenshot-checked.
+4. 0 FAIL (47 assertion + autoplay; 权威计数 `docs/TESTING.md`); visual changes screenshot-checked.
 5. Debt fixes backfill `AUDIT_VAULT.md`.
 
 ---

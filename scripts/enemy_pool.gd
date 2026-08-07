@@ -44,7 +44,7 @@ func spawn(
 		e.set_pool(self)
 		get_parent().add_child(e)
 	elif e.get_parent() != get_parent():
-		# R07（2026-08-05 独立审计）：Q19 只修了回收侧——spawn 侧 reparent 同样触发
+		# R04（2026-08-05 独立审计）：Q19 只修了回收侧——spawn 侧 reparent 同样触发
 		# e._exit_tree，置位防 unbind_enemy 误发 entity_unregistered（与 _reparent_deferred 对称）
 		e.set_repooling(true)
 		e.reparent(get_parent())

@@ -95,7 +95,7 @@ var _mag_warned: bool = false
 var _warn_eject_timer: float = 0.0
 # 提前离舰
 var _early_timer: float = 0.0
-var _hud: Node = null  # 延迟缓存（驻留期每帧刷新进度条用）
+var _hud_cache: Node = null  # A5 收敛：HUD 延迟缓存（驻留期每帧刷新进度条用）
 var _cooldown_factor: float = 1.0
 var _prefill: float = 0.0
 # 穿梭入场
@@ -416,7 +416,7 @@ func _physics_process(delta: float) -> void:
 						_warp_gate.close()
 					_warp_gate = null
 				_deploy_slow_field()
-				var hud := get_tree().get_first_node_in_group("hud")
+				var hud := _hud()
 				if hud != null:
 					hud.show_info_banner(tr("BANNER_MOTHERSHIP_ARRIVED"))
 				_start_docking(GameState.player_ref as Player)
@@ -446,7 +446,7 @@ func _physics_process(delta: float) -> void:
 					sw.position = _dock_point()
 					get_parent().add_child(sw)
 					_soft_flash(_dock_point(), 70.0 * _ws, Color(0.8, 1.0, 1.0, 0.9))
-					var hud := get_tree().get_first_node_in_group("hud")
+					var hud := _hud()
 					if hud != null:
 						hud.show_popup(tr("POD_SECURED"), global_position + Vector2(0.0, 120.0) * GameState.world_scale)
 				_enter_state(State.RESUPPLY)
@@ -466,7 +466,7 @@ func _physics_process(delta: float) -> void:
 				if _mag_cells == MAG_WARN_CELLS and not _mag_warned:
 					_mag_warned = true
 					_warn_eject_timer = WARN_EJECT_DELAY
-					var hud := get_tree().get_first_node_in_group("hud")
+					var hud := _hud()
 					if hud != null:
 						hud.show_magazine_warning()
 			# 警告横幅播完（5s）强制离舰（对齐原作；自然 20s 到期因此不可达）
@@ -477,13 +477,14 @@ func _physics_process(delta: float) -> void:
 			# 提前离舰：长按 H 2s（蓄力进度条经 HUD 显示，松手清零隐藏）
 			if Input.is_action_pressed("dock"):
 				_early_timer += delta
-				if _hud == null:
-					_hud = get_tree().get_first_node_in_group("hud")
-				if _hud != null:
-					_hud.set_early_leave_charge(_early_timer / EARLY_HOLD_TIME)
+				var hud := _hud()
+				if hud != null:
+					hud.set_early_leave_charge(_early_timer / EARLY_HOLD_TIME)
 			else:
-				if _early_timer > 0.0 and _hud != null:
-					_hud.set_early_leave_charge(-1.0)
+				if _early_timer > 0.0:
+					var hud := _hud()
+					if hud != null:
+						hud.set_early_leave_charge(-1.0)
 				_early_timer = 0.0
 			if _early_timer >= EARLY_HOLD_TIME:
 				_early_depart()
@@ -719,6 +720,15 @@ func _start_docking(player: Player) -> void:
 	)
 
 
+## A5 收敛（DESIGN_BASELINE §7.1）：HUD 引用统一经延迟缓存获取——hud 是 main.tscn
+## 固定层，生命周期内恒定；8 处重复 group 查找收敛为单点缓存。行为与直接查找等价
+## （is_instance_valid 守卫：极端重载时序下缓存失效则重新查找）。
+func _hud() -> Node:
+	if not is_instance_valid(_hud_cache):
+		_hud_cache = get_tree().get_first_node_in_group("hud")
+	return _hud_cache
+
+
 func _do_resupply() -> void:
 	if not is_instance_valid(_player) or _player.is_dead():
 		return
@@ -727,7 +737,7 @@ func _do_resupply() -> void:
 	_player.refill_fuel()
 	GameState.play_sfx(GameState.SFX_RESUPPLY)
 	GameState.shake(GameState.cfg("effects.shake.mothership", 4.0))
-	var hud := get_tree().get_first_node_in_group("hud")
+	var hud := _hud()
 	if hud != null:
 		hud.show_popup(tr("POP_RESUPPLY"), global_position + Vector2(0.0, 120.0) * GameState.world_scale)
 
@@ -737,7 +747,7 @@ func _do_resupply() -> void:
 func _early_depart() -> void:
 	var ratio := float(_mag_cells) / float(MAG_CELLS)
 	_prefill = minf(EARLY_PREFILL_MAX, EARLY_PREFILL_RATIO * ratio)
-	var hud := get_tree().get_first_node_in_group("hud")
+	var hud := _hud()
 	if hud != null:
 		hud.set_early_leave_charge(-1.0)
 		var factor := maxf(0.6, 1.0 - EARLY_MAX_DISCOUNT * ratio) * (1.0 - _prefill)
@@ -752,7 +762,7 @@ func start_release() -> void:
 		return
 	# E05：所有强制离舰路径（警告到期/弹匣耗尽）统一清 HUD 提前离舰进度条——
 	# H 按住时走本路径不复位，进度条残留可见（_early_depart 已有清理，此处兜底全部入口）
-	var hud := get_tree().get_first_node_in_group("hud")
+	var hud := _hud()
 	if hud != null:
 		hud.set_early_leave_charge(-1.0)
 	_beam.visible = false
@@ -796,7 +806,7 @@ func _exit_tree() -> void:
 			_warp_gate.close()
 		_warp_gate = null
 	# G011：隐藏 HUD 提前离舰蓄力进度条（E05 只覆盖 start_release 强制离舰路径，返航提前回收漏清）
-	var hud := get_tree().get_first_node_in_group("hud")
+	var hud := _hud()
 	if hud != null and hud.has_method("set_early_leave_charge"):
 		hud.set_early_leave_charge(-1.0)
 	if is_instance_valid(_player) and not _player.is_dead() and not _player.visible:

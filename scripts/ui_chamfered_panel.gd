@@ -38,6 +38,10 @@ extends Control
 ## 内容自适应边距（面板尺寸 = max(custom_minimum_size, 内容最小尺寸 + padding)）
 @export var padding: float = 28.0
 
+## 内容自适应高度上限（0 = 不限）：内容超出时面板高度被钳制、不再撑超视口，
+## 超限内容由页面自身的滚动容器接管（L17：设置页 modes 页 895px+ 曾把面板撑到 ~1150px）。
+@export var max_content_height: float = 0.0
+
 var _fit_check_timer: float = 0.0
 ## P2：切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配）
 var _cached_pts: PackedVector2Array = PackedVector2Array()
@@ -58,6 +62,9 @@ func _process(delta: float) -> void:
 	_fit_check_timer = 0.1
 	var need := _content_min_size()
 	var target := size.max(custom_minimum_size).max(need)
+	# max_content_height：内容自适应只放大不缩小的前提下钳制高度上限（面板不超视口）
+	if max_content_height > 0.0:
+		target.y = minf(target.y, max_content_height)
 	if target != custom_minimum_size:
 		custom_minimum_size = target
 	if size != target:
