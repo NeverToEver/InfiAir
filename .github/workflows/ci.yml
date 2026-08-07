@@ -1,6 +1,6 @@
 name: CI
 
-# InfiAir 持续集成：无头导入 → 主场景冒烟 → 51 断言场景全量回归。
+# InfiAir 持续集成：无头导入 → 主场景冒烟 → 53 断言场景全量回归。
 # 引擎使用官方 Godot 4.6.2 stable mono headless（Linux x86_64）二进制，不依赖第三方 action
 # （仅官方 checkout/upload-artifact + 官方 dotnet-install.sh，2026-08-07 C# 立项审计口径修正）。
 # C# 门禁：dotnet build（warnings-as-errors）→ dotnet test（InfiAir.Core xUnit 单测）。

@@ -23,7 +23,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 ## Merge Gate & Testing
 
-6 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ C# gate: `dotnet build` (warnings-as-errors: zero warnings) + `dotnet test tests-csharp/` (xUnit) → ④ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ⑤ compile+smoke → ⑥ all 51 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (60 scenes: 51 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
+6 layers: ① `gdformat --check` (w=140) → ② `gdlint` → ③ C# gate: `dotnet build` (warnings-as-errors: zero warnings) + `dotnet test tests-csharp/` (xUnit) → ④ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ⑤ compile+smoke → ⑥ all 53 assertion scenes. New `.gd` files must be gdformat-formatted; rule rationale in config comments/`docs/AUDIT_VAULT.md`; relaxing rules syncs configs + these entry docs. Commands, scene list, side effects, known failures: `docs/TESTING.md` (62 scenes: 53 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools).
 
 ## Architecture & Directory Roles
 

@@ -618,22 +618,22 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 141 | `world_scale` | `world_scale` |
-| 144 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
-| 156 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
-| 158 | `progression.per_boss_kill` | `0.6` |
-| 159 | `progression.per_ten_minutes` | `1.5` |
-| 160 | `progression.time_step_seconds` | `30.0` |
-| 163 | `difficulty` | `{}` |
-| 169 | `dda.duration` | `DDA_DURATION` |
-| 170 | `dda.factor` | `DDA_FACTOR` |
-| 171 | `player.max_health` | `_max_hp_base` |
-| 173 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
-| 175 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 177 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 178 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
-| 957 | `milestones.boss_kill_base` | `500.0` |
-| 1785 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 144 | `world_scale` | `world_scale` |
+| 147 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
+| 159 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
+| 161 | `progression.per_boss_kill` | `0.6` |
+| 162 | `progression.per_ten_minutes` | `1.5` |
+| 163 | `progression.time_step_seconds` | `30.0` |
+| 166 | `difficulty` | `{}` |
+| 172 | `dda.duration` | `DDA_DURATION` |
+| 173 | `dda.factor` | `DDA_FACTOR` |
+| 174 | `player.max_health` | `_max_hp_base` |
+| 176 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
+| 178 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 180 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 181 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 950 | `milestones.boss_kill_base` | `500.0` |
+| 1777 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 

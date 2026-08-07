@@ -102,6 +102,9 @@ var _fog_events := FogEventManager.new()
 var _events := GameEventManager.new()
 ## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/archive/2026-08-04-local-accounts-plan.md）
 var _user_db := UserDB.new()
+## 2026-08-07：进程曲线 C# 桥（ProgressionInterop → InfiAir.Core.Progression 纯函数）——
+## milestone_threshold / _recompute_difficulty / apply_run_save 批量推进转发，语义逐位等价
+var _progression: Variant = load("res://csharp/godot/ProgressionInterop.cs").new()
 ## 生效的里程碑表（默认值见 const，可被 balance.json 覆盖）
 var milestone_base: Array[int] = MILESTONE_BASE.duplicate()
 var milestone_cycle_mult: float = MILESTONE_CYCLE_MULT
@@ -602,7 +605,11 @@ func add_score(points: int) -> void:
 	score_changed.emit(score)
 	# 2026-08-06 审计：里程碑推进改 while——与 apply_run_save 的全补口径一致（原单次 +1
 	# 在单次加分跨多档时漏档：如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值），
-	# 两路径行为统一（milestone_reached 按触发的档位逐档发，消费方按里程碑数计档）
+	# 两路径行为统一（milestone_reached 按触发的档位逐档发，消费方按里程碑数计档）。
+	# 2026-08-07：阈值求值迁移 C#（milestone_threshold 转发）；此处保持基于
+	# _next_milestone 的 while——set_milestone_override 测试钩子允许阈值脱离曲线，
+	# 批量推进（CountThresholdsUpTo）仅用于 apply_run_save 的存档恢复路径（低频、
+	# 病态档数场景，批量收益大）；加分逐档仅 1-2 档，单值调用开销可忽略。
 	while score >= _next_milestone:
 		_milestone_count += 1
 		_next_milestone = milestone_threshold(_milestone_count)
@@ -706,25 +713,15 @@ func _refresh_regen_cache() -> void:
 
 ## 第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
 ## 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
-## A 审计：极大 index 时 pow 可能溢出至 inf，钳制 mult 上限避免 int(roundf(inf)) UB。
+## 2026-08-07：算法核心迁移 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，xUnit 直测；
+## 逐位等价：pow 钳制、roundf half-away-from-zero、累加顺序一致）。
 func milestone_threshold(index: int) -> int:
-	var n := milestone_base.size()
-	if n <= 0:
-		return 0
-	@warning_ignore("integer_division")
-	var cycle := maxi(index, 0) / n
-	var step := maxi(index, 0) % n
-	var total := 0.0
-	for c in cycle + 1:
-		# A 审计：cycle_mult >1 时 pow 指数增长，极大 cycle 溢出至 inf；钳至 finite
-		# 防止 total 累积为 inf 后 int(roundf(inf)) 行为未定义
-		var mult := minf(pow(milestone_cycle_mult, c), 1e15)
-		var last_step := step if c == cycle else n - 1
-		var prev := 0.0
-		for i in last_step + 1:
-			total += (milestone_base[i] - prev) * mult
-			prev = milestone_base[i]
-	return int(roundf(total * float(DIFFICULTY_DEFS[difficulty]["milestone"])))
+	return int(_progression.call("MilestoneThreshold", index, milestone_base, milestone_cycle_mult, _milestone_mult()))
+
+
+## 难度档阈值倍率（DIFFICULTY_DEFS 经 _valid_difficulty_defs 校验，milestone 恒为正数）
+func _milestone_mult() -> float:
+	return float(DIFFICULTY_DEFS[difficulty]["milestone"])
 
 
 ## 测试钩子（A7 遗留清理，公开化）：直接设定下一个里程碑阈值（不动曲线计数，保证测试确定性）
@@ -967,7 +964,10 @@ func add_boss_kill(score_scale: float = 1.0) -> void:
 ## 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。
 func _recompute_difficulty() -> bool:
 	var step := int(floorf(run_time / _prog_time_step_seconds))
-	var new_mult := 1.0 + _prog_per_boss_kill * boss_kills + step * _prog_time_step_seconds / 600.0 * _prog_per_ten_minutes
+	# 2026-08-07：曲线公式迁移 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）
+	var new_mult := float(
+		_progression.call("DifficultyMultiplier", run_time, _prog_time_step_seconds, _prog_per_ten_minutes, _prog_per_boss_kill, boss_kills)
+	)
 	_difficulty_time_step = step
 	if is_equal_approx(new_mult, difficulty_multiplier):
 		return false
@@ -1680,14 +1680,10 @@ func apply_run_save(data: Dictionary) -> void:
 	ctrl_toggle_mode = save_bool(data.get("ctrl_toggle_mode", ctrl_toggle_mode), ctrl_toggle_mode)
 	shift_toggle_mode = save_bool(data.get("shift_toggle_mode", shift_toggle_mode), shift_toggle_mode)
 	touch_controls = save_bool(data.get("touch_controls", touch_controls), touch_controls)
-	# 里程碑曲线：恢复到大于当前分数的第一档
-	# A 审计：原 while 无上界——若 milestone_base 被手改为非单调或 cycle_mult 极小
-	# （钳 ≥0.01），阈值增量收敛至有限值，大分数时 while 永不退出（挂死）。
-	# 迭代上限 10000 足以覆盖任何合理分数（cycle_mult=1.01 时 10000 档阈值已超百亿）
-	_milestone_count = 0
-	var ms_cap := 10000
-	while _milestone_count < ms_cap and milestone_threshold(_milestone_count) <= score:
-		_milestone_count += 1
+	# 里程碑曲线：恢复到大于当前分数的第一档（2026-08-07 批量推进迁移 C# 侧——
+	# CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；
+	# 原逐档跨语言往返的 while 循环删除，存档恢复路径不再每档一次 GDScript 求值）
+	_milestone_count = int(_progression.call("CountThresholdsUpTo", score, milestone_base, milestone_cycle_mult, _milestone_mult()))
 	_next_milestone = milestone_threshold(_milestone_count)
 	score_changed.emit(score)
 	health_changed.emit(health)

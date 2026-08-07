@@ -2,7 +2,7 @@
 
 ## Overview
 
-渐进式 C# 混编工程约定(2026-08-07 决策,触发 `docs/C_SHARP_ASSESSMENT.md` §8 触发条件 3:团队语言构成变化)。存量 GDScript 不迁移;新模块/纯逻辑/数据模型/算法用 C#;热路径与场景绑定层禁止跨语言。适用于所有 `.cs` 文件及 GDScript↔C# 互操作代码。
+渐进式 C# 混编工程约定(2026-08-07 决策,触发 `docs/C_SHARP_ASSESSMENT.md` §8 触发条件 3:团队语言构成变化)。新模块/纯逻辑/数据模型/算法用 C#;热路径与场景绑定层禁止跨语言。存量 GDScript 默认不迁移——**按用户指令定向迁移的存量纯逻辑例外**(2026-08-07 P1-2 进程曲线/P1-3 任务池,逐条见 Landing Plan;迁移须满足:纯逻辑/可单测/非热路径/边界清晰四判据,并配 xUnit + interop 断言场景)。适用于所有 `.cs` 文件及 GDScript↔C# 互操作代码。
 
 ## Directories & Namespaces
 
@@ -42,7 +42,7 @@
 ## Landing Plan(着陆点路线图,2026-08-07 评估)
 
 > 目标:C# 承担"更清晰的资源管理和性能调度"。评估矩阵与依据:候选模块对照纯逻辑/可单测/非热路径/边界清晰四判据(详见 `docs/C_SHARP_ASSESSMENT.md` §7 边界)。**登记于 ROADMAP Decisions 2026-08-07 条目**;实现是独立批次,本路线图只定方向与约束。
-> **落地状态(2026-08-07)**:P0-1/P0-2/P1-1 已全部落地(逐条见下);P2-1 触发条件未满足(资产加载分散但规模小),维持待启动。
+> **落地状态(2026-08-07)**:P0-1/P0-2/P1-1/P1-2/P1-3 已全部落地(逐条见下);P2-1 触发条件未满足(资产加载分散但规模小),维持待启动。
 
 ### P0 — 高优先价值(近期落地)✅ 已落地(2026-08-07)
 
@@ -62,6 +62,15 @@
   - GDScript 壳保留 `cfg()` 签名转发 → 469 处调用点不变 → BALANCE_MAP 生成器(M8)零影响
   - 验证:xUnit(`tests-csharp/PathResolverTests.cs`)+ M8 零 diff + `balance_test` + interop(`test/path_resolver_interop_test.tscn`)
   - 注:`PathResolver.Resolve` 的 int 结果须用 if/else 分支返回(C# 三元会因 long→double 隐式拓宽把整型统一装箱成 double)
+- **P1-2 进程曲线核心 → C#**(`InfiAir.Core.Progression.MilestoneCurve` + `DifficultyCurve` 纯函数 + `csharp/godot/ProgressionInterop.cs` 薄壳)✅
+  - 迁移:里程碑阈值曲线(8 档基础 × cycle_mult^cycle × 难度倍率)与难度进程曲线;apply_run_save 的 while 推进(上限 10000 档)换 `CountThresholdsUpTo` 单次调用 + O(1)/档 增量推进——存档恢复不再逐档跨语言往返
+  - 逐位等价:累加顺序/Math.Pow 调用/roundf half-away-from-zero(经 Math.Round(AwayFromZero))与原 GDScript 一致;极大 index 显式钳制防 int64 溢出 UB(原实现 UB 无契约)
+  - 接入:GameState.milestone_threshold/_recompute_difficulty 转发,公开签名不变
+  - 验证:xUnit(`tests-csharp/ProgressionCurvesTests.cs`)+ `difficulty_test`/`balance_test` + interop(`test/progression_interop_test.tscn`)
+- **P1-3 任务池抽取核心 → C#**(`InfiAir.Core.Missions.TaskPool` 纯逻辑 + `csharp/godot/TaskPoolInterop.cs` 薄壳)✅
+  - 迁移:洗牌游标无放回抽取(排除项/跨批补足/全池排除安全空);RNG 独立于 GDScript 全局随机源(性质等价、序列不等价——无外部依赖具体序列)
+  - 接入:`scripts/task_pool.gd` 薄壳转发,公开签名不变
+  - 验证:xUnit(`tests-csharp/TaskPoolTests.cs`)+ `base_task_refresh_test` + interop(`test/task_pool_interop_test.tscn`)
 
 ### P2 — 新能力(按内容规模需求启动)
 

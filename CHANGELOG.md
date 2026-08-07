@@ -28,8 +28,11 @@
 - **P1-1 BalanceService 点路径解析核心 → `InfiAir.Core.Config.PathResolver`**（`d0fb9e2`）：纯 .NET 纯函数 + `PathResolverInterop` 薄壳；`scripts/balance_service.gd` 保留 `cfg()` 签名转发（469 处调用点零改动，BALANCE_MAP M8 零 diff）；数值宽容/容器拷贝/typeof 相等语义逐条镜像，kind 标签桥接 StringName 区分
 - **P0-1 SaveManager → `InfiAir.Core.Storage.SaveStore`**（`fcb37d1`）：原子写（tmp + rename 回退）/损坏隔离（.corrupt + last_was_corrupt）/System.Text.Json 序列化全量迁移；`scripts/save_manager.gd` 薄壳转发（公开 API 不变）
 - **P0-2 UserDb 数据层 → `InfiAir.Core.Storage.UserDb`**（`0acb28b`）：CRUD/登录记录/本地排行榜/名称校验 + 自建 PBKDF2 变体**逐字节等价迁移**（5 组迁移前 GDScript 实测固定向量 + 存量账号验密兼容测试）；`scripts/user_db.gd` 薄壳转发（公开 API/迭代数降档机制不变）；Q17/Q18/Q20 结构守卫保留
-- **共享基建**：`csharp/godot/VariantBridge.cs`（Variant↔CLR JSON 兼容树双向转换）；新增 3 个 interop 断言场景（`path_resolver_interop`/`save_store_interop`/`user_db_interop`）
-- **验证**：dotnet build 零警告 + xUnit 54/54 + 51 断言场景（3 新场景 + 账户/存档回归全绿）+ main 冒烟干净
+- **P1-2 Progression 进程曲线核心 → `InfiAir.Core.Progression`**（`MilestoneCurve` + `DifficultyCurve` 纯函数 + `ProgressionInterop` 薄壳）：里程碑阈值曲线（8 档基础 × cycle_mult^cycle × 难度倍率）与难度进程曲线逐位等价迁移（累加顺序/`Math.Pow` 调用/roundf half-away-from-zero 对齐；极大 index 显式钳制防 int64 溢出 UB）；`apply_run_save` 里程碑定位改 `CountThresholdsUpTo` 单次调用 + O(1)/档 增量推进——实测存档恢复路径 1623µs → 19µs（**提速 ~85×**，score=1e9 档）；`milestone_threshold`/`_recompute_difficulty` 转发，公开签名不变（加分逐档保留 while——`set_milestone_override` 钩子允许阈值脱离曲线，批量推进不适用）
+- **P1-3 任务池抽取核心 → `InfiAir.Core.Missions.TaskPool`**（纯逻辑 + `TaskPoolInterop` 薄壳）：洗牌游标无放回抽取（排除项/跨批补足 Q05/全池排除安全空）语义不变；RNG 独立于 GDScript 全局随机源（性质等价、序列不等价，无外部依赖具体序列）；`scripts/task_pool.gd` 薄壳转发（公开签名不变）
+- **共享基建**：`csharp/godot/VariantBridge.cs`（Variant↔CLR JSON 兼容树双向转换）；新增 3 个 interop 断言场景（`path_resolver_interop`/`save_store_interop`/`user_db_interop`）；P1-2/P1-3 新增 `progression_interop`/`task_pool_interop` 2 个
+- **验证**：dotnet build 零警告 + xUnit 73/73（P1-2/P1-3 新增 19 项）+ 53 断言场景（5 新场景 + 账户/存档/难度/任务回归全绿）+ main 冒烟干净
+- **教训**：跨语言单值调用（~5µs/次）稳态开销 > GDScript 自身求值（~2µs）——逐档小计算跨语言为**负收益**，批量计算（档数推进/存档恢复）才有正收益（~85×）；基准验证先行、避免"为迁而迁"（与 `docs/C_SHARP_ASSESSMENT.md` §4.1「API 密集场景两者接近」判断一致）
 - **教训**：GDScript 的 `int("0x" + s)` 按**十进制**解析（"0x11" → 11）——PBKDF2 向量生成器首版盐解析被污染，Python/C# 独立复算 + 探针逐字节对比后纠正（向量生成须用 `String.hex_to_int()`）；C# 三元表达式 `cond ? (long)x : (double)y` 因隐式拓宽会把整型统一装箱成 double（PathResolver/SaveStore 各修一处）
 
 ### 搁置项重启（2026-08-07，`docs/archive/2026-08-07-deferred-restart-plan.md`）
