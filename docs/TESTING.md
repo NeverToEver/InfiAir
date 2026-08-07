@@ -2,7 +2,7 @@
 
 > On-demand reference for `AGENTS.md`: full commands, per-system scenes, screenshots, side effects. **Minimal set & rules: `AGENTS.md`**.
 
-Run at repo root. Engine: `~/.local/bin/godot` (or `godot` if on PATH); `./run.sh` auto-locates.
+Run at repo root. Engine: .NET build preferred — `godot-mono` (PATH → `~/.local/bin/godot-mono` → `godot`/`godot4` → `~/.local/bin/godot`); the C# project requires the .NET build. `./run.sh` auto-locates.
 
 ```bash
 ./run.sh                                   # run locally
@@ -10,14 +10,16 @@ godot --headless --import --path .         # import + script parse
 godot --headless --path . --quit-after 300 # main scene, 300 frames
 godot --headless --path . res://test/smoke_test.tscn          # minimal smoke
 godot --headless --path . res://test/base_system_test.tscn    # saves/RP/tasks/base
+dotnet build                               # C# compile (TreatWarningsAsErrors: zero warnings)
+dotnet test tests-csharp/                  # xUnit pure-logic unit tests
 ```
 
-Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; run subsystem scenes when touching that subsystem.
+Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; add `dotnet build` + `dotnet test tests-csharp/` when touching `csharp/**` or `tests-csharp/**`; run subsystem scenes when touching that subsystem.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
-- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **47** (2026-08-07).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **56** (47 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools).
+- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **48** (2026-08-07; + `csharp_interop_test`).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **57** (48 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools).
 - Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Subsystem Scenes
@@ -73,6 +75,8 @@ godot --headless --path . res://test/tutorial_test.tscn
 # Pools & perf
 godot --headless --path . res://test/pool_reuse_test.tscn
 godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
+# C# interop (2026-08-07; GDScript→C# cross-language call, loads res://csharp/godot/BalanceInterop.cs)
+godot --headless --path . res://test/csharp_interop_test.tscn
 # Autoplay anomaly probe (~480s real time; not a normal assertion test)
 godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
 ```
@@ -98,30 +102,32 @@ godot --path . res://test/hud_capture.tscn        # HUD normal/all-buffs → /tm
 
 ## Unified Check Flow (pre-commit / CI gate)
 
-Five layers; CI (`.github/workflows/ci.yml`) runs all; reproduce locally:
+Six layers; CI (`.github/workflows/ci.yml`) runs all; reproduce locally:
 
 ```bash
 gdformat --check autoload/ scripts/ test/     # 1. format (width 140, gdformatrc)
 gdlint autoload/ scripts/ test/               # 2. static (style/unused/.gdlintrc)
-godot --headless --import --path .             # 3. warnings: error-level zero tolerance
+dotnet build --nologo                          # 3. C# compile (TreatWarningsAsErrors: zero warnings)
+dotnet test tests-csharp/ --nologo             #    xUnit pure-logic unit tests
+godot --headless --import --path .             # 4. warnings: error-level zero tolerance
                                                #    ("Warning treated as error" fails CI);
                                                #    warn-level (unsafe/untyped) = AUDIT_VAULT list
-godot --headless --path . --quit-after 300     # 4. compile + runtime smoke
+godot --headless --path . --quit-after 300     # 5. compile + runtime smoke
 godot --headless --path . res://test/smoke_test.tscn
-# 5. all 47 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
+# 6. all 48 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
 ```
 
 - **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit==4.5.0` (版本与 `ci.yml` 对齐, 2026-08-05 R09) → `.venv/bin/gdformat`/`.venv/bin/gdlint`. (PEP 668 系统保护环境必须用 `.venv`——见「Headless Test Environment Notes」.)
 - **Rule rationale**: `gdformatrc`/`.gdlintrc`/`project.godot` `[debug]` comments + `docs/AUDIT_VAULT.md`; new disables/relaxes sync those configs + `AGENTS.md`.
-- Layers: format → style → engine warnings → compile/start → runtime behavior.
+- Layers: format → style → C# build/test → engine warnings → compile/start → runtime behavior.
 
 ## CI
 
-push/PR: gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 47 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable headless (Linux x86_64, official Release), no 3rd-party actions (gdtoolkit==4.5.0 via pip, 2026-08-05 R09 锁版本). Green = merge gate.
+push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 48 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact actions + official `dotnet-install.sh` + official Godot engine/templates only (gdtoolkit==4.5.0 via pip, 2026-08-05 R09 锁版本). Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 56 scenes: 47 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. (2026-08-05 P4: 53→54; 2026-08-07 S01: 54→56)
+Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 57 scenes: 48 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-05 P4: 53→54; 2026-08-07 S01: 54→56; 2026-08-07 C#: 56→57)
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.

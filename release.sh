@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     echo "用法: ./release.sh [--help]"
     echo "输出: builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>"
-    echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH 的 godot/godot4）"
+    echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（默认探测链 godot-mono → ~/.local/bin/godot → PATH）"
     exit 0
 fi
 
@@ -23,15 +23,26 @@ if [ -z "$VERSION" ]; then
     echo "[release] 无法从 project.godot 读取 config/version；请显式传入 VERSION=x.y" >&2
     exit 1
 fi
-GODOT="${GODOT:-$HOME/.local/bin/godot}"
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
-# 2026-08-07 环境适配：仅安装 godot4 命名的发行版（如多数 Linux 仓库包）也可直接发布
-command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot4"
+# 2026-08-07 C# 立项：探测链 .NET 版优先（godot-mono）——含 .cs 工程标准版引擎无法导出
+# 显式传 GODOT 时不回退（尊重调用方指定）
+if [ -n "${GODOT:-}" ]; then
+	command -v "$GODOT" >/dev/null 2>&1 || {
+		echo "[release] 未找到指定引擎：$GODOT" >&2
+		exit 1
+	}
+else
+	GODOT="$HOME/.local/bin/godot-mono"
+	command -v "$GODOT" >/dev/null 2>&1 || GODOT="$HOME/.local/bin/godot"
+	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot-mono"
+	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
+	# 2026-08-07 环境适配：仅安装 godot4 命名的发行版（如多数 Linux 仓库包）也可直接发布
+	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot4"
+fi
 # 2026-08-06 审计：GODOT 兜底链断裂无诊断（原回退链末端 command not found 裸报错）——
 # 最终探测失败立即给出引擎安装指引（对齐 run.sh 诊断口径）
 if ! command -v "$GODOT" >/dev/null 2>&1; then
-    echo "[release] 未找到 Godot 引擎：$GODOT（需要 4.6+ 标准版）" >&2
-    echo "         下载：https://godotengine.org/download 或放置到 ~/.local/bin/godot" >&2
+    echo "[release] 未找到 Godot 引擎：$GODOT（需要 4.6+，推荐 .NET 版）" >&2
+    echo "         下载：https://godotengine.org/download 或放置到 ~/.local/bin/" >&2
     exit 1
 fi
 

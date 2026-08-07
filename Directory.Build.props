@@ -1,0 +1,11 @@
+<Project>
+  <!-- 仓库级 C# 构建默认值（根文件，自动作用于所有子工程）。
+       对齐项目门禁文化：warning-as-error（对应 GDScript 侧 project.godot 警告闸）。 -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+</Project>

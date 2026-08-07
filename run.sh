@@ -6,8 +6,12 @@
 set -e
 cd "$(dirname "$0")" || exit 1
 
-# 引擎探测：PATH（godot / godot4）→ ~/.local/bin → macOS /Applications
-if command -v godot >/dev/null 2>&1; then
+# 引擎探测：.NET 版优先（godot-mono，项目含 C# 代码后标准版无法打开）→ PATH（godot / godot4）→ ~/.local/bin → macOS /Applications
+if command -v godot-mono >/dev/null 2>&1; then
+    GODOT="godot-mono"
+elif [ -x "$HOME/.local/bin/godot-mono" ]; then
+    GODOT="$HOME/.local/bin/godot-mono"
+elif command -v godot >/dev/null 2>&1; then
     GODOT="godot"
 elif command -v godot4 >/dev/null 2>&1; then
     GODOT="godot4"
@@ -16,9 +20,9 @@ elif [ -x "$HOME/.local/bin/godot" ]; then
 elif [ -d "/Applications/Godot.app" ]; then
     GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 else
-    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，标准版即可）。"
+    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，推荐 .NET 版）。"
     echo "          下载：https://godotengine.org/download"
-    echo "          或将 godot / godot4 加入 PATH / 放置到 ~/.local/bin/godot"
+    echo "          或将 godot-mono / godot / godot4 加入 PATH / 放置到 ~/.local/bin/"
     exit 1
 fi
 

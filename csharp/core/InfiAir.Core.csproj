@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- InfiAir.Core：纯 .NET 类库（不引用 GodotSharp）——数值模型/算法/服务逻辑层，
+       可被 xUnit 毫秒级单测；Godot 主工程与 tests-csharp 均引用本工程。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>InfiAir.Core</RootNamespace>
+    <AssemblyName>InfiAir.Core</AssemblyName>
+  </PropertyGroup>
+</Project>

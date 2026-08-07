@@ -1,0 +1,17 @@
+<Project Sdk="Godot.NET.Sdk/4.6.2">
+  <!-- Godot 主工程（C# 绑定层）：场景/节点脚本与引擎互操作代码。
+       csharp/core/（InfiAir.Core 纯 .NET 类库）与 tests-csharp/ 由各自 csproj 管理，
+       此处显式排除避免双编译；导出时经 ProjectReference 自动携带 InfiAir.Core.dll。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>InfiAir</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="csharp/core/**" />
+    <Compile Remove="tests-csharp/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="csharp/core/InfiAir.Core.csproj" />
+  </ItemGroup>
+</Project>

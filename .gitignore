@@ -32,3 +32,10 @@ __pycache__/
 
 # 本地静态检查工具虚拟环境（gdtoolkit：gdlint/gdformat，按 docs/TESTING.md 安装）
 .venv/
+
+# .NET / C#（NuGet 还原与编译产物不入库）
+**/bin/
+**/obj/
+*.user
+.vs/
+NuGet.config

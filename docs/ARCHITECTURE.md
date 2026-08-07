@@ -4,10 +4,11 @@
 
 ## Stack
 
-- Engine: Godot 4.6 (standard, no .NET), `GL Compatibility` on desktop/mobile.
-- Language: pure GDScript; `scripts/tools/*.py` offline tools (balance editor, doc gen, asset gen; stdlib only — sprite gens need PIL), not runtime deps.
+- Engine: Godot 4.6.2 .NET/mono edition (standard → mono since 2026-08-07 for C# interop), `GL Compatibility` on desktop/mobile.
+- Language: GDScript (existing code, not migrated) + C# for new modules/pure logic/data models (`csharp/`, progressive interop since 2026-08-07, decision `docs/C_SHARP_ASSESSMENT.md`); `scripts/tools/*.py` offline tools (balance editor, doc gen, asset gen; stdlib only — sprite gens need PIL), not runtime deps.
 - Assets: `assets/sprites/` PNG, `assets/audio/` WAV, `assets/fonts/NotoSansSC.ttf`.
 - Data: `data/balance.json` tunable source (top sections: version/world_scale/player/enemies/elites/boss/hud/spawner/mothership/buffs/milestones/base_task/difficulty/progression/effects/tutorial/elite_turret_event/formation_strike_event/fog_events/dda); canonical Tab JSON since 2026-07-31, maintained by `balance_editor.py`. `data/translations.csv` zh/en source; `.translation` built by Godot import.
+- C# interop boundaries (2026-08-07): existing GDScript is not migrated; hot paths (object pools / bullet hell) and scene-binding layers must not cross languages; GDScript ↔ C# inheritance is forbidden (official limitation) — cross-language access only via thin binding shells (`csharp/godot`). Build/test chain: `dotnet build` (`InfiAir.csproj` Godot.NET.Sdk → `csharp/core` `InfiAir.Core`); pure-logic tests `dotnet test tests-csharp/` (xUnit); scene/integration tests stay `test/*_test.tscn` assertion scenes (`docs/TESTING.md`).
 
 ## Key Config Files
 
@@ -17,7 +18,7 @@
 | `data/balance.json` | All tunables. `boss` holds `phases` (pattern tables/telegraph/P2 params), `enrage.type_*`, `difficulty_scaling` (count/interval/speed tiers). Edit via `balance_editor.py`. |
 | `data/translations.csv` | Translation keys + `zh`/`en` source. |
 | `.gitignore` | `.godot/`, imported `*.translation`, IDE files, exports (`builds/`; `export_presets.cfg` committed since 2026-07-30). |
-| `run.sh`/`run.command`/`run.bat` | Launch wrappers. `run.sh`: PATH → `~/.local/bin/godot` → App bundle, warn on old version, args passed through (`--editor` etc.). `run.command` (double-click + terminal, aligned with run.sh since 2026-08-02): candidates incl. `/Applications`+`~/Applications` `Godot*.app`, pick 4.6+, pass engine args, no `exec` (keeps window/output on abnormal exit). |
+| `run.sh`/`run.command`/`run.bat` | Launch wrappers. `run.sh`: .NET-edition-first engine probe (`godot-mono` → `~/.local/bin/godot-mono` → `godot` → `godot4` → `~/.local/bin/godot`), warn on old version, args passed through (`--editor` etc.). `run.command` (double-click + terminal, aligned with run.sh since 2026-08-02): candidates incl. `/Applications`+`~/Applications` `Godot*.app`, pick 4.6+, pass engine args, no `exec` (keeps window/output on abnormal exit). |
 | `export_presets.cfg` | Linux/X11 + Windows Desktop presets (embedded pck, x86_64); needs matching export templates installed. |
 | `release.sh` | Import → dual-platform export → package into `builds/release/` (`VERSION` env sets version). |
 
@@ -25,7 +26,7 @@ No `package.json`/`pyproject.toml`/`requirements*`/`Cargo.toml`/`go.mod`/Makefil
 
 **Entry (2026-08-04)**: `project.godot` `run/main_scene = res://scenes/welcome.tscn` — accounts (UserDB: PBKDF2 users.json, per-user saves/settings, local leaderboard) + StartPanel retired (merged into welcome). GameOver「回主菜单」and tutorial exit return to welcome. Per-user save path `user://savegame_<user>_<sha256[:12]>.json` (see `docs/archive/2026-08-04-local-accounts-plan.md`).
 
-**Release/CI status (2026-08-02)**: export templates installed (`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`), `release.sh` proven, artifacts `builds/release/InfiAir-<ver>-linux-x86_64.tar.gz` / `-windows-x86_64.zip` (embedded pck + install scripts, gitignored). **Distributed as GitHub Releases attachments (not in repo)**: `gh release create v<ver> builds/release/InfiAir-<ver>-*.{tar.gz,zip}`. macOS can't run Linux/Windows binaries — platform validation needed on those hosts. CI `.github/workflows/ci.yml`: official Godot 4.6.2 stable binary (Linux x86_64, from official Release, no 3rd-party action) + headless import + main smoke + 47 assertion scenes (2026-08-07 count; CI run is authority), push/PR; green = merge gate (see `CONTRIBUTING.md`). CD `.github/workflows/release.yml` (manual): install Godot + templates → smoke → `release.sh` → tag `v<ver>` → GitHub Release with attachments; input version syncs `project.godot` `config/version`.
+**Release/CI status (2026-08-02)**: export templates installed (`~/Library/Application Support/Godot/export_templates/4.6.2.stable/`), `release.sh` proven, artifacts `builds/release/InfiAir-<ver>-linux-x86_64.tar.gz` / `-windows-x86_64.zip` (embedded pck + install scripts, gitignored). **Distributed as GitHub Releases attachments (not in repo)**: `gh release create v<ver> builds/release/InfiAir-<ver>-*.{tar.gz,zip}`. macOS can't run Linux/Windows binaries — platform validation needed on those hosts. CI `.github/workflows/ci.yml` (2026-08-07, .NET/mono): official Godot 4.6.2 .NET/mono binary (Linux x86_64, official Release) + official `dotnet-install.sh` (.NET 8 SDK) → `dotnet build` + `dotnet test tests-csharp/` → headless import + main smoke + 48 assertion scenes (2026-08-07 count; CI run is authority), push/PR; green = merge gate (see `CONTRIBUTING.md`). CD `.github/workflows/release.yml` (manual): install Godot .NET/mono + templates → `dotnet build` → smoke → `release.sh` → tag `v<ver>` → GitHub Release with attachments; input version syncs `project.godot` `config/version`.
 
 ## Main Node Tree
 
@@ -85,6 +86,9 @@ FogEventManager is **not** under Main: it's a service child of the `GameState` a
 | `scenes/` | Godot `.tscn` scenes. |
 | `scripts/` | GDScript logic/UI/presentation/pools. |
 | `scripts/tools/` | Offline Python (stdlib): `balance_editor.py` (browser partition edit + highlight + server-side structural/type validation + atomic save + auto `.bak` — tune values with it, then minimal test set); `gen_balance_map.py` (regenerates `docs/BALANCE_MAP.md`: all `cfg()` call-site index + json/script dual-write reverse check — run after new/renamed keys); `generate_audio.py` (regenerates committed WAVs); `generate_enemy_sprites.py`/`generate_player_sprite.py`/`generate_mothership_sprite.py` (regenerate unit sprites, PIL, supersample + glow double-layer). |
+| `csharp/core/` | `InfiAir.Core` pure .NET class library (zero Godot deps) — data models/pure logic, e.g. `BalanceModels.cs` (typed model for `data/balance.json`); unit-testable via `tests-csharp/`. |
+| `csharp/godot/` | Godot binding layer: thin shells (namespace `InfiAir`, e.g. `BalanceInterop.cs` RefCounted bridging GDScript ↔ Core) — no logic, no hot-path use. |
+| `tests-csharp/` | xUnit tests for `InfiAir.Core` (ProjectReference → `csharp/core`), run via `dotnet test tests-csharp/`. |
 | `assets/` | Sprites, audio/BGM, fonts, shaders (Meta HUD + crack bake). |
 | `data/` | Runtime config + translation sources. |
 | `test/` | Headless `.tscn + .gd` self-checks, perf bench, autoplay, screenshot tools. |

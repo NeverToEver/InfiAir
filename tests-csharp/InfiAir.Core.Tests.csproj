@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- InfiAir.Core.Tests：xUnit 单测（纯逻辑层，毫秒级，不依赖 Godot 运行时）。
+       与 Godot 场景断言体系（test/*_test.tscn）互补：纯逻辑 → dotnet test，集成/场景 → 断言场景。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>InfiAir.Core.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../csharp/core/InfiAir.Core.csproj" />
+  </ItemGroup>
+</Project>

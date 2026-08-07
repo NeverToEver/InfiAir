@@ -1,8 +1,8 @@
-# C# 混合编译调研与决策（2026-08-05）
+# C# 混合编译调研与决策（2026-08-05 调研；2026-08-07 决策更新）
 
-> 调研对象：InfiAir（Godot 4.6.2 + 纯 GDScript 2D 弹幕射击）
+> 调研对象：InfiAir（Godot 4.6.2 2D 弹幕射击；调研时为纯 GDScript，2026-08-07 起 C# 渐进式混编）
 > 调研问题：引入 C# 与 GDScript 混合编译的收益与风险，是否引入。
-> 结论先行：**不引入。维持纯 GDScript。** 理由见 §7；未来触发条件见 §8。
+> 结论先行：**引入（渐进式混编）。** 2026-08-05 评估为不引入；2026-08-07 触发条件 3（团队语言构成变化）成立，决策更新为引入。决策与范围见 §7；剩余触发条件见 §8。
 
 ---
 
@@ -15,7 +15,7 @@
 | 工程化收益 | 有限。现有 5 层门禁（gdformat + gdlint + warning-as-error + 冒烟 + 47 断言场景，权威计数见 `docs/TESTING.md`）已覆盖 C# 静态类型可防的大部分错误类别 |
 | 引入成本 | 确定且横跨三处：CI 重构（换 .NET 版引擎 + dotnet build）、发布链路重构（mono 模板 + dotnet publish）、本地工具链（需安装 .NET SDK、更换编辑器为 .NET 版）；另加双语言长期维护 |
 | 架构冲击 | GDScript 与 C# **不可互相继承**（官方限制），现有 `class_name` 体系（Bullet/Enemy/Boss 等）若部分迁移会产生继承断层；热路径跨语言调用为动态派发 + marshalling，有额外开销 |
-| 最终决策 | **不引入 C#** |
+| 最终决策 | 2026-08-05 评估：**不引入**；2026-08-07 更新：**引入（渐进式混编）**（§7） |
 
 ---
 
@@ -46,7 +46,7 @@ InfiAir 是 Godot 4.6 + GDScript 的 2D 弹幕射击，自 Python/Pygame 原版�
 
 - 唯一 autoload：`GameState`（facade，转发 7 个非 autoload 服务：balance/save/sfx/entity_manager/fog_events/event_manager/user_db）。
 - 弹幕热路径已充分优化：`BulletPool` 对象池复用 + 同屏敌弹 500 硬上限（`bullet_pool.gd`）、`BossFire` 纯发射逻辑（RefCounted，A3 拆分）、策略/波次均由配置驱动（`data/balance.json`）。
-- 架构债务清零：A2 服务拆分、A3/A4 注册表 + 声明式效果表、A8 PlayerVisuals 拆分全部落地；45 断言场景 0 FAIL（2026-08-05）。
+- 架构债务清零：A2 服务拆分、A3/A4 注册表 + 声明式效果表、A8 PlayerVisuals 拆分全部落地；断言场景全量 0 FAIL（2026-08-05，权威计数见 `docs/TESTING.md`）。
 
 ### 3.2 性能基线（实测）
 
@@ -60,11 +60,11 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 - 该场景已超出正常对局压力（对局峰值约 300+ 子弹，远低于 500 硬上限——见 `docs/archive/2026-08-05-main-architecture-optimization-report.md`），意味着**性能余量一个数量级以上**。
 - 结论：当前不存在任何由 GDScript 引起的性能瓶颈；"GDScript 慢"在本项目语境下不构成引入 C# 的理由。
 
-### 3.3 构建、CI 与发布链路
+### 3.3 构建、CI 与发布链路（2026-08-07 更新：已切换 .NET 版链路）
 
-- **CI**（`.github/workflows/ci.yml`）：官方 Godot 4.6.2 **标准版** headless（非 .NET 版）→ gdlint/gdformat 门禁 → 无头导入（warning-as-error）→ 主场景冒烟 → 47 断言场景全量 + 编译探针。
-- **发布**（`.github/workflows/release.yml` + `release.sh`）：标准版引擎 + 标准导出模板（`Godot_v4.6.2-stable_export_templates.tpz`）→ Linux/Windows 双平台包 → GitHub Release。CI/CD 政策：不引入第三方依赖，仅官方 checkout action + Godot 二进制/模板。
-- **本地**：标准版 4.6.2 引擎（`run.sh` 自动定位）；**未安装 .NET SDK**。
+- **CI**（`.github/workflows/ci.yml`）：官方 Godot 4.6.2 **.NET/mono 版** headless → gdlint/gdformat 门禁 → 无头导入（warning-as-error）→ 主场景冒烟 → 断言场景全量 + 编译探针；新增 **Install .NET SDK 8**（官方 `dotnet-install.sh`，写入 `GITHUB_PATH`）与 **Build & test C#**（`dotnet build` + `dotnet test tests-csharp/`）步骤。断言场景权威计数见 `docs/TESTING.md`。
+- **发布**（`.github/workflows/release.yml` + `release.sh`）：.NET 版引擎 + mono 导出模板 → `dotnet build` → Linux/Windows 双平台包 → GitHub Release。CI/CD 政策：仅官方 checkout/upload-artifact action + 官方 `dotnet-install.sh` + 官方 Godot 引擎/模板，无其他第三方依赖。
+- **本地**：`~/.dotnet`（.NET 8 SDK）+ `~/.local/bin/godot-mono`（4.6.2 .NET 版编辑器）；mono 导出模板已装（`~/.local/share/godot/export_templates/4.6.2.stable/`，覆盖标准模板，发布统一用 mono 引擎）；`run.sh`/`release.sh` 引擎探测链 .NET 版优先（`godot-mono` → `~/.local/bin/godot-mono` → `godot` → `godot4` → `~/.local/bin/godot`），`release.sh` 显式传 `GODOT` 不回退。
 
 ### 3.4 平台目标
 
@@ -156,32 +156,45 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 
 ## 7. 决策与理由
 
-### 决策：不引入 C#。维持纯 GDScript。
+### 决策（2026-08-07 更新）：引入 C#（渐进式混编）
+
+2026-08-05 的评估结论为**不引入**（理由见下文"原评估"）；2026-08-07 **触发条件 3「团队语言构成变化」成立**（主力贡献者以 C# 为主且明确愿意承担迁移/双语言维护成本），决策更新为**引入 C#，渐进式混编**。双语言成本（CI/发布/本地工具链改造，§5.1–5.2）已接受并落地，见 §3.3 现状。
+
+#### 引入范围与边界
+
+- **存量 GDScript 不迁移**：现有约 36k 行 GDScript（§3.1）保持原样，不重写。
+- **新代码用 C#**：新模块/纯逻辑/数据模型/算法（如 `csharp/core` `InfiAir.Core` 对 `data/balance.json` 的类型化模型）。
+- **热路径禁止跨语言**：对象池/弹幕等热路径与场景绑定层保持 GDScript，C# 仅经薄壳接入（`csharp/godot` 绑定层），避免动态派发 + marshalling 开销（§5.3）。
+- **禁止跨语言继承**：C# 与 GDScript 不可互相继承（官方限制），跨语言边界仅限显式桥接（如 `BalanceInterop` RefCounted 壳）。
+- **测试分层**：纯逻辑 → `tests-csharp/` xUnit（`dotnet test`）；场景/集成 → `test/*_test.tscn` 断言场景（计数权威见 `docs/TESTING.md`）。
+
+#### 原评估（2026-08-05：不引入）及变更原因
 
 理由（按权重排序）：
 
-1. **性能无瓶颈是实测事实**：极限压力场景 1.011ms/帧（§3.2），性能收益 ≈ 0，而"性能"是迁移 C# 最常见也最正当的理由。
-2. **无平台推力**：C# 的典型引入动因是 Web 之外的高性能/平台需求；本项目仅桌面双平台，移动端触控虽已落地（2026-08-07）但为纯 GDScript 输入层、不构成性能/平台推力，Web 无计划（§3.4）。
-3. **时机错误**：项目刚完成技术债清零并固化 5 层门禁与 CI/CD（§3.3），处于稳定期；引入 C# 等于主动拆掉刚刚稳定的构建/发布链路。
-4. **架构冲击不可小觑**：跨语言继承禁止 + 热路径动态派发（§5.3），与已优化的对象池/弹幕体系直接冲突。
-5. **既有工程化保障足够**：warning-as-error + gdlint + 47 断言场景已把 GDScript 的短板（弱类型）压缩到低风险区间（§4.2）。
+1. **性能无瓶颈是实测事实**：极限压力场景 1.011ms/帧（§3.2），性能收益 ≈ 0。→ 仍成立，但由此限定引入范围：**热路径不迁移**。
+2. **无平台推力**：仅桌面双平台，无 Web/console 需求（§3.4）。→ 仍成立，不构成引入理由，也不阻止引入。
+3. **时机错误**：技术债清零后的稳定期，拆建刚稳定的构建/发布链路成本高。→ 成本真实存在，2026-08-07 被触发条件 3 的外部动因覆盖：团队明确承担双语言维护成本。
+4. **架构冲击不可小觑**：跨语言继承禁止 + 热路径动态派发（§5.3）。→ 通过"渐进式混编 + 边界约束"（不迁移存量、热路径不跨语言、仅薄壳桥接）控制。
+5. **既有工程化保障足够**：warning-as-error + gdlint + 断言场景门禁已把 GDScript 短板压缩到低风险区间（§4.2；计数权威 `docs/TESTING.md`）。→ 仍成立；C# 在新增纯逻辑上提供编译期保障，作为门禁补充而非替代。
 
 ### 附带建议
 
-- 若追求类型安全增量，优先方向是**强化 GDScript 门禁**（如提高 `untyped_declaration` 至 error 级）而非引入 C#。
-- 若未来出现真实性能热点，先做 **GDExtension（C++/Rust）定点热路径**，而非整体引入 C#（社区对"GDScript 慢"的标准解法 [GDScript vs C# in Godot](https://www.oflight.co.jp/en/columns/godot-gdscript-vs-csharp-language-choice-2026)）；GDExtension 不改变 CI 的 GDScript 主线，但同样需要权衡。
-- 本决策属方向性决策，已按 doc-sync 约定在 `docs/ROADMAP.md` 登记（见其 "Decisions" 小节）。
+- GDScript 门禁强化（如提高 `untyped_declaration` 至 error 级）仍建议执行，作为混编边界外的配套防线。
+- 若未来出现真实性能热点，仍先考虑 **GDExtension（C++/Rust）定点热路径**，而非扩大 C# 面（社区对"GDScript 慢"的标准解法 [GDScript vs C# in Godot](https://www.oflight.co.jp/en/columns/godot-gdscript-vs-csharp-language-choice-2026)）；本决策范围已排除 C# 进入热路径。
+- 本决策属方向性决策，已按 doc-sync 约定在 `docs/ROADMAP.md` 登记（见其 "Decisions" 小节 2026-08-07 条目）。
 
 ---
 
 ## 8. 未来触发条件（何时重新评估）
 
-以下任一成立时，重新评估引入 C#（并按 §5 清单补齐前置评估）：
+以下任一成立时，重新评估 C# 的引入范围/混编边界（并按 §5 清单补齐前置评估）：
 
 1. **实测性能瓶颈**：真实对局（含渲染）帧耗时稳定越过预算，且 profiler 定位到 GDScript 计算热点（非引擎 API 瓶颈）。
 2. **平台需求变化**：新增 console 目标、或需要 C# 生态才可用的平台特性。
-3. **团队语言构成变化**：主力贡献者以 C# 为主且明确愿意承担迁移/双语言维护成本。
-4. **架构大改窗口**：出现必然的大规模重写（如引擎升级到破坏性版本、玩法系统重构），此时迁移边际成本大幅下降。
+3. **架构大改窗口**：出现必然的大规模重写（如引擎升级到破坏性版本、玩法系统重构），此时迁移边际成本大幅下降。
+
+> 原第 3 条（**团队语言构成变化**：主力贡献者以 C# 为主且明确愿意承担迁移/双语言维护成本）已于 **2026-08-07 成立**，触发 §7 决策更新（引入），故从本清单移除。
 
 ---
 
