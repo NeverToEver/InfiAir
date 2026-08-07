@@ -194,6 +194,8 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 2. **平台需求变化**：新增 console 目标、或需要 C# 生态才可用的平台特性。
 3. **架构大改窗口**：出现必然的大规模重写（如引擎升级到破坏性版本、玩法系统重构），此时迁移边际成本大幅下降。
 
+> 着陆点路线图（SaveManager/UserDb/BalanceService/AssetCatalog 的优先级与约束）见 `.agents/csharp-conventions.md` §Landing Plan；实现前按该章节的接入模式与验证要求执行。
+
 > 原第 3 条（**团队语言构成变化**：主力贡献者以 C# 为主且明确愿意承担迁移/双语言维护成本）已于 **2026-08-07 成立**，触发 §7 决策更新（引入），故从本清单移除。
 
 ---
