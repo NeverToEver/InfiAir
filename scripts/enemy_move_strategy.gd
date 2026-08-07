@@ -212,13 +212,31 @@ class NoiseMove:
 	var _freqs: Array = [1.7, 2.9, 4.3]
 	var _phases: Array = [0.0, 1.3, 2.1]
 	var _speed_scale: float = 1.2
+	# 2026-08-07 审计：Q29 注入后惰性固化为类型化 float（原每帧 5 次 Variant→float 转换）
+	var _f0: float = 0.0
+	var _f1: float = 0.0
+	var _f2: float = 0.0
+	var _p1: float = 0.0
+	var _p2: float = 0.0
+	var _solidified: bool = false
+
+	func _solidify() -> void:
+		if _solidified:
+			return
+		_solidified = true
+		_f0 = float(_freqs[0])
+		_f1 = float(_freqs[1])
+		_f2 = float(_freqs[2])
+		_p1 = float(_phases[1])
+		_p2 = float(_phases[2])
 
 	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+		_solidify()
 		var vx: float = (
 			(
-				Enemy.sin_fast(ctx.time * float(_freqs[0]) + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * float(_freqs[1]) + float(_phases[1]) + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * float(_freqs[2]) + float(_phases[2]) + ctx.phase)
+				Enemy.sin_fast(ctx.time * _f0 + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * _f1 + _p1 + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * _f2 + _p2 + ctx.phase)
 			)
 			/ 3.0
 			* ctx.speed
@@ -241,13 +259,31 @@ class AggressiveMove:
 	var _phases: Array = [0.0, 1.7, 0.6]
 	var _speed_scale: float = 1.1
 	var _hover_speed_scale: float = 0.9
+	# 2026-08-07 审计：Q29 注入后惰性固化为类型化 float（原每帧 5 次 Variant→float 转换）
+	var _f0: float = 0.0
+	var _f1: float = 0.0
+	var _f2: float = 0.0
+	var _p1: float = 0.0
+	var _p2: float = 0.0
+	var _solidified: bool = false
+
+	func _solidify() -> void:
+		if _solidified:
+			return
+		_solidified = true
+		_f0 = float(_freqs[0])
+		_f1 = float(_freqs[1])
+		_f2 = float(_freqs[2])
+		_p1 = float(_phases[1])
+		_p2 = float(_phases[2])
 
 	func update(_delta: float, enemy: Enemy, ctx: Dictionary) -> void:
+		_solidify()
 		var vx: float = (
 			(
-				Enemy.sin_fast(ctx.time * float(_freqs[0]) + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * float(_freqs[1]) + float(_phases[1]) + ctx.phase)
-				+ Enemy.sin_fast(ctx.time * float(_freqs[2]) + float(_phases[2]) + ctx.phase)
+				Enemy.sin_fast(ctx.time * _f0 + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * _f1 + _p1 + ctx.phase)
+				+ Enemy.sin_fast(ctx.time * _f2 + _p2 + ctx.phase)
 			)
 			/ 3.0
 			* ctx.speed

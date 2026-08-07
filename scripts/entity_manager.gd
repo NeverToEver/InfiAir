@@ -55,16 +55,18 @@ func has_enemy(node: Node) -> bool:
 
 ## P0-1：敌弹登记（幂等）。维护点：bullet._apply_faction（activate/_ready/reflect 阵营翻转）、
 ## bullet.deactivate（回收）、bullet._exit_tree（外部销毁）。reflect 翻转阵营自动切换注册。
+## 2026-08-07 审计：幂等判定走 _enemy_bullet_set O(1)（原 enemy_bullets.has() 线性扫描；
+## set 全写点与数组同步维护，语义不变）
 func register_enemy_bullet(b: Bullet) -> void:
-	if not enemy_bullets.has(b):
+	if not _enemy_bullet_set.has(b):
 		enemy_bullets.append(b)
 	_enemy_bullet_set[b] = true
 
 
-## P0-1：敌弹注销（幂等）
+## P0-1：敌弹注销（幂等）。set 判定真实在册才扫数组（玩家弹/重复注销路径免 O(n) 空扫）
 func unregister_enemy_bullet(b: Bullet) -> void:
-	enemy_bullets.erase(b)
-	_enemy_bullet_set.erase(b)
+	if _enemy_bullet_set.erase(b):
+		enemy_bullets.erase(b)
 
 
 # ---------------- 统一注册样板（2026-08-05，新单位接入一行） ----------------

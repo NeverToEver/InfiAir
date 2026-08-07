@@ -99,6 +99,9 @@ const DEFAULT_PATTERNS: Dictionary = {
 const SUMMONER_TYPES: Dictionary = {3: true, 4: false}
 ## 受击闪白总时长（游击型更短）：_flash_hit 查询。
 const HIT_FLASH_BY_TYPE: Dictionary = {1: 0.1, 2: 0.05, 3: 0.1, 4: 0.1}
+## 2026-08-07 审计：逃跑警告闪烁与狂暴底色提常量（原每帧构造 Color）
+const ESCAPE_BLINK_COLOR := Color(1.8, 1.3, 0.5)
+const ENRAGE_BLINK_COLOR := Color(1.5, 0.65, 0.65)
 var ENTER_SPEED := 140.0
 ## 战斗锚线距可见区域顶缘的偏移（small 档 view.position.y=0 时即绝对 y；使用点一律走 fight_anchor_y()）
 var FIGHT_Y := 230.0
@@ -300,6 +303,11 @@ var _escape_drift_offset: float = 0.0
 ## 母舰召唤减速带：短时减速乘区（仅位移，经 _slow_factor 生效）
 var _summon_slow_timer: float = 0.0
 var _summon_slow_factor: float = 1.0
+## 2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 buff_count 字典查询）
+var _slow_field_on: bool = false
+## 2026-08-07 审计：体碰改信号事件驱动（对齐 enemy.gd P0-2——area_entered/exited 标记
+## 重叠状态，替代每物理帧 overlaps_area 空间查询；无敌结束仍重叠会再次命中语义保持）
+var _body_contact := false
 # 阶段框架与模式表循环（§4.1）
 var _fight_phase: int = FightPhase.P1
 var _patterns: Dictionary = {}  # {"p1": [...], "p2": [...]}，_ready 从配置载入
@@ -498,6 +506,12 @@ func _ready() -> void:
 	ESCAPE_DRIFT = GameState.cfg("boss.escape.drift", ESCAPE_DRIFT)
 	ESCAPE_START_SPEED = GameState.cfg("boss.escape.start_speed", ESCAPE_START_SPEED)
 	ESCAPE_ACCEL = GameState.cfg("boss.escape.accel", ESCAPE_ACCEL)
+	# 2026-08-07 审计：slow_field 缓存初始值 + buffs_changed 增量刷新（对齐 enemy.gd C22）
+	_slow_field_on = GameState.buff_count(&"slow_field") > 0
+	GameState.buffs_changed.connect(_on_buffs_changed)
+	# 2026-08-07 审计：体碰信号事件驱动（对齐 enemy.gd P0-2；collision_mask=3 已含 player Hitbox 层 1）
+	area_entered.connect(_on_area_entered)
+	area_exited.connect(_on_area_exited)
 	ESCAPE_COUNTDOWN_FROM = GameState.cfg("boss.escape.countdown_visible_from", ESCAPE_COUNTDOWN_FROM)
 	HP_BASE = GameState.cfg("boss.hp_base", HP_BASE)
 	# C18：cfg 返回 Variant，显式转 Array[float] 再赋 typed 变量
@@ -727,10 +741,15 @@ func _base_fire_interval() -> float:
 ## 慢速力场因子（全局机体移速 ×0.8；与狂暴移速倍率相乘）
 ## 母舰召唤减速带命中时叠加短时乘区（同语义，仅位移）
 func slow_factor() -> float:
-	var f := SLOW_FIELD_FACTOR if GameState.buff_count(&"slow_field") > 0 else 1.0
+	var f := SLOW_FIELD_FACTOR if _slow_field_on else 1.0
 	if _summon_slow_timer > 0.0:
 		f *= _summon_slow_factor
 	return f
+
+
+## slow_field 缓存刷新（2026-08-07 审计：对齐 enemy.gd C22，buffs_changed 增量刷新）
+func _on_buffs_changed() -> void:
+	_slow_field_on = GameState.buff_count(&"slow_field") > 0
 
 
 ## 母舰召唤减速带命中：duration 秒内位移速度 ×factor
@@ -740,7 +759,7 @@ func apply_slow(duration: float, factor: float) -> void:
 
 
 func _base_modulate() -> Color:
-	return Color(1.5, 0.65, 0.65) if _enraged else Color.WHITE
+	return ENRAGE_BLINK_COLOR if _enraged else Color.WHITE
 
 
 ## 逃跑剩余秒数（HUD 逃跑倒计时读取口，§4.5）
@@ -785,7 +804,7 @@ func _physics_process(delta: float) -> void:
 	# 狂暴序列接管移动与开火（逃跑计时照常走，序列中到点照样逃跑；撞击判定保留）
 	if _enrage_seq.is_active():
 		if _survival >= ESCAPE_TIME - ESCAPE_WARNING:
-			_sprite.modulate = (Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate())
+			_sprite.modulate = (ESCAPE_BLINK_COLOR if int(_survival * 8.0) % 2 == 0 else _base_modulate())
 		_enrage_seq.update(delta, self)
 		_check_body_collision()
 		return
@@ -795,7 +814,7 @@ func _physics_process(delta: float) -> void:
 		# （type1 P2/type3 P2/type4）经 _escape_drift_offset 累计后在 BossMovement 叠加
 		position.y -= ESCAPE_DRIFT * delta
 		_escape_drift_offset += ESCAPE_DRIFT * delta
-		_sprite.modulate = (Color(1.8, 1.3, 0.5) if int(_survival * 8.0) % 2 == 0 else _base_modulate())
+		_sprite.modulate = (ESCAPE_BLINK_COLOR if int(_survival * 8.0) % 2 == 0 else _base_modulate())
 
 	# 冲刺掠过（二型 P2）接管移动与模式编排；否则走位 + 模式表循环
 	if _attacks.is_sweep_active():
@@ -988,15 +1007,30 @@ func _update_flash(delta: float) -> void:
 		_sprite.modulate = _sprite.modulate.lerp(_base_modulate(), delta / _flash_total)
 
 
-## 身体撞击（对齐原作 boss_vs_player.py 逐帧轮询）：入场降入与逃跑离场阶段不判定；
+## 身体撞击（对齐原作 boss_vs_player.py 逐帧轮询语义）：入场降入与逃跑离场阶段不判定；
 ## 玩家 -30 HP（受击无敌帧节流连撞，无敌结束仍重叠会再次命中），Boss 不掉血、不自毁。
+## 2026-08-07 审计：重叠状态由 area_entered/exited 事件驱动标记（collision_mask=3 已含
+## player Hitbox 层 1），此处仅 O(1) 标记守卫（替代原每物理帧 overlaps_area 空间查询）
 func _check_body_collision() -> void:
-	var hb := GameState.player_hitbox
-	if hb != null and overlaps_area(hb):
+	if _body_contact:
 		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
 		(GameState.player_ref as Player).take_damage(
 			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position
 		)
+
+
+## 2026-08-07 审计：体碰重叠标记（对齐 enemy.gd P0-2；判定交回 _physics_process 守卫——
+## 入场降入期不经过守卫，保持"入场期不判定"语义）
+func _on_area_entered(area: Area2D) -> void:
+	if not area.is_in_group("player_hitbox"):
+		return
+	_body_contact = true
+
+
+## 2026-08-07 审计：离开玩家 Hitbox → 清除重叠标记（停止每帧重掷）
+func _on_area_exited(area: Area2D) -> void:
+	if area.is_in_group("player_hitbox"):
+		_body_contact = false
 
 
 func _enrage() -> void:
@@ -1044,5 +1078,6 @@ func _begin_escape() -> void:
 	_escape_speed = ESCAPE_START_SPEED
 	collision_layer = 0  # 离场阶段不再受弹
 	collision_mask = 0
+	_body_contact = false  # 2026-08-07 审计：逃跑期监控关闭，重叠标记复位防残留
 	_sprite.modulate = _base_modulate()
 	print("[BOSS] 存活 %ds 未被击杀，逃离战场（无击杀奖励）" % int(ESCAPE_TIME))

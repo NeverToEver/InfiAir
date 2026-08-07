@@ -24,10 +24,12 @@ var _falloff_peak := 400.0
 var _falloff_end := 1400.0
 var _falloff_min := 0.3
 var _hover: Enemy = null  # 本帧准星入框的标记敌（高亮显示用）
-## P1-3：marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧同点各调一次，
-## 命中缓存免重复 O(enemies) 扫描；point 变化即失效）
+## P1-3：marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧各调一次，
+## 命中缓存免重复 O(enemies) 扫描）。
+## 2026-08-07 审计：缓存仅按渲染帧失效——原"点比较"在同帧两次查询点不同（aim_smooth
+## 更新前后）时必然 miss，实际每帧 2-3 次全表扫描；目标选择设计语义即"帧首平滑点判定"
+## （player.gd:115 注释），帧内共享帧首结果与该语义一致
 var _target_cache_frame: int = -1
-var _target_cache_point: Vector2 = Vector2.INF
 var _target_cache_result: Enemy = null
 
 
@@ -92,10 +94,11 @@ func frame_half_size(e: Enemy) -> float:
 
 
 ## 世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null
-## P1-3：同渲染帧同点缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致）
+## P1-3：同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
+## 2026-08-07 起按帧共享帧首结果，见字段注释）
 func marked_target_at(point: Vector2) -> Enemy:
 	var frame := Engine.get_process_frames()
-	if frame == _target_cache_frame and point == _target_cache_point:
+	if frame == _target_cache_frame:
 		return _target_cache_result
 	var best: Enemy = null
 	var best_sq := INF
@@ -112,7 +115,6 @@ func marked_target_at(point: Vector2) -> Enemy:
 			best_sq = d_sq
 			best = e
 	_target_cache_frame = frame
-	_target_cache_point = point
 	_target_cache_result = best
 	return best
 

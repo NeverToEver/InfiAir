@@ -675,7 +675,7 @@ func _physics_process(delta: float) -> void:
 	if _entry_phase != 0:
 		_entry_physics(delta)
 		return
-	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var input_dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	# 迷雾事件·精神错乱：输入方向反转（上下/左右颠倒）
 	if _fog_invert_input:
 		input_dir = -input_dir
@@ -693,7 +693,7 @@ func _physics_process(delta: float) -> void:
 	_dash.tick_cooldown(delta)
 	# 机制四：弹反盾——流程/冷却推进 + F 键输入（暂停随玩家 process_mode 冻结）
 	_parry.tick(delta)
-	if Input.is_action_just_pressed("parry"):
+	if Input.is_action_just_pressed(&"parry"):
 		_parry.try_start()
 	# 盾判定仅 ACTIVE 期启用（物理回调外直接写 monitoring 安全；冷却期 disabled 零常驻开销）
 	var shield_on := _parry.phase == PlayerParry.ParryPhase.ACTIVE
@@ -704,7 +704,7 @@ func _physics_process(delta: float) -> void:
 	if (
 		dash_unlocked()
 		and not movement_locked
-		and Input.is_action_just_pressed("dash")
+		and Input.is_action_just_pressed(&"dash")
 		and _dash.cooldown_remaining() <= 0.0
 		and not _dash.is_dashing()
 		and _fuel >= dash_fuel_cost()
@@ -717,9 +717,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# 燃料与加速（shift_toggle_mode：按一下切换开/关）
-	if GameState.shift_toggle_mode and Input.is_action_just_pressed("boost"):
+	if GameState.shift_toggle_mode and Input.is_action_just_pressed(&"boost"):
 		_boost_toggle_on = not _boost_toggle_on
-	var want_boost := _boost_toggle_on if GameState.shift_toggle_mode else Input.is_action_pressed("boost")
+	var want_boost := _boost_toggle_on if GameState.shift_toggle_mode else Input.is_action_pressed(&"boost")
 	if movement_locked:
 		want_boost = false  # 锁定期间加速同样冻结（不耗燃料）
 	if _fuel_locked and _fuel >= FUEL_RESTART:
@@ -734,9 +734,9 @@ func _physics_process(delta: float) -> void:
 
 	var boost := BOOST_MULT if boosting else 1.0
 	# Ctrl 微调：移速 ×0.35（ctrl_toggle_mode：按一下切换开/关）
-	if GameState.ctrl_toggle_mode and Input.is_action_just_pressed("fine_move"):
+	if GameState.ctrl_toggle_mode and Input.is_action_just_pressed(&"fine_move"):
 		_fine_toggle_on = not _fine_toggle_on
-	var fine_on := _fine_toggle_on if GameState.ctrl_toggle_mode else Input.is_action_pressed("fine_move")
+	var fine_on := _fine_toggle_on if GameState.ctrl_toggle_mode else Input.is_action_pressed(&"fine_move")
 	var fine := FINE_MOVE_MULT if fine_on else 1.0
 	var target := input_dir * MAX_SPEED * boost * fine * _enrage_slow
 	var rate := ACCEL if input_dir != Vector2.ZERO else DECEL
@@ -992,9 +992,13 @@ func take_damage(amount: float = 1.0, from_pos: Vector2 = Vector2.INF) -> bool:
 
 ## 受击连锁：清除 250px 内全部敌弹（对齐原作 BULLET_CLEAR_RADIUS；无分无特效）。
 ## A8：PlayerDamage 经公开入口调用。
+## 2026-08-07 审计：改遍历敌弹注册表（原 get_parent().get_children() 每次受击分配
+## 数百元素快照；注册表语义 = 活跃敌弹，与 death_replay 已落地模式一致）；倒序遍历
+## 防 despawn→unregister 就地删数组破坏迭代
 func clear_nearby_enemy_bullets() -> void:
-	for child in get_parent().get_children():
-		var b := child as Bullet
+	var bullets := GameState.enemy_bullets
+	for i in range(bullets.size() - 1, -1, -1):
+		var b := bullets[i] as Bullet
 		if b != null and not b.is_player_bullet:
 			if b.global_position.distance_to(global_position) <= BULLET_CLEAR_RADIUS:
 				b.despawn()
