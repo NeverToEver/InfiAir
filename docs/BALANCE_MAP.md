@@ -340,15 +340,15 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 73 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
-| 74 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
-| 75 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
-| 76 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
-| 77 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
-| 78 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 681 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 692 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 734 | `mothership.depart_cooldown` | `60.0` |
+| 74 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
+| 75 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
+| 76 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
+| 77 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
+| 78 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
+| 79 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
+| 688 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 699 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 741 | `mothership.depart_cooldown` | `60.0` |
 
 ### `scripts/meta_health_fx.gd`
 
@@ -448,7 +448,7 @@
 | 180 | `effects.mothership_summon.slow.ring_time` | `SLOW_RING_TIME` |
 | 181 | `effects.mothership_summon.shake_slow` | `SHAKE_SLOW` |
 | 311 | `effects.mothership_summon.warp_in_drop` | `WARP_IN_DROP` |
-| 729 | `effects.shake.mothership` | `4.0` |
+| 739 | `effects.shake.mothership` | `4.0` |
 
 ### `scripts/mothership_summon_window.gd`
 
@@ -523,7 +523,7 @@
 | 473 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
 | 474 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
 | 475 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
-| 828 | `player.aim_assist.homing_time` | `HOMING_TIME` |
+| 833 | `player.aim_assist.homing_time` | `HOMING_TIME` |
 | 55 | `buffs.rapid_fire.factor` | `—` |
 | 56 | `buffs.power_shot.factor` | `—` |
 | 57 | `buffs.efficient_boost.factor` | `—` |
@@ -618,22 +618,22 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 139 | `world_scale` | `world_scale` |
-| 142 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
-| 154 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
-| 156 | `progression.per_boss_kill` | `0.6` |
-| 157 | `progression.per_ten_minutes` | `1.5` |
-| 158 | `progression.time_step_seconds` | `30.0` |
-| 161 | `difficulty` | `{}` |
-| 167 | `dda.duration` | `DDA_DURATION` |
-| 168 | `dda.factor` | `DDA_FACTOR` |
-| 169 | `player.max_health` | `_max_hp_base` |
-| 171 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
-| 173 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 175 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 176 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
-| 939 | `milestones.boss_kill_base` | `500.0` |
-| 1759 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
+| 141 | `world_scale` | `world_scale` |
+| 144 | `milestones.base` | `MILESTONE_BASE.duplicate(` |
+| 156 | `milestones.cycle_mult` | `MILESTONE_CYCLE_MULT` |
+| 158 | `progression.per_boss_kill` | `0.6` |
+| 159 | `progression.per_ten_minutes` | `1.5` |
+| 160 | `progression.time_step_seconds` | `30.0` |
+| 163 | `difficulty` | `{}` |
+| 169 | `dda.duration` | `DDA_DURATION` |
+| 170 | `dda.factor` | `DDA_FACTOR` |
+| 171 | `player.max_health` | `_max_hp_base` |
+| 173 | `buffs.extra_life.max_hp_bonus` | `_max_hp_bonus` |
+| 175 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 177 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 178 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 957 | `milestones.boss_kill_base` | `500.0` |
+| 1785 | `player.aim_assist.joy_speed` | `joy_aim_speed` |
 
 ## 动态拼接键前缀
 
