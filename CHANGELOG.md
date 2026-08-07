@@ -23,6 +23,15 @@
 - **文档同步**：`.agents/shell-scripts.md` 引擎候选口径更新（`godot`/`godot4` → `~/.local/bin/godot` → macOS `/Applications`）
 - 验证：`bash -n` 三脚本零语法错误；`./run.sh --headless --quit-after 300` 经 godot4 正常启动退出 0
 
+### 工程化（2026-08-07，C# 渐进式混编着陆点落地，`.agents/csharp-conventions.md` §Landing Plan）
+
+- **P1-1 BalanceService 点路径解析核心 → `InfiAir.Core.Config.PathResolver`**（`d0fb9e2`）：纯 .NET 纯函数 + `PathResolverInterop` 薄壳；`scripts/balance_service.gd` 保留 `cfg()` 签名转发（469 处调用点零改动，BALANCE_MAP M8 零 diff）；数值宽容/容器拷贝/typeof 相等语义逐条镜像，kind 标签桥接 StringName 区分
+- **P0-1 SaveManager → `InfiAir.Core.Storage.SaveStore`**（`fcb37d1`）：原子写（tmp + rename 回退）/损坏隔离（.corrupt + last_was_corrupt）/System.Text.Json 序列化全量迁移；`scripts/save_manager.gd` 薄壳转发（公开 API 不变）
+- **P0-2 UserDb 数据层 → `InfiAir.Core.Storage.UserDb`**（`0acb28b`）：CRUD/登录记录/本地排行榜/名称校验 + 自建 PBKDF2 变体**逐字节等价迁移**（5 组迁移前 GDScript 实测固定向量 + 存量账号验密兼容测试）；`scripts/user_db.gd` 薄壳转发（公开 API/迭代数降档机制不变）；Q17/Q18/Q20 结构守卫保留
+- **共享基建**：`csharp/godot/VariantBridge.cs`（Variant↔CLR JSON 兼容树双向转换）；新增 3 个 interop 断言场景（`path_resolver_interop`/`save_store_interop`/`user_db_interop`）
+- **验证**：dotnet build 零警告 + xUnit 54/54 + 51 断言场景（3 新场景 + 账户/存档回归全绿）+ main 冒烟干净
+- **教训**：GDScript 的 `int("0x" + s)` 按**十进制**解析（"0x11" → 11）——PBKDF2 向量生成器首版盐解析被污染，Python/C# 独立复算 + 探针逐字节对比后纠正（向量生成须用 `String.hex_to_int()`）；C# 三元表达式 `cond ? (long)x : (double)y` 因隐式拓宽会把整型统一装箱成 double（PathResolver/SaveStore 各修一处）
+
 ### 搁置项重启（2026-08-07，`docs/archive/2026-08-07-deferred-restart-plan.md`）
 
 - **触屏虚拟操控（mobile touch 重启立项落地）**：新增 `VirtualControls` 触屏输入层——左摇杆移动 / 右摇杆瞄准（增量，同手柄语义）/ boost·fine·dash·parry 虚拟按钮，Input action 注入、键鼠/手柄零回归；设置页「触控」开关（profile 持久化 + `touch_controls_changed` 联动 Main）；player 触屏瞄准基准（无鼠标，可见世界中心）；`virtual_controls_test` 26 断言

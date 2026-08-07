@@ -18,8 +18,8 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
-- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **48** (2026-08-07; + `csharp_interop_test`).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **57** (48 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools).
+- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **51** (2026-08-07; + `csharp_interop_test` + `path_resolver_interop_test` + `save_store_interop_test` + `user_db_interop_test`).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **60** (51 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools).
 - Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Subsystem Scenes
@@ -114,7 +114,7 @@ godot --headless --import --path .             # 4. warnings: error-level zero t
                                                #    warn-level (unsafe/untyped) = AUDIT_VAULT list
 godot --headless --path . --quit-after 300     # 5. compile + runtime smoke
 godot --headless --path . res://test/smoke_test.tscn
-# 6. all 48 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
+# 6. all 51 assertion scenes (excl. autoplay probe); any FAIL → non-zero exit
 ```
 
 - **Tools** (one-time, in-project `.venv/`, gitignored): `python3 -m venv .venv && .venv/bin/pip install gdtoolkit==4.5.0` (版本与 `ci.yml` 对齐, 2026-08-05 R09) → `.venv/bin/gdformat`/`.venv/bin/gdlint`. (PEP 668 系统保护环境必须用 `.venv`——见「Headless Test Environment Notes」.)
@@ -123,11 +123,11 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI
 
-push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 48 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact actions + official `dotnet-install.sh` + official Godot engine/templates only (gdtoolkit==4.5.0 via pip, 2026-08-05 R09 锁版本). Green = merge gate.
+push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → gdlint + gdformat --check (autoload/ scripts/ test/) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 51 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact actions + official `dotnet-install.sh` + official Godot engine/templates only (gdtoolkit==4.5.0 via pip, 2026-08-05 R09 锁版本). Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 57 scenes: 48 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-05 P4: 53→54; 2026-08-07 S01: 54→56; 2026-08-07 C#: 56→57)
+Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 60 scenes: 51 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-05 P4: 53→54; 2026-08-07 S01: 54→56; 2026-08-07 C#: 56→57; 2026-08-07 C# 落地: 57→60)
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.

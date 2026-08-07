@@ -5,7 +5,7 @@
 ## Snapshot (2026-08-07)
 
 - **Porting alignment closed** (2026-07-24): all original `airwar-game` mechanics remade + aligned (gap list: `docs/archive/PORTING_PARITY.md`; only optional "local leaderboard page" left); independent evolution now — original is reference only.
-- **Quality**: 48 assertion scenes 0 FAIL (2026-08-07; 权威计数 `docs/TESTING.md`); autoplay probe + perf bench usable.
+- **Quality**: 51 assertion scenes 0 FAIL (2026-08-07; 权威计数 `docs/TESTING.md`); autoplay probe + perf bench usable.
 - **Audit archive** (est. 2026-07-31): `docs/AUDIT_VAULT.md` proprietary; ten audits (A–L) resolved, no P0; A-series all closed (A8 split 2026-08-03, A5 residual dep convergence 2026-08-07). Fix status/efficacy: vault only.
 - **Collaboration ready**: privacy audit passed (no keys/PII, history cleaned); UI font → OFL NotoSansSC; doc baseline (README/AGENTS/PORTING_PARITY/EXIT_FLOW) line-checked vs code.
 - **Four fairness mechanics landed** (2026-08-03, `docs/archive/2026-08-03-combat-fairness-plan.md`; values final in `DESIGN_BASELINE.md` §1.13): hit grace frames, graze scoring, boss transition clear + brief invincibility + segmented bar, F parry shield (3.8s cycle). Validation: 37 scenes 0 FAIL + 180s autoplay no new anomalies; on-device feel (15+ min run) = pre-release manual item. **B-tier landed 2026-08-03**: per-attack tells, DDA density downshift (score-fair), death replay (3s ghost replay). Next: on-device feel validation.
@@ -57,7 +57,7 @@
 - **2026-08-05 — 统一事件管理器**：全部随机游戏事件（迷雾 4 + 遭遇 2）收敛进 `GameEventManager`（`GameState.events`，`docs/EVENT_MANAGER.md`）——统一 `EVENT_FACTORIES` 注册表 / `fog|encounter` 分组并发 / 触发策略 / 生命周期 / `event_started/ended` 信号；遭遇事件触发移出 spawner（`ScheduledEventTrigger` 退役），`FogEventManager` 重构为迷雾效果层+API 门面（公开 API 不变，fog 测试零改动）。行为保持：迷雾可与遭遇并行；`spawner.set_process(false)` 仍禁用遭遇自动触发；balance key 零变化。
 - **2026-08-05 — 不引入 C# 混合编译**：评估 `docs/C_SHARP_ASSESSMENT.md`（实测 perf_bench 1.011ms/帧 ≈989 FPS 等效，性能无瓶颈；仅 Linux/Windows 平台目标，无 Web/移动推力；跨语言继承禁止 + 热路径动态派发 + CI/发布/本地工具链三重成本 > 收益）。维持纯 GDScript。触发条件（性能瓶颈 / 平台需求 / 团队构成 / 架构重写窗口）见评估文档 §8。
 - **2026-08-07 — 引入 C#（渐进式混编）**：`docs/C_SHARP_ASSESSMENT.md` §7 决策更新（触发条件 3「团队语言构成变化」成立）——存量 GDScript 不迁移，新模块/纯逻辑/数据模型/算法用 C#（`csharp/core` = `InfiAir.Core` 纯 .NET 类库，`csharp/godot` = Godot 绑定薄壳）；热路径（对象池/弹幕）与场景绑定层禁止跨语言，C# 与 GDScript 不可互相继承（官方限制）；测试分层：纯逻辑 → `tests-csharp/` xUnit（`dotnet test`），场景/集成 → `test/*_test.tscn` 断言场景（计数权威 `docs/TESTING.md`）；CI/发布/本地工具链已切换 .NET 版引擎（mono 模板）并落地 dotnet build/test 门禁。详见 `docs/C_SHARP_ASSESSMENT.md`。
-- **2026-08-07 — C# 着陆点规划**：六候选模块评估（SaveManager/UserDb/BalanceService/EventManager/资产资源管理/DDA）→ **P0 高优先：SaveManager 与 UserDb 数据层迁 C#**（纯 IO/数据完整性收益最大、边界清晰；UserDb 密码派生须逐字节等价 + 既有账号兼容测试），P1：BalanceService 点路径解析核心（壳保 cfg() 签名 → M8 零影响），P2：AssetCatalog 资产资源管理（新能力,按内容规模触发）。路线图、每项接入模式与验证要求登记在 `.agents/csharp-conventions.md` §Landing Plan；实现为独立批次。
+- **2026-08-07 — C# 着陆点规划**：六候选模块评估（SaveManager/UserDb/BalanceService/EventManager/资产资源管理/DDA）→ **P0 高优先：SaveManager 与 UserDb 数据层迁 C#**（纯 IO/数据完整性收益最大、边界清晰；UserDb 密码派生须逐字节等价 + 既有账号兼容测试），P1：BalanceService 点路径解析核心（壳保 cfg() 签名 → M8 零影响），P2：AssetCatalog 资产资源管理（新能力,按内容规模触发）。路线图、每项接入模式与验证要求登记在 `.agents/csharp-conventions.md` §Landing Plan；实现为独立批次。**P0-1/P0-2/P1-1 已于 2026-08-07 全部落地**（`d0fb9e2`/`fcb37d1`/`0acb28b`）：SaveStore/UserDb/PathResolver 纯 .NET 核心 + csharp/godot 薄壳 + GDScript 壳转发（公开 API 不变）+ xUnit 54 项（含 PBKDF2 固定向量兼容测试）+ 3 个 interop 断言场景；P2-1 AssetCatalog 触发条件未满足，维持待启动。
 
 ## Maintenance
 

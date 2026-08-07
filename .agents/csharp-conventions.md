@@ -42,24 +42,26 @@
 ## Landing Plan(着陆点路线图,2026-08-07 评估)
 
 > 目标:C# 承担"更清晰的资源管理和性能调度"。评估矩阵与依据:候选模块对照纯逻辑/可单测/非热路径/边界清晰四判据(详见 `docs/C_SHARP_ASSESSMENT.md` §7 边界)。**登记于 ROADMAP Decisions 2026-08-07 条目**;实现是独立批次,本路线图只定方向与约束。
+> **落地状态(2026-08-07)**:P0-1/P0-2/P1-1 已全部落地(逐条见下);P2-1 触发条件未满足(资产加载分散但规模小),维持待启动。
 
-### P0 — 高优先价值(近期落地)
+### P0 — 高优先价值(近期落地)✅ 已落地(2026-08-07)
 
-- **P0-1 SaveManager → C#**(`InfiAir.Core.Storage.SaveStore` + `csharp/godot` 薄壳)
+- **P0-1 SaveManager → C#**(`InfiAir.Core.Storage.SaveStore` + `csharp/godot/SaveStoreInterop.cs` 薄壳)✅
   - 迁移:原子写(临时文件 + rename 回退)、损坏隔离(.corrupt + `last_was_corrupt`)、JSON 序列化(System.Text.Json)
-  - 接入:GameState 转发目标换 C# 壳,公开签名不变;存档数据模型仍由 GameState 组装
-  - 验证:xUnit(原子替换/回退路径/损坏隔离)+ `base_system_test` + interop 断言场景
-- **P0-2 UserDb 数据层 → C#**(`InfiAir.Core.Storage.UserDb` + 薄壳)
-  - 迁移:用户 CRUD/登录记录/本地排行榜/名称校验;**密码派生逐字节等价迁移**(自建 PBKDF2 变体,System.Security.Cryptography 对齐)+ 既有账号兼容测试(固定向量对照)
-  - 接入:GameState 转发换壳;`iterations` 测试降档机制保留
-  - 验证:xUnit(CRUD/校验/榜单/损坏回退/密码向量)+ 账户断言场景 + interop
-  - 约束:密码算法"保持实现不动以免破坏既有账号"注释口径必须随迁移重写并配套兼容测试
+  - 接入:GameState 转发目标换 C# 壳,公开签名不变;存档数据模型仍由 GameState 组装(`scripts/save_manager.gd` 薄壳,类名/API 不变)
+  - 验证:xUnit(原子替换/回退路径/损坏隔离)+ `base_system_test` + interop 断言场景(`test/save_store_interop_test.tscn`)
+- **P0-2 UserDb 数据层 → C#**(`InfiAir.Core.Storage.UserDb` + `csharp/godot/UserDbInterop.cs` 薄壳)✅
+  - 迁移:用户 CRUD/登录记录/本地排行榜/名称校验;**密码派生逐字节等价迁移**(自建 PBKDF2 变体,System.Security.Cryptography 对齐)+ 既有账号兼容测试(固定向量对照 `tests-csharp/UserDbPasswordTests.cs`)
+  - 接入:GameState 转发换壳(`scripts/user_db.gd` 薄壳,公开 API 不变);`iterations` 测试降档机制保留
+  - 验证:xUnit(CRUD/校验/榜单/损坏回退/密码向量)+ 账户断言场景(`user_db_test`/`user_session_test`/`welcome_flow_test` 原样通过)+ interop(`test/user_db_interop_test.tscn`,含存量 GDScript 账号固定向量验密)
+  - 约束:密码算法"保持实现不动以免破坏既有账号"注释口径已随迁移重写并配套固定向量兼容测试
 
-### P1 — 中价值(按节奏推进)
+### P1 — 中价值(按节奏推进)✅ 已落地(2026-08-07)
 
-- **P1-1 BalanceService 点路径解析核心 → C#**(`InfiAir.Core.Config.PathResolver` 纯函数)
+- **P1-1 BalanceService 点路径解析核心 → C#**(`InfiAir.Core.Config.PathResolver` 纯函数 + `csharp/godot/PathResolverInterop.cs` 薄壳)✅
   - GDScript 壳保留 `cfg()` 签名转发 → 469 处调用点不变 → BALANCE_MAP 生成器(M8)零影响
-  - 验证:xUnit + M8 零 diff + `balance_test`
+  - 验证:xUnit(`tests-csharp/PathResolverTests.cs`)+ M8 零 diff + `balance_test` + interop(`test/path_resolver_interop_test.tscn`)
+  - 注:`PathResolver.Resolve` 的 int 结果须用 if/else 分支返回(C# 三元会因 long→double 隐式拓宽把整型统一装箱成 double)
 
 ### P2 — 新能力(按内容规模需求启动)
 

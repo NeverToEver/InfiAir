@@ -20,14 +20,14 @@ $G --path .                                    # run locally
 $G --headless --import --path .                # import + script parse check
 $G --headless --path . --quit-after 300        # 300-frame runtime check
 # Headless tests: test/*.tscn self-check via [PASS]/[FAIL] + exit code.
-# 48 assertion scenes (57 total); full list & known baseline: docs/TESTING.md
+# 51 assertion scenes (60 total); full list & known baseline: docs/TESTING.md
 dotnet build                                    # C# compile (TreatWarningsAsErrors: zero warnings)
 dotnet test tests-csharp/                       # xUnit pure-logic unit tests
 $G --headless --path . res://test/smoke_test.tscn           # main flow — always after changes
 $G --headless --path . res://test/base_system_test.tscn     # saves/base/mothership changes
 $G --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
 $G --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn  # perf (needs --fixed-fps)
-# All 48 assertion scenes, one-liner (same selection as CI: test/*_test.tscn minus autoplay probe):
+# All 51 assertion scenes, one-liner (same selection as CI: test/*_test.tscn minus autoplay probe):
 for t in test/*_test.tscn; do
   case "$t" in *autoplay_test.tscn) continue;; esac
   $G --headless --path . "res://$t" || break
