@@ -84,16 +84,18 @@ const MILESTONE_CYCLE_MULT := 1.35
 const BALANCE_PATH := "res://data/balance.json"
 
 ## A2 组合服务（均非 autoload，保持"唯一 autoload：GameState"约定；GameState 委托）
-var _balance_service := BalanceService.new()
+## M2（2026-08-08）：BalanceService/SfxPlayer/EntityManager 迁 C#，经脚本资源实例化
+## （load().new() 返回无类型 Variant，不能用 := 推断）
+var _balance_service = load("res://csharp/godot/BalanceService.cs").new()
 var _save_manager := SaveManager.new()
-var _sfx_player := SfxPlayer.new()
+var _sfx_player = load("res://csharp/godot/SfxPlayer.cs").new()
 ## 实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）
 signal entity_registered(node: Node)
 signal entity_unregistered(node: Node)
 ## 触屏虚拟控件开关变化（mobile touch；Main 联动 VirtualControls 启用）
 signal touch_controls_changed(enabled: bool)
 
-var _registry := EntityManager.new()
+var _registry = load("res://csharp/godot/EntityManager.cs").new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
 ## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
 var _fog_events := FogEventManager.new()
@@ -116,12 +118,12 @@ var world_scale: float = 0.4
 
 
 func _load_balance() -> void:
-	_balance_service.load(BALANCE_PATH)
+	_balance_service.Load(BALANCE_PATH)
 
 
 ## 配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；测试/诊断用）
 func has_balance() -> bool:
-	return not _balance_service.is_empty()
+	return not _balance_service.IsEmpty()
 
 
 ## A7 遗留清理：重新加载并应用 balance.json（测试/诊断注入用；运行时只 _ready 走一次）
@@ -136,7 +138,7 @@ func reload_balance() -> void:
 
 ## 统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。
 func cfg(path: String, default: Variant) -> Variant:
-	return _balance_service.cfg(path, default)
+	return _balance_service.Cfg(path, default)
 
 
 func _apply_balance() -> void:
@@ -403,52 +405,53 @@ func _enter_tree() -> void:
 
 
 ## 实体管理器（A2 阶段 4 起数据归 EntityManager，2026-08-05 演进：绑定样板/生命周期信号/
-## 批量操作 API；docs/ENTITY_MANAGER.md。属性转发保持外部语法不变）。
+## 批量操作 API；docs/ENTITY_MANAGER.md。属性转发保持外部语法不变；M2 起内部改 C# PascalCase）。
 ## 热路径缓存，避免每帧 get_nodes_in_group 分配。
 ## enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。
 var enemies: Array[Node] = []:
 	get:
-		return _registry.enemies
+		return _registry.Enemies
 ## P0-1（2026-08-05 审计）：敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）
-var enemy_bullets: Array[Bullet] = []:
+## M2：C# 侧元素为 GodotObject（M3 重定型 Bullet），属性类型放宽为未定型 Array
+var enemy_bullets: Array = []:
 	get:
-		return _registry.enemy_bullets
+		return _registry.EnemyBullets
 var player_ref: Node2D = null:
 	get:
-		return _registry.player_ref
+		return _registry.PlayerRef
 	set(value):
-		_registry.player_ref = value
+		_registry.PlayerRef = value
 ## 玩家受击 Hitbox（player._ready/_exit_tree 维护；敌机/Boss 撞击逐帧轮询用）
 var player_hitbox: Area2D = null:
 	get:
-		return _registry.player_hitbox
+		return _registry.PlayerHitbox
 	set(value):
-		_registry.player_hitbox = value
+		_registry.PlayerHitbox = value
 ## 子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）
 var bullet_pool: BulletPool = null:
 	get:
-		return _registry.bullet_pool
+		return _registry.BulletPool
 	set(value):
-		_registry.bullet_pool = value
+		_registry.BulletPool = value
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
 var enemy_pool: EnemyPool = null:
 	get:
-		return _registry.enemy_pool
+		return _registry.EnemyPool
 	set(value):
-		_registry.enemy_pool = value
+		_registry.EnemyPool = value
 ## 辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）
 var aim_frame_layer: AimFrameLayer = null:
 	get:
-		return _registry.aim_frame_layer
+		return _registry.AimFrameLayer
 	set(value):
-		_registry.aim_frame_layer = value
+		_registry.AimFrameLayer = value
 ## 触屏虚拟输入层实例（mobile touch，由 main.gd 在 _ready 时创建并登记；
 ## player.aim_point 查询触屏瞄准基准）
 var virtual_controls: VirtualControls = null:
 	get:
-		return _registry.virtual_controls
+		return _registry.VirtualControls
 	set(value):
-		_registry.virtual_controls = value
+		_registry.VirtualControls = value
 ## 迷雾事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
 var fog_events: FogEventManager:
 	get:
@@ -460,61 +463,84 @@ var events: GameEventManager:
 
 
 func register_enemy(node: Node) -> void:
-	_registry.register_enemy(node)
+	_registry.RegisterEnemy(node)
 
 
 ## 统一单位绑定样板（docs/ENTITY_MANAGER.md）：add_to_group("enemy") + 注册 + entity_registered
 func bind_enemy(node: Node) -> void:
-	_registry.bind_enemy(node)
+	_registry.BindEnemy(node)
 
 
 ## 统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）
 func unbind_enemy(node: Node) -> void:
-	_registry.unbind_enemy(node)
+	_registry.UnbindEnemy(node)
 
 
 ## 批量遍历注册表（失效实例跳过；谓词可选过滤）。清场/索敌/冻结等非热路径统一入口
+## M2 过渡：Callable 参数化迭代留在 GDScript（GDScript lambda 跨语言传参不可靠），
+## 直接迭代 C# 侧注册表集合（_registry.Enemies）；随调用方迁移（M3-M6）后由 C# 实现
 func for_each_enemy(action: Callable, predicate: Callable = Callable()) -> void:
-	_registry.for_each_enemy(action, predicate)
+	for node in _registry.Enemies:
+		if not is_instance_valid(node):
+			continue
+		if predicate.is_valid() and not (predicate.call(node) as bool):
+			continue
+		action.call(node)
 
 
 ## 批量清除注册表实体（predicate 为保留项过滤，如 Boss）；返回清除数
 func clear_enemies(predicate: Callable = Callable()) -> int:
-	return _registry.clear_enemies(predicate)
+	var cleared := 0
+	for node in (_registry.Enemies as Array).duplicate():
+		if not is_instance_valid(node):
+			continue
+		if predicate.is_valid() and (predicate.call(node) as bool):
+			continue
+		node.queue_free()
+		cleared += 1
+	return cleared
 
 
 ## 计数（谓词可选过滤）。spread 上限/统计用
 func count_enemies(predicate: Callable = Callable()) -> int:
-	return _registry.count_enemies(predicate)
+	var count := 0
+	for node in _registry.Enemies:
+		if not is_instance_valid(node):
+			continue
+		if predicate.is_valid() and not (predicate.call(node) as bool):
+			continue
+		count += 1
+	return count
 
 
 ## P0-1：敌弹注册/注销转发（bullet.gd 维护）
 func register_enemy_bullet(b: Bullet) -> void:
-	_registry.register_enemy_bullet(b)
+	_registry.RegisterEnemyBullet(b)
 
 
 func unregister_enemy_bullet(b: Bullet) -> void:
-	_registry.unregister_enemy_bullet(b)
+	_registry.UnregisterEnemyBullet(b)
 
 
 ## G010：注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）
 func enemies_has(node: Node) -> bool:
-	return _registry.has_enemy(node)
+	return _registry.HasEnemy(node)
 
 
 func unregister_enemy(node: Node) -> void:
-	_registry.unregister_enemy(node)
+	_registry.UnregisterEnemy(node)
 
 
 func _ready() -> void:
 	_load_balance()
 	_apply_balance()
 	# 实体生命周期信号转发（EntityManager 非 Node，无树内信号；GameState 收口转发）
-	_registry.entity_registered.connect(entity_registered.emit)
-	_registry.entity_unregistered.connect(entity_unregistered.emit)
+	# M2：C# [Signal] 以 PascalCase 注册，GDScript 侧同名连接
+	_registry.EntityRegistered.connect(entity_registered.emit)
+	_registry.EntityUnregistered.connect(entity_unregistered.emit)
 	# 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
 	add_child(_sfx_player)
-	_sfx_player.build_pool(SFX_POOL_SIZE)
+	_sfx_player.BuildPool(SFX_POOL_SIZE)
 	# 迷雾事件管理器挂载（balance 已在 _apply_balance 就绪；管理器 _ready 读 cfg）
 	add_child(_fog_events)
 	# 统一事件管理器挂载（fog 组经迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
@@ -561,12 +587,12 @@ func _process(delta: float) -> void:
 
 func play_sfx(stream: AudioStream, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
 	# headless 短路与池化复用逻辑在 SfxPlayer（A2 阶段 3）
-	_sfx_player.play(stream, volume_db, pitch_scale)
+	_sfx_player.Play(stream, volume_db, pitch_scale)
 
 
 ## 退出前停止所有仍在播放的音效：带播未停时 AudioStreamPlayback 会在退出时泄漏
 func stop_all_sfx() -> void:
-	_sfx_player.stop_all()
+	_sfx_player.StopAll()
 	if player_ref != null and is_instance_valid(player_ref):
 		var audio: AudioStreamPlayer2D = player_ref.get_node_or_null("AudioStreamPlayer2D")
 		if audio != null:
@@ -672,14 +698,14 @@ func enemy_speed_multiplier() -> float:
 ## 敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
 ## 纯查询委托 BalanceService（难度乘数作参数）。
 func enemy_hp_ramp() -> float:
-	return _balance_service.enemy_hp_ramp(difficulty_multiplier)
+	return _balance_service.EnemyHpRamp(difficulty_multiplier)
 
 
 ## 敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
 ## 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
 ## 纯查询委托 BalanceService（难度乘数作参数）。
 func enemy_damage_ramp() -> float:
-	return _balance_service.enemy_damage_ramp(difficulty_multiplier)
+	return _balance_service.EnemyDamageRamp(difficulty_multiplier)
 
 
 func spawn_interval_multiplier() -> float:
@@ -782,9 +808,9 @@ const VIEW_ZOOM_ORDER: Array[StringName] = [&"small", &"medium", &"large"]
 ## main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算
 var camera_ref: Camera2D = null:
 	get:
-		return _registry.camera_ref
+		return _registry.CameraRef
 	set(value):
-		_registry.camera_ref = value
+		_registry.CameraRef = value
 		_invalidate_view_rect_cache()
 ## 生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 small 档一致）
 var _view_zoom_factor: float = 1.0
