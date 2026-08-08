@@ -72,14 +72,14 @@ func _ready() -> void:
 	var timer_baseline := _count_timers(get_tree().root)
 	main.play_return()
 	await get_tree().process_frame
-	var ret: ReturnCinematic = main.return_cinematic()
+	var ret = main.return_cinematic()
 	_check(ret != null, "直接触发：返航过场节点存在")
 	_check(get_tree().paused, "过场播放期间树暂停")
 	_check(not base_ui.visible, "过场播放期间基地 UI 未显")
 
 	# ---------- 2. 输入宽限 + skip() 路径 ----------
 	var finished_fired := [0]
-	ret.finished.connect(func() -> void: finished_fired[0] += 1)
+	ret.Finished.connect(func() -> void: finished_fired[0] += 1)
 	# 输入宽限（开播 1.2s 内，防实战 WASD/Shift 持续按键误触）：任意键/点击不跳过
 	var grace_key := InputEventKey.new()
 	grace_key.keycode = KEY_A
@@ -111,11 +111,11 @@ func _ready() -> void:
 
 	# ---------- 3. 时序路径：短时长推进 7 镜头，节点创建/销毁与最终 finished ----------
 	main.play_return()
-	var ret2: ReturnCinematic = main.return_cinematic()
+	var ret2 = main.return_cinematic()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 	ret2.set_shot_durations(short_durations)
 	var finished2 := [false]
-	ret2.finished.connect(func() -> void: finished2[0] = true)
+	ret2.Finished.connect(func() -> void: finished2[0] = true)
 	var seen_shots: Array[String] = []
 	for expected in 7:
 		var reached := false
@@ -152,7 +152,7 @@ func _ready() -> void:
 	# ---------- 4. Esc 路由：播放中决策 = SKIP_RETURN，真实 Esc 注入跳过 ----------
 	main.play_return()
 	await get_tree().process_frame
-	var ret3: ReturnCinematic = main.return_cinematic()
+	var ret3 = main.return_cinematic()
 	_check(nav.decide_back_action() == act.SKIP_RETURN, "过场播放中：决策 = SKIP_RETURN")
 	await get_tree().create_timer(1.4).timeout  # 越过输入宽限后 Esc 才生效
 	await _press_esc()
@@ -163,7 +163,7 @@ func _ready() -> void:
 	# ---------- 5. 任意键跳过（过场自身 _unhandled_input，需越过输入宽限） ----------
 	main.play_return()
 	await get_tree().process_frame
-	var ret4: ReturnCinematic = main.return_cinematic()
+	var ret4 = main.return_cinematic()
 	await get_tree().create_timer(1.4).timeout
 	var ev := InputEventKey.new()
 	ev.keycode = KEY_A
@@ -178,7 +178,7 @@ func _ready() -> void:
 	# ---------- 6. 鼠标点击跳过（与任意键同一出口，需越过输入宽限） ----------
 	main.play_return()
 	await get_tree().process_frame
-	var ret5: ReturnCinematic = main.return_cinematic()
+	var ret5 = main.return_cinematic()
 	await get_tree().create_timer(1.4).timeout
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT

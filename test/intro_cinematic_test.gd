@@ -57,13 +57,13 @@ func _ready() -> void:
 	var timer_baseline := _count_timers(get_tree().root)
 	main.play_intro()
 	await get_tree().process_frame
-	var intro: IntroCinematic = main.intro()
+	var intro = main.intro()
 	_check(intro != null, "直接触发：过场节点存在")
 	_check(get_tree().paused, "过场播放期间树暂停")
 
 	# ---------- 3. skip() 路径：销毁、finished、恢复非暂停、无 Timer 残留 ----------
 	var finished_fired := [false]
-	intro.finished.connect(func() -> void: finished_fired[0] = true)
+	intro.Finished.connect(func() -> void: finished_fired[0] = true)
 	main.skip_intro()
 	intro.skip()  # 幂等：重复调用不重复发信号
 	await get_tree().process_frame
@@ -75,11 +75,11 @@ func _ready() -> void:
 
 	# ---------- 4. 时序路径：短时长推进 6 镜头，节点创建/销毁与最终 finished ----------
 	main.play_intro()
-	var intro2: IntroCinematic = main.intro()
+	var intro2 = main.intro()
 	var short_durations: Array[float] = [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 	intro2.set_shot_durations(short_durations)
 	var finished2 := [false]
-	intro2.finished.connect(func() -> void: finished2[0] = true)
+	intro2.Finished.connect(func() -> void: finished2[0] = true)
 	var seen_shots: Array[String] = []
 	for expected in 6:
 		var reached := false
@@ -110,7 +110,7 @@ func _ready() -> void:
 	# ---------- 5. Esc 路由：播放中决策 = SKIP_INTRO，真实 Esc 注入跳过 ----------
 	main.play_intro()
 	await get_tree().process_frame
-	var intro3: IntroCinematic = main.intro()
+	var intro3 = main.intro()
 	_check(nav.decide_back_action() == act.SKIP_INTRO, "过场播放中：决策 = SKIP_INTRO")
 	await _press_esc()
 	_check(main.intro() == null and not is_instance_valid(intro3), "Esc：经 BackNavigator 跳过过场")
@@ -119,7 +119,7 @@ func _ready() -> void:
 	# ---------- 6. 任意键跳过（过场自身 _unhandled_input） ----------
 	main.play_intro()
 	await get_tree().process_frame
-	var intro4: IntroCinematic = main.intro()
+	var intro4 = main.intro()
 	var ev := InputEventKey.new()
 	ev.keycode = KEY_A
 	ev.pressed = true
@@ -132,7 +132,7 @@ func _ready() -> void:
 	# ---------- 7. 鼠标点击跳过（与任意键同一出口） ----------
 	main.play_intro()
 	await get_tree().process_frame
-	var intro5: IntroCinematic = main.intro()
+	var intro5 = main.intro()
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true

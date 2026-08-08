@@ -64,7 +64,7 @@ func _ready() -> void:
 	# 直到过场引用被 _on_return_finished 置空（跳过与自然结束同一出口）
 	for i in 600:
 		await get_tree().process_frame
-		var rc: ReturnCinematic = main.return_cinematic()
+		var rc = main.return_cinematic()
 		if rc != null and is_instance_valid(rc):
 			rc.skip()
 		else:

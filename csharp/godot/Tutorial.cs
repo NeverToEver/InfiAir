@@ -15,8 +15,6 @@ public partial class Tutorial : Node2D
     private static readonly PackedScene EnemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
     private static readonly PackedScene BossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
     private static readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
-    private static readonly GDScript SpawnerScript = GD.Load<GDScript>("res://scripts/spawner.gd");
-    private static readonly GDScript WarpGateScript = GD.Load<GDScript>("res://scripts/warp_gate.gd");
     private static readonly AudioStream SfxBuffPick = GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
 
     public float HomeChargeTime = 1.5f;
@@ -286,8 +284,8 @@ public partial class Tutorial : Node2D
     /// <summary>敌机配置取 spawner.ENEMY_TYPES[0]（教程只用 straight 基础型；static var 经脚本资源读取）</summary>
     private static Godot.Collections.Dictionary EnemyTypeConfig()
     {
-        var types = SpawnerScript.Get("ENEMY_TYPES").AsGodotArray();
-        return types[0].AsGodotDictionary();
+        // M6：Spawner 迁 C#，ENEMY_TYPES 为实例属性——默认表静态构建（教程只用 straight 基础型）
+        return Spawner.BuildEnemyTypes()[0];
     }
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
@@ -340,7 +338,7 @@ public partial class Tutorial : Node2D
         var gatePos = new Vector2(
             GameStateBridge.Call("view_world_rect").AsRect2().GetCenter().X,
             (float)GameStateBridge.Call("cfg", "mothership.hover_y", 270.0).AsDouble());
-        var gate = WarpGateScript.New().AsGodotObject() as Node2D; // WarpGate 仍为 GDScript，经脚本资源实例化
+        var gate = new WarpGate(); // M6：WarpGate 迁 C#，typed 实例化
         gate!.Position = gatePos;
         AddChild(gate);
         _mothership = MothershipScene.Instantiate<Mothership>();

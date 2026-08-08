@@ -7,6 +7,7 @@ extends Node
 ## 6 LOD1 时 hud 旧晕影回退、LOD0 移交 MetaFX；7 满血静止 60 帧早退零参数上传（D5）。
 
 var _failures: int = 0
+const MHFX := preload("res://csharp/godot/MetaHealthFX.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -46,7 +47,7 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
-	var fx: MetaHealthFX = main.meta_fx()
+	var fx = main.meta_fx()
 	_check(fx != null, "0：main._ready 创建 MetaHealthFX")
 	_check(GameState.meta_fx_lod == 0, "0：LOD0 时 GameState.meta_fx_lod 置 0（hud 移交晕影）")
 
@@ -84,13 +85,13 @@ func _ready() -> void:
 	GameState.health = 100.0
 	GameState.health_changed.emit(100.0)
 	fx.set_test_state({"damage_x": 0.0})
-	fx.set_test_state({"state": MetaHealthFX.STATE_NORMAL})
+	fx.set_test_state({"state": MHFX.GetStateNormal()})
 	_reset_hit_state(player)
 	await get_tree().process_frame
 	GameState.lose_health(90.0)  # x 目标 0.9，tau=0.10 快入
 	await get_tree().create_timer(0.4).timeout
 	_check(fx.damage_x() > 0.8, "4：下行快入（0.4s 趋近 x=0.9）")
-	_check(fx.state() == MetaHealthFX.STATE_DYING, "4：跨过全部阈值进 DYING")
+	_check(fx.state() == MHFX.GetStateDying(), "4：跨过全部阈值进 DYING")
 	GameState.heal(999.0)  # 上行慢出 tau=0.80
 	var max_jitter := 0.0
 	for i in 18:  # 1.8s 观测窗（覆盖末次跨阈值后的 0.7s 消散全程）
@@ -105,7 +106,7 @@ func _ready() -> void:
 	GameState.health_changed.emit(15.0)  # x=0.85 → 心率 lerp(1.0,1.2,0.25)=1.05
 	_reset_hit_state(player)
 	await get_tree().create_timer(0.6).timeout  # 快入趋稳
-	_check(fx.state() == MetaHealthFX.STATE_DYING, "5：hp<20% 进 DYING")
+	_check(fx.state() == MHFX.GetStateDying(), "5：hp<20% 进 DYING")
 	_check(fx.heart_rate() >= 1.0 and fx.heart_rate() <= 1.2, "5：心率 ∈ [1.0,1.2]Hz")
 	var bmin := 1.0
 	var bmax := 1.0
@@ -138,7 +139,7 @@ func _ready() -> void:
 	GameState.heal(999.0)
 	fx.set_test_state({"damage_x": 0.0})
 	fx.set_test_state({"target_x": 0.0})
-	fx.set_test_state({"state": MetaHealthFX.STATE_NORMAL})
+	fx.set_test_state({"state": MHFX.GetStateNormal()})
 	fx.set_test_state({"hit_pulse": 0.0})
 	fx.set_test_state({"ripple_t": 2.0})
 	fx.set_test_state({"heart_phase": -1.0})

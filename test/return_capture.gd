@@ -22,7 +22,7 @@ const SCHEDULE := [
 
 
 func _ready() -> void:
-	var cine: ReturnCinematic = load("res://scenes/return_cinematic.tscn").instantiate()
+	var cine = load("res://scenes/return_cinematic.tscn").instantiate()
 	add_child(cine)
 	# add_child 同帧替换时长表（首镜头延后到帧末启动，见 return_cinematic._ready）
 	# L01（2026-08-03 审查）：set_shot_durations 返回 void，原链式调用为编译错误

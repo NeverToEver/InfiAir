@@ -64,7 +64,7 @@ func _test_enemy_pool() -> void:
 	add_child(main)
 	var pool = load("res://csharp/godot/EnemyPool.cs").new()  # M3b：EnemyPool 迁 C#，经脚本资源实例化（不能以类名 new）
 	main.add_child(pool)
-	var config: Dictionary = preload("res://scripts/spawner.gd").ENEMY_TYPES[0]
+	var config: Dictionary = load("res://csharp/godot/Spawner.cs").BuildEnemyTypes()[0]  # M6：Spawner 迁 C#
 	var e1 = pool.spawn(config, &"straight", 1.0, Vector2(100, 100))
 	pool.release(e1)
 	_check(pool.free_count() == 1, "enemy: release 后 _free=1")

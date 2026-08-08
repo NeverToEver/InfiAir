@@ -310,7 +310,7 @@ func _start_run(p_continue: bool = false) -> void:
 	_player = _main.get_node("Player")
 	_spawner = _main.get_node("Spawner")
 	_buff_ui = _main.get_node("BuffUI")
-	_spawner.boss_spawned.connect(_on_boss_spawned)
+	_spawner.BossSpawned.connect(_on_boss_spawned)
 	_move_target = _player.position
 	_last_hp = GameState.health
 	_last_score = GameState.score

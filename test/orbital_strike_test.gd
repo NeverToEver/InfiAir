@@ -51,7 +51,7 @@ func _ready() -> void:
 	spawner.set_process(false)
 	main.resume_from_base()
 	await get_tree().process_frame
-	var strike: OrbitalStrike = main.strike()  # get_node 返回 Variant，不能用 := 推断
+	var strike = main.strike()  # get_node 返回 Variant，不能用 := 推断
 	_check(strike != null, "触发：轨道打击节点已创建")
 	_check(get_tree().paused, "动画期间树保持暂停")
 	main.resume_from_base()  # 幂等：播放中重复触发不叠加
@@ -61,7 +61,7 @@ func _ready() -> void:
 	# ---------- 3. 缩短时轴推进到命中 ----------
 	strike.DURATION = 0.6
 	var struck_fired := [false]
-	strike.struck.connect(func() -> void: struck_fired[0] = true)
+	strike.Struck.connect(func() -> void: struck_fired[0] = true)
 	var reached_impact := false
 	for i in 60:
 		await get_tree().create_timer(0.05).timeout

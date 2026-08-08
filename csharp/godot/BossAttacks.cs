@@ -107,7 +107,6 @@ public partial class BossAttacks : RefCounted
     // 新增攻击只需注册一行 + 模式表加 id，不再改 execute 分发本身（O 原则达成）。
     private readonly Godot.Collections.Dictionary<StringName, Callable> _attackHandlers = new();
 
-    private readonly GDScript _cinematicFx = GD.Load<GDScript>("res://scripts/cinematic_fx.gd");
 
     // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
     private static ulong _frame = ulong.MaxValue;
@@ -187,8 +186,7 @@ public partial class BossAttacks : RefCounted
         }
 
         GameStateBridge.Call("play_sfx", tell.Sfx!, -8.0, tell.Pitch);
-        var ring = (Node2D)_cinematicFx.Call(
-            "shockwave",
+        var ring = (Node2D)CinematicFx.Shockwave(
             new Godot.Collections.Dictionary
             {
                 ["radius"] = 26.0,

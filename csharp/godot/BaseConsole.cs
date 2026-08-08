@@ -35,7 +35,6 @@ public partial class BaseConsole : CanvasLayer
     };
 
     /// <summary>虚影面板底后径向辉光垫（近似毛玻璃，§3.2）：四面板共享一张径向渐变纹理。</summary>
-    private static readonly GDScript DawnStationScript = GD.Load<GDScript>("res://scripts/dawn_station.gd");
 
     private readonly Callable _localeChanged;
 
@@ -123,7 +122,7 @@ public partial class BaseConsole : CanvasLayer
         bgModulate.A = 0.12f;
         bgWrap.Modulate = bgModulate;
         AddChild(bgWrap);
-        var station = (Node2D)DawnStationScript.Call("build", 1); // DawnStation.Mode.PHANTOM（0=DESTROYED, 1=PHANTOM）
+        var station = DawnStation.Build(1); // M6：DawnStation 迁 C#，typed（Mode.PHANTOM）
         station.Position = new Vector2(960.0f, 540.0f);
         station.Scale = Vector2.One * 2.0f;
         bgWrap.AddChild(station);

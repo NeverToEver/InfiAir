@@ -92,7 +92,6 @@ public partial class Enemy : Area2D
     private float _shakeDieElite = 9.0f;
 
     private readonly Callable _onBuffsChanged;
-    private readonly GDScript _cinematicFx;
 
     /// <summary>热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（全敌机共享）。</summary>
     private static ulong _frame = ulong.MaxValue;
@@ -117,7 +116,6 @@ public partial class Enemy : Area2D
     public Enemy()
     {
         _onBuffsChanged = Callable.From(OnBuffsChanged);
-        _cinematicFx = GD.Load<GDScript>("res://scripts/cinematic_fx.gd");
     }
 
     public override void _Ready()
@@ -168,7 +166,7 @@ public partial class Enemy : Area2D
         _strategy.Reset(this);
         // 尾焰软光点（P0-5 副轨）
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
-        _tailGlow = (Sprite2D)_cinematicFx.Call("soft_glow", glowRadius * (float)GameStateBridge.Get("world_scale").AsDouble(), TailGlowColor);
+        _tailGlow = (Sprite2D)CinematicFx.SoftGlow(glowRadius * (float)GameStateBridge.Get("world_scale").AsDouble(), TailGlowColor);
         _tailGlow.ShowBehindParent = true;
         AddChild(_tailGlow);
         UpdateTailGlow();
@@ -641,7 +639,7 @@ public partial class Enemy : Area2D
 
         _tailGlow.Modulate = IsElite ? TailGlowColorElite : TailGlowColor;
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
-        var softTexSize = (float)_cinematicFx.Get("SOFT_TEX_SIZE").AsDouble();
+        var softTexSize = (float)(float)CinematicFx.SoftTexSize;
         _tailGlow.Scale = Vector2.One * (glowRadius * (float)GameStateBridge.Get("world_scale").AsDouble() / (softTexSize * 0.5f));
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         var texH = 190.0f;

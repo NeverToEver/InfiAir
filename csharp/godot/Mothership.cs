@@ -159,7 +159,6 @@ public partial class Mothership : Area2D
     /// <summary>P2：目标数组输出缓冲（_targetsBuf 复用，免每次调用分配新 List）。</summary>
     private readonly List<Node2D> _targetsBuf = new();
 
-    private readonly GDScript _cinematicFx = GD.Load<GDScript>("res://scripts/cinematic_fx.gd");
 
     // 导弹目标按「距对接点距离」排序的比较器（复用委托，避免每次齐射捕获闭包分配）
     private readonly Comparison<Node2D> _compareByDock;
@@ -292,12 +291,12 @@ public partial class Mothership : Area2D
     private void BuildFx()
     {
         // 引擎光晕（舰底喷口位）：DESCEND 巨大→常态收敛，DEPART 随加速增大
-        _engineGlow = (Sprite2D)_cinematicFx.Call("soft_glow", 70.0f * _ws, new Color(0.45f, 0.85f, 1.0f, 0.0f));
+        _engineGlow = (Sprite2D)CinematicFx.SoftGlow(70.0f * _ws, new Color(0.45f, 0.85f, 1.0f, 0.0f));
         _engineGlow.Position = new Vector2(0.0f, 85.0f * _ws);
         _engineGlowBase = _engineGlow.Scale;
         AddChild(_engineGlow);
         // 穿出期上冲气流（相对舰体向上冲刷）
-        _descendTrail = (GpuParticles2D)_cinematicFx.Call("particles", new Godot.Collections.Dictionary
+        _descendTrail = (GpuParticles2D)CinematicFx.Particles(new Godot.Collections.Dictionary
         {
             ["amount"] = 48,
             ["lifetime"] = 0.55,
@@ -313,7 +312,7 @@ public partial class Mothership : Area2D
         _descendTrail.Emitting = false;
         AddChild(_descendTrail);
         // 离场下喷尾迹
-        _departTrail = (GpuParticles2D)_cinematicFx.Call("particles", new Godot.Collections.Dictionary
+        _departTrail = (GpuParticles2D)CinematicFx.Particles(new Godot.Collections.Dictionary
         {
             ["amount"] = 48,
             ["lifetime"] = 0.6,
@@ -339,8 +338,8 @@ public partial class Mothership : Area2D
             {
                 Width = 2.5f,
                 DefaultColor = new Color(0.55f, 0.95f, 1.0f),
-                Points = _cinematicFx.Call("ring_points", 28, 90.0f * _ws * 0.92f, 0.35f).AsVector2Array(),
-                Material = (CanvasItemMaterial)_cinematicFx.Call("additive_material"),
+                Points = CinematicFx.RingPoints(28, 90.0f * _ws * 0.92f, 0.35f),
+                Material = (CanvasItemMaterial)CinematicFx.AdditiveMaterial(),
             };
             _beamFx.AddChild(ring);
             _beamRings.Add(ring);
@@ -358,14 +357,14 @@ public partial class Mothership : Area2D
                     new Vector2(40.0f * sx, 60.0f) * _ws,
                     new Vector2(90.0f * sx, 200.0f) * _ws,
                 },
-                Material = (CanvasItemMaterial)_cinematicFx.Call("additive_material"),
+                Material = (CanvasItemMaterial)CinematicFx.AdditiveMaterial(),
             };
             _beamFx.AddChild(edge);
             _beamEdges.Add(edge);
         }
 
         // 光束下端上升尘粒（回收吸附感）
-        _beamDust = (GpuParticles2D)_cinematicFx.Call("particles", new Godot.Collections.Dictionary
+        _beamDust = (GpuParticles2D)CinematicFx.Particles(new Godot.Collections.Dictionary
         {
             ["amount"] = 30,
             ["lifetime"] = 0.8,
@@ -693,7 +692,7 @@ public partial class Mothership : Area2D
                     {
                         _player.EnterPod();
                         // 进舱捕获反馈：对接点小冲击环 + 短促软闪
-                        var sw = (Node2D)_cinematicFx.Call("shockwave", new Godot.Collections.Dictionary
+                        var sw = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
                         {
                             ["radius"] = 120.0f * _ws,
                             ["time"] = 0.5,
@@ -850,7 +849,7 @@ public partial class Mothership : Area2D
             }
         }
 
-        var sw = (Node2D)_cinematicFx.Call("shockwave", new Godot.Collections.Dictionary
+        var sw = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
         {
             ["radius"] = SlowRadius,
             ["time"] = SlowRingTime,
@@ -862,7 +861,7 @@ public partial class Mothership : Area2D
         sw.Position = Position;
         GetParent()!.AddChild(sw);
         // 副环：起点比例更大 + 时长更长，读作主环之后的内侧余波
-        var echo = (Node2D)_cinematicFx.Call("shockwave", new Godot.Collections.Dictionary
+        var echo = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
         {
             ["radius"] = SlowRadius,
             ["time"] = SlowRingTime * 1.4f,
@@ -903,7 +902,7 @@ public partial class Mothership : Area2D
     /// <summary>一次性软闪（进舱/释放等瞬时反馈）：软光晕快速淡出后自毁。</summary>
     private void SoftFlash(Vector2 pos, float radius, Color color)
     {
-        var g = (Sprite2D)_cinematicFx.Call("soft_glow", radius, color);
+        var g = (Sprite2D)CinematicFx.SoftGlow(radius, color);
         g.Position = pos;
         GetParent()!.AddChild(g);
         var tw = g.CreateTween();
@@ -1205,7 +1204,7 @@ public partial class Mothership : Area2D
         _cooldownFactor = Mathf.Max(0.6f, 1.0f - EarlyMaxDiscount * ratio);
         EnterState(State.RELEASE);
         // 出舱释放反馈：对接点小喷发（一次性，随母舰离场自毁）
-        var burst = (GpuParticles2D)_cinematicFx.Call("particles", new Godot.Collections.Dictionary
+        var burst = (GpuParticles2D)CinematicFx.Particles(new Godot.Collections.Dictionary
         {
             ["amount"] = 20,
             ["lifetime"] = 0.5,

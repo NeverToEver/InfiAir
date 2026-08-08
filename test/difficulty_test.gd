@@ -8,7 +8,7 @@ extends Node
 
 var _failures: int = 0
 
-const SpawnerScript: GDScript = preload("res://scripts/spawner.gd")
+const SPAWNER := preload("res://csharp/godot/Spawner.cs")  # M6：Spawner 迁 C#，静态表经脚本资源
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 
 
@@ -96,8 +96,8 @@ func _ready() -> void:
 		_check(GameState.score == int(case[1]), "难度 %s 分数倍率：+100 → %d" % [GameState.difficulty_label(), int(case[1])])
 
 	# ---------- 2. 敌机 HP/速度缩放（同 seed 对比，randf 序列对齐） ----------
-	var normal_cfg: Dictionary = SpawnerScript.ENEMY_TYPES[0]  # hp 65-72, speed 115-145（K16：注释数值随 spawner 静态表修正）
-	var elite_cfg: Dictionary = SpawnerScript.ELITE_TYPES[0]  # hp 190-210, speed 75-95
+	var normal_cfg: Dictionary = SPAWNER.BuildEnemyTypes()[0]  # hp 65-72, speed 115-145（K16：注释数值随 spawner 静态表修正）
+	var elite_cfg: Dictionary = SPAWNER.BuildEliteTypes()[0]  # hp 190-210, speed 75-95
 	seed(1001)
 	GameState.difficulty = &"easy"
 	var easy_batch := _sample_batch(normal_cfg, 30)
@@ -160,7 +160,7 @@ func _ready() -> void:
 	_check(GameState.spread_enemy_cap() == 2, "spread 上限 medium=2")
 	GameState.difficulty = &"hard"
 	_check(GameState.spread_enemy_cap() == 3, "spread 上限 hard=3")
-	var spawner: Node = SpawnerScript.new()
+	var spawner: Node = SPAWNER.new()
 	add_child(spawner)
 	spawner.set_process(false)  # 只用其抽取/计数逻辑，不自动刷怪
 	var spread_fighters: Array = []  # M3b：Enemy 迁 C#，数组元素类型 untyped
@@ -178,14 +178,14 @@ func _ready() -> void:
 	_check(spawner.count_spread_enemies() == 1, "spread 敌机同屏计数为 1")
 	var easy_degenerate := true
 	for i in 20:
-		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SPAWNER.BuildEnemyTypes()[1]) != &"single":
 			easy_degenerate = false
 	_check(easy_degenerate, "spread 上限 1（easy）：普通机退化为 single")
 	# medium（上限 2）：1 架在场未满可出 spread，2 架满则退化
 	GameState.difficulty = &"medium"
 	var saw_spread_m := false
 	for i in 40:
-		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
+		if spawner.pick_bullet_type(SPAWNER.BuildEnemyTypes()[1]) == &"spread":
 			saw_spread_m = true
 	_check(saw_spread_m, "spread 上限 2（medium）：1 架在场仍可出 spread")
 	add_child(spread_fighters[1])
@@ -193,9 +193,9 @@ func _ready() -> void:
 	var med_degenerate := true
 	var med_elite_degenerate := true
 	for i in 20:
-		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SPAWNER.BuildEnemyTypes()[1]) != &"single":
 			med_degenerate = false
-		if spawner.pick_bullet_type(SpawnerScript.ELITE_TYPES[2]) != &"laser":
+		if spawner.pick_bullet_type(SPAWNER.BuildEliteTypes()[2]) != &"laser":
 			med_elite_degenerate = false
 	_check(med_degenerate, "spread 上限 2（medium）：满 2 架普通机退化为 single")
 	_check(med_elite_degenerate, "spread 上限 2（medium）：满 2 架精英退化为 laser")
@@ -203,14 +203,14 @@ func _ready() -> void:
 	GameState.difficulty = &"hard"
 	var saw_spread_h := false
 	for i in 40:
-		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) == &"spread":
+		if spawner.pick_bullet_type(SPAWNER.BuildEnemyTypes()[1]) == &"spread":
 			saw_spread_h = true
 	_check(saw_spread_h, "spread 上限 3（hard）：2 架在场仍可出 spread")
 	add_child(spread_fighters[2])
 	await get_tree().process_frame
 	var hard_degenerate := true
 	for i in 20:
-		if spawner.pick_bullet_type(SpawnerScript.ENEMY_TYPES[1]) != &"single":
+		if spawner.pick_bullet_type(SPAWNER.BuildEnemyTypes()[1]) != &"single":
 			hard_degenerate = false
 	_check(hard_degenerate, "spread 上限 3（hard）：满 3 架普通机退化为 single")
 	for e in spread_fighters:

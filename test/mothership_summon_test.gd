@@ -7,6 +7,7 @@ extends Node
 const MOTHER := preload("res://csharp/godot/Mothership.cs")
 
 var _failures: int = 0
+const WG := preload("res://csharp/godot/WarpGate.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -46,7 +47,7 @@ func _ready() -> void:
 	# ---------- 2. 机库小窗 ----------
 	main.summon_mothership()
 	await get_tree().process_frame
-	var window: MothershipSummonWindow = main.summon_window()
+	var window = main.summon_window()
 	_check(window != null, "小窗：蓄力完成后弹出机库小窗")
 	_check(main.mothership() == null, "小窗：播放期间母舰尚未创建")
 	_check(main.player().is_input_locked(), "小窗：演出期玩家锁输入")
@@ -69,9 +70,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# ---------- 3. 穿梭门与穿梭入场 ----------
-	var gate: WarpGate = null
+	var gate = null
 	for child in main.get_children():
-		if child is WarpGate:
+		if is_instance_of(child, WG):
 			gate = child
 	_check(gate != null, "穿梭门：小窗结束后创建")
 	var ms = main.mothership()  # M4：Mothership 迁 C#，去类型注解
@@ -85,7 +86,7 @@ func _ready() -> void:
 	_check(ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0, "穿梭入场：停驻点收敛")
 	# R07：拆 OR 弱断言（L 系列测试登记遗留）——原三重 OR（null/失效/CLOSING 任一即过）
 	# 可空过；gate 已在上方断言非空，此处直接验证状态
-	_check(gate.phase() == WarpGate.Phase.CLOSING, "穿梭门：母舰穿出后关闭")
+	_check(gate.phase() == WG.GetPhaseClosing(), "穿梭门：母舰穿出后关闭")
 	_check(tgt.summon_slow_timer() > 0.0, "减速带：敌机被施加短时减速")
 
 	# ---------- 4. DOCKING 火力掩护 + 回收进保护舱 ----------
