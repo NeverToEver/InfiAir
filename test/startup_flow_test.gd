@@ -222,4 +222,4 @@ func _ready() -> void:
 	GameState.reset_run()
 	_restore_user_files()  # Q23：还原用户文件快照（原 wipe 不还原，永久销毁开发者账户表）
 	_wipe_user_saves()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

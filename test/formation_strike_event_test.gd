@@ -10,6 +10,12 @@ extends Node
 
 var _failures: int = 0
 
+# M4：FormationStrikeEvent/EliteTurretEvent/FormationCraft/FormationBomb 迁 C#——类名/嵌套枚举不可经 GDScript 引用，经脚本资源访问
+const FORMATION := preload("res://csharp/godot/FormationStrikeEvent.cs")
+const ELITE := preload("res://csharp/godot/EliteTurretEvent.cs")
+const CRAFT := preload("res://csharp/godot/FormationCraft.cs")
+const BOMB := preload("res://csharp/godot/FormationBomb.cs")
+
 
 func _check(cond: bool, label: String) -> void:
 	if cond:
@@ -25,7 +31,7 @@ func _wait_real(sec: float) -> void:
 
 
 ## 轮询等事件进入目标状态（最多 timeout 秒真实时间）
-func _wait_event_state(event: FormationStrikeEvent, p_state: int, timeout: float = 8.0) -> bool:
+func _wait_event_state(event, p_state: int, timeout: float = 8.0) -> bool:
 	var left := timeout
 	while left > 0.0:
 		if event.state() == p_state:
@@ -38,7 +44,7 @@ func _wait_event_state(event: FormationStrikeEvent, p_state: int, timeout: float
 func _count_crafts() -> int:
 	var n := 0
 	for child in get_node("Main").get_children():
-		if child is FormationCraft:
+		if is_instance_of(child, CRAFT):  # M4：FormationCraft 迁 C#，is 改脚本判定
 			n += 1
 	return n
 
@@ -46,7 +52,7 @@ func _count_crafts() -> int:
 func _count_bombs() -> int:
 	var n := 0
 	for child in get_node("Main").get_children():
-		if child is FormationBomb:
+		if is_instance_of(child, BOMB):  # M4：FormationBomb 迁 C#，is 改脚本判定
 			n += 1
 	return n
 
@@ -54,13 +60,13 @@ func _count_bombs() -> int:
 func _count_registered_crafts() -> int:
 	var n := 0
 	for node in GameState.enemies:
-		if node is FormationCraft:
+		if is_instance_of(node, CRAFT):  # M4：FormationCraft 迁 C#，is 改脚本判定
 			n += 1
 	return n
 
 
 ## 启动一次压缩时长的事件（实例 var 覆盖，不动 balance.json）
-func _start_fast_event(event: FormationStrikeEvent) -> void:
+func _start_fast_event(event) -> void:
 	event.APPROACH_SPEED = 2000.0  # 进场 ~0.2s
 	event.TURN_TIME = 0.3
 	event.RUN_SPEED = 400.0
@@ -89,7 +95,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var main := get_node("Main")
 	var spawner: Node = get_node("Main/Spawner")
-	var event: FormationStrikeEvent = main.formation()
+	var event = main.formation()
 	_check(event != null, "初始化：事件编排节点已登记到 main")
 	_check(spawner.formation_event() == event, "初始化：spawner 持有事件引用（优先级链钩子）")
 	spawner.set_process(false)  # 全程手动驱动，保证确定性
@@ -103,9 +109,9 @@ func _ready() -> void:
 	spawner.set_boss_active(true)
 	_check(not event.can_trigger(), "场景1：Boss 激活时不可触发")
 	spawner.set_boss_active(false)
-	var fake_event := EliteTurretEvent.new()  # 不入树，仅置状态模拟精英事件 active
-	fake_event.set_state(EliteTurretEvent.State.CARRIER_ENTER)
-	var real_event: EliteTurretEvent = spawner.elite_event()
+	var fake_event = ELITE.new()  # 不入树，仅置状态模拟精英事件 active
+	fake_event.set_state(ELITE.GetStateCarrierEnter())
+	var real_event = spawner.elite_event()
 	spawner.set_elite_event(fake_event)
 	_check(not event.can_trigger(), "场景1：精英炮塔事件 active 时不可触发")
 	spawner.set_elite_event(real_event)
@@ -127,33 +133,35 @@ func _ready() -> void:
 
 	# ================= 场景 2：状态推进 + 投弹计数（击坠机跳过） =================
 	_start_fast_event(event)
-	_check(event.state() == FormationStrikeEvent.State.FORMATION_ENTER, "场景2：启动进入 FORMATION_ENTER")
+	_check(event.state() == FORMATION.GetStateFormationEnter(), "场景2：启动进入 FORMATION_ENTER")
 	_check(spawner.waves_paused(), "场景2：事件启动即暂停普通波次（占用波次槽）")
 	_check(event.crafts().size() == 4, "场景2：中难度 4 架编队")
 	_check(_count_registered_crafts() == 4, "场景2：战机注册 GameState.enemies")
 	if event.crafts().size() > 0:
 		_check(event.crafts()[0].max_hp == 60, "场景2：单机血量 60（60×中难度×1.0）")
-	_check(await _wait_event_state(event, FormationStrikeEvent.State.FORMATION_TURN), "场景2：靠近后进入 FORMATION_TURN")
+	_check(await _wait_event_state(event, FORMATION.GetStateFormationTurn()), "场景2：靠近后进入 FORMATION_TURN")
 	# 转航向期间击落 4 号僚机（投弹前）：其投弹序列应被跳过
-	var wingman: FormationCraft = event.crafts()[3]
+	var wingman = event.crafts()[3]
 	var score0 := GameState.score
 	wingman.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.score - score0 == 400, "场景2：击坠得分 200×中难度倍率×2 = 400")
 	_check(event.alive_count() == 3, "场景2：剩余 3 架")
 	_check(_count_bombs() == 0, "场景2：转向完成前无炸弹生成")
-	_check(await _wait_event_state(event, FormationStrikeEvent.State.BOMBING_RUN), "场景2：转向后进入 BOMBING_RUN")
-	_check(await _wait_event_state(event, FormationStrikeEvent.State.FORMATION_EXIT, 6.0), "场景2：投弹完毕进入 FORMATION_EXIT")
+	_check(await _wait_event_state(event, FORMATION.GetStateBombingRun()), "场景2：转向后进入 BOMBING_RUN")
+	_check(await _wait_event_state(event, FORMATION.GetStateFormationExit(), 6.0), "场景2：投弹完毕进入 FORMATION_EXIT")
 	_check(event.dropped() == 6, "场景2：投弹数 = 存活 3 机 × 2 枚 = 6（击坠机跳过）")
 	_check(_count_bombs() > 0, "场景2：引信未到时炸弹节点存续")
-	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景2：离场结束回 IDLE")
+	_check(await _wait_event_state(event, FORMATION.GetStateIdle(), 5.0), "场景2：离场结束回 IDLE")
+	# M4：queue_free 帧末生效——IDLE 与清理同帧时计数会竞态，等一帧再断言清理（flake 加固）
+	await get_tree().process_frame
 	_check(not spawner.waves_paused(), "场景2：事件结束恢复普通波次")
 	_check(event.cooldown_left() > 0.0, "场景2：事件结束进入触发冷却")
 	_check(_count_crafts() == 0, "场景2：离场后战机节点清理")
 	_check(_count_registered_crafts() == 0, "场景2：离场后注册表无残留")
 	# 统一清理本场景遗留炸弹（引爆音/粒子自然播完）
 	for child in main.get_children():
-		if child is FormationBomb:
+		if is_instance_of(child, BOMB):  # M4：FormationBomb 迁 C#，is 改脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -161,7 +169,7 @@ func _ready() -> void:
 	player.position = Vector2(960.0, 800.0)
 	player.set_invincible(0.0)
 	GameState.health = 100.0
-	var bomb := FormationBomb.new()
+	var bomb = BOMB.new()  # M4：FormationBomb 迁 C#，经脚本资源实例化
 	bomb.setup(Vector2.ZERO, 0.5, 20, 120.0)
 	bomb.position = player.position
 	main.add_child(bomb)
@@ -178,7 +186,7 @@ func _ready() -> void:
 	_check(GameState.health < hp0, "场景3：玩家站半径内引爆掉血")
 	# 无敌不掉血（血量只可能因被动回血上升，不允许下降）
 	player.set_invincible(999.0)
-	var bomb2 := FormationBomb.new()
+	var bomb2 = BOMB.new()
 	bomb2.setup(Vector2.ZERO, 0.3, 20, 120.0)
 	bomb2.position = player.position
 	main.add_child(bomb2)
@@ -190,18 +198,18 @@ func _ready() -> void:
 	# ================= 场景 4：全歼奖励 + 提前离场 =================
 	_start_fast_event(event)
 	await get_tree().process_frame
-	_check(event.state() == FormationStrikeEvent.State.FORMATION_ENTER, "场景4：事件再次启动")
+	_check(event.state() == FORMATION.GetStateFormationEnter(), "场景4：事件再次启动")
 	var score1 := GameState.score
 	for i in event.crafts().size():
-		var craft: FormationCraft = event.crafts()[i]
+		var craft = event.crafts()[i]
 		if craft != null and is_instance_valid(craft):
 			craft.take_damage(9999)
 	await get_tree().process_frame
 	# 4 机击坠 200×4 + 全歼 200 = 1000 基础分 ×中难度×2 = 2000
 	_check(GameState.score - score1 == 2000, "场景4：击坠分 + 全歼奖励入账（2000）")
-	_check(event.state() == FormationStrikeEvent.State.FORMATION_EXIT, "场景4：全歼立即提前离场")
+	_check(event.state() == FORMATION.GetStateFormationExit(), "场景4：全歼立即提前离场")
 	_check(_count_registered_crafts() == 0, "场景4：全歼后注册表无残留")
-	_check(await _wait_event_state(event, FormationStrikeEvent.State.IDLE, 5.0), "场景4：提前离场后回 IDLE")
+	_check(await _wait_event_state(event, FORMATION.GetStateIdle(), 5.0), "场景4：提前离场后回 IDLE")
 
 	# ================= 场景 5：abort 打断 =================
 	_start_fast_event(event)
@@ -209,7 +217,7 @@ func _ready() -> void:
 	_check(event.is_active(), "场景5：事件进行中")
 	event.abort()
 	await get_tree().process_frame  # queue_free 帧末生效后再断言清理
-	_check(event.state() == FormationStrikeEvent.State.IDLE, "场景5：abort 回 IDLE")
+	_check(event.state() == FORMATION.GetStateIdle(), "场景5：abort 回 IDLE")
 	_check(not spawner.waves_paused(), "场景5：abort 恢复普通波次")
 	_check(_count_crafts() == 0, "场景5：abort 清理全部战机实体")
 	_check(_count_registered_crafts() == 0, "场景5：abort 后注册表无残留")
@@ -226,4 +234,4 @@ func _ready() -> void:
 	GameState.save_profile()
 	print("FORMATION STRIKE EVENT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

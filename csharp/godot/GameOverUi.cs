@@ -1,0 +1,151 @@
+using Godot;
+
+namespace InfiAir;
+
+/// <summary>
+/// 死亡结算面板：DISPLAY 级大分数 + 新纪录标记 + 击杀统计，按 R 重开。
+/// M5 全量迁移（2026-08-08 自 scripts/game_over_ui.gd）。
+/// 迁移期动态访问：GameState（GDScript autoload）经 GameStateBridge；UITheme/ChamferedPanel 为 C# 类 typed 直调。
+/// </summary>
+public partial class GameOverUi : CanvasLayer
+{
+    private Label _scoreLabel = null!;
+    private Label _scoreTagLabel = null!;
+    private Label _statsLabel = null!;
+    private Label _recordLabel = null!;
+    private Label _rankLabel = null!;
+    private Label _boardTitleLabel = null!;
+    private Label _boardLabel = null!;
+    private Label _titleLabel = null!;
+    private Label _hintLabel = null!;
+    private ChamferedPanel _plate = null!;
+    private ColorRect _dim = null!;
+    private VBoxContainer _content = null!;
+    private int _lastRank;
+
+    private readonly Callable _onPlayerDied;
+    private readonly Callable _onLocaleChanged;
+
+    public GameOverUi()
+    {
+        _onPlayerDied = Callable.From(OnPlayerDied);
+        _onLocaleChanged = Callable.From(OnLocaleChanged);
+    }
+
+    public override void _Ready()
+    {
+        Visible = false;
+        var shell = UITheme.MakePageShell("GO_TITLE");
+        AddChild((Node)shell["root"].AsGodotObject());
+        _dim = (ColorRect)shell["dim"].AsGodotObject();
+        _plate = (ChamferedPanel)shell["panel"].AsGodotObject();
+        _plate.CustomMinimumSize = new Vector2(640.0f, 600.0f);
+        _titleLabel = (Label)shell["title"].AsGodotObject();
+        _content = (VBoxContainer)shell["content"].AsGodotObject();
+
+        // 大分数：DISPLAY 级金色数字 + 小 caption 标签
+        _scoreTagLabel = UITheme.MakeLabel(Tr("UI_SCORE_TAG"), UITheme.FontCaption, UITheme.TextDim);
+        _content.AddChild(_scoreTagLabel);
+        _scoreLabel = UITheme.MakeLabel("0", UITheme.FontDisplay, UITheme.AccentGold);
+        _content.AddChild(_scoreLabel);
+
+        _recordLabel = UITheme.MakeLabel(Tr("GO_RECORD"), UITheme.FontHeader, UITheme.AccentGold);
+        _recordLabel.Visible = false;
+        _content.AddChild(_recordLabel);
+
+        _statsLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
+        _content.AddChild(_statsLabel);
+
+        // P0-3 本地排行榜：本局名次 + 历史最佳 Top5
+        _rankLabel = UITheme.MakeLabel("", UITheme.FontHeader, UITheme.AccentGold);
+        _rankLabel.Visible = false;
+        _content.AddChild(_rankLabel);
+        _boardTitleLabel = UITheme.MakeLabel(Tr("GO_BOARD"), UITheme.FontCaption, UITheme.TextDim);
+        _content.AddChild(_boardTitleLabel);
+        _boardLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
+        _content.AddChild(_boardLabel);
+
+        _hintLabel = UITheme.MakeLabel(Tr("GO_RESTART"), UITheme.FontCaption, UITheme.TextDim);
+        _content.AddChild(_hintLabel);
+
+        var gs = GameStateBridge.Instance;
+        if (gs != null)
+        {
+            gs.Connect("player_died", _onPlayerDied);
+            gs.Connect("locale_changed", _onLocaleChanged);
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        // C22：显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
+        var gs = GameStateBridge.Instance;
+        if (gs != null)
+        {
+            if (gs.IsConnected("player_died", _onPlayerDied))
+            {
+                gs.Disconnect("player_died", _onPlayerDied);
+            }
+
+            if (gs.IsConnected("locale_changed", _onLocaleChanged))
+            {
+                gs.Disconnect("locale_changed", _onLocaleChanged);
+            }
+        }
+    }
+
+    private void OnLocaleChanged()
+    {
+        _titleLabel.Text = Tr("GO_TITLE");
+        _scoreTagLabel.Text = Tr("UI_SCORE_TAG");
+        _recordLabel.Text = Tr("GO_RECORD");
+        _rankLabel.Text = BuffSelect.GsFormat(Tr("GO_RANK"), _lastRank);
+        _boardTitleLabel.Text = Tr("GO_BOARD");
+        _hintLabel.Text = Tr("GO_RESTART");
+        // 2026-08-03 审计：去掉 if visible 恒假包裹（死亡态无语言切换入口），刷新不可见文本无害
+        _statsLabel.Text = BuffSelect.GsFormat(
+            Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
+            GameStateBridge.Get("high_score").AsInt64(),
+            GameStateBridge.Get("kills").AsInt64(),
+            GameStateBridge.Get("boss_kills").AsInt64());
+        _boardLabel.Text = GameStateBridge.Call("highscores_text", 5).AsString();
+    }
+
+    private void OnPlayerDied()
+    {
+        // 死亡删档：防止一死档永存
+        GameStateBridge.Call("delete_save");
+        var newRecord = GameStateBridge.Call("record_score").AsBool();
+        GameStateBridge.Call("record_game_over"); // Q06：登录用户累计 total_kills/games_played（游客跳过）
+        // P0-3：本局分数提交本地榜并显示名次与 Top5
+        _lastRank = (int)GameStateBridge.Call("submit_highscore", GameStateBridge.Get("score")).AsInt64();
+        _scoreLabel.Text = GameStateBridge.Get("score").AsInt64().ToString();
+        _statsLabel.Text = BuffSelect.GsFormat(
+            Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
+            GameStateBridge.Get("high_score").AsInt64(),
+            GameStateBridge.Get("kills").AsInt64(),
+            GameStateBridge.Get("boss_kills").AsInt64());
+        _rankLabel.Text = BuffSelect.GsFormat(Tr("GO_RANK"), _lastRank);
+        _rankLabel.Visible = _lastRank > 0;
+        _boardLabel.Text = GameStateBridge.Call("highscores_text", 5).AsString();
+        _recordLabel.Visible = newRecord;
+        if (newRecord)
+        {
+            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
+        }
+
+        GetTree().Paused = true;
+        Visible = true;
+        UITheme.AnimateModalOpen(_dim, _plate, _content);
+    }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (Visible && @event.IsActionPressed("restart"))
+        {
+            GetTree().Paused = false;
+            GameStateBridge.Call("reset_run");
+            GetTree().ReloadCurrentScene();
+        }
+    }
+}

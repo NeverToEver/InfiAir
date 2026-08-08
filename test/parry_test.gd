@@ -204,7 +204,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.9).timeout  # 本次流程播完（不干扰后续）
 
 	# ================= HUD 能量槽 =================
-	var parry_bar: SegmentedBar = get_node("Main/HUD/ParryBar")
+	var parry_bar = get_node("Main/HUD/ParryBar")
 	await _await_parry_ready(player)  # 等冷却结束回满格
 	await get_tree().create_timer(0.2).timeout  # HUD 0.1s 节流刷新
 	_check(parry_bar.value == 100.0, "能量槽：HUD 满格显示（冷却结束）")
@@ -250,4 +250,4 @@ func _ready() -> void:
 	GameState.save_profile()
 	print("PARRY TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

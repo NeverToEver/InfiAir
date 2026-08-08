@@ -229,4 +229,4 @@ func _ready() -> void:
 	GameState.logout_user()
 	GameState.delete_save()
 	_restore_user_files()  # Q23：还原用户文件快照
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

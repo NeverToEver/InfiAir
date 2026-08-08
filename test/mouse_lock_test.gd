@@ -85,7 +85,7 @@ func _ready() -> void:
 	_check(not GameState.mouse_lock, "旧档（无 mouse_lock 字段）读取保留当前值")
 
 	# ---------- 5. MouseTrap 边界 clamp 纯函数 ----------
-	const MOUSE_TRAP: GDScript = preload("res://scripts/mouse_trap.gd")
+	const MOUSE_TRAP := preload("res://csharp/godot/MouseTrap.cs")
 	_check(
 		MOUSE_TRAP.warp_target(Vector2(-50, -50), Vector2i(1920, 1080)) == Vector2(1, 1),
 		"clamp 左上越界到 (1,1)",
@@ -104,7 +104,7 @@ func _ready() -> void:
 	)
 
 	# ---------- 6. 设置页开关 wiring ----------
-	const SETTINGS_SCRIPT: GDScript = preload("res://scripts/settings_ui.gd")
+	const SETTINGS_SCRIPT := preload("res://csharp/godot/SettingsUi.cs")
 	var settings := SETTINGS_SCRIPT.new() as CanvasLayer
 	add_child(settings)
 	settings.show_settings()
@@ -169,4 +169,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	# M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
 	_restore_profile()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

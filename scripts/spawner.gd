@@ -191,9 +191,9 @@ var _boss_pending: bool = false
 var _waves_paused: bool = false
 ## 事件编排节点（main 在 _ready 登记；遭遇事件触发策略由统一事件管理器接管，
 ## 本引用供互斥查询（formation.can_trigger 检查 elite active）与测试访问器）
-var _event: EliteTurretEvent = null
+var _event = null
 ## 轰炸编队事件编排节点（main 在 _ready 登记；互斥/访问器同上）
-var _formation: FormationStrikeEvent = null
+var _formation = null
 
 
 func _ready() -> void:
@@ -278,11 +278,11 @@ func _merge_type(dst: Dictionary, src: Variant) -> void:
 
 
 ## 对外公开接口（A1 修复）：事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段
-func set_elite_event(event: EliteTurretEvent) -> void:
+func set_elite_event(event) -> void:
 	_event = event
 
 
-func set_formation_event(event: FormationStrikeEvent) -> void:
+func set_formation_event(event) -> void:
 	_formation = event
 
 
@@ -355,7 +355,7 @@ func set_boss_pending(pending: bool) -> void:
 	_boss_pending = pending
 
 
-func formation_event() -> FormationStrikeEvent:
+func formation_event():
 	return _formation
 
 
@@ -399,7 +399,7 @@ func is_boss_active() -> bool:
 	return _boss_active
 
 
-func elite_event() -> EliteTurretEvent:
+func elite_event():
 	return _event
 
 

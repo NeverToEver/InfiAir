@@ -46,7 +46,7 @@ func _ready() -> void:
 
 	var main := get_node("Main")
 	var nav := main.get_node("BackNavigator")
-	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.back_actions()  # 枚举经实例访问为 Variant，不能用 := 推断
 
 	# ---------- 1. 门禁路径：测试场景（current_scene != Main）实例化不自动播过场 ----------
 	await get_tree().process_frame
@@ -145,4 +145,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _failures > 0 else 0)

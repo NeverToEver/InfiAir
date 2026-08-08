@@ -4,6 +4,7 @@ extends Node
 ## 以及「暂停 → 设置 → 改键 → Esc 逐级返回 → 恢复游戏」全链路（用户报告的卡死路径）。
 
 var _failures := 0
+var _test_exit := load("res://csharp/godot/TestExit.cs")  # M5：退出前显式 GC（防退出 segfault）
 var _frames := 0
 
 
@@ -11,7 +12,7 @@ func _process(_delta: float) -> void:
 	_frames += 1
 	if _frames > 600:  # 看门狗：卡死时带状态退出
 		printerr("[WATCHDOG] stuck, paused=%s" % str(get_tree().paused))
-		get_tree().quit(2)
+		_test_exit.Quit(2)
 
 
 func _check(cond: bool, msg: String) -> void:
@@ -103,4 +104,4 @@ func _ready() -> void:
 	# 2026-08-06 审计：还原用户自定义键位（reset_key_bindings 已把默认键位落盘）
 	_restore_keys()
 	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	_test_exit.Quit(1 if _failures > 0 else 0)

@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/tutorial.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/Tutorial.cs" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2"]
 [ext_resource type="Script" path="res://csharp/godot/Starfield.cs" id="3"]
 [ext_resource type="Script" path="res://csharp/godot/BulletPool.cs" id="4"]

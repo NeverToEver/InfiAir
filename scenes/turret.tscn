@@ -1,8 +1,8 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/turret_battery.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/TurretBattery.cs" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/elite_turret.png" id="2"]
-[ext_resource type="Script" path="res://scripts/ui_segmented_bar.gd" id="3"]
+[ext_resource type="Script" path="res://csharp/godot/SegmentedBar.cs" id="3"]
 
 [sub_resource type="CircleShape2D" id="1"]
 resource_local_to_scene = true
@@ -26,4 +26,4 @@ offset_top = -46.0
 offset_right = 24.0
 offset_bottom = -38.0
 script = ExtResource("3")
-segments = 8
+Segments = 8

@@ -120,7 +120,7 @@ func _ready() -> void:
 	await get_tree().create_timer(tut.DOCK_CHARGE_TIME + 0.3).timeout
 	Input.action_release("dock")
 	_check(tut.mothership() != null, "阶段 4 蓄力完成后母舰已召唤")
-	var ms: Mothership = tut.mothership()
+	var ms = tut.mothership()  # M4：Mothership 迁 C#，去类型注解
 	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场，到位触发自动对接
 	ms.set_mag_cells(1)  # 加速演示：1 格弹匣 2s 后自动释放
 	await get_tree().create_timer(6.0).timeout

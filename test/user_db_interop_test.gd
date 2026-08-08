@@ -150,4 +150,4 @@ func _ready() -> void:
 	_cleanup()
 	_restore_user_files()
 	print("USER DB INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

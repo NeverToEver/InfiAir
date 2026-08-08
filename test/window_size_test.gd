@@ -5,7 +5,7 @@ extends Node
 
 var _failures: int = 0
 
-const SETTINGS_SCRIPT: GDScript = preload("res://scripts/settings_ui.gd")
+const SETTINGS_SCRIPT := preload("res://csharp/godot/SettingsUi.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -116,4 +116,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	# M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
 	_restore_profile()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

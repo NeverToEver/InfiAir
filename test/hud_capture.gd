@@ -66,7 +66,7 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.save_profile()
 	print("hud capture done")
-	get_tree().quit()
+	load("res://csharp/godot/TestExit.cs").Quit(0)
 
 
 func _settle() -> void:

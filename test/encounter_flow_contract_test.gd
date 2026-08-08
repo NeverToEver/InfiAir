@@ -50,14 +50,14 @@ func _ready() -> void:
 	player.set_invincible(999.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var events: GameEventManager = GameState.events
+	var events = GameState.events
 
 	# ---- T3a：自动遭遇短窗口契约（spawner 保持处理中，自动触发路径活跃） ----
-	_check(events.active_id(GameEventManager.GROUP_ENCOUNTER) == &"", "T3a: 开局无遭遇事件")
+	_check(events.active_id(events.GROUP_ENCOUNTER) == &"", "T3a: 开局无遭遇事件")
 	_check(events.encounter_timer_remaining(&"elite_turret") > 0.0, "T3a: 开局精英计时未归零")
 	_check(events.encounter_timer_remaining(&"formation_strike") > 0.0, "T3a: 开局编队计时未归零")
 	await _wait_real(3.0)
-	_check(events.active_id(GameEventManager.GROUP_ENCOUNTER) == &"", "T3a: 3s 短窗口内无自动遭遇触发（interval ≫ 窗口）")
+	_check(events.active_id(events.GROUP_ENCOUNTER) == &"", "T3a: 3s 短窗口内无自动遭遇触发（interval ≫ 窗口）")
 	_check(events.encounter_timer_remaining(&"elite_turret") > 0.0, "T3a: 3s 后精英计时仍 >0（未归零触发）")
 	_check(events.encounter_timer_remaining(&"formation_strike") > 0.0, "T3a: 3s 后编队计时仍 >0（未归零触发）")
 	# 契约锚点：interval 配置下界（防未来把自动触发窗口调进测试运行时长内）
@@ -66,10 +66,10 @@ func _ready() -> void:
 
 	# ---- T3b / L-d：遭遇事件进行中禁止蓄力 ----
 	_check(events.force_trigger(&"elite_turret"), "L-d: 强制触发精英事件成功")
-	_check(events.active_id(GameEventManager.GROUP_ENCOUNTER) != &"", "L-d: 遭遇事件进行中")
+	_check(events.active_id(events.GROUP_ENCOUNTER) != &"", "L-d: 遭遇事件进行中")
 	await _hold_action(&"dock", 0.4)
 	_check(not main.charging(), "L-d: 事件进行中蓄力被拒（can_charge 事件互斥）")
-	events.end_active(GameEventManager.GROUP_ENCOUNTER)
+	events.end_active(events.GROUP_ENCOUNTER)
 	await _wait_real(0.3)  # 等事件清理/撤离
 
 	# ---- T3b / L-b：死亡路径清理召唤小窗 ----
@@ -82,4 +82,4 @@ func _ready() -> void:
 	_check(main.summon_window() == null, "L-b: 死亡路径清理召唤小窗（不永驻）")
 
 	print("ENCOUNTER FLOW CONTRACT TEST DONE, failures = ", _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _failures > 0 else 0)

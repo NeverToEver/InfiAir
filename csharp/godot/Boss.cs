@@ -367,7 +367,7 @@ public partial class Boss : Area2D
     public Boss()
     {
         _onBuffsChanged = Callable.From(OnBuffsChanged);
-        _formationBombScript = GD.Load<Script>("res://scripts/formation_bomb.gd");
+        _formationBombScript = GD.Load<Script>("res://csharp/godot/FormationBomb.cs");
     }
 
     public override void _Ready()

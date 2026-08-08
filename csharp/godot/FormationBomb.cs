@@ -1,0 +1,163 @@
+using Godot;
+
+namespace InfiAir;
+
+/// <summary>
+/// 轰炸编队事件·炸弹（docs/FORMATION_STRIKE_EVENT.md 第 4.2 节）：
+/// 引信制下落弹（不走命中即毁）：投放时继承编队水平速度 ×0.35 + 垂直下落，
+/// 引信倒计时期间弹体脉冲辉光（8Hz）、警示环随剩余引信收缩（0.9×AoE → 0.15×AoE），
+/// 引爆对 player_hitbox 做距离判定（无敌/闪避由 Player.take_damage 语义处理），
+/// 只伤玩家不伤敌机（与敌方弹丸语义一致）；出界/引爆后 queue_free。
+/// 迁移期：GameState 经 GameStateBridge；Player（C#）typed 直调；Enemy.SinFast 静态查表直调。
+/// </summary>
+public partial class FormationBomb : Area2D
+{
+    private const int RingSegments = 24;
+
+    /// <summary>投放参数（事件 Setup 注入；数值源 formation_strike_event.*）。</summary>
+    public Vector2 Velocity { get; set; } = new(0.0f, 300.0f);
+    public float Fuse { get; set; } = 1.2f;
+    public int Damage { get; set; } = 20;
+    public float AoeRadius { get; set; } = 120.0f;
+
+    private float _fuseLeft = 1.2f;
+    private float _t; // 脉冲相位
+    private Polygon2D _body = null!;
+    private Line2D _ring = null!;
+
+    // ---- 热路径缓存：view_world_rect 每处理帧一次动态调用（全弹共享），帧内复用 ----
+    private static ulong _viewFrame;
+    private static Rect2 _viewRect;
+
+    private static Rect2 CachedViewRect(float margin)
+    {
+        var frame = Engine.GetProcessFrames();
+        if (frame != _viewFrame)
+        {
+            _viewFrame = frame;
+            _viewRect = GameStateBridge.Call("view_world_rect").AsRect2();
+        }
+
+        return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
+    }
+
+    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
+    public Line2D Ring() => _ring;
+
+    /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
+    public void Setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
+    {
+        Velocity = pVelocity;
+        Fuse = pFuse;
+        Damage = pDamage;
+        AoeRadius = pRadius;
+    }
+
+    public override void _Ready()
+    {
+        CollisionLayer = 8; // 第 4 层：enemy_bullet（语义同敌弹，但不接命中即毁）
+        // CollisionMask = 1（第 1 层 player）：纯语义文档——引信制炸弹对 player_hitbox 用距离判定结算
+        //（见 Detonate），无 body_entered/area_entered 碰撞信号连接，此掩码不参与任何命中判定
+        CollisionMask = 1;
+        _body = new Polygon2D();
+        // 机体尺寸族：设计值 × world_scale（AoE 半径 aoe_radius 为游戏性范围，不缩）
+        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        _body.Polygon = new Vector2[]
+        {
+            new Vector2(-7.0f, -12.0f) * ws,
+            new Vector2(7.0f, -12.0f) * ws,
+            new Vector2(9.0f, 6.0f) * ws,
+            new Vector2(0.0f, 14.0f) * ws,
+            new Vector2(-9.0f, 6.0f) * ws,
+        };
+        _body.Color = new Color(1.0f, 0.45f, 0.15f);
+        AddChild(_body);
+        var shape = new CollisionShape2D();
+        var circle = new CircleShape2D { Radius = 10.0f * ws };
+        shape.Shape = circle;
+        AddChild(shape);
+        // 警示环：单位圆一次构建，运行时只改 scale（半径 0.9×AoE → 0.15×AoE），零堆分配
+        _ring = new Line2D();
+        var pts = new Vector2[RingSegments + 1];
+        for (var i = 0; i <= RingSegments; i++)
+        {
+            var a = Mathf.Tau * i / RingSegments;
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+        }
+
+        _ring.Points = pts;
+        _ring.Width = 3.0f;
+        _ring.DefaultColor = new Color(1.0f, 0.3f, 0.15f, 0.85f);
+        AddChild(_ring);
+        _fuseLeft = Fuse;
+        _ring.Scale = Vector2.One * AoeRadius * 0.9f;
+    }
+
+    public override void _Process(double delta)
+    {
+        var d = (float)delta;
+        _t += d;
+        Position += Velocity * d;
+        // 脉冲辉光（红橙 8Hz）
+        var pulse = 0.55f + 0.45f * Mathf.Abs(Enemy.SinFast(_t * Mathf.Pi * 8.0f));
+        var mc = _body.Modulate;
+        mc.A = pulse;
+        _body.Modulate = mc;
+        _fuseLeft -= d;
+        if (_fuseLeft <= 0.0f)
+        {
+            Detonate();
+            return;
+        }
+
+        // 警示环随引信剩余时间收缩
+        var frac = Mathf.Clamp(_fuseLeft / Fuse, 0.0f, 1.0f);
+        _ring.Scale = Vector2.One * AoeRadius * Mathf.Lerp(0.15f, 0.9f, frac);
+        if (!CachedViewRect(80.0f).HasPoint(Position))
+        {
+            QueueFree();
+        }
+    }
+
+    /// <summary>引爆：爆炸 + 音效 + 震屏；对 player_hitbox 距离判定（≤ AoE 半径才结算，
+    /// 无敌/单帧已结算/闪避由 Player.take_damage 返回 false 挡掉）。</summary>
+    private void Detonate()
+    {
+        Explosion.SpawnAt(GetParent(), GlobalPosition, 0.9f);
+        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"));
+        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.enemy_die", 5.0));
+        var hitbox = GameStateBridge.Get("player_hitbox");
+        var player = GameStateBridge.Get("player_ref"); // M3c：Player 迁 C#，typed 直调
+        if (hitbox.VariantType != Variant.Type.Nil
+            && GodotObject.IsInstanceValid(hitbox.AsGodotObject())
+            && player.VariantType != Variant.Type.Nil)
+        {
+            var hitboxNode = (Node2D)hitbox;
+            if (hitboxNode.GlobalPosition.DistanceTo(GlobalPosition) <= AoeRadius)
+            {
+                // K08：A1 同款遗漏——原 (hitbox.get_parent() as Player) 硬强转，Player 节点结构变动即
+                // null 调用崩溃；改经注册表引用（与 bullet.gd 命中结算同口径）
+                ((Player)player).TakeDamage((float)Damage, GlobalPosition);
+            }
+        }
+
+        QueueFree();
+    }
+
+    // ---------------- GDScript 鸭子调用兼容桥（M3e 过渡，M7 删除） ----------------
+    // 原 GDScript 公开 API（snake_case / camelCase var）别名转发（C# 内部调用一律 PascalCase）。
+    // M7 全量迁移后删除本段。
+
+    public Line2D ring() => Ring();
+
+    public void setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
+        => Setup(pVelocity, pFuse, pDamage, pRadius);
+
+    public Vector2 velocity { get => Velocity; set => Velocity = value; }
+
+    public float fuse { get => Fuse; set => Fuse = value; }
+
+    public int damage { get => Damage; set => Damage = value; }
+
+    public float aoe_radius { get => AoeRadius; set => AoeRadius = value; }
+}

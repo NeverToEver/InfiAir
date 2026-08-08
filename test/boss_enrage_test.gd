@@ -8,6 +8,7 @@ extends Node
 ## 时序坑：Engine.time_scale 会缩放 create_timer 默认等待，真实时间等待用 ignore_time_scale=true。
 
 var _failures: int = 0
+var _ui_theme := load("res://csharp/godot/UITheme.cs")
 
 # M3d：Boss 迁 C#——类名/枚举不可经 GDScript 引用；is 判定经脚本资源，枚举值经 Boss 实例 getter（返回 int）
 var _boss_script = load("res://csharp/godot/Boss.cs")
@@ -205,7 +206,7 @@ func _ready() -> void:
 	var boss2 = await _spawn_test_boss()  # M3d：Boss 迁 C#，不能作类型注解
 	_check(boss2 != null, "场景2：Boss 已生成")
 	# 场景1 狂暴把血条染红（DANGER），新 Boss 开场必须重置回 ACCENT
-	_check(get_node("Main/HUD/BossBar").fill_color == UITheme.ACCENT, "场景2：第二只 Boss 开场血条重置为 ACCENT")
+	_check(get_node("Main/HUD/BossBar").fill_color == _ui_theme.GetAccent(), "场景2：第二只 Boss 开场血条重置为 ACCENT")
 	await _wait_real(0.3)
 	boss2.take_damage(int(boss2.max_hp * 0.75))
 	await get_tree().process_frame
@@ -277,4 +278,4 @@ func _ready() -> void:
 
 	print("BOSS ENRAGE TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

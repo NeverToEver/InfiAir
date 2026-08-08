@@ -4,19 +4,19 @@
 [ext_resource type="Script" path="res://csharp/godot/Starfield.cs" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="Script" path="res://scripts/spawner.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/buff_select.gd" id="6"]
-[ext_resource type="Script" path="res://scripts/game_over_ui.gd" id="7"]
-[ext_resource type="Script" path="res://scripts/pause_ui.gd" id="8"]
+[ext_resource type="Script" path="res://csharp/godot/Hud.cs" id="5"]
+[ext_resource type="Script" path="res://csharp/godot/BuffSelect.cs" id="6"]
+[ext_resource type="Script" path="res://csharp/godot/GameOverUi.cs" id="7"]
+[ext_resource type="Script" path="res://csharp/godot/PauseUi.cs" id="8"]
 [ext_resource type="Script" path="res://csharp/godot/CameraShake.cs" id="9"]
-[ext_resource type="Script" path="res://scripts/base_console.gd" id="11"]
+[ext_resource type="Script" path="res://csharp/godot/BaseConsole.cs" id="11"]
 [ext_resource type="Script" path="res://csharp/godot/BulletPool.cs" id="13"]
 [ext_resource type="Script" path="res://csharp/godot/EnemyPool.cs" id="14"]
-[ext_resource type="Script" path="res://scripts/ui_segmented_bar.gd" id="15"]
-[ext_resource type="Script" path="res://scripts/settings_ui.gd" id="12"]
-[ext_resource type="Script" path="res://scripts/exit_confirm.gd" id="17"]
-[ext_resource type="Script" path="res://scripts/back_navigator.gd" id="18"]
-[ext_resource type="Script" path="res://scripts/mouse_trap.gd" id="19"]
+[ext_resource type="Script" path="res://csharp/godot/SegmentedBar.cs" id="15"]
+[ext_resource type="Script" path="res://csharp/godot/SettingsUi.cs" id="12"]
+[ext_resource type="Script" path="res://csharp/godot/ExitConfirm.cs" id="17"]
+[ext_resource type="Script" path="res://csharp/godot/BackNavigator.cs" id="18"]
+[ext_resource type="Script" path="res://csharp/godot/MouseTrap.cs" id="19"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -78,8 +78,8 @@ offset_left = 24.0
 offset_top = -100.0
 offset_right = 264.0
 offset_bottom = -76.0
-max_value = 100.0
-value = 100.0
+MaxValue = 100.0
+Value = 100.0
 
 [node name="LivesLabel" type="Label" parent="HUD"]
 anchor_top = 1.0
@@ -167,8 +167,8 @@ offset_left = -300.0
 offset_top = 16.0
 offset_right = 300.0
 offset_bottom = 44.0
-max_value = 100.0
-value = 100.0
+MaxValue = 100.0
+Value = 100.0
 
 [node name="BuffUI" type="CanvasLayer" parent="."]
 process_mode = 3

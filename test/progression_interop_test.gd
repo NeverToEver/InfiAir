@@ -65,4 +65,4 @@ func _ready() -> void:
 	_check(GameState.milestone_threshold(8) == 84050, "生产链路切回 medium 恢复 ×1")
 
 	print("PROGRESSION INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

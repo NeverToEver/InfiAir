@@ -82,4 +82,4 @@ func _ready() -> void:
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
 	print("I18N TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

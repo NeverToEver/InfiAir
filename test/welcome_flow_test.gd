@@ -204,4 +204,4 @@ func _ready() -> void:
 	print("WELCOME FLOW TEST DONE, failures = ", _failures)
 	GameState.logout_user()
 	_restore_user_files()  # Q23：还原用户文件快照
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

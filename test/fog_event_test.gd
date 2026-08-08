@@ -7,28 +7,17 @@ extends Node
 
 var _failures: int = 0
 
-
-## 宽容性测试用：复杂事件——内部目标达成后主动 request_end 提前结束（2 个 tick）
-class _SelfEndTestEvent:
-	extends FogEvent
-
-	var ticks := 0
-
-	func event_id() -> StringName:
-		return &"_self_end_test"
-
-	func _on_tick(_delta: float) -> void:
-		ticks += 1
-		if ticks >= 2:
-			request_end()
+## M4：测试事件类迁 C#（GDScript 不能继承 C# 类），经脚本资源实例化
+const SELF_END := preload("res://csharp/godot/SelfEndTestEvent.cs")
+const MINIMAL := preload("res://csharp/godot/MinimalTestEvent.cs")
 
 
-## 宽容性测试用：极简事件——只实现 event_id（无任何钩子），验证最简形态走通全生命周期
-class _MinimalTestEvent:
-	extends FogEvent
+func _make_self_end_event():
+	return SELF_END.new()
 
-	func event_id() -> StringName:
-		return &"_minimal_test"
+
+func _make_minimal_event():
+	return MINIMAL.new()
 
 
 func _check(cond: bool, label: String) -> void:
@@ -45,7 +34,7 @@ func _wait_real(sec: float) -> void:
 
 
 ## 轮询等事件结束（最多 timeout 秒真实时间）
-func _wait_idle(manager: FogEventManager, timeout: float = 5.0) -> bool:
+func _wait_idle(manager, timeout: float = 5.0) -> bool:
 	var left := timeout
 	while left > 0.0:
 		if manager.active_id() == &"":
@@ -79,7 +68,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 手动驱动，保证确定性
-	var manager: FogEventManager = GameState.fog_events
+	var manager = GameState.fog_events
 
 	# 1. 管理器挂载与对局活跃开关（测试上下文 main 非 current_scene，自动触发默认关闭；
 	# 本用例需要，显式开启——真实对局由 main._ready 自动开启）
@@ -231,7 +220,7 @@ func _ready() -> void:
 	await _wait_real(0.5)  # 让特效 tween 播完，避免退出时对象泄漏
 
 	# 8. 事件类健壮性（GameEvent 生命周期守卫 + context 防御路径，2026-08-05 审计）
-	var ge := FakeEnemiesEvent.new()
+	var ge = load("res://csharp/godot/FakeEnemiesEvent.cs").new()
 	_check(ge.event_id() == &"fake_enemies", "事件类：event_id 正确")
 	_check(not ge.is_active, "事件类：初始未活跃")
 	ge.start({}, 0.5)  # 空 context（缺 fake_container 键）：降级空转不崩
@@ -240,7 +229,7 @@ func _ready() -> void:
 	var c1 := Node2D.new()
 	ge.start({"fake_container": c1}, 0.5)  # 重复 start：先清理旧状态再重启（不叠加）
 	_check(ge.spawned_fakes().size() == int(GameState.cfg("fog_events.fake_enemies.count", 5)), "事件类：重复 start 自愈后正常生成（无叠加）")
-	var before_tick := ge.spawned_fakes().size()
+	var before_tick: int = ge.spawned_fakes().size()
 	ge.tick(0.1)
 	_check(ge.spawned_fakes().size() == before_tick, "事件类：tick 不重复生成（生命周期由 _on_* 钩子驱动）")
 	ge.end()
@@ -276,11 +265,12 @@ func _ready() -> void:
 
 	# 10. 事件宽容性（简单/复杂事件同一接口，2026-08-05 调研后设计）
 	# 10a. 复杂事件：内部目标达成可主动 request_end 提前结束（不等 duration）
-	manager.EVENT_FACTORIES[&"_self_end_test"] = func() -> FogEvent: return _SelfEndTestEvent.new()
+	# M4：匿名 lambda 存入 C# 字典会丢失目标（实测 null::null）——用方法引用 Callable
+	manager.EVENT_FACTORIES[&"_self_end_test"] = Callable(self, "_make_self_end_event")
 	manager.set_cooldown_left(0.0)
 	manager.set_first_delay_left(0.0)
 	_check(manager.force_trigger(&"_self_end_test"), "宽容性：复杂事件（request_end）注册并可触发")
-	var self_end_event := manager.active_event() as _SelfEndTestEvent
+	var self_end_event = manager.active_event()
 	_check(self_end_event != null and self_end_event.is_active, "宽容性：复杂事件进行中")
 	for i in 3:
 		await get_tree().process_frame
@@ -289,7 +279,7 @@ func _ready() -> void:
 	manager.EVENT_FACTORIES.erase(&"_self_end_test")
 
 	# 10b. 极简事件：只实现 event_id 也能走通 start→duration→end 全生命周期
-	manager.EVENT_FACTORIES[&"_minimal_test"] = func() -> FogEvent: return _MinimalTestEvent.new()
+	manager.EVENT_FACTORIES[&"_minimal_test"] = Callable(self, "_make_minimal_event")
 	manager.EVENT_DURATIONS[&"_minimal_test"] = 0.3
 	manager.set_cooldown_left(0.0)
 	_check(manager.force_trigger(&"_minimal_test"), "宽容性：极简事件（仅 event_id）注册并可触发")
@@ -299,7 +289,7 @@ func _ready() -> void:
 	manager.EVENT_DURATIONS.erase(&"_minimal_test")
 
 	# 10c. 宽容性辅助：get_ctx 缺键回默认 / request_end 缺回调降级（不崩、按 duration 继续）
-	var ctx_ev := _MinimalTestEvent.new()
+	var ctx_ev = MINIMAL.new()
 	ctx_ev.start({}, 1.0)
 	_check(ctx_ev.get_ctx(&"missing", 42) == 42, "宽容性：get_ctx 缺键返回 default")
 	_check(ctx_ev.get_ctx(&"missing") == null, "宽容性：get_ctx 无 default 返回 null")
@@ -310,4 +300,4 @@ func _ready() -> void:
 
 	print("FOG EVENT TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

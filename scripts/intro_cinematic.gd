@@ -1,5 +1,7 @@
 class_name IntroCinematic
 extends CanvasLayer
+## M5：UITheme 迁 C#，经脚本资源调静态方法（const preload 对重载方法解析失败，用 var load——实测）
+var _ui_theme := load("res://csharp/godot/UITheme.cs")
 ## M3a：Starfield 已迁 C#，经文件级 var 脚本资源实例化（C# 脚本不可 preload 进 const——实测）
 var _starfield_script := load("res://csharp/godot/Starfield.cs")
 ## 开场过场导演：6 镜头时序串联、黑场转场、跳过与整树清理。
@@ -61,9 +63,9 @@ func subtitle() -> Label:
 
 func _ready() -> void:
 	_skip_hint.text = tr("INTRO_SKIP")
-	_skip_hint.add_theme_font_override("font", UITheme.FONT)
-	_subtitle.add_theme_font_override("font", UITheme.FONT)
-	(_title_card.get_node("Center/VBox/Title") as Label).add_theme_font_override("font", UITheme.FONT)
+	_skip_hint.add_theme_font_override("font", _ui_theme.GetFont())
+	_subtitle.add_theme_font_override("font", _ui_theme.GetFont())
+	(_title_card.get_node("Center/VBox/Title") as Label).add_theme_font_override("font", _ui_theme.GetFont())
 	_shot_timer = Timer.new()
 	_shot_timer.one_shot = true
 	_shot_timer.timeout.connect(_on_shot_timeout)
@@ -1078,7 +1080,7 @@ func _build_shot4() -> Node2D:
 					Vector2(side[0], side[1] + 130.0),
 				]
 			),
-			UITheme.ACCENT_DIM,
+			_ui_theme.GetAccentDim(),
 			2.0
 		)
 		sub_border.closed = true
@@ -1137,7 +1139,7 @@ func _build_shot4() -> Node2D:
 	console_body.color = Color(0.08, 0.1, 0.14)
 	root.add_child(console_body)
 	# 台面沿口高光 + 侧棱线 + 台面缝线
-	root.add_child(_line(PackedVector2Array([Vector2(320.0, 700.0), Vector2(1600.0, 700.0)]), UITheme.PANEL_BORDER, 2.0))
+	root.add_child(_line(PackedVector2Array([Vector2(320.0, 700.0), Vector2(1600.0, 700.0)]), _ui_theme.GetPanelBorder(), 2.0))
 	root.add_child(_line(PackedVector2Array([Vector2(320.0, 700.0), Vector2(220.0, 1080.0)]), Color(0.14, 0.17, 0.24), 1.5))
 	root.add_child(_line(PackedVector2Array([Vector2(1600.0, 700.0), Vector2(1700.0, 1080.0)]), Color(0.14, 0.17, 0.24), 1.5))
 	root.add_child(_line(PackedVector2Array([Vector2(340.0, 1000.0), Vector2(1580.0, 1000.0)]), Color(0.14, 0.17, 0.24), 1.5))
@@ -1152,7 +1154,7 @@ func _build_shot4() -> Node2D:
 		root.add_child(
 			_line(PackedVector2Array([Vector2(zd[0] - 55.0, 726.0), Vector2(zd[0] + 55.0, 726.0)]), Color(0.0, 0.83, 1.0, 0.4), 1.6)
 		)
-		var plate_label := UITheme.make_label(tr(zd[1]), UITheme.FONT_CAPTION, UITheme.ACCENT)
+		var plate_label = _ui_theme.make_label(tr(zd[1]), _ui_theme.GetFontCaption(), _ui_theme.GetAccent())
 		plate_label.add_theme_font_size_override("font_size", 15)
 		plate_label.position = Vector2(zd[0] - 55.0, 726.0)
 		plate_label.size = Vector2(110.0, 22.0)
@@ -1204,7 +1206,11 @@ func _build_shot4() -> Node2D:
 		handle.position = Vector2(sx, 830.0 + 44.0 * s_i)
 		root.add_child(handle)
 		root.add_child(
-			_line(PackedVector2Array([Vector2(sx - 8.0, 830.0 + 44.0 * s_i), Vector2(sx + 8.0, 830.0 + 44.0 * s_i)]), UITheme.DANGER, 2.0)
+			_line(
+				PackedVector2Array([Vector2(sx - 8.0, 830.0 + 44.0 * s_i), Vector2(sx + 8.0, 830.0 + 44.0 * s_i)]),
+				_ui_theme.GetDanger(),
+				2.0
+			)
 		)
 	# 导航区：双旋钮（底座圆 + 刻度环 + 指针）
 	for k_i in 2:
@@ -1225,7 +1231,7 @@ func _build_shot4() -> Node2D:
 		root.add_child(
 			_line(
 				PackedVector2Array([Vector2(kx, 855.0), Vector2(kx + cos(pointer_a) * 19.0, 855.0 + sin(pointer_a) * 19.0)]),
-				UITheme.ACCENT,
+				_ui_theme.GetAccent(),
 				3.0
 			)
 		)
@@ -1272,7 +1278,7 @@ func _build_shot4() -> Node2D:
 				Vector2(700.0, 540.0),
 			]
 		),
-		UITheme.DANGER,
+		_ui_theme.GetDanger(),
 		3.0
 	)
 	screen_border.closed = true
@@ -1302,12 +1308,12 @@ func _build_shot4() -> Node2D:
 	root.add_child(cd_arc)
 	var arc_sweep := root.create_tween().set_loops()
 	arc_sweep.tween_property(cd_arc, "rotation", TAU, 0.6).set_trans(Tween.TRANS_LINEAR)
-	var countdown := UITheme.make_label("3", UITheme.FONT_DISPLAY, UITheme.DANGER)
+	var countdown = _ui_theme.make_label("3", _ui_theme.GetFontDisplay(), _ui_theme.GetDanger())
 	countdown.position = Vector2(860.0, 252.0)
 	countdown.size = Vector2(200.0, 120.0)
 	countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(countdown)
-	var warning := UITheme.make_label(tr("INTRO_WARNING"), UITheme.FONT_HEADER, UITheme.DANGER)
+	var warning = _ui_theme.make_label(tr("INTRO_WARNING"), _ui_theme.GetFontHeader(), _ui_theme.GetDanger())
 	warning.position = Vector2(760.0, 395.0)
 	warning.size = Vector2(400.0, 44.0)
 	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1315,7 +1321,7 @@ func _build_shot4() -> Node2D:
 	# 滚动状态日志：INTRO_LOG_1..4 四条 i18n 键，Timer 回调只换 text（零逐帧分配）
 	var log_lines: Array[Label] = []
 	for li in 3:
-		var log_line := UITheme.make_label(tr("INTRO_LOG_%d" % (li + 1)), UITheme.FONT_CAPTION, Color(1.0, 0.55, 0.5))
+		var log_line = _ui_theme.make_label(tr("INTRO_LOG_%d" % (li + 1)), _ui_theme.GetFontCaption(), Color(1.0, 0.55, 0.5))
 		log_line.position = Vector2(720.0, 452.0 + 26.0 * li)
 		log_line.size = Vector2(480.0, 24.0)
 		root.add_child(log_line)

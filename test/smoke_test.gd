@@ -2,11 +2,13 @@ extends Node
 ## 临时冒烟测试：覆盖里程碑 Buff UI、Boss 生成、玩家死亡结算路径。
 
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
+const MOTHER := preload("res://csharp/godot/Mothership.cs")  # M4：Mothership 迁 C#，State 枚举经脚本资源静态访问器
 
 var _failures: int = 0
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 var _enemy_script := load("res://csharp/godot/Enemy.cs")  # M3b：Enemy 迁 C#，C# 类不能经类名 is 判定
 var _boss_script = load("res://csharp/godot/Boss.cs")  # M3d：Boss 迁 C#，C# 类不能经类名 is 判定
+var _bomb_script := load("res://csharp/godot/FormationBomb.cs")  # M4：FormationBomb 迁 C#，C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -356,7 +358,7 @@ func _ready() -> void:
 	main.summon_window().skip()
 	await get_tree().process_frame
 	_check(main.mothership() != null, "小窗结束后召唤母舰")
-	var ms: Mothership = main.mothership()
+	var ms = main.mothership()
 	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场（0.8s）
 	# 到位即自动对接（无区域判定，点吸附补间）
 	var tgt = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
@@ -366,7 +368,7 @@ func _ready() -> void:
 	tgt.position = Vector2(960.0, 500.0)
 	main.add_child(tgt)
 	await get_tree().create_timer(0.5).timeout
-	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场到位后自动对接")
+	_check(ms.state() == MOTHER.GetStateDocking(), "穿梭入场到位后自动对接")
 	_check(tgt.summon_slow_timer() > 0.0, "减速带命中敌机（短时减速）")
 	_check(player.is_input_locked(), "对接开始即锁输入")
 	_check(player.invincible_remaining() > 100.0, "对接开始即无敌（无敌窗口前移）")
@@ -380,7 +382,7 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	_check(GameState.health == GameState.max_health(), "补给回满生命")
 	_check(player.fuel_amount() == player.fuel_max, "补给回满燃料")
-	_check(ms.state() == Mothership.State.STAY, "进入驻留状态")
+	_check(ms.state() == MOTHER.GetStateStay(), "进入驻留状态")
 	_check(ms.mag_cells() == 10, "弹匣初始 10 格")
 	_check(not player.visible, "回收完成玩家进入保护舱（隐藏）")
 	# 驻留火力：加特林弹丸（score_scale=1/3）+ 导弹（splash 标记）
@@ -426,7 +428,7 @@ func _ready() -> void:
 	_check(main.hud().early_leave_fill().anchor_right > 0.3 and main.hud().early_leave_fill().anchor_right < 0.7, "提前离舰进度条进度 ~50%")
 	await get_tree().create_timer(1.4).timeout
 	Input.action_release("dock")
-	_check(ms.state() >= Mothership.State.RELEASE, "提前离舰触发")
+	_check(ms.state() >= MOTHER.GetStateRelease(), "提前离舰触发")
 	_check(not main.hud().early_leave_box().visible, "提前离舰后进度条隐藏")
 	await get_tree().create_timer(0.6).timeout
 	_check(player.invincible_remaining() > 1.0 and player.invincible_remaining() <= 2.0, "释放后 2s 保护（重制版 QoL）")
@@ -464,17 +466,17 @@ func _ready() -> void:
 	main.summon_mothership()
 	main.summon_window().skip()
 	await get_tree().process_frame
-	var ms2: Mothership = main.mothership()
+	var ms2 = main.mothership()
 	ms2.set_state_timer(ms2.WARP_IN_TIME)  # 快进穿梭入场
 	await get_tree().create_timer(2.5).timeout  # 自动对接 + 补给 → 驻留
-	_check(ms2.state() == Mothership.State.STAY, "第二艘母舰进入驻留")
+	_check(ms2.state() == MOTHER.GetStateStay(), "第二艘母舰进入驻留")
 	ms2.set_mag_cells(5)
 	ms2.set_mag_cell_timer(0.0)
 	await get_tree().create_timer(2.3).timeout
 	_check(ms2.mag_warned(), "第二艘母舰弹匣警告")
 	ms2.set_warn_eject_timer(0.5)  # 缩短横幅等待，直接验证强制离舰
 	await get_tree().create_timer(1.0).timeout
-	_check(ms2.state() >= Mothership.State.RELEASE, "警告播完强制离舰（对齐原作）")
+	_check(ms2.state() >= MOTHER.GetStateRelease(), "警告播完强制离舰（对齐原作）")
 	if main.mothership() != null:
 		main.mothership().queue_free()
 
@@ -530,7 +532,7 @@ func _ready() -> void:
 	orbit_e.can_shoot = false
 	orbit_e.position = Vector2(400.0, 300.0)
 	main.add_child(orbit_e)
-	var bomb := FormationBomb.new()
+	var bomb = _bomb_script.new()
 	bomb.setup(Vector2(0.0, 300.0), 30.0, 20, 120.0)
 	bomb.position = Vector2(700.0, 300.0)
 	main.add_child(bomb)
@@ -563,7 +565,7 @@ func _ready() -> void:
 	# 弹丸清场：敌弹与编队炸弹全清（FormationBomb 非 Bullet 类，原遍历式清场会漏）
 	var bullet_left := false
 	for child in main.get_children():
-		if (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet) or child is FormationBomb:  # 随批次 A 重定型
+		if (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet) or is_instance_of(child, _bomb_script):  # 随批次 A 重定型
 			bullet_left = true
 	_check(not bullet_left, "轨道打击清弹（含编队炸弹）")
 	# 恢复刷怪会干扰后续断言，重新停掉生成器并清场
@@ -887,4 +889,4 @@ func _ready() -> void:
 	# 2026-08-06 审计：还原原始 profile（难度/瞄准辅助/切换模式等设置项）——
 	# 原「恢复默认难度」覆盖用户原档
 	_restore_profile()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

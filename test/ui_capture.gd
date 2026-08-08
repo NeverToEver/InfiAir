@@ -107,7 +107,7 @@ func _ready() -> void:
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
 	print("ui capture done")
-	get_tree().quit()
+	load("res://csharp/godot/TestExit.cs").Quit(0)
 
 
 func _settle() -> void:

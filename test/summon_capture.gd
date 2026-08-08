@@ -5,6 +5,8 @@ extends Node
 ## 穿梭门/DESCEND → 牵引光束 DOCKING → 驻留 STAY。
 ## 不写 user:// 存档/档案（与并行运行的其他测试隔离）；setup 对齐 mothership_summon_test。
 
+const MOTHER := preload("res://csharp/godot/Mothership.cs")
+
 
 func _shot(path: String) -> void:
 	await get_tree().process_frame  # 让渲染推进一帧再取帧缓冲
@@ -69,10 +71,10 @@ func _ready() -> void:
 	await _shot("/tmp/summon_beam.png")
 
 	# ---------- 5. 驻留 STAY（玩家已进保护舱） ----------
-	var ms: Mothership = main.mothership()
+	var ms = main.mothership()  # M4：Mothership 迁 C#，去类型注解
 	for i in 60:
 		await get_tree().create_timer(0.05).timeout
-		if ms == null or not is_instance_valid(ms) or ms.state() == Mothership.State.STAY:
+		if ms == null or not is_instance_valid(ms) or ms.state() == MOTHER.GetStateStay():
 			break
 	await get_tree().create_timer(0.3).timeout
 	await _shot("/tmp/summon_stay.png")
@@ -81,4 +83,4 @@ func _ready() -> void:
 	if main.mothership() != null:
 		main.mothership().queue_free()
 	print("[DONE] summon capture finished")
-	get_tree().quit(0)
+	load("res://csharp/godot/TestExit.cs").Quit(0)

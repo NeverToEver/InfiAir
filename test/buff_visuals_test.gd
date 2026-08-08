@@ -3,6 +3,7 @@ extends Node
 ## 覆盖 16 种 buff 的外观映射、层数强度、天赋路线合并与重开清空。
 
 var _failures: int = 0
+var _test_exit := load("res://csharp/godot/TestExit.cs")  # M5：退出前显式 GC（防退出 segfault）
 ## M3c：PlayerBuffVisuals 迁 C#——GDScript 不能以类名引用/is 判定 C# 类，经脚本资源判定
 var _buff_visuals_script := load("res://csharp/godot/PlayerBuffVisuals.cs")
 
@@ -52,7 +53,7 @@ func _ready() -> void:
 		GameState.save_profile()
 		print("BUFF VISUALS TEST DONE, failures = ", _failures)
 		GameState.delete_save()
-		get_tree().quit(_failures)
+		_test_exit.Quit(_failures)
 		return
 	_check(
 		(
@@ -150,4 +151,4 @@ func _ready() -> void:
 	print("BUFF VISUALS TEST DONE, failures = ", _failures)
 	GameState.reset_run()
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	_test_exit.Quit(_failures)

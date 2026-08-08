@@ -108,4 +108,4 @@ func _ready() -> void:
 		_check(_boss_script.GetHitFlashByType().has(t), "闪白时长表包含机型 %d" % t)  # M3d：C# 静态经脚本资源
 
 	print("BOSS REGISTRY TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

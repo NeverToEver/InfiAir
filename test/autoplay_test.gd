@@ -21,6 +21,11 @@ extends Node
 
 const _FIGHT_P2 := 1  # M3d：Boss.FightPhase.P2 镜像（P1=0/P2=1/ENRAGE=2）
 
+# M4：迁移类脚本引用（C# 类不可类名引用，经脚本资源调静态枚举访问器）
+const MOTHER := preload("res://csharp/godot/Mothership.cs")
+const ELITE := preload("res://csharp/godot/EliteTurretEvent.cs")
+const FORMATION := preload("res://csharp/godot/FormationStrikeEvent.cs")
+
 const TIME_SCALE := 2.0  # 加速倍率（狂暴子弹时间期间让行给 main 编排，结束后恢复）
 const DEFAULT_RUN_SECONDS := 480.0  # 真实时间预算（≈16 分钟游戏时间 @2x）
 const SNAPSHOT_INTERVAL_MS := 5000
@@ -678,7 +683,7 @@ func _update_movement(now: int) -> void:
 				if d < 240.0 and d > 1.0:
 					dodge += (_player.position - b.position) / d * (1.0 - d / 240.0) * 2.0
 			continue
-		var fb := child as FormationBomb
+		var fb = child if is_instance_of(child, load("res://csharp/godot/FormationBomb.cs")) else null
 		if fb != null:
 			var d: float = _player.position.distance_to(fb.position)
 			if d < 240.0 and d > 1.0:
@@ -768,7 +773,7 @@ func _update_dock(now: int) -> void:
 			Input.action_release("dock")
 			_dock_holding = false
 		return
-	var ms: Mothership = _main.mothership()
+	var ms = _main.mothership()
 	if _dock_holding:
 		if ms != null:
 			Input.action_release("dock")
@@ -805,19 +810,19 @@ func _update_dock(now: int) -> void:
 				_next_dock_consider = now + 20000
 		else:
 			_next_dock_consider = now + 10000
-	elif ms != null and ms.state() < Mothership.State.STAY and randf() < 0.002:
+	elif ms != null and ms.state() < MOTHER.GetStateStay() and randf() < 0.002:
 		# 边界探针：非驻留态（降入/吸附/补给）乱按 H，应为无操作
 		Input.action_press("dock")
 		Input.action_release("dock")
 	# 驻留驾驶一段时间后提前离舰；部分局驻留到超时强制弹射
 	if _early_holding:
-		if ms == null or ms.state() >= Mothership.State.RELEASE or now >= _early_hold_until:
+		if ms == null or ms.state() >= MOTHER.GetStateRelease() or now >= _early_hold_until:
 			Input.action_release("dock")
 			_early_holding = false
-			if ms != null and ms.state() >= Mothership.State.RELEASE:
+			if ms != null and ms.state() >= MOTHER.GetStateRelease():
 				_early_leaves += 1
 				_log("提前离舰（第 %d 次，弹匣 %d 格）" % [_early_leaves, ms.mag_cells()])
-	elif ms != null and ms.state() == Mothership.State.STAY:
+	elif ms != null and ms.state() == MOTHER.GetStateStay():
 		if _stay_since == 0:
 			_stay_since = now
 			_stay_until_eject = randf() < 0.35
@@ -861,14 +866,14 @@ func _update_homecoming(now: int) -> void:
 
 ## 母舰状态变化日志 + 卡死 episode 跟踪
 func _track_mothership(now: int) -> void:
-	var ms: Mothership = _main.mothership() if (_main != null and is_instance_valid(_main)) else null
+	var ms = _main.mothership() if (_main != null and is_instance_valid(_main)) else null
 	var state := -1 if ms == null else int(ms.state())
 	if state != _ms_last_state:
 		if _ms_last_state >= 0 or state >= 0:
 			var from_s := "NONE" if _ms_last_state < 0 else MS_STATE_NAMES[_ms_last_state]
 			var to_s := "NONE" if state < 0 else MS_STATE_NAMES[state]
 			_log("母舰状态 %s -> %s" % [from_s, to_s])
-		if _ms_last_state == Mothership.State.STAY and state == Mothership.State.RELEASE:
+		if _ms_last_state == MOTHER.GetStateStay() and state == MOTHER.GetStateRelease():
 			if _stay_until_eject and not _early_holding:
 				_forced_ejects += 1
 				_log("驻留超时强制弹射（第 %d 次）" % _forced_ejects)
@@ -1210,7 +1215,7 @@ func _checks(now: int) -> void:
 				p_bullets += 1
 			else:
 				e_bullets += 1
-		elif child is DeathReplay.DeathReplayPlayer:
+		elif is_instance_of(child, load("res://csharp/godot/DeathReplayPlayer.cs")):
 			replay_found = child
 	if p_bullets > MAX_PLAYER_BULLETS:
 		_anomaly_rl("entity_explosion", "玩家子弹数 %d 超过 %d" % [p_bullets, MAX_PLAYER_BULLETS], now)
@@ -1312,12 +1317,12 @@ func _checks(now: int) -> void:
 		_slow_since = 0
 		_slow_reported = false
 	# 事件触发计数：非活跃 -> 活跃跃迁各 +1（500ms 轮询事件状态机）
-	var turret_active: bool = _main.event() != null and _main.event().state() != EliteTurretEvent.State.IDLE
+	var turret_active: bool = _main.event() != null and _main.event().state() != ELITE.GetStateIdle()
 	if turret_active and not _event_was_active:
 		_turret_event_count += 1
 		_log("精英炮塔事件触发（第 %d 次）" % _turret_event_count)
 	_event_was_active = turret_active
-	var formation_active: bool = _main.formation() != null and _main.formation().state() != FormationStrikeEvent.State.IDLE
+	var formation_active: bool = _main.formation() != null and _main.formation().state() != FORMATION.GetStateIdle()
 	if formation_active and not _formation_was_active:
 		_formation_event_count += 1
 		_log("轰炸编队事件触发（第 %d 次）" % _formation_event_count)
@@ -1346,7 +1351,7 @@ func _checks(now: int) -> void:
 		_replay_since = 0
 	# Phase 0 L13：母舰×事件互斥——母舰在场期精英炮塔/编队事件不得触发
 	# （can_trigger 组查询互斥；探针交叉验证事件状态机与母舰在场）
-	var ms: Mothership = _main.mothership()
+	var ms = _main.mothership()
 	if ms != null and is_instance_valid(ms) and (turret_active or formation_active):
 		_anomaly_rl("ms_event_mutex", "母舰在场期事件触发（elite=%s formation=%s）" % [turret_active, formation_active], now)
 	# UI 状态一致性：结算面板与基地面板同显 / 玩家死亡但游戏未停且无结算面板
@@ -1468,4 +1473,4 @@ func _finish() -> void:
 		GameState.set_ctrl_toggle_mode(_prev_ctrl_toggle)
 	if GameState.shift_toggle_mode != _prev_shift_toggle:
 		GameState.set_shift_toggle_mode(_prev_shift_toggle)
-	get_tree().quit(0)
+	load("res://csharp/godot/TestExit.cs").Quit(0)

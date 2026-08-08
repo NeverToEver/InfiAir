@@ -58,7 +58,7 @@ func _ready() -> void:
 	var buff_ui: CanvasLayer = main.get_node("BuffUI")
 	var game_over_ui: CanvasLayer = main.get_node("GameOverUI")
 	var exit_confirm: CanvasLayer = main.get_node("ExitConfirm")
-	var act = nav.BackAction  # 枚举经实例访问为 Variant，不能用 := 推断
+	var act = nav.back_actions()  # 枚举经实例访问为 Variant，不能用 := 推断
 
 	# ---------- 1. 对局层：Esc ⇄ 暂停（顶层退出确认已由 welcome_flow_test 覆盖） ----------
 	await get_tree().process_frame
@@ -139,4 +139,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _failures > 0 else 0)

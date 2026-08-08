@@ -1,0 +1,133 @@
+using Godot;
+
+namespace InfiAir;
+
+/// <summary>
+/// 轰炸编队事件·编队战机（docs/FORMATION_STRIKE_EVENT.md 第 4.1 节）：
+/// 楔形编队成员，注册 enemy 组与 GameState.enemies（玩家子弹/激光可命中）。
+/// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动。
+/// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
+/// 迁移期：GameState 经 GameStateBridge；Explosion（C#）静态方法直调。
+/// </summary>
+public partial class FormationCraft : Area2D
+{
+    [Signal]
+    public delegate void DiedEventHandler(FormationCraft craft);
+
+    /// <summary>机体贴图（原 GDScript preload）。</summary>
+    private static readonly Texture2D Texture = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png");
+
+    public int MaxHp { get; set; } = 60;
+    public int Hp { get; set; } = 60;
+
+    private Sprite2D? _sprite;
+    /// <summary>P1-2：受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
+    private float _flashTimer;
+    private const float FlashTime = 0.1f;
+    /// <summary>P1-6：击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
+    private float _shakeDie = 5.0f;
+
+    /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
+    public void Setup(int pHp)
+    {
+        MaxHp = Mathf.Max(1, pHp);
+        Hp = MaxHp;
+    }
+
+    public override void _Ready()
+    {
+        CollisionLayer = 4; // 第 3 层：enemy（玩家子弹以 enemy 组结算）
+        CollisionMask = 0;
+        _sprite = new Sprite2D
+        {
+            Texture = Texture,
+            Scale = Vector2.One * 0.9f * (float)GameStateBridge.Get("world_scale").AsDouble(), // 设计值 0.9 × 全局缩放
+        };
+        AddChild(_sprite);
+        var shape = new CollisionShape2D();
+        var circle = new CircleShape2D { Radius = 26.0f * (float)GameStateBridge.Get("world_scale").AsDouble() };
+        shape.Shape = circle;
+        AddChild(shape);
+        GameStateBridge.Call("bind_enemy", this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        // P1-6：击杀震动强度缓存
+        _shakeDie = (float)GameStateBridge.Call("cfg", "effects.shake.enemy_die", _shakeDie).AsDouble();
+    }
+
+    /// <summary>P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白）。</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        var d = (float)delta;
+        if (_flashTimer <= 0.0f)
+        {
+            return;
+        }
+
+        _flashTimer -= d;
+        if (_sprite == null)
+        {
+            return;
+        }
+
+        if (_flashTimer <= 0.0f)
+        {
+            _sprite.Modulate = Colors.White;
+        }
+        else
+        {
+            _sprite.Modulate = _sprite.Modulate.Lerp(Colors.White, d / FlashTime);
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        GameStateBridge.Call("unbind_enemy", this); // 统一解绑（docs/ENTITY_MANAGER.md）
+    }
+
+    public void TakeDamage(int amount, float scoreScale)
+    {
+        if (Hp <= 0)
+        {
+            return;
+        }
+
+        Hp -= amount;
+        // 受击闪白（_sprite 在 _Ready 构建；防御性判空与 _PhysicsProcess 同口径）
+        if (_sprite != null)
+        {
+            _sprite.Modulate = new Color(2.0f, 2.0f, 2.0f);
+        }
+
+        _flashTimer = FlashTime;
+        if (Hp <= 0)
+        {
+            Die();
+        }
+    }
+
+    public void TakeDamage(int amount) => TakeDamage(amount, 1.0f);
+
+    public void Die()
+    {
+        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"));
+        GameStateBridge.Call("shake", _shakeDie);
+        Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);
+        EmitSignal(SignalName.Died, this);
+        QueueFree();
+    }
+
+    // ---------------- GDScript 鸭子调用兼容桥（M3e 过渡，M7 删除） ----------------
+    // 原 GDScript 公开 API（snake_case / camelCase var）别名转发（C# 内部调用一律 PascalCase）。
+    // M7 全量迁移后删除本段。
+
+    public void setup(int pHp) => Setup(pHp);
+
+    public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
+
+    public void take_damage(int amount) => TakeDamage(amount);
+
+    public void die() => Die();
+
+    public int max_hp { get => MaxHp; set => MaxHp = value; }
+
+    public int hp { get => Hp; set => Hp = value; }
+}

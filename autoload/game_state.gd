@@ -98,10 +98,10 @@ signal touch_controls_changed(enabled: bool)
 var _registry = load("res://csharp/godot/EntityManager.cs").new()
 ## 迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
 ## 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）
-var _fog_events := FogEventManager.new()
+var _fog_events = load("res://csharp/godot/FogEventManager.cs").new()
 ## 统一游戏事件管理器（docs/EVENT_MANAGER.md）：批量管理全部随机游戏事件（迷雾 +
 ## 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd
-var _events := GameEventManager.new()
+var _events = load("res://csharp/godot/GameEventManager.cs").new()
 ## 2026-08-04 账户系统：本地用户数据库（UserDB，非 autoload，规格 docs/archive/2026-08-04-local-accounts-plan.md）
 var _user_db := UserDB.new()
 ## 2026-08-07：进程曲线 C# 桥（ProgressionInterop → InfiAir.Core.Progression 纯函数）——
@@ -447,17 +447,17 @@ var aim_frame_layer = null:  # M3c 起 AimFrameLayer 为 C# 类，GDScript 不�
 		_registry.AimFrameLayer = value
 ## 触屏虚拟输入层实例（mobile touch，由 main.gd 在 _ready 时创建并登记；
 ## player.aim_point 查询触屏瞄准基准）
-var virtual_controls: VirtualControls = null:  # M5 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
+var virtual_controls = null:  # M5：VirtualControls 迁 C#，去类型注解（GDScript 不能以类名引用）
 	get:
 		return _registry.VirtualControls
 	set(value):
 		_registry.VirtualControls = value
 ## 迷雾事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
-var fog_events: FogEventManager:
+var fog_events:
 	get:
 		return _fog_events
 ## 统一事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）
-var events: GameEventManager:
+var events:
 	get:
 		return _events
 

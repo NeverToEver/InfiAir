@@ -13,7 +13,7 @@ func _ready() -> void:
 	await _test_bullet_pool()
 	await _test_enemy_pool()
 	print("[POOL] %d PASS, %d FAIL" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _fail > 0 else 0)
 
 
 func _check(cond: bool, name: String) -> void:

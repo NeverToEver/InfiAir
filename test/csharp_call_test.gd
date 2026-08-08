@@ -33,4 +33,4 @@ func _ready() -> void:
 	sf.ProbeOverload(1.0, true)
 	_check(ov_ok, "C# 重载方法可调（2 种签名）")
 	print("CSHARP CALL TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

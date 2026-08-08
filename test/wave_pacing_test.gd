@@ -167,4 +167,4 @@ func _ready() -> void:
 	GameState.save_profile()
 	print("WAVE PACING TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

@@ -241,4 +241,4 @@ func _ready() -> void:
 	GameState.save_profile()
 	print("BUFF_EFFECTS TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

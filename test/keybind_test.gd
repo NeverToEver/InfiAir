@@ -73,7 +73,7 @@ func _ready() -> void:
 
 	# 6. 捕获态取消（设置 UI 捕获逻辑）
 	var settings := CanvasLayer.new()
-	settings.set_script(load("res://scripts/settings_ui.gd"))
+	settings.set_script(load("res://csharp/godot/SettingsUi.cs"))
 	add_child(settings)
 	settings.show_settings()
 	settings.start_capture(&"dock")
@@ -122,4 +122,4 @@ func _ready() -> void:
 	# 2026-08-06 审计：还原用户自定义键位（reset_key_bindings 已把默认键位落盘）
 	_restore_keys()
 	print("KEYBIND TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

@@ -28,14 +28,14 @@ var ENRAGE_RAMP_TIME := 0.3
 var _boss_script = load("res://csharp/godot/Boss.cs")
 var _game_over: bool = false
 ## B 梯队（fair plan §8）：死亡回放录制器（main._process 采样，死亡时生成重放演出）
-var _replay := DeathReplay.new()
+var _replay = load("res://csharp/godot/DeathReplay.cs").new()
 var _homecoming: bool = false
 var _bgm_player: AudioStreamPlayer
 var _dock_cooldown: float = 0.0
-var _mothership: Mothership = null
+var _mothership = null
 var _charging: bool = false
 var _charge_time: float = 0.0
-var _charge_ghost: Mothership
+var _charge_ghost = null
 var _charge_fx: Node2D = null  # 蓄力特效容器（与 _charge_ghost 同位，随蓄力显隐）
 var _charge_glow: Sprite2D = null  # 虚影背光
 var _charge_rings: Array[Line2D] = []  # 收缩椭圆环 ×2
@@ -56,14 +56,14 @@ var _strike: OrbitalStrike = null
 ## 播放中的母舰召唤机库小窗（蓄力完成后触发；null = 未播放）
 var _summon_window: MothershipSummonWindow = null
 ## 精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）
-var _event: EliteTurretEvent = null
+var _event = null
 ## 轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）
-var _formation: FormationStrikeEvent = null
+var _formation = null
 ## Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）
 var _meta_fx: MetaHealthFX = null
 ## 辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）
 var _aim_frames = null  # M3c：AimFrameLayer 迁 C#，去类型注解
-var _virtual_controls: VirtualControls = null  # 触屏虚拟输入层（mobile touch）
+var _virtual_controls = null  # 触屏虚拟输入层（mobile touch）
 var _breath_was_active: bool = false
 ## give_up（K 键自毁）动作静态绑定判定（project.godot 定义，改键系统不删动作，结果全程不变）：
 ## _ready 缓存一次，避免 _process 每帧 InputMap.has_action 字典查找
@@ -86,12 +86,12 @@ func _ready() -> void:
 	_spawner.boss_spawned.connect(_on_boss_spawned)
 	_spawner.boss_warning.connect(_hud.show_boss_banner)
 	# 精英炮塔事件：编排节点挂 Main 下（清场/测试遍历可见），spawner 持引用做互斥
-	_event = EliteTurretEvent.new()
+	_event = load("res://csharp/godot/EliteTurretEvent.cs").new()
 	add_child(_event)
 	_event.set_spawner(_spawner)  # A5：依赖注入，替代事件侧 group 现找
 	_spawner.set_elite_event(_event)
 	# 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
-	_formation = FormationStrikeEvent.new()
+	_formation = load("res://csharp/godot/FormationStrikeEvent.cs").new()
 	add_child(_formation)
 	_formation.set_spawner(_spawner)  # K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
 	_spawner.set_formation_event(_formation)
@@ -102,7 +102,7 @@ func _ready() -> void:
 	GameState.events.register_encounter(&"formation_strike", _formation)
 	GameState.events.set_run_active(get_tree().current_scene == self)
 	GameState.player_died.connect(_on_player_died)
-	_base_ui.resume_requested.connect(_resume_from_base)
+	_base_ui.ResumeRequested.connect(_resume_from_base)
 	# 迷雾事件：仅真实对局（main 为 current_scene）开启自动触发。
 	# 测试以子节点实例化 main.tscn 时 current_scene 为测试场景 → 保持关闭，
 	# 防止随机迷雾事件（如方向偏转把测试玩家推入弹幕触发擦弹得分）破坏测试断言确定性；
@@ -117,7 +117,7 @@ func _ready() -> void:
 	_aim_frames = load("res://csharp/godot/AimFrameLayer.cs").new()  # M3c：AimFrameLayer 迁 C#，经脚本资源 new（单点使用不提升）
 	add_child(_aim_frames)
 	# 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
-	_virtual_controls = VirtualControls.new()
+	_virtual_controls = load("res://csharp/godot/VirtualControls.cs").new()
 	add_child(_virtual_controls)
 	GameState.virtual_controls = _virtual_controls
 	_virtual_controls.set_enabled(GameState.touch_controls)
@@ -129,7 +129,7 @@ func _ready() -> void:
 		_report_startup_time()
 	# 蓄力虚影（长按 H 蓄力期间显示）：复用真实母舰场景实例做半透明预告，
 	# 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
-	_charge_ghost = MOTHERSHIP_SCENE.instantiate() as Mothership
+	_charge_ghost = MOTHERSHIP_SCENE.instantiate()
 	add_child(_charge_ghost)
 	# L13：蓄力虚影非在场母舰——事件互斥（can_trigger 查 group "mothership"）须排除
 	# 常驻虚影：虚影 main 场景常驻且 _ready 已入组，不退组则事件在整个对局恒被虚影拦截
@@ -137,7 +137,7 @@ func _ready() -> void:
 	# 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
 	_charge_ghost.set_physics_process(false)
 	# C14：蓄力虚影居中取可见世界中心，不写死 960
-	_charge_ghost.position = Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HOVER_Y)
+	_charge_ghost.position = Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HoverY)
 	_charge_ghost.modulate = Color(1.0, 1.0, 1.0, 0.15)
 	_charge_ghost.visible = false
 	_build_charge_fx()
@@ -175,7 +175,7 @@ func is_homecoming() -> bool:
 	return _homecoming
 
 
-func mothership() -> Mothership:
+func mothership():
 	return _mothership
 
 
@@ -202,12 +202,12 @@ func meta_fx() -> MetaHealthFX:
 
 ## A7：测试/诊断白盒断言经公开接口（命名语义化）；遭遇事件实例由统一事件管理器
 ## 持有（main._ready 注册），访问器经管理器注册表取缓存单例
-func event() -> EliteTurretEvent:
-	return GameState.events.event(&"elite_turret") as EliteTurretEvent
+func event():
+	return GameState.events.event(&"elite_turret")
 
 
-func formation() -> FormationStrikeEvent:
-	return GameState.events.event(&"formation_strike") as FormationStrikeEvent
+func formation():
+	return GameState.events.event(&"formation_strike")
 
 
 func strike() -> OrbitalStrike:
@@ -283,7 +283,7 @@ func charging() -> bool:
 	return _charging
 
 
-func charge_ghost() -> Mothership:
+func charge_ghost():
 	return _charge_ghost
 
 
@@ -348,13 +348,13 @@ func _process(delta: float) -> void:
 	# 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）。
 	# 2026-08-06 审计：遭遇事件进行中禁止蓄力（L13 互斥只查触发期——事件中召唤
 	# 母舰自动火力可清场全额领奖，玩家零参与挂机收益）
-	var can_charge := (
+	var can_charge: bool = (
 		_mothership == null
 		and _dock_cooldown <= 0.0
 		and not _game_over
 		and not _homecoming
 		and _summon_window == null
-		and GameState.events.active_id(GameEventManager.GROUP_ENCOUNTER) == &""
+		and GameState.events.active_id(GameState.events.GROUP_ENCOUNTER) == &""
 	)
 	if can_charge and Input.is_action_pressed("dock"):
 		_charging = true
@@ -422,7 +422,7 @@ func _build_charge_fx() -> void:
 	var ws: float = GameState.world_scale
 	_charge_fx = Node2D.new()
 	# C14：与虚影同位（复用 _charge_ghost.position.x，不写死 960）
-	_charge_fx.position = Vector2(_charge_ghost.position.x, _charge_ghost.HOVER_Y)
+	_charge_fx.position = Vector2(_charge_ghost.position.x, _charge_ghost.HoverY)
 	_charge_fx.visible = false
 	add_child(_charge_fx)
 	# 背光（衬在虚影之下：z -1）
@@ -683,14 +683,14 @@ func _summon_mothership() -> void:
 ## 到位后减速带 + 火力掩护 + 牵引回收进保护舱，均由母舰状态机接管）
 func _on_summon_window_finished() -> void:
 	_summon_window = null
-	var gate_pos := Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HOVER_Y)
+	var gate_pos := Vector2(GameState.view_world_rect().get_center().x, _charge_ghost.HoverY)
 	var gate := WarpGate.new()
 	gate.position = gate_pos
 	add_child(gate)
 	GameState.shake(GameState.cfg("effects.mothership_summon.shake_gate", 6.0))
-	_mothership = MOTHERSHIP_SCENE.instantiate() as Mothership
+	_mothership = MOTHERSHIP_SCENE.instantiate()
 	_mothership.begin_warp_in(gate_pos, gate)
-	_mothership.departed.connect(_on_mothership_departed)
+	_mothership.Departed.connect(_on_mothership_departed)
 	_mothership.tree_exited.connect(func() -> void: _mothership = null)
 	add_child(_mothership)
 
@@ -743,7 +743,7 @@ func _start_homecoming() -> void:
 		_on_mothership_departed(GameState.cfg("mothership.depart_cooldown", 60.0))
 	# 遭遇事件（轰炸编队/精英炮塔）进行中则打断：编队解散离场/航母完整撤离，无结算，
 	# 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
-	GameState.events.end_active(GameEventManager.GROUP_ENCOUNTER)
+	GameState.events.end_active(GameState.events.GROUP_ENCOUNTER)
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player.fuel_amount(), _spawner.elapsed())
 	_starfield.Warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
@@ -773,7 +773,10 @@ func _on_orbital_struck() -> void:
 	)
 	GameState.clear_enemies(func(e: Node) -> bool: return is_instance_of(e, _boss_script))  # M3d：Boss 迁 C#，is 改脚本判定
 	for child in get_children():
-		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) or child is FormationBomb:
+		if (
+			is_instance_of(child, load("res://csharp/godot/Bullet.cs"))
+			or is_instance_of(child, load("res://csharp/godot/FormationBomb.cs"))
+		):
 			child.queue_free()
 	_player.unlock_input()
 	_homecoming = false

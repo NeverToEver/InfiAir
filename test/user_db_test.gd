@@ -215,4 +215,4 @@ func _ready() -> void:
 	print("USER DB TEST DONE, failures = ", _failures)
 	_cleanup()
 	_restore_user_files()  # M6：还原开发者原始用户表/排行榜/存档
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

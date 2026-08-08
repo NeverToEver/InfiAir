@@ -159,7 +159,7 @@ func _ready() -> void:
 	# 暂停树中照常播放，播完自毁）
 	var replay_node: Node = null
 	for child in main.get_children():
-		if child is DeathReplay.DeathReplayPlayer:
+		if is_instance_of(child, load("res://csharp/godot/DeathReplayPlayer.cs")):
 			replay_node = child
 			break
 	_check(replay_node != null, "死亡回放演出已启动")
@@ -175,4 +175,4 @@ func _ready() -> void:
 		InputMap.erase_action(&"give_up")
 	print("BUFF33 TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

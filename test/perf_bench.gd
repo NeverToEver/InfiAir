@@ -47,4 +47,4 @@ func _ready() -> void:
 	print("PERF_RESULT frames=%d total_ms=%d avg_frame_ms=%.3f equivalent_fps=%.1f" % [FRAMES, elapsed, avg, 1000.0 / avg])
 	Engine.physics_ticks_per_second = 60
 	GameState.delete_save()
-	get_tree().quit()
+	load("res://csharp/godot/TestExit.cs").Quit(0)

@@ -252,4 +252,4 @@ func _ready() -> void:
 	_restore_profile()
 	# 还原用户自定义键位（H02 改键段已把测试键位落盘）
 	_restore_keys()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

@@ -31,7 +31,7 @@ func _ready() -> void:
 	main.player().set_auto_fire(false)
 	get_tree().paused = false
 
-	var ms := (load("res://scenes/mothership.tscn") as PackedScene).instantiate() as Mothership
+	var ms := (load("res://scenes/mothership.tscn") as PackedScene).instantiate()  # M4：Mothership 迁 C#，去 as 断言
 	main.add_child(ms)
 	await get_tree().process_frame
 
@@ -50,7 +50,7 @@ func _ready() -> void:
 	_check(float(GameState.cfg("mothership.upgrade.interval_mult", 0.0)) == 0.8, "配置键 mothership.upgrade.interval_mult")
 
 	# 4. 发射数值路径：档位伤害按倍率缩放（加特林/导弹共用 damage_mult）
-	var base_dmg := ms.GATLING_DAMAGE
+	var base_dmg: int = ms.GATLING_DAMAGE
 	GameState.set_milestone_count(0)
 	_check(int(base_dmg * ms.damage_mult()) == base_dmg, "未升级：发射伤害不变")
 	GameState.set_milestone_count(5)
@@ -63,4 +63,4 @@ func _ready() -> void:
 	GameState.logout_user()
 	GameState.delete_save()
 	GameState.reset_run()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

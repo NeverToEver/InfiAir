@@ -4,6 +4,8 @@ extends Node
 ## 回收玩家进保护舱（隐藏+关判定）→ STAY 隐藏保持 → RELEASE 出舱恢复。
 ## 小窗用真实时轴（~2.6s），穿梭段快进 _state_timer。
 
+const MOTHER := preload("res://csharp/godot/Mothership.cs")
+
 var _failures: int = 0
 
 
@@ -72,13 +74,13 @@ func _ready() -> void:
 		if child is WarpGate:
 			gate = child
 	_check(gate != null, "穿梭门：小窗结束后创建")
-	var ms: Mothership = main.mothership()
+	var ms = main.mothership()  # M4：Mothership 迁 C#，去类型注解
 	_check(ms != null, "穿梭门：母舰已创建")
-	_check(ms.state() == Mothership.State.DESCEND, "穿梭入场：DESCEND 态")
+	_check(ms.state() == MOTHER.GetStateDescend(), "穿梭入场：DESCEND 态")
 	_check(ms.scale.x < 1.0, "穿梭入场：穿出期缩放小于 1（%.2f）" % ms.scale.x)
 	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场
 	await get_tree().create_timer(0.3).timeout
-	_check(ms.state() == Mothership.State.DOCKING, "穿梭入场：到位后自动对接")
+	_check(ms.state() == MOTHER.GetStateDocking(), "穿梭入场：到位后自动对接")
 	_check(ms.scale.is_equal_approx(Vector2.ONE), "穿梭入场：到位缩放收敛为 1")
 	_check(ms.position.distance_to(Vector2(GameState.view_world_rect().get_center().x, ms.HOVER_Y)) < 5.0, "穿梭入场：停驻点收敛")
 	# R07：拆 OR 弱断言（L 系列测试登记遗留）——原三重 OR（null/失效/CLOSING 任一即过）
@@ -107,9 +109,9 @@ func _ready() -> void:
 	# ---------- 5. STAY 隐藏保持 → RELEASE 出舱 ----------
 	for i in 40:
 		await get_tree().create_timer(0.05).timeout
-		if ms.state() == Mothership.State.STAY:
+		if ms.state() == MOTHER.GetStateStay():
 			break
-	_check(ms.state() == Mothership.State.STAY, "驻留：进入 STAY")
+	_check(ms.state() == MOTHER.GetStateStay(), "驻留：进入 STAY")
 	_check(not main.player().visible, "驻留：玩家保持隐藏（保护舱）")
 	# E05：H 按住时进度条可见；强制离舰（start_release）必须清掉——修复前 H 按住被强制
 	# 离舰（警告到期/弹匣耗尽）进度条残留可见
@@ -146,4 +148,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _failures > 0 else 0)

@@ -37,4 +37,4 @@ func _ready() -> void:
 		t = item[0]
 		get_viewport().get_texture().get_image().save_png(item[1])
 		print("capture saved: %s (shot_index=%d)" % [item[1], cine.shot_index()])
-	get_tree().quit(0)
+	load("res://csharp/godot/TestExit.cs").Quit(0)

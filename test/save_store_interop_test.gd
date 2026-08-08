@@ -79,4 +79,4 @@ func _ready() -> void:
 	sm.delete(path)
 	sm.delete(path + ".corrupt")
 	print("SAVE STORE INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

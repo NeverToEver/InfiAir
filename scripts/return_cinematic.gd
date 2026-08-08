@@ -1,5 +1,7 @@
 class_name ReturnCinematic
 extends CanvasLayer
+## M5：UITheme 迁 C#，经脚本资源调静态方法（const preload 对重载方法解析失败，用 var load——实测）
+var _ui_theme := load("res://csharp/godot/UITheme.cs")
 ## M3a：Starfield 已迁 C#，经文件级 var 脚本资源实例化（C# 脚本不可 preload 进 const——实测）
 var _starfield_script := load("res://csharp/godot/Starfield.cs")
 ## 返航过场导演：7 镜头时序串联、黑场转场、跳过与整树清理。
@@ -64,8 +66,8 @@ func _ready() -> void:
 	SKIP_GRACE = GameState.cfg("effects.return_skip_grace", SKIP_GRACE)
 	_start_msec = Time.get_ticks_msec()
 	_skip_hint.text = tr("INTRO_SKIP")  # 跳过提示复用开场键
-	_skip_hint.add_theme_font_override("font", UITheme.FONT)
-	_subtitle.add_theme_font_override("font", UITheme.FONT)
+	_skip_hint.add_theme_font_override("font", _ui_theme.GetFont())
+	_subtitle.add_theme_font_override("font", _ui_theme.GetFont())
 	_shot_timer = Timer.new()
 	_shot_timer.one_shot = true
 	_shot_timer.timeout.connect(_on_shot_timeout)

@@ -102,4 +102,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.save_profile()
 	print("[DONE] failures=%d" % _failures)
-	get_tree().quit(1 if _failures > 0 else 0)
+	load("res://csharp/godot/TestExit.cs").Quit(1 if _failures > 0 else 0)

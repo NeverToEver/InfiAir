@@ -5,6 +5,7 @@ extends Node
 ## （segment_fill 纯函数）、非 Boss 条默认等分回归、清弹为单次遍历无逐帧轮询。
 
 var _failures: int = 0
+const SEGMENTED := preload("res://csharp/godot/SegmentedBar.cs")
 var _phase_signal: int = -1
 
 # M3d：Boss 迁 C#——类名/枚举不可经 GDScript 引用；is 判定经脚本资源，枚举值经 Boss 实例 getter（返回 int）
@@ -159,20 +160,20 @@ func _ready() -> void:
 	# ================= 场景 5：分段血条——绘制语义（segment_fill 纯函数）+ HUD 登记 =================
 	var w: Array = [0.3, 0.4, 0.3]
 	_check(
-		is_equal_approx(SegmentedBar.segment_fill(1.0, w, 0), 0.0) and is_equal_approx(SegmentedBar.segment_fill(1.0, w, 2), 0.0),
+		is_equal_approx(SEGMENTED.segment_fill(1.0, w, 0), 0.0) and is_equal_approx(SEGMENTED.segment_fill(1.0, w, 2), 0.0),
 		"场景5：满血全部段未消耗（全亮）"
 	)
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.85, w, 0), 0.5), "场景5：P1 段消耗度 (1-0.85)/0.3（P1 段消耗后暗化）")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.85, w, 1), 0.0), "场景5：P2 段未消耗（当前段高亮语义）")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.85, w, 2), 0.0), "场景5：ENRAGE 段未消耗")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.7, w, 0), 1.0), "场景5：HP=70% P1 段全暗")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.5, w, 1), 0.5), "场景5：P2 段消耗度 (0.7-0.5)/0.4")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.2, w, 2), 1.0 / 3.0), "场景5：ENRAGE 段消耗度 (0.3-0.2)/0.3")
-	_check(is_equal_approx(SegmentedBar.segment_fill(0.0, w, 2), 1.0), "场景5：HP=0 ENRAGE 段全暗")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.85, w, 0), 0.5), "场景5：P1 段消耗度 (1-0.85)/0.3（P1 段消耗后暗化）")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.85, w, 1), 0.0), "场景5：P2 段未消耗（当前段高亮语义）")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.85, w, 2), 0.0), "场景5：ENRAGE 段未消耗")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.7, w, 0), 1.0), "场景5：HP=70% P1 段全暗")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.5, w, 1), 0.5), "场景5：P2 段消耗度 (0.7-0.5)/0.4")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.2, w, 2), 1.0 / 3.0), "场景5：ENRAGE 段消耗度 (0.3-0.2)/0.3")
+	_check(is_equal_approx(SEGMENTED.segment_fill(0.0, w, 2), 1.0), "场景5：HP=0 ENRAGE 段全暗")
 	# HUD 登记：spawner 出场 Boss 时已调 show_boss_bar（场景 1-4 同路径）
 	var boss5 = await _spawn_test_boss(1)  # M3d：Boss 迁 C#，不能作类型注解
 	boss5.set_fire_timer(999.0)
-	var bb = get_node("Main/HUD/BossBar") as SegmentedBar
+	var bb = get_node("Main/HUD/BossBar")
 	_check(
 		bb.seg_weights.size() == 3 and is_equal_approx(float(bb.seg_weights[0]), 0.3) and is_equal_approx(float(bb.seg_weights[2]), 0.3),
 		"场景5：BossBar 段权 [0.3,0.4,0.3] 登记"
@@ -183,9 +184,9 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 
 	# ================= 场景 6：非 Boss 场景——HP/燃料/dash 条分段不变（默认等分） =================
-	var hp_bar := get_node("Main/HUD/HpBar") as SegmentedBar
-	var fuel_bar := get_node("Main/HUD/FuelBar") as SegmentedBar
-	var dash_bar := get_node("Main/HUD/DashBar") as SegmentedBar
+	var hp_bar := get_node("Main/HUD/HpBar")
+	var fuel_bar := get_node("Main/HUD/FuelBar")
+	var dash_bar := get_node("Main/HUD/DashBar")
 	_check(
 		hp_bar.seg_weights.is_empty() and fuel_bar.seg_weights.is_empty() and dash_bar.seg_weights.is_empty(),
 		"场景6：非 Boss 条默认等分（seg_weights 空，绘制走既有逻辑）"
@@ -221,4 +222,4 @@ func _ready() -> void:
 	GameState.save_profile()
 	print("BOSS PHASE TRANSITION TEST DONE, failures = ", _failures)
 	GameState.delete_save()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

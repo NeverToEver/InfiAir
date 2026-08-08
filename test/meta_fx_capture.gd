@@ -74,7 +74,7 @@ func _ready() -> void:
 	await _shot("settings_modes")
 
 	GameState.delete_save()
-	get_tree().quit()
+	load("res://csharp/godot/TestExit.cs").Quit(0)
 
 
 func _shot(p_name: String) -> void:

@@ -83,4 +83,4 @@ func _ready() -> void:
 	_check(all_excl.is_empty(), "生产链路全池排除返回空（不死循环）")
 
 	print("TASK POOL INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

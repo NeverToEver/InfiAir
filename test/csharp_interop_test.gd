@@ -38,4 +38,4 @@ func _ready() -> void:
 	_check(broken is Dictionary and broken.get("ok") == false, "缺失文件 → ok=false")
 
 	print("CSHARP_INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

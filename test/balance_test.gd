@@ -82,4 +82,4 @@ func _ready() -> void:
 	_check(GameState.enemy_hp_multiplier() == 1.0, "A审计：cfg 返回 Dictionary 拷贝隔离（清空不影响配置）")
 
 	print("BALANCE TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

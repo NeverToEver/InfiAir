@@ -1,5 +1,7 @@
 class_name MothershipSummonWindow
 extends CanvasLayer
+## M5：UITheme 迁 C#，经脚本资源调静态方法（const preload 对重载方法解析失败，用 var load——实测）
+var _ui_theme := load("res://csharp/godot/UITheme.cs")
 ## 母舰召唤·机库小窗（左侧竖长画中画通讯屏）：蓄力完成后由 main._summon_mothership() 弹出。
 ## 时轴（不暂停对局，process_mode 跟随树）：
 ##   [0, OPEN_TIME)                    面板淡入
@@ -28,7 +30,7 @@ var _total := 0.0
 var _shot_idx := -1
 var _done := false
 
-var _panel: ChamferedPanel
+var _panel
 var _stage: Node2D  # 面板局部坐标舞台（960×520）
 var _ship: Sprite2D
 var _ship_trail: Line2D
@@ -86,23 +88,23 @@ func _process(delta: float) -> void:
 
 
 func _build_panel() -> void:
-	_panel = ChamferedPanel.new()
+	_panel = load("res://csharp/godot/ChamferedPanel.cs").new()
 	# 左侧竖长：贴左缘垂直居中（1920×1080 设计坐标）
 	_panel.position = Vector2(24.0, (1080.0 - PANEL_SIZE.y) * 0.5)
 	_panel.size = PANEL_SIZE
 	_panel.bg_color = Color(0.02, 0.04, 0.08, 0.92)
-	_panel.border_color = Color(UITheme.ACCENT, 0.7)
-	_panel.bracket_color = UITheme.ACCENT
+	_panel.border_color = Color(_ui_theme.GetAccent(), 0.7)
+	_panel.bracket_color = _ui_theme.GetAccent()
 	_panel.brackets = true
 	add_child(_panel)
 	_stage = Node2D.new()
 	_panel.add_child(_stage)
 	# 抬头标题
-	var title := UITheme.make_label(tr("MS_SEQ_TITLE"), UITheme.FONT_SMALL, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT)
+	var title = _ui_theme.make_label(tr("MS_SEQ_TITLE"), _ui_theme.GetFontSmall(), _ui_theme.GetTextDim(), HORIZONTAL_ALIGNMENT_LEFT)
 	title.position = Vector2(20.0, 10.0)
 	_panel.add_child(title)
 	# 字幕
-	_subtitle = UITheme.make_label("", UITheme.FONT_HUD_L, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	_subtitle = _ui_theme.make_label("", _ui_theme.GetFontHudL(), _ui_theme.GetText(), HORIZONTAL_ALIGNMENT_CENTER)
 	_subtitle.position = Vector2(24.0, PANEL_SIZE.y - 58.0)
 	_subtitle.size = Vector2(PANEL_SIZE.x - 48.0, 40.0)
 	_panel.add_child(_subtitle)
@@ -145,7 +147,7 @@ func _build_hangar() -> void:
 	for y in [58.0, 66.0]:
 		var rail := Line2D.new()
 		rail.width = 2.0
-		rail.default_color = Color(UITheme.ACCENT, 0.25)
+		rail.default_color = Color(_ui_theme.GetAccent(), 0.25)
 		rail.points = PackedVector2Array([Vector2(40.0, y), Vector2(PANEL_SIZE.x - 40.0, y)])
 		_stage.add_child(rail)
 	# 顶灯 ×5（软光点 + 淡光锥，沿滑轨排布）
@@ -167,7 +169,7 @@ func _build_hangar() -> void:
 	# 机库地线
 	var floor_line := Line2D.new()
 	floor_line.width = 2.0
-	floor_line.default_color = Color(UITheme.ACCENT, 0.2)
+	floor_line.default_color = Color(_ui_theme.GetAccent(), 0.2)
 	floor_line.points = PackedVector2Array([Vector2(40.0, 700.0), Vector2(PANEL_SIZE.x - 40.0, 700.0)])
 	_stage.add_child(floor_line)
 	# 地面警示条纹（黄/暗相间小段，沿地线排布）

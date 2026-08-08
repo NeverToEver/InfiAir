@@ -224,19 +224,19 @@ public partial class Player : CharacterBody2D
 
             // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
             var fogEvents = gs.Get("fog_events").AsGodotObject();
-            if (!fogEvents.IsConnected("fog_event_started", _onFogEventStarted))
+            if (!fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
             {
-                fogEvents.Connect("fog_event_started", _onFogEventStarted);
+                fogEvents.Connect("FogEventStarted", _onFogEventStarted);
             }
 
-            if (!fogEvents.IsConnected("fog_event_ended", _onFogEventEnded))
+            if (!fogEvents.IsConnected("FogEventEnded", _onFogEventEnded))
             {
-                fogEvents.Connect("fog_event_ended", _onFogEventEnded);
+                fogEvents.Connect("FogEventEnded", _onFogEventEnded);
             }
 
-            if (!fogEvents.IsConnected("fog_direction_shift", _onFogDirectionShift))
+            if (!fogEvents.IsConnected("FogDirectionShift", _onFogDirectionShift))
             {
-                fogEvents.Connect("fog_direction_shift", _onFogDirectionShift);
+                fogEvents.Connect("FogDirectionShift", _onFogDirectionShift);
             }
         }
     }
@@ -1235,19 +1235,19 @@ public partial class Player : CharacterBody2D
             }
 
             var fogEvents = gs.Get("fog_events").AsGodotObject();
-            if (fogEvents.IsConnected("fog_event_started", _onFogEventStarted))
+            if (fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
             {
-                fogEvents.Disconnect("fog_event_started", _onFogEventStarted);
+                fogEvents.Disconnect("FogEventStarted", _onFogEventStarted);
             }
 
-            if (fogEvents.IsConnected("fog_event_ended", _onFogEventEnded))
+            if (fogEvents.IsConnected("FogEventEnded", _onFogEventEnded))
             {
-                fogEvents.Disconnect("fog_event_ended", _onFogEventEnded);
+                fogEvents.Disconnect("FogEventEnded", _onFogEventEnded);
             }
 
-            if (fogEvents.IsConnected("fog_direction_shift", _onFogDirectionShift))
+            if (fogEvents.IsConnected("FogDirectionShift", _onFogDirectionShift))
             {
-                fogEvents.Disconnect("fog_direction_shift", _onFogDirectionShift);
+                fogEvents.Disconnect("FogDirectionShift", _onFogDirectionShift);
             }
         }
 

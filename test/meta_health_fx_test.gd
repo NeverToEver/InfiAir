@@ -164,4 +164,4 @@ func _ready() -> void:
 	GameState.delete_save()
 	GameState.reduce_flash = false
 	GameState.save_profile()
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)

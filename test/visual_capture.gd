@@ -1,4 +1,5 @@
 extends Node
+var _test_exit := load("res://csharp/godot/TestExit.cs")  # M5：退出前显式 GC（防退出 segfault）
 ## 视觉验证：按 MODE 截图到 /tmp/infiair_capture.png。
 ## 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ##   godot --path . res://test/visual_capture.tscn
@@ -24,7 +25,7 @@ func _ready() -> void:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(SHOT_PATH)
 		print("saved: ", SHOT_PATH)
-		get_tree().quit(0)
+		_test_exit.Quit(0)
 		return
 	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
@@ -85,7 +86,7 @@ func _ready() -> void:
 			main.summon_mothership()
 			main.summon_window().skip()
 			await get_tree().process_frame
-			var ms: Mothership = main.mothership()
+			var ms = main.mothership()  # M4：Mothership 迁 C#，去类型注解
 			ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场，到位触发自动对接
 			var spawner := get_node("Main/Spawner")
 			var tgt = load("res://scenes/enemy.tscn").instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 根脚本即 Enemy，不能经类名 as（untyped）
@@ -102,4 +103,4 @@ func _ready() -> void:
 	img.save_png(SHOT_PATH)
 	print("capture saved: ", SHOT_PATH)
 	GameState.delete_save()
-	get_tree().quit()
+	_test_exit.Quit(0)

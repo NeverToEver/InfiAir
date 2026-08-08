@@ -66,4 +66,4 @@ func _ready() -> void:
 	_check(GameState.enemy_hp_multiplier() == 1.0, "生产链路 cfg 容器拷贝隔离")
 
 	print("PATH RESOLVER INTEROP TEST DONE, failures = ", _failures)
-	get_tree().quit(_failures)
+	load("res://csharp/godot/TestExit.cs").Quit(_failures)
