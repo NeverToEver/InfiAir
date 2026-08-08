@@ -27,19 +27,21 @@ func _wait_real(sec: float) -> void:
 
 ## 无 meta 敌弹中指定弹速的弹（重炮/掠过拖弹/齐射/墙弹以此识别；
 ## 敌机自机狙带 bullet_type meta，Boss 狂暴弹带 laser/enrage_ring meta，互不混淆）
-func _bullets_by_speed(p_speed: float) -> Array[Bullet]:
-	var out: Array[Bullet] = []
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet and not child.has_meta("bullet_type"):
-			if is_equal_approx((child as Bullet).speed, p_speed):
+func _bullets_by_speed(p_speed: float) -> Array:
+	var out: Array = []
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet and not child.has_meta("bullet_type"):
+			if is_equal_approx(child.Speed, p_speed):
 				out.append(child)
 	return out
 
 
 func _count_meta_bullets(p_type: StringName) -> int:
 	var n := 0
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet and child.has_meta("bullet_type"):
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
 			if child.get_meta("bullet_type") == p_type:
 				n += 1
 	return n
@@ -54,8 +56,8 @@ func _enemies_alive() -> Array[Enemy]:
 
 
 func _clear_field() -> void:
-	for child in get_node("Main").get_children():
-		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+	for child: Variant in get_node("Main").get_children():
+		if child is Enemy or (child.has_method("IsActive") and not child.IsPlayerBullet):
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -150,7 +152,7 @@ func _ready() -> void:
 	_check(heavy_max >= 3, "场景1：3 发高速重弹（%d 弹速）" % int(cannon_speed))
 	var heavy_dmg_ok := true
 	for b in _bullets_by_speed(cannon_speed):
-		if b.damage != cannon_dmg:
+		if b.Damage != cannon_dmg:
 			heavy_dmg_ok = false
 	_check(heavy_dmg_ok, "场景1：重弹伤害 %d" % cannon_dmg)
 	boss1.take_damage(9999)
@@ -204,7 +206,7 @@ func _ready() -> void:
 	var drop_dmg_expected := maxi(1, int(roundf(float(boss2.SWEEP_DROP_DAMAGE) * GameState.enemy_damage_ramp())))
 	var drop_dmg_ok := true
 	for b in _bullets_by_speed(drop_speed):
-		if b.damage != drop_dmg_expected:
+		if b.Damage != drop_dmg_expected:
 			drop_dmg_ok = false
 	_check(drop_dmg_ok, "场景2：减速弹伤害 %d（×ramp）" % drop_dmg_expected)
 	_check(sweep_done, "场景2：穿屏后回到巡航流程")
@@ -325,13 +327,13 @@ func _ready() -> void:
 	# 伤害随对局进程 ramp（2026-07-29 修订：×enemy_damage_ramp，基准 12）
 	var volley_expected := maxi(1, int(roundf(12.0 * GameState.enemy_damage_ramp())))
 	for b in _bullets_by_speed(420.0):
-		if b.damage != volley_expected:
+		if b.Damage != volley_expected:
 			volley_dmg_ok = false
 	_check(volley_dmg_ok, "场景4：齐射弹伤害随难度 ramp（基准 12，实测期望 %d）" % volley_expected)
 	# 弹幕墙：10 槽位留 2 相邻缺口，缺口避开自机方位 ±30°
 	# C34：弹速从 boss 实例常量读取，改 JSON 不漂移
 	var wall_speed: float = boss4.WALL_BULLET_SPEED
-	var wall: Array[Bullet] = []
+	var wall: Array = []  # M3a：Array[Bullet] 不可用（C# 类名不能作泛型参数）
 	for i in 60:
 		await _wait_real(0.05)
 		if not is_instance_valid(boss4):
@@ -348,7 +350,7 @@ func _ready() -> void:
 		var filled: Array[bool] = []
 		filled.resize(10)
 		for b in wall:
-			var idx := int(round((b.direction.angle() - first_slot) / spacing))
+			var idx := int(round((b.Direction.angle() - first_slot) / spacing))
 			if idx >= 0 and idx < 10:
 				filled[idx] = true
 		var missing: Array[int] = []

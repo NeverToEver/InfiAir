@@ -198,8 +198,8 @@ func _ready() -> void:
 	# ---------- 8. 子弹出屏销毁随档收窄 ----------
 	# x=100：small 边界 -80 存活；large 边界 ≈315 应销毁
 	GameState.set_view_zoom(&"small")
-	var b := BULLET_SCENE.instantiate() as Bullet
-	b.setup(Vector2.RIGHT, 400.0, 1, true)
+	var b = BULLET_SCENE.instantiate()  # 随批次 C 重定型：C# 类不能经类名 as 转换（untyped，Setup 走实例动态调用）
+	b.Setup(Vector2.RIGHT, 400.0, 1, true)
 	b.position = Vector2(100.0, 500.0)
 	get_node("Main").add_child(b)
 	await get_tree().process_frame

@@ -766,12 +766,12 @@ func _on_orbital_struck() -> void:
 	GameState.for_each_enemy(
 		func(e: Node) -> void:
 			if e is Node2D:
-				Explosion.spawn_at(self, (e as Node2D).global_position),
+				load("res://csharp/godot/Explosion.cs").SpawnAt(self, (e as Node2D).global_position),
 		func(e: Node) -> bool: return not (e is Boss)
 	)
 	GameState.clear_enemies(func(e: Node) -> bool: return e is Boss)
 	for child in get_children():
-		if child is Bullet or child is FormationBomb:
+		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) or child is FormationBomb:
 			child.queue_free()
 	_player.unlock_input()
 	_homecoming = false

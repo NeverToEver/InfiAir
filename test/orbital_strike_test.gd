@@ -38,7 +38,7 @@ func _ready() -> void:
 		e.position = Vector2(400.0 + i * 400.0, 300.0)
 		main.add_child(e)
 	await get_tree().process_frame
-	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, 400.0, 10, false)
+	var b = GameState.bullet_pool.Fire(Vector2.DOWN, 400.0, 10, false)  # 随批次 C 重定型：C# 类不能作类型注解，Fire 返回判空语义不变
 	b.position = Vector2(960.0, 700.0)
 	await get_tree().process_frame
 	_check(GameState.enemies.size() == 3, "布置：3 台敌机已注册")

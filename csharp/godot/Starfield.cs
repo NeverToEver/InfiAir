@@ -38,6 +38,18 @@ public partial class Starfield : Node2D
 
     public void Warp(float factor) => WarpFactor = factor;
 
+    /// <summary>M3a 探针：验证 GDScript → C# 静态方法经脚本资源调用（静态属性不可达——实测）。</summary>
+    public static int StaticProbe() => 42;
+
+    /// <summary>M3a 探针：重载注册行为（可选参数方法不注册——实测，改用重载测试）。</summary>
+    public void ProbeOverload(float a)
+    {
+    }
+
+    public void ProbeOverload(float a, bool b)
+    {
+    }
+
     public override void _Ready()
     {
         ZIndex = -10;

@@ -8,6 +8,7 @@ extends Node
 ## A20 出生保护 1.0s（对齐原作入场动画等效）；A21 Boss 入场期可被弹伤（已核实与原作一致）。
 
 var _failures: int = 0
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -35,10 +36,10 @@ func _make_enemy(config: Dictionary, strategy: StringName = &"straight") -> Enem
 
 
 ## 当前场内敌弹（玩家弹排除）
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
+func _enemy_bullets() -> Array:  # 随批次 A 重定型：C# 类不能作元素类型注解
+	var out: Array = []
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			out.append(child)
 	return out
 
@@ -72,7 +73,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -254,16 +255,16 @@ func _ready() -> void:
 	laser_e.bullet_type = &"laser"
 	laser_e.position = Vector2(960.0, 300.0)
 	laser_e.fire_at_player()
-	var laser_b: Bullet = null
+	var laser_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
 			laser_b = b
-	_check(laser_b != null and laser_b.damage == exp20, "A4：laser 敌弹 damage（基准 20，期望 %d）" % exp20)
+	_check(laser_b != null and laser_b.Damage == exp20, "A4：laser 敌弹 damage（基准 20，期望 %d）" % exp20)
 	# 命中玩家扣血（传送重叠走真实碰撞管线）
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	if laser_b != null:
-		laser_b.speed = 0.0
+		laser_b.Speed = 0.0
 		laser_b.position = player.position
 	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	_check(GameState.health == 100.0 - exp20, "A4：laser 敌弹命中 -%d HP" % exp20)
@@ -275,15 +276,15 @@ func _ready() -> void:
 	single_e.bullet_type = &"single"
 	single_e.position = Vector2(960.0, 300.0)
 	single_e.fire_at_player()
-	var single_b: Bullet = null
+	var single_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"single":
 			single_b = b
-	_check(single_b != null and single_b.damage == exp12, "A4：single 敌弹 damage（基准 12，期望 %d）" % exp12)
+	_check(single_b != null and single_b.Damage == exp12, "A4：single 敌弹 damage（基准 12，期望 %d）" % exp12)
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	if single_b != null:
-		single_b.speed = 0.0
+		single_b.Speed = 0.0
 		single_b.position = player.position
 	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	_check(GameState.health == 100.0 - exp12, "A4：single 敌弹命中 -%d HP" % exp12)
@@ -298,7 +299,7 @@ func _ready() -> void:
 	var spread_dmg_ok := false
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"spread":
-			spread_dmg_ok = spread_dmg_ok or b.damage == exp10
+			spread_dmg_ok = spread_dmg_ok or b.Damage == exp10
 	_check(spread_dmg_ok, "A4：spread 敌弹 damage（基准 10，期望 %d）" % exp10)
 	spread_e.queue_free()
 	await _free_enemy_bullets()
@@ -312,31 +313,31 @@ func _ready() -> void:
 	var fan_count := 0
 	for b in _enemy_bullets():
 		fan_count += 1
-		if b.damage != exp14:
+		if b.Damage != exp14:
 			fan_dmg_ok = false
 	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage（基准 14，期望 %d）" % exp14)
 	await _free_enemy_bullets()
 	boss5.fire_tool().fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)
-	var homing_b: Bullet = null
+	var homing_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		homing_b = b
-	_check(homing_b != null and homing_b.damage == exp12 and homing_b.homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
+	_check(homing_b != null and homing_b.Damage == exp12 and homing_b.Homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
 	boss5.fire_tool().fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)
 	var cross_dmg_ok := true
 	var cross_count := 0
 	for b in _enemy_bullets():
 		cross_count += 1
-		if b.damage != exp12:
+		if b.Damage != exp12:
 			cross_dmg_ok = false
 	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
 	boss5.fire_tool().fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)
-	var sniper_b: Bullet = null
+	var sniper_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		if not b.has_meta("bullet_type"):
 			sniper_b = b
-	_check(sniper_b != null and sniper_b.damage == exp21, "A4：Boss 狙击弹 damage（基准 21，期望 %d）" % exp21)
+	_check(sniper_b != null and sniper_b.Damage == exp21, "A4：Boss 狙击弹 damage（基准 21，期望 %d）" % exp21)
 	await _free_enemy_bullets()
 	boss5.fire_enrage_snapshot()
 	var snap_laser_dmg_ok := true
@@ -346,11 +347,11 @@ func _ready() -> void:
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
 			snap_lasers += 1
-			if b.damage != exp21:
+			if b.Damage != exp21:
 				snap_laser_dmg_ok = false
 		elif b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"enrage_ring":
 			snap_rings += 1
-			if b.damage != exp12:
+			if b.Damage != exp12:
 				snap_ring_dmg_ok = false
 	_check(snap_lasers == boss5.ENRAGE_SNAPSHOT_LASERS and snap_laser_dmg_ok, "A4：Boss 狂暴快照激光 damage（基准 21，期望 %d）" % exp21)
 	_check(snap_rings == boss5.ENRAGE_SNAPSHOT_RING and snap_ring_dmg_ok, "A4：Boss 狂暴快照环弹 damage（基准 12，期望 %d）" % exp12)
@@ -362,15 +363,15 @@ func _ready() -> void:
 	_reset_hit_state(player)
 	player.position = Vector2(960.0, 800.0)
 	var near_positions: Array[Vector2] = [Vector2(50.0, 0.0), Vector2(0.0, 100.0), Vector2(-240.0, 0.0)]
-	var near_bullets: Array[Bullet] = []
+	var near_bullets: Array = []  # 随批次 A 重定型：C# 类不能作元素类型注解
 	for off in near_positions:
-		var nb := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+		var nb = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 		nb.position = player.position + off
 		near_bullets.append(nb)
-	var far_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var far_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	far_b.position = player.position + Vector2(400.0, 0.0)
 	# 用一发独立敌弹触发受击
-	var hit_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var hit_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	hit_b.position = player.position
 	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：停留超窗才结算
 	var near_cleared := true
@@ -385,15 +386,15 @@ func _ready() -> void:
 	# ================= A16：同帧多敌弹只结算第一发；无敌期敌弹穿过不销毁 =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var b1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var b1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	b1.position = player.position
-	var b2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var b2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	b2.position = player.position
 	await get_tree().create_timer(0.1).timeout  # 机制一宽限期（0.05s）：同帧入窗同点到期，单帧守卫只结算第一发
 	var a16_exp := 100.0 - float(maxi(1, int(roundf(12.0 * GameState.enemy_damage_ramp()))))
 	_check(GameState.health == a16_exp, "A16：同帧只结算第一发（-%d 而非双倍）" % (100.0 - a16_exp))
 	# 无敌期内敌弹直接穿过：不结算、不销毁
-	var b3 := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 12, false)
+	var b3 = GameState.bullet_pool.Fire(Vector2.DOWN, 300.0, 12, false)
 	b3.position = player.position + Vector2(0.0, -60.0)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -425,8 +426,8 @@ func _ready() -> void:
 	tgt_c.hp = 200
 	tgt_c.speed = 0.0
 	tgt_c.position = Vector2(1120.0, 400.0)  # 160px 外在半径外
-	var ex_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
-	ex_b.explosive = true
+	var ex_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, true)
+	ex_b.Explosive = true
 	ex_b.position = tgt_a.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -441,11 +442,11 @@ func _ready() -> void:
 	var boss_aoe := _make_boss(1)
 	boss_aoe.set_fire_timer(999.0)
 	boss_aoe.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在半径内
-	var ex_b2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
-	ex_b2.explosive = true
+	var ex_b2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, true)
+	ex_b2.Explosive = true
 	ex_b2.monitoring = false  # 只手动测 AoE，不走碰撞
 	ex_b2.position = Vector2(960.0, 400.0)
-	ex_b2.explode()
+	ex_b2.Explode()
 	_check(boss_aoe.hp == boss_aoe.max_hp, "A12：Boss 不吃爆炸 AoE")
 	boss_aoe.queue_free()
 	ex_b2.queue_free()
@@ -458,12 +459,12 @@ func _ready() -> void:
 	var splash_boss := _make_boss(1)
 	splash_boss.set_fire_timer(999.0)
 	splash_boss.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在溅射半径内
-	var sp_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
-	sp_b.splash_damage = 20
-	sp_b.splash_radius = 50.0
+	var sp_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
+	sp_b.SplashDamage = 20
+	sp_b.SplashRadius = 50.0
 	sp_b.monitoring = false  # 只手动测溅射，不走碰撞
 	sp_b.position = Vector2(960.0, 400.0)
-	sp_b.splash()
+	sp_b.Splash()
 	_check(splash_boss.hp == splash_boss.max_hp - 20, "E01：导弹溅射对 Boss 生效（20 伤害）")
 	splash_boss.queue_free()
 	sp_b.queue_free()
@@ -485,7 +486,7 @@ func _ready() -> void:
 	slow_e2.queue_free()
 	_check(d1 > 20.0 and d2 < d1 * 0.9 and d2 > d1 * 0.6, "A13：力场全局敌机移速 ×0.8")
 	# 敌弹不再被减速（力场已迁出子弹侧）
-	var eb := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 10, false)
+	var eb = GameState.bullet_pool.Fire(Vector2.DOWN, 300.0, 10, false)
 	eb.position = Vector2(960.0, 200.0)
 	await get_tree().create_timer(0.4).timeout
 	var bd: float = eb.position.y - 200.0
@@ -538,7 +539,7 @@ func _ready() -> void:
 	# 在出界 margin(80) 内（FIGHT_Y=230 时余量充足，任意视角档均成立）。
 	var enter_pos := Vector2(960.0, boss_early.fight_anchor_y() - 75.0)
 	boss_early.position = enter_pos
-	var pb := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, true)
+	var pb = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, true)
 	pb.position = boss_early.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame

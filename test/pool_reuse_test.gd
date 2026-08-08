@@ -28,34 +28,34 @@ func _check(cond: bool, name: String) -> void:
 func _test_bullet_pool() -> void:
 	var main := Node2D.new()
 	add_child(main)
-	var pool := BulletPool.new()
+	var pool = load("res://csharp/godot/BulletPool.cs").new()  # 随批次 A 重定型：C# 类不能以类名 new
 	main.add_child(pool)
-	var b1 := pool.fire(Vector2.DOWN, 100.0, 1, true)
-	pool.release(b1)
-	_check(pool.free_count() == 1, "bullet: release 后 _free=1")
+	var b1 = pool.Fire(Vector2.DOWN, 100.0, 1, true)
+	pool.Release(b1)
+	_check(pool.FreeCount() == 1, "bullet: release 后 _free=1")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(pool.free_count() == 1, "bullet: reparent 后仍在 _free（forget 未误清）")
+	_check(pool.FreeCount() == 1, "bullet: reparent 后仍在 _free（forget 未误清）")
 	_check(b1.get_parent() == pool, "bullet: 闲置弹收回池节点下")
-	var b2 := pool.fire(Vector2.UP, 100.0, 1, false)
+	var b2 = pool.Fire(Vector2.UP, 100.0, 1, false)
 	_check(b2 == b1, "bullet: 再次 fire 复用同一实例")
-	_check(pool.free_count() == 0 and pool.get_child_count() == 0, "bullet: 复用后池清空")
+	_check(pool.FreeCount() == 0 and pool.get_child_count() == 0, "bullet: 复用后池清空")
 	# 外部 queue_free 路径仍应 forget
-	pool.release(b2)
+	pool.Release(b2)
 	await get_tree().process_frame
 	b2.queue_free()
 	await get_tree().process_frame
-	_check(pool.free_count() == 0, "bullet: 外部销毁后 forget 生效")
+	_check(pool.FreeCount() == 0, "bullet: 外部销毁后 forget 生效")
 	# M1（2026-08-06 审计）：self_modulate 染色残留——laser 黄/Boss 重弹橙/致死高亮红
 	# 等 P0-3 写入 sprite.self_modulate 的 tint 在 _apply_faction 无对等复位，池化复用
 	# 带旧 tint；模拟染色后回收再复用断言复位白
-	var b3 := pool.fire(Vector2.DOWN, 100.0, 1, false)
-	b3.sprite_node().self_modulate = Color(1.0, 0.85, 0.35)  # 模拟 laser 染色写入
-	pool.release(b3)
+	var b3 = pool.Fire(Vector2.DOWN, 100.0, 1, false)
+	b3.SpriteNode().self_modulate = Color(1.0, 0.85, 0.35)  # 模拟 laser 染色写入
+	pool.Release(b3)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var b4 := pool.fire(Vector2.DOWN, 100.0, 1, false)
-	_check(b4 == b3 and b4.sprite_node().self_modulate == Color.WHITE, "bullet: 复用后 self_modulate 复位白（M1 染色残留）")
+	var b4 = pool.Fire(Vector2.DOWN, 100.0, 1, false)
+	_check(b4 == b3 and b4.SpriteNode().self_modulate == Color.WHITE, "bullet: 复用后 self_modulate 复位白（M1 染色残留）")
 	main.queue_free()
 
 

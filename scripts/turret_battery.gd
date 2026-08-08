@@ -180,10 +180,10 @@ func _fire_current_ammo() -> void:
 			_spawn_bullet(_fire_dir(), LASER_SPEED, DMG_LASER, &"laser")
 		&"weak_homing":
 			var dir := _fire_dir()
-			var b: Bullet = GameState.bullet_pool.fire(dir, HOMING_SPEED, DMG_HOMING, false, true, homing_time)
+			var b = GameState.bullet_pool.Fire(dir, HOMING_SPEED, DMG_HOMING, false, true, homing_time)
 			if b == null:
 				return  # P2-3：同屏敌弹硬上限，本次开火放弃
-			b.homing_turn_rate = homing_turn_rate
+			b.HomingTurnRate = homing_turn_rate
 			b.position = global_position + dir * _muzzle_offset
 			b.set_meta("bullet_type", &"homing")
 		&"sniper":
@@ -201,14 +201,14 @@ func _fire_fan(count: int) -> void:
 
 
 func _spawn_bullet(dir: Vector2, bullet_speed: float, dmg: int, p_type: StringName) -> void:
-	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
+	var b = GameState.bullet_pool.Fire(dir, bullet_speed, dmg, false)
 	if b == null:
 		return  # P2-3：同屏敌弹硬上限，本次开火放弃
 	b.position = global_position + dir * _muzzle_offset
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-		var poly := b.sprite_node()  # K11：C24 缓存模式延续（原 get_node 每发射字符串查找）
+		var poly = b.SpriteNode()  # K11：C24 缓存模式延续（原 get_node 每发射字符串查找；M3a：untyped 调用不可 := 推断）
 		poly.scale = Vector2(2.2, 0.55)
 		poly.self_modulate = Color(1.0, 0.85, 0.35)  # P0-3：Sprite2D 无 color，用 self_modulate
 
@@ -238,6 +238,6 @@ func _update_flash(delta: float) -> void:
 func die() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
 	GameState.shake(_shake_die)
-	Explosion.spawn_at(get_parent(), global_position, 1.0)
+	load("res://csharp/godot/Explosion.cs").SpawnAt(get_parent(), global_position, 1.0)  # M3a 起 Explosion 为 C#，静态方法经脚本资源调用
 	died.emit(self)
 	queue_free()

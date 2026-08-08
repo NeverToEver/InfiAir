@@ -48,7 +48,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -149,7 +149,7 @@ func _ready() -> void:
 
 	# 4b. crit_shot（2026-08-04）：真实命中路径——固定 seed 后多发命中出现暴击（×2）与非暴击混合
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 	GameState.buffs.clear()  # 清掉 §1-§4 累积（rapid_fire/power_shot/crit），保证 16 发 × 10/20 的假设成立
@@ -179,7 +179,7 @@ func _ready() -> void:
 
 	# 5. 布尔（bool）：explosive 击毁目标溅射侧向近邻（40px，不在弹道上）
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 	GameState.add_buff(&"explosive")
@@ -206,7 +206,7 @@ func _ready() -> void:
 
 	# 6. 堆叠上限（cap）：spread_shot 3 层一轮齐射 4 弹
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 	GameState.add_buff(&"spread_shot")
@@ -219,7 +219,7 @@ func _ready() -> void:
 	for j in 60:
 		bullets = 0
 		for child in main.get_children():
-			if child is Bullet:
+			if child.has_method("IsActive"):
 				bullets += 1
 		if bullets > 0:
 			break
@@ -229,7 +229,7 @@ func _ready() -> void:
 
 	# 清理测试实体，避免退出时资源残留；等音效播完再退
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout

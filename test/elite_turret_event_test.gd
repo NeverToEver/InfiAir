@@ -119,10 +119,10 @@ func _ready() -> void:
 	for i in 40:  # 最多 ~4s 真实时间
 		await _wait_real(0.1)
 		for child in get_node("Main").get_children():
-			if child is Bullet and not child.is_player_bullet:
+			if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) and not child.IsPlayerBullet:  # 随批次 C 重定型：C# 类不能经类名 is 判定
 				fired_ok = true
 				if child.has_meta("bullet_type") and child.get_meta("bullet_type") == &"homing":
-					if is_equal_approx(child.homing_turn_rate, 1.5) and is_equal_approx(child.homing_time, 0.6):
+					if is_equal_approx(child.HomingTurnRate, 1.5) and is_equal_approx(child.HomingTime, 0.6):
 						homing_ok = true
 		if fired_ok and homing_ok:
 			break

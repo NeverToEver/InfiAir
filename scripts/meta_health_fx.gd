@@ -355,9 +355,14 @@ func _process(delta: float) -> void:
 		_adapt_timer = float(_cfg["adapt_interval"])
 		# P2-1（2026-08-05 审计）：注册表/静态计数替代 get_children 扫描——活跃子弹数
 		# （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion _live_count），
-		# 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历
-		var bullets := Bullet.active_count()
-		var explosions := Explosion.live_count()
+		# 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历。
+		# M3a：计数迁 C# 静态——GDScript 不能以类名引用 C# 静态成员，经
+		# GameState.bullet_pool 实例访问（ActiveBulletCount/LiveExplosionCount，判空）
+		var bullets := 0
+		var explosions := 0
+		if GameState.bullet_pool != null:
+			bullets = GameState.bullet_pool.ActiveBulletCount
+			explosions = GameState.bullet_pool.LiveExplosionCount
 		var proxy := bullets * float(_cfg["adapt_bullet_weight"]) + explosions * float(_cfg["adapt_explosion_weight"])
 		_adapt_gain = clampf(1.0 - proxy, float(_cfg["adapt_min"]), float(_cfg["adapt_max"]))
 

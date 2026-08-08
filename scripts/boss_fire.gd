@@ -26,14 +26,14 @@ func fire_fan(boss: Node2D, p_count: int, speed: float, damage: int) -> void:
 	var half := float(p_count - 1) * 0.5
 	for i in p_count:
 		var dir := base_dir.rotated(deg_to_rad(20.0 * (float(i) - half)))
-		var b: Bullet = GameState.bullet_pool.fire(dir, speed, damage, false)
+		var b = GameState.bullet_pool.Fire(dir, speed, damage, false)
 		if b == null:
 			continue  # P2-3：同屏敌弹硬上限，跳过本次发射（槽位剩余照常）
 		b.position = boss.position + dir * muzzle_offset
 
 
 func fire_homing(boss: Node2D, p_offset: Vector2, speed: float, damage: int) -> void:
-	var b: Bullet = GameState.bullet_pool.fire(Vector2.DOWN, speed, damage, false, true, 1.5)
+	var b = GameState.bullet_pool.Fire(Vector2.DOWN, speed, damage, false, true, 1.5)
 	if b == null:
 		return  # P2-3：同屏敌弹硬上限
 	b.position = boss.position + p_offset * world_scale
@@ -42,7 +42,7 @@ func fire_homing(boss: Node2D, p_offset: Vector2, speed: float, damage: int) -> 
 ## 狙击弹：p_dir 为零向量时自机狙（保留旧语义），否则沿 telegraph 锁定方向
 func fire_sniper(boss: Node2D, p_dir: Vector2, speed: float, damage: int) -> void:
 	var dir := p_dir if p_dir != Vector2.ZERO else player_dir(boss)
-	var b: Bullet = GameState.bullet_pool.fire(dir, speed, damage, false)
+	var b = GameState.bullet_pool.Fire(dir, speed, damage, false)
 	if b == null:
 		return  # P2-3：同屏敌弹硬上限
 	b.position = boss.position + dir * muzzle_offset
@@ -51,7 +51,7 @@ func fire_sniper(boss: Node2D, p_dir: Vector2, speed: float, damage: int) -> voi
 func fire_cross(boss: Node2D, speed: float, damage: int) -> void:
 	for i in 4:
 		var dir := Vector2.RIGHT.rotated(_cross_angle + float(i) * PI / 2.0)
-		var b: Bullet = GameState.bullet_pool.fire(dir, speed, damage, false)
+		var b = GameState.bullet_pool.Fire(dir, speed, damage, false)
 		if b == null:
 			continue  # P2-3：同屏敌弹硬上限
 		b.position = boss.position + dir * muzzle_offset
@@ -60,11 +60,11 @@ func fire_cross(boss: Node2D, speed: float, damage: int) -> void:
 
 ## 重弹（蓄力重炮/狂暴齐射/猎杀狙击共用）：高亮加粗外观
 func fire_heavy(boss: Node2D, p_dir: Vector2, p_speed: float, p_damage: int) -> void:
-	var b: Bullet = GameState.bullet_pool.fire(p_dir, p_speed, p_damage, false)
+	var b = GameState.bullet_pool.Fire(p_dir, p_speed, p_damage, false)
 	if b == null:
 		return  # P2-3：同屏敌弹硬上限
 	b.position = boss.position + p_dir * muzzle_offset
-	var poly := b.sprite_node()  # C24：缓存引用，不再每次 get_node
+	var poly = b.SpriteNode()  # C24：缓存引用，不再每次 get_node（M3a：Bullet 为 C# 类，untyped 调用不可 := 推断）
 	if poly != null:
 		poly.scale = Vector2(2.4, 2.4)
 		poly.self_modulate = Color(1.0, 0.6, 0.3)  # P0-3：Sprite2D 无 color，用 self_modulate
@@ -75,7 +75,7 @@ func fire_ring(boss: Node2D, p_count: int, p_speed: float, p_damage: int, p_offs
 	var count := maxi(2, p_count)  # H15：cfg 直读为 0 时 float(i)/float(p_count) 除零 NaN 方向
 	for i in count:
 		var dir := Vector2.RIGHT.rotated(p_offset + TAU * float(i) / float(count))
-		var b: Bullet = GameState.bullet_pool.fire(dir, p_speed, p_damage, false)
+		var b = GameState.bullet_pool.Fire(dir, p_speed, p_damage, false)
 		if b == null:
 			continue  # P2-3：同屏敌弹硬上限
 		b.position = boss.position + dir * muzzle_offset
@@ -92,19 +92,19 @@ func fire_enrage_wave(
 	var aim := player_dir(boss)
 	var side := aim.orthogonal()
 	for i in lasers:
-		var laser: Bullet = GameState.bullet_pool.fire(aim, laser_speed, laser_damage, false)
+		var laser = GameState.bullet_pool.Fire(aim, laser_speed, laser_damage, false)
 		if laser == null:
 			continue  # P2-3：同屏敌弹硬上限
 		laser.position = boss.position + aim * muzzle_offset + side * (float(i) - 1.5) * 44.0 * world_scale
 		laser.set_meta("bullet_type", &"laser")
 		# 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-		var poly := laser.sprite_node()  # C24：缓存引用，不再每次 get_node
+		var poly = laser.SpriteNode()  # C24：缓存引用，不再每次 get_node（M3a：Bullet 为 C# 类，untyped 调用不可 := 推断）
 		if poly != null:
 			poly.scale = Vector2(2.2, 0.55)
 			poly.self_modulate = Color(1.0, 0.85, 0.35)  # P0-3：Sprite2D 无 color，用 self_modulate
 	for i in rings:
 		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(rings))
-		var b: Bullet = GameState.bullet_pool.fire(dir, ring_speed, ring_damage, false)
+		var b = GameState.bullet_pool.Fire(dir, ring_speed, ring_damage, false)
 		if b == null:
 			continue  # P2-3：同屏敌弹硬上限
 		b.position = boss.position + dir * muzzle_offset
@@ -141,7 +141,7 @@ func fire_bullet_wall(boss: Node2D, count: int, speed: float, damage: int, arc_d
 		if i == gap_start or i == gap_start + 1:
 			continue
 		var dir := Vector2.from_angle(slot_angle.call(i))
-		var b: Bullet = GameState.bullet_pool.fire(dir, speed, damage, false)
+		var b = GameState.bullet_pool.Fire(dir, speed, damage, false)
 		if b == null:
 			continue  # P2-3：同屏敌弹硬上限
 		b.position = boss.position + dir * muzzle_offset

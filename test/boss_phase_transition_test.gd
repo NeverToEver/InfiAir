@@ -22,10 +22,11 @@ func _wait_real(sec: float) -> void:
 
 
 ## 当前场内敌弹（玩家弹排除）
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+func _enemy_bullets() -> Array:
+	var out: Array = []
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet:
 			out.append(child)
 	return out
 
@@ -95,9 +96,9 @@ func _ready() -> void:
 			line_seen = true
 			break
 	_check(line_seen, "场景1：狙击瞄准线已出现（持续攻击进行中）")
-	var pb1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var pb1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	pb1.position = Vector2(400.0, 200.0)
-	var pb2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var pb2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	pb2.position = Vector2(600.0, 300.0)
 	# P1→P2：打到 65%（≤70% 阈值）
 	boss.take_damage(int(boss.max_hp * 0.35))
@@ -111,7 +112,7 @@ func _ready() -> void:
 	# ================= 场景 2：转场瞬间玩家受击 → 无敌期内不结算 =================
 	GameState.health = 100.0
 	player.set_last_hit_frame(-1)
-	var hit_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var hit_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	hit_b.position = player.position
 	await get_tree().create_timer(0.2).timeout
 	_check(GameState.health == 100.0, "场景2：转场无敌期内受击不结算")
@@ -122,9 +123,9 @@ func _ready() -> void:
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
 	GameState.health = 100.0
-	var eb1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var eb1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	eb1.position = Vector2(400.0, 200.0)
-	var eb2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var eb2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	eb2.position = Vector2(600.0, 300.0)
 	boss.take_damage(int(boss.max_hp * 0.4))  # P2 内打到 25% → 钳 30% 触发狂暴
 	await get_tree().process_frame
@@ -149,7 +150,7 @@ func _ready() -> void:
 	boss4.set_fire_timer(999.0)  # 屏蔽开火，保持场内干净
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
-	var esc_b1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var esc_b1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	esc_b1.position = Vector2(400.0, 200.0)
 	boss4.set_survival(boss4.ESCAPE_TIME)  # 直接到 50s 点
 	await get_tree().create_timer(0.2).timeout  # 等物理帧过降入 + 到点判定（position 同步延迟一帧）
@@ -199,12 +200,12 @@ func _ready() -> void:
 	boss7.set_fire_timer(999.0)
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
-	var n1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var n1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	n1.position = Vector2(400.0, 200.0)
 	boss7.take_damage(int(boss7.max_hp * 0.35))  # P1→P2 转场清弹
 	await get_tree().process_frame
 	_check(_enemy_bullets().is_empty(), "场景7：切换瞬间清弹")
-	var n2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var n2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	n2.position = Vector2(400.0, 200.0)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -215,7 +216,7 @@ func _ready() -> void:
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	for child in get_node("Main").get_children():
-		if child is Bullet:
+		if child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏

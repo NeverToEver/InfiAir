@@ -5,6 +5,7 @@ extends Node
 ## 无敌期守卫不变、窗口期回收无悬挂 Timer。
 
 var _failures: int = 0
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -16,10 +17,10 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 当前场内敌弹（玩家弹排除）
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
+func _enemy_bullets() -> Array:  # 随批次 A 重定型：C# 类不能作元素类型注解
+	var out: Array = []
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			out.append(child)
 	return out
 
@@ -53,7 +54,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -61,7 +62,7 @@ func _ready() -> void:
 	# ================= 用例 1：切向快速穿过（停留 < 窗口）→ 无伤（area_exited 取消 Timer） =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var edge_b := GameState.bullet_pool.fire(Vector2.RIGHT, 600.0, 12, false)
+	var edge_b = GameState.bullet_pool.Fire(Vector2.RIGHT, 600.0, 12, false)
 	edge_b.position = player.position + Vector2(-30.0, 3.0)  # 水平弹道与 Hitbox 边缘带相交（y 偏移 3px）
 	await get_tree().create_timer(0.2).timeout
 	_check(GameState.health == 100.0, "用例1：切向快速穿过（停留 << 窗口）不计伤")
@@ -70,7 +71,7 @@ func _ready() -> void:
 	# ================= 用例 2：停留 ≥ 窗口 → 受击 1 次且只 1 次 =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var stay_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var stay_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	stay_b.position = player.position
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.health == 88.0, "用例2：停留 ≥ 窗口结算一次（-12）")
@@ -81,7 +82,7 @@ func _ready() -> void:
 	# ================= 用例 3：窗口边界两侧——< 窗口无伤 / ≥ 窗口有伤 =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var bdry := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var bdry = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	bdry.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame  # ≈0.033s < 0.05s 窗口
@@ -93,9 +94,9 @@ func _ready() -> void:
 	# ================= 用例 4：宽限结算后仍走既有受击流程（无敌计时 + 清弹） =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var near1 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var near1 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	near1.position = player.position + Vector2(100.0, 0.0)  # 受击清弹半径 250 内
-	var hit_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var hit_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	hit_b.position = player.position
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.health == 90.0, "用例4：宽限结算走既有受击链路（-10）")
@@ -107,7 +108,7 @@ func _ready() -> void:
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	player.set_invincible(1.0)
-	var inv_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var inv_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	inv_b.position = player.position
 	await get_tree().create_timer(0.12).timeout
 	_check(GameState.health == 100.0, "用例5：无敌期内停留超窗也不结算")
@@ -118,10 +119,10 @@ func _ready() -> void:
 	# ================= 用例 6：窗口期内弹被清弹/离屏回收 → 无悬挂 Timer =================
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var reap_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var reap_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	reap_b.position = player.position
 	await get_tree().physics_frame  # 已进入宽限期（Timer 启动）
-	reap_b.despawn()  # 受击清弹/离屏回收同款路径
+	reap_b.Despawn()  # 受击清弹/离屏回收同款路径
 	await get_tree().create_timer(0.12).timeout
 	_check(GameState.health == 100.0, "用例6：窗口期回收后无悬挂结算")
 	await _free_enemy_bullets()
@@ -133,13 +134,13 @@ func _ready() -> void:
 	GameState.health = 12.0
 	_reset_hit_state(player)
 	player.set_since_damage(0.0)  # 关闭被动回血（对齐 hit_logic A5 语义），保证致死精确
-	var fatal_b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var fatal_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	fatal_b.position = player.position
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.health == 0.0 and player.is_dead(), "用例4b：宽限结算致死归零并进入死亡流程")
-	_check(not fatal_b.is_active(), "用例4b：结算弹按既有受击清弹语义回收")
+	_check(not fatal_b.IsActive(), "用例4b：结算弹按既有受击清弹语义回收")
 	await get_tree().create_timer(0.7).timeout
-	_check(not fatal_b.is_active() and not fatal_b.visible, "用例4b：回收后状态保持（无悬挂 Timer/重入）")
+	_check(not fatal_b.IsActive() and not fatal_b.visible, "用例4b：回收后状态保持（无悬挂 Timer/重入）")
 
 	# 复活玩家供清场收尾（复用既有公开接口）
 	player.set_dead(false)
@@ -147,7 +148,7 @@ func _ready() -> void:
 	player.set_physics_process(true)
 	GameState.health = 100.0
 	for child in main.get_children():
-		if child is Bullet:
+		if is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout  # 演出/高亮 tween 播完，避免退出时对象泄漏

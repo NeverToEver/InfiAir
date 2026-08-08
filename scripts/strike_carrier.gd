@@ -101,7 +101,9 @@ func retreat(victorious: bool) -> void:
 		# 受创冒烟：甲板几处爆点
 		var ws: float = GameState.world_scale
 		for i in 3:
-			Explosion.spawn_at(get_parent(), global_position + SOCKETS[i] * ws + Vector2(randf_range(-30.0, 30.0) * ws, 0.0), 0.8)
+			load("res://csharp/godot/Explosion.cs").SpawnAt(
+				get_parent(), global_position + SOCKETS[i] * ws + Vector2(randf_range(-30.0, 30.0) * ws, 0.0), 0.8
+			)  # M3a 起 Explosion 为 C#，静态方法经脚本资源调用
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 2.2)
 

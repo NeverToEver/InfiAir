@@ -5,6 +5,7 @@ extends Node
 ## 弹反后弹经过玩家不计擦弹（层排除）。
 
 var _failures: int = 0
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -16,10 +17,10 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 当前场内敌弹（玩家弹排除）
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
+func _enemy_bullets() -> Array:  # 随批次 A 重定型：C# 类不能作元素类型注解
+	var out: Array = []
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			out.append(child)
 	return out
 
@@ -53,7 +54,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -63,7 +64,7 @@ func _ready() -> void:
 	_check(GameState.score_multiplier() == 2, "用例4：当前难度 medium 分数倍率 ×2")
 	GameState.score = 0
 	_reset_hit_state(player)
-	var g1 := GameState.bullet_pool.fire(Vector2.DOWN, 100.0, 10, false)
+	var g1 = GameState.bullet_pool.Fire(Vector2.DOWN, 100.0, 10, false)
 	g1.position = Vector2(960.0, 760.0)  # 距玩家 40px（环 r=20），0.2s 后入环
 	await get_tree().create_timer(0.45).timeout
 	_check(GameState.score == 20, "用例1：单弹进入擦弹环计分（10 × 难度倍率 2 = 20）")
@@ -73,7 +74,7 @@ func _ready() -> void:
 	GameState.score = 0
 	_reset_hit_state(player)
 	player.position = Vector2(960.0, 800.0)
-	var g2 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var g2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	g2.position = Vector2(960.0, 785.0)  # 环内、受击盒外（距玩家 15px）
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.score == 20, "用例2：单弹进入环计 1 次分")
@@ -89,7 +90,7 @@ func _ready() -> void:
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	player.position = Vector2(960.0, 800.0)
-	var g3 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 12, false)
+	var g3 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 12, false)
 	g3.position = player.position  # 直接生成在受击盒内（area_entered 时刻已深入）
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.score == 0, "用例3：弹进入受击区不计擦弹")
@@ -99,13 +100,13 @@ func _ready() -> void:
 	# ================= 用例 5：弹池复用后擦弹标志复位 → 可再次擦弹 =================
 	GameState.score = 0
 	_reset_hit_state(player)
-	var g5 := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var g5 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	g5.position = Vector2(960.0, 785.0)
 	await get_tree().create_timer(0.1).timeout
 	_check(GameState.score == 20, "用例5：池弹擦弹计分")
-	g5.despawn()  # 回收进池
+	g5.Despawn()  # 回收进池
 	await get_tree().process_frame
-	var g5b := GameState.bullet_pool.fire(Vector2.DOWN, 0.0, 10, false)
+	var g5b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
 	g5b.position = Vector2(960.0, 785.0)
 	await get_tree().create_timer(0.1).timeout
 	_check(g5b == g5, "用例5：池复用取回同一实例")
@@ -116,7 +117,7 @@ func _ready() -> void:
 	GameState.score = 0
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var g6 := GameState.bullet_pool.fire(Vector2.RIGHT, 600.0, 12, false)
+	var g6 = GameState.bullet_pool.Fire(Vector2.RIGHT, 600.0, 12, false)
 	g6.position = player.position + Vector2(-30.0, 3.0)  # 水平弹道与环/受击盒边缘带相交
 	await get_tree().create_timer(0.2).timeout
 	_check(GameState.score == 20, "用例6：宽限帧擦过弹既计擦弹分")
@@ -126,15 +127,15 @@ func _ready() -> void:
 	# ================= 用例 7：弹反后弹经过玩家 → 不计擦弹（转玩家弹，层排除） =================
 	GameState.score = 0
 	_reset_hit_state(player)
-	var g7 := GameState.bullet_pool.fire(Vector2.DOWN, 200.0, 10, false)
+	var g7 = GameState.bullet_pool.Fire(Vector2.DOWN, 200.0, 10, false)
 	g7.position = Vector2(960.0, 900.0)  # 玩家下方 100px
-	g7.reflect()  # 弹反路径：转玩家弹 + 反射朝上，将穿过玩家
+	g7.Reflect()  # 弹反路径：转玩家弹 + 反射朝上，将穿过玩家
 	await get_tree().create_timer(0.6).timeout
 	_check(GameState.score == 0, "用例7：弹反后弹经过玩家不计擦弹")
 	await _free_enemy_bullets()
 
 	for child in main.get_children():
-		if child is Bullet:
+		if is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout  # 演出/粒子播完，避免退出时对象泄漏

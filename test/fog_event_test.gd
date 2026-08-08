@@ -55,11 +55,11 @@ func _wait_idle(manager: FogEventManager, timeout: float = 5.0) -> bool:
 	return manager.active_id() == &""
 
 
-func _player_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
+func _player_bullets() -> Array:
+	var out: Array = []
 	for child in get_node("Main").get_children():
-		var b := child as Bullet
-		if b != null and b.is_player_bullet:
+		var b = child if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) else null  # 随批次 C 重定型：C# 类不能经类名 as 转换
+		if b != null and b.IsPlayerBullet:
 			out.append(b)
 	return out
 
@@ -139,9 +139,9 @@ func _ready() -> void:
 		player.fire(shot_dir)
 	await get_tree().process_frame
 	for b in _player_bullets():
-		if absf(angle_difference(b.direction.angle(), shot_dir.angle())) > 0.1:
+		if absf(angle_difference(b.Direction.angle(), shot_dir.angle())) > 0.1:
 			deviated += 1
-		if b.speed < 0.8 * 1800.0:
+		if b.Speed < 0.8 * 1800.0:
 			misfired += 1
 	_check(deviated >= 1, "子弹错误：40 发出膛弹至少 1 发轨迹偏移（20° 抖动生效）")
 	_check(misfired >= 1, "子弹错误：40 发出膛弹至少 1 发失误慢速弹")

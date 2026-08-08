@@ -659,12 +659,12 @@ func _update_gatling(delta: float) -> void:
 			angle = center + half * Enemy.sin_fast((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
 		var dir := Vector2.UP.rotated(angle)
 		turret.global_rotation = dir.angle()
-		var b: Bullet = GameState.bullet_pool.fire(dir, GATLING_BULLET_SPEED, int(GATLING_DAMAGE * damage_mult()), true)
-		b.score_scale = GATLING_SCORE_SCALE
+		var b = GameState.bullet_pool.Fire(dir, GATLING_BULLET_SPEED, int(GATLING_DAMAGE * damage_mult()), true)
+		b.ScoreScale = GATLING_SCORE_SCALE
 		b.position = turret.global_position
 		# 比玩家弹更细更亮（2026-08-06 审计：原 b.scale 连带缩放 Area2D 碰撞形状——
 		# 命中半径 6→3.6×ws 判定变严；仅视觉缩放应作用于子 Sprite2D，池化复用自动复位）
-		var b_sprite := b.sprite_node()
+		var b_sprite = b.SpriteNode()
 		if b_sprite != null:
 			b_sprite.scale = Vector2(0.6, 0.6)
 		b.modulate = Color(1.4, 1.4, 1.1)
@@ -692,10 +692,10 @@ func _update_missiles(delta: float) -> void:
 		var dir: Vector2 = (t.global_position - dock).normalized()
 		if dir == Vector2.ZERO:
 			dir = Vector2.UP
-		var b: Bullet = GameState.bullet_pool.fire(dir, MISSILE_SPEED, int(MISSILE_DAMAGE * damage_mult()), true)
-		b.score_scale = MISSILE_SCORE_SCALE  # G030：独立常量（原复用 GATLING_SCORE_SCALE 语义混用）
-		b.splash_damage = MISSILE_SPLASH_DAMAGE
-		b.splash_radius = MISSILE_SPLASH_RADIUS
+		var b = GameState.bullet_pool.Fire(dir, MISSILE_SPEED, int(MISSILE_DAMAGE * damage_mult()), true)
+		b.ScoreScale = MISSILE_SCORE_SCALE  # G030：独立常量（原复用 GATLING_SCORE_SCALE 语义混用）
+		b.SplashDamage = MISSILE_SPLASH_DAMAGE
+		b.SplashRadius = MISSILE_SPLASH_RADIUS
 		b.position = dock
 		# 橙体高亮（原作爆炸导弹视觉；精灵随速度方向旋转）
 		b.modulate = Color(2.0, 1.1, 0.5)

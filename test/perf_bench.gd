@@ -35,7 +35,8 @@ func _ready() -> void:
 	for i in FRAMES:
 		await get_tree().physics_frame
 		if i % EXPLOSION_EVERY == 0:
-			Explosion.spawn_at(main, Vector2(randf_range(200.0, 1700.0), randf_range(200.0, 800.0)))
+			# 随批次 D 重定型：Explosion 已迁 C#（spawn_at→SpawnAt），静态方法经脚本资源调用
+			load("res://csharp/godot/Explosion.cs").SpawnAt(main, Vector2(randf_range(200.0, 1700.0), randf_range(200.0, 800.0)), 1.0)
 		if i % FIRE_EVERY == 0:
 			player.fire(Vector2.UP.rotated(randf_range(-0.6, 0.6)))
 		if i % 10 == 0:

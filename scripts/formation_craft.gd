@@ -74,6 +74,6 @@ func take_damage(amount: int, _score_scale: float = 1.0) -> void:
 func die() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
 	GameState.shake(_shake_die)
-	Explosion.spawn_at(get_parent(), global_position, 1.0)
+	load("res://csharp/godot/Explosion.cs").SpawnAt(get_parent(), global_position, 1.0)  # M3a 起 Explosion 为 C#，静态方法经脚本资源调用
 	died.emit(self)
 	queue_free()

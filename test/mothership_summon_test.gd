@@ -90,7 +90,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.4).timeout
 	var dock_fire := false
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) and child.IsPlayerBullet and child.ScoreScale < 1.0:  # 随批次 C：C# 类不能经类名 is
 			dock_fire = true
 	_check(dock_fire, "火力掩护：DOCKING 态即开火（不耗弹匣）")
 	_check(ms.mag_cells() == ms.MAG_CELLS, "火力掩护：DOCKING 不耗驻留弹匣")

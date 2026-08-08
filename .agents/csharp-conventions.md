@@ -14,7 +14,12 @@
 - **Async（`csharp/godot/Coroutine.cs`）**：游戏内计时一律 `CreateTimer` + `ToSignal`，禁止裸 `Task.Delay`（线程池恢复，访问 Godot API 线程不安全）；挂起 await 无法取消 → 等待以 SceneTree 计时器兜底 + 恢复后 `GodotObject.IsInstanceValid` 判活；禁止裸 `async void` 生命周期（拆 `async Task` + try/catch）；await 段异常统一 try/catch。
 - **信号**：C#↔C# 用 C# event（`+=`/`-=`，`_ExitTree` 配对断开——自定义信号不随接收方释放自动断开，弹幕"发射→命中→释放"链条高频触发 `ObjectDisposedException`）；跨语言用 `Connect(SignalName.X, Callable.From(...))`；`[Signal]` 委托名必须 `XxxEventHandler` 结尾；发射用 `EmitSignal(SignalName.X, ...)` 而非 `Invoke`。
 - **热路径红线（每帧零托管分配）**：`_Process` 内禁 StringName/string 构造、`GetNodesInGroup`、LINQ、闭包捕获；属性缓存局部变量；用 `SignalName/MethodName/PropertyName` 常量；池显式进出（C# RefCounted 由 GC 延迟回收，不依赖引用计数）；跨语言调用禁止进入每帧热路径。
-- **跨语言过渡**：GDScript→C# 沿用薄壳模式（`load("res://csharp/godot/X.cs").new()`，方法 PascalCase 注册，GDScript 动态调用须同名）；C#→GDScript 仅动态派发 `Call()/Get()/Set()`（untyped，调用点注释"随批次 X 重定型"）；跨语言互不消费 async（边界一律信号 + `ToSignal`）。
+- **跨语言过渡（2026-08-08 M3a 实跑验证的规则）**：
+  - **GDScript 不能以类名引用 C# 类**：类型注解（`: Bullet`）、标识符、静态成员按类名访问全部解析失败——被迁移类的所有 GDScript 类型注解改 untyped，调用一律走实例或脚本资源；
+  - C# 实例方法/属性：PascalCase，GDScript 可经引用调用（属性 getter 已验证）；
+  - C# **静态方法**：`load("res://csharp/godot/X.cs").Method(args)` 可调（已验证）；**静态属性/常量经脚本资源不可访问**（实测 "Invalid access"）→ 需转静态方法（如 `GetCollisionRadius()`）或实例访问器；
+  - `load("...cs").new()` 返回无类型 Variant，GDScript 赋值禁用 `:=` 推断；
+  - C#→GDScript 仅动态派发 `Call()/Get()/Set()`（snake_case 名；调用点注释"随批次 X 重定型"）；跨语言互不消费 async（边界一律信号 + `ToSignal`）。
 - **GDScript 调用点适配**：被迁移类的 class_name 类型注解在 GDScript 调用点改 untyped（如 `: Starfield` → `:=`），snake_case 动态调用改 PascalCase（`origin()` → `Origin()`）；随调用方自身迁移批次重定型。
 - **新 C# 测试/断言**：纯逻辑 → `tests-csharp/` xUnit；场景级断言 → C# 脚本化断言场景（Node + `_Ready` 断言 + `GetTree().Quit(failures)` + 入口 try/catch 保证异常也非零退出）。
 

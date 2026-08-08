@@ -23,10 +23,11 @@ func _spawn_test_enemy(config: Dictionary, strategy: StringName, p_difficulty: f
 
 
 ## 当前场内敌弹（玩家弹排除）
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+func _enemy_bullets() -> Array:
+	var out: Array = []
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet:
 			out.append(child)
 	return out
 
@@ -79,7 +80,7 @@ func _ready() -> void:
 	spread_e.set_fire_timer(0.1)
 	spread_e.position = Vector2(960.0, 300.0)
 	await get_tree().create_timer(0.5).timeout
-	var fan: Array[Bullet] = []
+	var fan: Array = []  # M3a：Array[Bullet] 不可用（C# 类名不能作泛型参数）
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"spread":
 			fan.append(b)
@@ -87,7 +88,7 @@ func _ready() -> void:
 	if fan.size() == 5:
 		var angles: Array[float] = []
 		for b in fan:
-			angles.append(b.direction.angle())
+			angles.append(b.Direction.angle())
 		angles.sort()
 		var fan_ok := true
 		for i in 4:
@@ -95,7 +96,7 @@ func _ready() -> void:
 				fan_ok = false
 		_check(fan_ok, "spread 弹向以瞄准方向为中心均匀扇形展开")
 		_check(
-			is_equal_approx(fan[0].speed, spread_e.SPREAD_BULLET_SPEED) and fan[0].speed < spread_e.ENEMY_BULLET_SPEED, "spread 弹速稍慢于普通弹"
+			is_equal_approx(fan[0].Speed, spread_e.SPREAD_BULLET_SPEED) and fan[0].Speed < spread_e.ENEMY_BULLET_SPEED, "spread 弹速稍慢于普通弹"
 		)
 	spread_e.queue_free()
 	_free_enemy_bullets()
@@ -108,13 +109,13 @@ func _ready() -> void:
 	laser_e.set_fire_timer(0.1)
 	laser_e.position = Vector2(960.0, 300.0)
 	await get_tree().create_timer(0.4).timeout
-	var lasers: Array[Bullet] = []
+	var lasers: Array = []  # M3a：Array[Bullet] 不可用（C# 类名不能作泛型参数）
 	for b in _enemy_bullets():
 		if b.has_meta("bullet_type") and b.get_meta("bullet_type") == &"laser":
 			lasers.append(b)
 	_check(lasers.size() == 1, "laser 敌机发射单发弹")
 	if lasers.size() == 1:
-		_check(lasers[0].speed > laser_e.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
+		_check(lasers[0].Speed > laser_e.ENEMY_BULLET_SPEED, "laser 弹速显著更快")
 		_check((lasers[0].get_node("Sprite2D") as Sprite2D).scale.x > 1.5, "laser 弹细长化表现")
 	laser_e.queue_free()
 	_free_enemy_bullets()

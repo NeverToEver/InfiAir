@@ -568,14 +568,14 @@ func _spawn_enemy_bullet(dir: Vector2, bullet_speed: float, p_type: StringName) 
 		dmg = BULLET_DAMAGE_SPREAD
 	elif p_type == &"laser":
 		dmg = BULLET_DAMAGE_LASER
-	var b: Bullet = GameState.bullet_pool.fire(dir, bullet_speed, dmg, false)
+	var b = GameState.bullet_pool.Fire(dir, bullet_speed, dmg, false)  # M3a 起 Bullet 为 C# 类：untyped + PascalCase
 	if b == null:
 		return  # P2-3：同屏敌弹硬上限
 	b.position = position
 	b.set_meta("bullet_type", p_type)
 	if p_type == &"laser":
 		# 细长高亮快速弹（polygon 尖端朝 +x，即飞行方向）
-		var poly := b.sprite_node()  # C24：缓存引用，不再每次 get_node
+		var poly = b.SpriteNode()  # C24：缓存引用，不再每次 get_node（M3a：Bullet 为 C# 类，untyped 调用不可 := 推断）
 		if poly != null:
 			poly.scale = Vector2(2.2, 0.55)
 			poly.self_modulate = Color(1.0, 0.85, 0.35)  # P0-3：Sprite2D 无 color，用 self_modulate
@@ -642,6 +642,6 @@ func die() -> void:
 	GameState.try_lifesteal()
 	GameState.play_sfx(GameState.SFX_EXPLOSION_BIG if is_elite else GameState.SFX_EXPLOSION)
 	GameState.shake(_shake_die_elite if is_elite else _shake_die_normal)
-	Explosion.spawn_at(get_parent(), global_position, 1.5 if is_elite else 1.0)
+	load("res://csharp/godot/Explosion.cs").SpawnAt(get_parent(), global_position, 1.5 if is_elite else 1.0)
 	died.emit(self)
 	_despawn()

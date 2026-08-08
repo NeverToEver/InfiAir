@@ -42,7 +42,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or child.has_method("IsActive"):
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -132,8 +132,9 @@ func _ready() -> void:
 	# 5. 长按 K 放弃出击：蓄力可取消，蓄满 3s 自毁进死亡结算
 	# 制造敌弹供死亡回放录制（B 梯队：回放重演死因片段；蓄力 3.3s 期间 main._process
 	# 持续采样填充环形缓冲）
-	var eb := (load("res://scenes/bullet.tscn") as PackedScene).instantiate() as Bullet
-	eb.setup(Vector2.DOWN, 200.0, 1, false)
+	# M3a：Bullet 为 C# 类——instantiate 后不能 as Bullet，直接 untyped（方法/属性 PascalCase）
+	var eb = (load("res://scenes/bullet.tscn") as PackedScene).instantiate()
+	eb.Setup(Vector2.DOWN, 200.0, 1, false)
 	eb.position = Vector2(960.0, 300.0)
 	main.add_child(eb)
 	await get_tree().process_frame

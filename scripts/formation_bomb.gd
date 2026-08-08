@@ -93,7 +93,7 @@ func _process(delta: float) -> void:
 ## 引爆：爆炸 + 音效 + 震屏；对 player_hitbox 距离判定（≤ AoE 半径才结算，
 ## 无敌/单帧已结算/闪避由 Player.take_damage 返回 false 挡掉）
 func _detonate() -> void:
-	Explosion.spawn_at(get_parent(), global_position, 0.9)
+	load("res://csharp/godot/Explosion.cs").SpawnAt(get_parent(), global_position, 0.9)  # M3a 起 Explosion 为 C#，静态方法经脚本资源调用
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
 	GameState.shake(GameState.cfg("effects.shake.enemy_die", 5.0))
 	var hitbox := GameState.player_hitbox

@@ -9,6 +9,10 @@ const FIRE_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/bullet_fire_c.wav"),
 ]
 
+## M3a：Bullet/Explosion 已迁 C#，经 const 脚本资源实例化（gdlint duplicated-load 防重复 load）
+var _bullet_script := load("res://csharp/godot/Bullet.cs")
+var _explosion_script := load("res://csharp/godot/Explosion.cs")
+
 ## 入场动画结束（缓移段收尾）后发出，main 据此恢复敌机生成
 signal entry_finished
 
@@ -967,13 +971,13 @@ func _fire(aim: Vector2) -> void:
 			aim_rot = aim_rot.rotated(deg_to_rad(randf_range(-_fog_bullet_jitter_deg, _fog_bullet_jitter_deg)))
 		if _fog_misfire_chance > 0.0 and randf() < _fog_misfire_chance:
 			bspeed *= 0.45
-		var b: Bullet = GameState.bullet_pool.fire(aim_rot, bspeed, loop_damage, true)
-		b.pierce = pierce
-		b.explosive = explosive
+		var b = GameState.bullet_pool.Fire(aim_rot, bspeed, loop_damage, true)  # M3a 重定型：Bullet 为 C#，untyped + PascalCase
+		b.Pierce = pierce
+		b.Explosive = explosive
 		if homing_target != null:
-			b.homing_target = homing_target
-			b.homing_time = HOMING_TIME
-			b.homing_turn_rate = homing_rate
+			b.HomingTarget = homing_target
+			b.HomingTime = HOMING_TIME
+			b.HomingTurnRate = homing_rate
 		b.position = position + aim_rot * _muzzle_offset
 	_audio.stream = FIRE_SOUNDS[_sound_index]
 	_sound_index = (_sound_index + 1) % FIRE_SOUNDS.size()
@@ -998,10 +1002,10 @@ func take_damage(amount: float = 1.0, from_pos: Vector2 = Vector2.INF) -> bool:
 func clear_nearby_enemy_bullets() -> void:
 	var bullets := GameState.enemy_bullets
 	for i in range(bullets.size() - 1, -1, -1):
-		var b := bullets[i] as Bullet
-		if b != null and not b.is_player_bullet:
+		var b = bullets[i]
+		if b != null and not b.IsPlayerBullet:
 			if b.global_position.distance_to(global_position) <= BULLET_CLEAR_RADIUS:
-				b.despawn()
+				b.Despawn()
 
 
 ## 机制二（2026-08-03）：擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。
@@ -1010,8 +1014,8 @@ func clear_nearby_enemy_bullets() -> void:
 ## 正常从环外飞入的弹在进入瞬间必位于环形带（受击盒外），不受此检查影响。
 ## 弹反后的弹转玩家弹（层排除，天然不触发）。纯得分：add_score 内按难度倍率入账。
 func _on_graze_entered(area: Area2D) -> void:
-	var b := area as Bullet
-	if b == null or b.is_player_bullet or not b.is_active():
+	var b = area if area.get_script() == _bullet_script else null
+	if b == null or b.IsPlayerBullet or not b.IsActive():
 		return
 	# 受击区排除：弹与受击盒重叠（中心距 < 盒半径 + 弹碰撞半径）不计擦弹——只环形带计分。
 	# 物理回调内 overlaps_area 会返回陈旧结果（实测 false 误放行受击盒内弹），改单次距离
@@ -1019,15 +1023,15 @@ func _on_graze_entered(area: Area2D) -> void:
 	# 仅受击盒内生成/高速穿帧等边界情形在此拦截。
 	# 注意 area_entered 信号延迟 flush：回调执行时弹可能已被清弹回收（位置移到池位），
 	# 上面的 is_active 守卫已排除回收弹；仍在场的弹以 flush 时刻实时位置判定。
-	if global_position.distance_to(area.global_position) <= _hitbox_radius + Bullet.COLLISION_RADIUS * GameState.world_scale:
+	if global_position.distance_to(area.global_position) <= _hitbox_radius + _bullet_script.GetCollisionRadius() * GameState.world_scale:
 		return
-	if not b.try_graze():
+	if not b.TryGraze():
 		return
 	GameState.add_score(GRAZE_SCORE)
 	# 反馈三件套：机身金色短闪 + 小粒子迸发 + 音效（缺专用擦弹音效，暂用 buff_pick 占位，
 	# 登记为后续音频项——计划书 §3.3）
 	_visuals.set_graze_flash(GRAZE_FLASH_TIME)
-	Explosion.spawn_at(get_parent(), global_position, 0.25)
+	_explosion_script.SpawnAt(get_parent(), global_position, 0.25)
 	GameState.play_sfx(GameState.SFX_BUFF_PICK, -8.0)
 
 
@@ -1055,8 +1059,8 @@ func parry_cooldown_remaining() -> float:
 func _on_parry_shield_entered(area: Area2D) -> void:
 	if _parry.phase != PlayerParry.ParryPhase.ACTIVE:
 		return
-	var b := area as Bullet
-	if b == null or b.is_player_bullet:
+	var b = area if area.get_script() == _bullet_script else null
+	if b == null or b.IsPlayerBullet:
 		return
 	# 扇形精确判定（圆盘触发范围大于扇区，此处过滤扇区外弹；弹中心判定，边界 2.4px 误差可接受）
 	var rel := area.global_position - global_position
@@ -1065,9 +1069,9 @@ func _on_parry_shield_entered(area: Area2D) -> void:
 	var arc := deg_to_rad(PARRY_ARC_DEG) * 0.5
 	if absf(angle_difference(rel.angle(), -PI / 2.0)) > arc:
 		return
-	b.reflect()
+	b.Reflect()
 	# 2026-08-03 审计：爆点取弹反命中处（盾缘），而非玩家中心（原实现爆点偏移到机腹）
-	Explosion.spawn_at(get_parent(), area.global_position, 0.5)
+	_explosion_script.SpawnAt(get_parent(), area.global_position, 0.5)
 	GameState.play_sfx(GameState.SFX_DASH, -6.0)  # 弹反音效占位（缺专用资产，登记后续音频项）
 
 
@@ -1099,7 +1103,7 @@ func _die() -> void:
 	if _parry_shield != null:
 		_parry_shield.monitoring = false
 	set_physics_process(false)
-	Explosion.spawn_at(get_parent(), position, 2.0)
+	_explosion_script.SpawnAt(get_parent(), position, 2.0)
 
 
 ## 进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead；

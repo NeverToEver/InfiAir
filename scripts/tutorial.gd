@@ -395,7 +395,7 @@ func _finish() -> void:
 	GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	# 清场
 	for child in get_children():
-		if child is Enemy or child is Boss or child is Bullet or child is Mothership:
+		if child is Enemy or child is Boss or child.get_script() == load("res://csharp/godot/Bullet.cs") or child is Mothership:
 			child.queue_free()
 	_title_label.text = tr("TUT_DONE")
 	_set_objective_tr("TUT_DONE_DESC")

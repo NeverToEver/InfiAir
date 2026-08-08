@@ -903,7 +903,7 @@ func _transition_cleanup() -> void:
 	if not CLEAR_ON_SHIFT:
 		return
 	for child in get_parent().get_children():
-		if child is Bullet or child is FormationBomb:
+		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) or child is FormationBomb:  # M3a 起 Bullet 为 C# 类，不能经类名 is 判定
 			child.queue_free()
 	var player := GameState.player_ref as Player
 	if player != null and player.invincible_remaining() < TRANSITION_INVINCIBLE:
@@ -1055,7 +1055,7 @@ func _die() -> void:
 	GameState.add_boss_kill(_score_scale)
 	# 吸血 buff：Boss 击杀同样触发（对齐原作 boss_manager 路径，每帧至多一次）
 	GameState.try_lifesteal()
-	Explosion.spawn_boss_sequence(get_parent(), global_position)
+	load("res://csharp/godot/Explosion.cs").SpawnBossSequence(get_parent(), global_position)  # M3a 起 Explosion 为 C#，静态方法经脚本资源调用
 	died.emit()
 	queue_free()
 

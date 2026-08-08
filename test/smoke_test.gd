@@ -4,6 +4,7 @@ extends Node
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 
 var _failures: int = 0
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -101,7 +102,7 @@ func _ready() -> void:
 	# 停掉生成器并清场（敌机/敌弹），保证后续断言确定性
 	spawner.set_process(false)
 	for child in get_node("Main").get_children():
-		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
 			child.queue_free()
 	await get_tree().process_frame
 	# 后续各段需长时间真实等待，期间弹幕可能命中玩家：测试窗口内先开无敌
@@ -196,7 +197,7 @@ func _ready() -> void:
 		buff_ui.pick_buff(&"rapid_fire")
 	# 清理小怪与弹幕
 	for child in get_node("Main").get_children():
-		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -232,7 +233,7 @@ func _ready() -> void:
 	get_tree().paused = false
 	# 清理弹幕
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -240,11 +241,11 @@ func _ready() -> void:
 	GameState.add_buff(&"piercing")
 	GameState.add_buff(&"explosive")
 	player.fire(Vector2.DOWN)
-	var fired: Bullet = null
+	var fired = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in get_node("Main").get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			fired = child
-	_check(fired != null and fired.pierce == 1 and fired.explosive, "穿透/爆炸弹 buff 作用于子弹")
+	_check(fired != null and fired.Pierce == 1 and fired.Explosive, "穿透/爆炸弹 buff 作用于子弹")
 	if fired != null:
 		fired.queue_free()
 
@@ -320,7 +321,7 @@ func _ready() -> void:
 	# 3.10 母舰（原作对齐）：蓄力召唤 → 到位自动对接（点吸附）→ 驻留弹匣 → 提前离舰
 	# 清理可能残留的敌弹，避免干扰生命断言
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	var main := get_node("Main")
@@ -370,7 +371,7 @@ func _ready() -> void:
 	# 回收牵引期火力掩护（DOCKING 态即开火，不耗驻留弹匣）
 	var dock_fire := false
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet and child.ScoreScale < 1.0:  # 随批次 A 重定型
 			dock_fire = true
 	_check(dock_fire, "回收牵引期火力掩护开火")
 	# 对接 1.5s + 补给 0.5s 后进入驻留
@@ -385,9 +386,9 @@ func _ready() -> void:
 	var gatling_found := false
 	var missile_found := false
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet and child.score_scale < 1.0:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet and child.ScoreScale < 1.0:  # 随批次 A 重定型
 			gatling_found = true
-			if child.splash_damage > 0:
+			if child.SplashDamage > 0:
 				missile_found = true
 	_check(gatling_found, "加特林扫射开火")
 	_check(missile_found, "导弹齐射开火（A15）")
@@ -437,7 +438,7 @@ func _ready() -> void:
 	# 组判定清场：FormationCraft/TurretBattery 非 Enemy 子类但注册 enemy 组，
 	# 漏清会被 b33 抢先命中造成抖动；在飞流弹一并清掉
 	for child in main.get_children():
-		if (child.is_in_group("enemy") and not (child is Boss)) or child is Bullet:
+		if (child.is_in_group("enemy") and not (child is Boss)) or is_instance_of(child, _bullet_script):  # 随批次 A 重定型
 			child.queue_free()
 	await get_tree().process_frame
 	var e33 := ENEMY_SCENE.instantiate() as Enemy
@@ -445,9 +446,9 @@ func _ready() -> void:
 	e33.hp = 1
 	e33.position = Vector2(960.0, 400.0)
 	main.add_child(e33)
-	var b33 := (load("res://scenes/bullet.tscn") as PackedScene).instantiate() as Bullet
-	b33.setup(Vector2.DOWN, 800.0, 1, true)
-	b33.score_scale = 1.0 / 3.0
+	var b33 = (load("res://scenes/bullet.tscn") as PackedScene).instantiate()  # 随批次 A 重定型：C# 类不能经 as 转换
+	b33.Setup(Vector2.DOWN, 800.0, 1, true)
+	b33.ScoreScale = 1.0 / 3.0
 	b33.position = e33.position
 	main.add_child(b33)
 	var score_before_33 := GameState.score
@@ -560,13 +561,13 @@ func _ready() -> void:
 	# 弹丸清场：敌弹与编队炸弹全清（FormationBomb 非 Bullet 类，原遍历式清场会漏）
 	var bullet_left := false
 	for child in main.get_children():
-		if (child is Bullet and not child.is_player_bullet) or child is FormationBomb:
+		if (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet) or child is FormationBomb:  # 随批次 A 重定型
 			bullet_left = true
 	_check(not bullet_left, "轨道打击清弹（含编队炸弹）")
 	# 恢复刷怪会干扰后续断言，重新停掉生成器并清场
 	spawner.set_process(false)
 	for child in main.get_children():
-		if child is Enemy or (child is Bullet and not child.is_player_bullet):
+		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -662,21 +663,21 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	player.set_auto_fire(false)
-	var ab: Bullet = null
+	var ab = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			ab = child
 			break
 	_check(ab != null, "入框期间自动开火")
 	if ab != null:
-		_check(ab.homing_target == aim_e, "入框出膛弹绑定追踪目标")
-		var dir0: Vector2 = ab.direction
+		_check(ab.HomingTarget == aim_e, "入框出膛弹绑定追踪目标")
+		var dir0: Vector2 = ab.Direction
 		await get_tree().physics_frame
 		await get_tree().physics_frame
 		await get_tree().physics_frame
 		await get_tree().physics_frame
 		# 直线弹方向恒定；方向发生偏转即追踪转向生效（lerp_angle 恒朝目标）
-		_check(absf(angle_difference(ab.direction.angle(), dir0.angle())) > 0.005, "追踪弹出膛后向目标转向")
+		_check(absf(angle_difference(ab.Direction.angle(), dir0.angle())) > 0.005, "追踪弹出膛后向目标转向")
 		ab.queue_free()
 	# 准星不在任何标记框内 → 朝准星直射，无追踪绑定
 	player.aim_point_override = Vector2(200.0, 950.0)
@@ -687,15 +688,15 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	player.set_auto_fire(false)
-	var ab2: Bullet = null
+	var ab2 = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			ab2 = child
 			break
-	_check(ab2 != null and ab2.homing_target == null, "未入框出膛弹无追踪目标")
+	_check(ab2 != null and ab2.HomingTarget == null, "未入框出膛弹无追踪目标")
 	if ab2 != null:
 		var want2: Vector2 = (player.aim_point() - player.global_position).normalized()
-		_check(ab2.direction.dot(want2) > 0.99, "未入框子弹朝准星直射")
+		_check(ab2.Direction.dot(want2) > 0.99, "未入框子弹朝准星直射")
 		ab2.queue_free()
 	player.aim_point_override = Vector2.INF
 	aim_e.queue_free()
@@ -797,13 +798,13 @@ func _ready() -> void:
 	var wdir: Vector2 = (player.aim_point() - player.global_position).normalized()
 	player.reset_fire_cooldown()
 	player.fire(wdir)
-	var wb: Bullet = null
+	var wb = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			wb = child
 			break
-	_check(wb != null and wb.homing_target == aim_e2, "框外锥内弱追踪绑定目标")
-	var wb_rate: float = wb.homing_turn_rate if wb != null else 0.0
+	_check(wb != null and wb.HomingTarget == aim_e2, "框外锥内弱追踪绑定目标")
+	var wb_rate: float = wb.HomingTurnRate if wb != null else 0.0
 	if wb != null:
 		_check(wb_rate > 0.1 and wb_rate < full_rate * 0.75, "弱追踪转向率介于 (0, 全追踪) 之间")
 		wb.queue_free()
@@ -813,15 +814,15 @@ func _ready() -> void:
 	var wdir2: Vector2 = (player.aim_point() - player.global_position).normalized()
 	player.reset_fire_cooldown()
 	player.fire(wdir2)
-	var wb2: Bullet = null
+	var wb2 = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			wb2 = child
 			break
 	# L16：弱断言修复——分支内断言补生成前置（弹未生成时用例不得静默通过）
 	_check(wb2 != null, "框沿外 8px 处生成弱追踪弹")
 	if wb2 != null:
-		_check(wb2.homing_turn_rate < wb_rate, "锥内转向率随角距渐变（框缘更低）")
+		_check(wb2.HomingTurnRate < wb_rate, "锥内转向率随角距渐变（框缘更低）")
 		wb2.queue_free()
 	await get_tree().process_frame  # 同上：等 wb2 离场
 	# 框沿外 30px（角距 ~8.5° > 6°）→ 直射无追踪
@@ -829,12 +830,12 @@ func _ready() -> void:
 	var wdir3: Vector2 = (player.aim_point() - player.global_position).normalized()
 	player.reset_fire_cooldown()
 	player.fire(wdir3)
-	var wb3: Bullet = null
+	var wb3 = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for child in main.get_children():
-		if child is Bullet and child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			wb3 = child
 			break
-	_check(wb3 != null and wb3.homing_target == null, "锥外出膛弹无追踪（直射）")
+	_check(wb3 != null and wb3.HomingTarget == null, "锥外出膛弹无追踪（直射）")
 	if wb3 != null:
 		wb3.queue_free()
 	player.aim_point_override = Vector2.INF

@@ -26,8 +26,9 @@ func _wait_real(sec: float) -> void:
 ## 在场狂暴弹幕弹丸总数（快照/ACTIVE 波次/RELEASE 波次共用 laser + enrage_ring 两种 meta）
 func _count_enrage_bullets() -> int:
 	var n := 0
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet and child.has_meta("bullet_type"):
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
 			var t: StringName = child.get_meta("bullet_type")
 			if t == &"laser" or t == &"enrage_ring":
 				n += 1
@@ -35,8 +36,9 @@ func _count_enrage_bullets() -> int:
 
 
 func _clear_enemy_bullets() -> void:
-	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+	for child: Variant in get_node("Main").get_children():
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
+		if child.has_method("IsActive") and not child.IsPlayerBullet:
 			child.queue_free()
 	await get_tree().process_frame
 

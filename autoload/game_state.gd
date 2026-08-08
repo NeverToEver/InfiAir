@@ -428,26 +428,26 @@ var player_hitbox: Area2D = null:
 	set(value):
 		_registry.PlayerHitbox = value
 ## 子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）
-var bullet_pool: BulletPool = null:
+var bullet_pool = null:  # M3a 起 BulletPool 为 C# 类，GDScript 不能以类名作类型注解（untyped）
 	get:
 		return _registry.BulletPool
 	set(value):
 		_registry.BulletPool = value
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
-var enemy_pool: EnemyPool = null:
+var enemy_pool: EnemyPool = null:  # M3b 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
 	get:
 		return _registry.EnemyPool
 	set(value):
 		_registry.EnemyPool = value
 ## 辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）
-var aim_frame_layer: AimFrameLayer = null:
+var aim_frame_layer: AimFrameLayer = null:  # M3c 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
 	get:
 		return _registry.AimFrameLayer
 	set(value):
 		_registry.AimFrameLayer = value
 ## 触屏虚拟输入层实例（mobile touch，由 main.gd 在 _ready 时创建并登记；
 ## player.aim_point 查询触屏瞄准基准）
-var virtual_controls: VirtualControls = null:
+var virtual_controls: VirtualControls = null:  # M5 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
 	get:
 		return _registry.VirtualControls
 	set(value):
@@ -513,12 +513,12 @@ func count_enemies(predicate: Callable = Callable()) -> int:
 	return count
 
 
-## P0-1：敌弹注册/注销转发（bullet.gd 维护）
-func register_enemy_bullet(b: Bullet) -> void:
+## P0-1：敌弹注册/注销转发（bullet.gd 维护；M3a 起 Bullet 为 C# 类，参数 untyped）
+func register_enemy_bullet(b) -> void:
 	_registry.RegisterEnemyBullet(b)
 
 
-func unregister_enemy_bullet(b: Bullet) -> void:
+func unregister_enemy_bullet(b) -> void:
 	_registry.UnregisterEnemyBullet(b)
 
 

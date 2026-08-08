@@ -83,6 +83,7 @@ var _player: Player = null
 var _spawner = null
 var _buff_ui: CanvasLayer = null
 var _boss: Boss = null
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 D 重定型：Bullet 已迁 C#，as Bullet 改经脚本引用判定
 
 # bot 状态
 var _move_target := Vector2.ZERO
@@ -667,9 +668,9 @@ func _update_movement(now: int) -> void:
 	# 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和
 	var dodge := Vector2.ZERO
 	for child in _main.get_children():
-		var b := child as Bullet
-		if b != null:
-			if not b.is_player_bullet:
+		var b = child
+		if is_instance_of(b, _bullet_script):
+			if not b.IsPlayerBullet:
 				var d: float = _player.position.distance_to(b.position)
 				if d < 240.0 and d > 1.0:
 					dodge += (_player.position - b.position) / d * (1.0 - d / 240.0) * 2.0
@@ -744,8 +745,8 @@ func _update_dash(now: int) -> void:
 		return
 	var threat := 0.0
 	for child in _main.get_children():
-		var b := child as Bullet
-		if b != null and not b.is_player_bullet:
+		var b = child
+		if is_instance_of(b, _bullet_script) and not b.IsPlayerBullet:
 			var d: float = _player.position.distance_to(b.position)
 			if d < 240.0:
 				threat += 1.0 - d / 240.0
@@ -1009,9 +1010,9 @@ func _snapshot(now: int) -> void:
 	var p_bullets := 0
 	var e_bullets := 0
 	for child in _main.get_children():
-		var b := child as Bullet
-		if b != null:
-			if b.is_player_bullet:
+		var b = child
+		if is_instance_of(b, _bullet_script):
+			if b.IsPlayerBullet:
 				p_bullets += 1
 			else:
 				e_bullets += 1
@@ -1200,9 +1201,9 @@ func _checks(now: int) -> void:
 	var e_bullets := 0
 	var replay_found: Node = null  # B 梯队：死亡回放演出节点（同遍历检测）
 	for child in _main.get_children():
-		var b := child as Bullet
-		if b != null:
-			if b.is_player_bullet:
+		var b = child
+		if is_instance_of(b, _bullet_script):
+			if b.IsPlayerBullet:
 				p_bullets += 1
 			else:
 				e_bullets += 1

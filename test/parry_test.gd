@@ -7,6 +7,7 @@ extends Node
 ## 与宽限帧/擦弹正交。
 
 var _failures: int = 0
+var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -17,10 +18,10 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
-func _enemy_bullets() -> Array[Bullet]:
-	var out: Array[Bullet] = []
+func _enemy_bullets() -> Array:  # 随批次 A 重定型：C# 类不能作元素类型注解
+	var out: Array = []
 	for child in get_node("Main").get_children():
-		if child is Bullet and not child.is_player_bullet:
+		if is_instance_of(child, _bullet_script) and not child.IsPlayerBullet:  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			out.append(child)
 	return out
 
@@ -34,7 +35,7 @@ func _free_enemy_bullets() -> void:
 ## 清理全部弹丸（含弹反后的玩家弹——防旧弹反弹命中新用例目标）
 func _free_all_bullets() -> void:
 	for child in get_node("Main").get_children():
-		if child is Bullet:
+		if is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -121,7 +122,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)
 	for child in main.get_children():
-		if child is Enemy or child is Bullet:
+		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -130,13 +131,13 @@ func _ready() -> void:
 
 	# ================= 场景级：ACTIVE 弹反属性 =================
 	await _await_active(player)
-	var pb := GameState.bullet_pool.fire(Vector2.DOWN, 200.0, 10, false)
+	var pb = GameState.bullet_pool.Fire(Vector2.DOWN, 200.0, 10, false)
 	pb.position = Vector2(960.0, 770.0)  # 玩家上方 30px（机头前方扇区内）
 	await get_tree().create_timer(0.1).timeout
-	_check(pb.is_player_bullet, "弹反：ACTIVE 期盾区敌弹被弹反（转玩家弹）")
-	_check(pb.direction.y < 0.0, "弹反：方向镜面反射（y 取反，朝上返回）")
-	_check(is_equal_approx(pb.speed, 400.0), "弹反：speed ×2.0（200→400）")
-	_check(pb.damage == 15, "弹反：damage = 原 ×1.5 四舍五入（10→15）")
+	_check(pb.IsPlayerBullet, "弹反：ACTIVE 期盾区敌弹被弹反（转玩家弹）")
+	_check(pb.Direction.y < 0.0, "弹反：方向镜面反射（y 取反，朝上返回）")
+	_check(is_equal_approx(pb.Speed, 400.0), "弹反：speed ×2.0（200→400）")
+	_check(pb.Damage == 15, "弹反：damage = 原 ×1.5 四舍五入（10→15）")
 	await _free_all_bullets()  # 清掉反弹的玩家弹（防其命中后续用例目标）
 
 	# ================= 弹反命中普通敌机（1.5 倍伤害结算） =================
@@ -145,7 +146,7 @@ func _ready() -> void:
 	target.hp = 100
 	target.position = Vector2(960.0, 300.0)
 	await _await_active(player)
-	var rb := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 10, false)
+	var rb = GameState.bullet_pool.Fire(Vector2.DOWN, 300.0, 10, false)
 	rb.position = Vector2(960.0, 770.0)
 	await get_tree().create_timer(1.2).timeout  # 弹反后 600px/s 飞 470px ≈ 0.78s（余量防偶发）
 	_check(is_instance_valid(target) and target.hp == 85, "弹反：命中普通敌机按 15 伤害结算（100→85）")
@@ -158,10 +159,10 @@ func _ready() -> void:
 	boss.position = Vector2(960.0, 300.0)
 	var boss_hp0: float = boss.hp
 	await _await_active(player)
-	var bb := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 10, false)
+	var bb = GameState.bullet_pool.Fire(Vector2.DOWN, 300.0, 10, false)
 	bb.position = Vector2(960.0, 770.0)
 	await get_tree().create_timer(0.08).timeout  # 弹反发生（盾区进入 1-2 物理帧；Boss strafe 漂移大，不做真实飞行命中）
-	_check(bb.is_player_bullet and bb.damage == 15, "弹反：Boss 用例弹已被弹反（1.5 倍伤害）")
+	_check(bb.IsPlayerBullet and bb.Damage == 15, "弹反：Boss 用例弹已被弹反（1.5 倍伤害）")
 	bb.position = boss.position  # 传送重叠命中：结算走玩家弹 enemy 组路径（对齐 hit_logic 传送重叠惯例）
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -172,21 +173,21 @@ func _ready() -> void:
 	# ================= 扇区外（140° 外）不弹反 =================
 	await _await_parry_ready(player)
 	await _await_active(player)
-	var behind := GameState.bullet_pool.fire(Vector2.UP, 100.0, 12, false)
+	var behind = GameState.bullet_pool.Fire(Vector2.UP, 100.0, 12, false)
 	behind.position = Vector2(960.0, 850.0)  # 玩家正下方（机头前方 140° 扇区外）
 	await get_tree().create_timer(0.2).timeout
-	_check(not behind.is_player_bullet, "扇区外：后方敌弹不被弹反（保持敌弹）")
+	_check(not behind.IsPlayerBullet, "扇区外：后方敌弹不被弹反（保持敌弹）")
 	await _free_all_bullets()
 
 	# ================= WINDUP/RECOVER 无判定（场景级复核） =================
 	await _await_parry_ready(player)
 	player.try_parry()
-	var wb := GameState.bullet_pool.fire(Vector2.RIGHT, 400.0, 12, false)
+	var wb = GameState.bullet_pool.Fire(Vector2.RIGHT, 400.0, 12, false)
 	wb.position = Vector2(930.0, 745.0)  # 前摇期进入盾区（y=745 前方 55px），0.15s 内水平穿出
 	await get_tree().create_timer(0.1).timeout
-	_check(not wb.is_player_bullet, "前摇：WINDUP 期内盾区弹不弹反")
+	_check(not wb.IsPlayerBullet, "前摇：WINDUP 期内盾区弹不弹反")
 	await get_tree().create_timer(0.2).timeout  # ACTIVE 已开始；弹已穿出盾区（无进入事件）
-	_check(not wb.is_player_bullet, "前摇：弹穿出盾区后不弹反（弹反只在进入时刻）")
+	_check(not wb.IsPlayerBullet, "前摇：弹穿出盾区后不弹反（弹反只在进入时刻）")
 	await _free_all_bullets()
 
 	# ================= 硬冷却（场景级）：流程结束起 3s 内不可再展开 =================
@@ -214,13 +215,13 @@ func _ready() -> void:
 	# ================= 池回收与二次激活复位 =================
 	await _await_parry_ready(player)
 	await _await_active(player)
-	var r1 := GameState.bullet_pool.fire(Vector2.DOWN, 300.0, 10, false)
+	var r1 = GameState.bullet_pool.Fire(Vector2.DOWN, 300.0, 10, false)
 	r1.position = Vector2(960.0, 770.0)
 	await get_tree().create_timer(1.5).timeout  # 弹反后 600px/s 朝上出界回收
-	_check(not r1.is_active(), "池回收：弹反弹出界后按既有路径回收")
-	var r2 := GameState.bullet_pool.fire(Vector2.DOWN, 500.0, 20, true)
+	_check(not r1.IsActive(), "池回收：弹反弹出界后按既有路径回收")
+	var r2 = GameState.bullet_pool.Fire(Vector2.DOWN, 500.0, 20, true)
 	_check(r2 == r1, "池复用：回收弹被复用（同一实例）")
-	_check(r2.is_player_bullet and r2.damage == 20 and is_equal_approx(r2.speed, 500.0), "池复用：二次激活状态复位（阵营/伤害/速度）")
+	_check(r2.IsPlayerBullet and r2.Damage == 20 and is_equal_approx(r2.Speed, 500.0), "池复用：二次激活状态复位（阵营/伤害/速度）")
 	r2.queue_free()
 	await get_tree().process_frame
 
@@ -229,15 +230,15 @@ func _ready() -> void:
 	_reset_hit_state(player)
 	await _await_parry_ready(player)
 	await _await_active(player)
-	var sweep := GameState.bullet_pool.fire(Vector2.RIGHT, 600.0, 12, false)
+	var sweep = GameState.bullet_pool.Fire(Vector2.RIGHT, 600.0, 12, false)
 	sweep.position = player.position + Vector2(-30.0, 3.0)  # 玩家下方边缘带（扇区外）水平擦过
 	await get_tree().create_timer(0.2).timeout
 	_check(GameState.health == 100.0, "正交：盾展开期受击宽限帧不受影响（擦过无伤）")
-	_check(not sweep.is_player_bullet, "正交：盾区外弹不被弹反（宽限路径照常）")
+	_check(not sweep.IsPlayerBullet, "正交：盾区外弹不被弹反（宽限路径照常）")
 	await _free_enemy_bullets()
 
 	for child in main.get_children():
-		if child is Bullet:
+		if is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
 			child.queue_free()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout
