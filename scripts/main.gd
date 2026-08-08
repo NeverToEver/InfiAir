@@ -21,7 +21,7 @@ var ENRAGE_RAMP_TIME := 0.3
 @onready var _pause_ui: CanvasLayer = $PauseUI
 @onready var _base_ui: CanvasLayer = $BaseUI
 @onready var _player: Player = $Player
-@onready var _starfield: Starfield = $Starfield
+@onready var _starfield := $Starfield  # 随 M6（main 迁移 C#）重定型为 Starfield
 @onready var _camera: Camera2D = $Camera2D
 
 var _game_over: bool = false
@@ -744,7 +744,7 @@ func _start_homecoming() -> void:
 	GameState.events.end_active(GameEventManager.GROUP_ENCOUNTER)
 	# 返航后存档保留更新，供「继续对局」使用
 	GameState.save_run(_player.fuel_amount(), _spawner.elapsed())
-	_starfield.warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
+	_starfield.Warp(18.0)  # 保留：过场镜头 1 的充能与星光拉伸自然衔接
 	_play_return_cinematic()
 
 

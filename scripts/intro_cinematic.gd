@@ -277,7 +277,7 @@ func _build_shot1() -> Node2D:
 	var dur: float = _shot_durations[0]
 	var root := Node2D.new()
 	root.name = "Shot1"
-	root.add_child(Starfield.new())
+	root.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	# 远处星云（比镜头 6 更淡，只铺层次；软径向光晕消除硬边）
 	var neb1 := CinematicFx.soft_glow(520.0, Color(0.2, 0.12, 0.4, 0.08))
 	neb1.position = Vector2(1560.0, 260.0)
@@ -1705,7 +1705,7 @@ func _build_shot6() -> Node2D:
 	var dur: float = _shot_durations[5]
 	var root := Node2D.new()
 	root.name = "Shot6"
-	root.add_child(Starfield.new())
+	root.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	# 星云（大半径低透明度叠加圆，软径向光晕）
 	var nebula1 := CinematicFx.soft_glow(430.0, Color(0.35, 0.15, 0.5, 0.13))
 	nebula1.position = Vector2(1380.0, 320.0)

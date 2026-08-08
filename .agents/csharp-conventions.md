@@ -2,7 +2,21 @@
 
 ## Overview
 
-渐进式 C# 混编工程约定(2026-08-07 决策,触发 `docs/C_SHARP_ASSESSMENT.md` §8 触发条件 3:团队语言构成变化)。新模块/纯逻辑/数据模型/算法用 C#;热路径与场景绑定层禁止跨语言。存量 GDScript 默认不迁移——**按用户指令定向迁移的存量纯逻辑例外**(2026-08-07 P1-2 进程曲线/P1-3 任务池,逐条见 Landing Plan;迁移须满足:纯逻辑/可单测/非热路径/边界清晰四判据,并配 xUnit + interop 断言场景)。适用于所有 `.cs` 文件及 GDScript↔C# 互操作代码。
+**全量迁移（2026-08-08 起，分支 `feature/csharp-full-migration`）**：用户指令反转"存量 GDScript 不迁移"边界——存量约 3.7 万行 GDScript 全量迁移 C#，终态零 GDScript、零 interop 壳、单一语言维护。实施计划见 `docs/C_SHARP_ASSESSMENT.md` §10 + 会话计划（M1–M7 里程碑，每批门禁全绿）。本文件为迁移期与终态的工程约定；旧"渐进式混编"边界（§GDScript ↔ C# Boundary）在 M7 前仍然适用（过渡态），M7 后删除并替换为纯 C# 约定。
+
+## 全量迁移操作约定（2026-08-08 起，所有批次强制执行）
+
+- **批次纪律**：批间串行（依赖），批内单系统一次到位（Moonjump 教训：避免同一系统长期双语言混写）；每批结束门禁全绿（见 §Build & Gate + 计划 §5）+ 更新 `docs/TESTING.md` 计数。
+- **公共 API 冻结**：迁移期间 GameState facade 与各服务公开签名不变——GDScript 断言场景持续作回归，是"每批可测"的机制。
+- **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
+- **`.cs.uid` 必须入库**；改名/移动 .cs 连带移动 sidecar；批次完成后重存被触碰场景（补 uid）；`.gd`/`.gd.uid` 随迁移删除。
+- **场景绑定**：`.tscn` 的 ext_resource 切到 `res://csharp/godot/X.cs`；实例化优先 `PackedScene.Instantiate<T>()`；C# 侧 `new X()` 在 NRT 下可能被视为可空（Godot 生成构造器），使用时 `!` 或判空。
+- **Async（`csharp/godot/Coroutine.cs`）**：游戏内计时一律 `CreateTimer` + `ToSignal`，禁止裸 `Task.Delay`（线程池恢复，访问 Godot API 线程不安全）；挂起 await 无法取消 → 等待以 SceneTree 计时器兜底 + 恢复后 `GodotObject.IsInstanceValid` 判活；禁止裸 `async void` 生命周期（拆 `async Task` + try/catch）；await 段异常统一 try/catch。
+- **信号**：C#↔C# 用 C# event（`+=`/`-=`，`_ExitTree` 配对断开——自定义信号不随接收方释放自动断开，弹幕"发射→命中→释放"链条高频触发 `ObjectDisposedException`）；跨语言用 `Connect(SignalName.X, Callable.From(...))`；`[Signal]` 委托名必须 `XxxEventHandler` 结尾；发射用 `EmitSignal(SignalName.X, ...)` 而非 `Invoke`。
+- **热路径红线（每帧零托管分配）**：`_Process` 内禁 StringName/string 构造、`GetNodesInGroup`、LINQ、闭包捕获；属性缓存局部变量；用 `SignalName/MethodName/PropertyName` 常量；池显式进出（C# RefCounted 由 GC 延迟回收，不依赖引用计数）；跨语言调用禁止进入每帧热路径。
+- **跨语言过渡**：GDScript→C# 沿用薄壳模式（`load("res://csharp/godot/X.cs").new()`，方法 PascalCase 注册，GDScript 动态调用须同名）；C#→GDScript 仅动态派发 `Call()/Get()/Set()`（untyped，调用点注释"随批次 X 重定型"）；跨语言互不消费 async（边界一律信号 + `ToSignal`）。
+- **GDScript 调用点适配**：被迁移类的 class_name 类型注解在 GDScript 调用点改 untyped（如 `: Starfield` → `:=`），snake_case 动态调用改 PascalCase（`origin()` → `Origin()`）；随调用方自身迁移批次重定型。
+- **新 C# 测试/断言**：纯逻辑 → `tests-csharp/` xUnit；场景级断言 → C# 脚本化断言场景（Node + `_Ready` 断言 + `GetTree().Quit(failures)` + 入口 try/catch 保证异常也非零退出）。
 
 ## Directories & Namespaces
 

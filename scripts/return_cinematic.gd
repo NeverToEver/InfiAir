@@ -423,8 +423,8 @@ func _build_shot1() -> Node2D:
 	var dur: float = _shot_durations[0]
 	var root := Node2D.new()
 	root.name = "Shot1"
-	var starfield := Starfield.new()
-	starfield.warp(12.0)  # 承接对局 _starfield.warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
+	var starfield = load("res://csharp/godot/Starfield.cs").new()  # M1 起 Starfield 为 C#，经脚本资源实例化（load().new() 无类型，不能用 :=）
+	starfield.Warp(12.0)  # 承接对局 _starfield.Warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
 	root.add_child(starfield)
 	var neb1 := _glow(480.0, Color(0.08, 0.18, 0.4, 0.05))
 	neb1.position = Vector2(360.0, 800.0)
@@ -564,7 +564,7 @@ func _build_shot2() -> Node2D:
 	var dur: float = _shot_durations[1]
 	var root := _PortalShot.new()
 	root.name = "Shot2"
-	root.add_child(Starfield.new())
+	root.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	var push := Node2D.new()  # 推镜容器
 	root.add_child(push)
 	var push_tween := root.create_tween()
@@ -675,7 +675,7 @@ func _build_shot3() -> Node2D:
 	# ---- 前半：原星域冲入 ----
 	var part_a := Node2D.new()
 	root.add_child(part_a)
-	part_a.add_child(Starfield.new())
+	part_a.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	# 跃迁隧道放射条纹（以端口为中心，白闪切镜时随 part_a 隐藏）
 	var streaks := (
 		CinematicFx
@@ -721,7 +721,7 @@ func _build_shot3() -> Node2D:
 	var part_b := Node2D.new()
 	part_b.visible = false
 	root.add_child(part_b)
-	part_b.add_child(Starfield.new())
+	part_b.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	var neb := _glow(420.0, Color(0.08, 0.2, 0.45, 0.06))
 	neb.position = Vector2(420.0, 780.0)
 	part_b.add_child(neb)
@@ -837,7 +837,7 @@ func _build_shot4() -> Node2D:
 	var dur: float = _shot_durations[3]
 	var root := _CaptureShot.new()
 	root.name = "Shot4"
-	root.add_child(Starfield.new())
+	root.add_child(load("res://csharp/godot/Starfield.cs").new())  # M1 起 Starfield 为 C#，经脚本资源实例化（随 M6 重定型）
 	var cam := Node2D.new()  # 侧跟推镜容器
 	root.add_child(cam)
 	var cam_tween := root.create_tween().set_parallel(true)

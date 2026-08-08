@@ -146,8 +146,8 @@ func _ready() -> void:
 	_check(GameState.camera_ref == camera, "相机注册到 GameState.camera_ref")
 	# M5（2026-08-06 审计）：zoom>1 时星点区域必须锚定可见区——原锚 (0,0) 铺
 	# [0,1920/zoom]×[0,1080/zoom]，可见区右/下边缘 L 形带无星（C07 只改尺寸未改锚点）
-	var starfield: Starfield = get_node("Main/Starfield")
-	var sf_rect := Rect2(starfield.origin(), starfield.area_size())
+	var starfield := get_node("Main/Starfield")  # M1 起 Starfield 为 C#，动态派发（随 M7 测试迁移重定型）
+	var sf_rect := Rect2(starfield.Origin(), starfield.AreaSize())
 	_check(sf_rect.encloses(GameState.view_world_rect()), "M5：星空覆盖区域包含可见区（锚点随 view 平移）")
 	_check(sf_rect.position != Vector2.ZERO, "M5：星空锚点非 (0,0)（zoom>1 可见区缩小平移）")
 	GameState.set_view_zoom(&"small")

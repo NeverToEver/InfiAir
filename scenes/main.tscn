@@ -1,7 +1,7 @@
 [gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/starfield.gd" id="2"]
+[ext_resource type="Script" path="res://csharp/godot/Starfield.cs" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="Script" path="res://scripts/spawner.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
