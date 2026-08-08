@@ -93,9 +93,9 @@ public partial class PlayerBuffVisuals : Node2D
         _BuildAll(shipSprite.Texture);
         Refresh();
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Connect("buffs_changed", _onBuffsChanged);
+            gs.Connect("BuffsChanged", _onBuffsChanged);
         }
     }
 
@@ -103,9 +103,9 @@ public partial class PlayerBuffVisuals : Node2D
     {
         // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Disconnect("buffs_changed", _onBuffsChanged);
+            gs.Disconnect("BuffsChanged", _onBuffsChanged);
         }
     }
 

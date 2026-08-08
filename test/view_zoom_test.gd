@@ -85,7 +85,7 @@ func _ready() -> void:
 	GameState.set_view_zoom(&"large")
 	_check(GameState.view_zoom_factor() == 1.7, "large 档 zoom=1.7")
 	var emitted: Array[float] = []
-	GameState.view_zoom_changed.connect(func(f: float) -> void: emitted.append(f))
+	GameState.ViewZoomChanged.connect(func(f: float) -> void: emitted.append(f))
 	GameState.set_view_zoom(&"small")
 	_check(emitted.size() == 1 and emitted[0] == 1.0, "切换档位发出 view_zoom_changed 信号")
 	GameState.set_view_zoom(&"small")
@@ -167,9 +167,9 @@ func _ready() -> void:
 	_check(camera.zoom.distance_to(Vector2(1.7, 1.7)) < 0.001, "震动结束后 zoom 仍为 1.7")
 
 	# ---------- 6. 玩家边缘钳制随档收窄（large：x 435.3..1484.7 / y 262.4..817.6） ----------
-	var view_large := GameState.view_world_rect()
-	var lo := view_large.position + Vector2(40.0, 40.0)
-	var hi := view_large.end - Vector2(40.0, 40.0)
+	var view_large = GameState.view_world_rect()
+	var lo = view_large.position + Vector2(40.0, 40.0)
+	var hi = view_large.end - Vector2(40.0, 40.0)
 	player.velocity = Vector2.ZERO
 	player.position = Vector2(0.0, 0.0)
 	await get_tree().physics_frame
@@ -222,7 +222,7 @@ func _ready() -> void:
 	_check(tel != null, "入场预告线已生成")
 	if tel != null:
 		_check(absf(tel.position.y - GameState.view_world_rect().position.y) < 1.0, "预告线贴在可见区域顶部")
-		var view := GameState.view_world_rect()
+		var view = GameState.view_world_rect()
 		_check(tel.position.x > view.position.x and tel.position.x < view.end.x, "预告线 x 在可见区域内")
 	await get_tree().create_timer(0.7).timeout
 	# flake 修复（2026-08-03 CI 门禁）：敌机入场到达锚点后围绕锚点水平机动，固定延迟
@@ -239,7 +239,7 @@ func _ready() -> void:
 			break
 	_check(spawned != null, "敌机已刷出")
 	if spawned != null:
-		var view := GameState.view_world_rect()
+		var view = GameState.view_world_rect()
 		_check(spawned.position.x > view.position.x + 30.0 and spawned.position.x < view.end.x - 30.0, "刷怪 x 在可见区域内（60px 边距）")
 		_check(absf(spawned.position.y - (view.position.y - 60.0)) < 100.0, "刷怪 y 在可见区域顶上方")
 		_check(spawned.anchor_y >= view.position.y, "large 档刷怪锚点 ≥ 可见顶（spawner 分配加 view 基线）")
@@ -277,10 +277,10 @@ func _ready() -> void:
 	_check(absf(range_boss.fight_anchor_y() - range_boss.FIGHT_Y) < 0.001, "small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）")
 	GameState.set_view_zoom(&"large")
 	var large_range = range_boss.strafe_range()
-	var expect_lo := GameState.view_world_rect().position.x + 300.0
-	var expect_hi := GameState.view_world_rect().end.x - 300.0
+	var expect_lo = GameState.view_world_rect().position.x + 300.0
+	var expect_hi = GameState.view_world_rect().end.x - 300.0
 	_check(absf(large_range.x - expect_lo) < 1.0 and absf(large_range.y - expect_hi) < 1.0, "large 档 Boss 巡航范围随可见区域收窄")
-	var view_anchor := GameState.view_world_rect()
+	var view_anchor = GameState.view_world_rect()
 	var anchor_large = range_boss.fight_anchor_y()
 	_check(absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001, "large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y")
 	_check(anchor_large > view_anchor.position.y and anchor_large < view_anchor.end.y, "large 档 Boss 战斗锚线落在可见区域内")

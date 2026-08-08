@@ -171,8 +171,8 @@ func _ready() -> void:
 	agg.queue_free()
 
 	# 7. 敌机 15s 寿命：到期向上/侧方加速离场，不给分不计击杀
-	var score_before_life := GameState.score
-	var kills_before_life := GameState.kills
+	var score_before_life = GameState.score
+	var kills_before_life = GameState.kills
 	var life_e = _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	life_e.position = Vector2(960.0, 300.0)
 	life_e.set_life_timer(14.8)
@@ -197,11 +197,11 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_in_fight(), "Boss 进入战斗（逃跑计时开始）")
 	var kills_before_boss = GameState.boss_kills
-	var score_before_boss := GameState.score
+	var score_before_boss = GameState.score
 	# 钉住时间轴难度档：后续约 4s 真实等待不得跨过 30s 量化边界造成偶发漂移
 	GameState.run_time = 0.0
 	GameState.recompute_difficulty()
-	var diff_before := GameState.difficulty_multiplier
+	var diff_before = GameState.difficulty_multiplier
 	var escaped_flag := [false]
 	boss.Escaped.connect(func() -> void: escaped_flag[0] = true)  # M3d：C# [Signal] 以 PascalCase 注册（escaped → Escaped）
 	boss.set_survival(boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5)  # 距警告 0.5s
@@ -243,7 +243,7 @@ func _ready() -> void:
 	var split_e = _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight")
 	split_e.position = Vector2(960.0, 400.0)
 	await get_tree().process_frame
-	var score_before := GameState.score
+	var score_before = GameState.score
 	split_e.take_damage(9999)
 	await get_tree().process_frame
 	var minis: Array = []  # M3b：Array[Enemy] 不可用（C# 类名不能作泛型参数）
@@ -256,7 +256,7 @@ func _ready() -> void:
 	for m in minis:
 		_check((m.get_node("Sprite2D") as Sprite2D).scale.x < 0.5, "子机缩放 ×0.6")
 	_check(not minis.is_empty() and minis[0].hp >= 20 and minis[0].hp <= 50, "子机 HP 减半（约 40-46）")
-	var score_after_split := GameState.score
+	var score_after_split = GameState.score
 	for m in minis:
 		m.take_damage(9999)
 	await get_tree().process_frame

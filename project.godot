@@ -19,7 +19,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [autoload]
 
-GameState="*res://autoload/game_state.gd"
+GameState="*res://csharp/godot/GameState.cs"
 
 [debug]
 

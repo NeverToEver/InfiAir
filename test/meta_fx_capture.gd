@@ -33,7 +33,7 @@ func _ready() -> void:
 
 	# 1. 满血基准：MetaFX 应完全隐形（早退 + 隐藏全屏 ColorRect）
 	GameState.health = 100.0
-	GameState.health_changed.emit(100.0)
+	GameState.HealthChanged.emit(100.0)
 	await get_tree().create_timer(0.3).timeout
 	await _shot("healthy")
 
@@ -47,25 +47,25 @@ func _ready() -> void:
 
 	# 3. CAUTION（hp 60%，x=0.4）：稀疏边缘裂纹 + 轻度去饱和
 	GameState.health = 60.0
-	GameState.health_changed.emit(60.0)
+	GameState.HealthChanged.emit(60.0)
 	await get_tree().create_timer(0.8).timeout
 	await _shot("caution")
 
 	# 4. DAMAGED（hp 40%，x=0.6）：中等裂纹密度，色带转橙
 	GameState.health = 40.0
-	GameState.health_changed.emit(40.0)
+	GameState.HealthChanged.emit(40.0)
 	await get_tree().create_timer(0.8).timeout
 	await _shot("damaged")
 
 	# 5. DYING（hp 12%，x=0.88）：密集红裂、晕影收窄、强去饱和、心跳抖动
 	GameState.health = 12.0
-	GameState.health_changed.emit(12.0)
+	GameState.HealthChanged.emit(12.0)
 	await get_tree().create_timer(1.0).timeout
 	await _shot("dying")
 
 	# 6. 设置页「操作模式」：无障碍分区（减少闪光开关）
 	GameState.health = 100.0
-	GameState.health_changed.emit(100.0)
+	GameState.HealthChanged.emit(100.0)
 	var settings := get_tree().get_first_node_in_group("settings_ui") as CanvasLayer
 	settings.show_settings()
 	settings.show_page(&"modes")

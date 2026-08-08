@@ -243,7 +243,7 @@ func _ready() -> void:
 
 	# ================= A4：敌弹 damage 按弹种 12/10/20（基准值） =================
 	# 伤害随对局进程 ramp（×enemy_damage_ramp），期望按当前 ramp 动态计算（同 boss_pattern 场景4 口径）
-	var dmg_ramp := GameState.enemy_damage_ramp()
+	var dmg_ramp = GameState.enemy_damage_ramp()
 	var exp10 := maxi(1, int(roundf(10.0 * dmg_ramp)))
 	var exp12 := maxi(1, int(roundf(12.0 * dmg_ramp)))
 	var exp14 := maxi(1, int(roundf(14.0 * dmg_ramp)))
@@ -549,14 +549,14 @@ func _ready() -> void:
 	player.set_invincible(999.0)
 
 	# A 审计验证：reset_run 必须清 DDA 计时——触发后 reset_run 应归位
-	GameState.player_damaged.emit(1.0, Vector2.ZERO)
+	GameState.PlayerDamaged.emit(1.0, Vector2.ZERO)
 	_check(GameState.dda_active(), "DDA：受击后降档激活")
 	GameState.reset_run()
 	_check(not GameState.dda_active(), "A审计：reset_run 清 DDA 计时（跨对局残留修复）")
 	_check(is_equal_approx(GameState.dda_factor(), 1.0), "A审计：reset_run 后 DDA 因子归 1.0")
 
 	# B 梯队（fair plan §8）：DDA 弹幕密度降档——受击触发、激活期因子、到期恢复、间隔拉长
-	GameState.player_damaged.emit(1.0, Vector2.ZERO)
+	GameState.PlayerDamaged.emit(1.0, Vector2.ZERO)
 	_check(GameState.dda_active(), "DDA：受击后降档激活")
 	_check(is_equal_approx(GameState.dda_factor(), GameState.DDA_FACTOR), "DDA：激活期返回配置因子")
 	var interval_active: float = spawner.current_interval()

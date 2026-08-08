@@ -128,7 +128,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 3. 损坏存档：隔离备份 + 继续按钮隐藏 + 损坏提示可见
-	var save_path := GameState.user_db_savefile_for("flow")
+	var save_path = GameState.user_db_savefile_for("flow")
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	f.store_string("{broken json")
 	f.close()

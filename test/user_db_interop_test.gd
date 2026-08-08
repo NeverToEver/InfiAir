@@ -4,6 +4,7 @@ extends Node
 ## GDScript UserDB 壳的生产转发路径。只操作 user:// 文件；M6 快照范式备份/还原。
 
 var _failures: int = 0
+const UDB := preload("res://csharp/godot/UserDB.cs")
 var _file_backups: Dictionary = {}
 
 
@@ -140,7 +141,7 @@ func _ready() -> void:
 	_check(interop.call("VerifyUser", "alice", "s3cret", 1000) == true, "Reload 后验密一致")
 
 	# 9. GDScript UserDB 壳（生产转发路径：GameState/welcome 同款调用）
-	var udb := UserDB.new()
+	var udb = UDB.new()
 	udb.iterations = 1000
 	_check(udb.user_exists("alice"), "GDScript 壳 user_exists 转发")
 	_check(udb.verify_user("alice", "s3cret"), "GDScript 壳验密转发（迭代数降档参数透传）")

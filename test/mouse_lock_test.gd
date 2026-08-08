@@ -61,7 +61,7 @@ func _ready() -> void:
 
 	# ---------- 2. 切换与信号 ----------
 	var emitted: Array[bool] = []
-	GameState.mouse_lock_changed.connect(func(enabled: bool) -> void: emitted.append(enabled))
+	GameState.MouseLockChanged.connect(func(enabled: bool) -> void: emitted.append(enabled))
 	GameState.set_mouse_lock(false)
 	_check(not GameState.mouse_lock, "set_mouse_lock(false) 关闭锁定")
 	_check(emitted.size() == 1 and emitted[0] == false, "切换发出 mouse_lock_changed 信号")

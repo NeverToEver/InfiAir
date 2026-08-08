@@ -91,7 +91,7 @@ public partial class AimFrameLayer : Node2D
         _falloffMin = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.min", _falloffMin).AsDouble();
         if (gs != null)
         {
-            gs.Connect("aim_assist_changed", _onAimAssistChanged);
+            gs.Connect("AimAssistChanged", _onAimAssistChanged);
         }
     }
 
@@ -101,9 +101,9 @@ public partial class AimFrameLayer : Node2D
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("aim_assist_changed", _onAimAssistChanged))
+            if (gs.IsConnected("AimAssistChanged", _onAimAssistChanged))
             {
-                gs.Disconnect("aim_assist_changed", _onAimAssistChanged);
+                gs.Disconnect("AimAssistChanged", _onAimAssistChanged);
             }
 
             if (gs.Get("aim_frame_layer").AsGodotObject() == this)

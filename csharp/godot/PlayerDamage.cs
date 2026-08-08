@@ -90,7 +90,7 @@ public class PlayerDamage
         GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_PLAYER_HIT"));
         GameStateBridge.Call("shake", ShakeHit);
         GameStateBridge.Call("lose_health", amount);
-        GameStateBridge.Instance!.EmitSignal("player_damaged", amount, fromPos); // Meta HUD 受击层（减免后最终值）
+        GameStateBridge.Instance!.EmitSignal("PlayerDamaged", amount, fromPos); // Meta HUD 受击层（减免后最终值）
         player.ClearNearbyEnemyBullets();
         if (GameStateBridge.Get("health").AsDouble() <= 0.0)
         {

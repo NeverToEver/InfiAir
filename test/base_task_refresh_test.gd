@@ -5,6 +5,7 @@ extends Node
 ## 只操作 GameState autoload 与 TaskPool，不加载 main 场景。
 
 var _failures: int = 0
+const TP := preload("res://csharp/godot/TaskPool.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -128,7 +129,7 @@ func _ready() -> void:
 	# 6. 存档往返：refresh_points 与轮换后的任务集合保留
 	GameState.save_run(50.0, GameState.run_time)
 	var saved_ids: Array[StringName] = _active_ids()
-	var saved_points := GameState.refresh_points
+	var saved_points = GameState.refresh_points
 	GameState.refresh_points = 0
 	GameState.reset_missions()
 	GameState.apply_run_save(GameState.load_run_data())
@@ -160,8 +161,9 @@ func _ready() -> void:
 	)
 
 	# 8. TaskPool 算法单元测试：无放回（单批内不重复、跨批不连续重复）+ 排除项
-	var pool := TaskPool.new(GameState.MISSION_POOL)
-	var batch1 := pool.draw(9, [])
+	var pool = TP.new()
+	pool.defs = GameState.MISSION_POOL
+	var batch1 = pool.draw(9, [])
 	_check(batch1.size() == 9, "TaskPool：池满抽取 9 项全部返回")
 	var b1_seen: Dictionary = {}
 	var b1_distinct := true
@@ -170,22 +172,24 @@ func _ready() -> void:
 			b1_distinct = false
 		b1_seen[def["id"]] = true
 	_check(b1_distinct, "TaskPool：单批无放回（9 项互不重复）")
-	var batch2 := pool.draw(3, [])
+	var batch2 = pool.draw(3, [])
 	_check(batch2.size() == 3, "TaskPool：耗尽后自动重洗续抽")
-	var tiny_pool := TaskPool.new([{"id": &"a", "goal": 1, "kind": &"kill"}, {"id": &"b", "goal": 1, "kind": &"kill"}])
-	var excl := tiny_pool.draw(2, [&"a"])
+	var tiny_pool = TP.new()
+	tiny_pool.defs = [{"id": &"a", "goal": 1, "kind": &"kill"}, {"id": &"b", "goal": 1, "kind": &"kill"}]
+	var excl = tiny_pool.draw(2, [&"a"])
 	_check(excl.size() == 1 and excl[0]["id"] == &"b", "TaskPool：排除项被跳过")
-	var all_excl := tiny_pool.draw(2, [&"a", &"b"])
+	var all_excl = tiny_pool.draw(2, [&"a", &"b"])
 	_check(all_excl.is_empty(), "TaskPool：排除覆盖全池时安全返回空（不死循环）")
 
 	# 9. Q05（2026-08-05）：批次耗尽跨批补足——固定种子 20 轮刷新槽位恒 = MISSION_SLOTS
 	# （原实现「本批已产出即 break」在排除在场任务时提前耗尽，模拟 14% 刷新不足额、99.3% 对局命中）
 	seed(20260805)
-	var pool_q05 := TaskPool.new(GameState.MISSION_POOL)
+	var pool_q05 = TP.new()
+	pool_q05.defs = GameState.MISSION_POOL
 	var in_field: Array[StringName] = []
 	var q05_all_full := true
 	for i in 20:
-		var d := pool_q05.draw(GameState.MISSION_SLOTS, in_field)
+		var d = pool_q05.draw(GameState.MISSION_SLOTS, in_field)
 		if d.size() != GameState.MISSION_SLOTS:
 			q05_all_full = false
 		in_field.clear()

@@ -76,7 +76,7 @@ func _ready() -> void:
 	main.summon_mothership()
 	await get_tree().process_frame
 	_check(main.summon_window() != null, "L-b: 召唤小窗已打开")
-	GameState.player_died.emit()
+	GameState.PlayerDied.emit()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(main.summon_window() == null, "L-b: 死亡路径清理召唤小窗（不永驻）")

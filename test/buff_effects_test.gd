@@ -90,7 +90,7 @@ func _ready() -> void:
 	_check(is_equal_approx(player.crit_chance, 0.0), "无 crit_shot 暴击概率 0")
 	GameState.add_buff(&"crit_shot")
 	GameState.add_buff(&"crit_shot")
-	GameState.buffs_changed.emit()
+	GameState.BuffsChanged.emit()
 	_check(is_equal_approx(player.crit_chance, 0.12 * 2.0), "crit_shot 2 层暴击概率 24%")
 	_check(is_equal_approx(player.crit_multiplier, 2.0), "crit_shot 暴击倍率 ×2")
 
@@ -159,7 +159,7 @@ func _ready() -> void:
 	GameState.add_buff(&"crit_shot")
 	GameState.add_buff(&"crit_shot")
 	GameState.add_buff(&"crit_shot")
-	GameState.buffs_changed.emit()
+	GameState.BuffsChanged.emit()
 	_check(is_equal_approx(player.crit_chance, 0.36), "crit_shot 3 层暴击概率 36%")
 	var ce = enemy_scene.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 实例必为 Enemy，省 as
 	ce.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)

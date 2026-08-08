@@ -81,7 +81,7 @@ func _test_enemy_pool() -> void:
 	# slow_field buff 对该机静默失效）。白盒断言连接状态与刷新行为（E22 缓存字段；
 	# buffs 为进程内存态，退出即清，无需收尾）
 	_check(
-		GameState.buffs_changed.is_connected(e2._on_buffs_changed),
+		GameState.BuffsChanged.is_connected(e2._on_buffs_changed),
 		"enemy: 池化复用后 buffs_changed 保持连接（L02 slow_field 回归）",
 	)
 	GameState.add_buff(&"slow_field")

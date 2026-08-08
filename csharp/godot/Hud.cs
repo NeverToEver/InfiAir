@@ -186,11 +186,11 @@ public partial class Hud : CanvasLayer
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         _hpBar.Material = hpHolo;
         var gs = GameStateBridge.Instance!;
-        gs.Connect("score_changed", Callable.From<int>(OnScoreChanged));
-        gs.Connect("health_changed", Callable.From<float>(OnHealthChanged));
-        gs.Connect("difficulty_changed", Callable.From<float>(OnDifficultyChanged));
-        gs.Connect("difficulty_selected", Callable.From<StringName>(OnDifficultySelected));
-        gs.Connect("locale_changed", Callable.From(OnLocaleChanged));
+        gs.Connect("ScoreChanged", Callable.From<int>(OnScoreChanged));
+        gs.Connect("HealthChanged", Callable.From<float>(OnHealthChanged));
+        gs.Connect("DifficultyChanged", Callable.From<float>(OnDifficultyChanged));
+        gs.Connect("DifficultySelected", Callable.From<StringName>(OnDifficultySelected));
+        gs.Connect("LocaleChanged", Callable.From(OnLocaleChanged));
         OnScoreChanged(GameStateBridge.Get("score").AsInt32());
         OnHealthChanged((float)GameStateBridge.Get("health").AsDouble());
         RefreshDifficultyLabel();
@@ -300,8 +300,8 @@ public partial class Hud : CanvasLayer
         BuildVignette();
         BuildBuffDock();
         BuildInfoBanner();
-        gs.Connect("buffs_changed", Callable.From(RebuildBuffDock));
-        gs.Connect("key_bindings_changed", Callable.From(RefreshBuffTag));
+        gs.Connect("BuffsChanged", Callable.From(RebuildBuffDock));
+        gs.Connect("KeyBindingsChanged", Callable.From(RefreshBuffTag));
         RebuildBuffDock();
         _hpBarRest = _hpBar.Position;
         _buffDockRest = _buffDockWrap.Position;
@@ -471,39 +471,39 @@ public partial class Hud : CanvasLayer
         var locale = Callable.From(OnLocaleChanged);
         var buffs = Callable.From(RebuildBuffDock);
         var keybinds = Callable.From(RefreshBuffTag);
-        if (gs.IsConnected("score_changed", score))
+        if (gs.IsConnected("ScoreChanged", score))
         {
-            gs.Disconnect("score_changed", score);
+            gs.Disconnect("ScoreChanged", score);
         }
 
-        if (gs.IsConnected("health_changed", health))
+        if (gs.IsConnected("HealthChanged", health))
         {
-            gs.Disconnect("health_changed", health);
+            gs.Disconnect("HealthChanged", health);
         }
 
-        if (gs.IsConnected("difficulty_changed", diff))
+        if (gs.IsConnected("DifficultyChanged", diff))
         {
-            gs.Disconnect("difficulty_changed", diff);
+            gs.Disconnect("DifficultyChanged", diff);
         }
 
-        if (gs.IsConnected("difficulty_selected", diffSel))
+        if (gs.IsConnected("DifficultySelected", diffSel))
         {
-            gs.Disconnect("difficulty_selected", diffSel);
+            gs.Disconnect("DifficultySelected", diffSel);
         }
 
-        if (gs.IsConnected("locale_changed", locale))
+        if (gs.IsConnected("LocaleChanged", locale))
         {
-            gs.Disconnect("locale_changed", locale);
+            gs.Disconnect("LocaleChanged", locale);
         }
 
-        if (gs.IsConnected("buffs_changed", buffs))
+        if (gs.IsConnected("BuffsChanged", buffs))
         {
-            gs.Disconnect("buffs_changed", buffs);
+            gs.Disconnect("BuffsChanged", buffs);
         }
 
-        if (gs.IsConnected("key_bindings_changed", keybinds))
+        if (gs.IsConnected("KeyBindingsChanged", keybinds))
         {
-            gs.Disconnect("key_bindings_changed", keybinds);
+            gs.Disconnect("KeyBindingsChanged", keybinds);
         }
     }
 

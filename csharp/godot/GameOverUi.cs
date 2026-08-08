@@ -71,8 +71,8 @@ public partial class GameOverUi : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            gs.Connect("player_died", _onPlayerDied);
-            gs.Connect("locale_changed", _onLocaleChanged);
+            gs.Connect("PlayerDied", _onPlayerDied);
+            gs.Connect("LocaleChanged", _onLocaleChanged);
         }
     }
 
@@ -82,14 +82,14 @@ public partial class GameOverUi : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("player_died", _onPlayerDied))
+            if (gs.IsConnected("PlayerDied", _onPlayerDied))
             {
-                gs.Disconnect("player_died", _onPlayerDied);
+                gs.Disconnect("PlayerDied", _onPlayerDied);
             }
 
-            if (gs.IsConnected("locale_changed", _onLocaleChanged))
+            if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
             {
-                gs.Disconnect("locale_changed", _onLocaleChanged);
+                gs.Disconnect("LocaleChanged", _onLocaleChanged);
             }
         }
     }

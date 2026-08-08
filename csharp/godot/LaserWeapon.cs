@@ -129,7 +129,7 @@ public partial class LaserWeapon : Node2D
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            gs.Connect("buffs_changed", _onBuffsChanged);
+            gs.Connect("BuffsChanged", _onBuffsChanged);
         }
 
         OnBuffsChanged();
@@ -139,9 +139,9 @@ public partial class LaserWeapon : Node2D
     {
         // buffs_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放）
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Disconnect("buffs_changed", _onBuffsChanged);
+            gs.Disconnect("BuffsChanged", _onBuffsChanged);
         }
     }
 

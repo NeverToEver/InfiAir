@@ -148,19 +148,19 @@ public partial class SettingsUi : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("key_bindings_changed", _onKeyBindingsChanged))
+            if (!gs.IsConnected("KeyBindingsChanged", _onKeyBindingsChanged))
             {
-                gs.Connect("key_bindings_changed", _onKeyBindingsChanged);
+                gs.Connect("KeyBindingsChanged", _onKeyBindingsChanged);
             }
 
-            if (!gs.IsConnected("locale_changed", _onLocaleChanged))
+            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
             {
-                gs.Connect("locale_changed", _onLocaleChanged);
+                gs.Connect("LocaleChanged", _onLocaleChanged);
             }
 
-            if (!gs.IsConnected("joy_layout_changed", _onJoyLayoutChanged))
+            if (!gs.IsConnected("JoyLayoutChanged", _onJoyLayoutChanged))
             {
-                gs.Connect("joy_layout_changed", _onJoyLayoutChanged);
+                gs.Connect("JoyLayoutChanged", _onJoyLayoutChanged);
             }
         }
     }
@@ -173,19 +173,19 @@ public partial class SettingsUi : CanvasLayer
             return;
         }
 
-        if (gs.IsConnected("key_bindings_changed", _onKeyBindingsChanged))
+        if (gs.IsConnected("KeyBindingsChanged", _onKeyBindingsChanged))
         {
-            gs.Disconnect("key_bindings_changed", _onKeyBindingsChanged);
+            gs.Disconnect("KeyBindingsChanged", _onKeyBindingsChanged);
         }
 
-        if (gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Disconnect("locale_changed", _onLocaleChanged);
+            gs.Disconnect("LocaleChanged", _onLocaleChanged);
         }
 
-        if (gs.IsConnected("joy_layout_changed", _onJoyLayoutChanged))
+        if (gs.IsConnected("JoyLayoutChanged", _onJoyLayoutChanged))
         {
-            gs.Disconnect("joy_layout_changed", _onJoyLayoutChanged);
+            gs.Disconnect("JoyLayoutChanged", _onJoyLayoutChanged);
         }
     }
 

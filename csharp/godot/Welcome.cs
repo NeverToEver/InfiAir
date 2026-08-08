@@ -24,10 +24,11 @@ public partial class Welcome : CanvasLayer
 
     // UserDB 长度约束常量（scripts/user_db.gd const NAME_MIN/NAME_MAX/PASSWORD_MIN/PASSWORD_MAX）——
     // GDScript 常量 C# 不可 typed 直读，经脚本资源 GetScriptConstantMap 动态取（保持与 user_db.gd 单一事实源）
-    private static readonly int UserDbNameMin = ReadUserDbConst("NAME_MIN");
-    private static readonly int UserDbNameMax = ReadUserDbConst("NAME_MAX");
-    private static readonly int UserDbPasswordMin = ReadUserDbConst("PASSWORD_MIN");
-    private static readonly int UserDbPasswordMax = ReadUserDbConst("PASSWORD_MAX");
+    // M7：UserDB 迁 C#，常量 typed 直读（原经脚本资源 GetScriptConstantMap）
+    private static readonly int UserDbNameMin = UserDB.NameMin;
+    private static readonly int UserDbNameMax = UserDB.NameMax;
+    private static readonly int UserDbPasswordMin = UserDB.PasswordMin;
+    private static readonly int UserDbPasswordMax = UserDB.PasswordMax;
 
     private Stage _stage = Stage.Login;
     private ColorRect _dim = null!;
@@ -94,7 +95,7 @@ public partial class Welcome : CanvasLayer
         BuildOverlays();
         BuildEscHint();
 
-        GameStateBridge.Instance!.Connect("locale_changed", Callable.From(RefreshTexts));
+        GameStateBridge.Instance!.Connect("LocaleChanged", Callable.From(RefreshTexts));
         RefreshTexts();
         PrefillLastLogin();
     }
@@ -789,16 +790,10 @@ public partial class Welcome : CanvasLayer
         escHint.Position = new Vector2(-420.0f, -50.0f);
         escHint.CustomMinimumSize = new Vector2(360.0f, 0.0f);
         AddChild(escHint);
-        GameStateBridge.Instance!.Connect("locale_changed", Callable.From(() =>
+        GameStateBridge.Instance!.Connect("LocaleChanged", Callable.From(() =>
         {
             escHint.Text = Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT");
         }));
-    }
-
-    private static int ReadUserDbConst(string name)
-    {
-        var script = GD.Load<GDScript>("res://scripts/user_db.gd");
-        return script.GetScriptConstantMap()[name].AsInt32();
     }
 
     // ---------------- 测试/诊断公开接口（A7 约定） ----------------

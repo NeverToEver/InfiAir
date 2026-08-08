@@ -72,7 +72,7 @@ func _ready() -> void:
 	GameState.set_window_size(&"large")
 	_check(GameState.window_size == &"large", "set_window_size 切到 large")
 	var emitted: Array[StringName] = []
-	GameState.window_size_changed.connect(func(l: StringName) -> void: emitted.append(l))
+	GameState.WindowSizeChanged.connect(func(l: StringName) -> void: emitted.append(l))
 	GameState.set_window_size(&"small")
 	_check(emitted.size() == 1 and emitted[0] == &"small", "切换档位发出 window_size_changed 信号")
 	GameState.set_window_size(&"small")

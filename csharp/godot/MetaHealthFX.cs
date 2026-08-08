@@ -234,24 +234,24 @@ public partial class MetaHealthFX : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("health_changed", _onHealthChanged))
+            if (!gs.IsConnected("HealthChanged", _onHealthChanged))
             {
-                gs.Connect("health_changed", _onHealthChanged);
+                gs.Connect("HealthChanged", _onHealthChanged);
             }
 
-            if (!gs.IsConnected("player_damaged", _onPlayerDamaged))
+            if (!gs.IsConnected("PlayerDamaged", _onPlayerDamaged))
             {
-                gs.Connect("player_damaged", _onPlayerDamaged);
+                gs.Connect("PlayerDamaged", _onPlayerDamaged);
             }
 
-            if (!gs.IsConnected("player_died", _onPlayerDied))
+            if (!gs.IsConnected("PlayerDied", _onPlayerDied))
             {
-                gs.Connect("player_died", _onPlayerDied);
+                gs.Connect("PlayerDied", _onPlayerDied);
             }
 
-            if (!gs.IsConnected("reduce_flash_changed", _onReduceFlashChanged))
+            if (!gs.IsConnected("ReduceFlashChanged", _onReduceFlashChanged))
             {
-                gs.Connect("reduce_flash_changed", _onReduceFlashChanged);
+                gs.Connect("ReduceFlashChanged", _onReduceFlashChanged);
             }
         }
 
@@ -266,24 +266,24 @@ public partial class MetaHealthFX : CanvasLayer
         if (gs != null)
         {
             gs.Set("meta_fx_lod", 1);
-            if (gs.IsConnected("health_changed", _onHealthChanged))
+            if (gs.IsConnected("HealthChanged", _onHealthChanged))
             {
-                gs.Disconnect("health_changed", _onHealthChanged);
+                gs.Disconnect("HealthChanged", _onHealthChanged);
             }
 
-            if (gs.IsConnected("player_damaged", _onPlayerDamaged))
+            if (gs.IsConnected("PlayerDamaged", _onPlayerDamaged))
             {
-                gs.Disconnect("player_damaged", _onPlayerDamaged);
+                gs.Disconnect("PlayerDamaged", _onPlayerDamaged);
             }
 
-            if (gs.IsConnected("player_died", _onPlayerDied))
+            if (gs.IsConnected("PlayerDied", _onPlayerDied))
             {
-                gs.Disconnect("player_died", _onPlayerDied);
+                gs.Disconnect("PlayerDied", _onPlayerDied);
             }
 
-            if (gs.IsConnected("reduce_flash_changed", _onReduceFlashChanged))
+            if (gs.IsConnected("ReduceFlashChanged", _onReduceFlashChanged))
             {
-                gs.Disconnect("reduce_flash_changed", _onReduceFlashChanged);
+                gs.Disconnect("ReduceFlashChanged", _onReduceFlashChanged);
             }
         }
 

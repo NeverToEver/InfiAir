@@ -22,7 +22,7 @@ func _ready() -> void:
 	GameState.set_milestone_override(999999999)
 	GameState.add_score(12340)
 	GameState.kills = 57
-	GameState.score_changed.emit(GameState.score)
+	GameState.ScoreChanged.emit(GameState.score)
 
 	# 1. 常态：2 个 buff（单/多层各一）
 	GameState.add_buff(&"power_shot")

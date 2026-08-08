@@ -53,7 +53,7 @@ func _ready() -> void:
 
 	# ================= 1：player_damaged 信号 =================
 	var records: Array = []
-	GameState.player_damaged.connect(func(a: float, p: Vector2) -> void: records.append([a, p]))
+	GameState.PlayerDamaged.connect(func(a: float, p: Vector2) -> void: records.append([a, p]))
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	player.take_damage(10.0, Vector2(400.0, 300.0))
@@ -83,7 +83,7 @@ func _ready() -> void:
 
 	# ================= 4：状态机快入慢出 + 修复错峰消散 =================
 	GameState.health = 100.0
-	GameState.health_changed.emit(100.0)
+	GameState.HealthChanged.emit(100.0)
 	fx.set_test_state({"damage_x": 0.0})
 	fx.set_test_state({"state": MHFX.GetStateNormal()})
 	_reset_hit_state(player)
@@ -103,7 +103,7 @@ func _ready() -> void:
 
 	# ================= 5：DYING 临界层 =================
 	GameState.health = 15.0
-	GameState.health_changed.emit(15.0)  # x=0.85 → 心率 lerp(1.0,1.2,0.25)=1.05
+	GameState.HealthChanged.emit(15.0)  # x=0.85 → 心率 lerp(1.0,1.2,0.25)=1.05
 	_reset_hit_state(player)
 	await get_tree().create_timer(0.6).timeout  # 快入趋稳
 	_check(fx.state() == MHFX.GetStateDying(), "5：hp<20% 进 DYING")
@@ -125,7 +125,7 @@ func _ready() -> void:
 	# ================= 6：LOD1 时 hud 旧晕影回退（D2） =================
 	var hud := get_node("Main/HUD")
 	GameState.health = 10.0
-	GameState.health_changed.emit(10.0)
+	GameState.HealthChanged.emit(10.0)
 	fx.set_lod(1)
 	await get_tree().process_frame
 	await get_tree().process_frame

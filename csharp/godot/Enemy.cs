@@ -174,9 +174,9 @@ public partial class Enemy : Area2D
         _shakeDieElite = (float)GameStateBridge.Call("cfg", "effects.shake.elite_die", _shakeDieElite).AsDouble();
         _slowFieldOn = (int)GameStateBridge.Call("buff_count", new StringName("slow_field")) > 0;
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Connect("buffs_changed", _onBuffsChanged);
+            gs.Connect("BuffsChanged", _onBuffsChanged);
         }
 
         AreaEntered += OnAreaEntered;
@@ -197,9 +197,9 @@ public partial class Enemy : Area2D
 
         // L02：buff 信号断开（C22 模式；池化 reparent 复用由 Reactivate 对称重连）
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Disconnect("buffs_changed", _onBuffsChanged);
+            gs.Disconnect("BuffsChanged", _onBuffsChanged);
         }
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -291,9 +291,9 @@ public partial class Enemy : Area2D
     {
         // L02：池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Connect("buffs_changed", _onBuffsChanged);
+            gs.Connect("BuffsChanged", _onBuffsChanged);
         }
 
         OnBuffsChanged();

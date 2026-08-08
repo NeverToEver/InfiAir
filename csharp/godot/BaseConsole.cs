@@ -104,9 +104,9 @@ public partial class BaseConsole : CanvasLayer
     {
         Visible = false;
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("locale_changed", _localeChanged))
+        if (gs != null && !gs.IsConnected("LocaleChanged", _localeChanged))
         {
-            gs.Connect("locale_changed", _localeChanged);
+            gs.Connect("LocaleChanged", _localeChanged);
         }
 
         var dim = new ColorRect { Color = UITheme.PhantomBg };

@@ -131,7 +131,7 @@ func _ready() -> void:
 	_check(GameState.legacy_migration_pending(), "迁移缓存旧 profile")  # Q25：公开查询
 	_check(GameState.create_user("migrator", "pass123"), "迁移后注册用户成功")
 	_check(not FileAccess.file_exists("user://profile.json"), "迁移后 profile.json 删除")
-	var migrator_settings := GameState.get_user_settings("migrator")
+	var migrator_settings = GameState.get_user_settings("migrator")
 	_check(migrator_settings.get("difficulty") == &"hard", "迁移：难度并入新用户设置")
 	_check(migrator_settings.get("locale") == "en", "迁移：locale 并入新用户设置")
 	_check(migrator_settings.get("tutorial_done") == true, "迁移：教程标记并入新用户设置")
@@ -166,7 +166,7 @@ func _ready() -> void:
 	# 4. 每用户存档隔离：登录写用户路径；档主不匹配隔离；游客不存档；未登录走旧路径
 	GameState.login_user("alice")
 	GameState.save_run(50.0, 10.0)
-	var save_path := GameState.user_db_savefile_for("alice")
+	var save_path = GameState.user_db_savefile_for("alice")
 	_check(FileAccess.file_exists(save_path), "登录用户存档写入每用户路径")
 	_check(GameState.has_save(), "登录用户 has_save 命中用户档")
 	_check(String(GameState.load_run_data().get("username", "")) == "alice", "存档含档主用户名")
@@ -203,7 +203,7 @@ func _ready() -> void:
 	_check(int(GameState.get_user_data("alice").get("high_score", 0)) == 200, "游客纪录不落盘")
 	# 排行榜条目：alice 榜上为 100（record_score 只写最高分统计，不入榜）→ Guest 150 应排第 1
 	_check(GameState.submit_highscore(150) == 1, "游客以 Guest 提交入榜")
-	var board := GameState.get_leaderboard()
+	var board = GameState.get_leaderboard()
 	_check(String(board[0]["player_name"]) == "Guest" and int(board[0]["score"]) == 150, "榜首为 Guest（150 高于 alice 100）")
 	_check(String(board[1]["player_name"]) == "alice", "次席为 alice")
 
@@ -213,7 +213,7 @@ func _ready() -> void:
 	GameState.record_game_over()
 	GameState.kills = 3
 	GameState.record_game_over()
-	var stats := GameState.get_user_data("alice")
+	var stats = GameState.get_user_data("alice")
 	_check(int(stats.get("total_kills", 0)) == 10, "Q06：total_kills 两局累计 7+3=10（实测 %d）" % int(stats.get("total_kills", 0)))
 	_check(int(stats.get("games_played", 0)) == 2, "Q06：games_played 累计 2 局（实测 %d）" % int(stats.get("games_played", 0)))
 	GameState.login_guest()

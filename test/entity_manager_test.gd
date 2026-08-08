@@ -6,6 +6,7 @@ extends Node
 ##    （真实敌机池化实例；清除后注册表注销、池回收语义保持）。
 
 var _failures: int = 0
+var _visited: Array = []
 
 
 func _check(cond: bool, label: String) -> void:
@@ -14,6 +15,22 @@ func _check(cond: bool, label: String) -> void:
 	else:
 		_failures += 1
 		printerr("[FAIL] ", label)
+
+
+func _is_enemy(e: Node) -> bool:
+	return is_instance_of(e, load("res://csharp/godot/Enemy.cs"))
+
+
+func _collect_visited(e: Node) -> void:
+	_visited.append(e)
+
+
+func _not_keep(e: Node) -> bool:
+	return not e.has_meta("keep")
+
+
+func _has_keep(e: Node) -> bool:
+	return e.has_meta("keep")
 
 
 func _ready() -> void:
@@ -50,8 +67,8 @@ func _ready() -> void:
 
 	# ================= 场景 2：生命周期信号 =================
 	var sig_seen: Array[String] = []
-	GameState.entity_registered.connect(func(_n: Node) -> void: sig_seen.append("reg"))
-	GameState.entity_unregistered.connect(func(_n: Node) -> void: sig_seen.append("unreg"))
+	GameState.EntityRegistered.connect(func(_n: Node) -> void: sig_seen.append("reg"))
+	GameState.EntityUnregistered.connect(func(_n: Node) -> void: sig_seen.append("unreg"))
 	var probe2 := Node.new()
 	add_child(probe2)
 	GameState.bind_enemy(probe2)
@@ -67,16 +84,16 @@ func _ready() -> void:
 	e2.set_meta("keep", true)  # clear_enemies 保留项标记（模拟 Boss 语义）
 	_check(GameState.enemies.has(e1) and GameState.enemies.has(e2), "场景3：池化生成实例注册进注册表")
 	_check(
-		GameState.count_enemies(func(e: Node) -> bool: return is_instance_of(e, load("res://csharp/godot/Enemy.cs"))) == 2,  # M3b：is 判定经脚本资源
+		GameState.count_enemies(Callable(self, "_is_enemy")) == 2,  # M3b：is 判定经脚本资源
 		"场景3：count_enemies 计数 = 2",
 	)
-	var visited: Array = []
-	GameState.for_each_enemy(func(e: Node) -> void: visited.append(e), func(e: Node) -> bool: return not e.has_meta("keep"))
-	_check(visited.size() == 1 and visited[0] == e1, "场景3：for_each_enemy 谓词过滤（排除保留项）")
+	_visited = []
+	GameState.for_each_enemy(Callable(self, "_collect_visited"), Callable(self, "_not_keep"))
+	_check(_visited.size() == 1 and _visited[0] == e1, "场景3：for_each_enemy 谓词过滤（排除保留项）")
 	# 失效实例跳过：queue_free 一帧后注册表可能仍持有（帧末释放），先确认 for_each 不崩
-	var before := GameState.count_enemies()
+	var before = GameState.count_enemies()
 	_check(before >= 2, "场景3：清理前注册表 ≥2（P4：基准断言前置，原在清理后检查失去意义）")
-	var cleared := GameState.clear_enemies(func(e: Node) -> bool: return e.has_meta("keep"))
+	var cleared = GameState.clear_enemies(Callable(self, "_has_keep"))
 	_check(cleared == 1, "场景3：clear_enemies 清除 1 个（保留 keep 项）")
 	await get_tree().process_frame
 	_check(GameState.count_enemies() == 1, "场景3：清除后注册表仅剩保留项")

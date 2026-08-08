@@ -46,13 +46,13 @@ func _ready() -> void:
 	spawner.BOSS_TIME_LIMIT = 999999.0
 
 	# 1. 普通波成组刷出，x 落在各自均分槽位内，锚点在悬停带内
-	var view := GameState.view_world_rect()
+	var view = GameState.view_world_rect()
 	var n: int = spawner.wave_size()
 	spawner.spawn_normal_wave()
 	await get_tree().create_timer(1.0).timeout  # 0.6s 预告后进场
 	var wave := _enemies()
 	_check(wave.size() == n, "普通波成组刷出（%d 架）" % n)
-	var slot_w := (view.size.x - 120.0) / float(n)
+	var slot_w = (view.size.x - 120.0) / float(n)
 	var band := Vector2(
 		view.position.y + spawner.hover_band().x,
 		view.position.y + spawner.hover_band().y,

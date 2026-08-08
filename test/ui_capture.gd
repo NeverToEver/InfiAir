@@ -33,7 +33,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 3. Buff 三选一（含层数标记：先垫一层 power_shot 候选必含时可见，随缘即可）
-	GameState.milestone_reached.emit(100)
+	GameState.MilestoneReached.emit(100)
 	await _settle()
 	_shot("buff")
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
@@ -93,7 +93,7 @@ func _ready() -> void:
 		buff_ui.pick_buff(buff_ui.current_available()[0]["id"])
 	GameState.high_score = 100  # 压低原纪录，保证「新纪录」标记可见（结尾还原）
 	GameState.add_score(8888)
-	GameState.player_died.emit()
+	GameState.PlayerDied.emit()
 	# 等结算面板真正可见再截
 	for i in 60:
 		await get_tree().process_frame

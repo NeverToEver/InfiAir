@@ -11,7 +11,9 @@ namespace InfiAir;
 /// </summary>
 public partial class TaskPoolInterop : RefCounted
 {
-    private TaskPool? _pool;
+    // M7：InfiAir.TaskPool（scripts/task_pool.gd 迁移壳，csharp/godot/TaskPool.cs）遮蔽
+    // using 引入的 InfiAir.Core.Missions.TaskPool（当前命名空间成员优先于 using），此处全限定。
+    private InfiAir.Core.Missions.TaskPool? _pool;
     private readonly Dictionary<string, Godot.Collections.Dictionary> _byId = new();
 
     /// <summary>装载任务定义池（Array[Dictionary]，条目须含 id/goal/kind）。</summary>
@@ -26,7 +28,7 @@ public partial class TaskPoolInterop : RefCounted
             coreDefs[i] = new TaskDef(id, (int)def["goal"].AsInt64(), def["kind"].AsStringName().ToString());
             _byId[id] = def;
         }
-        _pool = new TaskPool(coreDefs);
+        _pool = new InfiAir.Core.Missions.TaskPool(coreDefs);
     }
 
     /// <summary>抽取 count 个任务定义（无放回）；excludeIds 为在场 id（StringName 数组）。

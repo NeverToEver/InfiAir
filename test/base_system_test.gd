@@ -3,6 +3,7 @@ extends Node
 ## 只操作 GameState autoload，不加载 main 场景。
 
 var _failures: int = 0
+const SM := preload("res://csharp/godot/SaveManager.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -117,7 +118,7 @@ func _ready() -> void:
 
 	# 8. 存档往返：rp / 路线 / 任务进度全保留
 	GameState.save_run(50.0, GameState.run_time)
-	var saved_rp := GameState.rp
+	var saved_rp = GameState.rp
 	GameState.rp = 0
 	GameState.buffs.clear()
 	GameState.reset_missions()
@@ -142,7 +143,7 @@ func _ready() -> void:
 	_check(not GameState.is_buff_locked(&"laser_beam"), "reset_run 解除锁定")
 
 	# 9b. A 审计：SaveManager 原子写——save 后正本存在、数据正确、重复 save（覆盖）不丢
-	var sm := SaveManager.new()
+	var sm = SM.new()
 	var test_path := "user://audit_save_test.json"
 	sm.delete(test_path)
 	_check(sm.save(test_path, {"version": 2, "score": 500}), "A审计：save 成功")
@@ -241,7 +242,7 @@ func _ready() -> void:
 	_check(GameState.is_ps_guid("030000004c050000c405000000010000"), "P0-1：Sony GUID 判定（vendor 054c）")
 	_check(not GameState.is_ps_guid("030000005e0400008e02000000010000"), "P0-1：非 Sony GUID 不误判")
 	_check(GameState.joy_button_label(0) == "A" and GameState.joy_button_label(5) == "RB", "P0-1：Xbox 布局标签映射")
-	var saved_layout := GameState.joy_layout
+	var saved_layout = GameState.joy_layout
 	GameState.joy_layout = &"ps"
 	_check(GameState.joy_button_label(0) == "✕" and GameState.joy_button_label(4) == "L1", "P0-1：PS 布局标签映射（✕/L1）")
 	GameState.joy_layout = saved_layout

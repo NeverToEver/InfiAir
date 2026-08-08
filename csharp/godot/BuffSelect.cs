@@ -77,8 +77,8 @@ public partial class BuffSelect : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            gs.Connect("milestone_reached", _onMilestoneReached);
-            gs.Connect("locale_changed", _onLocaleChanged);
+            gs.Connect("MilestoneReached", _onMilestoneReached);
+            gs.Connect("LocaleChanged", _onLocaleChanged);
         }
     }
 
@@ -88,13 +88,13 @@ public partial class BuffSelect : CanvasLayer
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("milestone_reached", _onMilestoneReached))
+            if (gs.IsConnected("MilestoneReached", _onMilestoneReached))
             {
-                gs.Disconnect("milestone_reached", _onMilestoneReached);
+                gs.Disconnect("MilestoneReached", _onMilestoneReached);
             }
-            if (gs.IsConnected("locale_changed", _onLocaleChanged))
+            if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
             {
-                gs.Disconnect("locale_changed", _onLocaleChanged);
+                gs.Disconnect("LocaleChanged", _onLocaleChanged);
             }
         }
     }

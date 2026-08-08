@@ -142,7 +142,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(event.line_stage() == 2, "场景1：摧毁 3 座（≥⌈总数×2/3⌉）播第 2 句")
 	# 全歼 → 成功结算
-	var score0 := GameState.score
+	var score0 = GameState.score
 	_kill_turrets(event, 1)
 	await get_tree().process_frame
 	_check(event.state() == ELITE.GetStateCarrierExit(), "场景1：全歼进入 CARRIER_EXIT")
@@ -197,7 +197,7 @@ func _ready() -> void:
 	event.set_cooldown_left(0.0)
 	event.DURATION = 0.8
 	event.start()
-	var rp1 := GameState.rp
+	var rp1 = GameState.rp
 	_check(await _wait_event_state(event, ELITE.GetStateTurretActive()), "场景3：事件进入倒计时")
 	_check(await _wait_event_state(event, ELITE.GetStateCarrierExit(), 5.0), "场景3：倒计时归零进入 CARRIER_EXIT")
 	_check(event.comm().full_text() == tr("ETQ_RETREAT"), "场景3：失败播放固定撤退台词")

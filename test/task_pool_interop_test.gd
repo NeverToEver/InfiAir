@@ -4,6 +4,7 @@ extends Node
 ## 生产链路已接入（scripts/task_pool.gd 转发，性质断言同 base_task_refresh_test 第 8–9 节）。
 
 var _failures: int = 0
+const TP := preload("res://csharp/godot/TaskPool.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -70,7 +71,8 @@ func _ready() -> void:
 	_check(found_identity, "返回池内原始定义对象（is_same 引用同一）")
 
 	# 7. 生产链路转发一致（task_pool.gd 已切 C# 壳；GameState.MISSION_POOL 走真实数据）
-	var pool := TaskPool.new(GameState.MISSION_POOL)
+	var pool = TP.new()
+	pool.defs = GameState.MISSION_POOL
 	var prod: Array[Dictionary] = pool.draw(9, [])
 	_check(prod.size() == 9 and _all_distinct(prod), "生产链路 TaskPool.draw(9) 全量无重复")
 	var prod_excl: Array[Dictionary] = pool.draw(

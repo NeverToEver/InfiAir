@@ -427,9 +427,9 @@ public partial class Boss : Area2D
         // 2026-08-07 审计：slow_field 缓存初始值 + buffs_changed 增量刷新（对齐 enemy.gd C22）
         _slowFieldOn = (int)GameStateBridge.Call("buff_count", new StringName("slow_field")).AsInt64() > 0;
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Connect("buffs_changed", _onBuffsChanged);
+            gs.Connect("BuffsChanged", _onBuffsChanged);
         }
 
         // 2026-08-07 审计：体碰信号事件驱动（对齐 enemy.gd P0-2；collision_mask=3 已含 player Hitbox 层 1）
@@ -573,9 +573,9 @@ public partial class Boss : Area2D
         GameStateBridge.Call("unbind_enemy", this); // 统一解绑（docs/ENTITY_MANAGER.md）
         // C22：显式断开 buffs_changed 信号连接（重入树不重复连接）
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("buffs_changed", _onBuffsChanged))
+        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
-            gs.Disconnect("buffs_changed", _onBuffsChanged);
+            gs.Disconnect("BuffsChanged", _onBuffsChanged);
         }
 
         _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（A3 归 EnrageSequence）

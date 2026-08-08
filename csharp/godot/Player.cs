@@ -207,19 +207,19 @@ public partial class Player : CharacterBody2D
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("buffs_changed", _onRefreshBuffFactors))
+            if (!gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
             {
-                gs.Connect("buffs_changed", _onRefreshBuffFactors);
+                gs.Connect("BuffsChanged", _onRefreshBuffFactors);
             }
 
-            if (!gs.IsConnected("joy_settings_changed", _onJoySettingsChanged))
+            if (!gs.IsConnected("JoySettingsChanged", _onJoySettingsChanged))
             {
-                gs.Connect("joy_settings_changed", _onJoySettingsChanged);
+                gs.Connect("JoySettingsChanged", _onJoySettingsChanged);
             }
 
-            if (!gs.IsConnected("aim_assist_changed", _onAimAssistLevelChanged))
+            if (!gs.IsConnected("AimAssistChanged", _onAimAssistLevelChanged))
             {
-                gs.Connect("aim_assist_changed", _onAimAssistLevelChanged);
+                gs.Connect("AimAssistChanged", _onAimAssistLevelChanged);
             }
 
             // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
@@ -1219,19 +1219,19 @@ public partial class Player : CharacterBody2D
         var gs = GameStateBridge.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("buffs_changed", _onRefreshBuffFactors))
+            if (gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
             {
-                gs.Disconnect("buffs_changed", _onRefreshBuffFactors);
+                gs.Disconnect("BuffsChanged", _onRefreshBuffFactors);
             }
 
-            if (gs.IsConnected("aim_assist_changed", _onAimAssistLevelChanged))
+            if (gs.IsConnected("AimAssistChanged", _onAimAssistLevelChanged))
             {
-                gs.Disconnect("aim_assist_changed", _onAimAssistLevelChanged);
+                gs.Disconnect("AimAssistChanged", _onAimAssistLevelChanged);
             }
 
-            if (gs.IsConnected("joy_settings_changed", _onJoySettingsChanged))
+            if (gs.IsConnected("JoySettingsChanged", _onJoySettingsChanged))
             {
-                gs.Disconnect("joy_settings_changed", _onJoySettingsChanged);
+                gs.Disconnect("JoySettingsChanged", _onJoySettingsChanged);
             }
 
             var fogEvents = gs.Get("fog_events").AsGodotObject();

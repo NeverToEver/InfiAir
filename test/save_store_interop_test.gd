@@ -3,6 +3,7 @@ extends Node
 ## 损坏隔离（.corrupt + corrupt 标记）、缺失三态；并经 SaveManager 壳验证生产转发路径。
 
 var _failures: int = 0
+const SM := preload("res://csharp/godot/SaveManager.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -65,7 +66,7 @@ func _ready() -> void:
 	_check(FileAccess.file_exists(path + ".corrupt"), "数组根 JSON 隔离出 .corrupt")
 
 	# 6. SaveManager 壳（生产转发路径：GameState/base_system_test 同款调用）
-	var sm := SaveManager.new()
+	var sm = SM.new()
 	_check(sm.save(path, {"score": 123}), "SaveManager 壳 save 成功")
 	_check(sm.exists(path), "SaveManager 壳 exists 命中")
 	_check(int(sm.load(path).get("score", -1)) == 123, "SaveManager 壳 load 正确")

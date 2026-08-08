@@ -37,9 +37,9 @@ public partial class PauseUi : CanvasLayer
         Visible = false;
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Connect("locale_changed", _onLocaleChanged);
+            gs.Connect("LocaleChanged", _onLocaleChanged);
         }
 
         var shell = UITheme.MakePageShell("PAUSE_TITLE");
@@ -81,9 +81,9 @@ public partial class PauseUi : CanvasLayer
     public override void _ExitTree()
     {
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Disconnect("locale_changed", _onLocaleChanged);
+            gs.Disconnect("LocaleChanged", _onLocaleChanged);
         }
     }
 

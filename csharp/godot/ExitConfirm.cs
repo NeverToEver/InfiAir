@@ -59,18 +59,18 @@ public partial class ExitConfirm : CanvasLayer
         row.AddChild(_okButton);
 
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Connect("locale_changed", _onLocaleChanged);
+            gs.Connect("LocaleChanged", _onLocaleChanged);
         }
     }
 
     public override void _ExitTree()
     {
         var gs = GameStateBridge.Instance;
-        if (gs != null && gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Disconnect("locale_changed", _onLocaleChanged);
+            gs.Disconnect("LocaleChanged", _onLocaleChanged);
         }
     }
 

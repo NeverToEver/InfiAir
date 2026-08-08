@@ -267,11 +267,11 @@ func _ready() -> void:
 	_prev_ctrl_toggle = GameState.ctrl_toggle_mode
 	_prev_shift_toggle = GameState.shift_toggle_mode
 	GameState.set_difficulty(&"medium")
-	GameState.milestone_reached.connect(_on_milestone)
-	GameState.player_died.connect(_on_player_died)
-	GameState.health_changed.connect(_on_health_changed)
+	GameState.MilestoneReached.connect(_on_milestone)
+	GameState.PlayerDied.connect(_on_player_died)
+	GameState.HealthChanged.connect(_on_health_changed)
 	# B 梯队：DDA 降档由受击信号驱动（同 Meta HUD 受击层同源）
-	GameState.player_damaged.connect(_on_player_damaged)
+	GameState.PlayerDamaged.connect(_on_player_damaged)
 	_t0_msec = Time.get_ticks_msec()
 	_last_snap_msec = _t0_msec
 	_last_check_msec = _t0_msec
@@ -496,7 +496,7 @@ func _handle_base_ui(now: int) -> void:
 				if GameState.chosen_routes.has(line):
 					continue  # 每线每局限选一次
 				var options: Array = GameState.ROUTE_LINES[line]
-				var total := GameState.buff_count(options[0]) + GameState.buff_count(options[1])
+				var total = GameState.buff_count(options[0]) + GameState.buff_count(options[1])
 				if total == 0:
 					continue
 				var opt: StringName = options[randi() % options.size()]
@@ -666,7 +666,7 @@ func _update_movement(now: int) -> void:
 	if now < _next_move_decision:
 		return
 	_next_move_decision = now + MOVE_DECISION_MS
-	var view := GameState.view_world_rect()
+	var view = GameState.view_world_rect()
 	if _player.position.distance_to(_move_target) < 80.0 or randf() < 0.1:
 		_move_target = Vector2(
 			randf_range(view.position.x + 100.0, view.end.x - 100.0), randf_range(view.position.y + 100.0, view.end.y - 100.0)

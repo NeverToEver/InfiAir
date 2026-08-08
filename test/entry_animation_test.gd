@@ -32,7 +32,7 @@ func _ready() -> void:
 	var main := get_node("Main")
 	var player = main.player()
 	var spawner: Node = main.get_node("Spawner")
-	var rect := GameState.view_world_rect()
+	var rect = GameState.view_world_rect()
 	var land_y: float = rect.position.y + rect.size.y * player.ENTRY_LAND_RATIO
 
 	# ---------- 1. 触发入场序列：动画启动 + 敌机延迟 + 起点在屏下外 ----------

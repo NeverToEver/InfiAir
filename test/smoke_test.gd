@@ -277,7 +277,7 @@ func _ready() -> void:
 
 	# 3.7 相位冲刺：触发、无敌、位移、冷却
 	GameState.add_buff(&"phase_dash")
-	var health_before := GameState.health
+	var health_before = GameState.health
 	player.set_since_damage(0.0)  # 冻结被动回血，避免干扰 HP 断言
 	var pos_before = player.position  # M3c：player untyped，动态属性去 :=
 	player.set_invincible(0.0)
@@ -313,7 +313,7 @@ func _ready() -> void:
 	elite.setup(spawner.ELITE_TYPES[0], &"straight", 1.0)
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
-	var score_before_elite := GameState.score
+	var score_before_elite = GameState.score
 	elite.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.score >= score_before_elite + int(spawner.ELITE_TYPES[0]["score"]), "精英击毁得分奖励")
@@ -455,7 +455,7 @@ func _ready() -> void:
 	b33.ScoreScale = 1.0 / 3.0
 	b33.position = e33.position
 	main.add_child(b33)
-	var score_before_33 := GameState.score
+	var score_before_33 = GameState.score
 	await get_tree().create_timer(0.3).timeout
 	_check(GameState.score == score_before_33 + 33, "母舰击杀 1/3 分")
 	if buff_ui.visible:
@@ -484,7 +484,7 @@ func _ready() -> void:
 	if not GameState.user_exists("smoke_user"):
 		GameState.create_user("smoke_user", "pass123")
 	GameState.login_user("smoke_user")
-	var saved_score := GameState.score
+	var saved_score = GameState.score
 	GameState.add_buff(&"power_shot")
 	GameState.health = 66.0
 	GameState.save_run(55.0, 12.0)
@@ -498,8 +498,8 @@ func _ready() -> void:
 	_check(GameState.health == 66.0, "存档恢复 HP（v2 格式）")
 
 	# 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
-	var score_before_hc := GameState.score
-	var power_before := GameState.buff_count(&"power_shot")
+	var score_before_hc = GameState.score
+	var power_before = GameState.buff_count(&"power_shot")
 	GameState.add_rp(5)
 	GameState.health = 50.0
 	# 蓄力松手取消
@@ -522,7 +522,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(main.base_ui().visible and get_tree().paused, "进入基地整备界面")
 	# 维修扣 RP 回满（对齐原作 2RP 回满）
-	var rp_before := GameState.rp
+	var rp_before = GameState.rp
 	main.base_ui().repair()
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")

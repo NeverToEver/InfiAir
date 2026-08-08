@@ -3,7 +3,8 @@ extends Node
 ## 删号连档清理/排行榜 cap 与名次/损坏隔离重置。只操作 user:// 文件，不加载 main 场景。
 
 var _failures: int = 0
-var _db: UserDB
+const UDB := preload("res://csharp/godot/UserDB.cs")
+var _db
 
 
 func _check(cond: bool, label: String) -> void:
@@ -57,7 +58,7 @@ func _cleanup() -> void:
 func _ready() -> void:
 	_backup_user_files()  # M6：快照须在任何删除/覆写之前（_cleanup 会删 users.json）
 	_cleanup()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000  # 测试降档加速（生产 100_000）
 
 	# 1. 注册 / 验密 / 存在性
@@ -81,7 +82,7 @@ func _ready() -> void:
 	# 3. last_login 排序：序号降序 + 名字典序
 	_db.record_login("bob")
 	_db.record_login("alice")
-	var names := _db.list_usernames()
+	var names = _db.list_usernames()
 	_check(names == ["alice", "bob"], "list_usernames 按最近登录降序")
 	_check(_db.get_last_login_user() == "alice", "get_last_login_user 取最近登录")
 	_db.record_login("bob")
@@ -101,12 +102,12 @@ func _ready() -> void:
 	# 5. 设置隔离
 	_db.update_user_settings("alice", {"difficulty": &"hard"})
 	_db.update_user_settings("alice", {"locale": "en"})
-	var settings := _db.get_user_settings("alice")
+	var settings = _db.get_user_settings("alice")
 	_check(settings.get("difficulty") == &"hard" and settings.get("locale") == "en", "update_user_settings 合并")
 	_check(_db.get_user_settings("bob").is_empty(), "用户设置互不泄漏")
 
 	# 6. 每用户存档路径
-	var alice_save := _db.savefile_for_user("alice")
+	var alice_save = _db.savefile_for_user("alice")
 	_check(alice_save.begins_with("user://savegame_alice_"), "存档路径含清洗后用户名")
 	_check(alice_save.ends_with(".json") and alice_save.length() == len("user://savegame_alice_.json") + 12, "存档路径含 sha256[:12]")
 	_check(_db.savefile_for_user("Alice") != alice_save, "大小写不同的用户路径不同")
@@ -114,7 +115,7 @@ func _ready() -> void:
 
 	# 7. 删号：验密 + 连带清理存档（B7-12）
 	_check(not _db.delete_user("bob", "wrongpw"), "删号错误密码被拒")
-	var bob_save := _db.savefile_for_user("bob")
+	var bob_save = _db.savefile_for_user("bob")
 	var f := FileAccess.open(bob_save, FileAccess.WRITE)
 	f.store_string("{}")
 	f.close()
@@ -130,31 +131,31 @@ func _ready() -> void:
 	_check(_db.submit_score("alice", 80) == 2, "排行榜：中间分插入第 2")
 	_check(_db.submit_score("alice", 100) == 2, "排行榜：同分新条目排后")
 	_check(_db.submit_score("carol", -5) == 0, "排行榜：负分不入榜")
-	var board := _db.get_leaderboard()
+	var board = _db.get_leaderboard()
 	_check(board.size() == 4, "排行榜：条目数正确")
 	_check(int(board[0]["score"]) == 100 and int(board[1]["score"]) == 100, "排行榜：榜首与同分先到先得")
 	_check(String(board[0]["player_name"]) == "alice", "排行榜：榜首玩家名正确")
 	for i in range(100):
 		_db.submit_score("alice", 200 - i)
 	board = _db.get_leaderboard()
-	_check(board.size() == UserDB.LEADERBOARD_CAP, "排行榜：上限截断")
+	_check(board.size() == UDB.GetLeaderboardCap(), "排行榜：上限截断")
 	_check(int(board[0]["score"]) == 200, "排行榜：截断后榜首不变")
 	_check(_db.submit_score("alice", 1) == 0, "排行榜：超出上限的分数不入榜")
 
 	# 9. 持久化往返：重载后数据一致
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(_db.user_exists("alice"), "持久化往返：用户保留")
 	_check(_db.verify_user("alice", "s3cret"), "持久化往返：验密一致")
 	board = _db.get_leaderboard()
-	_check(board.size() == UserDB.LEADERBOARD_CAP and int(board[0]["score"]) == 200, "持久化往返：榜单一致")
+	_check(board.size() == UDB.GetLeaderboardCap() and int(board[0]["score"]) == 200, "持久化往返：榜单一致")
 
 	# 10. 损坏隔离重置（B4：备份 .corrupt + 按空库处理）
 	_cleanup()
 	var corrupted := FileAccess.open("user://users.json", FileAccess.WRITE)
 	corrupted.store_string("{not valid json")
 	corrupted.close()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(_db.create_user("dave", "pass123"), "损坏后按空库重建可注册")
 	_check(FileAccess.file_exists("user://users.json.corrupt"), "损坏文件隔离为 .corrupt 备份")
@@ -163,7 +164,7 @@ func _ready() -> void:
 
 	# 11. Q17/Q18/Q20（2026-08-05）：结构守卫 / hex 校验 / 榜单判型
 	_cleanup()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(_db.create_user("alice", "s3cret"), "Q17：重建后注册 alice")
 	_check(_db.submit_score("alice", 100) == 1, "Q17：提交榜单条目")
@@ -171,7 +172,7 @@ func _ready() -> void:
 	var q17_fh := FileAccess.open("user://users.json", FileAccess.WRITE)
 	q17_fh.store_string(JSON.stringify({"_users": "not-a-dict", "_leaderboard": [1, 2]}))
 	q17_fh.close()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(not _db.user_exists("alice"), "Q17：用户表非 Dictionary → 空库重建（不崩溃）")
 	_check(_db.get_leaderboard().is_empty(), "Q17：非法榜单结构重建为空")
@@ -194,21 +195,21 @@ func _ready() -> void:
 		)
 	)
 	q20_fh.close()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
-	var q20_board := _db.get_leaderboard()
+	var q20_board = _db.get_leaderboard()
 	_check(q20_board.size() == 1 and int(q20_board[0]["score"]) == 50, "Q20：非 Dictionary/字符串 score 条目被过滤（保留 1 条）")
 	# Q18：手改奇数长度/非法 hex salt → 验密安全失败（原 hex[i+1] 越界 / -1 append 崩溃）
 	var q18_fh := FileAccess.open("user://users.json", FileAccess.WRITE)
 	q18_fh.store_string(JSON.stringify({"_users": {"bob": {"password": "00", "salt": "abc", "iterations": 1000, "last_login_order": 0}}}))
 	q18_fh.close()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(not _db.verify_user("bob", "pass123"), "Q18：奇数长度 salt 验密安全失败（无越界崩溃）")
 	q18_fh = FileAccess.open("user://users.json", FileAccess.WRITE)
 	q18_fh.store_string(JSON.stringify({"_users": {"bob": {"password": "zz", "salt": "zz", "iterations": 1000, "last_login_order": 0}}}))
 	q18_fh.close()
-	_db = UserDB.new()
+	_db = UDB.new()
 	_db.iterations = 1000
 	_check(not _db.verify_user("bob", "pass123"), "Q18：非法 hex 盐/密文验密安全失败（不 append -1）")
 

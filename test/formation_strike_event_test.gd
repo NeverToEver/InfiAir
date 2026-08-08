@@ -142,7 +142,7 @@ func _ready() -> void:
 	_check(await _wait_event_state(event, FORMATION.GetStateFormationTurn()), "场景2：靠近后进入 FORMATION_TURN")
 	# 转航向期间击落 4 号僚机（投弹前）：其投弹序列应被跳过
 	var wingman = event.crafts()[3]
-	var score0 := GameState.score
+	var score0 = GameState.score
 	wingman.take_damage(9999)
 	await get_tree().process_frame
 	_check(GameState.score - score0 == 400, "场景2：击坠得分 200×中难度倍率×2 = 400")
@@ -180,7 +180,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await _wait_real(0.25)
 	_check(is_instance_valid(bomb) and bomb.ring().scale.x < ring_r0, "场景3：警示环随引信收缩")
-	var hp0 := GameState.health
+	var hp0 = GameState.health
 	await _wait_real(0.4)  # 越过引信 0.5s 引爆
 	_check(not is_instance_valid(bomb), "场景3：引爆后炸弹节点释放")
 	_check(GameState.health < hp0, "场景3：玩家站半径内引爆掉血")
@@ -190,7 +190,7 @@ func _ready() -> void:
 	bomb2.setup(Vector2.ZERO, 0.3, 20, 120.0)
 	bomb2.position = player.position
 	main.add_child(bomb2)
-	var hp1 := GameState.health
+	var hp1 = GameState.health
 	await _wait_real(0.5)
 	_check(not is_instance_valid(bomb2), "场景3：第二枚炸弹已引爆释放")
 	_check(GameState.health >= hp1, "场景3：玩家无敌时引爆不掉血")
@@ -199,7 +199,7 @@ func _ready() -> void:
 	_start_fast_event(event)
 	await get_tree().process_frame
 	_check(event.state() == FORMATION.GetStateFormationEnter(), "场景4：事件再次启动")
-	var score1 := GameState.score
+	var score1 = GameState.score
 	for i in event.crafts().size():
 		var craft = event.crafts()[i]
 		if craft != null and is_instance_valid(craft):

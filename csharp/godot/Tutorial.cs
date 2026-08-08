@@ -96,14 +96,14 @@ public partial class Tutorial : Node2D
         _maxHp = (float)GameStateBridge.Call("max_health").AsDouble(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("locale_changed", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
-            gs.Connect("locale_changed", _onLocaleChanged);
+            gs.Connect("LocaleChanged", _onLocaleChanged);
         }
 
-        if (gs != null && !gs.IsConnected("player_died", _onPlayerDied))
+        if (gs != null && !gs.IsConnected("PlayerDied", _onPlayerDied))
         {
-            gs.Connect("player_died", _onPlayerDied);
+            gs.Connect("PlayerDied", _onPlayerDied);
         }
 
         // 辅助瞄准框覆盖层：与 main.gd 同款运行时创建（登记 GameState.aim_frame_layer），

@@ -133,9 +133,9 @@ public partial class Main : Node2D
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
         _events.SetRunActive(GetTree().CurrentScene == this);
         var gs = GameStateBridge.Instance;
-        if (gs != null && !gs.IsConnected("player_died", _onPlayerDied))
+        if (gs != null && !gs.IsConnected("PlayerDied", _onPlayerDied))
         {
-            gs.Connect("player_died", _onPlayerDied);
+            gs.Connect("PlayerDied", _onPlayerDied);
         }
 
         _baseUi.ResumeRequested += OnResumeFromBase;
@@ -159,15 +159,15 @@ public partial class Main : Node2D
         AddChild(_virtualControls);
         GameStateBridge.Set("virtual_controls", _virtualControls);
         _virtualControls.SetEnabled(GameStateBridge.Get("touch_controls").AsBool());
-        if (gs != null && !gs.IsConnected("touch_controls_changed", _onTouchControlsChanged))
+        if (gs != null && !gs.IsConnected("TouchControlsChanged", _onTouchControlsChanged))
         {
-            gs.Connect("touch_controls_changed", _onTouchControlsChanged);
+            gs.Connect("TouchControlsChanged", _onTouchControlsChanged);
         }
 
         ApplyCameraZoom();
-        if (gs != null && !gs.IsConnected("view_zoom_changed", _onViewZoomChanged))
+        if (gs != null && !gs.IsConnected("ViewZoomChanged", _onViewZoomChanged))
         {
-            gs.Connect("view_zoom_changed", _onViewZoomChanged);
+            gs.Connect("ViewZoomChanged", _onViewZoomChanged);
         }
 
         _ = StartBgmAsync();
@@ -224,19 +224,19 @@ public partial class Main : Node2D
             return;
         }
 
-        if (gs.IsConnected("player_died", _onPlayerDied))
+        if (gs.IsConnected("PlayerDied", _onPlayerDied))
         {
-            gs.Disconnect("player_died", _onPlayerDied);
+            gs.Disconnect("PlayerDied", _onPlayerDied);
         }
 
-        if (gs.IsConnected("view_zoom_changed", _onViewZoomChanged))
+        if (gs.IsConnected("ViewZoomChanged", _onViewZoomChanged))
         {
-            gs.Disconnect("view_zoom_changed", _onViewZoomChanged);
+            gs.Disconnect("ViewZoomChanged", _onViewZoomChanged);
         }
 
-        if (gs.IsConnected("touch_controls_changed", _onTouchControlsChanged))
+        if (gs.IsConnected("TouchControlsChanged", _onTouchControlsChanged))
         {
-            gs.Disconnect("touch_controls_changed", _onTouchControlsChanged);
+            gs.Disconnect("TouchControlsChanged", _onTouchControlsChanged);
         }
     }
 
