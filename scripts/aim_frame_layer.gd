@@ -1,5 +1,7 @@
 class_name AimFrameLayer
 extends Node2D
+## M3b：Enemy 迁 C#，经脚本资源判型/静态调用（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，main.gd _ready 运行时创建挂 Main 下。
 ## 每帧一次 _draw 遍历 GameState.enemies 中带 aim_marked 的 Enemy 统一画四角 bracket 框
 ## （单节点零逐敌节点开销）；框半径 = 碰撞半径 + frame_pad（指示器族，frame_pad 不乘
@@ -23,14 +25,14 @@ var _magnet_input_full := 40.0
 var _falloff_peak := 400.0
 var _falloff_end := 1400.0
 var _falloff_min := 0.3
-var _hover: Enemy = null  # 本帧准星入框的标记敌（高亮显示用）
+var _hover = null  # M3b：Enemy 迁 C#，注解 untyped；本帧准星入框的标记敌（高亮显示用）
 ## P1-3：marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧各调一次，
 ## 命中缓存免重复 O(enemies) 扫描）。
 ## 2026-08-07 审计：缓存仅按渲染帧失效——原"点比较"在同帧两次查询点不同（aim_smooth
 ## 更新前后）时必然 miss，实际每帧 2-3 次全表扫描；目标选择设计语义即"帧首平滑点判定"
 ## （player.gd:115 注释），帧内共享帧首结果与该语义一致
 var _target_cache_frame: int = -1
-var _target_cache_result: Enemy = null
+var _target_cache_result = null  # M3b：Enemy 迁 C#，注解 untyped
 
 
 func _ready() -> void:
@@ -77,7 +79,7 @@ func frame_pad() -> float:
 	return _frame_pad
 
 
-func frame_half_size(e: Enemy) -> float:
+func frame_half_size(e) -> float:  # M3b：Enemy 迁 C#，参数注解 untyped
 	# C23：碰撞半径经 meta 缓存——setup 后恒定（仅 scale.x 随缩放变化），
 	# 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
 	# 2026-08-03 审计：meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
@@ -96,14 +98,14 @@ func frame_half_size(e: Enemy) -> float:
 ## 世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null
 ## P1-3：同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
 ## 2026-08-07 起按帧共享帧首结果，见字段注释）
-func marked_target_at(point: Vector2) -> Enemy:
+func marked_target_at(point: Vector2):  # M3b：Enemy 迁 C#，返回类型去掉
 	var frame := Engine.get_process_frames()
 	if frame == _target_cache_frame:
 		return _target_cache_result
-	var best: Enemy = null
+	var best = null  # M3b：Enemy 迁 C#，注解 untyped
 	var best_sq := INF
 	for node in GameState.enemies:
-		var e := node as Enemy
+		var e = node if is_instance_of(node, _enemy_script) else null  # M3b：Enemy 迁 C#，as 改 is_instance_of
 		if e == null or not e.aim_marked:
 			continue
 		var half := frame_half_size(e)
@@ -127,10 +129,10 @@ func magnet_pull(point: Vector2, input_delta: Vector2) -> Vector2:
 	var ilen := input_delta.length()
 	if ilen < _magnet_input_min or ilen >= _magnet_input_full:
 		return Vector2.ZERO
-	var best: Enemy = null
+	var best = null  # M3b：Enemy 迁 C#，注解 untyped
 	var best_d := INF
 	for node in GameState.enemies:
-		var e := node as Enemy
+		var e = node if is_instance_of(node, _enemy_script) else null  # M3b：Enemy 迁 C#，as 改 is_instance_of
 		if e == null or not e.aim_marked:
 			continue
 		var half := frame_half_size(e)
@@ -158,11 +160,11 @@ func magnet_pull(point: Vector2, input_delta: Vector2) -> Vector2:
 
 ## P1-3 锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近标记敌；
 ## 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。
-func nearest_cone_target(origin: Vector2, aim_dir: Vector2, cone_cos: float) -> Enemy:
-	var best: Enemy = null
+func nearest_cone_target(origin: Vector2, aim_dir: Vector2, cone_cos: float):  # M3b：Enemy 迁 C#，返回类型去掉
+	var best = null  # M3b：Enemy 迁 C#，注解 untyped
 	var best_d := INF
 	for node in GameState.enemies:
-		var e := node as Enemy
+		var e = node if is_instance_of(node, _enemy_script) else null  # M3b：Enemy 迁 C#，as 改 is_instance_of
 		if e == null or not e.aim_marked:
 			continue
 		var to: Vector2 = e.global_position - origin
@@ -182,9 +184,10 @@ func _dist_falloff(d: float) -> float:
 
 
 func _draw() -> void:
-	var flicker := 0.55 + 0.35 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 4.0)
+	# M3b：Enemy 迁 C#，静态经脚本资源（float() 显式化使 := 可推断）
+	var flicker := 0.55 + 0.35 * float(_enemy_script.SinFast(Time.get_ticks_msec() / 1000.0 * 4.0))
 	for node in GameState.enemies:
-		var e := node as Enemy
+		var e = node if is_instance_of(node, _enemy_script) else null  # M3b：Enemy 迁 C#，as 改 is_instance_of
 		if e == null or not e.aim_marked:
 			continue
 		var c := (COLOR_HOVER if e == _hover else COLOR) * Color(1.0, 1.0, 1.0, flicker)

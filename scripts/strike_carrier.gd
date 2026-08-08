@@ -1,5 +1,7 @@
 class_name StrikeCarrier
 extends Node2D
+## M3b：Enemy 迁 C#，sin_fast 静态经脚本资源
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 精英炮塔事件·打击航母（docs/ELITE_TURRET_EVENT.md 第 2 节）：
 ## 背景式巨型单位（不可被攻击，无碰撞层），自屏幕上方深空降入悬停，
 ## 作为炮台展开的舞台；事件结束按胜负两种姿态撤离（受创慢速 / 完整加速）。
@@ -124,7 +126,7 @@ func _physics_process(delta: float) -> void:
 		State.HOVER:
 			# 悬停轻微浮动（质量感：慢速小幅）
 			_hover_time += delta
-			position.y = _hover_y + Enemy.sin_fast(_hover_time * 0.8) * 6.0
+			position.y = _hover_y + float(_enemy_script.SinFast(_hover_time * 0.8)) * 6.0
 		State.RETREAT:
 			_retreat_speed += RETREAT_ACCEL * _retreat_factor * delta
 			position.y -= _retreat_speed * delta

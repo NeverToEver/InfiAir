@@ -40,8 +40,8 @@ func _free_all_bullets() -> void:
 	await get_tree().process_frame
 
 
-func _make_enemy(config: Dictionary, strategy: StringName = &"straight") -> Enemy:
-	var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
+func _make_enemy(config: Dictionary, strategy: StringName = &"straight"):  # M3b：Enemy 迁 C#，返回类型去注解
+	var e = (load("res://scenes/enemy.tscn") as PackedScene).instantiate()  # M3b：Enemy 迁 C#，instantiate 必为 Enemy 去 as 注解
 	e.setup(config, strategy, 1.0)
 	e.can_shoot = false
 	get_node("Main").add_child(e)
@@ -122,7 +122,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)
 	for child in main.get_children():
-		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or is_instance_of(child, _bullet_script):  # M3b：Enemy 迁 C#，is 判定经脚本资源
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -142,7 +142,7 @@ func _ready() -> void:
 
 	# ================= 弹反命中普通敌机（1.5 倍伤害结算） =================
 	await _await_parry_ready(player)
-	var target := _make_enemy(spawner.ENEMY_TYPES[0])
+	var target = _make_enemy(spawner.ENEMY_TYPES[0])
 	target.hp = 100
 	target.position = Vector2(960.0, 300.0)
 	await _await_active(player)

@@ -9,6 +9,9 @@ extends Node
 ## 场景6（难度分档 §4.4）：easy 弹数减/间隔 ×1.15/弹速 ×0.9，hard 反向；HP/伤害不动。
 ## 一型狂暴（悬停环弹进动 + 8 路重炮齐射）断言在 boss_enrage_test。
 
+# M3b：Enemy 迁 C#，is 判定经脚本资源引用（GDScript 不能 is C# 类）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
+
 var _failures: int = 0
 
 
@@ -30,8 +33,8 @@ func _wait_real(sec: float) -> void:
 func _bullets_by_speed(p_speed: float) -> Array:
 	var out: Array = []
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet and not child.has_meta("bullet_type"):
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet and not child.has_meta("bullet_type"):
 			if is_equal_approx(child.Speed, p_speed):
 				out.append(child)
 	return out
@@ -40,24 +43,24 @@ func _bullets_by_speed(p_speed: float) -> Array:
 func _count_meta_bullets(p_type: StringName) -> int:
 	var n := 0
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
 			if child.get_meta("bullet_type") == p_type:
 				n += 1
 	return n
 
 
-func _enemies_alive() -> Array[Enemy]:
-	var out: Array[Enemy] = []
+func _enemies_alive() -> Array:  # M3b：Enemy 迁 C#，返回类型 untyped
+	var out: Array = []  # M3b：Enemy 迁 C#，数组元素类型 untyped
 	for child in get_node("Main").get_children():
-		if child is Enemy:
+		if is_instance_of(child, _enemy_script):  # M3b：Enemy 迁 C#，is 改脚本判定
 			out.append(child)
 	return out
 
 
 func _clear_field() -> void:
 	for child: Variant in get_node("Main").get_children():
-		if child is Enemy or (child.has_method("IsActive") and not child.IsPlayerBullet):
+		if is_instance_of(child, _enemy_script) or (child.has_method("TryGraze") and not child.IsPlayerBullet):  # M3b：Enemy 迁 C#，is 改脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 

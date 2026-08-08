@@ -818,7 +818,7 @@ func aim_point() -> Vector2:
 		var magnet := Vector2.ZERO
 		if _aim_initialized and GameState.aim_frame_layer != null:
 			# 粘性判定结果复用（一次 marked_target_at）：入框走降灵敏度，框外近距走磁吸
-			var sticky: Enemy = GameState.aim_frame_layer.marked_target_at(_aim_smooth)
+			var sticky = GameState.aim_frame_layer.marked_target_at(_aim_smooth)  # M3b：Enemy 迁 C#，注解 untyped
 			if sticky != null:
 				factor = _aim_stick_factor
 			else:
@@ -939,7 +939,7 @@ func _fire(aim: Vector2) -> void:
 	var explosive := _buff_enabled(&"explosive")
 	# 辅助瞄准（P1-1）：准星在某标记敌框内 → 本轮出膛弹全部获得对该敌的追踪修正。
 	# P1-3：框外但目标在瞄准锥角内 → 弱追踪（转向率随角距与距离渐变，锥缘/远距退化为直射）
-	var homing_target: Enemy = null
+	var homing_target = null  # M3b：Enemy 迁 C#，注解 untyped
 	var homing_rate := _homing_turn_rate
 	if GameState.aim_frame_layer != null:
 		homing_target = GameState.aim_frame_layer.marked_target_at(aim_point())

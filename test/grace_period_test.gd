@@ -54,7 +54,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or is_instance_of(child, _bullet_script):  # M3b：Enemy 迁 C#，is 判定经脚本资源
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)

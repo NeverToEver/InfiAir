@@ -5,6 +5,7 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 
 var _failures: int = 0
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
+var _enemy_script := load("res://csharp/godot/Enemy.cs")  # M3b：Enemy 迁 C#，C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -102,7 +103,7 @@ func _ready() -> void:
 	# 停掉生成器并清场（敌机/敌弹），保证后续断言确定性
 	spawner.set_process(false)
 	for child in get_node("Main").get_children():
-		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
+		if is_instance_of(child, _enemy_script) or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A/M3b 重定型
 			child.queue_free()
 	await get_tree().process_frame
 	# 后续各段需长时间真实等待，期间弹幕可能命中玩家：测试窗口内先开无敌
@@ -111,7 +112,7 @@ func _ready() -> void:
 
 	# 3.1 新移动模式特征
 	# spiral：横向振幅 + 整体下压（机动相位随机，采样窗口取最大偏离）
-	var spiral := ENEMY_SCENE.instantiate() as Enemy
+	var spiral = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	spiral.setup(spawner.ENEMY_TYPES[2], &"spiral", 1.0)
 	spiral.can_shoot = false
 	spiral.position = Vector2(960.0, 200.0)
@@ -125,7 +126,7 @@ func _ready() -> void:
 	spiral.queue_free()
 
 	# noise：横向速度不规则（采样位移变化量有显著差异）
-	var noise := ENEMY_SCENE.instantiate() as Enemy
+	var noise = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	noise.setup(spawner.ENEMY_TYPES[3], &"noise", 1.0)
 	noise.can_shoot = false
 	noise.position = Vector2(960.0, 200.0)
@@ -141,7 +142,7 @@ func _ready() -> void:
 	noise.queue_free()
 
 	# hover：下行 → 到达锚点后停驻机动（不再净下降，直到寿命离场）
-	var hov := ENEMY_SCENE.instantiate() as Enemy
+	var hov = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	hov.setup(spawner.ENEMY_TYPES[2], &"hover", 1.0)
 	hov.can_shoot = false
 	hov.position = Vector2(960.0, 250.0)
@@ -188,7 +189,7 @@ func _ready() -> void:
 	await get_tree().create_timer(7.0).timeout  # 首次召唤在 6s
 	var minion_found := false
 	for child in get_node("Main").get_children():
-		if child is Enemy:
+		if is_instance_of(child, _enemy_script):  # M3b：Enemy 迁 C#，is 改脚本资源判定
 			minion_found = true
 	_check(minion_found, "母舰型 Boss 召唤小怪")
 	boss3.take_damage(9999)
@@ -197,7 +198,7 @@ func _ready() -> void:
 		buff_ui.pick_buff(&"rapid_fire")
 	# 清理小怪与弹幕
 	for child in get_node("Main").get_children():
-		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
+		if is_instance_of(child, _enemy_script) or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A/M3b 重定型
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -250,7 +251,7 @@ func _ready() -> void:
 		fired.queue_free()
 
 	# 3.6 慢速力场：全局敌机移速 ×0.8（A13，敌弹不受影响）
-	var slow_e := ENEMY_SCENE.instantiate() as Enemy
+	var slow_e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	slow_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	slow_e.can_shoot = false
 	slow_e.speed = 100.0
@@ -260,7 +261,7 @@ func _ready() -> void:
 	var slow_d1: float = slow_e.position.y - 100.0
 	slow_e.queue_free()
 	GameState.add_buff(&"slow_field")
-	var slow_e2 := ENEMY_SCENE.instantiate() as Enemy
+	var slow_e2 = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	slow_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	slow_e2.can_shoot = false
 	slow_e2.speed = 100.0
@@ -305,7 +306,7 @@ func _ready() -> void:
 	_check(is_equal_approx(player.fuel_drain_rate(), 35.0 * 0.75), "高效推进消耗 -25%")
 
 	# 3.9 精英击毁：高分奖励（得分制，无掉落物）
-	var elite := ENEMY_SCENE.instantiate() as Enemy
+	var elite = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	elite.setup(spawner.ELITE_TYPES[0], &"straight", 1.0)
 	elite.position = Vector2(960.0, 400.0)
 	get_node("Main").add_child(elite)
@@ -357,7 +358,7 @@ func _ready() -> void:
 	var ms: Mothership = main.mothership()
 	ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场（0.8s）
 	# 到位即自动对接（无区域判定，点吸附补间）
-	var tgt := ENEMY_SCENE.instantiate() as Enemy
+	var tgt = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	tgt.can_shoot = false
 	tgt.hp = 9999  # 靶机不死，保证场内始终有目标
@@ -441,7 +442,7 @@ func _ready() -> void:
 		if (child.is_in_group("enemy") and not (child is Boss)) or is_instance_of(child, _bullet_script):  # 随批次 A 重定型
 			child.queue_free()
 	await get_tree().process_frame
-	var e33 := ENEMY_SCENE.instantiate() as Enemy
+	var e33 = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	e33.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e33.hp = 1
 	e33.position = Vector2(960.0, 400.0)
@@ -523,7 +524,7 @@ func _ready() -> void:
 	_check(GameState.rp == rp_before - 2, "维修扣 2RP")
 	_check(GameState.health == GameState.max_health(), "维修回满生命")
 	# 放一个敌机 + 一枚编队炸弹（长引信不爆）验证轨道打击清场
-	var orbit_e := ENEMY_SCENE.instantiate() as Enemy
+	var orbit_e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	orbit_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	orbit_e.can_shoot = false
 	orbit_e.position = Vector2(400.0, 300.0)
@@ -567,7 +568,7 @@ func _ready() -> void:
 	# 恢复刷怪会干扰后续断言，重新停掉生成器并清场
 	spawner.set_process(false)
 	for child in main.get_children():
-		if child is Enemy or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A 重定型
+		if is_instance_of(child, _enemy_script) or (is_instance_of(child, _bullet_script) and not child.IsPlayerBullet):  # 随批次 A/M3b 重定型
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -644,7 +645,7 @@ func _ready() -> void:
 	# （瞄准点用 aim_point_override 注入：相机震动 offset 会让合成鼠标事件的世界落点漂移）
 	player.position = Vector2(960.0, 800.0)
 	player.velocity = Vector2.ZERO
-	var aim_e := ENEMY_SCENE.instantiate() as Enemy
+	var aim_e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	aim_e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e.can_shoot = false
 	aim_e.hp = 9999  # 防止被测试弹击毁触发里程碑
@@ -737,7 +738,7 @@ func _ready() -> void:
 	)
 
 	# 6.1c 辅助瞄准算法优化（P1-3）：准星磁吸 / 框外锥形弱追踪 / 输入反比 / 距离衰减
-	var aim_e2 := ENEMY_SCENE.instantiate() as Enemy
+	var aim_e2 = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	aim_e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	aim_e2.can_shoot = false
 	aim_e2.hp = 9999

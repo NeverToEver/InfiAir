@@ -27,8 +27,8 @@ func _wait_real(sec: float) -> void:
 func _count_enrage_bullets() -> int:
 	var n := 0
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet and child.has_meta("bullet_type"):
 			var t: StringName = child.get_meta("bullet_type")
 			if t == &"laser" or t == &"enrage_ring":
 				n += 1
@@ -37,8 +37,8 @@ func _count_enrage_bullets() -> int:
 
 func _clear_enemy_bullets() -> void:
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet:
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet:
 			child.queue_free()
 	await get_tree().process_frame
 

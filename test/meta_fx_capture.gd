@@ -20,7 +20,7 @@ func _ready() -> void:
 	player.set_auto_fire(false)
 	# 摆几架静态敌机丰富画面，让后处理有内容可作用
 	for i in 5:
-		var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
+		var e = (load("res://scenes/enemy.tscn") as PackedScene).instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 		e.setup(spawner.ENEMY_TYPES[i % spawner.ENEMY_TYPES.size()], &"straight", 1.0)
 		e.can_shoot = false
 		e.speed = 0.0

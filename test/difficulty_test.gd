@@ -21,21 +21,21 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 采样 count 架敌机（不入树，只取 setup 后的 hp/speed）
-func _sample_batch(config: Dictionary, count: int) -> Array[Enemy]:
-	var out: Array[Enemy] = []
+func _sample_batch(config: Dictionary, count: int) -> Array:  # M3b：Enemy 迁 C#，返回类型 untyped
+	var out: Array = []  # M3b：Enemy 迁 C#，数组元素类型 untyped
 	for i in count:
-		var e := ENEMY_SCENE.instantiate() as Enemy
+		var e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 实例必为 Enemy，省 as
 		e.setup(config, &"straight", 1.0)
 		out.append(e)
 	return out
 
 
-func _free_batch(batch: Array[Enemy]) -> void:
+func _free_batch(batch: Array) -> void:  # M3b：Enemy 迁 C#，参数类型 untyped
 	for e in batch:
 		e.free()
 
 
-func _avg_hp(batch: Array[Enemy]) -> float:
+func _avg_hp(batch: Array) -> float:  # M3b：Enemy 迁 C#，参数类型 untyped
 	var total := 0.0
 	for e in batch:
 		total += e.hp
@@ -163,9 +163,9 @@ func _ready() -> void:
 	var spawner: Node = SpawnerScript.new()
 	add_child(spawner)
 	spawner.set_process(false)  # 只用其抽取/计数逻辑，不自动刷怪
-	var spread_fighters: Array[Enemy] = []
+	var spread_fighters: Array = []  # M3b：Enemy 迁 C#，数组元素类型 untyped
 	for i in 3:
-		var e := ENEMY_SCENE.instantiate() as Enemy
+		var e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 实例必为 Enemy，省 as
 		e.setup(normal_cfg, &"straight", 1.0)
 		e.bullet_type = &"spread"
 		e.can_shoot = false

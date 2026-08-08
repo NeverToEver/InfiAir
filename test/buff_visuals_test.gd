@@ -34,7 +34,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for child in main.get_children():
-		if child is Enemy or child.has_method("IsActive"):
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or child.has_method("TryGraze"):  # M3b：Enemy 迁 C#，is 改内联脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 

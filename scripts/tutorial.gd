@@ -1,4 +1,6 @@
 extends Node2D
+## M3b：Enemy 迁 C#，经脚本资源判型（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
 ## 不启动正常 spawner 波次；进场 reset_run + 删档隔离，出场再 reset 并保证 time_scale=1。
 
@@ -155,7 +157,7 @@ func _enter_stage(idx: int) -> void:
 			_set_objective_tr("TUT_S1_OBJ", [0])
 			var view0 := GameState.view_world_rect()  # G014：视口基线（D10 口径，去 960/600 硬编码）
 			for i in 3:
-				var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
+				var e = _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
 				e.aim_marked = true  # 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性）
 				e.position = Vector2(view0.get_center().x - 360.0 + 360.0 * i, view0.position.y + 280.0)
 		1:  # 加速与相位突进
@@ -206,7 +208,7 @@ func _on_boss_gone() -> void:
 func _spawn_combat_wave(count: int) -> void:
 	var view := GameState.view_world_rect()  # G014：视口基线
 	for i in count:
-		var e := _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
+		var e = _spawn_enemy(SPAWNER_SCRIPT.ENEMY_TYPES[0], &"straight")
 		e.position = Vector2(view.position.x + 300.0 + 330.0 * i, view.position.y - 60.0 - 120.0 * (i % 2))
 
 
@@ -214,23 +216,23 @@ func _spawn_combat_wave(count: int) -> void:
 func _alive_enemy_count() -> int:
 	var n := 0
 	for child in get_children():
-		if child is Enemy:
+		if is_instance_of(child, _enemy_script):  # M3b：Enemy 迁 C#，is 改 is_instance_of
 			n += 1
 	return n
 
 
-func _spawn_enemy(config: Dictionary, strategy: StringName) -> Enemy:
-	var e := ENEMY_SCENE.instantiate() as Enemy
+func _spawn_enemy(config: Dictionary, strategy: StringName):  # M3b：Enemy 迁 C#，返回类型去掉
+	var e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，场景脚本已切 C#，instantiate 必为 Enemy 去 as（untyped）
 	e.setup(config, strategy, 1.0)
 	e.can_shoot = _stage == 2  # 仅战斗阶段敌机开火
 	var view := GameState.view_world_rect()  # G014：视口基线（去 960 硬编码）
 	e.position = Vector2(view.get_center().x, view.position.y - 60.0)
-	e.died.connect(_on_enemy_died)
+	e.Died.connect(_on_enemy_died)  # M3b：Enemy 迁 C#，[Signal] 以 PascalCase 注册
 	add_child(e)
 	return e
 
 
-func _on_enemy_died(_enemy: Enemy) -> void:
+func _on_enemy_died(_enemy) -> void:  # M3b：Enemy 迁 C#，注解 untyped
 	if _stage != 0 and _stage != 2:
 		return
 	_stage_kills += 1
@@ -395,7 +397,12 @@ func _finish() -> void:
 	GameState.play_sfx(GameState.SFX_BUFF_PICK)
 	# 清场
 	for child in get_children():
-		if child is Enemy or child is Boss or child.get_script() == load("res://csharp/godot/Bullet.cs") or child is Mothership:
+		if (
+			is_instance_of(child, _enemy_script)
+			or child is Boss
+			or child.get_script() == load("res://csharp/godot/Bullet.cs")
+			or child is Mothership
+		):
 			child.queue_free()
 	_title_label.text = tr("TUT_DONE")
 	_set_objective_tr("TUT_DONE_DESC")

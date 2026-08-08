@@ -1,5 +1,7 @@
 class_name AimCrosshair
 extends Node2D
+## M3b：Enemy 迁 C#，sin_fast 静态经脚本资源（单次使用内联 load）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 鼠标跟随准星（P1-1 辅助瞄准重设计）：世界坐标 top_level Node2D，挂 Player 下。
 ## 对局活跃（未暂停、未锁输入、存活）时显示并跟随 Player.aim_point()，同时隐藏系统光标；
 ## 暂停/Buff/基地/结算/死亡/过场恢复系统光标并隐藏准星——同一条件驱动两处，
@@ -40,7 +42,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	var pulse := 0.75 + 0.25 * Enemy.sin_fast(Time.get_ticks_msec() / 1000.0 * 6.0)
+	var pulse := 0.75 + 0.25 * float(_enemy_script.SinFast(Time.get_ticks_msec() / 1000.0 * 6.0))
 	var c := COLOR * Color(1.0, 1.0, 1.0, pulse)
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:

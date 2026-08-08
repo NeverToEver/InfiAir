@@ -25,8 +25,8 @@ func _wait_real(sec: float) -> void:
 func _enemy_bullets() -> Array:
 	var out: Array = []
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet:
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet:
 			out.append(child)
 	return out
 
@@ -216,7 +216,7 @@ func _ready() -> void:
 
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	for child in get_node("Main").get_children():
-		if child.has_method("IsActive"):
+		if child.has_method("TryGraze"):
 			child.queue_free()
 	await get_tree().process_frame
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏

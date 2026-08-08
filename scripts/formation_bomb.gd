@@ -78,7 +78,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	position += velocity * delta
 	# 脉冲辉光（红橙 8Hz）
-	_body.modulate.a = 0.55 + 0.45 * absf(Enemy.sin_fast(_t * PI * 8.0))
+	_body.modulate.a = 0.55 + 0.45 * absf(float(load("res://csharp/godot/Enemy.cs").SinFast(_t * PI * 8.0)))
 	_fuse_left -= delta
 	if _fuse_left <= 0.0:
 		_detonate()

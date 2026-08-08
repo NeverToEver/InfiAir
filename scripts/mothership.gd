@@ -1,5 +1,7 @@
 class_name Mothership
 extends Area2D
+## M3b：Enemy 迁 C#，经脚本资源调用静态方法/判型（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 母舰补给平台：长按 H 蓄力召唤（main 管理蓄力）→ 机库小窗演出（main 编排）→
 ## 穿梭门打开，母舰 DESCEND 穿出减速（缩放+ease-out 滑入停驻点）→ 到位释放减速带
 ## （冲击波短时减速敌人）并立即以加特林+导弹火力掩护，DOCKING 牵引回收玩家进保护舱
@@ -390,7 +392,7 @@ func _physics_process(delta: float) -> void:
 	if _beam.visible:
 		# 淡光束：低调脉动，不刺眼（P2：查表 sin）；时钟取一次，脉动与附件共用
 		var now_s := Time.get_ticks_msec() / 1000.0
-		_beam.modulate.a = 0.55 + 0.45 * Enemy.sin_fast(now_s * 8.0)
+		_beam.modulate.a = 0.55 + 0.45 * _enemy_script.SinFast(now_s * 8.0)  # M3b：Enemy 迁 C#，静态经脚本资源
 		_update_beam_fx(delta, now_s)
 	_state_timer += delta
 	match _state:
@@ -561,9 +563,9 @@ func _update_beam_fx(delta: float, now_s: float) -> void:
 		ring.position = Vector2(0.0, lerpf(60.0, 200.0, u) * _ws)
 		var k := lerpf(40.0, 90.0, u) / 90.0
 		ring.scale = Vector2(k, k)
-		ring.modulate.a = 0.75 * Enemy.sin_fast(PI * u)
+		ring.modulate.a = 0.75 * _enemy_script.SinFast(PI * u)  # M3b：Enemy 迁 C#，静态经脚本资源
 	for i in _beam_edges.size():
-		_beam_edges[i].modulate.a = 0.5 + 0.25 * Enemy.sin_fast(now_s * 9.0 + float(i) * 2.1)
+		_beam_edges[i].modulate.a = 0.5 + 0.25 * _enemy_script.SinFast(now_s * 9.0 + float(i) * 2.1)  # M3b：Enemy 迁 C#，静态经脚本资源
 
 
 ## 一次性软闪（进舱/释放等瞬时反馈）：软光晕快速淡出后自毁
@@ -612,11 +614,11 @@ func _append_live_target(e: Node) -> void:
 
 
 ## _live_targets 过滤谓词：非 Node2D/离场中的 Enemy/逃跑中的 Boss 排除
-func _is_live_target(e: Node) -> bool:
+func _is_live_target(e) -> bool:  # M3b：Enemy 迁 C#，参数 untyped（is_instance_of + 动态方法调用）
 	var n2d := e as Node2D
 	if n2d == null:
 		return false
-	if e is Enemy and (e as Enemy).is_exiting():
+	if is_instance_of(e, _enemy_script) and e.is_exiting():  # M3b：Enemy 迁 C#，is/as 改 is_instance_of
 		return false
 	if e is Boss and (e as Boss).is_escaped:
 		return false
@@ -652,11 +654,13 @@ func _update_gatling(delta: float) -> void:
 		if i == 0:
 			var center := deg_to_rad((GATLING_SWEEP_LEFT_MIN + GATLING_SWEEP_LEFT_MAX) * 0.5)
 			var half := deg_to_rad((GATLING_SWEEP_LEFT_MAX - GATLING_SWEEP_LEFT_MIN) * 0.5)
-			angle = center + half * Enemy.sin_fast(_sweep_time * TAU / GATLING_SWEEP_LEFT_PERIOD)
+			# M3b：Enemy 迁 C#，静态经脚本资源
+			angle = center + half * _enemy_script.SinFast(_sweep_time * TAU / GATLING_SWEEP_LEFT_PERIOD)
 		else:
 			var center := deg_to_rad((GATLING_SWEEP_RIGHT_MIN + GATLING_SWEEP_RIGHT_MAX) * 0.5)
 			var half := deg_to_rad((GATLING_SWEEP_RIGHT_MAX - GATLING_SWEEP_RIGHT_MIN) * 0.5)
-			angle = center + half * Enemy.sin_fast((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
+			# M3b：Enemy 迁 C#，静态经脚本资源
+			angle = center + half * _enemy_script.SinFast((_sweep_time + GATLING_SWEEP_RIGHT_PHASE) * TAU / GATLING_SWEEP_RIGHT_PERIOD)
 		var dir := Vector2.UP.rotated(angle)
 		turret.global_rotation = dir.angle()
 		var b = GameState.bullet_pool.Fire(dir, GATLING_BULLET_SPEED, int(GATLING_DAMAGE * damage_mult()), true)

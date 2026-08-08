@@ -1,5 +1,7 @@
 class_name EnrageSequence
 extends RefCounted
+## M3b：Enemy 迁 C#，经脚本资源调用静态方法/判型（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## A3 拆分：Boss 狂暴状态机（docs/AUDIT_VAULT.md A3）。
 ## 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
 ## 轨道路径计算 + 锁血/玩家减速。经 boss 动态访问配置与位置（无类型参数），
@@ -186,7 +188,9 @@ func update(delta: float, boss) -> void:
 			_transition_timer -= delta
 			var t := clampf(1.0 - _transition_timer / float(boss.ENRAGE_TRANSITION_DURATION), 0.0, 1.0)
 			var eased := 1.0 - pow(1.0 - t, 3.0)
-			var shake := Vector2(Enemy.sin_fast(t * TAU * 7.0) * (1.0 - t) * 13.0, Enemy.cos_fast(t * TAU * 5.0) * (1.0 - t) * 8.0)
+			var shake := Vector2(
+				_enemy_script.SinFast(t * TAU * 7.0) * (1.0 - t) * 13.0, _enemy_script.CosFast(t * TAU * 5.0) * (1.0 - t) * 8.0
+			)  # M3b：Enemy 迁 C#，静态经脚本资源
 			# 机型参数表：1 型「旋转堡垒」悬停原地，不滑入轨道
 			var target_pos := _transition_origin if _hover_in_transition(boss) else _path_center(_progress(boss), boss)
 			boss.position = _transition_origin.lerp(target_pos, eased) + shake
@@ -240,7 +244,7 @@ func _active_stalker(delta: float, boss) -> void:
 			# C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
 			_aim_line.set_point_position(0, _sniper_dir * float(boss.MUZZLE_OFFSET))
 			_aim_line.set_point_position(1, _sniper_dir * 1200.0)
-			_aim_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_aim_elapsed * 25.0))
+			_aim_line.modulate.a = 0.18 + 0.18 * absf(_enemy_script.SinFast(_aim_elapsed * 25.0))  # M3b：Enemy 迁 C#，静态经脚本资源
 		if _aim_elapsed >= float(boss.E2_AIM):
 			_free_aim_line()
 			_aim_elapsed = -1.0
@@ -248,7 +252,8 @@ func _active_stalker(delta: float, boss) -> void:
 	_attack_timer -= delta
 	if _attack_timer <= 0.0 and _attack_index < int(boss.E2_POINT_COUNT):
 		var angle := deg_to_rad(STALKER_POINT_ANGLES_DEG[_attack_index % STALKER_POINT_ANGLES_DEG.size()])
-		boss.position = (_snapshot_target + Vector2(Enemy.cos_fast(angle), Enemy.sin_fast(angle)) * _path_radius(boss))
+		# M3b：Enemy 迁 C#，静态经脚本资源
+		boss.position = (_snapshot_target + Vector2(_enemy_script.CosFast(angle), _enemy_script.SinFast(angle)) * _path_radius(boss))
 		_attack_index += 1
 		_attack_timer = float(boss.E2_POINT_INTERVAL)
 		_attacks.cancel_aim_line()
@@ -345,7 +350,7 @@ func _path_center(progress: float, boss) -> Vector2:
 		return from.lerp(to, local)
 	var cp := (progress - float(boss.ENRAGE_SQUARE_PATH_RATIO)) / (1.0 - float(boss.ENRAGE_SQUARE_PATH_RATIO))
 	var angle := PI / 2.0 + cp * TAU
-	return c + Vector2(Enemy.cos_fast(angle), Enemy.sin_fast(angle)) * radius
+	return c + Vector2(_enemy_script.CosFast(angle), _enemy_script.SinFast(angle)) * radius  # M3b：Enemy 迁 C#，静态经脚本资源
 
 
 ## ACTIVE 计时耗尽：进入释放阶段——解血锁、复位玩家减速 + 各型收尾爆发起手（§5.4 峰值）
@@ -369,8 +374,9 @@ func _begin_release_hold(boss) -> void:
 func _hive_volley_all_minions(boss) -> void:
 	var minions: Array = []
 	# 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：收集在场活跃小怪
+	# M3b：Enemy 迁 C#，is/as 改 is_instance_of（过滤器 lambda 参数 untyped）
 	GameState.for_each_enemy(
-		func(e: Node) -> void: minions.append(e), func(e: Node) -> bool: return e is Enemy and (e as Enemy).is_active()
+		func(e: Node) -> void: minions.append(e), func(e) -> bool: return is_instance_of(e, _enemy_script) and e.is_active()
 	)
 	_attacks.minion_volley_fire(boss, minions)
 

@@ -1,4 +1,6 @@
 extends Node
+## M3b：Enemy 迁 C#，经脚本资源做类型判定（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 教程流程测试：6 阶段推进、锁血、对接、返航开基地、狂暴过关、Esc 退出、profile 写入。
 
 const TUTORIAL_SCENE: PackedScene = preload("res://scenes/tutorial.tscn")
@@ -52,9 +54,9 @@ func _ready() -> void:
 
 	# 阶段 1：3 个静止靶机
 	_check(tut.stage() == 0, "教程进入阶段 1")
-	var targets: Array[Enemy] = []
+	var targets: Array = []  # M3b：Enemy 迁 C#，不能作元素类型注解
 	for c in tut.get_children():
-		if c is Enemy:
+		if is_instance_of(c, _enemy_script):  # M3b：Enemy 迁 C#，不能经类名 is 判定
 			targets.append(c)
 	_check(targets.size() == 3, "阶段 1 生成 3 个靶机")
 	for t in targets:
@@ -81,9 +83,9 @@ func _ready() -> void:
 	_check(tut.stage() == 2, "阶段 2 → 3")
 
 	# 阶段 3：5 敌 + 锁血不死
-	var enemies: Array[Enemy] = []
+	var enemies: Array = []  # M3b：Enemy 迁 C#，不能作元素类型注解
 	for c in tut.get_children():
-		if c is Enemy:
+		if is_instance_of(c, _enemy_script):  # M3b：Enemy 迁 C#，不能经类名 is 判定
 			enemies.append(c)
 	_check(enemies.size() == 5, "阶段 3 刷 5 只敌机")
 	for i in 3:
@@ -103,7 +105,7 @@ func _ready() -> void:
 	_check(tut.stage_kills() == 2, "阶段 3 已计 2 杀（离场不虚增）")
 	enemies.clear()
 	for c in tut.get_children():
-		if c is Enemy:
+		if is_instance_of(c, _enemy_script):  # M3b：Enemy 迁 C#，不能经类名 is 判定
 			enemies.append(c)
 	_check(enemies.size() == 3, "阶段 3 敌机离场后自动补足剩余 3 只")
 	_check(tut.stage() == 2, "补刷后仍在阶段 3")

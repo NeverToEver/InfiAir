@@ -62,10 +62,10 @@ func _test_bullet_pool() -> void:
 func _test_enemy_pool() -> void:
 	var main := Node2D.new()
 	add_child(main)
-	var pool := EnemyPool.new()
+	var pool = load("res://csharp/godot/EnemyPool.cs").new()  # M3b：EnemyPool 迁 C#，经脚本资源实例化（不能以类名 new）
 	main.add_child(pool)
 	var config: Dictionary = preload("res://scripts/spawner.gd").ENEMY_TYPES[0]
-	var e1 := pool.spawn(config, &"straight", 1.0, Vector2(100, 100))
+	var e1 = pool.spawn(config, &"straight", 1.0, Vector2(100, 100))
 	pool.release(e1)
 	_check(pool.free_count() == 1, "enemy: release 后 _free=1")
 	await get_tree().process_frame
@@ -73,7 +73,7 @@ func _test_enemy_pool() -> void:
 	_check(pool.free_count() == 1, "enemy: reparent 后仍在 _free（forget 未误清）")
 	_check(e1.get_parent() == pool, "enemy: 闲置敌机收回池节点下")
 	_check(not GameState.enemies.has(e1), "enemy: 回收后注销注册表")
-	var e2 := pool.spawn(config, &"straight", 1.0, Vector2(200, 100))
+	var e2 = pool.spawn(config, &"straight", 1.0, Vector2(200, 100))
 	_check(e2 == e1, "enemy: 再次 spawn 复用同一实例")
 	_check(GameState.enemies.has(e2), "enemy: 复用后重新注册")
 	# L02（2026-08-03 审查）：池化复用后 buff 信号必须重连——_ready 只执行一次而 _exit_tree

@@ -14,8 +14,8 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 生成测试敌机（默认停火，位置/弹种由调用方覆盖；p_difficulty 供 H2 难度继承断言）
-func _spawn_test_enemy(config: Dictionary, strategy: StringName, p_difficulty: float = 1.0) -> Enemy:
-	var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
+func _spawn_test_enemy(config: Dictionary, strategy: StringName, p_difficulty: float = 1.0):  # M3b：Enemy 迁 C#，返回类型去注解
+	var e = (load("res://scenes/enemy.tscn") as PackedScene).instantiate()  # M3b：Enemy 迁 C#，instantiate 必为 Enemy 去 as 注解
 	e.setup(config, strategy, p_difficulty)
 	e.can_shoot = false
 	get_node("Main").add_child(e)
@@ -26,8 +26,8 @@ func _spawn_test_enemy(config: Dictionary, strategy: StringName, p_difficulty: f
 func _enemy_bullets() -> Array:
 	var out: Array = []
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet:
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet:
 			out.append(child)
 	return out
 
@@ -73,7 +73,7 @@ func _ready() -> void:
 	_check(elite_pool_ok, "精英机型弹种池仅 spread/laser")
 
 	# 2. spread 敌机发射五向扇形弹
-	var spread_e := _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
+	var spread_e = _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	spread_e.bullet_type = &"spread"
 	spread_e.can_shoot = true
 	spread_e.fire_interval = 5.0  # 只放一轮
@@ -102,7 +102,7 @@ func _ready() -> void:
 	_free_enemy_bullets()
 
 	# 3. laser 弹：细长高亮快速弹
-	var laser_e := _spawn_test_enemy(spawner.ELITE_TYPES[1], &"straight")
+	var laser_e = _spawn_test_enemy(spawner.ELITE_TYPES[1], &"straight")
 	laser_e.bullet_type = &"laser"
 	laser_e.can_shoot = true
 	laser_e.fire_interval = 5.0
@@ -137,10 +137,10 @@ func _ready() -> void:
 	_check(elite_pick_ok, "精英抽取弹种仅 spread/laser")
 
 	# 5. spread 同屏上限 2：超限退化（普通→single，精英→laser）
-	var cap1 := _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
+	var cap1 = _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	cap1.bullet_type = &"spread"
 	cap1.position = Vector2(500.0, 300.0)
-	var cap2 := _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
+	var cap2 = _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	cap2.bullet_type = &"spread"
 	cap2.position = Vector2(1400.0, 300.0)
 	await get_tree().process_frame
@@ -160,10 +160,10 @@ func _ready() -> void:
 
 	# 6. aggressive：噪声漂移 + 持续偏向玩家 x 的下行
 	player.position = Vector2(400.0, 900.0)
-	var agg := _spawn_test_enemy(spawner.ENEMY_TYPES[3], &"aggressive")
+	var agg = _spawn_test_enemy(spawner.ENEMY_TYPES[3], &"aggressive")
 	agg.position = Vector2(1400.0, 200.0)
-	var agg_x0 := agg.position.x
-	var agg_y0 := agg.position.y
+	var agg_x0 = agg.position.x
+	var agg_y0 = agg.position.y
 	await get_tree().create_timer(2.0).timeout
 	_check(agg.position.x < agg_x0 - 150.0, "aggressive 持续偏向玩家 x 收敛")
 	_check(agg.position.y > agg_y0, "aggressive 保持下行")
@@ -172,12 +172,12 @@ func _ready() -> void:
 	# 7. 敌机 15s 寿命：到期向上/侧方加速离场，不给分不计击杀
 	var score_before_life := GameState.score
 	var kills_before_life := GameState.kills
-	var life_e := _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
+	var life_e = _spawn_test_enemy(spawner.ENEMY_TYPES[0], &"straight")
 	life_e.position = Vector2(960.0, 300.0)
 	life_e.set_life_timer(14.8)
 	await get_tree().create_timer(0.4).timeout
 	_check(life_e.is_exiting(), "敌机 15s 寿命到期进入离场")
-	var exit_p0 := life_e.position
+	var exit_p0 = life_e.position
 	await get_tree().create_timer(0.4).timeout
 	_check(life_e.position.y < exit_p0.y - 20.0 or absf(life_e.position.x - exit_p0.x) > 20.0, "离场向上或侧方加速")
 	await get_tree().create_timer(3.0).timeout
@@ -239,14 +239,14 @@ func _ready() -> void:
 	GameState.high_score = orig_high_score
 	GameState.save_profile()
 	# 分裂者（2026-08-04）：死亡分裂 2 小机——缩放 ×0.6 / HP 半 / 无分数 / 不再分裂
-	var split_e := _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight")
+	var split_e = _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight")
 	split_e.position = Vector2(960.0, 400.0)
 	await get_tree().process_frame
 	var score_before := GameState.score
 	split_e.take_damage(9999)
 	await get_tree().process_frame
-	var minis: Array[Enemy] = []
-	for e: Enemy in GameState.enemies:
+	var minis: Array = []  # M3b：Array[Enemy] 不可用（C# 类名不能作泛型参数）
+	for e in GameState.enemies:  # M3b：Enemy 迁 C#，循环注解 untyped
 		if is_instance_valid(e) and e != split_e and e.score_value == 0:
 			minis.append(e)
 	_check(minis.size() == 2, "分裂者死亡生成 2 小机")
@@ -275,13 +275,13 @@ func _ready() -> void:
 
 	# H2：子机继承母体难度——原硬编码 p_difficulty=1.0 使子机 HP/速度不随对局 ramp，
 	# 深局分裂者子机 HP 与「母体半血」语义脱节；2.0 档子机 HP 显著高于 1.0 基准（≥50）
-	var ramp_e := _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight", 2.0)
+	var ramp_e = _spawn_test_enemy(spawner.ENEMY_TYPES[4], &"straight", 2.0)
 	ramp_e.position = Vector2(960.0, 400.0)
 	await get_tree().process_frame
 	ramp_e.take_damage(9999)
 	await get_tree().process_frame
-	var hard_minis: Array[Enemy] = []
-	for e: Enemy in GameState.enemies:
+	var hard_minis: Array = []  # M3b：Array[Enemy] 不可用（C# 类名不能作泛型参数）
+	for e in GameState.enemies:  # M3b：Enemy 迁 C#，循环注解 untyped
 		if is_instance_valid(e) and e != ramp_e and e.score_value == 0:
 			hard_minis.append(e)
 	_check(
@@ -292,7 +292,7 @@ func _ready() -> void:
 		m.take_damage(9999)
 	await get_tree().process_frame
 	var left := 0
-	for e: Enemy in GameState.enemies:
+	for e in GameState.enemies:  # M3b：Enemy 迁 C#，循环注解 untyped
 		if is_instance_valid(e):
 			left += 1
 	_check(left == 0, "子机死亡不再分裂")

@@ -42,7 +42,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for child in main.get_children():
-		if child is Enemy or child.has_method("IsActive"):
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or child.has_method("TryGraze"):  # M3b：Enemy 迁 C#，is 改内联脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -68,14 +68,14 @@ func _ready() -> void:
 	if aim.length() < 0.5:
 		aim = Vector2.UP
 	var enemy_scene: PackedScene = load("res://scenes/enemy.tscn")
-	var e1 := enemy_scene.instantiate() as Enemy
+	var e1 = enemy_scene.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 实例必为 Enemy，省 as
 	e1.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e1.hp = 9999
 	e1.speed = 0.0
 	e1.can_shoot = false
 	e1.position = player.global_position + aim * 300.0
 	main.add_child(e1)
-	var e2 := enemy_scene.instantiate() as Enemy
+	var e2 = enemy_scene.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 实例必为 Enemy，省 as
 	e2.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e2.hp = 9999
 	e2.speed = 0.0

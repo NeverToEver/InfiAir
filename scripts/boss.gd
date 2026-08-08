@@ -457,7 +457,7 @@ func set_spawner(spawner: Node) -> void:
 	_spawner = spawner
 
 
-func spawn_minion_at(pos: Vector2) -> Enemy:
+func spawn_minion_at(pos: Vector2) -> Variant:  # M3b：Enemy 迁 C#，返回类型改 Variant（调用方 untyped 接收）
 	if _spawner == null:
 		return null
 	return _spawner.spawn_minion(pos)

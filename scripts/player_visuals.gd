@@ -1,5 +1,7 @@
 class_name PlayerVisuals
 extends RefCounted
+## M3b：Enemy 迁 C#，sin_fast 静态经脚本资源（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## A8 拆分：玩家视觉职责聚合——尾焰、冲刺残影池、机身色调（弹反金/擦弹金/无敌闪烁）、
 ## 受击点脉动、弹反盾视觉、擦弹闪光状态。
 ## 组合委托模式（同 PlayerDamage/PlayerDash/PlayerParry）：不持有节点所有权，经 player
@@ -97,10 +99,10 @@ func update_frame(delta: float, parry_tint: float, invincible: float, now_ms: in
 		_sprite.modulate = _body_tint_base.lerp(Color(1.7, 1.35, 0.5), 1.0)
 	elif invincible > 0.0:
 		_sprite.modulate = _body_tint_base
-		_sprite.modulate.a = 0.35 + 0.65 * absf(Enemy.sin_fast(now_ms * 0.02))
+		_sprite.modulate.a = 0.35 + 0.65 * absf(_enemy_script.SinFast(now_ms * 0.02))
 	else:
 		_sprite.modulate = _body_tint_base
-	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(Enemy.sin_fast(now_ms * 0.006))
+	_hitbox_dot.modulate.a = 0.45 + 0.55 * absf(_enemy_script.SinFast(now_ms * 0.006))
 
 
 ## 擦弹机身金色短闪置位（_on_graze_entered 反馈三件套之一；时长 balance player.graze.flash_time）

@@ -1,4 +1,6 @@
 extends Node
+## M3b：Enemy 迁 C#，经脚本资源做类型判定（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 视角缩放测试：
 ## 三档映射与切换信号、view_world_rect 可见区域计算、profile 持久化往返、
 ## 设置页三选按钮 wiring、main 场景相机 zoom 应用与震动 offset 兼容、
@@ -181,7 +183,7 @@ func _ready() -> void:
 	# ---------- 7. 敌机出屏销毁随档收窄 ----------
 	# y=1000：small 销毁线 1140 存活；large 销毁线 ≈917.6 应销毁
 	GameState.set_view_zoom(&"small")
-	var e := ENEMY_SCENE.instantiate() as Enemy
+	var e = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 根脚本即 Enemy，不能经类名 as（untyped）
 	e.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e.can_shoot = false
 	e.hp = 9999
@@ -213,9 +215,9 @@ func _ready() -> void:
 	# ---------- 9. 刷怪位置/预告线/悬停锚点随档收窄（当前为 large 档） ----------
 	spawner.spawn_enemy()  # 异步：先挂预告线，0.6s 后出机
 	await get_tree().create_timer(0.2).timeout
-	var tel: SpawnTelegraph = null
+	var tel = null  # M3b：SpawnTelegraph 迁 C#，注解 untyped
 	for child in get_node("Main").get_children():
-		if child is SpawnTelegraph:
+		if is_instance_of(child, load("res://csharp/godot/SpawnTelegraph.cs")):  # M3b：SpawnTelegraph 迁 C#，不能经类名 is 判定
 			tel = child
 	_check(tel != null, "入场预告线已生成")
 	if tel != null:
@@ -226,11 +228,11 @@ func _ready() -> void:
 	# flake 修复（2026-08-03 CI 门禁）：敌机入场到达锚点后围绕锚点水平机动，固定延迟
 	# 后检查会测到机动后的 x（可越出 30px 边距）——改为轮询等敌机出现后立即检查
 	# （出机位置 = 预告线 x，垂直下降阶段 x 不变）
-	var spawned: Enemy = null
+	var spawned = null  # M3b：Enemy 迁 C#，注解 untyped
 	for i in 60:
 		await get_tree().process_frame
 		for child in get_node("Main").get_children():
-			if child is Enemy:
+			if is_instance_of(child, _enemy_script):  # M3b：Enemy 迁 C#，不能经类名 is 判定
 				spawned = child
 				break
 		if spawned != null:
@@ -244,7 +246,7 @@ func _ready() -> void:
 		spawned.queue_free()
 	await get_tree().process_frame
 	# 锚点 fallback：spawner 未分配时 _resolve_anchor 自取，钳入「view 顶 + 悬停带」
-	var e_fb := ENEMY_SCENE.instantiate() as Enemy
+	var e_fb = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 根脚本即 Enemy，不能经类名 as（untyped）
 	e_fb.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	e_fb.can_shoot = false
 	e_fb.hp = 9999

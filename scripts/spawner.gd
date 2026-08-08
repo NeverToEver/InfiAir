@@ -1,4 +1,8 @@
 extends Node
+## M3b：SpawnTelegraph 迁 C#，经脚本资源实例化（gdlint class-load-variable-name：snake_case）
+var _spawn_telegraph_script := load("res://csharp/godot/SpawnTelegraph.cs")
+## M3b：Enemy 迁 C#，判型/类型经脚本资源（GDScript 不能以类名引用 C# 类）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
 ## （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
 ## + Boss 触发（3 种轮换）。遭遇事件（精英炮塔/轰炸编队）触发策略自 2026-08-05 起由
@@ -480,9 +484,10 @@ func unlocked_types() -> Array[Dictionary]:
 ## B8 修复：改遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
 ## 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
 ## 2026-08-05：统一实体管理器 count_enemies 批量 API（docs/ENTITY_MANAGER.md）
+## M3b：Enemy 迁 C#，is/as 改 _enemy_script 脚本判定（短接确认后直接成员访问）
 func _count_spread_enemies() -> int:
 	return GameState.count_enemies(
-		func(e: Node) -> bool: return e is Enemy and (e as Enemy).bullet_type == &"spread" and not (e as Enemy).is_exiting()
+		func(e) -> bool: return is_instance_of(e, _enemy_script) and e.bullet_type == &"spread" and not e.is_exiting()
 	)
 
 
@@ -542,10 +547,11 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 	# 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认。
 	# 2026-08-06 审计：时长同步注入预告线实例（原视觉 DURATION 硬编码 0.6，调参时
 	# 视觉寿命与敌机出现时刻脱钩——预告线自毁与 _schedule 计时两套时钟）
-	var td: Variant = GameState.cfg("spawner.telegraph_duration", SpawnTelegraph.DURATION)
-	var telegraph_duration := maxf(float(td) if td is float or td is int else SpawnTelegraph.DURATION, 0.01)
-	var telegraph := SpawnTelegraph.new(x, view.position.y)
-	telegraph.duration = telegraph_duration
+	var td: Variant = GameState.cfg("spawner.telegraph_duration", _spawn_telegraph_script.GetDefaultDuration())
+	var telegraph_duration := maxf(float(td) if td is float or td is int else _spawn_telegraph_script.GetDefaultDuration(), 0.01)
+	var telegraph = _spawn_telegraph_script.new()  # M3b：SpawnTelegraph 迁 C#，经脚本资源实例化 + 显式 Position
+	telegraph.position = Vector2(x, view.position.y)
+	telegraph.Duration = telegraph_duration
 	get_parent().add_child(telegraph)
 	_pending_telegraphs.append(telegraph)
 	# 预告线自毁（超时 / clear_pending 释放）时解除登记，与 _pending_timers 的 _on_pending_timer_fired 对称
@@ -554,17 +560,18 @@ func _queue_enemy(config: Dictionary, x: float, anchor: float, special: bool = f
 
 
 ## 预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）
+## M3b：EnemyPool 迁 C#，enemy_pool 属性 untyped（Variant），spawn 结果 := 无法推断改 =
 func _on_telegraph_timeout(config: Dictionary, strategy: StringName, btype: StringName, x: float, anchor: float, special: bool) -> void:
-	var e := GameState.enemy_pool.spawn(
+	var e = GameState.enemy_pool.spawn(
 		config, strategy, GameState.difficulty_multiplier, Vector2(x, GameState.view_world_rect().position.y - 60.0), btype
 	)
 	e.anchor_y = anchor
 	if special:
-		e.died.connect(_on_special_killed)
+		e.Died.connect(_on_special_killed)  # M3b：Enemy 迁 C#，[Signal] 以 PascalCase 注册
 
 
 ## 精英/Boss 击杀休整：追加 REST_WAVES_AFTER_KILL 个普通波才再出特殊槽
-func _on_special_killed(_enemy: Enemy = null) -> void:
+func _on_special_killed(_enemy = null) -> void:  # M3b：Enemy 迁 C#，注解 untyped
 	_waves_since_special = -REST_WAVES_AFTER_KILL
 	_draw_special_gap()
 
@@ -577,7 +584,7 @@ func _draw_special_gap() -> void:
 ## Boss-3 召唤的小怪（straight 型 1 型机），立即进场无预告。
 ## 作为 Main 的子节点，与正常敌机走同一套清场逻辑（返航/结算）。
 ## 返回实例供调用方标记/编排（Boss 编队齐射）；不需要时可忽略返回值。
-func spawn_minion(pos: Vector2) -> Enemy:
+func spawn_minion(pos: Vector2) -> Variant:  # M3b：Enemy 迁 C#，返回类型改 Variant
 	return GameState.enemy_pool.spawn(ENEMY_TYPES[0], &"straight", GameState.difficulty_multiplier, pos)
 
 

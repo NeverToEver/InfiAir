@@ -1,5 +1,7 @@
 class_name BossAttacks
 extends RefCounted
+## M3b：Enemy 迁 C#，经脚本资源调用静态方法（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## A3 拆分：Boss 攻击状态机（docs/AUDIT_VAULT.md A3）。
 ## 承载持续型攻击（狙击 telegraph / 蓄力重炮 / 冲刺掠过 / 编队齐射）的时序状态与轮询；
 ## 一次性攻击（fan/homing/cross/bullet_wall）在 execute 内直接委托 BossFire。
@@ -227,7 +229,7 @@ func update(delta: float, boss) -> void:
 				_aim_line.set_point_position(0, _sniper_dir * float(boss.MUZZLE_OFFSET))
 				_aim_line.set_point_position(1, _sniper_dir * 1200.0)
 		if _aim_line != null:
-			_aim_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_sniper_aim_elapsed * 25.0))
+			_aim_line.modulate.a = 0.18 + 0.18 * absf(_enemy_script.SinFast(_sniper_aim_elapsed * 25.0))  # M3b：Enemy 迁 C#，静态经脚本资源
 		if _sniper_aim_elapsed >= float(boss.SNIPER_AIM_TIME):
 			_cancel_aim_line()
 			_sniper_aim_elapsed = -1.0
@@ -365,7 +367,7 @@ func _update_sweep(delta: float, boss) -> void:
 		SWEEP_AIM:
 			_sweep_timer -= delta
 			if _sweep_line != null:
-				_sweep_line.modulate.a = 0.18 + 0.18 * absf(Enemy.sin_fast(_sweep_timer * 25.0))
+				_sweep_line.modulate.a = 0.18 + 0.18 * absf(_enemy_script.SinFast(_sweep_timer * 25.0))  # M3b：Enemy 迁 C#，静态经脚本资源
 			if _sweep_timer <= 0.0:
 				_cancel_sweep_line()
 				_sweep_state = SWEEP_DASH
@@ -428,7 +430,8 @@ func _start_minion_volley(boss) -> void:
 		return  # R07：进行中守卫（L 系列防御缺口登记遗留）——待发期间重复触发清空重召
 	_volley_minions.clear()
 	for i in int(boss.VOLLEY_COUNT):
-		var e: Enemy = boss.spawn_minion_at(
+		# M3b：Enemy 迁 C#，注解 untyped
+		var e = boss.spawn_minion_at(
 			boss.position + Vector2((float(i) - float(int(boss.VOLLEY_COUNT) - 1) * 0.5) * 100.0, 110.0) * world_scale
 		)
 		if e != null:

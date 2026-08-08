@@ -33,7 +33,7 @@ func _ready() -> void:
 	# ---------- 1. 布置战场：3 台普通敌机 + 1 发弹丸 ----------
 	for i in 3:
 		var cfg: Dictionary = spawner.ENEMY_TYPES[i % spawner.ENEMY_TYPES.size()]
-		var e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+		var e = load("res://scenes/enemy.tscn").instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 		e.setup(cfg, (cfg["strategies"] as Array)[0], 1.0)
 		e.position = Vector2(400.0 + i * 400.0, 300.0)
 		main.add_child(e)

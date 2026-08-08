@@ -5,6 +5,9 @@ extends Node
 ## 场景3（三型）：旋转 cross + 召唤填表验证；
 ## 场景4：血条阶段刻度线存在、逃跑倒计时显示与随 Boss 死亡隐藏。
 
+# M3b：Enemy 迁 C#，is 判定经脚本资源引用（GDScript 不能 is C# 类）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
+
 var _failures: int = 0
 var _phase_signal: int = -1  # 最近收到的 phase_changed
 
@@ -26,8 +29,8 @@ func _wait_real(sec: float) -> void:
 func _enemy_bullets() -> Array:
 	var out: Array = []
 	for child: Variant in get_node("Main").get_children():
-		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("IsActive") 鸭子识别；属性 PascalCase
-		if child.has_method("IsActive") and not child.IsPlayerBullet:
+		# M3a：Bullet 为 C# 类——GDScript 不能 is Bullet/作类型注解，has_method("TryGraze") 鸭子识别；属性 PascalCase
+		if child.has_method("TryGraze") and not child.IsPlayerBullet:
 			out.append(child)
 	return out
 
@@ -223,7 +226,7 @@ func _ready() -> void:
 	await _wait_real(0.4)
 	var minion_found := false
 	for child in get_node("Main").get_children():
-		if child is Enemy:
+		if is_instance_of(child, _enemy_script):  # M3b：Enemy 迁 C#，is 改脚本判定
 			minion_found = true
 	_check(minion_found, "场景3：召唤小怪独立计时保持")
 	# D05：三型 P1 缓慢下压/回升——机身 y 从锚线压向锚线下 [min, max] 区间（采样 1s）
@@ -245,7 +248,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_close_buff_ui_if_open()
 	for child: Variant in get_node("Main").get_children():
-		if child is Enemy or (child.has_method("IsActive") and not child.IsPlayerBullet):
+		if is_instance_of(child, _enemy_script) or (child.has_method("TryGraze") and not child.IsPlayerBullet):  # M3b：Enemy 迁 C#，is 改脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 
@@ -315,7 +318,7 @@ func _ready() -> void:
 	_check(is_equal_approx(Engine.time_scale, 1.0), "收尾：退出前 time_scale = 1.0")
 	_check(is_equal_approx(player.enrage_slow(), 1.0), "收尾：退出前玩家减速已复位")
 	for child in get_node("Main").get_children():
-		if child.has_method("IsActive"):
+		if child.has_method("TryGraze"):
 			child.queue_free()
 	await get_tree().process_frame
 	await _wait_real(2.0)  # 演出 tween/爆炸序列播完，避免退出时对象泄漏

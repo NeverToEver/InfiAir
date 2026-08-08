@@ -15,6 +15,10 @@ public partial class SpawnTelegraph : Node2D
         new(-8.0f, 70.0f), new(8.0f, 70.0f), new(0.0f, 86.0f),
     };
 
+    /// <summary>GDScript 经脚本资源读取默认时长（C# 常量 GDScript 不可达——实测；
+    /// spawner.gd 适配用，M6 后删除）。</summary>
+    public static float GetDefaultDuration() => DefaultDuration;
+
     /// <summary>实例视觉寿命（spawner 注入 balance.json spawner.telegraph_duration）。</summary>
     public float Duration { get; set; } = DefaultDuration;
 

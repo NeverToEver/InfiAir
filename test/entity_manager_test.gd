@@ -61,12 +61,15 @@ func _ready() -> void:
 
 	# ================= 场景 3：批量 API（真实敌机池化实例） =================
 	var config: Dictionary = spawner.ENEMY_TYPES[0]
-	var pool := GameState.enemy_pool
-	var e1: Enemy = pool.spawn(config, &"straight", 1.0, Vector2(400.0, 500.0))
-	var e2: Enemy = pool.spawn(config, &"straight", 1.0, Vector2(520.0, 500.0))
+	var pool = GameState.enemy_pool  # M3b：enemy_pool 已 untyped（Variant），:= 无法推断
+	var e1 = pool.spawn(config, &"straight", 1.0, Vector2(400.0, 500.0))  # M3b：Enemy 迁 C#，注解 untyped
+	var e2 = pool.spawn(config, &"straight", 1.0, Vector2(520.0, 500.0))  # M3b：Enemy 迁 C#，注解 untyped
 	e2.set_meta("keep", true)  # clear_enemies 保留项标记（模拟 Boss 语义）
 	_check(GameState.enemies.has(e1) and GameState.enemies.has(e2), "场景3：池化生成实例注册进注册表")
-	_check(GameState.count_enemies(func(e: Node) -> bool: return e is Enemy) == 2, "场景3：count_enemies 计数 = 2")
+	_check(
+		GameState.count_enemies(func(e: Node) -> bool: return is_instance_of(e, load("res://csharp/godot/Enemy.cs"))) == 2,  # M3b：is 判定经脚本资源
+		"场景3：count_enemies 计数 = 2",
+	)
 	var visited: Array = []
 	GameState.for_each_enemy(func(e: Node) -> void: visited.append(e), func(e: Node) -> bool: return not e.has_meta("keep"))
 	_check(visited.size() == 1 and visited[0] == e1, "场景3：for_each_enemy 谓词过滤（排除保留项）")

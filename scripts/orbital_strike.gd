@@ -179,7 +179,7 @@ func _update_visuals(p: float) -> void:
 		var fade := clampf(p / 0.08, 0.0, 1.0)
 		_reticle.modulate = Color(1.0, 1.0, 1.0, fade)
 		for i in _reticle_rings.size():
-			var pulse := 0.7 + 0.3 * Enemy.sin_fast(TAU * (p * 4.0 + float(i) / 3.0))
+			var pulse := 0.7 + 0.3 * float(load("res://csharp/godot/Enemy.cs").SinFast(TAU * (p * 4.0 + float(i) / 3.0)))
 			_layout_ring(_reticle_rings[i], RETICLE_RADIUS * pulse)
 		_reticle_cross.rotation = p * 1.5
 		if p >= MISSILE_FROM:

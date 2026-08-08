@@ -24,7 +24,7 @@ func _ready() -> void:
 	# 200 只敌机（各机型/策略混合，部分可开火）——L10：注释口径同步（原「30 只」落后于常量）
 	for i in ENEMY_COUNT:
 		var cfg: Dictionary = spawner.ENEMY_TYPES[i % spawner.ENEMY_TYPES.size()]
-		var e := load("res://scenes/enemy.tscn").instantiate() as Enemy
+		var e = load("res://scenes/enemy.tscn").instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 		var strategies: Array = cfg["strategies"]
 		e.setup(cfg, strategies[randi() % strategies.size()], 1.0)
 		e.position = Vector2(randf_range(60.0, 1860.0), randf_range(-400.0, 800.0))

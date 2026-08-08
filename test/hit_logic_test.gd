@@ -27,8 +27,8 @@ func _make_boss(p_type: int = 1) -> Boss:
 	return boss
 
 
-func _make_enemy(config: Dictionary, strategy: StringName = &"straight") -> Enemy:
-	var e := (load("res://scenes/enemy.tscn") as PackedScene).instantiate() as Enemy
+func _make_enemy(config: Dictionary, strategy: StringName = &"straight"):  # M3b：Enemy 迁 C#，返回类型去注解
+	var e = (load("res://scenes/enemy.tscn") as PackedScene).instantiate()  # M3b：Enemy 迁 C#，instantiate 必为 Enemy 去 as 注解
 	e.setup(config, strategy, 1.0)
 	e.can_shoot = false
 	get_node("Main").add_child(e)
@@ -73,7 +73,7 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or is_instance_of(child, _bullet_script):  # 随批次 A 重定型：C# 类不能经类名 is 判定
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or is_instance_of(child, _bullet_script):  # M3b：Enemy 迁 C#，is 判定经脚本资源
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)
@@ -120,7 +120,7 @@ func _ready() -> void:
 	# lifesteal：击毁回复 10% 上限（每帧至多一次）
 	GameState.health = 50.0
 	GameState.add_buff(&"lifesteal")
-	var ls_e := _make_enemy(spawner.ENEMY_TYPES[0])
+	var ls_e = _make_enemy(spawner.ENEMY_TYPES[0])
 	ls_e.hp = 1
 	ls_e.position = Vector2(960.0, 400.0)
 	ls_e.take_damage(9999)
@@ -172,7 +172,7 @@ func _ready() -> void:
 	GameState.health = 100.0
 	_reset_hit_state(player)
 	player.position = Vector2(960.0, 800.0)
-	var ram_e := _make_enemy(spawner.ENEMY_TYPES[0])
+	var ram_e = _make_enemy(spawner.ENEMY_TYPES[0])
 	ram_e.position = player.position
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -251,7 +251,7 @@ func _ready() -> void:
 	var exp21 := maxi(1, int(roundf(21.0 * dmg_ramp)))
 	player.position = Vector2(960.0, 800.0)
 	# laser 弹：配置 damage=20
-	var laser_e := _make_enemy(spawner.ELITE_TYPES[1])
+	var laser_e = _make_enemy(spawner.ELITE_TYPES[1])
 	laser_e.bullet_type = &"laser"
 	laser_e.position = Vector2(960.0, 300.0)
 	laser_e.fire_at_player()
@@ -272,7 +272,7 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 
 	# single 弹：配置 damage=12
-	var single_e := _make_enemy(spawner.ENEMY_TYPES[0])
+	var single_e = _make_enemy(spawner.ENEMY_TYPES[0])
 	single_e.bullet_type = &"single"
 	single_e.position = Vector2(960.0, 300.0)
 	single_e.fire_at_player()
@@ -292,7 +292,7 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 
 	# spread 弹：配置 damage=10（五向扇形，取任一发）
-	var spread_e := _make_enemy(spawner.ENEMY_TYPES[0])
+	var spread_e = _make_enemy(spawner.ENEMY_TYPES[0])
 	spread_e.bullet_type = &"spread"
 	spread_e.position = Vector2(960.0, 300.0)
 	spread_e.fire_at_player()
@@ -403,26 +403,26 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 
 	# ================= A10：精英碰撞半径与普通机同档 =================
-	var elite_r := _make_enemy(spawner.ELITE_TYPES[0])
+	var elite_r = _make_enemy(spawner.ELITE_TYPES[0])
 	var elite_shape := (elite_r.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
 	_check(is_equal_approx(elite_shape.radius, 38.0 * GameState.world_scale), "A10：精英重甲碰撞半径 = 设计值 38 × world_scale（与普通同档）")
 	elite_r.queue_free()
-	var elite_r2 := _make_enemy(spawner.ELITE_TYPES[1])
+	var elite_r2 = _make_enemy(spawner.ELITE_TYPES[1])
 	var elite_shape2 := (elite_r2.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
 	_check(is_equal_approx(elite_shape2.radius, 34.0 * GameState.world_scale), "A10：精英游击碰撞半径 = 设计值 34 × world_scale（与普通同档）")
 	elite_r2.queue_free()
 
 	# ================= A12：爆炸弹 50px/固定 30/主目标吃溅射/Boss 不吃 =================
 	GameState.add_buff(&"explosive")
-	var tgt_a := _make_enemy(spawner.ENEMY_TYPES[0])
+	var tgt_a = _make_enemy(spawner.ENEMY_TYPES[0])
 	tgt_a.hp = 200
 	tgt_a.speed = 0.0
 	tgt_a.position = Vector2(960.0, 400.0)
-	var tgt_b := _make_enemy(spawner.ENEMY_TYPES[0])
+	var tgt_b = _make_enemy(spawner.ENEMY_TYPES[0])
 	tgt_b.hp = 200
 	tgt_b.speed = 0.0
 	tgt_b.position = Vector2(1000.0, 400.0)  # 40px：超出直击判定（10+2）但在爆炸半径 50 内
-	var tgt_c := _make_enemy(spawner.ENEMY_TYPES[0])
+	var tgt_c = _make_enemy(spawner.ENEMY_TYPES[0])
 	tgt_c.hp = 200
 	tgt_c.speed = 0.0
 	tgt_c.position = Vector2(1120.0, 400.0)  # 160px 外在半径外
@@ -471,14 +471,14 @@ func _ready() -> void:
 	await get_tree().physics_frame
 
 	# ================= A13：慢速力场全局敌机移速 ×0.8（敌弹不受影响） =================
-	var slow_e1 := _make_enemy(spawner.ENEMY_TYPES[0])
+	var slow_e1 = _make_enemy(spawner.ENEMY_TYPES[0])
 	slow_e1.speed = 100.0
 	slow_e1.position = Vector2(960.0, 100.0)
 	await get_tree().create_timer(0.5).timeout
 	var d1: float = slow_e1.position.y - 100.0
 	slow_e1.queue_free()
 	GameState.add_buff(&"slow_field")
-	var slow_e2 := _make_enemy(spawner.ENEMY_TYPES[0])
+	var slow_e2 = _make_enemy(spawner.ENEMY_TYPES[0])
 	slow_e2.speed = 100.0
 	slow_e2.position = Vector2(960.0, 100.0)
 	await get_tree().create_timer(0.5).timeout

@@ -1,5 +1,7 @@
 class_name BossMovement
 extends RefCounted
+## M3b：Enemy 迁 C#，sin_fast/cos_fast 静态经脚本资源
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## A3 拆分：Boss 走位策略（docs/AUDIT_VAULT.md A3）。
 ## 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.position（Node2D 公开属性），
 ## 经 boss 公开查询（slow_factor/strafe_range/is_enraged/fight_phase）交互，不访问私有字段（A1 约束）。
@@ -98,7 +100,7 @@ func _move_type2(delta: float, boss) -> void:
 func _move_type4(delta: float, boss) -> void:
 	_bob_phase += delta * TAU / float(boss.MOVE4_BOB_PERIOD)
 	# 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘）
-	boss.position.y = boss.fight_anchor_y() + float(boss.MOVE4_BOB_AMP) * Enemy.sin_fast(_bob_phase) + boss.escape_drift_offset()
+	boss.position.y = boss.fight_anchor_y() + float(boss.MOVE4_BOB_AMP) * _enemy_script.SinFast(_bob_phase) + boss.escape_drift_offset()
 
 
 ## 三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（§5.3）
@@ -126,7 +128,9 @@ func _update_press(delta: float, boss) -> void:
 	var elapsed: float = float(boss.PRESS_INTERVAL) - _press_timer
 	var target := 0.0
 	if elapsed >= float(boss.PRESS_INTERVAL) - PRESS_WINDOW:
-		target = float(boss.PRESS_DEPTH) * Enemy.sin_fast(PI * (elapsed - (float(boss.PRESS_INTERVAL) - PRESS_WINDOW)) / PRESS_WINDOW)
+		target = (
+			float(boss.PRESS_DEPTH) * _enemy_script.SinFast(PI * (elapsed - (float(boss.PRESS_INTERVAL) - PRESS_WINDOW)) / PRESS_WINDOW)
+		)
 	boss.position.y += target - _press_offset
 	_press_offset = target
 
@@ -139,7 +143,7 @@ func _update_press(delta: float, boss) -> void:
 func _move_bob(delta: float, boss, amp: float, period: float) -> void:
 	_bob_phase += TAU * delta / maxf(period, 0.01)
 	# 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘，三型无效果）
-	var target: float = boss.fight_anchor_y() + Enemy.sin_fast(_bob_phase) * amp + boss.escape_drift_offset()
+	var target: float = boss.fight_anchor_y() + _enemy_script.SinFast(_bob_phase) * amp + boss.escape_drift_offset()
 	if _bob_smooth_t > 0.0:
 		_bob_smooth_t -= delta
 		var k := 1.0 - _bob_smooth_t / BOB_SMOOTH_TIME
@@ -159,7 +163,7 @@ func _move_band(delta: float, boss, y_lo: float, y_hi: float, period: float) -> 
 	var u := clampf(elapsed / period, 0.0, 1.0)
 	var depth := (y_lo + y_hi) * 0.5
 	var wob := (y_hi - y_lo) * 0.5
-	var target: float = depth * Enemy.sin_fast(PI * u) + wob * Enemy.sin_fast(TAU * u * 0.5) * Enemy.sin_fast(PI * u)
+	var target: float = depth * _enemy_script.SinFast(PI * u) + wob * _enemy_script.SinFast(TAU * u * 0.5) * _enemy_script.SinFast(PI * u)
 	boss.position.y += target - _band_offset
 	_band_offset = target
 

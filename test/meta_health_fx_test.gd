@@ -41,7 +41,8 @@ func _ready() -> void:
 	get_tree().paused = false  # 开始面板/欢迎页路径可能带暂停态
 	get_node("Main/Spawner").set_process(false)  # 停掉自动刷怪/Boss 调度，保证确定性
 	for child in main.get_children():
-		if child is Enemy or is_instance_of(child, load("res://csharp/godot/Bullet.cs")):  # 随批次 C 重定型：C# 类不能经类名 is 判定
+		# 随批次 C/M3b 重定型：C# 类（Bullet/Enemy）不能经类名 is 判定
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")) or is_instance_of(child, load("res://csharp/godot/Bullet.cs")):
 			child.queue_free()
 	await get_tree().process_frame
 	player.position = Vector2(960.0, 800.0)

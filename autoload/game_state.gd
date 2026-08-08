@@ -434,7 +434,7 @@ var bullet_pool = null:  # M3a 起 BulletPool 为 C# 类，GDScript 不能以类
 	set(value):
 		_registry.BulletPool = value
 ## 敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）
-var enemy_pool: EnemyPool = null:  # M3b 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
+var enemy_pool = null:  # M3b 起 EnemyPool 为 C# 类，GDScript 不能以类名作类型注解（untyped）
 	get:
 		return _registry.EnemyPool
 	set(value):

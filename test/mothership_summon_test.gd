@@ -33,7 +33,7 @@ func _ready() -> void:
 	main.player().set_auto_fire(false)
 
 	# ---------- 1. 布置一台靶机（验证减速带与火力目标） ----------
-	var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
+	var tgt = load("res://scenes/enemy.tscn").instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
 	tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 	tgt.can_shoot = false
 	tgt.hp = 9999  # 不死，保证场内始终有目标

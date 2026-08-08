@@ -88,7 +88,7 @@ func _ready() -> void:
 			var ms: Mothership = main.mothership()
 			ms.set_state_timer(ms.WARP_IN_TIME)  # 快进穿梭入场，到位触发自动对接
 			var spawner := get_node("Main/Spawner")
-			var tgt := load("res://scenes/enemy.tscn").instantiate() as Enemy
+			var tgt = load("res://scenes/enemy.tscn").instantiate()  # M3b：Enemy 迁 C#，enemy.tscn 根脚本即 Enemy，不能经类名 as（untyped）
 			tgt.setup(spawner.ENEMY_TYPES[0], &"straight", 1.0)
 			tgt.position = Vector2(1200.0, 500.0)
 			main.add_child(tgt)

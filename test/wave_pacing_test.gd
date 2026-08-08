@@ -13,10 +13,10 @@ func _check(cond: bool, label: String) -> void:
 		printerr("[FAIL] ", label)
 
 
-func _enemies() -> Array[Enemy]:
-	var out: Array[Enemy] = []
+func _enemies() -> Array:  # M3b：Enemy 迁 C#，不能作返回元素类型注解
+	var out: Array = []  # M3b：Enemy 迁 C#，不能作元素类型注解
 	for child in get_node("Main").get_children():
-		if child is Enemy:
+		if is_instance_of(child, load("res://csharp/godot/Enemy.cs")):  # M3b：Enemy 迁 C#，不能经类名 is 判定
 			out.append(child)
 	return out
 
@@ -57,7 +57,7 @@ func _ready() -> void:
 	var slots_ok := true
 	var anchor_ok := true
 	for e in wave:
-		var rel := e.position.x - (view.position.x + 60.0)
+		var rel = e.position.x - (view.position.x + 60.0)
 		var idx := int(rel / slot_w)
 		if idx < 0 or idx >= n:
 			slots_ok = false
@@ -67,7 +67,7 @@ func _ready() -> void:
 	_check(anchor_ok, "普通波锚点位于悬停带内")
 
 	# 2. 敌机到达锚点后悬停机动：y 不再净下降（绕锚点 ±HOVER_BOB_AMP 浮动）
-	var hover_e: Enemy = null
+	var hover_e = null  # M3b：Enemy 迁 C#，注解 untyped
 	for e in wave:
 		if e.strategy == &"straight" or e.strategy == &"hover":
 			hover_e = e

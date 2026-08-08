@@ -1,5 +1,7 @@
 class_name MetaHealthFX
 extends CanvasLayer
+## M3b：Enemy 迁 C#，sin_fast 静态经脚本资源（gdlint class-load-variable-name：snake_case）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## Meta HUD 血量与受击反馈（docs/META_HUD_DESIGN.md）：全屏后处理承载受击色差/径向模糊、
 ## 攻击方向定向波纹、低血裂纹生长/错峰消散、去饱和/冷青色偏/晕影与 DYING 心跳/呼吸/抖动。
 ## layer=1：世界之上、HUD 之下（HUD 在主场景抬至 layer=2；低于 OrbitalStrike 24、过场 35）。
@@ -311,7 +313,7 @@ func _process(delta: float) -> void:
 			_heal_t = -1.0
 			_heal_jitter = 0.0
 		else:
-			_heal_jitter = float(_cfg["crack_heal_jitter"]) * Enemy.sin_fast(PI * _heal_t)
+			_heal_jitter = float(_cfg["crack_heal_jitter"]) * _enemy_script.SinFast(PI * _heal_t)
 
 	# 3. HitPulse 指数衰减与波纹推进（与状态正交）
 	_hit_pulse *= exp(-delta / float(_cfg["pulse_decay_tau"]))
@@ -336,7 +338,7 @@ func _process(delta: float) -> void:
 			if not GameState.reduce_flash:
 				get_tree().call_group("hud", "meta_jitter", float(_cfg["jitter_px"]))  # D9
 		_heart_env = maxf(_heart_env - delta / float(_cfg["dying_fade"]), 0.0)
-		_breath = 1.0 + float(_cfg["breath"]) * Enemy.sin_fast(_heart_phase * TAU)
+		_breath = 1.0 + float(_cfg["breath"]) * _enemy_script.SinFast(_heart_phase * TAU)
 		_warn_t += delta
 	else:
 		_heart_phase = -1.0
@@ -384,7 +386,7 @@ func _process(delta: float) -> void:
 	var vig_strength := minf(float(_cfg["vignette_max_alpha"]), _crack_progress() * 0.55)
 	if _state == STATE_DYING and GameState.health > 0.0 and not GameState.reduce_flash:
 		# 警告边框 2.5Hz 正弦（减少闪光时改静态，正弦折叠在 GDScript 侧）
-		vig_strength *= 1.0 + 0.25 * Enemy.sin_fast(_warn_t * TAU * float(_cfg["warn_hz"]))
+		vig_strength *= 1.0 + 0.25 * _enemy_script.SinFast(_warn_t * TAU * float(_cfg["warn_hz"]))
 	var heartbeat := 0.0 if GameState.reduce_flash else _heart_env
 
 	# 7. D5 epsilon 检测上传（变化 <0.001 不上传）

@@ -84,6 +84,7 @@ var _spawner = null
 var _buff_ui: CanvasLayer = null
 var _boss: Boss = null
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 D 重定型：Bullet 已迁 C#，as Bullet 改经脚本引用判定
+var _enemy_script := load("res://csharp/godot/Enemy.cs")  # M3b：Enemy 迁 C#，as Enemy 改经脚本引用判定
 
 # bot 状态
 var _move_target := Vector2.ZERO
@@ -1223,7 +1224,7 @@ func _checks(now: int) -> void:
 		var node := n as Node
 		if node == null or not _main.is_ancestor_of(node):
 			continue
-		var en := node as Enemy
+		var en = node if is_instance_of(node, _enemy_script) else null  # M3b：Enemy 迁 C#，as Enemy 改脚本判定
 		if en != null and not en.is_active():
 			continue
 		scene_set[node] = true
@@ -1233,7 +1234,7 @@ func _checks(now: int) -> void:
 		if not is_instance_valid(e):
 			stale_found = true
 			continue  # 失效实例归 registry_stale 管，不参与差集
-		var re := e as Enemy
+		var re = e if is_instance_of(e, _enemy_script) else null  # M3b：Enemy 迁 C#，as Enemy 改脚本判定
 		if re != null and not re.is_active():
 			continue
 		registry_set[e] = true

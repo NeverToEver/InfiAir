@@ -1,4 +1,6 @@
 extends CanvasLayer
+## M3b：Enemy 迁 C#，sin_fast 静态经脚本资源（单次使用内联 load）
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
 ## 带 70%/30% 阶段刻度线与阶段切换短闪，逃跑最后 10s 血条下方倒计时）。
 ## Buff 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
@@ -772,7 +774,7 @@ func _update_vignette(delta: float) -> void:
 	var max_hp := _cached_max_hp
 	if GameState.health > 0.0 and GameState.health < max_hp * LOW_HP_RATIO:
 		_pulse_time += delta
-		var s := (Enemy.sin_fast(_pulse_time * TAU / LOW_HP_PULSE_PERIOD) + 1.0) * 0.5
+		var s := (float(_enemy_script.SinFast(_pulse_time * TAU / LOW_HP_PULSE_PERIOD)) + 1.0) * 0.5
 		alpha = maxf(alpha, lerpf(LOW_HP_PULSE_MIN, LOW_HP_PULSE_MAX, s))
 	else:
 		_pulse_time = 0.0

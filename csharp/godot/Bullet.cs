@@ -401,11 +401,12 @@ public partial class Bullet : Area2D
         GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -6.0);
     }
 
-    /// <summary>注册表实例是否为 Enemy（GDScript class_name，M3b 迁移前经脚本全局名判定）。</summary>
+    /// <summary>注册表实例是否为 Enemy 语义（M3b：C# 脚本无 GetGlobalName——改鸭子判定：
+    /// 仅 Enemy/Boss 有 is_boss()，TurretBattery/FormationCraft 无；Boss 由调用方 is_boss 检查排除，
+    /// 净效果与原 GDScript `as Enemy` 等价）。</summary>
     private static bool IsEnemyInstance(GodotObject o)
     {
-        var script = (Script?)o.GetScript();
-        return script != null && script.GetGlobalName() == "Enemy";
+        return o.HasMethod("is_boss");
     }
 
     private void OnAreaEntered(Area2D area)

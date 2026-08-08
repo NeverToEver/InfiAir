@@ -1,5 +1,7 @@
 class_name WarpGate
 extends Node2D
+## M3b：Enemy 迁 C#，sin_fast/cos_fast 静态经脚本资源
+var _enemy_script := load("res://csharp/godot/Enemy.cs")
 ## 母舰召唤·穿梭门（世界坐标，挂 Main 下）：小窗演出结束后由 main 创建在母舰停驻点。
 ## 生命周期：OPENING 展开（gate.open_time）→ HOLD 保持（母舰穿出期间脉动，
 ## 由 Mothership.begin_warp_in 收尾时调 close()；超时自动关闭兜底）→
@@ -138,7 +140,7 @@ func _process(delta: float) -> void:
 				_t = 0.0
 		Phase.HOLD:
 			# 保持期：呼吸脉动 + 弧段旋转
-			_layout(1.0 + 0.04 * Enemy.sin_fast(_t * 6.0), 1.0)
+			_layout(1.0 + 0.04 * _enemy_script.SinFast(_t * 6.0), 1.0)
 			if _t >= HOLD_MAX:
 				close()
 		Phase.CLOSING:
@@ -176,7 +178,7 @@ func _layout(scale_p: float, alpha_p: float) -> void:
 		var a0 := TAU * float(i) / 3.0
 		for j in 10:
 			var a := a0 + deg_to_rad(50.0) * float(j) / 9.0
-			arc.set_point_position(j, Vector2(Enemy.cos_fast(a), Enemy.sin_fast(a) * ELLIPSE_RATIO) * r)
+			arc.set_point_position(j, Vector2(_enemy_script.CosFast(a), _enemy_script.SinFast(a) * ELLIPSE_RATIO) * r)
 		arc.default_color = Color(CYAN, 0.7 * alpha_p)
 
 
@@ -194,7 +196,7 @@ func _arc_points(radius: float, span_deg: float, count: int) -> PackedVector2Arr
 func _layout_ellipse(line: Line2D, radius: float, count: int) -> void:
 	for i in count:
 		var a := TAU * float(i) / float(count)
-		line.set_point_position(i, Vector2(Enemy.cos_fast(a), Enemy.sin_fast(a) * ELLIPSE_RATIO) * radius)
+		line.set_point_position(i, Vector2(_enemy_script.CosFast(a), _enemy_script.SinFast(a) * ELLIPSE_RATIO) * radius)
 
 
 func _make_ring(width: float, color: Color) -> Line2D:
