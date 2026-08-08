@@ -7,7 +7,6 @@ namespace InfiAir;
 /// docs/AUDIT_VAULT.md A8）。Dash 状态机与计时；经 Player 属性转发（_dashing 等语法不变）
 /// 与公开方法交互。需要解锁 buff（Player.dash_unlocked）且耗 25% 满值燃料。
 /// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；GameState 经
-/// GameStateBridge 动态访问（仅冲刺起止低频，不涉每帧热路径）。
 /// </summary>
 public class PlayerDash
 {
@@ -71,7 +70,7 @@ public class PlayerDash
 
         DashCooldown = player.DashCooldownMax();
         AfterimageTimer = 0.0f;
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"));
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH);
     }
 
     /// <summary>冲刺移动驱动（残影生成/位移/回弹；尾焰由 Player 侧保留视觉）。</summary>
@@ -91,7 +90,7 @@ public class PlayerDash
         if (DashTimer <= 0.0f)
         {
             Dashing = false;
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -3.0);
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -3.0);
         }
     }
 

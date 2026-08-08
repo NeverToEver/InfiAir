@@ -18,12 +18,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs" / "BALANCE_MAP.md"
-SCAN_DIRS = [ROOT / "scripts", ROOT / "autoload"]
+SCAN_DIRS = [ROOT / "scripts", ROOT / "autoload", ROOT / "csharp"]  # M7d：零 GDScript 后扫 C# 调用点
 
 # 静态调用：GameState.cfg("player.fuel.drain", FUEL_DRAIN)（默认值可能跨行/含嵌套调用）
-RE_STATIC = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+RE_STATIC = re.compile(r'(?:GameState\.Instance\.)?Cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+RE_STATIC_GD = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
 # autoload/game_state.gd 内部对 cfg() 的裸调用（无前缀；排除函数定义行）
-RE_BARE = re.compile(r'(?<![\w.])cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+RE_BARE = re.compile(r'(?<![\w.])(?:cfg|Cfg)\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
 # 动态调用：GameState.cfg("player.aim_assist.levels." + ...)（字符串后直接跟拼接）
 RE_DYNAMIC = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*\+')
 # 格式化动态键：GameState.cfg("boss.phases.type%d" % boss_type, ...) → 前缀取 % 之前
@@ -42,7 +43,8 @@ RE_EFFECT_CFG = re.compile(r'"cfg"\s*:\s*"([^"]+)"')
 def _in_comment(text: str, pos: int) -> bool:
     """匹配点所在行是否以 # 开头（跳过注释里的示例代码）。"""
     line_start = text.rfind("\n", 0, pos) + 1
-    return text[line_start:pos].lstrip().startswith("#")
+    stripped = text[line_start:pos].lstrip()
+    return stripped.startswith("#") or stripped.startswith("//")  # M7d：支持 C# // 注释
 
 
 def json_leaves(node: object, prefix: str = "") -> list[str]:
@@ -77,13 +79,18 @@ def main() -> None:
     static_calls: list[tuple[str, int, str, str]] = []  # file, line, key, default
     dynamic_prefixes: set[str] = set()
     for d in SCAN_DIRS:
-        for gd in sorted(d.rglob("*.gd")):
-            rel = gd.relative_to(ROOT)
-            text = gd.read_text(encoding="utf-8")
+        for src in sorted(list(d.rglob("*.gd")) + list(d.rglob("*.cs"))):
+            rel = src.relative_to(ROOT)
+            text = src.read_text(encoding="utf-8")
             patterns = [RE_STATIC, RE_EFFECT_CFG]
-            if gd.name in ("game_state.gd", "balance_service.gd"):
+            if src.suffix == ".gd" and src.name in ("game_state.gd", "balance_service.gd"):
                 # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
+            elif src.suffix == ".cs" and src.name in ("GameState.cs", "BalanceService.cs"):
+                # C# 侧内部裸 Cfg() 调用（M7d）
+                patterns.append(RE_BARE)
+            if src.suffix == ".gd":
+                patterns.append(RE_STATIC_GD)
             for pat in patterns:
                 for m in pat.finditer(text):
                     if _in_comment(text, m.start()) or text[max(0, m.start() - 5):m.start()].endswith("func "):

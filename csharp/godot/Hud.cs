@@ -9,7 +9,6 @@ namespace InfiAir;
 /// Buff 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
 /// （Esc 经 BackNavigator 优先关栏），与左下状态区、底部居中蓄力提示、左中通讯浮层分角隔离。
 /// M5 全量迁移（2026-08-08 自 scripts/hud.gd）：CanvasLayer 子类；GameState/玩家/Main
-/// 经 GameStateBridge 动态访问（snake_case）；Boss/Mothership/Enemy 为 C# 类 typed 直调
 /// （Enemy.SinFast/Mothership.GetStateStay 静态；Boss 信号经 C# event 连接）。
 /// </summary>
 public partial class Hud : CanvasLayer
@@ -144,14 +143,14 @@ public partial class Hud : CanvasLayer
         _dashTag = GetNode<Label>("DashTag");
         _parryTag = GetNode<Label>("ParryTag");
         _dockTag = GetNode<Label>("DockTag");
-        _pollInterval = Mathf.Max((float)GameStateBridge.Call("cfg", "effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // H15：≤0 节流失效
-        _bossBarSegments = Mathf.Max((int)GameStateBridge.Call("cfg", "hud.boss_bar_segments", _bossBarSegments).AsInt64(), 1);
-        _hitFlashAlpha = (float)GameStateBridge.Call("cfg", "effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
-        _hitFlashTime = (float)GameStateBridge.Call("cfg", "effects.hit_flash.time", _hitFlashTime).AsDouble();
-        _lowHpRatio = (float)GameStateBridge.Call("cfg", "effects.low_hp.ratio", _lowHpRatio).AsDouble();
-        _lowHpPulseMin = (float)GameStateBridge.Call("cfg", "effects.low_hp.pulse_min", _lowHpPulseMin).AsDouble();
-        _lowHpPulseMax = (float)GameStateBridge.Call("cfg", "effects.low_hp.pulse_max", _lowHpPulseMax).AsDouble();
-        _lowHpPulsePeriod = Mathf.Max((float)GameStateBridge.Call("cfg", "effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // H15：=0 sin NaN
+        _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // H15：≤0 节流失效
+        _bossBarSegments = Mathf.Max((int)GameState.Instance.Cfg("hud.boss_bar_segments", _bossBarSegments).AsInt64(), 1);
+        _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
+        _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
+        _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
+        _lowHpPulseMin = (float)GameState.Instance.Cfg("effects.low_hp.pulse_min", _lowHpPulseMin).AsDouble();
+        _lowHpPulseMax = (float)GameState.Instance.Cfg("effects.low_hp.pulse_max", _lowHpPulseMax).AsDouble();
+        _lowHpPulsePeriod = Mathf.Max((float)GameState.Instance.Cfg("effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // H15：=0 sin NaN
         foreach (var label in new[] { _scoreLabel, _killsLabel, _difficultyLabel, _livesLabel })
         {
             label.AddThemeFontOverride("font", Font);
@@ -185,14 +184,14 @@ public partial class Hud : CanvasLayer
         _hpBar.EmptyColor = new Color(0.05f, 0.09f, 0.14f, 0.25f);
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         _hpBar.Material = hpHolo;
-        var gs = GameStateBridge.Instance!;
+        var gs = GameState.Instance!;
         gs.Connect("ScoreChanged", Callable.From<int>(OnScoreChanged));
         gs.Connect("HealthChanged", Callable.From<float>(OnHealthChanged));
         gs.Connect("DifficultyChanged", Callable.From<float>(OnDifficultyChanged));
         gs.Connect("DifficultySelected", Callable.From<StringName>(OnDifficultySelected));
         gs.Connect("LocaleChanged", Callable.From(OnLocaleChanged));
-        OnScoreChanged(GameStateBridge.Get("score").AsInt32());
-        OnHealthChanged((float)GameStateBridge.Get("health").AsDouble());
+        OnScoreChanged(GameState.Instance.Score);
+        OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");
         _dashTag.Text = (string)Tr("UI_DASH");
@@ -458,7 +457,7 @@ public partial class Hud : CanvasLayer
     {
         // C22 模式（M5）：GameState 信号显式断开——本类此前缺 _ExitTree（其他 C# UI 均有），
         // 退出时 GameState 先于本节点释放的时序下连接悬空可致退出 segfault（实测定位）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs == null)
         {
             return;
@@ -542,7 +541,7 @@ public partial class Hud : CanvasLayer
             _bossCountdown.Visible = false;
         }
 
-        var player = GameStateBridge.Get("player_ref").AsGodotObject() as Player;
+        var player = GameState.Instance.PlayerRef as Player;
         if (player == null)
         {
             return;
@@ -587,7 +586,7 @@ public partial class Hud : CanvasLayer
     private void UpdateMagazineBar(Node main)
     {
         var msVariant = main.Call("mothership");
-        Mothership? ms = msVariant.VariantType == Variant.Type.Nil ? null : msVariant.AsGodotObject() as Mothership;
+        Mothership? ms = msVariant.AsGodotObject() as Mothership;
         if (ms != null && (int)ms.GetState() == Mothership.GetStateStay())
         {
             _magBox.Visible = true;
@@ -744,7 +743,7 @@ public partial class Hud : CanvasLayer
     /// <summary>母舰弹匣不足警告（≤4 格时触发一次）。</summary>
     public void ShowMagazineWarning()
     {
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_PLAYER_HIT"));
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT);
         ShowWarning((string)Tr("WARN_MAG"));
     }
 
@@ -812,7 +811,7 @@ public partial class Hud : CanvasLayer
     private void OnScoreChanged(int newScore)
     {
         _scoreLabel.Text = GdFormat((string)Tr("UI_SCORE"), newScore);
-        _killsLabel.Text = GdFormat((string)Tr("UI_KILLS"), GameStateBridge.Get("kills").AsInt32());
+        _killsLabel.Text = GdFormat((string)Tr("UI_KILLS"), GameState.Instance.Kills);
     }
 
     private void OnHealthChanged(float newHealth)
@@ -866,8 +865,8 @@ public partial class Hud : CanvasLayer
 
     private void OnLocaleChanged()
     {
-        OnScoreChanged(GameStateBridge.Get("score").AsInt32());
-        OnHealthChanged((float)GameStateBridge.Get("health").AsDouble());
+        OnScoreChanged(GameState.Instance.Score);
+        OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");
         _dashTag.Text = (string)Tr("UI_DASH");
@@ -901,8 +900,8 @@ public partial class Hud : CanvasLayer
     {
         _difficultyLabel.Text = GdFormat(
             (string)Tr("UI_DIFF_FMT"),
-            (float)GameStateBridge.Get("difficulty_multiplier").AsDouble(),
-            (string)GameStateBridge.Call("difficulty_label"));
+            (float)GameState.Instance.DifficultyMultiplier,
+            (string)GameState.Instance.DifficultyLabel());
     }
 
     private void OnBossHealthChanged(float current, float maximum)
@@ -997,7 +996,7 @@ public partial class Hud : CanvasLayer
         }
 
         // LOD0 移交 MetaFX 后处理（D2），旧晕影恒 0；非 0（回退/MetaFX 离场）保留现状
-        if (GameStateBridge.Get("meta_fx_lod").AsInt32() == 0)
+        if (GameState.Instance.MetaFxLod == 0)
         {
             if (_vignette.Modulate.A > 0.0f)
             {
@@ -1011,7 +1010,7 @@ public partial class Hud : CanvasLayer
 
         var alpha = HitFlash;
         var maxHp = _cachedMaxHp;
-        if ((float)GameStateBridge.Get("health").AsDouble() > 0.0f && (float)GameStateBridge.Get("health").AsDouble() < maxHp * _lowHpRatio)
+        if ((float)GameState.Instance.Health > 0.0f && (float)GameState.Instance.Health < maxHp * _lowHpRatio)
         {
             _pulseTime += delta;
             var s = (Enemy.SinFast(_pulseTime * Mathf.Tau / _lowHpPulsePeriod) + 1.0f) * 0.5f;
@@ -1171,10 +1170,10 @@ public partial class Hud : CanvasLayer
 
     private void RebuildBuffDock(bool force)
     {
-        _cachedMaxHp = (float)GameStateBridge.Call("max_health").AsDouble(); // D08：buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
+        _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // D08：buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
         var signature = "";
         var active = new Godot.Collections.Array(); // [[id, stacks], ...] 按获得顺序
-        var buffs = GameStateBridge.Get("buffs").AsGodotDictionary();
+        var buffs = GameState.Instance.Buffs;
         foreach (var key in buffs.Keys)
         {
             var id = key.AsStringName();
@@ -1271,7 +1270,7 @@ public partial class Hud : CanvasLayer
     /// <summary>收起态标签：名称 + 当前绑定键提示（改键后同步刷新）。</summary>
     private void RefreshBuffTag()
     {
-        _buffTag.Text = GdFormat("%s [%s]", (string)Tr("UI_BUFFS_TAG"), (string)GameStateBridge.Call("action_keys_text", new StringName("buff_panel")));
+        _buffTag.Text = GdFormat("%s [%s]", (string)Tr("UI_BUFFS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("buff_panel")));
     }
 
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>

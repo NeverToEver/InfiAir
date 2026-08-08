@@ -59,7 +59,7 @@ public partial class Explosion : GpuParticles2D
             e = new Explosion();
             if (_poolCap < 0)
             {
-                _poolCap = (int)GameStateBridge.Call("cfg", "effects.explosion.pool_cap", PoolCap).AsInt64();
+                _poolCap = (int)GameState.Instance.Cfg("effects.explosion.pool_cap", PoolCap).AsInt64();
             }
 
             e._pooled = Pool.Count < _poolCap;
@@ -74,10 +74,10 @@ public partial class Explosion : GpuParticles2D
         // effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
         if (_visualScale < 0.0f)
         {
-            _visualScale = (float)GameStateBridge.Call("cfg", "effects.explosion_visual_scale", 1.6).AsDouble(); // G022：一次性缓存
+            _visualScale = (float)GameState.Instance.Cfg("effects.explosion_visual_scale", 1.6).AsDouble(); // G022：一次性缓存
         }
 
-        e.Scale = Vector2.One * pScale * _visualScale * (float)GameStateBridge.Get("world_scale").AsDouble();
+        e.Scale = Vector2.One * pScale * _visualScale * (float)GameState.Instance.WorldScale;
         e.Visible = true;
         e.Restart();
         e._debris.Restart();
@@ -101,8 +101,8 @@ public partial class Explosion : GpuParticles2D
     /// <summary>Boss 多段爆炸序列：连续小爆炸 + 最终大爆炸 + 震动（Timer 驱动而非协程，防泄漏）。</summary>
     public static void SpawnBossSequence(Node parent, Vector2 pos)
     {
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION_BIG"));
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.boss_seq_initial", 20.0));
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG);
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_initial", 20.0).AsDouble());
         _bossSeqBurst(parent, pos); // 第 1 段立即触发
         var step = new int[] { 1 }; // 已触发段数（数组引用跨回调共享计数）
         var timer = new Godot.Timer { ProcessMode = Node.ProcessModeEnum.Always, WaitTime = 0.12 };
@@ -115,7 +115,7 @@ public partial class Explosion : GpuParticles2D
     {
         var offset = new Vector2((float)GD.RandRange(-130.0, 130.0), (float)GD.RandRange(-90.0, 90.0));
         SpawnAt(parent, pos + offset, (float)GD.RandRange(0.9, 1.5));
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.boss_seq_step", 8.0));
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_step", 8.0).AsDouble());
     }
 
     private static void _bossSeqStep(Node parent, Vector2 pos, int[] step, Godot.Timer timer)
@@ -133,7 +133,7 @@ public partial class Explosion : GpuParticles2D
         else
         {
             SpawnAt(parent, pos, 3.0f);
-            GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.boss_seq_final", 24.0));
+            GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
             timer.QueueFree();
         }
     }
@@ -142,7 +142,7 @@ public partial class Explosion : GpuParticles2D
     {
         // B16：process_mode Always（死亡/放弃/暂停时爆炸仍正常播放）
         ProcessMode = Node.ProcessModeEnum.Always;
-        Amount = (int)GameStateBridge.Call("cfg", "effects.explosion.amount", 24).AsInt64();
+        Amount = (int)GameState.Instance.Cfg("effects.explosion.amount", 24).AsInt64();
         Lifetime = 0.6;
         OneShot = true;
         Explosiveness = 0.9f;
@@ -165,7 +165,7 @@ public partial class Explosion : GpuParticles2D
         // 碎片发射器：少量、更大、更慢、寿命更长
         _debris = new GpuParticles2D
         {
-            Amount = (int)GameStateBridge.Call("cfg", "effects.explosion.debris_amount", 10).AsInt64(),
+            Amount = (int)GameState.Instance.Cfg("effects.explosion.debris_amount", 10).AsInt64(),
             Lifetime = 0.9,
             OneShot = true,
             Explosiveness = 0.85f,

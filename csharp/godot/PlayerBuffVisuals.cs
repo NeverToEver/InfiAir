@@ -10,7 +10,6 @@ namespace InfiAir;
 /// 三角拦截机，机头朝 -Y）设计，Player 创建本节点时按实际 sprite 缩放等比放大。
 /// 部位锚点与 scripts/tools/generate_player_sprite.py 头部注释的贴图坐标对应（偏移 × 0.65）。
 /// Enemy.SinFast（M3b 已迁）为同命名空间静态方法，直接引用。
-/// 迁移期动态访问：GameState（GDScript autoload）经 GameStateBridge；buff_count 事件驱动（非热路径）。
 /// Player 为 InfiAir.Player（M3c 并行迁移；EngineTint 公开属性由其提供，编译期稍后统一验证）。
 /// </summary>
 public partial class PlayerBuffVisuals : Node2D
@@ -92,7 +91,7 @@ public partial class PlayerBuffVisuals : Node2D
         _player = player;
         _BuildAll(shipSprite.Texture);
         Refresh();
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Connect("BuffsChanged", _onBuffsChanged);
@@ -102,7 +101,7 @@ public partial class PlayerBuffVisuals : Node2D
     public override void _ExitTree()
     {
         // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Disconnect("BuffsChanged", _onBuffsChanged);
@@ -243,7 +242,7 @@ public partial class PlayerBuffVisuals : Node2D
     // ---------------- 内部实现 ----------------
 
     /// <summary>GameState.buff_count 事件驱动访问（非热路径；buff 变更频率极低）。</summary>
-    private static int BuffCount(StringName name) => (int)GameStateBridge.Call("buff_count", name).AsInt64();
+    private static int BuffCount(StringName name) => (int)GameState.Instance.BuffCount(name);
 
     /// <summary>保色相只改 alpha（原 GDScript `modulate.a = x` 链式赋值语义）。</summary>
     private static Color WithAlpha(Color c, float a) => new(c.R, c.G, c.B, a);

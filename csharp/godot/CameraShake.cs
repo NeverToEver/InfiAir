@@ -23,18 +23,18 @@ public partial class CameraShake : Camera2D
     public override void _Ready()
     {
         // C22：is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("ScreenShake", _onShake))
         {
             gs.Connect("ScreenShake", _onShake);
         }
 
-        _decay = Mathf.Max((float)GameStateBridge.Call("cfg", "effects.shake.decay", _decay).AsDouble(), 0.001f); // H15：decay=0 震动永不衰减
+        _decay = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.decay", _decay).AsDouble(), 0.001f); // H15：decay=0 震动永不衰减
     }
 
     public override void _ExitTree()
     {
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("ScreenShake", _onShake))
         {
             gs.Disconnect("ScreenShake", _onShake);

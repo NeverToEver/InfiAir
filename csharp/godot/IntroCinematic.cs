@@ -449,7 +449,7 @@ public partial class IntroCinematic : CanvasLayer
             wave2.Position = blast2Pos;
             station.AddChild(wave2);
             KickShake(root, 5.0f, waveShakeState);
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -8.0f + AudioVolOffset, AudioPitch);
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -8.0f + AudioVolOffset, AudioPitch);
         };
 
         // 余烬：全镜头持续的橙色慢速上飘细屑（低透明度，燃烧余韵层）
@@ -517,7 +517,7 @@ public partial class IntroCinematic : CanvasLayer
             move.TweenProperty(driftShard, "position", driftShard.Position, 4.0f + k).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         }
 
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION_BIG"), AudioVolOffset, AudioPitch);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, AudioVolOffset, AudioPitch);
         return root;
     }
 
@@ -725,7 +725,7 @@ public partial class IntroCinematic : CanvasLayer
             if (step[0] == 1 || step[0] == 3 || step[0] == 5)
             {
                 // 链式三连发：音量逐发递减
-                GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -2.0f - 3.0f * (step[0] / 2) + AudioVolOffset, AudioPitch);
+                GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -2.0f - 3.0f * (step[0] / 2) + AudioVolOffset, AudioPitch);
             }
 
             step[0] += 1;
@@ -1032,7 +1032,7 @@ public partial class IntroCinematic : CanvasLayer
         // 低频警报脉冲（既有命中音压低至 -14dB 基础，叠加过场音量策略，0.7s 间隔）
         var alarm = new Godot.Timer { WaitTime = 0.7f, Autostart = true };
         root.AddChild(alarm);
-        alarm.Timeout += () => GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_PLAYER_HIT"), -14.0f + AudioVolOffset, AudioPitch);
+        alarm.Timeout += () => GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT, -14.0f + AudioVolOffset, AudioPitch);
         return root;
     }
 
@@ -1756,7 +1756,7 @@ public partial class IntroCinematic : CanvasLayer
             root.EdgeLines.Add((edgeSl, sideSign));
         }
 
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), AudioVolOffset, AudioPitch);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, AudioVolOffset, AudioPitch);
         // 引擎音持续：1.1s 后压低 6dB 补一发，覆盖镜头后段
         var engine = new Godot.Timer { OneShot = true, WaitTime = 1.1f, Autostart = true };
         root.AddChild(engine);  // 随镜头销毁：跳过/切镜后不残留迟发回调
@@ -1764,7 +1764,7 @@ public partial class IntroCinematic : CanvasLayer
         {
             if (GodotObject.IsInstanceValid(root))
             {
-                GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -6.0f + AudioVolOffset, AudioPitch);
+                GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0f + AudioVolOffset, AudioPitch);
             }
         };
         return root;

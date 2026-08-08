@@ -139,8 +139,8 @@ public partial class BackNavigator : Node
             case BackAction.TO_MAIN_MENU:
                 // 账户系统（2026-08-04）：结算页回主菜单 = 回 welcome 主场景（welcome 重进时全量重置）
                 GetTree().Paused = false;
-                GameStateBridge.Call("reset_run");
-                GameStateBridge.Call("logout_user");
+                GameState.Instance.ResetRun();
+                GameState.Instance.LogoutUser();
                 GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
                 MarkHandled();
                 break;

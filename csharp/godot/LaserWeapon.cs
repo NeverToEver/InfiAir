@@ -10,7 +10,6 @@ namespace InfiAir;
 /// 语义保持：buff 层数经 buffs_changed 信号缓存（Enemy.cs 同款，避免每物理帧跨语言
 /// buff_count）；C23 预分配 points 数组帧内 set_point_position 原地写；E08 buff 归零时
 /// 收束激活态光束。原 const SFX_BEAM = preload 移入 _Ready 惰性加载（GD.Load 同资源缓存）。
-/// 迁移期动态访问：GameState 经 GameStateBridge；Player 为 C# 类（InfiAir.Player，M3c 并行迁移）。
 /// </summary>
 public partial class LaserWeapon : Node2D
 {
@@ -84,14 +83,14 @@ public partial class LaserWeapon : Node2D
     public override void _Ready()
     {
         _player = GetParent() as Player ?? null!;
-        BeamDuration = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.duration", BeamDuration).AsDouble();
-        CooldownDuration = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
-        TickInterval = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.tick_interval", TickInterval).AsDouble();
-        TickDamage = (int)GameStateBridge.Call("cfg", "buffs.laser_beam.tick_damage", TickDamage).AsInt64();
-        BeamLength = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.length", BeamLength).AsDouble();
-        BeamHalfWidth = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.half_width", BeamHalfWidth).AsDouble();
-        EnemyHitRadius = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
+        BeamDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble();
+        CooldownDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
+        TickInterval = (float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble();
+        TickDamage = (int)GameState.Instance.Cfg("buffs.laser_beam.tick_damage", TickDamage).AsInt64();
+        BeamLength = (float)GameState.Instance.Cfg("buffs.laser_beam.length", BeamLength).AsDouble();
+        BeamHalfWidth = (float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble();
+        EnemyHitRadius = (float)GameState.Instance.Cfg("buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble()
+            * (float)GameState.Instance.WorldScale;
         _sfxBeam = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
         // 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
         _beam = new Line2D
@@ -126,7 +125,7 @@ public partial class LaserWeapon : Node2D
         _glow.ProcessMaterial = mat;
         AddChild(_glow);
         // buffs_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 buff_count）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             gs.Connect("BuffsChanged", _onBuffsChanged);
@@ -138,7 +137,7 @@ public partial class LaserWeapon : Node2D
     public override void _ExitTree()
     {
         // buffs_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Disconnect("BuffsChanged", _onBuffsChanged);
@@ -226,7 +225,7 @@ public partial class LaserWeapon : Node2D
         _beam.Visible = true;
         _glow.Emitting = true;
         _player!.SetAutoFire(false);
-        if (_sfxBeam != null) GameStateBridge.Call("play_sfx", _sfxBeam, -6.0);
+        if (_sfxBeam != null) GameState.Instance.PlaySfx(_sfxBeam, -6.0);
     }
 
     private void EndBeam()
@@ -246,7 +245,7 @@ public partial class LaserWeapon : Node2D
     /// 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝。</summary>
     private void DamageTick(Vector2 start, Vector2 end)
     {
-        var arr = GameStateBridge.Get("enemies").AsGodotArray();
+        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i].AsGodotObject();
@@ -275,6 +274,6 @@ public partial class LaserWeapon : Node2D
     /// <summary>laser_beam 层数缓存刷新（热路径禁字典约定；buffs_changed 信号驱动，_ready 初始一次）。</summary>
     private void OnBuffsChanged()
     {
-        _laserBeamOn = (int)GameStateBridge.Call("buff_count", new StringName("laser_beam")).AsInt64() > 0;
+        _laserBeamOn = (int)GameState.Instance.BuffCount(new StringName("laser_beam")) > 0;
     }
 }

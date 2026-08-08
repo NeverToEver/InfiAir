@@ -7,7 +7,6 @@ namespace InfiAir;
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
 /// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerBuffVisuals（Node2D）。
 /// 语义保持：声明式 BUFF_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件
-/// 效果、擦弹/弹反公平机制、屏幕钳制。迁移期 GameState 经 GameStateBridge；引擎属性 snake_case
 /// 由 GDScript 侧访问；GDScript 鸭子调用经 snake_case 兼容桥（M7 删除）。
 /// </summary>
 public partial class Player : CharacterBody2D
@@ -199,12 +198,12 @@ public partial class Player : CharacterBody2D
     public override void _Ready()
     {
         AddToGroup("player");
-        GameStateBridge.Set("player_ref", this);
+        GameState.Instance.PlayerRef = this;
         _hitbox = GetNode<Area2D>("Hitbox");
-        GameStateBridge.Set("player_hitbox", _hitbox);
+        GameState.Instance.PlayerHitbox = _hitbox;
         LoadBalance();
         RefreshBuffFactors();
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (!gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
@@ -223,7 +222,7 @@ public partial class Player : CharacterBody2D
             }
 
             // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
-            var fogEvents = gs.Get("fog_events").AsGodotObject();
+            var fogEvents = gs.FogEvents;
             if (!fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
             {
                 fogEvents.Connect("FogEventStarted", _onFogEventStarted);
@@ -250,60 +249,60 @@ public partial class Player : CharacterBody2D
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>
     private void LoadBalance()
     {
-        MaxSpeed = (float)GameStateBridge.Call("cfg", "player.max_speed", MaxSpeed).AsDouble();
-        Accel = (float)GameStateBridge.Call("cfg", "player.accel", Accel).AsDouble();
-        Decel = (float)GameStateBridge.Call("cfg", "player.decel", Decel).AsDouble();
-        BoostMult = (float)GameStateBridge.Call("cfg", "player.boost_mult", BoostMult).AsDouble();
-        FineMoveMult = (float)GameStateBridge.Call("cfg", "player.fine_move_mult", FineMoveMult).AsDouble();
-        BaseFireInterval = (float)GameStateBridge.Call("cfg", "player.base_fire_interval", BaseFireInterval).AsDouble();
-        BulletSpeed = (float)GameStateBridge.Call("cfg", "player.bullet_speed", BulletSpeed).AsDouble();
-        CritChanceBase = (float)GameStateBridge.Call("cfg", "buffs.crit_shot.chance", CritChanceBase).AsDouble();
-        CritMultiplier = (float)GameStateBridge.Call("cfg", "buffs.crit_shot.multiplier", CritMultiplier).AsDouble();
-        BulletSpreadDeg = (float)GameStateBridge.Call("cfg", "player.bullet_spread_deg", BulletSpreadDeg).AsDouble();
-        BulletDamage = (int)GameStateBridge.Call("cfg", "player.bullet_damage", BulletDamage).AsInt64();
-        InvincibleTime = (float)GameStateBridge.Call("cfg", "player.invincible_time", InvincibleTime).AsDouble();
-        SpawnInvincibleTime = (float)GameStateBridge.Call("cfg", "player.spawn_invincible_time", SpawnInvincibleTime).AsDouble();
-        BulletClearRadius = (float)GameStateBridge.Call("cfg", "player.bullet_clear_radius", BulletClearRadius).AsDouble();
-        EntryLandRatio = (float)GameStateBridge.Call("cfg", "player.entry.land_ratio", EntryLandRatio).AsDouble();
-        EntryRushTime = (float)GameStateBridge.Call("cfg", "player.entry.rush_time", EntryRushTime).AsDouble();
-        EntryRetreatSpeed = (float)GameStateBridge.Call("cfg", "player.entry.retreat_speed", EntryRetreatSpeed).AsDouble();
-        EntryRetreatTime = (float)GameStateBridge.Call("cfg", "player.entry.retreat_time", EntryRetreatTime).AsDouble();
-        EntryInvincible = (float)GameStateBridge.Call("cfg", "player.entry.invincible", EntryInvincible).AsDouble();
-        EntrySpawnClearance = (float)GameStateBridge.Call("cfg", "player.entry.spawn_clearance", EntrySpawnClearance).AsDouble();
-        EntryRushHsRatio = (float)GameStateBridge.Call("cfg", "player.entry.rush_hspeed_ratio", EntryRushHsRatio).AsDouble();
-        ArmorMult = (float)GameStateBridge.Call("cfg", "buffs.armor.multiplier", ArmorMult).AsDouble();
-        EvasionChance = (float)GameStateBridge.Call("cfg", "buffs.evasion.chance", EvasionChance).AsDouble();
-        RegenPerSec = (float)GameStateBridge.Call("cfg", "buffs.regen.heal_per_sec", RegenPerSec).AsDouble();
-        ShakeHit = (float)GameStateBridge.Call("cfg", "effects.shake.player_hit", ShakeHit).AsDouble();
+        MaxSpeed = (float)GameState.Instance.Cfg("player.max_speed", MaxSpeed).AsDouble();
+        Accel = (float)GameState.Instance.Cfg("player.accel", Accel).AsDouble();
+        Decel = (float)GameState.Instance.Cfg("player.decel", Decel).AsDouble();
+        BoostMult = (float)GameState.Instance.Cfg("player.boost_mult", BoostMult).AsDouble();
+        FineMoveMult = (float)GameState.Instance.Cfg("player.fine_move_mult", FineMoveMult).AsDouble();
+        BaseFireInterval = (float)GameState.Instance.Cfg("player.base_fire_interval", BaseFireInterval).AsDouble();
+        BulletSpeed = (float)GameState.Instance.Cfg("player.bullet_speed", BulletSpeed).AsDouble();
+        CritChanceBase = (float)GameState.Instance.Cfg("buffs.crit_shot.chance", CritChanceBase).AsDouble();
+        CritMultiplier = (float)GameState.Instance.Cfg("buffs.crit_shot.multiplier", CritMultiplier).AsDouble();
+        BulletSpreadDeg = (float)GameState.Instance.Cfg("player.bullet_spread_deg", BulletSpreadDeg).AsDouble();
+        BulletDamage = (int)GameState.Instance.Cfg("player.bullet_damage", BulletDamage).AsInt64();
+        InvincibleTime = (float)GameState.Instance.Cfg("player.invincible_time", InvincibleTime).AsDouble();
+        SpawnInvincibleTime = (float)GameState.Instance.Cfg("player.spawn_invincible_time", SpawnInvincibleTime).AsDouble();
+        BulletClearRadius = (float)GameState.Instance.Cfg("player.bullet_clear_radius", BulletClearRadius).AsDouble();
+        EntryLandRatio = (float)GameState.Instance.Cfg("player.entry.land_ratio", EntryLandRatio).AsDouble();
+        EntryRushTime = (float)GameState.Instance.Cfg("player.entry.rush_time", EntryRushTime).AsDouble();
+        EntryRetreatSpeed = (float)GameState.Instance.Cfg("player.entry.retreat_speed", EntryRetreatSpeed).AsDouble();
+        EntryRetreatTime = (float)GameState.Instance.Cfg("player.entry.retreat_time", EntryRetreatTime).AsDouble();
+        EntryInvincible = (float)GameState.Instance.Cfg("player.entry.invincible", EntryInvincible).AsDouble();
+        EntrySpawnClearance = (float)GameState.Instance.Cfg("player.entry.spawn_clearance", EntrySpawnClearance).AsDouble();
+        EntryRushHsRatio = (float)GameState.Instance.Cfg("player.entry.rush_hspeed_ratio", EntryRushHsRatio).AsDouble();
+        ArmorMult = (float)GameState.Instance.Cfg("buffs.armor.multiplier", ArmorMult).AsDouble();
+        EvasionChance = (float)GameState.Instance.Cfg("buffs.evasion.chance", EvasionChance).AsDouble();
+        RegenPerSec = (float)GameState.Instance.Cfg("buffs.regen.heal_per_sec", RegenPerSec).AsDouble();
+        ShakeHit = (float)GameState.Instance.Cfg("effects.shake.player_hit", ShakeHit).AsDouble();
         Invincible = SpawnInvincibleTime; // 出生保护
-        FuelMax = (float)GameStateBridge.Call("cfg", "player.fuel.max", FuelMax).AsDouble();
+        FuelMax = (float)GameState.Instance.Cfg("player.fuel.max", FuelMax).AsDouble();
         _fuel = FuelMax;
-        FuelDrain = (float)GameStateBridge.Call("cfg", "player.fuel.drain", FuelDrain).AsDouble();
-        FuelRegen = (float)GameStateBridge.Call("cfg", "player.fuel.regen", FuelRegen).AsDouble();
-        FuelRestart = (float)GameStateBridge.Call("cfg", "player.fuel.restart", FuelRestart).AsDouble();
-        DashDistance = (float)GameStateBridge.Call("cfg", "player.dash.distance", DashDistance).AsDouble();
-        DashTime = (float)GameStateBridge.Call("cfg", "player.dash.time", DashTime).AsDouble();
-        DashCooldownMaxValue = (float)GameStateBridge.Call("cfg", "player.dash.cooldown", DashCooldownMaxValue).AsDouble();
-        DashFuelRatio = (float)GameStateBridge.Call("cfg", "player.dash.fuel_ratio", DashFuelRatio).AsDouble();
-        AfterimageInterval = (float)GameStateBridge.Call("cfg", "player.dash.afterimage_interval", AfterimageInterval).AsDouble();
-        GrazeRadius = (float)GameStateBridge.Call("cfg", "player.graze_radius", GrazeRadius).AsDouble();
-        GrazeScore = (int)GameStateBridge.Call("cfg", "player.graze_score", GrazeScore).AsInt64();
-        ParryArcDeg = (float)GameStateBridge.Call("cfg", "player.parry.arc_deg", ParryArcDeg).AsDouble();
-        ParryRadius = (float)GameStateBridge.Call("cfg", "player.parry.radius", ParryRadius).AsDouble();
+        FuelDrain = (float)GameState.Instance.Cfg("player.fuel.drain", FuelDrain).AsDouble();
+        FuelRegen = (float)GameState.Instance.Cfg("player.fuel.regen", FuelRegen).AsDouble();
+        FuelRestart = (float)GameState.Instance.Cfg("player.fuel.restart", FuelRestart).AsDouble();
+        DashDistance = (float)GameState.Instance.Cfg("player.dash.distance", DashDistance).AsDouble();
+        DashTime = (float)GameState.Instance.Cfg("player.dash.time", DashTime).AsDouble();
+        DashCooldownMaxValue = (float)GameState.Instance.Cfg("player.dash.cooldown", DashCooldownMaxValue).AsDouble();
+        DashFuelRatio = (float)GameState.Instance.Cfg("player.dash.fuel_ratio", DashFuelRatio).AsDouble();
+        AfterimageInterval = (float)GameState.Instance.Cfg("player.dash.afterimage_interval", AfterimageInterval).AsDouble();
+        GrazeRadius = (float)GameState.Instance.Cfg("player.graze_radius", GrazeRadius).AsDouble();
+        GrazeScore = (int)GameState.Instance.Cfg("player.graze_score", GrazeScore).AsInt64();
+        ParryArcDeg = (float)GameState.Instance.Cfg("player.parry.arc_deg", ParryArcDeg).AsDouble();
+        ParryRadius = (float)GameState.Instance.Cfg("player.parry.radius", ParryRadius).AsDouble();
         _parry.Configure(
-            (float)GameStateBridge.Call("cfg", "player.parry.duration", 0.8).AsDouble(),
-            (float)GameStateBridge.Call("cfg", "player.parry.active_time", 0.5).AsDouble(),
-            (float)GameStateBridge.Call("cfg", "player.parry.cooldown", 3.0).AsDouble());
+            (float)GameState.Instance.Cfg("player.parry.duration", 0.8).AsDouble(),
+            (float)GameState.Instance.Cfg("player.parry.active_time", 0.5).AsDouble(),
+            (float)GameState.Instance.Cfg("player.parry.cooldown", 3.0).AsDouble());
         _damage.Configure(InvincibleTime, ArmorMult, EvasionChance, RegenPerSec, ShakeHit);
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
-        _magnetInputMin = (float)GameStateBridge.Call("cfg", "player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
-        _magnetInputFull = (float)GameStateBridge.Call("cfg", "player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
-        _falloffPeak = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
-        _falloffEnd = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.end", _falloffEnd).AsDouble();
-        _falloffMin = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.min", _falloffMin).AsDouble();
+        _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
+        _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
+        _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
+        _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
+        _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
         LoadAimAssistParams();
         // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _sprite.Scale = Vector2.One * 0.65f * ws;
         if (GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D bodyCircle)
@@ -450,9 +449,9 @@ public partial class Player : CharacterBody2D
         }
         else if (eventId == "bullet_malfunction")
         {
-            _fogBulletJitterDeg = (float)GameStateBridge.Call("cfg", "fog_events.bullet_malfunction.jitter_deg", 20.0).AsDouble();
-            _fogMisfireChance = (float)GameStateBridge.Call("cfg", "fog_events.bullet_malfunction.misfire_chance", 0.15).AsDouble();
-            _fogIntervalJitter = (float)GameStateBridge.Call("cfg", "fog_events.bullet_malfunction.interval_jitter", 0.3).AsDouble();
+            _fogBulletJitterDeg = (float)GameState.Instance.Cfg("fog_events.bullet_malfunction.jitter_deg", 20.0).AsDouble();
+            _fogMisfireChance = (float)GameState.Instance.Cfg("fog_events.bullet_malfunction.misfire_chance", 0.15).AsDouble();
+            _fogIntervalJitter = (float)GameState.Instance.Cfg("fog_events.bullet_malfunction.interval_jitter", 0.3).AsDouble();
         }
     }
 
@@ -556,11 +555,11 @@ public partial class Player : CharacterBody2D
                 continue;
             }
 
-            var value = GameStateBridge.Call("cfg", (StringName)effect["cfg"], effect["default"]);
+            var value = GameState.Instance.Cfg((StringName)effect["cfg"], effect["default"]);
             _buffValues[id] = kind == "cap" ? (int)value.AsInt64() : (float)value.AsDouble();
         }
 
-        var critStacks = (int)GameStateBridge.Call("buff_count", new StringName("crit_shot")).AsInt64();
+        var critStacks = (int)GameState.Instance.BuffCount(new StringName("crit_shot"));
         CritChance = critStacks == 0 ? 0.0f : CritChanceBase * critStacks;
         CritMultiplierValue = CritMultiplier;
     }
@@ -569,17 +568,17 @@ public partial class Player : CharacterBody2D
     private float BuffScale(StringName id, float baseValue, int count) => baseValue * Mathf.Pow((float)_buffValues[id].AsDouble(), count);
 
     /// <summary>A4：堆叠上限截断——min(count, max_stacks)。</summary>
-    private int BuffCap(StringName id) => Mathf.Min((int)GameStateBridge.Call("buff_count", id).AsInt64(), (int)_buffValues[id].AsInt64());
+    private int BuffCap(StringName id) => Mathf.Min((int)GameState.Instance.BuffCount(id), (int)_buffValues[id]);
 
     /// <summary>A4：布尔启用——count &gt; 0。</summary>
-    private bool BuffEnabled(StringName id) => (int)GameStateBridge.Call("buff_count", id).AsInt64() > 0;
+    private bool BuffEnabled(StringName id) => (int)GameState.Instance.BuffCount(id) > 0;
 
-    public float FireIntervalValue() => BuffScale(new StringName("rapid_fire"), BaseFireInterval, (int)GameStateBridge.Call("buff_count", new StringName("rapid_fire")).AsInt64());
+    public float FireIntervalValue() => BuffScale(new StringName("rapid_fire"), BaseFireInterval, (int)GameState.Instance.BuffCount(new StringName("rapid_fire")));
 
-    public int BulletDamageValue() => Mathf.Max(1, (int)BuffScale(new StringName("power_shot"), BulletDamage, (int)GameStateBridge.Call("buff_count", new StringName("power_shot")).AsInt64()));
+    public int BulletDamageValue() => Mathf.Max(1, (int)BuffScale(new StringName("power_shot"), BulletDamage, (int)GameState.Instance.BuffCount(new StringName("power_shot"))));
 
     /// <summary>bullet_speed buff 后的当前弹速。</summary>
-    public float BulletSpeedValue() => BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameStateBridge.Call("buff_count", new StringName("bullet_speed")).AsInt64());
+    public float BulletSpeedValue() => BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameState.Instance.BuffCount(new StringName("bullet_speed")));
 
     public float FuelRatio() => _fuel / FuelMax;
 
@@ -591,7 +590,7 @@ public partial class Player : CharacterBody2D
 
     public bool DashUnlocked() => BuffEnabled(new StringName("phase_dash"));
 
-    public float DashCooldownMax() => BuffScale(new StringName("phase_dash"), DashCooldownMaxValue, Mathf.Max((int)GameStateBridge.Call("buff_count", new StringName("phase_dash")).AsInt64() - 1, 0));
+    public float DashCooldownMax() => BuffScale(new StringName("phase_dash"), DashCooldownMaxValue, Mathf.Max((int)GameState.Instance.BuffCount(new StringName("phase_dash")) - 1, 0));
 
     public float DashFuelCost() => FuelMax * DashFuelRatio;
 
@@ -605,9 +604,9 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
-    public float FuelDrainRate() => BuffScale(new StringName("efficient_boost"), FuelDrain, (int)GameStateBridge.Call("buff_count", new StringName("efficient_boost")).AsInt64());
+    public float FuelDrainRate() => BuffScale(new StringName("efficient_boost"), FuelDrain, (int)GameState.Instance.BuffCount(new StringName("efficient_boost")));
 
-    public float FuelRegenRate() => BuffScale(new StringName("boost_recovery"), FuelRegen, (int)GameStateBridge.Call("buff_count", new StringName("boost_recovery")).AsInt64());
+    public float FuelRegenRate() => BuffScale(new StringName("boost_recovery"), FuelRegen, (int)GameState.Instance.BuffCount(new StringName("boost_recovery")));
 
     public override void _PhysicsProcess(double delta)
     {
@@ -685,12 +684,12 @@ public partial class Player : CharacterBody2D
         }
 
         // 燃料与加速（shift_toggle_mode：按一下切换开/关）
-        if ((bool)GameStateBridge.Get("shift_toggle_mode").AsBool() && Input.IsActionJustPressed("boost"))
+        if ((bool)GameState.Instance.ShiftToggleMode && Input.IsActionJustPressed("boost"))
         {
             _boostToggleOn = !_boostToggleOn;
         }
 
-        var wantBoost = (bool)GameStateBridge.Get("shift_toggle_mode").AsBool() ? _boostToggleOn : Input.IsActionPressed("boost");
+        var wantBoost = (bool)GameState.Instance.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed("boost");
         if (MovementLocked)
         {
             wantBoost = false;
@@ -717,12 +716,12 @@ public partial class Player : CharacterBody2D
 
         var boost = boosting ? BoostMult : 1.0f;
         // Ctrl 微调：移速 ×0.35（ctrl_toggle_mode：按一下切换开/关）
-        if ((bool)GameStateBridge.Get("ctrl_toggle_mode").AsBool() && Input.IsActionJustPressed("fine_move"))
+        if ((bool)GameState.Instance.CtrlToggleMode && Input.IsActionJustPressed("fine_move"))
         {
             _fineToggleOn = !_fineToggleOn;
         }
 
-        var fineOn = (bool)GameStateBridge.Get("ctrl_toggle_mode").AsBool() ? _fineToggleOn : Input.IsActionPressed("fine_move");
+        var fineOn = (bool)GameState.Instance.CtrlToggleMode ? _fineToggleOn : Input.IsActionPressed("fine_move");
         var fine = fineOn ? FineMoveMult : 1.0f;
         var target = inputDir * MaxSpeed * boost * fine * _enrageSlow;
         var rate = inputDir != Vector2.Zero ? Accel : Decel;
@@ -779,7 +778,7 @@ public partial class Player : CharacterBody2D
     /// <summary>屏幕边缘钳制：随可见世界区域收窄。</summary>
     public Vector2 ClampToView(Vector2 p)
     {
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         return p.Clamp(view.Position + new Vector2(40.0f, 40.0f), view.End - new Vector2(40.0f, 40.0f));
     }
 
@@ -796,8 +795,8 @@ public partial class Player : CharacterBody2D
         {
             _aimSmoothedFrame = frame;
             var raw = GetGlobalMousePosition();
-            var vc = GameStateBridge.Get("virtual_controls");
-            if (vc.VariantType != Variant.Type.Nil && (bool)((GodotObject)vc).Call("is_enabled"))
+            var vc = GameState.Instance.VirtualControls;
+            if (vc != null && (bool)((GodotObject)vc).Call("is_enabled"))
             {
                 raw = ((GodotObject)vc).Call("base_aim_position").AsVector2();
             }
@@ -811,9 +810,9 @@ public partial class Player : CharacterBody2D
 
             var factor = 1.0f;
             var magnet = Vector2.Zero;
-            if (_aimInitialized && GameStateBridge.Get("aim_frame_layer").VariantType != Variant.Type.Nil)
+            if (_aimInitialized && GameState.Instance.AimFrameLayer != null)
             {
-                var aimLayer = (AimFrameLayer)GameStateBridge.Get("aim_frame_layer");
+                var aimLayer = (AimFrameLayer)GameState.Instance.AimFrameLayer;
                 var sticky = aimLayer.MarkedTargetAt(_aimSmooth);
                 if (sticky != null)
                 {
@@ -836,17 +835,17 @@ public partial class Player : CharacterBody2D
     /// <summary>读取当前强度档位参数（balance.json player.aim_assist.levels.&lt;level&gt;）。</summary>
     private void LoadAimAssistParams()
     {
-        var level = (string)(StringName)GameStateBridge.Get("aim_assist_level");
+        var level = (string)(StringName)GameState.Instance.AimAssistLevel;
         var basePath = "player.aim_assist.levels." + level + ".";
-        _homingTurnRate = (float)GameStateBridge.Call("cfg", basePath + "homing_turn_rate", _homingTurnRate).AsDouble();
-        _aimStickFactor = (float)GameStateBridge.Call("cfg", basePath + "stick_factor", _aimStickFactor).AsDouble();
-        HomingTime = (float)GameStateBridge.Call("cfg", "player.aim_assist.homing_time", HomingTime).AsDouble();
-        _coneAngleDeg = (float)GameStateBridge.Call("cfg", basePath + "cone_angle_deg", _coneAngleDeg).AsDouble();
+        _homingTurnRate = (float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble();
+        _aimStickFactor = (float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble();
+        HomingTime = (float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble();
+        _coneAngleDeg = (float)GameState.Instance.Cfg(basePath + "cone_angle_deg", _coneAngleDeg).AsDouble();
         _coneCos = Mathf.Cos(Mathf.DegToRad(_coneAngleDeg));
-        _coneStrength = (float)GameStateBridge.Call("cfg", basePath + "cone_strength", _coneStrength).AsDouble();
-        _magnetRange = (float)GameStateBridge.Call("cfg", basePath + "magnet_range", _magnetRange).AsDouble();
-        _magnetStrength = (float)GameStateBridge.Call("cfg", basePath + "magnet_strength", _magnetStrength).AsDouble();
-        _magnetMaxSpeed = (float)GameStateBridge.Call("cfg", basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
+        _coneStrength = (float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble();
+        _magnetRange = (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble();
+        _magnetStrength = (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble();
+        _magnetMaxSpeed = (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
     }
 
     private void OnAimAssistLevelChanged(StringName level) => LoadAimAssistParams();
@@ -865,7 +864,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var rect = GameStateBridge.Call("view_world_rect").AsRect2();
+        var rect = GameState.Instance.ViewWorldRect();
         var landY = rect.Position.Y + rect.Size.Y * EntryLandRatio;
         _entryPhase = 1;
         _entryRetreatLeft = EntryRetreatTime;
@@ -963,9 +962,9 @@ public partial class Player : CharacterBody2D
         // 辅助瞄准（P1-1/P1-3）：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
         Enemy? homingTarget = null;
         var homingRate = _homingTurnRate;
-        if (GameStateBridge.Get("aim_frame_layer").VariantType != Variant.Type.Nil)
+        if (GameState.Instance.AimFrameLayer != null)
         {
-            var aimLayer = (AimFrameLayer)GameStateBridge.Get("aim_frame_layer");
+            var aimLayer = (AimFrameLayer)GameState.Instance.AimFrameLayer;
             homingTarget = aimLayer.MarkedTargetAt(AimPoint());
             if (homingTarget == null)
             {
@@ -987,7 +986,7 @@ public partial class Player : CharacterBody2D
 
         var count = 1 + spread;
         // P1-2：循环不变量外提（_buff_scale 含 pow，同帧只计算一次）
-        var loopSpeed = BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameStateBridge.Call("buff_count", new StringName("bullet_speed")).AsInt64());
+        var loopSpeed = BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameState.Instance.BuffCount(new StringName("bullet_speed")));
         var loopDamage = BulletDamageValue();
         for (var i = 0; i < count; i++)
         {
@@ -1005,7 +1004,7 @@ public partial class Player : CharacterBody2D
                 bspeed *= 0.45f;
             }
 
-            var pool = (BulletPool?)GameStateBridge.Get("bullet_pool");
+            var pool = (BulletPool?)GameState.Instance.BulletPool;
             if (pool == null)
             {
                 continue;
@@ -1049,7 +1048,7 @@ public partial class Player : CharacterBody2D
     /// <summary>受击连锁：清除 250px 内全部敌弹（无分无特效）。</summary>
     public void ClearNearbyEnemyBullets()
     {
-        var bullets = GameStateBridge.Get("enemy_bullets").AsGodotArray();
+        var bullets = GameState.Instance.EnemyBullets;
         for (var i = bullets.Count - 1; i >= 0; i--)
         {
             var b = (Bullet?)bullets[i];
@@ -1073,7 +1072,7 @@ public partial class Player : CharacterBody2D
         }
 
         if (GlobalPosition.DistanceTo(area.GlobalPosition) <= _hitboxRadius
-            + Bullet.GetCollisionRadius() * (float)GameStateBridge.Get("world_scale").AsDouble())
+            + Bullet.GetCollisionRadius() * (float)GameState.Instance.WorldScale)
         {
             return;
         }
@@ -1083,10 +1082,10 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        GameStateBridge.Call("add_score", GrazeScore);
+        GameState.Instance.AddScore(GrazeScore);
         _visuals.SetGrazeFlash(GrazeFlashTime);
         _explosionScript.Call("SpawnAt", GetParent(), GlobalPosition, 0.25);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"), -8.0);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -8.0);
     }
 
     /// <summary>机制四：弹反盾公开接口（测试/诊断与 HUD 读取）。</summary>
@@ -1126,7 +1125,7 @@ public partial class Player : CharacterBody2D
 
         b.Reflect();
         _explosionScript.Call("SpawnAt", GetParent(), area.GlobalPosition, 0.5);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -6.0);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0);
     }
 
     /// <summary>盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。</summary>
@@ -1216,7 +1215,7 @@ public partial class Player : CharacterBody2D
     public override void _ExitTree()
     {
         // C22：显式断开 GameState 信号连接（重入树不重复连接）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
@@ -1234,7 +1233,7 @@ public partial class Player : CharacterBody2D
                 gs.Disconnect("JoySettingsChanged", _onJoySettingsChanged);
             }
 
-            var fogEvents = gs.Get("fog_events").AsGodotObject();
+            var fogEvents = gs.FogEvents;
             if (fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
             {
                 fogEvents.Disconnect("FogEventStarted", _onFogEventStarted);
@@ -1263,14 +1262,14 @@ public partial class Player : CharacterBody2D
             _parryShield.Disconnect(Area2D.SignalName.AreaEntered, _onParryShieldEntered);
         }
 
-        if (GameStateBridge.Get("player_ref").AsGodotObject() == this)
+        if (GameState.Instance.PlayerRef == this)
         {
-            GameStateBridge.Set("player_ref", new Variant());
+            GameState.Instance.PlayerRef = null;
         }
 
-        if (GameStateBridge.Get("player_hitbox").AsGodotObject() == _hitbox)
+        if (GameState.Instance.PlayerHitbox == _hitbox)
         {
-            GameStateBridge.Set("player_hitbox", new Variant());
+            GameState.Instance.PlayerHitbox = null;
         }
     }
 

@@ -26,9 +26,9 @@ public partial class FakeEnemiesEvent : FogEvent
             return;
         }
 
-        _count = Mathf.Max((int)GameStateBridge.Call("cfg", "fog_events.fake_enemies.count", _count).AsInt64(), 1);
+        _count = Mathf.Max((int)GameState.Instance.Cfg("fog_events.fake_enemies.count", _count).AsInt64(), 1);
         _spawnInterval = Mathf.Max(
-            (float)GameStateBridge.Call("cfg", "fog_events.fake_enemies.spawn_interval", _spawnInterval).AsDouble(), 0.0f);
+            (float)GameState.Instance.Cfg("fog_events.fake_enemies.spawn_interval", _spawnInterval).AsDouble(), 0.0f);
         for (var i = 0; i < _count; i++)
         {
             SpawnFake(i);
@@ -39,7 +39,7 @@ public partial class FakeEnemiesEvent : FogEvent
     private void SpawnFake(int index)
     {
         var fake = new FakeEnemy();
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         fake.Position = new Vector2(
             (float)GD.RandRange(view.Position.X + 80.0, view.End.X - 80.0),
             view.Position.Y - (float)GD.RandRange(20.0, 260.0));

@@ -8,7 +8,6 @@ namespace InfiAir;
 /// 经 Player 属性转发（Player.Invincible 等，测试白盒兼容）与 GameState 全局交互，
 /// 不访问 Player 私有字段（A1 约束）。
 /// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；GameState（GDScript
-/// autoload）经 GameStateBridge 动态访问（仅受击/回血 tick 低频，不涉每帧热路径）。
 /// </summary>
 public class PlayerDamage
 {
@@ -60,7 +59,7 @@ public class PlayerDamage
         }
 
         // 闪避 buff：20% 完全免伤（不置无敌、不清弹）
-        if (GameStateBridge.Call("buff_count", new StringName("evasion")).AsInt64() > 0
+        if (GameState.Instance.BuffCount(new StringName("evasion")) > 0
             && GD.Randf() < EvasionChance)
         {
             return false;
@@ -71,15 +70,15 @@ public class PlayerDamage
         // 2026-08-06 审计登记：吸收分支有意不写 last_hit_frame——同帧多弹命中时每层吸收
         // 一发（「每层吸收一次」语义优先）；若计入 A16 单帧守卫则同帧第二弹被拦截免费，
         // 盾层数与弹数消耗不对称（hit_logic_test 同帧连打回归）。概率极低，维持现状登记
-        if (GameStateBridge.Call("buff_count", new StringName("shield")).AsInt64() > 0)
+        if (GameState.Instance.BuffCount(new StringName("shield")) > 0)
         {
-            GameStateBridge.Call("consume_buff", new StringName("shield"));
-            GameStateBridge.Call("shake", 2.0);
+            GameState.Instance.ConsumeBuff(new StringName("shield"));
+            GameState.Instance.Shake(2.0);
             return true;
         }
 
         // 护甲 buff：固定 ×0.85 减伤
-        if (GameStateBridge.Call("buff_count", new StringName("armor")).AsInt64() > 0)
+        if (GameState.Instance.BuffCount(new StringName("armor")) > 0)
         {
             amount *= ArmorMult;
         }
@@ -87,12 +86,12 @@ public class PlayerDamage
         LastHitFrame = (int)Engine.GetPhysicsFrames();
         SinceDamage = 0.0f;
         Invincible = InvincibleTime;
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_PLAYER_HIT"));
-        GameStateBridge.Call("shake", ShakeHit);
-        GameStateBridge.Call("lose_health", amount);
-        GameStateBridge.Instance!.EmitSignal("PlayerDamaged", amount, fromPos); // Meta HUD 受击层（减免后最终值）
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT);
+        GameState.Instance.Shake(ShakeHit);
+        GameState.Instance.LoseHealth(amount);
+        GameState.Instance!.EmitSignal("PlayerDamaged", amount, fromPos); // Meta HUD 受击层（减免后最终值）
         player.ClearNearbyEnemyBullets();
-        if (GameStateBridge.Get("health").AsDouble() <= 0.0)
+        if (GameState.Instance.Health <= 0.0)
         {
             player.Die();
         }
@@ -104,15 +103,15 @@ public class PlayerDamage
     public void HealTick(float delta)
     {
         SinceDamage += delta;
-        if (GameStateBridge.Call("buff_count", new StringName("regen")).AsInt64() > 0)
+        if (GameState.Instance.BuffCount(new StringName("regen")) > 0)
         {
-            GameStateBridge.Call("heal", RegenPerSec * delta);
+            GameState.Instance.Heal(RegenPerSec * delta);
         }
-        else if (SinceDamage >= GameStateBridge.Call("passive_regen_delay").AsDouble())
+        else if (SinceDamage >= GameState.Instance.PassiveRegenDelay())
         {
             // M5：(float) 截断致 health 被 float 精度污染（50+9.2→59.2000004798174），
             // 后续 base 维修 heal 差值不精确回满（smoke flake 根因）；全程 double
-            GameStateBridge.Call("heal", GameStateBridge.Call("passive_regen_rate").AsDouble() * delta);
+            GameState.Instance.Heal(GameState.Instance.PassiveRegenRate() * delta);
         }
     }
 

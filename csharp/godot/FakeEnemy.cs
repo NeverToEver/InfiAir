@@ -49,7 +49,7 @@ public partial class FakeEnemy : Node2D
         if (f != _frame)
         {
             _frame = f;
-            _frameView280 = GameStateBridge.Call("view_world_rect", 280.0).AsRect2();
+            _frameView280 = GameState.Instance.ViewWorldRect(280.0);
         }
 
         return _frameView280;
@@ -61,7 +61,7 @@ public partial class FakeEnemy : Node2D
         var sprite = new Sprite2D();
         _sprite = sprite;
         sprite.Texture = FakeTextures[(int)(GD.Randi() % (uint)FakeTextures.Length)];
-        sprite.Scale = Vector2.One * (float)GD.RandRange(0.55, 0.68) * (float)GameStateBridge.Get("world_scale").AsDouble();
+        sprite.Scale = Vector2.One * (float)GD.RandRange(0.55, 0.68) * (float)GameState.Instance.WorldScale;
         sprite.Modulate = GhostTint;
         AddChild(sprite);
         if (EnterDelay > 0.0f)
@@ -93,7 +93,7 @@ public partial class FakeEnemy : Node2D
         Visible = true;
         _entered = true;
         // 锚点 = 出生点下方 120~260，钳入悬停带（对齐 Enemy._resolve_anchor 量级）
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         _hoverY = Mathf.Clamp(
             Position.Y + (float)GD.RandRange(120.0, 260.0), view.Position.Y + HoverBand.X, view.Position.Y + HoverBand.Y);
     }

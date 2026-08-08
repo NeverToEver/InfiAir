@@ -17,7 +17,6 @@ namespace InfiAir;
 ///     Node 形态（自驱 FSM），管理器调 start()/abort() 并轮询 is_active() 检测结束；
 ///   - 接线门控：_fog_wired 由迷雾门面 wire() 开启，_run_active 由 main 设置；
 ///     遭遇触发门控 = 注入 spawner 处理中 + 事件 can_trigger。
-/// 迁移期动态访问：GameState 经 GameStateBridge（snake_case）；遭遇事件为 GDScript Node
 /// 鸭子调用（Call 动态派发）；fog 事件为 C# GameEvent 子类强类型调用。
 /// </summary>
 public partial class GameEventManager : Node
@@ -117,20 +116,20 @@ public partial class GameEventManager : Node
 
     private void LoadBalance()
     {
-        FOG_ENABLED = GameStateBridge.Call("cfg", "fog_events.enabled", FOG_ENABLED).AsBool();
-        FOG_TRIGGER_CHANCE = (float)GameStateBridge.Call("cfg", "fog_events.trigger_chance", FOG_TRIGGER_CHANCE).AsDouble();
+        FOG_ENABLED = GameState.Instance.Cfg("fog_events.enabled", FOG_ENABLED).AsBool();
+        FOG_TRIGGER_CHANCE = (float)GameState.Instance.Cfg("fog_events.trigger_chance", FOG_TRIGGER_CHANCE).AsDouble();
         // H15 族：≤0 每帧掷签
         FOG_CHECK_INTERVAL = Mathf.Max(
-            (float)GameStateBridge.Call("cfg", "fog_events.check_interval", FOG_CHECK_INTERVAL).AsDouble(), 0.1f);
-        FOG_MIN_INTERVAL = Mathf.Max((float)GameStateBridge.Call("cfg", "fog_events.min_interval", FOG_MIN_INTERVAL).AsDouble(), 0.0f);
-        FOG_FIRST_DELAY = Mathf.Max((float)GameStateBridge.Call("cfg", "fog_events.first_delay", FOG_FIRST_DELAY).AsDouble(), 0.0f);
-        var weights = GameStateBridge.Call("cfg", "fog_events.weights", FOG_WEIGHTS);
+            (float)GameState.Instance.Cfg("fog_events.check_interval", FOG_CHECK_INTERVAL).AsDouble(), 0.1f);
+        FOG_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("fog_events.min_interval", FOG_MIN_INTERVAL).AsDouble(), 0.0f);
+        FOG_FIRST_DELAY = Mathf.Max((float)GameState.Instance.Cfg("fog_events.first_delay", FOG_FIRST_DELAY).AsDouble(), 0.0f);
+        var weights = GameState.Instance.Cfg("fog_events.weights", FOG_WEIGHTS);
         if (weights.VariantType == Variant.Type.Dictionary)
         {
             FOG_WEIGHTS = weights.AsGodotDictionary();
         }
 
-        var durations = GameStateBridge.Call("cfg", "fog_events.durations", FOG_EVENT_DURATIONS);
+        var durations = GameState.Instance.Cfg("fog_events.durations", FOG_EVENT_DURATIONS);
         if (durations.VariantType == Variant.Type.Dictionary)
         {
             FOG_EVENT_DURATIONS = durations.AsGodotDictionary();
@@ -141,18 +140,18 @@ public partial class GameEventManager : Node
         {
             [new StringName("elite_turret")] = new Godot.Collections.Dictionary
             {
-                ["interval"] = Mathf.Max((float)GameStateBridge.Call("cfg", "elite_turret_event.trigger_interval", 45.0).AsDouble(), 0.1f),
+                ["interval"] = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.trigger_interval", 45.0).AsDouble(), 0.1f),
                 ["chance"] = Mathf.Clamp(
-                    (float)GameStateBridge.Call("cfg", "elite_turret_event.trigger_chance", 0.35).AsDouble(), 0.0f, 1.0f),
-                ["min_score"] = (int)GameStateBridge.Call("cfg", "elite_turret_event.min_score", 800).AsInt64(),
+                    (float)GameState.Instance.Cfg("elite_turret_event.trigger_chance", 0.35).AsDouble(), 0.0f, 1.0f),
+                ["min_score"] = (int)GameState.Instance.Cfg("elite_turret_event.min_score", 800).AsInt64(),
             },
             [new StringName("formation_strike")] = new Godot.Collections.Dictionary
             {
                 ["interval"] = Mathf.Max(
-                    (float)GameStateBridge.Call("cfg", "formation_strike_event.trigger_interval", 40.0).AsDouble(), 0.1f),
+                    (float)GameState.Instance.Cfg("formation_strike_event.trigger_interval", 40.0).AsDouble(), 0.1f),
                 ["chance"] = Mathf.Clamp(
-                    (float)GameStateBridge.Call("cfg", "formation_strike_event.trigger_chance", 0.30).AsDouble(), 0.0f, 1.0f),
-                ["min_score"] = (int)GameStateBridge.Call("cfg", "formation_strike_event.min_score", 500).AsInt64(),
+                    (float)GameState.Instance.Cfg("formation_strike_event.trigger_chance", 0.30).AsDouble(), 0.0f, 1.0f),
+                ["min_score"] = (int)GameState.Instance.Cfg("formation_strike_event.min_score", 500).AsInt64(),
             },
         };
     }
@@ -499,7 +498,7 @@ public partial class GameEventManager : Node
     /// 且分数门槛通过才推进计时，计时归零按概率掷签启动。</summary>
     private void TickEncounterTriggers(float delta)
     {
-        var score = GameStateBridge.Get("score").AsInt64();
+        var score = GameState.Instance.Score;
         foreach (var id in _encounterOrder)
         {
             var ev = EventFor(id);
@@ -754,8 +753,7 @@ public partial class GameEventManager : Node
     /// <summary>迷雾门面（效果层/context 构建；GameState.fog_events）。</summary>
     private FogEventManager? FogLayer()
     {
-        var v = GameStateBridge.Get("fog_events");
-        return v.VariantType == Variant.Type.Object ? v.AsGodotObject() as FogEventManager : null;
+        return GameState.Instance.FogEvents;
     }
 
     // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------

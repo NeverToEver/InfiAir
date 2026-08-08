@@ -8,7 +8,6 @@ namespace InfiAir;
 /// 引信倒计时期间弹体脉冲辉光（8Hz）、警示环随剩余引信收缩（0.9×AoE → 0.15×AoE），
 /// 引爆对 player_hitbox 做距离判定（无敌/闪避由 Player.take_damage 语义处理），
 /// 只伤玩家不伤敌机（与敌方弹丸语义一致）；出界/引爆后 queue_free。
-/// 迁移期：GameState 经 GameStateBridge；Player（C#）typed 直调；Enemy.SinFast 静态查表直调。
 /// </summary>
 public partial class FormationBomb : Area2D
 {
@@ -35,7 +34,7 @@ public partial class FormationBomb : Area2D
         if (frame != _viewFrame)
         {
             _viewFrame = frame;
-            _viewRect = GameStateBridge.Call("view_world_rect").AsRect2();
+            _viewRect = GameState.Instance.ViewWorldRect();
         }
 
         return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
@@ -61,7 +60,7 @@ public partial class FormationBomb : Area2D
         CollisionMask = 1;
         _body = new Polygon2D();
         // 机体尺寸族：设计值 × world_scale（AoE 半径 aoe_radius 为游戏性范围，不缩）
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         _body.Polygon = new Vector2[]
         {
             new Vector2(-7.0f, -12.0f) * ws,
@@ -124,13 +123,13 @@ public partial class FormationBomb : Area2D
     private void Detonate()
     {
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.9f);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"));
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.enemy_die", 5.0));
-        var hitbox = GameStateBridge.Get("player_hitbox");
-        var player = GameStateBridge.Get("player_ref"); // M3c：Player 迁 C#，typed 直调
-        if (hitbox.VariantType != Variant.Type.Nil
-            && GodotObject.IsInstanceValid(hitbox.AsGodotObject())
-            && player.VariantType != Variant.Type.Nil)
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enemy_die", 5.0).AsDouble());
+        var hitbox = GameState.Instance.PlayerHitbox;
+        var player = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调
+        if (hitbox != null
+            && GodotObject.IsInstanceValid(hitbox)
+            && player != null)
         {
             var hitboxNode = (Node2D)hitbox;
             if (hitboxNode.GlobalPosition.DistanceTo(GlobalPosition) <= AoeRadius)

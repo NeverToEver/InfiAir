@@ -18,15 +18,15 @@ public partial class BulletPool : Node
 
     public override void _Ready()
     {
-        GameStateBridge.Set("bullet_pool", this);
+        GameState.Instance.BulletPool = this;
     }
 
     /// <summary>C21 修复：场景卸载时清空全局注册，避免 GameState.bullet_pool 悬空。</summary>
     public override void _ExitTree()
     {
-        if (GameStateBridge.Get("bullet_pool").AsGodotObject() == this)
+        if (GameState.Instance.BulletPool == this)
         {
-            GameStateBridge.Set("bullet_pool", new Variant()); // Nil → 置 null
+            GameState.Instance.BulletPool = null; // Nil → 置 null
         }
     }
 

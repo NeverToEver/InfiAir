@@ -259,8 +259,8 @@ public sealed class DiveMove : EnemyMoveStrategy
     public override void Reset(Enemy enemy)
     {
         _diveTimer = _duration;
-        var player = GameStateBridge.Get("player_ref");
-        _diveTarget = player.VariantType != Variant.Type.Nil
+        var player = GameState.Instance.PlayerRef;
+        _diveTarget = player != null
             ? ((Node2D)player).GlobalPosition
             : new Vector2(enemy.Position.X, 1200.0f);
     }

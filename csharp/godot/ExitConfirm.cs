@@ -9,7 +9,6 @@ namespace InfiAir;
 /// profile 落盘 → 战斗中删档（放弃对局）→ 资源 hook → 淡出 0.3s → quit。
 /// Esc/手柄 B 取消由 BackNavigator 路由到 cancel()。
 /// M5 全量迁移（2026-08-08 自 scripts/exit_confirm.gd）：UITheme/ChamferedPanel typed 直调；
-/// GameState（GDScript autoload）经 GameStateBridge 访问；ExitConfirm 节点属性
 /// （process_mode=Always/layer=40）仍在 scenes/main.tscn 设置。
 /// </summary>
 public partial class ExitConfirm : CanvasLayer
@@ -58,7 +57,7 @@ public partial class ExitConfirm : CanvasLayer
         _okButton.Pressed += OnOkPressed;
         row.AddChild(_okButton);
 
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Connect("LocaleChanged", _onLocaleChanged);
@@ -67,7 +66,7 @@ public partial class ExitConfirm : CanvasLayer
 
     public override void _ExitTree()
     {
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Disconnect("LocaleChanged", _onLocaleChanged);
@@ -135,10 +134,10 @@ public partial class ExitConfirm : CanvasLayer
 
     private void ExecuteExitCleanupInner(bool battle)
     {
-        GameStateBridge.Call("save_profile");
+        GameState.Instance.SaveProfile();
         if (battle)
         {
-            GameStateBridge.Call("delete_save");
+            GameState.Instance.DeleteSave();
         }
         OnExitCleanup();
     }
@@ -146,7 +145,7 @@ public partial class ExitConfirm : CanvasLayer
     /// <summary>退出前资源/连接清理 hook：本项目无网络代码；停止未播完的音效，避免退出时播放实例泄漏</summary>
     private void OnExitCleanup()
     {
-        GameStateBridge.Call("stop_all_sfx");
+        GameState.Instance.StopAllSfx();
     }
 
     /// <summary>短暂过渡动画（淡出黑屏 0.3s）后退出，避免突兀切进程</summary>

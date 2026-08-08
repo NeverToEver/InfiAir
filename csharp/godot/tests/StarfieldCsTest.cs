@@ -46,8 +46,8 @@ public partial class StarfieldCsTest : Node
             AddChild(starfield);
             await Coroutine.WaitSeconds(this, 0.05); // 等一帧让 _Ready 执行
 
-            var gs = GetNode("/root/GameState");
-            var view = gs.Call("view_world_rect").AsRect2();
+            var gs = GetNode<GameState>("/root/GameState");
+            var view = gs.ViewWorldRect();
             Check(starfield!.Origin() == view.Position, "Origin == view_world_rect.position");
             Check(starfield.AreaSize() == view.Size, "AreaSize == view_world_rect.size");
             Check(starfield.AreaSize().X > 0.0f && starfield.AreaSize().Y > 0.0f, "可见区域非零");

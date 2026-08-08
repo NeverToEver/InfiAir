@@ -17,15 +17,15 @@ public partial class EnemyPool : Node
 
     public override void _Ready()
     {
-        GameStateBridge.Set("enemy_pool", this);
+        GameState.Instance.EnemyPool = this;
     }
 
     /// <summary>C21 修复：场景卸载时清空全局注册，避免 GameState.enemy_pool 悬空。</summary>
     public override void _ExitTree()
     {
-        if (GameStateBridge.Get("enemy_pool").AsGodotObject() == this)
+        if (GameState.Instance.EnemyPool == this)
         {
-            GameStateBridge.Set("enemy_pool", new Variant()); // Nil → 置 null
+            GameState.Instance.EnemyPool = null; // Nil → 置 null
         }
     }
 

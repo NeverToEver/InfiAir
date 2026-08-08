@@ -16,7 +16,6 @@ namespace InfiAir;
 /// 母舰弹丸/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
-/// 迁移期动态访问：GameState 经 GameStateBridge（snake_case）；CinematicFx/WarpGate/HUD 为
 /// GDScript 类经脚本资源/实例动态派发；Enemy/Boss/Bullet/Player/BulletPool 为 C# 类类型化调用；
 /// GDScript 鸭子调用经 snake_case 兼容桥（M7 删除）。
 /// </summary>
@@ -181,7 +180,7 @@ public partial class Mothership : Area2D
         _magCells = MagCells;
         _departSpeed = DepartStartSpeed;
         // 机体尺寸族：设计值 × 全局缩放（tscn 存母舰基线 1.25，此处幂等覆盖——G032：注释与实际一致）
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _sprite.Scale = Vector2.One * ShipScale * ws;
         var beamPts = _beam.Polygon;
@@ -222,69 +221,69 @@ public partial class Mothership : Area2D
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>
     private void LoadBalance()
     {
-        HoverY = (float)GameStateBridge.Call("cfg", "mothership.hover_y", HoverY).AsDouble();
-        ReleaseInvincible = (float)GameStateBridge.Call("cfg", "mothership.release_invincible", ReleaseInvincible).AsDouble();
-        DockTweenTime = (float)GameStateBridge.Call("cfg", "mothership.dock_tween_time", DockTweenTime).AsDouble();
-        DockOffsetY = (float)GameStateBridge.Call("cfg", "mothership.dock_offset_y", DockOffsetY).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        ResupplyDelay = (float)GameStateBridge.Call("cfg", "mothership.resupply_delay", ResupplyDelay).AsDouble();
-        ReleaseTime = (float)GameStateBridge.Call("cfg", "mothership.release_time", ReleaseTime).AsDouble();
-        ReleaseDrop = (float)GameStateBridge.Call("cfg", "mothership.release_drop", ReleaseDrop).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        MagCells = (int)GameStateBridge.Call("cfg", "mothership.mag_cells", MagCells).AsInt64();
-        MagCellTime = (float)GameStateBridge.Call("cfg", "mothership.mag_cell_time", MagCellTime).AsDouble();
-        MagWarnCells = (int)GameStateBridge.Call("cfg", "mothership.mag_warn_cells", MagWarnCells).AsInt64();
-        WarnEjectDelay = (float)GameStateBridge.Call("cfg", "mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
-        EarlyHoldTime = (float)GameStateBridge.Call("cfg", "mothership.early_hold_time", EarlyHoldTime).AsDouble();
-        EarlyMaxDiscount = (float)GameStateBridge.Call("cfg", "mothership.early_max_discount", EarlyMaxDiscount).AsDouble();
-        EarlyPrefillMax = (float)GameStateBridge.Call("cfg", "mothership.early_prefill_max", EarlyPrefillMax).AsDouble();
-        EarlyPrefillRatio = (float)GameStateBridge.Call("cfg", "mothership.early_prefill_ratio", EarlyPrefillRatio).AsDouble();
-        DepartCooldown = (float)GameStateBridge.Call("cfg", "mothership.depart_cooldown", DepartCooldown).AsDouble();
-        DepartStartSpeed = (float)GameStateBridge.Call("cfg", "mothership.depart_start_speed", DepartStartSpeed).AsDouble();
-        DepartAccel = (float)GameStateBridge.Call("cfg", "mothership.depart_accel", DepartAccel).AsDouble();
-        DriveAccel = (float)GameStateBridge.Call("cfg", "mothership.drive.accel", DriveAccel).AsDouble();
-        DriveMaxSpeed = (float)GameStateBridge.Call("cfg", "mothership.drive.max_speed", DriveMaxSpeed).AsDouble();
+        HoverY = (float)GameState.Instance.Cfg("mothership.hover_y", HoverY).AsDouble();
+        ReleaseInvincible = (float)GameState.Instance.Cfg("mothership.release_invincible", ReleaseInvincible).AsDouble();
+        DockTweenTime = (float)GameState.Instance.Cfg("mothership.dock_tween_time", DockTweenTime).AsDouble();
+        DockOffsetY = (float)GameState.Instance.Cfg("mothership.dock_offset_y", DockOffsetY).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        ResupplyDelay = (float)GameState.Instance.Cfg("mothership.resupply_delay", ResupplyDelay).AsDouble();
+        ReleaseTime = (float)GameState.Instance.Cfg("mothership.release_time", ReleaseTime).AsDouble();
+        ReleaseDrop = (float)GameState.Instance.Cfg("mothership.release_drop", ReleaseDrop).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        MagCells = (int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64();
+        MagCellTime = (float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble();
+        MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
+        WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
+        EarlyHoldTime = (float)GameState.Instance.Cfg("mothership.early_hold_time", EarlyHoldTime).AsDouble();
+        EarlyMaxDiscount = (float)GameState.Instance.Cfg("mothership.early_max_discount", EarlyMaxDiscount).AsDouble();
+        EarlyPrefillMax = (float)GameState.Instance.Cfg("mothership.early_prefill_max", EarlyPrefillMax).AsDouble();
+        EarlyPrefillRatio = (float)GameState.Instance.Cfg("mothership.early_prefill_ratio", EarlyPrefillRatio).AsDouble();
+        DepartCooldown = (float)GameState.Instance.Cfg("mothership.depart_cooldown", DepartCooldown).AsDouble();
+        DepartStartSpeed = (float)GameState.Instance.Cfg("mothership.depart_start_speed", DepartStartSpeed).AsDouble();
+        DepartAccel = (float)GameState.Instance.Cfg("mothership.depart_accel", DepartAccel).AsDouble();
+        DriveAccel = (float)GameState.Instance.Cfg("mothership.drive.accel", DriveAccel).AsDouble();
+        DriveMaxSpeed = (float)GameState.Instance.Cfg("mothership.drive.max_speed", DriveMaxSpeed).AsDouble();
         // B11 口径澄清：DRIVE_MARGIN_* 乘 world_scale 是有意例外——margin 语义是「舰体边缘到屏边
         // 视觉距离恒定」（舰体缩放后边缘保持同屏距），归类为机体偏移族（乘 ws），
         // 区别于 boss.strafe/hover_band/fight_y 等「中心坐标」屏幕边界族（不乘）。
-        DriveMarginX = (float)GameStateBridge.Call("cfg", "mothership.drive.margin_x", DriveMarginX).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        DriveMarginTop = (float)GameStateBridge.Call("cfg", "mothership.drive.margin_top", DriveMarginTop).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        DriveMarginBottom = (float)GameStateBridge.Call("cfg", "mothership.drive.margin_bottom", DriveMarginBottom).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
+        DriveMarginX = (float)GameState.Instance.Cfg("mothership.drive.margin_x", DriveMarginX).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        DriveMarginTop = (float)GameState.Instance.Cfg("mothership.drive.margin_top", DriveMarginTop).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        DriveMarginBottom = (float)GameState.Instance.Cfg("mothership.drive.margin_bottom", DriveMarginBottom).AsDouble()
+            * (float)GameState.Instance.WorldScale;
         // 2026-08-04 母舰扩展：升级档位配置（阈值/伤害/射速倍率）
-        _upgradeThreshold = (int)GameStateBridge.Call("cfg", "mothership.upgrade.threshold", _upgradeThreshold).AsInt64();
-        _upgradeDamageMult = (float)GameStateBridge.Call("cfg", "mothership.upgrade.damage_mult", _upgradeDamageMult).AsDouble();
-        _upgradeIntervalMult = (float)GameStateBridge.Call("cfg", "mothership.upgrade.interval_mult", _upgradeIntervalMult).AsDouble();
-        GatlingInterval = (float)GameStateBridge.Call("cfg", "mothership.gatling.interval", GatlingInterval).AsDouble();
-        GatlingBulletSpeed = (float)GameStateBridge.Call("cfg", "mothership.gatling.bullet_speed", GatlingBulletSpeed).AsDouble();
-        GatlingDamage = (int)GameStateBridge.Call("cfg", "mothership.gatling.damage", GatlingDamage).AsInt64();
-        GatlingScoreScale = (float)GameStateBridge.Call("cfg", "mothership.gatling.score_scale", GatlingScoreScale).AsDouble();
-        GatlingSweepLeftMin = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_left_min", GatlingSweepLeftMin).AsDouble();
-        GatlingSweepLeftMax = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_left_max", GatlingSweepLeftMax).AsDouble();
-        GatlingSweepRightMin = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_right_min", GatlingSweepRightMin).AsDouble();
-        GatlingSweepRightMax = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_right_max", GatlingSweepRightMax).AsDouble();
-        GatlingSweepLeftPeriod = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
+        _upgradeThreshold = (int)GameState.Instance.Cfg("mothership.upgrade.threshold", _upgradeThreshold).AsInt64();
+        _upgradeDamageMult = (float)GameState.Instance.Cfg("mothership.upgrade.damage_mult", _upgradeDamageMult).AsDouble();
+        _upgradeIntervalMult = (float)GameState.Instance.Cfg("mothership.upgrade.interval_mult", _upgradeIntervalMult).AsDouble();
+        GatlingInterval = (float)GameState.Instance.Cfg("mothership.gatling.interval", GatlingInterval).AsDouble();
+        GatlingBulletSpeed = (float)GameState.Instance.Cfg("mothership.gatling.bullet_speed", GatlingBulletSpeed).AsDouble();
+        GatlingDamage = (int)GameState.Instance.Cfg("mothership.gatling.damage", GatlingDamage).AsInt64();
+        GatlingScoreScale = (float)GameState.Instance.Cfg("mothership.gatling.score_scale", GatlingScoreScale).AsDouble();
+        GatlingSweepLeftMin = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_min", GatlingSweepLeftMin).AsDouble();
+        GatlingSweepLeftMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_max", GatlingSweepLeftMax).AsDouble();
+        GatlingSweepRightMin = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_min", GatlingSweepRightMin).AsDouble();
+        GatlingSweepRightMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_max", GatlingSweepRightMax).AsDouble();
+        GatlingSweepLeftPeriod = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
             .AsDouble();
-        GatlingSweepRightPeriod = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_right_period", GatlingSweepRightPeriod)
+        GatlingSweepRightPeriod = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_period", GatlingSweepRightPeriod)
             .AsDouble();
-        GatlingSweepRightPhase = (float)GameStateBridge.Call("cfg", "mothership.gatling.sweep_right_phase", GatlingSweepRightPhase)
+        GatlingSweepRightPhase = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_phase", GatlingSweepRightPhase)
             .AsDouble();
-        MissileInterval = (float)GameStateBridge.Call("cfg", "mothership.missile.interval", MissileInterval).AsDouble();
-        MissileDamage = (int)GameStateBridge.Call("cfg", "mothership.missile.damage", MissileDamage).AsInt64();
-        MissileSpeed = (float)GameStateBridge.Call("cfg", "mothership.missile.speed", MissileSpeed).AsDouble();
-        MissileTargetCount = (int)GameStateBridge.Call("cfg", "mothership.missile.target_count", MissileTargetCount).AsInt64();
-        MissileSplashDamage = (int)GameStateBridge.Call("cfg", "mothership.missile.splash_damage", MissileSplashDamage).AsInt64();
-        MissileSplashRadius = (float)GameStateBridge.Call("cfg", "mothership.missile.splash_radius", MissileSplashRadius).AsDouble();
-        WarpInTime = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.warp_in_time", WarpInTime).AsDouble();
-        WarpInDrop = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        SlowRadius = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.slow.radius", SlowRadius).AsDouble();
-        SlowDuration = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.slow.duration", SlowDuration).AsDouble();
-        SlowFactor = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.slow.factor", SlowFactor).AsDouble();
-        SlowRingTime = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.slow.ring_time", SlowRingTime).AsDouble();
-        ShakeSlow = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.shake_slow", ShakeSlow).AsDouble();
+        MissileInterval = (float)GameState.Instance.Cfg("mothership.missile.interval", MissileInterval).AsDouble();
+        MissileDamage = (int)GameState.Instance.Cfg("mothership.missile.damage", MissileDamage).AsInt64();
+        MissileSpeed = (float)GameState.Instance.Cfg("mothership.missile.speed", MissileSpeed).AsDouble();
+        MissileTargetCount = (int)GameState.Instance.Cfg("mothership.missile.target_count", MissileTargetCount).AsInt64();
+        MissileSplashDamage = (int)GameState.Instance.Cfg("mothership.missile.splash_damage", MissileSplashDamage).AsInt64();
+        MissileSplashRadius = (float)GameState.Instance.Cfg("mothership.missile.splash_radius", MissileSplashRadius).AsDouble();
+        WarpInTime = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_time", WarpInTime).AsDouble();
+        WarpInDrop = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        SlowRadius = (float)GameState.Instance.Cfg("effects.mothership_summon.slow.radius", SlowRadius).AsDouble();
+        SlowDuration = (float)GameState.Instance.Cfg("effects.mothership_summon.slow.duration", SlowDuration).AsDouble();
+        SlowFactor = (float)GameState.Instance.Cfg("effects.mothership_summon.slow.factor", SlowFactor).AsDouble();
+        SlowRingTime = (float)GameState.Instance.Cfg("effects.mothership_summon.slow.ring_time", SlowRingTime).AsDouble();
+        ShakeSlow = (float)GameState.Instance.Cfg("effects.mothership_summon.shake_slow", ShakeSlow).AsDouble();
     }
 
     /// <summary>演出附件预建（帧内只写属性，零分配）：引擎光晕 + 双向尾迹 + 牵引光束附件组。</summary>
@@ -388,8 +387,8 @@ public partial class Mothership : Area2D
     {
         _warpGate = gate;
         _warpTarget = gatePos;
-        var drop = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble();
-        _warpFrom = gatePos + new Vector2(0.0f, -drop) * (float)GameStateBridge.Get("world_scale").AsDouble();
+        var drop = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble();
+        _warpFrom = gatePos + new Vector2(0.0f, -drop) * (float)GameState.Instance.WorldScale;
         Position = _warpFrom;
         Scale = Vector2.One * 0.25f;
         Modulate = new Color(1.8f, 1.8f, 2.2f);
@@ -443,7 +442,7 @@ public partial class Mothership : Area2D
     public void SetWarnEjectTimer(float seconds) => _warnEjectTimer = seconds;
 
     /// <summary>2026-08-04 母舰扩展：升级档位——里程碑数 ≥ 阈值即升档（0 或 1）。</summary>
-    public int Tier() => (int)GameStateBridge.Call("milestone_count").AsInt64() >= _upgradeThreshold ? 1 : 0;
+    public int Tier() => (int)GameState.Instance.MilestoneCount() >= _upgradeThreshold ? 1 : 0;
 
     public float DamageMult() => Tier() == 1 ? _upgradeDamageMult : 1.0f;
 
@@ -673,7 +672,7 @@ public partial class Mothership : Area2D
                         hud.Call("show_info_banner", Tr("BANNER_MOTHERSHIP_ARRIVED"));
                     }
 
-                    StartDocking(GameStateBridge.Get("player_ref").AsGodotObject()); // M3c：player_ref 恒为 Player
+                    StartDocking(GameState.Instance.PlayerRef); // M3c：player_ref 恒为 Player
                 }
 
                 break;
@@ -710,7 +709,7 @@ public partial class Mothership : Area2D
                             hud.Call(
                                 "show_popup",
                                 Tr("POD_SECURED"),
-                                GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameStateBridge.Get("world_scale").AsDouble());
+                                GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
                         }
                     }
 
@@ -818,7 +817,7 @@ public partial class Mothership : Area2D
                 dg.A = 0.15f + 0.75f * sp;
                 _engineGlow.Modulate = dg;
                 _engineGlow.Scale = _engineGlowBase * (0.7f + 1.6f * sp);
-                if (Position.Y < GameStateBridge.Call("view_world_rect").AsRect2().Position.Y - 200.0f)
+                if (Position.Y < GameState.Instance.ViewWorldRect().Position.Y - 200.0f)
                 {
                     QueueFree();
                 }
@@ -831,13 +830,13 @@ public partial class Mothership : Area2D
     /// 仅 Enemy/Boss 响应）；视觉为双环冲击波（主环满半径+填充盘，副环尾随），播完自毁。</summary>
     private void DeploySlowField()
     {
-        GameStateBridge.Call("shake", ShakeSlow);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION_BIG"), -10.0, 0.6);
+        GameState.Instance.Shake(ShakeSlow);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -10.0, 0.6);
         // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：失效实例跳过 +
         // duck-typing（has_method("apply_slow") 仅 Enemy/Boss 响应；EnrageSequence 同款直迭代）
-        foreach (var item in GameStateBridge.Get("enemies").AsGodotArray())
+        foreach (var item in GameState.Instance.Enemies)
         {
-            var e = item.AsGodotObject();
+            var e = item;
             if (e == null || !GodotObject.IsInstanceValid(e))
             {
                 continue;
@@ -925,7 +924,7 @@ public partial class Mothership : Area2D
         }
 
         Position += _driveVel * delta;
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         Position = Position.Clamp(
             view.Position + new Vector2(DriveMarginX, DriveMarginTop), view.End - new Vector2(DriveMarginX, DriveMarginBottom));
         if (GodotObject.IsInstanceValid(_player) && !_player.IsDead())
@@ -941,9 +940,9 @@ public partial class Mothership : Area2D
         _targetsBuf.Clear();
         // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：
         // 失效实例跳过 + Node2D 判型 + Enemy 离场 / Boss 逃跑过滤
-        foreach (var item in GameStateBridge.Get("enemies").AsGodotArray())
+        foreach (var item in GameState.Instance.Enemies)
         {
-            var e = item.AsGodotObject();
+            var e = item;
             if (e == null || !GodotObject.IsInstanceValid(e))
             {
                 continue;
@@ -1000,7 +999,7 @@ public partial class Mothership : Area2D
             return;
         }
 
-        var pool = GameStateBridge.Get("bullet_pool").AsGodotObject() as BulletPool;
+        var pool = GameState.Instance.BulletPool as BulletPool;
         if (pool == null)
         {
             return;
@@ -1049,7 +1048,7 @@ public partial class Mothership : Area2D
             }
         }
 
-        GameStateBridge.Call("play_sfx", GatlingSfx, -8.0);
+        GameState.Instance.PlaySfx(GatlingSfx, -8.0);
     }
 
     /// <summary>导弹齐射（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期，每 0.3s 一波，锁定距对接点最近的 ≤5 个目标
@@ -1072,7 +1071,7 @@ public partial class Mothership : Area2D
         var dock = DockPoint();
         _dockSortAnchor = dock;
         targets.Sort(_compareByDock);
-        var pool = GameStateBridge.Get("bullet_pool").AsGodotObject() as BulletPool;
+        var pool = GameState.Instance.BulletPool as BulletPool;
         if (pool == null)
         {
             return;
@@ -1147,17 +1146,17 @@ public partial class Mothership : Area2D
         }
 
         // 回满生命与燃料（重制版增强：原作母舰无补给，回复在基地 RP 交易）
-        GameStateBridge.Call("heal", GameStateBridge.Call("max_health").AsDouble() - GameStateBridge.Get("health").AsDouble());
+        GameState.Instance.Heal(GameState.Instance.MaxHealth() - GameState.Instance.Health);
         _player.RefillFuel();
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_RESUPPLY"));
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.mothership", 4.0));
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.mothership", 4.0).AsDouble());
         var hud = Hud();
         if (hud != null)
         {
             hud.Call(
                 "show_popup",
                 Tr("POP_RESUPPLY"),
-                GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameStateBridge.Get("world_scale").AsDouble());
+                GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
         }
     }
 

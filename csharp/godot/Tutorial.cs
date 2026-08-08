@@ -91,11 +91,11 @@ public partial class Tutorial : Node2D
     public override void _Ready()
     {
         // 存档隔离：教程不读写 savegame
-        GameStateBridge.Call("delete_save");
-        GameStateBridge.Call("reset_run");
-        _maxHp = (float)GameStateBridge.Call("max_health").AsDouble(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
+        GameState.Instance.DeleteSave();
+        GameState.Instance.ResetRun();
+        _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Connect("LocaleChanged", _onLocaleChanged);
@@ -111,8 +111,8 @@ public partial class Tutorial : Node2D
         AddChild(new AimFrameLayer()); // M3c：AimFrameLayer 迁 C#，typed 实例化
         _player = GetNode<Player>("Player"); // M3c：Player 迁 C#，typed 字段
         BuildHud();
-        HomeChargeTime = (float)GameStateBridge.Call("cfg", "effects.home_charge_time", HomeChargeTime).AsDouble();
-        DockChargeTime = (float)GameStateBridge.Call("cfg", "mothership.dock_charge_time", DockChargeTime).AsDouble();
+        HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
+        DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
         EnterStage(0);
     }
 
@@ -168,7 +168,7 @@ public partial class Tutorial : Node2D
             {
                 // 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
                 SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { 0 });
-                var view0 = GameStateBridge.Call("view_world_rect").AsRect2(); // G014：视口基线（D10 口径，去 960/600 硬编码）
+                var view0 = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
                 for (int i = 0; i < 3; i++)
                 {
                     var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
@@ -182,7 +182,7 @@ public partial class Tutorial : Node2D
             case 1:
             {
                 // 加速与相位突进
-                GameStateBridge.Call("add_buff", new StringName("phase_dash"));
+                GameState.Instance.AddBuff(new StringName("phase_dash"));
                 _boostCount = 0;
                 _dashCount = 0;
                 _prevDashing = false;
@@ -219,10 +219,10 @@ public partial class Tutorial : Node2D
                 // 首领遭遇：低 HP Boss-1，触发狂暴即过关
                 SetObjectiveTr("TUT_S6_OBJ");
                 _player.SetInvincible(999.0f); // 教程不判负
-                var view5 = GameStateBridge.Call("view_world_rect").AsRect2(); // G014
+                var view5 = GameState.Instance.ViewWorldRect(); // G014
                 _boss = BossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
                 _boss.Setup(1.0f, 1);
-                _boss.MaxHp = (float)GameStateBridge.Call("cfg", "tutorial.boss_hp", 120.0).AsDouble();
+                _boss.MaxHp = (float)GameState.Instance.Cfg("tutorial.boss_hp", 120.0).AsDouble();
                 _boss.Hp = _boss.MaxHp;
                 _boss.Position = new Vector2(view5.GetCenter().X, view5.Position.Y - 160.0f);
                 _boss.Enraged += OnBossEnraged; // M3d：C# [Signal] 以 PascalCase 注册
@@ -258,7 +258,7 @@ public partial class Tutorial : Node2D
     /// <summary>阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）</summary>
     private void SpawnCombatWave(int count)
     {
-        var view = GameStateBridge.Call("view_world_rect").AsRect2(); // G014：视口基线
+        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线
         for (int i = 0; i < count; i++)
         {
             var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
@@ -293,7 +293,7 @@ public partial class Tutorial : Node2D
         var e = EnemyScene.Instantiate<Enemy>(); // M3b：Enemy 迁 C#，typed 实例化
         e.Setup(config, strategy, 1.0f);
         e.CanShoot = _stage == 2; // 仅战斗阶段敌机开火
-        var view = GameStateBridge.Call("view_world_rect").AsRect2(); // G014：视口基线（去 960 硬编码）
+        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线（去 960 硬编码）
         e.Position = new Vector2(view.GetCenter().X, view.Position.Y - 60.0f);
         e.Died += OnEnemyDied; // M3b：Enemy 迁 C#，[Signal] 以 PascalCase 注册
         AddChild(e);
@@ -336,8 +336,8 @@ public partial class Tutorial : Node2D
     private void SummonMothership()
     {
         var gatePos = new Vector2(
-            GameStateBridge.Call("view_world_rect").AsRect2().GetCenter().X,
-            (float)GameStateBridge.Call("cfg", "mothership.hover_y", 270.0).AsDouble());
+            GameState.Instance.ViewWorldRect().GetCenter().X,
+            (float)GameState.Instance.Cfg("mothership.hover_y", 270.0).AsDouble());
         var gate = new WarpGate(); // M6：WarpGate 迁 C#，typed 实例化
         gate!.Position = gatePos;
         AddChild(gate);
@@ -439,10 +439,10 @@ public partial class Tutorial : Node2D
             case 2:
             {
                 // 锁血下限：每帧补足，受伤不死
-                var health = GameStateBridge.Get("health").AsSingle();
+                var health = GameState.Instance.Health;
                 if (health < _maxHp)
                 {
-                    GameStateBridge.Call("heal", _maxHp - health);
+                    GameState.Instance.Heal(_maxHp - health);
                 }
 
                 // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
@@ -558,8 +558,8 @@ public partial class Tutorial : Node2D
     private void Finish()
     {
         _finished = true;
-        GameStateBridge.Set("tutorial_done", true);
-        GameStateBridge.Call("save_profile");
+        GameState.Instance.TutorialDone = true;
+        GameState.Instance.SaveProfile();
         PlaySfxBuffPick();
         // 清场
         foreach (var child in GetChildren())
@@ -597,7 +597,7 @@ public partial class Tutorial : Node2D
     {
         Engine.TimeScale = 1.0f; // 防御性复位
         GetTree().Paused = false;
-        GameStateBridge.Call("reset_run"); // 不污染正常对局
+        GameState.Instance.ResetRun(); // 不污染正常对局
         GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
     }
 
@@ -610,7 +610,7 @@ public partial class Tutorial : Node2D
         }
     }
 
-    private void PlaySfxBuffPick() => GameStateBridge.Call("play_sfx", SfxBuffPick);
+    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(SfxBuffPick);
 
     /// <summary>Variant 数组转 object[]（GDScript `%` 参数补参用；GodotSharp 无 Array.ToArray）。</summary>
     private static object[] ToObjects(Godot.Collections.Array args)

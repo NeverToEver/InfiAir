@@ -8,7 +8,6 @@ namespace InfiAir;
 /// 登录/游客放行后切主区：继续对局（有档）/ 开始游戏 + 新游戏。进入 main 后由 main 依存档自动继续。
 /// ESC 层级（对齐 B3/B7-1/2/3）：关排行榜 → 关游客/删除确认 → 关下拉 → 退出确认（welcome 是首场景）。
 /// M5 全量迁移（2026-08-08 自 scripts/welcome.gd）：CanvasLayer 子类，挂 scenes/welcome.tscn。
-/// 迁移期：UITheme/ChamferedPanel 为 C# 类 typed 直调；GameState/UserDB 经 GameStateBridge + 脚本资源访问。
 /// </summary>
 public partial class Welcome : CanvasLayer
 {
@@ -95,7 +94,7 @@ public partial class Welcome : CanvasLayer
         BuildOverlays();
         BuildEscHint();
 
-        GameStateBridge.Instance!.Connect("LocaleChanged", Callable.From(RefreshTexts));
+        GameState.Instance!.Connect("LocaleChanged", Callable.From(RefreshTexts));
         RefreshTexts();
         PrefillLastLogin();
     }
@@ -190,7 +189,7 @@ public partial class Welcome : CanvasLayer
     private void OpenDropdown()
     {
         CloseDropdown();
-        var names = GameStateBridge.Call("list_usernames").AsGodotArray();
+        var names = GameState.Instance.ListUsernames();
         if (names.Count == 0)
         {
             return;
@@ -211,7 +210,7 @@ public partial class Welcome : CanvasLayer
         _dropdownButtons.Clear();
         foreach (var nameV in shown)
         {
-            var name = nameV.AsString();
+            var name = nameV;
             var b = new Button { Text = name, Alignment = HorizontalAlignment.Left };
             b.AddThemeFontOverride("font", UITheme.Font);
             b.AddThemeFontSizeOverride("font_size", UITheme.FontBody);
@@ -244,7 +243,7 @@ public partial class Welcome : CanvasLayer
     /// <summary>最近登录用户预填（B3）：last-login 预填用户名、焦点落密码框</summary>
     private void PrefillLastLogin()
     {
-        var last = GameStateBridge.Call("get_last_login_user").AsString();
+        var last = GameState.Instance.GetLastLoginUser();
         if (last != "")
         {
             _usernameLine.Text = last;
@@ -289,7 +288,7 @@ public partial class Welcome : CanvasLayer
             return;
         }
 
-        if (!GameStateBridge.Call("verify_user", name, password).AsBool())
+        if (!GameState.Instance.VerifyUser(name, password))
         {
             ShowMsg(Tr("WELCOME_MSG_BAD_CRED"), true);
             return;
@@ -320,7 +319,7 @@ public partial class Welcome : CanvasLayer
             return;
         }
 
-        if (!GameStateBridge.Call("create_user", name, password).AsBool())
+        if (!GameState.Instance.CreateUser(name, password))
         {
             ShowMsg(Tr("WELCOME_MSG_NAME_TAKEN"), true);
             return;
@@ -366,7 +365,7 @@ public partial class Welcome : CanvasLayer
     {
         ((CanvasLayer)_deleteConfirm["layer"].AsGodotObject()).Visible = false;
         var name = _usernameLine.Text.Trim();
-        if (GameStateBridge.Call("delete_user", name, _passwordLine.Text).AsBool())
+        if (GameState.Instance.DeleteUser(name, _passwordLine.Text))
         {
             _usernameLine.Clear();
             _passwordLine.Clear();
@@ -384,11 +383,11 @@ public partial class Welcome : CanvasLayer
     {
         if (isUser)
         {
-            GameStateBridge.Call("login_user", name);
+            GameState.Instance.LoginUser(name);
         }
         else
         {
-            GameStateBridge.Call("login_guest");
+            GameState.Instance.LoginGuest();
         }
 
         _stage = Stage.Main;
@@ -415,10 +414,10 @@ public partial class Welcome : CanvasLayer
         var diffRow = new HBoxContainer();
         diffRow.AddThemeConstantOverride("separation", 12);
         _mainZone.AddChild(diffRow);
-        var order = GameStateBridge.Get("DIFFICULTY_ORDER").AsGodotArray();
+        var order = GameState.Instance.DIFFICULTY_ORDER;
         foreach (var dV in order)
         {
-            var d = dV.AsStringName();
+            var d = dV;
             var b = new Button
             {
                 Text = Tr("DIFF_" + d.ToString().ToUpper()),
@@ -484,7 +483,7 @@ public partial class Welcome : CanvasLayer
 
     private void OnDifficultyPressed(StringName d)
     {
-        GameStateBridge.Call("set_difficulty", d);
+        GameState.Instance.SetDifficulty(d);
     }
 
     private void OnContinuePressed()
@@ -494,14 +493,14 @@ public partial class Welcome : CanvasLayer
 
     private void OnNewGamePressed()
     {
-        GameStateBridge.Call("delete_save");
+        GameState.Instance.DeleteSave();
         GotoMain();
     }
 
     private void OnTutorialPressed()
     {
         // E02/G03：存在进行中存档时禁入教程（UI 已禁用按钮，此处兜底）
-        if (GameStateBridge.Call("has_save").AsBool())
+        if (GameState.Instance.HasSave())
         {
             return;
         }
@@ -610,7 +609,7 @@ public partial class Welcome : CanvasLayer
             child.QueueFree();
         }
 
-        var board = GameStateBridge.Call("get_leaderboard").AsGodotArray();
+        var board = GameState.Instance.GetLeaderboard();
         if (board.Count == 0)
         {
             _leaderboardRows.AddChild(
@@ -677,7 +676,7 @@ public partial class Welcome : CanvasLayer
     private void OnExitOk()
     {
         ((CanvasLayer)_exitConfirm["layer"].AsGodotObject()).Visible = false;
-        GameStateBridge.Call("save_profile"); // 登录用户设置落盘（battle=false 保留存档）
+        GameState.Instance.SaveProfile(); // 登录用户设置落盘（battle=false 保留存档）
         GetTree().Quit();
     }
 
@@ -741,15 +740,15 @@ public partial class Welcome : CanvasLayer
 
     private void RefreshTexts()
     {
-        var hasSave = GameStateBridge.Call("has_save").AsBool();
-        _highScoreLabel.Visible = GameStateBridge.Get("high_score").AsInt32() > 0;
-        _highScoreLabel.Text = Tr("WELCOME_HIGH_SCORE").Replace("%d", GameStateBridge.Get("high_score").AsInt32().ToString());
-        var board = GameStateBridge.Call("highscores_text", 3).AsString();
+        var hasSave = GameState.Instance.HasSave();
+        _highScoreLabel.Visible = GameState.Instance.HighScore > 0;
+        _highScoreLabel.Text = Tr("WELCOME_HIGH_SCORE").Replace("%d", GameState.Instance.HighScore.ToString());
+        var board = GameState.Instance.HighscoresText(3);
         _boardLabel.Visible = board != "";
         _boardLabel.Text = Tr("START_BOARD") + "\n" + board;
-        _corruptLabel.Visible = GameStateBridge.Get("save_corrupt").AsBool() || GameStateBridge.Get("profile_corrupt").AsBool();
+        _corruptLabel.Visible = GameState.Instance.SaveCorrupt || GameState.Instance.ProfileCorrupt;
         _corruptLabel.Text = (
-            GameStateBridge.Get("profile_corrupt").AsBool() && !GameStateBridge.Get("save_corrupt").AsBool()
+            GameState.Instance.ProfileCorrupt && !GameState.Instance.SaveCorrupt
                 ? Tr("START_PROFILE_CORRUPT")
                 : Tr("START_SAVE_CORRUPT")
         );
@@ -777,7 +776,7 @@ public partial class Welcome : CanvasLayer
             var d = key.AsStringName();
             var b = (Button)_diffButtons[key].AsGodotObject();
             b.Text = Tr("DIFF_" + d.ToString().ToUpper());
-            b.SetPressedNoSignal(GameStateBridge.Get("difficulty").AsStringName() == d);
+            b.SetPressedNoSignal(GameState.Instance.Difficulty == d);
         }
     }
 
@@ -790,7 +789,7 @@ public partial class Welcome : CanvasLayer
         escHint.Position = new Vector2(-420.0f, -50.0f);
         escHint.CustomMinimumSize = new Vector2(360.0f, 0.0f);
         AddChild(escHint);
-        GameStateBridge.Instance!.Connect("LocaleChanged", Callable.From(() =>
+        GameState.Instance!.Connect("LocaleChanged", Callable.From(() =>
         {
             escHint.Text = Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT");
         }));

@@ -1,0 +1,70 @@
+using Godot;
+
+namespace InfiAir;
+
+/// <summary>
+/// 伪敌机事件：生成无伤害/无碰撞的幽灵机群（纯视觉干扰，单机外观/移动见 FakeEnemy）。
+/// 配置：balance.json fog_events.fake_enemies（count / spawn_interval）。
+/// 健壮性：_on_start 缓存容器并判空——context 缺 fake_container 时降级空转（不崩，
+/// 事件仍走完 duration，由 GameEvent.End 幂等清理）。
+/// </summary>
+public partial class FakeEnemiesEvent : FogEvent
+{
+    private int _count = 5;
+    private float _spawnInterval = 0.8f;
+    private readonly Godot.Collections.Array<Node> _fakes = new();
+    private Node2D? _container;
+
+    public override StringName EventId() => new StringName("fake_enemies");
+
+    protected override void OnStart()
+    {
+        _container = FakeContainer();
+        if (_container == null)
+        {
+            GD.PushWarning("FakeEnemiesEvent：context 缺 fake_container，事件降级空转");
+            return;
+        }
+
+        _count = Mathf.Max((int)GameState.Instance.Cfg("fog_events.fake_enemies.count", _count).AsInt64(), 1);
+        _spawnInterval = Mathf.Max(
+            (float)GameState.Instance.Cfg("fog_events.fake_enemies.spawn_interval", _spawnInterval).AsDouble(), 0.0f);
+        for (var i = 0; i < _count; i++)
+        {
+            SpawnFake(i);
+        }
+    }
+
+    /// <summary>生成一只幽灵敌机：顶缘随机 x、错峰入场（index × spawn_interval）。</summary>
+    private void SpawnFake(int index)
+    {
+        var fake = new FakeEnemy();
+        var view = GameState.Instance.ViewWorldRect().AsRect2();
+        fake.Position = new Vector2(
+            (float)GD.RandRange(view.Position.X + 80.0, view.End.X - 80.0),
+            view.Position.Y - (float)GD.RandRange(20.0, 260.0));
+        fake.EnterDelay = index * _spawnInterval;
+        _container!.AddChild(fake);
+        _fakes.Add(fake);
+    }
+
+    protected override void OnEnd()
+    {
+        foreach (var fake in _fakes)
+        {
+            if (GodotObject.IsInstanceValid(fake))
+            {
+                fake.QueueFree(); // 幽灵直接消失（事件结束视觉自洽：机群解体）
+            }
+        }
+
+        _fakes.Clear();
+    }
+
+    /// <summary>已生成的伪敌机（测试/诊断；manager.spawned_fakes 委托到本方法）。</summary>
+    public Godot.Collections.Array<Node> SpawnedFakes() => _fakes.Duplicate();
+
+    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
+
+    public Godot.Collections.Array<Node> spawned_fakes() => SpawnedFakes();
+}

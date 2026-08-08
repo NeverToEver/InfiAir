@@ -9,7 +9,6 @@ namespace InfiAir;
 /// 视觉为「虚影皮肤」（docs/RETURN_HOME_CINEMATIC.md §3）：虚影站背景层 + 全息面板，
 /// 全部信号/回调/GameState 数据接口零改动。
 /// M5 全量迁移（2026-08-08 自 scripts/base_console.gd）：CanvasLayer 子类；
-/// GameState（GDScript autoload）经 GameStateBridge 动态访问，locale_changed 经 Connect 连接；
 /// DawnStation 静态工厂经 GDScript 资源调用；UITheme/ChamferedPanel 为 C# typed 直调。
 /// 注：原 GDScript signal resume_requested 迁移为 C# [Signal] ResumeRequested——
 /// main.gd/tutorial.gd 连接处需改连 PascalCase 名（主代理集中处理）。
@@ -103,7 +102,7 @@ public partial class BaseConsole : CanvasLayer
     public override void _Ready()
     {
         Visible = false;
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("LocaleChanged", _localeChanged))
         {
             gs.Connect("LocaleChanged", _localeChanged);
@@ -344,7 +343,7 @@ public partial class BaseConsole : CanvasLayer
     public void ShowBase()
     {
         // 任务轮换：进基地发放刷新点数（GRANT_PER_VISIT 档位，攒两次基地换一次刷新）
-        GameStateBridge.Call("grant_refresh_points");
+        GameState.Instance.GrantRefreshPoints();
         Refresh();
         Visible = true;
         HoloBoot();
@@ -376,13 +375,13 @@ public partial class BaseConsole : CanvasLayer
 
     private void Refresh()
     {
-        var rp = GameStateBridge.Get("rp").AsInt32();
+        var rp = GameState.Instance.Rp;
         _rpLabel.Text = GdFormat((string)Tr("BASE_RP"), rp);
-        var playerV = GameStateBridge.Get("player_ref");
-        var player = playerV.VariantType != Variant.Type.Nil ? playerV.AsGodotObject() as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
+        var playerV = GameState.Instance.PlayerRef;
+        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
         // 战机库状态总览
         var buffText = "";
-        var buffs = GameStateBridge.Get("buffs").AsGodotDictionary();
+        var buffs = GameState.Instance.Buffs;
         foreach (var key in buffs.Keys)
         {
             var id = key.AsStringName();
@@ -401,8 +400,8 @@ public partial class BaseConsole : CanvasLayer
             fuelPct = (int)(player.FuelRatio() * 100.0f);
         }
 
-        var health = (float)GameStateBridge.Get("health").AsDouble(); // M5：AsSingle 精度损失致 heal 后 99.9999≠max（smoke flake 根因）
-        var maxHealth = (float)GameStateBridge.Call("max_health").AsDouble();
+        var health = (float)GameState.Instance.Health; // M5：AsSingle 精度损失致 heal 后 99.9999≠max（smoke flake 根因）
+        var maxHealth = (float)GameState.Instance.MaxHealth();
         _statusLabel.Text = GdFormat((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, buffText);
         // 维修补给按钮状态
         _titleLabel.Text = (string)Tr("BASE_TITLE");
@@ -416,14 +415,14 @@ public partial class BaseConsole : CanvasLayer
         _rechargeButton.Text = (string)Tr("BASE_RECHARGE");
         _resumeButton.Text = (string)Tr("BASE_RESUME"); // L08：locale 刷新路径补齐（其余按钮均在此刷新）
         // 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
-        var rpRepairCost = GameStateBridge.Get("RP_REPAIR_COST").AsInt32();
-        var rpRechargeCost = GameStateBridge.Get("RP_RECHARGE_COST").AsInt32();
+        var rpRepairCost = GameState.Instance.RP_REPAIR_COST;
+        var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
         _repairButton.Disabled = rp < rpRepairCost || health >= maxHealth;
         _rechargeButton.Disabled = rp < rpRechargeCost || player == null || player.FuelAmount() >= player.FuelMax;
         // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 _on_refresh_pressed 内）
-        _refreshPointsLabel.Text = GdFormat((string)Tr("BASE_REFRESH_POINTS"), GameStateBridge.Get("refresh_points").AsInt32());
-        _refreshButton.Text = GdFormat((string)Tr("BASE_REFRESH_FMT"), GameStateBridge.Get("REFRESH_COST").AsInt32());
-        _refreshButton.Disabled = !GameStateBridge.Call("can_refresh_missions").AsBool();
+        _refreshPointsLabel.Text = GdFormat((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
+        _refreshButton.Text = GdFormat((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
+        _refreshButton.Disabled = !GameState.Instance.CanRefreshMissions();
         RefreshRoutes();
         RefreshMissions();
     }
@@ -435,13 +434,13 @@ public partial class BaseConsole : CanvasLayer
             child.QueueFree();
         }
 
-        var routeLines = GameStateBridge.Get("ROUTE_LINES").AsGodotDictionary();
-        var chosenRoutes = GameStateBridge.Get("chosen_routes").AsGodotDictionary();
+        var routeLines = GameState.Instance.ROUTE_LINES;
+        var chosenRoutes = GameState.Instance.ChosenRoutes;
         foreach (var lineKey in routeLines.Keys)
         {
             var line = lineKey.AsStringName();
             var options = routeLines[lineKey].AsGodotArray();
-            var total = GameStateBridge.Call("buff_count", options[0]).AsInt32() + GameStateBridge.Call("buff_count", options[1]).AsInt32();
+            var total = GameState.Instance.BuffCount(options[0].AsStringName()) + GameState.Instance.BuffCount(options[1].AsStringName());
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 10);
             var lineNameKey = RouteLineNames.TryGetValue(line.ToString(), out var lineName) ? lineName : line.ToString();
@@ -453,13 +452,13 @@ public partial class BaseConsole : CanvasLayer
             {
                 var opt = optV.AsStringName();
                 var chosen = chosenRoutes.ContainsKey(line) && chosenRoutes[line].AsStringName() == opt;
-                var locked = GameStateBridge.Call("is_buff_locked", opt).AsBool();
+                var locked = GameState.Instance.IsBuffLocked(opt);
                 var button = MakeButton("");
                 var buffNameKey = RouteBuffNames.TryGetValue(opt.ToString(), out var mappedName) ? mappedName : opt.ToString(); // H20：表缺键兜底
                 var buffName = (string)Tr(buffNameKey);
                 if (chosen)
                 {
-                    button.Text = GdFormat((string)Tr("BASE_CHOSEN_FMT"), buffName, GameStateBridge.Call("buff_count", opt).AsInt32());
+                    button.Text = GdFormat((string)Tr("BASE_CHOSEN_FMT"), buffName, GameState.Instance.BuffCount(opt));
                 }
                 else if (locked)
                 {
@@ -467,7 +466,7 @@ public partial class BaseConsole : CanvasLayer
                 }
                 else
                 {
-                    button.Text = GdFormat((string)Tr("BUFF_LV_FMT"), buffName, GameStateBridge.Call("buff_count", opt).AsInt32());
+                    button.Text = GdFormat((string)Tr("BUFF_LV_FMT"), buffName, GameState.Instance.BuffCount(opt));
                 }
 
                 button.Disabled = chosen || locked || total == 0;
@@ -487,14 +486,14 @@ public partial class BaseConsole : CanvasLayer
         }
 
         // 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS
-        var ids = GameStateBridge.Call("active_mission_ids").AsGodotArray();
+        var ids = GameState.Instance.ActiveMissionIds();
         foreach (var idV in ids)
         {
-            var id = idV.AsStringName();
+            var id = idV;
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 10);
-            var progress = GameStateBridge.Call("mission_progress", id).AsInt32();
-            var goal = GameStateBridge.Call("mission_goal", id).AsInt32();
+            var progress = GameState.Instance.MissionProgress(id);
+            var goal = GameState.Instance.MissionGoal(id);
             var idUpper = id.ToString().ToUpperInvariant();
             // C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
             var text = GdFormat(
@@ -503,11 +502,11 @@ public partial class BaseConsole : CanvasLayer
                 (string)Tr("MISSION_" + idUpper + "_DESC"),
                 Mathf.Min(progress, goal),
                 goal);
-            if (GameStateBridge.Call("is_mission_claimed", id).AsBool())
+            if (GameState.Instance.IsMissionClaimed(id))
             {
                 text += (string)Tr("BASE_CLAIMED");
             }
-            else if (GameStateBridge.Call("is_mission_done", id).AsBool())
+            else if (GameState.Instance.IsMissionDone(id))
             {
                 text += (string)Tr("BASE_DONE");
             }
@@ -515,14 +514,14 @@ public partial class BaseConsole : CanvasLayer
             var info = MakeLabel(text, 20);
             info.CustomMinimumSize = new Vector2(400.0f, 0.0f);
             info.HorizontalAlignment = HorizontalAlignment.Left;
-            if (GameStateBridge.Call("is_mission_done", id).AsBool())
+            if (GameState.Instance.IsMissionDone(id))
             {
                 info.AddThemeColorOverride("font_color", UITheme.Success);
             }
 
             row.AddChild(info);
             var claimButton = MakeButton((string)Tr("BASE_CLAIM"));
-            claimButton.Disabled = !GameStateBridge.Call("is_mission_done", id).AsBool() || GameStateBridge.Call("is_mission_claimed", id).AsBool();
+            claimButton.Disabled = !GameState.Instance.IsMissionDone(id) || GameState.Instance.IsMissionClaimed(id);
             claimButton.Pressed += () => OnClaimPressed(id);
             row.AddChild(claimButton);
             _missionsBox.AddChild(row);
@@ -548,28 +547,28 @@ public partial class BaseConsole : CanvasLayer
     private void OnRepairPressed()
     {
         // 2RP 回满（对齐原作，不按缺口计价）
-        var rpRepairCost = GameStateBridge.Get("RP_REPAIR_COST").AsInt32();
-        if (GameStateBridge.Call("spend_rp", rpRepairCost).AsBool())
+        var rpRepairCost = GameState.Instance.RP_REPAIR_COST;
+        if (GameState.Instance.SpendRp(rpRepairCost))
         {
             // M5：heal 量全程 double 计算——(float) 截断致 59.2000004798174 + 40.7999992371
             // ≈ 99.9999997 ≠ max（smoke 维修 flake 根因，实测）；GDScript float=double，double 差值精确回满
-            var health = GameStateBridge.Get("health").AsDouble();
-            var maxHealth = GameStateBridge.Call("max_health").AsDouble();
-            GameStateBridge.Call("heal", Mathf.Max(0.0, maxHealth - health)); // H20：防负治疗扣血
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_RESUPPLY"));
+            var health = GameState.Instance.Health;
+            var maxHealth = GameState.Instance.MaxHealth();
+            GameState.Instance.Heal(Mathf.Max(0.0, maxHealth - health)); // H20：防负治疗扣血
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
             Refresh();
         }
     }
 
     private void OnRechargePressed()
     {
-        var playerV = GameStateBridge.Get("player_ref");
-        var player = playerV.VariantType != Variant.Type.Nil ? playerV.AsGodotObject() as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
-        var rpRechargeCost = GameStateBridge.Get("RP_RECHARGE_COST").AsInt32();
-        if (player != null && GameStateBridge.Call("spend_rp", rpRechargeCost).AsBool())
+        var playerV = GameState.Instance.PlayerRef;
+        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
+        var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
+        if (player != null && GameState.Instance.SpendRp(rpRechargeCost))
         {
             player.RefillFuel();
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_RESUPPLY"));
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
             Refresh();
         }
     }
@@ -577,9 +576,9 @@ public partial class BaseConsole : CanvasLayer
     private void OnRoutePressed(StringName line, StringName buffId)
     {
         // choose_route 只改层数；玩家侧效果均实时读取 GameState.buff_count，无需额外重放（laser/recall 效果本体已在 3.3 实装）
-        if (GameStateBridge.Call("choose_route", line, buffId).AsBool())
+        if (GameState.Instance.ChooseRoute(line, buffId))
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
         }
 
         Refresh();
@@ -587,9 +586,9 @@ public partial class BaseConsole : CanvasLayer
 
     private void OnClaimPressed(StringName id)
     {
-        if (GameStateBridge.Call("claim_mission", id).AsBool())
+        if (GameState.Instance.ClaimMission(id))
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
         }
 
         Refresh();
@@ -598,9 +597,9 @@ public partial class BaseConsole : CanvasLayer
     /// <summary>刷新任务：消耗 RefreshPoints 重抽（余额不足时提示；成功播音效并重绘任务面板）。</summary>
     private void OnRefreshPressed()
     {
-        if (GameStateBridge.Call("refresh_missions").AsBool())
+        if (GameState.Instance.RefreshMissions())
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
             HideRefreshHint();
         }
         else

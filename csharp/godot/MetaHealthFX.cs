@@ -13,7 +13,6 @@ namespace InfiAir;
 /// 迁移注：P1-4 首帧延后烘焙由 await process_frame 改一次性 ProcessFrame 信号回调
 /// （OneShot 连接，不挂 await 协程——退出无泄漏；C15 守卫保留）；META_SHADER/BAKE_SHADER
 /// 原 preload 常量按批次规则 19 不静态持有 Godot Resource，改 _ready GD.Load（资源缓存命中）；
-/// GameState 经 GameStateBridge 动态访问；hud 抖动经 call_group("hud", "meta_jitter")（Hud.cs 已有桥）。
 /// </summary>
 public partial class MetaHealthFX : CanvasLayer
 {
@@ -183,14 +182,14 @@ public partial class MetaHealthFX : CanvasLayer
 
     public bool BreathActive()
     {
-        return _state == STATE_DYING && GameStateBridge.Get("health").AsDouble() > 0.0 && !GameStateBridge.Get("reduce_flash").AsBool();
+        return _state == STATE_DYING && GameState.Instance.Health > 0.0 && !GameState.Instance.ReduceFlash;
     }
 
     /// <summary>测试钩子（A7 遗留清理，公开化）：切换 LOD（正常路径由 _ready 从 effects.meta_health.lod 读取）</summary>
     public void SetLod(int v)
     {
         _lod = v;
-        GameStateBridge.Set("meta_fx_lod", v);
+        GameState.Instance.MetaFxLod = v;
         _mat.SetShaderParameter("u_lod", v);
         _last.Remove(new StringName("u_lod"));
     }
@@ -202,7 +201,7 @@ public partial class MetaHealthFX : CanvasLayer
         _bakeShader = GD.Load<Shader>("res://assets/shaders/crack_field_bake.gdshader");
         LoadCfg();
         _lod = _cfg["lod"].AsInt32();
-        GameStateBridge.Set("meta_fx_lod", _lod); // 供 hud.gd 低血晕影回退判断（D2）
+        GameState.Instance.MetaFxLod = _lod; // 供 hud.gd 低血晕影回退判断（D2）
         _rect = new ColorRect();
         _rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _rect.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -217,8 +216,8 @@ public partial class MetaHealthFX : CanvasLayer
         _mat.SetShaderParameter("u_crack_glow", CfgFloat("crack_glow"));
         _vigInner = CfgFloat("vignette_inner");
         // 启动即对齐当前血量（读档续局/场景重载），不产生过渡演出
-        var health = GameStateBridge.Get("health").AsDouble();
-        var maxHealth = GameStateBridge.Call("max_health").AsDouble();
+        var health = GameState.Instance.Health;
+        var maxHealth = GameState.Instance.MaxHealth();
         _targetX = 1.0f - (float)Mathf.Clamp(health / maxHealth, 0.0, 1.0);
         _damageX = _targetX;
         _state = StateForX(_damageX);
@@ -231,7 +230,7 @@ public partial class MetaHealthFX : CanvasLayer
         // 启动一次性 pipeline stall，不占首帧关键路径；烘焙完成前 _field_ready=false，
         // shader 侧已早退不显示裂纹（379 行），满血开局无感知、读档续局延迟一帧
         DeferBake();
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (!gs.IsConnected("HealthChanged", _onHealthChanged))
@@ -262,10 +261,10 @@ public partial class MetaHealthFX : CanvasLayer
     {
         // C22 模式：GameState 信号显式断开 + 挂起的烘焙延迟回调——防退出 segfault
         // MetaFX 不在场时 hud 低血晕影走回退路径（D2）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
-            gs.Set("meta_fx_lod", 1);
+            gs.MetaFxLod = 1;
             if (gs.IsConnected("HealthChanged", _onHealthChanged))
             {
                 gs.Disconnect("HealthChanged", _onHealthChanged);
@@ -305,7 +304,7 @@ public partial class MetaHealthFX : CanvasLayer
             def.Add(d);
         }
 
-        var raw = GameStateBridge.Call("cfg", "effects.meta_health.crack.density", def);
+        var raw = GameState.Instance.Cfg("effects.meta_health.crack.density", def);
         if (raw.VariantType == Variant.Type.Array)
         {
             var arr = raw.AsGodotArray();
@@ -342,7 +341,7 @@ public partial class MetaHealthFX : CanvasLayer
 
         _cfg = new Godot.Collections.Dictionary
         {
-            ["lod"] = GameStateBridge.Call("cfg", "effects.meta_health.lod", 0).AsInt32(),
+            ["lod"] = GameState.Instance.Cfg("effects.meta_health.lod", 0).AsInt32(),
             ["pulse_scale"] = CfgVal("effects.meta_health.pulse.scale", 2.5f),
             ["pulse_min"] = CfgVal("effects.meta_health.pulse.min", 0.15f),
             // H15
@@ -392,7 +391,7 @@ public partial class MetaHealthFX : CanvasLayer
     /// <summary>effects.meta_health.* 配置读入（GameState.cfg 动态调用，Variant → float）。</summary>
     private static float CfgVal(string path, float def)
     {
-        return (float)GameStateBridge.Call("cfg", path, def).AsDouble();
+        return (float)GameState.Instance.Cfg(path, def).AsDouble();
     }
 
     private float CfgFloat(string key)
@@ -423,22 +422,22 @@ public partial class MetaHealthFX : CanvasLayer
 
     private void OnHealthChanged(float newHealth)
     {
-        _targetX = 1.0f - (float)Mathf.Clamp(newHealth / (float)GameStateBridge.Call("max_health").AsDouble(), 0.0, 1.0);
+        _targetX = 1.0f - (float)Mathf.Clamp(newHealth / (float)GameState.Instance.MaxHealth(), 0.0, 1.0);
     }
 
     private void OnPlayerDamaged(float amount, Vector2 fromPos)
     {
-        var r = amount / (float)GameStateBridge.Call("max_health").AsDouble();
+        var r = amount / (float)GameState.Instance.MaxHealth();
         // max 池化：高频低伤不累积（R2）
         _hitPulse = Mathf.Max(_hitPulse, Mathf.Clamp(r * CfgFloat("pulse_scale"), CfgFloat("pulse_min"), 1.0f));
-        var playerV = GameStateBridge.Get("player_ref");
-        if (fromPos == Vector2.Inf || playerV.VariantType == Variant.Type.Nil)
+        var playerV = GameState.Instance.PlayerRef;
+        if (fromPos == Vector2.Inf || playerV == null)
         {
             _hitDir = Vector2.Zero; // 无方向：波纹退化为全边缘均匀环
         }
         else
         {
-            var d = fromPos - ((Node2D)playerV.AsGodotObject()).GlobalPosition;
+            var d = fromPos - ((Node2D)playerV).GlobalPosition;
             _hitDir = d.Length() > 1.0f ? d.Normalized() : Vector2.Zero;
         }
 
@@ -539,8 +538,8 @@ public partial class MetaHealthFX : CanvasLayer
         _rippleT += d / CfgFloat("ripple_duration");
 
         // 4. DYING 临界层：心跳（1.0→1.2Hz 随 x 插值）/呼吸/抖动/警告脉动；进出均 0.3s 淡出无硬切
-        var reduceFlash = GameStateBridge.Get("reduce_flash").AsBool();
-        var healthNow = GameStateBridge.Get("health").AsDouble();
+        var reduceFlash = GameState.Instance.ReduceFlash;
+        var healthNow = GameState.Instance.Health;
         if (_state == STATE_DYING && healthNow > 0.0)
         {
             if (_heartPhase < 0.0f)
@@ -559,7 +558,7 @@ public partial class MetaHealthFX : CanvasLayer
             {
                 _heartBeats += 1;
                 _heartEnv = 1.0f;
-                GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_HEARTBEAT"), -8.0); // D7：单发触发，音效不受减少闪光影响
+                GameState.Instance.PlaySfx(GameState.Instance.SFX_HEARTBEAT, -8.0); // D7：单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
                 {
                     GetTree().CallGroup("hud", "meta_jitter", CfgFloat("jitter_px")); // D9
@@ -599,8 +598,8 @@ public partial class MetaHealthFX : CanvasLayer
             // GameState.bullet_pool 实例访问（ActiveBulletCount/LiveExplosionCount，判空）
             var bullets = 0;
             var explosions = 0;
-            var poolV = GameStateBridge.Get("bullet_pool");
-            if (poolV.VariantType != Variant.Type.Nil && poolV.AsGodotObject() is BulletPool pool)
+            var poolV = GameState.Instance.BulletPool;
+            if (poolV != null && poolV is BulletPool pool)
             {
                 bullets = pool.ActiveBulletCount;
                 explosions = pool.LiveExplosionCount;

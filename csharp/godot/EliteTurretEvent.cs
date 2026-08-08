@@ -9,7 +9,6 @@ namespace InfiAir;
 /// → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
 /// 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
-/// 迁移期动态访问：GameState 经 GameStateBridge（cfg/view_world_rect/shake/add_score/difficulty/
 /// enemy_hp_multiplier/enemy_hp_ramp/world_scale）；spawner/HUD 为 GDScript 类经引用 Call 动态派发；
 /// turret.tscn 场景绑定切 C# 后 Instantiate&lt;TurretBattery&gt;（切换前由 GDScript 旧类承载运行）。
 /// 白盒断言 API 保留 snake_case 兼容桥（test/elite_turret_event_test.gd，M7 删除）；
@@ -100,28 +99,28 @@ public partial class EliteTurretEvent : Node
     public override void _Ready()
     {
         AddToGroup("elite_turret_event");
-        Duration = (float)GameStateBridge.Call("cfg", "elite_turret_event.duration", Duration).AsDouble();
-        EnterTime = (float)GameStateBridge.Call("cfg", "elite_turret_event.enter_time", EnterTime).AsDouble();
-        RiseTime = (float)GameStateBridge.Call("cfg", "elite_turret_event.rise_time", RiseTime).AsDouble();
-        BossResumeDelay = (float)GameStateBridge.Call("cfg", "elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble();
-        TurretHpBase = (int)GameStateBridge.Call("cfg", "elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
+        Duration = (float)GameState.Instance.Cfg("elite_turret_event.duration", Duration).AsDouble();
+        EnterTime = (float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble();
+        RiseTime = (float)GameState.Instance.Cfg("elite_turret_event.rise_time", RiseTime).AsDouble();
+        BossResumeDelay = (float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble();
+        TurretHpBase = (int)GameState.Instance.Cfg("elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
         // K14（H13 同族延续）：turret_counts/ammo_sequences 判型回退——非 Dictionary 时
         // 后续 .get() 在 Variant 上调用会运行时崩溃（G06 口径只覆盖了 fire_interval 等标量）
-        var tc = GameStateBridge.Call("cfg", "elite_turret_event.turret_counts", TurretCounts);
+        var tc = GameState.Instance.Cfg("elite_turret_event.turret_counts", TurretCounts);
         if (tc.VariantType == Variant.Type.Dictionary)
         {
             TurretCounts = tc.AsGodotDictionary();
         }
 
-        var am = GameStateBridge.Call("cfg", "elite_turret_event.ammo_sequences", AmmoSequences);
+        var am = GameState.Instance.Cfg("elite_turret_event.ammo_sequences", AmmoSequences);
         if (am.VariantType == Variant.Type.Dictionary)
         {
             AmmoSequences = am.AsGodotDictionary();
         }
 
         // H13（健壮性审核）：fire_interval 判型回退（G06 口径，防非数组/短数组 _ready 崩溃）
-        var fi = GameStateBridge.Call(
-            "cfg", "elite_turret_event.fire_interval", new Godot.Collections.Array { FireInterval.X, FireInterval.Y });
+        var fi = GameState.Instance.Cfg(
+            "elite_turret_event.fire_interval", new Godot.Collections.Array { FireInterval.X, FireInterval.Y });
         if (fi.VariantType == Variant.Type.Array && fi.AsGodotArray().Count >= 2)
         {
             var fiArr = fi.AsGodotArray();
@@ -130,15 +129,15 @@ public partial class EliteTurretEvent : Node
 
         // R07：WEAK_LOCK 判型（K14 同族延续）——非 Dictionary 时 :203 透传给
         // turret.Setup 的弱锁参数会在消费方崩溃，与 TURRET_COUNTS 同口径回退
-        var wl = GameStateBridge.Call("cfg", "elite_turret_event.weak_lock", WeakLock);
+        var wl = GameState.Instance.Cfg("elite_turret_event.weak_lock", WeakLock);
         if (wl.VariantType == Variant.Type.Dictionary)
         {
             WeakLock = wl.AsGodotDictionary();
         }
 
-        RewardScore = (int)GameStateBridge.Call("cfg", "elite_turret_event.reward_score", RewardScore).AsInt64();
-        HoverY = (float)GameStateBridge.Call("cfg", "elite_turret_event.carrier.hover_y", HoverY).AsDouble();
-        Cooldown = (float)GameStateBridge.Call("cfg", "elite_turret_event.cooldown", Cooldown).AsDouble();
+        RewardScore = (int)GameState.Instance.Cfg("elite_turret_event.reward_score", RewardScore).AsInt64();
+        HoverY = (float)GameState.Instance.Cfg("elite_turret_event.carrier.hover_y", HoverY).AsDouble();
+        Cooldown = (float)GameState.Instance.Cfg("elite_turret_event.cooldown", Cooldown).AsDouble();
         _comm = new CommOverlay();
         AddChild(_comm);
     }
@@ -197,7 +196,7 @@ public partial class EliteTurretEvent : Node
 
         _carrier = new StrikeCarrier();
         var carrier = _carrier;
-        var evView = GameStateBridge.Call("view_world_rect").AsRect2(); // D10：载体入场锚点统一 view 基线
+        var evView = GameState.Instance.ViewWorldRect(); // D10：载体入场锚点统一 view 基线
         carrier.Position = new Vector2(evView.GetCenter().X, evView.Position.Y - 450.0f);
         carrier.Entered += OnCarrierEntered;
         carrier.Exited += OnCarrierExited;
@@ -205,7 +204,7 @@ public partial class EliteTurretEvent : Node
         // 2026-08-06 审计：HOVER_Y 为距可见区顶缘偏移（D10 同族遗漏）——原绝对 y 在
         // 非默认视角档（zoom>1 可见区下移）偏高 140~222px，炮塔行锚点随之偏高
         carrier.Enter(evView.Position.Y + HoverY, EnterTime);
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "elite_turret_event.carrier.shake", 4.0));
+        GameState.Instance.Shake(GameState.Instance.Cfg("elite_turret_event.carrier.shake", 4.0).AsDouble());
         _hud = GetTree().GetFirstNodeInGroup("hud") as CanvasLayer;
     }
 
@@ -254,7 +253,7 @@ public partial class EliteTurretEvent : Node
         // Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
         //（StrikeCarrier.Sockets 固定 5 槽；R07：注释修正——负数经 clampi 钳 0，
         // GDScript for 负整数本不迭代，「防负循环」表述失实，钳制仅为与上限对称）
-        var diffStr = GameStateBridge.Get("difficulty").AsStringName().ToString();
+        var diffStr = GameState.Instance.Difficulty.ToString();
         var rawTotal = (int)TurretCounts.GetValueOrDefault(diffStr, 4).AsInt64();
         _total = Mathf.Clamp(rawTotal, 0, StrikeCarrier.Sockets.Length);
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
@@ -262,8 +261,8 @@ public partial class EliteTurretEvent : Node
             1,
             (int)Mathf.Round(
                 TurretHpBase
-                * (float)GameStateBridge.Call("enemy_hp_multiplier").AsDouble()
-                * (float)GameStateBridge.Call("enemy_hp_ramp").AsDouble()));
+                * (float)GameState.Instance.EnemyHpMultiplier()
+                * (float)GameState.Instance.EnemyHpRamp()));
         // 2026-08-06 审计：ammo 条目级判型（K14 只判容器 Dictionary 未判难度键条目）——
         // 难度键缺失/非 Array 时 `for a in p_ammo` 崩溃（boss patterns 侧有 L07 元素级判型）；
         // 缺键回退 medium，仍非 Array 回退内置默认序列
@@ -285,7 +284,7 @@ public partial class EliteTurretEvent : Node
         {
             var turret = TurretScene.Instantiate<TurretBattery>();
             turret.Setup(hp, ammo.AsGodotArray(), FireInterval, WeakLock);
-            turret.Position = _carrier!.Position + StrikeCarrier.Sockets[i] * (float)GameStateBridge.Get("world_scale").AsDouble();
+            turret.Position = _carrier!.Position + StrikeCarrier.Sockets[i] * (float)GameState.Instance.WorldScale;
             var socket = i;
             turret.Died += (t) => OnTurretDied(socket, t);
             GetParent().AddChild(turret);
@@ -396,7 +395,7 @@ public partial class EliteTurretEvent : Node
 
         _state = State.CARRIER_EXIT;
         _comm!.ShowLine(_lines[2]);
-        GameStateBridge.Call("add_score", RewardScore);
+        GameState.Instance.AddScore(RewardScore);
         if (_hud != null)
         {
             _hud.Call("hide_event_bar");

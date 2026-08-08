@@ -10,7 +10,6 @@ namespace InfiAir;
 /// 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
 /// M6 全量迁移（2026-08-08 自 scripts/main.gd）。
 /// 同批迁移类 typed 直调：Spawner/IntroCinematic/ReturnCinematic/MothershipSummonWindow/
-/// OrbitalStrike/WarpGate/CinematicFx/MetaHealthFX；GameState 经 GameStateBridge 动态访问。
 /// </summary>
 public partial class Main : Node2D
 {
@@ -102,12 +101,12 @@ public partial class Main : Node2D
         _camera = GetNode<Camera2D>("Camera2D");
         AddToGroup("main");
         _giveUpBound = InputMap.HasAction("give_up"); // 静态动作绑定缓存（_process 每帧读取）
-        DOCK_CHARGE_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零
-        HOME_CHARGE_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
-        GIVE_UP_HOLD_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "effects.give_up_hold_time", GIVE_UP_HOLD_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
-        ENRAGE_SLOW_SCALE = Mathf.Max((float)GameStateBridge.Call("cfg", "boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // H15 族：=0 使狂暴慢速完全冻结
-        ENRAGE_BULLET_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // H15 族：=0 跳过子弹时间演出
-        ENRAGE_RAMP_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
+        DOCK_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零
+        HOME_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
+        GIVE_UP_HOLD_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
+        ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // H15 族：=0 使狂暴慢速完全冻结
+        ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // H15 族：=0 跳过子弹时间演出
+        ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
         // 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
         Engine.TimeScale = 1.0f;
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
@@ -126,13 +125,13 @@ public partial class Main : Node2D
         _spawner.SetFormationEvent(_formation);
         // 统一事件管理器接线（docs/EVENT_MANAGER.md）：遭遇事件注册进统一注册表（缓存单例），
         // 触发策略/信号由管理器接管；spawner 注入用于触发门控与特殊槽通知
-        var evV = GameStateBridge.Get("events");
-        _events = (evV.VariantType == Variant.Type.Object ? evV.AsGodotObject() as GameEventManager : null)!;
+        var evV = GameState.Instance.Events;
+        _events = evV;
         _events.SetSpawner(_spawner);
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
         _events.SetRunActive(GetTree().CurrentScene == this);
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("PlayerDied", _onPlayerDied))
         {
             gs.Connect("PlayerDied", _onPlayerDied);
@@ -143,11 +142,11 @@ public partial class Main : Node2D
         // 测试以子节点实例化 main.tscn 时 current_scene 为测试场景 → 保持关闭，
         // 防止随机迷雾事件（如方向偏转把测试玩家推入弹幕触发擦弹得分）破坏测试断言确定性；
         // 需要测迷雾的用例显式 set_run_active(true)（同 intro 过场的 current_scene 判定惯例）
-        var fogV = GameStateBridge.Get("fog_events");
-        _fogEvents = (fogV.VariantType == Variant.Type.Object ? fogV.AsGodotObject() as FogEventManager : null)!;
+        var fogV = GameState.Instance.FogEvents;
+        _fogEvents = fogV;
         _fogEvents.SetRunActive(GetTree().CurrentScene == this);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
-        GameStateBridge.Set("camera_ref", _camera);
+        GameState.Instance.CameraRef = _camera;
         // Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
         _metaFx = new MetaHealthFX();
         AddChild(_metaFx);
@@ -157,8 +156,8 @@ public partial class Main : Node2D
         // 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
         _virtualControls = new VirtualControls();
         AddChild(_virtualControls);
-        GameStateBridge.Set("virtual_controls", _virtualControls);
-        _virtualControls.SetEnabled(GameStateBridge.Get("touch_controls").AsBool());
+        GameState.Instance.VirtualControls = _virtualControls;
+        _virtualControls.SetEnabled(GameState.Instance.TouchControls);
         if (gs != null && !gs.IsConnected("TouchControlsChanged", _onTouchControlsChanged))
         {
             gs.Connect("TouchControlsChanged", _onTouchControlsChanged);
@@ -186,7 +185,7 @@ public partial class Main : Node2D
         // 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
         _chargeGhost.SetPhysicsProcess(false);
         // C14：蓄力虚影居中取可见世界中心，不写死 960
-        _chargeGhost.Position = new Vector2(GameStateBridge.Call("view_world_rect").AsRect2().GetCenter().X, _chargeGhost.HoverY);
+        _chargeGhost.Position = new Vector2(GameState.Instance.ViewWorldRect().GetCenter().X, _chargeGhost.HoverY);
         var ghostMod = _chargeGhost.Modulate;
         ghostMod.A = 0.15f;
         _chargeGhost.Modulate = ghostMod;
@@ -195,7 +194,7 @@ public partial class Main : Node2D
         // 账户系统（2026-08-04）：welcome 主场景已确认入口——有存档=「继续对局」启动即恢复
         // （main 侧自加载，welcome 不重复加载）；无存档=新开局（_apply_new_run 负责开场演出与
         // 死亡回放录制起点，原由 StartPanel 信号触发）
-        if (GameStateBridge.Call("has_save").AsBool())
+        if (GameState.Instance.HasSave())
         {
             OnContinueRun();
         }
@@ -209,16 +208,16 @@ public partial class Main : Node2D
     {
         // 子弹时间内退出（重开/测试结束）也要保证全局速度复位
         Engine.TimeScale = 1.0f;
-        var camRef = GameStateBridge.Get("camera_ref");
-        if (camRef.AsGodotObject() == _camera)
+        var camRef = GameState.Instance.CameraRef;
+        if (camRef == _camera)
         {
-            GameStateBridge.Set("camera_ref", new Variant());
+            GameState.Instance.CameraRef = null;
         }
 
         _fogEvents.SetRunActive(false);
         // C22 模式（M6）：GameState 信号显式断开——退出时 GameState 先于本节点释放的
         // 时序下连接悬空可致退出 segfault（M5 实测定位；原 GDScript 自动断开，C# 需手动）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs == null)
         {
             return;
@@ -332,7 +331,7 @@ public partial class Main : Node2D
             breath = _metaFx.BreathScale();
         }
 
-        _camera.Zoom = Vector2.One * (float)GameStateBridge.Call("view_zoom_factor").AsDouble() * breath;
+        _camera.Zoom = Vector2.One * (float)GameState.Instance.ViewZoomFactor() * breath;
     }
 
     public override void _Process(double delta)
@@ -477,7 +476,7 @@ public partial class Main : Node2D
     /// 与虚影同位（960, HOVER_Y），世界坐标；环半径 160 为设计值 × world_scale。</summary>
     private void BuildChargeFx()
     {
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         _chargeFx = new Node2D();
         // C14：与虚影同位（复用 _charge_ghost.position.x，不写死 960）
         _chargeFx.Position = new Vector2(_chargeGhost.Position.X, _chargeGhost.HoverY);
@@ -544,7 +543,7 @@ public partial class Main : Node2D
     private async Task ReportStartupTime()
     {
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        GD.Print(GdFormat("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameStateBridge.Get("boot_ticks_msec").AsInt64()));
+        GD.Print(GdFormat("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
     }
 
     private void StartBgm()
@@ -658,7 +657,7 @@ public partial class Main : Node2D
 
     private void OnContinueRun()
     {
-        var data = GameStateBridge.Call("load_run_data").AsGodotDictionary();
+        var data = GameState.Instance.LoadRunData();
         if (data.Count == 0)
         {
             // 存档损坏已被 GameState 隔离备份：回退为新对局（数据层本就在默认态），不留死路径
@@ -666,11 +665,11 @@ public partial class Main : Node2D
             return;
         }
 
-        GameStateBridge.Call("apply_run_save", data);
+        GameState.Instance.ApplyRunSave(data);
         var fuelV = data.GetValueOrDefault("fuel", Variant.From(_player.FuelMax));
-        _player.SetFuel((float)GameStateBridge.Call("save_num", fuelV, _player.FuelMax).AsDouble());
+        _player.SetFuel((float)GameState.Instance.SaveNum(fuelV, _player.FuelMax));
         var elapsedV = data.GetValueOrDefault("elapsed", Variant.From(0.0f));
-        _spawner.SetElapsed((float)GameStateBridge.Call("save_num", elapsedV, 0.0f).AsDouble());
+        _spawner.SetElapsed((float)GameState.Instance.SaveNum(elapsedV, 0.0f));
         // D01 印证：continue 后同样存在入场动画窗口（敌机生成延迟由入场序列接管），
         // 与开场 _on_intro_finished / 继续出击 _on_orbital_struck 同构；is_connected 守卫可幂等调用
         StartEntrySequenceInternal();
@@ -821,13 +820,13 @@ public partial class Main : Node2D
     private void OnSummonWindowFinished()
     {
         _summonWindow = null;
-        var gatePos = new Vector2(GameStateBridge.Call("view_world_rect").AsRect2().GetCenter().X, _chargeGhost.HoverY);
+        var gatePos = new Vector2(GameState.Instance.ViewWorldRect().GetCenter().X, _chargeGhost.HoverY);
         var gate = new WarpGate
         {
             Position = gatePos,
         };
         AddChild(gate);
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.mothership_summon.shake_gate", 6.0));
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
         _mothership = MothershipScene.Instantiate<Mothership>();
         _mothership.BeginWarpIn(gatePos, gate);
         _mothership.Departed += OnMothershipDepartedInternal;
@@ -840,20 +839,20 @@ public partial class Main : Node2D
         // mothership_recall buff：每层冷却 ×0.5（60s→30s→15s）
         _dockCooldown = cooldown
             * Mathf.Pow(
-                (float)GameStateBridge.Call("cfg", "buffs.mothership_recall.cooldown_factor", 0.5).AsDouble(),
-                GameStateBridge.Call("buff_count", new StringName("mothership_recall")).AsInt32());
+                (float)GameState.Instance.Cfg("buffs.mothership_recall.cooldown_factor", 0.5).AsDouble(),
+                GameState.Instance.BuffCount(new StringName("mothership_recall")));
     }
 
     /// <summary>放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）</summary>
     private void GiveUp()
     {
-        var health = (float)GameStateBridge.Get("health").AsDouble();
+        var health = (float)GameState.Instance.Health;
         if (_player.IsDead() || health <= 0.0f)
         {
             return;
         }
 
-        GameStateBridge.Call("lose_health", health);
+        GameState.Instance.LoseHealth(health);
         _player.Die();
     }
 
@@ -892,14 +891,14 @@ public partial class Main : Node2D
         if (_mothership != null)
         {
             _mothership.QueueFree();
-            OnMothershipDepartedInternal((float)GameStateBridge.Call("cfg", "mothership.depart_cooldown", 60.0).AsDouble());
+            OnMothershipDepartedInternal((float)GameState.Instance.Cfg("mothership.depart_cooldown", 60.0).AsDouble());
         }
 
         // 遭遇事件（轰炸编队/精英炮塔）进行中则打断：编队解散离场/航母完整撤离，无结算，
         // 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
         _events.EndActive(_events.GROUP_ENCOUNTER);
         // 返航后存档保留更新，供「继续对局」使用
-        GameStateBridge.Call("save_run", _player.FuelAmount(), _spawner.Elapsed());
+        GameState.Instance.SaveRun(_player.FuelAmount(), _spawner.Elapsed());
         _starfield.Warp(18.0f); // 保留：过场镜头 1 的充能与星光拉伸自然衔接
         PlayReturnCinematic();
     }
@@ -926,7 +925,7 @@ public partial class Main : Node2D
         // 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：非 Boss 单位逐机播爆炸
         // （原 GDScript for_each_enemy 以 Callable 谓词过滤；C# 侧无 Func 重载，
         // 语义等价直迭代 GameState.enemies 注册表——M2 注释即预告随调用方迁移由 C# 实现）
-        var enemies = GameStateBridge.Get("enemies").AsGodotArray();
+        var enemies = (Godot.Collections.Array)GameState.Instance.Enemies;
         foreach (var nodeV in enemies)
         {
             var e = nodeV.AsGodotObject() as Node;

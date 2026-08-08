@@ -290,7 +290,7 @@ public partial class BossMovement : RefCounted
             if (_dashing)
             {
                 // 偏向屏幕中心方向冲刺，避免长期贴边（C14：中心取可见世界，不写死 960）
-                var centerX = GameStateBridge.Call("view_world_rect").AsRect2().GetCenter().X;
+                var centerX = GameState.Instance.ViewWorldRect().GetCenter().X;
                 _strafeDir = GD.Randf() < 0.6f ? Mathf.Sign(centerX - boss.Get(PropPosition).AsVector2().X) : -_strafeDir;
                 if (_strafeDir == 0.0f)
                 {

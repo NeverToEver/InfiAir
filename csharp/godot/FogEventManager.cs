@@ -299,8 +299,7 @@ public partial class FogEventManager : Node
     /// <summary>统一管理器访问（GameState.events；autoload 子节点恒存在，挂载前调用属接线顺序错误）。</summary>
     private GameEventManager Events()
     {
-        var v = GameStateBridge.Get("events");
-        return (v.VariantType == Variant.Type.Object ? v.AsGodotObject() as GameEventManager : null)!;
+        return GameState.Instance.Events;
     }
 
     // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------

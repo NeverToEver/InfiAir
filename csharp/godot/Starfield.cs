@@ -82,7 +82,7 @@ public partial class Starfield : Node2D
         // C07：星点范围随可见世界区域而非写死 1920×1080；M5：区域锚点 = 可见区左上角
         var rng = new RandomNumberGenerator();
         rng.Seed = 12345;
-        var view = gameState.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         _areaSize = view.Size;
         _origin = view.Position;
         _far = new Vector2[_farCount];

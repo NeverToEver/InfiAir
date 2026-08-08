@@ -15,7 +15,6 @@ namespace InfiAir;
 /// skip() 幂等：立即发 finished（供测试/流程直推）。
 /// M6 全量迁移（2026-08-08 自 scripts/mothership_summon_window.gd）：CanvasLayer 子类；
 /// signal finished → [Signal] Finished（main.gd 连接处改连 PascalCase 名，主代理集中处理）；
-/// UITheme/ChamferedPanel/CinematicFx 为 C# typed 直调；GameState 经 GameStateBridge 动态访问。
 /// </summary>
 public partial class MothershipSummonWindow : CanvasLayer
 {
@@ -84,10 +83,10 @@ public partial class MothershipSummonWindow : CanvasLayer
     public override void _Ready()
     {
         Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
-        OpenTime = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.window.open_time", OpenTime).AsDouble();
-        CloseTime = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.window.close_time", CloseTime).AsDouble();
+        OpenTime = (float)GameState.Instance.Cfg("effects.mothership_summon.window.open_time", OpenTime).AsDouble();
+        CloseTime = (float)GameState.Instance.Cfg("effects.mothership_summon.window.close_time", CloseTime).AsDouble();
         // H13（健壮性审核）：shot_durations 判型/判长回退——短数组/非数组时用默认，防 _ready 崩溃
-        var durs = GameStateBridge.Call("cfg", "effects.mothership_summon.window.shot_durations", Variant.From(_shotDurations));
+        var durs = GameState.Instance.Cfg("effects.mothership_summon.window.shot_durations", Variant.From(_shotDurations));
         if (durs.VariantType == Variant.Type.Array && durs.AsGodotArray().Count >= 3)
         {
             var arr = durs.AsGodotArray();
@@ -383,7 +382,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             _subtitle.Text = (string)Tr(ShotKeys[idx]);
             if (idx == 2)
             {
-                GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -4.0, 0.6);
+                GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -4.0, 0.6);
                 _flash.Color = new Color(WarpBlue, 0.55f);
                 // 弹射起步冲击环（出仓点，一次性自毁）
                 var launchSw = CinematicFx.Shockwave(new Godot.Collections.Dictionary

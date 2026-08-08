@@ -13,7 +13,6 @@ namespace InfiAir;
 /// 语义保持：P1-3 磁吸/锥形弱追踪/输入反比/距离衰减（Player.dist_falloff_curve 单实现）；
 /// marked_target_at 渲染帧缓存；player_ref/enemies 每渲染帧一次静态缓存（Enemy.cs
 /// CachedPlayer 模式，避免逐帧跨语言动态访问）。
-/// 迁移期动态访问：GameState 经 GameStateBridge；Player 为 C# 类（InfiAir.Player，M3c 并行迁移）。
 /// </summary>
 public partial class AimFrameLayer : Node2D
 {
@@ -61,8 +60,8 @@ public partial class AimFrameLayer : Node2D
         if (frame != _cacheFrame)
         {
             _cacheFrame = frame;
-            _framePlayer = GameStateBridge.Get("player_ref");
-            _frameEnemies = GameStateBridge.Get("enemies").AsGodotArray();
+            _framePlayer = GameState.Instance.PlayerRef!;
+            _frameEnemies = (Godot.Collections.Array)GameState.Instance.Enemies;
         }
 
         return _frameEnemies;
@@ -71,24 +70,24 @@ public partial class AimFrameLayer : Node2D
     private static Player? CachedPlayer()
     {
         CachedEnemies();
-        return _framePlayer.VariantType != Variant.Type.Nil ? _framePlayer.AsGodotObject() as Player : null;
+        return _framePlayer.AsGodotObject() as Player;
     }
 
     public override void _Ready()
     {
         ZIndex = 9;  // 世界实体之上、准星（10）之下
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
-            gs.Set("aim_frame_layer", this);
+            gs.AimFrameLayer = this;
         }
 
         LoadLevelParams();
-        _magnetInputMin = (float)GameStateBridge.Call("cfg", "player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
-        _magnetInputFull = (float)GameStateBridge.Call("cfg", "player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
-        _falloffPeak = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
-        _falloffEnd = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.end", _falloffEnd).AsDouble();
-        _falloffMin = (float)GameStateBridge.Call("cfg", "player.aim_assist.falloff.min", _falloffMin).AsDouble();
+        _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
+        _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
+        _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
+        _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
+        _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
         if (gs != null)
         {
             gs.Connect("AimAssistChanged", _onAimAssistChanged);
@@ -98,7 +97,7 @@ public partial class AimFrameLayer : Node2D
     public override void _ExitTree()
     {
         // G016：显式断开档位信号（对齐 player.gd C22 模式），节点未 free 重新入树不重复连接
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (gs.IsConnected("AimAssistChanged", _onAimAssistChanged))
@@ -106,9 +105,9 @@ public partial class AimFrameLayer : Node2D
                 gs.Disconnect("AimAssistChanged", _onAimAssistChanged);
             }
 
-            if (gs.Get("aim_frame_layer").AsGodotObject() == this)
+            if (gs.AimFrameLayer == this)
             {
-                gs.Set("aim_frame_layer", new Variant());  // Nil → 置 null
+                gs.AimFrameLayer = null;  // 清注册
             }
         }
     }
@@ -116,11 +115,11 @@ public partial class AimFrameLayer : Node2D
     /// <summary>档位参数重读（_ready 初始 + aim_assist_changed 信号驱动）。</summary>
     private void LoadLevelParams()
     {
-        var basePath = "player.aim_assist.levels." + GameStateBridge.Get("aim_assist_level").AsStringName().ToString() + ".";
-        _framePad = (float)GameStateBridge.Call("cfg", basePath + "frame_pad", _framePad).AsDouble();
-        _magnetRange = (float)GameStateBridge.Call("cfg", basePath + "magnet_range", _magnetRange).AsDouble();
-        _magnetStrength = (float)GameStateBridge.Call("cfg", basePath + "magnet_strength", _magnetStrength).AsDouble();
-        _magnetMaxSpeed = (float)GameStateBridge.Call("cfg", basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
+        var basePath = "player.aim_assist.levels." + GameState.Instance.AimAssistLevel.ToString() + ".";
+        _framePad = (float)GameState.Instance.Cfg(basePath + "frame_pad", _framePad).AsDouble();
+        _magnetRange = (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble();
+        _magnetStrength = (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble();
+        _magnetMaxSpeed = (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
     }
 
     private void OnAimAssistLevelChanged(StringName level)

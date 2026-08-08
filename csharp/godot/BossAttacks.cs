@@ -119,14 +119,14 @@ public partial class BossAttacks : RefCounted
         if (f != _frame)
         {
             _frame = f;
-            _frameView = GameStateBridge.Call("view_world_rect").AsRect2();
-            _framePlayer = GameStateBridge.Get("player_ref");
+            _frameView = GameState.Instance.ViewWorldRect();
+            _framePlayer = GameState.Instance.PlayerRef!;
         }
 
         return _frameView;
     }
 
-    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameStateBridge.Get("player_ref");
+    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public BossAttacks()
     {
@@ -185,7 +185,7 @@ public partial class BossAttacks : RefCounted
             return;
         }
 
-        GameStateBridge.Call("play_sfx", tell.Sfx!, -8.0, tell.Pitch);
+        GameState.Instance.PlaySfx(tell.Sfx!, -8.0, tell.Pitch);
         var ring = (Node2D)CinematicFx.Shockwave(
             new Godot.Collections.Dictionary
             {
@@ -712,7 +712,7 @@ public partial class BossAttacks : RefCounted
     /// <summary>敌弹池发射（P2-3：同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
     private GodotObject? FireFromPool(Vector2 dir, float speed, int damage)
     {
-        var pool = (GodotObject?)GameStateBridge.Get("bullet_pool");
+        var pool = (GodotObject?)GameState.Instance.BulletPool;
         if (pool == null)
         {
             return null;

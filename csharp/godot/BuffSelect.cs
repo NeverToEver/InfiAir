@@ -5,7 +5,6 @@ namespace InfiAir;
 /// <summary>
 /// 里程碑 Buff 三选一：达到里程碑阈值触发，暂停游戏并弹出 3 张卡片。
 /// M5 全量迁移（2026-08-08 自 scripts/buff_select.gd）。
-/// 迁移期动态访问：GameState（GDScript autoload）经 GameStateBridge；UITheme/ChamferedPanel/BuffIcons 为 C# 类 typed 直调。
 /// </summary>
 public partial class BuffSelect : CanvasLayer
 {
@@ -74,7 +73,7 @@ public partial class BuffSelect : CanvasLayer
         _cards.Alignment = BoxContainer.AlignmentMode.Center;
         vbox.AddChild(_cards);
 
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             gs.Connect("MilestoneReached", _onMilestoneReached);
@@ -85,7 +84,7 @@ public partial class BuffSelect : CanvasLayer
     public override void _ExitTree()
     {
         // C22：显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (gs.IsConnected("MilestoneReached", _onMilestoneReached))
@@ -107,12 +106,12 @@ public partial class BuffSelect : CanvasLayer
         foreach (var b in BuffPool)
         {
             var id = b["id"].AsStringName();
-            if ((int)GameStateBridge.Call("buff_count", id).AsInt64()
-                < (int)GameStateBridge.Call("cfg", "buffs." + (string)id + ".max_stacks", b["max"]).AsInt64()
-                && !(bool)GameStateBridge.Call("is_buff_locked", id).AsBool()
+            if ((int)GameState.Instance.BuffCount(id)
+                < (int)GameState.Instance.Cfg("buffs." + (string)id + ".max_stacks", b["max"]).AsInt64()
+                && !(bool)GameState.Instance.IsBuffLocked(id)
                 && (Explosive != id
-                    || (int)GameStateBridge.Get("boss_kills").AsInt64()
-                    >= (int)GameStateBridge.Call("cfg", "buffs.explosive.unlock_boss_kills", 3).AsInt64()))
+                    || (int)GameState.Instance.BossKills
+                    >= (int)GameState.Instance.Cfg("buffs.explosive.unlock_boss_kills", 3).AsInt64()))
             {
                 result.Add(b);
             }
@@ -123,7 +122,7 @@ public partial class BuffSelect : CanvasLayer
 
     private void OnMilestoneReached(long _milestoneScore)
     {
-        if (Visible || GameStateBridge.Get("health").AsDouble() <= 0.0)
+        if (Visible || GameState.Instance.Health <= 0.0)
         {
             return;
         }
@@ -216,9 +215,9 @@ public partial class BuffSelect : CanvasLayer
         margin.AddChild(vbox);
         vbox.AddThemeConstantOverride("separation", 8);
 
-        var stacks = (int)GameStateBridge.Call("buff_count", id).AsInt64();
+        var stacks = (int)GameState.Instance.BuffCount(id);
         // 上限口径与 _available_buffs() 相同：balance.json 可覆盖池内值
-        var maxStacks = (int)GameStateBridge.Call("cfg", "buffs." + (string)id + ".max_stacks", buff["max"]).AsInt64();
+        var maxStacks = (int)GameState.Instance.Cfg("buffs." + (string)id + ".max_stacks", buff["max"]).AsInt64();
 
         // 顶部大字形槽：坞瓦片同款 socket（分类色描边 + 内框，76×76），三卡统一槽位高度，保证垂直节奏一致
         var glyphSlot = new CenterContainer { CustomMinimumSize = new Vector2(0.0f, 80.0f) };
@@ -274,7 +273,7 @@ public partial class BuffSelect : CanvasLayer
         };
         dividerWrap.AddChild(divider);
         var kindKey = "BUFF_KIND_GENERAL";
-        var routeLines = GameStateBridge.Get("ROUTE_LINES").AsGodotDictionary();
+        var routeLines = GameState.Instance.ROUTE_LINES;
         if (routeLines["offense"].AsGodotArray().Contains(id))
         {
             kindKey = "BUFF_KIND_OFFENSE";
@@ -338,11 +337,11 @@ public partial class BuffSelect : CanvasLayer
             return;
         }
 
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
-        GameStateBridge.Call("add_buff", id);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+        GameState.Instance.AddBuff(id);
         if (id == ExtraLife)
         {
-            GameStateBridge.Call("heal", GameStateBridge.Call("cfg", "buffs.extra_life.heal_on_pick", 30));
+            GameState.Instance.Heal(GameState.Instance.Cfg("buffs.extra_life.heal_on_pick", 30).AsDouble());
         }
 
         Visible = false;
@@ -374,12 +373,12 @@ public partial class BuffSelect : CanvasLayer
 
         if (picked)
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
-            GameStateBridge.Call("add_buff", id);
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+            GameState.Instance.AddBuff(id);
             if (id == ExtraLife)
             {
                 // 对齐原作：选取瞬时 +30 HP（上限 +50 由 max_health() 按层数自动生效）
-                GameStateBridge.Call("heal", GameStateBridge.Call("cfg", "buffs.extra_life.heal_on_pick", 30));
+                GameState.Instance.Heal(GameState.Instance.Cfg("buffs.extra_life.heal_on_pick", 30).AsDouble());
             }
 
             // 2026-08-03 审计：card == null 死分支删除——唯一连接点恒传非空 card，直调走 pick_buff()

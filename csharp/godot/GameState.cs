@@ -421,9 +421,9 @@ public partial class GameState : Node
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。
     /// 存储承载于 snake 字段（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
-    public double JoyAimSpeed { get => joy_aim_speed; set => joy_aim_speed = value; }
+    public double JoyAimSpeed { get; set; } = 1400.0;
 
-    public double JoyDeadzone { get => joy_deadzone; set => joy_deadzone = value; }
+    public double JoyDeadzone { get; set; } = 0.5;
 
     /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）。</summary>
     public StringName JoyLayout { get; set; } = new StringName("xbox");
@@ -498,35 +498,35 @@ public partial class GameState : Node
 
     /// <summary>难度档位（profile 持久化，默认 medium）。
     /// 存储承载于 snake 字段 difficulty（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
-    public StringName Difficulty { get => difficulty; set => difficulty = value; }
+    public StringName Difficulty { get; set; } = new StringName("medium");
 
     /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）</summary>
-    public bool CtrlToggleMode { get => ctrl_toggle_mode; set => ctrl_toggle_mode = value; }
+    public bool CtrlToggleMode { get; set; } = false;
 
-    public bool ShiftToggleMode { get => shift_toggle_mode; set => shift_toggle_mode = value; }
+    public bool ShiftToggleMode { get; set; } = false;
 
     /// <summary>触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
-    public bool TouchControls { get => touch_controls; set => touch_controls = value; }
+    public bool TouchControls { get; set; } = false;
 
     /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
-    public StringName ViewZoom { get => view_zoom; set => view_zoom = value; }
+    public StringName ViewZoom { get; set; } = new StringName("small");
 
     /// <summary>窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）</summary>
-    public StringName WindowSize { get => window_size; set => window_size = value; }
+    public StringName WindowSize { get; set; } = new StringName("large");
 
     /// <summary>瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
-    public StringName AimAssistLevel { get => aim_assist_level; set => aim_assist_level = value; }
+    public StringName AimAssistLevel { get; set; } = new StringName("medium");
 
     /// <summary>Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
     /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）</summary>
     public int MetaFxLod { get; set; } = 1;
 
     /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
-    public bool ReduceFlash { get => reduce_flash; set => reduce_flash = value; }
+    public bool ReduceFlash { get; set; } = false;
 
     /// <summary>鼠标锁定窗口内（profile 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
-    public bool MouseLock { get => mouse_lock; set => mouse_lock = value; }
+    public bool MouseLock { get; set; } = true;
 
     /// <summary>buff id -> 已选层数</summary>
     public Godot.Collections.Dictionary Buffs { get; set; } = new();
@@ -588,6 +588,29 @@ public partial class GameState : Node
     public bool SaveCorrupt { get; set; } = false;
 
     public bool ProfileCorrupt { get; set; } = false;
+
+    /// 静态缓存——autoload 在 root 下恒存在，测试进程同样适用）</summary>
+    private static GameState? _instance;
+
+    public static GameState Instance
+    {
+        get
+        {
+            if (_instance != null && GodotObject.IsInstanceValid(_instance))
+            {
+                return _instance;
+            }
+
+            var tree = (SceneTree?)Engine.GetMainLoop();
+            _instance = tree?.Root?.GetNodeOrNull<GameState>("GameState");
+            if (_instance == null)
+            {
+                throw new InvalidOperationException("GameState autoload 不可用");
+            }
+
+            return _instance;
+        }
+    }
 
     public override void _EnterTree()
     {
@@ -1618,7 +1641,7 @@ public partial class GameState : Node
 
     /// <summary>当前语言（"zh"/"en"，profile 持久化）。
     /// 存储承载于 snake 字段 locale（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
-    public string Locale { get => locale; set => locale = value; }
+    public string Locale { get; set; } = "zh";
 
     public void SetLocale(string pLocale)
     {
@@ -2822,360 +2845,7 @@ public partial class GameState : Node
 
     // ---------------- GDScript 鸭子调用兼容桥（M7 过渡，删除前） ----------------
     // 调用方：63 个 GDScript 测试（test/*.gd 的 GameState.xxx）+ csharp/godot/*.cs
-    // （GameStateBridge.Get/Call/Set("snake")）——属性/方法 snake 别名转发 PascalCase 主体。
     // 桥属性（snake → PascalCase）：
 
-    public int score { get => Score; set => Score = value; }
 
-    public int kills { get => Kills; set => Kills = value; }
-
-    public int boss_kills { get => BossKills; set => BossKills = value; }
-
-    public double health { get => Health; set => Health = value; }
-
-    public double difficulty_multiplier { get => DifficultyMultiplier; set => DifficultyMultiplier = value; }
-
-    /// <summary>snake 字段桥（M7 过渡，删除前）：存储承载字段——PascalCase 属性转发此处；
-    /// 字段不生成 set_xxx 访问器，避免与 set_xxx() 桥方法同名冲突（CS0082）。</summary>
-    public StringName difficulty = new StringName("medium");
-
-    public bool ctrl_toggle_mode = false;
-
-    public bool shift_toggle_mode = false;
-
-    public bool touch_controls = false;
-
-    public StringName view_zoom = new StringName("small");
-
-    public StringName window_size = new StringName("large");
-
-    public StringName aim_assist_level = new StringName("medium");
-
-    public int meta_fx_lod { get => MetaFxLod; set => MetaFxLod = value; }
-
-    public bool reduce_flash = false;
-
-    public bool mouse_lock = true;
-
-    public Godot.Collections.Dictionary buffs { get => Buffs; set => Buffs = value; }
-
-    public int rp { get => Rp; set => Rp = value; }
-
-    public double run_time { get => RunTime; set => RunTime = value; }
-
-    public Godot.Collections.Dictionary missions { get => Missions; set => Missions = value; }
-
-    public Godot.Collections.Dictionary chosen_routes { get => ChosenRoutes; set => ChosenRoutes = value; }
-
-    public Godot.Collections.Dictionary locked_routes { get => LockedRoutes; set => LockedRoutes = value; }
-
-    public int refresh_points { get => RefreshPoints; set => RefreshPoints = value; }
-
-    public int high_score { get => HighScore; set => HighScore = value; }
-
-    public bool tutorial_done { get => TutorialDone; set => TutorialDone = value; }
-
-    public string current_user { get => CurrentUser; set => CurrentUser = value; }
-
-    public string locale = "zh"; // snake 字段桥（存储承载；M7 过渡，删除前）
-
-    public double joy_aim_speed = 1400.0; // snake 字段桥（存储承载；M7 过渡，删除前）
-
-    public double joy_deadzone = 0.5; // snake 字段桥（存储承载；M7 过渡，删除前）
-
-    public StringName joy_layout { get => JoyLayout; set => JoyLayout = value; }
-
-    public double world_scale { get => WorldScale; set => WorldScale = value; }
-
-    public Godot.Collections.Array<int> milestone_base { get => MilestoneBase; set => MilestoneBase = value; }
-
-    public double milestone_cycle_mult { get => MilestoneCycleMult; set => MilestoneCycleMult = value; }
-
-    public Godot.Collections.Dictionary key_bindings { get => KeyBindings; set => KeyBindings = value; }
-
-    public Godot.Collections.Array<Node> enemies => Enemies;
-
-    public Godot.Collections.Array<GodotObject> enemy_bullets => EnemyBullets;
-
-    public Node2D? player_ref { get => PlayerRef; set => PlayerRef = value; }
-
-    public Area2D? player_hitbox { get => PlayerHitbox; set => PlayerHitbox = value; }
-
-    public GodotObject? bullet_pool { get => BulletPool; set => BulletPool = value; }
-
-    public GodotObject? enemy_pool { get => EnemyPool; set => EnemyPool = value; }
-
-    public GodotObject? aim_frame_layer { get => AimFrameLayer; set => AimFrameLayer = value; }
-
-    public GodotObject? virtual_controls { get => VirtualControls; set => VirtualControls = value; }
-
-    public Camera2D? camera_ref { get => CameraRef; set => CameraRef = value; }
-
-    public FogEventManager fog_events => FogEvents;
-
-    public GameEventManager events => Events;
-
-    public bool save_corrupt { get => SaveCorrupt; set => SaveCorrupt = value; }
-
-    public bool profile_corrupt { get => ProfileCorrupt; set => ProfileCorrupt = value; }
-
-    public Godot.Collections.Array<Godot.Collections.Dictionary> highscores { get => Highscores; set => Highscores = value; }
-
-    public int boot_ticks_msec { get => BootTicksMsec; set => BootTicksMsec = value; }
-
-    // 桥方法（snake → PascalCase）：
-
-    public void _enter_tree() => _EnterTree();
-
-    public void _ready() => _Ready();
-
-    public void _process(double delta) => _Process(delta);
-
-    public bool has_balance() => HasBalance();
-
-    public void reload_balance() => ReloadBalance();
-
-    public Variant cfg(string path, Variant defaultValue) => Cfg(path, defaultValue);
-
-    public void register_enemy(Node node) => RegisterEnemy(node);
-
-    public void bind_enemy(Node node) => BindEnemy(node);
-
-    public void unbind_enemy(Node node) => UnbindEnemy(node);
-
-    public void for_each_enemy(Variant action) => ForEachEnemy(action);
-
-    public void for_each_enemy(Variant action, Variant predicate) => ForEachEnemy(action, predicate);
-
-    public int clear_enemies() => ClearEnemies();
-
-    public int clear_enemies(Variant predicate) => ClearEnemies(predicate);
-
-    public int count_enemies() => CountEnemies();
-
-    public int count_enemies(Variant predicate) => CountEnemies(predicate);
-
-    public void register_enemy_bullet(GodotObject b) => RegisterEnemyBullet(b);
-
-    public void unregister_enemy_bullet(GodotObject b) => UnregisterEnemyBullet(b);
-
-    public bool enemies_has(Node node) => EnemiesHas(node);
-
-    public void unregister_enemy(Node node) => UnregisterEnemy(node);
-
-    public void play_sfx(AudioStream stream) => PlaySfx(stream);
-
-    public void play_sfx(AudioStream stream, double volumeDb) => PlaySfx(stream, volumeDb);
-
-    public void play_sfx(AudioStream stream, double volumeDb, double pitchScale) => PlaySfx(stream, volumeDb, pitchScale);
-
-    public void stop_all_sfx() => StopAllSfx();
-
-    public void shake(double strength) => Shake(strength);
-
-    public void reset_run() => ResetRun();
-
-    public void add_score(int points) => AddScore(points);
-
-    public void set_difficulty(StringName pDifficulty) => SetDifficulty(pDifficulty);
-
-    public string difficulty_label() => DifficultyLabel();
-
-    public int score_multiplier() => ScoreMultiplier();
-
-    public bool dda_active() => DdaActive();
-
-    public double dda_factor() => DdaFactor();
-
-    public void reset_dda() => ResetDda();
-
-    public double enemy_hp_multiplier() => EnemyHpMultiplier();
-
-    public double enemy_speed_multiplier() => EnemySpeedMultiplier();
-
-    public float enemy_hp_ramp() => EnemyHpRamp();
-
-    public float enemy_damage_ramp() => EnemyDamageRamp();
-
-    public double spawn_interval_multiplier() => SpawnIntervalMultiplier();
-
-    public int spread_enemy_cap() => SpreadEnemyCap();
-
-    public double passive_regen_delay() => PassiveRegenDelay();
-
-    public double passive_regen_rate() => PassiveRegenRate();
-
-    public int milestone_threshold(int index) => MilestoneThreshold(index);
-
-    public void set_milestone_override(int threshold) => SetMilestoneOverride(threshold);
-
-    public int milestone_count() => MilestoneCount();
-
-    public void set_milestone_count(int count) => SetMilestoneCount(count);
-
-    public int next_milestone() => NextMilestone();
-
-    public void recompute_difficulty() => RecomputeDifficulty();
-
-    public void set_ctrl_toggle_mode(bool enabled) => SetCtrlToggleMode(enabled);
-
-    public void set_shift_toggle_mode(bool enabled) => SetShiftToggleMode(enabled);
-
-    public void set_touch_controls(bool enabled) => SetTouchControls(enabled);
-
-    public void set_view_zoom(StringName level) => SetViewZoom(level);
-
-    public double view_zoom_factor() => ViewZoomFactor();
-
-    public void set_view_zoom_factor(double factor) => SetViewZoomFactor(factor);
-
-    public void set_window_size(StringName level) => SetWindowSize(level);
-
-    public void set_aim_assist_level(StringName level) => SetAimAssistLevel(level);
-
-    public void set_reduce_flash(bool enabled) => SetReduceFlash(enabled);
-
-    public void set_mouse_lock(bool enabled) => SetMouseLock(enabled);
-
-    public void set_joy_aim_speed(double value) => SetJoyAimSpeed(value);
-
-    public void set_joy_deadzone(double value) => SetJoyDeadzone(value);
-
-    public void persist_joy_settings() => PersistJoySettings();
-
-    public Rect2 view_world_rect() => ViewWorldRect();
-
-    public Rect2 view_world_rect(double margin) => ViewWorldRect(margin);
-
-    public void add_kill() => AddKill();
-
-    public void add_boss_kill() => AddBossKill();
-
-    public void add_boss_kill(double scoreScale) => AddBossKill(scoreScale);
-
-    public double max_health() => MaxHealth();
-
-    public void lose_health() => LoseHealth();
-
-    public void lose_health(double amount) => LoseHealth(amount);
-
-    public void heal(double amount) => Heal(amount);
-
-    public void try_lifesteal() => TryLifesteal();
-
-    public int buff_count(StringName id) => BuffCount(id);
-
-    public void add_buff(StringName id) => AddBuff(id);
-
-    public bool consume_buff(StringName id) => ConsumeBuff(id);
-
-    public void apply_key_bindings() => ApplyKeyBindings();
-
-    public bool rebind_action(StringName action, int keycode) => RebindAction(action, keycode);
-
-    public void reset_key_bindings() => ResetKeyBindings();
-
-    public string action_keys_text(StringName action) => ActionKeysText(action);
-
-    public bool is_ps_guid(string guid) => IsPsGuid(guid);
-
-    public string joy_button_label(int button) => JoyButtonLabel(button);
-
-    public void set_locale(string pLocale) => SetLocale(pLocale);
-
-    public void add_rp(int amount) => AddRp(amount);
-
-    public bool spend_rp(int amount) => SpendRp(amount);
-
-    public void reset_missions() => ResetMissions();
-
-    public Godot.Collections.Array<StringName> active_mission_ids() => ActiveMissionIds();
-
-    public int mission_goal(StringName id) => MissionGoal(id);
-
-    public int mission_progress(StringName id) => MissionProgress(id);
-
-    public bool is_mission_done(StringName id) => IsMissionDone(id);
-
-    public bool is_mission_claimed(StringName id) => IsMissionClaimed(id);
-
-    public bool claim_mission(StringName id) => ClaimMission(id);
-
-    public void grant_refresh_points() => GrantRefreshPoints();
-
-    public void grant_refresh_points(int amount) => GrantRefreshPoints(amount);
-
-    public bool can_refresh_missions() => CanRefreshMissions();
-
-    public bool refresh_missions() => RefreshMissions();
-
-    public bool choose_route(StringName line, StringName buffId) => ChooseRoute(line, buffId);
-
-    public bool is_buff_locked(StringName buffId) => IsBuffLocked(buffId);
-
-    public void login_user(string name) => LoginUser(name);
-
-    public void login_guest() => LoginGuest();
-
-    public void logout_user() => LogoutUser();
-
-    public bool is_guest() => IsGuest();
-
-    public bool legacy_migration_pending() => LegacyMigrationPending();
-
-    public void scan_legacy_migration() => ScanLegacyMigration();
-
-    public void clear_legacy_migration() => ClearLegacyMigration();
-
-    public bool create_user(string name, string password) => CreateUser(name, password);
-
-    public bool verify_user(string name, string password) => VerifyUser(name, password);
-
-    public bool user_exists(string name) => UserExists(name);
-
-    public Godot.Collections.Array<String> list_usernames() => ListUsernames();
-
-    public void reload_user_db() => ReloadUserDb();
-
-    public string get_last_login_user() => GetLastLoginUser();
-
-    public bool delete_user(string name, string password) => DeleteUser(name, password);
-
-    public Godot.Collections.Array get_leaderboard() => GetLeaderboard();
-
-    public Godot.Collections.Dictionary get_user_settings(string name) => GetUserSettings(name);
-
-    public void update_user_settings(string name, Godot.Collections.Dictionary settings) => UpdateUserSettings(name, settings);
-
-    public Godot.Collections.Dictionary get_user_data(string name) => GetUserData(name);
-
-    public string user_db_savefile_for(string name) => UserDbSavefileFor(name);
-
-    public void save_run(double fuel, double elapsed) => SaveRun(fuel, elapsed);
-
-    public bool has_save() => HasSave();
-
-    public Godot.Collections.Dictionary load_run_data() => LoadRunData();
-
-    public double save_num(Variant v, double defaultValue) => SaveNum(v, defaultValue);
-
-    public bool save_bool(Variant v, bool defaultValue) => SaveBool(v, defaultValue);
-
-    public void apply_run_save(Godot.Collections.Dictionary data) => ApplyRunSave(data);
-
-    public void delete_save() => DeleteSave();
-
-    public void load_profile() => LoadProfile();
-
-    public void save_profile() => SaveProfile();
-
-    public bool record_score() => RecordScore();
-
-    public void record_game_over() => RecordGameOver();
-
-    public int submit_highscore(int runScore) => SubmitHighscore(runScore);
-
-    public string highscores_text() => HighscoresText();
-
-    public string highscores_text(int limit) => HighscoresText(limit);
 }

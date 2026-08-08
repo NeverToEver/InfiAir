@@ -133,16 +133,16 @@ public partial class Spawner : Node
         // L06（2026-08-03 审查）：间隔键下限钳制（H15 同族遗漏）——wave_interval_start ≤ 0 时
         // _current_interval 的 clampf 上界 ≤0 返回负值，_wave_timer 恒 ≤0 每帧刷一波（预告线
         // /Timer 无界增长挂死）；ramp_time ≤ 0 时 ramp 曲线瞬时跳变
-        WAVE_INTERVAL_START = Mathf.Max((float)GameStateBridge.Call("cfg", "spawner.wave_interval_start", WAVE_INTERVAL_START).AsDouble(), 0.05f);
-        WAVE_INTERVAL_END = Mathf.Max((float)GameStateBridge.Call("cfg", "spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), 0.05f);
-        RAMP_TIME = Mathf.Max((float)GameStateBridge.Call("cfg", "spawner.ramp_time", RAMP_TIME).AsDouble(), 0.01f);
-        INTERVAL_MIN = Mathf.Max((float)GameStateBridge.Call("cfg", "spawner.interval_min", INTERVAL_MIN).AsDouble(), 0.0f);
-        BOSS_SCORE_STEP = (int)GameStateBridge.Call("cfg", "spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble();
-        BOSS_MIN_INTERVAL = (float)GameStateBridge.Call("cfg", "spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble();
-        BOSS_TIME_LIMIT = (float)GameStateBridge.Call("cfg", "spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble();
-        DIFFICULTY_FACTOR = (float)GameStateBridge.Call("cfg", "spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();
+        WAVE_INTERVAL_START = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_start", WAVE_INTERVAL_START).AsDouble(), 0.05f);
+        WAVE_INTERVAL_END = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), 0.05f);
+        RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("spawner.ramp_time", RAMP_TIME).AsDouble(), 0.01f);
+        INTERVAL_MIN = Mathf.Max((float)GameState.Instance.Cfg("spawner.interval_min", INTERVAL_MIN).AsDouble(), 0.0f);
+        BOSS_SCORE_STEP = (int)GameState.Instance.Cfg("spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble();
+        BOSS_MIN_INTERVAL = (float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble();
+        BOSS_TIME_LIMIT = (float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble();
+        DIFFICULTY_FACTOR = (float)GameState.Instance.Cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();
         // C18：cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
-        var us = GameStateBridge.Call("cfg", "spawner.unlock_scores", UNLOCK_SCORES);
+        var us = GameState.Instance.Cfg("spawner.unlock_scores", UNLOCK_SCORES);
         var usArr = new Godot.Collections.Array<int>();
         if (us.VariantType == Variant.Type.Array)
         {
@@ -158,14 +158,14 @@ public partial class Spawner : Node
         }
 
         UNLOCK_SCORES = usArr.Count > 0 ? usArr : new Godot.Collections.Array<int> { 0, 300, 800, 1500, 2500 };
-        WAVE_SIZE_START = (int)GameStateBridge.Call("cfg", "spawner.wave_size_start", WAVE_SIZE_START).AsDouble();
-        WAVE_SIZE_END = (int)GameStateBridge.Call("cfg", "spawner.wave_size_end", WAVE_SIZE_END).AsDouble();
-        SPECIAL_GAP_MIN = (int)GameStateBridge.Call("cfg", "spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble();
-        SPECIAL_GAP_MAX = (int)GameStateBridge.Call("cfg", "spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble();
-        REST_WAVES_AFTER_KILL = (int)GameStateBridge.Call("cfg", "spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble();
-        ELITE_WAVE_SIZE = (int)GameStateBridge.Call("cfg", "spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble();
+        WAVE_SIZE_START = (int)GameState.Instance.Cfg("spawner.wave_size_start", WAVE_SIZE_START).AsDouble();
+        WAVE_SIZE_END = (int)GameState.Instance.Cfg("spawner.wave_size_end", WAVE_SIZE_END).AsDouble();
+        SPECIAL_GAP_MIN = (int)GameState.Instance.Cfg("spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble();
+        SPECIAL_GAP_MAX = (int)GameState.Instance.Cfg("spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble();
+        REST_WAVES_AFTER_KILL = (int)GameState.Instance.Cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble();
+        ELITE_WAVE_SIZE = (int)GameState.Instance.Cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble();
         // G06：嵌套结构判型（对齐 C03/E03 损坏 JSON 回退默认口径）——手改 JSON 使 band 非 2 元素数组时不崩溃
-        var band = GameStateBridge.Call("cfg", "enemies.hover_band", new Godot.Collections.Array { _hoverBand.X, _hoverBand.Y });
+        var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { _hoverBand.X, _hoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
         {
             var bandArr = band.AsGodotArray();
@@ -177,7 +177,7 @@ public partial class Spawner : Node
 
         // 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）自 2026-08-05 起由
         // 统一事件管理器读取（scripts/event_manager.gd _load_balance，键不变）
-        var normal = GameStateBridge.Call("cfg", "enemies.types", new Godot.Collections.Array());
+        var normal = GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array());
         if (normal.VariantType == Variant.Type.Array)
         {
             var normalArr = normal.AsGodotArray();
@@ -187,7 +187,7 @@ public partial class Spawner : Node
             }
         }
 
-        var elites = GameStateBridge.Call("cfg", "elites.types", new Godot.Collections.Array());
+        var elites = GameState.Instance.Cfg("elites.types", new Godot.Collections.Array());
         if (elites.VariantType == Variant.Type.Array)
         {
             var elitesArr = elites.AsGodotArray();
@@ -270,7 +270,7 @@ public partial class Spawner : Node
         // 长度钳制：UNLOCK_SCORES 由 json 覆盖（_apply_balance）时可能短于 ENEMY_TYPES.size()，防越界
         for (var i = 0; i < Mathf.Min(ENEMY_TYPES.Count, UNLOCK_SCORES.Count); i++)
         {
-            if (GameStateBridge.Get("score").AsInt32() >= UNLOCK_SCORES[i])
+            if (GameState.Instance.Score >= UNLOCK_SCORES[i])
             {
                 pool.Add(ENEMY_TYPES[i]);
             }
@@ -290,8 +290,8 @@ public partial class Spawner : Node
     /// 2026-08-05：统一实体管理器 count_enemies 批量 API（docs/ENTITY_MANAGER.md）。</summary>
     private int CountSpreadEnemiesInternal()
     {
-        return GameStateBridge.Call("count_enemies", Callable.From<GodotObject, bool>(e =>
-            e is Enemy enemy && enemy.BulletType == "spread" && !enemy.IsExiting())).AsInt32();
+        return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
+            e is Enemy enemy && enemy.BulletType == "spread" && !enemy.IsExiting()));
     }
 
     /// <summary>从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）。
@@ -306,7 +306,7 @@ public partial class Spawner : Node
         }
 
         var btype = (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
-        if (btype == "spread" && CountSpreadEnemiesInternal() >= GameStateBridge.Call("spread_enemy_cap").AsInt32())
+        if (btype == "spread" && CountSpreadEnemiesInternal() >= GameState.Instance.SpreadEnemyCap())
         {
             btype = (bool)config.GetValueOrDefault("elite", false) ? new StringName("laser") : new StringName("single");
         }
@@ -319,7 +319,7 @@ public partial class Spawner : Node
     {
         var pool = UnlockedTypes();
         var n = WaveSizeInternal();
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         for (var i = 0; i < n; i++)
         {
             var config = pool[(int)(GD.Randi() % (uint)pool.Count)];
@@ -332,7 +332,7 @@ public partial class Spawner : Node
     /// <summary>精英波：占用特殊槽，ELITE_WAVE_SIZE 个精英均布入场；击杀触发休整。</summary>
     private void SpawnEliteWaveInternal()
     {
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         for (var i = 0; i < ELITE_WAVE_SIZE; i++)
         {
             var config = ELITE_TYPES[(int)(GD.Randi() % (uint)ELITE_TYPES.Count)];
@@ -346,7 +346,7 @@ public partial class Spawner : Node
     {
         var pool = UnlockedTypes();
         var config = pool[(int)(GD.Randi() % (uint)pool.Count)];
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         QueueEnemy(
             config,
             (float)GD.RandRange(view.Position.X + 60.0f, view.End.X - 60.0f),
@@ -359,12 +359,12 @@ public partial class Spawner : Node
         var strategies = (Godot.Collections.Array<StringName>)config["strategies"];
         var strategy = strategies[(int)(GD.Randi() % (uint)strategies.Count)];
         var btype = PickBulletTypeInternal(config);
-        var view = GameStateBridge.Call("view_world_rect").AsRect2();
+        var view = GameState.Instance.ViewWorldRect();
         // R07：telegraph 时长判型 + 下限钳制（L 系列判型族登记遗留）——0/负值使
         // 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认。
         // 2026-08-06 审计：时长同步注入预告线实例（原视觉 DURATION 硬编码 0.6，调参时
         // 视觉寿命与敌机出现时刻脱钩——预告线自毁与 _schedule 计时两套时钟）
-        var td = GameStateBridge.Call("cfg", "spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
+        var td = GameState.Instance.Cfg("spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
         var telegraphDuration = Mathf.Max(
             td.VariantType == Variant.Type.Float || td.VariantType == Variant.Type.Int
                 ? (float)td.AsDouble()
@@ -383,9 +383,9 @@ public partial class Spawner : Node
     /// <summary>预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）。</summary>
     private void OnTelegraphTimeout(Godot.Collections.Dictionary config, StringName strategy, StringName btype, float x, float anchor, bool special)
     {
-        var e = ((EnemyPool)GameStateBridge.Get("enemy_pool").AsGodotObject()).Spawn(
-            config, strategy, (float)GameStateBridge.Get("difficulty_multiplier").AsDouble(),
-            new Vector2(x, GameStateBridge.Call("view_world_rect").AsRect2().Position.Y - 60.0f), btype);
+        var e = ((EnemyPool)GameState.Instance.EnemyPool!).Spawn(
+            config, strategy, (float)GameState.Instance.DifficultyMultiplier,
+            new Vector2(x, GameState.Instance.ViewWorldRect().Position.Y - 60.0f), btype);
         e.AnchorY = anchor;
         if (special)
         {
@@ -410,8 +410,8 @@ public partial class Spawner : Node
     /// 作为 Main 的子节点，与正常敌机走同一套清场逻辑（返航/结算）。</summary>
     public Enemy SpawnMinion(Vector2 pos)
     {
-        return ((EnemyPool)GameStateBridge.Get("enemy_pool").AsGodotObject()).Spawn(
-            ENEMY_TYPES[0], new StringName("straight"), (float)GameStateBridge.Get("difficulty_multiplier").AsDouble(), pos);
+        return ((EnemyPool)GameState.Instance.EnemyPool!).Spawn(
+            ENEMY_TYPES[0], new StringName("straight"), (float)GameState.Instance.DifficultyMultiplier, pos);
     }
 
     /// <summary>Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。</summary>
@@ -420,7 +420,7 @@ public partial class Spawner : Node
         _bossActive = true;
         _wavesSinceSpecial = 0; // Boss 占用特殊槽
         EmitSignal(SignalName.BossWarning);
-        GameStateBridge.Call("shake", GameStateBridge.Call("cfg", "effects.shake.boss_warning", 14.0));
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_warning", 14.0).AsDouble());
         Schedule(2.0f, () => SpawnBossInternal(0));
     }
 
@@ -430,13 +430,13 @@ public partial class Spawner : Node
         _bossActive = true;
         if (pType <= 0)
         {
-            pType = GameStateBridge.Get("boss_kills").AsInt32() % 4 + 1; // 2026-08-04：轮换扩 4 型（月蚀）
+            pType = GameState.Instance.BossKills % 4 + 1; // 2026-08-04：轮换扩 4 型（月蚀）
         }
 
         var boss = _bossScene.Instantiate<Boss>();
-        boss.Setup((float)GameStateBridge.Get("difficulty_multiplier").AsDouble(), pType);
+        boss.Setup((float)GameState.Instance.DifficultyMultiplier, pType);
         boss.SetSpawner(this); // A5：依赖注入，替代 Boss 侧 group 现找
-        var view = GameStateBridge.Call("view_world_rect").AsRect2(); // D10：Boss 入场锚点统一 view 基线
+        var view = GameState.Instance.ViewWorldRect(); // D10：Boss 入场锚点统一 view 基线
         boss.Position = new Vector2(view.GetCenter().X, view.Position.Y - 160.0f);
         boss.Died += () => OnBossDied(boss);
         boss.Escaped += OnBossEscaped;
@@ -505,7 +505,7 @@ public partial class Spawner : Node
     {
         // G01 修复（H1 扩展）：预警 2s 窗口内取消须解除占用（SpawnBossInternal 未执行则无 died/escaped 复位
         // 路径）；Boss 已生成在场上则由注册表判定——存活 Boss 存在时保持 _bossActive 占用
-        if (GameStateBridge.Call("count_enemies", Callable.From<GodotObject, bool>(e => e is Boss)).AsInt32() == 0)
+        if (GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e => e is Boss)) == 0)
         {
             _bossActive = false;
         }
@@ -558,7 +558,7 @@ public partial class Spawner : Node
 
         _bossTimer += d;
         // 分数触发需同时越过最小间隔（防分数暴涨期战后连出 Boss）；时间兜底不受此限
-        if (!_bossActive && ((GameStateBridge.Get("score").AsInt32() >= _nextBossScore && _bossTimer >= BOSS_MIN_INTERVAL) || _bossTimer >= BOSS_TIME_LIMIT))
+        if (!_bossActive && ((GameState.Instance.Score >= _nextBossScore && _bossTimer >= BOSS_MIN_INTERVAL) || _bossTimer >= BOSS_TIME_LIMIT))
         {
             // 精英炮塔事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
             if (_bossFrozen)
@@ -576,14 +576,14 @@ public partial class Spawner : Node
     {
         var baseInterval = Mathf.Lerp(WAVE_INTERVAL_START, WAVE_INTERVAL_END, Mathf.Clamp(_elapsed / RAMP_TIME, 0.0f, 1.0f));
         // 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
-        var interval = baseInterval * (float)GameStateBridge.Call("spawn_interval_multiplier").AsDouble()
-            / (1.0f + DIFFICULTY_FACTOR * ((float)GameStateBridge.Get("difficulty_multiplier").AsDouble() - 1.0f));
+        var interval = baseInterval * (float)GameState.Instance.SpawnIntervalMultiplier()
+            / (1.0f + DIFFICULTY_FACTOR * ((float)GameState.Instance.DifficultyMultiplier - 1.0f));
         // B 梯队（fair plan §8）：DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
         // clamp 上界同步乘因子，避免拉长效果被上限吞掉
         return Mathf.Clamp(
-            interval * (float)GameStateBridge.Call("dda_factor").AsDouble(),
+            interval * (float)GameState.Instance.DdaFactor(),
             INTERVAL_MIN,
-            WAVE_INTERVAL_START * (float)GameStateBridge.Call("spawn_interval_multiplier").AsDouble() * (float)GameStateBridge.Call("dda_factor").AsDouble());
+            WAVE_INTERVAL_START * (float)GameState.Instance.SpawnIntervalMultiplier() * (float)GameState.Instance.DdaFactor());
     }
 
     // ---------------- 对外公开接口（A1 修复） ----------------

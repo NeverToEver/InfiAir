@@ -9,7 +9,6 @@ namespace InfiAir;
 /// 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
 /// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
 /// 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
-/// 迁移期：GameState 经 GameStateBridge（热路径 player_ref 帧缓存）；BulletPool/Bullet 为 C# 类
 /// 经动态派发（Call/Set，Bullet 的 SetMeta 不注册引擎表——snake_case "set_meta"）；
 /// HpBar 为 GDScript SegmentedBar（untyped Control，自定义属性经引擎 Set 走属性 setter）。
 /// </summary>
@@ -70,7 +69,7 @@ public partial class TurretBattery : Area2D
         if (f != _frame)
         {
             _frame = f;
-            _framePlayer = GameStateBridge.Get("player_ref");
+            _framePlayer = GameState.Instance.PlayerRef!;
         }
 
         return _framePlayer;
@@ -96,21 +95,21 @@ public partial class TurretBattery : Area2D
 
     public override void _Ready()
     {
-        GameStateBridge.Call("bind_enemy", this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
         // 数值配置缓存（启动一次读入）
-        SingleSpeed = (float)GameStateBridge.Call("cfg", "enemies.bullet_speed", SingleSpeed).AsDouble();
-        SpreadSpeed = (float)GameStateBridge.Call("cfg", "enemies.spread_bullet_speed", SpreadSpeed).AsDouble();
-        LaserSpeed = (float)GameStateBridge.Call("cfg", "enemies.laser_bullet_speed", LaserSpeed).AsDouble();
-        HomingSpeed = (float)GameStateBridge.Call("cfg", "boss.homing_bullet_speed", HomingSpeed).AsDouble();
-        SniperSpeed = (float)GameStateBridge.Call("cfg", "boss.sniper_bullet_speed", SniperSpeed).AsDouble();
-        SpreadFanStep = (float)GameStateBridge.Call("cfg", "enemies.spread_fan_step", SpreadFanStep).AsDouble();
-        DmgSingle = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.single", DmgSingle).AsInt64();
-        DmgSpread = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.spread", DmgSpread).AsInt64();
-        DmgLaser = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.laser", DmgLaser).AsInt64();
-        DmgHoming = (int)GameStateBridge.Call("cfg", "boss.bullet_damage.homing", DmgHoming).AsInt64();
-        DmgSniper = (int)GameStateBridge.Call("cfg", "boss.bullet_damage.sniper", DmgSniper).AsInt64();
+        SingleSpeed = (float)GameState.Instance.Cfg("enemies.bullet_speed", SingleSpeed).AsDouble();
+        SpreadSpeed = (float)GameState.Instance.Cfg("enemies.spread_bullet_speed", SpreadSpeed).AsDouble();
+        LaserSpeed = (float)GameState.Instance.Cfg("enemies.laser_bullet_speed", LaserSpeed).AsDouble();
+        HomingSpeed = (float)GameState.Instance.Cfg("boss.homing_bullet_speed", HomingSpeed).AsDouble();
+        SniperSpeed = (float)GameState.Instance.Cfg("boss.sniper_bullet_speed", SniperSpeed).AsDouble();
+        SpreadFanStep = (float)GameState.Instance.Cfg("enemies.spread_fan_step", SpreadFanStep).AsDouble();
+        DmgSingle = (int)GameState.Instance.Cfg("enemies.bullet_damage.single", DmgSingle).AsInt64();
+        DmgSpread = (int)GameState.Instance.Cfg("enemies.bullet_damage.spread", DmgSpread).AsInt64();
+        DmgLaser = (int)GameState.Instance.Cfg("enemies.bullet_damage.laser", DmgLaser).AsInt64();
+        DmgHoming = (int)GameState.Instance.Cfg("boss.bullet_damage.homing", DmgHoming).AsInt64();
+        DmgSniper = (int)GameState.Instance.Cfg("boss.bullet_damage.sniper", DmgSniper).AsInt64();
         // 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _sprite.Scale = Vector2.One * ws;
         if (GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D bodyCircle)
@@ -129,12 +128,12 @@ public partial class TurretBattery : Area2D
         _hpBar.Set("fill_color", new Color(1.0f, 0.25f, 0.75f)); // 精英品红
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
         // P1-6：击杀震动强度缓存
-        _shakeDie = (float)GameStateBridge.Call("cfg", "effects.shake.enemy_die", _shakeDie).AsDouble();
+        _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
 
     public override void _ExitTree()
     {
-        GameStateBridge.Call("unbind_enemy", this); // 统一解绑（docs/ENTITY_MANAGER.md）
+        GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
     }
 
     /// <summary>升起充能动画（盖板旋开炮塔升起，约 rise_time 秒；期间不可被攻击）。</summary>
@@ -238,7 +237,7 @@ public partial class TurretBattery : Area2D
         else if (ammo == "weak_homing")
         {
             var dir = FireDir();
-            var pool = (GodotObject?)GameStateBridge.Get("bullet_pool");
+            var pool = (GodotObject?)GameState.Instance.BulletPool;
             if (pool == null)
             {
                 return;
@@ -277,7 +276,7 @@ public partial class TurretBattery : Area2D
 
     private void SpawnBullet(Vector2 dir, float bulletSpeed, int dmg, StringName pType)
     {
-        var pool = (GodotObject?)GameStateBridge.Get("bullet_pool");
+        var pool = (GodotObject?)GameState.Instance.BulletPool;
         if (pool == null)
         {
             return;
@@ -344,8 +343,8 @@ public partial class TurretBattery : Area2D
 
     public void Die()
     {
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"));
-        GameStateBridge.Call("shake", _shakeDie);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.Shake(_shakeDie);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);
         EmitSignal(SignalName.Died, this);
         QueueFree();

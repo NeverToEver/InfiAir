@@ -100,7 +100,7 @@ public partial class VirtualControls : CanvasLayer
 
     /// <summary>触屏瞄准基准（无鼠标时瞄准点起点）：可见世界中心。
     /// player.aim_point() 在虚拟控件启用时以它为 raw 基准，右摇杆增量偏移（同手柄语义）。</summary>
-    public Vector2 BaseAimPosition() => GameStateBridge.Call("view_world_rect").AsRect2().GetCenter();
+    public Vector2 BaseAimPosition() => GameState.Instance.ViewWorldRect().GetCenter();
 
     /// <summary>当前左摇杆向量（0..1，测试/诊断）</summary>
     public Vector2 MoveVec() => _moveVec;

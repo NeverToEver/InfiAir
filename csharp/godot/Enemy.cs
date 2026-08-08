@@ -8,7 +8,6 @@ namespace InfiAir;
 /// （下降→悬停机动）；寿命离场（不给分不计击杀）；分裂者；体碰信号事件驱动（P0-2）；
 /// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点（P0-5）。
 /// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、view_world_rect 每物理帧缓存（静态共享）。
-/// 迁移期动态访问：GameState 经 GameStateBridge；Player 为 GDScript 类（M3c 前）鸭子调用；
 /// CinematicFx 为 GDScript 静态（经脚本资源 Call/Get）。
 /// </summary>
 public partial class Enemy : Area2D
@@ -104,14 +103,14 @@ public partial class Enemy : Area2D
         if (f != _frame)
         {
             _frame = f;
-            _frameView = GameStateBridge.Call("view_world_rect").AsRect2();
-            _framePlayer = GameStateBridge.Get("player_ref");
+            _frameView = GameState.Instance.ViewWorldRect();
+            _framePlayer = GameState.Instance.PlayerRef!;
         }
 
         return _frameView;
     }
 
-    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameStateBridge.Get("player_ref");
+    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public Enemy()
     {
@@ -120,22 +119,22 @@ public partial class Enemy : Area2D
 
     public override void _Ready()
     {
-        GameStateBridge.Call("bind_enemy", this); // 统一绑定：add_to_group("enemy") + 注册 + entity_registered
-        EnemyBulletSpeed = (float)GameStateBridge.Call("cfg", "enemies.bullet_speed", EnemyBulletSpeed).AsDouble();
-        SpreadBulletSpeed = (float)GameStateBridge.Call("cfg", "enemies.spread_bullet_speed", SpreadBulletSpeed).AsDouble();
-        LaserBulletSpeed = (float)GameStateBridge.Call("cfg", "enemies.laser_bullet_speed", LaserBulletSpeed).AsDouble();
-        BulletDamageSingle = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.single", BulletDamageSingle).AsInt64();
-        BulletDamageSpread = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.spread", BulletDamageSpread).AsInt64();
-        BulletDamageLaser = (int)GameStateBridge.Call("cfg", "enemies.bullet_damage.laser", BulletDamageLaser).AsInt64();
-        CollisionDamage = (int)GameStateBridge.Call("cfg", "enemies.collision_damage", CollisionDamage).AsInt64();
-        SlowFieldFactor = (float)GameStateBridge.Call("cfg", "buffs.slow_field.factor", SlowFieldFactor).AsDouble();
-        SpreadFanStep = (float)GameStateBridge.Call("cfg", "enemies.spread_fan_step", SpreadFanStep).AsDouble();
-        Lifetime = (float)GameStateBridge.Call("cfg", "enemies.lifetime", Lifetime).AsDouble();
-        ExitAccel = (float)GameStateBridge.Call("cfg", "enemies.exit_accel", ExitAccel).AsDouble();
-        AggrChaseSpeed = (float)GameStateBridge.Call("cfg", "enemies.aggressive_chase_speed", AggrChaseSpeed).AsDouble();
-        FireInterval = (float)GameStateBridge.Call("cfg", "enemies.fire_interval", FireInterval).AsDouble();
+        GameState.Instance.BindEnemy(this); // 统一绑定：add_to_group("enemy") + 注册 + entity_registered
+        EnemyBulletSpeed = (float)GameState.Instance.Cfg("enemies.bullet_speed", EnemyBulletSpeed).AsDouble();
+        SpreadBulletSpeed = (float)GameState.Instance.Cfg("enemies.spread_bullet_speed", SpreadBulletSpeed).AsDouble();
+        LaserBulletSpeed = (float)GameState.Instance.Cfg("enemies.laser_bullet_speed", LaserBulletSpeed).AsDouble();
+        BulletDamageSingle = (int)GameState.Instance.Cfg("enemies.bullet_damage.single", BulletDamageSingle).AsInt64();
+        BulletDamageSpread = (int)GameState.Instance.Cfg("enemies.bullet_damage.spread", BulletDamageSpread).AsInt64();
+        BulletDamageLaser = (int)GameState.Instance.Cfg("enemies.bullet_damage.laser", BulletDamageLaser).AsInt64();
+        CollisionDamage = (int)GameState.Instance.Cfg("enemies.collision_damage", CollisionDamage).AsInt64();
+        SlowFieldFactor = (float)GameState.Instance.Cfg("buffs.slow_field.factor", SlowFieldFactor).AsDouble();
+        SpreadFanStep = (float)GameState.Instance.Cfg("enemies.spread_fan_step", SpreadFanStep).AsDouble();
+        Lifetime = (float)GameState.Instance.Cfg("enemies.lifetime", Lifetime).AsDouble();
+        ExitAccel = (float)GameState.Instance.Cfg("enemies.exit_accel", ExitAccel).AsDouble();
+        AggrChaseSpeed = (float)GameState.Instance.Cfg("enemies.aggressive_chase_speed", AggrChaseSpeed).AsDouble();
+        FireInterval = (float)GameState.Instance.Cfg("enemies.fire_interval", FireInterval).AsDouble();
         // H19：hover_band 判型回退（防非数组 _ready 崩溃）
-        var band = GameStateBridge.Call("cfg", "enemies.hover_band", new Godot.Collections.Array { HoverBand.X, HoverBand.Y });
+        var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { HoverBand.X, HoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
         {
             var arr = band.AsGodotArray();
@@ -145,13 +144,13 @@ public partial class Enemy : Area2D
             }
         }
 
-        HoverBobAmp = (float)GameStateBridge.Call("cfg", "enemies.hover_bob_amp", HoverBobAmp).AsDouble();
-        HoverBobFreq = (float)GameStateBridge.Call("cfg", "enemies.hover_bob_freq", HoverBobFreq).AsDouble();
-        HoverSwayAmp = (float)GameStateBridge.Call("cfg", "enemies.hover_sway_amp", HoverSwayAmp).AsDouble();
-        HoverSwayFreq = (float)GameStateBridge.Call("cfg", "enemies.hover_sway_freq", HoverSwayFreq).AsDouble();
-        SpiralDriftAmp = (float)GameStateBridge.Call("cfg", "enemies.spiral_drift_amp", SpiralDriftAmp).AsDouble();
-        SpiralDriftFreq = (float)GameStateBridge.Call("cfg", "enemies.spiral_drift_freq", SpiralDriftFreq).AsDouble();
-        SpiralRadius = (float)GameStateBridge.Call("cfg", "enemies.spiral_radius", SpiralRadius).AsDouble();
+        HoverBobAmp = (float)GameState.Instance.Cfg("enemies.hover_bob_amp", HoverBobAmp).AsDouble();
+        HoverBobFreq = (float)GameState.Instance.Cfg("enemies.hover_bob_freq", HoverBobFreq).AsDouble();
+        HoverSwayAmp = (float)GameState.Instance.Cfg("enemies.hover_sway_amp", HoverSwayAmp).AsDouble();
+        HoverSwayFreq = (float)GameState.Instance.Cfg("enemies.hover_sway_freq", HoverSwayFreq).AsDouble();
+        SpiralDriftAmp = (float)GameState.Instance.Cfg("enemies.spiral_drift_amp", SpiralDriftAmp).AsDouble();
+        SpiralDriftFreq = (float)GameState.Instance.Cfg("enemies.spiral_drift_freq", SpiralDriftFreq).AsDouble();
+        SpiralRadius = (float)GameState.Instance.Cfg("enemies.spiral_radius", SpiralRadius).AsDouble();
         // 每个实例独立形状，避免共享 sub_resource 半径互相影响
         _shape = GetNode<CollisionShape2D>("CollisionShape2D");
         if (_shape.Shape != null)
@@ -166,14 +165,14 @@ public partial class Enemy : Area2D
         _strategy.Reset(this);
         // 尾焰软光点（P0-5 副轨）
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
-        _tailGlow = (Sprite2D)CinematicFx.SoftGlow(glowRadius * (float)GameStateBridge.Get("world_scale").AsDouble(), TailGlowColor);
+        _tailGlow = (Sprite2D)CinematicFx.SoftGlow(glowRadius * (float)GameState.Instance.WorldScale, TailGlowColor);
         _tailGlow.ShowBehindParent = true;
         AddChild(_tailGlow);
         UpdateTailGlow();
-        _shakeDieNormal = (float)GameStateBridge.Call("cfg", "effects.shake.enemy_die", _shakeDieNormal).AsDouble();
-        _shakeDieElite = (float)GameStateBridge.Call("cfg", "effects.shake.elite_die", _shakeDieElite).AsDouble();
-        _slowFieldOn = (int)GameStateBridge.Call("buff_count", new StringName("slow_field")) > 0;
-        var gs = GameStateBridge.Instance;
+        _shakeDieNormal = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDieNormal).AsDouble();
+        _shakeDieElite = (float)GameState.Instance.Cfg("effects.shake.elite_die", _shakeDieElite).AsDouble();
+        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Connect("BuffsChanged", _onBuffsChanged);
@@ -188,15 +187,15 @@ public partial class Enemy : Area2D
         // Q19：池化 reparent 只注销注册表、不发 entity_unregistered
         if (_repooling)
         {
-            GameStateBridge.Call("unregister_enemy", this);
+            GameState.Instance.UnregisterEnemy(this);
         }
         else
         {
-            GameStateBridge.Call("unbind_enemy", this);
+            GameState.Instance.UnbindEnemy(this);
         }
 
         // L02：buff 信号断开（C22 模式；池化 reparent 复用由 Reactivate 对称重连）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Disconnect("BuffsChanged", _onBuffsChanged);
@@ -222,8 +221,8 @@ public partial class Enemy : Area2D
             1,
             (int)Mathf.Round(
                 GD.RandRange(hpRange.X, hpRange.Y)
-                * (float)GameStateBridge.Call("enemy_hp_multiplier").AsDouble()
-                * (1.0f + (float)GameStateBridge.Call("cfg", "enemies.hp_ramp_factor", HpRampFactor).AsDouble() * (pDifficulty - 1.0f))));
+                * (float)GameState.Instance.EnemyHpMultiplier()
+                * (1.0f + (float)GameState.Instance.Cfg("enemies.hp_ramp_factor", HpRampFactor).AsDouble() * (pDifficulty - 1.0f))));
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
         FireInterval = (float)config.GetValueOrDefault("fire_interval", 2.2).AsDouble();
@@ -238,15 +237,15 @@ public partial class Enemy : Area2D
             : (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
-            * (1.0f + (float)GameStateBridge.Call("cfg", "enemies.speed_ramp_factor", SpeedRampFactor).AsDouble() * (pDifficulty - 1.0f))
-            * (float)GameStateBridge.Call("enemy_speed_multiplier").AsDouble();
+            * (1.0f + (float)GameState.Instance.Cfg("enemies.speed_ramp_factor", SpeedRampFactor).AsDouble() * (pDifficulty - 1.0f))
+            * (float)GameState.Instance.EnemySpeedMultiplier();
         var sprite = GetNode<Sprite2D>("Sprite2D");
         var shapeNode = GetNode<CollisionShape2D>("CollisionShape2D");
         sprite.Texture = (Texture2D)config["texture"];
-        AimMarked = GD.Randf() < (float)GameStateBridge.Call("cfg", "player.aim_assist.mark_ratio", 0.25).AsDouble();
+        AimMarked = GD.Randf() < (float)GameState.Instance.Cfg("player.aim_assist.mark_ratio", 0.25).AsDouble();
         var sc = (float)config.GetValueOrDefault("scale", 0.85).AsDouble();
-        sprite.Scale = new Vector2(sc, sc) * (float)GameStateBridge.Get("world_scale").AsDouble();
-        var hitR = (float)config.GetValueOrDefault("radius", 30.0).AsDouble() * (float)GameStateBridge.Get("world_scale").AsDouble();
+        sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
+        var hitR = (float)config.GetValueOrDefault("radius", 30.0).AsDouble() * (float)GameState.Instance.WorldScale;
         if (shapeNode.Shape is CircleShape2D circle)
         {
             circle.Radius = hitR;
@@ -290,7 +289,7 @@ public partial class Enemy : Area2D
         Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
         // L02：池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
         {
             gs.Connect("BuffsChanged", _onBuffsChanged);
@@ -317,7 +316,7 @@ public partial class Enemy : Area2D
         }
 
         _flashTimer = 0.0f; // P1-2：闪白计时复位
-        GameStateBridge.Call("register_enemy", this);
+        GameState.Instance.RegisterEnemy(this);
         Setup(config, pStrategy, pDifficulty, pBulletType);
         UpdateTailGlow();
         _spawnX = Position.X;
@@ -341,7 +340,7 @@ public partial class Enemy : Area2D
         Visible = false;
         SetPhysicsProcess(false);
         _bodyContact = false; // P0-2：回收后 area_exited 未必投递
-        GameStateBridge.Call("unregister_enemy", this);
+        GameState.Instance.UnregisterEnemy(this);
         // 断开 died 信号的全部连接（死亡回放等监听方；C# [Signal] 连接不随接收方自动断开）
         foreach (var conn in GetSignalConnectionList(SignalName.Died))
         {
@@ -408,12 +407,11 @@ public partial class Enemy : Area2D
             SpawnSplitMinis();
         }
 
-        GameStateBridge.Call("add_score", (int)(ScoreValue * _scoreScale));
-        GameStateBridge.Call("add_kill");
-        GameStateBridge.Call("try_lifesteal");
-        GameStateBridge.Call(
-            "play_sfx", GameStateBridge.Get(IsElite ? "SFX_EXPLOSION_BIG" : "SFX_EXPLOSION"));
-        GameStateBridge.Call("shake", IsElite ? _shakeDieElite : _shakeDieNormal);
+        GameState.Instance.AddScore((int)(ScoreValue * _scoreScale));
+        GameState.Instance.AddKill();
+        GameState.Instance.TryLifesteal();
+        GameState.Instance.PlaySfx(IsElite ? GameState.Instance.SFX_EXPLOSION_BIG : GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.Shake(IsElite ? _shakeDieElite : _shakeDieNormal);
         Explosion.SpawnAt(GetParent(), GlobalPosition, IsElite ? 1.5f : 1.0f);
         EmitSignal(SignalName.Died, this);
         DespawnInternal();
@@ -564,7 +562,7 @@ public partial class Enemy : Area2D
     /// <summary>slow_field 缓存刷新（热路径禁字典约定）。</summary>
     private void OnBuffsChanged()
     {
-        _slowFieldOn = (int)GameStateBridge.Call("buff_count", new StringName("slow_field")) > 0;
+        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
     }
 
     /// <summary>A4a：按 strategy 构建移动策略实例（共享悬停常量注入；Q29 策略专属参数覆盖）。</summary>
@@ -581,7 +579,7 @@ public partial class Enemy : Area2D
             ["spiral_radius"] = SpiralRadius,
             ["aggressive_chase_speed"] = AggrChaseSpeed,
         };
-        var msRaw = GameStateBridge.Call("cfg", "enemies.move_strategies", new Godot.Collections.Dictionary());
+        var msRaw = GameState.Instance.Cfg("enemies.move_strategies", new Godot.Collections.Dictionary());
         if (msRaw.VariantType == Variant.Type.Dictionary)
         {
             var strategyCfg = ((Godot.Collections.Dictionary)msRaw.AsGodotDictionary()).GetValueOrDefault(Strategy, new Godot.Collections.Dictionary());
@@ -640,7 +638,7 @@ public partial class Enemy : Area2D
         _tailGlow.Modulate = IsElite ? TailGlowColorElite : TailGlowColor;
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
         var softTexSize = (float)(float)CinematicFx.SoftTexSize;
-        _tailGlow.Scale = Vector2.One * (glowRadius * (float)GameStateBridge.Get("world_scale").AsDouble() / (softTexSize * 0.5f));
+        _tailGlow.Scale = Vector2.One * (glowRadius * (float)GameState.Instance.WorldScale / (softTexSize * 0.5f));
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         var texH = 190.0f;
         if (_sprite != null && _sprite.Texture != null)
@@ -680,7 +678,7 @@ public partial class Enemy : Area2D
         var p = (GodotObject)player;
         p.Call(
             "take_damage",
-            Mathf.Max(1, (int)Mathf.Round(CollisionDamage * (float)GameStateBridge.Call("enemy_damage_ramp").AsDouble())),
+            Mathf.Max(1, (int)Mathf.Round(CollisionDamage * (float)GameState.Instance.EnemyDamageRamp())),
             GlobalPosition);
     }
 
@@ -788,7 +786,7 @@ public partial class Enemy : Area2D
         if (CanShoot)
         {
             // B 梯队：DDA 降档拉长开火间隔（只拉间隔不降收益）
-            _fireTimer -= d / (float)GameStateBridge.Call("dda_factor").AsDouble();
+            _fireTimer -= d / (float)GameState.Instance.DdaFactor();
             if (_fireTimer <= 0.0f)
             {
                 _fireTimer = FireInterval;
@@ -851,7 +849,7 @@ public partial class Enemy : Area2D
             dmg = BulletDamageLaser;
         }
 
-        var pool = (GodotObject?)GameStateBridge.Get("bullet_pool");
+        var pool = (GodotObject?)GameState.Instance.BulletPool;
         if (pool == null)
         {
             return;
@@ -900,7 +898,7 @@ public partial class Enemy : Area2D
     /// <summary>分裂者死亡生成 2 小机：缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂。</summary>
     private void SpawnSplitMinis()
     {
-        var pool = (GodotObject?)GameStateBridge.Get("enemy_pool");
+        var pool = (GodotObject?)GameState.Instance.EnemyPool;
         if (pool == null)
         {
             return;

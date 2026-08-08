@@ -10,7 +10,6 @@ namespace InfiAir;
 /// CLOSING 收缩关闭（gate.close_time）→ 自销毁。
 /// 数值取 balance.json effects.mothership_summon.gate，脚本默认值须保持一致。
 /// M6 全量迁移（2026-08-08 自 scripts/warp_gate.gd）。
-/// 迁移期动态访问：GameState 经 GameStateBridge；CinematicFx 仍为 GDScript 经脚本资源调用；
 /// Enemy.sin_fast/cos_fast 为 C# 静态方法 typed 直调（原 GDScript 经脚本资源调用）。
 /// </summary>
 public partial class WarpGate : Node2D
@@ -44,10 +43,10 @@ public partial class WarpGate : Node2D
 
     public override void _Ready()
     {
-        OPEN_TIME = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.gate.open_time", OPEN_TIME).AsDouble();
-        CLOSE_TIME = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.gate.close_time", CLOSE_TIME).AsDouble();
-        RADIUS = (float)GameStateBridge.Call("cfg", "effects.mothership_summon.gate.radius", RADIUS).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
+        OPEN_TIME = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.open_time", OPEN_TIME).AsDouble();
+        CLOSE_TIME = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.close_time", CLOSE_TIME).AsDouble();
+        RADIUS = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.radius", RADIUS).AsDouble()
+            * (float)GameState.Instance.WorldScale;
         ZIndex = -1; // 门洞衬在母舰之后
         _ring = MakeRing(4.0f, CYAN);
         _ringInner = MakeRing(2.0f, WARP_BLUE);
@@ -131,7 +130,7 @@ public partial class WarpGate : Node2D
         };
         _lip.AddChild(lipCore);
         AddChild(_lip);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -6.0, 0.5);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0, 0.5);
     }
 
     /// <summary>当前阶段（原 GDScript `phase()`；A7：测试/诊断白盒断言经公开接口）。</summary>

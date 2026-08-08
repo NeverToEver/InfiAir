@@ -5,7 +5,6 @@ namespace InfiAir;
 /// <summary>
 /// 死亡结算面板：DISPLAY 级大分数 + 新纪录标记 + 击杀统计，按 R 重开。
 /// M5 全量迁移（2026-08-08 自 scripts/game_over_ui.gd）。
-/// 迁移期动态访问：GameState（GDScript autoload）经 GameStateBridge；UITheme/ChamferedPanel 为 C# 类 typed 直调。
 /// </summary>
 public partial class GameOverUi : CanvasLayer
 {
@@ -68,7 +67,7 @@ public partial class GameOverUi : CanvasLayer
         _hintLabel = UITheme.MakeLabel(Tr("GO_RESTART"), UITheme.FontCaption, UITheme.TextDim);
         _content.AddChild(_hintLabel);
 
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             gs.Connect("PlayerDied", _onPlayerDied);
@@ -79,7 +78,7 @@ public partial class GameOverUi : CanvasLayer
     public override void _ExitTree()
     {
         // C22：显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (gs.IsConnected("PlayerDied", _onPlayerDied))
@@ -105,33 +104,33 @@ public partial class GameOverUi : CanvasLayer
         // 2026-08-03 审计：去掉 if visible 恒假包裹（死亡态无语言切换入口），刷新不可见文本无害
         _statsLabel.Text = BuffSelect.GsFormat(
             Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
-            GameStateBridge.Get("high_score").AsInt64(),
-            GameStateBridge.Get("kills").AsInt64(),
-            GameStateBridge.Get("boss_kills").AsInt64());
-        _boardLabel.Text = GameStateBridge.Call("highscores_text", 5).AsString();
+            GameState.Instance.HighScore,
+            GameState.Instance.Kills,
+            GameState.Instance.BossKills);
+        _boardLabel.Text = GameState.Instance.HighscoresText(5);
     }
 
     private void OnPlayerDied()
     {
         // 死亡删档：防止一死档永存
-        GameStateBridge.Call("delete_save");
-        var newRecord = GameStateBridge.Call("record_score").AsBool();
-        GameStateBridge.Call("record_game_over"); // Q06：登录用户累计 total_kills/games_played（游客跳过）
+        GameState.Instance.DeleteSave();
+        var newRecord = GameState.Instance.RecordScore();
+        GameState.Instance.RecordGameOver(); // Q06：登录用户累计 total_kills/games_played（游客跳过）
         // P0-3：本局分数提交本地榜并显示名次与 Top5
-        _lastRank = (int)GameStateBridge.Call("submit_highscore", GameStateBridge.Get("score")).AsInt64();
-        _scoreLabel.Text = GameStateBridge.Get("score").AsInt64().ToString();
+        _lastRank = (int)GameState.Instance.SubmitHighscore(GameState.Instance.Score);
+        _scoreLabel.Text = GameState.Instance.Score.ToString();
         _statsLabel.Text = BuffSelect.GsFormat(
             Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
-            GameStateBridge.Get("high_score").AsInt64(),
-            GameStateBridge.Get("kills").AsInt64(),
-            GameStateBridge.Get("boss_kills").AsInt64());
+            GameState.Instance.HighScore,
+            GameState.Instance.Kills,
+            GameState.Instance.BossKills);
         _rankLabel.Text = BuffSelect.GsFormat(Tr("GO_RANK"), _lastRank);
         _rankLabel.Visible = _lastRank > 0;
-        _boardLabel.Text = GameStateBridge.Call("highscores_text", 5).AsString();
+        _boardLabel.Text = GameState.Instance.HighscoresText(5);
         _recordLabel.Visible = newRecord;
         if (newRecord)
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"));
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
         }
 
         GetTree().Paused = true;
@@ -144,7 +143,7 @@ public partial class GameOverUi : CanvasLayer
         if (Visible && @event.IsActionPressed("restart"))
         {
             GetTree().Paused = false;
-            GameStateBridge.Call("reset_run");
+            GameState.Instance.ResetRun();
             GetTree().ReloadCurrentScene();
         }
     }

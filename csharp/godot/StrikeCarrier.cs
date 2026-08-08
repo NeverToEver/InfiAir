@@ -9,7 +9,6 @@ namespace InfiAir;
 /// 背景式巨型单位（不可被攻击，无碰撞层），自屏幕上方深空降入悬停，
 /// 作为炮台展开的舞台；事件结束按胜负两种姿态撤离（受创慢速 / 完整加速）。
 /// 基座环即状态灯：待命暗红 → 升起充能品红高亮 → 炮台被毁对应环熄灭。
-/// 迁移期：GameState 经 GameStateBridge（热路径 view 帧缓存）；SinFast 经 Enemy（C# 同程序集静态）；
 /// entered/exited 以 [Signal] PascalCase 注册，C# 侧连接经 C# event（+=）。
 /// </summary>
 public partial class StrikeCarrier : Node2D
@@ -59,7 +58,7 @@ public partial class StrikeCarrier : Node2D
         if (f != _frame)
         {
             _frame = f;
-            _frameView = GameStateBridge.Call("view_world_rect").AsRect2();
+            _frameView = GameState.Instance.ViewWorldRect();
         }
 
         return _frameView;
@@ -70,17 +69,15 @@ public partial class StrikeCarrier : Node2D
         _sprite = new Sprite2D
         {
             Texture = CarrierTexture,
-            Scale = Vector2.One * (float)GameStateBridge.Get("world_scale").AsDouble(), // 设计值 1.0 × 全局缩放
+            Scale = Vector2.One * (float)GameState.Instance.WorldScale, // 设计值 1.0 × 全局缩放
         };
         AddChild(_sprite);
     }
 
     public override void _Ready()
     {
-        RetreatStartSpeed = (float)GameStateBridge
-            .Call("cfg", "elite_turret_event.carrier.retreat_start_speed", RetreatStartSpeed).AsDouble();
-        RetreatAccel = (float)GameStateBridge
-            .Call("cfg", "elite_turret_event.carrier.retreat_accel", RetreatAccel).AsDouble();
+        RetreatStartSpeed = (float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_start_speed", RetreatStartSpeed).AsDouble();
+        RetreatAccel = (float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_accel", RetreatAccel).AsDouble();
         // 深空淡入
         var m = Modulate;
         m.A = 0.0f;
@@ -91,7 +88,7 @@ public partial class StrikeCarrier : Node2D
     /// <summary>八角基座环（状态灯；默认隐藏，事件按启用基座逐个点亮）。</summary>
     private void BuildRings()
     {
-        var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+        var ws = (float)GameState.Instance.WorldScale;
         foreach (var socket in Sockets)
         {
             var ring = new Line2D();
@@ -150,7 +147,7 @@ public partial class StrikeCarrier : Node2D
         {
             _sprite.Modulate = new Color(0.7f, 0.6f, 0.65f);
             // 受创冒烟：甲板几处爆点
-            var ws = (float)GameStateBridge.Get("world_scale").AsDouble();
+            var ws = (float)GameState.Instance.WorldScale;
             for (var i = 0; i < 3; i++)
             {
                 Explosion.SpawnAt(

@@ -10,7 +10,6 @@ namespace InfiAir;
 /// 让基地 UI 在黑场下淡入。严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/return_cinematic.gd）：CanvasLayer 子类；
 /// UITheme/Starfield 为 C# typed 直调；CinematicFx/DawnStation 仍为 GDScript，
-/// 经脚本资源 Call/Get 动态访问（保留原方法名）；GameState 经 GameStateBridge。
 /// 原内嵌镜头类 _PortalShot/_CaptureShot/_WalkShot/_RoomShot 迁为同文件顶层类
 /// （C# 源生成器不支持内嵌类，BaseConsole 先例）。
 /// 注：原 signal finished 迁移为 [Signal] Finished——ClassDB 以 PascalCase 注册，
@@ -78,7 +77,7 @@ public partial class ReturnCinematic : CanvasLayer
 
     public override void _Ready()
     {
-        SKIP_GRACE = (float)GameStateBridge.Call("cfg", "effects.return_skip_grace", SKIP_GRACE).AsDouble();
+        SKIP_GRACE = (float)GameState.Instance.Cfg("effects.return_skip_grace", SKIP_GRACE).AsDouble();
         _startMsec = Time.GetTicksMsec();
         _shotRoot = GetNode<Node2D>("ShotRoot");
         _fade = GetNode<ColorRect>("Fade");
@@ -652,7 +651,7 @@ public partial class ReturnCinematic : CanvasLayer
             warpIn.Parallel().TweenProperty(ring, "scale", Vector2.One * 0.85f, 0.25f);
         }
 
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -6.0f, 0.6f); // 0.6 倍速拉长为充能上升感
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0f, 0.6f); // 0.6 倍速拉长为充能上升感
         return root;
     }
 
@@ -776,7 +775,7 @@ public partial class ReturnCinematic : CanvasLayer
         inflow.Emitting = false;
         push.AddChild(inflow);
         Once(root, 0.45f, Callable.From(() => inflow.Emitting = true));
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -12.0f, 0.5f); // 0.5 倍速低沉撕裂感
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -12.0f, 0.5f); // 0.5 倍速低沉撕裂感
         return root;
     }
 
@@ -900,7 +899,7 @@ public partial class ReturnCinematic : CanvasLayer
             var ft = root.CreateTween();
             ft.TweenProperty(flash, "color:a", 1.0f, 0.05f);
             ft.TweenProperty(flash, "color:a", 0.0f, 0.25f);
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH")); // 白闪瞬间正常速
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH); // 白闪瞬间正常速
             var emerge = root.CreateTween().SetParallel(true);
             emerge.TweenProperty(ringB, "scale", Vector2.One, 0.2f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
             emerge.TweenProperty(shipB, "scale", Vector2.One, 0.7f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -909,7 +908,7 @@ public partial class ReturnCinematic : CanvasLayer
             dissolve.TweenInterval(0.7f * u);
             dissolve.TweenProperty(ringB, "modulate:a", 0.0f, 0.2f * u); // 端口闭合消散
         }));
-        Once(root, 1.2f * u, Callable.From(() => GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -10.0f))); // 飞出段尾音
+        Once(root, 1.2f * u, Callable.From(() => GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -10.0f))); // 飞出段尾音
         return root;
     }
 
@@ -994,7 +993,7 @@ public partial class ReturnCinematic : CanvasLayer
         ship.AddChild(shipTrail);
         var pull = root.CreateTween();
         pull.TweenProperty(root, "_ship_u", 0.06f, dur).SetTrans(Tween.TransitionType.Sine); // _ship_u 保持原名：tween 按 ClassDB 属性名驱动
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_RESUPPLY"), -8.0f); // 对接感
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY, -8.0f); // 对接感
         return root;
     }
 
@@ -1113,7 +1112,7 @@ public partial class ReturnCinematic : CanvasLayer
         land.TweenProperty(ship, "scale:y", 1.0f, 0.12f * u);
         Once(root, 0.9f * u, Callable.From(() =>
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -18.0f); // 落地极轻闷响
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -18.0f); // 落地极轻闷响
             var dust = Particles(new Godot.Collections.Dictionary
             {
                 ["amount"] = 24,
@@ -1155,7 +1154,7 @@ public partial class ReturnCinematic : CanvasLayer
         }));
         Once(root, 1.15f * u, Callable.From(() =>
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -14.0f); // 跃下短促音
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -14.0f); // 跃下短促音
             pnode.Visible = true;
             var jump = root.CreateTween();
             jump.TweenProperty(pnode, "position", new Vector2(935.0f, 390.0f), 0.25f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -1330,7 +1329,7 @@ public partial class ReturnCinematic : CanvasLayer
                 return;
             }
 
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_BUFF_PICK"), -20.0f);
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -20.0f);
         };
         return root;
     }
@@ -1476,7 +1475,7 @@ public partial class ReturnCinematic : CanvasLayer
         }));
         Once(root, 1.3f * u, Callable.From(() =>
         {
-            GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_RESUPPLY"), -16.0f); // 躺下轻柔音
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY, -16.0f); // 躺下轻柔音
             // 躺下：整体后倒 -90° 卧上休眠床（床面 y≈762）+ 四肢舒展微调
             var lie = root.CreateTween().SetParallel(true);
             lie.TweenProperty(pnode, "rotation", -Mathf.Pi * 0.5f, 0.4f * u).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
@@ -1748,7 +1747,7 @@ public partial class ReturnCinematicWalkShot : Node2D
         }
 
         _door_opened = true;
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_DASH"), -10.0f, 0.7f); // 舱门滑开 0.7 倍速
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -10.0f, 0.7f); // 舱门滑开 0.7 倍速
         var tween = CreateTween().SetParallel(true);
         tween.TweenProperty(_door_l, "position:x", _door_l.Position.X - 85.0f, 0.5f * _time_u);
         tween.TweenProperty(_door_r, "position:x", _door_r.Position.X + 85.0f, 0.5f * _time_u);

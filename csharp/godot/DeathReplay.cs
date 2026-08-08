@@ -37,7 +37,6 @@ public partial class DeathReplay : RefCounted
     private bool _recording;
 
     /// <summary>P0-1：敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，
-    /// 避免每帧 GameStateBridge.Get + AsGodotArray 分配）</summary>
     private Godot.Collections.Array _bulletRegistry = new();
 
     /// <summary>开始录制（main 新对局入口调用；幂等——重复调用清缓冲重录）</summary>
@@ -55,7 +54,7 @@ public partial class DeathReplay : RefCounted
             }
         }
 
-        _bulletRegistry = GameStateBridge.Get("enemy_bullets").AsGodotArray();
+        _bulletRegistry = (Godot.Collections.Array)GameState.Instance.EnemyBullets;
     }
 
     /// <summary>停止录制（死亡/结算后调用；之后 record 零开销早退）</summary>

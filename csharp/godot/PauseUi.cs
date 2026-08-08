@@ -8,7 +8,6 @@ namespace InfiAir;
 /// ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator（见 docs/EXIT_FLOW.md），
 /// 本面板只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
 /// M5 全量迁移（2026-08-08 自 scripts/pause_ui.gd）：UITheme/ChamferedPanel typed 直调；
-/// GameState（GDScript autoload）经 GameStateBridge 访问；PauseUI 节点属性
 /// （process_mode=Always/layer=15）仍在 scenes/main.tscn 设置。
 /// </summary>
 public partial class PauseUi : CanvasLayer
@@ -36,7 +35,7 @@ public partial class PauseUi : CanvasLayer
     {
         Visible = false;
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Connect("LocaleChanged", _onLocaleChanged);
@@ -80,7 +79,7 @@ public partial class PauseUi : CanvasLayer
 
     public override void _ExitTree()
     {
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Disconnect("LocaleChanged", _onLocaleChanged);
@@ -160,12 +159,12 @@ public partial class PauseUi : CanvasLayer
 
     private void OnSavePressed()
     {
-        var playerV = GameStateBridge.Get("player_ref"); // M3c：Player 迁 C#，typed 直调  # A5：走注册表，替代 group 现找
-        var player = playerV.VariantType == Variant.Type.Object ? playerV.AsGodotObject() as Player : null;
+        var playerV = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调  # A5：走注册表，替代 group 现找
+        var player = playerV != null ? playerV as Player : null;
         var spawner = GetTree().GetFirstNodeInGroup("spawner");
         var fuel = player != null ? player.FuelAmount() : 100.0f;
         var elapsed = spawner != null ? (float)spawner.Call("elapsed").AsDouble() : 0.0f;
-        GameStateBridge.Call("save_run", fuel, elapsed);
+        GameState.Instance.SaveRun(fuel, elapsed);
         _saved = true;
         _saveButton.Text = Tr("PAUSE_SAVED");
         // 用信号连接而非协程：退出时挂起的协程函数状态会泄漏
@@ -200,7 +199,7 @@ public partial class PauseUi : CanvasLayer
         if (Visible && @event.IsActionPressed("restart"))
         {
             GetTree().Paused = false;
-            GameStateBridge.Call("reset_run");
+            GameState.Instance.ResetRun();
             GetTree().ReloadCurrentScene();
         }
     }

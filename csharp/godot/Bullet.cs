@@ -9,7 +9,6 @@ namespace InfiAir;
 /// 保持语义：R07 碰撞半径唯一事实源；P2-1 活跃计数；P0-3 共享图集单 Sprite2D；
 /// 公平机制一（受击宽限）/二（擦弹单次）/四（弹反）；P0-1 敌弹注册表；P1-1 辅助瞄准追踪；
 /// P2-10 致死高亮；宽限/擦弹/反射的池化复位。
-/// 迁移期动态访问：GameState（GDScript autoload）经 GameStateBridge（热路径静态缓存）；
 /// Player/Enemy 为 GDScript 类（M3b/M3c 迁移前）经鸭子调用（HasMethod/Get/Call）。
 /// </summary>
 public partial class Bullet : Area2D
@@ -112,7 +111,7 @@ public partial class Bullet : Area2D
         // R07：零速钳制（0 速弹不位移不脱界，永驻场景；测试直写字段绕过 setup）
         Speed = Mathf.Max(pSpeed, 1.0f);
         // 敌方子弹伤害随对局进程 ramp
-        Damage = pIsPlayer ? pDamage : Mathf.Max(1, (int)Mathf.Round(pDamage * GameStateBridge.Call("enemy_damage_ramp").AsDouble()));
+        Damage = pIsPlayer ? pDamage : Mathf.Max(1, (int)Mathf.Round(pDamage * GameState.Instance.EnemyDamageRamp()));
         IsPlayerBullet = pIsPlayer;
         Homing = pHoming;
         HomingTime = pHomingTime;
@@ -155,7 +154,7 @@ public partial class Bullet : Area2D
         // P0-1：回收弹移出敌弹注册表（death_replay 录制数据源）
         if (!IsPlayerBullet)
         {
-            GameStateBridge.Call("unregister_enemy_bullet", this);
+            GameState.Instance.UnregisterEnemyBullet(this);
         }
 
         _cancelGrace();
@@ -220,22 +219,22 @@ public partial class Bullet : Area2D
     {
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
-        ExplosiveRadius = (float)GameStateBridge.Call("cfg", "buffs.explosive.radius_per_level", ExplosiveRadius).AsDouble();
-        ExplosiveDamage = (int)GameStateBridge.Call("cfg", "buffs.explosive.damage_per_level", ExplosiveDamage).AsInt64();
-        VisualScale = (float)GameStateBridge.Call("cfg", "effects.bullet_visual_scale", VisualScale).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
-        EnemyVisualScale = (float)GameStateBridge.Call("cfg", "effects.enemy_bullet_visual_scale", EnemyVisualScale).AsDouble()
-            * (float)GameStateBridge.Get("world_scale").AsDouble();
+        ExplosiveRadius = (float)GameState.Instance.Cfg("buffs.explosive.radius_per_level", ExplosiveRadius).AsDouble();
+        ExplosiveDamage = (int)GameState.Instance.Cfg("buffs.explosive.damage_per_level", ExplosiveDamage).AsInt64();
+        VisualScale = (float)GameState.Instance.Cfg("effects.bullet_visual_scale", VisualScale).AsDouble()
+            * (float)GameState.Instance.WorldScale;
+        EnemyVisualScale = (float)GameState.Instance.Cfg("effects.enemy_bullet_visual_scale", EnemyVisualScale).AsDouble()
+            * (float)GameState.Instance.WorldScale;
         // 机制一：宽限窗口钳制 (0, 0.15]
-        GracePeriod = Mathf.Clamp((float)GameStateBridge.Call("cfg", "player.grace_period", GracePeriod).AsDouble(), 0.001f, 0.15f);
+        GracePeriod = Mathf.Clamp((float)GameState.Instance.Cfg("player.grace_period", GracePeriod).AsDouble(), 0.001f, 0.15f);
         // 机制四：弹反倍率
-        ReflectSpeedMult = (float)GameStateBridge.Call("cfg", "player.parry.reflect_speed_mult", ReflectSpeedMult).AsDouble();
-        ReflectDamageMult = (float)GameStateBridge.Call("cfg", "player.parry.reflect_damage_mult", ReflectDamageMult).AsDouble();
+        ReflectSpeedMult = (float)GameState.Instance.Cfg("player.parry.reflect_speed_mult", ReflectSpeedMult).AsDouble();
+        ReflectDamageMult = (float)GameState.Instance.Cfg("player.parry.reflect_damage_mult", ReflectDamageMult).AsDouble();
         // 碰撞半径：设计值 × 全局缩放（幂等赋值）
         var shape = GetNode<CollisionShape2D>("CollisionShape2D");
         if (shape.Shape is CircleShape2D circle)
         {
-            circle.Radius = CollisionRadius * (float)GameStateBridge.Get("world_scale").AsDouble();
+            circle.Radius = CollisionRadius * (float)GameState.Instance.WorldScale;
         }
 
         _applyFaction();
@@ -259,7 +258,7 @@ public partial class Bullet : Area2D
         // P0-1：外部销毁同步移出敌弹注册表（幂等）
         if (!IsPlayerBullet)
         {
-            GameStateBridge.Call("unregister_enemy_bullet", this);
+            GameState.Instance.UnregisterEnemyBullet(this);
         }
     }
 
@@ -273,7 +272,7 @@ public partial class Bullet : Area2D
             {
                 HomingTarget = null;
             }
-            else if (!(bool)GameStateBridge.Call("enemies_has", HomingTarget)) // G010：注册表 O(1) 判定
+            else if (!(bool)GameState.Instance.EnemiesHas(HomingTarget)) // G010：注册表 O(1) 判定
             {
                 HomingTarget = null;
             }
@@ -310,8 +309,8 @@ public partial class Bullet : Area2D
         else if (Homing && _homingElapsed < HomingTime)
         {
             _homingElapsed += d;
-            var playerRef = GameStateBridge.Get("player_ref");
-            if (playerRef.VariantType != Variant.Type.Nil)
+            var playerRef = GameState.Instance.PlayerRef;
+            if (playerRef != null)
             {
                 var playerNode = (Node2D)playerRef;
                 var newAngle = Mathf.LerpAngle(
@@ -335,7 +334,7 @@ public partial class Bullet : Area2D
         if (frame != _viewFrame)
         {
             _viewFrame = frame;
-            _viewRect = GameStateBridge.Call("view_world_rect").AsRect2();
+            _viewRect = GameState.Instance.ViewWorldRect();
         }
 
         return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
@@ -353,7 +352,7 @@ public partial class Bullet : Area2D
     /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void _explode()
     {
-        var arr = GameStateBridge.Get("enemies").AsGodotArray();
+        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var e = (GodotObject?)arr[i];
@@ -375,13 +374,13 @@ public partial class Bullet : Area2D
         }
 
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.6f);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -6.0);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -6.0);
     }
 
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害。</summary>
     private void _splash()
     {
-        var arr = GameStateBridge.Get("enemies").AsGodotArray();
+        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = (Node2D?)arr[i];
@@ -398,7 +397,7 @@ public partial class Bullet : Area2D
         }
 
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.8f);
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"), -6.0);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -6.0);
     }
 
     /// <summary>注册表实例是否为 Enemy 语义（M3b：C# 脚本无 GetGlobalName——改鸭子判定：
@@ -423,8 +422,8 @@ public partial class Bullet : Area2D
             {
                 // crit_shot 暴击：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
                 var hitDamage = Damage;
-                var pRef = GameStateBridge.Get("player_ref");
-                if (pRef.VariantType != Variant.Type.Nil)
+                var pRef = GameState.Instance.PlayerRef;
+                if (pRef != null)
                 {
                     var p = (GodotObject)pRef;
                     var critChance = (float)p.Get("crit_chance").AsDouble();
@@ -514,8 +513,8 @@ public partial class Bullet : Area2D
         }
 
         // 既有受击结算链路（含无敌/闪避/单帧守卫、受击清弹、致死高亮）
-        var pRef = GameStateBridge.Get("player_ref");
-        if (pRef.VariantType == Variant.Type.Nil)
+        var pRef = GameState.Instance.PlayerRef;
+        if (pRef == null)
         {
             return;
         }
@@ -605,11 +604,11 @@ public partial class Bullet : Area2D
         // P0-1：敌弹注册表维护（幂等）——activate/_ready/reflect 均经此路径
         if (IsPlayerBullet)
         {
-            GameStateBridge.Call("unregister_enemy_bullet", this);
+            GameState.Instance.UnregisterEnemyBullet(this);
         }
         else
         {
-            GameStateBridge.Call("register_enemy_bullet", this);
+            GameState.Instance.RegisterEnemyBullet(this);
         }
     }
 

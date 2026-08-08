@@ -7,7 +7,6 @@ namespace InfiAir;
 /// 楔形编队成员，注册 enemy 组与 GameState.enemies（玩家子弹/激光可命中）。
 /// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动。
 /// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
-/// 迁移期：GameState 经 GameStateBridge；Explosion（C#）静态方法直调。
 /// </summary>
 public partial class FormationCraft : Area2D
 {
@@ -41,16 +40,16 @@ public partial class FormationCraft : Area2D
         _sprite = new Sprite2D
         {
             Texture = Texture,
-            Scale = Vector2.One * 0.9f * (float)GameStateBridge.Get("world_scale").AsDouble(), // 设计值 0.9 × 全局缩放
+            Scale = Vector2.One * 0.9f * (float)GameState.Instance.WorldScale, // 设计值 0.9 × 全局缩放
         };
         AddChild(_sprite);
         var shape = new CollisionShape2D();
-        var circle = new CircleShape2D { Radius = 26.0f * (float)GameStateBridge.Get("world_scale").AsDouble() };
+        var circle = new CircleShape2D { Radius = 26.0f * (float)GameState.Instance.WorldScale };
         shape.Shape = circle;
         AddChild(shape);
-        GameStateBridge.Call("bind_enemy", this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
         // P1-6：击杀震动强度缓存
-        _shakeDie = (float)GameStateBridge.Call("cfg", "effects.shake.enemy_die", _shakeDie).AsDouble();
+        _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
 
     /// <summary>P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白）。</summary>
@@ -80,7 +79,7 @@ public partial class FormationCraft : Area2D
 
     public override void _ExitTree()
     {
-        GameStateBridge.Call("unbind_enemy", this); // 统一解绑（docs/ENTITY_MANAGER.md）
+        GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
     }
 
     public void TakeDamage(int amount, float scoreScale)
@@ -108,8 +107,8 @@ public partial class FormationCraft : Area2D
 
     public void Die()
     {
-        GameStateBridge.Call("play_sfx", GameStateBridge.Get("SFX_EXPLOSION"));
-        GameStateBridge.Call("shake", _shakeDie);
+        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.Shake(_shakeDie);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);
         EmitSignal(SignalName.Died, this);
         QueueFree();

@@ -8,7 +8,6 @@ namespace InfiAir;
 /// 纯发射逻辑，不持 Boss 状态；位置经 boss 参数、出弹点偏移/机体缩放经注入字段。
 /// Boss / BossAttacks / EnrageSequence 共用本发射器，避免跨类私有访问（A1 约束）。
 /// 纯 C# 类（原 RefCounted，无信号/导出）：弹池经 BulletPool（C# 类型）类型化发射，
-/// player_ref 经 GameStateBridge 动态访问；迁移期 GDScript 鸭子调用经 snake_case 别名（M7 删除）。
 /// </summary>
 public partial class BossFire : RefCounted
 {
@@ -24,10 +23,10 @@ public partial class BossFire : RefCounted
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
     public static Vector2 PlayerDir(Node2D from)
     {
-        var player = GameStateBridge.Get("player_ref");
-        if (player.VariantType != Variant.Type.Nil)
+        var player = GameState.Instance.PlayerRef;
+        if (player != null)
         {
-            var p = (Node2D)player.AsGodotObject();
+            var p = (Node2D)player;
             var dir = (p.GlobalPosition - from.GlobalPosition).Normalized();
             return dir != Vector2.Zero ? dir : Vector2.Down; // G026：圆心重合时回退
         }
@@ -54,7 +53,7 @@ public partial class BossFire : RefCounted
 
     public void FireHoming(Node2D boss, Vector2 pOffset, float speed, int damage)
     {
-        var pool = GameStateBridge.Get("bullet_pool").AsGodotObject() as BulletPool;
+        var pool = GameState.Instance.BulletPool as BulletPool;
         if (pool == null)
         {
             return;
@@ -241,7 +240,7 @@ public partial class BossFire : RefCounted
     /// <summary>普通敌弹发射（4 参路径）：同屏硬上限时返回 null（调用方判空跳过）。</summary>
     private static Bullet? SpawnBullet(Vector2 dir, float speed, int damage)
     {
-        var pool = GameStateBridge.Get("bullet_pool").AsGodotObject() as BulletPool;
+        var pool = GameState.Instance.BulletPool as BulletPool;
         return pool?.Fire(dir, speed, damage, false);
     }
 

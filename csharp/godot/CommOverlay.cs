@@ -6,7 +6,6 @@ namespace InfiAir;
 /// 精英炮塔事件·通讯浮层（docs/ELITE_TURRET_EVENT.md 第 4 节；2026-08-08 自 scripts/comm_overlay.gd 迁移）：
 /// 屏幕左下角六边切角通讯框（品红描边）+ 打字机字幕，显示 3.5s 后淡出；
 /// 不暂停游戏（process_mode 跟随对局）；新台词顶掉未播完的旧台词。
-/// 迁移期：ChamferedPanel/UITheme 为 C# 类 typed 直调；GameState 经 GameStateBridge。
 /// </summary>
 public partial class CommOverlay : CanvasLayer
 {
@@ -69,7 +68,7 @@ public partial class CommOverlay : CanvasLayer
         m.A = 1.0f;
         _panel.Modulate = m;
         _panel.Visible = true;
-        GameStateBridge.Call("play_sfx", CommSfx, -10.0f);
+        GameState.Instance.PlaySfx(CommSfx, -10.0f);
     }
 
     /// <summary>清空当前台词并隐藏（B13：返航打断事件时调用，避免恢复对局后台词残留）。</summary>

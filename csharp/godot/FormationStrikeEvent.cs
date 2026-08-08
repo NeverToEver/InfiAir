@@ -10,7 +10,6 @@ namespace InfiAir;
 /// （Start() 置 spawner 波次暂停，与精英炮塔事件互斥，见设计文档 §1/§2）；
 /// 可被返航 Abort() 打断（无结算，冷却照计）。编队锚点运动与战机偏移/朝向由本节点
 /// _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
-/// 迁移期：GameState 经 GameStateBridge；spawner（GDScript）经动态派发调用；
 /// CommOverlay（C# 同程序集 typed）；FormationCraft/FormationBomb 为 C# typed 直调。
 /// </summary>
 public partial class FormationStrikeEvent : Node
@@ -86,8 +85,8 @@ public partial class FormationStrikeEvent : Node
         if (f != _frame)
         {
             _frame = f;
-            _frameScore = (int)GameStateBridge.Get("score").AsInt64();
-            _frameView = GameStateBridge.Call("view_world_rect").AsRect2();
+            _frameScore = (int)GameState.Instance.Score;
+            _frameView = GameState.Instance.ViewWorldRect();
         }
     }
 
@@ -108,32 +107,32 @@ public partial class FormationStrikeEvent : Node
 
     public override void _Ready()
     {
-        MinScore = (int)GameStateBridge.Call("cfg", "formation_strike_event.min_score", MinScore).AsInt64();
-        Cooldown = (float)GameStateBridge.Call("cfg", "formation_strike_event.cooldown", Cooldown).AsDouble();
+        MinScore = (int)GameState.Instance.Cfg("formation_strike_event.min_score", MinScore).AsInt64();
+        Cooldown = (float)GameState.Instance.Cfg("formation_strike_event.cooldown", Cooldown).AsDouble();
         // Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
-        var cc = GameStateBridge.Call("cfg", "formation_strike_event.craft_counts", CraftCounts);
+        var cc = GameState.Instance.Cfg("formation_strike_event.craft_counts", CraftCounts);
         if (cc.VariantType == Variant.Type.Dictionary)
         {
             CraftCounts = cc.AsGodotDictionary();
         }
 
-        CraftHpBase = (int)GameStateBridge.Call("cfg", "formation_strike_event.craft_hp_base", CraftHpBase).AsInt64();
-        CraftScore = (int)GameStateBridge.Call("cfg", "formation_strike_event.craft_score", CraftScore).AsInt64();
+        CraftHpBase = (int)GameState.Instance.Cfg("formation_strike_event.craft_hp_base", CraftHpBase).AsInt64();
+        CraftScore = (int)GameState.Instance.Cfg("formation_strike_event.craft_score", CraftScore).AsInt64();
         // Q15（2026-08-05）：approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
         // 波次暂停常驻 → 普通波次与 Boss 调度全冻结
         ApproachSpeed = Mathf.Max(
-            (float)GameStateBridge.Call("cfg", "formation_strike_event.approach_speed", ApproachSpeed).AsDouble(), 1.0f);
-        ApproachY = (float)GameStateBridge.Call("cfg", "formation_strike_event.approach_y", ApproachY).AsDouble();
-        TurnTime = (float)GameStateBridge.Call("cfg", "formation_strike_event.turn_time", TurnTime).AsDouble();
-        RunSpeed = (float)GameStateBridge.Call("cfg", "formation_strike_event.run_speed", RunSpeed).AsDouble();
-        BombInterval = (float)GameStateBridge.Call("cfg", "formation_strike_event.bomb_interval", BombInterval).AsDouble();
-        BombsPerCraft = (int)GameStateBridge.Call("cfg", "formation_strike_event.bombs_per_craft", BombsPerCraft).AsInt64();
-        BombFallSpeed = (float)GameStateBridge.Call("cfg", "formation_strike_event.bomb_fall_speed", BombFallSpeed).AsDouble();
-        BombFuse = (float)GameStateBridge.Call("cfg", "formation_strike_event.bomb_fuse", BombFuse).AsDouble();
-        BombDamage = (int)GameStateBridge.Call("cfg", "formation_strike_event.bomb_damage", BombDamage).AsInt64();
-        BombRadius = (float)GameStateBridge.Call("cfg", "formation_strike_event.bomb_radius", BombRadius).AsDouble();
-        RewardAllClear = (int)GameStateBridge.Call("cfg", "formation_strike_event.reward_all_clear", RewardAllClear).AsInt64();
+            (float)GameState.Instance.Cfg("formation_strike_event.approach_speed", ApproachSpeed).AsDouble(), 1.0f);
+        ApproachY = (float)GameState.Instance.Cfg("formation_strike_event.approach_y", ApproachY).AsDouble();
+        TurnTime = (float)GameState.Instance.Cfg("formation_strike_event.turn_time", TurnTime).AsDouble();
+        RunSpeed = (float)GameState.Instance.Cfg("formation_strike_event.run_speed", RunSpeed).AsDouble();
+        BombInterval = (float)GameState.Instance.Cfg("formation_strike_event.bomb_interval", BombInterval).AsDouble();
+        BombsPerCraft = (int)GameState.Instance.Cfg("formation_strike_event.bombs_per_craft", BombsPerCraft).AsInt64();
+        BombFallSpeed = (float)GameState.Instance.Cfg("formation_strike_event.bomb_fall_speed", BombFallSpeed).AsDouble();
+        BombFuse = (float)GameState.Instance.Cfg("formation_strike_event.bomb_fuse", BombFuse).AsDouble();
+        BombDamage = (int)GameState.Instance.Cfg("formation_strike_event.bomb_damage", BombDamage).AsInt64();
+        BombRadius = (float)GameState.Instance.Cfg("formation_strike_event.bomb_radius", BombRadius).AsDouble();
+        RewardAllClear = (int)GameState.Instance.Cfg("formation_strike_event.reward_all_clear", RewardAllClear).AsInt64();
         _comm = new CommOverlay();
         AddChild(_comm);
         // K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
@@ -162,7 +161,7 @@ public partial class FormationStrikeEvent : Node
     {
         // 分数实时读取（不走帧缓存）：测试/调用方同帧改分须立即生效（原 GDScript 直读
         // GameState.score 语义；帧缓存仅保留给 _process 热路径的 CachedView）
-        var liveScore = (int)GameStateBridge.Get("score").AsInt64();
+        var liveScore = (int)GameState.Instance.Score;
         if (_state != State.IDLE || _cooldownLeft > 0.0f || liveScore < MinScore)
         {
             return false;
@@ -218,15 +217,15 @@ public partial class FormationStrikeEvent : Node
         var x0 = (float)GD.RandRange(view.Position.X + view.Size.X * 0.4, view.Position.X + view.Size.X * 0.6);
         _anchor = new Vector2(x0, view.Position.Y - 120.0f);
         // 生成编队：长机居中，僚机后掠 ±55px 递增（楔形，槽位稳定）
-        var difficulty = (string)(StringName)GameStateBridge.Get("difficulty");
+        var difficulty = (string)(StringName)GameState.Instance.Difficulty;
         var count = (int)CraftCounts.GetValueOrDefault(difficulty, 4).AsInt64();
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
         var hp = Mathf.Max(
             1,
             (int)Mathf.Round(
                 CraftHpBase
-                * (float)GameStateBridge.Call("enemy_hp_multiplier").AsDouble()
-                * (float)GameStateBridge.Call("enemy_hp_ramp").AsDouble()));
+                * (float)GameState.Instance.EnemyHpMultiplier()
+                * (float)GameState.Instance.EnemyHpRamp()));
         _crafts.Clear();
         _offsets.Clear();
         _offsets.Add(Vector2.Zero);
@@ -418,9 +417,9 @@ public partial class FormationStrikeEvent : Node
             bomb.Setup(
                 new Vector2(dir.X * RunSpeed * 0.35f, BombFallSpeed),
                 BombFuse,
-                Mathf.Max(1, (int)Mathf.Round(BombDamage * (float)GameStateBridge.Call("enemy_damage_ramp").AsDouble())),
+                Mathf.Max(1, (int)Mathf.Round(BombDamage * (float)GameState.Instance.EnemyDamageRamp())),
                 BombRadius);
-            bomb.Position = craft.Position + new Vector2(0.0f, 18.0f) * (float)GameStateBridge.Get("world_scale").AsDouble();
+            bomb.Position = craft.Position + new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale;
             GetParent().AddChild(bomb);
             _dropped++;
         }
@@ -458,10 +457,10 @@ public partial class FormationStrikeEvent : Node
         }
 
         _alive = Mathf.Max(0, _alive - 1);
-        GameStateBridge.Call("add_score", CraftScore);
+        GameState.Instance.AddScore(CraftScore);
         if (_alive == 0 && _state != State.IDLE && _state != State.FORMATION_EXIT)
         {
-            GameStateBridge.Call("add_score", RewardAllClear);
+            GameState.Instance.AddScore(RewardAllClear);
             BeginExit();
         }
     }

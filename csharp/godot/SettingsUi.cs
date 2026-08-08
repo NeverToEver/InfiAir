@@ -8,7 +8,6 @@ namespace InfiAir;
 /// 改键：点「改键」进入捕获态，下一按键即绑定（Esc 取消），冲突键从占用者移除。
 /// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）：CanvasLayer 子类。
 /// UITheme/ChamferedPanel 为 C# 类 typed 直调；GameState（GDScript autoload，M7 迁移）
-/// 经 GameStateBridge 动态访问（snake_case 名称）；未迁移 GDScript 调用方经 snake 桥过渡。
 /// </summary>
 public partial class SettingsUi : CanvasLayer
 {
@@ -145,7 +144,7 @@ public partial class SettingsUi : CanvasLayer
         vbox.AddChild(_backButton);
 
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs != null)
         {
             if (!gs.IsConnected("KeyBindingsChanged", _onKeyBindingsChanged))
@@ -167,7 +166,7 @@ public partial class SettingsUi : CanvasLayer
 
     public override void _ExitTree()
     {
-        var gs = GameStateBridge.Instance;
+        var gs = GameState.Instance;
         if (gs == null)
         {
             return;
@@ -261,7 +260,7 @@ public partial class SettingsUi : CanvasLayer
         foreach (var action in _rebindRows.Keys)
         {
             var row = _rebindRows[action].AsGodotDictionary();
-            ((Label)row["keys"].AsGodotObject()).Text = GameStateBridge.Call("action_keys_text", action).AsString();
+            ((Label)row["keys"].AsGodotObject()).Text = GameState.Instance.ActionKeysText(action.AsStringName());
             ((Label)row["name"].AsGodotObject()).Text = Tr("ACT_" + action.AsStringName().ToString().ToUpper());
         }
     }
@@ -301,7 +300,7 @@ public partial class SettingsUi : CanvasLayer
 
     private void OnResetKeys()
     {
-        GameStateBridge.Call("reset_key_bindings");
+        GameState.Instance.ResetKeyBindings();
         _hintLabel.Text = Tr("SET_RESET_DONE");
     }
 
@@ -335,7 +334,7 @@ public partial class SettingsUi : CanvasLayer
         {
             // 2026-08-03 审计：删除不可达的 KEY_ESCAPE 分支——ui_cancel 不在 REBINDABLE_ACTIONS，
             // 捕获态下 Esc 必先命中上方 ui_cancel 取消分支并 return，到不了此处
-            GameStateBridge.Call("rebind_action", _capturingAction, Variant.From(key.Keycode));
+            GameState.Instance.RebindAction(_capturingAction, (int)key.Keycode);
             var boundKey = OS.GetKeycodeString(key.Keycode);
             _hintLabel.Text = GdFormat(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);
             _capturingAction = new StringName();
@@ -370,8 +369,8 @@ public partial class SettingsUi : CanvasLayer
         _langEn = UITheme.MakeToggleButton("English", _langGroup);
         langRow.AddChild(_langZh);
         langRow.AddChild(_langEn);
-        _langZh.Pressed += () => GameStateBridge.Call("set_locale", "zh");
-        _langEn.Pressed += () => GameStateBridge.Call("set_locale", "en");
+        _langZh.Pressed += () => GameState.Instance.SetLocale("zh");
+        _langEn.Pressed += () => GameState.Instance.SetLocale("en");
         // 辅助瞄准强度（常驻不可关，仅弱/中/强三档）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_AIM_ASSIST")));
         var aimRow = new HBoxContainer();
@@ -381,7 +380,7 @@ public partial class SettingsUi : CanvasLayer
         foreach (var level in AimAssistOrder)
         {
             var ab = UITheme.MakeToggleButton(Tr("SET_AIM_" + level.ToString().ToUpper()), _aimGroup);
-            ab.Pressed += () => GameStateBridge.Call("set_aim_assist_level", level);
+            ab.Pressed += () => GameState.Instance.SetAimAssistLevel(level);
             aimRow.AddChild(ab);
             _aimButtons[level] = Variant.From(ab);
         }
@@ -400,7 +399,7 @@ public partial class SettingsUi : CanvasLayer
         foreach (var level in ViewZoomOrder)
         {
             var b = UITheme.MakeToggleButton(Tr("SET_VIEW_" + level.ToString().ToUpper()), _zoomGroup);
-            b.Pressed += () => GameStateBridge.Call("set_view_zoom", level);
+            b.Pressed += () => GameState.Instance.SetViewZoom(level);
             zoomRow.AddChild(b);
             _zoomButtons[level] = Variant.From(b);
         }
@@ -417,7 +416,7 @@ public partial class SettingsUi : CanvasLayer
         {
             var b = UITheme.MakeToggleButton(Tr("SET_WINDOW_" + level.ToString().ToUpper()), _windowGroup);
             b.CustomMinimumSize = new Vector2(210.0f, 48.0f);
-            b.Pressed += () => GameStateBridge.Call("set_window_size", level);
+            b.Pressed += () => GameState.Instance.SetWindowSize(level);
             winRow.AddChild(b);
             _windowButtons[level] = Variant.From(b);
         }
@@ -440,18 +439,18 @@ public partial class SettingsUi : CanvasLayer
             Tr("SET_JOY_AIM_SPEED"),
             200.0f,
             4000.0f,
-            (float)GameStateBridge.Get("joy_aim_speed").AsDouble(),
+            (float)GameState.Instance.JoyAimSpeed,
             "%.0f",
-            v => GameStateBridge.Call("set_joy_aim_speed", v)
+            v => GameState.Instance.SetJoyAimSpeed(v)
         );
         _joyDeadzoneSlider = MakeJoySlider(
             page,
             Tr("SET_JOY_DEADZONE"),
             5.0f,
             90.0f,
-            (float)(GameStateBridge.Get("joy_deadzone").AsDouble() * 100.0),
+            (float)(GameState.Instance.JoyDeadzone * 100.0),
             "%.0f%%",
-            v => GameStateBridge.Call("set_joy_deadzone", v / 100.0)
+            v => GameState.Instance.SetJoyDeadzone(v / 100.0)
         );
         page.AddChild(UITheme.MakeLabel(Tr("SET_JOY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 触控（mobile touch）：虚拟摇杆/按钮开关（触屏设备；桌面键鼠/手柄不受影响，默认关）
@@ -521,7 +520,7 @@ public partial class SettingsUi : CanvasLayer
             onChanged((float)v);
         };
         // K06：拖动结束才持久化一次（value_changed 高频触发，setter 已不自动写盘）
-        slider.DragEnded += _ => GameStateBridge.Call("persist_joy_settings");
+        slider.DragEnded += _ => GameState.Instance.PersistJoySettings();
         return slider;
     }
 
@@ -533,7 +532,7 @@ public partial class SettingsUi : CanvasLayer
             return;
         }
 
-        _joyLayoutLabel.Text = GameStateBridge.Get("joy_layout").AsStringName() == LayoutPs ? Tr("SET_JOY_LAYOUT_PS") : Tr("SET_JOY_LAYOUT_XBOX");
+        _joyLayoutLabel.Text = GameState.Instance.JoyLayout == LayoutPs ? Tr("SET_JOY_LAYOUT_PS") : Tr("SET_JOY_LAYOUT_XBOX");
     }
 
     // ---------------- 关于 ----------------
@@ -577,18 +576,18 @@ public partial class SettingsUi : CanvasLayer
     public void ShowSettings(CanvasLayer? openerLayer)
     {
         _opener = openerLayer;
-        _ctrlHold.SetPressedNoSignal(!GameStateBridge.Get("ctrl_toggle_mode").AsBool());
-        _ctrlToggle.SetPressedNoSignal(GameStateBridge.Get("ctrl_toggle_mode").AsBool());
-        _shiftHold.SetPressedNoSignal(!GameStateBridge.Get("shift_toggle_mode").AsBool());
-        _shiftToggle.SetPressedNoSignal(GameStateBridge.Get("shift_toggle_mode").AsBool());
+        _ctrlHold.SetPressedNoSignal(!GameState.Instance.CtrlToggleMode);
+        _ctrlToggle.SetPressedNoSignal(GameState.Instance.CtrlToggleMode);
+        _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
+        _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
         RefreshRebindRows();
         RefreshLangButtons();
         RefreshZoomButtons();
         RefreshWindowButtons();
         RefreshAimButtons();
-        _reduceFlashBtn.SetPressedNoSignal(GameStateBridge.Get("reduce_flash").AsBool());
-        _mouseLockBtn.SetPressedNoSignal(GameStateBridge.Get("mouse_lock").AsBool());
-        _touchBtn.SetPressedNoSignal(GameStateBridge.Get("touch_controls").AsBool());
+        _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
+        _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
+        _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
         _hintLabel.Text = "";
         _capturingAction = new StringName();
         ShowPage(PageControls);
@@ -600,15 +599,15 @@ public partial class SettingsUi : CanvasLayer
 
     private void RefreshLangButtons()
     {
-        _langZh.SetPressedNoSignal(GameStateBridge.Get("locale").AsString() == "zh");
-        _langEn.SetPressedNoSignal(GameStateBridge.Get("locale").AsString() == "en");
+        _langZh.SetPressedNoSignal(GameState.Instance.Locale == "zh");
+        _langEn.SetPressedNoSignal(GameState.Instance.Locale == "en");
     }
 
     private void RefreshZoomButtons()
     {
         foreach (var level in _zoomButtons.Keys)
         {
-            ((Button)_zoomButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameStateBridge.Get("view_zoom").AsStringName());
+            ((Button)_zoomButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.ViewZoom);
         }
     }
 
@@ -616,7 +615,7 @@ public partial class SettingsUi : CanvasLayer
     {
         foreach (var level in _windowButtons.Keys)
         {
-            ((Button)_windowButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameStateBridge.Get("window_size").AsStringName());
+            ((Button)_windowButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.WindowSize);
         }
     }
 
@@ -624,7 +623,7 @@ public partial class SettingsUi : CanvasLayer
     {
         foreach (var level in _aimButtons.Keys)
         {
-            ((Button)_aimButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameStateBridge.Get("aim_assist_level").AsStringName());
+            ((Button)_aimButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.AimAssistLevel);
         }
     }
 
@@ -679,16 +678,16 @@ public partial class SettingsUi : CanvasLayer
         // 键盘 Tab 循环与手柄方向键导航中断（对齐 show_settings 的 grab_focus 约定）
         ((Button)_navButtons[current].AsGodotObject()).GrabFocus();
         // 操作模式按钮选中态刷新
-        _ctrlHold.SetPressedNoSignal(!GameStateBridge.Get("ctrl_toggle_mode").AsBool());
-        _ctrlToggle.SetPressedNoSignal(GameStateBridge.Get("ctrl_toggle_mode").AsBool());
-        _shiftHold.SetPressedNoSignal(!GameStateBridge.Get("shift_toggle_mode").AsBool());
-        _shiftToggle.SetPressedNoSignal(GameStateBridge.Get("shift_toggle_mode").AsBool());
+        _ctrlHold.SetPressedNoSignal(!GameState.Instance.CtrlToggleMode);
+        _ctrlToggle.SetPressedNoSignal(GameState.Instance.CtrlToggleMode);
+        _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
+        _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
         RefreshZoomButtons();
         RefreshWindowButtons();
         RefreshAimButtons();
-        _reduceFlashBtn.SetPressedNoSignal(GameStateBridge.Get("reduce_flash").AsBool());
-        _mouseLockBtn.SetPressedNoSignal(GameStateBridge.Get("mouse_lock").AsBool());
-        _touchBtn.SetPressedNoSignal(GameStateBridge.Get("touch_controls").AsBool());
+        _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
+        _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
+        _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
     }
 
     /// <summary>首个内容页的父容器（= shell content VBox；GDScript `_pages.values()[0].get_parent()`）。</summary>
@@ -704,27 +703,27 @@ public partial class SettingsUi : CanvasLayer
 
     private void OnCtrlMode(bool toggleMode)
     {
-        GameStateBridge.Call("set_ctrl_toggle_mode", toggleMode);
+        GameState.Instance.SetCtrlToggleMode(toggleMode);
     }
 
     private void OnShiftMode(bool toggleMode)
     {
-        GameStateBridge.Call("set_shift_toggle_mode", toggleMode);
+        GameState.Instance.SetShiftToggleMode(toggleMode);
     }
 
     private void OnReduceFlash()
     {
-        GameStateBridge.Call("set_reduce_flash", _reduceFlashBtn.ButtonPressed);
+        GameState.Instance.SetReduceFlash(_reduceFlashBtn.ButtonPressed);
     }
 
     private void OnTouchControls()
     {
-        GameStateBridge.Call("set_touch_controls", _touchBtn.ButtonPressed);
+        GameState.Instance.SetTouchControls(_touchBtn.ButtonPressed);
     }
 
     private void OnMouseLock()
     {
-        GameStateBridge.Call("set_mouse_lock", _mouseLockBtn.ButtonPressed);
+        GameState.Instance.SetMouseLock(_mouseLockBtn.ButtonPressed);
     }
 
     /// <summary>测试/诊断经公开接口（对齐 window_buttons() 模式）</summary>

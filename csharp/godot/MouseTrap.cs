@@ -91,7 +91,7 @@ public partial class MouseTrap : Node
     {
         var win = GetWindow();
         return TrapEnabled(
-            GameStateBridge.Get("mouse_lock").AsBool(),
+            GameState.Instance.MouseLock,
             win.Visible,
             _focused,
             win.Size.X > 0 && win.Size.Y > 0,
