@@ -44,7 +44,12 @@ public partial class LaserWeapon : Node2D
     private Line2D _beam = null!;
     private GpuParticles2D _glow = null!;
 
-    private readonly Callable _onBuffsChanged = Callable.From(OnBuffsChanged);
+    private readonly Callable _onBuffsChanged;
+
+    public LaserWeapon()
+    {
+        _onBuffsChanged = Callable.From(OnBuffsChanged);
+    }
 
     // ---------------- A7：测试/诊断白盒断言经公开接口 ----------------
 
@@ -78,7 +83,7 @@ public partial class LaserWeapon : Node2D
 
     public override void _Ready()
     {
-        _player = GetParent() as Player;
+        _player = GetParent() as Player ?? null!;
         BeamDuration = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.duration", BeamDuration).AsDouble();
         CooldownDuration = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
         TickInterval = (float)GameStateBridge.Call("cfg", "buffs.laser_beam.tick_interval", TickInterval).AsDouble();
@@ -220,8 +225,8 @@ public partial class LaserWeapon : Node2D
         _tickTimer = 0.0f;
         _beam.Visible = true;
         _glow.Emitting = true;
-        _player.SetAutoFire(false);
-        GameStateBridge.Call("play_sfx", _sfxBeam, -6.0);
+        _player!.SetAutoFire(false);
+        if (_sfxBeam != null) GameStateBridge.Call("play_sfx", _sfxBeam, -6.0);
     }
 
     private void EndBeam()

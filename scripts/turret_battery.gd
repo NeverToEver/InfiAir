@@ -150,7 +150,7 @@ func _physics_process(delta: float) -> void:
 		return
 	# 弱锁定索敌：限速转向玩家（lerp_angle 缓动 + rad/s 上限，机械转台感）
 	if GameState.player_ref != null:
-		var target := (GameState.player_ref.global_position - global_position).angle()
+		var target = (GameState.player_ref.global_position - global_position).angle()
 		var max_step := turn_rate * delta
 		var diff := wrapf(target - _facing, -PI, PI)
 		_facing += clampf(diff, -max_step, max_step)

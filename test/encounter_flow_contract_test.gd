@@ -45,7 +45,7 @@ func _ready() -> void:
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	var main: Node = get_node("Main")
-	var player: Player = main.player()
+	var player = main.player()
 	player.set_auto_fire(false)
 	player.set_invincible(999.0)
 	await get_tree().process_frame

@@ -30,7 +30,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	var main := get_node("Main")
-	var player: Player = main.player()
+	var player = main.player()
 	var spawner: Node = main.get_node("Spawner")
 	var rect := GameState.view_world_rect()
 	var land_y: float = rect.position.y + rect.size.y * player.ENTRY_LAND_RATIO
@@ -42,7 +42,7 @@ func _ready() -> void:
 	_check(player.position.y > rect.end.y, "入场起点在屏幕下外")
 
 	# ---------- 2. 阶段 1 冲入：锁输入，tween 驱动定位到下 1/3 ----------
-	var x0 := player.position.x
+	var x0 = player.position.x
 	Input.action_press("move_left")
 	Input.action_press("move_up")
 	await _wait_physics(10)
@@ -55,7 +55,7 @@ func _ready() -> void:
 	var settle_frames := 0
 	for i in 120:
 		await get_tree().physics_frame
-		var y := player.position.y
+		var y = player.position.y
 		if y >= land_y - 2.0 and y <= land_y + 40.0:
 			settle_frames += 1
 			if settle_frames >= 8:
@@ -68,12 +68,12 @@ func _ready() -> void:
 
 	# ---------- 3. 阶段 2 后撤：仅左右可调、上下锁定 ----------
 	_check(player.is_entry_playing(), "后撤阶段动画仍在播放")
-	var xr0 := player.position.x
+	var xr0 = player.position.x
 	Input.action_press("move_right")
 	await _wait_physics(10)
 	Input.action_release("move_right")
 	_check(player.position.x > xr0 + 5.0, "后撤阶段左右可调")
-	var y_before_up := player.position.y
+	var y_before_up = player.position.y
 	Input.action_press("move_up")
 	await _wait_physics(10)
 	Input.action_release("move_up")

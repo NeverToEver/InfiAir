@@ -42,12 +42,17 @@ public partial class AimFrameLayer : Node2D
     private ulong _targetCacheFrame = ulong.MaxValue;
     private Enemy? _targetCacheResult;
 
-    private readonly Callable _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
+    private readonly Callable _onAimAssistChanged;
 
     /// <summary>热路径缓存：player_ref / enemies 每渲染帧一次动态调用（单实例共享，帧内复用）。</summary>
     private static ulong _cacheFrame = ulong.MaxValue;
     private static Variant _framePlayer;
     private static Godot.Collections.Array _frameEnemies = new();
+
+    public AimFrameLayer()
+    {
+        _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
+    }
 
     /// <summary>player_ref / enemies 每渲染帧一次动态调用缓存（帧内复用；M7 后改 typed 直调）。</summary>
     private static Godot.Collections.Array CachedEnemies()

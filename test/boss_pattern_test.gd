@@ -110,7 +110,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0)  # 弹幕/掠过期间不被误伤
 	await get_tree().process_frame
@@ -346,7 +346,7 @@ func _ready() -> void:
 			break
 	_check(wall.size() == 8, "场景4：弹幕墙 10 槽位出 8 弹（留 2 缺口，实测 %d）" % wall.size())
 	if wall.size() == 8:
-		var to_player := (player.global_position - boss4.global_position).angle()
+		var to_player = (player.global_position - boss4.global_position).angle()
 		# 槽位占用重建（缺口可能在弧段端部，相邻角差法不可靠）：逐槽比对弹丸方位
 		var spacing := deg_to_rad(150.0) / 9.0
 		var first_slot := Vector2.DOWN.angle() - deg_to_rad(75.0)

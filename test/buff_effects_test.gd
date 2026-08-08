@@ -40,7 +40,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	var spawner: Node = get_node("Main/Spawner")
 	player.set_auto_fire(false)
 	player.set_invincible(999.0)
@@ -56,7 +56,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 1. 效果表完整性：键集覆盖全部 player 侧 buff，kind 合法，cfg 键存在于 balance.json
-	var effects: Dictionary = player.BUFF_EFFECTS
+	var effects: Dictionary = player.GetBuffEffects()  # M3c：Player 迁 C#，属性改方法访问
 	_check(effects.size() == 9, "BUFF_EFFECTS 表登记 9 项 player 侧 buff 效果")
 	for id: StringName in [
 		&"rapid_fire",

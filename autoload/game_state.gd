@@ -440,7 +440,7 @@ var enemy_pool = null:  # M3b 起 EnemyPool 为 C# 类，GDScript 不能以类�
 	set(value):
 		_registry.EnemyPool = value
 ## 辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）
-var aim_frame_layer: AimFrameLayer = null:  # M3c 迁 C# 后改 untyped（届时 GDScript 不能以类名引用）
+var aim_frame_layer = null:  # M3c 起 AimFrameLayer 为 C# 类，GDScript 不能以类名作类型注解（untyped）
 	get:
 		return _registry.AimFrameLayer
 	set(value):

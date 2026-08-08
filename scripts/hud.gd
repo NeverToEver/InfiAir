@@ -368,21 +368,21 @@ func _process(delta: float) -> void:
 			_boss_countdown.visible = false
 	else:
 		_boss_countdown.visible = false
-	var player := GameState.player_ref as Player
+	var player = GameState.player_ref  # M3c：Player 迁 C#，as 移除
 	if player == null:
 		return
-	var fuel := player.fuel_ratio()
+	var fuel: float = player.fuel_ratio()  # M3c：动态调用显式 float 型（防级联 := 失败）
 	# P1-3（2026-08-05 审计）：值变化才写 setter（ProgressBar setter 内部 queue_redraw，
 	# 0.1s 轮询下值未变也触发无意义重绘；epsilon 守卫只写变化帧）
 	var fuel_val := fuel * 100.0
 	if absf(fuel_val - _fuel_bar.value) > 0.001:
 		_fuel_bar.value = fuel_val
 	_fuel_bar.fill_color = UITheme.DANGER if fuel < 0.3 else UITheme.ACCENT
-	var dash_val := player.dash_ready_ratio() * 100.0
+	var dash_val = player.dash_ready_ratio() * 100.0
 	if absf(dash_val - _dash_bar.value) > 0.001:
 		_dash_bar.value = dash_val
 	# 机制四：弹反能量槽（满格=可用；流程期清空；冷却匀速充能——player.parry_energy_ratio）
-	var parry_val := player.parry_energy_ratio() * 100.0
+	var parry_val = player.parry_energy_ratio() * 100.0
 	if absf(parry_val - _parry_bar.value) > 0.001:
 		_parry_bar.value = parry_val
 	if _main != null:

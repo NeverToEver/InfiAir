@@ -97,7 +97,7 @@ func _detonate() -> void:
 	GameState.play_sfx(GameState.SFX_EXPLOSION)
 	GameState.shake(GameState.cfg("effects.shake.enemy_die", 5.0))
 	var hitbox := GameState.player_hitbox
-	var player := GameState.player_ref as Player
+	var player = GameState.player_ref  # M3c：Player 迁 C#，as 移除
 	if hitbox != null and is_instance_valid(hitbox) and player != null:
 		if hitbox.global_position.distance_to(global_position) <= aoe_radius:
 			# K08：A1 同款遗漏——原 (hitbox.get_parent() as Player) 硬强转，Player 节点结构变动即

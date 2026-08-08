@@ -11,7 +11,7 @@ namespace InfiAir;
 /// 暂停随玩家 process_mode 冻结（流程/冷却计时同步暂停）。数值经 Player._load_balance 注入。
 /// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；无 GameState 访问。
 /// </summary>
-public class PlayerParry
+public partial class PlayerParry : RefCounted
 {
     public enum ParryPhase
     {
@@ -171,6 +171,15 @@ public class PlayerParry
                 return 0.0f;
         }
     }
+
+    // GDScript 无法以类名引用 C# 嵌套枚举（实测）——相位值经静态方法访问（脚本资源可调）
+    public static int GetPhaseIdle() => (int)ParryPhase.IDLE;
+
+    public static int GetPhaseWindup() => (int)ParryPhase.WINDUP;
+
+    public static int GetPhaseActive() => (int)ParryPhase.ACTIVE;
+
+    public static int GetPhaseRecover() => (int)ParryPhase.RECOVER;
 
     // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
     // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被

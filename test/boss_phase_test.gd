@@ -70,7 +70,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0)  # 弹幕期间不被误伤
 	await get_tree().process_frame

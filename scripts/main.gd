@@ -20,7 +20,7 @@ var ENRAGE_RAMP_TIME := 0.3
 @onready var _hud: CanvasLayer = $HUD
 @onready var _pause_ui: CanvasLayer = $PauseUI
 @onready var _base_ui: CanvasLayer = $BaseUI
-@onready var _player: Player = $Player
+@onready var _player = $Player  # M3c：Player 迁 C#，去类型注解
 @onready var _starfield := $Starfield  # 随 M6（main 迁移 C#）重定型为 Starfield
 @onready var _camera: Camera2D = $Camera2D
 
@@ -60,7 +60,7 @@ var _formation: FormationStrikeEvent = null
 ## Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）
 var _meta_fx: MetaHealthFX = null
 ## 辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）
-var _aim_frames: AimFrameLayer = null
+var _aim_frames = null  # M3c：AimFrameLayer 迁 C#，去类型注解
 var _virtual_controls: VirtualControls = null  # 触屏虚拟输入层（mobile touch）
 var _breath_was_active: bool = false
 ## give_up（K 键自毁）动作静态绑定判定（project.godot 定义，改键系统不删动作，结果全程不变）：
@@ -112,7 +112,7 @@ func _ready() -> void:
 	_meta_fx = MetaHealthFX.new()
 	add_child(_meta_fx)
 	# 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
-	_aim_frames = AimFrameLayer.new()
+	_aim_frames = load("res://csharp/godot/AimFrameLayer.cs").new()  # M3c：AimFrameLayer 迁 C#，经脚本资源 new（单点使用不提升）
 	add_child(_aim_frames)
 	# 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
 	_virtual_controls = VirtualControls.new()
@@ -178,7 +178,7 @@ func mothership() -> Mothership:
 
 
 ## A7：测试/诊断白盒断言经公开接口（命名语义化）
-func player() -> Player:
+func player():  # M3c：Player 迁 C#，返回类型去注解
 	return _player
 
 
@@ -783,8 +783,8 @@ func _on_orbital_struck() -> void:
 ## 入场衔接（开场/继续出击后）：播战机入场动画，敌机生成延迟到动画结束才恢复
 func _start_entry_sequence() -> void:
 	_spawner.set_process(false)
-	if not _player.entry_finished.is_connected(_on_entry_finished):
-		_player.entry_finished.connect(_on_entry_finished)
+	if not _player.EntryFinished.is_connected(_on_entry_finished):
+		_player.EntryFinished.connect(_on_entry_finished)  # M3c：C# [Signal] 以 PascalCase 注册
 	_player.play_entry_animation()
 
 

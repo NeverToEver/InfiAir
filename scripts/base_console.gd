@@ -349,7 +349,7 @@ func _holo_boot() -> void:
 
 func _refresh() -> void:
 	_rp_label.text = tr("BASE_RP") % GameState.rp
-	var player := GameState.player_ref as Player  # A5：走注册表，替代 group 现找
+	var player = GameState.player_ref  # M3c：Player 迁 C#，as 移除  # A5：走注册表，替代 group 现找
 	# 战机库状态总览
 	var buff_text := ""
 	for id in GameState.buffs:
@@ -479,7 +479,7 @@ func _on_repair_pressed() -> void:
 
 
 func _on_recharge_pressed() -> void:
-	var player := GameState.player_ref as Player  # A5：走注册表，替代 group 现找
+	var player = GameState.player_ref  # M3c：Player 迁 C#，as 移除  # A5：走注册表，替代 group 现找
 	if player != null and GameState.spend_rp(GameState.RP_RECHARGE_COST):
 		player.refill_fuel()
 		GameState.play_sfx(GameState.SFX_RESUPPLY)

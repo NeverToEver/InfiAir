@@ -71,7 +71,7 @@ func _ready() -> void:
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	GameState.login_guest()
 	add_child(main_scene.instantiate())
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)
 	player.set_invincible(999.0)
 	player.position = Vector2(960.0, 800.0)

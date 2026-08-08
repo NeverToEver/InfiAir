@@ -31,7 +31,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，类型注解去除
 	var hud: CanvasLayer = get_node("Main/HUD")
 	var buff_ui: CanvasLayer = get_node("Main/BuffUI")
 	var spawner: Node = get_node("Main/Spawner")
@@ -59,7 +59,7 @@ func _ready() -> void:
 	GameState.boss_kills = 0
 
 	# 2. laser_beam：无 buff 不触发；获得后触发光束并穿透伤害直线上 2 个敌人
-	var laser: LaserWeapon = player.get_node("LaserWeapon")
+	var laser = player.get_node("LaserWeapon")  # M3c：LaserWeapon 迁 C#，类型注解去除
 	await get_tree().create_timer(0.4).timeout
 	_check(not laser.active(), "无 laser_beam buff 时激光不触发")
 	GameState.add_buff(&"laser_beam")

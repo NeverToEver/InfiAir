@@ -19,7 +19,7 @@ public class PlayerVisuals
     private static readonly Color AfterimageColor = new(0.5f, 0.9f, 1.0f, 0.5f);
 
     private Sprite2D _sprite = null!;
-    private GPUParticles2D _thruster = null!;
+    private GpuParticles2D _thruster = null!;
     private Polygon2D _hitboxDot = null!;
     private Polygon2D _parryArc = null!;
     private Polygon2D _parryShine = null!;
@@ -37,14 +37,14 @@ public class PlayerVisuals
     /// Main 场景构建期 add_child 会报 "busy setting up children"，延迟到帧末执行——原 _ready 逻辑迁移）。
     /// </summary>
     public void Init(
-        Sprite2D sprite, GPUParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
         Node worldRoot)
     {
         Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot, AfterimagePoolSize);
     }
 
     public void Init(
-        Sprite2D sprite, GPUParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
         Node worldRoot, int poolSize)
     {
         _sprite = sprite;
@@ -191,11 +191,11 @@ public class PlayerVisuals
     // 本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
 
     public void init(
-        Sprite2D sprite, GPUParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
         Node worldRoot) => Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot);
 
     public void init(
-        Sprite2D sprite, GPUParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
         Node worldRoot, int poolSize) => Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot, poolSize);
 
     public void set_thruster(float speedScale, float amountRatio, float alpha, Color engineTint)

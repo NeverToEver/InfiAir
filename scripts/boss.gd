@@ -905,7 +905,7 @@ func _transition_cleanup() -> void:
 	for child in get_parent().get_children():
 		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) or child is FormationBomb:  # M3a 起 Bullet 为 C# 类，不能经类名 is 判定
 			child.queue_free()
-	var player := GameState.player_ref as Player
+	var player = GameState.player_ref  # M3c：Player 迁 C#，as Player 去化（player_ref 恒为 Player，null 语义保留）
 	if player != null and player.invincible_remaining() < TRANSITION_INVINCIBLE:
 		player.set_invincible(TRANSITION_INVINCIBLE)
 
@@ -1014,9 +1014,8 @@ func _update_flash(delta: float) -> void:
 func _check_body_collision() -> void:
 	if _body_contact:
 		# 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
-		(GameState.player_ref as Player).take_damage(
-			maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position
-		)
+		# M3c：Player 迁 C#，as Player 去化（player_ref 恒为 Player）
+		GameState.player_ref.take_damage(maxi(1, int(roundf(COLLISION_DAMAGE * GameState.enemy_damage_ramp()))), global_position)
 
 
 ## 2026-08-07 审计：体碰重叠标记（对齐 enemy.gd P0-2；判定交回 _physics_process 守卫——

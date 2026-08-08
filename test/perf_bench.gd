@@ -30,7 +30,7 @@ func _ready() -> void:
 		e.position = Vector2(randf_range(60.0, 1860.0), randf_range(-400.0, 800.0))
 		main.add_child(e)
 	# 玩家强制开火（auto fire 默认开，另外定期手动齐射制造弹丸压力）
-	var player: Player = main.get_node("Player")
+	var player = main.get_node("Player")  # M3c：Player 迁 C#，不能作类型注解
 	var t0 := Time.get_ticks_msec()
 	for i in FRAMES:
 		await get_tree().physics_frame

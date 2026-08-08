@@ -30,7 +30,7 @@ func _ready() -> void:
 	add_child(tut_a)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var player_a: Player = tut_a.get_node("Player")
+	var player_a = tut_a.get_node("Player")  # M3c：Player 迁 C#，不能作类型注解
 	player_a.set_auto_fire(false)
 	player_a.set_invincible(0.0)
 	player_a.set_last_hit_frame(-1)
@@ -49,7 +49,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var tut := get_node("Tutorial")
-	var player: Player = tut.get_node("Player")
+	var player = tut.get_node("Player")  # M3c：Player 迁 C#，不能作类型注解
 	player.set_auto_fire(false)
 
 	# 阶段 1：3 个静止靶机

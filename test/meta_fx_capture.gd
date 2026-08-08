@@ -16,7 +16,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var spawner := get_node("Main/Spawner")
 	spawner.set_process(false)
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)
 	# 摆几架静态敌机丰富画面，让后处理有内容可作用
 	for i in 5:

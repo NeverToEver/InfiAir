@@ -32,7 +32,7 @@ func _ready() -> void:
 	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，不能作类型注解
 	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame

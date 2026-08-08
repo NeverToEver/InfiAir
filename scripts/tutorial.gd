@@ -44,7 +44,7 @@ var _objective_args: Array = []
 var _complete_panel: PanelContainer
 var _hud_layer: CanvasLayer
 
-@onready var _player: Player = $Player
+@onready var _player = $Player  # M3c：Player 迁 C#，去类型注解
 
 
 ## A7：测试/诊断白盒断言经公开接口
@@ -106,7 +106,7 @@ func _ready() -> void:
 	GameState.player_died.connect(_on_player_died)
 	# 辅助瞄准框覆盖层：与 main.gd 同款运行时创建（登记 GameState.aim_frame_layer），
 	# 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
-	add_child(AimFrameLayer.new())
+	add_child(load("res://csharp/godot/AimFrameLayer.cs").new())  # M3c：AimFrameLayer 迁 C#，经脚本资源 new（单点使用不提升）
 	_build_hud()
 	HOME_CHARGE_TIME = GameState.cfg("effects.home_charge_time", HOME_CHARGE_TIME)
 	DOCK_CHARGE_TIME = GameState.cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME)

@@ -18,7 +18,7 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 重置玩家受击状态并关闭被动回血（_since_damage=0 < 4s 延迟，计时窗内不回血）
-func _reset_hit_state(player: Player) -> void:
+func _reset_hit_state(player) -> void:  # M3c：Player 迁 C#，参数不能作类型注解
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
 	player.set_since_damage(0.0)
@@ -34,7 +34,7 @@ func _ready() -> void:
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，不能作类型注解
 	player.set_auto_fire(false)
 	await get_tree().process_frame
 	await get_tree().process_frame

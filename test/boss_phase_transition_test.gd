@@ -61,7 +61,7 @@ func _ready() -> void:
 	GameState.login_guest()  # T4：游客会话直接开局（StartPanel 已退役）
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0)  # 用例间兜底（各用例自行重置）
 	await get_tree().process_frame

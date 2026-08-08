@@ -95,7 +95,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")
 	player.set_auto_fire(false)  # 全程禁用全自动开火，避免误杀 Boss/触发里程碑
 	player.set_invincible(999.0)  # 狂暴弹幕期间不被误伤
 	await get_tree().process_frame
@@ -139,7 +139,7 @@ func _ready() -> void:
 	# 减速功能验证：仍可位移，但移速上限 ×0.35（time_scale 已恢复 1.0）
 	Input.action_press("move_right")
 	await _wait_real(0.6)
-	var slow_vx := absf(player.velocity.x)
+	var slow_vx = absf(player.velocity.x)
 	Input.action_release("move_right")
 	_check(slow_vx > 30.0, "场景1：减速期间方向键输入仍可位移")
 	_check(slow_vx <= player.MAX_SPEED * 0.35 + 5.0, "场景1：减速期间移速上限 ×0.35")

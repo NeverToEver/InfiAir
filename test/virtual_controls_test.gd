@@ -44,7 +44,7 @@ func _ready() -> void:
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	add_child(main_scene.instantiate())
 	var main: Node = get_node("Main")
-	var player: Player = main.player()
+	var player = main.player()  # M3c：Player 迁 C#，不能作类型注解
 	player.set_auto_fire(false)
 	player.set_invincible(999.0)
 	await get_tree().process_frame
@@ -77,13 +77,13 @@ func _ready() -> void:
 	_check(not Input.is_action_pressed("move_right") and not Input.is_action_pressed("move_up"), "场景2: 释放 → 移动 action 全清")
 
 	# ---- 场景3：右摇杆 → aim_* + 触屏瞄准行为 ----
-	var aim_before := player.aim_point()
+	var aim_before = player.aim_point()  # M3c：player untyped，动态调用去 :=
 	await _touch(1, true, VirtualControls.AIM_CENTER)
 	await _drag(1, VirtualControls.AIM_CENTER + Vector2(0.0, -VirtualControls.AIM_RADIUS))
 	_check(vc.aim_vec().distance_to(Vector2(0.0, -1.0)) < 0.05, "场景3: 上推 → aim_vec=(0,-1)")
 	_check(Input.is_action_pressed("aim_up"), "场景3: aim_up action 注入按下")
 	await _wait_real(0.5)  # 增量驱动：瞄准点上移
-	var aim_after := player.aim_point()
+	var aim_after = player.aim_point()  # M3c：player untyped，动态调用去 :=
 	_check(aim_after.y < aim_before.y, "场景3: 触屏模式瞄准随右摇杆上移（无鼠标基准）")
 	await _touch(1, false, Vector2.ZERO)
 	_check(vc.aim_vec() == Vector2.ZERO, "场景3: 释放 → aim_vec 归零")

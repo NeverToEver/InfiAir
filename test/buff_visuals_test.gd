@@ -3,6 +3,8 @@ extends Node
 ## 覆盖 16 种 buff 的外观映射、层数强度、天赋路线合并与重开清空。
 
 var _failures: int = 0
+## M3c：PlayerBuffVisuals 迁 C#——GDScript 不能以类名引用/is 判定 C# 类，经脚本资源判定
+var _buff_visuals_script := load("res://csharp/godot/PlayerBuffVisuals.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -25,7 +27,7 @@ func _ready() -> void:
 	add_child(main_scene.instantiate())
 	var main := get_node("Main")
 	# 开场面板自显即暂停（冻结背景），先关闭解除
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，类型注解去除
 	var spawner: Node = get_node("Main/Spawner")
 	# 关闭自动开火与刷怪，避免对局逻辑干扰外观断言
 	player.set_auto_fire(false)
@@ -39,9 +41,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 0. 初始状态：外观节点存在且全部附件隐藏、尾焰染色为白
-	var visuals: PlayerBuffVisuals = null
+	var visuals = null  # M3c：PlayerBuffVisuals 迁 C#，类型注解去除
 	for child in player.get_children():
-		if child is PlayerBuffVisuals:
+		if is_instance_of(child, _buff_visuals_script):  # M3c：C# 类不能经类名 is 判定
 			visuals = child
 	_check(visuals != null, "玩家挂有 PlayerBuffVisuals 外观节点")
 	if visuals == null:

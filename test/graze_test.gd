@@ -32,7 +32,7 @@ func _free_enemy_bullets() -> void:
 
 
 ## 重置玩家受击状态（无敌/帧标记/被动回血计时），便于逐条断言
-func _reset_hit_state(player: Player) -> void:
+func _reset_hit_state(player) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
 	player.set_since_damage(999.0)
@@ -47,7 +47,7 @@ func _ready() -> void:
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，类型注解去除
 	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame

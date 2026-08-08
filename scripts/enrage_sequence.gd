@@ -36,7 +36,7 @@ var _snapshot_target := Vector2.ZERO  # 触发时玩家位置快照（轨道中�
 var _transition_origin := Vector2.ZERO
 var _return_origin := Vector2.ZERO
 var _return_target := Vector2.ZERO
-var _slowed_player: Player = null  # 被施加狂暴减速的玩家（用于精确复位）
+var _slowed_player = null  # 被施加狂暴减速的玩家（用于精确复位；M3c：Player 迁 C#，注解 untyped）
 var _boss_size := Vector2(328.0, 328.0)  # 贴图有效尺寸（begin 传入，算轨道半径）
 # 差异化狂暴各型状态
 var _ring_angle: float = 0.0  # 1 型环弹起始角（随波次进动）
@@ -393,7 +393,7 @@ func _begin_return(boss) -> void:
 ## 狂暴期玩家减速（替代原作 is_controls_locked 定身，§4.3）：移速 ×0.35，
 ## 仍可瞄准/射击/冲刺；TRANSITION+ACTIVE 有效
 func _lock_player_movement(boss) -> void:
-	var p := GameState.player_ref
+	var p = GameState.player_ref
 	if p != null and not p.is_dead():
 		_slowed_player = p
 		p.apply_enrage_slow(float(boss.ENRAGE_PLAYER_SLOW))

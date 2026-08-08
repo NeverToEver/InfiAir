@@ -51,7 +51,7 @@ func _free_enemy_bullets() -> void:
 
 
 ## 重置玩家受击状态（无敌/帧标记/被动回血计时），便于逐条断言
-func _reset_hit_state(player: Player) -> void:
+func _reset_hit_state(player) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
 	player.set_since_damage(999.0)
@@ -66,7 +66,7 @@ func _ready() -> void:
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，类型注解去除
 	player.set_auto_fire(false)  # 禁用自动开火，避免误伤与意外得分里程碑
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -79,7 +79,7 @@ func _ready() -> void:
 	player.position = Vector2(960.0, 800.0)
 
 	# ================= A1：玩家受击小判定点 =================
-	var hb := (player.get_node("Hitbox/CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
+	var hb = (player.get_node("Hitbox/CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
 	_check(hb != null and is_equal_approx(hb.radius, 7.0 * GameState.world_scale), "A1：玩家受击判定点半径 = 设计值 7 × world_scale")
 
 	# ================= A5：100 HP 伤害模型 =================
@@ -498,7 +498,7 @@ func _ready() -> void:
 	_check(is_equal_approx(player.SPAWN_INVINCIBLE_TIME, 1.0), "A20：出生保护 1.0s")
 	_check(is_equal_approx(player.INVINCIBLE_TIME, 1.5), "A20：受击无敌 1.5s（90 帧）")
 	# 行为级：新实例化的玩家出生即带 1.0s 保护
-	var fresh_player := (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	var fresh_player = (load("res://scenes/player.tscn") as PackedScene).instantiate()  # M3c：player.tscn 根节点必为 Player，去 as 且 := 改 =（untyped）
 	main.add_child(fresh_player)
 	fresh_player.set_auto_fire(false)
 	await get_tree().process_frame

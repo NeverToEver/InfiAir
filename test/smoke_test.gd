@@ -107,7 +107,7 @@ func _ready() -> void:
 			child.queue_free()
 	await get_tree().process_frame
 	# 后续各段需长时间真实等待，期间弹幕可能命中玩家：测试窗口内先开无敌
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，不能作类型注解
 	player.set_invincible(999.0)
 
 	# 3.1 新移动模式特征
@@ -276,7 +276,7 @@ func _ready() -> void:
 	GameState.add_buff(&"phase_dash")
 	var health_before := GameState.health
 	player.set_since_damage(0.0)  # 冻结被动回血，避免干扰 HP 断言
-	var pos_before := player.position
+	var pos_before = player.position  # M3c：player untyped，动态属性去 :=
 	player.set_invincible(0.0)
 	Input.action_press("dash")
 	# 无头模式需等物理帧而非 idle 帧，just_pressed 才可靠到达 _physics_process
@@ -653,7 +653,7 @@ func _ready() -> void:
 	aim_e.position = player.position + Vector2(0.0, -300.0)
 	main.add_child(aim_e)
 	await get_tree().process_frame
-	var frames := GameState.aim_frame_layer
+	var frames = GameState.aim_frame_layer  # M3c：aim_frame_layer 为 C# 类属性（迁后 untyped），去 :=
 	_check(frames != null, "辅助框覆盖层已登记 GameState")
 	# 准星置入标记敌框内（框心偏移 20px，仍在 碰撞半径+frame_pad 内）
 	player.aim_point_override = aim_e.global_position + Vector2(20.0, 0.0)

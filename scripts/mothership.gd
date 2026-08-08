@@ -82,7 +82,7 @@ const GATLING_SFX: AudioStream = preload("res://assets/audio/bullet_fire_b.wav")
 var _state: State = State.DESCEND
 var _state_timer: float = 0.0
 var _depart_speed: float = 0.0
-var _player: Player = null
+var _player = null  # M3c：Player 迁 C#，去类型注解
 # 加特林
 var _gatling_timer: float = 0.0
 var _sweep_time: float = 0.0
@@ -421,7 +421,7 @@ func _physics_process(delta: float) -> void:
 				var hud := _hud()
 				if hud != null:
 					hud.show_info_banner(tr("BANNER_MOTHERSHIP_ARRIVED"))
-				_start_docking(GameState.player_ref as Player)
+				_start_docking(GameState.player_ref)  # M3c：Player 迁 C#，as Player 去化（player_ref 恒为 Player）
 		State.DOCKING:
 			# 回收牵引期间火力掩护（加特林+导弹，不耗驻留弹匣）
 			_update_gatling(delta)
@@ -706,7 +706,7 @@ func _update_missiles(delta: float) -> void:
 
 
 ## 对接开始：锁输入 + 即无敌（对齐原作无敌窗口起点，堵对接/补给空窗）+ 吸附补间
-func _start_docking(player: Player) -> void:
+func _start_docking(player) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	if player == null or player.is_dead():
 		queue_free()  # 玩家不可用（死亡路径）：母舰直接离场，避免 HOVER 死态
 		return

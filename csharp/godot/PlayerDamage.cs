@@ -125,7 +125,6 @@ public class PlayerDamage
     public void configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit)
         => Configure(invincibleTime, armorMult, evasionChance, regenPerSec, shakeHit);
 
-    public void set_invincible(float seconds) => SetInvincible(seconds);
 
     public float invincible_remaining() => InvincibleRemaining();
 

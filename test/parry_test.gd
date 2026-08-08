@@ -8,6 +8,9 @@ extends Node
 
 var _failures: int = 0
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
+## M3c：PlayerParry 迁 C#——GDScript 不能以类名引用 C# 嵌套枚举（PlayerParry.ParryPhase.X
+## 解析失败），相位常量经脚本资源的静态访问器（int）读取；实例经脚本资源创建
+var _parry_script := load("res://csharp/godot/PlayerParry.cs")
 
 
 func _check(cond: bool, label: String) -> void:
@@ -56,49 +59,49 @@ func _make_boss(p_type: int = 1) -> Boss:
 	return boss
 
 
-func _reset_hit_state(player: Player) -> void:
+func _reset_hit_state(player) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	player.set_invincible(0.0)
 	player.set_last_hit_frame(-1)
 	player.set_since_damage(999.0)
 
 
 ## 等待弹反冷却就绪（IDLE 且冷却满；最多 timeout 秒），保证后续 try_parry 一定成功
-func _await_parry_ready(player: Player, timeout: float = 5.0) -> void:
+func _await_parry_ready(player, timeout: float = 5.0) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	var t := 0.0
-	while t < timeout and (player.parry_phase() != PlayerParry.ParryPhase.IDLE or player.parry_cooldown_remaining() > 0.0):
+	while t < timeout and (player.parry_phase() != _parry_script.GetPhaseIdle() or player.parry_cooldown_remaining() > 0.0):  # M3c
 		await get_tree().create_timer(0.1).timeout
 		t += 0.1
 
 
 ## 启动弹反并等待进入 ACTIVE（最多 1s）
-func _await_active(player: Player) -> void:
+func _await_active(player) -> void:  # M3c：Player 迁 C#，参数类型注解去除
 	player.try_parry()
 	for i in 50:
 		await get_tree().create_timer(0.02).timeout
-		if player.parry_phase() == PlayerParry.ParryPhase.ACTIVE:
+		if player.parry_phase() == _parry_script.GetPhaseActive():  # M3c
 			return
 
 
 func _ready() -> void:
 	# ================= 组件级：完整时间轴 =================
-	var pp := PlayerParry.new()
+	var pp = _parry_script.new()  # M3c：PlayerParry 迁 C#，经脚本资源实例化（禁用 :=）
 	pp.configure(0.8, 0.5, 3.0)
 	_check(pp.try_start(), "时间轴：IDLE 可启动（进入 WINDUP）")
-	_check(pp.phase == PlayerParry.ParryPhase.WINDUP and not pp.try_start(), "时间轴：流程中不可重复启动")
+	_check(pp.phase == _parry_script.GetPhaseWindup() and not pp.try_start(), "时间轴：流程中不可重复启动")  # M3c
 	pp.tick(0.1)
-	_check(pp.phase == PlayerParry.ParryPhase.WINDUP, "时间轴：0.1s 仍在前摇（无判定期）")
+	_check(pp.phase == _parry_script.GetPhaseWindup(), "时间轴：0.1s 仍在前摇（无判定期）")  # M3c
 	pp.tick(0.06)
-	_check(pp.phase == PlayerParry.ParryPhase.ACTIVE, "时间轴：0.16s ≥ 前摇 0.15s 进入 ACTIVE")
+	_check(pp.phase == _parry_script.GetPhaseActive(), "时间轴：0.16s ≥ 前摇 0.15s 进入 ACTIVE")  # M3c
 	_check(pp.tint_strength() == 1.0, "时间轴：ACTIVE 金色 tint 保持")
 	pp.tick(0.25)
-	_check(pp.phase == PlayerParry.ParryPhase.ACTIVE, "时间轴：ACTIVE 0.25s 内保持")
+	_check(pp.phase == _parry_script.GetPhaseActive(), "时间轴：ACTIVE 0.25s 内保持")  # M3c
 	_check(pp.energy_ratio() == 0.0, "能量槽：流程期保持空")
 	pp.tick(0.25)
-	_check(pp.phase == PlayerParry.ParryPhase.RECOVER, "时间轴：0.5s 有效窗满进入 RECOVER")
+	_check(pp.phase == _parry_script.GetPhaseRecover(), "时间轴：0.5s 有效窗满进入 RECOVER")  # M3c
 	pp.tick(0.05)  # RECOVER 中段（0.05/0.15）
 	_check(pp.tint_strength() < 1.0 and pp.tint_strength() > 0.3, "时间轴：RECOVER 后摇金色渐弱")
 	pp.tick(0.1)
-	_check(pp.phase == PlayerParry.ParryPhase.IDLE, "时间轴：0.15s 后摇满回归 IDLE")
+	_check(pp.phase == _parry_script.GetPhaseIdle(), "时间轴：0.15s 后摇满回归 IDLE")  # M3c
 	_check(pp.cooldown_remaining() > 2.9, "时间轴：硬冷却自 RECOVER 完成起算（完整周期 0.8+3.0）")
 	_check(not pp.try_start(), "冷却：3s 冷却期内不可再次展开")
 	pp.tick(1.5)
@@ -115,7 +118,7 @@ func _ready() -> void:
 	GameState.save_profile()
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	var main := get_node("Main")
-	var player: Player = get_node("Main/Player")
+	var player = get_node("Main/Player")  # M3c：Player 迁 C#，类型注解去除
 	player.set_auto_fire(false)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -194,7 +197,7 @@ func _ready() -> void:
 	await _await_parry_ready(player)
 	player.try_parry()
 	await get_tree().create_timer(0.9).timeout  # 流程 0.8s 播完（RECOVER 完成）
-	_check(player.parry_phase() == PlayerParry.ParryPhase.IDLE, "冷却：场景级流程结束回归 IDLE")
+	_check(player.parry_phase() == _parry_script.GetPhaseIdle(), "冷却：场景级流程结束回归 IDLE")  # M3c
 	_check(not player.try_parry(), "冷却：3s 冷却期内再次展开被拒")
 	await get_tree().create_timer(3.0).timeout
 	_check(player.try_parry(), "冷却：满 3s 后可再次展开")

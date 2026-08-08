@@ -79,7 +79,7 @@ var _last_check_msec: int = 0
 
 # 对局引用（重开时刷新）
 var _main = null  # main.gd 无 class_name，保持动态访问
-var _player: Player = null
+var _player = null
 var _spawner = null
 var _buff_ui: CanvasLayer = null
 var _boss: Boss = null
@@ -377,7 +377,7 @@ func _bot_tick(now: int) -> void:
 	_handle_buff_ui(now)
 	_handle_base_ui(now)
 	_handle_pause_ui(now)
-	var playing := not get_tree().paused and _player != null and not _player.is_dead()
+	var playing = not get_tree().paused and _player != null and not _player.is_dead()
 	if playing:
 		_update_movement(now)
 		_update_aim(now)
@@ -664,7 +664,7 @@ func _update_movement(now: int) -> void:
 		_move_target = Vector2(
 			randf_range(view.position.x + 100.0, view.end.x - 100.0), randf_range(view.position.y + 100.0, view.end.y - 100.0)
 		)
-	var steer := _move_target - _player.position
+	var steer = _move_target - _player.position
 	steer = steer.normalized() if steer.length() > 60.0 else Vector2.ZERO
 	# 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和
 	var dodge := Vector2.ZERO
