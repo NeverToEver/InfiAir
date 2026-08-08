@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://test/perf_bench.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/tests/PerfBench.cs" id="1"]
 
 [node name="PerfBench" type="Node"]
 script = ExtResource("1")

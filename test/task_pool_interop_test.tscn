@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://test/task_pool_interop_test.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/tests/TaskPoolInteropTest.cs" id="1"]
 
 [node name="TaskPoolInteropTest" type="Node"]
 script = ExtResource("1")
