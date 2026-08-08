@@ -20,8 +20,8 @@ func _check(cond: bool, label: String) -> void:
 
 
 ## 直接实例化 Boss（不经 spawner/main，隔离狂暴子弹时间编排与血条联动）
-func _make_boss(p_type: int = 1) -> Boss:
-	var boss := (load("res://scenes/boss.tscn") as PackedScene).instantiate() as Boss
+func _make_boss(p_type: int = 1):  # M3d：Boss 迁 C#，返回类型去注解
+	var boss = (load("res://scenes/boss.tscn") as PackedScene).instantiate()  # M3d：Boss 迁 C#，instantiate 必为 Boss 去 as 注解
 	boss.setup(1.0, p_type)
 	get_node("Main").add_child(boss)
 	return boss
@@ -142,7 +142,7 @@ func _ready() -> void:
 	# 入场降入期：与玩家重叠也不扣血（Boss 尚未降入战斗位置）
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var boss_enter := _make_boss(1)
+	var boss_enter = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	# 位置按战斗锚线（view 顶缘 + FIGHT_Y）动态取锚线上方：仍在降入、且位于可见区内
 	player.position = Vector2(960.0, boss_enter.fight_anchor_y() - 80.0)
 	boss_enter.position = player.position  # 重叠，但仍在降入阶段
@@ -157,7 +157,7 @@ func _ready() -> void:
 	player.position = Vector2(960.0, 800.0)
 	GameState.health = 100.0
 	_reset_hit_state(player)
-	var boss_fight := _make_boss(1)
+	var boss_fight = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss_fight.set_in_fight(true)  # 直接置战斗态（重叠事件由传送产生，避开降入时序）
 	boss_fight.set_fire_timer(999.0)  # 屏蔽开火，保证场内无杂弹
 	boss_fight.position = player.position
@@ -219,7 +219,7 @@ func _ready() -> void:
 	# 子弹伤害同样过闪避/护甲（去 bug 统一版：不再仅限撞击）——由上方 take_damage 直接覆盖
 
 	# ================= A3：狂暴锁血 =================
-	var boss3 := _make_boss(1)
+	var boss3 = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss3.set_fire_timer(999.0)
 	# 非致死大额伤害：应钳到 30% 阈值并触发狂暴（而非打到阈值以下）
 	boss3.take_damage(int(boss3.max_hp * 0.75))
@@ -236,7 +236,7 @@ func _ready() -> void:
 	boss3.queue_free()
 	await get_tree().process_frame
 	# 致死伤害：满血一击直接击杀（不触发狂暴钳制）
-	var boss4 := _make_boss(1)
+	var boss4 = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss4.take_damage(9999)
 	await get_tree().process_frame
 	_check(not is_instance_valid(boss4), "A3：致死伤害直接击杀")
@@ -305,10 +305,10 @@ func _ready() -> void:
 	await _free_enemy_bullets()
 
 	# Boss 弹种取值（基准）：fan=14，homing=12，狙击=21，cross=12，快照激光=21，快照环弹=12
-	var boss5 := _make_boss(1)
+	var boss5 = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss5.position = Vector2(960.0, 300.0)
 	boss5.set_fire_timer(999.0)  # 屏蔽常规开火，保证弹丸计数纯净
-	boss5.fire_tool().fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)
+	boss5.Fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN)  # M3d：fire_tool() 返回纯 C# 类不可经链访问，改 Boss 代持的 Fire_fan 转发器
 	var fan_dmg_ok := true
 	var fan_count := 0
 	for b in _enemy_bullets():
@@ -317,13 +317,13 @@ func _ready() -> void:
 			fan_dmg_ok = false
 	_check(fan_count == 5 and fan_dmg_ok, "A4：Boss 扇形弹 damage（基准 14，期望 %d）" % exp14)
 	await _free_enemy_bullets()
-	boss5.fire_tool().fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)
+	boss5.Fire_homing(boss5, Vector2(0.0, 100.0), boss5.HOMING_BULLET_SPEED, boss5.BULLET_DAMAGE_HOMING)  # M3d：fire_tool() 返回纯 C# 类，改代持转发器
 	var homing_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		homing_b = b
 	_check(homing_b != null and homing_b.Damage == exp12 and homing_b.Homing, "A4：Boss 追踪弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5.fire_tool().fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)
+	boss5.Fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS)  # M3d：fire_tool() 返回纯 C# 类不可经链访问，改 Boss 代持的 Fire_cross 转发器
 	var cross_dmg_ok := true
 	var cross_count := 0
 	for b in _enemy_bullets():
@@ -332,7 +332,7 @@ func _ready() -> void:
 			cross_dmg_ok = false
 	_check(cross_count == 4 and cross_dmg_ok, "A4：Boss 十字弹 damage（基准 12，期望 %d）" % exp12)
 	await _free_enemy_bullets()
-	boss5.fire_tool().fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)
+	boss5.Fire_sniper(boss5, Vector2.ZERO, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER)  # M3d：fire_tool() 返回纯 C# 类，改代持转发器
 	var sniper_b = null  # 随批次 A 重定型：Bullet 为 C# 类，不能作类型注解
 	for b in _enemy_bullets():
 		if not b.has_meta("bullet_type"):
@@ -439,7 +439,7 @@ func _ready() -> void:
 	tgt_c.queue_free()
 	await get_tree().physics_frame
 	# Boss 不吃爆炸 AoE：关碰撞手动触发（Boss r=120 必与子弹重叠，无法走真实碰撞隔离）
-	var boss_aoe := _make_boss(1)
+	var boss_aoe = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss_aoe.set_fire_timer(999.0)
 	boss_aoe.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在半径内
 	var ex_b2 = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, true)
@@ -456,7 +456,7 @@ func _ready() -> void:
 	# ================= E01：导弹溅射对 Boss 生效（C20 静默回归修复） =================
 	# 注册表含 Boss（Boss extends Area2D 非 Enemy 子类），as Enemy cast 对 Boss 得 null
 	# 曾致母舰导弹溅射静默丢失（直击 80 仍有效）；修复改 Variant 鸭子调用 take_damage
-	var splash_boss := _make_boss(1)
+	var splash_boss = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	splash_boss.set_fire_timer(999.0)
 	splash_boss.position = Vector2(1000.0, 400.0)  # 距爆心 40px 在溅射半径内
 	var sp_b = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, false)
@@ -529,7 +529,7 @@ func _ready() -> void:
 	GameState.delete_save()
 
 	# ================= A21：Boss 入场期可被玩家弹伤（已核实与原作一致） =================
-	var boss_early := _make_boss(1)
+	var boss_early = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss_early.set_fire_timer(999.0)
 	# A21 根因修复（2026-08-02）：原硬编码 (960,100) 在 large 视角档下位于可见区外
 	# （view 顶缘 222），玩家弹触发 view_world_rect(80) 出界判定被 _despawn() 销毁，
@@ -537,7 +537,7 @@ func _ready() -> void:
 	# profile 恰为 medium 档的巧合，根因未除，large 档下依旧复现）。
 	# 改按战斗锚线动态定位：fight_anchor_y() - 75 = view 顶缘 + 155，仍在降入且
 	# 在出界 margin(80) 内（FIGHT_Y=230 时余量充足，任意视角档均成立）。
-	var enter_pos := Vector2(960.0, boss_early.fight_anchor_y() - 75.0)
+	var enter_pos = Vector2(960.0, boss_early.fight_anchor_y() - 75.0)
 	boss_early.position = enter_pos
 	var pb = GameState.bullet_pool.Fire(Vector2.DOWN, 0.0, 10, true)
 	pb.position = boss_early.position

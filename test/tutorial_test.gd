@@ -138,7 +138,7 @@ func _ready() -> void:
 
 	# 阶段 6：Boss 狂暴即过关
 	_check(tut.boss() != null, "阶段 6 Boss 已生成")
-	var boss: Boss = tut.boss()
+	var boss = tut.boss()  # M3d：Boss 迁 C#，去类型注解
 	# 软锁路径 b：Boss 未狂暴逃跑离场 → 重置阶段 6 重刷 Boss
 	boss.begin_escape()
 	boss.position.y = -300.0

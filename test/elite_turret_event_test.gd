@@ -9,6 +9,7 @@ extends Node
 ##   航母完整撤离 → 继续出击注册表清场 → BOSS_DELAY 后回 IDLE 且 Boss 解冻。
 
 var _failures: int = 0
+var _boss_script = load("res://csharp/godot/Boss.cs")  # M3d：Boss 迁 C#，C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -38,7 +39,7 @@ func _wait_event_state(event: EliteTurretEvent, p_state: int, timeout: float = 8
 func _count_bosses() -> int:
 	var n := 0
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			n += 1
 	return n
 
@@ -185,7 +186,7 @@ func _ready() -> void:
 	_check(_count_bosses() == 1, "场景2：Boss 仅补触发一次（不累积）")
 	# 清理：直接释放 Boss，避免击杀奖励干扰后续断言
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			child.queue_free()
 	spawner.set_boss_active(false)
 	spawner.set_process(false)
@@ -258,7 +259,7 @@ func _ready() -> void:
 	# 注册表驱动清场：非 Boss 实体（含事件/波次残留）全清
 	var registry_left := false
 	for e in GameState.enemies:
-		if is_instance_valid(e) and not (e is Boss):
+		if is_instance_valid(e) and not is_instance_of(e, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			registry_left = true
 	_check(not registry_left, "场景4：继续出击后注册表非 Boss 实体清空")
 	# 航母完整撤离 → BOSS_DELAY → IDLE，Boss 解冻（沿用 _on_boss_delay_end）

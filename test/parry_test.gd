@@ -51,8 +51,8 @@ func _make_enemy(config: Dictionary, strategy: StringName = &"straight"):  # M3b
 	return e
 
 
-func _make_boss(p_type: int = 1) -> Boss:
-	var boss := (load("res://scenes/boss.tscn") as PackedScene).instantiate() as Boss
+func _make_boss(p_type: int = 1):  # M3d：Boss 迁 C#，返回类型去注解
+	var boss = (load("res://scenes/boss.tscn") as PackedScene).instantiate()  # M3d：Boss 迁 C#，instantiate 必为 Boss 去 as 注解
 	boss.setup(1.0, p_type)
 	get_node("Main").add_child(boss)
 	boss.set_fire_timer(999.0)  # 屏蔽开火（须在 add_child 后：_ready 会重置开火计时）
@@ -158,7 +158,7 @@ func _ready() -> void:
 
 	# ================= 弹反命中 Boss =================
 	await _await_parry_ready(player)
-	var boss := _make_boss(1)
+	var boss = _make_boss(1)  # M3d：_make_boss 去返回类型，:= 推断不可用改 =
 	boss.position = Vector2(960.0, 300.0)
 	var boss_hp0: float = boss.hp
 	await _await_active(player)

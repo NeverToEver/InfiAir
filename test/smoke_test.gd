@@ -6,6 +6,7 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 var _failures: int = 0
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 A 重定型：C# 类不能经类名 is 判定
 var _enemy_script := load("res://csharp/godot/Enemy.cs")  # M3b：Enemy 迁 C#，C# 类不能经类名 is 判定
+var _boss_script = load("res://csharp/godot/Boss.cs")  # M3d：Boss 迁 C#，C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -80,9 +81,9 @@ func _ready() -> void:
 	var spawner: Node = get_node("Main/Spawner")
 	spawner.spawn_boss()
 	await get_tree().process_frame
-	var boss: Boss = null
+	var boss = null  # M3d：Boss 迁 C#，去类型注解
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss = child
 	_check(boss != null, "Boss 已生成")
 	_check(get_node("Main/HUD/BossBar").visible, "Boss 血条显示")
@@ -167,9 +168,9 @@ func _ready() -> void:
 	# 3.2 Boss 轮换：第 2 只（boss_kills=1）应为游击型
 	spawner.spawn_boss()
 	await get_tree().process_frame
-	var boss2: Boss = null
+	var boss2 = null  # M3d：Boss 迁 C#，去类型注解
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss2 = child
 	_check(boss2 != null and boss2.boss_type == 2, "Boss 轮换：第 2 只为游击型")
 	boss2.take_damage(9999)
@@ -180,9 +181,9 @@ func _ready() -> void:
 	# 3.3 Boss-3 母舰型召唤小怪
 	spawner.spawn_boss()
 	await get_tree().process_frame
-	var boss3: Boss = null
+	var boss3 = null  # M3d：Boss 迁 C#，去类型注解
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss3 = child
 	_check(boss3 != null and boss3.boss_type == 3, "Boss 轮换：第 3 只为母舰型")
 	boss3.position.y = boss3.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y），下一物理帧进入战斗
@@ -205,9 +206,9 @@ func _ready() -> void:
 	# 3.4 狂暴阶段：血量 <30% 触发，序列后射速 ×1.5
 	spawner.spawn_boss(1)
 	await get_tree().process_frame
-	var boss4: Boss = null
+	var boss4 = null  # M3d：Boss 迁 C#，去类型注解
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss4 = child
 	boss4.position.y = boss4.fight_anchor_y()
 	await get_tree().create_timer(0.5).timeout
@@ -439,7 +440,7 @@ func _ready() -> void:
 	# 组判定清场：FormationCraft/TurretBattery 非 Enemy 子类但注册 enemy 组，
 	# 漏清会被 b33 抢先命中造成抖动；在飞流弹一并清掉
 	for child in main.get_children():
-		if (child.is_in_group("enemy") and not (child is Boss)) or is_instance_of(child, _bullet_script):  # 随批次 A 重定型
+		if (child.is_in_group("enemy") and not is_instance_of(child, _boss_script)) or is_instance_of(child, _bullet_script):  # 随批次 A 重定型；M3d：判定
 			child.queue_free()
 	await get_tree().process_frame
 	var e33 = ENEMY_SCENE.instantiate()  # M3b：Enemy 迁 C#，移除 as 断言
@@ -556,7 +557,7 @@ func _ready() -> void:
 	# 注册表驱动清场：非 Boss 实体（Enemy/FormationCraft/事件残留）全清
 	var enemy_left := false
 	for e in GameState.enemies:
-		if is_instance_valid(e) and not (e is Boss):
+		if is_instance_valid(e) and not is_instance_of(e, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			enemy_left = true
 	_check(not enemy_left, "轨道打击清屏（注册表非 Boss 全清）")
 	# 弹丸清场：敌弹与编队炸弹全清（FormationBomb 非 Bullet 类，原遍历式清场会漏）

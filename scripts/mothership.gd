@@ -2,6 +2,8 @@ class_name Mothership
 extends Area2D
 ## M3b：Enemy 迁 C#，经脚本资源调用静态方法/判型（gdlint class-load-variable-name：snake_case）
 var _enemy_script := load("res://csharp/godot/Enemy.cs")
+## M3d：Boss 迁 C#，判型经脚本资源（GDScript 不能以类名引用 C# 类）
+var _boss_script = load("res://csharp/godot/Boss.cs")
 ## 母舰补给平台：长按 H 蓄力召唤（main 管理蓄力）→ 机库小窗演出（main 编排）→
 ## 穿梭门打开，母舰 DESCEND 穿出减速（缩放+ease-out 滑入停驻点）→ 到位释放减速带
 ## （冲击波短时减速敌人）并立即以加特林+导弹火力掩护，DOCKING 牵引回收玩家进保护舱
@@ -620,7 +622,7 @@ func _is_live_target(e) -> bool:  # M3b：Enemy 迁 C#，参数 untyped（is_ins
 		return false
 	if is_instance_of(e, _enemy_script) and e.is_exiting():  # M3b：Enemy 迁 C#，is/as 改 is_instance_of
 		return false
-	if e is Boss and (e as Boss).is_escaped:
+	if is_instance_of(e, _boss_script) and e.is_escaped:  # M3d：Boss 迁 C#，is/as 改脚本判定 + 成员直取（as 简化）
 		return false
 	return true
 

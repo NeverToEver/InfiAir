@@ -43,10 +43,16 @@ var _event_bar: SegmentedBar
 var _event_title: Label
 var _event_turrets_label: Label
 var _last_event_alive: int = -1
-var _boss: Boss = null  # 当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）
+var _boss = null  # M3d：Boss 迁 C#，去类型注解；当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）
 var _boss_countdown: Label
 var _boss_name: Label  # Boss 名牌（型号 + 阶段），血条子节点随其显隐
-var _boss_phase: int = Boss.FightPhase.P1
+## M3d：Boss.cs 未向 GDScript 注册 C# 枚举（Boss.FightPhase 不可经类名访问）——值镜像
+## C# enum FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与 GetFightPhaseTransition/Active 一致；
+## ENRAGE=2 由声明顺序确定，Boss.cs 缺 GetFightPhaseEnrage() 转发器，待主代理补）
+const FIGHT_PHASE_P1 := 0
+const FIGHT_PHASE_P2 := 1
+const FIGHT_PHASE_ENRAGE := 2
+var _boss_phase: int = FIGHT_PHASE_P1
 var POLL_INTERVAL := 0.1  # 仪表类刷新降频（信号驱动的文本不受影响）
 ## 分段血条（2026-08-03 机制三）：段数 + 段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]（段界 = 阶段
 ## 阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
@@ -218,7 +224,7 @@ func _ready() -> void:
 	name_plate.add_child(_boss_name)
 	_boss_bar.add_child(name_plate)
 	# Boss 血条阶段刻度线（70%/30%，覆盖在血条上随其显隐）
-	var ticks := _BossBarTicks.new()
+	var ticks = _BossBarTicks.new()
 	ticks.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ticks.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar.add_child(ticks)
@@ -614,7 +620,7 @@ func _show_warning(text: String) -> void:
 	)
 
 
-func show_boss_bar(boss: Boss) -> void:
+func show_boss_bar(boss) -> void:  # M3d：Boss 迁 C#，参数类型注解去除
 	_boss_bar.fill_color = UITheme.ACCENT  # 重置上一只 Boss 狂暴留下的红色
 	# 机制三：分段血条——段数/段权/段色按配置登记（段界 = 阶段阈值宽占比）
 	_boss_bar.segments = BOSS_BAR_SEGMENTS
@@ -624,11 +630,11 @@ func show_boss_bar(boss: Boss) -> void:
 	_boss_bar.value = 100.0
 	_boss = boss
 	_boss_countdown.visible = false
-	_boss_phase = Boss.FightPhase.P1
-	boss.health_changed.connect(_on_boss_health_changed)
-	boss.died.connect(_on_boss_died)
-	boss.enraged.connect(_on_boss_enraged)
-	boss.phase_changed.connect(_on_boss_phase_changed)
+	_boss_phase = FIGHT_PHASE_P1  # M3d：Boss.FightPhase.P1（C# 枚举经常量，见顶部注释）
+	boss.HealthChanged.connect(_on_boss_health_changed)  # M3d：C# [Signal] 以 PascalCase 注册
+	boss.Died.connect(_on_boss_died)  # M3d：C# [Signal] 以 PascalCase 注册
+	boss.Enraged.connect(_on_boss_enraged)  # M3d：C# [Signal] 以 PascalCase 注册
+	boss.PhaseChanged.connect(_on_boss_phase_changed)  # M3d：C# [Signal] 以 PascalCase 注册
 	_refresh_boss_name()
 
 
@@ -729,14 +735,14 @@ func _refresh_boss_name() -> void:
 		return
 	var phase_text: String
 	match _boss_phase:
-		Boss.FightPhase.P2:
+		FIGHT_PHASE_P2:  # M3d：Boss.FightPhase.P2（C# 枚举经常量）
 			phase_text = "P2"
-		Boss.FightPhase.ENRAGE:
+		FIGHT_PHASE_ENRAGE:  # M3d：Boss.FightPhase.ENRAGE（C# 枚举经常量）
 			phase_text = tr("BOSS_PHASE_ENRAGE")
 		_:
 			phase_text = "P1"
 	_boss_name.text = "%s · %s" % [tr("BOSS_TYPE_%d" % _boss.boss_type), phase_text]
-	_boss_name.add_theme_color_override("font_color", UITheme.DANGER if _boss_phase == Boss.FightPhase.ENRAGE else UITheme.TEXT)
+	_boss_name.add_theme_color_override("font_color", UITheme.DANGER if _boss_phase == FIGHT_PHASE_ENRAGE else UITheme.TEXT)
 
 
 ## 受击/低血屏幕反馈：全屏径向渐变（无新资产，GradientTexture2D 程序化）

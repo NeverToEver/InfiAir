@@ -260,9 +260,9 @@ func _ready() -> void:
 
 	# ---------- 10. Boss 出场位置与巡航范围 ----------
 	spawner.spawn_boss(1)
-	var boss: Boss = null
+	var boss = null  # M3d：Boss 迁 C#，去类型注解
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, load("res://csharp/godot/Boss.cs")):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss = child
 	_check(boss != null, "Boss 已生成")
 	if boss != null:
@@ -270,18 +270,18 @@ func _ready() -> void:
 		_check(absf(boss.position.y - (GameState.view_world_rect().position.y - 160.0)) < 1.0, "Boss 出场 y 在可见区域顶上方")
 		boss.queue_free()
 	await get_tree().process_frame
-	var range_boss := BOSS_SCENE.instantiate() as Boss
+	var range_boss = BOSS_SCENE.instantiate()  # M3d：Boss 迁 C#，instantiate 必为 Boss 去 as 注解
 	GameState.set_view_zoom(&"small")
-	var small_range := range_boss.strafe_range()
+	var small_range = range_boss.strafe_range()
 	_check(small_range == Vector2(300.0, 1620.0), "small 档 Boss 巡航范围 = 配置 300..1620")
 	_check(absf(range_boss.fight_anchor_y() - range_boss.FIGHT_Y) < 0.001, "small 档 Boss 战斗锚线 = FIGHT_Y（view.position.y=0 行为不变）")
 	GameState.set_view_zoom(&"large")
-	var large_range := range_boss.strafe_range()
+	var large_range = range_boss.strafe_range()
 	var expect_lo := GameState.view_world_rect().position.x + 300.0
 	var expect_hi := GameState.view_world_rect().end.x - 300.0
 	_check(absf(large_range.x - expect_lo) < 1.0 and absf(large_range.y - expect_hi) < 1.0, "large 档 Boss 巡航范围随可见区域收窄")
 	var view_anchor := GameState.view_world_rect()
-	var anchor_large := range_boss.fight_anchor_y()
+	var anchor_large = range_boss.fight_anchor_y()
 	_check(absf(anchor_large - (view_anchor.position.y + range_boss.FIGHT_Y)) < 0.001, "large 档 Boss 战斗锚线 = 可见顶 + FIGHT_Y")
 	_check(anchor_large > view_anchor.position.y and anchor_large < view_anchor.end.y, "large 档 Boss 战斗锚线落在可见区域内")
 	range_boss.free()

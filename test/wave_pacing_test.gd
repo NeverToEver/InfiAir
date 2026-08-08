@@ -4,6 +4,9 @@ extends Node
 
 var _failures: int = 0
 
+# M3d：Boss 迁 C#——is 判定经脚本资源引用（GDScript 不能 is C# 类）
+var _boss_script = load("res://csharp/godot/Boss.cs")
+
 
 func _check(cond: bool, label: String) -> void:
 	if cond:
@@ -152,7 +155,7 @@ func _ready() -> void:
 	_check(spawner.is_boss_active(), "H1：Boss 在场时 clear_pending 保持占用（防双 Boss）")
 	# 清掉场上 Boss 后再验证对照分支（G01 原语义）：无存活 Boss 时解除占用
 	for child in get_node("Main").get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 改脚本判定
 			child.queue_free()
 	await get_tree().process_frame
 	spawner.set_boss_active(true)

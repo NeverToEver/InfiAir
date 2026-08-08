@@ -19,6 +19,8 @@ extends Node
 ##
 ## 运行：godot --headless --path . res://test/autoplay_test.tscn [-- --autoplay-seconds=480] [-- --seed=N]
 
+const _FIGHT_P2 := 1  # M3d：Boss.FightPhase.P2 镜像（P1=0/P2=1/ENRAGE=2）
+
 const TIME_SCALE := 2.0  # 加速倍率（狂暴子弹时间期间让行给 main 编排，结束后恢复）
 const DEFAULT_RUN_SECONDS := 480.0  # 真实时间预算（≈16 分钟游戏时间 @2x）
 const SNAPSHOT_INTERVAL_MS := 5000
@@ -82,7 +84,7 @@ var _main = null  # main.gd 无 class_name，保持动态访问
 var _player = null
 var _spawner = null
 var _buff_ui: CanvasLayer = null
-var _boss: Boss = null
+var _boss = null
 var _bullet_script: Script = load("res://csharp/godot/Bullet.cs")  # 随批次 D 重定型：Bullet 已迁 C#，as Bullet 改经脚本引用判定
 var _enemy_script := load("res://csharp/godot/Enemy.cs")  # M3b：Enemy 迁 C#，as Enemy 改经脚本引用判定
 
@@ -849,7 +851,7 @@ func _update_homecoming(now: int) -> void:
 		return
 	_next_home_consider = now + 8000
 	var hp_ratio: float = GameState.health / GameState.max_health()
-	var want := hp_ratio < 0.35 or (_boss != null and hp_ratio < 0.6)
+	var want = hp_ratio < 0.35 or (_boss != null and hp_ratio < 0.6)
 	if want and randf() < 0.6:
 		Input.action_press("homecoming")
 		_home_holding = true
@@ -889,7 +891,7 @@ func _on_milestone(milestone_score: int) -> void:
 	_log("里程碑达成 score=%d（第 %d 次）" % [milestone_score, _milestones])
 
 
-func _on_boss_spawned(boss: Boss) -> void:
+func _on_boss_spawned(boss) -> void:  # M3d：Boss 迁 C#，注解 untyped
 	_boss = boss
 	_boss_since = Time.get_ticks_msec()
 	_boss_timeout_reported = false
@@ -911,12 +913,12 @@ func _on_boss_spawned(boss: Boss) -> void:
 
 
 func _on_boss_phase_changed(new_phase: int) -> void:
-	if new_phase == Boss.FightPhase.P2:
+	if new_phase == _FIGHT_P2:  # M3d：Boss.FightPhase.P2（C# 枚举不可类名引用，0/1/2 镜像声明序）
 		_boss_p2_count += 1
 		_log("Boss 进入 P2（第 %d 次）" % _boss_p2_count)
 
 
-func _on_boss_died(boss: Boss) -> void:
+func _on_boss_died(boss) -> void:  # M3d
 	if boss.is_escaped:
 		return  # 逃跑离场也会发 died（通知血条/生成器），非击杀
 	_total_boss_kills += 1
@@ -924,7 +926,7 @@ func _on_boss_died(boss: Boss) -> void:
 	_clear_boss(boss)
 
 
-func _clear_boss(boss: Boss) -> void:
+func _clear_boss(boss) -> void:  # M3d
 	if _boss == boss:
 		_boss = null
 
@@ -1298,7 +1300,7 @@ func _checks(now: int) -> void:
 		@warning_ignore("integer_division")
 		_anomaly("base_ui_stuck", "基地 UI 可见超过 %ds 未关闭" % (BASE_STUCK_MS / 1000))
 	# 狂暴减速残留：玩家仍减速但无狂暴 Boss（Boss 离场/死亡后未复位），持续 15s episode 报一次
-	var boss_enraged := _boss != null and is_instance_valid(_boss) and _boss.is_enraged()
+	var boss_enraged = _boss != null and is_instance_valid(_boss) and _boss.is_enraged()
 	if _player != null and is_instance_valid(_player) and absf(_player.enrage_slow() - 1.0) > 0.001 and not boss_enraged:
 		if _slow_since == 0:
 			_slow_since = now

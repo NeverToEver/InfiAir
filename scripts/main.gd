@@ -24,6 +24,8 @@ var ENRAGE_RAMP_TIME := 0.3
 @onready var _starfield := $Starfield  # 随 M6（main 迁移 C#）重定型为 Starfield
 @onready var _camera: Camera2D = $Camera2D
 
+## M3d：Boss 迁 C#，判型经脚本资源（GDScript 不能以类名引用 C# 类）
+var _boss_script = load("res://csharp/godot/Boss.cs")
 var _game_over: bool = false
 ## B 梯队（fair plan §8）：死亡回放录制器（main._process 采样，死亡时生成重放演出）
 var _replay := DeathReplay.new()
@@ -44,7 +46,7 @@ var _give_up_charge: float = 0.0
 # 放弃/玩家死亡统一复位，B2 已修复——2026-08-05 P4 注释修正）
 var _bullet_time_left: float = 0.0  # >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
 var _time_scale_ramp: float = -1.0  # >=0：恢复过渡进度 0..1
-var _enrage_boss: Boss = null
+var _enrage_boss = null  # M3d：Boss 迁 C#，去类型注解
 ## 播放中的开场过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
 var _intro: IntroCinematic = null
 ## 播放中的返航过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）
@@ -605,13 +607,13 @@ func _reset_global_time_scale() -> void:
 
 
 ## Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）
-func _on_boss_spawned(boss: Boss) -> void:
-	boss.enraged.connect(_on_boss_enraged.bind(boss))
+func _on_boss_spawned(boss) -> void:  # M3d：Boss 迁 C#，参数类型注解去除
+	boss.Enraged.connect(_on_boss_enraged.bind(boss))  # M3d：C# [Signal] 以 PascalCase 注册
 
 
 ## 狂暴触发：1.2s 子弹时间（全局 0.24，玩家同样减速——与原作一致）+ 泛红演出。
 ## 既有震动/警告音在 boss._enrage() 内；快照弹幕等子弹时间结束后才发。
-func _on_boss_enraged(boss: Boss) -> void:
+func _on_boss_enraged(boss) -> void:  # M3d：Boss 迁 C#，参数类型注解去除
 	if _game_over or _homecoming:
 		return
 	_enrage_boss = boss
@@ -624,7 +626,7 @@ func _on_boss_enraged(boss: Boss) -> void:
 ## 子弹时间结束：Boss 仍在场则发快照弹幕（作为 TRANSITION 收尾的一波；
 ## 玩家移动冻结/锁血由 Boss 狂暴序列自行管理）
 func _fire_enrage_snapshot() -> void:
-	var boss := _enrage_boss
+	var boss = _enrage_boss
 	_enrage_boss = null
 	if boss == null or not is_instance_valid(boss) or boss.is_queued_for_deletion():
 		return  # Boss 在子弹时间内已被击杀/逃跑：time_scale 已恢复，无需弹幕
@@ -767,9 +769,9 @@ func _on_orbital_struck() -> void:
 		func(e: Node) -> void:
 			if e is Node2D:
 				load("res://csharp/godot/Explosion.cs").SpawnAt(self, (e as Node2D).global_position),
-		func(e: Node) -> bool: return not (e is Boss)
+		func(e: Node) -> bool: return not is_instance_of(e, _boss_script)  # M3d：Boss 迁 C#，is 改脚本判定
 	)
-	GameState.clear_enemies(func(e: Node) -> bool: return e is Boss)
+	GameState.clear_enemies(func(e: Node) -> bool: return is_instance_of(e, _boss_script))  # M3d：Boss 迁 C#，is 改脚本判定
 	for child in get_children():
 		if is_instance_of(child, load("res://csharp/godot/Bullet.cs")) or child is FormationBomb:
 			child.queue_free()

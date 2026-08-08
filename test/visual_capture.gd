@@ -55,11 +55,11 @@ func _ready() -> void:
 		"boss_fight":
 			# Boss 名牌 + 血条 + 狂暴态（打掉 75% HP 触发狂暴，名牌整行转红）
 			get_node("Main/Spawner").trigger_boss()
-			var boss: Boss = null
+			var boss = null  # M3d：Boss 迁 C#，去类型注解
 			for i in 1800:  # 等降入完成进入战斗（上限 30s，窗口低帧率冗余）
 				await get_tree().process_frame
 				for e in GameState.enemies:
-					if e is Boss and (e as Boss).is_in_fight():
+					if is_instance_of(e, load("res://csharp/godot/Boss.cs")) and e.is_in_fight():  # M3d：Boss 迁 C#，is 经脚本资源、as 简化
 						boss = e
 				if boss != null:
 					break

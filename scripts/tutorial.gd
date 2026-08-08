@@ -1,6 +1,8 @@
 extends Node2D
 ## M3b：Enemy 迁 C#，经脚本资源判型（gdlint class-load-variable-name：snake_case）
 var _enemy_script := load("res://csharp/godot/Enemy.cs")
+## M3d：Boss 迁 C#，判型经脚本资源（GDScript 不能以类名引用 C# 类）
+var _boss_script = load("res://csharp/godot/Boss.cs")
 ## 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
 ## 不启动正常 spawner 波次；进场 reset_run + 删档隔离，出场再 reset 并保证 time_scale=1。
 
@@ -32,7 +34,7 @@ var _dock_charge: float = 0.0
 var _max_hp: float = 100.0  # G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
 var _objective_poll := 0.0  # G015：蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
 var _base_ui: CanvasLayer = null
-var _boss: Boss = null
+var _boss = null  # M3d：Boss 迁 C#，去类型注解
 var _mothership: Mothership = null
 var _finished: bool = false
 var _failed: bool = false
@@ -52,7 +54,7 @@ func stage() -> int:
 	return _stage
 
 
-func boss() -> Boss:
+func boss():  # M3d：Boss 迁 C#，返回类型去注解
 	return _boss
 
 
@@ -179,13 +181,13 @@ func _enter_stage(idx: int) -> void:
 			_set_objective_tr("TUT_S6_OBJ")
 			_player.set_invincible(999.0)  # 教程不判负
 			var view5 := GameState.view_world_rect()  # G014
-			_boss = BOSS_SCENE.instantiate() as Boss
+			_boss = BOSS_SCENE.instantiate()  # M3d：Boss 迁 C#，as 去化
 			_boss.setup(1.0, 1)
 			_boss.max_hp = GameState.cfg("tutorial.boss_hp", 120.0)
 			_boss.hp = _boss.max_hp
 			_boss.position = Vector2(view5.get_center().x, view5.position.y - 160.0)
-			_boss.enraged.connect(_on_boss_enraged)
-			_boss.died.connect(_on_boss_gone)
+			_boss.Enraged.connect(_on_boss_enraged)  # M3d：C# [Signal] 以 PascalCase 注册
+			_boss.Died.connect(_on_boss_gone)  # M3d：C# [Signal] 以 PascalCase 注册
 			add_child(_boss)
 
 
@@ -399,7 +401,7 @@ func _finish() -> void:
 	for child in get_children():
 		if (
 			is_instance_of(child, _enemy_script)
-			or child is Boss
+			or is_instance_of(child, _boss_script)  # M3d：Boss 迁 C#，is 改脚本判定
 			or child.get_script() == load("res://csharp/godot/Bullet.cs")
 			or child is Mothership
 		):

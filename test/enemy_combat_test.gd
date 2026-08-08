@@ -3,6 +3,7 @@ extends Node
 ## aggressive 追踪收敛、敌机 15s 寿命离场、Boss 50s 逃跑无奖励。
 
 var _failures: int = 0
+var _boss_script = load("res://csharp/godot/Boss.cs")  # M3d：Boss 迁 C#，C# 类不能经类名 is 判定
 
 
 func _check(cond: bool, label: String) -> void:
@@ -187,24 +188,24 @@ func _ready() -> void:
 	# 8. Boss 逃跑：50s 未击杀 → 最后 3s 警告 + 上飘 → 离场无奖励
 	spawner.spawn_boss(1)
 	await get_tree().process_frame
-	var boss: Boss = null
+	var boss = null  # M3d：Boss 迁 C#，去类型注解
 	for child in main.get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss = child
 	_check(boss != null, "Boss 已生成（逃跑测试）")
 	boss.position.y = boss.fight_anchor_y()  # 跳过降入（锚线 = view 顶缘 + FIGHT_Y）
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_in_fight(), "Boss 进入战斗（逃跑计时开始）")
-	var kills_before_boss := GameState.boss_kills
+	var kills_before_boss = GameState.boss_kills
 	var score_before_boss := GameState.score
 	# 钉住时间轴难度档：后续约 4s 真实等待不得跨过 30s 量化边界造成偶发漂移
 	GameState.run_time = 0.0
 	GameState.recompute_difficulty()
 	var diff_before := GameState.difficulty_multiplier
 	var escaped_flag := [false]
-	boss.escaped.connect(func() -> void: escaped_flag[0] = true)
+	boss.Escaped.connect(func() -> void: escaped_flag[0] = true)  # M3d：C# [Signal] 以 PascalCase 注册（escaped → Escaped）
 	boss.set_survival(boss.ESCAPE_TIME - boss.ESCAPE_WARNING - 0.5)  # 距警告 0.5s
-	var warn_y0 := boss.position.y
+	var warn_y0 = boss.position.y
 	await get_tree().create_timer(0.8).timeout
 	_check(boss.escape_warned(), "逃跑前 3s 触发逃跑警告")
 	_check(boss.position.y < warn_y0 - 3.0, "警告期间上飘")
@@ -212,7 +213,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_check(boss.is_escaped, "Boss 50s 未被击杀触发逃跑")
 	# G02：逃跑期 take_damage 必须无效（激光/溅射按注册表+距离判定绕碰撞层，防补刀致奖励失真）
-	var hp_after_escape := boss.hp
+	var hp_after_escape = boss.hp
 	boss.take_damage(1000, 1.0)
 	_check(boss.hp == hp_after_escape, "G02：逃跑期 take_damage 无效（防补刀致死触发击杀奖励）")
 	await get_tree().create_timer(2.5).timeout
@@ -226,9 +227,9 @@ func _ready() -> void:
 	# 轮换计数未推进：下一只仍为同型（boss_kills 未变）
 	spawner.spawn_boss()
 	await get_tree().process_frame
-	var boss_next: Boss = null
+	var boss_next = null  # M3d：Boss 迁 C#，去类型注解
 	for child in main.get_children():
-		if child is Boss:
+		if is_instance_of(child, _boss_script):  # M3d：Boss 迁 C#，is 判定经脚本资源
 			boss_next = child
 	_check(boss_next != null and boss_next.boss_type == 1, "逃跑后轮换计数未推进（仍为同型 Boss）")
 	if boss_next != null:

@@ -3,13 +3,15 @@ extends Node
 var _spawn_telegraph_script := load("res://csharp/godot/SpawnTelegraph.cs")
 ## M3b：Enemy 迁 C#，判型/类型经脚本资源（GDScript 不能以类名引用 C# 类）
 var _enemy_script := load("res://csharp/godot/Enemy.cs")
+## M3d：Boss 迁 C#，判型/类型经脚本资源（GDScript 不能以类名引用 C# 类）
+var _boss_script = load("res://csharp/godot/Boss.cs")
 ## 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
 ## （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
 ## + Boss 触发（3 种轮换）。遭遇事件（精英炮塔/轰炸编队）触发策略自 2026-08-05 起由
 ## 统一事件管理器接管（GameState.events，docs/EVENT_MANAGER.md）：本类仅保留互斥钩子
 ## （Boss 冻结/波次暂停）与特殊槽登记（notify_event_triggered）。
 
-signal boss_spawned(boss: Boss)
+signal boss_spawned(boss)  # M3d：Boss 迁 C#，去类型注解
 signal boss_warning
 
 ## 排队中的一次性回调 Timer 与屏上入场预告线（D01）。返航时经 clear_pending() 释放，
@@ -156,7 +158,7 @@ var UNLOCK_SCORES: Array[int] = [0, 300, 800, 1500, 2500]
 var WAVE_INTERVAL_START := 7.0
 var WAVE_INTERVAL_END := 4.0
 var RAMP_TIME := 300.0
-var DIFFICULTY_FACTOR := 0.15  # Boss 击杀难度乘数对波次间隔的影响系数
+var DIFFICULTY_FACTOR = 0.15  # Boss 击杀难度乘数对波次间隔的影响系数
 var INTERVAL_MIN := 2.5
 var WAVE_SIZE_START := 3
 var WAVE_SIZE_END := 5
@@ -408,7 +410,7 @@ func notify_event_triggered() -> void:
 
 ## 读取并清除一次 Boss pending（事件解冻时若期间触发过 Boss 则补触发）
 func consume_boss_pending() -> bool:
-	var was := _boss_pending
+	var was = _boss_pending
 	_boss_pending = false
 	return was
 
@@ -602,13 +604,13 @@ func _spawn_boss(p_type: int = 0) -> void:
 	_boss_active = true
 	if p_type <= 0:
 		p_type = GameState.boss_kills % 4 + 1  # 2026-08-04：轮换扩 4 型（月蚀）
-	var boss := BOSS_SCENE.instantiate() as Boss
+	var boss = BOSS_SCENE.instantiate()  # M3d：Boss 迁 C#，as 去化（:= 不可用）
 	boss.setup(GameState.difficulty_multiplier, p_type)
 	boss.set_spawner(self)  # A5：依赖注入，替代 Boss 侧 group 现找
-	var view := GameState.view_world_rect()  # D10：Boss 入场锚点统一 view 基线
+	var view = GameState.view_world_rect()  # D10：Boss 入场锚点统一 view 基线
 	boss.position = Vector2(view.get_center().x, view.position.y - 160.0)
-	boss.died.connect(_on_boss_died.bind(boss))
-	boss.escaped.connect(_on_boss_escaped)
+	boss.Died.connect(_on_boss_died.bind(boss))  # M3d：C# [Signal] 以 PascalCase 注册
+	boss.Escaped.connect(_on_boss_escaped)  # M3d：C# [Signal] 以 PascalCase 注册
 	get_parent().add_child(boss)
 	boss_spawned.emit(boss)
 
@@ -616,7 +618,7 @@ func _spawn_boss(p_type: int = 0) -> void:
 ## Boss 离场统一结算。逃跑离场也会发 died（boss.gd 逃跑路径同时 emit escaped+died，
 ## 用于血条隐藏/生成器重排）；此处按 is_escaped 区分，只对真·击杀推进轮换与休整（B3 修复）。
 ## 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，is_escaped 判定无歧义。
-func _on_boss_died(boss: Boss = null) -> void:
+func _on_boss_died(boss = null) -> void:  # M3d：Boss 迁 C#，参数类型注解去除
 	_boss_active = false
 	_boss_timer = 0.0
 	if boss != null and boss.is_escaped:
@@ -663,7 +665,7 @@ func _on_telegraph_freed(telegraph: Node2D) -> void:
 func clear_pending() -> void:
 	# G01 修复（H1 扩展）：预警 2s 窗口内取消须解除占用（_spawn_boss 未执行则无 died/escaped 复位
 	# 路径）；Boss 已生成在场上则由注册表判定——存活 Boss 存在时保持 _boss_active 占用
-	if GameState.count_enemies(func(e: Node) -> bool: return e is Boss) == 0:
+	if GameState.count_enemies(func(e: Node) -> bool: return is_instance_of(e, _boss_script)) == 0:  # M3d：Boss 迁 C#，is 改脚本判定
 		_boss_active = false
 	for timer in _pending_timers:
 		if is_instance_valid(timer):
