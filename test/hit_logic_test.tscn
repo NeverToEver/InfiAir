@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://test/hit_logic_test.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/tests/HitLogicTest.cs" id="1"]
 
 [node name="HitLogicTest" type="Node"]
 script = ExtResource("1")

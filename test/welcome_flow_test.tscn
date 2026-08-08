@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://test/welcome_flow_test.gd" id="1"]
+[ext_resource type="Script" path="res://csharp/godot/tests/WelcomeFlowTest.cs" id="1"]
 
 [node name="WelcomeFlowTest" type="Node"]
 script = ExtResource("1")
