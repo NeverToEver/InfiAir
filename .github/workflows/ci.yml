@@ -142,14 +142,18 @@ jobs:
           passed=0
           failed=0
           flakes=0
+          run=0
+          total=$(ls test/*_test.tscn | wc -l)
           for tscn in test/*_test.tscn; do
             name="$(basename "$tscn" .tscn)"
             case "$name" in
               autoplay_test) echo "skip $name (long-running probe, run locally)"; continue ;;
             esac
+            run=$((run + 1))
             echo "== $name =="
             log="/tmp/$name.log"
             # 单场景 5 分钟超时：防止单个场景挂起阻塞整个 job（30min 兜底之上）
+            oklog="$log"
             if timeout 300 godot --headless --path . "res://$tscn" >"$log" 2>&1; then
               passed=$((passed + 1))
             else
@@ -161,15 +165,31 @@ jobs:
                 echo "::warning::$name passed on retry (flaky)"
                 passed=$((passed + 1))
                 flakes=$((flakes + 1))
+                oklog="$log.retry"
               else
                 code=$?
                 echo "::error::$name FAILED twice (exit $code)"
                 tail -25 "$log.retry"
                 failed=$((failed + 1))
+                continue
               fi
             fi
+            # V 系列（2026-08-09）：引擎错误日志扫描——退出码 0 但日志含 SCRIPT ERROR/
+            # Parse Error/Compile Error/Nonexistent function 即失败（死测试/伪断言曾静默通过，
+            # CSharpCallTest 调已删方法每轮 CI 打引擎错误；与 compile probe 同口径）
+            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function" "$oklog"; then
+              echo "::error::$name passed exit 0 but engine errors in log"
+              grep -B1 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function" "$oklog" | head -10
+              failed=$((failed + 1))
+            fi
           done
-          echo "CI result: $passed passed, $failed failed, $flakes flaky"
+          # V 系列（2026-08-09）：场景数硬校验——run != 发现数-1（autoplay 跳过）即失败，
+          # 堵住场景改名/新增后行为验证静默掉出 CI 的盲区（不硬编码期望计数，遵守 TESTING.md 权威计数）
+          if [ "$run" -ne "$((total - 1))" ]; then
+            echo "::error::assertion scene count mismatch — ran $run, discovered $((total - 1)) (autoplay_test skipped)"
+            failed=$((failed + 1))
+          fi
+          echo "CI result: $passed passed, $failed failed, $flakes flaky (of $((total - 1)) scenes)"
           exit "$failed"
 
       - name: Upload failure logs
