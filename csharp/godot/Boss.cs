@@ -46,7 +46,8 @@ public partial class Boss : Area2D
     private readonly Texture2D _bossSprite1 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_1.png");
     private readonly Texture2D _bossSprite2 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_2.png");
     private readonly Texture2D _bossSprite3 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_3.png");
-    /// <summary>4 型「月蚀」复用 1 型贴图（环弹术士以弹幕形态区分，2026-08-04）。
+    private readonly Texture2D _bossSprite4 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_4.png");
+    /// <summary>4 型「月蚀」专属贴图（环刃法师，2026-08-09 接线）。
     /// 数组在构造器装配（字段初始化器禁引用实例字段）。</summary>
     private readonly Texture2D[] _bossTextures;
     /// <summary>猎杀环绕瞬停点（右→上→左→下→右→上，共 6 点；末点为顶部，RELEASE 回底部）。</summary>
@@ -367,7 +368,7 @@ public partial class Boss : Area2D
 
     public Boss()
     {
-        _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite1 };
+        _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite4 };
         _onBuffsChanged = Callable.From(OnBuffsChanged);
         _formationBombScript = GD.Load<Script>("res://csharp/godot/FormationBomb.cs");
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """离线敌方单位贴图生成器（晶体棱镜风格，非游戏运行时依赖）。
 
-重绘 4 普通机 + 3 精英 + 3 Boss，直接覆盖 assets/sprites/ 同名 PNG
+重绘 4 普通机 + 3 精英 + 4 Boss，直接覆盖 assets/sprites/ 同名 PNG
 （画布尺寸与原贴图一致：190/245/410，机头朝上，场景根节点 rotation=PI 翻转）。
 
 精细化层次（在既有设计骨架上叠加，剪影与炮塔基座锚点不变）：
@@ -61,15 +61,17 @@ ENEMY_ACCENT = (255, 72, 56)    # 普通机：猩红
 ENEMY_CORE = (255, 150, 70)
 ELITE_ACCENT = (255, 64, 190)   # 精英：品红
 ELITE_CORE = (215, 135, 255)
-BOSS_ACCENTS = [                # Boss：琥珀 / 紫罗兰 / 红宝石
+BOSS_ACCENTS = [                # Boss：琥珀 / 紫罗兰 / 红宝石 / 霜蓝
     (255, 170, 50),
     (170, 90, 255),
     (255, 60, 90),
+    (90, 200, 255),
 ]
 BOSS_CORES = [
     (255, 215, 100),
     (225, 175, 255),
     (255, 170, 170),
+    (215, 240, 255),
 ]
 
 
@@ -184,6 +186,35 @@ class Ship:
         # 白芯
         w = max(r * 0.34, 1.8)
         self.gd.ellipse(self.p([(cx - w, cy - w), (cx + w, cy + w)]), fill=(255, 255, 255, 245))
+
+    def ring_band(self, cx, cy, rx, ry, t0, t1, fill):
+        """椭圆环带扇区（y 向下坐标：0°=东、90°=南）：外缘弧 + 内缘反向弧闭合。
+        用于「环刃」远/近半环分段，配合舰体绘制顺序形成环穿舰体的层次感。"""
+        step = math.radians(8)
+        ts = []
+        t = t0
+        while t <= t1 + 1e-9:
+            ts.append(t)
+            t += step
+        outer = [(cx + rx * math.cos(t), cy + ry * math.sin(t)) for t in ts]
+        inner = [(cx + rx * 0.84 * math.cos(t), cy + ry * 0.84 * math.sin(t)) for t in reversed(ts)]
+        self.bd.polygon(self.p(outer + inner), fill=fill)
+        mid = [(cx + rx * 0.92 * math.cos(t), cy + ry * 0.92 * math.sin(t)) for t in ts]
+        self.bd.line(self.p(mid), fill=SEAM, width=S, joint="curve")
+
+    def ring_tooth(self, cx, cy, rx, ry, t):
+        """环刃外缘刃齿（body 层小三角，沿径向伸出）。"""
+        d = math.radians(7)
+        self.bd.polygon(self.p([
+            (cx + rx * 1.18 * math.cos(t), cy + ry * 1.18 * math.sin(t)),
+            (cx + rx * math.cos(t + d), cy + ry * math.sin(t + d)),
+            (cx + rx * math.cos(t - d), cy + ry * math.sin(t - d)),
+        ]), fill=HULL_D)
+
+    def orbit_ring(self, cx, cy, rx, ry, color=None, width=2.0):
+        """轨道环能量线（glow 层椭圆描边，环刃法师的环绕霓虹环）。"""
+        c = (color or self.accent) + (255,)
+        self.gd.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), outline=c, width=int(width * S))
 
     def nozzle_ring(self, cx, cy, rx, ry):
         """喷管装甲环：SEAM 外圈 + 钢面内圈（body 层，先于 engine 调用）。"""
@@ -621,6 +652,62 @@ def boss_3() -> Ship:  # 巨柱：六边要塞
     return s
 
 
+def eclipse() -> Ship:  # 月蚀：环刃法师——环绕环刃 + 中心晶核
+    s = Ship(410, 410, BOSS_ACCENTS[3], BOSS_CORES[3])
+    # 远半环（舰体后方，先画；暗面）
+    s.ring_band(205, 185, 158, 82, math.pi, 2 * math.pi, HULL_B)
+    # 舰体：瘦长六边法师塔
+    s.facet([(205, 82), (268, 122), (268, 248), (205, 300), (142, 248), (142, 122)], HULL_A, False)
+    s.facet([(205, 100), (250, 132), (250, 240), (205, 282), (160, 240), (160, 132)], HULL_B, False)
+    s.facet([(205, 82), (268, 122), (205, 150), (142, 122)], HULL_C, False)      # 顶部晶面
+    s.facet([(205, 96), (246, 126), (205, 146), (164, 126)], HULL_D, False)      # 顶部子面
+    s.facet([(222, 168), (240, 188), (240, 236), (222, 258)], HULL_C, False)     # 侧壁板条
+    s.facet([(188, 168), (170, 188), (170, 236), (188, 258)], HULL_C, False)
+    s.shade([(150, 250), (205, 296), (260, 250)], alpha=45, mirror=False)        # 底部阴影
+    s.seam([(205, 150), (205, 300)], mirror=False)                               # 中脊
+    s.seam([(142, 122), (205, 150)])
+    s.seam([(150, 176), (260, 176)], mirror=False)                               # 环带接缝
+    s.seam([(150, 222), (260, 222)], mirror=False)
+    s.seam([(158, 262), (252, 262)], mirror=False)
+    s.rim([(205, 82), (268, 122)], mirror=False)
+    s.greeble(176, 190, 8, 10)                                                   # 舰体舱口
+    s.greeble(226, 190, 8, 10)
+    s.panel_dot(158, 168)
+    s.panel_dot(158, 250)
+    s.panel_dot(198, 244)
+    s.panel_dot(212, 244)
+    s.vent(162, 206, length=10, gap=3, n=3, mirror=False)                        # 左侧散热格栅
+    s.vent(248, 206, length=10, gap=3, n=3, mirror=False)
+    s.crystal(158, 150, 4)                                                       # 侧壁晶簇
+    s.crystal(252, 150, 4)
+    s.crystal(158, 232, 4)
+    s.crystal(252, 232, 4)
+    # 近半环（舰体前方，后画；亮面）+ 环刃细节
+    s.ring_band(205, 185, 158, 82, 0.0, math.pi, HULL_C)
+    s.ring_tooth(205, 185, 158, 82, math.radians(25))
+    s.ring_tooth(205, 185, 158, 82, math.radians(65))
+    s.ring_tooth(205, 185, 158, 82, math.radians(115))
+    s.ring_tooth(205, 185, 158, 82, math.radians(155))
+    s.facet([(363, 185), (403, 160), (412, 185), (400, 210)], HULL_C)            # 环刃侧刃（自动镜像）
+    s.facet([(363, 185), (390, 170), (396, 185), (388, 200)], HULL_D)
+    s.rim([(363, 185), (403, 160)])
+    # 霓虹：轨道环能量线 + 舰体走线
+    s.orbit_ring(205, 185, 145, 75)
+    s.neon([(205, 92), (205, 168)], width=1, mirror=False)                       # 中脊二级走线
+    s.neon([(146, 128), (205, 150)], width=2)
+    s.neon([(150, 176), (260, 176)], width=1, mirror=False)                      # 环带二级走线
+    s.neon([(150, 222), (260, 222)], width=1, mirror=False)
+    s.lamp(363, 185, 3)                                                          # 环刃节点灯（自动镜像）
+    s.lamp(205, 104, 2.5)                                                        # 环顶灯
+    s.lamp(205, 288, 1.5)                                                        # 尾航行灯
+    s.ring_core(205, 185, 26)                                                    # 中心晶核
+    s.ring_core(205, 116, 9)                                                     # 舰首晶核
+    s.nozzle_ring(205, 322, 12, 6)
+    s.engine(205, 322, 12, 6)
+    s.engine_particles(205, 332, n=4, drop=12, spread=7)
+    return s
+
+
 # ---------------- 精英炮塔事件：打击航母（1200×700）与炮塔（96×96，品红） ----------------
 
 ## 炮台基座位（贴图像素坐标，供 strike_carrier 绘制与运行时基座环对齐）
@@ -788,7 +875,7 @@ def main() -> None:
         (elite_1, "elite_ship_1.png", PALETTE_BRIGHT), (elite_2, "elite_ship_2.png", PALETTE_BRIGHT),
         (elite_3, "elite_ship_3.png", PALETTE_BRIGHT),
         (boss_1, "boss_ship_1.png", PALETTE_DARK), (boss_2, "boss_ship_2.png", PALETTE_DARK),
-        (boss_3, "boss_ship_3.png", PALETTE_DARK),
+        (boss_3, "boss_ship_3.png", PALETTE_DARK), (eclipse, "boss_ship_4.png", PALETTE_DARK),
         (strike_carrier, "strike_carrier.png", PALETTE_DARK), (turret, "elite_turret.png", PALETTE_DARK),
     ]
     for fn, name, palette in ships:
