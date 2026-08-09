@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOTNET_SDK_VERSION: 8.0
+  DOTNET_SDK_VERSION: "8.0"
   GODOT_VERSION: 4.6.2
 
 jobs:
