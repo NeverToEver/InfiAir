@@ -70,7 +70,7 @@ Exit from welcome: run save **kept**; "continue run" available next start.
 | PC | right mouse | fixed detect (not rebindable) | same — **right mouse = back/cancel** (confirm cancel, settings back, pause open/close) |
 | Gamepad | B / Circle (joy button 1) | `ui_cancel` (built-in default) | same; A = `ui_accept` confirm; d-pad/stick via GUI focus nav |
 | Gamepad | left stick | `move_*` | `GameState.BindJoypadDefaults()` runtime InputMap assembly (keyboard-only in project.godot, P0-1) |
-| Gamepad | right stick | `aim_x`/`aim_y` (virtual cursor, `player.AimPoint()`) | sensitivity/deadzone in Settings "Gamepad" (`joy_aim_speed`/`joy_deadzone`, profile) |
+| Gamepad | right stick | `aim_left`/`aim_right`/`aim_up`/`aim_down` (virtual cursor, `player.AimPoint()`) | sensitivity/deadzone in Settings "Gamepad" (`joy_aim_speed`/`joy_deadzone`, profile) |
 | Gamepad | A=dash / RB=boost / LB=fine / X=dock / Y=homecoming / L3=buff bar / R3=give up / LT=parry / A=restart | `dash`/`boost`/`fine_move`/`dock`/`homecoming`/`buff_panel`/`give_up`/`parry`/`restart` | runtime assembly; B yields to `ui_cancel` |
 | Android | system back | `NotificationWMGoBackRequest` | `BackNavigator._Notification` → `GoBack()` |
 

@@ -66,7 +66,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.9 Meta HUD (single source `docs/META_HUD_DESIGN.md`)
 - Fullscreen FX CanvasLayer layer=1 (above world, below HUD→layer=2); `meta_health.gdshader` + `hint_screen_texture`.
-- Pipeline: hit layer (CA + 6-tap radial blur) → directional ripple (edge 12%) → desaturate/cool tint + vignette → cracks (Voronoi baked once: windowed GPU 512² / headless CPU 64²).
+- Pipeline: hit layer (CA + 4-tap radial blur) → directional ripple (edge 12%) → desaturate/cool tint + vignette → cracks (Voronoi baked once: windowed GPU 512² / headless CPU 64²).
 - FSM: NORMAL/CAUTION/DAMAGED/CRITICAL/DYING (0.75/0.50/0.25/0.20); fast down (tau 0.10), slow up (tau 0.80 + stagger); DYING heartbeat 1.0–1.2Hz, breath ±1.5%, HUD shake ±2px, FOV −6%.
 - Explicit (SegmentedBar) + implicit (desaturate/vignette/heartbeat) layers; `reduce_flash`: CA ×0.4, no breath/shake/heartbeat (SFX kept).
 - Brightness proxy from registries (bullets ×0.002 + explosions ×0.15), zero GPU readback; LOD1 skips CA/blur/ripple.
@@ -113,7 +113,7 @@ Main (csharp/godot/Main.cs)
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `Load/Cfg/EnemyHpRamp/EnemyDamageRamp`), `SaveManager` (RefCounted: `Exists/Save/Load/Delete/Quarantine/SanitizeNum`; corruption → `LastWasCorrupt`), `SfxPlayer` (Node child of GameState: `BuildPool/Play/StopAll`; headless short-circuit; `SFX_*` stream consts on GameState), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `Enemies/PlayerRef/PlayerHitbox/BulletPool/EnemyPool/AimFrameLayer/CameraRef/VirtualControls` + `BindEnemy`/`UnbindEnemy` one-line registration + `EntityRegistered`/`EntityUnregistered` signals; `ForEachEnemy`/`ClearEnemies`/`CountEnemies` bulk APIs on the GameState facade over its registry), `FogEventManager` (fog effects layer/API facade, `GameState.FogEvents`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.Events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
+- Eight non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `Load/Cfg/EnemyHpRamp/EnemyDamageRamp`), `SaveManager` (RefCounted: `Exists/Save/Load/Delete/Quarantine/SanitizeNum`; corruption → `LastWasCorrupt`), `SfxPlayer` (Node child of GameState: `BuildPool/Play/StopAll`; headless short-circuit; `SFX_*` stream consts on GameState), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `Enemies/PlayerRef/PlayerHitbox/BulletPool/EnemyPool/AimFrameLayer/CameraRef/VirtualControls` + `BindEnemy`/`UnbindEnemy` one-line registration + `EntityRegistered`/`EntityUnregistered` signals; `ForEachEnemy`/`ClearEnemies`/`CountEnemies` bulk APIs on the GameState facade over its registry), `FogEventManager` (fog effects layer/API facade, `GameState.FogEvents`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.Events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards; 2026-08-06 audit registered as 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`), `ProgressionInterop` (RefCounted, 2026-08-07: milestone/difficulty-curve bridge `MilestoneThreshold`/`CountThresholdsUpTo`/`DifficultyMultiplier` → `InfiAir.Core.Progression`; Y 系列 2026-08-09 补 8th 服务口径).
 - Hot paths: no per-frame `GetNodesInGroup`; use registries.
 
 ### 2.4 Pools & Registries
@@ -123,7 +123,7 @@ Main (csharp/godot/Main.cs)
 - Explosions: `Explosion.SpawnAt()`, pooled (`PoolCap`, json `effects.explosion.pool_cap`), `ProcessMode=Always` (plays under paused tree).
 
 ### 2.5 Input & Settings
-- Inputs in `project.godot` (move/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`/`parry` F); rebindable, in profile. **Gamepad runtime binding (P0-1)**: `BindJoypadDefaults()` adds left stick, A/RB/LB/X/Y/L3/R3, LT (`parry`), right-stick aim (`aim_x`/`aim_y` → virtual cursor via `player.AimPoint()`); deadzone via `SetJoyDeadzone()`. **PS detect** (GUID vendor 054c; ✕○□△/L1-R1 labels; `JoyButtonLabel()`).
+- Inputs in `project.godot` (move/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`restart`/`parry` F); rebindable, in profile. **Gamepad runtime binding (P0-1)**: `BindJoypadDefaults()` adds left stick, A/RB/LB/X/Y/L3/R3, LT (`parry`), right-stick aim (`aim_left`/`aim_right`/`aim_up`/`aim_down` → virtual cursor via `player.AimPoint()`); deadzone via `SetJoyDeadzone()`. **PS detect** (GUID vendor 054c; ✕○□△/L1-R1 labels; `JoyButtonLabel()`).
 - Settings: difficulty/keybinds/locale/zoom/window/aim tier/`reduce_flash`/`mouse_lock` (default on; warps mouse inside while crosshair active + focused; released on pause/non-crosshair/unfocus)/gamepad (`joy_aim_speed`/`joy_deadzone`)/volume; locale via `SetLocale()`, UI on `LocaleChanged`.
 - Zoom & window size: two independent profiles.
 
@@ -132,8 +132,13 @@ Main (csharp/godot/Main.cs)
 | --- | --- |
 | 1 | MetaHealthFX |
 | 2 | HUD |
+| 10 | BuffUI |
 | 12 | CommOverlay |
+| 15 | PauseUI |
+| 16 | SettingsUI |
+| 20 | GameOverUI |
 | 24 | OrbitalStrike / MothershipSummonWindow |
+| 25 | BaseUI |
 | 35 | Intro/Return Cinematic |
 | 40 | ExitConfirm |
 

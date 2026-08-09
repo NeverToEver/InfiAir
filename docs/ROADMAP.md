@@ -41,10 +41,10 @@
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 
 **Restart 2026-08-04 (deferred plans, excl. mobile touch)**:
-- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
-- **Mothership expansion**: `docs/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers); **landed** — milestone-gated gatling/missile upgrade
-- **Content evolution**: `docs/2026-08-04-content-evolution-plan.md`; **landed** — 3 buffs (crit_shot/shield/bullet_speed) + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse" (ring-weaving mage)
-- **Endless k-value calibration**: `docs/2026-08-04-endless-calibration-plan.md`; **landed** — `progression.per_boss_kill` 0.6 / `per_ten_minutes` 1.5 / `hp_ramp_factor` 0.25 / `damage_ramp_factor` 0.20; 3 × 900s probes 0 anomalies, zero-pressure steady state eliminated (ENDLESS_BALANCE_PLAN §6.1)
+- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/archive/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
+- **Mothership expansion**: `docs/archive/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers); **landed** — milestone-gated gatling/missile upgrade
+- **Content evolution**: `docs/archive/2026-08-04-content-evolution-plan.md`; **landed** — 3 buffs (crit_shot/shield/bullet_speed) + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse" (ring-weaving mage)
+- **Endless k-value calibration**: `docs/archive/2026-08-04-endless-calibration-plan.md`; **landed** — `progression.per_boss_kill` 0.6 / `progression.per_ten_minutes` 1.5 / `enemies.hp_ramp_factor` 0.25 / `enemies.damage_ramp_factor` 0.20; 3 × 900s probes 0 anomalies, zero-pressure steady state eliminated (ENDLESS_BALANCE_PLAN §6.1)
 
 - **Local accounts**: spec at commit `7aacd3f` (UserDB/PBKDF2/per-user saves; also PORTING_PARITY Appendix B); reuse on restart.
 - **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.

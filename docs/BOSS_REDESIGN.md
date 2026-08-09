@@ -5,7 +5,7 @@ Pre-redesign behavior ported from the Python original (`docs/archive/PORTING_PAR
 
 ## 1. Audit (2026-07-28, per `scripts/boss.gd` + `data/balance.json` boss section)
 
-> §1.1 = pre-redesign snapshot, **superseded (3 phases landed 2026-07-28, §8)**, kept for diff.
+> GDScript-era 锚点（`scripts/boss.gd` 符号/行号）为 2026-07-28 撰写时快照；M7（2026-08-08）全量迁移 C# 后 `scripts/` 已无 `.gd`，现行为见 `csharp/godot/Boss.cs` + `BossFire`/`BossAttacks`/`BossMovement`/`EnrageSequence`。§1.1 = pre-redesign snapshot, **superseded (3 phases landed 2026-07-28, §8)**, kept for diff.
 
 ### 1.1 Old Structure
 - 3 types: 1 Heavy (strafe 150, 5-way fan/homing alt., 1.6s) / 2 Stalker (dash 400, 3-round sniper 0.12s gap, 1.8s) / 3 Mothership (strafe 60, rotating cross 0.9s + summon 2–3 minions/6s). HP = 800 × [1.3, 0.7, 1.6] × difficulty.

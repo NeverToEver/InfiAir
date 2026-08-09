@@ -58,7 +58,7 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 - **P1 (delivered)**: doc + director framework (timeline/transitions/skip/cleanup) + 6-shot layers + hookup + Esc/click skip + i18n keys + headless test + EXIT_FLOW.md/AGENTS.md sync.
 - **P2 (done later)**: visual polish — density, deck thickness, volumetric light/motion blur, color grading; per-shot SFX balance; shots 3/4 detail.
 - **P3 (delivered)**: polish + perf budget:
-  - letterbox 132px (`intro_cinematic.tscn` LetterboxTop 0–132 / LetterboxBottom 948–1080, consistent w/ §2 and RETURN doc §0.1); skip hint in top bar
+  - letterbox 132px (`intro_cinematic.tscn` LetterboxTop 0–132 / LetterboxBottom 948–1080, consistent w/ §2 and RETURN doc §0.1); skip hint in bottom letterbox bar (right side)
   - per-shot subtitle cards (zh+en); multi-layer parallax (shot1 starfield + FG debris, shot6 nebula); transitions (1→2, 4→5 white flash, rest blackout); handheld drift (low-freq sine + micro rotation)
   - per-shot extras: shot2 scan grid + node ripples; shot3 rotating light + visor highlight; shot4 HUD + top strip + knuckles; shot5 white-hot core + strobe dots + radial lines; shot6 anamorphic flare + fleet trails; optional title card (if added, total ≤25s — sync duration metric)
   - Perf: emitter ≤96, alive ≤400, ≤1 `_process`/shot zero-alloc, merge static elements, tween over per-frame code; sample draw calls/objects/frame time into §7.

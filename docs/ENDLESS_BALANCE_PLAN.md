@@ -85,7 +85,7 @@ Two paradigms; project had neither:
 
 ### 6.1 Deep-run calibration (2026-08-04, `docs/archive/2026-08-04-endless-calibration-plan.md`)
 
-**Landed values** (balance.json, cfg fallbacks in `game_state.gd:158-160` unchanged — only numbers):
+**Landed values** (balance.json, cfg fallbacks in `GameState`（原 `autoload/game_state.gd:158-160`，M7 迁移后为 `csharp/godot/GameState.*.cs` partials）unchanged — only numbers):
 
 | Key | Old | New | Rationale |
 | --- | --- | --- | --- |

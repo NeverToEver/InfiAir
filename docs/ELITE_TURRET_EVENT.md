@@ -28,7 +28,7 @@ All bullets via `scenes/bullet.tscn` + `GameState.BulletPool.Fire()`; faction in
 
 - Range **48 ~ 112 HP** (types 65-72 / 48-56 / 95-112 / 56-66 / 80-92 (Splitter, 2026-08-04), resampled 2026-08-02); typical **~65-72 HP**
 - `difficulty.hp`: easy ×0.75 / medium ×1.0 / hard ×1.5
-- Ref: elite 135-210; Boss 800 × hp_mults; turrets = normal-unit tier HP.
+- Ref: elite 135-270 (4 elite types, `elites.types[].hp`); Boss 800 × hp_mults; turrets = normal-unit tier HP.
 
 ### 1.3 Boss kill score
 

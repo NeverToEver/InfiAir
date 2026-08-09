@@ -18,7 +18,7 @@
 | `data/balance.json` | All tunables. `boss` holds `phases` (pattern tables/telegraph/P2 params), `enrage.type_*`, `difficulty_scaling` (count/interval/speed tiers). Edit via `balance_editor.py`. |
 | `data/translations.csv` | Translation keys + `zh`/`en` source. |
 | `.gitignore` | `.godot/`, imported `*.translation`, IDE files, exports (`builds/`; `export_presets.cfg` committed since 2026-07-30). |
-| `run.sh`/`run.command`/`run.bat` | Launch wrappers. `run.sh`: .NET-edition-first engine probe (`godot-mono` → `~/.local/bin/godot-mono` → `godot` → `godot4` → `~/.local/bin/godot`), warn on old version, args passed through (`--editor` etc.). `run.command` (double-click + terminal, aligned with run.sh since 2026-08-02): candidates incl. `/Applications`+`~/Applications` `Godot*.app`, pick 4.6+, pass engine args, no `exec` (keeps window/output on abnormal exit). |
+| `run.sh`/`run.command`/`run.bat` | Launch wrappers. `run.sh`: .NET-edition-first engine probe (`godot-mono` → `~/.local/bin/godot-mono` → `godot` → `godot4` → `~/.local/bin/godot` → macOS `/Applications/Godot.app`), warn on old version, args passed through (`--editor` etc.). `run.command` (double-click + terminal, aligned with run.sh since 2026-08-02): candidates incl. `/Applications`+`~/Applications` `Godot*.app`, pick 4.6+, pass engine args, no `exec` (keeps window/output on abnormal exit). |
 | `export_presets.cfg` | Linux/X11 + Windows Desktop presets (embedded pck, x86_64); needs matching export templates installed. |
 | `release.sh` | Import → dual-platform export → package into `builds/release/` (`VERSION` env sets version). |
 

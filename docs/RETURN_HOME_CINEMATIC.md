@@ -4,7 +4,7 @@ Single source of truth: return-home cinematic + phantom station base UI (samplin
 
 ## 0. Pre-analysis (2026-07-28)
 
-### 0.1 Intro structure (src `scripts/intro_cinematic.gd` + `docs/INTRO_CINEMATIC.md`)
+### 0.1 Intro structure (src `csharp/godot/IntroCinematic.cs` + `docs/INTRO_CINEMATIC.md`)
 Total 17.3s = 6 shots 16.1s (transitions inside shot times) + title freeze 1.2s (0.2 in / 0.8 hold / 0.2 out). Durations `[2.8, 2.5, 2.5, 2.5, 2.8, 3.0]` (`_shot_durations` writable, for tests).
 
 | # | Shot | Dur | Content | Trans |
@@ -19,7 +19,7 @@ Total 17.3s = 6 shots 16.1s (transitions inside shot times) + title freeze 1.2s 
 
 Norms: 2.35:1 letterbox (132px bars); subtitle cards `INTRO_SUB_1..6` (0.3s in, fade with transition); handheld drift (shared container sine ±3px + micro rotation, single `_process` zero-alloc); 1920×1080 design coords. Skeleton: `CanvasLayer(layer=35, process_mode=Always)`; `get_tree().paused = true`; one-shot `Timer` chain (no `create_timer`); in-shot `create_tween()`; `skip()` idempotent exit; Esc via BackNavigator `SKIP_INTRO`. Factories: `_glow()`, `_line()`, `_rect_poly()`, `_bg_rect()`, `_particles()` (≤96/emitter), `_kick_shake()`. Budget: draws <400, live ≤400, ≤1 `_process`/shot.
 
-### 0.2 Dawn station anchors (src `_build_shot1()`, center (960,470))
+### 0.2 Dawn station anchors (src `DawnStation.Build(Mode)` in `csharp/godot/DawnStation.cs`, center (960,470))
 
 | Part | Geometry | Color |
 | --- | --- | --- |
@@ -33,8 +33,8 @@ Norms: 2.35:1 letterbox (132px bars); subtitle cards `INTRO_SUB_1..6` (0.3s in, 
 
 Keywords: ring + 7 segments + spokes + hub; cold steel blue-gray low-sat; breach right-bottom (0.5–1.2 rad). Phantom keeps geometry + breach (recognition anchor). (8 slots, breach gap 0.4–1.4 rad: one module missing.)
 
-### 0.3 Base UI current (src `scripts/base_console.gd` + `scripts/ui_theme.gd` + `docs/screenshots/base.png`)
-- Chain: hold B in-run (`HOME_CHARGE_TIME`) → `Main._start_homecoming()`: lock input, stop spawner, recall mothership, `GameState.save_run()`, `_starfield.warp(18.0)`, white flash (0.5+0.5+0.3s), `_base_ui.show_base()`, tree paused. Return: `resume_requested` → `_resume_from_base()` → orbital strike anim (`scripts/orbital_strike.gd`, clears on hit frame, resumes same run).
+### 0.3 Base UI current (src `csharp/godot/BaseConsole.cs` + `csharp/godot/UITheme.cs` + `docs/screenshots/base.png`)
+- Chain: hold B in-run (`HOME_CHARGE_TIME`) → `Main._start_homecoming()`: lock input, stop spawner, recall mothership, `GameState.save_run()`, `_starfield.warp(18.0)`, white flash (0.5+0.5+0.3s), `_base_ui.show_base()`, tree paused. Return: `resume_requested` → `_resume_from_base()` → orbital strike anim (`csharp/godot/OrbitalStrike.cs`, clears on hit frame, resumes same run).
 - Layout: CanvasLayer > dim ColorRect(0.02,0.03,0.08,0.95) > CenterContainer > VBox: title BASE_TITLE 44 → gold RP → HBox 2 cols sep 20 → primary 280×52. Left: hangar (status) + supply (repair/recharge); right: routes (attack/mobility 2 rows) + missions (list + claim). ChamferedPanel min w560.
 - Tokens: panel (0.039,0.063,0.102,0.78), border 1px (0,0.83,1,0.5), accent `#00d4ff`, secondary `#0080ff`, gold `#d8a868`, text `#e0e8f0`/`#8a9bb0`, sizes 72/40/28/24/18, NotoSansSC, `animate_open` 200ms / `stagger_open` 60ms (modulate.a only).
 - Ports: `_on_repair_pressed` (2RP full HP), `_on_recharge_pressed` (2RP full fuel), `_on_route_pressed`, `_on_claim_pressed`, `_on_resume_pressed`; data via GameState (rp/buff_count/choose_route/claim_mission/mission_progress).

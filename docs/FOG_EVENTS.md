@@ -16,10 +16,10 @@
 - 点数校验：不足时禁止刷新并给出提示。
 - 任务池（TaskPool）随机抽取算法。
 
-### 1.2 数据层（`csharp/godot/GameState.cs`）
+### 1.2 数据层（`csharp/godot/GameState.State.cs` + `GameState.Missions.cs`，2026-08-09 Y 系列 partial 拆分）
 
 ```csharp
-// 初始手牌（保持既有 id 语义，测试/存档兼容；显示文本全走 Tr() 翻译表 TASK_* 键，
+// 初始手牌（保持既有 id 语义，测试/存档兼容；显示文本全走 Tr() 翻译表 MISSION_* 键，
 // 不保留 name/desc —— 2026-08-05 P4 去双源）
 public Godot.Collections.Array<Godot.Collections.Dictionary> MISSION_DEFS { get; } = BuildMissionDefs();
 // 任务池：9 项 = 3 类 × 3 档目标（kind 决定进度来源，goal 各自生效）
