@@ -158,7 +158,7 @@ public partial class SegmentedBar : Control
         }
 
         var gap = 2.0f;
-        if (SegWeights.Count == 0)
+        if (SegWeights.Count > 0)
         {
             DrawWeighted(gap);
             return;
