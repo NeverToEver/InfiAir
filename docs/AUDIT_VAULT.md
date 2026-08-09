@@ -1739,3 +1739,19 @@
 - **测试补齐**（75→80）：TaskPool 重复 id ×2（含部分排除）；ProgressionCurves cycleMult<1 单调 / 0 与负倍率不抛 ×2；UserDb 手改 iterations=2e6 钳制 1e6 快速失败 + 正常记录不受影响 ×1（非法 hex/大写盐 Q18 已有用例）。
 - **登记不修/观察**：VariantBridge xUnit 单测不可行（tests-csharp 零 Godot 依赖纪律，GodotSharp 无引擎进程崩溃；由 path_resolver/user_db interop 场景间接覆盖）；伤害分派 switch ×3 统一、`%` 格式化器 4 份收敛、UI 结算/存档编排下沉、GameState 上帝类拆分、两池 `_free.Contains` O(n)（上限 500）、GdFormat 三份重复（本轮 deferred，理由见报告 P2 表）。
 - **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 80/80；`dotnet format` 三工程零 diff；`godot --headless --import` 0 引擎错误；定向断言场景 26 个批量结果见报告文末验证清单；BALANCE_MAP 重跑 468 调用 0 缺失键。
+
+
+---
+
+# Y 系列（2026-08-09，第五轮：C# 核心架构重构）
+
+- **审计**：3 路并行只读边界侦察（GameState 拆分可行性 / Boss 链 typed 化与 110 桥删除边界 / UI 编排+格式化器+伤害分派三合一），按 C# 架构专家角色流程执行（Phase 0-2 侦察计划 → Phase 3 五阶段实施 → Phase 4 验证）。用户指示：核心架构需同样操作，逻辑冗杂、结构健康度不足。完整报告 `docs/archive/2026-08-09-csharp-architecture-refactor-plan.md`。
+- **发现**：格式化器重复 ×11（4 种越界兜底并存）；GameState 上帝类 2674 行单文件；Boss 链双命名桥 110 个 + 组件每帧 1-11 次动态派发；伤害分派 switch ×3；UI 结算/存档编排在 UI 层。**新 Bug（迁移缺陷）**：原 11 份 `%.Nf` 解析 j 偏移 bug——从 `'.'` 处而非其后扫描数字，`%.2f` 永不匹配，`UI_DIFF_FMT` 实际渲染为字面「难度 x%.2f · 中」。
+- **修复批次（Y1-Y5，2026-08-09）**：
+  - ✅ **Y1** 格式化器收敛 11→1：新增 `csharp/core/Text/GdFormat.cs`（纯 .NET + xUnit 9 用例）；删除 11 份本地实现；47 处调用点迁移；越界兜底统一 `"?"`；**修复 %.Nf j 偏移 bug**（HUD 难度标签恢复正确渲染）。
+  - ✅ **Y2** 伤害分派统一：新增 `csharp/godot/EntityDamage.cs`（Dispatch 四类 switch）；Bullet 直击/溅射 + LaserWeapon 三处收敛；`_explode` 排除 Boss 与激光不传 ScoreScale 语义显式保留。
+  - ✅ **Y3** GameState partial 拆分：2674 行 → 9 文件（壳 430 + Constants 99 + State 446 + Missions 250 + Difficulty 107 + Settings 390 + Input 259 + Users 145 + Save 544）；纯移动零行为差异；`_instance`/`_Ready` 顺序链留壳。**工具链修复**：`gen_balance_map.py` 硬编码文件名不识别 `GameState.*.cs`（468→452 调用、未引用键 1→38）→ 前缀匹配扩展后恢复。
+  - ✅ **Y4** Boss 链 typed 化 + 226 桥删除（净删 397 行）：Boss.cs 110 桥全删 + 8 个 PascalCase Fire 转发（测试契约替代）；三组件签名 `GodotObject/Node2D→Boss`、StringName 区 113 个删除、~130 处 Get/Call typed 化、`Call("SpawnMinionAt")` ×2 typed；边界外 `summon_waves()`/`world_scale` ×2 零消费方删除；测试 44 处改写（断言语义不动）。
+  - ✅ **Y5** UI 编排下沉：`GameState.SettleRun()` 结算原子链（DeleteSave→RecordScore→RecordGameOver→SubmitHighscore + 快照）；`GameState.SaveRun()` 无参版（内部取 Fuel/Elapsed 缺节点兜底）；GameOverUi/PauseUi 收敛为单次调用；PlayerDied 订阅者时序与两参版契约保留。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 89/89；`dotnet format` 三工程零 diff；分阶段受影响场景 34 个全 PASS（11+5+5+7+6）；全量断言场景结果见报告文末；BALANCE_MAP 重跑 468/3/1/0（工具修复后）。
+- **登记不修/观察**：任务域服务化试点（收益不确定、热路径 +1 层，partial 拆分已提供域边界，留待评估）；阶段状态机单一化（Main/Spawner 布尔 → 枚举，行为风险最高需单独设计轮）；两池 `_free.Contains` O(n)（上限 500）；Explosion/VirtualControls 静态持有（U07 规则擦边）；GameState 深度服务化下沉。

@@ -254,22 +254,9 @@ public partial class LaserWeapon : Node2D
             var pos = ((Node2D)node).GlobalPosition;  // 注册表元素均为 Node2D（Enemy/Boss/炮塔/编队机）
             if (DistToSegment(pos, start, end) <= BeamHalfWidth + EnemyHitRadius)
             {
-                // U13：typed 分派（原鸭子 take_damage = 四类之一）
-                switch (node)
-                {
-                    case Enemy enemy:
-                        enemy.TakeDamage(TickDamage);
-                        break;
-                    case Boss boss:
-                        boss.TakeDamage(TickDamage);
-                        break;
-                    case TurretBattery turret:
-                        turret.TakeDamage(TickDamage);
-                        break;
-                    case FormationCraft craft:
-                        craft.TakeDamage(TickDamage);
-                        break;
-                }
+                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；激光路径不传 ScoreScale
+                // ——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同），保持不动
+                EntityDamage.Dispatch(node, TickDamage);
             }
         }
     }

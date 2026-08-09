@@ -162,9 +162,9 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 115 | `buffs.explosive.unlock_boss_kills` | `3` |
-| 345 | `buffs.extra_life.heal_on_pick` | `30` |
-| 382 | `buffs.extra_life.heal_on_pick` | `30` |
+| 116 | `buffs.explosive.unlock_boss_kills` | `3` |
+| 346 | `buffs.extra_life.heal_on_pick` | `30` |
+| 383 | `buffs.extra_life.heal_on_pick` | `30` |
 
 ### `csharp/godot/Bullet.cs`
 
@@ -310,39 +310,49 @@
 | 165 | `formation_strike_event.trigger_chance` | `0.30` |
 | 166 | `formation_strike_event.min_score` | `500` |
 
-### `csharp/godot/GameState.cs`
+### `csharp/godot/GameState.Save.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 217 | `world_scale` | `WorldScale` |
-| 220 | `milestones.base` | `BuildMilestoneBase(` |
-| 239 | `milestones.cycle_mult` | `MilestoneCycleMultValue` |
-| 241 | `progression.per_boss_kill` | `0.6` |
-| 242 | `progression.per_ten_minutes` | `1.5` |
-| 243 | `progression.time_step_seconds` | `30.0` |
-| 246 | `difficulty` | `new Godot.Collections.Dictionary(` |
-| 255 | `dda.duration` | `DDA_DURATION` |
-| 256 | `dda.factor` | `DDA_FACTOR` |
-| 257 | `player.max_health` | `_maxHpBase` |
-| 259 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
-| 261 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 263 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 264 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
-| 1287 | `milestones.boss_kill_base` | `500.0` |
-| 2425 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
+| 381 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
+
+### `csharp/godot/GameState.Settings.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 289 | `milestones.boss_kill_base` | `500.0` |
+
+### `csharp/godot/GameState.State.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 52 | `world_scale` | `WorldScale` |
+| 55 | `milestones.base` | `BuildMilestoneBase(` |
+| 74 | `milestones.cycle_mult` | `MilestoneCycleMultValue` |
+| 76 | `progression.per_boss_kill` | `0.6` |
+| 77 | `progression.per_ten_minutes` | `1.5` |
+| 78 | `progression.time_step_seconds` | `30.0` |
+| 81 | `difficulty` | `new Godot.Collections.Dictionary(` |
+| 90 | `dda.duration` | `DDA_DURATION` |
+| 91 | `dda.factor` | `DDA_FACTOR` |
+| 92 | `player.max_health` | `_maxHpBase` |
+| 94 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
+| 96 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 98 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 99 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
 ### `csharp/godot/Hud.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 146 | `effects.hud_poll_interval` | `_pollInterval` |
-| 147 | `hud.boss_bar_segments` | `_bossBarSegments` |
-| 148 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
-| 149 | `effects.hit_flash.time` | `_hitFlashTime` |
-| 150 | `effects.low_hp.ratio` | `_lowHpRatio` |
-| 151 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
-| 152 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
-| 153 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
+| 147 | `effects.hud_poll_interval` | `_pollInterval` |
+| 148 | `hud.boss_bar_segments` | `_bossBarSegments` |
+| 149 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
+| 150 | `effects.hit_flash.time` | `_hitFlashTime` |
+| 151 | `effects.low_hp.ratio` | `_lowHpRatio` |
+| 152 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
+| 153 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
+| 154 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
 
 ### `csharp/godot/LaserWeapon.cs`
 
@@ -360,15 +370,15 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 106 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
-| 107 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
-| 108 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
-| 109 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
-| 110 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
-| 111 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 872 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 885 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 937 | `mothership.depart_cooldown` | `60.0` |
+| 107 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
+| 108 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
+| 109 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
+| 110 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
+| 111 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
+| 112 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
+| 873 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 886 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 938 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp/godot/MetaHealthFX.cs`
 
@@ -417,58 +427,58 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 225 | `mothership.hover_y` | `HoverY` |
-| 226 | `mothership.release_invincible` | `ReleaseInvincible` |
-| 227 | `mothership.dock_tween_time` | `DockTweenTime` |
-| 228 | `mothership.dock_offset_y` | `DockOffsetY` |
-| 230 | `mothership.resupply_delay` | `ResupplyDelay` |
-| 231 | `mothership.release_time` | `ReleaseTime` |
-| 232 | `mothership.release_drop` | `ReleaseDrop` |
-| 234 | `mothership.mag_cells` | `MagCells` |
-| 235 | `mothership.mag_cell_time` | `MagCellTime` |
-| 236 | `mothership.mag_warn_cells` | `MagWarnCells` |
-| 237 | `mothership.warn_eject_delay` | `WarnEjectDelay` |
-| 238 | `mothership.early_hold_time` | `EarlyHoldTime` |
-| 239 | `mothership.early_max_discount` | `EarlyMaxDiscount` |
-| 240 | `mothership.early_prefill_max` | `EarlyPrefillMax` |
-| 241 | `mothership.early_prefill_ratio` | `EarlyPrefillRatio` |
-| 242 | `mothership.depart_cooldown` | `DepartCooldown` |
-| 243 | `mothership.depart_start_speed` | `DepartStartSpeed` |
-| 244 | `mothership.depart_accel` | `DepartAccel` |
-| 245 | `mothership.drive.accel` | `DriveAccel` |
-| 246 | `mothership.drive.max_speed` | `DriveMaxSpeed` |
-| 250 | `mothership.drive.margin_x` | `DriveMarginX` |
-| 252 | `mothership.drive.margin_top` | `DriveMarginTop` |
-| 254 | `mothership.drive.margin_bottom` | `DriveMarginBottom` |
-| 257 | `mothership.upgrade.threshold` | `_upgradeThreshold` |
-| 258 | `mothership.upgrade.damage_mult` | `_upgradeDamageMult` |
-| 259 | `mothership.upgrade.interval_mult` | `_upgradeIntervalMult` |
-| 260 | `mothership.gatling.interval` | `GatlingInterval` |
-| 261 | `mothership.gatling.bullet_speed` | `GatlingBulletSpeed` |
-| 262 | `mothership.gatling.damage` | `GatlingDamage` |
-| 263 | `mothership.gatling.score_scale` | `GatlingScoreScale` |
-| 264 | `mothership.gatling.sweep_left_min` | `GatlingSweepLeftMin` |
-| 265 | `mothership.gatling.sweep_left_max` | `GatlingSweepLeftMax` |
-| 266 | `mothership.gatling.sweep_right_min` | `GatlingSweepRightMin` |
-| 267 | `mothership.gatling.sweep_right_max` | `GatlingSweepRightMax` |
-| 268 | `mothership.gatling.sweep_left_period` | `GatlingSweepLeftPeriod` |
-| 270 | `mothership.gatling.sweep_right_period` | `GatlingSweepRightPeriod` |
-| 272 | `mothership.gatling.sweep_right_phase` | `GatlingSweepRightPhase` |
-| 274 | `mothership.missile.interval` | `MissileInterval` |
-| 275 | `mothership.missile.damage` | `MissileDamage` |
-| 276 | `mothership.missile.speed` | `MissileSpeed` |
-| 277 | `mothership.missile.target_count` | `MissileTargetCount` |
-| 278 | `mothership.missile.splash_damage` | `MissileSplashDamage` |
-| 279 | `mothership.missile.splash_radius` | `MissileSplashRadius` |
-| 280 | `effects.mothership_summon.warp_in_time` | `WarpInTime` |
-| 281 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
-| 283 | `effects.mothership_summon.slow.radius` | `SlowRadius` |
-| 284 | `effects.mothership_summon.slow.duration` | `SlowDuration` |
-| 285 | `effects.mothership_summon.slow.factor` | `SlowFactor` |
-| 286 | `effects.mothership_summon.slow.ring_time` | `SlowRingTime` |
-| 287 | `effects.mothership_summon.shake_slow` | `ShakeSlow` |
-| 391 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
-| 1047 | `effects.shake.mothership` | `4.0` |
+| 226 | `mothership.hover_y` | `HoverY` |
+| 227 | `mothership.release_invincible` | `ReleaseInvincible` |
+| 228 | `mothership.dock_tween_time` | `DockTweenTime` |
+| 229 | `mothership.dock_offset_y` | `DockOffsetY` |
+| 231 | `mothership.resupply_delay` | `ResupplyDelay` |
+| 232 | `mothership.release_time` | `ReleaseTime` |
+| 233 | `mothership.release_drop` | `ReleaseDrop` |
+| 235 | `mothership.mag_cells` | `MagCells` |
+| 236 | `mothership.mag_cell_time` | `MagCellTime` |
+| 237 | `mothership.mag_warn_cells` | `MagWarnCells` |
+| 238 | `mothership.warn_eject_delay` | `WarnEjectDelay` |
+| 239 | `mothership.early_hold_time` | `EarlyHoldTime` |
+| 240 | `mothership.early_max_discount` | `EarlyMaxDiscount` |
+| 241 | `mothership.early_prefill_max` | `EarlyPrefillMax` |
+| 242 | `mothership.early_prefill_ratio` | `EarlyPrefillRatio` |
+| 243 | `mothership.depart_cooldown` | `DepartCooldown` |
+| 244 | `mothership.depart_start_speed` | `DepartStartSpeed` |
+| 245 | `mothership.depart_accel` | `DepartAccel` |
+| 246 | `mothership.drive.accel` | `DriveAccel` |
+| 247 | `mothership.drive.max_speed` | `DriveMaxSpeed` |
+| 251 | `mothership.drive.margin_x` | `DriveMarginX` |
+| 253 | `mothership.drive.margin_top` | `DriveMarginTop` |
+| 255 | `mothership.drive.margin_bottom` | `DriveMarginBottom` |
+| 258 | `mothership.upgrade.threshold` | `_upgradeThreshold` |
+| 259 | `mothership.upgrade.damage_mult` | `_upgradeDamageMult` |
+| 260 | `mothership.upgrade.interval_mult` | `_upgradeIntervalMult` |
+| 261 | `mothership.gatling.interval` | `GatlingInterval` |
+| 262 | `mothership.gatling.bullet_speed` | `GatlingBulletSpeed` |
+| 263 | `mothership.gatling.damage` | `GatlingDamage` |
+| 264 | `mothership.gatling.score_scale` | `GatlingScoreScale` |
+| 265 | `mothership.gatling.sweep_left_min` | `GatlingSweepLeftMin` |
+| 266 | `mothership.gatling.sweep_left_max` | `GatlingSweepLeftMax` |
+| 267 | `mothership.gatling.sweep_right_min` | `GatlingSweepRightMin` |
+| 268 | `mothership.gatling.sweep_right_max` | `GatlingSweepRightMax` |
+| 269 | `mothership.gatling.sweep_left_period` | `GatlingSweepLeftPeriod` |
+| 271 | `mothership.gatling.sweep_right_period` | `GatlingSweepRightPeriod` |
+| 273 | `mothership.gatling.sweep_right_phase` | `GatlingSweepRightPhase` |
+| 275 | `mothership.missile.interval` | `MissileInterval` |
+| 276 | `mothership.missile.damage` | `MissileDamage` |
+| 277 | `mothership.missile.speed` | `MissileSpeed` |
+| 278 | `mothership.missile.target_count` | `MissileTargetCount` |
+| 279 | `mothership.missile.splash_damage` | `MissileSplashDamage` |
+| 280 | `mothership.missile.splash_radius` | `MissileSplashRadius` |
+| 281 | `effects.mothership_summon.warp_in_time` | `WarpInTime` |
+| 282 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
+| 284 | `effects.mothership_summon.slow.radius` | `SlowRadius` |
+| 285 | `effects.mothership_summon.slow.duration` | `SlowDuration` |
+| 286 | `effects.mothership_summon.slow.factor` | `SlowFactor` |
+| 287 | `effects.mothership_summon.slow.ring_time` | `SlowRingTime` |
+| 288 | `effects.mothership_summon.shake_slow` | `ShakeSlow` |
+| 392 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
+| 1048 | `effects.shake.mothership` | `4.0` |
 
 ### `csharp/godot/MothershipSummonWindow.cs`
 
@@ -557,7 +567,7 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 80 | `effects.return_skip_grace` | `SKIP_GRACE` |
+| 81 | `effects.return_skip_grace` | `SKIP_GRACE` |
 
 ### `csharp/godot/Spawner.cs`
 
@@ -621,10 +631,10 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 116 | `effects.home_charge_time` | `HomeChargeTime` |
-| 117 | `mothership.dock_charge_time` | `DockChargeTime` |
-| 248 | `tutorial.boss_hp` | `120.0` |
-| 364 | `mothership.hover_y` | `270.0` |
+| 117 | `effects.home_charge_time` | `HomeChargeTime` |
+| 118 | `mothership.dock_charge_time` | `DockChargeTime` |
+| 249 | `tutorial.boss_hp` | `120.0` |
+| 365 | `mothership.hover_y` | `270.0` |
 
 ### `csharp/godot/WarpGate.cs`
 

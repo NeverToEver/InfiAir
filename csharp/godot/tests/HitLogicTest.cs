@@ -374,7 +374,7 @@ public partial class HitLogicTest : Node
             var boss5 = MakeBoss(1);
             boss5.Position = new Vector2(960.0f, 300.0f);
             boss5.SetFireTimer(999.0f);  // 屏蔽常规开火，保证弹丸计数纯净
-            boss5.Fire_fan(boss5, 5, boss5.FAN_BULLET_SPEED, boss5.BULLET_DAMAGE_FAN);
+            boss5.FireFan(boss5, 5, boss5.FanBulletSpeed, boss5.BulletDamageFan);
             var fanDmgOk = true;
             var fanCount = 0;
             foreach (var b in EnemyBullets())
@@ -387,8 +387,8 @@ public partial class HitLogicTest : Node
             }
             Check(fanCount == 5 && fanDmgOk, $"A4：Boss 扇形弹 damage（基准 14，期望 {exp14}）");
             await FreeEnemyBullets();
-            boss5.Fire_homing(boss5, new Vector2(0.0f, 100.0f), boss5.HOMING_BULLET_SPEED,
-                boss5.BULLET_DAMAGE_HOMING);
+            boss5.FireHoming(boss5, new Vector2(0.0f, 100.0f), boss5.HomingBulletSpeed,
+                boss5.BulletDamageHoming);
             Bullet? homingB = null;
             foreach (var b in EnemyBullets())
             {
@@ -397,7 +397,7 @@ public partial class HitLogicTest : Node
             Check(homingB != null && homingB.Damage == exp12 && homingB.Homing,
                 $"A4：Boss 追踪弹 damage（基准 12，期望 {exp12}）");
             await FreeEnemyBullets();
-            boss5.Fire_cross(boss5, boss5.CROSS_BULLET_SPEED, boss5.BULLET_DAMAGE_CROSS);
+            boss5.FireCross(boss5, boss5.CrossBulletSpeed, boss5.BulletDamageCross);
             var crossDmgOk = true;
             var crossCount = 0;
             foreach (var b in EnemyBullets())
@@ -410,7 +410,7 @@ public partial class HitLogicTest : Node
             }
             Check(crossCount == 4 && crossDmgOk, $"A4：Boss 十字弹 damage（基准 12，期望 {exp12}）");
             await FreeEnemyBullets();
-            boss5.Fire_sniper(boss5, Vector2.Zero, boss5.SNIPER_BULLET_SPEED, boss5.BULLET_DAMAGE_SNIPER);
+            boss5.FireSniper(boss5, Vector2.Zero, boss5.SniperBulletSpeed, boss5.BulletDamageSniper);
             Bullet? sniperB = null;
             foreach (var b in EnemyBullets())
             {
@@ -445,9 +445,9 @@ public partial class HitLogicTest : Node
                     }
                 }
             }
-            Check(snapLasers == boss5.ENRAGE_SNAPSHOT_LASERS && snapLaserDmgOk,
+            Check(snapLasers == boss5.EnrageSnapshotLasers && snapLaserDmgOk,
                 $"A4：Boss 狂暴快照激光 damage（基准 21，期望 {exp21}）");
-            Check(snapRings == boss5.ENRAGE_SNAPSHOT_RING && snapRingDmgOk,
+            Check(snapRings == boss5.EnrageSnapshotRing && snapRingDmgOk,
                 $"A4：Boss 狂暴快照环弹 damage（基准 12，期望 {exp12}）");
             boss5.QueueFree();
             await FreeEnemyBullets();

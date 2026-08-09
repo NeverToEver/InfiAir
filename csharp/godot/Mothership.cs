@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -405,7 +406,7 @@ public partial class Mothership : Area2D
             case State.RESUPPLY:
                 return (string)Tr("MS_DOCKING");
             case State.STAY:
-                var stay = GdFormat((string)Tr("MS_STAY"), Mathf.CeilToInt(_magCells * MagCellTime - _magCellTimer));
+                var stay = GdFormat.Format((string)Tr("MS_STAY"), Mathf.CeilToInt(_magCells * MagCellTime - _magCellTimer));
                 if (Tier() == 1)
                 {
                     stay += "  " + (string)Tr("MS_UPGRADED");
@@ -1068,7 +1069,7 @@ public partial class Mothership : Area2D
             var factor = Mathf.Max(0.6f, 1.0f - EarlyMaxDiscount * ratio) * (1.0f - _prefill);
             hud.Call(
                 "show_popup",
-                GdFormat((string)Tr("POP_EARLY_LEAVE"), (int)((1.0f - factor) * 100.0f)),
+                GdFormat.Format((string)Tr("POP_EARLY_LEAVE"), (int)((1.0f - factor) * 100.0f)),
                 GlobalPosition);
         }
 
@@ -1152,37 +1153,6 @@ public partial class Mothership : Area2D
     }
 
     /// <summary>GDScript 字符串 % 格式化单参语义（%s/%d 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符）。</summary>
-    private static string GdFormat(string format, object value)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 8);
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(value);
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
-
     // 2026-08-04 母舰扩展：火力随里程碑升级（阈值/伤害/射速倍率；默认值与 balance.json 双写）
     private int _upgradeThreshold = 5;
     private float _upgradeDamageMult = 1.5f;

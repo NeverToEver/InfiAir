@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -163,7 +164,7 @@ public partial class IntroCinematic : CanvasLayer
         _currentShot = BuildShot(_shotIndex);
         _shotRoot.AddChild(_currentShot);
         var dur = _shotDurations[_shotIndex];
-        SetSubtitle(GdFormat("INTRO_SUB_%d", _shotIndex + 1));
+        SetSubtitle(GdFormat.Format("INTRO_SUB_%d", _shotIndex + 1));
         if (_whiteTransition)
         {
             // 白闪承接：黑层保持透明，白闪直接回收
@@ -1393,7 +1394,7 @@ public partial class IntroCinematic : CanvasLayer
         var logLines = new List<Label>();
         for (var li = 0; li < 3; li++)
         {
-            var logLine = UITheme.MakeLabel((string)Tr(GdFormat("INTRO_LOG_%d", li + 1)), UITheme.FontCaption, new Color(1.0f, 0.55f, 0.5f));
+            var logLine = UITheme.MakeLabel((string)Tr(GdFormat.Format("INTRO_LOG_%d", li + 1)), UITheme.FontCaption, new Color(1.0f, 0.55f, 0.5f));
             logLine.Position = new Vector2(720.0f, 452.0f + 26.0f * li);
             logLine.Size = new Vector2(480.0f, 24.0f);
             root.AddChild(logLine);
@@ -1428,7 +1429,7 @@ public partial class IntroCinematic : CanvasLayer
             logStep[0] = (logStep[0] + 1) % 4;
             for (var li = 0; li < 3; li++)
             {
-                logLines[li].Text = (string)Tr(GdFormat("INTRO_LOG_%d", (logStep[0] + li) % 4 + 1));
+                logLines[li].Text = (string)Tr(GdFormat.Format("INTRO_LOG_%d", (logStep[0] + li) % 4 + 1));
             }
         };
         // 两侧金属把手
@@ -1953,38 +1954,6 @@ public partial class IntroCinematic : CanvasLayer
     }
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符；数组参数按序填占位）。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(argIndex < args.Length ? args[argIndex] : "?");
-                    argIndex++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
 }
 
 /// <summary>软圆点（原 GDScript intro_cinematic.gd 内嵌类 _GlowDot，迁移为同文件顶层类；

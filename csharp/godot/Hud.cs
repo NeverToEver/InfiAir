@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -350,7 +351,7 @@ public partial class Hud : CanvasLayer
         _eventTitle.Text = (string)Tr("ETV_TITLE");
         _eventBar.Value = 100.0f;
         _lastEventAlive = -1;
-        _eventTurretsLabel.Text = GdFormat((string)Tr("ETV_TURRETS"), total);
+        _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), total);
         _eventBox.Visible = true;
     }
 
@@ -366,7 +367,7 @@ public partial class Hud : CanvasLayer
         if (alive != _lastEventAlive)
         {
             _lastEventAlive = alive;
-            _eventTurretsLabel.Text = GdFormat((string)Tr("ETV_TURRETS"), alive);
+            _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), alive);
         }
     }
 
@@ -385,7 +386,7 @@ public partial class Hud : CanvasLayer
         else
         {
             _giveUpLabel.Visible = true;
-            _giveUpLabel.Text = GdFormat((string)Tr("GIVE_UP_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
+            _giveUpLabel.Text = GdFormat.Format((string)Tr("GIVE_UP_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
         }
     }
 
@@ -399,7 +400,7 @@ public partial class Hud : CanvasLayer
         else
         {
             _homeChargeLabel.Visible = true;
-            _homeChargeLabel.Text = GdFormat((string)Tr("HOME_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
+            _homeChargeLabel.Text = GdFormat.Format((string)Tr("HOME_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
         }
     }
 
@@ -414,7 +415,7 @@ public partial class Hud : CanvasLayer
         {
             var r = Mathf.Clamp(ratio, 0.0f, 1.0f);
             _earlyLeaveBox.Visible = true;
-            _earlyLeaveLabel.Text = GdFormat((string)Tr("MS_EARLY_LEAVE"), (int)(r * 100.0f));
+            _earlyLeaveLabel.Text = GdFormat.Format((string)Tr("MS_EARLY_LEAVE"), (int)(r * 100.0f));
             _earlyLeaveFill.AnchorRight = r;
         }
     }
@@ -536,7 +537,7 @@ public partial class Hud : CanvasLayer
             if (_boss.IsInFight() && !_boss.IsEscaping() && remaining <= _boss.EscapeCountdownFrom && remaining > 0.0f)
             {
                 _bossCountdown.Visible = true;
-                _bossCountdown.Text = GdFormat("%d", Mathf.CeilToInt(remaining));
+                _bossCountdown.Text = GdFormat.Format("%d", Mathf.CeilToInt(remaining));
                 var cm = _bossCountdown.Modulate;
                 cm.A = Time.GetTicksMsec() / 500 % 2 == 0 ? 1.0f : 0.45f;
                 _bossCountdown.Modulate = cm;
@@ -819,8 +820,8 @@ public partial class Hud : CanvasLayer
 
     private void OnScoreChanged(int newScore)
     {
-        _scoreLabel.Text = GdFormat((string)Tr("UI_SCORE"), newScore);
-        _killsLabel.Text = GdFormat((string)Tr("UI_KILLS"), GameState.Instance.Kills);
+        _scoreLabel.Text = GdFormat.Format((string)Tr("UI_SCORE"), newScore);
+        _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), GameState.Instance.Kills);
     }
 
     private void OnHealthChanged(float newHealth)
@@ -849,7 +850,7 @@ public partial class Hud : CanvasLayer
         {
             _lastHpInt = hpInt;
             _lastMaxInt = maxInt;
-            var text = GdFormat("%d/%d", hpInt, maxInt);
+            var text = GdFormat.Format("%d/%d", hpInt, maxInt);
             if (text != _lastHpText)
             {
                 _livesLabel.Text = text;
@@ -894,7 +895,7 @@ public partial class Hud : CanvasLayer
         if (_eventBox != null && _eventBox.Visible)
         {
             _eventTitle.Text = (string)Tr("ETV_TITLE");
-            _eventTurretsLabel.Text = GdFormat((string)Tr("ETV_TURRETS"), Mathf.Max(_lastEventAlive, 0));
+            _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), Mathf.Max(_lastEventAlive, 0));
         }
 
         RebuildBuffDock(true);
@@ -907,7 +908,7 @@ public partial class Hud : CanvasLayer
     /// <summary>难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）。</summary>
     private void RefreshDifficultyLabel()
     {
-        _difficultyLabel.Text = GdFormat(
+        _difficultyLabel.Text = GdFormat.Format(
             (string)Tr("UI_DIFF_FMT"),
             (float)GameState.Instance.DifficultyMultiplier,
             (string)GameState.Instance.DifficultyLabel());
@@ -963,7 +964,7 @@ public partial class Hud : CanvasLayer
             phaseText = "P1";
         }
 
-        _bossName.Text = GdFormat("%s · %s", (string)Tr(GdFormat("BOSS_TYPE_%d", _boss.BossType)), phaseText);
+        _bossName.Text = GdFormat.Format("%s · %s", (string)Tr(GdFormat.Format("BOSS_TYPE_%d", _boss.BossType)), phaseText);
         _bossName.AddThemeColorOverride("font_color", _bossPhase == FightPhaseEnrage ? UITheme.Danger : UITheme.Text);
     }
 
@@ -1141,12 +1142,12 @@ public partial class Hud : CanvasLayer
         row.MouseFilter = Control.MouseFilterEnum.Ignore;
         row.AddChild(BuffIcons.MakeGlyph(id, BuffIcons.ColorFor(id), 24.0f));
         var nameLabel = UITheme.MakeLabel(
-            (string)Tr(GdFormat("BUFF_%s_NAME", id.ToString().ToUpperInvariant())), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
+            (string)Tr(GdFormat.Format("BUFF_%s_NAME", id.ToString().ToUpperInvariant())), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
         nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         row.AddChild(nameLabel);
         if (stacks > 1)
         {
-            row.AddChild(UITheme.MakeLabel(GdFormat("×%d", stacks), UITheme.FontHud, UITheme.AccentGold, HorizontalAlignment.Right));
+            row.AddChild(UITheme.MakeLabel(GdFormat.Format("×%d", stacks), UITheme.FontHud, UITheme.AccentGold, HorizontalAlignment.Right));
         }
 
         return row;
@@ -1166,7 +1167,7 @@ public partial class Hud : CanvasLayer
             InnerFrameColor = new Color(UITheme.Accent, 0.28f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        _buffOverflowLabel = UITheme.MakeLabel(GdFormat("+%d", count), UITheme.FontCaption, UITheme.Accent);
+        _buffOverflowLabel = UITheme.MakeLabel(GdFormat.Format("+%d", count), UITheme.FontCaption, UITheme.Accent);
         _buffOverflowLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _buffOverflowLabel.VerticalAlignment = VerticalAlignment.Center;
         _buffOverflowLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -1189,7 +1190,7 @@ public partial class Hud : CanvasLayer
             var stacks = (int)buffs[key].AsInt64();
             if (stacks > 0)
             {
-                signature += GdFormat("%s:%d;", id.ToString(), stacks);
+                signature += GdFormat.Format("%s:%d;", id.ToString(), stacks);
                 active.Add(new Godot.Collections.Array { id, stacks });
             }
         }
@@ -1279,7 +1280,7 @@ public partial class Hud : CanvasLayer
     /// <summary>收起态标签：名称 + 当前绑定键提示（改键后同步刷新）。</summary>
     private void RefreshBuffTag()
     {
-        _buffTag.Text = GdFormat("%s [%s]", (string)Tr("UI_BUFFS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("buff_panel")));
+        _buffTag.Text = GdFormat.Format("%s [%s]", (string)Tr("UI_BUFFS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("buff_panel")));
     }
 
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>
@@ -1372,70 +1373,4 @@ public partial class Hud : CanvasLayer
     public void meta_jitter(float px) => MetaJitter(px);
 
     public TextureRect vignette() => Vignette();
-
-    /// <summary>GDScript `%` 运算符等价格式化（%d / %s / %f / %.2f / %%，多参；翻译键格式串专用）。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's')
-                {
-                    sb.Append(args[argIndex++]);
-                    i++;
-                    continue;
-                }
-
-                if (spec == 'd')
-                {
-                    sb.Append(Convert.ToInt64(args[argIndex++]));
-                    i++;
-                    continue;
-                }
-
-                if (spec == 'f')
-                {
-                    sb.Append(((double)args[argIndex++]).ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture));
-                    i++;
-                    continue;
-                }
-
-                if (spec == '.')
-                {
-                    var j = i + 1;
-                    var digits = "";
-                    while (j < format.Length && char.IsDigit(format[j]))
-                    {
-                        digits += format[j];
-                        j++;
-                    }
-
-                    if (j < format.Length && format[j] == 'f')
-                    {
-                        var precision = digits.Length > 0 ? int.Parse(digits) : 0;
-                        var fmt = "0." + new string('0', precision);
-                        sb.Append(((double)args[argIndex++]).ToString(fmt, System.Globalization.CultureInfo.InvariantCulture));
-                        i = j;
-                        continue;
-                    }
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
 }

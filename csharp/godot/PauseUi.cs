@@ -159,12 +159,7 @@ public partial class PauseUi : CanvasLayer
 
     private void OnSavePressed()
     {
-        var playerV = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调  # A5：走注册表，替代 group 现找
-        var player = playerV != null ? playerV as Player : null;
-        var spawner = GetTree().GetFirstNodeInGroup("spawner") as Spawner;
-        var fuel = player != null ? player.FuelAmount() : 100.0f;
-        var elapsed = spawner != null ? spawner.Elapsed() : 0.0f;
-        GameState.Instance.SaveRun(fuel, elapsed);
+        GameState.Instance.SaveRun(); // 2026-08-09 Y 系列：编排下沉（内部取 Fuel/Elapsed，缺节点兜底 100/0）
         _saved = true;
         _saveButton.Text = Tr("PAUSE_SAVED");
         // 用信号连接而非协程：退出时挂起的协程函数状态会泄漏

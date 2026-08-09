@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -98,11 +99,11 @@ public partial class GameOverUi : CanvasLayer
         _titleLabel.Text = Tr("GO_TITLE");
         _scoreTagLabel.Text = Tr("UI_SCORE_TAG");
         _recordLabel.Text = Tr("GO_RECORD");
-        _rankLabel.Text = BuffSelect.GsFormat(Tr("GO_RANK"), _lastRank);
+        _rankLabel.Text = GdFormat.Format(Tr("GO_RANK"), _lastRank);
         _boardTitleLabel.Text = Tr("GO_BOARD");
         _hintLabel.Text = Tr("GO_RESTART");
         // 2026-08-03 审计：去掉 if visible 恒假包裹（死亡态无语言切换入口），刷新不可见文本无害
-        _statsLabel.Text = BuffSelect.GsFormat(
+        _statsLabel.Text = GdFormat.Format(
             Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
             GameState.Instance.HighScore,
             GameState.Instance.Kills,
@@ -112,19 +113,17 @@ public partial class GameOverUi : CanvasLayer
 
     private void OnPlayerDied()
     {
-        // 死亡删档：防止一死档永存
-        GameState.Instance.DeleteSave();
-        var newRecord = GameState.Instance.RecordScore();
-        GameState.Instance.RecordGameOver(); // Q06：登录用户累计 total_kills/games_played（游客跳过）
-        // P0-3：本局分数提交本地榜并显示名次与 Top5
-        _lastRank = (int)GameState.Instance.SubmitHighscore(GameState.Instance.Score);
+        // 2026-08-09 Y 系列：结算编排下沉 GameState.SettleRun（原子链 + 快照）；
+        // UI 表现（文本/SFX/面板）留本层，PlayerDied 订阅者角色不变
+        var (newRecord, rank) = GameState.Instance.SettleRun();
+        _lastRank = rank;
         _scoreLabel.Text = GameState.Instance.Score.ToString();
-        _statsLabel.Text = BuffSelect.GsFormat(
+        _statsLabel.Text = GdFormat.Format(
             Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
             GameState.Instance.HighScore,
             GameState.Instance.Kills,
             GameState.Instance.BossKills);
-        _rankLabel.Text = BuffSelect.GsFormat(Tr("GO_RANK"), _lastRank);
+        _rankLabel.Text = GdFormat.Format(Tr("GO_RANK"), _lastRank);
         _rankLabel.Visible = _lastRank > 0;
         _boardLabel.Text = GameState.Instance.HighscoresText(5);
         _recordLabel.Visible = newRecord;

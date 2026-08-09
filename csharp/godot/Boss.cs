@@ -1394,245 +1394,25 @@ public partial class Boss : Area2D
         GD.Print($"[BOSS] 存活 {(int)EscapeTime}s 未被击杀，逃离战场（无击杀奖励）");
     }
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
+    // ---------------- Fire_* 转发（Y 系列：生产调用已 typed 直调 BossFire；保留供测试契约——
+    // HitLogicTest 经 Boss.FireFan 等触发发射，签名与 BossFire.cs 对应方法逐参一致） ----------------
+    public void FireFan(Node2D boss, int pCount, float speed, int damage) => _fire.FireFan(boss, pCount, speed, damage);
 
-    public bool is_enraged() => IsEnraged();
+    public void FireHoming(Node2D boss, Vector2 pOffset, float speed, int damage) => _fire.FireHoming(boss, pOffset, speed, damage);
 
-    public int fight_phase() => FightPhaseValue();
+    public void FireSniper(Node2D boss, Vector2 pDir, float speed, int damage) => _fire.FireSniper(boss, pDir, speed, damage);
 
-    public void take_damage(int amount, float score_scale) => TakeDamage(amount, score_scale);
+    public void FireCross(Node2D boss, float speed, int damage) => _fire.FireCross(boss, speed, damage);
 
-    public void take_damage(int amount) => TakeDamage(amount);
+    public void FireHeavy(Node2D boss, Vector2 pDir, float pSpeed, int pDamage) => _fire.FireHeavy(boss, pDir, pSpeed, pDamage);
 
-    public float slow_factor() => SlowFactor();
-
-    public float escape_drift_offset() => EscapeDriftOffset();
-
-    public float fight_anchor_y() => FightAnchorY();
-
-    public Vector2 strafe_range() => StrafeRange();
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-    public Godot.Collections.Array<float> STRAFE_SPEEDS { get => StrafeSpeeds; set => StrafeSpeeds = value; }
-
-    public float FAN_BULLET_SPEED { get => FanBulletSpeed; set => FanBulletSpeed = value; }
-
-    public float HOMING_BULLET_SPEED { get => HomingBulletSpeed; set => HomingBulletSpeed = value; }
-
-    public float SNIPER_BULLET_SPEED { get => SniperBulletSpeed; set => SniperBulletSpeed = value; }
-
-    public float CROSS_BULLET_SPEED { get => CrossBulletSpeed; set => CrossBulletSpeed = value; }
-
-    public float RING_BURST_SPEED { get => RingBurstSpeed; set => RingBurstSpeed = value; }
-
-    public int BULLET_DAMAGE_RING { get => BulletDamageRing; set => BulletDamageRing = value; }
-
-    public float ENRAGE_SPEED_MULT { get => EnrageSpeedMult; set => EnrageSpeedMult = value; }
-
-    public float ENRAGE_PLAYER_SLOW { get => EnragePlayerSlow; set => EnragePlayerSlow = value; }
-
-    public float SNIPER_AIM_TIME { get => SniperAimTime; set => SniperAimTime = value; }
-
-    public float SNIPER_TRACK_TIME { get => SniperTrackTime; set => SniperTrackTime = value; }
-
-    public float SNIPER_BURST_INTERVAL { get => SniperBurstInterval; set => SniperBurstInterval = value; }
-
-    public float PRESS_INTERVAL { get => PressInterval; set => PressInterval = value; }
-
-    public float PRESS_DEPTH { get => PressDepth; set => PressDepth = value; }
-
-    public int TYPE1_P2_STRAFE { get => Type1P2Strafe; set => Type1P2Strafe = value; }
-
-    public float TYPE1_P2_BOB_AMP { get => Type1P2BobAmp; set => Type1P2BobAmp = value; }
-
-    public float TYPE1_P2_BOB_PERIOD { get => Type1P2BobPeriod; set => Type1P2BobPeriod = value; }
-
-    public float TYPE2_P2_DASH_TIME { get => Type2P2DashTime; set => Type2P2DashTime = value; }
-
-    public float TYPE2_P2_REST_TIME { get => Type2P2RestTime; set => Type2P2RestTime = value; }
-
-    public float TYPE3_P1_BOB_MIN { get => Type3P1BobMin; set => Type3P1BobMin = value; }
-
-    public float TYPE3_P1_BOB_MAX { get => Type3P1BobMax; set => Type3P1BobMax = value; }
-
-    public float TYPE3_P1_BOB_PERIOD { get => Type3P1BobPeriod; set => Type3P1BobPeriod = value; }
-
-    public int TYPE3_P2_STRAFE { get => Type3P2Strafe; set => Type3P2Strafe = value; }
-
-    public float TYPE3_P2_BOB_AMP { get => Type3P2BobAmp; set => Type3P2BobAmp = value; }
-
-    public float TYPE3_P2_BOB_PERIOD { get => Type3P2BobPeriod; set => Type3P2BobPeriod = value; }
-
-    public float CANNON_CHARGE { get => CannonCharge; set => CannonCharge = value; }
-
-    public int CANNON_SHOTS { get => CannonShots; set => CannonShots = value; }
-
-    public float CANNON_INTERVAL { get => CannonInterval; set => CannonInterval = value; }
-
-    public float CANNON_BULLET_SPEED { get => CannonBulletSpeed; set => CannonBulletSpeed = value; }
-
-    public int CANNON_DAMAGE { get => CannonDamage; set => CannonDamage = value; }
-
-    public float CANNON_FLASH { get => CannonFlash; set => CannonFlash = value; }
-
-    public float SWEEP_AIM { get => SweepAim; set => SweepAim = value; }
-
-    public float SWEEP_SPEED { get => SweepSpeed; set => SweepSpeed = value; }
-
-    public int SWEEP_DROP_COUNT { get => SweepDropCount; set => SweepDropCount = value; }
-
-    public float SWEEP_DROP_SPEED { get => SweepDropSpeed; set => SweepDropSpeed = value; }
-
-    public int SWEEP_DROP_DAMAGE { get => SweepDropDamage; set => SweepDropDamage = value; }
-
-    public float SWEEP_RETURN_DURATION { get => SweepReturnDuration; set => SweepReturnDuration = value; }
-
-    public int VOLLEY_COUNT { get => VolleyCount; set => VolleyCount = value; }
-
-    public float VOLLEY_DELAY { get => VolleyDelay; set => VolleyDelay = value; }
-
-    public float VOLLEY_BULLET_SPEED { get => VolleyBulletSpeed; set => VolleyBulletSpeed = value; }
-
-    public int VOLLEY_BULLET_DAMAGE { get => VolleyBulletDamage; set => VolleyBulletDamage = value; }
-
-    public int WALL_COUNT { get => WallCount; set => WallCount = value; }
-
-    public float WALL_BULLET_SPEED { get => WallBulletSpeed; set => WallBulletSpeed = value; }
-
-    public int WALL_DAMAGE { get => WallDamage; set => WallDamage = value; }
-
-    public float WALL_ARC_DEG { get => WallArcDeg; set => WallArcDeg = value; }
-
-    public int ENRAGE_SNAPSHOT_LASERS { get => EnrageSnapshotLasers; set => EnrageSnapshotLasers = value; }
-
-    public int ENRAGE_SNAPSHOT_RING { get => EnrageSnapshotRing; set => EnrageSnapshotRing = value; }
-
-    public float ENRAGE_LASER_SPEED { get => EnrageLaserSpeed; set => EnrageLaserSpeed = value; }
-
-    public float ENRAGE_RING_SPEED { get => EnrageRingSpeed; set => EnrageRingSpeed = value; }
-
-    public float ENRAGE_DURATION { get => EnrageDuration; set => EnrageDuration = value; }
-
-    public float ENRAGE_TRANSITION_DURATION { get => EnrageTransitionDuration; set => EnrageTransitionDuration = value; }
-
-    public float ENRAGE_ATTACK_INTERVAL { get => EnrageAttackInterval; set => EnrageAttackInterval = value; }
-
-    public float ENRAGE_ATTACK_WINDUP { get => EnrageAttackWindup; set => EnrageAttackWindup = value; }
-
-    public float ENRAGE_RELEASE_INTERVAL { get => EnrageReleaseInterval; set => EnrageReleaseInterval = value; }
-
-    public float ENRAGE_RELEASE_HOLD_DURATION { get => EnrageReleaseHoldDuration; set => EnrageReleaseHoldDuration = value; }
-
-    public float ENRAGE_RETURN_DURATION { get => EnrageReturnDuration; set => EnrageReturnDuration = value; }
-
-    public float ENRAGE_PATH_RADIUS_SCALE { get => EnragePathRadiusScale; set => EnragePathRadiusScale = value; }
-
-    public float MUZZLE_OFFSET { get => MuzzleOffset; set => MuzzleOffset = value; }
-
-    public float ENRAGE_SQUARE_PATH_RATIO { get => EnrageSquarePathRatio; set => EnrageSquarePathRatio = value; }
-
-    public float ENRAGE_RELEASE_LASER_SPEED { get => EnrageReleaseLaserSpeed; set => EnrageReleaseLaserSpeed = value; }
-
-    public float ENRAGE_RELEASE_RING_SPEED { get => EnrageReleaseRingSpeed; set => EnrageReleaseRingSpeed = value; }
-
-    public float E1_RING_INTERVAL { get => E1RingInterval; set => E1RingInterval = value; }
-
-    public int E1_RING_COUNT { get => E1RingCount; set => E1RingCount = value; }
-
-    public float E1_RING_SPEED { get => E1RingSpeed; set => E1RingSpeed = value; }
-
-    public float E1_RING_PRECESSION_DEG { get => E1RingPrecessionDeg; set => E1RingPrecessionDeg = value; }
-
-    public float E1_SALVO_CHARGE { get => E1SalvoCharge; set => E1SalvoCharge = value; }
-
-    public int E1_SALVO_COUNT { get => E1SalvoCount; set => E1SalvoCount = value; }
-
-    public float E1_SALVO_SPEED { get => E1SalvoSpeed; set => E1SalvoSpeed = value; }
-
-    public int E1_SALVO_DAMAGE { get => E1SalvoDamage; set => E1SalvoDamage = value; }
-
-    public int E2_POINT_COUNT { get => E2PointCount; set => E2PointCount = value; }
-
-    public float E2_POINT_INTERVAL { get => E2PointInterval; set => E2PointInterval = value; }
-
-    public float E2_AIM { get => E2Aim; set => E2Aim = value; }
-
-    public float E2_SNIPER_SPEED { get => E2SniperSpeed; set => E2SniperSpeed = value; }
-
-    public int E2_SNIPER_DAMAGE { get => E2SniperDamage; set => E2SniperDamage = value; }
-
-    public int E2_RELEASE_RING_COUNT { get => E2ReleaseRingCount; set => E2ReleaseRingCount = value; }
-
-    public float E2_RELEASE_RING_SPEED { get => E2ReleaseRingSpeed; set => E2ReleaseRingSpeed = value; }
-
-    public float E3_SUMMON_INTERVAL { get => E3SummonInterval; set => E3SummonInterval = value; }
-
-    public int E3_SUMMON_WAVES { get => E3SummonWaves; set => E3SummonWaves = value; }
-
-    public int E3_SUMMON_COUNT { get => E3SummonCount; set => E3SummonCount = value; }
-
-    public float E3_RING_INTERVAL { get => E3RingInterval; set => E3RingInterval = value; }
-
-    public int E3_RING_COUNT { get => E3RingCount; set => E3RingCount = value; }
-
-    public float E3_RING_SPEED { get => E3RingSpeed; set => E3RingSpeed = value; }
-
-    public int E3_RELEASE_RING_COUNT { get => E3ReleaseRingCount; set => E3ReleaseRingCount = value; }
-
-    public float E3_RELEASE_RING_SPEED { get => E3ReleaseRingSpeed; set => E3ReleaseRingSpeed = value; }
-
-    public int E4_RING_COUNT { get => E4RingCount; set => E4RingCount = value; }
-
-    public float E4_RING_INTERVAL { get => E4RingInterval; set => E4RingInterval = value; }
-
-    public float E4_RING_SPEED { get => E4RingSpeed; set => E4RingSpeed = value; }
-
-    public float E4_PRECESSION_DEG { get => E4PrecessionDeg; set => E4PrecessionDeg = value; }
-
-    public int E4_RELEASE_RING_COUNT { get => E4ReleaseRingCount; set => E4ReleaseRingCount = value; }
-
-    public float E4_RELEASE_RING_SPEED { get => E4ReleaseRingSpeed; set => E4ReleaseRingSpeed = value; }
-
-    public float MOVE4_BOB_AMP { get => Move4BobAmp; set => Move4BobAmp = value; }
-
-    public float MOVE4_BOB_PERIOD { get => Move4BobPeriod; set => Move4BobPeriod = value; }
-
-    public int BULLET_DAMAGE_FAN { get => BulletDamageFan; set => BulletDamageFan = value; }
-
-    public int BULLET_DAMAGE_HOMING { get => BulletDamageHoming; set => BulletDamageHoming = value; }
-
-    public int BULLET_DAMAGE_SNIPER { get => BulletDamageSniper; set => BulletDamageSniper = value; }
-
-    public int BULLET_DAMAGE_CROSS { get => BulletDamageCross; set => BulletDamageCross = value; }
-
-    public int BULLET_DAMAGE_SNAPSHOT_LASER { get => BulletDamageSnapshotLaser; set => BulletDamageSnapshotLaser = value; }
-
-    public int BULLET_DAMAGE_SNAPSHOT_RING { get => BulletDamageSnapshotRing; set => BulletDamageSnapshotRing = value; }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-    public int boss_type { get => BossType; set => BossType = value; }
-
-    public float hp { get => Hp; set => Hp = value; }
-
-    // ---- Fire_* 转发桥（V 系列：生产调用已 typed 直调 BossFire；保留供测试契约——
-    // HitLogicTest 经 Boss.Fire_* 触发发射，故签名与转发保留，仅注释更新） ----
-    public void Fire_fan(Node2D boss, int pCount, float speed, int damage) => _fire.FireFan(boss, pCount, speed, damage);
-
-    public void Fire_homing(Node2D boss, Vector2 pOffset, float speed, int damage) => _fire.FireHoming(boss, pOffset, speed, damage);
-
-    public void Fire_sniper(Node2D boss, Vector2 pDir, float speed, int damage) => _fire.FireSniper(boss, pDir, speed, damage);
-
-    public void Fire_cross(Node2D boss, float speed, int damage) => _fire.FireCross(boss, speed, damage);
-
-    public void Fire_heavy(Node2D boss, Vector2 pDir, float pSpeed, int pDamage) => _fire.FireHeavy(boss, pDir, pSpeed, pDamage);
-
-    public void Fire_ring(Node2D boss, int pCount, float pSpeed, int pDamage, float pOffset)
+    public void FireRing(Node2D boss, int pCount, float pSpeed, int pDamage, float pOffset)
         => _fire.FireRing(boss, pCount, pSpeed, pDamage, pOffset);
 
-    public void Fire_enrage_wave(
+    public void FireEnrageWave(
         Node2D boss, float laserSpeed, float ringSpeed, int laserDamage, int ringDamage, int laserCount, int ringCount)
         => _fire.FireEnrageWave(boss, laserSpeed, ringSpeed, laserDamage, ringDamage, laserCount, ringCount);
 
-    public void Fire_bullet_wall(Node2D boss, int count, float speed, int damage, float arcDeg)
+    public void FireBulletWall(Node2D boss, int count, float speed, int damage, float arcDeg)
         => _fire.FireBulletWall(boss, count, speed, damage, arcDeg);
 }

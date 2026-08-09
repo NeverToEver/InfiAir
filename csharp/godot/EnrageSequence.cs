@@ -5,68 +5,13 @@ namespace InfiAir;
 /// <summary>
 /// Boss 狂暴状态机（A3 拆分，docs/AUDIT_VAULT.md A3；2026-08-08 全量迁移，自 scripts/enrage_sequence.gd）。
 /// 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
-/// 轨道路径计算 + 锁血/玩家减速。经 boss 动态访问配置与位置（无类型参数），
+/// 轨道路径计算 + 锁血/玩家减速。经 Boss typed 公开属性/方法直读配置与位置，
 /// 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问（A1 约束）。
-/// 迁移说明：RefCounted 纯逻辑组件 → 纯 C# 类（无信号/导出）；BossFire 已随本批迁 C#
-/// （主代理并行，csharp/godot/BossFire.cs），经 GodotObject.Call PascalCase 动态派发；
-/// boss 为 C# Boss（主代理并行迁移），常量/属性经 Get 原标识符名、方法经 Call PascalCase；
-/// Enemy 迁 C# 后直接 Enemy.SinFast/CosFast 与 is Enemy 判型。
+/// Y 系列（2026-08-09）：Boss 链 typed 化——StringName 动态派发（Get/Call）与双命名桥删除，
+/// 参数直用 Boss 类型；Enemy 迁 C# 后直接 Enemy.SinFast/CosFast 与 is Enemy 判型。
 /// </summary>
 public partial class EnrageSequence : RefCounted
 {
-    // U10（2026-08-09 审计）：每帧字面量 Get/Call 改静态 StringName 缓存（热路径禁字面量分配，BossMovement 同款）
-    private static readonly StringName PropBULLET_DAMAGE_SNAPSHOT_LASER = new("BULLET_DAMAGE_SNAPSHOT_LASER");
-    private static readonly StringName PropBULLET_DAMAGE_SNAPSHOT_RING = new("BULLET_DAMAGE_SNAPSHOT_RING");
-    private static readonly StringName PropE1_RING_COUNT = new("E1_RING_COUNT");
-    private static readonly StringName PropE1_RING_INTERVAL = new("E1_RING_INTERVAL");
-    private static readonly StringName PropE1_RING_PRECESSION_DEG = new("E1_RING_PRECESSION_DEG");
-    private static readonly StringName PropE1_RING_SPEED = new("E1_RING_SPEED");
-    private static readonly StringName PropE1_SALVO_CHARGE = new("E1_SALVO_CHARGE");
-    private static readonly StringName PropE1_SALVO_COUNT = new("E1_SALVO_COUNT");
-    private static readonly StringName PropE1_SALVO_DAMAGE = new("E1_SALVO_DAMAGE");
-    private static readonly StringName PropE1_SALVO_SPEED = new("E1_SALVO_SPEED");
-    private static readonly StringName PropE2_AIM = new("E2_AIM");
-    private static readonly StringName PropE2_POINT_COUNT = new("E2_POINT_COUNT");
-    private static readonly StringName PropE2_POINT_INTERVAL = new("E2_POINT_INTERVAL");
-    private static readonly StringName PropE2_RELEASE_RING_COUNT = new("E2_RELEASE_RING_COUNT");
-    private static readonly StringName PropE2_RELEASE_RING_SPEED = new("E2_RELEASE_RING_SPEED");
-    private static readonly StringName PropE2_SNIPER_DAMAGE = new("E2_SNIPER_DAMAGE");
-    private static readonly StringName PropE2_SNIPER_SPEED = new("E2_SNIPER_SPEED");
-    private static readonly StringName PropE3_RELEASE_RING_COUNT = new("E3_RELEASE_RING_COUNT");
-    private static readonly StringName PropE3_RELEASE_RING_SPEED = new("E3_RELEASE_RING_SPEED");
-    private static readonly StringName PropE3_RING_COUNT = new("E3_RING_COUNT");
-    private static readonly StringName PropE3_RING_INTERVAL = new("E3_RING_INTERVAL");
-    private static readonly StringName PropE3_RING_SPEED = new("E3_RING_SPEED");
-    private static readonly StringName PropE3_SUMMON_COUNT = new("E3_SUMMON_COUNT");
-    private static readonly StringName PropE3_SUMMON_INTERVAL = new("E3_SUMMON_INTERVAL");
-    private static readonly StringName PropE3_SUMMON_WAVES = new("E3_SUMMON_WAVES");
-    private static readonly StringName PropE4_PRECESSION_DEG = new("E4_PRECESSION_DEG");
-    private static readonly StringName PropE4_RELEASE_RING_COUNT = new("E4_RELEASE_RING_COUNT");
-    private static readonly StringName PropE4_RELEASE_RING_SPEED = new("E4_RELEASE_RING_SPEED");
-    private static readonly StringName PropE4_RING_COUNT = new("E4_RING_COUNT");
-    private static readonly StringName PropE4_RING_INTERVAL = new("E4_RING_INTERVAL");
-    private static readonly StringName PropE4_RING_SPEED = new("E4_RING_SPEED");
-    private static readonly StringName PropENRAGE_ATTACK_INTERVAL = new("ENRAGE_ATTACK_INTERVAL");
-    private static readonly StringName PropENRAGE_ATTACK_WINDUP = new("ENRAGE_ATTACK_WINDUP");
-    private static readonly StringName PropENRAGE_DURATION = new("ENRAGE_DURATION");
-    private static readonly StringName PropENRAGE_LASER_SPEED = new("ENRAGE_LASER_SPEED");
-    private static readonly StringName PropENRAGE_PATH_RADIUS_SCALE = new("ENRAGE_PATH_RADIUS_SCALE");
-    private static readonly StringName PropENRAGE_PLAYER_SLOW = new("ENRAGE_PLAYER_SLOW");
-    private static readonly StringName PropENRAGE_RELEASE_HOLD_DURATION = new("ENRAGE_RELEASE_HOLD_DURATION");
-    private static readonly StringName PropENRAGE_RELEASE_INTERVAL = new("ENRAGE_RELEASE_INTERVAL");
-    private static readonly StringName PropENRAGE_RELEASE_LASER_SPEED = new("ENRAGE_RELEASE_LASER_SPEED");
-    private static readonly StringName PropENRAGE_RELEASE_RING_SPEED = new("ENRAGE_RELEASE_RING_SPEED");
-    private static readonly StringName PropENRAGE_RETURN_DURATION = new("ENRAGE_RETURN_DURATION");
-    private static readonly StringName PropENRAGE_RING_SPEED = new("ENRAGE_RING_SPEED");
-    private static readonly StringName PropENRAGE_SNAPSHOT_LASERS = new("ENRAGE_SNAPSHOT_LASERS");
-    private static readonly StringName PropENRAGE_SNAPSHOT_RING = new("ENRAGE_SNAPSHOT_RING");
-    private static readonly StringName PropENRAGE_SQUARE_PATH_RATIO = new("ENRAGE_SQUARE_PATH_RATIO");
-    private static readonly StringName PropENRAGE_TRANSITION_DURATION = new("ENRAGE_TRANSITION_DURATION");
-    private static readonly StringName PropMUZZLE_OFFSET = new("MUZZLE_OFFSET");
-    private static readonly StringName PropBossType = new("boss_type");
-    private static readonly StringName MethFightanchory = new("FightAnchorY");
-    private static readonly StringName MethStraferange = new("StrafeRange");
-
     // ---- 对齐 Boss.EnragePhase（enum { NONE, TRANSITION, ACTIVE, RELEASE_HOLD, RETURN }） ----
     public const int EnrageNone = 0;
     public const int EnrageTransition = 1;
@@ -147,18 +92,18 @@ public partial class EnrageSequence : RefCounted
 
     public EnrageSequence()
     {
-        _activeHandlers[1] = Callable.From<float, Node2D>(ActiveBulwark);
-        _activeHandlers[2] = Callable.From<float, Node2D>(ActiveStalker);
-        _activeHandlers[3] = Callable.From<float, Node2D>(ActiveHive);
-        _activeHandlers[4] = Callable.From<float, Node2D>(ActiveEclipse);
-        _releaseHandlers[1] = Callable.From<float, Node2D>(ReleaseBulwark);
-        _releaseHandlers[2] = Callable.From<float, Node2D>(ReleaseStalker);
-        _releaseHandlers[3] = Callable.From<float, Node2D>(ReleaseHive);
-        _releaseHandlers[4] = Callable.From<float, Node2D>(ReleaseEclipse);
-        _releaseBeginHandlers[1] = Callable.From<Node2D>(ReleaseBeginBulwark);
-        _releaseBeginHandlers[2] = Callable.From<Node2D>(ReleaseBeginStalker);
-        _releaseBeginHandlers[3] = Callable.From<Node2D>(ReleaseBeginHive);
-        _releaseBeginHandlers[4] = Callable.From<Node2D>(ReleaseBeginEclipse);
+        _activeHandlers[1] = Callable.From<float, Boss>(ActiveBulwark);
+        _activeHandlers[2] = Callable.From<float, Boss>(ActiveStalker);
+        _activeHandlers[3] = Callable.From<float, Boss>(ActiveHive);
+        _activeHandlers[4] = Callable.From<float, Boss>(ActiveEclipse);
+        _releaseHandlers[1] = Callable.From<float, Boss>(ReleaseBulwark);
+        _releaseHandlers[2] = Callable.From<float, Boss>(ReleaseStalker);
+        _releaseHandlers[3] = Callable.From<float, Boss>(ReleaseHive);
+        _releaseHandlers[4] = Callable.From<float, Boss>(ReleaseEclipse);
+        _releaseBeginHandlers[1] = Callable.From<Boss>(ReleaseBeginBulwark);
+        _releaseBeginHandlers[2] = Callable.From<Boss>(ReleaseBeginStalker);
+        _releaseBeginHandlers[3] = Callable.From<Boss>(ReleaseBeginHive);
+        _releaseBeginHandlers[4] = Callable.From<Boss>(ReleaseBeginEclipse);
     }
 
     /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
@@ -218,19 +163,19 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>狂暴触发初始化（Boss._enrage 调用：数据 + 锁血 + 玩家减速；表现由 Boss 侧负责）。</summary>
-    public void Begin(Node2D boss, Vector2 snapshotPos, Vector2 bossSize)
+    public void Begin(Boss boss, Vector2 snapshotPos, Vector2 bossSize)
     {
         _snapshotTarget = snapshotPos;
         _bossSize = bossSize;
         _ringAngle = 0.0f;
         _summonWaves = 0;
-        _summonTimer = (float)boss.Get(PropE3_SUMMON_INTERVAL).AsDouble();
+        _summonTimer = boss.E3SummonInterval;
         _aimElapsed = -1.0f;
         _releaseSalvoDone = false;
         _healthLock = true;
         _phase = EnrageTransition;
-        _timer = (float)boss.Get(PropENRAGE_DURATION).AsDouble();
-        _transitionTimer = (float)boss.Get(PropENRAGE_TRANSITION_DURATION).AsDouble();
+        _timer = boss.EnrageDuration;
+        _transitionTimer = boss.EnrageTransitionDuration;
         _transitionOrigin = boss.Position;
         LockPlayerMovement(boss);
     }
@@ -256,14 +201,14 @@ public partial class EnrageSequence : RefCounted
     /// 狂暴序列驱动：TRANSITION（蓄力抖动滑入轨道，1 型悬停原地）→ ACTIVE（各型差异化攻击）
     /// → RELEASE_HOLD（各型收尾爆发，§5.4 峰值）→ RETURN（飞回战斗位）→ NONE（常规「余怒」循环）。
     /// </summary>
-    public void Update(float delta, Node2D boss)
+    public void Update(float delta, Boss boss)
     {
         switch (_phase)
         {
             case EnrageTransition:
                 _timer = Mathf.Max(_timer - delta, 0.0f);
                 _transitionTimer -= delta;
-                var t = Mathf.Clamp(1.0f - _transitionTimer / (float)boss.Get(PropENRAGE_TRANSITION_DURATION).AsDouble(), 0.0f, 1.0f);
+                var t = Mathf.Clamp(1.0f - _transitionTimer / boss.EnrageTransitionDuration, 0.0f, 1.0f);
                 var eased = 1.0f - Mathf.Pow(1.0f - t, 3.0f);
                 var shake = new Vector2(
                     Enemy.SinFast(t * Mathf.Tau * 7.0f) * (1.0f - t) * 13.0f, Enemy.CosFast(t * Mathf.Tau * 5.0f) * (1.0f - t) * 8.0f);
@@ -273,14 +218,14 @@ public partial class EnrageSequence : RefCounted
                 if (_transitionTimer <= 0.0f)
                 {
                     _phase = EnrageActive;
-                    _attackTimer = (float)boss.Get(PropENRAGE_ATTACK_WINDUP).AsDouble();
+                    _attackTimer = boss.EnrageAttackWindup;
                     _attackIndex = 0;
                 }
 
                 break;
             case EnrageActive:
                 _timer = Mathf.Max(_timer - delta, 0.0f);
-                var typeA = (int)boss.Get(PropBossType).AsInt64();
+                var typeA = boss.BossType;
                 if (_activeHandlers.ContainsKey(typeA))
                 {
                     _activeHandlers[typeA].Call(delta, boss);
@@ -298,7 +243,7 @@ public partial class EnrageSequence : RefCounted
                 break;
             case EnrageReleaseHold:
                 _releaseHoldTimer -= delta;
-                var typeR = (int)boss.Get(PropBossType).AsInt64();
+                var typeR = boss.BossType;
                 if (_releaseHandlers.ContainsKey(typeR))
                 {
                     _releaseHandlers[typeR].Call(delta, boss);
@@ -316,7 +261,7 @@ public partial class EnrageSequence : RefCounted
                 break;
             case EnrageReturn:
                 _returnTimer -= delta;
-                var rt = Mathf.Clamp(1.0f - _returnTimer / (float)boss.Get(PropENRAGE_RETURN_DURATION).AsDouble(), 0.0f, 1.0f);
+                var rt = Mathf.Clamp(1.0f - _returnTimer / boss.EnrageReturnDuration, 0.0f, 1.0f);
                 var reased = rt * rt * (3.0f - 2.0f * rt);
                 boss.Position = _returnOrigin.Lerp(_returnTarget, reased);
                 if (_returnTimer <= 0.0f)
@@ -329,22 +274,20 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>1 型「旋转堡垒」ACTIVE：悬停原地，每 0.5s 一波 12 向环弹（起始角随波次进动）。</summary>
-    private void ActiveBulwark(float delta, Node2D boss)
+    private void ActiveBulwark(float delta, Boss boss)
     {
         _attackTimer -= delta;
         if (_attackTimer <= 0.0f)
         {
-            _attackTimer = (float)boss.Get(PropE1_RING_INTERVAL).AsDouble();
-            _fire.FireRing(
-                boss, (int)boss.Get(PropE1_RING_COUNT).AsInt64(),
-                (float)boss.Get(PropE1_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), _ringAngle);
-            _ringAngle += Mathf.DegToRad((float)boss.Get(PropE1_RING_PRECESSION_DEG).AsDouble());
+            _attackTimer = boss.E1RingInterval;
+            _fire.FireRing(boss, boss.E1RingCount, boss.E1RingSpeed, boss.BulletDamageSnapshotRing, _ringAngle);
+            _ringAngle += Mathf.DegToRad(boss.E1RingPrecessionDeg);
             _attackIndex += 1;
         }
     }
 
     /// <summary>2 型「猎杀环绕」ACTIVE：轨道 4 象限 6 点依次瞬停，每点 0.3s 瞄准线 + 单发狙。</summary>
-    private void ActiveStalker(float delta, Node2D boss)
+    private void ActiveStalker(float delta, Boss boss)
     {
         if (_aimElapsed >= 0.0f)
         {
@@ -353,28 +296,26 @@ public partial class EnrageSequence : RefCounted
             if (_aimLine != null)
             {
                 // C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
-                _aimLine.SetPointPosition(0, _sniperDir * (float)boss.Get(PropMUZZLE_OFFSET).AsDouble());
+                _aimLine.SetPointPosition(0, _sniperDir * boss.MuzzleOffset);
                 _aimLine.SetPointPosition(1, _sniperDir * 1200.0f);
                 _aimLine.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.18f + 0.18f * Mathf.Abs(Enemy.SinFast(_aimElapsed * 25.0f)));
             }
 
-            if (_aimElapsed >= (float)boss.Get(PropE2_AIM).AsDouble())
+            if (_aimElapsed >= boss.E2Aim)
             {
                 FreeAimLine();
                 _aimElapsed = -1.0f;
-                _fire.FireHeavy(
-                    boss, _sniperDir,
-                    (float)boss.Get(PropE2_SNIPER_SPEED).AsDouble(), (int)boss.Get(PropE2_SNIPER_DAMAGE).AsInt64());
+                _fire.FireHeavy(boss, _sniperDir, boss.E2SniperSpeed, boss.E2SniperDamage);
             }
         }
 
         _attackTimer -= delta;
-        if (_attackTimer <= 0.0f && _attackIndex < (int)boss.Get(PropE2_POINT_COUNT).AsInt64())
+        if (_attackTimer <= 0.0f && _attackIndex < boss.E2PointCount)
         {
             var angle = Mathf.DegToRad(StalkerPointAnglesDeg[_attackIndex % StalkerPointAnglesDeg.Length]);
             boss.Position = _snapshotTarget + new Vector2(Enemy.CosFast(angle), Enemy.SinFast(angle)) * PathRadius(boss);
             _attackIndex += 1;
-            _attackTimer = (float)boss.Get(PropE2_POINT_INTERVAL).AsDouble();
+            _attackTimer = boss.E2PointInterval;
             _attacks.CancelAimLine();
             FreeAimLine();
             _aimElapsed = 0.0f;
@@ -384,31 +325,28 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>3 型「倾巢」ACTIVE：共用轨道环绕 + 每 1.2s 一波 3 小怪（共 3 波）+ 每 0.9s 一圈 8 向环弹。</summary>
-    private void ActiveHive(float delta, Node2D boss)
+    private void ActiveHive(float delta, Boss boss)
     {
         boss.Position = PathCenter(Progress(boss), boss);
         _attackTimer -= delta;
         if (_attackTimer <= 0.0f)
         {
-            _attackTimer = (float)boss.Get(PropE3_RING_INTERVAL).AsDouble();
-            _fire.FireRing(
-                boss, (int)boss.Get(PropE3_RING_COUNT).AsInt64(),
-                (float)boss.Get(PropE3_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
+            _attackTimer = boss.E3RingInterval;
+            _fire.FireRing(boss, boss.E3RingCount, boss.E3RingSpeed, boss.BulletDamageSnapshotRing, 0.0f);
             _attackIndex += 1;
         }
 
-        if (_summonWaves < (int)boss.Get(PropE3_SUMMON_WAVES).AsInt64())
+        if (_summonWaves < boss.E3SummonWaves)
         {
             _summonTimer -= delta;
             if (_summonTimer <= 0.0f)
             {
-                _summonTimer = (float)boss.Get(PropE3_SUMMON_INTERVAL).AsDouble();
+                _summonTimer = boss.E3SummonInterval;
                 _summonWaves += 1;
-                var count = (int)boss.Get(PropE3_SUMMON_COUNT).AsInt64();
+                var count = boss.E3SummonCount;
                 for (var i = 0; i < count; i++)
                 {
-                    boss.Call(
-                        "SpawnMinionAt",
+                    boss.SpawnMinionAt(
                         boss.Position + new Vector2((float)GD.RandRange(-80.0, 80.0), 110.0f) * WorldScale);
                 }
             }
@@ -417,43 +355,38 @@ public partial class EnrageSequence : RefCounted
 
     /// <summary>4 型「月蚀」ACTIVE（2026-08-04）：中心悬停 + 双环反向进动——正环 + 反角环
     /// 交替成波（起始角 = precession × 波次索引，每波进动 E4_PRECESSION_DEG；_ring_angle 为 1 型字段，不在此用）。</summary>
-    private void ActiveEclipse(float delta, Node2D boss)
+    private void ActiveEclipse(float delta, Boss boss)
     {
         _attackTimer -= delta;
         if (_attackTimer <= 0.0f)
         {
-            _attackTimer = (float)boss.Get(PropE4_RING_INTERVAL).AsDouble();
-            var angle = Mathf.DegToRad((float)boss.Get(PropE4_PRECESSION_DEG).AsDouble()) * _attackIndex;
-            _fire.FireRing(
-                boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
-                (float)boss.Get(PropE4_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), angle);
-            _fire.FireRing(
-                boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
-                (float)boss.Get(PropE4_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), -angle);
+            _attackTimer = boss.E4RingInterval;
+            var angle = Mathf.DegToRad(boss.E4PrecessionDeg) * _attackIndex;
+            _fire.FireRing(boss, boss.E4RingCount, boss.E4RingSpeed, boss.BulletDamageSnapshotRing, angle);
+            _fire.FireRing(boss, boss.E4RingCount, boss.E4RingSpeed, boss.BulletDamageSnapshotRing, -angle);
             _attackIndex += 1;
         }
     }
 
     /// <summary>4 型「月蚀」释放——无持续结算（环阵已在 RELEASE_BEGIN 一次性结算）。</summary>
-    private void ReleaseEclipse(float delta, Node2D boss)
+    private void ReleaseEclipse(float delta, Boss boss)
     {
     }
 
     /// <summary>4 型「月蚀」释放起手——蓄力环阵（20 向快慢双环）。</summary>
-    private void ReleaseBeginEclipse(Node2D boss)
+    private void ReleaseBeginEclipse(Boss boss)
     {
         _fire.FireRing(
-            boss, (int)boss.Get(PropE4_RELEASE_RING_COUNT).AsInt64(),
-            (float)boss.Get(PropE4_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
+            boss, boss.E4ReleaseRingCount, boss.E4ReleaseRingSpeed, boss.BulletDamageSnapshotRing, 0.0f);
     }
 
     /// <summary>序列进度 0→1（TRANSITION 起算，ACTIVE 结束到 1；对齐原作 enrage_progress）。</summary>
-    private float Progress(Node2D boss) => Mathf.Clamp(1.0f - _timer / (float)boss.Get(PropENRAGE_DURATION).AsDouble(), 0.0f, 1.0f);
+    private float Progress(Boss boss) => Mathf.Clamp(1.0f - _timer / boss.EnrageDuration, 0.0f, 1.0f);
 
     /// <summary>轨道半径：max(机体宽,高)×1.5，受屏幕边界约束（对齐原作 enrage_path_radius，下限 24）。</summary>
-    private float PathRadius(Node2D boss)
+    private float PathRadius(Boss boss)
     {
-        var baseRadius = Mathf.Max(_bossSize.X, _bossSize.Y) * (float)boss.Get(PropENRAGE_PATH_RADIUS_SCALE).AsDouble();
+        var baseRadius = Mathf.Max(_bossSize.X, _bossSize.Y) * boss.EnragePathRadiusScale;
         var view = CachedView();
         var half = _bossSize * 0.5f;
         var maxRadius = Mathf.Max(
@@ -481,12 +414,12 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>轨道中心：前 48% 方形路径（底→左→顶→右→底），后 52% 圆形路径（底部起顺接）。</summary>
-    private Vector2 PathCenter(float progress, Node2D boss)
+    private Vector2 PathCenter(float progress, Boss boss)
     {
         progress = Mathf.Clamp(progress, 0.0f, 1.0f);
         var radius = PathRadius(boss);
         var c = _snapshotTarget;
-        var squareRatio = (float)boss.Get(PropENRAGE_SQUARE_PATH_RATIO).AsDouble();
+        var squareRatio = boss.EnrageSquarePathRatio;
         if (progress <= squareRatio)
         {
             var sp = progress / squareRatio;
@@ -504,17 +437,17 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>ACTIVE 计时耗尽：进入释放阶段——解血锁、复位玩家减速 + 各型收尾爆发起手（§5.4 峰值）。</summary>
-    private void BeginReleaseHold(Node2D boss)
+    private void BeginReleaseHold(Boss boss)
     {
         _phase = EnrageReleaseHold;
-        _releaseHoldTimer = (float)boss.Get(PropENRAGE_RELEASE_HOLD_DURATION).AsDouble();
+        _releaseHoldTimer = boss.EnrageReleaseHoldDuration;
         _healthLock = false;
         UnlockPlayerMovement();
         _attacks.CancelAimLine();
         FreeAimLine();
         _aimElapsed = -1.0f;
         _releaseSalvoDone = false;
-        var type = (int)boss.Get(PropBossType).AsInt64();
+        var type = boss.BossType;
         if (_releaseBeginHandlers.ContainsKey(type))
         {
             _releaseBeginHandlers[type].Call(boss);
@@ -526,7 +459,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>倾巢收尾：全部在场小怪齐射一轮自机狙。</summary>
-    private void HiveVolleyAllMinions(Node2D boss)
+    private void HiveVolleyAllMinions(Boss boss)
     {
         var minions = new Godot.Collections.Array();
         // 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：收集在场活跃小怪
@@ -545,18 +478,18 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>RELEASE_HOLD 结束：0.8s 飞回战斗位（x 钳回巡航范围、y 回战斗锚线 view 顶 + FIGHT_Y）。</summary>
-    private void BeginReturn(Node2D boss)
+    private void BeginReturn(Boss boss)
     {
         _phase = EnrageReturn;
-        _returnTimer = (float)boss.Get(PropENRAGE_RETURN_DURATION).AsDouble();
+        _returnTimer = boss.EnrageReturnDuration;
         _returnOrigin = boss.Position;
-        var bounds = boss.Call(MethStraferange).AsVector2();
-        _returnTarget = new Vector2(Mathf.Clamp(boss.Position.X, bounds.X, bounds.Y), (float)boss.Call(MethFightanchory).AsDouble());
+        var bounds = boss.StrafeRange();
+        _returnTarget = new Vector2(Mathf.Clamp(boss.Position.X, bounds.X, bounds.Y), boss.FightAnchorY());
     }
 
     /// <summary>狂暴期玩家减速（替代原作 is_controls_locked 定身，§4.3）：移速 ×0.35，
     /// 仍可瞄准/射击/冲刺；TRANSITION+ACTIVE 有效。</summary>
-    private void LockPlayerMovement(Node2D boss)
+    private void LockPlayerMovement(Boss boss)
     {
         var playerV = CachedPlayer();
         if (playerV.VariantType != Variant.Type.Nil)
@@ -565,7 +498,7 @@ public partial class EnrageSequence : RefCounted
             if (!p.IsDead())
             {
                 _slowedPlayer = p;
-                p.ApplyEnrageSlow((float)boss.Get(PropENRAGE_PLAYER_SLOW).AsDouble());
+                p.ApplyEnrageSlow(boss.EnragePlayerSlow);
             }
         }
     }
@@ -584,7 +517,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
-    private Vector2 PlayerDir(Node2D from)
+    private Vector2 PlayerDir(Boss from)
     {
         var player = CachedPlayer();
         if (player.VariantType != Variant.Type.Nil)
@@ -597,34 +530,34 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>A3：TRANSITION 悬停判定（机型参数表驱动，取代散落的类型特判）。</summary>
-    private bool HoverInTransition(Node2D boss)
+    private bool HoverInTransition(Boss boss)
     {
-        var type = (int)boss.Get(PropBossType).AsInt64();
+        var type = boss.BossType;
         return TransitionHoverTypes.TryGetValue(type, out var hover) && hover;
     }
 
     /// <summary>A3：ACTIVE 回退处理器（非法 boss_type，防御路径：轨道环绕 + 定时狂暴波）。</summary>
-    private void ActiveFallback(float delta, Node2D boss)
+    private void ActiveFallback(float delta, Boss boss)
     {
         boss.Position = PathCenter(Progress(boss), boss);
         _attackTimer -= delta;
         if (_attackTimer <= 0.0f)
         {
-            _attackTimer = (float)boss.Get(PropENRAGE_ATTACK_INTERVAL).AsDouble();
+            _attackTimer = boss.EnrageAttackInterval;
             _attackIndex += 1;
             _fire.FireEnrageWave(
                 boss,
-                (float)boss.Get(PropENRAGE_LASER_SPEED).AsDouble(),
-                (float)boss.Get(PropENRAGE_RING_SPEED).AsDouble(),
-                (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_LASER).AsInt64(),
-                (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(),
-                (int)boss.Get(PropENRAGE_SNAPSHOT_LASERS).AsInt64(),
-                (int)boss.Get(PropENRAGE_SNAPSHOT_RING).AsInt64());
+                boss.EnrageLaserSpeed,
+                boss.EnrageRingSpeed,
+                boss.BulletDamageSnapshotLaser,
+                boss.BulletDamageSnapshotRing,
+                boss.EnrageSnapshotLasers,
+                boss.EnrageSnapshotRing);
         }
     }
 
     /// <summary>A3：1 型「旋转堡垒」释放——8 路蓄力重炮齐射（蓄力辉光 telegraph 已在 ReleaseBeginBulwark 起手）。</summary>
-    private void ReleaseBulwark(float delta, Node2D boss)
+    private void ReleaseBulwark(float delta, Boss boss)
     {
         if (!_releaseSalvoDone)
         {
@@ -632,79 +565,69 @@ public partial class EnrageSequence : RefCounted
             if (_attackTimer <= 0.0f)
             {
                 _releaseSalvoDone = true;
-                var count = (int)boss.Get(PropE1_SALVO_COUNT).AsInt64();
+                var count = boss.E1SalvoCount;
                 for (var i = 0; i < count; i++)
                 {
                     var dir = Vector2.Right.Rotated(Mathf.Tau * (float)i / (float)count);
-                    _fire.FireHeavy(
-                        boss, dir,
-                        (float)boss.Get(PropE1_SALVO_SPEED).AsDouble(), (int)boss.Get(PropE1_SALVO_DAMAGE).AsInt64());
+                    _fire.FireHeavy(boss, dir, boss.E1SalvoSpeed, boss.E1SalvoDamage);
                 }
             }
         }
     }
 
     /// <summary>A3：2 型「猎杀环绕」释放——回轨道底部放 12 向慢速环弹。</summary>
-    private void ReleaseStalker(float delta, Node2D boss)
+    private void ReleaseStalker(float delta, Boss boss)
     {
-        var t = Mathf.Clamp(1.0f - _releaseHoldTimer / (float)boss.Get(PropENRAGE_RELEASE_HOLD_DURATION).AsDouble(), 0.0f, 1.0f);
+        var t = Mathf.Clamp(1.0f - _releaseHoldTimer / boss.EnrageReleaseHoldDuration, 0.0f, 1.0f);
         var eased = t * t * (3.0f - 2.0f * t);
         boss.Position = _releaseOrigin.Lerp(_snapshotTarget + new Vector2(0.0f, PathRadius(boss)), eased);
         if (!_releaseSalvoDone && t >= 0.5f)
         {
             _releaseSalvoDone = true;
             _fire.FireRing(
-                boss, (int)boss.Get(PropE2_RELEASE_RING_COUNT).AsInt64(),
-                (float)boss.Get(PropE2_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
+                boss, boss.E2ReleaseRingCount, boss.E2ReleaseRingSpeed, boss.BulletDamageSnapshotRing, 0.0f);
         }
     }
 
     /// <summary>A3：3 型「倾巢」释放——无持续结算（16 向环弹 + 小怪齐射已在 ReleaseBeginHive 一次性结算）。</summary>
-    private void ReleaseHive(float delta, Node2D boss)
+    private void ReleaseHive(float delta, Boss boss)
     {
     }
 
     /// <summary>A3：RELEASE_HOLD 回退处理器（非法 boss_type，防御路径：按固定间隔放狂暴波）。</summary>
-    private void ReleaseFallback(float delta, Node2D boss)
+    private void ReleaseFallback(float delta, Boss boss)
     {
         _attackTimer -= delta;
         if (_attackTimer <= 0.0f)
         {
-            _attackTimer = (float)boss.Get(PropENRAGE_RELEASE_INTERVAL).AsDouble();
+            _attackTimer = boss.EnrageReleaseInterval;
             _fire.FireEnrageWave(
                 boss,
-                (float)boss.Get(PropENRAGE_RELEASE_LASER_SPEED).AsDouble(),
-                (float)boss.Get(PropENRAGE_RELEASE_RING_SPEED).AsDouble(),
-                (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_LASER).AsInt64(),
-                (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(),
-                (int)boss.Get(PropENRAGE_SNAPSHOT_LASERS).AsInt64(),
-                (int)boss.Get(PropENRAGE_SNAPSHOT_RING).AsInt64());
+                boss.EnrageReleaseLaserSpeed,
+                boss.EnrageReleaseRingSpeed,
+                boss.BulletDamageSnapshotLaser,
+                boss.BulletDamageSnapshotRing,
+                boss.EnrageSnapshotLasers,
+                boss.EnrageSnapshotRing);
         }
     }
 
     /// <summary>A3：1 型释放起手——蓄力辉光 telegraph。</summary>
-    private void ReleaseBeginBulwark(Node2D boss)
+    private void ReleaseBeginBulwark(Boss boss)
     {
-        var charge = (float)boss.Get(PropE1_SALVO_CHARGE).AsDouble();
+        var charge = boss.E1SalvoCharge;
         _attackTimer = charge;
         _attacks.ChargeGlow(boss, charge);
     }
 
     /// <summary>A3：2 型释放起手——记录当前位置为回轨道底部起点。</summary>
-    private void ReleaseBeginStalker(Node2D boss) => _releaseOrigin = boss.Position;
+    private void ReleaseBeginStalker(Boss boss) => _releaseOrigin = boss.Position;
 
     /// <summary>A3：3 型释放起手——16 向环弹 + 全部在场小怪齐射（§5.4 峰值一次性结算）。</summary>
-    private void ReleaseBeginHive(Node2D boss)
+    private void ReleaseBeginHive(Boss boss)
     {
         _fire.FireRing(
-            boss, (int)boss.Get(PropE3_RELEASE_RING_COUNT).AsInt64(),
-            (float)boss.Get(PropE3_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
+            boss, boss.E3ReleaseRingCount, boss.E3ReleaseRingSpeed, boss.BulletDamageSnapshotRing, 0.0f);
         HiveVolleyAllMinions(boss);
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float world_scale { get => WorldScale; set => WorldScale = value; }
-
-    public int summon_waves() => SummonWaves();
 }

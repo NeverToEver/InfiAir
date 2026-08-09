@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -269,7 +270,7 @@ public partial class SettingsUi : CanvasLayer
     public void StartCapture(StringName action)
     {
         _capturingAction = action;
-        _hintLabel.Text = GdFormat(Tr("SET_CAPTURE"), Tr("ACT_" + action.ToString().ToUpper()));
+        _hintLabel.Text = GdFormat.Format(Tr("SET_CAPTURE"), Tr("ACT_" + action.ToString().ToUpper()));
     }
 
     public CanvasLayer? Opener()
@@ -336,7 +337,7 @@ public partial class SettingsUi : CanvasLayer
             // 捕获态下 Esc 必先命中上方 ui_cancel 取消分支并 return，到不了此处
             GameState.Instance.RebindAction(_capturingAction, (int)key.Keycode);
             var boundKey = OS.GetKeycodeString(key.Keycode);
-            _hintLabel.Text = GdFormat(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);
+            _hintLabel.Text = GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);
             _capturingAction = new StringName();
             GetViewport().SetInputAsHandled();
         }
@@ -511,12 +512,12 @@ public partial class SettingsUi : CanvasLayer
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
         row.AddChild(slider);
-        var valueLabel = UITheme.MakeLabel(FormatSlider(format, value), UITheme.FontBody, UITheme.TextDim);
+        var valueLabel = UITheme.MakeLabel(GdFormat.Format(format, value), UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
         row.AddChild(valueLabel);
         slider.ValueChanged += v =>
         {
-            valueLabel.Text = FormatSlider(format, (float)v);
+            valueLabel.Text = GdFormat.Format(format, (float)v);
             onChanged((float)v);
         };
         // K06：拖动结束才持久化一次（value_changed 高频触发，setter 已不自动写盘）
@@ -541,7 +542,7 @@ public partial class SettingsUi : CanvasLayer
     {
         var page = new VBoxContainer();
         page.AddThemeConstantOverride("separation", 10);
-        _versionLabel = UITheme.MakeLabel(GdFormat(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString()), UITheme.FontBody, UITheme.AccentGold);
+        _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString()), UITheme.FontBody, UITheme.AccentGold);
         page.AddChild(_versionLabel);
         _cheatsheetLabel = UITheme.MakeLabel(Tr("SET_CHEATSHEET"), UITheme.FontCaption, UITheme.TextDim);
         page.AddChild(_cheatsheetLabel);
@@ -639,7 +640,7 @@ public partial class SettingsUi : CanvasLayer
         _titleLabel.Text = Tr("SET_TITLE");
         _backButton.Text = Tr("SET_BACK");
         _resetButton.Text = Tr("SET_RESET");
-        _versionLabel.Text = GdFormat(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString());
+        _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString());
         _cheatsheetLabel.Text = Tr("SET_CHEATSHEET");
         RefreshLangButtons();
         RefreshNavLabels();
@@ -761,45 +762,4 @@ public partial class SettingsUi : CanvasLayer
     // ---------------- 工具 ----------------
 
     /// <summary>GDScript 字符串 % 格式化（%s/%d/%f 占位按序替换 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符——SET_CAPTURE/SET_BOUND/SET_VERSION 均为 %s 单/双参）。</summary>
-    private static string GdFormat(string format, params object[] values)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var vi = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(vi < values.Length ? values[vi] : string.Empty);
-                    vi++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
-
-    /// <summary>GDScript float % 格式化（%.0f / %% 转义；滑杆数值标签用，仅 "%.0f" 与 "%.0f%%" 两种）。</summary>
-    private static string FormatSlider(string format, float value)
-    {
-        var s = format.Replace("%%", "\0");
-        s = s.Replace("%.0f", value.ToString("F0", System.Globalization.CultureInfo.InvariantCulture));
-        return s.Replace("\0", "%");
-    }
-
 }

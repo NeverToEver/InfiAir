@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -561,7 +562,7 @@ public partial class Main : Node2D
                 return;
             }
 
-            GD.Print(GdFormat("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
+            GD.Print(GdFormat.Format("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
         }
         catch (Exception ex)
         {
@@ -817,7 +818,7 @@ public partial class Main : Node2D
     {
         if (_charging)
         {
-            return GdFormat((string)Tr("MS_CHARGING"), (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f));
+            return GdFormat.Format((string)Tr("MS_CHARGING"), (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f));
         }
 
         if (_summonWindow != null)
@@ -832,7 +833,7 @@ public partial class Main : Node2D
 
         if (_dockCooldown > 0.0f)
         {
-            return GdFormat((string)Tr("MS_COOLDOWN"), Mathf.CeilToInt(_dockCooldown));
+            return GdFormat.Format((string)Tr("MS_COOLDOWN"), Mathf.CeilToInt(_dockCooldown));
         }
 
         return Tr("MS_READY");
@@ -1042,37 +1043,4 @@ public partial class Main : Node2D
     private void OnTouchControlsChanged(bool enabled) => _virtualControls.SetEnabled(enabled);
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符；数组参数按序填占位）。与 BaseConsole.GdFormat 同实现。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(argIndex < args.Length ? args[argIndex] : "?");
-                    argIndex++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
-
 }

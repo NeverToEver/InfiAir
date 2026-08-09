@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -375,7 +376,7 @@ public partial class BaseConsole : CanvasLayer
     private void Refresh()
     {
         var rp = GameState.Instance.Rp;
-        _rpLabel.Text = GdFormat((string)Tr("BASE_RP"), rp);
+        _rpLabel.Text = GdFormat.Format((string)Tr("BASE_RP"), rp);
         var playerV = GameState.Instance.PlayerRef;
         var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
         // 战机库状态总览
@@ -385,7 +386,7 @@ public partial class BaseConsole : CanvasLayer
         {
             var id = key.AsStringName();
             // 显示名走翻译键（与 Buff 三选一/HUD 明细栏同源），不裸显内部 id
-            buffText += GdFormat("%s×%d  ", (string)Tr("BUFF_" + id.ToString().ToUpperInvariant() + "_NAME"), buffs[key].AsInt32());
+            buffText += GdFormat.Format("%s×%d  ", (string)Tr("BUFF_" + id.ToString().ToUpperInvariant() + "_NAME"), buffs[key].AsInt32());
         }
 
         if (buffText.Length == 0)
@@ -401,7 +402,7 @@ public partial class BaseConsole : CanvasLayer
 
         var health = (float)GameState.Instance.Health; // M5：AsSingle 精度损失致 heal 后 99.9999≠max（smoke flake 根因）
         var maxHealth = (float)GameState.Instance.MaxHealth();
-        _statusLabel.Text = GdFormat((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, buffText);
+        _statusLabel.Text = GdFormat.Format((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, buffText);
         // 维修补给按钮状态
         _titleLabel.Text = (string)Tr("BASE_TITLE");
         foreach (var kv in _titleLabels)
@@ -419,8 +420,8 @@ public partial class BaseConsole : CanvasLayer
         _repairButton.Disabled = rp < rpRepairCost || health >= maxHealth;
         _rechargeButton.Disabled = rp < rpRechargeCost || player == null || player.FuelAmount() >= player.FuelMax;
         // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 _on_refresh_pressed 内）
-        _refreshPointsLabel.Text = GdFormat((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
-        _refreshButton.Text = GdFormat((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
+        _refreshPointsLabel.Text = GdFormat.Format((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
+        _refreshButton.Text = GdFormat.Format((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
         _refreshButton.Disabled = !GameState.Instance.CanRefreshMissions();
         RefreshRoutes();
         RefreshMissions();
@@ -445,7 +446,7 @@ public partial class BaseConsole : CanvasLayer
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 10);
             var lineNameKey = RouteLineNames.TryGetValue(line.ToString(), out var lineName) ? lineName : line.ToString();
-            var lineLabel = MakeLabel(GdFormat((string)Tr("BASE_LINE_FMT"), (string)Tr(lineNameKey), total), 20);
+            var lineLabel = MakeLabel(GdFormat.Format((string)Tr("BASE_LINE_FMT"), (string)Tr(lineNameKey), total), 20);
             lineLabel.CustomMinimumSize = new Vector2(170.0f, 0.0f);
             lineLabel.HorizontalAlignment = HorizontalAlignment.Left;
             row.AddChild(lineLabel);
@@ -459,15 +460,15 @@ public partial class BaseConsole : CanvasLayer
                 var buffName = (string)Tr(buffNameKey);
                 if (chosen)
                 {
-                    button.Text = GdFormat((string)Tr("BASE_CHOSEN_FMT"), buffName, GameState.Instance.BuffCount(opt));
+                    button.Text = GdFormat.Format((string)Tr("BASE_CHOSEN_FMT"), buffName, GameState.Instance.BuffCount(opt));
                 }
                 else if (locked)
                 {
-                    button.Text = GdFormat((string)Tr("BASE_LOCKED_FMT"), buffName);
+                    button.Text = GdFormat.Format((string)Tr("BASE_LOCKED_FMT"), buffName);
                 }
                 else
                 {
-                    button.Text = GdFormat((string)Tr("BUFF_LV_FMT"), buffName, GameState.Instance.BuffCount(opt));
+                    button.Text = GdFormat.Format((string)Tr("BUFF_LV_FMT"), buffName, GameState.Instance.BuffCount(opt));
                 }
 
                 button.Disabled = chosen || locked || total == 0;
@@ -498,7 +499,7 @@ public partial class BaseConsole : CanvasLayer
             var goal = GameState.Instance.MissionGoal(id);
             var idUpper = id.ToString().ToUpperInvariant();
             // C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
-            var text = GdFormat(
+            var text = GdFormat.Format(
                 (string)Tr("BASE_MISSION_FMT"),
                 (string)Tr("MISSION_" + idUpper + "_NAME"),
                 (string)Tr("MISSION_" + idUpper + "_DESC"),
@@ -669,39 +670,6 @@ public partial class BaseConsole : CanvasLayer
     }
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符；数组参数按序填占位）。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(argIndex < args.Length ? args[argIndex] : "?");
-                    argIndex++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
-
 }
 
 /// <summary>面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call。

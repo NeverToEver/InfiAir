@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -261,7 +262,7 @@ public partial class BuffSelect : CanvasLayer
         }
         else if (stacks > 0)
         {
-            pipSlot.AddChild(UITheme.MakeLabel(GsFormat(Tr("BUFF_STACKS_FMT"), stacks), UITheme.FontCaption, UITheme.AccentGold));
+            pipSlot.AddChild(UITheme.MakeLabel(GdFormat.Format(Tr("BUFF_STACKS_FMT"), stacks), UITheme.FontCaption, UITheme.AccentGold));
         }
 
         // 分隔线 + 来源分类小标签（进攻/机动/通用，分类色）
@@ -422,44 +423,4 @@ public partial class BuffSelect : CanvasLayer
     }
 
     /// <summary>GDScript `%` 格式化最小等价（%d/%s/%f/%%；翻译串占位符为 GDScript 风格，string.Format 不识别）。
-    /// GameOverUi 复用（同批次迁移，M7 前随 UI 层整体收敛）。</summary>
-    internal static string GsFormat(string fmt, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder();
-        var argIndex = 0;
-        for (var i = 0; i < fmt.Length; i++)
-        {
-            var ch = fmt[i];
-            if (ch == '%' && i + 1 < fmt.Length)
-            {
-                var next = fmt[i + 1];
-                i += 1;
-                switch (next)
-                {
-                    case '%':
-                        sb.Append('%');
-                        break;
-                    case 's':
-                        sb.Append(argIndex < args.Length ? args[argIndex++]?.ToString() ?? "" : "");
-                        break;
-                    case 'd':
-                        sb.Append(argIndex < args.Length ? Convert.ToInt64(args[argIndex++]) : 0);
-                        break;
-                    case 'f':
-                        sb.Append(argIndex < args.Length ? Convert.ToDouble(args[argIndex++]) : 0.0);
-                        break;
-                    default:
-                        sb.Append('%').Append(next);
-                        break;
-                }
-            }
-            else
-            {
-                sb.Append(ch);
-            }
-        }
-
-        return sb.ToString();
-    }
-
 }

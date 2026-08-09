@@ -190,7 +190,7 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景1：Boss 生成失败");
             }
-            boss1.CANNON_CHARGE = 0.4f;
+            boss1.CannonCharge = 0.4f;
             ForceP2Patterns(boss1, new Godot.Collections.Array
             {
                 new Godot.Collections.Dictionary { ["attack"] = new StringName("charged_cannon"), ["waves"] = 1, ["interval"] = 1.2 },
@@ -198,8 +198,8 @@ public partial class BossPatternTest : Node
             // M3d/W 系列（2026-08-09）：cannon_elapsed() 无 Boss.cs 转发器（BossAttacks 纯 C# 类不可跨语言），
             // 且转发器已随 52dcf67 正式删除——telegraph 起手检测/计时断言永久移除（蓄力期无弹/重弹计数由下方保留断言覆盖）
             // C34：弹速/伤害从 boss 实例常量读取（cfg 覆盖后运行时值），改 JSON 不漂移
-            float cannonSpeed = boss1.CANNON_BULLET_SPEED;
-            int cannonDmg = boss1.CANNON_DAMAGE;
+            float cannonSpeed = boss1.CannonBulletSpeed;
+            int cannonDmg = boss1.CannonDamage;
             Check(BulletsBySpeed(cannonSpeed).Count == 0, "场景1：蓄力期间未出弹（telegraph 先行）");
             int heavyMax = 0;
             for (int i = 0; i < 50; i++)
@@ -238,8 +238,8 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景2：Boss 生成失败");
             }
-            boss2.SWEEP_AIM = 0.3f;
-            boss2.SWEEP_RETURN_DURATION = 0.3f;
+            boss2.SweepAim = 0.3f;
+            boss2.SweepReturnDuration = 0.3f;
             ForceP2Patterns(boss2, new Godot.Collections.Array
             {
                 new Godot.Collections.Dictionary { ["attack"] = new StringName("dash_sweep"), ["waves"] = 1, ["interval"] = 1.2 },
@@ -261,7 +261,7 @@ public partial class BossPatternTest : Node
             }
             Check(sweepAimed, "场景2：冲刺掠过水平瞄准线 telegraph 先行");
             // C34：弹速/伤害从 boss 实例常量读取，改 JSON 不漂移
-            float dropSpeed = boss2.SWEEP_DROP_SPEED;
+            float dropSpeed = boss2.SweepDropSpeed;
             Check(BulletsBySpeed(dropSpeed).Count == 0, "场景2：瞄准期间未拖弹");
             bool dashing = false;
             double x0 = 0.0;
@@ -302,7 +302,7 @@ public partial class BossPatternTest : Node
                 }
             }
             Check(drops >= 3, $"场景2：路径等距拖 3 枚减速弹（{(int)dropSpeed} 弹速）");
-            int dropDmgExpected = System.Math.Max(1, RoundHalfAway((double)boss2.SWEEP_DROP_DAMAGE * gs.EnemyDamageRamp()));
+            int dropDmgExpected = System.Math.Max(1, RoundHalfAway((double)boss2.SweepDropDamage * gs.EnemyDamageRamp()));
             bool dropDmgOk = true;
             foreach (Bullet b in BulletsBySpeed(dropSpeed))
             {
@@ -329,13 +329,13 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景3：Boss 生成失败");
             }
-            boss3.ENRAGE_DURATION = 2.0f;
-            boss3.ENRAGE_TRANSITION_DURATION = 0.2f;
-            boss3.ENRAGE_ATTACK_WINDUP = 0.1f;
-            boss3.E2_POINT_INTERVAL = 0.3f;
-            boss3.E2_AIM = 0.15f;
-            boss3.ENRAGE_RELEASE_HOLD_DURATION = 0.5f;
-            boss3.ENRAGE_RETURN_DURATION = 0.4f;
+            boss3.EnrageDuration = 2.0f;
+            boss3.EnrageTransitionDuration = 0.2f;
+            boss3.EnrageAttackWindup = 0.1f;
+            boss3.E2PointInterval = 0.3f;
+            boss3.E2Aim = 0.15f;
+            boss3.EnrageReleaseHoldDuration = 0.5f;
+            boss3.EnrageReturnDuration = 0.4f;
             await WaitReal(0.3);
             boss3.TakeDamage((int)(boss3.MaxHp * 0.75));
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -370,7 +370,7 @@ public partial class BossPatternTest : Node
                 {
                     break;
                 }
-                heavy3Max = System.Math.Max(heavy3Max, BulletsBySpeed(boss3.E2_SNIPER_SPEED).Count);
+                heavy3Max = System.Math.Max(heavy3Max, BulletsBySpeed(boss3.E2SniperSpeed).Count);
                 posSamples.Add(boss3.GlobalPosition);
             }
             double jumpMax = 0.0;
@@ -428,7 +428,7 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景4：Boss 生成失败");
             }
-            boss4.VOLLEY_DELAY = 0.4f;
+            boss4.VolleyDelay = 0.4f;
             boss4.SetSummonTimer(999.0f); // 屏蔽常规召唤，保持计数纯净
             ForceP2Patterns(boss4, new Godot.Collections.Array
             {
@@ -458,7 +458,7 @@ public partial class BossPatternTest : Node
                 }
             }
             Check(volleyRow, "场景4：编队齐射召唤 4 小怪列横队（meta 标记）");
-            // C34：420 弹速为小怪齐射（enemy.ENEMY_BULLET_SPEED，与 boss.VOLLEY_BULLET_SPEED 同值）；
+            // C34：420 弹速为小怪齐射（enemy.ENEMY_BULLET_SPEED，与 boss.VolleyBulletSpeed 同值）；
             // 改 JSON 需两处同步。此处匹配在场全部 420 弹速弹（enemy 生成），故保留字面量并注明来源。
             int volleyMax = 0;
             for (int i = 0; i < 40; i++)
@@ -488,7 +488,7 @@ public partial class BossPatternTest : Node
             Check(volleyDmgOk, $"场景4：齐射弹伤害随难度 ramp（基准 12，实测期望 {volleyExpected}）");
             // 弹幕墙：10 槽位留 2 相邻缺口，缺口避开自机方位 ±30°
             // C34：弹速从 boss 实例常量读取，改 JSON 不漂移
-            float wallSpeed = boss4.WALL_BULLET_SPEED;
+            float wallSpeed = boss4.WallBulletSpeed;
             var wall = new Godot.Collections.Array<Bullet>();
             for (int i = 0; i < 60; i++)
             {
@@ -552,13 +552,13 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景5：Boss 生成失败");
             }
-            boss5.ENRAGE_DURATION = 2.0f;
-            boss5.ENRAGE_TRANSITION_DURATION = 0.2f;
-            boss5.ENRAGE_ATTACK_WINDUP = 0.1f;
-            boss5.E3_SUMMON_INTERVAL = 0.4f;
-            boss5.E3_RING_INTERVAL = 0.4f;
-            boss5.ENRAGE_RELEASE_HOLD_DURATION = 0.5f;
-            boss5.ENRAGE_RETURN_DURATION = 0.4f;
+            boss5.EnrageDuration = 2.0f;
+            boss5.EnrageTransitionDuration = 0.2f;
+            boss5.EnrageAttackWindup = 0.1f;
+            boss5.E3SummonInterval = 0.4f;
+            boss5.E3RingInterval = 0.4f;
+            boss5.EnrageReleaseHoldDuration = 0.5f;
+            boss5.EnrageReturnDuration = 0.4f;
             boss5.SetSummonTimer(999.0f);
             await WaitReal(0.3);
             boss5.TakeDamage((int)(boss5.MaxHp * 0.75));
@@ -650,13 +650,13 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景6：easy Boss 生成失败");
             }
-            Check(boss6e.E1_RING_COUNT == 10, $"场景6：easy 狂暴环弹 12-2=10（实测 {boss6e.E1_RING_COUNT}）");
-            Check(boss6e.CANNON_SHOTS == 2, $"场景6：easy 蓄力重炮 3-1=2 发（实测 {boss6e.CANNON_SHOTS}）");
+            Check(boss6e.E1RingCount == 10, $"场景6：easy 狂暴环弹 12-2=10（实测 {boss6e.E1RingCount}）");
+            Check(boss6e.CannonShots == 2, $"场景6：easy 蓄力重炮 3-1=2 发（实测 {boss6e.CannonShots}）");
             // M3d/W 系列（2026-08-09）：fan_delta/homing_delta/ring_delta 无 Boss.cs 转发器（BossAttacks 纯 C# 类）
             // 且已随 52dcf67 删除——弹数分档断言永久移除（开火间隔/弹速分档由下方保留断言覆盖）
             double p2IntervalE = boss6e.Patterns()["p2"].AsGodotArray()[0].AsGodotDictionary()["interval"].AsDouble();
             Check(Mathf.Abs(p2IntervalE - 2.4 * 1.15) < 0.01, $"场景6：easy 开火间隔 ×1.15（实测 {p2IntervalE:0.000}）");
-            Check(Mathf.Abs((double)boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, $"场景6：easy 弹速 ×0.9（实测 {boss6e.FAN_BULLET_SPEED:0.0}）");
+            Check(Mathf.Abs((double)boss6e.FanBulletSpeed - 380.0 * 0.9) < 0.01, $"场景6：easy 弹速 ×0.9（实测 {boss6e.FanBulletSpeed:0.0}）");
             int hpE = (int)boss6e.MaxHp; // 显式 int()：max_hp 为 float（narrowing_conversion=2 门禁），HP 数值语义为整数
             boss6e.QueueFree();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -668,11 +668,11 @@ public partial class BossPatternTest : Node
             {
                 throw new System.InvalidOperationException("场景6：hard Boss 生成失败");
             }
-            Check(boss6h.E1_RING_COUNT == 14, $"场景6：hard 狂暴环弹 12+2=14（实测 {boss6h.E1_RING_COUNT}）");
-            Check(boss6h.CANNON_SHOTS == 4, $"场景6：hard 蓄力重炮 3+1=4 发（实测 {boss6h.CANNON_SHOTS}）");
+            Check(boss6h.E1RingCount == 14, $"场景6：hard 狂暴环弹 12+2=14（实测 {boss6h.E1RingCount}）");
+            Check(boss6h.CannonShots == 4, $"场景6：hard 蓄力重炮 3+1=4 发（实测 {boss6h.CannonShots}）");
             double p2IntervalH = boss6h.Patterns()["p2"].AsGodotArray()[0].AsGodotDictionary()["interval"].AsDouble();
             Check(Mathf.Abs(p2IntervalH - 2.4 * 0.85) < 0.01, $"场景6：hard 开火间隔 ×0.85（实测 {p2IntervalH:0.000}）");
-            Check(Mathf.Abs((double)boss6h.FAN_BULLET_SPEED - 380.0 * 1.1) < 0.01, $"场景6：hard 弹速 ×1.1（实测 {boss6h.FAN_BULLET_SPEED:0.0}）");
+            Check(Mathf.Abs((double)boss6h.FanBulletSpeed - 380.0 * 1.1) < 0.01, $"场景6：hard 弹速 ×1.1（实测 {boss6h.FanBulletSpeed:0.0}）");
             Check(boss6h.MaxHp == (float)(hpE * 2),
                 $"场景6：HP 随难度分档 ×0.75/×1.5（hard/easy=2.0，实测 {(int)boss6h.MaxHp}/{hpE}）");
             boss6h.QueueFree();

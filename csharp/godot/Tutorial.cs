@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -171,7 +172,7 @@ public partial class Tutorial : Node2D
         _objectiveKey = key;
         _objectiveArgs = args;
         // tr(key) % args if not args.is_empty() else tr(key)
-        _objectiveLabel.Text = args.Count > 0 ? GdFormat((string)Tr(key), ToObjects(args)) : (string)Tr(key);
+        _objectiveLabel.Text = args.Count > 0 ? GdFormat.Format((string)Tr(key), ToObjects(args)) : (string)Tr(key);
     }
 
     private void OnLocaleChanged()
@@ -649,39 +650,6 @@ public partial class Tutorial : Node2D
     }
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符；数组参数按序填占位）。与 BaseConsole.GdFormat 同实现。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(argIndex < args.Length ? args[argIndex] : "?");
-                    argIndex++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
-
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Boss? boss() => Boss();

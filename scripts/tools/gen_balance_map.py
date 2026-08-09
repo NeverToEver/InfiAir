@@ -95,8 +95,9 @@ def main() -> None:
             if src.suffix == ".gd" and src.name in ("game_state.gd", "balance_service.gd"):
                 # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
-            elif src.suffix == ".cs" and src.name in ("GameState.cs", "BalanceService.cs"):
-                # C# 侧内部裸 Cfg() 调用（M7d）
+            elif src.suffix == ".cs" and (src.name in ("GameState.cs", "BalanceService.cs") or src.name.startswith("GameState.")):
+                # C# 侧内部裸 Cfg() 调用（M7d；Y 系列 2026-08-09：GameState 按域拆分为
+                # GameState.*.cs partial 文件后裸 Cfg 调用分散——文件名前缀匹配）
                 patterns.append(RE_BARE)
             if src.suffix == ".gd":
                 patterns.append(RE_STATIC_GD)

@@ -352,7 +352,8 @@ public partial class Bullet : Area2D
 
             if (enemy.GlobalPosition.DistanceTo(GlobalPosition) <= ExplosiveRadius)
             {
-                enemy.TakeDamage(ExplosiveDamage);
+                // 2026-08-09 Y 系列：统一分派（enemy 已判型，单参 = scoreScale 1.0 既有语义）
+                EntityDamage.Dispatch(enemy, ExplosiveDamage);
             }
         }
 
@@ -374,22 +375,8 @@ public partial class Bullet : Area2D
 
             if (node is Area2D && node.GlobalPosition.DistanceTo(GlobalPosition) <= SplashRadius)
             {
-                // U13：typed 分派（原 HasMethod("take_damage") 鸭子判定 = 四类之一）
-                switch (node)
-                {
-                    case Enemy enemy:
-                        enemy.TakeDamage(SplashDamage, ScoreScale);
-                        break;
-                    case Boss boss:
-                        boss.TakeDamage(SplashDamage, ScoreScale);
-                        break;
-                    case TurretBattery turret:
-                        turret.TakeDamage(SplashDamage, ScoreScale);
-                        break;
-                    case FormationCraft craft:
-                        craft.TakeDamage(SplashDamage, ScoreScale);
-                        break;
-                }
+                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；溅射路径带 ScoreScale
+                EntityDamage.Dispatch(node, SplashDamage, ScoreScale);
             }
         }
 
@@ -430,21 +417,8 @@ public partial class Bullet : Area2D
                     }
                 }
 
-                switch (area) // U13：typed 分派（原鸭子 take_damage = 四类之一）
-                {
-                    case Enemy enemy:
-                        enemy.TakeDamage(hitDamage, ScoreScale);
-                        break;
-                    case Boss boss:
-                        boss.TakeDamage(hitDamage, ScoreScale);
-                        break;
-                    case TurretBattery turret:
-                        turret.TakeDamage(hitDamage, ScoreScale);
-                        break;
-                    case FormationCraft craft:
-                        craft.TakeDamage(hitDamage, ScoreScale);
-                        break;
-                }
+                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；直击路径带 ScoreScale
+                EntityDamage.Dispatch(area, hitDamage, ScoreScale);
 
                 // 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
                 // U13：is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 爆炸条件原为 !is_boss || 无方法 = true）

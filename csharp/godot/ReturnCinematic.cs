@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -183,7 +184,7 @@ public partial class ReturnCinematic : CanvasLayer
         _currentShot = BuildShot(_shotIndex);
         _shotRoot.AddChild(_currentShot);
         var dur = _shotDurations[_shotIndex];
-        SetSubtitle(GdFormat("RETURN_SUB_%d", _shotIndex + 1));
+        SetSubtitle(GdFormat.Format("RETURN_SUB_%d", _shotIndex + 1));
         if (_seamlessNext)
         {
             // 2→3 画面连续（端口内推）：不黑场
@@ -1518,38 +1519,6 @@ public partial class ReturnCinematic : CanvasLayer
     }
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    /// C# 无 % 运算符；数组参数按序填占位）。与 BaseConsole.GdFormat 同实现。</summary>
-    private static string GdFormat(string format, params object[] args)
-    {
-        var sb = new System.Text.StringBuilder(format.Length + 16);
-        var argIndex = 0;
-        for (var i = 0; i < format.Length; i++)
-        {
-            var c = format[i];
-            if (c == '%' && i + 1 < format.Length)
-            {
-                var spec = format[i + 1];
-                if (spec == '%')
-                {
-                    sb.Append('%');
-                    i++;
-                    continue;
-                }
-
-                if (spec == 's' || spec == 'd' || spec == 'f')
-                {
-                    sb.Append(argIndex < args.Length ? args[argIndex] : "?");
-                    argIndex++;
-                    i++;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-        }
-
-        return sb.ToString();
-    }
 }
 
 /// <summary>镜头 2 传送端口（原 return_cinematic.gd 内嵌类 _PortalShot；C# 源生成器不支持

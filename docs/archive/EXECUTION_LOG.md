@@ -143,3 +143,14 @@
 - **关键决策**：`EnemyHpRamp` 加显式难度重载（首版误用全局 DifficultyMultiplier，被 enemy_combat_test H2 捕获——公共 API 参数语义不能以生产路径等价推断，测试/分裂子机显式传参路径必须保持）；VariantBridge xUnit 单测因 tests-csharp 零 Godot 依赖纪律 defer（由 interop 场景间接覆盖）；BALANCE_MAP 重跑随改动提交；服务数文档漂移修正（7→8 补 ProgressionInterop）。
 - **教训**：Edit 大块删除对空行数量敏感（Main.cs 桥区两次 old_string 失配后改用 python3 行号删除 + 断言校验）；「语义等价」声明必须覆盖全部调用方；B7 类「优化替换」需先跑受影响断言场景再宣布完成。
 - **原文**：`docs/archive/2026-08-09-csharp-architecture-audit-plan.md`（登记：`docs/AUDIT_VAULT.md` X 系列）
+
+
+---
+
+## 2026-08-09 · Y 系列 C# 核心架构重构（第五轮）
+
+- **落地**：未提交（改动待提交：Y1-Y5 五阶段 + 工具修复 + 文档）
+- **摘要**：按用户指示对核心架构执行同 X 系列流程（侦察→计划→实施→验证）。格式化器 11 份收敛为 core 单一实现（**修复 %.Nf j 偏移迁移缺陷**——HUD 难度标签原渲染为字面「x%.2f」）；伤害分派 3 处 switch 收敛 EntityDamage；GameState 2674 行上帝类按域拆 9 个 partial 文件（零行为差异）；Boss 链 226 个双命名桥/动态派发删除 + typed 化（净删 397 行）；UI 结算/存档编排下沉 SettleRun/SaveRun；gen_balance_map 硬编码文件名工具修复（GameState.*.cs 前缀匹配）。
+- **关键决策**：Boss Fire_* 桥以 8 个 PascalCase 转发替代（测试契约 HitLogicTest 依赖）；激光不传 ScoreScale 与 _explode 排除 Boss 为既有语义显式保留；PlayerDied 信号 3 订阅者同步时序约束下 UI 编排下沉走「UI 仍订阅信号」方案；任务域服务化与状态机枚举化论证后 defer。
+- **教训**：partial 切分脚本模板头与原头冲突（双重类声明/孤儿花括号——壳文件三修）；gen_balance_map 的裸 Cfg 统计按文件名白名单匹配，结构拆分必须同步工具链；「语义等价」机械替换由编译器兜底（StringName 删除后遗漏即编译错误），但工具链行为需独立验证（BALANCE_MAP 计数突变是哨兵）。
+- **原文**：`docs/archive/2026-08-09-csharp-architecture-refactor-plan.md`（登记：`docs/AUDIT_VAULT.md` Y 系列）
