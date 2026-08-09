@@ -86,11 +86,10 @@ public partial class GameEventManager : Node
     /// <summary>V 系列：空 StringName 复用（原多处 `new StringName()` 每帧构造，native 引用计数分配）。</summary>
     private static readonly StringName EmptyId = new();
 
-    /// <summary>V 系列：遭遇配置解析缓存（注册时固化 interval/chance/min_score，消除
-    /// TickEncounterTriggers 每帧空字典分配 + 3 次 AsGodotDictionary + 装箱）。</summary>
-    private sealed record EncounterCfg(float Interval, float Chance, int MinScore);
-
-    private readonly Dictionary<StringName, EncounterCfg> _encounterCfg = new();
+    /// <summary>V 系列：遭遇配置缓存（注册时固化内层字典引用——消除 Tick 每帧空字典分配 +
+    /// AsGodotDictionary cast；引用而非值：EventManagerTest 直写 ENCOUNTER_CONFIG 内层
+    /// chance/min_score 固定掷签（132/268 行），值缓存会导致测试修改不可见）。</summary>
+    private readonly Dictionary<StringName, Godot.Collections.Dictionary> _encounterCfg = new();
 
     /// <summary>V 系列：遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
     /// 消除 Poll/Tick 每帧 Callable.Call 动态派发；IsInstanceValid 校验防场景重载后死节点）。</summary>
@@ -227,17 +226,15 @@ public partial class GameEventManager : Node
             _encounterOrder.Add(pId);
         }
 
-        // V 系列：配置与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配）
+        // V 系列：配置与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
+        // 缓存内层字典引用——测试直写 chance/min_score 即时可见）
         var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
         var dict = cfg.AsGodotDictionary();
-        _encounterCfg[pId] = new EncounterCfg(
-            Interval: Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f),
-            Chance: (float)dict.GetValueOrDefault("chance", 0.3).AsDouble(),
-            MinScore: (int)dict.GetValueOrDefault("min_score", 0).AsInt64());
+        _encounterCfg[pId] = dict;
         _encounterInstance[pId] = pEvent;
         if (!_encounterTimers.ContainsKey(pId))
         {
-            _encounterTimers[pId] = _encounterCfg[pId].Interval;
+            _encounterTimers[pId] = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
         }
     }
 
@@ -534,26 +531,26 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            // V 系列：注册时固化配置缓存（原每帧 ENCOUNTER_CONFIG.GetValueOrDefault + AsGodotDictionary 分配）
-            var cfg = _encounterCfg.GetValueOrDefault(id);
-            if (cfg == null)
+            // V 系列：注册时缓存的内层字典引用（零分配读取；测试直写即时可见）
+            var dict = _encounterCfg.GetValueOrDefault(id);
+            if (dict == null)
             {
                 continue;
             }
 
-            var minScore = cfg.MinScore;
+            var minScore = (int)dict.GetValueOrDefault("min_score", 0).AsInt64();
             if (score < minScore)
             {
                 continue; // 分数门槛未过：计时不推进（镜像 ScheduledEventTrigger）
             }
 
-            var interval = cfg.Interval;
+            var interval = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
             var timer = (float)_encounterTimers.GetValueOrDefault(id, interval).AsDouble();
             timer -= delta;
             if (timer <= 0.0f)
             {
                 _encounterTimers[id] = interval;
-                if (GD.Randf() < cfg.Chance)
+                if (GD.Randf() < (float)dict.GetValueOrDefault("chance", 0.3).AsDouble())
                 {
                     StartEncounter(id, enc);
                 }
