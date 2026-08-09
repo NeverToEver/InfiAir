@@ -12,6 +12,9 @@ name: CI
 #   4. concurrency：同分支新推送取消旧运行（full 45 分钟不排队堆积）。
 # 政策口径保持：仅官方 checkout/upload-artifact/download-artifact/cache action +
 # 官方 dotnet-install.sh 脚本 + 官方 Godot 引擎/模板，禁止其他第三方依赖。
+# 注意（2026-08-10 修复）：GODOT_CACHE_DIR 须放 job 级 env 且用字面路径——runner.temp 在
+# 工作流级/job 级 env 上下文不可用（仅 github/inputs/secrets/vars 等），曾致 workflow 解析
+# 失败（run 0 jobs、0s 失败）；job 级 env 的 ${{ }} 表达式同样受限，故用 /tmp 字面路径。
 
 on:
   push:
