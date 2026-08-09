@@ -3,12 +3,12 @@ using Xunit;
 
 namespace InfiAir.Core.Tests;
 
-    /// <summary>
-    /// 密码派生兼容测试（P0-2）：固定向量由迁移前的 GDScript UserDB._derive 实测生成
-    /// （生成脚本注意：盐解析必须用 String.hex_to_int()——GDScript 的 int("0x" + s) 按十进制
-    /// 解析 "0x11" → 11，首次生成曾因此产出污染向量，C#/Python 独立复算后纠正）。
-    /// C# 端逐字节等价即「既有账号验密不破坏」的硬约束。
-    /// </summary>
+/// <summary>
+/// 密码派生兼容测试（P0-2）：固定向量由迁移前的 GDScript UserDB._derive 实测生成
+/// （生成脚本注意：盐解析必须用 String.hex_to_int()——GDScript 的 int("0x" + s) 按十进制
+/// 解析 "0x11" → 11，首次生成曾因此产出污染向量，C#/Python 独立复算后纠正）。
+/// C# 端逐字节等价即「既有账号验密不破坏」的硬约束。
+/// </summary>
 public sealed class UserDbPasswordTests
 {
     [Theory]
