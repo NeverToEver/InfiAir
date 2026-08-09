@@ -37,9 +37,8 @@ public partial class MouseTrap : Node
     public override void _ExitTree()
     {
         // 2026-08-03 审计（C22 模式）：Window 信号断开——节点未 free 重入树防双连回调
-        // M5 调试：临时禁用定位退出 segfault（二分）
-        return;
-#pragma warning disable CS0162
+        // U04（2026-08-09 审计）：移除 M5 调试临时 return（原使断开代码成为不可达死代码，
+        // Window 三信号永不断开，场景重载后移出窗口回调已释放实例）
         var win = GetWindow();
         if (win != null)
         {
@@ -58,7 +57,6 @@ public partial class MouseTrap : Node
                 win.FocusEntered -= OnFocusEntered;
             }
         }
-#pragma warning restore CS0162
     }
 
     public override void _Process(double delta)
@@ -152,16 +150,5 @@ public partial class MouseTrap : Node
     // mouse_lock_test 经 preload("res://scripts/mouse_trap.gd") 调用静态纯函数 warp_target/
     // trap_enabled——改 preload 为 res://csharp/godot/MouseTrap.cs 后经同名静态 snake 桥调用。
 
-    public static bool trap_enabled(
-        bool mouseLock,
-        bool windowVisible,
-        bool focused,
-        bool hasSize,
-        bool notPaused,
-        bool mouseHidden)
-    {
-        return TrapEnabled(mouseLock, windowVisible, focused, hasSize, notPaused, mouseHidden);
-    }
 
-    public static Vector2 warp_target(Vector2 knownPos, Vector2I winSize) => WarpTarget(knownPos, winSize);
 }

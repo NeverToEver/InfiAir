@@ -529,21 +529,42 @@ public partial class Main : Node2D
     /// <summary>BGM 延后到首帧之后启动：3.5MB WAV 解码不占首帧关键路径</summary>
     private async Task StartBgmAsync()
     {
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        // C15：await 后守卫——首帧前 main 被释放（无头测试同帧实例化释放）则不再操作 freed 实例
-        if (!IsInsideTree())
+        try
         {
-            return;
-        }
+            // U17：await 段异常统一 try/catch（约定 §Async）——恢复期节点释放/引擎错误不静默吞
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            // C15：await 后守卫——首帧前 main 被释放（无头测试同帧实例化释放）则不再操作 freed 实例
+            if (!IsInsideTree())
+            {
+                return;
+            }
 
-        StartBgm();
+            StartBgm();
+        }
+        catch (Exception ex)
+        {
+            GD.PushWarning("StartBgmAsync 异常：" + ex.Message);
+        }
     }
 
     /// <summary>启动计时（--startup-time 传入时）：打印 boot → 首帧 / → 首面板就绪 的分段耗时</summary>
     private async Task ReportStartupTime()
     {
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        GD.Print(GdFormat("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
+        try
+        {
+            // U17：await 段异常统一 try/catch + 判活守卫
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInsideTree())
+            {
+                return;
+            }
+
+            GD.Print(GdFormat("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
+        }
+        catch (Exception ex)
+        {
+            GD.PushWarning("ReportStartupTime 异常：" + ex.Message);
+        }
     }
 
     private void StartBgm()
@@ -711,10 +732,27 @@ public partial class Main : Node2D
         Engine.TimeScale = 1.0f;
     }
 
-    /// <summary>Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）</summary>
+    /// <summary>Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）。
+    /// U17：具名无参回调替代闭包捕获——闭包无法配对断开，Boss 若改对象池复用即双订阅；
+    /// 上一只 Boss 仍存活时先断开再挂新（防双订阅）</summary>
     private void OnBossSpawned(Boss boss)
     {
-        boss.Enraged += () => OnBossEnraged(boss);
+        if (_enrageBoss != null && GodotObject.IsInstanceValid(_enrageBoss))
+        {
+            _enrageBoss.Enraged -= OnBossEnragedNoArg;
+        }
+
+        _enrageBoss = boss;
+        boss.Enraged += OnBossEnragedNoArg;
+    }
+
+    private void OnBossEnragedNoArg()
+    {
+        var boss = _enrageBoss;
+        if (boss != null && GodotObject.IsInstanceValid(boss))
+        {
+            OnBossEnraged(boss);
+        }
     }
 
     /// <summary>狂暴触发：1.2s 子弹时间（全局 0.24，玩家同样减速——与原作一致）+ 泛红演出。
@@ -1045,13 +1083,9 @@ public partial class Main : Node2D
     // set_charge_time/stop_charging/start_entry_sequence/set_homecoming/set_dock_cooldown/resume_from_base/
     // pause_ui/give_up_charge/bullet_time/time_scale_ramp/dock_status_text/meta_fx/continue_run）。
 
-    public bool is_intro_playing() => IsIntroPlaying();
 
-    public bool is_return_playing() => IsReturnPlaying();
 
-    public bool is_game_over() => IsGameOver();
 
-    public bool is_homecoming() => IsHomecoming();
 
     public Mothership? mothership() => Mothership();
 
@@ -1063,7 +1097,6 @@ public partial class Main : Node2D
 
     public PauseUi pause_ui() => PauseUi();
 
-    public MetaHealthFX meta_fx() => MetaFx();
 
     public Node? @event() => Event();
 
@@ -1073,53 +1106,34 @@ public partial class Main : Node2D
 
     public MothershipSummonWindow? summon_window() => SummonWindow();
 
-    public void set_homecoming(bool v) => SetHomecoming(v);
 
-    public void set_game_over(bool v) => SetGameOver(v);
 
-    public void set_bullet_time(float seconds) => SetBulletTime(seconds);
 
-    public float time_scale_ramp() => TimeScaleRamp();
 
-    public void play_intro() => PlayIntro();
 
     public void skip_intro() => SkipIntro();
 
-    public void play_return() => PlayReturn();
 
     public void skip_return() => SkipReturn();
 
-    public void start_homecoming() => StartHomecoming();
 
-    public void summon_mothership() => SummonMothership();
 
-    public void resume_from_base() => ResumeFromBase();
 
-    public void start_entry_sequence() => StartEntrySequence();
 
-    public void stop_charging() => StopCharging();
 
-    public void set_dock_cooldown(float seconds) => SetDockCooldown(seconds);
 
-    public void on_mothership_departed(float seconds) => OnMothershipDeparted(seconds);
 
     public bool charging() => Charging();
 
-    public Mothership charge_ghost() => ChargeGhost();
 
-    public float give_up_charge() => GiveUpCharge();
 
     public void continue_run() => ContinueRun();
 
-    public float bullet_time() => BulletTime();
 
-    public float dock_cooldown() => DockCooldown();
 
-    public void set_charge_time(float seconds) => SetChargeTime(seconds);
 
     public IntroCinematic? intro() => Intro();
 
     public ReturnCinematic? return_cinematic() => ReturnCinematic();
 
-    public string dock_status_text() => DockStatusText();
 }

@@ -211,31 +211,18 @@ public partial class PlayerBuffVisuals : Node2D
 
     public void refresh() => Refresh();
 
-    public Polygon2D power_glow() => PowerGlow();
 
-    public Node2D rapid_fins() => RapidFins();
 
-    public Godot.Collections.Array<Node2D> spread_pods() => SpreadPods();
 
-    public Polygon2D pierce_spike() => PierceSpike();
 
-    public Polygon2D explosive_glow() => ExplosiveGlow();
 
-    public Node2D laser_pod() => LaserPod();
 
-    public Line2D armor_ring() => ArmorRing();
 
-    public Line2D regen_ring() => RegenRing();
 
-    public Node2D lifesteal_tips() => LifestealTips();
 
-    public Line2D shield_hex() => ShieldHex();
 
-    public Sprite2D evasion_ghost() => EvasionGhost();
 
-    public Node2D dash_fins() => DashFins();
 
-    public Line2D slow_ring() => SlowRing();
 
     public Polygon2D beacon() => Beacon();
 

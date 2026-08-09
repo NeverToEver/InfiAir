@@ -2005,7 +2005,6 @@ public partial class IntroCinematic : CanvasLayer
 
     public void play() => Play();
 
-    public bool is_playing() => IsPlaying();
 
     public void skip() => Skip();
 
@@ -2015,7 +2014,6 @@ public partial class IntroCinematic : CanvasLayer
 
     public Node2D? current_shot() => CurrentShot();
 
-    public Node2D shot_root() => ShotRoot();
 
     public Label subtitle() => Subtitle();
 }

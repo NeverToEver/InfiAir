@@ -308,23 +308,16 @@ public partial class FogEventManager : Node
 
     public void wire(GameEventManager pEvents) => Wire(pEvents);
 
-    public bool is_run_active() => IsRunActive();
 
     public void set_run_active(bool active) => SetRunActive(active);
 
     public StringName active_id() => ActiveId();
 
-    public Variant active_event() => ActiveEvent();
 
-    public Godot.Collections.Array<StringName> event_ids() => EventIds();
 
-    public float cooldown_left() => CooldownLeft();
 
-    public void set_cooldown_left(float seconds) => SetCooldownLeft(seconds);
 
-    public void set_first_delay_left(float seconds) => SetFirstDelayLeft(seconds);
 
-    public float active_remaining() => ActiveRemaining();
 
     public bool can_trigger() => CanTrigger();
 
@@ -338,11 +331,9 @@ public partial class FogEventManager : Node
 
     public Node2D fake_container() => FakeContainer();
 
-    public void emit_direction_shift(Vector2 dir, float hold) => EmitDirectionShift(dir, hold);
 
     public CanvasLayer overlay_layer() => OverlayLayer();
 
     public ColorRect overlay_rect() => OverlayRect();
 
-    public Godot.Collections.Dictionary build_fog_context(Callable requestEnd) => BuildFogContext(requestEnd);
 }

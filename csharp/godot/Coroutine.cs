@@ -49,20 +49,24 @@ public static partial class Coroutine
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var onSignal = Callable.From(() => tcs.TrySetResult(true));
         var timed = timeoutSeconds > 0.0;
-        SceneTreeTimer? timer = null;        if (GodotObject.IsInstanceValid(source))
+        SceneTreeTimer? timer = null;
+        if (GodotObject.IsInstanceValid(source))
         {
             source.Connect(signal, onSignal);
         }
 
         if (timed)
         {
+            // U08（2026-08-09 审计）：节点已释放时等待已无意义，直接返回 false——
+            // 原实现跳过超时兜底使信号永不触发时永久挂起（违背类头"必触发兜底"承诺）
             if (!GodotObject.IsInstanceValid(node))
             {
-                return await tcs.Task;
+                return false;
             }
 
             timer = node.GetTree().CreateTimer(timeoutSeconds);
-            timer.Timeout += () => tcs.TrySetResult(false);        }
+            timer.Timeout += () => tcs.TrySetResult(false);
+        }
 
         try
         {

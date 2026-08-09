@@ -88,6 +88,7 @@ public partial class BossRegistryTest : Node
         {
             var gs = GetNode<GameState>("/root/GameState");
             var attacks = new BossAttacks();
+            var boss = new Boss(); // U07：GetDefaultPatterns 改实例方法后经实例访问
 
             // 1. 攻击注册表：10 个已知攻击 id 全覆盖（homing2 于 2026-08-03 审计删除，弹数分档并入 homing；
             // 2026-08-04 新增 ring_burst——4 型「月蚀」环弹）
@@ -117,7 +118,7 @@ public partial class BossRegistryTest : Node
             var missing = new System.Collections.Generic.List<string>();
             for (int t = 1; t <= 4; t++)
             {
-                var defaults = Boss.GetDefaultPatterns()[t].AsGodotDictionary();
+                var defaults = boss.GetDefaultPatterns()[t].AsGodotDictionary();
                 var cfgTable = JsonAt(parsed, "boss.phases.type" + t);
                 foreach (var phaseKv in defaults)
                 {

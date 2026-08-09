@@ -185,21 +185,14 @@ public partial class PlayerParry : RefCounted
     // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被
     // GDScript 动态派发，本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
 
-    public bool try_start() => TryStart();
 
     public void tick(float delta) => Tick(delta);
 
-    public bool is_flowing() => IsFlowing();
 
-    public float cooldown_remaining() => CooldownRemaining();
 
-    public float energy_ratio() => EnergyRatio();
 
-    public float tint_strength() => TintStrength();
 
-    public float shield_expand() => ShieldExpand();
 
-    public float shine_progress() => ShineProgress();
 
     public void configure(float pDuration, float pActiveTime, float pCooldown)
         => Configure(pDuration, pActiveTime, pCooldown);

@@ -40,25 +40,25 @@ public partial class BackNavigator : Node
         // 顶层退出确认由 welcome 场景自处理（EXIT_FLOW.md 同步）
     }
 
-    private Node2D _main = null!;
-    private CanvasLayer _hud = null!;
+    private Main _main = null!; // U13：typed
+    private Hud _hud = null!; // U13：typed
     private CanvasLayer _buffUi = null!;
-    private CanvasLayer _pauseUi = null!;
-    private CanvasLayer _settingsUi = null!;
+    private PauseUi _pauseUi = null!; // U13：typed
+    private SettingsUi _settingsUi = null!; // U13：typed
     private CanvasLayer _gameOverUi = null!;
-    private CanvasLayer _baseUi = null!;
-    private CanvasLayer _exitConfirm = null!;
+    private BaseConsole _baseUi = null!; // U13：typed
+    private ExitConfirm _exitConfirm = null!; // U13：typed
 
     public override void _Ready()
     {
-        _main = GetParent<Node2D>();
-        _hud = GetParent().GetNode<CanvasLayer>("HUD");
+        _main = GetParent<Main>();
+        _hud = GetParent().GetNode<Hud>("HUD");
         _buffUi = GetParent().GetNode<CanvasLayer>("BuffUI");
-        _pauseUi = GetParent().GetNode<CanvasLayer>("PauseUI");
-        _settingsUi = GetParent().GetNode<CanvasLayer>("SettingsUI");
+        _pauseUi = GetParent().GetNode<PauseUi>("PauseUI");
+        _settingsUi = GetParent().GetNode<SettingsUi>("SettingsUI");
         _gameOverUi = GetParent().GetNode<CanvasLayer>("GameOverUI");
-        _baseUi = GetParent().GetNode<CanvasLayer>("BaseUI");
-        _exitConfirm = GetParent().GetNode<CanvasLayer>("ExitConfirm");
+        _baseUi = GetParent().GetNode<BaseConsole>("BaseUI");
+        _exitConfirm = GetParent().GetNode<ExitConfirm>("ExitConfirm");
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -102,11 +102,11 @@ public partial class BackNavigator : Node
         switch (action)
         {
             case BackAction.CANCEL_EXIT:
-                _exitConfirm.Call("cancel");
+                _exitConfirm.Cancel();
                 // 焦点还给来源页面（确认窗打开时抢走了焦点）：暂停面板恢复按钮
                 if (_pauseUi.Visible)
                 {
-                    _pauseUi.Call("grab_primary_focus");
+                    _pauseUi.GrabPrimaryFocus();
                 }
 
                 MarkHandled();
@@ -114,23 +114,23 @@ public partial class BackNavigator : Node
             case BackAction.CAPTURE_PASSTHROUGH:
                 break; // 不 set_input_as_handled，让 settings_ui 取消捕获
             case BackAction.CLOSE_SETTINGS:
-                _settingsUi.Call("back");
+                _settingsUi.Back();
                 MarkHandled();
                 break;
             case BackAction.RESUME_BASE:
-                _baseUi.Call("resume");
+                _baseUi.Resume();
                 MarkHandled();
                 break;
             case BackAction.SKIP_INTRO:
-                _main.Call("skip_intro");
+                _main.SkipIntro();
                 MarkHandled();
                 break;
             case BackAction.SKIP_RETURN:
-                _main.Call("skip_return");
+                _main.SkipReturn();
                 MarkHandled();
                 break;
             case BackAction.CLOSE_BUFF_PANEL:
-                _hud.Call("close_buff_panel");
+                _hud.CloseBuffPanel();
                 MarkHandled();
                 break;
             case BackAction.IGNORE:
@@ -145,11 +145,11 @@ public partial class BackNavigator : Node
                 MarkHandled();
                 break;
             case BackAction.RESUME_GAME:
-                _pauseUi.Call("close");
+                _pauseUi.Close();
                 MarkHandled();
                 break;
             case BackAction.OPEN_PAUSE:
-                _pauseUi.Call("open");
+                _pauseUi.Open();
                 MarkHandled();
                 break;
         }
@@ -173,19 +173,19 @@ public partial class BackNavigator : Node
             return BackAction.CANCEL_EXIT;
         }
 
-        if (_main.Call("is_intro_playing").AsBool())
+        if (_main.IsIntroPlaying())
         {
             return BackAction.SKIP_INTRO; // 过场播放中：Esc = 跳过过场（须在下方暂停 IGNORE 之前）
         }
 
-        if (_main.Call("is_return_playing").AsBool())
+        if (_main.IsReturnPlaying())
         {
             return BackAction.SKIP_RETURN; // 返航过场播放中：Esc = 跳过过场（优先级同 SKIP_INTRO）
         }
 
         if (_settingsUi.Visible)
         {
-            if (_settingsUi.Call("capturing_action").AsStringName() != new StringName())
+            if (_settingsUi.CapturingAction() != new StringName())
             {
                 return BackAction.CAPTURE_PASSTHROUGH;
             }
@@ -198,7 +198,7 @@ public partial class BackNavigator : Node
             return BackAction.RESUME_BASE;
         }
 
-        if (_buffUi.Visible || (_main.Call("is_game_over").AsBool() && !_gameOverUi.Visible))
+        if (_buffUi.Visible || (_main.IsGameOver() && !_gameOverUi.Visible))
         {
             return BackAction.IGNORE;
         }
@@ -208,7 +208,7 @@ public partial class BackNavigator : Node
             return BackAction.TO_MAIN_MENU;
         }
 
-        if (_hud.Call("is_buff_panel_open").AsBool())
+        if (_hud.IsBuffPanelOpen())
         {
             return BackAction.CLOSE_BUFF_PANEL; // buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
         }
@@ -218,7 +218,7 @@ public partial class BackNavigator : Node
             return BackAction.RESUME_GAME;
         }
 
-        if (_main.Call("is_homecoming").AsBool() || GetTree().Paused)
+        if (_main.IsHomecoming() || GetTree().Paused)
         {
             return BackAction.IGNORE; // 其他暂停态不响应
         }
@@ -235,7 +235,6 @@ public partial class BackNavigator : Node
 
     public int decide_back_action() => (int)DecideBackAction();
 
-    public Godot.Collections.Dictionary back_actions() => BackActions();
 
     /// <summary>BackAction 枚举值字典（名称 → int，声明序；测试 act.XXX 改经此访问）。</summary>
     public static Godot.Collections.Dictionary BackActions() => new()

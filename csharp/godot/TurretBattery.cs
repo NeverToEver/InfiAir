@@ -59,11 +59,12 @@ public partial class TurretBattery : Area2D
     private Control _hpBar = null!; // _Ready 赋值（tscn 固定结构）
     private float _muzzleOffset; // 出弹点偏移（40 × world_scale，_ready 覆写）
 
-    /// <summary>热路径缓存：player_ref 每物理帧一次动态调用（全实例共享）。</summary>
-    private static ulong _frame = ulong.MaxValue;
-    private static Variant _framePlayer;
+    /// <summary>热路径缓存：player_ref 每物理帧一次动态调用（全实例共享）。
+    /// U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）</summary>
+    private ulong _frame = ulong.MaxValue;
+    private Variant _framePlayer;
 
-    private static Variant CachedPlayer()
+    private Variant CachedPlayer()
     {
         var f = Engine.GetPhysicsFrames();
         if (f != _frame)
@@ -237,21 +238,21 @@ public partial class TurretBattery : Area2D
         else if (ammo == "weak_homing")
         {
             var dir = FireDir();
-            var pool = (GodotObject?)GameState.Instance.BulletPool;
+            var pool = GameState.Instance.BulletPool;
             if (pool == null)
             {
                 return;
             }
 
-            var b = pool.Call("Fire", dir, HomingSpeed, DmgHoming, false, true, HomingTime);
-            if (b.VariantType == Variant.Type.Nil)
+            var b = pool!.Fire(dir, HomingSpeed, DmgHoming, false, true, HomingTime);
+            if (b == null)
             {
                 return; // P2-3：同屏敌弹硬上限，本次开火放弃
             }
 
-            ((Bullet)b).HomingTurnRate = HomingTurnRate;
-            ((GodotObject)b).Set("position", GlobalPosition + dir * _muzzleOffset);
-            ((GodotObject)b).Call("set_meta", "bullet_type", new StringName("homing"));
+            b.HomingTurnRate = HomingTurnRate;
+            b.Set("position", GlobalPosition + dir * _muzzleOffset);
+            b.SetMeta("bullet_type", new StringName("homing"));
         }
         else if (ammo == "sniper")
         {
@@ -276,25 +277,24 @@ public partial class TurretBattery : Area2D
 
     private void SpawnBullet(Vector2 dir, float bulletSpeed, int dmg, StringName pType)
     {
-        var pool = (GodotObject?)GameState.Instance.BulletPool;
+        var pool = GameState.Instance.BulletPool;
         if (pool == null)
         {
             return;
         }
 
-        var b = pool.Call("Fire", dir, bulletSpeed, dmg, false);
-        if (b.VariantType == Variant.Type.Nil)
+        var b = pool!.Fire(dir, bulletSpeed, dmg, false);
+        if (b == null)
         {
             return; // P2-3：同屏敌弹硬上限，本次开火放弃
         }
 
-        var bullet = (GodotObject)b;
-        bullet.Set("position", GlobalPosition + dir * _muzzleOffset);
-        bullet.Call("set_meta", "bullet_type", pType);
+        b.Set("position", GlobalPosition + dir * _muzzleOffset);
+        b.SetMeta("bullet_type", pType);
         if (pType == "laser")
         {
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-            var poly = (Sprite2D?)bullet.Call("SpriteNode");
+            var poly = b.SpriteNode();
             if (poly != null)
             {
                 poly.Scale = new Vector2(2.2f, 0.55f);
@@ -364,7 +364,6 @@ public partial class TurretBattery : Area2D
 
     public void activate() => Activate();
 
-    public void cease_fire_and_retract() => CeaseFireAndRetract();
 
     public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
 

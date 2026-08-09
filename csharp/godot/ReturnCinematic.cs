@@ -1564,7 +1564,6 @@ public partial class ReturnCinematic : CanvasLayer
 
     public Node2D? current_shot() => CurrentShot();
 
-    public Node2D shot_root() => ShotRoot();
 
     public Label subtitle() => Subtitle();
 

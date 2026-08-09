@@ -14,7 +14,7 @@ namespace InfiAir;
 /// 白盒断言 API 保留 snake_case 兼容桥（test/elite_turret_event_test.gd，M7 删除）；
 /// GDScript 无法以类名引用 C# 嵌套枚举（PlayerParry 实测）→ 状态值经 GetStateXxx 静态方法访问。
 /// </summary>
-public partial class EliteTurretEvent : Node
+public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
 {
     public enum State { IDLE, CARRIER_ENTER, TURRET_ACTIVE, CARRIER_EXIT, BOSS_DELAY }
 
@@ -58,11 +58,11 @@ public partial class EliteTurretEvent : Node
     public float Cooldown { get; private set; } = 60.0f;
 
     private State _state = State.IDLE;
-    /// <summary>A5：spawner 依赖注入（main._ready 经 SetSpawner 设置；替代 group 现找）。</summary>
-    private Node? _spawner;
+    /// <summary>A5：spawner 依赖注入（main._ready 经 SetSpawner 设置；替代 group 现找）。
+    /// U14：字段 typed 化（Spawner 已 C#，消除动态派发）。</summary>
+    private Spawner? _spawner;
     private StrikeCarrier? _carrier;
     private readonly Godot.Collections.Array<TurretBattery> _turrets = new();
-    private readonly Godot.Collections.Dictionary _turretSockets = new(); // turret -> 基座环索引
     private float _timer;
     private float _hudPoll;
     private int _total;
@@ -72,10 +72,10 @@ public partial class EliteTurretEvent : Node
     private readonly Godot.Collections.Array<String> _lines = new();
     private float _cooldownLeft;
     private CommOverlay? _comm;
-    private CanvasLayer? _hud;
+    private Hud? _hud; // U13：typed
 
     /// <summary>A5：spawner 依赖注入（main._ready 调用；替代 group 现找）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner;
+    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
     /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
     public State GetState() => _state;
@@ -140,6 +140,9 @@ public partial class EliteTurretEvent : Node
         Cooldown = (float)GameState.Instance.Cfg("elite_turret_event.cooldown", Cooldown).AsDouble();
         _comm = new CommOverlay();
         AddChild(_comm);
+        // U16：K15 对称兜底——与 FormationStrikeEvent 同款（事件节点先于 spawner 入树时
+        // 注入为 null，Boss 冻结/波次暂停钩子会静默失效；兜底 group 现找）
+        _spawner ??= GetTree().GetFirstNodeInGroup("spawner") as Spawner;
     }
 
     public bool IsActive() => _state != State.IDLE;
@@ -153,13 +156,28 @@ public partial class EliteTurretEvent : Node
         }
 
         // L13：母舰在场期不触发——母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖，
-        // 玩家进保护舱零参与挂机收益；在场判定经组查询（节点释放自动退组）
-        if (GetTree().GetFirstNodeInGroup("mothership") != null)
+        // 玩家进保护舱零参与挂机收益；在场判定经惰性缓存（U14：原每帧组查询，节点失效重查）
+        if (MothershipPresent())
         {
             return false;
         }
 
         return true;
+    }
+
+    /// <summary>母舰在场惰性缓存：首次查得后缓存引用，释放/退组失效自动重查（替代每帧组查询）。</summary>
+    private Node? _mothershipCache;
+
+    private bool MothershipPresent()
+    {
+        if (_mothershipCache != null && GodotObject.IsInstanceValid(_mothershipCache)
+            && _mothershipCache.IsInGroup("mothership"))
+        {
+            return true;
+        }
+
+        _mothershipCache = GetTree().GetFirstNodeInGroup("mothership");
+        return _mothershipCache != null;
     }
 
     /// <summary>事件启动（互斥检查通过后由事件管理器调用）。</summary>
@@ -187,12 +205,9 @@ public partial class EliteTurretEvent : Node
             _lines.Add(pool[i]);
         }
 
-        // 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；A5 注入 _spawner）
-        if (_spawner != null)
-        {
-            _spawner.Call("set_boss_frozen", true);
-            _spawner.Call("set_waves_paused", true);
-        }
+        // 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；A5 注入 _spawner。U14：typed 直调）
+        _spawner?.SetBossFrozen(true);
+        _spawner?.SetWavesPaused(true);
 
         _carrier = new StrikeCarrier();
         var carrier = _carrier;
@@ -205,7 +220,7 @@ public partial class EliteTurretEvent : Node
         // 非默认视角档（zoom>1 可见区下移）偏高 140~222px，炮塔行锚点随之偏高
         carrier.Enter(evView.Position.Y + HoverY, EnterTime);
         GameState.Instance.Shake(GameState.Instance.Cfg("elite_turret_event.carrier.shake", 4.0).AsDouble());
-        _hud = GetTree().GetFirstNodeInGroup("hud") as CanvasLayer;
+        _hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
     }
 
     /// <summary>返航中止（main._start_homecoming 调用）：IDLE 直接返回；清掉在场炮塔（queue_free
@@ -227,10 +242,9 @@ public partial class EliteTurretEvent : Node
         }
 
         _turrets.Clear();
-        _turretSockets.Clear();
         if (_hud != null)
         {
-            _hud.Call("hide_event_bar");
+            _hud.HideEventBar();
         }
 
         if (_comm != null)
@@ -289,7 +303,6 @@ public partial class EliteTurretEvent : Node
             turret.Died += (t) => OnTurretDied(socket, t);
             GetParent().AddChild(turret);
             _turrets.Add(turret);
-            _turretSockets[turret] = i;
             _carrier!.SetSocketCharging(i);
             turret.Rise(RiseTime);
         }
@@ -317,7 +330,7 @@ public partial class EliteTurretEvent : Node
 
         if (_hud != null)
         {
-            _hud.Call("show_event_bar", _total);
+            _hud.ShowEventBar(_total);
         }
     }
 
@@ -341,7 +354,7 @@ public partial class EliteTurretEvent : Node
             _hudPoll = 0.1f;
             if (_hud != null)
             {
-                _hud.Call("update_event_bar", _timer, Duration, _total - _destroyed);
+                _hud.UpdateEventBar(_timer, Duration, _total - _destroyed);
             }
         }
 
@@ -355,7 +368,6 @@ public partial class EliteTurretEvent : Node
     {
         _destroyed += 1;
         _turrets.Remove(turret);
-        _turretSockets.Remove(turret);
         if (_carrier != null && GodotObject.IsInstanceValid(_carrier))
         {
             _carrier.SetSocketDestroyed(socket);
@@ -363,7 +375,7 @@ public partial class EliteTurretEvent : Node
 
         if (_hud != null && _state == State.TURRET_ACTIVE)
         {
-            _hud.Call("update_event_bar", _timer, Duration, _total - _destroyed);
+            _hud.UpdateEventBar(_timer, Duration, _total - _destroyed);
         }
 
         // 进度台词节点：摧毁 ≥ ⌈总数/3⌉ → 第 1 句；≥ ⌈总数×2/3⌉ → 第 2 句；全歼 → 第 3 句
@@ -398,7 +410,7 @@ public partial class EliteTurretEvent : Node
         GameState.Instance.AddScore(RewardScore);
         if (_hud != null)
         {
-            _hud.Call("hide_event_bar");
+            _hud.HideEventBar();
         }
 
         ResumeWaves();
@@ -420,11 +432,10 @@ public partial class EliteTurretEvent : Node
         // 2026-08-03 审计：收回中的炮塔已无 died 依赖（_ceased 守卫），立即清引用数组，
         // 消除最长 ~6s（BOSS_RESUME_DELAY 窗口）的失效引用驻留（OnBossDelayEnd 的 clear 幂等）
         _turrets.Clear();
-        _turretSockets.Clear();
         _comm!.ShowLine("ETQ_RETREAT");
         if (_hud != null)
         {
-            _hud.Call("hide_event_bar");
+            _hud.HideEventBar();
         }
 
         ResumeWaves();
@@ -461,13 +472,12 @@ public partial class EliteTurretEvent : Node
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         _turrets.Clear();
-        _turretSockets.Clear();
         if (_spawner != null)
         {
-            _spawner.Call("set_boss_frozen", false);
-            if ((bool)_spawner.Call("consume_boss_pending").AsBool())
+            _spawner.SetBossFrozen(false);
+            if (_spawner.ConsumeBossPending())
             {
-                _spawner.Call("trigger_boss");
+                _spawner.TriggerBoss();
             }
         }
     }
@@ -475,10 +485,7 @@ public partial class EliteTurretEvent : Node
     /// <summary>普通波次在 CARRIER_EXIT 起恢复（Boss 冻结保留到 BOSS_DELAY 结束）。</summary>
     private void ResumeWaves()
     {
-        if (_spawner != null)
-        {
-            _spawner.Call("set_waves_paused", false);
-        }
+        _spawner?.SetWavesPaused(false);
     }
 
     /// <summary>一次性计时回调（同 spawner._schedule：Godot.Timer 节点 + 信号，避免协程泄漏）。</summary>
@@ -508,7 +515,6 @@ public partial class EliteTurretEvent : Node
 
     public static int GetStateBossDelay() => (int)State.BOSS_DELAY;
 
-    public void set_spawner(Node spawner) => SetSpawner(spawner);
 
     public int state() => (int)GetState();
 
@@ -518,15 +524,11 @@ public partial class EliteTurretEvent : Node
 
     public int total() => Total();
 
-    public int line_stage() => LineStage();
 
     public CommOverlay? comm() => Comm();
 
-    public void set_cooldown_left(float seconds) => SetCooldownLeft(seconds);
 
-    public void set_state(int pState) => SetState((State)pState);
 
-    public float cooldown_left() => CooldownLeft();
 
     public bool is_active() => IsActive();
 

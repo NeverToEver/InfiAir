@@ -40,7 +40,7 @@ public partial class Hud : CanvasLayer
     private VBoxContainer _earlyLeaveBox = null!;
     private Label _earlyLeaveLabel = null!;
     private ColorRect _earlyLeaveFill = null!;
-    private Node _main = null!;
+    private Main _main = null!; // U13：typed
     private float _pollTimer;
     private string _lastDockText = "";
     private int _lastMagCells = -1;
@@ -129,7 +129,7 @@ public partial class Hud : CanvasLayer
     public override void _Ready()
     {
         AddToGroup("hud");
-        _main = GetParent(); // A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
+        _main = GetParent<Main>(); // A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
         _scoreLabel = GetNode<Label>("ScoreLabel");
         _killsLabel = GetNode<Label>("KillsLabel");
         _difficultyLabel = GetNode<Label>("DifficultyLabel");
@@ -455,6 +455,16 @@ public partial class Hud : CanvasLayer
 
     public override void _ExitTree()
     {
+        // U05（2026-08-09 审计）：Boss 四 [Signal] 配对断开——Godot 信号不随接收方释放
+        // 自动断开，Hud 先于 Boss 释放时存活期信号回调已释放 Hud
+        if (_boss != null && GodotObject.IsInstanceValid(_boss))
+        {
+            _boss.HealthChanged -= OnBossHealthChanged;
+            _boss.Died -= OnBossDied;
+            _boss.Enraged -= OnBossEnraged;
+            _boss.PhaseChanged -= OnBossPhaseChanged;
+        }
+
         // C22 模式（M5）：GameState 信号显式断开——本类此前缺 _ExitTree（其他 C# UI 均有），
         // 退出时 GameState 先于本节点释放的时序下连接悬空可致退出 segfault（实测定位）
         var gs = GameState.Instance;
@@ -572,7 +582,7 @@ public partial class Hud : CanvasLayer
 
         if (_main != null)
         {
-            var dockText = (string)_main.Call("dock_status_text");
+            var dockText = _main.DockStatusText();
             if (dockText != _lastDockText)
             {
                 _dockTag.Text = dockText;
@@ -583,10 +593,9 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    private void UpdateMagazineBar(Node main)
+    private void UpdateMagazineBar(Main main)
     {
-        var msVariant = main.Call("mothership");
-        Mothership? ms = msVariant.AsGodotObject() as Mothership;
+        Mothership? ms = main.Mothership();
         if (ms != null && (int)ms.GetState() == Mothership.GetStateStay())
         {
             _magBox.Visible = true;
@@ -1359,59 +1368,37 @@ public partial class Hud : CanvasLayer
     // snake_case 访问本类；C# 调用方（EliteTurretEvent/Boss/Mothership）经 hud.Call(...)
     // 以原方法名动态调用——故保留原公开方法的 snake_case 别名转发。
 
-    public void show_event_bar(int total) => ShowEventBar(total);
 
-    public void update_event_bar(float timeLeft, float duration, int alive) => UpdateEventBar(timeLeft, duration, alive);
 
-    public void hide_event_bar() => HideEventBar();
 
-    public void set_give_up_charge(float ratio) => SetGiveUpCharge(ratio);
 
-    public void set_home_charge(float ratio) => SetHomeCharge(ratio);
 
-    public void set_early_leave_charge(float ratio) => SetEarlyLeaveCharge(ratio);
 
     public void show_popup(string text, Vector2 worldPos) => ShowPopup(text, worldPos);
 
-    public void show_boss_banner() => ShowBossBanner();
 
-    public void show_magazine_warning() => ShowMagazineWarning();
 
-    public void show_warning(string text) => ShowWarning(text);
 
     public void show_boss_bar(Boss boss) => ShowBossBar(boss);
 
-    public void toggle_buff_panel() => ToggleBuffPanel();
 
-    public bool is_buff_panel_open() => IsBuffPanelOpen();
 
-    public void close_buff_panel() => CloseBuffPanel();
 
     public void meta_jitter() => MetaJitter(2.0f);
 
     public void meta_jitter(float px) => MetaJitter(px);
 
-    public void show_info_banner(string text) => ShowInfoBanner(text);
 
-    public Label boss_countdown() => BossCountdown();
 
-    public GridContainer buff_dock() => BuffDock();
 
-    public Label buff_tag() => BuffTag();
 
     public Label? buff_overflow_label() => BuffOverflowLabel();
 
-    public VBoxContainer buff_rows() => BuffRows();
 
-    public Label buff_panel_title() => BuffPanelTitle();
 
-    public VBoxContainer event_box() => EventBox();
 
-    public VBoxContainer early_leave_box() => EarlyLeaveBox();
 
-    public ColorRect early_leave_fill() => EarlyLeaveFill();
 
-    public Label give_up_label() => GiveUpLabel();
 
     public TextureRect vignette() => Vignette();
 

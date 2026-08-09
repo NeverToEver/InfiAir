@@ -43,10 +43,14 @@ public partial class AimFrameLayer : Node2D
 
     private readonly Callable _onAimAssistChanged;
 
-    /// <summary>热路径缓存：player_ref / enemies 每渲染帧一次动态调用（单实例共享，帧内复用）。</summary>
-    private static ulong _cacheFrame = ulong.MaxValue;
-    private static Variant _framePlayer;
-    private static Godot.Collections.Array _frameEnemies = new();
+    /// <summary>热路径缓存：player_ref / enemies 每渲染帧一次动态调用（单实例共享，帧内复用）。
+    /// U07：静态 Variant/Array 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）。</summary>
+    private ulong _cacheFrame = ulong.MaxValue;
+    private Variant _framePlayer;
+    private Godot.Collections.Array _frameEnemies = new();
+
+    /// <summary>U14：meta 键静态缓存（每敌每帧 HasMeta/GetMeta 字符串字面量转换开销）。</summary>
+    private static readonly StringName MetaAimFrameRadius = new("aim_frame_radius");
 
     public AimFrameLayer()
     {
@@ -54,7 +58,7 @@ public partial class AimFrameLayer : Node2D
     }
 
     /// <summary>player_ref / enemies 每渲染帧一次动态调用缓存（帧内复用；M7 后改 typed 直调）。</summary>
-    private static Godot.Collections.Array CachedEnemies()
+    private Godot.Collections.Array CachedEnemies()
     {
         var frame = Engine.GetProcessFrames();
         if (frame != _cacheFrame)
@@ -67,7 +71,7 @@ public partial class AimFrameLayer : Node2D
         return _frameEnemies;
     }
 
-    private static Player? CachedPlayer()
+    private Player? CachedPlayer()
     {
         CachedEnemies();
         return _framePlayer.AsGodotObject() as Player;
@@ -142,8 +146,9 @@ public partial class AimFrameLayer : Node2D
         // 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
         // 2026-08-03 审计：meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
         //（scale.x 同样含 ws，再乘即 ws 平方，0.5 钳制恰好掩盖；ws 上调时框尺寸非线性暴涨）
+        // U14：meta 键静态 StringName 缓存（每敌每帧 HasMeta/GetMeta 字符串字面量转换开销）
         var r = 0.0f;
-        if (!e.HasMeta("aim_frame_radius"))
+        if (!e.HasMeta(MetaAimFrameRadius))
         {
             var shapeNode = e.GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
             var rBase = 0.0f;
@@ -152,10 +157,10 @@ public partial class AimFrameLayer : Node2D
                 rBase = ((CircleShape2D)shapeNode.Shape).Radius;
             }
 
-            e.SetMeta("aim_frame_radius", rBase);
+            e.SetMeta(MetaAimFrameRadius, rBase);
         }
 
-        r = (float)e.GetMeta("aim_frame_radius").AsDouble();
+        r = (float)e.GetMeta(MetaAimFrameRadius).AsDouble();
         return r + _framePad;
     }
 
@@ -339,11 +344,9 @@ public partial class AimFrameLayer : Node2D
 
     public float frame_pad() => FramePad();
 
-    public float frame_half_size(Enemy e) => FrameHalfSize(e);
 
     public Enemy? marked_target_at(Vector2 point) => MarkedTargetAt(point);
 
-    public Vector2 magnet_pull(Vector2 point, Vector2 inputDelta) => MagnetPull(point, inputDelta);
 
     public Enemy? nearest_cone_target(Vector2 origin, Vector2 aimDir, float coneCos) => NearestConeTarget(origin, aimDir, coneCos);
 }

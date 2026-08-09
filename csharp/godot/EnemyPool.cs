@@ -9,7 +9,8 @@ namespace InfiAir;
 /// </summary>
 public partial class EnemyPool : Node
 {
-    private static readonly PackedScene EnemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
 
     public const bool UsePool = true;
 
@@ -54,7 +55,7 @@ public partial class EnemyPool : Node
 
         if (e == null)
         {
-            e = EnemyScene.Instantiate<Enemy>();
+            e = _enemyScene.Instantiate<Enemy>();
             e.SetPool(this);
             GetParent()!.AddChild(e);
         }
@@ -119,5 +120,4 @@ public partial class EnemyPool : Node
 
     public void forget(Enemy e) => Forget(e);
 
-    public int free_count() => FreeCount();
 }

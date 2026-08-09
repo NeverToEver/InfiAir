@@ -98,14 +98,14 @@ public partial class GameEventManager : Node
     /// <summary>遭遇触发策略计时器（id -> 剩余秒）。</summary>
     private readonly Godot.Collections.Dictionary _encounterTimers = new();
     /// <summary>遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）。</summary>
-    private readonly Godot.Collections.Dictionary _encounterActive = new();
     /// <summary>Q13（2026-08-05）：遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
     private readonly Godot.Collections.Dictionary _encounterEndPending = new();
     /// <summary>当前激活的遭遇事件 id（无则空）。</summary>
     private StringName _encounterActiveId = new StringName();
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，A5 依赖注入延续）。</summary>
-    private Node? _spawner;
+    /// <summary>遭遇触发门控注入（U14：typed 化，消除每帧 HasMethod/Call）。</summary>
+    private Spawner? _spawner;
 
     public override void _Ready()
     {
@@ -222,7 +222,7 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 触发时占用特殊槽）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner;
+    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
     /// <summary>已注册事件 id 列表（EVENT_FACTORIES 为唯一事实源）。</summary>
     public Godot.Collections.Array<StringName> EventIds()
@@ -354,12 +354,13 @@ public partial class GameEventManager : Node
 
             var evRaw = factory.AsCallable().Call();
             var ev = evRaw.VariantType == Variant.Type.Object ? evRaw.AsGodotObject() as Node : null;
-            if (ev == null || !GodotObject.IsInstanceValid(ev) || (ev.HasMethod("is_active") && ev.Call("is_active").AsBool()))
+            // U14：typed 分派（is_active 经 IEncounterEvent 契约）
+            if (ev is not IEncounterEvent enc || enc.IsActive())
             {
                 return false;
             }
 
-            StartEncounter(pId, ev);
+            StartEncounter(pId, enc);
             return true;
         }
 
@@ -382,16 +383,16 @@ public partial class GameEventManager : Node
             }
 
             var ev = EventFor(id);
-            if (ev != null && GodotObject.IsInstanceValid(ev) && ev.HasMethod("abort"))
+            if (ev is IEncounterEvent enc) // U13：typed（Abort 进遭遇契约接口）
             {
-                ev.Call("abort");
+                enc.Abort();
             }
 
             _encounterActiveId = new StringName();
             // Q13（2026-08-05）：event_ended 统一由轮询在 FSM 回 IDLE 后发——
             // 原实现此处即发 + 轮询再发 = 双发且第二次发在事件仍活跃时；
             // 同步回 IDLE 则本处补发，异步则记 pending 由轮询补发
-            var stillActive = ev != null && GodotObject.IsInstanceValid(ev) && (ev.HasMethod("is_active") && ev.Call("is_active").AsBool());
+            var stillActive = ev is IEncounterEvent enc2 && enc2.IsActive(); // U13：typed
             if (stillActive)
             {
                 _encounterEndPending[id] = true;
@@ -501,13 +502,14 @@ public partial class GameEventManager : Node
         var score = GameState.Instance.Score;
         foreach (var id in _encounterOrder)
         {
+            // U14：遭遇事件 typed 分派（IEncounterEvent 契约，替代每帧 HasMethod/Call 动态派发）
             var ev = EventFor(id);
-            if (ev == null || !GodotObject.IsInstanceValid(ev) || (ev.HasMethod("is_active") && ev.Call("is_active").AsBool()))
+            if (ev is not IEncounterEvent enc || enc.IsActive())
             {
                 continue;
             }
 
-            if (!EncounterCanTrigger(id, ev))
+            if (!EncounterCanTrigger(id, enc))
             {
                 continue;
             }
@@ -527,7 +529,7 @@ public partial class GameEventManager : Node
                 _encounterTimers[id] = interval;
                 if (GD.Randf() < (float)cfg.AsGodotDictionary().GetValueOrDefault("chance", 0.3).AsDouble())
                 {
-                    StartEncounter(id, ev);
+                    StartEncounter(id, enc);
                 }
             }
             else
@@ -539,15 +541,14 @@ public partial class GameEventManager : Node
 
     /// <summary>遭遇事件触发资格：事件自身 can_trigger（冷却/分数/母舰）+ Boss 未激活 +
     /// 精英事件额外要求编队不在场（镜像 spawner 原互斥链）。</summary>
-    private bool EncounterCanTrigger(StringName pId, Node ev)
+    private bool EncounterCanTrigger(StringName pId, IEncounterEvent ev)
     {
-        if (ev.HasMethod("can_trigger") && !ev.Call("can_trigger").AsBool())
+        if (!ev.CanTrigger())
         {
             return false;
         }
 
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner)
-            && _spawner.HasMethod("is_boss_active") && _spawner.Call("is_boss_active").AsBool())
+        if (_spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsBossActive())
         {
             return false;
         }
@@ -562,7 +563,7 @@ public partial class GameEventManager : Node
                 }
 
                 var o = EventFor(other);
-                if (o != null && GodotObject.IsInstanceValid(o) && (o.HasMethod("is_active") && o.Call("is_active").AsBool()))
+                if (o is IEncounterEvent oe && oe.IsActive())
                 {
                     return false;
                 }
@@ -573,16 +574,15 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>遭遇事件启动：调事件 start()（事件内部处理波次/Boss 钩子），登记活跃并广播。</summary>
-    private void StartEncounter(StringName pId, Node ev)
+    private void StartEncounter(StringName pId, IEncounterEvent ev)
     {
-        ev.Call("start");
+        ev.Start();
         _encounterActiveId = pId;
-        _encounterActive[pId] = true;
         EmitSignal(SignalName.EventStarted, pId, 0.0f);
         // 事件占用特殊槽（镜像 spawner 原 _waves_since_special = 0）
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.HasMethod("notify_event_triggered"))
+        if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
-            _spawner.Call("notify_event_triggered");
+            _spawner.NotifyEventTriggered();
         }
     }
 
@@ -593,8 +593,7 @@ public partial class GameEventManager : Node
         foreach (var id in _encounterOrder)
         {
             var ev = EventFor(id);
-            var active = ev != null && GodotObject.IsInstanceValid(ev) && (ev.HasMethod("is_active") && ev.Call("is_active").AsBool());
-            _encounterActive[id] = active;
+            var active = ev is IEncounterEvent enc && enc.IsActive(); // U14：typed 分派
             if (_encounterEndPending.ContainsKey(id) && !active)
             {
                 _encounterEndPending.Remove(id);
@@ -760,29 +759,21 @@ public partial class GameEventManager : Node
     // 原 GDScript 公开方法（snake_case）别名转发；GDScript 调用方（main.gd/测试）经动态
     // 派发以原方法名访问。C# 内部调用一律 PascalCase。
 
-    public void reload_config() => ReloadConfig();
 
-    public bool is_run_active() => IsRunActive();
 
     public void set_run_active(bool active) => SetRunActive(active);
 
     public void activate_fog() => ActivateFog();
 
-    public void register_encounter(StringName pId, Node pEvent) => RegisterEncounter(pId, pEvent);
 
-    public void set_spawner(Node spawner) => SetSpawner(spawner);
 
-    public Godot.Collections.Array<StringName> event_ids() => EventIds();
 
     public Variant @event(StringName pId) => Event(pId);
 
     public StringName active_id(StringName pGroup) => ActiveId(pGroup);
 
-    public Variant active_event(StringName pGroup) => ActiveEvent(pGroup);
 
-    public bool can_trigger_group(StringName pGroup) => CanTriggerGroup(pGroup);
 
-    public bool try_trigger_group(StringName pGroup) => TryTriggerGroup(pGroup);
 
     public bool force_trigger(StringName pId) => ForceTrigger(pId);
 
@@ -790,21 +781,12 @@ public partial class GameEventManager : Node
 
     public void end_all() => EndAll();
 
-    public void set_cooldown_left(float seconds) => SetCooldownLeft(seconds);
 
-    public float cooldown_left() => CooldownLeft();
 
-    public void set_first_delay_left(float seconds) => SetFirstDelayLeft(seconds);
 
-    public float first_delay_left() => FirstDelayLeft();
 
-    public void set_check_timer_left(float seconds) => SetCheckTimerLeft(seconds);
 
-    public float encounter_timer_remaining(StringName pId) => EncounterTimerRemaining(pId);
 
-    public void set_encounter_timer_remaining(StringName pId, float seconds) => SetEncounterTimerRemaining(pId, seconds);
 
-    public float active_remaining() => ActiveRemaining();
 
-    public StringName group_of(StringName pId) => GroupOf(pId);
 }

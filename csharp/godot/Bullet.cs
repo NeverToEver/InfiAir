@@ -59,7 +59,7 @@ public partial class Bullet : Area2D
     public static int ActiveCount { get; private set; }
 
     private float _homingElapsed;
-    private GodotObject? _pool;
+    private BulletPool? _pool; // U13：typed（原 GodotObject? 动态派发）
     private bool _active;
     private bool _repooling;
     private Godot.Timer? _graceTimer;
@@ -172,7 +172,7 @@ public partial class Bullet : Area2D
     }
 
     /// <summary>对象池协调的内部状态封装（A1 修复，禁止跨类直写 _ 私有字段）。</summary>
-    public void SetPool(GodotObject pool) => _pool = pool;
+    public void SetPool(BulletPool pool) => _pool = pool;
 
     public bool IsActive() => _active;
 
@@ -245,7 +245,7 @@ public partial class Bullet : Area2D
         // 被外部 queue_free 时通知池移除引用；池内 reparent 也经此回调（_repooling 置位不算离开池）
         if (_pool != null && GodotObject.IsInstanceValid(_pool) && !_repooling)
         {
-            _pool.Call("Forget", this);
+            _pool!.Forget(this);
         }
 
         // 池化弹被外部销毁（未走 deactivate）时补减活跃计数
@@ -355,21 +355,16 @@ public partial class Bullet : Area2D
         var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
-            var e = (GodotObject?)arr[i];
-            if (e == null || !IsEnemyInstance(e))
-            {
-                continue; // 注册表含 Enemy 与 Boss，Boss 非 Enemy 子类——as Enemy 语义等价排除
-            }
-
-            if ((bool)e.Call("is_boss"))
+            // U13：typed——原 is_boss 判定排除 Boss（恒 true 跳过）与无 take_damage 类，
+            // `is Enemy` 直接等价（注册表含 Enemy 与 Boss，Boss 非 Enemy 子类）
+            if (arr[i].AsGodotObject() is not Enemy enemy)
             {
                 continue;
             }
 
-            var pos = ((Node2D)e).GlobalPosition;
-            if (pos.DistanceTo(GlobalPosition) <= ExplosiveRadius)
+            if (enemy.GlobalPosition.DistanceTo(GlobalPosition) <= ExplosiveRadius)
             {
-                e.Call("take_damage", ExplosiveDamage);
+                enemy.TakeDamage(ExplosiveDamage);
             }
         }
 
@@ -389,10 +384,24 @@ public partial class Bullet : Area2D
                 continue;
             }
 
-            if (node is Area2D && node.GlobalPosition.DistanceTo(GlobalPosition) <= SplashRadius
-                && node.HasMethod("take_damage"))
+            if (node is Area2D && node.GlobalPosition.DistanceTo(GlobalPosition) <= SplashRadius)
             {
-                node.Call("take_damage", SplashDamage, ScoreScale);
+                // U13：typed 分派（原 HasMethod("take_damage") 鸭子判定 = 四类之一）
+                switch (node)
+                {
+                    case Enemy enemy:
+                        enemy.TakeDamage(SplashDamage, ScoreScale);
+                        break;
+                    case Boss boss:
+                        boss.TakeDamage(SplashDamage, ScoreScale);
+                        break;
+                    case TurretBattery turret:
+                        turret.TakeDamage(SplashDamage, ScoreScale);
+                        break;
+                    case FormationCraft craft:
+                        craft.TakeDamage(SplashDamage, ScoreScale);
+                        break;
+                }
             }
         }
 
@@ -405,7 +414,8 @@ public partial class Bullet : Area2D
     /// 净效果与原 GDScript `as Enemy` 等价）。</summary>
     private static bool IsEnemyInstance(GodotObject o)
     {
-        return o.HasMethod("is_boss");
+        // U13：typed 判型（原鸭子 HasMethod("is_boss")——仅 Enemy/Boss 有该方法）
+        return o is Enemy or Boss;
     }
 
     private void OnAreaEntered(Area2D area)
@@ -423,19 +433,34 @@ public partial class Bullet : Area2D
                 // crit_shot 暴击：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
                 var hitDamage = Damage;
                 var pRef = GameState.Instance.PlayerRef;
-                if (pRef != null)
+                if (pRef is Player p) // U13：typed（Player.CritChance/CritMultiplierValue 为 buff 缓存属性）
                 {
-                    var p = (GodotObject)pRef;
-                    var critChance = (float)p.Get("crit_chance").AsDouble();
+                    var critChance = p.CritChance;
                     if (critChance > 0.0f && GD.Randf() < critChance)
                     {
-                        hitDamage = (int)(Damage * (float)p.Get("crit_multiplier").AsDouble());
+                        hitDamage = (int)(Damage * p.CritMultiplierValue);
                     }
                 }
 
-                area.Call("take_damage", hitDamage, ScoreScale); // 返回值 void 忽略                // 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
-                // TurretBattery/FormationCraft 无 is_boss() 方法：先查方法存在再取返回值语义
-                if (Explosive && (!area.HasMethod("is_boss") || !(bool)area.Call("is_boss")))
+                switch (area) // U13：typed 分派（原鸭子 take_damage = 四类之一）
+                {
+                    case Enemy enemy:
+                        enemy.TakeDamage(hitDamage, ScoreScale);
+                        break;
+                    case Boss boss:
+                        boss.TakeDamage(hitDamage, ScoreScale);
+                        break;
+                    case TurretBattery turret:
+                        turret.TakeDamage(hitDamage, ScoreScale);
+                        break;
+                    case FormationCraft craft:
+                        craft.TakeDamage(hitDamage, ScoreScale);
+                        break;
+                }
+
+                // 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
+                // U13：is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 爆炸条件原为 !is_boss || 无方法 = true）
+                if (Explosive && area is not Boss)
                 {
                     _explode();
                 }
@@ -519,11 +544,11 @@ public partial class Bullet : Area2D
             return;
         }
 
-        var player = (GodotObject)pRef;
-        if ((bool)player.Call("take_damage", (float)Damage, GlobalPosition))
+        var player = (Player)pRef; // U13：typed
+        if (player.TakeDamage((float)Damage, GlobalPosition))
         {
             // P2-10：致死一击弹丸高亮残留
-            if ((bool)player.Call("is_dead"))
+            if (player.IsDead())
             {
                 _lingerFatal();
             }
@@ -560,7 +585,7 @@ public partial class Bullet : Area2D
     {
         if (_pool != null && GodotObject.IsInstanceValid(_pool))
         {
-            _pool.Call("Release", this);
+            _pool!.Release(this);
         }
         else
         {

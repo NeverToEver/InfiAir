@@ -99,6 +99,19 @@ public sealed class SaveStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OverflowNumber_DoesNotCrash()
+    {
+        // U09（2026-08-09 审计）：手改溢出数字解析为 Infinity（GDScript JSON.parse 同语义，
+        // 经 TryGetValue 安全路径而非可能抛异常的 GetValue），Load 契约不击穿
+        File.WriteAllText(Tmp("f.json"), """{"score": 1e999}""");
+
+        var res = new SaveStore().Load(Tmp("f.json"));
+
+        Assert.Equal(SaveLoadStatus.Ok, res.Status);
+        Assert.Equal(double.PositiveInfinity, res.Tree!["score"]);
+    }
+
+    [Fact]
     public void Load_CorruptJson_Quarantines()
     {
         File.WriteAllText(Tmp("d.json"), "{broken json!!!");

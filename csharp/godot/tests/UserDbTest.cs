@@ -190,7 +190,7 @@ public partial class UserDbTest : Node
                 _db.SubmitScore("alice", 200 - i);
             }
             board = _db.GetLeaderboard();
-            Check(board.Count == UserDB.GetLeaderboardCap(), "排行榜：上限截断");
+            Check(board.Count == UserDB.LeaderboardCap, "排行榜：上限截断");
             Check(board[0].AsGodotDictionary()["score"].AsInt32() == 200, "排行榜：截断后榜首不变");
             Check(_db.SubmitScore("alice", 1) == 0, "排行榜：超出上限的分数不入榜");
 
@@ -200,7 +200,7 @@ public partial class UserDbTest : Node
             Check(_db.UserExists("alice"), "持久化往返：用户保留");
             Check(_db.VerifyUser("alice", "s3cret"), "持久化往返：验密一致");
             board = _db.GetLeaderboard();
-            Check(board.Count == UserDB.GetLeaderboardCap() && board[0].AsGodotDictionary()["score"].AsInt32() == 200, "持久化往返：榜单一致");
+            Check(board.Count == UserDB.LeaderboardCap && board[0].AsGodotDictionary()["score"].AsInt32() == 200, "持久化往返：榜单一致");
 
             // 10. 损坏隔离重置（B4：备份 .corrupt + 按空库处理）
             Cleanup();

@@ -15,6 +15,46 @@ namespace InfiAir;
 /// </summary>
 public partial class BossAttacks : RefCounted
 {
+    // U10（2026-08-09 审计）：每帧字面量 Get/Call 改静态 StringName 缓存（热路径禁字面量分配，BossMovement 同款）
+    private static readonly StringName PropBULLET_DAMAGE_CROSS = new("BULLET_DAMAGE_CROSS");
+    private static readonly StringName PropBULLET_DAMAGE_FAN = new("BULLET_DAMAGE_FAN");
+    private static readonly StringName PropBULLET_DAMAGE_HOMING = new("BULLET_DAMAGE_HOMING");
+    private static readonly StringName PropBULLET_DAMAGE_RING = new("BULLET_DAMAGE_RING");
+    private static readonly StringName PropBULLET_DAMAGE_SNIPER = new("BULLET_DAMAGE_SNIPER");
+    private static readonly StringName PropCANNON_BULLET_SPEED = new("CANNON_BULLET_SPEED");
+    private static readonly StringName PropCANNON_CHARGE = new("CANNON_CHARGE");
+    private static readonly StringName PropCANNON_DAMAGE = new("CANNON_DAMAGE");
+    private static readonly StringName PropCANNON_FLASH = new("CANNON_FLASH");
+    private static readonly StringName PropCANNON_INTERVAL = new("CANNON_INTERVAL");
+    private static readonly StringName PropCANNON_SHOTS = new("CANNON_SHOTS");
+    private static readonly StringName PropCROSS_BULLET_SPEED = new("CROSS_BULLET_SPEED");
+    private static readonly StringName PropFAN_BULLET_SPEED = new("FAN_BULLET_SPEED");
+    private static readonly StringName PropHOMING_BULLET_SPEED = new("HOMING_BULLET_SPEED");
+    private static readonly StringName PropMUZZLE_OFFSET = new("MUZZLE_OFFSET");
+    private static readonly StringName PropRING_BURST_SPEED = new("RING_BURST_SPEED");
+    private static readonly StringName PropSNIPER_AIM_TIME = new("SNIPER_AIM_TIME");
+    private static readonly StringName PropSNIPER_BULLET_SPEED = new("SNIPER_BULLET_SPEED");
+    private static readonly StringName PropSNIPER_BURST_INTERVAL = new("SNIPER_BURST_INTERVAL");
+    private static readonly StringName PropSNIPER_TRACK_TIME = new("SNIPER_TRACK_TIME");
+    private static readonly StringName PropSWEEP_AIM = new("SWEEP_AIM");
+    private static readonly StringName PropSWEEP_DROP_COUNT = new("SWEEP_DROP_COUNT");
+    private static readonly StringName PropSWEEP_DROP_DAMAGE = new("SWEEP_DROP_DAMAGE");
+    private static readonly StringName PropSWEEP_DROP_SPEED = new("SWEEP_DROP_SPEED");
+    private static readonly StringName PropSWEEP_RETURN_DURATION = new("SWEEP_RETURN_DURATION");
+    private static readonly StringName PropSWEEP_SPEED = new("SWEEP_SPEED");
+    private static readonly StringName PropVOLLEY_BULLET_DAMAGE = new("VOLLEY_BULLET_DAMAGE");
+    private static readonly StringName PropVOLLEY_BULLET_SPEED = new("VOLLEY_BULLET_SPEED");
+    private static readonly StringName PropVOLLEY_COUNT = new("VOLLEY_COUNT");
+    private static readonly StringName PropVOLLEY_DELAY = new("VOLLEY_DELAY");
+    private static readonly StringName PropWALL_ARC_DEG = new("WALL_ARC_DEG");
+    private static readonly StringName PropWALL_BULLET_SPEED = new("WALL_BULLET_SPEED");
+    private static readonly StringName PropWALL_COUNT = new("WALL_COUNT");
+    private static readonly StringName PropWALL_DAMAGE = new("WALL_DAMAGE");
+    private static readonly StringName MethFightanchory = new("FightAnchorY");
+    private static readonly StringName MethResetfiretimer = new("ResetFireTimer");
+    private static readonly StringName MethSlowfactor = new("SlowFactor");
+    private static readonly StringName MethStraferange = new("StrafeRange");
+
     // ---- 对齐 Boss.SweepState（enum { NONE, AIM, DASH, RETURN }） ----
     public const int SweepNone = 0;
     public const int SweepAim = 1;
@@ -109,11 +149,12 @@ public partial class BossAttacks : RefCounted
 
 
     // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
-    private static ulong _frame = ulong.MaxValue;
-    private static Rect2 _frameView;
-    private static Variant _framePlayer;
+    // U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）
+    private ulong _frame = ulong.MaxValue;
+    private Rect2 _frameView;
+    private Variant _framePlayer;
 
-    private static Rect2 CachedView()
+    private Rect2 CachedView()
     {
         var f = Engine.GetPhysicsFrames();
         if (f != _frame)
@@ -126,7 +167,7 @@ public partial class BossAttacks : RefCounted
         return _frameView;
     }
 
-    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
+    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public BossAttacks()
     {
@@ -150,7 +191,7 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
-    private static Vector2 PlayerDir(Node2D from)
+    private Vector2 PlayerDir(Node2D from)
     {
         var player = CachedPlayer();
         if (player.VariantType != Variant.Type.Nil)
@@ -218,14 +259,14 @@ public partial class BossAttacks : RefCounted
     {
         _fire.Call(
             "Fire_fan", boss, Mathf.Max(3, 5 + FanDelta),
-            (float)boss.Get("FAN_BULLET_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_FAN").AsInt64());
+            (float)boss.Get(PropFAN_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_FAN).AsInt64());
     }
 
     private void HandleFan7(Node2D boss)
     {
         _fire.Call(
             "Fire_fan", boss, Mathf.Max(3, 7 + FanDelta),
-            (float)boss.Get("FAN_BULLET_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_FAN").AsInt64());
+            (float)boss.Get(PropFAN_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_FAN).AsInt64());
     }
 
     /// <summary>
@@ -237,7 +278,7 @@ public partial class BossAttacks : RefCounted
     {
         _fire.Call(
             "Fire_ring", boss, Mathf.Max(6, RingDelta),
-            (float)boss.Get("RING_BURST_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_RING").AsInt64(), 0.0f);
+            (float)boss.Get(PropRING_BURST_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_RING).AsInt64(), 0.0f);
     }
 
     private void HandleHoming(Node2D boss)
@@ -250,7 +291,7 @@ public partial class BossAttacks : RefCounted
             _fire.Call(
                 "Fire_homing", boss,
                 new Vector2(((float)i - (float)(count - 1) * 0.5f) * 80.0f, 100.0f),
-                (float)boss.Get("HOMING_BULLET_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_HOMING").AsInt64());
+                (float)boss.Get(PropHOMING_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_HOMING).AsInt64());
         }
     }
 
@@ -260,7 +301,7 @@ public partial class BossAttacks : RefCounted
     {
         _fire.Call(
             "Fire_cross", boss,
-            (float)boss.Get("CROSS_BULLET_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_CROSS").AsInt64());
+            (float)boss.Get(PropCROSS_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_CROSS).AsInt64());
     }
 
     private void HandleChargedCannon(Node2D boss) => StartChargedCannon(boss);
@@ -273,10 +314,10 @@ public partial class BossAttacks : RefCounted
     {
         _fire.Call(
             "Fire_bullet_wall", boss,
-            (int)boss.Get("WALL_COUNT").AsInt64(),
-            (float)boss.Get("WALL_BULLET_SPEED").AsDouble(),
-            (int)boss.Get("WALL_DAMAGE").AsInt64(),
-            (float)boss.Get("WALL_ARC_DEG").AsDouble());
+            (int)boss.Get(PropWALL_COUNT).AsInt64(),
+            (float)boss.Get(PropWALL_BULLET_SPEED).AsDouble(),
+            (int)boss.Get(PropWALL_DAMAGE).AsInt64(),
+            (float)boss.Get(PropWALL_ARC_DEG).AsDouble());
     }
 
     /// <summary>
@@ -288,13 +329,13 @@ public partial class BossAttacks : RefCounted
         if (_sniperAimElapsed >= 0.0f)
         {
             _sniperAimElapsed += delta;
-            if (_sniperAimElapsed <= (float)boss.Get("SNIPER_TRACK_TIME").AsDouble())
+            if (_sniperAimElapsed <= (float)boss.Get(PropSNIPER_TRACK_TIME).AsDouble())
             {
                 _sniperDir = PlayerDir(boss);
                 if (_aimLine != null)
                 {
                     // C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
-                    _aimLine.SetPointPosition(0, _sniperDir * (float)boss.Get("MUZZLE_OFFSET").AsDouble());
+                    _aimLine.SetPointPosition(0, _sniperDir * (float)boss.Get(PropMUZZLE_OFFSET).AsDouble());
                     _aimLine.SetPointPosition(1, _sniperDir * 1200.0f);
                 }
             }
@@ -304,7 +345,7 @@ public partial class BossAttacks : RefCounted
                 _aimLine.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.18f + 0.18f * Mathf.Abs(Enemy.SinFast(_sniperAimElapsed * 25.0f)));
             }
 
-            if (_sniperAimElapsed >= (float)boss.Get("SNIPER_AIM_TIME").AsDouble())
+            if (_sniperAimElapsed >= (float)boss.Get(PropSNIPER_AIM_TIME).AsDouble())
             {
                 CancelAimLineInternal();
                 _sniperAimElapsed = -1.0f;
@@ -320,11 +361,11 @@ public partial class BossAttacks : RefCounted
             _burstTimer -= delta;
             if (_burstTimer <= 0.0f)
             {
-                _burstTimer = (float)boss.Get("SNIPER_BURST_INTERVAL").AsDouble(); // Q30：三连发间隔入库（原硬编码 0.12）
+                _burstTimer = (float)boss.Get(PropSNIPER_BURST_INTERVAL).AsDouble(); // Q30：三连发间隔入库（原硬编码 0.12）
                 _burstLeft -= 1;
                 _fire.Call(
                     "Fire_sniper", boss, _burstDir,
-                    (float)boss.Get("SNIPER_BULLET_SPEED").AsDouble(), (int)boss.Get("BULLET_DAMAGE_SNIPER").AsInt64());
+                    (float)boss.Get(PropSNIPER_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNIPER).AsInt64());
                 if (_burstLeft == 0)
                 {
                     _burstDir = Vector2.Zero;
@@ -336,10 +377,10 @@ public partial class BossAttacks : RefCounted
         if (_cannonElapsed >= 0.0f)
         {
             _cannonElapsed += delta;
-            if (_cannonElapsed >= (float)boss.Get("CANNON_CHARGE").AsDouble())
+            if (_cannonElapsed >= (float)boss.Get(PropCANNON_CHARGE).AsDouble())
             {
                 _cannonElapsed = -1.0f;
-                _cannonShotsLeft = (int)boss.Get("CANNON_SHOTS").AsInt64();
+                _cannonShotsLeft = (int)boss.Get(PropCANNON_SHOTS).AsInt64();
                 _cannonTimer = 0.0f;
                 _cannonFlashed = true; // 首发的 telegraph 即 0.6s 蓄力辉光
             }
@@ -348,20 +389,20 @@ public partial class BossAttacks : RefCounted
         if (_cannonShotsLeft > 0)
         {
             _cannonTimer -= delta;
-            if (!_cannonFlashed && _cannonTimer <= (float)boss.Get("CANNON_FLASH").AsDouble())
+            if (!_cannonFlashed && _cannonTimer <= (float)boss.Get(PropCANNON_FLASH).AsDouble())
             {
                 _cannonFlashed = true;
-                ChargeGlow(boss, (float)boss.Get("CANNON_FLASH").AsDouble(), 90.0f * WorldScale, new Color(1.0f, 0.7f, 0.3f, 0.6f));
+                ChargeGlow(boss, (float)boss.Get(PropCANNON_FLASH).AsDouble(), 90.0f * WorldScale, new Color(1.0f, 0.7f, 0.3f, 0.6f));
             }
 
             if (_cannonTimer <= 0.0f)
             {
-                _cannonTimer = (float)boss.Get("CANNON_INTERVAL").AsDouble();
+                _cannonTimer = (float)boss.Get(PropCANNON_INTERVAL).AsDouble();
                 _cannonShotsLeft -= 1;
                 _cannonFlashed = false;
                 _fire.Call(
                     "Fire_heavy", boss, PlayerDir(boss),
-                    (float)boss.Get("CANNON_BULLET_SPEED").AsDouble(), (int)boss.Get("CANNON_DAMAGE").AsInt64());
+                    (float)boss.Get(PropCANNON_BULLET_SPEED).AsDouble(), (int)boss.Get(PropCANNON_DAMAGE).AsInt64());
             }
         }
 
@@ -417,7 +458,7 @@ public partial class BossAttacks : RefCounted
         line.Width = 2.0f;
         line.DefaultColor = color;
         line.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.3f);
-        line.AddPoint(dir * (float)boss.Get("MUZZLE_OFFSET").AsDouble());
+        line.AddPoint(dir * (float)boss.Get(PropMUZZLE_OFFSET).AsDouble());
         line.AddPoint(dir * length);
         boss.AddChild(line);
         return line;
@@ -454,7 +495,7 @@ public partial class BossAttacks : RefCounted
         }
 
         _cannonElapsed = 0.0f;
-        ChargeGlow(boss, (float)boss.Get("CANNON_CHARGE").AsDouble());
+        ChargeGlow(boss, (float)boss.Get(PropCANNON_CHARGE).AsDouble());
     }
 
     /// <summary>冲刺掠过（二型 P2）：0.5s 水平瞄准线（预警横穿玩家当前高度）起手。</summary>
@@ -466,7 +507,7 @@ public partial class BossAttacks : RefCounted
         }
 
         _sweepState = SweepAim;
-        _sweepTimer = (float)boss.Get("SWEEP_AIM").AsDouble();
+        _sweepTimer = (float)boss.Get(PropSWEEP_AIM).AsDouble();
         // C14：默认方向/高度取可见世界中心，不写死 960/300
         var view = CachedView();
         var playerX = view.GetCenter().X;
@@ -522,10 +563,10 @@ public partial class BossAttacks : RefCounted
                     // 横穿落位到玩家高度（AIM 开始时快照，与预警线同语义）；RETURN 复用锚线回位逻辑
                     boss.Position = new Vector2(boss.Position.X, _sweepDashY);
                     // 拖弹点：横穿路径 1/4、1/2、3/4 处
-                    var bounds = boss.Call("StrafeRange").AsVector2();
+                    var bounds = boss.Call(MethStraferange).AsVector2();
                     var endX = _sweepDir > 0.0f ? bounds.Y : bounds.X;
                     _sweepDropX.Clear();
-                    var dropCount = (int)boss.Get("SWEEP_DROP_COUNT").AsInt64();
+                    var dropCount = (int)boss.Get(PropSWEEP_DROP_COUNT).AsInt64();
                     for (var i = 0; i < dropCount; i++)
                     {
                         _sweepDropX.Add(Mathf.Lerp(boss.Position.X, endX, (float)(i + 1) / (float)(dropCount + 1)));
@@ -534,8 +575,8 @@ public partial class BossAttacks : RefCounted
 
                 break;
             case SweepDash:
-                var sweepSpeed = (float)boss.Get("SWEEP_SPEED").AsDouble();
-                var slowFactor = (float)boss.Call("SlowFactor").AsDouble();
+                var sweepSpeed = (float)boss.Get(PropSWEEP_SPEED).AsDouble();
+                var slowFactor = (float)boss.Call(MethSlowfactor).AsDouble();
                 boss.Position = new Vector2(
                     boss.Position.X + _sweepDir * sweepSpeed * slowFactor * delta, boss.Position.Y);
                 while (_sweepDropX.Count > 0)
@@ -546,8 +587,8 @@ public partial class BossAttacks : RefCounted
                         _sweepDropX.RemoveAt(0);
                         var b = FireFromPool(
                             Vector2.Down,
-                            (float)boss.Get("SWEEP_DROP_SPEED").AsDouble(),
-                            (int)boss.Get("SWEEP_DROP_DAMAGE").AsInt64());
+                            (float)boss.Get(PropSWEEP_DROP_SPEED).AsDouble(),
+                            (int)boss.Get(PropSWEEP_DROP_DAMAGE).AsInt64());
                         if (b == null)
                         {
                             break; // P2-3：同屏敌弹硬上限——跳出本轮撒弹（cap 持续期剩余 drop 下轮重试，防死循环）
@@ -561,28 +602,28 @@ public partial class BossAttacks : RefCounted
                     }
                 }
 
-                var dashBounds = boss.Call("StrafeRange").AsVector2();
+                var dashBounds = boss.Call(MethStraferange).AsVector2();
                 if ((_sweepDir > 0.0f && boss.Position.X >= dashBounds.Y) || (_sweepDir < 0.0f && boss.Position.X <= dashBounds.X))
                 {
                     boss.Position = new Vector2(Mathf.Clamp(boss.Position.X, dashBounds.X, dashBounds.Y), boss.Position.Y);
                     _sweepState = SweepReturn;
-                    _sweepTimer = (float)boss.Get("SWEEP_RETURN_DURATION").AsDouble();
+                    _sweepTimer = (float)boss.Get(PropSWEEP_RETURN_DURATION).AsDouble();
                     _sweepOrigin = boss.Position;
                     // C14：返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
                     _sweepReturnTarget = new Vector2(
-                        Mathf.Clamp(CachedView().GetCenter().X, dashBounds.X, dashBounds.Y), (float)boss.Call("FightAnchorY").AsDouble());
+                        Mathf.Clamp(CachedView().GetCenter().X, dashBounds.X, dashBounds.Y), (float)boss.Call(MethFightanchory).AsDouble());
                 }
 
                 break;
             case SweepReturn:
                 _sweepTimer -= delta;
-                var t = Mathf.Clamp(1.0f - _sweepTimer / (float)boss.Get("SWEEP_RETURN_DURATION").AsDouble(), 0.0f, 1.0f);
+                var t = Mathf.Clamp(1.0f - _sweepTimer / (float)boss.Get(PropSWEEP_RETURN_DURATION).AsDouble(), 0.0f, 1.0f);
                 var eased = t * t * (3.0f - 2.0f * t);
                 boss.Position = _sweepOrigin.Lerp(_sweepReturnTarget, eased);
                 if (_sweepTimer <= 0.0f)
                 {
                     _sweepState = SweepNone;
-                    boss.Call("ResetFireTimer");
+                    boss.Call(MethResetfiretimer);
                 }
 
                 break;
@@ -615,7 +656,7 @@ public partial class BossAttacks : RefCounted
         }
 
         _volleyMinions.Clear();
-        var volleyCount = (int)boss.Get("VOLLEY_COUNT").AsInt64();
+        var volleyCount = (int)boss.Get(PropVOLLEY_COUNT).AsInt64();
         for (var i = 0; i < volleyCount; i++)
         {
             var e = (Enemy?)boss.Call(
@@ -628,7 +669,7 @@ public partial class BossAttacks : RefCounted
             }
         }
 
-        _volleyTimer = (float)boss.Get("VOLLEY_DELAY").AsDouble();
+        _volleyTimer = (float)boss.Get(PropVOLLEY_DELAY).AsDouble();
     }
 
     /// <summary>齐射一轮自机狙（普通敌弹口径；P2 编队与狂暴倾巢收尾共用）。</summary>
@@ -641,8 +682,8 @@ public partial class BossAttacks : RefCounted
         }
 
         var player = (Node2D)playerV;
-        var volleySpeed = (float)boss.Get("VOLLEY_BULLET_SPEED").AsDouble();
-        var volleyDamage = (int)boss.Get("VOLLEY_BULLET_DAMAGE").AsInt64();
+        var volleySpeed = (float)boss.Get(PropVOLLEY_BULLET_SPEED).AsDouble();
+        var volleyDamage = (int)boss.Get(PropVOLLEY_BULLET_DAMAGE).AsInt64();
         foreach (var raw in minions)
         {
             if (raw.VariantType == Variant.Type.Nil)
@@ -712,14 +753,13 @@ public partial class BossAttacks : RefCounted
     /// <summary>敌弹池发射（P2-3：同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
     private GodotObject? FireFromPool(Vector2 dir, float speed, int damage)
     {
-        var pool = (GodotObject?)GameState.Instance.BulletPool;
+        var pool = GameState.Instance.BulletPool;
         if (pool == null)
         {
             return null;
         }
 
-        var b = pool.Call("Fire", dir, speed, damage, false);
-        return b.VariantType == Variant.Type.Nil ? null : (GodotObject)b;
+        return pool.Fire(dir, speed, damage, false);
     }
 
     // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
@@ -739,9 +779,7 @@ public partial class BossAttacks : RefCounted
 
     public void update(float delta, Node2D boss) => Update(delta, boss);
 
-    public bool has_attack(StringName id) => HasAttack(id);
 
-    public Godot.Collections.Array attack_ids() => AttackIds();
 
     public Node2D charge_glow(Node2D boss, float duration) => ChargeGlow(boss, duration);
 
@@ -749,9 +787,7 @@ public partial class BossAttacks : RefCounted
 
     public Node2D charge_glow(Node2D boss, float duration, float radius, Color color) => ChargeGlow(boss, duration, radius, color);
 
-    public bool is_sweep_active() => IsSweepActive();
 
-    public int sweep_state() => SweepState();
 
     public float cannon_elapsed() => CannonElapsed();
 
@@ -759,11 +795,7 @@ public partial class BossAttacks : RefCounted
 
     public Line2D? sweep_line() => SweepLine();
 
-    public void cancel_aim_line() => CancelAimLine();
 
-    public Line2D make_aim_line(Node2D boss, Vector2 dir, float length) => MakeAimLine(boss, dir, length);
 
-    public void cancel_all() => CancelAll();
 
-    public void minion_volley_fire(Node2D boss, Godot.Collections.Array minions) => MinionVolleyFire(boss, minions);
 }

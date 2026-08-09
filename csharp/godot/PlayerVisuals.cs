@@ -207,12 +207,10 @@ public class PlayerVisuals
     public void spawn_afterimage(Texture2D spriteTexture, Vector2 spriteScale, Vector2 gpos, float rot, Color color)
         => SpawnAfterimage(spriteTexture, spriteScale, gpos, rot, color);
 
-    public void update_afterimages(float delta) => UpdateAfterimages(delta);
 
     public void update_frame(float delta, float parryTint, float invincible, long nowMs)
         => UpdateFrame(delta, parryTint, invincible, nowMs);
 
-    public void set_graze_flash(float time) => SetGrazeFlash(time);
 
     public void update_parry_visuals(float expand, float shine, float radius, float arcDeg)
         => UpdateParryVisuals(expand, shine, radius, arcDeg);

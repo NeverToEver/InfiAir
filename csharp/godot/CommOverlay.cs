@@ -9,7 +9,8 @@ namespace InfiAir;
 /// </summary>
 public partial class CommOverlay : CanvasLayer
 {
-    private static readonly AudioStream CommSfx = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly AudioStream _commSfx = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
     private const float CharInterval = 0.03f; // 打字机字间隔
     private const float HoldTime = 3.5f;
     private const float FadeTime = 0.5f;
@@ -68,7 +69,7 @@ public partial class CommOverlay : CanvasLayer
         m.A = 1.0f;
         _panel.Modulate = m;
         _panel.Visible = true;
-        GameState.Instance.PlaySfx(CommSfx, -10.0f);
+        GameState.Instance.PlaySfx(_commSfx, -10.0f);
     }
 
     /// <summary>清空当前台词并隐藏（B13：返航打断事件时调用，避免恢复对局后台词残留）。</summary>
@@ -141,9 +142,7 @@ public partial class CommOverlay : CanvasLayer
     }
 
     // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
-    public void show_line(string key) => ShowLine(key);
 
     public void clear() => Clear();
 
-    public string full_text() => FullText();
 }

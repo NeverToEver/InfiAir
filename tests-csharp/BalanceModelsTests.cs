@@ -99,6 +99,26 @@ public sealed class BalanceModelsTests
     }
 
     [Fact]
+    public void Load_NullBossArrays_ReturnsNullNotCrash()
+    {
+        // U09（2026-08-09 审计）：JsonSerializer 无视 NRT，"hp_mults": null 会覆盖
+        // = [] 初始化器置 null——TryValidate 必须判空而非 NRE 击穿 Load 契约
+        const string json = """
+        {"version": 4, "world_scale": 1.0,
+         "player": {"max_speed": 420, "max_health": 100},
+         "enemies": {"collision_damage": 20},
+         "boss": {"hp_mults": null, "fire_intervals": null, "collision_damage": 30},
+         "spawner": {"unlock_scores": null},
+         "mothership": {"depart_cooldown": 60, "mag_cells": 10}}
+        """;
+
+        var result = BalanceRoot.Load(json, out var error);
+
+        Assert.Null(result);
+        Assert.Contains("boss", error);
+    }
+
+    [Fact]
     public void Load_EmptyDocument_Invalid()
     {
         var root = BalanceRoot.Load("{}", out var error);

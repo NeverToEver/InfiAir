@@ -8,7 +8,8 @@ namespace InfiAir;
 /// </summary>
 public partial class BuffSelect : CanvasLayer
 {
-    private static readonly Godot.Collections.Array<Godot.Collections.Dictionary> BuffPool = new()
+    // U07：静态 Godot 集合改实例字段（退出 segfault 实测教训，Hud.cs:70）
+    private readonly Godot.Collections.Array<Godot.Collections.Dictionary> _buffPool = new()
     {
         new() { ["id"] = new StringName("power_shot"), ["max"] = 5 },
         new() { ["id"] = new StringName("rapid_fire"), ["max"] = 4 },
@@ -103,7 +104,7 @@ public partial class BuffSelect : CanvasLayer
     private Godot.Collections.Array<Godot.Collections.Dictionary> _AvailableBuffs()
     {
         var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var b in BuffPool)
+        foreach (var b in _buffPool)
         {
             var id = b["id"].AsStringName();
             if ((int)GameState.Instance.BuffCount(id)
@@ -465,13 +466,10 @@ public partial class BuffSelect : CanvasLayer
     // GDScript 调用方（buff33_test.gd 经 get_node("Main/BuffUI") 动态调用 available_buffs()；
     // visible 为 CanvasLayer 原生属性，GDScript 直接可读可写，无需桥）。
 
-    public void pick_buff(StringName id) => PickBuff(id);
 
-    public Godot.Collections.Array current_available() => CurrentAvailable();
 
     public HBoxContainer cards() => Cards();
 
     public bool closing() => Closing();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> available_buffs() => AvailableBuffs();
 }

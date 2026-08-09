@@ -54,22 +54,4 @@ public partial class SaveManager : RefCounted
             ? (double)v.AsDouble()
             : defaultValue;
 
-    // ---------------- GDScript 鸭子调用兼容桥（M7 过渡，删除前） ----------------
-    // 调用方：autoload/game_state.gd（M7 并行迁移为 C# 后改 typed PascalCase）、
-    // test/{save_store_interop_test,base_system_test}.gd（GDScript 经脚本资源实例化后以
-    // snake_case 名访问——桥保持原名精确匹配）。
-
-    public bool last_was_corrupt { get => LastWasCorrupt; set => LastWasCorrupt = value; }
-
-    public bool exists(string path) => Exists(path);
-
-    public void delete(string path) => Delete(path);
-
-    public bool save(string path, Godot.Collections.Dictionary data) => Save(path, data);
-
-    public Godot.Collections.Dictionary load(string path) => Load(path);
-
-    public void quarantine(string path) => Quarantine(path);
-
-    public double sanitize_num(Variant v, double @default) => SanitizeNum(v, @default);
 }

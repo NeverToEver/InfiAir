@@ -11,11 +11,13 @@ namespace InfiAir;
 /// </summary>
 public partial class Tutorial : Node2D
 {
-    private static readonly FontFile Font = UITheme.Font;
-    private static readonly PackedScene EnemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
-    private static readonly PackedScene BossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
-    private static readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
-    private static readonly AudioStream SfxBuffPick = GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
+    // U07（2026-08-09 审计）：静态 Godot 资源改实例字段——静态持 RefCounted/资源
+    // 在引擎退出后被 .NET finalize 触碰 native 可致 segfault（UITheme.cs:53 实测教训）
+    private readonly FontFile _font = UITheme.Font;
+    private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
+    private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
+    private readonly PackedScene _mothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
+    private readonly AudioStream _sfxBuffPick = GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
 
     public float HomeChargeTime = 1.5f;
     public float DockChargeTime = 3.0f; // 母舰召唤蓄力（mothership.dock_charge_time，对齐正局）
@@ -116,6 +118,27 @@ public partial class Tutorial : Node2D
         EnterStage(0);
     }
 
+    public override void _ExitTree()
+    {
+        // U02（2026-08-09 审计）：C22 模式配对断开——教程 Esc/完成退出后残留连接
+        // 在正局死亡（PlayerDied 高频）或切语言时回调已释放实例
+        var gs = GameState.Instance;
+        if (gs == null)
+        {
+            return;
+        }
+
+        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        {
+            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+        }
+
+        if (gs.IsConnected("PlayerDied", _onPlayerDied))
+        {
+            gs.Disconnect("PlayerDied", _onPlayerDied);
+        }
+    }
+
     private void BuildHud()
     {
         _hudLayer = new CanvasLayer();
@@ -125,7 +148,7 @@ public partial class Tutorial : Node2D
         _titleLabel.Position = new Vector2(-400.0f, 24.0f);
         _titleLabel.CustomMinimumSize = new Vector2(800.0f, 0.0f);
         _titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        _titleLabel.AddThemeFontOverride("font", Font);
+        _titleLabel.AddThemeFontOverride("font", _font);
         _titleLabel.AddThemeFontSizeOverride("font_size", 34);
         _titleLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
         _hudLayer.AddChild(_titleLabel);
@@ -135,7 +158,7 @@ public partial class Tutorial : Node2D
         _objectiveLabel.CustomMinimumSize = new Vector2(1000.0f, 0.0f);
         _objectiveLabel.HorizontalAlignment = HorizontalAlignment.Center;
         _objectiveLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _objectiveLabel.AddThemeFontOverride("font", Font);
+        _objectiveLabel.AddThemeFontOverride("font", _font);
         _objectiveLabel.AddThemeFontSizeOverride("font_size", 22);
         _objectiveLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
         _hudLayer.AddChild(_objectiveLabel);
@@ -220,7 +243,7 @@ public partial class Tutorial : Node2D
                 SetObjectiveTr("TUT_S6_OBJ");
                 _player.SetInvincible(999.0f); // 教程不判负
                 var view5 = GameState.Instance.ViewWorldRect(); // G014
-                _boss = BossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
+                _boss = _bossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
                 _boss.Setup(1.0f, 1);
                 _boss.MaxHp = (float)GameState.Instance.Cfg("tutorial.boss_hp", 120.0).AsDouble();
                 _boss.Hp = _boss.MaxHp;
@@ -266,13 +289,14 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>场上存活敌机数（教程实体均为本节点子节点）</summary>
+    /// <summary>场上存活敌机数（教程实体均为本节点子节点；U14：注册表迭代替代每物理帧
+    /// GetChildren()——后者每次分配新 Array，注册表为零分配迭代；教程无池化/外部来源差异）</summary>
     private int AliveEnemyCount()
     {
         var n = 0;
-        foreach (var child in GetChildren())
+        foreach (var node in GameState.Instance.Enemies)
         {
-            if (child is Enemy) // M3b：Enemy 迁 C#，typed `is` 判型
+            if (node is Enemy) // M3b：Enemy 迁 C#，typed `is` 判型
             {
                 n += 1;
             }
@@ -290,7 +314,7 @@ public partial class Tutorial : Node2D
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
     {
-        var e = EnemyScene.Instantiate<Enemy>(); // M3b：Enemy 迁 C#，typed 实例化
+        var e = _enemyScene.Instantiate<Enemy>(); // M3b：Enemy 迁 C#，typed 实例化
         e.Setup(config, strategy, 1.0f);
         e.CanShoot = _stage == 2; // 仅战斗阶段敌机开火
         var view = GameState.Instance.ViewWorldRect(); // G014：视口基线（去 960 硬编码）
@@ -341,7 +365,7 @@ public partial class Tutorial : Node2D
         var gate = new WarpGate(); // M6：WarpGate 迁 C#，typed 实例化
         gate!.Position = gatePos;
         AddChild(gate);
-        _mothership = MothershipScene.Instantiate<Mothership>();
+        _mothership = _mothershipScene.Instantiate<Mothership>();
         _mothership.BeginWarpIn(gatePos, gate);
         _mothership.Departed += OnMothershipDeparted;
         // 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 3 轮询判空依赖）
@@ -585,7 +609,7 @@ public partial class Tutorial : Node2D
         _completePanel.AddThemeStyleboxOverride("panel", style);
         var button = new Button();
         button.Text = (string)Tr("TUT_BACK");
-        button.AddThemeFontOverride("font", Font);
+        button.AddThemeFontOverride("font", _font);
         button.AddThemeFontSizeOverride("font_size", 26);
         UITheme.ApplyButton(button);
         button.Pressed += ExitTutorial;
@@ -610,7 +634,7 @@ public partial class Tutorial : Node2D
         }
     }
 
-    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(SfxBuffPick);
+    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(_sfxBuffPick);
 
     /// <summary>Variant 数组转 object[]（GDScript `%` 参数补参用；GodotSharp 无 Array.ToArray）。</summary>
     private static object[] ToObjects(Godot.Collections.Array args)
@@ -668,11 +692,8 @@ public partial class Tutorial : Node2D
 
     public Mothership? mothership() => Mothership();
 
-    public int stage_kills() => StageKills();
 
-    public int boost_count() => BoostCount();
 
-    public int dash_count() => DashCount();
 
     public CanvasLayer? base_ui() => BaseUi();
 
@@ -680,9 +701,7 @@ public partial class Tutorial : Node2D
 
     public bool failed() => Failed();
 
-    public Label title_label() => TitleLabel();
 
-    public Label objective_label() => ObjectiveLabel();
 
     public PanelContainer? complete_panel() => CompletePanel();
 

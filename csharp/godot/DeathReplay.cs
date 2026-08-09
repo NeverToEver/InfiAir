@@ -126,5 +126,4 @@ public partial class DeathReplay : RefCounted
 
     public Node2D play() => Play();
 
-    public int frame_count() => FrameCount();
 }

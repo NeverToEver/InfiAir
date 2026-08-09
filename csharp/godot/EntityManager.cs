@@ -38,7 +38,7 @@ public partial class EntityManager : RefCounted
     public Area2D? PlayerHitbox { get; set; }
 
     /// <summary>子弹对象池实例（bullet_pool.gd 在 _ready 登记；M3 重定型 BulletPool）。</summary>
-    public GodotObject? BulletPool { get; set; }
+    public BulletPool? BulletPool { get; set; } // U13：typed（原 GodotObject? 类型残留）
 
     /// <summary>敌机对象池实例（enemy_pool.gd 在 _ready 登记；M3 重定型 EnemyPool）。</summary>
     public GodotObject? EnemyPool { get; set; }

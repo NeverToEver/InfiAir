@@ -253,17 +253,11 @@ public partial class BossFire : RefCounted
 
     public float world_scale { get => WorldScale; set => WorldScale = value; }
 
-    public static Vector2 player_dir(Node2D from) => PlayerDir(from);
 
-    public void fire_fan(Node2D boss, int p_count, float speed, int damage) => FireFan(boss, p_count, speed, damage);
 
-    public void fire_homing(Node2D boss, Vector2 p_offset, float speed, int damage) => FireHoming(boss, p_offset, speed, damage);
 
-    public void fire_sniper(Node2D boss, Vector2 p_dir, float speed, int damage) => FireSniper(boss, p_dir, speed, damage);
 
-    public void fire_cross(Node2D boss, float speed, int damage) => FireCross(boss, speed, damage);
 
-    public void fire_heavy(Node2D boss, Vector2 p_dir, float p_speed, int p_damage) => FireHeavy(boss, p_dir, p_speed, p_damage);
 
     public void fire_ring(Node2D boss, int p_count, float p_speed, int p_damage, float p_offset)
         => FireRing(boss, p_count, p_speed, p_damage, p_offset);

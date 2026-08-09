@@ -19,7 +19,8 @@ public partial class StrikeCarrier : Node2D
     [Signal]
     public delegate void ExitedEventHandler();
 
-    private static readonly Texture2D CarrierTexture = GD.Load<Texture2D>("res://assets/sprites/strike_carrier.png");
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly Texture2D _carrierTexture = GD.Load<Texture2D>("res://assets/sprites/strike_carrier.png");
 
     /// <summary>基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - (600, 350)；使用点 × world_scale）。</summary>
     public static readonly Vector2[] Sockets =
@@ -68,7 +69,7 @@ public partial class StrikeCarrier : Node2D
     {
         _sprite = new Sprite2D
         {
-            Texture = CarrierTexture,
+            Texture = _carrierTexture,
             Scale = Vector2.One * (float)GameState.Instance.WorldScale, // 设计值 1.0 × 全局缩放
         };
         AddChild(_sprite);
@@ -205,9 +206,7 @@ public partial class StrikeCarrier : Node2D
     // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
     public void enter(float hoverY, float duration) => Enter(hoverY, duration);
 
-    public void set_socket_charging(int index) => SetSocketCharging(index);
 
-    public void set_socket_destroyed(int index) => SetSocketDestroyed(index);
 
     public void retreat(bool victorious) => Retreat(victorious);
 

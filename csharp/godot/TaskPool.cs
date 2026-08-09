@@ -54,12 +54,4 @@ public partial class TaskPool : RefCounted
     public Godot.Collections.Array<Godot.Collections.Dictionary> Draw(int count)
         => Draw(count, new Godot.Collections.Array<StringName>());
 
-    // ---------------- GDScript 鸭子调用兼容桥（M7 过渡，删除前） ----------------
-    // 调用方：autoload/game_state.gd（M7 并行迁移为 C# 后改 typed PascalCase）、
-    // test/{base_task_refresh,task_pool_interop}_test.gd（GDScript 经脚本资源实例化后以
-    // snake_case 名访问——桥保持原名精确匹配）。
-
-    public Godot.Collections.Array<Godot.Collections.Dictionary> draw(int count, Godot.Collections.Array<StringName> excludeIds) => Draw(count, excludeIds);
-
-    public Godot.Collections.Array<Godot.Collections.Dictionary> draw(int count) => Draw(count);
 }

@@ -656,10 +656,12 @@ public partial class SettingsUi : CanvasLayer
         }
 
         // 重建内容区文本（重建代价低，保证全部文案换语言）
+        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
+        //（Hud.cs:1194 同场景先例）
         var content = FirstPageParent();
         foreach (var p in _pages.Values)
         {
-            (p.AsGodotObject() as Control)!.QueueFree();
+            (p.AsGodotObject() as Control)!.Free();
         }
 
         _pages[PageControls] = Variant.From(WrapScroll(BuildControlsPage()));
@@ -740,9 +742,15 @@ public partial class SettingsUi : CanvasLayer
         {
             _opener.Visible = true;
             // 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
-            if (_opener.HasMethod("grab_primary_focus"))
+            // U13：typed 分派（打开者 = 开始面板 Welcome 或暂停面板 PauseUi，均有 GrabPrimaryFocus）
+            switch (_opener)
             {
-                _opener.Call("grab_primary_focus");
+                case PauseUi p:
+                    p.GrabPrimaryFocus();
+                    break;
+                case Welcome w:
+                    w.GrabPrimaryFocus();
+                    break;
             }
         }
 
@@ -798,23 +806,15 @@ public partial class SettingsUi : CanvasLayer
     // GDScript 调用方（main 场景 back_navigator.gd / pause_ui.gd、welcome.gd、test/*.gd）
     // 以 snake_case 名动态调用本类方法，桥保持同名透传。
 
-    public void start_capture(StringName action) => StartCapture(action);
 
-    public StringName capturing_action() => CapturingAction();
 
-    public Godot.Collections.Dictionary zoom_buttons() => ZoomButtons();
 
-    public Godot.Collections.Dictionary window_buttons() => WindowButtons();
 
     public CanvasLayer? opener() => Opener();
 
     public void back() => Back();
 
-    public void show_page(StringName pageName) => ShowPage(pageName);
 
-    public void show_settings() => ShowSettings();
 
-    public void show_settings(CanvasLayer openerLayer) => ShowSettings(openerLayer);
 
-    public Button mouse_lock_button() => MouseLockButton();
 }

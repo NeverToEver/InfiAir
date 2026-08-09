@@ -47,5 +47,4 @@ public partial class FogEvent : GameEvent
 
     public ColorRect? overlay_rect() => OverlayRect();
 
-    public void emit_direction_shift(Vector2 dir, float hold) => EmitDirectionShift(dir, hold);
 }

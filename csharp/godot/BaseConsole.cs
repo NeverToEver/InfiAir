@@ -111,6 +111,8 @@ public partial class BaseConsole : CanvasLayer
         var dim = new ColorRect { Color = UITheme.PhantomBg };
         dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(dim);
+        dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(dim);
 
         // 虚影站内部概念背景层（§3.3.1）：PHANTOM 站体 r≈520 以 (960,540) 为圆心，
         // 父容器压 α≈0.12（站体自呼吸写自身 modulate:a，不能直接在站体上压 alpha）+ 8s/趟全屏慢扫描带。
@@ -429,9 +431,11 @@ public partial class BaseConsole : CanvasLayer
 
     private void RefreshRoutes()
     {
+        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
+        //（Hud.cs:1194 同场景先例）
         foreach (var child in _routesBox.GetChildren())
         {
-            child.QueueFree();
+            child.Free();
         }
 
         var routeLines = GameState.Instance.ROUTE_LINES;
@@ -480,9 +484,10 @@ public partial class BaseConsole : CanvasLayer
 
     private void RefreshMissions()
     {
+        // U16：同 RefreshRoutes（同步删除防同帧并存闪一帧）
         foreach (var child in _missionsBox.GetChildren())
         {
-            child.QueueFree();
+            child.Free();
         }
 
         // 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS
@@ -531,6 +536,22 @@ public partial class BaseConsole : CanvasLayer
     private void OnLocaleChanged()
     {
         Refresh();
+    }
+
+    public override void _ExitTree()
+    {
+        // U06（2026-08-09 审计）：C22 模式配对断开——死亡重开场景重载后残留连接
+        // 在切语言时回调已释放实例
+        var gs = GameState.Instance;
+        if (gs == null)
+        {
+            return;
+        }
+
+        if (gs.IsConnected("LocaleChanged", _localeChanged))
+        {
+            gs.Disconnect("LocaleChanged", _localeChanged);
+        }
     }
 
     /// <summary>A7：测试/诊断经公开接口（动作包装）。</summary>
@@ -633,6 +654,12 @@ public partial class BaseConsole : CanvasLayer
     private void HideRefreshHint()
     {
         _refreshHintLabel.Visible = false;
+        // U16：一次性提示 Timer 触发后自清理（原触发后仍挂树，每次提示泄漏一个已触发 Timer）
+        if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
+        {
+            _refreshHintTimer.QueueFree();
+            _refreshHintTimer = null;
+        }
     }
 
     /// <summary>A7：测试/诊断经公开接口（动作包装）。</summary>
@@ -688,13 +715,10 @@ public partial class BaseConsole : CanvasLayer
 
     public void recharge() => Recharge();
 
-    public void choose_route(StringName line, StringName buffId) => ChooseRoute(line, buffId);
 
-    public void claim_mission(StringName id) => ClaimMission(id);
 
     public void resume() => Resume();
 
-    public void refresh_tasks() => RefreshTasks();
 }
 
 /// <summary>面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call。

@@ -41,39 +41,30 @@ public partial class Starfield : Node2D
     /// <summary>M3a 探针：验证 GDScript → C# 静态方法经脚本资源调用（静态属性不可达——实测）。</summary>
     public static int StaticProbe() => 42;
 
-    /// <summary>M3a 探针：重载注册行为（可选参数方法不注册——实测，改用重载测试）。</summary>
-    public void ProbeOverload(float a)
-    {
-    }
-
-    public void ProbeOverload(float a, bool b)
-    {
-    }
-
     public override void _Ready()
     {
         ZIndex = -10;
         // R07：判型 + 非负钳制（L 系列判型族登记遗留）——字符串/负数手改配置不崩、不做负尺寸 resize
-        var gameState = GetNode("/root/GameState");
-        var fc = gameState.Call("cfg", "effects.starfield.far_count", _farCount);
+        // U03（2026-08-09 审计）：M7d 漏改的 Call("cfg") → typed（原动态调用已不存在，配置静默失效 + 每局 4 条引擎错误）
+        var fc = GameState.Instance.Cfg("effects.starfield.far_count", _farCount);
         if (fc.VariantType == Variant.Type.Int && fc.AsInt64() >= 0)
         {
             _farCount = (int)fc.AsInt64();
         }
 
-        var nc = gameState.Call("cfg", "effects.starfield.near_count", _nearCount);
+        var nc = GameState.Instance.Cfg("effects.starfield.near_count", _nearCount);
         if (nc.VariantType == Variant.Type.Int && nc.AsInt64() >= 0)
         {
             _nearCount = (int)nc.AsInt64();
         }
 
-        var fs = gameState.Call("cfg", "effects.starfield.far_speed", _farSpeed);
+        var fs = GameState.Instance.Cfg("effects.starfield.far_speed", _farSpeed);
         if (fs.VariantType is Variant.Type.Float or Variant.Type.Int)
         {
             _farSpeed = (float)fs.AsDouble();
         }
 
-        var ns = gameState.Call("cfg", "effects.starfield.near_speed", _nearSpeed);
+        var ns = GameState.Instance.Cfg("effects.starfield.near_speed", _nearSpeed);
         if (ns.VariantType is Variant.Type.Float or Variant.Type.Int)
         {
             _nearSpeed = (float)ns.AsDouble();

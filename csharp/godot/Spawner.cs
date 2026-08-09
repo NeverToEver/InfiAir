@@ -807,77 +807,45 @@ public partial class Spawner : Node
     // perf_bench,view_zoom,boss_phase_transition,boss_pattern,boss_enrage,hit_logic,entity_manager,fog_event,
     // buff33,buff_effects,graze,mothership_summon,orbital_strike,pool_reuse,entry_animation}_test 等。
 
-    public void set_elite_event(Node? eventNode) => SetEliteEvent(eventNode);
 
-    public void set_formation_event(Node? eventNode) => SetFormationEvent(eventNode);
 
-    public void set_elapsed(float seconds) => SetElapsed(seconds);
 
-    public void spawn_boss(int pType) => SpawnBoss(pType);
 
-    public void spawn_boss() => SpawnBoss();
 
-    public void spawn_enemy() => SpawnEnemy();
 
-    public void spawn_normal_wave() => SpawnNormalWave();
 
-    public int wave_size() => WaveSize();
 
-    public int count_spread_enemies() => CountSpreadEnemies();
 
-    public StringName pick_bullet_type(Godot.Collections.Dictionary config) => PickBulletType(config);
 
-    public float current_interval() => CurrentInterval();
 
-    public void set_boss_timer(float seconds) => SetBossTimer(seconds);
 
-    public void set_next_boss_score(int scoreValue) => SetNextBossScore(scoreValue);
 
-    public void set_wave_timer(float seconds) => SetWaveTimer(seconds);
 
-    public void set_waves_since_special(int count) => SetWavesSinceSpecial(count);
 
-    public void set_boss_active(bool active) => SetBossActive(active);
 
-    public bool boss_frozen() => BossFrozen();
 
-    public bool waves_paused() => WavesPaused();
 
-    public bool boss_pending() => BossPending();
 
-    public void set_boss_pending(bool pending) => SetBossPending(pending);
 
     public Node? formation_event() => FormationEvent();
 
     public Vector2 hover_band() => HoverBand();
 
-    public void notify_special_killed() => NotifySpecialKilled();
 
-    public void notify_boss_died() => NotifyBossDied();
 
-    public float boss_timer() => BossTimer();
 
-    public float wave_timer() => WaveTimer();
 
-    public int waves_since_special() => WavesSinceSpecial();
 
     public float elapsed() => Elapsed();
 
-    public void set_boss_frozen(bool frozen) => SetBossFrozen(frozen);
 
-    public void set_waves_paused(bool paused) => SetWavesPaused(paused);
 
-    public bool is_boss_active() => IsBossActive();
 
     public Node? elite_event() => EliteEvent();
 
-    public void notify_event_triggered() => NotifyEventTriggered();
 
-    public bool consume_boss_pending() => ConsumeBossPending();
 
-    public void trigger_boss() => TriggerBoss();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> unlocked_types() => UnlockedTypes();
 
     public Enemy spawn_minion(Vector2 pos) => SpawnMinion(pos);
 

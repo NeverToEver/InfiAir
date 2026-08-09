@@ -92,12 +92,13 @@ public partial class Enemy : Area2D
 
     private readonly Callable _onBuffsChanged;
 
-    /// <summary>热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（全敌机共享）。</summary>
-    private static ulong _frame = ulong.MaxValue;
-    private static Rect2 _frameView;
-    private static Variant _framePlayer;
+    /// <summary>热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（全敌机共享）。
+    /// U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）</summary>
+    private ulong _frame = ulong.MaxValue;
+    private Rect2 _frameView;
+    private Variant _framePlayer;
 
-    private static Rect2 CachedView()
+    private Rect2 CachedView()
     {
         var f = Engine.GetPhysicsFrames();
         if (f != _frame)
@@ -110,7 +111,7 @@ public partial class Enemy : Area2D
         return _frameView;
     }
 
-    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
+    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public Enemy()
     {
@@ -432,25 +433,17 @@ public partial class Enemy : Area2D
 
     public bool hovering() => Hovering();
 
-    public void set_fire_timer(float seconds) => SetFireTimer(seconds);
 
-    public void fire_at_player() => FireAtPlayer();
 
-    public void set_life_timer(float seconds) => SetLifeTimer(seconds);
 
     public bool is_active() => IsActive();
 
-    public void set_repooling(bool value) => SetRepooling(value);
 
-    public bool is_exiting() => IsExiting();
 
-    public float summon_slow_timer() => SummonSlowTimer();
 
     public void apply_slow(float duration, float factor) => ApplySlow(duration, factor);
 
-    public void set_split(bool enabled) => SetSplit(enabled);
 
-    public void set_pool(EnemyPool pool) => SetPool(pool);
 
     public void deactivate() => Deactivate();
 
@@ -486,7 +479,7 @@ public partial class Enemy : Area2D
 
     public bool aim_marked { get => AimMarked; set => AimMarked = value; }
 
-    // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；M7 删除）
+    // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；A7 白盒测试兼容保留）
     public Vector2 HOVER_BAND { get => HoverBand; set => HoverBand = value; }
 
     public float HOVER_BOB_AMP { get => HoverBobAmp; set => HoverBobAmp = value; }
@@ -521,22 +514,11 @@ public partial class Enemy : Area2D
 
     public float SLOW_FIELD_FACTOR { get => SlowFieldFactor; set => SlowFieldFactor = value; }
 
-    public float LIFETIME { get => Lifetime; set => Lifetime = value; }
 
-    public float EXIT_ACCEL { get => ExitAccel; set => ExitAccel = value; }
 
-    public float AGGR_CHASE_SPEED { get => AggrChaseSpeed; set => AggrChaseSpeed = value; }
 
-    public float FIRE_INTERVAL { get => FireInterval; set => FireInterval = value; }
-
-    // pool_reuse_test 白盒断言访问（L02 信号保持连接 / slow_field 缓存复位）
-    public Callable _on_buffs_changed => _onBuffsChanged;
-
-    public bool _slow_field_on => _slowFieldOn;
-
-    // ---------------- 三角函数查表（2048 项循环表 + 线性插值，全敌机共享一份） ----------------
-
-    private const int TrigSize = 2048;
+    /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值，2026-08-07 perf 批次引入）。</summary>
+    private const int TrigSize = 256;
     private static float[]? _sinTable;
 
     public static float SinFast(float x)
@@ -554,6 +536,12 @@ public partial class Enemy : Area2D
         var idx = (int)t;
         return Mathf.Lerp(_sinTable[idx], _sinTable[idx + 1], t - idx);
     }
+
+
+    // pool_reuse_test 白盒断言访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留）
+    public Callable _on_buffs_changed => _onBuffsChanged;
+
+    public bool _slow_field_on => _slowFieldOn;
 
     public static float CosFast(float x) => SinFast(x + Mathf.Pi / 2.0f);
 
@@ -849,25 +837,24 @@ public partial class Enemy : Area2D
             dmg = BulletDamageLaser;
         }
 
-        var pool = (GodotObject?)GameState.Instance.BulletPool;
+        var pool = GameState.Instance.BulletPool;
         if (pool == null)
         {
             return;
         }
 
-        var b = pool.Call("Fire", dir, bulletSpeed, dmg, false);
-        if (b.VariantType == Variant.Type.Nil)
+        var b = pool!.Fire(dir, bulletSpeed, dmg, false);
+        if (b == null)
         {
             return; // P2-3：同屏敌弹硬上限
         }
 
-        var bullet = (GodotObject)b;
-        bullet.Set("position", Position); // b.position = position（敌方子弹出生在敌机位置）
-        bullet.Call("set_meta", "bullet_type", pType); // 原生 Object 方法 snake_case（C# SetMeta 不注册进引擎表）
+        b.Set("position", Position); // b.position = position（敌方子弹出生在敌机位置）
+        b.SetMeta("bullet_type", pType); // U13：GodotObject 原生方法 typed
         if (pType == "laser")
         {
             // 细长高亮快速弹（Sprite2D 缓存引用）
-            var poly = (Sprite2D?)bullet.Call("SpriteNode");
+            var poly = b.SpriteNode();
             if (poly != null)
             {
                 poly.Scale = new Vector2(2.2f, 0.55f);

@@ -20,7 +20,7 @@ public partial class PauseUi : CanvasLayer
     private Label _hintLabel = null!;
     private ChamferedPanel _plate = null!;
     private VBoxContainer _content = null!;
-    private CanvasLayer? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
+    private SettingsUi? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
     private ColorRect _dim = null!;
     private bool _saved; // 保存态标志（2026-08-03 审计：跨语言文本比较判保存态会误判）
 
@@ -135,7 +135,7 @@ public partial class PauseUi : CanvasLayer
     {
         if (_settingsUi == null)
         {
-            _settingsUi = GetTree().GetFirstNodeInGroup("settings_ui") as CanvasLayer;
+            _settingsUi = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
         }
         return _settingsUi;
     }
@@ -154,16 +154,16 @@ public partial class PauseUi : CanvasLayer
             return;
         }
         Visible = false;
-        _settingsUi!.Call("show_settings", this);
+        _settingsUi!.ShowSettings(this);
     }
 
     private void OnSavePressed()
     {
         var playerV = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调  # A5：走注册表，替代 group 现找
         var player = playerV != null ? playerV as Player : null;
-        var spawner = GetTree().GetFirstNodeInGroup("spawner");
+        var spawner = GetTree().GetFirstNodeInGroup("spawner") as Spawner;
         var fuel = player != null ? player.FuelAmount() : 100.0f;
-        var elapsed = spawner != null ? (float)spawner.Call("elapsed").AsDouble() : 0.0f;
+        var elapsed = spawner != null ? spawner.Elapsed() : 0.0f;
         GameState.Instance.SaveRun(fuel, elapsed);
         _saved = true;
         _saveButton.Text = Tr("PAUSE_SAVED");
@@ -185,10 +185,10 @@ public partial class PauseUi : CanvasLayer
     {
         // 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
         // C17：get_node_or_null + 判空，测试场景缺该节点不崩溃
-        var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as CanvasLayer;
+        var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {
-            exitConfirm.Call("show_confirm", true);
+            exitConfirm.ShowConfirm(true);
         }
     }
 
@@ -215,9 +215,7 @@ public partial class PauseUi : CanvasLayer
 
     public void toggle() => Toggle();
 
-    public void grab_primary_focus() => GrabPrimaryFocus();
 
-    public void open_settings() => OpenSettings();
 
     public void save() => Save();
 

@@ -14,7 +14,8 @@ public partial class FormationCraft : Area2D
     public delegate void DiedEventHandler(FormationCraft craft);
 
     /// <summary>机体贴图（原 GDScript preload）。</summary>
-    private static readonly Texture2D Texture = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png");
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly Texture2D _texture = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png");
 
     public int MaxHp { get; set; } = 60;
     public int Hp { get; set; } = 60;
@@ -39,7 +40,7 @@ public partial class FormationCraft : Area2D
         CollisionMask = 0;
         _sprite = new Sprite2D
         {
-            Texture = Texture,
+            Texture = _texture,
             Scale = Vector2.One * 0.9f * (float)GameState.Instance.WorldScale, // 设计值 0.9 × 全局缩放
         };
         AddChild(_sprite);

@@ -168,15 +168,10 @@ public partial class ExitConfirm : CanvasLayer
     // C# PauseUi 亦经 Call("show_confirm", true) 动态调）、test/back_navigation_test.gd
     // （battle_mode/msg_label/execute_exit_cleanup/visible）、autoplay_test.gd（visible）。
 
-    public void show_confirm() => ShowConfirm();
 
-    public void show_confirm(bool battle) => ShowConfirm(battle);
 
     public void cancel() => Cancel();
 
-    public bool battle_mode() => BattleMode();
 
-    public Label msg_label() => MsgLabel();
 
-    public void execute_exit_cleanup(bool battle) => ExecuteExitCleanup(battle);
 }

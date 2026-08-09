@@ -357,7 +357,10 @@ public sealed class UserDb
             for (var n = 0; n < iterations; n++)
             {
                 u = hmac.ComputeHash(u);
-                for (var j = 0; j < t.Length; j++)
+                // U15：异或循环越界钳制——盐 >28 字节（合法 hex、手改记录）时 u 短于 t，
+                // 原实现越界崩溃，与头注"防御性收敛…安全回退"口径不符
+                var bound = Math.Min(t.Length, u.Length);
+                for (var j = 0; j < bound; j++)
                 {
                     t[j] ^= u[j];
                 }
@@ -426,7 +429,9 @@ public sealed class UserDb
         return _store.TrySave(_path, _db, out _);
     }
 
-    /// <summary>GDScript int() 语义（JSON 域内；字符串数字可解析，非法回 0——原 int() 对 Array 等崩溃处防御性回退）。</summary>
+    /// <summary>GDScript int() 语义（JSON 域内；字符串数字前缀可解析，非法回 0——原 int() 对
+    /// Array 等崩溃处防御性回退）。U15：对齐 GDScript 前缀解析——"7.5"→7、"0x10"→16、
+    /// " 7 "→7（原 long.TryParse(Integer) 仅认十进制整数形式，三者均误回 0）。</summary>
     private static long ToInt64(object? v)
     {
         return v switch
@@ -434,10 +439,61 @@ public sealed class UserDb
             long l => l,
             double d => unchecked((long)d),
             bool b => b ? 1 : 0,
-            string s => long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : 0,
+            string s => ParseGdscriptInt(s),
             null => 0,
             _ => 0,
         };
+    }
+
+    /// <summary>GDScript int(String) 前缀解析：可选符号 + 十进制数字前缀（"7.5"→7），
+    /// 0x/0X 十六进制前缀（"0x10"→16）；无可解析数字回 0。</summary>
+    private static long ParseGdscriptInt(string s)
+    {
+        s = s.Trim();
+        if (s.Length == 0)
+        {
+            return 0;
+        }
+
+        var neg = false;
+        var i = 0;
+        if (s[i] == '-' || s[i] == '+')
+        {
+            neg = s[i] == '-';
+            i++;
+        }
+
+        if (i + 1 < s.Length && s[i] == '0' && (s[i + 1] == 'x' || s[i + 1] == 'X'))
+        {
+            var hex = s[(i + 2)..];
+            var hexEnd = 0;
+            while (hexEnd < hex.Length && Uri.IsHexDigit(hex[hexEnd]))
+            {
+                hexEnd++;
+            }
+
+            if (hexEnd == 0)
+            {
+                return 0;
+            }
+
+            var hv = long.Parse(hex[..hexEnd], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            return neg ? -hv : hv;
+        }
+
+        var start = i;
+        while (i < s.Length && char.IsAsciiDigit(s[i]))
+        {
+            i++;
+        }
+
+        if (i == start)
+        {
+            return 0;
+        }
+
+        var val = long.Parse(s[start..i], CultureInfo.InvariantCulture);
+        return neg ? -val : val;
     }
 
     /// <summary>GDScript String() 语义（仅接受字符串，其余按空串——手改非字符串字段验密必然失败）。</summary>

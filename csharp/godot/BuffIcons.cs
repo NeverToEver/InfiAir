@@ -199,9 +199,6 @@ public partial class BuffIcons : RefCounted
 
     // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
 
-    public static Color color_for(StringName id) => ColorFor(id);
 
-    public static Control make_glyph(StringName id, Color color) => MakeGlyph(id, color);
 
-    public static Control make_glyph(StringName id, Color color, float px) => MakeGlyph(id, color, px);
 }

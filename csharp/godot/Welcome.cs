@@ -55,6 +55,17 @@ public partial class Welcome : CanvasLayer
     private Godot.Collections.Dictionary _guestConfirm = new();
     private Godot.Collections.Dictionary _deleteConfirm = new();
     private Godot.Collections.Dictionary _exitConfirm = new();
+    // U01（2026-08-09 审计）：LocaleChanged 连接缓存 Callable 供 _ExitTree 配对断开——
+    // welcome→main 切换后残留连接回调已释放实例（Hud.cs:456 实测先例可致退出 segfault）
+    private readonly Callable _onLocaleChanged;
+    private readonly Callable _onEscLocaleChanged;
+    private Label _escHint = null!;
+
+    public Welcome()
+    {
+        _onLocaleChanged = Callable.From(RefreshTexts);
+        _onEscLocaleChanged = Callable.From(RefreshEscHint);
+    }
 
     public override void _Ready()
     {
@@ -94,7 +105,7 @@ public partial class Welcome : CanvasLayer
         BuildOverlays();
         BuildEscHint();
 
-        GameState.Instance!.Connect("LocaleChanged", Callable.From(RefreshTexts));
+        GameState.Instance!.Connect("LocaleChanged", _onLocaleChanged);
         RefreshTexts();
         PrefillLastLogin();
     }
@@ -517,7 +528,7 @@ public partial class Welcome : CanvasLayer
         }
 
         Visible = false; // 面板遮挡：先隐藏自己（对齐 StartPanel 行为）
-        settings.Call("show_settings", this);
+        (settings as SettingsUi)?.ShowSettings(this);
     }
 
     private void GotoMain()
@@ -692,7 +703,7 @@ public partial class Welcome : CanvasLayer
             var settings = GetTree().GetFirstNodeInGroup("settings_ui");
             if (settings is CanvasLayer settingsLayer && settingsLayer.Visible)
             {
-                settingsLayer.Call("back");
+                (settingsLayer as SettingsUi)?.Back();
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -788,11 +799,38 @@ public partial class Welcome : CanvasLayer
         escHint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         escHint.Position = new Vector2(-420.0f, -50.0f);
         escHint.CustomMinimumSize = new Vector2(360.0f, 0.0f);
+        _escHint = escHint;
         AddChild(escHint);
-        GameState.Instance!.Connect("LocaleChanged", Callable.From(() =>
+        // U01：匿名 lambda 无法断开，改具名回调 + 缓存 Callable（_ExitTree 配对）
+        GameState.Instance!.Connect("LocaleChanged", _onEscLocaleChanged);
+    }
+
+    private void RefreshEscHint()
+    {
+        if (_escHint != null)
         {
-            escHint.Text = Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT");
-        }));
+            _escHint.Text = Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT");
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        // U01：C22 模式配对断开（welcome 此前为全分区唯一无 _ExitTree 的常驻场景）
+        var gs = GameState.Instance;
+        if (gs == null)
+        {
+            return;
+        }
+
+        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        {
+            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+        }
+
+        if (gs.IsConnected("LocaleChanged", _onEscLocaleChanged))
+        {
+            gs.Disconnect("LocaleChanged", _onEscLocaleChanged);
+        }
     }
 
     // ---------------- 测试/诊断公开接口（A7 约定） ----------------
@@ -847,51 +885,28 @@ public partial class Welcome : CanvasLayer
     // 调用方：test/welcome_flow_test.gd、test/startup_flow_test.gd（A7 白盒断言）、
     // scripts/settings_ui.gd（grab_primary_focus 经 has_method 探测）。
 
-    public LineEdit username_line() => UsernameLine();
 
-    public Label corrupt_label() => CorruptLabel();
 
-    public Button continue_button() => ContinueButton();
 
-    public Button new_button() => NewButton();
 
-    public Button tutorial_button() => TutorialButton();
 
-    public LineEdit password_line() => PasswordLine();
 
-    public void press_login() => DoLogin();
 
-    public void press_register() => DoRegister();
 
-    public void press_guest() => ShowGuestConfirm();
 
-    public void confirm_guest() => ConfirmGuest();
 
-    public void press_delete() => ShowDeleteConfirm();
 
-    public void confirm_delete() => ConfirmDelete();
 
-    public void press_leaderboard() => OpenLeaderboard();
 
-    public void close_leaderboard() => CloseLeaderboard();
 
-    public void press_new_game() => OnNewGamePressed();
 
-    public void press_continue() => OnContinuePressed();
 
-    public void press_tutorial() => OnTutorialPressed();
 
     public void press_settings() => OnSettingsPressed();
 
-    public bool main_zone_visible() => MainZoneVisible();
 
-    public CanvasLayer leaderboard_overlay() => LeaderboardOverlay();
 
-    public CanvasLayer guest_confirm() => GuestConfirm();
 
-    public CanvasLayer delete_confirm() => DeleteConfirm();
 
-    public CanvasLayer exit_confirm_layer() => ExitConfirmLayer();
 
-    public void grab_primary_focus() => GrabPrimaryFocus();
 }

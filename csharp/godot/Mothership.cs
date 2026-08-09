@@ -28,7 +28,8 @@ public partial class Mothership : Area2D
     /// RELEASE 出舱 → DEPART 离场（数值对齐原 GDScript 枚举，GDScript 调用方按序数比较）。</summary>
     public enum State { DESCEND, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
-    private static readonly AudioStream GatlingSfx = GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav");
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly AudioStream _gatlingSfx = GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav");
 
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     /// <summary>G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）。</summary>
@@ -133,10 +134,10 @@ public partial class Mothership : Area2D
     private bool _magWarned;
     private float _warnEjectTimer;
     private float _earlyTimer;
-    private Node? _hudCache; // A5 收敛：HUD 延迟缓存（驻留期每帧刷新进度条用）
+    private Hud? _hudCache; // A5 收敛：HUD 延迟缓存（驻留期每帧刷新进度条用）
     private float _cooldownFactor = 1.0f;
     private float _prefill;
-    private GodotObject? _warpGate;
+    private WarpGate? _warpGate; // U13：typed
     private Vector2 _warpFrom;
     private Vector2 _warpTarget;
     private float _ws = 1.0f; // world_scale 缓存（_ready 写入，帧内复用）
@@ -383,7 +384,7 @@ public partial class Mothership : Area2D
     /// <summary>穿梭入场（召唤序列入口，由 main 在实例化后调用）：母舰从穿梭门门心穿出，
     /// 缩放 0.25→1 + ease-out 减速滑入停驻点；gate_pos 即最终停驻点。
     /// 注意：main 在 add_child 前调用本方法（先于 _ready 配置缓存），行程须内联读配置。</summary>
-    public void BeginWarpIn(Vector2 gatePos, GodotObject gate)
+    public void BeginWarpIn(Vector2 gatePos, WarpGate gate)
     {
         _warpGate = gate;
         _warpTarget = gatePos;
@@ -467,29 +468,21 @@ public partial class Mothership : Area2D
 
     public static int GetStateDepart() => (int)State.DEPART;
 
-    public void begin_warp_in(Vector2 gate_pos, GodotObject gate) => BeginWarpIn(gate_pos, gate);
+    public void begin_warp_in(Vector2 gate_pos, GodotObject gate) => BeginWarpIn(gate_pos, (WarpGate)gate);
 
-    public string state_text() => StateText();
 
     public State state() => GetState();
 
     public int mag_cells() => GetMagCells();
 
-    public void set_state_timer(float seconds) => SetStateTimer(seconds);
 
-    public float mag_cell_timer() => MagCellTimer();
 
-    public bool mag_warned() => MagWarned();
 
-    public float warn_eject_timer() => WarnEjectTimer();
 
     public Polygon2D beam() => Beam();
 
-    public void set_mag_cell_timer(float seconds) => SetMagCellTimer(seconds);
 
-    public void set_mag_cells(int count) => SetMagCells(count);
 
-    public void set_warn_eject_timer(float seconds) => SetWarnEjectTimer(seconds);
 
     public void start_release() => StartRelease();
 
@@ -659,7 +652,7 @@ public partial class Mothership : Area2D
                         // H14（健壮性审核）：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
                         if (GodotObject.IsInstanceValid(_warpGate))
                         {
-                            _warpGate.Call("close");
+                            _warpGate!.Close();
                         }
 
                         _warpGate = null;
@@ -669,7 +662,7 @@ public partial class Mothership : Area2D
                     var hud = Hud();
                     if (hud != null)
                     {
-                        hud.Call("show_info_banner", Tr("BANNER_MOTHERSHIP_ARRIVED"));
+                        hud.ShowInfoBanner(Tr("BANNER_MOTHERSHIP_ARRIVED"));
                     }
 
                     StartDocking(GameState.Instance.PlayerRef); // M3c：player_ref 恒为 Player
@@ -744,7 +737,7 @@ public partial class Mothership : Area2D
                         var hud = Hud();
                         if (hud != null)
                         {
-                            hud.Call("show_magazine_warning");
+                            hud.ShowMagazineWarning();
                         }
                     }
                 }
@@ -766,7 +759,7 @@ public partial class Mothership : Area2D
                     var hud = Hud();
                     if (hud != null)
                     {
-                        hud.Call("set_early_leave_charge", _earlyTimer / EarlyHoldTime);
+                        hud.SetEarlyLeaveCharge((float)(_earlyTimer / EarlyHoldTime));
                     }
                 }
                 else
@@ -776,7 +769,7 @@ public partial class Mothership : Area2D
                         var hud = Hud();
                         if (hud != null)
                         {
-                            hud.Call("set_early_leave_charge", -1.0);
+                            hud.SetEarlyLeaveCharge(-1.0f);
                         }
                     }
 
@@ -842,9 +835,9 @@ public partial class Mothership : Area2D
                 continue;
             }
 
-            if (e.HasMethod("apply_slow"))
+            if (e is Enemy enemy) // U13：typed（apply_slow 仅 Enemy 有）
             {
-                e.Call("apply_slow", SlowDuration, SlowFactor);
+                enemy.ApplySlow(SlowDuration, SlowFactor);
             }
         }
 
@@ -1048,7 +1041,7 @@ public partial class Mothership : Area2D
             }
         }
 
-        GameState.Instance.PlaySfx(GatlingSfx, -8.0);
+        GameState.Instance.PlaySfx(_gatlingSfx, -8.0);
     }
 
     /// <summary>导弹齐射（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期，每 0.3s 一波，锁定距对接点最近的 ≤5 个目标
@@ -1128,11 +1121,11 @@ public partial class Mothership : Area2D
     /// <summary>A5 收敛（DESIGN_BASELINE §7.1）：HUD 引用统一经延迟缓存获取——hud 是 main.tscn
     /// 固定层，生命周期内恒定；8 处重复 group 查找收敛为单点缓存。行为与直接查找等价
     /// （is_instance_valid 守卫：极端重载时序下缓存失效则重新查找）。</summary>
-    private Node? Hud()
+    private Hud? Hud()
     {
         if (!GodotObject.IsInstanceValid(_hudCache))
         {
-            _hudCache = GetTree().GetFirstNodeInGroup("hud");
+            _hudCache = GetTree().GetFirstNodeInGroup("hud") as Hud;
         }
 
         return _hudCache;
@@ -1169,7 +1162,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.Call("set_early_leave_charge", -1.0);
+            hud.SetEarlyLeaveCharge(-1.0f);
             var factor = Mathf.Max(0.6f, 1.0f - EarlyMaxDiscount * ratio) * (1.0f - _prefill);
             hud.Call(
                 "show_popup",
@@ -1194,7 +1187,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.Call("set_early_leave_charge", -1.0);
+            hud.SetEarlyLeaveCharge(-1.0f);
         }
 
         _beam.Visible = false;
@@ -1237,7 +1230,7 @@ public partial class Mothership : Area2D
             // H14：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
             if (GodotObject.IsInstanceValid(_warpGate))
             {
-                _warpGate.Call("close");
+                _warpGate!.Close();
             }
 
             _warpGate = null;
@@ -1245,9 +1238,9 @@ public partial class Mothership : Area2D
 
         // G011：隐藏 HUD 提前离舰蓄力进度条（E05 只覆盖 start_release 强制离舰路径，返航提前回收漏清）
         var hud = Hud();
-        if (hud != null && hud.HasMethod("set_early_leave_charge"))
+        if (hud != null)
         {
-            hud.Call("set_early_leave_charge", -1.0);
+            hud.SetEarlyLeaveCharge(-1.0f);
         }
 
         if (GodotObject.IsInstanceValid(_player) && !_player.IsDead() && !_player.Visible)

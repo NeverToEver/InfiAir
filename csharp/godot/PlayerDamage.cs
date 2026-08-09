@@ -11,6 +11,9 @@ namespace InfiAir;
 /// </summary>
 public class PlayerDamage
 {
+    // U14（2026-08-09 审计）：HealTick 每物理帧 BuffCount——buff 名静态缓存防每帧 StringName 构造
+    private static readonly StringName RegenBuff = new("regen");
+
     /// <summary>受击无敌剩余秒数（Player._physics_process 每帧递减）。</summary>
     public float Invincible { get; set; }
 
@@ -89,7 +92,7 @@ public class PlayerDamage
         GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT);
         GameState.Instance.Shake(ShakeHit);
         GameState.Instance.LoseHealth(amount);
-        GameState.Instance!.EmitSignal("PlayerDamaged", amount, fromPos); // Meta HUD 受击层（减免后最终值）
+        GameState.Instance.EmitSignal(GameState.SignalName.PlayerDamaged, amount, fromPos); // U16：SignalName 常量 + 类型链统一 float
         player.ClearNearbyEnemyBullets();
         if (GameState.Instance.Health <= 0.0)
         {
@@ -103,7 +106,7 @@ public class PlayerDamage
     public void HealTick(float delta)
     {
         SinceDamage += delta;
-        if (GameState.Instance.BuffCount(new StringName("regen")) > 0)
+        if (GameState.Instance.BuffCount(RegenBuff) > 0)
         {
             GameState.Instance.Heal(RegenPerSec * delta);
         }
@@ -121,13 +124,11 @@ public class PlayerDamage
 
     public bool take_damage(float amount, Vector2 fromPos, Player player) => TakeDamage(amount, fromPos, player);
 
-    public void heal_tick(float delta) => HealTick(delta);
 
     public void configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit)
         => Configure(invincibleTime, armorMult, evasionChance, regenPerSec, shakeHit);
 
 
-    public float invincible_remaining() => InvincibleRemaining();
 
     public float invincible { get => Invincible; set => Invincible = value; }
 

@@ -12,7 +12,7 @@ namespace InfiAir;
 /// _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
 /// CommOverlay（C# 同程序集 typed）；FormationCraft/FormationBomb 为 C# typed 直调。
 /// </summary>
-public partial class FormationStrikeEvent : Node
+public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
 {
     public enum State
     {
@@ -71,12 +71,12 @@ public partial class FormationStrikeEvent : Node
     private int _dropIndex;
     /// <summary>已投弹计数（测试可观测）。</summary>
     private int _dropped;
-    private CanvasLayer? _comm;
-    private Node? _spawner;
+    /// <summary>台词层（U14：typed 化——原降级 CanvasLayer + 动态派发，同族 EliteTurretEvent 为 typed）。</summary>
+    private CommOverlay? _comm;
+    private Spawner? _spawner;
 
     // ---- 热路径缓存：score / view_world_rect 每处理帧一次动态调用（全事件实例共享） ----
     private static ulong _frame = ulong.MaxValue;
-    private static int _frameScore;
     private static Rect2 _frameView;
 
     private static void RefreshFrameCache()
@@ -85,15 +85,8 @@ public partial class FormationStrikeEvent : Node
         if (f != _frame)
         {
             _frame = f;
-            _frameScore = (int)GameState.Instance.Score;
             _frameView = GameState.Instance.ViewWorldRect();
         }
-    }
-
-    private static int CachedScore()
-    {
-        RefreshFrameCache();
-        return _frameScore;
     }
 
     private static Rect2 CachedView()
@@ -103,7 +96,7 @@ public partial class FormationStrikeEvent : Node
     }
 
     /// <summary>K15：spawner 依赖注入（main._ready 调用，A5 延续——替代 group 现找，与 EliteTurretEvent 同款）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner;
+    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner; // U14：typed 字段
 
     public override void _Ready()
     {
@@ -137,7 +130,7 @@ public partial class FormationStrikeEvent : Node
         AddChild(_comm);
         // K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
         //（原实现事件节点先于 spawner 入树时 _spawner=null，互斥检查与波次暂停钩子静默失效）
-        _spawner ??= GetTree().GetFirstNodeInGroup("spawner");
+        _spawner ??= GetTree().GetFirstNodeInGroup("spawner") as Spawner;
     }
 
     public bool IsActive() => _state != State.IDLE;
@@ -167,31 +160,42 @@ public partial class FormationStrikeEvent : Node
             return false;
         }
 
-        // L13：母舰在场期不触发（同 elite：母舰自动火力清事件单位全额发奖，玩家零参与挂机）
-        if (GetTree().GetFirstNodeInGroup("mothership") != null)
+        // L13：母舰在场期不触发（同 elite：母舰自动火力清事件单位全额发奖，玩家零参与挂机）。
+        // U14：惰性缓存替代每帧组查询（节点释放失效自动重查）
+        if (MothershipPresent())
         {
             return false;
         }
 
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
-            if ((bool)_spawner.Call("is_boss_active").AsBool())
+            if (_spawner.IsBossActive())
             {
                 return false;
             }
 
-            var elite = _spawner.Call("elite_event");
-            var eliteObj = elite.AsGodotObject();
-            if (eliteObj != null)
+            if (_spawner.EliteEvent() is IEncounterEvent elite && elite.IsActive())
             {
-                if ((bool)eliteObj.Call("is_active").AsBool())
-                {
-                    return false;
-                }
+                return false;
             }
         }
 
         return true;
+    }
+
+    /// <summary>母舰在场惰性缓存（同 EliteTurretEvent：首次查得缓存，释放/退组失效重查，替代每帧组查询）。</summary>
+    private Node? _mothershipCache;
+
+    private bool MothershipPresent()
+    {
+        if (_mothershipCache != null && GodotObject.IsInstanceValid(_mothershipCache)
+            && _mothershipCache.IsInGroup("mothership"))
+        {
+            return true;
+        }
+
+        _mothershipCache = GetTree().GetFirstNodeInGroup("mothership");
+        return _mothershipCache != null;
     }
 
     /// <summary>事件启动（互斥检查通过后由 spawner 调用）。</summary>
@@ -207,10 +211,10 @@ public partial class FormationStrikeEvent : Node
         _heading = Mathf.Pi / 2.0f;
         _speed = ApproachSpeed;
         _dropped = 0;
-        // 占用波次槽：事件期间暂停普通波次（结束/打断时恢复）
+        // 占用波次槽：事件期间暂停普通波次（结束/打断时恢复。U14：typed 直调）
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
-            _spawner.Call("set_waves_paused", true);
+            _spawner.SetWavesPaused(true);
         }
 
         var view = CachedView();
@@ -250,7 +254,7 @@ public partial class FormationStrikeEvent : Node
         }
 
         _alive = count;
-        _comm?.Call("show_line", "FBQ_WARN");
+        _comm?.ShowLine("FBQ_WARN");
     }
 
     /// <summary>返航打断：编队立即解散离场，无结算，冷却照计（已投放的炸弹自然存续）。</summary>
@@ -265,7 +269,7 @@ public partial class FormationStrikeEvent : Node
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         ResumeWaves();
-        _comm?.Call("clear"); // B13：清掉已显警告台词，避免返航恢复后残留
+        _comm?.Clear(); // B13：清掉已显警告台词，避免返航恢复后残留
     }
 
     public override void _Process(double delta)
@@ -389,7 +393,7 @@ public partial class FormationStrikeEvent : Node
     {
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
-            _spawner.Call("set_waves_paused", false);
+            _spawner.SetWavesPaused(false);
         }
     }
 
@@ -485,7 +489,6 @@ public partial class FormationStrikeEvent : Node
     // 访问 C# 类；保留原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发
     // （C# 内部调用一律 PascalCase）。M7 全量迁移后删除本段。
 
-    public void set_spawner(Node spawner) => SetSpawner(spawner);
 
     public bool is_active() => IsActive();
 
@@ -493,13 +496,10 @@ public partial class FormationStrikeEvent : Node
 
     public Godot.Collections.Array crafts() => GetCrafts();
 
-    public int alive_count() => AliveCount();
 
     public int dropped() => DroppedCount();
 
-    public void set_cooldown_left(float seconds) => SetCooldownLeft(seconds);
 
-    public float cooldown_left() => CooldownLeft();
 
     public bool can_trigger() => CanTrigger();
 

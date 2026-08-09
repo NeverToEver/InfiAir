@@ -176,7 +176,14 @@ public sealed class SaveStore
                             return l;
                         }
 
-                        return val.GetValue<double>();
+                        // U09（2026-08-09 审计）：溢出数字（如手改 1e999）TryGetValue 返回 false，
+                        // 回退 null 而非 GetValue<double>() 抛异常击穿 Load 的"损坏回退"契约
+                        if (val.TryGetValue<double>(out var dbl))
+                        {
+                            return dbl;
+                        }
+
+                        return null;
                     case JsonValueKind.String:
                         return val.GetValue<string>();
                     case JsonValueKind.True:

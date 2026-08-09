@@ -7,8 +7,9 @@ namespace InfiAir;
 /// Boss 走位策略（M3 批次迁移，2026-08-08 自 scripts/boss_movement.gd 迁移；docs/AUDIT_VAULT.md A3）。
 /// 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.position（Node2D 公开属性），
 /// 经 boss 公开查询（slow_factor/strafe_range/is_enraged/fight_phase）交互，不访问私有字段（A1 约束）。
-/// 迁移期 boss 为 GDScript 对象：访问一律经动态派发（Get/Call snake_case，StringName 静态缓存避免每帧
-/// 字面量分配；随 Boss 批次重定型为类型化访问）。Enemy.SinFast 查表静态直接调用。纯 C# 类（原 RefCounted）。
+/// Boss 为 C# 类；访问经动态派发（Get/Call，StringName 静态缓存避免每帧字面量分配——U10 已消除
+/// 每帧构造，剩余动态派发频率 1 次/物理帧/Boss，收益低登记不修，typed 化留待 Boss API 重构一并做）。
+/// Enemy.SinFast 查表静态直接调用。纯 C# 类（原 RefCounted）。
 /// </summary>
 public partial class BossMovement : RefCounted
 {
@@ -327,13 +328,9 @@ public partial class BossMovement : RefCounted
     // boss_registry_test 仍按原名调用，故保留 snake_case 别名转发（C# 内部调用一律 PascalCase）。
     // M7 全量迁移后删除本段。
 
-    public void sync_press_timer(float interval) => SyncPressTimer(interval);
 
-    public void reset_press() => ResetPress();
 
-    public void begin_bob_smooth(float currentY) => BeginBobSmooth(currentY);
 
     public void update(float delta, GodotObject boss) => Update(delta, boss);
 
-    public bool has_mover(int type) => HasMover(type);
 }

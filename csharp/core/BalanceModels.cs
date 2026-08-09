@@ -6,8 +6,8 @@ namespace InfiAir.Core;
 /// <summary>
 /// data/balance.json 的类型化模型（InfiAir.Core 首个样板模块）。
 /// 纯 .NET、零 Godot 依赖 → 可在 xUnit 中直接单测；
-/// 与 GDScript 侧 <c>GameState.cfg()</c> 运行时读取并行存在，不替换任何现有链路。
-/// 字段值语义对齐 docs/BALANCE_MAP.md 与 test/balance_test.gd 抽查项。
+/// 字段值语义对齐 docs/BALANCE_MAP.md 与 test/balance_test.gd 抽查项
+///（U19：原"与 GDScript 侧 GameState.cfg() 并行存在"注记随 M7 全量迁移失效——现为唯一类型化入口）。
 /// </summary>
 public sealed class BalanceRoot
 {
@@ -53,6 +53,13 @@ public sealed class BalanceRoot
             error = ex.Message;
             return null;
         }
+        catch (Exception ex)
+        {
+            // U09（2026-08-09 审计）：损坏数据兜底——"失败返回 null"契约不得被
+            // 非 JsonException 击穿（如 JSON null 数组属性在 TryValidate 的 NRE）
+            error = ex.Message;
+            return null;
+        }
     }
 
     /// <summary>关键结构校验：缺失/越界即视为无效配置。</summary>
@@ -74,12 +81,13 @@ public sealed class BalanceRoot
             error = "enemies section invalid (collision_damage must be >= 0)";
             return false;
         }
-        if (Boss is null || Boss.HpMults.Length != BossCount || Boss.FireIntervals.Length != BossCount)
+        if (Boss is null || Boss.HpMults is null || Boss.HpMults.Length != BossCount
+            || Boss.FireIntervals is null || Boss.FireIntervals.Length != BossCount)
         {
             error = $"boss section invalid (hp_mults/fire_intervals must have {BossCount} entries)";
             return false;
         }
-        if (Spawner is null || Spawner.UnlockScores.Length != MilestoneCount)
+        if (Spawner is null || Spawner.UnlockScores is null || Spawner.UnlockScores.Length != MilestoneCount)
         {
             error = $"spawner section invalid (unlock_scores must have {MilestoneCount} entries)";
             return false;

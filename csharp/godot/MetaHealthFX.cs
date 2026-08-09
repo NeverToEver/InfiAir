@@ -259,6 +259,14 @@ public partial class MetaHealthFX : CanvasLayer
 
     public override void _ExitTree()
     {
+        // U11（2026-08-09 审计）：FramePostDraw 静态事件显式断开（连接存在才断开，防
+        // "disconnect nonexistent" 报错）；与下方 GameState 信号断开并列
+        if (_bakeFrameConnected)
+        {
+            RenderingServer.FramePostDraw -= OnBakeFrame;
+            _bakeFrameConnected = false;
+        }
+
         // C22 模式：GameState 信号显式断开 + 挂起的烘焙延迟回调——防退出 segfault
         // MetaFX 不在场时 hud 低血晕影走回退路径（D2）
         var gs = GameState.Instance;
@@ -743,12 +751,17 @@ public partial class MetaHealthFX : CanvasLayer
         // 一次性信号回调而非 await 协程：进程退出时挂起协程会泄漏函数状态
         _bakeVp = vp;
         RenderingServer.FramePostDraw += OnBakeFrame;
+        _bakeFrameConnected = true;
     }
+
+    /// <summary>烘焙回调是否已注册（U11：_ExitTree 断开前判活，未连接时 -= 报错）。</summary>
+    private bool _bakeFrameConnected;
 
     private void OnBakeFrame()
     {
-        // 一次性：回调内断开（节点先释放则连接已被 Godot 自动移除，回调不会触发）
+        // 一次性：回调内断开
         RenderingServer.FramePostDraw -= OnBakeFrame;
+        _bakeFrameConnected = false;
         var vp = _bakeVp;
         _bakeVp = null;
         if (!GodotObject.IsInstanceValid(vp))
@@ -831,7 +844,6 @@ public partial class MetaHealthFX : CanvasLayer
     // （set_test_state/state/damage_x/hit_pulse/crack_progress/heal_jitter/heart_rate/breath_scale/
     // breath_active/upload_count/early_out_count/rect/set_lod）。
 
-    public void set_test_state(Godot.Collections.Dictionary state) => SetTestState(state);
 
     public float crack_progress() => CrackProgress();
 
@@ -843,7 +855,6 @@ public partial class MetaHealthFX : CanvasLayer
 
     public float heal_jitter() => HealJitter();
 
-    public float heart_rate() => HeartRate();
 
     public float breath() => Breath();
 
@@ -857,5 +868,4 @@ public partial class MetaHealthFX : CanvasLayer
 
     public bool breath_active() => BreathActive();
 
-    public void set_lod(int v) => SetLod(v);
 }

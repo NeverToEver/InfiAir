@@ -9,11 +9,8 @@ namespace InfiAir;
 /// 切换为 *res://csharp/godot/GameState.cs）。
 /// 公开 API：PascalCase 主体；UPPER_SNAKE 常量同时提供同名实例属性（GDScript 经实例零适配
 /// 可读）与静态 GetXxx() 访问器（规则 19：静态字段禁持 Godot 对象——集合常量访问器每次
-/// 局部构造新集合，不静态持有）；全部 snake_case 原名经文末兼容桥转发（M7 过渡，删除前）。
-/// 内部服务：BalanceService/SfxPlayer/EntityManager/FogEventManager/GameEventManager/
-/// ProgressionInterop 为 C# typed 直调；SaveManager/UserDB/TaskPool 仍为 GDScript 薄壳
-/// （scripts/，测试直接实例化，经 C# Interop 转发），此处经 GD.Load&lt;GDScript&gt;().New()
-/// 动态实例化调用（语义等价保持，壳迁 C# 后主代理再改 typed）。
+/// 内部服务全部 C# typed 直调（U13：SaveManager/UserDB/TaskPool 的 snake 动态派发已清零，
+/// snake 桥已删除——原"M7 过渡"注记失效）。
 /// 信号迁移：C# [Signal] 注册名为 PascalCase（ScoreChanged 等），GDScript/csharp 连接方
 /// （test/*.gd 的 connect 与 csharp 侧 Connect("snake")）需改连 PascalCase 名（主代理集中适配）。
 /// 数值精度：GDScript float 为 64 位——纯标量（health/difficulty_multiplier 等）用 double
@@ -42,9 +39,10 @@ public partial class GameState : Node
     [Signal]
     public delegate void PlayerDiedEventHandler();
 
-    /// <summary>玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源</summary>
+    /// <summary>玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源。
+    /// U16：参数统一 float（发射/监听均为 float，原 double 声明不一致）。</summary>
     [Signal]
-    public delegate void PlayerDamagedEventHandler(double amount, Vector2 fromPos);
+    public delegate void PlayerDamagedEventHandler(float amount, Vector2 fromPos);
 
     [Signal]
     public delegate void ScreenShakeEventHandler(double strength);
@@ -371,7 +369,7 @@ public partial class GameState : Node
 
     /// <summary>任务池实例（_init_missions 重建，保证每次对局从全新洗牌序列开始）。
     /// 仍为 GDScript 薄壳（scripts/task_pool.gd → C# TaskPoolInterop）。</summary>
-    private GodotObject? _taskPool;
+    private TaskPool? _taskPool; // U13：typed（原 GodotObject? 动态派发）
 
     /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
     private readonly Godot.Collections.Dictionary _missionsByKind = new();
@@ -640,7 +638,7 @@ public partial class GameState : Node
     }
 
     /// <summary>子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）</summary>
-    public GodotObject? BulletPool
+    public BulletPool? BulletPool
     {
         get => _registry.BulletPool;
         set => _registry.BulletPool = value;
@@ -923,7 +921,7 @@ public partial class GameState : Node
     public string DifficultyLabel() => (string)Tr("DIFF_" + Difficulty.ToString().ToUpperInvariant());
 
     /// <summary>B 梯队：受击触发 DDA 降档（重入安全——幂等置位，重复受击刷新计时）</summary>
-    private void OnPlayerDamagedDda(double amount, Vector2 fromPos)
+    private void OnPlayerDamagedDda(float amount, Vector2 fromPos)
     {
         _ddaTimer = DDA_DURATION;
     }
@@ -952,12 +950,12 @@ public partial class GameState : Node
 
     /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
-    public float EnemyHpRamp() => _balanceService.EnemyHpRamp((float)DifficultyMultiplier);
+    public float EnemyHpRamp() => (float)_balanceService.EnemyHpRamp(DifficultyMultiplier);
 
     /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
     /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
-    public float EnemyDamageRamp() => _balanceService.EnemyDamageRamp((float)DifficultyMultiplier);
+    public float EnemyDamageRamp() => (float)_balanceService.EnemyDamageRamp(DifficultyMultiplier);
 
     public double SpawnIntervalMultiplier() => (double)DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["spawn"].AsDouble();
 
@@ -1740,9 +1738,13 @@ public partial class GameState : Node
     /// 已不在场的 id 由 _set_mission_progress 的 missions.has 守卫自动跳过）</summary>
     private void SetKindProgress(StringName kind, int value)
     {
-        foreach (var idV in _missionsByKind.GetValueOrDefault(kind, new Godot.Collections.Array()).AsGodotArray())
+        // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Array）
+        if (_missionsByKind.TryGetValue(kind, out var list))
         {
-            SetMissionProgress(idV.AsStringName(), value);
+            foreach (var idV in list.AsGodotArray())
+            {
+                SetMissionProgress(idV.AsStringName(), value);
+            }
         }
     }
 
@@ -1774,11 +1776,17 @@ public partial class GameState : Node
 
     public int MissionGoal(StringName id) => (int)MissionDef(id).GetValueOrDefault("goal", 0).AsInt64();
 
-    public int MissionProgress(StringName id) => (int)Missions.GetValueOrDefault(id, new Godot.Collections.Dictionary()).AsGodotDictionary().GetValueOrDefault("progress", 0).AsInt64();
+    // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Dictionary）
+    public int MissionProgress(StringName id) =>
+        Missions.TryGetValue(id, out var rec)
+            ? (int)rec.AsGodotDictionary().GetValueOrDefault("progress", 0).AsInt64()
+            : 0;
 
     public bool IsMissionDone(StringName id) => Missions.ContainsKey(id) && MissionProgress(id) >= MissionGoal(id);
 
-    public bool IsMissionClaimed(StringName id) => Missions.GetValueOrDefault(id, new Godot.Collections.Dictionary()).AsGodotDictionary().GetValueOrDefault("claimed", false).AsBool();
+    public bool IsMissionClaimed(StringName id) =>
+        Missions.TryGetValue(id, out var rec)
+            && (bool)rec.AsGodotDictionary().GetValueOrDefault("claimed", false).AsBool();
 
     /// <summary>领取已完成任务的 +3RP，每任务每局限领一次</summary>
     public bool ClaimMission(StringName id)
@@ -1837,16 +1845,15 @@ public partial class GameState : Node
             exclude.Add(id);
         }
 
-        var drawn = _taskPool!.Call("draw", MissionSlotsValue - kept.Count, exclude).AsGodotArray();
+        var drawn = _taskPool!.Draw(MissionSlotsValue - kept.Count, exclude);
         Missions.Clear();
         foreach (var idV in kept.Keys)
         {
             Missions[idV] = kept[idV];
         }
 
-        foreach (var defV in drawn)
+        foreach (var def in drawn) // U13：Draw 返回 typed Array<Dictionary>，元素直接是 Dictionary
         {
-            var def = defV.AsGodotDictionary();
             Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = def["goal"] };
         }
 
@@ -1903,13 +1910,13 @@ public partial class GameState : Node
     /// <summary>登录已有用户：载入其设置/最高分并即时生效（locale 即时 set_locale——B7-11）</summary>
     public void LoginUser(string name)
     {
-        if (!_userDb.Call("user_exists", name).AsBool())
+        if (!_userDb.UserExists(name))
         {
             return;
         }
 
         CurrentUser = name;
-        _userDb.Call("record_login", name);
+        _userDb.RecordLogin(name);
         LoadSessionSettings();
         TranslationServer.SetLocale(Locale);
         ApplyKeyBindings();
@@ -1946,7 +1953,7 @@ public partial class GameState : Node
             return "";
         }
 
-        return _userDb.Call("savefile_for_user", CurrentUser).AsString();
+        return _userDb.SavefileForUser(CurrentUser);
     }
 
     /// <summary>载入当前会话档案：登录用户 → user_db settings + 统计；游客/未登录 → 保留内存（游客不落盘）</summary>
@@ -1957,8 +1964,8 @@ public partial class GameState : Node
             return;
         }
 
-        ApplySettingsDict(_userDb.Call("get_user_settings", CurrentUser).AsGodotDictionary());
-        HighScore = (int)_userDb.Call("get_user_data", CurrentUser).AsGodotDictionary().GetValueOrDefault("high_score", 0).AsInt64();
+        ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
+        HighScore = (int)_userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0).AsInt64();
     }
 
     /// <summary>profile.json 退役迁移（B5）：启动时存在旧 profile 且用户表为空 → 缓存待首个注册用户合并</summary>
@@ -1969,9 +1976,9 @@ public partial class GameState : Node
             return;
         }
 
-        if (_saveManager.Call("exists", ProfilePathValue).AsBool() && _userDb.Call("list_usernames").AsGodotArray().Count == 0)
+        if (_saveManager.Exists(ProfilePathValue) && _userDb.ListUsernames().Count == 0)
         {
-            var parsed = _saveManager.Call("load", ProfilePathValue).AsGodotDictionary();
+            var parsed = _saveManager.Load(ProfilePathValue);
             if (parsed.Count > 0)
             {
                 _pendingLegacyProfile = parsed;
@@ -1990,7 +1997,7 @@ public partial class GameState : Node
     /// <summary>注册用户（转发 user_db.create_user）；成功后合并旧 profile 迁移数据并删除 profile.json（B5）</summary>
     public bool CreateUser(string name, string password)
     {
-        if (!_userDb.Call("create_user", name, password).AsBool())
+        if (!_userDb.CreateUser(name, password))
         {
             return false;
         }
@@ -1999,28 +2006,28 @@ public partial class GameState : Node
         {
             var legacy = (Godot.Collections.Dictionary)_pendingLegacyProfile.Duplicate();
             _pendingLegacyProfile.Clear();
-            _userDb.Call("update_high_score", name, (int)SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0));
+            _userDb.UpdateHighScore(name, (int)SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0));
             legacy.Remove("high_score");
             legacy.Remove("version");
             legacy.Remove("highscores");
-            _userDb.Call("update_user_settings", name, legacy);
-            _saveManager.Call("delete", ProfilePathValue);
+            _userDb.UpdateUserSettings(name, legacy);
+            _saveManager.Delete(ProfilePathValue);
         }
 
         return true;
     }
 
     /// <summary>用户数据库转发（A2 组合服务；供 welcome 登录面板使用）</summary>
-    public bool VerifyUser(string name, string password) => _userDb.Call("verify_user", name, password).AsBool();
+    public bool VerifyUser(string name, string password) => _userDb.VerifyUser(name, password);
 
-    public bool UserExists(string name) => _userDb.Call("user_exists", name).AsBool();
+    public bool UserExists(string name) => _userDb.UserExists(name);
 
     public Godot.Collections.Array<String> ListUsernames()
     {
         var outArr = new Godot.Collections.Array<String>();
-        foreach (var n in _userDb.Call("list_usernames").AsGodotArray())
+        foreach (var n in _userDb.ListUsernames()) // U13：typed Array<string>，元素直接是 string
         {
-            outArr.Add(n.AsString());
+            outArr.Add(n);
         }
 
         return outArr;
@@ -2028,21 +2035,21 @@ public partial class GameState : Node
 
     /// <summary>2026-08-06 审计：UserDB 显式重载（测试 wipe user:// 后刷新缓存起点——GameState
     /// _ready 的迁移探测会提前缓存真实用户表；Q23 快照范式配套）</summary>
-    public void ReloadUserDb() => _userDb.Call("reload");
+    public void ReloadUserDb() => _userDb.Reload();
 
-    public string GetLastLoginUser() => _userDb.Call("get_last_login_user").AsString();
+    public string GetLastLoginUser() => _userDb.GetLastLoginUser();
 
-    public bool DeleteUser(string name, string password) => _userDb.Call("delete_user", name, password).AsBool();
+    public bool DeleteUser(string name, string password) => _userDb.DeleteUser(name, password);
 
-    public Godot.Collections.Array GetLeaderboard() => _userDb.Call("get_leaderboard").AsGodotArray();
+    public Godot.Collections.Array GetLeaderboard() => _userDb.GetLeaderboard();
 
-    public Godot.Collections.Dictionary GetUserSettings(string name) => _userDb.Call("get_user_settings", name).AsGodotDictionary();
+    public Godot.Collections.Dictionary GetUserSettings(string name) => _userDb.GetUserSettings(name);
 
-    public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _userDb.Call("update_user_settings", name, settings);
+    public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _userDb.UpdateUserSettings(name, settings);
 
-    public Godot.Collections.Dictionary GetUserData(string name) => _userDb.Call("get_user_data", name).AsGodotDictionary();
+    public Godot.Collections.Dictionary GetUserData(string name) => _userDb.GetUserData(name);
 
-    public string UserDbSavefileFor(string name) => _userDb.Call("savefile_for_user", name).AsString();
+    public string UserDbSavefileFor(string name) => _userDb.SavefileForUser(name);
 
     // ---------------- 对局存档（登录用户 = user://savegame_<user>_<hash12>.json；游客不存档） ----------------
 
@@ -2085,7 +2092,7 @@ public partial class GameState : Node
         }
 
         // A2 阶段 2：文件 IO 委托 SaveManager
-        _saveManager.Call("save", path, data);
+        _saveManager.Save(path, data);
     }
 
     public bool HasSave()
@@ -2095,20 +2102,20 @@ public partial class GameState : Node
             return false;
         }
 
-        return _saveManager.Call("exists", SavePathForCurrent()).AsBool();
+        return _saveManager.Exists(SavePathForCurrent());
     }
 
     public Godot.Collections.Dictionary LoadRunData()
     {
         SaveCorrupt = false;
         var path = SavePathForCurrent();
-        if (path == "" || !_saveManager.Call("exists", path).AsBool())
+        if (path == "" || !_saveManager.Exists(path))
         {
             return new Godot.Collections.Dictionary();
         }
 
-        var data = _saveManager.Call("load", path).AsGodotDictionary();
-        if (_saveManager.Get("last_was_corrupt").AsBool())
+        var data = _saveManager.Load(path);
+        if (_saveManager.LastWasCorrupt)
         {
             // 损坏存档已由 SaveManager 隔离备份（<path>.corrupt），按无存档处理（不留死路径）。
             // 2026-08-06 审计 M2：必须直接返回——空字典继续做档主校验会走 quarantine 二次隔离，
@@ -2120,7 +2127,7 @@ public partial class GameState : Node
         if (CurrentUser != "" && data.GetValueOrDefault("username", "").AsString() != CurrentUser)
         {
             // B5 读档校验：档主不匹配（手改/旧匿名档）→ 隔离备份按无存档处理
-            _saveManager.Call("quarantine", path);
+            _saveManager.Quarantine(path);
             SaveCorrupt = true;
             return new Godot.Collections.Dictionary();
         }
@@ -2130,7 +2137,7 @@ public partial class GameState : Node
 
     /// <summary>存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
     /// （委托 SaveManager 壳 sanitize_num——GDScript 浮点为 64 位，经 Variant 往返保持逐位等价）</summary>
-    public double SaveNum(Variant v, double defaultValue) => _saveManager.Call("sanitize_num", v, defaultValue).AsDouble();
+    public double SaveNum(Variant v, double defaultValue) => _saveManager.SanitizeNum(v, defaultValue);
 
     /// <summary>C16 修复：布尔字段安全读取——仅接受真 bool（GDScript 的 bool("false") 为 true，
     /// 手改存档写字符串 "false"/"0" 会被误读为开；与 save_num 同款判型回退）</summary>
@@ -2261,7 +2268,7 @@ public partial class GameState : Node
         var path = SavePathForCurrent();
         if (path != "")
         {
-            _saveManager.Call("delete", path);
+            _saveManager.Delete(path);
         }
     }
 
@@ -2277,8 +2284,8 @@ public partial class GameState : Node
             return; // 会话模式下档案由登录流程管理（_load_session_settings）
         }
 
-        var parsed = _saveManager.Call("load", ProfilePathValue).AsGodotDictionary();
-        if (_saveManager.Get("last_was_corrupt").AsBool())
+        var parsed = _saveManager.Load(ProfilePathValue);
+        if (_saveManager.LastWasCorrupt)
         {
             ProfileCorrupt = true;
             return;
@@ -2320,7 +2327,8 @@ public partial class GameState : Node
                 sortList.Add(entry);
             }
 
-            sortList.Sort((a, b) => (int)b["score"].AsInt64() - (int)a["score"].AsInt64());
+            // U15：int64 直接比较（原 (int) 截断 + 减法——score>2^31 手改档案排序语义漂移）
+            sortList.Sort((a, b) => b["score"].AsInt64().CompareTo(a["score"].AsInt64()));
             Highscores.Clear();
             foreach (var entry in sortList)
             {
@@ -2452,7 +2460,7 @@ public partial class GameState : Node
 
         if (CurrentUser != "")
         {
-            _userDb.Call("update_user_settings", CurrentUser, CollectSettingsDict());
+            _userDb.UpdateUserSettings(CurrentUser, CollectSettingsDict());
             return;
         }
 
@@ -2460,7 +2468,7 @@ public partial class GameState : Node
         data["version"] = PersistVersionValue;
         data["high_score"] = HighScore;
         data["highscores"] = Highscores;
-        _saveManager.Call("save", ProfilePathValue, data);
+        _saveManager.Save(ProfilePathValue, data);
     }
 
     /// <summary>记录最高分，破纪录返回 true（登录用户写 user_db；游客仅内存；未登录写旧 profile.json）</summary>
@@ -2476,7 +2484,7 @@ public partial class GameState : Node
 
             if (CurrentUser != "")
             {
-                _userDb.Call("update_high_score", CurrentUser, Score);
+                _userDb.UpdateHighScore(CurrentUser, Score);
             }
             else
             {
@@ -2493,13 +2501,13 @@ public partial class GameState : Node
     /// 登录用户累计 total_kills/games_played；游客/未登录跳过（游客不写统计，B7-8）</summary>
     public void RecordGameOver()
     {
-        if (CurrentUser == "" || IsGuest() || !_userDb.Call("user_exists", CurrentUser).AsBool())
+        if (CurrentUser == "" || IsGuest() || !_userDb.UserExists(CurrentUser))
         {
             return;
         }
 
-        var data = _userDb.Call("get_user_data", CurrentUser).AsGodotDictionary();
-        _userDb.Call("update_user_data", CurrentUser, new Godot.Collections.Dictionary
+        var data = _userDb.GetUserData(CurrentUser);
+        _userDb.UpdateUserData(CurrentUser, new Godot.Collections.Dictionary
         {
             ["total_kills"] = (int)data.GetValueOrDefault("total_kills", 0).AsInt64() + Kills,
             ["games_played"] = (int)data.GetValueOrDefault("games_played", 0).AsInt64() + 1,
@@ -2512,7 +2520,7 @@ public partial class GameState : Node
     {
         if (CurrentUser != "")
         {
-            return (int)_userDb.Call("submit_score", CurrentUser, runScore).AsInt64();
+            return (int)_userDb.SubmitScore(CurrentUser, runScore);
         }
 
         if (runScore <= 0)
@@ -2557,7 +2565,7 @@ public partial class GameState : Node
     {
         if (CurrentUser != "")
         {
-            var board = _userDb.Call("get_leaderboard").AsGodotArray();
+            var board = _userDb.GetLeaderboard();
             if (board.Count == 0)
             {
                 return "";

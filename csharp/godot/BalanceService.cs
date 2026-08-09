@@ -14,9 +14,10 @@ public partial class BalanceService : RefCounted
     private Godot.Collections.Dictionary _balance = new();
     private readonly PathResolverInterop _interop = new();
 
-    /// <summary>G09：ramp 因子 load() 时缓存一次（热路径免 JSON 查询）。</summary>
-    private float _hpRampFactor = 0.25f;
-    private float _damageRampFactor = 0.20f;
+    /// <summary>G09：ramp 因子 load() 时缓存一次（热路径免 JSON 查询）。
+    /// U15：64 位 double 运算（对齐原 GDScript 与文件头"纯标量 double 逐位等价"纪律）。</summary>
+    private double _hpRampFactor = 0.25;
+    private double _damageRampFactor = 0.20;
 
     public void Load(string path)
     {
@@ -33,8 +34,8 @@ public partial class BalanceService : RefCounted
         // P1-1：配置树同步到 C# 解析壳（损坏/缺失时为空字典，全部回退默认）
         _interop.SetData(_balance);
         // G09：缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
-        _hpRampFactor = (float)_interop.Resolve("enemies.hp_ramp_factor", 0.25).AsDouble();
-        _damageRampFactor = (float)_interop.Resolve("enemies.damage_ramp_factor", 0.20).AsDouble();
+        _hpRampFactor = _interop.Resolve("enemies.hp_ramp_factor", 0.25).AsDouble();
+        _damageRampFactor = _interop.Resolve("enemies.damage_ramp_factor", 0.20).AsDouble();
     }
 
     /// <summary>配置字典是否为空（缺失/损坏 JSON 时为空，全部回退脚本默认值）。</summary>
@@ -44,8 +45,8 @@ public partial class BalanceService : RefCounted
     public Variant Cfg(string path, Variant defaultValue) => _interop.Resolve(path, defaultValue);
 
     /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))。</summary>
-    public float EnemyHpRamp(float difficultyMultiplier) => 1.0f + _hpRampFactor * (difficultyMultiplier - 1.0f);
+    public double EnemyHpRamp(double difficultyMultiplier) => 1.0 + _hpRampFactor * (difficultyMultiplier - 1.0);
 
     /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))。</summary>
-    public float EnemyDamageRamp(float difficultyMultiplier) => 1.0f + _damageRampFactor * (difficultyMultiplier - 1.0f);
+    public double EnemyDamageRamp(double difficultyMultiplier) => 1.0 + _damageRampFactor * (difficultyMultiplier - 1.0);
 }

@@ -1315,7 +1315,7 @@ public partial class AutoplayTest : Node
 
     /// <summary>B 梯队：受击触发 DDA 降档——记录时刻与触发次数（受击即计数：
     /// GameState 自连接先于本回调置位，用 dda_active 判触发会恒 false）</summary>
-    private void OnPlayerDamaged(double amount, Vector2 fromPos)
+    private void OnPlayerDamaged(float amount, Vector2 fromPos)
     {
         _lastDamagedMsec = (long)Time.GetTicksMsec();
         _ddaTriggerCount++;

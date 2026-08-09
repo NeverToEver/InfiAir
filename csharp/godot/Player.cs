@@ -14,7 +14,8 @@ public partial class Player : CharacterBody2D
     [Signal]
     public delegate void EntryFinishedEventHandler();
 
-    private static readonly AudioStream[] FireSounds =
+    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    private readonly AudioStream[] _fireSounds =
     {
         GD.Load<AudioStream>("res://assets/audio/bullet_fire.wav"),
         GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav"),
@@ -22,7 +23,30 @@ public partial class Player : CharacterBody2D
     };
 
     private readonly Script _bulletScript = GD.Load<Script>("res://csharp/godot/Bullet.cs");
-    private readonly Script _explosionScript = GD.Load<Script>("res://csharp/godot/Explosion.cs");
+
+    // U14（2026-08-09 审计）：热路径每帧禁 StringName/string 字面量构造——buff 名与输入 action 名静态缓存
+    private static readonly StringName BuffCritShot = new("crit_shot");
+    private static readonly StringName BuffRapidFire = new("rapid_fire");
+    private static readonly StringName BuffPowerShot = new("power_shot");
+    private static readonly StringName BuffBulletSpeed = new("bullet_speed");
+    private static readonly StringName BuffPhaseDash = new("phase_dash");
+    private static readonly StringName BuffEfficientBoost = new("efficient_boost");
+    private static readonly StringName BuffBoostRecovery = new("boost_recovery");
+    private static readonly StringName BuffSpreadShot = new("spread_shot");
+    private static readonly StringName BuffPiercing = new("piercing");
+    private static readonly StringName BuffExplosive = new("explosive");
+    private static readonly StringName ActMoveLeft = new("move_left");
+    private static readonly StringName ActMoveRight = new("move_right");
+    private static readonly StringName ActMoveUp = new("move_up");
+    private static readonly StringName ActMoveDown = new("move_down");
+    private static readonly StringName ActParry = new("parry");
+    private static readonly StringName ActDash = new("dash");
+    private static readonly StringName ActBoost = new("boost");
+    private static readonly StringName ActFineMove = new("fine_move");
+    private static readonly StringName ActAimLeft = new("aim_left");
+    private static readonly StringName ActAimRight = new("aim_right");
+    private static readonly StringName ActAimUp = new("aim_up");
+    private static readonly StringName ActAimDown = new("aim_down");
 
     // ---- 入场动画（balance.json player.entry） ----
     public float EntryLandRatio { get; private set; } = 0.74f;
@@ -559,7 +583,7 @@ public partial class Player : CharacterBody2D
             _buffValues[id] = kind == "cap" ? (int)value.AsInt64() : (float)value.AsDouble();
         }
 
-        var critStacks = (int)GameState.Instance.BuffCount(new StringName("crit_shot"));
+        var critStacks = (int)GameState.Instance.BuffCount(BuffCritShot);
         CritChance = critStacks == 0 ? 0.0f : CritChanceBase * critStacks;
         CritMultiplierValue = CritMultiplier;
     }
@@ -573,12 +597,12 @@ public partial class Player : CharacterBody2D
     /// <summary>A4：布尔启用——count &gt; 0。</summary>
     private bool BuffEnabled(StringName id) => (int)GameState.Instance.BuffCount(id) > 0;
 
-    public float FireIntervalValue() => BuffScale(new StringName("rapid_fire"), BaseFireInterval, (int)GameState.Instance.BuffCount(new StringName("rapid_fire")));
+    public float FireIntervalValue() => BuffScale(BuffRapidFire, BaseFireInterval, (int)GameState.Instance.BuffCount(BuffRapidFire));
 
-    public int BulletDamageValue() => Mathf.Max(1, (int)BuffScale(new StringName("power_shot"), BulletDamage, (int)GameState.Instance.BuffCount(new StringName("power_shot"))));
+    public int BulletDamageValue() => Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (int)GameState.Instance.BuffCount(BuffPowerShot)));
 
     /// <summary>bullet_speed buff 后的当前弹速。</summary>
-    public float BulletSpeedValue() => BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameState.Instance.BuffCount(new StringName("bullet_speed")));
+    public float BulletSpeedValue() => BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
 
     public float FuelRatio() => _fuel / FuelMax;
 
@@ -588,9 +612,9 @@ public partial class Player : CharacterBody2D
         _fuelLocked = false;
     }
 
-    public bool DashUnlocked() => BuffEnabled(new StringName("phase_dash"));
+    public bool DashUnlocked() => BuffEnabled(BuffPhaseDash);
 
-    public float DashCooldownMax() => BuffScale(new StringName("phase_dash"), DashCooldownMaxValue, Mathf.Max((int)GameState.Instance.BuffCount(new StringName("phase_dash")) - 1, 0));
+    public float DashCooldownMax() => BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max((int)GameState.Instance.BuffCount(BuffPhaseDash) - 1, 0));
 
     public float DashFuelCost() => FuelMax * DashFuelRatio;
 
@@ -604,9 +628,9 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
-    public float FuelDrainRate() => BuffScale(new StringName("efficient_boost"), FuelDrain, (int)GameState.Instance.BuffCount(new StringName("efficient_boost")));
+    public float FuelDrainRate() => BuffScale(BuffEfficientBoost, FuelDrain, (int)GameState.Instance.BuffCount(BuffEfficientBoost));
 
-    public float FuelRegenRate() => BuffScale(new StringName("boost_recovery"), FuelRegen, (int)GameState.Instance.BuffCount(new StringName("boost_recovery")));
+    public float FuelRegenRate() => BuffScale(BuffBoostRecovery, FuelRegen, (int)GameState.Instance.BuffCount(BuffBoostRecovery));
 
     public override void _PhysicsProcess(double delta)
     {
@@ -633,7 +657,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var inputDir = Input.GetVector("move_left", "move_right", "move_up", "move_down");
+        var inputDir = Input.GetVector(ActMoveLeft, ActMoveRight, ActMoveUp, ActMoveDown);
         if (_fogInvertInput)
         {
             inputDir = -inputDir;
@@ -654,7 +678,7 @@ public partial class Player : CharacterBody2D
 
         _dash.TickCooldown(d);
         _parry.Tick(d);
-        if (Input.IsActionJustPressed("parry"))
+        if (Input.IsActionJustPressed(ActParry))
         {
             _parry.TryStart();
         }
@@ -668,7 +692,7 @@ public partial class Player : CharacterBody2D
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg);
         if (DashUnlocked()
             && !MovementLocked
-            && Input.IsActionJustPressed("dash")
+            && Input.IsActionJustPressed(ActDash)
             && _dash.CooldownRemaining() <= 0.0f
             && !_dash.IsDashing()
             && _fuel >= DashFuelCost())
@@ -684,12 +708,12 @@ public partial class Player : CharacterBody2D
         }
 
         // 燃料与加速（shift_toggle_mode：按一下切换开/关）
-        if ((bool)GameState.Instance.ShiftToggleMode && Input.IsActionJustPressed("boost"))
+        if ((bool)GameState.Instance.ShiftToggleMode && Input.IsActionJustPressed(ActBoost))
         {
             _boostToggleOn = !_boostToggleOn;
         }
 
-        var wantBoost = (bool)GameState.Instance.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed("boost");
+        var wantBoost = (bool)GameState.Instance.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed(ActBoost);
         if (MovementLocked)
         {
             wantBoost = false;
@@ -716,12 +740,12 @@ public partial class Player : CharacterBody2D
 
         var boost = boosting ? BoostMult : 1.0f;
         // Ctrl 微调：移速 ×0.35（ctrl_toggle_mode：按一下切换开/关）
-        if ((bool)GameState.Instance.CtrlToggleMode && Input.IsActionJustPressed("fine_move"))
+        if ((bool)GameState.Instance.CtrlToggleMode && Input.IsActionJustPressed(ActFineMove))
         {
             _fineToggleOn = !_fineToggleOn;
         }
 
-        var fineOn = (bool)GameState.Instance.CtrlToggleMode ? _fineToggleOn : Input.IsActionPressed("fine_move");
+        var fineOn = (bool)GameState.Instance.CtrlToggleMode ? _fineToggleOn : Input.IsActionPressed(ActFineMove);
         var fine = fineOn ? FineMoveMult : 1.0f;
         var target = inputDir * MaxSpeed * boost * fine * _enrageSlow;
         var rate = inputDir != Vector2.Zero ? Accel : Decel;
@@ -795,14 +819,15 @@ public partial class Player : CharacterBody2D
         {
             _aimSmoothedFrame = frame;
             var raw = GetGlobalMousePosition();
-            var vc = GameState.Instance.VirtualControls;
-            if (vc != null && (bool)((GodotObject)vc).Call("is_enabled"))
+            // U14：VirtualControls 已 C#，typed 直调（原每渲染帧动态派发 + Variant 装箱）
+            var vc = GameState.Instance.VirtualControls as VirtualControls;
+            if (vc != null && vc.IsEnabled())
             {
-                raw = ((GodotObject)vc).Call("base_aim_position").AsVector2();
+                raw = vc.BaseAimPosition();
             }
 
             // H01：右摇杆虚拟准星（四向独立动作，差值驱动）
-            var joy = Input.GetVector("aim_left", "aim_right", "aim_up", "aim_down");
+            var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
             if (joy.LengthSquared() > 0.01f)
             {
                 raw += joy * _aimJoySpeed * (float)GetProcessDeltaTime();
@@ -929,7 +954,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var inputX = Input.GetAxis("move_left", "move_right");
+        var inputX = Input.GetAxis(ActMoveLeft, "move_right");
         Velocity = new Vector2(inputX * MaxSpeed * EntryRushHsRatio, EntryRetreatSpeed);
         MoveAndSlide();
         Position = ClampToView(Position);
@@ -956,9 +981,9 @@ public partial class Player : CharacterBody2D
 
     private void FireInternal(Vector2 aim)
     {
-        var spread = BuffCap(new StringName("spread_shot"));
-        var pierce = BuffCap(new StringName("piercing"));
-        var explosive = BuffEnabled(new StringName("explosive"));
+        var spread = BuffCap(BuffSpreadShot);
+        var pierce = BuffCap(BuffPiercing);
+        var explosive = BuffEnabled(BuffExplosive);
         // 辅助瞄准（P1-1/P1-3）：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
         Enemy? homingTarget = null;
         var homingRate = _homingTurnRate;
@@ -986,7 +1011,7 @@ public partial class Player : CharacterBody2D
 
         var count = 1 + spread;
         // P1-2：循环不变量外提（_buff_scale 含 pow，同帧只计算一次）
-        var loopSpeed = BuffScale(new StringName("bullet_speed"), BulletSpeed, (int)GameState.Instance.BuffCount(new StringName("bullet_speed")));
+        var loopSpeed = BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
         var loopDamage = BulletDamageValue();
         for (var i = 0; i < count; i++)
         {
@@ -1031,17 +1056,19 @@ public partial class Player : CharacterBody2D
         _audio ??= GetNodeOrNull<AudioStreamPlayer2D>("AudioStreamPlayer2D");
         if (_audio != null)
         {
-            _audio.Stream = FireSounds[_soundIndex];
-            _soundIndex = (_soundIndex + 1) % FireSounds.Length;
+            _audio.Stream = _fireSounds[_soundIndex];
+            _soundIndex = (_soundIndex + 1) % _fireSounds.Length;
             _audio.Play();
         }
     }
 
-    /// <summary>受击结算（100 HP 制）。返回 true = 本帧实际结算。A8 委托 PlayerDamage。</summary>
-    public bool TakeDamage(float amount = 1.0f, Vector2 fromPos = default)
+    /// <summary>受击结算（100 HP 制）。返回 true = 本帧实际结算。A8 委托 PlayerDamage。
+    /// U15：单参重载默认 Vector2.Inf（原 default(Zero) 与 GDScript INF 语义漂移——C# 默认
+    /// 参数须编译期常量，Vector2.Inf 非常量，拆重载保留"无方向均匀环"语义）。</summary>
+    public bool TakeDamage(float amount = 1.0f) => TakeDamage(amount, Vector2.Inf);
+
+    public bool TakeDamage(float amount, Vector2 fromPos)
     {
-        // 原默认 Vector2.INF（无方向均匀环）；default(Vector2)=Zero 与 INF 语义不同，
-        // 保留 INF 语义：GDScript 调用方显式传参，C# 内部传 Vector2.INF
         return _damage.TakeDamage(amount, fromPos, this);
     }
 
@@ -1084,7 +1111,7 @@ public partial class Player : CharacterBody2D
 
         GameState.Instance.AddScore(GrazeScore);
         _visuals.SetGrazeFlash(GrazeFlashTime);
-        _explosionScript.Call("SpawnAt", GetParent(), GlobalPosition, 0.25);
+        Explosion.SpawnAt(GetParent(), GlobalPosition, 0.25f);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -8.0);
     }
 
@@ -1124,7 +1151,7 @@ public partial class Player : CharacterBody2D
         }
 
         b.Reflect();
-        _explosionScript.Call("SpawnAt", GetParent(), area.GlobalPosition, 0.5);
+        Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0);
     }
 
@@ -1167,7 +1194,7 @@ public partial class Player : CharacterBody2D
         }
 
         SetPhysicsProcess(false);
-        _explosionScript.Call("SpawnAt", GetParent(), Position, 2.0);
+        Explosion.SpawnAt(GetParent(), Position, 2.0f);
     }
 
     /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。</summary>
@@ -1276,111 +1303,69 @@ public partial class Player : CharacterBody2D
     // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
     // GDScript 调用方经动态派发以 snake_case 访问 C# 类（混合体系下无法按类分派不同方法名）。
 
-    public bool is_dead() => IsDead();
 
-    public bool is_input_locked() => IsInputLocked();
 
     public void set_invincible(float seconds) => SetInvincible(seconds);
 
-    public float invincible_remaining() => InvincibleRemaining();
 
-    public float enrage_slow() => EnrageSlow();
 
-    public void set_dead(bool dead) => SetDead(dead);
 
-    public void set_dash_cooldown(float seconds) => SetDashCooldown(seconds);
 
-    public void reset_combat_state() => ResetCombatState();
 
-    public void set_since_damage(float seconds) => SetSinceDamage(seconds);
 
-    public void set_last_hit_frame(int frame) => SetLastHitFrame(frame);
 
-    public float dash_cooldown() => DashCooldownRemaining();
 
-    public float since_damage() => SinceDamageValue();
 
     public void fire(Vector2 aim) => Fire(aim);
 
-    public void reset_fire_cooldown() => ResetFireCooldown();
 
-    public bool fog_invert_active() => FogInvertActive();
 
-    public float fog_bullet_jitter() => FogBulletJitter();
 
-    public float fog_misfire_chance() => FogMisfireChance();
 
-    public Vector2 fog_forced_dir() => FogForcedDir();
 
-    public float fog_forced_hold() => FogForcedHold();
 
-    public bool boost_toggle_active() => BoostToggleActive();
 
-    public bool fine_toggle_active() => FineToggleActive();
 
-    public void set_boost_toggle(bool enabled) => SetBoostToggle(enabled);
 
-    public void set_fine_toggle(bool enabled) => SetFineToggle(enabled);
 
-    public Godot.Collections.Dictionary aim_assist_params() => AimAssistParams();
 
     public float aim_dist_falloff(float d) => AimDistFalloff(d);
 
     public static float dist_falloff_curve(float d, float peak, float end, float minV) => DistFalloffCurve(d, peak, end, minV);
 
-    public bool hitbox_enabled() => HitboxEnabled();
 
-    public void lock_input() => LockInput();
 
     public void unlock_input() => UnlockInput();
 
-    public void set_fuel(float value) => SetFuel(value);
 
-    public float fuel_amount() => FuelAmount();
 
     public void die() => Die();
 
-    public void apply_enrage_slow(float factor) => ApplyEnrageSlow(factor);
 
-    public void set_auto_fire(bool enabled) => SetAutoFire(enabled);
 
-    public bool auto_fire_enabled() => AutoFireEnabled();
 
-    public bool is_dashing() => IsDashing();
 
     public float fire_interval() => FireIntervalValue();
 
     public int bullet_damage() => BulletDamageValue();
 
-    public float bullet_speed_value() => BulletSpeedValue();
 
-    public float fuel_ratio() => FuelRatio();
 
-    public void refill_fuel() => RefillFuel();
 
     public bool dash_unlocked() => DashUnlocked();
 
     public float dash_cooldown_max() => DashCooldownMax();
 
-    public float dash_fuel_cost() => DashFuelCost();
 
-    public float dash_ready_ratio() => DashReadyRatio();
 
-    public float fuel_drain_rate() => FuelDrainRate();
 
-    public float fuel_regen_rate() => FuelRegenRate();
 
     public Vector2 aim_point() => AimPoint();
 
-    public Vector2 clamp_to_view(Vector2 p) => ClampToView(p);
 
-    public void spawn_afterimage() => SpawnAfterimage();
 
-    public void play_entry_animation() => PlayEntryAnimation();
 
-    public bool is_entry_playing() => IsEntryPlaying();
 
-    public void abort_entry() => AbortEntry();
 
     public bool take_damage() => TakeDamage(1.0f, Vector2.Inf);
 
@@ -1392,13 +1377,10 @@ public partial class Player : CharacterBody2D
 
     public bool try_parry() => TryParry();
 
-    public int parry_phase() => ParryPhase();
 
     public float parry_energy_ratio() => ParryEnergyRatio();
 
-    public float parry_cooldown_remaining() => ParryCooldownRemaining();
 
-    public void enter_pod() => EnterPod();
 
     public void exit_pod() => ExitPod();
 

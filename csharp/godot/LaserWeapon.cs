@@ -39,7 +39,7 @@ public partial class LaserWeapon : Node2D
     private bool _laserBeamOn;
 
     /// <summary>父节点（player.tscn 中 LaserWeapon 挂 Player 下；场景结构保证非空）。</summary>
-    private Player _player = null!;
+    private Player? _player; // U16：可空（节点脱离 Player 挂载时判空早退，不再 null! 压制）
     private Line2D _beam = null!;
     private GpuParticles2D _glow = null!;
 
@@ -74,15 +74,13 @@ public partial class LaserWeapon : Node2D
 
     public float cooldown() => Cooldown();
 
-    public void set_cooldown(float seconds) => SetCooldown(seconds);
 
-    public void set_active_time(float seconds) => SetActiveTime(seconds);
 
     public Line2D beam() => Beam();
 
     public override void _Ready()
     {
-        _player = GetParent() as Player ?? null!;
+        _player = GetParent() as Player;
         BeamDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble();
         CooldownDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
         TickInterval = (float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble();
@@ -147,6 +145,11 @@ public partial class LaserWeapon : Node2D
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        // U16：节点脱离 Player 挂载时判空早退（原 null! 压制 + 同文件 237 行判活风格不一致）
+        if (_player == null)
+        {
+            return;
+        }
         if (!_laserBeamOn)
         {
             // E08：buff 归零时收束激活态光束——防未来 buff 移除机制引入后 _end_beam 不执行、
@@ -198,11 +201,11 @@ public partial class LaserWeapon : Node2D
     /// （B7 修复：P1-3 磁吸会让准星偏离原始鼠标，仍走 get_global_mouse_position 则光束与可见准星指向不同目标）。</summary>
     private Vector2 AimDir()  // G021：_start 参数从未使用，删除
     {
-        var aim = _player.AimPoint() - _player.GlobalPosition;
+        var aim = _player!.AimPoint() - _player.GlobalPosition; // 调用链 _PhysicsProcess 顶部守卫保证非空
         if (aim.Length() <= 1.0f)
         {
             // 贴图机头朝上，机身 rotation 对应 Vector2.UP 方向
-            return Vector2.Up.Rotated(_player.Rotation);
+            return Vector2.Up.Rotated(_player!.Rotation);
         }
 
         return aim.Normalized();
@@ -211,7 +214,7 @@ public partial class LaserWeapon : Node2D
     private void StartBeam()
     {
         // K02 双保险：入场期直接调用（测试/其他路径）也不进入光束
-        if (_player.IsEntryPlaying())
+        if (_player!.IsEntryPlaying())
         {
             return;
         }
@@ -257,8 +260,22 @@ public partial class LaserWeapon : Node2D
             var pos = ((Node2D)node).GlobalPosition;  // 注册表元素均为 Node2D（Enemy/Boss/炮塔/编队机）
             if (DistToSegment(pos, start, end) <= BeamHalfWidth + EnemyHitRadius)
             {
-                // Enemy（C# take_damage 别名）/Boss（GDScript）鸭子调用，语义与原 node.take_damage 一致
-                node.Call("take_damage", TickDamage);
+                // U13：typed 分派（原鸭子 take_damage = 四类之一）
+                switch (node)
+                {
+                    case Enemy enemy:
+                        enemy.TakeDamage(TickDamage);
+                        break;
+                    case Boss boss:
+                        boss.TakeDamage(TickDamage);
+                        break;
+                    case TurretBattery turret:
+                        turret.TakeDamage(TickDamage);
+                        break;
+                    case FormationCraft craft:
+                        craft.TakeDamage(TickDamage);
+                        break;
+                }
             }
         }
     }

@@ -467,43 +467,26 @@ public partial class UITheme : RefCounted
 
     public static FontFile GetFont() => Font;
 
-    public static Label make_label(string text) => MakeLabel(text);
 
-    public static Label make_label(string text, int size) => MakeLabel(text, size);
 
-    public static Label make_label(string text, int size, Color color) => MakeLabel(text, size, color);
 
-    public static Label make_label(string text, int size, Color color, HorizontalAlignment align) => MakeLabel(text, size, color, align);
 
-    public static Button make_button(string text) => MakeButton(text);
 
-    public static Button make_button(string text, bool primary) => MakeButton(text, primary);
 
-    public static void apply_primary_button(Button button) => ApplyPrimaryButton(button);
 
-    public static Button make_toggle_button(string text, ButtonGroup group) => MakeToggleButton(text, group);
 
-    public static Control make_buff_socket(StringName id) => MakeBuffSocket(id);
 
-    public static Control make_buff_socket(StringName id, float tilePx) => MakeBuffSocket(id, tilePx);
 
-    public static Control make_buff_tile(StringName id, int stacks) => MakeBuffTile(id, stacks);
 
     public static Control make_section_header(string text) => MakeSectionHeader(text);
 
-    public static Godot.Collections.Dictionary make_page_shell(string titleKey) => MakePageShell(titleKey);
 
-    public static void animate_modal_open(Control dim, Control panel, Control content) => AnimateModalOpen(dim, panel, content);
 
-    public static void animate_modal_open(Control dim, Control panel) => AnimateModalOpen(dim, panel);
 
     public static void stagger_open(Control container) => StaggerOpen(container);
 
-    public static void apply_button(Button button) => ApplyButton(button);
 
-    public static void apply_phantom_panel(ChamferedPanel panel) => ApplyPhantomPanel(panel);
 
     public static void animate_open(Control control) => AnimateOpen(control);
 
-    public static void add_button_motion(Button button) => AddButtonMotion(button);
 }

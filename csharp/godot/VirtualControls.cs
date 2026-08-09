@@ -485,17 +485,13 @@ public partial class VirtualControls : CanvasLayer
 
     public void set_enabled(bool v) => SetEnabled(v);
 
-    public bool is_enabled() => IsEnabled();
 
-    public Vector2 base_aim_position() => BaseAimPosition();
 
     public Vector2 move_vec() => MoveVec();
 
     public Vector2 aim_vec() => AimVec();
 
-    public void simulate_touch(int idx, bool pressed, Vector2 pos) => SimulateTouch(idx, pressed, pos);
 
-    public void simulate_drag(int idx, Vector2 pos) => SimulateDrag(idx, pos);
 
     public static Vector2 move_center() => MoveCenter;
 

@@ -203,9 +203,7 @@ public partial class CinematicFx : RefCounted
     // C# 侧 BossAttacks.cs/Enemy.cs/Mothership.cs 过渡期 GD.Load<GDScript>("cinematic_fx.gd")
     // 动态调 soft_glow/particles/ring_points/additive_material/shockwave（接线后改 typed）。
 
-    public static ImageTexture soft_texture() => SoftTexture();
 
-    public static CanvasItemMaterial additive_material() => AdditiveMaterial();
 
     public static Sprite2D soft_glow(float radius, Color color) => SoftGlow(radius, color);
 
@@ -213,9 +211,7 @@ public partial class CinematicFx : RefCounted
 
     public static GpuParticles2D particles(Godot.Collections.Dictionary cfg) => Particles(cfg);
 
-    public static Vector2[] ring_points(int n, float r) => RingPoints(n, r);
 
-    public static Vector2[] ring_points(int n, float r, float ryRatio) => RingPoints(n, r, ryRatio);
 
     public static Node2D shockwave(Godot.Collections.Dictionary cfg) => Shockwave(cfg);
 
@@ -223,15 +219,12 @@ public partial class CinematicFx : RefCounted
 
     public static Node2D beam(Vector2[] points, Godot.Collections.Dictionary cfg) => Beam(points, cfg);
 
-    public static Node2D radial_streaks(Godot.Collections.Dictionary cfg) => RadialStreaks(cfg);
 
     public static int GetSoftTexSize() => SoftTexSize;
 
-    public static int soft_tex_size() => SoftTexSize;
 
     public static int GetParticleAmountCap() => ParticleAmountCap;
 
-    public static int particle_amount_cap() => ParticleAmountCap;
 }
 
 /// <summary>双层扩散冲击环（粗辉光环 + 细亮芯环 + 可选低 alpha 填充盘），_ready 起 tween，播完自毁。

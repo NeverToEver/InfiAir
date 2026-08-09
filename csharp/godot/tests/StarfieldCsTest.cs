@@ -66,7 +66,7 @@ public partial class StarfieldCsTest : Node
         finally
         {
             GD.Print($"STARFIELD CS TEST DONE, failures = {_failures}");
-            GetTree().Quit(_failures);
+            TestExit.Quit(_failures); // U18：统一走 TestExit（GC 先行，防退出 segfault）
         }
     }
 }

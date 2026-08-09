@@ -98,15 +98,11 @@ public class PlayerDash
     // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被
     // GDScript 动态派发，本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
 
-    public bool is_dashing() => IsDashing();
 
-    public float cooldown_remaining() => CooldownRemaining();
 
-    public void tick_cooldown(float delta) => TickCooldown(delta);
 
     public void start(Vector2 inputDir, Player player) => Start(inputDir, player);
 
-    public void update_move(float delta, Player player) => UpdateMove(delta, player);
 
     public void configure(float distance, float time, float cooldown, float afterimageInterval)
         => Configure(distance, time, cooldown, afterimageInterval);

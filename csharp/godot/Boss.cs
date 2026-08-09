@@ -42,12 +42,13 @@ public partial class Boss : Area2D
     /// <summary>冲刺掠过（二型 P2 攻击）子状态。</summary>
     public enum SweepState { NONE, AIM, DASH, RETURN }
 
-    // ---- 静态资源 / 常量表（原 GDScript const；类名访问不可达，实例经 C# 直取） ----
-    private static readonly Texture2D BossSprite1 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_1.png");
-    private static readonly Texture2D BossSprite2 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_2.png");
-    private static readonly Texture2D BossSprite3 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_3.png");
-    /// <summary>4 型「月蚀」复用 1 型贴图（环弹术士以弹幕形态区分，2026-08-04）。</summary>
-    private static readonly Texture2D[] BossTextures = { BossSprite1, BossSprite2, BossSprite3, BossSprite1 };
+    // ---- 静态常量表 / 实例资源（U07：静态 Godot 资源改实例字段——退出 segfault 实测教训） ----
+    private readonly Texture2D _bossSprite1 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_1.png");
+    private readonly Texture2D _bossSprite2 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_2.png");
+    private readonly Texture2D _bossSprite3 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_3.png");
+    /// <summary>4 型「月蚀」复用 1 型贴图（环弹术士以弹幕形态区分，2026-08-04）。
+    /// 数组在构造器装配（字段初始化器禁引用实例字段）。</summary>
+    private readonly Texture2D[] _bossTextures;
     /// <summary>猎杀环绕瞬停点（右→上→左→下→右→上，共 6 点；末点为顶部，RELEASE 回底部）。</summary>
     private static readonly float[] StalkerPointAnglesDeg = { 0.0f, -90.0f, 180.0f, 90.0f, 0.0f, -90.0f };
     /// <summary>独立召唤计时（不占模式表）：3 型「母舰」专属（_physics_process 查询）。</summary>
@@ -64,7 +65,7 @@ public partial class Boss : Area2D
     /// 3 型 P1=[旋转cross+召唤] P2=[编队齐射,弹幕墙]（召唤为独立计时，不在模式表内）；
     /// 4 型 P1=[ring_burst×3,追踪弹] P2=[ring_burst×3,旋转cross,3连狙]。
     /// </summary>
-    private static readonly Godot.Collections.Dictionary DefaultPatterns = new()
+    private readonly Godot.Collections.Dictionary _defaultPatterns = new()
     {
         [1] = new Godot.Collections.Dictionary
         {
@@ -125,7 +126,7 @@ public partial class Boss : Area2D
     private readonly BossAttacks _attacks = new();
     private readonly EnrageSequence _enrageSequence = new();
     /// <summary>A5：spawner 依赖注入（spawner._spawn_boss 设置；替代 group 现找）。</summary>
-    private Node? _spawner;
+    private Spawner? _spawner; // U13：typed
 
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     public float EnterSpeed { get; set; } = 140.0f;
@@ -344,11 +345,12 @@ public partial class Boss : Area2D
     private readonly Script _formationBombScript;
 
     // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
-    private static ulong _frame = ulong.MaxValue;
-    private static Rect2 _frameView;
-    private static Variant _framePlayer;
+    // U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）
+    private ulong _frame = ulong.MaxValue;
+    private Rect2 _frameView;
+    private Variant _framePlayer;
 
-    private static Rect2 CachedView()
+    private Rect2 CachedView()
     {
         var f = Engine.GetPhysicsFrames();
         if (f != _frame)
@@ -361,10 +363,11 @@ public partial class Boss : Area2D
         return _frameView;
     }
 
-    private static Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
+    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public Boss()
     {
+        _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite1 };
         _onBuffsChanged = Callable.From(OnBuffsChanged);
         _formationBombScript = GD.Load<Script>("res://csharp/godot/FormationBomb.cs");
     }
@@ -617,7 +620,7 @@ public partial class Boss : Area2D
             * (float)GameState.Instance.EnemyHpMultiplier();
         Hp = MaxHp;
         // setup() 在 _ready() 之前调用，不能用 @onready 变量
-        GetNode<Sprite2D>("Sprite2D").Texture = BossTextures[pType - 1];
+        GetNode<Sprite2D>("Sprite2D").Texture = _bossTextures[pType - 1];
     }
 
     public bool IsInFight() => _inFight;
@@ -646,13 +649,9 @@ public partial class Boss : Area2D
 
     public int GetEnragePhaseReleaseHold() => (int)EnragePhase.RELEASE_HOLD;
 
-    public int GetEnragePhaseReturn() => (int)EnragePhase.RETURN;
-
     public int GetFightPhaseTransition() => (int)FightPhase.P1;
 
     public int GetFightPhaseActive() => (int)FightPhase.P2;
-
-    public bool GetSweepNone() => true;
 
     public int SweepStateValue() => (int)_attacks.SweepState();
 
@@ -686,7 +685,7 @@ public partial class Boss : Area2D
     public int GetFightPhaseEnrage() => (int)FightPhase.ENRAGE;
 
     /// <summary>默认模式表公开访问（boss_registry_test 校验 balance.json 用；C# 静态经脚本资源可调）。</summary>
-    public static Godot.Collections.Dictionary GetDefaultPatterns() => DefaultPatterns;
+    public Godot.Collections.Dictionary GetDefaultPatterns() => _defaultPatterns;
 
     /// <summary>召唤表公开访问（boss_registry_test 校验用；System 字典转 Godot 字典）。</summary>
     public static Godot.Collections.Dictionary GetSummonerTypes()
@@ -711,10 +710,6 @@ public partial class Boss : Area2D
 
         return result;
     }
-
-    public Godot.Collections.Dictionary GetPatterns() => Patterns();
-
-    public int GetPatternIndex() => PatternIndex();
 
     public int FightPhaseValue() => (int)_fightPhase;
 
@@ -762,7 +757,7 @@ public partial class Boss : Area2D
     public void BeginEscape() => BeginEscapeInternal();
 
     /// <summary>A5：spawner 依赖注入（A5 改注入 spawner；BossAttacks/EnrageSequence 经公开接口调用）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner;
+    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
     /// <summary>编队小怪召唤（BossAttacks/EnrageSequence 经公开接口调用；返回实例供调用方标记）。</summary>
     public Enemy? SpawnMinionAt(Vector2 pos)
@@ -772,8 +767,7 @@ public partial class Boss : Area2D
             return null;
         }
 
-        var mini = _spawner.Call("spawn_minion", pos);
-        return mini.AsGodotObject() as Enemy;
+        return _spawner!.SpawnMinion(pos);
     }
 
     public void TakeDamage(int amount, float scoreScale)
@@ -1103,7 +1097,7 @@ public partial class Boss : Area2D
     {
         // Q03（2026-08-05）：clampi 随 4 型扩容放开——原钳为 3 时 DEFAULT_PATTERNS 键 4 死数据、
         // type4 配置损坏时静默回退三型（母舰）模式表，违背「脚本回退镜像 json」约定
-        var defaults = (Godot.Collections.Dictionary)DefaultPatterns[Mathf.Clamp(BossType, 1, 4)];
+        var defaults = (Godot.Collections.Dictionary)_defaultPatterns[Mathf.Clamp(BossType, 1, 4)];
         _patterns = (Godot.Collections.Dictionary)defaults.Duplicate(true);
         var cfgPatterns = GameState.Instance.Cfg("boss.phases.type" + BossType, defaults);
         if (cfgPatterns.VariantType != Variant.Type.Dictionary)
@@ -1390,10 +1384,10 @@ public partial class Boss : Area2D
     /// <summary>逃跑警告：复用 HUD 警告横幅（不可用时退化为 print），最后 3s 机身闪烁见 _physics_process。</summary>
     private void ShowEscapeWarning()
     {
-        var hud = GetTree().GetFirstNodeInGroup("hud");
-        if (hud != null && hud.HasMethod("show_warning"))
+        var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        if (hud != null)
         {
-            hud.Call("show_warning", Tr("BOSS_ESCAPE_WARNING"));
+            hud.ShowWarning(Tr("BOSS_ESCAPE_WARNING"));
         }
         else
         {
@@ -1424,11 +1418,8 @@ public partial class Boss : Area2D
 
     public void setup(float p_difficulty, int p_type) => Setup(p_difficulty, p_type);
 
-    public bool is_in_fight() => IsInFight();
 
-    public bool is_escaping() => IsEscaping();
 
-    public void abort_enrage_sequence() => AbortEnrageSequence();
 
     public bool is_enraged() => IsEnraged();
 
@@ -1436,49 +1427,32 @@ public partial class Boss : Area2D
 
     public int fight_phase() => FightPhaseValue();
 
-    public void reset_fire_timer() => ResetFireTimer();
 
-    public void set_fire_timer(float seconds) => SetFireTimer(seconds);
 
-    public float fire_timer() => FireTimer();
 
-    public void set_fight_phase(int p_phase) => SetFightPhase(p_phase);
 
-    public void set_summon_timer(float seconds) => SetSummonTimer(seconds);
 
-    public void set_patterns(Godot.Collections.Dictionary pattern_dict) => SetPatterns(pattern_dict);
 
     public Godot.Collections.Dictionary patterns() => Patterns();
 
-    public void set_pattern_index(int index) => SetPatternIndex(index);
 
-    public int pattern_index() => PatternIndex();
 
-    public void start_pattern() => StartPattern();
 
-    public Color base_modulate_color() => BaseModulateColor();
 
-    public void set_survival(float seconds) => SetSurvival(seconds);
 
-    public void set_in_fight(bool fighting) => SetInFight(fighting);
 
-    public bool escape_warned() => EscapeWarned();
 
-    public void begin_escape() => BeginEscape();
 
-    public void set_spawner(Node spawner) => SetSpawner(spawner);
 
     public void take_damage(int amount, float score_scale) => TakeDamage(amount, score_scale);
 
     public void take_damage(int amount) => TakeDamage(amount);
 
-    public void fire_enrage_snapshot() => FireEnrageSnapshot();
 
     public float slow_factor() => SlowFactor();
 
     public void apply_slow(float duration, float factor) => ApplySlow(duration, factor);
 
-    public float escape_remaining() => EscapeRemaining();
 
     public float escape_drift_offset() => EscapeDriftOffset();
 

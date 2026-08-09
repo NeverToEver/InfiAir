@@ -71,6 +71,10 @@ public partial class Explosion : GpuParticles2D
         }
 
         e.Position = pos;
+        // U16：池化复用复位计数——_settled 仅 _Ready（每实例一次）置 false，复用弹
+        // 第二个生命周期起 _liveCount 不再增减（LiveCount() 系统性低估，MetaHUD 亮度代理失真）
+        e._settled = false;
+        _liveCount++; // 静态活跃计数（全实例共享）
         // effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
         if (_visualScale < 0.0f)
         {
