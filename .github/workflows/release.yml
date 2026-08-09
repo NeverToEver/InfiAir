@@ -1,7 +1,7 @@
 name: Release
 
 # 手动触发的发布工作流（CD）：构建 Linux/Windows 双平台包并创建 GitHub Release。
-# 用法：Actions → Release → Run workflow → 输入版本号（如 3.27）。
+# 用法：Actions → Release → Run workflow → 输入版本号（如 3.28）。
 # 版本号须与 `release.sh` VERSION 及 `project.godot` config/version 一致（工作流会自动同步 project.godot）。
 # 依赖：官方 Godot 4.6.2 stable mono（.NET 版）+ mono 导出模板 + .NET 8 SDK；无第三方 action
 # （2026-08-07 C# 立项：引擎/模板换 mono 版，导出前 dotnet build 嵌入 C# 程序集）。
@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (MAJOR.MINOR, e.g. 3.27)'
+        description: 'Release version (MAJOR.MINOR, e.g. 3.28)'
         required: true
         type: string
-        default: '3.27'
+        default: '3.28'
 
 permissions:
   contents: write

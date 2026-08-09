@@ -191,6 +191,7 @@ jobs:
   full-regression:
     name: Full assertion scenes (55)
     needs: fast-gate
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
