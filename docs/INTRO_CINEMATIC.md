@@ -5,7 +5,7 @@ Single source of truth for the intro cinematic: storyboard, tech design, phases,
 ## 1. Goal & Trigger
 
 - 6-shot hard-SF intro (station explosion → pilot sprint → cockpit launch → eject → departure), sets up the backstory.
-- Trigger: welcome "New Game" (`scripts/welcome.gd:392` `_on_new_game_pressed` → `_goto_main()` → Main `_apply_new_run()`); seamless entry into the run after play or skip.
+- Trigger: welcome "New Game" (`csharp/godot/Welcome.cs` `OnNewGamePressed` → `GotoMain()` → Main `ApplyNewRun()`); seamless entry into the run after play or skip.
 - No trigger: "Continue Run", tutorial, test scenes (tests instance main.tscn as child; `get_tree().current_scene != Main` blocks it).
 - Skip: Esc (via BackNavigator), any key or click → straight into run.
 - Implementation: fully procedural 2D (Polygon2D / Line2D / GPUParticles2D / Tween / Label); no video files, no new deps — per offline-assets policy.
@@ -19,10 +19,10 @@ Total 17.3s = six shots 16.1s (incl. transitions + 0.7s end fade) + title card 1
 | 1 | Far push-in | 2.8s | Starfield bg; ring station = Polygon2D arcs + bay rects (DawnStation destroyed); scale 0.7→1.0; blast core = soft_glow dark-red→orange-white + grow; GPUParticles2D ×3 (debris/dust FG/embers); 8 bay lights off by angle to breach; 2nd detonation dur*0.45 (flash + CinematicFx.shockwave double ring + shake + decaying vol); FG wreck warm rim | `GameState.SFX_*` explosion + decaying 2nd blast |
 | 2 | X-ray chain | 2.5s | cold-blue base (0.02,0.05,0.12); Line2D wireframe (4 decks + frames + bulkheads); chain = preset polyline lights up (orange-red, widening); node soft_glow flash (0→1.4→fade) + one-shot 24 sparks, 0.2s/node; 12 top LEDs cyan→red w/ wavefront (Timer-step recolor) | 3 short blasts |
 | 3 | Pilot sprint | 2.5s | side corridor: perspective lines + yellow stripes scroll back; pilot = multi-segment flightsuit figure (2-joint limbs, 2-phase run, `_process` phase-driven); red fullscreen ColorRect 6Hz sine; steam = white soft-dot particles up; 5 volumetric cones; FG struts ×4 at -1600px/s (> mid -900); speed lines | optional low-freq alarm (P2) |
-| 4 | Console launch | 2.5s | cockpit FG frame; 3-zone flight deck (buttons + slider/knob/lever) hi-freq blink; main = red Label 3→2→1 + tr("INTRO_WARNING") flash + INTRO_LOG_1..4 logs; left radar (ring + sweep + 2 blips w/ afterglow, `_ConsoleShot._process` zero-alloc); status LEDs; 2 grips; end 0.5s lean-back (rotation -3°) + white glow | countdown end → shot-5 engine |
+| 4 | Console launch | 2.5s | cockpit FG frame; 3-zone flight deck (buttons + slider/knob/lever) hi-freq blink; main = red Label 3→2→1 + tr("INTRO_WARNING") flash + INTRO_LOG_1..4 logs; left radar (ring + sweep + 2 blips w/ afterglow, `IntroConsoleShot._Process` zero-alloc); status LEDs; 2 grips; end 0.5s lean-back (rotation -3°) + white glow | countdown end → shot-5 engine |
 | 5 | Eject chase | 2.8s | ship texture (tail view, 1.4×, center-low, modulate (0.85,0.85,0.92) + warm rim, shot-6 silhouette ratio); warm-up ~0.3s (scaled by dur): amount_ratio 0→1 + glow pop + white flash; rails = perspective walls + slanted lines; flames = twin jets + white core + side tongues (soft-dot, one size step larger); rail sparks; speed lines + radial lines; ±6px shake | engine/accel (existing) |
 | 6 | Wide closure | 3.0s | nebula = 3 large soft_glow (purple/blue, drift); star = top-right soft_glow + anamorphic flare (wide pulsing bar); planet arc = 64-seg huge radius + dark fill + squashed cyan atmosphere band; wreck = bottom-left dark polygon + ember flickers; ship = small silhouette accel top-right (ease_in); fleet = 2×3 dots + trails; last 0.7s fade black | none (BGM takes over) |
-| 7 | Title card | 1.2s | fullscreen CenterContainer + title Label (UITheme.FONT_DISPLAY/ACCENT) + accent dash; modulate.a=0; director tween (0.2 in → 0.8 hold → 0.2 out → shared skip exit) | none |
+| 7 | Title card | 1.2s | fullscreen CenterContainer + title Label (UITheme.FontDisplay/Accent) + accent dash; modulate.a=0; director tween (0.2 in → 0.8 hold → 0.2 out → shared skip exit) | none |
 
 Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1, next recovers 0.28s); others = 0.3s blackout (0→1 / next 1→0); shot 6: 0.7s fade → title → fade-out → run. Handheld drift: shared container low-freq sine ±3px + micro rotation, single `_process`, zero heap alloc.
 
@@ -33,25 +33,25 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 | File | Duty |
 | --- | --- |
 | `scenes/intro_cinematic.tscn` | root: CanvasLayer (layer=35, process_mode=Always) + black bg + skip hint |
-| `scripts/intro_cinematic.gd` | director: timeline, build/switch/destroy shots, skip, `finished` signal |
-| `scripts/main.gd` | in `_apply_new_run()`: play only when `get_tree().current_scene == self`; `get_tree().paused = true` during play, restored on finish/skip |
-| `scripts/back_navigator.gd` | new `BackAction.SKIP_INTRO`: Esc = skip (before base/Buff branches, before paused-IGNORE branch) |
+| `csharp/godot/IntroCinematic.cs` | director: timeline, build/switch/destroy shots, skip, `Finished` signal |
+| `csharp/godot/Main.cs` | in `ApplyNewRun()`: play only when `GetTree().CurrentScene == this`; `GetTree().Paused = true` during play, restored on finish/skip |
+| `csharp/godot/BackNavigator.cs` | new `BackAction.SKIP_INTRO`: Esc = skip (before base/Buff branches, before paused-IGNORE branch) |
 | `data/translations.csv` | new keys: `INTRO_SKIP`, `INTRO_WARNING`, `INTRO_SUB_1..6` (zh+en), `INTRO_ZONE_PROP/NAV/WPN` (zone plates), `INTRO_LOG_1..4` (shot-4 logs) |
-| `scripts/cinematic_fx.gd` | CinematicFx: soft_glow, soft-dot particle factory, shockwave double ring; `_particles` + glows r≥10 delegated/reused; LEDs r≤4 keep `_GlowDot` |
-| `test/intro_cinematic_test.tscn/.gd` | headless self-check (§5) |
-| `test/intro_capture.tscn/.gd` | windowed per-shot screenshot tool (8s/shot, /tmp/intro_shot1..6.png + title) |
+| `csharp/godot/CinematicFx.cs` | CinematicFx: `SoftGlow`, soft-dot particle factory (`Particles`), `Shockwave` double ring; particles + glows r≥10 delegated/reused; LEDs r≤4 keep `IntroGlowDot` |
+| `test/intro_cinematic_test.tscn` + `csharp/godot/tests/IntroCinematicTest.cs` | headless self-check (§5) |
+| `test/intro_capture.tscn` + `csharp/godot/tests/IntroCapture.cs` | windowed per-shot screenshot tool (8s/shot, /tmp/intro_shot1..6.png + title) |
 | `docs/EXIT_FLOW.md` | registers return behavior (Esc = skip intro) |
 
 ### 3.2 Key decisions
 
-- **Timing**: no `await get_tree().create_timer()` coroutines (AGENTS.md: leaks on exit); one-shot `Timer` + signals chain shots; in-shot animation via `create_tween()` (node-bound) + `_process()`.
-- **Pause**: `get_tree().paused = true` during play (run frozen at frame 0); root `process_mode = Always`; `_play_intro_cinematic()` sets pause directly (StartPanel retired 2026-08-04, no `_dismiss()` path).
-- **Skip**: `skip()` idempotent — stop all Timers, emit `finished`, queue_free; main restores `paused = false` in `finished` callback. Skip and natural end share one exit; no duplicate cleanup.
-- **Esc routing**: BackNavigator `decide_back_action()` → `SKIP_INTRO`; `go_back()` → `Main._skip_intro()`; other keys/clicks via `_unhandled_input`. Start panel hidden + paused → existing branches can't misfire (before paused-IGNORE branch).
-- **Test gate**: `get_tree().current_scene == self` (normal launch only); tests call `Main._play_intro_cinematic()` directly.
-- **Reuse**: Starfield via `scripts/starfield.gd`; explosion/fire per `scripts/explosion.gd` additive palette; UITheme tokens; SFX via `GameState.play_sfx()` existing constants, no new audio; **audio policy**: volumes shifted by `AUDIO_VOL_OFFSET` (-6dB) + pitch `AUDIO_PITCH` (0.88).
+- **Timing**: no `await GetTree().CreateTimer()` coroutines (AGENTS.md: leaks on exit); one-shot `Timer` + signals chain shots; in-shot animation via `create_tween()` (node-bound) + `_Process()`.
+- **Pause**: `GetTree().Paused = true` during play (run frozen at frame 0); root `process_mode = Always`; `PlayIntroCinematic()` sets pause directly (StartPanel retired 2026-08-04, no dismiss path).
+- **Skip**: `Skip()` idempotent — stop all Timers, emit `Finished`, queue_free; main restores `Paused = false` in `Finished` callback. Skip and natural end share one exit; no duplicate cleanup.
+- **Esc routing**: BackNavigator `DecideBackAction()` → `SKIP_INTRO`; `GoBack()` → `Main.SkipIntro()`; other keys/clicks via `_UnhandledInput`. Start panel hidden + paused → existing branches can't misfire (before paused-IGNORE branch).
+- **Test gate**: `GetTree().CurrentScene == this` (normal launch only); tests call `Main.PlayIntro()` directly.
+- **Reuse**: Starfield via `csharp/godot/Starfield.cs`; explosion/fire per `csharp/godot/Explosion.cs` additive palette; UITheme tokens; SFX via `GameState.PlaySfx()` existing constants, no new audio; **audio policy**: volumes shifted by `AudioVolOffset` (-6dB) + pitch `AudioPitch` (0.88).
 - **Viewport**: 1920×1080 design coords (CanvasLayer stretches via canvas_items; never runtime window size).
-- **Cleanup**: whole tree queue_free after `finished`; no Timer/tween/particle leftovers; `Engine.time_scale` untouched.
+- **Cleanup**: whole tree queue_free after `Finished`; no Timer/tween/particle leftovers; `Engine.TimeScale` untouched.
 
 ## 4. Phases
 
@@ -68,10 +68,10 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 
 `test/intro_cinematic_test.tscn` (headless, [PASS]/[FAIL]):
 
-1. `Main._play_intro_cinematic()`: node exists, tree paused.
-2. `skip()`: destroyed, `finished` emitted, tree unpaused, no Timer leftovers.
-3. Timeline: durations → very short (`_shot_durations` writable), advance 6 shots, assert per-shot create/destroy + final `finished`; real Timers, no mock.
-4. Gate: in test scene (`current_scene != Main`) `_on_new_game_pressed()` doesn't trigger.
+1. `Main.PlayIntro()`: node exists, tree paused.
+2. `Skip()`: destroyed, `Finished` emitted, tree unpaused, no Timer leftovers.
+3. Timeline: durations → very short (`SetShotDurations`), advance 6 shots, assert per-shot create/destroy + final `Finished`; real Timers, no mock.
+4. Gate: in test scene (`CurrentScene != Main`) `OnNewGamePressed()` doesn't trigger.
 5. Regression: `smoke_test`, `startup_flow_test`, `back_navigation_test`, `esc_navigation_test`, `ui_capture` green.
 
 ## 6. Acceptance (DoD)

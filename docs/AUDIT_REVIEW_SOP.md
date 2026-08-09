@@ -44,7 +44,7 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 
 ### Minimal verification set
 
-- Every change: `--headless --import` + targeted tests; balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: 47 assertion scenes, 0 FAIL (per `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
+- Every change: `--headless --import` + targeted tests; C# touched → + `dotnet build` (zero warnings) + `dotnet test tests-csharp/` (+ `dotnet format --verify-no-changes`, mirrors CI format gate); balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: full assertion-scene set, 0 FAIL (count authoritative in `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
 
 ## 6. Phase 5: Archive Backfill
 

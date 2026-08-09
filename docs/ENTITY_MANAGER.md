@@ -6,6 +6,7 @@
 > units and features plug in with near-zero boilerplate.
 >
 > 2026-08-08 全量迁移 C# 后:文中 GDScript 文件与行号锚点(§2 迁移前基线快照)已失效,保留;API 名同义 PascalCase(如 `bind_enemy` → `BindEnemy`、`GameState.enemies` → `GameState.Enemies`)。
+> 另:§4.4 批量 API 实际落在 GameState 门面(`ForEachEnemy`/`ClearEnemies`/`CountEnemies`,谓词为 Callable——spawner 计数经 `CountEnemies` 使用;主清场/母舰/狂暴遍历在 C# 侧直接迭代 `GameState.Enemies`,无语义变化);`EntityManager`(`csharp/godot/EntityManager.cs`)保持注册表内核 + `BindEnemy`/`UnbindEnemy` + `EntityRegistered`/`EntityUnregistered` 信号。
 
 ## 1. Purpose
 
@@ -185,5 +186,5 @@ type later = registering a `PooledScene` entry, not a new class.
 - New `entity_manager_test`: bind/unbind one-liner idempotence, `entity_registered`/
   `entity_unregistered` signals, `for_each_enemy` invalid-instance skip, `clear_enemies`
   predicate (keep Boss), `count_enemies`.
-- Gate: the 5 layers of `docs/TESTING.md` (format → lint → import warnings → compile+smoke
-  → all assertion scenes).
+- Gate: the layers of `docs/TESTING.md` (C# build/test/format → zero-GDScript → import warnings
+  → BALANCE_MAP zero-diff → compile+smoke → all assertion scenes).

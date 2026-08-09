@@ -1,8 +1,8 @@
-# C# 混合编译调研与决策（2026-08-05 调研；2026-08-07 决策更新）
+# C# 混合编译调研与决策（2026-08-05 调研；2026-08-07 决策更新；2026-08-08 §10 全量迁移）
 
-> 调研对象：InfiAir（Godot 4.6.2 2D 弹幕射击；调研时为纯 GDScript，2026-08-07 起 C# 渐进式混编）
+> 调研对象：InfiAir（Godot 4.6.2 2D 弹幕射击；调研时为纯 GDScript；2026-08-07 起 C# 渐进式混编；2026-08-08 §10 决策全量迁移并执行完成——终态零 GDScript、纯 C#）
 > 调研问题：引入 C# 与 GDScript 混合编译的收益与风险，是否引入。
-> 结论先行：**引入（渐进式混编）。** 2026-08-05 评估为不引入；2026-08-07 触发条件 3（团队语言构成变化）成立，决策更新为引入。决策与范围见 §7；剩余触发条件见 §8。
+> 结论先行：**引入（渐进式混编）。** 2026-08-05 评估为不引入；2026-08-07 触发条件 3（团队语言构成变化）成立，决策更新为引入；2026-08-08 决策再次更新为**全量迁移 C#**，M1–M7 已全部完成（§10，终态零 GDScript）。决策与范围见 §7/§10；剩余触发条件见 §8。
 
 ---
 
@@ -208,17 +208,17 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 - Godot 论坛：C# 导出包体积增量（+10–20MB）：https://godotforums.org/d/40484-will-using-c-increase-exported-file-size
 - Chickensoft：GDScript vs C# in Godot（语言选择与生态）：https://chickensoft.games/blog/gdscript-vs-csharp
 - 日/英专栏：GDScript vs C# 2026（"GDScript 慢是分类错误，热点才推 GDExtension"）：https://www.oflight.co.jp/en/columns/godot-gdscript-vs-csharp-language-choice-2026
-- 项目内部：`test/perf_bench.gd`（性能基线）、`export_presets.cfg`（平台目标）、`.github/workflows/ci.yml` + `release.yml`（构建链路）、`docs/ROADMAP.md`（阶段与方向）、`project.godot`（警告门禁配置）。
+- 项目内部：`test/perf_bench.tscn` + `csharp/godot/tests/PerfBench.cs`（性能基线）、`export_presets.cfg`（平台目标）、`.github/workflows/ci.yml` + `release.yml`（构建链路）、`docs/ROADMAP.md`（阶段与方向）、`project.godot`（警告门禁配置）。
 
 ---
 
 ## 10. 决策更新（2026-08-08）：全量迁移 C#
 
-> 触发：用户指令「项目全量迁移 C#」；执行分支 `feature/csharp-full-migration`（main 保持可发布）；实施计划（M1–M7 里程碑、每批门禁绿闸、社区调研结论）见会话计划文件。
+> 触发：用户指令「项目全量迁移 C#」；执行分支 `feature/csharp-full-migration`（main 保持可发布）；实施计划（M1–M7 里程碑、每批门禁绿闸、社区调研结论）见会话计划文件。**状态（2026-08-08）：M1–M7 全部完成**——终态零 `.gd`（CI zero-GDScript 闸 M7d 防回归）、全部断言场景 C# 化全绿、三工程 `dotnet format` 零 diff 闸上线。
 
 ### 决策
 
-**反转 §7「存量 GDScript 不迁移」边界 → 存量约 3.7 万行 GDScript 全量迁移 C#**：终态仓库零 GDScript、零 interop 壳、单一 C# 语言维护。社区调研（Godot 官方论坛/文档、Catlike Coding 迁移教程、Moonjump 中型项目实测、GitHub issue 实证）结论已汇入实施计划：渐进分层迁移 + 每批可构建可测是官方与社区共识路径。
+**反转 §7「存量 GDScript 不迁移」边界 → 存量约 3.7 万行 GDScript 全量迁移 C#**：终态仓库零 GDScript、零 GDScript interop 壳（`csharp/godot/*Interop.cs` 保留为 `InfiAir.Core` 的 C# 绑定端点，非 GDScript 壳）、单一 C# 语言维护。社区调研（Godot 官方论坛/文档、Catlike Coding 迁移教程、Moonjump 中型项目实测、GitHub issue 实证）结论已汇入实施计划：渐进分层迁移 + 每批可构建可测是官方与社区共识路径。
 
 ### 与 §7 边界的差异
 
@@ -226,12 +226,12 @@ PERF_RESULT frames=1800 total_ms=1820 avg_frame_ms=1.011 equivalent_fps=989.0
 |---|---|---|
 | 存量 GDScript | 不迁移 | **全量迁移**（scripts/autoload/test） |
 | 热路径（对象池/弹幕） | 禁止跨语言、保持 GDScript | **M3 整体迁 C#**；终态无跨语言边界 |
-| `csharp/godot/` 职责 | 薄壳（桥接） | C# 主游戏代码目录（场景绑定/节点脚本）；壳终态删除 |
+| `csharp/godot/` 职责 | 薄壳（桥接） | C# 主游戏代码目录（场景绑定/节点脚本）；GDScript 壳终态删除（`*Interop.cs` 为 InfiAir.Core 的 C# 绑定端点，保留） |
 | 跨语言调用 | 常态 | 仅迁移期过渡：GDScript→C# 薄壳；C#→GDScript 动态派发（禁每帧热路径）；互不消费 async |
-| 测试 | 纯逻辑 xUnit + 场景 GDScript 断言 | 62 断言场景迁移期保持 GDScript 作回归（公共 API 冻结），**M7 全量 C# 化** |
+| 测试 | 纯逻辑 xUnit + 场景 GDScript 断言 | 断言场景迁移期保持 GDScript 作回归（公共 API 冻结），**M7 全量 C# 化**（场景计数权威 `docs/TESTING.md`） |
 
 ### 验证与基线
 
 - perf_bench 基线锚点（2026-08-08，迁移前）：**avg_frame_ms=1.182，等效 845.9 FPS**（对比 §3.2 的 1.011ms/989 FPS，为本机当日基线）
 - 每批验收：`dotnet build` 零警告 + `dotnet test` 全绿 + 无头导入零错 + 冒烟 + 全部断言场景 + BALANCE_MAP 零 diff
-- 终态验收：零 `.gd`、62 场景 C# 化全绿、perf_bench 无回归（每帧零托管分配红线，issue #105750 教训）、`release.sh` Linux/Windows 双包冒烟
+- 终态验收：零 `.gd`、断言场景 C# 化全绿（计数权威 `docs/TESTING.md`）、perf_bench 无回归（每帧零托管分配红线，issue #105750 教训）、`release.sh` Linux/Windows 双包冒烟

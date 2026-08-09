@@ -20,7 +20,7 @@
 | Mothership missile | `mothership.missile` | 600 | 80 + splash 20/r80 | multi-homing + AoE |
 | Laser beam (buff) | `buffs.laser_beam` | — (line check) | 16/0.1s tick | player buff weapon, not a bullet |
 
-All bullets via `scenes/bullet.tscn` + `GameState.bullet_pool.fire()`; faction in `setup()/activate()`; homing via `bullet.gd` `homing`/`homing_time` (4.0 rad-class lerp). **Event reuses enemy-side ammo only; no new bullet types.**
+All bullets via `scenes/bullet.tscn` + `GameState.BulletPool.Fire()`; faction in `Setup()/Activate()`; homing via `csharp/godot/Bullet.cs` `Homing`/`HomingTime` (4.0 rad-class lerp). **Event reuses enemy-side ammo only; no new bullet types.**
 
 ### 1.2 Normal enemy HP
 
@@ -32,8 +32,8 @@ All bullets via `scenes/bullet.tscn` + `GameState.bullet_pool.fire()`; faction i
 
 ### 1.3 Boss kill score
 
-- `boss.gd._die()` → `GameState.add_boss_kill(score_scale)` → `add_score(int(500.0 × score_scale))`; base **500** (score_scale usually 1.0)
-- `add_score()` applies difficulty mult **×1 / ×2 / ×3** → credited 500 / 1000 / 1500
+- `Boss.Die()` (`csharp/godot/Boss.cs`) → `GameState.AddBossKill(scoreScale)` → `AddScore(int(500.0 × scoreScale))`; base **500** (`milestones.boss_kill_base`; score_scale usually 1.0)
+- `AddScore()` applies difficulty mult **×1 / ×2 / ×3** → credited 500 / 1000 / 1500
 - Not reused by event: RP reward, boss_kills count, difficulty growth
 
 ### 1.4 Art style keywords (from `scripts/tools/generate_enemy_sprites.py` + `assets/sprites/`)
@@ -65,11 +65,11 @@ Background-scale giant (not Boss, not in boss rotation); descends from off-scree
 - **Targeting**: per-turret independent rotation toward player (speed-limited rotation — `turn_rate` rad/s cap, per-frame stepped increment, "mechanical turntable"); fire direction = turret heading + random spread, not exact — "**weak lock**".
 - **Weak-lock params** (`elite_turret_event.weak_lock`): homing turn rate **1.5** (existing 4.0), `homing_time` only 0.6s; straight ammo +**±7°** muzzle spread; hit-rate target ~50-60% on stationary player, lateral strafing reliably evades.
 - **Fire cadence**: per-turret timer, 2.0~2.4s interval (normal `fire_interval` scale); ammo from preset pool rotated **by preset sequence** (below; config may switch to `random`).
-- **Destructible**: each turret = independent Area2D (layer 3=enemy, `enemy` group, registered `GameState.enemies`); hit-flash + individual segmented HP bar (`ui_segmented_bar` style); destroyed → `Explosion.spawn_at()` + base ring off.
+- **Destructible**: each turret = independent Area2D (layer 3=enemy, `enemy` group, registered `GameState.Enemies`); hit-flash + individual segmented HP bar (`SegmentedBar` style); destroyed → `Explosion.SpawnAt()` + base ring off.
 
 ### 3.2 Per-difficulty config
 
-HP = normal-typical 80 × difficulty `hp` coefficient × run-progression ramp (`enemy_hp_ramp()`: 1.0 + 0.25×(difficulty mult −1), grows with boss kills), rounded; ammo all reused from §1.1.
+HP = normal-typical 80 × difficulty `hp` coefficient × run-progression ramp (`GameState.EnemyHpRamp()`: 1.0 + 0.25×(difficulty mult −1), grows with boss kills), rounded; ammo all reused from §1.1.
 
 | Difficulty | Turrets | HP each | Ammo sequence (rotation) |
 | --- | --- | --- | --- |
@@ -102,7 +102,7 @@ Config example (`balance.json` new block):
 ### 4.2 Binding & playback
 - Event start: draw **3 lines without replacement** from 10, bound in order to 3 progress nodes: ① destroyed ≥ ⌈total/3⌉ (≥1) → line 1; ② ≥ ⌈total×2/3⌉ → line 2; ③ all destroyed → line 3 (before success settlement).
 - Event fail (timeout retreat): no bound lines; fixed retreat line instead.
-- Presentation: bottom-left comm overlay — hex chamfered avatar frame (reuse `ui_chamfered_panel`, magenta rim + carrier insignia silhouette) + typewriter subtitle, 3.5s then fade; **game not paused** (`process_mode` follows gameplay); new line overrides unfinished old line; short comm-noise SFX (existing pool).
+- Presentation: bottom-left comm overlay — hex chamfered avatar frame (reuse `ChamferedPanel`, magenta rim + carrier insignia silhouette) + typewriter subtitle, 3.5s then fade; **game not paused** (`process_mode` follows gameplay); new line overrides unfinished old line; short comm-noise SFX (existing pool).
 
 ## 5. Timeline & reward settlement
 
@@ -115,31 +115,37 @@ A: all destroyed (t≤33.5) → success | B: timeout → fail
 ```
 
 ### 5.2 Settlement pseudocode
-```gdscript
-func _on_all_turrets_destroyed() -> void:
-	_play_commander_line(3)            # bound line 3
-	GameState.add_score(500)          # base 500; difficulty mult ×1/×2/×3 → 500/1000/1500
-	# no add_boss_kill() RP / boss_kills / difficulty growth
-	_carrier_retreat(victorious := false)  # damaged retreat (smoke + slow)
-	_schedule_boss_resume()           # §6
+```csharp
+void OnAllTurretsDestroyed()
+{
+	_comm.ShowLine(_lines[2]);         // bound line 3
+	GameState.Instance.AddScore(RewardScore);  // base 500; difficulty mult ×1/×2/×3 → 500/1000/1500
+	// no AddBossKill() RP / boss_kills / difficulty growth
+	CarrierRetreat(victorious: false);  // damaged retreat (smoke + slow)
+	// boss resume: OnCarrierExited → Schedule(BossResumeDelay, OnBossDelayEnd)  // §6
+}
 
-func _on_event_timeout() -> void:
-	for turret in _living_turrets:
-		turret.cease_fire_and_retract()    # retract; no more ammo
-	_play_retreat_line()              # fixed retreat line, no reward
-	_carrier_retreat(victorious := true)   # full retreat (accelerated rise + fade)
-	_schedule_boss_resume()
+void OnEventTimeout()
+{
+	foreach (var turret in _turrets)
+		turret.CeaseFireAndRetract();    // retract; no more ammo
+	_comm.ShowLine("ETQ_RETREAT");     // fixed retreat line, no reward
+	CarrierRetreat(victorious: true);   // full retreat (accelerated rise + fade)
+	// boss resume as above
+}
 
-func _carrier_retreat(victorious: bool) -> void:
-	# Boss escape param family (start_speed/accel); surviving enemy bullets
-	# despawn naturally off-screen (no player bullet_clear)
+void CarrierRetreat(bool victorious)
+{
+	// Boss escape param family (start_speed/accel); surviving enemy bullets
+	// despawn naturally off-screen (no player bullet_clear)
+}
 ```
 Normal wave spawning **paused** during event (aligns with spawner suppression during boss fights); mothership unaffected.
 
 ## 6. Boss-event mutex state machine
 
 ### 6.1 Constraints
-Boss scheduling in `spawner.gd` (`boss_score_step=1500` score steps + `boss_time_limit=120s`). Mutex: both never on screen; boss trigger frozen at most once, never accumulated.
+Boss scheduling in `csharp/godot/Spawner.cs` (`boss_score_step=1500` score steps + `boss_time_limit=120s`). Mutex: both never on screen; boss trigger frozen at most once, never accumulated.
 
 ### 6.2 State machine
 ```text
@@ -150,9 +156,9 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 ```
 
 ### 6.3 Rules
-- **Trigger mutex**: same-frame race → boss wins (score-milestone promise); event starts only when boss not in warn/enter/fight. **2026-07-29**: also blocked during bombing-formation event — both share spawner `_waves_paused` wave-pause hook, so one cannot end early-resuming the other's pause.
-- **Freeze**: on `CARRIER_ENTER` set `_boss_frozen = true`; if boss score step elapses meanwhile, no boss — set `_boss_pending = true` (recorded once; repeat overwrites same flag — no accumulation).
-- **Resume**: at `BOSS_DELAY` end: if `_boss_pending`, immediately start boss warn flow and clear it; `_boss_frozen` resets. If boss condition not yet due at event end, resume original score-step timer, no compensation.
+- **Trigger mutex**: same-frame race → boss wins (score-milestone promise); event starts only when boss not in warn/enter/fight. **2026-07-29**: also blocked during bombing-formation event — both share spawner `_wavesPaused` wave-pause hook, so one cannot end early-resuming the other's pause.
+- **Freeze**: on `CARRIER_ENTER` set `_bossFrozen = true`; if boss score step elapses meanwhile, no boss — set `_bossPending = true` (recorded once; repeat overwrites same flag — no accumulation).
+- **Resume**: at `BOSS_DELAY` end: if `_bossPending`, immediately start boss warn flow and clear it; `_bossFrozen` resets. If boss condition not yet due at event end, resume original score-step timer, no compensation.
 - **Edge**: crossing boss score steps during event is normal (reward 500~1500); freeze guarantees boss appears only 4s after carrier leaves — no stacked barrages. **Failure also unfreezes**: success/fail don't change mutex recovery, only rewards.
 - Test: add `test/elite_turret_event_test.tscn` asserting 30s timer, 3 dialogue nodes, reward crediting (incl. difficulty mult), boss freeze/resume and single-shot no-accumulation semantics.
 
@@ -166,15 +172,15 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 | --- | --- |
 | `data/balance.json → elite_turret_event` | all tunables: duration/entry/raise/resume delays, trigger (`min_score=800`, `trigger_interval=45s`, `trigger_chance=0.35`, `cooldown=60s`), `turret_hp_base=80`, `turret_counts` (3/4/5), `fire_interval=[2.0,2.4]`, `weak_lock`, `ammo_sequences`, `reward_score=500`, `carrier`. Fallbacks in scripts. |
 | `data/translations.csv` | `ETQ_1`~`ETQ_10`, `ETQ_RETREAT`, `ETV_TITLE`, `ETV_TURRETS` (zh+en; re-import → `.translation`). No new pages → `docs/EXIT_FLOW.md` unchanged. |
-| `scripts/tools/generate_enemy_sprites.py` | `strike_carrier()` (1200×700) + `turret()` (96×96), `Ship` primitives; `TURRET_WELLS` = runtime `StrikeCarrier.SOCKETS` 1:1. Outputs `strike_carrier.png`, `elite_turret.png` to `assets/sprites/`. |
-| `scripts/strike_carrier.gd` (`class_name StrikeCarrier`) | ENTER (2s ease-out descent + fade-in + settle shake) → HOVER (±6px) → RETREAT (Boss escape params: start_speed 120 / accel 420; damaged ×0.55 + darken + deck explosions). No collision layer. 5 base rings = Line2D status lights (magenta charging / off destroyed; standby dark-red baked). |
-| `scripts/turret_battery.gd` + `scenes/turret.tscn` (`class_name TurretBattery`) | Area2D layer 3 (enemy), `enemy` group + `GameState.enemies` (auto-hit by player-side fire). Rise = TRANS_BACK scale-in, `monitoring=false` (K09: `monitorable=false` too — monitoring doesn't stop area_entered); attackable after `activate()`. Magenta SegmentedBar (8 segments), hit-flash; destroyed → `Explosion.spawn_at()` + shake + ring off. Timeout → `cease_fire_and_retract()` + self-free. |
-| `scripts/comm_overlay.gd` (`class_name CommOverlay`) | CanvasLayer layer=12: ChamferedPanel magenta rim + typewriter (30ms/char), holds 3.5s then 0.5s fade; new line overrides old; no pause; SFX = `bullet_fire_c.wav` via `GameState.play_sfx`. |
-| `scripts/elite_turret_event.gd` (`class_name EliteTurretEvent`) | `IDLE → CARRIER_ENTER →（raise）→ TURRET_ACTIVE → CARRIER_EXIT → BOSS_DELAY → IDLE`; created by `main.gd._ready` under Main, registered to GameEventManager (`GameState.events.register_encounter()`, 2026-08-05); 3-of-10 draw, 3-node binding, 30s countdown (0.1s throttled HUD), settlement, boss unfreeze/retrigger. |
-| `scripts/hud.gd` | Event bar (top center, below boss HP bar): `ETV_TITLE` + 30-segment magenta SegmentedBar + `ETV_TURRETS` remaining (on change only); `show_event_bar/update_event_bar/hide_event_bar`; refreshes on locale switch. |
-| `scripts/spawner.gd` | New `_boss_frozen`/`_boss_pending`/`_waves_paused` + `_event` ref; boss check during freeze records pending only (no accumulation); event check after boss check (boss priority); waves paused while `_waves_paused`. |
-| `scripts/main.gd` | `_ready` creates `EliteTurretEvent` under Main (visible to cleanup/test traversal), registers `_spawner._event`. |
-| `scripts/bullet.gd` | New `homing_turn_rate` field (default 4.0, reset in `activate()`); weak homing = 1.5; hardcoded 4.0 replaced by field read. |
+| `scripts/tools/generate_enemy_sprites.py` | `strike_carrier()` (1200×700) + `turret()` (96×96), `Ship` primitives; `TURRET_WELLS` = runtime `StrikeCarrier.Sockets` 1:1. Outputs `strike_carrier.png`, `elite_turret.png` to `assets/sprites/`. |
+| `csharp/godot/StrikeCarrier.cs` (`public partial class StrikeCarrier`) | ENTER (2s ease-out descent + fade-in + settle shake) → HOVER (±6px) → RETREAT (Boss escape params: start_speed 120 / accel 420; damaged ×0.55 + darken + deck explosions). No collision layer. 5 base rings = Line2D status lights (magenta charging / off destroyed; standby dark-red baked). |
+| `csharp/godot/TurretBattery.cs` + `scenes/turret.tscn` (`public partial class TurretBattery`) | Area2D layer 3 (enemy), `enemy` group + `GameState.Enemies` (auto-hit by player-side fire). Rise = TRANS_BACK scale-in, `Monitoring=false` (K09: `Monitorable=false` too — monitoring doesn't stop area_entered); attackable after `Activate()`. Magenta SegmentedBar (8 segments), hit-flash; destroyed → `Explosion.SpawnAt()` + shake + ring off. Timeout → `CeaseFireAndRetract()` + self-free. |
+| `csharp/godot/CommOverlay.cs` (`public partial class CommOverlay`) | CanvasLayer layer=12: ChamferedPanel magenta rim + typewriter (30ms/char), holds 3.5s then 0.5s fade; new line overrides old; no pause; SFX = `bullet_fire_c.wav` via `GameState.PlaySfx`. |
+| `csharp/godot/EliteTurretEvent.cs` (`public partial class EliteTurretEvent`) | `IDLE → CARRIER_ENTER →（raise）→ TURRET_ACTIVE → CARRIER_EXIT → BOSS_DELAY → IDLE`; created by `Main._Ready()` under Main, registered to GameEventManager (`GameState.Events.RegisterEncounter()`, 2026-08-05); 3-of-10 draw, 3-node binding, 30s countdown (0.1s throttled HUD), settlement, boss unfreeze/retrigger. |
+| `csharp/godot/Hud.cs` | Event bar (top center, below boss HP bar): `ETV_TITLE` + 30-segment magenta SegmentedBar + `ETV_TURRETS` remaining (on change only); `ShowEventBar`/`UpdateEventBar`/`HideEventBar`; refreshes on locale switch. |
+| `csharp/godot/Spawner.cs` | New `_bossFrozen`/`_bossPending`/`_wavesPaused` + `_event` ref; boss check during freeze records pending only (no accumulation); event check after boss check (boss priority); waves paused while `_wavesPaused`. |
+| `csharp/godot/Main.cs` | `_Ready` creates `EliteTurretEvent` under Main (visible to cleanup/test traversal), registers `_spawner.SetEliteEvent(_event)`. |
+| `csharp/godot/Bullet.cs` | New `HomingTurnRate` field (default 4.0, reset in `Activate()`); weak homing = 1.5; hardcoded 4.0 replaced by field read. |
 | `test/elite_turret_event_test.tscn` | 59 assertions (2026-08-07; see Validation below for the 2026-07-28 baseline record). |
 
 ### Deviations from draft (final behavior)

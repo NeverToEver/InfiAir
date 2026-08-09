@@ -48,25 +48,25 @@ Kept: 3-type rotation + HP baseline, 50s escape, bullet-time enrage framework (m
 
 ### 4.1 Phase Framework
 FIGHT: P1 100–70% (2 patterns/type) → P2 70–30% (2–3 patterns, 1 telegraphed heavy); switch: 0.6s charge screen-shake + pitch + clear timers; ENRAGE <30%: per-type sequence (§5), HP lock kept (clamped 30% trigger→finish).
-- Switch via `take_damage` thresholds (ENRAGE_HP_RATIO pattern; new P2 threshold 0.7).
+- Switch via `TakeDamage` thresholds (`EnrageHpRatio` pattern; P2 threshold `Phase2HpRatio` 0.7).
 - Pattern = duration (4–8s) or fixed wave count; fire rhythm programmable.
 - Movement decoupled from attacks; one movement fn per type/phase (vertical incl., P6).
 
 ### 4.2 Telegraph Spec (reuse existing parts)
 | Form | Use | Implementation |
 |---|---|---|
-| Charge glow | heavy windup (0.4–0.6s) | `_glow` additive scale/alpha tween |
+| Charge glow | heavy windup (0.4–0.6s) | `ChargeGlow` additive scale/alpha tween (GlowDot) |
 | Aim line | sniper/dash path (0.35–0.5s) | Line2D α0.3 flicker; gone at fire instant |
-| Redden + pitch | switch/enrage start | `_base_modulate` variant + `play_sfx` pitch |
+| Redden + pitch | switch/enrage start | `BaseModulate` variant + `GameState.PlaySfx` pitch |
 | HP ticks | switch preview | 2 ticks (70%/30%) + flash |
 
 ### 4.3 Enrage Slow (replaces freeze)
-- TRANSITION+ACTIVE: `Player.movement_locked` unused; `player._enrage_slow = 0.35` (× boost/fine-move; dash usable).
-- Unlock at RELEASE_HOLD start; `_exit_tree` fallback reset (as `_unlock_player_movement`).
+- TRANSITION+ACTIVE: `Player.MovementLocked` unused; `player.ApplyEnrageSlow(0.35)` (× boost/fine-move; dash usable).
+- Unlock at RELEASE_HOLD start; `_ExitTree` fallback reset (`EnrageSequence.UnlockPlayer()`).
 - ACTIVE orbit speed/density recalibrated for 0.35-speed dodge (§5).
 
 ### 4.4 Difficulty Tiers
-Pattern params per tier (easy/medium/hard): counts ±1/±2, interval ×1.15/×1/×0.85, speed ×0.9/×1/×1.1 (details §8.3). HP kill-ramp unchanged; since 2026-07-29 Boss HP ×0.75/×1/×1.5 (`GameState.enemy_hp_multiplier()`, same as enemies).
+Pattern params per tier (easy/medium/hard): counts ±1/±2, interval ×1.15/×1/×0.85, speed ×0.9/×1/×1.1 (details §8.3). HP kill-ramp unchanged; since 2026-07-29 Boss HP ×0.75/×1/×1.5 (`GameState.EnemyHpMultiplier()`, same as enemies).
 
 ### 4.5 Escape Countdown
 Bar shown + ≥40s: countdown under bar (10→0, red flicker); escape at 50s unchanged.
@@ -104,7 +104,7 @@ ENRAGE RELEASE_HOLD = "last stand" peak (above); then RETURN → "afterburn": fi
 - **P1**: `ring_burst` (360° ring, 12 shots @340, `boss.ring_burst`) alternating `homing`
 - **P2**: `ring_burst` + `cross` + `sniper3` (0.35s telegraph — same shared skeleton)
 - **Enrage "Lunar Eclipse"** (`boss.enrage.type_4`): TRANSITION hover (same as type1) → ACTIVE counter-rotating double ring (forward ring at +angle, reverse at -angle, precess 15°/wave, 10 shots each @200) → RELEASE 20-shot charged ring volley → RETURN; shared afterburn ×1.3
-- Rotation `spawner` `%4+1`; `hp_mults` 1.2; tell: `ATTACK_TELLS.ring_burst` (fire-A pitch 1.4, magenta ring); sprite `boss_ship_4.png` (dedicated "Wheel of Lunar Eclipse" — dark moon disc + twin orthogonal orbit rings, 2026-08-09; previously reused boss_ship_1)
+- Rotation `Spawner.cs` `BossKills % 4 + 1`; `hp_mults` 1.2; tell: `AttackTells["ring_burst"]` (fire-A pitch 1.4, magenta ring); sprite `boss_ship_4.png` (dedicated "Wheel of Lunar Eclipse" — dark moon disc + twin orthogonal orbit rings, 2026-08-09; previously reused boss_ship_1)
 - Difficulty tier: `counts.ring_burst` [10, 12, 14]
 
 ### 5.5 P2 Movement Upgrade (2026-08-02, D05 landed)
@@ -162,8 +162,8 @@ All **gameplay-range** (no `world_scale`); coords from `fight_anchor_y()` / `str
 
 ### 7.4 Compatibility
 - Saves hold no Boss state (save_run: score/fuel/time); re-enters by schedule; no migration.
-- Event mutex hooks (`_boss_frozen/_boss_pending`) untouched.
-- Pool/registry/perf budget per AGENTS.md; telegraph nodes freed with bullets, no resident `_process`.
+- Event mutex hooks (`_bossFrozen`/`_bossPending`) untouched.
+- Pool/registry/perf budget per AGENTS.md; telegraph nodes freed with bullets, no resident `_Process`.
 
 ---
 

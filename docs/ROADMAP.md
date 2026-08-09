@@ -2,14 +2,16 @@
 
 > Single source of truth for project direction (founded 2026-07-24). Update on phase/direction changes + register in `AGENTS.md` doc-sync.
 
-## Snapshot (2026-08-07)
+## Snapshot (2026-08-09)
 
 - **Porting alignment closed** (2026-07-24): all original `airwar-game` mechanics remade + aligned (gap list: `docs/archive/PORTING_PARITY.md`; only optional "local leaderboard page" left); independent evolution now — original is reference only.
-- **Quality**: 53 assertion scenes 0 FAIL (2026-08-07; 权威计数 `docs/TESTING.md`); autoplay probe + perf bench usable.
+- **Quality**: assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); autoplay probe + perf bench usable.
 - **Audit archive** (est. 2026-07-31): `docs/AUDIT_VAULT.md` proprietary; ten audits (A–L) resolved, no P0; A-series all closed (A8 split 2026-08-03, A5 residual dep convergence 2026-08-07). Fix status/efficacy: vault only.
 - **Collaboration ready**: privacy audit passed (no keys/PII, history cleaned); UI font → OFL NotoSansSC; doc baseline (README/AGENTS/PORTING_PARITY/EXIT_FLOW) line-checked vs code.
 - **Four fairness mechanics landed** (2026-08-03, `docs/archive/2026-08-03-combat-fairness-plan.md`; values final in `DESIGN_BASELINE.md` §1.13): hit grace frames, graze scoring, boss transition clear + brief invincibility + segmented bar, F parry shield (3.8s cycle). Validation: 37 scenes 0 FAIL + 180s autoplay no new anomalies; on-device feel (15+ min run) = pre-release manual item. **B-tier landed 2026-08-03**: per-attack tells, DDA density downshift (score-fair), death replay (3s ghost replay). Next: on-device feel validation.
 - **Phase 0 closed** (2026-08-03): test/ gate blind spot fixed (test/ into gdformat/gdlint, CI compile probe + per-scene timeout; L15/L16), L18 release.yml version commit, P2 cleanup (ACTION_LABELS/back_pressed/profile_corrupt toast), L13 mothership×event mutex, L14 boss phase-shift y smooth transition, **A8 PlayerVisuals split** (last architecture debt). Records: `AUDIT_VAULT.md` Phase 0 batch + `docs/archive/EXECUTION_LOG.md`.
+- **M7 full C# migration completed** (2026-08-08): all GDScript (scripts/autoload/test) migrated to C# — zero GDScript end state, single-language maintenance; gates green per batch (dotnet build zero warnings + xUnit + import clean + smoke + assertion scenes + BALANCE_MAP zero-diff). Decision: 2026-08-08 entry below.
+- **Merge gate now 6 layers** (2026-08-09): C# build/test/`dotnet format` ×3 csproj zero-diff (added 2026-08-09) → zero-GDScript → import warnings → BALANCE_MAP zero-diff → smoke + compile probe → assertion scenes (V-series: engine error-log scan + scene-count hard check, added 2026-08-09). Details: `docs/TESTING.md`.
 
 ## Direction Shift
 

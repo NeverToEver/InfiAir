@@ -2,26 +2,19 @@
 
 ## Overview
 
-**全量迁移（2026-08-08 起，分支 `feature/csharp-full-migration`）**：用户指令反转"存量 GDScript 不迁移"边界——存量约 3.7 万行 GDScript 全量迁移 C#，终态零 GDScript、零 interop 壳、单一语言维护。实施计划见 `docs/C_SHARP_ASSESSMENT.md` §10 + 会话计划（M1–M7 里程碑，每批门禁全绿）。本文件为迁移期与终态的工程约定；旧"渐进式混编"边界（§GDScript ↔ C# Boundary）在 M7 前仍然适用（过渡态），M7 后删除并替换为纯 C# 约定。
+**全量迁移已完成（M7，2026-08-08）**：存量约 3.7 万行 GDScript 已全量迁移 C#——仓库零 GDScript、单一语言维护（实施计划/依据：`docs/C_SHARP_ASSESSMENT.md` §10；`csharp/godot/*Interop.cs` 为 InfiAir.Core 的 C# 绑定端点，非 GDScript 壳）。本文件为终态纯 C# 工程约定；迁移期批次纪律保留作历史记录。
 
-## 全量迁移操作约定（2026-08-08 起，所有批次强制执行）
+## 全量迁移操作约定（M1–M7 于 2026-08-08 全部完成；工程红线沿用为终态约定）
 
-- **批次纪律**：批间串行（依赖），批内单系统一次到位（Moonjump 教训：避免同一系统长期双语言混写）；每批结束门禁全绿（见 §Build & Gate + 计划 §5）+ 更新 `docs/TESTING.md` 计数。
-- **公共 API 冻结**：迁移期间 GameState facade 与各服务公开签名不变——GDScript 断言场景持续作回归，是"每批可测"的机制。
+- **批次纪律（迁移期，已完成）**：批间串行（依赖），批内单系统一次到位（Moonjump 教训：避免同一系统长期双语言混写）；每批结束门禁全绿（见 §Build & Gate + 计划 §5）+ 更新 `docs/TESTING.md` 计数。
+- **公共 API 冻结（迁移期）**：迁移期间 GameState facade 与各服务公开签名不变——断言场景持续作回归，是"每批可测"的机制。
 - **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
-- **`.cs.uid` 必须入库**；改名/移动 .cs 连带移动 sidecar；批次完成后重存被触碰场景（补 uid）；`.gd`/`.gd.uid` 随迁移删除。
-- **场景绑定**：`.tscn` 的 ext_resource 切到 `res://csharp/godot/X.cs`；实例化优先 `PackedScene.Instantiate<T>()`；C# 侧 `new X()` 在 NRT 下可能被视为可空（Godot 生成构造器），使用时 `!` 或判空。
-- **Async（`csharp/godot/Coroutine.cs`）**：游戏内计时一律 `CreateTimer` + `ToSignal`，禁止裸 `Task.Delay`（线程池恢复，访问 Godot API 线程不安全）；挂起 await 无法取消 → 等待以 SceneTree 计时器兜底 + 恢复后 `GodotObject.IsInstanceValid` 判活；禁止裸 `async void` 生命周期（拆 `async Task` + try/catch）；await 段异常统一 try/catch。
-- **信号**：C#↔C# 用 C# event（`+=`/`-=`，`_ExitTree` 配对断开——自定义信号不随接收方释放自动断开，弹幕"发射→命中→释放"链条高频触发 `ObjectDisposedException`）；跨语言用 `Connect(SignalName.X, Callable.From(...))`；`[Signal]` 委托名必须 `XxxEventHandler` 结尾；发射用 `EmitSignal(SignalName.X, ...)` 而非 `Invoke`。
-- **热路径红线（每帧零托管分配）**：`_Process` 内禁 StringName/string 构造、`GetNodesInGroup`、LINQ、闭包捕获；属性缓存局部变量；用 `SignalName/MethodName/PropertyName` 常量；池显式进出（C# RefCounted 由 GC 延迟回收，不依赖引用计数）；跨语言调用禁止进入每帧热路径。
-- **跨语言过渡（2026-08-08 M3a 实跑验证的规则）**：
-  - **GDScript 不能以类名引用 C# 类**：类型注解（`: Bullet`）、标识符、静态成员按类名访问全部解析失败——被迁移类的所有 GDScript 类型注解改 untyped，调用一律走实例或脚本资源；
-  - C# 实例方法/属性：PascalCase，GDScript 可经引用调用（属性 getter 已验证）；
-  - C# **静态方法**：`load("res://csharp/godot/X.cs").Method(args)` 可调（已验证）；**静态属性/常量经脚本资源不可访问**（实测 "Invalid access"）→ 需转静态方法（如 `GetCollisionRadius()`）或实例访问器；
-  - `load("...cs").new()` 返回无类型 Variant，GDScript 赋值禁用 `:=` 推断；
-  - C#→GDScript 仅动态派发 `Call()/Get()/Set()`（snake_case 名；调用点注释"随批次 X 重定型"）；跨语言互不消费 async（边界一律信号 + `ToSignal`）。
-- **GDScript 调用点适配**：被迁移类的 class_name 类型注解在 GDScript 调用点改 untyped（如 `: Starfield` → `:=`），snake_case 动态调用改 PascalCase（`origin()` → `Origin()`）；随调用方自身迁移批次重定型。
-- **新 C# 测试/断言**：纯逻辑 → `tests-csharp/` xUnit；场景级断言 → C# 脚本化断言场景（Node + `_Ready` 断言 + `GetTree().Quit(failures)` + 入口 try/catch 保证异常也非零退出）。
+- **`.cs.uid` 必须入库**；改名/移动 .cs 连带移动 sidecar；触碰场景后重存（补 uid）。
+- **场景绑定**：`.tscn` 的 ext_resource 指向 `res://csharp/godot/X.cs`；实例化优先 `PackedScene.Instantiate<T>()`；C# 侧 `new X()` 在 NRT 下可能被视为可空（Godot 生成构造器），使用时 `!` 或判空。
+- **Async（`csharp/godot/Coroutine.cs`）**：游戏内计时一律 `SceneTree.CreateTimer` + `ToSignal`（或直接调 `Coroutine.WaitSeconds`/`WaitPhysicsFrames`/`WaitSignal` 封装），禁止裸 `Task.Delay`（线程池恢复，访问 Godot API 线程不安全）；挂起 await 无法取消 → 等待以 SceneTree 计时器兜底 + 恢复后 `GodotObject.IsInstanceValid` 判活；禁止裸 `async void` 生命周期（拆 `async Task` + try/catch）；await 段异常统一 try/catch。
+- **信号**：C#↔C# 用 C# event（`+=`/`-=`，`_ExitTree` 配对断开——自定义信号不随接收方释放自动断开，弹幕"发射→命中→释放"链条高频触发 `ObjectDisposedException`）；引擎信号/动态连接用 `Connect(SignalName.X, Callable.From(...))`；`[Signal]` 委托名必须 `XxxEventHandler` 结尾；发射用 `EmitSignal(SignalName.X, ...)` 而非 `Invoke`。
+- **热路径红线（每帧零托管分配）**：`_Process` 内禁 StringName/string 构造、`GetNodesInGroup`、LINQ、闭包捕获；属性缓存局部变量；用 `SignalName/MethodName/PropertyName` 常量；池显式进出（C# RefCounted 由 GC 延迟回收，不依赖引用计数）。
+- **新 C# 测试/断言**：纯逻辑 → `tests-csharp/` xUnit；场景级断言 → C# 脚本化断言场景（`csharp/godot/tests/*.cs` 驱动 `test/*_test.tscn`：Node + `_Ready` 断言 + `TestExit.Quit(failures)` + 入口 try/catch 保证异常也非零退出）。
 
 ## Directories & Namespaces
 
@@ -33,35 +26,39 @@
 
 - `Directory.Build.props` 全局 `TreatWarningsAsErrors`;`dotnet build` 零警告是硬门禁(CI "Build & test C#" 步骤即执行此检查)。
 - `dotnet test tests-csharp/ --nologo` 须全绿。
-- `.editorconfig` 管 C# 风格(4 空格缩进、file-scoped namespace、max_line_length 140);`dotnet format --verify-no-changes` 为可选校验。
+- `.editorconfig` 管 C# 风格(4 空格缩进、file-scoped namespace、max_line_length 140);`dotnet format --verify-no-changes` 三工程零 diff 是 CI 硬门禁(2026-08-09 全量规范化后防回归)。
+- CI 零 GDScript 闸(M7d):任何新增 `.gd` 文件即失败——全量迁移后禁止回归 GDScript。
 - 新增 `.cs` 前先确认它落在哪个 csproj 编译范围:主 `InfiAir.csproj` 显式排除 `csharp/core/**` 与 `tests-csharp/**`(分别由各自 csproj 编译),避免双编译。
 
-## GDScript ↔ C# Boundary(最高优先级)
+## Layer Boundary(最高优先级,M7 后替代原 GDScript ↔ C# Boundary)
 
-- 禁止跨语言继承:GDScript `class_name` 与 C# 类互不能继承(官方限制)。
-- 互操作仅走引擎 API + 信号 + 动态派发:GDScript 侧 `load("res://csharp/godot/X.cs").new()` 后调实例方法;参数/返回值用 Godot 友好类型(`Godot.Collections.Dictionary`/`Array`),避免 `out` 参数。
-- 热路径(对象池/弹幕/每帧循环)禁止跨语言调用。
-- 每个新增 C# 绑定类须配 GDScript 断言场景(`test/*_test.tscn`)验证互操作。
+- 仓库单一语言 C#(零 GDScript,CI 零 GDScript 闸强制);原跨语言互操作规则随之作废。
+- 分层边界:`InfiAir.Core`(`csharp/core/`)零 Godot 依赖,纯逻辑/数据模型/算法只能放这里;`InfiAir`(`csharp/godot/`)可引用 Core,不得把纯逻辑写进 Godot 壳。
+- `csharp/godot/*Interop.cs` 是 InfiAir.Core 类型的 Godot 绑定端点(RefCounted/Node 壳),供场景/测试经引擎 API 触达 Core——非 GDScript 残留。
+- 热路径(对象池/弹幕/每帧循环)遵守每帧零托管分配红线(见 §全量迁移操作约定)。
+- 新增 Core 能力须配 xUnit;场景级行为配 `test/*_test.tscn` 断言场景。
 
-## Language Choice
+## Code Placement(原 Language Choice,M7 后全量 C#)
 
-- 用 C#:纯逻辑/数据模型/算法/服务。
-- 用 GDScript:场景绑定/表现/UI/快速迭代玩法。
+- `csharp/core/`(InfiAir.Core):纯逻辑/数据模型/算法/服务——优先放这里,xUnit 毫秒级可测。
+- `csharp/godot/`(InfiAir):Godot 节点/场景绑定/表现/UI/玩法编排——可引用 Core。
+- `csharp/godot/tests/`:场景断言脚本(驱动 `test/*_test.tscn`)。
 
 ## Test Layering
 
 - 纯逻辑 → xUnit(`dotnet test`,毫秒级)。
-- 场景/集成 → `test/*_test.tscn` 断言场景。
+- 场景/集成 → `test/*_test.tscn` 断言场景(C# 脚本在 `csharp/godot/tests/`)。
 - 新增/移除断言场景须同步 `docs/TESTING.md` 的 Scene Counts(计数单一权威,禁止硬编码到其他文档;规则见 `.agents/doc-sync.md`)。
 
 ## Reference Sample
 
-- 首个混编样板:`csharp/core/BalanceModels.cs`(balance.json 类型化模型)+ `csharp/godot/BalanceInterop.cs`(RefCounted 绑定壳)+ `test/csharp_interop_test.gd`(跨语言断言场景);新 C# 代码以此为参照。
+- 首个 Core 落地样板:`csharp/core/BalanceModels.cs`(balance.json 类型化模型)+ `csharp/godot/BalanceInterop.cs`(RefCounted 绑定端点)+ `test/csharp_interop_test.tscn`(断言场景,由 `csharp/godot/tests/CSharpInteropTest.cs` 驱动);新 Core 代码以此为参照。
 
-## Landing Plan(着陆点路线图,2026-08-07 评估)
+## Landing Plan(历史记录:渐进式着陆点路线图,2026-08-07 评估;已被 M7 全量迁移取代)
 
+> **历史定位**:本节为"渐进式混编"时代的增量路线图存档——P0/P1 于 2026-08-07 落地(逐条见下),次日(2026-08-08)M7 全量迁移决策使整个增量计划被取代:存量 GDScript 全量迁 C#,终态零 GDScript(见 `docs/C_SHARP_ASSESSMENT.md` §10)。保留备查,不再作为当前方向。
 > 目标:C# 承担"更清晰的资源管理和性能调度"。评估矩阵与依据:候选模块对照纯逻辑/可单测/非热路径/边界清晰四判据(详见 `docs/C_SHARP_ASSESSMENT.md` §7 边界)。**登记于 ROADMAP Decisions 2026-08-07 条目**;实现是独立批次,本路线图只定方向与约束。
-> **落地状态(2026-08-07)**:P0-1/P0-2/P1-1/P1-2/P1-3 已全部落地(逐条见下);P2-1 触发条件未满足(资产加载分散但规模小),维持待启动。
+> **落地状态(2026-08-07)**:P0-1/P0-2/P1-1/P1-2/P1-3 已全部落地(逐条见下);P2-1 触发条件未满足(资产加载分散但规模小),维持待启动(后随 M7 全量迁移不再单独立项)。
 
 ### P0 — 高优先价值(近期落地)✅ 已落地(2026-08-07)
 

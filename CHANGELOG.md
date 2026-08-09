@@ -2,6 +2,51 @@
 
 本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。版本 3.23 无发布记录（git 历史未见对应 tag/条目，疑似有意跳号，2026-08-06 审计登记）。
 
+## [Unreleased]
+
+### 架构（2026-08-08，M7 全量迁移 C#——零 GDScript）
+- **全量迁移落地**（M1 脚手架 → M7d 收官，逐里程碑提交）：全部运行时代码 GDScript → C#（Godot 4.6.2 .NET 版 + .NET 8）——M2 服务层、M3 战斗核心（子弹生态/敌机体系/玩家 + 8 组件/Boss + 5 组件）、M4/M5 事件体系与 UI 层、M6 演出编排层、M7 GameState autoload 与全部场景测试；`scripts/*.gd` 与 `autoload/` 全量退役（`scripts/` 仅存 `tools/*.py` 离线工具），代码重组为 `csharp/godot/`（Godot 绑定壳）+ `csharp/core/`（纯 .NET 类库）+ `tests-csharp/`（xUnit）三工程
+- **M7d 收口**：`GameStateBridge`/snake_case 桥删除，C# 侧统一 `GameState.Instance` typed 访问；CI 新增零 GDScript 门禁（任何 `.gd` 文件即失败，防回归）；gdtoolkit（gdformat/gdlint）门禁随迁移退役，跨语言混编边界规则随之消解（单一语言；`csharp/godot/*Interop.cs` 保留为 `InfiAir.Core` 绑定端点）
+- **验证**：`dotnet build` 零警告 + xUnit 全绿 + 断言场景回归全绿（权威计数见 `docs/TESTING.md`）+ autoplay 探针通过
+
+### 修复（2026-08-09，启动器探测链 .NET 对齐）
+
+- `run.command`/`run.bat` 引擎探测链改 .NET 版优先（`godot-mono` → `Godot_mono.app` / `Godot_v4*mono*.exe` 优先命中，对齐 `run.sh`）：M7 全量 C# 后标准版引擎无法构建项目；修正 `run.bat` 头部「标准版，无需 .NET」失实说明；`.agents/shell-scripts.md` 同步
+
+### 重构（2026-08-09，M7 残留兼容桥清理）
+
+- 全仓使用面审计（直接调用/动态派发/tscn 连接/裸调用四通道）后删除约 400 个零调用 GDScript 兼容桥成员与转发器（snake_case 方法/属性、UPPER_SNAKE 别名、下划线别名、Boss 死转发器、死私有辅助 `ToFloatArray`）；保留桥横幅统一改写为「M7 后保留」口径，空桥段连横幅移除；`DawnStation` 内部引用归位 PascalCase 主名
+- 类头/桥段注释全量清扫（Player/Mothership/EliteTurretEvent/GameEvent/IntroCinematic/WarpGate/ReturnCinematic 头注、TurretBattery `SegmentedBar` 误注、DawnStation 枚举注释错位、`.editorconfig` 头部 gdtoolkit 治理残留）
+- **验证**：`dotnet build` 零警告 + xUnit 75/75 + `dotnet format` 三工程零 diff + 断言场景回归全绿（权威计数见 `docs/TESTING.md`）+ 引擎错误日志扫描零命中
+
+### 修复（2026-08-09，U 系列 C# 全量审计，AUDIT_VAULT U 系列登记）
+
+- **B1-B5 处置**：信号配对/静态 Godot 资源持活/损坏数据防御/热路径/动态派发 typed 化/桥清理/死代码；另清理 M7d 误提交的 30 个迁移中间版本孤儿文件（无扩展名 .cs 副本）
+
+### 规范化（2026-08-09，dotnet format 全量 + 防回归闸）
+
+- `dotnet format` 三工程（`InfiAir.csproj`/`csharp/core/InfiAir.Core.csproj`/`tests-csharp/InfiAir.Core.Tests.csproj`）全量规范化（whitespace/imports 排序，16 文件纯格式，构建 0 警告 + 单测 75/75）；CI 新增 `dotnet format` 三工程 verify 零 diff 防回归闸
+
+### 美工（2026-08-09，月蚀视觉）
+
+- **4 型 Boss「月蚀」专属贴图与视觉重制**：`generate_enemy_sprites.py` 扩展（敌机生成器输出 12→13 文件），随后重制为「月食之轮」独有设计（暗月盘 + 双正交轨道环刃：剪影可读/攻击器官可视化/焦点引导，与 3 型直线舰船一眼区分）；`docs/BOSS_REDESIGN.md` 同步
+- **素材生成统一入口**：`scripts/tools/regenerate_all.sh`（一键重生成 15 贴图 + 11 音频，解释器探测，幂等）+ `scripts/tools/README.md`
+
+### 修复（2026-08-09，V 系列多角度审查批次 1-3）
+
+- **批次 1**：静态 Godot 资源持活/UserDb 溢出回归/Explosion 双计数/BaseConsole 重复 AddChild/死亡回放续局/死测试修复
+- **批次 2**：遭遇组热路径缓存/空 StringName 复用 + Boss 发射链 typed 化（20 处动态派发收口，U13 验收失实修正）+ H05/数值钳制 + 死代码/U19 注释清理
+- **批次 3**：`gen_balance_map.py` C# 形态增强（未引用键 101→1）+ 重跑 + 文档同步迁移后现状（ARCHITECTURE/DESIGN_BASELINE/EVENT_MANAGER/ENTITY_MANAGER 等）+ V 系列归档
+- **遭遇配置缓存修复**：缓存改内层字典引用——`EventManagerTest` 直写 `ENCOUNTER_CONFIG` chance 固定掷签对值缓存不可见（CI 偶发约 70% 失败率根因）
+
+### CI（2026-08-09，审查盲区收口）
+
+- 触发分支扩 `feature/*`；断言场景步骤加引擎错误日志扫描（日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function 即失败，堵死退出码 0 的静默通过）+ 场景数硬校验（防改名/新增掉出 CI，不硬编码计数）
+
+### 文档（2026-08-09，M7 后全量文档订正）
+
+- 入口/测试/约定/设计文档对齐零 GDScript C# 现状：`scripts/*.gd` → `csharp/godot/*.cs`、`autoload/game_state.gd` → `csharp/godot/GameState.cs`、snake_case API → PascalCase、「GDScript 项目/渐进式 C# 混编」→ 全量 C#（零 GDScript）、gdtoolkit 门禁退役、跨语言边界规则消解；断言/场景计数仍唯一权威于 `docs/TESTING.md`，其余文档只引用不硬编码
+
 ## [3.28] - 2026-08-07
 
 > **发布状态（2026-08-07 登记）：暂缓发布。** 作者登记本版本内容尚未完善（缺项未补齐），

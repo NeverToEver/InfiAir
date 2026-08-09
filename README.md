@@ -2,15 +2,15 @@
 
 # 🛩️ InfiAir · 无限空域
 
-**一款 2D 俯视空战射击游戏 —— Godot 4 + GDScript 构建**
+**一款 2D 俯视空战射击游戏 —— Godot 4 + C#（.NET 8）构建**
 
 [English](./README.en.md) · **中文**
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
-[![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
+[![C#](https://img.shields.io/badge/C%23-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/c_sharp/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.28-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-47%20scenes%20passed-brightgreen)](#-开发者信息)
+[![Tests](https://img.shields.io/badge/Tests-assertion%20scenes-brightgreen)](./docs/TESTING.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-快速开始)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir 游戏画面" width="760">
@@ -33,7 +33,7 @@ InfiAir 是一款单机得分制街机射击游戏：驾驶战机迎战波次化
 - 🃏 **19 种可叠加 Buff** —— 伤害 / 射速 / 散射 / 穿透 / 爆炸 / 吸血 / 护甲 / 闪避 / 相位冲刺 / 激光光束……
 - 👾 **4 类轮换 Boss** —— HP 阶段模式表（P1 / P2 / 狂暴）驱动，限时未击杀会逃跑
 - 🛰️ **母舰火力平台** —— 蓄力召唤 → 自动对接 → 驻留驾驶（WASD + 双炮塔 + 导弹）→ 牵引回收
-- 💥 **随机事件系统** —— 精英炮塔突袭、轰炸编队与迷雾干扰事件（幽灵机群 / 精神错乱 / 子弹失灵 / 方向偏转）
+- 💥 **随机事件系统** —— 精英炮塔突袭、轰炸编队与迷雾干扰事件（幽灵机群 / 精神错乱 / 武器失灵 / 信号干扰）
 - 🏠 **基地中场整备** —— 维修 / 补给 / 天赋路线 / 任务领奖，整备后回到同一局
 - 📱 **触屏虚拟操控** —— 虚拟摇杆（移动 / 瞄准）+ 加速 / 微调 / 冲刺 / 弹反按钮，设置「触控」开关，键鼠 / 手柄不受影响
 
@@ -55,7 +55,7 @@ InfiAir 是一款单机得分制街机射击游戏：驾驶战机迎战波次化
 
 **直接玩**：从 [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) 下载预构建包（Windows / Linux，x86_64），解压即玩，附安装 / 卸载脚本。macOS 暂无预构建包，请从源码运行。
 
-**从源码运行**（需要 [Godot 4.6](https://godotengine.org/download)，标准版即可）：
+**从源码运行**（需要 [Godot 4.6 .NET 版](https://godotengine.org/download)与 .NET 8 SDK——全量 C# 工程，标准版引擎无法构建）：
 
 ```bash
 git clone https://github.com/NeverToEver/InfiAir.git
@@ -115,8 +115,8 @@ main.tscn（对局编排）
  └─ GameState（autoload：分数 / HP / Buff / RP / 任务 / 存档 / 设置 / 音效池 / 实体注册表）
 ```
 
-- **数值驱动**：全部可调数值集中在 `data/balance.json`，`GameState.cfg()` 统一访问、缺键回退脚本默认值——调参不改代码。
-- **UI 设计系统**：`scripts/ui_theme.gd` 统一色板 token、字号阶梯与组件工厂，所有页面同一风格。
+- **数值驱动**：全部可调数值集中在 `data/balance.json`，`GameState.Instance.Cfg()` 统一访问、缺键回退代码默认值——调参不改代码。
+- **UI 设计系统**：`csharp/godot/UITheme.cs` 统一色板 token、字号阶梯与组件工厂，所有页面同一风格。
 - **性能**：子弹 / 敌机 / 爆炸对象池，注册表替代组查询，三角函数查表，HUD 节流；`perf_bench` 基准场景可测纯帧耗时。
 - **碰撞分层**：`1=player 2=player_bullet 3=enemy 4=enemy_bullet`，子弹侧结算伤害；受击只看 r=7 判定点。
 - **持久化**：每用户存档 `user://savegame_<user>_<hash>.json`（游客不存档）、用户表 / 设置 / 榜单 `user://users.json`；`profile.json` 仅未登录 / 兼容。损坏自动隔离备份。
@@ -124,17 +124,19 @@ main.tscn（对局编排）
 </details>
 
 <details>
-<summary>✅ 测试与验证（47 断言场景）</summary>
+<summary>✅ 测试与验证（断言场景计数见 docs/TESTING.md）</summary>
 
-测试为无头场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检。最小验证集：
+场景测试为无头 C# 场景脚本（非测试框架），以 `[PASS]` / `[FAIL]` 输出自检；纯逻辑另有 `tests-csharp/` xUnit 单测。最小验证集（需 .NET 版引擎 + .NET 8 SDK）：
 
 ```bash
-godot --headless --import --path .          # 资源导入与脚本解析
-godot --headless --path . --quit-after 300  # 运行时冒烟
+dotnet build                                 # C# 构建（CI 零警告门禁）
+dotnet test tests-csharp/                    # xUnit 纯逻辑单测
+godot --headless --import --path .           # 资源导入与脚本解析
+godot --headless --path . --quit-after 300   # 运行时冒烟
 godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检全 PASS）
 ```
 
-完整 47 场景清单、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [docs/TESTING.md](./docs/TESTING.md)。
+完整断言场景清单（权威计数）、性能基准（`perf_bench`）、autoplay 自动游玩探针与窗口模式截图工具见 [docs/TESTING.md](./docs/TESTING.md)。
 
 </details>
 
@@ -160,7 +162,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 <details>
 <summary>🗺️ 路线图 / 🤝 贡献 / 🙏 致谢 / 📄 许可证</summary>
 
-**路线图**：内容演进（新 Buff / 新敌机与 Boss 型等）暂缓，重启需重新立项；移动端操控已于 2026-08-07 重启落地（触屏虚拟操控，见上方特性）；CI（GitHub Actions 五层门禁）与双平台发布（GitHub Releases）已落地。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
+**路线图**：内容演进（新 Buff / 新敌机与 Boss 型等）暂缓，重启需重新立项；移动端操控已于 2026-08-07 重启落地（触屏虚拟操控，见上方特性）；CI（GitHub Actions 六层门禁）与双平台发布（GitHub Releases）已落地。详见 [docs/ROADMAP.md](./docs/ROADMAP.md)。
 
 **贡献**：欢迎 Issue 和 PR！提交前请确认：全部无头断言场景通过；遵循 [AGENTS.md](./AGENTS.md) 中的约定；方向类决策（新内容立项、暂缓 / 重启）请先在 [docs/ROADMAP.md](./docs/ROADMAP.md) 登记。
 

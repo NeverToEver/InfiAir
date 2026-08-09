@@ -6,16 +6,16 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 **Lowest-priority** encounter: no Boss + no elite turret event; ~12s.
 
-(2026-07-29): occupies a wave slot: pauses normal waves (spawner `_waves_paused` hook; restore on end/interrupt); trigger resets spawner special-slot counter (same as elite/Boss). **2026-08-05**: trigger policy moved to unified event manager (`GameEventManager`, `docs/EVENT_MANAGER.md`) — same `formation_strike_event.trigger_*`/`min_score`/`cooldown` balance keys, same priority/mutex chain.
+(2026-07-29): occupies a wave slot: pauses normal waves (spawner `_wavesPaused` hook; restore on end/interrupt); trigger resets spawner special-slot counter (same as elite/Boss). **2026-08-05**: trigger policy moved to unified event manager (`GameEventManager`, `docs/EVENT_MANAGER.md`) — same `formation_strike_event.trigger_*`/`min_score`/`cooldown` balance keys, same priority/mutex chain.
 
 (spawner `_process` per tick; first active skips rest → 2026-08-05 起由统一事件管理器按注册序检查):
 
 1. **Boss** (score/time thresholds, highest)
 2. **Elite turret event** (`elite_turret_event`, 30s heavy; freezes Boss + pauses waves)
-3. **Formation strike event** (lowest): ① no Boss (unwarned/absent) ② elite turret `is_active() == false` ③ IDLE, cooldown done ④ score ≥ `min_score`; roll `trigger_interval`s @ `trigger_chance`.
+3. **Formation strike event** (lowest): ① no Boss (unwarned/absent) ② elite turret `IsActive() == false` ③ IDLE, cooldown done ④ score ≥ `min_score`; roll `trigger_interval`s @ `trigger_chance`.
 
-- **No Boss freeze**: Boss fires on schedule (~2s+ warning); pauses waves (shares `_waves_paused` hook; elite turret event can't start while formation active).
-- **Homecoming**: `Main._start_homecoming()` → `abort()`; disband, no settlement, waves resume; bombs persist.
+- **No Boss freeze**: Boss fires on schedule (~2s+ warning); pauses waves (shares `_wavesPaused` hook; elite turret event can't start while formation active).
+- **Homecoming**: `Main.StartHomecoming()` → `Abort()`; disband, no settlement, waves resume; bombs persist.
 
 ## 2. State Machine
 
@@ -27,16 +27,16 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 ## 3. Entities
 
-- Craft `scripts/formation_craft.gd` (Area2D): `enemy` group + `GameState.enemies`; deregistered on death/exit.
+- Craft `csharp/godot/FormationCraft.cs` (Area2D): `enemy` group + `GameState.Enemies`; deregistered on death/exit.
 - Sprite `assets/sprites/enemy_ship_2.png`, scale 0.9.
-- HP = `craft_hp_base` × `GameState.enemy_hp_multiplier()` × `GameState.enemy_hp_ramp()` (基准 × 难度档 × 对局进程 ramp,与普通敌机同口径); kill score `craft_score` (× difficulty in `add_score`).
-- No own AI: pos = anchor + rotated offset; rotation = heading + PI/2; `_process` drives.
-- Killed: `Explosion.spawn_at()` + SFX; bomb sequence skips destroyed craft.
+- HP = `craft_hp_base` × `GameState.EnemyHpMultiplier()` × `GameState.EnemyHpRamp()` (基准 × 难度档 × 对局进程 ramp,与普通敌机同口径); kill score `craft_score` (× difficulty in `AddScore`).
+- No own AI: pos = anchor + rotated offset; rotation = heading + PI/2; `_Process` drives.
+- Killed: `Explosion.SpawnAt()` + SFX; bomb sequence skips destroyed craft.
 
-- Bomb `scripts/formation_bomb.gd` (Area2D): layer 4 (`enemy_bullet`) / mask 1 (`player`); fuse-based, no hit-to-destroy.
+- Bomb `csharp/godot/FormationBomb.cs` (Area2D): layer 4 (`enemy_bullet`) / mask 1 (`player`); fuse-based, no hit-to-destroy.
 - Drop: ×0.35 formation h-speed + fall `bomb_fall_speed`; detonate after `bomb_fuse`.
 - Warning: glow (red-orange, 8Hz) + shrinking ring (Line2D, 0.9×AoE → 0.15×AoE).
-- Detonation: `Explosion.spawn_at(scale=0.9)` + SFX; distance vs `player_hitbox` (≤ `bomb_radius`, not invulnerable → `take_damage(bomb_damage)`); player-only.
+- Detonation: `Explosion.SpawnAt(scale: 0.9)` + SFX; distance vs `GameState.PlayerHitbox` (≤ `bomb_radius`, not invulnerable → `TakeDamage(bomb_damage, GlobalPosition)`); player-only.
 - queue_free on out-of-bounds/detonation; immune to slow fields.
 
 ## 4. Balance & i18n (`formation_strike_event` in `data/balance.json`; same-name script defaults as fallback, in sync)
@@ -62,25 +62,25 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 | `bomb_radius` | 120.0 | AoE radius |
 | `reward_all_clear` | 200 | all-clear bonus (any stage; early EXIT) |
 
-(`EXIT_TIME` 1.5s, same-craft gap 0.4s, wedge step 55px = `const`s.)
+(`ExitTime` 1.5s, same-craft gap 0.4s `BombStagger`, wedge step 55px `WingStep` = consts.)
 
 i18n: 1 key (zh/en): `FBQ_WARN` 「侦测到轰炸编队，正在接近」/ "Bomber formation inbound". Reuses `CommOverlay` (layer=12).
 
 ## 5. Integration Points
 
-- `main.gd _ready()`: create `FormationStrikeEvent` under Main → `spawner._formation`.
-- `spawner.gd`: `_formation` ref + trigger check (after elite turret, `_process` tail); params `formation_strike_event.*` (`_apply_balance`).
-- `main.gd _start_homecoming()`: `_formation.abort()` (no settlement; cooldown counts).
-- Craft/bomb under Main; cleanup `child is Enemy or child is Bullet` skips them (`abort()` owns them). Player death: no special case.
+- `Main._Ready()`: create `FormationStrikeEvent` under Main → `spawner.SetFormationEvent(_formation)`.
+- `csharp/godot/Spawner.cs`: `_formation` ref + trigger gates (`IsBossActive()` / elite `IsActive()`, polled by `GameEventManager`, §1); params `formation_strike_event.*` read by the event via `Cfg()` (same-name fallbacks).
+- `Main.StartHomecoming()`: `_events.EndActive(GROUP_ENCOUNTER)` → `_formation.Abort()` (no settlement; cooldown counts).
+- Craft/bomb under Main; field-clear (`OnOrbitalStruck`) sweeps registered enemies + `child is Bullet || child is FormationBomb`; `Abort()` owns event-lifecycle cleanup. Player death: no special case.
 
 ## 6. Tests (`test/formation_strike_event_test.tscn`)
 
 Mirrors `elite_turret_event_test`.
 
-1. `can_trigger()` false: Boss active / elite turret active / cooldown / low score.
-2. (short config forces `start()`) FORMATION_ENTER→FORMATION_TURN→BOMBING_RUN→FORMATION_EXIT→IDLE; craft in `GameState.enemies`; bombs only after turn; count = surviving × `bombs_per_craft` (destroyed skipped).
-3. Bombs: ring exists + shrinks; freed after detonation; damage in radius (not if invulnerable). Kills: lethal `take_damage` → deregistered + score; all-clear → bonus + early EXIT.
-4. `abort()` → cleaned, IDLE, cooldown active; no Timer/node residue (event tree + Main child counts); `user://` cleanup.
+1. `CanTrigger()` false: Boss active / elite turret active / cooldown / low score.
+2. (short config forces `Start()`) FORMATION_ENTER→FORMATION_TURN→BOMBING_RUN→FORMATION_EXIT→IDLE; craft in `GameState.Enemies`; bombs only after turn; count = surviving × `bombs_per_craft` (destroyed skipped).
+3. Bombs: ring exists + shrinks; freed after detonation; damage in radius (not if invulnerable). Kills: lethal `TakeDamage` → deregistered + score; all-clear → bonus + early EXIT.
+4. `Abort()` → cleaned, IDLE, cooldown active; no Timer/node residue (event tree + Main child counts); `user://` cleanup.
 
 Regression: `smoke_test`, `elite_turret_event_test`, `enemy_combat_test`, `base_system_test`, `--quit-after 300`.
 

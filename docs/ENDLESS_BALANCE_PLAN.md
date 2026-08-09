@@ -46,28 +46,28 @@ Two paradigms; project had neither:
 
 - Bullet/body-hit dmg × `(1 + k × (difficulty_multiplier − 1))`, k≈0.08 (×1.56 at mult=8) or time-based; at `enemy.gd`, `boss.gd`, formation bombs.
 - extra_life cap (10 stacks / 500 HP) or diminishing (+50×0.9^n); 99 cap nominal (milestone thresholds lock it); tightening lossless.
-- Landed: `enemies.damage_ramp_factor`, `GameState.enemy_damage_ramp()`; bullets split by faction in `bullet.gd` (all types); body hits (`enemy.gd`/`boss.gd`) + formation bombs (`formation_strike_event.gd`) separate.
+- Landed: `enemies.damage_ramp_factor`, `GameState.EnemyDamageRamp()`; bullets split by faction in `csharp/godot/Bullet.cs` (all types); body hits (`Enemy.cs`/`Boss.cs`) + formation bombs (`FormationStrikeEvent.cs`) separate.
 - Landed extra_life: 99→**10 stacks** (HP 100+500=600) — `buffs.extra_life.max_stacks`=10, pool `max` synced, card "infinitely stackable"→"max 10" (zh+en).
 
 ### Plan 2 — Events eat mult (P0-2, one-line) [landed]
 
 - Turret/formation HP × `(1 + enemies.hp_ramp_factor × (mult − 1))`, same as normal enemies (`elite_turret_event.gd:127`, `formation_strike_event.gd:115`).
-- Landed: via `GameState.enemy_hp_ramp()`.
+- Landed: via `GameState.EnemyHpRamp()`.
 
 ### Plan 3 — Smooth mult, drop hard cap (P1-3) [landed]
 
 - `2^n`→linear/log (e.g. `1 + 0.5 × boss_kills`); ×8→slow growth (e.g. `8 + 0.2 × (bk − 5)`).
 - §5-gated: A must drop cap; B may keep.
-- Landed: D1 = A; **cap-free linear** `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time term` (plan 4); `GameState._recompute_difficulty()` (kill + time-tier + save-restore); `2^n + ×8` dropped. Boss HP scales uncapped (50s DPS check → escape valve); `enemies.hp_ramp`/`damage_ramp`/spawn ramps ∞; player fixed (DPS ×9.5, HP 600). (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
+- Landed: D1 = A; **cap-free linear** `mult = 1 + progression.per_boss_kill(0.5) × boss_kills + time term` (plan 4); `GameState.RecomputeDifficulty()` (kill + time-tier + save-restore); `2^n + ×8` dropped. Boss HP scales uncapped (50s DPS check → escape valve); `enemies.hp_ramp`/`damage_ramp`/spawn ramps ∞; player fixed (DPS ×9.5, HP 600). (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
 
 ### Plan 4 — Time/score factor (P1-5) [landed]
 
 - e.g. `mult = f(boss_kills) + elapsed / 600`; low weight plugs dodge-stall.
-- Landed: time **quantized** — `progression.time_step_seconds`(30s) + `progression.per_ten_minutes`(1.0)/10 min = `floor(run_time/30) × 0.05`; stable HUD, pinnable tests; in-run `run_time` only (pause excluded); dodging still pressures. New `progression` section, cached `_apply_balance()`, recomputed on tier crossing in `_process`, broadcast `difficulty_changed`. (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
+- Landed: time **quantized** — `progression.time_step_seconds`(30s) + `progression.per_ten_minutes`(1.0)/10 min = `floor(run_time/30) × 0.05`; stable HUD, pinnable tests; in-run `run_time` only (pause excluded); dodging still pressures. New `progression` section, cached `ApplyBalance()`, recomputed on tier crossing in `_Process`, broadcast `DifficultyChanged`. (2026-07-29 落地值;2026-08-04 校准定稿见 §6.1)
 
 ### Plan 5 — Text/config cleanup (P2) [landed]
 
-- Landed: `BUFF_RAPID_FIRE_DESC` 33% zh/en (translations.csv); 16 dead `desc` deleted (cards only via `BUFF_%s_DESC` — single source of truth); `buffs.explosive.unlock_boss_kills`=3. P2-8/9: per-level scaling removed (fixed matches card); `player.gd` dead comment → config-override note.
+- Landed: `BUFF_RAPID_FIRE_DESC` 33% zh/en (translations.csv); 16 dead `desc` deleted (cards only via `BUFF_%s_DESC` — single source of truth); `buffs.explosive.unlock_boss_kills`=3. P2-8/9: per-level scaling removed (fixed matches card); `Player.cs` dead comment → config-override note.
 
 ## 5. Decisions
 

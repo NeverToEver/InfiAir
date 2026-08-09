@@ -8,7 +8,7 @@
 | 脚本 | 职责 | 输出(相对仓库根) |
 | --- | --- | --- |
 | `generate_player_sprite.py` | 玩家战机贴图(钛灰钢甲 + 青色能量,画布 254×254) | `assets/sprites/player_ship.png` |
-| `generate_enemy_sprites.py` | 敌机/精英/Boss/航母/炮塔贴图(12 个文件) | `assets/sprites/enemy_ship_1..4.png`、`elite_ship_1..3.png`、`boss_ship_1..3.png`、`strike_carrier.png`、`elite_turret.png` |
+| `generate_enemy_sprites.py` | 敌机/精英/Boss/航母/炮塔贴图(13 个文件) | `assets/sprites/enemy_ship_1..4.png`、`elite_ship_1..3.png`、`boss_ship_1..4.png`、`strike_carrier.png`、`elite_turret.png` |
 | `generate_mothership_sprite.py` | 母舰贴图 | `assets/sprites/mothership.png` |
 | `generate_audio.py` | 音效 + BGM(11 个 WAV) | `assets/audio/explosion.wav`、`explosion_big.wav`、`player_hit.wav`、`buff_pick.wav`、`dash.wav`、`resupply.wav`、`heartbeat.wav`、`bgm_loop.wav`、`bullet_fire.wav`、`bullet_fire_b.wav`、`bullet_fire_c.wav` |
 
@@ -25,6 +25,17 @@ scripts/tools/regenerate_all.sh
 - 自动探测解释器:优先 `python3`(须可 `import PIL`),否则回退仓库 `.venv/bin/python3`;
   均不可用时报错退出。
 - `set -e` 任一生成器失败即终止;脚本幂等,可重复执行。
+
+## 其他工具
+
+非素材生成器,但同属离线工具链(均仅依赖 Python 标准库,非游戏运行时依赖):
+
+- `balance_editor.py`:本机可视化编辑 `data/balance.json`(分区树形展示全部可调数值,
+  标黄未保存改动,保存前递归校验结构/类型与现文件一致,临时文件 + 原子落盘 +
+  `balance.json.bak` 自动备份)。用法:`python3 scripts/tools/balance_editor.py [--port 8931] [--no-browser]`。
+- `gen_balance_map.py`:扫描 `csharp/` 侧 `GameState.Instance.Cfg()` 调用点生成
+  `docs/BALANCE_MAP.md`(数值位置地图:静态键文件:行索引/缺失键标注/动态拼接键/未引用键反查)。
+  改数值或新增/改名键后运行 `python3 scripts/tools/gen_balance_map.py`;CI 校验生成物零 diff。
 
 ## 可复现性
 

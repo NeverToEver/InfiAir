@@ -2,15 +2,15 @@
 
 # 🛩️ InfiAir
 
-**A 2D top-down space shooter built with Godot 4 + GDScript**
+**A 2D top-down space shooter built with Godot 4 + C# (.NET 8)**
 
 **English** · [中文](./README.md)
 
 [![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org/)
-[![GDScript](https://img.shields.io/badge/GDScript-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/)
+[![C#](https://img.shields.io/badge/C%23-100%25-478cbf)](https://docs.godotengine.org/en/stable/tutorials/scripting/c_sharp/)
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v3.28-orange)](https://github.com/NeverToEver/InfiAir/releases)
-[![Tests](https://img.shields.io/badge/Tests-47%20scenes%20passed-brightgreen)](#-for-developers)
+[![Tests](https://img.shields.io/badge/Tests-assertion%20scenes-brightgreen)](./docs/TESTING.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#-quick-start)
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
@@ -33,7 +33,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 - 🃏 **19 stackable buffs** — damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…
 - 👾 **4 rotating bosses** — driven by an HP-phase pattern table (P1 / P2 / enrage); fail to kill in time and the boss flees
 - 🛰️ **Mothership weapons platform** — charge-up summon → auto-docking → piloted stay (WASD + twin turrets + missiles) → tractor-beam recovery
-- 💥 **Random event system** — elite turret strikes, formation bombing runs, and fog interference events (ghost squadrons / mental confusion / bullet malfunctions / directional jolts)
+- 💥 **Random event system** — elite turret strikes, formation bombing runs, and fog interference events (Ghost Swarm / Confusion / Weapon Glitch / Signal Drift)
 - 🏠 **Mid-run base refit** — repair / resupply / talent routes / mission rewards, then back to the same battle
 - 📱 **Touch controls** — virtual sticks (move / aim) + boost / fine-move / dash / parry buttons; opt-in via Settings, mouse/keyboard/gamepad unaffected
 
@@ -55,7 +55,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 
 **Just play**: grab a pre-built package from [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) (Windows / Linux, x86_64) — extract and run, with install/uninstall scripts included. macOS has no pre-built package yet; run from source instead.
 
-**Run from source** (requires [Godot 4.6](https://godotengine.org/download), standard build — no .NET needed):
+**Run from source** (requires the .NET build of [Godot 4.6](https://godotengine.org/download) plus the .NET 8 SDK — the project is all C#; the standard engine build cannot compile it):
 
 ```bash
 git clone https://github.com/NeverToEver/InfiAir.git
@@ -78,7 +78,7 @@ godot --path .
 | ESC | Pause / back one page / exit confirmation |
 | Right mouse button | Back / cancel (same routing as ESC: dismiss confirm, close settings, pause toggle, exit confirm at top level) |
 
-**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller. **PlayStation pads are auto-detected** (same button positions, different labels): A/B/X/Y ↔ ✕/○/□/△, LB/RB ↔ L1/R1.
+**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / LT parry / X summon / Y homecoming / L3 buff panel / R3 give up / B back. Aim-stick sensitivity and stick deadzone are adjustable under Settings → Modes → Controller. **PlayStation pads are auto-detected** (same button positions, different labels): A/B/X/Y ↔ ✕/○/□/△, LB/RB ↔ L1/R1.
 
 <details>
 <summary>Full key list (abandon / restart / rebinding)</summary>
@@ -115,8 +115,8 @@ main.tscn (run orchestration)
  └─ GameState (autoload: score / HP / buffs / RP / missions / saves / settings / SFX pool / entity registries)
 ```
 
-- **Data-driven tuning**: every tunable lives in `data/balance.json`, accessed via `GameState.cfg()` with per-key fallback to script defaults — tweak the JSON, no code changes needed.
-- **UI design system**: `scripts/ui_theme.gd` provides color tokens, a type scale and component factories shared by every screen.
+- **Data-driven tuning**: every tunable lives in `data/balance.json`, accessed via `GameState.Instance.Cfg()` with per-key fallback to code defaults — tweak the JSON, no code changes needed.
+- **UI design system**: `csharp/godot/UITheme.cs` provides color tokens, a type scale and component factories shared by every screen.
 - **Performance**: bullet / enemy / explosion object pooling, registries instead of group queries, trig lookup tables, throttled HUD; the `perf_bench` scene measures raw frame time.
 - **Collision layers**: `1=player 2=player_bullet 3=enemy 4=enemy_bullet`; bullets resolve damage on their side; hits only count on the r=7 hitbox point.
 - **Persistence**: per-user saves `user://savegame_<user>_<hash>.json` (guests don't save); user table / settings / leaderboard in `user://users.json`; `profile.json` only for not-logged-in / compatibility. Corrupted files are quarantined automatically.
@@ -124,17 +124,19 @@ main.tscn (run orchestration)
 </details>
 
 <details>
-<summary>✅ Testing (47 assertion scenes)</summary>
+<summary>✅ Testing (assertion-scene count in docs/TESTING.md)</summary>
 
-Tests are headless scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output. Minimal verification set:
+Scene tests are headless C# scene scripts (no framework) that self-check with `[PASS]` / `[FAIL]` output; pure logic is covered by xUnit unit tests in `tests-csharp/`. Minimal verification set (needs the .NET engine build + .NET 8 SDK):
 
 ```bash
-godot --headless --import --path .          # assets & script parsing
-godot --headless --path . --quit-after 300  # runtime smoke
+dotnet build                                 # C# build (CI zero-warning gate)
+dotnet test tests-csharp/                    # xUnit unit tests
+godot --headless --import --path .           # assets & script parsing
+godot --headless --path . --quit-after 300   # runtime smoke
 godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (self-checked assertions)
 ```
 
-The full 47-scene list (authoritative count in `docs/TESTING.md`), the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [docs/TESTING.md](./docs/TESTING.md).
+The full assertion-scene list (authoritative count in `docs/TESTING.md`), the `perf_bench` performance benchmark, the autoplay simulated-play probe and the windowed capture tools are documented in [docs/TESTING.md](./docs/TESTING.md).
 
 </details>
 
@@ -160,7 +162,7 @@ The full 47-scene list (authoritative count in `docs/TESTING.md`), the `perf_ben
 <details>
 <summary>🗺️ Roadmap / 🤝 Contributing / 🙏 Acknowledgments / 📄 License</summary>
 
-**Roadmap**: content evolution (new buffs / new enemy & boss types) is deferred and needs re-proposal to restart; mobile controls were restarted and landed 2026-08-07 (virtual touch controls, see features above); CI (GitHub Actions 5-layer gate) and dual-platform releases (GitHub Releases) are live. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
+**Roadmap**: content evolution (new buffs / new enemy & boss types) is deferred and needs re-proposal to restart; mobile controls were restarted and landed 2026-08-07 (virtual touch controls, see features above); CI (GitHub Actions 6-layer gate) and dual-platform releases (GitHub Releases) are live. See [docs/ROADMAP.md](./docs/ROADMAP.md) for details.
 
 **Contributing**: issues and PRs are welcome! Before submitting: make sure all headless assertion scenes pass; follow the conventions in [AGENTS.md](./AGENTS.md); record direction-level decisions (new content, defer / restart) in [docs/ROADMAP.md](./docs/ROADMAP.md) first.
 
