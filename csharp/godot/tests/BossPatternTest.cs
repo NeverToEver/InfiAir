@@ -195,8 +195,8 @@ public partial class BossPatternTest : Node
             {
                 new Godot.Collections.Dictionary { ["attack"] = new StringName("charged_cannon"), ["waves"] = 1, ["interval"] = 1.2 },
             });
-            // M3d：boss1.attacks().cannon_elapsed() 无 Boss.cs 转发器（BossAttacks 纯 C# 类不可跨语言）——
-            // telegraph 起手检测/计时断言移除，待主代理补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：cannon_elapsed() 无 Boss.cs 转发器（BossAttacks 纯 C# 类不可跨语言），
+            // 且转发器已随 52dcf67 正式删除——telegraph 起手检测/计时断言永久移除（蓄力期无弹/重弹计数由下方保留断言覆盖）
             // C34：弹速/伤害从 boss 实例常量读取（cfg 覆盖后运行时值），改 JSON 不漂移
             float cannonSpeed = boss1.CANNON_BULLET_SPEED;
             int cannonDmg = boss1.CANNON_DAMAGE;
@@ -356,7 +356,7 @@ public partial class BossPatternTest : Node
                 }
             }
             Check(active3, "场景3：TRANSITION 结束进入 ACTIVE");
-            // M3d：aim_line()/attack_index() 无 Boss.cs 转发器——瞄准线/瞬停点计数断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：aim_line()/attack_index() 无 Boss.cs 转发器且已随 52dcf67 删除——瞄准线/瞬停点计数断言永久移除（见适配报告）
             int heavy3Max = 0;
             var posSamples = new System.Collections.Generic.List<Vector2>();
             for (int i = 0; i < 30; i++) // ~1.5s 覆盖 ACTIVE
@@ -580,7 +580,7 @@ public partial class BossPatternTest : Node
                 }
             }
             Check(active5, "场景5：TRANSITION 结束进入 ACTIVE");
-            // M3d：summon_waves() 无 Boss.cs 转发器——波次计数断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：summon_waves() 无 Boss.cs 转发器且已随 52dcf67 删除——波次计数断言永久移除（在场小怪峰值由 minionMax 断言覆盖）
             int minionMax = 0;
             int ring5Max = 0;
             for (int i = 0; i < 40; i++) // ~2s 覆盖 ACTIVE
@@ -652,7 +652,8 @@ public partial class BossPatternTest : Node
             }
             Check(boss6e.E1_RING_COUNT == 10, $"场景6：easy 狂暴环弹 12-2=10（实测 {boss6e.E1_RING_COUNT}）");
             Check(boss6e.CANNON_SHOTS == 2, $"场景6：easy 蓄力重炮 3-1=2 发（实测 {boss6e.CANNON_SHOTS}）");
-            // M3d：fan_delta/homing_delta/ring_delta 无 Boss.cs 转发器（BossAttacks 纯 C# 类）——弹数分档断言移除，待补转发器后恢复
+            // M3d/W 系列（2026-08-09）：fan_delta/homing_delta/ring_delta 无 Boss.cs 转发器（BossAttacks 纯 C# 类）
+            // 且已随 52dcf67 删除——弹数分档断言永久移除（开火间隔/弹速分档由下方保留断言覆盖）
             double p2IntervalE = boss6e.Patterns()["p2"].AsGodotArray()[0].AsGodotDictionary()["interval"].AsDouble();
             Check(Mathf.Abs(p2IntervalE - 2.4 * 1.15) < 0.01, $"场景6：easy 开火间隔 ×1.15（实测 {p2IntervalE:0.000}）");
             Check(Mathf.Abs((double)boss6e.FAN_BULLET_SPEED - 380.0 * 0.9) < 0.01, $"场景6：easy 弹速 ×0.9（实测 {boss6e.FAN_BULLET_SPEED:0.0}）");

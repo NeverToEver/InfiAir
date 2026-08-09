@@ -169,7 +169,9 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>P4（2026-08-05）：配置重载公开入口（GameState.reload_balance 联动——原诊断/测试注入
-    /// 路径只刷平衡缓存，事件触发策略/fog 配置停留旧值，与运行时不一致）。</summary>
+    /// 路径只刷平衡缓存，fog 配置停留旧值，与运行时不一致）。注意：遭遇组（ENCOUNTER_CONFIG）注册时
+    /// 固化内层字典引用（fe1a186 为测试直写可见性），重载后遭遇策略仍为注册时值——仅诊断/测试路径，
+    /// 运行时 _ready 只走一次（W 系列 2026-08-09 口径澄清）。</summary>
     public void ReloadConfig() => LoadBalance();
 
     // ---------------- 对外公开接口（A1 约定：测试/诊断经公开接口） ----------------

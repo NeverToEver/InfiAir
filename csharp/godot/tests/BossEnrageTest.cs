@@ -163,7 +163,7 @@ public partial class BossEnrageTest : Node
             Check(boss.EnragePhaseValue() == boss.GetEnragePhaseTransition(), "场景1：触发进入 TRANSITION");
             Check(Mathf.IsEqualApprox(Engine.TimeScale, 0.24f), "场景1：狂暴瞬间进入子弹时间 time_scale=0.24");
             Check(Mathf.IsEqualApprox(player.EnrageSlow(), 0.35f), "场景1：触发即施加玩家减速 ×0.35");
-            // M3d：snapshot_target() 无 Boss.cs 转发器——轨道中心快照断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：snapshot_target() 无 Boss.cs 转发器且已随 52dcf67 删除——轨道中心快照断言永久移除（悬停断言由下方 220 行保留）
             // 锁血（触发→RELEASE_HOLD 前）：普通/致死伤害都不掉血不死
             var hp0 = boss.Hp;
             boss.TakeDamage(50);
@@ -218,7 +218,7 @@ public partial class BossEnrageTest : Node
                 }
             }
             Check(maxD < 20.0f, "场景1：ACTIVE 期 Boss 悬停原地（旋转堡垒）");
-            // M3d：attack_index()/ring_angle() 无 Boss.cs 转发器——波次计数/起始角进动断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：attack_index()/ring_angle() 无 Boss.cs 转发器且已随 52dcf67 删除——波次计数/起始角进动断言永久移除（环弹开火由下方 222 行保留）
             Check(CountEnrageBullets() > 0, "场景1：ACTIVE 期环弹开火");
             // 等 ACTIVE 计时耗尽进入 RELEASE_HOLD
             var hold = false;
@@ -238,8 +238,8 @@ public partial class BossEnrageTest : Node
             Check(hold, "场景1：ACTIVE 结束进入 RELEASE_HOLD");
             Check(Mathf.IsEqualApprox(player.EnrageSlow(), 1.0f), "场景1：RELEASE_HOLD 复位玩家减速");
             // 一型收尾：蓄力 telegraph 后 8 路重炮齐射（700 弹速重弹，一次性）。
-            // M3d：release_salvo_done() 无 Boss.cs 转发器——发射标记断言移除（原为 2026-08-03 flake 修复，
-            // 场上计数在慢 runner 上不可靠；待补转发器后按原语义恢复，见适配报告）；下方保留解血锁后可掉血断言
+            // M3d/W 系列（2026-08-09）：release_salvo_done() 无 Boss.cs 转发器且已随 52dcf67 删除——发射标记断言永久移除
+            // （原为 2026-08-03 flake 修复，场上计数在慢 runner 上不可靠，见适配报告）；下方保留解血锁后可掉血断言
             var hp1 = boss.Hp;
             boss.TakeDamage(5);
             Check(boss.Hp < hp1, "场景1：RELEASE_HOLD 解血锁后可掉血");

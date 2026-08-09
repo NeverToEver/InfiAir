@@ -8,7 +8,8 @@ namespace InfiAir;
 /// 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.position（Node2D 公开属性），
 /// 经 boss 公开查询（slow_factor/strafe_range/is_enraged/fight_phase）交互，不访问私有字段（A1 约束）。
 /// Boss 为 C# 类；访问经动态派发（Get/Call，StringName 静态缓存避免每帧字面量分配——U10 已消除
-/// 每帧构造，剩余动态派发频率 1 次/物理帧/Boss，收益低登记不修，typed 化留待 Boss API 重构一并做）。
+/// 每帧构造，剩余动态派发视移动型 1-11 次/物理帧/Boss（MoveType4 走位 7 次），收益低登记不修，
+/// typed 化留待 Boss API 重构一并做）。
 /// Enemy.SinFast 查表静态直接调用。纯 C# 类（原 RefCounted）。
 /// </summary>
 public partial class BossMovement : RefCounted

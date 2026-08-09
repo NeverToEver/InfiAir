@@ -722,7 +722,7 @@ public partial class Mothership : Area2D
         GameState.Instance.Shake(ShakeSlow);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -10.0, 0.6);
         // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：失效实例跳过 +
-        // duck-typing（has_method("apply_slow") 仅 Enemy/Boss 响应；EnrageSequence 同款直迭代）
+        // W 系列（2026-08-09）：apply_slow 仅 Enemy 实现，typed 直调（U13 已收口动态派发）
         foreach (var item in GameState.Instance.Enemies)
         {
             var e = item;

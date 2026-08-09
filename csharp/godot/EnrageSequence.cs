@@ -416,7 +416,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>4 型「月蚀」ACTIVE（2026-08-04）：中心悬停 + 双环反向进动——正环 + 反角环
-    /// 交替成波（各环起始角 ±_ring_angle，每波进动 E4_PRECESSION_DEG）。</summary>
+    /// 交替成波（起始角 = precession × 波次索引，每波进动 E4_PRECESSION_DEG；_ring_angle 为 1 型字段，不在此用）。</summary>
     private void ActiveEclipse(float delta, Node2D boss)
     {
         _attackTimer -= delta;

@@ -162,7 +162,8 @@ public partial class BossPhaseTest : Node
             Check(boss.FightPhaseValue() == boss.GetFightPhaseActive(), "场景1：HP ≤70% 进入 P2");
             Check(_phaseSignal == boss.GetFightPhaseActive(), "场景1：段切换发出 phase_changed");
             Check(Mathf.IsEqualApprox(boss.Hp, boss.MaxHp * 0.65f), "场景1：P2 阈值不钳血（锁血仅狂暴 30% 语义不变）");
-            // M3d：enrage_sequence().is_health_locked() 无 Boss.cs 转发器——P2 段切换不锁血断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：is_health_locked() 无 Boss.cs 转发器且已随 52dcf67 删除——
+            // P2 段切换不锁血断言永久移除（阈值不钳血由上方 164 行保留断言覆盖）
             Check(boss.PatternIndex() == 0, "场景1：段切换重置模式表循环");
             // C11 + L14：段切换 y 平滑过渡——不再「立即回锚线」（原实现 P2 首帧绝对赋值，
             // 切换恰在下压窗口内会瞬间跳变）；切换后机身从当前 y 平滑追锚线，首帧不得跳变
@@ -249,7 +250,7 @@ public partial class BossPhaseTest : Node
             boss2.SetPatternIndex(0);
             boss2.StartPattern();
             boss2.SetFireTimer(0.1f);  // 立即起手
-            // M3d：aim_line() 无 Boss.cs 转发器——瞄准线先行/≥0.3s 时序/出弹即毁断言移除，待补转发器后恢复（见适配报告）
+            // M3d/W 系列（2026-08-09）：aim_line() 无 Boss.cs 转发器且已随 52dcf67 删除——瞄准线先行/≥0.3s 时序/出弹即毁断言永久移除（见适配报告）
             var burst3 = false;
             for (var i = 0; i < 40; i++)
             {
