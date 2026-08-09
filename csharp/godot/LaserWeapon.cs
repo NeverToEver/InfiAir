@@ -65,19 +65,11 @@ public partial class LaserWeapon : Node2D
 
     public Line2D Beam() => _beam;
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3b 过渡，M7 删除） ----------------
-    // buff33_test 等 GDScript 调用方经动态派发以 snake_case 访问 C# 类方法
-    // （C# 内部调用一律 PascalCase）。M7 全量迁移后删除本段。
-
-    public bool active() => Active();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float active_time() => ActiveTime();
 
     public float cooldown() => Cooldown();
-
-
-
-    public Line2D beam() => Beam();
 
     public override void _Ready()
     {

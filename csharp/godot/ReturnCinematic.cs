@@ -1550,29 +1550,6 @@ public partial class ReturnCinematic : CanvasLayer
 
         return sb.ToString();
     }
-
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（skip / bgm_player / Finished 信号）、test/return_cinematic_test.gd
-    // （set_shot_durations/shot_index/current_shot/shot_root/subtitle/skip/Finished）、
-    // test/return_capture.gd（set_shot_durations/shot_index）、test/ui_capture.gd（skip）。
-
-    public void skip() => Skip();
-
-    public void set_shot_durations(Godot.Collections.Array durations) => SetShotDurations(durations);
-
-    public int shot_index() => ShotIndex();
-
-    public Node2D? current_shot() => CurrentShot();
-
-
-    public Label subtitle() => Subtitle();
-
-    /// <summary>main.gd `_return.bgm_player = _bgm_player` 注入（GDScript 以 snake 属性名访问）。</summary>
-    public AudioStreamPlayer? bgm_player
-    {
-        get => BgmPlayer;
-        set => BgmPlayer = value;
-    }
 }
 
 /// <summary>镜头 2 传送端口（原 return_cinematic.gd 内嵌类 _PortalShot；C# 源生成器不支持

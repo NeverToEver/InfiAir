@@ -784,38 +784,7 @@ public partial class GameEventManager : Node
         return GameState.Instance.FogEvents;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原 GDScript 公开方法（snake_case）别名转发；GDScript 调用方（main.gd/测试）经动态
-    // 派发以原方法名访问。C# 内部调用一律 PascalCase。
-
-
-
-    public void set_run_active(bool active) => SetRunActive(active);
-
-    public void activate_fog() => ActivateFog();
-
-
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Variant @event(StringName pId) => Event(pId);
-
-    public StringName active_id(StringName pGroup) => ActiveId(pGroup);
-
-
-
-
-    public bool force_trigger(StringName pId) => ForceTrigger(pId);
-
-    public void end_active(StringName pGroup) => EndActive(pGroup);
-
-    public void end_all() => EndAll();
-
-
-
-
-
-
-
-
-
 }

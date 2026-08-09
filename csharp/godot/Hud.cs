@@ -1363,42 +1363,13 @@ public partial class Hud : CanvasLayer
 
     public TextureRect Vignette() => _vignette;
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // GDScript 调用方（main.gd/back_navigator.gd/meta_health_fx.gd/测试）经动态派发以
-    // snake_case 访问本类；C# 调用方（EliteTurretEvent/Boss/Mothership）经 hud.Call(...)
-    // 以原方法名动态调用——故保留原公开方法的 snake_case 别名转发。
-
-
-
-
-
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public void show_popup(string text, Vector2 worldPos) => ShowPopup(text, worldPos);
-
-
-
-
-    public void show_boss_bar(Boss boss) => ShowBossBar(boss);
-
-
-
 
     public void meta_jitter() => MetaJitter(2.0f);
 
     public void meta_jitter(float px) => MetaJitter(px);
-
-
-
-
-
-    public Label? buff_overflow_label() => BuffOverflowLabel();
-
-
-
-
-
-
 
     public TextureRect vignette() => Vignette();
 

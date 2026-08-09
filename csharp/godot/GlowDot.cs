@@ -21,9 +21,4 @@ public partial class GlowDot : Node2D
         DrawCircle(Vector2.Zero, Radius, DotColor);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原公开 var radius/dot_color 的 snake_case 别名（C# 内部调用一律 PascalCase）。
-    public float radius { get => Radius; set => Radius = value; }
-
-    public Color dot_color { get => DotColor; set => DotColor = value; }
 }

@@ -202,15 +202,4 @@ public partial class StrikeCarrier : Node2D
                 break;
         }
     }
-
-    // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
-    public void enter(float hoverY, float duration) => Enter(hoverY, duration);
-
-
-
-    public void retreat(bool victorious) => Retreat(victorious);
-
-    public float RETREAT_START_SPEED { get => RetreatStartSpeed; set => RetreatStartSpeed = value; }
-
-    public float RETREAT_ACCEL { get => RetreatAccel; set => RetreatAccel = value; }
 }

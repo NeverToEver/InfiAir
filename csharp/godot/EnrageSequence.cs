@@ -702,36 +702,9 @@ public partial class EnrageSequence : RefCounted
         HiveVolleyAllMinions(boss);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原公开 var/方法的 snake_case 别名（C# 内部调用一律 PascalCase；V 系列清理 configure 桥——无调用方）。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float world_scale { get => WorldScale; set => WorldScale = value; }
 
-    public bool is_active() => IsActive();
-
-    public int phase() => Phase();
-
-    public bool release_salvo_done() => ReleaseSalvoDone();
-
-    public int attack_index() => AttackIndex();
-
-    public float ring_angle() => RingAngle();
-
     public int summon_waves() => SummonWaves();
-
-    public Vector2 snapshot_target() => SnapshotTarget();
-
-    public Line2D? aim_line() => AimLine();
-
-    public void begin(Node2D boss, Vector2 snapshotPos, Vector2 bossSize) => Begin(boss, snapshotPos, bossSize);
-
-    public void abort() => Abort();
-
-
-
-
-
-    public bool is_health_locked() => IsHealthLocked();
-
-    public void update(float delta, Node2D boss) => Update(delta, boss);
 }

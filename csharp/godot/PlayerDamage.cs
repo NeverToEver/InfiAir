@@ -118,31 +118,11 @@ public class PlayerDamage
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被
-    // GDScript 动态派发，本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public bool take_damage(float amount, Vector2 fromPos, Player player) => TakeDamage(amount, fromPos, player);
 
-
-    public void configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit)
-        => Configure(invincibleTime, armorMult, evasionChance, regenPerSec, shakeHit);
-
-
-
     public float invincible { get => Invincible; set => Invincible = value; }
 
-    public int last_hit_frame { get => LastHitFrame; set => LastHitFrame = value; }
-
-    public float since_damage { get => SinceDamage; set => SinceDamage = value; }
-
     public float INVINCIBLE_TIME { get => InvincibleTime; set => InvincibleTime = value; }
-
-    public float ARMOR_MULT { get => ArmorMult; set => ArmorMult = value; }
-
-    public float EVASION_CHANCE { get => EvasionChance; set => EvasionChance = value; }
-
-    public float REGEN_PER_SEC { get => RegenPerSec; set => RegenPerSec = value; }
-
-    public float SHAKE_HIT { get => ShakeHit; set => ShakeHit = value; }
 }

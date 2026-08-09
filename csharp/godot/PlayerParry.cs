@@ -181,31 +181,11 @@ public partial class PlayerParry : RefCounted
 
     public static int GetPhaseRecover() => (int)ParryPhase.RECOVER;
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被
-    // GDScript 动态派发，本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public void tick(float delta) => Tick(delta);
-
-
-
-
-
-
-
-    public void configure(float pDuration, float pActiveTime, float pCooldown)
-        => Configure(pDuration, pActiveTime, pCooldown);
-
-    public ParryPhase phase { get => Phase; set => Phase = value; }
-
-    public float flow_timer { get => FlowTimer; set => FlowTimer = value; }
 
     public float cooldown { get => Cooldown; set => Cooldown = value; }
 
     public float DURATION { get => Duration; set => Duration = value; }
-
-    public float ACTIVE_TIME { get => ActiveTime; set => ActiveTime = value; }
-
-    public float COOLDOWN { get => CooldownMax; set => CooldownMax = value; }
 }

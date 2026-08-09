@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """生成 docs/BALANCE_MAP.md（数值位置地图）
 
-扫描 scripts/ 与 autoload/ 下全部 GameState.cfg() 调用点，生成可维护的数值索引：
+扫描 scripts/、autoload/（历史路径，现已无源文件）与 csharp/ 下全部 GameState.cfg()/GameState.Instance.Cfg() 调用点（M7d 后实际命中 C# 侧），生成可维护的数值索引：
 - 静态键：json 路径、回退默认值表达式、调用位置（文件:行），并标注 json 中是否存在该键
   （缺失 = 走脚本回退，新增/改名时需双写检查）；
 - 动态拼接键（如 player.aim_assist.levels.<level>.frame_pad）：单独列出前缀；
@@ -156,8 +156,8 @@ def main() -> None:
     lines.append("## 怎么改数值")
     lines.append("")
     lines.append("- 运行时数值的唯一来源是 `data/balance.json`；推荐用 `python3 scripts/tools/balance_editor.py` 在浏览器里编辑（改动高亮、类型校验、自动备份）。")
-    lines.append("- 脚本侧的 `GameState.cfg(\"键路径\", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。")
-    lines.append("- 高频 `_process` 路径的数值在 `_ready()`/`_load_balance()` 一次缓存，不要每帧查。")
+    lines.append("- 代码侧的 `GameState.Instance.Cfg(\"键路径\", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。")
+    lines.append("- 高频 `_Process` 路径的数值在 `_Ready()`/`LoadBalance()` 一次缓存，不要每帧查。")
     lines.append("")
     lines.append("## 静态 cfg() 调用点（按文件分组）")
     lines.append("")

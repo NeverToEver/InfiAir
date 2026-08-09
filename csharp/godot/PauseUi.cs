@@ -204,20 +204,4 @@ public partial class PauseUi : CanvasLayer
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：back_navigator.gd（open/close/grab_primary_focus/visible）、settings_ui.gd
-    // （has_method("grab_primary_focus") + grab_primary_focus）、test/*.gd（open/close/toggle/
-    // open_settings/save/quit/visible——变量类型 CanvasLayer 鸭子调用）、visual_capture.gd/ui_capture.gd。
-
-    public void open() => Open();
-
-    public void close() => Close();
-
-    public void toggle() => Toggle();
-
-
-
-    public void save() => Save();
-
-    public void quit() => Quit();
 }

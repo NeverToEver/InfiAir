@@ -163,15 +163,4 @@ public partial class ExitConfirm : CanvasLayer
         tween.TweenCallback(Callable.From(() => GetTree().Quit()));
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：back_navigator.gd（cancel/visible）、pause_ui.gd（show_confirm(true)——
-    // C# PauseUi 亦经 Call("show_confirm", true) 动态调）、test/back_navigation_test.gd
-    // （battle_mode/msg_label/execute_exit_cleanup/visible）、autoplay_test.gd（visible）。
-
-
-
-    public void cancel() => Cancel();
-
-
-
 }

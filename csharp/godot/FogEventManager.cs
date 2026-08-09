@@ -302,38 +302,11 @@ public partial class FogEventManager : Node
         return GameState.Instance.Events;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原 GDScript 公开方法（snake_case）别名转发；GDScript 调用方（main.gd/player/测试）经
-    // 动态派发以原方法名访问。C# 内部调用一律 PascalCase。
-
-    public void wire(GameEventManager pEvents) => Wire(pEvents);
-
-
-    public void set_run_active(bool active) => SetRunActive(active);
-
-    public StringName active_id() => ActiveId();
-
-
-
-
-
-
-
-    public bool can_trigger() => CanTrigger();
-
-    public bool try_trigger() => TryTrigger();
-
-    public bool force_trigger(StringName pEventId) => ForceTrigger(pEventId);
-
-    public void end_active() => EndActive();
-
-    public Godot.Collections.Array<Node> spawned_fakes() => SpawnedFakes();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Node2D fake_container() => FakeContainer();
-
 
     public CanvasLayer overlay_layer() => OverlayLayer();
 
     public ColorRect overlay_rect() => OverlayRect();
-
 }

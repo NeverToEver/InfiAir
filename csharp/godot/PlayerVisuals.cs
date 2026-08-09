@@ -186,32 +186,4 @@ public class PlayerVisuals
         _parryShine.Polygon = sp;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case）别名转发。纯 C# 类不可被 GDScript 动态派发，
-    // 本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
-
-    public void init(
-        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
-        Node worldRoot) => Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot);
-
-    public void init(
-        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
-        Node worldRoot, int poolSize) => Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot, poolSize);
-
-    public void set_thruster(float speedScale, float amountRatio, float alpha, Color engineTint)
-        => SetThruster(speedScale, amountRatio, alpha, engineTint);
-
-    public void spawn_afterimage(Texture2D spriteTexture, Vector2 spriteScale, Vector2 gpos, float rot)
-        => SpawnAfterimage(spriteTexture, spriteScale, gpos, rot);
-
-    public void spawn_afterimage(Texture2D spriteTexture, Vector2 spriteScale, Vector2 gpos, float rot, Color color)
-        => SpawnAfterimage(spriteTexture, spriteScale, gpos, rot, color);
-
-
-    public void update_frame(float delta, float parryTint, float invincible, long nowMs)
-        => UpdateFrame(delta, parryTint, invincible, nowMs);
-
-
-    public void update_parry_visuals(float expand, float shine, float radius, float arcDeg)
-        => UpdateParryVisuals(expand, shine, radius, arcDeg);
 }

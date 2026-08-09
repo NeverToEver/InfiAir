@@ -1,14 +1,15 @@
 #!/bin/bash
-# InfiAir 双击启动（macOS）+ 终端参数透传（2026-08-02 与 run.sh 对齐）
+# InfiAir 双击启动（macOS）+ 终端参数透传（2026-08-02 与 run.sh 对齐；2026-08-09 探测链改 .NET 版优先）
 # 双击启动：直接开游戏；异常退出保留窗口与输出，方便排查。
 # 终端用法：./run.command [引擎参数]——与 run.sh 同一参数协议：
 #           例：./run.command --editor              （打开编辑器）
 #               ./run.command --headless --quit-after 300（无头快速启动自检）
+# 引擎探测：.NET 版优先（godot-mono / Godot_mono.app——含 C# 工程标准版无法构建）→ 标准版回退
 # 若双击无反应：右键 → 打开；或先执行 chmod +x run.command
 # 若提示"无法验证开发者"：系统设置 → 隐私与安全性 → 仍要打开
 cd "$(dirname "$0")" || exit 1
 
-# 引擎候选：PATH（godot / godot4）→ ~/.local/bin → /Applications → ~/Applications（含 Godot*.app 变体名）
+# 引擎候选：.NET 版优先（godot-mono / Godot_mono.app——项目含 C#，标准版无法构建）→ PATH（godot / godot4）→ ~/.local/bin → /Applications → ~/Applications（含 Godot*.app 变体名）
 CANDIDATES=()
 add_candidate() {
     local c
@@ -17,10 +18,13 @@ add_candidate() {
     done
     CANDIDATES+=("$1")
 }
+if command -v godot-mono >/dev/null 2>&1; then add_candidate "godot-mono"; fi
+[ -x "$HOME/.local/bin/godot-mono" ] && add_candidate "$HOME/.local/bin/godot-mono"
 if command -v godot >/dev/null 2>&1; then add_candidate "godot"; fi
 if command -v godot4 >/dev/null 2>&1; then add_candidate "godot4"; fi
 [ -x "$HOME/.local/bin/godot" ] && add_candidate "$HOME/.local/bin/godot"
-for app in "/Applications/Godot.app" "$HOME/Applications/Godot.app" \
+for app in "/Applications/Godot_mono.app" "$HOME/Applications/Godot_mono.app" \
+    "/Applications/Godot.app" "$HOME/Applications/Godot.app" \
     /Applications/Godot*.app "$HOME"/Applications/Godot*.app; do
     bin="$app/Contents/MacOS/Godot"
     [ -x "$bin" ] && add_candidate "$bin"
@@ -48,14 +52,14 @@ done
 if [ -z "$GODOT" ] && [ ${#CANDIDATES[@]} -gt 0 ]; then
     GODOT="${CANDIDATES[0]}"
     VER="$("$GODOT" --version 2>/dev/null | head -n1)"
-    echo "[InfiAir] 警告：只检测到 Godot ${VER:-未知版本}，本项目按 4.6+ 构建，可能无法正常运行。"
+    echo "[InfiAir] 警告：只检测到 Godot ${VER:-未知版本}，本项目按 4.6+ .NET 版构建，可能无法正常运行。"
 fi
 
 if [ -z "$GODOT" ]; then
-    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，标准版即可）。"
-    echo "          下载：https://godotengine.org/download"
-    echo "          安装到 /Applications 或 ~/Applications（改带版本的名字也能识别），"
-    echo "          或将 godot 加入 PATH / 放置到 ~/.local/bin/godot。"
+    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+ .NET 版——含 C# 工程，标准版无法构建；开发需 .NET 8 SDK）。"
+    echo "          下载：https://godotengine.org/download（选 .NET 版本）"
+    echo "          Godot_mono.app 安装到 /Applications 或 ~/Applications（改带版本的名字也能识别），"
+    echo "          或将 godot-mono 加入 PATH / 放置到 ~/.local/bin/godot-mono。"
     read -r -p "按回车退出…"
     exit 1
 fi

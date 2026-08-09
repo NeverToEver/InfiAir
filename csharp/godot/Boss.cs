@@ -636,11 +636,8 @@ public partial class Boss : Area2D
     /// <summary>A6：语义化类型查询（调用方不再依赖 `is Boss` 具体类型）。</summary>
     public bool IsBoss() => true;
 
-    // M3d：纯 C# 组件（EnrageSequence/BossAttacks）不可跨语言返回——GDScript 经 Boss 级
-    // 访问器读相位/状态（M7 删除）
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
     public int EnragePhaseValue() => _enrageSequence.Phase();
-
-    public bool EnrageActive() => _enrageSequence.IsActive();
 
     public int GetEnragePhaseNone() => (int)EnragePhase.NONE;
 
@@ -655,35 +652,6 @@ public partial class Boss : Area2D
     public int GetFightPhaseActive() => (int)FightPhase.P2;
 
     public int SweepStateValue() => (int)_attacks.SweepState();
-
-    // M3d 补转发器（测试断言恢复用；转发至组件，M7 删除）
-    public float CannonElapsed() => _attacks.CannonElapsed();
-
-    public bool IsSweepActive() => _attacks.IsSweepActive();
-
-    public int AttackIndex() => _enrageSequence.AttackIndex();
-
-    public float RingAngle() => _enrageSequence.RingAngle();
-
-    public int SummonWaves() => _enrageSequence.SummonWaves();
-
-    public Vector2 SnapshotTarget() => _enrageSequence.SnapshotTarget();
-
-    public bool ReleaseSalvoDone() => _enrageSequence.ReleaseSalvoDone();
-
-    public bool IsHealthLocked() => _enrageSequence.IsHealthLocked();
-
-    public float FanDelta() => _attacks.FanDelta;
-
-    public float HomingDelta() => _attacks.HomingDelta;
-
-    public float RingDelta() => _attacks.RingDelta;
-
-    public int GetSweepStateAim() => (int)SweepState.AIM;
-
-    public int GetSweepStateDash() => (int)SweepState.DASH;
-
-    public int GetFightPhaseEnrage() => (int)FightPhase.ENRAGE;
 
     /// <summary>默认模式表公开访问（boss_registry_test 校验 balance.json 用；C# 静态经脚本资源可调）。</summary>
     public Godot.Collections.Dictionary GetDefaultPatterns() => _defaultPatterns;
@@ -1411,49 +1379,17 @@ public partial class Boss : Area2D
         GD.Print($"[BOSS] 存活 {(int)EscapeTime}s 未被击杀，逃离战场（无击杀奖励）");
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3d 过渡，M7 删除） ----------------
-    // GDScript 调用方经动态派发以 snake_case 访问 C# 类；混合体系下无法按类分派不同方法名，
-    // 故保留原 GDScript 公开 var/方法的 snake_case 别名转发（C# 内部调用一律 PascalCase）。
-    // 注：attacks()/enrage_sequence()/fire_tool() 返回纯 C# 类——源生成器对非 Variant 兼容
-    // 返回类型不注册进引擎表，GDScript 侧不可经此链访问组件（组件经 C# 直取；测试随批次重定型）。
-
-    public void setup(float p_difficulty, int p_type) => Setup(p_difficulty, p_type);
-
-
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public bool is_enraged() => IsEnraged();
 
-    public bool is_boss() => IsBoss();
-
     public int fight_phase() => FightPhaseValue();
-
-
-
-
-
-
-
-    public Godot.Collections.Dictionary patterns() => Patterns();
-
-
-
-
-
-
-
-
-
 
     public void take_damage(int amount, float score_scale) => TakeDamage(amount, score_scale);
 
     public void take_damage(int amount) => TakeDamage(amount);
 
-
     public float slow_factor() => SlowFactor();
-
-    public void apply_slow(float duration, float factor) => ApplySlow(duration, factor);
-
 
     public float escape_drift_offset() => EscapeDriftOffset();
 
@@ -1461,22 +1397,8 @@ public partial class Boss : Area2D
 
     public Vector2 strafe_range() => StrafeRange();
 
-    public Enemy? spawn_minion_at(Vector2 pos) => SpawnMinionAt(pos);
-
-    // ---- 配置变量别名（原 GDScript 公开 var；BossMovement/BossAttacks/EnrageSequence 经 Get 读取；M7 删除） ----
-    public float ENTER_SPEED { get => EnterSpeed; set => EnterSpeed = value; }
-
-    public float FIGHT_Y { get => FightY; set => FightY = value; }
-
-    public float STRAFE_MIN_X { get => StrafeMinX; set => StrafeMinX = value; }
-
-    public float STRAFE_MAX_X { get => StrafeMaxX; set => StrafeMaxX = value; }
-
-    public float HP_BASE { get => HpBase; set => HpBase = value; }
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
     public Godot.Collections.Array<float> STRAFE_SPEEDS { get => StrafeSpeeds; set => StrafeSpeeds = value; }
-
-    public Godot.Collections.Array FIRE_INTERVALS { get => FireIntervals; set => FireIntervals = value; }
 
     public float FAN_BULLET_SPEED { get => FanBulletSpeed; set => FanBulletSpeed = value; }
 
@@ -1490,21 +1412,9 @@ public partial class Boss : Area2D
 
     public int BULLET_DAMAGE_RING { get => BulletDamageRing; set => BulletDamageRing = value; }
 
-    public float PHASE2_HP_RATIO { get => Phase2HpRatio; set => Phase2HpRatio = value; }
-
-    public float ENRAGE_HP_RATIO { get => EnrageHpRatio; set => EnrageHpRatio = value; }
-
-    public float ENRAGE_RATE_MULT { get => EnrageRateMult; set => EnrageRateMult = value; }
-
     public float ENRAGE_SPEED_MULT { get => EnrageSpeedMult; set => EnrageSpeedMult = value; }
 
     public float ENRAGE_PLAYER_SLOW { get => EnragePlayerSlow; set => EnragePlayerSlow = value; }
-
-    public float PHASE_SHIFT_DURATION { get => PhaseShiftDuration; set => PhaseShiftDuration = value; }
-
-    public bool CLEAR_ON_SHIFT { get => ClearOnShift; set => ClearOnShift = value; }
-
-    public float TRANSITION_INVINCIBLE { get => TransitionInvincible; set => TransitionInvincible = value; }
 
     public float SNIPER_AIM_TIME { get => SniperAimTime; set => SniperAimTime = value; }
 
@@ -1577,12 +1487,6 @@ public partial class Boss : Area2D
     public int WALL_DAMAGE { get => WallDamage; set => WallDamage = value; }
 
     public float WALL_ARC_DEG { get => WallArcDeg; set => WallArcDeg = value; }
-
-    public Godot.Collections.Array DIFF_INTERVAL_MULT { get => DiffIntervalMult; set => DiffIntervalMult = value; }
-
-    public Godot.Collections.Array DIFF_SPEED_MULT { get => DiffSpeedMult; set => DiffSpeedMult = value; }
-
-    public Godot.Collections.Dictionary DIFF_COUNT_DELTAS { get => DiffCountDeltas; set => DiffCountDeltas = value; }
 
     public int ENRAGE_SNAPSHOT_LASERS { get => EnrageSnapshotLasers; set => EnrageSnapshotLasers = value; }
 
@@ -1678,18 +1582,6 @@ public partial class Boss : Area2D
 
     public float MOVE4_BOB_PERIOD { get => Move4BobPeriod; set => Move4BobPeriod = value; }
 
-    public float ESCAPE_TIME { get => EscapeTime; set => EscapeTime = value; }
-
-    public float ESCAPE_WARNING { get => EscapeWarning; set => EscapeWarning = value; }
-
-    public float ESCAPE_DRIFT { get => EscapeDrift; set => EscapeDrift = value; }
-
-    public float ESCAPE_START_SPEED { get => EscapeStartSpeed; set => EscapeStartSpeed = value; }
-
-    public float ESCAPE_ACCEL { get => EscapeAccel; set => EscapeAccel = value; }
-
-    public float ESCAPE_COUNTDOWN_FROM { get => EscapeCountdownFrom; set => EscapeCountdownFrom = value; }
-
     public int BULLET_DAMAGE_FAN { get => BulletDamageFan; set => BulletDamageFan = value; }
 
     public int BULLET_DAMAGE_HOMING { get => BulletDamageHoming; set => BulletDamageHoming = value; }
@@ -1702,18 +1594,10 @@ public partial class Boss : Area2D
 
     public int BULLET_DAMAGE_SNAPSHOT_RING { get => BulletDamageSnapshotRing; set => BulletDamageSnapshotRing = value; }
 
-    public int COLLISION_DAMAGE { get => CollisionDamage; set => CollisionDamage = value; }
-
-    public float SLOW_FIELD_FACTOR { get => SlowFieldFactor; set => SlowFieldFactor = value; }
-
-    // ---- 状态变量别名（原 GDScript 公开 var；BossMovement/EnrageSequence 经 Get("boss_type") 读取；M7 删除） ----
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
     public int boss_type { get => BossType; set => BossType = value; }
 
-    public float max_hp { get => MaxHp; set => MaxHp = value; }
-
     public float hp { get => Hp; set => Hp = value; }
-
-    public bool is_escaped { get => IsEscaped; set => IsEscaped = value; }
 
     // ---- Fire_* 转发桥（V 系列：生产调用已 typed 直调 BossFire；保留供测试契约——
     // HitLogicTest 经 Boss.Fire_* 触发发射，故签名与转发保留，仅注释更新） ----

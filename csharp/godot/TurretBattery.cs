@@ -10,7 +10,7 @@ namespace InfiAir;
 /// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
 /// 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
 /// 经动态派发（Call/Set，Bullet 的 SetMeta 不注册引擎表——snake_case "set_meta"）；
-/// HpBar 为 GDScript SegmentedBar（untyped Control，自定义属性经引擎 Set 走属性 setter）。
+/// HpBar 为 C# SegmentedBar（以 Control 引用，自定义属性经引擎 Set 走属性 setter）。
 /// </summary>
 public partial class TurretBattery : Area2D
 {
@@ -350,20 +350,12 @@ public partial class TurretBattery : Area2D
         QueueFree();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
-    // 测试（test/elite_turret_event_test.gd）与 Bullet（C# 动态派发 take_damage）以 snake_case 访问。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public bool Ceased() => _ceased;
 
-    public bool ceased() => Ceased();
-
     public void setup(int pHp, Godot.Collections.Array pAmmo, Vector2 pFireInterval, Godot.Collections.Dictionary weakLock)
         => Setup(pHp, pAmmo, pFireInterval, weakLock);
-
-    public void rise(float duration) => Rise(duration);
-
-    public void activate() => Activate();
-
 
     public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
 
@@ -371,11 +363,7 @@ public partial class TurretBattery : Area2D
 
     public void die() => Die();
 
-    public int max_hp { get => MaxHp; set => MaxHp = value; }
-
     public int hp { get => Hp; set => Hp = value; }
-
-    public Godot.Collections.Array ammo_sequence { get => AmmoSequence; set => AmmoSequence = value; }
 
     public Vector2 fire_interval { get => FireInterval; set => FireInterval = value; }
 
@@ -387,25 +375,5 @@ public partial class TurretBattery : Area2D
 
     public float spread_deg { get => SpreadDeg; set => SpreadDeg = value; }
 
-    public float SINGLE_SPEED { get => SingleSpeed; set => SingleSpeed = value; }
-
-    public float SPREAD_SPEED { get => SpreadSpeed; set => SpreadSpeed = value; }
-
-    public float LASER_SPEED { get => LaserSpeed; set => LaserSpeed = value; }
-
-    public float HOMING_SPEED { get => HomingSpeed; set => HomingSpeed = value; }
-
-    public float SNIPER_SPEED { get => SniperSpeed; set => SniperSpeed = value; }
-
     public float SPREAD_FAN_STEP { get => SpreadFanStep; set => SpreadFanStep = value; }
-
-    public int DMG_SINGLE { get => DmgSingle; set => DmgSingle = value; }
-
-    public int DMG_SPREAD { get => DmgSpread; set => DmgSpread = value; }
-
-    public int DMG_LASER { get => DmgLaser; set => DmgLaser = value; }
-
-    public int DMG_HOMING { get => DmgHoming; set => DmgHoming = value; }
-
-    public int DMG_SNIPER { get => DmgSniper; set => DmgSniper = value; }
 }

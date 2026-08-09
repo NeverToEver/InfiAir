@@ -38,13 +38,4 @@ public partial class FogEvent : GameEvent
             cb.AsCallable().Call(dir, hold);
         }
     }
-
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-
-    public Node2D? fake_container() => FakeContainer();
-
-    public CanvasLayer? overlay_layer() => OverlayLayer();
-
-    public ColorRect? overlay_rect() => OverlayRect();
-
 }

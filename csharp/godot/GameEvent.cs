@@ -17,8 +17,8 @@ namespace InfiAir;
 ///     不会叠加半状态（子类 _on_start 无需为重复调用特判）；
 ///   - end() 幂等；tick() 仅活跃期派发；context 浅拷贝隔离编排器后续修改；
 ///   - duration ≤ 0 钳制为 0（编排器侧另有下限，双保险）。
-/// 迁移期：GDScript 测试经 load("res://csharp/godot/GameEvent.cs").new() 实例化 → RefCounted 基链；
-/// 公开 API 保持 snake_case 别名桥（M7 删除）。
+/// M7 后测试经 C# typed 实例化（RefCounted 基链）；公开 API 为 PascalCase，
+/// 少量 snake_case 别名桥因测试/动态派发调用方保留。
 /// </summary>
 public partial class GameEvent : RefCounted
 {
@@ -113,25 +113,13 @@ public partial class GameEvent : RefCounted
     {
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原 GDScript 公开 var/方法（snake_case）别名转发；GDScript 测试 load(.cs) 后经动态
-    // 派发访问。C# 内部调用一律 PascalCase。
-
-    public Godot.Collections.Dictionary context { get => Context; set => Context = value; }
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float duration { get => Duration; set => Duration = value; }
 
-    public bool is_active { get => IsActive; set => IsActive = value; }
-
     public StringName event_id() => EventId();
 
-    public Variant get_ctx(StringName key) => GetCtx(key);
-
-    public Variant get_ctx(StringName key, Variant def) => GetCtx(key, def);
-
     public void request_end() => RequestEnd();
-
-    public void start(Godot.Collections.Dictionary pContext, float pDuration) => Start(pContext, pDuration);
 
     public void tick(float delta) => Tick(delta);
 

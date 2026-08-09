@@ -63,8 +63,4 @@ public partial class FakeEnemiesEvent : FogEvent
 
     /// <summary>已生成的伪敌机（测试/诊断；manager.spawned_fakes 委托到本方法）。</summary>
     public Godot.Collections.Array<Node> SpawnedFakes() => _fakes.Duplicate();
-
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-
-    public Godot.Collections.Array<Node> spawned_fakes() => SpawnedFakes();
 }

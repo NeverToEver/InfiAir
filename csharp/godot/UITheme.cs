@@ -395,9 +395,7 @@ public partial class UITheme : RefCounted
         tween.TweenProperty(button, "scale", new Vector2(target, target), 0.08);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // GDScript 调用方（M6 过场/测试）不能以类名引用 C# 类、不能访问 C# 静态字段/常量，
-    // 经脚本资源调用静态方法；色板常量转 Get*() 访问器。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public static Color GetPanelBg() => PanelBg;
 
@@ -466,27 +464,4 @@ public partial class UITheme : RefCounted
     public static int GetFontSmall() => FontSmall;
 
     public static FontFile GetFont() => Font;
-
-
-
-
-
-
-
-
-
-
-
-
-    public static Control make_section_header(string text) => MakeSectionHeader(text);
-
-
-
-
-    public static void stagger_open(Control container) => StaggerOpen(container);
-
-
-
-    public static void animate_open(Control control) => AnimateOpen(control);
-
 }

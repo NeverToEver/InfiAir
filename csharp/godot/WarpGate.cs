@@ -274,17 +274,9 @@ public partial class WarpGate : Node2D
         return pts;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（WarpGate.new()/position——主代理改 typed/脚本资源）、
-    // Mothership.cs（_warp_gate.Call("close") 动态派发）、
-    // test/mothership_summon_test.gd（gate.phase()；WarpGate.Phase.CLOSING 改经脚本资源静态访问器）。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public int phase() => (int)GetPhase();
-
-    public void close() => Close();
-
-    /// <summary>静态枚举访问器：GDScript 不能以类名引用 C# 嵌套枚举
-    /// （mothership_summon_test.gd `WarpGate.Phase.CLOSING` 改 `WarpGateScript.GetPhaseClosing()`；先例 Mothership.GetState*）。</summary>
+    /// <summary>静态枚举访问器（mothership_summon_test 经此读枚举值；先例 Mothership.GetState*）。</summary>
     public static int GetPhaseOpening() => (int)Phase.OPENING;
 
     public static int GetPhaseHold() => (int)Phase.HOLD;

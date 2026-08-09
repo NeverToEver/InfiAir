@@ -32,9 +32,6 @@ public partial class AimCrosshair : Node2D
         ProcessMode = Node.ProcessModeEnum.Always;  // 暂停态也要能切回系统光标并隐藏准星
     }
 
-    /// <summary>GDScript 鸭子调用兼容桥（M3b 过渡，M7 删除）：player.gd 迁移前以 init(self) 调用。</summary>
-    public void init(Player p) => Init(p);
-
     public override void _ExitTree()
     {
         // 场景切换/重开兜底：准星消亡时归还系统光标

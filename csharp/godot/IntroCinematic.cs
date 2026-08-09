@@ -10,8 +10,8 @@ namespace InfiAir;
 /// 严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/intro_cinematic.gd）：CanvasLayer 子类。
 /// CinematicFx/DawnStation/Starfield 已迁 C# typed 直调。
-/// 注：原 GDScript signal finished 迁移为 C# [Signal] Finished——main.gd / intro_cinematic_test.gd
-/// 连接处需改连 PascalCase 名（主代理集中处理）；GDScript 测试的 set_shot_durations(Array) 走 snake 桥。
+/// 注：原 GDScript signal finished 迁移为 C# [Signal] Finished（Main/测试均 typed 连接）；
+/// 测试经 PascalCase SetShotDurations(float[]) 注入镜头时长。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {
@@ -1985,37 +1985,6 @@ public partial class IntroCinematic : CanvasLayer
 
         return sb.ToString();
     }
-
-    private static float[] ToFloatArray(Godot.Collections.Array array)
-    {
-        var result = new float[array.Count];
-        for (var i = 0; i < array.Count; i++)
-        {
-            result[i] = array[i].AsSingle();
-        }
-
-        return result;
-    }
-
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（skip / finished 信号→PascalCase Finished）、
-    // test/intro_cinematic_test.gd（skip / set_shot_durations(Array) / shot_index / current_shot /
-    // shot_root / subtitle / finished→PascalCase Finished）、
-    // test/intro_capture.gd（set_shot_durations(Array) / shot_index）。
-
-    public void play() => Play();
-
-
-    public void skip() => Skip();
-
-    public void set_shot_durations(Godot.Collections.Array durations) => SetShotDurations(ToFloatArray(durations));
-
-    public int shot_index() => ShotIndex();
-
-    public Node2D? current_shot() => CurrentShot();
-
-
-    public Label subtitle() => Subtitle();
 }
 
 /// <summary>软圆点（原 GDScript intro_cinematic.gd 内嵌类 _GlowDot，迁移为同文件顶层类；

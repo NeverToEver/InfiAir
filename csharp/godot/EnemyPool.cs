@@ -107,17 +107,12 @@ public partial class EnemyPool : Node
     /// <summary>被外部 queue_free（清场/测试/场景重载）时从池清单移除。</summary>
     public void Forget(Enemy e) => _free.Remove(e);
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3b 过渡，M7 删除） ----------------
-    // 同 Enemy：GDScript 调用方以 snake_case 动态派发访问 C# 类，保留别名转发。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Enemy spawn(Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos, StringName pBulletType)
         => Spawn(config, strategy, pDifficulty, pos, pBulletType);
 
     public Enemy spawn(Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos)
         => Spawn(config, strategy, pDifficulty, pos);
-
-    public void release(Enemy e) => Release(e);
-
-    public void forget(Enemy e) => Forget(e);
 
 }

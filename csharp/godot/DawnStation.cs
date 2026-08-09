@@ -10,28 +10,22 @@ namespace InfiAir;
 /// 基地 UI 背景层（PHANTOM，自行压 modulate.a）。粒子发射器 ≤96/个，与过场性能预算一致。
 /// M6 全量迁移（2026-08-08 自 scripts/dawn_station.gd）。
 /// 迁移注：内嵌类 _Dot 迁为同文件顶层类 DawnStationDot（C# 源生成器不支持内嵌类，BaseConsole 先例）；
-/// PackedVector2Array → Vector2[]（批次规则 9，互操作语义一致）；静态方法/常量经 UPPER_SNAKE
-/// 属性与 Get* 访问器兼容过渡期 GDScript 调用方（intro/return 过场接线后改 typed）。
+/// PackedVector2Array → Vector2[]（批次规则 9，互操作语义一致）。
 /// </summary>
 public partial class DawnStation : RefCounted
 {
     /// <summary>实体毁灭态：冷钢蓝灰 + 破口残骸（开场镜头 1 现状配色，提取自 intro_cinematic._build_shot1）</summary>
     public enum Mode
     {
-        /// <summary>全息虚影态：ADD 青蓝 + 慢呼吸 + 扫描带 + 数据流粒子 + 破口能量网格（§1.1 四层变换）</summary>
         Destroyed,
 
+        /// <summary>全息虚影态：ADD 青蓝 + 慢呼吸 + 扫描带 + 数据流粒子 + 破口能量网格（§1.1 四层变换）</summary>
         Phantom,
     }
 
     public const float RingRadius = 260.0f; // 环体主弧半径
     public const float BreachStart = 0.5f; // 破口起角（rad，右下象限，识别锚点不可移动）
     public const float BreachEnd = 1.2f; // 破口止角
-
-    // UPPER_SNAKE 兼容（过渡期接线/旧名引用；M7 后清理）
-    public const float RING_RADIUS = RingRadius;
-    public const float BREACH_START = BreachStart;
-    public const float BREACH_END = BreachEnd;
 
     public static Node2D Build() => Build(Mode.Destroyed);
 
@@ -158,7 +152,7 @@ public partial class DawnStation : RefCounted
             for (var i = 0; i < 48; i++)
             {
                 var a = Mathf.Tau * (float)i / 48.0f;
-                ringPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RING_RADIUS;
+                ringPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
             }
 
             var ring = Line(ringPoints, PaletteColor(palette, "ring"), 26.0f);
@@ -235,7 +229,7 @@ public partial class DawnStation : RefCounted
 
             var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
             var seg = RectPoly(64.0f, 40.0f, PaletteColor(palette, "seg"));
-            seg.Position = dir * RING_RADIUS;
+            seg.Position = dir * RingRadius;
             seg.Rotation = a + Mathf.Pi * 0.5f;
             if (additive)
             {
@@ -297,7 +291,7 @@ public partial class DawnStation : RefCounted
         for (var i = 0; i <= segs; i++)
         {
             var a = Mathf.Lerp(a0, a1, (float)i / segs);
-            points[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RING_RADIUS;
+            points[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
         }
 
         var arc = Line(points, color, 26.0f);
@@ -345,8 +339,8 @@ public partial class DawnStation : RefCounted
         var brokenPoints = new Vector2[7];
         for (var i = 0; i < 7; i++)
         {
-            var a = BREACH_START + (BREACH_END - BREACH_START) * (float)i / 6.0f;
-            brokenPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RING_RADIUS;
+            var a = BreachStart + (BreachEnd - BreachStart) * (float)i / 6.0f;
+            brokenPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
         }
 
         station.AddChild(Line(brokenPoints, new Color(0.05f, 0.05f, 0.08f), 30.0f));
@@ -411,7 +405,7 @@ public partial class DawnStation : RefCounted
             true,
             new Godot.Collections.Array
             {
-                new Godot.Collections.Array { BREACH_START, BREACH_END },
+                new Godot.Collections.Array { BreachStart, BreachEnd },
                 new Godot.Collections.Array { 2.4f, 2.62f },
                 new Godot.Collections.Array { 4.9f, 5.06f },
             });
@@ -484,7 +478,7 @@ public partial class DawnStation : RefCounted
         var gridLines = new List<Line2D>();
         for (var g = 0; g < 4; g++) // 经线：4 条径向跨 r240→280
         {
-            var a = BREACH_START + (BREACH_END - BREACH_START) * (float)g / 3.0f;
+            var a = BreachStart + (BreachEnd - BreachStart) * (float)g / 3.0f;
             var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
             var meridian = Line(new[] { dir * 240.0f, dir * 280.0f }, new Color(0.0f, 0.83f, 1.0f, 0.75f), 2.5f);
             Additive(meridian);
@@ -498,7 +492,7 @@ public partial class DawnStation : RefCounted
             var latPoints = new Vector2[8];
             for (var s = 0; s < 8; s++)
             {
-                var a = BREACH_START + (BREACH_END - BREACH_START) * (float)s / 7.0f;
+                var a = BreachStart + (BreachEnd - BreachStart) * (float)s / 7.0f;
                 latPoints[s] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rLat;
             }
 
@@ -594,23 +588,6 @@ public partial class DawnStation : RefCounted
     {
         return palette[key].AsColor();
     }
-
-    // ---------------- 鸭子调用兼容桥（M6 过渡，V 系列清理注释：调用方均已 typed） ----------------
-    // 调用方：BaseConsole.cs（已 typed 直调）——桥代码随 Boss 链 typed 化批次统一处理。
-
-    public static Node2D build() => Build();
-
-    public static Node2D build(int mode) => Build(mode);
-
-    public static float GetRingRadius() => RING_RADIUS;
-
-    public static float GetBreachStart() => BREACH_START;
-
-    public static float GetBreachEnd() => BREACH_END;
-
-    public static int GetModeDestroyed() => (int)Mode.Destroyed;
-
-    public static int GetModePhantom() => (int)Mode.Phantom;
 }
 
 /// <summary>站体构件：纯色圆点（环心毂/辉光垫共用）。

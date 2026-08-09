@@ -199,30 +199,6 @@ public partial class PlayerBuffVisuals : Node2D
         SetProcess(_regenRing.Visible || _evasionGhost.Visible || _beacon.Visible || _slowRing.Visible);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // buff_visuals_test.gd 等 GDScript 调用方经动态派发以 snake_case 访问外观 getter；
-    // 其类型注解（`child is PlayerBuffVisuals` / `: PlayerBuffVisuals`）在调用点适配批次改
-    // untyped（GDScript 不能以类名引用 C# 类）。M7 全量迁移后删除本段。
-
-    public void init(Sprite2D shipSprite, Player player) => Init(shipSprite, player);
-
-    public void refresh() => Refresh();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public Polygon2D beacon() => Beacon();
-
     // ---------------- 内部实现 ----------------
 
     /// <summary>GameState.buff_count 事件驱动访问（非热路径；buff 变更频率极低）。</summary>

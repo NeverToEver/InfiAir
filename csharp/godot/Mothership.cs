@@ -16,8 +16,8 @@ namespace InfiAir;
 /// 母舰弹丸/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
-/// GDScript 类经脚本资源/实例动态派发；Enemy/Boss/Bullet/Player/BulletPool 为 C# 类类型化调用；
-/// GDScript 鸭子调用经 snake_case 兼容桥（M7 删除）。
+/// M7 后调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
+/// 少量 snake_case 兼容桥因测试/动态派发调用方保留（桥段见文件底部）。
 /// </summary>
 public partial class Mothership : Area2D
 {
@@ -451,10 +451,7 @@ public partial class Mothership : Area2D
 
     public void StartRelease() => StartReleaseInternal();
 
-    // ---------------- GDScript 鸭子调用兼容桥（M4 过渡，M7 删除） ----------------
-    // GDScript 调用方（main.gd/tutorial.gd/断言场景）经动态派发以 snake_case 访问 C# 类；
-    // C# 内部调用一律 PascalCase。M7 全量迁移后删除本段。
-    // 静态状态访问器：GDScript 不能以类名引用 C# 嵌套枚举，测试/调用方经脚本资源调用。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public static int GetStateDescend() => (int)State.DESCEND;
 
@@ -468,128 +465,27 @@ public partial class Mothership : Area2D
 
     public static int GetStateDepart() => (int)State.DEPART;
 
-    public void begin_warp_in(Vector2 gate_pos, GodotObject gate) => BeginWarpIn(gate_pos, (WarpGate)gate);
-
-
     public State state() => GetState();
 
     public int mag_cells() => GetMagCells();
-
-
-
-
-
-    public Polygon2D beam() => Beam();
-
-
-
-
-    public void start_release() => StartRelease();
-
-    public int tier() => Tier();
 
     public float damage_mult() => DamageMult();
 
     public float interval_mult() => IntervalMult();
 
-    // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；M7 删除）
-    public float SHIP_SCALE { get => ShipScale; set => ShipScale = value; }
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float HOVER_Y { get => HoverY; set => HoverY = value; }
 
-    public float RELEASE_INVINCIBLE { get => ReleaseInvincible; set => ReleaseInvincible = value; }
-
-    public float DOCK_TWEEN_TIME { get => DockTweenTime; set => DockTweenTime = value; }
-
     public float DOCK_OFFSET_Y { get => DockOffsetY; set => DockOffsetY = value; }
-
-    public float RESUPPLY_DELAY { get => ResupplyDelay; set => ResupplyDelay = value; }
-
-    public float RELEASE_TIME { get => ReleaseTime; set => ReleaseTime = value; }
-
-    public float RELEASE_DROP { get => ReleaseDrop; set => ReleaseDrop = value; }
 
     public int MAG_CELLS { get => MagCells; set => MagCells = value; }
 
-    public float MAG_CELL_TIME { get => MagCellTime; set => MagCellTime = value; }
-
-    public int MAG_WARN_CELLS { get => MagWarnCells; set => MagWarnCells = value; }
-
-    public float WARN_EJECT_DELAY { get => WarnEjectDelay; set => WarnEjectDelay = value; }
-
-    public float EARLY_HOLD_TIME { get => EarlyHoldTime; set => EarlyHoldTime = value; }
-
-    public float EARLY_MAX_DISCOUNT { get => EarlyMaxDiscount; set => EarlyMaxDiscount = value; }
-
-    public float EARLY_PREFILL_MAX { get => EarlyPrefillMax; set => EarlyPrefillMax = value; }
-
-    public float EARLY_PREFILL_RATIO { get => EarlyPrefillRatio; set => EarlyPrefillRatio = value; }
-
-    public float DEPART_COOLDOWN { get => DepartCooldown; set => DepartCooldown = value; }
-
-    public float DEPART_START_SPEED { get => DepartStartSpeed; set => DepartStartSpeed = value; }
-
-    public float DEPART_ACCEL { get => DepartAccel; set => DepartAccel = value; }
-
     public float WARP_IN_TIME { get => WarpInTime; set => WarpInTime = value; }
-
-    public float WARP_IN_DROP { get => WarpInDrop; set => WarpInDrop = value; }
-
-    public float SLOW_RADIUS { get => SlowRadius; set => SlowRadius = value; }
-
-    public float SLOW_DURATION { get => SlowDuration; set => SlowDuration = value; }
-
-    public float SLOW_FACTOR { get => SlowFactor; set => SlowFactor = value; }
-
-    public float SLOW_RING_TIME { get => SlowRingTime; set => SlowRingTime = value; }
-
-    public float SHAKE_SLOW { get => ShakeSlow; set => ShakeSlow = value; }
-
-    public float DRIVE_ACCEL { get => DriveAccel; set => DriveAccel = value; }
-
-    public float DRIVE_MAX_SPEED { get => DriveMaxSpeed; set => DriveMaxSpeed = value; }
 
     public float DRIVE_MARGIN_X { get => DriveMarginX; set => DriveMarginX = value; }
 
-    public float DRIVE_MARGIN_TOP { get => DriveMarginTop; set => DriveMarginTop = value; }
-
-    public float DRIVE_MARGIN_BOTTOM { get => DriveMarginBottom; set => DriveMarginBottom = value; }
-
-    public float GATLING_INTERVAL { get => GatlingInterval; set => GatlingInterval = value; }
-
-    public float GATLING_BULLET_SPEED { get => GatlingBulletSpeed; set => GatlingBulletSpeed = value; }
-
     public int GATLING_DAMAGE { get => GatlingDamage; set => GatlingDamage = value; }
-
-    public float GATLING_SCORE_SCALE { get => GatlingScoreScale; set => GatlingScoreScale = value; }
-
-    public float MISSILE_SCORE_SCALE { get => MissileScoreScale; set => MissileScoreScale = value; }
-
-    public float GATLING_SWEEP_LEFT_MIN { get => GatlingSweepLeftMin; set => GatlingSweepLeftMin = value; }
-
-    public float GATLING_SWEEP_LEFT_MAX { get => GatlingSweepLeftMax; set => GatlingSweepLeftMax = value; }
-
-    public float GATLING_SWEEP_RIGHT_MIN { get => GatlingSweepRightMin; set => GatlingSweepRightMin = value; }
-
-    public float GATLING_SWEEP_RIGHT_MAX { get => GatlingSweepRightMax; set => GatlingSweepRightMax = value; }
-
-    public float GATLING_SWEEP_LEFT_PERIOD { get => GatlingSweepLeftPeriod; set => GatlingSweepLeftPeriod = value; }
-
-    public float GATLING_SWEEP_RIGHT_PERIOD { get => GatlingSweepRightPeriod; set => GatlingSweepRightPeriod = value; }
-
-    public float GATLING_SWEEP_RIGHT_PHASE { get => GatlingSweepRightPhase; set => GatlingSweepRightPhase = value; }
-
-    public float MISSILE_INTERVAL { get => MissileInterval; set => MissileInterval = value; }
-
-    public int MISSILE_DAMAGE { get => MissileDamage; set => MissileDamage = value; }
-
-    public float MISSILE_SPEED { get => MissileSpeed; set => MissileSpeed = value; }
-
-    public int MISSILE_TARGET_COUNT { get => MissileTargetCount; set => MissileTargetCount = value; }
-
-    public int MISSILE_SPLASH_DAMAGE { get => MissileSplashDamage; set => MissileSplashDamage = value; }
-
-    public float MISSILE_SPLASH_RADIUS { get => MissileSplashRadius; set => MissileSplashRadius = value; }
 
     // ---------------- 内部实现 ----------------
 

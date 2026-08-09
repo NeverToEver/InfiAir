@@ -484,61 +484,9 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         _alive = 0;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3e 过渡，M7 删除） ----------------
-    // GDScript 调用方（main.gd/spawner.gd/event_manager.gd/断言测试）经动态派发以 snake_case
-    // 访问 C# 类；保留原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发
-    // （C# 内部调用一律 PascalCase）。M7 全量迁移后删除本段。
-
-
-    public bool is_active() => IsActive();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public State state() => GetState();
-
-    public Godot.Collections.Array crafts() => GetCrafts();
-
-
-    public int dropped() => DroppedCount();
-
-
-
-    public bool can_trigger() => CanTrigger();
-
-    public void start() => Start();
-
-    public void abort() => Abort();
-
-    // 测试/调用方读写配置的 UPPER_SNAKE 别名（原 GDScript 公开 var 语义；M7 删除）
-    public int MIN_SCORE { get => MinScore; set => MinScore = value; }
-
-    public float COOLDOWN { get => Cooldown; set => Cooldown = value; }
-
-    public Godot.Collections.Dictionary CRAFT_COUNTS { get => CraftCounts; set => CraftCounts = value; }
-
-    public int CRAFT_HP_BASE { get => CraftHpBase; set => CraftHpBase = value; }
-
-    public int CRAFT_SCORE { get => CraftScore; set => CraftScore = value; }
-
-    public float APPROACH_SPEED { get => ApproachSpeed; set => ApproachSpeed = value; }
-
-    public float APPROACH_Y { get => ApproachY; set => ApproachY = value; }
-
-    public float TURN_TIME { get => TurnTime; set => TurnTime = value; }
-
-    public float RUN_SPEED { get => RunSpeed; set => RunSpeed = value; }
-
-    public float BOMB_INTERVAL { get => BombInterval; set => BombInterval = value; }
-
-    public int BOMBS_PER_CRAFT { get => BombsPerCraft; set => BombsPerCraft = value; }
-
-    public float BOMB_FALL_SPEED { get => BombFallSpeed; set => BombFallSpeed = value; }
-
-    public float BOMB_FUSE { get => BombFuse; set => BombFuse = value; }
-
-    public int BOMB_DAMAGE { get => BombDamage; set => BombDamage = value; }
-
-    public float BOMB_RADIUS { get => BombRadius; set => BombRadius = value; }
-
-    public int REWARD_ALL_CLEAR { get => RewardAllClear; set => RewardAllClear = value; }
 
     // GDScript 无法以类名引用 C# 嵌套枚举（实测）——状态值经静态方法访问（脚本资源可调）
     public static int GetStateIdle() => (int)State.IDLE;

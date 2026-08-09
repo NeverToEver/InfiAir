@@ -839,13 +839,7 @@ public partial class MetaHealthFX : CanvasLayer
         return v - Mathf.Floor(v);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：scripts/main.gd（breath_active/breath_scale）、test/meta_health_fx_test.gd
-    // （set_test_state/state/damage_x/hit_pulse/crack_progress/heal_jitter/heart_rate/breath_scale/
-    // breath_active/upload_count/early_out_count/rect/set_lod）。
-
-
-    public float crack_progress() => CrackProgress();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float hit_pulse() => HitPulse();
 
@@ -855,17 +849,10 @@ public partial class MetaHealthFX : CanvasLayer
 
     public float heal_jitter() => HealJitter();
 
-
     public float breath() => Breath();
-
-    public ColorRect rect() => Rect();
 
     public int upload_count() => UploadCount();
 
     public int early_out_count() => EarlyOutCount();
-
-    public float breath_scale() => BreathScale();
-
-    public bool breath_active() => BreathActive();
 
 }

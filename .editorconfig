@@ -1,4 +1,4 @@
-# InfiAir 仓库级代码风格（C# 段；GDScript 侧由 gdformat/gdlint 的 .gdlintrc/gdformatrc 管辖）
+# InfiAir 仓库级代码风格（纯 C#：M7 全量迁移后零 GDScript；gdformatrc/.gdlintrc 为迁移前遗留配置，不再管辖任何门禁）
 root = true
 
 [*]

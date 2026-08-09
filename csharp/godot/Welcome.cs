@@ -881,32 +881,4 @@ public partial class Welcome : CanvasLayer
 
     public CanvasLayer ExitConfirmLayer() => (CanvasLayer)_exitConfirm["layer"].AsGodotObject();
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：test/welcome_flow_test.gd、test/startup_flow_test.gd（A7 白盒断言）、
-    // scripts/settings_ui.gd（grab_primary_focus 经 has_method 探测）。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public void press_settings() => OnSettingsPressed();
-
-
-
-
-
-
 }

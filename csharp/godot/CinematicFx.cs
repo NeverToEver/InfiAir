@@ -195,29 +195,9 @@ public partial class CinematicFx : RefCounted
         return cfg.TryGetValue(key, out var v) ? v.AsVector3() : def;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：GDScript 过场经脚本资源 load("res://csharp/godot/CinematicFx.cs") 调静态方法
-    // ---------------- 鸭子调用兼容桥（M6 过渡，V 系列清理注释：调用方均已 typed） ----------------
-
-
-
-    public static Sprite2D soft_glow(float radius, Color color) => SoftGlow(radius, color);
-
-    public static Sprite2D soft_glow(float radius, Color color, bool additive) => SoftGlow(radius, color, additive);
-
-    public static GpuParticles2D particles(Godot.Collections.Dictionary cfg) => Particles(cfg);
-
-
-
-    public static Node2D shockwave(Godot.Collections.Dictionary cfg) => Shockwave(cfg);
-
-    public static Node2D beam(Vector2[] points) => Beam(points);
-
-    public static Node2D beam(Vector2[] points, Godot.Collections.Dictionary cfg) => Beam(points, cfg);
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public static int GetSoftTexSize() => SoftTexSize;
-
 
     public static int GetParticleAmountCap() => ParticleAmountCap;
 

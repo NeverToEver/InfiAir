@@ -7,8 +7,7 @@ namespace InfiAir;
 /// 可选四角 L 形括号标记（brackets=true，重要面板开启）。
 /// 直接作为容器使用：子节点绘制在面板底/边框之上。
 /// M5 全量迁移（2026-08-08 自 scripts/ui_chamfered_panel.gd）：Control 子类，
-/// [Export] PascalCase 属性（tscn/GDScript 以同名访问）；snake_case 别名供
-/// 未迁移 GDScript 调用方（M6 过场）过渡，M7 删除。
+/// [Export] PascalCase 属性（tscn 以同名访问）。
 /// </summary>
 public partial class ChamferedPanel : Control
 {
@@ -250,23 +249,4 @@ public partial class ChamferedPanel : Control
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-
-    public float chamfer { get => Chamfer; set => Chamfer = value; }
-
-    public bool brackets { get => Brackets; set => Brackets = value; }
-
-    public Color bg_color { get => BgColor; set => BgColor = value; }
-
-    public Color border_color { get => BorderColor; set => BorderColor = value; }
-
-    public Color bracket_color { get => BracketColor; set => BracketColor = value; }
-
-    public bool inner_frame { get => InnerFrame; set => InnerFrame = value; }
-
-    public Color inner_frame_color { get => InnerFrameColor; set => InnerFrameColor = value; }
-
-    public float padding { get => Padding; set => Padding = value; }
-
-    public float max_content_height { get => MaxContentHeight; set => MaxContentHeight = value; }
 }

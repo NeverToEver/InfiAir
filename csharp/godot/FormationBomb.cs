@@ -143,20 +143,9 @@ public partial class FormationBomb : Area2D
         QueueFree();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3e 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case / camelCase var）别名转发（C# 内部调用一律 PascalCase）。
-    // M7 全量迁移后删除本段。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Line2D ring() => Ring();
 
-    public void setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
-        => Setup(pVelocity, pFuse, pDamage, pRadius);
-
-    public Vector2 velocity { get => Velocity; set => Velocity = value; }
-
-    public float fuse { get => Fuse; set => Fuse = value; }
-
     public int damage { get => Damage; set => Damage = value; }
-
-    public float aoe_radius { get => AoeRadius; set => AoeRadius = value; }
 }

@@ -94,34 +94,4 @@ public class PlayerDash
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case / UPPER_SNAKE 配置 var）别名转发。纯 C# 类不可被
-    // GDScript 动态派发，本桥仅供源码级 API 对等与 C# 侧迁移测试沿用；M7 全量迁移后删除。
-
-
-
-
-    public void start(Vector2 inputDir, Player player) => Start(inputDir, player);
-
-
-    public void configure(float distance, float time, float cooldown, float afterimageInterval)
-        => Configure(distance, time, cooldown, afterimageInterval);
-
-    public bool dashing { get => Dashing; set => Dashing = value; }
-
-    public float dash_timer { get => DashTimer; set => DashTimer = value; }
-
-    public Vector2 dash_dir { get => DashDir; set => DashDir = value; }
-
-    public float dash_cooldown { get => DashCooldown; set => DashCooldown = value; }
-
-    public float afterimage_timer { get => AfterimageTimer; set => AfterimageTimer = value; }
-
-    public float DASH_DISTANCE { get => DashDistance; set => DashDistance = value; }
-
-    public float DASH_TIME { get => DashTime; set => DashTime = value; }
-
-    public float DASH_COOLDOWN { get => DashCooldownMax; set => DashCooldownMax = value; }
-
-    public float AFTERIMAGE_INTERVAL { get => AfterimageInterval; set => AfterimageInterval = value; }
 }

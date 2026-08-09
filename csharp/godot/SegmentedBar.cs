@@ -236,23 +236,13 @@ public partial class SegmentedBar : Control
         return total > 0.0f ? total : 1.0f;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public int segments { get => Segments; set => Segments = value; }
 
     public Color fill_color { get => FillColor; set => FillColor = value; }
 
-    public Color empty_color { get => EmptyColor; set => EmptyColor = value; }
-
-    public Color frame_color { get => FrameColor; set => FrameColor = value; }
-
     public float max_value { get => MaxValue; set => MaxValue = value; }
 
     public float value { get => Value; set => Value = value; }
-
-    public Godot.Collections.Array seg_weights { get => SegWeights; set => SegWeights = value; }
-
-    public Godot.Collections.Array seg_colors { get => SegColors; set => SegColors = value; }
-
-    public static float segment_fill(float ratio, Godot.Collections.Array weights, int index) => SegmentFill(ratio, weights, index);
 }

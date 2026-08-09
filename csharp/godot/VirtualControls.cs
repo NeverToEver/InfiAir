@@ -477,21 +477,7 @@ public partial class VirtualControls : CanvasLayer
         return "";
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // main.gd（_virtual_controls.set_enabled 经 Callable 直连）、Player.cs（Call is_enabled/
-    // base_aim_position）与 virtual_controls_test（simulate_touch/simulate_drag/move_vec/aim_vec/
-    // set_enabled/is_enabled）调用；布局常量（原 VirtualControls.MOVE_CENTER 等）GDScript 不可
-    // 访问静态常量，经下列静态 snake 访问器（测试改 preload 脚本资源调用）。
-
-    public void set_enabled(bool v) => SetEnabled(v);
-
-
-
-    public Vector2 move_vec() => MoveVec();
-
-    public Vector2 aim_vec() => AimVec();
-
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public static Vector2 move_center() => MoveCenter;
 

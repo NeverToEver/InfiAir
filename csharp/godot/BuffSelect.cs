@@ -462,14 +462,4 @@ public partial class BuffSelect : CanvasLayer
         return sb.ToString();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // GDScript 调用方（buff33_test.gd 经 get_node("Main/BuffUI") 动态调用 available_buffs()；
-    // visible 为 CanvasLayer 原生属性，GDScript 直接可读可写，无需桥）。
-
-
-
-    public HBoxContainer cards() => Cards();
-
-    public bool closing() => Closing();
-
 }

@@ -702,20 +702,6 @@ public partial class BaseConsole : CanvasLayer
         return sb.ToString();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：main.gd（show_base）、tutorial.gd（show_base）、back_navigator.gd（resume/visible）、
-    // test/{autoplay,smoke,back_navigation,return_cinematic,fog_event,elite_turret_event,ui_capture}_test（repair/recharge/choose_route/claim_mission/resume/visible）。
-
-    public void show_base() => ShowBase();
-
-    public void repair() => Repair();
-
-    public void recharge() => Recharge();
-
-
-
-    public void resume() => Resume();
-
 }
 
 /// <summary>面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call。

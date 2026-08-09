@@ -6,8 +6,8 @@ namespace InfiAir;
 /// 玩家战机（M3c 全量迁移，2026-08-08 自 scripts/player.gd 迁移）：WASD 平滑移动、朝准星旋转、
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
 /// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerBuffVisuals（Node2D）。
-/// 语义保持：声明式 BUFF_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件
-/// 由 GDScript 侧访问；GDScript 鸭子调用经 snake_case 兼容桥（M7 删除）。
+/// 语义保持：声明式 BUFF_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
+/// 公开 API 为 PascalCase；少量 snake_case 兼容桥因 C# 动态派发/测试调用方保留（桥段见文件底部）。
 /// </summary>
 public partial class Player : CharacterBody2D
 {
@@ -1301,72 +1301,13 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3c 过渡，M7 删除） ----------------
-    // GDScript 调用方经动态派发以 snake_case 访问 C# 类（混合体系下无法按类分派不同方法名）。
-
-
-
-    public void set_invincible(float seconds) => SetInvincible(seconds);
-
-
-
-
-
-
-
-
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public void fire(Vector2 aim) => Fire(aim);
-
-
-
-
-
-
-
-
-
-
-
-
-    public float aim_dist_falloff(float d) => AimDistFalloff(d);
-
-    public static float dist_falloff_curve(float d, float peak, float end, float minV) => DistFalloffCurve(d, peak, end, minV);
-
-
-
-    public void unlock_input() => UnlockInput();
-
-
-
-    public void die() => Die();
-
-
-
-
 
     public float fire_interval() => FireIntervalValue();
 
     public int bullet_damage() => BulletDamageValue();
-
-
-
-
-    public bool dash_unlocked() => DashUnlocked();
-
-    public float dash_cooldown_max() => DashCooldownMax();
-
-
-
-
-
-    public Vector2 aim_point() => AimPoint();
-
-
-
-
-
 
     public bool take_damage() => TakeDamage(1.0f, Vector2.Inf);
 
@@ -1374,47 +1315,7 @@ public partial class Player : CharacterBody2D
 
     public bool take_damage(float amount, Vector2 fromPos) => TakeDamage(amount, fromPos);
 
-    public void clear_nearby_enemy_bullets() => ClearNearbyEnemyBullets();
-
-    public bool try_parry() => TryParry();
-
-
-    public float parry_energy_ratio() => ParryEnergyRatio();
-
-
-
-    public void exit_pod() => ExitPod();
-
-    public float crit_chance { get => CritChance; set => CritChance = value; }
-
-    public float crit_multiplier { get => CritMultiplierValue; set => CritMultiplierValue = value; }
-
-    public Color engine_tint { get => EngineTint; set => EngineTint = value; }
-
-    public float fuel_max { get => FuelMax; set => FuelMax = value; }
-
-    public bool movement_locked { get => MovementLocked; set => MovementLocked = value; }
-
-    public Vector2 aim_point_override { get => AimPointOverride; set => AimPointOverride = value; }
-
-    public float _invincible { get => Invincible; set => Invincible = value; }
-
-    public int _last_hit_frame { get => LastHitFrame; set => LastHitFrame = value; }
-
-    public float _since_damage { get => SinceDamage; set => SinceDamage = value; }
-
-    public bool _dashing { get => Dashing; set => Dashing = value; }
-
-    public float _dash_timer { get => DashTimer; set => DashTimer = value; }
-
-    public Vector2 _dash_dir { get => DashDir; set => DashDir = value; }
-
-    public float _dash_cooldown { get => DashCooldown; set => DashCooldown = value; }
-
-    public float _afterimage_timer { get => AfterimageTimer; set => AfterimageTimer = value; }
-
-    // 配置变量别名（原 GDScript 公开 var，测试/调用方读取；M7 删除）
-    public float MAX_SPEED { get => MaxSpeed; set => MaxSpeed = value; }
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float BULLET_SPEED { get => BulletSpeed; set => BulletSpeed = value; }
 
@@ -1422,73 +1323,11 @@ public partial class Player : CharacterBody2D
 
     public float SPAWN_INVINCIBLE_TIME { get => SpawnInvincibleTime; set => SpawnInvincibleTime = value; }
 
-    public float BULLET_CLEAR_RADIUS { get => BulletClearRadius; set => BulletClearRadius = value; }
-
     public float ENTRY_LAND_RATIO { get => EntryLandRatio; set => EntryLandRatio = value; }
 
     public float ENTRY_RETREAT_SPEED { get => EntryRetreatSpeed; set => EntryRetreatSpeed = value; }
 
     public float ENTRY_RETREAT_TIME { get => EntryRetreatTime; set => EntryRetreatTime = value; }
 
-    public float ENTRY_RUSH_TIME { get => EntryRushTime; set => EntryRushTime = value; }
-
-    public float DASH_DISTANCE { get => DashDistance; set => DashDistance = value; }
-
-    public float DASH_TIME { get => DashTime; set => DashTime = value; }
-
-    public float DASH_COOLDOWN { get => DashCooldownMaxValue; set => DashCooldownMaxValue = value; }
-
-    public float GRAZE_RADIUS { get => GrazeRadius; set => GrazeRadius = value; }
-
-    public int GRAZE_SCORE { get => GrazeScore; set => GrazeScore = value; }
-
-    public float FINE_MOVE_MULT { get => FineMoveMult; set => FineMoveMult = value; }
-
-    public float FUEL_DRAIN { get => FuelDrain; set => FuelDrain = value; }
-
-    public float FUEL_REGEN { get => FuelRegen; set => FuelRegen = value; }
-
-    public float PARRY_ARC_DEG { get => ParryArcDeg; set => ParryArcDeg = value; }
-
-    public float PARRY_RADIUS { get => ParryRadius; set => ParryRadius = value; }
-
-    public float HOMING_TIME { get => HomingTime; set => HomingTime = value; }
-
     public float ENTRY_INVINCIBLE { get => EntryInvincible; set => EntryInvincible = value; }
-
-    public float ENTRY_SPAWN_CLEARANCE { get => EntrySpawnClearance; set => EntrySpawnClearance = value; }
-
-    public float ENTRY_RUSH_HS_RATIO { get => EntryRushHsRatio; set => EntryRushHsRatio = value; }
-
-    public float CRIT_CHANCE_BASE { get => CritChanceBase; set => CritChanceBase = value; }
-
-    public float CRIT_MULTIPLIER { get => CritMultiplier; set => CritMultiplier = value; }
-
-    public float BASE_FIRE_INTERVAL { get => BaseFireInterval; set => BaseFireInterval = value; }
-
-    public float BULLET_SPREAD_DEG { get => BulletSpreadDeg; set => BulletSpreadDeg = value; }
-
-    public int BULLET_DAMAGE { get => BulletDamage; set => BulletDamage = value; }
-
-    public float ARMOR_MULT { get => ArmorMult; set => ArmorMult = value; }
-
-    public float EVASION_CHANCE { get => EvasionChance; set => EvasionChance = value; }
-
-    public float REGEN_PER_SEC { get => RegenPerSec; set => RegenPerSec = value; }
-
-    public float SHAKE_HIT { get => ShakeHit; set => ShakeHit = value; }
-
-    public float ACCEL { get => Accel; set => Accel = value; }
-
-    public float DECEL { get => Decel; set => Decel = value; }
-
-    public float BOOST_MULT { get => BoostMult; set => BoostMult = value; }
-
-    public float DASH_FUEL_RATIO { get => DashFuelRatio; set => DashFuelRatio = value; }
-
-    public float AFTERIMAGE_INTERVAL { get => AfterimageInterval; set => AfterimageInterval = value; }
-
-    public float FUEL_RESTART { get => FuelRestart; set => FuelRestart = value; }
-
-    public float GRAZE_FLASH_TIME { get => GrazeFlashTime; set => GrazeFlashTime = value; }
 }

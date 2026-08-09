@@ -338,15 +338,7 @@ public partial class AimFrameLayer : Node2D
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3b 过渡，M7 删除） ----------------
-    // player.gd / smoke_test / tutorial 等 GDScript 调用方经动态派发以 snake_case 访问
-    // C# 类方法（C# 内部调用一律 PascalCase）。M7 全量迁移后删除本段。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float frame_pad() => FramePad();
-
-
-    public Enemy? marked_target_at(Vector2 point) => MarkedTargetAt(point);
-
-
-    public Enemy? nearest_cone_target(Vector2 origin, Vector2 aimDir, float coneCos) => NearestConeTarget(origin, aimDir, coneCos);
 }

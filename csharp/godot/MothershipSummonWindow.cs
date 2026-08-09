@@ -499,12 +499,4 @@ public partial class MothershipSummonWindow : CanvasLayer
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（skip；finished 连接改 PascalCase 名由主代理接线）、
-    // test/{mothership_summon,view_zoom,smoke,encounter_flow_contract,summon_capture,visual_capture}_test
-    // （subtitle/skip）。
-
-    public Label subtitle() => Subtitle();
-
-    public void skip() => Skip();
 }

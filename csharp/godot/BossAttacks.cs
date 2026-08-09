@@ -764,38 +764,7 @@ public partial class BossAttacks : RefCounted
         return pool.Fire(dir, speed, damage, false);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原公开 var/方法的 snake_case 别名（C# 内部调用一律 PascalCase；M7 全量迁移后删除本段）。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public float world_scale { get => WorldScale; set => WorldScale = value; }
-
-    public int fan_delta { get => FanDelta; set => FanDelta = value; }
-
-    public int homing_delta { get => HomingDelta; set => HomingDelta = value; }
-
-    public int ring_delta { get => RingDelta; set => RingDelta = value; }
-
-    public void execute(StringName attack, Node2D boss) => Execute(attack, boss);
-
-    public void update(float delta, Node2D boss) => Update(delta, boss);
-
-
-
-    public Node2D charge_glow(Node2D boss, float duration) => ChargeGlow(boss, duration);
-
-    public Node2D charge_glow(Node2D boss, float duration, float radius) => ChargeGlow(boss, duration, radius);
-
-    public Node2D charge_glow(Node2D boss, float duration, float radius, Color color) => ChargeGlow(boss, duration, radius, color);
-
-
-
-    public float cannon_elapsed() => CannonElapsed();
-
-    public Line2D? aim_line() => AimLine();
-
-    public Line2D? sweep_line() => SweepLine();
-
-
-
-
 }

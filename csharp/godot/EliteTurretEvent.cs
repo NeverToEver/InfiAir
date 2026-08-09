@@ -9,10 +9,9 @@ namespace InfiAir;
 /// → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
 /// 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
-/// enemy_hp_multiplier/enemy_hp_ramp/world_scale）；spawner/HUD 为 GDScript 类经引用 Call 动态派发；
-/// turret.tscn 场景绑定切 C# 后 Instantiate&lt;TurretBattery&gt;（切换前由 GDScript 旧类承载运行）。
-/// 白盒断言 API 保留 snake_case 兼容桥（test/elite_turret_event_test.gd，M7 删除）；
-/// GDScript 无法以类名引用 C# 嵌套枚举（PlayerParry 实测）→ 状态值经 GetStateXxx 静态方法访问。
+/// enemy_hp_multiplier/enemy_hp_ramp/world_scale）；M7 后 spawner/HUD 为 C# typed 调用，
+/// turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
+/// 白盒断言 API 为 PascalCase（少量 snake_case 兼容桥保留）；嵌套枚举状态值经 GetStateXxx 静态方法访问。
 /// </summary>
 public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
 {
@@ -501,9 +500,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
         timer.Start(seconds);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
-    // 调用方（main.gd/event_manager.gd/test）经动态派发以 snake_case/UPPER_SNAKE 访问；
-    // GDScript 无法以类名引用 C# 嵌套枚举（PlayerParry 实测）→ 状态值经静态方法访问。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public static int GetStateIdle() => (int)State.IDLE;
 
@@ -515,28 +512,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
 
     public static int GetStateBossDelay() => (int)State.BOSS_DELAY;
 
-
     public int state() => (int)GetState();
-
-    public Godot.Collections.Array<String> lines() => Lines();
-
-    public Godot.Collections.Array<TurretBattery> turrets() => Turrets();
-
-    public int total() => Total();
-
-
-    public CommOverlay? comm() => Comm();
-
-
-
-
-    public bool is_active() => IsActive();
-
-    public bool can_trigger() => CanTrigger();
-
-    public void start() => Start();
-
-    public void abort() => Abort();
 
     public float DURATION { get => Duration; set => Duration = value; }
 
@@ -546,19 +522,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
 
     public float BOSS_RESUME_DELAY { get => BossResumeDelay; set => BossResumeDelay = value; }
 
-    public int TURRET_HP_BASE { get => TurretHpBase; set => TurretHpBase = value; }
-
-    public Godot.Collections.Dictionary TURRET_COUNTS { get => TurretCounts; set => TurretCounts = value; }
-
     public Vector2 FIRE_INTERVAL { get => FireInterval; set => FireInterval = value; }
 
-    public Godot.Collections.Dictionary WEAK_LOCK { get => WeakLock; set => WeakLock = value; }
-
-    public Godot.Collections.Dictionary AMMO_SEQUENCES { get => AmmoSequences; set => AmmoSequences = value; }
-
-    public int REWARD_SCORE { get => RewardScore; set => RewardScore = value; }
-
     public float HOVER_Y { get => HoverY; set => HoverY = value; }
-
-    public float COOLDOWN { get => Cooldown; set => Cooldown = value; }
 }

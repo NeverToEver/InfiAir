@@ -6,8 +6,8 @@
 ## 怎么改数值
 
 - 运行时数值的唯一来源是 `data/balance.json`；推荐用 `python3 scripts/tools/balance_editor.py` 在浏览器里编辑（改动高亮、类型校验、自动备份）。
-- 脚本侧的 `GameState.cfg("键路径", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。
-- 高频 `_process` 路径的数值在 `_ready()`/`_load_balance()` 一次缓存，不要每帧查。
+- 代码侧的 `GameState.Instance.Cfg("键路径", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。
+- 高频 `_Process` 路径的数值在 `_Ready()`/`LoadBalance()` 一次缓存，不要每帧查。
 
 ## 静态 cfg() 调用点（按文件分组）
 
@@ -155,8 +155,8 @@
 | 560 | `boss.difficulty_scaling.counts` | `DiffCountDeltas` |
 | 592 | `boss.hp_mults` | `new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 }` |
 | 618 | `boss.hp_base` | `HpBase` |
-| 1056 | `effects.shake.enrage` | `16.0` |
-| 1367 | `effects.shake.enrage` | `16.0` |
+| 1024 | `effects.shake.enrage` | `16.0` |
+| 1335 | `effects.shake.enrage` | `16.0` |
 
 ### `csharp/godot/BuffSelect.cs`
 
@@ -195,19 +195,19 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 102 | `elite_turret_event.duration` | `Duration` |
-| 103 | `elite_turret_event.enter_time` | `EnterTime` |
-| 104 | `elite_turret_event.rise_time` | `RiseTime` |
-| 105 | `elite_turret_event.boss_resume_delay` | `BossResumeDelay` |
-| 106 | `elite_turret_event.turret_hp_base` | `TurretHpBase` |
-| 109 | `elite_turret_event.turret_counts` | `TurretCounts` |
-| 115 | `elite_turret_event.ammo_sequences` | `AmmoSequences` |
-| 122 | `elite_turret_event.fire_interval` | `new Godot.Collections.Array { FireInterval.X, FireInterva...` |
-| 132 | `elite_turret_event.weak_lock` | `WeakLock` |
-| 138 | `elite_turret_event.reward_score` | `RewardScore` |
-| 139 | `elite_turret_event.carrier.hover_y` | `HoverY` |
-| 140 | `elite_turret_event.cooldown` | `Cooldown` |
-| 222 | `elite_turret_event.carrier.shake` | `4.0` |
+| 101 | `elite_turret_event.duration` | `Duration` |
+| 102 | `elite_turret_event.enter_time` | `EnterTime` |
+| 103 | `elite_turret_event.rise_time` | `RiseTime` |
+| 104 | `elite_turret_event.boss_resume_delay` | `BossResumeDelay` |
+| 105 | `elite_turret_event.turret_hp_base` | `TurretHpBase` |
+| 108 | `elite_turret_event.turret_counts` | `TurretCounts` |
+| 114 | `elite_turret_event.ammo_sequences` | `AmmoSequences` |
+| 121 | `elite_turret_event.fire_interval` | `new Godot.Collections.Array { FireInterval.X, FireInterva...` |
+| 131 | `elite_turret_event.weak_lock` | `WeakLock` |
+| 137 | `elite_turret_event.reward_score` | `RewardScore` |
+| 138 | `elite_turret_event.carrier.hover_y` | `HoverY` |
+| 139 | `elite_turret_event.cooldown` | `Cooldown` |
+| 221 | `elite_turret_event.carrier.shake` | `4.0` |
 
 ### `csharp/godot/Enemy.cs`
 
@@ -239,7 +239,7 @@
 | 226 | `enemies.hp_ramp_factor` | `HpRampFactor` |
 | 241 | `enemies.speed_ramp_factor` | `SpeedRampFactor` |
 | 246 | `player.aim_assist.mark_ratio` | `0.25` |
-| 570 | `enemies.move_strategies` | `new Godot.Collections.Dictionary(` |
+| 496 | `enemies.move_strategies` | `new Godot.Collections.Dictionary(` |
 
 ### `csharp/godot/Explosion.cs`
 
@@ -349,13 +349,13 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 85 | `buffs.laser_beam.duration` | `BeamDuration` |
-| 86 | `buffs.laser_beam.cooldown` | `CooldownDuration` |
-| 88 | `buffs.laser_beam.tick_interval` | `TickInterval` |
-| 89 | `buffs.laser_beam.tick_damage` | `TickDamage` |
-| 90 | `buffs.laser_beam.length` | `BeamLength` |
-| 91 | `buffs.laser_beam.half_width` | `BeamHalfWidth` |
-| 92 | `buffs.laser_beam.hit_radius` | `EnemyHitRadius` |
+| 77 | `buffs.laser_beam.duration` | `BeamDuration` |
+| 78 | `buffs.laser_beam.cooldown` | `CooldownDuration` |
+| 80 | `buffs.laser_beam.tick_interval` | `TickInterval` |
+| 81 | `buffs.laser_beam.tick_damage` | `TickDamage` |
+| 82 | `buffs.laser_beam.length` | `BeamLength` |
+| 83 | `buffs.laser_beam.half_width` | `BeamHalfWidth` |
+| 84 | `buffs.laser_beam.hit_radius` | `EnemyHitRadius` |
 
 ### `csharp/godot/Main.cs`
 
@@ -469,7 +469,7 @@
 | 286 | `effects.mothership_summon.slow.ring_time` | `SlowRingTime` |
 | 287 | `effects.mothership_summon.shake_slow` | `ShakeSlow` |
 | 391 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
-| 1145 | `effects.shake.mothership` | `4.0` |
+| 1041 | `effects.shake.mothership` | `4.0` |
 
 ### `csharp/godot/MothershipSummonWindow.cs`
 

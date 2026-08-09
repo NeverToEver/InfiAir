@@ -418,104 +418,30 @@ public partial class Enemy : Area2D
         DespawnInternal();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3b 过渡，M7 删除） ----------------
-    // GDScript 调用方经动态派发以 snake_case 访问 C# 类；混合群体循环（Enemy + GDScript
-    // Boss/TurretBattery 并存）无法按类分派不同方法名，故保留 snake_case 别名转发
-    // （C# 内部调用一律 PascalCase）。M7 全量迁移后删除本段。
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
 
     public void take_damage(int amount) => TakeDamage(amount);
 
-    public void die() => Die();
-
-    public bool is_boss() => IsBoss();
-
-    public bool hovering() => Hovering();
-
-
-
-
-    public bool is_active() => IsActive();
-
-
-
-
-    public void apply_slow(float duration, float factor) => ApplySlow(duration, factor);
-
-
-
-    public void deactivate() => Deactivate();
-
-    public void reactivate(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
-        => Reactivate(config, pStrategy, pDifficulty, pBulletType);
-
-    public void reactivate(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
-        => Reactivate(config, pStrategy, pDifficulty);
-
-    public void setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
-        => Setup(config, pStrategy, pDifficulty, pBulletType);
-
-    public void setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
-        => Setup(config, pStrategy, pDifficulty);
-
     public int hp { get => Hp; set => Hp = value; }
 
     public float speed { get => Speed; set => Speed = value; }
 
-    public int score_value { get => ScoreValue; set => ScoreValue = value; }
-
-    public bool can_shoot { get => CanShoot; set => CanShoot = value; }
-
     public float fire_interval { get => FireInterval; set => FireInterval = value; }
 
-    public float anchor_y { get => AnchorY; set => AnchorY = value; }
-
-    public StringName strategy { get => Strategy; set => Strategy = value; }
-
     public StringName bullet_type { get => BulletType; set => BulletType = value; }
-
-    public bool is_elite { get => IsElite; set => IsElite = value; }
 
     public bool aim_marked { get => AimMarked; set => AimMarked = value; }
 
     // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；A7 白盒测试兼容保留）
-    public Vector2 HOVER_BAND { get => HoverBand; set => HoverBand = value; }
-
     public float HOVER_BOB_AMP { get => HoverBobAmp; set => HoverBobAmp = value; }
-
-    public float HOVER_BOB_FREQ { get => HoverBobFreq; set => HoverBobFreq = value; }
-
-    public float HOVER_SWAY_AMP { get => HoverSwayAmp; set => HoverSwayAmp = value; }
-
-    public float HOVER_SWAY_FREQ { get => HoverSwayFreq; set => HoverSwayFreq = value; }
-
-    public float SPIRAL_DRIFT_AMP { get => SpiralDriftAmp; set => SpiralDriftAmp = value; }
-
-    public float SPIRAL_DRIFT_FREQ { get => SpiralDriftFreq; set => SpiralDriftFreq = value; }
-
-    public float SPIRAL_RADIUS { get => SpiralRadius; set => SpiralRadius = value; }
 
     public float SPREAD_FAN_STEP { get => SpreadFanStep; set => SpreadFanStep = value; }
 
     public float ENEMY_BULLET_SPEED { get => EnemyBulletSpeed; set => EnemyBulletSpeed = value; }
 
     public float SPREAD_BULLET_SPEED { get => SpreadBulletSpeed; set => SpreadBulletSpeed = value; }
-
-    public float LASER_BULLET_SPEED { get => LaserBulletSpeed; set => LaserBulletSpeed = value; }
-
-    public int BULLET_DAMAGE_SINGLE { get => BulletDamageSingle; set => BulletDamageSingle = value; }
-
-    public int BULLET_DAMAGE_SPREAD { get => BulletDamageSpread; set => BulletDamageSpread = value; }
-
-    public int BULLET_DAMAGE_LASER { get => BulletDamageLaser; set => BulletDamageLaser = value; }
-
-    public int COLLISION_DAMAGE { get => CollisionDamage; set => CollisionDamage = value; }
-
-    public float SLOW_FIELD_FACTOR { get => SlowFieldFactor; set => SlowFieldFactor = value; }
-
-
-
 
     /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值，2026-08-07 perf 批次引入）。</summary>
     private const int TrigSize = 256;

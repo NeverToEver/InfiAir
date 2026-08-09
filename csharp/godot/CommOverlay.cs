@@ -141,8 +141,4 @@ public partial class CommOverlay : CanvasLayer
         }
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（过渡，M7 删除） ----------------
-
-    public void clear() => Clear();
-
 }

@@ -802,19 +802,4 @@ public partial class SettingsUi : CanvasLayer
         return s.Replace("\0", "%");
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // GDScript 调用方（main 场景 back_navigator.gd / pause_ui.gd、welcome.gd、test/*.gd）
-    // 以 snake_case 名动态调用本类方法，桥保持同名透传。
-
-
-
-
-
-    public CanvasLayer? opener() => Opener();
-
-    public void back() => Back();
-
-
-
-
 }

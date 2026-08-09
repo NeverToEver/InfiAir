@@ -115,19 +115,11 @@ public partial class FormationCraft : Area2D
         QueueFree();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3e 过渡，M7 删除） ----------------
-    // 原 GDScript 公开 API（snake_case / camelCase var）别名转发（C# 内部调用一律 PascalCase）。
-    // M7 全量迁移后删除本段。
-
-    public void setup(int pHp) => Setup(pHp);
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
 
     public void take_damage(int amount) => TakeDamage(amount);
-
-    public void die() => Die();
-
-    public int max_hp { get => MaxHp; set => MaxHp = value; }
 
     public int hp { get => Hp; set => Hp = value; }
 }

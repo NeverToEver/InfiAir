@@ -115,15 +115,4 @@ public partial class DeathReplay : RefCounted
     /// <summary>已录制帧数（测试观测）</summary>
     public int FrameCount() => _frameCount;
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：main.gd（begin/record/play；main.gd:34 的 DeathReplay.new() 由主代理改 load().new()）。
-
-    public void begin() => Begin();
-
-    public void stop() => Stop();
-
-    public void record() => Record();
-
-    public Node2D play() => Play();
-
 }

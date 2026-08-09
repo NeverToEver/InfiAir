@@ -588,7 +588,7 @@ public partial class Spawner : Node
 
     // ---------------- 对外公开接口（A1 修复） ----------------
     // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名，
-    // snake_case 别名见文末兼容桥（M6 过渡期 GDScript 调用方/测试经动态派发访问）。
+    // snake_case 别名见文末兼容桥（仍有 C# 动态派发/测试调用方）。
 
     public void SetEliteEvent(Node? eventNode) => _event = eventNode;
 
@@ -797,57 +797,15 @@ public partial class Spawner : Node
         };
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（set_elite_event/set_formation_event/set_elapsed/elapsed/set_process/clear_pending；
-    // boss_spawned/boss_warning 信号改连 PascalCase——主代理接线）、
-    // csharp/godot/GameEventManager.cs（is_boss_active/notify_event_triggered）、
-    // csharp/godot/EliteTurretEvent.cs（set_boss_frozen/set_waves_paused/consume_boss_pending/trigger_boss）、
-    // csharp/godot/FormationStrikeEvent.cs（is_boss_active/elite_event/set_waves_paused）、
-    // test/{autoplay,wave_pacing,elite_turret_event,formation_strike_event,difficulty,enemy_combat,smoke,
-    // perf_bench,view_zoom,boss_phase_transition,boss_pattern,boss_enrage,hit_logic,entity_manager,fog_event,
-    // buff33,buff_effects,graze,mothership_summon,orbital_strike,pool_reuse,entry_animation}_test 等。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public Node? formation_event() => FormationEvent();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
+    // 调用方（2026-08-09 核实）：Boss.cs SummonMinions() 经 _spawner.Call("spawn_minion") 动态派发（Boss.cs:1266）；
+    // 其余原桥调用方均已 typed 直调 PascalCase——Main.cs（SetEliteEvent/SetFormationEvent/SetElapsed/Elapsed/ClearPending）、
+    // FormationStrikeEvent.cs（IsBossActive/EliteEvent/SetWavesPaused）、EliteTurretEvent.cs（SetBossFrozen/ConsumeBossPending/TriggerBoss）、
+    // GameEventManager.cs（IsBossActive/NotifyEventTriggered）、csharp/godot/tests/*（HoverBand/ClearPending/Elapsed/FormationEvent/EliteEvent 等）。
 
     public Vector2 hover_band() => HoverBand();
 
-
-
-
-
-
     public float elapsed() => Elapsed();
 
-
-
-
-    public Node? elite_event() => EliteEvent();
-
-
-
-
-
     public Enemy spawn_minion(Vector2 pos) => SpawnMinion(pos);
-
-    public void clear_pending() => ClearPending();
 }

@@ -133,8 +133,4 @@ public partial class FakeEnemy : Node2D
             QueueFree();
         }
     }
-
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-
-    public float enter_delay { get => EnterDelay; set => EnterDelay = value; }
 }

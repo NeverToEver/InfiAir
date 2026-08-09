@@ -226,15 +226,7 @@ public partial class BackNavigator : Node
         return BackAction.OPEN_PAUSE;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 测试（back_navigation_test/buff_panel_test/intro_cinematic_test/return_cinematic_test/
-    // autoplay_test）经实例调用 go_back/decide_back_action；原 nav.BackAction 枚举引用（C# 枚举
-    // GDScript 不可访问）改为 back_actions() 字典访问（名称 → int，声明序）。
-
-    public void go_back() => GoBack();
-
-    public int decide_back_action() => (int)DecideBackAction();
-
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     /// <summary>BackAction 枚举值字典（名称 → int，声明序；测试 act.XXX 改经此访问）。</summary>
     public static Godot.Collections.Dictionary BackActions() => new()

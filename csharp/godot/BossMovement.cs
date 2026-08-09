@@ -322,15 +322,4 @@ public partial class BossMovement : RefCounted
     /// <summary>STRAFE_SPEEDS 数组元素读取（typed Array[float] 经 Variant 动态取）。</summary>
     private static float StrafeSpeed(GodotObject boss, int index)
         => (float)boss.Get(PropStrafeSpeeds).AsGodotArray()[index].AsDouble();
-
-    // ---------------- GDScript 鸭子调用兼容桥（M3 过渡，M7 删除） ----------------
-    // GDScript 调用方经动态派发以 snake_case 访问 C# 类；迁移期 Boss（GDScript）与
-    // boss_registry_test 仍按原名调用，故保留 snake_case 别名转发（C# 内部调用一律 PascalCase）。
-    // M7 全量迁移后删除本段。
-
-
-
-
-    public void update(float delta, GodotObject boss) => Update(delta, boss);
-
 }

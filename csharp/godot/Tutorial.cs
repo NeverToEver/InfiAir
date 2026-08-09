@@ -682,28 +682,11 @@ public partial class Tutorial : Node2D
         return sb.ToString();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // 调用方：test/tutorial_test.gd（stage/boss/mothership/stage_kills/boost_count/dash_count/
-    // base_ui/finished/failed/title_label/objective_label/complete_panel/DOCK_CHARGE_TIME）。
-
-    public int stage() => Stage();
+    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
     public Boss? boss() => Boss();
 
     public Mothership? mothership() => Mothership();
-
-
-
-
-    public CanvasLayer? base_ui() => BaseUi();
-
-    public bool finished() => Finished();
-
-    public bool failed() => Failed();
-
-
-
-    public PanelContainer? complete_panel() => CompletePanel();
 
     /// <summary>tutorial_test.gd:120 以 SCREAMING_SNAKE 直读蓄力时长（tut.DOCK_CHARGE_TIME）。</summary>
     public float DOCK_CHARGE_TIME => DockChargeTime;

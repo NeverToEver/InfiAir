@@ -196,9 +196,4 @@ public partial class BuffIcons : RefCounted
         private void Line(float u, float x0, float y0, float x1, float y1, Color c, float w)
             => DrawLine(new Vector2(x0, y0) * u, new Vector2(x1, y1) * u, c, w, true);
     }
-
-    // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-
-
-
 }

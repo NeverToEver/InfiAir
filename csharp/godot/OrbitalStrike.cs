@@ -285,10 +285,8 @@ public partial class OrbitalStrike : CanvasLayer
         return pts;
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：main.gd（OrbitalStrike.new()→脚本资源；struck/finished 信号连接改 PascalCase——
-    // 先例 main.gd `_mothership.Departed.connect`）、test/orbital_strike_test.gd（struck 连接同改；
-    // `strike.DURATION = 0.6` 直写 UPPER_SNAKE 字段，名称原样保留）、
-    // test/{ui_capture,return_cinematic,elite_turret_event}_test（`main.strike().DURATION` 直写）。
-    // 本类实例侧无 snake_case 方法调用面（grep 全仓确认），无需方法桥；UPPER_SNAKE 字段即原 GDScript 公开 var。
+    // ---------------- UPPER_SNAKE 配置字段（M7 后保留） ----------------
+    // DURATION 等 UPPER_SNAKE 公开字段保留原 GDScript 公开 var 语义：测试直写（orbital_strike_test /
+    // ui_capture / return_cinematic / elite_turret_event_test 经 `strike.DURATION` / `main.strike().DURATION`）。
+    // 本类无 snake_case 方法桥（C# 迁移后无动态派发调用面）。
 }
