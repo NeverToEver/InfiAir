@@ -121,6 +121,10 @@ public partial class EliteTurretEventTest : Node
             player.SetAutoFire(false);  // 禁用自动开火，炮台击杀全部走断言路径
             player.SetInvincible(999.0f);
             player.Position = new Vector2(960.0f, 800.0f);
+            // 2026-08-09（main CI 实测 diff=1020）：慢 runner 帧率低时炮台弱追踪弹会擦到站桩
+            // 玩家（graze_score=10 × 中难度倍率 2 = 20 分），污染「奖励 1000 入账」断言。
+            // 玩家本场景全程无敌站桩，禁用 Hitbox 监测（Area2D monitoring）消除擦弹/受击路径。
+            player.GetNode<Area2D>("Hitbox").Monitoring = false;
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var spawner = GetNode<Spawner>("Main/Spawner");
@@ -207,7 +211,7 @@ public partial class EliteTurretEventTest : Node
             KillTurrets(eventNode, 1);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(eventNode.GetState() == EliteTurretEvent.State.CARRIER_EXIT, "场景1：全歼进入 CARRIER_EXIT");
-            Check(gs.Score - score0 == 1000, "场景1：奖励 500×中难度倍率×2 = 1000 入账");
+            Check(gs.Score - score0 == 1000, $"场景1：奖励 500×中难度倍率×2 = 1000 入账（实际 diff={gs.Score - score0}，difficulty={gs.Difficulty}，mult={gs.ScoreMultiplier()}，reward={eventNode.RewardScore}）");
             Check(eventNode.Comm()!.FullText() == Tr(eventNode.Lines()[2]), "场景1：全歼播第 3 句绑定台词");
             Check(!hud.EventBox().Visible, "场景1：结算后事件计时条隐藏");
             Check(!spawner.WavesPaused(), "场景1：CARRIER_EXIT 起普通波次恢复");
@@ -319,11 +323,23 @@ public partial class EliteTurretEventTest : Node
             }
             Check(turretNodesLeft == 0, "场景4：炮塔节点已释放（不走 died 计分）");
             // 过场越过 1.2s 输入宽限后跳过 → 基地 → 继续出击
-            await WaitReal(1.4);
+            // 2026-08-09：Skip 宽限按真实墙钟（ReturnCinematic._startMsec）判断，而 WaitReal 的
+            // SceneTreeTimer 按模拟帧累计——fixed-fps/慢帧下两者脱节（模拟 1.4s 可能只过真实 0.2s），
+            // 宽限未满 Skip 被静默忽略。改真实墙钟等待（fixed-fps 下仍按真实时间推进）后再跳过，
+            // 并以轮询兜底等待基地 UI 出现（真实时间超时，替代固定 2 帧）。
+            var graceStart = Time.GetTicksMsec();
+            while (Time.GetTicksMsec() - graceStart < 1300)
+            {
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
             _main.SkipReturn();
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(_main.BaseUi().Visible, "场景4：过场结束进入基地界面");
+            var baseShown = false;
+            for (var i = 0; i < 30 && !baseShown; i++)  // 最多 ~3s 真实时间
+            {
+                await WaitReal(0.1);
+                baseShown = _main.BaseUi().Visible;
+            }
+            Check(baseShown, $"场景4：过场结束进入基地界面（return={_main.IsReturnPlaying()}，paused={GetTree().Paused}，visible={_main.BaseUi().Visible}）");
             _main.BaseUi().Resume();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             // 轨道打击动画（orbital_strike_test 专测本体）：缩短时轴，等待命中清场并播完
