@@ -23,7 +23,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 ## Merge Gate & Testing
 
-6 layers: ① zero-GDScript gate (M7d: 任何 `.gd` 文件即失败——全量迁移 C# 后禁止回归 GDScript) → ② C# gate: `dotnet build` (warnings-as-errors: zero warnings) + `dotnet test tests-csharp/` (xUnit) + `dotnet format` 三工程 verify 零 diff（2026-08-09 全量规范化后防回归） → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 55 assertion scenes. Commands, scene list, side effects, known failures: `docs/TESTING.md` (66 scenes: 55 assertion + `autoplay_test` probe + `perf_bench` + 8 windowed screenshot tools + `starfield_cs_test`).
+6 layers: ① zero-GDScript gate (M7d: 任何 `.gd` 文件即失败——全量迁移 C# 后禁止回归 GDScript) → ② C# gate: `dotnet build` (warnings-as-errors: zero warnings) + `dotnet test tests-csharp/` (xUnit) + `dotnet format` 三工程 verify 零 diff（2026-08-09 全量规范化后防回归） → ③ engine warnings (error-level zero tolerance — fails CI import; unsafe/untyped warns = cleanup list) → ④ compile+smoke → ⑤ all 55 assertion scenes. Commands, scene list, side effects, known failures: `docs/TESTING.md` (64 scenes: 55 assertion + `autoplay_test` probe + `perf_bench` + 7 windowed screenshot tools; `starfield_cs_test` 已计入 55).
 
 ## Architecture & Directory Roles
 

@@ -4,6 +4,8 @@
 > entity manager design. The event manager (`docs/EVENT_MANAGER.md`) is the sibling pattern;
 > this document generalizes batch management to game **entities** (units/effects) so new
 > units and features plug in with near-zero boilerplate.
+>
+> 2026-08-08 全量迁移 C# 后:文中 GDScript 文件与行号锚点(§2 迁移前基线快照)已失效,保留;API 名同义 PascalCase(如 `bind_enemy` → `BindEnemy`、`GameState.enemies` → `GameState.Enemies`)。
 
 ## 1. Purpose
 

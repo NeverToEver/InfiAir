@@ -74,9 +74,11 @@ godot --headless --path . res://test/return_cinematic_test.tscn  # return cinema
 godot --headless --path . res://test/tutorial_test.tscn
 # Pools & perf
 godot --headless --path . res://test/pool_reuse_test.tscn
+godot --headless --path . res://test/starfield_cs_test.tscn  # Starfield.cs 迁移样板断言 (M1, C# 脚本化)
 godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 # C# interop (2026-08-07; GDScript→C# cross-language call, loads res://csharp/godot/BalanceInterop.cs)
 godot --headless --path . res://test/csharp_interop_test.tscn
+godot --headless --path . res://test/csharp_call_test.tscn        # C# 动态派发调用探针 (M1/M7c, PascalCase 同名)
 godot --headless --path . res://test/path_resolver_interop_test.tscn  # P1-1 cfg 路径解析壳
 godot --headless --path . res://test/save_store_interop_test.tscn     # P0-1 存档壳
 godot --headless --path . res://test/user_db_interop_test.tscn        # P0-2 账户壳

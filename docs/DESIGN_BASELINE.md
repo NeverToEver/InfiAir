@@ -2,12 +2,12 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-07)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 47 assertion scenes 0 FAIL; A-series **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) + **A5 closed 2026-08-07** (residual dep convergence, §7.1); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; Phase 0 closed (ROADMAP).
+> **Snapshot (2026-08-07)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; 55 assertion scenes 0 FAIL; A-series **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) + **A5 closed 2026-08-07** (residual dep convergence, §7.1); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6 + GDScript, GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent (`docs/archive/PORTING_PARITY.md`).
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent (`docs/archive/PORTING_PARITY.md`).
 
 ### 1.2 Core Loop
 ```
@@ -50,7 +50,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Summon (`dock` H charge): run not paused, input locked + event invincibility. Hanger window → warp gate → DESCEND decelerate → dual-ring slow zone → DOCKING pod (`enter_pod()`) → resupply → RELEASE (`exit_pod()`) → loiter/leave. Values `effects.mothership_summon`.
 - Fire platform: GATLING/MISSILE during loiter.
 - Return: hold B (`homecoming`, `effects.home_charge_time`) → input lock → spawner stop → recall → `save_run()` → `starfield.warp(18)` → cinematic → base UI (tree paused).
-- Base: `base_console.gd` + `dawn_station.gd` skin; "continue sortie" → orbital strike clear (Boss kept) → entry animation.
+- Base: `BaseConsole.cs` + `DawnStation.cs` skin; "continue sortie" → orbital strike clear (Boss kept) → entry animation.
 - Entry animation (`player.play_entry_animation()`, `player.entry`): dive to bottom-third → slow backward drift; horizontal-only, vertical locked, invincible (no flicker); spawns delayed. Replaces old stand-still entry.
 
 ### 1.8 Events
@@ -74,7 +74,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.10 Cinematics
 - Intro (`docs/INTRO_CINEMATIC.md`): 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `current_scene == Main`; Esc/any key/click skip; tree paused, root `process_mode=Always`. Shots 1–6 done (P1–P3); **P4 leftover: low-spec retest + gamepad/mobile check (manual)**.
 - Return (`docs/RETURN_HOME_CINEMATIC.md`): 7 shots 11.8s, mirrors intro; Esc via `SKIP_RETURN` (1.2s grace `effects.return_skip_grace`); both paths land on base UI (tree paused); BGM −40dB in shot 7.
-- Shared factories: `cinematic_fx.gd` (soft_glow/particles/shockwave/beam/radial_streaks; `speed_lines` removed 2026-08-03; zero heap alloc in drive `_process`), `dawn_station.gd`.
+- Shared factories: `CinematicFx.cs` (soft_glow/particles/shockwave/beam/radial_streaks; `speed_lines` removed 2026-08-03; zero heap alloc in drive `_process`), `DawnStation.cs`.
 
 ### 1.11 Tutorial
 - Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: `_ready` creates AimFrameLayer; stage 1 force-marked targets; stage 4 hold-H → gate → `begin_warp_in` → dock (hanger skipped). Isolates run state/saves; restore `Engine.time_scale = 1` on exit.
@@ -94,26 +94,26 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ## 2. Technical Architecture
 
 ### 2.1 Stack
-Godot 4.6 (no .NET, `GL Compatibility`); pure GDScript; `scripts/tools/` offline Python (stdlib; sprite gens need PIL); assets PNG/WAV/NotoSansSC.ttf (OFL); no HDR bloom — emissive via ADD fake glow (`_glow()`); post FX via canvas_item shader + `hint_screen_texture`; only autoload `GameState`.
+Godot 4.6.2 .NET (`GL Compatibility`); **full C# since 2026-08-08 (M1–M7d, zero GDScript)**; `scripts/tools/` offline Python (stdlib; sprite gens need PIL); assets PNG/WAV/NotoSansSC.ttf (OFL); no HDR bloom — emissive via ADD fake glow (`_glow()`); post FX via canvas_item shader + `hint_screen_texture`; only autoload `GameState`.
 
 ### 2.2 Main Node Tree (`scenes/main.tscn`)
 ```
-Main (scripts/main.gd)
+Main (csharp/godot/Main.cs)
 ├─ Starfield / Camera2D ├─ Player ├─ Spawner
 ├─ BulletPool / EnemyPool
 ├─ HUD (layer=2) / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI
 ├─ ExitConfirm ├─ BackNavigator ├─ MouseTrap
-├─ VirtualControls (runtime _ready, touch input layer, `GameState.touch_controls` switch)
+├─ VirtualControls (runtime _ready, touch input layer, `GameState.TouchControls` switch)
 ├─ MetaHealthFX (runtime _ready, layer=1) ├─ AimFrameLayer (runtime _ready, world)
 ├─ IntroCinematic / ReturnCinematic (layer=35, on-demand)
 ├─ OrbitalStrike (layer=24) ├─ MothershipSummonWindow (layer=24) + WarpGate (world)
-└─ EliteTurretEvent / FormationStrikeEvent (registered to GameEventManager via `GameState.events.register_encounter()`, 2026-08-05)
+└─ EliteTurretEvent / FormationStrikeEvent (registered to GameEventManager via `GameState.Events.RegisterEncounter()`, 2026-08-05)
 ```
-**Convention**: all dynamic run entities under Main (clear logic + test traversal). Same-name behavior scripts in `scripts/`. (Entry scene `scenes/welcome.tscn` is separate, not part of the Main tree — 2026-08-04 accounts.)
+**Convention**: all dynamic run entities under Main (clear logic + test traversal). Same-name behavior scripts in `csharp/godot/`. (Entry scene `scenes/welcome.tscn` is separate, not part of the Main tree — 2026-08-04 accounts.)
 
 ### 2.3 Duties & Services (A2 baseline)
 - `GameState` facade: score/HP/buffs/difficulty/RP/tasks/routes/settings/signals; public API delegated.
-- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `enemies/player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref/virtual_controls` + `bind_enemy`/`unbind_enemy` one-line registration + `entity_registered`/`entity_unregistered` signals + `for_each_enemy`/`clear_enemies`/`count_enemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.fog_events`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
+- Seven non-autoload services (keeps "only autoload"): `BalanceService` (RefCounted: `load/cfg/enemy_hp_ramp/enemy_damage_ramp`), `SaveManager` (RefCounted: `exists/save/load/delete/quarantine/sanitize_num`; corruption → `last_was_corrupt`), `SfxPlayer` (Node child of GameState: `build_pool/play/stop_all`; headless short-circuit; `SFX_*` consts kept), `EntityManager` (RefCounted, 2026-08-05 evolved from EntityRegistry, `docs/ENTITY_MANAGER.md`: `Enemies/PlayerRef/PlayerHitbox/BulletPool/EnemyPool/AimFrameLayer/CameraRef/VirtualControls` + `BindEnemy`/`UnbindEnemy` one-line registration + `EntityRegistered`/`EntityUnregistered` signals + `ForEachEnemy`/`ClearEnemies`/`CountEnemies` bulk APIs), `FogEventManager` (fog effects layer/API facade, `GameState.FogEvents`, `docs/FOG_EVENTS.md`), `GameEventManager` (unified random-event manager, `GameState.Events`, `docs/EVENT_MANAGER.md`), `UserDB` (local account database: users/PBKDF2/per-user saves & settings/leaderboard, `GameState` forwards, 2026-08-06 audit registered 7th service, `docs/archive/2026-08-04-local-accounts-plan.md`).
 - Hot paths: no per-frame `get_nodes_in_group`; use registries.
 
 ### 2.4 Pools & Registries
@@ -209,7 +209,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 ## 5. Testing Baseline
 > Full commands: `docs/TESTING.md`. Not a unit framework; `[PASS]/[FAIL]` + exit code.
 - Minimal: `--import`, `--quit-after 300`, `smoke_test.tscn`; + `base_system_test.tscn` for saves/base/mothership.
-- Full: 47 assertion scenes (per CI run; list in `docs/TESTING.md`).
+- Full: 55 assertion scenes (per CI run; list in `docs/TESTING.md`).
 - `perf_bench` needs `--fixed-fps 1000`; `autoplay_test` long probe.
 - Side effects: tests may touch `user://` saves; new tests `GameState.delete_save()` first + clean up; `balance_test` overwrites balance.json (corruption/fallback) then restores — no concurrent manual edits.
 - Visual: windowed screenshots, human check; `visual/ui/return/intro/summon/meta_fx/hud` capture.
@@ -228,9 +228,9 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 | ID | Item | Status |
 | --- | --- | --- |
 | A3 | Boss attack match → registries; per-type → data-driven (2026-08-03) | ✅ 3 registries + param tables; new type = registration (O) |
-| A4 | OCP: player.gd buffs → declarative effect table (2026-08-03) | ✅ `BUFF_EFFECTS` (pow/cap/bool); new numeric buff = 1 row |
+| A4 | OCP: Player.cs buffs → declarative effect table (2026-08-03) | ✅ `BUFF_EFFECTS` (pow/cap/bool); new numeric buff = 1 row |
 | A5 | DIP: Boss/events → Spawner via injection, not group lookup | ✅ injection landed (`bdb0274`); **2026-08-07 residual convergence**: mothership HUD refs → `_hud()` lazy cache (9 sites); remaining group lookups (welcome/pause_ui/event classes) judged reasonable pattern (R12 precedent), behavior zero-change |
-| A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ✅ `PlayerVisuals` extracted 2026-08-03 (`scripts/player_visuals.gd`, RefCounted composition): tail/afterimage pool/body tint/hitbox dot/parry visuals/graze flash delegated; `spawn_afterimage`/`engine_tint` public API kept; ~120 lines out of player.gd |
+| A8 | Player visual duties (trail/afterimage/crosshair/hit point/PlayerBuffVisuals) still in Player (~697 lines) | ✅ `PlayerVisuals` extracted 2026-08-03 (`PlayerVisuals.cs`, RefCounted composition): tail/afterimage pool/body tint/hitbox dot/parry visuals/graze flash delegated; `spawn_afterimage`/`engine_tint` public API kept; ~120 lines out of Player.cs |
 
 ### 7.2 Style/Perf
 | ID | Item | Status |
@@ -262,7 +262,7 @@ Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online l
 1. Preserve §3 invariants.
 2. Tunables only in balance.json + `gen_balance_map.py` + minimal set.
 3. New features register in §8 + `ROADMAP.md`; system docs carry specs.
-4. 0 FAIL (47 assertion + autoplay; 权威计数 `docs/TESTING.md`); visual changes screenshot-checked.
+4. 0 FAIL (55 assertion + autoplay; 权威计数 `docs/TESTING.md`); visual changes screenshot-checked.
 5. Debt fixes backfill `AUDIT_VAULT.md`.
 
 ---

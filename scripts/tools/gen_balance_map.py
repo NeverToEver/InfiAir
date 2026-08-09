@@ -20,24 +20,31 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs" / "BALANCE_MAP.md"
 SCAN_DIRS = [ROOT / "scripts", ROOT / "autoload", ROOT / "csharp"]  # M7d：零 GDScript 后扫 C# 调用点
 
-# 静态调用：GameState.cfg("player.fuel.drain", FUEL_DRAIN)（默认值可能跨行/含嵌套调用）
-RE_STATIC = re.compile(r'(?:GameState\.Instance\.)?Cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+# 静态调用：GameState.Instance.Cfg("player.fuel.drain", FUEL_DRAIN)（默认值可能跨行/含嵌套调用）。
+# V 系列：前缀改必选——消除与 RE_BARE 对豁免文件裸调用的双重计数（原 GameState.cs 段 16 条重复）
+RE_STATIC = re.compile(r'GameState\.Instance\.Cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
 RE_STATIC_GD = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
 # autoload/game_state.gd 内部对 cfg() 的裸调用（无前缀；排除函数定义行）
 RE_BARE = re.compile(r'(?<![\w.])(?:cfg|Cfg)\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
-# 动态调用：GameState.cfg("player.aim_assist.levels." + ...)（字符串后直接跟拼接）
-RE_DYNAMIC = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*\+')
+# V 系列：MetaHealthFX.CfgVal 私有助手（内部转发 GameState.Instance.Cfg）——37 处 meta_health 键
+RE_CFG_VAL = re.compile(r'CfgVal\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+# V 系列：BalanceService._interop.Resolve（PathResolver 核心解析）——hp/damage ramp 键
+RE_RESOLVE = re.compile(r'\.Resolve\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+# 动态调用：GameState.cfg("player.aim_assist.levels." + ...)（字符串后直接跟拼接；C# 侧 [Cc]fg 大小写变体）
+RE_DYNAMIC = re.compile(r'GameState\.Instance\.(?:[Cc]fg|CfgVal)\(\s*"([^"]+)"\s*\+')
 # 格式化动态键：GameState.cfg("boss.phases.type%d" % boss_type, ...) → 前缀取 % 之前
-RE_FORMAT = re.compile(r'GameState\.cfg\(\s*"([^"]*?)%[^"]*"\s*%')
+RE_FORMAT = re.compile(r'GameState\.Instance\.(?:[Cc]fg|CfgVal)\(\s*"([^"]*?)%[^"]*"\s*%')
 # 前缀变量模式：var base := "player.aim_assist.levels." + String(x) + "."
 # → 后续 GameState.cfg(base + "frame_pad", ...)。RE_PREFIX_VAR 捕获 {变量名: 字面前缀}；
-# RE_CFG_WITH_VAR 把用该变量作首参的 cfg 调用登记为动态前缀（P1-3 起 aim_frame_layer 采用此写法）。
+# RE_CFG_WITH_VAR 把用该变量作首参的 cfg 调用登记为动态前缀（P1-3 起 aim_frame_layer 采用此写法）
 RE_PREFIX_VAR = re.compile(r'var\s+(\w+)\s*(?::\s*[\w.]*\s*)?=\s*"([^"]+)"\s*\+')
-RE_CFG_WITH_VAR = re.compile(r'GameState\.cfg\(\s*(\w+)\s*\+')
+RE_CFG_WITH_VAR = re.compile(r'GameState\.Instance\.(?:[Cc]fg|CfgVal)\(\s*(\w+)\s*\+')
 # 声明式效果表（player.gd BUFF_EFFECTS 等）："cfg": "buffs.rapid_fire.factor" 字符串键。
 # L09（2026-08-03 审查）：A3 收敛声明式效果表后此类键不经 GameState.cfg 调用，
 # 原扫描全盲区——7 个效果表键不参与缺失键检测（拼错/改名不报）、被消费键误列疑似死键
 RE_EFFECT_CFG = re.compile(r'"cfg"\s*:\s*"([^"]+)"')
+# V 系列：C# 效果表形态 ["cfg"] = "buffs.rapid_fire.factor"（Player.cs BuffEffects 等 14 键）
+RE_EFFECT_CFG_CS = re.compile(r'\["cfg"\]\s*=\s*"([^"]+)"')
 
 
 def _in_comment(text: str, pos: int) -> bool:
@@ -80,9 +87,11 @@ def main() -> None:
     dynamic_prefixes: set[str] = set()
     for d in SCAN_DIRS:
         for src in sorted(list(d.rglob("*.gd")) + list(d.rglob("*.cs"))):
+            if "tests" in src.parts:
+                continue  # V 系列：跳过测试目录（故意回退用例会误报缺失键；引用不代表生产消费）
             rel = src.relative_to(ROOT)
             text = src.read_text(encoding="utf-8")
-            patterns = [RE_STATIC, RE_EFFECT_CFG]
+            patterns = [RE_STATIC, RE_EFFECT_CFG, RE_EFFECT_CFG_CS, RE_CFG_VAL, RE_RESOLVE]
             if src.suffix == ".gd" and src.name in ("game_state.gd", "balance_service.gd"):
                 # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
@@ -96,8 +105,8 @@ def main() -> None:
                     if _in_comment(text, m.start()) or text[max(0, m.start() - 5):m.start()].endswith("func "):
                         continue
                     line = text.count("\n", 0, m.start()) + 1
-                    # RE_EFFECT_CFG 仅一个捕获组（键），无默认值列
-                    default = "—" if pat is RE_EFFECT_CFG else re.sub(r"\s+", " ", (m.group(2) or "—").strip())
+                    # 效果表形态（两变体）仅一个捕获组（键），无默认值列
+                    default = "—" if pat in (RE_EFFECT_CFG, RE_EFFECT_CFG_CS) else re.sub(r"\s+", " ", (m.group(2) or "—").strip())
                     if len(default) > 60:
                         default = default[:57] + "..."
                     static_calls.append((str(rel), line, m.group(1), default))

@@ -1662,3 +1662,31 @@
   - `EliteTurretEvent` 补 `_spawner ??= GetFirstNodeInGroup("spawner") as Spawner`（K15 对称兜底——注入时序失败时 Boss 冻结/波次暂停静默失效）。
 - **为什么起效**：数值精度链恢复 64 位等价（原 float32 有 ~1e-7 相对误差且宣称失实）；TakeDamage 语义恢复（均匀环 vs 原点定向波纹）；损坏数据路径（Derive 越界/字符串解析）对齐 GDScript 行为；池复用计数恢复准确（MetaHUD D3 亮度代理）；信号链类型单一化消除隐式 Variant 转换链。
 - **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；定向 0 FAIL——elite_turret_event/formation_strike_event/event_manager/encounter_flow_contract/user_db/base_task_refresh/welcome_flow/base_system（settings_ui 场景不存在为误测，设置页由 welcome_flow 覆盖）；全量断言场景回归见批次底部。
+
+---
+
+# V 系列（2026-08-09，C# 分支多角度严格审查）
+
+- **审计**：8 路并行只读审查（热路径性能 / 生命周期信号 / 数据安全 / 正确性边界 / 测试质量 / 文档一致性 / Godot API / U 系列修复回归），主控逐条读码复核 P1/P2；遵循 AUDIT_REVIEW_SOP。
+- **发现**：P1×2 + P2×14 + P3/P4 约 20 项；U 系列修复主体可信（U01–U06/U08/U09/U11/U12/U16 逐项属实），**验收声明 4 处与实际不符**（U10/U13 漏计 Boss 发射链动态派发、U07 名单外静态字段、U17 漏删死代码、U19 字段级注释未修）。
+- **修复批次**：
+  - **批次 1（P1/正确性/安全）**：
+    - ✅ 静态 Godot 资源持有（退出 segfault 风险，U07 名单外）——`BossAttacks` 5 静态 AudioStream → 路径 StringName + 播放处 GD.Load；`Main` 3 静态 PackedScene、`BulletPool`/`LaserWeapon`/`FakeEnemy` 静态资源 → 实例字段。
+    - ✅ `UserDb.ParseGdscriptInt` 超长数字溢出抛 OverflowException（U15 修复引入回归，手改 users.json 中断登录/榜单）→ `long.TryParse` 回 0（头注"防御性收敛"契约恢复）；`iterations` 钳制上限 1e6（手改巨值挂死登录）。
+    - ✅ `Explosion` 新建实例 `_liveCount` 双计数（U16 修复自身回归，LiveCount() 永久偏高）→ 复位计数移入池取分支。
+    - ✅ `BaseConsole` dim ColorRect 重复 AddChild（每进基地一条引擎 ERROR，违反警告零容忍门禁）。
+    - ✅ `CSharpCallTest` 死测试（三重恒真断言 + 调用已删 ProbeOverload 打引擎错误）→ 断言具体值 + 删重载探针。
+  - **批次 2（热路径/健壮性/桥清理）**：
+    - ✅ `GameEventManager` 遭遇组每帧动态派发 + 空字典分配（Poll/Tick 每帧 Callable.Call ×N + `new Godot.Collections.Dictionary()` 默认实参）→ 注册时固化 `EncounterCfg` 缓存 + 实例缓存（IsInstanceValid 校验）+ 18 处 `new StringName()` 复用 `EmptyId`；事件场景 5/5 验证。
+    - ✅ Boss 发射链 typed 化（U13 验收失实项）——`BossAttacks`/`EnrageSequence` 20 处 `_fire.Call("Fire_*")` → typed 直调，`_fire` 字段/Configure 参数 GodotObject → BossFire；删 `BossFire` 5 个 snake 桥 + 2 个 `configure` snake 桥；`Boss.Fire_*` 转发桥保留（HitLogicTest 测试契约）；Boss 场景 6/6 验证。
+    - ✅ `Bullet` H05 dist==0 置 `Vector2.Right`（90° 突变，与注释"保持原向"矛盾）→ 不动 Direction。
+    - ✅ 数值域钳制（R06/H11 同族）：`laser_beam.tick_interval` ≥0.05（0 值 960DPS）、`player.dash.time` ≥0.05（除零 NaN）、`boss.phase2/enrage.hp_ratio` 钳 (0.01, 0.99]（>1 抬血锁血、≤0 免疫）。
+    - ✅ `CameraShake` 信号 double/float 不一致（U16 漏网）→ 监听侧适配 double + 过时注释；`Player` 957 行字符串字面量 → 常量。
+    - ✅ 死代码：`Bullet._deferredDisableMonitoring`、`PlayerBuffVisuals.GetBaseShipScale`、`GameState` 静态 GetSfx* 8 方法（零调用）删除；`SaveManager.SanitizeNum` 恒真条件清理。
+    - ✅ U19 失实注释清理：`GameState` 3 处"仍为 GDScript 薄壳"、2854 桥段、`BossAttacks`/`DawnStation`/`CinematicFx`/`Main`/`MouseTrap`/`BaseConsole` 桥注释（只清注释，桥代码随 typed 化批次删除）。
+  - **批次 3（生成器/文档）**：
+    - ✅ `gen_balance_map.py` C# 形态增强：`CfgVal`/`Resolve`/效果表 `["cfg"]="…"`/动态拼接大小写变体/RE_STATIC 必选前缀去重（原 GameState 段 16 条重复）/排除测试目录——**未引用键 101→1**（仅剩 `version` 元数据）、动态前缀 0→3、缺失键 0；重跑幂等。
+    - ✅ BALANCE_MAP 重跑（Boss.cs 全段 +1 行号漂移修正，CI M8 闸恢复）。
+    - ✅ 文档同步 6 文件到迁移后现状：ARCHITECTURE（全文 .gd→.cs/API PascalCase/51→55）、DESIGN_BASELINE（§2.1 no .NET→全 C#、47→55）、EVENT_MANAGER（路径/API/计数）、ENTITY_MANAGER（迁移说明注记）、AGENTS（66→64 场景算式）、TESTING（补 starfield_cs/csharp_call 两场景）。
+- **登记不修**（论证后收敛）：Explosion 静态池（架构级，改动风险 > 退出风险，随资源管理重构一并处理）；公开测试端口 ~101 Set*（TESTING.md 认可模式，规模登记观察）；autoplay 不进 CI（既有登记）；池 Release `_free.Contains` O(n)（稳态小）；`Boss.GetFightPhaseTransition` 名实不符（恒返回 P1，测试契约引用，更名风险 > 收益）；BossMovement Meth* 两套拼写（StringName 大小写不敏感，行为已验证）；GameState 953/958 float 出口截断（~1e-7，U15 声明"API 边界"微瑕，对局影响可忽略）；`boss.difficulty_scaling` 判型缺口（当前数据无恙防呆项）；PlayerVisuals 弹反每帧数组（0.5s 窗口 6 元素）；Enemy 体碰动态派发（低频重叠期）；Welcome 长度校验 rune/UTF-16 口径（提示误导，方向保守）；OrbitalStrike IMPACT_AT 无下限（H15 另一侧）；sweep 残点注释不实（cap 路径，登记观察）。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；`dotnet format` 三工程零 diff；定向场景（事件 5 + Boss 6）0 FAIL；**全量断言场景 55/55 全绿 0 flake**；BALANCE_MAP 重跑幂等；完整报告 `docs/archive/2026-08-09-multi-angle-csharp-review.md`。

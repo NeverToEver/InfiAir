@@ -9,11 +9,11 @@
 
 The game contains many "events" of different shapes. Historically they were managed
 inconsistently: fog events under a dedicated manager, random encounters (elite turret /
-formation strike) with trigger logic inline in `spawner._process`, and flow/cinematic
-sequences orchestrated by `main.gd`. This document:
+formation strike) with trigger logic inline in `Spawner._Process`, and flow/cinematic
+sequences orchestrated by `Main` (`csharp/godot/Main.cs`). This document:
 
 1. Classifies every in-game event (one authoritative inventory);
-2. Defines a **unified event manager** (`GameEventManager`, `GameState.events`) that
+2. Defines a **unified event manager** (`GameEventManager`, `GameState.Events`) that
    batch-manages all *random* events through one registry / trigger policy / lifecycle /
    signal surface;
 3. Records the migration map and the invariants that keep behavior unchanged.
@@ -28,7 +28,7 @@ scheduling.
 | --- | --- | --- | --- |
 | **A. Fog interference** | `fake_enemies`, `mental_confusion`, `bullet_malfunction`, `direction_shift` | RefCounted `GameEvent` → `FogEvent` | `GameEventManager` fog group (registry/trigger/lifecycle); `FogEventManager` = effects layer + API facade |
 | **B. Special encounters** | `elite_turret` (`EliteTurretEvent`), `formation_strike` (`FormationStrikeEvent`) | Node state machines (spawn entities, FSM) | `GameEventManager` encounter group (spawner-processing gate + event-owned cooldown) |
-| **C. Flow / cinematic** | intro, return, orbital strike, mothership summon window, boss warning/spawn, boss enrage bullet-time, homecoming, death, give-up | Node sequences w/ pause + input lock | `main.gd` (orchestration) |
+| **C. Flow / cinematic** | intro, return, orbital strike, mothership summon window, boss warning/spawn, boss enrage bullet-time, homecoming, death, give-up | Node sequences w/ pause + input lock | `Main` (orchestration) |
 | **D. Entity signals** | `Enemy.died`, `Boss.died/enraged/escaped/phase_changed`, `TurretBattery.died`, `FormationCraft.died`, `Mothership.departed`, `Player.entry_finished`, … | per-entity notifications | unchanged (signals) |
 
 ### A. Fog interference (4)
@@ -52,7 +52,7 @@ Trigger policy lives in `GameEventManager` (2026-08-05, §3.3): elite `trigger_i
 
 Scene-bound sequences: intro/return cinematics (freeze the tree, `process_mode=ALWAYS`),
 orbital-strike clear, mothership summon show/warp-in, boss warning + enrage bullet-time,
-homecoming, death replay, give-up. All orchestrated by `main.gd` because they share pause
+homecoming, death replay, give-up. All orchestrated by `Main` (`csharp/godot/Main.cs`) because they share pause
 state, input locking and camera/zoom concerns. **Deliberately outside** the random event
 manager; their lifecycle is driven by scene flow, not by an event scheduler.
 
@@ -63,9 +63,9 @@ scheduling sense; remain ordinary signals.
 
 ## 3. Unified manager — `GameEventManager`
 
-New `scripts/event_manager.gd` (`class_name GameEventManager extends Node`), mounted as a
-service child of the `GameState` autoload (`GameState.events`, same convention as
-`GameState.fog_events`).
+New `csharp/godot/GameEventManager.cs` (`GameEventManager extends Node`), held as a
+service child of the `GameState` autoload (`GameState.Events`, same convention as
+`GameState.FogEvents`).
 
 ### 3.1 Registry (single source of truth)
 
@@ -87,7 +87,7 @@ var EVENT_FACTORIES: Dictionary = {
   event, duration auto-clear).
 - Encounter events are **cached singletons** (Nodes attached under the injected Main
   container): they carry cooldown/FSM state across triggers, and tests access them via
-  `main.event()` / `main.formation()`.
+  `Main.Event()` / `Main.Formation()`.
 
 The manager drives events through a small **duck-typed contract** — no forced base class:
 
@@ -159,13 +159,13 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 
 | File | Change |
 | --- | --- |
-| `scripts/event_manager.gd` | **new**: `GameEventManager` (registry/groups/trigger/lifecycle/signals/API) |
-| `scripts/fog_event_manager.gd` | keep class + full public API as the **fog effects layer + facade**: visual layers (fake container / overlay / banner), fog signals re-emitted from manager signals, accessors (`spawned_fakes`, `fake_container`, `overlay_*`, `emit_direction_shift`), config vars (`TRIGGER_CHANCE`, `CHECK_INTERVAL`, `MIN_INTERVAL`, `FIRST_DELAY`, `WEIGHTS`, `EVENT_DURATIONS`, `ENABLED`, `EVENT_FACTORIES`) proxied to manager fog-group config / shared registry; lifecycle forwards to `GameState.events` |
-| `scripts/spawner.gd` | remove encounter trigger checks + `ScheduledEventTrigger` fields; keep accessors (`set_elite_event`/`elite_event`/`set_formation_event`/`formation_event`) + Boss/wave mutex hooks; add `notify_event_triggered()` (wave-slot reset) |
-| `scripts/main.gd` | replace direct event creation with `GameState.events` wiring (container = self, spawner ref, run_active); `event()`/`formation()` forward to manager; homecoming/death clear fog via `GameState.fog_events.end_active()` + encounter via `GameState.events.end_active(GameEventManager.GROUP_ENCOUNTER)` |
-| `autoload/game_state.gd` | mount `GameState.events` (GameEventManager child) |
+| `csharp/godot/GameEventManager.cs` | **new**: `GameEventManager` (registry/groups/trigger/lifecycle/signals/API) |
+| `csharp/godot/FogEventManager.cs` | keep class + full public API as the **fog effects layer + facade**: visual layers (fake container / overlay / banner), fog signals re-emitted from manager signals, accessors (`spawned_fakes`, `fake_container`, `overlay_*`, `emit_direction_shift`), config vars (`TRIGGER_CHANCE`, `CHECK_INTERVAL`, `MIN_INTERVAL`, `FIRST_DELAY`, `WEIGHTS`, `EVENT_DURATIONS`, `ENABLED`, `EVENT_FACTORIES`) proxied to manager fog-group config / shared registry; lifecycle forwards to `GameState.Events` |
+| `csharp/godot/Spawner.cs` | remove encounter trigger checks + `ScheduledEventTrigger` fields; keep accessors (`set_elite_event`/`elite_event`/`set_formation_event`/`formation_event`) + Boss/wave mutex hooks; add `notify_event_triggered()` (wave-slot reset) |
+| `csharp/godot/Main.cs` | replace direct event creation with `GameState.Events` wiring (container = self, spawner ref, run_active); `Event()`/`Formation()` forward to manager; homecoming/death clear fog via `GameState.FogEvents.EndActive()` + encounter via `GameState.Events.EndActive(GameEventManager.GroupEncounter)` |
+| `csharp/godot/GameState.cs` | holds `GameState.Events` (GameEventManager child) |
 | `scripts/scheduled_event_trigger.gd` | retired (logic absorbed by manager) |
-| tests | `fog_event_test` untouched (facade); encounter tests untouched if APIs preserved; mothership/orbital/summon tests keep `main.event().set_process(false)` |
+| tests | `fog_event_test` untouched (facade); encounter tests untouched if APIs preserved; mothership/orbital/summon tests keep `Main.Event().SetProcess(false)` |
 
 ## 5. Behavior preservation invariants
 
@@ -197,4 +197,4 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 - New coverage: manager-level assertions (unified registry of 6 ids, group concurrency
   fog‖encounter, unified `event_started/ended` broadcast, spawner-processing gate).
 - Gate: the 5 layers of `docs/TESTING.md` (format → lint → import warnings → compile+smoke
-  → all 47 assertion scenes).
+  → all 55 assertion scenes).
