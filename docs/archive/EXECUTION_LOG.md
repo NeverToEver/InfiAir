@@ -154,3 +154,11 @@
 - **关键决策**：Boss Fire_* 桥以 8 个 PascalCase 转发替代（测试契约 HitLogicTest 依赖）；激光不传 ScoreScale 与 _explode 排除 Boss 为既有语义显式保留；PlayerDied 信号 3 订阅者同步时序约束下 UI 编排下沉走「UI 仍订阅信号」方案；任务域服务化与状态机枚举化论证后 defer。
 - **教训**：partial 切分脚本模板头与原头冲突（双重类声明/孤儿花括号——壳文件三修）；gen_balance_map 的裸 Cfg 统计按文件名白名单匹配，结构拆分必须同步工具链；「语义等价」机械替换由编译器兜底（StringName 删除后遗漏即编译错误），但工具链行为需独立验证（BALANCE_MAP 计数突变是哨兵）。
 - **原文**：`docs/archive/2026-08-09-csharp-architecture-refactor-plan.md`（登记：`docs/AUDIT_VAULT.md` Y 系列）
+
+
+## 2026-08-09 · 局外成长（Meta Progression / 科技树）
+
+- **落地**：未提交（改动待提交：M1-M5 五批次 + 文档同步）
+- **摘要**：Steam 同类调研（Vampire Survivors / Brotato / 20 Minutes Till Dawn / Geometry Wars 3）后落地跨局成长——新增科技点货币（**死亡结算唯一入口** `SettleRun`，放弃/返航不结算防刷点）；效果 = 新局开局预置已购 buff 层数（`ApplyMetaLoadout` 挂 `Main.ApplyNewRun`，复用 buff 计算链零新属性管道）；研究所 UI（Welcome 主菜单入口 + BaseConsole 第五面板）；仅登录用户（B7-8）。core 纯逻辑 `MetaProgression` + `UserDb` meta 字段 + `GameState.Meta` partial + `meta_test` 断言场景（24 断言）+ xUnit 新增 18 项（总 108）。
+- **关键决策**：预置挂点选 `Main.ApplyNewRun` 而非 `ResetRun`（tutorial 复用 ResetRun，预置会污染教学流程）；科技点独立于 RP（RP 维持局内基地经济不动）；每项限级 + 总消费上限 → 玩家终将毕业、敌人无界增长 → D1 必死曲线保持；meta 配置键走 Cfg 静态调用 → BALANCE_MAP 生成器自然收录（M3 后未引用键 28→1）。
+- **原文**：`docs/archive/2026-08-09-meta-progression-plan.md`

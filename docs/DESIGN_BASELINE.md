@@ -21,6 +21,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only (2026-08-06 audit: baseline claimed "run economy from kills/score" — kills don't grant RP; spent at base console, not carried between runs).
 - **RefreshPoints (2026-08-05, `docs/FOG_EVENTS.md` §1)**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
+- **TechPoints (2026-08-09, meta progression; spec `docs/archive/2026-08-09-meta-progression-plan.md`)**: cross-run currency, independent of RP (RP stays in-run base economy). Sole settlement = death (`SettleRun`; give-up/homecoming do NOT settle — anti-farm): `floor(score/1000) + boss_kills×2 + missions_claimed×1` (`meta.points.*`). Logged-in users only (guests not persisted, B7-8). Spent at Research Lab (Welcome main menu + BaseConsole panel); effect = new run starts with purchased buff stacks (`ApplyMetaLoadout` from `Main.ApplyNewRun`; tutorial / save-continue paths skip it). Upgrades = `meta.upgrades` (8 items, max_level 2–3, ≤ half of `buffs.<id>.max_stacks`); balance/levels persist in UserDb `meta` field (defensive typing, legacy records default).
 - Milestones: score thresholds → buff 3-choice (`BuffSelect`); covered by `buff33_test`/`buff_panel_test`.
 
 ### 1.4 Difficulty & Endless Curve (single source `docs/ENDLESS_BALANCE_PLAN.md`)
@@ -29,6 +30,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - No hard cap (old `2^n + ×8` removed). `RecomputeDifficulty()` unified (kill + time tier + save-restore); broadcasts `DifficultyChanged`.
 - Enemy growth: Boss HP linear × mult (50s-escape DPS check = "can't kill → flees" valve); `enemies.hp_ramp_factor`/`damage_ramp_factor` (k=0.25 HP / 0.20 dmg, 2026-08-04 校准)/spawn ramp unbounded.
 - Survival: `extra_life` cap 99→**10** (HP 100+500=600); card "unlimited"→"max 10"; lifesteal ≤10% feedback offset by HP cap + ramp.
+- **Meta-growth boundedness (2026-08-09)**: tech-tree upgrades are capped per item (`meta.upgrades.*.max_level`) with a finite total point sink → players eventually graduate; enemy pressure stays unbounded → inevitable-death curve (D1) preserved. Meta only shifts opening strength, never the "death is the only end" rule.
 - Event units scale: turret/formation HP × `GameState.EnemyHpRamp()`.
 - **D2**: Hard-mode buff pacing fastest (×3 score, ×1.5 thresholds) is **intentional**; unchanged.
 - New top-level `progression`; script `Cfg()` fallbacks match json.
@@ -258,6 +260,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 
 ### 8.2 Mid Term
 - Endless calibration: ✅ **done 2026-08-04** — `progression.*` + ramp factors tuned for deep runs (>15 min), recorded in `ENDLESS_BALANCE_PLAN §6.1`; verified via 3 × 900s autoplay probes (0 anomalies; no "HP-only inflation, zero pressure" steady state — HP min 40–69 sustained, 0 deaths).
+- **Meta progression (cross-run growth)**: ✅ **landed 2026-08-09** — TechPoints tech tree (death settlement + Research Lab UI + opening buff-stack loadout; §1.3 + `docs/archive/2026-08-09-meta-progression-plan.md`).
 - Cinematic stage 4.
 
 ### 8.3 Deferred/Cut (restart needs explicit decision; ROADMAP Phase 3)

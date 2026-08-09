@@ -18,8 +18,8 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
-- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **55** (2026-08-08 M7c 全量迁移 C# 后).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **64** (55 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
+- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **56** (2026-08-08 M7c 全量迁移 C# 后; 2026-08-09 + `meta_test` 局外成长).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **65** (56 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
 - Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Subsystem Scenes

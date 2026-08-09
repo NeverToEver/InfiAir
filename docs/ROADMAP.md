@@ -21,6 +21,7 @@
 | Mode | solo | collaborative (repo ready) |
 | Release | packaging deferred | resumed 2026-07-30 (presets + `release.sh` + scripts); CI/CD 2026-08-02 (5-layer gate + manual release) |
 | Content | mechanic completion | keep current; depth/new content cut 2026-07-30 — restart needs re-scoping |
+| Meta | score-only in-run economy | cross-run growth: TechPoints tech tree (death settlement, opening buff loadout; 2026-08-09) |
 
 ## Phases
 
@@ -62,6 +63,8 @@
 - **2026-08-07 — C# 着陆点规划**：六候选模块评估（SaveManager/UserDb/BalanceService/EventManager/资产资源管理/DDA）→ **P0 高优先：SaveManager 与 UserDb 数据层迁 C#**（纯 IO/数据完整性收益最大、边界清晰；UserDb 密码派生须逐字节等价 + 既有账号兼容测试），P1：BalanceService 点路径解析核心（壳保 cfg() 签名 → M8 零影响），P2：AssetCatalog 资产资源管理（新能力,按内容规模触发）。路线图、每项接入模式与验证要求登记在 `.agents/csharp-conventions.md` §Landing Plan；实现为独立批次。**P0-1/P0-2/P1-1 已于 2026-08-07 全部落地**（`d0fb9e2`/`fcb37d1`/`0acb28b`）：SaveStore/UserDb/PathResolver 纯 .NET 核心 + csharp/godot 薄壳 + GDScript 壳转发（公开 API 不变）+ xUnit 54 项（含 PBKDF2 固定向量兼容测试）+ 3 个 interop 断言场景；**P1-2/P1-3 同日落地**：Progression（里程碑阈值曲线 + 难度进程曲线，apply_run_save 里程碑批量推进改单次调用 + O(1)/档 增量）与 Missions.TaskPool（任务池无放回抽取，RNG 独立于 GDScript 全局随机源）；P2-1 AssetCatalog 触发条件未满足，维持待启动。
 
 - **2026-08-08 — 全量迁移 C#（反转 2026-08-07「存量不迁移」边界）**：用户指令反转渐进式混编的"存量 GDScript 不迁移"边界——存量约 3.7 万行 GDScript（scripts/autoload/test）**全量迁移 C#**，终态零 GDScript、零 interop 壳、单一语言维护；执行分支 `feature/csharp-full-migration`（main 保持可发布）；M1–M7 里程碑（M1 基线+脚手架 → M2 服务层 → M3 战斗核心 → M4 事件体系原子批次 → M5 UI → M6 演出编排 → M7 测试迁移+收尾），每批门禁全绿（build 零警告 + xUnit + 导入零错 + 冒烟 + 62 场景 + BALANCE_MAP 零 diff）；62 断言场景迁移期保持 GDScript 作回归（公共 API 冻结），M7 全量 C# 化；perf_bench 基线锚点 1.182ms/帧（2026-08-08）。决策依据 `docs/C_SHARP_ASSESSMENT.md` §10。
+
+- **2026-08-09 — 局外成长（科技树）**：同类调研（Vampire Survivors / Brotato / 20 Minutes Till Dawn，Steam 商店页）后落地跨局成长——新增科技点货币（**死亡结算唯一入口** `SettleRun`；放弃/返航不结算防刷点），效果映射为**开局预置 buff 层数**（复用 buff 计算链，零新属性管道），消费于研究所 UI（Welcome 主菜单 + BaseConsole 第五面板），仅登录用户（B7-8 游客不持久化）。有界性：每项限级（`meta.upgrades.*.max_level`）+ 总消费上限 → 不破坏 D1 必死曲线。实现 M1–M5 批次（core 纯逻辑 + UserDb meta 字段 + GameState.Meta + 研究所 UI + meta_test 断言场景）门禁全绿；执行记录 `docs/archive/2026-08-09-meta-progression-plan.md`。Phase 3 "online leaderboard NO" 决定不受影响。
 
 ## Maintenance
 
