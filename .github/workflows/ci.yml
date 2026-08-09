@@ -28,13 +28,14 @@ concurrency:
 env:
   DOTNET_SDK_VERSION: 8.0
   GODOT_VERSION: 4.6.2
-  GODOT_CACHE_DIR: ${{ runner.temp }}/godot-4.6.2
 
 jobs:
   fast-gate:
     name: Fast gate (C# + import + smoke + compile probe)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GODOT_CACHE_DIR: /tmp/godot-4.6.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -194,6 +195,8 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      GODOT_CACHE_DIR: /tmp/godot-4.6.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
