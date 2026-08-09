@@ -66,7 +66,8 @@ public partial class OrbitalStrike : CanvasLayer
         // H15（健壮性审核）：时轴序钳制——duration=0 首帧 finished、impact_at≥1.0 时 struck 不可达
         // （main 收不到 _on_orbital_struck，树保持暂停+锁输入软锁）、missile_from≥impact_at 时瞄准段除零
         DURATION = Mathf.Max((float)GameState.Instance.Cfg("effects.orbital_strike.duration", DURATION).AsDouble(), 0.01f);
-        IMPACT_AT = Mathf.Min((float)GameState.Instance.Cfg("effects.orbital_strike.impact_at", IMPACT_AT).AsDouble(), 0.95f);
+        // W 系列（2026-08-09）：补下限 0.05——impact_at≤0 时首帧即 struck+清场（H15 只封了另一侧，E07 单帧大 delta 同族另一入口）
+        IMPACT_AT = Mathf.Clamp((float)GameState.Instance.Cfg("effects.orbital_strike.impact_at", IMPACT_AT).AsDouble(), 0.05f, 0.95f);
         MISSILE_FROM = Mathf.Max(Mathf.Min((float)GameState.Instance.Cfg("effects.orbital_strike.missile_from", MISSILE_FROM).AsDouble(), IMPACT_AT - 0.05f), 0.0f);
         RETICLE_RADIUS = (float)GameState.Instance.Cfg("effects.orbital_strike.reticle_radius", RETICLE_RADIUS).AsDouble();
         IMPACT_Y_RATIO = (float)GameState.Instance.Cfg("effects.orbital_strike.impact_y_ratio", IMPACT_Y_RATIO).AsDouble();

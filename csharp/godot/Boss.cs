@@ -50,8 +50,6 @@ public partial class Boss : Area2D
     /// <summary>4 型「月蚀」专属贴图（环刃法师，2026-08-09 接线）。
     /// 数组在构造器装配（字段初始化器禁引用实例字段）。</summary>
     private readonly Texture2D[] _bossTextures;
-    /// <summary>猎杀环绕瞬停点（右→上→左→下→右→上，共 6 点；末点为顶部，RELEASE 回底部）。</summary>
-    private static readonly float[] StalkerPointAnglesDeg = { 0.0f, -90.0f, 180.0f, 90.0f, 0.0f, -90.0f };
     /// <summary>独立召唤计时（不占模式表）：3 型「母舰」专属（_physics_process 查询）。</summary>
     private static readonly Dictionary<int, bool> SummonerTypes = new() { [3] = true, [4] = false };
     /// <summary>受击闪白总时长（游击型更短）：_flash_hit 查询。</summary>
@@ -546,7 +544,8 @@ public partial class Boss : Area2D
         RingBurstSpeed = (float)GameState.Instance.Cfg("boss.ring_burst.bullet_speed", RingBurstSpeed).AsDouble();
         BulletDamageRing = (int)GameState.Instance.Cfg("boss.bullet_damage.ring", BulletDamageRing).AsInt64();
         Move4BobAmp = (float)GameState.Instance.Cfg("boss.movement.type4.bob_amp", Move4BobAmp).AsDouble();
-        Move4BobPeriod = (float)GameState.Instance.Cfg("boss.movement.type4.bob_period", Move4BobPeriod).AsDouble();
+        // W 系列（2026-08-09）：bob_period 下限 0.05——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 越界（R06 同族，MoveBob 侧已有 0.01 保护）
+        Move4BobPeriod = Mathf.Max((float)GameState.Instance.Cfg("boss.movement.type4.bob_period", Move4BobPeriod).AsDouble(), 0.05f);
         E4RingCount = (int)GameState.Instance.Cfg("boss.enrage.type_4.ring_count", E4RingCount).AsInt64();
         E4RingInterval = Mathf.Max(
             (float)GameState.Instance.Cfg("boss.enrage.type_4.ring_interval", E4RingInterval).AsDouble(), 0.05f);
@@ -555,9 +554,23 @@ public partial class Boss : Area2D
         E4ReleaseRingCount = (int)GameState.Instance.Cfg("boss.enrage.type_4.release_ring_count", E4ReleaseRingCount).AsInt64();
         E4ReleaseRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_4.release_ring_speed", E4ReleaseRingSpeed).AsDouble();
         _movement.SyncPressTimer(PressInterval);
-        DiffIntervalMult = GameState.Instance.Cfg("boss.difficulty_scaling.interval_mult", DiffIntervalMult).AsGodotArray();
-        DiffSpeedMult = GameState.Instance.Cfg("boss.difficulty_scaling.speed_mult", DiffSpeedMult).AsGodotArray();
-        DiffCountDeltas = GameState.Instance.Cfg("boss.difficulty_scaling.counts", DiffCountDeltas).AsGodotDictionary();
+        // W 系列（2026-08-09）：difficulty_scaling 判型+空表守卫——损坏类型/空数组时 AsGodotArray 得空表，
+        // ApplyDifficultyScaling 的 Clamp(tier,0,Count-1) 返回 -1 → 越界 SCRIPT ERROR（Q14/R06 同族防呆口径，坏值保持默认）
+        var diffInterval = GameState.Instance.Cfg("boss.difficulty_scaling.interval_mult", DiffIntervalMult);
+        if (diffInterval.VariantType == Variant.Type.Array && diffInterval.AsGodotArray().Count >= 3)
+        {
+            DiffIntervalMult = diffInterval.AsGodotArray();
+        }
+        var diffSpeed = GameState.Instance.Cfg("boss.difficulty_scaling.speed_mult", DiffSpeedMult);
+        if (diffSpeed.VariantType == Variant.Type.Array && diffSpeed.AsGodotArray().Count >= 3)
+        {
+            DiffSpeedMult = diffSpeed.AsGodotArray();
+        }
+        var diffCounts = GameState.Instance.Cfg("boss.difficulty_scaling.counts", DiffCountDeltas);
+        if (diffCounts.VariantType == Variant.Type.Dictionary)
+        {
+            DiffCountDeltas = diffCounts.AsGodotDictionary();
+        }
         LoadPatterns();
         ApplyDifficultyScaling();
         StartPattern();
