@@ -104,7 +104,7 @@ ENRAGE RELEASE_HOLD = "last stand" peak (above); then RETURN → "afterburn": fi
 - **P1**: `ring_burst` (360° ring, 12 shots @340, `boss.ring_burst`) alternating `homing`
 - **P2**: `ring_burst` + `cross` + `sniper3` (0.35s telegraph — same shared skeleton)
 - **Enrage "Lunar Eclipse"** (`boss.enrage.type_4`): TRANSITION hover (same as type1) → ACTIVE counter-rotating double ring (forward ring at +angle, reverse at -angle, precess 15°/wave, 10 shots each @200) → RELEASE 20-shot charged ring volley → RETURN; shared afterburn ×1.3
-- Rotation `spawner` `%4+1`; `hp_mults` 1.2; tell: `ATTACK_TELLS.ring_burst` (fire-A pitch 1.4, magenta ring); sprite reuses boss_ship_1 (bullet-geometry identity)
+- Rotation `spawner` `%4+1`; `hp_mults` 1.2; tell: `ATTACK_TELLS.ring_burst` (fire-A pitch 1.4, magenta ring); sprite `boss_ship_4.png` (dedicated "Wheel of Lunar Eclipse" — dark moon disc + twin orthogonal orbit rings, 2026-08-09; previously reused boss_ship_1)
 - Difficulty tier: `counts.ring_burst` [10, 12, 14]
 
 ### 5.5 P2 Movement Upgrade (2026-08-02, D05 landed)

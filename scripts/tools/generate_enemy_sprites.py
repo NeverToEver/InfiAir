@@ -202,6 +202,16 @@ class Ship:
         mid = [(cx + rx * 0.92 * math.cos(t), cy + ry * 0.92 * math.sin(t)) for t in ts]
         self.bd.line(self.p(mid), fill=SEAM, width=S, joint="curve")
 
+    def disc(self, cx, cy, r, fill):
+        """圆盘（36 边多边形逼近圆，body 层）——月蚀月盘专用。"""
+        step = math.radians(10)
+        pts = []
+        t = 0.0
+        while t <= 2 * math.pi + 1e-9:
+            pts.append((cx + r * math.cos(t), cy + r * math.sin(t)))
+            t += step
+        self.bd.polygon(self.p(pts), fill=fill)
+
     def ring_tooth(self, cx, cy, rx, ry, t):
         """环刃外缘刃齿（body 层小三角，沿径向伸出）。"""
         d = math.radians(7)
@@ -652,59 +662,71 @@ def boss_3() -> Ship:  # 巨柱：六边要塞
     return s
 
 
-def eclipse() -> Ship:  # 月蚀：环刃法师——环绕环刃 + 中心晶核
+def eclipse() -> Ship:  # 月蚀：月食之轮——暗月盘 + 双正交轨道环刃（织网者）
+    # 设计（2026-08-09 重制，参照业内 shmup Boss 视觉最佳实践）：
+    #   剪影可读性——圆形月盘 + 横/竖双正交椭圆环，全游戏唯一"圆/环"剪影，与
+    #   君王(宽翼)/九头(三联)/巨柱(六边柱)直线舰体一眼区分；
+    #   主题 body language——"月蚀"天象 + 浑天仪双环，直接映射 ring_burst/双环
+    #   反向进动/充能环阵的环弹织网者玩法；环上晶炮台=攻击器官可视化；
+    #   中央白芯月核=视线焦点。
     s = Ship(410, 410, BOSS_ACCENTS[3], BOSS_CORES[3])
-    # 远半环（舰体后方，先画；暗面）
-    s.ring_band(205, 185, 158, 82, math.pi, 2 * math.pi, HULL_B)
-    # 舰体：瘦长六边法师塔
-    s.facet([(205, 82), (268, 122), (268, 248), (205, 300), (142, 248), (142, 122)], HULL_A, False)
-    s.facet([(205, 100), (250, 132), (250, 240), (205, 282), (160, 240), (160, 132)], HULL_B, False)
-    s.facet([(205, 82), (268, 122), (205, 150), (142, 122)], HULL_C, False)      # 顶部晶面
-    s.facet([(205, 96), (246, 126), (205, 146), (164, 126)], HULL_D, False)      # 顶部子面
-    s.facet([(222, 168), (240, 188), (240, 236), (222, 258)], HULL_C, False)     # 侧壁板条
-    s.facet([(188, 168), (170, 188), (170, 236), (188, 258)], HULL_C, False)
-    s.shade([(150, 250), (205, 296), (260, 250)], alpha=45, mirror=False)        # 底部阴影
-    s.seam([(205, 150), (205, 300)], mirror=False)                               # 中脊
-    s.seam([(142, 122), (205, 150)])
-    s.seam([(150, 176), (260, 176)], mirror=False)                               # 环带接缝
-    s.seam([(150, 222), (260, 222)], mirror=False)
-    s.seam([(158, 262), (252, 262)], mirror=False)
-    s.rim([(205, 82), (268, 122)], mirror=False)
-    s.greeble(176, 190, 8, 10)                                                   # 舰体舱口
-    s.greeble(226, 190, 8, 10)
-    s.panel_dot(158, 168)
-    s.panel_dot(158, 250)
-    s.panel_dot(198, 244)
-    s.panel_dot(212, 244)
-    s.vent(162, 206, length=10, gap=3, n=3, mirror=False)                        # 左侧散热格栅
-    s.vent(248, 206, length=10, gap=3, n=3, mirror=False)
-    s.crystal(158, 150, 4)                                                       # 侧壁晶簇
-    s.crystal(252, 150, 4)
-    s.crystal(158, 232, 4)
-    s.crystal(252, 232, 4)
-    # 近半环（舰体前方，后画；亮面）+ 环刃细节
-    s.ring_band(205, 185, 158, 82, 0.0, math.pi, HULL_C)
-    s.ring_tooth(205, 185, 158, 82, math.radians(25))
-    s.ring_tooth(205, 185, 158, 82, math.radians(65))
-    s.ring_tooth(205, 185, 158, 82, math.radians(115))
-    s.ring_tooth(205, 185, 158, 82, math.radians(155))
-    s.facet([(363, 185), (403, 160), (412, 185), (400, 210)], HULL_C)            # 环刃侧刃（自动镜像）
-    s.facet([(363, 185), (390, 170), (396, 185), (388, 200)], HULL_D)
-    s.rim([(363, 185), (403, 160)])
-    # 霓虹：轨道环能量线 + 舰体走线
-    s.orbit_ring(205, 185, 145, 75)
-    s.neon([(205, 92), (205, 168)], width=1, mirror=False)                       # 中脊二级走线
-    s.neon([(146, 128), (205, 150)], width=2)
-    s.neon([(150, 176), (260, 176)], width=1, mirror=False)                      # 环带二级走线
-    s.neon([(150, 222), (260, 222)], width=1, mirror=False)
-    s.lamp(363, 185, 3)                                                          # 环刃节点灯（自动镜像）
-    s.lamp(205, 104, 2.5)                                                        # 环顶灯
-    s.lamp(205, 288, 1.5)                                                        # 尾航行灯
-    s.ring_core(205, 185, 26)                                                    # 中心晶核
-    s.ring_core(205, 116, 9)                                                     # 舰首晶核
-    s.nozzle_ring(205, 322, 12, 6)
-    s.engine(205, 322, 12, 6)
-    s.engine_particles(205, 332, n=4, drop=12, spread=7)
+    # —— 远环（舰体后方，先画；暗面）：横环 + 竖环 上半段，北侧交叉成浑天仪节点 ——
+    s.ring_band(205, 200, 160, 84, math.pi, 2 * math.pi, HULL_B)
+    s.ring_band(205, 200, 84, 160, math.pi, 2 * math.pi, HULL_B)
+    # —— 月盘主体：暗月面 + 内层 + 月牙受光弧 ——
+    s.disc(205, 200, 88, HULL_A)
+    s.disc(205, 200, 72, HULL_B)
+    arc = [(205 + 66 * math.cos(math.radians(a)), 200 + 66 * math.sin(math.radians(a)))
+           for a in range(200, 341, 20)]
+    s.facet(arc, HULL_C, False)                      # 上缘受光带（月牙亮缘）
+    arc2 = [(205 + 55 * math.cos(math.radians(a)), 200 + 55 * math.sin(math.radians(a)))
+            for a in range(230, 311, 20)]
+    s.facet(arc2, HULL_D, False)                     # 受光带子面
+    # 月面细节：环形山缝/环形山点（保持月面纯净，不做舱口）
+    s.seam([(172, 214), (192, 230)], mirror=False)
+    s.seam([(232, 238), (248, 226)], mirror=False)
+    s.seam([(205, 250), (205, 272)], mirror=False)
+    s.panel_dot(178, 240, 2.2, mirror=False)
+    s.panel_dot(222, 216, 2.0, mirror=False)
+    s.panel_dot(188, 196, 1.8, mirror=False)
+    s.panel_dot(242, 190, 1.8, mirror=False)
+    # —— 近环（舰体前方，后画；亮面）：竖环 + 横环 下半段（环穿月盘的前后层次） ——
+    s.ring_band(205, 200, 84, 160, 0.0, math.pi, HULL_C)
+    s.ring_band(205, 200, 160, 84, 0.0, math.pi, HULL_C)
+    # 环刃刃齿 6 枚：横环对角 4 + 竖环上下 2
+    s.ring_tooth(205, 200, 160, 84, math.radians(45))
+    s.ring_tooth(205, 200, 160, 84, math.radians(135))
+    s.ring_tooth(205, 200, 160, 84, math.radians(225))
+    s.ring_tooth(205, 200, 160, 84, math.radians(315))
+    s.ring_tooth(205, 200, 84, 160, math.radians(90))
+    s.ring_tooth(205, 200, 84, 160, math.radians(270))
+    # —— 攻击器官可视化：环上晶炮台 6 枚（横环东西自动镜像 + 竖环上下 + 横环对角） ——
+    s.crystal(365, 200, 7)                           # 横环东端（自动镜像西端）
+    s.crystal(205, 40, 7)                            # 竖环上端
+    s.crystal(205, 360, 7)                           # 竖环下端
+    s.crystal(318, 259, 5)                           # 横环东南（自动镜像西北）
+    # —— 中央月核（视线焦点）——
+    s.ring_core(205, 200, 30)
+    # —— 引擎（月盘内底部悬浮推进）——
+    s.nozzle_ring(205, 258, 10, 5)
+    s.engine(205, 258, 10, 5)
+    s.engine_particles(205, 266, n=4, drop=8, spread=6)
+    # —— 霓虹：双环能量线 + 月盘边缘光环 + 放射日珥 + 月面走线 ——
+    s.orbit_ring(205, 200, 160, 84)                  # 横环能量线
+    s.orbit_ring(205, 200, 84, 160)                  # 竖环能量线
+    ring = [(205 + 88 * math.cos(math.radians(a)), 200 + 88 * math.sin(math.radians(a)))
+            for a in range(0, 360, 15)]
+    s.neon(ring, width=2, mirror=False)              # 月盘边缘光环
+    for a in range(0, 360, 45):                      # 放射日珥 8 条
+        t = math.radians(a)
+        s.neon([(205 + 88 * math.cos(t), 200 + 88 * math.sin(t)),
+                (205 + 102 * math.cos(t), 200 + 102 * math.sin(t))], width=1, mirror=False)
+    s.neon([(205, 130), (205, 168)], width=1, mirror=False)    # 月面中脊走线
+    # —— 航行灯：环东端 + 环南端 + 竖环顶端 ——
+    s.lamp(365, 200, 3)                              # 横环东端灯（自动镜像西端）
+    s.lamp(205, 284, 2, mirror=False)                # 横环南端灯
+    s.lamp(205, 40, 3)                               # 竖环顶端灯
+    s.lamp(205, 238, 1.5, mirror=False)              # 月面下缘灯
     return s
 
 
