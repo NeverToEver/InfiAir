@@ -35,6 +35,15 @@ jobs:
           dotnet build --nologo
           dotnet test tests-csharp/ --nologo
 
+      - name: C# format gate (dotnet format zero-diff)
+        run: |
+          # 2026-08-09：全量规范化（dotnet format 三工程）后加防回归闸——任何未过格式的
+          # .cs 即失败。根 InfiAir.csproj 显式排除 csharp/core 与 tests-csharp，须三工程
+          # 分别 verify（--no-restore 复用上一步 build 产物）
+          dotnet format --verify-no-changes --no-restore
+          dotnet format csharp/core/InfiAir.Core.csproj --verify-no-changes --no-restore
+          dotnet format tests-csharp/InfiAir.Core.Tests.csproj --verify-no-changes --no-restore
+
       - name: Install Godot 4.6.2 mono (headless)
         run: |
           # 2026-08-07：官方镜像 downloads.godotengine.org（GitHub Releases 直连在 runner 上

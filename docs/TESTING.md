@@ -114,6 +114,9 @@ gdformat --check autoload/ scripts/ test/     # 1. format (width 140, gdformatrc
 gdlint autoload/ scripts/ test/               # 2. static (style/unused/.gdlintrc)
 dotnet build --nologo                          # 3. C# compile (TreatWarningsAsErrors: zero warnings)
 dotnet test tests-csharp/ --nologo             #    xUnit pure-logic unit tests
+dotnet format --verify-no-changes --no-restore #    C# format gate (root project = csharp/godot)
+dotnet format csharp/core/InfiAir.Core.csproj --verify-no-changes --no-restore
+dotnet format tests-csharp/InfiAir.Core.Tests.csproj --verify-no-changes --no-restore
 godot --headless --import --path .             # 4. warnings: error-level zero tolerance
                                                #    ("Warning treated as error" fails CI);
                                                #    warn-level (unsafe/untyped) = AUDIT_VAULT list
@@ -128,7 +131,7 @@ godot --headless --path . res://test/smoke_test.tscn
 
 ## CI
 
-push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → zero-GDScript gate (M7d: 任何 .gd 即失败) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 55 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`/`progression_interop_test`/`task_pool_interop_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
+push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → **dotnet format gate** (三工程 `--verify-no-changes` 零 diff, 2026-08-09 全量规范化后防回归) → zero-GDScript gate (M7d: 任何 .gd 即失败) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools) → all 55 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`/`progression_interop_test`/`task_pool_interop_test`) with exit-code checks + per-scene 300s timeout; any failure fails job + uploads logs. Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
 
 ## Strategy & Side Effects
 
