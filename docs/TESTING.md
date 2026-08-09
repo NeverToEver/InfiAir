@@ -19,7 +19,7 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
 - **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **55** (2026-08-08 M7c 全量迁移 C# 后).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **64** (55 assertion + `autoplay_test` + `perf_bench` + 8 screenshot tools; `starfield_cs_test` 计入 assertion).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **64** (55 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
 - Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Subsystem Scenes
@@ -132,7 +132,7 @@ push/PR: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (w
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its GDScript, self-checks `[PASS]`/`[FAIL]` + exit code. 62 scenes: 53 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools. Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-05 P4: 53→54; 2026-08-07 S01: 54→56; 2026-08-07 C#: 56→57; 2026-08-07 C# 落地: 57→60; 2026-08-07 进程曲线/任务池: 60→62)
+Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **64 scenes: 55 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-09 U18: 计数算式统一——8 screenshot tools 实为 7，55+1+1+7=64)
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.delete_save()` first + clean/restore own state.
 - `balance_test.gd` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.

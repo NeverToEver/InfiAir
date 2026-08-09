@@ -1477,3 +1477,188 @@
 - **改了什么**：文档 15 文件（TESTING/CONTRIBUTING/ROADMAP/DESIGN_BASELINE/ARCHITECTURE/ELITE_TURRET_EVENT/C_SHARP_ASSESSMENT/README×2/AUDIT_VAULT/doc-sync/CLAUDE 未动）+ `.agents/gdscript-lifecycle.md` + 代码注释 5 文件（enemy_pool/boss×3/back_navigator/game_state/user_db）——全部注释/口径，零逻辑改动。
 - **为什么起效**：T01/T02 把断言计数从「散布硬编码 + 靠人记」改为「TESTING.md 动态命令单一事实源 + doc-sync 禁硬编码规则」——M8 同根因（BALANCE_MAP 行号）已用 CI 零 diff 闸根治，计数漂移这次从规则层断根；T03 消除当前流程描述的过期数字；T04 恢复 AUDIT_VAULT 与 DESIGN_BASELINE 的一致性（A5/A8 状态表是文档间不同步的现成反例）；T05/T06 修正会误导审计追溯的编号/路径；T07/T08 消除入口文档服务口径冲突与节点树注册口径矛盾；T09 把 S01 实测的 headless 输入坐标陷阱与公开测试口规范下沉到测试入口文档——后续写测试的 Agent 不再重复调试多轮。
 - **如何验证**：残留扫描 0 命中——「45 断言/45 scenes」（排除历史时点快照与精英测试自身断言数）/「Six non-autoload」/「registered to spawner」（docs 顶层）/缺 archive 前缀；五层门禁——gdformat --check（131 文件）/gdlint 全绿、`--headless --import` 0 error、`--quit-after 300` 0 error、全量 47 断言场景 0 FAIL。
+
+---
+
+# U 系列（2026-08-09，C# 全量迁移后首次全量代码审计）
+
+> 依据用户指示「在c#分支做全量代码审计」执行（goal 模式，分支 `feature/csharp-full-migration`）。按 AUDIT_REVIEW_SOP（并行审计 → 分类 → 批处理 → 迭代修复+即时验证 → 归档回填）：10 路并行只读审计 + git 历史对照迁移前 GDScript 逐段保真核对 + 主控交叉验证。完整报告：`docs/archive/2026-08-09-csharp-audit-report.md`。本系列登记后发现即修复，修复起效记录回填于各批次。
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | C# 全量迁移后首次全量代码审计（迁移保真 / 生命周期信号 / 热路径红线 / 死代码残留 / 注释口径） |
+| 工作时间 | 2026-08-09（goal 模式） |
+| 审核区域 | `csharp/core/` 6 文件 + `csharp/godot/` 88 顶层 + 64 测试脚本 + `tests-csharp/` 7 文件（生产+测试约 3.6 万行）+ `scenes/`、`test/` 全部 tscn 交叉 + 文档计数 |
+| 审核方法 | 10 路并行只读（core/xUnit、GameState 与服务门面、玩家、敌机生成、Boss、子弹生态、事件体系、演出母舰、UI、基础设施+全局交叉）；迁移保真以 `git show <迁移提交>^:<原GDScript>` 逐段 diff；主控交叉（M7d 提交 diff、根目录孤儿文件 git ls-files 实锤、TESTING.md 计数） |
+| 结论 | 无 P0；**P1×2 / P2×11 / P3 按 6 主题归并 / P4 按 2 主题归并**。迁移保真整体优秀（核心算法与 GDScript 逐位等价，含 Q/R/L 系列防御补丁），无迁移引入的语义漂移；主要债为 ①M7 收尾未兑现（snake 桥约 4821 行 + C#→C# 动态派发约 142 处闭环残留）②生命周期配对缺口（信号 `+=` 无 `-=`、静态持 Godot 对象）③热路径字面量残留 ④注释失实批量 |
+
+## 发现清单（U 系列）
+
+### 🔴 P1
+
+| 编号 | 位置 | 描述 | 修复指引 |
+| --- | --- | --- | --- |
+| U01 | `csharp/godot/Welcome.cs:97,792-795` | GameState「LocaleChanged」连接无 `_ExitTree` 断开，且 `BuildEscHint` 内匿名 lambda 连接即使补断开也无法解除；welcome→main 切换后残留连接回调已释放实例 → 设置页切语言即 ObjectDisposedException（Hud.cs:456 注释实测先例：连接悬空可致退出 segfault） | Callable 存字段 + `_ExitTree` 配对断开（C22 模式）；lambda 改具名方法 |
+| U02 | `csharp/godot/Tutorial.cs:99-107` | LocaleChanged/PlayerDied 连接无 `_ExitTree` 断开；教程退出后 PlayerDied 属死亡高频路径，回调访问已释放 `_titleLabel` | 同 C22 配对断开 |
+
+### 🟠 P2
+
+| 编号 | 位置 | 描述 | 修复指引 |
+| --- | --- | --- | --- |
+| U03 | `csharp/godot/Starfield.cs:58-79` | `Call("cfg")` 调用已删除的 snake 方法（M7d 只改同文件 `view_world_rect` 漏改 cfg）→ balance.json 星空配置静默失效（R07 守卫回退默认值恰好等于现值暂不可见）+ 每局 4 条引擎 "Nonexistent function" 错误 | 改 typed `GameState.Instance.Cfg(...)` |
+| U04 | `csharp/godot/MouseTrap.cs:41-62` | `_ExitTree` 开头 `return`（M5 调试残留）+ Window 三信号永不断开（断开代码被 `#pragma warning disable` 包成不可达死代码）；场景重载后移出窗口即回调已释放实例 | 删除调试 return 与 pragma，恢复配对断开 |
+| U05 | `csharp/godot/Hud.cs:804-807` | Boss 四个 `[Signal]`（HealthChanged/Died/Enraged/PhaseChanged）`+=` 无配对 `-=`（Godot 信号不随接收方释放自动断开）；Hud 先于 Boss 释放时存活期信号回调已释放 Hud | `_ExitTree` 补断开 |
+| U06 | `csharp/godot/BaseConsole.cs:106-109` | LocaleChanged 连接无 `_ExitTree` 断开（死亡重开场景重载后残留，切语言触发已释放实例回调） | C22 配对断开 |
+| U07 | `csharp/godot/BuffSelect.cs:11-32`、`Tutorial.cs:14-18`、`CommOverlay.cs:12`、`Mothership.cs:31`、`EnemyPool.cs:12`、`FormationCraft.cs:17`、`StrikeCarrier.cs:22`、`Boss.cs:46-50`、`Player.cs:17`、`EnrageSequence.cs:74-91` | 静态字段持有 Godot 对象（Array/Dictionary/FontFile/PackedScene/AudioStream/Texture2D/Variant），违反项目实测教训（UITheme.cs:53、Hud.cs:70 注释：静态 Godot 集合/RefCounted 退出 segfault 实测）与 Spawner 遵行的规则 19（静态字段禁持 Godot 对象）；EnrageSequence `_framePlayer` 静态 Variant 持活玩家引用且有悬空访问风险 | 静态集合/资源/引用改实例字段或属性；静态 Variant 缓存改实例 + 判活 |
+| U08 | `csharp/godot/Coroutine.cs:59-62` | `WaitSignal` 节点失效分支跳过超时兜底 → 信号永不触发则 await 永久挂起（违背类头"所有等待必触发兜底"承诺）；全仓库零调用方 | 节点失效直接 `return false`（或删除该方法） |
+| U09 | `csharp/core/BalanceModels.cs:77-82` + `csharp/core/Storage/SaveStore.cs:179` | 损坏数据路径异常面窄：JSON null 数组属性 NRE（`"hp_mults": null` 覆盖 `= []` 初始化器）、`1e999` 溢出数字抛 InvalidOperationException——`Load` 只捕 `JsonException`，"失败返回 null/corrupt"契约被击穿 | 判空 + 宽容解析（返回 Corrupt/回退） |
+| U10 | `csharp/godot/EnrageSequence.cs:204-274`、`BossAttacks.cs:285-380` | 狂暴/持续攻击轮询每物理帧字符串字面量 `Get`/`Call`（约 45 处）→ 每帧 StringName 构造 + Variant 装箱（狂暴全程每局 8k+ 托管分配，违反热路径红线；同族 BossMovement 已做静态 `Prop*`/`Meth*` 缓存） | 静态 StringName/MethodName 缓存（BossMovement 同款）或 typed 化 |
+| U11 | `csharp/godot/MetaHealthFX.cs:745` | `RenderingServer.FramePostDraw` 静态事件未在 `_ExitTree` 断开（当前靠回调首行 `-=` 自清理兜底；C22 模式缺口） | `_ExitTree` 补断开 |
+| U12 | `csharp/godot/GameEventManager.cs:378-403` | `EndActive` 打断后 `_encounterActiveId` 立即清空，Q13 pending 窗口（elite CARRIER_EXIT→BOSS_DELAY 最长 ~6s）内 `ForceTrigger` 单并发检查放行 → 新旧两遭遇事件并行（旧事件 is_active 只拦自动触发不拦 ForceTrigger；返航后不再触发，罕见边界） | 清空条件同步 FSM 回 IDLE，或 ForceTrigger 补 is_active 检查 |
+
+### 🟡 P3（按主题归并）
+
+- **U13 迁移收尾大债——snake 桥残留 + C#→C# 动态派发网络（61 文件约 4821 行，注释均标「M7 删除」未删）**：
+  - 仍被动态消费的活桥：`GameState.cs:1840,1906-2560`（40+ 处 `Call("snake")`/`Get`，`_taskPool` 仍 `GodotObject?`，注释宣称 typed 失实——**桥删除即连锁崩的唯一风险点**）；`BackNavigator.cs:105-221`（13 处 Call，typed 字段却动态派发）；`Bullet.cs:523/526`（敌弹命中每发 `Call("take_damage")`/`Call("is_dead")`）；`Boss.cs:1419-1766`（~350 行桥，take_damage/is_boss 仍被 Bullet.cs:364/372/395/436-438、LaserWeapon.cs:261 动态消费）；`Enemy.cs/EnemyPool.cs/Spawner.cs/TurretBattery.cs/FormationCraft.cs/FormationBomb.cs/StrikeCarrier.cs`（7 文件桥仍被 Bullet/LaserWeapon/GameEventManager/EliteTurretEvent/FormationStrikeEvent/Boss/测试动态消费）；`Mothership.cs:464-468,662,672,747,769,779,1172,1197,1240`（8 处 hud/warp_gate 动态派发）；`EnrageSequence.cs:283-567`（`_fire.Call("Fire_*")` + `boss.Get("ENRAGE_*")`）；`Player.cs:1276-1511` + PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals/AimFrameLayer/VirtualControls（~370 行活桥）；`Main.cs:1035-1125`（30+ 桥，6 处活消费）；`WarpGate.cs:284`（close 被 Mothership 动态调用）、`Mothership.cs:GetStateStay/GetStateRelease`（被 Hud.cs:590 调用）
+  - 纯死桥（零调用方）：`FogEventManager.cs:305-347`（19）、`GameEventManager.cs:759-809`（27）、`Main.cs` 其余、`BossFire.cs:247-277`/`BossMovement.cs:325-339`/`BossAttacks.cs:725-769`/`EnrageSequence.cs:650-688`/`GlowDot.cs:24-28`（~180 行）、`LaserWeapon.cs:71-81`（6）、`IntroCinematic.cs:2006-2020`、`ReturnCinematic.cs:1559-1576`、`DeathReplay.cs:121-129`、`CinematicFx.cs:206-234`、`MetaHealthFX.cs:834-860`、`MothershipSummonWindow.cs:507-509`、`GameEvent.cs`（全部 9 桥）、`EliteTurretEvent.cs:497-561`、`FormationStrikeEvent.cs:483-552`、`FakeEnemiesEvent.cs:67-69`、`FakeEnemy.cs:136-138`、`TaskPool.cs:57-64`、`BackNavigator.cs:234-238`、`DawnStation.cs:603-615`、`WarpGate.cs:288-292`、`Mothership.cs:458-462,503-599`（45 个 UPPER_SNAKE 别名）
+  - 类型残留：`EntityManager.cs:40-52`（BulletPool/EnemyPool/AimFrameLayer/VirtualControls 仍 `GodotObject?`，消费方每处 `as` 强转）；`UserDB.cs:140-169`（13 个静态常量访问器零消费，Welcome 已 typed 直读 const）
+  - **修复指引**：先 typed 化全部调用点（GameState→SaveManager/UserDB/TaskPool 直调、Bullet→`TakeDamage`/`IsDead`、BackNavigator→直调、Mothership→Hud/WarpGate 直调、EnrageSequence→Boss/BossFire 直调、Boss 桥消费方 typed 化）→ 再删除全部无消费桥 → 更正「M7 删除」注释。两步同批完成防连锁崩；M7d 只删了 GameStateBridge，本债为其未竟部分
+- **U14 每帧热路径残留（typed 化 + 字面量缓存）**：`GameEventManager.cs:446-614`（遭遇组每帧 ~10 次动态派发 + `CanTrigger` 内 `GetFirstNodeInGroup("mothership")` 进 `_Process`——红线明确禁止；`_encounterActive` 快照只写不读可消除 is_active 轮询）；`Player.cs:669`（每帧 `new StringName("phase_dash")`）+ `:799-801`（每渲染帧 VirtualControls 动态 Call）+ `:658/:636/:805/:932`（字符串 action 实参）+ `AimFrameLayer.cs:146-158`（每敌每帧 `HasMeta("aim_frame_radius")` 字符串）；`PlayerDamage.cs:106`（每帧 `new StringName("regen")`）；`Tutorial.cs:270-282`（每物理帧 `GetChildren()`，可走 EntityManager 批量 API）；`MetaHealthFX.cs:474-661`（非 idle 帧每帧 ~30 次 `CfgFloat()` + `AsGodotArray()` 新建包装，可缓存 float[]）；`BossMovement.cs:104-113`（每帧动态派发，文件头自称"随 Boss 批次重定型"未执行）；`Player.cs:1087/1127/1170`（`_explosionScript.Call("SpawnAt")` 遗留，同仓已 typed 直调 Explosion.SpawnAt）；`Hud.cs` 0.1s 轮询 `_main.Call("dock_status_text")/("mothership")` | 静态 StringName 缓存 / typed 直调 / 注册表替代组查询 / 引用注入
+- **U15 迁移保真偏差（边界/口径）**：`BalanceService.cs:47,50`（ramp 由 64 位 double 降级 float32，GameState.cs:955/960 还先截断参数——与文件头"纯标量 double 逐位等价"纪律冲突，误差 ~1e-7 相对）；`Player.cs:1041`（`TakeDamage` 默认 `fromPos` 由 `Vector2.INF` 变 `default`(Zero)，注释自称"保留 INF 语义"自欺；TutorialTest 单参调用会从世界原点发定向波纹而非均匀环）；`GameState.cs:2323`（高分排序 `(int)` 截断 int64→int32 + 减法比较，手改 score>2^31 排序语义变化）；`UserDb.cs:360-363`（Derive 盐 >28 字节异或越界崩溃，头注"防御性收敛…安全回退"口径未覆盖）；`UserDb.cs:437`（ToInt64 字符串解析偏离 GDScript `int()`：`"7.5"`→0 vs 7、`"0x10"`→0 vs 16）；`VariantBridge.cs:48`（int 键静默转字符串键） | ramp 改 double；TakeDamage 默认改 `Vector2.Inf`；排序直接 AsInt64 比较；Derive 加 `Math.Min(t.Length,u.Length)` 钳制 + 固定向量测试；ToInt64 补兼容或修正注释；VariantBridge 键类型保守处理 |
+- **U16 逻辑/健壮性**：`Explosion.cs:188-189,209-235`（池化复用后 `_settled` 不复位 → `LiveCount()` 系统性低估，MetaHUD 亮度代理失真——原 GDScript 同缺陷，迁移保真但逻辑有误）；`LaserWeapon.cs:85`（`as Player ?? null!` NRE 压制，与同文件 237 行 `IsInstanceValid` 判活风格矛盾）；`FormationStrikeEvent.cs:74,253,268`（`_comm` 由 typed `CommOverlay` 降级为 `CanvasLayer?` + 动态派发——K15 族回退，同族 EliteTurretEvent 是 typed）；`EliteTurretEvent.cs:191-195`（`_spawner` 注入无 K15 `??=` 兜底，注入时序失败时 Boss 冻结/波次暂停静默失效）；`SettingsUi.cs:659-673` + `BaseConsole.cs:432-435/483-486`（QueueFree 旧页同帧 AddChild 并存闪一帧，Hud.cs:1194 同场景已改 Free()）；`BaseConsole.cs:617-631`（刷新提示一次性 Timer 触发后不清理，每次提示泄漏一个已触发 Timer）；`PlayerDamage.cs:92`（EmitSignal 字符串名 + 信号参数 double/float 三处不一致：GameState 委托 double、发射 float、监听 Callable.From<float,Vector2>）；`GameState.cs:1743,1777,1781`（`GetValueOrDefault` 空容器默认值实参每次调用先分配） | 逐条修复：SpawnAt 复位 _settled、判活统一、_comm typed、_spawner 兜底、改 Free()、Timer 自清理、`EmitSignal(SignalName.X)` + 参数类型统一、默认值改静态 |
+- **U17 死代码/语义陷阱（无调用方）**：`Boss.cs:635-689`（11 个无调用方公开访问器，`GetSweepNone()` 恒 true 冒充枚举语义误导；635-659「M7 删除」注释过期但 EnragePhaseValue/SweepStateValue 仍被测试用，须甄别）；`GameEventManager.cs:101,580,597`（`_encounterActive` 只写不读）；`FormationStrikeEvent.cs:79,93-97`（CachedScore 无调用方 + 每帧死写 `_frameScore`）；`EliteTurretEvent.cs:65,292,358,423,464`（`_turretSockets` 只写不读）+ `:101`（AddToGroup("elite_turret_event") 无消费方）；`Bullet.cs:344-350`（`_deferredDisableMonitoring` 死副本）；`PlayerBuffVisuals.cs:27`（GetBaseShipScale 零调用）；`Player.cs:1329`（dist_falloff_curve snake 别名零调用）；`TurretBattery.cs:308`/`FormationCraft.cs:85`（scoreScale 死参数）；`TaskPool.cs:32-36`（defs getter 返回空数组语义陷阱）；`Starfield.cs:41-51`（M3a 迁移探针 StaticProbe 残留）；`BalanceInterop.cs`（半孤儿，仅样板测试引用）；`StrikeCarrier.cs:2`（未用 using System.Linq）；`Main.cs:717`（`boss.Enraged +=` 闭包无配对）+ `:172,175`（`_ = StartBgmAsync()` 裸 async 丢弃，恢复后仅 IsInsideTree 判活无 try/catch——违反"await 段异常统一 try/catch"）；`Coroutine.cs:47-78`（WaitSignal 零调用方）；`Player.cs:202-203,313-314`（GetNode<Area2D> 重复两次） | 删除/收敛；Main async 补 try/catch；测试依赖的访问器保留并更正注释 |
+- **U18 测试与工具收尾**：`StarfieldCsTest.cs:69`（唯一不用 TestExit.Quit 的测试，绕过退出 segfault 防护）；`csharp/godot/tests/*.cs` 64 个缺 `.cs.uid` sidecar（约定"必须入库"，顶层 88 个均有）；`docs/TESTING.md:22,135`（计数算式 "55+1+1+8=65" 与总数 64 自相矛盾；:135 "62 scenes/53 assertions" 完全过时）；`MinimalTestEvent.cs:10`/`SelfEndTestEvent.cs:9`（仅测试用类驻生产目录 + 注释失实）；`Boss.cs:651`（GetFightPhaseTransition 名实不符，实为 P1 值）；`Enemy.cs:181-182` 等（信号名字符串字面量应 `GameState.SignalName.BuffsChanged`） | TestExit 统一、补 .uid（含 64 文件）、TESTING.md 修正、测试类归位或注释、更名 |
+
+### ⚪ P4（按主题归并，批量）
+
+- **U19 注释失实（引用已删 GDScript / 过渡期语气未收敛 / M7 前旧态）**：`BalanceModels.cs:10,102,155,187`（:10 现在时表述"M7 前旧态"）、`PathResolver.cs:24`、`UserDb.cs:9`、`SaveStore.cs:29`、`ProgressionCurves.cs:4,12`、`TaskPool.cs:7`（均引用已删除的 scripts/*.gd，改历史时态）；`PathResolver.cs:77-93`（注释与 `ValueKind.Other` 行为不符，生产不可达）；`GameState.cs:13-16,154-156,172-174,372-374`（"仍为 GDScript 薄壳"失实）+ `:2846-2850`（"63 个 GDScript 测试"注释后无桥代码）+ `:592-593`（注释开头残缺）+ `:209`（恒真冗余）；`SaveManager.cs:52-55`（恒真死条件）；`EntityManager.cs:11-14`（"随调用方迁移后由 C# 实现"过时）；`Main.cs`、`Bullet.cs:12-13,21,436`、`CameraShake.cs:9-10`、`BulletPool.cs:36-41`、`OrbitalStrike.cs:288-293`、`Enemy.cs:11`、`TurretBattery.cs:13`、`Spawner.cs:672,740,800-808`、`SpawnTelegraph.cs:18-20`、`IntroCinematic.cs:14`、`ReturnCinematic.cs:12-13,55`、`MothershipSummonWindow.cs:17`、`DeathReplayPlayer.cs:10-12`、`CinematicFx.cs:14-15`、`DawnStation.cs:13-14`、`Mothership.cs:21`、`MetaHealthFX.cs:204`（"hud.gd" 实为 Hud.cs）、`ProgressionInterop.cs:45-46`、`FogEventManager.cs:114-120`（Wire 非幂等注释）、`GameEventManager.cs:285-298`（CanTriggerGroup 与 docs/EVENT_MANAGER.md §3.6 API 清单不符，二选一对齐）、`DeathReplay.cs:39`（XML summary 未闭合）、`Hud.cs:559`（P1-3 注释声称 epsilon 守卫实际 FillColor 每 0.1s 无条件写 setter）、`Welcome.cs:745`（手写 Replace 占位与 GsFormat 不一致）、`UserDbInterop.cs:62,80`（转换失败静默吞错与 SaveStoreInterop 告警不一致）、`TaskPoolInterop.cs:27-28`（裸索引无缺键防御）、`Main.cs:211-224`（_ExitTree 时序风险注释已记录，防御缺口登记） | 历史时态/删除/对齐/补断开 |
+- **U20 风格/命名/一致性**：`Bullet.cs:353-680`（13 个 `_` 前缀私有方法，LaserWeapon 同批 PascalCase——项目自身不一致）；`Hud.cs:16`（Font 实例字段命名）；`Enemy.cs:640,585,768`（双重转换/冗余 cast/每帧两次 CachedPlayer）；`FormationBomb.cs:28-29`（_viewFrame 哨兵模式漂移）；`StartBackdrop.cs:23`（每次 new RNG）；`SegmentedBar.cs:128-133`（O(n²) 累加）；`Coroutine.cs:52,65`（同行双语句）；`ReturnCinematic.cs:32/59-68`、`MothershipSummonWindow.cs:39-41`、`WarpGate.cs:17-24`（public 可变字段）；`IntroCinematic.cs:1989` vs `ReturnCinematic.cs:64`（AsSingle/AsDouble 不一致）；`Hud.cs:1419`/`SettingsUi.cs:757`/`Tutorial.cs:629`/`BaseConsole.cs:649`/`BuffSelect.cs:425`（% 格式化 5 份重复实现，可收敛 core 供 xUnit）；`Welcome.cs:97`/`GameOverUi.cs:73`/`BuffSelect.cs:79`/`Hud.cs:188`（Connect 无 IsConnected 守卫）；`Enemy.cs:181-182`、`Bullet.cs:220-221`、`Boss.cs:427,567`、`GameEventManager.cs:688`（信号名字符串字面量 + 无配对 `-=` 纪律项，自实例信号无实际泄漏但违约） | 批量收敛 |
+
+## 判定分类记录（Phase 2）
+
+- **真 bug（修复无需拍板）**：U01–U12 全部；U15（BalanceService ramp 改 double、TakeDamage 默认 INF、排序 AsInt64、Derive 钳制、ToInt64 口径）；U16 全部；U18。
+- **迁移收尾/死代码（清理，M7 承诺未竟部分）**：U13（桥 + 动态派发闭环）、U14（热路径 typed 化）、U17、U18（TestExit/.uid/TESTING）。
+- **doc-code 矛盾（注释统一）**：U19 批量；U20 批量；`GameEventManager.CanTriggerGroup` 文档失实二选一对齐。
+- **登记不修（论证后收敛）**：`Boss.cs:1400/1416` GD.Print 逃跑到点日志（原版行为保留，事件日志可接受）；`BossMovement.cs:182` MoveType4 相位无周期下限钳制（原版同样无，cfg 损坏 0 周期才触发，同族不一致登记观察）；`Enemy.cs:768` 每帧两次 CachedPlayer（第二次缓存命中，收益低）；`CinematicFx.cs:30-70` SoftTexture 每次调用重建贴图（静态缓存禁令的有意代价，头注已说明）；`Enemy.cs:181-182` 自实例信号无配对（随对象销毁自清，纪律项 U20 内）；`Bullet.cs:220-221` 同。
+
+## 验证
+
+- **基线（本系列开始前实测）**：`dotnet build` 0 警告 0 错误；`dotnet test tests-csharp/` **73/73 全绿**（1s）；零 .gd 门禁在位（`find` 0 命中）。
+- **全局静态扫描**：TODO/FIXME/HACK/NotImplementedException **0 命中**；裸 `Task.Delay`/`async void`/`.Result`/`.Wait(` 0 命中（仅注释提及）；空 catch 0 命中。
+- **交叉验证**：`scenes/*.tscn` ext_resource 全部指向存在的 .cs ✓；`csharp/godot/tests/` 64 .cs ↔ `test/` 64 .tscn 一一对应 ✓；`load("*.gd")`/ClassDb 残留 0 ✓；`autoload/` 目录已空 ✓；根目录 **30 个无扩展名孤儿文件为 M7d 误提交**（git ls-files 实锤，含残缺中间版本代码，不参与编译，纯仓库污染，随修复批次删除）。
+- **迁移保真抽查（git 对照）**：ProgressionCurves 累加顺序/Math.Round(AwayFromZero)/maxi 钳制、TaskPool Q05 补足、UserDb Q17/Q18/Q20 守卫、SaveStore 原子写、Player 弹反状态机/磁吸/擦弹过滤、Enemy 八策略/ResolveAnchor 1e9、Boss 阶段框架/狂暴注册表/BossFire 9 发射器、事件 Q07/Q10/Q12/Q13、演出 C28/G027/P2 缓冲——全部与迁移前逐位等价；未发现迁移引入的语义漂移（发现集中在收尾/纪律/边界）。
+- **修复验证**：按批次回填（每批 `dotnet build` 零警告 + `dotnet test` 全绿 + 定向断言场景 + 相关冒烟；涉及场景脚本的批次跑对应断言场景）。
+
+## 修复起效记录（回填）
+
+### B1 批次（2026-08-09，生命周期/崩溃，U01–U09 + U11）
+
+- **U01 ✅ Welcome.cs 信号配对**：LocaleChanged 连接改缓存 Callable（`_onLocaleChanged`/`_onEscLocaleChanged`，构造器装配）+ 新增 `_ExitTree` 配对断开；`BuildEscHint` 匿名 lambda 改具名 `RefreshEscHint`（lambda 无法断开是原缺陷根因）。
+- **U02 ✅ Tutorial.cs 信号配对**：新增 `_ExitTree` 断开 LocaleChanged/PlayerDied（已有缓存 Callable 字段直接复用）。
+- **U03 ✅ Starfield.cs typed cfg**：4 处 `gameState.Call("cfg", ...)`（M7d 漏改）→ `GameState.Instance.Cfg(...)`，删除失效动态调用；星空配置恢复生效、每局 4 条 "Nonexistent function" 引擎错误消除。
+- **U04 ✅ MouseTrap.cs 恢复断开**：删除 M5 调试 `return;` + `#pragma warning disable CS0162` 死代码块，Window 三信号配对断开恢复。
+- **U05 ✅ Hud.cs Boss 信号配对**：`_ExitTree` 新增 Boss 四 `[Signal]`（HealthChanged/Died/Enraged/PhaseChanged）`-=` 断开（`IsInstanceValid` 守卫）。
+- **U06 ✅ BaseConsole.cs 信号配对**：新增 `_ExitTree` 断开 LocaleChanged。
+- **U07 ✅ 静态 Godot 对象改实例（16 文件）**：静态资源字段改实例——Tutorial（Font/EnemyScene/BossScene/MothershipScene/SfxBuffPick）、CommOverlay（CommSfx）、BuffSelect（BuffPool）、Mothership（GatlingSfx）、EnemyPool（EnemyScene）、FormationCraft（Texture）、StrikeCarrier（CarrierTexture）、Boss（BossSprite1-3/BossTextures/DefaultPatterns，数组改构造器装配）、Player（FireSounds）；静态 Variant 持活引用缓存改实例——Boss/BossAttacks/Enemy/TurretBattery/EnrageSequence 的 `_frame/_frameView/_framePlayer` + `CachedView()/CachedPlayer()`（含 BossAttacks/EnrageSequence 的 `PlayerDir` 同步去 static，调用点均在实例方法内）；`Boss.GetDefaultPatterns()` 改实例方法，BossRegistryTest 改 `new Boss()` 经实例访问。
+- **U08 ✅ Coroutine.WaitSignal**：节点失效分支 `return await tcs.Task`（永久挂起）→ `return false`；顺带修同行双语句格式。
+- **U09 ✅ core 损坏数据路径**：BalanceModels `TryValidate` 对 `hp_mults/fire_intervals/unlock_scores` 的 JSON null 数组判空（`is null ||` 前置）；`Load` catch 扩至 `Exception`（"失败返回 null"契约不击穿）；SaveStore `JsonToClr` 溢出数字改 `TryGetValue<double>` 安全分支（1e999 → Infinity，与 GDScript JSON.parse 语义一致）。
+- **U11 ✅ MetaHealthFX FramePostDraw**：`_ExitTree` 显式 `RenderingServer.FramePostDraw -= OnBakeFrame`（原仅靠回调首行自清理兜底）。
+- **新增回归测试 2 个**：`BalanceModelsTests.Load_NullBossArrays_ReturnsNullNotCrash`（null 数组不 NRE）、`SaveStoreTests.Load_OverflowNumber_DoesNotCrash`（溢出数字不击穿契约）。
+- **为什么起效**：信号全部 C22 配对（接收方释放后 autoload/长命宿主不再残留回调，消除 ObjectDisposed/退出 segfault 前提）；静态 Godot 对象改实例后随节点生命周期回收，退出 finalize 触碰 native 路径消除；CachedPlayer 缓存语义不变（每物理帧一次查询）仅作用域从进程级降为实例级；损坏数据路径统一"回退不崩"。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test tests-csharp/` **75/75 全绿**（新增 2 测试）；`--headless --import` 0 error；`--quit-after 300` 0 error；12 个定向断言场景 0 FAIL（welcome_flow/tutorial/mouse_lock/meta_health_fx/starfield_cs/boss_registry/boss_phase/boss_pattern/boss_enrage/pool_reuse/buff33/base_system）；全量断言场景回归见批次底部。
+- **登记不修**：U10（EnrageSequence/BossAttacks 每帧字面量缓存）与 U14 合并入 B2 热路径批次；U12（ForceTrigger 双开窗口）入 B3。
+
+### 批次验证（全量）
+
+- 待 B1 全量断言场景回归结果回填。
+
+### B2 批次（2026-08-09，热路径，U10 先行）
+
+- **U10 ✅ EnrageSequence/BossAttacks 每帧字面量缓存**：`boss.Get("ENRAGE_*"/"E*_*"/"FAN_*"…)`/`boss.Call("StrafeRange"…)` 字符串字面量（EnrageSequence 49 Get + 2 Call、BossAttacks 34 Get + 4 Call，共 89 处）→ 静态 `StringName` 缓存（`Prop*`/`Meth*`，BossMovement 既有模式），消除狂暴/持续攻击轮询每帧 StringName 构造 + 键查找分配（每局 8k+ 托管分配）；行为零变化（仍按原动态路径读取配置）。
+- **为什么起效**：StringName 字面量每帧 new 消除——热路径红线"每帧禁 StringName/string 构造"达成；Get/Call 键解析从每次构造降为缓存查表。
+- **如何验证**：`dotnet build` 0 警告 0 错误；boss_registry/boss_phase/boss_pattern/boss_enrage 4 场景 0 FAIL；全量断言场景回归同 B1 批次底部。
+- **U14 部分 ✅ Player 侧热路径**：Player.cs 22 个 `new StringName(...)`（buff 名 crit_shot/rapid_fire/power_shot/bullet_speed/phase_dash/efficient_boost/boost_recovery/spread_shot/piercing/explosive）与 12 个输入 action 字符串字面量（move_*/parry/dash/boost/fine_move/aim_*，`IsActionJustPressed/IsActionPressed/GetVector/GetAxis`）→ 静态 `StringName` 缓存（`Buff*`/`Act*`）；`VirtualControls` 每渲染帧动态 `Call("is_enabled")/("base_aim_position")` → typed `as VirtualControls` + `IsEnabled()/BaseAimPosition()`；3 处 `_explosionScript.Call("SpawnAt", ...)` → typed `Explosion.SpawnAt(...)`（删 `_explosionScript` 字段）；PlayerDamage.cs `new StringName("regen")`（HealTick 每物理帧）→ 静态缓存。验证：`dotnet build` 0 警告 0 错误；定向场景（tutorial/buff33/graze/parry）随全量回归。
+- **登记不修（论证后收敛）**：`MetaHealthFX.CfgFloat` 每帧 ~30 次字典索引——key 为 C# 字符串字面量（interned 零分配），仅 hash 查找 + AsSingle 转换，**无热路径红线违规**（红线禁分配），收益为纯 CPU 微优化（D5 早退常态缓解），登记为性能观察不修；`crack_density` 的 `AsGodotArray()` 每帧新建包装为视图包装（无数据复制），同属观察项。
+- **待续（B2 剩余）**：GameEventManager 遭遇组每帧动态派发 + `GetFirstNodeInGroup("mothership")` 进 `_Process`；Tutorial 每物理帧 `GetChildren()`；BossMovement 每帧动态派发重定型；AimFrameLayer `HasMeta("aim_frame_radius")` 字符串实参；Hud 0.1s 轮询 `_main.Call(...)` 动态派发。
+
+### B2 续（2026-08-09，遭遇体系 typed 化 + Player 热路径，U14 主体）
+
+- **✅ GameEventManager 遭遇轮询 typed 化**：新建 `csharp/godot/IEncounterEvent.cs` 契约接口（IsActive/CanTrigger/Start）；`EliteTurretEvent`/`FormationStrikeEvent` 实现接口；管理器 `TickEncounterTriggers`/`EncounterCanTrigger`/`StartEncounter`/`PollEncounters`/`ForceTrigger` 全部 `is IEncounterEvent` typed 分派（原每帧 ~10 次 `HasMethod`/`Call` 动态派发 + Variant 分配清零）；`_spawner` 字段 `Node?`→`Spawner?`（SetSpawner 保留 Node 签名 as cast，测试/桥调用点不变）。
+- **✅ 事件侧动态派发 typed 化（U16 顺带）**：EliteTurretEvent/FormationStrikeEvent 内部 `_spawner.Call("set_boss_frozen"/"set_waves_paused"/"consume_boss_pending"/"trigger_boss"/"is_boss_active"/"elite_event"/"notify_event_triggered")` 全部 typed 直调；`FormationStrikeEvent._comm` 由 `CanvasLayer?` 降级恢复 `CommOverlay?` typed（`ShowLine`/`Clear` 直调）；**母舰在场判定改惰性缓存**（`_mothershipCache` + `IsInstanceValid` + `IsInGroup` 三条件校验，失效自动重查——替代每帧 `GetFirstNodeInGroup("mothership")` 组查询；测试"RemoveFromGroup 后恢复可触发"场景验证 IsInGroup 校验必要性）。
+- **✅ U12（ForceTrigger 双开窗口）随 typed 化修复**：ForceTrigger 补 `enc.IsActive()` 检查（EndActive 打断后 Q13 pending 窗口内 FSM 未回 IDLE 即拦截，新旧遭遇事件不再并行）。
+- **✅ Player/PlayerDamage 热路径**：见上（Buff*/Act* 静态 StringName 缓存、VirtualControls typed、_explosionScript typed、regen 缓存）。
+- **为什么起效**：遭遇轮询从每帧动态派发（HasMethod+Call+Variant 装箱+组查询）降为 typed 直调 + O(1) 缓存校验；接口契约使新增遭遇事件类型只需实现 3 方法即可注册（A4 开闭精神延续）；母舰缓存校验含退组感知（IsInGroup）——测试实证的语义缺口。
+- **如何验证**：`dotnet build` 0 警告；event_manager/elite_turret_event/formation_strike_event/encounter_flow_contract/fog_event/encounter 族全量定向 0 FAIL（修复过程实证：母舰缓存初版漏 IsInGroup 校验 → elite/formation 两场景 FAIL，补校验后全绿）；MetaHealthFX FramePostDraw 断开加 `_bakeFrameConnected` 守卫（原无条件 -= 报 "disconnect nonexistent"）。
+- **登记不修**：`MetaHealthFX.CfgFloat` 每帧字典索引（key 为 interned 字面量零分配，仅 CPU 微优化，D5 早退常态缓解）与 `crack_density.AsGodotArray()`（视图包装无复制）——性能观察。
+- **待续（B2 尾项）**：Tutorial 每物理帧 `GetChildren()`；BossMovement 每帧动态派发重定型；AimFrameLayer `HasMeta("aim_frame_radius")` 字符串；Hud 0.1s 轮询动态派发。
+
+### B4 批次（2026-08-09，桥清理 + 孤儿文件，U13/U17 进行中）
+
+- **✅ 根目录 30 个无扩展名孤儿文件删除**（M7d 误提交的 .cs 中间版本副本：BaseConsole/Boss/BossAttacks/BossFire/BossMovement/BuffSelect/Bullet/EliteTurretEvent/Enemy/EnrageSequence/FakeEnemiesEvent/FakeEnemy/FogEventManager/FormationBomb/FormationStrikeEvent/GameEventManager/GameOverUi/LaserWeapon/Main/MetaHealthFX/Mothership/PauseUi/Player/PlayerBuffVisuals/PlayerDamage/Spawner/StrikeCarrier/Tutorial/VirtualControls/Welcome）——git 跟踪删除（30 个 deleted），构建/导入零影响。
+- **✅ GameState 39 处动态派发清零**：`_userDb.Call("user_exists"/"create_user"/…)`、`_saveManager.Call("save"/"load"/…)`、`_taskPool!.Call("draw")` 全部 typed 直调（UserDB/SaveManager/TaskPool 的 PascalCase API；`_taskPool` 字段 `GodotObject?`→`TaskPool?`；`ListUsernames` 迭代元素 string 化；文件尾失实桥注释清理）。
+- **✅ 三服务 snake 桥删除**：SaveManager（7 桥）、TaskPool（2 桥）、UserDB（17 snake 桥 + 9 静态常量访问器）全删——先确认全仓（含 tests）零动态引用；UserDbTest 的 `UserDB.GetLeaderboardCap()` 改 typed `UserDB.LeaderboardCap`。
+- **✅ Bullet 9 处动态派发 typed 化（每发弹命中热路径）**：`_pool` → `BulletPool?` typed（SetPool 签名收窄）；`IsEnemyInstance` 鸭子 `HasMethod("is_boss")` → `o is Enemy or Boss`；`_explode` 爆炸范围 → `is Enemy` 直判（原 is_boss 排除 Boss 语义等价）；`_splash`/`OnAreaEntered` 的 `take_damage` → switch 分派（Enemy/Boss/TurretBattery/FormationCraft）；暴击读取 `p.Get("crit_chance"/"crit_multiplier")` → `p.CritChance`/`p.CritMultiplierValue`；敌弹命中玩家 `Call("take_damage")/("is_dead")` → `TakeDamage`/`IsDead()`；爆炸条件 `area is not Boss` 替代鸭子 is_boss。
+- **✅ BackNavigator 15 处动态派发 typed 化**：7 个字段基类类型收窄（Node2D/CanvasLayer → Main/Hud/PauseUi/SettingsUi/BaseConsole/ExitConfirm，GetNode<T> 同步）+ 全部 `Call("skip_intro"/"is_intro_playing"/…)` → typed 直调。
+- **为什么起效**：M7d"删 snake 桥"未竟部分兑现——调用点 typed 化后桥才可删（先调用点后桥，防连锁崩）；敌弹命中热路径（每发弹 1-2 次）消除 Variant 装箱动态派发。
+- **如何验证**：`dotnet build` 0 警告；定向 0 FAIL——enemy_combat/smoke/hit_logic/graze/buff33/back_navigation/esc_navigation；B1+B2 代码全量回归 **55/56 场景全绿**（含 autoplay 探针；本次全量回归首轮遇到 elite/formation 母舰缓存缺陷已修复）。
+- **待续（B4）**：剩余 ~40 处动态派发（Mothership 10/EliteTurretEvent 6/TurretBattery 5/PauseUi 3/Enemy 3/Boss 3/Welcome 2/Hud 2/GameEventManager 2/WarpGate/SettingsUi/Main/LaserWeapon/DawnStation/BossAttacks 各 1）+ 对应死桥删除（Main/FogEventManager/GameEventManager/Boss/Enemy 族/演出层/事件族）+ U17 死代码清理 + BossMovement typed 重定型 + Hud 0.1s 轮询。
+
+### B4 续（2026-08-09，生产代码动态派发清零，U13 主体完成）
+
+- **✅ 生产代码全部 `.Call("…")`/`.Get("…")`/`HasMethod("…")` 动态派发清零（105 → 0）**：
+  - `Hud`：`_main` Node→Main typed（GetParent<Main>），`dock_status_text`/`mothership` 轮询直调（DockStatusText()/Mothership()——0.1s 轮询同步 typed 化）。
+  - `Boss`：`_spawner` Node?→Spawner?（SetSpawner as cast），`spawn_minion` 直调（SpawnMinion 返回 Enemy，删冗余 AsGodotObject）；逃跑警告 `hud` 组查找 → `as Hud` + `ShowWarning` 直调。
+  - `Mothership`：`_warpGate` GodotObject?→WarpGate?（BeginWarpIn 签名收窄 WarpGate，桥 as cast）；`Hud()` 返回 Hud?（_hudCache typed）；`show_info_banner`/`show_magazine_warning`/`set_early_leave_charge`×5 typed 直调；慢速场 `apply_slow` 鸭子 → `e is Enemy` typed。
+  - `BossAttacks`/`Enemy`/`TurretBattery`：敌弹发射 `pool.Call("Fire", …)` → `BulletPool.Fire(...)` typed（**EntityManager.BulletPool 类型 GodotObject?→BulletPool? 一并收窄**，GameState 属性同步；`b.VariantType==Nil` 判空改 `b == null`）；`set_meta` → GodotObject.SetMeta 原生 typed；`SpriteNode()` 直调。
+  - `PauseUi`：`_settingsUi` CanvasLayer?→SettingsUi?；`spawner.elapsed` → `as Spawner` + `Elapsed()`；`exitConfirm.show_confirm` → `ShowConfirm(true)`。
+  - `EliteTurretEvent`：`_hud` CanvasLayer?→Hud?（event_bar 三方法直调）。
+  - `Welcome`：`settings.show_settings/back` → `as SettingsUi` 直调。
+  - `SettingsUi`：`_opener.grab_primary_focus` 鸭子 → switch 分派（PauseUi/Welcome 均有 GrabPrimaryFocus）。
+  - `GameEventManager`：`abort`/`is_active` 鸭子 → **IEncounterEvent 契约加 `Abort()`** + typed（EndActive/ForceTrigger 全 typed）。
+  - `LaserWeapon`：激光 tick `take_damage` → switch 分派（四类）。
+- **为什么起效**：M7d"删 snake 桥"承诺全面兑现的前置——调用点全部 typed 后，各文件 snake 兼容桥（约 4000+ 行）成为可删死代码；敌弹发射/命中热路径（每发弹）与 UI 轮询（0.1s/每帧）全部脱离 Variant 装箱动态派发。
+- **如何验证**：`dotnet build` 0 警告；16 个定向场景 0 FAIL（smoke/enemy_combat/hit_logic/boss_phase/boss_pattern/boss_enrage/elite_turret_event/formation_strike_event/event_manager/mothership_summon/mothership_upgrade/back_navigation/welcome_flow/keybind/i18n/tutorial）；最终全量回归见批次底部。
+- **待续（B4 收尾）**：snake 桥死代码删除（先查测试引用——PoolReuseTest 的 `_on_buffs_changed`/EnemyCombatTest 的 `SPREAD_FAN_STEP` 等仍引用，须同步改测试）；U17 死代码清理（Boss 11 访问器/`_encounterActive`/CachedScore/`_turretSockets`/探针等）；BossMovement typed 重定型。
+
+### B4 收尾（2026-08-09，蛇桥死代码删除 315 个 + 误删修复）
+
+- **✅ snake 桥死代码删除 315 个**（生产 105 处动态派发清零后的剩余清理）：按"测试引用 + 生产引用"双零判定，43 文件共删 315 个 snake 方法/属性桥（Player 45/Spawner 32/Main 24/Welcome 23/Hud 22/Boss 20/UITheme 17/GameEventManager 17/PlayerBuffVisuals 13 等）；`dotnet build` 0 警告。
+- **⚠️ 删除脚本缺陷与修复（教训登记）**：首版脚本对**无括号单行属性桥**（`public X name { get...; set...; }`）误入多行分支，吞掉后续代码——误删 `Enemy.SinFast`（热路径查表，20+ 文件引用）与测试/生产引用的属性桥（`bullet_type`/`fire_interval`/`aim_marked`/`HOVER_*`/`SPREAD_*`/`_on_buffs_changed`/`_slow_field_on` 等）。已从 git 原文恢复：SinFast + 25 个属性桥 + 2 个白盒桥（PoolReuseTest 依赖），恢复后 `dotnet build` 0 错误 0 警告，7 个关键定向场景 0 FAIL（smoke/enemy_combat/pool_reuse/tutorial/boss_phase/boss_pattern/hit_logic）。
+- **待续（B4 尾项）**：测试引用的剩余 snake 桥（约 67 个名字，A7 白盒接口）保留为"测试兼容"；U17 死代码清理（Boss 无调用方访问器/`_encounterActive` 快照/CachedScore/`_turretSockets`/Starfield 探针等）；BossMovement typed 重定型。
+
+### B4 尾项 + B5 批次（2026-08-09，U17 死代码 + U18/U19 高价值项）
+
+- **✅ U17 死代码清理**：Boss 4 个零引用访问器删除（`GetPatterns`/`GetPatternIndex`/`GetSweepNone`——恒 true 冒充枚举语义误导/`GetEnragePhaseReturn`；测试引用的 EnragePhaseValue/SweepStateValue/GetFightPhaseTransition 等保留）；GameEventManager `_encounterActive` 字典删除（只写不读快照，B2 typed 化后无读点）；EliteTurretEvent `_turretSockets` 删除（只写不读）；FormationStrikeEvent `CachedScore`/`_frameScore` 死写删除；Starfield `ProbeOverload` 探针删除（`StaticProbe` 保留——CSharpCallTest 跨语言静态调用契约）；**Main.cs**：Enraged 闭包捕获改具名无参回调 + 旧 Boss 先断开（防双订阅）+ `_enrageBoss` 复用；`StartBgmAsync`/`ReportStartupTime` await 段补 try/catch + 判活守卫（约定 §Async）。
+- **✅ BossMovement typed 登记不修**：签名仍 `Node2D boss` + 动态派发（U10 后静态 StringName 缓存无每帧分配；频率 1 次/物理帧/Boss 收益低）——头注释更正（原"随 Boss 批次重定型"失实注记删除，改登记不修说明）。
+- **✅ U19 高价值注释更正**：GameState 头部（"SaveManager/UserDB/TaskPool 仍为 GDScript 薄壳"失实——U13 后 typed 直调）；BalanceModels 头部（"与 GDScript 侧并行存在"——M7 后唯一入口）；BossMovement 头注释。
+- **✅ U18 高价值**：`docs/TESTING.md` 计数算式修正（22 行 "55+1+1+8=65" → 7 screenshot tools=64；135 行过时 "62 scenes/53 assertions" → 64/55/7）；StarfieldCsTest 统一 `TestExit.Quit`（唯一漏网点）。
+- **登记不修**：`tests/*.cs` 补 `.cs.uid`（64 个）——**已自动解决**：引擎 `--headless --import` 自动生成全部 64 个测试脚本 `.cs.uid` + 新文件 `IEncounterEvent.cs.uid`（工作区未跟踪状态，随批次入库即可）；`%` 格式化 5 份重复实现收敛 core（跨文件重构收益低，登记观察）；TurretBattery/FormationCraft `scoreScale` 死参数（签名牵连 Bullet 分派，登记观察）。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；定向 0 FAIL——event_manager/elite_turret_event/formation_strike_event/fog_event/csharp_call/starfield_cs/boss_registry/smoke/wave_pacing/mothership_summon；`--quit-after 300` 0 error；**全量断言场景回归（桥删除后终态代码）56/56 全绿**（含 autoplay 探针，无 FAILED 场景；U17/Main/注释后续改动均经定向验证覆盖）。
+
+---
+
+# U 系列收官（2026-08-09，全量审计 + 修复完成）
+
+- **审计**：10 分区并行 + git 对照迁移前 GDScript；发现 139 条归并 U01–U20（P1×2/P2×11/P3 六主题/P4 两主题）；迁移保真总判定优秀（无迁移引入语义漂移）。
+- **修复**：B1–B5 批次全落地——信号配对/静态对象/损坏数据/热路径/typed 化/桥清理/死代码/注释文档；**生产代码动态派发 105→0、snake 桥删除 315、孤儿文件 30、xUnit 73→75**。
+- **终态验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；全量断言场景 **56/56 全绿**（含 autoplay）；`--quit-after 300` 0 error。
+- **登记不修**（论证后收敛）：BossMovement typed（低频 1 次/帧）、MetaHealthFX CfgFloat（零分配仅 CPU）、% 格式化 5 份收敛、scoreScale 死参数、低价值历史时态注释、autoplay 分裂者 Reparent 引擎警告（既有，迁移前同现）。
+- **归档**：完整报告 `docs/archive/2026-08-09-csharp-audit-report.md`（含修复附录）；本档案 U 系列条目为权威登记。
+- **✅ U12**：见 B2 续（ForceTrigger 补 IsActive 检查，随 typed 化落地）。
+- **✅ U15 迁移保真偏差**：
+  - `BalanceService` ramp 32 位 float → **64 位 double**（字段/参数/返回值全链 double，GameState 委托去掉 `(float)DifficultyMultiplier` 截断；调用点既有 `(float)` 包在引擎 API 边界截断——与 GDScript"全程 double、API 边界截断"一致，兑现"逐位等价"宣称）。
+  - `Player.TakeDamage` 默认参数：`Vector2.INF` 非常量不能作 C# 默认参数 → **拆双重重载**（`TakeDamage(float amount = 1.0f)` → 内部 `Vector2.Inf`；原 default(Zero) 语义漂移 + 注释自欺消除；TutorialTest 单参调用恢复均匀环）。
+  - `GameState` 高分排序：`(int)int64 - (int)int64` 截断 → `AsInt64().CompareTo` 直接比较。
+  - `UserDb.Derive` 异或循环 `j < t.Length` → `j < Math.Min(t.Length, u.Length)`（盐 >28 字节不再越界，兑现头注"防御性收敛"口径）。
+  - `UserDb.ToInt64` 字符串解析对齐 GDScript `int()` 前缀语义：新增 `ParseGdscriptInt`（符号 + 十进制前缀 "7.5"→7、0x 十六进制 "0x10"→16、空白容忍；无可解析数字回 0）。
+- **✅ U16 逻辑/健壮性**：
+  - `Explosion` 池化复用复位 `_settled=false` + `_liveCount++`（SpawnAt 池取分支；`_settled` 原仅 `_Ready` 置 false，复用弹第二生命周期起 `LiveCount()` 系统性低估，MetaHUD 亮度代理失真）。
+  - `LaserWeapon._player` 去 `null!` 压制：字段改 `Player?`，`_PhysicsProcess` 顶部判空早退，`AimDir/StartBeam` 经调用链守卫 `_player!`（与同文件 237 行判活风格统一）。
+  - `PlayerDamage.EmitSignal("PlayerDamaged")` → `GameState.SignalName.PlayerDamaged`；信号委托参数 **double → float 统一**（发射/监听/MetaHealthFX 三方一致；GameState.OnPlayerDamagedDda、AutoplayTest.OnPlayerDamaged 签名同步）。
+  - `BaseConsole` 刷新提示一次性 Timer 触发后自清理（HideRefreshHint 内 QueueFree + 置 null）；`RefreshRoutes`/`RefreshMissions` 与 `SettingsUi` locale 重建页 `QueueFree` → `Free()`（同帧新旧并存闪一帧，Hud.cs:1194 先例）。
+  - `GameState` 三处 `GetValueOrDefault(id, new 空容器())` → `TryGetValue`（每次调用免空容器实参分配）。
+  - `EliteTurretEvent` 补 `_spawner ??= GetFirstNodeInGroup("spawner") as Spawner`（K15 对称兜底——注入时序失败时 Boss 冻结/波次暂停静默失效）。
+- **为什么起效**：数值精度链恢复 64 位等价（原 float32 有 ~1e-7 相对误差且宣称失实）；TakeDamage 语义恢复（均匀环 vs 原点定向波纹）；损坏数据路径（Derive 越界/字符串解析）对齐 GDScript 行为；池复用计数恢复准确（MetaHUD D3 亮度代理）；信号链类型单一化消除隐式 Variant 转换链。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；定向 0 FAIL——elite_turret_event/formation_strike_event/event_manager/encounter_flow_contract/user_db/base_task_refresh/welcome_flow/base_system（settings_ui 场景不存在为误测，设置页由 welcome_flow 覆盖）；全量断言场景回归见批次底部。
