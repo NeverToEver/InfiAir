@@ -28,7 +28,11 @@ public partial class GameState : Node
     }
 
     /// <summary>游客进入：设置仅内存、不存档、不写统计（B7-8）；保留当前内存值（启动 profile 值视作游客会话）</summary>
-    public void LoginGuest() => CurrentUser = "Guest";
+    public void LoginGuest()
+    {
+        CurrentUser = "Guest";
+        LoadMeta(); // 局外成长：清空游客会话 meta 内存态（不持久化，B7-8）
+    }
 
     /// <summary>退出：登录用户落盘设置；游客丢弃（内存）；复位未登录</summary>
     public void LogoutUser()
@@ -39,6 +43,7 @@ public partial class GameState : Node
         }
 
         CurrentUser = "";
+        LoadMeta(); // 局外成长：清空未登录会话 meta 内存态
     }
 
     public bool IsGuest() => CurrentUser == "Guest";
@@ -69,6 +74,7 @@ public partial class GameState : Node
 
         ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
         HighScore = (int)_userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0).AsInt64();
+        LoadMeta(); // 局外成长：会话 meta 档案加载（2026-08-09）
     }
 
     /// <summary>profile.json 退役迁移（B5）：启动时存在旧 profile 且用户表为空 → 缓存待首个注册用户合并</summary>
@@ -151,6 +157,9 @@ public partial class GameState : Node
     public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _userDb.UpdateUserSettings(name, settings);
 
     public Godot.Collections.Dictionary GetUserData(string name) => _userDb.GetUserData(name);
+
+    /// <summary>用户记录通用字段合并更新（统计/档案类；密码/盐/迭代数不可经此覆盖）</summary>
+    public void UpdateUserData(string name, Godot.Collections.Dictionary data) => _userDb.UpdateUserData(name, data);
 
     public string UserDbSavefileFor(string name) => _userDb.SavefileForUser(name);
 }

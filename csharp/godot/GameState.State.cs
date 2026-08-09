@@ -97,6 +97,8 @@ public partial class GameState : Node
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
+        // 局外成长：meta 节配置缓存（科技点结算 + 升级定义；键经 Cfg 静态调用被 BALANCE_MAP 收录）
+        LoadMetaConfig();
     }
 
     /// <summary>C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，

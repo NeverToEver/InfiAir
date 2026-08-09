@@ -83,6 +83,19 @@ public partial class UserDbInterop : RefCounted
         }
     }
 
+    public Godot.Collections.Dictionary GetUserMeta(string name)
+    {
+        return VariantBridge.ToVariant(_core.GetUserMeta(name)).AsGodotDictionary();
+    }
+
+    public void UpdateUserMeta(string name, Godot.Collections.Dictionary meta)
+    {
+        if (VariantBridge.TryToClr(meta, out var clr, out _) && clr is Dictionary<string, object?> d)
+        {
+            _core.UpdateUserMeta(name, d);
+        }
+    }
+
     /// <summary>删除用户（先验密）；每用户存档文件 + .corrupt 连带清理。</summary>
     public bool DeleteUser(string name, string password)
     {

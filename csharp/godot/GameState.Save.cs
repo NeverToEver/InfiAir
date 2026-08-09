@@ -240,6 +240,7 @@ public partial class GameState : Node
         var newRecord = RecordScore();
         RecordGameOver(); // Q06：登录用户累计 total_kills/games_played（游客跳过）
         var rank = (int)SubmitHighscore(Score); // P0-3：本局分数提交本地榜
+        SettleTechPoints(); // 局外成长：死亡结算科技点（游客/未登录 no-op，2026-08-09）
         return (newRecord, rank);
     }
 

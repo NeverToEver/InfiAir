@@ -597,6 +597,8 @@ public partial class Main : Node2D
     /// 仅正常启动入口播放开场过场（测试以子节点实例化 main.tscn 时 current_scene != self，不播）</summary>
     private void ApplyNewRun()
     {
+        // 局外成长：新局预置已购 buff 层数（2026-08-09；tutorial/存档恢复路径不经过）
+        GameState.Instance.ApplyMetaLoadout();
         // B 梯队：死亡回放录制开始（缓冲清空重录；死亡后 main._process 冻结自然停止）
         _replay.Begin();
         if (GetTree().CurrentScene == this)

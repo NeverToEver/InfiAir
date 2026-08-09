@@ -108,6 +108,10 @@ public partial class GameState : Node
     [Signal]
     public delegate void RefreshPointsChangedEventHandler(int points);
 
+    /// <summary>科技点变化（死亡结算入账/升级消费）；研究所 UI 数据源（局外成长，2026-08-09）</summary>
+    [Signal]
+    public delegate void TechPointsChangedEventHandler(long points);
+
     // ---------------- 全局数值配置中心 ----------------
     // A2 阶段 1：balance.json 的加载/查询/纯数值 ramp 已剥离到 BalanceService（组合委托）。
     // 缺失/损坏时全部回退脚本默认值；访问统一走 GameState.cfg("分层.路径", 默认值)；

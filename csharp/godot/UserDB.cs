@@ -77,6 +77,11 @@ public partial class UserDB : RefCounted
 
     public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _interop.UpdateUserSettings(name, settings);
 
+    /// <summary>局外成长档案读取（2026-08-09；meta 缺失/非法回默认空档案）</summary>
+    public Godot.Collections.Dictionary GetUserMeta(string name) => _interop.GetUserMeta(name);
+
+    public void UpdateUserMeta(string name, Godot.Collections.Dictionary meta) => _interop.UpdateUserMeta(name, meta);
+
     /// <summary>删除用户（先验密）；连带清理该用户存档文件与 .corrupt 备份（B7-12 + 2026-08-06 审计口径）</summary>
     public bool DeleteUser(string name, string password) => _interop.DeleteUser(name, password);
 
