@@ -24,6 +24,9 @@ public class PlayerVisuals
     private Polygon2D _parryArc = null!;
     private Polygon2D _parryShine = null!;
 
+    /// <summary>2026-08-09 审计：弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
+    private readonly Vector2[] _parryShinePoly = new Vector2[6];
+
     /// <summary>BODY_TINT_BASE 迁入（可视性增强提亮青白）。</summary>
     private static readonly Color BodyTintBase = new(1.35f, 1.4f, 1.55f);
     /// <summary>擦弹机身短闪光剩余时长（金色微闪，独立短计时；SetGrazeFlash 置位、UpdateFrame 递减）。</summary>
@@ -175,7 +178,7 @@ public class PlayerVisuals
         var arc = Mathf.DegToRad(arcDeg) * 0.5f;
         var centerA = -Mathf.Pi / 2.0f - arc + 2.0f * arc * shine;
         var w = Mathf.DegToRad(22.0f); // 高光带角宽
-        var sp = new Vector2[6];
+        var sp = _parryShinePoly; // 2026-08-09：预分配复用，防每物理帧 new Vector2[6]
         sp[0] = Vector2.Zero;
         for (var i = 0; i < 5; i++)
         {

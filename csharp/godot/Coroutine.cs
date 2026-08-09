@@ -13,10 +13,11 @@ namespace InfiAir;
 /// </summary>
 public static partial class Coroutine
 {
-    /// <summary>等待 N 秒（主线程恢复；节点已释放则提前返回，不悬挂）。</summary>
+    /// <summary>等待 N 秒（主线程恢复；节点已释放/离树则提前返回，不悬挂）。
+    /// 2026-08-09 审计：补 IsInsideTree 判活——节点有效但离树时 GetTree() 返回 null → NRE。</summary>
     public static async Task WaitSeconds(Node node, double seconds)
     {
-        if (!GodotObject.IsInstanceValid(node))
+        if (!GodotObject.IsInstanceValid(node) || !node.IsInsideTree())
         {
             return;
         }
@@ -25,12 +26,12 @@ public static partial class Coroutine
         await node.ToSignal(timer, Godot.Timer.SignalName.Timeout);
     }
 
-    /// <summary>等待 N 个物理帧（PhysicsFrame 信号；节点已释放则提前返回）。</summary>
+    /// <summary>等待 N 个物理帧（PhysicsFrame 信号；节点已释放/离树则提前返回）。</summary>
     public static async Task WaitPhysicsFrames(Node node, int count)
     {
         for (var i = 0; i < count; i++)
         {
-            if (!GodotObject.IsInstanceValid(node))
+            if (!GodotObject.IsInstanceValid(node) || !node.IsInsideTree())
             {
                 return;
             }
@@ -46,24 +47,22 @@ public static partial class Coroutine
     /// </summary>
     public static async Task<bool> WaitSignal(Node node, GodotObject source, StringName signal, double timeoutSeconds = -1.0)
     {
+        // 2026-08-09 审计：源/节点已失效（或节点离树取不到 tree）时等待已无意义——
+        // 无超时模式原实现会跳过 Connect/超时兜底，使 tcs 永不完成 → await 永久挂起，
+        // 违背类头"所有等待都以 SceneTree 计时器为兜底（必触发）"承诺；统一提前返回 false。
+        if (!GodotObject.IsInstanceValid(node) || !node.IsInsideTree() || !GodotObject.IsInstanceValid(source))
+        {
+            return false;
+        }
+
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var onSignal = Callable.From(() => tcs.TrySetResult(true));
         var timed = timeoutSeconds > 0.0;
         SceneTreeTimer? timer = null;
-        if (GodotObject.IsInstanceValid(source))
-        {
-            source.Connect(signal, onSignal);
-        }
+        source.Connect(signal, onSignal);
 
         if (timed)
         {
-            // U08（2026-08-09 审计）：节点已释放时等待已无意义，直接返回 false——
-            // 原实现跳过超时兜底使信号永不触发时永久挂起（违背类头"必触发兜底"承诺）
-            if (!GodotObject.IsInstanceValid(node))
-            {
-                return false;
-            }
-
             timer = node.GetTree().CreateTimer(timeoutSeconds);
             timer.Timeout += () => tcs.TrySetResult(false);
         }

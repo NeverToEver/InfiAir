@@ -112,4 +112,25 @@ public sealed class TaskPoolTests
         var pool = new TaskPool([], seed: 1);
         Assert.Empty(pool.Draw(3, new HashSet<string>()));
     }
+
+    [Fact]
+    public void Draw_DuplicateIdDefs_DoesNotHangAndDeduplicates()
+    {
+        // 2026-08-09 审计修复验证：重复 id 定义（数据配置错误）下原实现按条目计 usable，
+        // drawnIds 恒跳过重复项 → result.Count 永远追不上 → Refill 无限循环挂死；
+        // 修复后 usable 按 id 去重，抽取名额 = 可用 id 数，安全返回去重结果
+        var pool = new TaskPool([new("a", 1, "kill"), new("a", 2, "kill")], seed: 1);
+        var drawn = pool.Draw(2, new HashSet<string>());
+        Assert.Single(drawn);
+        Assert.Equal("a", drawn[0].Id);
+    }
+
+    [Fact]
+    public void Draw_DuplicateIdDefs_ExcludedPartially_StillSafe()
+    {
+        var pool = new TaskPool([new("a", 1, "kill"), new("a", 2, "kill"), new("b", 1, "kill")], seed: 1);
+        var drawn = pool.Draw(5, Ids("a")); // 排除 a → 可用仅 b
+        Assert.Single(drawn);
+        Assert.Equal("b", drawn[0].Id);
+    }
 }

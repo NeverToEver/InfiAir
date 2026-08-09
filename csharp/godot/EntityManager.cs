@@ -33,6 +33,9 @@ public partial class EntityManager : RefCounted
 
     private readonly Godot.Collections.Dictionary _enemyBulletSet = new(); // node -> true
 
+    /// <summary>2026-08-09 审计：敌弹在册索引表（node -> 数组下标），swap-remove 双维护。</summary>
+    private readonly Godot.Collections.Dictionary _enemyBulletIndex = new();
+
     public Node2D? PlayerRef { get; set; }
 
     public Area2D? PlayerHitbox { get; set; }
@@ -70,23 +73,36 @@ public partial class EntityManager : RefCounted
     /// <summary>G010：注册表存在性判定 O(1)（语义同注册表包含，deactivate 即移除）。</summary>
     public bool HasEnemy(Node node) => _enemySet.ContainsKey(node);
 
-    /// <summary>P0-1：敌弹登记（幂等；set 全写点与数组同步维护）。</summary>
+    /// <summary>P0-1：敌弹登记（幂等；set/索引表与数组同步维护）。</summary>
     public void RegisterEnemyBullet(GodotObject b)
     {
         if (!_enemyBulletSet.ContainsKey(b))
         {
+            _enemyBulletIndex[b] = EnemyBullets.Count;
             EnemyBullets.Add(b);
         }
 
         _enemyBulletSet[b] = true;
     }
 
-    /// <summary>P0-1：敌弹注销（幂等；set 判定真实在册才扫数组）。</summary>
+    /// <summary>P0-1：敌弹注销（幂等；set 判定真实在册才移除）。
+    /// 2026-08-09 审计：原 Array.Remove 为 O(n) 线性扫描+搬移——敌弹消亡频率 = 弹幕生成频率，
+    /// 同屏数百时每帧多次 O(n)；改 swap-remove + 索引表 O(1)。消费方（ClearNearbyEnemyBullets 倒序 /
+    /// DeathReplay 只读采样）不依赖数组顺序，已核实。</summary>
     public void UnregisterEnemyBullet(GodotObject b)
     {
         if (_enemyBulletSet.Remove(b))
         {
-            EnemyBullets.Remove(b);
+            var idx = (int)_enemyBulletIndex[b].AsInt64();
+            _enemyBulletIndex.Remove(b);
+            var last = EnemyBullets[EnemyBullets.Count - 1];
+            if (!ReferenceEquals(last, b))
+            {
+                EnemyBullets[idx] = last;
+                _enemyBulletIndex[last] = idx;
+            }
+
+            EnemyBullets.RemoveAt(EnemyBullets.Count - 1);
         }
     }
 

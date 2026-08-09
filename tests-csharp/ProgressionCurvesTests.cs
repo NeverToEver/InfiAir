@@ -109,4 +109,33 @@ public sealed class ProgressionCurvesTests
         Assert.Equal(1.15, DifficultyCurve.Compute(61.0, 30.0, 1.5, 0.6, 0));   // 2 档 → +0.15
         Assert.Equal(2.95, DifficultyCurve.Compute(300.0, 30.0, 1.5, 0.6, 2));  // 2 Boss + 10 档
     }
+
+    [Fact]
+    public void Threshold_CycleMultiplierBelowOne_StaysMonotone()
+    {
+        // 2026-08-09 审计：cycle_mult<1（0.5 / 0.01 下限）仍单调——base 档差非负 × 正 mult
+        foreach (double mult in new[] { 0.5, 0.01 })
+        {
+            long prev = -1;
+            for (int i = 0; i < 32; i++)
+            {
+                long v = MilestoneCurve.Threshold(i, Base, mult, 1.0);
+                Assert.True(v >= prev, $"cycleMult={mult} threshold({i}) 单调不回退");
+                prev = v;
+            }
+        }
+    }
+
+    [Fact]
+    public void Threshold_ZeroOrNegativeCycleMultiplier_DoesNotThrow()
+    {
+        // 2026-08-09 审计：core 不钳制 cycle_mult（钳制在 GameState 侧 0.01 下限）——
+        // 0 值 pow(0,0)=1 首循环正常、后续循环增量为 0；负值域 pow 产生 NaN，
+        // ToInt64 显式钳制保证确定性返回，不抛异常不挂死
+        Assert.True(MilestoneCurve.Threshold(0, Base, 0.0, 1.0) > 0);
+        Assert.Equal(80000, MilestoneCurve.Threshold(8, Base, 0.0, 1.0)); // 第二循环增量为 0
+        _ = MilestoneCurve.Threshold(0, Base, -1.0, 1.0);
+        _ = MilestoneCurve.Threshold(8, Base, -1.0, 1.0);
+        _ = MilestoneCurve.Threshold(64, Base, -2.0, 1.0);
+    }
 }

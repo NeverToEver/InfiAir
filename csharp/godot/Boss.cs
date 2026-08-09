@@ -404,13 +404,15 @@ public partial class Boss : Area2D
         EnrageSnapshotRing = (int)GameState.Instance.Cfg("boss.enrage.snapshot_ring", EnrageSnapshotRing).AsInt64();
         EnrageLaserSpeed = (float)GameState.Instance.Cfg("boss.enrage.laser_speed", EnrageLaserSpeed).AsDouble();
         EnrageRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.ring_speed", EnrageRingSpeed).AsDouble();
-        EnrageDuration = (float)GameState.Instance.Cfg("boss.enrage.duration", EnrageDuration).AsDouble();
-        EnrageTransitionDuration = (float)GameState.Instance.Cfg("boss.enrage.transition_duration", EnrageTransitionDuration).AsDouble();
+        // 2026-08-09 审计（R06 同族）：三个时序键作 EnrageSequence 除数的分母，0 值除零得 ±inf——
+        // float 不崩、Clamp 收敛，但狂暴序列 1-2 帧内瞬间走完（行为退化）；下限钳制 ≥0.05
+        EnrageDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.duration", EnrageDuration).AsDouble());
+        EnrageTransitionDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.transition_duration", EnrageTransitionDuration).AsDouble());
         EnrageAttackInterval = (float)GameState.Instance.Cfg("boss.enrage.attack_interval", EnrageAttackInterval).AsDouble();
         EnrageAttackWindup = (float)GameState.Instance.Cfg("boss.enrage.attack_windup", EnrageAttackWindup).AsDouble();
         EnrageReleaseInterval = (float)GameState.Instance.Cfg("boss.enrage.release_interval", EnrageReleaseInterval).AsDouble();
         EnrageReleaseHoldDuration = (float)GameState.Instance.Cfg("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration).AsDouble();
-        EnrageReturnDuration = (float)GameState.Instance.Cfg("boss.enrage.return_duration", EnrageReturnDuration).AsDouble();
+        EnrageReturnDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.return_duration", EnrageReturnDuration).AsDouble());
         EnragePathRadiusScale = (float)GameState.Instance.Cfg("boss.enrage.path_radius_scale", EnragePathRadiusScale).AsDouble();
         // H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
         EnrageSquarePathRatio = Mathf.Clamp(

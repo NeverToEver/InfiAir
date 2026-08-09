@@ -112,6 +112,34 @@ public sealed class UserDbPasswordTests
         }
     }
 
+    [Fact]
+    public void Verify_HugeIterationsInRecord_ClampsAndFailsFast()
+    {
+        // 2026-08-09 审计：手改 iterations=2e6（> MaxPbkdf2Iterations=1e6）→ Math.Clamp 上限钳制，
+        // 防手改巨值挂死；派生按钳制值计算与存储哈希不符 → 验密安全失败（不抛异常）；
+        // 钳制域内正常记录不受影响
+        var dir = TempDir();
+        try
+        {
+            var path = Path.Combine(dir, "users.json");
+            File.WriteAllText(
+                path,
+                """{"_users": {"bob": {"password": "deadbeef", "salt": "deadbeef", "iterations": 2000000, "last_login_order": 0}}}""");
+            var db = new UserDb(path);
+            Assert.False(db.VerifyUser("bob", "pass123", 1000), "手改巨迭代验密安全失败（钳制后仍不匹配）");
+
+            File.WriteAllText(
+                path,
+                """{"_users": {"bob": {"password": "76a4bc7172651d55d0139b2622619de3ce63d54dec94d0598021db6ad0b9d03d", "salt": "deadbeefdeadbeefdeadbeefdeadbeef", "iterations": 1000, "last_login_order": 0}}}""");
+            db.Reload();
+            Assert.True(db.VerifyUser("bob", "s3cret", 1000), "钳制域内正常记录验密通过");
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static UserDb NewTempDb(out string dir)
     {
         dir = TempDir();

@@ -43,7 +43,8 @@ public partial class Welcome : CanvasLayer
     private Button _tutorialButton = null!;
     private Button _leaderboardButton = null!;
     private Button _settingsButton = null!;
-    private readonly Godot.Collections.Dictionary _diffButtons = new();
+    /// <summary>2026-08-09 审计：难度按钮表 typed 化（原 Variant Dictionary + 运行时强转）。</summary>
+    private readonly System.Collections.Generic.Dictionary<StringName, Button> _diffButtons = new();
     private readonly ButtonGroup _diffGroup = new();
     private Label _highScoreLabel = null!;
     private Label _boardLabel = null!;
@@ -51,10 +52,18 @@ public partial class Welcome : CanvasLayer
     private CanvasLayer _leaderboardOverlay = null!;
     private Button _leaderboardClose = null!; // Q21：排行榜关闭按钮（打开时 grab_focus）
     private VBoxContainer _leaderboardRows = null!;
-    // 模态结构：{"layer": CanvasLayer, "ok": Button, "cancel": Button}
-    private Godot.Collections.Dictionary _guestConfirm = new();
-    private Godot.Collections.Dictionary _deleteConfirm = new();
-    private Godot.Collections.Dictionary _exitConfirm = new();
+    // 模态引用（2026-08-09 审计：原 Variant Dictionary {"layer","ok","cancel"} + 类内 15 处强转 → typed）
+    private ModalParts _guestConfirm = null!;
+    private ModalParts _deleteConfirm = null!;
+    private ModalParts _exitConfirm = null!;
+
+    /// <summary>轻量模态引用（MakeModal 产物；Layer=遮罩层，Ok/Cancel=按钮）。</summary>
+    private sealed class ModalParts
+    {
+        public CanvasLayer Layer = null!;
+        public Button Ok = null!;
+        public Button Cancel = null!;
+    }
     // U01（2026-08-09 审计）：LocaleChanged 连接缓存 Callable 供 _ExitTree 配对断开——
     // welcome→main 切换后残留连接回调已释放实例（Hud.cs:456 实测先例可致退出 segfault）
     private readonly Callable _onLocaleChanged;
@@ -279,7 +288,9 @@ public partial class Welcome : CanvasLayer
         var timer = GetTree().CreateTimer(2.0);
         timer.Timeout += () =>
         {
-            if (gen == _msgGen)
+            // 2026-08-09 审计：SceneTreeTimer 不随场景释放——消息后 2s 内切场景
+            // （welcome→main/tutorial）回调将触碰已释放 _msgLabel，须判活
+            if (gen == _msgGen && GodotObject.IsInstanceValid(_msgLabel))
             {
                 _msgLabel.Text = "";
             }
@@ -342,13 +353,13 @@ public partial class Welcome : CanvasLayer
 
     private void ShowGuestConfirm()
     {
-        ((CanvasLayer)_guestConfirm["layer"].AsGodotObject()).Visible = true;
-        ((Button)_guestConfirm["cancel"].AsGodotObject()).GrabFocus(); // B7-5 默认焦点「返回」
+        _guestConfirm.Layer.Visible = true;
+        _guestConfirm.Cancel.GrabFocus(); // B7-5 默认焦点「返回」
     }
 
     private void OnConfirmGuest()
     {
-        ((CanvasLayer)_guestConfirm["layer"].AsGodotObject()).Visible = false;
+        _guestConfirm.Layer.Visible = false;
         EnterMainZone(false, "");
     }
 
@@ -368,13 +379,13 @@ public partial class Welcome : CanvasLayer
             return;
         }
 
-        ((CanvasLayer)_deleteConfirm["layer"].AsGodotObject()).Visible = true;
-        ((Button)_deleteConfirm["cancel"].AsGodotObject()).GrabFocus(); // 默认焦点「取消」
+        _deleteConfirm.Layer.Visible = true;
+        _deleteConfirm.Cancel.GrabFocus(); // 默认焦点「取消」
     }
 
     private void OnConfirmDelete()
     {
-        ((CanvasLayer)_deleteConfirm["layer"].AsGodotObject()).Visible = false;
+        _deleteConfirm.Layer.Visible = false;
         var name = _usernameLine.Text.Trim();
         if (GameState.Instance.DeleteUser(name, _passwordLine.Text))
         {
@@ -442,7 +453,7 @@ public partial class Welcome : CanvasLayer
             UITheme.ApplyButton(b);
             b.Pressed += () => OnDifficultyPressed(d);
             diffRow.AddChild(b);
-            _diffButtons[d] = Variant.From(b);
+            _diffButtons[d] = b;
         }
 
         _continueButton = UITheme.MakeButton(Tr("START_CONTINUE"), true);
@@ -571,8 +582,8 @@ public partial class Welcome : CanvasLayer
         _exitConfirm = MakeModal("EXIT_TITLE", "WELCOME_EXIT_MSG", "EXIT_OK", "EXIT_CANCEL", OnExitOk);
     }
 
-    /// <summary>轻量模态工厂：page_shell 风格 + 确认/取消行；返回 {"layer", "ok", "cancel"} 引用结构</summary>
-    private Godot.Collections.Dictionary MakeModal(
+    /// <summary>轻量模态工厂：page_shell 风格 + 确认/取消行；返回 typed 引用结构。</summary>
+    private ModalParts MakeModal(
         string titleKey, string msgKey, string okKey, string cancelKey, System.Action okCb
     )
     {
@@ -595,19 +606,19 @@ public partial class Welcome : CanvasLayer
         okButton.CustomMinimumSize = new Vector2(200.0f, 56.0f);
         okButton.Pressed += () => okCb();
         row.AddChild(okButton);
-        var result = new Godot.Collections.Dictionary
+        var parts = new ModalParts
         {
-            ["layer"] = Variant.From(layer),
-            ["ok"] = Variant.From(okButton),
-            ["cancel"] = Variant.From(cancelButton),
+            Layer = layer,
+            Ok = okButton,
+            Cancel = cancelButton,
         };
-        cancelButton.Pressed += () => CloseModalRef(result);
-        return result;
+        cancelButton.Pressed += () => CloseModalRef(parts);
+        return parts;
     }
 
-    private void CloseModalRef(Godot.Collections.Dictionary modal)
+    private void CloseModalRef(ModalParts modal)
     {
-        ((CanvasLayer)modal["layer"].AsGodotObject()).Visible = false;
+        modal.Layer.Visible = false;
         // 焦点还给来源：主区主按钮 / 登录用户名框
         GrabPrimaryFocus();
     }
@@ -686,7 +697,7 @@ public partial class Welcome : CanvasLayer
 
     private void OnExitOk()
     {
-        ((CanvasLayer)_exitConfirm["layer"].AsGodotObject()).Visible = false;
+        _exitConfirm.Layer.Visible = false;
         GameState.Instance.SaveProfile(); // 登录用户设置落盘（battle=false 保留存档）
         GetTree().Quit();
     }
@@ -712,15 +723,15 @@ public partial class Welcome : CanvasLayer
             {
                 CloseLeaderboard();
             }
-            else if (((CanvasLayer)_guestConfirm["layer"].AsGodotObject()).Visible)
+            else if (_guestConfirm.Layer.Visible)
             {
                 CloseModalRef(_guestConfirm);
             }
-            else if (((CanvasLayer)_deleteConfirm["layer"].AsGodotObject()).Visible)
+            else if (_deleteConfirm.Layer.Visible)
             {
                 CloseModalRef(_deleteConfirm);
             }
-            else if (((CanvasLayer)_exitConfirm["layer"].AsGodotObject()).Visible)
+            else if (_exitConfirm.Layer.Visible)
             {
                 CloseModalRef(_exitConfirm);
             }
@@ -730,8 +741,8 @@ public partial class Welcome : CanvasLayer
             }
             else
             {
-                ((CanvasLayer)_exitConfirm["layer"].AsGodotObject()).Visible = true;
-                ((Button)_exitConfirm["cancel"].AsGodotObject()).GrabFocus();
+                _exitConfirm.Layer.Visible = true;
+                _exitConfirm.Cancel.GrabFocus();
             }
 
             GetViewport().SetInputAsHandled();
@@ -782,10 +793,10 @@ public partial class Welcome : CanvasLayer
 
         // E02/G03 + P1-6：进行中存档时禁用教程按钮（重进会删档）；已通关无存档时放行
         _tutorialButton.Disabled = _stage == Stage.Main && hasSave;
-        foreach (var key in _diffButtons.Keys)
+        foreach (var pair in _diffButtons)
         {
-            var d = key.AsStringName();
-            var b = (Button)_diffButtons[key].AsGodotObject();
+            var d = pair.Key;
+            var b = pair.Value;
             b.Text = Tr("DIFF_" + d.ToString().ToUpper());
             b.SetPressedNoSignal(GameState.Instance.Difficulty == d);
         }
@@ -875,10 +886,10 @@ public partial class Welcome : CanvasLayer
 
     public CanvasLayer LeaderboardOverlay() => _leaderboardOverlay;
 
-    public CanvasLayer GuestConfirm() => (CanvasLayer)_guestConfirm["layer"].AsGodotObject();
+    public CanvasLayer GuestConfirm() => _guestConfirm.Layer;
 
-    public CanvasLayer DeleteConfirm() => (CanvasLayer)_deleteConfirm["layer"].AsGodotObject();
+    public CanvasLayer DeleteConfirm() => _deleteConfirm.Layer;
 
-    public CanvasLayer ExitConfirmLayer() => (CanvasLayer)_exitConfirm["layer"].AsGodotObject();
+    public CanvasLayer ExitConfirmLayer() => _exitConfirm.Layer;
 
 }

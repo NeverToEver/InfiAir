@@ -949,6 +949,11 @@ public partial class GameState : Node
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyHpRamp() => (float)_balanceService.EnemyHpRamp(DifficultyMultiplier);
 
+    /// <summary>敌方 HP ramp（显式难度乘数版本，2026-08-09 审计补充）：调用方以自身难度快照计算——
+    /// Enemy.Setup 的 pDifficulty 参数是显式入参（分裂子机/测试可传非全局 DifficultyMultiplier 值），
+    /// 语义同原直查 Cfg 全链路，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
+    public float EnemyHpRamp(double difficultyMultiplier) => (float)_balanceService.EnemyHpRamp(difficultyMultiplier);
+
     /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
     /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
@@ -2693,145 +2698,6 @@ public partial class GameState : Node
     private static Godot.Collections.Array<int> BuildMilestoneBase() => new()
     {
         3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
-    };
-
-    // ---------------- 常量访问器（GDScript 不能读 C# 常量/静态字段；M7 过渡，删除前） ----------------
-    // 集合常量访问器每次局部构造新集合（规则 19：静态字段禁持 Godot 对象）。
-    // 注：同名 UPPER_SNAKE 实例属性已可直接供 GDScript 经实例零适配读取（GameState.MISSION_POOL 等），
-    // 静态 GetXxx() 供主代理按需适配（load().GetXxx() / 测试直改）。
-
-    public static int GetScoreCap() => ScoreCapValue;
-
-    public static double GetMilestoneCycleMult() => MilestoneCycleMultValue;
-
-    public static Godot.Collections.Array<StringName> GetDifficultyOrder() => new()
-    {
-        new StringName("easy"),
-        new StringName("medium"),
-        new StringName("hard"),
-    };
-
-    public static Godot.Collections.Array<int> GetMilestoneBase() => BuildMilestoneBase();
-
-    public static int GetRpBossKill() => RpBossKillValue;
-
-    public static int GetRpMissionReward() => RpMissionRewardValue;
-
-    public static Godot.Collections.Array<Godot.Collections.Dictionary> GetMissionDefs() => BuildMissionDefs();
-
-    public static Godot.Collections.Array<Godot.Collections.Dictionary> GetMissionPool() => BuildMissionPool();
-
-    public static Godot.Collections.Dictionary GetRouteLines() => BuildRouteLines();
-
-    public static int GetSfxPoolSize() => SfxPoolSizeValue;
-
-    public static int GetPersistVersion() => PersistVersionValue;
-
-    public static Godot.Collections.Dictionary GetXboxButtonLabels() => new()
-    {
-        [0] = "A",
-        [1] = "B",
-        [2] = "X",
-        [3] = "Y",
-        [4] = "LB",
-        [5] = "RB",
-        [6] = "LS",
-        [7] = "RS",
-    };
-
-    public static Godot.Collections.Dictionary GetPsButtonLabels() => new()
-    {
-        [0] = "✕",
-        [1] = "○",
-        [2] = "□",
-        [3] = "△",
-        [4] = "L1",
-        [5] = "R1",
-        [6] = "L3",
-        [7] = "R3",
-    };
-
-    public static Godot.Collections.Array<StringName> GetJoypadActions() => new()
-    {
-        new StringName("move_up"),
-        new StringName("move_down"),
-        new StringName("move_left"),
-        new StringName("move_right"),
-        new StringName("aim_left"),
-        new StringName("aim_right"),
-        new StringName("aim_up"),
-        new StringName("aim_down"),
-        new StringName("dash"),
-        new StringName("boost"),
-        new StringName("fine_move"),
-        new StringName("dock"),
-        new StringName("homecoming"),
-        new StringName("give_up"),
-        new StringName("buff_panel"),
-        new StringName("restart"),
-        new StringName("parry"),
-    };
-
-    public static Godot.Collections.Array<String> GetDifficultyDefKeys()
-    {
-        var keys = new Godot.Collections.Array<String>();
-        foreach (var k in DifficultyDefKeys)
-        {
-            keys.Add(k);
-        }
-
-        return keys;
-    }
-
-    public static Godot.Collections.Dictionary GetViewZoomLevels() => new()
-    {
-        [new StringName("small")] = 1.0,
-        [new StringName("medium")] = 1.35,
-        [new StringName("large")] = 1.7,
-    };
-
-    public static Godot.Collections.Array<StringName> GetViewZoomOrder() => new()
-    {
-        new StringName("small"),
-        new StringName("medium"),
-        new StringName("large"),
-    };
-
-    public static Godot.Collections.Dictionary GetWindowSizeLevels() => new()
-    {
-        [new StringName("small")] = new Vector2I(1280, 720),
-        [new StringName("medium")] = new Vector2I(1600, 900),
-        [new StringName("large")] = new Vector2I(1920, 1080),
-    };
-
-    public static Godot.Collections.Array<StringName> GetWindowSizeOrder() => new()
-    {
-        new StringName("small"),
-        new StringName("medium"),
-        new StringName("large"),
-    };
-
-    public static Godot.Collections.Array<StringName> GetAimAssistOrder() => new()
-    {
-        new StringName("low"),
-        new StringName("medium"),
-        new StringName("high"),
-    };
-
-    public static Godot.Collections.Array<StringName> GetRebindableActions() => new()
-    {
-        new StringName("move_up"),
-        new StringName("move_down"),
-        new StringName("move_left"),
-        new StringName("move_right"),
-        new StringName("boost"),
-        new StringName("fine_move"),
-        new StringName("dash"),
-        new StringName("dock"),
-        new StringName("homecoming"),
-        new StringName("give_up"),
-        new StringName("buff_panel"),
-        new StringName("parry"),
     };
 
     // ---------------- snake → PascalCase 桥属性（M7d 后保留：测试契约与历史调用名） ----------------

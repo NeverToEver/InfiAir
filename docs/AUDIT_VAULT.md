@@ -1716,3 +1716,26 @@
 - **登记不修**（论证后收敛）：52dcf67 保留桥中约 20 个零消费方蛇桥（含 PascalCase 主方法亦零调用的既有死代码链：`summon_waves`/`active_time`/`invincible`/`turn_rate`/`spread_deg`/`world_scale` 等——误删风险为零误留无害，下轮清理）；`BossFire.SetMeta` 每发弹 StringName+装箱（发射路径非每帧红线，与 Enemy.cs:779 同族，随热路径批次）；狂暴 `transition_duration`/`duration` 类键无下限钳制（配置损坏才可达，R06 只覆盖 interval 类）；`StrafeSpeeds[3]=40` 死数据（删需同步 json+BALANCE_MAP，收益低）；run.sh macOS `/Applications/Godot.app` 标准版兜底未纳入 .NET 优先（低概率路径）；~15 处注释引用已删桥旧名（低价值）；EventManagerTest 直写 ENCOUNTER_CONFIG 为字段级修改属引用缓存可见、整体替换（ReloadConfig）属诊断路径（W9 口径）；CI `total-1` 硬编码"恰好 1 个跳过场景"（未来第二跳过场景需同步）；4 型 RELEASE 期间完全静止（观感观察项，非缺陷）。
 - **过时登记补注**（前提消解，不改代码）：L-2（Enemy 每帧空间查询→P0-2 已改信号驱动 `Enemy.cs:599-616`）；P2-2（`_move_ctx` 字典每帧 hash→C# 迁移改 typed `MoveCtx` 字段）；G019（movement_locked 死字段→迁移时删除）；E14（beam_pts *= ws→Mothership 重写后无此实现）；U 收官「% 格式化 5 份重复」→已收敛为单一 `BuffSelect.GsFormat`。
 - **审计验收**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；`dotnet format` 三工程零 diff；main smoke 300 帧 0 引擎错误；Boss 5 场景 + orbital_strike + smoke_test 定向回归 0 FAIL 0 引擎错误；完整报告 `docs/archive/2026-08-09-w-series-audit-report.md`。
+
+
+---
+
+# X 系列（2026-08-09，第四轮：C# 逻辑架构审计 + 修复）
+
+- **审计**：5 路并行只读审计（核心循环状态流转 / 战斗实体层 / Boss+事件体系 / 数据持久化互操作 / UI 场景辅助），按 C# 架构专家角色流程执行（Phase 0 环境侦察 → Phase 1 逻辑梳理 → Phase 2 优化计划）；基线 `dotnet build` 0w/0e + `dotnet test` 75/75。完整报告 `docs/archive/2026-08-09-csharp-architecture-audit-plan.md`（含实施日志与验证清单）。
+- **发现**：无确证 P0 崩溃/竞态/泄漏；**新 P0（防御性，数据配置错误触发）**：`TaskPool.Draw` 在重复 id 定义下无限 `Refill` 挂死——`drawnIds` 恒跳过重复项使 `result.Count` 永远追不上按条目计数的 usable；**P1×3**（母舰减速带 Boss 回归 / Welcome.ShowMsg 树级 Timer 跨场景回调触碰已释放 `_msgLabel` / `UnregisterEnemyBullet` O(n) 线性移除）；P2×8 + P3×3 + 测试缺口×3。
+- **修复批次（X1 单批，2026-08-09）**：
+  - ✅ **X1** `Mothership.DeploySlowField` 恢复 Boss 减速语义——原 GDScript duck-typing（`has_method("apply_slow")`）含 Boss，M4 typed 化遗漏（W6 只更正注释未补行为）；`Boss.ApplySlow`/`_summonSlowTimer` 死代码重新接通。
+  - ✅ **X2** `Welcome.ShowMsg` 回调补 `GodotObject.IsInstanceValid(_msgLabel)`——SceneTreeTimer 不随场景释放，消息后 2s 内切场景（welcome→main/tutorial）触碰已释放实例。
+  - ✅ **X3** `EntityManager.UnregisterEnemyBullet` O(n) `Array.Remove` → swap-remove + 索引表 O(1)（消费方 ClearNearbyEnemyBullets 倒序 / DeathReplay 只读采样，顺序依赖已核实）；Register 侧双维护。
+  - ✅ **X4** `TaskPool.Draw` usable 改 id 级去重计数（新 P0 修复，附 2 用例）。
+  - ✅ **X5** `Coroutine` WaitSeconds/WaitPhysicsFrames 补 `IsInsideTree` 判活（离树 `GetTree()` null → NRE）；`WaitSignal` 源/节点失效提前返回 false（无超时模式原实现 tcs 永不完成 → await 永久挂起，违背类头"必触发兜底"承诺）。
+  - ✅ **X6** `Boss.cs` enrage `duration`/`transition_duration`/`return_duration` 三时序键补 `Mathf.Max(0.05f, …)` 下限钳制（0 值除零 inf 行为退化；W 系列登记不修项落地——R06 只覆盖 interval 类）。
+  - ✅ **X7** `GameEventManager` TickEncounterTriggers/PollEncounters 对 `EventFor` 结果补 `IsInstanceValid` 二次判活（fallback 工厂闭包捕获已失效实例可返回死引用）；Poll 侧死引用按「不活跃」处理走自愈复位而非跳过卡死。
+  - ✅ **X8** `Enemy.Setup` hp_ramp 直查 `Cfg("enemies.hp_ramp_factor")` 全链路 → `GameState.EnemyHpRamp()` 缓存 API（语义等价已核实：DifficultyMultiplier 对局内恒定、缺键默认一致）；BALANCE_MAP 重跑。
+  - ✅ **X9** `Welcome` 模态引用 Variant Dictionary（类内 15 处强转）→ typed `ModalParts`（Layer/Ok/Cancel）+ 难度按钮 `Dictionary<StringName, Button>`。
+  - ✅ **X10** 双轨 API 全量删除——GameState 21 个静态 `GetXxx()`（每次调用重建集合）+ Main 15 个 snake 桥（四通道 grep 零调用方；V 系列已删 GetSfx* 8 个，其余 21 个现全清）。
+  - ✅ **X11** `PlayerVisuals.UpdateParryVisuals` 每物理帧 `new Vector2[6]` → 预分配字段复用（W 系列登记不修项落地）。
+- **测试补齐**（75→80）：TaskPool 重复 id ×2（含部分排除）；ProgressionCurves cycleMult<1 单调 / 0 与负倍率不抛 ×2；UserDb 手改 iterations=2e6 钳制 1e6 快速失败 + 正常记录不受影响 ×1（非法 hex/大写盐 Q18 已有用例）。
+- **登记不修/观察**：VariantBridge xUnit 单测不可行（tests-csharp 零 Godot 依赖纪律，GodotSharp 无引擎进程崩溃；由 path_resolver/user_db interop 场景间接覆盖）；伤害分派 switch ×3 统一、`%` 格式化器 4 份收敛、UI 结算/存档编排下沉、GameState 上帝类拆分、两池 `_free.Contains` O(n)（上限 500）、GdFormat 三份重复（本轮 deferred，理由见报告 P2 表）。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 80/80；`dotnet format` 三工程零 diff；`godot --headless --import` 0 引擎错误；定向断言场景 26 个批量结果见报告文末验证清单；BALANCE_MAP 重跑 468 调用 0 缺失键。

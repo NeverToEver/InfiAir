@@ -523,7 +523,9 @@ public partial class GameEventManager : Node
         {
             // U14：遭遇事件 typed 分派（IEncounterEvent 契约，替代每帧 HasMethod/Call 动态派发）
             var ev = EventFor(id);
-            if (ev is not IEncounterEvent enc || enc.IsActive())
+            // 2026-08-09 审计：EventFor fallback 工厂闭包捕获的正是已失效实例，可返回死引用
+            // （正常路径被 RegisterEncounter 覆盖缓存防护）——触发侧二次判活，死引用不可触发
+            if (!GodotObject.IsInstanceValid(ev) || ev is not IEncounterEvent enc || enc.IsActive())
             {
                 continue;
             }
@@ -618,7 +620,9 @@ public partial class GameEventManager : Node
         foreach (var id in _encounterOrder)
         {
             var ev = EventFor(id);
-            var active = ev is IEncounterEvent enc && enc.IsActive(); // U14：typed 分派
+            // 2026-08-09 审计：死引用按「不活跃」处理——直接跳过会让 _encounterActiveId 残留、编排卡死；
+            // 按不活跃走下方分支把事件状态复位并广播结束，属自愈路径
+            var active = GodotObject.IsInstanceValid(ev) && ev is IEncounterEvent enc && enc.IsActive(); // U14：typed 分派
             if (_encounterEndPending.ContainsKey(id) && !active)
             {
                 _encounterEndPending.Remove(id);

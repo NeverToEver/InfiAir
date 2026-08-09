@@ -132,3 +132,14 @@
 - **修复过程中发现的测试/实现缺陷**：Q24 走真实输入管线后暴露「输入框内 Enter 被 LineEdit 消费 → 键盘登录断链」（补 text_submitted 连接，B7-13 承诺真正达成）；welcome_flow_test 场景 8/9 重建实例未释放导致残留 SettingsUI 抢占 group（Q09 修复验证中暴露）；GDScript lambda 捕获 int 为值拷贝（Q13 计数改数组承载）；Q04 断言构造需直写档避免 set_difficulty 覆盖 profile。
 - **教训**：审计报告行号与修复后代码漂移（Q30 编辑误缩进 sniper3 连发块致 3 连发只出 1 发，boss_phase 场景 2 捕获）；P4「硬编码 1920」类项需对照断言语义再改（strafe_range 固定边距是设计，view_zoom_test 锁死）；测试进程共享 user:// 目录（Q23 快照还原后仍需独立进程隔离认知）。
 - **原文**：`docs/archive/2026-08-05-deep-review-report.md`（修复登记：`docs/AUDIT_VAULT.md` Q 系列「修复登记」段）
+
+
+---
+
+## 2026-08-09 · X 系列 C# 逻辑架构审计 + 修复（第四轮）
+
+- **落地**：未提交（改动待提交：18 修改文件 + 1 新归档文档 + AUDIT_VAULT X 系列登记 + BALANCE_MAP 生成物）
+- **摘要**：按 C# 架构专家角色流程四阶段执行（Phase 0 环境侦察 → Phase 1 五路并行逻辑梳理 → Phase 2 优化计划 → Phase 3 实施 → Phase 4 验证）。新 P0×1（TaskPool 重复 id 定义下无限 Refill 挂死）、P1×3（母舰减速带 Boss 回归修复——W6 只更注释未补行为 / Welcome.ShowMsg 跨场景回调 / 敌弹注销 O(n)→O(1) swap-remove）、P2×7（Coroutine 判活三处 / Boss 狂暴时序键钳制 / EventFor 死引用防御 / EnemyHpRamp 缓存化 / Welcome 模态 typed 化 / 双轨 API 36 方法删除 / PlayerVisuals 预分配）；测试 75→80；30 受影响断言场景全绿。
+- **关键决策**：`EnemyHpRamp` 加显式难度重载（首版误用全局 DifficultyMultiplier，被 enemy_combat_test H2 捕获——公共 API 参数语义不能以生产路径等价推断，测试/分裂子机显式传参路径必须保持）；VariantBridge xUnit 单测因 tests-csharp 零 Godot 依赖纪律 defer（由 interop 场景间接覆盖）；BALANCE_MAP 重跑随改动提交；服务数文档漂移修正（7→8 补 ProgressionInterop）。
+- **教训**：Edit 大块删除对空行数量敏感（Main.cs 桥区两次 old_string 失配后改用 python3 行号删除 + 断言校验）；「语义等价」声明必须覆盖全部调用方；B7 类「优化替换」需先跑受影响断言场景再宣布完成。
+- **原文**：`docs/archive/2026-08-09-csharp-architecture-audit-plan.md`（登记：`docs/AUDIT_VAULT.md` X 系列）

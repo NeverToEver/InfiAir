@@ -35,14 +35,19 @@ public sealed class TaskPool
         {
             return [];
         }
-        int usable = 0;
+        // 2026-08-09 审计：usable 按 id 去重计数——原按条目计数在重复 id 定义下（_defs=[A,A]）
+        // 会因 drawnIds 恒跳过重复项而 result.Count 永远追不上 usable → Refill 无限循环挂死；
+        // 去重后抽取名额 = 可用 id 数，语义更正确（防数据配置错误挂死）
+        var usableIds = new HashSet<string>();
         foreach (var def in _defs)
         {
             if (!excludeIds.Contains(def.Id))
             {
-                usable++;
+                usableIds.Add(def.Id);
             }
         }
+
+        var usable = usableIds.Count;
         if (usable == 0)
         {
             return [];  // 防呆：全池被排除，无可用任务

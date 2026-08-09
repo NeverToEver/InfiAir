@@ -731,9 +731,15 @@ public partial class Mothership : Area2D
                 continue;
             }
 
-            if (e is Enemy enemy) // U13：typed（apply_slow 仅 Enemy 有）
+            if (e is Enemy enemy)
             {
                 enemy.ApplySlow(SlowDuration, SlowFactor);
+            }
+            else if (e is Boss boss)
+            {
+                // 2026-08-09 审计：原 GDScript duck-typing（has_method("apply_slow")）含 Boss，
+                // M4 typed 化遗漏——Boss.ApplySlow/_summonSlowTimer 因此成死代码，此处恢复语义
+                boss.ApplySlow(SlowDuration, SlowFactor);
             }
         }
 

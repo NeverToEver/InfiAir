@@ -223,7 +223,10 @@ public partial class Enemy : Area2D
             (int)Mathf.Round(
                 GD.RandRange(hpRange.X, hpRange.Y)
                 * (float)GameState.Instance.EnemyHpMultiplier()
-                * (1.0f + (float)GameState.Instance.Cfg("enemies.hp_ramp_factor", HpRampFactor).AsDouble() * (pDifficulty - 1.0f))));
+                // 2026-08-09 审计：原直查 Cfg("enemies.hp_ramp_factor") 全链路（path.Split+字典遍历+Variant 装箱），
+                // hp_ramp 有 Load 时缓存的 API 未用；改走显式难度重载——pDifficulty 为调用方快照
+                // （分裂子机/测试可传非全局 DifficultyMultiplier 值，须保持原参数语义）
+                * (float)GameState.Instance.EnemyHpRamp(pDifficulty)));
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
         FireInterval = (float)config.GetValueOrDefault("fire_interval", 2.2).AsDouble();
