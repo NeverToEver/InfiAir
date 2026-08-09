@@ -314,7 +314,7 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 381 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
+| 404 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
 
 ### `csharp/godot/GameState.Settings.cs`
 
