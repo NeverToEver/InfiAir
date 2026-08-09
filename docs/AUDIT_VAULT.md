@@ -1690,3 +1690,29 @@
     - ✅ 文档同步 6 文件到迁移后现状：ARCHITECTURE（全文 .gd→.cs/API PascalCase/51→55）、DESIGN_BASELINE（§2.1 no .NET→全 C#、47→55）、EVENT_MANAGER（路径/API/计数）、ENTITY_MANAGER（迁移说明注记）、AGENTS（66→64 场景算式）、TESTING（补 starfield_cs/csharp_call 两场景）。
 - **登记不修**（论证后收敛）：Explosion 静态池（架构级，改动风险 > 退出风险，随资源管理重构一并处理）；公开测试端口 ~101 Set*（TESTING.md 认可模式，规模登记观察）；autoplay 不进 CI（既有登记）；池 Release `_free.Contains` O(n)（稳态小）；`Boss.GetFightPhaseTransition` 名实不符（恒返回 P1，测试契约引用，更名风险 > 收益）；BossMovement Meth* 两套拼写（StringName 大小写不敏感，行为已验证）；GameState 953/958 float 出口截断（~1e-7，U15 声明"API 边界"微瑕，对局影响可忽略）；`boss.difficulty_scaling` 判型缺口（当前数据无恙防呆项）；PlayerVisuals 弹反每帧数组（0.5s 窗口 6 元素）；Enemy 体碰动态派发（低频重叠期）；Welcome 长度校验 rune/UTF-16 口径（提示误导，方向保守）；OrbitalStrike IMPACT_AT 无下限（H15 另一侧）；sweep 残点注释不实（cap 路径，登记观察）。
 - **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；`dotnet format` 三工程零 diff；定向场景（事件 5 + Boss 6）0 FAIL；**全量断言场景 55/55 全绿 0 flake**；BALANCE_MAP 重跑幂等；完整报告 `docs/archive/2026-08-09-multi-angle-csharp-review.md`。
+
+---
+
+# W 系列（2026-08-09，第三轮：V 系列后增量 + 登记项复查 + CI 盲区）
+
+- **审计**：4 路并行只读审查——(A) 52dcf67「启动器探测链 + M7 残留兼容桥全量清理」60+ 文件 diff（349 被删成员 × 全仓库四通道 grep + 动态派发面程序化双向校验）；(B) fe1a186 遭遇配置缓存修复 + dbaf64c CI 引擎错误扫描正确性；(C) 全部「登记不修」条目读码复查（V 13 项 + U 5 项 + 早轮次）；(D) 月蚀（月食之轮）系统对照 BOSS_REDESIGN §5.6 深审。遵循 AUDIT_REVIEW_SOP。
+- **判定**：无 P1/P2；P3 修复 13 项（防御缺口 ×3 + 死代码 ×1 + 注释/doc-code 矛盾 ×5 + CI 盲区 ×4）；登记不修/观察 12 项；过时登记补注 5 项（前提已消解）。
+- **修复批次（W1 单批，2026-08-09）**：
+  - ✅ **W1** `OrbitalStrike` IMPACT_AT 补下限钳制 `Mathf.Clamp(…, 0.05f, 0.95f)`——≤0 时首帧即 struck+清场（H15 只封了另一侧；V-12 登记项落地，E07 单帧大 delta 同族另一入口）。当前数据 0.56 行为零变化。
+  - ✅ **W2** `Boss.cs` Move4BobPeriod 读值补 `Mathf.Max(…, 0.05f)`——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 查表越界崩溃（R06 同族，MoveBob 侧已有 0.01 保护；U-2 登记项落地，路 D 独立命中同点）。
+  - ✅ **W3** `Boss.cs` difficulty_scaling 三读补判型+空表守卫——损坏类型/空数组 → `Clamp(tier,0,Count-1)` 返回 -1 → 越界 SCRIPT ERROR（Boss setup 崩溃）；坏值保持默认表（V-8 登记项落地，Q14/R06 防呆口径）。
+  - ✅ **W4** `Boss.cs:54` StalkerPointAnglesDeg 死字段删除（活跃副本在 EnrageSequence.cs:78，迁移残留）。
+  - ✅ **W5** 10 处测试注释「待补转发器后恢复」（BossPatternTest ×5/BossPhaseTest ×2/BossEnrageTest ×3）——52dcf67 已正式删除转发器，注释承诺与删除方向矛盾，改「永久移除」并标注保留断言覆盖点。
+  - ✅ **W6** `Mothership.cs` DeploySlowField 注释「duck-typing has_method」失实（实际 :734 已 typed `e is Enemy`）→ 更正。
+  - ✅ **W7** `BossMovement.cs` 头注释「剩余动态派发频率 1 次/物理帧」失实（MoveType4 实际 7 次、MoveType1/3 约 11 次）→ 更正。
+  - ✅ **W8** `EnrageSequence.cs` ActiveEclipse 注释字段名 `_ring_angle`（1 型字段，4 型用局部 angle）→ 更正。
+  - ✅ **W9** `GameEventManager.cs` ReloadConfig 注释口径——遭遇组（ENCOUNTER_CONFIG）注册时固化内层字典引用，重载后停留注册时值（fe1a186 为测试直写可见性引入，仅诊断/测试路径）→ 限定口径。
+  - ✅ **W10** `docs/BOSS_REDESIGN.md` §5.6「RELEASE 20-shot charged ring volley」——实现为一次性直接发射无蓄力（1 型 ReleaseBeginBulwark 有 E1SalvoCharge+ChargeGlow）→ 文档改「direct fire, no charge telegraph」（如需蓄力表现另立设计任务）。
+  - ✅ **W11** CI 引擎错误扫描补 `Unhandled exception`（三处：断言场景/smoke/probe）——Godot 4 中未处理 C# 异常默认不终止应用（godotengine/godot#73515），零 GDScript 后 SCRIPT ERROR 主通道消失，C# 异常为静默漏报主盲区（V7 案例 CSharpCallTest 恰好走 GDScript 通道被旧模式覆盖）。
+  - ✅ **W12** CI main smoke 步骤补引擎错误扫描（原仅退出码+tail，与断言场景口径不一致）。
+  - ✅ **W13** CI compile probe 扫描模式统一（补 Nonexistent function/Unhandled exception，与断言场景一致）。
+  - ✅ **W14** CI 失败日志上传 glob 补 `*_test.log.retry` + `probe-*.log`（flaky 重试首败原因与 probe 日志无法从 artifact 排查）。
+  - ✅ **W15** CI 场景数校验注释口径修正——total 与循环同 glob 同源，「防改名/新增掉出 CI」不成立（新增本就被 glob 纳入），实际防御循环内跳过场景与 glob 空匹配。
+- **登记不修**（论证后收敛）：52dcf67 保留桥中约 20 个零消费方蛇桥（含 PascalCase 主方法亦零调用的既有死代码链：`summon_waves`/`active_time`/`invincible`/`turn_rate`/`spread_deg`/`world_scale` 等——误删风险为零误留无害，下轮清理）；`BossFire.SetMeta` 每发弹 StringName+装箱（发射路径非每帧红线，与 Enemy.cs:779 同族，随热路径批次）；狂暴 `transition_duration`/`duration` 类键无下限钳制（配置损坏才可达，R06 只覆盖 interval 类）；`StrafeSpeeds[3]=40` 死数据（删需同步 json+BALANCE_MAP，收益低）；run.sh macOS `/Applications/Godot.app` 标准版兜底未纳入 .NET 优先（低概率路径）；~15 处注释引用已删桥旧名（低价值）；EventManagerTest 直写 ENCOUNTER_CONFIG 为字段级修改属引用缓存可见、整体替换（ReloadConfig）属诊断路径（W9 口径）；CI `total-1` 硬编码"恰好 1 个跳过场景"（未来第二跳过场景需同步）；4 型 RELEASE 期间完全静止（观感观察项，非缺陷）。
+- **过时登记补注**（前提消解，不改代码）：L-2（Enemy 每帧空间查询→P0-2 已改信号驱动 `Enemy.cs:599-616`）；P2-2（`_move_ctx` 字典每帧 hash→C# 迁移改 typed `MoveCtx` 字段）；G019（movement_locked 死字段→迁移时删除）；E14（beam_pts *= ws→Mothership 重写后无此实现）；U 收官「% 格式化 5 份重复」→已收敛为单一 `BuffSelect.GsFormat`。
+- **审计验收**：`dotnet build` 0 警告 0 错误；`dotnet test` 75/75；`dotnet format` 三工程零 diff；main smoke 300 帧 0 引擎错误；Boss 5 场景 + orbital_strike + smoke_test 定向回归 0 FAIL 0 引擎错误；完整报告 `docs/archive/2026-08-09-w-series-audit-report.md`。
