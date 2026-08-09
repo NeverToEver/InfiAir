@@ -1115,5 +1115,22 @@
 	"dda": {
 		"duration": 5.0,
 		"factor": 1.3
+	},
+	"meta": {
+		"points": {
+			"score_divisor": 1000,
+			"boss_kill_bonus": 2,
+			"mission_bonus": 1
+		},
+		"upgrades": {
+			"rapid_fire": { "max_level": 2, "base_cost": 10, "cost_growth": 1.6 },
+			"power_shot": { "max_level": 2, "base_cost": 10, "cost_growth": 1.6 },
+			"extra_life": { "max_level": 2, "base_cost": 15, "cost_growth": 1.8 },
+			"regen": { "max_level": 3, "base_cost": 12, "cost_growth": 1.6 },
+			"bullet_speed": { "max_level": 2, "base_cost": 8, "cost_growth": 1.5 },
+			"armor": { "max_level": 3, "base_cost": 12, "cost_growth": 1.6 },
+			"crit_shot": { "max_level": 2, "base_cost": 12, "cost_growth": 1.6 },
+			"slow_field": { "max_level": 2, "base_cost": 15, "cost_growth": 1.8 }
+		}
 	}
 }

@@ -75,6 +75,11 @@ public sealed class UserDb
             ["games_played"] = 0L,
             ["last_login_order"] = 0L,
             ["settings"] = new Dictionary<string, object?>(),
+            ["meta"] = new Dictionary<string, object?>
+            {
+                ["tech_points"] = 0L,
+                ["upgrades"] = new Dictionary<string, object?>(),
+            },
         };
         return Save();
     }
@@ -222,6 +227,51 @@ public sealed class UserDb
         return rec.GetValueOrDefault("settings") is Dictionary<string, object?> settings
             ? new Dictionary<string, object?>(settings)
             : new Dictionary<string, object?>();
+    }
+
+    /// <summary>局外成长档案读取（2026-08-09 计划 M2；Q17 同款条目级守卫）：
+    /// meta 缺失/非 Dictionary/用户不存在 → 默认空档案 { tech_points: 0, upgrades: {} }；
+    /// 顶层浅拷贝（对齐 GetUserData duplicate 语义）。</summary>
+    public Dictionary<string, object?> GetUserMeta(string name)
+    {
+        EnsureLoaded();
+        var rec = UserRecord(name);
+        if (rec.Count == 0)
+        {
+            return DefaultMeta();
+        }
+
+        return rec.GetValueOrDefault("meta") is Dictionary<string, object?> meta
+            ? new Dictionary<string, object?>(meta)
+            : DefaultMeta();
+    }
+
+    /// <summary>局外成长档案合并更新（对齐 UpdateUserData 语义，顶层浅合并）。
+    /// 用户不存在 / 记录非法跳过；meta 非 Dictionary（手改）时按空表重建——不丢已有字段。</summary>
+    public void UpdateUserMeta(string name, Dictionary<string, object?> meta)
+    {
+        EnsureLoaded();
+        if (!Users.ContainsKey(name))
+        {
+            return;
+        }
+
+        var rec = UserRecord(name);
+        if (rec.Count == 0)
+        {
+            return;
+        }
+
+        var merged = rec.GetValueOrDefault("meta") is Dictionary<string, object?> cur
+            ? new Dictionary<string, object?>(cur)
+            : new Dictionary<string, object?>();
+        foreach (var kv in meta)
+        {
+            merged[kv.Key] = kv.Value;
+        }
+
+        rec["meta"] = merged;
+        Save();
     }
 
     public void UpdateUserSettings(string name, Dictionary<string, object?> settings)
@@ -426,6 +476,13 @@ public sealed class UserDb
             ? d
             : new Dictionary<string, object?>();
     }
+
+    /// <summary>局外成长默认档案（每次调用返回新实例——调用方可能修改返回值）。</summary>
+    private static Dictionary<string, object?> DefaultMeta() => new()
+    {
+        ["tech_points"] = 0L,
+        ["upgrades"] = new Dictionary<string, object?>(),
+    };
 
     private bool Save()
     {

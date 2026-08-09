@@ -310,11 +310,20 @@
 | 165 | `formation_strike_event.trigger_chance` | `0.30` |
 | 166 | `formation_strike_event.min_score` | `500` |
 
+### `csharp/godot/GameState.Meta.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 69 | `meta.points.score_divisor` | `_metaScoreDivisor` |
+| 70 | `meta.points.boss_kill_bonus` | `_metaBossKillBonus` |
+| 71 | `meta.points.mission_bonus` | `_metaMissionBonus` |
+| 73 | `meta.upgrades` | `new Godot.Collections.Dictionary(` |
+
 ### `csharp/godot/GameState.Save.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 404 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
+| 405 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
 
 ### `csharp/godot/GameState.Settings.cs`
 
@@ -376,9 +385,9 @@
 | 110 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 111 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 112 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 873 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 886 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 938 | `mothership.depart_cooldown` | `60.0` |
+| 875 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 888 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 940 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp/godot/MetaHealthFX.cs`
 
