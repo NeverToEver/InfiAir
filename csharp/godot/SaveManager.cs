@@ -48,9 +48,9 @@ public partial class SaveManager : RefCounted
     public void Quarantine(string path) => _interop.Quarantine(path);
 
     /// <summary>存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
-    /// （bool 非 int/float，回默认——对齐 GDScript `v is int or v is float`）</summary>
+    /// （V 系列清理：bool 条件恒真——Int/Float 类型不可能是 Bool，直接判类型即可）。</summary>
     public double SanitizeNum(Variant v, double defaultValue)
-        => (v.VariantType == Variant.Type.Int || v.VariantType == Variant.Type.Float) && v.VariantType != Variant.Type.Bool
+        => v.VariantType is Variant.Type.Int or Variant.Type.Float
             ? (double)v.AsDouble()
             : defaultValue;
 

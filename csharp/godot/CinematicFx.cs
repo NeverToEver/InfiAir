@@ -197,11 +197,7 @@ public partial class CinematicFx : RefCounted
 
     // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
     // 调用方：GDScript 过场经脚本资源 load("res://csharp/godot/CinematicFx.cs") 调静态方法
-    // （scripts/main.gd soft_glow/ring_points/additive_material/particles、scripts/warp_gate.gd
-    // soft_glow/additive_material/particles、scripts/intro_cinematic.gd particles/soft_glow、
-    // scripts/return_cinematic.gd particles/soft_glow/shockwave/radial_streaks/beam）；
-    // C# 侧 BossAttacks.cs/Enemy.cs/Mothership.cs 过渡期 GD.Load<GDScript>("cinematic_fx.gd")
-    // 动态调 soft_glow/particles/ring_points/additive_material/shockwave（接线后改 typed）。
+    // ---------------- 鸭子调用兼容桥（M6 过渡，V 系列清理注释：调用方均已 typed） ----------------
 
 
 

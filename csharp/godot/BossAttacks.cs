@@ -8,10 +8,7 @@ namespace InfiAir;
 /// 承载持续型攻击（狙击 telegraph / 蓄力重炮 / 冲刺掠过 / 编队齐射）的时序状态与轮询；
 /// 一次性攻击（fan/homing/cross/bullet_wall）在 execute 内直接委托 BossFire。
 /// 配置字段经 boss 动态访问（无类型参数），弹幕发射经注入的 BossFire，避免跨类私有访问（A1 约束）。
-/// 迁移说明：RefCounted 纯逻辑组件 → 纯 C# 类（无信号/导出）；BossFire 已随本批迁 C#
-/// （主代理并行，csharp/godot/BossFire.cs），经 GodotObject.Call PascalCase 动态派发；
-/// boss 为 C# Boss（主代理并行迁移），常量/属性经 Get 原标识符名、方法经 Call PascalCase；
-/// Enemy 迁 C# 后直接 Enemy.SinFast/CosFast。
+/// V 系列（U19 清理）：迁移说明已过时——全仓 C#，`_fire` 动态派发属 Boss 链 typed 化遗留（V 批次处理）。
 /// </summary>
 public partial class BossAttacks : RefCounted
 {
@@ -63,32 +60,34 @@ public partial class BossAttacks : RefCounted
 
     // B 梯队（fair plan §8）：每攻击独特 tell——起手音效变体 + 视觉前兆冲击环。
     // 玩家凭音效/闪光区分「来的是什么」；音效复用现有资源变体（缺专属资产，登记后续音频项）。
-    private static readonly AudioStream TellFireA = GD.Load<AudioStream>("res://assets/audio/bullet_fire.wav");
-    private static readonly AudioStream TellFireB = GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav");
-    private static readonly AudioStream TellFireC = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
-    private static readonly AudioStream TellDash = GD.Load<AudioStream>("res://assets/audio/dash.wav");
-    private static readonly AudioStream TellExplosion = GD.Load<AudioStream>("res://assets/audio/explosion.wav");
+    // V 系列（2026-08-09）：静态 AudioStream 持有违反「静态字段禁持 Godot RefCounted」规则
+    // （UITheme.cs 退出 segfault 先例），改存路径 StringName，播放处 GD.Load 命中资源缓存。
+    private static readonly StringName TellFireAPath = new("res://assets/audio/bullet_fire.wav");
+    private static readonly StringName TellFireBPath = new("res://assets/audio/bullet_fire_b.wav");
+    private static readonly StringName TellFireCPath = new("res://assets/audio/bullet_fire_c.wav");
+    private static readonly StringName TellDashPath = new("res://assets/audio/dash.wav");
+    private static readonly StringName TellExplosionPath = new("res://assets/audio/explosion.wav");
 
-    /// <summary>attack id → tell 配置（sfx 变体/音高/视觉环色）；缺失键 = 该攻击无 tell（新攻击须补配）。</summary>
+    /// <summary>attack id → tell 配置（sfx 路径/音高/视觉环色）；缺失键 = 该攻击无 tell（新攻击须补配）。</summary>
     private sealed class TellInfo
     {
-        public AudioStream? Sfx;
+        public StringName? Path;
         public float Pitch;
         public Color Color;
     }
 
     private static readonly Dictionary<StringName, TellInfo> AttackTells = new()
     {
-        [new StringName("fan5")] = new TellInfo { Sfx = TellFireA, Pitch = 1.0f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
-        [new StringName("fan7")] = new TellInfo { Sfx = TellFireA, Pitch = 1.15f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
-        [new StringName("homing")] = new TellInfo { Sfx = TellFireB, Pitch = 1.0f, Color = new Color(1.0f, 0.3f, 0.3f, 0.55f) },
-        [new StringName("sniper3")] = new TellInfo { Sfx = TellFireC, Pitch = 1.0f, Color = new Color(0.95f, 0.95f, 1.0f, 0.6f) },
-        [new StringName("cross")] = new TellInfo { Sfx = TellFireA, Pitch = 1.25f, Color = new Color(0.8f, 0.4f, 1.0f, 0.55f) },
-        [new StringName("charged_cannon")] = new TellInfo { Sfx = TellDash, Pitch = 0.8f, Color = new Color(1.0f, 0.85f, 0.3f, 0.6f) },
-        [new StringName("dash_sweep")] = new TellInfo { Sfx = TellExplosion, Pitch = 0.7f, Color = new Color(0.4f, 0.9f, 1.0f, 0.55f) },
-        [new StringName("minion_volley")] = new TellInfo { Sfx = TellFireC, Pitch = 0.8f, Color = new Color(0.5f, 1.0f, 0.5f, 0.55f) },
-        [new StringName("bullet_wall")] = new TellInfo { Sfx = TellFireB, Pitch = 1.2f, Color = new Color(0.4f, 0.6f, 1.0f, 0.55f) },
-        [new StringName("ring_burst")] = new TellInfo { Sfx = TellFireA, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
+        [new StringName("fan5")] = new TellInfo { Path = TellFireAPath, Pitch = 1.0f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
+        [new StringName("fan7")] = new TellInfo { Path = TellFireAPath, Pitch = 1.15f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
+        [new StringName("homing")] = new TellInfo { Path = TellFireBPath, Pitch = 1.0f, Color = new Color(1.0f, 0.3f, 0.3f, 0.55f) },
+        [new StringName("sniper3")] = new TellInfo { Path = TellFireCPath, Pitch = 1.0f, Color = new Color(0.95f, 0.95f, 1.0f, 0.6f) },
+        [new StringName("cross")] = new TellInfo { Path = TellFireAPath, Pitch = 1.25f, Color = new Color(0.8f, 0.4f, 1.0f, 0.55f) },
+        [new StringName("charged_cannon")] = new TellInfo { Path = TellDashPath, Pitch = 0.8f, Color = new Color(1.0f, 0.85f, 0.3f, 0.6f) },
+        [new StringName("dash_sweep")] = new TellInfo { Path = TellExplosionPath, Pitch = 0.7f, Color = new Color(0.4f, 0.9f, 1.0f, 0.55f) },
+        [new StringName("minion_volley")] = new TellInfo { Path = TellFireCPath, Pitch = 0.8f, Color = new Color(0.5f, 1.0f, 0.5f, 0.55f) },
+        [new StringName("bullet_wall")] = new TellInfo { Path = TellFireBPath, Pitch = 1.2f, Color = new Color(0.4f, 0.6f, 1.0f, 0.55f) },
+        [new StringName("ring_burst")] = new TellInfo { Path = TellFireAPath, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
     };
     /// <summary>攻击 tell 表公开访问（boss_registry_test 校验用）。</summary>
     public static Godot.Collections.Dictionary GetAttackTells()
@@ -104,7 +103,8 @@ public partial class BossAttacks : RefCounted
 
 
     // ---- 注入：弹幕发射器（Boss._ready 经 configure 传入）与机体缩放 ----
-    private GodotObject _fire = null!;
+    // V 系列：typed（原 GodotObject 动态派发；Boss 代持桥删除后直调 BossFire）
+    private BossFire _fire = null!;
 
     /// <summary>机体缩放（configure 注入；charge_glow 默认辉光半径 / 拖弹偏移共用）。</summary>
     public float WorldScale { get; set; } = 1.0f;
@@ -183,8 +183,9 @@ public partial class BossAttacks : RefCounted
         _attackHandlers[new StringName("ring_burst")] = Callable.From<Node2D>(HandleRingBurst);
     }
 
-    /// <summary>注入发射器与机体缩放（Boss._ready 调用；模式循环重置回调在 Boss 侧）。</summary>
-    public void Configure(GodotObject fire, float ws)
+    /// <summary>注入发射器与机体缩放（Boss._ready 调用；模式循环重置回调在 Boss 侧）。
+    /// V 系列：参数 typed（原 GodotObject 动态派发）。</summary>
+    public void Configure(BossFire fire, float ws)
     {
         _fire = fire;
         WorldScale = ws;
@@ -226,7 +227,8 @@ public partial class BossAttacks : RefCounted
             return;
         }
 
-        GameState.Instance.PlaySfx(tell.Sfx!, -8.0, tell.Pitch);
+        // V 系列：路径 StringName → GD.Load 命中资源缓存（不静态持有 AudioStream）
+        GameState.Instance.PlaySfx(GD.Load<AudioStream>(tell.Path!), -8.0, tell.Pitch);
         var ring = (Node2D)CinematicFx.Shockwave(
             new Godot.Collections.Dictionary
             {
@@ -257,15 +259,15 @@ public partial class BossAttacks : RefCounted
 
     private void HandleFan5(Node2D boss)
     {
-        _fire.Call(
-            "Fire_fan", boss, Mathf.Max(3, 5 + FanDelta),
+        _fire.FireFan(
+            boss, Mathf.Max(3, 5 + FanDelta),
             (float)boss.Get(PropFAN_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_FAN).AsInt64());
     }
 
     private void HandleFan7(Node2D boss)
     {
-        _fire.Call(
-            "Fire_fan", boss, Mathf.Max(3, 7 + FanDelta),
+        _fire.FireFan(
+            boss, Mathf.Max(3, 7 + FanDelta),
             (float)boss.Get(PropFAN_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_FAN).AsInt64());
     }
 
@@ -276,8 +278,8 @@ public partial class BossAttacks : RefCounted
     /// </summary>
     private void HandleRingBurst(Node2D boss)
     {
-        _fire.Call(
-            "Fire_ring", boss, Mathf.Max(6, RingDelta),
+        _fire.FireRing(
+            boss, Mathf.Max(6, RingDelta),
             (float)boss.Get(PropRING_BURST_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_RING).AsInt64(), 0.0f);
     }
 
@@ -288,8 +290,8 @@ public partial class BossAttacks : RefCounted
         var count = Mathf.Max(1, 1 + HomingDelta);
         for (var i = 0; i < count; i++)
         {
-            _fire.Call(
-                "Fire_homing", boss,
+            _fire.FireHoming(
+                boss,
                 new Vector2(((float)i - (float)(count - 1) * 0.5f) * 80.0f, 100.0f),
                 (float)boss.Get(PropHOMING_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_HOMING).AsInt64());
         }
@@ -299,8 +301,8 @@ public partial class BossAttacks : RefCounted
 
     private void HandleCross(Node2D boss)
     {
-        _fire.Call(
-            "Fire_cross", boss,
+        _fire.FireCross(
+            boss,
             (float)boss.Get(PropCROSS_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_CROSS).AsInt64());
     }
 
@@ -312,8 +314,8 @@ public partial class BossAttacks : RefCounted
 
     private void HandleBulletWall(Node2D boss)
     {
-        _fire.Call(
-            "Fire_bullet_wall", boss,
+        _fire.FireBulletWall(
+            boss,
             (int)boss.Get(PropWALL_COUNT).AsInt64(),
             (float)boss.Get(PropWALL_BULLET_SPEED).AsDouble(),
             (int)boss.Get(PropWALL_DAMAGE).AsInt64(),
@@ -363,8 +365,8 @@ public partial class BossAttacks : RefCounted
             {
                 _burstTimer = (float)boss.Get(PropSNIPER_BURST_INTERVAL).AsDouble(); // Q30：三连发间隔入库（原硬编码 0.12）
                 _burstLeft -= 1;
-                _fire.Call(
-                    "Fire_sniper", boss, _burstDir,
+                _fire.FireSniper(
+                    boss, _burstDir,
                     (float)boss.Get(PropSNIPER_BULLET_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNIPER).AsInt64());
                 if (_burstLeft == 0)
                 {
@@ -400,8 +402,8 @@ public partial class BossAttacks : RefCounted
                 _cannonTimer = (float)boss.Get(PropCANNON_INTERVAL).AsDouble();
                 _cannonShotsLeft -= 1;
                 _cannonFlashed = false;
-                _fire.Call(
-                    "Fire_heavy", boss, PlayerDir(boss),
+                _fire.FireHeavy(
+                    boss, PlayerDir(boss),
                     (float)boss.Get(PropCANNON_BULLET_SPEED).AsDouble(), (int)boss.Get(PropCANNON_DAMAGE).AsInt64());
             }
         }
@@ -772,8 +774,6 @@ public partial class BossAttacks : RefCounted
     public int homing_delta { get => HomingDelta; set => HomingDelta = value; }
 
     public int ring_delta { get => RingDelta; set => RingDelta = value; }
-
-    public void configure(GodotObject fire, float ws) => Configure(fire, ws);
 
     public void execute(StringName attack, Node2D boss) => Execute(attack, boss);
 

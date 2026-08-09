@@ -289,13 +289,9 @@ public partial class Bullet : Area2D
                 }
                 else
                 {
-                    // H05：dist==0 时保持原向（除零产生 inf/NaN 污染）
-                    if (dist <= 0.0f)
-                    {
-                        Direction = Vector2.Right;
-                        Rotation = Direction.Angle();
-                    }
-                    else
+                    // H05：dist==0 时保持原向（除零产生 inf/NaN 污染）。
+                    // V 系列：原实现置 Vector2.Right 为 90° 突变，与注释「保持原向」矛盾——改为不动 Direction
+                    if (dist > 0.0f)
                     {
                         // 距离越近转向越急：螺旋收敛
                         var rate = HomingTurnRate * (1.0f + HomingSnapRadius * 2.0f / dist);
@@ -341,14 +337,6 @@ public partial class Bullet : Area2D
     }
 
     /// <summary>物理回调内不能直改 monitoring，延迟到帧末；若已被重激活（同帧复用）则跳过。</summary>
-    private void _deferredDisableMonitoring()
-    {
-        if (!_active)
-        {
-            Monitoring = false;
-        }
-    }
-
     /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void _explode()
     {

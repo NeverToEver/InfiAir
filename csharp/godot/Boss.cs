@@ -388,17 +388,17 @@ public partial class Boss : Area2D
         MuzzleOffset = 100.0f * _ws;
         _fire.MuzzleOffset = MuzzleOffset;
         _fire.WorldScale = _ws;
-        // 注意：BossFire 为纯 C# 类（不可作 GodotObject 注入），BossAttacks/EnrageSequence 的
-        // Configure 收 GodotObject 发射器并经 Call("Fire_*") 动态派发——注入本类并转发（见下）。
-        _attacks.Configure(this, _ws);
-        _enrageSequence.Configure(this, _attacks, _ws);
+        // V 系列：Configure 参数已 typed（BossFire）——直调发射器，原「注入本类并转发」桥删除
+        _attacks.Configure(_fire, _ws);
+        _enrageSequence.Configure(_fire, _attacks, _ws);
         // 数值配置缓存（启动一次读入）
         EnterSpeed = (float)GameState.Instance.Cfg("boss.enter_speed", EnterSpeed).AsDouble();
         FightY = (float)GameState.Instance.Cfg("boss.fight_y", FightY).AsDouble();
         StrafeMinX = (float)GameState.Instance.Cfg("boss.strafe_min_x", StrafeMinX).AsDouble();
         StrafeMaxX = (float)GameState.Instance.Cfg("boss.strafe_max_x", StrafeMaxX).AsDouble();
-        Phase2HpRatio = (float)GameState.Instance.Cfg("boss.phase2_hp_ratio", Phase2HpRatio).AsDouble();
-        EnrageHpRatio = (float)GameState.Instance.Cfg("boss.enrage.hp_ratio", EnrageHpRatio).AsDouble();
+        // V 系列：阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害（Q02 同根因）
+        Phase2HpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.phase2_hp_ratio", Phase2HpRatio).AsDouble(), 0.01f, 0.99f);
+        EnrageHpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.enrage.hp_ratio", EnrageHpRatio).AsDouble(), 0.01f, 0.99f);
         EnrageRateMult = (float)GameState.Instance.Cfg("boss.enrage.rate_mult", EnrageRateMult).AsDouble();
         EnrageSpeedMult = (float)GameState.Instance.Cfg("boss.enrage.speed_mult", EnrageSpeedMult).AsDouble();
         EnragePlayerSlow = (float)GameState.Instance.Cfg("boss.enrage.player_slow", EnragePlayerSlow).AsDouble();
@@ -1715,10 +1715,8 @@ public partial class Boss : Area2D
 
     public bool is_escaped { get => IsEscaped; set => IsEscaped = value; }
 
-    // ---- BossFire 动态派发桥（M 批次过渡，M7 删除） ----
-    // BossAttacks/EnrageSequence 以 GodotObject._fire.Call("Fire_*") 动态派发注入的发射器；
-    // BossFire 为纯 C# 类（不可作 GodotObject 注入，Configure 参数为 GodotObject），由本类
-    // 代持这些 Fire_* 方法名并转发给真正的 BossFire 实例（组件注入的 fire = this）。
+    // ---- Fire_* 转发桥（V 系列：生产调用已 typed 直调 BossFire；保留供测试契约——
+    // HitLogicTest 经 Boss.Fire_* 触发发射，故签名与转发保留，仅注释更新） ----
     public void Fire_fan(Node2D boss, int pCount, float speed, int damage) => _fire.FireFan(boss, pCount, speed, damage);
 
     public void Fire_homing(Node2D boss, Vector2 pOffset, float speed, int damage) => _fire.FireHoming(boss, pOffset, speed, damage);

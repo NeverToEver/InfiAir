@@ -595,10 +595,8 @@ public partial class DawnStation : RefCounted
         return palette[key].AsColor();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：BaseConsole.cs（GD.Load<GDScript>("dawn_station.gd").Call("build", 1)，主代理接线后改 typed）、
-    // scripts/intro_cinematic.gd / scripts/return_cinematic.gd（DawnStation.build(...)/DawnStation.Mode.X/
-    // DawnStation.RING_RADIUS，本批次接线后改 typed 直调或 Get* 访问器）。
+    // ---------------- 鸭子调用兼容桥（M6 过渡，V 系列清理注释：调用方均已 typed） ----------------
+    // 调用方：BaseConsole.cs（已 typed 直调）——桥代码随 Boss 链 typed 化批次统一处理。
 
     public static Node2D build() => Build();
 

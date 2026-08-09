@@ -78,7 +78,8 @@ public partial class EnrageSequence : RefCounted
     private static readonly float[] StalkerPointAnglesDeg = { 0.0f, -90.0f, 180.0f, 90.0f, 0.0f, -90.0f };
 
     // ---- 注入：弹幕发射器 / 攻击状态机 / 机体缩放（Boss._ready 经 configure 传入） ----
-    private GodotObject _fire = null!;
+    // V 系列：typed（原 GodotObject 动态派发）
+    private BossFire _fire = null!;
     private BossAttacks _attacks = null!;
 
     /// <summary>机体缩放（configure 注入；小怪召唤偏移/环弹偏移共用）。</summary>
@@ -169,8 +170,8 @@ public partial class EnrageSequence : RefCounted
     /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
     public bool HasReleaseBeginHandler(int type) => _releaseBeginHandlers.ContainsKey(type);
 
-    /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。</summary>
-    public void Configure(GodotObject fire, BossAttacks attacks, float ws)
+    /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。V 系列：参数 typed。</summary>
+    public void Configure(BossFire fire, BossAttacks attacks, float ws)
     {
         _fire = fire;
         _attacks = attacks;
@@ -334,8 +335,8 @@ public partial class EnrageSequence : RefCounted
         if (_attackTimer <= 0.0f)
         {
             _attackTimer = (float)boss.Get(PropE1_RING_INTERVAL).AsDouble();
-            _fire.Call(
-                "Fire_ring", boss, (int)boss.Get(PropE1_RING_COUNT).AsInt64(),
+            _fire.FireRing(
+                boss, (int)boss.Get(PropE1_RING_COUNT).AsInt64(),
                 (float)boss.Get(PropE1_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), _ringAngle);
             _ringAngle += Mathf.DegToRad((float)boss.Get(PropE1_RING_PRECESSION_DEG).AsDouble());
             _attackIndex += 1;
@@ -361,8 +362,8 @@ public partial class EnrageSequence : RefCounted
             {
                 FreeAimLine();
                 _aimElapsed = -1.0f;
-                _fire.Call(
-                    "Fire_heavy", boss, _sniperDir,
+                _fire.FireHeavy(
+                    boss, _sniperDir,
                     (float)boss.Get(PropE2_SNIPER_SPEED).AsDouble(), (int)boss.Get(PropE2_SNIPER_DAMAGE).AsInt64());
             }
         }
@@ -390,8 +391,8 @@ public partial class EnrageSequence : RefCounted
         if (_attackTimer <= 0.0f)
         {
             _attackTimer = (float)boss.Get(PropE3_RING_INTERVAL).AsDouble();
-            _fire.Call(
-                "Fire_ring", boss, (int)boss.Get(PropE3_RING_COUNT).AsInt64(),
+            _fire.FireRing(
+                boss, (int)boss.Get(PropE3_RING_COUNT).AsInt64(),
                 (float)boss.Get(PropE3_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
             _attackIndex += 1;
         }
@@ -423,11 +424,11 @@ public partial class EnrageSequence : RefCounted
         {
             _attackTimer = (float)boss.Get(PropE4_RING_INTERVAL).AsDouble();
             var angle = Mathf.DegToRad((float)boss.Get(PropE4_PRECESSION_DEG).AsDouble()) * _attackIndex;
-            _fire.Call(
-                "Fire_ring", boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
+            _fire.FireRing(
+                boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
                 (float)boss.Get(PropE4_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), angle);
-            _fire.Call(
-                "Fire_ring", boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
+            _fire.FireRing(
+                boss, (int)boss.Get(PropE4_RING_COUNT).AsInt64(),
                 (float)boss.Get(PropE4_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), -angle);
             _attackIndex += 1;
         }
@@ -441,8 +442,8 @@ public partial class EnrageSequence : RefCounted
     /// <summary>4 型「月蚀」释放起手——蓄力环阵（20 向快慢双环）。</summary>
     private void ReleaseBeginEclipse(Node2D boss)
     {
-        _fire.Call(
-            "Fire_ring", boss, (int)boss.Get(PropE4_RELEASE_RING_COUNT).AsInt64(),
+        _fire.FireRing(
+            boss, (int)boss.Get(PropE4_RELEASE_RING_COUNT).AsInt64(),
             (float)boss.Get(PropE4_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
     }
 
@@ -611,8 +612,8 @@ public partial class EnrageSequence : RefCounted
         {
             _attackTimer = (float)boss.Get(PropENRAGE_ATTACK_INTERVAL).AsDouble();
             _attackIndex += 1;
-            _fire.Call(
-                "Fire_enrage_wave", boss,
+            _fire.FireEnrageWave(
+                boss,
                 (float)boss.Get(PropENRAGE_LASER_SPEED).AsDouble(),
                 (float)boss.Get(PropENRAGE_RING_SPEED).AsDouble(),
                 (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_LASER).AsInt64(),
@@ -635,8 +636,8 @@ public partial class EnrageSequence : RefCounted
                 for (var i = 0; i < count; i++)
                 {
                     var dir = Vector2.Right.Rotated(Mathf.Tau * (float)i / (float)count);
-                    _fire.Call(
-                        "Fire_heavy", boss, dir,
+                    _fire.FireHeavy(
+                        boss, dir,
                         (float)boss.Get(PropE1_SALVO_SPEED).AsDouble(), (int)boss.Get(PropE1_SALVO_DAMAGE).AsInt64());
                 }
             }
@@ -652,8 +653,8 @@ public partial class EnrageSequence : RefCounted
         if (!_releaseSalvoDone && t >= 0.5f)
         {
             _releaseSalvoDone = true;
-            _fire.Call(
-                "Fire_ring", boss, (int)boss.Get(PropE2_RELEASE_RING_COUNT).AsInt64(),
+            _fire.FireRing(
+                boss, (int)boss.Get(PropE2_RELEASE_RING_COUNT).AsInt64(),
                 (float)boss.Get(PropE2_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
         }
     }
@@ -670,8 +671,8 @@ public partial class EnrageSequence : RefCounted
         if (_attackTimer <= 0.0f)
         {
             _attackTimer = (float)boss.Get(PropENRAGE_RELEASE_INTERVAL).AsDouble();
-            _fire.Call(
-                "Fire_enrage_wave", boss,
+            _fire.FireEnrageWave(
+                boss,
                 (float)boss.Get(PropENRAGE_RELEASE_LASER_SPEED).AsDouble(),
                 (float)boss.Get(PropENRAGE_RELEASE_RING_SPEED).AsDouble(),
                 (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_LASER).AsInt64(),
@@ -695,18 +696,16 @@ public partial class EnrageSequence : RefCounted
     /// <summary>A3：3 型释放起手——16 向环弹 + 全部在场小怪齐射（§5.4 峰值一次性结算）。</summary>
     private void ReleaseBeginHive(Node2D boss)
     {
-        _fire.Call(
-            "Fire_ring", boss, (int)boss.Get(PropE3_RELEASE_RING_COUNT).AsInt64(),
+        _fire.FireRing(
+            boss, (int)boss.Get(PropE3_RELEASE_RING_COUNT).AsInt64(),
             (float)boss.Get(PropE3_RELEASE_RING_SPEED).AsDouble(), (int)boss.Get(PropBULLET_DAMAGE_SNAPSHOT_RING).AsInt64(), 0.0f);
         HiveVolleyAllMinions(boss);
     }
 
     // ---------------- GDScript 鸭子调用兼容桥（M 批次过渡，M7 删除） ----------------
-    // 原公开 var/方法的 snake_case 别名（C# 内部调用一律 PascalCase；M7 全量迁移后删除本段）。
+    // 原公开 var/方法的 snake_case 别名（C# 内部调用一律 PascalCase；V 系列清理 configure 桥——无调用方）。
 
     public float world_scale { get => WorldScale; set => WorldScale = value; }
-
-    public void configure(GodotObject fire, BossAttacks attacks, float ws) => Configure(fire, attacks, ws);
 
     public bool is_active() => IsActive();
 

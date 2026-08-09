@@ -83,11 +83,24 @@ public partial class GameEventManager : Node
 
     // ---------------- 运行时状态 ----------------
 
+    /// <summary>V 系列：空 StringName 复用（原多处 `new StringName()` 每帧构造，native 引用计数分配）。</summary>
+    private static readonly StringName EmptyId = new();
+
+    /// <summary>V 系列：遭遇配置解析缓存（注册时固化 interval/chance/min_score，消除
+    /// TickEncounterTriggers 每帧空字典分配 + 3 次 AsGodotDictionary + 装箱）。</summary>
+    private sealed record EncounterCfg(float Interval, float Chance, int MinScore);
+
+    private readonly Dictionary<StringName, EncounterCfg> _encounterCfg = new();
+
+    /// <summary>V 系列：遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
+    /// 消除 Poll/Tick 每帧 Callable.Call 动态派发；IsInstanceValid 校验防场景重载后死节点）。</summary>
+    private readonly Dictionary<StringName, Node> _encounterInstance = new();
+
     private bool _runActive;
     /// <summary>迷雾组是否已接线（GameState 在迷雾门面 wire() 时开启；未接线则本组完全惰性，
     /// 保证分阶段迁移期间与旧 FogEventManager 驱动不重叠）。</summary>
     private bool _fogWired;
-    private StringName _fogActiveId = new StringName();
+    private StringName _fogActiveId = EmptyId;
     private GameEvent? _fogActiveEvent;
     private Godot.Timer? _fogTimer;
     private float _fogCooldownLeft;
@@ -102,7 +115,7 @@ public partial class GameEventManager : Node
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
     private readonly Godot.Collections.Dictionary _encounterEndPending = new();
     /// <summary>当前激活的遭遇事件 id（无则空）。</summary>
-    private StringName _encounterActiveId = new StringName();
+    private StringName _encounterActiveId = EmptyId;
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，A5 依赖注入延续）。</summary>
     /// <summary>遭遇触发门控注入（U14：typed 化，消除每帧 HasMethod/Call）。</summary>
     private Spawner? _spawner;
@@ -214,10 +227,17 @@ public partial class GameEventManager : Node
             _encounterOrder.Add(pId);
         }
 
+        // V 系列：配置与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配）
+        var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
+        var dict = cfg.AsGodotDictionary();
+        _encounterCfg[pId] = new EncounterCfg(
+            Interval: Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f),
+            Chance: (float)dict.GetValueOrDefault("chance", 0.3).AsDouble(),
+            MinScore: (int)dict.GetValueOrDefault("min_score", 0).AsInt64());
+        _encounterInstance[pId] = pEvent;
         if (!_encounterTimers.ContainsKey(pId))
         {
-            var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
-            _encounterTimers[pId] = Mathf.Max((float)cfg.AsGodotDictionary().GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
+            _encounterTimers[pId] = _encounterCfg[pId].Interval;
         }
     }
 
@@ -261,7 +281,7 @@ public partial class GameEventManager : Node
             return _encounterActiveId;
         }
 
-        return new StringName();
+        return EmptyId;
     }
 
     /// <summary>指定分组当前激活事件对象（无则 null）。</summary>
@@ -289,7 +309,7 @@ public partial class GameEventManager : Node
             return _fogWired
                 && FOG_ENABLED
                 && _runActive
-                && _fogActiveId == new StringName()
+                && _fogActiveId == EmptyId
                 && _fogFirstDelayLeft <= 0.0f
                 && _fogCooldownLeft <= 0.0f;
         }
@@ -313,7 +333,7 @@ public partial class GameEventManager : Node
             }
 
             var id = PickFogId();
-            if (id == new StringName())
+            if (id == EmptyId)
             {
                 return false; // 空注册表防御
             }
@@ -336,7 +356,7 @@ public partial class GameEventManager : Node
         if (GroupOf(pId) == GroupFog)
         {
             // 迷雾组未接线（分阶段迁移期间）或已有进行中事件 → 拒触发
-            if (!_fogWired || _fogActiveId != new StringName())
+            if (!_fogWired || _fogActiveId != EmptyId)
             {
                 return false;
             }
@@ -347,7 +367,7 @@ public partial class GameEventManager : Node
         if (GroupOf(pId) == GroupEncounter)
         {
             // 遭遇组单事件并发（含手动 start 兜底登记，_encounter_active_id 为准）
-            if (_encounterActiveId != new StringName())
+            if (_encounterActiveId != EmptyId)
             {
                 return false;
             }
@@ -377,7 +397,7 @@ public partial class GameEventManager : Node
         else if (pGroup == GroupEncounter)
         {
             var id = _encounterActiveId;
-            if (id == new StringName())
+            if (id == EmptyId)
             {
                 return;
             }
@@ -388,7 +408,7 @@ public partial class GameEventManager : Node
                 enc.Abort();
             }
 
-            _encounterActiveId = new StringName();
+            _encounterActiveId = EmptyId;
             // Q13（2026-08-05）：event_ended 统一由轮询在 FSM 回 IDLE 后发——
             // 原实现此处即发 + 轮询再发 = 双发且第二次发在事件仍活跃时；
             // 同步回 IDLE 则本处补发，异步则记 pending 由轮询补发
@@ -451,7 +471,7 @@ public partial class GameEventManager : Node
         // fog 组（未接线前惰性，避免与旧 FogEventManager 双驱动）
         if (_fogWired)
         {
-            if (_fogActiveId != new StringName())
+            if (_fogActiveId != EmptyId)
             {
                 // 事件进行中：逐帧驱动事件自持效果（duration 计时由 _fog_timer 负责；
                 // 运行中事件不受 enabled 总开关关闭影响，跑完自然结束）
@@ -514,20 +534,26 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(id, new Godot.Collections.Dictionary());
-            var minScore = (int)cfg.AsGodotDictionary().GetValueOrDefault("min_score", 0).AsInt64();
+            // V 系列：注册时固化配置缓存（原每帧 ENCOUNTER_CONFIG.GetValueOrDefault + AsGodotDictionary 分配）
+            var cfg = _encounterCfg.GetValueOrDefault(id);
+            if (cfg == null)
+            {
+                continue;
+            }
+
+            var minScore = cfg.MinScore;
             if (score < minScore)
             {
                 continue; // 分数门槛未过：计时不推进（镜像 ScheduledEventTrigger）
             }
 
-            var interval = Mathf.Max((float)cfg.AsGodotDictionary().GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
+            var interval = cfg.Interval;
             var timer = (float)_encounterTimers.GetValueOrDefault(id, interval).AsDouble();
             timer -= delta;
             if (timer <= 0.0f)
             {
                 _encounterTimers[id] = interval;
-                if (GD.Randf() < (float)cfg.AsGodotDictionary().GetValueOrDefault("chance", 0.3).AsDouble())
+                if (GD.Randf() < cfg.Chance)
                 {
                     StartEncounter(id, enc);
                 }
@@ -597,15 +623,15 @@ public partial class GameEventManager : Node
             if (_encounterEndPending.ContainsKey(id) && !active)
             {
                 _encounterEndPending.Remove(id);
-                _encounterActiveId = new StringName();
+                _encounterActiveId = EmptyId;
                 EmitSignal(SignalName.EventEnded, id);
             }
             else if (_encounterActiveId == id && !active)
             {
-                _encounterActiveId = new StringName();
+                _encounterActiveId = EmptyId;
                 EmitSignal(SignalName.EventEnded, id);
             }
-            else if (active && _encounterActiveId == new StringName())
+            else if (active && _encounterActiveId == EmptyId)
             {
                 _encounterActiveId = id; // 手动 start 兜底登记
             }
@@ -628,7 +654,7 @@ public partial class GameEventManager : Node
 
         if (ids.Count == 0)
         {
-            return new StringName(); // 空注册表防御
+            return EmptyId; // 空注册表防御
         }
 
         var total = 0.0f;
@@ -671,7 +697,7 @@ public partial class GameEventManager : Node
         var ev = evRaw.VariantType == Variant.Type.Object ? evRaw.AsGodotObject() as GameEvent : null;
         if (ev == null)
         {
-            _fogActiveId = new StringName();
+            _fogActiveId = EmptyId;
             return false;
         }
 
@@ -707,12 +733,12 @@ public partial class GameEventManager : Node
     private void EndFog()
     {
         var id = _fogActiveId;
-        if (id == new StringName())
+        if (id == EmptyId)
         {
             return; // 防御：重复结束（timer 回调 + 外部 end_active 竞态）
         }
 
-        _fogActiveId = new StringName();
+        _fogActiveId = EmptyId;
         if (_fogTimer != null && GodotObject.IsInstanceValid(_fogTimer))
         {
             _fogTimer.Stop();
@@ -736,6 +762,12 @@ public partial class GameEventManager : Node
     /// <summary>注册表工厂取已注册实例（遭遇缓存单例；fog 事件返回新实例——仅 _event_for 用）。</summary>
     private Node? EventFor(StringName pId)
     {
+        // V 系列：注册实例缓存优先（零动态派发；场景重载后旧实例失效 → fallback 工厂）
+        if (_encounterInstance.TryGetValue(pId, out var cached) && GodotObject.IsInstanceValid(cached))
+        {
+            return cached;
+        }
+
         var factory = EVENT_FACTORIES.GetValueOrDefault(pId, new Variant());
         if (factory.VariantType == Variant.Type.Callable)
         {

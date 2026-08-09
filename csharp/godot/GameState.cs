@@ -149,9 +149,8 @@ public partial class GameState : Node
     /// （原 GDScript 经脚本资源实例化）。</summary>
     private readonly BalanceService _balanceService = new();
 
-    /// <summary>SaveManager 仍为 GDScript 薄壳（scripts/save_manager.gd → C# SaveStoreInterop，
-    /// 测试直接实例化该壳）——动态实例化保持语义等价，壳迁 C# 后改 typed。</summary>
-    private readonly SaveManager _saveManager = new(); // M7：SaveManager 迁 C#，typed
+    /// <summary>V 系列（U19 注释失实清理）：M7 已 typed 直调（原「GDScript 薄壳」描述删除）。</summary>
+    private readonly SaveManager _saveManager = new();
 
     private readonly SfxPlayer _sfxPlayer = new();
 
@@ -167,9 +166,8 @@ public partial class GameState : Node
     /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd</summary>
     private readonly GameEventManager _events = new();
 
-    /// <summary>2026-08-04 账户系统：本地用户数据库（UserDB 仍为 GDScript 薄壳，
-    /// scripts/user_db.gd → C# UserDbInterop；测试直接实例化该壳）——动态实例化保持等价。</summary>
-    private readonly UserDB _userDb = new(); // M7：UserDB 迁 C#，typed
+    /// <summary>2026-08-04 账户系统：本地用户数据库（M7 已 typed 直调；原「GDScript 薄壳」描述删除）。</summary>
+    private readonly UserDB _userDb = new();
 
     /// <summary>2026-08-07：进程曲线 C# 桥（ProgressionInterop → InfiAir.Core.Progression 纯函数）——
     /// milestone_threshold / _recompute_difficulty / apply_run_save 批量推进转发，语义逐位等价</summary>
@@ -367,9 +365,8 @@ public partial class GameState : Node
     /// <summary>进基地发放刷新点数（balance.json base_task.grant_per_visit 覆盖；≥0 钳制）。</summary>
     public int GRANT_PER_VISIT { get; set; } = 1;
 
-    /// <summary>任务池实例（_init_missions 重建，保证每次对局从全新洗牌序列开始）。
-    /// 仍为 GDScript 薄壳（scripts/task_pool.gd → C# TaskPoolInterop）。</summary>
-    private TaskPool? _taskPool; // U13：typed（原 GodotObject? 动态派发）
+    /// <summary>任务池实例（_init_missions 重建，保证每次对局从全新洗牌序列开始；M7 已 typed）。</summary>
+    private TaskPool? _taskPool;
 
     /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
     private readonly Godot.Collections.Dictionary _missionsByKind = new();
@@ -2726,20 +2723,6 @@ public partial class GameState : Node
 
     public static Godot.Collections.Dictionary GetRouteLines() => BuildRouteLines();
 
-    public static AudioStream GetSfxExplosion() => GD.Load<AudioStream>("res://assets/audio/explosion.wav");
-
-    public static AudioStream GetSfxExplosionBig() => GD.Load<AudioStream>("res://assets/audio/explosion_big.wav");
-
-    public static AudioStream GetSfxPlayerHit() => GD.Load<AudioStream>("res://assets/audio/player_hit.wav");
-
-    public static AudioStream GetSfxBuffPick() => GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
-
-    public static AudioStream GetSfxDash() => GD.Load<AudioStream>("res://assets/audio/dash.wav");
-
-    public static AudioStream GetSfxResupply() => GD.Load<AudioStream>("res://assets/audio/resupply.wav");
-
-    public static AudioStream GetSfxHeartbeat() => GD.Load<AudioStream>("res://assets/audio/heartbeat.wav");
-
     public static int GetSfxPoolSize() => SfxPoolSizeValue;
 
     public static int GetPersistVersion() => PersistVersionValue;
@@ -2851,9 +2834,7 @@ public partial class GameState : Node
         new StringName("parry"),
     };
 
-    // ---------------- GDScript 鸭子调用兼容桥（M7 过渡，删除前） ----------------
-    // 调用方：63 个 GDScript 测试（test/*.gd 的 GameState.xxx）+ csharp/godot/*.cs
-    // 桥属性（snake → PascalCase）：
+    // ---------------- snake → PascalCase 桥属性（M7d 后保留：测试契约与历史调用名） ----------------
 
 
 }

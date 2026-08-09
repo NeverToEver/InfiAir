@@ -244,28 +244,6 @@ public partial class BossFire : RefCounted
         return pool?.Fire(dir, speed, damage, false);
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M3 过渡，M7 删除） ----------------
-    // GDScript 调用方经动态派发以 snake_case 访问 C# 类；迁移期 Boss/BossAttacks/EnrageSequence
-    // 仍为 GDScript，故保留 snake_case 别名转发（C# 内部调用一律 PascalCase）。
-    // M7 全量迁移后删除本段。
-
-    public float muzzle_offset { get => MuzzleOffset; set => MuzzleOffset = value; }
-
-    public float world_scale { get => WorldScale; set => WorldScale = value; }
-
-
-
-
-
-
-
-    public void fire_ring(Node2D boss, int p_count, float p_speed, int p_damage, float p_offset)
-        => FireRing(boss, p_count, p_speed, p_damage, p_offset);
-
-    public void fire_enrage_wave(
-        Node2D boss, float laser_speed, float ring_speed, int laser_damage, int ring_damage, int laser_count, int ring_count)
-        => FireEnrageWave(boss, laser_speed, ring_speed, laser_damage, ring_damage, laser_count, ring_count);
-
-    public void fire_bullet_wall(Node2D boss, int count, float speed, int damage, float arc_deg)
-        => FireBulletWall(boss, count, speed, damage, arc_deg);
+    // V 系列：snake 桥删除（M3 过渡段）——全仓已 typed，无动态调用方；
+    // Boss.cs 的 Fire_* 转发桥为测试契约保留。
 }

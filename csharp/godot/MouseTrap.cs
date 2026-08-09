@@ -146,9 +146,7 @@ public partial class MouseTrap : Node
         return knownPos.Clamp(Vector2.One, (Vector2)(winSize - Vector2I.One));
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M5 过渡，M7 删除） ----------------
-    // mouse_lock_test 经 preload("res://scripts/mouse_trap.gd") 调用静态纯函数 warp_target/
-    // trap_enabled——改 preload 为 res://csharp/godot/MouseTrap.cs 后经同名静态 snake 桥调用。
+    // ---------------- snake → PascalCase 静态桥（M5 过渡；V 系列清理注释：测试已直调 PascalCase） ----------------
 
 
 }

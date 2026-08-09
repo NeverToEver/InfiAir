@@ -22,9 +22,6 @@ public partial class PlayerBuffVisuals : Node2D
     private static readonly Color ColorSteel = new(0.5f, 0.65f, 0.75f);
     /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
     public const float BaseShipScale = 0.65f;
-    /// <summary>跨语言访问器（GDScript 不能经脚本资源读 C# 常量——实测，静态方法可调；
-    /// player.gd 原 `PlayerBuffVisuals.BASE_SHIP_SCALE` 调用点迁 C# 后改直读常量）。</summary>
-    public static float GetBaseShipScale() => BaseShipScale;
     /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双 buff 时色相自然混合。</summary>
     private static readonly Color TintEfficient = new(0.75f, 1.1f, 0.85f);
     private static readonly Color TintRecovery = new(1.15f, 1.05f, 0.75f);
