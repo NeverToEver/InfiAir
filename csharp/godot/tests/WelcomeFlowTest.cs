@@ -186,6 +186,12 @@ public partial class WelcomeFlowTest : Node
             _welcome.CloseLeaderboard();
             Check(!_welcome.LeaderboardOverlay().Visible, "× 关闭排行榜 overlay");
 
+            // 7b. 研究所 overlay（登录用户）：打开 → ESC 关闭（be40e28 新增层缺失 ESC 分支的回归闸）
+            _welcome.PressLab();
+            Check(_welcome.LabOverlay().Visible, "研究所 overlay 打开");
+            await PressEsc();
+            Check(!_welcome.LabOverlay().Visible, "ESC 关闭研究所 overlay");
+
             // 8. 游客流程：确认框（B7-6 统一走确认；B7-5 默认焦点返回）
             gs.LogoutUser();
             _welcome.QueueFree(); // 释放旧实例（Q09 修复：残留实例的 SettingsUI 抢占 group，press_settings 命中错误节点）

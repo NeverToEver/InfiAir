@@ -764,6 +764,10 @@ public partial class Welcome : CanvasLayer
             {
                 CloseLeaderboard();
             }
+            else if (_labOverlay.Visible)
+            {
+                OnCloseLab();
+            }
             else if (_guestConfirm.Layer.Visible)
             {
                 CloseModalRef(_guestConfirm);
@@ -929,6 +933,8 @@ public partial class Welcome : CanvasLayer
     public bool MainZoneVisible() => _stage == Stage.Main;
 
     public CanvasLayer LeaderboardOverlay() => _leaderboardOverlay;
+
+    public CanvasLayer LabOverlay() => _labOverlay;
 
     public CanvasLayer GuestConfirm() => _guestConfirm.Layer;
 
