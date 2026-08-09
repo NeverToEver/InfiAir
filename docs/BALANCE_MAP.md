@@ -297,19 +297,19 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 132 | `fog_events.enabled` | `FOG_ENABLED` |
-| 133 | `fog_events.trigger_chance` | `FOG_TRIGGER_CHANCE` |
-| 136 | `fog_events.check_interval` | `FOG_CHECK_INTERVAL` |
-| 137 | `fog_events.min_interval` | `FOG_MIN_INTERVAL` |
-| 138 | `fog_events.first_delay` | `FOG_FIRST_DELAY` |
-| 139 | `fog_events.weights` | `FOG_WEIGHTS` |
-| 145 | `fog_events.durations` | `FOG_EVENT_DURATIONS` |
-| 156 | `elite_turret_event.trigger_interval` | `45.0` |
-| 158 | `elite_turret_event.trigger_chance` | `0.35` |
-| 159 | `elite_turret_event.min_score` | `800` |
-| 164 | `formation_strike_event.trigger_interval` | `40.0` |
-| 166 | `formation_strike_event.trigger_chance` | `0.30` |
-| 167 | `formation_strike_event.min_score` | `500` |
+| 131 | `fog_events.enabled` | `FOG_ENABLED` |
+| 132 | `fog_events.trigger_chance` | `FOG_TRIGGER_CHANCE` |
+| 135 | `fog_events.check_interval` | `FOG_CHECK_INTERVAL` |
+| 136 | `fog_events.min_interval` | `FOG_MIN_INTERVAL` |
+| 137 | `fog_events.first_delay` | `FOG_FIRST_DELAY` |
+| 138 | `fog_events.weights` | `FOG_WEIGHTS` |
+| 144 | `fog_events.durations` | `FOG_EVENT_DURATIONS` |
+| 155 | `elite_turret_event.trigger_interval` | `45.0` |
+| 157 | `elite_turret_event.trigger_chance` | `0.35` |
+| 158 | `elite_turret_event.min_score` | `800` |
+| 163 | `formation_strike_event.trigger_interval` | `40.0` |
+| 165 | `formation_strike_event.trigger_chance` | `0.30` |
+| 166 | `formation_strike_event.min_score` | `500` |
 
 ### `csharp/godot/GameState.cs`
 
