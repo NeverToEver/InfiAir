@@ -9,7 +9,8 @@ namespace InfiAir;
 /// </summary>
 public partial class BulletPool : Node
 {
-    private static readonly PackedScene BulletScene = GD.Load<PackedScene>("res://scenes/bullet.tscn");
+    // V 系列：静态 PackedScene 持有 → 实例字段（禁静态持 Godot RefCounted）
+    private readonly PackedScene BulletScene = GD.Load<PackedScene>("res://scenes/bullet.tscn");
 
     /// <summary>P2-3：同屏敌弹显式硬上限（仅限制敌弹，玩家火力不受限）。</summary>
     public const int MaxEnemyActive = 500;

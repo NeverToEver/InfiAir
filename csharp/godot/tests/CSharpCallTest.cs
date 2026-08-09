@@ -41,17 +41,14 @@ public partial class CSharpCallTest : Node
 
             // 动态派发：PascalCase 方法名 + 参数 + 返回值（跨语言唯一可靠通道）
             sf!.Warp(12.0f);
-            Check(sf!.Origin() == sf!.Origin(), "Origin() 返回 Vector2");
-            Check(sf!.AreaSize() == sf!.AreaSize(), "AreaSize() 返回 Vector2");
+            // V 系列：原恒真断言（自身比较）无验证价值——改断言具体值（未入树时取字段默认值）
+            Check(sf!.Origin() == Vector2.Zero, "Origin() 动态返回 Vector2（未入树默认 Zero）");
+            Check(sf!.AreaSize() == new Vector2(1920.0f, 1080.0f), "AreaSize() 动态返回 Vector2（未入树默认 1920×1080）");
             Check(sf!.WarpFactor == 12.0f, "C# 属性 getter 动态读取（WarpFactor）");
             Check(Starfield.StaticProbe() == 42, "C# 静态方法经实例调用");
             Check(script!.Call("StaticProbe").AsInt32() == 42, "C# 静态方法经脚本资源调用");
-
-            // 重载注册探针（可选参数方法不注册——实测）
-            var ovOk = true;
-            sf.Call("ProbeOverload", 1.0);
-            sf.Call("ProbeOverload", 1.0, true);
-            Check(ovOk, "C# 重载方法可调（2 种签名）");
+            // V 系列：U17 已删 ProbeOverload（可选参数方法不注册引擎），重载注册探针随之移除；
+            // 方法加载/调用验证由 starfield_cs_test 的 AddChild+_Ready+view 对照承担
         }
         catch (System.Exception e)
         {

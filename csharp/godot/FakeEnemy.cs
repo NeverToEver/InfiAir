@@ -13,7 +13,8 @@ namespace InfiAir;
 /// </summary>
 public partial class FakeEnemy : Node2D
 {
-    private static readonly Texture2D[] FakeTextures =
+    // V 系列：静态 Texture2D 持有 → 实例字段（禁静态持 Godot RefCounted；事件实例化时惰性加载）
+    private readonly Texture2D[] FakeTextures =
     {
         GD.Load<Texture2D>("res://assets/sprites/enemy_ship_1.png"),
         GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png"),

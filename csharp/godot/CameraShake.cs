@@ -7,7 +7,8 @@ namespace InfiAir;
 /// GameState.screen_shake 信号，随机偏移 + 指数衰减。process_mode 需为 Always
 /// （场景文件中设置），保证暂停时震动也能衰减结束。
 /// 迁移期：GameState 为 GDScript autoload，signal 经 Connect("ScreenShake") 连接
-/// （C# 调 GDScript 信号为 snake_case 名；C22 is_connected 守卫保持）。
+/// （C22 is_connected 守卫保持）。V 系列：信号声明 double、监听 float 类型不一致
+/// （U16 已统一 PlayerDamaged 为 float，此信号低频无精度压力）——监听侧适配 double。
 /// </summary>
 public partial class CameraShake : Camera2D
 {
@@ -17,7 +18,7 @@ public partial class CameraShake : Camera2D
 
     public CameraShake()
     {
-        _onShake = Callable.From<float>(OnScreenShake);
+        _onShake = Callable.From<double>(OnScreenShake);
     }
 
     public override void _Ready()
@@ -55,8 +56,8 @@ public partial class CameraShake : Camera2D
         }
     }
 
-    private void OnScreenShake(float strength)
+    private void OnScreenShake(double strength)
     {
-        _strength = Mathf.Max(_strength, strength);
+        _strength = Mathf.Max(_strength, (float)strength);
     }
 }

@@ -26,6 +26,9 @@ public sealed class UserDb
     public const int LeaderboardCap = 10;
     public const int PlayerNameMax = 32;
     public const long Pbkdf2Iterations = 50_000;
+    /// <summary>V 系列：迭代数防御性上限（正常 50k 的 20 倍）——手改 users.json iterations 为巨值
+    /// 会单线程挂死登录（10^11 次 HMAC），钳制后派生必然失败 → 登录拒绝而非冻结。</summary>
+    public const long MaxPbkdf2Iterations = 1_000_000;
     public static readonly string[] ReservedNames = ["_leaderboard", "Guest"];
 
     private readonly SaveStore _store = new();
@@ -91,7 +94,7 @@ public sealed class UserDb
         }
 
         var salt = HexDecode(ToStringSafe(rec.GetValueOrDefault("salt", "")));
-        var iter = ToInt64(rec.GetValueOrDefault("iterations", fallbackIterations));
+        var iter = Math.Clamp(ToInt64(rec.GetValueOrDefault("iterations", fallbackIterations)), 1, MaxPbkdf2Iterations);
         var derived = Derive(password, salt, iter);
         // 常量时间比对（B4）：不区分「用户不存在」与「密码错误」，此处统一 false
         var stored = HexDecode(ToStringSafe(rec.GetValueOrDefault("password", "")));
@@ -477,8 +480,14 @@ public sealed class UserDb
                 return 0;
             }
 
-            var hv = long.Parse(hex[..hexEnd], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            return neg ? -hv : hv;
+            // V 系列：超长十六进制溢出抛 OverflowException 违背「防御性收敛」头注契约（U15 引入回归）——
+            // 手改 users.json 数值字段为超长数字须静默回 0（原 TryParse 语义），不中断登录/榜单流程。
+            if (!long.TryParse(hex[..hexEnd], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hval))
+            {
+                return 0;
+            }
+
+            return neg ? -hval : hval;
         }
 
         var start = i;
@@ -492,7 +501,12 @@ public sealed class UserDb
             return 0;
         }
 
-        var val = long.Parse(s[start..i], CultureInfo.InvariantCulture);
+        // V 系列：同十六进制路径——十进制超长数字溢出回 0（TryParse 语义，不中断流程）
+        if (!long.TryParse(s[start..i], NumberStyles.None, CultureInfo.InvariantCulture, out var val))
+        {
+            return 0;
+        }
+
         return neg ? -val : val;
     }
 

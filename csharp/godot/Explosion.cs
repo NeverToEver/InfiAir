@@ -65,16 +65,21 @@ public partial class Explosion : GpuParticles2D
             e._pooled = Pool.Count < _poolCap;
             parent.AddChild(e);
         }
-        else if (e.GetParent() != parent)
+        else
         {
-            e.Reparent(parent);
+            if (e.GetParent() != parent)
+            {
+                e.Reparent(parent);
+            }
+
+            // V 系列（2026-08-09）：U16 复位计数原在 if/else 之外无条件执行——fresh 分支
+            // AddChild 后 _Ready 已 ++（U16 前双计数 +1 残留，LiveCount() 永久偏高），
+            // 移入池取分支：复用弹不触发 _Ready，在此补计数与 _settled 复位。
+            e._settled = false;
+            _liveCount++;
         }
 
         e.Position = pos;
-        // U16：池化复用复位计数——_settled 仅 _Ready（每实例一次）置 false，复用弹
-        // 第二个生命周期起 _liveCount 不再增减（LiveCount() 系统性低估，MetaHUD 亮度代理失真）
-        e._settled = false;
-        _liveCount++; // 静态活跃计数（全实例共享）
         // effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
         if (_visualScale < 0.0f)
         {

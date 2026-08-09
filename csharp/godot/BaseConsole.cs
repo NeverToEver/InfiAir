@@ -9,9 +9,8 @@ namespace InfiAir;
 /// 视觉为「虚影皮肤」（docs/RETURN_HOME_CINEMATIC.md §3）：虚影站背景层 + 全息面板，
 /// 全部信号/回调/GameState 数据接口零改动。
 /// M5 全量迁移（2026-08-08 自 scripts/base_console.gd）：CanvasLayer 子类；
-/// DawnStation 静态工厂经 GDScript 资源调用；UITheme/ChamferedPanel 为 C# typed 直调。
-/// 注：原 GDScript signal resume_requested 迁移为 C# [Signal] ResumeRequested——
-/// main.gd/tutorial.gd 连接处需改连 PascalCase 名（主代理集中处理）。
+/// DawnStation 静态工厂 typed 直调；UITheme/ChamferedPanel 为 C# typed 直调。
+/// 注：原 GDScript signal resume_requested 迁移为 C# [Signal] ResumeRequested。
 /// </summary>
 public partial class BaseConsole : CanvasLayer
 {
@@ -109,8 +108,6 @@ public partial class BaseConsole : CanvasLayer
         }
 
         var dim = new ColorRect { Color = UITheme.PhantomBg };
-        dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(dim);
         dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(dim);
 

@@ -14,9 +14,11 @@ namespace InfiAir;
 public partial class Main : Node2D
 {
     private const string BgmPath = "res://assets/audio/bgm_loop.wav";
-    private static readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
-    private static readonly PackedScene IntroScene = GD.Load<PackedScene>("res://scenes/intro_cinematic.tscn");
-    private static readonly PackedScene ReturnScene = GD.Load<PackedScene>("res://scenes/return_cinematic.tscn");
+    // V 系列：静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
+    // 改实例字段——Main 每局重建实例，加载命中资源缓存。
+    private readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
+    private readonly PackedScene IntroScene = GD.Load<PackedScene>("res://scenes/intro_cinematic.tscn");
+    private readonly PackedScene ReturnScene = GD.Load<PackedScene>("res://scenes/return_cinematic.tscn");
     public float DOCK_CHARGE_TIME { get; set; } = 3.0f;
     public float HOME_CHARGE_TIME { get; set; } = 1.5f;
     public float GIVE_UP_HOLD_TIME { get; set; } = 3.0f;
@@ -687,6 +689,9 @@ public partial class Main : Node2D
         }
 
         GameState.Instance.ApplyRunSave(data);
+        // V 系列：续局同样重开死亡回放录制——原 OnContinueRun 无 Begin()，读档续局的
+        // 死亡回放播的是上一次 Begin 的旧缓冲（旧死因画面）且本局不再录制（P2-1）
+        _replay.Begin();
         var fuelV = data.GetValueOrDefault("fuel", Variant.From(_player.FuelMax));
         _player.SetFuel((float)GameState.Instance.SaveNum(fuelV, _player.FuelMax));
         var elapsedV = data.GetValueOrDefault("elapsed", Variant.From(0.0f));
@@ -1070,18 +1075,7 @@ public partial class Main : Node2D
         return sb.ToString();
     }
 
-    // ---------------- GDScript 鸭子调用兼容桥（M6 过渡，M7 删除） ----------------
-    // 调用方：scripts/back_navigator.gd（M5 已迁 C# BackNavigator，_main.Call("skip_intro"/"skip_return"/
-    // "is_intro_playing"/"is_return_playing"/"is_game_over"/"is_homecoming")）+
-    // test/{smoke,autoplay,back_navigation,intro_cinematic,return_cinematic,boss_enrage,boss_phase,
-    // boss_pattern,boss_phase_transition,orbital_strike,buff33,summon_capture,visual_capture,
-    // ui_capture,encounter_flow_contract,mothership_summon,mothership_upgrade,view_zoom,
-    // event_manager,formation_strike_event,elite_turret_event,virtual_controls,meta_health_fx}_test
-    // （player/mothership/strike/return_cinematic/summon_window/intro/formation/event/summon_mothership/
-    // play_return/dock_cooldown/charge_ghost/set_bullet_time/play_intro/base_ui/skip_return/is_homecoming/
-    // hud/on_mothership_departed/charging/is_game_over/start_homecoming/set_game_over/summon_window/
-    // set_charge_time/stop_charging/start_entry_sequence/set_homecoming/set_dock_cooldown/resume_from_base/
-    // pause_ui/give_up_charge/bullet_time/time_scale_ramp/dock_status_text/meta_fx/continue_run）。
+    // ---------------- snake → PascalCase 桥方法（M6 过渡；V 系列清理注释：测试已全量 PascalCase，桥删除归 Boss 链批次） ----------------
 
 
 

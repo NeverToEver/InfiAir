@@ -28,7 +28,8 @@ public partial class LaserWeapon : Node2D
     /// <summary>敌机碰撞半径设计值（spawner 机型配置基准 30，× world_scale 生效）。</summary>
     public float EnemyHitRadius { get; private set; } = 30.0f;
 
-    private static AudioStream? _sfxBeam;  // 原 const SFX_BEAM = preload(...)，_ready 惰性加载
+    // V 系列：静态 AudioStream 持有 → 实例字段（禁静态持 Godot RefCounted；激光低频触发，惰性加载即可）
+    private AudioStream? _sfxBeam;  // 原 const SFX_BEAM = preload(...)，_ready 惰性加载
 
     private bool _active;
     private float _activeTime;
@@ -83,7 +84,8 @@ public partial class LaserWeapon : Node2D
         _player = GetParent() as Player;
         BeamDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble();
         CooldownDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
-        TickInterval = (float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble();
+        // V 系列：tick_interval 钳 0.05 下限（R06 同族）——0/负值时 DamageTick 每物理帧结算（≈960 DPS）
+        TickInterval = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble(), 0.05f);
         TickDamage = (int)GameState.Instance.Cfg("buffs.laser_beam.tick_damage", TickDamage).AsInt64();
         BeamLength = (float)GameState.Instance.Cfg("buffs.laser_beam.length", BeamLength).AsDouble();
         BeamHalfWidth = (float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble();

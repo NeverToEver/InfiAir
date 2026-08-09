@@ -305,7 +305,8 @@ public partial class Player : CharacterBody2D
         FuelRegen = (float)GameState.Instance.Cfg("player.fuel.regen", FuelRegen).AsDouble();
         FuelRestart = (float)GameState.Instance.Cfg("player.fuel.restart", FuelRestart).AsDouble();
         DashDistance = (float)GameState.Instance.Cfg("player.dash.distance", DashDistance).AsDouble();
-        DashTime = (float)GameState.Instance.Cfg("player.dash.time", DashTime).AsDouble();
+        // V 系列：dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
+        DashTime = Mathf.Max((float)GameState.Instance.Cfg("player.dash.time", DashTime).AsDouble(), 0.05f);
         DashCooldownMaxValue = (float)GameState.Instance.Cfg("player.dash.cooldown", DashCooldownMaxValue).AsDouble();
         DashFuelRatio = (float)GameState.Instance.Cfg("player.dash.fuel_ratio", DashFuelRatio).AsDouble();
         AfterimageInterval = (float)GameState.Instance.Cfg("player.dash.afterimage_interval", AfterimageInterval).AsDouble();
@@ -954,7 +955,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var inputX = Input.GetAxis(ActMoveLeft, "move_right");
+        var inputX = Input.GetAxis(ActMoveLeft, ActMoveRight);
         Velocity = new Vector2(inputX * MaxSpeed * EntryRushHsRatio, EntryRetreatSpeed);
         MoveAndSlide();
         Position = ClampToView(Position);
