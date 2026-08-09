@@ -98,13 +98,20 @@ jobs:
         run: |
           godot --headless --path . --quit-after 300 > /tmp/smoke.log 2>&1 \
             || { echo "::error::main scene smoke failed"; tail -30 /tmp/smoke.log; exit 1; }
+          # W 系列（2026-08-09）：与断言场景同口径——退出码 0 但日志含引擎/C# 错误即失败
+          if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" /tmp/smoke.log; then
+            echo "::error::main scene smoke engine errors in log"
+            grep -B1 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" /tmp/smoke.log | head -10
+            exit 1
+          fi
           tail -3 /tmp/smoke.log
 
       - name: Compile probe all test scenes (gate blind spot)
         run: |
           # test/ 场景不被主场景引用，--import 不解析其脚本——L01a（截图工具链式
           # 调用编译错误）与 L01b（autoplay 状态表漂移）曾因此长期潜伏。
-          # --quit-after 2 逐场景编译探针：Parse/Compile/SCRIPT ERROR 即失败；
+          # --quit-after 2 逐场景编译探针：Parse/Compile/SCRIPT ERROR/Nonexistent function/
+          # Unhandled exception（C# 未处理异常——Godot 4 默认不终止应用，W 系列补）即失败；
           # timeout 60 兜底编译错误场景的静默挂起（AGENTS 已知 gotcha）。
           # Q26（2026-08-05）：probe 裸命令改包进 if 条件——GH Actions bash -e 下
           # 裸 timeout 非零（含 124 挂起）直接中止步骤，原 ::error:: 诊断与日志 tail
@@ -126,9 +133,9 @@ jobs:
               bad=1
               continue
             fi
-            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error" "$log"; then
-              echo "::error::$name compile probe SCRIPT ERROR"
-              grep -B2 "SCRIPT ERROR\|Parse Error\|Compile Error" "$log" | head -20
+            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$log"; then
+              echo "::error::$name compile probe engine error"
+              grep -B2 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$log" | head -20
               bad=1
             fi
           done
@@ -175,16 +182,18 @@ jobs:
               fi
             fi
             # V 系列（2026-08-09）：引擎错误日志扫描——退出码 0 但日志含 SCRIPT ERROR/
-            # Parse Error/Compile Error/Nonexistent function 即失败（死测试/伪断言曾静默通过，
-            # CSharpCallTest 调已删方法每轮 CI 打引擎错误；与 compile probe 同口径）
-            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function" "$oklog"; then
+            # Parse Error/Compile Error/Nonexistent function/Unhandled exception 即失败
+            # （死测试/伪断言曾静默通过，CSharpCallTest 调已删方法每轮 CI 打引擎错误；
+            # W 系列补 Unhandled exception——零 GDScript 后 C# 未处理异常为主盲区；与 compile probe 同口径）
+            if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$oklog"; then
               echo "::error::$name passed exit 0 but engine errors in log"
-              grep -B1 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function" "$oklog" | head -10
+              grep -B1 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$oklog" | head -10
               failed=$((failed + 1))
             fi
           done
-          # V 系列（2026-08-09）：场景数硬校验——run != 发现数-1（autoplay 跳过）即失败，
-          # 堵住场景改名/新增后行为验证静默掉出 CI 的盲区（不硬编码期望计数，遵守 TESTING.md 权威计数）
+          # V 系列（2026-08-09）：场景数一致性校验——run != 发现数-1（autoplay 跳过）即失败。
+          # W 系列（2026-08-09）口径修正：total 与循环同 glob 同源，改名/新增本就被 glob 自动纳入，
+          # 实际防御循环内跳过场景与 glob 空匹配（期望计数不硬编码，遵守 TESTING.md 权威计数）
           if [ "$run" -ne "$((total - 1))" ]; then
             echo "::error::assertion scene count mismatch — ran $run, discovered $((total - 1)) (autoplay_test skipped)"
             failed=$((failed + 1))
@@ -197,5 +206,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-logs
-          path: /tmp/*_test.log
+          path: |
+            /tmp/*_test.log
+            /tmp/*_test.log.retry
+            /tmp/probe-*.log
           retention-days: 7
