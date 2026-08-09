@@ -297,36 +297,36 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
 
                 break;
             case State.FORMATION_TURN:
-            {
-                var t = Mathf.Clamp(_stateTime / TurnTime, 0.0f, 1.0f);
-                _heading = Mathf.LerpAngle(Mathf.Pi / 2.0f, _turnTarget, t);
-                _speed = Mathf.Lerp(ApproachSpeed, RunSpeed, t);
-                _anchor += Vector2.Right.Rotated(_heading) * _speed * d;
-                if (t >= 1.0f)
                 {
-                    BeginRun();
-                }
+                    var t = Mathf.Clamp(_stateTime / TurnTime, 0.0f, 1.0f);
+                    _heading = Mathf.LerpAngle(Mathf.Pi / 2.0f, _turnTarget, t);
+                    _speed = Mathf.Lerp(ApproachSpeed, RunSpeed, t);
+                    _anchor += Vector2.Right.Rotated(_heading) * _speed * d;
+                    if (t >= 1.0f)
+                    {
+                        BeginRun();
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case State.BOMBING_RUN:
-            {
-                _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
-                ProcessDrops();
-                var view = CachedView();
-                // 出界余量按投弹表剩余最大时长折算（2026-08-03 审计）：原固定 ±120 会在 hard 5 机
-                // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
-                var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
-                if (_dropIndex >= _dropTimes.Count
-                    || _anchor.X < view.Position.X - runMargin - 120.0f
-                    || _anchor.X > view.End.X + runMargin + 120.0f)
                 {
-                    BeginExit();
-                }
+                    _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
+                    ProcessDrops();
+                    var view = CachedView();
+                    // 出界余量按投弹表剩余最大时长折算（2026-08-03 审计）：原固定 ±120 会在 hard 5 机
+                    // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
+                    var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
+                    if (_dropIndex >= _dropTimes.Count
+                        || _anchor.X < view.Position.X - runMargin - 120.0f
+                        || _anchor.X > view.End.X + runMargin + 120.0f)
+                    {
+                        BeginExit();
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case State.FORMATION_EXIT:
                 _exitSpeed += 420.0f * d;

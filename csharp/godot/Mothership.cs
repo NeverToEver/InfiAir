@@ -626,91 +626,91 @@ public partial class Mothership : Area2D
         switch (_state)
         {
             case State.DESCEND:
-            {
-                // 穿梭门穿出：缩放 0.25→1 + ease-out 减速滑入停驻点
-                var p = Mathf.Clamp(_stateTimer / WarpInTime, 0.0f, 1.0f);
-                var e = 1.0f - Mathf.Pow(1.0f - p, 3.0f);
-                Position = _warpFrom.Lerp(_warpTarget, e);
-                Scale = Vector2.One * Mathf.Lerp(0.25f, 1.0f, e);
-                Modulate = new Color(1.8f, 1.8f, 2.2f).Lerp(Colors.White, e);
-                // 引擎制动光晕随同一 ease-out 从巨大收到常态；上冲气流全程伴随
-                _descendTrail.Emitting = p < 1.0f;
-                var eg = _engineGlow.Modulate;
-                eg.A = 0.85f * (1.0f - e);
-                _engineGlow.Modulate = eg;
-                _engineGlow.Scale = _engineGlowBase * Mathf.Lerp(2.4f, 0.8f, e);
-                if (p >= 1.0f)
                 {
-                    Position = _warpTarget;
-                    Scale = Vector2.One;
-                    Modulate = Colors.White;
-                    eg = _engineGlow.Modulate;
-                    eg.A = 0.0f;
+                    // 穿梭门穿出：缩放 0.25→1 + ease-out 减速滑入停驻点
+                    var p = Mathf.Clamp(_stateTimer / WarpInTime, 0.0f, 1.0f);
+                    var e = 1.0f - Mathf.Pow(1.0f - p, 3.0f);
+                    Position = _warpFrom.Lerp(_warpTarget, e);
+                    Scale = Vector2.One * Mathf.Lerp(0.25f, 1.0f, e);
+                    Modulate = new Color(1.8f, 1.8f, 2.2f).Lerp(Colors.White, e);
+                    // 引擎制动光晕随同一 ease-out 从巨大收到常态；上冲气流全程伴随
+                    _descendTrail.Emitting = p < 1.0f;
+                    var eg = _engineGlow.Modulate;
+                    eg.A = 0.85f * (1.0f - e);
                     _engineGlow.Modulate = eg;
-                    if (_warpGate != null)
+                    _engineGlow.Scale = _engineGlowBase * Mathf.Lerp(2.4f, 0.8f, e);
+                    if (p >= 1.0f)
                     {
-                        // H14（健壮性审核）：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
-                        if (GodotObject.IsInstanceValid(_warpGate))
+                        Position = _warpTarget;
+                        Scale = Vector2.One;
+                        Modulate = Colors.White;
+                        eg = _engineGlow.Modulate;
+                        eg.A = 0.0f;
+                        _engineGlow.Modulate = eg;
+                        if (_warpGate != null)
                         {
-                            _warpGate!.Close();
+                            // H14（健壮性审核）：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
+                            if (GodotObject.IsInstanceValid(_warpGate))
+                            {
+                                _warpGate!.Close();
+                            }
+
+                            _warpGate = null;
                         }
 
-                        _warpGate = null;
-                    }
-
-                    DeploySlowField();
-                    var hud = Hud();
-                    if (hud != null)
-                    {
-                        hud.ShowInfoBanner(Tr("BANNER_MOTHERSHIP_ARRIVED"));
-                    }
-
-                    StartDocking(GameState.Instance.PlayerRef); // M3c：player_ref 恒为 Player
-                }
-
-                break;
-            }
-
-            case State.DOCKING:
-            {
-                // 回收牵引期间火力掩护（加特林+导弹，不耗驻留弹匣）
-                UpdateGatling(d);
-                UpdateMissiles(d);
-                if (_stateTimer >= DockTweenTime)
-                {
-                    _beam.Visible = false; // 对接完成即隐藏牵引光束，否则驻留期一直闪烁
-                    // 回收完成：玩家进保护舱（隐藏+关受击判定，驻留全程保持，RELEASE 出舱）
-                    if (GodotObject.IsInstanceValid(_player) && !_player.IsDead())
-                    {
-                        _player.EnterPod();
-                        // 进舱捕获反馈：对接点小冲击环 + 短促软闪
-                        var sw = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
-                        {
-                            ["radius"] = 120.0f * _ws,
-                            ["time"] = 0.5,
-                            ["ry_ratio"] = 0.6,
-                            ["color"] = new Color(0.5f, 0.95f, 1.0f, 0.5f),
-                            ["core_color"] = new Color(0.9f, 1.0f, 1.0f, 0.9f),
-                            ["width"] = 8.0,
-                        });
-                        sw.Position = DockPoint();
-                        GetParent()!.AddChild(sw);
-                        SoftFlash(DockPoint(), 70.0f * _ws, new Color(0.8f, 1.0f, 1.0f, 0.9f));
+                        DeploySlowField();
                         var hud = Hud();
                         if (hud != null)
                         {
-                            hud.Call(
-                                "show_popup",
-                                Tr("POD_SECURED"),
-                                GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
+                            hud.ShowInfoBanner(Tr("BANNER_MOTHERSHIP_ARRIVED"));
                         }
+
+                        StartDocking(GameState.Instance.PlayerRef); // M3c：player_ref 恒为 Player
                     }
 
-                    EnterState(State.RESUPPLY);
+                    break;
                 }
 
-                break;
-            }
+            case State.DOCKING:
+                {
+                    // 回收牵引期间火力掩护（加特林+导弹，不耗驻留弹匣）
+                    UpdateGatling(d);
+                    UpdateMissiles(d);
+                    if (_stateTimer >= DockTweenTime)
+                    {
+                        _beam.Visible = false; // 对接完成即隐藏牵引光束，否则驻留期一直闪烁
+                                               // 回收完成：玩家进保护舱（隐藏+关受击判定，驻留全程保持，RELEASE 出舱）
+                        if (GodotObject.IsInstanceValid(_player) && !_player.IsDead())
+                        {
+                            _player.EnterPod();
+                            // 进舱捕获反馈：对接点小冲击环 + 短促软闪
+                            var sw = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
+                            {
+                                ["radius"] = 120.0f * _ws,
+                                ["time"] = 0.5,
+                                ["ry_ratio"] = 0.6,
+                                ["color"] = new Color(0.5f, 0.95f, 1.0f, 0.5f),
+                                ["core_color"] = new Color(0.9f, 1.0f, 1.0f, 0.9f),
+                                ["width"] = 8.0,
+                            });
+                            sw.Position = DockPoint();
+                            GetParent()!.AddChild(sw);
+                            SoftFlash(DockPoint(), 70.0f * _ws, new Color(0.8f, 1.0f, 1.0f, 0.9f));
+                            var hud = Hud();
+                            if (hud != null)
+                            {
+                                hud.Call(
+                                    "show_popup",
+                                    Tr("POD_SECURED"),
+                                    GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
+                            }
+                        }
+
+                        EnterState(State.RESUPPLY);
+                    }
+
+                    break;
+                }
 
             case State.RESUPPLY:
                 if (_stateTimer >= ResupplyDelay)

@@ -160,10 +160,10 @@ public partial class PlayerParry : RefCounted
         {
             case ParryPhase.WINDUP:
             case ParryPhase.RECOVER:
-            {
-                var half = (Duration - ActiveTime) / 2.0f;
-                return Mathf.Clamp(FlowTimer / Mathf.Max(half, 0.001f), 0.0f, 1.0f);
-            }
+                {
+                    var half = (Duration - ActiveTime) / 2.0f;
+                    return Mathf.Clamp(FlowTimer / Mathf.Max(half, 0.001f), 0.0f, 1.0f);
+                }
 
             case ParryPhase.ACTIVE:
                 return Mathf.Clamp(FlowTimer / Mathf.Max(ActiveTime, 0.001f), 0.0f, 1.0f);

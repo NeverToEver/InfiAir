@@ -188,71 +188,71 @@ public partial class Tutorial : Node2D
         switch (idx)
         {
             case 0:
-            {
-                // 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
-                SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { 0 });
-                var view0 = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
-                for (int i = 0; i < 3; i++)
                 {
-                    var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
-                    e.aim_marked = true; // 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性；AimMarked private set，经 snake 桥写）
-                    e.Position = new Vector2(view0.GetCenter().X - 360.0f + 360.0f * i, view0.Position.Y + 280.0f);
+                    // 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
+                    SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { 0 });
+                    var view0 = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
+                        e.aim_marked = true; // 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性；AimMarked private set，经 snake 桥写）
+                        e.Position = new Vector2(view0.GetCenter().X - 360.0f + 360.0f * i, view0.Position.Y + 280.0f);
+                    }
+
+                    break;
                 }
 
-                break;
-            }
-
             case 1:
-            {
-                // 加速与相位突进
-                GameState.Instance.AddBuff(new StringName("phase_dash"));
-                _boostCount = 0;
-                _dashCount = 0;
-                _prevDashing = false;
-                UpdateBoostObjective();
-                break;
-            }
+                {
+                    // 加速与相位突进
+                    GameState.Instance.AddBuff(new StringName("phase_dash"));
+                    _boostCount = 0;
+                    _dashCount = 0;
+                    _prevDashing = false;
+                    UpdateBoostObjective();
+                    break;
+                }
 
             case 2:
-            {
-                // 战斗基础：5 只 straight，锁血下限
-                SetObjectiveTr("TUT_S3_OBJ", new Godot.Collections.Array { 0 });
-                SpawnCombatWave(5);
-                break;
-            }
+                {
+                    // 战斗基础：5 只 straight，锁血下限
+                    SetObjectiveTr("TUT_S3_OBJ", new Godot.Collections.Array { 0 });
+                    SpawnCombatWave(5);
+                    break;
+                }
 
             case 3:
-            {
-                // 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
-                _dockCharge = 0.0f;
-                SetObjectiveTr("TUT_S4_OBJ");
-                break;
-            }
+                {
+                    // 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
+                    _dockCharge = 0.0f;
+                    SetObjectiveTr("TUT_S4_OBJ");
+                    break;
+                }
 
             case 4:
-            {
-                // 返航与基地
-                _homeCharge = 0.0f;
-                SetObjectiveTr("TUT_S5_OBJ");
-                break;
-            }
+                {
+                    // 返航与基地
+                    _homeCharge = 0.0f;
+                    SetObjectiveTr("TUT_S5_OBJ");
+                    break;
+                }
 
             case 5:
-            {
-                // 首领遭遇：低 HP Boss-1，触发狂暴即过关
-                SetObjectiveTr("TUT_S6_OBJ");
-                _player.SetInvincible(999.0f); // 教程不判负
-                var view5 = GameState.Instance.ViewWorldRect(); // G014
-                _boss = _bossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
-                _boss.Setup(1.0f, 1);
-                _boss.MaxHp = (float)GameState.Instance.Cfg("tutorial.boss_hp", 120.0).AsDouble();
-                _boss.Hp = _boss.MaxHp;
-                _boss.Position = new Vector2(view5.GetCenter().X, view5.Position.Y - 160.0f);
-                _boss.Enraged += OnBossEnraged; // M3d：C# [Signal] 以 PascalCase 注册
-                _boss.Died += OnBossGone; // M3d：C# [Signal] 以 PascalCase 注册
-                AddChild(_boss);
-                break;
-            }
+                {
+                    // 首领遭遇：低 HP Boss-1，触发狂暴即过关
+                    SetObjectiveTr("TUT_S6_OBJ");
+                    _player.SetInvincible(999.0f); // 教程不判负
+                    var view5 = GameState.Instance.ViewWorldRect(); // G014
+                    _boss = _bossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
+                    _boss.Setup(1.0f, 1);
+                    _boss.MaxHp = (float)GameState.Instance.Cfg("tutorial.boss_hp", 120.0).AsDouble();
+                    _boss.Hp = _boss.MaxHp;
+                    _boss.Position = new Vector2(view5.GetCenter().X, view5.Position.Y - 160.0f);
+                    _boss.Enraged += OnBossEnraged; // M3d：C# [Signal] 以 PascalCase 注册
+                    _boss.Died += OnBossGone; // M3d：C# [Signal] 以 PascalCase 注册
+                    AddChild(_boss);
+                    break;
+                }
         }
     }
 
@@ -437,106 +437,106 @@ public partial class Tutorial : Node2D
         switch (_stage)
         {
             case 1:
-            {
-                // 加速/冲刺输入计数（rising edge）
-                if (Input.IsActionJustPressed("boost"))
                 {
-                    _boostCount = Mathf.Min(_boostCount + 1, 2);
-                    UpdateBoostObjective();
-                }
+                    // 加速/冲刺输入计数（rising edge）
+                    if (Input.IsActionJustPressed("boost"))
+                    {
+                        _boostCount = Mathf.Min(_boostCount + 1, 2);
+                        UpdateBoostObjective();
+                    }
 
-                if (_player.IsDashing() && !_prevDashing)
-                {
-                    _dashCount = Mathf.Min(_dashCount + 1, 2);
-                    UpdateBoostObjective();
-                }
+                    if (_player.IsDashing() && !_prevDashing)
+                    {
+                        _dashCount = Mathf.Min(_dashCount + 1, 2);
+                        UpdateBoostObjective();
+                    }
 
-                _prevDashing = _player.IsDashing();
-                if (_boostCount >= 2 && _dashCount >= 2)
-                {
-                    PassStage();
-                }
+                    _prevDashing = _player.IsDashing();
+                    if (_boostCount >= 2 && _dashCount >= 2)
+                    {
+                        PassStage();
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case 2:
-            {
-                // 锁血下限：每帧补足，受伤不死
-                var health = GameState.Instance.Health;
-                if (health < _maxHp)
                 {
-                    GameState.Instance.Heal(_maxHp - health);
-                }
+                    // 锁血下限：每帧补足，受伤不死
+                    var health = GameState.Instance.Health;
+                    if (health < _maxHp)
+                    {
+                        GameState.Instance.Heal(_maxHp - health);
+                    }
 
-                // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
-                // 注意：保持每帧检查（tutorial_test 依赖 queue_free 释放与检查窗口的即时性，
-                // 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
-                if (!_advancing && _stageKills < 5 && AliveEnemyCount() == 0)
-                {
-                    SpawnCombatWave(5 - _stageKills);
-                }
+                    // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
+                    // 注意：保持每帧检查（tutorial_test 依赖 queue_free 释放与检查窗口的即时性，
+                    // 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
+                    if (!_advancing && _stageKills < 5 && AliveEnemyCount() == 0)
+                    {
+                        SpawnCombatWave(5 - _stageKills);
+                    }
 
-                break;
-            }
+                    break;
+                }
 
             case 3:
-            {
-                // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
-                if (_mothership == null && !_advancing)
                 {
-                    if (Input.IsActionPressed("dock"))
+                    // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
+                    if (_mothership == null && !_advancing)
                     {
-                        _dockCharge += d;
+                        if (Input.IsActionPressed("dock"))
+                        {
+                            _dockCharge += d;
+                            _objectivePoll -= d;
+                            if (_objectivePoll <= 0.0f)
+                            {
+                                _objectivePoll = 0.1f; // G015：百分比文本 0.1s 节流
+                                SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
+                            }
+
+                            if (_dockCharge >= DockChargeTime)
+                            {
+                                SummonMothership();
+                            }
+                        }
+                        else if (_dockCharge > 0.0f)
+                        {
+                            _dockCharge = 0.0f;
+                            _objectivePoll = 0.0f;
+                            SetObjectiveTr("TUT_S4_OBJ");
+                        }
+                    }
+
+                    break;
+                }
+
+            case 4:
+                {
+                    if (Input.IsActionPressed("homecoming"))
+                    {
+                        _homeCharge += d;
                         _objectivePoll -= d;
                         if (_objectivePoll <= 0.0f)
                         {
                             _objectivePoll = 0.1f; // G015：百分比文本 0.1s 节流
-                            SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
+                            SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
                         }
 
-                        if (_dockCharge >= DockChargeTime)
+                        if (_homeCharge >= HomeChargeTime)
                         {
-                            SummonMothership();
+                            OpenBase();
                         }
                     }
-                    else if (_dockCharge > 0.0f)
+                    else if (_homeCharge > 0.0f)
                     {
-                        _dockCharge = 0.0f;
+                        _homeCharge = 0.0f;
                         _objectivePoll = 0.0f;
-                        SetObjectiveTr("TUT_S4_OBJ");
-                    }
-                }
-
-                break;
-            }
-
-            case 4:
-            {
-                if (Input.IsActionPressed("homecoming"))
-                {
-                    _homeCharge += d;
-                    _objectivePoll -= d;
-                    if (_objectivePoll <= 0.0f)
-                    {
-                        _objectivePoll = 0.1f; // G015：百分比文本 0.1s 节流
-                        SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
+                        SetObjectiveTr("TUT_S5_OBJ");
                     }
 
-                    if (_homeCharge >= HomeChargeTime)
-                    {
-                        OpenBase();
-                    }
+                    break;
                 }
-                else if (_homeCharge > 0.0f)
-                {
-                    _homeCharge = 0.0f;
-                    _objectivePoll = 0.0f;
-                    SetObjectiveTr("TUT_S5_OBJ");
-                }
-
-                break;
-            }
         }
     }
 

@@ -154,16 +154,16 @@ public partial class WarpGate : Node2D
         switch (_phase)
         {
             case Phase.OPENING:
-            {
-                var p = Mathf.Clamp(_t / OPEN_TIME, 0.0f, 1.0f);
-                Layout(1.0f - (1.0f - p) * (1.0f - p), 1.0f); // ease-out 展开
-                if (p >= 1.0f)
                 {
-                    _phase = Phase.HOLD;
-                    _t = 0.0f;
+                    var p = Mathf.Clamp(_t / OPEN_TIME, 0.0f, 1.0f);
+                    Layout(1.0f - (1.0f - p) * (1.0f - p), 1.0f); // ease-out 展开
+                    if (p >= 1.0f)
+                    {
+                        _phase = Phase.HOLD;
+                        _t = 0.0f;
+                    }
+                    break;
                 }
-                break;
-            }
             case Phase.HOLD:
                 // 保持期：呼吸脉动 + 弧段旋转
                 Layout(1.0f + 0.04f * Enemy.SinFast(_t * 6.0f), 1.0f); // M3b：Enemy 迁 C#，静态直调
@@ -173,15 +173,15 @@ public partial class WarpGate : Node2D
                 }
                 break;
             case Phase.CLOSING:
-            {
-                var p = Mathf.Clamp(_t / CLOSE_TIME, 0.0f, 1.0f);
-                Layout(1.0f - p, 1.0f - p);
-                if (p >= 1.0f)
                 {
-                    QueueFree();
+                    var p = Mathf.Clamp(_t / CLOSE_TIME, 0.0f, 1.0f);
+                    Layout(1.0f - p, 1.0f - p);
+                    if (p >= 1.0f)
+                    {
+                        QueueFree();
+                    }
+                    break;
                 }
-                break;
-            }
         }
         for (var i = 0; i < _arcs.Count; i++)
         {
