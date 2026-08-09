@@ -367,9 +367,9 @@
 | 109 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 110 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 111 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 869 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 882 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 934 | `mothership.depart_cooldown` | `60.0` |
+| 872 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 885 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 937 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp/godot/MetaHealthFX.cs`
 
