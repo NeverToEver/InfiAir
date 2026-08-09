@@ -43,6 +43,10 @@ public partial class Welcome : CanvasLayer
     private Button _tutorialButton = null!;
     private Button _leaderboardButton = null!;
     private Button _settingsButton = null!;
+    private Button _labButton = null!; // 局外成长：研究所入口（仅登录用户可见，2026-08-09）
+    private CanvasLayer _labOverlay = null!;
+    private Button _labClose = null!;
+    private ResearchLab _labRows = null!;
     /// <summary>2026-08-09 审计：难度按钮表 typed 化（原 Variant Dictionary + 运行时强转）。</summary>
     private readonly System.Collections.Generic.Dictionary<StringName, Button> _diffButtons = new();
     private readonly ButtonGroup _diffGroup = new();
@@ -415,6 +419,7 @@ public partial class Welcome : CanvasLayer
         _stage = Stage.Main;
         _loginPanel.Visible = false;
         _mainZone.Visible = true;
+        _labButton.Visible = isUser; // 研究所仅登录用户可用（游客无持久化档案，B7-8）
         RefreshTexts();
         GrabMainFocus();
     }
@@ -476,6 +481,12 @@ public partial class Welcome : CanvasLayer
         _leaderboardButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
         _leaderboardButton.Pressed += OpenLeaderboard;
         _mainZone.AddChild(_leaderboardButton);
+        // 局外成长：研究所入口（仅登录用户可见；游客在 EnterMainZone 隐藏）
+        _labButton = UITheme.MakeButton(Tr("META_TITLE"));
+        _labButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
+        _labButton.Pressed += OpenLab;
+        _labButton.Visible = false;
+        _mainZone.AddChild(_labButton);
     }
 
     private void GrabMainFocus()
@@ -569,6 +580,23 @@ public partial class Welcome : CanvasLayer
         _leaderboardClose = closeButton;
         ((VBoxContainer)shell["content"].AsGodotObject()).AddChild(closeButton);
         ((VBoxContainer)shell["content"].AsGodotObject()).AddThemeConstantOverride("separation", 12);
+
+        // 研究所（局外成长，2026-08-09）：科技点余额 + 升级列表；打开时重建（ResearchLab 自刷新）
+        _labOverlay = new CanvasLayer { Layer = 50, Visible = false };
+        AddChild(_labOverlay);
+        var labShell = UITheme.MakePageShell("META_TITLE");
+        _labOverlay.AddChild((Node)labShell["root"].AsGodotObject());
+        ((ChamferedPanel)labShell["panel"].AsGodotObject()).CustomMinimumSize = new Vector2(620.0f, 660.0f);
+        _labRows = new ResearchLab();
+        _labRows.AddThemeConstantOverride("separation", 8);
+        ((VBoxContainer)labShell["content"].AsGodotObject()).AddChild(_labRows);
+        var labClose = UITheme.MakeButton(Tr("LEAD_CLOSE"));
+        labClose.CustomMinimumSize = new Vector2(200.0f, 48.0f);
+        labClose.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+        labClose.Pressed += OnCloseLab;
+        _labClose = labClose;
+        ((VBoxContainer)labShell["content"].AsGodotObject()).AddChild(labClose);
+        ((VBoxContainer)labShell["content"].AsGodotObject()).AddThemeConstantOverride("separation", 12);
 
         // 游客确认（B7-6：游客按钮与 ENTER 路径统一走确认框）
         _guestConfirm = MakeModal(
@@ -695,6 +723,19 @@ public partial class Welcome : CanvasLayer
         GrabPrimaryFocus();
     }
 
+    private void OpenLab()
+    {
+        _labRows.Refresh(); // 打开时重建（余额/等级/费用即时）
+        _labOverlay.Visible = true;
+        _labClose.GrabFocus();
+    }
+
+    private void OnCloseLab()
+    {
+        _labOverlay.Visible = false;
+        GrabPrimaryFocus();
+    }
+
     private void OnExitOk()
     {
         _exitConfirm.Layer.Visible = false;
@@ -793,6 +834,7 @@ public partial class Welcome : CanvasLayer
 
         // E02/G03 + P1-6：进行中存档时禁用教程按钮（重进会删档）；已通关无存档时放行
         _tutorialButton.Disabled = _stage == Stage.Main && hasSave;
+        _labButton.Text = Tr("META_TITLE"); // 局外成长：研究所按钮 locale 刷新
         foreach (var pair in _diffButtons)
         {
             var d = pair.Key;
@@ -871,6 +913,8 @@ public partial class Welcome : CanvasLayer
     public void ConfirmDelete() => OnConfirmDelete();
 
     public void PressLeaderboard() => OpenLeaderboard();
+
+    public void PressLab() => OpenLab(); // 局外成长：测试钩子（对齐 PressLeaderboard 模式）
 
     public void CloseLeaderboard() => OnCloseLeaderboard();
 

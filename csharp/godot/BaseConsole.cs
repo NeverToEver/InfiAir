@@ -158,12 +158,13 @@ public partial class BaseConsole : CanvasLayer
         columns.AddThemeConstantOverride("separation", 140); // §3.3.2：露出中央环体轴心，容器层级/热区/焦点链不变
         vbox.AddChild(columns);
 
-        // 左列：战机库 + 维修补给
+        // 左列：战机库 + 维修补给 + 研究所
         var left = new VBoxContainer();
         left.AddThemeConstantOverride("separation", 20);
         columns.AddChild(left);
         left.AddChild(BuildHangar());
         left.AddChild(BuildSupply());
+        left.AddChild(BuildLab()); // 局外成长：研究所（2026-08-09）
 
         // 右列：武器挂载 + 任务规划
         var right = new VBoxContainer();
@@ -285,6 +286,28 @@ public partial class BaseConsole : CanvasLayer
         _rechargeButton = MakeButton("");
         _rechargeButton.Pressed += OnRechargePressed;
         body.AddChild(_rechargeButton);
+        return panel;
+    }
+
+    private Control BuildLab()
+    {
+        // 六边形科技节点极简折线图标
+        var glyph = new Vector2[][]
+        {
+            new[]
+            {
+                new Vector2(8, 1),
+                new Vector2(14, 4),
+                new Vector2(14, 11),
+                new Vector2(8, 15),
+                new Vector2(2, 11),
+                new Vector2(2, 4),
+                new Vector2(8, 1),
+            },
+        };
+        var panel = MakePanel("META_TITLE", glyph);
+        var body = (VBoxContainer)panel.GetNode("Body");
+        body.AddChild(new ResearchLab());
         return panel;
     }
 
