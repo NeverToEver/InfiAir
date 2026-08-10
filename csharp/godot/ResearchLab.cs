@@ -54,9 +54,11 @@ public sealed partial class ResearchLab : VBoxContainer
             return;
         }
 
+        // 2026-08-10 健壮性审查：Free() 同步清理（对齐 BaseConsole/Hud U16 先例）——
+        // QueueFree 帧末才删，与同帧 AddChild 的新行并存闪一帧
         foreach (var child in GetChildren())
         {
-            child.QueueFree();
+            child.Free();
         }
 
         var pointsLabel = UITheme.MakeLabel(GdFormat.Format(Tr("META_POINTS"), gs.TechPoints), 24, UITheme.AccentGold);

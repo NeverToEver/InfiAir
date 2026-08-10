@@ -232,11 +232,15 @@ public partial class Mothership : Area2D
         ReleaseTime = (float)GameState.Instance.Cfg("mothership.release_time", ReleaseTime).AsDouble();
         ReleaseDrop = (float)GameState.Instance.Cfg("mothership.release_drop", ReleaseDrop).AsDouble()
             * (float)GameState.Instance.WorldScale;
-        MagCells = (int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64();
+        // 2026-08-10 健壮性审查：mag_cells 钳下限 1——0 时 EarlyDepart/StartReleaseInternal 的
+        // _magCells/MagCells 除零得 NaN，经 _prefill 传入 DepartCooldown 冷却信号使母舰冷却静默失效
+        MagCells = Mathf.Max((int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64(), 1);
         MagCellTime = (float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble();
         MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
         WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
-        EarlyHoldTime = (float)GameState.Instance.Cfg("mothership.early_hold_time", EarlyHoldTime).AsDouble();
+        // 2026-08-10 健壮性审查：early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰
+        // 除零得 inf，且 _earlyTimer >= 0 恒真致长按 H 第一帧即触发离舰
+        EarlyHoldTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.early_hold_time", EarlyHoldTime).AsDouble(), 0.01f);
         EarlyMaxDiscount = (float)GameState.Instance.Cfg("mothership.early_max_discount", EarlyMaxDiscount).AsDouble();
         EarlyPrefillMax = (float)GameState.Instance.Cfg("mothership.early_prefill_max", EarlyPrefillMax).AsDouble();
         EarlyPrefillRatio = (float)GameState.Instance.Cfg("mothership.early_prefill_ratio", EarlyPrefillRatio).AsDouble();
@@ -266,10 +270,13 @@ public partial class Mothership : Area2D
         GatlingSweepLeftMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_max", GatlingSweepLeftMax).AsDouble();
         GatlingSweepRightMin = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_min", GatlingSweepRightMin).AsDouble();
         GatlingSweepRightMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_max", GatlingSweepRightMax).AsDouble();
-        GatlingSweepLeftPeriod = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
-            .AsDouble();
-        GatlingSweepRightPeriod = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_period", GatlingSweepRightPeriod)
-            .AsDouble();
+        // 2026-08-10 健壮性审查：扫掠周期钳下限（对齐 Enemy.SinFast 注释口径）——0 时
+        // _sweepTime * Tau / period 除零得 inf → SinFast 返回 NaN → 炮塔/弹方向 NaN（弹被
+        // HasPoint(NaN) 恒 false 立即回收，每发开火空耗且无伤害）
+        GatlingSweepLeftPeriod = Mathf.Max((float)GameState.Instance.Cfg("mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
+            .AsDouble(), 0.05f);
+        GatlingSweepRightPeriod = Mathf.Max((float)GameState.Instance.Cfg("mothership.gatling.sweep_right_period", GatlingSweepRightPeriod)
+            .AsDouble(), 0.05f);
         GatlingSweepRightPhase = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_phase", GatlingSweepRightPhase)
             .AsDouble();
         MissileInterval = (float)GameState.Instance.Cfg("mothership.missile.interval", MissileInterval).AsDouble();
@@ -1057,10 +1064,11 @@ public partial class Mothership : Area2D
     }
 
     /// <summary>提前离舰（长按 H 2s）：冷却双机制折扣——时长 max(0.6, 1-0.4×剩余比例)
-    /// + 进度预填 min(0.3, 0.5×剩余比例)（对齐原作；预填仅此路径）。</summary>
+    /// + 进度预填 min(0.3, 0.5×剩余比例)（对齐原作；预填仅此路径）。
+    /// 2026-08-10：ratio 补 Clamp（MagCells 已钳 ≥1，双保险防超范围渗入 _prefill）。</summary>
     private void EarlyDepart()
     {
-        var ratio = (float)_magCells / MagCells;
+        var ratio = Mathf.Clamp((float)_magCells / MagCells, 0.0f, 1.0f);
         _prefill = Mathf.Min(EarlyPrefillMax, EarlyPrefillRatio * ratio);
         var hud = Hud();
         if (hud != null)

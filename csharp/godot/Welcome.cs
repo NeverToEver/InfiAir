@@ -813,12 +813,16 @@ public partial class Welcome : CanvasLayer
         var board = GameState.Instance.HighscoresText(3);
         _boardLabel.Visible = board != "";
         _boardLabel.Text = Tr("START_BOARD") + "\n" + board;
-        _corruptLabel.Visible = GameState.Instance.SaveCorrupt || GameState.Instance.ProfileCorrupt;
-        _corruptLabel.Text = (
-            GameState.Instance.ProfileCorrupt && !GameState.Instance.SaveCorrupt
-                ? Tr("START_PROFILE_CORRUPT")
-                : Tr("START_SAVE_CORRUPT")
-        );
+        // 2026-08-10 健壮性审查：users.json 损坏同列提示（账号表被隔离重建，.corrupt 备份保留）
+        var gs = GameState.Instance;
+        _corruptLabel.Visible = gs.SaveCorrupt || gs.ProfileCorrupt || gs.UserDbCorrupt;
+        _corruptLabel.Text = gs.UserDbCorrupt
+            ? Tr("START_USERS_CORRUPT")
+            : (
+                gs.ProfileCorrupt && !gs.SaveCorrupt
+                    ? Tr("START_PROFILE_CORRUPT")
+                    : Tr("START_SAVE_CORRUPT")
+            );
         _continueButton.Visible = _stage == Stage.Main && hasSave;
         _newButton.Text = hasSave ? Tr("START_NEW") : Tr("START_BEGIN");
         if (_stage == Stage.Main)

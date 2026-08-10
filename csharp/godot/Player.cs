@@ -299,7 +299,9 @@ public partial class Player : CharacterBody2D
         RegenPerSec = (float)GameState.Instance.Cfg("buffs.regen.heal_per_sec", RegenPerSec).AsDouble();
         ShakeHit = (float)GameState.Instance.Cfg("effects.shake.player_hit", ShakeHit).AsDouble();
         Invincible = SpawnInvincibleTime; // 出生保护
-        FuelMax = (float)GameState.Instance.Cfg("player.fuel.max", FuelMax).AsDouble();
+        // 2026-08-10 健壮性审查：fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
+        //（燃料条显示 NaN；SetFuel 的 Clamp 上下界同为 0 致燃料机制失效）
+        FuelMax = Mathf.Max((float)GameState.Instance.Cfg("player.fuel.max", FuelMax).AsDouble(), 1.0f);
         _fuel = FuelMax;
         FuelDrain = (float)GameState.Instance.Cfg("player.fuel.drain", FuelDrain).AsDouble();
         FuelRegen = (float)GameState.Instance.Cfg("player.fuel.regen", FuelRegen).AsDouble();

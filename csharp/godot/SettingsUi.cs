@@ -335,8 +335,11 @@ public partial class SettingsUi : CanvasLayer
         {
             // 2026-08-03 审计：删除不可达的 KEY_ESCAPE 分支——ui_cancel 不在 REBINDABLE_ACTIONS，
             // 捕获态下 Esc 必先命中上方 ui_cancel 取消分支并 return，到不了此处
-            GameState.Instance.RebindAction(_capturingAction, (int)key.Keycode);
-            var boundKey = OS.GetKeycodeString(key.Keycode);
+            // 2026-08-10 健壮性审查：捕获对齐 GetActionKeycodes 的双键回退语义——非标准布局/
+            // IME 键的 Keycode 为 Key.None 时裸绑定 0（KEY_NONE）致该动作永久无法触发
+            var kc = key.Keycode != Key.None ? (int)key.Keycode : (int)key.PhysicalKeycode;
+            GameState.Instance.RebindAction(_capturingAction, kc);
+            var boundKey = OS.GetKeycodeString((Key)kc);
             _hintLabel.Text = GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);
             _capturingAction = new StringName();
             GetViewport().SetInputAsHandled();

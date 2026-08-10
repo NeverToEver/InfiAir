@@ -83,14 +83,22 @@ public partial class MothershipSummonWindow : CanvasLayer
     public override void _Ready()
     {
         Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
-        OpenTime = (float)GameState.Instance.Cfg("effects.mothership_summon.window.open_time", OpenTime).AsDouble();
-        CloseTime = (float)GameState.Instance.Cfg("effects.mothership_summon.window.close_time", CloseTime).AsDouble();
+        // 2026-08-10 健壮性审查：open/close 时长钳下限（H13 同族补全）——0 时 t/OpenTime 除零
+        // 经 Clamp 兜底无 NaN，但面板淡入淡出退化为瞬现/瞬隐，_total 计算也失真
+        OpenTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.window.open_time", OpenTime).AsDouble(), 0.001f);
+        CloseTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.window.close_time", CloseTime).AsDouble(), 0.001f);
         // H13（健壮性审核）：shot_durations 判型/判长回退——短数组/非数组时用默认，防 _ready 崩溃
         var durs = GameState.Instance.Cfg("effects.mothership_summon.window.shot_durations", Variant.From(_shotDurations));
         if (durs.VariantType == Variant.Type.Array && durs.AsGodotArray().Count >= 3)
         {
             var arr = durs.AsGodotArray();
-            _shotDurations = new[] { (float)arr[0].AsDouble(), (float)arr[1].AsDouble(), (float)arr[2].AsDouble() };
+            // 2026-08-10：元素钳下限——0/负值经 st 循环整体吞掉，镜头段时序失真
+            _shotDurations = new[]
+            {
+                Mathf.Max((float)arr[0].AsDouble(), 0.001f),
+                Mathf.Max((float)arr[1].AsDouble(), 0.001f),
+                Mathf.Max((float)arr[2].AsDouble(), 0.001f),
+            };
         }
         else
         {

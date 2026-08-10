@@ -212,7 +212,9 @@ public partial class BossMovement : RefCounted
 
         _bandTimer -= delta;
         var elapsed = period - _bandTimer;
-        var u = Mathf.Clamp(elapsed / period, 0.0f, 1.0f);
+        // 2026-08-10 健壮性审查：分母钳下限（对齐同文件 MoveBob 的 Max(period, 0.01f) 保护）——
+        // 0 时除零得 inf 经 Clamp 兜为 1，走位恒处下压最深点且 _bandTimer 每帧重置（P1 走位失效）
+        var u = Mathf.Clamp(elapsed / Mathf.Max(period, 0.01f), 0.0f, 1.0f);
         var depth = (yLo + yHi) * 0.5f;
         var wob = (yHi - yLo) * 0.5f;
         var target = depth * Enemy.SinFast(Mathf.Pi * u)

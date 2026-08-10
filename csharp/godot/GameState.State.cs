@@ -440,7 +440,9 @@ public partial class GameState : Node
     {
         // 难度分数倍率统一在此乘算（easy ×1 / medium ×2 / hard ×3，配置表里的分值不变）
         // P4（2026-08-05）：得分总量钳制——手改配置 score 倍率极大时 int64 溢出（1e308 级）
-        Score = Mathf.Min(Score + points * ScoreMultiplier(), ScoreCapValue);
+        // 2026-08-10 健壮性审查：乘算提升 long 域——int × int 在 points×倍率超 2^31 时
+        // 先回绕为负再进 Min（负分进入里程碑/榜单），long 域乘算后与上限钳制才生效
+        Score = (int)Math.Min((long)Score + (long)points * ScoreMultiplier(), (long)ScoreCapValue);
         EmitSignal(SignalName.ScoreChanged, Score);
         // 2026-08-06 审计：里程碑推进改 while——与 apply_run_save 的全补口径一致（原单次 +1
         // 在单次加分跨多档时漏档：如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值），

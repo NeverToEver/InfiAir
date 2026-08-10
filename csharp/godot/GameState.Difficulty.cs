@@ -37,7 +37,10 @@ public partial class GameState : Node
         // 2026-08-03 审计回退：曾尝试缓存 _score_multiplier_cache，但 difficulty 是公开字段，
         // 测试/调用方直写不触发 _refresh_regen_cache（白盒契约），缓存会返回旧值——本方法保持直接查表
         // （M6 后 enemy_hp/speed/spawn 三倍率改档位惰性缓存，直写经 StringName 比较失效检测，见下）
-        return (int)DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["score"].AsInt64();
+        // 2026-08-10 健壮性审查：钳入 [0, int.MaxValue]——手改 balance.json 倍率超大值时
+        // 裸 (int) 截断回绕为负（负倍率 → 加分变扣分）
+        return (int)Math.Clamp(
+            DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["score"].AsInt64(), 0L, (long)int.MaxValue);
     }
 
     /// <summary>B 梯队（fair plan §8）：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
