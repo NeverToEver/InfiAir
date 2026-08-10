@@ -170,20 +170,16 @@ All **gameplay-range** (no `world_scale`); coords from `fight_anchor_y()` / `str
 ## 8. Implementation Log (2026-07-28; all landed)
 
 ### 8.1 Completion
-- **A**: `scripts/boss.gd` → FightPhase framework + `_patterns` (`boss.phases.typeN` + DEFAULT_PATTERNS); telegraph parts (`_charge_glow` / `_make_aim_line`); freeze → `_enrage_slow = 0.35`; 70%/30% ticks; countdown (≥40s, 10→0).
-- **B**: P2 attacks (charged_cannon / dash_sweep / minion_volley / bullet_wall) + per-type enrage (`_update_enrage_sequence` by boss_type, `boss.enrage.type_*`); `spawner.spawn_minion(pos) -> Enemy`.
-- **C**: tiers `_apply_difficulty_scaling()` (§8.3); validation §8.4; doc write-back (AGENTS.md).
+A (FightPhase framework + `_patterns` + telegraphs + slow) / B (P2 attacks + per-type enrage) / C (difficulty tiers, §8.3) all landed 2026-07-28; per-part details & validation (boss_phase/enrage/pattern_test + regression §8.4) in git log.
 
 ### 8.2 Self-Decided Points
 - A: switch cease-fire = new pattern's first-wave interval; afterburn reuses P2 (×1.3); cross-phase hit → enrage wins; type3 summon timer independent; countdown plain text (no key).
 - B: ring dmg baseline 12; type2 aim line tracks throughout; type1 TRANSITION jitters; type3 RELEASE one-shot; dash_sweep pauses pattern timer; wall arc fixed downward, gaps avoid player ±30°.
 - C: tiers applied once in `_ready`; snapshot bullets (4 lasers + 8 rings), telegraph durations, body speed, HP/damage untiered; floors: wall 6 / ring 4 / others 1 (fan 3).
-- Fix: `_load_patterns` must `duplicate(true)` cfg arrays, else pollutes GameState cache (boss_pattern_test scene 6). **2026-08-01**: same in `FIRE_INTERVALS` (`boss.gd:514-515` read, `:655-656` in-place `[i] *= interval_mult`) — `_apply_difficulty_scaling` `duplicate(true)` too; AUDIT_VAULT B5. **Fixed 2026-08-01**; boss_pattern_test easy/hard pass.
-- Movement simplification (2026-08-02, D05): upgrades unimplemented — `boss_movement.gd` only type1 P1 vertical (`_update_press` only `FIGHT_P1`), type2 dash no phase split, type3 none. `git show 3188902^` confirms gap at phase B (not A3 split). **Landed 2026-08-02 per §5.5**; now a record.
+- Fix (`duplicate(true)` cfg arrays, 2026-08-01, AUDIT_VAULT B5, boss_pattern_test easy/hard pass) + movement-simplification gap (2026-08-02, D05, landed per §5.5): details in git log.
 
 ### 8.3 Difficulty Tiers Landed (§4.4)
-- `boss.difficulty_scaling`: `interval_mult` [1.15, 1.0, 0.85], `speed_mult` [0.9, 1.0, 1.1], `counts` [easy, medium, hard]: fan/homing/cannon/volley/summon/drops ±1, wall/ring/salvo ±2.
-- `Boss._apply_difficulty_scaling()` end of `_ready`, once: pattern intervals, FIRE_INTERVALS, CANNON/ENRAGE/E1/E2/E3 × interval_mult; attack speeds × speed_mult (not snapshot, not SWEEP_SPEED); counts with floors; fan/homing2 via `_d_fan/_d_homing` at `_execute_attack`. Tier = `GameState.DIFFICULTY_ORDER.find(GameState.difficulty)`, unknown → medium.
+`boss.difficulty_scaling`: `interval_mult` [1.15, 1.0, 0.85] × pattern intervals / FIRE_INTERVALS / CANNON / ENRAGE / E1-E3; `speed_mult` [0.9, 1.0, 1.1] × attack speeds (not snapshot, not SWEEP_SPEED); `counts` ±1 (fan/homing/cannon/volley/summon/drops) / ±2 (wall/ring/salvo) with floors (wall 6 / ring 4 / others 1, fan 3); applied once end of `_ready` (`_apply_difficulty_scaling`, `duplicate(true)`); tier = `DIFFICULTY_ORDER.find(difficulty)`, unknown → medium. Details & verification: git log.
 
 ### 8.4 Calibration Validation
 - `boss_phase_test` / `boss_enrage_test` / `boss_pattern_test` (incl. easy/hard) green; regression (hit_logic / difficulty / smoke / enemy_combat / elite_turret_event / formation_strike_event / base_system / `--quit-after 300` / `--import`) green.

@@ -39,11 +39,11 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 
 - [ ] C# 改动：`dotnet build` 零警告 + `dotnet test tests-csharp/` 全绿 + `dotnet format` 三工程零 diff
 - [ ] 全部既有断言场景 0 FAIL（CI 会自动跑；本地可先行确认）
-- [ ] 未破坏 `AGENTS.md`「全局不变量」（碰撞层、world_scale、view_world_rect、cfg、协程纪律、i18n、热路径、池防护）
+- [ ] 未破坏 `AGENTS.md`「Conventions」节所列全局不变量（碰撞层、world_scale、view_world_rect、cfg、协程纪律、i18n、热路径、池防护）
 - [ ] 新增用户可见文本走 `tr("UPPER_SNAKE_CASE_KEY")` 并同步 `data/translations.csv` 中英双列
 - [ ] 新增/改名数值键后已重跑 `gen_balance_map.py`
 - [ ] 改动设计意图/架构基线时已同步 `docs/DESIGN_BASELINE.md`；方向类决策登记 `docs/ROADMAP.md`
-- [ ] 文档同步要求见 `AGENTS.md`「文档同步要求」节（含已完成工作压缩留档至 `docs/archive/EXECUTION_LOG.md` 的约定）
+- [ ] 文档同步要求见 `AGENTS.md`「Doc Sync」节与 `.agents/doc-sync.md`（含已完成工作压缩留档至 `docs/archive/EXECUTION_LOG.md` 的约定）
 
 ## 测试体系说明
 

@@ -20,8 +20,8 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 ## 2. State Machine
 
 - FORMATION_ENTER: descend `(x0, view.top - 120)` → `approach_y` (view.top + 260) (~1.5s); wedge offsets (lead centered, wingmen `±WING_STEP×step` — 内翼 ±55px / 外翼 ±110px 递增); `x0` central 40%–60%; `CommOverlay` → `FBQ_WARN`.
-- FORMATION_TURN: decelerate; heading +y → ±x (farther side) in `turn_time` 1.2s; offsets rotate with heading.
-- BOMBING_RUN: cross at `run_speed` (2.0/2.8/3.6s for 3/4/5); from turn end, craft drop staggered `bomb_interval` (lead first) × `bombs_per_craft` (0.4s gap), straight below.
+- FORMATION_TURN: accelerate to crossing speed (speed lerps `ApproachSpeed` → `RunSpeed` over `turn_time` 1.2s — `FormationStrikeEvent.cs`); heading +y → ±x (farther side); offsets rotate with heading.
+- BOMBING_RUN: cross at `run_speed` (2.0/2.8/3.6s for 3/4/5 = 投弹时刻表末弹时刻 (n−1)×`bomb_interval` + 0.4s，非横穿时长——横穿约 5.6s); from turn end, craft drop staggered `bomb_interval` (lead first) × `bombs_per_craft` (0.4s gap), straight below.
 - FORMATION_EXIT: after bombing/crossing side edge, accelerate off-side (`EXIT_TIME` 1.5s) → IDLE + cooldown.
 - Early end: all destroyed → all-clear reward → FORMATION_EXIT (cleanup).
 
@@ -70,19 +70,14 @@ i18n: 1 key (zh/en): `FBQ_WARN` 「侦测到轰炸编队，正在接近」/ "Bom
 
 - `Main._Ready()`: create `FormationStrikeEvent` under Main → `spawner.SetFormationEvent(_formation)`.
 - `csharp/godot/Spawner.cs`: `_formation` ref + trigger gates (`IsBossActive()` / elite `IsActive()`, polled by `GameEventManager`, §1); params `formation_strike_event.*` read by the event via `Cfg()` (same-name fallbacks).
-- `Main.StartHomecoming()`: `_events.EndActive(GROUP_ENCOUNTER)` → `_formation.Abort()` (no settlement; cooldown counts).
+- `Main.StartHomecoming()`: `_events.EndActive(GROUP_ENCOUNTER)` (`Main.cs`) — Abort 由管理器内部派发 (`GameEventManager.cs` `EndActive` → `IEncounterEvent.Abort()`; no settlement; cooldown counts).
 - Craft/bomb under Main; field-clear (`OnOrbitalStruck`) sweeps registered enemies + `child is Bullet || child is FormationBomb`; `Abort()` owns event-lifecycle cleanup. Player death: no special case.
 
 ## 6. Tests (`test/formation_strike_event_test.tscn`)
 
-Mirrors `elite_turret_event_test`.
-
-1. `CanTrigger()` false: Boss active / elite turret active / cooldown / low score.
-2. (short config forces `Start()`) FORMATION_ENTER→FORMATION_TURN→BOMBING_RUN→FORMATION_EXIT→IDLE; craft in `GameState.Enemies`; bombs only after turn; count = surviving × `bombs_per_craft` (destroyed skipped).
-3. Bombs: ring exists + shrinks; freed after detonation; damage in radius (not if invulnerable). Kills: lethal `TakeDamage` → deregistered + score; all-clear → bonus + early EXIT.
-4. `Abort()` → cleaned, IDLE, cooldown active; no Timer/node residue (event tree + Main child counts); `user://` cleanup.
-
-Regression: `smoke_test`, `elite_turret_event_test`, `enemy_combat_test`, `base_system_test`, `--quit-after 300`.
+Mirrors `elite_turret_event_test` — 断言细节（CanTrigger 门控 / FSM 全状态迁移 / 炸弹 AoE /
+Abort 清理）见测试文件；regression: `smoke_test`, `elite_turret_event_test`,
+`enemy_combat_test`, `base_system_test`, `--quit-after 300`。
 
 ## 7. Docs
 

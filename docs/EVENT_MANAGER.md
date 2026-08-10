@@ -6,7 +6,7 @@
 > random in-game events and records the migration.
 >
 > 2026-08-08 全量迁移 C# 后:API 名同义 PascalCase(文中 §3 起已按 C# 更新;各 Manager 底部仍留
-> snake_case 兼容桥)。§4 迁移映射为 2026-08-05 历史记录,保留原状。
+> snake_case 兼容桥)。
 
 ## 1. Purpose
 
@@ -19,9 +19,9 @@ sequences orchestrated by `Main` (`csharp/godot/Main.cs`). This document:
 2. Defines a **unified event manager** (`GameEventManager`, `GameState.Events`) that
    batch-manages all *random* events through one registry / trigger policy / lifecycle /
    signal surface;
-3. Records the migration map and the invariants that keep behavior unchanged.
+3. Records the invariants that keep behavior unchanged.
 
-Non-random, scene-bound sequences are **not** moved into the manager (see §3.C) — they are
+Non-random, scene-bound sequences are **not** moved into the manager (see §2.C) — they are
 tied to pause state, scene switching and input locking, which is orchestration, not event
 scheduling.
 
@@ -159,18 +159,6 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 `SetEncounterTimerRemaining(id, seconds)` / `EncounterTimerRemaining(id)` /
 `ActiveRemaining()` / signals `EventStarted(event_id, duration)` / `EventEnded(event_id)`.
 
-## 4. Migration map
-
-| File | Change |
-| --- | --- |
-| `csharp/godot/GameEventManager.cs` | **new**: `GameEventManager` (registry/groups/trigger/lifecycle/signals/API) |
-| `csharp/godot/FogEventManager.cs` | keep class + full public API as the **fog effects layer + facade**: visual layers (fake container / overlay / banner), fog signals re-emitted from manager signals, accessors (`spawned_fakes`, `fake_container`, `overlay_*`, `emit_direction_shift`), config vars (`TRIGGER_CHANCE`, `CHECK_INTERVAL`, `MIN_INTERVAL`, `FIRST_DELAY`, `WEIGHTS`, `EVENT_DURATIONS`, `ENABLED`, `EVENT_FACTORIES`) proxied to manager fog-group config / shared registry; lifecycle forwards to `GameState.Events` |
-| `csharp/godot/Spawner.cs` | remove encounter trigger checks + `ScheduledEventTrigger` fields; keep accessors (`set_elite_event`/`elite_event`/`set_formation_event`/`formation_event`) + Boss/wave mutex hooks; add `notify_event_triggered()` (wave-slot reset) |
-| `csharp/godot/Main.cs` | replace direct event creation with `GameState.Events` wiring (container = self, spawner ref, run_active); `Event()`/`Formation()` forward to manager; homecoming/death clear fog via `GameState.FogEvents.EndActive()` + encounter via `GameState.Events.EndActive(GameEventManager.GroupEncounter)` |
-| `csharp/godot/GameState.cs` | holds `GameState.Events` (GameEventManager child) |
-| `scripts/scheduled_event_trigger.gd` | retired (logic absorbed by manager) |
-| tests | `fog_event_test` untouched (facade); encounter tests untouched if APIs preserved; mothership/orbital/summon tests keep `Main.Event().SetProcess(false)` |
-
 ## 5. Behavior preservation invariants
 
 - Fog may fire during encounters; encounters never overlap each other/Boss; mothership
@@ -194,11 +182,5 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 
 ## 7. Test strategy
 
-- `fog_event_test.tscn` must pass **unchanged** (facade compatibility contract).
-- `elite_turret_event_test.tscn` / `formation_strike_event_test.tscn`: unchanged unless a
-  migration API drops; every assertion keeps its semantics.
-- Mothership / orbital / summon / autoplay scenes: unchanged.
-- New coverage: manager-level assertions (unified registry of 6 ids, group concurrency
-  fog‖encounter, unified `EventStarted`/`EventEnded` broadcast, spawner-processing gate).
-- Gate: the layers of `docs/TESTING.md` (C# build/test/format → zero-GDScript → import warnings
-  → BALANCE_MAP zero-diff → compile+smoke → all assertion scenes; authoritative count lives there).
+Gate: the layers of `docs/TESTING.md` (C# build/test/format → zero-GDScript → import warnings
+→ BALANCE_MAP zero-diff → compile+smoke → all assertion scenes; authoritative count lives there).

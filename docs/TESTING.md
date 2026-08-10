@@ -84,6 +84,7 @@ godot --headless --path . res://test/save_store_interop_test.tscn     # P0-1 存
 godot --headless --path . res://test/user_db_interop_test.tscn        # P0-2 账户壳
 godot --headless --path . res://test/progression_interop_test.tscn    # 进程曲线壳（里程碑/难度）
 godot --headless --path . res://test/task_pool_interop_test.tscn      # 任务池壳（无放回抽取）
+godot --headless --path . res://test/meta_test.tscn                  # 局外成长/科技树 (2026-08-09; docs/archive/2026-08-09-meta-progression-plan.md)
 # Autoplay anomaly probe (~480s real time; not a normal assertion test)
 godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
 ```
@@ -126,8 +127,8 @@ godot --headless --path . --quit-after 300     # 5. compile + runtime smoke
 godot --headless --path . res://test/smoke_test.tscn
 #    CI also compile-probes every test/*.tscn with --quit-after 2 (catches what --import misses)
 # 6. all assertion scenes (test/*_test.tscn minus autoplay probe); any FAIL → non-zero exit
-#    CI additionally scans each scene log for SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function
-#    and hard-checks the scene count (ran == discovered-1) — 2026-08-09 V-series
+#    CI additionally scans each scene log for SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception
+#    and hard-checks the scene count (ran == discovered-1) — 2026-08-09 V-series (W-series: + Unhandled exception)
 ```
 
 - **Rule rationale**: `project.godot` `[debug]` comments + `docs/AUDIT_VAULT.md`; new disables/relaxes sync those configs + `AGENTS.md`. (GDScript-era `gdformatrc`/`.gdlintrc` retired with M7 — gdtoolkit note in "Headless Test Environment Notes".)
@@ -139,15 +140,15 @@ push/PR (2026-08-09 Y 系列规整：**分层门禁**——feature push 仅 fast
 
 **fast-gate** (all push/PR): Install .NET SDK 8 (official `dotnet-install.sh`, cached) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → **dotnet format gate** (三工程 `--verify-no-changes` 零 diff, 2026-08-09 全量规范化后防回归) → zero-GDScript gate (M7d: 任何 .gd 即失败) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools).
 
-**full-regression** (needs fast-gate; main push/PR/dispatch): **BALANCE_MAP 生成器重跑零 diff 闸** (M8, 2026-08-06) → all 55 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`/`progression_interop_test`/`task_pool_interop_test`) with exit-code checks + per-scene 300s timeout + flake retry once; any failure fails job + uploads logs. 2026-08-09 (V 系列): + 引擎错误日志扫描（退出码 0 但日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function 即失败——死测试曾静默通过）+ 场景数硬校验（run != 发现数-1 即失败，堵住改名/新增静默掉出 CI；不硬编码计数）。Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact/cache actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
+**full-regression** (needs fast-gate; main push/PR/dispatch): **BALANCE_MAP 生成器重跑零 diff 闸** (M8, 2026-08-06) → all 56 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`/`progression_interop_test`/`task_pool_interop_test`; 2026-08-09: + `meta_test`) with exit-code checks + per-scene 300s timeout + flake retry once; any failure fails job + uploads logs. 2026-08-09 (V 系列): + 引擎错误日志扫描（退出码 0 但日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception 即失败——死测试曾静默通过）+ 场景数硬校验（run != 发现数-1 即失败，堵住改名/新增静默掉出 CI；不硬编码计数）。Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact/cache actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **64 scenes: 55 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`). (2026-08-09 U18: 计数算式统一——8 screenshot tools 实为 7，55+1+1+7=64)
+Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **65 scenes: 56 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.DeleteSave()` first + clean/restore own state.
 - `BalanceTest.cs` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.
 - `autoplay_test`: long probe with `[ANOMALY]` invariants (not ordinary assertions); registry bidirectional check vs `enemy` group (incl. turret/formation, skipping pooled deferred-recycle), buff-confirm anim path (10% real roll), return-cinematic stall exemption, enrage-slow reset, buff caps, event/boss phase counts (SUMMARY).
 - `perf_bench` needs `--fixed-fps 1000`; interleave runs + medians for A/B.
 - UI changes: human-check windowed screenshots (headless produces none).
-- **Known-failure baseline**: `smoke_test` "mothership kill 1/3 score" flaked (rerun passes; re-verified 2026-08-01, self-healed). `hit_logic_test` A21 was a stable baseline (2026-07-31); 2026-08-01 found `user://profile.json` zoom coincidence; **root-caused + fixed 2026-08-02**: test hardcoded `(960,100)`; at `view_zoom=large` (visible top y=222) player bullets died to `view_world_rect(80)` out-of-bounds before reaching the boss; now positioned via `fight_anchor_y()`; 9-combo (zoom×difficulty) green. Record: `docs/AUDIT_VAULT.md` A21. **A21 no longer a baseline** — rerun `hit_logic_test` after zoom-tier/boss-anchor changes.
+- **Known-failure baseline**: `smoke_test` "mothership kill 1/3 score" flaked (rerun passes; re-verified 2026-08-01, self-healed). `hit_logic_test` A21 — root-caused + fixed 2026-08-02 (test hardcoded `(960,100)`; at `view_zoom=large` player bullets died to `view_world_rect(80)` out-of-bounds before reaching the boss; now positioned via `fight_anchor_y()`; 9-combo zoom×difficulty green; record `docs/AUDIT_VAULT.md` A21). **A21 no longer a baseline** — rerun `hit_logic_test` after zoom-tier/boss-anchor changes. Historical known failures: see `docs/AUDIT_VAULT.md`.

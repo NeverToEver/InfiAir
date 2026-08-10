@@ -5,7 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 敌机对象池（M3b 全量迁移，2026-08-08 自 scripts/enemy_pool.gd 迁移；挂在 Main 下，
 /// 模式同 BulletPool）：复用 enemy.tscn 实例。活跃敌机挂 Main 下（清场/测试遍历可见），
-/// 闲置收回池节点下。USE_POOL=false 时退化为纯 instantiate/free（性能 A/B 对照开关，恒 true）。
+/// 闲置收回池节点下。
 /// </summary>
 public partial class EnemyPool : Node
 {

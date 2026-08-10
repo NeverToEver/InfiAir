@@ -13,7 +13,7 @@ L2 overlay: SettingsUI (opener = pause panel (main) / welcome (settings in welco
                              ends on BaseUI with tree paused, docs/RETURN_HOME_CINEMATIC.md §4)
 L1 run:    Gameplay(HUD) ⇄ PauseUI
            buff scroll bar (HUD overlay, L key; not pausing; Esc = close bar)
-L0 top:    welcome scene (accounts entry; Esc hierarchy: overlay → modal → username dropdown → exit confirm, self-handled, outside FSM)
+L0 top:    welcome scene (accounts entry; Esc hierarchy: settings → leaderboard overlay → research-lab overlay → guest/delete/exit 三 modal → username dropdown → exit confirm, self-handled, outside FSM; impl `Welcome._UnhandledInput`)
 ```
 
 `scenes/tutorial.tscn` standalone: its own top, Esc = exit to main menu (self-handled, outside FSM). Note: with BaseConsole open the tree is paused, tutorial root (process_mode=inherit) gets no input — click "continue sortie" to close (modal behavior, 2026-08-03 audit note).

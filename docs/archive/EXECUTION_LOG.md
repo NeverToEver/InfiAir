@@ -169,3 +169,10 @@
 - **落地**：随 AA 系列批次提交（见 `docs/AUDIT_VAULT.md` AA 系列登记）
 - **摘要**：两份已完成使命的评审/决策文档移出 `docs/` 顶层——`C_SHARP_ASSESSMENT.md`（C# 混编调研→渐进引入→全量迁移决策，M1–M7 已全部落地，评估使命完结）与 `PARITY_REVIEW_2026.md`（2026-08-09 一次性对齐评审，结论「玩法机制零缺口」已固化）；ROADMAP/ARCHITECTURE/csharp-conventions 引用同步指向归档路径（CHANGELOG 历史条目按「归档前快照」惯例不动）。
 - **原文**：`docs/archive/2026-08-08-csharp-assessment.md`、`docs/archive/2026-08-09-parity-review.md`
+
+## 2026-08-10 · ENDLESS_BALANCE_PLAN 归档（已实施完成）
+
+- **落地**：本次文档批次（无代码改动——公式与数值已随 2026-08-04 深局校准与 M 系列全部落地：`ProgressionCurves.cs` + `balance.json` `progression.*`/`enemies.*_ramp_factor`/`buffs.extra_life.max_stacks=10`，`DifficultyTest` 钉住）
+- **摘要**：无限段深局平衡计划使命完结，全文移入归档；文档核查批次同步：断言场景计数 55→56 漂移修正（TESTING.md/ci.yml）、GameState partial 清单补 Meta、`profile.json` 兼容路径与 UserDbCorrupt 现状回写（.agents/persistence-security.md）、give-up 结算语义澄清（DESIGN_BASELINE）等约 30 处事实修正 + 事件/演出文档已完成段落裁剪
+- **关键决策**：唯一遗留开放项「人工手感验证（15+ min real play）」登记至 `docs/ROADMAP.md` pending，不再随本计划跟踪
+- **原文**：`docs/archive/ENDLESS_BALANCE_PLAN.md`（引用已同步：DESIGN_BASELINE §1.4 / ROADMAP / ARCHITECTURE 改指归档路径）

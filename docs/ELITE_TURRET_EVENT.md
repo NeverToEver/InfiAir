@@ -2,62 +2,6 @@
 
 > Status: **Implemented** (landed 2026-07-28, full validation passed; details in "Implementation Notes" at end). Values from `data/balance.json` + existing scripts; new params in its top-level `elite_turret_event` block, scripts keep same-named fallback defaults (project numeric convention).
 
-## 1. Sampled analysis summary
-
-### 1.1 Existing ammo types
-
-| Ammo | Source | Speed | Dmg | Behavior |
-| --- | --- | --- | --- | --- |
-| Straight | normal `enemies.bullet_speed` | 420 | 12 | linear, red |
-| Fan | normal `enemies.spread_bullet_speed` | 340 | 10 | fan, `spread_fan_step≈0.314rad` |
-| Laser | normal `enemies.laser_bullet_speed` | 720 | 20 | fast linear long |
-| Boss fan | `boss.fan_bullet_speed` | 380 | 14 | slow wide suppression |
-| Boss homing | `boss.homing_bullet_speed` | 300 | 12 | `homing=true`; `lerp_angle(4.0·dt)` within `homing_time` |
-| Boss sniper | `boss.sniper_bullet_speed` | 650 | 21 | fast precise single |
-| Boss cross | `boss.cross_bullet_speed` | 260 | 12 | slow 4-way/cross |
-| Enrage volley | `boss.enrage` | 820 / 240 | 21 / 12 | preset-path volleys (enrage) |
-| Mothership gatling | `mothership.gatling` | 1080 | 8 | player-side strafing |
-| Mothership missile | `mothership.missile` | 600 | 80 + splash 20/r80 | multi-homing + AoE |
-| Laser beam (buff) | `buffs.laser_beam` | — (line check) | 16/0.1s tick | player buff weapon, not a bullet |
-
-All bullets via `scenes/bullet.tscn` + `GameState.BulletPool.Fire()`; faction in `Setup()/Activate()`; homing via `csharp/godot/Bullet.cs` `Homing`/`HomingTime` (4.0 rad-class lerp). **Event reuses enemy-side ammo only; no new bullet types.**
-
-### 1.2 Normal enemy HP
-
-`balance.json → enemies.types[].hp` (medium baseline):
-
-- Range **48 ~ 112 HP** (types 65-72 / 48-56 / 95-112 / 56-66 / 80-92 (Splitter, 2026-08-04), resampled 2026-08-02); typical **~65-72 HP**
-- `difficulty.hp`: easy ×0.75 / medium ×1.0 / hard ×1.5
-- Ref: elite 135-270 (4 elite types, `elites.types[].hp`); Boss 800 × hp_mults; turrets = normal-unit tier HP.
-
-### 1.3 Boss kill score
-
-- `Boss.Die()` (`csharp/godot/Boss.cs`) → `GameState.AddBossKill(scoreScale)` → `AddScore(int(500.0 × scoreScale))`; base **500** (`milestones.boss_kill_base`; score_scale usually 1.0)
-- `AddScore()` applies difficulty mult **×1 / ×2 / ×3** → credited 500 / 1000 / 1500
-- Not reused by event: RP reward, boss_kills count, difficulty growth
-
-### 1.4 Art style keywords (from `scripts/tools/generate_enemy_sprites.py` + `assets/sprites/`)
-
-- Mirror-symmetric facet-cut crystal hull; sharp poly outlines, blade/claw wings, fork nose; nose up (root rotation=PI)
-- Hull `HULL_A~D = (22,18,34)~(62,52,92)`; seams near-black `(10,8,18)`; rim light purple `(150,140,185)`
-- Accent: normal crimson `(255,72,56)`; elite magenta `(255,64,190)`; boss amber/violet/ruby
-- Two-layer draw (body + blur glow); energy core = accent circle + white core; tail engine ellipse; 4× AA; neon along edges/ridges
-
-## 2. Strike carrier visual redesign
-
-### 2.1 Role
-Background-scale giant (not Boss, not in boss rotation); descends from off-screen top, hovers rear upper-mid (`hover_y=300` tier, ≥60% screen width) as deployment "stage". Hull **not attackable** (no collision layer); only raised turrets destructible.
-
-### 2.2 Shape & color
-- Elongated hex spindle, ~1.6-1.8× Boss sprite (410px); Boss-3 "pillar" hex-fortress facets spread horizontally: central tall hex prism + stepped shrinking "deck wing platforms" (tops = turret bases); bridge = three-tier tapered hex tower (boss_3 style) + horizontal magenta neon "observation slit".
-- Turret wells: 1-2 octagonal recessed bases per platform, armored lids when stowed (`SEAM` outline); lids rotate open on raise; turret = small hex prism + single crystal barrel, energy core in muzzle. Tail: three engine glows (big center, small sides).
-- `HULL_A~D` dark violet facets (Boss-tier = "heavy armor"); accent = **elite magenta `(255,64,190)`**; core `ELITE_CORE (215,135,255)`; seam/rim/neon/glow identical to generator (`SEAM`/`RIM`). Deck plates `HULL_C/D` bright (horizontal), vertical faces `HULL_A/B` dark → top-down volume.
-
-### 2.3 Key visual markers
-- Faction emblem: central hex neon insignia (magenta rim + white core) = "elite fleet flagship" ID.
-- Lights: magenta neon along wing-platform leading edges (boss_1 style); each base ring = octagonal neon status light — **standby dark red → charging magenta bright → destroyed = ring off**; remaining turrets readable at a glance.
-- Event opening: fade-in from top + descent, engine glows ramp, one low-intensity screen shake (reuse `effects.shake.mothership=4.0` scale).
-
 ## 3. Turret mechanics & per-difficulty config
 
 ### 3.1 Common mechanics
@@ -69,7 +13,7 @@ Background-scale giant (not Boss, not in boss rotation); descends from off-scree
 
 ### 3.2 Per-difficulty config
 
-HP = normal-typical 80 × difficulty `hp` coefficient × run-progression ramp (`GameState.EnemyHpRamp()`: 1.0 + 0.25×(difficulty mult −1), grows with boss kills), rounded; ammo all reused from §1.1.
+HP = normal-typical 80 × difficulty `hp` coefficient × run-progression ramp (`GameState.EnemyHpRamp()`: 1.0 + 0.25×(difficulty mult −1), grows with boss kills), rounded; ammo all reused from existing enemy-side ammo types (no new bullet types).
 
 | Difficulty | Turrets | HP each | Ammo sequence (rotation) |
 | --- | --- | --- | --- |
@@ -90,9 +34,6 @@ Config example (`balance.json` new block):
 	"reward_score": 500
 }
 ```
-
-### 3.3 Balance check
-30s window: player DPS ≈ 10/0.15s ≈ 67/s; wipe total 180/320/600 → pure-hit 2.7s / 4.8s / 9.0s; medium needs ~1/3 of event time. Gradient = turret count × spread + ammo density (consistent: ×1/×1.5 HP).
 
 ## 4. Immersive dialogue system
 
@@ -181,16 +122,10 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 | `csharp/godot/Spawner.cs` | New `_bossFrozen`/`_bossPending`/`_wavesPaused` + `_event` ref; boss check during freeze records pending only (no accumulation); event check after boss check (boss priority); waves paused while `_wavesPaused`. |
 | `csharp/godot/Main.cs` | `_Ready` creates `EliteTurretEvent` under Main (visible to cleanup/test traversal), registers `_spawner.SetEliteEvent(_event)`. |
 | `csharp/godot/Bullet.cs` | New `HomingTurnRate` field (default 4.0, reset in `Activate()`); weak homing = 1.5; hardcoded 4.0 replaced by field read. |
-| `test/elite_turret_event_test.tscn` | 59 assertions (2026-08-07; see Validation below for the 2026-07-28 baseline record). |
+| `test/elite_turret_event_test.tscn` | 60 assertions (2026-08-07). |
 
 ### Deviations from draft (final behavior)
 - **Trigger**: score ≥ 800, then 35% chance per 45s, 60s cooldown after event end — all in `elite_turret_event` config; spawner check order → boss priority on same-frame race.
 - **Wave pause window**: `CARRIER_ENTER` → `CARRIER_EXIT` (existing spawner doesn't suppress waves during boss fights); boss freeze held until `BOSS_DELAY` end.
 - **Ring light**: standby dark-red baked into texture (5 bases); charge/destroy = runtime Line2D overlay; no separate lid parts (raise = TRANS_BACK scale-in).
 - **Dialogue boundary**: line 2 requires "before all destroyed" (mutex with line 3); cross-node last hit (splash multi-kill) → new line overrides old.
-
-### Validation (2026-07-28, historical baseline — test has since grown to 59 assertions)
-- `test/elite_turret_event_test.tscn`: **45/45 PASS** — state transitions, medium 4×80 HP, unattackable during raise, independent cadence, weak homing (1.5/0.6s), 3-node dialogue (⌈N/3⌉/⌈2N/3⌉/all), reward 500×2=1000, timeout no reward, boss freeze/pending single-shot/retrigger, cooldown blocks.
-- Full regression: `--headless --import`, `--quit-after 300`, smoke/base_system/enemy_combat/buff33/difficulty/boss_enrage/hit_logic/balance/pool_reuse/i18n/keybind/startup_flow/back_navigation/esc_navigation/view_zoom/window_size/intro_cinematic/tutorial all 0 failures.
-- Autoplay 150s (seed=20260728): 0 errors, 0 orphans, event registry OK; ObjectDB leak warning = HEAD baseline (pre-existing).
-- Windowed screenshots manually verified: carrier composition, ring status lights, turret HP bar, event bar, overlay.

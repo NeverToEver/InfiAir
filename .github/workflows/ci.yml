@@ -3,7 +3,7 @@ name: CI
 # InfiAir 持续集成（2026-08-09 Y 系列规整版，对齐业界成熟做法）。
 # 设计目标（针对旧版痛点：feature push 也跑 45 分钟全量、每次重装引擎、同分支排队堆积）：
 #   1. 分层门禁：fast-gate（~8 分钟：C# 门 + 零 GDScript + import + smoke + 编译探针）
-#      覆盖全部 push/PR；full-regression（55 断言场景，~40 分钟）仅 main push / PR / 手动触发，
+#      覆盖全部 push/PR；full-regression（56 断言场景，~40 分钟）仅 main push / PR / 手动触发，
 #      feature 分支开发期只吃快速反馈。
 #   2. 路径过滤：docs/** 与 *.md 纯文档改动不触发 CI（业界惯例；BALANCE_MAP 生成物在 docs/
 #      下，但代码改动会连带提交，full 闸仍兜底）。
@@ -193,7 +193,7 @@ jobs:
           retention-days: 7
 
   full-regression:
-    name: Full assertion scenes (55)
+    name: Full assertion scenes (56)
     needs: fast-gate
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest

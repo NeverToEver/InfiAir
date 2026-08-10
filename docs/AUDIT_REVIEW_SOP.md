@@ -1,6 +1,6 @@
 # Audit-Review SOP
 
-> Process from one parallel-audit + fix cycle (2026-08-01; instance: `docs/AUDIT_VAULT.md` B-series + same-batch commits); scope: multi-subsystem audits with dual authoritative sources (design docs + audit archive).
+> Process established from the first parallel-audit + fix cycle (2026-08-01; instance: `docs/AUDIT_VAULT.md` B-series + same-batch commits); since adopted by 8+ audit rounds (AA series, 2026-08-10, still runs 8 parallel tracks); scope: multi-subsystem audits with dual authoritative sources (design docs + audit archive).
 > Related: findings/fix records → `docs/AUDIT_VAULT.md` (proprietary); direction decisions → `docs/ROADMAP.md`; balance keys → `docs/BALANCE_MAP.md` (generated; rerun generator after key changes).
 
 ## 1. Overview
@@ -21,7 +21,7 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 | Verdict | Action | Instance |
 | --- | --- | --- |
 | True bug | Fix | B1 aim-line leak: no `queue_free` in file |
-| Design intent | No code change; backfill in archive | B9 boss HP linear scaling: ENDLESS_BALANCE_PLAN D1 "boss linear + 50s escape pressure valve" |
+| Design intent | No code change; backfill in archive | B9 boss HP linear scaling: ENDLESS_BALANCE_PLAN §4 Plan 3 落地注记 "boss linear + 50s escape pressure valve" |
 | Calibration (口径) | Comment/unify docs; no behavior change | B11 mothership margin × ws: constant screen-edge distance |
 | Doc-code contradiction | Unify doc to code reality | mark_ratio 0.4 vs 0.25: code deliberately 0.25, doc not synced |
 
@@ -45,6 +45,8 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 ### Minimal verification set
 
 - Every change: `--headless --import` + targeted tests; C# touched → + `dotnet build` (zero warnings) + `dotnet test tests-csharp/` (+ `dotnet format --verify-no-changes`, mirrors CI format gate); balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: full assertion-scene set, 0 FAIL (count authoritative in `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
+- C# 专项门禁:Roslynator 静态分析 (`tools/roslynator/roslynator analyze InfiAir.csproj`;AA 系列实践,口径见 `.agents/csharp-conventions.md`).
+- CI/headless 错误日志扫描含 `Unhandled exception`(W 系列实践;error-level 零容忍).
 
 ## 6. Phase 5: Archive Backfill
 

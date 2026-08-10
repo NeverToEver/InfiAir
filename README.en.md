@@ -50,7 +50,7 @@ csharp/core/                    Pure .NET class library (zero Godot dependency)
 tests-csharp/                   xUnit unit tests (reference core, no Godot runtime)
 ```
 
-- `GameState` (the only autoload) is the global state/signal bus and facade: ~250 public members (signals, state, forwards) accessed via `GameState.Instance`; split into 9 partial files by domain (shell/constants/state/difficulty/missions/settings/input/users/save) with zero behavioral change.
+- `GameState` (the only autoload) is the global state/signal bus and facade: ~250 public members (signals, state, forwards) accessed via `GameState.Instance`; split as a shell + 9 domain partials (constants/state/difficulty/missions/settings/input/users/save/meta) with zero behavioral change.
 - Pure logic lives in core: data models (`BalanceModels`), config path resolution (`PathResolver`, mirroring GDScript `cfg()` semantics), the mission task pool (`TaskPool`, draw-without-replacement), progression curves (`ProgressionCurves`, bit-identical to the original GDScript), and storage (`SaveStore` atomic writes / corruption quarantine, `UserDb` local accounts + password derivation).
 - Interop shells (`*Interop` + `VariantBridge`) handle Variant ↔ CLR conversion so core stays Godot-free.
 
@@ -155,7 +155,7 @@ godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (self-ch
 
 ```text
 csharp/core/        Pure .NET class library (zero Godot dependency): models / curves / storage / task pool / config resolution
-csharp/godot/       Engine binding layer: GameState (9 partial files) + 8 services + scene scripts + entities / events / UI
+csharp/godot/       Engine binding layer: GameState (shell + 9 domain partials) + 8 services + scene scripts + entities / events / UI
 tests-csharp/       xUnit unit tests
 scenes/             Scene files (welcome entry / main run / boss / mothership / cinematics)
 test/               Headless assertion scenes (*_test.tscn, authoritative count in docs/TESTING.md) + windowed capture tools

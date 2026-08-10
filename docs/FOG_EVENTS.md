@@ -1,7 +1,7 @@
 # Base Task Rotation & Fog Events (FOG_EVENTS)
 
 > 2026-08-05：对局随机性增强双系统 —— 基地任务轮换（RefreshPoints + TaskPool）与迷雾事件
-> （FogEventManager 全局单例，4 种干扰事件）。设计目标：不改变既有分数/Buff/任务经济框架，
+> （FogEventManager 为 GameState autoload 的子节点服务，4 种干扰事件）。设计目标：不改变既有分数/Buff/任务经济框架，
 > 仅在基地整备与对局中注入可控随机性；事件触发与效果执行经信号解耦。
 > 配置：`data/balance.json` `base_task` / `fog_events` 段；文案：`data/translations.csv`。
 
@@ -11,10 +11,8 @@
 
 ### 1.1 需求
 
-- 基地/准备界面任务列表展示（既有 `BaseConsole` 任务面板）。
-- 「刷新任务」：消耗指定点数（RefreshPoints）重新随机抽取任务。
-- 点数校验：不足时禁止刷新并给出提示。
-- 任务池（TaskPool）随机抽取算法。
+基地/准备界面任务列表展示（既有 `BaseConsole` 任务面板）；「刷新任务」消耗指定点数
+（RefreshPoints）重新随机抽取，点数不足禁止并提示；任务池（TaskPool）随机抽取算法。
 
 ### 1.2 数据层（`csharp/godot/GameState.State.cs` + `GameState.Missions.cs`，2026-08-09 Y 系列 partial 拆分）
 
@@ -138,7 +136,8 @@ SetRunActive(true)  [Main._Ready]
       - 启动 duration 一次性 Godot.Timer → 到期 EndFog()：清效果 + 信号 EventEnded
   → 事件结束进入 min_interval 冷却（防事件过于频繁）
 遭遇组（elite_turret/formation_strike）独立并行动作：fog 进行中遭遇仍可触发（保持现状）；
-树暂停（基地/过场/Buff 选择）随 autoload 继承冻结 → 不触发、效果冻结
+树暂停（基地/过场/Buff 选择）随 autoload 默认 pause_mode 继承冻结 → 不触发、效果冻结
+（注：fog 组触发依赖该继承，无代码级防御；遭遇组有显式门控 `_spawner.IsProcessing()`）
 ```
 
 信号解耦（玩家侧仅连接信号应用效果，无对管理器依赖；迷雾信号由门面重发）：
@@ -238,12 +237,7 @@ Start/Tick/End 生命周期与幂等守卫；系统专属上下文经自己的�
 
 ## 3. 测试
 
-- `test/base_task_refresh_test.tscn`：初始手牌 / 点数校验 / 重抽语义 / kind 进度 / 保留已完成
-  未领取 / 存档往返 / ResetRun / TaskPool 算法（无放回、排除项、全排除防死循环）。
-- `test/fog_event_test.tscn`：管理器挂载与信号 / 单事件并发 / Duration 到期自动清除 /
-  MinInterval 冷却门控 / 概率触发（TryTrigger）/ 4 种效果与玩家信号联动 / 返航清除 /
-  事件类健壮性（§8 生命周期守卫 + §9 编排器防御）/ 事件宽容性（§10：复杂事件 RequestEnd
-  主动提前结束、极简事件仅 EventId 走通全生命周期、GetCtx 缺键回默认）。
-- 确定性：测试内 `TRIGGER_CHANCE = 0.0`（防随机触发干扰断言），全部走 `ForceTrigger` /
-  `TryTrigger` 显式路径；时长断言用实例变量覆盖（`EVENT_DURATIONS`/`MIN_INTERVAL` 等），不动
-  `balance.json`。
+`test/base_task_refresh_test.tscn` / `test/fog_event_test.tscn` 断言清单与运行命令见
+`docs/TESTING.md`；确定性约定：测试内 `TRIGGER_CHANCE = 0.0`，全部走 `ForceTrigger` /
+`TryTrigger` 显式路径，时长断言用实例变量覆盖（`EVENT_DURATIONS`/`MIN_INTERVAL` 等），不动
+`balance.json`。

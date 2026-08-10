@@ -2,7 +2,7 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-09)**: 10 systematic audits (A–L, incl. full SWE review) all resolved, no P0; assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); A-series **A8 fixed 2026-08-03** (PlayerVisuals split, §7.1) + **A5 closed 2026-08-07** (residual dep convergence, §7.1); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; **2026-08-08: M7 full C# migration completed (zero GDScript)**; **2026-08-09: CI + dotnet format 3-csproj zero-diff gate + V-series engine-error-log scan + scene-count hard check**; Phase 0 closed (ROADMAP).
+> **Snapshot (2026-08-09)**: audits A–L 全部闭环, no P0 (完整登记/效力: `docs/AUDIT_VAULT.md`; A8/A5 详见 §7.1); assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; **2026-08-08: M7 full C# migration completed (zero GDScript)**; **2026-08-09: CI + dotnet format 3-csproj zero-diff gate + V-series engine-error-log scan + scene-count hard check**; Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
@@ -21,10 +21,10 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only (2026-08-06 audit: baseline claimed "run economy from kills/score" — kills don't grant RP; spent at base console, not carried between runs).
 - **RefreshPoints (2026-08-05, `docs/FOG_EVENTS.md` §1)**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
-- **TechPoints (2026-08-09, meta progression; spec `docs/archive/2026-08-09-meta-progression-plan.md`)**: cross-run currency, independent of RP (RP stays in-run base economy). Sole settlement = death (`SettleRun`; give-up/homecoming do NOT settle — anti-farm): `floor(score/1000) + boss_kills×2 + missions_claimed×1` (`meta.points.*`). Logged-in users only (guests not persisted, B7-8). Spent at Research Lab (Welcome main menu + BaseConsole panel); effect = new run starts with purchased buff stacks (`ApplyMetaLoadout` from `Main.ApplyNewRun`; tutorial / save-continue paths skip it). Upgrades = `meta.upgrades` (8 items, max_level 2–3, ≤ half of `buffs.<id>.max_stacks`); balance/levels persist in UserDb `meta` field (defensive typing, legacy records default).
+- **TechPoints (2026-08-09, meta progression; spec `docs/archive/2026-08-09-meta-progression-plan.md`)**: cross-run currency, independent of RP (RP stays in-run base economy). **Sole settlement = death** (`SettleRun`): battle exit via `ExitConfirm` (deletes save, same semantics as death — abandoned, not settled) and homecoming do NOT settle — anti-farm; K-key give-up (`give_up` action) = self-destruct, settles as death (Main.cs 自毁走正常死亡结算; `GameOverUi.cs` `SettleRun`): `floor(score/1000) + boss_kills×2 + missions_claimed×1` (`meta.points.*`). Logged-in users only (guests not persisted, B7-8). Spent at Research Lab (Welcome main menu + BaseConsole panel); effect = new run starts with purchased buff stacks (`ApplyMetaLoadout` from `Main.ApplyNewRun`; tutorial / save-continue paths skip it). Upgrades = `meta.upgrades` (8 items: max_level 2–3 per item, independent of buff stacks — `bullet_speed`/`crit_shot` max_level 2 at `buffs.max_stacks` 3; `regen`/`armor`/`slow_field` buff entries have **no** `max_stacks` key); balance/levels persist in UserDb `meta` field (defensive typing, legacy records default).
 - Milestones: score thresholds → buff 3-choice (`BuffSelect`); covered by `buff33_test`/`buff_panel_test`.
 
-### 1.4 Difficulty & Endless Curve (single source `docs/ENDLESS_BALANCE_PLAN.md`)
+### 1.4 Difficulty & Endless Curve (single source `docs/archive/ENDLESS_BALANCE_PLAN.md` — 已实施: 公式落地 `csharp/core/Progression/ProgressionCurves.cs` 与 `data/balance.json`)
 **Endgame (D1)**: inevitable-death curve.
 - `mult = 1 + progression.per_boss_kill(0.6) × boss_kills + time`. Time: quantized by `progression.time_step_seconds` (30s), + `progression.per_ten_minutes` (1.5)/10min → `floor(run_time/30) × 0.075`; counts live `run_time` only (tree-pause excluded); quantization pins HUD/tests.
 - No hard cap (old `2^n + ×8` removed). `RecomputeDifficulty()` unified (kill + time tier + save-restore); broadcasts `DifficultyChanged`.
@@ -74,7 +74,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Brightness proxy from registries (bullets ×0.002 + explosions ×0.15), zero GPU readback; LOD1 skips CA/blur/ripple.
 
 ### 1.10 Cinematics
-- Intro (`docs/INTRO_CINEMATIC.md`): 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `CurrentScene == Main`; Esc/any key/click skip; tree paused, root `ProcessMode=Always`. Shots 1–6 done (P1–P3); **P4 leftover: low-spec retest + gamepad/mobile check (manual)**.
+- Intro (`docs/INTRO_CINEMATIC.md`): 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `CurrentScene == Main`; Esc/any key/click skip; tree paused, root `ProcessMode=Always`. Shots 1–6 done (P1–P3); **P4 leftover: Cinematic stage 4 — see §7.3**.
 - Return (`docs/RETURN_HOME_CINEMATIC.md`): 7 shots 11.8s, mirrors intro; Esc via `SKIP_RETURN` (1.2s grace `effects.return_skip_grace`); both paths land on base UI (tree paused); BGM −40dB in shot 7.
 - Shared factories: `CinematicFx.cs` (`SoftGlow`/`Particles`/`Shockwave`/`Beam`/`RadialStreaks`; `speed_lines` removed 2026-08-03; zero heap alloc in drive `_Process`), `DawnStation.cs`.
 
@@ -203,7 +203,7 @@ Pausing UIs `ProcessMode = Always` + `GetTree().Paused`; BGM `LoopMode = Forward
 ## 4. Data & Balance
 
 ### 4.1 balance.json
-Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`world_scale`/`player`/`enemies`/`elites`/`boss`/`hud`/`spawner`/`mothership`/`buffs`/`milestones`/`base_task`/`progression`/`difficulty`/`effects`/`elite_turret_event`/`formation_strike_event`/`fog_events`/`tutorial`/`dda`.
+Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`world_scale`/`player`/`enemies`/`elites`/`boss`/`hud`/`spawner`/`mothership`/`buffs`/`milestones`/`base_task`/`progression`/`difficulty`/`effects`/`elite_turret_event`/`formation_strike_event`/`fog_events`/`tutorial`/`dda`/`meta`.
 - `difficulty`: score ×1/×2/×3, HP ×0.75/×1/×1.5, thresholds.
 - `progression`: per_boss_kill / per_ten_minutes / time_step_seconds.
 - `boss.phases`/`boss.enrage.type_*`/`boss.difficulty_scaling`.
@@ -248,7 +248,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 ### 7.3 Phase Leftovers (ROADMAP Phase 0)
 - ~~Dead code: `main.gd` unused refs, `hud.gd` false branch, zero-connect signals~~ ✅ verified covered/fixed: `_buff_ui` gone, `_tag_labels` in use, `ACTION_LABELS` removed, dead signals documented (E13), `toggle()` used by tests; `_start_release()` guard landed (I010).
 - ~~`profile_corrupt` toast consumption~~ ✅ start panel shows profile-corrupt notice (`START_PROFILE_CORRUPT`).
-- Cinematic stage 4 (low-spec/gamepad-mobile/README).
+- **Cinematic stage 4 (pending, manual)**: low-spec retest + gamepad/mobile 手工项 + README（单一待办登记处；§1.10/§8.2 均引用本条）。
 
 ## 8. Future Directions
 > Direction decisions: `docs/ROADMAP.md` (single source). Here: breakdown + landing points.
@@ -261,7 +261,7 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 ### 8.2 Mid Term
 - Endless calibration: ✅ **done 2026-08-04** — `progression.*` + ramp factors tuned for deep runs (>15 min), recorded in `ENDLESS_BALANCE_PLAN §6.1`; verified via 3 × 900s autoplay probes (0 anomalies; no "HP-only inflation, zero pressure" steady state — HP min 40–69 sustained, 0 deaths).
 - **Meta progression (cross-run growth)**: ✅ **landed 2026-08-09** — TechPoints tech tree (death settlement + Research Lab UI + opening buff-stack loadout; §1.3 + `docs/archive/2026-08-09-meta-progression-plan.md`).
-- Cinematic stage 4.
+- Cinematic stage 4 — see §7.3 (single registry).
 
 ### 8.3 Deferred/Cut (restart needs explicit decision; ROADMAP Phase 3)
 Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online leaderboard (decided no), collaboration/release engineering (done: CONTRIBUTING/CI/semver), content evolution (buffs/enemies/elites/boss/mothership — **mobile touch restarted & landed 2026-08-07**, `docs/archive/2026-08-07-deferred-restart-plan.md` §3).

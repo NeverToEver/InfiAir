@@ -29,7 +29,7 @@ Render: CanvasLayer layer=1 (above world, below HUD; main HUD -> layer=2; below 
 - D9 jitter: `_hpBar` + buff chips only (+-2px, 80ms burst); not whole-HUD jitter
 - D10 state update: per-frame pure arithmetic (`sin()` <=3x/frame) + early return; not 0.1s throttle
 
-## 3. Shader spec (`assets/shaders/meta_health.gdshader`)
+## 3. Shader spec — source of truth: `assets/shaders/meta_health.gdshader` (code = spec; decision refs R2/R3/R4/R6/R7 per uniform below)
 
 ### 3.1 uniforms (`shader_type canvas_item`)
 
@@ -58,64 +58,25 @@ Render: CanvasLayer layer=1 (above world, below HUD; main HUD -> layer=2; below 
 
 "Reduce flash" NOT in shader: C# pre-scales (CA x0.4, heartbeat/jitter zeroed); shader branch-free (D5 spirit).
 
-### 3.2 fragment (stages + all constants)
+### 3.2 fragment
 
-```text
-uv=SCREEN_UV (Y-normalized [R4]); to_center=uv-vec2(0.5); dist=length(to_center*vec2(1.0,0.5625))*2.0  # edge-mid 1.0, corners 1.15
-radial_w=smoothstep(0.25,1.0,dist)  # edge-strong [R2]
-
-1 hit layer (skip if u_lod==1 or (u_chromatic_amount<=0.0001 && u_radial_blur_strength<=0.001)):
-   off=normalize(to_center+1e-6)*radial_w*u_chromatic_amount
-   col=vec3(a.r,mix(a.g,b.g,0.5),b.b) with a/b = texture(screen_texture, uv+off / uv-off).rgb  # P1-7: 3->2 samples, G=avg ends
-   blur if u_radial_blur_strength>0.001 (D4): +3 taps i=1..3 at mix(uv,vec2(0.5), i/4.0*u_radial_blur_strength*radial_w*0.06); col=avg/4.0
-2 ripple if u_lod==0 && u_hit_intensity>0.01 [R6]:
-   col += vec3(0.4,0.9,1.0) * smoothstep(0.88,0.98,dist) * pow(max(cos(atan(to_center.y,to_center.x)-atan(u_hit_dir.y,u_hit_dir.x)),0.0),3.0) * (sin((dist-u_ripple_phase*1.1)*40.0)*0.5+0.5) * (1.0-u_ripple_phase) * u_hit_intensity
-3 implicit [R7]: lum=dot(col,vec3(0.299,0.587,0.114)); col=mix(col,vec3(lum),u_desaturation); col=mix(col,col*vec3(0.85,1.0,1.1),u_hue_cool)
-4 vignette [R7]: vig=smoothstep(u_vignette_inner,1.15,dist); col=mix(col,vec3(0.35,0.02,0.05), clamp(u_vignette_strength*(1.0+0.35*u_heartbeat),0.0,0.6)*u_adapt_gain*vig)
-5 crack [R3]: field=texture(u_crack_field,uv).rgb; gate=mix(u_crack_spread_min,1.0,field.b)+(field.g-0.5)*u_heal_jitter; on=smoothstep(gate,gate+u_crack_edge_softness,u_crack_progress); line=1.0-smoothstep(0.0,u_crack_width,field.r); mask=line*on*u_crack_density; col=mix(col,u_crack_color.rgb*0.25,mask*0.6)+u_crack_color.rgb*mask*u_crack_glow*u_adapt_gain
-COLOR=vec4(col,1.0)
-```
-
-Bake shader (D1, once): SubViewport(512x512) + ColorRect; F1/F2 Voronoi over 12 fixed seeds (const array, hash on `uv`); crack line at cell boundaries (F2-F1~0); writes R/G/B per §3.1. `_Ready`: after `RenderingServer.FramePostDraw` -> `GetTexture().GetImage()` -> `ImageTexture`, free SubViewport. One-time readback OK (vs D3 per-frame). headless -> `CpuBakeImage()` (64^2, same formula).
+Implementation in `meta_health.gdshader` (stage order: hit layer [R2] → ripple [R6] → implicit desat/hue [R7] → vignette [R7] → crack [R3]; `u_lod==1` skips CA/blur/ripple, D2). Bake shader `assets/shaders/crack_field_bake.gdshader` (D1: SubViewport 512² single-frame pre-bake, headless `CpuBakeImage()` 64²). "Reduce flash" NOT in shader: C# pre-scales (CA x0.4, heartbeat/jitter zeroed); shader branch-free (D5 spirit).
 
 ## 4. C# spec
 
 ### 4.1 `csharp/godot/MetaHealthFX.cs` (`public partial class MetaHealthFX : CanvasLayer`)
 
-```text
-layer = 1 (main HUD -> layer=2); process_mode Pausable (paused -> frozen; early-return cost~0)
-
-STATE_NORMAL/CAUTION/DAMAGED/CRITICAL/DYING = 0..4
-THRESHOLDS = [0.75, 0.50, 0.25, 0.20]          # down-crossing
-DENSITY_CAPS = [0.0, 0.30, 0.50, 0.75, 1.0]    # per-state crack cap
-
-_state; _damageX 0.0 (smoothed); _targetX 0.0; _hitPulse 0.0; _hitDir ZERO (0=uniform ring); _rippleT 2.0 (>1=none); _healJitter 0.0; _heartPhase -1.0 (<0=not DYING); _breath 1.0; _mat; _last (D5 cache); _cfg (effects.meta_health.*)
-
-_Ready(): ColorRect(mouse_filter=IGNORE)+ShaderMaterial (§3); statics: u_lod/u_crack_spread_min/u_crack_edge_softness/u_crack_width; crack-field pre-bake (D1, `DeferBake()`/`OnBakeFrame`); connect GameState.HealthChanged/PlayerDamaged/PlayerDied -> OnHealthChanged/OnPlayerDamaged/OnPlayerDied; MetaFxLod = _cfg lod (hud).
-
-_Process(delta): early return if |_targetX-_damageX|<0.001 && _hitPulse<0.001 && _rippleT>1.0 && _heartPhase<0 && _healJitter stable
-  1. tau=down_tau|up_tau; _damageX exp->_targetX
-  2. threshold cross -> crack overshoot (+0.08, 0.6s) or heal jitter 0->0.35->0 (0.7s)
-  3. _hitPulse exp decay (tau=0.09); _rippleT += delta/0.4
-  4. DYING: _heartPhase @ 1.0->1.2Hz (by x); per beat: _heartbeat env (0.3s), _breath=1+0.015*sin(phase), sfx (D7), hud jitter ("MetaJitter", D9); else _breath->1, 0.3s fade
-  5. D3: 0.25s proxy -> u_adapt_gain (clamp 0.8..1.3)
-  6. D5: epsilon -> SetShaderParameter
-
-OnPlayerDamaged(float amount, Vector2 fromPos): r=amount/GameState.MaxHealth(); _hitPulse=Mathf.Max(_hitPulse, Mathf.Clamp(r*2.5, 0.15f, 1.0f))  # max-pool [R2]; _hitDir=world->screen (fromPos==Vector2.Inf -> uniform ring); _rippleT=0.0
-
-BreathScale() -> float: Main.cs D6 composition
-BreathActive() -> bool: _state == STATE_DYING && GameState.Health > 0 && !GameState.ReduceFlash
-```
+Interface (impl in code; config `effects.meta_health.*`):
+- `layer = 1` (below main HUD layer=2); process_mode Pausable
+- States `STATE_NORMAL/CAUTION/DAMAGED/CRITICAL/DYING = 0..4`; `THRESHOLDS = [0.75, 0.50, 0.25, 0.20]` (down-crossing); `DENSITY_CAPS = [0.0, 0.30, 0.50, 0.75, 1.0]`
+- `OnPlayerDamaged(float amount, Vector2 fromPos)`: hit-pulse max-pool [R2]; `fromPos == Vector2.Inf` → uniform ring [R6]
+- `BreathScale() -> float` (Main D6 composition) / `BreathActive() -> bool` (DYING && HP>0 && !ReduceFlash)
+- `_Ready`: ColorRect + ShaderMaterial (§3), crack-field pre-bake (D1), connect GameState signals, `MetaFxLod` from cfg; `_Process`: early-return + epsilon upload (D5)
+- HP→crack mapping (`OnHealthChanged`) & state machine in code (§4.2 params from cfg)
 
 ### 4.2 HP->crack mapping (in `OnHealthChanged`)
 
-```text
-x = 1 - hp/max_hp; _targetX = x
-crack_progress = pow(_damageX, 1.6)            # x=0.25->0.11, 0.50->0.33, 0.75->0.63, 0.90->0.84
-color crossfade (bandwidth 0.08): x<0.25 cyan #35E0FF -> <0.5 yellow #FFD23F -> <0.8 orange #FF8A3D -> >=0.8 red #FF3B4E
-desat = 0.35 * pow(x, 2.0); u_hue_cool = 0.6 * x
-vignette = min(0.5, crack_progress * 0.55); DYING: u_vignette_inner 0.62->0.56 (6% narrowing, 0.3s)
-```
+In code: `x = 1 - hp/max_hp`; `crack_progress = pow(_damageX, 1.6)`; color crossfade (bandwidth 0.08: cyan #35E0FF → yellow #FFD23F → orange #FF8A3D → red #FF3B4E); desat `0.35·pow(x,2)`; `u_hue_cool = 0.6·x`; vignette `min(0.5, crack_progress·0.55)`, DYING inner 0.62→0.56 (0.3s) — all params from `effects.meta_health.*` (§4.4).
 
 ### 4.3 Integration points
 
@@ -129,11 +90,9 @@ vignette = min(0.5, crack_progress * 0.55); DYING: u_vignette_inner 0.62->0.56 (
 - `data/translations.csv`: `SET_ACCESSIBILITY` 无障碍/Accessibility; `SET_REDUCE_FLASH` 减少闪光/Reduce flashes
 - `scripts/tools/generate_audio.py`: +`heartbeat.wav` - 55Hz sine double-pulse (lub-dub), 0.28s, exp envelope (D7)
 
-### 4.4 `data/balance.json` additions (`effects.meta_health.*`; defaults must match)
+### 4.4 `data/balance.json` additions (`effects.meta_health.*`)
 
-```json
-"meta_health":{"lod":0,"pulse":{"scale":2.5,"min":0.15,"decay_tau":0.09},"chromatic":{"base":0.006,"peak":0.014},"blur":{"strength":0.6},"ripple":{"duration":0.4,"alpha":0.8},"crack":{"exponent":1.6,"spread_min":0.1,"edge_softness":0.08,"width":0.03,"glow":0.8,"heal_jitter":0.35,"grow_overshoot":0.08,"grow_time":0.6,"density":[0.0,0.30,0.50,0.75,1.0]},"desat":{"max":0.35,"exponent":2.0},"vignette":{"max_alpha":0.5,"inner":0.62,"dying_shrink":0.06},"dying":{"threshold":0.2,"heart_min_hz":1.0,"heart_max_hz":1.2,"breath":0.015,"jitter_px":2.0,"warn_hz":2.5,"fade":0.3},"smooth":{"down_tau":0.10,"up_tau":0.80},"adapt":{"interval":0.25,"min":0.8,"max":1.3,"bullet_weight":0.002,"explosion_weight":0.15},"reduce_flash":{"chromatic_scale":0.4}}
-```
+Full key set with defaults in `data/balance.json` under `effects.meta_health.*` (lod / pulse / chromatic / blur / ripple / crack / desat / vignette / dying / smooth / adapt / reduce_flash); shader statics wired in `_Ready`.
 
 ## 5. State machine & VFX timing
 

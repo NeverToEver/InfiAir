@@ -50,7 +50,7 @@ csharp/core/                    纯 .NET 类库（零 Godot 依赖）
 tests-csharp/                   xUnit 单测（引用 core，不依赖 Godot 运行时）
 ```
 
-- `GameState`（唯一 autoload）是全局状态/信号总线与门面：~250 个 public 成员（信号、状态、转发），经 `GameState.Instance` typed 访问；Y 系列按域拆分为 9 个 partial 文件（壳/常量/状态/难度/任务/设置/输入/用户/存档），零行为差异。
+- `GameState`（唯一 autoload）是全局状态/信号总线与门面：~250 个 public 成员（信号、状态、转发），经 `GameState.Instance` typed 访问；Y 系列按域拆分：主壳 + 9 个域 partial（常量/状态/难度/任务/设置/输入/用户/存档/Meta），零行为差异。
 - 纯逻辑下沉 core：数值模型（`BalanceModels`）、配置路径解析（`PathResolver`，GDScript `cfg()` 语义镜像）、任务池（`TaskPool`，无放回抽取）、进程曲线（`ProgressionCurves`，位级等价原 GDScript）、存储（`SaveStore` 原子写/损坏隔离、`UserDb` 本地账户 + 密码派生）。
 - 互操作壳（`*Interop` + `VariantBridge`）负责 Variant ↔ CLR 双向转换，core 层保持零 Godot 依赖。
 
@@ -155,7 +155,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 
 ```text
 csharp/core/        纯 .NET 类库（零 Godot 依赖）：模型/曲线/存储/任务池/配置解析
-csharp/godot/       引擎绑定层：GameState（9 partial）+ 8 服务 + 场景脚本 + 实体/事件/UI
+csharp/godot/       引擎绑定层：GameState（主壳 + 9 域 partial）+ 8 服务 + 场景脚本 + 实体/事件/UI
 tests-csharp/       xUnit 单测
 scenes/             场景文件（welcome 入口 / main 对局 / boss / mothership / 过场）
 test/               无头断言场景（*_test.tscn，权威计数见 docs/TESTING.md）+ 截图工具

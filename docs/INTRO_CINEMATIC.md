@@ -62,7 +62,7 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
   - per-shot subtitle cards (zh+en); multi-layer parallax (shot1 starfield + FG debris, shot6 nebula); transitions (1→2, 4→5 white flash, rest blackout); handheld drift (low-freq sine + micro rotation)
   - per-shot extras: shot2 scan grid + node ripples; shot3 rotating light + visor highlight; shot4 HUD + top strip + knuckles; shot5 white-hot core + strobe dots + radial lines; shot6 anamorphic flare + fleet trails; optional title card (if added, total ≤25s — sync duration metric)
   - Perf: emitter ≤96, alive ≤400, ≤1 `_process`/shot zero-alloc, merge static elements, tween over per-frame code; sample draw calls/objects/frame time into §7.
-- **P4 (registered leftover)**: low-end retest + gamepad/mobile input check (manual); README line done (README.md:42); gamepad skip: only B=ui_cancel via BackNavigator, other buttons don't skip
+- **P4 (registered leftover)**: low-end retest + gamepad/mobile input check (manual); README line done (README.md:66); gamepad skip: only B=ui_cancel via BackNavigator, other buttons don't skip
 
 ## 5. Testing (P1 deliverable)
 
@@ -76,24 +76,9 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 
 ## 6. Acceptance (DoD)
 
-### Phase 1 — all checked
+### Phase 1–3 — all checked; per-item verification records (screenshots `/tmp/intro_shot*.png`, perf sampling, regression runs) in §7 progress log
 
-- [x] New Game → cinematic → auto-run (frame-0 intact) (`intro_cinematic_test` asserts trigger/pause/finished/resume)
-- [x] Continue Run / tutorial don't play (`_on_continue_run()` unchanged; gate `current_scene == self`)
-- [x] Esc / any key / click skip → immediate run, no pause leftover (3 paths asserted)
-- [x] 6 shots per §2, total 17.3s±0.5s (16.1s + title 1.2s), no flash-through (2.8+2.5+2.5+2.5+2.8+3.0=16.1s; transitions inside shot durations; `finished` window covers title)
-- [x] No node/Timer/tween leaks (Timer count → baseline, instance destroyed)
-- [x] `INTRO_SKIP`/`INTRO_WARNING` zh+en (zh via screenshots; en same tr() path)
-- [x] `intro_cinematic_test` + §5 regression green (smoke / startup_flow / back_navigation / esc_navigation / ui_capture)
-- [x] ≥1 screenshot/shot checked (/tmp/intro_shot1..6.png, 2026-07-27: all in place, no blanks/overlaps/overflow)
-
-### Phase 2 — [x] 2026-07-27 (/tmp/intro_p2_shot1..6.png: per-shot polish verified; global vignette + cold tone; no overlap/overflow/occlusion)
-
-### Phase 3 / 4
-
-- [x] P3 polish verified 2026-07-27 (/tmp/intro_p3_shot1..7.png: 132px bars + cards per shot; shot1 FG debris parallax, shot2 scan grid + band + ripples, shot3 light cone + visor highlight, shot4 progress ring + scan arc + logs + strip + knuckles, shot5 white-hot core + strobe dots + radial lines, shot6 nebula drift + anamorphic flare + fleet trails; title ok; subtitles don't cover subjects)
-- [x] P3 perf met (§7): draw calls peak 296 < 400; objects 315; CPU 0.20ms no >4ms spike; particles shot5 40×2+32×2+24×2=192 ≤ 400, emitter ≤96; ≤1 `_process`/shot zero-alloc (1/2/6 none, 3/4/5 one each); `intro_cinematic_test` (40 asserts) + smoke + back/esc_navigation + quit-after-300 green
-- [ ] P4 leftover (manual: low-end retest + gamepad/mobile check)
+### Phase 4
 
 ## 7. Progress Log
 
@@ -111,18 +96,6 @@ Append a new entry on every change.
 | 2026-07-27 | P3 | detonation shake: static `_kick_shake(host, amp, state)` — 3 tween pulses (amp peak 0.04s → 40% rebound 0.08s → baseline 0.15s, total 0.27s); state[0] kills old tween for chained refresh; on shot root (baseline ZERO), no clash w/ `_shot_root` drift, zero `_process` cost; shot2 amp=4.0/node, shot1 amp=6.0; peak ≈3.5px, exact (0,0) at chain end | done |
 | 2026-07-30 | P3 | visual upgrade: `_particles` → CinematicFx.particles (soft-dot, one size step larger); r≥10 glows → soft_glow (r≤4 `_GlowDot`); per-shot enrichment per §2 (ember layer, 8 bay lights, dur*0.45 2nd detonation, wreck rim, sparks, 12 LEDs → red, struts ×4, cones 3→5, INTRO_LOG_1..4 rotation, radar sweep, warm-up, rail sparks, ship dim + rim, planet arc, fleet 2×3, star soft_glow); added test/intro_capture; shot5 alive peak 248 ≤400, shot1 128, emitter ≤96; 40 asserts exit 0; perf maintained | done |
 
-### P3 perf sampling (2026-07-27)
+### P3 perf sampling (2026-07-27, one-shot)
 
-Windowed 5-frame peaks (draw calls / objects); CPU = headless `--fixed-fps 1000`, 200-frame peak/shot. Sampling scene deleted after.
-
-| Shot | Draw calls | Objects | CPU frame peak |
-| --- | --- | --- | --- |
-| 1 | 296 | 315 | 0.18ms |
-| 2 | 48 | 69 | 0.01ms |
-| 3 | 75 | 93 | 0.03ms |
-| 4 | 93 | 154 | 0.01ms |
-| 5 | 56 | 73 | 0.08ms |
-| 6 | 271 | 287 | 0.20ms |
-| Title | 6 | 20 | — |
-
-Budget: draw calls <400 ✓ (296); alive particles ≤400 ✓ (shot5 192; emitter ≤96); ≤1 `_process`/shot zero-alloc ✓ (1/2/6 none); CPU no >4ms spike ✓ (0.20ms). Note: windowed Performance counters read 0 when occluded; sample on screenshot frames (frame_post_draw + pixel readback).
+Budget met: draw calls peak 296 < 400; alive particles ≤400 (shot5 192, emitter ≤96); ≤1 `_process`/shot zero-alloc; CPU 0.20ms no >4ms spike (per-shot table deleted; sampling scene deleted after). Note: windowed Performance counters read 0 when occluded; sample on screenshot frames (frame_post_draw + pixel readback).
