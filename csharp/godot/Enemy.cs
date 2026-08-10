@@ -15,6 +15,11 @@ public partial class Enemy : Area2D
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
 
+    // U14 同款：开火热路径 StringName 静态缓存（原每发敌弹 new StringName，2026-08-10 审计 H1）
+    private static readonly StringName BulletTypeSingle = new("single");
+    private static readonly StringName BulletTypeSpread = new("spread");
+    private static readonly StringName BulletTypeLaser = new("laser");
+
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     public float EnemyBulletSpeed { get; private set; } = 420.0f;
     public float SpreadBulletSpeed { get; private set; } = 340.0f;
@@ -241,12 +246,15 @@ public partial class Enemy : Area2D
             : (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
-            * (1.0f + (float)GameState.Instance.Cfg("enemies.speed_ramp_factor", SpeedRampFactor).AsDouble() * (pDifficulty - 1.0f))
+            // 2026-08-10 审计：原直查 Cfg("enemies.speed_ramp_factor") 每 spawn 全链路——改走
+            // Load 时缓存的 ramp API（上方 hp_ramp 同款模式；pDifficulty 保持调用方快照语义）
+            * (float)GameState.Instance.EnemySpeedRamp(pDifficulty)
             * (float)GameState.Instance.EnemySpeedMultiplier();
         var sprite = GetNode<Sprite2D>("Sprite2D");
         var shapeNode = GetNode<CollisionShape2D>("CollisionShape2D");
         sprite.Texture = (Texture2D)config["texture"];
-        AimMarked = GD.Randf() < (float)GameState.Instance.Cfg("player.aim_assist.mark_ratio", 0.25).AsDouble();
+        // 2026-08-10 审计：mark_ratio 同款——Load 时缓存 API，免每 spawn Cfg 全链路
+        AimMarked = GD.Randf() < (float)GameState.Instance.AimMarkRatio();
         var sc = (float)config.GetValueOrDefault("scale", 0.85).AsDouble();
         sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
         var hitR = (float)config.GetValueOrDefault("radius", 30.0).AsDouble() * (float)GameState.Instance.WorldScale;
@@ -346,13 +354,17 @@ public partial class Enemy : Area2D
         _bodyContact = false; // P0-2：回收后 area_exited 未必投递
         GameState.Instance.UnregisterEnemy(this);
         // 断开 died 信号的全部连接（死亡回放等监听方；C# [Signal] 连接不随接收方自动断开）
-        foreach (var conn in GetSignalConnectionList(SignalName.Died))
+        // 2026-08-10 审计 M3：HasConnections 门控——零订阅常态下免 GetSignalConnectionList 数组分配
+        if (HasConnections(SignalName.Died))
         {
-            var dict = (Godot.Collections.Dictionary)conn;
-            var callable = (Callable)dict["callable"];
-            if (IsConnected(SignalName.Died, callable))
+            foreach (var conn in GetSignalConnectionList(SignalName.Died))
             {
-                Disconnect(SignalName.Died, callable);
+                var dict = (Godot.Collections.Dictionary)conn;
+                var callable = (Callable)dict["callable"];
+                if (IsConnected(SignalName.Died, callable))
+                {
+                    Disconnect(SignalName.Died, callable);
+                }
             }
         }
 
@@ -462,7 +474,8 @@ public partial class Enemy : Area2D
         }
 
         var t = Mathf.PosMod(x, Mathf.Tau) / Mathf.Tau * TrigSize;
-        var idx = (int)t;
+        // NaN/Inf 相位（Boss.cs:549 已知族）或浮点舍入可致越界，钳制保命；NaN 输入仍输出 NaN，与 Mathf.Sin 语义一致
+        var idx = Mathf.Clamp((int)t, 0, TrigSize - 1);
         return Mathf.Lerp(_sinTable[idx], _sinTable[idx + 1], t - idx);
     }
 
@@ -496,17 +509,15 @@ public partial class Enemy : Area2D
             ["spiral_radius"] = SpiralRadius,
             ["aggressive_chase_speed"] = AggrChaseSpeed,
         };
-        var msRaw = GameState.Instance.Cfg("enemies.move_strategies", new Godot.Collections.Dictionary());
-        if (msRaw.VariantType == Variant.Type.Dictionary)
+        // 2026-08-10 审计：move_strategies 子树改读 Load 时缓存引用（原每 spawn Cfg 深拷贝整棵子树）；
+        // 此处只读（参数拷贝进 params_ 后不再触碰源表），缓存引用无别名污染风险
+        var strategyCfg = GameState.Instance.MoveStrategies().GetValueOrDefault(Strategy, new Godot.Collections.Dictionary());
+        if (strategyCfg.VariantType == Variant.Type.Dictionary)
         {
-            var strategyCfg = ((Godot.Collections.Dictionary)msRaw.AsGodotDictionary()).GetValueOrDefault(Strategy, new Godot.Collections.Dictionary());
-            if (strategyCfg.VariantType == Variant.Type.Dictionary)
+            var sc = strategyCfg.AsGodotDictionary();
+            foreach (var k in sc.Keys)
             {
-                var sc = strategyCfg.AsGodotDictionary();
-                foreach (var k in sc.Keys)
-                {
-                    params_[k] = sc[k]; // Q29：策略专属参数覆盖
-                }
+                params_[k] = sc[k]; // Q29：策略专属参数覆盖
             }
         }
 
@@ -592,9 +603,15 @@ public partial class Enemy : Area2D
             return;
         }
 
-        var p = (GodotObject)player;
-        p.Call(
-            "take_damage",
+        // 2026-08-10 审计 M4：typed 直调（M3c 后 player_ref 恒为 Player；Boss.CheckBodyCollision 同款），
+        // 替代原每物理帧 p.Call("take_damage", ...) 动态派发
+        var p = player.AsGodotObject() as Player;
+        if (p == null || !GodotObject.IsInstanceValid(p))
+        {
+            return;
+        }
+
+        p.TakeDamage(
             Mathf.Max(1, (int)Mathf.Round(CollisionDamage * (float)GameState.Instance.EnemyDamageRamp())),
             GlobalPosition);
     }
@@ -737,31 +754,31 @@ public partial class Enemy : Area2D
             baseDir = Vector2.Down; // G026：与玩家圆心重合时回退，防零方向弹永不销毁
         }
 
-        if (BulletType == "spread")
+        if (BulletType == BulletTypeSpread)
         {
             for (var i = 0; i < 5; i++)
             {
-                SpawnEnemyBullet(baseDir.Rotated(SpreadFanStep * (i - 2)), SpreadBulletSpeed, new StringName("spread"));
+                SpawnEnemyBullet(baseDir.Rotated(SpreadFanStep * (i - 2)), SpreadBulletSpeed, BulletTypeSpread);
             }
         }
-        else if (BulletType == "laser")
+        else if (BulletType == BulletTypeLaser)
         {
-            SpawnEnemyBullet(baseDir, LaserBulletSpeed, new StringName("laser"));
+            SpawnEnemyBullet(baseDir, LaserBulletSpeed, BulletTypeLaser);
         }
         else
         {
-            SpawnEnemyBullet(baseDir, EnemyBulletSpeed, new StringName("single"));
+            SpawnEnemyBullet(baseDir, EnemyBulletSpeed, BulletTypeSingle);
         }
     }
 
     private void SpawnEnemyBullet(Vector2 dir, float bulletSpeed, StringName pType)
     {
         var dmg = BulletDamageSingle;
-        if (pType == "spread")
+        if (pType == BulletTypeSpread)
         {
             dmg = BulletDamageSpread;
         }
-        else if (pType == "laser")
+        else if (pType == BulletTypeLaser)
         {
             dmg = BulletDamageLaser;
         }
@@ -778,9 +795,9 @@ public partial class Enemy : Area2D
             return; // P2-3：同屏敌弹硬上限
         }
 
-        b.Set("position", Position); // b.position = position（敌方子弹出生在敌机位置）
-        b.SetMeta("bullet_type", pType); // U13：GodotObject 原生方法 typed
-        if (pType == "laser")
+        b.Position = Position; // 敌方子弹出生在敌机位置（typed；Player 开火同款）
+        b.SetMeta(Bullet.MetaBulletType, pType);
+        if (pType == BulletTypeLaser)
         {
             // 细长高亮快速弹（Sprite2D 缓存引用）
             var poly = b.SpriteNode();

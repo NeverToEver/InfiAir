@@ -28,6 +28,13 @@ public partial class EntityManager : RefCounted
     /// <summary>G010：enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定）。</summary>
     private readonly Godot.Collections.Dictionary _enemySet = new(); // node -> true
 
+    /// <summary>2026-08-10 审计：enemies 在册索引表（node -> 数组下标），swap-remove 双维护
+    /// （_enemyBulletIndex 同款模式）——原 UnregisterEnemy 的 Array.Remove 为 O(n) 线性扫描+搬移，
+    /// 敌机死亡即触发（池化回收路径每次死亡调两次）。消费方已核实不依赖数组顺序：
+    /// 迭代类（AimFrameLayer 严格最近选取/Bullet 溅射倒序/Mothership/EnrageSequence/Main 清场/
+    /// DeathReplay 只读敌弹表）与 Contains/Count 判定均与顺序无关。</summary>
+    private readonly Godot.Collections.Dictionary _enemyIndex = new();
+
     /// <summary>P0-1：敌弹注册表（death_replay 录制数据源；M3 重定型 Array&lt;Bullet&gt;）。</summary>
     public Godot.Collections.Array<GodotObject> EnemyBullets { get; } = new();
 
@@ -54,20 +61,34 @@ public partial class EntityManager : RefCounted
     /// <summary>触屏虚拟输入层实例（M5 重定型 VirtualControls）。</summary>
     public GodotObject? VirtualControls { get; set; }
 
+    /// <summary>敌机登记（幂等；set 单次查找，索引表与数组同步维护）。</summary>
     public void RegisterEnemy(Node node)
     {
-        if (!Enemies.Contains(node))
+        if (!_enemySet.ContainsKey(node))
         {
+            _enemyIndex[node] = Enemies.Count;
             Enemies.Add(node);
+            _enemySet[node] = true;
         }
-
-        _enemySet[node] = true;
     }
 
+    /// <summary>敌机注销（幂等——set 判定真实在册才移除，Deactivate/_ExitTree 双调用自然去重；
+    /// swap-remove + 索引表 O(1)，见 _enemyIndex 注释）。</summary>
     public void UnregisterEnemy(Node node)
     {
-        Enemies.Remove(node);
-        _enemySet.Remove(node);
+        if (_enemySet.Remove(node))
+        {
+            var idx = (int)_enemyIndex[node].AsInt64();
+            _enemyIndex.Remove(node);
+            var last = Enemies[Enemies.Count - 1];
+            if (!ReferenceEquals(last, node))
+            {
+                Enemies[idx] = last;
+                _enemyIndex[last] = idx;
+            }
+
+            Enemies.RemoveAt(Enemies.Count - 1);
+        }
     }
 
     /// <summary>G010：注册表存在性判定 O(1)（语义同注册表包含，deactivate 即移除）。</summary>

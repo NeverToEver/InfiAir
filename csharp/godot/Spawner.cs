@@ -360,16 +360,11 @@ public partial class Spawner : Node
         var strategy = strategies[(int)(GD.Randi() % (uint)strategies.Count)];
         var btype = PickBulletTypeInternal(config);
         var view = GameState.Instance.ViewWorldRect();
-        // R07：telegraph 时长判型 + 下限钳制（L 系列判型族登记遗留）——0/负值使
-        // 预告线立即超时生成敌机或 Timer 反向；坏值回退脚本默认。
+        // R07：telegraph 时长判型 + 下限钳制已随缓存内聚到 BalanceService.Load
+        // （2026-08-10 审计：原每 spawn Cfg 全链路 + 逐次判型）——坏值回退/钳制语义不变。
         // 2026-08-06 审计：时长同步注入预告线实例（原视觉 DURATION 硬编码 0.6，调参时
         // 视觉寿命与敌机出现时刻脱钩——预告线自毁与 _schedule 计时两套时钟）
-        var td = GameState.Instance.Cfg("spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
-        var telegraphDuration = Mathf.Max(
-            td.VariantType == Variant.Type.Float || td.VariantType == Variant.Type.Int
-                ? (float)td.AsDouble()
-                : SpawnTelegraph.GetDefaultDuration(),
-            0.01f);
+        var telegraphDuration = GameState.Instance.SpawnerTelegraphDuration();
         var telegraph = new SpawnTelegraph();
         telegraph.Position = new Vector2(x, view.Position.Y);
         telegraph.Duration = telegraphDuration;

@@ -108,21 +108,22 @@ public partial class FakeEnemy : Node2D
 
         var d = (float)delta;
         _t += d;
+        // L2（2026-08-10 审计）：正弦走 Enemy.SinFast 查表（热路径禁直接三角函数约定；纯视觉精度足够）
         // 幽灵闪烁（alpha 正弦，视觉干扰）
         var sprite = _sprite!;
         var m = sprite.Modulate;
-        m.A = GhostTint.A + Mathf.Sin(_t * FlickerFreq) * FlickerAmplitude;
+        m.A = GhostTint.A + Enemy.SinFast(_t * FlickerFreq) * FlickerAmplitude;
         sprite.Modulate = m;
         if (Position.Y < _hoverY)
         {
             // 下降期同步水平微摆（错开全波机械感）
             Position = new Vector2(
-                _startX + Mathf.Sin(_t * SwayFreq * 0.5f) * SwayAmp * 0.5f,
+                _startX + Enemy.SinFast(_t * SwayFreq * 0.5f) * SwayAmp * 0.5f,
                 Mathf.Min(Position.Y + DescendSpeed * d, _hoverY));
         }
         else
         {
-            Position = new Vector2(_startX + Mathf.Sin(_t * SwayFreq) * SwayAmp, Position.Y);
+            Position = new Vector2(_startX + Enemy.SinFast(_t * SwayFreq) * SwayAmp, Position.Y);
         }
 
         // 出屏销毁兜底（正常路径由 FogEventManager 在事件结束时统一移除，此路径防事件异常残留）。

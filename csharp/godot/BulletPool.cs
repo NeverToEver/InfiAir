@@ -88,10 +88,12 @@ public partial class BulletPool : Node
     /// <summary>
     /// 回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行（物理回调内不
     /// 改场景树）；若子弹在延迟执行前已被重激活（同帧复用）则跳过。幂等。
+    /// H2（2026-08-10 审计）：幂等守卫改 IsActive O(1)——Deactivate 必置 false（本方法是
+    /// Deactivate 唯一调用方），与 _free.Contains 线性扫描等价且免 O(n)。
     /// </summary>
     public void Release(Bullet b)
     {
-        if (!GodotObject.IsInstanceValid(b) || _free.Contains(b))
+        if (!GodotObject.IsInstanceValid(b) || !b.IsActive())
         {
             return;
         }

@@ -12,6 +12,10 @@ public partial class SfxPlayer : Node
     private readonly Godot.Collections.Array<AudioStreamPlayer> _sfxPlayers = new();
     private int _sfxIndex;
 
+    /// <summary>L1（2026-08-10 审计）：headless 判定类初始化缓存一次——原每次 Play
+    /// （每发子弹一次）DisplayServer.GetName() 字符串比较。</summary>
+    private static readonly bool IsHeadless = DisplayServer.GetName() == "headless";
+
     /// <summary>构建播放器池（GameState._ready 在 add_child 本节点后调用）。</summary>
     public void BuildPool(int size)
     {
@@ -27,7 +31,7 @@ public partial class SfxPlayer : Node
     {
         // headless dummy 音频驱动不混音：一次性 WAV 播放实例在退出时既不自然结束、
         // stop() 也不释放，必报 ObjectDB 泄漏噪音；无头路径直接不创建播放实例。
-        if (DisplayServer.GetName() == "headless")
+        if (IsHeadless)
         {
             return;
         }

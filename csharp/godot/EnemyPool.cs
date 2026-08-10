@@ -78,10 +78,12 @@ public partial class EnemyPool : Node
     }
 
     /// <summary>回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行；
-    /// 若敌机在延迟执行前已被重激活（同帧复用）则跳过。幂等防重复回收。</summary>
+    /// 若敌机在延迟执行前已被重激活（同帧复用）则跳过。幂等防重复回收。
+    /// H2（2026-08-10 审计）：幂等守卫改 IsActive O(1)——Deactivate 必置 false（本方法是
+    /// Deactivate 唯一调用方），与 _free.Contains 线性扫描等价且免 O(n)。</summary>
     public void Release(Enemy e)
     {
-        if (!GodotObject.IsInstanceValid(e) || _free.Contains(e))
+        if (!GodotObject.IsInstanceValid(e) || !e.IsActive())
         {
             return;
         }

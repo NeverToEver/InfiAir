@@ -36,6 +36,11 @@ public partial class DeathReplay : RefCounted
     private int _frameCount;
     private bool _recording;
 
+    /// <summary>H4（2026-08-10 审计）：上次录制的物理帧号——Record 由 main._process 每渲染帧调用，
+    /// 渲染帧率高于物理帧率时同物理帧重复采样纯浪费（重放时钟本就按 60Hz 物理帧对齐，见 RecordFps），
+    /// 门控到每物理帧至多采样一次（Bullet.CachedViewRect 同款帧缓存模式）。</summary>
+    private ulong _lastRecordFrame = ulong.MaxValue;
+
     /// <summary>P0-1：敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，
     private Godot.Collections.Array _bulletRegistry = new();
 
@@ -45,6 +50,7 @@ public partial class DeathReplay : RefCounted
         _recording = true;
         _frameCount = 0;
         _writeIdx = 0;
+        _lastRecordFrame = ulong.MaxValue; // H4：重录期间强制首帧采样
         if (_frames.Length != MaxFrames)
         {
             _frames = new List<float>[MaxFrames];
@@ -61,13 +67,21 @@ public partial class DeathReplay : RefCounted
     public void Stop() => _recording = false;
 
     /// <summary>每渲染帧采样（main._process 存活期调用）：从敌弹注册表录制位置轨迹（环形覆盖最旧帧）。
-    /// 帧槽 clear 复用（容量保留），录制循环内零分配。</summary>
+    /// 帧槽 clear 复用（容量保留），录制循环内零分配。H4：同物理帧重复调用早退（采样上限 = 物理帧率）。</summary>
     public void Record()
     {
         if (!_recording)
         {
             return;
         }
+
+        var physicsFrame = Engine.GetPhysicsFrames();
+        if (physicsFrame == _lastRecordFrame)
+        {
+            return;
+        }
+
+        _lastRecordFrame = physicsFrame;
 
         var frame = _frames[_writeIdx];
         frame.Clear();

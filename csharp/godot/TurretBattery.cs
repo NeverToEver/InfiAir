@@ -17,6 +17,16 @@ public partial class TurretBattery : Area2D
     [Signal]
     public delegate void DiedEventHandler(TurretBattery turret);
 
+    // U14 同款：开火热路径 StringName 静态缓存（原每发炮弹 new StringName/字符串字面量比较，2026-08-10 审计 H1）
+    private static readonly StringName AmmoSingle = new("single");
+    private static readonly StringName AmmoSpread = new("spread");
+    private static readonly StringName AmmoLaser = new("laser");
+    private static readonly StringName AmmoHoming = new("homing");
+    private static readonly StringName AmmoSniper = new("sniper");
+    private static readonly StringName AmmoSpread3 = new("spread3");
+    private static readonly StringName AmmoSpread5 = new("spread5");
+    private static readonly StringName AmmoWeakHoming = new("weak_homing");
+
     // ---- 弹药速度/伤害（读 balance.json enemies/boss 段，脚本值为缺键回退） ----
     public float SingleSpeed { get; private set; } = 420.0f;
     public float SpreadSpeed { get; private set; } = 340.0f;
@@ -223,19 +233,19 @@ public partial class TurretBattery : Area2D
 
         var ammo = AmmoSequence[_ammoIndex % AmmoSequence.Count].AsStringName();
         _ammoIndex += 1;
-        if (ammo == "spread3")
+        if (ammo == AmmoSpread3)
         {
             FireFan(3);
         }
-        else if (ammo == "spread5")
+        else if (ammo == AmmoSpread5)
         {
             FireFan(5);
         }
-        else if (ammo == "laser")
+        else if (ammo == AmmoLaser)
         {
-            SpawnBullet(FireDir(), LaserSpeed, DmgLaser, new StringName("laser"));
+            SpawnBullet(FireDir(), LaserSpeed, DmgLaser, AmmoLaser);
         }
-        else if (ammo == "weak_homing")
+        else if (ammo == AmmoWeakHoming)
         {
             var dir = FireDir();
             var pool = GameState.Instance.BulletPool;
@@ -251,16 +261,16 @@ public partial class TurretBattery : Area2D
             }
 
             b.HomingTurnRate = HomingTurnRate;
-            b.Set("position", GlobalPosition + dir * _muzzleOffset);
-            b.SetMeta("bullet_type", new StringName("homing"));
+            b.Position = GlobalPosition + dir * _muzzleOffset;
+            b.SetMeta(Bullet.MetaBulletType, AmmoHoming);
         }
-        else if (ammo == "sniper")
+        else if (ammo == AmmoSniper)
         {
-            SpawnBullet(FireDir(), SniperSpeed, DmgSniper, new StringName("sniper"));
+            SpawnBullet(FireDir(), SniperSpeed, DmgSniper, AmmoSniper);
         }
         else
         {
-            SpawnBullet(FireDir(), SingleSpeed, DmgSingle, new StringName("single"));
+            SpawnBullet(FireDir(), SingleSpeed, DmgSingle, AmmoSingle);
         }
     }
 
@@ -271,7 +281,7 @@ public partial class TurretBattery : Area2D
         var half = (count - 1) / 2.0f;
         for (var i = 0; i < count; i++)
         {
-            SpawnBullet(center.Rotated(SpreadFanStep * (i - half)), SpreadSpeed, DmgSpread, new StringName("spread"));
+            SpawnBullet(center.Rotated(SpreadFanStep * (i - half)), SpreadSpeed, DmgSpread, AmmoSpread);
         }
     }
 
@@ -289,9 +299,9 @@ public partial class TurretBattery : Area2D
             return; // P2-3：同屏敌弹硬上限，本次开火放弃
         }
 
-        b.Set("position", GlobalPosition + dir * _muzzleOffset);
-        b.SetMeta("bullet_type", pType);
-        if (pType == "laser")
+        b.Position = GlobalPosition + dir * _muzzleOffset;
+        b.SetMeta(Bullet.MetaBulletType, pType);
+        if (pType == AmmoLaser)
         {
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
             var poly = b.SpriteNode();

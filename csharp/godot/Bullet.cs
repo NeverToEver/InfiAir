@@ -16,6 +16,10 @@ public partial class Bullet : Area2D
     /// <summary>R07：碰撞半径唯一事实源（player.gd 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
 
+    /// <summary>U14 同款：bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
+    /// 本类 _applyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
+    internal static readonly StringName MetaBulletType = new("bullet_type");
+
     /// <summary>R07 跨语言访问器（GDScript 不能经脚本资源读 C# 常量/静态属性——实测，
     /// 静态方法可调；M3c player 迁移后改直接引用常量）。</summary>
     public static float GetCollisionRadius() => CollisionRadius;
@@ -341,6 +345,7 @@ public partial class Bullet : Area2D
     private void _explode()
     {
         var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
+        var radiusSq = ExplosiveRadius * ExplosiveRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             // U13：typed——原 is_boss 判定排除 Boss（恒 true 跳过）与无 take_damage 类，
@@ -350,7 +355,7 @@ public partial class Bullet : Area2D
                 continue;
             }
 
-            if (enemy.GlobalPosition.DistanceTo(GlobalPosition) <= ExplosiveRadius)
+            if (enemy.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
                 // 2026-08-09 Y 系列：统一分派（enemy 已判型，单参 = scoreScale 1.0 既有语义）
                 EntityDamage.Dispatch(enemy, ExplosiveDamage);
@@ -365,6 +370,7 @@ public partial class Bullet : Area2D
     private void _splash()
     {
         var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
+        var radiusSq = SplashRadius * SplashRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = (Node2D?)arr[i];
@@ -373,7 +379,7 @@ public partial class Bullet : Area2D
                 continue;
             }
 
-            if (node is Area2D && node.GlobalPosition.DistanceTo(GlobalPosition) <= SplashRadius)
+            if (node is Area2D && node.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
                 // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；溅射路径带 ScoreScale
                 EntityDamage.Dispatch(node, SplashDamage, ScoreScale);
@@ -572,9 +578,9 @@ public partial class Bullet : Area2D
         _sprite.Scale = Vector2.One * (IsPlayerBullet ? VisualScale : EnemyVisualScale);
         // M1 审计：self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）
         _sprite.SelfModulate = Colors.White;
-        if (HasMeta("bullet_type"))
+        if (HasMeta(MetaBulletType))
         {
-            RemoveMeta("bullet_type");
+            RemoveMeta(MetaBulletType);
         }
 
         if (IsPlayerBullet)
