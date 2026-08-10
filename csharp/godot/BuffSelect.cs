@@ -92,8 +92,17 @@ public partial class BuffSelect : CanvasLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            gs.Connect("MilestoneReached", _onMilestoneReached);
-            gs.Connect("LocaleChanged", _onLocaleChanged);
+            // 2026-08-10 健壮性审查：C22 IsConnected 守卫（对齐 PauseUi/Hud）——
+            // 未走 _ExitTree 的重入树路径会重复订阅，buff 选择回调双跑
+            if (!gs.IsConnected("MilestoneReached", _onMilestoneReached))
+            {
+                gs.Connect("MilestoneReached", _onMilestoneReached);
+            }
+
+            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            {
+                gs.Connect("LocaleChanged", _onLocaleChanged);
+            }
         }
     }
 

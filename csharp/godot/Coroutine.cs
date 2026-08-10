@@ -13,6 +13,11 @@ namespace InfiAir;
 /// </summary>
 public static partial class Coroutine
 {
+    /// <summary>无超时模式的反悬挂兜底时长（2026-08-10 健壮性审查）：源对象在等待期间被释放时
+    /// Godot 自动断开信号连接，tcs 永不完成 → await 永久挂起；兜底计时器保证 tcs 必完成
+    /// （返回 false = 超时/释放），对齐类头「所有等待都以 SceneTree 计时器为兜底（必触发）」。</summary>
+    private const double FallbackTimeoutSeconds = 60.0;
+
     /// <summary>等待 N 秒（主线程恢复；节点已释放/离树则提前返回，不悬挂）。
     /// 2026-08-09 审计：补 IsInsideTree 判活——节点有效但离树时 GetTree() 返回 null → NRE。</summary>
     public static async Task WaitSeconds(Node node, double seconds)
@@ -58,14 +63,10 @@ public static partial class Coroutine
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var onSignal = Callable.From(() => tcs.TrySetResult(true));
         var timed = timeoutSeconds > 0.0;
-        SceneTreeTimer? timer = null;
         source.Connect(signal, onSignal);
-
-        if (timed)
-        {
-            timer = node.GetTree().CreateTimer(timeoutSeconds);
-            timer.Timeout += () => tcs.TrySetResult(false);
-        }
+        // 2026-08-10：无超时模式也挂兜底计时器（FallbackTimeoutSeconds）——见类头常量注释
+        var timer = node.GetTree().CreateTimer(timed ? timeoutSeconds : FallbackTimeoutSeconds);
+        timer.Timeout += () => tcs.TrySetResult(false);
 
         try
         {

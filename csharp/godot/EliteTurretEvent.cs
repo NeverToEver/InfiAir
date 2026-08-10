@@ -99,7 +99,9 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     {
         AddToGroup("elite_turret_event");
         Duration = (float)GameState.Instance.Cfg("elite_turret_event.duration", Duration).AsDouble();
-        EnterTime = (float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble();
+        // 2026-08-10 健壮性审查：enter_time 钳下限（StrikeCarrier.ENTER 的 _enterT/该值除零，
+        // Clamp 兜底无 NaN，但降入瞬完成、视觉跳变）
+        EnterTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble(), 0.05f);
         RiseTime = (float)GameState.Instance.Cfg("elite_turret_event.rise_time", RiseTime).AsDouble();
         BossResumeDelay = (float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble();
         TurretHpBase = (int)GameState.Instance.Cfg("elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
@@ -265,9 +267,12 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     {
         // Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
         //（StrikeCarrier.Sockets 固定 5 槽；R07：注释修正——负数经 clampi 钳 0，
-        // GDScript for 负整数本不迭代，「防负循环」表述失实，钳制仅为与上限对称）
+        // GDScript for 负整数本不迭代，「防负循环」表述失实，钳制仅为与上限对称）。
+        // 2026-08-10：难度键条目值判型（K14 只判容器层）——字符串/数组等坏值 AsInt64 抛
+        // InvalidCastException 崩溃（事件触发即崩），坏值回退默认 4
         var diffStr = GameState.Instance.Difficulty.ToString();
-        var rawTotal = (int)TurretCounts.GetValueOrDefault(diffStr, 4).AsInt64();
+        var tcV = TurretCounts.GetValueOrDefault(diffStr, new Variant());
+        var rawTotal = tcV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)tcV.AsInt64() : 4;
         _total = Mathf.Clamp(rawTotal, 0, StrikeCarrier.Sockets.Length);
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
         var hp = Mathf.Max(

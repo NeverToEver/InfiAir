@@ -823,6 +823,16 @@ public partial class Hud : CanvasLayer
         _bossBar.Visible = true;
         _bossPlate.Visible = true;
         _bossBar.Value = 100.0f;
+        // 2026-08-10 健壮性审查：换绑前断开上一只 Boss 的四信号（U05 同款配对）——
+        // 旧 Boss 存活（异常时序下与下一只交错）时双连会以旧 Boss 血量事件驱动新血条
+        if (_boss != null && GodotObject.IsInstanceValid(_boss))
+        {
+            _boss.HealthChanged -= OnBossHealthChanged;
+            _boss.Died -= OnBossDied;
+            _boss.Enraged -= OnBossEnraged;
+            _boss.PhaseChanged -= OnBossPhaseChanged;
+        }
+
         _boss = boss;
         _bossCountdown.Visible = false;
         _bossPhase = FightPhaseP1; // M3d：Boss.FightPhase.P1（C# 枚举经常量，见顶部注释）

@@ -117,7 +117,10 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         ApproachSpeed = Mathf.Max(
             (float)GameState.Instance.Cfg("formation_strike_event.approach_speed", ApproachSpeed).AsDouble(), 1.0f);
         ApproachY = (float)GameState.Instance.Cfg("formation_strike_event.approach_y", ApproachY).AsDouble();
-        TurnTime = (float)GameState.Instance.Cfg("formation_strike_event.turn_time", TurnTime).AsDouble();
+        // 2026-08-10 健壮性审查：turn_time 钳下限——0/负值时 FORMATION_TURN 的
+        // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
+        TurnTime = Mathf.Max(
+            (float)GameState.Instance.Cfg("formation_strike_event.turn_time", TurnTime).AsDouble(), 0.05f);
         RunSpeed = (float)GameState.Instance.Cfg("formation_strike_event.run_speed", RunSpeed).AsDouble();
         BombInterval = (float)GameState.Instance.Cfg("formation_strike_event.bomb_interval", BombInterval).AsDouble();
         BombsPerCraft = (int)GameState.Instance.Cfg("formation_strike_event.bombs_per_craft", BombsPerCraft).AsInt64();
@@ -222,7 +225,10 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         _anchor = new Vector2(x0, view.Position.Y - 120.0f);
         // 生成编队：长机居中，僚机后掠 ±55px 递增（楔形，槽位稳定）
         var difficulty = (string)(StringName)GameState.Instance.Difficulty;
-        var count = (int)CraftCounts.GetValueOrDefault(difficulty, 4).AsInt64();
+        // 2026-08-10 健壮性审查：难度键条目值判型（Q14 只判容器层）——坏值 AsInt64 抛
+        // InvalidCastException 崩溃，回退默认 4
+        var craftV = CraftCounts.GetValueOrDefault(difficulty, new Variant());
+        var count = craftV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftV.AsInt64() : 4;
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
         var hp = Mathf.Max(
             1,

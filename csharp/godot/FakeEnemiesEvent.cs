@@ -26,9 +26,13 @@ public partial class FakeEnemiesEvent : FogEvent
             return;
         }
 
-        _count = Mathf.Max((int)GameState.Instance.Cfg("fog_events.fake_enemies.count", _count).AsInt64(), 1);
+        // 2026-08-10 健壮性审查：条目值判型——配置坏值为字符串/数组时 AsInt64/AsDouble 抛
+        // InvalidCastException 崩溃（对齐 Spawner.IsNumber 口径），坏值回退默认
+        var countV = GameState.Instance.Cfg("fog_events.fake_enemies.count", _count);
+        _count = Mathf.Max(countV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)countV.AsInt64() : _count, 1);
+        var ivV = GameState.Instance.Cfg("fog_events.fake_enemies.spawn_interval", _spawnInterval);
         _spawnInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("fog_events.fake_enemies.spawn_interval", _spawnInterval).AsDouble(), 0.0f);
+            ivV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)ivV.AsDouble() : _spawnInterval, 0.0f);
         for (var i = 0; i < _count; i++)
         {
             SpawnFake(i);

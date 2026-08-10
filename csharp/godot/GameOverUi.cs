@@ -71,8 +71,17 @@ public partial class GameOverUi : CanvasLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            gs.Connect("PlayerDied", _onPlayerDied);
-            gs.Connect("LocaleChanged", _onLocaleChanged);
+            // 2026-08-10 健壮性审查：C22 IsConnected 守卫（对齐 PauseUi/Hud）——未走
+            // _ExitTree 的重入树路径会重复订阅，结算回调双跑（SettleRun 双执行 → 重复上榜/结算）
+            if (!gs.IsConnected("PlayerDied", _onPlayerDied))
+            {
+                gs.Connect("PlayerDied", _onPlayerDied);
+            }
+
+            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            {
+                gs.Connect("LocaleChanged", _onLocaleChanged);
+            }
         }
     }
 

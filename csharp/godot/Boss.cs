@@ -452,11 +452,17 @@ public partial class Boss : Area2D
         StrafeSpeeds = ssArr.Count >= 3 ? ssArr : new Godot.Collections.Array<float> { 150.0f, 400.0f, 60.0f }; // H11：不足 3 元素回退默认
         // B5 修复：cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
         // FIRE_INTERVALS[i]——不拷贝会污染全局缓存、easy/hard 下跨 Boss 复合叠加。
-        // H11：非数组类型时回退默认（原 .duplicate() 对非数组直接崩溃）
+        // H11：非数组类型时回退默认（原 .duplicate() 对非数组直接崩溃）；
+        // 2026-08-10：空数组/不足 3 元素同回退（BaseFireInterval 的 Clamp(0,0,-1) 得 -1
+        // 索引 FireIntervals[-1] 抛 IndexOutOfRangeException，与 StrafeSpeeds H11 同口径）
         var fiRaw = GameState.Instance.Cfg("boss.fire_intervals", FireIntervals);
-        FireIntervals = fiRaw.VariantType == Variant.Type.Array
-            ? (Godot.Collections.Array)fiRaw.AsGodotArray().Duplicate(true)
-            : (Godot.Collections.Array)FireIntervals.Duplicate(true);
+        var fiArr = new Godot.Collections.Array();
+        if (fiRaw.VariantType == Variant.Type.Array)
+        {
+            fiArr = (Godot.Collections.Array)fiRaw.AsGodotArray().Duplicate(true);
+        }
+
+        FireIntervals = fiArr.Count >= 3 ? fiArr : (Godot.Collections.Array)FireIntervals.Duplicate(true);
         FanBulletSpeed = (float)GameState.Instance.Cfg("boss.fan_bullet_speed", FanBulletSpeed).AsDouble();
         HomingBulletSpeed = (float)GameState.Instance.Cfg("boss.homing_bullet_speed", HomingBulletSpeed).AsDouble();
         SniperBulletSpeed = (float)GameState.Instance.Cfg("boss.sniper_bullet_speed", SniperBulletSpeed).AsDouble();
@@ -500,7 +506,9 @@ public partial class Boss : Area2D
         SweepDropCount = (int)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_count", SweepDropCount).AsInt64();
         SweepDropSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_speed", SweepDropSpeed).AsDouble();
         SweepDropDamage = (int)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_damage", SweepDropDamage).AsInt64();
-        SweepReturnDuration = (float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration).AsDouble();
+        // 2026-08-10 健壮性审查：return_duration 钳下限——0 时 dash_sweep RETURN 段
+        // _sweepTimer/该值除零（Clamp 兜底无 NaN，但 Boss 冲刺后全程钉在回退原点不动）
+        SweepReturnDuration = Mathf.Max((float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration).AsDouble(), 0.05f);
         VolleyCount = (int)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.count", VolleyCount).AsInt64();
         VolleyDelay = (float)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.delay", VolleyDelay).AsDouble();
         VolleyBulletSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.bullet_speed", VolleyBulletSpeed).AsDouble();

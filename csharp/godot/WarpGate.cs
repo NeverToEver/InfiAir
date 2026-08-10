@@ -43,8 +43,10 @@ public partial class WarpGate : Node2D
 
     public override void _Ready()
     {
-        OPEN_TIME = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.open_time", OPEN_TIME).AsDouble();
-        CLOSE_TIME = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.close_time", CLOSE_TIME).AsDouble();
+        // 2026-08-10 健壮性审查：gate 开/关时长钳下限（_Process 的 _t/OPEN_TIME 除零，
+        // Clamp 兜底无 NaN，但传送门瞬开/瞬闭）
+        OPEN_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.gate.open_time", OPEN_TIME).AsDouble(), 0.01f);
+        CLOSE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.gate.close_time", CLOSE_TIME).AsDouble(), 0.01f);
         RADIUS = (float)GameState.Instance.Cfg("effects.mothership_summon.gate.radius", RADIUS).AsDouble()
             * (float)GameState.Instance.WorldScale;
         ZIndex = -1; // 门洞衬在母舰之后
