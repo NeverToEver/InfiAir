@@ -16,19 +16,38 @@ public partial class TaskPoolInterop : RefCounted
     private InfiAir.Core.Missions.TaskPool? _pool;
     private readonly Dictionary<string, Godot.Collections.Dictionary> _byId = new();
 
-    /// <summary>装载任务定义池（Array[Dictionary]，条目须含 id/goal/kind）。</summary>
+    /// <summary>装载任务定义池（Array[Dictionary]，条目须含 id/goal/kind；2026-08-10 健壮性审查：
+    /// 条目级判型——非 Dictionary / 缺键 / 类型不符的条目跳过，不再整池崩溃（当前数据源为
+    /// 代码内建受信，防未来外部数据源接入；对齐本库「防御性收敛」口径）。</summary>
     public void SetDefs(Godot.Collections.Array defs)
     {
         _byId.Clear();
-        var coreDefs = new TaskDef[defs.Count];
+        var defList = new List<TaskDef>();
         for (int i = 0; i < defs.Count; i++)
         {
-            var def = defs[i].AsGodotDictionary();
-            var id = def["id"].AsStringName().ToString();
-            coreDefs[i] = new TaskDef(id, (int)def["goal"].AsInt64(), def["kind"].AsStringName().ToString());
+            var entry = defs[i];
+            if (entry.VariantType != Variant.Type.Dictionary)
+            {
+                continue;
+            }
+
+            var def = entry.AsGodotDictionary();
+            var idV = def.GetValueOrDefault("id", new Variant());
+            var goalV = def.GetValueOrDefault("goal", new Variant());
+            var kindV = def.GetValueOrDefault("kind", new Variant());
+            if (idV.VariantType is not (Variant.Type.String or Variant.Type.StringName)
+                || goalV.VariantType is not (Variant.Type.Int or Variant.Type.Float)
+                || kindV.VariantType is not (Variant.Type.String or Variant.Type.StringName))
+            {
+                continue;
+            }
+
+            var id = idV.AsStringName().ToString();
+            defList.Add(new TaskDef(id, (int)Math.Clamp(goalV.AsInt64(), 0L, (long)int.MaxValue), kindV.AsStringName().ToString()));
             _byId[id] = def;
         }
-        _pool = new InfiAir.Core.Missions.TaskPool(coreDefs);
+
+        _pool = new InfiAir.Core.Missions.TaskPool(defList.ToArray());
     }
 
     /// <summary>抽取 count 个任务定义（无放回）；excludeIds 为在场 id（StringName 数组）。

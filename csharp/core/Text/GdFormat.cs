@@ -45,7 +45,7 @@ public static class GdFormat
                 if (spec == 'd')
                 {
                     var v = Arg(args, ref argIndex);
-                    sb.Append(v is string s && s == "?" ? "?" : Convert.ToInt64(v));
+                    sb.Append(v is string s && s == "?" ? "?" : FormatInt(v));
                     i++;
                     continue;
                 }
@@ -98,5 +98,21 @@ public static class GdFormat
         }
 
         return args[argIndex++];
+    }
+
+    /// <summary>%d 安全转换（2026-08-10 健壮性审查）：仅吞 OverflowException——±Infinity/超
+    /// long 域 double 的 Convert.ToInt64 抛此异常（配置/存档数据驱动的参数可达）；
+    /// 类型错误（FormatException/InvalidCastException）按既定契约照抛不吞
+    /// （测试 Format_NonNumericArgForIntSpec_ThrowsLikeOldImplementations 钉死语义）。</summary>
+    private static string FormatInt(object? v)
+    {
+        try
+        {
+            return Convert.ToInt64(v).ToString(CultureInfo.InvariantCulture);
+        }
+        catch (OverflowException)
+        {
+            return "?";
+        }
     }
 }

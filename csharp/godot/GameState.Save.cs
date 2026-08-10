@@ -101,13 +101,18 @@ public partial class GameState : Node
     /// 手改存档写字符串 "false"/"0" 会被误读为开；与 save_num 同款判型回退）</summary>
     public bool SaveBool(Variant v, bool defaultValue) => v.VariantType == Variant.Type.Bool ? v.AsBool() : defaultValue;
 
+    /// <summary>存档整数字段安全读取：save_num 判型 + 钳入 [0, int.MaxValue]（2026-08-10 健壮性审查）——
+    /// 手改存档超大值（&gt;2^31）经裸 (int) 截断会回绕成负数（score/kills/rp/date 等统计与
+    /// 里程碑错乱、2038 年后时间戳回绕），先钳 long 域再转 int</summary>
+    private int SaveInt(Variant v, int defaultValue) => (int)Math.Clamp(SaveNum(v, defaultValue), 0.0, (double)int.MaxValue);
+
     public void ApplyRunSave(Godot.Collections.Dictionary data)
     {
         // 逐字段判型：语法合法但结构非法的存档（手改）不崩，异常字段回默认值
         // R07：负值钳 0（L 系列判型族登记遗留）——手改负 score/kills 破坏统计与排行榜
-        Score = (int)Mathf.Max(SaveNum(data.GetValueOrDefault("score", 0), 0.0), 0.0);
-        Kills = (int)Mathf.Max(SaveNum(data.GetValueOrDefault("kills", 0), 0.0), 0.0);
-        BossKills = (int)Mathf.Max(SaveNum(data.GetValueOrDefault("boss_kills", 0), 0.0), 0.0);
+        Score = SaveInt(data.GetValueOrDefault("score", 0), 0);
+        Kills = SaveInt(data.GetValueOrDefault("kills", 0), 0);
+        BossKills = SaveInt(data.GetValueOrDefault("boss_kills", 0), 0);
         DifficultyMultiplier = SaveNum(data.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0);
         Buffs.Clear();
         var savedBuffs = data.GetValueOrDefault("buffs", new Variant());
@@ -141,9 +146,9 @@ public partial class GameState : Node
         RunTime = SaveNum(data.GetValueOrDefault("elapsed", 0.0), 0.0);
         // 难度乘数按曲线从 boss_kills + run_time 重算（旧档的 difficulty_multiplier 字段仅作读入兼容）
         RecomputeDifficultyInternal();
-        Rp = (int)SaveNum(data.GetValueOrDefault("rp", 0), 0.0);
+        Rp = SaveInt(data.GetValueOrDefault("rp", 0), 0);
         // 任务轮换：刷新点数随存档往返（手改负值钳制 ≥0）
-        RefreshPoints = Mathf.Max((int)SaveNum(data.GetValueOrDefault("refresh_points", 0), 0.0), 0);
+        RefreshPoints = SaveInt(data.GetValueOrDefault("refresh_points", 0), 0);
         EmitSignal(SignalName.RefreshPointsChanged, RefreshPoints);
         InitMissions();
         // 任务轮换：先清空初始手牌再恢复存档任务——存档集合可能含池内非手牌 id
@@ -169,11 +174,12 @@ public partial class GameState : Node
                 // mission_completed 判定 progress >= 0 恒真而永久哑火（潜伏）
                 Missions[id] = new Godot.Collections.Dictionary
                 {
-                    ["progress"] = (int)SaveNum(md.GetValueOrDefault("progress", 0), 0.0),
+                    ["progress"] = SaveInt(md.GetValueOrDefault("progress", 0), 0),
                     ["claimed"] = claimed.VariantType == Variant.Type.Bool ? claimed : false,
                     // 2026-08-06 审计：goal 走 save_num 判型（R06/R07 判型族同族遗漏——裸 int()
-                    // 对手改字符串/数组值抛类型错误或静默转 0 使任务永久可领）
-                    ["goal"] = (int)SaveNum(md.GetValueOrDefault("goal", MissionGoal(id)), MissionGoal(id)),
+                    // 对手改字符串/数组值抛类型错误或静默转 0 使任务永久可领）；2026-08-10 起
+                    // SaveInt 统一钳入 [0, int.MaxValue]（防超大值截断回绕致任务瞬时可领）
+                    ["goal"] = SaveInt(md.GetValueOrDefault("goal", MissionGoal(id)), MissionGoal(id)),
                 };
             }
         }
@@ -299,7 +305,7 @@ public partial class GameState : Node
                     continue;
                 }
 
-                Highscores.Add(new Godot.Collections.Dictionary { ["score"] = (int)s.AsInt64(), ["date"] = (int)SaveNum(entry.GetValueOrDefault("date", 0), 0.0) }); // E11 同款：date 走 save_num 判型
+                Highscores.Add(new Godot.Collections.Dictionary { ["score"] = SaveInt(s, 0), ["date"] = SaveInt(entry.GetValueOrDefault("date", 0), 0) }); // E11 同款：date 走 save_num 判型
             }
 
             // 泛型 Array&lt;Dictionary&gt; 无 SortCustom（Godot C# 未绑定）——List.Sort 降序重建
@@ -531,7 +537,8 @@ public partial class GameState : Node
         Highscores.Insert(rank - 1, new Godot.Collections.Dictionary
         {
             ["score"] = runScore,
-            ["date"] = (int)Time.GetUnixTimeFromSystem(),
+            // 2026-08-10 健壮性审查：时间戳钳 int 上限——2038 年后 (int) 截断回绕为负
+            ["date"] = (int)Math.Min(Time.GetUnixTimeFromSystem(), int.MaxValue),
         });
         if (Highscores.Count > HighscoreLimitValue)
         {

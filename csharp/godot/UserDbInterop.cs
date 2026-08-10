@@ -31,6 +31,12 @@ public partial class UserDbInterop : RefCounted
         return _core.UserExists(name);
     }
 
+    /// <summary>users.json 损坏标志转发（2026-08-10；见 Core.UserDb.LastWasCorrupt）。</summary>
+    public bool LastWasCorrupt
+    {
+        get => _core.LastWasCorrupt;
+    }
+
     public Godot.Collections.Array ListUsernames()
     {
         var arr = new Godot.Collections.Array();

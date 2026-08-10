@@ -42,6 +42,9 @@ public partial class UserDB : RefCounted
     /// 生产无调用点）</summary>
     public void Reload() => _interop.Reload();
 
+    /// <summary>users.json 损坏标志转发（2026-08-10；供 GameState.UserDbCorrupt → 欢迎页提示）。</summary>
+    public bool LastWasCorrupt => _interop.LastWasCorrupt;
+
     /// <summary>注册：拒绝保留名（B7-7：_leaderboard 与 Guest）与长度不合规；成功写入并落盘。</summary>
     public bool CreateUser(string name, string password) => _interop.CreateUser(name, password, Iterations);
 

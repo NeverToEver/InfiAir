@@ -73,7 +73,12 @@ public partial class GameState : Node
         }
 
         ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
-        HighScore = (int)_userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0).AsInt64();
+        // 2026-08-10 健壮性审查：判型守卫 + 截断钳制——手改 users.json 的 high_score 为字符串时
+        // AsInt64 抛 InvalidCastException（登录即崩）；超大值裸 (int) 截断回绕为负
+        var hs = _userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0);
+        HighScore = hs.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? (int)Math.Clamp(hs.AsInt64(), 0L, (long)int.MaxValue)
+            : 0;
         LoadMeta(); // 局外成长：会话 meta 档案加载（2026-08-09）
     }
 
@@ -115,7 +120,7 @@ public partial class GameState : Node
         {
             var legacy = (Godot.Collections.Dictionary)_pendingLegacyProfile.Duplicate();
             _pendingLegacyProfile.Clear();
-            _userDb.UpdateHighScore(name, (int)SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0));
+            _userDb.UpdateHighScore(name, (int)Math.Clamp(SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0), 0.0, (double)int.MaxValue));
             legacy.Remove("high_score");
             legacy.Remove("version");
             legacy.Remove("highscores");
@@ -128,6 +133,10 @@ public partial class GameState : Node
 
     /// <summary>用户数据库转发（A2 组合服务；供 welcome 登录面板使用）</summary>
     public bool VerifyUser(string name, string password) => _userDb.VerifyUser(name, password);
+
+    /// <summary>users.json 损坏标志（2026-08-10 健壮性审查：与 SaveCorrupt/ProfileCorrupt 对齐，
+    /// 欢迎页提示玩家账号已隔离备份而非丢失）</summary>
+    public bool UserDbCorrupt => _userDb.LastWasCorrupt;
 
     public bool UserExists(string name) => _userDb.UserExists(name);
 

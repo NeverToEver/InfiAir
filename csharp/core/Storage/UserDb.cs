@@ -36,6 +36,11 @@ public sealed class UserDb
     private Dictionary<string, object?> _db = new();
     private bool _loaded;
 
+    /// <summary>上次 EnsureLoaded 是否检测到 users.json 损坏并被隔离备份（2026-08-10 健壮性审查）：
+    /// 对齐 GameState.SaveCorrupt/ProfileCorrupt 口径——损坏静默重建空用户表会让玩家误以为账号
+    /// 丢失（.corrupt 备份实际还在），供欢迎页提示。</summary>
+    public bool LastWasCorrupt { get; private set; }
+
     public UserDb(string path)
     {
         _path = path;
@@ -81,7 +86,15 @@ public sealed class UserDb
                 ["upgrades"] = new Dictionary<string, object?>(),
             },
         };
-        return Save();
+        if (!Save())
+        {
+            // 2026-08-10 健壮性审查：落盘失败回滚内存条目——否则玩家重试注册被
+            // ContainsKey 拒绝（提示已存在）而磁盘无此账号，重启后状态才恢复
+            users.Remove(name);
+            return false;
+        }
+
+        return true;
     }
 
     public bool VerifyUser(string name, string password, long fallbackIterations)
@@ -447,7 +460,9 @@ public sealed class UserDb
         }
 
         _loaded = true;
+        LastWasCorrupt = false;
         var res = _store.Load(_path);
+        LastWasCorrupt = res.Status == SaveLoadStatus.Corrupt;
         _db = res.Status == SaveLoadStatus.Ok && res.Tree is not null
             ? res.Tree
             : new Dictionary<string, object?>();
