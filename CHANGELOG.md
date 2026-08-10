@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 美工 + 玩法（2026-08-10，HUD 美化 + 弹反盾全周化）
+
+- **对局 HUD 美化**：左下状态区四仪表（HP/燃料/冲刺/弹反）重排分行消除重叠；角落小标签（分数/生命/难度）下移为骑跨背板的页签式，不再被屏幕边缘裁切；Boss 血条新增切角括号背板（名牌 + 三段血条整体入框、随血条显隐）；buff 坞与「增益 [L]」标签内收 20px 安全边距；Buff 三选一加标题金下划线与「← → 选择 · Enter 确认」提示行（新 i18n 键 `BUFF_HINT`）
+- **弹反盾视觉重做**：平涂金扇改三层结构——14 格分段能量盾缘（ADD 辉光、ACTIVE 能量脉动）+ 淡金 ADD 光罩 + 收敛的珍珠流光；弹反命中 0.18s 白金色提亮 + 边缘外扩脉冲（`SetParryFlash`）
+- **弹反盾改 360° 全周**（判定 + 视觉，`player.parry.arc_deg` 140→360；配置保留 <360 扇形能力）；新增激活「金光一闪」动画——白金圆环 0.45×→1.5× 缓出扩张 + 淡出 0.32s（`SetParryActivatePulse`，进入 ACTIVE 瞬间触发）；`parry_test` 扇区外用例改写为全周语义，DESIGN_BASELINE/ARCHITECTURE/BALANCE_MAP 同步
+- **验证**：`dotnet build` 零警告 + xUnit 108/108 + `dotnet format` 零 diff + parry/graze/smoke/balance/boss 断言场景 0 FAIL + 窗口截图逐张核对（HUD 常态/压力态、三选一、Boss 背板、全周盾三相位）
+
 ### 架构（2026-08-08，M7 全量迁移 C#——零 GDScript）
 - **全量迁移落地**（M1 脚手架 → M7d 收官，逐里程碑提交）：全部运行时代码 GDScript → C#（Godot 4.6.2 .NET 版 + .NET 8）——M2 服务层、M3 战斗核心（子弹生态/敌机体系/玩家 + 8 组件/Boss + 5 组件）、M4/M5 事件体系与 UI 层、M6 演出编排层、M7 GameState autoload 与全部场景测试；`scripts/*.gd` 与 `autoload/` 全量退役（`scripts/` 仅存 `tools/*.py` 离线工具），代码重组为 `csharp/godot/`（Godot 绑定壳）+ `csharp/core/`（纯 .NET 类库）+ `tests-csharp/`（xUnit）三工程
 - **M7d 收口**：`GameStateBridge`/snake_case 桥删除，C# 侧统一 `GameState.Instance` typed 访问；CI 新增零 GDScript 门禁（任何 `.gd` 文件即失败，防回归）；gdtoolkit（gdformat/gdlint）门禁随迁移退役，跨语言混编边界规则随之消解（单一语言；`csharp/godot/*Interop.cs` 保留为 `InfiAir.Core` 绑定端点）

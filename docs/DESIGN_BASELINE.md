@@ -91,7 +91,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **Grace frames**: enemy bullet in Hitbox defers settlement `player.grace_period` (0.05s); out within window = no damage (kills ghost hits); only enemy-bullet→player timing; `take_damage` guards untouched.
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (10, × difficulty), once/bullet; no buff/talent links; hitbox area gives none.
 - **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (`hud.boss_bar_segments` 3: P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).
-- **F parry**: 140° forward sector, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
+- **F parry**: full 360° circle (2026-08-10; formerly 140° forward sector), 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
 
 ## 2. Technical Architecture
 

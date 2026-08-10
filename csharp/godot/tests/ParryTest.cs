@@ -7,7 +7,7 @@ namespace InfiAir.Tests;
 /// 组件级：完整时间轴（WINDUP 前摇无判定 → ACTIVE 有效 → RECOVER 后摇）、硬冷却自流程
 /// 结束起算（完整周期 3.8s）、机身 tint 三阶段。
 /// 场景级：ACTIVE 弹反属性（转玩家弹/镜面反射 y 取反/×2 速/×1.5 伤）、命中敌机与 Boss、
-/// 扇区外不弹反、HUD 能量槽（满格/清空/匀速充能）、池回收与二次激活复位、
+/// 360° 全周判定（正后方敌弹同样弹反，2026-08-10 盾改全角度）、HUD 能量槽（满格/清空/匀速充能）、池回收与二次激活复位、
 /// 与宽限帧/擦弹正交。
 /// </summary>
 public partial class ParryTest : Node
@@ -223,13 +223,13 @@ public partial class ParryTest : Node
             boss.QueueFree();
             await FreeAllBullets();
 
-            // ================= 扇区外（140° 外）不弹反 =================
+            // ================= 360° 全周判定：正后方敌弹同样弹反 =================
             await AwaitParryReady(player);
             await AwaitActive(player);
             var behind = pool.Fire(Vector2.Up, 100.0f, 12, false)!;
-            behind.Position = new Vector2(960.0f, 850.0f);  // 玩家正下方（机头前方 140° 扇区外）
+            behind.Position = new Vector2(960.0f, 850.0f);  // 玩家正下方 50px（全周盾半径 60 内）
             await Coroutine.WaitSeconds(this, 0.2);
-            Check(!behind.IsPlayerBullet, "扇区外：后方敌弹不被弹反（保持敌弹）");
+            Check(behind.IsPlayerBullet, "全角度：后方敌弹同样被弹反（360° 判定）");
             await FreeAllBullets();
 
             // ================= WINDUP/RECOVER 无判定（场景级复核） =================
@@ -284,10 +284,10 @@ public partial class ParryTest : Node
             await AwaitParryReady(player);
             await AwaitActive(player);
             var sweep = pool.Fire(Vector2.Right, 600.0f, 12, false)!;
-            sweep.Position = player.Position + new Vector2(-30.0f, 3.0f);  // 玩家下方边缘带（扇区外）水平擦过
+            sweep.Position = player.Position + new Vector2(-30.0f, 3.0f);  // 玩家下方 30px（全周盾半径 60 内）水平擦过
             await Coroutine.WaitSeconds(this, 0.2);
-            Check(gs.Health == 100.0, "正交：盾展开期受击宽限帧不受影响（擦过无伤）");
-            Check(!sweep.IsPlayerBullet, "正交：盾区外弹不被弹反（宽限路径照常）");
+            Check(gs.Health == 100.0, "正交：盾展开期受击宽限帧不受影响（弹反无伤）");
+            Check(sweep.IsPlayerBullet, "正交：全周盾内弹被弹反（宽限路径照常）");
             await FreeEnemyBullets();
 
             foreach (var child in main.GetChildren())

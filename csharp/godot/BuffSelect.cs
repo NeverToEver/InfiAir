@@ -39,6 +39,7 @@ public partial class BuffSelect : CanvasLayer
     private CenterContainer _center = null!;
     private HBoxContainer _cards = null!;
     private Label _titleLabel = null!;
+    private Label _hintLabel = null!;
     private Godot.Collections.Array _currentAvailable = new();
     private bool _closing; // 选取确认动效播放中：屏蔽再次点选
 
@@ -70,10 +71,23 @@ public partial class BuffSelect : CanvasLayer
         _titleLabel = title;
         vbox.AddChild(title);
 
+        // 标题金色短下划线（与页面骨架页头同一语系）
+        var titleLineWrap = new CenterContainer();
+        vbox.AddChild(titleLineWrap);
+        var titleLine = new ColorRect
+        {
+            Color = UITheme.AccentGold,
+            CustomMinimumSize = new Vector2(96.0f, 3.0f),
+        };
+        titleLineWrap.AddChild(titleLine);
+
         _cards = new HBoxContainer();
         _cards.AddThemeConstantOverride("separation", 24);
         _cards.Alignment = BoxContainer.AlignmentMode.Center;
         vbox.AddChild(_cards);
+
+        _hintLabel = UITheme.MakeLabel(Tr("BUFF_HINT"), UITheme.FontCaption, UITheme.TextDim);
+        vbox.AddChild(_hintLabel);
 
         var gs = GameState.Instance;
         if (gs != null)
@@ -168,6 +182,7 @@ public partial class BuffSelect : CanvasLayer
     private void OnLocaleChanged()
     {
         _titleLabel.Text = Tr("BUFF_TITLE");
+        _hintLabel.Text = Tr("BUFF_HINT");
         if (Visible)
         {
             BuildCards();

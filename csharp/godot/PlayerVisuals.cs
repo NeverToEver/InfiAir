@@ -22,7 +22,17 @@ public class PlayerVisuals
     private GpuParticles2D _thruster = null!;
     private Polygon2D _hitboxDot = null!;
     private Polygon2D _parryArc = null!;
+    private Node2D _parryRim = null!; // 分段盾缘容器（能量格子节点，Modulate/Scale 级联）
     private Polygon2D _parryShine = null!;
+    private Line2D _parryPulse = null!; // 激活金光一闪（白金圆环扩张淡出，一次性）
+
+    /// <summary>弹反命中闪光剩余时长（白金色提亮 + 边缘外扩脉冲；SetParryFlash 置位）。</summary>
+    private float _parryFlash;
+    private const float ParryFlashTime = 0.18f;
+
+    /// <summary>激活闪光环剩余时长（SetParryActivatePulse 置位）。</summary>
+    private float _parryPulseTimer;
+    private const float ParryPulseTime = 0.32f;
 
     /// <summary>2026-08-09 审计：弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
     private readonly Vector2[] _parryShinePoly = new Vector2[6];
@@ -40,21 +50,23 @@ public class PlayerVisuals
     /// Main 场景构建期 add_child 会报 "busy setting up children"，延迟到帧末执行——原 _ready 逻辑迁移）。
     /// </summary>
     public void Init(
-        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
-        Node worldRoot)
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Node2D parryRim,
+        Polygon2D parryShine, Line2D parryPulse, Node worldRoot)
     {
-        Init(sprite, thruster, hitboxDot, parryArc, parryShine, worldRoot, AfterimagePoolSize);
+        Init(sprite, thruster, hitboxDot, parryArc, parryRim, parryShine, parryPulse, worldRoot, AfterimagePoolSize);
     }
 
     public void Init(
-        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Polygon2D parryShine,
-        Node worldRoot, int poolSize)
+        Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Node2D parryRim,
+        Polygon2D parryShine, Line2D parryPulse, Node worldRoot, int poolSize)
     {
         _sprite = sprite;
         _thruster = thruster;
         _hitboxDot = hitboxDot;
         _parryArc = parryArc;
+        _parryRim = parryRim;
         _parryShine = parryShine;
+        _parryPulse = parryPulse;
         for (var i = 0; i < poolSize; i++)
         {
             var ghost = new Sprite2D { Visible = false, Modulate = AfterimageColor };
@@ -155,20 +167,62 @@ public class PlayerVisuals
     /// <summary>擦弹机身金色短闪置位（_on_graze_entered 反馈三件套之一；时长 balance player.graze.flash_time）。</summary>
     public void SetGrazeFlash(float time) => _grazeFlash = time;
 
-    /// <summary>盾视觉逐物理帧驱动：WINDUP 小弧展开到全弧（缩放）、ACTIVE 珍珠流光自弧线左端扫至右端、
-    /// RECOVER 保持全弧、IDLE 隐藏；高光带角度按 active 进度线性插值（零 shader 依赖）。
-    /// 参数化（expand/shine 来自 PlayerParry，radius/arc 来自 player 常量）——视觉不感知 parry 组件。</summary>
-    public void UpdateParryVisuals(float expand, float shine, float radius, float arcDeg)
+    /// <summary>弹反命中闪光置位（Player 盾区反射成功时调用）：边缘白金色提亮 + 外扩脉冲。</summary>
+    public void SetParryFlash() => _parryFlash = ParryFlashTime;
+
+    /// <summary>激活金光一闪置位（Player 盾进入 ACTIVE 瞬间调用）：白金圆环 0.45×→1.5× 缓出扩张 + 淡出。</summary>
+    public void SetParryActivatePulse()
     {
-        _parryArc.Visible = expand > 0.0f;
-        if (!_parryArc.Visible)
+        _parryPulseTimer = ParryPulseTime;
+        _parryPulse.Visible = true;
+    }
+
+    /// <summary>盾视觉逐物理帧驱动：WINDUP 小弧展开到全弧（缩放）、ACTIVE 盾缘能量脉动 + 珍珠流光
+    /// 自弧线左端扫至右端、RECOVER 保持全弧、IDLE 隐藏；弹反命中时短闪（白金色提亮 + 边缘外扩）。
+    /// 三层结构：暗金填充扇面 + 亮金分段盾缘（伪能量格）+ 流光高光带（零 shader 依赖，ADD 混合出辉光）。
+    /// 参数化（expand/shine 来自 PlayerParry，radius/arc 来自 player 常量）——视觉不感知 parry 组件。
+    /// 每物理帧调用：只写 Modulate/Scale（struct），流光带顶点走预分配缓冲，零托管分配。</summary>
+    public void UpdateParryVisuals(float expand, float shine, float radius, float arcDeg, float delta, long nowMs)
+    {
+        var visible = expand > 0.0f;
+        _parryArc.Visible = visible;
+        _parryRim.Visible = visible;
+        if (!visible)
         {
             _parryShine.Visible = false;
+            _parryFlash = 0.0f;
+            _parryPulseTimer = 0.0f;
+            _parryPulse.Visible = false;
             return;
         }
 
+        if (_parryFlash > 0.0f)
+        {
+            _parryFlash = Mathf.Max(_parryFlash - delta, 0.0f);
+        }
+
+        // 激活金光一闪：0.32s 内圆环 0.45×→1.5× 二次缓出扩张，alpha 线性淡出
+        if (_parryPulseTimer > 0.0f)
+        {
+            _parryPulseTimer = Mathf.Max(_parryPulseTimer - delta, 0.0f);
+            var t = 1.0f - _parryPulseTimer / ParryPulseTime;
+            var easeOut = 1.0f - (1.0f - t) * (1.0f - t);
+            _parryPulse.Scale = Vector2.One * (0.45f + 1.05f * easeOut);
+            _parryPulse.Modulate = new Color(1.0f, 1.0f, 1.0f, 1.0f - t);
+            if (_parryPulseTimer <= 0.0f)
+            {
+                _parryPulse.Visible = false;
+            }
+        }
+
+        var flash = _parryFlash / ParryFlashTime;
         var scale = 0.3f + 0.7f * expand;
         _parryArc.Scale = Vector2.One * scale;
+        _parryArc.Modulate = new Color(1.0f, 1.0f, 1.0f, 1.0f + 1.4f * flash);
+        // 盾缘：ACTIVE（shine>0）能量脉动，RECOVER 恒定高亮；命中闪叠加外扩 + 白金色提亮
+        var pulse = shine > 0.0f ? 0.72f + 0.28f * Mathf.Abs(Mathf.Sin((float)(nowMs * 0.012))) : 0.9f;
+        _parryRim.Scale = Vector2.One * (scale * (1.0f + 0.14f * flash));
+        _parryRim.Modulate = new Color(1.0f + 1.1f * flash, 1.0f + 0.6f * flash, 1.0f, Mathf.Min(pulse + 0.6f * flash, 1.0f));
         _parryShine.Visible = shine > 0.0f;
         if (!_parryShine.Visible)
         {
@@ -177,7 +231,7 @@ public class PlayerVisuals
 
         var arc = Mathf.DegToRad(arcDeg) * 0.5f;
         var centerA = -Mathf.Pi / 2.0f - arc + 2.0f * arc * shine;
-        var w = Mathf.DegToRad(22.0f); // 高光带角宽
+        var w = Mathf.DegToRad(14.0f); // 高光带角宽
         var sp = _parryShinePoly; // 2026-08-09：预分配复用，防每物理帧 new Vector2[6]
         sp[0] = Vector2.Zero;
         for (var i = 0; i < 5; i++)

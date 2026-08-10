@@ -31,7 +31,7 @@
 			"duration": 0.8,
 			"active_time": 0.5,
 			"cooldown": 3.0,
-			"arc_deg": 140,
+			"arc_deg": 360,
 			"radius": 60,
 			"reflect_speed_mult": 2.0,
 			"reflect_damage_mult": 1.5

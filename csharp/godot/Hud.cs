@@ -56,6 +56,7 @@ public partial class Hud : CanvasLayer
     private Boss? _boss;
     private Label _bossCountdown = null!;
     private Label _bossName = null!; // Boss 名牌（型号 + 阶段），血条子节点随其显隐
+    private ChamferedPanel _bossPlate = null!; // Boss 血条 + 名牌的切角背板（随血条显隐）
     /// <summary>M3d：Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
     /// GetFightPhaseTransition/Active 一致；ENRAGE=2 由声明顺序确定）——值镜像。</summary>
     private const int FightPhaseP1 = 0;
@@ -283,6 +284,19 @@ public partial class Hud : CanvasLayer
         ticks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         ticks.MouseFilter = Control.MouseFilterEnum.Ignore;
         _bossBar.AddChild(ticks);
+        // Boss 血条背板：名牌 + 血条整体纳入切角面板（与角落板块同一语系，随血条显隐；
+        // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）
+        _bossPlate = new ChamferedPanel
+        {
+            Position = new Vector2(-320.0f, 4.0f),
+            Size = new Vector2(640.0f, 88.0f),
+            Brackets = true,
+            Visible = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _bossPlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        AddChild(_bossPlate);
+        MoveChild(_bossPlate, _bossBar.GetIndex()); // 绘制序压在血条之下
         // Boss 逃跑倒计时（血条下方，剩余 ≤10s 起显示，红色闪烁）
         _bossCountdown = new Label
         {
@@ -632,26 +646,26 @@ public partial class Hud : CanvasLayer
         _scoreLabel.Position = new Vector2(24.0f, 30.0f);
         _killsLabel.Position = new Vector2(24.0f, 72.0f);
         var scoreTag = MakeCornerTag((string)Tr("UI_SCORE_TAG"));
-        scoreTag.Position = new Vector2(22.0f, 2.0f);
+        scoreTag.Position = new Vector2(24.0f, 6.0f);
         AddChild(scoreTag);
         var statusPlate = new ChamferedPanel
         {
-            Position = new Vector2(10.0f, -120.0f),
-            Size = new Vector2(560.0f, 110.0f),
+            Position = new Vector2(10.0f, -134.0f),
+            Size = new Vector2(560.0f, 120.0f),
         };
         statusPlate.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         AddChild(statusPlate);
         MoveChild(statusPlate, 0);
         var livesTag = MakeCornerTag((string)Tr("UI_LIVES_TAG"));
         livesTag.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        livesTag.Position = new Vector2(22.0f, -140.0f);
+        livesTag.Position = new Vector2(24.0f, -156.0f);
         AddChild(livesTag);
         // 仪表区与母舰状态区之间的竖分隔线（分区结构感）
         var statusDivider = new ColorRect
         {
             Color = UITheme.AccentDim,
-            Position = new Vector2(374.0f, -92.0f),
-            Size = new Vector2(1.0f, 56.0f),
+            Position = new Vector2(374.0f, -110.0f),
+            Size = new Vector2(1.0f, 84.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         statusDivider.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
@@ -672,7 +686,7 @@ public partial class Hud : CanvasLayer
         _difficultyLabel.VerticalAlignment = VerticalAlignment.Center;
         var diffTag = MakeCornerTag((string)Tr("UI_DIFF_TAG"));
         diffTag.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        diffTag.Position = new Vector2(-238.0f, 2.0f);
+        diffTag.Position = new Vector2(-236.0f, 6.0f);
         AddChild(diffTag);
         // 刷新时同步小标签语言
         _tagLabels = new[] { scoreTag, livesTag, diffTag };
@@ -807,6 +821,7 @@ public partial class Hud : CanvasLayer
         _bossBar.SegWeights = BossSegWeights;
         _bossBar.SegColors = BossSegColors;
         _bossBar.Visible = true;
+        _bossPlate.Visible = true;
         _bossBar.Value = 100.0f;
         _boss = boss;
         _bossCountdown.Visible = false;
@@ -922,6 +937,7 @@ public partial class Hud : CanvasLayer
     private void OnBossDied()
     {
         _bossBar.Visible = false;
+        _bossPlate.Visible = false;
         _bossCountdown.Visible = false;
         _boss = null;
     }
@@ -1060,7 +1076,7 @@ public partial class Hud : CanvasLayer
     {
         _buffDockWrap = new Control
         {
-            Position = new Vector2(-16.0f, -44.0f), // 底部留 28px 给标签行
+            Position = new Vector2(-20.0f, -44.0f), // 底部留 28px 给标签行（右缘与标签同 20px 边距）
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _buffDockWrap.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
@@ -1075,8 +1091,8 @@ public partial class Hud : CanvasLayer
         _buffDockWrap.AddChild(_buffDock);
         _buffTag = new Label
         {
-            Position = new Vector2(-136.0f, -24.0f),
-            CustomMinimumSize = new Vector2(120.0f, 18.0f),
+            Position = new Vector2(-160.0f, -26.0f),
+            CustomMinimumSize = new Vector2(140.0f, 18.0f),
             HorizontalAlignment = HorizontalAlignment.Right,
             MouseFilter = Control.MouseFilterEnum.Ignore,
             Visible = false,

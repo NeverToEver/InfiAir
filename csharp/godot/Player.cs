@@ -154,7 +154,7 @@ public partial class Player : CharacterBody2D
     private readonly PlayerParry _parry = new();
     private readonly PlayerVisuals _visuals = new();
 
-    public float ParryArcDeg { get; private set; } = 140.0f;
+    public float ParryArcDeg { get; private set; } = 360.0f;
     public float ParryRadius { get; private set; } = 60.0f;
     private Area2D? _parryShield;
 
@@ -356,20 +356,48 @@ public partial class Player : CharacterBody2D
         // 机制四：tscn 占位无 shape——新建圆盘判定形状（原 GDScript CircleShape2D.new() 语义）
         _parryShield.GetNode<CollisionShape2D>("CollisionShape2D").Shape = new CircleShape2D { Radius = ParryRadius };
 
-        // 盾视觉：金色半透明弧形 + 珍珠流光高光带（程序化）
+        // 盾视觉三层（程序化，零 shader，全 ADD 混合出辉光）：淡金填充扇面 + 亮金分段盾缘
+        // （7 枚独立能量格 Polygon2D 挂容器，段间留缝）+ 珍珠流光高光带
+        var addBlend = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         var parryArc = new Polygon2D
         {
             Polygon = ParrySectorPoints(ParryRadius, 12),
-            Color = new Color(1.0f, 0.8f, 0.3f, 0.28f),
+            Color = new Color(1.0f, 0.8f, 0.3f, 0.13f),
+            Material = addBlend,
             Visible = false,
         };
         AddChild(parryArc);
+        var parryRim = new Node2D { Visible = false };
+        // 段数随盾角：全周盾 14 格保持能量格密度，扇形（<360°）7 格
+        foreach (var segVariant in ParryRimSegments(ParryRadius, ParryArcDeg >= 360.0f ? 14 : 7))
+        {
+            parryRim.AddChild(new Polygon2D
+            {
+                Polygon = segVariant.AsVector2Array(),
+                Color = new Color(1.0f, 0.82f, 0.35f, 0.95f),
+                Material = addBlend,
+            });
+        }
+
+        AddChild(parryRim);
         var parryShine = new Polygon2D
         {
-            Color = new Color(1.0f, 0.95f, 0.6f, 0.85f),
+            Color = new Color(1.0f, 0.95f, 0.6f, 0.45f),
+            Material = addBlend,
             Visible = false,
         };
         AddChild(parryShine);
+        // 激活金光一闪：白金圆环自机体 0.45× 扩张到 1.5× 并淡出（0.32s，ACTIVE 入场一次性）
+        var parryPulse = new Line2D
+        {
+            Points = CirclePoints(ParryRadius, 28),
+            Closed = true,
+            Width = 5.0f,
+            DefaultColor = new Color(1.0f, 0.92f, 0.55f, 0.95f),
+            Material = addBlend,
+            Visible = false,
+        };
+        AddChild(parryPulse);
         _thruster = GetNode<GpuParticles2D>("Thruster");
         _thruster.Position = new Vector2(0.0f, 70.0f * ws);
         if (_thruster.ProcessMaterial is ParticleProcessMaterial thrusterMat)
@@ -419,7 +447,7 @@ public partial class Player : CharacterBody2D
         AddChild(buffVisuals);
         buffVisuals.Init(_sprite, this);
         // A8：视觉组件初始化（残影池预建；Main 场景构建期 add_child 报 busy，延迟到帧末）
-        _visuals.Init(_sprite, _thruster, hitboxDot, parryArc, parryShine, GetParent());
+        _visuals.Init(_sprite, _thruster, hitboxDot, parryArc, parryRim, parryShine, parryPulse, GetParent());
     }
 
     // ---------------- 对外公开接口（A1 修复） ----------------
@@ -587,6 +615,10 @@ public partial class Player : CharacterBody2D
         var critStacks = (int)GameState.Instance.BuffCount(BuffCritShot);
         CritChance = critStacks == 0 ? 0.0f : CritChanceBase * critStacks;
         CritMultiplierValue = CritMultiplier;
+        // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnBuffsChanged 同款）——
+        // 原每物理帧 BuffCount 字典查找 + Pow（_physics_process 每帧两次）
+        _fuelDrainRate = BuffScale(BuffEfficientBoost, FuelDrain, (int)GameState.Instance.BuffCount(BuffEfficientBoost));
+        _fuelRegenRate = BuffScale(BuffBoostRecovery, FuelRegen, (int)GameState.Instance.BuffCount(BuffBoostRecovery));
     }
 
     /// <summary>A4：乘算因子求值——base × factor^count。</summary>
@@ -629,9 +661,14 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
-    public float FuelDrainRate() => BuffScale(BuffEfficientBoost, FuelDrain, (int)GameState.Instance.BuffCount(BuffEfficientBoost));
+    /// <summary>H6：燃油速率缓存（RefreshBuffFactors 刷新：_ready 初始 + buffs_changed 信号驱动；
+    /// 默认值 = 无 buff 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
+    private float _fuelDrainRate = 35.0f;
+    private float _fuelRegenRate = 20.0f;
 
-    public float FuelRegenRate() => BuffScale(BuffBoostRecovery, FuelRegen, (int)GameState.Instance.BuffCount(BuffBoostRecovery));
+    public float FuelDrainRate() => _fuelDrainRate;
+
+    public float FuelRegenRate() => _fuelRegenRate;
 
     public override void _PhysicsProcess(double delta)
     {
@@ -688,9 +725,13 @@ public partial class Player : CharacterBody2D
         if (_parryShield != null && _parryShield.Monitoring != shieldOn)
         {
             _parryShield.Monitoring = shieldOn;
+            if (shieldOn)
+            {
+                _visuals.SetParryActivatePulse(); // 金光一闪：进入有效窗口瞬间的入场闪光环
+            }
         }
 
-        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg);
+        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, (long)Time.GetTicksMsec());
         if (DashUnlocked()
             && !MovementLocked
             && Input.IsActionJustPressed(ActDash)
@@ -1077,12 +1118,13 @@ public partial class Player : CharacterBody2D
     public void ClearNearbyEnemyBullets()
     {
         var bullets = GameState.Instance.EnemyBullets;
+        var clearRadiusSq = BulletClearRadius * BulletClearRadius; // 2026-08-10 审计 H5：平方距离比较免每弹 sqrt
         for (var i = bullets.Count - 1; i >= 0; i--)
         {
             var b = (Bullet?)bullets[i];
             if (b != null && !b.IsPlayerBullet)
             {
-                if (b.GlobalPosition.DistanceTo(GlobalPosition) <= BulletClearRadius)
+                if (b.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= clearRadiusSq)
                 {
                     b.Despawn();
                 }
@@ -1125,7 +1167,8 @@ public partial class Player : CharacterBody2D
 
     public float ParryCooldownRemaining() => _parry.CooldownRemaining();
 
-    /// <summary>盾区弹反：圆盘 shape 触发进入检测后精确扇形过滤，O(1) 阵营翻转。</summary>
+    /// <summary>盾区弹反：圆盘 shape 触发进入检测后径向距离过滤（360° 全周盾，arc_deg 配置保留
+    /// 角度过滤能力——&lt;360 时回退为机头前方扇形），O(1) 阵营翻转。</summary>
     private void OnParryShieldEntered(Area2D area)
     {
         if (_parry.Phase != PlayerParry.ParryPhase.ACTIVE)
@@ -1152,6 +1195,7 @@ public partial class Player : CharacterBody2D
         }
 
         b.Reflect();
+        _visuals.SetParryFlash();
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0);
     }
@@ -1169,6 +1213,46 @@ public partial class Player : CharacterBody2D
         }
 
         return pts;
+    }
+
+    /// <summary>闭合圆环顶点（激活闪光环 Line2D 用）：count 等分整圆。</summary>
+    private static Vector2[] CirclePoints(float radius, int count)
+    {
+        var pts = new Vector2[count];
+        for (var i = 0; i < count; i++)
+        {
+            var a = -Mathf.Pi / 2.0f - Mathf.Tau * i / count;
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+        }
+
+        return pts;
+    }
+
+    /// <summary>盾缘分段顶点（以机头上方为中的 ±arc 环形亮边，360° 即整圆；count 段伪能量格、段间留缝）：
+    /// 每段一个四边形（内弧两点 + 外弧两点），逐段子节点一次构建（热路径零分配）。</summary>
+    private Godot.Collections.Array ParryRimSegments(float radius, int count)
+    {
+        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var segs = new Godot.Collections.Array();
+        const float GapRatio = 0.22f; // 段间缝隙占段宽比例
+        var inner = radius * 0.80f;
+        for (var i = 0; i < count; i++)
+        {
+            var t0 = (float)i / count;
+            var t1 = (float)(i + 1) / count;
+            var pad = (t1 - t0) * GapRatio * 0.5f;
+            var a0 = -Mathf.Pi / 2.0f - arc + 2.0f * arc * (t0 + pad);
+            var a1 = -Mathf.Pi / 2.0f - arc + 2.0f * arc * (t1 - pad);
+            segs.Add(new Vector2[]
+            {
+                new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * inner,
+                new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radius,
+                new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radius,
+                new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * inner,
+            });
+        }
+
+        return segs;
     }
 
     private void DieInternal()

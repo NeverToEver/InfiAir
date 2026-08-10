@@ -25,8 +25,12 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 37 | `enemies.hp_ramp_factor` | `0.25` |
-| 38 | `enemies.damage_ramp_factor` | `0.20` |
+| 45 | `enemies.hp_ramp_factor` | `0.25` |
+| 46 | `enemies.damage_ramp_factor` | `0.20` |
+| 48 | `enemies.move_strategies` | `new Godot.Collections.Dictionary(` |
+| 50 | `enemies.speed_ramp_factor` | `0.1` |
+| 51 | `player.aim_assist.mark_ratio` | `0.25` |
+| 53 | `spawner.telegraph_duration` | `SpawnTelegraph.GetDefaultDuration(` |
 
 ### `csharp/godot/Boss.cs`
 
@@ -162,21 +166,21 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 116 | `buffs.explosive.unlock_boss_kills` | `3` |
-| 346 | `buffs.extra_life.heal_on_pick` | `30` |
-| 383 | `buffs.extra_life.heal_on_pick` | `30` |
+| 130 | `buffs.explosive.unlock_boss_kills` | `3` |
+| 361 | `buffs.extra_life.heal_on_pick` | `30` |
+| 398 | `buffs.extra_life.heal_on_pick` | `30` |
 
 ### `csharp/godot/Bullet.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 222 | `buffs.explosive.radius_per_level` | `ExplosiveRadius` |
-| 223 | `buffs.explosive.damage_per_level` | `ExplosiveDamage` |
-| 224 | `effects.bullet_visual_scale` | `VisualScale` |
-| 226 | `effects.enemy_bullet_visual_scale` | `EnemyVisualScale` |
-| 229 | `player.grace_period` | `GracePeriod` |
-| 231 | `player.parry.reflect_speed_mult` | `ReflectSpeedMult` |
-| 232 | `player.parry.reflect_damage_mult` | `ReflectDamageMult` |
+| 226 | `buffs.explosive.radius_per_level` | `ExplosiveRadius` |
+| 227 | `buffs.explosive.damage_per_level` | `ExplosiveDamage` |
+| 228 | `effects.bullet_visual_scale` | `VisualScale` |
+| 230 | `effects.enemy_bullet_visual_scale` | `EnemyVisualScale` |
+| 233 | `player.grace_period` | `GracePeriod` |
+| 235 | `player.parry.reflect_speed_mult` | `ReflectSpeedMult` |
+| 236 | `player.parry.reflect_damage_mult` | `ReflectDamageMult` |
 
 ### `csharp/godot/CameraShake.cs`
 
@@ -213,32 +217,29 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 124 | `enemies.bullet_speed` | `EnemyBulletSpeed` |
-| 125 | `enemies.spread_bullet_speed` | `SpreadBulletSpeed` |
-| 126 | `enemies.laser_bullet_speed` | `LaserBulletSpeed` |
-| 127 | `enemies.bullet_damage.single` | `BulletDamageSingle` |
-| 128 | `enemies.bullet_damage.spread` | `BulletDamageSpread` |
-| 129 | `enemies.bullet_damage.laser` | `BulletDamageLaser` |
-| 130 | `enemies.collision_damage` | `CollisionDamage` |
-| 131 | `buffs.slow_field.factor` | `SlowFieldFactor` |
-| 132 | `enemies.spread_fan_step` | `SpreadFanStep` |
-| 133 | `enemies.lifetime` | `Lifetime` |
-| 134 | `enemies.exit_accel` | `ExitAccel` |
-| 135 | `enemies.aggressive_chase_speed` | `AggrChaseSpeed` |
-| 136 | `enemies.fire_interval` | `FireInterval` |
-| 138 | `enemies.hover_band` | `new Godot.Collections.Array { HoverBand.X, HoverBand.Y }` |
-| 148 | `enemies.hover_bob_amp` | `HoverBobAmp` |
-| 149 | `enemies.hover_bob_freq` | `HoverBobFreq` |
-| 150 | `enemies.hover_sway_amp` | `HoverSwayAmp` |
-| 151 | `enemies.hover_sway_freq` | `HoverSwayFreq` |
-| 152 | `enemies.spiral_drift_amp` | `SpiralDriftAmp` |
-| 153 | `enemies.spiral_drift_freq` | `SpiralDriftFreq` |
-| 154 | `enemies.spiral_radius` | `SpiralRadius` |
-| 173 | `effects.shake.enemy_die` | `_shakeDieNormal` |
-| 174 | `effects.shake.elite_die` | `_shakeDieElite` |
-| 244 | `enemies.speed_ramp_factor` | `SpeedRampFactor` |
-| 249 | `player.aim_assist.mark_ratio` | `0.25` |
-| 499 | `enemies.move_strategies` | `new Godot.Collections.Dictionary(` |
+| 129 | `enemies.bullet_speed` | `EnemyBulletSpeed` |
+| 130 | `enemies.spread_bullet_speed` | `SpreadBulletSpeed` |
+| 131 | `enemies.laser_bullet_speed` | `LaserBulletSpeed` |
+| 132 | `enemies.bullet_damage.single` | `BulletDamageSingle` |
+| 133 | `enemies.bullet_damage.spread` | `BulletDamageSpread` |
+| 134 | `enemies.bullet_damage.laser` | `BulletDamageLaser` |
+| 135 | `enemies.collision_damage` | `CollisionDamage` |
+| 136 | `buffs.slow_field.factor` | `SlowFieldFactor` |
+| 137 | `enemies.spread_fan_step` | `SpreadFanStep` |
+| 138 | `enemies.lifetime` | `Lifetime` |
+| 139 | `enemies.exit_accel` | `ExitAccel` |
+| 140 | `enemies.aggressive_chase_speed` | `AggrChaseSpeed` |
+| 141 | `enemies.fire_interval` | `FireInterval` |
+| 143 | `enemies.hover_band` | `new Godot.Collections.Array { HoverBand.X, HoverBand.Y }` |
+| 153 | `enemies.hover_bob_amp` | `HoverBobAmp` |
+| 154 | `enemies.hover_bob_freq` | `HoverBobFreq` |
+| 155 | `enemies.hover_sway_amp` | `HoverSwayAmp` |
+| 156 | `enemies.hover_sway_freq` | `HoverSwayFreq` |
+| 157 | `enemies.spiral_drift_amp` | `SpiralDriftAmp` |
+| 158 | `enemies.spiral_drift_freq` | `SpiralDriftFreq` |
+| 159 | `enemies.spiral_radius` | `SpiralRadius` |
+| 178 | `effects.shake.enemy_die` | `_shakeDieNormal` |
+| 179 | `effects.shake.elite_die` | `_shakeDieElite` |
 
 ### `csharp/godot/Explosion.cs`
 
@@ -354,14 +355,14 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 147 | `effects.hud_poll_interval` | `_pollInterval` |
-| 148 | `hud.boss_bar_segments` | `_bossBarSegments` |
-| 149 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
-| 150 | `effects.hit_flash.time` | `_hitFlashTime` |
-| 151 | `effects.low_hp.ratio` | `_lowHpRatio` |
-| 152 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
-| 153 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
-| 154 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
+| 148 | `effects.hud_poll_interval` | `_pollInterval` |
+| 149 | `hud.boss_bar_segments` | `_bossBarSegments` |
+| 150 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
+| 151 | `effects.hit_flash.time` | `_hitFlashTime` |
+| 152 | `effects.low_hp.ratio` | `_lowHpRatio` |
+| 153 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
+| 154 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
+| 155 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
 
 ### `csharp/godot/LaserWeapon.cs`
 
@@ -559,10 +560,10 @@
 | 325 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
 | 326 | `player.aim_assist.falloff.end` | `_falloffEnd` |
 | 327 | `player.aim_assist.falloff.min` | `_falloffMin` |
-| 477 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
-| 478 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
-| 479 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
-| 868 | `player.aim_assist.homing_time` | `HomingTime` |
+| 505 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
+| 506 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
+| 507 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
+| 909 | `player.aim_assist.homing_time` | `HomingTime` |
 | 82 | `buffs.rapid_fire.factor` | `—` |
 | 83 | `buffs.power_shot.factor` | `—` |
 | 84 | `buffs.efficient_boost.factor` | `—` |
@@ -600,8 +601,7 @@
 | 168 | `enemies.hover_band` | `new Godot.Collections.Array { _hoverBand.X, _hoverBand.Y }` |
 | 180 | `enemies.types` | `new Godot.Collections.Array(` |
 | 190 | `elites.types` | `new Godot.Collections.Array(` |
-| 367 | `spawner.telegraph_duration` | `SpawnTelegraph.GetDefaultDuration(` |
-| 423 | `effects.shake.boss_warning` | `14.0` |
+| 418 | `effects.shake.boss_warning` | `14.0` |
 
 ### `csharp/godot/Starfield.cs`
 
@@ -623,18 +623,18 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 101 | `enemies.bullet_speed` | `SingleSpeed` |
-| 102 | `enemies.spread_bullet_speed` | `SpreadSpeed` |
-| 103 | `enemies.laser_bullet_speed` | `LaserSpeed` |
-| 104 | `boss.homing_bullet_speed` | `HomingSpeed` |
-| 105 | `boss.sniper_bullet_speed` | `SniperSpeed` |
-| 106 | `enemies.spread_fan_step` | `SpreadFanStep` |
-| 107 | `enemies.bullet_damage.single` | `DmgSingle` |
-| 108 | `enemies.bullet_damage.spread` | `DmgSpread` |
-| 109 | `enemies.bullet_damage.laser` | `DmgLaser` |
-| 110 | `boss.bullet_damage.homing` | `DmgHoming` |
-| 111 | `boss.bullet_damage.sniper` | `DmgSniper` |
-| 132 | `effects.shake.enemy_die` | `_shakeDie` |
+| 111 | `enemies.bullet_speed` | `SingleSpeed` |
+| 112 | `enemies.spread_bullet_speed` | `SpreadSpeed` |
+| 113 | `enemies.laser_bullet_speed` | `LaserSpeed` |
+| 114 | `boss.homing_bullet_speed` | `HomingSpeed` |
+| 115 | `boss.sniper_bullet_speed` | `SniperSpeed` |
+| 116 | `enemies.spread_fan_step` | `SpreadFanStep` |
+| 117 | `enemies.bullet_damage.single` | `DmgSingle` |
+| 118 | `enemies.bullet_damage.spread` | `DmgSpread` |
+| 119 | `enemies.bullet_damage.laser` | `DmgLaser` |
+| 120 | `boss.bullet_damage.homing` | `DmgHoming` |
+| 121 | `boss.bullet_damage.sniper` | `DmgSniper` |
+| 142 | `effects.shake.enemy_die` | `_shakeDie` |
 
 ### `csharp/godot/Tutorial.cs`
 
