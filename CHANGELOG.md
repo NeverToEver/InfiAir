@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [3.28] - 2026-08-10
+
+### 规范化 + 逻辑修复（2026-08-10，AA 系列第七轮审查，`docs/AUDIT_VAULT.md` 登记）
+
+- **逻辑漏洞 23 处**：里程碑 `cycle_mult` ∈ (0,1) 阈值级数收敛 → `AddScore` 主线程死循环（钳制下限 1.0 + 迭代上限兜底，H03 防挂死闭环）；meta 预置 buff 补发 `BuffsChanged`（已购升级新局即生效、HUD 即显）；教程阶段 0 训练靶寿命离场补刷兜底（新手超时软锁修复）；`SaveStore` 重复键 JSON 抛 `ArgumentException` 击穿损坏隔离（dotnet/runtime#71784 规避）；`UserDb.DeleteUser` 落盘失败内存回滚；Welcome 用户名下拉鼠标点选整条路径失效修复（FocusExited 抢焦时序）；Boss `release_hold_duration` / 撤退航母速度 / `boss_score_step` 等配置键下限钳制补齐；弹反扇形过滤基准改机头方向；`AimFrameLayer` 磁吸框沿距负分量修正；存档统计 `SaveInt` 判型钳制；`GdFormat` `%.Nf` 精度守卫等
+- **规范化 36 处**（Roslynator 静态分析安全子集）：`TryGetValue` 双查消除 ×4、`AsSpan` ×2、char 重载 ×1、`JsonSerializerOptions` 静态缓存、`BuffIcons` 常量数组 → static readonly ×13（热路径零分配对齐）、私有方法返回类型收窄 ×15
+- **测试与数据**：xUnit 108→111（重复键隔离 / 精度溢出 / 删除回滚三回归）；`BaseTaskRefreshTest` Q05 LINQ `Append` 误用修复（任务排除语义恢复，CA1806 命中真实缺陷）；`enemies.fire_interval` 死键清理 + BALANCE_MAP 重跑
+- **验证**：`dotnet build` 零警告 + xUnit 111/111 + `dotnet format` 三工程零 diff + 断言场景全量 0 FAIL + autoplay 探针
+
+### 文档（2026-08-10，归档 + 精简）
+
+- 过时评审/决策文档归档：`C_SHARP_ASSESSMENT.md`（M7 全量迁移落地，使命完结）与 `PARITY_REVIEW_2026.md`（一次性对齐评审）→ `docs/archive/`（EXECUTION_LOG 登记，ROADMAP/ARCHITECTURE/csharp-conventions 引用同步）
+- 工作指引精简：`AGENTS.md` 与 `.agents/csharp-conventions.md` 去迁移期历史叙述（操作性约定全量保留；历史见 git 与 AUDIT_VAULT）
+
 ### 美工 + 玩法（2026-08-10，HUD 美化 + 弹反盾全周化）
 
 - **对局 HUD 美化**：左下状态区四仪表（HP/燃料/冲刺/弹反）重排分行消除重叠；角落小标签（分数/生命/难度）下移为骑跨背板的页签式，不再被屏幕边缘裁切；Boss 血条新增切角括号背板（名牌 + 三段血条整体入框、随血条显隐）；buff 坞与「增益 [L]」标签内收 20px 安全边距；Buff 三选一加标题金下划线与「← → 选择 · Enter 确认」提示行（新 i18n 键 `BUFF_HINT`）
@@ -53,12 +67,6 @@
 ### 文档（2026-08-09，M7 后全量文档订正）
 
 - 入口/测试/约定/设计文档对齐零 GDScript C# 现状：`scripts/*.gd` → `csharp/godot/*.cs`、`autoload/game_state.gd` → `csharp/godot/GameState.cs`、snake_case API → PascalCase、「GDScript 项目/渐进式 C# 混编」→ 全量 C#（零 GDScript）、gdtoolkit 门禁退役、跨语言边界规则消解；断言/场景计数仍唯一权威于 `docs/TESTING.md`，其余文档只引用不硬编码
-
-## [3.28] - 2026-08-07
-
-> **发布状态（2026-08-07 登记）：暂缓发布。** 作者登记本版本内容尚未完善（缺项未补齐），
-> v3.28 未打 tag、未推送 GitHub Release；已构建产物留存 `builds/release/`（git 忽略不入库），
-> 环境适配等工作树改动未提交。待内容补齐后重新评估版本号再发布。
 
 ### 修复（2026-08-06 全项目审计，`docs/archive/2026-08-06-audit-report.md`）
 

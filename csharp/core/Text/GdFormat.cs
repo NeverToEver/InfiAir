@@ -73,8 +73,18 @@ public static class GdFormat
 
                     if (j < format.Length && format[j] == 'f')
                     {
-                        var precision = digits.Length > 0 ? int.Parse(digits) : 0;
-                        var fmt = "0." + new string('0', precision);
+                        // 2026-08-10 健壮性审查：精度位 int.TryParse + 上限 99 守卫——超长精度串
+                        // int.Parse 抛 OverflowException、超大精度 new string 巨额分配；非法精度按
+                        // 未知 spec 原样保留（对齐 FormatInt 只吞 OverflowException 的加固口径）
+                        var precision = 0;
+                        if (digits.Length > 0 && (!int.TryParse(digits, out precision) || precision > 99))
+                        {
+                            sb.Append(c);
+                            continue;
+                        }
+
+                        var prec = digits.Length > 0 ? precision : 0;
+                        var fmt = "0." + new string('0', prec);
                         var v = Arg(args, ref argIndex);
                         sb.Append(v is string s && s == "?" ? "?" : Convert.ToDouble(v).ToString(fmt, CultureInfo.InvariantCulture));
                         i = j;

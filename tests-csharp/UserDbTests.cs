@@ -173,6 +173,30 @@ public sealed class UserDbTests
     }
 
     [Fact]
+    public void DeleteUser_SaveFails_RollsBackInMemoryEntry()
+    {
+        // 2026-08-10 健壮性审查：落盘失败须回滚内存条目（对称 CreateUser 回滚）——
+        // 注入失败方式：users.json 正本替换为同名目录，TrySave rename 覆盖必失败
+        var db = NewDb(out var dir, out var usersPath);
+        try
+        {
+            db.CreateUser("bob", "pass123", 1000);
+            var saveFile = Path.Combine(dir, db.SaveFileName("bob"));
+            File.WriteAllText(saveFile, "{}");
+            File.Delete(usersPath);
+            Directory.CreateDirectory(usersPath);
+
+            Assert.False(db.DeleteUser("bob", "pass123", saveFile), "落盘失败删号返回 false");
+            Assert.True(db.UserExists("bob"), "Save 失败后内存条目回滚");
+            Assert.True(db.VerifyUser("bob", "pass123", 1000), "回滚后验密仍通过");
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Leaderboard_OrderingCapAndRanks()
     {
         var db = NewDb(out var dir, out _);

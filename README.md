@@ -139,7 +139,7 @@ godot --path .
    - `full-regression`（约 40 分钟，仅 main push / PR / 手动）：BALANCE_MAP 生成器重跑零 diff 闸 → 全部断言场景全量（权威计数见 docs/TESTING.md，含 flake 重试与引擎错误日志扫描）；
    - 纯文档（`docs/**`、`*.md`）不触发；dotnet SDK / NuGet / Godot 引擎经 actions/cache 缓存；同分支新推送取消旧运行。
 
-健壮性基线：2026-08-10 第六轮健壮性审查（Z 系列）落地——手改存档/配置判型与超大值截断钳制、除零下限钳制、协程悬挂与信号配对防御等 20 处修复（记录见 [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)）。
+健壮性基线：2026-08-10 第六轮（Z 系列）落地——手改存档/配置判型与超大值截断钳制、除零下限钳制、协程悬挂与信号配对防御等 20 处修复；同日第七轮（AA 系列）——Roslynator 静态分析 + 全量逻辑审查，修复 23 处逻辑漏洞（里程碑收敛死循环、meta 预置 buff 信号缺失、教程阶段软锁、存档重复键击穿隔离等）+ 36 处规范化（记录见 [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)）。
 
 最小本地验证集：
 
@@ -175,7 +175,7 @@ docs/               架构/设计/审计文档（ARCHITECTURE / TESTING / AUDIT_
 | [docs/TESTING.md](./docs/TESTING.md) | 测试策略：权威场景计数 / 断言清单 / 已知失败 / CI 流程 |
 | [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | 设计基线：玩法规则 / 架构口径（修订需走该文档） |
 | [docs/BALANCE_MAP.md](./docs/BALANCE_MAP.md) | 数值配置索引（生成器产出，勿手改） |
-| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | 代码审计档案（U/V/W/X/Y 系列，专有不可删） |
+| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | 代码审计档案（U–AA 系列，专有不可删） |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | 路线图与未来方向（单一事实源） |
 
 ## 许可与致谢

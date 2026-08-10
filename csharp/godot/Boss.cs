@@ -411,7 +411,9 @@ public partial class Boss : Area2D
         EnrageAttackInterval = (float)GameState.Instance.Cfg("boss.enrage.attack_interval", EnrageAttackInterval).AsDouble();
         EnrageAttackWindup = (float)GameState.Instance.Cfg("boss.enrage.attack_windup", EnrageAttackWindup).AsDouble();
         EnrageReleaseInterval = (float)GameState.Instance.Cfg("boss.enrage.release_interval", EnrageReleaseInterval).AsDouble();
-        EnrageReleaseHoldDuration = (float)GameState.Instance.Cfg("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration).AsDouble();
+        // R06 同族：release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
+        // （Clamp(1-(-inf))=1，Boss 瞬跳回退），下限钳制 ≥0.05
+        EnrageReleaseHoldDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration).AsDouble());
         EnrageReturnDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.return_duration", EnrageReturnDuration).AsDouble());
         EnragePathRadiusScale = (float)GameState.Instance.Cfg("boss.enrage.path_radius_scale", EnragePathRadiusScale).AsDouble();
         // H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN

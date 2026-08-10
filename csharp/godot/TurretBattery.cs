@@ -94,7 +94,17 @@ public partial class TurretBattery : Area2D
         AmmoSequence.Clear();
         foreach (var a in pAmmo)
         {
-            AmmoSequence.Add(a.AsStringName());
+            // L07 元素级判型口径（对齐 EliteTurretEvent 弹药序列审查）：混入非字符串元素时
+            // AsStringName() 抛 InvalidCastException，坏值跳过；全坏回退单发 single
+            if (a.VariantType == Variant.Type.String || a.VariantType == Variant.Type.StringName)
+            {
+                AmmoSequence.Add(a.AsStringName());
+            }
+        }
+
+        if (AmmoSequence.Count == 0)
+        {
+            AmmoSequence.Add(AmmoSingle);
         }
 
         FireInterval = pFireInterval;

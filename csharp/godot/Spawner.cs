@@ -137,7 +137,9 @@ public partial class Spawner : Node
         WAVE_INTERVAL_END = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), 0.05f);
         RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("spawner.ramp_time", RAMP_TIME).AsDouble(), 0.01f);
         INTERVAL_MIN = Mathf.Max((float)GameState.Instance.Cfg("spawner.interval_min", INTERVAL_MIN).AsDouble(), 0.0f);
-        BOSS_SCORE_STEP = (int)GameState.Instance.Cfg("spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble();
+        // L06 同族延续：boss_score_step 下限钳制——配 ≤0 时 _nextBossScore 不推进
+        // （line 454 += 步长 ≤0），Boss 轮换/休整编排失效
+        BOSS_SCORE_STEP = Mathf.Max((int)GameState.Instance.Cfg("spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble(), 1);
         BOSS_MIN_INTERVAL = (float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble();
         BOSS_TIME_LIMIT = (float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble();
         DIFFICULTY_FACTOR = (float)GameState.Instance.Cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();

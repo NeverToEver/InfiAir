@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Progression;
 
 namespace InfiAir;
 
@@ -68,10 +69,12 @@ public partial class GameState : Node
         }
 
         MilestoneBase = baseArr.Count > 0 ? baseArr : BuildMilestoneBase();
-        // H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——≤0 使阈值曲线平台化，
-        // apply_run_save 的 while 里程碑推进永不退出（挂死）。difficulty 子表无 cycle_mult 键
+        // H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——曲线语义要求阈值单调增长，
+        // 下限须钳 ≥1.0：mult ∈ (0,1) 时阈值级数收敛（上确界 ≈ base_last/(1-mult)），Score 一旦
+        // 越过收敛上界，AddScore/apply_run_save 的 while 里程碑推进永不退出（主线程挂死）——
+        // 原 0.01 下限恰好放任收敛区间，防挂死目标未达成。difficulty 子表无 cycle_mult 键
         // （原 _valid_difficulty_defs 内检查恒真为死代码），此处对全局键钳制下限（同 world_scale 款）
-        MilestoneCycleMult = Mathf.Max(Cfg("milestones.cycle_mult", MilestoneCycleMultValue).AsDouble(), 0.01);
+        MilestoneCycleMult = Mathf.Max(Cfg("milestones.cycle_mult", MilestoneCycleMultValue).AsDouble(), 1.0);
         // 难度进程曲线参数：负值会使难度乘数随时间/Boss 击杀下行，钳制 ≥0 保曲线单调不减
         _progPerBossKill = Mathf.Max(Cfg("progression.per_boss_kill", 0.6).AsDouble(), 0.0);
         _progPerTenMinutes = Mathf.Max(Cfg("progression.per_ten_minutes", 1.5).AsDouble(), 0.0);
@@ -451,11 +454,20 @@ public partial class GameState : Node
         // _next_milestone 的 while——set_milestone_override 测试钩子允许阈值脱离曲线，
         // 批量推进（CountThresholdsUpTo）仅用于 apply_run_save 的存档恢复路径（低频、
         // 病态档数场景，批量收益大）；加分逐档仅 1-2 档，单值调用开销可忽略。
+        // H03 兜底挂死守卫：与 MilestoneCurve.CountThresholdsUpTo 同款迭代上限——
+        // cycle_mult 已钳 ≥1.0 后曲线单调，但 set_milestone_override 测试钩子允许阈值脱离
+        // 曲线恒 ≤ Score（或阈值求值 int 溢出回绕为负），此时 while 永不退出，超限直接 break
+        int iterations = 0;
         while (Score >= _nextMilestone)
         {
             _milestoneCount += 1;
             _nextMilestone = MilestoneThreshold(_milestoneCount);
             EmitSignal(SignalName.MilestoneReached, Score);
+            iterations += 1;
+            if (iterations >= MilestoneCurve.MaxIterations)
+            {
+                break;
+            }
         }
     }
 }

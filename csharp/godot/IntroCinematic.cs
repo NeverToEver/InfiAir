@@ -740,7 +740,7 @@ public partial class IntroCinematic : CanvasLayer
     /// 多段式飞行服驾驶员（骨盆/胸廓/头盔/维生背包/双关节四肢）+ 暖色边缘光 + 双层残影，两拍奔跑循环；
     /// 五条顶部锥形体积光带，前景近景支杆快速横扫（-1600px/s 强视差），红色应急灯 6Hz 闪烁，
     /// 蒸汽上飘，加密速度线，低频警报脉冲。</summary>
-    private Node2D BuildShot3()
+    private IntroRunnerShot BuildShot3()
     {
         var root = new IntroRunnerShot { Name = "Shot3" };
         root.AddChild(BgRect(new Color(0.02f, 0.02f, 0.04f)));
@@ -1043,7 +1043,7 @@ public partial class IntroCinematic : CanvasLayer
     /// （斜切梯形台体：推进区按钮簇+节流阀滑槽 / 导航区旋钮+按钮排 / 武器区拨杆开关，LED 指示排+分区铭牌）+
     /// 4 指+拇指手形剪影带按下起伏地点按 + 主屏红色倒计时 3→2→1（bezel 边框）与警告行闪烁 + 两侧金属把手；
     /// 倒计时结束五指扣合把手，结尾 0.5s 整体后仰 -3° + 短促震动 + 屏幕白光渐强。</summary>
-    private Node2D BuildShot4()
+    private IntroConsoleShot BuildShot4()
     {
         var dur = _shotDurations[3];
         var root = new IntroConsoleShot { Name = "Shot4" };
@@ -1545,7 +1545,7 @@ public partial class IntroCinematic : CanvasLayer
     /// 点火预热 ~0.3s（尾焰/喷口辉光从 0 升起 + 白闪脉冲，时轴随镜头时长缩放）；
     /// 轨道 = 两侧透视收缩的壁面 + 斜向结构线加速向后流动（取代横档「梯子」）；
     /// 尾部双火焰 + 亮白内芯 + 机身两侧舔舐火焰舌 + 双壁轨道电火花；全屏速度线 + 容器 ±6px 震动；引擎音持续。</summary>
-    private Node2D BuildShot5()
+    private IntroChaseShot BuildShot5()
     {
         var dur = _shotDurations[4];
         var root = new IntroChaseShot { Name = "Shot5" };

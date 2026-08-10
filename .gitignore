@@ -36,6 +36,9 @@ __pycache__/
 # 本地完整模拟 CI 工具（等价 ci.yml 的本地验证脚本，仅本地留存防误提交，2026-08-09）
 scripts/tools/simulate_ci.sh
 
+# 本地留存的静态审查工具（Roslynator CLI，dotnet tool install --tool-path 安装；仅本地使用防误提交，2026-08-10 AA 系列）
+tools/
+
 # .NET / C#（NuGet 还原与编译产物不入库）
 **/bin/
 **/obj/

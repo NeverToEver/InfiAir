@@ -162,3 +162,10 @@
 - **摘要**：Steam 同类调研（Vampire Survivors / Brotato / 20 Minutes Till Dawn / Geometry Wars 3）后落地跨局成长——新增科技点货币（**死亡结算唯一入口** `SettleRun`，放弃/返航不结算防刷点）；效果 = 新局开局预置已购 buff 层数（`ApplyMetaLoadout` 挂 `Main.ApplyNewRun`，复用 buff 计算链零新属性管道）；研究所 UI（Welcome 主菜单入口 + BaseConsole 第五面板）；仅登录用户（B7-8）。core 纯逻辑 `MetaProgression` + `UserDb` meta 字段 + `GameState.Meta` partial + `meta_test` 断言场景（24 断言）+ xUnit 新增 18 项（总 108）。
 - **关键决策**：预置挂点选 `Main.ApplyNewRun` 而非 `ResetRun`（tutorial 复用 ResetRun，预置会污染教学流程）；科技点独立于 RP（RP 维持局内基地经济不动）；每项限级 + 总消费上限 → 玩家终将毕业、敌人无界增长 → D1 必死曲线保持；meta 配置键走 Cfg 静态调用 → BALANCE_MAP 生成器自然收录（M3 后未引用键 28→1）。
 - **原文**：`docs/archive/2026-08-09-meta-progression-plan.md`
+
+
+## 2026-08-10 · 过时审计/评审文档归档（C# 评估 + Parity 评审）
+
+- **落地**：随 AA 系列批次提交（见 `docs/AUDIT_VAULT.md` AA 系列登记）
+- **摘要**：两份已完成使命的评审/决策文档移出 `docs/` 顶层——`C_SHARP_ASSESSMENT.md`（C# 混编调研→渐进引入→全量迁移决策，M1–M7 已全部落地，评估使命完结）与 `PARITY_REVIEW_2026.md`（2026-08-09 一次性对齐评审，结论「玩法机制零缺口」已固化）；ROADMAP/ARCHITECTURE/csharp-conventions 引用同步指向归档路径（CHANGELOG 历史条目按「归档前快照」惯例不动）。
+- **原文**：`docs/archive/2026-08-08-csharp-assessment.md`、`docs/archive/2026-08-09-parity-review.md`

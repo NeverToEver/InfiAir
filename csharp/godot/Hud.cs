@@ -1161,7 +1161,7 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>滚动栏明细行：字形 + 名称 + 层数（&gt;1 时右侧 ×N）。</summary>
-    private Control MakeBuffRow(StringName id, int stacks)
+    private HBoxContainer MakeBuffRow(StringName id, int stacks)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
@@ -1180,7 +1180,7 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>收起态溢出格：46×46 同尺寸瓦片（与 buff socket 同一套：淡色底 + 内框），中央 "+N"。</summary>
-    private Control MakeOverflowTile(int count)
+    private ChamferedPanel MakeOverflowTile(int count)
     {
         var panel = new ChamferedPanel
         {

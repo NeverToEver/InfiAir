@@ -222,7 +222,11 @@ public partial class GameEventManager : Node
     /// main.formation() 访问；注册进统一注册表并初始化触发计时）。</summary>
     public void RegisterEncounter(StringName pId, Node pEvent)
     {
-        EVENT_FACTORIES[pId] = Callable.From(() => pEvent);
+        // 2026-08-10 AA 系列：事件实例随 Main 释放后，长命管理器仍持有工厂闭包——重进 main
+        // 的再注册窗口内 PollEncounters/EventFor 调旧闭包触碰已释放实例（ObjectDisposedException，
+        // autoplay 探针实证；X7 只守了 EventFor 实例缓存分支，工厂闭包分支漏守）；闭包内判活，
+        // 死实例 Yield Nil（三处调用点 StartFog/EventFor/Event 均容忍 Nil，再注册后自愈）
+        EVENT_FACTORIES[pId] = Callable.From<Node?>(() => GodotObject.IsInstanceValid(pEvent) ? pEvent : null);
         if (!_encounterOrder.Contains(pId))
         {
             _encounterOrder.Add(pId);

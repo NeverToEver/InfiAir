@@ -77,8 +77,11 @@ public partial class StrikeCarrier : Node2D
 
     public override void _Ready()
     {
-        RetreatStartSpeed = (float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_start_speed", RetreatStartSpeed).AsDouble();
-        RetreatAccel = (float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_accel", RetreatAccel).AsDouble();
+        // 2026-08-10 健壮性审查：撤离速度下限钳制（同批 enter_time 钳制同根因）——配 0/负值时
+        // RETREAT 分支 _retreatSpeed 永不增长，Position.Y 永不越顶界-500，Exited 永不发出
+        // （EliteTurretEvent 卡死、_bossFrozen 永不解除）
+        RetreatStartSpeed = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_start_speed", RetreatStartSpeed).AsDouble(), 1.0f);
+        RetreatAccel = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_accel", RetreatAccel).AsDouble(), 1.0f);
         // 深空淡入
         var m = Modulate;
         m.A = 0.0f;

@@ -661,7 +661,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// <summary>竖直长圆环从一点撕开扩到全尺寸（0.5s），环缘 12 个 glow 点快速游走；
     /// 环内：口腔软辉光垫 + 双旋涡弧反向搅动 + 环缘粒子内流（环形发射域 + 负径向加速度）；
     /// 环内显现虚影站模糊景象（站体 α0.1 + 水平弥散抖动）；镜头稍推 1.0→1.06。</summary>
-    private Node2D BuildShot2()
+    private ReturnCinematicPortalShot BuildShot2()
     {
         var dur = _shotDurations[1];
         var root = new ReturnCinematicPortalShot { Name = "Shot2" };
@@ -918,7 +918,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// <summary>虚影站「曙光·残响」全貌首次完整亮相（§1.1 四层虚影全开）；
     /// 半透明能量捕获轨道（CinematicFx.beam 分层能量束：辉光层 + 亮芯层 + 3 个循环流光软点）牵引战机滑向停机坪入口；
     /// 站体环缘 8 盏航行灯慢速追逐明灭；镜头缓慢侧跟（正弦平移 60px + scale 1.0→1.12 缓推）。</summary>
-    private Node2D BuildShot4()
+    private ReturnCinematicCaptureShot BuildShot4()
     {
         var dur = _shotDurations[3];
         var root = new ReturnCinematicCaptureShot { Name = "Shot4" };
@@ -1199,7 +1199,7 @@ public partial class ReturnCinematic : CanvasLayer
 
     /// <summary>侧视走廊：天花板/地面透视线 + 舱壁管线；顶部感应灯带 12 节点随主角行进亮起；
     /// 尽头休息室舱门双扇滑开 + 门缝泄光。主角步行 ~90px/s，镜头跟随（主角固定左 1/3）。</summary>
-    private Node2D BuildShot6()
+    private ReturnCinematicWalkShot BuildShot6()
     {
         var dur = _shotDurations[5];
         var root = new ReturnCinematicWalkShot { Name = "Shot6" };
@@ -1340,7 +1340,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// <summary>休眠床 + 床头全息屏微光 + 顶部暖调小灯（全场景唯一暖光源）+ 观察窗外环体缓转 + 漂移星点；
     /// 主角走入 → 坐下 → 躺下（三姿态 0.6s 间隔）→ 镜头推近面部特写（scale→1.6）→
     /// 眼睑 0.8s 闭合；闭眼瞬间画面渐暗（导演 0.9s 淡黑）+ BGM 淡出到 -40dB。</summary>
-    private Node2D BuildShot7()
+    private ReturnCinematicRoomShot BuildShot7()
     {
         var dur = _shotDurations[6];
         var u = dur / 3.0f;

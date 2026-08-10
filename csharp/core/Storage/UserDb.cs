@@ -321,10 +321,19 @@ public sealed class UserDb
             return false;
         }
 
+        var removed = Users[name];
         Users.Remove(name);
         _store.Delete(saveFilePath);
         _store.Delete(saveFilePath + ".corrupt");
-        return Save();
+        if (!Save())
+        {
+            // 2026-08-10 健壮性审查：落盘失败回滚内存条目——否则磁盘 users.json 仍有该账号
+            // 而内存已删，重启前 UserExists/登录与磁盘状态不一致（对称 CreateUser 回滚口径）
+            Users[name] = removed;
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>每用户存档文件名：savegame_&lt;sanitized&gt;_&lt;sha256[:12]&gt;.json（B5；不含 user:// 前缀）。</summary>

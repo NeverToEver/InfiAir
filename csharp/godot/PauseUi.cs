@@ -23,6 +23,7 @@ public partial class PauseUi : CanvasLayer
     private SettingsUi? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
     private ColorRect _dim = null!;
     private bool _saved; // 保存态标志（2026-08-03 审计：跨语言文本比较判保存态会误判）
+    private Godot.Timer? _saveTimer; // 缓存单实例：连按时 Start 重启计时，避免旧 Timer 提前打回本次文案/状态
 
     private readonly Callable _onLocaleChanged;
 
@@ -131,7 +132,7 @@ public partial class PauseUi : CanvasLayer
         _resumeButton.GrabFocus();
     }
 
-    private CanvasLayer? GetSettingsUi()
+    private SettingsUi? GetSettingsUi()
     {
         if (_settingsUi == null)
         {
@@ -163,11 +164,16 @@ public partial class PauseUi : CanvasLayer
         _saved = true;
         _saveButton.Text = Tr("PAUSE_SAVED");
         // 用信号连接而非协程：退出时挂起的协程函数状态会泄漏
-        var timer = new Godot.Timer { OneShot = true };
-        AddChild(timer); // 本节点 process_mode=Always，暂停中仍计时
-        timer.Connect(Godot.Timer.SignalName.Timeout, Callable.From(ResetSaveLabel), (uint)GodotObject.ConnectFlags.OneShot);
-        timer.Connect(Godot.Timer.SignalName.Timeout, Callable.From(timer.QueueFree), (uint)GodotObject.ConnectFlags.OneShot);
-        timer.Start(1.0);
+        // 2026-08-10 健壮性审查：缓存单个 Timer——原实现每次按下新建，1s 内连按时
+        // 第一个 Timer 的 ResetSaveLabel 会把第二次保存的文案/状态提前打回
+        if (_saveTimer == null)
+        {
+            _saveTimer = new Godot.Timer { OneShot = true };
+            AddChild(_saveTimer); // 本节点 process_mode=Always，暂停中仍计时
+            _saveTimer.Connect(Godot.Timer.SignalName.Timeout, Callable.From(ResetSaveLabel));
+        }
+
+        _saveTimer.Start(1.0); // 重复保存重启计时
     }
 
     private void ResetSaveLabel()

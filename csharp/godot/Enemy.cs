@@ -138,7 +138,6 @@ public partial class Enemy : Area2D
         Lifetime = (float)GameState.Instance.Cfg("enemies.lifetime", Lifetime).AsDouble();
         ExitAccel = (float)GameState.Instance.Cfg("enemies.exit_accel", ExitAccel).AsDouble();
         AggrChaseSpeed = (float)GameState.Instance.Cfg("enemies.aggressive_chase_speed", AggrChaseSpeed).AsDouble();
-        FireInterval = (float)GameState.Instance.Cfg("enemies.fire_interval", FireInterval).AsDouble();
         // H19：hover_band 判型回退（防非数组 _ready 崩溃）
         var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { HoverBand.X, HoverBand.Y });
         if (band.VariantType == Variant.Type.Array)

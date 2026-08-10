@@ -89,6 +89,8 @@ public partial class AimFrameLayer : Node2D
         LoadLevelParams();
         _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
         _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
+        // 2026-08-10 健壮性审查：full 钳到 min 之上——两键相等时 MagnetPull 的 t = 0/0 = NaN 污染准星
+        _magnetInputFull = Mathf.Max(_magnetInputFull, _magnetInputMin + 0.01f);
         _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
         _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
         _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
@@ -244,7 +246,9 @@ public partial class AimFrameLayer : Node2D
                 continue;  // 轴距粗筛，省 sqrt
             }
 
-            var d = new Vector2(dx, dy).Length();
+            // 2026-08-10 健壮性审查：框沿距负分量钳 0——单轴出框时另一轴为负，计入欧氏长度会
+            // 系统性偏近（磁吸偏弱、range 边界误判），标准 AABB 距离只取框外分量
+            var d = new Vector2(Mathf.Max(dx, 0.0f), Mathf.Max(dy, 0.0f)).Length();
             if (d >= bestD || d > _magnetRange)
             {
                 continue;

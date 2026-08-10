@@ -139,7 +139,7 @@ Three-layer test suite (authoritative counts and scene lists in [docs/TESTING.md
    - `full-regression` (~40 min, main push / PR / manual only): BALANCE_MAP generator zero-diff gate → all assertion scenes (authoritative count in docs/TESTING.md; incl. flake retry and engine error log scanning);
    - pure docs (`docs/**`, `*.md`) do not trigger CI; dotnet SDK / NuGet / Godot engine are cached via actions/cache; new pushes on the same branch cancel the previous run.
 
-Robustness baseline: sixth robustness pass (Z series, 2026-08-10) landed — type guards & overflow clamps for hand-edited saves/config, division-by-zero lower-bound clamps, coroutine-hang and signal-pairing defenses, ~20 fixes (records in [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)).
+Robustness baseline: sixth robustness pass (Z series, 2026-08-10) landed — type guards & overflow clamps for hand-edited saves/config, division-by-zero lower-bound clamps, coroutine-hang and signal-pairing defenses, ~20 fixes; same-day seventh pass (AA series) — Roslynator static analysis + full logic review, 23 logic fixes (milestone-curve convergence hang, missing BuffsChanged for meta loadout, tutorial stage soft-lock, duplicate-key JSON breaking save quarantine, etc.) + 36 normalization fixes (records in [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)).
 
 Minimal local verification set:
 
@@ -175,7 +175,7 @@ docs/               Architecture / design / audit docs (ARCHITECTURE / TESTING /
 | [docs/TESTING.md](./docs/TESTING.md) | Test strategy: authoritative scene counts / assertion lists / known failures / CI flow |
 | [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | Design baseline: gameplay rules / architecture stance (changes go through this doc) |
 | [docs/BALANCE_MAP.md](./docs/BALANCE_MAP.md) | Numeric config index (generated, do not hand-edit) |
-| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | Code audit archive (U/V/W/X/Y series, proprietary — never delete) |
+| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | Code audit archive (U–AA series, proprietary — never delete) |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Roadmap and future direction (single source of truth) |
 
 ## License & Acknowledgments

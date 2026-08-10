@@ -192,14 +192,7 @@ public partial class Tutorial : Node2D
                 {
                     // 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
                     SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { 0 });
-                    var view0 = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
-                        e.aim_marked = true; // 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性；AimMarked private set，经 snake 桥写）
-                        e.Position = new Vector2(view0.GetCenter().X - 360.0f + 360.0f * i, view0.Position.Y + 280.0f);
-                    }
-
+                    SpawnAimTargets(3);
                     break;
                 }
 
@@ -280,6 +273,19 @@ public partial class Tutorial : Node2D
     }
 
     /// <summary>阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）</summary>
+    /// <summary>阶段 0 训练靶：辅助瞄准标记靶同款布局补刷（EnterStage(0) 与 _PhysicsProcess 兜底共用，
+    /// 防复制漂移；布局对齐正局追踪弹体验，强制 aim_marked 保证确定性）</summary>
+    private void SpawnAimTargets(int count)
+    {
+        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
+        for (int i = 0; i < count; i++)
+        {
+            var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
+            e.aim_marked = true; // 教学演示：强制标记（setup 已按比率掷点，此处覆盖保证确定性；AimMarked private set，经 snake 桥写）
+            e.Position = new Vector2(view.GetCenter().X - 360.0f + 360.0f * i, view.Position.Y + 280.0f);
+        }
+    }
+
     private void SpawnCombatWave(int count)
     {
         var view = GameState.Instance.ViewWorldRect(); // G014：视口基线
@@ -437,6 +443,19 @@ public partial class Tutorial : Node2D
         var d = (float)delta;
         switch (_stage)
         {
+            case 0:
+                {
+                    // 补刷兜底（对齐 case 2 口径）：训练靶走正常 Enemy 生命周期，15s 寿命到期/飞出屏底
+                    // 静默 despawn 不发 Died，场上无靶且 _stageKills 未达标时补足剩余数，防新手超时软锁。
+                    // 保持每帧检查（与 case 2 同理，不引入节流窗口）
+                    if (!_advancing && _stageKills < 3 && AliveEnemyCount() == 0)
+                    {
+                        SpawnAimTargets(3 - _stageKills);
+                    }
+
+                    break;
+                }
+
             case 1:
                 {
                     // 加速/冲刺输入计数（rising edge）

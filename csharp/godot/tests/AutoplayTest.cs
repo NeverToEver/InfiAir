@@ -249,11 +249,11 @@ public partial class AutoplayTest : Node
             {
                 if (arg.StartsWith("--autoplay-seconds="))
                 {
-                    _runSeconds = double.Parse(arg.Substring("--autoplay-seconds=".Length), System.Globalization.CultureInfo.InvariantCulture);
+                    _runSeconds = double.Parse(arg.AsSpan("--autoplay-seconds=".Length), System.Globalization.CultureInfo.InvariantCulture);
                 }
                 else if (arg.StartsWith("--seed="))
                 {
-                    _seed = int.Parse(arg.Substring("--seed=".Length), System.Globalization.CultureInfo.InvariantCulture);
+                    _seed = int.Parse(arg.AsSpan("--seed=".Length), System.Globalization.CultureInfo.InvariantCulture);
                 }
             }
             GD.Seed((ulong)_seed);

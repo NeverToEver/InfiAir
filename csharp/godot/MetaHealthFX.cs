@@ -118,7 +118,7 @@ public partial class MetaHealthFX : CanvasLayer
             }
 
             var field = key.AsString();
-            if (!field.StartsWith("_"))
+            if (!field.StartsWith('_'))
             {
                 field = "_" + field;
             }

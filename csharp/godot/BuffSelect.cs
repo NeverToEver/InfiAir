@@ -215,7 +215,7 @@ public partial class BuffSelect : CanvasLayer
         }
     }
 
-    private Control MakeCard(Godot.Collections.Dictionary buff)
+    private ChamferedPanel MakeCard(Godot.Collections.Dictionary buff)
     {
         var id = buff["id"].AsStringName();
         var kindColor = BuffIcons.ColorFor(id); // 分类配色：与 HUD 图标坞同一套

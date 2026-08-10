@@ -284,7 +284,9 @@ public partial class GameState : Node
             return;
         }
 
-        HighScore = (int)SaveNum(parsed.GetValueOrDefault("high_score", 0), 0.0); // save_num 判型：手改档案字符串等非法类型回默认
+        // save_int 判型+钳制：手改档案 high_score > 2^31 时裸 (int) 截断回绕为负，
+        // RecordScore 的 Score > HighScore 恒真 → 每局误报破纪录
+        HighScore = SaveInt(parsed.GetValueOrDefault("high_score", 0), 0);
         ApplySettingsDict(parsed);
         // P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
         Highscores.Clear();
@@ -495,10 +497,12 @@ public partial class GameState : Node
         }
 
         var data = _userDb.GetUserData(CurrentUser);
+        // 2026-08-10 审查修复：累计字段读取改 save_int（判型 + 钳 [0, int.MaxValue]）——
+        // 原裸 AsInt64() 对手改字符串/数组等非法类型无回退，且 (int) 截断使 >2^31 回绕为负
         _userDb.UpdateUserData(CurrentUser, new Godot.Collections.Dictionary
         {
-            ["total_kills"] = (int)data.GetValueOrDefault("total_kills", 0).AsInt64() + Kills,
-            ["games_played"] = (int)data.GetValueOrDefault("games_played", 0).AsInt64() + 1,
+            ["total_kills"] = SaveInt(data.GetValueOrDefault("total_kills", 0), 0) + Kills,
+            ["games_played"] = SaveInt(data.GetValueOrDefault("games_played", 0), 0) + 1,
         });
     }
 

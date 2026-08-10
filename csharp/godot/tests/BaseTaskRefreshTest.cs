@@ -265,7 +265,8 @@ public partial class BaseTaskRefreshTest : Node
                 inField.Clear();
                 foreach (var def in d)
                 {
-                    inField.Append(def["id"].AsStringName());
+                    // R06/Q05：必须 Add 累计在场 id——Append 解析为 LINQ Enumerable.Append（惰性返回新序列、原数组不变），inField 恒空导致排除参数失效
+                    inField.Add(def["id"].AsStringName());
                 }
             }
             Check(q05AllFull, $"Q05：20 轮刷新槽位恒 = {_gs.MISSION_SLOTS}（原实现不足额 1-2/3 槽）");

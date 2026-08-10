@@ -184,7 +184,7 @@ public partial class Welcome : CanvasLayer
 
         _usernameLine.TextChanged += (_) => OpenDropdown();
         _usernameLine.FocusEntered += OpenDropdown;
-        _usernameLine.FocusExited += CloseDropdown;
+        _usernameLine.FocusExited += OnUsernameFocusExited;
         _usernameLine.MaxLength = UsernameMax;
         _passwordLine.MaxLength = PasswordMax;
         // 密码框获得焦点时关闭下拉（B3）
@@ -243,6 +243,21 @@ public partial class Welcome : CanvasLayer
             list.AddChild(b);
             _dropdownButtons.Add(b);
         }
+    }
+
+    // 2026-08-10 健壮性审查：鼠标点选下拉项时视口 deferred 抢焦先触发 FocusExited——
+    // 新焦点若是 _dropdown 后代（下拉按钮）则放行不关，否则 CloseDropdown 的 QueueFree
+    // 会让 release 帧按钮已释放、OnDropdownPick 永不触发（鼠标点选整条路径失效）；
+    // 键盘路径（Escape/回车/点密码框）不经过本分支，行为不变
+    private void OnUsernameFocusExited()
+    {
+        var owner = GetViewport().GuiGetFocusOwner();
+        if (_dropdown != null && owner != null && _dropdown.IsAncestorOf(owner))
+        {
+            return;
+        }
+
+        CloseDropdown();
     }
 
     private void CloseDropdown()
@@ -654,9 +669,11 @@ public partial class Welcome : CanvasLayer
     private void OpenLeaderboard()
     {
         // B7-13 修复：overlay 每次打开重新读取榜单（不作 10s 缓存）
+        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 AddChild 新旧行并存闪一帧
+        //（Hud.cs:1230、SettingsUi.cs:663 同场景先例）
         foreach (var child in _leaderboardRows.GetChildren())
         {
-            child.QueueFree();
+            child.Free();
         }
 
         var board = GameState.Instance.GetLeaderboard();

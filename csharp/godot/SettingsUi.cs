@@ -338,6 +338,15 @@ public partial class SettingsUi : CanvasLayer
             // 2026-08-10 健壮性审查：捕获对齐 GetActionKeycodes 的双键回退语义——非标准布局/
             // IME 键的 Keycode 为 Key.None 时裸绑定 0（KEY_NONE）致该动作永久无法触发
             var kc = key.Keycode != Key.None ? (int)key.Keycode : (int)key.PhysicalKeycode;
+            // 双键回退后仍为 Key.None（RebindAction 无校验）：取消捕获不写绑定，防动作永久失效
+            if (kc == (int)Key.None)
+            {
+                _hintLabel.Text = Tr("SET_CANCELLED");
+                _capturingAction = new StringName();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
             GameState.Instance.RebindAction(_capturingAction, kc);
             var boundKey = OS.GetKeycodeString((Key)kc);
             _hintLabel.Text = GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);

@@ -75,6 +75,16 @@ public sealed class GdFormatTests
     }
 
     [Fact]
+    public void Format_PrecisionOverflow_PreservesSpecLiterally()
+    {
+        // 2026-08-10 健壮性审查：%.超长精度f 的 int.Parse 溢出 / 超大精度巨额分配按
+        // 未知 spec 原样保留，不抛异常
+        var huge = "%." + new string('9', 20) + "f"; // 20 位数字溢出 int 域
+        Assert.Equal("x " + huge, GdFormat.Format("x " + huge, 1.5));
+        Assert.Equal("x %.100f", GdFormat.Format("x %.100f", 1.5)); // 合法 int 但超上限 99 同口径
+    }
+
+    [Fact]
     public void Format_NoSpecs_Passthrough()
     {
         Assert.Equal("plain text", GdFormat.Format("plain text"));

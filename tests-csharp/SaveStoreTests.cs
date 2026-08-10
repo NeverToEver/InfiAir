@@ -124,6 +124,21 @@ public sealed class SaveStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_DuplicateKeysJson_QuarantinesWithoutThrow()
+    {
+        // 2026-08-10 健壮性审查：重复键 JSON 在 JsonNode.Parse/JsonToClr 枚举时抛
+        // ArgumentException（dotnet/runtime#71784，.NET 8 未修）——须与语法损坏同走
+        // 损坏隔离回退，否则异常逃逸击穿 Load 契约（欢迎页崩溃）
+        File.WriteAllText(Tmp("dup.json"), """{"a": 1, "a": 2}""");
+
+        var res = new SaveStore().Load(Tmp("dup.json"));
+
+        Assert.Equal(SaveLoadStatus.Corrupt, res.Status);
+        Assert.True(File.Exists(Tmp("dup.json.corrupt")), "重复键文件隔离为 .corrupt");
+        Assert.False(File.Exists(Tmp("dup.json")), "隔离后正本消失");
+    }
+
+    [Fact]
     public void Load_NonObjectRoot_Quarantines()
     {
         File.WriteAllText(Tmp("e.json"), "[1, 2, 3]");

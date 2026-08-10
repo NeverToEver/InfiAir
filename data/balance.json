@@ -113,7 +113,6 @@
 		"lifetime": 15,
 		"exit_accel": 520,
 		"aggressive_chase_speed": 140,
-		"fire_interval": 2.2,
 		"hover_band": [
 			150,
 			430

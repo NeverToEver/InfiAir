@@ -309,7 +309,10 @@ public partial class Player : CharacterBody2D
         DashDistance = (float)GameState.Instance.Cfg("player.dash.distance", DashDistance).AsDouble();
         // V 系列：dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
         DashTime = Mathf.Max((float)GameState.Instance.Cfg("player.dash.time", DashTime).AsDouble(), 0.05f);
-        DashCooldownMaxValue = (float)GameState.Instance.Cfg("player.dash.cooldown", DashCooldownMaxValue).AsDouble();
+        // 2026-08-10 健壮性审查：dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
+        // 且无 phase_dash 层数时 DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0
+        // = NaN（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
+        DashCooldownMaxValue = Mathf.Max((float)GameState.Instance.Cfg("player.dash.cooldown", DashCooldownMaxValue).AsDouble(), 0.05f);
         DashFuelRatio = (float)GameState.Instance.Cfg("player.dash.fuel_ratio", DashFuelRatio).AsDouble();
         AfterimageInterval = (float)GameState.Instance.Cfg("player.dash.afterimage_interval", AfterimageInterval).AsDouble();
         GrazeRadius = (float)GameState.Instance.Cfg("player.graze_radius", GrazeRadius).AsDouble();
@@ -1191,7 +1194,10 @@ public partial class Player : CharacterBody2D
         }
 
         var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
-        if (Mathf.Abs(Mathf.AngleDifference(rel.Angle(), -Mathf.Pi / 2.0f)) > arc)
+        // 2026-08-10 健壮性审查：过滤基准改机头方向（含机身 Rotation）——原 -π/2 全局上方在
+        // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；AngleDifference 已处理 ±π wrap
+        var noseAngle = Vector2.Up.Rotated(Rotation).Angle();
+        if (Mathf.Abs(Mathf.AngleDifference(rel.Angle(), noseAngle)) > arc)
         {
             return;
         }

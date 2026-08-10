@@ -226,9 +226,9 @@ public partial class EnrageSequence : RefCounted
             case EnrageActive:
                 _timer = Mathf.Max(_timer - delta, 0.0f);
                 var typeA = boss.BossType;
-                if (_activeHandlers.ContainsKey(typeA))
+                if (_activeHandlers.TryGetValue(typeA, out var activeHandler))
                 {
-                    _activeHandlers[typeA].Call(delta, boss);
+                    activeHandler.Call(delta, boss);
                 }
                 else
                 {
@@ -244,9 +244,9 @@ public partial class EnrageSequence : RefCounted
             case EnrageReleaseHold:
                 _releaseHoldTimer -= delta;
                 var typeR = boss.BossType;
-                if (_releaseHandlers.ContainsKey(typeR))
+                if (_releaseHandlers.TryGetValue(typeR, out var releaseHandler))
                 {
-                    _releaseHandlers[typeR].Call(delta, boss);
+                    releaseHandler.Call(delta, boss);
                 }
                 else
                 {
@@ -448,9 +448,9 @@ public partial class EnrageSequence : RefCounted
         _aimElapsed = -1.0f;
         _releaseSalvoDone = false;
         var type = boss.BossType;
-        if (_releaseBeginHandlers.ContainsKey(type))
+        if (_releaseBeginHandlers.TryGetValue(type, out var beginHandler))
         {
-            _releaseBeginHandlers[type].Call(boss);
+            beginHandler.Call(boss);
         }
         else
         {

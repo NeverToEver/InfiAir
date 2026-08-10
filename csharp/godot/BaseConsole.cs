@@ -198,7 +198,7 @@ public partial class BaseConsole : CanvasLayer
 
     private Label MakeLabel(string text, int size) => UITheme.MakeLabel(text, size);
 
-    private Control MakePanel(string titleKey, Vector2[][] glyph)
+    private ChamferedPanel MakePanel(string titleKey, Vector2[][] glyph)
     {
         var panel = new ChamferedPanel();
         UITheme.ApplyPhantomPanel(panel); // §3.3.3 虚影材质

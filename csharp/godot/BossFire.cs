@@ -151,7 +151,8 @@ public partial class BossFire : RefCounted
                 continue; // P2-3：同屏敌弹硬上限
             }
 
-            laser.Position = boss.Position + aim * MuzzleOffset + side * (i - 1.5f) * 44.0f * WorldScale;
+            // 横向散布按实际道数动态定心（原硬编码 (i - 1.5f) 仅对 4 道居中，laserCount 配 2/3/5… 时散布偏心）
+            laser.Position = boss.Position + aim * MuzzleOffset + side * (i - (lasers - 1) * 0.5f) * 44.0f * WorldScale;
             laser.SetMeta("bullet_type", new StringName("laser"));
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
             var poly = laser.SpriteNode(); // C24：缓存引用，不再每次 get_node（Bullet 为 C# 类）

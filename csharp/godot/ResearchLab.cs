@@ -70,7 +70,7 @@ public sealed partial class ResearchLab : VBoxContainer
         }
     }
 
-    private Control BuildRow(GameState gs, StringName id)
+    private HBoxContainer BuildRow(GameState gs, StringName id)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);

@@ -11,6 +11,9 @@ namespace InfiAir.Core;
 /// </summary>
 public sealed class BalanceRoot
 {
+    // 复用同一实例：避免每次 Load 重建 JsonSerializerOptions（CA1869）
+    private static readonly JsonSerializerOptions SerializerOptions = new() { PropertyNameCaseInsensitive = true };
+
     public int Version { get; set; }
 
     public double WorldScale { get; set; }
@@ -35,8 +38,7 @@ public sealed class BalanceRoot
         error = null;
         try
         {
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var root = JsonSerializer.Deserialize<BalanceRoot>(json, options);
+            var root = JsonSerializer.Deserialize<BalanceRoot>(json, SerializerOptions);
             if (root is null)
             {
                 error = "empty document";

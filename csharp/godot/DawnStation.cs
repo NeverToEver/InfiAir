@@ -49,7 +49,7 @@ public partial class DawnStation : RefCounted
     }
 
     /// <summary>纯色圆点构件（环心毂/辉光垫共用）。</summary>
-    private static Node2D Dot(float radius, Color color, bool additive = true)
+    private static DawnStationDot Dot(float radius, Color color, bool additive = true)
     {
         var dot = new DawnStationDot { Radius = radius, DotColor = color };
         if (additive)

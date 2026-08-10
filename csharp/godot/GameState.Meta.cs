@@ -190,13 +190,24 @@ public partial class GameState : Node
             return;
         }
 
+        var applied = false;
         foreach (var key in _metaUpgrades.Keys)
         {
             var level = (int)_metaUpgrades[key].AsInt64();
             if (level > 0)
             {
                 Buffs[key.AsStringName()] = level;
+                applied = true;
             }
+        }
+
+        if (applied)
+        {
+            // 2026-08-10 审查修复：实际写入层数后须广播 buffs_changed——Player.RefreshBuffFactors/
+            // Hud.RebuildBuffDock 为缓存+信号驱动且 _Ready 阶段已跑过，直写 Buffs 不发信号会让
+            // meta 预置 buff（如 crit_shot）整局不生效、HUD 不显示，直到首次里程碑选 buff 自愈；
+            // 与 AddBuff/ConsumeBuff/ApplyRunSave 口径一致（仅实际写入时发，无升级账户不空广播）
+            EmitSignal(SignalName.BuffsChanged);
         }
     }
 

@@ -168,11 +168,11 @@ public partial class BossAttacks : RefCounted
     /// <summary>攻击分发：查表委托（原 10 分支 match；模式表只存 attack id）。</summary>
     public void Execute(StringName attack, Boss boss)
     {
-        if (_attackHandlers.ContainsKey(attack))
+        if (_attackHandlers.TryGetValue(attack, out var handler))
         {
             // B 梯队：起手 tell（音效变体 + 视觉前兆环），玩家可区分「来的是什么」
             PlayTell(attack, boss);
-            _attackHandlers[attack].Call(boss);
+            handler.Call(boss);
         }
         else
         {
@@ -696,7 +696,7 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>敌弹池发射（P2-3：同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
-    private GodotObject? FireFromPool(Vector2 dir, float speed, int damage)
+    private Bullet? FireFromPool(Vector2 dir, float speed, int damage)
     {
         var pool = GameState.Instance.BulletPool;
         if (pool == null)

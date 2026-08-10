@@ -66,6 +66,21 @@ public partial class BuffIcons : RefCounted
 
         public Color GlyphColor { get; set; }
 
+        // 常量点列提为静态字段：_Draw 重绘频繁，避免每次重建临时数组（CA1861）
+        private static readonly float[] PowerShotPts = { 12f, 4f, 5f, 16f, 19f, 16f };
+        private static readonly float[] ExtraLifePts = { 12f, 3f, 21f, 12f, 12f, 21f, 3f, 12f, 12f, 3f };
+        private static readonly float[] ArmorPts = { 5f, 4f, 19f, 4f, 19f, 11f, 12f, 20f, 5f, 11f, 5f, 4f };
+        private static readonly float[] EvasionGhostPts = { 4f, 8f, 4f, 18f, 14f, 18f, 14f, 8f, 4f, 8f };
+        private static readonly float[] EvasionFrontPts = { 10f, 5f, 20f, 5f, 20f, 15f, 10f, 15f, 10f, 5f };
+        private static readonly float[] PhaseDashLeftPts = { 4f, 4f, 11f, 12f, 4f, 20f };
+        private static readonly float[] PhaseDashRightPts = { 11f, 4f, 18f, 12f, 11f, 20f };
+        private static readonly float[] EfficientBoostPts = { 5f, 15f, 12f, 7f, 19f, 15f };
+        private static readonly float[] BoostRecoveryPts = { 13f, 3f, 7f, 13f, 11f, 13f, 9f, 21f, 17f, 10f, 12.5f, 10f };
+        private static readonly float[] MothershipRecallArrowPts = { 8f, 9f, 12f, 13f, 16f, 9f };
+        private static readonly float[] MothershipRecallTrayPts = { 4f, 11f, 4f, 19f, 20f, 19f, 20f, 11f };
+        private static readonly float[] LaserBeamPts = { 5f, 8.5f, 8.5f, 12f, 5f, 15.5f, 1.5f, 12f, 5f, 8.5f };
+        private static readonly float[] BulletSpeedPts = { 7f, 12f, 13f, 6f, 21f, 12f, 13f, 18f };
+
         public override void _Draw()
         {
             var u = Size.X / 24.0f;
@@ -75,7 +90,7 @@ public partial class BuffIcons : RefCounted
             switch (GlyphId)
             {
                 case "power_shot": // 大弹头上指 + 底托线
-                    DrawColoredPolygon(Pts(u, new[] { 12f, 4f, 5f, 16f, 19f, 16f }), c);
+                    DrawColoredPolygon(Pts(u, PowerShotPts), c);
                     Line(u, 7, 20, 17, 20, c, w);
                     break;
                 case "rapid_fire": // 三道竖条（高射速）
@@ -91,7 +106,7 @@ public partial class BuffIcons : RefCounted
                     Line(u, 12, 20, 20, 4, c, w);
                     break;
                 case "extra_life": // 菱形急救十字
-                    DrawPolyline(Pts(u, new[] { 12f, 3f, 21f, 12f, 12f, 21f, 3f, 12f, 12f, 3f }), c, w, true);
+                    DrawPolyline(Pts(u, ExtraLifePts), c, w, true);
                     Line(u, 12, 8, 12, 16, c, w);
                     Line(u, 8, 12, 16, 12, c, w);
                     break;
@@ -123,15 +138,15 @@ public partial class BuffIcons : RefCounted
                     Line(u, 12, 3, 16.5f, 11.5f, c, w);
                     break;
                 case "armor": // 盾形轮廓
-                    DrawPolyline(Pts(u, new[] { 5f, 4f, 19f, 4f, 19f, 11f, 12f, 20f, 5f, 11f, 5f, 4f }), c, w, true);
+                    DrawPolyline(Pts(u, ArmorPts), c, w, true);
                     break;
                 case "evasion": // 双残影方框
-                    DrawPolyline(Pts(u, new[] { 4f, 8f, 4f, 18f, 14f, 18f, 14f, 8f, 4f, 8f }), new Color(c, 0.55f), w, true);
-                    DrawPolyline(Pts(u, new[] { 10f, 5f, 20f, 5f, 20f, 15f, 10f, 15f, 10f, 5f }), c, w, true);
+                    DrawPolyline(Pts(u, EvasionGhostPts), new Color(c, 0.55f), w, true);
+                    DrawPolyline(Pts(u, EvasionFrontPts), c, w, true);
                     break;
                 case "phase_dash": // 双箭头快进
-                    DrawPolyline(Pts(u, new[] { 4f, 4f, 11f, 12f, 4f, 20f }), c, w, true);
-                    DrawPolyline(Pts(u, new[] { 11f, 4f, 18f, 12f, 11f, 20f }), c, w, true);
+                    DrawPolyline(Pts(u, PhaseDashLeftPts), c, w, true);
+                    DrawPolyline(Pts(u, PhaseDashRightPts), c, w, true);
                     break;
                 case "slow_field": // 沙漏（上下横杠 + 交叉斜线）
                     Line(u, 6, 4, 18, 4, c, w);
@@ -140,19 +155,19 @@ public partial class BuffIcons : RefCounted
                     Line(u, 18, 4, 6, 20, c, w);
                     break;
                 case "efficient_boost": // 上箭头 + 基线（高效推进）
-                    DrawPolyline(Pts(u, new[] { 5f, 15f, 12f, 7f, 19f, 15f }), c, w, true);
+                    DrawPolyline(Pts(u, EfficientBoostPts), c, w, true);
                     Line(u, 7, 20, 17, 20, c, w);
                     break;
                 case "boost_recovery": // 闪电（快速充能）
-                    DrawColoredPolygon(Pts(u, new[] { 13f, 3f, 7f, 13f, 11f, 13f, 9f, 21f, 17f, 10f, 12.5f, 10f }), c);
+                    DrawColoredPolygon(Pts(u, BoostRecoveryPts), c);
                     break;
                 case "mothership_recall": // 向下箭头落入托盘（召回）
                     Line(u, 12, 3, 12, 13, c, w);
-                    DrawPolyline(Pts(u, new[] { 8f, 9f, 12f, 13f, 16f, 9f }), c, w, true);
-                    DrawPolyline(Pts(u, new[] { 4f, 11f, 4f, 19f, 20f, 19f, 20f, 11f }), c, w, true);
+                    DrawPolyline(Pts(u, MothershipRecallArrowPts), c, w, true);
+                    DrawPolyline(Pts(u, MothershipRecallTrayPts), c, w, true);
                     break;
                 case "laser_beam": // 发射镜 + 光束
-                    DrawPolyline(Pts(u, new[] { 5f, 8.5f, 8.5f, 12f, 5f, 15.5f, 1.5f, 12f, 5f, 8.5f }), c, w, true);
+                    DrawPolyline(Pts(u, LaserBeamPts), c, w, true);
                     DrawLine(new Vector2(10, 12) * u, new Vector2(22, 12) * u, c, 3.5f * u, true);
                     break;
                 case "crit_shot": // 十字准星 + 中心点（命中要害，与 explosive 放射星芒区分）
@@ -170,7 +185,7 @@ public partial class BuffIcons : RefCounted
                     Line(u, 15.5f, 12, 12, 19, c, w);
                     break;
                 case "bullet_speed": // 水平飞行弹头（右尖）+ 三条速度线
-                    DrawColoredPolygon(Pts(u, new[] { 7f, 12f, 13f, 6f, 21f, 12f, 13f, 18f }), c);
+                    DrawColoredPolygon(Pts(u, BulletSpeedPts), c);
                     Line(u, 3, 9, 6, 9, c, w);
                     Line(u, 1.5f, 12, 6, 12, c, w);
                     Line(u, 3, 15, 6, 15, c, w);

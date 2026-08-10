@@ -37,9 +37,20 @@ public sealed class SaveStore
     /// <summary>删除文件（不存在时静默成功，对齐 GDScript 先判存在再删）。</summary>
     public void Delete(string path)
     {
-        if (File.Exists(path))
+        // 2026-08-10 健壮性审查：IO 防护——只读/占用时 File.Delete 抛异常会让删号流程崩溃，
+        // 吞 IOException/UnauthorizedAccessException 对齐"不存在时静默成功"的宽松语义
+        try
         {
-            File.Delete(path);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 
@@ -110,6 +121,12 @@ public sealed class SaveStore
         catch (JsonException)
         {
             // 语法损坏 → 隔离
+        }
+        catch (ArgumentException)
+        {
+            // 2026-08-10 健壮性审查：重复键 JSON 在 JsonNode.Parse/JsonToClr 枚举时抛
+            // ArgumentException（dotnet/runtime#71784，.NET 8 未修）——只 catch JsonException
+            // 会让异常逃逸击穿"损坏隔离"契约（欢迎页崩溃），此处与语法损坏同路径隔离
         }
 
         var quarantineError = Quarantine(path, out var qError) ? null : qError;

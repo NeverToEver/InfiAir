@@ -1769,3 +1769,28 @@
   - ✅ **Z3** 除零/溢出/UI 边界：AddScore long 域乘算 + ScoreMultiplier 钳制；母舰 mag_cells≥1 / early_hold_time≥0.01 / 加特林扫掠周期≥0.05 / EarlyDepart ratio Clamp；Player fuel.max≥1；BossMovement.MoveBand、dash_sweep return_duration、enter_time、turn_time、召唤窗口 open/close/shot 时长统一钳下限（H15 族）；SettingsUi 改键捕获对齐 GetActionKeycodes 双键回退（非标准布局不再绑 KEY_NONE）；ResearchLab.Refresh 改 Free() 同步清理（U16 先例）。
 - **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 108/108；`dotnet format` 三工程零 diff；`godot --headless --import` 0 引擎错误；main smoke 300 帧 + smoke_test 0 FAIL；BALANCE_MAP 重跑零 diff（行号同步提交）；全量断言场景 56 个（见报告文末验证清单）。
 - **登记不修/观察**：`SaveStore` 原子写回退二次失败丢正本（E12 文档化设计内风险窗口）；UserDb 写方法失败仅静默（CreateUser 已诚实返回 false，其余低价值不扩散）；`Welcome` 排行榜 player_name 判型（探针实测 AsString 不抛，白名单/显示天然兜底）；EnrageSequence 除零（Boss.cs:410/418 已钳，误报剔除）。
+
+
+---
+
+# AA 系列（2026-08-10，第七轮：Roslynator 静态分析 + 全量逻辑审查修复）
+
+- **审计**：Roslynator CLI 静态分析三工程（主工程 136 条 info 级：CA1822×100/CA1859×15/CA1861×13/CA1854×4/CA1846×2/CA1806×1/CA1866×1；Core 6 条；Tests 0）+ 8 路并行只读逻辑审查（csharp/godot 全部生产文件按子系统分 7 组 + csharp/core 全量 1 组，逐条交叉核对调用方后定级）；基线 `dotnet build` 0w/0e + xUnit 108/108 + `dotnet format` 三工程零 diff。
+- **发现**：中级 7 项——`Boss.EnrageReleaseHoldDuration` 唯一未钳下限的狂暴时序键（R06 同族遗漏，0/负值 RELEASE_HOLD 一帧压完）；`StrikeCarrier` 撤退速度两参无钳制（0/负值 `Exited` 永不发出 → Boss 调度全冻结，Q15 同构）；`AddScore` 里程碑 while 无迭代上限 + `cycle_mult` 下限 0.01 放任 (0,1) 收敛区间（阈值级数收敛后主线程死循环，H03 防挂死未达成）；`ApplyMetaLoadout` 写 Buffs 不发 `BuffsChanged`（meta 预置 buff 整局不生效、HUD 不显示）；Tutorial 阶段 0 无补刷兜底（训练靶 15s 寿命静默离场 → 教程软锁，case 2 已有同款补丁）；Welcome 用户名下拉 FocusExited 即 QueueFree（press 帧抢焦 → release 帧按钮已死，鼠标点选整条路径失效）；`SaveStore.Load` 重复键 JSON 抛 `ArgumentException`（dotnet/runtime#71784，.NET 8 未修）击穿损坏隔离契约。低级 16 项（见修复清单）。另有测试缺陷 1：BaseTaskRefreshTest Q05 `inField.Append(...)` 误解析为 LINQ `Enumerable.Append`（返回值丢弃、排除列表恒空，CA1806 命中真实 bug）。
+- **修复批次（AA1 逻辑漏洞 / AA2 规范化，2026-08-10）**：
+  - ✅ **AA1 逻辑漏洞 23 处**（按文件分组并行修复，逐处带「2026-08-10 健壮性审查」注释）：
+    - Boss 族：`EnrageReleaseHoldDuration` 钳 ≥0.05（R06 口径）；`FireEnrageWave` 激光散布硬编码 4 道定心 → 按实际道数动态定心（默认 4 道行为零变化）。
+    - GameState：`cycle_mult` 钳制下限 0.01→1.0 + `AddScore` while 加 `MilestoneCurve.MaxIterations`（10000）兜底；`ApplyMetaLoadout` 实际写入时补 `EmitSignal(BuffsChanged)`；`high_score`/`RecordGameOver` 累计字段改 `SaveInt` 判型+钳制（消除 >2^31 回绕与非数值类型崩溃）。
+    - Core：`SaveStore.Load` 补 `catch (ArgumentException)` 走隔离路径；`SaveStore.Delete` 吞 IO 异常（对齐宽松语义）；`UserDb.DeleteUser` Save 失败回滚内存条目（对称 CreateUser）；`GdFormat` `%.Nf` 精度位 TryParse + 上限 99 守卫（非法精度原样保留）。
+    - 敌机/事件：`StrikeCarrier` 撤退速度/加速度钳 ≥1.0；`Spawner.BOSS_SCORE_STEP` 钳 ≥1；`TurretBattery` 弹药序列元素级判型 + 空序列回退单发（L07 口径）；`Enemy._Ready` 删除 `fire_interval` 无条件回读（冲掉 Setup 机型表的语义分叉，默认值 2.2 兜底）。
+    - 玩家/瞄准：弹反扇形过滤基准改机头方向（原全局上方，arc_deg<360 时过滤轴与机头垂直）；dash cooldown 钳 ≥0.05（0/0 NaN 渗 HUD）；`AimFrameLayer` 框沿距负分量钳零（磁吸距离系统性偏小）+ magnet_input 两键相等除零防御。
+    - UI：Welcome 下拉改焦点后代判放行（`IsAncestorOf`，鼠标点选恢复；键盘路径不变）；榜单清行 QueueFree→Free（U16 口径）；PauseUi 保存提示 Timer 单实例重启（连按不再被旧 Timer 打回）；SettingsUi 改键捕获双 None 守卫（不再写入 KEY_NONE 死绑定）。
+    - 教程：阶段 0 补刷兜底（`SpawnAimTargets` 抽取共用，`_stageKills < 3 && AliveEnemyCount() == 0` 时补足，`_advancing` 门防误补）。
+    - 测试：`BaseTaskRefreshTest` Q05 `Append`→`Add`（排除语义恢复，CA1806 修复）。
+    - 事件管理器：`RegisterEncounter` 工厂闭包补判活（`Callable.From(() => pEvent)` 捕获的实例随 Main 释放后，长命管理器在重进 main 的再注册窗口内调旧闭包 → ObjectDisposedException；X7 只守了 EventFor 实例缓存分支。闭包内 `IsInstanceValid` 判活 Yield Nil，三处调用点均容忍，再注册自愈——autoplay 探针实证：基线 240s ODE×4 → 修复后 0）。
+  - ✅ **AA2 Roslynator 规范化 36 处**：CA1854×4（TryGetValue）、CA1866×1（char 重载）、CA1846×2（AsSpan）、CA1869×1（JsonSerializerOptions 静态缓存）、CA1861×13（BuffIcons 常量数组 → static readonly，对齐热路径零分配红线）、CA1859×15（私有方法返回类型收窄为具体类型，零调用点改动）。
+  - ✅ **数据清理**：`enemies.fire_interval` 死键删除（Enemy._Ready 回读删除后全仓零引用）+ BALANCE_MAP 重跑（行号漂移同步，未引用键回退到仅 `version`）。
+  - **新增 xUnit 回归 3 个**（108→111）：重复键 JSON 隔离不抛、`%.超长精度f` 原样保留不抛、`DeleteUser` Save 失败内存回滚。
+- **登记不修/观察**：BossMovement 4 型 P1→P2 `_bobPhase` 归零瞬跳（±30px 纯视觉，一/三型下压衔接设计的副作用，改需相位解耦）；`RecordGameOver` 累加未做饱和加法（存量被手改至接近 int.MaxValue 才可达）；CA1822 标 static ×100 全量跳过（Godot 场景/信号按名连接对 static 方法有运行期解析风险，且改动面大收益微）；autoplay 探针两类引擎 ERROR 经基线对照（152be4d worktree 同种子 240s）定性为**既有非回归**——分裂者 Reparent "flushing queries"（U 系列已登记）与 `dda_stuck` 探针边界（基线同现 1 次，完美走位下 DDA 降档无受击超时的探针语义边界）。
+- **工具留存**：Roslynator CLI 本地留存 `tools/roslynator/`（gitignore 防误传，`dotnet tool install --tool-path` 可重建；全局副本已卸，仓库副本为唯一留存）；用法与 CA 应用口径见 `.agents/csharp-conventions.md` §Build & Gate。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 111/111；`dotnet format` 三工程零 diff；`godot --headless --import` 0 引擎错误；main smoke 300 帧 0 错误；全量断言场景 **56/56 PASS 零 flake**（日志引擎错误扫描零命中）；编译探针 65 场景零错误；BALANCE_MAP 重跑幂等；autoplay 480s exit 0 零异常 + 修复后 240s 对照窗 ODE=0（基线 4）；遭遇族 5 场景定向 PASS。
