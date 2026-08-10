@@ -133,11 +133,13 @@ godot --path .
 三层测试体系（权威计数与场景清单见 [docs/TESTING.md](./docs/TESTING.md)）：
 
 1. **xUnit 纯逻辑单测**（`tests-csharp/`，毫秒级）：数值模型 / 路径解析 / 任务池 / 进程曲线 / 存档原子写 / 用户库与密码派生（含 GDScript 实测固定向量）。
-2. **Godot 无头断言场景**（`test/*_test.tscn`，55 个）：C# 场景脚本自检（`[PASS]/[FAIL]` 输出），覆盖对局编排 / 战斗数值 / Boss 模式表与狂暴 / 事件系统 / 存档往返 / UI 流程 / 引擎错误日志扫描。
+2. **Godot 无头断言场景**（`test/*_test.tscn`，权威计数与清单见 [docs/TESTING.md](./docs/TESTING.md)）：C# 场景脚本自检（`[PASS]/[FAIL]` 输出），覆盖对局编排 / 战斗数值 / Boss 模式表与狂暴 / 事件系统 / 存档往返 / UI 流程 / 引擎错误日志扫描。
 3. **CI 分层门禁**（`.github/workflows/ci.yml`，Y 系列规整版）：
    - `fast-gate`（约 8 分钟，全部 push/PR）：C# build（warnings-as-errors）+ xUnit + dotnet format 三工程零 diff → 零 GDScript 门 → 引擎 import 警告门 → main smoke 300 帧 → 全场景编译探针；
-   - `full-regression`（约 40 分钟，仅 main push / PR / 手动）：BALANCE_MAP 生成器重跑零 diff 闸 → 55 断言场景全量（含 flake 重试与引擎错误日志扫描）；
+   - `full-regression`（约 40 分钟，仅 main push / PR / 手动）：BALANCE_MAP 生成器重跑零 diff 闸 → 全部断言场景全量（权威计数见 docs/TESTING.md，含 flake 重试与引擎错误日志扫描）；
    - 纯文档（`docs/**`、`*.md`）不触发；dotnet SDK / NuGet / Godot 引擎经 actions/cache 缓存；同分支新推送取消旧运行。
+
+健壮性基线：2026-08-10 第六轮健壮性审查（Z 系列）落地——手改存档/配置判型与超大值截断钳制、除零下限钳制、协程悬挂与信号配对防御等 20 处修复（记录见 [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)）。
 
 最小本地验证集：
 
@@ -156,7 +158,7 @@ csharp/core/        纯 .NET 类库（零 Godot 依赖）：模型/曲线/存储
 csharp/godot/       引擎绑定层：GameState（9 partial）+ 8 服务 + 场景脚本 + 实体/事件/UI
 tests-csharp/       xUnit 单测
 scenes/             场景文件（welcome 入口 / main 对局 / boss / mothership / 过场）
-test/               无头断言场景（55 个 *_test.tscn）+ 截图工具
+test/               无头断言场景（*_test.tscn，权威计数见 docs/TESTING.md）+ 截图工具
 data/               balance.json（数值配置）+ translations.csv（中英双语）
 scripts/tools/      离线工具（gen_balance_map.py 等，非运行时依赖）
 docs/               架构/设计/审计文档（ARCHITECTURE / TESTING / AUDIT_VAULT 等）

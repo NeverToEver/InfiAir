@@ -1755,3 +1755,17 @@
   - ✅ **Y5** UI 编排下沉：`GameState.SettleRun()` 结算原子链（DeleteSave→RecordScore→RecordGameOver→SubmitHighscore + 快照）；`GameState.SaveRun()` 无参版（内部取 Fuel/Elapsed 缺节点兜底）；GameOverUi/PauseUi 收敛为单次调用；PlayerDied 订阅者时序与两参版契约保留。
 - **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 89/89；`dotnet format` 三工程零 diff；分阶段受影响场景 34 个全 PASS（11+5+5+7+6）；全量断言场景结果见报告文末；BALANCE_MAP 重跑 468/3/1/0（工具修复后）。
 - **登记不修/观察**：任务域服务化试点（收益不确定、热路径 +1 层，partial 拆分已提供域边界，留待评估）；阶段状态机单一化（Main/Spawner 布尔 → 枚举，行为风险最高需单独设计轮）；两池 `_free.Contains` O(n)（上限 500）；Explosion/VirtualControls 静态持有（U07 规则擦边）；GameState 深度服务化下沉。
+
+
+---
+
+# Z 系列（2026-08-10，第六轮：健壮性审查 + 修复）
+
+- **审计**：3 路并行只读审查（服务/数据层、玩法层、框架/UI 层）+ 引擎内探针实测（Godot 4.6.2 mono `Variant.AsString/AsStringName` 对手改类型行为：AsString 全类型可转不抛、AsStringName 非字符串回空串——据此剔除 2 条误报）；基线 `dotnet build` 0w/0e + xUnit 108/108 + 全场景编译探针。未发现正常游玩路径崩溃（既有 H/Q/U/V/W/X/Y 系列基线高），修复集中于手改存档/配置的防御性收敛缺口。
+- **发现**：`UserDb.CreateUser` 落盘失败内存已插入（重试被拒、磁盘无账号）；users.json 损坏静默重置无提示；`GameState.Save` 7 处裸 `(int)` 截断手改超大值回绕为负（score/kills/rp/date 等，含 2038 时间戳）；`Boss.fire_intervals` 空数组 `Clamp(0,0,-1)` 索引崩溃；事件配置难度键条目未判型（`AsInt64` 崩溃）；`Coroutine.WaitSignal` 无超时模式源释放后 tcs 永不完成（await 永久挂起）；Hud 换绑 Boss 未断开旧四信号；GameOverUi/BuffSelect 信号连接缺 C22 守卫（重入树双订阅 → SettleRun 双结算）；`AddScore` int 乘法溢出 + `ScoreMultiplier` 截断回绕；母舰/玩家/Boss/事件 10+ 配置键除零 NaN/inf 或行为退化。
+- **修复批次（Z1-Z3，2026-08-10，3 commit）**：
+  - ✅ **Z1** 存档/数据层：UserDb 落盘失败回滚内存条目；`LastWasCorrupt` 全链转发（`GameState.UserDbCorrupt` → 欢迎页 `START_USERS_CORRUPT` 新 i18n 键）；`SaveInt` 助手（判型 + [0,int.MaxValue] 钳制）替换 7 处截断；会话/迁移 high_score 判型 + 钳制；TaskPoolInterop.SetDefs 条目级判型；GdFormat `%d` 仅吞 OverflowException（类型错误照抛——契约测试钉死）。
+  - ✅ **Z2** 配置判型/生命周期/信号配对：Boss.fire_intervals 空数组回退默认（H11 口径）；EliteTurretEvent/FormationStrikeEvent/FakeEnemiesEvent 难度键条目判型；Coroutine.WaitSignal 无超时模式挂 60s 兜底计时器；Hud.ShowBossBar 换绑前断开旧 Boss 四信号；GameOverUi/BuffSelect 补 IsConnected 守卫；WarpGate 门时长钳下限。
+  - ✅ **Z3** 除零/溢出/UI 边界：AddScore long 域乘算 + ScoreMultiplier 钳制；母舰 mag_cells≥1 / early_hold_time≥0.01 / 加特林扫掠周期≥0.05 / EarlyDepart ratio Clamp；Player fuel.max≥1；BossMovement.MoveBand、dash_sweep return_duration、enter_time、turn_time、召唤窗口 open/close/shot 时长统一钳下限（H15 族）；SettingsUi 改键捕获对齐 GetActionKeycodes 双键回退（非标准布局不再绑 KEY_NONE）；ResearchLab.Refresh 改 Free() 同步清理（U16 先例）。
+- **如何验证**：`dotnet build` 0 警告 0 错误；`dotnet test` 108/108；`dotnet format` 三工程零 diff；`godot --headless --import` 0 引擎错误；main smoke 300 帧 + smoke_test 0 FAIL；BALANCE_MAP 重跑零 diff（行号同步提交）；全量断言场景 56 个（见报告文末验证清单）。
+- **登记不修/观察**：`SaveStore` 原子写回退二次失败丢正本（E12 文档化设计内风险窗口）；UserDb 写方法失败仅静默（CreateUser 已诚实返回 false，其余低价值不扩散）；`Welcome` 排行榜 player_name 判型（探针实测 AsString 不抛，白名单/显示天然兜底）；EnrageSequence 除零（Boss.cs:410/418 已钳，误报剔除）。

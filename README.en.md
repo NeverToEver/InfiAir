@@ -133,11 +133,13 @@ The local dev launcher `./run.sh` auto-detects the .NET engine (godot-mono first
 Three-layer test suite (authoritative counts and scene lists in [docs/TESTING.md](./docs/TESTING.md)):
 
 1. **xUnit unit tests** (`tests-csharp/`, millisecond): data models / path resolution / task pool / progression curves / save atomicity / user DB & password derivation (incl. fixed vectors captured from the original GDScript).
-2. **Headless Godot assertion scenes** (`test/*_test.tscn`, 55): C# scene scripts that self-check with `[PASS]` / `[FAIL]` output, covering run orchestration / combat values / boss pattern tables & enrage / event systems / save round-trips / UI flows / engine error log scanning.
+2. **Headless Godot assertion scenes** (`test/*_test.tscn`, authoritative count & list in [docs/TESTING.md](./docs/TESTING.md)): C# scene scripts that self-check with `[PASS]` / `[FAIL]` output, covering run orchestration / combat values / boss pattern tables & enrage / event systems / save round-trips / UI flows / engine error log scanning.
 3. **Tiered CI gates** (`.github/workflows/ci.yml`, restructured 2026-08-09):
    - `fast-gate` (~8 min, every push/PR): C# build (warnings-as-errors) + xUnit + dotnet format zero-diff across three projects → zero-GDScript gate → engine import warning gate → main smoke (300 frames) → compile probe of every scene;
-   - `full-regression` (~40 min, main push / PR / manual only): BALANCE_MAP generator zero-diff gate → all 55 assertion scenes (incl. flake retry and engine error log scanning);
+   - `full-regression` (~40 min, main push / PR / manual only): BALANCE_MAP generator zero-diff gate → all assertion scenes (authoritative count in docs/TESTING.md; incl. flake retry and engine error log scanning);
    - pure docs (`docs/**`, `*.md`) do not trigger CI; dotnet SDK / NuGet / Godot engine are cached via actions/cache; new pushes on the same branch cancel the previous run.
+
+Robustness baseline: sixth robustness pass (Z series, 2026-08-10) landed — type guards & overflow clamps for hand-edited saves/config, division-by-zero lower-bound clamps, coroutine-hang and signal-pairing defenses, ~20 fixes (records in [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md)).
 
 Minimal local verification set:
 
@@ -156,7 +158,7 @@ csharp/core/        Pure .NET class library (zero Godot dependency): models / cu
 csharp/godot/       Engine binding layer: GameState (9 partial files) + 8 services + scene scripts + entities / events / UI
 tests-csharp/       xUnit unit tests
 scenes/             Scene files (welcome entry / main run / boss / mothership / cinematics)
-test/               Headless assertion scenes (55 *_test.tscn) + windowed capture tools
+test/               Headless assertion scenes (*_test.tscn, authoritative count in docs/TESTING.md) + windowed capture tools
 data/               balance.json (numeric config) + translations.csv (zh/en bilingual)
 scripts/tools/      Offline dev tools (gen_balance_map.py etc., not runtime dependencies)
 docs/               Architecture / design / audit docs (ARCHITECTURE / TESTING / AUDIT_VAULT etc.)
