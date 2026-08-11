@@ -274,74 +274,74 @@ public partial class Player : CharacterBody2D
     private void LoadBalance()
     {
         // AC2（2026-08-11 审计）：运动/速度族钳 ≥0——负值致反向移动/反向加速
-        MaxSpeed = Mathf.Max((float)GameState.Instance.Cfg("player.max_speed", MaxSpeed).AsDouble(), 0.0f);
-        Accel = Mathf.Max((float)GameState.Instance.Cfg("player.accel", Accel).AsDouble(), 0.0f);
-        Decel = Mathf.Max((float)GameState.Instance.Cfg("player.decel", Decel).AsDouble(), 0.0f);
-        BoostMult = Mathf.Max((float)GameState.Instance.Cfg("player.boost_mult", BoostMult).AsDouble(), 0.0f);
-        FineMoveMult = Mathf.Max((float)GameState.Instance.Cfg("player.fine_move_mult", FineMoveMult).AsDouble(), 0.0f);
+        MaxSpeed = CfgFx.Float("player.max_speed", MaxSpeed, 0.0f);
+        Accel = CfgFx.Float("player.accel", Accel, 0.0f);
+        Decel = CfgFx.Float("player.decel", Decel, 0.0f);
+        BoostMult = CfgFx.Float("player.boost_mult", BoostMult, 0.0f);
+        FineMoveMult = CfgFx.Float("player.fine_move_mult", FineMoveMult, 0.0f);
         // AC2：base_fire_interval 钳 0.05 下限（同 laser tick_interval 族）——≤0 时每物理帧开火
-        BaseFireInterval = Mathf.Max((float)GameState.Instance.Cfg("player.base_fire_interval", BaseFireInterval).AsDouble(), 0.05f);
-        BulletSpeed = Mathf.Max((float)GameState.Instance.Cfg("player.bullet_speed", BulletSpeed).AsDouble(), 0.0f);
+        BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, 0.05f);
+        BulletSpeed = CfgFx.Float("player.bullet_speed", BulletSpeed, 0.0f);
         // AC2：crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
-        CritChanceBase = Mathf.Clamp((float)GameState.Instance.Cfg("buffs.crit_shot.chance", CritChanceBase).AsDouble(), 0.0f, 1.0f);
-        CritMultiplier = Mathf.Max((float)GameState.Instance.Cfg("buffs.crit_shot.multiplier", CritMultiplier).AsDouble(), 0.0f);
-        BulletSpreadDeg = Mathf.Max((float)GameState.Instance.Cfg("player.bullet_spread_deg", BulletSpreadDeg).AsDouble(), 0.0f);
-        // AC2：bullet_damage 钳 ≥0（long 域比较再 (int)，防 2^31 回绕）——负伤害给敌机回血
-        BulletDamage = (int)Mathf.Max(GameState.Instance.Cfg("player.bullet_damage", BulletDamage).AsInt64(), 0L);
-        InvincibleTime = Mathf.Max((float)GameState.Instance.Cfg("player.invincible_time", InvincibleTime).AsDouble(), 0.0f);
-        SpawnInvincibleTime = Mathf.Max((float)GameState.Instance.Cfg("player.spawn_invincible_time", SpawnInvincibleTime).AsDouble(), 0.0f);
-        BulletClearRadius = Mathf.Max((float)GameState.Instance.Cfg("player.bullet_clear_radius", BulletClearRadius).AsDouble(), 0.0f);
+        CritChanceBase = CfgFx.Float("buffs.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
+        CritMultiplier = CfgFx.Float("buffs.crit_shot.multiplier", CritMultiplier, 0.0f);
+        BulletSpreadDeg = CfgFx.Float("player.bullet_spread_deg", BulletSpreadDeg, 0.0f);
+        // AC2：bullet_damage 钳 ≥0（CfgFx.Int 统一判型 + 域钳）——负伤害给敌机回血
+        BulletDamage = CfgFx.Int("player.bullet_damage", BulletDamage, 0);
+        InvincibleTime = CfgFx.Float("player.invincible_time", InvincibleTime, 0.0f);
+        SpawnInvincibleTime = CfgFx.Float("player.spawn_invincible_time", SpawnInvincibleTime, 0.0f);
+        BulletClearRadius = CfgFx.Float("player.bullet_clear_radius", BulletClearRadius, 0.0f);
         // AC2：entry.* 钳 ≥0——负值入场时序/位移反向
-        EntryLandRatio = Mathf.Max((float)GameState.Instance.Cfg("player.entry.land_ratio", EntryLandRatio).AsDouble(), 0.0f);
-        EntryRushTime = Mathf.Max((float)GameState.Instance.Cfg("player.entry.rush_time", EntryRushTime).AsDouble(), 0.0f);
-        EntryRetreatSpeed = Mathf.Max((float)GameState.Instance.Cfg("player.entry.retreat_speed", EntryRetreatSpeed).AsDouble(), 0.0f);
-        EntryRetreatTime = Mathf.Max((float)GameState.Instance.Cfg("player.entry.retreat_time", EntryRetreatTime).AsDouble(), 0.0f);
-        EntryInvincible = Mathf.Max((float)GameState.Instance.Cfg("player.entry.invincible", EntryInvincible).AsDouble(), 0.0f);
-        EntrySpawnClearance = Mathf.Max((float)GameState.Instance.Cfg("player.entry.spawn_clearance", EntrySpawnClearance).AsDouble(), 0.0f);
-        EntryRushHsRatio = Mathf.Max((float)GameState.Instance.Cfg("player.entry.rush_hspeed_ratio", EntryRushHsRatio).AsDouble(), 0.0f);
+        EntryLandRatio = CfgFx.Float("player.entry.land_ratio", EntryLandRatio, 0.0f);
+        EntryRushTime = CfgFx.Float("player.entry.rush_time", EntryRushTime, 0.0f);
+        EntryRetreatSpeed = CfgFx.Float("player.entry.retreat_speed", EntryRetreatSpeed, 0.0f);
+        EntryRetreatTime = CfgFx.Float("player.entry.retreat_time", EntryRetreatTime, 0.0f);
+        EntryInvincible = CfgFx.Float("player.entry.invincible", EntryInvincible, 0.0f);
+        EntrySpawnClearance = CfgFx.Float("player.entry.spawn_clearance", EntrySpawnClearance, 0.0f);
+        EntryRushHsRatio = CfgFx.Float("player.entry.rush_hspeed_ratio", EntryRushHsRatio, 0.0f);
         // AC2：armor.multiplier 钳 [0,1]——≤0 受击回血（GameState.Settings 乘算）；
         // evasion.chance 钳 [0,1]——≥1 软无敌；regen.heal_per_sec 钳 ≥0——负值逐秒扣血
-        ArmorMult = Mathf.Clamp((float)GameState.Instance.Cfg("buffs.armor.multiplier", ArmorMult).AsDouble(), 0.0f, 1.0f);
-        EvasionChance = Mathf.Clamp((float)GameState.Instance.Cfg("buffs.evasion.chance", EvasionChance).AsDouble(), 0.0f, 1.0f);
-        RegenPerSec = Mathf.Max((float)GameState.Instance.Cfg("buffs.regen.heal_per_sec", RegenPerSec).AsDouble(), 0.0f);
-        ShakeHit = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.player_hit", ShakeHit).AsDouble(), 0.0f);
+        ArmorMult = CfgFx.Float("buffs.armor.multiplier", ArmorMult, 0.0f, 1.0f);
+        EvasionChance = CfgFx.Float("buffs.evasion.chance", EvasionChance, 0.0f, 1.0f);
+        RegenPerSec = CfgFx.Float("buffs.regen.heal_per_sec", RegenPerSec, 0.0f);
+        ShakeHit = CfgFx.Float("effects.shake.player_hit", ShakeHit, 0.0f);
         Invincible = SpawnInvincibleTime; // 出生保护
         // 2026-08-10 健壮性审查：fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
         //（燃料条显示 NaN；SetFuel 的 Clamp 上下界同为 0 致燃料机制失效）
-        FuelMax = Mathf.Max((float)GameState.Instance.Cfg("player.fuel.max", FuelMax).AsDouble(), 1.0f);
+        FuelMax = CfgFx.Float("player.fuel.max", FuelMax, 1.0f);
         _fuel = FuelMax;
         // AC2：fuel.drain/regen/restart 钳 ≥0——负值反转充能/消耗方向
-        FuelDrain = Mathf.Max((float)GameState.Instance.Cfg("player.fuel.drain", FuelDrain).AsDouble(), 0.0f);
-        FuelRegen = Mathf.Max((float)GameState.Instance.Cfg("player.fuel.regen", FuelRegen).AsDouble(), 0.0f);
-        FuelRestart = Mathf.Max((float)GameState.Instance.Cfg("player.fuel.restart", FuelRestart).AsDouble(), 0.0f);
+        FuelDrain = CfgFx.Float("player.fuel.drain", FuelDrain, 0.0f);
+        FuelRegen = CfgFx.Float("player.fuel.regen", FuelRegen, 0.0f);
+        FuelRestart = CfgFx.Float("player.fuel.restart", FuelRestart, 0.0f);
         // AC2：dash.distance/fuel_ratio/afterimage_interval 钳 ≥0——负值冲刺反向
-        DashDistance = Mathf.Max((float)GameState.Instance.Cfg("player.dash.distance", DashDistance).AsDouble(), 0.0f);
+        DashDistance = CfgFx.Float("player.dash.distance", DashDistance, 0.0f);
         // V 系列：dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
-        DashTime = Mathf.Max((float)GameState.Instance.Cfg("player.dash.time", DashTime).AsDouble(), 0.05f);
+        DashTime = CfgFx.Float("player.dash.time", DashTime, 0.05f);
         // 2026-08-10 健壮性审查：dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
         // 且无 phase_dash 层数时 DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0
         // = NaN（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
-        DashCooldownMaxValue = Mathf.Max((float)GameState.Instance.Cfg("player.dash.cooldown", DashCooldownMaxValue).AsDouble(), 0.05f);
-        DashFuelRatio = Mathf.Max((float)GameState.Instance.Cfg("player.dash.fuel_ratio", DashFuelRatio).AsDouble(), 0.0f);
-        AfterimageInterval = Mathf.Max((float)GameState.Instance.Cfg("player.dash.afterimage_interval", AfterimageInterval).AsDouble(), 0.0f);
+        DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, 0.05f);
+        DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
+        AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
         // AC2：graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣
-        GrazeRadius = Mathf.Max((float)GameState.Instance.Cfg("player.graze_radius", GrazeRadius).AsDouble(), 0.0f);
-        GrazeScore = (int)Mathf.Max(GameState.Instance.Cfg("player.graze_score", GrazeScore).AsInt64(), 0L);
+        GrazeRadius = CfgFx.Float("player.graze_radius", GrazeRadius, 0.0f);
+        GrazeScore = CfgFx.Int("player.graze_score", GrazeScore, 0);
         // AC2：parry.* 钳 ≥0——负半径/负角度致弹反扇形判定异常
-        ParryArcDeg = Mathf.Max((float)GameState.Instance.Cfg("player.parry.arc_deg", ParryArcDeg).AsDouble(), 0.0f);
-        ParryRadius = Mathf.Max((float)GameState.Instance.Cfg("player.parry.radius", ParryRadius).AsDouble(), 0.0f);
+        ParryArcDeg = CfgFx.Float("player.parry.arc_deg", ParryArcDeg, 0.0f);
+        ParryRadius = CfgFx.Float("player.parry.radius", ParryRadius, 0.0f);
         _parry.Configure(
-            Mathf.Max((float)GameState.Instance.Cfg("player.parry.duration", 0.8).AsDouble(), 0.0f),
-            Mathf.Max((float)GameState.Instance.Cfg("player.parry.active_time", 0.5).AsDouble(), 0.0f),
-            Mathf.Max((float)GameState.Instance.Cfg("player.parry.cooldown", 3.0).AsDouble(), 0.0f));
+            CfgFx.Float("player.parry.duration", 0.8f, 0.0f),
+            CfgFx.Float("player.parry.active_time", 0.5f, 0.0f),
+            CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f));
         _damage.Configure(InvincibleTime, ArmorMult, EvasionChance, RegenPerSec, ShakeHit);
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
         // AC2：aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
-        _magnetInputMin = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble(), 0.0f);
-        _magnetInputFull = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble(), 0.0f);
-        _falloffPeak = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble(), 0.0f);
-        _falloffEnd = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble(), 0.0f);
-        _falloffMin = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), 0.0f);
+        _magnetInputMin = CfgFx.Float("player.aim_assist.input.magnet_input_min", _magnetInputMin, 0.0f);
+        _magnetInputFull = CfgFx.Float("player.aim_assist.input.magnet_input_full", _magnetInputFull, 0.0f);
+        _falloffPeak = CfgFx.Float("player.aim_assist.falloff.peak", _falloffPeak, 0.0f);
+        _falloffEnd = CfgFx.Float("player.aim_assist.falloff.end", _falloffEnd, 0.0f);
+        _falloffMin = CfgFx.Float("player.aim_assist.falloff.min", _falloffMin, 0.0f);
         LoadAimAssistParams();
         // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖
         var ws = (float)GameState.Instance.WorldScale;
