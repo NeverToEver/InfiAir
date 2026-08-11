@@ -92,6 +92,11 @@ public partial class GameState : Node
         // B 梯队：DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）
         DDA_DURATION = Mathf.Max(Cfg("dda.duration", DDA_DURATION).AsDouble(), 0.1);
         DDA_FACTOR = Mathf.Max(Cfg("dda.factor", DDA_FACTOR).AsDouble(), 1.0);
+        // 击杀连击参数缓存（热路径禁 cfg 约定；window ≤0 会每帧断连——钳制下限，
+        // step ≤0 乘区不增、max_mult <1 会倒扣击杀分——钳制 ≥1）
+        ComboWindow = Mathf.Max(Cfg("scoring.combo.window", ComboWindow).AsDouble(), 0.1);
+        ComboStep = Mathf.Max(Cfg("scoring.combo.step", ComboStep).AsDouble(), 0.0);
+        ComboMaxMult = Mathf.Max(Cfg("scoring.combo.max_mult", ComboMaxMult).AsDouble(), 1.0);
         _maxHpBase = Mathf.Max(Cfg("player.max_health", _maxHpBase).AsDouble(), 0.1); // H15 同款：≤0 使 max_health 归零/负值，玩家秒死
         // 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
         _maxHpBonus = Mathf.Max(Cfg("buffs.extra_life.max_hp_bonus", _maxHpBonus).AsDouble(), 0.0);
@@ -403,6 +408,18 @@ public partial class GameState : Node
 
     private double _ddaTimer;
 
+    /// <summary>击杀连击（2026-08-11，docs/archive/2026-08-11-score-combo-buff-pity-plan.md）：
+    /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）。</summary>
+    public double ComboWindow { get; private set; } = 3.0;
+
+    public double ComboStep { get; private set; } = 0.1;
+
+    public double ComboMaxMult { get; private set; } = 2.0;
+
+    private double _comboTimer;
+
+    public int Combo { get; private set; }
+
     /// <summary>回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存；regen 档位难度变更时刷新。
     /// 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。</summary>
     private double _maxHpBase = 100.0;
@@ -436,6 +453,7 @@ public partial class GameState : Node
         _milestoneCount = 0;
         _nextMilestone = MilestoneThreshold(0);
         _ddaTimer = 0.0; // A 审计：DDA 计时跨对局残留——旧局受击降档渗透新局
+        ResetCombo(); // 连击跨对局清零（幂等 + 广播 HUD）
         EmitSignal(SignalName.BuffsChanged);
     }
 
@@ -470,4 +488,45 @@ public partial class GameState : Node
             }
         }
     }
+
+    // ---------------- 击杀连击（2026-08-11；scoring.combo 段） ----------------
+
+    /// <summary>击杀计分唯一入口（敌机击杀路径统一走此）：连击推进 + 乘区放大，
+    /// 随后经 AddScore 乘难度倍率。Boss 击杀（AddBossKill）/事件奖励/擦弹不计连击。</summary>
+    public void AddKillScore(int basePoints)
+    {
+        Combo += 1;
+        _comboTimer = ComboWindow;
+        // long 域乘算防回绕（乘区 double，截断前钳制 int 域；AddScore 内另有总分钳制）
+        var scaled = (long)Math.Round(basePoints * ComboMultiplier());
+        AddScore((int)Math.Min(scaled, (long)int.MaxValue));
+        EmitSignal(SignalName.ComboChanged, Combo);
+    }
+
+    /// <summary>连击乘区：min(1 + (combo−1)×step, max_mult)；combo 0/1 → 1.0（第 1 杀不放大）。</summary>
+    public double ComboMultiplier()
+    {
+        if (Combo <= 1)
+        {
+            return 1.0;
+        }
+
+        return Math.Min(1.0 + (Combo - 1) * ComboStep, ComboMaxMult);
+    }
+
+    /// <summary>断连（受击/测试/重开）：连击归零 + 计时清空 + 广播 HUD。幂等。</summary>
+    public void ResetCombo()
+    {
+        if (Combo == 0 && _comboTimer <= 0.0)
+        {
+            return;
+        }
+
+        Combo = 0;
+        _comboTimer = 0.0;
+        EmitSignal(SignalName.ComboChanged, 0);
+    }
+
+    /// <summary>连击窗口剩余时长（测试/诊断白盒读取；0 = 已断连）。</summary>
+    public double ComboTimeLeft() => _comboTimer;
 }

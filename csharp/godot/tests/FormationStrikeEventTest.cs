@@ -244,6 +244,7 @@ public partial class FormationStrikeEventTest : Node
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(evt.GetState() == FormationStrikeEvent.State.FORMATION_ENTER, "场景4：事件再次启动");
             var score1 = _gs.Score;
+            _gs.ResetCombo(); // 连击基线归零（公开接口）：断言不受此前击杀残留影响
             foreach (var child in evt.GetCrafts())
             {
                 var craft = child.AsGodotObject() as FormationCraft;
@@ -253,8 +254,10 @@ public partial class FormationStrikeEventTest : Node
                 }
             }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            // 4 机击坠 200×4 + 全歼 200 = 1000 基础分 ×中难度×2 = 2000
-            Check(_gs.Score - score1 == 2000, "场景4：击坠分 + 全歼奖励入账（2000）");
+            // 4 机击坠 200×4 + 全歼 200 = 1000 基础分 ×中难度×2 = 2000；
+            // 2026-08-11 连击契约：同帧 4 连杀乘区 1.0/1.1/1.2/1.3（与击杀顺序无关）
+            // → 400×(1.0+1.1+1.2+1.3) + 全歼 200×2 = 1840 + 400 = 2240
+            Check(_gs.Score - score1 == 2240, "场景4：击坠分（含连击乘区）+ 全歼奖励入账（2240）");
             Check(evt.GetState() == FormationStrikeEvent.State.FORMATION_EXIT, "场景4：全歼立即提前离场");
             Check(CountRegisteredCrafts() == 0, "场景4：全歼后注册表无残留");
             Check(await WaitEventState(evt, FormationStrikeEvent.State.IDLE, 5.0), "场景4：提前离场后回 IDLE");

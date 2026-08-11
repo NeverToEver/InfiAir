@@ -167,8 +167,9 @@
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
 | 139 | `buffs.explosive.unlock_boss_kills` | `3` |
-| 370 | `buffs.extra_life.heal_on_pick` | `30` |
-| 407 | `buffs.extra_life.heal_on_pick` | `30` |
+| 161 | `buffs.dynamic_weight` | `new Godot.Collections.Dictionary(` |
+| 455 | `buffs.extra_life.heal_on_pick` | `30` |
+| 492 | `buffs.extra_life.heal_on_pick` | `30` |
 
 ### `csharp/godot/Bullet.cs`
 
@@ -344,24 +345,27 @@
 | 84 | `difficulty` | `new Godot.Collections.Dictionary(` |
 | 93 | `dda.duration` | `DDA_DURATION` |
 | 94 | `dda.factor` | `DDA_FACTOR` |
-| 95 | `player.max_health` | `_maxHpBase` |
-| 97 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
-| 99 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 101 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 102 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 97 | `scoring.combo.window` | `ComboWindow` |
+| 98 | `scoring.combo.step` | `ComboStep` |
+| 99 | `scoring.combo.max_mult` | `ComboMaxMult` |
+| 100 | `player.max_health` | `_maxHpBase` |
+| 102 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
+| 104 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 106 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 107 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
 ### `csharp/godot/Hud.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 148 | `effects.hud_poll_interval` | `_pollInterval` |
-| 149 | `hud.boss_bar_segments` | `_bossBarSegments` |
-| 150 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
-| 151 | `effects.hit_flash.time` | `_hitFlashTime` |
-| 152 | `effects.low_hp.ratio` | `_lowHpRatio` |
-| 153 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
-| 154 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
-| 155 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
+| 150 | `effects.hud_poll_interval` | `_pollInterval` |
+| 151 | `hud.boss_bar_segments` | `_bossBarSegments` |
+| 152 | `effects.hit_flash.alpha` | `_hitFlashAlpha` |
+| 153 | `effects.hit_flash.time` | `_hitFlashTime` |
+| 154 | `effects.low_hp.ratio` | `_lowHpRatio` |
+| 155 | `effects.low_hp.pulse_min` | `_lowHpPulseMin` |
+| 156 | `effects.low_hp.pulse_max` | `_lowHpPulseMax` |
+| 157 | `effects.low_hp.pulse_period` | `_lowHpPulsePeriod` |
 
 ### `csharp/godot/LaserWeapon.cs`
 

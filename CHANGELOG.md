@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
+
+- **击杀连击计分**（怒首领蜂/虫姬链式得分的温和版）：3s 窗口内连续击杀 → 击杀分 × 连击乘区（第 1 杀 ×1.0 起，每连 +0.1，封顶 ×2.0）；超时或受击断连（受击与 DDA 同源，构成「降档+断连」双通道但均不致命）；Boss 击杀/事件奖励/擦弹不计连击；HUD 新增连击标签（`UI_COMBO_FMT`）。新键 `scoring.combo.*`；新断言场景 `combo_test`
+- **低血防御保底**：HP < 50% 时三张 Buff 候选加权偏向防御（extra_life/regen/armor/shield/evasion ×2）且保底至少 1 张防御卡（满血行为不变；防御满层自然失效）。新键 `buffs.dynamic_weight.*`；buff33_test 新增保底断言
+- **验证**：`dotnet build` 零警告 + xUnit 111/111 + `dotnet format` 三工程零 diff + 新键 BALANCE_MAP 重跑收录 + 断言场景全量 0 FAIL（含 formation 击坠分契约更新 2000→2240）+ autoplay 探针
+
 ## [3.28] - 2026-08-10
 
 ### 规范化 + 逻辑修复（2026-08-10，AA 系列第七轮审查，`docs/AUDIT_VAULT.md` 登记）

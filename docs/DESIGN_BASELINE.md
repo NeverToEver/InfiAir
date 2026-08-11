@@ -2,7 +2,7 @@
 
 > **Status**: sole amendment authority for design intent & architecture conventions. Conflict with system docs (`BOSS_REDESIGN`/`META_HUD_DESIGN`/`ELITE_TURRET_EVENT`/`FORMATION_STRIKE_EVENT`/`INTRO_CINEMATIC`/`RETURN_HOME_CINEMATIC`/`ENDLESS_BALANCE_PLAN`/`EXIT_FLOW`) → this file wins; revise the system doc. Direction/architecture/balance-caliber changes register here + sync `AGENTS.md`; debt fixes backfill here + `docs/AUDIT_VAULT.md`.
 >
-> **Snapshot (2026-08-09)**: audits A–L 全部闭环, no P0 (完整登记/效力: `docs/AUDIT_VAULT.md`; A8/A5 详见 §7.1); assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; **2026-08-08: M7 full C# migration completed (zero GDScript)**; **2026-08-09: CI + dotnet format 3-csproj zero-diff gate + V-series engine-error-log scan + scene-count hard check**; Phase 0 closed (ROADMAP).
+> **Snapshot (2026-08-09)**: audits A–L 全部闭环, no P0 (完整登记/效力: `docs/AUDIT_VAULT.md`; A8/A5 详见 §7.1); assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); perf optimization + 4 fairness mechanics landed; 2026-08-05: unified entity/event managers + base task rotation & fog events landed; **2026-08-07: mobile touch restarted & landed (VirtualControls 触屏输入层)**; **2026-08-08: M7 full C# migration completed (zero GDScript)**; **2026-08-09: CI + dotnet format 3-csproj zero-diff gate + V-series engine-error-log scan + scene-count hard check**; **2026-08-11: score-combo chaining + low-HP defensive buff pity landed** (`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`); Phase 0 closed (ROADMAP).
 
 ## 1. Product & Gameplay
 
@@ -18,6 +18,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.3 Scoring & Economy
 - `GameState.AddScore(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
+- **Kill combo (2026-08-11, `scoring.combo` 段)**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window 3.0s / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 3s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards / graze do NOT combo. `ComboChanged` signal → HUD combo label. 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only (2026-08-06 audit: baseline claimed "run economy from kills/score" — kills don't grant RP; spent at base console, not carried between runs).
 - **RefreshPoints (2026-08-05, `docs/FOG_EVENTS.md` §1)**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
@@ -38,6 +39,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.5 Buffs
 - 19 buffs (`BuffIcons` 19 glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
 - Card text via `BUFF_%s_DESC` keys (single source).
+- **Low-HP defensive pity (2026-08-11, `buffs.dynamic_weight` 段)**: HP < max×`hp_ratio`(0.5) 时防御类 (`ids`: extra_life/regen/armor/shield/evasion) 候选按 `weight`(2.0) 加权展开选 3，且三张全非防御时从可用防御卡中随机保底 1 张（防御满层/锁定则保底自然失效）；满血时行为不变（均匀洗牌）。杀戮尖塔低血防御倾向 / 吸血鬼幸存者治疗保底同款。`BuffSelect.SelectCandidates()` 为选择唯一入口。
 - Key scaling: `rapid_fire.factor` (interval ×0.75 = +33%/stack), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3`), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
 
@@ -203,9 +205,10 @@ Pausing UIs `ProcessMode = Always` + `GetTree().Paused`; BGM `LoopMode = Forward
 ## 4. Data & Balance
 
 ### 4.1 balance.json
-Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`world_scale`/`player`/`enemies`/`elites`/`boss`/`hud`/`spawner`/`mothership`/`buffs`/`milestones`/`base_task`/`progression`/`difficulty`/`effects`/`elite_turret_event`/`formation_strike_event`/`fog_events`/`tutorial`/`dda`/`meta`.
+Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`world_scale`/`player`/`enemies`/`elites`/`boss`/`hud`/`spawner`/`mothership`/`buffs`/`milestones`/`base_task`/`progression`/`scoring`/`difficulty`/`effects`/`elite_turret_event`/`formation_strike_event`/`fog_events`/`tutorial`/`dda`/`meta`.
 - `difficulty`: score ×1/×2/×3, HP ×0.75/×1/×1.5, thresholds.
 - `progression`: per_boss_kill / per_ten_minutes / time_step_seconds.
+- `scoring`: combo (window / step / max_mult) — 击杀连击乘区。
 - `boss.phases`/`boss.enrage.type_*`/`boss.difficulty_scaling`.
 - `effects.*`: starfield/shake/meta_health/mothership_summon/orbital_strike/explosion.
 

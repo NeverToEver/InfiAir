@@ -1,6 +1,7 @@
 keys,zh,en
 UI_SCORE,"分数：%d","Score: %d"
 UI_KILLS,"击杀：%d","Kills: %d"
+UI_COMBO_FMT,"连击 ×%.1f","Combo x%.1f"
 UI_DIFF_FMT,"难度 x%.2f · %s","Diff x%.2f · %s"
 DIFF_EASY,"易","Easy"
 DIFF_MEDIUM,"中","Med"

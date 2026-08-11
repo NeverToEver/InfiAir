@@ -422,7 +422,7 @@ public partial class Enemy : Area2D
             SpawnSplitMinis();
         }
 
-        GameState.Instance.AddScore((int)(ScoreValue * _scoreScale));
+        GameState.Instance.AddKillScore((int)(ScoreValue * _scoreScale));
         GameState.Instance.AddKill();
         GameState.Instance.TryLifesteal();
         GameState.Instance.PlaySfx(IsElite ? GameState.Instance.SFX_EXPLOSION_BIG : GameState.Instance.SFX_EXPLOSION);

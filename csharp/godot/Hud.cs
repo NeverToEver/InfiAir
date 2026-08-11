@@ -18,6 +18,7 @@ public partial class Hud : CanvasLayer
 
     // ---------------- @onready 节点（_ready 内 GetNode 赋值） ----------------
     private Label _scoreLabel = null!;
+    private Label _comboLabel = null!;
     private Label _killsLabel = null!;
     private Label _difficultyLabel = null!;
     private Label _livesLabel = null!;
@@ -133,6 +134,7 @@ public partial class Hud : CanvasLayer
         AddToGroup("hud");
         _main = GetParent<Main>(); // A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
         _scoreLabel = GetNode<Label>("ScoreLabel");
+        _comboLabel = GetNode<Label>("ComboLabel");
         _killsLabel = GetNode<Label>("KillsLabel");
         _difficultyLabel = GetNode<Label>("DifficultyLabel");
         _livesLabel = GetNode<Label>("LivesLabel");
@@ -160,6 +162,10 @@ public partial class Hud : CanvasLayer
 
         _scoreLabel.AddThemeFontSizeOverride("font_size", UITheme.FontScore);
         _scoreLabel.AddThemeColorOverride("font_color", UITheme.Text);
+        _comboLabel.AddThemeFontOverride("font", Font);
+        _comboLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
+        _comboLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
+        _comboLabel.Visible = false;
         _killsLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
         _killsLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
         _difficultyLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
@@ -188,11 +194,13 @@ public partial class Hud : CanvasLayer
         _hpBar.Material = hpHolo;
         var gs = GameState.Instance!;
         gs.Connect("ScoreChanged", Callable.From<int>(OnScoreChanged));
+        gs.Connect("ComboChanged", Callable.From<int>(OnComboChanged));
         gs.Connect("HealthChanged", Callable.From<float>(OnHealthChanged));
         gs.Connect("DifficultyChanged", Callable.From<float>(OnDifficultyChanged));
         gs.Connect("DifficultySelected", Callable.From<StringName>(OnDifficultySelected));
         gs.Connect("LocaleChanged", Callable.From(OnLocaleChanged));
         OnScoreChanged(GameState.Instance.Score);
+        OnComboChanged(GameState.Instance.Combo);
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");
@@ -489,6 +497,7 @@ public partial class Hud : CanvasLayer
         }
 
         var score = Callable.From<int>(OnScoreChanged);
+        var combo = Callable.From<int>(OnComboChanged);
         var health = Callable.From<float>(OnHealthChanged);
         var diff = Callable.From<float>(OnDifficultyChanged);
         var diffSel = Callable.From<StringName>(OnDifficultySelected);
@@ -498,6 +507,11 @@ public partial class Hud : CanvasLayer
         if (gs.IsConnected("ScoreChanged", score))
         {
             gs.Disconnect("ScoreChanged", score);
+        }
+
+        if (gs.IsConnected("ComboChanged", combo))
+        {
+            gs.Disconnect("ComboChanged", combo);
         }
 
         if (gs.IsConnected("HealthChanged", health))
@@ -847,6 +861,20 @@ public partial class Hud : CanvasLayer
     {
         _scoreLabel.Text = GdFormat.Format((string)Tr("UI_SCORE"), newScore);
         _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), GameState.Instance.Kills);
+    }
+
+    /// <summary>击杀连击标签：连击 ≥2（乘区 &gt;1.0）时显示当前乘区，断连即隐。</summary>
+    private void OnComboChanged(int combo)
+    {
+        if (combo >= 2 && GameState.Instance.ComboMultiplier() > 1.0)
+        {
+            _comboLabel.Text = GdFormat.Format((string)Tr("UI_COMBO_FMT"), GameState.Instance.ComboMultiplier());
+            _comboLabel.Visible = true;
+        }
+        else
+        {
+            _comboLabel.Visible = false;
+        }
     }
 
     private void OnHealthChanged(float newHealth)

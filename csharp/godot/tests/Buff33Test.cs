@@ -92,6 +92,52 @@ public partial class Buff33Test : Node
             Check(ids.Contains("explosive"), "boss_kills>=3 时 explosive 入候选池");
             gs.BossKills = 0;
 
+            // 1b. 低血防御保底（2026-08-11，docs/archive/2026-08-11-score-combo-buff-pity-plan.md §3.2）：
+            // HP < 50% 时三张候选保底至少 1 张防御卡（extra_life/regen/armor/shield/evasion）
+            var fullHpPicks = buffUi.SelectCandidates();
+            Check(fullHpPicks.Count == 3, "1b：满血三张候选正常");
+            gs.Health = 1.0; // 低血触发保底
+            var lowHpPicks = buffUi.SelectCandidates();
+            var lowHpHasDef = false;
+            foreach (var b in lowHpPicks)
+            {
+                var bid = b["id"].AsStringName();
+                if (bid == "extra_life" || bid == "regen" || bid == "armor" || bid == "shield" || bid == "evasion")
+                {
+                    lowHpHasDef = true;
+                    break;
+                }
+            }
+
+            Check(lowHpHasDef, "1b：低血三张候选保底含防御卡");
+            gs.Health = gs.MaxHealth();
+            // 防御全满层：保底自然失效（不崩），候选仍为 3 张非防御卡
+            foreach (var bid in new[] { "extra_life", "regen", "armor", "shield", "evasion" })
+            {
+                var maxStacks = (int)gs.Cfg("buffs." + (string)bid + ".max_stacks", 1).AsInt64();
+                for (int i = 0; i < maxStacks; i++)
+                {
+                    gs.AddBuff(bid);
+                }
+            }
+
+            gs.Health = 1.0;
+            var exhaustedPicks = buffUi.SelectCandidates();
+            Check(exhaustedPicks.Count == 3, "1b：防御满层后保底失效且不崩");
+            var exhaustedHasDef = false;
+            foreach (var b in exhaustedPicks)
+            {
+                var bid = b["id"].AsStringName();
+                if (bid == "extra_life" || bid == "regen" || bid == "armor" || bid == "shield" || bid == "evasion")
+                {
+                    exhaustedHasDef = true;
+                    break;
+                }
+            }
+
+            Check(!exhaustedHasDef, "1b：防御满层后候选不含防御卡");
+            gs.Health = gs.MaxHealth(); // extra_life 已满 10 层，MaxHealth=600 为当前满血口径
+
             // 2. laser_beam：无 buff 不触发；获得后触发光束并穿透伤害直线上 2 个敌人
             var laser = player.GetNode<LaserWeapon>("LaserWeapon");
             await Coroutine.WaitSeconds(this, 0.4);

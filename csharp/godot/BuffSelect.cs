@@ -145,6 +145,92 @@ public partial class BuffSelect : CanvasLayer
         return result;
     }
 
+    /// <summary>三张候选选择：满血均匀洗牌（原语义）；低血（HP &lt; max×hp_ratio）防御类加权展开，
+    /// 且三张全非防御时从可用防御卡中随机保底 1 张（2026-08-11，docs/archive/2026-08-11-score-combo-buff-pity-plan.md）。
+    /// 杀戮尖塔低血防御倾向 / 吸血鬼幸存者治疗保底同款——情境权重是 roguelite 通用公平手段。
+    /// 防御卡全满层/锁定时保底自然失效。</summary>
+    public Godot.Collections.Array<Godot.Collections.Dictionary> SelectCandidates()
+    {
+        var pool = _AvailableBuffs();
+        if (pool.Count == 0)
+        {
+            return pool;
+        }
+
+        var gs = GameState.Instance;
+        var dw = GameState.Instance.Cfg("buffs.dynamic_weight", new Godot.Collections.Dictionary()).AsGodotDictionary();
+        var enabled = dw.GetValueOrDefault("enabled", true).AsBool();
+        var hpRatio = Mathf.Clamp(dw.GetValueOrDefault("hp_ratio", 0.5).AsDouble(), 0.0, 1.0);
+        var weight = Mathf.Max(dw.GetValueOrDefault("weight", 2.0).AsDouble(), 1.0);
+        var defIds = new Godot.Collections.Array<StringName>();
+        foreach (var v in dw.GetValueOrDefault("ids", new Godot.Collections.Array()).AsGodotArray())
+        {
+            defIds.Add(v.AsStringName());
+        }
+
+        var lowHp = enabled && gs.Health < gs.MaxHealth() * hpRatio;
+
+        // 加权展开：低血时防御候选复制 weight 份（int 取整），再洗牌取前 3 去重
+        var expanded = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        var copies = lowHp ? Math.Max((int)Math.Round(weight), 1) : 1;
+        foreach (var b in pool)
+        {
+            var isDef = defIds.Contains(b["id"].AsStringName());
+            for (int i = 0; i < (isDef ? copies : 1); i++)
+            {
+                expanded.Add(b);
+            }
+        }
+
+        expanded.Shuffle();
+        var picked = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (var b in expanded)
+        {
+            if (!picked.Contains(b))
+            {
+                picked.Add(b);
+                if (picked.Count == 3)
+                {
+                    break;
+                }
+            }
+        }
+
+        // 低血保底：三张全非防御且候选池存在可用防御卡 → 随机替换 1 张为防御卡
+        if (lowHp && picked.Count > 0)
+        {
+            var hasDef = false;
+            foreach (var b in picked)
+            {
+                if (defIds.Contains(b["id"].AsStringName()))
+                {
+                    hasDef = true;
+                    break;
+                }
+            }
+
+            if (!hasDef)
+            {
+                var defPool = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+                foreach (var b in pool)
+                {
+                    if (defIds.Contains(b["id"].AsStringName()))
+                    {
+                        defPool.Add(b);
+                    }
+                }
+
+                if (defPool.Count > 0)
+                {
+                    defPool.Shuffle();
+                    picked[GD.RandRange(0, picked.Count - 1)] = defPool[0];
+                }
+            }
+        }
+
+        return picked;
+    }
+
     private void OnMilestoneReached(long _milestoneScore)
     {
         if (Visible || GameState.Instance.Health <= 0.0)
@@ -152,15 +238,14 @@ public partial class BuffSelect : CanvasLayer
             return;
         }
 
-        var available = _AvailableBuffs();
+        var available = SelectCandidates();
         // 所有 buff 已满层：直接跳过本次里程碑
         if (available.Count == 0)
         {
             return;
         }
 
-        available.Shuffle();
-        _currentAvailable = (Godot.Collections.Array)available.Slice(0, 3); // slice end 排他：取前 3 张候选
+        _currentAvailable = (Godot.Collections.Array)available; // slice end 排他：取前 3 张候选
         BuildCards();
         GetTree().Paused = true;
         Visible = true;

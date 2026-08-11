@@ -26,6 +26,10 @@ public partial class GameState : Node
     [Signal]
     public delegate void ScoreChangedEventHandler(int newScore);
 
+    /// <summary>击杀连击变化（combo：当前连击数，0 = 已断连）。</summary>
+    [Signal]
+    public delegate void ComboChangedEventHandler(int combo);
+
     [Signal]
     public delegate void HealthChangedEventHandler(double newHealth);
 
@@ -404,6 +408,16 @@ public partial class GameState : Node
         if (_ddaTimer > 0.0)
         {
             _ddaTimer -= delta;
+        }
+
+        // 连击窗口计时：窗口内无新击杀 → 超时断连（暂停时冻结，与对局节奏一致）
+        if (_comboTimer > 0.0)
+        {
+            _comboTimer -= delta;
+            if (_comboTimer <= 0.0)
+            {
+                ResetCombo();
+            }
         }
     }
 

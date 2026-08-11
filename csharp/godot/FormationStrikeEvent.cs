@@ -467,7 +467,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         }
 
         _alive = Mathf.Max(0, _alive - 1);
-        GameState.Instance.AddScore(CraftScore);
+        GameState.Instance.AddKillScore(CraftScore); // 编队机击杀计连击（全歼奖励不计）
         if (_alive == 0 && _state != State.IDLE && _state != State.FORMATION_EXIT)
         {
             GameState.Instance.AddScore(RewardAllClear);

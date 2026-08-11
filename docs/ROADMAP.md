@@ -13,6 +13,7 @@
 - **M7 full C# migration completed** (2026-08-08): all GDScript (scripts/autoload/test) migrated to C# — zero GDScript end state, single-language maintenance; gates green per batch (dotnet build zero warnings + xUnit + import clean + smoke + assertion scenes + BALANCE_MAP zero-diff). Decision: 2026-08-08 entry below.
 - **Merge gate now 6 layers** (2026-08-09): C# build/test/`dotnet format` ×3 csproj zero-diff (added 2026-08-09) → zero-GDScript → import warnings → BALANCE_MAP zero-diff → smoke + compile probe → assertion scenes (V-series: engine error-log scan + scene-count hard check, added 2026-08-09). Details: `docs/TESTING.md`.
 - **Pending manual validation (pre-release)**: Cinematic stage 4 (low-spec retest + gamepad/mobile 手工项; `docs/DESIGN_BASELINE.md` §7.3 单一登记) + on-device feel 验证 + `docs/archive/ENDLESS_BALANCE_PLAN.md` §6.1 遗留「人工手感验证」(15+ min real play)。
+- **Score-combo + defensive pity landed** (2026-08-11, `docs/archive/2026-08-11-score-combo-buff-pity-plan.md`): 击杀连击计分（怒首领蜂/虫姬链式得分的温和版：3s 窗口 ×1.0→×2.0，受击/超时断连，Boss/事件奖励不计）+ 低血防御保底（HP<50% 加权+保底 1 张防御卡）。`scoring.combo`/`buffs.dynamic_weight` 新键；`combo_test` 断言场景。
 
 ## Direction Shift
 
@@ -66,6 +67,8 @@
 - **2026-08-08 — 全量迁移 C#（反转 2026-08-07「存量不迁移」边界）**：用户指令反转渐进式混编的"存量 GDScript 不迁移"边界——存量约 3.7 万行 GDScript（scripts/autoload/test）**全量迁移 C#**，终态零 GDScript、零 interop 壳、单一语言维护；执行分支 `feature/csharp-full-migration`（main 保持可发布）；M1–M7 里程碑（M1 基线+脚手架 → M2 服务层 → M3 战斗核心 → M4 事件体系原子批次 → M5 UI → M6 演出编排 → M7 测试迁移+收尾），每批门禁全绿（build 零警告 + xUnit + 导入零错 + 冒烟 + 当时 62 场景 + BALANCE_MAP 零 diff）；62 断言场景迁移期保持 GDScript 作回归（公共 API 冻结），M7 全量 C# 化；perf_bench 基线锚点 1.182ms/帧（2026-08-08）。决策依据 `docs/archive/2026-08-08-csharp-assessment.md` §10。
 
 - **2026-08-09 — 局外成长（科技树）**：同类调研（Vampire Survivors / Brotato / 20 Minutes Till Dawn，Steam 商店页）后落地跨局成长——新增科技点货币（**死亡结算唯一入口** `SettleRun`；放弃/返航不结算防刷点），效果映射为**开局预置 buff 层数**（复用 buff 计算链，零新属性管道），消费于研究所 UI（Welcome 主菜单 + BaseConsole 第五面板），仅登录用户（B7-8 游客不持久化）。有界性：每项限级（`meta.upgrades.*.max_level`）+ 总消费上限 → 不破坏 D1 必死曲线。实现 M1–M5 批次（core 纯逻辑 + UserDb meta 字段 + GameState.Meta + 研究所 UI + meta_test 断言场景）门禁全绿；执行记录 `docs/archive/2026-08-09-meta-progression-plan.md`。Phase 3 "online leaderboard NO" 决定不受影响。
+
+- **2026-08-11 — 得分/奖励设计审核（连击 + 防御保底）**：对照业内平衡设计（怒首领蜂/虫姬链式连击、杀戮尖塔/吸血鬼幸存者情境保底）审核后落地两项低复杂度改动——①**击杀连击计分**：击杀分 × 连击乘区（`scoring.combo`：window 3.0s / step 0.1 / 封顶 ×2.0），受击（与 DDA 同源）或超时断连，Boss 击杀/事件奖励/擦弹不计；得分攻击"贪 vs 稳"博弈补位，纯加法机制。②**低血防御保底**：HP < 50% 时防御类 buff 加权 ×2 且三张候选保底 ≥1 张防御卡（`buffs.dynamic_weight`；满血行为不变）。设计决策：不做炸弹资源/掉落物/技能树重构（复杂度预算外）。计划 `docs/archive/2026-08-11-score-combo-buff-pity-plan.md`。
 
 ## Maintenance
 

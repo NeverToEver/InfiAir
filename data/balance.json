@@ -799,6 +799,18 @@
 			"length": 2400,
 			"half_width": 26,
 			"hit_radius": 30
+		},
+		"dynamic_weight": {
+			"enabled": true,
+			"hp_ratio": 0.5,
+			"weight": 2.0,
+			"ids": [
+				"extra_life",
+				"regen",
+				"armor",
+				"shield",
+				"evasion"
+			]
 		}
 	},
 	"milestones": {
@@ -823,6 +835,13 @@
 		"per_boss_kill": 0.6,
 		"per_ten_minutes": 1.5,
 		"time_step_seconds": 30
+	},
+	"scoring": {
+		"combo": {
+			"window": 3.0,
+			"step": 0.1,
+			"max_mult": 2.0
+		}
 	},
 	"difficulty": {
 		"easy": {

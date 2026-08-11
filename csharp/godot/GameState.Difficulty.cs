@@ -26,10 +26,12 @@ public partial class GameState : Node
 
     public string DifficultyLabel() => (string)Tr("DIFF_" + Difficulty.ToString().ToUpperInvariant());
 
-    /// <summary>B 梯队：受击触发 DDA 降档（重入安全——幂等置位，重复受击刷新计时）</summary>
+    /// <summary>B 梯队：受击触发 DDA 降档（重入安全——幂等置位，重复受击刷新计时）；
+    /// 2026-08-11：同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
     private void OnPlayerDamagedDda(float amount, Vector2 fromPos)
     {
         _ddaTimer = DDA_DURATION;
+        ResetCombo();
     }
 
     public int ScoreMultiplier()

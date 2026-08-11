@@ -580,6 +580,7 @@ public partial class SmokeTest : Node
             b33.Position = e33.Position;
             main.AddChild(b33);
             int scoreBefore33 = gs.Score;
+            gs.ResetCombo(); // 连击基线归零：断言仅覆盖本次单杀（1/3 分），隔离前置击杀残留
             await Coroutine.WaitSeconds(this, 0.3);
             Check(gs.Score == scoreBefore33 + 33, "母舰击杀 1/3 分");
             if (buffUi.Visible)

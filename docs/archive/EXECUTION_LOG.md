@@ -176,3 +176,11 @@
 - **摘要**：无限段深局平衡计划使命完结，全文移入归档；文档核查批次同步：断言场景计数 55→56 漂移修正（TESTING.md/ci.yml）、GameState partial 清单补 Meta、`profile.json` 兼容路径与 UserDbCorrupt 现状回写（.agents/persistence-security.md）、give-up 结算语义澄清（DESIGN_BASELINE）等约 30 处事实修正 + 事件/演出文档已完成段落裁剪
 - **关键决策**：唯一遗留开放项「人工手感验证（15+ min real play）」登记至 `docs/ROADMAP.md` pending，不再随本计划跟踪
 - **原文**：`docs/archive/ENDLESS_BALANCE_PLAN.md`（引用已同步：DESIGN_BASELINE §1.4 / ROADMAP / ARCHITECTURE 改指归档路径）
+
+## 2026-08-11 · 得分/奖励设计审核（击杀连击 + 低血防御保底）
+
+- **落地**：未提交（改动待提交：GameState 连击 + BuffSelect 保底 + HUD 标签 + combo_test 断言场景 + 文档同步）
+- **摘要**：对照业内普遍平衡设计（怒首领蜂/虫姬链式连击、杀戮尖塔/吸血鬼幸存者情境保底）做全量设计审核——确认不变项（D1 必死曲线/DDA/逃脱阀/擦弹/hard ×1.5）后落地两项低复杂度改动：①**击杀连击计分** `scoring.combo`（window 3.0s / step 0.1 / 封顶 ×2.0）：所有击杀路径统一走 `GameState.AddKillScore`，乘区放大后照常过难度倍率；受击（与 DDA 同源 `PlayerDamaged`）/超时/重开断连；Boss 击杀/事件奖励/擦弹不计连击；HUD 连击标签 + `ComboChanged` 信号。②**低血防御保底** `buffs.dynamic_weight`：HP<50% 时防御类（extra_life/regen/armor/shield/evasion）加权 ×2 且三张候选保底 ≥1 张防御卡（满血行为不变，防御满层自然失效）。新断言场景 `combo_test`（17 断言）+ buff33 保底 5 断言；场景计数 56→57 / 65→66。
+- **关键决策**：连击上限 ×2.0 温和化——避免高手得分通胀打穿里程碑节奏、破坏 D1 曲线；连击计数封顶后继续增长（不断链）；受击断连与 DDA 共用事件源构成"受击=降档+断连"双通道但均不致命；保底用"加权+替换"语义（可测确定性断言）；不做炸弹/掉落/技能树重构（复杂度预算外）。
+- **教训**：BALANCE_MAP 生成器只匹配 `GameState.Instance.Cfg(` 前缀——`gs.Cfg(` 局部变量写法不入静态调用表（BuffSelect 首版漏收录，改直调后重跑收录）；防御满层测试首版只加 1 层（extra_life 上限 10/shield 2 未满）断言假失败——满层测试须按 `max_stacks` 循环加层。
+- **原文**：`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`
