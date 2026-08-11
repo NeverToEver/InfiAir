@@ -597,6 +597,16 @@ public partial class Player : CharacterBody2D
 
     public void SetAutoFire(bool enabled) => _autoFireEnabled = enabled;
 
+    /// <summary>AB1：入场序列期间外部系统（LaserWeapon.EndBeam）恢复 autofire 时同步覆盖捕获值，
+    /// 防 FinishEntry 把激光恢复的 true 踩回 false（返航暂停冻结激光 active 的孪生路径）。</summary>
+    public void OverrideEntryAutoFire(bool value)
+    {
+        if (_entryPhase != 0)
+        {
+            _entryPrevAutoFire = value;
+        }
+    }
+
     public bool AutoFireEnabled() => _autoFireEnabled;
 
     public bool IsDashing() => _dash.IsDashing();

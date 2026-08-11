@@ -234,6 +234,9 @@ public partial class LaserWeapon : Node2D
         if (GodotObject.IsInstanceValid(_player))
         {
             _player.SetAutoFire(_savedAutofire);
+            // AB1：入场序列期间同步覆盖 Player 捕获值——返航冻结激光 active 态时，
+            // 恢复瞬间 EndBeam 的 true 会被 FinishEntry 无条件踩回 false（自维持哑火）
+            _player.OverrideEntryAutoFire(_savedAutofire);
         }
     }
 
