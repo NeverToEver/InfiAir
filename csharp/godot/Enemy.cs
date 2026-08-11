@@ -110,45 +110,21 @@ public partial class Enemy : Area2D
         // FakeEnemiesEvent.cs:31 同族先例）——坏类型（字符串/数组/字典）AsDouble/AsInt64 抛
         // InvalidCastException 崩溃；0/负值使敌弹静止或反向、伤害倒扣、slow_field 变加速场；
         // 当前默认数据全部在合法域内，行为零变化
-        var v = GameState.Instance.Cfg("enemies.bullet_speed", EnemyBulletSpeed);
-        EnemyBulletSpeed = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : EnemyBulletSpeed, 0.0f);
-        v = GameState.Instance.Cfg("enemies.spread_bullet_speed", SpreadBulletSpeed);
-        SpreadBulletSpeed = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SpreadBulletSpeed, 0.0f);
-        v = GameState.Instance.Cfg("enemies.laser_bullet_speed", LaserBulletSpeed);
-        LaserBulletSpeed = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : LaserBulletSpeed, 0.0f);
-        v = GameState.Instance.Cfg("enemies.bullet_damage.single", BulletDamageSingle);
-        BulletDamageSingle = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)v.AsInt64() : BulletDamageSingle, 0);
-        v = GameState.Instance.Cfg("enemies.bullet_damage.spread", BulletDamageSpread);
-        BulletDamageSpread = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)v.AsInt64() : BulletDamageSpread, 0);
-        v = GameState.Instance.Cfg("enemies.bullet_damage.laser", BulletDamageLaser);
-        BulletDamageLaser = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)v.AsInt64() : BulletDamageLaser, 0);
-        v = GameState.Instance.Cfg("enemies.collision_damage", CollisionDamage);
-        CollisionDamage = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)v.AsInt64() : CollisionDamage, 0);
+        EnemyBulletSpeed = CfgFx.Float("enemies.bullet_speed", EnemyBulletSpeed, 0.0f);
+        SpreadBulletSpeed = CfgFx.Float("enemies.spread_bullet_speed", SpreadBulletSpeed, 0.0f);
+        LaserBulletSpeed = CfgFx.Float("enemies.laser_bullet_speed", LaserBulletSpeed, 0.0f);
+        BulletDamageSingle = CfgFx.Int("enemies.bullet_damage.single", BulletDamageSingle, 0);
+        BulletDamageSpread = CfgFx.Int("enemies.bullet_damage.spread", BulletDamageSpread, 0);
+        BulletDamageLaser = CfgFx.Int("enemies.bullet_damage.laser", BulletDamageLaser, 0);
+        CollisionDamage = CfgFx.Int("enemies.collision_damage", CollisionDamage, 0);
         // slow_field.factor 钳 [0,1]——>1 反而加速敌机、≤0 使慢速力场变加速场
-        v = GameState.Instance.Cfg("buffs.slow_field.factor", SlowFieldFactor);
-        SlowFieldFactor = Mathf.Clamp(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SlowFieldFactor, 0.0f, 1.0f);
-        v = GameState.Instance.Cfg("enemies.spread_fan_step", SpreadFanStep);
-        SpreadFanStep = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SpreadFanStep, 0.0f);
+        SlowFieldFactor = CfgFx.Float("buffs.slow_field.factor", SlowFieldFactor, 0.0f, 1.0f);
+        SpreadFanStep = CfgFx.Float("enemies.spread_fan_step", SpreadFanStep, 0.0f);
         // lifetime ≥0.05——≤0 使 _lifeTimer 首帧即达上限，敌机出生即寿命离场
-        v = GameState.Instance.Cfg("enemies.lifetime", Lifetime);
-        Lifetime = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : Lifetime, 0.05f);
+        Lifetime = CfgFx.Float("enemies.lifetime", Lifetime, 0.05f);
         // exit_accel ≥0——负值使离场反向加速，寿命离场机永远离不开屏幕
-        v = GameState.Instance.Cfg("enemies.exit_accel", ExitAccel);
-        ExitAccel = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : ExitAccel, 0.0f);
-        v = GameState.Instance.Cfg("enemies.aggressive_chase_speed", AggrChaseSpeed);
-        AggrChaseSpeed = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : AggrChaseSpeed, 0.0f);
+        ExitAccel = CfgFx.Float("enemies.exit_accel", ExitAccel, 0.0f);
+        AggrChaseSpeed = CfgFx.Float("enemies.aggressive_chase_speed", AggrChaseSpeed, 0.0f);
         // H19：hover_band 判型回退（防非数组 _ready 崩溃）
         var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { HoverBand.X, HoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
@@ -162,27 +138,13 @@ public partial class Enemy : Area2D
 
         // AC4（2026-08-11 健壮性审查）：hover/spiral 几何参数同款判型 + 非负钳（负振幅/频率
         // 使机动轨迹反向、负半径绕转中心反向，属配置损坏语义；回退默认 + 钳制保底）
-        v = GameState.Instance.Cfg("enemies.hover_bob_amp", HoverBobAmp);
-        HoverBobAmp = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : HoverBobAmp, 0.0f);
-        v = GameState.Instance.Cfg("enemies.hover_bob_freq", HoverBobFreq);
-        HoverBobFreq = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : HoverBobFreq, 0.0f);
-        v = GameState.Instance.Cfg("enemies.hover_sway_amp", HoverSwayAmp);
-        HoverSwayAmp = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : HoverSwayAmp, 0.0f);
-        v = GameState.Instance.Cfg("enemies.hover_sway_freq", HoverSwayFreq);
-        HoverSwayFreq = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : HoverSwayFreq, 0.0f);
-        v = GameState.Instance.Cfg("enemies.spiral_drift_amp", SpiralDriftAmp);
-        SpiralDriftAmp = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SpiralDriftAmp, 0.0f);
-        v = GameState.Instance.Cfg("enemies.spiral_drift_freq", SpiralDriftFreq);
-        SpiralDriftFreq = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SpiralDriftFreq, 0.0f);
-        v = GameState.Instance.Cfg("enemies.spiral_radius", SpiralRadius);
-        SpiralRadius = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : SpiralRadius, 0.0f);
+        HoverBobAmp = CfgFx.Float("enemies.hover_bob_amp", HoverBobAmp, 0.0f);
+        HoverBobFreq = CfgFx.Float("enemies.hover_bob_freq", HoverBobFreq, 0.0f);
+        HoverSwayAmp = CfgFx.Float("enemies.hover_sway_amp", HoverSwayAmp, 0.0f);
+        HoverSwayFreq = CfgFx.Float("enemies.hover_sway_freq", HoverSwayFreq, 0.0f);
+        SpiralDriftAmp = CfgFx.Float("enemies.spiral_drift_amp", SpiralDriftAmp, 0.0f);
+        SpiralDriftFreq = CfgFx.Float("enemies.spiral_drift_freq", SpiralDriftFreq, 0.0f);
+        SpiralRadius = CfgFx.Float("enemies.spiral_radius", SpiralRadius, 0.0f);
         // 每个实例独立形状，避免共享 sub_resource 半径互相影响
         _shape = GetNode<CollisionShape2D>("CollisionShape2D");
         if (_shape.Shape != null)
@@ -203,12 +165,8 @@ public partial class Enemy : Area2D
         UpdateTailGlow();
         // AC4（2026-08-11 健壮性审查）：shake 幅度键判型 + 非负钳（负值传 GameState.Shake
         // 抖动幅度为负表现异常；坏类型回退默认）
-        v = GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDieNormal);
-        _shakeDieNormal = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : _shakeDieNormal, 0.0f);
-        v = GameState.Instance.Cfg("effects.shake.elite_die", _shakeDieElite);
-        _shakeDieElite = Mathf.Max(
-            v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : _shakeDieElite, 0.0f);
+        _shakeDieNormal = CfgFx.Float("effects.shake.enemy_die", _shakeDieNormal, 0.0f);
+        _shakeDieElite = CfgFx.Float("effects.shake.elite_die", _shakeDieElite, 0.0f);
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
 
