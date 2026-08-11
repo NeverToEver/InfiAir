@@ -646,9 +646,6 @@
 			"bullet_speed": 340
 		}
 	},
-	"hud": {
-		"boss_bar_segments": 3
-	},
 	"spawner": {
 		"wave_interval_start": 7,
 		"wave_interval_end": 4,

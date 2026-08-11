@@ -66,10 +66,11 @@ public partial class Hud : CanvasLayer
     private int _bossPhase = FightPhaseP1;
     /// <summary>仪表类刷新降频（信号驱动的文本不受影响）。H15：≤0 节流失效。</summary>
     private float _pollInterval = 0.1f;
-    /// <summary>分段血条（2026-08-03 机制三）：段数 + 段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
+    /// <summary>分段血条（2026-08-03 机制三）：段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
     /// （段界 = 阶段阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
-    /// （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）。</summary>
-    private int _bossBarSegments = 3;
+    /// （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）。
+    /// AB22：段数恒由权重数组决定（hud.boss_bar_segments 配置键已删除——加权分支只迭代
+    /// SegWeights.Count，原键改 5/7 无任何视觉变化，名实不符）。</summary>
     // M5：静态 Godot 集合在引擎退出后被 .NET finalize 触碰 native → segfault（实测），改实例字段
     private readonly Godot.Collections.Array BossSegWeights = new() { 0.3f, 0.4f, 0.3f };
     private readonly Godot.Collections.Array BossSegColors = new()
@@ -148,7 +149,7 @@ public partial class Hud : CanvasLayer
         _parryTag = GetNode<Label>("ParryTag");
         _dockTag = GetNode<Label>("DockTag");
         _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // H15：≤0 节流失效
-        _bossBarSegments = Mathf.Max((int)GameState.Instance.Cfg("hud.boss_bar_segments", _bossBarSegments).AsInt64(), 1);
+        // AB22：hud.boss_bar_segments 配置键已删除——段数恒由权重数组决定（见 ShowBossBar）
         _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
         _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
         _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
@@ -830,8 +831,8 @@ public partial class Hud : CanvasLayer
     public void ShowBossBar(Boss boss)
     {
         _bossBar.FillColor = UITheme.Accent; // 重置上一只 Boss 狂暴留下的红色
-        // 机制三：分段血条——段数/段权/段色按配置登记（段界 = 阶段阈值宽占比）
-        _bossBar.Segments = _bossBarSegments;
+        // 机制三：分段血条——段权/段色按权重数组登记（AB22：段数 = 权重数，恒为 3）
+        _bossBar.Segments = BossSegWeights.Count;
         _bossBar.SegWeights = BossSegWeights;
         _bossBar.SegColors = BossSegColors;
         _bossBar.Visible = true;

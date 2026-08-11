@@ -64,7 +64,8 @@ public sealed class BalanceModelsTests
         var root = BalanceRoot.Load(LoadRepoBalanceJson(), out _);
 
         Assert.NotNull(root);
-        Assert.True(root!.Extra!.ContainsKey("hud"));
+        // AB22：hud 配置段整体删除（boss_bar_segments 键移除后无剩余键），不再出现在 Extra
+        Assert.False(root!.Extra!.ContainsKey("hud"));
         Assert.True(root.Extra.ContainsKey("buffs"));
         Assert.True(root.Extra.ContainsKey("fog_events"));
     }

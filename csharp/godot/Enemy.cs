@@ -819,7 +819,7 @@ public partial class Enemy : Area2D
         }
         else
         {
-            // 就近侧方（略带上行），从较近的一侧离场（E06：960 硬编码改视口中心）
+            // 侧向离场（AB19：注释订正——向镜像侧离场：左半区向右、右半区向左，与旧版一致）
             _exitDir = new Vector2(
                 Position.X < CachedView().GetCenter().X ? 1.0f : -1.0f, (float)GD.RandRange(-0.4, 0.0)).Normalized();
         }

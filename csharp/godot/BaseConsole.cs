@@ -691,8 +691,6 @@ public partial class BaseConsole : CanvasLayer
         Visible = false;
         EmitSignal(SignalName.ResumeRequested);
     }
-
-    /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
 }
 
 /// <summary>面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call。

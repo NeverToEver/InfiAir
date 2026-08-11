@@ -531,8 +531,11 @@ public partial class SettingsUi : CanvasLayer
         {
             valueLabel.Text = GdFormat.Format(format, (float)v);
             onChanged((float)v);
+            // AB23：键盘焦点链方向键调整只走 ValueChanged（原仅 DragEnded 落盘，正常退出
+            // 靠 SaveProfile 兜底，仅进程异常终止丢失调整值）——滑杆调整频率低，写盘直接可接受
+            GameState.Instance.PersistJoySettings();
         };
-        // K06：拖动结束才持久化一次（value_changed 高频触发，setter 已不自动写盘）
+        // K06：拖动结束同样持久化（与 ValueChanged 并存，拖动场景双保险）
         slider.DragEnded += _ => GameState.Instance.PersistJoySettings();
         return slider;
     }
@@ -770,8 +773,4 @@ public partial class SettingsUi : CanvasLayer
         _opener = null;
         EmitSignal(SignalName.BackPressed);
     }
-
-    // ---------------- 工具 ----------------
-
-    /// <summary>GDScript 字符串 % 格式化（%s/%d/%f 占位按序替换 + %% 转义；tr() 文案补参用，
 }
