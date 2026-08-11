@@ -75,6 +75,12 @@ public partial class MetaHealthFX : CanvasLayer
     private ColorRect _rect = null!;
     private readonly Godot.Collections.Dictionary _last = new(); // D5 epsilon 缓存（参数名 -> 上次上传值）
     private Godot.Collections.Dictionary _cfg = null!; // effects.meta_health.* 一次性缓存
+    // 热路径字段化（空间换时间）：非 idle 帧每帧必用的配置键提为字段，LoadCfg 一次性缓存，
+    // 免每帧 `_cfg[key].AsSingle()` 字典查找（哈希查询 + Variant 转换）；值继承 _cfg 入列时的
+    // H15 钳制（Mathf.Max 下限）/类型转换，运行期恒定，行为逐位等价
+    private float _smoothDownTau;
+    private float _smoothUpTau;
+    private float _crackExponent;
     private int _lod;
     private float _adaptTimer;
     private float _adaptGain = 1.0f;
@@ -156,7 +162,7 @@ public partial class MetaHealthFX : CanvasLayer
     /// <summary>血量-裂纹映射曲线（§4.2；测试采样点不含生长过冲）</summary>
     public float CrackProgress()
     {
-        return Mathf.Pow(_damageX, CfgFloat("crack_exponent"));
+        return Mathf.Pow(_damageX, _crackExponent); // 字段化：原 CfgFloat("crack_exponent") 每帧 2 次字典查找（622/643 行调用）
     }
 
     public float HitPulse() => _hitPulse;
@@ -394,6 +400,11 @@ public partial class MetaHealthFX : CanvasLayer
             ["adapt_explosion_weight"] = CfgVal("effects.meta_health.adapt.explosion_weight", 0.15f),
             ["reduce_flash_chromatic_scale"] = CfgVal("effects.meta_health.reduce_flash.chromatic_scale", 0.4f),
         };
+
+        // 每帧必用键字段化（见字段声明注释）：值已含 H15 钳制/类型转换，运行期恒定
+        _smoothDownTau = _cfg["smooth_down_tau"].AsSingle();
+        _smoothUpTau = _cfg["smooth_up_tau"].AsSingle();
+        _crackExponent = _cfg["crack_exponent"].AsSingle();
     }
 
     /// <summary>effects.meta_health.* 配置读入（GameState.cfg 动态调用，Variant → float）。</summary>
@@ -511,7 +522,7 @@ public partial class MetaHealthFX : CanvasLayer
 
         // 1. 损伤度指数趋近：下行快入（tau=0.10）、上行慢出（tau=0.80）
         var down = _targetX > _damageX;
-        var tau = down ? CfgFloat("smooth_down_tau") : CfgFloat("smooth_up_tau");
+        var tau = down ? _smoothDownTau : _smoothUpTau; // 字段化：原 CfgFloat 三元每帧 2 次字典查找
         _damageX += (_targetX - _damageX) * (1.0f - Mathf.Exp(-d / tau));
 
         // 2. 状态跃迁：下行跨阈值 → 裂纹生长过冲；上行跨阈值 → 修复错峰消散（0.7s）
