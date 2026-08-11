@@ -8,8 +8,10 @@ namespace InfiAir;
 /// 科技点死亡结算 / 升级消费 / 新局开局预置 buff 层数。
 /// 数据模型与公式在 InfiAir.Core.Meta（纯逻辑，xUnit 直测）；本文件为 Godot 绑定层：
 /// UserDb meta 档案读写 + balance.json meta 节配置缓存 + Buffs 预置应用。
-/// 仅登录用户（游客不持久化，B7-8 口径延伸）；结算唯一入口 = SettleRun（死亡），
-/// 放弃/返航不结算——防刷点。详见 docs/archive/2026-08-09-meta-progression-plan.md。
+/// 仅登录用户（游客不持久化，B7-8 口径延伸）；结算唯一入口 = SettleRun（死亡）——
+/// AC26（2026-08-11 审计订正）：ExitConfirm 删档不结算；K 键自毁（give_up）经 PlayerDied
+/// 按死亡正常结算——防刷点口径仅限删档退出（与实现/DESIGN_BASELINE 一致）。
+/// 详见 docs/archive/2026-08-09-meta-progression-plan.md。
 /// </summary>
 public partial class GameState : Node
 {
@@ -86,7 +88,9 @@ public partial class GameState : Node
 
             var d = v.AsGodotDictionary();
             var id = key.AsStringName();
-            var maxLevel = Math.Max((int)SaveNum(d.GetValueOrDefault("max_level", 1), 1.0), 1);
+            // AC14（2026-08-11 健壮性审查）：max_level 钳 [1, int.MaxValue]——裸 (int) 截断超 2^31
+            // 值回绕为负 → 升级恒判满级/显示错乱（静默限 Lv1 语义）；先钳 long 域再转 int（SaveInt 同款）
+            var maxLevel = (int)Math.Max(Math.Min((long)SaveNum(d.GetValueOrDefault("max_level", 1), 1.0), int.MaxValue), 1);
             var baseCost = SaveNum(d.GetValueOrDefault("base_cost", 0), 0.0);
             var growth = SaveNum(d.GetValueOrDefault("cost_growth", 1.5), 1.5);
             _metaDefs[id] = new UpgradeDef(id.ToString(), maxLevel, baseCost, growth);

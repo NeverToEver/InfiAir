@@ -164,13 +164,16 @@ public sealed class UserDb
             return; // 条目非 Dictionary（手改）：跳过
         }
 
+        // AC21（2026-08-11 第九轮审计）：读值钳 ≥0——手改负值 / 巨值 double 经 ToInt64
+        // unchecked 转换回绕负数 → 排序垫底；递增防溢出——maxOrder 已达 long.MaxValue
+        // （手改）时保持原值，否则 +1 回绕 long.MinValue → 负值落盘 + 排序垫底
         long maxOrder = 0;
         foreach (var n in Users.Keys)
         {
-            maxOrder = Math.Max(maxOrder, ToInt64(UserRecord(n).GetValueOrDefault("last_login_order", 0L)));
+            maxOrder = Math.Max(maxOrder, Math.Max(ToInt64(UserRecord(n).GetValueOrDefault("last_login_order", 0L)), 0L));
         }
 
-        rec["last_login_order"] = maxOrder + 1;
+        rec["last_login_order"] = maxOrder == long.MaxValue ? maxOrder : maxOrder + 1;
         Save();
     }
 
@@ -365,7 +368,10 @@ public sealed class UserDb
 
         EnsureLoaded();
         var board = Leaderboard;
-        var seq = ToInt64(_db.GetValueOrDefault("_seq", 0L)) + 1;
+        // AC24（2026-08-11 第九轮审计）：_seq 同 AC21——读值钳 ≥0 + 递增防溢出
+        // （手改巨值 +1 回绕 long.MinValue → 新条目负 seq 排序破坏 + 负值落盘）
+        var prevSeq = Math.Max(ToInt64(_db.GetValueOrDefault("_seq", 0L)), 0L);
+        var seq = prevSeq == long.MaxValue ? prevSeq : prevSeq + 1;
         _db["_seq"] = seq;
         var entry = new Dictionary<string, object?>
         {

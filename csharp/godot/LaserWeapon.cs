@@ -74,14 +74,18 @@ public partial class LaserWeapon : Node2D
     public override void _Ready()
     {
         _player = GetParent() as Player;
-        BeamDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble();
-        CooldownDuration = (float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble();
+        // AC3（2026-08-11 审计）：duration/cooldown 钳 0.05 下限（同 tick_interval 族）——≤0 时
+        // 光束结束即重触发（EndBeam→_cooldown≤0→下帧 StartBeam 循环），自动开火永久禁用
+        BeamDuration = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble(), 0.05f);
+        CooldownDuration = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble(), 0.05f);
         // V 系列：tick_interval 钳 0.05 下限（R06 同族）——0/负值时 DamageTick 每物理帧结算（≈960 DPS）
         TickInterval = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble(), 0.05f);
-        TickDamage = (int)GameState.Instance.Cfg("buffs.laser_beam.tick_damage", TickDamage).AsInt64();
-        BeamLength = (float)GameState.Instance.Cfg("buffs.laser_beam.length", BeamLength).AsDouble();
-        BeamHalfWidth = (float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble();
-        EnemyHitRadius = (float)GameState.Instance.Cfg("buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble()
+        // AC3：tick_damage 钳 ≥1（long 域比较再 (int) 防回绕）——≤0 经 EntityDamage.Dispatch 给敌机回血
+        TickDamage = (int)Mathf.Max(GameState.Instance.Cfg("buffs.laser_beam.tick_damage", TickDamage).AsInt64(), 1L);
+        // AC3：length/half_width/hit_radius 钳 0.1 下限——≤0 光束线段退化永不命中；hit_radius 先钳再乘 WorldScale
+        BeamLength = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.length", BeamLength).AsDouble(), 0.1f);
+        BeamHalfWidth = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble(), 0.1f);
+        EnemyHitRadius = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble(), 0.1f)
             * (float)GameState.Instance.WorldScale;
         _sfxBeam = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
         // 光束与末端光晕用 top_level 全局坐标，避免随机身旋转

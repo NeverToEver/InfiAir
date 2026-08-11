@@ -414,9 +414,12 @@ public partial class Boss : Area2D
         // float 不崩、Clamp 收敛，但狂暴序列 1-2 帧内瞬间走完（行为退化）；下限钳制 ≥0.05
         EnrageDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.duration", EnrageDuration).AsDouble());
         EnrageTransitionDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.transition_duration", EnrageTransitionDuration).AsDouble());
-        EnrageAttackInterval = (float)GameState.Instance.Cfg("boss.enrage.attack_interval", EnrageAttackInterval).AsDouble();
-        EnrageAttackWindup = (float)GameState.Instance.Cfg("boss.enrage.attack_windup", EnrageAttackWindup).AsDouble();
-        EnrageReleaseInterval = (float)GameState.Instance.Cfg("boss.enrage.release_interval", EnrageReleaseInterval).AsDouble();
+        // AC9（2026-08-11 健壮性审查）：三时序键钳下限 ≥0.05（R06 只封了 duration 族）——
+        // attack_windup≤0 使 ACTIVE 一进入 _attackTimer 即触发（蓄力 telegraph 归零）；
+        // attack_interval/release_interval≤0 → 狂暴回退/释放路径每帧攻击风暴
+        EnrageAttackInterval = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.attack_interval", EnrageAttackInterval).AsDouble(), 0.05f);
+        EnrageAttackWindup = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.attack_windup", EnrageAttackWindup).AsDouble(), 0.05f);
+        EnrageReleaseInterval = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.release_interval", EnrageReleaseInterval).AsDouble(), 0.05f);
         // R06 同族：release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
         // （Clamp(1-(-inf))=1，Boss 瞬跳回退），下限钳制 ≥0.05
         EnrageReleaseHoldDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration).AsDouble());
@@ -550,7 +553,10 @@ public partial class Boss : Area2D
         E3SummonInterval = Mathf.Max(
             (float)GameState.Instance.Cfg("boss.enrage.type_3.summon_interval", E3SummonInterval).AsDouble(), 0.05f);
         // G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
-        _summonInterval = (float)GameState.Instance.Cfg("boss.phases.type3.summon_interval", _summonInterval).AsDouble();
+        // AC7（2026-08-11 健壮性审查）：孪生键 E3SummonInterval 已钳 ≥0.05（上方同族）；≤0 时
+        // _summonTimer 每帧归零 → 每物理帧召唤风暴（SummonMinions 刷兵失控）
+        _summonInterval = Mathf.Max(
+            (float)GameState.Instance.Cfg("boss.phases.type3.summon_interval", _summonInterval).AsDouble(), 0.05f);
         _summonTimer = _summonInterval;
         E3SummonWaves = (int)GameState.Instance.Cfg("boss.enrage.type_3.summon_waves", E3SummonWaves).AsInt64();
         E3SummonCount = (int)GameState.Instance.Cfg("boss.enrage.type_3.summon_count", E3SummonCount).AsInt64();

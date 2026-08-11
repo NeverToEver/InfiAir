@@ -292,7 +292,8 @@ public partial class AimFrameLayer : Node2D
                 continue;
             }
 
-            // 与原点重合时 to/d 除零（NaN）→ NaN < cone_cos 恒 false，同原 GDScript 语义
+            // AC11（2026-08-11 审计）注释订正：与原点重合时 to/d 除零得 NaN → NaN < coneCos 恒 false
+            // → 该敌「不排除」被选中（原注释「恒 false 排除」语义相反）；coneCos 为 NaN 时同理不排除
             if (aimDir.Dot(to / d) < coneCos)
             {
                 continue;

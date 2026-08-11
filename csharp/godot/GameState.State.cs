@@ -95,8 +95,11 @@ public partial class GameState : Node
         // 击杀连击参数缓存（热路径禁 cfg 约定；window ≤0 会每帧断连——钳制下限，
         // step ≤0 乘区不增、max_mult <1 会倒扣击杀分——钳制 ≥1）
         ComboWindow = Mathf.Max(Cfg("scoring.combo.window", ComboWindow).AsDouble(), 0.1);
-        ComboStep = Mathf.Max(Cfg("scoring.combo.step", ComboStep).AsDouble(), 0.0);
-        ComboMaxMult = Mathf.Max(Cfg("scoring.combo.max_mult", ComboMaxMult).AsDouble(), 1.0);
+        // AC1（2026-08-11 健壮性审查）：step/max_mult 上界钳 [0,1e3]/[1,1e3]——巨值乘区在
+        // AddKillScore 的 (long) 乘算下溢出回绕为负（分数巨负进里程碑/榜单）；1e3 远超合理域
+        // （设计封顶 ×2.0）但杜绝 long 溢出（AB15/AB16 上界钳先例）
+        ComboStep = Mathf.Clamp(Cfg("scoring.combo.step", ComboStep).AsDouble(), 0.0, 1e3);
+        ComboMaxMult = Mathf.Clamp(Cfg("scoring.combo.max_mult", ComboMaxMult).AsDouble(), 1.0, 1e3);
         _maxHpBase = Mathf.Max(Cfg("player.max_health", _maxHpBase).AsDouble(), 0.1); // H15 同款：≤0 使 max_health 归零/负值，玩家秒死
         // 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
         _maxHpBonus = Mathf.Max(Cfg("buffs.extra_life.max_hp_bonus", _maxHpBonus).AsDouble(), 0.0);
@@ -498,7 +501,9 @@ public partial class GameState : Node
         Combo += 1;
         _comboTimer = ComboWindow;
         // long 域乘算防回绕（乘区 double，截断前钳制 int 域；AddScore 内另有总分钳制）
-        var scaled = (long)Math.Round(basePoints * ComboMultiplier());
+        // AC1 双保险（2026-08-11 健壮性审查）：乘积钳 [0, long.MaxValue]——组合极端路径
+        // （basePoints×乘区越界 → double→long 转换未定义/回绕巨负）下兜底防负分入账（AB12 双保险先例）
+        var scaled = (long)Math.Round(Math.Clamp(basePoints * ComboMultiplier(), 0.0, (double)long.MaxValue));
         AddScore((int)Math.Min(scaled, (long)int.MaxValue));
         EmitSignal(SignalName.ComboChanged, Combo);
     }

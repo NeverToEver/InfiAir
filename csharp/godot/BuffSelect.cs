@@ -167,8 +167,10 @@ public partial class BuffSelect : CanvasLayer
         var hpRatio = hpRatioV.VariantType is Variant.Type.Int or Variant.Type.Float
             ? Mathf.Clamp(hpRatioV.AsDouble(), 0.0, 1.0) : 0.5;
         var weightV = dw.GetValueOrDefault("weight", 2.0);
+        // AC22（2026-08-11 健壮性审查）：weight 钳 [1, 100]——低血 copies = round(weight) 巨值时
+        // 每张防御卡展开 copies 份，候选池数组巨量分配 → 里程碑 OOM/卡死；上界远超合理加权域
         var weight = weightV.VariantType is Variant.Type.Int or Variant.Type.Float
-            ? Mathf.Max(weightV.AsDouble(), 1.0) : 2.0;
+            ? Mathf.Clamp(weightV.AsDouble(), 1.0, 100.0) : 2.0;
         var defIds = new Godot.Collections.Array<StringName>();
         var idsV = dw.GetValueOrDefault("ids", new Godot.Collections.Array());
         if (idsV.VariantType == Variant.Type.Array)
@@ -264,7 +266,9 @@ public partial class BuffSelect : CanvasLayer
             return;
         }
 
-        _currentAvailable = (Godot.Collections.Array)available; // slice end 排他：取前 3 张候选
+        // AC22（2026-08-11 清理）：过时注释删除——已无 Slice 调用，前 3 张候选由
+        // SelectCandidates 内部取定，此处直接整表持有
+        _currentAvailable = (Godot.Collections.Array)available;
         BuildCards();
         GetTree().Paused = true;
         Visible = true;

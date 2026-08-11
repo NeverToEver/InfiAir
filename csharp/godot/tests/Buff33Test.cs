@@ -111,6 +111,42 @@ public partial class Buff33Test : Node
 
             Check(lowHpHasDef, "1b：低血三张候选保底含防御卡");
             gs.Health = gs.MaxHealth();
+
+            // 1c. weight 巨值钳制（AC22，2026-08-11 健壮性审查）：buffs.dynamic_weight.weight 手改巨值 →
+            // 低血 copies = round(weight) 巨值把每张防御卡展开 copies 份（候选池数组巨量分配 OOM/卡死）；
+            // 钳 [1,100] 后候选池正常。改 balance.json 注入（BalanceTest 同款模式）
+            var originalBalance = Godot.FileAccess.GetFileAsString(gs.BALANCE_PATH);
+            var cfgFile = Godot.FileAccess.Open(gs.BALANCE_PATH, Godot.FileAccess.ModeFlags.Write);
+            cfgFile.StoreString(Json.Stringify(new Godot.Collections.Dictionary
+            {
+                ["buffs"] = new Godot.Collections.Dictionary
+                {
+                    ["dynamic_weight"] = new Godot.Collections.Dictionary { ["weight"] = 1e18 },
+                },
+            }));
+            cfgFile.Close();
+            gs.ReloadBalance();
+            gs.Health = 1.0; // 低血触发加权展开
+            var giantWeightPicks = buffUi.SelectCandidates();
+            Check(giantWeightPicks.Count == 3, "1c：weight 巨值钳制后候选池仍为 3 张");
+            var giantHasDef = false;
+            foreach (var b in giantWeightPicks)
+            {
+                var bid = b["id"].AsStringName();
+                if (bid == "extra_life" || bid == "regen" || bid == "armor" || bid == "shield" || bid == "evasion")
+                {
+                    giantHasDef = true;
+                    break;
+                }
+            }
+
+            Check(giantHasDef, "1c：weight 巨值钳制后低血保底仍含防御卡");
+            gs.Health = gs.MaxHealth();
+            cfgFile = Godot.FileAccess.Open(gs.BALANCE_PATH, Godot.FileAccess.ModeFlags.Write);
+            cfgFile.StoreString(originalBalance);
+            cfgFile.Close();
+            gs.ReloadBalance(); // 恢复默认配置（后续用例不受影响）
+
             // 防御全满层：保底自然失效（不崩），候选仍为 3 张非防御卡
             foreach (var bid in new[] { "extra_life", "regen", "armor", "shield", "evasion" })
             {

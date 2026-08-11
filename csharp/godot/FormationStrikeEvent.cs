@@ -100,8 +100,14 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
 
     public override void _Ready()
     {
-        MinScore = (int)GameState.Instance.Cfg("formation_strike_event.min_score", MinScore).AsInt64();
-        Cooldown = (float)GameState.Instance.Cfg("formation_strike_event.cooldown", Cooldown).AsDouble();
+        // AC8（2026-08-11 健壮性审查）：min_score/cooldown 判型 + 域钳（对齐
+        // FakeEnemiesEvent 条目判型口径——坏值 AsInt64/AsDouble 抛 InvalidCastException
+        // 崩溃，判型失败回退脚本默认）——min_score 负值分数 0 即触发；cooldown ≤0
+        // 冷却失效、事件结束即刻可再触发（风暴）
+        var minScoreV = GameState.Instance.Cfg("formation_strike_event.min_score", MinScore);
+        MinScore = Mathf.Max(minScoreV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)minScoreV.AsInt64() : MinScore, 0);
+        var cooldownV = GameState.Instance.Cfg("formation_strike_event.cooldown", Cooldown);
+        Cooldown = Mathf.Max(cooldownV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)cooldownV.AsDouble() : Cooldown, 0.05f);
         // Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
         var cc = GameState.Instance.Cfg("formation_strike_event.craft_counts", CraftCounts);
@@ -110,8 +116,17 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
             CraftCounts = cc.AsGodotDictionary();
         }
 
-        CraftHpBase = (int)GameState.Instance.Cfg("formation_strike_event.craft_hp_base", CraftHpBase).AsInt64();
-        CraftScore = (int)GameState.Instance.Cfg("formation_strike_event.craft_score", CraftScore).AsInt64();
+        // AC8（2026-08-11 健壮性审查）：以下标量键判型 + 语义域钳（判型失败回退脚本
+        // 默认，不抛不崩；当前默认数据行为零变化）——craft_hp_base ≥1（0/负编队机 1 点
+        // 即毁、事件瞬结反复刷全歼奖励）、craft_score/reward_all_clear ≥0（负分倒扣被
+        // 连击放大）、run_speed ≥0.1（≤0 转弯/轰炸/离场悬挂屏内）、bomb_interval ≥0.05
+        // （≤0 投弹表全 0 同帧轰炸风暴）、bomb_fall_speed ≥0.1（≤0 炸弹悬停不落地）、
+        // bomb_fuse ≥0.05（≤0 炸弹瞬爆/无爆炸判定）、bomb_damage ≥0（负值回血）、
+        // bomb_radius ≥0.1（≤0 爆炸永不命中）
+        var craftHpV = GameState.Instance.Cfg("formation_strike_event.craft_hp_base", CraftHpBase);
+        CraftHpBase = Mathf.Max(craftHpV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftHpV.AsInt64() : CraftHpBase, 1);
+        var craftScoreV = GameState.Instance.Cfg("formation_strike_event.craft_score", CraftScore);
+        CraftScore = Mathf.Max(craftScoreV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftScoreV.AsInt64() : CraftScore, 0);
         // Q15（2026-08-05）：approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
         // 波次暂停常驻 → 普通波次与 Boss 调度全冻结
         ApproachSpeed = Mathf.Max(
@@ -121,14 +136,23 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
         TurnTime = Mathf.Max(
             (float)GameState.Instance.Cfg("formation_strike_event.turn_time", TurnTime).AsDouble(), 0.05f);
-        RunSpeed = (float)GameState.Instance.Cfg("formation_strike_event.run_speed", RunSpeed).AsDouble();
-        BombInterval = (float)GameState.Instance.Cfg("formation_strike_event.bomb_interval", BombInterval).AsDouble();
-        BombsPerCraft = (int)GameState.Instance.Cfg("formation_strike_event.bombs_per_craft", BombsPerCraft).AsInt64();
-        BombFallSpeed = (float)GameState.Instance.Cfg("formation_strike_event.bomb_fall_speed", BombFallSpeed).AsDouble();
-        BombFuse = (float)GameState.Instance.Cfg("formation_strike_event.bomb_fuse", BombFuse).AsDouble();
-        BombDamage = (int)GameState.Instance.Cfg("formation_strike_event.bomb_damage", BombDamage).AsInt64();
-        BombRadius = (float)GameState.Instance.Cfg("formation_strike_event.bomb_radius", BombRadius).AsDouble();
-        RewardAllClear = (int)GameState.Instance.Cfg("formation_strike_event.reward_all_clear", RewardAllClear).AsInt64();
+        var runSpeedV = GameState.Instance.Cfg("formation_strike_event.run_speed", RunSpeed);
+        RunSpeed = Mathf.Max(runSpeedV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)runSpeedV.AsDouble() : RunSpeed, 0.1f);
+        var bombIntervalV = GameState.Instance.Cfg("formation_strike_event.bomb_interval", BombInterval);
+        BombInterval = Mathf.Max(bombIntervalV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombIntervalV.AsDouble() : BombInterval, 0.05f);
+        // AC8：bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
+        var bombsV = GameState.Instance.Cfg("formation_strike_event.bombs_per_craft", BombsPerCraft);
+        BombsPerCraft = Mathf.Clamp(bombsV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)bombsV.AsInt64() : BombsPerCraft, 1, 20);
+        var bombFallV = GameState.Instance.Cfg("formation_strike_event.bomb_fall_speed", BombFallSpeed);
+        BombFallSpeed = Mathf.Max(bombFallV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombFallV.AsDouble() : BombFallSpeed, 0.1f);
+        var bombFuseV = GameState.Instance.Cfg("formation_strike_event.bomb_fuse", BombFuse);
+        BombFuse = Mathf.Max(bombFuseV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombFuseV.AsDouble() : BombFuse, 0.05f);
+        var bombDmgV = GameState.Instance.Cfg("formation_strike_event.bomb_damage", BombDamage);
+        BombDamage = Mathf.Max(bombDmgV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)bombDmgV.AsInt64() : BombDamage, 0);
+        var bombRadiusV = GameState.Instance.Cfg("formation_strike_event.bomb_radius", BombRadius);
+        BombRadius = Mathf.Max(bombRadiusV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombRadiusV.AsDouble() : BombRadius, 0.1f);
+        var rewardV = GameState.Instance.Cfg("formation_strike_event.reward_all_clear", RewardAllClear);
+        RewardAllClear = Mathf.Max(rewardV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)rewardV.AsInt64() : RewardAllClear, 0);
         _comm = new CommOverlay();
         AddChild(_comm);
         // K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
@@ -228,7 +252,9 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         // 2026-08-10 健壮性审查：难度键条目值判型（Q14 只判容器层）——坏值 AsInt64 抛
         // InvalidCastException 崩溃，回退默认 4
         var craftV = CraftCounts.GetValueOrDefault(difficulty, new Variant());
-        var count = craftV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftV.AsInt64() : 4;
+        // AC8（2026-08-11 健壮性审查）：craft_counts 条目值域钳 [1,5]（对齐 EliteTurretEvent
+        // turret_counts 口径）——巨值生成海量战机节点 OOM/软锁、0/负空跑（占波次槽无实体）
+        var count = Mathf.Clamp(craftV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftV.AsInt64() : 4, 1, 5);
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
         var hp = Mathf.Max(
             1,
@@ -456,7 +482,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         }
     }
 
-    /// <summary>击坠：单机得分（add_score 内乘难度倍率）；全歼 → 全歼奖励 + 提前离场。</summary>
+    /// <summary>击坠：单机得分走 AddKillScore（连击+1、乘区放大后照常过难度倍率，第 1 杀乘区 1.0）；
+    /// 全歼 → 全歼奖励 AddScore（不计连击）+ 提前离场。</summary>
     private void OnCraftDied(FormationCraft craft, int index)
     {
         if (index >= 0 && index < _crafts.Count

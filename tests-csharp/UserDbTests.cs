@@ -356,4 +356,68 @@ public sealed class UserDbTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void AC21_LastLoginOrderMaxValue_RecordLoginNoOverflow()
+    {
+        // AC21（2026-08-11 第九轮审计）：手改 last_login_order = long.MaxValue → RecordLogin
+        // 递增 +1 曾回绕 long.MinValue（负值落盘 + 排序垫底）；读值钳 ≥0 + 递增防溢出后
+        // 保持原值、落盘值不变量（非负、无回绕）
+        var db = NewDb(out var dir, out var usersPath);
+        try
+        {
+            File.WriteAllText(
+                usersPath,
+                """{"_users": {"bob": {"last_login_order": 9223372036854775807}, "alice": {"last_login_order": 5}}, "_leaderboard": []}""");
+            db.RecordLogin("bob");
+            Assert.Equal(long.MaxValue, (long)db.GetUserData("bob")["last_login_order"]!); // maxOrder 已达 long.MaxValue → 保持原值不回绕
+            db.RecordLogin("alice");
+            Assert.Equal(long.MaxValue, (long)db.GetUserData("alice")["last_login_order"]!); // maxOrder 钳至 long.MaxValue → 其余用户递增同样不回绕
+            Assert.Equal(["alice", "bob"], db.ListUsernames()); // 排序正常（并列 MaxValue 按名字典序）
+            var db2 = new UserDb(usersPath);
+            Assert.Equal(long.MaxValue, (long)db2.GetUserData("bob")["last_login_order"]!); // 落盘值不变量：重载后仍为 long.MaxValue
+            Assert.Equal(long.MaxValue, (long)db2.GetUserData("alice")["last_login_order"]!); // 落盘值不变量：无回绕负值
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AC24_HugeSeq_SubmitScoreNoOverflow()
+    {
+        // AC24（2026-08-11 第九轮审计）：手改 _seq 巨值 → SubmitScore 曾 +1 回绕/负数化
+        // （新条目负 seq → 排序破坏）；读值钳 ≥0 + 递增防溢出后不溢出、排序不破坏
+        var db = NewDb(out var dir, out var usersPath);
+        try
+        {
+            // 9.2e18（double 域，2^63 以下可精确表示）→ 读值 9200000000000000000，+1 后仍为正且递增
+            File.WriteAllText(
+                usersPath,
+                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [], "_seq": 9.2e18}""");
+            Assert.Equal(1L, db.SubmitScore("alice", 100));
+            var board = db.GetLeaderboard();
+            Assert.Equal(9_200_000_000_000_000_001L, (long)((Dictionary<string, object?>)board[0]!)["seq"]!); // seq 为正且 +1 未溢出
+            Assert.Equal(2L, db.SubmitScore("bob", 100));
+            board = db.GetLeaderboard();
+            Assert.Equal("alice", (string)((Dictionary<string, object?>)board[0]!)["player_name"]!); // 排序不破坏：同分先到先得（seq 升序）
+            Assert.Equal("bob", (string)((Dictionary<string, object?>)board[1]!)["player_name"]!);
+
+            // 边界：_seq = long.MaxValue（整数域）→ 递增必须防溢出（曾 +1 回绕 long.MinValue → 新条目排最前）
+            File.WriteAllText(
+                usersPath,
+                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [{"player_name": "bob", "score": 100, "seq": 5}], "_seq": 9223372036854775807}""");
+            db.Reload();
+            Assert.Equal(2L, db.SubmitScore("alice", 100)); // seq 钳至 long.MaxValue：新条目排在同分旧条目后（先到先得）
+            board = db.GetLeaderboard();
+            Assert.Equal(long.MaxValue, (long)((Dictionary<string, object?>)board[1]!)["seq"]!); // seq 不溢出（保持 long.MaxValue）
+            Assert.DoesNotContain("-9223372036854775808", File.ReadAllText(usersPath)); // 落盘 _seq 不出现回绕负值
+            Assert.Equal(3L, db.SubmitScore("carol", 50)); // 连续提交仍正常（seq 保持钳制值）
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

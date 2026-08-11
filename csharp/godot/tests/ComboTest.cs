@@ -106,6 +106,36 @@ public partial class ComboTest : Node
             await Coroutine.WaitSeconds(this, 3.3); // 窗口 3.0s，留 0.3s 余量
             Check(gs.Combo == 0, "用例7：窗口超时断连");
 
+            // ================= 用例 8：巨值 step/max_mult 钳制（AC1，2026-08-11 健壮性审查） =================
+            // 手改 scoring.combo.step/max_mult 巨值 → 乘区巨值在 (long) 乘算下溢出回绕为负；
+            // 上界钳 [0,1e3]/[1,1e3] 后分数有界不巨负。改 balance.json 注入（BalanceTest 同款模式）
+            var originalBalance = Godot.FileAccess.GetFileAsString(gs.BALANCE_PATH);
+            var cfgFile = Godot.FileAccess.Open(gs.BALANCE_PATH, Godot.FileAccess.ModeFlags.Write);
+            cfgFile.StoreString(Json.Stringify(new Godot.Collections.Dictionary
+            {
+                ["scoring"] = new Godot.Collections.Dictionary
+                {
+                    ["combo"] = new Godot.Collections.Dictionary { ["step"] = 1e18, ["max_mult"] = 1e18 },
+                },
+            }));
+            cfgFile.Close();
+            gs.ReloadBalance();
+            Check(gs.ComboStep <= 1e3, "用例8：巨值 step 钳入 [0, 1e3]");
+            Check(gs.ComboMaxMult <= 1e3, "用例8：巨值 max_mult 钳入 [1, 1e3]");
+            gs.Score = 0;
+            gs.ResetCombo();
+            for (int i = 0; i < 100; i++)
+            {
+                gs.AddKillScore(1); // 小块击杀分：连击推进不跨里程碑（避免 Buff 面板暂停干扰）
+            }
+
+            Check(gs.Combo == 100 && Mathf.IsEqualApprox(gs.ComboMultiplier(), 1e3), "用例8：钳制后乘区封顶 1e3 连击仍增长");
+            Check(gs.Score >= 0 && gs.Score < 1_000_000, "用例8：分数有界不巨负");
+            cfgFile = Godot.FileAccess.Open(gs.BALANCE_PATH, Godot.FileAccess.ModeFlags.Write);
+            cfgFile.StoreString(originalBalance);
+            cfgFile.Close();
+            gs.ReloadBalance(); // 恢复默认配置（收尾清理不受影响）
+
             foreach (var child in main.GetChildren())
             {
                 if (child is Bullet)

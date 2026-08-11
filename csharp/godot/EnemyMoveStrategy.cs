@@ -65,13 +65,17 @@ public abstract class EnemyMoveStrategy
 
     protected static float GetFloat(Godot.Collections.Dictionary p, StringName key, float fallback)
     {
-        return p.ContainsKey(key) ? (float)p[key].AsDouble() : fallback;
+        // AC5（2026-08-11 审计）：判型——非 Int/Float 键（String/Vector 等）回退脚本默认，不抛不崩
+        //（FakeEnemiesEvent.cs:31-32 FogNum 同族先例）
+        if (!p.ContainsKey(key) || p[key].VariantType is not (Variant.Type.Int or Variant.Type.Float))
+        {
+            return fallback;
+        }
+
+        return (float)p[key].AsDouble();
     }
 
-    protected static bool GetBool(Godot.Collections.Dictionary p, StringName key, bool fallback)
-    {
-        return p.ContainsKey(key) ? p[key].AsBool() : fallback;
-    }
+    // AC5（2026-08-11 审计）：GetBool 无任何调用方（全仓 grep 仅定义处），删除死代码
 
     public abstract void Update(float delta, Enemy enemy, MoveCtx ctx);
 
@@ -323,7 +327,8 @@ public sealed class NoiseMove : EnemyMoveStrategy
         ReadArrays(p);
     }
 
-    /// <summary>Q29/R07：freqs/phases 数组长度 ≥3 才覆盖，坏值回退默认。</summary>
+    /// <summary>Q29/R07：freqs/phases 数组长度 ≥3 才覆盖，坏值回退默认。
+    /// AC5（2026-08-11 审计）：数组元素逐位判型——非 Int/Float 元素回退该位脚本默认，不抛不崩。</summary>
     private void ReadArrays(Godot.Collections.Dictionary p)
     {
         if (p.ContainsKey("freqs") && p["freqs"].VariantType == Variant.Type.Array)
@@ -331,9 +336,20 @@ public sealed class NoiseMove : EnemyMoveStrategy
             var arr = p["freqs"].AsGodotArray();
             if (arr.Count >= 3)
             {
-                _freqs[0] = (float)arr[0].AsDouble();
-                _freqs[1] = (float)arr[1].AsDouble();
-                _freqs[2] = (float)arr[2].AsDouble();
+                if (arr[0].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[0] = (float)arr[0].AsDouble();
+                }
+
+                if (arr[1].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[1] = (float)arr[1].AsDouble();
+                }
+
+                if (arr[2].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[2] = (float)arr[2].AsDouble();
+                }
             }
         }
 
@@ -342,9 +358,20 @@ public sealed class NoiseMove : EnemyMoveStrategy
             var arr = p["phases"].AsGodotArray();
             if (arr.Count >= 3)
             {
-                _phases[0] = (float)arr[0].AsDouble();
-                _phases[1] = (float)arr[1].AsDouble();
-                _phases[2] = (float)arr[2].AsDouble();
+                if (arr[0].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[0] = (float)arr[0].AsDouble();
+                }
+
+                if (arr[1].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[1] = (float)arr[1].AsDouble();
+                }
+
+                if (arr[2].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[2] = (float)arr[2].AsDouble();
+                }
             }
         }
     }
@@ -394,9 +421,21 @@ public sealed class AggressiveMove : EnemyMoveStrategy
             var arr = p["freqs"].AsGodotArray();
             if (arr.Count >= 3)
             {
-                _freqs[0] = (float)arr[0].AsDouble();
-                _freqs[1] = (float)arr[1].AsDouble();
-                _freqs[2] = (float)arr[2].AsDouble();
+                // AC5（2026-08-11 审计）：元素级判型——坏值回退该位脚本默认，不抛不崩（同 NoiseMove.ReadArrays）
+                if (arr[0].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[0] = (float)arr[0].AsDouble();
+                }
+
+                if (arr[1].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[1] = (float)arr[1].AsDouble();
+                }
+
+                if (arr[2].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _freqs[2] = (float)arr[2].AsDouble();
+                }
             }
         }
 
@@ -405,9 +444,20 @@ public sealed class AggressiveMove : EnemyMoveStrategy
             var arr = p["phases"].AsGodotArray();
             if (arr.Count >= 3)
             {
-                _phases[0] = (float)arr[0].AsDouble();
-                _phases[1] = (float)arr[1].AsDouble();
-                _phases[2] = (float)arr[2].AsDouble();
+                if (arr[0].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[0] = (float)arr[0].AsDouble();
+                }
+
+                if (arr[1].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[1] = (float)arr[1].AsDouble();
+                }
+
+                if (arr[2].VariantType is Variant.Type.Int or Variant.Type.Float)
+                {
+                    _phases[2] = (float)arr[2].AsDouble();
+                }
             }
         }
     }

@@ -161,11 +161,17 @@ public partial class Spawner : Node
         }
 
         UNLOCK_SCORES = usArr.Count > 0 ? usArr : new Godot.Collections.Array<int> { 0, 300, 800, 1500, 2500 };
-        WAVE_SIZE_START = (int)GameState.Instance.Cfg("spawner.wave_size_start", WAVE_SIZE_START).AsDouble();
-        WAVE_SIZE_END = (int)GameState.Instance.Cfg("spawner.wave_size_end", WAVE_SIZE_END).AsDouble();
-        SPECIAL_GAP_MIN = (int)GameState.Instance.Cfg("spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble();
-        SPECIAL_GAP_MAX = (int)GameState.Instance.Cfg("spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble();
-        REST_WAVES_AFTER_KILL = (int)GameState.Instance.Cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble();
+        // AC17（2026-08-11 健壮性审查）：wave_size 下限钳 1——0/负使 ramp 起点错乱
+        //（WaveSizeInternal 兜底 1 但 Lerp 起点错误，早期波次全被兜成 1 机）；special_gap
+        // 下限 0 + 保序——倒挂时 GD.RandRange 交换参数、实际区间 [max,min] 比配置更小，
+        // 每个普通波都可能出精英波；rest_waves_after_kill 下限 0——负值休整计数
+        // -负值=正、击杀后特殊槽间隔反而缩短（休整语义失效）
+        WAVE_SIZE_START = Mathf.Max((int)GameState.Instance.Cfg("spawner.wave_size_start", WAVE_SIZE_START).AsDouble(), 1);
+        WAVE_SIZE_END = Mathf.Max((int)GameState.Instance.Cfg("spawner.wave_size_end", WAVE_SIZE_END).AsDouble(), 1);
+        SPECIAL_GAP_MIN = Mathf.Max((int)GameState.Instance.Cfg("spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble(), 0);
+        SPECIAL_GAP_MAX = Mathf.Max((int)GameState.Instance.Cfg("spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble(), 0);
+        SPECIAL_GAP_MAX = Mathf.Max(SPECIAL_GAP_MAX, SPECIAL_GAP_MIN); // AC17：保序——倒挂区间翻转 → 精英波过频
+        REST_WAVES_AFTER_KILL = Mathf.Max((int)GameState.Instance.Cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble(), 0);
         // AB5：elite_wave_size 钳下限 1（WaveSizeInternal 同族口径）——0/负使精英波循环
         // 不执行、特殊槽静默吞掉
         ELITE_WAVE_SIZE = Mathf.Max((int)GameState.Instance.Cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble(), 1);
@@ -604,7 +610,9 @@ public partial class Spawner : Node
 
     public void SetFormationEvent(Node? eventNode) => _formation = eventNode;
 
-    public void SetElapsed(float seconds) => _elapsed = seconds;
+    // AC15 兜底（2026-08-11 健壮性审查）：第二入口钳 [0, 1e6]——任何调用方传 +Inf/负值都会
+    // 污染波次节奏/难度 ramp 并随存档落盘（Main.OnContinueRun 已钳，此处双保险）
+    public void SetElapsed(float seconds) => _elapsed = Mathf.Clamp(seconds, 0.0f, 1e6f);
 
     /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化）。</summary>
     public void SpawnBoss(int pType = 0) => SpawnBossInternal(pType);

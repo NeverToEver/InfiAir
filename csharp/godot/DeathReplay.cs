@@ -41,7 +41,8 @@ public partial class DeathReplay : RefCounted
     /// 门控到每物理帧至多采样一次（Bullet.CachedViewRect 同款帧缓存模式）。</summary>
     private ulong _lastRecordFrame = ulong.MaxValue;
 
-    /// <summary>P0-1：敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，
+    /// <summary>P0-1：敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，零拷贝）。
+    /// AC16（2026-08-11 审计）：补全被截断的 XML summary（AB21 同族）。</summary>
     private Godot.Collections.Array _bulletRegistry = new();
 
     /// <summary>开始录制（main 新对局入口调用；幂等——重复调用清缓冲重录）</summary>

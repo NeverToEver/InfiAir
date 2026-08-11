@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace InfiAir;
@@ -58,9 +59,12 @@ public partial class EnrageSequence : RefCounted
 
     // A3 收敛：狂暴各阶段机型处理器注册表（boss_type → 处理器，_init 装配）。
     // 新增机型只需注册一行 + 一个处理器方法，不再改 update/_begin_release_hold 的 match（O 原则达成）。
-    private readonly Godot.Collections.Dictionary<int, Callable> _activeHandlers = new();
-    private readonly Godot.Collections.Dictionary<int, Callable> _releaseHandlers = new();
-    private readonly Godot.Collections.Dictionary<int, Callable> _releaseBeginHandlers = new();
+    // AC10（2026-08-11 健壮性审查）：注册表 Callable → System.Action 直调（BossMovement.cs:44-54
+    // 同款先例）——狂暴期每物理帧 TryGetValue 后 Call 走 Godot 动态派发（委托包装/跨边界开销），
+    // 改 Action 委托直调零分配；注册/查询公开接口签名不变，行为逐字节等价
+    private readonly Dictionary<int, System.Action<float, Boss>> _activeHandlers = new();
+    private readonly Dictionary<int, System.Action<float, Boss>> _releaseHandlers = new();
+    private readonly Dictionary<int, System.Action<Boss>> _releaseBeginHandlers = new();
 
     // A3 机型参数表：TRANSITION 阶段悬停原地不滑入轨道（1 型「旋转堡垒」专属）
     private static readonly Godot.Collections.Dictionary<int, bool> TransitionHoverTypes = new()
@@ -92,18 +96,18 @@ public partial class EnrageSequence : RefCounted
 
     public EnrageSequence()
     {
-        _activeHandlers[1] = Callable.From<float, Boss>(ActiveBulwark);
-        _activeHandlers[2] = Callable.From<float, Boss>(ActiveStalker);
-        _activeHandlers[3] = Callable.From<float, Boss>(ActiveHive);
-        _activeHandlers[4] = Callable.From<float, Boss>(ActiveEclipse);
-        _releaseHandlers[1] = Callable.From<float, Boss>(ReleaseBulwark);
-        _releaseHandlers[2] = Callable.From<float, Boss>(ReleaseStalker);
-        _releaseHandlers[3] = Callable.From<float, Boss>(ReleaseHive);
-        _releaseHandlers[4] = Callable.From<float, Boss>(ReleaseEclipse);
-        _releaseBeginHandlers[1] = Callable.From<Boss>(ReleaseBeginBulwark);
-        _releaseBeginHandlers[2] = Callable.From<Boss>(ReleaseBeginStalker);
-        _releaseBeginHandlers[3] = Callable.From<Boss>(ReleaseBeginHive);
-        _releaseBeginHandlers[4] = Callable.From<Boss>(ReleaseBeginEclipse);
+        _activeHandlers[1] = ActiveBulwark;
+        _activeHandlers[2] = ActiveStalker;
+        _activeHandlers[3] = ActiveHive;
+        _activeHandlers[4] = ActiveEclipse;
+        _releaseHandlers[1] = ReleaseBulwark;
+        _releaseHandlers[2] = ReleaseStalker;
+        _releaseHandlers[3] = ReleaseHive;
+        _releaseHandlers[4] = ReleaseEclipse;
+        _releaseBeginHandlers[1] = ReleaseBeginBulwark;
+        _releaseBeginHandlers[2] = ReleaseBeginStalker;
+        _releaseBeginHandlers[3] = ReleaseBeginHive;
+        _releaseBeginHandlers[4] = ReleaseBeginEclipse;
     }
 
     /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
@@ -228,7 +232,7 @@ public partial class EnrageSequence : RefCounted
                 var typeA = boss.BossType;
                 if (_activeHandlers.TryGetValue(typeA, out var activeHandler))
                 {
-                    activeHandler.Call(delta, boss);
+                    activeHandler(delta, boss);
                 }
                 else
                 {
@@ -246,7 +250,7 @@ public partial class EnrageSequence : RefCounted
                 var typeR = boss.BossType;
                 if (_releaseHandlers.TryGetValue(typeR, out var releaseHandler))
                 {
-                    releaseHandler.Call(delta, boss);
+                    releaseHandler(delta, boss);
                 }
                 else
                 {
@@ -450,7 +454,7 @@ public partial class EnrageSequence : RefCounted
         var type = boss.BossType;
         if (_releaseBeginHandlers.TryGetValue(type, out var beginHandler))
         {
-            beginHandler.Call(boss);
+            beginHandler(boss);
         }
         else
         {

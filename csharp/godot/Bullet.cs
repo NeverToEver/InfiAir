@@ -340,8 +340,8 @@ public partial class Bullet : Area2D
         return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
     }
 
-    /// <summary>物理回调内不能直改 monitoring，延迟到帧末；若已被重激活（同帧复用）则跳过。</summary>
-    /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
+    /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
+    /// AC16（2026-08-11 审计）：删除其上孤儿「monitoring 延迟」summary（与 _explode 无关，AB21 同族）。</summary>
     private void _explode()
     {
         var arr = (Godot.Collections.Array)GameState.Instance.Enemies;

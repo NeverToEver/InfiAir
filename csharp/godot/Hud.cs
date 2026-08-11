@@ -930,6 +930,9 @@ public partial class Hud : CanvasLayer
     private void OnLocaleChanged()
     {
         OnScoreChanged(GameState.Instance.Score);
+        // AC20（2026-08-11 健壮性审查）：切语言补刷连击标签——原实现未刷 ComboLabel，
+        // 连击生效中（乘区 >1）切语言后残留旧语言文本
+        OnComboChanged(GameState.Instance.Combo);
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");
@@ -1306,6 +1309,11 @@ public partial class Hud : CanvasLayer
             var entry = entryVariant.AsGodotArray();
             _buffRows.AddChild(MakeBuffRow(entry[0].AsStringName(), (int)entry[1].AsInt64()));
         }
+
+        // AC18（2026-08-11 健壮性审查）：重建末尾重刷 HP 显示——ApplyMetaLoadout 直写 Buffs 只发
+        // BuffsChanged，_cachedMaxHp 已刷新但 _hpBar/_livesLabel 仍用旧 max 显示失真（extra_life
+        // 开局）；OnHealthChanged 幂等，整数档位守卫下值未变不重格式化
+        OnHealthChanged((float)GameState.Instance.Health);
     }
 
     /// <summary>buff 滚动栏开关（L 键路由至此；无 buff 时不展开）。</summary>

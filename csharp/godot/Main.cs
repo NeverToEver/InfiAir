@@ -698,7 +698,9 @@ public partial class Main : Node2D
         var fuelV = data.GetValueOrDefault("fuel", Variant.From(_player.FuelMax));
         _player.SetFuel((float)GameState.Instance.SaveNum(fuelV, _player.FuelMax));
         var elapsedV = data.GetValueOrDefault("elapsed", Variant.From(0.0f));
-        _spawner.SetElapsed((float)GameState.Instance.SaveNum(elapsedV, 0.0f));
+        // AC15（2026-08-11 健壮性审查）：elapsed 钳 [0, 1e6]——+Inf/巨值渗透波次节奏并随存档
+        // 落盘 → SaveRun JsonException → 返航检查点静默失效（AB12 孪生；SetElapsed 内另有兜底）
+        _spawner.SetElapsed(Mathf.Clamp((float)GameState.Instance.SaveNum(elapsedV, 0.0f), 0.0f, 1e6f));
         // D01 印证：continue 后同样存在入场动画窗口（敌机生成延迟由入场序列接管），
         // 与开场 _on_intro_finished / 继续出击 _on_orbital_struck 同构；is_connected 守卫可幂等调用
         StartEntrySequenceInternal();

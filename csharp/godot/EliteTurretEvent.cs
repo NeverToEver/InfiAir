@@ -266,14 +266,15 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     private void OnCarrierEntered()
     {
         // Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
-        //（StrikeCarrier.Sockets 固定 5 槽；R07：注释修正——负数经 clampi 钳 0，
-        // GDScript for 负整数本不迭代，「防负循环」表述失实，钳制仅为与上限对称）。
+        //（StrikeCarrier.Sockets 固定 5 槽）。
         // 2026-08-10：难度键条目值判型（K14 只判容器层）——字符串/数组等坏值 AsInt64 抛
         // InvalidCastException 崩溃（事件触发即崩），坏值回退默认 4
+        // AC13（2026-08-11）：下限 0/负 → 无炮塔事件空跑（30s 倒计时 + BOSS_DELAY 4s，
+        // Boss 冻结/波次暂停共 34s 玩家干等）——钳 [1, Sockets.Length]（Q16 只封上限）
         var diffStr = GameState.Instance.Difficulty.ToString();
         var tcV = TurretCounts.GetValueOrDefault(diffStr, new Variant());
         var rawTotal = tcV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)tcV.AsInt64() : 4;
-        _total = Mathf.Clamp(rawTotal, 0, StrikeCarrier.Sockets.Length);
+        _total = Mathf.Clamp(rawTotal, 1, StrikeCarrier.Sockets.Length);
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
         var hp = Mathf.Max(
             1,
