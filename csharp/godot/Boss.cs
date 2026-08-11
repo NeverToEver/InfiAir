@@ -397,6 +397,12 @@ public partial class Boss : Area2D
         // V 系列：阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害（Q02 同根因）
         Phase2HpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.phase2_hp_ratio", Phase2HpRatio).AsDouble(), 0.01f, 0.99f);
         EnrageHpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.enrage.hp_ratio", EnrageHpRatio).AsDouble(), 0.01f, 0.99f);
+        // AB18：保序修正——P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），
+        // 倒挂配置（phase2=0.2, enrage=0.3）使 P2 段整体跳过、Boss 以 P1 强度直接狂暴且无告警
+        if (Phase2HpRatio <= EnrageHpRatio)
+        {
+            Phase2HpRatio = Mathf.Min(EnrageHpRatio + 0.01f, 0.98f);
+        }
         EnrageRateMult = (float)GameState.Instance.Cfg("boss.enrage.rate_mult", EnrageRateMult).AsDouble();
         EnrageSpeedMult = (float)GameState.Instance.Cfg("boss.enrage.speed_mult", EnrageSpeedMult).AsDouble();
         EnragePlayerSlow = (float)GameState.Instance.Cfg("boss.enrage.player_slow", EnragePlayerSlow).AsDouble();
@@ -531,7 +537,9 @@ public partial class Boss : Area2D
         E1SalvoCount = (int)GameState.Instance.Cfg("boss.enrage.type_1.salvo_count", E1SalvoCount).AsInt64();
         E1SalvoSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_1.salvo_speed", E1SalvoSpeed).AsDouble();
         E1SalvoDamage = (int)GameState.Instance.Cfg("boss.enrage.type_1.salvo_damage", E1SalvoDamage).AsInt64();
-        E2PointCount = (int)GameState.Instance.Cfg("boss.enrage.type_2.point_count", E2PointCount).AsInt64();
+        // AB4：point_count 钳下限 4（同族 count 键 E1RingCount/E3RingCount 等均有 floor，
+        // 独漏此项）——配 0 使 _attackIndex < E2PointCount 恒假，二型狂暴 ACTIVE 冻结
+        E2PointCount = Mathf.Max((int)GameState.Instance.Cfg("boss.enrage.type_2.point_count", E2PointCount).AsInt64(), 4);
         E2PointInterval = Mathf.Max(
             (float)GameState.Instance.Cfg("boss.enrage.type_2.point_interval", E2PointInterval).AsDouble(), 0.05f);
         E2Aim = (float)GameState.Instance.Cfg("boss.enrage.type_2.aim", E2Aim).AsDouble();
@@ -962,7 +970,8 @@ public partial class Boss : Area2D
             if (_fireTimer <= 0.0f)
             {
                 var pattern = CurrentPattern();
-                _fireTimer = (float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble();
+                // AB3：运行期兜底——interval 钳下限 0.05（装入清洗外的入口防每帧攻击风暴）
+                _fireTimer = Mathf.Max((float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble(), 0.05f);
                 _attacks.Execute((StringName)pattern.GetValueOrDefault("attack", new StringName()), this);
                 if (!_patternIsDuration)
                 {
@@ -1021,7 +1030,8 @@ public partial class Boss : Area2D
             _patternLeft = (float)pattern.GetValueOrDefault("waves", 1).AsInt64();
         }
 
-        _fireTimer = (float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble();
+        // AB3：运行期兜底——首装同样钳下限（装入清洗外的入口）
+        _fireTimer = Mathf.Max((float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble(), 0.05f);
     }
 
     private void AdvancePattern()
@@ -1116,7 +1126,14 @@ public partial class Boss : Area2D
             {
                 if (raw.VariantType == Variant.Type.Dictionary)
                 {
-                    cleaned.Add(raw.AsGodotDictionary().Duplicate(true));
+                    var pat = raw.AsGodotDictionary().Duplicate(true);
+                    // AB3：装入时清洗 interval 下限（R06 口径 0.05）——≤0 使 _fireTimer 每帧重装
+                    // 即触发攻击（波次模式 1 帧烧 1 波、时长模式连射至弹上限）
+                    if (pat.GetValueOrDefault("interval", new Variant()).VariantType is Variant.Type.Int or Variant.Type.Float)
+                    {
+                        pat["interval"] = Mathf.Max((float)pat["interval"].AsDouble(), 0.05f);
+                    }
+                    cleaned.Add(pat);
                 }
             }
 

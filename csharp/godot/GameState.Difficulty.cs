@@ -116,8 +116,11 @@ public partial class GameState : Node
         return _spawnIntervalMult;
     }
 
-    /// <summary>spread 弹种敌机同屏上限（easy 1 / medium 2 / hard 3）</summary>
-    public int SpreadEnemyCap() => (int)DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["spread_cap"].AsInt64();
+    /// <summary>spread 弹种敌机同屏上限（easy 1 / medium 2 / hard 3）。
+    /// AB15：钳 [0, int.MaxValue]（同文件 ScoreMultiplier 已钳，孪生遗漏）——手改 >2^31
+    /// 经裸 (int) 回绕负 → spread 敌机同屏上限恒负、整类玩法消失。</summary>
+    public int SpreadEnemyCap() => (int)Math.Clamp(
+        DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["spread_cap"].AsInt64(), 0L, (long)int.MaxValue);
 
     /// <summary>被动回血：距上次受伤 regen_delay 秒起每秒回 regen_rate HP（对齐原作 HEALTH_REGEN）
     /// P0-2：档位值在难度变更/重新加载时缓存，热路径免双层字典查找</summary>

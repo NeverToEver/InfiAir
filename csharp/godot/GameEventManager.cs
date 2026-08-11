@@ -193,6 +193,10 @@ public partial class GameEventManager : Node
         if (!active)
         {
             EndFog();
+            // AB10：遭遇活跃态一并复位（防场景重入残留 → 对从未 start 的新实例广播幽灵
+            // EventEnded + 首帧 ForceTrigger 被拒触发）
+            _encounterActiveId = EmptyId;
+            _encounterEndPending.Clear();
             return;
         }
 
@@ -469,6 +473,9 @@ public partial class GameEventManager : Node
 
     public override void _Process(double delta)
     {
+        // AB20：autoload _Process 帧序在 main 场景 Spawner 之前——同帧 Boss/遭遇竞态
+        // 由事件先启动（SetBossFrozen(true)），Boss 推迟至事件结束 + boss_resume_delay，
+        // 仍保证触发不累积（见 docs/ELITE_TURRET_EVENT.md §6.3 实际行为口径）
         var d = (float)delta;
         PollEncounters();
         // fog 组（未接线前惰性，避免与旧 FogEventManager 双驱动）
@@ -647,6 +654,15 @@ public partial class GameEventManager : Node
 
     /// <summary>加权随机选 fog 事件（weights 缺键回退 1.0；注册表为空返回空；
     /// P4：全零权重退化为均匀随机——原实现恒选首个（roll=0 立即命中第一项））。</summary>
+    /// <summary>AB9：条目级判型（FakeEnemiesEvent 同族口径）——fog weights/durations 坏值
+    /// （字符串/数组）回退默认，不抛 InvalidCastException（2026-08-10 批次只修了
+    /// FakeEnemiesEvent/遭遇事件难度键，此处为孪生遗漏）。</summary>
+    private static double FogNum(Godot.Collections.Dictionary dict, StringName key, double def)
+    {
+        var v = dict.GetValueOrDefault(key, def);
+        return v.VariantType is Variant.Type.Int or Variant.Type.Float ? v.AsDouble() : def;
+    }
+
     private StringName PickFogId()
     {
         var ids = new Godot.Collections.Array<StringName>();
@@ -667,7 +683,7 @@ public partial class GameEventManager : Node
         var total = 0.0f;
         foreach (var id in ids)
         {
-            total += Mathf.Max((float)FOG_WEIGHTS.GetValueOrDefault(id, 1.0).AsDouble(), 0.0f);
+            total += Mathf.Max((float)FogNum(FOG_WEIGHTS, id, 1.0), 0.0f);
         }
 
         if (total <= 0.0f)
@@ -678,7 +694,7 @@ public partial class GameEventManager : Node
         var roll = GD.Randf() * total;
         foreach (var id in ids)
         {
-            roll -= Mathf.Max((float)FOG_WEIGHTS.GetValueOrDefault(id, 1.0).AsDouble(), 0.0f);
+            roll -= Mathf.Max((float)FogNum(FOG_WEIGHTS, id, 1.0), 0.0f);
             if (roll <= 0.0f)
             {
                 return id;
@@ -709,7 +725,7 @@ public partial class GameEventManager : Node
         }
 
         _fogActiveEvent = ev;
-        var duration = Mathf.Max((float)FOG_EVENT_DURATIONS.GetValueOrDefault(pId, 6.0).AsDouble(), 0.05f);
+        var duration = Mathf.Max((float)FogNum(FOG_EVENT_DURATIONS, pId, 6.0), 0.05f);
         if (_fogTimer != null && GodotObject.IsInstanceValid(_fogTimer))
         {
             _fogTimer.Stop(); // 防御：异常时序下的旧 timer 残留

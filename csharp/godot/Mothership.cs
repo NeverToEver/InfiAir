@@ -235,7 +235,9 @@ public partial class Mothership : Area2D
         // 2026-08-10 健壮性审查：mag_cells 钳下限 1——0 时 EarlyDepart/StartReleaseInternal 的
         // _magCells/MagCells 除零得 NaN，经 _prefill 传入 DepartCooldown 冷却信号使母舰冷却静默失效
         MagCells = Mathf.Max((int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64(), 1);
-        MagCellTime = (float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble();
+        // AB7：mag_cell_time 钳下限 0.05（MagCells 同批孪生遗漏）——≤0 时 _magCellTimer ≥ 恒真
+        // 每帧耗 1 格，STAY 驻留瞬结、警告/提前离舰路径失效
+        MagCellTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble(), 0.05f);
         MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
         WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
         // 2026-08-10 健壮性审查：early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰

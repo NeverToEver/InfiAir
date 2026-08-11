@@ -143,7 +143,9 @@ public partial class GameState : Node
             Health = MaxHealth();
         }
 
-        RunTime = SaveNum(data.GetValueOrDefault("elapsed", 0.0), 0.0);
+        // AB12：elapsed 钳 [0, 1e6]（≈11.6 天，远超合理对局时长）——SaveNum 仅判型无上界，
+        // 手改超大值经 (long) 未定义转换得 long.MinValue 使难度乘数巨负，击穿单调不减防线
+        RunTime = Math.Clamp(SaveNum(data.GetValueOrDefault("elapsed", 0.0), 0.0), 0.0, 1e6);
         // 难度乘数按曲线从 boss_kills + run_time 重算（旧档的 difficulty_multiplier 字段仅作读入兼容）
         RecomputeDifficultyInternal();
         Rp = SaveInt(data.GetValueOrDefault("rp", 0), 0);
@@ -216,6 +218,9 @@ public partial class GameState : Node
         CtrlToggleMode = SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
         ShiftToggleMode = SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
         TouchControls = SaveBool(data.GetValueOrDefault("touch_controls", TouchControls), TouchControls);
+        // AB14：恢复值回流 VirtualControls——存档恢复只写内存字段不广播，启用态与设置页脱钩
+        // （Ctrl/Shift 直读字段不受影响，唯独触屏有状态缓存消费方；与 :134 BuffsChanged 同款发射）
+        EmitSignal(SignalName.TouchControlsChanged, TouchControls);
         // 里程碑曲线：恢复到大于当前分数的第一档（2026-08-07 批量推进迁移 C# 侧——
         // CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；
         // 原逐档跨语言往返的 while 循环删除，存档恢复路径不再每档一次 GDScript 求值）
@@ -567,7 +572,9 @@ public partial class GameState : Node
             var lines = new List<string>();
             for (var i = 0; i < Mathf.Min(limit, board.Count); i++)
             {
-                lines.Add(GdFormat.Format("%d. %d", i + 1, (int)board[i].AsGodotDictionary()["score"].AsInt64()));
+                // AB17：显示处钳制（双保险）——core 已归一化，此处防未来其他入口绕过 (int) 回绕
+                lines.Add(GdFormat.Format("%d. %d", i + 1,
+                    (int)Math.Clamp(board[i].AsGodotDictionary()["score"].AsInt64(), 0L, (long)int.MaxValue)));
             }
 
             return string.Join("\n", lines);

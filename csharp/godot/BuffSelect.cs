@@ -159,13 +159,32 @@ public partial class BuffSelect : CanvasLayer
 
         var gs = GameState.Instance;
         var dw = GameState.Instance.Cfg("buffs.dynamic_weight", new Godot.Collections.Dictionary()).AsGodotDictionary();
-        var enabled = dw.GetValueOrDefault("enabled", true).AsBool();
-        var hpRatio = Mathf.Clamp(dw.GetValueOrDefault("hp_ratio", 0.5).AsDouble(), 0.0, 1.0);
-        var weight = Mathf.Max(dw.GetValueOrDefault("weight", 2.0).AsDouble(), 1.0);
+        // AB2：条目级判型（C16 存档口径移植）——字符串 "false" 按 GDScript bool() 语义为 true，
+        // 坏值一律回退设计默认（防保底+加权静默失效）
+        var enabledV = dw.GetValueOrDefault("enabled", true);
+        var enabled = enabledV.VariantType == Variant.Type.Bool ? enabledV.AsBool() : true;
+        var hpRatioV = dw.GetValueOrDefault("hp_ratio", 0.5);
+        var hpRatio = hpRatioV.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? Mathf.Clamp(hpRatioV.AsDouble(), 0.0, 1.0) : 0.5;
+        var weightV = dw.GetValueOrDefault("weight", 2.0);
+        var weight = weightV.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? Mathf.Max(weightV.AsDouble(), 1.0) : 2.0;
         var defIds = new Godot.Collections.Array<StringName>();
-        foreach (var v in dw.GetValueOrDefault("ids", new Godot.Collections.Array()).AsGodotArray())
+        var idsV = dw.GetValueOrDefault("ids", new Godot.Collections.Array());
+        if (idsV.VariantType == Variant.Type.Array)
         {
-            defIds.Add(v.AsStringName());
+            foreach (var v in idsV.AsGodotArray())
+            {
+                if (v.VariantType == Variant.Type.String)
+                {
+                    defIds.Add(v.AsStringName());
+                }
+            }
+        }
+        if (defIds.Count == 0)
+        {
+            // 缺键/坏值回退设计默认（与 data/balance.json buffs.dynamic_weight.ids 一致）
+            defIds.Add("extra_life"); defIds.Add("regen"); defIds.Add("armor"); defIds.Add("shield"); defIds.Add("evasion");
         }
 
         var lowHp = enabled && gs.Health < gs.MaxHealth() * hpRatio;

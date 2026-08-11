@@ -46,16 +46,19 @@ public partial class Starfield : Node2D
         ZIndex = -10;
         // R07：判型 + 非负钳制（L 系列判型族登记遗留）——字符串/负数手改配置不崩、不做负尺寸 resize
         // U03（2026-08-09 审计）：M7d 漏改的 Call("cfg") → typed（原动态调用已不存在，配置静默失效 + 每局 4 条引擎错误）
+        // AB16：count 钳 [0, 4096]（默认 140/90；上界防手改巨值 OOM——new Vector2[1e9] ≈ 24GB 启动即崩，
+        // >2^31 还经 (int) 回绕负）
+        const long MaxCount = 4096;
         var fc = GameState.Instance.Cfg("effects.starfield.far_count", _farCount);
         if (fc.VariantType == Variant.Type.Int && fc.AsInt64() >= 0)
         {
-            _farCount = (int)fc.AsInt64();
+            _farCount = (int)Math.Min(fc.AsInt64(), MaxCount);
         }
 
         var nc = GameState.Instance.Cfg("effects.starfield.near_count", _nearCount);
         if (nc.VariantType == Variant.Type.Int && nc.AsInt64() >= 0)
         {
-            _nearCount = (int)nc.AsInt64();
+            _nearCount = (int)Math.Min(nc.AsInt64(), MaxCount);
         }
 
         var fs = GameState.Instance.Cfg("effects.starfield.far_speed", _farSpeed);

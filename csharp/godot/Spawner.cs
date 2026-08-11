@@ -140,8 +140,9 @@ public partial class Spawner : Node
         // L06 同族延续：boss_score_step 下限钳制——配 ≤0 时 _nextBossScore 不推进
         // （line 454 += 步长 ≤0），Boss 轮换/休整编排失效
         BOSS_SCORE_STEP = Mathf.Max((int)GameState.Instance.Cfg("spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble(), 1);
-        BOSS_MIN_INTERVAL = (float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble();
-        BOSS_TIME_LIMIT = (float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble();
+        // AB6：时间兜底 ≤0 时 Boss 无限连出（_bossTimer≥0 恒满足）；分数门负值恒真——钳下限（L06 口径）
+        BOSS_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble(), 0.0f);
+        BOSS_TIME_LIMIT = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble(), 5.0f);
         DIFFICULTY_FACTOR = (float)GameState.Instance.Cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();
         // C18：cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
         var us = GameState.Instance.Cfg("spawner.unlock_scores", UNLOCK_SCORES);
@@ -165,7 +166,9 @@ public partial class Spawner : Node
         SPECIAL_GAP_MIN = (int)GameState.Instance.Cfg("spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble();
         SPECIAL_GAP_MAX = (int)GameState.Instance.Cfg("spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble();
         REST_WAVES_AFTER_KILL = (int)GameState.Instance.Cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble();
-        ELITE_WAVE_SIZE = (int)GameState.Instance.Cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble();
+        // AB5：elite_wave_size 钳下限 1（WaveSizeInternal 同族口径）——0/负使精英波循环
+        // 不执行、特殊槽静默吞掉
+        ELITE_WAVE_SIZE = Mathf.Max((int)GameState.Instance.Cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble(), 1);
         // G06：嵌套结构判型（对齐 C03/E03 损坏 JSON 回退默认口径）——手改 JSON 使 band 非 2 元素数组时不崩溃
         var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { _hoverBand.X, _hoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
@@ -238,14 +241,24 @@ public partial class Spawner : Node
             }
         }
 
+        // AB8：判型后按键钳值域（对齐 L05/L06 域校验族；坏值回退脚本默认而非覆写）——
+        // fire_interval:0 → 机枪化、score:-100 → 击杀倒扣分、radius:0 → 碰撞半径 0 子弹直穿
         foreach (var k in new[] { "score", "fire", "fire_interval", "scale", "radius" })
         {
             var v = src.GetValueOrDefault(k, new Variant());
             // 2026-08-03 审计（G06 口径对齐）：标量判型——坏值（字符串/数组）会在击杀结算
             // int(score_value) 处报类型错误；非数字整体跳过，回退脚本默认（bool 是 int 子类，排除）
-            if (IsNumber(v))
+            if (!IsNumber(v))
             {
-                dst[k] = v;
+                continue;
+            }
+            switch (k)
+            {
+                case "score": dst[k] = Math.Max(v.AsInt64(), 0L); break;              // AB8：负分倒扣
+                case "fire_interval": dst[k] = Math.Max(v.AsDouble(), 0.05); break;  // AB8：≤0 机枪化
+                case "scale": dst[k] = Math.Max(v.AsDouble(), 0.1); break;           // AB8：0 缩放不可见
+                case "radius": dst[k] = Math.Max(v.AsDouble(), 0.5); break;          // AB8：0 半径子弹直穿
+                default: dst[k] = v; break;                                           // "fire" 布尔原样
             }
         }
     }
