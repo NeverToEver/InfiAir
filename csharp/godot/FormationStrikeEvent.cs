@@ -84,10 +84,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         // FakeEnemiesEvent 条目判型口径——坏值 AsInt64/AsDouble 抛 InvalidCastException
         // 崩溃，判型失败回退脚本默认）——min_score 负值分数 0 即触发；cooldown ≤0
         // 冷却失效、事件结束即刻可再触发（风暴）
-        var minScoreV = GameState.Instance.Cfg("formation_strike_event.min_score", MinScore);
-        MinScore = Mathf.Max(minScoreV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)minScoreV.AsInt64() : MinScore, 0);
-        var cooldownV = GameState.Instance.Cfg("formation_strike_event.cooldown", Cooldown);
-        Cooldown = Mathf.Max(cooldownV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)cooldownV.AsDouble() : Cooldown, 0.05f);
+        MinScore = CfgFx.Int("formation_strike_event.min_score", MinScore, 0);
+        Cooldown = CfgFx.Float("formation_strike_event.cooldown", Cooldown, 0.05f);
         // Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
         var cc = GameState.Instance.Cfg("formation_strike_event.craft_counts", CraftCounts);
@@ -103,36 +101,24 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         // （≤0 投弹表全 0 同帧轰炸风暴）、bomb_fall_speed ≥0.1（≤0 炸弹悬停不落地）、
         // bomb_fuse ≥0.05（≤0 炸弹瞬爆/无爆炸判定）、bomb_damage ≥0（负值回血）、
         // bomb_radius ≥0.1（≤0 爆炸永不命中）
-        var craftHpV = GameState.Instance.Cfg("formation_strike_event.craft_hp_base", CraftHpBase);
-        CraftHpBase = Mathf.Max(craftHpV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftHpV.AsInt64() : CraftHpBase, 1);
-        var craftScoreV = GameState.Instance.Cfg("formation_strike_event.craft_score", CraftScore);
-        CraftScore = Mathf.Max(craftScoreV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftScoreV.AsInt64() : CraftScore, 0);
+        CraftHpBase = CfgFx.Int("formation_strike_event.craft_hp_base", CraftHpBase, 1);
+        CraftScore = CfgFx.Int("formation_strike_event.craft_score", CraftScore, 0);
         // Q15（2026-08-05）：approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
         // 波次暂停常驻 → 普通波次与 Boss 调度全冻结
-        ApproachSpeed = Mathf.Max(
-            (float)GameState.Instance.Cfg("formation_strike_event.approach_speed", ApproachSpeed).AsDouble(), 1.0f);
-        ApproachY = (float)GameState.Instance.Cfg("formation_strike_event.approach_y", ApproachY).AsDouble();
+        ApproachSpeed = CfgFx.Float("formation_strike_event.approach_speed", ApproachSpeed, 1.0f);
+        ApproachY = CfgFx.Float("formation_strike_event.approach_y", ApproachY);
         // 2026-08-10 健壮性审查：turn_time 钳下限——0/负值时 FORMATION_TURN 的
         // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
-        TurnTime = Mathf.Max(
-            (float)GameState.Instance.Cfg("formation_strike_event.turn_time", TurnTime).AsDouble(), 0.05f);
-        var runSpeedV = GameState.Instance.Cfg("formation_strike_event.run_speed", RunSpeed);
-        RunSpeed = Mathf.Max(runSpeedV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)runSpeedV.AsDouble() : RunSpeed, 0.1f);
-        var bombIntervalV = GameState.Instance.Cfg("formation_strike_event.bomb_interval", BombInterval);
-        BombInterval = Mathf.Max(bombIntervalV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombIntervalV.AsDouble() : BombInterval, 0.05f);
+        TurnTime = CfgFx.Float("formation_strike_event.turn_time", TurnTime, 0.05f);
+        RunSpeed = CfgFx.Float("formation_strike_event.run_speed", RunSpeed, 0.1f);
+        BombInterval = CfgFx.Float("formation_strike_event.bomb_interval", BombInterval, 0.05f);
         // AC8：bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
-        var bombsV = GameState.Instance.Cfg("formation_strike_event.bombs_per_craft", BombsPerCraft);
-        BombsPerCraft = Mathf.Clamp(bombsV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)bombsV.AsInt64() : BombsPerCraft, 1, 20);
-        var bombFallV = GameState.Instance.Cfg("formation_strike_event.bomb_fall_speed", BombFallSpeed);
-        BombFallSpeed = Mathf.Max(bombFallV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombFallV.AsDouble() : BombFallSpeed, 0.1f);
-        var bombFuseV = GameState.Instance.Cfg("formation_strike_event.bomb_fuse", BombFuse);
-        BombFuse = Mathf.Max(bombFuseV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombFuseV.AsDouble() : BombFuse, 0.05f);
-        var bombDmgV = GameState.Instance.Cfg("formation_strike_event.bomb_damage", BombDamage);
-        BombDamage = Mathf.Max(bombDmgV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)bombDmgV.AsInt64() : BombDamage, 0);
-        var bombRadiusV = GameState.Instance.Cfg("formation_strike_event.bomb_radius", BombRadius);
-        BombRadius = Mathf.Max(bombRadiusV.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)bombRadiusV.AsDouble() : BombRadius, 0.1f);
-        var rewardV = GameState.Instance.Cfg("formation_strike_event.reward_all_clear", RewardAllClear);
-        RewardAllClear = Mathf.Max(rewardV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)rewardV.AsInt64() : RewardAllClear, 0);
+        BombsPerCraft = CfgFx.Int("formation_strike_event.bombs_per_craft", BombsPerCraft, 1, 20);
+        BombFallSpeed = CfgFx.Float("formation_strike_event.bomb_fall_speed", BombFallSpeed, 0.1f);
+        BombFuse = CfgFx.Float("formation_strike_event.bomb_fuse", BombFuse, 0.05f);
+        BombDamage = CfgFx.Int("formation_strike_event.bomb_damage", BombDamage, 0);
+        BombRadius = CfgFx.Float("formation_strike_event.bomb_radius", BombRadius, 0.1f);
+        RewardAllClear = CfgFx.Int("formation_strike_event.reward_all_clear", RewardAllClear, 0);
         _comm = new CommOverlay();
         AddChild(_comm);
         // K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
