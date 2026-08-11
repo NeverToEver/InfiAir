@@ -164,11 +164,25 @@ public partial class GameState : Node
     /// 无构造依赖（跨域访问统一经 GameState.Instance，运行期单例已就绪），构造器直接实例化。</summary>
     private readonly MissionsService _missions;
 
+    /// <summary>第五轮拆域（2026-08-11）：计分域服务——Score/Kills/BossKills/Combo 状态、连击系统与
+    /// 里程碑推进迁入 ScoreService（GameState.State.cs 为门面转发；跨域经 Instance）。无构造依赖。</summary>
+    private readonly ScoreService _score = new();
+
+    /// <summary>第五轮拆域（2026-08-11）：对局进程域服务——难度档位/倍率缓存/DDA 降档/进程 ramp/
+    /// 里程碑曲线求值迁入 RunProgressionService（GameState.Difficulty.cs 为门面转发；
+    /// _balanceService 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
+    private readonly RunProgressionService _runProg;
+
     public GameState()
     {
         _meta = new MetaService(_userDb);
         _missions = new MissionsService();
+        _runProg = new RunProgressionService(_balanceService);
     }
+
+    /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经
+    /// GameState.Instance 跨域访问原私有字段 _progression 的最小桥（非对局公开 API）。</summary>
+    public ProgressionInterop Progression => _progression;
 
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
@@ -372,6 +386,22 @@ public partial class GameState : Node
 
     private void OnMissionsRouteChosen(StringName line, StringName buffId) => EmitSignal(SignalName.RouteChosen, line, buffId);
 
+    // 计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
+    // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
+    // AddKillScore/ResetCombo，晚于 _Ready 本订阅；ApplyRunSave 直发路径不与之重复）
+    private void OnScoreScoreChanged(int v) => EmitSignal(SignalName.ScoreChanged, v);
+
+    private void OnScoreMilestoneReached(int v) => EmitSignal(SignalName.MilestoneReached, v);
+
+    private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
+
+    // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
+    // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
+    // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill/ApplyRunSave 直发路径不重复）
+    private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, v);
+
+    private void OnRunProgDifficultySelected(StringName v) => EmitSignal(SignalName.DifficultySelected, v);
+
     public override void _Ready()
     {
         LoadBalance();
@@ -389,6 +419,15 @@ public partial class GameState : Node
         _missions.MissionCompleted += OnMissionsMissionCompleted;
         _missions.RefreshPointsChanged += OnMissionsRefreshPointsChanged;
         _missions.RouteChosen += OnMissionsRouteChosen;
+        // 计分域（第五轮拆域）：ScoreService 事件 → 信号转发订阅（触发点均为运行期对局事件，
+        // 晚于 _Ready 本订阅；下方 InitMilestones 不发信号）
+        _score.ScoreChanged += OnScoreScoreChanged;
+        _score.MilestoneReached += OnScoreMilestoneReached;
+        _score.ComboChanged += OnScoreComboChanged;
+        // 对局进程域（第五轮拆域）：RunProgressionService 事件 → 信号转发订阅（触发点均为运行期
+        // 对局事件/玩家操作，晚于 _Ready 本订阅）
+        _runProg.DifficultyChanged += OnRunProgDifficultyChanged;
+        _runProg.DifficultySelected += OnRunProgDifficultySelected;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);
@@ -420,7 +459,7 @@ public partial class GameState : Node
         // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）
         Input.JoyConnectionChanged += OnJoyConnectionChanged;
         DetectJoyLayout();
-        _nextMilestone = MilestoneThreshold(0);
+        _score.InitMilestones(); // 里程碑首档初始化（ScoreService；默认 3000 = MilestoneBase[0]）
         // B 梯队：受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
         PlayerDamaged += OnPlayerDamagedDda;
     }
@@ -437,30 +476,11 @@ public partial class GameState : Node
             SetKindProgress("survive", surviveSec);
         }
 
-        // 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
-        if ((int)Mathf.Floor(RunTime / _progTimeStepSeconds) != _difficultyTimeStep)
-        {
-            if (RecomputeDifficultyInternal())
-            {
-                EmitSignal(SignalName.DifficultyChanged, DifficultyMultiplier);
-            }
-        }
-
-        // DDA 降档计时（受击触发；暂停时 process 冻结，与对局节奏一致）
-        if (_ddaTimer > 0.0)
-        {
-            _ddaTimer -= delta;
-        }
-
-        // 连击窗口计时：窗口内无新击杀 → 超时断连（暂停时冻结，与对局节奏一致）
-        if (_comboTimer > 0.0)
-        {
-            _comboTimer -= delta;
-            if (_comboTimer <= 0.0)
-            {
-                ResetCombo();
-            }
-        }
+        // 第五轮拆域：难度时间档重算 + DDA 计时（RunProgressionService.Tick；DifficultyChanged
+        // 经订阅重发）→ 连击断连计时（ScoreService.Tick；ComboChanged 经订阅重发）——发射顺序与
+        // 拆域前逐位一致（难度档信号先于连击信号）
+        _runProg.Tick(delta);
+        _score.Tick(delta);
     }
 
     public void PlaySfx(AudioStream stream, double volumeDb = 0.0, double pitchScale = 1.0)
