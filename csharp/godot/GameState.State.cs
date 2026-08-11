@@ -9,6 +9,9 @@ namespace InfiAir;
 /// 公开 API 签名/语义不变（测试白盒直写 Score/Kills/BossKills 经 setter 转发零适配）；
 /// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState
 /// 订阅重发（ApplyRunSave 直发路径在 GameState 侧直发同名信号，不重复）。
+/// 健康/Buff 域（Health/Buffs 属性与 _maxHpBase/_maxHpBonus 字段）迁至 CombatStateService
+/// （csharp/godot/CombatStateService.cs），Health/Buffs 属性此处保留转发（测试白盒直读直写零适配）；
+/// AddKill/AddBossKill 击杀编排自 GameState.Settings.cs 移入本文件（对局状态方法归位）。
 /// </summary>
 public partial class GameState : Node
 {
@@ -112,11 +115,14 @@ public partial class GameState : Node
             Mathf.Max(Cfg("scoring.combo.window", _score.ComboWindow).AsDouble(), 0.1),
             Mathf.Clamp(Cfg("scoring.combo.step", _score.ComboStep).AsDouble(), 0.0, 1e3),
             Mathf.Clamp(Cfg("scoring.combo.max_mult", _score.ComboMaxMult).AsDouble(), 1.0, 1e3));
-        _maxHpBase = Mathf.Max(Cfg("player.max_health", _maxHpBase).AsDouble(), 0.1); // H15 同款：≤0 使 max_health 归零/负值，玩家秒死
+        // 第五轮拆域：健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
+        // 与 ScoreService.ApplyComboConfig 同构）——H15 同款：≤0 使 max_health 归零/负值，玩家秒死
         // 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
-        _maxHpBonus = Mathf.Max(Cfg("buffs.extra_life.max_hp_bonus", _maxHpBonus).AsDouble(), 0.0);
         // 2026-08-03 审计：吸血比例缓存（击杀帧免 cfg 路径解析，P0-2 同款）
-        _lifestealFraction = Mathf.Max(Cfg("buffs.lifesteal.max_hp_fraction", 0.1).AsDouble(), 0.0);
+        _combat.ApplyHealthConfig(
+            Mathf.Max(Cfg("player.max_health", _combat.MaxHpBase).AsDouble(), 0.1),
+            Mathf.Max(Cfg("buffs.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
+            Mathf.Max(Cfg("buffs.lifesteal.max_hp_fraction", 0.1).AsDouble(), 0.0));
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
@@ -336,8 +342,8 @@ public partial class GameState : Node
     public int BossKills { get => _score.BossKills; set => _score.BossKills = value; }
 
     /// <summary>玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）。
-    /// double（GDScript float 64 位逐位等价——BaseConsole smoke flake 根因）。</summary>
-    public double Health { get; set; } = 100.0;
+    /// double（GDScript float 64 位逐位等价——BaseConsole smoke flake 根因）——CombatStateService 转发。</summary>
+    public double Health { get => _combat.Health; set => _combat.Health = value; }
 
     /// <summary>难度进程乘数——RunProgressionService 转发。</summary>
     public double DifficultyMultiplier
@@ -381,8 +387,8 @@ public partial class GameState : Node
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
     public bool MouseLock { get; set; } = true;
 
-    /// <summary>buff id -> 已选层数</summary>
-    public Godot.Collections.Dictionary Buffs { get; set; } = new();
+    /// <summary>buff id -> 已选层数——CombatStateService 转发。</summary>
+    public Godot.Collections.Dictionary Buffs { get => _combat.Buffs; set => _combat.Buffs = value; }
 
     /// <summary>对局存活秒数（survive_180 任务进度来源）</summary>
     public double RunTime { get; set; } = 0.0;
@@ -415,18 +421,11 @@ public partial class GameState : Node
     /// <summary>当前连击数（0 = 已断连）——ScoreService 转发。</summary>
     public int Combo => _score.Combo;
 
-    /// <summary>回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存；regen 档位难度变更时刷新。
-    /// 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。
-    /// regen_delay/regen_rate 本体迁 RunProgressionService（PassiveRegenDelay/PassiveRegenRate 转发）。</summary>
-    private double _maxHpBase = 100.0;
-
-    private double _maxHpBonus = 50.0;
-
-
     public void ResetRun()
     {
-        Buffs.Clear();
-        Health = MaxHealth();
+        // 第五轮拆域：健康/Buff 复位改调 CombatStateService（Buffs.Clear + Health=MaxHealth；
+        // 不发事件——BuffsChanged 仍由下方直发收尾，顺序不变）
+        _combat.ResetAll();
         Rp = 0;
         RunTime = 0.0;
         InitMissions();
@@ -444,6 +443,28 @@ public partial class GameState : Node
 
     /// <summary>得分（难度分数倍率统一在此乘算）——ScoreService 转发。</summary>
     public void AddScore(int points) => _score.AddScore(points);
+
+    // ---------------- 击杀编排（2026-08-11 自 GameState.Settings.cs 移入；对局状态方法归位） ----------------
+
+    public void AddKill()
+    {
+        Kills += 1;
+        SetKindProgress("kill", Kills);
+    }
+
+    public void AddBossKill(double scoreScale = 1.0)
+    {
+        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ Missions 域（RP/任务进度）→
+        // 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致（ScoreChanged/MilestoneReached
+        // 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
+        _score.AddBossKill(scoreScale);
+        AddRp(RpBossKillValue);
+        SetKindProgress("boss", BossKills);
+        if (_runProg.RecomputeDifficultyInternal())
+        {
+            EmitSignal(SignalName.DifficultyChanged, DifficultyMultiplier);
+        }
+    }
 
     // ---------------- 击杀连击（2026-08-11；scoring.combo 段） ----------------
 

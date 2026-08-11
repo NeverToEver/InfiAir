@@ -114,33 +114,19 @@ public partial class GameState : Node
         Kills = SaveInt(data.GetValueOrDefault("kills", 0), 0);
         BossKills = SaveInt(data.GetValueOrDefault("boss_kills", 0), 0);
         DifficultyMultiplier = SaveNum(data.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0);
-        Buffs.Clear();
-        var savedBuffs = data.GetValueOrDefault("buffs", new Variant());
-        if (savedBuffs.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var key in savedBuffs.AsGodotDictionary().Keys)
-            {
-                var v = savedBuffs.AsGodotDictionary()[key];
-                if (v.VariantType is Variant.Type.Int or Variant.Type.Float)
-                {
-                    // G013：层数钳制 ≥0（手改存档负层数会破坏 buff_count 逻辑；超大值属手改作弊。
-                    // 注：add_buff 本身无 max_stacks 钳制——上限约束在 buff_select 选取侧检查
-                    // （buffs.<id>.max_stacks），此处仅保下限防负层数，不改存档恢复行为）
-                    Buffs[key.AsStringName()] = Mathf.Max((int)v.AsInt64(), 0);
-                }
-            }
-        }
-
+        // 第五轮拆域：buffs 恢复改调 CombatStateService（判型/钳制/G013 注释随迁；不发事件——
+        // BuffsChanged 仍由下方直发同名信号，不经服务事件，无双发）
+        _combat.RestoreBuffs(data.GetValueOrDefault("buffs", new Variant()));
         EmitSignal(SignalName.BuffsChanged);
         // 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
-        // v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health
+        // v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health（钳制在 RestoreHealth 内）
         if ((int)SaveNum(data.GetValueOrDefault("version", 1), 1.0) >= 2)
         {
-            Health = Mathf.Clamp(SaveNum(data.GetValueOrDefault("health", MaxHealth()), MaxHealth()), 0.0, MaxHealth());
+            _combat.RestoreHealth(SaveNum(data.GetValueOrDefault("health", MaxHealth()), MaxHealth()));
         }
         else
         {
-            Health = MaxHealth();
+            _combat.RestoreHealth(MaxHealth());
         }
 
         // AB12：elapsed 钳 [0, 1e6]（≈11.6 天，远超合理对局时长）——SaveNum 仅判型无上界，

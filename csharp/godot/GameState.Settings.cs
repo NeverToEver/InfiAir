@@ -3,7 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）。
+/// GameState 部分定义（Y 系列拆分，2026-08-09）：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图。
+/// 第五轮拆域（2026-08-11）：健康/Buff 域 C 簇（MaxHealth/LoseHealth/Heal/TryLifesteal/BuffCount/
+/// AddBuff/ConsumeBuff 及 Health/Buffs 状态、_maxHpBase/_maxHpBonus/_lifestealFraction 字段）迁至
+/// CombatStateService（csharp/godot/CombatStateService.cs，组合持有），本文件保留门面对齐转发——
+/// 公开 API 签名/语义不变（测试白盒直读直写 Health/Buffs 经 setter/getter 转发零适配）；
+/// AddKill/AddBossKill 击杀编排移入 GameState.State.cs（对局状态方法归位）。HealthChanged/
+/// BuffsChanged 信号由 CombatStateService 的 C# 事件经 GameState 订阅重发（ResetRun/ApplyRunSave/
+/// ChooseRoute/Meta 直发路径在 GameState/其他服务侧直发同名信号，不重复）。
 /// </summary>
 public partial class GameState : Node
 {
@@ -276,90 +283,26 @@ public partial class GameState : Node
         return _viewRectCached;
     }
 
-    public void AddKill()
-    {
-        Kills += 1;
-        SetKindProgress("kill", Kills);
-    }
-
-    public void AddBossKill(double scoreScale = 1.0)
-    {
-        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ Missions 域（RP/任务进度）→
-        // 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致（ScoreChanged/MilestoneReached
-        // 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
-        _score.AddBossKill(scoreScale);
-        AddRp(RpBossKillValue);
-        SetKindProgress("boss", BossKills);
-        if (_runProg.RecomputeDifficultyInternal())
-        {
-            EmitSignal(SignalName.DifficultyChanged, DifficultyMultiplier);
-        }
-    }
+    // ---------------- 健康/Buff 域（门面转发 → CombatStateService） ----------------
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
-    /// P0-2：基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）</summary>
-    public double MaxHealth() => _maxHpBase + _maxHpBonus * BuffCount("extra_life");
+    /// P0-2：基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）——CombatStateService 转发。</summary>
+    public double MaxHealth() => _combat.MaxHealth();
 
-    public void LoseHealth(double amount = 1.0)
-    {
-        Health = Mathf.Max(Health - amount, 0.0);
-        EmitSignal(SignalName.HealthChanged, Health);
-        if (Health <= 0.0)
-        {
-            EmitSignal(SignalName.PlayerDied);
-        }
-    }
+    public void LoseHealth(double amount = 1.0) => _combat.LoseHealth(amount);
 
     /// <summary>治疗（单点封顶 max_health，调用侧不再各自判断）</summary>
-    public void Heal(double amount)
-    {
-        Health = Mathf.Min(Health + amount, MaxHealth());
-        EmitSignal(SignalName.HealthChanged, Health);
-    }
+    public void Heal(double amount) => _combat.Heal(amount);
 
     /// <summary>吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
-    private long _lifestealFrame = -1;
+    public void TryLifesteal() => _combat.TryLifesteal();
 
-    /// <summary>吸血比例缓存（P0-2 同款：_apply_balance 刷新，击杀帧免 cfg 路径解析）</summary>
-    private double _lifestealFraction = 0.1;
+    public int BuffCount(StringName id) => _combat.BuffCount(id);
 
-    public void TryLifesteal()
-    {
-        if (BuffCount("lifesteal") <= 0)
-        {
-            return;
-        }
-
-        var frame = (long)Engine.GetPhysicsFrames();
-        if (frame == _lifestealFrame)
-        {
-            return;
-        }
-
-        _lifestealFrame = frame;
-        Heal(Mathf.Max(1, (int)(MaxHealth() * _lifestealFraction)));
-    }
-
-    public int BuffCount(StringName id) => (int)Buffs.GetValueOrDefault(id, 0).AsInt64();
-
-    public void AddBuff(StringName id)
-    {
-        Buffs[id] = BuffCount(id) + 1;
-        EmitSignal(SignalName.BuffsChanged);
-    }
+    public void AddBuff(StringName id) => _combat.AddBuff(id);
 
     /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 buffs_changed）</summary>
-    public bool ConsumeBuff(StringName id)
-    {
-        if (BuffCount(id) <= 0)
-        {
-            return false;
-        }
-
-        Buffs[id] = BuffCount(id) - 1;
-        EmitSignal(SignalName.BuffsChanged);
-        return true;
-    }
+    public bool ConsumeBuff(StringName id) => _combat.ConsumeBuff(id);
 
 
     // ---------------- 语言（中英双语） ----------------

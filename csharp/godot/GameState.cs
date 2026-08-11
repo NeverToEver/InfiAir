@@ -168,6 +168,11 @@ public partial class GameState : Node
     /// 里程碑推进迁入 ScoreService（GameState.State.cs 为门面转发；跨域经 Instance）。无构造依赖。</summary>
     private readonly ScoreService _score = new();
 
+    /// <summary>第五轮拆域（2026-08-11）：健康/Buff 战斗状态域服务——Health/Buffs 状态与生命上限/
+    /// 受击/治疗/吸血/选 buff 逻辑迁入 CombatStateService（GameState.Settings.cs C 簇为门面转发；
+    /// 跨域经 Instance；PlayerDied 经 Instance 直发）。无构造依赖。</summary>
+    private readonly CombatStateService _combat = new();
+
     /// <summary>第五轮拆域（2026-08-11）：对局进程域服务——难度档位/倍率缓存/DDA 降档/进程 ramp/
     /// 里程碑曲线求值迁入 RunProgressionService（GameState.Difficulty.cs 为门面转发；
     /// _balanceService 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
@@ -395,6 +400,14 @@ public partial class GameState : Node
 
     private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
 
+    // 战斗状态域（第五轮拆域）：CombatStateService C# 事件 → GameState 同名信号转发
+    // （HealthChanged/BuffsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
+    // ConsumeBuff，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发路径不经本事件，
+    // 订阅重发不与之重复）
+    private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, v);
+
+    private void OnCombatBuffsChanged() => EmitSignal(SignalName.BuffsChanged);
+
     // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill/ApplyRunSave 直发路径不重复）
@@ -428,6 +441,11 @@ public partial class GameState : Node
         // 对局事件/玩家操作，晚于 _Ready 本订阅）
         _runProg.DifficultyChanged += OnRunProgDifficultyChanged;
         _runProg.DifficultySelected += OnRunProgDifficultySelected;
+        // 战斗状态域（第五轮拆域）：CombatStateService 事件 → 信号转发订阅（触发点均为运行期
+        // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发
+        // 路径不经本事件，重发不与之重复）
+        _combat.HealthChanged += OnCombatHealthChanged;
+        _combat.BuffsChanged += OnCombatBuffsChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);
