@@ -315,29 +315,29 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 419 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
+| 405 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
 
 ### `csharp/godot/GameState.State.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 62 | `world_scale` | `WorldScale` |
-| 65 | `milestones.base` | `ScoreService.BuildMilestoneBase(` |
-| 86 | `milestones.cycle_mult` | `_score.MilestoneCycleMult` |
-| 90 | `progression.per_boss_kill` | `0.6` |
-| 91 | `progression.per_ten_minutes` | `1.5` |
-| 92 | `progression.time_step_seconds` | `30.0` |
-| 95 | `difficulty` | `new Godot.Collections.Dictionary(` |
-| 104 | `dda.duration` | `DDA_DURATION` |
-| 105 | `dda.factor` | `DDA_FACTOR` |
-| 112 | `scoring.combo.window` | `_score.ComboWindow` |
-| 113 | `scoring.combo.step` | `_score.ComboStep` |
-| 114 | `scoring.combo.max_mult` | `_score.ComboMaxMult` |
-| 115 | `player.max_health` | `_maxHpBase` |
-| 117 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
-| 119 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 121 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 122 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 65 | `world_scale` | `WorldScale` |
+| 68 | `milestones.base` | `ScoreService.BuildMilestoneBase(` |
+| 89 | `milestones.cycle_mult` | `_score.MilestoneCycleMult` |
+| 93 | `progression.per_boss_kill` | `0.6` |
+| 94 | `progression.per_ten_minutes` | `1.5` |
+| 95 | `progression.time_step_seconds` | `30.0` |
+| 98 | `difficulty` | `new Godot.Collections.Dictionary(` |
+| 107 | `dda.duration` | `DDA_DURATION` |
+| 108 | `dda.factor` | `DDA_FACTOR` |
+| 115 | `scoring.combo.window` | `_score.ComboWindow` |
+| 116 | `scoring.combo.step` | `_score.ComboStep` |
+| 117 | `scoring.combo.max_mult` | `_score.ComboMaxMult` |
+| 123 | `player.max_health` | `_combat.MaxHpBase` |
+| 124 | `buffs.extra_life.max_hp_bonus` | `_combat.MaxHpBonus` |
+| 125 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 127 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 128 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
 ### `csharp/godot/Hud.cs`
 
