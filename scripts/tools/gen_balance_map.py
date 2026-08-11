@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """生成 docs/BALANCE_MAP.md（数值位置地图）
 
-扫描 scripts/、autoload/（历史路径，现已无源文件）与 csharp/ 下全部 GameState.cfg()/GameState.Instance.Cfg() 调用点（M7d 后实际命中 C# 侧），生成可维护的数值索引：
+扫描 scripts/、autoload/（历史路径，现已无源文件）与 csharp/ 下全部 GameState.cfg()/GameState.Instance.Cfg() 及 CfgFx.Float/Int()（判型包装，批 2-5 迁移后承载标量键）调用点（M7d 后实际命中 C# 侧），生成可维护的数值索引：
 - 静态键：json 路径、回退默认值表达式、调用位置（文件:行），并标注 json 中是否存在该键
   （缺失 = 走脚本回退，新增/改名时需双写检查）；
 - 动态拼接键（如 player.aim_assist.levels.<level>.frame_pad）：单独列出前缀；
@@ -23,6 +23,10 @@ SCAN_DIRS = [ROOT / "scripts", ROOT / "autoload", ROOT / "csharp"]  # M7d：零 
 # 静态调用：GameState.Instance.Cfg("player.fuel.drain", FUEL_DRAIN)（默认值可能跨行/含嵌套调用）。
 # V 系列：前缀改必选——消除与 RE_BARE 对豁免文件裸调用的双重计数（原 GameState.cs 段 16 条重复）
 RE_STATIC = re.compile(r'GameState\.Instance\.Cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
+# CfgFx 批 2-5（2026-08-11）：CfgFx.Float/Int 判型包装调用——转发 GameState.Instance.Cfg，标量键统一经此读取；
+# 缺此项时迁移后的键从静态表消失、误列未引用键（同 CfgVal/Resolve 包装追踪先例）；默认值取第二参数
+# （字段名或字面量），后续 min/max 参数不进入回退值列
+RE_CFGFX = re.compile(r'CfgFx\.(?:Float|Int)\(\s*"([^"]+)"\s*,\s*([^,()]+?)(?:,\s*[^)]*)?\)', re.DOTALL)
 RE_STATIC_GD = re.compile(r'GameState\.cfg\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
 # autoload/game_state.gd 内部对 cfg() 的裸调用（无前缀；排除函数定义行）
 RE_BARE = re.compile(r'(?<![\w.])(?:cfg|Cfg)\(\s*"([^"]+)"\s*(?:,\s*(.*?))?\)', re.DOTALL)
@@ -91,7 +95,7 @@ def main() -> None:
                 continue  # V 系列：跳过测试目录（故意回退用例会误报缺失键；引用不代表生产消费）
             rel = src.relative_to(ROOT)
             text = src.read_text(encoding="utf-8")
-            patterns = [RE_STATIC, RE_EFFECT_CFG, RE_EFFECT_CFG_CS, RE_CFG_VAL, RE_RESOLVE]
+            patterns = [RE_STATIC, RE_CFGFX, RE_EFFECT_CFG, RE_EFFECT_CFG_CS, RE_CFG_VAL, RE_RESOLVE]
             if src.suffix == ".gd" and src.name in ("game_state.gd", "balance_service.gd"):
                 # autoload 内部裸 cfg() 调用 + BalanceService（A2 剥离后裸 cfg() 承载在服务类）
                 patterns.append(RE_BARE)
@@ -157,7 +161,7 @@ def main() -> None:
     lines.append("## 怎么改数值")
     lines.append("")
     lines.append("- 运行时数值的唯一来源是 `data/balance.json`；推荐用 `python3 scripts/tools/balance_editor.py` 在浏览器里编辑（改动高亮、类型校验、自动备份）。")
-    lines.append("- 代码侧的 `GameState.Instance.Cfg(\"键路径\", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。")
+    lines.append("- 代码侧的 `GameState.Instance.Cfg(\"键路径\", 回退值)` / `CfgFx.Float/Int(\"键路径\", 回退值)` 仅在 json 缺键/损坏时兜底；新增或调整数值按 AGENTS.md 约定保持 json 与回退值一致。")
     lines.append("- 高频 `_Process` 路径的数值在 `_Ready()`/`LoadBalance()` 一次缓存，不要每帧查。")
     lines.append("")
     lines.append("## 静态 cfg() 调用点（按文件分组）")
