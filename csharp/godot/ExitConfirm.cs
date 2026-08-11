@@ -112,6 +112,9 @@ public partial class ExitConfirm : CanvasLayer
         Visible = false;
     }
 
+    /// <summary>AB13：退出确认已受理（_exiting），调用方（PauseUi）须屏蔽冲突快捷键。</summary>
+    public bool Exiting() => _exiting;
+
     private void OnOkPressed()
     {
         if (_exiting)

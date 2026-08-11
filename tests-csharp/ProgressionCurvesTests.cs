@@ -111,6 +111,20 @@ public sealed class ProgressionCurvesTests
     }
 
     [Fact]
+    public void DifficultyCurve_HugeOrNegativeRunTime_ClampedAndBounded()
+    {
+        // AB12：手改存档 elapsed 1e300 → 裸 (long)Math.Floor 未定义转换（实践得 long.MinValue）
+        // 难度乘数巨负击穿单调防线；入口/曲线双保险后不溢出且返回有界正值
+        // 上界 1e6 秒：step = floor(1e6/30) = 33333 → 1 + 33333×30/600×1.5 = 2500.975
+        Assert.Equal(2500.975, DifficultyCurve.Compute(1e300, 30.0, 1.5, 0.6, 0), 3);
+        Assert.Equal(2502.175, DifficultyCurve.Compute(1e300, 30.0, 1.5, 0.6, 2), 3); // +2 Boss → +1.2
+        // 0/负值钳制：按 0 档计算（难度单调不减防线）
+        Assert.Equal(1.0, DifficultyCurve.Compute(0.0, 30.0, 1.5, 0.6, 0));
+        Assert.Equal(2.2, DifficultyCurve.Compute(-1.0, 30.0, 1.5, 0.6, 2)); // 1 + 0.6×2
+        Assert.True(DifficultyCurve.Compute(-1e300, 30.0, 1.5, 0.6, 0) >= 1.0);
+    }
+
+    [Fact]
     public void Threshold_CycleMultiplierBelowOne_StaysMonotone()
     {
         // 2026-08-09 审计：cycle_mult<1（0.5 / 0.01 下限）仍单调——base 档差非负 × 正 mult

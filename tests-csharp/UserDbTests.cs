@@ -189,6 +189,8 @@ public sealed class UserDbTests
             Assert.False(db.DeleteUser("bob", "pass123", saveFile), "落盘失败删号返回 false");
             Assert.True(db.UserExists("bob"), "Save 失败后内存条目回滚");
             Assert.True(db.VerifyUser("bob", "pass123", 1000), "回滚后验密仍通过");
+            // AB11：事务轴——users.json 未提交成功则存档文件必须幸存（旧实现先删文件，档毁人留）
+            Assert.True(File.Exists(saveFile), "Save 失败时存档文件幸存（不产生删除副作用）");
         }
         finally
         {
@@ -299,6 +301,33 @@ public sealed class UserDbTests
             var board = db.GetLeaderboard();
             Assert.Single(board);
             Assert.Equal(50L, (long)((Dictionary<string, object?>)board[0]!)["score"]!);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AB17_HugeLeaderboardScore_NormalizedOnRead()
+    {
+        // AB17：手改 users.json 超大 score（>2^31 整数 / 1e300 double）经 GetLeaderboard
+        // 归一化钳 [0, long.MaxValue]——旧实现裸传，显示路径 (int) 截断回绕负数名次分
+        var db = NewDb(out var dir, out var usersPath);
+        try
+        {
+            File.WriteAllText(
+                usersPath,
+                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [{"player_name": "bob", "score": 5000000000, "seq": 1}, {"player_name": "carol", "score": 1e300, "seq": 2}]}""");
+            var board = db.GetLeaderboard();
+            Assert.Equal(2, board.Count);
+            var scores = board
+                .Select(b => (long)((Dictionary<string, object?>)b!)["score"]!)
+                .OrderDescending()
+                .ToArray();
+            Assert.Equal(long.MaxValue, scores[0]);  // 1e300 → ToInt64 钳至 long.MaxValue
+            Assert.Equal(5_000_000_000L, scores[1]); // >2^31 整数原样保留（>0 不回绕负）
+            Assert.All(scores, s => Assert.True(s >= 0, "归一化后不为负"));
         }
         finally
         {

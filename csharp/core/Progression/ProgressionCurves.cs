@@ -119,6 +119,18 @@ public static class DifficultyCurve
     public static double Compute(
         double runTime, double timeStepSeconds, double perTenMinutes, double perBossKill, int bossKills)
     {
+        // AB12：0/负值钳制（既有口径）——负 runTime 使 step 为负、难度乘数反向下降；
+        // 巨值防御——(long)Math.Floor 对超大 double 为未定义转换（实践得 long.MinValue），
+        // 使难度乘数巨负击穿「单调不减」防线；1e6 秒 ≈ 11.6 天远超合理对局时长
+        if (runTime <= 0.0)
+        {
+            return 1.0 + perBossKill * bossKills;
+        }
+        if (runTime > 1e6)
+        {
+            runTime = 1e6;
+        }
+
         long step = (long)Math.Floor(runTime / timeStepSeconds);
         return 1.0 + perBossKill * bossKills + step * timeStepSeconds / 600.0 * perTenMinutes;
     }

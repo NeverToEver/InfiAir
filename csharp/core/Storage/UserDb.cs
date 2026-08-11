@@ -323,16 +323,16 @@ public sealed class UserDb
 
         var removed = Users[name];
         Users.Remove(name);
-        _store.Delete(saveFilePath);
-        _store.Delete(saveFilePath + ".corrupt");
         if (!Save())
         {
-            // 2026-08-10 健壮性审查：落盘失败回滚内存条目——否则磁盘 users.json 仍有该账号
-            // 而内存已删，重启前 UserExists/登录与磁盘状态不一致（对称 CreateUser 回滚口径）
+            // AB11：事务轴——先提交 users.json 再删存档文件；落盘失败仅回滚内存条目，
+            // 存档文件原样幸存（最多残留孤儿存档文件，不产生「档删人还在」的数据丢失）
             Users[name] = removed;
             return false;
         }
 
+        _store.Delete(saveFilePath);
+        _store.Delete(saveFilePath + ".corrupt");
         return true;
     }
 
@@ -394,7 +394,10 @@ public sealed class UserDb
         return Save() ? rank : 0;
     }
 
-    /// <summary>榜单读取（Q20 判型：非 Dictionary 条目/非数字 score 跳过），返回过滤后排序副本。</summary>
+    /// <summary>榜单读取（Q20 判型：非 Dictionary 条目/非数字 score 跳过），返回过滤后排序副本。
+    /// AB17：score 归一化钳 [0, long.MaxValue]——手改 users.json 超大/负 score 经显示路径
+    /// (int) 截断回绕负数名次分（本地榜经加载期 SaveInt 钳制，此处是孪生遗漏）。
+    /// 注：不能复用 ToInt64（double 分支为 unchecked 转换，1e300 溢出未定义），此处独立安全转换。</summary>
     public List<object?> GetLeaderboard()
     {
         EnsureLoaded();
@@ -403,7 +406,14 @@ public sealed class UserDb
         {
             if (item is Dictionary<string, object?> entry && entry.GetValueOrDefault("score") is long or double)
             {
-                board.Add(item);
+                var copy = new Dictionary<string, object?>(entry);
+                copy["score"] = entry["score"] switch
+                {
+                    long l => Math.Max(l, 0L),
+                    double d => d >= 9.223372036854776E18 ? long.MaxValue : (long)Math.Round(Math.Max(d, 0.0), MidpointRounding.AwayFromZero),
+                    _ => 0L,
+                };
+                board.Add(copy);
             }
         }
 

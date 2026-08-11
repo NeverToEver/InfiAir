@@ -197,12 +197,22 @@ public partial class PauseUi : CanvasLayer
     {
         // ui_cancel（Esc/手柄 B/Android 返回）的全局路由已移交 BackNavigator；
         // 此处只保留暂停中的 R 重开
-        if (Visible && @event.IsActionPressed("restart"))
+        if (!Visible || !@event.IsActionPressed("restart"))
         {
-            GetTree().Paused = false;
-            GameState.Instance.ResetRun();
-            GetTree().ReloadCurrentScene();
+            return;
         }
+
+        // AB13：确认退出淡出窗口内忽略 R——删档后 ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行
+        // （档删、未退出、静默重开新局的静默数据丢失路径）
+        var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
+        if (exitConfirm != null && exitConfirm.Exiting())
+        {
+            return;
+        }
+
+        GetTree().Paused = false;
+        GameState.Instance.ResetRun();
+        GetTree().ReloadCurrentScene();
     }
 
 }
