@@ -315,35 +315,29 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 418 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
-
-### `csharp/godot/GameState.Settings.cs`
-
-| 行 | json 键路径 | 脚本回退值 |
-| --- | --- | --- |
-| 289 | `milestones.boss_kill_base` | `500.0` |
+| 419 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
 
 ### `csharp/godot/GameState.State.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 50 | `world_scale` | `WorldScale` |
-| 53 | `milestones.base` | `BuildMilestoneBase(` |
-| 74 | `milestones.cycle_mult` | `MilestoneCycleMultValue` |
-| 76 | `progression.per_boss_kill` | `0.6` |
-| 77 | `progression.per_ten_minutes` | `1.5` |
-| 78 | `progression.time_step_seconds` | `30.0` |
-| 81 | `difficulty` | `new Godot.Collections.Dictionary(` |
-| 90 | `dda.duration` | `DDA_DURATION` |
-| 91 | `dda.factor` | `DDA_FACTOR` |
-| 94 | `scoring.combo.window` | `ComboWindow` |
-| 98 | `scoring.combo.step` | `ComboStep` |
-| 99 | `scoring.combo.max_mult` | `ComboMaxMult` |
-| 100 | `player.max_health` | `_maxHpBase` |
-| 102 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
-| 104 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 106 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 107 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 62 | `world_scale` | `WorldScale` |
+| 65 | `milestones.base` | `ScoreService.BuildMilestoneBase(` |
+| 86 | `milestones.cycle_mult` | `_score.MilestoneCycleMult` |
+| 90 | `progression.per_boss_kill` | `0.6` |
+| 91 | `progression.per_ten_minutes` | `1.5` |
+| 92 | `progression.time_step_seconds` | `30.0` |
+| 95 | `difficulty` | `new Godot.Collections.Dictionary(` |
+| 104 | `dda.duration` | `DDA_DURATION` |
+| 105 | `dda.factor` | `DDA_FACTOR` |
+| 112 | `scoring.combo.window` | `_score.ComboWindow` |
+| 113 | `scoring.combo.step` | `_score.ComboStep` |
+| 114 | `scoring.combo.max_mult` | `_score.ComboMaxMult` |
+| 115 | `player.max_health` | `_maxHpBase` |
+| 117 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
+| 119 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 121 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 122 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
 ### `csharp/godot/Hud.cs`
 
@@ -580,6 +574,12 @@
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
 | 81 | `effects.return_skip_grace` | `SKIP_GRACE` |
+
+### `csharp/godot/ScoreService.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 138 | `milestones.boss_kill_base` | `500.0` |
 
 ### `csharp/godot/Spawner.cs`
 
