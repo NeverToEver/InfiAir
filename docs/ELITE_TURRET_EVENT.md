@@ -97,7 +97,7 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 ```
 
 ### 6.3 Rules
-- **Trigger mutex**: same-frame race → boss wins (score-milestone promise); event starts only when boss not in warn/enter/fight. **2026-07-29**: also blocked during bombing-formation event — both share spawner `_wavesPaused` wave-pause hook, so one cannot end early-resuming the other's pause.
+- **Trigger mutex**: same-frame race → encounter may win (autoload `_Process` runs before main scene `Spawner`); boss trigger is deferred until event end + `boss_resume_delay`, never lost. Event starts only when boss not in warn/enter/fight. **2026-07-29**: also blocked during bombing-formation event — both share spawner `_wavesPaused` wave-pause hook, so one cannot end early-resuming the other's pause.
 - **Freeze**: on `CARRIER_ENTER` set `_bossFrozen = true`; if boss score step elapses meanwhile, no boss — set `_bossPending = true` (recorded once; repeat overwrites same flag — no accumulation).
 - **Resume**: at `BOSS_DELAY` end: if `_bossPending`, immediately start boss warn flow and clear it; `_bossFrozen` resets. If boss condition not yet due at event end, resume original score-step timer, no compensation.
 - **Edge**: crossing boss score steps during event is normal (reward 500~1500); freeze guarantees boss appears only 4s after carrier leaves — no stacked barrages. **Failure also unfreezes**: success/fail don't change mutex recovery, only rewards.
@@ -125,7 +125,7 @@ IDLE → [event trigger met] → CARRIER_ENTER → TURRET_ACTIVE (30s)
 | `test/elite_turret_event_test.tscn` | 60 assertions (2026-08-07). |
 
 ### Deviations from draft (final behavior)
-- **Trigger**: score ≥ 800, then 35% chance per 45s, 60s cooldown after event end — all in `elite_turret_event` config; spawner check order → boss priority on same-frame race.
+- **Trigger**: score ≥ 800, then 35% chance per 45s, 60s cooldown after event end — all in `elite_turret_event` config; same-frame race → encounter may win (AB20: autoload `_Process` precedes main scene `Spawner`; boss deferred, never lost).
 - **Wave pause window**: `CARRIER_ENTER` → `CARRIER_EXIT` (existing spawner doesn't suppress waves during boss fights); boss freeze held until `BOSS_DELAY` end.
 - **Ring light**: standby dark-red baked into texture (5 bases); charge/destroy = runtime Line2D overlay; no separate lid parts (raise = TRANS_BACK scale-in).
 - **Dialogue boundary**: line 2 requires "before all destroyed" (mutex with line 3); cross-node last hit (splash multi-kill) → new line overrides old.

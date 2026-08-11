@@ -92,7 +92,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.13 Combat Fairness (values final here; impl/verification: `docs/archive/2026-08-03-combat-fairness-plan.md`)
 - **Grace frames**: enemy bullet in Hitbox defers settlement `player.grace_period` (0.05s); out within window = no damage (kills ghost hits); only enemy-bullet→player timing; `take_damage` guards untouched.
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (10, × difficulty), once/bullet; no buff/talent links; hitbox area gives none.
-- **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (`hud.boss_bar_segments` 3: P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).
+- **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (3 segments fixed by weights: P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left; AB22: `hud.boss_bar_segments` key removed — segment count derives from the weight array).
 - **F parry**: full 360° circle (2026-08-10; formerly 140° forward sector), 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
 
 ## 2. Technical Architecture
