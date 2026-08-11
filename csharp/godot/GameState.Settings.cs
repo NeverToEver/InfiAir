@@ -301,7 +301,7 @@ public partial class GameState : Node
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。</summary>
     private bool RecomputeDifficultyInternal()
     {
-        var step = (int)Mathf.Floor(RunTime / _progTimeStepSeconds);
+        var step = (int)(RunTime / _progTimeStepSeconds); // 同 _Process：RunTime ≥ 0 时截断等价 floor（省原生调用）
         // 2026-08-07：曲线公式迁移 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）
         var newMult = _progression.DifficultyMultiplier(RunTime, _progTimeStepSeconds, _progPerTenMinutes, _progPerBossKill, BossKills);
         _difficultyTimeStep = step;

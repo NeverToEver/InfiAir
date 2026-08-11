@@ -414,7 +414,9 @@ public partial class GameState : Node
         }
 
         // 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
-        if ((int)Mathf.Floor(RunTime / _progTimeStepSeconds) != _difficultyTimeStep)
+        // (int)Mathf.Floor(x) 简化为 (int)x：RunTime 恒 ≥ 0（初值 0、仅 _Process += delta、存档读入
+        // Save.cs Clamp 至 [0,1e6]、重置为 0；测试直写亦非负），对非负数截断与 floor 等价，省一次原生调用
+        if ((int)(RunTime / _progTimeStepSeconds) != _difficultyTimeStep)
         {
             if (RecomputeDifficultyInternal())
             {
