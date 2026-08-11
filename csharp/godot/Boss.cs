@@ -374,52 +374,58 @@ public partial class Boss : Area2D
         _attacks.Configure(_fire, _ws);
         _enrageSequence.Configure(_fire, _attacks, _ws);
         // 数值配置缓存（启动一次读入）
-        EnterSpeed = (float)GameState.Instance.Cfg("boss.enter_speed", EnterSpeed).AsDouble();
-        FightY = (float)GameState.Instance.Cfg("boss.fight_y", FightY).AsDouble();
-        StrafeMinX = (float)GameState.Instance.Cfg("boss.strafe_min_x", StrafeMinX).AsDouble();
-        StrafeMaxX = (float)GameState.Instance.Cfg("boss.strafe_max_x", StrafeMaxX).AsDouble();
+        LoadBalance();
+    }
+
+    /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找；CfgFx 统一判型回退 + 域钳）。</summary>
+    private void LoadBalance()
+    {
+        // 数值配置缓存（启动一次读入）
+        EnterSpeed = CfgFx.Float("boss.enter_speed", EnterSpeed);
+        FightY = CfgFx.Float("boss.fight_y", FightY);
+        StrafeMinX = CfgFx.Float("boss.strafe_min_x", StrafeMinX);
+        StrafeMaxX = CfgFx.Float("boss.strafe_max_x", StrafeMaxX);
         // V 系列：阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害（Q02 同根因）
-        Phase2HpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.phase2_hp_ratio", Phase2HpRatio).AsDouble(), 0.01f, 0.99f);
-        EnrageHpRatio = Mathf.Clamp((float)GameState.Instance.Cfg("boss.enrage.hp_ratio", EnrageHpRatio).AsDouble(), 0.01f, 0.99f);
+        Phase2HpRatio = CfgFx.Float("boss.phase2_hp_ratio", Phase2HpRatio, 0.01f, 0.99f);
+        EnrageHpRatio = CfgFx.Float("boss.enrage.hp_ratio", EnrageHpRatio, 0.01f, 0.99f);
         // AB18：保序修正——P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），
         // 倒挂配置（phase2=0.2, enrage=0.3）使 P2 段整体跳过、Boss 以 P1 强度直接狂暴且无告警
         if (Phase2HpRatio <= EnrageHpRatio)
         {
             Phase2HpRatio = Mathf.Min(EnrageHpRatio + 0.01f, 0.98f);
         }
-        EnrageRateMult = (float)GameState.Instance.Cfg("boss.enrage.rate_mult", EnrageRateMult).AsDouble();
-        EnrageSpeedMult = (float)GameState.Instance.Cfg("boss.enrage.speed_mult", EnrageSpeedMult).AsDouble();
-        EnragePlayerSlow = (float)GameState.Instance.Cfg("boss.enrage.player_slow", EnragePlayerSlow).AsDouble();
-        EnrageSnapshotLasers = (int)GameState.Instance.Cfg("boss.enrage.snapshot_lasers", EnrageSnapshotLasers).AsInt64();
-        EnrageSnapshotRing = (int)GameState.Instance.Cfg("boss.enrage.snapshot_ring", EnrageSnapshotRing).AsInt64();
-        EnrageLaserSpeed = (float)GameState.Instance.Cfg("boss.enrage.laser_speed", EnrageLaserSpeed).AsDouble();
-        EnrageRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.ring_speed", EnrageRingSpeed).AsDouble();
+        EnrageRateMult = CfgFx.Float("boss.enrage.rate_mult", EnrageRateMult);
+        EnrageSpeedMult = CfgFx.Float("boss.enrage.speed_mult", EnrageSpeedMult);
+        EnragePlayerSlow = CfgFx.Float("boss.enrage.player_slow", EnragePlayerSlow);
+        EnrageSnapshotLasers = CfgFx.Int("boss.enrage.snapshot_lasers", EnrageSnapshotLasers);
+        EnrageSnapshotRing = CfgFx.Int("boss.enrage.snapshot_ring", EnrageSnapshotRing);
+        EnrageLaserSpeed = CfgFx.Float("boss.enrage.laser_speed", EnrageLaserSpeed);
+        EnrageRingSpeed = CfgFx.Float("boss.enrage.ring_speed", EnrageRingSpeed);
         // 2026-08-09 审计（R06 同族）：三个时序键作 EnrageSequence 除数的分母，0 值除零得 ±inf——
         // float 不崩、Clamp 收敛，但狂暴序列 1-2 帧内瞬间走完（行为退化）；下限钳制 ≥0.05
-        EnrageDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.duration", EnrageDuration).AsDouble());
-        EnrageTransitionDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.transition_duration", EnrageTransitionDuration).AsDouble());
+        EnrageDuration = CfgFx.Float("boss.enrage.duration", EnrageDuration, 0.05f);
+        EnrageTransitionDuration = CfgFx.Float("boss.enrage.transition_duration", EnrageTransitionDuration, 0.05f);
         // AC9（2026-08-11 健壮性审查）：三时序键钳下限 ≥0.05（R06 只封了 duration 族）——
         // attack_windup≤0 使 ACTIVE 一进入 _attackTimer 即触发（蓄力 telegraph 归零）；
         // attack_interval/release_interval≤0 → 狂暴回退/释放路径每帧攻击风暴
-        EnrageAttackInterval = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.attack_interval", EnrageAttackInterval).AsDouble(), 0.05f);
-        EnrageAttackWindup = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.attack_windup", EnrageAttackWindup).AsDouble(), 0.05f);
-        EnrageReleaseInterval = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.release_interval", EnrageReleaseInterval).AsDouble(), 0.05f);
+        EnrageAttackInterval = CfgFx.Float("boss.enrage.attack_interval", EnrageAttackInterval, 0.05f);
+        EnrageAttackWindup = CfgFx.Float("boss.enrage.attack_windup", EnrageAttackWindup, 0.05f);
+        EnrageReleaseInterval = CfgFx.Float("boss.enrage.release_interval", EnrageReleaseInterval, 0.05f);
         // R06 同族：release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
         // （Clamp(1-(-inf))=1，Boss 瞬跳回退），下限钳制 ≥0.05
-        EnrageReleaseHoldDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration).AsDouble());
-        EnrageReturnDuration = Mathf.Max(0.05f, (float)GameState.Instance.Cfg("boss.enrage.return_duration", EnrageReturnDuration).AsDouble());
-        EnragePathRadiusScale = (float)GameState.Instance.Cfg("boss.enrage.path_radius_scale", EnragePathRadiusScale).AsDouble();
+        EnrageReleaseHoldDuration = CfgFx.Float("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration, 0.05f);
+        EnrageReturnDuration = CfgFx.Float("boss.enrage.return_duration", EnrageReturnDuration, 0.05f);
+        EnragePathRadiusScale = CfgFx.Float("boss.enrage.path_radius_scale", EnragePathRadiusScale);
         // H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
-        EnrageSquarePathRatio = Mathf.Clamp(
-            (float)GameState.Instance.Cfg("boss.enrage.square_path_ratio", EnrageSquarePathRatio).AsDouble(), 0.05f, 1.0f);
-        EnrageReleaseLaserSpeed = (float)GameState.Instance.Cfg("boss.enrage.release_laser_speed", EnrageReleaseLaserSpeed).AsDouble();
-        EnrageReleaseRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.release_ring_speed", EnrageReleaseRingSpeed).AsDouble();
+        EnrageSquarePathRatio = CfgFx.Float("boss.enrage.square_path_ratio", EnrageSquarePathRatio, 0.05f, 1.0f);
+        EnrageReleaseLaserSpeed = CfgFx.Float("boss.enrage.release_laser_speed", EnrageReleaseLaserSpeed);
+        EnrageReleaseRingSpeed = CfgFx.Float("boss.enrage.release_ring_speed", EnrageReleaseRingSpeed);
         _bossSize = _sprite.Texture.GetSize() * _sprite.Scale;
-        EscapeTime = (float)GameState.Instance.Cfg("boss.escape.time", EscapeTime).AsDouble();
-        EscapeWarning = (float)GameState.Instance.Cfg("boss.escape.warning", EscapeWarning).AsDouble();
-        EscapeDrift = (float)GameState.Instance.Cfg("boss.escape.drift", EscapeDrift).AsDouble();
-        EscapeStartSpeed = (float)GameState.Instance.Cfg("boss.escape.start_speed", EscapeStartSpeed).AsDouble();
-        EscapeAccel = (float)GameState.Instance.Cfg("boss.escape.accel", EscapeAccel).AsDouble();
+        EscapeTime = CfgFx.Float("boss.escape.time", EscapeTime);
+        EscapeWarning = CfgFx.Float("boss.escape.warning", EscapeWarning);
+        EscapeDrift = CfgFx.Float("boss.escape.drift", EscapeDrift);
+        EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed);
+        EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel);
         // 2026-08-07 审计：slow_field 缓存初始值 + buffs_changed 增量刷新（对齐 enemy.gd C22）
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
@@ -427,8 +433,8 @@ public partial class Boss : Area2D
         // 2026-08-07 审计：体碰信号事件驱动（对齐 enemy.gd P0-2；collision_mask=3 已含 player Hitbox 层 1）
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
-        EscapeCountdownFrom = (float)GameState.Instance.Cfg("boss.escape.countdown_visible_from", EscapeCountdownFrom).AsDouble();
-        HpBase = (float)GameState.Instance.Cfg("boss.hp_base", HpBase).AsDouble();
+        EscapeCountdownFrom = CfgFx.Float("boss.escape.countdown_visible_from", EscapeCountdownFrom);
+        HpBase = CfgFx.Float("boss.hp_base", HpBase);
         // C18：cfg 返回 Variant，显式转 Array[float] 再赋 typed 变量
         var ss = GameState.Instance.Cfg("boss.strafe_speeds", StrafeSpeeds);
         var ssArr = new Godot.Collections.Array<float>();
@@ -454,111 +460,107 @@ public partial class Boss : Area2D
         }
 
         FireIntervals = fiArr.Count >= 3 ? fiArr : (Godot.Collections.Array)FireIntervals.Duplicate(true);
-        FanBulletSpeed = (float)GameState.Instance.Cfg("boss.fan_bullet_speed", FanBulletSpeed).AsDouble();
-        HomingBulletSpeed = (float)GameState.Instance.Cfg("boss.homing_bullet_speed", HomingBulletSpeed).AsDouble();
-        SniperBulletSpeed = (float)GameState.Instance.Cfg("boss.sniper_bullet_speed", SniperBulletSpeed).AsDouble();
-        CrossBulletSpeed = (float)GameState.Instance.Cfg("boss.cross_bullet_speed", CrossBulletSpeed).AsDouble();
-        CollisionDamage = (int)GameState.Instance.Cfg("boss.collision_damage", CollisionDamage).AsInt64();
-        SlowFieldFactor = (float)GameState.Instance.Cfg("buffs.slow_field.factor", SlowFieldFactor).AsDouble();
-        BulletDamageFan = (int)GameState.Instance.Cfg("boss.bullet_damage.fan", BulletDamageFan).AsInt64();
-        BulletDamageHoming = (int)GameState.Instance.Cfg("boss.bullet_damage.homing", BulletDamageHoming).AsInt64();
-        BulletDamageSniper = (int)GameState.Instance.Cfg("boss.bullet_damage.sniper", BulletDamageSniper).AsInt64();
-        BulletDamageCross = (int)GameState.Instance.Cfg("boss.bullet_damage.cross", BulletDamageCross).AsInt64();
-        BulletDamageSnapshotLaser = (int)GameState.Instance.Cfg("boss.bullet_damage.snapshot_laser", BulletDamageSnapshotLaser).AsInt64();
-        BulletDamageSnapshotRing = (int)GameState.Instance.Cfg("boss.bullet_damage.snapshot_ring", BulletDamageSnapshotRing).AsInt64();
-        PhaseShiftDuration = (float)GameState.Instance.Cfg("boss.phases.phase_shift_duration", PhaseShiftDuration).AsDouble();
+        FanBulletSpeed = CfgFx.Float("boss.fan_bullet_speed", FanBulletSpeed);
+        HomingBulletSpeed = CfgFx.Float("boss.homing_bullet_speed", HomingBulletSpeed);
+        SniperBulletSpeed = CfgFx.Float("boss.sniper_bullet_speed", SniperBulletSpeed);
+        CrossBulletSpeed = CfgFx.Float("boss.cross_bullet_speed", CrossBulletSpeed);
+        CollisionDamage = CfgFx.Int("boss.collision_damage", CollisionDamage);
+        // 决策（2026-08-11 CfgFx 批 5）：slow_field.factor 此处保持无钳制直读——Enemy 侧同键
+        // 钳 [0,1]，Boss 侧慢速力场仅作减速系数、无加速场语义；行为零变化铁律下不补钳，
+        // CfgFx.Float 仅加判型回退（坏类型不崩）
+        SlowFieldFactor = CfgFx.Float("buffs.slow_field.factor", SlowFieldFactor);
+        BulletDamageFan = CfgFx.Int("boss.bullet_damage.fan", BulletDamageFan);
+        BulletDamageHoming = CfgFx.Int("boss.bullet_damage.homing", BulletDamageHoming);
+        BulletDamageSniper = CfgFx.Int("boss.bullet_damage.sniper", BulletDamageSniper);
+        BulletDamageCross = CfgFx.Int("boss.bullet_damage.cross", BulletDamageCross);
+        BulletDamageSnapshotLaser = CfgFx.Int("boss.bullet_damage.snapshot_laser", BulletDamageSnapshotLaser);
+        BulletDamageSnapshotRing = CfgFx.Int("boss.bullet_damage.snapshot_ring", BulletDamageSnapshotRing);
+        PhaseShiftDuration = CfgFx.Float("boss.phases.phase_shift_duration", PhaseShiftDuration);
         ClearOnShift = GameState.Instance.Cfg("boss.phases.clear_on_shift", ClearOnShift).AsBool();
-        TransitionInvincible = (float)GameState.Instance.Cfg("boss.phases.transition_invincible", TransitionInvincible).AsDouble();
-        SniperAimTime = (float)GameState.Instance.Cfg("boss.phases.telegraph.sniper_aim", SniperAimTime).AsDouble();
-        SniperTrackTime = (float)GameState.Instance.Cfg("boss.phases.telegraph.sniper_track", SniperTrackTime).AsDouble();
-        SniperBurstInterval = (float)GameState.Instance.Cfg("boss.phases.attacks.sniper3.burst_interval", SniperBurstInterval).AsDouble();
-        PressInterval = (float)GameState.Instance.Cfg("boss.phases.press_interval", PressInterval).AsDouble();
-        PressDepth = (float)GameState.Instance.Cfg("boss.phases.press_depth", PressDepth).AsDouble();
-        Type1P2Strafe = (int)GameState.Instance.Cfg("boss.movement.type1_p2_strafe", Type1P2Strafe).AsInt64();
-        Type1P2BobAmp = (float)GameState.Instance.Cfg("boss.movement.type1_p2_bob_amp", Type1P2BobAmp).AsDouble();
-        Type1P2BobPeriod = (float)GameState.Instance.Cfg("boss.movement.type1_p2_bob_period", Type1P2BobPeriod).AsDouble();
-        Type2P2DashTime = (float)GameState.Instance.Cfg("boss.movement.type2_p2_dash_time", Type2P2DashTime).AsDouble();
-        Type2P2RestTime = (float)GameState.Instance.Cfg("boss.movement.type2_p2_rest_time", Type2P2RestTime).AsDouble();
-        Type3P1BobMin = (float)GameState.Instance.Cfg("boss.movement.type3_p1_bob_min", Type3P1BobMin).AsDouble();
-        Type3P1BobMax = (float)GameState.Instance.Cfg("boss.movement.type3_p1_bob_max", Type3P1BobMax).AsDouble();
-        Type3P1BobPeriod = (float)GameState.Instance.Cfg("boss.movement.type3_p1_bob_period", Type3P1BobPeriod).AsDouble();
-        Type3P2Strafe = (int)GameState.Instance.Cfg("boss.movement.type3_p2_strafe", Type3P2Strafe).AsInt64();
-        Type3P2BobAmp = (float)GameState.Instance.Cfg("boss.movement.type3_p2_bob_amp", Type3P2BobAmp).AsDouble();
-        Type3P2BobPeriod = (float)GameState.Instance.Cfg("boss.movement.type3_p2_bob_period", Type3P2BobPeriod).AsDouble();
+        TransitionInvincible = CfgFx.Float("boss.phases.transition_invincible", TransitionInvincible);
+        SniperAimTime = CfgFx.Float("boss.phases.telegraph.sniper_aim", SniperAimTime);
+        SniperTrackTime = CfgFx.Float("boss.phases.telegraph.sniper_track", SniperTrackTime);
+        SniperBurstInterval = CfgFx.Float("boss.phases.attacks.sniper3.burst_interval", SniperBurstInterval);
+        PressInterval = CfgFx.Float("boss.phases.press_interval", PressInterval);
+        PressDepth = CfgFx.Float("boss.phases.press_depth", PressDepth);
+        Type1P2Strafe = CfgFx.Int("boss.movement.type1_p2_strafe", Type1P2Strafe);
+        Type1P2BobAmp = CfgFx.Float("boss.movement.type1_p2_bob_amp", Type1P2BobAmp);
+        Type1P2BobPeriod = CfgFx.Float("boss.movement.type1_p2_bob_period", Type1P2BobPeriod);
+        Type2P2DashTime = CfgFx.Float("boss.movement.type2_p2_dash_time", Type2P2DashTime);
+        Type2P2RestTime = CfgFx.Float("boss.movement.type2_p2_rest_time", Type2P2RestTime);
+        Type3P1BobMin = CfgFx.Float("boss.movement.type3_p1_bob_min", Type3P1BobMin);
+        Type3P1BobMax = CfgFx.Float("boss.movement.type3_p1_bob_max", Type3P1BobMax);
+        Type3P1BobPeriod = CfgFx.Float("boss.movement.type3_p1_bob_period", Type3P1BobPeriod);
+        Type3P2Strafe = CfgFx.Int("boss.movement.type3_p2_strafe", Type3P2Strafe);
+        Type3P2BobAmp = CfgFx.Float("boss.movement.type3_p2_bob_amp", Type3P2BobAmp);
+        Type3P2BobPeriod = CfgFx.Float("boss.movement.type3_p2_bob_period", Type3P2BobPeriod);
         // 阶段 B 攻击库参数（boss.phases.attacks.*）
-        CannonCharge = (float)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.charge", CannonCharge).AsDouble();
-        CannonShots = (int)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.shots", CannonShots).AsInt64();
-        CannonInterval = (float)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.interval", CannonInterval).AsDouble();
-        CannonBulletSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.bullet_speed", CannonBulletSpeed).AsDouble();
-        CannonDamage = (int)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.damage", CannonDamage).AsInt64();
-        CannonFlash = (float)GameState.Instance.Cfg("boss.phases.attacks.charged_cannon.flash", CannonFlash).AsDouble();
-        SweepAim = (float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.aim", SweepAim).AsDouble();
-        SweepSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.speed", SweepSpeed).AsDouble();
-        SweepDropCount = (int)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_count", SweepDropCount).AsInt64();
-        SweepDropSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_speed", SweepDropSpeed).AsDouble();
-        SweepDropDamage = (int)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.drop_damage", SweepDropDamage).AsInt64();
+        CannonCharge = CfgFx.Float("boss.phases.attacks.charged_cannon.charge", CannonCharge);
+        CannonShots = CfgFx.Int("boss.phases.attacks.charged_cannon.shots", CannonShots);
+        CannonInterval = CfgFx.Float("boss.phases.attacks.charged_cannon.interval", CannonInterval);
+        CannonBulletSpeed = CfgFx.Float("boss.phases.attacks.charged_cannon.bullet_speed", CannonBulletSpeed);
+        CannonDamage = CfgFx.Int("boss.phases.attacks.charged_cannon.damage", CannonDamage);
+        CannonFlash = CfgFx.Float("boss.phases.attacks.charged_cannon.flash", CannonFlash);
+        SweepAim = CfgFx.Float("boss.phases.attacks.dash_sweep.aim", SweepAim);
+        SweepSpeed = CfgFx.Float("boss.phases.attacks.dash_sweep.speed", SweepSpeed);
+        SweepDropCount = CfgFx.Int("boss.phases.attacks.dash_sweep.drop_count", SweepDropCount);
+        SweepDropSpeed = CfgFx.Float("boss.phases.attacks.dash_sweep.drop_speed", SweepDropSpeed);
+        SweepDropDamage = CfgFx.Int("boss.phases.attacks.dash_sweep.drop_damage", SweepDropDamage);
         // 2026-08-10 健壮性审查：return_duration 钳下限——0 时 dash_sweep RETURN 段
         // _sweepTimer/该值除零（Clamp 兜底无 NaN，但 Boss 冲刺后全程钉在回退原点不动）
-        SweepReturnDuration = Mathf.Max((float)GameState.Instance.Cfg("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration).AsDouble(), 0.05f);
-        VolleyCount = (int)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.count", VolleyCount).AsInt64();
-        VolleyDelay = (float)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.delay", VolleyDelay).AsDouble();
-        VolleyBulletSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.bullet_speed", VolleyBulletSpeed).AsDouble();
-        VolleyBulletDamage = (int)GameState.Instance.Cfg("boss.phases.attacks.minion_volley.bullet_damage", VolleyBulletDamage).AsInt64();
-        WallCount = (int)GameState.Instance.Cfg("boss.phases.attacks.bullet_wall.count", WallCount).AsInt64();
-        WallBulletSpeed = (float)GameState.Instance.Cfg("boss.phases.attacks.bullet_wall.bullet_speed", WallBulletSpeed).AsDouble();
-        WallDamage = (int)GameState.Instance.Cfg("boss.phases.attacks.bullet_wall.damage", WallDamage).AsInt64();
-        WallArcDeg = (float)GameState.Instance.Cfg("boss.phases.attacks.bullet_wall.arc_deg", WallArcDeg).AsDouble();
+        SweepReturnDuration = CfgFx.Float("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration, 0.05f);
+        VolleyCount = CfgFx.Int("boss.phases.attacks.minion_volley.count", VolleyCount);
+        VolleyDelay = CfgFx.Float("boss.phases.attacks.minion_volley.delay", VolleyDelay);
+        VolleyBulletSpeed = CfgFx.Float("boss.phases.attacks.minion_volley.bullet_speed", VolleyBulletSpeed);
+        VolleyBulletDamage = CfgFx.Int("boss.phases.attacks.minion_volley.bullet_damage", VolleyBulletDamage);
+        WallCount = CfgFx.Int("boss.phases.attacks.bullet_wall.count", WallCount);
+        WallBulletSpeed = CfgFx.Float("boss.phases.attacks.bullet_wall.bullet_speed", WallBulletSpeed);
+        WallDamage = CfgFx.Int("boss.phases.attacks.bullet_wall.damage", WallDamage);
+        WallArcDeg = CfgFx.Float("boss.phases.attacks.bullet_wall.arc_deg", WallArcDeg);
         // 差异化狂暴参数（boss.enrage.type_*）
         // R06：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
-        E1RingInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_1.ring_interval", E1RingInterval).AsDouble(), 0.05f);
-        E1RingCount = (int)GameState.Instance.Cfg("boss.enrage.type_1.ring_count", E1RingCount).AsInt64();
-        E1RingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_1.ring_speed", E1RingSpeed).AsDouble();
-        E1RingPrecessionDeg = (float)GameState.Instance.Cfg("boss.enrage.type_1.ring_precession_deg", E1RingPrecessionDeg).AsDouble();
-        E1SalvoCharge = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_1.salvo_charge", E1SalvoCharge).AsDouble(), 0.05f);
-        E1SalvoCount = (int)GameState.Instance.Cfg("boss.enrage.type_1.salvo_count", E1SalvoCount).AsInt64();
-        E1SalvoSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_1.salvo_speed", E1SalvoSpeed).AsDouble();
-        E1SalvoDamage = (int)GameState.Instance.Cfg("boss.enrage.type_1.salvo_damage", E1SalvoDamage).AsInt64();
+        E1RingInterval = CfgFx.Float("boss.enrage.type_1.ring_interval", E1RingInterval, 0.05f);
+        E1RingCount = CfgFx.Int("boss.enrage.type_1.ring_count", E1RingCount);
+        E1RingSpeed = CfgFx.Float("boss.enrage.type_1.ring_speed", E1RingSpeed);
+        E1RingPrecessionDeg = CfgFx.Float("boss.enrage.type_1.ring_precession_deg", E1RingPrecessionDeg);
+        E1SalvoCharge = CfgFx.Float("boss.enrage.type_1.salvo_charge", E1SalvoCharge, 0.05f);
+        E1SalvoCount = CfgFx.Int("boss.enrage.type_1.salvo_count", E1SalvoCount);
+        E1SalvoSpeed = CfgFx.Float("boss.enrage.type_1.salvo_speed", E1SalvoSpeed);
+        E1SalvoDamage = CfgFx.Int("boss.enrage.type_1.salvo_damage", E1SalvoDamage);
         // AB4：point_count 钳下限 4（同族 count 键 E1RingCount/E3RingCount 等均有 floor，
         // 独漏此项）——配 0 使 _attackIndex < E2PointCount 恒假，二型狂暴 ACTIVE 冻结
-        E2PointCount = Mathf.Max((int)GameState.Instance.Cfg("boss.enrage.type_2.point_count", E2PointCount).AsInt64(), 4);
-        E2PointInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_2.point_interval", E2PointInterval).AsDouble(), 0.05f);
-        E2Aim = (float)GameState.Instance.Cfg("boss.enrage.type_2.aim", E2Aim).AsDouble();
-        E2SniperSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_2.sniper_speed", E2SniperSpeed).AsDouble();
-        E2SniperDamage = (int)GameState.Instance.Cfg("boss.enrage.type_2.sniper_damage", E2SniperDamage).AsInt64();
-        E2ReleaseRingCount = (int)GameState.Instance.Cfg("boss.enrage.type_2.release_ring_count", E2ReleaseRingCount).AsInt64();
-        E2ReleaseRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_2.release_ring_speed", E2ReleaseRingSpeed).AsDouble();
-        E3SummonInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_3.summon_interval", E3SummonInterval).AsDouble(), 0.05f);
+        E2PointCount = CfgFx.Int("boss.enrage.type_2.point_count", E2PointCount, 4);
+        E2PointInterval = CfgFx.Float("boss.enrage.type_2.point_interval", E2PointInterval, 0.05f);
+        E2Aim = CfgFx.Float("boss.enrage.type_2.aim", E2Aim);
+        E2SniperSpeed = CfgFx.Float("boss.enrage.type_2.sniper_speed", E2SniperSpeed);
+        E2SniperDamage = CfgFx.Int("boss.enrage.type_2.sniper_damage", E2SniperDamage);
+        E2ReleaseRingCount = CfgFx.Int("boss.enrage.type_2.release_ring_count", E2ReleaseRingCount);
+        E2ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_2.release_ring_speed", E2ReleaseRingSpeed);
+        E3SummonInterval = CfgFx.Float("boss.enrage.type_3.summon_interval", E3SummonInterval, 0.05f);
         // G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
         // AC7（2026-08-11 健壮性审查）：孪生键 E3SummonInterval 已钳 ≥0.05（上方同族）；≤0 时
         // _summonTimer 每帧归零 → 每物理帧召唤风暴（SummonMinions 刷兵失控）
-        _summonInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.phases.type3.summon_interval", _summonInterval).AsDouble(), 0.05f);
+        _summonInterval = CfgFx.Float("boss.phases.type3.summon_interval", _summonInterval, 0.05f);
         _summonTimer = _summonInterval;
-        E3SummonWaves = (int)GameState.Instance.Cfg("boss.enrage.type_3.summon_waves", E3SummonWaves).AsInt64();
-        E3SummonCount = (int)GameState.Instance.Cfg("boss.enrage.type_3.summon_count", E3SummonCount).AsInt64();
-        E3RingInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_3.ring_interval", E3RingInterval).AsDouble(), 0.05f);
-        E3RingCount = (int)GameState.Instance.Cfg("boss.enrage.type_3.ring_count", E3RingCount).AsInt64();
-        E3RingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_3.ring_speed", E3RingSpeed).AsDouble();
-        E3ReleaseRingCount = (int)GameState.Instance.Cfg("boss.enrage.type_3.release_ring_count", E3ReleaseRingCount).AsInt64();
-        E3ReleaseRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_3.release_ring_speed", E3ReleaseRingSpeed).AsDouble();
+        E3SummonWaves = CfgFx.Int("boss.enrage.type_3.summon_waves", E3SummonWaves);
+        E3SummonCount = CfgFx.Int("boss.enrage.type_3.summon_count", E3SummonCount);
+        E3RingInterval = CfgFx.Float("boss.enrage.type_3.ring_interval", E3RingInterval, 0.05f);
+        E3RingCount = CfgFx.Int("boss.enrage.type_3.ring_count", E3RingCount);
+        E3RingSpeed = CfgFx.Float("boss.enrage.type_3.ring_speed", E3RingSpeed);
+        E3ReleaseRingCount = CfgFx.Int("boss.enrage.type_3.release_ring_count", E3ReleaseRingCount);
+        E3ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_3.release_ring_speed", E3ReleaseRingSpeed);
         // 4 型「月蚀」（2026-08-04）
-        RingBurstSpeed = (float)GameState.Instance.Cfg("boss.ring_burst.bullet_speed", RingBurstSpeed).AsDouble();
-        BulletDamageRing = (int)GameState.Instance.Cfg("boss.bullet_damage.ring", BulletDamageRing).AsInt64();
-        Move4BobAmp = (float)GameState.Instance.Cfg("boss.movement.type4.bob_amp", Move4BobAmp).AsDouble();
+        RingBurstSpeed = CfgFx.Float("boss.ring_burst.bullet_speed", RingBurstSpeed);
+        BulletDamageRing = CfgFx.Int("boss.bullet_damage.ring", BulletDamageRing);
+        Move4BobAmp = CfgFx.Float("boss.movement.type4.bob_amp", Move4BobAmp);
         // W 系列（2026-08-09）：bob_period 下限 0.05——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 越界（R06 同族，MoveBob 侧已有 0.01 保护）
-        Move4BobPeriod = Mathf.Max((float)GameState.Instance.Cfg("boss.movement.type4.bob_period", Move4BobPeriod).AsDouble(), 0.05f);
-        E4RingCount = (int)GameState.Instance.Cfg("boss.enrage.type_4.ring_count", E4RingCount).AsInt64();
-        E4RingInterval = Mathf.Max(
-            (float)GameState.Instance.Cfg("boss.enrage.type_4.ring_interval", E4RingInterval).AsDouble(), 0.05f);
-        E4RingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_4.ring_speed", E4RingSpeed).AsDouble();
-        E4PrecessionDeg = (float)GameState.Instance.Cfg("boss.enrage.type_4.precession_deg", E4PrecessionDeg).AsDouble();
-        E4ReleaseRingCount = (int)GameState.Instance.Cfg("boss.enrage.type_4.release_ring_count", E4ReleaseRingCount).AsInt64();
-        E4ReleaseRingSpeed = (float)GameState.Instance.Cfg("boss.enrage.type_4.release_ring_speed", E4ReleaseRingSpeed).AsDouble();
+        Move4BobPeriod = CfgFx.Float("boss.movement.type4.bob_period", Move4BobPeriod, 0.05f);
+        E4RingCount = CfgFx.Int("boss.enrage.type_4.ring_count", E4RingCount);
+        E4RingInterval = CfgFx.Float("boss.enrage.type_4.ring_interval", E4RingInterval, 0.05f);
+        E4RingSpeed = CfgFx.Float("boss.enrage.type_4.ring_speed", E4RingSpeed);
+        E4PrecessionDeg = CfgFx.Float("boss.enrage.type_4.precession_deg", E4PrecessionDeg);
+        E4ReleaseRingCount = CfgFx.Int("boss.enrage.type_4.release_ring_count", E4ReleaseRingCount);
+        E4ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_4.release_ring_speed", E4ReleaseRingSpeed);
         _movement.SyncPressTimer(PressInterval);
         // W 系列（2026-08-09）：difficulty_scaling 判型+空表守卫——损坏类型/空数组时 AsGodotArray 得空表，
         // ApplyDifficultyScaling 的 Clamp(tier,0,Count-1) 返回 -1 → 越界 SCRIPT ERROR（Q14/R06 同族防呆口径，坏值保持默认）
