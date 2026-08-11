@@ -178,7 +178,6 @@ public partial class GameState : Node
     // ---------------- RP（征用点数）经济：对齐原作 RequisitionConstants ----------------
 
     private const int RpBossKillValue = 5;
-    private const int RpMissionRewardValue = 3;
     private const int RpRepairCostValue = 2;
     public int RP_REPAIR_COST => RpRepairCostValue;
     private const int RpRechargeCostValue = 2;
@@ -200,21 +199,11 @@ public partial class GameState : Node
     private const int MissionSlotsValue = 3;
     public int MISSION_SLOTS => MissionSlotsValue;
 
-    /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
-    /// （balance.json base_task 段覆盖；默认 1 点/次进基地、2 点/次刷新 = 攒两次基地换一次刷新）</summary>
-    public int RefreshPoints { get; set; } = 0;
-
     /// <summary>刷新任务消耗（balance.json base_task.refresh_cost 覆盖；≥1 钳制）。</summary>
     public int REFRESH_COST { get; set; } = 2;
 
     /// <summary>进基地发放刷新点数（balance.json base_task.grant_per_visit 覆盖；≥0 钳制）。</summary>
     public int GRANT_PER_VISIT { get; set; } = 1;
-
-    /// <summary>任务池实例（_init_missions 重建，保证每次对局从全新洗牌序列开始；M7 已 typed）。</summary>
-    private TaskPool? _taskPool;
-
-    /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
-    private readonly Godot.Collections.Dictionary _missionsByKind = new();
 
     // 互斥天赋路线：line -> 两个候选 buff（对齐原作 talent_balance_manager）
 
@@ -371,20 +360,8 @@ public partial class GameState : Node
     /// <summary>buff id -> 已选层数</summary>
     public Godot.Collections.Dictionary Buffs { get; set; } = new();
 
-    /// <summary>征用点数（基地经济）</summary>
-    public int Rp { get; set; } = 0;
-
     /// <summary>对局存活秒数（survive_180 任务进度来源）</summary>
     public double RunTime { get; set; } = 0.0;
-
-    /// <summary>任务 id -> {"progress": int, "claimed": bool}</summary>
-    public Godot.Collections.Dictionary Missions { get; set; } = new();
-
-    /// <summary>天赋路线 line -> 所选 buff id</summary>
-    public Godot.Collections.Dictionary ChosenRoutes { get; set; } = new();
-
-    /// <summary>天赋路线 line -> 被锁定的未选 buff id（不进奖励池）</summary>
-    public Godot.Collections.Dictionary LockedRoutes { get; set; } = new();
 
     private int _nextMilestone = 3000; // = MilestoneBase[0]
 
