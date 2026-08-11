@@ -49,22 +49,7 @@ public partial class StrikeCarrier : Node2D
     private readonly List<Line2D> _rings = new();
     private Sprite2D _sprite = null!; // 构造函数赋值（设计值 1.0 × 全局缩放）
 
-    /// <summary>热路径缓存：view_world_rect 每物理帧一次动态调用（全实例共享）。</summary>
-    private static ulong _frame = ulong.MaxValue;
-    private static Rect2 _frameView;
-
-    private static Rect2 CachedView()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-        }
-
-        return _frameView;
-    }
-
+    /// <summary>热路径缓存统一由 FrameCache 提供（view 每物理帧一次共享，见 FrameCache.cs）。</summary>
     public StrikeCarrier()
     {
         _sprite = new Sprite2D
@@ -196,7 +181,7 @@ public partial class StrikeCarrier : Node2D
             case State.RETREAT:
                 _retreatSpeed += RetreatAccel * _retreatFactor * d;
                 Position = new Vector2(Position.X, Position.Y - _retreatSpeed * d);
-                if (Position.Y < CachedView().Position.Y - 500.0f)
+                if (Position.Y < FrameCache.ViewRect().Position.Y - 500.0f)
                 {
                     EmitSignal(SignalName.Exited);
                     QueueFree();

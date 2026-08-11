@@ -108,28 +108,6 @@ public partial class BossAttacks : RefCounted
     // 新增攻击只需注册一行 + 模式表加 id，不再改 execute 分发本身（O 原则达成）。
     private readonly Godot.Collections.Dictionary<StringName, Callable> _attackHandlers = new();
 
-
-    // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
-    // U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）
-    private ulong _frame = ulong.MaxValue;
-    private Rect2 _frameView;
-    private Variant _framePlayer;
-
-    private Rect2 CachedView()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-            _framePlayer = GameState.Instance.PlayerRef!;
-        }
-
-        return _frameView;
-    }
-
-    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
-
     public BossAttacks()
     {
         _attackHandlers[new StringName("fan5")] = Callable.From<Boss>(HandleFan5);
@@ -155,10 +133,9 @@ public partial class BossAttacks : RefCounted
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
     private Vector2 PlayerDir(Boss from)
     {
-        var player = CachedPlayer();
-        if (player.VariantType != Variant.Type.Nil)
+        var p = FrameCache.Player();
+        if (p != null)
         {
-            var p = (Node2D)player;
             return (p.GlobalPosition - from.GlobalPosition).Normalized();
         }
 
@@ -457,13 +434,12 @@ public partial class BossAttacks : RefCounted
         _sweepState = SweepAim;
         _sweepTimer = boss.SweepAim;
         // C14：默认方向/高度取可见世界中心，不写死 960/300
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         var playerX = view.GetCenter().X;
         var dy = view.GetCenter().Y - boss.Position.Y;
-        var player = CachedPlayer();
-        if (player.VariantType != Variant.Type.Nil)
+        var p = FrameCache.Player();
+        if (p != null)
         {
-            var p = (Node2D)player;
             playerX = p.GlobalPosition.X;
             dy = p.GlobalPosition.Y - boss.Position.Y;
         }
@@ -557,7 +533,7 @@ public partial class BossAttacks : RefCounted
                     _sweepOrigin = boss.Position;
                     // C14：返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
                     _sweepReturnTarget = new Vector2(
-                        Mathf.Clamp(CachedView().GetCenter().X, dashBounds.X, dashBounds.Y), boss.FightAnchorY());
+                        Mathf.Clamp(FrameCache.ViewRect().GetCenter().X, dashBounds.X, dashBounds.Y), boss.FightAnchorY());
                 }
 
                 break;
@@ -620,13 +596,12 @@ public partial class BossAttacks : RefCounted
     /// <summary>齐射一轮自机狙（普通敌弹口径；P2 编队与狂暴倾巢收尾共用）。</summary>
     public void MinionVolleyFire(Boss boss, Godot.Collections.Array minions)
     {
-        var playerV = CachedPlayer();
-        if (playerV.VariantType == Variant.Type.Nil)
+        var player = FrameCache.Player();
+        if (player == null)
         {
             return;
         }
 
-        var player = (Node2D)playerV;
         var volleySpeed = boss.VolleyBulletSpeed;
         var volleyDamage = boss.VolleyBulletDamage;
         foreach (var raw in minions)

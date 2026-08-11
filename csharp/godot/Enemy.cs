@@ -85,7 +85,10 @@ public partial class Enemy : Area2D
     private float _exitSpeed;
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    private bool _slowFieldOn;
+    /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
+    private static readonly StringName SlowFieldId = new("slow_field");
+    /// <summary>2026-08-11 二轮收敛 BuffBoolCache：slow_field 布尔缓存（BuffsChanged 信号事件驱动，热路径禁字典）。</summary>
+    private readonly BuffBoolCache _slowCache;
     private Sprite2D? _sprite;
     private CollisionShape2D? _shape;
     private Sprite2D? _tailGlow;
@@ -95,32 +98,9 @@ public partial class Enemy : Area2D
     private float _shakeDieNormal = 5.0f;
     private float _shakeDieElite = 9.0f;
 
-    private readonly Callable _onBuffsChanged;
-
-    /// <summary>热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（全敌机共享）。
-    /// U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）</summary>
-    private ulong _frame = ulong.MaxValue;
-    private Rect2 _frameView;
-    private Variant _framePlayer;
-
-    private Rect2 CachedView()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-            _framePlayer = GameState.Instance.PlayerRef!;
-        }
-
-        return _frameView;
-    }
-
-    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
-
     public Enemy()
     {
-        _onBuffsChanged = Callable.From(OnBuffsChanged);
+        _slowCache = new BuffBoolCache(SlowFieldId);
     }
 
     public override void _Ready()
@@ -229,12 +209,8 @@ public partial class Enemy : Area2D
         v = GameState.Instance.Cfg("effects.shake.elite_die", _shakeDieElite);
         _shakeDieElite = Mathf.Max(
             v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : _shakeDieElite, 0.0f);
-        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
-        var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Connect("BuffsChanged", _onBuffsChanged);
-        }
+        _slowCache.Refresh();
+        _slowCache.Connect(GameState.Instance);
 
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
@@ -253,11 +229,7 @@ public partial class Enemy : Area2D
         }
 
         // L02：buff 信号断开（C22 模式；池化 reparent 复用由 Reactivate 对称重连）
-        var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Disconnect("BuffsChanged", _onBuffsChanged);
-        }
+        _slowCache.Disconnect(GameState.Instance);
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
         if (_pool != null && GodotObject.IsInstanceValid(_pool) && !_repooling)
@@ -353,13 +325,8 @@ public partial class Enemy : Area2D
         Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
         // L02：池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
-        var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Connect("BuffsChanged", _onBuffsChanged);
-        }
-
-        OnBuffsChanged();
+        _slowCache.Connect(GameState.Instance);
+        _slowCache.Refresh();
         _active = true;
         _time = 0.0f;
         _hovering = false;
@@ -457,10 +424,8 @@ public partial class Enemy : Area2D
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite != null)
         {
-            _sprite.Modulate = new Color(2.0f, 2.0f, 2.0f); // 受击闪白
+            FlashFx.Hit(_sprite, ref _flashTimer, FlashTime); // 受击闪白
         }
-
-        _flashTimer = FlashTime;
         if (Hp <= 0)
         {
             Die();
@@ -533,19 +498,25 @@ public partial class Enemy : Area2D
 
 
     // pool_reuse_test 白盒断言访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留）
-    public Callable _on_buffs_changed => _onBuffsChanged;
+    public Callable _on_buffs_changed => _slowCache.CallableBridge;
 
-    public bool _slow_field_on => _slowFieldOn;
+    public bool _slow_field_on => _slowCache.Value;
 
     public static float CosFast(float x) => SinFast(x + Mathf.Pi / 2.0f);
 
     // ---------------- 内部实现 ----------------
 
-    /// <summary>slow_field 缓存刷新（热路径禁字典约定）。</summary>
-    private void OnBuffsChanged()
+    /// <summary>O 原则：移动策略工厂注册表（strategy 名 → 构造器；新增策略注册一行即可，
+    /// 不再改 MakeStrategy 本体；默认 HoverMove 兜底 straight/hover，见 A4a 注释）。</summary>
+    private static readonly Dictionary<string, Func<Godot.Collections.Dictionary, EnemyMoveStrategy>> StrategyFactories = new()
     {
-        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
-    }
+        ["sine"] = d => new SineMove(d),
+        ["zigzag"] = d => new ZigzagMove(d),
+        ["dive"] = d => new DiveMove(d),
+        ["spiral"] = d => new SpiralMove(d),
+        ["noise"] = d => new NoiseMove(d),
+        ["aggressive"] = d => new AggressiveMove(d),
+    };
 
     /// <summary>A4a：按 strategy 构建移动策略实例（共享悬停常量注入；Q29 策略专属参数覆盖）。</summary>
     private EnemyMoveStrategy MakeStrategy()
@@ -573,38 +544,7 @@ public partial class Enemy : Area2D
             }
         }
 
-        var s = Strategy;
-        if (s == "sine")
-        {
-            return new SineMove(params_);
-        }
-
-        if (s == "zigzag")
-        {
-            return new ZigzagMove(params_);
-        }
-
-        if (s == "dive")
-        {
-            return new DiveMove(params_);
-        }
-
-        if (s == "spiral")
-        {
-            return new SpiralMove(params_);
-        }
-
-        if (s == "noise")
-        {
-            return new NoiseMove(params_);
-        }
-
-        if (s == "aggressive")
-        {
-            return new AggressiveMove(params_);
-        }
-
-        return new HoverMove(params_); // straight / hover
+        return StrategyFactories.GetValueOrDefault(Strategy)?.Invoke(params_) ?? new HoverMove(params_); // straight / hover
     }
 
     /// <summary>尾焰光点同步：颜色/半径档按精英标记、位置贴纹理尾缘。</summary>
@@ -637,7 +577,7 @@ public partial class Enemy : Area2D
             return;
         }
 
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         var bandTop = view.Position.Y + HoverBand.X;
         var bandBottom = view.Position.Y + HoverBand.Y;
         AnchorY = Position.Y > bandBottom
@@ -649,22 +589,22 @@ public partial class Enemy : Area2D
     /// 无 _active 守卫：直实例化敌机 _active 恒 false（语义缺口），陈旧调用由 deactivate 防住。</summary>
     private void TryBodyCollision()
     {
-        var player = CachedPlayer();
-        if (player.VariantType == Variant.Type.Nil)
+        var player = FrameCache.Player();
+        if (player == null)
         {
             return;
         }
 
         // 2026-08-10 审计 M4：typed 直调（M3c 后 player_ref 恒为 Player；Boss.CheckBodyCollision 同款），
         // 替代原每物理帧 p.Call("take_damage", ...) 动态派发
-        var p = player.AsGodotObject() as Player;
+        var p = player as Player;
         if (p == null || !GodotObject.IsInstanceValid(p))
         {
             return;
         }
 
         p.TakeDamage(
-            Mathf.Max(1, (int)Mathf.Round(CollisionDamage * (float)GameState.Instance.EnemyDamageRamp())),
+            EnemyFx.RampCollisionDamage(CollisionDamage),
             GlobalPosition);
     }
 
@@ -709,7 +649,7 @@ public partial class Enemy : Area2D
             // 寿命离场：向上或侧方加速，离场不给分、不计击杀
             _exitSpeed += ExitAccel * d;
             Position += _exitDir * _exitSpeed * d;
-            var exitView = CachedView();
+            var exitView = FrameCache.ViewRect();
             if (Position.Y < exitView.Position.Y - 150.0f
                 || Position.X < exitView.Position.X - 150.0f
                 || Position.X > exitView.End.X + 150.0f)
@@ -733,7 +673,7 @@ public partial class Enemy : Area2D
         }
 
         // 慢速力场 + 母舰减速带（仅位移，不影响射速/寿命/计时）
-        var slowMult = _slowFieldOn ? SlowFieldFactor : 1.0f;
+        var slowMult = _slowCache.Value ? SlowFieldFactor : 1.0f;
         if (_summonSlowTimer > 0.0f)
         {
             _summonSlowTimer -= d;
@@ -741,7 +681,7 @@ public partial class Enemy : Area2D
         }
 
         var mdelta = d * slowMult;
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         // A4a/C06：复用 _moveCtx（字段原地更新，避免每帧分配）
         _moveCtx.View = view;
         _moveCtx.MDelta = mdelta;
@@ -751,7 +691,7 @@ public partial class Enemy : Area2D
         _moveCtx.SpawnX = _spawnX;
         _moveCtx.AnchorY = AnchorY;
         _moveCtx.Hovering = _hovering;
-        _moveCtx.Player = CachedPlayer().VariantType != Variant.Type.Nil ? (Node2D?)CachedPlayer() : null;
+        _moveCtx.Player = FrameCache.Player();
         _strategy?.Update(d, this, _moveCtx);
         // 到达锚点转入悬停机动（dive 冲刺期除外；spiral 以绕转中心为准）
         if (!_hovering)
@@ -772,7 +712,7 @@ public partial class Enemy : Area2D
         if (CanShoot)
         {
             // B 梯队：DDA 降档拉长开火间隔（只拉间隔不降收益）
-            _fireTimer -= d / (float)GameState.Instance.DdaFactor();
+            _fireTimer -= d / FrameCache.DdaFactor();
             if (_fireTimer <= 0.0f)
             {
                 _fireTimer = FireInterval;
@@ -791,57 +731,56 @@ public partial class Enemy : Area2D
         }
     }
 
+    /// <summary>弹种→发射规格单点映射（O 原则：新增弹种只改此处；速度/伤害为实例字段
+    /// 由 _ready 从 balance.json 读入，不能入静态表）。</summary>
+    private readonly record struct EnemyBulletSpec(float Speed, int Damage, int Count);
+
+    private EnemyBulletSpec BulletSpec()
+    {
+        if (BulletType == BulletTypeSpread)
+        {
+            return new EnemyBulletSpec(SpreadBulletSpeed, BulletDamageSpread, 5);
+        }
+
+        if (BulletType == BulletTypeLaser)
+        {
+            return new EnemyBulletSpec(LaserBulletSpeed, BulletDamageLaser, 1);
+        }
+
+        return new EnemyBulletSpec(EnemyBulletSpeed, BulletDamageSingle, 1);
+    }
+
     private void FireAtPlayerInternal()
     {
-        var player = CachedPlayer();
-        if (player.VariantType == Variant.Type.Nil)
+        var player = FrameCache.Player();
+        if (player == null)
         {
             return;
         }
 
-        var playerNode = (Node2D)player;
-        var baseDir = (playerNode.GlobalPosition - GlobalPosition).Normalized();
+        var baseDir = (player.GlobalPosition - GlobalPosition).Normalized();
         if (baseDir == Vector2.Zero)
         {
             baseDir = Vector2.Down; // G026：与玩家圆心重合时回退，防零方向弹永不销毁
         }
 
-        if (BulletType == BulletTypeSpread)
+        var spec = BulletSpec();
+        for (var i = 0; i < spec.Count; i++)
         {
-            for (var i = 0; i < 5; i++)
-            {
-                SpawnEnemyBullet(baseDir.Rotated(SpreadFanStep * (i - 2)), SpreadBulletSpeed, BulletTypeSpread);
-            }
-        }
-        else if (BulletType == BulletTypeLaser)
-        {
-            SpawnEnemyBullet(baseDir, LaserBulletSpeed, BulletTypeLaser);
-        }
-        else
-        {
-            SpawnEnemyBullet(baseDir, EnemyBulletSpeed, BulletTypeSingle);
+            var dir = spec.Count > 1 ? baseDir.Rotated(SpreadFanStep * (i - 2)) : baseDir;
+            SpawnEnemyBullet(dir, spec.Speed, spec.Damage, BulletType);
         }
     }
 
-    private void SpawnEnemyBullet(Vector2 dir, float bulletSpeed, StringName pType)
+    private void SpawnEnemyBullet(Vector2 dir, float bulletSpeed, int damage, StringName pType)
     {
-        var dmg = BulletDamageSingle;
-        if (pType == BulletTypeSpread)
-        {
-            dmg = BulletDamageSpread;
-        }
-        else if (pType == BulletTypeLaser)
-        {
-            dmg = BulletDamageLaser;
-        }
-
         var pool = GameState.Instance.BulletPool;
         if (pool == null)
         {
             return;
         }
 
-        var b = pool!.Fire(dir, bulletSpeed, dmg, false);
+        var b = pool!.Fire(dir, bulletSpeed, damage, false);
         if (b == null)
         {
             return; // P2-3：同屏敌弹硬上限
@@ -874,7 +813,7 @@ public partial class Enemy : Area2D
         {
             // 侧向离场（AB19：注释订正——向镜像侧离场：左半区向右、右半区向左，与旧版一致）
             _exitDir = new Vector2(
-                Position.X < CachedView().GetCenter().X ? 1.0f : -1.0f, (float)GD.RandRange(-0.4, 0.0)).Normalized();
+                Position.X < FrameCache.ViewRect().GetCenter().X ? 1.0f : -1.0f, (float)GD.RandRange(-0.4, 0.0)).Normalized();
         }
 
         _exitSpeed = Speed;
@@ -921,20 +860,12 @@ public partial class Enemy : Area2D
             return;
         }
 
-        _flashTimer -= delta;
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite == null)
         {
             return;
         }
 
-        if (_flashTimer <= 0.0f)
-        {
-            _sprite.Modulate = Colors.White;
-        }
-        else
-        {
-            _sprite.Modulate = _sprite.Modulate.Lerp(Colors.White, delta / FlashTime);
-        }
+        FlashFx.Update(_sprite!, ref _flashTimer, delta, FlashTime, Colors.White);
     }
 }

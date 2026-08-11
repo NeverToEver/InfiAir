@@ -319,8 +319,11 @@ public partial class Boss : Area2D
     /// <summary>母舰召唤减速带：短时减速乘区（仅位移，经 slow_factor 生效）。</summary>
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    /// <summary>2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 buff_count 字典查询）。</summary>
-    private bool _slowFieldOn;
+    /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
+    private static readonly StringName SlowFieldId = new("slow_field");
+    /// <summary>2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 buff_count 字典查询；
+    /// 2026-08-11 二轮收敛 BuffBoolCache：BuffsChanged 信号事件驱动）。</summary>
+    private readonly BuffBoolCache _slowCache;
     /// <summary>2026-08-07 审计：体碰改信号事件驱动（对齐 enemy.gd P0-2）。</summary>
     private bool _bodyContact;
     // 阶段框架与模式表循环（§4.1）
@@ -333,6 +336,9 @@ public partial class Boss : Area2D
     /// <summary>G024：三型普通阶段召唤小怪间隔（balance.json boss.phases.type3.summon_interval 可覆盖）。</summary>
     private float _summonInterval = 6.0f;
     private float _summonTimer = 6.0f;
+    /// <summary>A3 收敛：召唤机标志字段化（原每物理帧 SummonerTypes.TryGetValue 查询；Setup 按 BossType 固化）。
+    /// 默认 BossType=1 非字典键 → 默认 false，与直实例化不调 Setup 的 TryGetValue 结果一致。</summary>
+    private bool _isSummoner;
     /// <summary>贴图有效尺寸（_ready 实测更新，算轨道半径）。</summary>
     private Vector2 _bossSize = new(328.0f, 328.0f);
     private Sprite2D _sprite = null!;
@@ -340,34 +346,12 @@ public partial class Boss : Area2D
     private float _flashTimer;
     private float _flashTotal = 0.1f;
 
-    private readonly Callable _onBuffsChanged;
     private readonly Script _formationBombScript;
-
-    // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
-    // U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）
-    private ulong _frame = ulong.MaxValue;
-    private Rect2 _frameView;
-    private Variant _framePlayer;
-
-    private Rect2 CachedView()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-            _framePlayer = GameState.Instance.PlayerRef!;
-        }
-
-        return _frameView;
-    }
-
-    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
 
     public Boss()
     {
         _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite4 };
-        _onBuffsChanged = Callable.From(OnBuffsChanged);
+        _slowCache = new BuffBoolCache(SlowFieldId);
         _formationBombScript = GD.Load<Script>("res://csharp/godot/FormationBomb.cs");
     }
 
@@ -437,12 +421,8 @@ public partial class Boss : Area2D
         EscapeStartSpeed = (float)GameState.Instance.Cfg("boss.escape.start_speed", EscapeStartSpeed).AsDouble();
         EscapeAccel = (float)GameState.Instance.Cfg("boss.escape.accel", EscapeAccel).AsDouble();
         // 2026-08-07 审计：slow_field 缓存初始值 + buffs_changed 增量刷新（对齐 enemy.gd C22）
-        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
-        var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Connect("BuffsChanged", _onBuffsChanged);
-        }
+        _slowCache.Refresh();
+        _slowCache.Connect(GameState.Instance);
 
         // 2026-08-07 审计：体碰信号事件驱动（对齐 enemy.gd P0-2；collision_mask=3 已含 player Hitbox 层 1）
         AreaEntered += OnAreaEntered;
@@ -606,11 +586,7 @@ public partial class Boss : Area2D
     {
         GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
         // C22：显式断开 buffs_changed 信号连接（重入树不重复连接）
-        var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Disconnect("BuffsChanged", _onBuffsChanged);
-        }
+        _slowCache.Disconnect(GameState.Instance);
 
         _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（A3 归 EnrageSequence）
     }
@@ -624,6 +600,8 @@ public partial class Boss : Area2D
         // 双双越界（H11 只校验了数组长度）；轮换扩 4 型（2026-08-04 月蚀）后上限放开为 4
         pType = Mathf.Clamp(pType, 1, 4);
         BossType = pType;
+        // A3 收敛：召唤机标志字段化（原每物理帧 SummonerTypes.TryGetValue 查询；BossType 仅此处写入，Setup 固化）
+        _isSummoner = SummonerTypes.TryGetValue(BossType, out var s) && s;
         // HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
         // H11（健壮性审核）：hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默
         // Q02（2026-08-05）：校验与回退数组随 4 型扩容——原 3 元素校验/回退在 json 缺键/截断时
@@ -845,7 +823,7 @@ public partial class Boss : Area2D
     /// 母舰召唤减速带命中时叠加短时乘区（同语义，仅位移）。</summary>
     public float SlowFactor()
     {
-        var f = _slowFieldOn ? SlowFieldFactor : 1.0f;
+        var f = _slowCache.Value ? SlowFieldFactor : 1.0f;
         if (_summonSlowTimer > 0.0f)
         {
             f *= _summonSlowFactor;
@@ -902,7 +880,7 @@ public partial class Boss : Area2D
             // 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
             _escapeSpeed += EscapeAccel * d;
             Position += new Vector2(0.0f, -_escapeSpeed * d);
-            if (Position.Y < CachedView().Position.Y - 280.0f) // G08：出界基线对齐 view_world_rect
+            if (Position.Y < FrameCache.ViewRect().Position.Y - 280.0f) // G08：出界基线对齐 view_world_rect
             {
                 EmitSignal(SignalName.Escaped);
                 EmitSignal(SignalName.Died); // 离场通知（血条/生成器重排）；非击毁，无击杀奖励
@@ -1000,7 +978,7 @@ public partial class Boss : Area2D
         }
 
         // 母舰型召唤小怪（独立计时，不占模式表；机型参数表驱动）
-        if (SummonerTypes.TryGetValue(BossType, out var summoning) && summoning)
+        if (_isSummoner)
         {
             _summonTimer -= d;
             if (_summonTimer <= 0.0f)
@@ -1263,12 +1241,6 @@ public partial class Boss : Area2D
         return (float)FireIntervals[idx].AsDouble() * (float)GameState.Instance.DdaFactor();
     }
 
-    /// <summary>slow_field 缓存刷新（2026-08-07 审计：对齐 enemy.gd C22，buffs_changed 增量刷新）。</summary>
-    private void OnBuffsChanged()
-    {
-        _slowFieldOn = (int)GameState.Instance.BuffCount(new StringName("slow_field")) > 0;
-    }
-
     private void SummonMinions()
     {
         if (_spawner == null || !GodotObject.IsInstanceValid(_spawner))
@@ -1288,10 +1260,9 @@ public partial class Boss : Area2D
     /// <summary>受击闪白（锁血期复用；P1-2 手动衰减替代 Tween，高频命中零分配）。</summary>
     private void FlashHit()
     {
-        _sprite.Modulate = new Color(2.0f, 2.0f, 2.0f);
         // 游击型受击硬直（闪白）更短（机型参数表驱动）
         _flashTotal = HitFlashByType.TryGetValue(BossType, out var ft) ? ft : 0.1f;
-        _flashTimer = _flashTotal;
+        FlashFx.Hit(_sprite, ref _flashTimer, _flashTotal); // 受击闪白
     }
 
     /// <summary>P1-2：受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）。</summary>
@@ -1302,15 +1273,7 @@ public partial class Boss : Area2D
             return;
         }
 
-        _flashTimer -= delta;
-        if (_flashTimer <= 0.0f)
-        {
-            _sprite.Modulate = BaseModulate();
-        }
-        else
-        {
-            _sprite.Modulate = _sprite.Modulate.Lerp(BaseModulate(), delta / _flashTotal);
-        }
+        FlashFx.Update(_sprite, ref _flashTimer, delta, _flashTotal, BaseModulate());
     }
 
     private Color BaseModulate() => _enraged ? EnrageBlinkColor : Colors.White;
@@ -1329,20 +1292,14 @@ public partial class Boss : Area2D
         }
 
         // M3c：Player 迁 C#，player_ref 恒为 Player
-        var playerV = CachedPlayer();
-        if (playerV.VariantType == Variant.Type.Nil)
-        {
-            return;
-        }
-
-        var player = playerV.AsGodotObject() as Player;
+        var player = FrameCache.Player() as Player;
         if (player == null || !GodotObject.IsInstanceValid(player))
         {
             return;
         }
 
         // 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
-        var dmg = Mathf.Max(1, (int)Mathf.Round(CollisionDamage * (float)GameState.Instance.EnemyDamageRamp()));
+        var dmg = EnemyFx.RampCollisionDamage(CollisionDamage);
         player.TakeDamage(dmg, GlobalPosition);
     }
 
@@ -1377,7 +1334,7 @@ public partial class Boss : Area2D
         var playerV = GameState.Instance.PlayerRef;
         var snapshot = playerV != null
             ? ((Node2D)playerV).GlobalPosition
-            : CachedView().GetCenter();
+            : FrameCache.ViewRect().GetCenter();
         _enrageSequence.Begin(this, snapshot, _bossSize);
         _sprite.Modulate = BaseModulate();
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enrage", 16.0).AsDouble());

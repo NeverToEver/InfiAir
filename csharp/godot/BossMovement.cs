@@ -42,6 +42,10 @@ public partial class BossMovement : RefCounted
     /// <summary>A3 收敛：机型移动器注册表（boss_type → 移动策略方法，构造函数装配）。
     /// 新增机型只需注册一行 + 一个策略方法，不再改 update 的分发（O 原则达成）。</summary>
     private readonly Dictionary<int, System.Action<float, Boss>> _movers;
+    /// <summary>A4 收敛：mover 类型戳缓存（空间换时间——BossType 一场战斗恒定，免每帧字典查询；
+    /// 非法类型同样缓存回退 MoveType1，K13 语义逐位保留；_moverCachedType=-1 保证首帧必刷新）。</summary>
+    private int _moverCachedType = -1;
+    private System.Action<float, Boss>? _moverCached;
 
     public BossMovement()
     {
@@ -75,16 +79,16 @@ public partial class BossMovement : RefCounted
         _bobSmoothFrom = currentY;
     }
 
-    /// <summary>每物理帧驱动：注册表分发（非法 boss_type 回退一型）。</summary>
+    /// <summary>每物理帧驱动：类型戳缓存分发（非法 boss_type 回退一型，K13 语义不变）。</summary>
     public void Update(float delta, Boss boss)
     {
-        if (!_movers.TryGetValue(boss.BossType, out var mover))
+        if (boss.BossType != _moverCachedType)
         {
-            MoveType1(delta, boss); // K13：非法 boss_type（防御，正常路径恒 1..4）回退一型走位，防非法值下完全静止
-            return;
+            _moverCachedType = boss.BossType;
+            _moverCached = _movers.TryGetValue(boss.BossType, out var m) ? m : MoveType1; // K13：非法 boss_type（防御，正常路径恒 1..4）回退一型走位，防非法值下完全静止
         }
 
-        mover(delta, boss);
+        _moverCached!(delta, boss);
     }
 
     /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>

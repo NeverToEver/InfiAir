@@ -19,14 +19,6 @@ public partial class BaseConsole : CanvasLayer
     [Signal]
     public delegate void ResumeRequestedEventHandler();
 
-    private static readonly Dictionary<string, string> RouteBuffNames = new()
-    {
-        { "spread_shot", "BUFF_SPREAD_SHOT_NAME" },
-        { "laser_beam", "BUFF_LASER_BEAM_NAME" },
-        { "phase_dash", "BUFF_PHASE_DASH_NAME" },
-        { "mothership_recall", "BUFF_MOTHERSHIP_RECALL_NAME" },
-    };
-
     private static readonly Dictionary<string, string> RouteLineNames = new()
     {
         { "offense", "ROUTE_OFFENSE" },
@@ -479,7 +471,7 @@ public partial class BaseConsole : CanvasLayer
                 var chosen = chosenRoutes.ContainsKey(line) && chosenRoutes[line].AsStringName() == opt;
                 var locked = GameState.Instance.IsBuffLocked(opt);
                 var button = MakeButton("");
-                var buffNameKey = RouteBuffNames.TryGetValue(opt.ToString(), out var mappedName) ? mappedName : opt.ToString(); // H20：表缺键兜底
+                var buffNameKey = $"BUFF_{opt.ToString().ToUpperInvariant()}_NAME"; // H20：表缺键兜底改述——约定键，与 BuffSelect.MakeCard 同构
                 var buffName = (string)Tr(buffNameKey);
                 if (chosen)
                 {

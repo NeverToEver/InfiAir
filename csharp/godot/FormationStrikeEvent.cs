@@ -75,26 +75,6 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     private CommOverlay? _comm;
     private Spawner? _spawner;
 
-    // ---- 热路径缓存：score / view_world_rect 每处理帧一次动态调用（全事件实例共享） ----
-    private static ulong _frame = ulong.MaxValue;
-    private static Rect2 _frameView;
-
-    private static void RefreshFrameCache()
-    {
-        var f = Engine.GetProcessFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-        }
-    }
-
-    private static Rect2 CachedView()
-    {
-        RefreshFrameCache();
-        return _frameView;
-    }
-
     /// <summary>K15：spawner 依赖注入（main._ready 调用，A5 延续——替代 group 现找，与 EliteTurretEvent 同款）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner; // U14：typed 字段
 
@@ -244,7 +224,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
             _spawner.SetWavesPaused(true);
         }
 
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         var x0 = (float)GD.RandRange(view.Position.X + view.Size.X * 0.4, view.Position.X + view.Size.X * 0.6);
         _anchor = new Vector2(x0, view.Position.Y - 120.0f);
         // 生成编队：长机居中，僚机后掠 ±55px 递增（楔形，槽位稳定）
@@ -322,7 +302,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         {
             case State.FORMATION_ENTER:
                 _anchor.Y += ApproachSpeed * d;
-                if (_anchor.Y >= CachedView().Position.Y + ApproachY)
+                if (_anchor.Y >= FrameCache.ViewRect().Position.Y + ApproachY)
                 {
                     BeginTurn();
                 }
@@ -346,7 +326,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
                 {
                     _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
                     ProcessDrops();
-                    var view = CachedView();
+                    var view = FrameCache.ViewRect();
                     // 出界余量按投弹表剩余最大时长折算（2026-08-03 审计）：原固定 ±120 会在 hard 5 机
                     // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
                     var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
@@ -379,7 +359,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     {
         _state = State.FORMATION_TURN;
         _stateTime = 0.0f;
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         _turnTarget = _anchor.X < view.Position.X + view.Size.X * 0.5f ? 0.0f : Mathf.Pi;
     }
 

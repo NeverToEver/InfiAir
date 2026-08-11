@@ -10,6 +10,27 @@
 - **低血防御保底**：HP < 50% 时三张 Buff 候选加权偏向防御（extra_life/regen/armor/shield/evasion ×2）且保底至少 1 张防御卡（满血行为不变；防御满层自然失效）。新键 `buffs.dynamic_weight.*`；buff33_test 新增保底断言
 - **验证**：`dotnet build` 零警告 + xUnit 111/111 + `dotnet format` 三工程零 diff + 新键 BALANCE_MAP 重跑收录 + 断言场景全量 0 FAIL（含 formation 击坠分契约更新 2000→2240）+ autoplay 探针
 
+### 重构（2026-08-11，SOLID + 空间换时间——帧缓存收敛 + 类型分支注册表化）
+
+- **新增 `FrameCache` 共享帧缓存**（空间换时间）：全场上百实体/子弹每物理帧共享一次 `view_world_rect` 查询，替代 10 处同构样板（Enemy/Boss/EnrageSequence/BossAttacks/TurretBattery/AimFrameLayer/Bullet/FormationStrikeEvent/StrikeCarrier/FormationBomb 各自持有 `_frame/_frameView/_framePlayer` + `CachedView()/CachedPlayer()` 私有缓存）；`CachedPlayer()` 原将 EntityManager O(1) typed 属性包成 `Variant` 再拆包（纯负优化，Enemy.cs:754 每帧每敌机双调用）一并消灭——player 改直读 `GameState.Instance.PlayerRef`，不缓存不装箱，遵守 U07「静态缓存不持 Godot 对象引用」约束
+- **OCP 注册表化**：`Enemy.MakeStrategy()` 7 连 if 字符串分支 → 静态工厂注册表（新增移动策略只注册一行，不再改工厂本体，对齐 BossAttacks 攻击注册表既有口径）；敌弹「弹种→速度/伤害/数量」双处 if/else 分支合并为单一 `BulletSpec()` 映射（新增弹种只改一处）
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 6 个 317 项 PASS 零 FAIL（enemy_combat/boss_pattern/boss_enrage/formation_strike_event/elite_turret_event/hit_logic）+ autoplay 探针 exit 0（仅既有的分裂者 flushing queries 与 dda_stuck 探针边界两项登记不修，AUDIT_VAULT.md:1794 基线对照）
+
+### 重构（2026-08-11，第二轮：热路径空间换时间 + 样板收敛 + 双源去重，全量行为零变化）
+
+- **热路径空间换时间 4 项**：`FrameCache.DdaFactor()` 每物理帧一次共享缓存（原每敌机每帧 `d / GameState.Instance.DdaFactor()` 方法调用+分支，改为 `d / FrameCache.DdaFactor()`——缓存因子非逆因子，除法逐位等价）；Player `_PhysicsProcess` 帧首单次 `Time.GetTicksMsec()` 供两处视觉更新复用（同帧时钟自洽）；Boss `SummonerTypes` 字典查询字段化 `_isSummoner`（Setup 固化，直实例化默认语义逐位保留）；BossMovement `_movers` 委托类型戳缓存（非法类型回退一型语义逐位保留）
+- **样板收敛 3 项**：受击闪白 4 处同构（Enemy/Boss/TurretBattery/FormationCraft）收敛为新静态工具 `FlashFx.Hit/Update`（恢复色/时长逐参注入，Boss 狂暴态 `BaseModulate()` 实时取色与 HitFlashByType 表驱动时长保留）；体碰伤害公式提取 `EnemyFx.RampCollisionDamage`（Enemy/Boss 两处）；buff 布尔缓存 3 处同构（Enemy/Boss slow_field、LaserWeapon laser_beam）收敛为新 `BuffBoolCache`（id 驱动、信号事件驱动、零闭包；Enemy 白盒桥 `_on_buffs_changed`/`_slow_field_on` 与池化重连保留，PoolReuseTest 契约不破）
+- **双源数据去重 2 项**：`MILESTONE_BASE` 三处重复单源化（删零消费方的 Constants 死属性，State 初始化收敛到 `BuildMilestoneBase()`/`MilestoneCycleMultValue`）；`BaseConsole.RouteBuffNames` 冗余表删除（改通用翻译键约定 `BUFF_{ID}_NAME`，与 BuffSelect.MakeCard 同构）
+- **防漂移断言**：Buff33Test 新增 1d 块——卡池 id 集合 == balance.json `buffs` 键集（双向 diff）+ json 声明 `max_stacks` 与池值一致性（未声明者以池缺省为权威），兜住「json 加新 buff 但卡池漏登记」的成员漂移
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 14 个 716 项 PASS 零 FAIL（hit_logic/enemy_combat/boss_pattern/boss_enrage/elite_turret_event/formation_strike_event/pool_reuse/parry/graze/base_system/base_task_refresh/boss_registry/buff33/smoke）+ BALANCE_MAP 生成器重跑（Cfg 调用行号漂移 216 行同步）+ autoplay 探针 480s exit 0 **异常总数 0（0 类）**（较上轮既有的分裂者 flushing queries/dda_stuck 两项登记警告一并消失；boss_registry_test 的退出期 RID leak 经基线 worktree 对照确认为既有、CI 错误扫描口径不含该模式）
+
+### 架构（2026-08-11，第三轮：GameState 拆域试点 + CfgFx 批 1 + 一致性断言，全量行为零变化）
+
+- **GameState 上帝类拆分试点——`MetaService`**（3216 行/10 partial 上帝类第一步实体化）：局外成长域全部职责（科技点结算/升级消费/开局 buff 预置，原 GameState.Meta.cs 232 行）迁入新组合服务 `MetaService : RefCounted`（构造注入 `UserDB`，对齐 BalanceService/SaveManager/EntityManager 服务先例）；GameState.Meta.cs 降为门面 partial（公开成员逐一转发、私有 LoadMeta/LoadMetaConfig 一行包装，内部调用方与 66 场景测试零改动）；信号改「服务内 C# 事件 + GameState 订阅重发」模式——`TechPointsChanged` 3 个发射点/次数/顺序与现状逐位一致（ResearchLab 消费方零改动）；唯一 autoload 约束保持
+- **`CfgFx` 类型化读配置批 1**：新静态工具 `CfgFx.Float/Int(path, def, min, max)` 统一 AC4 判型口径 + 集中钳制逻辑（PathResolver 坏类型回退为第一道防线，判型为第二道）；TurretBattery `_Ready` 12 处 Cfg 调用首批迁移（全部无钳制调用 → 默认恒等钳制，min/max 逐一对账零新增/删除）；后续批次（FormationStrikeEvent/Enemy/Player/Boss 共 265 处）逐批推进
+- **difficulty 全表一致性断言**：DifficultyTest 新增 9 号断言块——balance.json `difficulty` 节 24 值（easy/medium/hard × 8 键）vs C# 内建默认表全表比对（A7 白盒桥 `BuildDifficultyDefsPublic()`，规避 DIFFICULTY_DEFS 被 ApplyBalance 整表替换后的自比恒等陷阱），防「调参层 vs 回退默认」漂移
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 8 个 527 项 PASS 零 FAIL（meta/user_session/difficulty/buff33/elite_turret_event/hit_logic/base_system/smoke）+ BALANCE_MAP 生成器重跑（MetaService/CfgFx/TurretBattery 调用点行号同步）+ autoplay 探针
+
 ## [3.28] - 2026-08-10
 
 ### 规范化 + 逻辑修复（2026-08-10，AA 系列第七轮审查，`docs/AUDIT_VAULT.md` 登记）

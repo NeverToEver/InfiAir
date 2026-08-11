@@ -53,7 +53,7 @@ public partial class FormationCraft : Area2D
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
 
-    /// <summary>P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白）。</summary>
+    /// <summary>P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。</summary>
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
@@ -62,20 +62,13 @@ public partial class FormationCraft : Area2D
             return;
         }
 
-        _flashTimer -= d;
+        // 判空守卫保留在调用前（timer 早退之后、归色之前，与原顺序一致）
         if (_sprite == null)
         {
             return;
         }
 
-        if (_flashTimer <= 0.0f)
-        {
-            _sprite.Modulate = Colors.White;
-        }
-        else
-        {
-            _sprite.Modulate = _sprite.Modulate.Lerp(Colors.White, d / FlashTime);
-        }
+        FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White);
     }
 
     public override void _ExitTree()

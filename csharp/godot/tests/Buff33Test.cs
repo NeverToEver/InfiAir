@@ -147,6 +147,78 @@ public partial class Buff33Test : Node
             cfgFile.Close();
             gs.ReloadBalance(); // 恢复默认配置（后续用例不受影响）
 
+            // 1d. 卡池成员资格防漂移（A7 白盒，2026-08-11 第二轮重构）：balance.json buffs 键集
+            // （剔除 dynamic_weight 配置块）== 卡池 _buff_pool id 集合——防 json 新增 buff 但卡池
+            // 漏登记；json 声明 max_stacks 的条目须与池内 max 一致，未声明者（regen/explosive/
+            // armor 等 10 项）以池缺省为权威，跳过。读 json 沿用套件 BALANCE_PATH + Json.ParseString 模式。
+            var parsedBalance = Json.ParseString(Godot.FileAccess.GetFileAsString(gs.BALANCE_PATH));
+            var buffsSection = parsedBalance.AsGodotDictionary()["buffs"].AsGodotDictionary();
+            var jsonById = new Godot.Collections.Dictionary(); // 键归一 StringName，避免 String/StringName 混查歧义
+            foreach (var k in buffsSection.Keys)
+            {
+                jsonById[k.AsStringName()] = buffsSection[k];
+            }
+
+            var jsonIds = new System.Collections.Generic.HashSet<StringName>();
+            foreach (var k in jsonById.Keys)
+            {
+                var kid = k.AsStringName();
+                if (kid != "dynamic_weight")
+                {
+                    jsonIds.Add(kid);
+                }
+            }
+
+            var poolIds = new System.Collections.Generic.HashSet<StringName>();
+            foreach (var b in buffUi._buff_pool)
+            {
+                poolIds.Add(b["id"].AsStringName());
+            }
+
+            var missingInPool = new System.Collections.Generic.List<StringName>();
+            foreach (var id in jsonIds)
+            {
+                if (!poolIds.Contains(id))
+                {
+                    missingInPool.Add(id);
+                }
+            }
+
+            var extraInPool = new System.Collections.Generic.List<StringName>();
+            foreach (var id in poolIds)
+            {
+                if (!jsonIds.Contains(id))
+                {
+                    extraInPool.Add(id);
+                }
+            }
+
+            Check(missingInPool.Count == 0 && extraInPool.Count == 0,
+                "1d：卡池 id 集合 == balance.json buffs 键集（dynamic_weight 剔除）"
+                + (missingInPool.Count + extraInPool.Count > 0
+                    ? " 缺失=" + string.Join(",", missingInPool) + " 多余=" + string.Join(",", extraInPool)
+                    : ""));
+
+            var maxDrift = new System.Collections.Generic.List<string>();
+            foreach (var b in buffUi._buff_pool)
+            {
+                var entry = b;
+                var id = entry["id"].AsStringName();
+                if (!jsonById.ContainsKey(id))
+                {
+                    continue;
+                }
+
+                var jsonEntry = jsonById[id].AsGodotDictionary();
+                if (jsonEntry.ContainsKey("max_stacks") && jsonEntry["max_stacks"].AsInt64() != entry["max"].AsInt64())
+                {
+                    maxDrift.Add(id + "(json=" + jsonEntry["max_stacks"] + " 池=" + entry["max"] + ")");
+                }
+            }
+
+            Check(maxDrift.Count == 0, "1d：json 声明的 max_stacks 与池内 max 一致（未声明者以池缺省为权威）"
+                + (maxDrift.Count > 0 ? " 漂移=" + string.Join(",", maxDrift) : ""));
+
             // 防御全满层：保底自然失效（不崩），候选仍为 3 张非防御卡
             foreach (var bid in new[] { "extra_life", "regen", "armor", "shield", "evasion" })
             {

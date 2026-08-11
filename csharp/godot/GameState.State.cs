@@ -9,13 +9,10 @@ namespace InfiAir;
 public partial class GameState : Node
 {
 
-    /// <summary>生效的里程碑表（默认值见 const，可被 balance.json 覆盖）</summary>
-    public Godot.Collections.Array<int> MilestoneBase { get; set; } = new()
-    {
-        3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
-    };
+    /// <summary>生效的里程碑表（默认值见 BuildMilestoneBase()，可被 balance.json 覆盖）</summary>
+    public Godot.Collections.Array<int> MilestoneBase { get; set; } = BuildMilestoneBase();
 
-    public double MilestoneCycleMult { get; set; } = 1.35;
+    public double MilestoneCycleMult { get; set; } = MilestoneCycleMultValue;
 
     /// <summary>全局机体尺寸缩放（balance.json 顶层 world_scale；0.4 = 当前默认观感，2026-07-31 由 1/3 上调）。
     /// 机体尺寸族数值（贴图 scale/碰撞 radius/机体偏移/随机体特效比例）在 json/tscn/脚本回退中
@@ -389,7 +386,7 @@ public partial class GameState : Node
     /// <summary>天赋路线 line -> 被锁定的未选 buff id（不进奖励池）</summary>
     public Godot.Collections.Dictionary LockedRoutes { get; set; } = new();
 
-    private int _nextMilestone = 3000; // = MILESTONE_BASE[0]
+    private int _nextMilestone = 3000; // = MilestoneBase[0]
 
     private int _milestoneCount;
 

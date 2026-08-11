@@ -86,10 +86,6 @@ public partial class Bullet : Area2D
     private static Texture2D? _playerTex;
     private static Texture2D? _enemyTex;
 
-    /// <summary>热路径缓存：view_world_rect 每物理帧一次动态调用（全弹共享），帧内复用。</summary>
-    private static ulong _viewFrame;
-    private static Rect2 _viewRect;
-
     /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
     public void Despawn() => _despawn();
 
@@ -321,23 +317,10 @@ public partial class Bullet : Area2D
         }
 
         Position += Direction * Speed * d;
-        if (!CachedViewRect(80.0f).HasPoint(Position))
+        if (!FrameCache.ViewRect().Grow(80.0f).HasPoint(Position))
         {
             _despawn();
         }
-    }
-
-    /// <summary>view_world_rect 每物理帧一次动态调用缓存（全弹共享；M7 后改 typed 直调）。</summary>
-    private static Rect2 CachedViewRect(float margin)
-    {
-        var frame = Engine.GetPhysicsFrames();
-        if (frame != _viewFrame)
-        {
-            _viewFrame = frame;
-            _viewRect = GameState.Instance.ViewWorldRect();
-        }
-
-        return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
     }
 
     /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。

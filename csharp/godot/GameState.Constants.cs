@@ -29,13 +29,6 @@ public partial class GameState : Node
         new StringName("hard"),
     };
 
-    /// <summary>里程碑阈值曲线（对齐原作 constants.py GameBalanceConstants 算法）：
-    /// 首循环 8 档基础阈值，之后每循环的档差按 ×1.35^cycle 放大（阈值单调不回退）。</summary>
-    public Godot.Collections.Array<int> MILESTONE_BASE { get; } = new()
-    {
-        3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
-    };
-
     private const double MilestoneCycleMultValue = 1.35;
 
     // ---------------- 静态构造辅助（集合常量；局部构造，规则 19 不静态持有） ----------------
@@ -77,6 +70,12 @@ public partial class GameState : Node
         },
     };
 
+    /// <summary>A7 白盒（第三轮 SOLID 重构，测试桥）：暴露内建难度默认表的原始构造结果。
+    /// DIFFICULTY_DEFS 实例属性会被 ApplyBalance（GameState.State.cs）在 json difficulty 节
+    /// 校验通过时整表替换为 balance.json 值，无法代表 C# 内建默认表；DifficultyTest 全表
+    /// 一致性断言须直取私有构造器比对。不改任何逻辑，仅测试调用（非热路径）。</summary>
+    public static Godot.Collections.Dictionary BuildDifficultyDefsPublic() => BuildDifficultyDefs();
+
     private static Godot.Collections.Array<Godot.Collections.Dictionary> BuildMissionDefs() => new()
     {
         new() { ["id"] = new StringName("kill_5"), ["goal"] = 5, ["kind"] = new StringName("kill") },
@@ -103,6 +102,8 @@ public partial class GameState : Node
         [new StringName("mobility")] = new Godot.Collections.Array { new StringName("phase_dash"), new StringName("mothership_recall") },
     };
 
+    /// <summary>里程碑阈值曲线（对齐原作 constants.py GameBalanceConstants 算法）：
+    /// 首循环 8 档基础阈值，之后每循环的档差按 ×1.35^cycle 放大（阈值单调不回退）。</summary>
     private static Godot.Collections.Array<int> BuildMilestoneBase() => new()
     {
         3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,

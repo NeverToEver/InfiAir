@@ -43,10 +43,9 @@ public partial class AimFrameLayer : Node2D
 
     private readonly Callable _onAimAssistChanged;
 
-    /// <summary>热路径缓存：player_ref / enemies 每渲染帧一次动态调用（单实例共享，帧内复用）。
+    /// <summary>热路径缓存：enemies 每渲染帧一次动态调用（单实例共享，帧内复用）。
     /// U07：静态 Variant/Array 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）。</summary>
     private ulong _cacheFrame = ulong.MaxValue;
-    private Variant _framePlayer;
     private Godot.Collections.Array _frameEnemies = new();
 
     /// <summary>U14：meta 键静态缓存（每敌每帧 HasMeta/GetMeta 字符串字面量转换开销）。</summary>
@@ -57,25 +56,21 @@ public partial class AimFrameLayer : Node2D
         _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
     }
 
-    /// <summary>player_ref / enemies 每渲染帧一次动态调用缓存（帧内复用；M7 后改 typed 直调）。</summary>
+    /// <summary>enemies 每渲染帧一次动态调用缓存（帧内复用；M7 后改 typed 直调）。</summary>
     private Godot.Collections.Array CachedEnemies()
     {
         var frame = Engine.GetProcessFrames();
         if (frame != _cacheFrame)
         {
             _cacheFrame = frame;
-            _framePlayer = GameState.Instance.PlayerRef!;
             _frameEnemies = (Godot.Collections.Array)GameState.Instance.Enemies;
         }
 
         return _frameEnemies;
     }
 
-    private Player? CachedPlayer()
-    {
-        CachedEnemies();
-        return _framePlayer.AsGodotObject() as Player;
-    }
+    /// <summary>player 直读 typed 属性（O(1)，无需缓存；统一入口见 FrameCache.cs）。</summary>
+    private Player? CachedPlayer() => FrameCache.Player() as Player;
 
     public override void _Ready()
     {

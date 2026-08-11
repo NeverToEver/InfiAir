@@ -69,23 +69,6 @@ public partial class TurretBattery : Area2D
     private Control _hpBar = null!; // _Ready 赋值（tscn 固定结构）
     private float _muzzleOffset; // 出弹点偏移（40 × world_scale，_ready 覆写）
 
-    /// <summary>热路径缓存：player_ref 每物理帧一次动态调用（全实例共享）。
-    /// U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）</summary>
-    private ulong _frame = ulong.MaxValue;
-    private Variant _framePlayer;
-
-    private Variant CachedPlayer()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _framePlayer = GameState.Instance.PlayerRef!;
-        }
-
-        return _framePlayer;
-    }
-
     /// <summary>Setup() 在入树/_Ready() 之前调用，不能用 GetNode。</summary>
     public void Setup(int pHp, Godot.Collections.Array pAmmo, Vector2 pFireInterval, Godot.Collections.Dictionary weakLock)
     {
@@ -118,17 +101,17 @@ public partial class TurretBattery : Area2D
     {
         GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
         // 数值配置缓存（启动一次读入）
-        SingleSpeed = (float)GameState.Instance.Cfg("enemies.bullet_speed", SingleSpeed).AsDouble();
-        SpreadSpeed = (float)GameState.Instance.Cfg("enemies.spread_bullet_speed", SpreadSpeed).AsDouble();
-        LaserSpeed = (float)GameState.Instance.Cfg("enemies.laser_bullet_speed", LaserSpeed).AsDouble();
-        HomingSpeed = (float)GameState.Instance.Cfg("boss.homing_bullet_speed", HomingSpeed).AsDouble();
-        SniperSpeed = (float)GameState.Instance.Cfg("boss.sniper_bullet_speed", SniperSpeed).AsDouble();
-        SpreadFanStep = (float)GameState.Instance.Cfg("enemies.spread_fan_step", SpreadFanStep).AsDouble();
-        DmgSingle = (int)GameState.Instance.Cfg("enemies.bullet_damage.single", DmgSingle).AsInt64();
-        DmgSpread = (int)GameState.Instance.Cfg("enemies.bullet_damage.spread", DmgSpread).AsInt64();
-        DmgLaser = (int)GameState.Instance.Cfg("enemies.bullet_damage.laser", DmgLaser).AsInt64();
-        DmgHoming = (int)GameState.Instance.Cfg("boss.bullet_damage.homing", DmgHoming).AsInt64();
-        DmgSniper = (int)GameState.Instance.Cfg("boss.bullet_damage.sniper", DmgSniper).AsInt64();
+        SingleSpeed = CfgFx.Float("enemies.bullet_speed", SingleSpeed);
+        SpreadSpeed = CfgFx.Float("enemies.spread_bullet_speed", SpreadSpeed);
+        LaserSpeed = CfgFx.Float("enemies.laser_bullet_speed", LaserSpeed);
+        HomingSpeed = CfgFx.Float("boss.homing_bullet_speed", HomingSpeed);
+        SniperSpeed = CfgFx.Float("boss.sniper_bullet_speed", SniperSpeed);
+        SpreadFanStep = CfgFx.Float("enemies.spread_fan_step", SpreadFanStep);
+        DmgSingle = CfgFx.Int("enemies.bullet_damage.single", DmgSingle);
+        DmgSpread = CfgFx.Int("enemies.bullet_damage.spread", DmgSpread);
+        DmgLaser = CfgFx.Int("enemies.bullet_damage.laser", DmgLaser);
+        DmgHoming = CfgFx.Int("boss.bullet_damage.homing", DmgHoming);
+        DmgSniper = CfgFx.Int("boss.bullet_damage.sniper", DmgSniper);
         // 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
         var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
@@ -149,7 +132,7 @@ public partial class TurretBattery : Area2D
         _hpBar.Set("fill_color", new Color(1.0f, 0.25f, 0.75f)); // 精英品红
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
         // P1-6：击杀震动强度缓存
-        _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
+        _shakeDie = CfgFx.Float("effects.shake.enemy_die", _shakeDie);
     }
 
     public override void _ExitTree()
@@ -213,10 +196,10 @@ public partial class TurretBattery : Area2D
         }
 
         // 弱锁定索敌：限速转向玩家（lerp_angle 缓动 + rad/s 上限，机械转台感）
-        var player = CachedPlayer();
-        if (player.VariantType != Variant.Type.Nil)
+        var player = FrameCache.Player();
+        if (player != null)
         {
-            var target = (((Node2D)player).GlobalPosition - GlobalPosition).Angle();
+            var target = (player.GlobalPosition - GlobalPosition).Angle();
             var maxStep = TurnRate * d;
             var diff = Mathf.Wrap(target - _facing, -Mathf.Pi, Mathf.Pi);
             _facing += Mathf.Clamp(diff, -maxStep, maxStep);
@@ -334,15 +317,14 @@ public partial class TurretBattery : Area2D
 
         Hp -= amount;
         _hpBar.Set("value", Mathf.Clamp(Hp / (float)MaxHp, 0.0f, 1.0f) * 100.0f);
-        _sprite.Modulate = new Color(2.0f, 2.0f, 2.0f); // 受击闪白
-        _flashTimer = FlashTime;
+        FlashFx.Hit(_sprite, ref _flashTimer, FlashTime); // 受击闪白
         if (Hp <= 0)
         {
             Die();
         }
     }
 
-    /// <summary>P1-2：受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）。</summary>
+    /// <summary>P1-2：受击闪白手动衰减（替代 Tween；FlashFx 共享实现，零分配）。</summary>
     private void UpdateFlash(float delta)
     {
         if (_flashTimer <= 0.0f)
@@ -350,15 +332,7 @@ public partial class TurretBattery : Area2D
             return;
         }
 
-        _flashTimer -= delta;
-        if (_flashTimer <= 0.0f)
-        {
-            _sprite.Modulate = Colors.White;
-        }
-        else
-        {
-            _sprite.Modulate = _sprite.Modulate.Lerp(Colors.White, delta / FlashTime);
-        }
+        FlashFx.Update(_sprite, ref _flashTimer, delta, FlashTime, Colors.White);
     }
 
     public void Die()

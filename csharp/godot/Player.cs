@@ -700,6 +700,8 @@ public partial class Player : CharacterBody2D
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        // A2(2026-08-11 审计):同帧双 GetTicksMsec 合并——帧首取一次,761/866 行复用(免同帧两次系统时钟查询)
+        var nowMs = (long)Time.GetTicksMsec();
         if (_dead)
         {
             return;
@@ -758,7 +760,7 @@ public partial class Player : CharacterBody2D
             }
         }
 
-        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, (long)Time.GetTicksMsec());
+        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, nowMs);
         if (DashUnlocked()
             && !MovementLocked
             && Input.IsActionJustPressed(ActDash)
@@ -857,13 +859,12 @@ public partial class Player : CharacterBody2D
         }
 
         // 机身色调四源 + 受击点脉动（A8 委托 PlayerVisuals）
-        var nowMs = Time.GetTicksMsec();
         if (Invincible > 0.0f)
         {
             Invincible -= d;
         }
 
-        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, (long)nowMs);
+        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, nowMs);
         // 回血（A8 委托 PlayerDamage）
         _damage.HealTick(d);
     }

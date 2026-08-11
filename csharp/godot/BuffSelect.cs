@@ -490,6 +490,9 @@ public partial class BuffSelect : CanvasLayer
 
     public Godot.Collections.Array<Godot.Collections.Dictionary> AvailableBuffs() => _AvailableBuffs();
 
+    // A7：测试/诊断白盒——卡池只读视图（id/max；Buff33Test 防成员资格漂移断言，零逻辑改动）
+    public Godot.Collections.Array<Godot.Collections.Dictionary> _buff_pool => _buffPool;
+
     private void OnCardGuiInput(InputEvent @event, StringName id, Control card)
     {
         if (_closing)

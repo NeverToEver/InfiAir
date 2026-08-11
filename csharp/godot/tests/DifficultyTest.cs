@@ -517,6 +517,37 @@ public partial class DifficultyTest : Node
             }
             spawner.SetBossActive(false);
             spawner.SetBossTimer(0.0f);
+
+            // ---------- 9. 难度全表一致性（A7 白盒，第三轮 SOLID 重构） ----------
+            // balance.json difficulty 节（运行时权威：GameState._Ready → ApplyBalance 校验通过即
+            // 整表替换 DIFFICULTY_DEFS，经该属性比对会退化为 json 自比恒等）vs C# 内建默认表
+            // （BuildDifficultyDefsPublic A7 桥直取私有构造器）——三档 × 8 数值键共 24 值逐键断言
+            // 相等，防 json 编辑表与代码表漂移致不同入口行为分裂。数值统一 AsDouble 归一比较
+            // （json 整数键 score/spread_cap/milestone 为 Int64 Variant）。读 json 沿用套件
+            // BALANCE_PATH + Json.ParseString 模式（Buff33Test 1d 同构）。断言消息含漂移明细
+            // （档/键/json 值/默认值）。
+            var parsedBalance = Json.ParseString(Godot.FileAccess.GetFileAsString(_gs.BALANCE_PATH));
+            var jsonDifficulty = parsedBalance.AsGodotDictionary()["difficulty"].AsGodotDictionary();
+            var defaultDifficultyDefs = GameState.BuildDifficultyDefsPublic();
+            var driftDetails = new System.Collections.Generic.List<string>();
+            var difficultyKeys = new[] { "hp", "speed", "spawn", "score", "spread_cap", "milestone", "regen_delay", "regen_rate" };
+            foreach (var tier in new[] { "easy", "medium", "hard" })
+            {
+                var jsonTier = jsonDifficulty[tier].AsGodotDictionary();
+                var defaultTier = defaultDifficultyDefs[new StringName(tier)].AsGodotDictionary();
+                foreach (var key in difficultyKeys)
+                {
+                    var jsonValue = jsonTier[key].AsDouble();
+                    var defaultValue = defaultTier[key].AsDouble();
+                    if (jsonValue != defaultValue)
+                    {
+                        driftDetails.Add($"{tier}/{key} json={jsonValue} 默认={defaultValue}");
+                    }
+                }
+            }
+            Check(driftDetails.Count == 0,
+                "难度全表 24 值一致：balance.json == C# 默认表（A7 白盒）"
+                + (driftDetails.Count > 0 ? " 漂移：" + string.Join("；", driftDetails) : ""));
         }
         catch (System.Exception e)
         {

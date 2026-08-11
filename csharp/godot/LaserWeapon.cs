@@ -36,19 +36,20 @@ public partial class LaserWeapon : Node2D
     private float _cooldown;
     private float _tickTimer;
     private bool _savedAutofire = true;
-    /// <summary>laser_beam 层数缓存（buffs_changed 信号驱动；热路径禁跨语言调用）。</summary>
-    private bool _laserBeamOn;
+    // U14（2026-08-09 审计）：buff 名静态缓存——热路径禁 StringName 构造（Refresh 信号驱动，低频但保持口径）
+    private static readonly StringName BuffLaserBeam = new("laser_beam");
+    /// <summary>laser_beam 层数缓存（BuffBoolCache 实例：buffs_changed 信号驱动；热路径禁跨语言调用）。</summary>
+    private readonly BuffBoolCache _laserBeamCache;
 
     /// <summary>父节点（player.tscn 中 LaserWeapon 挂 Player 下；场景结构保证非空）。</summary>
     private Player? _player; // U16：可空（节点脱离 Player 挂载时判空早退，不再 null! 压制）
     private Line2D _beam = null!;
     private GpuParticles2D _glow = null!;
 
-    private readonly Callable _onBuffsChanged;
-
     public LaserWeapon()
     {
-        _onBuffsChanged = Callable.From(OnBuffsChanged);
+        // 构造回调：buffs_changed 信号触发时刷新缓存（BuffBoolCache 内部 Callable 桥；Enemy.cs 同款语义）
+        _laserBeamCache = new BuffBoolCache(BuffLaserBeam);
     }
 
     // ---------------- A7：测试/诊断白盒断言经公开接口 ----------------
@@ -120,24 +121,16 @@ public partial class LaserWeapon : Node2D
         };
         _glow.ProcessMaterial = mat;
         AddChild(_glow);
-        // buffs_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 buff_count）
-        var gs = GameState.Instance;
-        if (gs != null)
-        {
-            gs.Connect("BuffsChanged", _onBuffsChanged);
-        }
-
-        OnBuffsChanged();
+        // buffs_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 buff_count；
+        // BuffBoolCache 收敛：Connect 内部判 null，初始 Refresh 等价原 OnBuffsChanged() 首调）
+        _laserBeamCache.Connect(GameState.Instance);
+        _laserBeamCache.Refresh();
     }
 
     public override void _ExitTree()
     {
-        // buffs_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放）
-        var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
-        {
-            gs.Disconnect("BuffsChanged", _onBuffsChanged);
-        }
+        // buffs_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放；BuffBoolCache 内部判 null）
+        _laserBeamCache.Disconnect(GameState.Instance);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -148,7 +141,7 @@ public partial class LaserWeapon : Node2D
         {
             return;
         }
-        if (!_laserBeamOn)
+        if (!_laserBeamCache.Value)
         {
             // E08：buff 归零时收束激活态光束——防未来 buff 移除机制引入后 _end_beam 不执行、
             // autofire 卡禁（当前无 buff 移除机制不可达，兜底成本一行）
@@ -274,11 +267,5 @@ public partial class LaserWeapon : Node2D
         var ab = b - a;
         var t = Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0.0f, 1.0f);
         return (p - (a + ab * t)).Length();
-    }
-
-    /// <summary>laser_beam 层数缓存刷新（热路径禁字典约定；buffs_changed 信号驱动，_ready 初始一次）。</summary>
-    private void OnBuffsChanged()
-    {
-        _laserBeamOn = (int)GameState.Instance.BuffCount(new StringName("laser_beam")) > 0;
     }
 }

@@ -153,6 +153,17 @@ public partial class GameState : Node
     /// milestone_threshold / _recompute_difficulty / apply_run_save 批量推进转发，语义逐位等价</summary>
     private readonly ProgressionInterop _progression = new();
 
+    /// <summary>第三轮拆域试点（2026-08-11）：局外成长 Meta 职责域——原 GameState.Meta.cs 全部职责
+    /// （科技点结算/升级消费/开局 buff 预置）迁入 MetaService，GameState.Meta.cs 为门面转发；
+    /// 与 BalanceService/SaveManager 等组合服务同构，保持唯一 autoload：GameState 约定。
+    /// _userDb 经构造注入（字段初始化器不可引用实例字段，故在构造器赋值）。</summary>
+    private readonly MetaService _meta;
+
+    public GameState()
+    {
+        _meta = new MetaService(_userDb);
+    }
+
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
 
@@ -339,6 +350,10 @@ public partial class GameState : Node
 
     private void OnRegistryEntityUnregistered(Node node) => EmitSignal(SignalName.EntityUnregistered, node);
 
+    // 局外成长（第三轮拆域）：MetaService C# 事件 → GameState TechPointsChanged 信号转发
+    // （ResearchLab 等仍连同名信号；LoadMeta 仅在登录/登出/游客切换时触发，均晚于本订阅）
+    private void OnMetaTechPointsChanged(long v) => EmitSignal(SignalName.TechPointsChanged, v);
+
     public override void _Ready()
     {
         LoadBalance();
@@ -347,6 +362,9 @@ public partial class GameState : Node
         // M2：C# [Signal] 以 PascalCase 注册，GDScript 侧同名连接
         _registry.EntityRegistered += OnRegistryEntityRegistered;
         _registry.EntityUnregistered += OnRegistryEntityUnregistered;
+        // 局外成长（第三轮拆域）：MetaService 入账/消费通知 → 信号转发订阅（LoadMeta 触发点
+        // 均为用户操作——登录/登出/游客切换，晚于 _Ready 本订阅；LoadMetaConfig 不发信号）
+        _meta.TechPointsChanged += OnMetaTechPointsChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);

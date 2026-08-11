@@ -73,27 +73,6 @@ public partial class EnrageSequence : RefCounted
         [4] = true,
     };
 
-    // 热路径缓存：view_world_rect / player_ref 每物理帧一次动态调用（与 Enemy.cs 同款）。
-    // U07：静态 Variant 持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）
-    private ulong _frame = ulong.MaxValue;
-    private Rect2 _frameView;
-    private Variant _framePlayer;
-
-    private Rect2 CachedView()
-    {
-        var f = Engine.GetPhysicsFrames();
-        if (f != _frame)
-        {
-            _frame = f;
-            _frameView = GameState.Instance.ViewWorldRect();
-            _framePlayer = GameState.Instance.PlayerRef!;
-        }
-
-        return _frameView;
-    }
-
-    private Variant CachedPlayer() => _frame == Engine.GetPhysicsFrames() ? _framePlayer : GameState.Instance.PlayerRef!;
-
     public EnrageSequence()
     {
         _activeHandlers[1] = ActiveBulwark;
@@ -391,7 +370,7 @@ public partial class EnrageSequence : RefCounted
     private float PathRadius(Boss boss)
     {
         var baseRadius = Mathf.Max(_bossSize.X, _bossSize.Y) * boss.EnragePathRadiusScale;
-        var view = CachedView();
+        var view = FrameCache.ViewRect();
         var half = _bossSize * 0.5f;
         var maxRadius = Mathf.Max(
             24.0f,
@@ -495,15 +474,11 @@ public partial class EnrageSequence : RefCounted
     /// 仍可瞄准/射击/冲刺；TRANSITION+ACTIVE 有效。</summary>
     private void LockPlayerMovement(Boss boss)
     {
-        var playerV = CachedPlayer();
-        if (playerV.VariantType != Variant.Type.Nil)
+        var p = FrameCache.Player() as Player;
+        if (p != null && !p.IsDead())
         {
-            var p = (Player)playerV;
-            if (!p.IsDead())
-            {
-                _slowedPlayer = p;
-                p.ApplyEnrageSlow(boss.EnragePlayerSlow);
-            }
+            _slowedPlayer = p;
+            p.ApplyEnrageSlow(boss.EnragePlayerSlow);
         }
     }
 
@@ -523,10 +498,9 @@ public partial class EnrageSequence : RefCounted
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
     private Vector2 PlayerDir(Boss from)
     {
-        var player = CachedPlayer();
-        if (player.VariantType != Variant.Type.Nil)
+        var p = FrameCache.Player();
+        if (p != null)
         {
-            var p = (Node2D)player;
             return (p.GlobalPosition - from.GlobalPosition).Normalized();
         }
 

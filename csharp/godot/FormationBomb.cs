@@ -24,22 +24,6 @@ public partial class FormationBomb : Area2D
     private Polygon2D _body = null!;
     private Line2D _ring = null!;
 
-    // ---- 热路径缓存：view_world_rect 每处理帧一次动态调用（全弹共享），帧内复用 ----
-    private static ulong _viewFrame;
-    private static Rect2 _viewRect;
-
-    private static Rect2 CachedViewRect(float margin)
-    {
-        var frame = Engine.GetProcessFrames();
-        if (frame != _viewFrame)
-        {
-            _viewFrame = frame;
-            _viewRect = GameState.Instance.ViewWorldRect();
-        }
-
-        return margin == 0.0f ? _viewRect : _viewRect.Grow(margin);
-    }
-
     /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
     public Line2D Ring() => _ring;
 
@@ -112,7 +96,7 @@ public partial class FormationBomb : Area2D
         // 警示环随引信剩余时间收缩
         var frac = Mathf.Clamp(_fuseLeft / Fuse, 0.0f, 1.0f);
         _ring.Scale = Vector2.One * AoeRadius * Mathf.Lerp(0.15f, 0.9f, frac);
-        if (!CachedViewRect(80.0f).HasPoint(Position))
+        if (!FrameCache.ViewRect().Grow(80.0f).HasPoint(Position))
         {
             QueueFree();
         }

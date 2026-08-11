@@ -15,11 +15,11 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 90 | `player.aim_assist.input.magnet_input_min` | `_magnetInputMin` |
-| 91 | `player.aim_assist.input.magnet_input_full` | `_magnetInputFull` |
-| 94 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
-| 95 | `player.aim_assist.falloff.end` | `_falloffEnd` |
-| 96 | `player.aim_assist.falloff.min` | `_falloffMin` |
+| 85 | `player.aim_assist.input.magnet_input_min` | `_magnetInputMin` |
+| 86 | `player.aim_assist.input.magnet_input_full` | `_magnetInputFull` |
+| 89 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
+| 90 | `player.aim_assist.falloff.end` | `_falloffEnd` |
+| 91 | `player.aim_assist.falloff.min` | `_falloffMin` |
 
 ### `csharp/godot/BalanceService.cs`
 
@@ -36,131 +36,131 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 393 | `boss.enter_speed` | `EnterSpeed` |
-| 394 | `boss.fight_y` | `FightY` |
-| 395 | `boss.strafe_min_x` | `StrafeMinX` |
-| 396 | `boss.strafe_max_x` | `StrafeMaxX` |
-| 398 | `boss.phase2_hp_ratio` | `Phase2HpRatio` |
-| 399 | `boss.enrage.hp_ratio` | `EnrageHpRatio` |
-| 406 | `boss.enrage.rate_mult` | `EnrageRateMult` |
-| 407 | `boss.enrage.speed_mult` | `EnrageSpeedMult` |
-| 408 | `boss.enrage.player_slow` | `EnragePlayerSlow` |
-| 409 | `boss.enrage.snapshot_lasers` | `EnrageSnapshotLasers` |
-| 410 | `boss.enrage.snapshot_ring` | `EnrageSnapshotRing` |
-| 411 | `boss.enrage.laser_speed` | `EnrageLaserSpeed` |
-| 412 | `boss.enrage.ring_speed` | `EnrageRingSpeed` |
-| 415 | `boss.enrage.duration` | `EnrageDuration` |
-| 416 | `boss.enrage.transition_duration` | `EnrageTransitionDuration` |
-| 420 | `boss.enrage.attack_interval` | `EnrageAttackInterval` |
-| 421 | `boss.enrage.attack_windup` | `EnrageAttackWindup` |
-| 422 | `boss.enrage.release_interval` | `EnrageReleaseInterval` |
-| 425 | `boss.enrage.release_hold_duration` | `EnrageReleaseHoldDuration` |
-| 426 | `boss.enrage.return_duration` | `EnrageReturnDuration` |
-| 427 | `boss.enrage.path_radius_scale` | `EnragePathRadiusScale` |
-| 430 | `boss.enrage.square_path_ratio` | `EnrageSquarePathRatio` |
-| 431 | `boss.enrage.release_laser_speed` | `EnrageReleaseLaserSpeed` |
-| 432 | `boss.enrage.release_ring_speed` | `EnrageReleaseRingSpeed` |
-| 434 | `boss.escape.time` | `EscapeTime` |
-| 435 | `boss.escape.warning` | `EscapeWarning` |
-| 436 | `boss.escape.drift` | `EscapeDrift` |
-| 437 | `boss.escape.start_speed` | `EscapeStartSpeed` |
-| 438 | `boss.escape.accel` | `EscapeAccel` |
-| 450 | `boss.escape.countdown_visible_from` | `EscapeCountdownFrom` |
-| 451 | `boss.hp_base` | `HpBase` |
-| 453 | `boss.strafe_speeds` | `StrafeSpeeds` |
-| 469 | `boss.fire_intervals` | `FireIntervals` |
-| 477 | `boss.fan_bullet_speed` | `FanBulletSpeed` |
-| 478 | `boss.homing_bullet_speed` | `HomingBulletSpeed` |
-| 479 | `boss.sniper_bullet_speed` | `SniperBulletSpeed` |
-| 480 | `boss.cross_bullet_speed` | `CrossBulletSpeed` |
-| 481 | `boss.collision_damage` | `CollisionDamage` |
-| 482 | `buffs.slow_field.factor` | `SlowFieldFactor` |
-| 483 | `boss.bullet_damage.fan` | `BulletDamageFan` |
-| 484 | `boss.bullet_damage.homing` | `BulletDamageHoming` |
-| 485 | `boss.bullet_damage.sniper` | `BulletDamageSniper` |
-| 486 | `boss.bullet_damage.cross` | `BulletDamageCross` |
-| 487 | `boss.bullet_damage.snapshot_laser` | `BulletDamageSnapshotLaser` |
-| 488 | `boss.bullet_damage.snapshot_ring` | `BulletDamageSnapshotRing` |
-| 489 | `boss.phases.phase_shift_duration` | `PhaseShiftDuration` |
-| 490 | `boss.phases.clear_on_shift` | `ClearOnShift` |
-| 491 | `boss.phases.transition_invincible` | `TransitionInvincible` |
-| 492 | `boss.phases.telegraph.sniper_aim` | `SniperAimTime` |
-| 493 | `boss.phases.telegraph.sniper_track` | `SniperTrackTime` |
-| 494 | `boss.phases.attacks.sniper3.burst_interval` | `SniperBurstInterval` |
-| 495 | `boss.phases.press_interval` | `PressInterval` |
-| 496 | `boss.phases.press_depth` | `PressDepth` |
-| 497 | `boss.movement.type1_p2_strafe` | `Type1P2Strafe` |
-| 498 | `boss.movement.type1_p2_bob_amp` | `Type1P2BobAmp` |
-| 499 | `boss.movement.type1_p2_bob_period` | `Type1P2BobPeriod` |
-| 500 | `boss.movement.type2_p2_dash_time` | `Type2P2DashTime` |
-| 501 | `boss.movement.type2_p2_rest_time` | `Type2P2RestTime` |
-| 502 | `boss.movement.type3_p1_bob_min` | `Type3P1BobMin` |
-| 503 | `boss.movement.type3_p1_bob_max` | `Type3P1BobMax` |
-| 504 | `boss.movement.type3_p1_bob_period` | `Type3P1BobPeriod` |
-| 505 | `boss.movement.type3_p2_strafe` | `Type3P2Strafe` |
-| 506 | `boss.movement.type3_p2_bob_amp` | `Type3P2BobAmp` |
-| 507 | `boss.movement.type3_p2_bob_period` | `Type3P2BobPeriod` |
-| 509 | `boss.phases.attacks.charged_cannon.charge` | `CannonCharge` |
-| 510 | `boss.phases.attacks.charged_cannon.shots` | `CannonShots` |
-| 511 | `boss.phases.attacks.charged_cannon.interval` | `CannonInterval` |
-| 512 | `boss.phases.attacks.charged_cannon.bullet_speed` | `CannonBulletSpeed` |
-| 513 | `boss.phases.attacks.charged_cannon.damage` | `CannonDamage` |
-| 514 | `boss.phases.attacks.charged_cannon.flash` | `CannonFlash` |
-| 515 | `boss.phases.attacks.dash_sweep.aim` | `SweepAim` |
-| 516 | `boss.phases.attacks.dash_sweep.speed` | `SweepSpeed` |
-| 517 | `boss.phases.attacks.dash_sweep.drop_count` | `SweepDropCount` |
-| 518 | `boss.phases.attacks.dash_sweep.drop_speed` | `SweepDropSpeed` |
-| 519 | `boss.phases.attacks.dash_sweep.drop_damage` | `SweepDropDamage` |
-| 522 | `boss.phases.attacks.dash_sweep.return_duration` | `SweepReturnDuration` |
-| 523 | `boss.phases.attacks.minion_volley.count` | `VolleyCount` |
-| 524 | `boss.phases.attacks.minion_volley.delay` | `VolleyDelay` |
-| 525 | `boss.phases.attacks.minion_volley.bullet_speed` | `VolleyBulletSpeed` |
-| 526 | `boss.phases.attacks.minion_volley.bullet_damage` | `VolleyBulletDamage` |
-| 527 | `boss.phases.attacks.bullet_wall.count` | `WallCount` |
-| 528 | `boss.phases.attacks.bullet_wall.bullet_speed` | `WallBulletSpeed` |
-| 529 | `boss.phases.attacks.bullet_wall.damage` | `WallDamage` |
-| 530 | `boss.phases.attacks.bullet_wall.arc_deg` | `WallArcDeg` |
-| 534 | `boss.enrage.type_1.ring_interval` | `E1RingInterval` |
-| 535 | `boss.enrage.type_1.ring_count` | `E1RingCount` |
-| 536 | `boss.enrage.type_1.ring_speed` | `E1RingSpeed` |
-| 537 | `boss.enrage.type_1.ring_precession_deg` | `E1RingPrecessionDeg` |
-| 539 | `boss.enrage.type_1.salvo_charge` | `E1SalvoCharge` |
-| 540 | `boss.enrage.type_1.salvo_count` | `E1SalvoCount` |
-| 541 | `boss.enrage.type_1.salvo_speed` | `E1SalvoSpeed` |
-| 542 | `boss.enrage.type_1.salvo_damage` | `E1SalvoDamage` |
-| 545 | `boss.enrage.type_2.point_count` | `E2PointCount` |
-| 547 | `boss.enrage.type_2.point_interval` | `E2PointInterval` |
-| 548 | `boss.enrage.type_2.aim` | `E2Aim` |
-| 549 | `boss.enrage.type_2.sniper_speed` | `E2SniperSpeed` |
-| 550 | `boss.enrage.type_2.sniper_damage` | `E2SniperDamage` |
-| 551 | `boss.enrage.type_2.release_ring_count` | `E2ReleaseRingCount` |
-| 552 | `boss.enrage.type_2.release_ring_speed` | `E2ReleaseRingSpeed` |
-| 554 | `boss.enrage.type_3.summon_interval` | `E3SummonInterval` |
-| 559 | `boss.phases.type3.summon_interval` | `_summonInterval` |
-| 561 | `boss.enrage.type_3.summon_waves` | `E3SummonWaves` |
-| 562 | `boss.enrage.type_3.summon_count` | `E3SummonCount` |
-| 564 | `boss.enrage.type_3.ring_interval` | `E3RingInterval` |
-| 565 | `boss.enrage.type_3.ring_count` | `E3RingCount` |
-| 566 | `boss.enrage.type_3.ring_speed` | `E3RingSpeed` |
-| 567 | `boss.enrage.type_3.release_ring_count` | `E3ReleaseRingCount` |
-| 568 | `boss.enrage.type_3.release_ring_speed` | `E3ReleaseRingSpeed` |
-| 570 | `boss.ring_burst.bullet_speed` | `RingBurstSpeed` |
-| 571 | `boss.bullet_damage.ring` | `BulletDamageRing` |
-| 572 | `boss.movement.type4.bob_amp` | `Move4BobAmp` |
-| 574 | `boss.movement.type4.bob_period` | `Move4BobPeriod` |
-| 575 | `boss.enrage.type_4.ring_count` | `E4RingCount` |
-| 577 | `boss.enrage.type_4.ring_interval` | `E4RingInterval` |
-| 578 | `boss.enrage.type_4.ring_speed` | `E4RingSpeed` |
-| 579 | `boss.enrage.type_4.precession_deg` | `E4PrecessionDeg` |
-| 580 | `boss.enrage.type_4.release_ring_count` | `E4ReleaseRingCount` |
-| 581 | `boss.enrage.type_4.release_ring_speed` | `E4ReleaseRingSpeed` |
-| 585 | `boss.difficulty_scaling.interval_mult` | `DiffIntervalMult` |
-| 590 | `boss.difficulty_scaling.speed_mult` | `DiffSpeedMult` |
-| 595 | `boss.difficulty_scaling.counts` | `DiffCountDeltas` |
-| 631 | `boss.hp_mults` | `new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 }` |
-| 657 | `boss.hp_base` | `HpBase` |
-| 1065 | `effects.shake.enrage` | `16.0` |
-| 1383 | `effects.shake.enrage` | `16.0` |
+| 377 | `boss.enter_speed` | `EnterSpeed` |
+| 378 | `boss.fight_y` | `FightY` |
+| 379 | `boss.strafe_min_x` | `StrafeMinX` |
+| 380 | `boss.strafe_max_x` | `StrafeMaxX` |
+| 382 | `boss.phase2_hp_ratio` | `Phase2HpRatio` |
+| 383 | `boss.enrage.hp_ratio` | `EnrageHpRatio` |
+| 390 | `boss.enrage.rate_mult` | `EnrageRateMult` |
+| 391 | `boss.enrage.speed_mult` | `EnrageSpeedMult` |
+| 392 | `boss.enrage.player_slow` | `EnragePlayerSlow` |
+| 393 | `boss.enrage.snapshot_lasers` | `EnrageSnapshotLasers` |
+| 394 | `boss.enrage.snapshot_ring` | `EnrageSnapshotRing` |
+| 395 | `boss.enrage.laser_speed` | `EnrageLaserSpeed` |
+| 396 | `boss.enrage.ring_speed` | `EnrageRingSpeed` |
+| 399 | `boss.enrage.duration` | `EnrageDuration` |
+| 400 | `boss.enrage.transition_duration` | `EnrageTransitionDuration` |
+| 404 | `boss.enrage.attack_interval` | `EnrageAttackInterval` |
+| 405 | `boss.enrage.attack_windup` | `EnrageAttackWindup` |
+| 406 | `boss.enrage.release_interval` | `EnrageReleaseInterval` |
+| 409 | `boss.enrage.release_hold_duration` | `EnrageReleaseHoldDuration` |
+| 410 | `boss.enrage.return_duration` | `EnrageReturnDuration` |
+| 411 | `boss.enrage.path_radius_scale` | `EnragePathRadiusScale` |
+| 414 | `boss.enrage.square_path_ratio` | `EnrageSquarePathRatio` |
+| 415 | `boss.enrage.release_laser_speed` | `EnrageReleaseLaserSpeed` |
+| 416 | `boss.enrage.release_ring_speed` | `EnrageReleaseRingSpeed` |
+| 418 | `boss.escape.time` | `EscapeTime` |
+| 419 | `boss.escape.warning` | `EscapeWarning` |
+| 420 | `boss.escape.drift` | `EscapeDrift` |
+| 421 | `boss.escape.start_speed` | `EscapeStartSpeed` |
+| 422 | `boss.escape.accel` | `EscapeAccel` |
+| 430 | `boss.escape.countdown_visible_from` | `EscapeCountdownFrom` |
+| 431 | `boss.hp_base` | `HpBase` |
+| 433 | `boss.strafe_speeds` | `StrafeSpeeds` |
+| 449 | `boss.fire_intervals` | `FireIntervals` |
+| 457 | `boss.fan_bullet_speed` | `FanBulletSpeed` |
+| 458 | `boss.homing_bullet_speed` | `HomingBulletSpeed` |
+| 459 | `boss.sniper_bullet_speed` | `SniperBulletSpeed` |
+| 460 | `boss.cross_bullet_speed` | `CrossBulletSpeed` |
+| 461 | `boss.collision_damage` | `CollisionDamage` |
+| 462 | `buffs.slow_field.factor` | `SlowFieldFactor` |
+| 463 | `boss.bullet_damage.fan` | `BulletDamageFan` |
+| 464 | `boss.bullet_damage.homing` | `BulletDamageHoming` |
+| 465 | `boss.bullet_damage.sniper` | `BulletDamageSniper` |
+| 466 | `boss.bullet_damage.cross` | `BulletDamageCross` |
+| 467 | `boss.bullet_damage.snapshot_laser` | `BulletDamageSnapshotLaser` |
+| 468 | `boss.bullet_damage.snapshot_ring` | `BulletDamageSnapshotRing` |
+| 469 | `boss.phases.phase_shift_duration` | `PhaseShiftDuration` |
+| 470 | `boss.phases.clear_on_shift` | `ClearOnShift` |
+| 471 | `boss.phases.transition_invincible` | `TransitionInvincible` |
+| 472 | `boss.phases.telegraph.sniper_aim` | `SniperAimTime` |
+| 473 | `boss.phases.telegraph.sniper_track` | `SniperTrackTime` |
+| 474 | `boss.phases.attacks.sniper3.burst_interval` | `SniperBurstInterval` |
+| 475 | `boss.phases.press_interval` | `PressInterval` |
+| 476 | `boss.phases.press_depth` | `PressDepth` |
+| 477 | `boss.movement.type1_p2_strafe` | `Type1P2Strafe` |
+| 478 | `boss.movement.type1_p2_bob_amp` | `Type1P2BobAmp` |
+| 479 | `boss.movement.type1_p2_bob_period` | `Type1P2BobPeriod` |
+| 480 | `boss.movement.type2_p2_dash_time` | `Type2P2DashTime` |
+| 481 | `boss.movement.type2_p2_rest_time` | `Type2P2RestTime` |
+| 482 | `boss.movement.type3_p1_bob_min` | `Type3P1BobMin` |
+| 483 | `boss.movement.type3_p1_bob_max` | `Type3P1BobMax` |
+| 484 | `boss.movement.type3_p1_bob_period` | `Type3P1BobPeriod` |
+| 485 | `boss.movement.type3_p2_strafe` | `Type3P2Strafe` |
+| 486 | `boss.movement.type3_p2_bob_amp` | `Type3P2BobAmp` |
+| 487 | `boss.movement.type3_p2_bob_period` | `Type3P2BobPeriod` |
+| 489 | `boss.phases.attacks.charged_cannon.charge` | `CannonCharge` |
+| 490 | `boss.phases.attacks.charged_cannon.shots` | `CannonShots` |
+| 491 | `boss.phases.attacks.charged_cannon.interval` | `CannonInterval` |
+| 492 | `boss.phases.attacks.charged_cannon.bullet_speed` | `CannonBulletSpeed` |
+| 493 | `boss.phases.attacks.charged_cannon.damage` | `CannonDamage` |
+| 494 | `boss.phases.attacks.charged_cannon.flash` | `CannonFlash` |
+| 495 | `boss.phases.attacks.dash_sweep.aim` | `SweepAim` |
+| 496 | `boss.phases.attacks.dash_sweep.speed` | `SweepSpeed` |
+| 497 | `boss.phases.attacks.dash_sweep.drop_count` | `SweepDropCount` |
+| 498 | `boss.phases.attacks.dash_sweep.drop_speed` | `SweepDropSpeed` |
+| 499 | `boss.phases.attacks.dash_sweep.drop_damage` | `SweepDropDamage` |
+| 502 | `boss.phases.attacks.dash_sweep.return_duration` | `SweepReturnDuration` |
+| 503 | `boss.phases.attacks.minion_volley.count` | `VolleyCount` |
+| 504 | `boss.phases.attacks.minion_volley.delay` | `VolleyDelay` |
+| 505 | `boss.phases.attacks.minion_volley.bullet_speed` | `VolleyBulletSpeed` |
+| 506 | `boss.phases.attacks.minion_volley.bullet_damage` | `VolleyBulletDamage` |
+| 507 | `boss.phases.attacks.bullet_wall.count` | `WallCount` |
+| 508 | `boss.phases.attacks.bullet_wall.bullet_speed` | `WallBulletSpeed` |
+| 509 | `boss.phases.attacks.bullet_wall.damage` | `WallDamage` |
+| 510 | `boss.phases.attacks.bullet_wall.arc_deg` | `WallArcDeg` |
+| 514 | `boss.enrage.type_1.ring_interval` | `E1RingInterval` |
+| 515 | `boss.enrage.type_1.ring_count` | `E1RingCount` |
+| 516 | `boss.enrage.type_1.ring_speed` | `E1RingSpeed` |
+| 517 | `boss.enrage.type_1.ring_precession_deg` | `E1RingPrecessionDeg` |
+| 519 | `boss.enrage.type_1.salvo_charge` | `E1SalvoCharge` |
+| 520 | `boss.enrage.type_1.salvo_count` | `E1SalvoCount` |
+| 521 | `boss.enrage.type_1.salvo_speed` | `E1SalvoSpeed` |
+| 522 | `boss.enrage.type_1.salvo_damage` | `E1SalvoDamage` |
+| 525 | `boss.enrage.type_2.point_count` | `E2PointCount` |
+| 527 | `boss.enrage.type_2.point_interval` | `E2PointInterval` |
+| 528 | `boss.enrage.type_2.aim` | `E2Aim` |
+| 529 | `boss.enrage.type_2.sniper_speed` | `E2SniperSpeed` |
+| 530 | `boss.enrage.type_2.sniper_damage` | `E2SniperDamage` |
+| 531 | `boss.enrage.type_2.release_ring_count` | `E2ReleaseRingCount` |
+| 532 | `boss.enrage.type_2.release_ring_speed` | `E2ReleaseRingSpeed` |
+| 534 | `boss.enrage.type_3.summon_interval` | `E3SummonInterval` |
+| 539 | `boss.phases.type3.summon_interval` | `_summonInterval` |
+| 541 | `boss.enrage.type_3.summon_waves` | `E3SummonWaves` |
+| 542 | `boss.enrage.type_3.summon_count` | `E3SummonCount` |
+| 544 | `boss.enrage.type_3.ring_interval` | `E3RingInterval` |
+| 545 | `boss.enrage.type_3.ring_count` | `E3RingCount` |
+| 546 | `boss.enrage.type_3.ring_speed` | `E3RingSpeed` |
+| 547 | `boss.enrage.type_3.release_ring_count` | `E3ReleaseRingCount` |
+| 548 | `boss.enrage.type_3.release_ring_speed` | `E3ReleaseRingSpeed` |
+| 550 | `boss.ring_burst.bullet_speed` | `RingBurstSpeed` |
+| 551 | `boss.bullet_damage.ring` | `BulletDamageRing` |
+| 552 | `boss.movement.type4.bob_amp` | `Move4BobAmp` |
+| 554 | `boss.movement.type4.bob_period` | `Move4BobPeriod` |
+| 555 | `boss.enrage.type_4.ring_count` | `E4RingCount` |
+| 557 | `boss.enrage.type_4.ring_interval` | `E4RingInterval` |
+| 558 | `boss.enrage.type_4.ring_speed` | `E4RingSpeed` |
+| 559 | `boss.enrage.type_4.precession_deg` | `E4PrecessionDeg` |
+| 560 | `boss.enrage.type_4.release_ring_count` | `E4ReleaseRingCount` |
+| 561 | `boss.enrage.type_4.release_ring_speed` | `E4ReleaseRingSpeed` |
+| 565 | `boss.difficulty_scaling.interval_mult` | `DiffIntervalMult` |
+| 570 | `boss.difficulty_scaling.speed_mult` | `DiffSpeedMult` |
+| 575 | `boss.difficulty_scaling.counts` | `DiffCountDeltas` |
+| 609 | `boss.hp_mults` | `new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 }` |
+| 635 | `boss.hp_base` | `HpBase` |
+| 1043 | `effects.shake.enrage` | `16.0` |
+| 1340 | `effects.shake.enrage` | `16.0` |
 
 ### `csharp/godot/BuffSelect.cs`
 
@@ -169,19 +169,19 @@
 | 139 | `buffs.explosive.unlock_boss_kills` | `3` |
 | 161 | `buffs.dynamic_weight` | `new Godot.Collections.Dictionary(` |
 | 478 | `buffs.extra_life.heal_on_pick` | `30` |
-| 515 | `buffs.extra_life.heal_on_pick` | `30` |
+| 518 | `buffs.extra_life.heal_on_pick` | `30` |
 
 ### `csharp/godot/Bullet.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 226 | `buffs.explosive.radius_per_level` | `ExplosiveRadius` |
-| 227 | `buffs.explosive.damage_per_level` | `ExplosiveDamage` |
-| 228 | `effects.bullet_visual_scale` | `VisualScale` |
-| 230 | `effects.enemy_bullet_visual_scale` | `EnemyVisualScale` |
-| 233 | `player.grace_period` | `GracePeriod` |
-| 235 | `player.parry.reflect_speed_mult` | `ReflectSpeedMult` |
-| 236 | `player.parry.reflect_damage_mult` | `ReflectDamageMult` |
+| 222 | `buffs.explosive.radius_per_level` | `ExplosiveRadius` |
+| 223 | `buffs.explosive.damage_per_level` | `ExplosiveDamage` |
+| 224 | `effects.bullet_visual_scale` | `VisualScale` |
+| 226 | `effects.enemy_bullet_visual_scale` | `EnemyVisualScale` |
+| 229 | `player.grace_period` | `GracePeriod` |
+| 231 | `player.parry.reflect_speed_mult` | `ReflectSpeedMult` |
+| 232 | `player.parry.reflect_damage_mult` | `ReflectDamageMult` |
 
 ### `csharp/godot/CameraShake.cs`
 
@@ -218,28 +218,28 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 133 | `enemies.bullet_speed` | `EnemyBulletSpeed` |
-| 136 | `enemies.spread_bullet_speed` | `SpreadBulletSpeed` |
-| 139 | `enemies.laser_bullet_speed` | `LaserBulletSpeed` |
-| 142 | `enemies.bullet_damage.single` | `BulletDamageSingle` |
-| 145 | `enemies.bullet_damage.spread` | `BulletDamageSpread` |
-| 148 | `enemies.bullet_damage.laser` | `BulletDamageLaser` |
-| 151 | `enemies.collision_damage` | `CollisionDamage` |
-| 155 | `buffs.slow_field.factor` | `SlowFieldFactor` |
-| 158 | `enemies.spread_fan_step` | `SpreadFanStep` |
-| 162 | `enemies.lifetime` | `Lifetime` |
-| 166 | `enemies.exit_accel` | `ExitAccel` |
-| 169 | `enemies.aggressive_chase_speed` | `AggrChaseSpeed` |
-| 173 | `enemies.hover_band` | `new Godot.Collections.Array { HoverBand.X, HoverBand.Y }` |
-| 185 | `enemies.hover_bob_amp` | `HoverBobAmp` |
-| 188 | `enemies.hover_bob_freq` | `HoverBobFreq` |
-| 191 | `enemies.hover_sway_amp` | `HoverSwayAmp` |
-| 194 | `enemies.hover_sway_freq` | `HoverSwayFreq` |
-| 197 | `enemies.spiral_drift_amp` | `SpiralDriftAmp` |
-| 200 | `enemies.spiral_drift_freq` | `SpiralDriftFreq` |
-| 203 | `enemies.spiral_radius` | `SpiralRadius` |
-| 226 | `effects.shake.enemy_die` | `_shakeDieNormal` |
-| 229 | `effects.shake.elite_die` | `_shakeDieElite` |
+| 113 | `enemies.bullet_speed` | `EnemyBulletSpeed` |
+| 116 | `enemies.spread_bullet_speed` | `SpreadBulletSpeed` |
+| 119 | `enemies.laser_bullet_speed` | `LaserBulletSpeed` |
+| 122 | `enemies.bullet_damage.single` | `BulletDamageSingle` |
+| 125 | `enemies.bullet_damage.spread` | `BulletDamageSpread` |
+| 128 | `enemies.bullet_damage.laser` | `BulletDamageLaser` |
+| 131 | `enemies.collision_damage` | `CollisionDamage` |
+| 135 | `buffs.slow_field.factor` | `SlowFieldFactor` |
+| 138 | `enemies.spread_fan_step` | `SpreadFanStep` |
+| 142 | `enemies.lifetime` | `Lifetime` |
+| 146 | `enemies.exit_accel` | `ExitAccel` |
+| 149 | `enemies.aggressive_chase_speed` | `AggrChaseSpeed` |
+| 153 | `enemies.hover_band` | `new Godot.Collections.Array { HoverBand.X, HoverBand.Y }` |
+| 165 | `enemies.hover_bob_amp` | `HoverBobAmp` |
+| 168 | `enemies.hover_bob_freq` | `HoverBobFreq` |
+| 171 | `enemies.hover_sway_amp` | `HoverSwayAmp` |
+| 174 | `enemies.hover_sway_freq` | `HoverSwayFreq` |
+| 177 | `enemies.spiral_drift_amp` | `SpiralDriftAmp` |
+| 180 | `enemies.spiral_drift_freq` | `SpiralDriftFreq` |
+| 183 | `enemies.spiral_radius` | `SpiralRadius` |
+| 206 | `effects.shake.enemy_die` | `_shakeDieNormal` |
+| 209 | `effects.shake.elite_die` | `_shakeDieElite` |
 
 ### `csharp/godot/Explosion.cs`
 
@@ -264,7 +264,7 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 127 | `effects.shake.enemy_die` | `5.0` |
+| 111 | `effects.shake.enemy_die` | `5.0` |
 
 ### `csharp/godot/FormationCraft.cs`
 
@@ -276,22 +276,22 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 107 | `formation_strike_event.min_score` | `MinScore` |
-| 109 | `formation_strike_event.cooldown` | `Cooldown` |
-| 113 | `formation_strike_event.craft_counts` | `CraftCounts` |
-| 126 | `formation_strike_event.craft_hp_base` | `CraftHpBase` |
-| 128 | `formation_strike_event.craft_score` | `CraftScore` |
-| 133 | `formation_strike_event.approach_speed` | `ApproachSpeed` |
-| 134 | `formation_strike_event.approach_y` | `ApproachY` |
-| 138 | `formation_strike_event.turn_time` | `TurnTime` |
-| 139 | `formation_strike_event.run_speed` | `RunSpeed` |
-| 141 | `formation_strike_event.bomb_interval` | `BombInterval` |
-| 144 | `formation_strike_event.bombs_per_craft` | `BombsPerCraft` |
-| 146 | `formation_strike_event.bomb_fall_speed` | `BombFallSpeed` |
-| 148 | `formation_strike_event.bomb_fuse` | `BombFuse` |
-| 150 | `formation_strike_event.bomb_damage` | `BombDamage` |
-| 152 | `formation_strike_event.bomb_radius` | `BombRadius` |
-| 154 | `formation_strike_event.reward_all_clear` | `RewardAllClear` |
+| 87 | `formation_strike_event.min_score` | `MinScore` |
+| 89 | `formation_strike_event.cooldown` | `Cooldown` |
+| 93 | `formation_strike_event.craft_counts` | `CraftCounts` |
+| 106 | `formation_strike_event.craft_hp_base` | `CraftHpBase` |
+| 108 | `formation_strike_event.craft_score` | `CraftScore` |
+| 113 | `formation_strike_event.approach_speed` | `ApproachSpeed` |
+| 114 | `formation_strike_event.approach_y` | `ApproachY` |
+| 118 | `formation_strike_event.turn_time` | `TurnTime` |
+| 119 | `formation_strike_event.run_speed` | `RunSpeed` |
+| 121 | `formation_strike_event.bomb_interval` | `BombInterval` |
+| 124 | `formation_strike_event.bombs_per_craft` | `BombsPerCraft` |
+| 126 | `formation_strike_event.bomb_fall_speed` | `BombFallSpeed` |
+| 128 | `formation_strike_event.bomb_fuse` | `BombFuse` |
+| 130 | `formation_strike_event.bomb_damage` | `BombDamage` |
+| 132 | `formation_strike_event.bomb_radius` | `BombRadius` |
+| 134 | `formation_strike_event.reward_all_clear` | `RewardAllClear` |
 
 ### `csharp/godot/GameEventManager.cs`
 
@@ -311,15 +311,6 @@
 | 165 | `formation_strike_event.trigger_chance` | `0.30` |
 | 166 | `formation_strike_event.min_score` | `500` |
 
-### `csharp/godot/GameState.Meta.cs`
-
-| 行 | json 键路径 | 脚本回退值 |
-| --- | --- | --- |
-| 71 | `meta.points.score_divisor` | `_metaScoreDivisor` |
-| 72 | `meta.points.boss_kill_bonus` | `_metaBossKillBonus` |
-| 73 | `meta.points.mission_bonus` | `_metaMissionBonus` |
-| 75 | `meta.upgrades` | `new Godot.Collections.Dictionary(` |
-
 ### `csharp/godot/GameState.Save.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
@@ -336,23 +327,23 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 53 | `world_scale` | `WorldScale` |
-| 56 | `milestones.base` | `BuildMilestoneBase(` |
-| 77 | `milestones.cycle_mult` | `MilestoneCycleMultValue` |
-| 79 | `progression.per_boss_kill` | `0.6` |
-| 80 | `progression.per_ten_minutes` | `1.5` |
-| 81 | `progression.time_step_seconds` | `30.0` |
-| 84 | `difficulty` | `new Godot.Collections.Dictionary(` |
-| 93 | `dda.duration` | `DDA_DURATION` |
-| 94 | `dda.factor` | `DDA_FACTOR` |
-| 97 | `scoring.combo.window` | `ComboWindow` |
-| 101 | `scoring.combo.step` | `ComboStep` |
-| 102 | `scoring.combo.max_mult` | `ComboMaxMult` |
-| 103 | `player.max_health` | `_maxHpBase` |
-| 105 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
-| 107 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
-| 109 | `base_task.refresh_cost` | `REFRESH_COST` |
-| 110 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
+| 50 | `world_scale` | `WorldScale` |
+| 53 | `milestones.base` | `BuildMilestoneBase(` |
+| 74 | `milestones.cycle_mult` | `MilestoneCycleMultValue` |
+| 76 | `progression.per_boss_kill` | `0.6` |
+| 77 | `progression.per_ten_minutes` | `1.5` |
+| 78 | `progression.time_step_seconds` | `30.0` |
+| 81 | `difficulty` | `new Godot.Collections.Dictionary(` |
+| 90 | `dda.duration` | `DDA_DURATION` |
+| 91 | `dda.factor` | `DDA_FACTOR` |
+| 94 | `scoring.combo.window` | `ComboWindow` |
+| 98 | `scoring.combo.step` | `ComboStep` |
+| 99 | `scoring.combo.max_mult` | `ComboMaxMult` |
+| 100 | `player.max_health` | `_maxHpBase` |
+| 102 | `buffs.extra_life.max_hp_bonus` | `_maxHpBonus` |
+| 104 | `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| 106 | `base_task.refresh_cost` | `REFRESH_COST` |
+| 107 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
 ### `csharp/godot/Hud.cs`
 
@@ -370,13 +361,13 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 79 | `buffs.laser_beam.duration` | `BeamDuration` |
-| 80 | `buffs.laser_beam.cooldown` | `CooldownDuration` |
-| 82 | `buffs.laser_beam.tick_interval` | `TickInterval` |
-| 84 | `buffs.laser_beam.tick_damage` | `TickDamage` |
-| 86 | `buffs.laser_beam.length` | `BeamLength` |
-| 87 | `buffs.laser_beam.half_width` | `BeamHalfWidth` |
-| 88 | `buffs.laser_beam.hit_radius` | `EnemyHitRadius` |
+| 80 | `buffs.laser_beam.duration` | `BeamDuration` |
+| 81 | `buffs.laser_beam.cooldown` | `CooldownDuration` |
+| 83 | `buffs.laser_beam.tick_interval` | `TickInterval` |
+| 85 | `buffs.laser_beam.tick_damage` | `TickDamage` |
+| 87 | `buffs.laser_beam.length` | `BeamLength` |
+| 88 | `buffs.laser_beam.half_width` | `BeamHalfWidth` |
+| 89 | `buffs.laser_beam.hit_radius` | `EnemyHitRadius` |
 
 ### `csharp/godot/Main.cs`
 
@@ -434,6 +425,15 @@
 | 393 | `effects.meta_health.adapt.bullet_weight` | `0.002f` |
 | 394 | `effects.meta_health.adapt.explosion_weight` | `0.15f` |
 | 395 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4f` |
+
+### `csharp/godot/MetaService.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 83 | `meta.points.score_divisor` | `_metaScoreDivisor` |
+| 84 | `meta.points.boss_kill_bonus` | `_metaBossKillBonus` |
+| 85 | `meta.points.mission_bonus` | `_metaMissionBonus` |
+| 87 | `meta.upgrades` | `new Godot.Collections.Dictionary(` |
 
 ### `csharp/godot/Mothership.cs`
 
@@ -565,7 +565,7 @@
 | 522 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
 | 523 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
 | 524 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
-| 937 | `player.aim_assist.homing_time` | `HomingTime` |
+| 938 | `player.aim_assist.homing_time` | `HomingTime` |
 | 82 | `buffs.rapid_fire.factor` | `—` |
 | 83 | `buffs.power_shot.factor` | `—` |
 | 84 | `buffs.efficient_boost.factor` | `—` |
@@ -618,25 +618,8 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 83 | `elite_turret_event.carrier.retreat_start_speed` | `RetreatStartSpeed` |
-| 84 | `elite_turret_event.carrier.retreat_accel` | `RetreatAccel` |
-
-### `csharp/godot/TurretBattery.cs`
-
-| 行 | json 键路径 | 脚本回退值 |
-| --- | --- | --- |
-| 121 | `enemies.bullet_speed` | `SingleSpeed` |
-| 122 | `enemies.spread_bullet_speed` | `SpreadSpeed` |
-| 123 | `enemies.laser_bullet_speed` | `LaserSpeed` |
-| 124 | `boss.homing_bullet_speed` | `HomingSpeed` |
-| 125 | `boss.sniper_bullet_speed` | `SniperSpeed` |
-| 126 | `enemies.spread_fan_step` | `SpreadFanStep` |
-| 127 | `enemies.bullet_damage.single` | `DmgSingle` |
-| 128 | `enemies.bullet_damage.spread` | `DmgSpread` |
-| 129 | `enemies.bullet_damage.laser` | `DmgLaser` |
-| 130 | `boss.bullet_damage.homing` | `DmgHoming` |
-| 131 | `boss.bullet_damage.sniper` | `DmgSniper` |
-| 152 | `effects.shake.enemy_die` | `_shakeDie` |
+| 68 | `elite_turret_event.carrier.retreat_start_speed` | `RetreatStartSpeed` |
+| 69 | `elite_turret_event.carrier.retreat_accel` | `RetreatAccel` |
 
 ### `csharp/godot/Tutorial.cs`
 
