@@ -159,9 +159,15 @@ public partial class GameState : Node
     /// _userDb 经构造注入（字段初始化器不可引用实例字段，故在构造器赋值）。</summary>
     private readonly MetaService _meta;
 
+    /// <summary>第四轮拆域（2026-08-11）：RP 经济/基地任务/天赋路线职责域——原 GameState.Missions.cs
+    /// 全部职责迁入 MissionsService，GameState.Missions.cs 为门面转发；与 MetaService 等组合服务同构。
+    /// 无构造依赖（跨域访问统一经 GameState.Instance，运行期单例已就绪），构造器直接实例化。</summary>
+    private readonly MissionsService _missions;
+
     public GameState()
     {
         _meta = new MetaService(_userDb);
+        _missions = new MissionsService();
     }
 
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
@@ -354,6 +360,18 @@ public partial class GameState : Node
     // （ResearchLab 等仍连同名信号；LoadMeta 仅在登录/登出/游客切换时触发，均晚于本订阅）
     private void OnMetaTechPointsChanged(long v) => EmitSignal(SignalName.TechPointsChanged, v);
 
+    // Missions 域（第四轮拆域）：MissionsService C# 事件 → GameState 同名信号转发
+    // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen；与 MetaService 同款——
+    // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；存档恢复/ResetRun 直接赋值
+    // 路径由 Save.cs/State.cs 直发同名信号，经此订阅的重发不与之重复）
+    private void OnMissionsRpChanged(int v) => EmitSignal(SignalName.RpChanged, v);
+
+    private void OnMissionsMissionCompleted(StringName id) => EmitSignal(SignalName.MissionCompleted, id);
+
+    private void OnMissionsRefreshPointsChanged(int v) => EmitSignal(SignalName.RefreshPointsChanged, v);
+
+    private void OnMissionsRouteChosen(StringName line, StringName buffId) => EmitSignal(SignalName.RouteChosen, line, buffId);
+
     public override void _Ready()
     {
         LoadBalance();
@@ -365,6 +383,12 @@ public partial class GameState : Node
         // 局外成长（第三轮拆域）：MetaService 入账/消费通知 → 信号转发订阅（LoadMeta 触发点
         // 均为用户操作——登录/登出/游客切换，晚于 _Ready 本订阅；LoadMetaConfig 不发信号）
         _meta.TechPointsChanged += OnMetaTechPointsChanged;
+        // Missions 域（第四轮拆域）：MissionsService 事件 → 信号转发订阅（触发点均为运行期
+        // 玩家操作/对局事件，晚于 _Ready 本订阅；下方 InitMissions 不发信号）
+        _missions.RpChanged += OnMissionsRpChanged;
+        _missions.MissionCompleted += OnMissionsMissionCompleted;
+        _missions.RefreshPointsChanged += OnMissionsRefreshPointsChanged;
+        _missions.RouteChosen += OnMissionsRouteChosen;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);
