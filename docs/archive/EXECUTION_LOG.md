@@ -184,3 +184,11 @@
 - **关键决策**：连击上限 ×2.0 温和化——避免高手得分通胀打穿里程碑节奏、破坏 D1 曲线；连击计数封顶后继续增长（不断链）；受击断连与 DDA 共用事件源构成"受击=降档+断连"双通道但均不致命；保底用"加权+替换"语义（可测确定性断言）；不做炸弹/掉落/技能树重构（复杂度预算外）。
 - **教训**：BALANCE_MAP 生成器只匹配 `GameState.Instance.Cfg(` 前缀——`gs.Cfg(` 局部变量写法不入静态调用表（BuffSelect 首版漏收录，改直调后重跑收录）；防御满层测试首版只加 1 层（extra_life 上限 10/shield 2 未满）断言假失败——满层测试须按 `max_stacks` 循环加层。
 - **原文**：`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`
+
+## 2026-08-11 · AB 系列对抗性复审修复（23 项全量落地，4 批提交）
+
+- **落地**：`5018a7e`（批次1 AB1）→ `45cded1`（批次2 AB11/AB12/AB13）→ `3617d37`（批次3 AB2-AB10/AB14-AB17/AB18）→ `4f277ba`（批次4 AB19-AB23）→ `97e2f25`（docs 回填，[skip ci]）
+- **摘要**：第八轮全量对抗性复审 23 项发现全量修复——P1 激光 active 返航哑火（Player.OverrideEntryAutoFire 同步捕获值）；数据安全三件（DeleteUser 先提交 users.json 再删文件、elapsed 巨值双保险钳制、退出确认窗口屏蔽 R 键）；钳制/判型族一次收口（dynamic_weight 子键判型、Boss interval/E2PointCount/Spawner 族/Mothership/GameEventManager 条目判型与遭遇态复位、touch_controls 恢复广播、SpreadEnemyCap/Starfield/榜单钳制）；P3 文档质量（血量比例保序、注释订正、竞态优先级文档同步、孤儿注释删除、boss_bar_segments 死配置删除、键盘调整摇杆滑杆落盘）。
+- **关键决策**：AB20 竞态「文档同步为实际行为」而非改跨 autoload 顺序（风险高收益微）；AB22 选删除配置键方案（段数恒由权重数组决定）；AB17 core 归一化不复用 `ToInt64`（double 分支 unchecked 转换 1e300 溢出未定义，独立安全转换）。
+- **验证**：dotnet build 0w/0e + xUnit 111→113（AB11 存档幸存 / AB12 巨值钳制 / AB17 榜单钳制）+ format 三工程零 diff + 零 GDScript + import 0 错误 + main smoke 300 帧 + 全量断言场景 57/57 + BALANCE_MAP 重跑零 diff。
+- **原文**：`docs/archive/2026-08-11-ab-series-fix-guide.md`
