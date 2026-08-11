@@ -42,7 +42,7 @@
 - **RunProgressionService**（难度+曲线域）：GameState.Difficulty.cs 全量迁入（档位/DDA/倍率惰性缓存/ramp 转发/里程碑曲线/被动回血缓存）；`Tick(delta)` 接管难度时间档重算与 DDA 计时；DifficultyChanged/DifficultySelected 重发保序；`SetMilestoneOverride/SetMilestoneCount` 等计分域钩子归 ScoreService（公开 API 语义不变）
 - **CombatStateService**（健康+Buff 域）：Health/Buffs/MaxHealth/LoseHealth/Heal/TryLifesteal/BuffCount/AddBuff/ConsumeBuff 迁出 Settings.cs C 簇（顺手修正 Settings.cs 命名失实，回归「设置+视图」单一职责）；HealthChanged/BuffsChanged 本域发射点事件化，6 处 BuffsChanged 发射点经核对无双发（其余 4 处保持原位直发）；PlayerDied 经 GameState.Instance 直发（MissionsService.ChooseRoute 同款先例）
 - **累计**：GameState 3216 行上帝类已拆 5 域（Meta/Missions/Score/RunProgression/Combat），剩余设置+视图（SettingsService）、键位、会话待续
-- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 11 个 PASS 零 FAIL（combo/difficulty/mothership_upgrade/progression_interop/hit_logic/buff33/meta/user_session/base_system/base_task_refresh/smoke）+ BALANCE_MAP 重跑同步（行号漂移 24+18 行）+ autoplay 探针
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 11 个 PASS 零 FAIL（combo/difficulty/mothership_upgrade/progression_interop/hit_logic/buff33/meta/user_session/base_system/base_task_refresh/smoke）+ BALANCE_MAP 重跑同步（行号漂移 24+18 行）+ autoplay 探针 480s exit 0 **异常总数 0（0 类）**
 
 ## [3.28] - 2026-08-10
 
