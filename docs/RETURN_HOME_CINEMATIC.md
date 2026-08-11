@@ -125,7 +125,7 @@ t≈12.3  fully operable
 ### 4.3 Mechanics
 - No async load (all procedural); sync `show_base()` in `finished`.
 - Skip: Esc (BackNavigator `SKIP_RETURN`, priority = `SKIP_INTRO`) / any key / click → `Skip()` → `OnReturnFinished()`; `Skip()` kills BGM tween, sets target volume. **Grace `SKIP_GRACE` s (config `effects.return_skip_grace`, default 1.2)**: `Skip()` ignored within — held WASD/Shift/Space don't skip; check inside `Skip()`, all routes gated; natural end unaffected.
-- Save timing: `SaveRun()` before cinematic (`Main.cs:944`); skip/crash safe.
+- Save timing: `SaveRun()` before cinematic (`Main.cs:947`); skip/crash safe.
 - Pause: tree paused through cinematic + UI (both Always); `ResumeFromBaseInternal()` → orbital strike (`csharp/godot/OrbitalStrike.cs`; Always, clears on hit frame, unpauses).
 - Future "skip after first view": GameState flag → old flash path; not implemented, fork reserved.
 

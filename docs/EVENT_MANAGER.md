@@ -161,8 +161,9 @@ event FSMs (e.g. waves resume at `CARRIER_EXIT`, Boss unfreezes at `BOSS_DELAY` 
 
 ## 5. Behavior preservation invariants
 
-- Fog may fire during encounters; encounters never overlap each other/Boss; mothership
-  presence blocks encounters (L13).
+- Fog may fire during encounters; encounters never overlap each other; elite encounter
+  freezes Boss while active, formation strike does not (Boss fires on schedule; AC28);
+  mothership presence blocks encounters (L13).
 - `Spawner.SetProcess(false)` disables encounter auto-trigger (manager gates on spawner
   processing) — same as today.
 - `Main.Event()` / `Main.Formation()` / `Spawner.EliteEvent()` / `Spawner.FormationEvent()`

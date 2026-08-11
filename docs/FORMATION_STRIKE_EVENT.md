@@ -29,7 +29,7 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 
 - Craft `csharp/godot/FormationCraft.cs` (Area2D): `enemy` group + `GameState.Enemies`; deregistered on death/exit.
 - Sprite `assets/sprites/enemy_ship_2.png`, scale 0.9.
-- HP = `craft_hp_base` × `GameState.EnemyHpMultiplier()` × `GameState.EnemyHpRamp()` (基准 × 难度档 × 对局进程 ramp,与普通敌机同口径); kill score `craft_score` (× difficulty in `AddScore`).
+- HP = `craft_hp_base` × `GameState.EnemyHpMultiplier()` × `GameState.EnemyHpRamp()` (基准 × 难度档 × 对局进程 ramp,与普通敌机同口径); kill score `craft_score` — 击坠经 `AddKillScore` (2026-08-11 c3ca549 连击改造: 连击 +1 并刷新窗口, `craft_score` × 连击乘区后照常过难度倍率, 第 1 杀乘区 1.0 不放大; AC25 同步). 全歼奖励 `reward_all_clear` 直接 `AddScore`, 不计连击.
 - No own AI: pos = anchor + rotated offset; rotation = heading + PI/2; `_Process` drives.
 - Killed: `Explosion.SpawnAt()` + SFX; bomb sequence skips destroyed craft.
 
@@ -49,7 +49,7 @@ Single source of truth; sync this doc on change. Counterpart: `docs/ELITE_TURRET
 | `cooldown` | 50.0 | post-event |
 | `craft_counts` | `{easy:3, medium:4, hard:5}` | formation size |
 | `craft_hp_base` | 60 | HP base (× difficulty mult) |
-| `craft_score` | 200 | kill base score |
+| `craft_score` | 200 | kill base score（击坠经 `AddKillScore` 计连击 × 乘区；全歼奖励不计连击） |
 | `approach_speed` | 260.0 | approach speed |
 | `approach_y` | 260.0 | approach height (view-top offset) |
 | `turn_time` | 1.2 | turn duration |

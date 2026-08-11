@@ -1820,3 +1820,56 @@
 - **批次 2（数据安全，AB11/AB12/AB13）**：改了什么——AB11 `UserDb.DeleteUser` 调序为「先 Save 成功再删存档文件」；AB12 `GameState.Save.cs` elapsed 入口钳 `[0, 1e6]` + `DifficultyCurve.Compute` 0/负值直接返回、巨值钳 1e6 双保险；AB13 `ExitConfirm.Exiting()` 公开 + `PauseUi` restart 分支模态守卫。为什么起效——AB11 落盘失败不再产生文件删除副作用；AB12 击穿单调防线的未定义转换在入口与曲线层双双封死；AB13 确认退出淡出窗口内 R 键被忽略，Quit 正常执行。如何验证——xUnit 补 `DeleteUser_SaveFails_RollsBackInMemoryEntry` 存档幸存断言 + `DifficultyCurve_HugeOrNegativeRunTime_ClampedAndBounded`（1e300/负值不溢出有界）；全量 113/113。
 - **批次 3（钳制/判型族收口，AB2-AB10 + AB14-AB17）**：改了什么——AB2 `BuffSelect` dynamic_weight 四子键条目级判型 + ids 缺键回退设计默认；AB3 `Boss` LoadPatterns 装入清洗 interval ≥0.05 + 两处运行期兜底；AB4 E2PointCount 钳 ≥4；AB5 elite_wave_size 钳 ≥1；AB6 boss_min_interval 钳 ≥0 / boss_time_limit 钳 ≥5s；AB7 mag_cell_time 钳 ≥0.05；AB8 `MergeType` 按键钳值域（score≥0 / fire_interval≥0.05 / scale≥0.1 / radius≥0.5，坏值回退默认）；AB9 fog weights/durations 经 `FogNum` 条目判型助手；AB10 `SetRunActive(false)` 复位 `_encounterActiveId`/`_encounterEndPending`；AB14 ApplyRunSave 恢复 touch_controls 补发 `TouchControlsChanged`（Main.cs:1045 订阅已连且幂等）；AB15 SpreadEnemyCap 钳 `[0, int.MaxValue]`；AB16 starfield counts 钳 `[0, 4096]`；AB17 core `GetLeaderboard` 归一化钳 `[0, long.MaxValue]`（double 分支安全转换，不动 `ToInt64` 排序语义）+ 显示处钳 int.MaxValue 双保险。为什么起效——同族键逐键清单化一次收口，坏值一律回退默认/下限兜底，不抛不崩不静默失效。如何验证——xUnit 补 `AB17_HugeLeaderboardScore_NormalizedOnRead`（1e300 → long.MaxValue、5e9 原样、非负）；113/113；当前数据零变化。
 - **批次 4（P3/文档，AB18-AB23）**：改了什么——AB18 P2/ENRAGE 血量比例保序（倒挂抬 P2 至 enrage+0.01）；AB19 `Enemy.cs` 离场注释订正（行为不动）；AB20 `ELITE_TURRET_EVENT.md` §6.3 + Deviations 同步实际行为（encounter may win，boss 延后不丢失）+ `GameEventManager._Process` 补 AB20 注记；AB21 删除 BaseConsole/SettingsUi 两处孤儿 `/// <summary>`；AB22 删除 `hud.boss_bar_segments` 配置键（段数 = 权重数组长度），balance.json 删键 + BALANCE_MAP 重跑同步 + DESIGN_BASELINE 口径同步 + `BalanceModelsTests.Load_UnknownSections_PreservedInExtra` 断言随删键更新；AB23 摇杆滑杆 `ValueChanged` 补 `PersistJoySettings()`（键盘调整落盘，与 DragEnded 并存）。为什么起效——文档-代码矛盾消除、死配置移除、键盘路径状态不再丢失。如何验证——build 0w/0e；113/113；BALANCE_MAP 幂等；全量断言场景 0 FAIL。
+
+---
+
+# AC 系列（2026-08-11，第九轮：全面审计——发现登记 + 修复落地）
+
+- **审计**：8 路并行只读审计（按子系统无重叠覆盖全部生产 C# 文件：core 层/玩家弹幕受击瞄准/Boss/敌机刷怪/事件系统/主流程/HUD-Buff/GameState-存档），每路对照设计文档与 `.agents/*` 约定，先读 AA/AB 已修复清单避免重复；重点 c3ca549（combo 连击计分 + 低血保底）新功能 + AB 系列「钳制族/判型族孪生遗漏」追查。基线 `dotnet build` 0 警告 0 错误；关键 P2 发现逐行复核属实。
+- **发现（26 项）**：无 P1；**P2 ×10** / **P3 ×16**。主题：10 项 P2 中 9 项仍为「钳制族/判型族孪生遗漏」（每轮只封一侧入口、同文件同族键漏扫——AB 系列教训未收口）；另确认 c3ca549 核心逻辑、AB1 激光返航、swap-remove 索引表、事件生命周期均无回归。
+  - **P2 ×10**：
+    - **AC1** `GameState.State.cs:97-99,501-502` combo `step`/`max_mult` 无上界（只钳下限）→ `(long)Math.Round(basePoints × ComboMultiplier())` 溢出 → 分数巨负，污染 HUD/里程碑/榜单/`SettleRun` 结算。
+    - **AC2** `Player.cs:276-332` LoadBalance 钳制族不齐（同函数 fuel.max/dash.time/dash.cooldown 已钳，其余裸读）——`buffs.armor.multiplier ≤0` → 受击回血、`buffs.evasion.chance ≥1` → 软无敌、`crit_shot.chance >1` → 刀刀暴击、aim_assist `cone_angle_deg` 无界（360 → 全屏标记）。
+    - **AC3** `LaserWeapon.cs:77-85` 六键无域校验（同函数 tick_interval 已钳）——`cooldown ≤0` → 每帧重触发 + 自动开火永久禁用（无恢复路径）、`tick_damage ≤0` → 给敌机回血（10 次/秒）。
+    - **AC4** `Enemy.cs:129-158,177-178` 标量配置裸读无判型（同文件 hover_band 已判型）——坏值首个敌机 spawn 即 `InvalidCastException` 崩溃（违「坏值回退默认」纪律）。
+    - **AC5** `EnemyMoveStrategy.cs:66-74,327-350` 参数判型遗漏（GetFloat/ReadArrays 裸 `AsDouble()`，R14 只加数组长度校验）——坏值敌机 spawn 即崩。
+    - **AC7** `Boss.cs:553-554` `type3.summon_interval` 无下限（孪生键 :550-551 已钳 ≥0.05）——配 0 → 每帧召唤 2-3 只/帧风暴。
+    - **AC8** `FormationStrikeEvent.cs:103-131,230-231` `craft_counts`/`bombs_per_craft` 无值域钳制 + 其余标量裸读（craft_hp_base/craft_score/reward 等）——巨值数千战机实例化 OOM/软锁、0 空跑、负分倒扣被连击乘区放大。
+    - **AC15** `Main.cs:700-701` × `Spawner.SetElapsed` continue 路径 elapsed 第二入口未钳上界（AB12 孪生）——手改 1e300 → `(float)` 溢出 +Inf → `SaveRun()` JsonSerializer 抛异常 → 返航检查点静默永不再刷新。
+    - **AC18** `Hud.cs:205/328` × `GameState.Meta.cs` meta extra_life 开局 HP 显示失真——`ApplyMetaLoadout` 直写 Buffs 只发 `BuffsChanged` 不发 `HealthChanged`，新开局 HUD 满条实际 50%（首次受击才跳变）；存档恢复路径因信号顺序恰好自愈。
+    - **AC22** `BuffSelect.cs:171,194` dynamic_weight `weight` 无上界（只钳下限 1.0）——低血时 `copies = (int)Math.Round(weight)`，手改 2e9 → 里程碑巨型数组分配（≈300GB 引用）挂死（AB16 starfield 同族）。
+  - **P3 ×16**：
+    - **AC6** `Player.cs:1057-1063` homingRate 无 NaN 守卫（重合敌理论路径）——`<= 0` 判断漏 NaN，NaN 目标角传播。
+    - **AC9** `Boss.cs:417-419` enrage `attack_interval`/`attack_windup`/`release_interval` 无下限（R06 只封 duration 族）——windup ≤0 → telegraph 归零；attack/release ≤0 → 每帧压完。
+    - **AC10** `EnrageSequence.cs:231,249` 狂暴期每帧 `Callable.Call` 托管分配（热路径零分配红线；`BossMovement.cs:44-54` 已有 `System.Action` 零分配先例）。
+    - **AC11** `AimFrameLayer.cs:295-296` 注释「恒 false 排除」失实（实际为「不排除」语义）。
+    - **AC12** `Enemy.cs:857/422` × `GameState.cs:414-421` combo 设计语义缺口——**design-confirmed（不修，档案标注）**：分裂子机 0 分击杀计入连击并续窗（实现跟 DESIGN_BASELINE 列举项，×2.0 封顶约束）；连击乘区跨返航树暂停「存续」（冻结与对局节奏一致是既有语义）。
+    - **AC13** `EliteTurretEvent.cs:276` `turret_counts` 下限 0 未收口（Q16 只封上限）——count=0 无炮塔仍跑满 30s+冻结 34s。
+    - **AC14** `GameState.Meta.cs:89` `max_level` 裸 `(int)` 无上界——超 2^31 回绕负 → 静默限 Lv1。
+    - **AC16** `DeathReplay.cs:44` / `Bullet.cs:343` 类尾悬挂孤儿 `/// <summary>` 片段（AB21 同族）。
+    - **AC17** `Spawner.cs:164-168` `wave_size_start/end`、`special_gap_min/max` 无钳制（min>max 倒挂未保序）——每个普通波都出精英波。
+    - **AC19** `GameEventManager.cs` × `Spawner.cs` 编队×Boss 同帧竞态（AB20 只兜了 elite）——**design-confirmed（不改代码）**：`FORMATION_STRIKE_EVENT.md` §1 明确 "No Boss freeze: Boss fires on schedule"，同屏是设计意图，仅 elite 冻结；文档同步见 AC28。
+    - **AC20** `Hud.cs:930-960` 切语言不刷新连击标签（残留旧语言）。
+    - **AC21** `UserDb.cs:173` `last_login_order` 读值未钳 + `maxOrder+1` 裸加——手改 long.MaxValue → 回绕 MinValue → 排序垫底 + 负值落盘。
+    - **AC23** `ARCHITECTURE.md:67` `hud.boss_bar_segments` 残留（AB22 删键后漏同步；DESIGN_BASELINE:95 已同步为 key-removed 口径）。
+    - **AC24** `UserDb.cs:368` `_seq` 同款自增回绕（SubmitScore）。
+    - **AC25** `FORMATION_STRIKE_EVENT.md:32,52` 击坠分路径未同步 c3ca549——编队机击杀走 `AddKillScore`（连击计数+乘区放大，第 1 杀不放大），全歼奖励不计连击。
+    - **AC26** `GameState.Meta.cs:11-12` 头注「放弃/返航不结算」与实现矛盾——实际为「ExitConfirm 删档不结算；K 键自毁（give_up）按死亡正常结算」。
+- **核心模式**：约 9/10 项 P2 为既有修复的**孪生遗漏**（钳制族/判型族逐轮只封一侧入口）——建议按「逐键清单化」一次收口（AB 指引原话）。
+- **修复指引**：① 判型统一 `VariantType is Variant.Type.Int or Variant.Type.Float` 否则回退脚本默认，不抛不崩；② 钳制 `Mathf.Max`/`Mathf.Clamp`，注释标注 AC 编号与触发危害；③ 当前默认数据行为零变化；④ 按文件分组并行修复（组 1 玩家侧 / 组 2 敌机-Boss / 组 3 事件刷怪 / 组 4 GameState-UI / 组 5 存储层 / 组 6 文档同步 + 本档案）；⑤ 测试补充随代码组落地（ComboTest 巨值乘区、Buff33Test weight 巨值、UserDbTests 序号回绕、定向场景坏值回退）。
+- **追加执行编号（非发现，随批修复）**：**AC27** `RETURN_HOME_CINEMATIC.md:128` 行号锚点漂移 `Main.cs:944→947`；**AC28** `EVENT_MANAGER.md:165`「encounters never overlap Boss」→ 同步实际行为「elite encounter freezes boss；formation strike does not（Boss fires on schedule）」；**AC29** 本档案登记。
+- **状态**：✅ 修复已全量落地并统一验证通过（2026-08-11，代码组 1-5 + 文档组 6 并行执行；build 0w/0e、xUnit 115/115、全量断言场景 1861 PASS / 0 FAIL、BALANCE_MAP 重跑 0 缺失键）；「修复起效记录」见下方批次 1-3 + design-confirmed 标注。
+
+## AC 系列修复起效记录（2026-08-11 全量落地，统一验证通过）
+
+> 执行依据：协调者会话修复计划（第九轮 AC 系列，`docs/AUDIT_REVIEW_SOP.md` Phase 3-4）；按文件零重叠分 6 组并行修复后统一验证。
+> 验证口径：`dotnet build` 0w/0e（最终复核含注释订正）、xUnit **115/115**（原 113 + AC21/AC24 序号回绕新用例）、三工程 format 零 diff、
+> `godot --headless --import` 0 引擎错误、定向断言场景全绿（combo 含新巨值用例 8/buff33 含新 weight 用例 1c/boss_enrage/boss_registry）、
+> 全量断言场景 **1861 PASS / 0 FAIL**、`--quit-after 300` 0 错误、BALANCE_MAP 重跑 0 缺失键（231 处 Cfg 调用行号同步，键集合零变化）。
+> 引擎错误日志扫描 2 条 ERROR 均为既有测试行为（smoke 损坏存档隔离测试的预期 Parse JSON 输出；boss_registry 退出 Area2D RID 泄漏——
+> 已 git stash 还原三文件跑基线对照证实同样存在，非本次引入）。各项「当前默认值行为零变化」已逐一核实。
+
+- **批次 1（P2 钳制/判型族收口，代码组 1-5）**：改了什么——AC1 combo `step`/`max_mult` 钳 `[0,1e3]`/`[1,1e3]` + `:506` 乘算 `Math.Clamp(…, 0, long.MaxValue)` 双保险；AC2 Player.LoadBalance 全部数值键钳制（armor/evasion/crit_shot 概率族 `[0,1]`、cone_angle `[0,360]`、entry/fuel/dash/graze 非负，int 键 long 域比较防回绕）；AC3 LaserWeapon 六键域校验（duration/cooldown ≥0.05、tick_damage ≥1、length/half_width/hit_radius ≥0.1 先钳再乘 ws）；AC4 Enemy 21 键判型+域钳（slow_field.factor `[0,1]`、lifetime ≥0.05）；AC5 EnemyMoveStrategy GetFloat/ReadArrays 元素级判型 + GetBool 死代码删除；AC7 Boss type3.summon_interval ≥0.05；AC8 FormationStrikeEvent 13 键判型+域钳（craft_counts `[1,5]`、bombs_per_craft `[1,20]`、负分键 ≥0）；AC13 EliteTurretEvent turret_counts 钳 `[1, Sockets.Length]`（原下限 0）；AC14 meta max_level long 域钳 `[1, int.MaxValue]`；AC15 Main.cs continue 路径 elapsed 钳 `[0,1e6]` + Spawner.SetElapsed 兜底双保险；AC17 Spawner wave_size ≥1/gap ≥0 保序/rest ≥0；AC18 Hud RebuildBuffDock 末尾重刷 HP（meta extra_life 开局显示失真）；AC22 BuffSelect weight 钳 `[1,100]` + 过时注释删除；AC21/AC24 UserDb last_login_order/_seq 读值钳 ≥0 + 递增防溢出。为什么起效——钳制族/判型族逐键清单化一次收口：坏值一律回退默认/钳入合法域，不抛不崩不静默失效；combo/elapsed 双保险封死未定义转换；序号自增不再回绕污染落盘。如何验证——xUnit 补 `AC21_LastLoginOrderMaxValue_RecordLoginNoOverflow`/`AC24_HugeSeq_SubmitScoreNoOverflow`（115/115）；ComboTest 用例 8（巨值钳入域、乘区封顶、分数有界）；Buff33Test 用例 1c（weight 巨值候选池正常）；全量 0 FAIL。
+- **批次 2（P3 代码：热路径/守卫/注释，组 1-2）**：改了什么——AC9 Boss enrage attack_interval/attack_windup/release_interval ≥0.05；AC10 EnrageSequence 狂暴注册表 `Callable` → `System.Action`（`_activeHandlers`/`_releaseHandlers`/`_releaseBeginHandlers`，BossMovement 先例，公开接口签名不变）；AC6 Player homingRate 补 `float.IsNaN` 守卫；AC11 AimFrameLayer 注释订正（「恒 false 排除」→「不排除」实际语义）；AC16 DeathReplay/Bullet 孤儿 XML summary 补全/删除；AC20 Hud 切语言补 `OnComboChanged` 刷新连击标签。为什么起效——狂暴期每物理帧不再经 Godot 动态派发分配（零分配红线）；NaN 不再穿透 `<=0` 守卫；注释与代码实况一致。如何验证——boss_enrage/boss_registry 定向场景全绿（AC10 行为逐字节等价，泄漏基线对照证实与改动无关）；全量 0 FAIL。
+- **批次 3（文档同步 + 档案，组 6）**：改了什么——AC23 ARCHITECTURE.md:67 删 `hud.boss_bar_segments` 残留（AB22 删键后漏同步）；AC25 FORMATION_STRIKE_EVENT.md 击坠分路径同步连击语义（AddKillScore 乘区、全歼奖励不计连击）+ 代码 `OnCraftDied` 注释订正；AC26 GameState.Meta.cs 头注订正（ExitConfirm 删档不结算 / K 键自毁按死亡结算）；AC27 RETURN_HOME_CINEMATIC.md 锚点 944→947；AC28 EVENT_MANAGER.md:165「never overlap Boss」→ elite 冻结/formation 不冻结（Boss fires on schedule）；AC29 本档案登记。为什么起效——文档与代码实况统一，消除自相矛盾与已删键引用。如何验证——grep 复核无残留；BALANCE_MAP 重跑幂等（键集合零变化）。
+- **design-confirmed（不改代码，档案标注）**：AC12（分裂子机 0 分击杀计连击并续窗——实现跟 DESIGN_BASELINE 列举项，×2.0 封顶约束；连击乘区跨返航树暂停存续——冻结与对局节奏一致是既有语义）；AC19（编队×Boss 同帧竞态——FORMATION_STRIKE_EVENT.md §1 "No Boss freeze" 是设计意图，仅 elite 冻结；文档已同步 AC28）。注：AC13 为 AC8 同发现附带孪生（Q16 上限钳既有、仅下限缺失，count=0 空跑 34s 不崩不软锁），登记定级 P3。

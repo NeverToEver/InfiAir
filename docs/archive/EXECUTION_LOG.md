@@ -192,3 +192,11 @@
 - **关键决策**：AB20 竞态「文档同步为实际行为」而非改跨 autoload 顺序（风险高收益微）；AB22 选删除配置键方案（段数恒由权重数组决定）；AB17 core 归一化不复用 `ToInt64`（double 分支 unchecked 转换 1e300 溢出未定义，独立安全转换）。
 - **验证**：dotnet build 0w/0e + xUnit 111→113（AB11 存档幸存 / AB12 巨值钳制 / AB17 榜单钳制）+ format 三工程零 diff + 零 GDScript + import 0 错误 + main smoke 300 帧 + 全量断言场景 57/57 + BALANCE_MAP 重跑零 diff。
 - **原文**：`docs/archive/2026-08-11-ab-series-fix-guide.md`
+
+## 2026-08-11 · AC 系列第九轮全面审计修复（26 项全量落地，6 组并行）
+
+- **落地**：工作区修改未提交（27 文件：代码 17 + 测试 3 + 文档 7；git 提交待用户确认）
+- **摘要**：第九轮全面审计（8 路并行，26 项发现：P2×10 / P3×16，无 P1）全量修复——主线为「钳制族/判型族孪生遗漏」逐键收口：combo 乘区无上界溢出分数巨负（双保险钳制）、continue 路径 elapsed 第二入口 +Inf 返航存档失效（AB12 孪生）、Player 装甲/闪避/暴击概率域钳、LaserWeapon 六键（tick_damage 负值回血）、敌机/编队 34 键判型回退默认、Boss 召唤与 enrage 时序下限、craft_counts [1,5] 与 turret_counts 下限、wave_size/gap 保序、meta max_level long 域钳、BuffSelect weight 上界、UserDb 序号自增防溢出；P3 项：狂暴注册表 Callable→System.Action 热路径零分配（BossMovement 先例）、NaN 守卫补漏、孤儿注释与文档矛盾 8 处同步（含 ARCHITECTURE hud 残留、FORMATION 击坠分路径、EVENT_MANAGER 竞态措辞、RETURN_HOME 锚点）；HUD meta extra_life 开局血量显示失真修复。
+- **关键决策**：AC12/AC19 design-confirmed 不改代码（分裂子机 0 分计连击跟 DESIGN_BASELINE 列举项；编队不冻结 Boss 是 §1 设计意图）；AC13 登记定级 P3（AC8 附带孪生，上限钳既有）；AC10 为唯一结构性改动（纯类型替换、行为逐字节等价、失败可单文件回退）。
+- **验证**：dotnet build 0w/0e + xUnit 113→115（AC21 序号回绕 / AC24 _seq 巨值）+ format 三工程零 diff + import 0 错误 + 定向场景（combo 新用例 8 / buff33 新用例 1c / boss_enrage / boss_registry）+ 全量断言场景 57/57（1861 PASS / 0 FAIL）+ quit-after 300 0 错误 + BALANCE_MAP 重跑 0 缺失键（231 行号同步）。引擎错误扫描 2 条 ERROR 基线对照证实为既有测试行为（smoke 损坏存档预期输出；boss_registry 退出 Area2D RID 泄漏——git stash 还原后同样存在）。
+- **原文**：`docs/AUDIT_VAULT.md` AC 系列条目
