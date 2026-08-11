@@ -147,7 +147,7 @@ public partial class GameState : Node
         // 手改超大值经 (long) 未定义转换得 long.MinValue 使难度乘数巨负，击穿单调不减防线
         RunTime = Math.Clamp(SaveNum(data.GetValueOrDefault("elapsed", 0.0), 0.0), 0.0, 1e6);
         // 难度乘数按曲线从 boss_kills + run_time 重算（旧档的 difficulty_multiplier 字段仅作读入兼容）
-        RecomputeDifficultyInternal();
+        _runProg.RecomputeDifficultyInternal();
         Rp = SaveInt(data.GetValueOrDefault("rp", 0), 0);
         // 任务轮换：刷新点数随存档往返（手改负值钳制 ≥0）
         RefreshPoints = SaveInt(data.GetValueOrDefault("refresh_points", 0), 0);
@@ -224,8 +224,9 @@ public partial class GameState : Node
         // 里程碑曲线：恢复到大于当前分数的第一档（2026-08-07 批量推进迁移 C# 侧——
         // CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；
         // 原逐档跨语言往返的 while 循环删除，存档恢复路径不再每档一次 GDScript 求值）
-        _milestoneCount = (int)_progression.CountThresholdsUpTo(Score, Variant.From(MilestoneBase).AsGodotArray(), MilestoneCycleMult, MilestoneMult());
-        _nextMilestone = MilestoneThreshold(_milestoneCount);
+        // 第五轮拆域：直写两行收拢为 ScoreService.RestoreMilestones（内部字段/阈值求值，
+        // 不发事件——信号由下方直发保持顺序）
+        _score.RestoreMilestones(Score);
         EmitSignal(SignalName.ScoreChanged, Score);
         EmitSignal(SignalName.HealthChanged, Health);
         EmitSignal(SignalName.DifficultyChanged, DifficultyMultiplier);

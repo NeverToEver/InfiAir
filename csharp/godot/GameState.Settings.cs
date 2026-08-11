@@ -284,34 +284,16 @@ public partial class GameState : Node
 
     public void AddBossKill(double scoreScale = 1.0)
     {
-        BossKills += 1;
-        // G012：加分基准入 balance.json（milestones.boss_kill_base；击杀低频，非热路径可直查）
-        AddScore((int)(Cfg("milestones.boss_kill_base", 500.0).AsDouble() * scoreScale));
+        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ Missions 域（RP/任务进度）→
+        // 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致（ScoreChanged/MilestoneReached
+        // 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
+        _score.AddBossKill(scoreScale);
         AddRp(RpBossKillValue);
         SetKindProgress("boss", BossKills);
-        if (RecomputeDifficultyInternal())
+        if (_runProg.RecomputeDifficultyInternal())
         {
             EmitSignal(SignalName.DifficultyChanged, DifficultyMultiplier);
         }
-    }
-
-    /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线，docs/archive/ENDLESS_BALANCE_PLAN.md）：
-    /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
-    /// 线性无封顶：敌方 HP/伤害 ramp 随之无限增长，最终超过玩家固定成长上限。
-    /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。</summary>
-    private bool RecomputeDifficultyInternal()
-    {
-        var step = (int)Mathf.Floor(RunTime / _progTimeStepSeconds);
-        // 2026-08-07：曲线公式迁移 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）
-        var newMult = _progression.DifficultyMultiplier(RunTime, _progTimeStepSeconds, _progPerTenMinutes, _progPerBossKill, BossKills);
-        _difficultyTimeStep = step;
-        if (Mathf.IsEqualApprox(newMult, DifficultyMultiplier))
-        {
-            return false;
-        }
-
-        DifficultyMultiplier = newMult;
-        return true;
     }
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）

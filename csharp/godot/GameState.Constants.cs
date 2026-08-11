@@ -10,9 +10,6 @@ public partial class GameState : Node
 
     // ---------------- 常量（private const + 同名 UPPER_SNAKE 实例属性 + 静态 GetXxx() 访问器） ----------------
 
-    /// <summary>得分总量上限（P4 防御：手改 difficulty score 倍率防 int64 溢出；正常对局远达不到）</summary>
-    private const int ScoreCapValue = 1_000_000_000;
-
     /// <summary>难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
     /// hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
     /// spread_cap 为 spread 弹种敌机同屏上限；milestone 为里程碑阈值倍率
@@ -28,8 +25,6 @@ public partial class GameState : Node
         new StringName("medium"),
         new StringName("hard"),
     };
-
-    private const double MilestoneCycleMultValue = 1.35;
 
     // ---------------- 静态构造辅助（集合常量；局部构造，规则 19 不静态持有） ----------------
 
@@ -100,12 +95,5 @@ public partial class GameState : Node
     {
         [new StringName("offense")] = new Godot.Collections.Array { new StringName("spread_shot"), new StringName("laser_beam") },
         [new StringName("mobility")] = new Godot.Collections.Array { new StringName("phase_dash"), new StringName("mothership_recall") },
-    };
-
-    /// <summary>里程碑阈值曲线（对齐原作 constants.py GameBalanceConstants 算法）：
-    /// 首循环 8 档基础阈值，之后每循环的档差按 ×1.35^cycle 放大（阈值单调不回退）。</summary>
-    private static Godot.Collections.Array<int> BuildMilestoneBase() => new()
-    {
-        3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
     };
 }
