@@ -36,6 +36,14 @@
 - **GameState 上帝类拆分推进——`MissionsService`**：RP 经济/基地任务/天赋路线域全部职责（原 GameState.Missions.cs 261 行：状态 Rp/RefreshPoints/Missions/ChosenRoutes/LockedRoutes 与 _taskPool/_missionsByKind，方法 AddRp/SpendRp/InitMissions/ResetMissions/SetKindProgress/ActiveMissionIds/MissionGoal/MissionProgress/IsMissionDone/IsMissionClaimed/ClaimMission/GrantRefreshPoints/CanRefreshMissions/RefreshMissions/ChooseRoute/IsBuffLocked 等 19 项）迁入新组合服务 `MissionsService : RefCounted`（无构造依赖，跨域访问统一经 `GameState.Instance`——MISSION_DEFS/MISSION_POOL/ROUTE_LINES/REFRESH_COST/GRANT_PER_VISIT/BuffCount/Buffs）；GameState.Missions.cs 降为门面 partial（公开成员逐一转发 + 私有 InitMissions/SetKindProgress/MissionDef 一行包装，内部调用方与 66 场景测试零改动）；状态字段与 RpMissionRewardValue 随迁出 State.cs，配置常量保留 GameState 侧；信号改「服务内 C# 事件 + GameState 订阅重发」模式——`RpChanged`/`MissionCompleted`/`RefreshPointsChanged`/`RouteChosen` 4 组发射点/次数/顺序与现状逐位一致（存档恢复/ResetRun 直接赋值路径由 GameState 侧直发同名信号不重复；ChooseRoute 直发 `BuffsChanged` 同 MetaService.ApplyMetaLoadout 口径）；唯一 autoload 约束保持
 - **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + base_system_test/base_task_refresh_test/smoke_test 场景 exit 0 零 FAIL + BALANCE_MAP 生成器重跑零 diff
 
+### 架构（2026-08-11，第五轮：GameState 拆域推进——计分/难度/健康三域服务化，全量行为零变化）
+
+- **ScoreService**（计分+里程碑域）：Score/Kills/BossKills/Combo/连击计时/里程碑态迁入新服务；跨域写解耦——`RestoreMilestones(score)` 收拢 Save.cs 直写 `_milestoneCount/_nextMilestone`（含 H03 挂死守卫）；`Tick(delta)` 接管连击断连计时；ScoreChanged/MilestoneReached/ComboChanged 三信号 C# 事件 + 门面重发保序
+- **RunProgressionService**（难度+曲线域）：GameState.Difficulty.cs 全量迁入（档位/DDA/倍率惰性缓存/ramp 转发/里程碑曲线/被动回血缓存）；`Tick(delta)` 接管难度时间档重算与 DDA 计时；DifficultyChanged/DifficultySelected 重发保序；`SetMilestoneOverride/SetMilestoneCount` 等计分域钩子归 ScoreService（公开 API 语义不变）
+- **CombatStateService**（健康+Buff 域）：Health/Buffs/MaxHealth/LoseHealth/Heal/TryLifesteal/BuffCount/AddBuff/ConsumeBuff 迁出 Settings.cs C 簇（顺手修正 Settings.cs 命名失实，回归「设置+视图」单一职责）；HealthChanged/BuffsChanged 本域发射点事件化，6 处 BuffsChanged 发射点经核对无双发（其余 4 处保持原位直发）；PlayerDied 经 GameState.Instance 直发（MissionsService.ChooseRoute 同款先例）
+- **累计**：GameState 3216 行上帝类已拆 5 域（Meta/Missions/Score/RunProgression/Combat），剩余设置+视图（SettingsService）、键位、会话待续
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 断言场景 11 个 PASS 零 FAIL（combo/difficulty/mothership_upgrade/progression_interop/hit_logic/buff33/meta/user_session/base_system/base_task_refresh/smoke）+ BALANCE_MAP 重跑同步（行号漂移 24+18 行）+ autoplay 探针
+
 ## [3.28] - 2026-08-10
 
 ### 规范化 + 逻辑修复（2026-08-10，AA 系列第七轮审查，`docs/AUDIT_VAULT.md` 登记）

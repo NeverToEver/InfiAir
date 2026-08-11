@@ -74,3 +74,17 @@
 2. GameState 拆域继续推进:ScoreService + RunProgressionService(需先解 Save.cs:227-228 与 Settings.cs AddBossKill 两个跨域写)、CombatStateService(健康/Buff,顺手修正 Settings.cs 命名失实)、SettingsService(机械量大,收尾)。
 3. Save.cs 整块不拆(全状态聚合恢复的天然上帝方法),只做 `ApplySaved(data)` 收敛。
 4. 双源单源化(buffs/enemies/difficulty)被「损坏回退默认」约束否决,防漂移走断言(已覆盖主要项)。
+
+## 7. 第五轮拆域进展(2026-08-11,续)
+
+后续「继续推进 GameState 拆域(ScoreService 等)」已完成:
+
+| 阶段 | 提交 | 内容 |
+|---|---|---|
+| 前置合并 | `fb071cb` | feature/opt-services(MissionsService)并入 main,无冲突 |
+| 阶段 1 | `0843a2e` + `370665a` | **ScoreService**(计分+里程碑)+ **RunProgressionService**(难度+曲线)同期抽取:跨域写解耦(`RestoreMilestones` 收拢 Save.cs 直写、AddBossKill 编排化)、`Tick(delta)` 接管 _Process 计时段、5 信号事件化重发保序 |
+| 阶段 1 尾 | `107be45` | BALANCE_MAP 行号漂移 24 行同步 |
+| 阶段 2 | `ae2eb10` | **CombatStateService**(健康+Buff):Settings.cs C 簇迁出,回归「设置+视图」单一职责;HealthChanged/BuffsChanged 本域事件化,6 处 BuffsChanged 发射点无双发核对 |
+| 阶段 2 尾 | `ab856ef` | BALANCE_MAP 行号漂移 18 行同步 |
+
+**累计效果**:GameState(3216 行/10 partial)已拆 5 域服务(Meta/Missions/Score/RunProgression/Combat),门面转发 + 信号重发模式成熟;唯一 autoload 约束保持;66 场景测试经门面零改动。验证:每阶段 build 0 警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + smoke 300 帧 + 11 断言场景 PASS 零 FAIL;autoplay 480s 探针 exit 0。剩余:SettingsService(设置+视图,收尾轮)、InputBindingsService、UserSession。
