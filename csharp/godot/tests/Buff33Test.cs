@@ -23,6 +23,25 @@ public partial class Buff33Test : Node
         }
     }
 
+    /// <summary>按点分路径导航解析后的 JSON 字典（"a.b.c" → data["a"]["b"]["c"]），任一环缺失返回 Nil。</summary>
+    private static Variant JsonAt(Variant data, string path)
+    {
+        var node = data;
+        foreach (var key in path.Split("."))
+        {
+            if (node.VariantType == Variant.Type.Dictionary && node.AsGodotDictionary().ContainsKey(key))
+            {
+                node = node.AsGodotDictionary()[key];
+            }
+            else
+            {
+                return default;
+            }
+        }
+
+        return node;
+    }
+
     public override void _Ready()
     {
         // 禁止裸 async void 生命周期：拆私有 async Task + fire-and-forget
@@ -218,6 +237,51 @@ public partial class Buff33Test : Node
 
             Check(maxDrift.Count == 0, "1d：json 声明的 max_stacks 与池内 max 一致（未声明者以池缺省为权威）"
                 + (maxDrift.Count > 0 ? " 漂移=" + string.Join(",", maxDrift) : ""));
+
+            // 1e. cap 效果表缺省默认值防漂移（A4 白盒，2026-08-11 双源补全）：Player.BuffEffects 表的
+            // ["default"]（spread_shot=3/piercing=2）是 Cfg(cfg, default) 的兜底常量，独立于
+            // balance.json 与卡池 max——三方（表 default / json max_stacks / 池 max）须一致，防
+            // json 改上限漏更表兜底（json 键缺失时静默回退旧值）。
+            // 其余双源点核实结论（2026-08-11，均无需断言）：
+            // - BaseConsole 路线数据单源 GameState.Constants.BuildRouteLines()；RouteLineNames 仅
+            //   id→i18n 键显示映射且 TryGetValue 兜底 id 本身，无数据双源。
+            // - MILESTONE_BASE 单源 BuildMilestoneBase()（json milestones.base 为配置覆盖，非复刻表）。
+            // - enemies/elites.types 整段读取（Spawner.MergeType 按索引合并），gen_balance_map
+            //   json_leaves 以 [*] 展开键级反查，已覆盖。
+            var capDrift = new System.Collections.Generic.List<string>();
+            var poolMaxById = new Godot.Collections.Dictionary();
+            foreach (var b in buffUi._buff_pool)
+            {
+                poolMaxById[b["id"].AsStringName()] = b["max"];
+            }
+
+            var capEffects = player.GetBuffEffects();
+            foreach (var key in capEffects.Keys)
+            {
+                var id = key.AsStringName();
+                var effect = capEffects[key].AsGodotDictionary();
+                if (effect["kind"].AsString() != "cap")
+                {
+                    continue;
+                }
+
+                var cfg = effect["cfg"].AsString();
+                var dflt = effect["default"].AsInt64();
+                var jsonV = JsonAt(parsedBalance, cfg);
+                if (jsonV.VariantType != Variant.Type.Nil && jsonV.AsInt64() != dflt)
+                {
+                    capDrift.Add(id + "(表默认=" + dflt + " json=" + jsonV.AsInt64() + ")");
+                }
+
+                var poolMaxV = poolMaxById[id];
+                if (poolMaxV.VariantType != Variant.Type.Nil && poolMaxV.AsInt64() != dflt)
+                {
+                    capDrift.Add(id + "(表默认=" + dflt + " 池=" + poolMaxV.AsInt64() + ")");
+                }
+            }
+
+            Check(capDrift.Count == 0, "1e：cap 效果表 default 与 json max_stacks/卡池 max 三方一致（spread_shot=3/piercing=2）"
+                + (capDrift.Count > 0 ? " 漂移=" + string.Join(",", capDrift) : ""));
 
             // 防御全满层：保底自然失效（不崩），候选仍为 3 张非防御卡
             foreach (var bid in new[] { "extra_life", "regen", "armor", "shield", "evasion" })
