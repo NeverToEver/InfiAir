@@ -1098,3 +1098,13 @@
 - **格式化本地化纪律**:生产 godot 层零 CultureInfo/InvariantCulture——格式化全部经 GdFormat(core 实现,内部用 InvariantCulture 保证跨平台一致),与"GdFormat 单一实现"收敛一致
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `9fb06a1`。
+
+## 107. 继续完善轮汇总(2026-08-12,第九十六轮收官)
+
+自 §106 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **异常处理纪律复核**:生产真 try 仅 3 处(Main 2 await 段 try/catch + Coroutine 1 超时兜底),与 §14 记录一致;SettingsService 1 处为注释行误捕(精确模式排除)——纪律稳定
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `f6a451e`。
