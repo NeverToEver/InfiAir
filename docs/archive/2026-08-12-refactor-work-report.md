@@ -345,3 +345,11 @@
 - **物理/渲染 tick 设置**:project.godot 未显式设置(默认 60Hz 物理标准);perf_bench 测试内部 1000Hz(PerfBench.cs:32)且结束后恢复 60(74 行),隔离测试不影响主游戏;无 max_fps/vsync 异常覆盖
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5b77aec`。
+
+## 24. 继续完善轮汇总(2026-08-12,第十三轮收官)
+
+自 §23 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(域服务场景批次)**:i18n_test 9 PASS + keybind_test 18 PASS,exit 0 零 FAIL——叠加此前已验证的 base_system(存档域)/welcome_flow(账户域),**8 域服务运行时路径全部实证健康**(Meta/Missions/Score/RunProgression/CombatState/Settings/InputBindings/UserSession 经各自 interop 测试场景覆盖)。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `05b7d87`。
