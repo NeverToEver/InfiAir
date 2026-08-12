@@ -888,3 +888,13 @@
 - **`.editorconfig` 规则健康**:20 条规则(indent 4/max_line 140/file-scoped namespace/sort directives)与 AGENTS 风格声明一致——风格门禁健康
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `845bfab`。
+
+## 86. 继续完善轮汇总(2026-08-12,第七十五轮收官)
+
+自 §85 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **代码库规模健康**:csharp/godot 54,708 行 + csharp/core 1,801 行 + tests-csharp 1,737 行——分层规模合理(纯逻辑层小而精,绑定层承载引擎交互,单测覆盖核心)
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `74b5306`。
