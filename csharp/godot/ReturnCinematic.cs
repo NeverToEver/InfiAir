@@ -10,9 +10,9 @@ namespace InfiAir;
 /// 架构镜像 scripts/intro_cinematic.gd；无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
 /// 让基地 UI 在黑场下淡入。严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/return_cinematic.gd）：CanvasLayer 子类；
-/// UITheme/Starfield 为 C# typed 直调；CinematicFx/DawnStation 仍为 GDScript，
-/// 原内嵌镜头类 _PortalShot/_CaptureShot/_WalkShot/_RoomShot 迁为同文件顶层类
-/// （C# 源生成器不支持内嵌类，BaseConsole 先例）。
+/// UITheme/Starfield/CinematicFx/DawnStation 均为 C# typed 直调；原内嵌镜头类
+/// _PortalShot/_CaptureShot/_WalkShot/_RoomShot 迁为顶层类（C# 源生成器不支持内嵌类，
+/// BaseConsole 先例；2026-08-12 拆分后各自独立文件：ReturnCinematicPortalShot.cs 等）。
 /// 注：原 signal finished 迁移为 [Signal] Finished——ClassDB 以 PascalCase 注册，
 /// main.gd / return_cinematic_test.gd 的 finished.connect 需改连 Finished（主代理集中处理）。
 /// </summary>

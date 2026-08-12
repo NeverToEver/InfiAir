@@ -346,13 +346,10 @@ public partial class Boss : Area2D
     private float _flashTimer;
     private float _flashTotal = 0.1f;
 
-    private readonly Script _formationBombScript;
-
     public Boss()
     {
         _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite4 };
         _slowCache = new BuffBoolCache(SlowFieldId);
-        _formationBombScript = GD.Load<Script>("res://csharp/godot/FormationBomb.cs");
     }
 
     public override void _Ready()
@@ -1061,8 +1058,8 @@ public partial class Boss : Area2D
 
         foreach (var child in GetParent().GetChildren())
         {
-            // M3a 起 Bullet 为 C# 类（is 判定）；FormationBomb 仍为 GDScript 类，经脚本资源判定
-            if (child is Bullet || child.GetScript().AsGodotObject() == _formationBombScript)
+            // M3a 起 Bullet 为 C# 类（is 判定）；FormationBomb 同为 C# 类（M7 全量迁移），is 判定
+            if (child is Bullet || child is FormationBomb)
             {
                 child.QueueFree();
             }
