@@ -258,8 +258,9 @@ public partial class GameState : Node
     private const int PersistVersionValue = 2;
 
     /// <summary>2026-08-04 账户系统：当前用户会话——"" = 未登录（welcome 前/测试兼容，档案走旧 profile.json 路径）、
-    /// "Guest" = 游客（设置仅内存、不存档、不写统计，B7-8）、否则为已登录用户名（档案/存档走 user_db）。</summary>
-    public string CurrentUser { get; set; } = "";
+    /// "Guest" = 游客（设置仅内存、不存档、不写统计，B7-8）、否则为已登录用户名（档案/存档走 user_db）
+    /// ——UserSessionService 转发（测试白盒直读直写保留）。</summary>
+    public string CurrentUser { get => _session.CurrentUser; set => _session.CurrentUser = value; }
 
     /// <summary>profile.json 退役迁移缓存：启动时存在旧 profile 且用户表为空 → 首个注册用户合并后删除（B5）</summary>
     private Godot.Collections.Dictionary _pendingLegacyProfile = new();

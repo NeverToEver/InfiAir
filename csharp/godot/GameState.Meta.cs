@@ -23,8 +23,10 @@ public partial class GameState : Node
     /// <summary>科技点余额（登录用户会话态；每次变更即落盘 UserDb）——MetaService 转发。</summary>
     public long TechPoints => _meta.TechPoints;
 
-    /// <summary>会话 meta 档案加载（LoadSessionSettings/登出/游客切换调用；非登录用户清空内存态）</summary>
-    private void LoadMeta() => _meta.LoadMeta();
+    /// <summary>会话 meta 档案加载（LoadSessionSettings/登出/游客切换调用；非登录用户清空内存态）
+    /// ——第七轮拆域：UserSessionService 跨域经 Instance 调用（LoadMeta 可见性提升，
+    /// 与第六轮 RefreshRegenCache private→public 先例同款）。</summary>
+    public void LoadMeta() => _meta.LoadMeta();
 
     /// <summary>meta 节配置缓存（ApplyBalance 调用；键走 Cfg 静态调用 → BALANCE_MAP 收录）</summary>
     private void LoadMetaConfig() => _meta.LoadMetaConfig();

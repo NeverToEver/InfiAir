@@ -189,6 +189,11 @@ public partial class GameState : Node
     /// 经门面，无构造依赖）。</summary>
     private readonly InputBindingsService _input;
 
+    /// <summary>第七轮拆域收官（2026-08-12）：用户会话域服务——账户系统/会话与 CurrentUser 状态
+    /// 迁入 UserSessionService（GameState.Users.cs/State.cs 为门面转发；_userDb 与 _saveManager
+    /// 经构造注入——GameState 无 SaveManager 公开门面，迁移探测/清理需文件 IO；跨域经 Instance）。</summary>
+    private readonly UserSessionService _session;
+
     public GameState()
     {
         _meta = new MetaService(_userDb);
@@ -196,6 +201,7 @@ public partial class GameState : Node
         _runProg = new RunProgressionService(_balanceService);
         _settings = new SettingsService(_registry);
         _input = new InputBindingsService();
+        _session = new UserSessionService(_userDb, _saveManager);
     }
 
     /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经
@@ -515,7 +521,7 @@ public partial class GameState : Node
         _input.CaptureDefaultBindings(); // 第七轮拆域：键位域启动快照（InputBindingsService）
         InitMissions();
         LoadProfile();
-        MaybeMigrateLegacyProfile(); // 账户系统：旧 profile.json 迁移缓存（首个注册用户合并）
+        _session.MaybeMigrateLegacyProfile(); // 第七轮拆域：账户系统旧 profile.json 迁移缓存（UserSessionService）
         ApplyWindowSize(); // 无 profile 时 load_profile 不会应用窗口尺寸，这里补一次默认档位
         var trZh = GD.Load<Translation>("res://data/translations.zh.translation");
         var trEn = GD.Load<Translation>("res://data/translations.en.translation");

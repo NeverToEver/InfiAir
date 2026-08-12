@@ -72,12 +72,14 @@ public partial class GameState : Node
     public void SetWindowSize(StringName level) => _settings.SetWindowSize(level);
 
     /// <summary>应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过——
-    /// 私有一行包装（本体在 SettingsService；GameState._Ready 启动补一次默认档位调用）。</summary>
-    private void ApplyWindowSize() => _settings.ApplyWindowSize();
+    /// 一行包装（本体在 SettingsService；GameState._Ready 启动补一次默认档位调用；
+    /// 第七轮拆域：UserSessionService.LoginUser 跨域经 Instance 调用——可见性提升，
+    /// 与 RefreshRegenCache private→public 先例同款）。</summary>
+    public void ApplyWindowSize() => _settings.ApplyWindowSize();
 
-    /// <summary>视角缓存失效（LoginUser 登录即时生效路径调用；本体在 SettingsService）——
-    /// 私有一行包装。</summary>
-    private void InvalidateViewRectCache() => _settings.InvalidateViewRectCache();
+    /// <summary>视角缓存失效（UserSessionService.LoginUser 登录即时生效路径调用；本体在
+    /// SettingsService）——一行包装（第七轮拆域：跨域经 Instance 调用——可见性提升）。</summary>
+    public void InvalidateViewRectCache() => _settings.InvalidateViewRectCache();
 
     // ---------------- 瞄准辅助强度（门面转发 → SettingsService） ----------------
 
@@ -134,4 +136,11 @@ public partial class GameState : Node
     }
 
     public void SetLocale(string pLocale) => _settings.SetLocale(pLocale);
+
+    // ---------------- 设置域持久化桥（第七轮拆域：UserSessionService.LoadSessionSettings 跨域
+    // 经 Instance 调用——公开转发；CollectSettingsDict 仍在 GameState.Save.cs 内部直调服务，无需门面） ----------------
+
+    /// <summary>设置字段应用（profile.json 与 user_db settings 共用；含键位/窗口/视图缓存副作用，
+    /// 对齐原 load_profile）——本体在 SettingsService，UserSessionService 登录会话应用经此跨域。</summary>
+    public void ApplySettingsDict(Godot.Collections.Dictionary data) => _settings.ApplySettingsDict(data);
 }

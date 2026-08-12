@@ -4,172 +4,75 @@ namespace InfiAir;
 
 /// <summary>
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：用户会话（账户系统）。
+/// 第七轮拆域收官（2026-08-12）：全部职责迁至 UserSessionService（csharp/godot/UserSessionService.cs，
+/// 组合持有；LoginUser/LoginGuest/LogoutUser/IsGuest/LoadSessionSettings/MaybeMigrateLegacyProfile/
+/// LegacyMigrationPending/ScanLegacyMigration/ClearLegacyMigration/CreateUser + UserDB 转发 14 个
+/// 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变（测试白盒经此处零适配直调
+/// LoginUser/LoginGuest/LogoutUser/IsGuest/CreateUser/VerifyUser/ListUsernames/GetLeaderboard 等
+/// 全保留）；CurrentUser 状态在 GameState.State.cs 转发（原定义处）；SavePathForCurrent 保留
+/// 私有一行包装（GameState.Save.cs 内部调用零改动）。
+/// 信号：Users 域不广播，无需信号重发。
 /// </summary>
 public partial class GameState : Node
 {
 
-    // ---------------- 用户会话（2026-08-04 账户系统） ----------------
+    // ---------------- 用户会话（门面转发 → UserSessionService） ----------------
 
     /// <summary>登录已有用户：载入其设置/最高分并即时生效（locale 即时 set_locale——B7-11）</summary>
-    public void LoginUser(string name)
-    {
-        if (!_userDb.UserExists(name))
-        {
-            return;
-        }
-
-        CurrentUser = name;
-        _userDb.RecordLogin(name);
-        LoadSessionSettings();
-        TranslationServer.SetLocale(Locale);
-        ApplyKeyBindings();
-        ApplyWindowSize();
-        InvalidateViewRectCache();
-    }
+    public void LoginUser(string name) => _session.LoginUser(name);
 
     /// <summary>游客进入：设置仅内存、不存档、不写统计（B7-8）；保留当前内存值（启动 profile 值视作游客会话）</summary>
-    public void LoginGuest()
-    {
-        CurrentUser = "Guest";
-        LoadMeta(); // 局外成长：清空游客会话 meta 内存态（不持久化，B7-8）
-    }
+    public void LoginGuest() => _session.LoginGuest();
 
     /// <summary>退出：登录用户落盘设置；游客丢弃（内存）；复位未登录</summary>
-    public void LogoutUser()
-    {
-        if (CurrentUser != "" && CurrentUser != "Guest")
-        {
-            SaveProfile();
-        }
+    public void LogoutUser() => _session.LogoutUser();
 
-        CurrentUser = "";
-        LoadMeta(); // 局外成长：清空未登录会话 meta 内存态
-    }
+    public bool IsGuest() => _session.IsGuest();
 
-    public bool IsGuest() => CurrentUser == "Guest";
-
-    /// <summary>当前会话存档路径：登录用户 = 每用户文件；未登录 = 旧单文件；游客无路径（不存档）</summary>
-    private string SavePathForCurrent()
-    {
-        if (CurrentUser == "")
-        {
-            return SavePathValue;
-        }
-
-        if (IsGuest())
-        {
-            return "";
-        }
-
-        return _userDb.SavefileForUser(CurrentUser);
-    }
-
-    /// <summary>载入当前会话档案：登录用户 → user_db settings + 统计；游客/未登录 → 保留内存（游客不落盘）</summary>
-    private void LoadSessionSettings()
-    {
-        if (CurrentUser == "" || IsGuest())
-        {
-            return;
-        }
-
-        // 第六轮拆域：设置域持久化桥迁 SettingsService（登录会话 settings 应用）
-        _settings.ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
-        // 2026-08-10 健壮性审查：判型守卫 + 截断钳制——手改 users.json 的 high_score 为字符串时
-        // AsInt64 抛 InvalidCastException（登录即崩）；超大值裸 (int) 截断回绕为负
-        var hs = _userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0);
-        HighScore = hs.VariantType is Variant.Type.Int or Variant.Type.Float
-            ? (int)Math.Clamp(hs.AsInt64(), 0L, (long)int.MaxValue)
-            : 0;
-        LoadMeta(); // 局外成长：会话 meta 档案加载（2026-08-09）
-    }
-
-    /// <summary>profile.json 退役迁移（B5）：启动时存在旧 profile 且用户表为空 → 缓存待首个注册用户合并</summary>
-    private void MaybeMigrateLegacyProfile()
-    {
-        if (_pendingLegacyProfile.Count > 0)
-        {
-            return;
-        }
-
-        if (_saveManager.Exists(ProfilePathValue) && _userDb.ListUsernames().Count == 0)
-        {
-            var parsed = _saveManager.Load(ProfilePathValue);
-            if (parsed.Count > 0)
-            {
-                _pendingLegacyProfile = parsed;
-            }
-        }
-    }
+    /// <summary>当前会话存档路径：登录用户 = 每用户文件；未登录 = 旧单文件；游客无路径（不存档）
+    /// ——私有一行包装（本体在 UserSessionService；GameState.Save.cs 内部调用）。</summary>
+    private string SavePathForCurrent() => _session.SavePathForCurrent();
 
     /// <summary>Q25（2026-08-05）：旧 profile 迁移缓存查询/触发/清空公开化（A7 私有访问残留收敛，
     /// 测试经公开接口；生产路径不变——create_user 消费后自清）</summary>
-    public bool LegacyMigrationPending() => _pendingLegacyProfile.Count > 0;
+    public bool LegacyMigrationPending() => _session.LegacyMigrationPending();
 
-    public void ScanLegacyMigration() => MaybeMigrateLegacyProfile();
+    public void ScanLegacyMigration() => _session.ScanLegacyMigration();
 
-    public void ClearLegacyMigration() => _pendingLegacyProfile.Clear();
+    public void ClearLegacyMigration() => _session.ClearLegacyMigration();
 
     /// <summary>注册用户（转发 user_db.create_user）；成功后合并旧 profile 迁移数据并删除 profile.json（B5）</summary>
-    public bool CreateUser(string name, string password)
-    {
-        if (!_userDb.CreateUser(name, password))
-        {
-            return false;
-        }
-
-        if (_pendingLegacyProfile.Count > 0)
-        {
-            var legacy = (Godot.Collections.Dictionary)_pendingLegacyProfile.Duplicate();
-            _pendingLegacyProfile.Clear();
-            _userDb.UpdateHighScore(name, (int)Math.Clamp(SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0), 0.0, (double)int.MaxValue));
-            legacy.Remove("high_score");
-            legacy.Remove("version");
-            legacy.Remove("highscores");
-            _userDb.UpdateUserSettings(name, legacy);
-            _saveManager.Delete(ProfilePathValue);
-        }
-
-        return true;
-    }
+    public bool CreateUser(string name, string password) => _session.CreateUser(name, password);
 
     /// <summary>用户数据库转发（A2 组合服务；供 welcome 登录面板使用）</summary>
-    public bool VerifyUser(string name, string password) => _userDb.VerifyUser(name, password);
+    public bool VerifyUser(string name, string password) => _session.VerifyUser(name, password);
 
     /// <summary>users.json 损坏标志（2026-08-10 健壮性审查：与 SaveCorrupt/ProfileCorrupt 对齐，
     /// 欢迎页提示玩家账号已隔离备份而非丢失）</summary>
-    public bool UserDbCorrupt => _userDb.LastWasCorrupt;
+    public bool UserDbCorrupt => _session.UserDbCorrupt;
 
-    public bool UserExists(string name) => _userDb.UserExists(name);
+    public bool UserExists(string name) => _session.UserExists(name);
 
-    public Godot.Collections.Array<String> ListUsernames()
-    {
-        var outArr = new Godot.Collections.Array<String>();
-        foreach (var n in _userDb.ListUsernames()) // U13：typed Array<string>，元素直接是 string
-        {
-            outArr.Add(n);
-        }
-
-        return outArr;
-    }
+    public Godot.Collections.Array<String> ListUsernames() => _session.ListUsernames();
 
     /// <summary>2026-08-06 审计：UserDB 显式重载（测试 wipe user:// 后刷新缓存起点——GameState
     /// _ready 的迁移探测会提前缓存真实用户表；Q23 快照范式配套）</summary>
-    public void ReloadUserDb() => _userDb.Reload();
+    public void ReloadUserDb() => _session.ReloadUserDb();
 
-    public string GetLastLoginUser() => _userDb.GetLastLoginUser();
+    public string GetLastLoginUser() => _session.GetLastLoginUser();
 
-    public bool DeleteUser(string name, string password) => _userDb.DeleteUser(name, password);
+    public bool DeleteUser(string name, string password) => _session.DeleteUser(name, password);
 
-    public Godot.Collections.Array GetLeaderboard() => _userDb.GetLeaderboard();
+    public Godot.Collections.Array GetLeaderboard() => _session.GetLeaderboard();
 
-    public Godot.Collections.Dictionary GetUserSettings(string name) => _userDb.GetUserSettings(name);
+    public Godot.Collections.Dictionary GetUserSettings(string name) => _session.GetUserSettings(name);
 
-    public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _userDb.UpdateUserSettings(name, settings);
+    public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _session.UpdateUserSettings(name, settings);
 
-    public Godot.Collections.Dictionary GetUserData(string name) => _userDb.GetUserData(name);
+    public Godot.Collections.Dictionary GetUserData(string name) => _session.GetUserData(name);
 
     /// <summary>用户记录通用字段合并更新（统计/档案类；密码/盐/迭代数不可经此覆盖）</summary>
-    public void UpdateUserData(string name, Godot.Collections.Dictionary data) => _userDb.UpdateUserData(name, data);
+    public void UpdateUserData(string name, Godot.Collections.Dictionary data) => _session.UpdateUserData(name, data);
 
-    public string UserDbSavefileFor(string name) => _userDb.SavefileForUser(name);
+    public string UserDbSavefileFor(string name) => _session.UserDbSavefileFor(name);
 }
