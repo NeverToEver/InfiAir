@@ -311,12 +311,6 @@
 | 165 | `formation_strike_event.trigger_chance` | `0.30` |
 | 166 | `formation_strike_event.min_score` | `500` |
 
-### `csharp/godot/GameState.Save.cs`
-
-| 行 | json 键路径 | 脚本回退值 |
-| --- | --- | --- |
-| 405 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
-
 ### `csharp/godot/GameState.State.cs`
 
 | 行 | json 键路径 | 脚本回退值 |
@@ -381,44 +375,44 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 315 | `effects.meta_health.crack.density` | `def` |
-| 352 | `effects.meta_health.lod` | `0` |
-| 353 | `effects.meta_health.pulse.scale` | `2.5f` |
-| 354 | `effects.meta_health.pulse.min` | `0.15f` |
-| 356 | `effects.meta_health.pulse.decay_tau` | `0.09f` |
-| 357 | `effects.meta_health.chromatic.base` | `0.006f` |
-| 358 | `effects.meta_health.chromatic.peak` | `0.014f` |
-| 359 | `effects.meta_health.blur.strength` | `0.6f` |
-| 361 | `effects.meta_health.ripple.duration` | `0.4f` |
-| 362 | `effects.meta_health.ripple.alpha` | `0.8f` |
-| 363 | `effects.meta_health.crack.exponent` | `1.6f` |
-| 364 | `effects.meta_health.crack.spread_min` | `0.10f` |
-| 365 | `effects.meta_health.crack.edge_softness` | `0.08f` |
-| 366 | `effects.meta_health.crack.width` | `0.03f` |
-| 367 | `effects.meta_health.crack.glow` | `0.8f` |
-| 368 | `effects.meta_health.crack.heal_jitter` | `0.35f` |
-| 369 | `effects.meta_health.crack.grow_overshoot` | `0.08f` |
-| 371 | `effects.meta_health.crack.grow_time` | `0.6f` |
-| 373 | `effects.meta_health.desat.max` | `0.35f` |
-| 374 | `effects.meta_health.desat.exponent` | `2.0f` |
-| 375 | `effects.meta_health.vignette.max_alpha` | `0.5f` |
-| 376 | `effects.meta_health.vignette.inner` | `0.62f` |
-| 377 | `effects.meta_health.vignette.dying_shrink` | `0.06f` |
-| 378 | `effects.meta_health.dying.threshold` | `0.2f` |
-| 379 | `effects.meta_health.dying.heart_min_hz` | `1.0f` |
-| 380 | `effects.meta_health.dying.heart_max_hz` | `1.2f` |
-| 381 | `effects.meta_health.dying.breath` | `0.015f` |
-| 382 | `effects.meta_health.dying.jitter_px` | `2.0f` |
-| 383 | `effects.meta_health.dying.warn_hz` | `2.5f` |
-| 385 | `effects.meta_health.dying.fade` | `0.3f` |
-| 387 | `effects.meta_health.smooth.down_tau` | `0.10f` |
-| 389 | `effects.meta_health.smooth.up_tau` | `0.80f` |
-| 390 | `effects.meta_health.adapt.interval` | `0.25f` |
-| 391 | `effects.meta_health.adapt.min` | `0.8f` |
-| 392 | `effects.meta_health.adapt.max` | `1.3f` |
-| 393 | `effects.meta_health.adapt.bullet_weight` | `0.002f` |
-| 394 | `effects.meta_health.adapt.explosion_weight` | `0.15f` |
-| 395 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4f` |
+| 321 | `effects.meta_health.crack.density` | `def` |
+| 358 | `effects.meta_health.lod` | `0` |
+| 359 | `effects.meta_health.pulse.scale` | `2.5f` |
+| 360 | `effects.meta_health.pulse.min` | `0.15f` |
+| 362 | `effects.meta_health.pulse.decay_tau` | `0.09f` |
+| 363 | `effects.meta_health.chromatic.base` | `0.006f` |
+| 364 | `effects.meta_health.chromatic.peak` | `0.014f` |
+| 365 | `effects.meta_health.blur.strength` | `0.6f` |
+| 367 | `effects.meta_health.ripple.duration` | `0.4f` |
+| 368 | `effects.meta_health.ripple.alpha` | `0.8f` |
+| 369 | `effects.meta_health.crack.exponent` | `1.6f` |
+| 370 | `effects.meta_health.crack.spread_min` | `0.10f` |
+| 371 | `effects.meta_health.crack.edge_softness` | `0.08f` |
+| 372 | `effects.meta_health.crack.width` | `0.03f` |
+| 373 | `effects.meta_health.crack.glow` | `0.8f` |
+| 374 | `effects.meta_health.crack.heal_jitter` | `0.35f` |
+| 375 | `effects.meta_health.crack.grow_overshoot` | `0.08f` |
+| 377 | `effects.meta_health.crack.grow_time` | `0.6f` |
+| 379 | `effects.meta_health.desat.max` | `0.35f` |
+| 380 | `effects.meta_health.desat.exponent` | `2.0f` |
+| 381 | `effects.meta_health.vignette.max_alpha` | `0.5f` |
+| 382 | `effects.meta_health.vignette.inner` | `0.62f` |
+| 383 | `effects.meta_health.vignette.dying_shrink` | `0.06f` |
+| 384 | `effects.meta_health.dying.threshold` | `0.2f` |
+| 385 | `effects.meta_health.dying.heart_min_hz` | `1.0f` |
+| 386 | `effects.meta_health.dying.heart_max_hz` | `1.2f` |
+| 387 | `effects.meta_health.dying.breath` | `0.015f` |
+| 388 | `effects.meta_health.dying.jitter_px` | `2.0f` |
+| 389 | `effects.meta_health.dying.warn_hz` | `2.5f` |
+| 391 | `effects.meta_health.dying.fade` | `0.3f` |
+| 393 | `effects.meta_health.smooth.down_tau` | `0.10f` |
+| 395 | `effects.meta_health.smooth.up_tau` | `0.80f` |
+| 396 | `effects.meta_health.adapt.interval` | `0.25f` |
+| 397 | `effects.meta_health.adapt.min` | `0.8f` |
+| 398 | `effects.meta_health.adapt.max` | `1.3f` |
+| 399 | `effects.meta_health.adapt.bullet_weight` | `0.002f` |
+| 400 | `effects.meta_health.adapt.explosion_weight` | `0.15f` |
+| 401 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4f` |
 
 ### `csharp/godot/MetaService.cs`
 
@@ -580,6 +574,12 @@
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
 | 138 | `milestones.boss_kill_base` | `500.0` |
+
+### `csharp/godot/SettingsService.cs`
+
+| 行 | json 键路径 | 脚本回退值 |
+| --- | --- | --- |
+| 474 | `player.aim_assist.joy_speed` | `JoyAimSpeed` |
 
 ### `csharp/godot/Spawner.cs`
 
