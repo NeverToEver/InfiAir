@@ -141,3 +141,13 @@
 - **协议**:PerfBench 1800 帧 @1000Hz + 200 敌机,同机同引擎二进制,3 次取中位数;对照 worktree `f8cd225~1`(CA 改动前)vs 当前 HEAD(CA1859×5 + CA1822×7 落地后)。
 - **结果**:对照侧 1.544/1.743/1.603(中位 1.603 ms);当前侧剔除负载峰值后 1.524/1.543/1.591/1.639(中位 ~1.57 ms)——**差值 -2%,噪声内零回归**。首轮 2.273 ms 为系统 load 2.66 峰值异常值,追加采样确认。
 - **结论**:7 个热路径相关方法标 static + 5 处返回类型收窄无性能回归(编译期纯优化,预期中性)。
+
+## 10. 继续完善轮(2026-08-12,第二轮续)
+
+| 项 | 提交/结论 | 内容 |
+|---|---|---|
+| 公开类注释完整性 | `ceda00f` | BalanceModels 补 3 个记录类 XML summary(FuelBalance/BulletDamageBalance/MissileBalance);全仓 144 公开类注释 100% 覆盖 |
+| 全量核销/调研 | 观察 | 颜色字面量(全息青分散 10 文件)= 演出层设计数据色调(DawnStation palette/Cfg 可调),收敛破坏设计模式,观察;测试样板 BackupUserFiles/RestoreUserFiles 6 处同构但两语义变体(固定表 vs 目录遍历),统一需逐个确认依赖,观察;死接口扫描零误报(OnJoyConnectionChanged 为事件订阅);U19 现在时失实注释仅 ReturnCinematic 1 处已删 |
+| 留档同步 | `7e34d4c`/`32748fa`/`623ea5c` | CHANGELOG 补继续完善条目;EXECUTION_LOG 补第三条;CONTRIBUTING perf_bench 参数修正 |
+
+**验证(全部通过)**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景 PASS 零 FAIL + autoplay 480s 连续第七轮 exit 0 异常总数 0。
