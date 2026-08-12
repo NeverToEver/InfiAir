@@ -840,3 +840,13 @@
 - **音频总线配置**:project.godot 无 [audio] 段 = 默认 Master 总线(单音效总线最小配置);SfxPlayer 不显式设 Bus 走默认,统一通道纪律——基础设施合理
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `76559a8`。
+
+## 81. 继续完善轮汇总(2026-08-12,第七十轮收官)
+
+自 §80 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **导出预设核查**:2 预设(Linux/X11 + Windows Desktop)↔ release.sh --export-release 双平台命令精确匹配,product_name 正确——导出链零漂移
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `b85edb7`。
