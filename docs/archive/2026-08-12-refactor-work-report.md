@@ -726,3 +726,13 @@
 - **`.gdignore` 资源库隔离标记**:docs/.gdignore 与 builds/.gdignore 均在(文档/构建产物不进引擎资源库),.godot/.gdignore 自带——治理正确
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4a5ca7f`。
+
+## 69. 继续完善轮汇总(2026-08-12,第五十八轮收官)
+
+自 §68 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **`.gitattributes`/`.gitignore` 治理**:行尾规范化(`* eol=lf` + `*.bat` CRLF 例外 + `*.sh` LF,官方 VCS 建议对齐);忽略规则(`.godot/`、`builds/*` 保留哨兵、`**/bin/`、`**/obj/`)——与编码检查(209 文件 LF)一致
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4810e54`。
