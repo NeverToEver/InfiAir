@@ -88,3 +88,17 @@
 | 阶段 2 尾 | `ab856ef` | BALANCE_MAP 行号漂移 18 行同步 |
 
 **累计效果**:GameState(3216 行/10 partial)已拆 5 域服务(Meta/Missions/Score/RunProgression/Combat),门面转发 + 信号重发模式成熟;唯一 autoload 约束保持;66 场景测试经门面零改动。验证:每阶段 build 0 警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + smoke 300 帧 + 11 断言场景 PASS 零 FAIL;autoplay 480s 探针 exit 0。剩余:SettingsService(设置+视图,收尾轮)、InputBindingsService、UserSession。
+
+## 8. 第六轮拆域收官(2026-08-11,续)
+
+「SettingsService 收尾轮 + 合并剩余保留分支」已完成:
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| 合并 opt-dualsource | `75607aa` 前序 | Buff33Test 1e cap 三方一致性断言,干净合并 |
+| 合并 opt-hotpath | `75607aa` | MetaHealthFX 3 键字段化(每帧 4 次字典查找→0)+ Floor 除法简化——Floor 目标代码已随第五轮迁入 RunProgressionService,重定位至 Tick/RecomputeDifficultyInternal 两处 |
+| SettingsService 服务体 | `cd1d003` | 设置 setter 簇 + 视图簇(ViewWorldRect 物理帧缓存逐字搬迁)+ 状态字段 11 项迁入;ApplySettingsDict/CollectSettingsDict 持久化桥自 Save.cs 迁入 |
+| 门面转发 + 信号重发 | `eedb6a5` | GameState.Settings.cs/State.cs 门面转发;Save.cs/Users.cs 桥委托;8 设置信号事件化重发保序 |
+| BALANCE_MAP | `3f7e618` | 行号漂移 44 行同步 |
+
+**GameState 上帝类拆域收官**:3216 行/10 partial → 6 域服务全部迁出(Meta/Missions/Score/RunProgression/Combat/Settings),GameState 收敛为编排门面(组合持有 6 服务 + 信号重发 + Cfg 中心 + 实体注册表)。唯一 autoload 约束保持;66 场景测试经门面零改动;每阶段 build 0 警告 + xUnit 115/115 + format 零 diff + import 0 错误 + 设置域场景 exit 0;autoplay 480s 探针 exit 0 异常总数 0。
