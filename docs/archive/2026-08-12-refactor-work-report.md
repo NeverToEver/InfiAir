@@ -312,3 +312,14 @@
 - **工作汇报覆盖核验**:git log 最近提交与 §15-19 一一对应,CHANGELOG 同步
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `9821444`。
+
+## 21. 继续完善轮汇总(2026-08-12,第十轮收官)
+
+自 §20 后无代码提交,全部为核验轮:
+
+**新增核验(两项,全部零落地项)**:
+
+- **`Tween.TweenProperty` 属性名**:189 处属性名(主流 Godot 内建 `modulate:a` 60/`scale` 34/`position` 26/`rotation` 22/`color:a` 16)全部有效;3 处特殊逐一确认——`HitFlash`(Hud C# 属性)、`_ship_u`(CaptureShot 公开字段,注释明确"tween 按 ClassDB 属性名驱动")、`amount_ratio`(GPUParticles2D 内建)——零拼错零静默失效
+- **`_ExitTree` 清理覆盖**:30 个类实现(45 个 `_Ready` 类中 2/3),覆盖全部需要清理的类(事件订阅 Hud/对象池/特效/事件层/输入控制/常驻根),与事件订阅维度交叉印证清理完备
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `76bbe13`。
