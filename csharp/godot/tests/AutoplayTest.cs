@@ -127,6 +127,22 @@ public partial class AutoplayTest : Node
     private bool _homeHolding;
     private long _homeHoldUntil;
     private long _nextHomeConsider;
+    // 战斗输入覆盖（原 autoplay 仅覆盖 move/dash/dock/homecoming，未覆盖 parry/boost/give_up 子系统）
+    private long _nextParryConsider;
+    private long _parryReleaseAt;
+    private bool _parryWasActive;
+    private long _nextBoostConsider;
+    private bool _boostHolding;
+    private long _boostHoldUntil;
+    private long _nextGiveUpConsider;
+    private bool _giveUpHolding;
+    private long _giveUpHoldUntil;
+    // fine_move（Ctrl 微调）与刻意擦弹诱导（graze-seeking）
+    private long _nextFineMoveConsider;
+    private bool _fineMoveHolding;
+    private long _fineMoveHoldUntil;
+    private long _nextGrazeConsider;
+    private long _grazeSeekUntil;  // >0：擦弹诱导窗进行中
     private long _restartAt;
     // 暂停链路
     private long _nextPauseConsider;
@@ -206,6 +222,12 @@ public partial class AutoplayTest : Node
     private int _settingsOpens;
     private int _continueResumes;
     private int _exitProbes;
+    private int _parryCount;
+    private int _parryActiveSeen;
+    private int _boostCount;
+    private int _giveUpProbes;
+    private int _fineMoveCount;
+    private int _grazeCount;
     private int _settingSwitches;
     private int _milestones;
     private int _bossEscapes;
@@ -281,6 +303,11 @@ public partial class AutoplayTest : Node
             _frameSnapMsec = _t0Msec;
             _nextSettingAt = _t0Msec + SettingGapMs;
             _nextPauseConsider = _t0Msec + PauseGapMs;
+            _nextParryConsider = _t0Msec + 2000;
+            _nextBoostConsider = _t0Msec + 1500;
+            _nextGiveUpConsider = _t0Msec + 60000;
+            _nextFineMoveConsider = _t0Msec + 2500;
+            _nextGrazeConsider = _t0Msec + 8000;
             Log($"START budget={_runSeconds:0}s real (time_scale={TimeScale:0.0}) seed={_seed}");
             _ = StartRun();
         }
@@ -331,6 +358,12 @@ public partial class AutoplayTest : Node
         _buffUi = _main.GetNode<BuffSelect>("BuffUI");
         _spawner.BossSpawned += OnBossSpawned;
         _moveTarget = _player.Position;
+        // 擦弹计数：订阅 GrazeArea 的 AreaEntered（与 Player 自身 handler 并存，不消费 _graze_done 标志）
+        var grazeArea = _player.GetNodeOrNull<Area2D>("GrazeArea");
+        if (grazeArea != null)
+        {
+            grazeArea.AreaEntered += OnGrazeAreaEntered;
+        }
         _lastHp = _gs.Health;
         _lastScore = _gs.Score;
         _scoreChangeMsec = (long)Time.GetTicksMsec();
@@ -440,6 +473,11 @@ public partial class AutoplayTest : Node
             UpdateDash(now);
             UpdateDock(now);
             UpdateHomecoming(now);
+            UpdateParry(now);
+            UpdateBoost(now);
+            UpdateGiveUp(now);
+            UpdateFineMove(now);
+            UpdateGrazeSeek(now);
             UpdatePause(now);
             UpdateSettings(now);
         }
@@ -899,8 +937,11 @@ public partial class AutoplayTest : Node
         }
         var steer = _moveTarget - player.Position;
         steer = steer.Length() > 60.0f ? steer.Normalized() : Vector2.Zero;
-        // 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和
+        // 规避：240px 内敌弹/编队炸弹（同权重）+ 160px 内敌机的反加权和。
+        // 擦弹诱导窗（_grazeSeekUntil>0）：敌弹改「60px 内硬规避 + 60~260px 拉向擦弹带」，
+        // 诱导近失弹触发擦弹计分；编队炸弹始终硬规避（爆炸半径大，不值得擦）。
         var dodge = Vector2.Zero;
+        bool graze = _grazeSeekUntil > 0;
         foreach (var child in _main!.GetChildren())
         {
             if (child is Bullet b)
@@ -908,7 +949,22 @@ public partial class AutoplayTest : Node
                 if (!b.IsPlayerBullet)
                 {
                     float d = player.Position.DistanceTo(b.Position);
-                    if (d < 240.0f && d > 1.0f)
+                    if (d < 1.0f)
+                    {
+                        continue;
+                    }
+                    if (graze)
+                    {
+                        if (d < 60.0f)
+                        {
+                            dodge += (player.Position - b.Position) / d * (1.0f - d / 60.0f) * 3.0f;
+                        }
+                        else if (d < 260.0f)
+                        {
+                            dodge += (b.Position - player.Position) / d * (1.0f - (d - 60.0f) / 200.0f) * 1.5f;
+                        }
+                    }
+                    else if (d < 240.0f)
                     {
                         dodge += (player.Position - b.Position) / d * (1.0f - d / 240.0f) * 2.0f;
                     }
@@ -1198,6 +1254,170 @@ public partial class AutoplayTest : Node
         }
     }
 
+    /// <summary>弹反盾探针：附近有敌弹时按 parry（原 autoplay 完全未覆盖弹反子系统）。
+    /// parry 是 IsActionJustPressed 触发——按住 60ms 生成下降沿，保证 Player._physics_process 看到边沿。</summary>
+    private void UpdateParry(long now)
+    {
+        if (_parryReleaseAt > 0 && now >= _parryReleaseAt)
+        {
+            Input.ActionRelease("parry");
+            _parryReleaseAt = 0;
+        }
+        if (now < _nextParryConsider)
+        {
+            return;
+        }
+        _nextParryConsider = now + 1200 + (long)(GD.Randi() % 1500);
+        var player = _player!;
+        if (player.ParryPhase() != PlayerParry.GetPhaseIdle() || player.ParryCooldownRemaining() > 0.0f)
+        {
+            return;
+        }
+        // 附近存在敌弹才触发（模拟真人看弹反时机；无弹时不做无意义触发）
+        bool near = false;
+        foreach (var child in _main!.GetChildren())
+        {
+            if (child is Bullet b && !b.IsPlayerBullet && player.Position.DistanceTo(b.Position) < 260.0f)
+            {
+                near = true;
+                break;
+            }
+        }
+        if (!near)
+        {
+            return;
+        }
+        Input.ActionPress("parry");
+        _parryReleaseAt = now + 60;
+        _parryCount++;
+        Log($"弹反盾触发（第 {_parryCount} 次，能量 {player.ParryEnergyRatio() * 100.0:0}%）");
+    }
+
+    /// <summary>加速/燃油经济探针：非 toggle 模式下周期性按住 boost 消耗/回复燃油
+    /// （原 autoplay 未覆盖 boost_recovery/efficient_boost 热路径与 FuelDrain/FuelRegen）。</summary>
+    private void UpdateBoost(long now)
+    {
+        var player = _player!;
+        if (_boostHolding)
+        {
+            if (now >= _boostHoldUntil || player.FuelAmount() <= 5.0f)
+            {
+                Input.ActionRelease("boost");
+                _boostHolding = false;
+                Log($"加速释放（fuel={player.FuelAmount():0}）");
+            }
+            return;
+        }
+        if (now < _nextBoostConsider)
+        {
+            return;
+        }
+        _nextBoostConsider = now + 2500 + (long)(GD.Randi() % 2500);
+        // toggle 模式下按住无效（仅 JustPressed 切换，已由设置轮换覆盖）；燃油不足跳过
+        if (_gs.ShiftToggleMode || player.FuelAmount() < 30.0f)
+        {
+            return;
+        }
+        Input.ActionPress("boost");
+        _boostHolding = true;
+        _boostHoldUntil = now + 700 + (long)(GD.Randi() % 900);
+        _boostCount++;
+        Log($"加速开启（第 {_boostCount} 次，fuel={player.FuelAmount():0}）");
+    }
+
+    /// <summary>自毁探针：低血时按概率长按 give_up 自毁进死亡结算（原 autoplay 未覆盖该死亡路径；
+    /// 与自然死亡不同——走 Main.GiveUp 直接 LoseHealth(全部) + player.Die）。</summary>
+    private void UpdateGiveUp(long now)
+    {
+        if (_giveUpHolding)
+        {
+            if (now >= _giveUpHoldUntil)
+            {
+                Input.ActionRelease("give_up");
+                _giveUpHolding = false;
+            }
+            return;
+        }
+        if (now < _nextGiveUpConsider)
+        {
+            return;
+        }
+        _nextGiveUpConsider = now + 45000 + (long)(GD.Randi() % 30000);
+        var main = _main!;
+        if (_player == null || _player.IsDead() || main.IsHomecoming() || main.IsGameOver() || main.SummonWindow() != null)
+        {
+            return;
+        }
+        double hpRatio = _gs.Health / _gs.MaxHealth();
+        if (hpRatio < 0.35 && GD.Randf() < 0.4f)
+        {
+            Input.ActionPress("give_up");
+            _giveUpHolding = true;
+            _giveUpHoldUntil = now + 3400; // GIVE_UP_HOLD_TIME=3s + 余量
+            _giveUpProbes++;
+            Log($"自毁探针触发（hp={hpRatio * 100.0:0}%，第 {_giveUpProbes} 次）");
+        }
+    }
+
+    /// <summary>fine_move（Ctrl 微调）探针：非 toggle 模式下周期性按住 fine_move 减速（覆盖 Ctrl 微调热路径）。</summary>
+    private void UpdateFineMove(long now)
+    {
+        if (_fineMoveHolding)
+        {
+            if (now >= _fineMoveHoldUntil)
+            {
+                Input.ActionRelease("fine_move");
+                _fineMoveHolding = false;
+            }
+            return;
+        }
+        if (now < _nextFineMoveConsider)
+        {
+            return;
+        }
+        _nextFineMoveConsider = now + 3500 + (long)(GD.Randi() % 3000);
+        // toggle 模式下按住无效（仅 JustPressed 切换，已由设置轮换覆盖）
+        if (_gs.CtrlToggleMode)
+        {
+            return;
+        }
+        Input.ActionPress("fine_move");
+        _fineMoveHolding = true;
+        _fineMoveHoldUntil = now + 600 + (long)(GD.Randi() % 800);
+        _fineMoveCount++;
+        Log($"微调开启（第 {_fineMoveCount} 次）");
+    }
+
+    /// <summary>刻意擦弹诱导：周期性开启诱导窗——把 60~260px 带内的敌弹拉向擦弹带（而非纯规避），
+    /// 60px 内保持硬规避保命；诱导窗结束回归普通规避。擦弹接触经 GrazeArea.AreaEntered 计数。</summary>
+    private void UpdateGrazeSeek(long now)
+    {
+        if (now < _nextGrazeConsider)
+        {
+            return;
+        }
+        if (_grazeSeekUntil == 0)
+        {
+            _grazeSeekUntil = now + 2000 + (long)(GD.Randi() % 1000);
+            Log($"擦弹诱导开启（持续 {_grazeSeekUntil - now}ms）");
+        }
+        else if (now >= _grazeSeekUntil)
+        {
+            _grazeSeekUntil = 0;
+            _nextGrazeConsider = now + 5000 + (long)(GD.Randi() % 4000);
+            Log($"擦弹诱导结束（累计擦弹接触 {_grazeCount}）");
+        }
+    }
+
+    /// <summary>GrazeArea 进入事件（与 Player 自身 handler 并存）：计数敌弹擦弹接触，用于覆盖验证。</summary>
+    private void OnGrazeAreaEntered(Area2D area)
+    {
+        if (area is Bullet b && !b.IsPlayerBullet)
+        {
+            _grazeCount++;
+        }
+    }
+
     /// <summary>母舰状态变化日志 + 卡死 episode 跟踪</summary>
     private void TrackMothership(long now)
     {
@@ -1356,6 +1576,8 @@ public partial class AutoplayTest : Node
         _slowReported = false;
         _eventWasActive = false;
         _formationWasActive = false;
+        _parryWasActive = false;
+        _grazeSeekUntil = 0;
         _pauseOpenSince = 0;
         GetTree().Paused = false;
         _started = false;
@@ -1372,10 +1594,18 @@ public partial class AutoplayTest : Node
         Input.ActionRelease("dash");
         Input.ActionRelease("dock");
         Input.ActionRelease("homecoming");
+        Input.ActionRelease("parry");
+        Input.ActionRelease("boost");
+        Input.ActionRelease("give_up");
+        Input.ActionRelease("fine_move");
         _dockHolding = false;
         _homeHolding = false;
         _earlyHolding = false;
         _dashReleaseAt = 0;
+        _parryReleaseAt = 0;
+        _boostHolding = false;
+        _giveUpHolding = false;
+        _fineMoveHolding = false;
     }
 
     // ---------------- 快照与不变量检查 ----------------
@@ -1810,6 +2040,13 @@ public partial class AutoplayTest : Node
             _slowSince = 0;
             _slowReported = false;
         }
+        // 弹反有效窗观察：ACTIVE 跃迁各 +1（覆盖统计口径，确认 parry 探针真实进入判定窗）
+        bool parryActive = _player != null && IsInstanceValid(_player) && _player.ParryPhase() == PlayerParry.GetPhaseActive();
+        if (parryActive && !_parryWasActive)
+        {
+            _parryActiveSeen++;
+        }
+        _parryWasActive = parryActive;
         // 事件触发计数：非活跃 -> 活跃跃迁各 +1（500ms 轮询事件状态机）
         var elite = main.Event() as EliteTurretEvent;
         bool turretActive = elite != null && elite.GetState() != EliteTurretEvent.State.IDLE;
@@ -1924,6 +2161,7 @@ public partial class AutoplayTest : Node
         GD.Print($"[AUTOPLAY] 基地：维修 {_baseRepairs} | 补给 {_baseRecharges} | 路线选择 {_routeChoices} | 任务领奖 {_missionClaims}");
         GD.Print($"[AUTOPLAY] Buff 动效路径选取 {_buffAnimatedPicks} 次 | Boss P2 {_bossP2Count} 次 | 狂暴 {_bossEnrageCount} 次 | 逃跑 {_bossEscapes} 次 | 里程碑 {_milestones} 次 | 炮塔事件 {_turretEventCount} 次 | 编队事件 {_formationEventCount} 次");
         GD.Print($"[AUTOPLAY] B 梯队: DDA 降档触发 {_ddaTriggerCount} 次 | 死亡回放演出 {_replaySeenCount} 次（播完自毁，无泄漏）");
+        GD.Print($"[AUTOPLAY] 战斗输入覆盖: 弹反 {_parryCount} 次（进入有效窗 {_parryActiveSeen} 次）| 加速 {_boostCount} 次 | 自毁探针 {_giveUpProbes} 次 | 微调 {_fineMoveCount} 次 | 擦弹接触 {_grazeCount} 次");
         GD.Print($"[AUTOPLAY] 峰值: 节点 {_maxNodes} | 敌弹 {_maxEnemyBullets} | 玩家弹 {_maxPlayerBullets} | 敌机 {_maxEnemies} | 孤儿节点 {_maxOrphans:0} | 资源 {_maxResources:0} | 池(b={_maxBulletPool},e={_maxEnemyPool}) | 帧耗时 {_maxFrameMs:0.00}ms（基线 {_frameMsBaseline:0.00}ms）");
         int totalAnomalies = 0;
         foreach (var kv in _anomalyCounts)
