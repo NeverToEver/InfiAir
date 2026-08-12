@@ -716,3 +716,13 @@
 - **`project.godot` application 配置完整性**:name/description/version(3.28)/main_scene(welcome.tscn)/features(4.6 + GL Compatibility)全部齐备;版本治理单一来源(release.sh 默认读取 config/version);入口场景存在——零漂移
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `ac2cd05`。
+
+## 68. 继续完善轮汇总(2026-08-12,第五十七轮收官)
+
+自 §67 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **`.gdignore` 资源库隔离标记**:docs/.gdignore 与 builds/.gdignore 均在(文档/构建产物不进引擎资源库),.godot/.gdignore 自带——治理正确
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4a5ca7f`。
