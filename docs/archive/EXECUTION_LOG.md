@@ -216,3 +216,10 @@
 - **关键决策**：CA1822 类诊断（105 条可标 static）不落地——多数为 Godot 信号回调/白盒接口/刻意保留桥，标 static 会破坏 `Connect`/`Callable` 绑定语义；U20 登记项核销核对（SegmentedBar O(n²) 已修、FormationBomb 哨兵已无、Coroutine 双语句已多行、5 份 % 格式化已收敛 GdFormat）。
 - **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 六断言场景（boss_pattern 51/boss_enrage 37/boss_phase 41/boss_phase_transition 29/formation_strike 49/hit_logic 77）0 FAIL + smoke 140 PASS + **autoplay 480s 连续第七轮 exit 0 异常总数 0（0 类）**。
 - **原文**：`docs/archive/2026-08-12-refactor-work-report.md` §7-8
+
+## 2026-08-12 · 继续完善轮:Roslynator 诊断落地 + 文档/CI 同步(同日续)
+
+- **落地**：`00af3e3`/`47d6b70`（CI 断言计数 56→57）→ `bf309f5`（ARCHITECTURE 工具类登记）→ `b86a54e`/`e5cd461`/`e58e3e0`（GameState 拆域/约定文档同步）→ `f8cd225`（CA1859×5 返回类型收窄）→ `2399972`（CA1822×7 私有方法标 static）→ `3aa05ed`/`64d5f29`/`d104505`/`07fd7a9`（EXECUTION_LOG/性能复测/工作汇报 §9）
+- **摘要**：Roslynator 110 条诊断处置——CA1859×5（BaseConsole 面板构建器 `Control`→`ChamferedPanel`，调用点零改动）+ CA1822 安全子集×7（私有方法标 static，非 Godot 信号目标，零调用点改动），剩余 76 条公开成员（信号回调/白盒接口/兼容桥）语义保留；CA 改动性能复测（对照 worktree，中位 1.603→1.57 ms 零回归）；文档/CI 漂移修复（CI 断言计数 56→57、ARCHITECTURE 工具类/拆域登记、FOG_EVENTS/csharp-conventions 同步）。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system 79/boss_pattern 51/boss_enrage 37/buff33 40 PASS 零 FAIL + autoplay 480s 连续第七轮 exit 0 异常总数 0 + CA1859 归零。
+- **原文**：`docs/archive/2026-08-12-refactor-work-report.md` §9
