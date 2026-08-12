@@ -8,6 +8,13 @@
 
 - 删除 4 个已并入 main 的实验分支引用（`feature/opt-cfgfx`/`opt-dualsource`/`opt-hotpath`/`opt-services`），历史提交保留在 main 中，无内容变更
 
+### 重构（2026-08-12，演出层上帝文件文件粒度拆分，全量行为零变化）
+
+- **IntroCinematic 拆分**（2204 行 → 11 文件）：编排器（生命周期/转场/字幕/输入 + 静态构图辅助 + BuildShot 分发）与 6 个镜头构建器（Shot1–6 partial）、4 个尾部节点类（IntroGlowDot/IntroRunnerShot/IntroConsoleShot/IntroChaseShot）各自独立文件，类名=文件名；拆分脚本按大括号配对提取成员块，10 块与原文件逐字核对 ALL OK
+- **ReturnCinematic 拆分**（1785 行 → 12 文件）：编排器 + 7 个镜头构建器（Shot1–7 partial）+ 4 个尾部节点类（Portal/Capture/Walk/RoomShot）各自独立文件；11 块逐字核对 ALL OK
+- **性能基准**（PerfBench 1800 帧 @1000Hz + 200 敌机，3 次取中位数）：重构前基线 `fb41612` 1.520 ms/帧 → 拆域收官 1.557 → 本轮拆分后 **1.390**，全程差值在 ±11% 噪声内，零回归；详见 `docs/archive/2026-08-12-refactor-work-report.md`
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误（新增 21 个 `.cs` 的 `.cs.uid` 入库）+ main smoke 300 帧 PASS + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS 零 FAIL + 全场景编译探针 58 场景 fail=0 + BALANCE_MAP 重跑零 diff
+
 ### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
 
 - **击杀连击计分**（怒首领蜂/虫姬链式得分的温和版）：3s 窗口内连续击杀 → 击杀分 × 连击乘区（第 1 杀 ×1.0 起，每连 +0.1，封顶 ×2.0）；超时或受击断连（受击与 DDA 同源，构成「降档+断连」双通道但均不致命）；Boss 击杀/事件奖励/擦弹不计连击；HUD 新增连击标签（`UI_COMBO_FMT`）。新键 `scoring.combo.*`；新断言场景 `combo_test`
