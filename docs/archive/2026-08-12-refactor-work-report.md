@@ -574,3 +574,11 @@
 **运行时实证(命中/教程批次)**:hit_logic_test 77 PASS + tutorial_test 30 PASS,exit 0 零 FAIL——命中逻辑(A1/A2 判定)+ 教程流程实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `0c014c9`。
+
+## 51. 继续完善轮汇总(2026-08-12,第四十轮收官)
+
+自 §50 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(演出层核心批次)**:intro_cinematic_test 37 PASS + return_cinematic_test 45 PASS,exit 0 零 FAIL——两演出层核心(拆分后 11+12 文件架构)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `e8538cb`。
