@@ -11,6 +11,12 @@
 - **核验（20+ 维度，零落地项）**：字符串 API 盲区家族（组名/信号/方法/属性/动画名、Cfg 键 5 读取通道、shader 参数、GdFormat 格式串）、GetNode 路径、命名空间一致性、事件订阅配对、协程判活守卫、动态派发残留、Clamp 参数序、Tween/Timer 生命周期、GD.Load + tscn 资源四通道——全部零缺失；工作汇报 §15/§16 留档
 - **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + perf_bench **1.488ms**（零回退，vs 重构前基线 1.520/§11 中位 1.510）
 
+### 维护（2026-08-12，继续完善：真实修复，验证绿）
+
+- **BossRegistryTest 退出期 RID 泄漏修复**（`9a0565f`）：`new Boss()`（Area2D 派生,纯脚本实例不在树中）从不释放 → 退出期稳定复现 ERROR「RID allocations were leaked」+ CanvasItem/ObjectDB 泄漏;修复为 finally `boss?.Free()`;验证 35 PASS + 零 ERROR/WARNING + 全库同类模式排查零其他
+- **BALANCE_MAP 行号漂移修复**（`fb58486`）：重构删行后 docs/BALANCE_MAP.md 行号未重新生成(144 行 diff 全为行号,键/回退值零变化);重新生成后重跑零 diff——CI full-regression 零 diff 闸会拦截的隐患本地提前修复
+- **核验（30+ 维度,零落地项）**：58 断言场景全覆盖运行时实证、字符串/资源/翻译/输入/碰撞/进程等各盲区家族、性能复测 1.496ms 零回退;工作汇报 §17-68 留档
+
 ### 维护（2026-08-12，分支引用清理）
 
 - 删除 4 个已并入 main 的实验分支引用（`feature/opt-cfgfx`/`opt-dualsource`/`opt-hotpath`/`opt-services`），历史提交保留在 main 中，无内容变更
