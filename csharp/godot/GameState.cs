@@ -178,11 +178,17 @@ public partial class GameState : Node
     /// _balanceService 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
     private readonly RunProgressionService _runProg;
 
+    /// <summary>第六轮拆域收官（2026-08-12）：设置+视图域服务——设置 setter 簇/视图簇/状态字段/
+    /// 设置域持久化桥迁入 SettingsService（GameState.Settings.cs/State.cs 为门面转发；
+    /// 跨域经 Instance；_registry 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
+    private readonly SettingsService _settings;
+
     public GameState()
     {
         _meta = new MetaService(_userDb);
         _missions = new MissionsService();
         _runProg = new RunProgressionService(_balanceService);
+        _settings = new SettingsService(_registry);
     }
 
     /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经

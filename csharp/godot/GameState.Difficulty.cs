@@ -68,8 +68,9 @@ public partial class GameState : Node
     public double PassiveRegenRate() => _runProg.PassiveRegenRate();
 
     /// <summary>回血链/倍率缓存刷新（SetDifficulty/ApplyBalance/ApplySettingsDict 调用；
-    /// 本体在 RunProgressionService，此处私有一行包装）。</summary>
-    private void RefreshRegenCache() => _runProg.RefreshRegenCache();
+    /// 本体在 RunProgressionService，此处门面一行包装。第六轮拆域起 public——SettingsService 的
+    /// ApplySettingsDict 跨域调用（与 MilestoneMult 第五轮 private→internal 先例同款可见性提升）。</summary>
+    public void RefreshRegenCache() => _runProg.RefreshRegenCache();
 
     // ---------------- BalanceService Load 缓存转发（2026-08-10 perf 批次；原每 spawn Cfg 全链路） ----------------
 
