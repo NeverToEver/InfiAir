@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 维护（2026-08-12，继续完善：死代码清理 + typed 化，全量行为零变化）
+
+- **3 处冗余组注册清理**（`38aa168`）：全库 9 组名生产-消费闭环验证，`main`/`player`/`elite_turret_event` 各仅 1 处 `AddToGroup` 且全库（含测试/场景声明）零消费、零变量间接访问 → 确定性死代码删除 3 行；smoke_test 全 PASS + elite_turret_event_test 59 PASS
+- **BossAttacks typed 化**（`910d044`）：撒弹/齐射 2 处 `Set("position")` 改强类型 `b.Position`（与 U03/U13 typed 改造方向一致，判空已核实）；boss_pattern_test 51 PASS
+- **核验（20+ 维度，零落地项）**：字符串 API 盲区家族（组名/信号/方法/属性/动画名、Cfg 键 5 读取通道、shader 参数、GdFormat 格式串）、GetNode 路径、命名空间一致性、事件订阅配对、协程判活守卫、动态派发残留、Clamp 参数序、Tween/Timer 生命周期、GD.Load + tscn 资源四通道——全部零缺失；工作汇报 §15/§16 留档
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + perf_bench **1.488ms**（零回退，vs 重构前基线 1.520/§11 中位 1.510）
+
 ### 维护（2026-08-12，分支引用清理）
 
 - 删除 4 个已并入 main 的实验分支引用（`feature/opt-cfgfx`/`opt-dualsource`/`opt-hotpath`/`opt-services`），历史提交保留在 main 中，无内容变更
