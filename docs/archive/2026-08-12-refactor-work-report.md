@@ -380,3 +380,11 @@
 **运行时实证(buff/计分域场景批次)**:buff_effects_test 57 PASS + combo_test 21 PASS,exit 0 零 FAIL——buff 效果表系统 + 连击计分(ScoreService 域)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `a39cc4e`。
+
+## 28. 继续完善轮汇总(2026-08-12,第十七轮收官)
+
+自 §27 后无代码提交,全部为门禁确认轮:
+
+**CI fast-gate 等价全量验证**:xUnit 115/115 PASS + format 三工程零 diff + import 0 错误 + build 0w/0e——距上次全量 70 轮(docs/核验推进)后 C# 门禁基线持续健康,零回归。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2df4d86`。
