@@ -240,7 +240,7 @@ public partial class BaseConsole : CanvasLayer
         return button;
     }
 
-    private Control BuildHangar()
+    private ChamferedPanel BuildHangar()
     {
         // 战机极简折线图标
         var glyph = new Vector2[][]
@@ -254,7 +254,7 @@ public partial class BaseConsole : CanvasLayer
         return panel;
     }
 
-    private Control BuildSupply()
+    private ChamferedPanel BuildSupply()
     {
         // 扳手极简折线图标
         var glyph = new Vector2[][]
@@ -281,7 +281,7 @@ public partial class BaseConsole : CanvasLayer
         return panel;
     }
 
-    private Control BuildLab()
+    private ChamferedPanel BuildLab()
     {
         // 六边形科技节点极简折线图标
         var glyph = new Vector2[][]
@@ -303,7 +303,7 @@ public partial class BaseConsole : CanvasLayer
         return panel;
     }
 
-    private Control BuildRoutes()
+    private ChamferedPanel BuildRoutes()
     {
         // 交叉线极简折线图标
         var glyph = new Vector2[][]
@@ -322,7 +322,7 @@ public partial class BaseConsole : CanvasLayer
         return panel;
     }
 
-    private Control BuildMissions()
+    private ChamferedPanel BuildMissions()
     {
         // 旗帜极简折线图标
         var glyph = new Vector2[][]
