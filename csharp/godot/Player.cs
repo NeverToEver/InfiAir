@@ -221,7 +221,6 @@ public partial class Player : CharacterBody2D
 
     public override void _Ready()
     {
-        AddToGroup("player");
         GameState.Instance.PlayerRef = this;
         _hitbox = GetNode<Area2D>("Hitbox");
         GameState.Instance.PlayerHitbox = _hitbox;

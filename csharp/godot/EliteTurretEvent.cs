@@ -97,7 +97,6 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
 
     public override void _Ready()
     {
-        AddToGroup("elite_turret_event");
         Duration = (float)GameState.Instance.Cfg("elite_turret_event.duration", Duration).AsDouble();
         // 2026-08-10 健壮性审查：enter_time 钳下限（StrikeCarrier.ENTER 的 _enterT/该值除零，
         // Clamp 兜底无 NaN，但降入瞬完成、视觉跳变）

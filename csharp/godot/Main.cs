@@ -102,7 +102,6 @@ public partial class Main : Node2D
         _player = GetNode<Player>("Player");
         _starfield = GetNode<Starfield>("Starfield");
         _camera = GetNode<Camera2D>("Camera2D");
-        AddToGroup("main");
         _giveUpBound = InputMap.HasAction("give_up"); // 静态动作绑定缓存（_process 每帧读取）
         DOCK_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零
         HOME_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
