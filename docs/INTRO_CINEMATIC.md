@@ -33,11 +33,11 @@ Transitions (differentiated): 1→2, 4→5 = 0.10s white flash (ColorRect 0→1,
 | File | Duty |
 | --- | --- |
 | `scenes/intro_cinematic.tscn` | root: CanvasLayer (layer=35, process_mode=Always) + black bg + skip hint |
-| `csharp/godot/IntroCinematic.cs` | director: timeline, build/switch/destroy shots, skip, `Finished` signal |
+| `csharp/godot/IntroCinematic.cs` | director: timeline, build/switch/destroy shots, skip, `Finished` signal; 2026-08-12 文件粒度拆分——编排器在本文件,6 镜头构建器在 `IntroCinematic.Shot1..6.cs` partial,节点类独立文件 |
 | `csharp/godot/Main.cs` | in `ApplyNewRun()`: play only when `GetTree().CurrentScene == this`; `GetTree().Paused = true` during play, restored on finish/skip |
 | `csharp/godot/BackNavigator.cs` | new `BackAction.SKIP_INTRO`: Esc = skip (before base/Buff branches, before paused-IGNORE branch) |
 | `data/translations.csv` | new keys: `INTRO_SKIP`, `INTRO_WARNING`, `INTRO_SUB_1..6` (zh+en), `INTRO_ZONE_PROP/NAV/WPN` (zone plates), `INTRO_LOG_1..4` (shot-4 logs) |
-| `csharp/godot/CinematicFx.cs` | CinematicFx: `SoftGlow`, soft-dot particle factory (`Particles`), `Shockwave` double ring; particles + glows r≥10 delegated/reused; LEDs r≤4 keep `IntroGlowDot` |
+| `csharp/godot/CinematicFx.cs` | CinematicFx: `SoftGlow`, soft-dot particle factory (`Particles`), `Shockwave` double ring, `Glow`/`RectPoly`/`BgRect`/`Line` 构图单源(2026-08-12 收敛); particles + glows r≥10 delegated/reused; LEDs r≤4 keep `GlowDot` |
 | `test/intro_cinematic_test.tscn` + `csharp/godot/tests/IntroCinematicTest.cs` | headless self-check (§5) |
 | `test/intro_capture.tscn` + `csharp/godot/tests/IntroCapture.cs` | windowed per-shot screenshot tool (8s/shot, /tmp/intro_shot1..6.png + title) |
 | `docs/EXIT_FLOW.md` | registers return behavior (Esc = skip intro) |
