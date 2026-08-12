@@ -48,7 +48,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 ## 测试体系说明
 
 - 场景测试是无头 C# 场景脚本（非单元测试框架；脚本在 `csharp/godot/tests/`，纯逻辑另有 `tests-csharp/` xUnit 单测），每个 `test/*.tscn` 以 `[PASS]`/`[FAIL]` 输出与退出码自检。
-- 断言场景（`test/*_test.tscn` 中除 `autoplay_test` 探针外；权威计数见 `docs/TESTING.md`）+ `autoplay_test`（长时异常探针，本地按需跑）+ `perf_bench`（性能基准，需 `--fixed-fps 1000`）+ 窗口模式截图工具。
+- 断言场景（`test/*_test.tscn` 中除 `autoplay_test` 探针外；权威计数见 `docs/TESTING.md`）+ `autoplay_test`（长时异常探针，本地按需跑）+ `perf_bench`（性能基准；headless 直跑即可——脚本内部已设 `PhysicsTicksPerSecond=1000`，无需命令行参数）+ 窗口模式截图工具。
 - 命令、专项场景清单、副作用与既有失败基线见 `docs/TESTING.md`。
 
 ## 许可
