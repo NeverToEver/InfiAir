@@ -53,8 +53,6 @@ public partial class ReturnCinematic : CanvasLayer
     private Label _subtitle = null!;
     private Label _skipHint = null!;
 
-    // CinematicFx/DawnStation 仍为 GDScript 静态工厂（class_name），经脚本资源动态访问
-
     // ---------------- A7：测试/诊断白盒断言经公开接口（过场镜头） ----------------
 
     public void SetShotDurations(Godot.Collections.Array durations)
