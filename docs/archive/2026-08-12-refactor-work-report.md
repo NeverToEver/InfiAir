@@ -372,3 +372,11 @@
 **运行时实证(输入控制场景批次)**:mouse_lock_test 25 PASS + virtual_controls_test 26 PASS,exit 0 零 FAIL——输入控制路径(含暂停菜单中 VirtualControls Always 处理)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `bf5cd01`。
+
+## 27. 继续完善轮汇总(2026-08-12,第十六轮收官)
+
+自 §26 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(buff/计分域场景批次)**:buff_effects_test 57 PASS + combo_test 21 PASS,exit 0 零 FAIL——buff 效果表系统 + 连击计分(ScoreService 域)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `a39cc4e`。
