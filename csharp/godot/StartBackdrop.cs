@@ -12,6 +12,10 @@ public partial class StartBackdrop : Control
 {
     private static readonly Color _color = new(0.0f, 0.83f, 1.0f); // 原 const COLOR：全息青
 
+    /// <summary>U20（2026-08-05）：每次 _Draw 新建 RNG 属无谓分配；改字段复用，但 _Draw 首行重置 seed——
+    /// 保持原「每次重绘同序列」的确定性（新建+固定 seed 语义），行为逐位一致。</summary>
+    private static readonly RandomNumberGenerator _rng = new();
+
     public override void _Ready()
     {
         MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -20,26 +24,25 @@ public partial class StartBackdrop : Control
 
     public override void _Draw()
     {
-        var rng = new RandomNumberGenerator();
-        rng.Seed = 20260731;
+        _rng.Seed = 20260731;  // 每次重绘重置：内容确定性一致
         var rect = GetRect();
         // 三层静态星点：暗底噪 / 中亮 / 少量亮星带十字微光
         for (var i = 0; i < 160; i++)
         {
-            var p = new Vector2(rng.Randf() * rect.Size.X, rng.Randf() * rect.Size.Y);
-            DrawCircle(p, rng.RandfRange(0.6f, 1.4f), new Color(1.0f, 1.0f, 1.0f, rng.RandfRange(0.05f, 0.16f)));
+            var p = new Vector2(_rng.Randf() * rect.Size.X, _rng.Randf() * rect.Size.Y);
+            DrawCircle(p, _rng.RandfRange(0.6f, 1.4f), new Color(1.0f, 1.0f, 1.0f, _rng.RandfRange(0.05f, 0.16f)));
         }
 
         for (var i = 0; i < 60; i++)
         {
-            var p = new Vector2(rng.Randf() * rect.Size.X, rng.Randf() * rect.Size.Y);
-            DrawCircle(p, rng.RandfRange(1.0f, 1.8f), new Color(0.75f, 0.92f, 1.0f, rng.RandfRange(0.15f, 0.3f)));
+            var p = new Vector2(_rng.Randf() * rect.Size.X, _rng.Randf() * rect.Size.Y);
+            DrawCircle(p, _rng.RandfRange(1.0f, 1.8f), new Color(0.75f, 0.92f, 1.0f, _rng.RandfRange(0.15f, 0.3f)));
         }
 
         for (var i = 0; i < 8; i++)
         {
-            var p = new Vector2(rng.Randf() * rect.Size.X, rng.Randf() * rect.Size.Y);
-            var a = rng.RandfRange(0.3f, 0.5f);
+            var p = new Vector2(_rng.Randf() * rect.Size.X, _rng.Randf() * rect.Size.Y);
+            var a = _rng.RandfRange(0.3f, 0.5f);
             DrawCircle(p, 2.0f, new Color(0.85f, 0.95f, 1.0f, a));
             DrawLine(p + new Vector2(-5.0f, 0.0f), p + new Vector2(5.0f, 0.0f), new Color(_color, a * 0.6f), 1.0f, true);
             DrawLine(p + new Vector2(0.0f, -5.0f), p + new Vector2(0.0f, 5.0f), new Color(_color, a * 0.6f), 1.0f, true);
