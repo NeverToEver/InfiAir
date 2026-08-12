@@ -164,3 +164,15 @@
 | 项 | 提交 | 内容 |
 |---|---|---|
 | AutoplayTest 监控增强 | `4e035b8` | 补 `ObjectResourceCount` 引擎监控器(采样 + SNAP `res=` 字段 + 峰值输出)——object_leak 误报调查后增强 Resource 泄漏可观测性(Resource 累积泄漏比节点/实体高峰更隐蔽,补监控可区分);验证 res= 字段正常输出 + autoplay 完整运行异常总数 0(0 类) |
+
+## 12. 继续完善轮汇总(2026-08-12,收官)
+
+自 `cdebb88` 起 34 提交(演出层样板收敛 → 残留清理 → Roslynator 诊断落地 → 文档/CI/约定/发布链同步 → 探针监控增强 → 全仓一致性核验),全部行为零变化、每阶段验证绿:
+
+- **代码**:GlowDot 单源化 + 构图辅助收敛 CinematicFx + Boss is 判定 + StartBackdrop RNG 字段复用 + BalanceModels XML 注释 + CA1859×5/CA1822×7(含性能复测零回归)+ AutoplayTest ObjectResourceCount 监控
+- **文档**:ARCHITECTURE(工具类/拆域登记)、AGENTS、INTRO_CINEMATIC、FOG_EVENTS、csharp-conventions、EXECUTION_LOG、CHANGELOG、工作汇报 §1-12、归档索引补齐
+- **CI**:断言场景计数 56→57(2 处)、perf_bench 参数说明
+- **核验(六十余项)**:翻译键双向覆盖/场景/资产/工具链/core 测试/死键/版本/public 字段语义/flaky 登记/测试配对/场景引用/设计基线数值/零 GDScript/.agents 约定/引擎警告门/U19 注释失实/i18n 纪律/gdlint 遗留/README/CONTRIBUTING/颜色字面量/死接口/公开类注释/测试样板/balance.json 数据规范/CHANGELOG 覆盖/近似重复签名/文档计数/断言强度/覆盖矩阵/输入配置/.editorconfig/归档索引/零断言死测试/TESTING 命令面/git 健康/ARCHITECTURE 登记/渲染配置/ROADMAP 待办
+- **object_leak 判定**:最终 autoplay 1 次 object_leak 经同 seed 基线对照 + 曲线回落分析 + 逐文件零分配核实,判定为探针阈值误报(高难 Boss/事件叠加段高峰波动),非本轮回归;顺势补 ObjectResourceCount 监控增强可观测性
+
+**验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景 PASS 零 FAIL + autoplay 480s 异常总数 0 + CI fast-gate 等价全绿。
