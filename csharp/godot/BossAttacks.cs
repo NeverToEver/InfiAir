@@ -516,7 +516,7 @@ public partial class BossAttacks : RefCounted
                             break; // P2-3：同屏敌弹硬上限——跳出本轮撒弹（cap 持续期剩余 drop 下轮重试，防死循环）
                         }
 
-                        b.Set("position", boss.Position + new Vector2(0.0f, 60.0f) * WorldScale);
+                        b.Position = boss.Position + new Vector2(0.0f, 60.0f) * WorldScale;
                     }
                     else
                     {
@@ -630,7 +630,7 @@ public partial class BossAttacks : RefCounted
                 continue; // P2-3：同屏敌弹硬上限，跳过该僚机本轮齐射
             }
 
-            b.Set("position", e.Position + dir * 40.0f * WorldScale);
+            b.Position = e.Position + dir * 40.0f * WorldScale;
         }
     }
 
