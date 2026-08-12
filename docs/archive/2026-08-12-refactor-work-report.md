@@ -534,3 +534,11 @@
 **运行时实证(演出/特效场景批次)**:orbital_strike_test 15 PASS + meta_health_fx_test 24 PASS,exit 0 零 FAIL——轨道打击 + 元健康特效(演出层,含墙钟忙等采样路径)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5ab1bd8`。
+
+## 46. 继续完善轮汇总(2026-08-12,第三十五轮收官)
+
+自 §45 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(buff/池化场景批次)**:buff_visuals_test 30 PASS + pool_reuse_test 15 PASS,exit 0 零 FAIL——buff 视觉 + 对象池复用(热路径每帧零分配红线)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7e03fff`。
