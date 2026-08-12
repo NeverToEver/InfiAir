@@ -215,3 +215,24 @@
 
 - **补批 20 场景**:intro_cinematic 37/return_cinematic 45/elite_turret_event 59/fog_event 70/event_manager 36/encounter_flow_contract 13/i18n 9/keybind 18/meta 24/meta_health_fx 24/mothership_summon 32/mothership_upgrade 9/orbital_strike 15/startup_flow 23/tutorial 30/user_db 59/user_session 42/welcome_flow 35/back_navigation 21 全 PASS。
 - **瞬时提示证伪**:批次中 intro_cinematic/mothership_upgrade/back_navigation 各 FAIL=1,经单跑核实均为引擎退出期「1 resources still in use」瞬时提示匹配(grep 误捕),单跑 EXIT=0 + 0 FAIL + 0 ERROR + 0 resources 提示——**非真实回归**,系后台连续跑引擎时偶发退出提示。
+
+## 15. 继续完善轮汇总(2026-08-12,第四轮收官)
+
+自 §14 后追加 2 提交,全部行为零变化、验证绿:
+
+- **清理 3 处冗余组注册**(`38aa168`):全库 9 组名生产-消费闭环验证(main/player/elite_turret_event 各自仅 1 处 `AddToGroup`,全库含测试/场景声明零消费、零变量间接访问、无注释意图)→ 确定性死代码删除 3 行;smoke_test 全 PASS + elite_turret_event_test 59 PASS
+- **BossAttacks typed 化**(`910d044`):撒弹/齐射 2 处 `Set("position")` 改强类型 `b.Position = ...`(与 U03/U13 typed 改造方向一致,判空已核实);boss_pattern_test 51 PASS
+
+**新增核验(十余项,全部零落地项)**:
+
+- **字符串 API 盲区家族**(C# 编译器不校验的字符串引用):组名闭环(见上)→ 信号名/方法名/属性名/动画名(EmitSignal/Play 零字符串,Call/HasMethod 生产已 typed 化,Set 仅剩 SegmentedBar 兼容桥 4 属性已核实有效)→ Cfg 键双向交叉核对(568 叶子 × 5 读取通道 Cfg/CfgFx/Resolve/动态前缀/buff 表 cfg 字段,零缺失零死配置)→ shader 参数名(MetaHealthFX 21 参数 × meta_health.gdshader 22 uniform 双向零缺失,StringName 常量缓存惯例)→ GdFormat 格式串(55 处调用,翻译键 318 零缺失,格式符个数 vs 实参零不匹配,静默 "?" 风险排除)
+- **GetNode 路径引用完整性**:7 核心场景 28 挂脚本节点 × 359 处引用交叉核对,4 处疑似全部甄别为解析局限(GetParent 前缀/运行时动态子节点/turret 子节点),零真实缺失;64 处绝对路径全为 /root/GameState(autoload 确认注册)
+- **命名空间一致性**:InfiAir.Core.*(6 子域+根)/ InfiAir(生产 133)/ InfiAir.Tests(测试 66)/ InfiAir.Core.Tests(10),零跨层混用
+- **测试脚本墙钟依赖**:2 处 Time.GetTicksMsec 忙等均为有意设计(匹配生产墙钟语义),CreateTimer 4 处语义合理,零 flaky 隐患
+- **Roslynator 全量重跑**:99 条诊断全 CA1822(已定调不应用),零新发现;.editorconfig 无显式 RCS 配置,未使用私有成员盲区经评估静态误报率高不落地
+- **调试输出与待办残留**:GD.Print 3 处均有诊断意图(兜底日志/低频事件/启动耗时),PushWarning/Error 9 处为合理运行时诊断,生产代码零 TODO/FIXME
+- **事件订阅配对**:零「动态订阅者 × 常驻 emitter」逆模式;唯一接收方先释放场景(Hud←Boss)已 _ExitTree 显式断开,GameState 信号 C22 模式 IsConnected+Disconnect
+- **协程 await 判活守卫**:生产代码仅 2 处 await(Main.cs:537/558),均 try/catch + IsInsideTree 守卫;其余按 AGENTS 约定转一次性 Timer 回调防协程状态泄漏
+- **全量门禁基线确认**(最近 3 提交后完整重跑):build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误
+
+**验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景抽查(smoke/elite_turret_event/boss_pattern)全 PASS 零 FAIL + 工作区干净。
