@@ -16,6 +16,7 @@
 - **BossRegistryTest 退出期 RID 泄漏修复**（`9a0565f`）：`new Boss()`（Area2D 派生,纯脚本实例不在树中）从不释放 → 退出期稳定复现 ERROR「RID allocations were leaked」+ CanvasItem/ObjectDB 泄漏;修复为 finally `boss?.Free()`;验证 35 PASS + 零 ERROR/WARNING + 全库同类模式排查零其他
 - **BALANCE_MAP 行号漂移修复**（`fb58486`）：重构删行后 docs/BALANCE_MAP.md 行号未重新生成(144 行 diff 全为行号,键/回退值零变化);重新生成后重跑零 diff——CI full-regression 零 diff 闸会拦截的隐患本地提前修复
 - **核验（30+ 维度,零落地项）**：58 断言场景全覆盖运行时实证、字符串/资源/翻译/输入/碰撞/进程等各盲区家族、性能复测 1.496ms 零回退;工作汇报 §17-68 留档
+- **Roslynator 跟踪状态描述失实修正**（`ad6225c`/`7ec41df`）：AGENTS/csharp-conventions 声称"已 gitignore",实际启动器 stub 已入库(72KB)——两处文档统一修正为实际状态;工作汇报 §69-83 核验轮留档
 
 ### 维护（2026-08-12，分支引用清理）
 
