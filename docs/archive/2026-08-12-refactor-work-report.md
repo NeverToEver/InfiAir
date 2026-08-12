@@ -928,3 +928,13 @@
 - **文档语言约定**:docs/ 顶层零中文(英文文档),docs/archive/ 中文(工作汇报 83 处)——与 AGENTS「Docs in English; AUDIT_VAULT + archive in Chinese」一致
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `1d13e81`。
+
+## 90. 继续完善轮汇总(2026-08-12,第七十九轮收官)
+
+自 §89 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **core 层零 Godot 依赖红线**:csharp/core 中 8 处 "Godot" 引用全部为注释(声明"零 Godot 依赖 → xUnit 直测"),零代码依赖——分层红线确认
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2a1c990`。
