@@ -466,3 +466,13 @@
 **运行时实证(互操作场景批次)**:path_resolver_interop_test 19 PASS + save_store_interop_test 24 PASS,exit 0 零 FAIL——Core-Godot 互操作桥(路径解析/存档存储,ProgressionInterop/SaveManager 桥接层)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4c3bb03`。
+
+## 38. 继续完善轮汇总(2026-08-12,第二十七轮收官)
+
+自 §37 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **死资产检查**:`assets/` 下 29 个文件(audio/fonts/shaders/sprites)全部被 tscn/代码/project.godot 引用,**零死资产**——与引用存在性检查(29 文件零缺失)互补,资产引用双向闭环
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `69352ad`。
