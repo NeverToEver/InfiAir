@@ -406,3 +406,11 @@
 - **`.uid` 文件配对**:`.cs.uid` 134 个零缺失(脚本资源有独立 uid);77 个 `.tscn` 无独立 uid 经甄别为**兼容模式**——tscn 头无内嵌 `uid://`、场景引用全部 `path="res://..."`(Godot 4.4 前兼容格式),引擎导入零错误 + 66 场景全 PASS 实证有效;shaders 有独立 `.uid`——uid 治理与既定格式一致
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5502115`。
+
+## 31. 继续完善轮汇总(2026-08-12,第二十轮收官)
+
+自 §30 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(演出/迁移场景批次)**:starfield_cs_test 7 PASS + entry_animation_test 13 PASS,exit 0 零 FAIL——Starfield 迁移样板(零 GDScript 样板验证)+ 入场动画(演出层)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `3d99729`。
