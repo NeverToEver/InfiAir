@@ -416,8 +416,9 @@ public partial class Main : Node2D
             StopChargingInternal();
         }
 
-        // 长按 B 蓄力返航（松手取消）
-        if (!_gameOver && !_homecoming && Input.IsActionPressed("homecoming"))
+        // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期对局不暂停）播放中禁止——与 dock 蓄力
+        // 的 _summonWindow 守卫对齐，防 B 在母舰机库小窗演出期间触发返航打断召唤流程
+        if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed("homecoming"))
         {
             _homeChargeTime += d;
             _hud.SetHomeCharge(_homeChargeTime / HOME_CHARGE_TIME);
@@ -435,7 +436,7 @@ public partial class Main : Node2D
         }
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
-        if (_giveUpBound && !_gameOver && !_homecoming && !_player.IsDead() && Input.IsActionPressed("give_up"))
+        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_player.IsDead() && Input.IsActionPressed("give_up"))
         {
             _giveUpCharge += d;
             _hud.SetGiveUpCharge(_giveUpCharge / GIVE_UP_HOLD_TIME);
