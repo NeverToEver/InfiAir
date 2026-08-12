@@ -210,3 +210,8 @@
 - **最终回归**:CI fast-gate 等价全绿 + 断言场景批次 15 场景全 PASS 零 FAIL(smoke 140/base_system 79/boss_pattern 51/boss_enrage 37/boss_phase 41/boss_phase_transition 29/formation_strike 49/hit_logic 77/combo 21/difficulty 67/enemy_combat 44/pool_reuse 15/buff33 40/parry 36/graze 12)
 
 **验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景批次全 PASS + autoplay 480s 异常总数 0 + 最终性能基准 1.510ms 持平基线。
+
+### 补批断言场景验证与瞬时提示证伪(2026-08-12)
+
+- **补批 20 场景**:intro_cinematic 37/return_cinematic 45/elite_turret_event 59/fog_event 70/event_manager 36/encounter_flow_contract 13/i18n 9/keybind 18/meta 24/meta_health_fx 24/mothership_summon 32/mothership_upgrade 9/orbital_strike 15/startup_flow 23/tutorial 30/user_db 59/user_session 42/welcome_flow 35/back_navigation 21 全 PASS。
+- **瞬时提示证伪**:批次中 intro_cinematic/mothership_upgrade/back_navigation 各 FAIL=1,经单跑核实均为引擎退出期「1 resources still in use」瞬时提示匹配(grep 误捕),单跑 EXIT=0 + 0 FAIL + 0 ERROR + 0 resources 提示——**非真实回归**,系后台连续跑引擎时偶发退出提示。
