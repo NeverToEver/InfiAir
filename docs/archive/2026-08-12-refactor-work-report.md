@@ -182,3 +182,11 @@
 - **协议**:PerfBench 1800 帧 @1000Hz + 200 敌机,3 次取中位数,同机同引擎。
 - **结果**:重构前基线 `fb41612` 1.520 ms/帧 → 演出层拆分后 1.390 → **本轮 35 提交后 1.510**(1.297/1.519/1.510 中位)。
 - **结论**:与重构前基线持平(-0.7% 噪声内),与拆分后最佳点差值 +8.6% 亦在噪声内(同侧波动 ±8%)——**35 提交全链路(演出层收敛/残留清理/CA 诊断/文档同步)性能零回归**。
+
+### 继续完善轮补充(2026-08-12)
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| 未使用 using 清理 | `cf6683b` | 启发式扫描可疑未使用 `InfiAir.Core.*` using(5 处)→ 逐个核实:仅 GameState.cs 的 `InfiAir.Core.Text` 真实未使用(拆域后 GdFormat 调用随服务迁出,删 1 行);VariantBridge 的 `Core.Config` 为 ValueKind 枚举真实依赖(删除后 CS0246 溯源发现,已回滚);其余 3 个 Text using(GameState.Save/ResearchLab/Main/Mothership)均有 GdFormat 调用。**零误删** |
+
+**验证**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system 79 PASS 零 FAIL。
