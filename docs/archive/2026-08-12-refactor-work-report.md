@@ -236,3 +236,20 @@
 - **全量门禁基线确认**(最近 3 提交后完整重跑):build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误
 
 **验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景抽查(smoke/elite_turret_event/boss_pattern)全 PASS 零 FAIL + 工作区干净。
+
+## 16. 继续完善轮汇总(2026-08-12,第五轮收官)
+
+自 §15 后无代码提交,全部为核验轮 + 性能复测:
+
+**新增核验(六项,全部零落地项)**:
+
+- **动态派发残留**:生产代码零 `dynamic` 关键字、零反射(`Activator`/`GetMethod`/`GetProperty`/`Assembly`);唯一 `GetType()` 为 VariantBridge 异常消息构造(合法诊断用途)——全强类型调用,与 U 系列 typed 化方向一致
+- **`Mathf.Clamp` 参数顺序**:全库 120 处调用中 61 处数值字面量形态可静态判序,**零 min>max 倒置、零 min==max**;归一化钳制(`Clamp(ratio, 0, 1)` 族)参数序全部正确
+- **`CreateTimer`/`Tween` 生命周期**:CreateTimer 仅 4 处(Coroutine 超时兜底 3 + Welcome 1,后者带代次计数 + 判活守卫);CreateTween 102 处全为节点级(绑定 this,退出树自动清理),**零**树级 `GetTree().CreateTween()`、**零**手动 `new Tween()`——无泄漏模式
+- **协程 await 判活守卫**:生产代码仅 2 处 await(Main.cs:537/558),均 U17 try/catch + C15 IsInsideTree 守卫;其余按 AGENTS 约定转一次性 Timer 回调防协程状态泄漏
+- **调试输出与待办残留**:GD.Print 3 处均有诊断意图(兜底/低频事件/启动耗时),PushWarning/Error 9 处为合理运行时诊断,生产代码零 TODO/FIXME
+- **命名空间一致性**:InfiAir.Core.*(6 子域+根)/ InfiAir(133)/ InfiAir.Tests(66)/ InfiAir.Core.Tests(10),零跨层混用
+
+**性能基准复测(§16 最新数字)**:perf_bench 1800 帧 avg_frame_ms=**1.488**(equivalent_fps 672.1)——对比重构前基线 fb41612 1.520、§11 中位 1.510,最近 4 提交后**零回退且略优**(噪声内)。
+
+**验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + perf_bench 1.488ms + 工作区干净。
