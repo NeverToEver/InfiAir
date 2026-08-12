@@ -126,3 +126,12 @@
 **验证(全部通过)**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system_test 79 PASS 零 FAIL + Roslynator CA1859 归零 + autoplay 480s 连续第七轮 exit 0 异常总数 0。
 
 **全量核销/调研(§7-9 覆盖)**:U19/U20 登记项核销殆尽;Roslynator 110 诊断落地 CA1859×5(CA1822 105 条因 Godot 信号回调/白盒接口/刻意保留桥语义保留);translations 317 键/场景引用 104 处/资产 29 文件/TESTING 清单 58/TESTING.md 权威计数三方一致;工具链 6 脚本语法通过 + 音频幂等实测逐字节一致。
+
+### 继续完善轮补充(2026-08-12)
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| Roslynator CA1822 安全子集 | `2399972` | 7 个私有方法标 `static`(BossAttacks.MakeAimLineInternal/FireFromPool、EnrageSequence.SquareCorner/PlayerDir/HoverInTransition、BuffSelect.TweenCardScale/SetCardHighlight)——私有方法不访问实例数据、非 Godot 信号连接目标,标 static 本类调用点零改动;CA1822 非测试 82→76 |
+| 保留说明 | — | 剩余 76 条 CA1822 均为公开成员(Godot 信号回调 `OnXxx`、白盒测试接口 `IsBoss/GetEnragePhase*`、UPPER_SNAKE 兼容桥),标 static 破坏 `Connect`/`Callable` 绑定或跨域接口语义,登记保留 |
+
+**验证**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + boss_pattern(51)/boss_enrage(37)/buff33(40) 断言场景 PASS 零 FAIL。
