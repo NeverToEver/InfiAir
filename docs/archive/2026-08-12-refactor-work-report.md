@@ -1088,3 +1088,13 @@
 - **时间处理纪律**:生产代码零 DateTime/TimeSpan——游戏时间全部走引擎时间(Time.GetTicksMsec/模拟时间),无 .NET 墙钟依赖,与"时序稳定性(零墙钟)"一致
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `d302766`。
+
+## 106. 继续完善轮汇总(2026-08-12,第九十五轮收官)
+
+自 §105 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **格式化本地化纪律**:生产 godot 层零 CultureInfo/InvariantCulture——格式化全部经 GdFormat(core 实现,内部用 InvariantCulture 保证跨平台一致),与"GdFormat 单一实现"收敛一致
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `9fb06a1`。
