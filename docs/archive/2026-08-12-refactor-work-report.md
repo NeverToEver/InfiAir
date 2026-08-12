@@ -878,3 +878,13 @@
 - **文档标题结构**:全库 docs/*.md 仅 1 处跨文件重复标题('2. State Machine' 为各文档独立章节编号,正常结构)——零标题漂移
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2c3d4ae`。
+
+## 85. 继续完善轮汇总(2026-08-12,第七十四轮收官)
+
+自 §84 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **`.editorconfig` 规则健康**:20 条规则(indent 4/max_line 140/file-scoped namespace/sort directives)与 AGENTS 风格声明一致——风格门禁健康
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `845bfab`。
