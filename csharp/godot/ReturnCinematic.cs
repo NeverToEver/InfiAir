@@ -287,59 +287,15 @@ public partial class ReturnCinematic : CanvasLayer
         }
     }
 
-    // ---------------- 构图辅助（与 intro_cinematic.gd 同款，项目惯例直接复制） ----------------
+    // ---------------- 构图辅助（实现收敛至 CinematicFx 单源，本侧保留一行转发） ----------------
 
-    /// <summary>叠加态辉光圆点（复用 C# 顶层类 GlowDot，原内嵌 _GlowDot 同构）。</summary>
-    private static GlowDot Glow(float radius, Color color, bool additive = true)
-    {
-        var dot = new GlowDot { Radius = radius, DotColor = color };
-        if (additive)
-        {
-            var mat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
-            dot.Material = mat;
-        }
+    private static GlowDot Glow(float radius, Color color, bool additive = true) => CinematicFx.Glow(radius, color, additive);
 
-        return dot;
-    }
+    private static Polygon2D RectPoly(float w, float h, Color color) => CinematicFx.RectPoly(w, h, color);
 
-    private static Polygon2D RectPoly(float w, float h, Color color)
-    {
-        var p = new Polygon2D
-        {
-            Polygon = new[]
-            {
-                new Vector2(-w * 0.5f, -h * 0.5f),
-                new Vector2(w * 0.5f, -h * 0.5f),
-                new Vector2(w * 0.5f, h * 0.5f),
-                new Vector2(-w * 0.5f, h * 0.5f),
-            },
-            Color = color,
-        };
-        return p;
-    }
+    private static ColorRect BgRect(Color color) => CinematicFx.BgRect(color);
 
-    private static ColorRect BgRect(Color color)
-    {
-        var r = new ColorRect
-        {
-            Color = color,
-            Position = Vector2.Zero,
-            Size = new Vector2(1920.0f, 1080.0f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        return r;
-    }
-
-    private static Line2D Line(Vector2[] points, Color color, float width = 2.0f)
-    {
-        var l = new Line2D
-        {
-            Points = points,
-            DefaultColor = color,
-            Width = width,
-        };
-        return l;
-    }
+    private static Line2D Line(Vector2[] points, Color color, float width = 2.0f) => CinematicFx.Line(points, color, width);
 
     /// <summary>粒子工厂：全局委托 CinematicFx（同 dict 契约，默认挂软点贴图，scale 语义保持"像素直径"）</summary>
     private static GpuParticles2D Particles(Godot.Collections.Dictionary cfg)

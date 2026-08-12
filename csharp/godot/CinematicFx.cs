@@ -69,6 +69,61 @@ public partial class CinematicFx : RefCounted
         return s;
     }
 
+    /// <summary>叠加态辉光圆点（复用 C# 顶层类 GlowDot，原内嵌 _GlowDot 同构；intro/return 过场构图共用）。</summary>
+    public static GlowDot Glow(float radius, Color color, bool additive = true)
+    {
+        var dot = new GlowDot { Radius = radius, DotColor = color };
+        if (additive)
+        {
+            var mat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+            dot.Material = mat;
+        }
+
+        return dot;
+    }
+
+    /// <summary>居中矩形 Polygon2D（w/h 为全宽全高，坐标 -0.5w..0.5w / -0.5h..0.5h；intro/return 过场构图共用）。</summary>
+    public static Polygon2D RectPoly(float w, float h, Color color)
+    {
+        var p = new Polygon2D
+        {
+            Polygon = new[]
+            {
+                new Vector2(-w * 0.5f, -h * 0.5f),
+                new Vector2(w * 0.5f, -h * 0.5f),
+                new Vector2(w * 0.5f, h * 0.5f),
+                new Vector2(-w * 0.5f, h * 0.5f),
+            },
+            Color = color,
+        };
+        return p;
+    }
+
+    /// <summary>全屏底色 ColorRect（1920×1080 设计坐标，鼠标穿透；intro/return 过场构图共用）。</summary>
+    public static ColorRect BgRect(Color color)
+    {
+        var r = new ColorRect
+        {
+            Color = color,
+            Position = Vector2.Zero,
+            Size = new Vector2(1920.0f, 1080.0f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        return r;
+    }
+
+    /// <summary>折线 Line2D（Points 逐点折线，默认宽 2px；intro/return 过场构图共用）。</summary>
+    public static Line2D Line(Vector2[] points, Color color, float width = 2.0f)
+    {
+        var l = new Line2D
+        {
+            Points = points,
+            DefaultColor = color,
+            Width = width,
+        };
+        return l;
+    }
+
     /// <summary>与既有 _particles(cfg) 同契约的粒子工厂（键：amount/lifetime/explosiveness/one_shot/
     /// direction/spread/vel_min/vel_max/gravity/damping_min/damping_max/scale_min/scale_max/color/additive）。
     /// 默认挂软点贴图（"textured": false 关闭）；cfg 的 scale 语义保持"像素直径"，内部换算到 64px 贴图。</summary>

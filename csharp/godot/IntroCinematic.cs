@@ -265,54 +265,15 @@ public partial class IntroCinematic : CanvasLayer
         };
     }
 
-    // ---------------- 构图辅助 ----------------
+    // ---------------- 构图辅助（实现收敛至 CinematicFx 单源，本侧保留一行转发） ----------------
 
-    private static GlowDot Glow(float radius, Color color, bool additive = true)
-    {
-        var dot = new GlowDot { Radius = radius, DotColor = color };
-        if (additive)
-        {
-            dot.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
-        }
+    private static GlowDot Glow(float radius, Color color, bool additive = true) => CinematicFx.Glow(radius, color, additive);
 
-        return dot;
-    }
+    private static Polygon2D RectPoly(float w, float h, Color color) => CinematicFx.RectPoly(w, h, color);
 
-    private static Polygon2D RectPoly(float w, float h, Color color)
-    {
-        return new Polygon2D
-        {
-            Polygon = new[]
-            {
-                new Vector2(-w * 0.5f, -h * 0.5f),
-                new Vector2(w * 0.5f, -h * 0.5f),
-                new Vector2(w * 0.5f, h * 0.5f),
-                new Vector2(-w * 0.5f, h * 0.5f),
-            },
-            Color = color,
-        };
-    }
+    private static ColorRect BgRect(Color color) => CinematicFx.BgRect(color);
 
-    private static ColorRect BgRect(Color color)
-    {
-        return new ColorRect
-        {
-            Color = color,
-            Position = Vector2.Zero,
-            Size = new Vector2(1920.0f, 1080.0f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-    }
-
-    private static Line2D Line(Vector2[] points, Color color, float width = 2.0f)
-    {
-        return new Line2D
-        {
-            Points = points,
-            DefaultColor = color,
-            Width = width,
-        };
-    }
+    private static Line2D Line(Vector2[] points, Color color, float width = 2.0f) => CinematicFx.Line(points, color, width);
 
     /// <summary>引爆冲击颤动：随机方向脉冲偏移，0.27s 内衰减回基线（tween 驱动，不加 _process）。
     /// state[0] 持有上一次颤动 tween：重复触发时杀旧刷新峰值，形成"每爆一下震一下"的连锁叠加；
