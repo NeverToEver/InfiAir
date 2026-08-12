@@ -646,3 +646,11 @@
 **运行时实证(事件批次)**:fog_event_test 70 PASS + elite_turret_event_test 59 PASS,exit 0 零 FAIL——迷雾效果层(FogEventManager 域)+ 精英炮塔事件(四场景全流程)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `494eb34`。
+
+## 60. 继续完善轮汇总(2026-08-12,第四十九轮收官)
+
+自 §59 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(窗口设置)**:window_size_test 17 PASS + exit 0 零 FAIL——窗口尺寸设置(SettingsService 域,含 ViewWorldRect 帧缓存相关路径)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `233c376`。
