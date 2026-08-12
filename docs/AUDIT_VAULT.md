@@ -1125,9 +1125,9 @@
 
 | 编号 | 严重度 | 位置 | 描述 | 处置建议 |
 | --- | --- | --- | --- | --- |
-| M07 | P3 | `scripts/back_navigator.gd:19,94-96` | `CONFIRM_EXIT` 枚举+分支为死代码：`decide_back_action()` 决策表（:107-130）任何状态不返回该分支，顶层退出确认已由 welcome 场景自处理 | 低危死代码，择机删除枚举+分支并同步 `docs/EXIT_FLOW.md` 状态机清单（已标注 retired） |
-| M08 | P3 | `scripts/start_panel.gd`、`scripts/start_radar.gd` | 孤儿脚本：StartPanel 2026-08-01 退役后无任何场景引用（`start_backdrop.gd` 由 welcome 复用，保留） | 确认无保留价值后删除两文件（含 README/ARCHITECTURE 已改口径） |
-| M09 | P4 | `data/translations.csv:170-171` | `SET_LANGUAGE_ZH/EN` 孤儿键：语言按钮硬编码「中文/English」，全仓无 `tr()` 引用 | 无害冗余，择机删除或接 i18n 动态标签 |
+| M07 | P3 | `scripts/back_navigator.gd:19,94-96` | `CONFIRM_EXIT` 枚举+分支为死代码：`decide_back_action()` 决策表（:107-130）任何状态不返回该分支，顶层退出确认已由 welcome 场景自处理 | 低危死代码，择机删除枚举+分支并同步 `docs/EXIT_FLOW.md` 状态机清单（已标注 retired）。**✅ 已随 M7 全量迁移 C# 自动解决**（脚本删除,`csharp/godot/BackNavigator.cs` 无 CONFIRM_EXIT 死分支） |
+| M08 | P3 | `scripts/start_panel.gd`、`scripts/start_radar.gd` | 孤儿脚本：StartPanel 2026-08-01 退役后无任何场景引用（`start_backdrop.gd` 由 welcome 复用，保留） | 确认无保留价值后删除两文件（含 README/ARCHITECTURE 已改口径）。**✅ 已随 M7 全量迁移自动解决**（两脚本删除,`csharp/godot/StartBackdrop.cs` 承接） |
+| M09 | P4 | `data/translations.csv:170-171` | `SET_LANGUAGE_ZH/EN` 孤儿键：语言按钮硬编码「中文/English」，全仓无 `tr()` 引用 | 无害冗余，择机删除或接 i18n 动态标签。**✅ 已解决**（键已收敛为单键 `SET_LANGUAGE`,硬编码中文/English 由语言切换按钮文案覆盖） |
 | M10 | P4 | `docs/INTRO_CINEMATIC.md` §4 P4 | 真实人工遗留：低端机重测 + gamepad/mobile 输入检查（README 子项已由 README.md:41 覆盖完成；附注手柄跳过仅 B=ui_cancel 可用） | 发布前人工验证项，文档已标注为 leftover |
 
 ## 验证
