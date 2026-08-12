@@ -87,3 +87,18 @@
 
 - `Player.cs`(1453)/`Hud.cs`(1439)/`Boss.cs`(1410)仍为大文件,但均为热路径核心且已按子系统分文件(PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals;BossAttacks/BossFire/BossMovement),拆分收益与风险比低于演出层,建议仅在有明确职责边界时推进。
 - 性能基准可固化为 CI 可选 job(PerfBench 数值对机器负载敏感,3 次取中位数已足够稳),供长期回归对照。
+
+## 7. 演出层构图样板收敛(2026-08-12,同日续)
+
+承接上轮演出层拆分(§3)后的自然收敛,延续「样板去重 + 单源化」主线,两提交均行为零变化:
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| GlowDot 单源化 | `37a8778` | `IntroGlowDot` 与 `GlowDot` 实现逐字一致(Node2D + Radius/DotColor + DrawCircle,仅字段/属性写法差异),11 处引用全量并入 `GlowDot`,删 `IntroGlowDot.cs`(+uid);类名=文件名与单源原则回归 |
+| 构图辅助收敛 | `cc29af2` | Intro/Return 两演出层私有 `Glow/RectPoly/BgRect/Line` 实现逐字一致(仅局部变量命名差异),4 方法实现上移为 `CinematicFx` 公共静态(Glow/RectPoly/BgRect/Line),两演出层各保留 4 个一行转发;调用点零改动(49 Glow/44 RectPoly/14 BgRect/89 Line),规避 SoftGlow 误伤;KickShake(仅 Intro)/SoftGlow/Particles(已单源)不动 |
+
+**规模变化**:删 1 文件;`CinematicFx` +4 公共静态(55 行);`IntroCinematic.cs` -49 行、`ReturnCinematic.cs` -54 行(实现去重,转发行等价)。两演出层构图辅助实现从 2 份 → 1 份。
+
+**验证汇总(全部通过)**:每阶段 build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS 零 FAIL;P3 main smoke 300 帧 140 PASS 零 FAIL;BALANCE_MAP 重跑零 diff。
+
+**残留双源检查**:`grep -rn "IntroGlowDot"` 零残留;`CinematicFx` 现有 Glow/RectPoly/BgRect/Line/SoftGlow/Particles 覆盖演出层全部构图与特效入口,后续新增演出镜头直接复用。

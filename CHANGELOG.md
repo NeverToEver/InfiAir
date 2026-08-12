@@ -15,6 +15,12 @@
 - **性能基准**（PerfBench 1800 帧 @1000Hz + 200 敌机，3 次取中位数）：重构前基线 `fb41612` 1.520 ms/帧 → 拆域收官 1.557 → 本轮拆分后 **1.390**，全程差值在 ±11% 噪声内，零回归；详见 `docs/archive/2026-08-12-refactor-work-report.md`
 - **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误（新增 21 个 `.cs` 的 `.cs.uid` 入库）+ main smoke 300 帧 PASS + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS 零 FAIL + 全场景编译探针 58 场景 fail=0 + BALANCE_MAP 重跑零 diff
 
+### 重构（2026-08-12，演出层构图样板收敛，全量行为零变化）
+
+- **GlowDot 单源化**：`IntroGlowDot` 与 `GlowDot` 实现逐字一致（Node2D + Radius/DotColor + DrawCircle，仅字段/属性写法差异），11 处引用全量并入 `GlowDot`，删 `IntroGlowDot.cs`；类名=文件名与单源原则回归
+- **构图辅助收敛 `CinematicFx`**：Intro/Return 两演出层私有 `Glow/RectPoly/BgRect/Line` 实现逐字一致，4 方法上移为 `CinematicFx` 公共静态，两演出层各保留 4 个一行转发；调用点零改动（49 Glow/44 RectPoly/14 BgRect/89 Line），构图辅助实现 2 份 → 1 份
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS 零 FAIL + main smoke 300 帧 140 PASS + BALANCE_MAP 重跑零 diff；详见 `docs/archive/2026-08-12-refactor-work-report.md` §7
+
 ### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
 
 - **击杀连击计分**（怒首领蜂/虫姬链式得分的温和版）：3s 窗口内连续击杀 → 击杀分 × 连击乘区（第 1 杀 ×1.0 起，每连 +0.1，封顶 ×2.0）；超时或受击断连（受击与 DDA 同源，构成「降档+断连」双通道但均不致命）；Boss 击杀/事件奖励/擦弹不计连击；HUD 新增连击标签（`UI_COMBO_FMT`）。新键 `scoring.combo.*`；新断言场景 `combo_test`
