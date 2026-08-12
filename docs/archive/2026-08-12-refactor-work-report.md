@@ -630,3 +630,11 @@
 **运行时实证(转移/召唤批次)**:boss_phase_transition_test 29 PASS + mothership_summon_test 32 PASS,exit 0 零 FAIL——阶段转移(PhaseChanged 信号/无敌窗口)+ 母舰召唤(穿梭滑入演出)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `f9d5fe3`。
+
+## 58. 继续完善轮汇总(2026-08-12,第四十七轮收官)
+
+自 §57 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(任务/计分批次)**:base_task_refresh_test 43 PASS + combo_test 21 PASS,exit 0 零 FAIL——基地任务刷新(MissionsService 域)+ 连击计分(ScoreService 域)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `b66a9dd`。
