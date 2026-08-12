@@ -414,6 +414,26 @@ public partial class GameState : Node
 
     private void OnCombatBuffsChanged() => EmitSignal(SignalName.BuffsChanged);
 
+    // 设置/视图域（第六轮拆域收官）：SettingsService C# 事件 → GameState 同名信号转发
+    // （TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
+    // MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家操作——设置页/手柄
+    // 设置，晚于 _Ready 本订阅；ApplyRunSave 的 TouchControlsChanged 直发路径不经本事件，重发不重复）
+    private void OnSettingsTouchControlsChanged(bool v) => EmitSignal(SignalName.TouchControlsChanged, v);
+
+    private void OnSettingsViewZoomChanged(double v) => EmitSignal(SignalName.ViewZoomChanged, v);
+
+    private void OnSettingsWindowSizeChanged(StringName v) => EmitSignal(SignalName.WindowSizeChanged, v);
+
+    private void OnSettingsAimAssistChanged(StringName v) => EmitSignal(SignalName.AimAssistChanged, v);
+
+    private void OnSettingsReduceFlashChanged(bool v) => EmitSignal(SignalName.ReduceFlashChanged, v);
+
+    private void OnSettingsMouseLockChanged(bool v) => EmitSignal(SignalName.MouseLockChanged, v);
+
+    private void OnSettingsJoySettingsChanged(double aimSpeed, double deadzone) => EmitSignal(SignalName.JoySettingsChanged, aimSpeed, deadzone);
+
+    private void OnSettingsLocaleChanged() => EmitSignal(SignalName.LocaleChanged);
+
     // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill/ApplyRunSave 直发路径不重复）
@@ -452,6 +472,17 @@ public partial class GameState : Node
         // 路径不经本事件，重发不与之重复）
         _combat.HealthChanged += OnCombatHealthChanged;
         _combat.BuffsChanged += OnCombatBuffsChanged;
+        // 设置/视图域（第六轮拆域收官）：SettingsService 事件 → 信号转发订阅（触发点均为运行期
+        // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadProfile/LoadSessionSettings/
+        // ApplyRunSave 直写字段路径不发服务事件，重发不与之重复）
+        _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
+        _settings.ViewZoomChanged += OnSettingsViewZoomChanged;
+        _settings.WindowSizeChanged += OnSettingsWindowSizeChanged;
+        _settings.AimAssistChanged += OnSettingsAimAssistChanged;
+        _settings.ReduceFlashChanged += OnSettingsReduceFlashChanged;
+        _settings.MouseLockChanged += OnSettingsMouseLockChanged;
+        _settings.JoySettingsChanged += OnSettingsJoySettingsChanged;
+        _settings.LocaleChanged += OnSettingsLocaleChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);

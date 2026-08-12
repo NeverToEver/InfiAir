@@ -343,7 +343,8 @@ public sealed partial class SettingsService : RefCounted
         return CachedViewRect().Grow((float)margin);
     }
 
-    private void InvalidateViewRectCache() => _viewRectFrame = -1;
+    /// <summary>视角缓存失效（set_view_zoom/camera_ref/登录即时生效路径调用；GameState 侧私有一行包装）。</summary>
+    public void InvalidateViewRectCache() => _viewRectFrame = -1;
 
     private Rect2 CachedViewRect()
     {

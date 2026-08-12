@@ -72,7 +72,8 @@ public partial class GameState : Node
             return;
         }
 
-        ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
+        // 第六轮拆域：设置域持久化桥迁 SettingsService（登录会话 settings 应用）
+        _settings.ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
         // 2026-08-10 健壮性审查：判型守卫 + 截断钳制——手改 users.json 的 high_score 为字符串时
         // AsInt64 抛 InvalidCastException（登录即崩）；超大值裸 (int) 截断回绕为负
         var hs = _userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0);

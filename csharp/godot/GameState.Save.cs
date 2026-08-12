@@ -200,10 +200,11 @@ public partial class GameState : Node
             }
         }
 
-        // 设置项随存档往返（旧存档无字段时保留当前值）
-        CtrlToggleMode = SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
-        ShiftToggleMode = SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
-        TouchControls = SaveBool(data.GetValueOrDefault("touch_controls", TouchControls), TouchControls);
+        // 设置项随存档往返（旧存档无字段时保留当前值）——第六轮拆域：直写 SettingsService 字段
+        // （不经 setter，不触发服务事件；TouchControlsChanged 由下方直发同名信号，无双发）
+        _settings.CtrlToggleMode = SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
+        _settings.ShiftToggleMode = SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
+        _settings.TouchControls = SaveBool(data.GetValueOrDefault("touch_controls", TouchControls), TouchControls);
         // AB14：恢复值回流 VirtualControls——存档恢复只写内存字段不广播，启用态与设置页脱钩
         // （Ctrl/Shift 直读字段不受影响，唯独触屏有状态缓存消费方；与 :134 BuffsChanged 同款发射）
         EmitSignal(SignalName.TouchControlsChanged, TouchControls);
@@ -279,7 +280,8 @@ public partial class GameState : Node
         // save_int 判型+钳制：手改档案 high_score > 2^31 时裸 (int) 截断回绕为负，
         // RecordScore 的 Score > HighScore 恒真 → 每局误报破纪录
         HighScore = SaveInt(parsed.GetValueOrDefault("high_score", 0), 0);
-        ApplySettingsDict(parsed);
+        // 第六轮拆域：设置域持久化桥迁 SettingsService（设置字段应用含键位/窗口/视图缓存副作用）
+        _settings.ApplySettingsDict(parsed);
         // P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
         Highscores.Clear();
         var savedHighscores = parsed.GetValueOrDefault("highscores", new Variant());
@@ -324,115 +326,8 @@ public partial class GameState : Node
         }
     }
 
-    /// <summary>设置字段应用（profile.json 与 user_db settings 共用；含键位/窗口/视图缓存副作用，对齐原 load_profile）</summary>
-    private void ApplySettingsDict(Godot.Collections.Dictionary data)
-    {
-        TutorialDone = SaveBool(data.GetValueOrDefault("tutorial_done", TutorialDone), TutorialDone);
-        // E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持当前语言，
-        // 避免 locale 变量与 TranslationServer 状态不一致
-        var savedLocale = data.GetValueOrDefault("locale", Locale).AsString();
-        if (savedLocale == "zh" || savedLocale == "en")
-        {
-            Locale = savedLocale;
-        }
-
-        // C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
-        // 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
-        KeyBindings.Clear();
-        var savedKeys = data.GetValueOrDefault("key_bindings", new Variant());
-        if (savedKeys.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var a in savedKeys.AsGodotDictionary().Keys)
-            {
-                var raw = savedKeys.AsGodotDictionary()[a];
-                if (raw.VariantType != Variant.Type.Array)
-                {
-                    continue;
-                }
-
-                var keys = new Godot.Collections.Array<int>();
-                foreach (var k in raw.AsGodotArray())
-                {
-                    // E11：元素级判型（C02 外层守卫的补全）——手改字符串 keycode 直接跳过，
-                    // 不再 int() 转换错误刷屏（不崩溃但不干净）
-                    if (k.VariantType is not Variant.Type.Int and not Variant.Type.Float)
-                    {
-                        continue;
-                    }
-
-                    keys.Add((int)k.AsInt64());
-                }
-
-                KeyBindings[a.AsStringName()] = keys;
-            }
-        }
-
-        var savedDifficulty = data.GetValueOrDefault("difficulty", "").AsStringName();
-        if (DIFFICULTY_DEFS.ContainsKey(savedDifficulty))
-        {
-            Difficulty = savedDifficulty;
-            // Q04（2026-08-05）：存档/账户设置恢复难度后刷新被动回血缓存——
-            // 原实现仅 _apply_balance 与 set_difficulty 刷新，重启后 hard 玩家按 medium 回血
-            RefreshRegenCache();
-        }
-
-        CtrlToggleMode = SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
-        ShiftToggleMode = SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
-        var savedZoom = data.GetValueOrDefault("view_zoom", "").AsStringName();
-        if (VIEW_ZOOM_LEVELS.ContainsKey(savedZoom))
-        {
-            ViewZoom = savedZoom;
-            _viewZoomFactor = (double)VIEW_ZOOM_LEVELS[savedZoom].AsDouble();
-            InvalidateViewRectCache();
-        }
-
-        var savedWindow = data.GetValueOrDefault("window_size", "").AsStringName();
-        if (WINDOW_SIZE_LEVELS.ContainsKey(savedWindow))
-        {
-            WindowSize = savedWindow;
-            ApplyWindowSize();
-        }
-
-        var savedAim = data.GetValueOrDefault("aim_assist", "").AsStringName();
-        if (AIM_ASSIST_ORDER.Contains(savedAim))
-        {
-            AimAssistLevel = savedAim;
-        }
-
-        ReduceFlash = SaveBool(data.GetValueOrDefault("reduce_flash", ReduceFlash), ReduceFlash);
-        MouseLock = SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
-        // P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
-        var joySpeed = data.GetValueOrDefault("joy_aim_speed", Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
-        if (joySpeed.VariantType is Variant.Type.Float or Variant.Type.Int)
-        {
-            JoyAimSpeed = Mathf.Clamp(joySpeed.AsDouble(), 200.0, 4000.0);
-        }
-
-        var joyDz = data.GetValueOrDefault("joy_deadzone", JoyDeadzone);
-        if (joyDz.VariantType is Variant.Type.Float or Variant.Type.Int)
-        {
-            JoyDeadzone = Mathf.Clamp(joyDz.AsDouble(), 0.05, 0.9);
-        }
-    }
-
-    /// <summary>当前设置字段收集（profile.json 与 user_db settings 共用；统计类字段不在此列）</summary>
-    private Godot.Collections.Dictionary CollectSettingsDict() => new()
-    {
-        ["tutorial_done"] = TutorialDone,
-        ["key_bindings"] = KeyBindings,
-        ["locale"] = Locale,
-        ["difficulty"] = Difficulty.ToString(),
-        ["ctrl_toggle_mode"] = CtrlToggleMode,
-        ["shift_toggle_mode"] = ShiftToggleMode,
-        ["view_zoom"] = ViewZoom.ToString(),
-        ["window_size"] = WindowSize.ToString(),
-        ["aim_assist"] = AimAssistLevel.ToString(),
-        ["reduce_flash"] = ReduceFlash,
-        ["mouse_lock"] = MouseLock,
-        ["joy_aim_speed"] = JoyAimSpeed,
-        ["joy_deadzone"] = JoyDeadzone,
-    };
-
+    /// <summary>当前设置字段收集（profile.json 与 user_db settings 共用；统计类字段不在此列）——
+    /// 第六轮拆域：设置域持久化桥迁 SettingsService（CollectSettingsDict 本体在服务侧，此处委托）。</summary>
     public void SaveProfile()
     {
         if (IsGuest())
@@ -442,11 +337,11 @@ public partial class GameState : Node
 
         if (CurrentUser != "")
         {
-            _userDb.UpdateUserSettings(CurrentUser, CollectSettingsDict());
+            _userDb.UpdateUserSettings(CurrentUser, _settings.CollectSettingsDict());
             return;
         }
 
-        var data = CollectSettingsDict();
+        var data = _settings.CollectSettingsDict();
         data["version"] = PersistVersionValue;
         data["high_score"] = HighScore;
         data["highscores"] = Highscores;

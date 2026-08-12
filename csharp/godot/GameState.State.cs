@@ -269,11 +269,11 @@ public partial class GameState : Node
     /// <summary>P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）</summary>
     private bool _joypadBound;
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。
-    /// 存储承载于 snake 字段（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
-    public double JoyAimSpeed { get; set; } = 1400.0;
+    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
+    /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
+    public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
 
-    public double JoyDeadzone { get; set; } = 0.5;
+    public double JoyDeadzone { get => _settings.JoyDeadzone; set => _settings.JoyDeadzone = value; }
 
     /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）。</summary>
     public StringName JoyLayout { get; set; } = new StringName("xbox");
@@ -359,33 +359,34 @@ public partial class GameState : Node
         set => _runProg.Difficulty = value;
     }
 
-    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）</summary>
-    public bool CtrlToggleMode { get; set; } = false;
+    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）
+    /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
+    public bool CtrlToggleMode { get => _settings.CtrlToggleMode; set => _settings.CtrlToggleMode = value; }
 
-    public bool ShiftToggleMode { get; set; } = false;
+    public bool ShiftToggleMode { get => _settings.ShiftToggleMode; set => _settings.ShiftToggleMode = value; }
 
-    /// <summary>触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
-    public bool TouchControls { get; set; } = false;
+    /// <summary>触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）——SettingsService 转发。</summary>
+    public bool TouchControls { get => _settings.TouchControls; set => _settings.TouchControls = value; }
 
-    /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
-    public StringName ViewZoom { get; set; } = new StringName("small");
+    /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
+    public StringName ViewZoom { get => _settings.ViewZoom; set => _settings.ViewZoom = value; }
 
-    /// <summary>窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）</summary>
-    public StringName WindowSize { get; set; } = new StringName("large");
+    /// <summary>窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）——SettingsService 转发。</summary>
+    public StringName WindowSize { get => _settings.WindowSize; set => _settings.WindowSize = value; }
 
-    /// <summary>瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
-    public StringName AimAssistLevel { get; set; } = new StringName("medium");
+    /// <summary>瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）——SettingsService 转发。</summary>
+    public StringName AimAssistLevel { get => _settings.AimAssistLevel; set => _settings.AimAssistLevel = value; }
 
     /// <summary>Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
-    /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）</summary>
-    public int MetaFxLod { get; set; } = 1;
+    /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）——SettingsService 转发。</summary>
+    public int MetaFxLod { get => _settings.MetaFxLod; set => _settings.MetaFxLod = value; }
 
-    /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
-    public bool ReduceFlash { get; set; } = false;
+    /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
+    public bool ReduceFlash { get => _settings.ReduceFlash; set => _settings.ReduceFlash = value; }
 
     /// <summary>鼠标锁定窗口内（profile 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
-    /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
-    public bool MouseLock { get; set; } = true;
+    /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）——SettingsService 转发。</summary>
+    public bool MouseLock { get => _settings.MouseLock; set => _settings.MouseLock = value; }
 
     /// <summary>buff id -> 已选层数——CombatStateService 转发。</summary>
     public Godot.Collections.Dictionary Buffs { get => _combat.Buffs; set => _combat.Buffs = value; }
