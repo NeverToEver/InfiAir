@@ -200,3 +200,13 @@
 - **新增核验(二十余项)**:ARCHITECTURE 文件登记完整性、翻译键双向覆盖、导出链一致性、.gitattributes/.gitignore 治理、版本治理、CI/CD 政策合规、csproj 配置一致性、.uid 配对、未使用 using 依赖、归档一致性、测试辅助场景完整性、功能完整性、文档引用网络、魔法数字/字符串字面量(均 API 惯例/通用数值,零样板)
 
 **验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景 PASS 零 FAIL + autoplay 480s 异常总数 0 + 最终性能基准 1.510ms 持平基线。
+
+## 14. 继续完善轮汇总(2026-08-12,第三轮收官)
+
+自 §13 后追加 3 提交,全部行为零变化、验证绿:
+
+- **约定文档 CfgFx 补登记**(`8bce553`):balance-config 补 CfgFx 类型化读惯例(判型+钳制单口径,2026-08-11 新约定)——5 工具类未在 csharp-conventions 登记属合理分层(红线/惯例 vs ARCHITECTURE 职责),但 CfgFx 读取纪律应在 balance-config 体现
+- **新增核验(十余项)**:异常处理覆盖(全仓 3 处 try 均为 await 段 try/catch,U17 约定,零未捕获路径)、core 边界测试(8/10 文件含边界用例)、测试时序稳定性(零真实墙钟依赖,零潜在 flaky)、场景 meta 数据(77 场景 format=3 + load_steps 一致)、balance.json 配置节覆盖(21 节全引用零死节)、AUDIT_VAULT M07/M08/M09 核销
+- **最终回归**:CI fast-gate 等价全绿 + 断言场景批次 15 场景全 PASS 零 FAIL(smoke 140/base_system 79/boss_pattern 51/boss_enrage 37/boss_phase 41/boss_phase_transition 29/formation_strike 49/hit_logic 77/combo 21/difficulty 67/enemy_combat 44/pool_reuse 15/buff33 40/parry 36/graze 12)
+
+**验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景批次全 PASS + autoplay 480s 异常总数 0 + 最终性能基准 1.510ms 持平基线。
