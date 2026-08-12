@@ -183,12 +183,19 @@ public partial class GameState : Node
     /// 跨域经 Instance；_registry 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
     private readonly SettingsService _settings;
 
+    /// <summary>第七轮拆域收官（2026-08-12）：键位+手柄域服务——可改键系统/手柄装配与
+    /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout 迁入 InputBindingsService
+    /// （GameState.Input.cs/State.cs 为门面转发；跨域经 Instance；SaveProfile/JoyDeadzone
+    /// 经门面，无构造依赖）。</summary>
+    private readonly InputBindingsService _input;
+
     public GameState()
     {
         _meta = new MetaService(_userDb);
         _missions = new MissionsService();
         _runProg = new RunProgressionService(_balanceService);
         _settings = new SettingsService(_registry);
+        _input = new InputBindingsService();
     }
 
     /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经
@@ -434,6 +441,15 @@ public partial class GameState : Node
 
     private void OnSettingsLocaleChanged() => EmitSignal(SignalName.LocaleChanged);
 
+    // 键位域（第七轮拆域收官）：InputBindingsService C# 事件 → GameState 同名信号转发
+    // （KeyBindingsChanged/JoyLayoutChanged；触发点均为运行期玩家操作/手柄插拔——RebindAction/
+    // ResetKeyBindings/DetectJoyLayout，晚于 _Ready 本订阅；下方启动装配 CaptureDefaultBindings/
+    // BindJoypadDefaults 不发事件，DetectJoyLayout 无手柄不发射，有 PS 手柄时首帧发射一次经
+    // 本订阅转发——订阅在启动装配之前，转发不丢）
+    private void OnInputKeyBindingsChanged() => EmitSignal(SignalName.KeyBindingsChanged);
+
+    private void OnInputJoyLayoutChanged(StringName v) => EmitSignal(SignalName.JoyLayoutChanged, v);
+
     // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill/ApplyRunSave 直发路径不重复）
@@ -483,6 +499,11 @@ public partial class GameState : Node
         _settings.MouseLockChanged += OnSettingsMouseLockChanged;
         _settings.JoySettingsChanged += OnSettingsJoySettingsChanged;
         _settings.LocaleChanged += OnSettingsLocaleChanged;
+        // 键位域（第七轮拆域收官）：InputBindingsService 事件 → 信号转发订阅（触发点均为运行期
+        // 玩家操作/手柄插拔——RebindAction/ResetKeyBindings/DetectJoyLayout，晚于 _Ready 本订阅；
+        // 下方启动装配 DetectJoyLayout 按需发射一次，订阅在前保证转发）
+        _input.KeyBindingsChanged += OnInputKeyBindingsChanged;
+        _input.JoyLayoutChanged += OnInputJoyLayoutChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool(SfxPoolSizeValue);
@@ -491,7 +512,7 @@ public partial class GameState : Node
         // 统一事件管理器挂载（fog 组经迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
         AddChild(_events);
         _fogEvents.Wire(_events);
-        CaptureDefaultBindings();
+        _input.CaptureDefaultBindings(); // 第七轮拆域：键位域启动快照（InputBindingsService）
         InitMissions();
         LoadProfile();
         MaybeMigrateLegacyProfile(); // 账户系统：旧 profile.json 迁移缓存（首个注册用户合并）
@@ -509,11 +530,11 @@ public partial class GameState : Node
         }
 
         TranslationServer.SetLocale(Locale);
-        ApplyKeyBindings();
-        BindJoypadDefaults();
-        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）
-        Input.JoyConnectionChanged += OnJoyConnectionChanged;
-        DetectJoyLayout();
+        _input.ApplyKeyBindings(); // 第七轮拆域：键位域 InputMap 应用（InputBindingsService）
+        _input.BindJoypadDefaults(); // 第七轮拆域：键位域手柄装配（InputBindingsService）
+        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——第七轮拆域：服务公开方法接线
+        Input.JoyConnectionChanged += _input.OnJoyConnectionChanged;
+        _input.DetectJoyLayout();
         _score.InitMilestones(); // 里程碑首档初始化（ScoreService；默认 3000 = MilestoneBase[0]）
         // B 梯队：受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
         PlayerDamaged += OnPlayerDamagedDda;

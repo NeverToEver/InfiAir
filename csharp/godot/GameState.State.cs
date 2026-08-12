@@ -266,65 +266,24 @@ public partial class GameState : Node
 
     public int HighScore { get; set; } = 0;
 
-    /// <summary>P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）</summary>
-    private bool _joypadBound;
-
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
     public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
 
     public double JoyDeadzone { get => _settings.JoyDeadzone; set => _settings.JoyDeadzone = value; }
 
-    /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）。</summary>
-    public StringName JoyLayout { get; set; } = new StringName("xbox");
+    /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）——InputBindingsService 转发。</summary>
+    public StringName JoyLayout { get => _input.JoyLayout; set => _input.JoyLayout = value; }
 
-    /// <summary>Xbox/SDL 布局手柄按钮物理标签（SDL 标准位置）。</summary>
-    public Godot.Collections.Dictionary XBOX_BUTTON_LABELS { get; } = new()
-    {
-        [0] = "A",
-        [1] = "B",
-        [2] = "X",
-        [3] = "Y",
-        [4] = "LB",
-        [5] = "RB",
-        [6] = "LS",
-        [7] = "RS",
-    };
+    /// <summary>Xbox/SDL 布局手柄按钮物理标签（SDL 标准位置）——InputBindingsService 转发。</summary>
+    public Godot.Collections.Dictionary XBOX_BUTTON_LABELS => _input.XBOX_BUTTON_LABELS;
 
-    /// <summary>PS 布局手柄按钮物理标签。</summary>
-    public Godot.Collections.Dictionary PS_BUTTON_LABELS { get; } = new()
-    {
-        [0] = "✕",
-        [1] = "○",
-        [2] = "□",
-        [3] = "△",
-        [4] = "L1",
-        [5] = "R1",
-        [6] = "L3",
-        [7] = "R3",
-    };
+    /// <summary>PS 布局手柄按钮物理标签——InputBindingsService 转发。</summary>
+    public Godot.Collections.Dictionary PS_BUTTON_LABELS => _input.PS_BUTTON_LABELS;
 
-    /// <summary>手柄相关动作清单（死区应用与装配共用）</summary>
-    public Godot.Collections.Array<StringName> JOYPAD_ACTIONS { get; } = new()
-    {
-        new StringName("move_up"),
-        new StringName("move_down"),
-        new StringName("move_left"),
-        new StringName("move_right"),
-        new StringName("aim_left"),
-        new StringName("aim_right"),
-        new StringName("aim_up"),
-        new StringName("aim_down"),
-        new StringName("dash"),
-        new StringName("boost"),
-        new StringName("fine_move"),
-        new StringName("dock"),
-        new StringName("homecoming"),
-        new StringName("give_up"),
-        new StringName("buff_panel"),
-        new StringName("restart"),
-        new StringName("parry"),
-    };
+    /// <summary>手柄相关动作清单（死区应用与装配共用）——InputBindingsService 转发。
+    /// SettingsService.SetJoyDeadzone 经 Instance 跨域访问。</summary>
+    public Godot.Collections.Array<StringName> JOYPAD_ACTIONS => _input.JOYPAD_ACTIONS;
 
     /// <summary>竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）</summary>
     public Godot.Collections.Array<Godot.Collections.Dictionary> Highscores { get; set; } = new();
