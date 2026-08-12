@@ -267,9 +267,9 @@ public partial class IntroCinematic : CanvasLayer
 
     // ---------------- 构图辅助 ----------------
 
-    private static IntroGlowDot Glow(float radius, Color color, bool additive = true)
+    private static GlowDot Glow(float radius, Color color, bool additive = true)
     {
-        var dot = new IntroGlowDot { Radius = radius, DotColor = color };
+        var dot = new GlowDot { Radius = radius, DotColor = color };
         if (additive)
         {
             dot.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };

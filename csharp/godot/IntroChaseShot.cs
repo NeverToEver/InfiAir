@@ -9,7 +9,7 @@ public partial class IntroChaseShot : Node2D
 {
     public Node2D ShakeRoot = null!;
     public List<(Line2D Strut, int Side)> Struts = new();  // [Line2D, side(0=左壁 1=右壁)]：壁面斜向结构线，透视收缩向后流动
-    public List<(IntroGlowDot Lamp, int Side)> WallLights = new();  // [_GlowDot, side]：壁面防撞灯，随结构线同款透视滚动
+    public List<(GlowDot Lamp, int Side)> WallLights = new();  // [_GlowDot, side]：壁面防撞灯，随结构线同款透视滚动
     public List<Line2D> SpeedLines = new();
     public List<(Line2D Line, float SideSign)> EdgeLines = new();  // [Line2D, side_sign]：边缘放射速度线，回卷保持同侧
 

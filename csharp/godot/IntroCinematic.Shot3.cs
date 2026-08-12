@@ -43,7 +43,7 @@ public partial class IntroCinematic : CanvasLayer
 
         for (var i = 0; i < 5; i++)
         {
-            var joint = new IntroGlowDot { Radius = 7.0f, DotColor = new Color(0.24f, 0.3f, 0.42f) };
+            var joint = new GlowDot { Radius = 7.0f, DotColor = new Color(0.24f, 0.3f, 0.42f) };
             var jx = 200.0f + 400.0f * i;
             joint.Position = new Vector2(jx, 150.0f + jx * 230.0f / 1920.0f);
             root.AddChild(joint);
@@ -159,7 +159,7 @@ public partial class IntroCinematic : CanvasLayer
             root.AddChild(ghost);
             var gTorso = new Polygon2D { Polygon = chestPoints, Color = bodyColor };
             ghost.AddChild(gTorso);
-            var gHead = new IntroGlowDot { Radius = 10.5f, DotColor = bodyColor, Position = new Vector2(11.0f, -62.0f) };
+            var gHead = new GlowDot { Radius = 10.5f, DotColor = bodyColor, Position = new Vector2(11.0f, -62.0f) };
             ghost.AddChild(gHead);
         }
 
@@ -234,7 +234,7 @@ public partial class IntroCinematic : CanvasLayer
         var neck = RectPoly(4.0f, 7.0f, bodyColor);
         neck.Position = new Vector2(8.0f, -51.0f);
         torsoGrp.AddChild(neck);
-        var helmet = new IntroGlowDot { Radius = 10.5f, DotColor = bodyColor, Position = new Vector2(11.0f, -62.0f) };
+        var helmet = new GlowDot { Radius = 10.5f, DotColor = bodyColor, Position = new Vector2(11.0f, -62.0f) };
         torsoGrp.AddChild(helmet);
         var helmetRim = CinematicFx.SoftGlow(12.0f, new Color(1.0f, 0.6f, 0.3f, 0.3f));
         helmetRim.Position = new Vector2(13.0f, -64.0f);
@@ -266,7 +266,7 @@ public partial class IntroCinematic : CanvasLayer
             forearm.Position = new Vector2(0.0f, 7.5f);
             elbow.AddChild(forearm);
             forearm.AddChild(Line(new[] { new Vector2(1.8f, -6.0f), new Vector2(1.8f, 6.0f) }, edgeColor, 1.2f));
-            var hand = new IntroGlowDot { Radius = 4.0f, DotColor = c, Position = new Vector2(0.0f, 16.0f) };
+            var hand = new GlowDot { Radius = 4.0f, DotColor = c, Position = new Vector2(0.0f, 16.0f) };
             elbow.AddChild(hand);
             root.ShoulderPivots.Add(shoulder);
             root.ElbowPivots.Add(elbow);

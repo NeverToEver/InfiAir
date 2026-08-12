@@ -183,7 +183,7 @@ public partial class IntroCinematic : CanvasLayer
         {
             for (var lI = 0; lI < 5; lI++)
             {
-                var led = new IntroGlowDot
+                var led = new GlowDot
                 {
                     Radius = 3.0f,
                     DotColor = lI % 2 == 0 ? new Color(0.0f, 0.83f, 1.0f, 0.85f) : new Color(0.9f, 0.2f, 0.25f, 0.85f),
@@ -213,7 +213,7 @@ public partial class IntroCinematic : CanvasLayer
 
             for (var ledI = 0; ledI < 2; ledI++)  // 簇板顶边两角状态灯（静态，青/红各一）
             {
-                var clLed = new IntroGlowDot
+                var clLed = new GlowDot
                 {
                     Radius = 2.5f,
                     DotColor = ledI == 0 ? new Color(0.0f, 0.83f, 1.0f, 0.9f) : new Color(0.9f, 0.2f, 0.25f, 0.9f),
@@ -252,7 +252,7 @@ public partial class IntroCinematic : CanvasLayer
         for (var kI = 0; kI < 2; kI++)
         {
             var kx = 880.0f + 160.0f * kI;
-            var knob = new IntroGlowDot { Radius = 22.0f, DotColor = new Color(0.05f, 0.07f, 0.1f), Position = new Vector2(kx, 855.0f) };
+            var knob = new GlowDot { Radius = 22.0f, DotColor = new Color(0.05f, 0.07f, 0.1f), Position = new Vector2(kx, 855.0f) };
             root.AddChild(knob);
             var knobRingPoints = new Vector2[20];
             for (var pI = 0; pI < 20; pI++)

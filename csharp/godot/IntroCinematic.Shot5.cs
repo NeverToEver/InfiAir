@@ -59,7 +59,7 @@ public partial class IntroCinematic : CanvasLayer
         {
             for (var i = 0; i < 6; i++)
             {
-                var lamp = new IntroGlowDot
+                var lamp = new GlowDot
                 {
                     Radius = 5.0f,
                     DotColor = i % 2 == 0 ? new Color(1.0f, 0.35f, 0.2f, 0.85f) : new Color(0.0f, 0.83f, 1.0f, 0.85f),

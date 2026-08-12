@@ -110,7 +110,7 @@ public partial class IntroCinematic : CanvasLayer
         bandSweep.TweenProperty(scanBand, "position:y", 300.0f, 2.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
 
         // 顶层甲板状态灯带：一排小舷灯（初始青色），链爆经过时逐点转红（重着色在 Timer 步进内完成）
-        var deckLights = new List<IntroGlowDot>();
+        var deckLights = new List<GlowDot>();
         for (var dI = 0; dI < 12; dI++)
         {
             var dl = Glow(3.5f, new Color(0.0f, 0.83f, 1.0f, 0.8f));
