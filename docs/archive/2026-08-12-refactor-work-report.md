@@ -860,3 +860,11 @@
 - **packaging 打包链**:Linux(infiair.desktop + install.sh/uninstall.sh,用户态安装 set -euo pipefail + XDG 标准路径)+ Windows(install.bat/uninstall.bat),与 release.sh 导出产物配合——基础设施完整
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `78a88f7`。
+
+## 83. 继续完善轮汇总(2026-08-12,第七十二轮收官)
+
+自 §82 后追加 2 个文档修正提交:
+
+- **Roslynator 跟踪状态描述失实修复**(`ad6225c` + `7ec41df`):AGENTS.md 与 csharp-conventions.md 声称 Roslynator CLI "已 gitignore,仅本地",但实际 `tools/roslynator/roslynator` 为 **72KB 启动器 stub 已入库**(ls-files/check-ignore 核实);两处描述统一修正为"启动器 stub 已入库,完整工具链可重建"——文档与实际对齐
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7ec41df`。
