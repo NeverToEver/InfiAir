@@ -56,7 +56,7 @@
 - **InputBindingsService**（键位+手柄域）：GameState.Input.cs 全部成员（REBINDABLE_ACTIONS/KeyBindings/JoyLayout + ApplyKeyBindings/BindJoypadDefaults/RebindAction/ResetKeyBindings/ActionKeysText/DetectJoyLayout 等 15 项）迁入；JOYPAD_ACTIONS 与 PS/XBOX_BUTTON_LABELS 常量随迁；KeyBindingsChanged/JoyLayoutChanged 两信号事件化重发保序（各 2 发射点）；GameState._Ready 启动装配（CaptureDefaultBindings/BindJoypadDefaults/插拔订阅/布局检测）改调服务
 - **UserSessionService**（会话域）：GameState.Users.cs 全部成员 + CurrentUser 迁入（构造注入 UserDB+SaveManager）；LoginUser/LoginGuest/LogoutUser/CreateUser/旧档迁移/UserDB 转发 14 项；跨域经 GameState.Instance（LoadMeta/ApplySettingsDict/ApplyKeyBindings/ApplyWindowSize/SaveProfile）；无信号无需重发；SavePathForCurrent 私有一行包装（Save.cs 内部调用零改动）
 - **收官**：GameState（3216 行/10 partial 上帝类）**拆域彻底完成**——8 域服务全部独立（Meta/Missions/Score/RunProgression/Combat/Settings/InputBindings/UserSession，RefCounted + 构造注入依赖 + 信号 C# 事件 + 门面重发），GameState 收敛为编排门面（组合 8 服务 + 信号重发 + Cfg 中心 + 实体注册表）；唯一 autoload 约束保持；66 场景测试经门面零改动；残留清理（`_pendingLegacyProfile` 死代码随迁删除）
-- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + keybind/user_session/base_system/smoke 场景 exit 0 + 全场景编译探针 57 场景 fail=0 + BALANCE_MAP 重跑零 diff + autoplay 探针
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + keybind/user_session/base_system/smoke 场景 exit 0 + 全场景编译探针 57 场景 fail=0 + BALANCE_MAP 重跑零 diff + autoplay 探针 480s exit 0 **异常总数 0（0 类）**（连续第六轮）
 
 ## [3.28] - 2026-08-10
 
