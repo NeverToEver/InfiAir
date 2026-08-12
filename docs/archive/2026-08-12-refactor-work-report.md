@@ -550,3 +550,11 @@
 **运行时实证(战斗判定批次)**:parry_test 36 PASS + graze_test 12 PASS,exit 0 零 FAIL——格挡 + 擦弹(核心战斗判定路径)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4972225`。
+
+## 48. 继续完善轮汇总(2026-08-12,第三十七轮收官)
+
+自 §47 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(启动/导航批次)**:startup_flow_test 23 PASS + back_navigation_test 21 PASS,exit 0 零 FAIL——启动流程 + 返回导航(UI 导航链路)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `99ae8fa`。
