@@ -542,3 +542,11 @@
 **运行时实证(buff/池化场景批次)**:buff_visuals_test 30 PASS + pool_reuse_test 15 PASS,exit 0 零 FAIL——buff 视觉 + 对象池复用(热路径每帧零分配红线)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7e03fff`。
+
+## 47. 继续完善轮汇总(2026-08-12,第三十六轮收官)
+
+自 §46 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(战斗判定批次)**:parry_test 36 PASS + graze_test 12 PASS,exit 0 零 FAIL——格挡 + 擦弹(核心战斗判定路径)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4972225`。
