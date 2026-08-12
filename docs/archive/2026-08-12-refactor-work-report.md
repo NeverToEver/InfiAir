@@ -850,3 +850,13 @@
 - **导出预设核查**:2 预设(Linux/X11 + Windows Desktop)↔ release.sh --export-release 双平台命令精确匹配,product_name 正确——导出链零漂移
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `b85edb7`。
+
+## 82. 继续完善轮汇总(2026-08-12,第七十一轮收官)
+
+自 §81 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **packaging 打包链**:Linux(infiair.desktop + install.sh/uninstall.sh,用户态安装 set -euo pipefail + XDG 标准路径)+ Windows(install.bat/uninstall.bat),与 release.sh 导出产物配合——基础设施完整
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `78a88f7`。
