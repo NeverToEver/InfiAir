@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [3.30] - 2026-08-12
+
 ### 维护（2026-08-12，继续完善：死代码清理 + typed 化，全量行为零变化）
 
 - **3 处冗余组注册清理**（`38aa168`）：全库 9 组名生产-消费闭环验证，`main`/`player`/`elite_turret_event` 各仅 1 处 `AddToGroup` 且全库（含测试/场景声明）零消费、零变量间接访问 → 确定性死代码删除 3 行；smoke_test 全 PASS + elite_turret_event_test 59 PASS
