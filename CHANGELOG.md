@@ -22,6 +22,12 @@
 - **后续残留清理**：Boss `TransitionCleanup` FormationBomb 判定改 `is`（M7 迁移残留脚本资源比较 → C# 类判定，删字段）；ReturnCinematic 类头注释失实修正（CinematicFx 已迁 C#、镜头类独立文件）
 - **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS + 六断言场景（boss_pattern/boss_enrage/boss_phase/boss_phase_transition/formation_strike_event/hit_logic）PASS 零 FAIL + main smoke 300 帧 140 PASS + BALANCE_MAP 重跑零 diff + **autoplay 480s 探针 exit 0 异常总数 0（0 类，连续第七轮）**；详见 `docs/archive/2026-08-12-refactor-work-report.md` §7-8
 
+### 重构（2026-08-12，继续完善：Roslynator 诊断落地 + 文档/CI 同步，全量行为零变化）
+
+- **Roslynator 诊断处置**：CA1859×5（BaseConsole 5 面板构建器返回类型 `Control`→`ChamferedPanel`，调用点零改动）+ CA1822 安全子集×7（BossAttacks/EnrageSequence/BuffSelect 私有方法标 `static`，非 Godot 信号目标，零调用点改动）；剩余 CA1822 公开成员（信号回调/白盒接口/兼容桥）语义保留；性能复测对照 worktree 零回归（中位 1.603→1.57 ms，噪声内）
+- **文档/CI 漂移修复**：CI full-regression 断言场景计数 56→57（combo_test 后权威口径，job 名 + 头注释 2 处）；ARCHITECTURE 补登记工具类（FrameCache/CfgFx/FlashFx/EnemyFx/BuffBoolCache/GlowDot）与 GameState 拆域收官；AGENTS/FOG_EVENTS/csharp-conventions/EXECUTION_LOG/工作汇报 §9 同步；ReturnCinematic 孤儿失实注释删除；CONTRIBUTING perf_bench 参数说明修正
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + base_system 79/boss_pattern 51/boss_enrage 37/buff33 40 PASS 零 FAIL + autoplay 480s 连续第七轮 exit 0 异常总数 0；详见 `docs/archive/2026-08-12-refactor-work-report.md` §9
+
 ### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
 
 - **击杀连击计分**（怒首领蜂/虫姬链式得分的温和版）：3s 窗口内连续击杀 → 击杀分 × 连击乘区（第 1 杀 ×1.0 起，每连 +0.1，封顶 ×2.0）；超时或受击断连（受击与 DDA 同源，构成「降档+断连」双通道但均不致命）；Boss 击杀/事件奖励/擦弹不计连击；HUD 新增连击标签（`UI_COMBO_FMT`）。新键 `scoring.combo.*`；新断言场景 `combo_test`
