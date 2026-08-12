@@ -323,3 +323,14 @@
 - **`_ExitTree` 清理覆盖**:30 个类实现(45 个 `_Ready` 类中 2/3),覆盖全部需要清理的类(事件订阅 Hud/对象池/特效/事件层/输入控制/常驻根),与事件订阅维度交叉印证清理完备
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `76bbe13`。
+
+## 22. 继续完善轮汇总(2026-08-12,第十一轮收官)
+
+自 §21 后无代码提交,全部为核验轮:
+
+**新增核验(两项,全部零落地项)**:
+
+- **浮点精确相等比较风险**:`Vector2 == 定值`(Position/Velocity/GlobalPosition)与 `float == 定值`(速度/角度/时间/比例)全库**零出现**——浮点比较纪律完备(范围判断/IsEqualApprox/状态机整数值);唯一例外 `dir == Vector2.Zero`(BossAttacks H10 归一化零向量防护,dir 为非累计精确值,合法)
+- **`Directory.Build.props` 编译设置**:`Nullable enable` + `TreatWarningsAsErrors`(硬门禁,对齐 project.godot 警告闸)+ `LangVersion latest` + `AnalysisLevel latest` + `ImplicitUsings`,net8.0——编译红线载体完备
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7167b95`。
