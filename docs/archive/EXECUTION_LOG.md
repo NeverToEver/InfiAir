@@ -200,3 +200,19 @@
 - **关键决策**：AC12/AC19 design-confirmed 不改代码（分裂子机 0 分计连击跟 DESIGN_BASELINE 列举项；编队不冻结 Boss 是 §1 设计意图）；AC13 登记定级 P3（AC8 附带孪生，上限钳既有）；AC10 为唯一结构性改动（纯类型替换、行为逐字节等价、失败可单文件回退）。
 - **验证**：dotnet build 0w/0e + xUnit 113→115（AC21 序号回绕 / AC24 _seq 巨值）+ format 三工程零 diff + import 0 错误 + 定向场景（combo 新用例 8 / buff33 新用例 1c / boss_enrage / boss_registry）+ 全量断言场景 57/57（1861 PASS / 0 FAIL）+ quit-after 300 0 错误 + BALANCE_MAP 重跑 0 缺失键（231 行号同步）。引擎错误扫描 2 条 ERROR 基线对照证实为既有测试行为（smoke 损坏存档预期输出；boss_registry 退出 Area2D RID 泄漏——git stash 还原后同样存在）。
 - **原文**：`docs/AUDIT_VAULT.md` AC 系列条目
+
+## 2026-08-12 · 分支清理 + 性能基准 + 演出层拆分（收官轮）
+
+- **落地**：`ab76a88`（删 4 已合并实验分支引用）→ `22f32f9`（IntroCinematic 2204→11 文件）→ `0da882d`（ReturnCinematic 1785→12 文件）→ `81fba32`（工作汇报 §1-6）
+- **摘要**：三线收官——① 删除已并入 main 的 4 个实验分支引用（opt-cfgfx/dualsource/hotpath/services，历史保留）；② 性能基准（PerfBench 1800 帧 @1000Hz + 200 敌机，3 次取中位数）：重构前基线 `fb41612` 1.520 ms/帧 → 拆域收官 1.557 → 拆分后 **1.390**，全程 ±11% 噪声内零回归；③ 演出层上帝文件文件粒度拆分（partial 按镜头切分 + 节点类独立文件，类名=文件名），成员块逐字核对 ALL OK，纯移动零逻辑改动。
+- **关键决策**：拆分按「编排器 + 每镜头 partial + 节点类独立文件」惯例；PerfBench 3 次取中位数抗机器抖动；演出层为剩余最大非热路径文件（Player/Hud/Boss 热路径核心拆分收益/风险比低，登记不动）。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + intro 37/return 45 PASS + 全场景探针 58 fail=0 + smoke 140 PASS + BALANCE_MAP 零 diff + autoplay 480s exit 0 异常总数 0。
+- **原文**：`docs/archive/2026-08-12-refactor-work-report.md`
+
+## 2026-08-12 · 演出层样板收敛 + 残留清理（同日续）
+
+- **落地**：`37a8778`（GlowDot 单源化）→ `cc29af2`（构图辅助收敛 CinematicFx）→ `a2ecd92`（Boss FormationBomb is 判定 + 注释对齐）→ `2659d62`（StartBackdrop RNG 字段复用，U20 登记项）→ 文档同步 `d4b36bc`/`12b20bf`/`cdebb88`/`2062804`/`7bed321`/`81fba32`
+- **摘要**：演出层拆分后自然收敛——`IntroGlowDot` 并入 `GlowDot`（实现逐字一致，11 处引用替换删文件）；`Glow/RectPoly/BgRect/Line` 双源上移 `CinematicFx` 单源（两演出层各留 4 行转发，调用点零改动，实现 -103 行）；Boss `TransitionCleanup` FormationBomb 脚本资源比较改 `is`（M7 迁移残留）；StartBackdrop 每次 `_Draw` 新建 RNG 改字段复用 + seed 重置（行为逐位一致）。
+- **关键决策**：CA1822 类诊断（105 条可标 static）不落地——多数为 Godot 信号回调/白盒接口/刻意保留桥，标 static 会破坏 `Connect`/`Callable` 绑定语义；U20 登记项核销核对（SegmentedBar O(n²) 已修、FormationBomb 哨兵已无、Coroutine 双语句已多行、5 份 % 格式化已收敛 GdFormat）。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 六断言场景（boss_pattern 51/boss_enrage 37/boss_phase 41/boss_phase_transition 29/formation_strike 49/hit_logic 77）0 FAIL + smoke 140 PASS + **autoplay 480s 连续第七轮 exit 0 异常总数 0（0 类）**。
+- **原文**：`docs/archive/2026-08-12-refactor-work-report.md` §7-8
