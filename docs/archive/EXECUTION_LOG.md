@@ -127,6 +127,7 @@
 ## 2026-08-05 · Q 系列全量修复（deep review 批次落地）
 
 - **落地**：本次提交（Q01-Q30 全量 + P4 合理项；五层门禁全绿后提交，仅 commit 不 push）
+- **原文**：`docs/archive/2026-08-05-independent-audit-report.md`（审计报告）+ `docs/archive/2026-08-05-main-architecture-optimization-report.md`（主架构优化）
 - **摘要**：按用户指示「goal 模式，最新报告，全量修复，仅提交」执行 2026-08-05 deep review 报告全部登记项。P1×1 + P2×9 + P3×20 全部修复落地（Q22 复核为审计误报——`size_flags_vertical` 自 2026-07-30 已具备，无改动）；P4 注释失实/文档计数/硬编码坐标/性能观察（orbital 单位圆缓存）/边界防御（progress 钳 0、score 上限、全零权重、ConfusionEvent 空转降级、reload_balance 联动）/工具链（gen_balance_map 报错、release.yml 重复版本与主分支版本同步、测试配置还原）等合理项修复；strafe_range 1920 复核为设计宽度常量保留。
 - **关键决策**：需设计拍板项按报告推荐方向执行——Q01 消费侧改绝对值（与 §5.6 一致，easy 22→10/medium 24→12/hard 26→14 发）、Q27 直接绝对赋值（与 `_move_bob` 同模式，MOVE4_SPEED 键随修移除）、Q15 approach_speed 下限钳制、Q29/Q30 全量入库（`enemies.move_strategies` + `sniper3.burst_interval`，缺键回退脚本默认=现值行为逐字节等价）。
 - **修复过程中发现的测试/实现缺陷**：Q24 走真实输入管线后暴露「输入框内 Enter 被 LineEdit 消费 → 键盘登录断链」（补 text_submitted 连接，B7-13 承诺真正达成）；welcome_flow_test 场景 8/9 重建实例未释放导致残留 SettingsUI 抢占 group（Q09 修复验证中暴露）；GDScript lambda 捕获 int 为值拷贝（Q13 计数改数组承载）；Q04 断言构造需直写档避免 set_difficulty 覆盖 profile。
@@ -200,6 +201,13 @@
 - **关键决策**：AC12/AC19 design-confirmed 不改代码（分裂子机 0 分计连击跟 DESIGN_BASELINE 列举项；编队不冻结 Boss 是 §1 设计意图）；AC13 登记定级 P3（AC8 附带孪生，上限钳既有）；AC10 为唯一结构性改动（纯类型替换、行为逐字节等价、失败可单文件回退）。
 - **验证**：dotnet build 0w/0e + xUnit 113→115（AC21 序号回绕 / AC24 _seq 巨值）+ format 三工程零 diff + import 0 错误 + 定向场景（combo 新用例 8 / buff33 新用例 1c / boss_enrage / boss_registry）+ 全量断言场景 57/57（1861 PASS / 0 FAIL）+ quit-after 300 0 错误 + BALANCE_MAP 重跑 0 缺失键（231 行号同步）。引擎错误扫描 2 条 ERROR 基线对照证实为既有测试行为（smoke 损坏存档预期输出；boss_registry 退出 Area2D RID 泄漏——git stash 还原后同样存在）。
 - **原文**：`docs/AUDIT_VAULT.md` AC 系列条目
+
+## 2026-08-11 · 重构全链路工作汇报（存档）
+
+- **落地**：`164b3a7` 起多轮（帧缓存收敛/样板去重/MetaService 拆域 → 四分支实验 → GameState 拆域 8 服务收官）
+- **摘要**：SOLID + 空间换时间重构全链路汇总——三轮基线重构、四分支策略实验（opt-cfgfx 评优并入）、GameState 3216 行上帝类拆为 8 域服务（Meta/Missions/Score/RunProgression/Combat/Settings/InputBindings/UserSession）+ SettingsService 收尾 + 保留分支合并；行为零变化铁律,每阶段全量验证。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景 PASS 零 FAIL + autoplay 480s 连续多轮 exit 0 异常总数 0。
+- **原文**：`docs/archive/2026-08-11-refactor-work-report.md`
 
 ## 2026-08-12 · 分支清理 + 性能基准 + 演出层拆分（收官轮）
 
