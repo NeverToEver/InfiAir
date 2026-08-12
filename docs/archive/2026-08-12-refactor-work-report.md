@@ -492,3 +492,11 @@
 **运行时实证(实体/元进度场景批次)**:entity_manager_test 12 PASS + meta_test(MetaProgressionTest 挂载场景)24 PASS,exit 0 零 FAIL——统一实体管理器 + 元进度(MetaService 域)实证健康。(注:核实 MetaProgressionTest.cs 挂载于 meta_test.tscn,不存在 meta_progression_test.tscn 场景)
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2c8e32d`。
+
+## 41. 继续完善轮汇总(2026-08-12,第三十轮收官)
+
+自 §40 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(C# 架构断言批次)**:csharp_call_test 7 PASS + csharp_interop_test 8 PASS,exit 0 零 FAIL——C# 静态方法经脚本调用/Core 互操作(纯 C# 类经 Godot 端点触达)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5728d6e`。
