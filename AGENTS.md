@@ -8,7 +8,7 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 
 - Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (accounts; main.tscn = battle scene, explicitly instanced by tests).
 - Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
-- Only autoload: `GameState` (`csharp/godot/GameState.cs`) — facade over 8 non-autoload services: `BalanceService.cs` / `SaveManager.cs` / `SfxPlayer.cs` / `EntityManager.cs`（统一实体管理器；`docs/ENTITY_MANAGER.md`）/ `FogEventManager.cs`（迷雾效果层门面；`docs/FOG_EVENTS.md`）/ `GameEventManager.cs`（统一事件管理器；`docs/EVENT_MANAGER.md`）/ `UserDB.cs`（本地账户）/ `ProgressionInterop.cs`（进程曲线桥），均在 `csharp/godot/`。C# 侧统一经 `GameState.Instance` typed 访问。
+- Only autoload: `GameState` (`csharp/godot/GameState.cs`) — facade over 8 non-autoload services: `BalanceService.cs` / `SaveManager.cs` / `SfxPlayer.cs` / `EntityManager.cs`（统一实体管理器；`docs/ENTITY_MANAGER.md`）/ `FogEventManager.cs`（迷雾效果层门面；`docs/FOG_EVENTS.md`）/ `GameEventManager.cs`（统一事件管理器；`docs/EVENT_MANAGER.md`）/ `UserDB.cs`（本地账户）/ `ProgressionInterop.cs`（进程曲线桥），均在 `csharp/godot/`。C# 侧统一经 `GameState.Instance` typed 访问。**GameState 拆域收官 (2026-08-11)**：另组合 8 个域服务（`MetaService`/`MissionsService`/`ScoreService`/`RunProgressionService`/`CombatStateService`/`SettingsService`/`InputBindingsService`/`UserSessionService`，RefCounted + 构造注入 + 信号 C# 事件 + 门面重发），GameState 收敛为编排门面；详见 `docs/ARCHITECTURE.md`。
 - Game text: zh+en bilingual (UI default `zh`; new keys fill both `translations.csv` columns). Docs in English; `docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese.
 - `CLAUDE.md` = entry overview only; this file wins on conflict.
 - Design intent / architecture baseline amended only via `docs/DESIGN_BASELINE.md`.
