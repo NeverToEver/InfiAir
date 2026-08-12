@@ -810,3 +810,13 @@
 - **data 目录跟踪治理**:git 跟踪 3 源文件(balance.json/translations.csv/translations.csv.import);`translations.en/zh.translation` 为 import 生成产物,`.gitignore` 显式忽略(csv 经 import 自动生成,无需跟踪)——源入库、产物忽略自动再生,治理正确
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `617375c`。
+
+## 78. 继续完善轮汇总(2026-08-12,第六十七轮收官)
+
+自 §77 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **test 场景头部 load_steps 一致性**:66 个 test 场景 load_steps 全部与实际资源数一致(ext+sub+1),零不一致——场景元数据完整
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `06e2886`。
