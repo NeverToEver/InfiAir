@@ -49,7 +49,7 @@
 - **保留分支合并**：`feature/opt-dualsource`（Buff33Test 1e cap 三方一致性断言）干净合并；`feature/opt-hotpath`（MetaHealthFX 每帧必用 3 键字段化 + Floor 除法简化）合并——Floor 简化目标代码已随第五轮迁入 RunProgressionService，重定位至 `Tick`/`RecomputeDifficultyInternal` 两处并保留论证注释
 - **SettingsService 收尾轮**（第六轮最后一大域）：设置 setter 簇（SetCtrlToggleMode/SetViewZoom/SetWindowSize/SetAimAssistLevel/SetLocale 等 11 项）+ 视图簇（`ViewWorldRect`/`CachedViewRect` 物理帧缓存逐字搬迁、`InvalidateViewRectCache`）+ 状态字段（ViewZoom/WindowSize/AimAssistLevel/ReduceFlash/MouseLock 等 11 项）迁入新服务；**`ApplySettingsDict`/`CollectSettingsDict` 设置域持久化桥自 Save.cs 整体迁入**（跨域键经 GameState.Instance，Save.cs/Users.cs 调用点改委托）；8 信号（TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged）C# 事件 + 门面重发保序，无双发；`RefreshRegenCache` 可见性 private→public（跨服务桥，MilestoneMult 先例同款）
 - **累计收官**：GameState（3216 行/10 partial 上帝类）**拆域完成**——6 域服务（Meta/Missions/Score/RunProgression/Combat/Settings）全部迁出，GameState 收敛为编排门面（组合持有 6 服务 + 信号重发 + Cfg 中心 + 实体注册表）；唯一 autoload 约束保持；66 场景测试经门面零改动
-- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 设置域场景 exit 0（view_zoom/window_size/mouse_lock/base_system/smoke）+ BALANCE_MAP 重跑同步（行号漂移 44 行）+ autoplay 探针
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + main smoke 300 帧 + 设置域场景 exit 0（view_zoom/window_size/mouse_lock/base_system/smoke）+ BALANCE_MAP 重跑同步（行号漂移 44 行）+ autoplay 探针 480s exit 0 **异常总数 0（0 类）**
 
 ## [3.28] - 2026-08-10
 
