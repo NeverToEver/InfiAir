@@ -744,3 +744,11 @@
 **运行时实证(元健康特效)**:meta_health_fx_test 24 PASS + exit 0 零 FAIL——元健康特效(演出层,含墙钟忙等采样/Shader 参数路径)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `500e545`。
+
+## 71. 继续完善轮汇总(2026-08-12,第六十轮收官)
+
+自 §70 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(buff 面板)**:buff_panel_test 16 PASS + exit 0 零 FAIL——buff 面板 UI(BuffSelect 三选一/选择应用路径)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4f6a7e2`。
