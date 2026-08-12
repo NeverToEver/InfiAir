@@ -752,3 +752,11 @@
 **运行时实证(buff 面板)**:buff_panel_test 16 PASS + exit 0 零 FAIL——buff 面板 UI(BuffSelect 三选一/选择应用路径)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `4f6a7e2`。
+
+## 72. 继续完善轮汇总(2026-08-12,第六十一轮收官)
+
+自 §71 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(轨道打击)**:orbital_strike_test 15 PASS + exit 0 零 FAIL——轨道打击(事件演出层,OrbitalStrike 流程)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `f4af36e`。
