@@ -128,6 +128,7 @@ public sealed class PlayerBalance
     public FuelBalance? Fuel { get; set; }
 }
 
+/// <summary>player.fuel section 类型化（drain 燃料消耗率，抽查见 test/balance_test.gd）。</summary>
 public sealed class FuelBalance
 {
     [JsonPropertyName("drain")]
@@ -150,6 +151,7 @@ public sealed class EnemyBalance
     public double DamageRampFactor { get; set; }
 }
 
+/// <summary>enemies.bullet_damage section 类型化（single/spread/laser 三弹种伤害，抽查见 test/balance_test.gd）。</summary>
 public sealed class BulletDamageBalance
 {
     [JsonPropertyName("single")]
@@ -207,6 +209,7 @@ public sealed class MothershipBalance
     public MissileBalance? Missile { get; set; }
 }
 
+/// <summary>mothership.missile section 类型化（damage 80，抽查见 test/balance_test.gd）。</summary>
 public sealed class MissileBalance
 {
     [JsonPropertyName("damage")]
