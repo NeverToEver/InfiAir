@@ -267,3 +267,18 @@
 - **CHANGELOG 同步**(`21651d3`):补记最近 4 提交(组注册清理/typed 化 + 核验留档 + 性能数字)
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `21651d3`。
+
+## 18. 继续完善轮汇总(2026-08-12,第七轮收官)
+
+自 §17 后无代码提交,全部为核验轮 + 最终长跑回归:
+
+**新增核验(四项,全部零落地项)**:
+
+- **`IsInstanceValid` 判活守卫分布**:全库 95 处,集中在动态节点密集文件(Mothership 11/GameEventManager 11/FormationStrikeEvent 7/EliteTurretEvent 6/Main 5),动态引用访问前判活习惯健康
+- **`Tr()` i18n 纪律**:生产 247 处调用集中于 UI 层(SettingsUi 47/Welcome 42/Hud 31/BaseConsole 28/Tutorial 24);5 处动态键拼接(`FOG_EVENT_`/`BUFF_`/`MISSION_`/`DIFF_` 前缀)此前翻译键双向覆盖已证实全部存在
+- **`GameState` 访问纪律**:生产代码零 `GetNode<GameState>("/root/GameState")` 直接访问(64 处绝对路径全在测试),816 处统一 `GameState.Instance`——单例访问单一入口
+- **事件层运行时实证**:formation_strike_event_test 49 PASS / fog_event_test 70 PASS / mothership_summon_test 32 PASS,exit 0 零 FAIL
+
+**最终长跑回归(autoplay 480s)**:exit=0 + 异常总数 0(run=4 完整循环,score 55318,全程 orphan=0、res 稳定 112-114、mem ~91MB 稳定)——最近 6 提交(含 2 代码提交)后健康基线完整保持。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `ad6ed81`。
