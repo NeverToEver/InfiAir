@@ -654,3 +654,11 @@
 **运行时实证(窗口设置)**:window_size_test 17 PASS + exit 0 零 FAIL——窗口尺寸设置(SettingsService 域,含 ViewWorldRect 帧缓存相关路径)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `233c376`。
+
+## 61. 继续完善轮汇总(2026-08-12,第五十轮收官)
+
+自 §60 后追加 1 个文档修复提交:
+
+- **BALANCE_MAP 行号漂移修复**(`fb58486`):本地重跑 gen_balance_map.py 发现 docs/BALANCE_MAP.md 有 144 行 diff——经核实**全部为行号偏移**(-1/-2 系统性,38aa168 删组注册等重构删行后文档未重新生成),键路径/回退值零变化;重新生成并提交后重跑**零 diff**。注:该漂移若推 main 会被 CI full-regression 的 BALANCE_MAP 零 diff 闸拦截——本地重跑提前发现并修复。
+
+**验证(全部通过)**:build 0w/0e + BALANCE_MAP 重跑零 diff + 工作区干净,HEAD `fb58486`。
