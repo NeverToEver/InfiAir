@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 修复（2026-08-12，发布包空壳：Windows logo 后无报错闪退）
+
+- **根因**：仓库缺失 `InfiAir.sln`（Godot .NET 导出硬依赖，历史从未入库），导出时 `dotnet publish` 被静默跳过，exit 0 + "completed with warnings" 产出不带任何 C# 程序集的空壳包——Windows logo 后直接退出无任何报错，Linux 产物实测同样启动即段错误
+- **修复**：`InfiAir.sln` 入库（三工程）；`release.sh` 新增 sln 前置硬检查 + 导出日志 ERROR 扫描（Godot 导出失败也返回 0）+ `data_InfiAir_<平台>_x86_64/` 托管运行时目录存在性校验，任一不满足即中止；打包与 install.sh/install.bat 携带运行时目录（原仅拷贝单个可执行文件）
+- **连带清理**：`export_presets.cfg` `exclude_filter` 排除 `tests-csharp/*` 与 `obj/bin` 编译中间产物（原 230+ 源码/构建产物混入 pck）
+- **验证**：修复前复现段错误（exit 139）；修复后双平台导出零 ERROR、解包实跑正常（引擎启动 + 全部 C# 脚本加载 + 存活至超时）；缺 sln 负向测试 exit 1 并给出修复指引
+
 ## [3.30] - 2026-08-12
 
 ### 维护（2026-08-12，继续完善：死代码清理 + typed 化，全量行为零变化）

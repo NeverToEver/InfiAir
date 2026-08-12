@@ -55,6 +55,16 @@ for tool in tar zip; do
 	}
 done
 
+# 2026-08-12 修复（Windows 发布包 logo 后闪退）：Godot .NET 导出强依赖解决方案文件——
+# 缺失时 dotnet publish 被静默跳过，导出仍以 exit 0「completed with warnings」收尾，
+# 产出不带任何 C# 程序集的空壳包（引擎 logo 后 .NET 初始化失败直接退出，Windows 无控制台无可见
+# 报错）。事前硬检查，杜绝带病出包
+if [ ! -f InfiAir.sln ]; then
+	echo "[release] 缺少 InfiAir.sln（.NET 导出必需）" >&2
+	echo "         生成：dotnet new sln -n InfiAir && dotnet sln add InfiAir.csproj csharp/core/InfiAir.Core.csproj tests-csharp/InfiAir.Core.Tests.csproj" >&2
+	exit 1
+fi
+
 BUILD_DIR="builds"
 STAGE_DIR="$BUILD_DIR/stage"
 OUT_DIR="$BUILD_DIR/release"
@@ -62,24 +72,53 @@ OUT_DIR="$BUILD_DIR/release"
 echo "==> 资源导入"
 "$GODOT" --headless --import --path .
 
+# 2026-08-12：导出包装函数——Godot 导出即使 C# 构建失败也以 exit 0 收尾（日志仅见 ERROR），
+# 仅靠退出码会放行空壳包；故强制扫描日志 ERROR + 校验托管程序集目录存在
+export_platform() {
+	local preset="$1" out="$2" data_dir="$3" log
+	log="$(mktemp)"
+	if ! "$GODOT" --headless --path . --export-release "$preset" "$out" >"$log" 2>&1; then
+		cat "$log" >&2
+		rm -f "$log"
+		echo "[release] 导出失败：$preset" >&2
+		exit 1
+	fi
+	if grep -q "^ERROR" "$log"; then
+		grep "^ERROR" "$log" | sort -u | head -5 >&2
+		rm -f "$log"
+		echo "[release] 导出日志含 ERROR（$preset），中止——产物不可信" >&2
+		exit 1
+	fi
+	rm -f "$log"
+	# C# 工程导出必须携带托管运行时目录（coreclr + InfiAir.dll 等）；缺失即空壳包
+	if [ ! -d "$(dirname "$out")/$data_dir" ]; then
+		echo "[release] 导出产物缺少 $data_dir/（$preset）——C# 程序集未随包导出" >&2
+		exit 1
+	fi
+}
+
 echo "==> 导出 Linux/X11"
 mkdir -p "$BUILD_DIR/linux"
-"$GODOT" --headless --path . --export-release "Linux/X11" "$BUILD_DIR/linux/InfiAir.x86_64"
+export_platform "Linux/X11" "$BUILD_DIR/linux/InfiAir.x86_64" "data_InfiAir_linuxbsd_x86_64"
 
 echo "==> 导出 Windows Desktop"
 mkdir -p "$BUILD_DIR/windows"
-"$GODOT" --headless --path . --export-release "Windows Desktop" "$BUILD_DIR/windows/InfiAir.exe"
+export_platform "Windows Desktop" "$BUILD_DIR/windows/InfiAir.exe" "data_InfiAir_windows_x86_64"
 
 echo "==> 打包"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/linux" "$STAGE_DIR/windows" "$OUT_DIR"
 
+# 2026-08-12：托管运行时目录（coreclr + InfiAir.dll 等）必须随包发布——
+# 仅拷可执行文件的包在目标机启动 logo 后即闪退（.NET 初始化失败）
 cp "$BUILD_DIR/linux/InfiAir.x86_64" "$STAGE_DIR/linux/"
+cp -r "$BUILD_DIR/linux/data_InfiAir_linuxbsd_x86_64" "$STAGE_DIR/linux/"
 cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/infiair.desktop "$STAGE_DIR/linux/"
 chmod +x "$STAGE_DIR/linux/install.sh" "$STAGE_DIR/linux/uninstall.sh"
 tar -C "$STAGE_DIR/linux" -czf "$OUT_DIR/InfiAir-$VERSION-linux-x86_64.tar.gz" .
 
 cp "$BUILD_DIR/windows/InfiAir.exe" "$STAGE_DIR/windows/"
+cp -r "$BUILD_DIR/windows/data_InfiAir_windows_x86_64" "$STAGE_DIR/windows/"
 cp packaging/windows/install.bat packaging/windows/uninstall.bat "$STAGE_DIR/windows/"
 (cd "$STAGE_DIR/windows" && zip -q -r "$(cd ../../.. && pwd)/$OUT_DIR/InfiAir-$VERSION-windows-x86_64.zip" .)
 

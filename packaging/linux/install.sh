@@ -6,6 +6,8 @@ set -euo pipefail
 APP_ID="infiair"
 APP_NAME="InfiAir"
 BINARY="InfiAir.x86_64"
+# C# 托管运行时目录（coreclr + InfiAir.dll 等），必须与可执行文件同目录安装
+DATA_DIR="data_InfiAir_linuxbsd_x86_64"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -17,9 +19,14 @@ if [[ ! -f "$SCRIPT_DIR/$BINARY" ]]; then
 	echo "错误：未在脚本旁找到 $BINARY" >&2
 	exit 1
 fi
+if [[ ! -d "$SCRIPT_DIR/$DATA_DIR" ]]; then
+	echo "错误：未在脚本旁找到 $DATA_DIR/（C# 运行时，缺失会导致启动后即崩溃）" >&2
+	exit 1
+fi
 
 mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$APPLICATIONS_DIR"
 cp "$SCRIPT_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
+cp -r "$SCRIPT_DIR/$DATA_DIR" "$INSTALL_DIR/$DATA_DIR"
 chmod +x "$INSTALL_DIR/$BINARY"
 
 # 命令行入口

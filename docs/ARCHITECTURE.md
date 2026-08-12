@@ -20,7 +20,7 @@
 | `.gitignore` | `.godot/`, imported `*.translation`, IDE files, exports (`builds/`; `export_presets.cfg` committed since 2026-07-30). |
 | `run.sh`/`run.command`/`run.bat` | Launch wrappers. `run.sh`: .NET-edition-first engine probe (`godot-mono` → `~/.local/bin/godot-mono` → `godot` → `godot4` → `~/.local/bin/godot` → macOS `/Applications/Godot.app`), warn on old version, args passed through (`--editor` etc.). `run.command` (double-click + terminal, aligned with run.sh since 2026-08-02): candidates incl. `/Applications`+`~/Applications` `Godot*.app`, pick 4.6+, pass engine args, no `exec` (keeps window/output on abnormal exit). |
 | `export_presets.cfg` | Linux/X11 + Windows Desktop presets (embedded pck, x86_64); needs matching export templates installed. |
-| `release.sh` | Import → dual-platform export → package into `builds/release/` (`VERSION` env sets version). |
+| `release.sh` | Import → dual-platform export → package into `builds/release/` (`VERSION` env sets version). Requires `InfiAir.sln` at root (.NET export hard dep); export log ERROR or missing `data_InfiAir_<platform>_x86_64/` managed-runtime dir = hard fail (2026-08-12); packages ship exe + runtime dir + install scripts. |
 
 No `package.json`/`pyproject.toml`/`requirements*`/`Cargo.toml`/`go.mod`/Makefile/Docker. Packaging resumed 2026-07-30: `export_presets.cfg` committed, `release.sh` one-shot, `packaging/linux/` (user-space install.sh/uninstall.sh[--purge]/infiair.desktop) + `packaging/windows/` (per-user install.bat/uninstall.bat[/purge], Start-menu shortcut). No third-party deps for routine changes.
 
