@@ -135,3 +135,9 @@
 | 保留说明 | — | 剩余 76 条 CA1822 均为公开成员(Godot 信号回调 `OnXxx`、白盒测试接口 `IsBoss/GetEnragePhase*`、UPPER_SNAKE 兼容桥),标 static 破坏 `Connect`/`Callable` 绑定或跨域接口语义,登记保留 |
 
 **验证**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + boss_pattern(51)/boss_enrage(37)/buff33(40) 断言场景 PASS 零 FAIL。
+
+### Roslynator CA 改动性能复测(2026-08-12)
+
+- **协议**:PerfBench 1800 帧 @1000Hz + 200 敌机,同机同引擎二进制,3 次取中位数;对照 worktree `f8cd225~1`(CA 改动前)vs 当前 HEAD(CA1859×5 + CA1822×7 落地后)。
+- **结果**:对照侧 1.544/1.743/1.603(中位 1.603 ms);当前侧剔除负载峰值后 1.524/1.543/1.591/1.639(中位 ~1.57 ms)——**差值 -2%,噪声内零回归**。首轮 2.273 ms 为系统 load 2.66 峰值异常值,追加采样确认。
+- **结论**:7 个热路径相关方法标 static + 5 处返回类型收窄无性能回归(编译期纯优化,预期中性)。
