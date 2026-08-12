@@ -224,6 +224,7 @@ public partial class AutoplayTest : Node
     private int _maxPlayerBullets;
     private int _maxEnemies;
     private double _maxOrphans;
+    private double _maxResources;
     private int _maxBulletPool;
     private int _maxEnemyPool;
     private readonly Godot.Collections.Dictionary _anomalyCounts = new();
@@ -1409,9 +1410,11 @@ public partial class AutoplayTest : Node
         double objCount = Performance.GetMonitor(Performance.Monitor.ObjectCount);
         double nodeCount = Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
         double orphans = Performance.GetMonitor(Performance.Monitor.ObjectOrphanNodeCount);
+        double resources = Performance.GetMonitor(Performance.Monitor.ObjectResourceCount);
         double memStatic = Performance.GetMonitor(Performance.Monitor.MemoryStatic);
         double fps = Performance.GetMonitor(Performance.Monitor.TimeFps);
         _maxOrphans = Mathf.Max(_maxOrphans, orphans);
+        _maxResources = Mathf.Max(_maxResources, resources);
         // 池规模
         int bulletPoolN = -1;
         int enemyPoolN = -1;
@@ -1449,7 +1452,7 @@ public partial class AutoplayTest : Node
             $"SNAP run={_runIndex} t_game={_gs.RunTime:0}s score={_gs.Score} hp={_gs.Health:0}/{_gs.MaxHealth():0} kills={_gs.Kills} enemies={_gs.Enemies.Count} "
             + $"bullets(p={pBullets},e={eBullets}) boss={bossS} ms={msS} dda={ddaS} diff={_gs.DifficultyMultiplier:0.00} elapsed={_spawner!.Elapsed():0}s "
             + $"nodes(main={mainNodes},total={totalNodes}) ts={Engine.TimeScale:0.00} paused={BoolStr(GetTree().Paused)} "
-            + $"perf(obj={objCount:0},nodes={nodeCount:0},orphan={orphans:0},mem={memStatic / 1048576.0:0.0}MB,fps={fps:0},fms={frameMs:0.00}) pool(b={bulletPoolN},e={enemyPoolN})"
+            + $"perf(obj={objCount:0},nodes={nodeCount:0},orphan={orphans:0},res={resources:0},mem={memStatic / 1048576.0:0.0}MB,fps={fps:0},fms={frameMs:0.00}) pool(b={bulletPoolN},e={enemyPoolN})"
         );
         // 孤儿节点：任何非零值都是泄漏信号（比节点直方图更灵敏）
         if (orphans > 0.0)
@@ -1921,7 +1924,7 @@ public partial class AutoplayTest : Node
         GD.Print($"[AUTOPLAY] 基地：维修 {_baseRepairs} | 补给 {_baseRecharges} | 路线选择 {_routeChoices} | 任务领奖 {_missionClaims}");
         GD.Print($"[AUTOPLAY] Buff 动效路径选取 {_buffAnimatedPicks} 次 | Boss P2 {_bossP2Count} 次 | 狂暴 {_bossEnrageCount} 次 | 逃跑 {_bossEscapes} 次 | 里程碑 {_milestones} 次 | 炮塔事件 {_turretEventCount} 次 | 编队事件 {_formationEventCount} 次");
         GD.Print($"[AUTOPLAY] B 梯队: DDA 降档触发 {_ddaTriggerCount} 次 | 死亡回放演出 {_replaySeenCount} 次（播完自毁，无泄漏）");
-        GD.Print($"[AUTOPLAY] 峰值: 节点 {_maxNodes} | 敌弹 {_maxEnemyBullets} | 玩家弹 {_maxPlayerBullets} | 敌机 {_maxEnemies} | 孤儿节点 {_maxOrphans:0} | 池(b={_maxBulletPool},e={_maxEnemyPool}) | 帧耗时 {_maxFrameMs:0.00}ms（基线 {_frameMsBaseline:0.00}ms）");
+        GD.Print($"[AUTOPLAY] 峰值: 节点 {_maxNodes} | 敌弹 {_maxEnemyBullets} | 玩家弹 {_maxPlayerBullets} | 敌机 {_maxEnemies} | 孤儿节点 {_maxOrphans:0} | 资源 {_maxResources:0} | 池(b={_maxBulletPool},e={_maxEnemyPool}) | 帧耗时 {_maxFrameMs:0.00}ms（基线 {_frameMsBaseline:0.00}ms）");
         int totalAnomalies = 0;
         foreach (var kv in _anomalyCounts)
         {
