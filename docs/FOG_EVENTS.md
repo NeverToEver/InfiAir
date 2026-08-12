@@ -14,7 +14,7 @@
 基地/准备界面任务列表展示（既有 `BaseConsole` 任务面板）；「刷新任务」消耗指定点数
 （RefreshPoints）重新随机抽取，点数不足禁止并提示；任务池（TaskPool）随机抽取算法。
 
-### 1.2 数据层（`csharp/godot/GameState.State.cs` + `GameState.Missions.cs`，2026-08-09 Y 系列 partial 拆分）
+### 1.2 数据层（2026-08-09 Y 系列 partial 拆分；**2026-08-11 拆域收官后职责迁 `MissionsService`**，`GameState.Missions.cs` 降为门面转发，公开 API/键语义不变）
 
 ```csharp
 // 初始手牌（保持既有 id 语义，测试/存档兼容；显示文本全走 Tr() 翻译表 MISSION_* 键，
