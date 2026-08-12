@@ -430,3 +430,13 @@
 **退出泄漏提示全面扫描**:5 个代表性场景(boss_phase/boss_phase_transition/meta/tutorial/user_db)零 leaked/RID/ObjectDB 提示——结合三重证据(boss_registry 修复 + 全库同类模式排查零其他 + §14 补批 20 场景零 ERROR),**测试环境退出泄漏已全部消除**。注:RID 泄漏提示被证实为真实检测信号(区别于此前证伪的瞬时「resources still in use」误捕——后者单跑不复现,前者稳定复现)。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `3455b95`。
+
+## 34. 继续完善轮汇总(2026-08-12,第二十三轮收官)
+
+自 §33 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **`TestExit.Quit` 调用覆盖**:66 个测试脚本全部包含 `TestExit.Quit`(带 failures 计数退出),零缺失——每个测试都有明确退出路径,零挂死风险
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `305f6cd`。
