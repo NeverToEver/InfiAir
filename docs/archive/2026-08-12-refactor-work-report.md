@@ -706,3 +706,13 @@
 **engine import 快照确认**:`godot --import` 0 错误(资源导入链健康)+ build 0w/0e + 工作区干净。
 
 **验证(全部通过)**:build 0w/0e + import 0 错误 + 工作区干净,HEAD `f0e9ed1`。
+
+## 67. 继续完善轮汇总(2026-08-12,第五十六轮收官)
+
+自 §66 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **`project.godot` application 配置完整性**:name/description/version(3.28)/main_scene(welcome.tscn)/features(4.6 + GL Compatibility)全部齐备;版本治理单一来源(release.sh 默认读取 config/version);入口场景存在——零漂移
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `ac2cd05`。
