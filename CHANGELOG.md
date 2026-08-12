@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 维护（2026-08-12，分支引用清理）
+
+- 删除 4 个已并入 main 的实验分支引用（`feature/opt-cfgfx`/`opt-dualsource`/`opt-hotpath`/`opt-services`），历史提交保留在 main 中，无内容变更
+
 ### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
 
 - **击杀连击计分**（怒首领蜂/虫姬链式得分的温和版）：3s 窗口内连续击杀 → 击杀分 × 连击乘区（第 1 杀 ×1.0 起，每连 +0.1，封顶 ×2.0）；超时或受击断连（受击与 DDA 同源，构成「降档+断连」双通道但均不致命）；Boss 击杀/事件奖励/擦弹不计连击；HUD 新增连击标签（`UI_COMBO_FMT`）。新键 `scoring.combo.*`；新断言场景 `combo_test`
