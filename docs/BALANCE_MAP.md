@@ -200,19 +200,19 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 101 | `elite_turret_event.duration` | `Duration` |
-| 104 | `elite_turret_event.enter_time` | `EnterTime` |
-| 105 | `elite_turret_event.rise_time` | `RiseTime` |
-| 106 | `elite_turret_event.boss_resume_delay` | `BossResumeDelay` |
-| 107 | `elite_turret_event.turret_hp_base` | `TurretHpBase` |
-| 110 | `elite_turret_event.turret_counts` | `TurretCounts` |
-| 116 | `elite_turret_event.ammo_sequences` | `AmmoSequences` |
-| 123 | `elite_turret_event.fire_interval` | `new Godot.Collections.Array { FireInterval.X, FireInterva...` |
-| 133 | `elite_turret_event.weak_lock` | `WeakLock` |
-| 139 | `elite_turret_event.reward_score` | `RewardScore` |
-| 140 | `elite_turret_event.carrier.hover_y` | `HoverY` |
-| 141 | `elite_turret_event.cooldown` | `Cooldown` |
-| 223 | `elite_turret_event.carrier.shake` | `4.0` |
+| 100 | `elite_turret_event.duration` | `Duration` |
+| 103 | `elite_turret_event.enter_time` | `EnterTime` |
+| 104 | `elite_turret_event.rise_time` | `RiseTime` |
+| 105 | `elite_turret_event.boss_resume_delay` | `BossResumeDelay` |
+| 106 | `elite_turret_event.turret_hp_base` | `TurretHpBase` |
+| 109 | `elite_turret_event.turret_counts` | `TurretCounts` |
+| 115 | `elite_turret_event.ammo_sequences` | `AmmoSequences` |
+| 122 | `elite_turret_event.fire_interval` | `new Godot.Collections.Array { FireInterval.X, FireInterva...` |
+| 132 | `elite_turret_event.weak_lock` | `WeakLock` |
+| 138 | `elite_turret_event.reward_score` | `RewardScore` |
+| 139 | `elite_turret_event.carrier.hover_y` | `HoverY` |
+| 140 | `elite_turret_event.cooldown` | `Cooldown` |
+| 222 | `elite_turret_event.carrier.shake` | `4.0` |
 
 ### `csharp/godot/Enemy.cs`
 
@@ -361,15 +361,15 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 107 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
-| 108 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
-| 109 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
-| 110 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
-| 111 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
-| 112 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 877 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 890 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 942 | `mothership.depart_cooldown` | `60.0` |
+| 106 | `mothership.dock_charge_time` | `DOCK_CHARGE_TIME` |
+| 107 | `effects.home_charge_time` | `HOME_CHARGE_TIME` |
+| 108 | `effects.give_up_hold_time` | `GIVE_UP_HOLD_TIME` |
+| 109 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
+| 110 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
+| 111 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
+| 876 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 889 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 941 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp/godot/MetaHealthFX.cs`
 
@@ -504,56 +504,56 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 522 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
-| 523 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
-| 524 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
-| 938 | `player.aim_assist.homing_time` | `HomingTime` |
-| 277 | `player.max_speed` | `MaxSpeed` |
-| 278 | `player.accel` | `Accel` |
-| 279 | `player.decel` | `Decel` |
-| 280 | `player.boost_mult` | `BoostMult` |
-| 281 | `player.fine_move_mult` | `FineMoveMult` |
-| 283 | `player.base_fire_interval` | `BaseFireInterval` |
-| 284 | `player.bullet_speed` | `BulletSpeed` |
-| 286 | `buffs.crit_shot.chance` | `CritChanceBase` |
-| 287 | `buffs.crit_shot.multiplier` | `CritMultiplier` |
-| 288 | `player.bullet_spread_deg` | `BulletSpreadDeg` |
-| 290 | `player.bullet_damage` | `BulletDamage` |
-| 291 | `player.invincible_time` | `InvincibleTime` |
-| 292 | `player.spawn_invincible_time` | `SpawnInvincibleTime` |
-| 293 | `player.bullet_clear_radius` | `BulletClearRadius` |
-| 295 | `player.entry.land_ratio` | `EntryLandRatio` |
-| 296 | `player.entry.rush_time` | `EntryRushTime` |
-| 297 | `player.entry.retreat_speed` | `EntryRetreatSpeed` |
-| 298 | `player.entry.retreat_time` | `EntryRetreatTime` |
-| 299 | `player.entry.invincible` | `EntryInvincible` |
-| 300 | `player.entry.spawn_clearance` | `EntrySpawnClearance` |
-| 301 | `player.entry.rush_hspeed_ratio` | `EntryRushHsRatio` |
-| 304 | `buffs.armor.multiplier` | `ArmorMult` |
-| 305 | `buffs.evasion.chance` | `EvasionChance` |
-| 306 | `buffs.regen.heal_per_sec` | `RegenPerSec` |
-| 307 | `effects.shake.player_hit` | `ShakeHit` |
-| 311 | `player.fuel.max` | `FuelMax` |
-| 314 | `player.fuel.drain` | `FuelDrain` |
-| 315 | `player.fuel.regen` | `FuelRegen` |
-| 316 | `player.fuel.restart` | `FuelRestart` |
-| 318 | `player.dash.distance` | `DashDistance` |
-| 320 | `player.dash.time` | `DashTime` |
-| 324 | `player.dash.cooldown` | `DashCooldownMaxValue` |
-| 325 | `player.dash.fuel_ratio` | `DashFuelRatio` |
-| 326 | `player.dash.afterimage_interval` | `AfterimageInterval` |
-| 328 | `player.graze_radius` | `GrazeRadius` |
-| 329 | `player.graze_score` | `GrazeScore` |
-| 331 | `player.parry.arc_deg` | `ParryArcDeg` |
-| 332 | `player.parry.radius` | `ParryRadius` |
-| 334 | `player.parry.duration` | `0.8f` |
-| 335 | `player.parry.active_time` | `0.5f` |
-| 336 | `player.parry.cooldown` | `3.0f` |
-| 340 | `player.aim_assist.input.magnet_input_min` | `_magnetInputMin` |
-| 341 | `player.aim_assist.input.magnet_input_full` | `_magnetInputFull` |
-| 342 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
-| 343 | `player.aim_assist.falloff.end` | `_falloffEnd` |
-| 344 | `player.aim_assist.falloff.min` | `_falloffMin` |
+| 521 | `fog_events.bullet_malfunction.jitter_deg` | `20.0` |
+| 522 | `fog_events.bullet_malfunction.misfire_chance` | `0.15` |
+| 523 | `fog_events.bullet_malfunction.interval_jitter` | `0.3` |
+| 937 | `player.aim_assist.homing_time` | `HomingTime` |
+| 276 | `player.max_speed` | `MaxSpeed` |
+| 277 | `player.accel` | `Accel` |
+| 278 | `player.decel` | `Decel` |
+| 279 | `player.boost_mult` | `BoostMult` |
+| 280 | `player.fine_move_mult` | `FineMoveMult` |
+| 282 | `player.base_fire_interval` | `BaseFireInterval` |
+| 283 | `player.bullet_speed` | `BulletSpeed` |
+| 285 | `buffs.crit_shot.chance` | `CritChanceBase` |
+| 286 | `buffs.crit_shot.multiplier` | `CritMultiplier` |
+| 287 | `player.bullet_spread_deg` | `BulletSpreadDeg` |
+| 289 | `player.bullet_damage` | `BulletDamage` |
+| 290 | `player.invincible_time` | `InvincibleTime` |
+| 291 | `player.spawn_invincible_time` | `SpawnInvincibleTime` |
+| 292 | `player.bullet_clear_radius` | `BulletClearRadius` |
+| 294 | `player.entry.land_ratio` | `EntryLandRatio` |
+| 295 | `player.entry.rush_time` | `EntryRushTime` |
+| 296 | `player.entry.retreat_speed` | `EntryRetreatSpeed` |
+| 297 | `player.entry.retreat_time` | `EntryRetreatTime` |
+| 298 | `player.entry.invincible` | `EntryInvincible` |
+| 299 | `player.entry.spawn_clearance` | `EntrySpawnClearance` |
+| 300 | `player.entry.rush_hspeed_ratio` | `EntryRushHsRatio` |
+| 303 | `buffs.armor.multiplier` | `ArmorMult` |
+| 304 | `buffs.evasion.chance` | `EvasionChance` |
+| 305 | `buffs.regen.heal_per_sec` | `RegenPerSec` |
+| 306 | `effects.shake.player_hit` | `ShakeHit` |
+| 310 | `player.fuel.max` | `FuelMax` |
+| 313 | `player.fuel.drain` | `FuelDrain` |
+| 314 | `player.fuel.regen` | `FuelRegen` |
+| 315 | `player.fuel.restart` | `FuelRestart` |
+| 317 | `player.dash.distance` | `DashDistance` |
+| 319 | `player.dash.time` | `DashTime` |
+| 323 | `player.dash.cooldown` | `DashCooldownMaxValue` |
+| 324 | `player.dash.fuel_ratio` | `DashFuelRatio` |
+| 325 | `player.dash.afterimage_interval` | `AfterimageInterval` |
+| 327 | `player.graze_radius` | `GrazeRadius` |
+| 328 | `player.graze_score` | `GrazeScore` |
+| 330 | `player.parry.arc_deg` | `ParryArcDeg` |
+| 331 | `player.parry.radius` | `ParryRadius` |
+| 333 | `player.parry.duration` | `0.8f` |
+| 334 | `player.parry.active_time` | `0.5f` |
+| 335 | `player.parry.cooldown` | `3.0f` |
+| 339 | `player.aim_assist.input.magnet_input_min` | `_magnetInputMin` |
+| 340 | `player.aim_assist.input.magnet_input_full` | `_magnetInputFull` |
+| 341 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
+| 342 | `player.aim_assist.falloff.end` | `_falloffEnd` |
+| 343 | `player.aim_assist.falloff.min` | `_falloffMin` |
 | 82 | `buffs.rapid_fire.factor` | `—` |
 | 83 | `buffs.power_shot.factor` | `—` |
 | 84 | `buffs.efficient_boost.factor` | `—` |
