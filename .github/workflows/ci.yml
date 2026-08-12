@@ -193,7 +193,7 @@ jobs:
           retention-days: 7
 
   full-regression:
-    name: Full assertion scenes (56)
+    name: Full assertion scenes (57)
     needs: fast-gate
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
