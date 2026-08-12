@@ -102,3 +102,16 @@
 | BALANCE_MAP | `3f7e618` | 行号漂移 44 行同步 |
 
 **GameState 上帝类拆域收官**:3216 行/10 partial → 6 域服务全部迁出(Meta/Missions/Score/RunProgression/Combat/Settings),GameState 收敛为编排门面(组合持有 6 服务 + 信号重发 + Cfg 中心 + 实体注册表)。唯一 autoload 约束保持;66 场景测试经门面零改动;每阶段 build 0 警告 + xUnit 115/115 + format 零 diff + import 0 错误 + 设置域场景 exit 0;autoplay 480s 探针 exit 0 异常总数 0。
+
+## 9. 第七轮拆域收官(2026-08-11,终)
+
+「收尾 InputBindingsService/UserSession」已完成,GameState 拆域彻底收官:
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| InputBindingsService | `c25725d` | 键位+手柄域(REBINDABLE_ACTIONS/KeyBindings/JoyLayout + 15 方法)迁入新服务;JOYPAD_ACTIONS/按钮标签常量随迁;KeyBindingsChanged/JoyLayoutChanged 事件化重发保序 |
+| UserSessionService | `c57ad75` | 会话域(CurrentUser + LoginUser/LoginGuest/LogoutUser/CreateUser/旧档迁移/UserDB 转发 14 项)迁入(注入 UserDB+SaveManager);无信号;SavePathForCurrent 私有一行包装 |
+| 收官清理 | `0ccf15a` | State.cs `_pendingLegacyProfile` 死代码随迁删除 |
+| BALANCE_MAP | 零 diff | 键访问不变,无需同步 |
+
+**收官成果**:GameState(3216 行/10 partial 上帝类)→ **8 域服务全部独立**(Meta/Missions/Score/RunProgression/Combat/Settings/InputBindings/UserSession),GameState 收敛为编排门面(组合 8 服务 + 信号重发 + Cfg 中心 + 实体注册表);唯一 autoload 约束保持;66 场景测试经门面零改动;全场景编译探针 57 场景 fail=0;autoplay 480s 探针 exit 0 异常总数 0(连续第六轮)。从 3216 行上帝类到 8 服务组合,本轮重构全链路收官。
