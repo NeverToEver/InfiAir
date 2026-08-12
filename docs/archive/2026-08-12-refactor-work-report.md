@@ -500,3 +500,11 @@
 **运行时实证(C# 架构断言批次)**:csharp_call_test 7 PASS + csharp_interop_test 8 PASS,exit 0 零 FAIL——C# 静态方法经脚本调用/Core 互操作(纯 C# 类经 Godot 端点触达)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5728d6e`。
+
+## 42. 继续完善轮汇总(2026-08-12,第三十一轮收官)
+
+自 §41 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(平衡配置断言)**:balance_test 32 PASS + exit 0——期间 "Parse JSON failed" ERROR 经甄别为 `BalanceTest.cs:67` 测试**故意写入坏 JSON**(`"{broken json!!!"`)的负向用例(验证 Cfg 解析容错/缺省键回退),非真实错误;CI 引擎错误扫描 pattern("Parse Error")不误捕此故意用例,设计合理。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2cc9e31`。
