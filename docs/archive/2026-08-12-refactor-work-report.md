@@ -298,3 +298,17 @@
 **运行时实证**:base_system_test 79 PASS + welcome_flow_test 35 PASS,exit 0 零 FAIL——最近 6 提交后综合验证矩阵(门禁/核心战斗/事件层/系统层/长跑)全部绿。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `1d44e94`。
+
+## 20. 继续完善轮汇总(2026-08-12,第九轮收官)
+
+自 §19 后无代码提交,全部为核验轮:
+
+**新增核验(五项,全部零落地项)**:
+
+- **TESTING.md 断言场景列表精确比对**:修正提取正则(含数字场景名)后,58 个实际 `test/*_test.tscn`(57 assertion + autoplay)与文档列出 58 个**双向零缺失零冗余**,与 66 = 57+1+1+7 结构吻合
+- **工具链脚本语法复检**:6 个 Python 工具(`balance_editor`/`gen_balance_map`/`generate_audio`/`generate_enemy_sprites`/`generate_mothership_sprite`/`generate_player_sprite`)py_compile 全 OK + `run.sh`/`release.sh` bash -n 全 OK
+- **输入动作声明-引用比对**:project.godot 13 声明全部有代码使用(8 字符串直接引用 + 5 变体引用确认),`ui_accept`/`ui_cancel` 为 Godot 内建,零死动作、零缺失
+- **类名=文件名约定**:134 个 .cs 中 111 单类文件全部匹配 + 22 partial 拆分(`GameState.X.cs`×9/`IntroCinematic.ShotN.cs`×6/`ReturnCinematic.ShotN.cs`×7)+ 1 core 模型聚合(`BalanceModels.cs` 4 类),全部有意模式
+- **工作汇报覆盖核验**:git log 最近提交与 §15-19 一一对应,CHANGELOG 同步
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `9821444`。
