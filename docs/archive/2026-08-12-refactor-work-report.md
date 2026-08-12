@@ -414,3 +414,11 @@
 **运行时实证(演出/迁移场景批次)**:starfield_cs_test 7 PASS + entry_animation_test 13 PASS,exit 0 零 FAIL——Starfield 迁移样板(零 GDScript 样板验证)+ 入场动画(演出层)实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `3d99729`。
+
+## 32. 继续完善轮汇总(2026-08-12,第二十一轮收官)
+
+自 §31 后追加 1 个代码提交:
+
+- **BossRegistryTest 退出期 RID 泄漏修复**(`9a0565f`):引擎实证中发现 `new Boss()`(Area2D 派生,纯脚本实例不在树中)从不释放 → 退出期稳定复现 ERROR「RID allocations of type P11GodotArea2D were leaked」+ CanvasItem RID + ObjectDB instances 泄漏。修复:变量提升至 try 外 + finally `boss?.Free()`。验证:build 0w/0e + 35 PASS + **零 ERROR/WARNING**(修复前稳定复现)+ format 零 diff + 全库同类模式排查零其他(new Node 派生类测试仅此一处)。注:该 ERROR 级提示不在 CI 引擎错误扫描 pattern 内(此前未被拦截),修复后测试退出完全干净。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `9a0565f`。
