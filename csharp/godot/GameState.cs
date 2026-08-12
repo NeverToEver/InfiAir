@@ -1,7 +1,6 @@
 
 using System.Collections.Generic;
 using Godot;
-using InfiAir.Core.Text;
 
 namespace InfiAir;
 
