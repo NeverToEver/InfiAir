@@ -19,7 +19,8 @@
 
 - **GlowDot 单源化**：`IntroGlowDot` 与 `GlowDot` 实现逐字一致（Node2D + Radius/DotColor + DrawCircle，仅字段/属性写法差异），11 处引用全量并入 `GlowDot`，删 `IntroGlowDot.cs`；类名=文件名与单源原则回归
 - **构图辅助收敛 `CinematicFx`**：Intro/Return 两演出层私有 `Glow/RectPoly/BgRect/Line` 实现逐字一致，4 方法上移为 `CinematicFx` 公共静态，两演出层各保留 4 个一行转发；调用点零改动（49 Glow/44 RectPoly/14 BgRect/89 Line），构图辅助实现 2 份 → 1 份
-- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS 零 FAIL + main smoke 300 帧 140 PASS + BALANCE_MAP 重跑零 diff；详见 `docs/archive/2026-08-12-refactor-work-report.md` §7
+- **后续残留清理**：Boss `TransitionCleanup` FormationBomb 判定改 `is`（M7 迁移残留脚本资源比较 → C# 类判定，删字段）；ReturnCinematic 类头注释失实修正（CinematicFx 已迁 C#、镜头类独立文件）
+- **验证**：`dotnet build` 零警告 + xUnit 115/115 + `dotnet format` 三工程零 diff + import 0 错误 + intro_cinematic_test 37 PASS/return_cinematic_test 45 PASS + 六断言场景（boss_pattern/boss_enrage/boss_phase/boss_phase_transition/formation_strike_event/hit_logic）PASS 零 FAIL + main smoke 300 帧 140 PASS + BALANCE_MAP 重跑零 diff + **autoplay 480s 探针 exit 0 异常总数 0（0 类，连续第七轮）**；详见 `docs/archive/2026-08-12-refactor-work-report.md` §7-8
 
 ### 玩法（2026-08-11，得分/奖励设计审核——击杀连击 + 低血防御保底，`docs/archive/2026-08-11-score-combo-buff-pity-plan.md`）
 
