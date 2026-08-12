@@ -262,9 +262,6 @@ public partial class GameState : Node
     /// ——UserSessionService 转发（测试白盒直读直写保留）。</summary>
     public string CurrentUser { get => _session.CurrentUser; set => _session.CurrentUser = value; }
 
-    /// <summary>profile.json 退役迁移缓存：启动时存在旧 profile 且用户表为空 → 首个注册用户合并后删除（B5）</summary>
-    private Godot.Collections.Dictionary _pendingLegacyProfile = new();
-
     public int HighScore { get; set; } = 0;
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
