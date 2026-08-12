@@ -445,7 +445,7 @@ public partial class BuffSelect : CanvasLayer
     }
 
     // hover/focus 缩放反馈：150ms tween 到 1.05，离开/失焦回 1.0（树暂停时 BuffUI 层 process_mode=Always 可播）
-    private void TweenCardScale(ChamferedPanel card, bool on)
+    private static void TweenCardScale(ChamferedPanel card, bool on)
     {
         if (card.HasMeta("hover_tween"))
         {
@@ -457,7 +457,7 @@ public partial class BuffSelect : CanvasLayer
         tween.TweenProperty(card, "scale", on ? new Vector2(1.05f, 1.05f) : Vector2.One, 0.15);
     }
 
-    private void SetCardHighlight(ChamferedPanel card, bool on)
+    private static void SetCardHighlight(ChamferedPanel card, bool on)
     {
         card.BorderColor = on ? UITheme.Accent : UITheme.PanelBorder;
         card.BracketColor = on ? UITheme.AccentGold : UITheme.Accent;

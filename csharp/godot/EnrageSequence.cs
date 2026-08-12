@@ -381,7 +381,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>C10：方形路径角点（底→左→顶→右，index 4 循环回底），配合 PathCenter 无数组求值。</summary>
-    private Vector2 SquareCorner(int index, float radius)
+    private static Vector2 SquareCorner(int index, float radius)
     {
         switch (index % 4)
         {
@@ -496,7 +496,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
-    private Vector2 PlayerDir(Boss from)
+    private static Vector2 PlayerDir(Boss from)
     {
         var p = FrameCache.Player();
         if (p != null)
@@ -508,7 +508,7 @@ public partial class EnrageSequence : RefCounted
     }
 
     /// <summary>A3：TRANSITION 悬停判定（机型参数表驱动，取代散落的类型特判）。</summary>
-    private bool HoverInTransition(Boss boss)
+    private static bool HoverInTransition(Boss boss)
     {
         var type = boss.BossType;
         return TransitionHoverTypes.TryGetValue(type, out var hover) && hover;

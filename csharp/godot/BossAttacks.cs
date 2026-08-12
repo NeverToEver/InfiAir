@@ -377,7 +377,7 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>瞄准线：α0.3 闪烁细线（闪烁由 update 驱动），出弹/中断即毁。</summary>
-    private Line2D MakeAimLineInternal(Boss boss, Vector2 dir, float length, Color color)
+    private static Line2D MakeAimLineInternal(Boss boss, Vector2 dir, float length, Color color)
     {
         var line = new Line2D();
         line.Width = 2.0f;
@@ -671,7 +671,7 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>敌弹池发射（P2-3：同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
-    private Bullet? FireFromPool(Vector2 dir, float speed, int damage)
+    private static Bullet? FireFromPool(Vector2 dir, float speed, int damage)
     {
         var pool = GameState.Instance.BulletPool;
         if (pool == null)
