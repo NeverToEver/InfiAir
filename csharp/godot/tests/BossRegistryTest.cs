@@ -84,11 +84,12 @@ public partial class BossRegistryTest : Node
 
     private void Run()
     {
+        Boss? boss = null; // 提升至 finally 释放:new 的纯脚本实例不在树中,退出期否则泄漏 Area2D/CanvasItem RID
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
             var attacks = new BossAttacks();
-            var boss = new Boss(); // U07：GetDefaultPatterns 改实例方法后经实例访问
+            boss = new Boss(); // U07：GetDefaultPatterns 改实例方法后经实例访问
 
             // 1. 攻击注册表：10 个已知攻击 id 全覆盖（homing2 于 2026-08-03 审计删除，弹数分档并入 homing；
             // 2026-08-04 新增 ring_burst——4 型「月蚀」环弹）
@@ -191,6 +192,7 @@ public partial class BossRegistryTest : Node
         }
         finally
         {
+            boss?.Free(); // 不在树中的纯脚本实例,直接释放(RID 清洁退出)
             GD.Print($"BOSS REGISTRY TEST DONE, failures = {_failures}");
             TestExit.Quit(_failures);
         }
