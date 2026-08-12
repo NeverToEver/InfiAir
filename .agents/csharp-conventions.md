@@ -6,7 +6,7 @@
 
 ## 工程红线
 
-- **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类（GameState 按域拆分为唯一既有例外）；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
+- **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类（既有例外：GameState 按域拆分、2026-08-12 演出层 IntroCinematic/ReturnCinematic 按镜头拆 partial + 节点类独立文件）；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
 - **`.cs.uid` 必须入库**；改名/移动 .cs 连带移动 sidecar；触碰场景后重存（补 uid）。
 - **场景绑定**：`.tscn` 的 ext_resource 指向 `res://csharp/godot/X.cs`；实例化优先 `PackedScene.Instantiate<T>()`；C# 侧 `new X()` 在 NRT 下可能被视为可空（Godot 生成构造器），使用时 `!` 或判空。
 - **Async（`csharp/godot/Coroutine.cs`）**：游戏内计时一律 `SceneTree.CreateTimer` + `ToSignal`（或直接调 `Coroutine.WaitSeconds`/`WaitPhysicsFrames`/`WaitSignal` 封装），禁止裸 `Task.Delay`（线程池恢复，访问 Godot API 线程不安全）；挂起 await 无法取消 → 等待以 SceneTree 计时器兜底 + 恢复后 `GodotObject.IsInstanceValid` 判活；禁止裸 `async void` 生命周期（拆 `async Task` + try/catch）；await 段异常统一 try/catch。
