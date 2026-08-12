@@ -440,3 +440,11 @@
 - **`TestExit.Quit` 调用覆盖**:66 个测试脚本全部包含 `TestExit.Quit`(带 failures 计数退出),零缺失——每个测试都有明确退出路径,零挂死风险
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `305f6cd`。
+
+## 35. 继续完善轮汇总(2026-08-12,第二十四轮收官)
+
+自 §34 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(导航/视图场景批次)**:esc_navigation_test 11 PASS + view_zoom_test 52 PASS,exit 0 零 FAIL——Esc 导航链路 + 视图缩放(UI/视口)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `cf8cf4f`。
