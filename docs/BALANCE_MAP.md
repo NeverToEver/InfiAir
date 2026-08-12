@@ -567,7 +567,7 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 81 | `effects.return_skip_grace` | `SKIP_GRACE` |
+| 79 | `effects.return_skip_grace` | `SKIP_GRACE` |
 
 ### `csharp/godot/ScoreService.cs`
 
