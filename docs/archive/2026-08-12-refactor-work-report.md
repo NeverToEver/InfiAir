@@ -978,3 +978,13 @@
 - **enum 定义分布**:13 个 enum(State×4 为各模块独立状态机、SweepState/Phase/ParryPhase/Mode/FightPhase/ValueKind/SaveLoadStatus 等战斗/存档/配置枚举),数量合理无异常
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `0f48064`。
+
+## 95. 继续完善轮汇总(2026-08-12,第八十四轮收官)
+
+自 §94 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **core 测试覆盖**:core 8 个源码文件(递归遍历,排除 obj/ 编译产物)全部被 xUnit 测试引用,零未覆盖
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `e888f60`。
