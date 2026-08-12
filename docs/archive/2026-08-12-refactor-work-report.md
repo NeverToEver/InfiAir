@@ -253,3 +253,17 @@
 **性能基准复测(§16 最新数字)**:perf_bench 1800 帧 avg_frame_ms=**1.488**(equivalent_fps 672.1)——对比重构前基线 fb41612 1.520、§11 中位 1.510,最近 4 提交后**零回退且略优**(噪声内)。
 
 **验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + perf_bench 1.488ms + 工作区干净。
+
+## 17. 继续完善轮汇总(2026-08-12,第六轮收官)
+
+自 §16 后无代码提交,全部为核验轮 + CHANGELOG 同步(`21651d3`):
+
+**新增核验(五项,全部零落地项)**:
+
+- **代码内资源加载路径**:50 处字面量 `GD.Load<T>("res://...")` 全部存在、零动态拼接;唯一 `ResourceLoader.Load`(Main BGM)路径存在且加载失败有 PushWarning 兜底
+- **tscn 资源引用四通道**:ext_resource 路径存在性(104 处 scenes+test 零缺失)、sub_resource id 引用(77 场景零未定义)、ext_resource id 引用(77 场景零未定义)、代码 GD.Load(50 处)——四通道全部闭合
+- **场景切换路径**:4 处 `ChangeSceneToFile` 目标(welcome/tutorial/main)全部存在,导航闭环完整(welcome 入口 → main/tutorial → 返回 welcome),零死链
+- **音频播放纪律**:58 处音效统一走 SfxPlayer 服务通道;3 处直接 `.Play()` 全部为语义明确例外(BGM 长驻流/死亡回放演出节点启动/玩家射击高频专用播放器)
+- **CHANGELOG 同步**(`21651d3`):补记最近 4 提交(组注册清理/typed 化 + 核验留档 + 性能数字)
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `21651d3`。
