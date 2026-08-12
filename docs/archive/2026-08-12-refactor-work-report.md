@@ -800,3 +800,13 @@
 - **docs 跨文档引用完整性**:159 处跨文档引用,3 处"缺失"全部甄别为历史叙述/审计登记文本(PORTING_PARITY 归档历史叙述 ×2、AUDIT_VAULT T06 审计登记)——零真实断链
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `eac38c7`。
+
+## 77. 继续完善轮汇总(2026-08-12,第六十六轮收官)
+
+自 §76 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **data 目录跟踪治理**:git 跟踪 3 源文件(balance.json/translations.csv/translations.csv.import);`translations.en/zh.translation` 为 import 生成产物,`.gitignore` 显式忽略(csv 经 import 自动生成,无需跟踪)——源入库、产物忽略自动再生,治理正确
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `617375c`。
