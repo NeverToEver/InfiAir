@@ -190,3 +190,13 @@
 | 未使用 using 清理 | `cf6683b` | 启发式扫描可疑未使用 `InfiAir.Core.*` using(5 处)→ 逐个核实:仅 GameState.cs 的 `InfiAir.Core.Text` 真实未使用(拆域后 GdFormat 调用随服务迁出,删 1 行);VariantBridge 的 `Core.Config` 为 ValueKind 枚举真实依赖(删除后 CS0246 溯源发现,已回滚);其余 3 个 Text using(GameState.Save/ResearchLab/Main/Mothership)均有 GdFormat 调用。**零误删** |
 
 **验证**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system 79 PASS 零 FAIL。
+
+## 13. 继续完善轮汇总(2026-08-12,第二轮收官)
+
+自 §12 后追加 4 提交,全部行为零变化、验证绿:
+
+- **未使用 using 清理**(`cf6683b`):启发式扫描 → 逐个核实 → 仅 GameState.cs 的 `InfiAir.Core.Text` 真实未使用(拆域后 GdFormat 随服务迁出,删 1 行);VariantBridge 的 `Core.Config` 为 ValueKind 枚举真实依赖(CS0246 溯源证实,回滚);零误删
+- **工作汇报 §13 补记**(`8f9273d`)
+- **新增核验(二十余项)**:ARCHITECTURE 文件登记完整性、翻译键双向覆盖、导出链一致性、.gitattributes/.gitignore 治理、版本治理、CI/CD 政策合规、csproj 配置一致性、.uid 配对、未使用 using 依赖、归档一致性、测试辅助场景完整性、功能完整性、文档引用网络、魔法数字/字符串字面量(均 API 惯例/通用数值,零样板)
+
+**验证(全部通过)**:build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 断言场景 PASS 零 FAIL + autoplay 480s 异常总数 0 + 最终性能基准 1.510ms 持平基线。
