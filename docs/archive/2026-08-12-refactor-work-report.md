@@ -476,3 +476,11 @@
 - **死资产检查**:`assets/` 下 29 个文件(audio/fonts/shaders/sprites)全部被 tscn/代码/project.godot 引用,**零死资产**——与引用存在性检查(29 文件零缺失)互补,资产引用双向闭环
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `69352ad`。
+
+## 39. 继续完善轮汇总(2026-08-12,第二十八轮收官)
+
+自 §38 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(互操作桥批次)**:task_pool_interop_test 11 PASS + progression_interop_test 25 PASS,exit 0 零 FAIL——互操作桥(task pool/进程曲线,Core 能力经 Godot 端点触达)实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2641957`。
