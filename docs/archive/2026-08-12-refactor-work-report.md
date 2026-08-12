@@ -114,3 +114,15 @@
 **验证(全部通过)**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + boss_pattern(51)/boss_enrage(37)/boss_phase(41)/boss_phase_transition(29)/formation_strike_event(49)/hit_logic(77) 六断言场景 PASS 零 FAIL;**autoplay 480s 探针 exit 0 异常总数 0(0 类,连续第七轮)**——本轮全部代码/文档改动经长跑回归无异常(4 条 flushing queries 为既有分裂者登记项,基线对照 AUDIT_VAULT.md:1794)。
 
 | U20 登记项清理 | `2659d62` | `StartBackdrop` 每次 `_Draw` 新建 `RandomNumberGenerator`(U20 登记:无谓分配)→ 静态字段复用 + `_Draw` 首行重置 seed(20260731)——保持「每次重绘同序列」确定性,行为逐位一致;另核 U20 其余项:SegmentedBar O(n²) 已修(现 O(n))、FormationBomb 哨兵模式已无残留、Coroutine 同行双语句已多行化、Bullet 下划线私有方法 7 处为纯命名风格(调用点改动收益低,保留) |
+
+## 9. 继续完善轮(2026-08-12,同日续)
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| Roslynator CA1859 | `f8cd225` | BaseConsole 5 个面板构建器返回类型收窄 `Control`→`ChamferedPanel`(BuildHangar/BuildSupply/BuildLab/BuildRoutes/BuildMissions)——Roslynator 性能诊断落地,全部 `return panel` 实际类型即 ChamferedPanel,调用点 `AddChild` 隐式向上转换零改动;CA1859 归零 |
+| BALANCE_MAP 同步 | `f498c23` | 生成器重跑,行号漂移 125 行同步 |
+| 文档/CI/约定同步 | `b86a54e`/`e5cd461`/`e58e3e0`/`00af3e3`/`47d6b70`/`bf309f5`/`3aa05ed` | ARCHITECTURE GameState 拆域收官 + 工具类登记;AGENTS 拆域组合;FOG_EVENTS 数据层注记;csharp-conventions partial 例外补演出层;CI 断言计数 56→57(2 处);EXECUTION_LOG 补记 |
+
+**验证(全部通过)**:build 零警告 + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system_test 79 PASS 零 FAIL + Roslynator CA1859 归零 + autoplay 480s 连续第七轮 exit 0 异常总数 0。
+
+**全量核销/调研(§7-9 覆盖)**:U19/U20 登记项核销殆尽;Roslynator 110 诊断落地 CA1859×5(CA1822 105 条因 Godot 信号回调/白盒接口/刻意保留桥语义保留);translations 317 键/场景引用 104 处/资产 29 文件/TESTING 清单 58/TESTING.md 权威计数三方一致;工具链 6 脚本语法通过 + 音频幂等实测逐字节一致。
