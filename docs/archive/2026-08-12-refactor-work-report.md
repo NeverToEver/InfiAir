@@ -566,3 +566,11 @@
 **运行时实证(难度/敌机批次)**:difficulty_test 67 PASS + enemy_combat_test 44 PASS,exit 0 零 FAIL——难度系统(难度乘数公式)+ 敌机战斗实证健康。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `3fb713b`。
+
+## 50. 继续完善轮汇总(2026-08-12,第三十九轮收官)
+
+自 §49 后无代码提交,全部为运行时实证轮:
+
+**运行时实证(命中/教程批次)**:hit_logic_test 77 PASS + tutorial_test 30 PASS,exit 0 零 FAIL——命中逻辑(A1/A2 判定)+ 教程流程实证健康。
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `0c014c9`。
