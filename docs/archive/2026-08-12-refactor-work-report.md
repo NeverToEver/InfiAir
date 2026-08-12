@@ -353,3 +353,14 @@
 **运行时实证(域服务场景批次)**:i18n_test 9 PASS + keybind_test 18 PASS,exit 0 零 FAIL——叠加此前已验证的 base_system(存档域)/welcome_flow(账户域),**8 域服务运行时路径全部实证健康**(Meta/Missions/Score/RunProgression/CombatState/Settings/InputBindings/UserSession 经各自 interop 测试场景覆盖)。
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `05b7d87`。
+
+## 25. 继续完善轮汇总(2026-08-12,第十四轮收官)
+
+自 §24 后无代码提交,全部为核验轮:
+
+**新增核验(两项,全部零落地项)**:
+
+- **碰撞层位值一致性**:约定(collision-view.md)1=player/2=player_bullet/3=enemy/4=enemy_bullet;代码直接赋值全部一致(FormationBomb Layer=8、FormationCraft Layer=4、Boss 离场 Layer=0、Bullet 双向 Layer/Mask)——零错配,命中判定走 group 各司其职
+- **`process_mode` 使用**:tscn 11 处 + 代码 8 处显式设置全部 = Always(演出层/暂停 UI 族/特效/教程计时/虚拟控制——暂停中需运行的语义设计),零错配
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2dc0366`。
