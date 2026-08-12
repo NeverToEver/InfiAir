@@ -334,3 +334,14 @@
 - **`Directory.Build.props` 编译设置**:`Nullable enable` + `TreatWarningsAsErrors`(硬门禁,对齐 project.godot 警告闸)+ `LangVersion latest` + `AnalysisLevel latest` + `ImplicitUsings`,net8.0——编译红线载体完备
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7167b95`。
+
+## 23. 继续完善轮汇总(2026-08-12,第十二轮收官)
+
+自 §22 后无代码提交,全部为核验轮:
+
+**新增核验(两项,全部零落地项)**:
+
+- **断言消息唯一性**:1427 条 Check 断言中 1367 唯一(96%),34 处重复全部甄别为合理模式——26x 测试输入数据(密码参数)、Boss 族共享断言模板(跨文件由文件名+行号定位)、Intro/Return 演出层对称模板、同文件 2 处行号可定位——零真实诊断障碍
+- **物理/渲染 tick 设置**:project.godot 未显式设置(默认 60Hz 物理标准);perf_bench 测试内部 1000Hz(PerfBench.cs:32)且结束后恢复 60(74 行),隔离测试不影响主游戏;无 max_fps/vsync 异常覆盖
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `5b77aec`。
