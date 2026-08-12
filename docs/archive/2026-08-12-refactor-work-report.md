@@ -868,3 +868,13 @@
 - **Roslynator 跟踪状态描述失实修复**(`ad6225c` + `7ec41df`):AGENTS.md 与 csharp-conventions.md 声称 Roslynator CLI "已 gitignore,仅本地",但实际 `tools/roslynator/roslynator` 为 **72KB 启动器 stub 已入库**(ls-files/check-ignore 核实);两处描述统一修正为"启动器 stub 已入库,完整工具链可重建"——文档与实际对齐
 
 **验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `7ec41df`。
+
+## 84. 继续完善轮汇总(2026-08-12,第七十三轮收官)
+
+自 §83 后无代码提交,全部为核验轮:
+
+**新增核验(一项,零落地项)**:
+
+- **文档标题结构**:全库 docs/*.md 仅 1 处跨文件重复标题('2. State Machine' 为各文档独立章节编号,正常结构)——零标题漂移
+
+**验证(全部通过)**:build 0w/0e + 工作区干净,HEAD `2c3d4ae`。
