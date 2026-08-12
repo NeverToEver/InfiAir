@@ -243,7 +243,10 @@ public sealed partial class RunProgressionService : RefCounted
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）。</summary>
     public bool RecomputeDifficultyInternal()
     {
-        var step = (int)Mathf.Floor(GameState.Instance.RunTime / _progTimeStepSeconds);
+        // (int)Mathf.Floor(x) 简化为 (int)x（opt-hotpath 合并，2026-08-11）：RunTime 恒 ≥ 0
+        // （初值 0、仅 _Process += delta、存档读入 Clamp [0,1e6]、重置为 0；测试直写非负），
+        // 对非负数截断与 floor 等价，省一次原生调用
+        var step = (int)(GameState.Instance.RunTime / _progTimeStepSeconds);
         // 2026-08-07：曲线公式迁移 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）
         var newMult = GameState.Instance.Progression.DifficultyMultiplier(
             GameState.Instance.RunTime, _progTimeStepSeconds, _progPerTenMinutes, _progPerBossKill, GameState.Instance.BossKills);
@@ -264,7 +267,8 @@ public sealed partial class RunProgressionService : RefCounted
     public void Tick(double delta)
     {
         // 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
-        if ((int)Mathf.Floor(GameState.Instance.RunTime / _progTimeStepSeconds) != _difficultyTimeStep)
+        // (int)Mathf.Floor(x) 简化为 (int)x（opt-hotpath 合并）：RunTime ≥ 0 时截断等价 floor（省原生调用）
+        if ((int)(GameState.Instance.RunTime / _progTimeStepSeconds) != _difficultyTimeStep)
         {
             if (RecomputeDifficultyInternal())
             {
