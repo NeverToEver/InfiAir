@@ -27,7 +27,7 @@
 - `.editorconfig` 管 C# 风格(4 空格缩进、file-scoped namespace、max_line_length 140);`dotnet format --verify-no-changes` 三工程零 diff 是 CI 硬门禁(2026-08-09 全量规范化后防回归)。
 - CI 零 GDScript 闸:任何新增 `.gd` 文件即失败——禁止回归 GDScript。
 - 新增 `.cs` 前先确认它落在哪个 csproj 编译范围:主 `InfiAir.csproj` 显式排除 `csharp/core/**` 与 `tests-csharp/**`(分别由各自 csproj 编译),避免双编译。
-- **静态审查工具**:Roslynator CLI 本地留存 `tools/roslynator/`(启动器 stub 已入库,72KB;完整工具链 `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli` 可重建),运行需 `DOTNET_ROOT=~/.dotnet`。`roslynator analyze <csproj>` 报告为 info 级建议、非 CI 门禁;应用口径(2026-08-10 AA 系列):CA1854/1846/1866/1869/1861/1859 安全子集可落地,**CA1822(标 static)不应用**——Godot 场景/信号按名连接对 static 方法有运行期解析风险。
+- **静态审查工具**:Roslynator CLI 本地留存 `tools/roslynator/`(`tools/` 已 gitignore 不入库;完整工具链 `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli` 重建——2026-08-13 部署确认仓库无 stub,须完整安装),运行需 `dotnet` 在 PATH 且 `DOTNET_ROOT=~/.dotnet`(`~/.dotnet` 为官方 dotnet-install.sh 默认安装目录;Roslynator 经 PATH 启动 dotnet MSBuild host,缺 PATH 时 ForkAndExecProcess 报 No such file or directory)。`roslynator analyze <csproj>` 报告为 info 级建议、非 CI 门禁;应用口径(2026-08-10 AA 系列):CA1854/1846/1866/1869/1861/1859 安全子集可落地,**CA1822(标 static)不应用**——Godot 场景/信号按名连接对 static 方法有运行期解析风险。
 
 ## Layer Boundary(最高优先级)
 

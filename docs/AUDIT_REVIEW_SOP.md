@@ -45,7 +45,7 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 ### Minimal verification set
 
 - Every change: `--headless --import` + targeted tests; C# touched → + `dotnet build` (zero warnings) + `dotnet test tests-csharp/` (+ `dotnet format --verify-no-changes`, mirrors CI format gate); balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: full assertion-scene set, 0 FAIL (count authoritative in `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
-- C# 专项门禁:Roslynator 静态分析 (`tools/roslynator/roslynator analyze InfiAir.csproj`;AA 系列实践,口径见 `.agents/csharp-conventions.md`).
+- C# 专项门禁:Roslynator 静态分析 (`PATH=~/.dotnet:$PATH DOTNET_ROOT=~/.dotnet tools/roslynator/roslynator analyze InfiAir.csproj`;AA 系列实践,口径见 `.agents/csharp-conventions.md`).
 - CI/headless 错误日志扫描含 `Unhandled exception`(W 系列实践;error-level 零容忍).
 
 ## 6. Phase 5: Archive Backfill

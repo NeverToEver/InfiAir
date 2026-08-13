@@ -14,7 +14,7 @@ dotnet build                               # C# compile (TreatWarningsAsErrors: 
 dotnet test tests-csharp/                  # xUnit pure-logic unit tests
 ```
 
-Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; add `dotnet build` + `dotnet test tests-csharp/` + `dotnet format --verify-no-changes --no-restore` (three csproj) when touching `csharp/**` or `tests-csharp/**`; run subsystem scenes when touching that subsystem.
+Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; add `dotnet build` + `dotnet test tests-csharp/` + `dotnet format` 三工程 `--verify-no-changes` (three csproj; 命令见下方 Unified Check Flow) when touching `csharp/**` or `tests-csharp/**`; run subsystem scenes when touching that subsystem.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
@@ -116,7 +116,7 @@ Six layers; CI (`.github/workflows/ci.yml`) runs all, in this order; reproduce l
 ```bash
 dotnet build --nologo                          # 1. C# compile (TreatWarningsAsErrors: zero warnings)
 dotnet test tests-csharp/ --nologo             #    xUnit pure-logic unit tests
-dotnet format --verify-no-changes --no-restore #    C# format gate (root project = csharp/godot)
+dotnet format InfiAir.csproj --verify-no-changes --no-restore # C# format gate (main project; 裸 `dotnet format` 在 sln 入库后报工作区歧义,须显式指定,2026-08-13)
 dotnet format csharp/core/InfiAir.Core.csproj --verify-no-changes --no-restore
 dotnet format tests-csharp/InfiAir.Core.Tests.csproj --verify-no-changes --no-restore
 find . -name "*.gd" -not -path "./.godot/*" -not -path "./builds/*"  # 2. zero-GDScript gate (M7d: any .gd fails)
