@@ -1,12 +1,9 @@
 # Persistence & Security
 
 ## Overview
-
-Save/profile files, corruption recovery, and the security posture (no networking/credentials). Applies to persistence code and any data the game writes.
+存档/档案、损坏恢复与安全态势（无网络/无凭据）；适用于持久化代码及游戏写入的任何数据。
 
 ## Rules
-
-- Logged-in run save `user://savegame_<sanitized>_<sha256[:12]>.json` (per-user, owner-checked); user table / per-user settings & stats / local leaderboard in `user://users.json`; guests don't save (memory only). Pre-registration sessions still read/write legacy `user://profile.json` (compat path); first registration migrates + merges it into the new account, then deletes it.
-- Corrupt JSON isolated as `<file>.corrupt`, notified to start screen via `GameState.SaveCorrupt`/`ProfileCorrupt`/`UserDbCorrupt` flags. Don't bypass recovery. Note (2026-08-06 audit, resolved 2026-08-10): `SaveCorrupt`/`ProfileCorrupt` cover the run save and `profile.json`; a corrupt `users.json` is rebuilt as an empty DB (`UserDb.EnsureLoaded()` in `csharp/core/Storage/UserDb.cs`) — now surfaced via `UserDbCorrupt` + start-screen notice (`Welcome.cs`), so accounts vanishing is no longer silent.
-- No networking, third-party plugins, remote services, keys, or credentials. Only local `user://` persistence + offline asset generation. `balance_editor.py` listens on 127.0.0.1 only; not runtime.
-- `.gitignore` excludes import cache & exports (`builds/` etc.); `.gitattributes` (2026-08-06, per official VCS page) normalizes EOL — `text=auto eol=lf`, `*.bat` checkout CRLF, `*.sh` forced LF; `builds/.gdignore` keeps export outputs out of the editor filesystem. `export_presets.cfg` re-committed 2026-07-30 — preset changes must review `release.sh` + `packaging/`. Future CI/deploy additions: reviewable workflows + release notes first, then document in the entry docs.
+- 登录局存档 `user://savegame_<sanitized>_<sha256[:12]>.json`（per-user、owner 校验）；账户/设置/统计/本地排行榜存 `user://users.json`；访客不存档（仅内存）。注册前仍读写旧路径 `user://profile.json`（兼容），首次注册迁移合并后删除。
+- corrupt JSON 隔离为 `<file>.corrupt`，经 `GameState.SaveCorrupt`/`ProfileCorrupt`/`UserDbCorrupt` 三 flag 通知开始屏；`users.json` 损毁时 `UserDb.EnsureLoaded()`（`csharp/core/Storage/UserDb.cs`）重建为空库并在 `Welcome.cs` 提示——不再静默丢账户。
+- 无网络/第三方/凭据：仅 `user://` 与离线工具（`balance_editor.py` 仅监听 127.0.0.1，非运行时）。`.gitignore` 排除导入缓存与导出（`builds/` 等）；`.gitattributes` 规范 EOL——`text=auto eol=lf`、`*.bat` CRLF、`*.sh` LF；`builds/.gdignore`。preset 变更须 review `release.sh` + `packaging/`。

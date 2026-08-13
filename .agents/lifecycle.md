@@ -1,14 +1,10 @@
 # Lifecycle, Input & Test Discipline
-
 ## Overview
-
-Scene lifecycle ordering, input mapping, async/coroutine discipline, and test discipline. Applies to all C# scripts under `csharp/godot/` (style/build rules: `.agents/csharp-conventions.md`).
-
+场景生命周期顺序、输入映射、异步/协程纪律与测试纪律；适用于 `csharp/godot/` 下所有 C# 脚本。
 ## Rules
-
-- `Setup()` runs before `_Ready()`; don't rely on `_Ready`-initialized state there — access children via `GetNode<T>("path")`.
-- Don't touch existing autoloads/input mappings for unrelated needs. Inputs (`project.godot`): `move_up`/`move_down`/`move_left`/`move_right` (WASD/arrows), `boost` (Shift), `fine_move` (Ctrl), `dash` (Space), `dock` (H), `homecoming` (B), `give_up` (K), `buff_panel` (L), `parry` (F, arcane shield, fairness mech #4), `restart` (R). Joypad defaults bound at runtime internally by GameState (`BindJoypadDefaults()`, private; keyboard only in project.godot; deadzone via `GameState.SetJoyDeadzone()`). PS detect via `GameState.IsPsGuid()` (vendor 054c; ✕○□△/L1-R1 labels).
-- Tutorial isolates run state/saves (`csharp/godot/Tutorial.cs`: entry resets run + deletes save; tutorial never reads/writes savegame); restore `Engine.TimeScale = 1` on exit. Keep refs to runtime-created nodes; never rely on auto-generated node names.
-- After adding/renaming a `.cs`, run `dotnet build` (zero-warning gate) and keep the `.cs.uid` sidecar with the file — see `.agents/csharp-conventions.md`.
-- Async discipline: no bare `async void` lifecycle methods and no awaits that can hang past node/tree exit. In-game waits go through `csharp/godot/Coroutine.cs` (`WaitSeconds`/`WaitPhysicsFrames`/`WaitSignal` — `SceneTree.CreateTimer` + `ToSignal` with `IsInstanceValid` guards and timer fallbacks), never raw `Task.Delay`. Full rules: `.agents/csharp-conventions.md` §Async.
-- **Tests drive public test ports, not private internals**: simulate input/state via the target's public test port (`SimulateTouch`/`SimulateDrag` on `VirtualControls`, `SetTestState` on `MetaHealthFX`, `Set*` accessors) — never write `_` private fields or call `_UnhandledInput` directly (A7; C30/Q24 precedents). Injected real input events (`Input.ParseInputEvent`) with mouse/touch positions are transformed window→viewport in headless (not portable) — see `docs/TESTING.md` "Headless Test Environment Notes".
+- `Setup()` 先于 `_Ready()`：`Setup()` 内勿依赖 `_Ready` 初始化的状态，子节点经 `GetNode<T>("path")` 获取。
+- 输入映射（`project.godot`）：`move_up`/`boost`/`fine_move`/`dash`/`dock`/`homecoming`/`give_up`/`buff_panel`/`parry`/`restart`；摇杆运行时绑定 `GameState.BindJoypadDefaults()`/`SetJoyDeadzone()`，PS 检测 `GameState.IsPsGuid()`。
+- Tutorial（`csharp/godot/Tutorial.cs`）隔离运行状态/存档：进入重置 run 并删除存档，永不读写 savegame；退出恢复 `Engine.TimeScale = 1`。
+- 新增/改名 `.cs` 后运行 `dotnet build`（零警告门禁）并保留 `.cs.uid` 同文件——见 `.agents/csharp-conventions.md`。
+- 异步纪律：见 `.agents/csharp-conventions.md` §Async。
+- **测试只走 public 测试端口**（`SimulateTouch`/`SimulateDrag`/`SetTestState` 模拟输入/状态），禁写私有字段或直调 `_UnhandledInput`；注入的真实输入事件（`Input.ParseInputEvent`）的鼠标/触摸坐标在 headless 下经窗口→视口变换（不可移植）——见 `docs/TESTING.md` “Headless Test Environment Notes”。

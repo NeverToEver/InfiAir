@@ -1,13 +1,11 @@
 # Performance & Object Lifecycle
 
 ## Overview
-
-Pooling, hot-path restrictions, and update patterns. Applies to combat spawning, per-frame code, and HUD updates.
+对象池、热路径限制与更新模式；适用于战斗生成、每帧代码与 HUD 更新。
 
 ## Rules
-
-- Bullets via `GameState.BulletPool.Fire()`; pool ref cleanup handled on exit-tree.
-- When editing pools keep the `_repooling` guard: Godot 4.6 `Reparent()` fires `_ExitTree()`; **池化 reparent** must be wrapped in `SetRepooling(true/false)`（EnemyPool 双向——spawn→Main 的 `Spawn()` 与 release→pool 的 `ReparentDeferred()`；BulletPool 在 release 侧）——否则 `_ExitTree` 误走 `UnbindEnemy` 发无配对 `EntityUnregistered`（R04 补齐 spawn 侧），或 `Forget()` 把对象误清出闲置池。Run `test/pool_reuse_test.tscn` + `test/entity_manager_test.tscn` after changes.
-- Enemies pooled via `GameState.EnemyPool.Spawn()` (waves, boss-3 minions, formations; `EnemyPool.UsePool` is `const true` — the `USE_POOL=false` direct-instantiation A/B branch was removed in the C# migration). Pooled entities reset/register/emit death in `Reactivate()`/`Deactivate()`; don't free or bypass pool objects externally. Details: `docs/ARCHITECTURE.md`.
-- Hot paths: no per-frame `GetNodesInGroup()` — use `GameState.Enemies`/`PlayerRef`/`PlayerHitbox` registries. `Enemy` movement uses `Enemy.SinFast()`/`CosFast()` lookup tables; no direct trig in `_PhysicsProcess()`.
-- HUD gauges poll ~0.1s throttled, relayout only on text/value change; prefer `GameState` signal-driven updates.
+- 子弹经 `GameState.BulletPool.Fire()`；池引用清理在 exit-tree 处理。
+- 改池保持 `SetRepooling` 双向包裹（EnemyPool spawn/release、BulletPool release；否则 `_ExitTree` 误发 `EntityUnregistered` 或误清闲置池）；改池后跑 `test/pool_reuse_test.tscn` + `test/entity_manager_test.tscn`。
+- Enemies: waves、boss-3 小兵走 `GameState.EnemyPool.Spawn()`；formation 直建直毁（`new FormationCraft()` + `QueueFree()`）。池化实体在 `Reactivate()`/`Deactivate()` 重置/注册/发死亡；禁止外部 free 或绕过池。详见 `docs/ARCHITECTURE.md`。
+- 热路径: 禁逐帧 `GetNodesInGroup()`——用 `GameState.Enemies`/`PlayerRef`/`PlayerHitbox` 注册表；`Enemy` 移动用 `SinFast()`/`CosFast()` 查表，`_PhysicsProcess()` 内禁裸三角。
+- HUD 仪表 ~0.1s 节流轮询，仅文本/数值变化时重排；优先 `GameState` 信号驱动。

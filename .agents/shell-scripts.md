@@ -1,13 +1,8 @@
 # Shell Scripts
 
 ## Overview
-
-Conventions for repo shell scripts: launchers (`run.sh`/`run.command`/`run.bat`), `release.sh`, `packaging/` (dual-platform install/uninstall). Structure from `bentsolheim/public-skills` bash skill v2.0.0 (only shell-maintenance skill in ecosystem), adapted — its "no `set -e`" stance rejected (conflicts with project practice).
-
+仓库 shell 脚本约定：启动器（`run.sh`/`run.command`/`run.bat`）、`release.sh`、`packaging/`（双平台安装/卸载）。
 ## Rules
-
-- Errors: `set -euo pipefail` by default (`release.sh`/`packaging/linux/*.sh` match); launchers keep it minimal: `run.sh` uses `set -e` only (2026-08-06 审计口径修正——启动脚本无失败传播链需求，`run.sh` 实为 `set -e` 而非 `-euo pipefail`，文档此前失实), while `run.command`/`run.bat` use explicit exit codes (below); errors → stderr (`>&2`) with context, non-zero exit. `run.command` (macOS double-click keeps window/output on error) uses explicit `$?` — deliberate exception.
-- Structure: arg/multi-function/interactive scripts use `main()` + guard (`[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"`) + `usage()` heredoc; single-purpose functions, `local` params. Simple scripts (<30 lines, no args, linear) skip main() but keep purpose comment, exit codes, quoted vars.
-- Args: `while`+`case`; unknown option → error + `usage()`; support `--help`/`--version`.
-- Deps/output: launchers detect engine + version (Godot 4.6+；含 C# 工程须 .NET/mono 版引擎，三启动器统一 .NET 优先，2026-08-09 对齐)，引擎候选：run.sh 为 `godot-mono` → `~/.local/bin/godot-mono` → PATH `godot`/`godot4` → `~/.local/bin/godot` → `/Applications/Godot.app`（仅警告式版本检查，低于 4.6 提示但尝试继续）；run.command 为 `godot-mono` → `~/.local/bin/godot-mono` → PATH `godot`/`godot4` → `~/.local/bin/godot` → `Godot_mono.app`（/Applications + ~/Applications 优先）→ `Godot.app`/`Godot*.app` 变体，用 `version_ok` 候选选型（`version_ok` 函数在 run.command，4.6+ 才入选）；run.bat 为 `godot-mono` → PATH `godot`/`godot4` + 常见安装位置兜底（Downloads 扫描 `Godot_v4*mono*.exe` 先于 `Godot_v4*.exe`），探测 `--version` <4.6 警告并保真退出码（`endlocal & exit /b %EXIT_CODE%`；`if errorlevel` 会归零退出码，勿用）；release.sh 的 `VERSION` 自动读取 `project.godot` `config/version`（sed，取不到硬失败报错），打包前 `command -v tar/zip` 前置检查。`command -v` external tools. Colors ok but respect `NO_COLOR`.
-- Verify: `bash -n` + actually run (e.g. `./run.command --headless --quit-after 300`).
+- Errors: 默认 `set -euo pipefail`（`release.sh`/`packaging/linux/*.sh` 符合）；启动器从简——`run.sh` 仅 `set -e`，`run.command`/`run.bat` 用显式退出码；错误 → stderr（`>&2`）带上下文 + 非零退出。
+- Deps/engine: 启动器统一 .NET/mono 版引擎优先；run.sh 候选链 `godot-mono` → `~/.local/bin/godot-mono` → PATH `godot`/`godot4` → `~/.local/bin/godot` → `/Applications/Godot.app`，<4.6 仅警告后尝试继续；run.bat 保真退出码（`endlocal & exit /b %EXIT_CODE%`，勿用 `if errorlevel`）；release.sh `VERSION` 自 `project.godot` `config/version` 用 sed 读取（取不到硬失败），打包前 `command -v tar/zip` 前置检查。
+- Verify: `bash -n` + 实跑（如 `./run.command --headless --quit-after 300`）。

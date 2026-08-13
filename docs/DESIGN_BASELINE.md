@@ -122,7 +122,7 @@ Main (csharp/godot/Main.cs)
 
 ### 2.4 Pools & Registries
 - Bullets: `GameState.BulletPool.Fire()`; Area2D, move in `_PhysicsProcess` (C04); faction in `Setup()/Activate()`; `Activate()` resets homing/visual fields.
-- Enemies: unified pool (2026-08-02, `920e5e9`) — waves/boss-3 minions/formations via `EnemyPool.Spawn()` (`UsePool` const kept for A/B, always true since M7 — the false/direct-instantiation branch was removed in the migration). `Reactivate()/Deactivate()` reset/register/emit death.
+- Enemies: unified pool (2026-08-02, `920e5e9`) — waves/boss-3 minions via `EnemyPool.Spawn()` (`UsePool` const kept for A/B, always true since M7 — the false/direct-instantiation branch was removed in the migration); formation crafts/bombs stay direct-spawn (`new FormationCraft()`/`new FormationBomb()` + `QueueFree()`). `Reactivate()/Deactivate()` reset/register/emit death.
 - Guards: `_active` (deferred) + `_repooling` (wrap reparent vs `_ExitTree` mis-clear); never free/bypass pool objects externally.
 - Explosions: `Explosion.SpawnAt()`, pooled (`PoolCap`, json `effects.explosion.pool_cap`), `ProcessMode=Always` (plays under paused tree).
 

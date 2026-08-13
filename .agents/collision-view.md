@@ -1,14 +1,10 @@
 # Collision, Damage & View
 
 ## Overview
-
-Collision layers/masks, hit detection, bullet/explosion conventions, camera & viewport math, mouse lock. Applies to combat entities, effects, and anything doing screen-space math.
+碰撞层与解析、命中检测、子弹/爆炸约定、相机与视口数学、鼠标锁；适用于战斗实体、特效及一切屏幕空间计算。
 
 ## Rules
-
-- Layers: 1=`player`, 2=`player_bullet`, 3=`enemy` (incl. boss), 4=`enemy_bullet`. Player bullets resolve vs `enemy` group; enemy bullets/entities vs `player_hitbox` group.
-- Player hit only via `Player/Hitbox` Area2D (design r=7 × world_scale → runtime 2.8). Body circle r=22 has no collision use (mask 0) — never use for hit detection.
-- Ramming: enemy = event-driven `AreaEntered`/`AreaExited` overlap flags + O(1) guard re-roll while overlapping (P0-2; no per-frame `overlaps_area` polling); boss = `_bodyContact` contact flag + deliberate per-frame check (phase-gated, `csharp/godot/Boss.cs` `CheckBodyCollision()`). Pre-enrage boss HP floored at 30% (`Boss.cs` `EnrageHpRatio`, cfg `boss.enrage.hp_ratio`).
-- Bullets: `scenes/bullet.tscn`, faction in `Setup()`; enemy visual scale `effects.enemy_bullet_visual_scale`, player `effects.bullet_visual_scale` (design × world_scale); `Bullet.HomingTarget` supported (reset in `Activate()`). Explosions via `Explosion.SpawnAt()`, not ad-hoc particle setups.
-- Zoom & window size: independent profile settings. Camera fixed at (960, 540), zoom only; all edge/offscreen/spawn/visibility math via `GameState.ViewWorldRect()`, never hardcoded 0..1920/0..1080.
-- Mouse lock (profile `mouse_lock`, default on): `csharp/godot/MouseTrap.cs` (on Main, `ProcessModeEnum.Always`) warps mouse inside via `Input.WarpMouse()` while crosshair active (unpaused + cursor hidden) + window focused (`MouseExited` + per-frame `_Process`). Released in non-crosshair states (pause/buff/base/results/cutscene/start) and on focus loss (mouse can leave window, e.g. close via title bar).
+- 碰撞层：1=`player`、2=`player_bullet`、3=`enemy`（含 boss）、4=`enemy_bullet`；玩家弹对 `enemy` 组、敌弹/敌实体对 `player_hitbox` 组解析。
+- 玩家仅经 `Player/Hitbox` Area2D 受击（设计 r=7×world_scale→运行时 2.8）；Body r=22 无碰撞用途（mask 0），禁用于受击。Ramming：敌=事件驱动 `AreaEntered/AreaExited` 标志 + O(1) 重掷防抖（禁逐帧 `overlaps_area` 轮询）；Boss=`csharp/godot/Boss.cs` `CheckBodyCollision()` 阶段门控。狂暴前 Boss HP 保底 30%（`boss.enrage.hp_ratio`）。
+- 子弹：`scenes/bullet.tscn`，`Setup()` 定阵营；`Bullet.HomingTarget` 于 `Activate()` 重置；爆炸统一 `Explosion.SpawnAt()`。
+- 相机固定 (960,540) 仅缩放；边缘/离屏/生成/可见性计算一律 `GameState.ViewWorldRect()`，禁硬编码 0..1920/0..1080。鼠标锁（profile `mouse_lock`，默认开）：`MouseTrap.cs`（`ProcessModeEnum.Always`）准星态 `Input.WarpMouse()` 回拉，焦点丢失或非准星态释放。

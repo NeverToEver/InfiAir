@@ -2,33 +2,28 @@
 
 ## Project
 
-InfiAir: single-player 2D top-down shooter; Godot 4.6.2 + C# (.NET 8, 零 GDScript), GL Compatibility. Remade from Python/Pygame `airwar-game` (`docs/archive/PORTING_PARITY.md`); runs standalone, no runtime dep on the original.
+InfiAir: single-player 2D top-down shooter; Godot 4.6.2 + C# (.NET 8, gl_compatibility), 全量 C#（零 GDScript）。重制自 Python/Pygame `airwar-game`（`docs/archive/PORTING_PARITY.md`）; 独立运行，无原版依赖。
 
 Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
 
-- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn` (accounts; main.tscn = battle scene, explicitly instanced by tests).
-- Viewport 1920×1080, stretch `canvas_items` / `keep` aspect.
-- Only autoload: `GameState` (`csharp/godot/GameState.cs`) — facade over 8 non-autoload services: `BalanceService.cs` / `SaveManager.cs` / `SfxPlayer.cs` / `EntityManager.cs`（统一实体管理器；`docs/ENTITY_MANAGER.md`）/ `FogEventManager.cs`（迷雾效果层门面；`docs/FOG_EVENTS.md`）/ `GameEventManager.cs`（统一事件管理器；`docs/EVENT_MANAGER.md`）/ `UserDB.cs`（本地账户）/ `ProgressionInterop.cs`（进程曲线桥），均在 `csharp/godot/`。C# 侧统一经 `GameState.Instance` typed 访问。**GameState 拆域收官 (2026-08-11)**：另组合 8 个域服务（`MetaService`/`MissionsService`/`ScoreService`/`RunProgressionService`/`CombatStateService`/`SettingsService`/`InputBindingsService`/`UserSessionService`，RefCounted + 构造注入 + 信号 C# 事件 + 门面重发），GameState 收敛为编排门面；详见 `docs/ARCHITECTURE.md`。
-- Game text: zh+en bilingual (UI default `zh`; new keys fill both `translations.csv` columns). Docs in English; `docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese.
-- `CLAUDE.md` = entry overview only; this file wins on conflict.
-- Design intent / architecture baseline amended only via `docs/DESIGN_BASELINE.md`.
+- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn`（账户/难度/教程/设置/本地排行榜; 战斗场景 `scenes/main.tscn` 由测试显式实例化）; Viewport 1920×1080, stretch `canvas_items` / aspect `keep`。
+- 唯一 autoload: `GameState`（`csharp/godot/GameState.cs`）——编排门面，组合 8 域服务（Meta/Missions/Score/RunProgression/CombatState/Settings/InputBindings/UserSession）与 8 个非 autoload 服务; C# 侧统一经 `GameState.Instance` typed 访问。详见 `docs/ARCHITECTURE.md`。
+- Text: zh+en bilingual（UI 默认 zh; 新 key 填 `data/translations.csv` 两列）; docs in English（`docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese）。`CLAUDE.md` = entry overview only; 本文件优先。设计基线仅经 `docs/DESIGN_BASELINE.md` 修订。
 
 ## Quick Reference
 
-- **Stack:** Godot 4.6.2 .NET 版 (gl_compatibility) + .NET 8 全量 C#（热路径(对象池/弹幕)与场景绑定层为纯 C# 单一实现）; no package manager. `scripts/tools/*.py` = offline tools, not runtime deps.
-- **Export templates:** `~/.local/share/godot/export_templates/4.6.2.stable/`（macOS `~/Library/Application Support/Godot/export_templates/`、Windows `%APPDATA%\Godot\export_templates\`）——本地 `./release.sh` 发布构建（Linux/Windows 双平台）依赖，模板版本必须与引擎严格匹配；缺失时导出报 "No export template found"。根目录 `InfiAir.sln` 同为 .NET 导出硬依赖（必须入库）——缺失时导出静默跳过 C# 程序集、exit 0 产出空壳包（logo 后闪退，2026-08-12 修复）；导出产物须携带 `data_InfiAir_<平台>_x86_64/` 托管运行时目录并随包发布。发布也可走手动 GitHub Actions `release.yml`（远端官方模板构建）。
-- **Run:** `./run.sh` (auto-locates engine; .NET 版优先: godot-mono → ~/.local/bin/godot-mono → godot → godot4 → ~/.local/bin/godot → macOS /Applications/Godot.app; 含 C# 工程必须用 .NET 版引擎). Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; C# changes: `dotnet build` (zero warnings) + `dotnet test tests-csharp/` + `dotnet format --verify-no-changes` (three csproj). Full commands: `docs/TESTING.md`.
-- **Tunables:** `data/balance.json` via `scripts/tools/balance_editor.py`; texts: `data/translations.csv`. Details: `docs/ARCHITECTURE.md`.
-- **Static analysis:** Roslynator CLI 本地留存于 `tools/roslynator/`（`tools/` 已 gitignore 不入库；完整工具链 `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli` 重建——2026-08-13 部署确认仓库无 stub，须完整安装）。用法 `PATH=~/.dotnet:$PATH DOTNET_ROOT=~/.dotnet tools/roslynator/roslynator analyze InfiAir.csproj`（`dotnet` 须在 PATH，Roslynator 经 PATH 启动 MSBuild host；`~/.dotnet` 为官方 dotnet-install.sh 默认安装目录）；应用口径见 `.agents/csharp-conventions.md` §Build & Gate。
-- **CI/CD:** `.github/workflows/ci.yml` 分两 job——**fast-gate**（~8min：C# build/test/format 三工程门禁 → 零 GDScript 门 → import 引擎警告门 → main smoke 300 帧 → 全场景编译探针）覆盖全部 push（main + feature/*）与 PR；**full-regression**（断言场景全量 + BALANCE_MAP 重跑零 diff 闸 + 引擎错误日志扫描 + 场景数硬校验 + flake 重试；权威计数 `docs/TESTING.md`）仅 main push / PR / workflow_dispatch；`paths-ignore: docs/** + *.md`（纯文档不触发）；dotnet SDK/NuGet/Godot mono 引擎经 actions/cache 缓存；同分支新推送取消旧运行. Release: `export_presets.cfg` + `release.sh` → GitHub Releases (not in repo); manual `release.yml` (dotnet build → export → tag `v<ver>` → release, syncs `config/version`). CI/CD changes sync these entry docs + `release.sh`; 政策口径: 仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh 脚本 + 官方 Godot 引擎/模板, 禁止其他第三方依赖.
+- **Run:** `./run.sh`（自动定位引擎, .NET 版优先——C# 工程必须 .NET 版）。Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; 触碰 saves/base/mothership 加 `res://test/base_system_test.tscn`; C# 改动: `dotnet build`（零警告）+ `dotnet test tests-csharp/` + `dotnet format --verify-no-changes`（三 csproj）。
+- **Tunables:** `data/balance.json`（`scripts/tools/balance_editor.py`）; 文本 `data/translations.csv`。
+- **Roslynator:** `tools/roslynator/`（gitignored; 重建: `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli`）; 运行需 `dotnet` 在 PATH + `DOTNET_ROOT=~/.dotnet`。口径: `.agents/csharp-conventions.md`。
+- **CI/CD:** `ci.yml` 两 job——fast-gate（C# build/test/format → 零 GDScript → import 警告 → smoke 300 帧 → 场景编译探针）覆盖全部 push(main+feature) 与 PR; full-regression（断言场景全量 + BALANCE_MAP 零 diff + 引擎错误日志 + 场景数校验）仅 main push/PR/workflow_dispatch; `paths-ignore: docs/** + *.md`。Release: `export_presets.cfg` + `release.sh`（本地导出需官方 **mono** 导出模板 `4.6.2.stable.mono`, 版本严格匹配; `InfiAir.sln` 必须入库，缺失会静默出空壳包）或手动 `release.yml`（远端官方模板构建）。政策: 仅官方 checkout/upload-artifact/cache action + dotnet-install.sh + Godot 引擎/模板, 禁其他第三方依赖。
 
 ## Merge Gate & Testing
 
-6 layers (CI order：fast-gate 跑 ①-③⑤，full-regression 跑 ④⑥——feature push 仅 fast-gate，main push/PR 全量): ① C# gate: `dotnet build` (warnings-as-errors) + `dotnet test tests-csharp/` (xUnit) + `dotnet format` 三工程 verify 零 diff → ② zero-GDScript gate (任何 `.gd` 文件即失败) → ③ engine warnings (error-level zero tolerance) → ④ BALANCE_MAP 生成器重跑零 diff 闸 → ⑤ compile+smoke (main 300 frames + 全 test/*.tscn 编译探针) → ⑥ all assertion scenes（权威计数 `docs/TESTING.md`；含引擎错误日志扫描 + 场景数硬校验）. Commands, scene list, side effects, known failures: `docs/TESTING.md`.
+6 层（fast-gate 跑 ①-③⑤, full-regression 跑 ④⑥; feature push 仅 fast-gate, main push/PR 全量）: ① C# gate（build warnings-as-errors + xUnit + format 零 diff）② zero-GDScript（任何 `.gd` 即失败）③ engine warnings 零容忍 ④ BALANCE_MAP 重跑零 diff ⑤ compile+smoke（main 300 帧 + 全 test/*.tscn 编译探针）⑥ 断言场景全量（权威计数 `docs/TESTING.md`）。
 
 ## Architecture & Directory Roles
 
-`scenes/welcome.tscn` = entry (accounts: login/register/guest/delete + difficulty/tutorial/settings/local leaderboard, `csharp/godot/Welcome.cs`); `scenes/main.tscn` = main tree & run container (runtime-created MetaHealthFX/AimFrameLayer/cutscenes/mothership/events); `csharp/godot/Main.cs` orchestrates; dynamic entities attach under Main for cleanup/test visibility. `csharp/core/` = 纯 .NET 类库 (零 Godot 依赖: 数据模型/纯逻辑/算法), `csharp/godot/` = Godot 绑定层 (全部游戏运行时代码，可引用 Core), `tests-csharp/` = xUnit 纯逻辑单测; 纯逻辑下沉 `csharp/core/`, 热路径保持每帧零托管分配 (约定见 `.agents/csharp-conventions.md`). Full tree, per-script duties: `docs/ARCHITECTURE.md`.
+`csharp/core/` = 纯 .NET 类库（零 Godot 依赖: 数据模型/纯逻辑/算法）; `csharp/godot/` = Godot 绑定层（全部运行时代码, 可引用 Core）; `tests-csharp/` = xUnit 纯逻辑单测。`welcome.tscn` 入口（账户, `csharp/godot/Welcome.cs`）; `main.tscn` 运行容器（`Main.cs` 编排; 运行时动态实体挂 Main 下, 便于清理/测试可见）。全树与逐脚本职责: `docs/ARCHITECTURE.md`。
 
 ## Conventions
 
@@ -45,5 +40,5 @@ Global invariants: collision layers / `world_scale` / `ViewWorldRect()` / `Cfg()
 
 ## Doc Sync
 
-- Rules & file map (ROADMAP / DESIGN_BASELINE / EXIT_FLOW / BALANCE_MAP / AUDIT_VAULT / archive): [.agents/doc-sync.md](.agents/doc-sync.md).
-- **`docs/AUDIT_VAULT.md` is proprietary — never delete/merge** (see doc-sync link).
+- Rules & file map: [.agents/doc-sync.md](.agents/doc-sync.md)。
+- **`docs/AUDIT_VAULT.md` is proprietary — never delete/merge**。
