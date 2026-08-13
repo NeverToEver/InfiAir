@@ -61,10 +61,9 @@ public partial class EnemyPool : Node
         }
         else if (e.GetParent() != GetParent())
         {
-            // R04：spawn 侧 reparent 同样触发 e._exit_tree，置位防 unbind_enemy 误发信号
-            e.SetRepooling(true);
-            e.Reparent(GetParent());
-            e.SetRepooling(false);
+            // R12：spawn 侧 reparent 在物理回调（碰撞信号）内触发 area_set_shape_disabled flush 报错，
+            // 与 Release 侧 ReparentDeferred 对称延迟到空闲帧；SetRepooling 置位移入 ReparentToActive。
+            CallDeferred(MethodName.ReparentToActive, e);
         }
 
         e.Position = pos;
@@ -103,6 +102,22 @@ public partial class EnemyPool : Node
             e.SetRepooling(true);
             e.Reparent(this);
             e.SetRepooling(false);
+        }
+    }
+
+    /// <summary>延迟 reparent 到 Main（活跃池位）。与 ReparentDeferred 双向互斥（IsActive 仲裁）：
+    /// 极端时序（deferred 执行前敌机已被回收）下保持闲置敌机在池节点下。</summary>
+    public void ReparentToActive(Enemy e)
+    {
+        if (GodotObject.IsInstanceValid(e) && e.IsActive() && e.GetParent() != GetParent())
+        {
+            // R04：reparent 触发 e._exit_tree，置位防 unbind_enemy 误发信号
+            e.SetRepooling(true);
+            e.Reparent(GetParent());
+            e.SetRepooling(false);
+            // R12：reparent 的 _exit_tree（repooling 路径）会 UnregisterEnemy，而 Reactivate 注册在先——
+            // 延迟 reparent 后补注册（幂等），与同步版「先 reparent 后 Reactivate 注册」语义对齐。
+            GameState.Instance.RegisterEnemy(e);
         }
     }
 

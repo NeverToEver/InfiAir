@@ -395,7 +395,9 @@ public partial class Enemy : Area2D
         // 分裂者：死亡生成 2 小机（子机独立结算，母体分数照常给）
         if (_split)
         {
-            SpawnSplitMinis();
+            // R12：Bullet.OnAreaEntered（物理 flush）内同步生成会触发 area_set_shape_disabled 报错，
+            // 同步快照分裂参数、延迟到空闲帧生成（本机随后被回收，参数已捕获）。
+            ScheduleSplitSpawn();
         }
 
         GameState.Instance.AddKillScore((int)(ScoreValue * _scoreScale));
@@ -777,8 +779,10 @@ public partial class Enemy : Area2D
         _exitSpeed = Speed;
     }
 
-    /// <summary>分裂者死亡生成 2 小机：缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂。</summary>
-    private void SpawnSplitMinis()
+    /// <summary>分裂者死亡生成 2 小机：同步快照分裂参数，生成延迟到空闲帧
+    /// （R12：Bullet.OnAreaEntered 物理 flush 内直接建实体触发 area_set_shape_disabled 报错）。
+    /// 缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂。</summary>
+    private void ScheduleSplitSpawn()
     {
         var pool = (GodotObject?)GameState.Instance.EnemyPool;
         if (pool == null)
@@ -786,11 +790,23 @@ public partial class Enemy : Area2D
             return;
         }
 
+        CallDeferred(MethodName.SpawnSplitMinisDeferred, _typeConfig, Strategy, _difficulty, GlobalPosition, pool);
+    }
+
+    /// <summary>延迟执行的分裂生成（空闲帧）。public：CallDeferred 需引擎注册。</summary>
+    public void SpawnSplitMinisDeferred(
+        Godot.Collections.Dictionary config, StringName strategy, float diff, Vector2 pos, GodotObject pool)
+    {
+        if (pool == null || !GodotObject.IsInstanceValid(pool))
+        {
+            return;
+        }
+
         for (var i = 0; i < 2; i++)
         {
             var mini = pool.Call(
-                "Spawn", _typeConfig, Strategy, _difficulty,
-                GlobalPosition + new Vector2(i == 0 ? 24.0f : -24.0f, 0.0f));
+                "Spawn", config, strategy, diff,
+                pos + new Vector2(i == 0 ? 24.0f : -24.0f, 0.0f));
             if (mini.VariantType == Variant.Type.Nil || !GodotObject.IsInstanceValid((GodotObject)mini))
             {
                 continue;
