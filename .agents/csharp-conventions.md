@@ -3,7 +3,7 @@
 ## Overview
 终态纯 C# 工程（零 GDScript，CI 零 GDScript 闸强制；迁移决策依据 `docs/archive/2026-08-08-csharp-assessment.md` §10）。`csharp/godot/*Interop.cs` 为 InfiAir.Core 的 C# 绑定端点，非 GDScript 壳。
 ## 工程红线
-- **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类（例外: GameState 按域、过场按镜头拆 partial）；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
+- **类名 = 文件名**（大小写敏感）；节点/Resource 类一律 `partial`（源生成器硬性要求）；一个 Godot 类一个文件，禁止跨文件 partial 拆类（例外: GameState 按域、过场按镜头、AutoplayTest 测试探针按职责拆 partial）；命名空间 `InfiAir`（godot 层）/`InfiAir.Core.*`（core 层），避免"目录名==类名"冲突。
 - **`.cs.uid` 必须入库**；改名/移动 .cs 连带移动 sidecar；触碰场景后重存（补 uid）。
 - **场景绑定**：`.tscn` 的 ext_resource 指向 `res://csharp/godot/X.cs`；实例化优先 `PackedScene.Instantiate<T>()`；C# 侧 `new X()` 在 NRT 下可能被视为可空（Godot 生成构造器），使用时 `!` 或判空。
 - **信号**：C#↔C# 用 C# event（`+=`/`-=`，`_ExitTree` 配对断开——自定义信号不随接收方释放自动断开，弹幕高频链路曾触发 `ObjectDisposedException`）；引擎信号/动态连接用 `Connect(SignalName.X, Callable.From(...))`；`[Signal]` 委托名必须 `XxxEventHandler` 结尾；发射用 `EmitSignal(SignalName.X, ...)` 而非 `Invoke`。
