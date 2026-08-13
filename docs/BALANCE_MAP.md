@@ -44,8 +44,8 @@
 | 574 | `boss.difficulty_scaling.counts` | `DiffCountDeltas` |
 | 608 | `boss.hp_mults` | `new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 }` |
 | 634 | `boss.hp_base` | `HpBase` |
-| 1042 | `effects.shake.enrage` | `16.0` |
-| 1339 | `effects.shake.enrage` | `16.0` |
+| 1047 | `effects.shake.enrage` | `16.0` |
+| 1344 | `effects.shake.enrage` | `16.0` |
 | 381 | `boss.enter_speed` | `EnterSpeed` |
 | 382 | `boss.fight_y` | `FightY` |
 | 383 | `boss.strafe_min_x` | `StrafeMinX` |
@@ -166,10 +166,10 @@
 
 | 行 | json 键路径 | 脚本回退值 |
 | --- | --- | --- |
-| 139 | `buffs.explosive.unlock_boss_kills` | `3` |
-| 161 | `buffs.dynamic_weight` | `new Godot.Collections.Dictionary(` |
-| 478 | `buffs.extra_life.heal_on_pick` | `30` |
-| 518 | `buffs.extra_life.heal_on_pick` | `30` |
+| 142 | `buffs.explosive.unlock_boss_kills` | `3` |
+| 164 | `buffs.dynamic_weight` | `new Godot.Collections.Dictionary(` |
+| 487 | `buffs.extra_life.heal_on_pick` | `30` |
+| 538 | `buffs.extra_life.heal_on_pick` | `30` |
 
 ### `csharp/godot/Bullet.cs`
 
@@ -367,9 +367,9 @@
 | 109 | `boss.enrage.slow_scale` | `ENRAGE_SLOW_SCALE` |
 | 110 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | 111 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
-| 876 | `effects.mothership_summon.shake_gate` | `6.0` |
-| 889 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
-| 941 | `mothership.depart_cooldown` | `60.0` |
+| 880 | `effects.mothership_summon.shake_gate` | `6.0` |
+| 893 | `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| 949 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp/godot/MetaHealthFX.cs`
 
@@ -470,15 +470,15 @@
 | 287 | `mothership.missile.target_count` | `MissileTargetCount` |
 | 288 | `mothership.missile.splash_damage` | `MissileSplashDamage` |
 | 289 | `mothership.missile.splash_radius` | `MissileSplashRadius` |
-| 290 | `effects.mothership_summon.warp_in_time` | `WarpInTime` |
-| 291 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
-| 293 | `effects.mothership_summon.slow.radius` | `SlowRadius` |
-| 294 | `effects.mothership_summon.slow.duration` | `SlowDuration` |
-| 295 | `effects.mothership_summon.slow.factor` | `SlowFactor` |
-| 296 | `effects.mothership_summon.slow.ring_time` | `SlowRingTime` |
-| 297 | `effects.mothership_summon.shake_slow` | `ShakeSlow` |
-| 401 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
-| 1057 | `effects.shake.mothership` | `4.0` |
+| 292 | `effects.mothership_summon.warp_in_time` | `WarpInTime` |
+| 293 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
+| 295 | `effects.mothership_summon.slow.radius` | `SlowRadius` |
+| 296 | `effects.mothership_summon.slow.duration` | `SlowDuration` |
+| 297 | `effects.mothership_summon.slow.factor` | `SlowFactor` |
+| 298 | `effects.mothership_summon.slow.ring_time` | `SlowRingTime` |
+| 299 | `effects.mothership_summon.shake_slow` | `ShakeSlow` |
+| 403 | `effects.mothership_summon.warp_in_drop` | `WarpInDrop` |
+| 1059 | `effects.shake.mothership` | `4.0` |
 
 ### `csharp/godot/MothershipSummonWindow.cs`
 

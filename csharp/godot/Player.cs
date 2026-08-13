@@ -84,7 +84,7 @@ public partial class Player : CharacterBody2D
         ["efficient_boost"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.efficient_boost.factor", ["default"] = 0.75 },
         ["boost_recovery"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.boost_recovery.factor", ["default"] = 1.5 },
         ["phase_dash"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "player.dash.cooldown_stack_factor", ["default"] = 0.8 },
-        ["spread_shot"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "buffs.spread_shot.max_stacks", ["default"] = 3 },
+        ["spread_shot"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "buffs.spread_shot.max_stacks", ["default"] = 2 },
         ["piercing"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "buffs.piercing.max_stacks", ["default"] = 2 },
         ["explosive"] = new Godot.Collections.Dictionary { ["kind"] = "bool" },
         ["bullet_speed"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.bullet_speed.factor", ["default"] = 1.2 },
@@ -1083,13 +1083,15 @@ public partial class Player : CharacterBody2D
             }
         }
 
-        var count = 1 + spread;
+        // 散射弹道数恒为奇数（1/3/5，每层 +2）：偶数弹数扇形无中心弹（准星方向落空 = 负提升），
+        // 居中索引即层数（spread=1→3 弹 [-1,0,+1]，spread=2→5 弹 [-2..+2]）
+        var count = 1 + spread * 2;
         // P1-2：循环不变量外提（_buff_scale 含 pow，同帧只计算一次）
         var loopSpeed = BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
         var loopDamage = BulletDamageValue();
         for (var i = 0; i < count; i++)
         {
-            var offset = Mathf.DegToRad(BulletSpreadDeg * (i - spread / 2.0f));
+            var offset = Mathf.DegToRad(BulletSpreadDeg * (i - spread));
             var aimRot = aim.Rotated(offset);
             var bspeed = loopSpeed;
             // 迷雾事件·子弹错误：随机角度偏移 + 偶发慢速失误弹

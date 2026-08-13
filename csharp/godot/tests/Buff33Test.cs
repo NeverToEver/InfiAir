@@ -239,7 +239,7 @@ public partial class Buff33Test : Node
                 + (maxDrift.Count > 0 ? " 漂移=" + string.Join(",", maxDrift) : ""));
 
             // 1e. cap 效果表缺省默认值防漂移（A4 白盒，2026-08-11 双源补全）：Player.BuffEffects 表的
-            // ["default"]（spread_shot=3/piercing=2）是 Cfg(cfg, default) 的兜底常量，独立于
+            // ["default"]（spread_shot=2/piercing=2）是 Cfg(cfg, default) 的兜底常量，独立于
             // balance.json 与卡池 max——三方（表 default / json max_stacks / 池 max）须一致，防
             // json 改上限漏更表兜底（json 键缺失时静默回退旧值）。
             // 其余双源点核实结论（2026-08-11，均无需断言）：
@@ -280,7 +280,7 @@ public partial class Buff33Test : Node
                 }
             }
 
-            Check(capDrift.Count == 0, "1e：cap 效果表 default 与 json max_stacks/卡池 max 三方一致（spread_shot=3/piercing=2）"
+            Check(capDrift.Count == 0, "1e：cap 效果表 default 与 json max_stacks/卡池 max 三方一致（spread_shot=2/piercing=2）"
                 + (capDrift.Count > 0 ? " 漂移=" + string.Join(",", capDrift) : ""));
 
             // 防御全满层：保底自然失效（不崩），候选仍为 3 张非防御卡

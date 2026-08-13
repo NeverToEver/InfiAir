@@ -43,7 +43,7 @@ BUFF_POWER_SHOT_DESC,"子弹伤害 ×1.25（最多 5 层）","Bullet damage ×1.
 BUFF_RAPID_FIRE_NAME,"急速射击","Rapid Fire"
 BUFF_RAPID_FIRE_DESC,"射速提升 33%（最多 4 层）","+33% fire rate (max 4 stacks)"
 BUFF_SPREAD_SHOT_NAME,"散射弹道","Spread Shot"
-BUFF_SPREAD_SHOT_DESC,"+1 条散射弹道（最多 3 层）","+1 projectile (max 3)"
+BUFF_SPREAD_SHOT_DESC,"+2 条散射弹道（最多 2 层）","+2 projectiles (max 2)"
 BUFF_EXTRA_LIFE_NAME,"额外生命","Extra Life"
 BUFF_EXTRA_LIFE_DESC,"最大生命 +50，立即回复 30（最多 10 层）","+50 max HP, heal 30 (max 10 stacks)"
 BUFF_REGEN_NAME,"自我修复","Regen"

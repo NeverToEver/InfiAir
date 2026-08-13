@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+## [3.31] - 2026-08-13
+
+### 修复（2026-08-13，autoplay 探针 480s 全流程 + 并行逻辑审查，6 项）
+
+- **返航不清 Boss 狂暴减速残留**（中）：狂暴 TRANSITION/ACTIVE 期按 B 返航，`Player._enrageSlow` ×0.35 残留到下次出击（EnrageSequence 唯一解锁点在狂暴结束/Boss 离场，返航保留 Boss 不归零）→ `StartHomecomingInternal` 显式 `ApplyEnrageSlow(1.0f)`，不中止序列（防"按 B 躲狂暴"），后续解锁幂等
+- **存档时钟源混用**（中）：`SaveRun` 存 `spawner.Elapsed()`、恢复回灌 `RunTime`——入场动画窗口 spawner 停走但 RunTime 照走，读档后 survive 任务进度/难度曲线时间分量回退 → 两处 SaveRun 调用统一存 `RunTime`
+- **单次加分跨档吞 Buff 三选一**（中）：`AddScore` 同帧 while 逐档发 `MilestoneReached`，第二档被 `BuffSelect` 的 `Visible` 守卫永久吞掉 → 挂账 `_pendingMilestones`，三处关闭路径（PickBuff/OnPickCloseFinished/OnLocaleChanged H20）补开
+- **Boss 单发跨 70%/30% 双线跳过 P2**（低）：else-if 链直走 Enrage → P2 转场（停火蓄力/清弹无敌/PhaseChanged）全跳过；改为顺序独立判定，P2 先于狂暴
+- **Mothership warp_in_time 除零无钳制**（低）：配置损坏时 NaN 污染母舰位置 → 钳 ≥0.01（对齐 H15 同族口径）
+- **H/K 蓄力无互斥**（低）：dock 与 give_up 蓄力可同时累积，同帧蓄满双触发时序耦合 → 双向互斥守卫
+- **探针 dda_stuck 误报盲区修复**：暂停期 DDA 计时按设计冻结但探针按真实时间判定（返航过场/基地期必误报）；狂暴子弹时间（ts=0.24）下同理 → 仅在未暂停且正常时间流时判定
+- **回归用例**：smoke_test 新增「单次加分跨两档补开」段（含 buffs 快照自隔离）；boss_phase_test 新增场景 1b（单发跨线 P2→ENRAGE 信号序列断言）
+- **验证**：build 0w/0e + xUnit 115/115 + format 零 diff + 10 断言场景全过 + autoplay 480s 重跑
+
+### 平衡（2026-08-13，散射弹道奇数序列）
+
+- **spread_shot 弹数 1→3→5（每层 +2，上限 2 层）**：原每层 +1（1/2/3/4 弹，上限 3 层）——偶数弹数扇形无中心弹，准星方向落空（2→3→4 弹升层时中心弹消失 = 负提升）；卡池 max/json max_stacks/效果表 default/探针 BuffPoolMax 镜像四处同步 3→2，文案「+2 条散射弹道（最多 2 层）」
+- **回归用例**：buff_effects_test 齐射断言 3 层（cap 2）5 弹；buff33_test 三方一致性标签同步；smoke_test 新增 6.1d「散射×辅助瞄准适配」段（各散射等级齐射全弹绑定同一追踪目标 + 目标死亡后解除绑定无 stale 引用，钉死历史追踪弹 stale 引用崩溃族）
+
+### 核验（2026-08-13，散射×辅助瞄准适配性）
+
+- 全弹共享齐射级单一追踪目标（框内强追踪/框外锥内弱追踪），中心弹直射准星方向（奇数序列保证中心弹存在），侧弹自扇形角收敛至目标；HomingTime 超时后直行
+- 崩溃面审计：目标死亡/池化/释放路径三重守卫（IsInstanceValid + EnemiesHas 注册表 + HomingTime 超时），NaN 族（H05 dist=0 / AC6 锥角 360° / AC11 原点重合）均有钳制；历史「追踪弹 stale 引用」崩溃（4b7a451 修复）由 6.1d 回归钉死
+
 ### 修复（2026-08-12，发布包空壳：Windows logo 后无报错闪退）
 
 - **根因**：仓库缺失 `InfiAir.sln`（Godot .NET 导出硬依赖，历史从未入库），导出时 `dotnet publish` 被静默跳过，exit 0 + "completed with warnings" 产出不带任何 C# 程序集的空壳包——Windows logo 后直接退出无任何报错，Linux 产物实测同样启动即段错误

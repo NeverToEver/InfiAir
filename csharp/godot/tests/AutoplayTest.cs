@@ -75,7 +75,7 @@ public partial class AutoplayTest : Node
     {
         ["power_shot"] = 5,
         ["rapid_fire"] = 4,
-        ["spread_shot"] = 3,
+        ["spread_shot"] = 2,
         ["extra_life"] = 10,
         ["regen"] = 1,
         ["piercing"] = 2,

@@ -287,7 +287,9 @@ public partial class Mothership : Area2D
         MissileTargetCount = (int)GameState.Instance.Cfg("mothership.missile.target_count", MissileTargetCount).AsInt64();
         MissileSplashDamage = (int)GameState.Instance.Cfg("mothership.missile.splash_damage", MissileSplashDamage).AsInt64();
         MissileSplashRadius = (float)GameState.Instance.Cfg("mothership.missile.splash_radius", MissileSplashRadius).AsDouble();
-        WarpInTime = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_time", WarpInTime).AsDouble();
+        // H15 同族：warp_in_time 作 Mothership._state_timer/WarpInTime 除数，0 值除零得 NaN/±inf
+        // 经 Lerp 传播污染母舰位置——钳 ≥0.01（对齐 Main.cs DOCK/HOME/GIVE_UP 钳制口径）
+        WarpInTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_time", WarpInTime).AsDouble(), 0.01f);
         WarpInDrop = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble()
             * (float)GameState.Instance.WorldScale;
         SlowRadius = (float)GameState.Instance.Cfg("effects.mothership_summon.slow.radius", SlowRadius).AsDouble();

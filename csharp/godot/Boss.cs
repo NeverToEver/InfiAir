@@ -787,13 +787,18 @@ public partial class Boss : Area2D
         {
             Die();
         }
-        else if (!_enraged && Hp <= MaxHp * EnrageHpRatio)
+        else
         {
-            Enrage();
-        }
-        else if (_fightPhase == FightPhase.P1 && Hp <= MaxHp * Phase2HpRatio)
-        {
-            EnterPhase(FightPhase.P2);
+            // 单发跨 70%+30% 双线：P2 转场先于狂暴判定——原 else-if 链直走 Enrage 会跳过
+            // P2 转场（停火蓄力/清弹无敌/PhaseChanged），状态机缺边（2026-08-13 修复）
+            if (_fightPhase == FightPhase.P1 && Hp <= MaxHp * Phase2HpRatio)
+            {
+                EnterPhase(FightPhase.P2);
+            }
+            if (!_enraged && Hp <= MaxHp * EnrageHpRatio)
+            {
+                Enrage();
+            }
         }
     }
 

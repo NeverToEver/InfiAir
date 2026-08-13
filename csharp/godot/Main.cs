@@ -374,11 +374,13 @@ public partial class Main : Node2D
         // 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）。
         // 2026-08-06 审计：遭遇事件进行中禁止蓄力（L13 互斥只查触发期——事件中召唤
         // 母舰自动火力可清场全额领奖，玩家零参与挂机收益）
+        // 2026-08-13：与 K（give_up）蓄力互斥——先按下的锁定另一路，消除同帧蓄满双触发的时序耦合
         var canCharge = _mothership == null
             && _dockCooldown <= 0.0f
             && !_gameOver
             && !_homecoming
             && _summonWindow == null
+            && _giveUpCharge <= 0.0f
             && _events.ActiveId(_events.GROUP_ENCOUNTER) == new StringName();
         if (canCharge && Input.IsActionPressed("dock"))
         {
@@ -436,7 +438,8 @@ public partial class Main : Node2D
         }
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
-        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_player.IsDead() && Input.IsActionPressed("give_up"))
+        // 2026-08-13：与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
+        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed("give_up"))
         {
             _giveUpCharge += d;
             _hud.SetGiveUpCharge(_giveUpCharge / GIVE_UP_HOLD_TIME);
@@ -922,6 +925,10 @@ public partial class Main : Node2D
         // 提前收回路径（下方 queue_free → mothership._exit_tree 仅 exit_pod 恢复显示）不重置无敌，
         // 正常 RELEASE 路径有 set_invincible(2.0) 覆盖；此处复位后继续出击的无敌由入场序列接管
         _player.SetInvincible(0.0f);
+        // 返航复位狂暴减速残留：EnrageSequence 的解锁点在狂暴结束/Boss 离场，返航保留 Boss
+        // 不归零（继续出击后移速残留 ×0.35 至该 Boss 狂暴结束）；不中止序列本身（防"按 B 躲狂暴"），
+        // 狂暴攻击照常继续，序列后续解锁（BeginReleaseHold/Abort）幂等重复置 1.0 无副作用
+        _player.ApplyEnrageSlow(1.0f);
         _player.AbortEntry(); // D06：入场中按 B 返航时复位入场状态机（防新入场被守卫跳过）
         _player.Velocity = Vector2.Zero;
         _spawner.SetProcess(false);
@@ -946,7 +953,10 @@ public partial class Main : Node2D
         // 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
         _events.EndActive(_events.GROUP_ENCOUNTER);
         // 返航后存档保留更新，供「继续对局」使用
-        GameState.Instance.SaveRun(_player.FuelAmount(), _spawner.Elapsed());
+        // 2026-08-13：elapsed 统一存 RunTime（真实存活时间，暂停不计）——原存 spawner.Elapsed()，
+        // 恢复时回灌 RunTime 造成时钟混用（入场动画窗口 spawner 停走但 RunTime 照走，
+        // 读档后 survive 任务进度/难度曲线时间分量回退）
+        GameState.Instance.SaveRun(_player.FuelAmount(), GameState.Instance.RunTime);
         _starfield.Warp(18.0f); // 保留：过场镜头 1 的充能与星光拉伸自然衔接
         PlayReturnCinematic();
     }

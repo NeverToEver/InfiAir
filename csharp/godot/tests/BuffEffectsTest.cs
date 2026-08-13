@@ -241,7 +241,8 @@ public partial class BuffEffectsTest : Node
             Check(!GodotObject.IsInstanceValid(a) || a.Hp == 0, "explosive 击毁目标 A");
             Check(GodotObject.IsInstanceValid(b) && b.Hp < 9999, "爆炸溅射命中 40px 外近邻 B");
 
-            // 6. 堆叠上限（cap）：spread_shot 3 层一轮齐射 4 弹
+            // 6. 堆叠上限（cap）：spread_shot 3 层超上限（cap 2）一轮齐射 5 弹
+            // （2026-08-13：弹数改奇数序列 1/3/5，每层 +2——偶数弹扇形无中心弹为准星方向负提升）
             FreeTestEntities(main);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             gs.AddBuff("spread_shot");
@@ -271,7 +272,7 @@ public partial class BuffEffectsTest : Node
             }
 
             player.SetAutoFire(false);
-            Check(bullets == 4, "spread_shot 3 层一轮齐射 4 弹");
+            Check(bullets == 5, "spread_shot 3 层（cap 2 层）一轮齐射 5 弹");
 
             // 清理测试实体，避免退出时资源残留；等音效播完再退
             FreeTestEntities(main);

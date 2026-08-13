@@ -734,7 +734,7 @@
 			"max_stacks": 4
 		},
 		"spread_shot": {
-			"max_stacks": 3
+			"max_stacks": 2
 		},
 		"extra_life": {
 			"max_hp_bonus": 50,

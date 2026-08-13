@@ -235,6 +235,45 @@ public partial class BossPhaseTest : Node
             }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+            // ================= 场景 1b：单发跨 70%/30% 双线——P2 转场先于狂暴（2026-08-13 回归） =================
+            var boss1b = await SpawnTestBoss(1);
+            Check(boss1b != null, "场景1b：Boss 已生成");
+            if (boss1b == null)
+            {
+                return;
+            }
+            var phaseSeq = new System.Collections.Generic.List<int>();
+            boss1b.PhaseChanged += (p) => phaseSeq.Add(p);
+            // 一击从满血打到锁血检查点（30%）：原 else-if 链直走 Enrage 跳过 P2 转场
+            // （停火蓄力/清弹无敌/PhaseChanged 全丢失）；修复后顺序双发 P2→ENRAGE
+            boss1b.TakeDamage((int)(boss1b.MaxHp * 0.9f));
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(boss1b.IsEnraged() && boss1b.FightPhaseValue() == (int)Boss.FightPhase.ENRAGE, "场景1b：跨线后进入 ENRAGE");
+            Check(
+                phaseSeq.Count == 2 && phaseSeq[0] == (int)Boss.FightPhase.P2 && phaseSeq[1] == (int)Boss.FightPhase.ENRAGE,
+                $"场景1b：P2 转场先于狂暴（phase_changed 序列 [{string.Join(",", phaseSeq)}] 应为 P2→ENRAGE）");
+            // 清理：快进子弹时间 + 中断序列 + 击杀
+            _mainNode.SetBulletTime(0.05f);
+            for (var i = 0; i < 40; i++)
+            {
+                await WaitReal(0.1);
+                if (Mathf.IsEqualApprox(Engine.TimeScale, 1.0))
+                {
+                    break;
+                }
+            }
+            boss1b.AbortEnrageSequence();
+            boss1b.TakeDamage(9999);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(!GodotObject.IsInstanceValid(boss1b), "场景1b：清理击杀");
+            Check(Mathf.IsEqualApprox(player.EnrageSlow(), 1.0f), "场景1b：清理后玩家减速复位");
+            CloseBuffUiIfOpen();
+            foreach (var b in EnemyBullets())
+            {
+                b.QueueFree();
+            }
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
             // ================= 场景 2：二型狙击 telegraph 时序 =================
             var boss2 = await SpawnTestBoss(2);
             Check(boss2 != null, "场景2：Boss 已生成");

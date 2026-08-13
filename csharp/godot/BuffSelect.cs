@@ -14,7 +14,7 @@ public partial class BuffSelect : CanvasLayer
     {
         new() { ["id"] = new StringName("power_shot"), ["max"] = 5 },
         new() { ["id"] = new StringName("rapid_fire"), ["max"] = 4 },
-        new() { ["id"] = new StringName("spread_shot"), ["max"] = 3 },
+        new() { ["id"] = new StringName("spread_shot"), ["max"] = 2 },
         new() { ["id"] = new StringName("extra_life"), ["max"] = 10 },
         new() { ["id"] = new StringName("regen"), ["max"] = 1 },
         new() { ["id"] = new StringName("piercing"), ["max"] = 2 },
@@ -42,6 +42,9 @@ public partial class BuffSelect : CanvasLayer
     private Label _hintLabel = null!;
     private Godot.Collections.Array _currentAvailable = new();
     private bool _closing; // 选取确认动效播放中：屏蔽再次点选
+    // 单次加分跨多档里程碑时，AddScore 同帧逐档发 MilestoneReached——面板已开的档位挂账，
+    // 关闭后补开（否则第二档起的三选一被 Visible 守卫永久吞掉）
+    private int _pendingMilestones;
 
     private readonly Callable _onMilestoneReached;
     private readonly Callable _onLocaleChanged;
@@ -254,8 +257,13 @@ public partial class BuffSelect : CanvasLayer
 
     private void OnMilestoneReached(long _milestoneScore)
     {
-        if (Visible || GameState.Instance.Health <= 0.0)
+        if (GameState.Instance.Health <= 0.0)
         {
+            return; // 死亡结算中不弹也不挂账
+        }
+        if (Visible)
+        {
+            _pendingMilestones++; // 同帧跨档：面板已开，挂账待关闭后补开
             return;
         }
 
@@ -311,6 +319,7 @@ public partial class BuffSelect : CanvasLayer
                 _center.Modulate = new Color(_center.Modulate, 1.0f); // 复位选取动效残留的淡出
                 _closing = false;
                 GetTree().Paused = false;
+                DrainPendingMilestones();
             }
             else
             {
@@ -480,6 +489,17 @@ public partial class BuffSelect : CanvasLayer
 
         Visible = false;
         GetTree().Paused = false;
+        DrainPendingMilestones();
+    }
+
+    /// <summary>补开被同帧跨档吞掉的里程碑三选一（挂账一档一档补；满卡池/死亡结算自然终止）。</summary>
+    private void DrainPendingMilestones()
+    {
+        if (_pendingMilestones > 0)
+        {
+            _pendingMilestones--;
+            OnMilestoneReached(0);
+        }
     }
 
     public Godot.Collections.Array CurrentAvailable() => _currentAvailable;
@@ -541,6 +561,7 @@ public partial class BuffSelect : CanvasLayer
         _center.Modulate = new Color(_center.Modulate, 1.0f);
         _closing = false;
         GetTree().Paused = false;
+        DrainPendingMilestones();
     }
 
     /// <summary>GDScript 鸭子属性 event.pressed 的等价：覆盖全部带 pressed 属性的 InputEvent 类型。</summary>

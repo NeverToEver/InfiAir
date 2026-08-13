@@ -243,14 +243,13 @@ public partial class GameState : Node
         return (newRecord, rank);
     }
 
-    /// <summary>对局存档（无参版，Y 系列下沉）：内部经注册表取 PlayerRef→FuelAmount()、
-    /// group "spawner"→Elapsed()，缺节点兜底 100/0——PauseUi 不再编排取值。
-    /// 两参版保留（Main.cs 返航自动存档持有实例直传；测试契约）。</summary>
+    /// <summary>对局存档（无参版，Y 系列下沉）：内部经注册表取 PlayerRef→FuelAmount()，
+    /// elapsed 直读 RunTime（2026-08-13：与恢复侧 RunTime 回灌同一时钟源；缺 Player 兜底 100）
+    /// ——PauseUi 不再编排取值。两参版保留（Main.cs 返航自动存档持有实例直传；测试契约）。</summary>
     public void SaveRun()
     {
         var player = PlayerRef as Player;
-        var spawner = GetTree().GetFirstNodeInGroup("spawner") as Spawner;
-        SaveRun(player != null ? player.FuelAmount() : 100.0f, spawner != null ? spawner.Elapsed() : 0.0f);
+        SaveRun(player != null ? player.FuelAmount() : 100.0f, RunTime);
     }
 
     // ---------------- 局外档案（登录用户 = user_db settings；游客仅内存；未登录 = 旧 profile.json 兼容路径） ----------------

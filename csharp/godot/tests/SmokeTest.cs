@@ -113,6 +113,29 @@ public partial class SmokeTest : Node
             Check(!buffUi.Visible && !GetTree().Paused, "选择 buff 后关闭并恢复");
             Check(gs.BuffCount("power_shot") == 1, "buff 计入 GameState");
 
+            // 2b. 单次加分跨两档里程碑：第二档挂账、关闭后补开（2026-08-13 回归——
+            // 原实现第二档被 OnMilestoneReached 的 Visible 守卫直接 return，该档三选一永久丢失）
+            var buffsBefore2b = (Godot.Collections.Dictionary)gs.Buffs.Duplicate(true);  // 段末恢复：选取的 buff 不干扰后续数值断言
+            gs.SetMilestoneOverride(500);            // 当前 Score=500，下一档回设 500
+            var tier2 = gs.MilestoneThreshold(2);    // 首档触发后 while 续判的曲线阈值
+            gs.AddScore(tier2 - 500);                // 一次跨 override 档 + 曲线档（同帧两发 MilestoneReached）
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(buffUi.Visible && GetTree().Paused, "跨档加分：第一档 Buff UI 弹出");
+            buffUi.PickBuff("power_shot");
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(buffUi.Visible && GetTree().Paused, "跨档加分：关闭后补开第二档 Buff UI");
+            buffUi.PickBuff("power_shot");
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(!buffUi.Visible && !GetTree().Paused, "跨档加分：补开档选取后正常关闭");
+            // 2b 把 Score 推高至曲线第二档，后续得分会陆续跨档弹面板（暂停冻结子弹、干扰后续断言）——
+            // 封锁后续里程碑，恢复「后续阈值远高于当前分数」的测试前提；buffs 恢复至 2b 前（3.11 有层数硬断言）
+            gs.SetMilestoneOverride(999999999);
+            gs.Buffs.Clear();
+            foreach (var k in buffsBefore2b.Keys)
+            {
+                gs.Buffs[k] = buffsBefore2b[k];
+            }
+
             // 3. Boss 生成与弹幕
             spawner.SpawnBoss();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1023,6 +1046,120 @@ public partial class SmokeTest : Node
             }
             player.AimPointOverride = Vector2.Inf;
             aimE2.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            // 6.1d 散射×辅助瞄准适配（2026-08-13 回归）：各散射等级齐射全弹绑定同一追踪目标、
+            // 目标死亡后追踪弹解除绑定（stale 引用守卫族，历史崩溃面）
+            var buffsBeforeAim = (Godot.Collections.Dictionary)gs.Buffs.Duplicate(true);
+            gs.AddBuff("spread_shot");  // 1 层 → 3 弹（奇数序列）
+            var aimE3 = EnemyScene.Instantiate<Enemy>();
+            aimE3.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
+            aimE3.CanShoot = false;
+            aimE3.Hp = 9999;
+            aimE3.aim_marked = true;
+            aimE3.Position = player.Position + new Vector2(0.0f, -300.0f);
+            main.AddChild(aimE3);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            player.AimPointOverride = aimE3.GlobalPosition + new Vector2(20.0f, 0.0f);  // 准星入框
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            player.ResetFireCooldown();
+            player.Fire((player.AimPoint() - player.GlobalPosition).Normalized());
+            var volley = new System.Collections.Generic.List<Bullet>();
+            foreach (var child in main.GetChildren())
+            {
+                if (child is Bullet b && b.IsPlayerBullet)
+                {
+                    volley.Add(b);
+                }
+            }
+            Check(volley.Count == 3, "散射 1 层齐射 3 弹（奇数序列）");
+            var bound = 0;
+            foreach (var b in volley)
+            {
+                if (b.HomingTarget == aimE3)
+                {
+                    bound++;
+                }
+            }
+            Check(bound == 3, "散射 1 层齐射全弹绑定同一追踪目标");
+            // 追踪目标死亡（释放路径）→ 物理帧后全弹解除绑定（IsInstanceValid + 注册表双守卫），无崩溃
+            aimE3.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            var staleCount = 0;
+            foreach (var b in volley)
+            {
+                if (GodotObject.IsInstanceValid(b) && b.HomingTarget != null)
+                {
+                    staleCount++;
+                }
+            }
+            Check(staleCount == 0, "追踪目标死亡后全弹解除绑定（无 stale 引用）");
+            foreach (var b in volley)
+            {
+                if (GodotObject.IsInstanceValid(b))
+                {
+                    b.QueueFree();
+                }
+            }
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            // 2 层 → 5 弹同验（上限层）
+            gs.AddBuff("spread_shot");
+            var aimE4 = EnemyScene.Instantiate<Enemy>();
+            aimE4.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
+            aimE4.CanShoot = false;
+            aimE4.Hp = 9999;
+            aimE4.aim_marked = true;
+            aimE4.Position = player.Position + new Vector2(0.0f, -300.0f);
+            main.AddChild(aimE4);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            player.AimPointOverride = aimE4.GlobalPosition + new Vector2(20.0f, 0.0f);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            player.ResetFireCooldown();
+            player.Fire((player.AimPoint() - player.GlobalPosition).Normalized());
+            var volley5 = new System.Collections.Generic.List<Bullet>();
+            foreach (var child in main.GetChildren())
+            {
+                if (child is Bullet b && b.IsPlayerBullet)
+                {
+                    volley5.Add(b);
+                }
+            }
+            Check(volley5.Count == 5, "散射 2 层（上限）齐射 5 弹");
+            var bound5 = 0;
+            foreach (var b in volley5)
+            {
+                if (b.HomingTarget == aimE4)
+                {
+                    bound5++;
+                }
+            }
+            Check(bound5 == 5, "散射 2 层齐射全弹绑定同一追踪目标");
+            aimE4.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            var stale5 = 0;
+            foreach (var b in volley5)
+            {
+                if (GodotObject.IsInstanceValid(b) && b.HomingTarget != null)
+                {
+                    stale5++;
+                }
+            }
+            Check(stale5 == 0, "散射 2 层追踪目标死亡后全弹解除绑定");
+            foreach (var b in volley5)
+            {
+                if (GodotObject.IsInstanceValid(b))
+                {
+                    b.QueueFree();
+                }
+            }
+            player.AimPointOverride = Vector2.Inf;
+            gs.Buffs.Clear();
+            foreach (var k in buffsBeforeAim.Keys)
+            {
+                gs.Buffs[k] = buffsBeforeAim[k];
+            }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
             // 6.2 冲刺耗燃料：消耗满值的 25%，不足时禁用

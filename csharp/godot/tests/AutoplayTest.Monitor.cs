@@ -490,7 +490,11 @@ public partial class AutoplayTest : Node
         // B 梯队：DDA 降档卡死——无受击超时仍激活（受击刷新计时，持续受击不算；恢复后复位）
         if (_gs.DdaActive())
         {
-            if (_lastDamagedMsec >= 0 && now - _lastDamagedMsec > DdaStuckMs && !_ddaStuckReported)
+            // 2026-08-13：暂停期 DDA 计时按设计冻结（RunProgressionService._Process 随树暂停），
+            // 返航过场/基地整备期按真实时间判定必误报；狂暴子弹时间（ts=0.24）下计时按 delta
+            // 慢速耗尽，真实 9s 阈值同样必误报——仅在正常时间流且未暂停时判定
+            if (!GetTree().Paused && main.BulletTime() <= 0.0f && main.TimeScaleRamp() < 0.0f
+                && _lastDamagedMsec >= 0 && now - _lastDamagedMsec > DdaStuckMs && !_ddaStuckReported)
             {
                 _ddaStuckReported = true;
                 Anomaly("dda_stuck", $"DDA 降档激活超 {DdaStuckMs / 1000}s 无受击（未按时恢复）");
