@@ -6,6 +6,13 @@
 set -e
 cd "$(dirname "$0")" || exit 1
 
+# .NET SDK 定位：godot-mono 需要 dotnet 在 PATH 且 DOTNET_ROOT 指向 SDK 根
+# （官方 dotnet-install.sh 默认装到 ~/.dotnet；若当前 shell 未配置，这里兜底，避免每次手动 export）
+if [ -x "$HOME/.dotnet/dotnet" ] && ! command -v dotnet >/dev/null 2>&1; then
+    export DOTNET_ROOT="$HOME/.dotnet"
+    export PATH="$HOME/.dotnet:$PATH"
+fi
+
 # 引擎探测：.NET 版优先（godot-mono，项目含 C# 代码后标准版无法打开）→ PATH（godot / godot4）→ ~/.local/bin → macOS /Applications
 if command -v godot-mono >/dev/null 2>&1; then
     GODOT="godot-mono"
