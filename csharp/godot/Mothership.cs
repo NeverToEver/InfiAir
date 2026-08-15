@@ -733,26 +733,16 @@ public partial class Mothership : Area2D
     {
         GameState.Instance.Shake(ShakeSlow);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -10.0, 0.6);
-        // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：失效实例跳过 +
-        // W 系列（2026-08-09）：apply_slow 仅 Enemy 实现，typed 直调（U13 已收口动态派发）
+        // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：
+        // 经 ISlowable 契约分派，失效实例跳过；新增减速响应单位实现接口即可被覆盖。
         foreach (var item in GameState.Instance.Enemies)
         {
-            var e = item;
-            if (e == null || !GodotObject.IsInstanceValid(e))
+            if (item == null || !GodotObject.IsInstanceValid(item) || item is not ISlowable slowable)
             {
                 continue;
             }
 
-            if (e is Enemy enemy)
-            {
-                enemy.ApplySlow(SlowDuration, SlowFactor);
-            }
-            else if (e is Boss boss)
-            {
-                // 2026-08-09 审计：原 GDScript duck-typing（has_method("apply_slow")）含 Boss，
-                // M4 typed 化遗漏——Boss.ApplySlow/_summonSlowTimer 因此成死代码，此处恢复语义
-                boss.ApplySlow(SlowDuration, SlowFactor);
-            }
+            slowable.ApplySlow(SlowDuration, SlowFactor);
         }
 
         var sw = (Node2D)CinematicFx.Shockwave(new Godot.Collections.Dictionary
@@ -849,29 +839,20 @@ public partial class Mothership : Area2D
         // 失效实例跳过 + Node2D 判型 + Enemy 离场 / Boss 逃跑过滤
         foreach (var item in GameState.Instance.Enemies)
         {
-            var e = item;
-            if (e == null || !GodotObject.IsInstanceValid(e))
+            if (item == null || !GodotObject.IsInstanceValid(item) || item is not Node2D node || !IsLiveTarget(node))
             {
                 continue;
             }
 
-            if (IsLiveTarget(e))
-            {
-                _targetsBuf.Add((Node2D)e);
-            }
+            _targetsBuf.Add(node);
         }
 
         return _targetsBuf;
     }
 
-    /// <summary>过滤谓词：非 Node2D/离场中的 Enemy/逃跑中的 Boss 排除。</summary>
-    private bool IsLiveTarget(GodotObject e)
+    /// <summary>过滤谓词：离场中的 Enemy/逃跑中的 Boss 排除（调用前已保证为有效 Node2D）。</summary>
+    private bool IsLiveTarget(Node2D e)
     {
-        if (e is not Node2D)
-        {
-            return false;
-        }
-
         if (e is Enemy enemy && enemy.IsExiting())
         {
             return false;

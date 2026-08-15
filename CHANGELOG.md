@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 重构（2026-08-16，空间换时间热路径优化与战斗/事件组件可扩展化）
+
+- **契约化**：新增 `IDamageable` / `ISlowable`；`EntityDamage.Dispatch` 与母舰减速场改为接口分派，`GameEventManager` 遭遇互斥删除硬编码 id。
+- **热路径 typed 化**：AimFrameLayer 敌人帧缓存改用 `Array<Node>`；Bullet/LaserWeapon/EnrageSequence/Main/Mothership 注册表遍历全部 typed 直迭代；Main 轨道清场两次遍历合并为一次。
+- **空间换时间缓存**：Player 开火/冲刺 buff 乘区在 `BuffsChanged` 时缓存；Enemy/Spawner/EnemyPool spawn 链消除默认实参 Array 与空 StringName 分配；Enemy 移动策略复用参数字典；Boss 模式表间隔读取显式化，避免每物理帧默认实参求值；`GameEventManager.PickFogId` 复用缓冲数组。
+- **死代码清理**：删除零引用 `Bullet.IsEnemyInstance`、`ReturnCinematic.PoseSit/PoseLie`。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import/smoke 通过 + 全量断言场景 0 FAIL。
+
 ## [3.31] - 2026-08-13
 
 ### 修复（2026-08-13，autoplay 探针 480s 全流程 + 并行逻辑审查，6 项）

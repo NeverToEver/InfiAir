@@ -3,12 +3,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轰炸编队事件·编队战机（docs/FORMATION_STRIKE_EVENT.md 第 4.1 节）：
-/// 楔形编队成员，注册 enemy 组与 GameState.enemies（玩家子弹/激光可命中）。
+/// 轰炸编队事件·编队战机（docs/FORMATION_STRIKE_EVENT.md §3）：
+/// 楔形编队成员，注册 enemy 组与 GameState.Enemies（玩家子弹/激光可命中）；实现 IDamageable。
 /// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动。
 /// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
 /// </summary>
-public partial class FormationCraft : Area2D
+public partial class FormationCraft : Area2D, IDamageable
 {
     [Signal]
     public delegate void DiedEventHandler(FormationCraft craft);

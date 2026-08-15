@@ -6,10 +6,9 @@ using FileAccess = Godot.FileAccess;
 namespace InfiAir;
 
 /// <summary>
-/// GDScript → C# 互操作演示端点（混编样板）：薄 Godot 绑定壳 + InfiAir.Core 纯逻辑。
-/// GDScript 侧通过 load("res://csharp/godot/BalanceInterop.cs").new() 调用，
-/// 验证跨语言路径（GDScript → C# 绑定层 → 纯 .NET 核心库）与 test/csharp_interop_test.gd 断言场景。
-/// 不接入任何生产运行时链路（GameState.cfg() 读取保持不变）。
+/// InfiAir.Core.BalanceRoot 的引擎侧绑定端点（测试/诊断用）：
+/// 供断言场景验证「Godot → C# 绑定层 → 纯 .NET 核心库」解析链路，不接入生产运行时链路
+/// （生产配置读取仍走 GameState.Cfg）。
 /// </summary>
 public partial class BalanceInterop : RefCounted
 {

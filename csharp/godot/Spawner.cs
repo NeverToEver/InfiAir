@@ -16,6 +16,11 @@ namespace InfiAir;
 /// </summary>
 public partial class Spawner : Node
 {
+    // 弹种名静态缓存：spawn 路径反复比较/回退，避免每次 string→StringName 转换。
+    private static readonly StringName BulletTypeSingle = new("single");
+    private static readonly StringName BulletTypeSpread = new("spread");
+    private static readonly StringName BulletTypeLaser = new("laser");
+
     /// <summary>Boss 降入完成（_spawn_boss 后发出；main.gd/_hud 连接，M6 改连 PascalCase 名）。</summary>
     [Signal]
     public delegate void BossSpawnedEventHandler(Boss boss);
@@ -312,24 +317,28 @@ public partial class Spawner : Node
     private int CountSpreadEnemiesInternal()
     {
         return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
-            e is Enemy enemy && enemy.BulletType == "spread" && !enemy.IsExiting()));
+            e is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting()));
     }
 
     /// <summary>从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）。
     /// 同屏上限按难度取（GameState.spread_enemy_cap：easy 1 / medium 2 / hard 3）。</summary>
     private StringName PickBulletTypeInternal(Godot.Collections.Dictionary config)
     {
-        var pool = (Godot.Collections.Array)config.GetValueOrDefault("bullet_types", new Godot.Collections.Array { new StringName("single") });
-        // H07（健壮性审核）：空弹种池回退单发
-        if (pool.Count == 0)
+        var raw = config.GetValueOrDefault("bullet_types", new Variant());
+        var btype = BulletTypeSingle;
+        if (raw.VariantType == Variant.Type.Array)
         {
-            pool = new Godot.Collections.Array { new StringName("single") };
+            var pool = raw.AsGodotArray();
+            // H07（健壮性审核）：空弹种池回退单发
+            if (pool.Count > 0)
+            {
+                btype = (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
+            }
         }
 
-        var btype = (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
-        if (btype == "spread" && CountSpreadEnemiesInternal() >= GameState.Instance.SpreadEnemyCap())
+        if (btype == BulletTypeSpread && CountSpreadEnemiesInternal() >= GameState.Instance.SpreadEnemyCap())
         {
-            btype = (bool)config.GetValueOrDefault("elite", false) ? new StringName("laser") : new StringName("single");
+            btype = (bool)config.GetValueOrDefault("elite", false) ? BulletTypeLaser : BulletTypeSingle;
         }
 
         return btype;

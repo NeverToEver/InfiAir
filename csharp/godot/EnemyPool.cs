@@ -73,7 +73,7 @@ public partial class EnemyPool : Node
 
     public Enemy Spawn(Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos)
     {
-        return Spawn(config, strategy, pDifficulty, pos, new StringName());
+        return Spawn(config, strategy, pDifficulty, pos, Enemy.NoBulletType);
     }
 
     /// <summary>回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行；

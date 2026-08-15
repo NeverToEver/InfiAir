@@ -7,16 +7,19 @@ namespace InfiAir;
 /// dive/spiral/noise/hover/aggressive 八种移动策略；single/spread/laser 弹种；入场两阶段
 /// （下降→悬停机动）；寿命离场（不给分不计击杀）；分裂者；体碰信号事件驱动（P0-2）；
 /// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点（P0-5）。
-/// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、view_world_rect 每物理帧缓存（静态共享）。
-/// CinematicFx 为 GDScript 静态（经脚本资源 Call/Get）。
+/// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、可见区域经 FrameCache 每物理帧共享。
+/// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达，新增单位无需改分派器。
 /// </summary>
-public partial class Enemy : Area2D
+public partial class Enemy : Area2D, IDamageable, ISlowable
 {
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
 
     // U14 同款：开火热路径 StringName 静态缓存（原每发敌弹 new StringName，2026-08-10 审计 H1）
     private static readonly StringName BulletTypeSingle = new("single");
+
+    /// <summary>「未指定弹种」哨兵：spawn 每敌复用，替代每次调用 new StringName()（空间换时间）。</summary>
+    internal static readonly StringName NoBulletType = new();
     private static readonly StringName BulletTypeSpread = new("spread");
     private static readonly StringName BulletTypeLaser = new("laser");
 
@@ -74,6 +77,9 @@ public partial class Enemy : Area2D
     private float _fireTimer = 2.2f;
     private EnemyMoveStrategy? _strategy;
     private readonly MoveCtx _moveCtx = new();
+
+    /// <summary>空间换时间：MakeStrategy 复用同一参数字典（Clear + 重填），替代每 spawn new Dictionary。</summary>
+    private readonly Godot.Collections.Dictionary _strategyParams = new();
     private EnemyPool? _pool;
     private bool _active;
     private bool _repooling;
@@ -197,6 +203,23 @@ public partial class Enemy : Area2D
     }
 
     /// <summary>setup：config 驱动数值/外观（_ready 之前调用，不用 @onready）。</summary>
+    /// <summary>从敌机配置的弹种池随机取一种；缺键/空池/坏值回退 single。
+    /// 不分配默认 Array——原 GetValueOrDefault 的默认实参每 spawn 求值一次（空间换时间）。</summary>
+    private StringName PickConfiguredBulletType(Godot.Collections.Dictionary config)
+    {
+        var raw = config.GetValueOrDefault("bullet_types", new Variant());
+        if (raw.VariantType == Variant.Type.Array)
+        {
+            var pool = raw.AsGodotArray();
+            if (pool.Count > 0)
+            {
+                return (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
+            }
+        }
+
+        return BulletTypeSingle; // H07：空弹种池/坏值回退单发
+    }
+
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
         Strategy = pStrategy;
@@ -217,15 +240,9 @@ public partial class Enemy : Area2D
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
         FireInterval = (float)config.GetValueOrDefault("fire_interval", 2.2).AsDouble();
-        var pool = (Godot.Collections.Array)config.GetValueOrDefault("bullet_types", new Godot.Collections.Array { new StringName("single") });
-        if (pool.Count == 0)
-        {
-            pool = new Godot.Collections.Array { new StringName("single") }; // H07：空弹种池回退单发
-        }
-
-        BulletType = pBulletType != new StringName()
+        BulletType = pBulletType != NoBulletType
             ? pBulletType
-            : (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
+            : PickConfiguredBulletType(config);
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
             // 2026-08-10 审计：原直查 Cfg("enemies.speed_ramp_factor") 每 spawn 全链路——改走
@@ -250,7 +267,7 @@ public partial class Enemy : Area2D
 
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
     {
-        Setup(config, pStrategy, pDifficulty, new StringName());
+        Setup(config, pStrategy, pDifficulty, NoBulletType);
     }
 
     /// <summary>分裂者标记（子机复用 config 后取消，防止无限分裂）。</summary>
@@ -318,7 +335,7 @@ public partial class Enemy : Area2D
 
     public void Reactivate(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
     {
-        Reactivate(config, pStrategy, pDifficulty, new StringName());
+        Reactivate(config, pStrategy, pDifficulty, NoBulletType);
     }
 
     /// <summary>池化回收：停用但保留实例。</summary>
@@ -481,17 +498,16 @@ public partial class Enemy : Area2D
     /// <summary>A4a：按 strategy 构建移动策略实例（共享悬停常量注入；Q29 策略专属参数覆盖）。</summary>
     private EnemyMoveStrategy MakeStrategy()
     {
-        var params_ = new Godot.Collections.Dictionary
-        {
-            ["hover_bob_amp"] = HoverBobAmp,
-            ["hover_bob_freq"] = HoverBobFreq,
-            ["hover_sway_amp"] = HoverSwayAmp,
-            ["hover_sway_freq"] = HoverSwayFreq,
-            ["spiral_drift_amp"] = SpiralDriftAmp,
-            ["spiral_drift_freq"] = SpiralDriftFreq,
-            ["spiral_radius"] = SpiralRadius,
-            ["aggressive_chase_speed"] = AggrChaseSpeed,
-        };
+        var params_ = _strategyParams;
+        params_.Clear();
+        params_["hover_bob_amp"] = HoverBobAmp;
+        params_["hover_bob_freq"] = HoverBobFreq;
+        params_["hover_sway_amp"] = HoverSwayAmp;
+        params_["hover_sway_freq"] = HoverSwayFreq;
+        params_["spiral_drift_amp"] = SpiralDriftAmp;
+        params_["spiral_drift_freq"] = SpiralDriftFreq;
+        params_["spiral_radius"] = SpiralRadius;
+        params_["aggressive_chase_speed"] = AggrChaseSpeed;
         // 2026-08-10 审计：move_strategies 子树改读 Load 时缓存引用（原每 spawn Cfg 深拷贝整棵子树）；
         // 此处只读（参数拷贝进 params_ 后不再触碰源表），缓存引用无别名污染风险
         var strategyCfg = GameState.Instance.MoveStrategies().GetValueOrDefault(Strategy, new Godot.Collections.Dictionary());

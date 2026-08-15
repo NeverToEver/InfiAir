@@ -9,12 +9,15 @@ namespace InfiAir;
 /// 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
 /// 开始面板（继续对局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
 /// 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
-/// M6 全量迁移（2026-08-08 自 scripts/main.gd）。
-/// 同批迁移类 typed 直调：Spawner/IntroCinematic/ReturnCinematic/MothershipSummonWindow/
+/// M6 全量迁移（2026-08-08 自 scripts/main.gd）；生产调用方全部 C# typed。
+/// 轨道清场经 GameState.Enemies 单次遍历完成「爆炸演出 + 批量清除」（Boss 保留）。
 /// </summary>
 public partial class Main : Node2D
 {
     private const string BgmPath = "res://assets/audio/bgm_loop.wav";
+
+    /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
+    private static readonly StringName NoActiveEncounter = new();
     // V 系列：静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
     // 改实例字段——Main 每局重建实例，加载命中资源缓存。
     private readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
@@ -24,7 +27,7 @@ public partial class Main : Node2D
     public float HOME_CHARGE_TIME { get; set; } = 1.5f;
     public float GIVE_UP_HOLD_TIME { get; set; } = 3.0f;
     /// <summary>Boss 狂暴子弹时间（对齐原作 ENRAGE_SLOW_FACTOR=0.24）：1.2s 全局慢速 → 0.3s 恢复 → 快照弹幕
-    /// （子弹时间是狂暴序列 TRANSITION 的表现；序列编排/锁血/锁玩家移动由 boss.gd 接管）</summary>
+    /// （子弹时间是狂暴序列 TRANSITION 的表现；序列编排/锁血/锁玩家移动由 Boss.cs 接管）</summary>
     public float ENRAGE_SLOW_SCALE { get; set; } = 0.24f;
     public float ENRAGE_BULLET_TIME { get; set; } = 1.2f;
     public float ENRAGE_RAMP_TIME { get; set; } = 0.3f;
@@ -381,7 +384,7 @@ public partial class Main : Node2D
             && !_homecoming
             && _summonWindow == null
             && _giveUpCharge <= 0.0f
-            && _events.ActiveId(_events.GROUP_ENCOUNTER) == new StringName();
+            && _events.ActiveId(_events.GROUP_ENCOUNTER) == NoActiveEncounter;
         if (canCharge && Input.IsActionPressed("dock"))
         {
             _charging = true;
@@ -980,41 +983,18 @@ public partial class Main : Node2D
     /// 后移除（Boss 保留），再清全部弹丸与编队炸弹，恢复同一局</summary>
     private void OnOrbitalStruck()
     {
-        // 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：非 Boss 单位逐机播爆炸
-        // （原 GDScript for_each_enemy 以 Callable 谓词过滤；C# 侧无 Func 重载，
-        // 语义等价直迭代 GameState.enemies 注册表——M2 注释即预告随调用方迁移由 C# 实现）
-        var enemies = (Godot.Collections.Array)GameState.Instance.Enemies;
-        foreach (var nodeV in enemies)
+        // 单次遍历注册表完成「爆炸演出 + 批量清除」：QueueFree 延迟到帧末释放，
+        // 迭代期间注册表不变；Boss 保留（continue）。合并原先两次遍历，减少一次全表扫描。
+        foreach (var e in GameState.Instance.Enemies)
         {
-            var e = nodeV.AsGodotObject() as Node;
-            if (e == null || !GodotObject.IsInstanceValid(e))
+            if (e == null || !GodotObject.IsInstanceValid(e) || e is Boss)
             {
                 continue;
-            }
-
-            if (e is Boss)
-            {
-                continue; // Boss 保留
             }
 
             if (e is Node2D n2d)
             {
                 Explosion.SpawnAt(this, n2d.GlobalPosition);
-            }
-        }
-
-        // 批量清除（Boss 保留）；queue_free 延迟释放，迭代期间注册表不变，无需 duplicate
-        foreach (var nodeV in enemies)
-        {
-            var e = nodeV.AsGodotObject() as Node;
-            if (e == null || !GodotObject.IsInstanceValid(e))
-            {
-                continue;
-            }
-
-            if (e is Boss)
-            {
-                continue;
             }
 
             e.QueueFree();

@@ -642,9 +642,19 @@ public partial class Player : CharacterBody2D
         CritChance = critStacks == 0 ? 0.0f : CritChanceBase * critStacks;
         CritMultiplierValue = CritMultiplier;
         // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnBuffsChanged 同款）——
-        // 原每物理帧 BuffCount 字典查找 + Pow（_physics_process 每帧两次）
+        // 原每物理帧 BuffCount 字典查找 + Pow（_physics_process 每帧两次）。
+        // 2026-08-16 扩展：开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
         _fuelDrainRate = BuffScale(BuffEfficientBoost, FuelDrain, (int)GameState.Instance.BuffCount(BuffEfficientBoost));
         _fuelRegenRate = BuffScale(BuffBoostRecovery, FuelRegen, (int)GameState.Instance.BuffCount(BuffBoostRecovery));
+        _fireIntervalValue = BuffScale(BuffRapidFire, BaseFireInterval, (int)GameState.Instance.BuffCount(BuffRapidFire));
+        _bulletDamageValue = Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (int)GameState.Instance.BuffCount(BuffPowerShot)));
+        _bulletSpeedValue = BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+        _spreadShotCount = BuffCap(BuffSpreadShot);
+        _pierceCount = BuffCap(BuffPiercing);
+        _explosiveEnabled = BuffEnabled(BuffExplosive);
+        var dashStacks = (int)GameState.Instance.BuffCount(BuffPhaseDash);
+        _dashUnlocked = dashStacks > 0;
+        _dashCooldownMax = BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max(dashStacks - 1, 0));
     }
 
     /// <summary>A4：乘算因子求值——base × factor^count。</summary>
@@ -656,12 +666,12 @@ public partial class Player : CharacterBody2D
     /// <summary>A4：布尔启用——count &gt; 0。</summary>
     private bool BuffEnabled(StringName id) => (int)GameState.Instance.BuffCount(id) > 0;
 
-    public float FireIntervalValue() => BuffScale(BuffRapidFire, BaseFireInterval, (int)GameState.Instance.BuffCount(BuffRapidFire));
+    public float FireIntervalValue() => _fireIntervalValue;
 
-    public int BulletDamageValue() => Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (int)GameState.Instance.BuffCount(BuffPowerShot)));
+    public int BulletDamageValue() => _bulletDamageValue;
 
-    /// <summary>bullet_speed buff 后的当前弹速。</summary>
-    public float BulletSpeedValue() => BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+    /// <summary>bullet_speed buff 后的当前弹速（buffs_changed 时缓存）。</summary>
+    public float BulletSpeedValue() => _bulletSpeedValue;
 
     public float FuelRatio() => _fuel / FuelMax;
 
@@ -671,9 +681,9 @@ public partial class Player : CharacterBody2D
         _fuelLocked = false;
     }
 
-    public bool DashUnlocked() => BuffEnabled(BuffPhaseDash);
+    public bool DashUnlocked() => _dashUnlocked;
 
-    public float DashCooldownMax() => BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max((int)GameState.Instance.BuffCount(BuffPhaseDash) - 1, 0));
+    public float DashCooldownMax() => _dashCooldownMax;
 
     public float DashFuelCost() => FuelMax * DashFuelRatio;
 
@@ -692,6 +702,17 @@ public partial class Player : CharacterBody2D
     private float _fuelDrainRate = 35.0f;
     private float _fuelRegenRate = 20.0f;
 
+    /// <summary>空间换时间：射速/伤害/弹速/冲刺解锁与冲刺冷却上限随 buff 变化一次性缓存，
+    /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 BuffCount 字典查找 + Pow。</summary>
+    private float _fireIntervalValue = 0.15f;
+    private int _bulletDamageValue = 10;
+    private float _bulletSpeedValue = 1800.0f;
+    private int _spreadShotCount;
+    private int _pierceCount;
+    private bool _explosiveEnabled;
+    private bool _dashUnlocked;
+    private float _dashCooldownMax = 4.0f;
+
     public float FuelDrainRate() => _fuelDrainRate;
 
     public float FuelRegenRate() => _fuelRegenRate;
@@ -699,6 +720,8 @@ public partial class Player : CharacterBody2D
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        // 帧首缓存 GameState 门面：本方法多次读取设置域，避免重复 Instance 判活/根节点查询。
+        var gs = GameState.Instance;
         // A2(2026-08-11 审计):同帧双 GetTicksMsec 合并——帧首取一次,761/866 行复用(免同帧两次系统时钟查询)
         var nowMs = (long)Time.GetTicksMsec();
         if (_dead)
@@ -778,12 +801,12 @@ public partial class Player : CharacterBody2D
         }
 
         // 燃料与加速（shift_toggle_mode：按一下切换开/关）
-        if ((bool)GameState.Instance.ShiftToggleMode && Input.IsActionJustPressed(ActBoost))
+        if ((bool)gs.ShiftToggleMode && Input.IsActionJustPressed(ActBoost))
         {
             _boostToggleOn = !_boostToggleOn;
         }
 
-        var wantBoost = (bool)GameState.Instance.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed(ActBoost);
+        var wantBoost = (bool)gs.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed(ActBoost);
         if (MovementLocked)
         {
             wantBoost = false;
@@ -810,18 +833,18 @@ public partial class Player : CharacterBody2D
 
         var boost = boosting ? BoostMult : 1.0f;
         // Ctrl 微调：移速 ×0.35（ctrl_toggle_mode：按一下切换开/关）
-        if ((bool)GameState.Instance.CtrlToggleMode && Input.IsActionJustPressed(ActFineMove))
+        if ((bool)gs.CtrlToggleMode && Input.IsActionJustPressed(ActFineMove))
         {
             _fineToggleOn = !_fineToggleOn;
         }
 
-        var fineOn = (bool)GameState.Instance.CtrlToggleMode ? _fineToggleOn : Input.IsActionPressed(ActFineMove);
+        var fineOn = (bool)gs.CtrlToggleMode ? _fineToggleOn : Input.IsActionPressed(ActFineMove);
         var fine = fineOn ? FineMoveMult : 1.0f;
         var target = inputDir * MaxSpeed * boost * fine * _enrageSlow;
         var rate = inputDir != Vector2.Zero ? Accel : Decel;
         Velocity = Velocity.MoveToward(target, rate * d);
         MoveAndSlide();
-        Position = ClampToView(Position);
+        Position = ClampToView(Position, gs.ViewWorldRect());
 
         if (boosting && inputDir != Vector2.Zero)
         {
@@ -869,9 +892,11 @@ public partial class Player : CharacterBody2D
     }
 
     /// <summary>屏幕边缘钳制：随可见世界区域收窄。</summary>
-    public Vector2 ClampToView(Vector2 p)
+    public Vector2 ClampToView(Vector2 p) => ClampToView(p, GameState.Instance.ViewWorldRect());
+
+    /// <summary>给定视野的屏幕边缘钳制（_PhysicsProcess 复用帧内已取视野，免重复 Instance/ViewWorldRect）。</summary>
+    private static Vector2 ClampToView(Vector2 p, Rect2 view)
     {
-        var view = GameState.Instance.ViewWorldRect();
         return p.Clamp(view.Position + new Vector2(40.0f, 40.0f), view.End - new Vector2(40.0f, 40.0f));
     }
 
@@ -1053,15 +1078,15 @@ public partial class Player : CharacterBody2D
 
     private void FireInternal(Vector2 aim)
     {
-        var spread = BuffCap(BuffSpreadShot);
-        var pierce = BuffCap(BuffPiercing);
-        var explosive = BuffEnabled(BuffExplosive);
+        var spread = _spreadShotCount;
+        var pierce = _pierceCount;
+        var explosive = _explosiveEnabled;
+        var gs = GameState.Instance;
         // 辅助瞄准（P1-1/P1-3）：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
         Enemy? homingTarget = null;
         var homingRate = _homingTurnRate;
-        if (GameState.Instance.AimFrameLayer != null)
+        if (gs.AimFrameLayer is AimFrameLayer aimLayer)
         {
-            var aimLayer = (AimFrameLayer)GameState.Instance.AimFrameLayer;
             homingTarget = aimLayer.MarkedTargetAt(AimPoint());
             if (homingTarget == null)
             {
@@ -1086,8 +1111,8 @@ public partial class Player : CharacterBody2D
         // 散射弹道数恒为奇数（1/3/5，每层 +2）：偶数弹数扇形无中心弹（准星方向落空 = 负提升），
         // 居中索引即层数（spread=1→3 弹 [-1,0,+1]，spread=2→5 弹 [-2..+2]）
         var count = 1 + spread * 2;
-        // P1-2：循环不变量外提（_buff_scale 含 pow，同帧只计算一次）
-        var loopSpeed = BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+        // P1-2：循环不变量外提；buff 变化时缓存，开火路径零字典/Pow。
+        var loopSpeed = BulletSpeedValue();
         var loopDamage = BulletDamageValue();
         for (var i = 0; i < count; i++)
         {
@@ -1105,7 +1130,7 @@ public partial class Player : CharacterBody2D
                 bspeed *= 0.45f;
             }
 
-            var pool = (BulletPool?)GameState.Instance.BulletPool;
+            var pool = gs.BulletPool as BulletPool;
             if (pool == null)
             {
                 continue;
@@ -1438,7 +1463,16 @@ public partial class Player : CharacterBody2D
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public float BULLET_SPEED { get => BulletSpeed; set => BulletSpeed = value; }
+    public float BULLET_SPEED
+    {
+        get => BulletSpeed;
+        set
+        {
+            BulletSpeed = value;
+            // 空间换时间缓存同步：测试/兼容桥运行期改基础弹速时，发射路径须立即生效。
+            _bulletSpeedValue = BuffScale(BuffBulletSpeed, value, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+        }
+    }
 
     public float INVINCIBLE_TIME { get => InvincibleTime; set => InvincibleTime = value; }
 

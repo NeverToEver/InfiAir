@@ -7,9 +7,9 @@ namespace InfiAir;
 /// LaserBuff + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.buff_count(&amp;"laser_beam")
 /// &gt; 0 时启用。就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
 /// 穿透性直线，线上敌人每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
-/// 语义保持：buff 层数经 buffs_changed 信号缓存（Enemy.cs 同款，避免每物理帧跨语言
-/// buff_count）；C23 预分配 points 数组帧内 set_point_position 原地写；E08 buff 归零时
-/// 收束激活态光束。原 const SFX_BEAM = preload 移入 _Ready 惰性加载（GD.Load 同资源缓存）。
+/// 语义保持：buff 层数经 BuffsChanged 信号缓存（避免每物理帧字典/信号查询）；
+/// C23 预分配 points 数组帧内原地写；E08 buff 归零时收束激活态光束。
+/// SFX 资源在 _Ready 惰性加载（GD.Load 命中引擎资源缓存）。
 /// </summary>
 public partial class LaserWeapon : Node2D
 {
@@ -242,21 +242,19 @@ public partial class LaserWeapon : Node2D
     /// 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝。</summary>
     private void DamageTick(Vector2 start, Vector2 end)
     {
-        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
+        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
         for (var i = arr.Count - 1; i >= 0; i--)
         {
-            var node = arr[i].AsGodotObject();
-            if (!GodotObject.IsInstanceValid(node))
+            var node = arr[i];
+            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d)
             {
                 continue;
             }
 
-            var pos = ((Node2D)node).GlobalPosition;  // 注册表元素均为 Node2D（Enemy/Boss/炮塔/编队机）
-            if (DistToSegment(pos, start, end) <= BeamHalfWidth + EnemyHitRadius)
+            if (DistToSegment(n2d.GlobalPosition, start, end) <= BeamHalfWidth + EnemyHitRadius)
             {
-                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；激光路径不传 ScoreScale
-                // ——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同），保持不动
-                EntityDamage.Dispatch(node, TickDamage);
+                // 激光路径不传 ScoreScale——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同）。
+                EntityDamage.Dispatch(n2d, TickDamage);
             }
         }
     }

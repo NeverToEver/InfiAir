@@ -9,7 +9,7 @@ namespace InfiAir;
 /// 保持语义：R07 碰撞半径唯一事实源；P2-1 活跃计数；P0-3 共享图集单 Sprite2D；
 /// 公平机制一（受击宽限）/二（擦弹单次）/四（弹反）；P0-1 敌弹注册表；P1-1 辅助瞄准追踪；
 /// P2-10 致死高亮；宽限/擦弹/反射的池化复位。
-/// Player/Enemy 为 GDScript 类（M3b/M3c 迁移前）经鸭子调用（HasMethod/Get/Call）。
+/// 命中结算经 EntityDamage 统一分派（IDamageable 契约）；生产调用方均为 C# typed。
 /// </summary>
 public partial class Bullet : Area2D
 {
@@ -327,20 +327,18 @@ public partial class Bullet : Area2D
     /// AC16（2026-08-11 审计）：删除其上孤儿「monitoring 延迟」summary（与 _explode 无关，AB21 同族）。</summary>
     private void _explode()
     {
-        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
+        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
         var radiusSq = ExplosiveRadius * ExplosiveRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
-            // U13：typed——原 is_boss 判定排除 Boss（恒 true 跳过）与无 take_damage 类，
-            // `is Enemy` 直接等价（注册表含 Enemy 与 Boss，Boss 非 Enemy 子类）
-            if (arr[i].AsGodotObject() is not Enemy enemy)
+            // 爆炸 AoE 仅作用于普通敌机（Enemy 子类）；Boss/炮塔/编队机与失效实例跳过。
+            if (arr[i] is not Enemy enemy || !GodotObject.IsInstanceValid(enemy))
             {
                 continue;
             }
 
             if (enemy.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
-                // 2026-08-09 Y 系列：统一分派（enemy 已判型，单参 = scoreScale 1.0 既有语义）
                 EntityDamage.Dispatch(enemy, ExplosiveDamage);
             }
         }
@@ -352,34 +350,24 @@ public partial class Bullet : Area2D
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害。</summary>
     private void _splash()
     {
-        var arr = (Godot.Collections.Array)GameState.Instance.Enemies;
+        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
         var radiusSq = SplashRadius * SplashRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
-            var node = (Node2D?)arr[i];
-            if (node == null)
+            var node = arr[i];
+            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d || n2d is not IDamageable)
             {
                 continue;
             }
 
-            if (node is Area2D && node.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            if (n2d.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
-                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；溅射路径带 ScoreScale
-                EntityDamage.Dispatch(node, SplashDamage, ScoreScale);
+                EntityDamage.Dispatch(n2d, SplashDamage, ScoreScale);
             }
         }
 
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.8f);
         GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -6.0);
-    }
-
-    /// <summary>注册表实例是否为 Enemy 语义（M3b：C# 脚本无 GetGlobalName——改鸭子判定：
-    /// 仅 Enemy/Boss 有 is_boss()，TurretBattery/FormationCraft 无；Boss 由调用方 is_boss 检查排除，
-    /// 净效果与原 GDScript `as Enemy` 等价）。</summary>
-    private static bool IsEnemyInstance(GodotObject o)
-    {
-        // U13：typed 判型（原鸭子 HasMethod("is_boss")——仅 Enemy/Boss 有该方法）
-        return o is Enemy or Boss;
     }
 
     private void OnAreaEntered(Area2D area)

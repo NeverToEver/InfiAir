@@ -448,10 +448,9 @@ public partial class EnrageSequence : RefCounted
         // 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：收集在场活跃小怪
         // M3d：直接遍历注册表（for_each_enemy 的 bool 谓词无法用 Callable.From——无 Func 重载）；
         // 语义等价：失效实例跳过 + Enemy 判型 + 活跃过滤
-        var enemies = (Godot.Collections.Array)GameState.Instance.Enemies;
-        foreach (var item in enemies)
+        foreach (var item in GameState.Instance.Enemies)
         {
-            if (item.AsGodotObject() is Enemy enemy && enemy.IsActive())
+            if (item is Enemy enemy && GodotObject.IsInstanceValid(enemy) && enemy.IsActive())
             {
                 minions.Add(enemy);
             }

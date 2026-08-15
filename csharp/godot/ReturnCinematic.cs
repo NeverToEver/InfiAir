@@ -449,41 +449,6 @@ public partial class ReturnCinematic : CanvasLayer
         ((Node2D)p["torso"].AsGodotObject()).Rotation = 0.0f;
     }
 
-    /// <summary>坐姿：大腿前抬、小腿下垂（坐在休眠床沿）</summary>
-    private static void PoseSit(Godot.Collections.Dictionary p)
-    {
-        var hips = p["hips"].AsGodotArray();
-        var knees = p["knees"].AsGodotArray();
-        var shoulders = p["shoulders"].AsGodotArray();
-        var elbows = p["elbows"].AsGodotArray();
-        for (var i = 0; i < 2; i++)
-        {
-            ((Node2D)hips[i].AsGodotObject()).Rotation = -1.5f;
-            ((Node2D)knees[i].AsGodotObject()).Rotation = 1.4f;
-            ((Node2D)shoulders[i].AsGodotObject()).Rotation = 0.2f;
-            ((Node2D)elbows[i].AsGodotObject()).Rotation = -0.8f;
-        }
-
-        ((Node2D)p["torso"].AsGodotObject()).Rotation = 0.1f;
-    }
-
-    /// <summary>平躺姿态：四肢舒展微放松（整体旋转由镜头另控）</summary>
-    private static void PoseLie(Godot.Collections.Dictionary p)
-    {
-        var hips = p["hips"].AsGodotArray();
-        var knees = p["knees"].AsGodotArray();
-        var shoulders = p["shoulders"].AsGodotArray();
-        var elbows = p["elbows"].AsGodotArray();
-        for (var i = 0; i < 2; i++)
-        {
-            ((Node2D)hips[i].AsGodotObject()).Rotation = 0.1f;
-            ((Node2D)knees[i].AsGodotObject()).Rotation = 0.12f;
-            ((Node2D)shoulders[i].AsGodotObject()).Rotation = 0.15f;
-            ((Node2D)elbows[i].AsGodotObject()).Rotation = -0.2f;
-        }
-
-        ((Node2D)p["torso"].AsGodotObject()).Rotation = 0.0f;
-    }
 
     /// <summary>一次性触发 Timer（随镜头节点销毁，跳过/切镜不残留迟发回调）</summary>
     private static void Once(Node parent, float wait, Callable cb)

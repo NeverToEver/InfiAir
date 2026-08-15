@@ -11,11 +11,15 @@ namespace InfiAir;
 /// 弹幕经 BossFire（纯 C# 类）。语义保持：模式表脚本默认值镜像 balance.json、难度分档统一应用
 /// （§4.4）、阶段转场清弹 + 玩家短暂无敌（机制三）、狂暴锁血 30% + 玩家移速 ×0.35、逃跑警告 +
 /// 上飘、体碰信号事件驱动（P0-2）、受击闪白手动衰减（P1-2）。
-/// 类型化调用；HUD 警告横幅/FormationBomb 经群组/脚本资源判定；EnrageSequence/BossAttacks/
-/// BossMovement 对本类经 Get/Call 动态派发（snake_case/PascalCase 双名，M7 重定型）。
+/// 全部生产调用方为 C# typed（EnrageSequence/BossAttacks/BossMovement 经构造注入 Boss 引用）；
+/// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达。
 /// </summary>
-public partial class Boss : Area2D
+public partial class Boss : Area2D, IDamageable, ISlowable
 {
+    /// <summary>攻击模式表缺省哨兵：_fireTimer 归零路径每物理帧求值 GetValueOrDefault 默认实参，
+    /// 缓存空 StringName 避免 native 分配（空间换时间）。</summary>
+    private static readonly StringName NoAttack = new();
+
     [Signal]
     public delegate void HealthChangedEventHandler(float current, float maximum);
 
@@ -698,10 +702,20 @@ public partial class Boss : Area2D
 
     public int FightPhaseValue() => (int)_fightPhase;
 
+    /// <summary>读取模式间隔；缺键/坏值才回退 BaseFireInterval。
+    /// 原 GetValueOrDefault 的默认实参每帧求值一次（DDA 查询），改为显式取 variant（空间换时间）。</summary>
+    private float PatternInterval(Godot.Collections.Dictionary pattern)
+    {
+        var v = pattern.GetValueOrDefault("interval", default(Variant));
+        return v.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? (float)v.AsDouble()
+            : BaseFireInterval();
+    }
+
     /// <summary>A3：模式循环计时复位（BossAttacks 冲刺掠过 RETURN 结束调用）。</summary>
     public void ResetFireTimer()
     {
-        _fireTimer = (float)CurrentPattern().GetValueOrDefault("interval", BaseFireInterval()).AsDouble();
+        _fireTimer = PatternInterval(CurrentPattern());
     }
 
     /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化；返回纯 C# 类，不注册进引擎表，
@@ -959,8 +973,8 @@ public partial class Boss : Area2D
             {
                 var pattern = CurrentPattern();
                 // AB3：运行期兜底——interval 钳下限 0.05（装入清洗外的入口防每帧攻击风暴）
-                _fireTimer = Mathf.Max((float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble(), 0.05f);
-                _attacks.Execute((StringName)pattern.GetValueOrDefault("attack", new StringName()), this);
+                _fireTimer = Mathf.Max(PatternInterval(pattern), 0.05f);
+                _attacks.Execute((StringName)pattern.GetValueOrDefault("attack", NoAttack), this);
                 if (!_patternIsDuration)
                 {
                     _patternLeft -= 1.0f;
@@ -1019,7 +1033,7 @@ public partial class Boss : Area2D
         }
 
         // AB3：运行期兜底——首装同样钳下限（装入清洗外的入口）
-        _fireTimer = Mathf.Max((float)pattern.GetValueOrDefault("interval", BaseFireInterval()).AsDouble(), 0.05f);
+        _fireTimer = Mathf.Max(PatternInterval(pattern), 0.05f);
     }
 
     private void AdvancePattern()

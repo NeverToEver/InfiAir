@@ -4,20 +4,20 @@ namespace InfiAir;
 
 /// <summary>
 /// 统一游戏事件管理器（docs/EVENT_MANAGER.md；M 批次全量迁移）：批量管理全部随机游戏事件。
-/// 挂载：GameState autoload 子节点（维持唯一 autoload 约定；经 GameState.events 全局访问）。
+/// 挂载：GameState autoload 子节点（维持唯一 autoload 约定；经 GameState.Events 全局访问）。
 /// 设计要点：
 ///   - 统一注册表 EVENT_FACTORIES（id -> 工厂 Callable，唯一事实源）：迷雾 4 事件默认注册，
-///     遭遇事件（精英炮塔/轰炸编队）由 main._ready 经 register_encounter() 注入缓存单例；
+///     遭遇事件（精英炮塔/轰炸编队）由 Main._Ready 经 RegisterEncounter() 注入缓存单例；
 ///   - 分组并发：fog | encounter 两组，组内单事件并发、组间可并行（保持现状：迷雾事件
 ///     可与遭遇事件并行，遭遇事件彼此/Boss 互斥）；
 ///   - 统一触发策略：fog 组沿用 fog_events.* 配置；encounter 组沿用 elite_turret_event.* /
 ///     formation_strike_event.*（balance.json key 零变化，仅读取方移动）；
-///   - 统一生命周期与信号：event_started/event_ended；fog 事件走 GameEvent 契约
-///     （start(ctx,duration) → tick → 到期 end，context 由迷雾门面构建）；遭遇事件保持
-///     Node 形态（自驱 FSM），管理器调 start()/abort() 并轮询 is_active() 检测结束；
-///   - 接线门控：_fog_wired 由迷雾门面 wire() 开启，_run_active 由 main 设置；
-///     遭遇触发门控 = 注入 spawner 处理中 + 事件 can_trigger。
-/// 鸭子调用（Call 动态派发）；fog 事件为 C# GameEvent 子类强类型调用。
+///   - 统一生命周期与信号：EventStarted/EventEnded；fog 事件走 GameEvent 契约
+///     （Start(ctx,duration) → Tick → 到期 End，context 由迷雾门面构建）；遭遇事件保持
+///     Node 形态（自驱 FSM），管理器调 Start()/Abort() 并轮询 IsActive() 检测结束；
+///   - 接线门控：_fogWired 由迷雾门面 Wire() 开启，_runActive 由 Main 设置；
+///     遭遇触发门控 = 注入 Spawner 处理中 + 事件 CanTrigger。
+/// 生产调用全部 C# typed（IEncounterEvent/GameEvent 契约）；无动态派发。
 /// </summary>
 public partial class GameEventManager : Node
 {
@@ -29,7 +29,7 @@ public partial class GameEventManager : Node
     [Signal]
     public delegate void EventEndedEventHandler(StringName eventId);
 
-    /// <summary>分组常量（组内单事件并发，组间并行）——GDScript 经实例 GROUP_FOG/GROUP_ENCOUNTER 访问。</summary>
+    /// <summary>分组常量（组内单事件并发，组间并行）——实例属性 GROUP_FOG/GROUP_ENCOUNTER 供兼容访问。</summary>
     public static readonly StringName GroupFog = new StringName("fog");
 
     public static readonly StringName GroupEncounter = new StringName("encounter");
@@ -115,6 +115,9 @@ public partial class GameEventManager : Node
     private readonly Godot.Collections.Dictionary _encounterEndPending = new();
     /// <summary>当前激活的遭遇事件 id（无则空）。</summary>
     private StringName _encounterActiveId = EmptyId;
+
+    /// <summary>PickFogId 专用临时缓冲：仅同步流程内短暂使用，复用避免每次触发新建 Array。</summary>
+    private readonly Godot.Collections.Array<StringName> _fogPickBuffer = new();
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，A5 依赖注入延续）。</summary>
     /// <summary>遭遇触发门控注入（U14：typed 化，消除每帧 HasMethod/Call）。</summary>
     private Spawner? _spawner;
@@ -251,7 +254,8 @@ public partial class GameEventManager : Node
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 触发时占用特殊槽）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
-    /// <summary>已注册事件 id 列表（EVENT_FACTORIES 为唯一事实源）。</summary>
+    /// <summary>已注册事件 id 列表（EVENT_FACTORIES 为唯一事实源）。每次调用返回新数组，
+    /// 调用方可安全持有结果（内部临时缓冲不对外暴露）。</summary>
     public Godot.Collections.Array<StringName> EventIds()
     {
         var ids = new Godot.Collections.Array<StringName>();
@@ -578,7 +582,7 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>遭遇事件触发资格：事件自身 can_trigger（冷却/分数/母舰）+ Boss 未激活 +
-    /// 精英事件额外要求编队不在场（镜像 spawner 原互斥链）。</summary>
+    /// 任一其他遭遇事件未在活跃（组内单活跃，未来新增遭遇自动沿用，无需在此硬编码 id）。</summary>
     private bool EncounterCanTrigger(StringName pId, IEncounterEvent ev)
     {
         if (!ev.CanTrigger())
@@ -591,20 +595,17 @@ public partial class GameEventManager : Node
             return false;
         }
 
-        if (pId == "elite_turret")
+        foreach (var other in _encounterOrder)
         {
-            foreach (var other in _encounterOrder)
+            if (other == pId)
             {
-                if (other == pId)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var o = EventFor(other);
-                if (o is IEncounterEvent oe && oe.IsActive())
-                {
-                    return false;
-                }
+            var o = EventFor(other);
+            if (o is IEncounterEvent oe && oe.IsActive())
+            {
+                return false;
             }
         }
 
@@ -665,7 +666,8 @@ public partial class GameEventManager : Node
 
     private StringName PickFogId()
     {
-        var ids = new Godot.Collections.Array<StringName>();
+        var ids = _fogPickBuffer;
+        ids.Clear();
         foreach (var k in EVENT_FACTORIES.Keys)
         {
             var id = k.AsStringName();

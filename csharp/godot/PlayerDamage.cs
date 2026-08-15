@@ -13,6 +13,11 @@ public class PlayerDamage
 {
     // U14（2026-08-09 审计）：HealTick 每物理帧 BuffCount——buff 名静态缓存防每帧 StringName 构造
     private static readonly StringName RegenBuff = new("regen");
+    private static readonly StringName EvasionBuff = new("evasion");
+    private static readonly StringName ShieldBuff = new("shield");
+    private static readonly StringName ArmorBuff = new("armor");
+
+
 
     /// <summary>受击无敌剩余秒数（Player._physics_process 每帧递减）。</summary>
     public float Invincible { get; set; }
@@ -43,6 +48,8 @@ public class PlayerDamage
 
     public float InvincibleRemaining() => Invincible;
 
+
+
     /// <summary>
     /// 受击结算（100 HP 制）。返回 true = 本帧实际结算（调用方据此决定子弹是否销毁）。
     /// 减免两段式（去 bug 统一版）：先 20% 闪避，再护甲 ×0.85；对全部伤害源生效。
@@ -62,7 +69,7 @@ public class PlayerDamage
         }
 
         // 闪避 buff：20% 完全免伤（不置无敌、不清弹）
-        if (GameState.Instance.BuffCount(new StringName("evasion")) > 0
+        if (GameState.Instance.BuffCount(EvasionBuff) > 0
             && GD.Randf() < EvasionChance)
         {
             return false;
@@ -73,15 +80,15 @@ public class PlayerDamage
         // 2026-08-06 审计登记：吸收分支有意不写 last_hit_frame——同帧多弹命中时每层吸收
         // 一发（「每层吸收一次」语义优先）；若计入 A16 单帧守卫则同帧第二弹被拦截免费，
         // 盾层数与弹数消耗不对称（hit_logic_test 同帧连打回归）。概率极低，维持现状登记
-        if (GameState.Instance.BuffCount(new StringName("shield")) > 0)
+        if (GameState.Instance.BuffCount(ShieldBuff) > 0)
         {
-            GameState.Instance.ConsumeBuff(new StringName("shield"));
+            GameState.Instance.ConsumeBuff(ShieldBuff);
             GameState.Instance.Shake(2.0);
             return true;
         }
 
         // 护甲 buff：固定 ×0.85 减伤
-        if (GameState.Instance.BuffCount(new StringName("armor")) > 0)
+        if (GameState.Instance.BuffCount(ArmorBuff) > 0)
         {
             amount *= ArmorMult;
         }

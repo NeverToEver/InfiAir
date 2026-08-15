@@ -5,17 +5,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 全局状态与信号总线：分数、击杀、生命、难度乘数、已选 buff。
-/// M7 全量迁移（2026-08-09 自 autoload/game_state.gd）：唯一 autoload（project.godot 由主代理
-/// 切换为 *res://csharp/godot/GameState.cs）。
-/// 公开 API：PascalCase 主体；UPPER_SNAKE 常量同时提供同名实例属性（GDScript 经实例零适配
-/// 可读）与静态 GetXxx() 访问器（规则 19：静态字段禁持 Godot 对象——集合常量访问器每次
-/// 内部服务全部 C# typed 直调（U13：SaveManager/UserDB/TaskPool 的 snake 动态派发已清零，
-/// snake 桥已删除——原"M7 过渡"注记失效）。
-/// 信号迁移：C# [Signal] 注册名为 PascalCase（ScoreChanged 等），GDScript/csharp 连接方
-/// （test/*.gd 的 connect 与 csharp 侧 Connect("snake")）需改连 PascalCase 名（主代理集中适配）。
-/// 数值精度：GDScript float 为 64 位——纯标量（health/difficulty_multiplier 等）用 double
-/// 逐位等价；仅与引擎 32 位 API（Vector2/Rect2/音量等）交互处显式 (float) 转换。
+/// 全局状态与信号总线门面：分数、击杀、生命、难度乘数、已选 buff。
+/// 唯一 autoload（project.godot：*res://csharp/godot/GameState.cs）；组合 8 个基础服务与
+/// 8 个域服务，partial 文件负责各域门面转发，业务实现在对应服务类。
+/// 公开 API 为 PascalCase typed；[Signal] 以 PascalCase 注册（ScoreChanged 等）。
+/// 数值精度：纯标量（health/difficulty_multiplier 等）用 double 逐位等价 GDScript float；
+/// 仅与引擎 32 位 API（Vector2/Rect2/音量等）交互处显式 (float) 转换。
 /// </summary>
 public partial class GameState : Node
 {

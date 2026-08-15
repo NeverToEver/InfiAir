@@ -9,10 +9,9 @@ namespace InfiAir;
 /// 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
 /// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
 /// 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
-/// 经动态派发（Call/Set，Bullet 的 SetMeta 不注册引擎表——snake_case "set_meta"）；
-/// HpBar 为 C# SegmentedBar（以 Control 引用，自定义属性经引擎 Set 走属性 setter）。
+/// HpBar 为 C# SegmentedBar 直调；实现 IDamageable，伤害经 EntityDamage 统一分派。
 /// </summary>
-public partial class TurretBattery : Area2D
+public partial class TurretBattery : Area2D, IDamageable
 {
     [Signal]
     public delegate void DiedEventHandler(TurretBattery turret);

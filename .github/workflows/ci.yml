@@ -155,10 +155,13 @@ jobs:
           # Q26（2026-08-05）：probe 裸命令改包进 if 条件——GH Actions bash -e 下
           # 裸 timeout 非零（含 124 挂起）直接中止步骤，原 ::error:: 诊断与日志 tail
           # 全是死代码；且 124 本地放行/CI 失败语义相反。现在失败打印诊断、124 统一按失败。
-          bad=0
-          for tscn in test/*.tscn; do
+          # 2026-08-16：--quit-after 2 快速退出在 Godot C# finalize 路径存在低频退出段错误
+          # （本地 CI 实测随机场景 exit 134 + leaked unsafe reference；full 场景正常）。与
+          # full-regression 同口径加一次 flake retry：两次连续失败才计入失败。
+          probe_scene() {
+            local tscn="$1" tag="$2" name log code
             name="$(basename "$tscn" .tscn)"
-            log="/tmp/probe-$name.log"
+            log="/tmp/probe-$name-$tag.log"
             if timeout 60 godot --headless --path . "res://$tscn" --quit-after 2 >"$log" 2>&1; then
               :
             else
@@ -169,13 +172,24 @@ jobs:
                 echo "::error::$name compile probe failed (exit $code)"
               fi
               tail -20 "$log"
-              bad=1
-              continue
+              return 1
             fi
             if grep -q "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$log"; then
               echo "::error::$name compile probe engine error"
               grep -B2 "SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception" "$log" | head -20
-              bad=1
+              return 1
+            fi
+          }
+          bad=0
+          for tscn in test/*.tscn; do
+            name="$(basename "$tscn" .tscn)"
+            if probe_scene "$tscn" first; then
+              :
+            else
+              echo "::warning::$name compile probe failed once, retrying once for possible exit flake"
+              if ! probe_scene "$tscn" retry; then
+                bad=1
+              fi
             fi
           done
           if [ "$bad" -ne 0 ]; then
