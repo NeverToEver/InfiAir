@@ -63,6 +63,8 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 
 Grab the latest pre-built package from [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) (Windows / Linux x86_64) — extract and run, with install/uninstall scripts included. macOS has no pre-built package yet; run from source instead.
 
+> Latest release: **v3.32** (2026-08-16).
+
 ### Run from source
 
 You need the **.NET build of [Godot 4.6](https://godotengine.org/download)** (the standard engine build cannot compile this project) and the **.NET 8 SDK**:

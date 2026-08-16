@@ -2,7 +2,7 @@
 
 本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。版本 3.23 无发布记录（git 历史未见对应 tag/条目，疑似有意跳号，2026-08-06 审计登记）。
 
-## [Unreleased]
+## [3.32] - 2026-08-16
 
 ### 重构（2026-08-16，空间换时间热路径优化与战斗/事件组件可扩展化）
 

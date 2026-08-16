@@ -63,6 +63,8 @@ InfiAir 是一款**单机得分制街机空战射击游戏**：驾驶战机迎�
 
 从 [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) 下载最新预构建包（Windows / Linux x86_64），解压即玩，附安装/卸载脚本。macOS 暂无预构建包，请从源码运行。
 
+> 当前最新版本：**v3.32**（2026-08-16）。
+
 ### 从源码运行
 
 需要 **Godot 4.6 .NET 版**（标准版无法构建本工程）和 **.NET 8 SDK**：
