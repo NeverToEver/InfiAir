@@ -32,10 +32,13 @@ public partial class Welcome : CanvasLayer
     private Stage _stage = Stage.Login;
     private ColorRect _dim = null!;
     private ChamferedPanel _loginPanel = null!;
+    private VBoxContainer _loginContent = null!;
     private LineEdit _usernameLine = null!;
     private LineEdit _passwordLine = null!;
     private Label _msgLabel = null!;
     private Panel? _dropdown;
+    /// <summary>FocusExited 延迟裁决的目标下拉：防止回调执行前又打开了新下拉而被误关。</summary>
+    private Panel? _focusExitDropdown;
     private readonly System.Collections.Generic.List<Button> _dropdownButtons = new();
     private VBoxContainer _mainZone = null!;
     private Button _continueButton = null!;
@@ -121,6 +124,12 @@ public partial class Welcome : CanvasLayer
         GameState.Instance!.Connect("LocaleChanged", _onLocaleChanged);
         RefreshTexts();
         PrefillLastLogin();
+
+        // 初始场景入场动画：恢复 StartPanel 时代的开场淡入/错峰入场表现——
+        // 登录面板先淡入，面板内容与左上品牌区逐项错峰淡入。
+        UITheme.AnimateOpen(_loginPanel);
+        UITheme.StaggerOpen(_loginContent);
+        UITheme.StaggerOpen(hero);
     }
 
     // ---------------- 登录面板（左栏） ----------------
@@ -147,6 +156,7 @@ public partial class Welcome : CanvasLayer
         var content = new VBoxContainer();
         content.AddThemeConstantOverride("separation", 14);
         margin.AddChild(content);
+        _loginContent = content;
 
         content.AddChild(UITheme.MakeSectionHeader(Tr("WELCOME_ACCOUNT")));
         _usernameLine = MakeLineEdit(Tr("WELCOME_USERNAME"), false);
@@ -245,14 +255,32 @@ public partial class Welcome : CanvasLayer
         }
     }
 
-    // 2026-08-10 健壮性审查：鼠标点选下拉项时视口 deferred 抢焦先触发 FocusExited——
-    // 新焦点若是 _dropdown 后代（下拉按钮）则放行不关，否则 CloseDropdown 的 QueueFree
-    // 会让 release 帧按钮已释放、OnDropdownPick 永不触发（鼠标点选整条路径失效）；
-    // 键盘路径（Escape/回车/点密码框）不经过本分支，行为不变
+    // 鼠标点选下拉项时视口抢焦会先触发 FocusExited，但 FocusExited 回调中读到的
+    // GuiGetFocusOwner 未必已是新焦点（窗口实测仍是输入框/空），立即 CloseDropdown 会
+    // QueueFree 整个下拉层，按钮收不到 release、OnDropdownPick 永不触发。改为帧末裁决：
+    // 新焦点是下拉后代则保留下拉；键盘路径（Escape/回车/点密码框）由调用方直接关闭，不受影响。
     private void OnUsernameFocusExited()
     {
+        _focusExitDropdown = _dropdown;
+        if (_focusExitDropdown == null)
+        {
+            return;
+        }
+
+        CallDeferred(nameof(CloseDropdownAfterFocusChange));
+    }
+
+    private void CloseDropdownAfterFocusChange()
+    {
+        var dropdown = _focusExitDropdown;
+        _focusExitDropdown = null;
+        if (dropdown == null || _dropdown != dropdown)
+        {
+            return; // 裁决前下拉已被手动关闭/重建，本回调不再越权处理新下拉
+        }
+
         var owner = GetViewport().GuiGetFocusOwner();
-        if (_dropdown != null && owner != null && _dropdown.IsAncestorOf(owner))
+        if (owner != null && dropdown.IsAncestorOf(owner))
         {
             return;
         }

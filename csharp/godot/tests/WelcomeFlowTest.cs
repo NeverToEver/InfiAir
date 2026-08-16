@@ -134,6 +134,15 @@ public partial class WelcomeFlowTest : Node
             Check(!_welcome.MainZoneVisible(), "初始为登录阶段");
             Check(_welcome.UsernameLine() != null && _welcome.PasswordLine() != null, "登录面板输入框存在");
             Check(_welcome.PasswordLine().Secret, "密码框掩码");
+            StartBackdrop? backdrop = null;
+            foreach (var child in _welcome.GetChildren())
+            {
+                if (child is StartBackdrop found)
+                {
+                    backdrop = found;
+                }
+            }
+            Check(backdrop != null && backdrop.Size == new Vector2(1920.0f, 1080.0f), "开始页星空背景铺满视口");
 
             // 2. 注册校验：短名/短密码/空 → 错误消息；保留名被拒
             _welcome.UsernameLine().Text = "ab";
@@ -161,9 +170,49 @@ public partial class WelcomeFlowTest : Node
             Check(_welcome.UsernameLine().Text == "pilot", "注册成功保留用户名（B7-9）");
             Check(_welcome.PasswordLine().Text == "", "注册成功清空密码（B7-9）");
 
-            // 4. 错误密码登录被拒，仍处登录阶段
+            // 3b. 用户名下拉的焦点迁移：点选下拉按钮的抢焦时序不能提前关掉下拉层。
+            // 打开下拉后，焦点从输入框移到下拉后代 → 延迟裁决应保留下拉；
+            // 移到密码框等外部控件 → 延迟裁决应关闭下拉。
+            _welcome.UsernameLine().Text = "p";
+            _welcome.UsernameLine().EmitSignal(LineEdit.SignalName.TextChanged, "p");
+            _welcome.UsernameLine().GrabFocus();
+            _welcome.UsernameLine().EmitSignal(LineEdit.SignalName.TextChanged, "p");
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Panel? dropdown = null;
+            foreach (var child in _welcome.GetChildren())
+            {
+                if (child is Panel panel)
+                {
+                    dropdown = panel;
+                }
+            }
+            Check(dropdown != null, "用户名下拉已打开");
+            var dropdownButton = dropdown?.GetChild(0).GetChild(0) as Button;
+            _welcome.UsernameLine().ReleaseFocus();
+            dropdownButton?.GrabFocus();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(GodotObject.IsInstanceValid(dropdown) && !dropdown!.IsQueuedForDeletion(), "焦点移到下拉按钮后下拉保持");
+            _welcome.UsernameLine().Text = "p";
+            _welcome.UsernameLine().GrabFocus();
+            _welcome.UsernameLine().EmitSignal(LineEdit.SignalName.TextChanged, "p");
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Panel? dropdown2 = null;
+            foreach (var child in _welcome.GetChildren())
+            {
+                if (child is Panel panel)
+                {
+                    dropdown2 = panel;
+                }
+            }
+            Check(dropdown2 != null, "焦点返回输入框后下拉可重开");
+            _welcome.UsernameLine().ReleaseFocus();
+            _welcome.PasswordLine().GrabFocus();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(!GodotObject.IsInstanceValid(dropdown2), "焦点移出下拉后下拉关闭");
             _welcome.UsernameLine().Text = "pilot";
             _welcome.PasswordLine().Text = "wrong";
+
+            // 4. 错误密码登录被拒，仍处登录阶段
             _welcome.PressLogin();
             Check(!_welcome.MainZoneVisible(), "错误凭证登录被拒");
 

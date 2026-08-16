@@ -16,10 +16,51 @@ public partial class StartBackdrop : Control
     /// 保持原「每次重绘同序列」的确定性（新建+固定 seed 语义），行为逐位一致。</summary>
     private static readonly RandomNumberGenerator _rng = new();
 
+    /// <summary>是否已订阅视口尺寸变化（仅 CanvasLayer 直挂路径需要手动铺满并跟随视口）。</summary>
+    private bool _viewportSizeConnected;
+
     public override void _Ready()
     {
         MouseFilter = Control.MouseFilterEnum.Ignore;
-        SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        if (GetParent() is Control)
+        {
+            SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            return;
+        }
+
+        // Welcome 将本节点直接挂在 CanvasLayer 下（parent 非 Control）。该布局下
+        // 锚点没有父 Control 矩形可参照，入树后才调用 SetAnchorsPreset 不会触发
+        // resize，控件保持 0×0 —— 开始页星空与全息线整层缺失。这里以视口可见矩形
+        // 兜底铺满，并跟随视口尺寸变化重排（普通 Control 父节点仍走锚点布局）。
+        _viewportSizeConnected = true;
+        FitToViewport();
+        GetViewport().SizeChanged += OnViewportSizeChanged;
+    }
+
+    public override void _ExitTree()
+    {
+        if (!_viewportSizeConnected)
+        {
+            return;
+        }
+
+        var viewport = GetViewport();
+        if (viewport != null)
+        {
+            viewport.SizeChanged -= OnViewportSizeChanged;
+        }
+
+        _viewportSizeConnected = false;
+    }
+
+    private void OnViewportSizeChanged() => FitToViewport();
+
+    private void FitToViewport()
+    {
+        var rect = GetViewport().GetVisibleRect();
+        Position = rect.Position;
+        Size = rect.Size;
+        QueueRedraw();
     }
 
     public override void _Draw()
