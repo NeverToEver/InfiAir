@@ -2,7 +2,7 @@
 
 # ✈️ InfiAir
 
-**2D top-down bullet-hell arcade shooter · built entirely in C# (.NET 8) on Godot 4.6.2 .NET**
+### 2D top-down bullet-hell arcade shooter · built entirely in C# (.NET 8) on Godot 4.6.2 .NET
 
 **English** · [中文](./README.md)
 
@@ -14,48 +14,120 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-Join-8250df?logo=github&logoColor=white)](https://github.com/NeverToEver/InfiAir/discussions)
 
-<p align="center">
-  <a href="#-about">About</a> ·
-  <a href="#-features">Features</a> ·
-  <a href="#-screenshots">Screenshots</a> ·
-  <a href="#-quick-start">Quick Start</a> ·
-  <a href="#-controls">Controls</a> ·
-  <a href="#-tech-stack--architecture">Tech Stack & Architecture</a> ·
-  <a href="#-testing--ci">Testing & CI</a> ·
-  <a href="#-community--contributing">Community & Contributing</a>
-</p>
+<br>
+
+<a href="#-about">About</a> ·
+<a href="#-features">Features</a> ·
+<a href="#-screenshots">Screenshots</a> ·
+<a href="#-quick-start">Quick Start</a> ·
+<a href="#-controls">Controls</a> ·
+<a href="#-tech-stack--architecture">Tech Stack</a> ·
+<a href="#-testing--ci">Testing & CI</a> ·
+<a href="#-community--contributing">Community</a>
+
+<br>
 
 <img src="./docs/screenshots/gameplay.png" alt="InfiAir gameplay" width="760">
 
 </div>
 
+---
+
 ## 🌟 About
 
-InfiAir is a **single-player, score-driven arcade shooter**: fight wave-based enemy swarms, draft 1-of-3 buffs at score milestones, and take on rotating bosses — then fly home for a mid-run refit and jump back into the same battle. **Death is the only end.** The difficulty curve grows linearly with no cap: the longer you survive and the more you kill, the deadlier the swarm.
+> **Death is the only end.** The longer you survive and the more you kill, the deadlier the swarm — a linear, uncapped difficulty curve.
+
+InfiAir is a **single-player, score-driven arcade shooter**: fight wave-based enemy swarms, draft 1-of-3 buffs at score milestones, and take on rotating bosses — then fly home for a mid-run refit and jump back into the same battle.
 
 Originally a remake of the Python/Pygame project [airwar-game](https://github.com/NeverToEver/airwar-game), it has since evolved independently. **Every sprite and sound is procedurally generated** — zero external asset dependencies. The codebase has been fully migrated to C# (zero GDScript), with a strict separation between pure logic and engine bindings, and a zero-managed-allocation-per-frame discipline on hot paths.
 
+---
+
 ## ✨ Features
 
-- 🔥 **Endless waves + uncapped difficulty** — new enemy classes and elites unlock as your score rises; pressure keeps increasing with kills and time.
-- 🃏 **1-of-3 buff drafting** — pick one of three build-defining buffs at score milestones; 19 stackable buffs (damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…).
-- 👾 **Rotating bosses & random events** — 4 boss types with HP-phase pattern tables and per-type enrage; fog, encounters, elite turrets, formation strikes, and more.
-- 🚀 **Mothership & homecoming refit** — charge-summon the mothership, pilot it while docked, call an orbital strike, then fly home to repair and resupply mid-run.
-- 💥 **Combo scoring & defensive pity** — a 3-second combo window rewards aggressive play up to ×2.0; low HP boosts defensive buff odds and guarantees at least one defensive pick.
-- 📈 **Meta progression** — spend TechPoints earned at death on research that grants starting buff loadouts (bounded growth that preserves the intended difficulty curve).
-- 🔒 **Local accounts & safe saves** — per-user saves, PBKDF2 password derivation, atomic writes, corruption quarantine, and a local leaderboard.
-- 🧩 **All-C# codebase** — Godot 4.6.2 .NET + .NET 8; the pure-logic core has zero Godot dependencies.
-- ✅ **Three-layer testing & CI gates** — xUnit unit tests + headless assertion scenes + tiered GitHub Actions regression.
+<table>
+<tr>
+  <td width="50%" valign="top">
+
+### 🔥 Endless Waves
+
+New enemy classes and elites unlock as your score rises; pressure keeps increasing with kills and time — uncapped linear difficulty.
+
+  </td>
+  <td width="50%" valign="top">
+
+### 🃏 1-of-3 Buff Drafting
+
+Pick one of three build-defining buffs at score milestones; 19 stackable buffs: damage / fire rate / spread / piercing / explosive / lifesteal / armor / evasion / phase dash / laser beam…
+
+  </td>
+</tr>
+<tr>
+  <td width="50%" valign="top">
+
+### 👾 Rotating Bosses & Events
+
+4 boss types with HP-phase pattern tables and per-type enrage; fog, encounters, elite turrets, formation strikes, and more.
+
+  </td>
+  <td width="50%" valign="top">
+
+### 🚀 Mothership & Homecoming
+
+Charge-summon the mothership, pilot it while docked, call an orbital strike, then fly home to repair and resupply mid-run.
+
+  </td>
+</tr>
+<tr>
+  <td width="50%" valign="top">
+
+### 💥 Combo Scoring & Defensive Pity
+
+A 3-second combo window rewards aggressive play up to ×2.0; low HP boosts defensive buff odds and guarantees at least one defensive pick.
+
+  </td>
+  <td width="50%" valign="top">
+
+### 📈 Meta Progression
+
+Spend TechPoints earned at death on research that grants starting buff loadouts — bounded growth that preserves the intended difficulty curve.
+
+  </td>
+</tr>
+<tr>
+  <td width="50%" valign="top">
+
+### 🔒 Local Accounts & Safe Saves
+
+Per-user saves, PBKDF2 password derivation, atomic writes, corruption quarantine, and a local leaderboard.
+
+  </td>
+  <td width="50%" valign="top">
+
+### 🧩 All-C# Codebase
+
+Godot 4.6.2 .NET + .NET 8; the pure-logic core has zero Godot dependencies. Three-layer testing and CI gates guard quality.
+
+  </td>
+</tr>
+</table>
+
+---
 
 ## 📸 Screenshots
 
-| Main Menu | Gameplay |
-| --- | --- |
-| ![Main Menu](./docs/screenshots/start.png) | ![Gameplay](./docs/screenshots/gameplay.png) |
+<table align="center">
+<tr>
+  <td align="center"><strong>🏠 Main Menu</strong><br><img src="./docs/screenshots/start.png" alt="Main Menu" width="380"></td>
+  <td align="center"><strong>⚔️ Gameplay</strong><br><img src="./docs/screenshots/gameplay.png" alt="Gameplay" width="380"></td>
+</tr>
+<tr>
+  <td align="center"><strong>🔧 Base Refit</strong><br><img src="./docs/screenshots/base.png" alt="Base" width="380"></td>
+  <td align="center"><strong>🛸 Mothership</strong><br><img src="./docs/screenshots/mothership.png" alt="Mothership" width="380"></td>
+</tr>
+</table>
 
-| Base Refit | Mothership |
-| --- | --- |
-| ![Base](./docs/screenshots/base.png) | ![Mothership](./docs/screenshots/mothership.png) |
+---
 
 ## 🚀 Quick Start
 
@@ -63,7 +135,7 @@ Originally a remake of the Python/Pygame project [airwar-game](https://github.co
 
 Grab the latest pre-built package from [GitHub Releases](https://github.com/NeverToEver/InfiAir/releases) (Windows / Linux x86_64) — extract and run, with install/uninstall scripts included. macOS has no pre-built package yet; run from source instead.
 
-> Latest release: **v3.32** (2026-08-16).
+> Latest release: **v3.32** (2026-08-16)
 
 ### Run from source
 
@@ -77,10 +149,12 @@ cd InfiAir
 
 Release builds go through `./release.sh` (requires export templates strictly matching engine 4.6.2 mono).
 
+---
+
 ## 🎮 Controls
 
 | Input | Action |
-|-------|--------|
+|:------|:-------|
 | WASD / Arrow keys | Move |
 | Mouse | Aim (crosshair inside an aim frame → shots home in on that enemy) |
 | — | Weapons fire fully automatically |
@@ -91,21 +165,31 @@ Release builds go through `./release.sh` (requires export templates strictly mat
 | B (hold) | Homecoming — base refit |
 | ESC / Right mouse button | Pause / back one page / exit confirmation |
 
-**Gamepad**: left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / LT parry / X summon / Y homecoming / L3 buff panel / R3 give up / B back. PlayStation pads are auto-detected. Full key list and rebinding are available in-game under Settings → Controls.
+<details>
+<summary><strong>🎮 Gamepad</strong></summary>
+
+Left stick moves, right stick aims (virtual crosshair); A dash / RB boost / LB fine-move / LT parry / X summon / Y homecoming / L3 buff panel / R3 give up / B back. PlayStation pads are auto-detected.
+
+Full key list and rebinding are available in-game under Settings → Controls.
+
+</details>
+
+---
 
 ## 🧱 Tech Stack & Architecture
 
 | Layer | Choice | Notes |
-|---|---|---|
+|:------|:-------|:------|
 | Engine | Godot 4.6.2 stable (.NET build) | GL Compatibility renderer; requires the .NET engine build |
 | Language | C# / .NET 8 | `TreatWarningsAsErrors` / `Nullable` / `AnalysisLevel=latest` |
 | Pure logic | `csharp/core/` | Zero Godot dependency, millisecond xUnit testing |
 | Engine bindings | `csharp/godot/` | Nodes / scenes / UI / cinematics; may reference core |
 | Unit tests | xUnit (`tests-csharp/`) | Models / storage / password derivation / task pool / progression curves |
 | Integration tests | Headless Godot assertion scenes (`test/*_test.tscn`) | Self-checked `[PASS]` / `[FAIL]`, full regression in CI |
-| CI | GitHub Actions | Tiered gates (see Testing & CI) |
+| CI | GitHub Actions | Tiered gates (see below) |
 
-**Layers at a glance**
+<details>
+<summary><strong>📐 Architecture at a glance</strong></summary>
 
 ```text
 scenes/ + csharp/godot/         Godot binding layer (nodes, scenes, UI, cinematics)
@@ -120,18 +204,24 @@ tests-csharp/                   xUnit unit tests (reference core, no Godot runti
 
 > For deep architecture details (GameState split, entity management, object pooling, damage pipeline, persistence & security, UI design system) see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
+</details>
+
+---
+
 ## 🧪 Testing & CI
 
 Three-layer test suite (authoritative counts and scene lists in [docs/TESTING.md](./docs/TESTING.md)):
 
-1. **xUnit unit tests** (`tests-csharp/`, millisecond): data models / path resolution / task pool / progression curves / save atomicity / user DB & password derivation.
-2. **Headless Godot assertion scenes** (`test/*_test.tscn`): run orchestration / combat values / boss pattern tables & enrage / event systems / save round-trips / UI flows / engine error log scanning.
-3. **Tiered CI gates** (`.github/workflows/ci.yml`):
-   - `fast-gate` (~8 min): C# build (warnings-as-errors) + xUnit + dotnet format zero-diff → zero-GDScript gate → engine import warning gate → main smoke → compile probe for every scene;
-   - `full-regression` (~40 min): BALANCE_MAP generator zero-diff → all assertion scenes → engine error log scanning;
-   - pure docs changes do not trigger CI; dependencies are cached via actions/cache; new pushes on the same branch cancel older runs.
+| Tier | Scope | Time |
+|:-----|:------|:-----|
+| **xUnit unit tests** | Data models / path resolution / task pool / progression curves / save atomicity / user DB & password derivation | Milliseconds |
+| **Headless assertion scenes** | Run orchestration / combat values / boss pattern tables & enrage / event systems / save round-trips / UI flows / engine error log | Minutes |
+| **CI tiered gates** | `fast-gate` (build + tests + format + zero-GDScript + import warnings + smoke + scene compile) → `full-regression` (BALANCE_MAP zero-diff + all assertions + error log) | ~8 / ~40 min |
 
-Minimal local verification set:
+Pure docs changes do not trigger CI; dependencies are cached via actions/cache; new pushes on the same branch cancel older runs.
+
+<details>
+<summary><strong>🔧 Minimal local verification set</strong></summary>
 
 ```bash
 dotnet build                                 # C# build (CI zero-warning gate)
@@ -140,6 +230,10 @@ godot --headless --import --path .           # assets & script parsing
 godot --headless --path . --quit-after 300   # runtime smoke
 godot --headless --path . res://test/smoke_test.tscn  # main-flow smoke (self-checked)
 ```
+
+</details>
+
+---
 
 ## 📁 Project Structure
 
@@ -154,18 +248,24 @@ scripts/tools/      Offline dev tools (gen_balance_map.py etc., not runtime depe
 docs/               Architecture / design / audit docs
 ```
 
+---
+
 ## 🧑‍🤝‍🧑 Community & Contributing
 
-- 🐛 **Report bugs / request features**: open an [Issue](https://github.com/NeverToEver/InfiAir/issues) using the `bug` or `enhancement` templates.
-- 💬 **Discuss**: join [GitHub Discussions](https://github.com/NeverToEver/InfiAir/discussions) for gameplay, roadmap, and dev talk.
-- 🤝 **Contribute code**: read [CONTRIBUTING.md](./CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md) first, and run the minimal verification set before opening a PR.
-- 🛡️ **Security disclosures**: report privately via the process in [SECURITY.md](./SECURITY.md).
-- 🗺️ **Roadmap**: direction and plans live in [docs/ROADMAP.md](./docs/ROADMAP.md).
+| How | Where |
+|:----|:------|
+| 🐛 Report bugs / request features | [Issue](https://github.com/NeverToEver/InfiAir/issues) (`bug` / `enhancement` templates) |
+| 💬 Discuss | [GitHub Discussions](https://github.com/NeverToEver/InfiAir/discussions) (gameplay, roadmap, dev talk) |
+| 🤝 Contribute code | [CONTRIBUTING.md](./CONTRIBUTING.md) + [AGENTS.md](./AGENTS.md) — run the minimal verification set before PR |
+| 🛡️ Security disclosures | [SECURITY.md](./SECURITY.md) private channel |
+| 🗺️ Roadmap | [docs/ROADMAP.md](./docs/ROADMAP.md) |
+
+---
 
 ## 📚 Documentation
 
 | Doc | Contents |
-|-----|----------|
+|:----|:---------|
 | [AGENTS.md](./AGENTS.md) | Contributor conventions: tech stack / verification / architecture / code style / test strategy / CI gates |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guide: setup / workflow / PR checklist |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history |
@@ -176,12 +276,21 @@ docs/               Architecture / design / audit docs
 | [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | Code audit archive (proprietary — never delete) |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Roadmap and future direction (single source of truth) |
 
+---
+
+<div align="center">
+
 ## 📄 License & Acknowledgments
 
-**License**: the game code and procedurally generated assets are released under the [MIT License](./LICENSE); the bundled font [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) is licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/) (third-party notices in [NOTICE](./NOTICE)).
+Game code and procedurally generated assets are released under the [MIT License](./LICENSE)
+Bundled font [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) is licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/) (third-party notices in [NOTICE](./NOTICE))
 
 **Acknowledgments**: [airwar-game](https://github.com/NeverToEver/airwar-game) (original prototype) · [Godot-GameTemplate](https://github.com/nezvers/Godot-GameTemplate) · [top-down-shooter-core](https://github.com/quiver-dev/top-down-shooter-core) · [SimpleTopDownShooterTemplate2D](https://github.com/Unchained112/SimpleTopDownShooterTemplate2D) · [Godot-Menus-Template](https://github.com/Maaack/Godot-Menus-Template) · [Godot Engine](https://godotengine.org/) · [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC) (SIL OFL)
 
----
+<br>
 
-Made with Godot 4 · Maintained as a hobby project — Star / Issue / PR welcome!
+**Made with ❤️ and Godot 4**
+
+Maintained as a hobby project — ★ Star / Issue / PR welcome to make InfiAir even better!
+
+</div>
