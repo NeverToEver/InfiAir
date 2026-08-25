@@ -6,7 +6,7 @@ name: CI
 # 本地（bash scripts/ci/<name>.sh）与 CI 调同一份码，杜绝 TESTING.md 手抄漂移；
 # Godot 安装/mv/symlink 目录名改由 $GODOT_VERSION 派生，消除字面 4.6.2 多耦合。
 # 设计目标维持：1. 分层门禁 fast-gate（~8min：C# 门 + 零 GDScript + import + smoke
-#   + 编译探针）覆盖全部 push/PR；full-regression（57 断言场景，~40min）仅 main push/
+#   + 编译探针）覆盖全部 push/PR；full-regression（52 断言场景，~40min）仅 main push/
 #   PR / 手动触发，feature 分支开发期只吃快速反馈。
 # 2. 路径过滤：docs/** 与 *.md 纯文档改动不触发（BALANCE_MAP 生成物在 docs/ 下由 full 闸兜底）。
 # 3. 缓存：dotnet SDK / NuGet / Godot mono 引擎经官方 actions/cache（引擎版本升级仅
@@ -131,7 +131,7 @@ jobs:
           retention-days: 7
 
   full-regression:
-    name: Full assertion scenes (57)
+    name: Full assertion scenes (52)
     needs: fast-gate
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest

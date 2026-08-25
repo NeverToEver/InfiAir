@@ -41,7 +41,6 @@ public partial class BalanceTest : Node
 
             // 2. 代表值抽查（须与当前 data/balance.json 一致）
             Check(gs.Cfg("player.fuel.drain", 0.0).AsDouble() == 35.0, "燃料消耗 35/s");
-            Check(gs.MilestoneThreshold(0) == 3000, "里程碑首档 3000");
             Check(gs.MilestoneCycleMult == 1.35, "里程碑循环倍率 1.35");
             Check(gs.Cfg("mothership.depart_cooldown", 0.0).AsDouble() == 60.0, "母舰冷却 60s");
             Check(gs.Cfg("mothership.mag_cells", 0).AsInt32() == 10, "弹匣 10 格");

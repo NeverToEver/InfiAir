@@ -18,8 +18,8 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
-- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **57** (2026-08-08 M7c 全量迁移 C# 后; 2026-08-09 + `meta_test` 局外成长; 2026-08-11 + `combo_test` 击杀连击).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **66** (57 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
+- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **52** (2026-08-08 M7c 全量迁移 C# 后; 2026-08-09 + `meta_test` 局外成长; 2026-08-11 + `combo_test` 击杀连击; 2026-08-25: 删 path_resolver/progression/save_store/task_pool/user_db 五 interop 壳,纯逻辑并入 xUnit).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **61** (52 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
 - Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Subsystem Scenes
@@ -80,11 +80,9 @@ godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
 # C# interop (2026-08-07; C# binding endpoint BalanceInterop → InfiAir.Core parse path, validated in-engine)
 godot --headless --path . res://test/csharp_interop_test.tscn
 godot --headless --path . res://test/csharp_call_test.tscn        # C# 动态派发调用探针 (M1/M7c, PascalCase 同名)
-godot --headless --path . res://test/path_resolver_interop_test.tscn  # P1-1 cfg 路径解析壳
-godot --headless --path . res://test/save_store_interop_test.tscn     # P0-1 存档壳
-godot --headless --path . res://test/user_db_interop_test.tscn        # P0-2 账户壳
-godot --headless --path . res://test/progression_interop_test.tscn    # 进程曲线壳（里程碑/难度）
-godot --headless --path . res://test/task_pool_interop_test.tscn      # 任务池壳（无放回抽取）
+# 注（2026-08-25）：path_resolver/save_store/user_db/progression/task_pool 五 interop 壳为纯逻辑重复，
+# 语义已并入 tests-csharp/ xUnit（PathResolverTests/SaveStoreTests/UserDbTests/ProgressionCurvesTests/TaskPoolTests）；
+# C# 桥加载契约由 csharp_interop_test/csharp_call_test 承接。
 godot --headless --path . res://test/meta_test.tscn                  # 局外成长/科技树 (2026-08-09; docs/archive/2026-08-09-meta-progression-plan.md)
 # Autoplay anomaly probe (~480s real time; not a normal assertion test)
 godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
@@ -141,11 +139,11 @@ push/PR (2026-08-09 Y 系列规整：**分层门禁**——feature push 仅 fast
 
 **fast-gate** (all push/PR): Install .NET SDK 8 (official `dotnet-install.sh`, cached) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → **dotnet format gate** (三工程 `--verify-no-changes` 零 diff, 2026-08-09 全量规范化后防回归) → zero-GDScript gate (M7d: 任何 .gd 即失败) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools).
 
-**full-regression** (needs fast-gate; main push/PR/dispatch): **BALANCE_MAP 生成器重跑零 diff 闸** (M8, 2026-08-06) → all 57 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`/`path_resolver_interop_test`/`save_store_interop_test`/`user_db_interop_test`/`progression_interop_test`/`task_pool_interop_test`; 2026-08-09: + `meta_test`; 2026-08-11: + `combo_test`) with exit-code checks + per-scene 300s timeout + flake retry once; any failure fails job + uploads logs. 2026-08-09 (V 系列): + 引擎错误日志扫描（退出码 0 但日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception 即失败——死测试曾静默通过）+ 场景数硬校验（run != 发现数-1 即失败，堵住改名/新增静默掉出 CI；不硬编码计数）。Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact/cache actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
+**full-regression** (needs fast-gate; main push/PR/dispatch): **BALANCE_MAP 生成器重跑零 diff 闸** (M8, 2026-08-06) → all 52 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`; 2026-08-09: + `meta_test`; 2026-08-11: + `combo_test`; 2026-08-25: 收敛删 path_resolver/progression/save_store/task_pool/user_db 五 interop 壳 57→52) with exit-code checks + per-scene 300s timeout + flake retry once; any failure fails job + uploads logs. 2026-08-09 (V 系列): + 引擎错误日志扫描（退出码 0 但日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception 即失败——死测试曾静默通过）+ 场景数硬校验（run != 发现数-1 即失败，堵住改名/新增静默掉出 CI；不硬编码计数）。Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact/cache actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **66 scenes: 57 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
+Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **61 scenes: 52 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.DeleteSave()` first + clean/restore own state.
 - `BalanceTest.cs` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.

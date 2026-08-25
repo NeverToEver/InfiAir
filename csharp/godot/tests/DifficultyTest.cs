@@ -351,9 +351,8 @@ public partial class DifficultyTest : Node
                 }
             }
             Check(firstCycleOk, "里程碑首循环 8 档：3000→80000");
-            Check(_gs.MilestoneThreshold(8) == 84050, "循环增长：第 9 档 80000+3000×1.35");
-            Check(_gs.MilestoneThreshold(9) == 90800, "循环增长：第 10 档 +5000×1.35");
-            Check(_gs.MilestoneThreshold(15) == 188000, "循环增长：第二循环末 80000+80000×1.35");
+            // 循环增长具体值（84050/90800/188000）已由 xUnit ProgressionCurvesTests 单一权威覆盖，
+            // 此处仅保留单调性属性断言（生产集成），数值不重复。
             Check(_gs.MilestoneThreshold(16) > _gs.MilestoneThreshold(15), "循环阈值单调不回退");
             _gs.Difficulty = new StringName("easy");
             Check(_gs.MilestoneThreshold(0) == 3000, "阈值难度倍率 easy ×1（首档 3000）");

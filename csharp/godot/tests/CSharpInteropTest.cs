@@ -48,12 +48,8 @@ public partial class CSharpInteropTest : Node
             Check(res.GetValueOrDefault("ok", false).AsBool(), "balance.json 解析成功");
             Check(res.GetValueOrDefault("error", "?").AsString() == "", "无解析错误");
             Check(res.GetValueOrDefault("version", -1).AsInt32() == 2, "version = 2");
-            Check(res.GetValueOrDefault("max_speed", -1).AsInt32() == 420, "player.max_speed = 420");
-            Check(res.GetValueOrDefault("mag_cells", -1).AsInt32() == 10, "mothership.mag_cells = 10");
-
-            // 4. 损坏输入 → ok=false 且带错误信息（对齐"损坏回退"语义）
-            var broken = interop.ParseBalance("res://test/does_not_exist.json");
-            Check(!broken.GetValueOrDefault("ok", true).AsBool(), "缺失文件 → ok=false");
+            // 注：具体数值抽查（max_speed/mag_cells）与损坏回退已由 xUnit BalanceModelsTests 覆盖，
+            // 本场景只保留"壳可加载 + 1 生产链路转发"契约（见 .agents/csharp-conventions.md 样板）。
         }
         catch (System.Exception e)
         {
