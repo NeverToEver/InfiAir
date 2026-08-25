@@ -231,3 +231,9 @@
 - **摘要**：Roslynator 110 条诊断处置——CA1859×5（BaseConsole 面板构建器 `Control`→`ChamferedPanel`，调用点零改动）+ CA1822 安全子集×7（私有方法标 static，非 Godot 信号目标，零调用点改动），剩余 76 条公开成员（信号回调/白盒接口/兼容桥）语义保留；CA 改动性能复测（对照 worktree，中位 1.603→1.57 ms 零回归）；文档/CI 漂移修复（CI 断言计数 56→57、ARCHITECTURE 工具类/拆域登记、FOG_EVENTS/csharp-conventions 同步）。
 - **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + base_system 79/boss_pattern 51/boss_enrage 37/buff33 40 PASS 零 FAIL + autoplay 480s 连续第七轮 exit 0 异常总数 0 + CA1859 归零。
 - **原文**：`docs/archive/2026-08-12-refactor-work-report.md` §9
+## 2026-08-25 · 评审 Minor 全修 + 美术评审文档归档（同日）
+
+- **落地**：`b94ac2a`（refactor(perf)：Player 热路径 MaxHealth 缓存 / 受击帧阈值配置化 / glow 同步 / StrikeCarrier socket 对齐 + `docs/BALANCE_MAP.md` 重生成；`docs/ART_ASSET_REVIEW.md` → `docs/archive/2026-08-25-art-asset-review.md`）。
+- **摘要**：WIP 独立审阅 5 项 Minor 一次性收口——① `Player._Process` 每帧 `MaxHealth()`（Dictionary 查找）改 `_cachedMaxHp` 缓存，由 `RefreshBuffFactors`（`_Ready` 首调 + `BuffsChanged` 驱动，Hud.cs D08 同款）刷新；② 受击帧阈值 0.7/0.4 硬编码迁 `data/balance.json effects.player_damage_frame`（`CfgFx` 钳 [0,1]，light<=heavy 非法配置回退）；③ 受击换帧后 `glow` 同步换纹理；④ `StrikeCarrier` 中央 socket y `110.6→111.7`（生成器 `TURRET_WELLS` 纯缩放 `520*460/700 − 230`，其余四 socket 同法核验一致）；⑤ 美术评审文档依 doc-sync 归 `docs/archive/`（全库零引用）。
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 错误 + 编译探针 66 场景 clean + `hit_logic_test`/`smoke_test`/`base_system_test` 0 FAIL + BALANCE_MAP 重生成（474→476 静态调用，新增 `player_damage_frame` 两键）零 diff。
+- **原文**：`docs/archive/2026-08-25-art-asset-review.md`（归档评审本体）。
