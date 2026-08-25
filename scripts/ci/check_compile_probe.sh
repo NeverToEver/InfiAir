@@ -5,6 +5,8 @@
 # C# finalize low-frequency segfault (exit 134 / leaked unsafe reference).
 # Usage: check_compile_probe.sh [log_dir]   (default /tmp)
 # Ported 1:1 from ci.yml fast-gate "Compile probe all test scenes (gate blind spot)".
+set -uo pipefail
+
 GODOT="${GODOT:-godot}"
 LOG_DIR="${1:-/tmp}"
 ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception"

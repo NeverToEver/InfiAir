@@ -4,6 +4,8 @@
 # Ported 1:1 from ci.yml fast-gate "Main scene smoke (300 frames)" + W-series
 # error scan: exit 0 with "SCRIPT ERROR|Parse Error|Compile Error|Nonexistent
 # function|Unhandled exception" in log also fails.
+set -uo pipefail
+
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/smoke.log}"
 ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception"

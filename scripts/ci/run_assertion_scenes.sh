@@ -5,6 +5,8 @@
 # scene-count hard check (ran == discovered-1); exit code = failed count.
 # Usage: run_assertion_scenes.sh [log_dir]   (default /tmp)
 # Ported 1:1 from ci.yml full-regression "Run assertion scenes" (V/W series).
+set -uo pipefail
+
 GODOT="${GODOT:-godot}"
 LOG_DIR="${1:-/tmp}"
 ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception"

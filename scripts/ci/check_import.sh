@@ -4,6 +4,8 @@
 # Ported 1:1 from ci.yml fast-gate "Import project resources (warning gate)".
 # Fails on: non-zero import, or "Warning treated as error" (GDScript warnings
 # configured as error-level in project.godot = zero tolerance).
+set -uo pipefail
+
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/import.log}"
 
