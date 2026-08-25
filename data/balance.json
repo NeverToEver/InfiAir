@@ -904,6 +904,10 @@
 			"pulse_max": 0.3,
 			"pulse_period": 1.2
 		},
+		"player_damage_frame": {
+			"light_ratio": 0.7,
+			"heavy_ratio": 0.4
+		},
 		"starfield": {
 			"far_count": 140,
 			"near_count": 90,

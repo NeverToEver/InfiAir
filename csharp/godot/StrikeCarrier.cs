@@ -29,7 +29,7 @@ public partial class StrikeCarrier : Node2D
         new(113.3f, 78.9f), // 右翼台内
         new(-206.7f, 52.6f), // 左翼台外
         new(206.7f, 52.6f), // 右翼台外
-        new(0.0f, 110.6f), // 中央前甲板
+        new(0.0f, 111.7f), // 中央前甲板
     };
 
     public enum State { ENTER, HOVER, RETREAT }

@@ -203,6 +203,10 @@ public partial class Player : CharacterBody2D
     private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
     private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
     private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
+    private double _cachedMaxHp = 100.0; // H7：MaxHealth 热路径缓存（extra_life 随 buff 变化，BuffsChanged 时刷新）
+    private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
+    private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
+    private Sprite2D? _glow;
 
     private readonly Callable _onRefreshBuffFactors;
     private readonly Callable _onAimAssistLevelChanged;
@@ -276,15 +280,15 @@ public partial class Player : CharacterBody2D
         UpdateDamageFrame();
     }
 
-    /// <summary>按 HP 百分比切换受击帧（0=正常, ≤70%=轻伤, ≤40%=重伤）。</summary>
+    /// <summary>按 HP 百分比切换受击帧（0=正常, ≤light_ratio=轻伤, ≤heavy_ratio=重伤；阈值经 effects.player_damage_frame 配置）。</summary>
     private void UpdateDamageFrame()
     {
         if (_sprite == null) return;
         var hp = GameState.Instance.Health;
-        var maxHp = GameState.Instance.MaxHealth();
+        var maxHp = _cachedMaxHp;
         if (maxHp <= 0.0) return;
         var ratio = hp / maxHp;
-        var level = ratio > 0.7 ? 0 : ratio > 0.4 ? 1 : 2;
+        var level = ratio > _damageLightRatio ? 0 : ratio > _damageHeavyRatio ? 1 : 2;
         if (level == _damageLevel) return;
         _damageLevel = level;
         _sprite.Texture = level switch
@@ -293,6 +297,7 @@ public partial class Player : CharacterBody2D
             2 => _texHit2,
             _ => _texNormal,
         };
+        if (_glow != null) _glow.Texture = _sprite.Texture;
     }
 
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>
@@ -330,6 +335,14 @@ public partial class Player : CharacterBody2D
         EvasionChance = CfgFx.Float("buffs.evasion.chance", EvasionChance, 0.0f, 1.0f);
         RegenPerSec = CfgFx.Float("buffs.regen.heal_per_sec", RegenPerSec, 0.0f);
         ShakeHit = CfgFx.Float("effects.shake.player_hit", ShakeHit, 0.0f);
+        // AC3：受击帧阈值钳 [0,1]——ratio 为百分比；配置非法（light<=heavy）回退默认 0.7/0.4
+        _damageLightRatio = CfgFx.Float("effects.player_damage_frame.light_ratio", _damageLightRatio, 0.0f, 1.0f);
+        _damageHeavyRatio = CfgFx.Float("effects.player_damage_frame.heavy_ratio", _damageHeavyRatio, 0.0f, 1.0f);
+        if (_damageLightRatio <= _damageHeavyRatio)
+        {
+            _damageLightRatio = 0.7f;
+            _damageHeavyRatio = 0.4f;
+        }
         Invincible = SpawnInvincibleTime; // 出生保护
         // 2026-08-10 健壮性审查：fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
         //（燃料条显示 NaN；SetFuel 的 Clamp 上下界同为 0 致燃料机制失效）
@@ -455,14 +468,14 @@ public partial class Player : CharacterBody2D
         AddChild(_crosshair);
         // 可视性增强：机体提亮 + 青色描边辉光
         _sprite.Modulate = BodyTintBase;
-        var glow = new Sprite2D
+        _glow = new Sprite2D
         {
             Texture = _sprite.Texture,
             Scale = new Vector2(1.2f, 1.2f),
             Modulate = new Color(0.45f, 0.9f, 1.0f, 0.45f),
             ZIndex = -1,
         };
-        _sprite.AddChild(glow);
+        _sprite.AddChild(_glow);
         // 碰撞点指示：受击判定点闪烁小光点 + 淡色光圈
         var dotPts = new Vector2[10];
         for (var i = 0; i < 10; i++)
@@ -681,6 +694,9 @@ public partial class Player : CharacterBody2D
         var dashStacks = (int)GameState.Instance.BuffCount(BuffPhaseDash);
         _dashUnlocked = dashStacks > 0;
         _dashCooldownMax = BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max(dashStacks - 1, 0));
+        // H7：MaxHealth 热路径缓存（Hud.cs D08 同款）——extra_life 随 buff 变化才变，
+        // 由本方法（_Ready 首调 + BuffsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
+        _cachedMaxHp = GameState.Instance.MaxHealth();
     }
 
     /// <summary>A4：乘算因子求值——base × factor^count。</summary>
