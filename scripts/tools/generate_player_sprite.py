@@ -235,13 +235,65 @@ def player_ship() -> Ship:
     return s
 
 
+def player_ship_hit_1() -> Ship:
+    """受击帧1：轻度损伤——裂纹 + 能量闪烁 + 小火花。"""
+    s = player_ship()  # 基于正常帧叠加损伤
+    # 裂纹线（橙红色，跨越机身）
+    CRACK = (180, 80, 30, 255)
+    CRACK_GLOW = (255, 140, 40, 180)
+    # 机身裂纹
+    s.bd.line(s.p([(115, 130), (122, 155), (135, 170)]), fill=CRACK, width=2 * S, joint="curve")
+    s.bd.line(s.p([(139, 130), (132, 155), (119, 170)]), fill=CRACK, width=2 * S, joint="curve")
+    # 左翼裂纹
+    s.bd.line(s.p([(90, 150), (65, 185), (50, 200)]), fill=CRACK, width=2 * S, joint="curve")
+    # 右翼裂纹（镜像）
+    s.bd.line(s.p([(164, 150), (189, 185), (204, 200)]), fill=CRACK, width=2 * S, joint="curve")
+    # 裂纹辉光
+    s.gd.line(s.p([(115, 130), (122, 155), (135, 170)]), fill=CRACK_GLOW, width=4 * S, joint="curve")
+    s.gd.line(s.p([(139, 130), (132, 155), (119, 170)]), fill=CRACK_GLOW, width=4 * S, joint="curve")
+    # 小火花点（橙色，机身周围）
+    SPARK = (255, 200, 60, 220)
+    sparks = [(110, 145), (144, 145), (127, 160), (95, 175), (159, 175)]
+    for sx, sy in sparks:
+        s.gd.ellipse(s.p([(sx - 2, sy - 2), (sx + 2, sy + 2)]), fill=SPARK)
+    return s
+
+
+def player_ship_hit_2() -> Ship:
+    """受击帧2：重度损伤——更多裂纹 + 暗淡 + 火花扩散 + 座舱受损。"""
+    s = player_ship_hit_1()  # 基于轻度损伤叠加
+    CRACK = (160, 60, 20, 255)
+    CRACK_GLOW = (220, 100, 30, 200)
+    # 额外裂纹（更密）
+    s.bd.line(s.p([(120, 100), (125, 120), (118, 145)]), fill=CRACK, width=2 * S, joint="curve")
+    s.bd.line(s.p([(134, 100), (129, 120), (136, 145)]), fill=CRACK, width=2 * S, joint="curve")
+    s.bd.line(s.p([(100, 190), (115, 210), (127, 225)]), fill=CRACK, width=2 * S, joint="curve")
+    s.bd.line(s.p([(154, 190), (139, 210), (127, 225)]), fill=CRACK, width=2 * S, joint="curve")
+    # 裂纹辉光
+    s.gd.line(s.p([(120, 100), (125, 120), (118, 145)]), fill=CRACK_GLOW, width=4 * S, joint="curve")
+    s.gd.line(s.p([(134, 100), (129, 120), (136, 145)]), fill=CRACK_GLOW, width=4 * S, joint="curve")
+    # 座舱暗淡（覆盖半透明暗色）
+    s.bd.ellipse(s.p([(118, 74), (136, 110)]), fill=(40, 20, 10, 120))
+    # 更多火花
+    SPARK = (255, 180, 40, 200)
+    sparks2 = [(105, 125), (149, 125), (127, 140), (88, 200), (166, 200),
+               (127, 110), (112, 195), (142, 195)]
+    for sx, sy in sparks2:
+        r = 2.5 if (sx + sy) % 7 < 3 else 1.8
+        s.gd.ellipse(s.p([(sx - r, sy - r), (sx + r, sy + r)]), fill=SPARK)
+    # 整体暗淡叠加
+    dark = Image.new("RGBA", (254 * S, 254 * S), (20, 10, 5, 60))
+    s.body = Image.alpha_composite(s.body, dark)
+    return s
+
+
 def main() -> None:
-    # R07（2026-08-05 独立审计）：输出路径锚定脚本位置（同 generate_audio 口径），
-    # 不再依赖调用时 cwd——非仓库根运行不会在别处落盘或崩溃
-    out = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites", "player_ship.png")
+    sprite_dir = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites")
     )
-    player_ship().finish(out)
+    player_ship().finish(os.path.join(sprite_dir, "player_ship.png"))
+    player_ship_hit_1().finish(os.path.join(sprite_dir, "player_ship_hit_1.png"))
+    player_ship_hit_2().finish(os.path.join(sprite_dir, "player_ship_hit_2.png"))
 
 
 if __name__ == "__main__":

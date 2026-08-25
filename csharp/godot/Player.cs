@@ -198,6 +198,12 @@ public partial class Player : CharacterBody2D
     private Area2D? _hitbox;
     private GpuParticles2D? _thruster;
 
+    // ---- 受击帧纹理（按 HP 阈值切换） ----
+    private readonly Texture2D _texNormal = GD.Load<Texture2D>("res://assets/sprites/player_ship.png");
+    private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
+    private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
+    private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
+
     private readonly Callable _onRefreshBuffFactors;
     private readonly Callable _onAimAssistLevelChanged;
     private readonly Callable _onJoySettingsChanged;
@@ -267,6 +273,26 @@ public partial class Player : CharacterBody2D
     public override void _Process(double delta)
     {
         _visuals.UpdateAfterimages((float)delta);
+        UpdateDamageFrame();
+    }
+
+    /// <summary>按 HP 百分比切换受击帧（0=正常, ≤70%=轻伤, ≤40%=重伤）。</summary>
+    private void UpdateDamageFrame()
+    {
+        if (_sprite == null) return;
+        var hp = GameState.Instance.Health;
+        var maxHp = GameState.Instance.MaxHealth();
+        if (maxHp <= 0.0) return;
+        var ratio = hp / maxHp;
+        var level = ratio > 0.7 ? 0 : ratio > 0.4 ? 1 : 2;
+        if (level == _damageLevel) return;
+        _damageLevel = level;
+        _sprite.Texture = level switch
+        {
+            1 => _texHit1,
+            2 => _texHit2,
+            _ => _texNormal,
+        };
     }
 
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>

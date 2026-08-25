@@ -22,14 +22,14 @@ public partial class StrikeCarrier : Node2D
     // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     private readonly Texture2D _carrierTexture = GD.Load<Texture2D>("res://assets/sprites/strike_carrier.png");
 
-    /// <summary>基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - (600, 350)；使用点 × world_scale）。</summary>
+    /// <summary>基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - 画布中心；使用点 × world_scale）。</summary>
     public static readonly Vector2[] Sockets =
     {
-        new(-170.0f, 120.0f), // 左翼台内
-        new(170.0f, 120.0f), // 右翼台内
-        new(-310.0f, 80.0f), // 左翼台外
-        new(310.0f, 80.0f), // 右翼台外
-        new(0.0f, 170.0f), // 中央前甲板
+        new(-113.3f, 78.9f), // 左翼台内
+        new(113.3f, 78.9f), // 右翼台内
+        new(-206.7f, 52.6f), // 左翼台外
+        new(206.7f, 52.6f), // 右翼台外
+        new(0.0f, 110.6f), // 中央前甲板
     };
 
     public enum State { ENTER, HOVER, RETREAT }

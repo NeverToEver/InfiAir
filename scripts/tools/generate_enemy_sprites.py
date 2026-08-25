@@ -78,8 +78,14 @@ BOSS_CORES = [
 class Ship:
     """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。"""
 
-    def __init__(self, w: int, h: int, accent: tuple, core: tuple) -> None:
+    def __init__(self, w: int, h: int, accent: tuple, core: tuple,
+                 orig_w: int = 0, orig_h: int = 0) -> None:
         self.w, self.h = w, h
+        self._ow = orig_w if orig_w else w
+        self._oh = orig_h if orig_h else h
+        self._sx = w / self._ow if orig_w else 1.0
+        self._sy = h / self._oh if orig_h else 1.0
+        self._ls = (self._sx + self._sy) / 2.0  # 线宽用平均缩放
         self.accent, self.core = accent, core
         self.body = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
@@ -87,10 +93,10 @@ class Ship:
         self.gd = ImageDraw.Draw(self.glow)
 
     def p(self, pts):
-        return [(x * S, y * S) for x, y in pts]
+        return [(x * self._sx * S, y * self._sy * S) for x, y in pts]
 
     def mirror(self, pts):
-        return [(self.w - x, y) for x, y in pts]
+        return [(self._ow - x, y) for x, y in pts]
 
     def facet(self, pts, fill, mirror=True):
         self.bd.polygon(self.p(pts), fill=fill)
@@ -105,43 +111,46 @@ class Ship:
             self.bd.polygon(self.p(self.mirror(pts)), fill=c)
 
     def seam(self, pts, width=2, mirror=True):
-        self.bd.line(self.p(pts), fill=SEAM, width=width * S, joint="curve")
+        w = int(width * S * self._ls)
+        self.bd.line(self.p(pts), fill=SEAM, width=max(w, S), joint="curve")
         if mirror:
-            self.bd.line(self.p(self.mirror(pts)), fill=SEAM, width=width * S, joint="curve")
+            self.bd.line(self.p(self.mirror(pts)), fill=SEAM, width=max(w, S), joint="curve")
 
     def rim(self, pts, width=None, mirror=True):
         w = RIM_W if width is None else width
-        self.bd.line(self.p(pts), fill=RIM, width=w * S, joint="curve")
+        sw = int(w * S * self._ls)
+        self.bd.line(self.p(pts), fill=RIM, width=max(sw, S), joint="curve")
         if mirror:
-            self.bd.line(self.p(self.mirror(pts)), fill=RIM, width=w * S, joint="curve")
+            self.bd.line(self.p(self.mirror(pts)), fill=RIM, width=max(sw, S), joint="curve")
 
     def neon(self, pts, width=3, color=None, mirror=True):
         c = (color or self.accent) + (255,)
-        w = (width + NEON_BOOST) * S
-        self.gd.line(self.p(pts), fill=c, width=w, joint="curve")
+        w = int((width + NEON_BOOST) * S * self._ls)
+        self.gd.line(self.p(pts), fill=c, width=max(w, S), joint="curve")
         if mirror:
-            self.gd.line(self.p(self.mirror(pts)), fill=c, width=w, joint="curve")
+            self.gd.line(self.p(self.mirror(pts)), fill=c, width=max(w, S), joint="curve")
 
     def lamp(self, x, y, r=2.0, color=None, mirror=True):
         """节点灯/航行灯（glow 层小光点）。"""
         c = (color or self.accent) + (255,)
         self.gd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
         if mirror:
-            self.gd.ellipse(self.p([(self.w - x - r, y - r), (self.w - x + r, y + r)]), fill=c)
+            self.gd.ellipse(self.p([(self._ow - x - r, y - r), (self._ow - x + r, y + r)]), fill=c)
 
     def panel_dot(self, x, y, r=1.5, mirror=True):
         """铆接/焊点（body 层小圆点）。"""
         self.bd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=RIVET)
         if mirror:
-            self.bd.ellipse(self.p([(self.w - x - r, y - r), (self.w - x + r, y + r)]), fill=RIVET)
+            self.bd.ellipse(self.p([(self._ow - x - r, y - r), (self._ow - x + r, y + r)]), fill=RIVET)
 
     def vent(self, x, y, length=8, gap=3, n=3, width=1, mirror=True):
         """散热格栅：一组平行短横线（向右延伸，镜像侧向左）。"""
+        sw = int(width * S * self._ls)
         for i in range(n):
             yy = y + i * gap
-            self.bd.line(self.p([(x, yy), (x + length, yy)]), fill=SEAM, width=width * S)
+            self.bd.line(self.p([(x, yy), (x + length, yy)]), fill=SEAM, width=max(sw, S))
             if mirror:
-                self.bd.line(self.p([(self.w - x, yy), (self.w - x - length, yy)]), fill=SEAM, width=width * S)
+                self.bd.line(self.p([(self._ow - x, yy), (self._ow - x - length, yy)]), fill=SEAM, width=max(sw, S))
 
     def greeble(self, x, y, w, h, fill=None, mirror=True, outline=True):
         """舱口/设备小矩形。"""
@@ -149,10 +158,10 @@ class Ship:
         kw = {"fill": c}
         if outline:
             kw["outline"] = SEAM
-            kw["width"] = S
+            kw["width"] = max(int(S * self._ls), S)
         self.bd.rectangle(self.p([(x, y), (x + w, y + h)]), **kw)
         if mirror:
-            self.bd.rectangle(self.p([(self.w - x - w, y), (self.w - x, y + h)]), **kw)
+            self.bd.rectangle(self.p([(self._ow - x - w, y), (self._ow - x, y + h)]), **kw)
 
     def crystal(self, cx, cy, r, color=None, mirror=True):
         """晶簇凸起：菱形面 + 顶部高光小面（body 层）。"""
@@ -249,7 +258,7 @@ class Ship:
             self.gd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
 
     def finish(self, path: str, blur: float = 6.0) -> None:
-        halo = self.glow.filter(ImageFilter.GaussianBlur(blur * S))
+        halo = self.glow.filter(ImageFilter.GaussianBlur(blur * S * self._ls))
         out = Image.alpha_composite(halo, self.body)
         out = Image.alpha_composite(out, self.glow)
         out = out.resize((self.w, self.h), Image.LANCZOS)
@@ -751,7 +760,7 @@ def _octagon(cx, cy, r):
 
 
 def strike_carrier() -> Ship:  # 拉长六边梭形母舰 + 阶梯甲板翼台 + 三层六边塔楼
-    s = Ship(1200, 700, ELITE_ACCENT, ELITE_CORE)
+    s = Ship(800, 460, ELITE_ACCENT, ELITE_CORE, orig_w=1200, orig_h=700)
     # 阶梯甲板翼台（左右镜像，三级收缩）
     s.facet([(480, 330), (240, 360), (240, 500), (480, 540)], HULL_B)          # 翼台基座
     s.facet([(470, 344), (258, 370), (258, 488), (470, 526)], HULL_A)          # 翼台基座子面（压暗）

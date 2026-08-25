@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 统一素材生成入口:依固定顺序重跑 4 个离线生成器,输出与仓库提交资产一致。
+# 统一素材生成入口:依固定顺序重跑 5 个离线生成器,输出与仓库提交资产一致。
 # 用法:scripts/tools/regenerate_all.sh
 # - 生成器输出路径均锚定脚本位置,可在任意 cwd 下运行;
 # - 脚本幂等、可重复执行:贴图生成器为纯确定性绘制(无随机源),
@@ -23,20 +23,24 @@ else
 fi
 echo "==> 使用解释器: $PY"
 
-echo "==> [1/4] 玩家战机贴图 (generate_player_sprite.py)"
+echo "==> [1/5] 玩家战机 + 受击帧贴图 (generate_player_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_player_sprite.py"
-echo "    产物: assets/sprites/player_ship.png"
+echo "    产物: assets/sprites/player_ship.png, player_ship_hit_1.png, player_ship_hit_2.png"
 
-echo "==> [2/4] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
+echo "==> [2/5] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
 "$PY" "$SCRIPT_DIR/generate_enemy_sprites.py"
 echo "    产物: assets/sprites/enemy_ship_1..4.png, elite_ship_1..3.png,"
-echo "          boss_ship_1..3.png, strike_carrier.png, elite_turret.png"
+echo "          boss_ship_1..4.png, strike_carrier.png(800x460), elite_turret.png"
 
-echo "==> [3/4] 母舰贴图 (generate_mothership_sprite.py)"
+echo "==> [3/5] Boss P2 损伤帧 (generate_boss_p2_frames.py)"
+"$PY" "$SCRIPT_DIR/generate_boss_p2_frames.py"
+echo "    产物: assets/sprites/boss_ship_1_p2.png .. boss_ship_4_p2.png"
+
+echo "==> [4/5] 母舰贴图 (generate_mothership_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_mothership_sprite.py"
 echo "    产物: assets/sprites/mothership.png"
 
-echo "==> [4/4] 音效/BGM (generate_audio.py)"
+echo "==> [5/5] 音效/BGM (generate_audio.py)"
 "$PY" "$SCRIPT_DIR/generate_audio.py"
 echo "    产物: assets/audio/explosion.wav, explosion_big.wav, player_hit.wav,"
 echo "          buff_pick.wav, dash.wav, resupply.wav, heartbeat.wav,"

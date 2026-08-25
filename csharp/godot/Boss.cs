@@ -51,6 +51,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private readonly Texture2D _bossSprite2 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_2.png");
     private readonly Texture2D _bossSprite3 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_3.png");
     private readonly Texture2D _bossSprite4 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_4.png");
+    /// <summary>P2 阶段损伤贴图（裂纹 + 火花）。</summary>
+    private readonly Texture2D[] _bossP2Textures;
     /// <summary>4 型「月蚀」专属贴图（环刃法师，2026-08-09 接线）。
     /// 数组在构造器装配（字段初始化器禁引用实例字段）。</summary>
     private readonly Texture2D[] _bossTextures;
@@ -353,6 +355,13 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public Boss()
     {
         _bossTextures = new[] { _bossSprite1, _bossSprite2, _bossSprite3, _bossSprite4 };
+        _bossP2Textures = new[]
+        {
+            GD.Load<Texture2D>("res://assets/sprites/boss_ship_1_p2.png"),
+            GD.Load<Texture2D>("res://assets/sprites/boss_ship_2_p2.png"),
+            GD.Load<Texture2D>("res://assets/sprites/boss_ship_3_p2.png"),
+            GD.Load<Texture2D>("res://assets/sprites/boss_ship_4_p2.png"),
+        };
         _slowCache = new BuffBoolCache(SlowFieldId);
     }
 
@@ -1047,6 +1056,15 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private void EnterPhase(FightPhase pPhase)
     {
         _fightPhase = pPhase;
+        // P2 阶段切换损伤帧
+        if (pPhase == FightPhase.P2)
+        {
+            var idx = BossType - 1;
+            if (idx >= 0 && idx < _bossP2Textures.Length)
+            {
+                GetNode<Sprite2D>("Sprite2D").Texture = _bossP2Textures[idx];
+            }
+        }
         _patternIndex = 0;
         StartPatternInternal();
         _fireTimer = PhaseShiftDuration; // 段切换蓄力期停火
