@@ -16,6 +16,15 @@
 - **开放登记**（未修，登记处 `docs/ROADMAP.md` 已知债务清单）：召唤蓄力窗口期事件可触发（L13 反向漏出）；基地任务绝对计数轮换即完成（刷新经济泄漏）
 - **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 警告 + 300 帧 0 错误 + smoke/base 0 FAIL + 窗口化实机回归（welcome 双阶段/开局难度 ×1.00/三选一/HUD/实战）+ autoplay 900s（修复前基线）与 240s（修复后回归）探针 0 崩溃 0 卡死
 
+### 工程遗留清剿（2026-09-07，三路并行深度考古后全量修复）
+
+- **死代码清剿**：删除 GDScript 迁移期与断言场景退役遗留的孤儿成员 186 项（约 −600 行）——UITheme GDScript 访问器 34、Boss/Spawner/Player/EliteTurretEvent/Mothership 白盒桥 74、无调用方测试端口 6（SimulateTouch/SimulateDrag/SetTestState/SetLod/ReloadBalance/LabOverlay）、恒真 UsePool 守卫、BalanceModels 死属性 5、孤儿 .cs.uid 5、BalanceInterop 整文件；每项删除前经词边界 + 字符串派发双重复核（Boss.FightPhaseValue/Patterns 复核发现真实调用方剔除保留）
+- **贡献链失实纠偏**：CONTRIBUTING 四处（PR 门禁描述对齐单 fast-gate、断言场景口径、删除对不存在 .agents/doc-sync.md 与已废止 EXECUTION_LOG 机制的引用）；ci.yml 退役场景计数 52→51；run.sh macOS 探测链补 Godot_mono.app（原只会命中打不开 C# 工程的标准版）；release.yml 版本示例 3.28→3.33；release.sh 头注探测链描述对齐实现
+- **GDScript 时代死配置删除**：gdformatrc、.gdlintrc 两文件；project.godot [debug] 段 24 行 gdscript/warnings（零 GDScript 后永不生效）
+- **归档区收尾**：EXECUTION_LOG/ENDLESS_BALANCE_PLAN 补弃用头注（原仍自称活机制）；PORTING_PARITY 附录 B「有效规格」改历史参考
+- **README 双语对齐现状 + 四张截图重摄**：操作表补 F/L/R/K 四键、测试体系描述加窗口化实机过目支柱、集成测试口径修正；start/base/gameplay/mothership 全部重摄（start 原为已退役 StartPanel 画面）；7 个截图工具 /tmp 硬编码改 Path.GetTempPath()（Windows 无法落盘），VisualCapture 新增 --mode= 参数
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 警告 + 300 帧 0 错误 + smoke/base 0 FAIL + 模拟 CI 全步骤通过
+
 ### 工程纪律裁剪（2026-09-07，用户指令：惯例冗杂）
 
 - **行为规格文档退役**：13 份（ARCHITECTURE/BOSS_REDESIGN/ELITE_TURRET_EVENT/FORMATION_STRIKE_EVENT/FOG_EVENTS/EVENT_MANAGER/ENTITY_MANAGER/META_HUD_DESIGN/INTRO_CINEMATIC/RETURN_HOME_CINEMATIC/EXIT_FLOW/AUDIT_REVIEW_SOP/AUDIT_VAULT）`git mv` 入 `docs/archive/` 并加弃用头注——行为以代码与测试为准，不再维护行为规格（历史依据：双源漂移曾消耗专门纠偏轮次，一次 19 文档 40+ 失实）
