@@ -23,6 +23,7 @@
 - **GDScript 时代死配置删除**：gdformatrc、.gdlintrc 两文件；project.godot [debug] 段 24 行 gdscript/warnings（零 GDScript 后永不生效）
 - **归档区收尾**：EXECUTION_LOG/ENDLESS_BALANCE_PLAN 补弃用头注（原仍自称活机制）；PORTING_PARITY 附录 B「有效规格」改历史参考
 - **README 双语对齐现状 + 四张截图重摄**：操作表补 F/L/R/K 四键、测试体系描述加窗口化实机过目支柱、集成测试口径修正；start/base/gameplay/mothership 全部重摄（start 原为已退役 StartPanel 画面）；7 个截图工具 /tmp 硬编码改 Path.GetTempPath()（Windows 无法落盘），VisualCapture 新增 --mode= 参数
+- **发布链修复**：release.yml 版本同步步骤幂等化（发布前手动 bump 版本时「nothing to commit」不再杀死工作流，v3.33 发布实测踩中）
 - **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 警告 + 300 帧 0 错误 + smoke/base 0 FAIL + 模拟 CI 全步骤通过
 
 ### 工程纪律裁剪（2026-09-07，用户指令：惯例冗杂）
