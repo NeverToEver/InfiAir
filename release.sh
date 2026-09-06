@@ -82,8 +82,11 @@ export_platform() {
 		echo "[release] 导出失败：$preset" >&2
 		exit 1
 	fi
-	if grep -q "^ERROR" "$log"; then
-		grep "^ERROR" "$log" | sort -u | head -5 >&2
+	# Godot 4.6 headless 导出在引擎退出阶段可能打印「RID allocations leaked at exit」
+	# （dummy 渲染器 teardown 噪音，发生在产物落盘之后，与包内容无关——审计档案有
+	# 基线对照先例）；精确豁免该行，其余 ^ERROR 仍中止（防空壳包的门禁语义不变）
+	if grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep -q "^ERROR"; then
+		grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep "^ERROR" | sort -u | head -5 >&2
 		rm -f "$log"
 		echo "[release] 导出日志含 ERROR（$preset），中止——产物不可信" >&2
 		exit 1
