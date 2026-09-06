@@ -113,52 +113,6 @@ public partial class MetaHealthFX : CanvasLayer
 
     // ---------------- A7：测试/诊断白盒断言经公开接口（平滑参数注入统一测试口 + 状态 getter） ----------------
 
-    /// <summary>测试插桩：接受无 `_` 前缀的语义键（内部补 `_` 写私有字段），不再与实现字段名强耦合（C35）。</summary>
-    public void SetTestState(Godot.Collections.Dictionary state)
-    {
-        foreach (var key in state.Keys)
-        {
-            if (key.VariantType != Variant.Type.String)
-            {
-                continue;
-            }
-
-            var field = key.AsString();
-            if (!field.StartsWith('_'))
-            {
-                field = "_" + field;
-            }
-
-            var value = state[key];
-            switch (field)
-            {
-                case "_state": _state = value.AsInt32(); break;
-                case "_damage_x": _damageX = value.AsSingle(); break;
-                case "_target_x": _targetX = value.AsSingle(); break;
-                case "_hit_pulse": _hitPulse = value.AsSingle(); break;
-                case "_hit_dir": _hitDir = value.AsVector2(); break;
-                case "_ripple_t": _rippleT = value.AsSingle(); break;
-                case "_grow_boost": _growBoost = value.AsSingle(); break;
-                case "_heal_t": _healT = value.AsSingle(); break;
-                case "_heal_jitter": _healJitter = value.AsSingle(); break;
-                case "_heart_phase": _heartPhase = value.AsSingle(); break;
-                case "_heart_env": _heartEnv = value.AsSingle(); break;
-                case "_heart_rate": _heartRate = value.AsSingle(); break;
-                case "_breath": _breath = value.AsSingle(); break;
-                case "_vig_inner": _vigInner = value.AsSingle(); break;
-                case "_warn_t": _warnT = value.AsSingle(); break;
-                case "_lod": _lod = value.AsInt32(); break;
-                case "_adapt_gain": _adaptGain = value.AsSingle(); break;
-                case "_field_ready": _fieldReady = value.AsBool(); break;
-                case "_force_refresh": _forceRefresh = value.AsBool(); break;
-                case "_upload_count": _uploadCount = value.AsInt32(); break;
-                case "_early_out_count": _earlyOutCount = value.AsInt32(); break;
-                case "_heart_beats": _heartBeats = value.AsInt32(); break;
-                default: break;
-            }
-        }
-    }
-
     /// <summary>血量-裂纹映射曲线（§4.2；测试采样点不含生长过冲）</summary>
     public float CrackProgress()
     {
@@ -189,15 +143,6 @@ public partial class MetaHealthFX : CanvasLayer
     public bool BreathActive()
     {
         return _state == STATE_DYING && GameState.Instance.Health > 0.0 && !GameState.Instance.ReduceFlash;
-    }
-
-    /// <summary>测试钩子（A7 遗留清理，公开化）：切换 LOD（正常路径由 _ready 从 effects.meta_health.lod 读取）</summary>
-    public void SetLod(int v)
-    {
-        _lod = v;
-        GameState.Instance.MetaFxLod = v;
-        _mat.SetShaderParameter("u_lod", v);
-        _last.Remove(new StringName("u_lod"));
     }
 
     public override void _Ready()
@@ -852,18 +797,6 @@ public partial class MetaHealthFX : CanvasLayer
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public float hit_pulse() => HitPulse();
-
-    public float damage_x() => DamageX();
-
-    public int state() => State();
-
     public float heal_jitter() => HealJitter();
-
-    public float breath() => Breath();
-
-    public int upload_count() => UploadCount();
-
-    public int early_out_count() => EarlyOutCount();
 
 }

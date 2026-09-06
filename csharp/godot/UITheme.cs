@@ -6,12 +6,11 @@ namespace InfiAir;
 /// 全 UI 统一色板、字号阶梯与样式工厂（HUD / Sci-Fi FUI：细线、切角、全息青）。
 /// 各 UI 一律从这里取色/取样式/取控件，不再散落硬编码色值与 Label/Button 样板。
 /// M5 全量迁移（2026-08-08 自 scripts/ui_theme.gd）：RefCounted + 全静态工厂。
-/// C# 调用方经静态字段/方法 typed 直调；GDScript 调用方（M6 过场/测试）经脚本资源
-/// 调静态方法（GDScript 不能访问 C# 静态字段/常量——GetAccent() 等访问器 + snake 桥）。
+/// C# 调用方经静态字段/方法 typed 直调。
 /// </summary>
 public partial class UITheme : RefCounted
 {
-    // ---------------- 色板（C# typed 直用；GDScript 经 Get*() 访问器） ----------------
+    // ---------------- 色板（C# typed 直用） ----------------
     public static readonly Color PanelBg = new(0.039f, 0.063f, 0.102f, 0.78f); // 面板底 藏青
     public static readonly Color PanelBorder = new(0.0f, 0.83f, 1.0f, 0.5f); // 面板边框 青 1px 细线
     public static readonly Color Accent = new(0x00d4ffff); // 主强调青
@@ -394,74 +393,4 @@ public partial class UITheme : RefCounted
         button.SetMeta("motion_tween", Variant.From(tween));
         tween.TweenProperty(button, "scale", new Vector2(target, target), 0.08);
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public static Color GetPanelBg() => PanelBg;
-
-    public static Color GetPanelBorder() => PanelBorder;
-
-    public static Color GetAccent() => Accent;
-
-    public static Color GetAccentBlue() => AccentBlue;
-
-    public static Color GetAccentGold() => AccentGold;
-
-    public static Color GetAccentDim() => AccentDim;
-
-    public static Color GetBgDeep() => BgDeep;
-
-    public static Color GetText() => Text;
-
-    public static Color GetTextDim() => TextDim;
-
-    public static Color GetDanger() => Danger;
-
-    public static Color GetSuccess() => Success;
-
-    public static Color GetBtnNormal() => BtnNormal;
-
-    public static Color GetBtnHover() => BtnHover;
-
-    public static Color GetBtnPressed() => BtnPressed;
-
-    public static Color GetBtnPrimaryBg() => BtnPrimaryBg;
-
-    public static Color GetDimBg() => DimBg;
-
-    public static Color GetEventMagenta() => EventMagenta;
-
-    public static Color GetWarnYellow() => WarnYellow;
-
-    public static Color GetChargeCyan() => ChargeCyan;
-
-    public static Color GetBannerDangerBg() => BannerDangerBg;
-
-    public static Color GetPhantomBg() => PhantomBg;
-
-    public static Color GetPhantomPanelBg() => PhantomPanelBg;
-
-    public static Color GetPhantomBorder() => PhantomBorder;
-
-    public static Color GetPhantomScan() => PhantomScan;
-
-    public static int GetFontDisplay() => FontDisplay;
-
-    public static int GetFontTitle() => FontTitle;
-
-    public static int GetFontScore() => FontScore;
-
-    public static int GetFontHeader() => FontHeader;
-
-    public static int GetFontBody() => FontBody;
-
-    public static int GetFontHudL() => FontHudL;
-
-    public static int GetFontHud() => FontHud;
-
-    public static int GetFontCaption() => FontCaption;
-
-    public static int GetFontSmall() => FontSmall;
-
-    public static FontFile GetFont() => Font;
 }

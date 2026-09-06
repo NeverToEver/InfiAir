@@ -12,10 +12,7 @@ public partial class EnemyPool : Node
     // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
 
-    public const bool UsePool = true;
-
     private readonly Godot.Collections.Array<Enemy> _free = new();
-
     public override void _Ready()
     {
         GameState.Instance.EnemyPool = this;
@@ -30,27 +27,21 @@ public partial class EnemyPool : Node
         }
     }
 
-    /// <summary>闲置实例数（A7 遗留清理：测试/诊断公开查询）。</summary>
-    public int FreeCount() => _free.Count;
-
     /// <summary>spawn：取池实例或新建，激活并放置（p_bullet_type 空串 = 从弹种池随机）。</summary>
     public Enemy Spawn(
         Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos, StringName pBulletType)
     {
         Enemy? e = null;
-        if (UsePool)
+        while (_free.Count > 0)
         {
-            while (_free.Count > 0)
+            e = _free[_free.Count - 1];
+            _free.RemoveAt(_free.Count - 1);
+            if (GodotObject.IsInstanceValid(e))
             {
-                e = _free[_free.Count - 1];
-                _free.RemoveAt(_free.Count - 1);
-                if (GodotObject.IsInstanceValid(e))
-                {
-                    break;
-                }
-
-                e = null;
+                break;
             }
+
+            e = null;
         }
 
         if (e == null)
@@ -123,13 +114,4 @@ public partial class EnemyPool : Node
 
     /// <summary>被外部 queue_free（清场/测试/场景重载）时从池清单移除。</summary>
     public void Forget(Enemy e) => _free.Remove(e);
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public Enemy spawn(Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos, StringName pBulletType)
-        => Spawn(config, strategy, pDifficulty, pos, pBulletType);
-
-    public Enemy spawn(Godot.Collections.Dictionary config, StringName strategy, float pDifficulty, Vector2 pos)
-        => Spawn(config, strategy, pDifficulty, pos);
-
 }

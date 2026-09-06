@@ -183,8 +183,6 @@ public partial class PlayerParry : RefCounted
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public void tick(float delta) => Tick(delta);
-
     public float cooldown { get => Cooldown; set => Cooldown = value; }
 
     public float DURATION { get => Duration; set => Duration = value; }

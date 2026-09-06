@@ -129,7 +129,5 @@ public partial class FormationBomb : Area2D
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public Line2D ring() => Ring();
-
     public int damage { get => Damage; set => Damage = value; }
 }

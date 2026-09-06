@@ -43,19 +43,6 @@ public partial class GameState : Node
     /// <summary>配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；测试/诊断用）</summary>
     public bool HasBalance() => !_balanceService.IsEmpty();
 
-    /// <summary>A7 遗留清理：重新加载并应用 balance.json（测试/诊断注入用；运行时只 _ready 走一次）</summary>
-    public void ReloadBalance()
-    {
-        LoadBalance();
-        ApplyBalance();
-        // P4（2026-08-05）：事件管理器配置联动重载——原实现只刷平衡缓存，事件触发策略/
-        // fog 配置停留旧值，诊断/测试注入路径与运行时不一致
-        if (_events != null && GodotObject.IsInstanceValid(_events))
-        {
-            _events.ReloadConfig();
-        }
-    }
-
     /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。</summary>
     public Variant Cfg(string path, Variant defaultValue) => _balanceService.Cfg(path, defaultValue);
 

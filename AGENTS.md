@@ -10,7 +10,7 @@ InfiAir：单人 2D 纵版射击。Godot 4.6.2 + C#（.NET 8，gl_compatibility�
 
 - 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`。
 - 唯一 autoload 是 `GameState`（`csharp/godot/GameState*.cs` 按域拆 partial），各域服务编排门面，C# 统一经 `GameState.Instance` 访问。
-- main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
+- main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / MouseTrap / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
 - UI 文本中英双语，默认中文。所有可见文本走 `Tr("UPPER_SNAKE_CASE")`，新 key 同时填 `data/translations.csv` zh/en 两列并重新导入。禁止硬编码中文可见文本。
 
 ## 目录
@@ -55,7 +55,7 @@ dotnet format --verify-no-changes                                # 本地提交�
 ## 测试
 
 - 行为测试优先写 xUnit 纯逻辑测试（`tests-csharp/`）；断言场景只保留 `smoke_test` + `base_system_test`，确需新增先在 `docs/TESTING.md` 的 Scene Counts 登记（该文件是场景计数唯一权威）。
-- 测试只走公开测试端口（`SimulateTouch`/`SimulateDrag`/`SetTestState` 等），禁止直调私有方法或 `_UnhandledInput`；测试碰 `user://` 存档前先 `DeleteSave()` 并自清理。
+- 测试只走公开测试端口（如 `SetMilestoneOverride`/`TestExit`），禁止直调私有方法或 `_UnhandledInput`；测试碰 `user://` 存档前先 `DeleteSave()` 并自清理。
 - Roslynator（`tools/roslynator/`，已 gitignore）只做 info 级参考，非门禁；其中 CA1822（标 static）不要应用——Godot 场景/信号按名字连接方法，static 化有运行期解析风险。
 
 ## 文档（只保留 5 份活文档）

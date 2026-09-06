@@ -225,22 +225,4 @@ public partial class BackNavigator : Node
 
         return BackAction.OPEN_PAUSE;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    /// <summary>BackAction 枚举值字典（名称 → int，声明序；测试 act.XXX 改经此访问）。</summary>
-    public static Godot.Collections.Dictionary BackActions() => new()
-    {
-        ["CANCEL_EXIT"] = (int)BackAction.CANCEL_EXIT,
-        ["CAPTURE_PASSTHROUGH"] = (int)BackAction.CAPTURE_PASSTHROUGH,
-        ["CLOSE_SETTINGS"] = (int)BackAction.CLOSE_SETTINGS,
-        ["RESUME_BASE"] = (int)BackAction.RESUME_BASE,
-        ["SKIP_INTRO"] = (int)BackAction.SKIP_INTRO,
-        ["SKIP_RETURN"] = (int)BackAction.SKIP_RETURN,
-        ["CLOSE_BUFF_PANEL"] = (int)BackAction.CLOSE_BUFF_PANEL,
-        ["IGNORE"] = (int)BackAction.IGNORE,
-        ["TO_MAIN_MENU"] = (int)BackAction.TO_MAIN_MENU,
-        ["RESUME_GAME"] = (int)BackAction.RESUME_GAME,
-        ["OPEN_PAUSE"] = (int)BackAction.OPEN_PAUSE,
-    };
 }

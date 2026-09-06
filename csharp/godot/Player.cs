@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
 /// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerBuffVisuals（Node2D）。
 /// 语义保持：声明式 BUFF_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
-/// 公开 API 为 PascalCase；少量 snake_case 兼容桥因 C# 动态派发/测试调用方保留（桥段见文件底部）。
+/// 公开 API 为 PascalCase；少量 snake_case 兼容桥因测试调用方保留（桥段见文件底部）。
 /// </summary>
 public partial class Player : CharacterBody2D
 {
@@ -521,19 +521,11 @@ public partial class Player : CharacterBody2D
 
     public void SetDashCooldown(float seconds) => _dash.DashCooldown = seconds;
 
-    public void ResetCombatState()
-    {
-        _damage.LastHitFrame = -1;
-        _damage.SinceDamage = 999.0f;
-    }
-
     public void SetSinceDamage(float seconds) => _damage.SinceDamage = seconds;
 
     public void SetLastHitFrame(int frame) => _damage.LastHitFrame = frame;
 
     public float DashCooldownRemaining() => _dash.CooldownRemaining();
-
-    public float SinceDamageValue() => _damage.SinceDamage;
 
     public void Fire(Vector2 aim) => FireInternal(aim);
 
@@ -630,8 +622,6 @@ public partial class Player : CharacterBody2D
 
         return Mathf.Lerp(1.0f, minV, (d - peak) / (end - peak));
     }
-
-    public bool HitboxEnabled() => _hitbox != null && _hitbox.Monitoring;
 
     public void LockInput() => _inputLocked = true;
 
@@ -1259,14 +1249,9 @@ public partial class Player : CharacterBody2D
         GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -8.0);
     }
 
-    /// <summary>机制四：弹反盾公开接口（测试/诊断与 HUD 读取）。</summary>
-    public bool TryParry() => _parry.TryStart();
-
     public int ParryPhase() => (int)_parry.Phase;
 
     public float ParryEnergyRatio() => _parry.EnergyRatio();
-
-    public float ParryCooldownRemaining() => _parry.CooldownRemaining();
 
     /// <summary>盾区弹反：圆盘 shape 触发进入检测后径向距离过滤（360° 全周盾，arc_deg 配置保留
     /// 角度过滤能力——&lt;360 时回退为机头前方扇形），O(1) 阵营翻转。</summary>
@@ -1491,17 +1476,7 @@ public partial class Player : CharacterBody2D
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public void fire(Vector2 aim) => Fire(aim);
-
-    public float fire_interval() => FireIntervalValue();
-
     public int bullet_damage() => BulletDamageValue();
-
-    public bool take_damage() => TakeDamage(1.0f, Vector2.Inf);
-
-    public bool take_damage(float amount) => TakeDamage(amount, Vector2.Inf);
-
-    public bool take_damage(float amount, Vector2 fromPos) => TakeDamage(amount, fromPos);
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
@@ -1515,16 +1490,4 @@ public partial class Player : CharacterBody2D
             _bulletSpeedValue = BuffScale(BuffBulletSpeed, value, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
         }
     }
-
-    public float INVINCIBLE_TIME { get => InvincibleTime; set => InvincibleTime = value; }
-
-    public float SPAWN_INVINCIBLE_TIME { get => SpawnInvincibleTime; set => SpawnInvincibleTime = value; }
-
-    public float ENTRY_LAND_RATIO { get => EntryLandRatio; set => EntryLandRatio = value; }
-
-    public float ENTRY_RETREAT_SPEED { get => EntryRetreatSpeed; set => EntryRetreatSpeed = value; }
-
-    public float ENTRY_RETREAT_TIME { get => EntryRetreatTime; set => EntryRetreatTime = value; }
-
-    public float ENTRY_INVINCIBLE { get => EntryInvincible; set => EntryInvincible = value; }
 }

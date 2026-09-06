@@ -593,8 +593,4 @@ public partial class GameState : Node
     }
 
     public void Shake(double strength) => EmitSignal(SignalName.ScreenShake, strength);
-
-    // ---------------- snake → PascalCase 桥属性（M7d 后保留：测试契约与历史调用名） ----------------
-
-
 }

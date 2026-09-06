@@ -485,16 +485,6 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public State state() => GetState();
-
     // GDScript 无法以类名引用 C# 嵌套枚举（实测）——状态值经静态方法访问（脚本资源可调）
     public static int GetStateIdle() => (int)State.IDLE;
-
-    public static int GetStateFormationEnter() => (int)State.FORMATION_ENTER;
-
-    public static int GetStateFormationTurn() => (int)State.FORMATION_TURN;
-
-    public static int GetStateBombingRun() => (int)State.BOMBING_RUN;
-
-    public static int GetStateFormationExit() => (int)State.FORMATION_EXIT;
 }

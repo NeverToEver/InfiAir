@@ -17,8 +17,7 @@ namespace InfiAir;
 ///     不会叠加半状态（子类 _on_start 无需为重复调用特判）；
 ///   - end() 幂等；tick() 仅活跃期派发；context 浅拷贝隔离编排器后续修改；
 ///   - duration ≤ 0 钳制为 0（编排器侧另有下限，双保险）。
-/// M7 后测试经 C# typed 实例化（RefCounted 基链）；公开 API 为 PascalCase，
-/// 少量 snake_case 别名桥因测试/动态派发调用方保留。
+/// M7 后测试经 C# typed 实例化（RefCounted 基链）；公开 API 为 PascalCase。
 /// </summary>
 public partial class GameEvent : RefCounted
 {
@@ -112,16 +111,4 @@ public partial class GameEvent : RefCounted
     protected virtual void OnEnd()
     {
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float duration { get => Duration; set => Duration = value; }
-
-    public StringName event_id() => EventId();
-
-    public void request_end() => RequestEnd();
-
-    public void tick(float delta) => Tick(delta);
-
-    public void end() => End();
 }

@@ -1416,14 +1416,10 @@ public partial class Hud : CanvasLayer
 
     public Label BuffPanelTitle() => _buffPanelTitle;
 
-    public VBoxContainer EventBox() => _eventBox;
-
     /// <summary>A7 遗留清理：提前离舰蓄力条节点公开查询（测试替代 _ 直读）。</summary>
     public VBoxContainer EarlyLeaveBox() => _earlyLeaveBox;
 
     public ColorRect EarlyLeaveFill() => _earlyLeaveFill;
-
-    public Label GiveUpLabel() => _giveUpLabel;
 
     public TextureRect Vignette() => _vignette;
 
@@ -1434,6 +1430,4 @@ public partial class Hud : CanvasLayer
     public void meta_jitter() => MetaJitter(2.0f);
 
     public void meta_jitter(float px) => MetaJitter(px);
-
-    public TextureRect vignette() => Vignette();
 }

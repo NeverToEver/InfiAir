@@ -301,12 +301,4 @@ public partial class FogEventManager : Node
     {
         return GameState.Instance.Events;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public Node2D fake_container() => FakeContainer();
-
-    public CanvasLayer overlay_layer() => OverlayLayer();
-
-    public ColorRect overlay_rect() => OverlayRect();
 }

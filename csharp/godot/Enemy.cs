@@ -429,10 +429,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
-
-    public void take_damage(int amount) => TakeDamage(amount);
-
     public int hp { get => Hp; set => Hp = value; }
 
     public float speed { get => Speed; set => Speed = value; }
@@ -445,12 +441,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；A7 白盒测试兼容保留）
     public float HOVER_BOB_AMP { get => HoverBobAmp; set => HoverBobAmp = value; }
-
-    public float SPREAD_FAN_STEP { get => SpreadFanStep; set => SpreadFanStep = value; }
-
-    public float ENEMY_BULLET_SPEED { get => EnemyBulletSpeed; set => EnemyBulletSpeed = value; }
-
-    public float SPREAD_BULLET_SPEED { get => SpreadBulletSpeed; set => SpreadBulletSpeed = value; }
 
     /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值，2026-08-07 perf 批次引入）。</summary>
     private const int TrigSize = 256;
@@ -477,8 +467,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     // 白盒访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留；原 pool_reuse_test
     // 断言点，2026-08-29 场景退役后保留）
     public Callable _on_buffs_changed => _slowCache.CallableBridge;
-
-    public bool _slow_field_on => _slowCache.Value;
 
     public static float CosFast(float x) => SinFast(x + Mathf.Pi / 2.0f);
 

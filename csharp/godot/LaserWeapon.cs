@@ -70,8 +70,6 @@ public partial class LaserWeapon : Node2D
 
     public float active_time() => ActiveTime();
 
-    public float cooldown() => Cooldown();
-
     public override void _Ready()
     {
         _player = GetParent() as Player;

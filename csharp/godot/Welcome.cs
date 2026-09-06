@@ -987,8 +987,6 @@ public partial class Welcome : CanvasLayer
 
     public CanvasLayer LeaderboardOverlay() => _leaderboardOverlay;
 
-    public CanvasLayer LabOverlay() => _labOverlay;
-
     public CanvasLayer GuestConfirm() => _guestConfirm.Layer;
 
     public CanvasLayer DeleteConfirm() => _deleteConfirm.Layer;

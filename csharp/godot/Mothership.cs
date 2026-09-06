@@ -18,7 +18,7 @@ namespace InfiAir;
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
 /// M7 后调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
-/// 少量 snake_case 兼容桥因测试/动态派发调用方保留（桥段见文件底部）。
+/// 少量 snake_case 兼容桥因测试调用方保留（桥段见文件底部）。
 /// </summary>
 public partial class Mothership : Area2D
 {
@@ -440,8 +440,6 @@ public partial class Mothership : Area2D
 
     public void SetStateTimer(float seconds) => _stateTimer = seconds;
 
-    public float MagCellTimer() => _magCellTimer;
-
     public bool MagWarned() => _magWarned;
 
     public float WarnEjectTimer() => _warnEjectTimer;
@@ -461,29 +459,11 @@ public partial class Mothership : Area2D
 
     public float IntervalMult() => Tier() == 1 ? _upgradeIntervalMult : 1.0f;
 
-    public void StartRelease() => StartReleaseInternal();
-
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public static int GetStateDescend() => (int)State.DESCEND;
-
-    public static int GetStateDocking() => (int)State.DOCKING;
-
-    public static int GetStateResupply() => (int)State.RESUPPLY;
 
     public static int GetStateStay() => (int)State.STAY;
 
     public static int GetStateRelease() => (int)State.RELEASE;
-
-    public static int GetStateDepart() => (int)State.DEPART;
-
-    public State state() => GetState();
-
-    public int mag_cells() => GetMagCells();
-
-    public float damage_mult() => DamageMult();
-
-    public float interval_mult() => IntervalMult();
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
@@ -491,13 +471,9 @@ public partial class Mothership : Area2D
 
     public float DOCK_OFFSET_Y { get => DockOffsetY; set => DockOffsetY = value; }
 
-    public int MAG_CELLS { get => MagCells; set => MagCells = value; }
-
     public float WARP_IN_TIME { get => WarpInTime; set => WarpInTime = value; }
 
     public float DRIVE_MARGIN_X { get => DriveMarginX; set => DriveMarginX = value; }
-
-    public int GATLING_DAMAGE { get => GatlingDamage; set => GatlingDamage = value; }
 
     // ---------------- 内部实现 ----------------
 

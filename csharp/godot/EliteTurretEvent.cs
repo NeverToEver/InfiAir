@@ -11,7 +11,7 @@ namespace InfiAir;
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
 /// enemy_hp_multiplier/enemy_hp_ramp/world_scale）；M7 后 spawner/HUD 为 C# typed 调用，
 /// turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
-/// 白盒断言 API 为 PascalCase（少量 snake_case 兼容桥保留）；嵌套枚举状态值经 GetStateXxx 静态方法访问。
+/// 白盒断言 API 为 PascalCase（少量 snake_case 兼容桥保留）。
 /// </summary>
 public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
 {
@@ -79,19 +79,11 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
     public State GetState() => _state;
 
-    public Godot.Collections.Array<String> Lines() => _lines;
-
     public Godot.Collections.Array<TurretBattery> Turrets() => _turrets;
-
-    public int Total() => _total;
 
     public int LineStage() => _lineStage;
 
-    public CommOverlay? Comm() => _comm;
-
     public void SetCooldownLeft(float seconds) => _cooldownLeft = seconds;
-
-    public void SetState(State pState) => _state = pState;
 
     public float CooldownLeft() => _cooldownLeft;
 
@@ -511,27 +503,9 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public static int GetStateIdle() => (int)State.IDLE;
-
-    public static int GetStateCarrierEnter() => (int)State.CARRIER_ENTER;
-
-    public static int GetStateTurretActive() => (int)State.TURRET_ACTIVE;
-
-    public static int GetStateCarrierExit() => (int)State.CARRIER_EXIT;
-
-    public static int GetStateBossDelay() => (int)State.BOSS_DELAY;
-
     public int state() => (int)GetState();
 
     public float DURATION { get => Duration; set => Duration = value; }
-
-    public float ENTER_TIME { get => EnterTime; set => EnterTime = value; }
-
-    public float RISE_TIME { get => RiseTime; set => RiseTime = value; }
-
-    public float BOSS_RESUME_DELAY { get => BossResumeDelay; set => BossResumeDelay = value; }
-
-    public Vector2 FIRE_INTERVAL { get => FireInterval; set => FireInterval = value; }
 
     public float HOVER_Y { get => HoverY; set => HoverY = value; }
 }

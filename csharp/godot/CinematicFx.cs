@@ -11,18 +11,13 @@ namespace InfiAir;
 /// 注：原 GDScript static var 缓存贴图/材质（G022 共享优化）——C# 静态字段禁止持有 Godot 对象
 /// （引擎退出 finalize segfault 实测根因，M1-M6 批次规则 19），改每次构建（UITheme.Font 同款处理）；
 /// 内容确定性一致，仅多次构建时重复生成。
-/// GDScript 调用方（M6 过场/测试）经脚本资源调 snake 桥；C# 调用方（BossAttacks/Enemy/Mothership
-/// 过渡期 GD.Load&lt;GDScript&gt; 动态调）接线后改 typed——公开方法名保留（PascalCase + snake 桥）。
+/// C# 调用方（BossAttacks/Enemy/Mothership 过场）经 typed 直调——公开方法名为 PascalCase。
 /// </summary>
 public partial class CinematicFx : RefCounted
 {
     public const int SoftTexSize = 64;
 
-    public const int SOFT_TEX_SIZE = SoftTexSize; // UPPER_SNAKE 兼容（过渡期接线/旧名引用）
-
     public const int ParticleAmountCap = 96; // 硬性上限：每发射器 ≤96（性能预算：总存活 ≤400）
-
-    public const int PARTICLE_AMOUNT_CAP = ParticleAmountCap; // UPPER_SNAKE 兼容
 
     /// <summary>静态缓存的 64×64 径向渐变软点贴图（白色，alpha pow 衰减）：
     /// 粒子与光晕共用，消除硬边实心圆的廉价感；颜色经 modulate/process_material 乘算。
@@ -249,13 +244,6 @@ public partial class CinematicFx : RefCounted
     {
         return cfg.TryGetValue(key, out var v) ? v.AsVector3() : def;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public static int GetSoftTexSize() => SoftTexSize;
-
-    public static int GetParticleAmountCap() => ParticleAmountCap;
-
 }
 
 /// <summary>双层扩散冲击环（粗辉光环 + 细亮芯环 + 可选低 alpha 填充盘），_ready 起 tween，播完自毁。

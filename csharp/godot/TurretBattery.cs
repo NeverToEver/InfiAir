@@ -345,22 +345,9 @@ public partial class TurretBattery : Area2D, IDamageable
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public bool Ceased() => _ceased;
-
-    public void setup(int pHp, Godot.Collections.Array pAmmo, Vector2 pFireInterval, Godot.Collections.Dictionary weakLock)
-        => Setup(pHp, pAmmo, pFireInterval, weakLock);
-
-    public void take_damage(int amount, float scoreScale) => TakeDamage(amount, scoreScale);
-
-    public void take_damage(int amount) => TakeDamage(amount);
-
-    public void die() => Die();
-
     public int hp { get => Hp; set => Hp = value; }
 
     public Vector2 fire_interval { get => FireInterval; set => FireInterval = value; }
-
-    public float turn_rate { get => TurnRate; set => TurnRate = value; }
 
     public float homing_turn_rate { get => HomingTurnRate; set => HomingTurnRate = value; }
 

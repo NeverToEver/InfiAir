@@ -665,50 +665,6 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>A6：语义化类型查询（调用方不再依赖 `is Boss` 具体类型）。</summary>
     public bool IsBoss() => true;
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-    public int EnragePhaseValue() => _enrageSequence.Phase();
-
-    public int GetEnragePhaseNone() => (int)EnragePhase.NONE;
-
-    public int GetEnragePhaseTransition() => (int)EnragePhase.TRANSITION;
-
-    public int GetEnragePhaseActive() => (int)EnragePhase.ACTIVE;
-
-    public int GetEnragePhaseReleaseHold() => (int)EnragePhase.RELEASE_HOLD;
-
-    public int GetFightPhaseTransition() => (int)FightPhase.P1;
-
-    public int GetFightPhaseActive() => (int)FightPhase.P2;
-
-    public int SweepStateValue() => (int)_attacks.SweepState();
-
-    /// <summary>默认模式表公开访问（boss_registry_test 校验 balance.json 用；C# 静态经脚本资源可调）。</summary>
-    public Godot.Collections.Dictionary GetDefaultPatterns() => _defaultPatterns;
-
-    /// <summary>召唤表公开访问（boss_registry_test 校验用；System 字典转 Godot 字典）。</summary>
-    public static Godot.Collections.Dictionary GetSummonerTypes()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kv in SummonerTypes)
-        {
-            result[kv.Key] = kv.Value;
-        }
-
-        return result;
-    }
-
-    /// <summary>闪白时长表公开访问（boss_registry_test 校验用）。</summary>
-    public static Godot.Collections.Dictionary GetHitFlashByType()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kv in HitFlashByType)
-        {
-            result[kv.Key] = kv.Value;
-        }
-
-        return result;
-    }
-
     public int FightPhaseValue() => (int)_fightPhase;
 
     /// <summary>读取模式间隔；缺键/坏值才回退 BaseFireInterval。
@@ -727,42 +683,15 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _fireTimer = PatternInterval(CurrentPattern());
     }
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化；返回纯 C# 类，不注册进引擎表，
-    /// GDScript 侧不可经此链访问组件——组件经 C# 直取，测试随批次重定型）。
-    /// 注：方法名避开类型名（CS0119 遮蔽）。</summary>
-    public EnrageSequence GetEnrageSequence() => _enrageSequence;
-
-    public BossAttacks Attacks() => _attacks;
-
-    public BossFire FireTool() => _fire;
-
     public void SetFireTimer(float seconds) => _fireTimer = seconds;
 
     public float FireTimer() => _fireTimer;
 
-    public void SetFightPhase(int pPhase) => _fightPhase = (FightPhase)pPhase;
-
-    public void SetSummonTimer(float seconds) => _summonTimer = seconds;
-
-    public void SetPatterns(Godot.Collections.Dictionary patternDict) => _patterns = patternDict;
-
     public Godot.Collections.Dictionary Patterns() => _patterns;
-
-    public void SetPatternIndex(int index) => _patternIndex = index;
-
-    public int PatternIndex() => _patternIndex;
 
     public void StartPattern() => StartPatternInternal();
 
     public Color BaseModulateColor() => BaseModulate();
-
-    public void SetSurvival(float seconds) => _survival = seconds;
-
-    public void SetInFight(bool fighting) => _inFight = fighting;
-
-    public bool EscapeWarned() => _escapeWarned;
-
-    public void BeginEscape() => BeginEscapeInternal();
 
     /// <summary>A5：spawner 依赖注入（A5 改注入 spawner；BossAttacks/EnrageSequence 经公开接口调用）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;

@@ -388,31 +388,6 @@ public partial class VirtualControls : CanvasLayer
         _aimTouch = -1;
     }
 
-    /// <summary>测试/诊断口：以设计坐标（1920×1080 系）直接驱动触摸状态机。
-    /// 绕过窗口→视口坐标变换（Input.parse_input_event 注入的真实事件经变换，headless 下
-    /// 窗口与设计分辨率不同、不可移植；真实设备的视口坐标变换是 Godot 标准行为，
-    /// 区域判定语义与真实 _input 一致）。遵守启用状态（禁用时零注入，桌面零回归）。</summary>
-    public void SimulateTouch(int idx, bool pressed, Vector2 pos)
-    {
-        if (!_enabled)
-        {
-            return;
-        }
-
-        OnTouch(idx, pressed, pos);
-    }
-
-    /// <summary>测试/诊断口：设计坐标拖动（见 SimulateTouch 注释）</summary>
-    public void SimulateDrag(int idx, Vector2 pos)
-    {
-        if (!_enabled)
-        {
-            return;
-        }
-
-        OnDrag(idx, pos);
-    }
-
     /// <summary>半透明绘制：摇杆基座/手柄 + 按钮圆 + 首字母标签（ASCII，不依赖字体资源）</summary>
     private void OnUiDraw()
     {
@@ -476,16 +451,4 @@ public partial class VirtualControls : CanvasLayer
 
         return "";
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public static Vector2 move_center() => MoveCenter;
-
-    public static float move_radius() => MoveRadius;
-
-    public static Vector2 aim_center() => AimCenter;
-
-    public static float aim_radius() => AimRadius;
-
-    public static Godot.Collections.Dictionary buttons() => Buttons;
 }

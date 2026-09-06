@@ -146,9 +146,6 @@ public sealed class EnemyBalance
 
     [JsonPropertyName("hp_ramp_factor")]
     public double HpRampFactor { get; set; }
-
-    [JsonPropertyName("damage_ramp_factor")]
-    public double DamageRampFactor { get; set; }
 }
 
 /// <summary>enemies.bullet_damage section 类型化（single/spread/laser 三弹种伤害，抽查见 test/balance_test.gd）。</summary>
@@ -180,18 +177,6 @@ public sealed class BossBalance
 /// <summary>spawner section 类型化。</summary>
 public sealed class SpawnerBalance
 {
-    [JsonPropertyName("wave_interval_start")]
-    public int WaveIntervalStart { get; set; }
-
-    [JsonPropertyName("wave_interval_end")]
-    public int WaveIntervalEnd { get; set; }
-
-    [JsonPropertyName("ramp_time")]
-    public int RampTime { get; set; }
-
-    [JsonPropertyName("difficulty_factor")]
-    public double DifficultyFactor { get; set; }
-
     [JsonPropertyName("unlock_scores")]
     public double[] UnlockScores { get; set; } = [];
 }

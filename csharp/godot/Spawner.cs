@@ -622,7 +622,7 @@ public partial class Spawner : Node
 
     // ---------------- 对外公开接口（A1 修复） ----------------
     // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名，
-    // snake_case 别名见文末兼容桥（仍有 C# 动态派发/测试调用方）。
+    // snake_case 别名见文末兼容桥（spawn_minion 经 Boss 动态派发调用）。
 
     public void SetEliteEvent(Node? eventNode) => _event = eventNode;
 
@@ -637,47 +637,9 @@ public partial class Spawner : Node
 
     public void SpawnEnemy() => SpawnEnemyInternal();
 
-    public void SpawnNormalWave() => SpawnNormalWaveInternal();
-
-    public int WaveSize() => WaveSizeInternal();
-
-    public int CountSpreadEnemies() => CountSpreadEnemiesInternal();
-
     public StringName PickBulletType(Godot.Collections.Dictionary config) => PickBulletTypeInternal(config);
 
-    public float CurrentInterval() => CurrentIntervalInternal();
-
-    public void SetBossTimer(float seconds) => _bossTimer = seconds;
-
-    public void SetNextBossScore(int scoreValue) => _nextBossScore = scoreValue;
-
-    public void SetWaveTimer(float seconds) => _waveTimer = seconds;
-
-    public void SetWavesSinceSpecial(int count) => _wavesSinceSpecial = count;
-
-    public void SetBossActive(bool active) => _bossActive = active;
-
-    public bool BossFrozen() => _bossFrozen;
-
-    public bool WavesPaused() => _wavesPaused;
-
-    public bool BossPending() => _bossPending;
-
-    public void SetBossPending(bool pending) => _bossPending = pending;
-
-    public Node? FormationEvent() => _formation;
-
     public Vector2 HoverBand() => _hoverBand;
-
-    public void NotifySpecialKilled() => OnSpecialKilled();
-
-    public void NotifyBossDied() => OnBossDied();
-
-    public float BossTimer() => _bossTimer;
-
-    public float WaveTimer() => _waveTimer;
-
-    public int WavesSinceSpecial() => _wavesSinceSpecial;
 
     public float Elapsed() => _elapsed;
 
@@ -833,15 +795,7 @@ public partial class Spawner : Node
         };
     }
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-    // 调用方（2026-08-09 核实）：Boss.cs SummonMinions() 经 _spawner.Call("spawn_minion") 动态派发（Boss.cs:1266）；
-    // 其余原桥调用方均已 typed 直调 PascalCase——Main.cs（SetEliteEvent/SetFormationEvent/SetElapsed/Elapsed/ClearPending）、
-    // FormationStrikeEvent.cs（IsBossActive/EliteEvent/SetWavesPaused）、EliteTurretEvent.cs（SetBossFrozen/ConsumeBossPending/TriggerBoss）、
-    // GameEventManager.cs（IsBossActive/NotifyEventTriggered）、csharp/godot/tests/*（HoverBand/ClearPending/Elapsed/FormationEvent/EliteEvent 等）。
-
-    public Vector2 hover_band() => HoverBand();
-
-    public float elapsed() => Elapsed();
+    // ---------------- snake_case 兼容桥（M7 后保留：Boss.cs SummonMinions() 经 _spawner.Call("spawn_minion") 动态派发） ----------------
 
     public Enemy spawn_minion(Vector2 pos) => SpawnMinion(pos);
 }

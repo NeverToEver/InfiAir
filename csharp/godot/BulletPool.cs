@@ -31,9 +31,6 @@ public partial class BulletPool : Node
         }
     }
 
-    /// <summary>闲置实例数（A7 遗留清理：测试/诊断公开查询）。</summary>
-    public int FreeCount() => _free.Count;
-
     /// <summary>M3a 过渡：活跃子弹总数（meta_health_fx D3 代理经本实例访问——
     /// GDScript 不能以类名引用 C# 静态成员，仅实例可达；M7 后改 typed 直调）。</summary>
     public int ActiveBulletCount => Bullet.ActiveCount;

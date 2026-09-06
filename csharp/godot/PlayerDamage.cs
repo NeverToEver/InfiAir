@@ -127,8 +127,6 @@ public class PlayerDamage
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 
-    public bool take_damage(float amount, Vector2 fromPos, Player player) => TakeDamage(amount, fromPos, player);
-
     public float invincible { get => Invincible; set => Invincible = value; }
 
     public float INVINCIBLE_TIME { get => InvincibleTime; set => InvincibleTime = value; }
