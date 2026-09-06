@@ -100,6 +100,7 @@ public partial class BaseSystemTest : Node
             // 清理持久化状态，保证测试确定性
             gs.DeleteSave();
             gs.ResetRun();
+            gs.SetRunActive(true); // _Process 时钟仅在活跃对局推进（本测试模拟局内语义）
 
             // 1. 初始状态
             Check(gs.Rp == 0, "初始 RP 为 0");

@@ -540,9 +540,22 @@ public partial class GameState : Node
         PlayerDamaged += OnPlayerDamagedDda;
     }
 
+    // 运行期时钟门控：仅真实对局（main 为 current_scene）累积 RunTime/推进 survive 任务/
+    // 难度时间档/连击窗口——welcome 等非对局场景的停留时间不得污染下一局难度曲线。
+    // 暂停不计（本节点 Pausable）。
+    private bool _runActive;
+
+    /// <summary>由 Main 依 current_scene 置位/复位（同事件管理器惯例）；测试场景显式开启。</summary>
+    public void SetRunActive(bool active) => _runActive = active;
+
     // 暂停（Buff/结算 UI）时不计存活时间
     public override void _Process(double delta)
     {
+        if (!_runActive)
+        {
+            return;
+        }
+
         RunTime += delta;
         // 整秒边界才推进任务（缓存秒值：避免每帧 int(run_time) + missions 字典访问——热路径禁字典约定）
         var surviveSec = (int)RunTime;

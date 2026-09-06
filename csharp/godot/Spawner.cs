@@ -442,6 +442,15 @@ public partial class Spawner : Node
     /// <summary>Boss 出场流程：警告横幅 + 震动脉冲，2s 后 Boss 才降入。</summary>
     private void TriggerBossInternal()
     {
+        // 返航/继续出击入场窗口内（SetProcess(false)，OnEntryFinished 恢复）拒绝触发——
+        // 精英事件 Abort 后仍会沿 BOSS_DELAY 走到 OnBossDelayEnd 补触发，
+        // 绕过 ClearPending 的入场窗口契约（入场动画窗口内无敌机/Boss 进场）。
+        // 丢弃后由 _Process 的分数/时间门自然重触发，不饿死（BOSS_TIME_LIMIT 兜底）。
+        if (!IsProcessing())
+        {
+            return;
+        }
+
         _bossActive = true;
         _wavesSinceSpecial = 0; // Boss 占用特殊槽
         EmitSignal(SignalName.BossWarning);

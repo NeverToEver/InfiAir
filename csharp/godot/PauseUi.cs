@@ -211,6 +211,9 @@ public partial class PauseUi : CanvasLayer
         }
 
         GetTree().Paused = false;
+        // R 重开=弃局（对齐 ExitConfirm 战斗退出语义：删档、不结算 TechPoints）。
+        // 不删档则 main._Ready 的 HasSave() 自动续局，重开退化为回滚到返航检查点。
+        GameState.Instance.DeleteSave();
         GameState.Instance.ResetRun();
         GetTree().ReloadCurrentScene();
     }

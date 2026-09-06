@@ -150,6 +150,9 @@ public partial class Main : Node2D
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
         _fogEvents.SetRunActive(GetTree().CurrentScene == this);
+        // 运行期时钟门控（GameState._Process）：welcome 停留时间不计入对局 RunTime/
+        // 难度时间档/survive 任务——子节点实例化（测试）时同样保持关闭
+        GameState.Instance.SetRunActive(GetTree().CurrentScene == this);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
         GameState.Instance.CameraRef = _camera;
         // Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
@@ -220,6 +223,7 @@ public partial class Main : Node2D
         }
 
         _fogEvents.SetRunActive(false);
+        GameState.Instance.SetRunActive(false);
         // C22 模式（M6）：GameState 信号显式断开——退出时 GameState 先于本节点释放的
         // 时序下连接悬空可致退出 segfault（M5 实测定位；原 GDScript 自动断开，C# 需手动）
         var gs = GameState.Instance;

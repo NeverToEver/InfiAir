@@ -141,8 +141,10 @@ public partial class Welcome : CanvasLayer
             CustomMinimumSize = new Vector2(520.0f, 560.0f),
             Brackets = true,
         };
-        _loginPanel.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
-        _loginPanel.Position = new Vector2(140.0f, -20.0f);
+        // 绝对定位（同 hero）：520×560 面板在 1080 视口内垂直居中。
+        // 禁用「CenterLeft 锚点 + Position」惯用法——Position 在入树前写入的是裸偏移，
+        // 入树后会叠加 0.5×1080 锚点基线，把面板压到视口底缘（历史缺陷，欢迎页无视觉门禁长期未暴露）。
+        _loginPanel.Position = new Vector2(140.0f, 260.0f);
         AddChild(_loginPanel);
 
         var margin = new MarginContainer();
@@ -472,8 +474,10 @@ public partial class Welcome : CanvasLayer
     private void BuildMainZone()
     {
         _mainZone = new VBoxContainer();
-        _mainZone.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
-        _mainZone.Position = new Vector2(140.0f, 260.0f);
+        // 右栏定位（头注设计：左栏账号面板 + 右栏难度/教程/设置/排行榜）：
+        // x=1260 与左栏 140 对称（520 宽面板 + 140 边距），y=260 与登录面板同基线，
+        // 避让左上品牌区的历史最佳/榜单文本（W1 修复时主区归位后暴露的次生重叠）
+        _mainZone.Position = new Vector2(1260.0f, 260.0f);
         _mainZone.CustomMinimumSize = new Vector2(520.0f, 0.0f);
         _mainZone.AddThemeConstantOverride("separation", 14);
         _mainZone.Visible = false;
