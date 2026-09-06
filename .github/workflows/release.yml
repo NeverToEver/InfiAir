@@ -79,8 +79,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add project.godot
-          git commit -m "chore: sync config/version to v$VERSION [skip ci]"
-          git push origin HEAD:main
+          # 幂等：版本已预同步（发布前手动 bump）时 no-op，不因 nothing to commit 失败
+          if git diff --cached --quiet; then
+            echo "config/version already $VERSION — skip sync commit"
+          else
+            git commit -m "chore: sync config/version to v$VERSION [skip ci]"
+            git push origin HEAD:main
+          fi
         env:
           VERSION: ${{ github.event.inputs.version }}
 
