@@ -1,7 +1,7 @@
 name: CI
 
 # InfiAir 持续集成（2026-08-29 W 系「削减」版本）。
-# 2026-08-29：移除 full-regression（52 断言场景随场景删除而退役）、format 闸、
+# 2026-08-29：移除 full-regression（51 断言场景随场景删除而退役）、format 闸、
 # zero-GDScript 闸（项目无 .gd，由 import 探针兜底）、compile probe、BALANCE_MAP 闸、
 # dotnet/NuGet 缓存（安装成本低，YAML 优先简洁）；断言场景大幅退役后本地验证以
 # smoke_test + base_system_test + xUnit 为主（见 docs/TESTING.md）。

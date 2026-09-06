@@ -1,3 +1,5 @@
+> **[已归档 2026-09-07 · 机制废止]** 本文件所述登记/流程机制已废止（活文档收敛见 `AGENTS.md`「文档」节；变更史以 git log 与 `CHANGELOG.md` 为准，已知债务见 `docs/ROADMAP.md`）。本文仅作历史快照，不再更新。
+
 # Endless Balance Plan (ENDLESS_BALANCE_PLAN)
 
 > 2026-07-29. Single source of truth for post-15-min endless balance; direction changes sync `docs/ROADMAP.md` + AGENTS.md doc-sync. Status: **implemented**: plans 1~5 landed, D1/D2 closed (§5/§6).

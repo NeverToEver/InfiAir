@@ -2,7 +2,7 @@
 # InfiAir 发布构建：资源导入 → 导出 Linux/Windows → 打包（含安装/卸载脚本）
 # 用法：./release.sh           输出 builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>
 #       ./release.sh --help   显示用法后退出
-# 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认 ~/.local/bin/godot，回退 PATH 的 godot/godot4）
+# 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认探测链 godot-mono → ~/.local/bin/godot → PATH 的 godot/godot4）
 set -euo pipefail
 cd "$(dirname "$0")"
 

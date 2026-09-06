@@ -24,6 +24,10 @@ elif command -v godot4 >/dev/null 2>&1; then
     GODOT="godot4"
 elif [ -x "$HOME/.local/bin/godot" ]; then
     GODOT="$HOME/.local/bin/godot"
+elif [ -d "/Applications/Godot_mono.app" ]; then
+    GODOT="/Applications/Godot_mono.app/Contents/MacOS/Godot"
+elif [ -x "$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot" ]; then
+    GODOT="$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot"
 elif [ -d "/Applications/Godot.app" ]; then
     GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 else

@@ -2,8 +2,8 @@
 # Import project resources + engine-warning gate.
 # Usage: check_import.sh [log_path]   (default /tmp/import.log)
 # Ported 1:1 from ci.yml fast-gate "Import project resources (warning gate)".
-# Fails on: non-zero import, or "Warning treated as error" (GDScript warnings
-# configured as error-level in project.godot = zero tolerance).
+# Fails on: non-zero import, or "Warning treated as error".
+# （零 GDScript 后 GDScript 警告不再产生，此关键字保留为兜底——防止警告配置被误改回 error 级）
 set -uo pipefail
 
 GODOT="${GODOT:-godot}"

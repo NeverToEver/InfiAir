@@ -20,7 +20,7 @@ cd InfiAir
 ## 开发流程
 
 1. **建分支**：`git checkout -b feat/你的改动主题`（或 `fix/`、`docs/`、`test/`、`refactor/`、`perf/`、`chore/`）。
-2. **改代码前先看约定**：`AGENTS.md` 的「开发约定」——C# 代码经 dotnet format 三工程规范化（CI 零 diff 防回归闸）；可调数值只改 `data/balance.json`（用 `scripts/tools/balance_editor.py`），**不要只改代码回退值**。
+2. **改代码前先看约定**：`AGENTS.md` 的「硬性约定（代码）」——C# 代码经 dotnet format 三工程规范化（本地提交前门禁，CI 已不含 format 闸）；可调数值只改 `data/balance.json`（用 `scripts/tools/balance_editor.py`），**不要只改代码回退值**。
 3. **本地验证**（最小必跑集）：
 
 ```bash
@@ -33,17 +33,17 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 
    涉及子系统时加跑对应专项场景（完整清单见 `docs/TESTING.md`）；改动数值键后重跑 `python3 scripts/tools/gen_balance_map.py` 刷新 `docs/BALANCE_MAP.md`。
 4. **提交**：单主题提交，信息遵循项目风格——`类型: 简述——要点列表（日期）`，类型取 `fix`/`feat`/`docs`/`test`/`refactor`/`perf`/`chore`（可参考 `git log --oneline` 近期风格）。
-5. **推送并开 PR**：PR 会自动触发 GitHub Actions CI（dotnet build/test/format → 零 GDScript 闸 → 无头导入 + 主场景冒烟 + 断言场景全量回归），**CI 全绿是合入门槛**。
+5. **推送并开 PR**：PR 会自动触发 GitHub Actions CI（单 fast-gate：dotnet build 零警告 + dotnet test → 无头导入警告闸 → 主场景 300 帧冒烟 + smoke_test），**CI 全绿是合入门槛**。
 
 ## PR 检查清单
 
 - [ ] C# 改动：`dotnet build` 零警告 + `dotnet test tests-csharp/` 全绿 + `dotnet format` 三工程零 diff
-- [ ] 全部既有断言场景 0 FAIL（CI 会自动跑；本地可先行确认）
-- [ ] 未破坏 `AGENTS.md`「Conventions」节所列全局不变量（碰撞层、world_scale、view_world_rect、cfg、协程纪律、i18n、热路径、池防护）
+- [ ] 触碰存档/基地/母舰时本地加跑 `base_system_test`（CI 只跑 `smoke_test`；场景计数权威 `docs/TESTING.md`）
+- [ ] 未破坏 `AGENTS.md`「硬性约定（代码）」节所列全局不变量（碰撞层、world_scale、view_world_rect、cfg、协程纪律、i18n、热路径、池防护）
 - [ ] 新增用户可见文本走 `tr("UPPER_SNAKE_CASE_KEY")` 并同步 `data/translations.csv` 中英双列
 - [ ] 新增/改名数值键后已重跑 `gen_balance_map.py`
 - [ ] 改动设计意图/架构基线时已同步 `docs/DESIGN_BASELINE.md`；方向类决策登记 `docs/ROADMAP.md`
-- [ ] 文档同步要求见 `AGENTS.md`「Doc Sync」节与 `.agents/doc-sync.md`（含已完成工作压缩留档至 `docs/archive/EXECUTION_LOG.md` 的约定）
+- [ ] 每类信息只有一个家：约定改 `AGENTS.md`、设计数值改 `docs/DESIGN_BASELINE.md`、方向与债务改 `docs/ROADMAP.md`（见 `AGENTS.md`「文档」节；行为规格文档已退役，不为行为写规格）
 
 ## 测试体系说明
 

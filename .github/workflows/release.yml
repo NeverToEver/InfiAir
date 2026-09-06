@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (MAJOR.MINOR, e.g. 3.28)'
+        description: 'Release version (MAJOR.MINOR, e.g. 3.33)'
         required: true
         type: string
-        default: '3.28'
+        default: '3.33'
 
 permissions:
   contents: write
