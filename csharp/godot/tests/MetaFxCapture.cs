@@ -12,7 +12,7 @@ namespace InfiAir.Tests;
 /// </summary>
 public partial class MetaFxCapture : Node
 {
-    private const string OUT_DIR = "/tmp/";
+    private static readonly string OUT_DIR = System.IO.Path.GetTempPath();
 
     public override void _Ready()
     {

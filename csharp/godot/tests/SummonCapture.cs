@@ -60,18 +60,18 @@ public partial class SummonCapture : Node
             Input.ActionPress("dock");
             main.SetChargeTime(main.DOCK_CHARGE_TIME * 0.55f);  // 预填到中段，让环收缩/背光可读
             await Coroutine.WaitSeconds(this, 0.35);
-            await Shot("/tmp/summon_charge.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
             Input.ActionRelease("dock");
             main.StopCharging();
 
             // ---------- 2. 机库小窗 3 镜头（真实时轴 ~2.6s） ----------
             main.SummonMothership();
             await Coroutine.WaitSeconds(this, 0.65);  // 镜头 1 中段（充能管线断开）
-            await Shot("/tmp/summon_window1.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
             await Coroutine.WaitSeconds(this, 0.8);  // 镜头 2 中段（维护臂收回）
-            await Shot("/tmp/summon_window2.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
             await Coroutine.WaitSeconds(this, 0.6);  // 镜头 3 中段（弹射出仓）
-            await Shot("/tmp/summon_window3.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
             for (int i = 0; i < 40; i++)  // 等播完：小窗自毁 + 穿梭门/母舰创建
             {
                 await Coroutine.WaitSeconds(this, 0.05);
@@ -83,11 +83,11 @@ public partial class SummonCapture : Node
 
             // ---------- 3. 穿梭门 + 母舰 DESCEND 前段（舰体尚在门心，前唇遮挡读「穿门」） ----------
             await Coroutine.WaitSeconds(this, 0.14);
-            await Shot("/tmp/summon_gate.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
 
             // ---------- 4. DOCKING 牵引光束（流环/描边/尘粒 + 火力掩护） ----------
             await Coroutine.WaitSeconds(this, 1.05);  // DESCEND 剩余 + DOCKING 前 0.4s
-            await Shot("/tmp/summon_beam.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
 
             // ---------- 5. 驻留 STAY（玩家已进保护舱） ----------
             var ms = main.Mothership();  // M4：Mothership 迁 C#，去类型注解
@@ -100,7 +100,7 @@ public partial class SummonCapture : Node
                 }
             }
             await Coroutine.WaitSeconds(this, 0.3);
-            await Shot("/tmp/summon_stay.png");
+            await Shot(System.IO.Path.GetTempPath() + "");
 
             // 清理：收回母舰（_exit_tree 恢复玩家出舱），靶机随场景退出
             if (main.Mothership() != null)

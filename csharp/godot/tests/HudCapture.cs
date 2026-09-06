@@ -113,7 +113,7 @@ public partial class HudCapture : Node
 
     private void Shot(string name)
     {
-        var path = $"/tmp/hud_{name}.png";
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hud_{name}.png");
         GetViewport().GetTexture().GetImage().SavePng(path);
         GD.Print("capture saved: " + path);
     }

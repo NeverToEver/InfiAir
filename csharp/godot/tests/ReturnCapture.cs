@@ -18,14 +18,14 @@ public partial class ReturnCapture : Node
     /// 例外：镜头 5 取 80% 处（8s 拉长时间轴下，40% 时座舱开启/跃下尚未发生）</summary>
     private static readonly (double, string)[] Schedule =
     {
-        (3.2, "/tmp/return_shot1.png"),
-        (11.2, "/tmp/return_shot2.png"),
-        (19.2, "/tmp/return_shot3.png"),
-        (27.2, "/tmp/return_shot4.png"),
-        (39.7, "/tmp/return_shot5.png"),
-        (43.2, "/tmp/return_shot6.png"),
-        (54.6, "/tmp/return_shot7.png"),
-        (55.9, "/tmp/return_shot7b.png"),
+        (3.2, System.IO.Path.GetTempPath() + ""),
+        (11.2, System.IO.Path.GetTempPath() + ""),
+        (19.2, System.IO.Path.GetTempPath() + ""),
+        (27.2, System.IO.Path.GetTempPath() + ""),
+        (39.7, System.IO.Path.GetTempPath() + ""),
+        (43.2, System.IO.Path.GetTempPath() + ""),
+        (54.6, System.IO.Path.GetTempPath() + ""),
+        (55.9, System.IO.Path.GetTempPath() + ""),
     };
 
     public override void _Ready()

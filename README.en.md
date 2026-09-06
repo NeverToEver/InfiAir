@@ -185,7 +185,7 @@ Full key list and rebinding are available in-game under Settings → Controls.
 | Pure logic | `csharp/core/` | Zero Godot dependency, millisecond xUnit testing |
 | Engine bindings | `csharp/godot/` | Nodes / scenes / UI / cinematics; may reference core |
 | Unit tests | xUnit (`tests-csharp/`) | Models / storage / password derivation / task pool / progression curves |
-| Integration tests | Headless Godot assertion scenes (`test/*_test.tscn`) | Self-checked `[PASS]` / `[FAIL]`, full regression in CI |
+| Assertion scenes | Headless Godot scenes (`smoke_test` / `base_system_test`) | Self-checked `[PASS]` / `[FAIL]`; CI runs smoke |
 | CI | GitHub Actions | Tiered gates (see below) |
 
 <details>
@@ -210,7 +210,7 @@ tests-csharp/                   xUnit unit tests (reference core, no Godot runti
 
 ## 🧪 Testing & CI
 
-Three-layer test suite (authoritative counts and scene lists in [docs/TESTING.md](./docs/TESTING.md)):
+Test & verification stack (authoritative counts and scene lists in [docs/TESTING.md](./docs/TESTING.md); UI/visual changes are always verified in a windowed run):
 
 | Tier | Scope | Time |
 |:-----|:------|:-----|

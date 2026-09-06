@@ -14,8 +14,22 @@ namespace InfiAir.Tests;
 public partial class VisualCapture : Node
 {
     private const int FRAMES_BEFORE_SHOT = 100;
-    private const string SHOT_PATH = "/tmp/infiair_capture.png";
-    private static readonly string MODE = "gameplay";
+    private static readonly string SHOT_PATH = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "infiair_capture.png");
+    private static readonly string MODE = ModeFromArgs();
+
+    // MODE 经命令行用户参数传入（-- --mode=welcome），缺省 gameplay——与头注用法一致
+    private static string ModeFromArgs()
+    {
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (a.StartsWith("--mode="))
+            {
+                return a["--mode=".Length..];
+            }
+        }
+
+        return "gameplay";
+    }
     private static readonly string FORCE_LOCALE = "";  // "en" 时强制英文截图
 
     public override void _Ready()

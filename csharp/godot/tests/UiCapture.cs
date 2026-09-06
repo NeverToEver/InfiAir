@@ -159,7 +159,7 @@ public partial class UiCapture : Node
 
     private void Shot(string name)
     {
-        var path = $"/tmp/ui_{name}.png";
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"ui_{name}.png");
         GetViewport().GetTexture().GetImage().SavePng(path);
         GD.Print("capture saved: " + path);
     }

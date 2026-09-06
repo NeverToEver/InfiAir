@@ -163,6 +163,10 @@ cd InfiAir
 | 空格 | 相位冲刺（需 Buff 解锁） |
 | H 长按 | 蓄力召唤母舰（驻留中 WASD 驾驶） |
 | B 长按 | 返航基地 |
+| F | 弹反（可反弹敌弹，硬冷却 3s） |
+| L | Buff 栏（查看已获得强化） |
+| R（暂停/结算时） | 重开对局 |
+| K | 放弃对局（按死亡结算） |
 | ESC / 鼠标右键 | 暂停 / 逐级返回 / 退出确认 |
 
 <details>
@@ -185,7 +189,7 @@ cd InfiAir
 | 纯逻辑层 | `csharp/core/` | 零 Godot 依赖，xUnit 毫秒级直测 |
 | 绑定层 | `csharp/godot/` | 节点 / 场景 / UI / 演出，可引用 core |
 | 单测 | xUnit（`tests-csharp/`） | 数值模型 / 存储 / 密码派生 / 任务池 / 曲线 |
-| 集成测试 | Godot 无头断言场景（`test/*_test.tscn`） | `[PASS]/[FAIL]` 自检，CI 全量回归 |
+| 断言场景 | Godot 无头场景（`smoke_test` / `base_system_test`） | `[PASS]/[FAIL]` 自检，CI 跑 smoke |
 | CI | GitHub Actions | 分层门禁（详见下方） |
 
 <details>
@@ -211,7 +215,7 @@ tests-csharp/                   xUnit 单测（引用 core，不依赖 Godot 运
 
 ## 🧪 测试与 CI
 
-三层测试体系（权威计数与场景清单见 [docs/TESTING.md](./docs/TESTING.md)）：
+测试与验证体系（权威计数与场景清单见 [docs/TESTING.md](./docs/TESTING.md)；UI/视觉改动一律窗口化实机过目）：
 
 | 层级 | 范围 | 耗时 |
 |:-----|:-----|:-----|
@@ -271,7 +275,7 @@ docs/               设计基线/路线图/测试（历史文档在 docs/archive
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南：环境准备 / 开发流程 / PR 检查清单 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录 |
 | [docs/TESTING.md](./docs/TESTING.md) | 测试策略：权威场景计数 / 断言清单 / CI 流程 |
-| [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | 设计基线：玩法规则 / 架构口径 |
+| [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | 设计基线：玩法规则与数值定稿 |
 | [docs/BALANCE_MAP.md](./docs/BALANCE_MAP.md) | 数值配置索引（生成器产出，勿手改） |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | 路线图与未来方向（单一事实源） |
 
