@@ -1,47 +1,36 @@
-# Godot 4 generated files
+# Godot 生成物（导入缓存；translations.csv 经 import 生成的产物不入库）
 .godot/
-*.tmp
-# 由 data/translations.csv 经 import 自动生成，无需跟踪
 *.translation
+mono_crash.*.json
+*.tmp
 
-# OS
-.DS_Store
-Thumbs.db
-
-# 编辑器 / IDE
-.idea/
-.vscode/
-
-# Exported builds（保留 builds/.gdignore 哨兵：导出产物目录不参与编辑器文件系统扫描）
-builds/*
-!builds/.gdignore
-exports/
-android/build/
-*.apk
-*.aab
-
-# 会话导出文件
-kimi-export-session_*.md
-
-# Playwright MCP 会话产物
-.playwright-mcp/
-
-# 数值管理器本地备份与 Python 缓存
-data/balance.json.bak
-__pycache__/
-
-# 本地静态检查工具虚拟环境（gdtoolkit：gdlint/gdformat，按 docs/TESTING.md 安装）
-.venv/
-
-# 本地完整模拟 CI 工具（等价 ci.yml 的本地验证脚本，仅本地留存防误提交，2026-08-09）
-scripts/tools/simulate_ci.sh
-
-# 本地留存的静态审查工具（Roslynator CLI，dotnet tool install --tool-path 安装；仅本地使用防误提交，2026-08-10 AA 系列）
-tools/
-
-# .NET / C#（NuGet 还原与编译产物不入库）
+# .NET / C#（还原与编译产物不入库）
 **/bin/
 **/obj/
 *.user
 .vs/
 NuGet.config
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 导出产物（builds/ 留 .gdignore 哨兵：产物目录不参与编辑器文件系统扫描）
+builds/*
+!builds/.gdignore
+
+# 本地工具与虚拟环境（根 tools/ 装 Roslynator CLI；必须锚定根目录，
+# 裸 tools/ 会连 scripts/tools/ 的已跟踪脚本一并误伤）
+/tools/
+.venv/
+__pycache__/
+
+# 本地数据备份（balance_editor.py 保存时自动写）
+data/balance.json.bak
+
+# AI 会话工具产物
+.zcode/
+.playwright-mcp/
+kimi-export-session_*.md
