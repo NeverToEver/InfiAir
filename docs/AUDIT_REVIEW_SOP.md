@@ -44,7 +44,7 @@ Easiest to skip — distinguish bug vs design decision; never blind-tune balance
 
 ### Minimal verification set
 
-- Every change: `--headless --import` + targeted tests; C# touched → + `dotnet build` (zero warnings) + `dotnet test tests-csharp/` (+ `dotnet format --verify-no-changes`, mirrors CI format gate); balance touched → + `balance_test` (corrupt-fallback); pools/registries → + `pool_reuse_test`; close-out: full assertion-scene set, 0 FAIL (count authoritative in `docs/TESTING.md`) + `--quit-after 300` + short `autoplay_test` (registry / orphans / frame time).
+- Every change: `--headless --import` + targeted verification; C# touched → + `dotnet build` (zero warnings) + `dotnet test tests-csharp/` (+ `dotnet format --verify-no-changes` locally); balance touched → + `python3 scripts/tools/gen_balance_map.py` (regenerate `docs/BALANCE_MAP.md`); saves/base/mothership touched → + `base_system_test`; close-out: `--quit-after 300` + `smoke_test`, 0 FAIL (2026-08-29 起 CI 为单 job fast-gate，断言场景已削减，计数权威 `docs/TESTING.md`).
 - C# 专项门禁:Roslynator 静态分析 (`PATH=~/.dotnet:$PATH DOTNET_ROOT=~/.dotnet tools/roslynator/roslynator analyze InfiAir.csproj`;AA 系列实践,口径见 `.agents/csharp-conventions.md`).
 - CI/headless 错误日志扫描含 `Unhandled exception`(W 系列实践;error-level 零容忍).
 

@@ -220,9 +220,9 @@ Sections (Tab canonical JSON, `balance_editor.py` + auto `.bak`): `version`/`wor
 ## 5. Testing Baseline
 > Full commands: `docs/TESTING.md`. Not a unit framework; `[PASS]/[FAIL]` + exit code.
 - Minimal: `--import`, `--quit-after 300`, `smoke_test.tscn`; + `base_system_test.tscn` for saves/base/mothership.
-- Full: assertion scenes (per CI run; authoritative count + list in `docs/TESTING.md`).
-- `perf_bench` needs `--fixed-fps 1000`; `autoplay_test` long probe.
-- Side effects: tests may touch `user://` saves; new tests `GameState.DeleteSave()` first + clean up; `balance_test` overwrites balance.json (corruption/fallback) then restores — no concurrent manual edits.
+- Full: assertion scenes (2026-08-29 削减后仅 `smoke_test` + `base_system_test`; authoritative count in `docs/TESTING.md`).
+- `perf_bench` needs `--fixed-fps 1000`.
+- Side effects: tests may touch `user://` saves; new tests `GameState.DeleteSave()` first + clean up.
 - Visual: windowed screenshots, human check; `visual/ui/return/intro/summon/meta_fx/hud` capture.
 
 ## 6. Persistence & Security
@@ -274,7 +274,7 @@ Local accounts (spec at `7aacd3f`), standalone entry page (Appendix B), online l
 1. Preserve §3 invariants.
 2. Tunables only in balance.json + `gen_balance_map.py` + minimal set.
 3. New features register in §8 + `ROADMAP.md`; system docs carry specs.
-4. 0 FAIL (assertion scenes + autoplay; authoritative count `docs/TESTING.md`); visual changes screenshot-checked.
+4. 0 FAIL (`smoke_test` + `base_system_test`; authoritative count `docs/TESTING.md`); visual changes screenshot-checked.
 5. Debt fixes backfill `AUDIT_VAULT.md`.
 
 ---

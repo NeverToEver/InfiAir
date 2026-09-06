@@ -70,6 +70,8 @@
 
 - **2026-08-11 — 得分/奖励设计审核（连击 + 防御保底）**：对照业内平衡设计（怒首领蜂/虫姬链式连击、杀戮尖塔/吸血鬼幸存者情境保底）审核后落地两项低复杂度改动——①**击杀连击计分**：击杀分 × 连击乘区（`scoring.combo`：window 3.0s / step 0.1 / 封顶 ×2.0），受击（与 DDA 同源）或超时断连，Boss 击杀/事件奖励/擦弹不计；得分攻击"贪 vs 稳"博弈补位，纯加法机制。②**低血防御保底**：HP < 50% 时防御类 buff 加权 ×2 且三张候选保底 ≥1 张防御卡（`buffs.dynamic_weight`；满血行为不变）。设计决策：不做炸弹资源/掉落物/技能树重构（复杂度预算外）。计划 `docs/archive/2026-08-11-score-combo-buff-pity-plan.md`。
 
+- **2026-08-29 — 测试与 CI/CD 大幅削减**：用户指令——删除 51 个断言场景（连同 `csharp/godot/tests/*.cs` 驱动与 autoplay partial/helper），仅存 `smoke_test` + `base_system_test` + `perf_bench` + 7 截图工具（Scene Counts 权威已更新）；CI 收敛为单 job fast-gate（C# build/test → import 警告闸 → main smoke 300 帧 + `smoke_test`），退役 full-regression、format 闸、零 GDScript 闸、compile probe、BALANCE_MAP 零 diff 闸与 dotnet/NuGet 缓存（Godot 引擎缓存保留）。行为回归改由 xUnit（115 项纯逻辑）+ 两个断言场景 + 手动/截图验证兜底；`release.yml`/`release.sh` 不变。远端仓库设定同步调整：关闭 Projects/Discussions、开启 merge 后自动删分支。
+
 ## Maintenance
 
 - Phase completion / direction change → update this file; porting-era gap wording archived (PORTING_PARITY frozen 2026-07-30), never rewritten here.

@@ -215,10 +215,10 @@ Three-layer test suite (authoritative counts and scene lists in [docs/TESTING.md
 | Tier | Scope | Time |
 |:-----|:------|:-----|
 | **xUnit unit tests** | Data models / path resolution / task pool / progression curves / save atomicity / user DB & password derivation | Milliseconds |
-| **Headless assertion scenes** | Run orchestration / combat values / boss pattern tables & enrage / event systems / save round-trips / UI flows / engine error log | Minutes |
-| **CI tiered gates** | `fast-gate` (build + tests + format + zero-GDScript + import warnings + smoke + scene compile) → `full-regression` (BALANCE_MAP zero-diff + all assertions + error log) | ~8 / ~40 min |
+| **Headless assertion scenes** | End-to-end main flow (`smoke_test`) / saves & base system (`base_system_test`) | Seconds–minutes |
+| **CI gate** | Single `fast-gate` job (build + tests + import warnings + smoke 300 frames + `smoke_test`) | ~10 min |
 
-Pure docs changes do not trigger CI; dependencies are cached via actions/cache; new pushes on the same branch cancel older runs.
+Pure docs changes do not trigger CI; the Godot engine is cached via actions/cache; new pushes on the same branch cancel older runs.
 
 <details>
 <summary><strong>🔧 Minimal local verification set</strong></summary>

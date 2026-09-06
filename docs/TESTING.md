@@ -1,6 +1,6 @@
 # Local Run, Verification & Testing (TESTING)
 
-> On-demand reference for `AGENTS.md`: full commands, per-system scenes, screenshots, side effects. **Minimal set & rules: `AGENTS.md`**.
+> On-demand reference for `AGENTS.md`: full commands, scene inventory, screenshots, side effects. **Minimal set & rules: `AGENTS.md`**.
 
 Run at repo root. Engine: .NET build preferred — `godot-mono` (PATH → `~/.local/bin/godot-mono` → `godot`/`godot4` → `~/.local/bin/godot`); the C# project requires the .NET build. `./run.sh` auto-locates.
 
@@ -14,85 +14,28 @@ dotnet build                               # C# compile (TreatWarningsAsErrors: 
 dotnet test tests-csharp/                  # xUnit pure-logic unit tests
 ```
 
-Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; add `dotnet build` + `dotnet test tests-csharp/` + `dotnet format` 三工程 `--verify-no-changes` (three csproj; 命令见下方 Unified Check Flow) when touching `csharp/**` or `tests-csharp/**`; run subsystem scenes when touching that subsystem.
+Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; `dotnet build` + `dotnet test tests-csharp/` (add `dotnet format --verify-no-changes` three-csproj check locally) when touching `csharp/**` or `tests-csharp/**`.
+
+## 2026-08-29 Test Reduction
+
+51 assertion scenes + their `csharp/godot/tests/*.cs` drivers were **removed** (retired 2026-08-29; recoverable from git history). Rationale: CI full-regression (~40min) and redundant per-subsystem assertion scenes outweighed their value once core logic moved to xUnit. Survivors:
+
+- `smoke_test.tscn` + `base_system_test.tscn` — the two remaining assertion scenes (end-to-end flow + base/saves system).
+- `perf_bench.tscn` — dev benchmark (`--fixed-fps 1000`; interleave runs + medians for A/B).
+- 7 screenshot capture tools (see Screenshots).
+
+Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests), the two assertion scenes, manual windowed play/screenshot checks. Design docs referencing retired scenes (`docs/FOG_EVENTS.md`, `docs/ENTITY_MANAGER.md`, etc.) describe them as of their writing; those commands no longer exist.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
-- **Assertion scenes** = `ls test/*_test.tscn | wc -l` − 1 (`autoplay_test` probe) → **52** (2026-08-08 M7c 全量迁移 C# 后; 2026-08-09 + `meta_test` 局外成长; 2026-08-11 + `combo_test` 击杀连击; 2026-08-25: 删 path_resolver/progression/save_store/task_pool/user_db 五 interop 壳,纯逻辑并入 xUnit).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **61** (52 assertion + `autoplay_test` + `perf_bench` + 7 screenshot tools; `starfield_cs_test` 计入 assertion).
-- Rule: CI gates on the actual `test/*_test.tscn` files — the numbers above are informational. **Other docs must not hardcode assertion counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
-
-## Subsystem Scenes
-
-```bash
-# Mechanics & config
-godot --headless --path . res://test/enemy_combat_test.tscn
-godot --headless --path . res://test/wave_pacing_test.tscn
-godot --headless --path . res://test/buff33_test.tscn
-godot --headless --path . res://test/buff_visuals_test.tscn
-godot --headless --path . res://test/buff_effects_test.tscn  # declarative effect table (architecture assertion)
-godot --headless --path . res://test/difficulty_test.tscn
-godot --headless --path . res://test/boss_enrage_test.tscn
-godot --headless --path . res://test/boss_phase_test.tscn
-godot --headless --path . res://test/boss_pattern_test.tscn
-godot --headless --path . res://test/boss_registry_test.tscn  # boss registry / 4 types (architecture assertion)
-godot --headless --path . res://test/hit_logic_test.tscn
-# Fairness (2026-08-03; docs/archive/2026-08-03-combat-fairness-plan.md)
-godot --headless --path . res://test/grace_period_test.tscn
-godot --headless --path . res://test/graze_test.tscn
-godot --headless --path . res://test/combo_test.tscn              # 击杀连击计分 (2026-08-11; docs/archive/2026-08-11-score-combo-buff-pity-plan.md)
-godot --headless --path . res://test/boss_phase_transition_test.tscn
-godot --headless --path . res://test/parry_test.tscn
-godot --headless --path . res://test/balance_test.tscn
-godot --headless --path . res://test/elite_turret_event_test.tscn
-godot --headless --path . res://test/buff_panel_test.tscn
-godot --headless --path . res://test/formation_strike_event_test.tscn
-godot --headless --path . res://test/base_task_refresh_test.tscn  # task rotation (2026-08-05; docs/FOG_EVENTS.md §1)
-godot --headless --path . res://test/fog_event_test.tscn          # fog events (2026-08-05; docs/FOG_EVENTS.md §2)
-godot --headless --path . res://test/event_manager_test.tscn      # unified event manager (2026-08-05; docs/EVENT_MANAGER.md)
-godot --headless --path . res://test/entity_manager_test.tscn     # unified entity manager (2026-08-05; docs/ENTITY_MANAGER.md)
-godot --headless --path . res://test/encounter_flow_contract_test.tscn  # encounter auto-trigger contract / mutex / death window cleanup (2026-08-07; docs/archive/2026-08-07-deferred-restart-plan.md §5)
-godot --headless --path . res://test/orbital_strike_test.tscn
-godot --headless --path . res://test/mothership_summon_test.tscn
-godot --headless --path . res://test/mothership_upgrade_test.tscn  # mothership upgrades (2026-08-04)
-godot --headless --path . res://test/meta_health_fx_test.tscn
-# Settings / startup / navigation / tutorial
-godot --headless --path . res://test/keybind_test.tscn
-godot --headless --path . res://test/virtual_controls_test.tscn    # touch controls (2026-08-07; docs/archive/2026-08-07-deferred-restart-plan.md §3)
-godot --headless --path . res://test/i18n_test.tscn
-godot --headless --path . res://test/view_zoom_test.tscn
-godot --headless --path . res://test/window_size_test.tscn
-godot --headless --path . res://test/user_db_test.tscn
-godot --headless --path . res://test/user_session_test.tscn
-godot --headless --path . res://test/welcome_flow_test.tscn  # accounts (2026-08-04)
-godot --headless --path . res://test/mouse_lock_test.tscn
-godot --headless --path . res://test/startup_flow_test.tscn
-godot --headless --path . res://test/entry_animation_test.tscn
-godot --headless --path . res://test/back_navigation_test.tscn
-godot --headless --path . res://test/esc_navigation_test.tscn
-godot --headless --path . res://test/intro_cinematic_test.tscn
-godot --headless --path . res://test/return_cinematic_test.tscn  # return cinematic (homecoming, 7 shots)
-godot --headless --path . res://test/tutorial_test.tscn
-# Pools & perf
-godot --headless --path . res://test/pool_reuse_test.tscn
-godot --headless --path . res://test/starfield_cs_test.tscn  # Starfield.cs 迁移样板断言 (M1, C# 脚本化)
-godot --headless --fixed-fps 1000 --path . res://test/perf_bench.tscn
-# C# interop (2026-08-07; C# binding endpoint BalanceInterop → InfiAir.Core parse path, validated in-engine)
-godot --headless --path . res://test/csharp_interop_test.tscn
-godot --headless --path . res://test/csharp_call_test.tscn        # C# 动态派发调用探针 (M1/M7c, PascalCase 同名)
-# 注（2026-08-25）：path_resolver/save_store/user_db/progression/task_pool 五 interop 壳为纯逻辑重复，
-# 语义已并入 tests-csharp/ xUnit（PathResolverTests/SaveStoreTests/UserDbTests/ProgressionCurvesTests/TaskPoolTests）；
-# C# 桥加载契约由 csharp_interop_test/csharp_call_test 承接。
-godot --headless --path . res://test/meta_test.tscn                  # 局外成长/科技树 (2026-08-09; docs/archive/2026-08-09-meta-progression-plan.md)
-# Autoplay anomaly probe (~480s real time; not a normal assertion test)
-godot --headless --path . res://test/autoplay_test.tscn -- --autoplay-seconds=480 --seed=20260722
-```
+- **Assertion scenes** = 2 (`smoke_test` + `base_system_test`).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **10** (2 assertion + `perf_bench` + 7 screenshot tools).
+- Rule: CI gates on `--quit-after 300` + `smoke_test.tscn` only. **Other docs must not hardcode counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
 
 ## Headless Test Environment Notes
 
-- **Headless FPS ≠ real time**; time-dependent tests wait on real timers/physics frames (see existing tests). Visual tests need windowed mode (headless renders nothing).
-- **Injected input coordinates are transformed** (2026-08-07 S01, measured 30×): `Input.parse_input_event()` events go through window→viewport transform. Headless window size ≠ design resolution (1920×1080), so mouse/touch positions injected in design coordinates arrive scaled (e.g. `240,860` → `7200,25800`) and are not portable across environments. Keyboard / `InputEventAction` carry no position and are unaffected. **Position-sensitive assertions: drive the target's public test port instead** — `SimulateTouch`/`SimulateDrag` (`VirtualControls`), `SetTestState` (`MetaHealthFX`), etc. (precedents: AUDIT_VAULT S01/C35; never write private fields — A7).
-- **gdtoolkit (gdformat/gdlint) — legacy, pre-M7 only**: the GDScript-era format/lint gate was retired with the zero-GDScript migration (M7d gate replaces it). `gdformatrc`/`.gdlintrc` remain at repo root as inert historical configs — no CI step uses them. C# style is gated by `.editorconfig` + `dotnet format --verify-no-changes` (see Unified Check Flow).
+- **Headless FPS ≠ real time**; time-dependent tests wait on real timers/physics frames. Visual checks need windowed mode (headless renders nothing).
+- **Injected input coordinates are transformed** (2026-08-07 S01): `Input.parse_input_event()` events go through window→viewport transform; mouse/touch positions injected in design coordinates are not portable across environments. Position-sensitive checks: drive the target's public test port (`SimulateTouch`/`SimulateDrag`, etc.); never write private fields — A7.
 - **`translations.csv` → `.translation`**: runtime loads `data/translations.zh/en.translation` (gitignored, generated by import). After editing `translations.csv`, re-run `godot --headless --import` to regenerate; fresh clones have no `.translation` until the first `--import`.
 
 ## Screenshots (windowed)
@@ -109,45 +52,27 @@ godot --path . res://test/hud_capture.tscn        # HUD normal/all-buffs → /tm
 
 ## Unified Check Flow (pre-commit / CI gate)
 
-Six layers; CI (`.github/workflows/ci.yml`) runs all, in this order; reproduce locally:
+3 layers; CI (`.github/workflows/ci.yml`) runs all, in this order; reproduce locally:
 
 ```bash
 dotnet build --nologo                          # 1. C# compile (TreatWarningsAsErrors: zero warnings)
 dotnet test tests-csharp/ --nologo             #    xUnit pure-logic unit tests
-dotnet format InfiAir.csproj --verify-no-changes --no-restore # C# format gate (main project; 裸 `dotnet format` 在 sln 入库后报工作区歧义,须显式指定,2026-08-13)
-dotnet format csharp/core/InfiAir.Core.csproj --verify-no-changes --no-restore
-dotnet format tests-csharp/InfiAir.Core.Tests.csproj --verify-no-changes --no-restore
-find . -name "*.gd" -not -path "./.godot/*" -not -path "./builds/*"  # 2. zero-GDScript gate (M7d: any .gd fails)
-godot --headless --import --path .             # 3. warnings: error-level zero tolerance
-                                               #    ("Warning treated as error" fails CI);
-                                               #    warn-level (unsafe/untyped) = AUDIT_VAULT list
-python3 scripts/tools/gen_balance_map.py       # 4. BALANCE_MAP zero-diff (CI: git diff --exit-code -- docs/BALANCE_MAP.md)
-godot --headless --path . --quit-after 300     # 5. compile + runtime smoke
+godot --headless --import --path .             # 2. warnings: error-level zero tolerance
+                                               #    ("Warning treated as error" fails CI)
+godot --headless --path . --quit-after 300     # 3. compile + runtime smoke (main scene + engine-error log scan)
 godot --headless --path . res://test/smoke_test.tscn
-#    CI also compile-probes every test/*.tscn with --quit-after 2 (catches what --import misses)
-# 6. all assertion scenes (test/*_test.tscn minus autoplay probe); any FAIL → non-zero exit
-#    CI additionally scans each scene log for SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception
-#    and hard-checks the scene count (ran == discovered-1) — 2026-08-09 V-series (W-series: + Unhandled exception)
 ```
 
-- **Rule rationale**: `project.godot` `[debug]` comments + `docs/AUDIT_VAULT.md`; new disables/relaxes sync those configs + `AGENTS.md`. (GDScript-era `gdformatrc`/`.gdlintrc` retired with M7 — gdtoolkit note in "Headless Test Environment Notes".)
-- Layers: C# build/test/format → zero-GDScript → engine warnings → BALANCE_MAP zero-diff → compile/start → runtime behavior.
+CI scripts: `scripts/ci/check_import.sh` (layer 2) + `scripts/ci/check_smoke.sh` (layer 3, main scene + `SCRIPT ERROR|Parse Error|Compile Error|Nonexistent function|Unhandled exception` log scan). Local extras: `dotnet format` three-csproj zero-diff; `python3 scripts/tools/gen_balance_map.py` after balance-key changes (regenerate `docs/BALANCE_MAP.md`, no CI gate since 2026-08-29).
 
 ## CI
 
-push/PR (2026-08-09 Y 系列规整：**分层门禁**——feature push 仅 fast-gate ~8min；main push / PR / workflow_dispatch 加 full-regression ~40min；纯文档 `docs/**` + `*.md` 不触发；dotnet SDK/NuGet/Godot mono 引擎经 actions/cache 缓存；同分支新推送取消旧运行)：
-
-**fast-gate** (all push/PR): Install .NET SDK 8 (official `dotnet-install.sh`, cached) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** (xUnit pure-logic) → **dotnet format gate** (三工程 `--verify-no-changes` 零 diff, 2026-08-09 全量规范化后防回归) → zero-GDScript gate (M7d: 任何 .gd 即失败) → warning gate (import grep) → main smoke → **compile probe** (every `test/*.tscn` with `--quit-after 2`; catches Parse/Compile/SCRIPT ERROR that `--import` misses, e.g. screenshot tools).
-
-**full-regression** (needs fast-gate; main push/PR/dispatch): **BALANCE_MAP 生成器重跑零 diff 闸** (M8, 2026-08-06) → all 52 assertion scenes (`test/*_test.tscn` minus `autoplay_test`; 2026-08-04: + `user_db_test`/`user_session_test`/`welcome_flow_test`/`mothership_upgrade_test`; 2026-08-05: + `base_task_refresh_test`/`fog_event_test`/`event_manager_test`/`entity_manager_test`; 2026-08-07: + `encounter_flow_contract_test`/`virtual_controls_test`/`csharp_interop_test`; 2026-08-09: + `meta_test`; 2026-08-11: + `combo_test`; 2026-08-25: 收敛删 path_resolver/progression/save_store/task_pool/user_db 五 interop 壳 57→52) with exit-code checks + per-scene 300s timeout + flake retry once; any failure fails job + uploads logs. 2026-08-09 (V 系列): + 引擎错误日志扫描（退出码 0 但日志含 SCRIPT ERROR/Parse Error/Compile Error/Nonexistent function/Unhandled exception 即失败——死测试曾静默通过）+ 场景数硬校验（run != 发现数-1 即失败，堵住改名/新增静默掉出 CI；不硬编码计数）。Engine: official Godot 4.6.2 stable **mono** headless (Linux x86_64, official Release); deps policy: official checkout/upload-artifact/cache actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
+push/PR (2026-08-29 W 系削减, 单 job **fast-gate**: Install .NET SDK 8 (official `dotnet-install.sh`) → **dotnet build (warnings-as-errors) + dotnet test tests-csharp/** → Godot 4.6.2 mono headless (official mirror, actions/cache 缓存) → warning gate (import grep) → main smoke 300 帧 + `smoke_test` (含引擎错误日志扫描); `paths-ignore: docs/** + *.md`; concurrency 同分支新推送取消旧运行)。2026-08-29 前的 full-regression job（断言场景全量 + BALANCE_MAP 零 diff + format 闸 + 零 GDScript 闸 + 编译探针）随测试削减一并退役。Engine policy: official Godot **mono** headless (Linux x86_64, official Release); deps: official `checkout`/`upload-artifact`/`cache` actions + official `dotnet-install.sh` + official Godot engine/templates only. Green = merge gate.
 
 ## Strategy & Side Effects
 
-Not a unit framework: each `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **61 scenes: 52 assertions + `autoplay_test` + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
+Not a unit framework: each remaining `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **10 scenes: 2 assertions + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
 
-- Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): new tests `GameState.DeleteSave()` first + clean/restore own state.
-- `BalanceTest.cs` temporarily **overwrites** in-repo `data/balance.json` (corruption/fallback) then restores — don't edit that file concurrently; don't assume it intact after interruption.
-- `autoplay_test`: long probe with `[ANOMALY]` invariants (not ordinary assertions); registry bidirectional check vs `enemy` group (incl. turret/formation, skipping pooled deferred-recycle), buff-confirm anim path (10% real roll), return-cinematic stall exemption, enrage-slow reset, buff caps, event/boss phase counts (SUMMARY).
-- `perf_bench` needs `--fixed-fps 1000`; interleave runs + medians for A/B.
+- Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): tests `GameState.DeleteSave()` first + clean/restore own state.
 - UI changes: human-check windowed screenshots (headless produces none).
-- **Known-failure baseline**: `smoke_test` "mothership kill 1/3 score" flaked (rerun passes; re-verified 2026-08-01, self-healed). `hit_logic_test` A21 — root-caused + fixed 2026-08-02 (test hardcoded `(960,100)`; at `view_zoom=large` player bullets died to `view_world_rect(80)` out-of-bounds before reaching the boss; now positioned via `fight_anchor_y()`; 9-combo zoom×difficulty green; record `docs/AUDIT_VAULT.md` A21). **A21 no longer a baseline** — rerun `hit_logic_test` after zoom-tier/boss-anchor changes. Historical known failures: see `docs/AUDIT_VAULT.md`.
+- Historical known failures / audit records: see `docs/AUDIT_VAULT.md` (e.g. A21 zoom-tier positioning rule remains relevant when touching zoom/boss anchors).

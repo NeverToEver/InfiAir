@@ -474,7 +474,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     }
 
 
-    // pool_reuse_test 白盒断言访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留）
+    // 白盒访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留；原 pool_reuse_test
+    // 断言点，2026-08-29 场景退役后保留）
     public Callable _on_buffs_changed => _slowCache.CallableBridge;
 
     public bool _slow_field_on => _slowCache.Value;

@@ -216,10 +216,10 @@ tests-csharp/                   xUnit 单测（引用 core，不依赖 Godot 运
 | 层级 | 范围 | 耗时 |
 |:-----|:-----|:-----|
 | **xUnit 单测** | 数值模型 / 路径解析 / 任务池 / 进程曲线 / 存档原子写 / 用户库与密码派生 | 毫秒级 |
-| **无头断言场景** | 对局编排 / 战斗数值 / Boss 模式表与狂暴 / 事件系统 / 存档往返 / UI 流程 / 引擎错误日志 | 分钟级 |
-| **CI 分层门禁** | `fast-gate`（构建 + 单测 + 格式 + 零 GDScript + import 警告 + smoke + 场景编译）→ `full-regression`（BALANCE_MAP 零 diff + 全量断言 + 错误日志） | ~8 / ~40 min |
+| **无头断言场景** | 端到端主流程（`smoke_test`）/ 存档与基地系统（`base_system_test`） | 秒~分钟级 |
+| **CI 门禁** | 单 job `fast-gate`（构建 + 单测 + import 警告 + smoke 300 帧 + `smoke_test`） | ~10 min |
 
-纯文档改动不触发 CI；依赖经 actions/cache 缓存，同分支新推送取消旧运行。
+纯文档改动不触发 CI；Godot 引擎经 actions/cache 缓存，同分支新推送取消旧运行。
 
 <details>
 <summary><strong>🔧 最小本地验证集</strong></summary>

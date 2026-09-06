@@ -15,11 +15,11 @@ Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bo
 - **Run:** `./run.sh`（自动定位引擎, .NET 版优先——C# 工程必须 .NET 版）。Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; 触碰 saves/base/mothership 加 `res://test/base_system_test.tscn`; C# 改动: `dotnet build`（零警告）+ `dotnet test tests-csharp/` + `dotnet format --verify-no-changes`（三 csproj）。
 - **Tunables:** `data/balance.json`（`scripts/tools/balance_editor.py`）; 文本 `data/translations.csv`。
 - **Roslynator:** `tools/roslynator/`（gitignored; 重建: `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli`）; 运行需 `dotnet` 在 PATH + `DOTNET_ROOT=~/.dotnet`。口径: `.agents/csharp-conventions.md`。
-- **CI/CD:** `ci.yml` 两 job——fast-gate（C# build/test/format → 零 GDScript → import 警告 → smoke 300 帧 → 场景编译探针）覆盖全部 push(main+feature) 与 PR; full-regression（断言场景全量 + BALANCE_MAP 零 diff + 引擎错误日志 + 场景数校验）仅 main push/PR/workflow_dispatch; `paths-ignore: docs/** + *.md`。Release: `export_presets.cfg` + `release.sh`（本地导出需官方 **mono** 导出模板 `4.6.2.stable.mono`, 版本严格匹配; `InfiAir.sln` 必须入库，缺失会静默出空壳包）或手动 `release.yml`（远端官方模板构建）。政策: 仅官方 checkout/upload-artifact/cache action + dotnet-install.sh + Godot 引擎/模板, 禁其他第三方依赖。
+- **CI/CD:** `ci.yml` 单 job fast-gate（C# build/test → import 警告 → smoke 300 帧 + `smoke_test`）覆盖全部 push(main+feature) 与 PR; `paths-ignore: docs/** + *.md`。Release: `export_presets.cfg` + `release.sh`（本地导出需官方 **mono** 导出模板 `4.6.2.stable.mono`, 版本严格匹配; `InfiAir.sln` 必须入库，缺失会静默出空壳包）或手动 `release.yml`（远端官方模板构建）。政策: 仅官方 checkout/upload-artifact/cache action + dotnet-install.sh + Godot 引擎/模板, 禁其他第三方依赖。
 
 ## Merge Gate & Testing
 
-6 层（fast-gate 跑 ①-③⑤, full-regression 跑 ④⑥; feature push 仅 fast-gate, main push/PR 全量）: ① C# gate（build warnings-as-errors + xUnit + format 零 diff）② zero-GDScript（任何 `.gd` 即失败）③ engine warnings 零容忍 ④ BALANCE_MAP 重跑零 diff ⑤ compile+smoke（main 300 帧 + 全 test/*.tscn 编译探针）⑥ 断言场景全量（权威计数 `docs/TESTING.md`）。
+3 层（2026-08-29 削减, 单 job fast-gate 全跑）: ① C# gate（build warnings-as-errors + xUnit）② engine warnings 零容忍（import grep）③ compile+smoke（main 300 帧 + `smoke_test`）。断言场景已大幅退役（仅存 `smoke_test` + `base_system_test`, 计数权威 `docs/TESTING.md`）; 改动面靠本地最小验证 + xUnit 兜底。
 
 ## Architecture & Directory Roles
 

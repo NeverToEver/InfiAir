@@ -1,20 +1,12 @@
 name: CI
 
-# InfiAir 持续集成（2026-08-25 Z 系「规则脚本化」版本，对齐主流单源真值实践）。
-# 上代 Y 系（2026-08-09）已确立：分层门禁 + 路径过滤 + 三缓存 + concurrency。
-# Z 系变更：把六项门禁「规则本体」从内联 YAML bash 抽为 scripts/ci/*.sh 单一真源，
-# 本地（bash scripts/ci/<name>.sh）与 CI 调同一份码，杜绝 TESTING.md 手抄漂移；
-# Godot 安装/mv/symlink 目录名改由 $GODOT_VERSION 派生，消除字面 4.6.2 多耦合。
-# 设计目标维持：1. 分层门禁 fast-gate（~8min：C# 门 + 零 GDScript + import + smoke
-#   + 编译探针）覆盖全部 push/PR；full-regression（52 断言场景，~40min）仅 main push/
-#   PR / 手动触发，feature 分支开发期只吃快速反馈。
-# 2. 路径过滤：docs/** 与 *.md 纯文档改动不触发（BALANCE_MAP 生成物在 docs/ 下由 full 闸兜底）。
-# 3. 缓存：dotnet SDK / NuGet / Godot mono 引擎经官方 actions/cache（引擎版本升级仅
-#    cache path 字面失效→重装一次，无害）。4. concurrency：同分支新推送取消旧运行。
-# 政策口径保持：仅官方 checkout/upload-artifact/download-artifact/cache action +
-# 官方 dotnet-install.sh 脚本 + 官方 Godot 引擎/模板，禁止其他第三方依赖。
-# 注意（2026-08-10 保留）：GODOT_CACHE_DIR 须放 job 级 env 且用字面路径——runner.temp 在
-# 工作流级/job 级 env 上下文不可用；job 级 env 的 ${{ }} 表达式亦受限，故用 /tmp 字面路径。
+# InfiAir 持续集成（2026-08-29 W 系「削减」版本）。
+# 2026-08-29：移除 full-regression（52 断言场景随场景删除而退役）、format 闸、
+# zero-GDScript 闸（项目无 .gd，由 import 探针兜底）、compile probe、BALANCE_MAP 闸、
+# dotnet/NuGet 缓存（安装成本低，YAML 优先简洁）；断言场景大幅退役后本地验证以
+# smoke_test + base_system_test + xUnit 为主（见 docs/TESTING.md）。
+# 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
+# + 官方 Godot 引擎/模板，禁止其他第三方依赖。
 
 on:
   push:
@@ -31,54 +23,28 @@ concurrency:
 env:
   DOTNET_SDK_VERSION: "8.0"
   GODOT_VERSION: 4.6.2
+  GODOT_CACHE_DIR: /tmp/godot-4.6.2
 
 jobs:
   fast-gate:
-    name: Fast gate (C# + import + smoke + compile probe)
+    name: Fast gate (C# build/test + import + smoke)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      GODOT_CACHE_DIR: /tmp/godot-4.6.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache .NET SDK
-        id: cache-dotnet
-        uses: actions/cache@v4
-        with:
-          path: $HOME/.dotnet
-          key: dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-${{ runner.os }}
-
       - name: Install .NET SDK 8
-        if: steps.cache-dotnet.outputs.cache-hit != 'true'
         run: |
           curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
           bash /tmp/dotnet-install.sh --channel "$DOTNET_SDK_VERSION" --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
           dotnet --version
 
-      - name: Cache NuGet packages
-        id: cache-nuget
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
-
       - name: Build & test C# (warnings-as-errors + xUnit)
         run: |
           dotnet build --nologo
           dotnet test tests-csharp/ --nologo
-
-      - name: C# format gate (dotnet format zero-diff)
-        run: |
-          # 2026-08-09：全量规范化后加防回归闸；根 InfiAir.csproj 显式排除 csharp/core 与
-          # tests-csharp，须三工程分别 verify（--no-restore 复用上一步 build 产物）。
-          # 2026-08-12：InfiAir.sln 入库后裸 `dotnet format` 报 "Both a MSBuild project file
-          # and solution file found"——首工程必须显式指定 InfiAir.csproj
-          dotnet format InfiAir.csproj --verify-no-changes --no-restore
-          dotnet format csharp/core/InfiAir.Core.csproj --verify-no-changes --no-restore
-          dotnet format tests-csharp/InfiAir.Core.Tests.csproj --verify-no-changes --no-restore
 
       - name: Cache Godot mono engine
         id: cache-godot
@@ -90,9 +56,8 @@ jobs:
       - name: Install Godot mono (headless, cached)
         if: steps.cache-godot.outputs.cache-hit != 'true'
         run: |
-          # 2026-08-07：官方镜像 downloads.godotengine.org（GitHub Releases 直连在 runner 上
-          # 不可靠）；mono zip 为子目录结构，GodotSharp 运行时须与可执行文件同目录（软链经
-          # readlink 解析）。Z 系：目录/二进名由 $GODOT_VERSION 派生，升级仅改 env。
+          # 官方镜像 downloads.godotengine.org（GitHub Releases 直连在 runner 上不可靠）；
+          # mono zip 为子目录结构，GodotSharp 运行时须与可执行文件同目录（软链经 readlink 解析）。
           curl -sL --retry 3 --retry-delay 2 -o godot.zip \
             "https://downloads.godotengine.org/?version=$GODOT_VERSION&flavor=stable&slug=mono_linux_x86_64.zip&platform=linux.64"
           unzip -q godot.zip
@@ -107,17 +72,13 @@ jobs:
           sudo ln -sf "$GODOT_CACHE_DIR/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" /usr/local/bin/godot
           godot --version
 
-      - name: Zero-GDScript gate (M7d)
-        run: bash scripts/ci/check_zero_gd.sh
-
       - name: Import project resources (warning gate)
         run: bash scripts/ci/check_import.sh /tmp/import.log
 
-      - name: Main scene smoke (300 frames)
-        run: bash scripts/ci/check_smoke.sh /tmp/smoke.log
-
-      - name: Compile probe all test scenes (gate blind spot)
-        run: bash scripts/ci/check_compile_probe.sh /tmp
+      - name: Main scene smoke (300 frames) + smoke_test
+        run: |
+          bash scripts/ci/check_smoke.sh /tmp/smoke.log
+          godot --headless --path . res://test/smoke_test.tscn
 
       - name: Upload fast-gate failure logs
         if: failure()
@@ -127,86 +88,4 @@ jobs:
           path: |
             /tmp/import.log
             /tmp/smoke.log
-            /tmp/probe-*.log
-          retention-days: 7
-
-  full-regression:
-    name: Full assertion scenes (52)
-    needs: fast-gate
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      GODOT_CACHE_DIR: /tmp/godot-4.6.2
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Cache .NET SDK
-        id: cache-dotnet
-        uses: actions/cache@v4
-        with:
-          path: $HOME/.dotnet
-          key: dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-${{ runner.os }}
-
-      - name: Install .NET SDK 8
-        if: steps.cache-dotnet.outputs.cache-hit != 'true'
-        run: |
-          curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-          bash /tmp/dotnet-install.sh --channel "$DOTNET_SDK_VERSION" --install-dir "$HOME/.dotnet"
-          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
-          dotnet --version
-
-      - name: Cache NuGet packages
-        id: cache-nuget
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
-
-      - name: Build C# (warnings-as-errors)
-        run: dotnet build --nologo
-
-      - name: Cache Godot mono engine
-        id: cache-godot
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.GODOT_CACHE_DIR }}
-          key: godot-mono-${{ env.GODOT_VERSION }}-${{ runner.os }}
-
-      - name: Install Godot mono (headless, cached)
-        if: steps.cache-godot.outputs.cache-hit != 'true'
-        run: |
-          curl -sL --retry 3 --retry-delay 2 -o godot.zip \
-            "https://downloads.godotengine.org/?version=$GODOT_VERSION&flavor=stable&slug=mono_linux_x86_64.zip&platform=linux.64"
-          unzip -q godot.zip
-          mkdir -p "$GODOT_CACHE_DIR"
-          mv "Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64" "$GODOT_CACHE_DIR/"
-          sudo ln -sf "$GODOT_CACHE_DIR/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" /usr/local/bin/godot
-          godot --version
-
-      - name: Link cached Godot binary
-        if: steps.cache-godot.outputs.cache-hit == 'true'
-        run: |
-          sudo ln -sf "$GODOT_CACHE_DIR/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" /usr/local/bin/godot
-          godot --version
-
-      - name: Import project resources (warning gate)
-        run: bash scripts/ci/check_import.sh /tmp/import.log
-
-      - name: Balance map generator zero-diff gate (M8)
-        run: bash scripts/ci/check_balance_map.sh
-
-      - name: Run assertion scenes
-        run: bash scripts/ci/run_assertion_scenes.sh /tmp
-
-      - name: Upload failure logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs
-          path: |
-            /tmp/*_test.log
-            /tmp/*_test.log.retry
-            /tmp/probe-*.log
           retention-days: 7
