@@ -1,19 +1,25 @@
 # InfiAir Roadmap
 
-> Single source of truth for project direction (founded 2026-07-24). Update on phase/direction changes + register in `AGENTS.md` doc-sync.
+> 方向决策与已知债务的单一权威。现状快照只在方向变化时更新；变更史看 git log 与 `CHANGELOG.md`；工程约定见 `AGENTS.md`；设计数值见 `docs/DESIGN_BASELINE.md`。
 
-## Snapshot (2026-08-10)
+## Current State (2026-09-07)
 
-- **Porting alignment closed** (2026-07-24): all original `airwar-game` mechanics remade + aligned (gap list: `docs/archive/PORTING_PARITY.md`; only optional "local leaderboard page" left); independent evolution now — original is reference only. Parity review archived: `docs/archive/2026-08-09-parity-review.md`.
-- **Quality**: assertion scenes 0 FAIL (authoritative count `docs/TESTING.md`); autoplay probe + perf bench usable.
-- **Audit archive** (est. 2026-07-31): `docs/AUDIT_VAULT.md` proprietary; audits A–L + U–AA series resolved, no open P0. Fix status/efficacy: vault only. **AA 系列（2026-08-10，第七轮）**: Roslynator 静态分析 + 8 路逻辑审查，23 处逻辑漏洞修复 + 36 处规范化（CA 安全子集），xUnit 111/111。
-- **Collaboration ready**: privacy audit passed (no keys/PII, history cleaned); UI font → OFL NotoSansSC; doc baseline (README/AGENTS/PORTING_PARITY/EXIT_FLOW) line-checked vs code.
-- **Four fairness mechanics landed** (2026-08-03, `docs/archive/2026-08-03-combat-fairness-plan.md`; values final in `DESIGN_BASELINE.md` §1.13): hit grace frames, graze scoring, boss transition clear + brief invincibility + segmented bar, F parry shield (3.8s cycle). Validation: 37 scenes 0 FAIL + 180s autoplay no new anomalies; on-device feel (15+ min run) = pre-release manual item. **B-tier landed 2026-08-03**: per-attack tells, DDA density downshift (score-fair), death replay (3s ghost replay). Next: on-device feel validation.
-- **Phase 0 closed** (2026-08-03): test/ gate blind spot fixed (test/ into gdformat/gdlint, CI compile probe + per-scene timeout; L15/L16), L18 release.yml version commit, P2 cleanup (ACTION_LABELS/back_pressed/profile_corrupt toast), L13 mothership×event mutex, L14 boss phase-shift y smooth transition, **A8 PlayerVisuals split** (last architecture debt). Records: `AUDIT_VAULT.md` Phase 0 batch + `docs/archive/EXECUTION_LOG.md`.
-- **M7 full C# migration completed** (2026-08-08): all GDScript (scripts/autoload/test) migrated to C# — zero GDScript end state, single-language maintenance; gates green per batch (dotnet build zero warnings + xUnit + import clean + smoke + assertion scenes + BALANCE_MAP zero-diff). Decision: 2026-08-08 entry below.
-- **Merge gate now 6 layers** (2026-08-09): C# build/test/`dotnet format` ×3 csproj zero-diff (added 2026-08-09) → zero-GDScript → import warnings → BALANCE_MAP zero-diff → smoke + compile probe → assertion scenes (V-series: engine error-log scan + scene-count hard check, added 2026-08-09). Details: `docs/TESTING.md`.
-- **Pending manual validation (pre-release)**: Cinematic stage 4 (low-spec retest + gamepad/mobile 手工项; `docs/DESIGN_BASELINE.md` §7.3 单一登记) + on-device feel 验证 + `docs/archive/ENDLESS_BALANCE_PLAN.md` §6.1 遗留「人工手感验证」(15+ min real play)。
-- **Score-combo + defensive pity landed** (2026-08-11, `docs/archive/2026-08-11-score-combo-buff-pity-plan.md`): 击杀连击计分（怒首领蜂/虫姬链式得分的温和版：3s 窗口 ×1.0→×2.0，受击/超时断连，Boss/事件奖励不计）+ 低血防御保底（HP<50% 加权+保底 1 张防御卡）。`scoring.combo`/`buffs.dynamic_weight` 新键；`combo_test` 断言场景。
+- 内容演进与局外成长全部落地：4 Boss 轮换、母舰火力平台、触屏输入、科技树（TechPoints）、击杀连击 + 低血防御保底。无尽必死曲线（D1）为既定设计。
+- 质量形态：xUnit 115 项纯逻辑 + 2 个断言场景（smoke/base）+ CI 单 job fast-gate（2026-08-29 大削减后的形态）。
+- 2026-09-07 深度链路修复：设计基线核实无污染；修复 welcome 布局腐烂、RunTime 菜单污染、R 重开不删档、返航后 Boss 绕过入场窗口、精英事件钳制缺口（详见 CHANGELOG [3.33]）。
+- 工程纪律同日裁剪：行为规格文档全部退役归档（不为行为写规格），审计留档制度废止，活文档收敛为 5 份（见 `AGENTS.md` 文档表）。
+
+## 已知债务与开放发现
+
+> 唯一登记处。修复后原地划掉并注日期；新发现追加在末尾。
+
+- **[中低] 召唤蓄力/机库小窗窗口期事件可触发**：事件互斥只拦「母舰在场」，蓄力 3s + 小窗 2.6s 内事件掷签命中 → 玩家锁输入 + 999s 无敌、母舰自动火力白拿事件奖励（L13 反向漏出）。需 Main↔GameEventManager 召唤窗口互斥标志，涉及遭遇触发门控时序。
+- **[中低] 基地任务绝对计数轮换即完成**：kill/boss/survive 进度为对局绝对值，刷新抽到低门槛任务下一秒瞬领 RP（刷新经济泄漏）。修复需任务实例改为「抽取时快照基线」的相对进度，涉及存档格式。
+- **[低] `_wavesPaused` 单布尔双写者**（Spawner × 2 事件）：正确性依赖管理器「encounter 组单活跃」不变量，绕过管理器直启事件会互踩。生产路径不可达。
+- **[低] `Main.OnPlayerDied` 不清遭遇事件**：当前依赖「死亡必终局 + 场景重建」兜底；未来加复活/同局续命玩法需补 `EndActive(GROUP_ENCOUNTER)`。
+- **[低] 视觉层无自动化覆盖**：全部无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏一个月（2026-09-07 W1 实证）。现行纪律 = UI/视觉改动窗口化人工过目；可选改进 = welcome 页视觉捕获场景（test/ 截图工具族同款）。
+- **[手工·发布前] Cinematic stage 4**：低配机复测 + 手柄/移动端手工项 + README 截图核对。
+- **[手工·发布前] 真机手感验证**：15+ 分钟连续实机游玩（无尽校准与公平性机制的人工验收）。
 
 ## Direction Shift
 
@@ -21,58 +27,36 @@
 | --- | --- | --- |
 | Goal | per-item parity | independent evolution; original = reference |
 | Mode | solo | collaborative (repo ready) |
-| Release | packaging deferred | resumed 2026-07-30 (presets + `release.sh` + scripts); CI/CD 2026-08-02 (5-layer gate + manual release) |
+| Release | packaging deferred | resumed (presets + `release.sh` + scripts); CI 单 fast-gate + 手动 release |
 | Content | mechanic completion | keep current; depth/new content cut 2026-07-30 — restart needs re-scoping |
-| Meta | score-only in-run economy | cross-run growth: TechPoints tech tree (death settlement, opening buff loadout; 2026-08-09) |
+| Meta | score-only in-run economy | cross-run growth: TechPoints tech tree (2026-08-09) |
 
 ## Phases
 
-### Phase 0 — Tech-debt finish (near term, no new gameplay)
+### Phase 0 — Tech-debt finish ✅ closed (2026-08-03)
 
-**Done (2026-07-31~08-03; items in `AUDIT_VAULT.md` A-series + `archive/EXECUTION_LOG.md`)**: spawn path unified to pool (`920e5e9`), A2 4-service split, A3/A4 registry + declarative effect table (`310e0b9`), four fairness mechanics (`b2bc8a5`), CI/CD + 5-layer gate.
-
-**Closed 2026-08-03 (Phase 0 batch, `AUDIT_VAULT.md`)**:
-- **test/ gate blind spot**: test/ into `gdformat --check` + `gdlint` (23 files formatted, 18 lint issues fixed); CI compile probe step (every `test/*.tscn` `--quit-after 2` + error grep) + per-scene 300s timeout — L01a/L01b-type blind spots can no longer linger. L15 profile snapshot/restore (20 scenes), L16 weak assertion fixed.
-- **L18**: release.yml commits `config/version` before tagging (tag carries the version commit).
-- **P2 cleanup**: `ACTION_LABELS` dead dict removed, `back_pressed` dead signal documented (E13 precedent), `profile_corrupt` toast consumed in start panel (+`START_PROFILE_CORRUPT` key).
-- **L13**: mothership in-field mutex for elite-turret/formation events (group registration; charge ghost excluded from group).
-- **L14**: boss P1→P2 phase shift y smooth transition (0.6s ease-out to anchor; `reset_press` clears type-3 band too; boss_phase_test assertions updated).
-- **A8**: `PlayerVisuals` extracted (RefCounted composition, same as PlayerDamage/PlayerDash/PlayerParry) — tail/afterimage/body tint/hitbox dot/parry visuals/graze flash out of player.gd. Last open architecture debt.
-
-**Acceptance**: all tests 0 FAIL (当时 37 scenes; boss_enrage one-off flake reruns clean; 权威计数 `docs/TESTING.md`); items marked done in audit docs.
+Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect table, four fairness mechanics, CI/CD。test/ 门禁盲区修复（compile probe + 计数权威）。A8 PlayerVisuals 拆分为最后一条架构债。（细节见 git 历史与归档审计。）
 
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 
-**Restart 2026-08-04 (deferred plans, excl. mobile touch)**:
-- **Local accounts** (incl. absorbed "leaderboard page" + "Appendix B entry page"): execution checklist `docs/archive/2026-08-04-local-accounts-plan.md`; **landed** — UserDB/PBKDF2, per-user saves/settings, local leaderboard, welcome entry scene, StartPanel retired (T1-T5)
-- **Mothership expansion**: `docs/archive/2026-08-04-mothership-expansion-plan.md` (weapon upgrade tiers); **landed** — milestone-gated gatling/missile upgrade
-- **Content evolution**: `docs/archive/2026-08-04-content-evolution-plan.md`; **landed** — 3 buffs (crit_shot/shield/bullet_speed) + Splitter enemy + Heavy Turret elite + 4th boss "Eclipse" (ring-weaving mage)
-- **Endless k-value calibration**: `docs/archive/2026-08-04-endless-calibration-plan.md`; **landed** — `progression.per_boss_kill` 0.6 / `progression.per_ten_minutes` 1.5 / `enemies.hp_ramp_factor` 0.25 / `enemies.damage_ramp_factor` 0.20; 3 × 900s probes 0 anomalies, zero-pressure steady state eliminated (ENDLESS_BALANCE_PLAN §6.1)
-
-- **Local accounts**: spec at commit `7aacd3f` (UserDB/PBKDF2/per-user saves; also PORTING_PARITY Appendix B); reuse on restart.
-- **Appendix B standalone entry page**: lightweight suffices; restart only if StartPanel overflows; spec in PORTING_PARITY Appendix B.
-- **Packaging**: resumed 2026-07-30, proven 07-31 — presets committed (Linux/X11 + Windows Desktop, embedded pck), `release.sh` → `builds/release/` (gitignored), `packaging/` scripts (Linux user-space + .desktop / Windows per-user + Start menu). Platform validation pending.
-- **Online leaderboard**: decided NO (2026-07-20); reversal needs explicit override.
-- **Collaboration/release engineering** (ex-Phase 1): presets + commands landed 2026-07-30; **CI / contribution guide / CD fully landed 2026-08-02** — CI (import + smoke + 当时 47 assertion scenes, push/PR), `CONTRIBUTING.md` (+ `SECURITY.md`, templates, `CHANGELOG.md`), manual release workflow (export → tag → GitHub Release; version syncs `config/version`). Versioning: MAJOR.MINOR (current 3.28).
-- **Content evolution** (ex-Phase 2): cut 2026-07-30 — leaderboard page, new buffs/enemies/elites/4th boss/mobile touch, mothership expansion, endless k-value calibration; **restarted 2026-08-04 (excl. mobile touch) and fully landed** — see Restart block above (3 buffs, Splitter, Heavy Turret, Eclipse boss, mothership upgrade, calibration); **mobile touch restarted 2026-08-07 and landed** — `VirtualControls` 触屏输入层（虚拟摇杆/按钮，Input action 注入）+ 设置「触控」开关 + `virtual_controls_test`（计划/清单 `docs/archive/2026-08-07-deferred-restart-plan.md` §3）。Remaining cut: leaderboard page (absorbed into local accounts).
+- **Local accounts**：landed（UserDB/PBKDF2、per-user 存档/设置、本地排行榜、welcome 入口、StartPanel 退役）。规格 `docs/archive/2026-08-04-local-accounts-plan.md`。
+- **Mothership expansion**：landed（里程碑门控的加特林/导弹升级）。
+- **Content evolution**：landed（3 buffs、分裂者、重型炮塔、第 4 Boss「月蚀」）+ mobile touch landed（2026-08-07）。剩余未做：独立排行榜页（已并入本地账户）。
+- **Endless k-value calibration**：landed（`progression.*` + ramp 因子；3 × 900s 探针零异常）。
+- **Online leaderboard**：decided NO（2026-07-20）；反转需显式推翻。
 
 ## Decisions
 
-- **2026-08-05 — 统一实体管理器**：`EntityRegistry` 演进为 `EntityManager`（`docs/ENTITY_MANAGER.md`，Playwright 调研佐证：真实 Godot 项目 underkingdom 的 Autoload EntityManager + 对象池社区指南）——注册样板收敛（`bind_enemy`/`unbind_enemy` 一行，enemy/boss/turret_battery/formation_craft 四处重复消除）+ 生命周期信号（`entity_registered`/`entity_unregistered`，新功能订阅口）+ 批量操作 API（`for_each_enemy`/`clear_enemies`/`count_enemies`，轨道打击清场/母舰索敌/狂暴齐射/spawner 计数迁移）；池化语义/GameState 转发/autoplay 组↔注册表一致性不变；低频实体不池化（社区共识）。
-- **2026-08-05 — 统一事件管理器**：全部随机游戏事件（迷雾 4 + 遭遇 2）收敛进 `GameEventManager`（`GameState.events`，`docs/EVENT_MANAGER.md`）——统一 `EVENT_FACTORIES` 注册表 / `fog|encounter` 分组并发 / 触发策略 / 生命周期 / `event_started/ended` 信号；遭遇事件触发移出 spawner（`ScheduledEventTrigger` 退役），`FogEventManager` 重构为迷雾效果层+API 门面（公开 API 不变，fog 测试零改动）。行为保持：迷雾可与遭遇并行；`spawner.set_process(false)` 仍禁用遭遇自动触发；balance key 零变化。
-- **2026-08-05 — 不引入 C# 混合编译（2026-08-08 全量迁移 C# 反转此决策，现零 GDScript）**：评估 `docs/archive/2026-08-08-csharp-assessment.md`（实测 perf_bench 1.011ms/帧 ≈989 FPS 等效，性能无瓶颈；仅 Linux/Windows 平台目标，无 Web/移动推力；跨语言继承禁止 + 热路径动态派发 + CI/发布/本地工具链三重成本 > 收益）。维持纯 GDScript。触发条件（性能瓶颈 / 平台需求 / 团队构成 / 架构重写窗口）见评估文档 §8。
-- **2026-08-07 — 引入 C#（渐进式混编）**：`docs/archive/2026-08-08-csharp-assessment.md` §7 决策更新（触发条件 3「团队语言构成变化」成立）——存量 GDScript 不迁移，新模块/纯逻辑/数据模型/算法用 C#（`csharp/core` = `InfiAir.Core` 纯 .NET 类库，`csharp/godot` = Godot 绑定薄壳）；热路径（对象池/弹幕）与场景绑定层禁止跨语言，C# 与 GDScript 不可互相继承（官方限制）；测试分层：纯逻辑 → `tests-csharp/` xUnit（`dotnet test`），场景/集成 → `test/*_test.tscn` 断言场景（计数权威 `docs/TESTING.md`）；CI/发布/本地工具链已切换 .NET 版引擎（mono 模板）并落地 dotnet build/test 门禁。详见 `docs/archive/2026-08-08-csharp-assessment.md`。
-- **2026-08-07 — C# 着陆点规划**：六候选模块评估（SaveManager/UserDb/BalanceService/EventManager/资产资源管理/DDA）→ **P0 高优先：SaveManager 与 UserDb 数据层迁 C#**（纯 IO/数据完整性收益最大、边界清晰；UserDb 密码派生须逐字节等价 + 既有账号兼容测试），P1：BalanceService 点路径解析核心（壳保 cfg() 签名 → M8 零影响），P2：AssetCatalog 资产资源管理（新能力,按内容规模触发）。路线图、每项接入模式与验证要求登记在 `.agents/csharp-conventions.md` §Landing Plan；实现为独立批次。**P0-1/P0-2/P1-1 已于 2026-08-07 全部落地**（`d0fb9e2`/`fcb37d1`/`0acb28b`）：SaveStore/UserDb/PathResolver 纯 .NET 核心 + csharp/godot 薄壳 + GDScript 壳转发（公开 API 不变）+ xUnit 54 项（含 PBKDF2 固定向量兼容测试）+ 3 个 interop 断言场景；**P1-2/P1-3 同日落地**：Progression（里程碑阈值曲线 + 难度进程曲线，apply_run_save 里程碑批量推进改单次调用 + O(1)/档 增量）与 Missions.TaskPool（任务池无放回抽取，RNG 独立于 GDScript 全局随机源）；P2-1 AssetCatalog 触发条件未满足，维持待启动。
+> 摘要登记（为什么）；全文与执行记录在 `docs/archive/` 对应计划文档与 git 历史。
 
-- **2026-08-08 — 全量迁移 C#（反转 2026-08-07「存量不迁移」边界）**：用户指令反转渐进式混编的"存量 GDScript 不迁移"边界——存量约 3.7 万行 GDScript（scripts/autoload/test）**全量迁移 C#**，终态零 GDScript、零 interop 壳、单一语言维护；执行分支 `feature/csharp-full-migration`（main 保持可发布）；M1–M7 里程碑（M1 基线+脚手架 → M2 服务层 → M3 战斗核心 → M4 事件体系原子批次 → M5 UI → M6 演出编排 → M7 测试迁移+收尾），每批门禁全绿（build 零警告 + xUnit + 导入零错 + 冒烟 + 当时 62 场景 + BALANCE_MAP 零 diff）；62 断言场景迁移期保持 GDScript 作回归（公共 API 冻结），M7 全量 C# 化；perf_bench 基线锚点 1.182ms/帧（2026-08-08）。决策依据 `docs/archive/2026-08-08-csharp-assessment.md` §10。
-
-- **2026-08-09 — 局外成长（科技树）**：同类调研（Vampire Survivors / Brotato / 20 Minutes Till Dawn，Steam 商店页）后落地跨局成长——新增科技点货币（**死亡结算唯一入口** `SettleRun`；放弃/返航不结算防刷点），效果映射为**开局预置 buff 层数**（复用 buff 计算链，零新属性管道），消费于研究所 UI（Welcome 主菜单 + BaseConsole 第五面板），仅登录用户（B7-8 游客不持久化）。有界性：每项限级（`meta.upgrades.*.max_level`）+ 总消费上限 → 不破坏 D1 必死曲线。实现 M1–M5 批次（core 纯逻辑 + UserDb meta 字段 + GameState.Meta + 研究所 UI + meta_test 断言场景）门禁全绿；执行记录 `docs/archive/2026-08-09-meta-progression-plan.md`。Phase 3 "online leaderboard NO" 决定不受影响。
-
-- **2026-08-11 — 得分/奖励设计审核（连击 + 防御保底）**：对照业内平衡设计（怒首领蜂/虫姬链式连击、杀戮尖塔/吸血鬼幸存者情境保底）审核后落地两项低复杂度改动——①**击杀连击计分**：击杀分 × 连击乘区（`scoring.combo`：window 3.0s / step 0.1 / 封顶 ×2.0），受击（与 DDA 同源）或超时断连，Boss 击杀/事件奖励/擦弹不计；得分攻击"贪 vs 稳"博弈补位，纯加法机制。②**低血防御保底**：HP < 50% 时防御类 buff 加权 ×2 且三张候选保底 ≥1 张防御卡（`buffs.dynamic_weight`；满血行为不变）。设计决策：不做炸弹资源/掉落物/技能树重构（复杂度预算外）。计划 `docs/archive/2026-08-11-score-combo-buff-pity-plan.md`。
-
-- **2026-08-29 — 测试与 CI/CD 大幅削减**：用户指令——删除 51 个断言场景（连同 `csharp/godot/tests/*.cs` 驱动与 autoplay partial/helper），仅存 `smoke_test` + `base_system_test` + `perf_bench` + 7 截图工具（Scene Counts 权威已更新）；CI 收敛为单 job fast-gate（C# build/test → import 警告闸 → main smoke 300 帧 + `smoke_test`），退役 full-regression、format 闸、零 GDScript 闸、compile probe、BALANCE_MAP 零 diff 闸与 dotnet/NuGet 缓存（Godot 引擎缓存保留）。行为回归改由 xUnit（115 项纯逻辑）+ 两个断言场景 + 手动/截图验证兜底；`release.yml`/`release.sh` 不变。远端仓库设定同步调整：关闭 Projects/Discussions、开启 merge 后自动删分支。
+- **2026-08-05 统一实体/事件管理器**：`EntityManager` 注册样板收敛 + 生命周期信号 + 批量 API；`GameEventManager` 收敛全部随机事件（fog‖encounter 分组并发、遭遇触发移出 spawner）。
+- **2026-08-08 全量迁移 C#**（反转 2026-08-07 渐进混编）：存量 GDScript 全量迁移，终态零 GDScript、单一语言维护；`csharp/core` 纯逻辑 + `csharp/godot` 绑定层分层由此确立。
+- **2026-08-09 局外成长（科技树）**：死亡结算唯一入口防刷点；效果 = 开局预置 buff 层数（复用 buff 计算链，零新属性管道）；每项限级 + 总消费上限，不破坏 D1 必死曲线。
+- **2026-08-11 得分/奖励审核**：击杀连击计分（温和版链式得分）+ 低血防御保底；明确不做炸弹资源/掉落物/技能树重构（复杂度预算外）。
+- **2026-08-29 测试与 CI 大幅削减**（用户指令）：51 断言场景 + autoplay 探针退役，仅存 smoke/base + perf_bench + 截图工具；CI 收敛单 fast-gate（format/零 GDScript/BALANCE_MAP 零 diff/编译探针闸一并退役）。行为回归 = xUnit + 两场景 + 人工窗口化验证。
+- **2026-09-07 工程纪律裁剪**（用户指令「惯例恶心且冗杂」）：13 份行为规格文档退役归档、审计档案/执行留档/SOP 制度废止、活文档收敛 5 份、BALANCE_MAP 去行号（重构不再触发同步）、代码注释禁审计轮次编号。依据：行为规格与代码双源漂移曾消耗专门纠偏轮次（一次 19 文档 40+ 失实）；append-only 审计档案 1900+ 行且持续膨胀。
 
 ## Maintenance
 
-- Phase completion / direction change → update this file; porting-era gap wording archived (PORTING_PARITY frozen 2026-07-30), never rewritten here.
-- New defer/restart decisions → Phase 3 with decision date, not scattered.
+- 方向/阶段变化 → 更新本文件对应小节；不在此复述变更细节（CHANGELOG 的职责）。
+- 新债务/新发现 → 「已知债务与开放发现」末尾追加；修复后划掉注日期。

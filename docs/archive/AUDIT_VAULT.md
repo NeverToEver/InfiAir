@@ -1,3 +1,5 @@
+> **[已归档 2026-09-07 · 行为规格文档退役]** 行为以代码与测试为准，本文件不再维护、不再更新。工程约定见 `AGENTS.md`；玩法设计数值见 `docs/DESIGN_BASELINE.md`；已知债务与开放发现见 `docs/ROADMAP.md`。git 历史保留全文。
+
 # ⚠️ 代码审计档案（AUDIT VAULT）—— 不可移除
 
 > **本文档为专有审计档案，禁止删除或合并进其他文档。**
@@ -1873,3 +1875,67 @@
 - **批次 2（P3 代码：热路径/守卫/注释，组 1-2）**：改了什么——AC9 Boss enrage attack_interval/attack_windup/release_interval ≥0.05；AC10 EnrageSequence 狂暴注册表 `Callable` → `System.Action`（`_activeHandlers`/`_releaseHandlers`/`_releaseBeginHandlers`，BossMovement 先例，公开接口签名不变）；AC6 Player homingRate 补 `float.IsNaN` 守卫；AC11 AimFrameLayer 注释订正（「恒 false 排除」→「不排除」实际语义）；AC16 DeathReplay/Bullet 孤儿 XML summary 补全/删除；AC20 Hud 切语言补 `OnComboChanged` 刷新连击标签。为什么起效——狂暴期每物理帧不再经 Godot 动态派发分配（零分配红线）；NaN 不再穿透 `<=0` 守卫；注释与代码实况一致。如何验证——boss_enrage/boss_registry 定向场景全绿（AC10 行为逐字节等价，泄漏基线对照证实与改动无关）；全量 0 FAIL。
 - **批次 3（文档同步 + 档案，组 6）**：改了什么——AC23 ARCHITECTURE.md:67 删 `hud.boss_bar_segments` 残留（AB22 删键后漏同步）；AC25 FORMATION_STRIKE_EVENT.md 击坠分路径同步连击语义（AddKillScore 乘区、全歼奖励不计连击）+ 代码 `OnCraftDied` 注释订正；AC26 GameState.Meta.cs 头注订正（ExitConfirm 删档不结算 / K 键自毁按死亡结算）；AC27 RETURN_HOME_CINEMATIC.md 锚点 944→947；AC28 EVENT_MANAGER.md:165「never overlap Boss」→ elite 冻结/formation 不冻结（Boss fires on schedule）；AC29 本档案登记。为什么起效——文档与代码实况统一，消除自相矛盾与已删键引用。如何验证——grep 复核无残留；BALANCE_MAP 重跑幂等（键集合零变化）。
 - **design-confirmed（不改代码，档案标注）**：AC12（分裂子机 0 分击杀计连击并续窗——实现跟 DESIGN_BASELINE 列举项，×2.0 封顶约束；连击乘区跨返航树暂停存续——冻结与对局节奏一致是既有语义）；AC19（编队×Boss 同帧竞态——FORMATION_STRIKE_EVENT.md §1 "No Boss freeze" 是设计意图，仅 elite 冻结；文档已同步 AC28）。注：AC13 为 AC8 同发现附带孪生（Q16 上限钳既有、仅下限缺失，count=0 空跑 34s 不崩不软锁），登记定级 P3。
+
+---
+
+# 深度链路修复（2026-09-07，W 系列）
+
+## 工作时间与区域
+
+| 字段 | 值 |
+| --- | --- |
+| 审核类型 | 主游戏链路深度诊断与修复（用户报告：多轮特性迭代后主链路"巨幅崩溃"，逐项修无效；要求先核实设计文件合理性） |
+| 工作时间 | 2026-09-07（单次集中会话） |
+| 审核区域 | `Welcome.cs`、`GameState.cs`、`Main.cs`、`PauseUi.cs`、`Spawner.cs`、`EliteTurretEvent.cs`、`tests/BaseSystemTest.cs`（+只读追查 Spawner/Boss/Mothership/BuffSelect/ScoreService/RunProgressionService/PlayerDamage 全链） |
+| 审核方法 | 全门禁基线（build/xUnit/import/300帧/smoke/base 全绿——证明既有门禁抓不到）→ 从 git 历史临时恢复 autoplay 探针跑 900s 真实游玩 → 5 路并行静态链路追查（波次/事件门控、Boss 生命周期、得分/里程碑/buff、母舰/返航/基地、玩家战斗/DDA）→ **窗口化实机视觉扫查**（无头门禁的结构性盲区） |
+| 结论 | **设计基线无污染**：DESIGN_BASELINE §1.2 核心循环与 AGENTS.md 一致，§1.3-1.13 各系统规格与代码/数据逐条对上（combo 窗口/步进/封顶、里程碑补发、19 buff 消费闭环、Boss 轮换/逃跑/狂暴恢复点穷举、返航/母舰状态机恢复路径闭环）。"崩溃"全部在代码层：W1/W2 两个玩家可见 bug（实机截图复现）+ W3/W4 编排契约破坏 + W5 配置钳制孪生遗漏。全部修复。 |
+
+## 发现与修复
+
+### W1. Welcome 布局：`SetAnchorsPreset(CenterLeft)` + `Position` 惯用法错误（严重，实机复现）
+
+- **位置**：`Welcome.cs` BuildLoginPanel / BuildMainZone（自 2026-08-04 账户版 welcome.gd 原样移植，M5 迁移照抄）
+- **描述**：`Position` 在 `AddChild` 之前写入且无父矩形时存的是**裸偏移**；入树后锚点 (0,0.5) 再叠加 `0.5×1080` 基线——登录面板顶边落在 520（560 高面板底边压死视口下缘、边框截断），登录后主区顶边落在 800（难度/开始游戏/教程/设置/排行榜/研究所大部分推出屏幕外，鼠标不可点）。键盘焦点导航仍可用，故一月未暴露；welcome 无任何视觉门禁覆盖。
+- **修复**：登录面板/主区改绝对定位（同 hero 惯例）：面板 (140,260) 垂直居中；主区按头注"左栏账号+右栏菜单"设计移右栏 (1260,260)——归位后同时消除主区与左上"历史最佳"榜单文本的次生重叠。
+- **修复起效记录**：窗口化实机回归——登录面板完整居中、四角括号完整；游客与登录双路径主区六控件全部可见可点、无重叠。`--resolution 1600x900` 与全屏两档核对。
+- **教训**：**代码构建 UI 时禁用「非左上锚点 + Position」组合**（Position 语义随入树时机变化）；welcome 页应补视觉捕获场景（test/visual_capture 同族）。
+
+### W2. RunTime 污染：菜单停留时间推高新局难度（中，实机复现）
+
+- **位置**：`GameState.cs` `_Process`（无条件 `RunTime += delta` + survive 任务 + `_runProg.Tick` 难度时间档/连击窗口）
+- **描述**：welcome/登录页不暂停树，`GameState` autoload 照常累积 RunTime——欢迎页停留数分钟后新局难度开局即被时间项推高（实机复现：停留约 8 分钟后开局难度 ×2.20，应 ×1.00）；survive 任务同样被白送进度。与「难度时间项只计活局」的 §1.4 语义冲突。
+- **修复**：`GameState` 新增 `RunActive` 门控（`SetRunActive`），`_Process` 整体早退；`Main._Ready/_ExitTree` 按既有 `CurrentScene == this` 惯例置位/复位（与事件管理器同口径）；`BaseSystemTest` survive 用例前置 `SetRunActive(true)` 保持测试契约。
+- **修复起效记录**：实机复现路径回归——同样在欢迎页停留后开局，HUD 难度显示 ×1.00·中；xUnit 115/115、smoke/base 0 FAIL（smoke 的难度公式断言两侧同读冻结 RunTime，自洽）。
+
+### W3. 暂停页 R 重开不删档（中）
+
+- **位置**：`PauseUi.cs` `_UnhandledInput` restart 分支
+- **描述**：R 重开只 `ResetRun()+ReloadCurrentScene()`；若存在返航检查点存档，`main._Ready` 的 `HasSave()` 自动续局——"重开"静默退化为回滚到检查点，与「死亡/战斗退出才删档」语义冲突。
+- **修复**：重开前 `DeleteSave()`（弃局语义，对齐 ExitConfirm：删档不结算 TechPoints）。
+- **修复起效记录**：smoke_test「死亡后删除存档/继续出击恢复」段全绿（重开路径与死亡路径删档语义一致）；逻辑推演：存档存在时暂停页 R → 无档新局。
+
+### W4. 返航→继续出击 Boss 补触发绕过入场窗口契约（中）
+
+- **位置**：`Spawner.cs` `TriggerBossInternal` × `EliteTurretEvent.OnBossDelayEnd`
+- **描述**：返航 `ClearPending()`（D01 契约：入场动画窗口内无敌机/Boss 进场）先于 `EndActive(GROUP_ENCOUNTER)` 执行；精英事件 Abort 后 BOSS_DELAY 计时器仍在走，继续出击解除树暂停后 `OnBossDelayEnd → ConsumeBossPending()+TriggerBoss()` 无条件补触发——Boss 预告与降入出现在入场动画窗口内，绕过分数/时间双门。
+- **修复**：`TriggerBossInternal` 顶部加 `IsProcessing()` 门控（返航 `SetProcess(false)`、`OnEntryFinished` 恢复）——窗口内触发请求丢弃，恢复处理后由 `_Process` 分数/时间门自然重触发（`BOSS_TIME_LIMIT=120s` 兜底保证不饿死）。
+- **修复起效记录**：smoke_test Boss 生成/击杀/血条段全绿（正常路径 `IsProcessing()==true` 行为零变化）；推演覆盖：返航时事件活跃/BOSS_DELAY 中/Boss 在场三态。
+
+### W5. EliteTurretEvent 配置钳制孪生遗漏（低，AC8 同族）
+
+- **位置**：`EliteTurretEvent.cs` `_Ready`：`duration`/`rise_time`/`boss_resume_delay`/`cooldown`
+- **描述**：AC8 批次给编队事件 13 键判型+域钳时，精英事件只钳了 `enter_time` 与 `turret_counts` 上限（AC13）——`cooldown` 0 + 高触发率下事件背靠背连发挤占波次近饿死；`duration` ≤0 事件开启即超时空转；`boss_resume_delay` 负值进 `Schedule` 行为未定义。
+- **修复**：四键 `Mathf.Max` 下限钳（1.0/0.05/0.05/0.05），注释标注 AC8 twin。
+- **修复起效记录**：默认 balance.json 值（30/1.5/4/60）不触钳，行为零变化；build 0w/0e + format 三工程零 diff。
+
+## 登记未修（开放发现，按优先级）
+
+- **[中低] 召唤蓄力/机库小窗窗口期事件可触发**：事件互斥只拦「母舰在场」，蓄力 3s+小窗 2.6s 内事件掷签命中 → 玩家锁输入+999 无敌、母舰自动火力白拿事件奖励（L13 反向漏出）。需 Main↔GameEventManager 增加召唤窗口互斥标志，涉及遭遇触发门控时序，未在本次仓促落地。
+- **[中低] 基地任务绝对计数轮换即完成**：kill/boss/survive 进度为对局绝对值，刷新抽到低门槛任务下一秒即瞬领 RP（刷新经济泄漏）。修复需任务实例改为「抽取时快照基线」的相对进度，涉及存档格式，登记待设计。
+- **[低] `_wavesPaused` 单布尔双写者**（Spawner×2 事件）：正确性依赖管理器「encounter 组单活跃」不变量，绕过管理器直启事件会互踩；生产路径不可达。
+- **[低] `Main.OnPlayerDied` 不 EndActive 遭遇事件**：当前依赖「死亡必终局+场景重建」兜底；未来加复活/同局续命需补 `EndActive(GROUP_ENCOUNTER)`。
+- **[信息] autoplay 探针（a6da61d^ 可恢复）**：本次诊断临时恢复使用后已按场景退役约定移除；900s 探针结论——6 局 0 崩溃 0 卡死，唯一 object_leak 异常经曲线分析为对象池高位水位+每实例资源的波动（场景重载后回落 6766→4722），非无界泄漏。探针以子节点实例化 main 时 `dda_stuck` 为 harness 假阳性（W2 门控后 DDA 计时随 RunActive 冻结，真实对局不受影响）。
+
+## 统一验证（2026-09-07）
+
+`dotnet build` 0w/0e + xUnit 115/115 + format 三工程零 diff + `--import` 0 引擎警告 + `--quit-after 300` 0 错误 + `smoke_test`/`base_system_test` 0 FAIL + 窗口化实机视觉回归（welcome 双阶段/开局难度/三选一/HUD 四仪表/实战画面）+ 240s autoplay 回归探针 0 卡死 0 崩溃（唯一 dda_stuck 为上述 harness 假阳性）。

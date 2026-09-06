@@ -203,7 +203,7 @@ csharp/core/                    纯 .NET 类库（零 Godot 依赖）
 tests-csharp/                   xUnit 单测（引用 core，不依赖 Godot 运行时）
 ```
 
-> 深入架构说明（GameState 拆域、实体管理、对象池、伤害管线、持久化安全、UI 设计系统）见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
+> 工程约定与架构速览见 [AGENTS.md](./AGENTS.md)；玩法设计数值见 [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md)。历史行为规格已归档 `docs/archive/`。
 
 </details>
 
@@ -246,7 +246,7 @@ scenes/             场景文件（welcome 入口 / main 对局 / boss / mothers
 test/               无头断言场景（*_test.tscn）+ 截图工具
 data/               balance.json（数值配置）+ translations.csv（中英双语）
 scripts/tools/      离线工具（gen_balance_map.py 等，非运行时依赖）
-docs/               架构/设计/审计文档
+docs/               设计基线/路线图/测试（历史文档在 docs/archive/）
 ```
 
 ---
@@ -270,11 +270,9 @@ docs/               架构/设计/审计文档
 | [AGENTS.md](./AGENTS.md) | 开发约定总纲：技术栈 / 运行验证 / 架构 / 代码风格 / 测试策略 / CI 门禁 |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南：环境准备 / 开发流程 / PR 检查清单 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录 |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 架构总览：目录职责 / 逐脚本职责 / 服务委托清单 |
 | [docs/TESTING.md](./docs/TESTING.md) | 测试策略：权威场景计数 / 断言清单 / CI 流程 |
 | [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | 设计基线：玩法规则 / 架构口径 |
 | [docs/BALANCE_MAP.md](./docs/BALANCE_MAP.md) | 数值配置索引（生成器产出，勿手改） |
-| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | 代码审计档案（专有，不可删） |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | 路线图与未来方向（单一事实源） |
 
 ---

@@ -24,7 +24,7 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 - `perf_bench.tscn` — dev benchmark (`--fixed-fps 1000`; interleave runs + medians for A/B).
 - 7 screenshot capture tools (see Screenshots).
 
-Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests), the two assertion scenes, manual windowed play/screenshot checks. Design docs referencing retired scenes (`docs/FOG_EVENTS.md`, `docs/ENTITY_MANAGER.md`, etc.) describe them as of their writing; those commands no longer exist.
+Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests), the two assertion scenes, manual windowed play/screenshot checks. Retired design docs (now under `docs/archive/`) reference those scenes as of their writing; those commands no longer exist.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
@@ -75,4 +75,4 @@ Not a unit framework: each remaining `test/*.tscn` runs its C# test script, self
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): tests `GameState.DeleteSave()` first + clean/restore own state.
 - UI changes: human-check windowed screenshots (headless produces none).
-- Historical known failures / audit records: see `docs/AUDIT_VAULT.md` (e.g. A21 zoom-tier positioning rule remains relevant when touching zoom/boss anchors).
+- Historical audit records: `docs/archive/AUDIT_VAULT.md`（只读归档，不再更新；活债务清单见 `docs/ROADMAP.md`）。

@@ -202,7 +202,7 @@ csharp/core/                    Pure .NET class library (zero Godot dependency)
 tests-csharp/                   xUnit unit tests (reference core, no Godot runtime)
 ```
 
-> For deep architecture details (GameState split, entity management, object pooling, damage pipeline, persistence & security, UI design system) see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+> See [AGENTS.md](./AGENTS.md) for engineering conventions and an architecture overview; gameplay design values live in [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md). Historical behavior specs are archived under `docs/archive/`.
 
 </details>
 
@@ -269,11 +269,9 @@ docs/               Architecture / design / audit docs
 | [AGENTS.md](./AGENTS.md) | Contributor conventions: tech stack / verification / architecture / code style / test strategy / CI gates |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guide: setup / workflow / PR checklist |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Architecture overview: directory roles / per-script duties / service delegation |
 | [docs/TESTING.md](./docs/TESTING.md) | Test strategy: authoritative scene counts / assertion lists / CI flow |
-| [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | Design baseline: gameplay rules / architecture stance |
+| [docs/DESIGN_BASELINE.md](./docs/DESIGN_BASELINE.md) | Design baseline: gameplay rules & values |
 | [docs/BALANCE_MAP.md](./docs/BALANCE_MAP.md) | Numeric config index (generated, do not hand-edit) |
-| [docs/AUDIT_VAULT.md](./docs/AUDIT_VAULT.md) | Code audit archive (proprietary — never delete) |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Roadmap and future direction (single source of truth) |
 
 ---

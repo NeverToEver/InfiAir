@@ -1,3 +1,5 @@
+> **[已归档 2026-09-07 · 行为规格文档退役]** 行为以代码与测试为准，本文件不再维护、不再更新。工程约定见 `AGENTS.md`；玩法设计数值见 `docs/DESIGN_BASELINE.md`；已知债务与开放发现见 `docs/ROADMAP.md`。git 历史保留全文。
+
 # Meta HUD Health & Hit-Feedback - Implementation Spec
 
 Status: Implemented (landed 2026-08-02; `csharp/godot/MetaHealthFX.cs` + `test/meta_health_fx_test.tscn` (`csharp/godot/tests/MetaHealthFxTest.cs`) + meta_health.gdshader/crack_field_bake.gdshader + effects.meta_health; §7 七项测试 + ui_capture 已验; M7 2026-08-08: GDScript → C#); self-contained (params named, anchors file+line, decisions final, perf-biased). Acceptance: §7.

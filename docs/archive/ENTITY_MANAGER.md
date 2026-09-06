@@ -1,3 +1,5 @@
+> **[已归档 2026-09-07 · 行为规格文档退役]** 行为以代码与测试为准，本文件不再维护、不再更新。工程约定见 `AGENTS.md`；玩法设计数值见 `docs/DESIGN_BASELINE.md`；已知债务与开放发现见 `docs/ROADMAP.md`。git 历史保留全文。
+
 # Entity Classification & Unified Entity Manager (ENTITY_MANAGER)
 
 > 2026-08-05. Single source of truth for the in-game entity inventory and the unified

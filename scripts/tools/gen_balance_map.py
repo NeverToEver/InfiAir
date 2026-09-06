@@ -2,7 +2,7 @@
 """生成 docs/BALANCE_MAP.md（数值位置地图）
 
 扫描 scripts/、autoload/（历史路径，现已无源文件）与 csharp/ 下全部 GameState.cfg()/GameState.Instance.Cfg() 及 CfgFx.Float/Int()（判型包装，批 2-5 迁移后承载标量键）调用点（M7d 后实际命中 C# 侧），生成可维护的数值索引：
-- 静态键：json 路径、回退默认值表达式、调用位置（文件:行），并标注 json 中是否存在该键
+- 静态键：json 路径、回退默认值表达式、所在文件（不记行号——行号随重构漂移，徒增同步成本），并标注 json 中是否存在该键
   （缺失 = 走脚本回退，新增/改名时需双写检查）；
 - 动态拼接键（如 player.aim_assist.levels.<level>.frame_pad）：单独列出前缀；
 - 反查：balance.json 中未被任何静态 cfg() 引用的叶子键（可能经动态键/整段读取使用，
@@ -87,7 +87,7 @@ def main() -> None:
         print(f"[gen_balance_map] ERROR: data/balance.json 读取或解析失败: {exc}")
         sys.exit(1)
 
-    static_calls: list[tuple[str, int, str, str]] = []  # file, line, key, default
+    static_calls: list[tuple[str, str, str]] = []  # file, key, default（不记行号：随重构漂移，2026-09-07 约定裁剪）
     dynamic_prefixes: set[str] = set()
     for d in SCAN_DIRS:
         for src in sorted(list(d.rglob("*.gd")) + list(d.rglob("*.cs"))):
@@ -109,12 +109,11 @@ def main() -> None:
                 for m in pat.finditer(text):
                     if _in_comment(text, m.start()) or text[max(0, m.start() - 5):m.start()].endswith("func "):
                         continue
-                    line = text.count("\n", 0, m.start()) + 1
                     # 效果表形态（两变体）仅一个捕获组（键），无默认值列
                     default = "—" if pat in (RE_EFFECT_CFG, RE_EFFECT_CFG_CS) else re.sub(r"\s+", " ", (m.group(2) or "—").strip())
                     if len(default) > 60:
                         default = default[:57] + "..."
-                    static_calls.append((str(rel), line, m.group(1), default))
+                    static_calls.append((str(rel), m.group(1), default))
             for m in RE_DYNAMIC.finditer(text):
                 if not _in_comment(text, m.start()):
                     dynamic_prefixes.add(m.group(1))
@@ -130,8 +129,8 @@ def main() -> None:
                 if not _in_comment(text, m.start()) and m.group(1) in prefix_vars:
                     dynamic_prefixes.add(prefix_vars[m.group(1)])
 
-    referenced = {key for _, _, key, _ in static_calls}
-    missing_in_json = [(f, ln, k, d) for f, ln, k, d in static_calls if not json_get(balance, k)]
+    referenced = {key for _, key, _ in static_calls}
+    missing_in_json = [(f, k, d) for f, k, d in static_calls if not json_get(balance, k)]
 
     def covered_by_dynamic(leaf: str) -> bool:
         return any(leaf.startswith(p) for p in dynamic_prefixes)
@@ -167,16 +166,16 @@ def main() -> None:
     lines.append("## 静态 cfg() 调用点（按文件分组）")
     lines.append("")
     cur_file = None
-    for f, ln, key, default in static_calls:
+    for f, key, default in static_calls:
         if f != cur_file:
             if cur_file is not None:
                 lines.append("")
             cur_file = f
             lines.append(f"### `{f}`")
             lines.append("")
-            lines.append("| 行 | json 键路径 | 脚本回退值 |")
-            lines.append("| --- | --- | --- |")
-        lines.append(f"| {ln} | `{key}` | `{default}` |")
+            lines.append("| json 键路径 | 脚本回退值 |")
+            lines.append("| --- | --- |")
+        lines.append(f"| `{key}` | `{default}` |")
     lines.append("")
     lines.append("## 动态拼接键前缀")
     lines.append("")
@@ -193,11 +192,11 @@ def main() -> None:
     lines.append("## 脚本引用但 json 缺失的键（走回退值，建议补进 json 或确认为有意兜底）")
     lines.append("")
     seen = set()
-    for f, ln, key, default in missing_in_json:
+    for f, key, default in missing_in_json:
         if key in seen:
             continue
         seen.add(key)
-        lines.append(f"- `{key}`（`{f}:{ln}`，回退 `{default}`）")
+        lines.append(f"- `{key}`（`{f}`，回退 `{default}`）")
     lines.append("")
 
     OUT.write_text("\n".join(lines), encoding="utf-8")

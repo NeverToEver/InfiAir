@@ -1,3 +1,5 @@
+> **[已归档 2026-09-07 · 行为规格文档退役]** 行为以代码与测试为准，本文件不再维护、不再更新。工程约定见 `AGENTS.md`；玩法设计数值见 `docs/DESIGN_BASELINE.md`；已知债务与开放发现见 `docs/ROADMAP.md`。git 历史保留全文。
+
 # Return Home Cinematic & Phantom Base UI
 
 Single source of truth: return-home cinematic + phantom station base UI (sampling, concept, storyboard, base-UI re-skin, transition). Any cinematic/UI change must sync this doc. Intro symmetry: `docs/INTRO_CINEMATIC.md`.

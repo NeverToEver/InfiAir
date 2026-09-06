@@ -2,6 +2,29 @@
 
 本项目版本变更记录。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。版本号为 MAJOR.MINOR 递增（项目惯例，非完整 SemVer），版本同步点见 `release.sh` 与 `project.godot` `config/version`。**早期版本（≤ 3.22）变更细节见 `git log`**。版本 3.23 无发布记录（git 历史未见对应 tag/条目，疑似有意跳号，2026-08-06 审计登记）。
 
+## [Unreleased]
+
+## [3.33] - 2026-09-07
+
+### 修复（2026-09-07，主游戏链路深度诊断——设计基线核实 + 无头门禁盲区实机扫查，5 项）
+
+- **Welcome 布局惯用法错误**（严重）：`SetAnchorsPreset(CenterLeft)` + 入树前 `Position` 存裸偏移，入树后叠加 0.5×1080 基线——登录面板贴底截断、登录后主菜单（难度/开始游戏/教程/设置/排行榜/研究所）大部分推出屏外；自账户版 welcome.gd 移植起存在，无视觉门禁一月未暴露 → 双面板改绝对定位（登录面板垂直居中；主区按"左栏账号+右栏菜单"设计移右栏 (1260,260)，顺带消除与历史最佳榜单的次生重叠）
+- **RunTime 菜单污染**（中）：welcome 停留时间经 `GameState._Process` 无条件累积进 RunTime，新局难度开局即被推高（实机复现：停留 8 分钟后 ×2.20），survive 任务同被白送 → 新增 `GameState.SetRunActive` 门控，Main 按 `CurrentScene == this` 惯例置位/复位（与事件管理器同口径）
+- **暂停页 R 重开不删档**（中）：有返航检查点时"重开"被 `HasSave()` 自动续局退化回滚 → 重开前 `DeleteSave()`（弃局语义，对齐 ExitConfirm：删档不结算）
+- **返航→继续出击 Boss 绕过入场窗口**（中）：精英事件 Abort 后 BOSS_DELAY 计时在解除暂停后补触发 `TriggerBoss()` 无条件生效，Boss 出现在入场动画窗口内（绕过 ClearPending/D01 契约与分数/时间双门）→ `TriggerBossInternal` 加 `IsProcessing()` 门控，恢复处理后由分数/时间门自然重触发（120s 兜底不饿死）
+- **EliteTurretEvent 配置钳制孪生遗漏**（低，AC8 同族）：`duration/rise_time/boss_resume_delay/cooldown` 补下限钳（0 冷却高触发率下事件背靠背挤占波次近饿死；≤0 时长开启即超时空转）
+- **开放登记**（未修，登记处 `docs/ROADMAP.md` 已知债务清单）：召唤蓄力窗口期事件可触发（L13 反向漏出）；基地任务绝对计数轮换即完成（刷新经济泄漏）
+- **验证**：build 0w/0e + xUnit 115/115 + format 三工程零 diff + import 0 警告 + 300 帧 0 错误 + smoke/base 0 FAIL + 窗口化实机回归（welcome 双阶段/开局难度 ×1.00/三选一/HUD/实战）+ autoplay 900s（修复前基线）与 240s（修复后回归）探针 0 崩溃 0 卡死
+
+### 工程纪律裁剪（2026-09-07，用户指令：惯例冗杂）
+
+- **行为规格文档退役**：13 份（ARCHITECTURE/BOSS_REDESIGN/ELITE_TURRET_EVENT/FORMATION_STRIKE_EVENT/FOG_EVENTS/EVENT_MANAGER/ENTITY_MANAGER/META_HUD_DESIGN/INTRO_CINEMATIC/RETURN_HOME_CINEMATIC/EXIT_FLOW/AUDIT_REVIEW_SOP/AUDIT_VAULT）`git mv` 入 `docs/archive/` 并加弃用头注——行为以代码与测试为准，不再维护行为规格（历史依据：双源漂移曾消耗专门纠偏轮次，一次 19 文档 40+ 失实）
+- **活文档收敛为 5 份**（AGENTS.md 约定表）：AGENTS=工程纪律单一权威（吸收 DESIGN_BASELINE §2/§3 独有不变量）、DESIGN_BASELINE=玩法设计意图（281→约 120 行）、ROADMAP=方向决策+**已知债务与开放发现唯一登记处**（接替审计档案的活债务职能）、TESTING=测试与场景计数、BALANCE_MAP=生成物
+- **BALANCE_MAP 去行号**：生成器不再输出调用行号——普通重构无需重跑同步（历史上多轮「行号漂移修复」提交与曾设的零 diff 闸由此消灭）；仅键增删/改名需要重跑
+- **注释纪律**：禁审计轮次编号署名（`L01`/`AC8`/`W4` 式标签废止，存量不清算）；注释只写代码表达不了的约束
+- **引用同步**：README 双语文档表、CLAUDE.md、TESTING.md 改指活文档；`AGENTS.md` 全文重写为单一权威
+- **验证**：文档改动（无行为变化）+ 注释措辞（build 0w/0e + smoke 0 FAIL 复核）
+
 ## [3.32] - 2026-08-16
 
 ### 重构（2026-08-16，空间换时间热路径优化与战斗/事件组件可扩展化）
