@@ -1,44 +1,55 @@
 # AGENTS.md
 
-## Project
+## 项目
 
-InfiAir: single-player 2D top-down shooter; Godot 4.6.2 + C# (.NET 8, gl_compatibility), 全量 C#（零 GDScript）。重制自 Python/Pygame `airwar-game`（`docs/archive/PORTING_PARITY.md`）; 独立运行，无原版依赖。
+InfiAir：单人 2D 纵版射击游戏。Godot 4.6.2 + C#（.NET 8，gl_compatibility），全量 C#、零 GDScript，必须用 .NET 版引擎（godot-mono）。
 
-Game loop: auto-fire + wave spawns → milestone buff 3-choice → 4 rotating bosses + enrage → mothership supply/fire platform → return-to-base mid-run restock → same run continues. Score-only; no pickups.
+玩法循环：自动射击 + 波次刷怪 → 里程碑三选一 buff → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行。只有分数结算，没有掉落拾取。
 
-- Entry: `project.godot` `run/main_scene = res://scenes/welcome.tscn`（账户/难度/教程/设置/本地排行榜; 战斗场景 `scenes/main.tscn` 由测试显式实例化）; Viewport 1920×1080, stretch `canvas_items` / aspect `keep`。
-- 唯一 autoload: `GameState`（`csharp/godot/GameState.cs`）——编排门面，组合 8 域服务（Meta/Missions/Score/RunProgression/CombatState/Settings/InputBindings/UserSession）与 8 个非 autoload 服务; C# 侧统一经 `GameState.Instance` typed 访问。详见 `docs/ARCHITECTURE.md`。
-- Text: zh+en bilingual（UI 默认 zh; 新 key 填 `data/translations.csv` 两列）; docs in English（`docs/AUDIT_VAULT.md` + `docs/archive/` in Chinese）。`CLAUDE.md` = entry overview only; 本文件优先。设计基线仅经 `docs/DESIGN_BASELINE.md` 修订。
+- 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/本地排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`。
+- 唯一 autoload 是 `GameState`（`csharp/godot/GameState.cs`），各域服务的编排门面；C# 代码统一经 `GameState.Instance` 访问。
+- UI 文本中英双语，默认中文。所有可见文本走 `Tr("UPPER_SNAKE_CASE")`，新 key 同时填 `data/translations.csv` 的 zh/en 两列并重新导入。
 
-## Quick Reference
+## 目录
 
-- **Run:** `./run.sh`（自动定位引擎, .NET 版优先——C# 工程必须 .NET 版）。Minimal verify: `godot --headless --import --path .` → `godot --headless --path . --quit-after 300` → `res://test/smoke_test.tscn`; 触碰 saves/base/mothership 加 `res://test/base_system_test.tscn`; C# 改动: `dotnet build`（零警告）+ `dotnet test tests-csharp/` + `dotnet format --verify-no-changes`（三 csproj）。
-- **Tunables:** `data/balance.json`（`scripts/tools/balance_editor.py`）; 文本 `data/translations.csv`。
-- **Roslynator:** `tools/roslynator/`（gitignored; 重建: `dotnet tool install --tool-path tools/roslynator roslynator.dotnet.cli`）; 运行需 `dotnet` 在 PATH + `DOTNET_ROOT=~/.dotnet`。口径: `.agents/csharp-conventions.md`。
-- **CI/CD:** `ci.yml` 单 job fast-gate（C# build/test → import 警告 → smoke 300 帧 + `smoke_test`）覆盖全部 push(main+feature) 与 PR; `paths-ignore: docs/** + *.md`。Release: `export_presets.cfg` + `release.sh`（本地导出需官方 **mono** 导出模板 `4.6.2.stable.mono`, 版本严格匹配; `InfiAir.sln` 必须入库，缺失会静默出空壳包）或手动 `release.yml`（远端官方模板构建）。政策: 仅官方 checkout/upload-artifact/cache action + dotnet-install.sh + Godot 引擎/模板, 禁其他第三方依赖。
+- `csharp/core/` → 命名空间 `InfiAir.Core`：纯 .NET 类库，零 Godot 依赖。数据模型、纯逻辑、算法只放这里，并配 xUnit 测试（`tests-csharp/`，只测 Core）。
+- `csharp/godot/` → 命名空间 `InfiAir`：全部运行时代码（节点、场景绑定、UI、玩法编排），可引用 Core；`*Interop.cs` 是 Core 类型的 Godot 绑定端点。
+- 数值调参只改 `data/balance.json`，读取走 `GameState.Cfg("path", def)`（需范围校验的标量用 `CfgFx`）。代码里的兜底默认值必须与 json 定稿值一致。改完跑 `python3 scripts/tools/gen_balance_map.py` 重新生成 `docs/BALANCE_MAP.md`（生成文件禁手改）。
 
-## Merge Gate & Testing
+## 验证命令
 
-3 层（2026-08-29 削减, 单 job fast-gate 全跑）: ① C# gate（build warnings-as-errors + xUnit）② engine warnings 零容忍（import grep）③ compile+smoke（main 300 帧 + `smoke_test`）。断言场景已大幅退役（仅存 `smoke_test` + `base_system_test`, 计数权威 `docs/TESTING.md`）; 改动面靠本地最小验证 + xUnit 兜底。
+改动后按需跑，全绿才算完：
 
-## Architecture & Directory Roles
+```bash
+dotnet build                                                     # 零警告是硬门禁（TreatWarningsAsErrors）
+dotnet test tests-csharp/
+dotnet format --verify-no-changes                                # 三个 csproj
+godot-mono --headless --import --path .                          # 不许出现引擎警告
+godot-mono --headless --path . --quit-after 300                  # 300 帧运行检查
+godot-mono --headless --path . res://test/smoke_test.tscn        # 主流程冒烟，改动后必跑
+godot-mono --headless --path . res://test/base_system_test.tscn  # 触碰存档/基地/母舰时加跑
+```
 
-`csharp/core/` = 纯 .NET 类库（零 Godot 依赖: 数据模型/纯逻辑/算法）; `csharp/godot/` = Godot 绑定层（全部运行时代码, 可引用 Core）; `tests-csharp/` = xUnit 纯逻辑单测。`welcome.tscn` 入口（账户, `csharp/godot/Welcome.cs`）; `main.tscn` 运行容器（`Main.cs` 编排; 运行时动态实体挂 Main 下, 便于清理/测试可见）。全树与逐脚本职责: `docs/ARCHITECTURE.md`。
+断言场景只保留 `smoke_test` 与 `base_system_test` 两个。新的行为测试优先写成 xUnit 纯逻辑测试；确需新增断言场景，先在 `docs/TESTING.md` 的 Scene Counts 登记（该文件是场景计数的唯一权威，其他文档不得硬编码计数）。测试只走公开测试端口（`SimulateTouch`/`SimulateDrag`/`SetTestState` 等），禁止直调私有方法或 `_UnhandledInput`。
 
-## Conventions
+## 硬性约定
 
-Global invariants: collision layers / `world_scale` / `ViewWorldRect()` / `Cfg()` / coroutine discipline / i18n / hot paths / pool guards. Details:
+- 类名必须等于文件名（大小写敏感）。Godot 节点/Resource 类一律 `partial`，一个类一个文件；GameState 按域拆 partial 是唯一例外。
+- `.cs.uid` sidecar 必须入库；改名或移动 `.cs` 时连带移动。
+- C# 类型之间的通信一律用 C# event（`+=` 订阅、`_ExitTree` 配对退订）；引擎信号用 `Connect(SignalName.X, Callable.From(...))` 连接、`EmitSignal(SignalName.X, ...)` 发射。
+- 游戏内计时一律走 `SceneTree.CreateTimer` + `ToSignal`（或 `Coroutine.WaitSeconds` 等封装），禁止裸 `Task.Delay` 与裸 `async void`；await 段 try/catch，恢复后用 `IsInstanceValid` 判活。
+- `_Process`/`_PhysicsProcess` 热路径零托管分配：不构造 string/StringName、不用 LINQ、不逐帧 `GetNodesInGroup`（改用 `GameState.Enemies`/`PlayerRef` 等注册表）、引用 `SignalName`/`MethodName` 常量。
+- 碰撞层：1=player、2=player_bullet、3=enemy（含 boss）、4=enemy_bullet。玩家只能经 `Player/Hitbox` Area2D 受击；命中解析按组（玩家弹对 `enemy` 组，敌弹/敌实体对 `player_hitbox` 组）。
+- 相机固定在 (960,540)，只缩放不平移。一切屏幕空间/可见性/生成范围计算用 `GameState.ViewWorldRect()`，禁止硬编码 0..1920/0..1080。
+- `world_scale = 0.4` 是唯一缩放杆：设计值 × world_scale 得运行值，玩法范围/UI/过场不缩放。共享 Shape2D 禁止 `*=` 累乘；运行时改尺寸需 `resource_local_to_scene = true`。
+- 子弹与波次敌机走 `GameState.BulletPool`/`EnemyPool`，formation 敌机直建直毁。禁止对池化实体直接 `QueueFree` 或绕开池复用。
+- UI 样式统一走 `csharp/godot/UITheme.cs` 的工厂方法，新页面用 `MakePageShell`；暂停类 UI（buff/暂停/结算）需 `ProcessMode = Always`；返回/退出统一由 `BackNavigator` 路由，页面不自行消费 `ui_cancel`。
+- 持久化只写 `user://`，存档 per-user 并做 owner 校验；损坏 JSON 隔离为 `.corrupt` 文件并在开始屏提示，禁止静默丢弃用户数据。无网络、无凭据、无第三方运行时依赖。
 
-- [C# Conventions](.agents/csharp-conventions.md)
-- [Lifecycle, Input & Test Discipline](.agents/lifecycle.md)
-- [Balance & Config](.agents/balance-config.md)
-- [Collision, Damage & View](.agents/collision-view.md)
-- [UI, Text & Navigation](.agents/ui-navigation.md)
-- [Performance & Object Lifecycle](.agents/performance.md)
-- [Shell Scripts](.agents/shell-scripts.md)
-- [Persistence & Security](.agents/persistence-security.md)
+## 文档与流程
 
-## Doc Sync
-
-- Rules & file map: [.agents/doc-sync.md](.agents/doc-sync.md)。
-- **`docs/AUDIT_VAULT.md` is proprietary — never delete/merge**。
+- 深入参考：`docs/ARCHITECTURE.md`（场景树与逐脚本职责）、`docs/TESTING.md`（测试策略）、`docs/ROADMAP.md`（方向与决策）、`docs/DESIGN_BASELINE.md`（设计基线，修订唯一入口）。
+- 完成的计划/评审文档全文移入 `docs/archive/`，并在 `docs/EXECUTION_LOG.md` 登记。
+- **`docs/AUDIT_VAULT.md` 是专有审计档案：永不删除、永不合并，只追加新发现与修复回填。改动核心逻辑前先查它。**
+- CI 是单 job fast-gate（C# build+test → import 警告 → 300 帧冒烟 + smoke_test），只允许官方 action 与 Godot 官方引擎/导出模板。
+- Roslynator（`tools/roslynator/`，已 gitignore）只做 info 级参考，非门禁；其中 CA1822（标 static）不要应用——Godot 场景/信号按名字连接方法，static 化有运行期解析风险。

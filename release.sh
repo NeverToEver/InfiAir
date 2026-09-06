@@ -6,7 +6,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# 2026-08-06 审计：--help（违反 .agents/shell-scripts.md 自约——「支持 --help」）；
 # ${1:-} 兼容无参数调用（set -u 下裸 $1 报 unbound variable）
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     echo "用法: ./release.sh [--help]"

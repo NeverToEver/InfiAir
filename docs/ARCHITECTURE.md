@@ -1,6 +1,6 @@
 # Runtime Architecture & Config (ARCHITECTURE)
 
-> On-demand reference for `AGENTS.md`: node tree of `scenes/main.tscn`, per-script duties, stack, key configs, directory roles. **Rules & entry: `AGENTS.md` + `.agents/*`**; test commands: `docs/TESTING.md`.
+> On-demand reference for `AGENTS.md`: node tree of `scenes/main.tscn`, per-script duties, stack, key configs, directory roles. **Rules & entry: `AGENTS.md`**; test commands: `docs/TESTING.md`.
 
 ## Stack
 
@@ -96,5 +96,4 @@ FogEventManager is **not** under Main: it's a service child of the `GameState` a
 | `data/` | Runtime config + translation sources. |
 | `test/` | Headless `.tscn + .cs` self-checks, perf bench, autoplay, screenshot tools. |
 | `docs/` | EXIT_FLOW, AUDIT_REVIEW_SOP (parallel-audit methodology), ROADMAP, DESIGN_BASELINE, BALANCE_MAP (generated), system design docs, screenshots; `docs/archive/` frozen history (`PORTING_PARITY.md` + `EXECUTION_LOG.md` + `ENDLESS_BALANCE_PLAN.md` + originals). |
-| `.agents/` | Agent entry docs linked from `AGENTS.md` (conventions, shell scripts, doc sync). |
 | `packaging/` | `linux/` (install.sh/uninstall.sh/infiair.desktop), `windows/` (install.bat/uninstall.bat). |

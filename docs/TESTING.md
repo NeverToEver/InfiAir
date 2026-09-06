@@ -30,7 +30,7 @@ Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests
 
 - **Assertion scenes** = 2 (`smoke_test` + `base_system_test`).
 - **Total scenes** = `ls test/*.tscn | wc -l` → **10** (2 assertion + `perf_bench` + 7 screenshot tools).
-- Rule: CI gates on `--quit-after 300` + `smoke_test.tscn` only. **Other docs must not hardcode counts**; reference this file (rule in `.agents/doc-sync.md`). When adding/removing test scenes, update the counts here.
+- Rule: CI gates on `--quit-after 300` + `smoke_test.tscn` only. **Other docs must not hardcode counts**; reference this file. When adding/removing test scenes, update the counts here.
 
 ## Headless Test Environment Notes
 
