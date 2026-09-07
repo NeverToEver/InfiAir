@@ -400,6 +400,7 @@ public partial class Main : Node2D
             _chargeTime += d;
             _chargeGhost.Visible = true;
             var cp = Mathf.Clamp(_chargeTime / DOCK_CHARGE_TIME, 0.0f, 1.0f);
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.MothershipSummon, cp);
             var ghostMod = _chargeGhost.Modulate;
             ghostMod.A = 0.15f + 0.25f * cp;
             _chargeGhost.Modulate = ghostMod;
@@ -435,18 +436,18 @@ public partial class Main : Node2D
         if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed("homecoming"))
         {
             _homeChargeTime += d;
-            _hud.SetHomeCharge(_homeChargeTime / HOME_CHARGE_TIME);
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, _homeChargeTime / HOME_CHARGE_TIME);
             if (_homeChargeTime >= HOME_CHARGE_TIME)
             {
                 _homeChargeTime = 0.0f;
-                _hud.SetHomeCharge(-1.0f);
+                _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
                 StartHomecomingInternal();
             }
         }
         else if (_homeChargeTime > 0.0f)
         {
             _homeChargeTime = 0.0f;
-            _hud.SetHomeCharge(-1.0f);
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         }
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
@@ -454,18 +455,18 @@ public partial class Main : Node2D
         if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed("give_up"))
         {
             _giveUpCharge += d;
-            _hud.SetGiveUpCharge(_giveUpCharge / GIVE_UP_HOLD_TIME);
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, _giveUpCharge / GIVE_UP_HOLD_TIME);
             if (_giveUpCharge >= GIVE_UP_HOLD_TIME)
             {
                 _giveUpCharge = 0.0f;
-                _hud.SetGiveUpCharge(-1.0f);
+                _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
                 GiveUp();
             }
         }
         else if (_giveUpCharge > 0.0f)
         {
             _giveUpCharge = 0.0f;
-            _hud.SetGiveUpCharge(-1.0f);
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
         }
 
         // DYING 呼吸缩放（D6）：仅激活期逐帧组合；退出激活时复位一次到基础 zoom
@@ -485,6 +486,7 @@ public partial class Main : Node2D
     {
         _charging = false;
         _chargeTime = 0.0f;
+        _hud.SetCharge(InfiAir.Hud.ChargeChannel.MothershipSummon, -1.0f);
         _chargeGhost.Visible = false;
         _chargeFx.Visible = false;
         _chargeInflow.Emitting = false;
@@ -929,7 +931,7 @@ public partial class Main : Node2D
         // C25：返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
         StopChargingInternal();
         _homeChargeTime = 0.0f;
-        _hud.SetHomeCharge(-1.0f);
+        _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         _player.LockInput();
         // 迷雾事件：返航中场整备清除进行中的干扰效果（继续出击后干净开局）
         _fogEvents.EndActive();

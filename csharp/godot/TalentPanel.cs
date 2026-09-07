@@ -140,7 +140,7 @@ public partial class TalentPanel : CanvasLayer
         _charging = true;
         _chargeT = 0f;
         _chargeStartHealth = GameState.Instance.Health;
-        _main.Hud().SetTalentCharge(0f);
+        _main.Hud().SetCharge(Hud.ChargeChannel.TalentPanel, 0f);
         _main.Hud().SetCacheChipCharging(true);
     }
 
@@ -161,7 +161,7 @@ public partial class TalentPanel : CanvasLayer
         }
 
         _charging = false;
-        _main.Hud().SetTalentCharge(-1f);
+        _main.Hud().SetCharge(Hud.ChargeChannel.TalentPanel, -1f);
         _main.Hud().SetCacheChipCharging(false);
     }
 
@@ -192,13 +192,13 @@ public partial class TalentPanel : CanvasLayer
         if (_chargeT >= _chargeDuration)
         {
             _charging = false;
-            _main.Hud().SetTalentCharge(-1f);
+            _main.Hud().SetCharge(Hud.ChargeChannel.TalentPanel, -1f);
             _main.Hud().SetCacheChipCharging(false);
             Open();
         }
         else
         {
-            _main.Hud().SetTalentCharge(_chargeT / _chargeDuration);
+            _main.Hud().SetCharge(Hud.ChargeChannel.TalentPanel, _chargeT / _chargeDuration);
         }
     }
 

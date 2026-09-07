@@ -48,6 +48,16 @@ public partial class HudCapture : Node
             await Settle();
             Shot("normal");
 
+            // 1b. 统一蓄力条组件（HudChargeBar）：三通道同屏目检风格一致性（仅颜色/文案不同）
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.Homecoming, 0.45f);
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.GiveUp, 0.7f);
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.EarlyLeave, 0.9f);
+            await Settle();
+            Shot("charges");
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.Homecoming, -1f);
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.GiveUp, -1f);
+            GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.EarlyLeave, -1f);
+
             // 2. 极端：全部已解锁天赋叠层拉满（19 种 distinct；上限以 buffs.<id>.max_stacks 为准）
             gs.Talent.TestSetLevel("power_shot", 5);
             gs.Talent.TestSetLevel("rapid_fire", 4);

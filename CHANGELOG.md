@@ -13,6 +13,7 @@
 - **基地衔接**：返航存档即时落盘天赋态（4.3 结算顺序语义）；基地「武器挂载」面板改**路线契约**（狂战士/守护者/游侠：核心系 +1 有效层级、其余系上限减半、首次绑定免费、切换耗重置代币、RP 购置代币）；修复 `ChamferedPanel` 嵌套自适应正反馈（socket 子面板棘轮抬升最小尺寸把概览卡 280→430px 持续撑出屏，定宽包裹断环）
 - **数据**：`balance.json` 新增 `talent` 段（缓存衰减/消耗/四机制参数 + 每节点软上限）并为 7 个 buff 补齐 `max_stacks`（json 成唯一上限权威）；BALANCE_MAP 重生成零缺失键；翻译表 +56/-12 键并重导入
 - **开合缓速编排（2026-09-07 追加，减少硬切割裂感）**：进入需蓄力——按住 G / 按住 HUD 指示器（`talent.panel.charge_time` 0.55s，底部居中进度条与提前离舰同款视觉，指示器同步提亮；松开/受击/其他模态打断即取消），满格自动进入；入场 = dim 淡入 → 轮盘带轻微过冲滑入 → 标题/读数/概览卡逐级 stagger（Cubic Out）→ 底栏上浮收尾，退出反序加速（内容先走、dim 最后收、完成才恢复对局）；概览↔扇形切换走「旧内容退场 → 新内容进场」编排，详情卡右侧滑入；蓄力/取消/满格进入与动画关闭经 smoke 断言，蓄力条与入场中段帧入 ui_capture 截图留档
+- **统一长按蓄力组件（2026-09-07 追加，降低维护压力）**：全部 5 个长按功能（召唤母舰 H/返航 B/放弃 K/提前离舰 H/天赋 G）的蓄力 UI 收敛为单一 `HudChargeBar` 组件 + `Hud.ChargeChannel` 注册表（`SetCharge(通道, ratio)` 唯一进度口），差异仅 提示文案 + 通道色；返航/放弃由纯文字百分比升级为统一进度条，母舰召唤蓄力补上此前缺失的进度条；`SetRatio` 整百分比不变时不重写文本（每帧驱动零冗余分配）；测试端口 EarlyLeaveBox/EarlyLeaveFill/TalentChargeBox 改指注册表，HudCapture 新增三通道同屏截图（风格一致性目检）
 - **验证**：build 0w/0e + xUnit 147/147 + format 三工程零 diff + import 0 警告 + smoke/base 0 FAIL + 300 帧 0 错误 + 窗口化实机过目（面板概览/扇形/基地契约/HUD 指示器四屏）
 - **随本提交入库的前会话工作区遗留**：`RadialWheel` 左缘轮盘组件 + 纯逻辑模型 + 单测/截图工具（本次投产即天赋面板左翼）；UI 金属质感管线（`gen_metal_textures.py` + `assets/sprites/ui/`）及其在 UITheme/ChamferedPanel/SegmentedBar/SettingsUi/Welcome 等的应用改动
 

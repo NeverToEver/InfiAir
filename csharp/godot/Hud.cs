@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using InfiAir.Core.Text;
 
@@ -37,11 +38,6 @@ public partial class Hud : CanvasLayer
 
     private HBoxContainer _magBox = null!;
     private readonly Godot.Collections.Array<ColorRect> _magCellsNodes = new();
-    private Label _homeChargeLabel = null!;
-    private Label _giveUpLabel = null!;
-    private VBoxContainer _earlyLeaveBox = null!;
-    private Label _earlyLeaveLabel = null!;
-    private ColorRect _earlyLeaveFill = null!;
     private Main _main = null!; // U13：typed
     private float _pollTimer;
     private string _lastDockText = "";
@@ -210,60 +206,7 @@ public partial class Hud : CanvasLayer
         BuildBackplates();
         BuildBanner();
         BuildMagazineBar();
-        // 返航蓄力提示（底部居中）
-        _homeChargeLabel = new Label
-        {
-            Position = new Vector2(-140.0f, -120.0f),
-            CustomMinimumSize = new Vector2(280.0f, 0.0f),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Visible = false,
-        };
-        _homeChargeLabel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _homeChargeLabel.AddThemeFontOverride("font", Font);
-        _homeChargeLabel.AddThemeFontSizeOverride("font_size", 24);
-        _homeChargeLabel.AddThemeColorOverride("font_color", UITheme.ChargeCyan);
-        AddChild(_homeChargeLabel);
-        // 放弃出击蓄力提示（底部居中，返航提示上方，红色警示）
-        _giveUpLabel = new Label
-        {
-            Position = new Vector2(-140.0f, -164.0f),
-            CustomMinimumSize = new Vector2(280.0f, 0.0f),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Visible = false,
-        };
-        _giveUpLabel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _giveUpLabel.AddThemeFontOverride("font", Font);
-        _giveUpLabel.AddThemeFontSizeOverride("font_size", 24);
-        _giveUpLabel.AddThemeColorOverride("font_color", UITheme.Danger);
-        AddChild(_giveUpLabel);
-        // 提前离舰蓄力进度条（驻留母舰时长按 H，底部居中，放弃提示上方）
-        _earlyLeaveBox = new VBoxContainer
-        {
-            Position = new Vector2(-140.0f, -220.0f),
-            CustomMinimumSize = new Vector2(280.0f, 0.0f),
-            Visible = false,
-        };
-        _earlyLeaveBox.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _earlyLeaveBox.AddThemeConstantOverride("separation", 6);
-        AddChild(_earlyLeaveBox);
-        _earlyLeaveLabel = new Label
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        _earlyLeaveLabel.AddThemeFontOverride("font", Font);
-        _earlyLeaveLabel.AddThemeFontSizeOverride("font_size", 24);
-        _earlyLeaveLabel.AddThemeColorOverride("font_color", UITheme.WarnYellow);
-        _earlyLeaveBox.AddChild(_earlyLeaveLabel);
-        var barBg = new ColorRect
-        {
-            Color = new Color(1.0f, 1.0f, 1.0f, 0.15f),
-            CustomMinimumSize = new Vector2(280.0f, 10.0f),
-        };
-        _earlyLeaveBox.AddChild(barBg);
-        _earlyLeaveFill = new ColorRect { Color = UITheme.WarnYellow };
-        _earlyLeaveFill.SetAnchorsPreset(Control.LayoutPreset.LeftWide);
-        _earlyLeaveFill.AnchorRight = 0.0f;
-        barBg.AddChild(_earlyLeaveFill);
+        BuildChargeBars();
         // 名牌行占位：血条整体下移 30px，上方留出一行型号 + 阶段标签
         _bossBar.OffsetTop += 30.0f;
         _bossBar.OffsetBottom += 30.0f;
@@ -402,49 +345,48 @@ public partial class Hud : CanvasLayer
         _eventBox.Visible = false;
     }
 
-    /// <summary>放弃出击蓄力进度：ratio &lt; 0 隐藏，否则显示百分比。</summary>
-    public void SetGiveUpCharge(float ratio)
+    // ---------------- 长按蓄力通道（统一 HudChargeBar 组件注册表） ----------------
+
+    /// <summary>全部长按触发功能的蓄力条通道：差异仅 提示文案 + 填充色（规格见 ChargeBarSpecs）。
+    /// 新增长按功能 = 加一枚枚举 + 一行规格，UI 由 HudChargeBar 统一承载，不再各写一套。</summary>
+    public enum ChargeChannel
     {
-        if (ratio < 0.0f)
+        /// <summary>长按 H 召唤母舰。</summary>
+        MothershipSummon,
+        /// <summary>长按 B 返航。</summary>
+        Homecoming,
+        /// <summary>长按 K 放弃出击。</summary>
+        GiveUp,
+        /// <summary>驻留母舰时长按 H 提前离舰。</summary>
+        EarlyLeave,
+        /// <summary>按住 G 调出天赋面板。</summary>
+        TalentPanel,
+    }
+
+    /// <summary>通道规格：提示翻译键（%d 占位）/ 通道色 / 底部居中槽位（沿用历史堆叠次序防互叠）。</summary>
+    private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, float SlotY)> ChargeBarSpecs = new()
+    {
+        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeCyan, -268.0f),
+        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeCyan, -120.0f),
+        [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, -164.0f),
+        [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, -220.0f),
+        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeCyan, -96.0f),
+    };
+
+    private readonly Dictionary<ChargeChannel, HudChargeBar> _chargeBars = new();
+
+    private void BuildChargeBars()
+    {
+        foreach (var kv in ChargeBarSpecs)
         {
-            _giveUpLabel.Visible = false;
-        }
-        else
-        {
-            _giveUpLabel.Visible = true;
-            _giveUpLabel.Text = GdFormat.Format((string)Tr("GIVE_UP_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
+            var bar = HudChargeBar.Create((string)Tr(kv.Value.PromptKey), kv.Value.Color, new Vector2(-140.0f, kv.Value.SlotY));
+            _chargeBars[kv.Key] = bar;
+            AddChild(bar);
         }
     }
 
-    /// <summary>返航蓄力进度：ratio &lt; 0 隐藏，否则显示百分比。</summary>
-    public void SetHomeCharge(float ratio)
-    {
-        if (ratio < 0.0f)
-        {
-            _homeChargeLabel.Visible = false;
-        }
-        else
-        {
-            _homeChargeLabel.Visible = true;
-            _homeChargeLabel.Text = GdFormat.Format((string)Tr("HOME_CHARGE"), (int)(Mathf.Clamp(ratio, 0.0f, 1.0f) * 100.0f));
-        }
-    }
-
-    /// <summary>提前离舰蓄力进度条（驻留母舰时长按 H）：ratio &lt; 0 隐藏，否则显示百分比 + 进度条。</summary>
-    public void SetEarlyLeaveCharge(float ratio)
-    {
-        if (ratio < 0.0f)
-        {
-            _earlyLeaveBox.Visible = false;
-        }
-        else
-        {
-            var r = Mathf.Clamp(ratio, 0.0f, 1.0f);
-            _earlyLeaveBox.Visible = true;
-            _earlyLeaveLabel.Text = GdFormat.Format((string)Tr("MS_EARLY_LEAVE"), (int)(r * 100.0f));
-            _earlyLeaveFill.AnchorRight = r;
-        }
-    }
+    /// <summary>统一蓄力进度口（全部长按功能唯一入口）：ratio &lt; 0 隐藏该通道。</summary>
+    public void SetCharge(ChargeChannel channel, float ratio) => _chargeBars[channel].SetRatio(ratio);
 
     private void BuildMagazineBar()
     {
@@ -1159,9 +1101,6 @@ public partial class Hud : CanvasLayer
     private ChamferedPanel _cacheChip = null!;
     private Label _cacheCount = null!;
     private Label _cacheTooltip = null!;
-    private VBoxContainer _talentChargeBox = null!;
-    private Label _talentChargeLabel = null!;
-    private ColorRect _talentChargeFill = null!;
     private Tween? _cachePulseTween;
     private int _lastCacheRaw = -1;
 
@@ -1219,58 +1158,10 @@ public partial class Hud : CanvasLayer
             _cacheTooltip.Visible = false;
             _main.TalentPanel().NotifyTriggerReleased(); // 按住蓄力中移出芯片 = 松开，取消蓄力
         };
-
-        // 蓄力进度条（底部居中，提前离舰同款视觉）：进入天赋面板的「缓速」仪式——满格才进
-        _talentChargeBox = new VBoxContainer
-        {
-            Position = new Vector2(-140.0f, -96.0f),
-            CustomMinimumSize = new Vector2(280.0f, 0.0f),
-            Visible = false,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        _talentChargeBox.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _talentChargeBox.AddThemeConstantOverride("separation", 6);
-        AddChild(_talentChargeBox);
-        _talentChargeLabel = new Label
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        _talentChargeLabel.AddThemeFontOverride("font", Font);
-        _talentChargeLabel.AddThemeFontSizeOverride("font_size", 24);
-        _talentChargeLabel.AddThemeColorOverride("font_color", UITheme.ChargeCyan);
-        _talentChargeBox.AddChild(_talentChargeLabel);
-        var talentBarBg = new ColorRect
-        {
-            Color = new Color(1.0f, 1.0f, 1.0f, 0.15f),
-            CustomMinimumSize = new Vector2(280.0f, 10.0f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        _talentChargeFill = new ColorRect { Color = UITheme.ChargeCyan, MouseFilter = Control.MouseFilterEnum.Ignore };
-        _talentChargeFill.SetAnchorsPreset(Control.LayoutPreset.LeftWide);
-        _talentChargeFill.AnchorRight = 0.0f;
-        talentBarBg.AddChild(_talentChargeFill);
-        _talentChargeBox.AddChild(talentBarBg);
     }
 
     /// <summary>A7：测试/诊断白盒（蓄力进度条可见性断言）。</summary>
-    public VBoxContainer TalentChargeBox() => _talentChargeBox;
-
-    /// <summary>进入天赋面板的蓄力进度：ratio &lt; 0 隐藏，否则百分比 + 进度条（ChargeCyan）。</summary>
-    public void SetTalentCharge(float ratio)
-    {
-        if (ratio < 0.0f)
-        {
-            _talentChargeBox.Visible = false;
-        }
-        else
-        {
-            var r = Mathf.Clamp(ratio, 0.0f, 1.0f);
-            _talentChargeBox.Visible = true;
-            _talentChargeLabel.Text = GdFormat.Format((string)Tr("TALENT_CHARGE_FMT"), (int)(r * 100.0f));
-            _talentChargeFill.AnchorRight = r;
-        }
-    }
+    public VBoxContainer TalentChargeBox() => _chargeBars[ChargeChannel.TalentPanel];
 
     /// <summary>指示器蓄力中提亮；结束（取消/进入）复原并交还呼吸脉冲。</summary>
     public void SetCacheChipCharging(bool charging)
@@ -1622,9 +1513,9 @@ public partial class Hud : CanvasLayer
     public Label BuffPanelTitle() => _buffPanelTitle;
 
     /// <summary>A7 遗留清理：提前离舰蓄力条节点公开查询（测试替代 _ 直读）。</summary>
-    public VBoxContainer EarlyLeaveBox() => _earlyLeaveBox;
+    public VBoxContainer EarlyLeaveBox() => _chargeBars[ChargeChannel.EarlyLeave];
 
-    public ColorRect EarlyLeaveFill() => _earlyLeaveFill;
+    public ColorRect EarlyLeaveFill() => _chargeBars[ChargeChannel.EarlyLeave].Fill;
 
     public TextureRect Vignette() => _vignette;
 

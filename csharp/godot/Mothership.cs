@@ -643,7 +643,7 @@ public partial class Mothership : Area2D
                     var hud = Hud();
                     if (hud != null)
                     {
-                        hud.SetEarlyLeaveCharge((float)(_earlyTimer / EarlyHoldTime));
+                        hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, (float)(_earlyTimer / EarlyHoldTime));
                     }
                 }
                 else
@@ -653,7 +653,7 @@ public partial class Mothership : Area2D
                         var hud = Hud();
                         if (hud != null)
                         {
-                            hud.SetEarlyLeaveCharge(-1.0f);
+                            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
                         }
                     }
 
@@ -1034,7 +1034,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.SetEarlyLeaveCharge(-1.0f);
+            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
             var factor = Mathf.Max(0.6f, 1.0f - EarlyMaxDiscount * ratio) * (1.0f - _prefill);
             hud.Call(
                 "show_popup",
@@ -1059,7 +1059,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.SetEarlyLeaveCharge(-1.0f);
+            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
         }
 
         _beam.Visible = false;
@@ -1112,7 +1112,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.SetEarlyLeaveCharge(-1.0f);
+            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
         }
 
         if (GodotObject.IsInstanceValid(_player) && !_player.IsDead() && !_player.Visible)
