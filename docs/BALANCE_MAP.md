@@ -618,6 +618,12 @@
 | `elite_turret_event.carrier.retreat_start_speed` | `RetreatStartSpeed` |
 | `elite_turret_event.carrier.retreat_accel` | `RetreatAccel` |
 
+### `csharp\godot\TalentPanel.cs`
+
+| json 键路径 | 脚本回退值 |
+| --- | --- |
+| `talent.panel.charge_time` | `0.55` |
+
 ### `csharp\godot\TalentService.cs`
 
 | json 键路径 | 脚本回退值 |

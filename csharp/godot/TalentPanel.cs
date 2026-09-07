@@ -10,13 +10,20 @@ namespace InfiAir;
 /// 左右分栏——左 35% 为 RadialWheel 路径导航（左缘 1/4 弧，大类→支线→节点下钻，仅指示不承载加点），
 /// 右 65% 为平铺区（根层 = 大类概览；下钻后 = TalentFanView 树状扇形）+ 节点详情加点卡 + 底部经济栏
 /// （有效缓存/衰减警示/路线契约/重置代币/风险加点/专注折扣/互斥警告）。
-/// 开关：HUD 缓存指示器点击 / G 键（talent_panel action）；Esc/右键经 BackNavigator 路由关闭。
-/// 打开时暂停对局（与 PauseUI/BaseConsole 同款模态语义）；process_mode=Always（场景内配置）。
+/// 开合编排（减少硬切割裂感）：进入需蓄力——按住 G/按住 HUD 指示器（talent.panel.charge_time，
+/// HUD 底部进度条，松开/受击/其他模态打断即取消），满格后 dim 淡入 → 轮盘滑入（轻微过冲）→
+/// 标题/读数/概览卡逐级 stagger → 底栏上浮收尾；退出反序加速（内容先走、dim 最后收），
+/// 完成才恢复对局。概览↔扇形切换同款「旧内容退场 → 新内容进场」编排；详情卡右侧滑入。
+/// Esc/右键经 BackNavigator 路由关闭（动画版）；测试/截图用 CloseNow 即时关。
+/// 打开时暂停对局（与 PauseUI/BaseConsole 同款模态语义）；process_mode=Always（场景内配置，
+/// 暂停中 tween 照常推进，HoloBoot 先例）。
 /// </summary>
 public partial class TalentPanel : CanvasLayer
 {
     private Main _main = null!;
+    private Node2D _wheelHolder = null!;
     private RadialWheel _wheel = null!;
+    private ColorRect _dim = null!;
     private Control _rightRoot = null!;
     private Label _titleLabel = null!;
     private Label _cacheLabel = null!;
@@ -32,9 +39,21 @@ public partial class TalentPanel : CanvasLayer
     private Label _detailStatus = null!;
     private Button _upgradeButton = null!;
     private Button _overchargeButton = null!;
+    private ChamferedPanel _footer = null!;
     private HBoxContainer _footerBox = null!;
     private StringName? _selectedNode;
     private string? _category;
+
+    // ---- 蓄力进入（缓速语义：满格才进）----
+    private bool _charging;
+    private float _chargeT;
+    private double _chargeStartHealth;
+    private float _chargeDuration = 0.55f;
+
+    // ---- 开合编排 ----
+    private bool _closing;
+    private Tween? _viewTween;
+
     private readonly Callable _onLocaleChanged;
     private readonly Callable _onTalentsChanged;
     private readonly Callable _onCacheChanged;
@@ -43,6 +62,9 @@ public partial class TalentPanel : CanvasLayer
     private const float RightLeft = 560f;
     private const float FanTop = 170f;
     private const float FanHeight = 720f;
+
+    /// <summary>轮盘圆心（holder 静止位；入场/退场动画位移加在 holder 上，与轮盘自身视差解耦）。</summary>
+    private static readonly Vector2 WheelRest = new(-160f, 540f);
 
     public TalentPanel()
     {
@@ -55,6 +77,7 @@ public partial class TalentPanel : CanvasLayer
     {
         Visible = false;
         _main = GetParent<Main>();
+        _chargeDuration = Mathf.Max((float)GameState.Instance.Cfg("talent.panel.charge_time", 0.55).AsDouble(), 0.05f); // H15：=0 除零
         BuildDim();
         BuildWheel();
         BuildRightArea();
@@ -103,16 +126,94 @@ public partial class TalentPanel : CanvasLayer
         }
     }
 
+    // ---------------- 蓄力进入（缓速：满格才进） ----------------
+
+    /// <summary>蓄力开面板（按住 G / 按住 HUD 指示器）：进度条走 HUD 底部（提前离舰同款视觉），
+    /// 松开/受击/其他模态打断即取消。满格在 _Process 内自动 Open。</summary>
+    public void BeginCharge()
+    {
+        if (_charging || Visible || _closing || !CanOpen())
+        {
+            return;
+        }
+
+        _charging = true;
+        _chargeT = 0f;
+        _chargeStartHealth = GameState.Instance.Health;
+        _main.Hud().SetTalentCharge(0f);
+        _main.Hud().SetCacheChipCharging(true);
+    }
+
+    /// <summary>触发源松开（G 回弹 / 指示器左键松开或移出）：蓄力中则取消。</summary>
+    public void NotifyTriggerReleased()
+    {
+        if (_charging)
+        {
+            CancelCharge();
+        }
+    }
+
+    public void CancelCharge()
+    {
+        if (!_charging)
+        {
+            return;
+        }
+
+        _charging = false;
+        _main.Hud().SetTalentCharge(-1f);
+        _main.Hud().SetCacheChipCharging(false);
+    }
+
+    /// <summary>A7：测试/诊断白盒。</summary>
+    public bool IsCharging => _charging;
+
+    public override void _Process(double delta)
+    {
+        if (!_charging)
+        {
+            return;
+        }
+
+        // 打断守卫：对局被其他模态暂停 / 死亡结算 / 开场返航过场抢占 / 蓄力期间受击
+        var interrupted = GetTree().Paused
+            || Visible
+            || _main.IsGameOver()
+            || _main.IsIntroPlaying()
+            || _main.IsReturnPlaying()
+            || GameState.Instance.Health < _chargeStartHealth;
+        if (interrupted)
+        {
+            CancelCharge();
+            return;
+        }
+
+        _chargeT += (float)delta;
+        if (_chargeT >= _chargeDuration)
+        {
+            _charging = false;
+            _main.Hud().SetTalentCharge(-1f);
+            _main.Hud().SetCacheChipCharging(false);
+            Open();
+        }
+        else
+        {
+            _main.Hud().SetTalentCharge(_chargeT / _chargeDuration);
+        }
+    }
+
     // ---------------- 开关 ----------------
 
     public bool CanOpen() =>
         Visible == false
+        && !_closing
         && !GetTree().Paused
         && !_main.IsGameOver()
         && !_main.IsIntroPlaying()
         && !_main.IsReturnPlaying()
         && !_main.IsHomecoming();
 
+    /// <summary>打开（同步置态 + 异步入场编排）。生产入口 = 蓄力满格；测试/截图可直调。</summary>
     public void Open()
     {
         if (!CanOpen())
@@ -124,60 +225,344 @@ public partial class TalentPanel : CanvasLayer
         Visible = true;
         _selectedNode = null;
         RebuildWheelOptions();
-        SyncRightView();
+        ApplyView(false);
         RefreshAll();
-        UITheme.StaggerOpen(_rightRoot);
+        PlayEntrance();
     }
 
-    public void Close()
+    /// <summary>关闭（动画版，生产入口：G/Esc/右键）：内容反序加速退场，dim 最后收，
+    /// 完成后才恢复对局——避免「元素未走完就露出对局」的二次割裂。</summary>
+    public void Close() => BeginClose();
+
+    /// <summary>即时关闭（测试/截图/诊断端口）：跳过退场编排。</summary>
+    public void CloseNow() => FinishClose();
+
+    private void BeginClose()
     {
-        if (!Visible)
+        if (!Visible || _closing)
         {
             return;
         }
 
+        _closing = true;
+        CancelCharge();
+        PlayExit();
+    }
+
+    private void FinishClose()
+    {
+        _closing = false;
         Visible = false;
         GetTree().Paused = false;
     }
 
-    /// <summary>G 键（talent_panel）：关闭态在无其他模态时打开，打开态关闭。
+    /// <summary>G 键（talent_panel）：按住蓄力（松开取消）、满格进入；打开态按 G 动画关闭。
     /// 暂停态守卫覆盖 开场/返航过场/基地/暂停/设置（均持树暂停），死亡结算单独判。</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!@event.IsActionPressed("talent_panel"))
+        if (@event.IsActionPressed("talent_panel"))
         {
-            return;
+            if (_closing)
+            {
+                return;
+            }
+
+            if (Visible)
+            {
+                BeginClose();
+            }
+            else if (CanOpen())
+            {
+                BeginCharge();
+            }
+            else
+            {
+                return;
+            }
+
+            GetViewport().SetInputAsHandled();
+        }
+        else if (@event.IsActionReleased("talent_panel"))
+        {
+            NotifyTriggerReleased();
+        }
+    }
+
+    // ---------------- 入场 / 退场编排（层次：dim → 轮盘 → 标题 → 内容 stagger → 底栏） ----------------
+
+    /// <summary>同节点互斥 tween（meta 持旧引用先杀——BuffSelect hover tween 先例），
+    /// 入场/退场/视图切换对同一节点不叠写。</summary>
+    private static Tween SwapTween(Node node)
+    {
+        if (node.HasMeta("anim_tween"))
+        {
+            ((Tween)node.GetMeta("anim_tween").AsGodotObject()).Kill();
         }
 
-        if (Visible)
+        var tween = node.CreateTween();
+        node.SetMeta("anim_tween", Variant.From(tween));
+        return tween;
+    }
+
+    private void PlayEntrance()
+    {
+        // 初始态 + 分层进场：行业惯例 = 背景先行建立空间，主元素带轻微过冲滑入，
+        // 内容逐级 stagger（ease-out 减速入位），底栏自下而上收尾
+        _dim.Modulate = new Color(1f, 1f, 1f, 0f);
+        SwapTween(_dim).TweenProperty(_dim, "modulate:a", 1.0f, 0.22);
+
+        _wheelHolder.Position = new Vector2(WheelRest.X - 620f, WheelRest.Y);
+        SwapTween(_wheelHolder).TweenProperty(_wheelHolder, "position", WheelRest, 0.55)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+
+        _titleLabel.Modulate = new Color(_titleLabel.Modulate, 0f);
+        _titleLabel.Position = new Vector2(40f, 70f);
+        var titleTw = SwapTween(_titleLabel);
+        titleTw.TweenInterval(0.10);
+        titleTw.TweenProperty(_titleLabel, "modulate:a", 1.0f, 0.3);
+        titleTw.Parallel().TweenProperty(_titleLabel, "position", new Vector2(40f, 46f), 0.3)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+
+        _cacheLabel.Modulate = new Color(_cacheLabel.Modulate, 0f);
+        _cacheHintLabel.Modulate = new Color(_cacheHintLabel.Modulate, 0f);
+        var cacheTw = SwapTween(_cacheLabel);
+        cacheTw.TweenInterval(0.18);
+        cacheTw.TweenProperty(_cacheLabel, "modulate:a", 1.0f, 0.26);
+        var hintTw = SwapTween(_cacheHintLabel);
+        hintTw.TweenInterval(0.24);
+        hintTw.TweenProperty(_cacheHintLabel, "modulate:a", 1.0f, 0.26);
+
+        StaggerContent(_overviewBox, enter: true, delay: 0.14f);
+
+        _footer.Modulate = new Color(_footer.Modulate, 0f);
+        _footer.Position = new Vector2(0f, 996f);
+        var footerTw = SwapTween(_footer);
+        footerTw.TweenInterval(0.3);
+        footerTw.TweenProperty(_footer, "modulate:a", 1.0f, 0.32);
+        footerTw.Parallel().TweenProperty(_footer, "position", new Vector2(0f, 950f), 0.32)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+    }
+
+    private void PlayExit()
+    {
+        // 反序加速退场（ease-in）：内容先走、轮盘随后、dim 最后收；总时长 ~0.42s
+        if (_overviewBox.Visible)
         {
-            Close();
+            StaggerContent(_overviewBox, enter: false, delay: 0f);
         }
-        else if (CanOpen())
+
+        if (_fan.Visible)
         {
-            Open();
+            var fanTw = SwapTween(_fan);
+            fanTw.TweenProperty(_fan, "modulate:a", 0.0f, 0.18).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+        }
+
+        var titleTw = SwapTween(_titleLabel);
+        titleTw.TweenInterval(0.04);
+        titleTw.TweenProperty(_titleLabel, "modulate:a", 0.0f, 0.16);
+        var cacheTw = SwapTween(_cacheLabel);
+        cacheTw.TweenProperty(_cacheLabel, "modulate:a", 0.0f, 0.16);
+        var hintTw = SwapTween(_cacheHintLabel);
+        hintTw.TweenProperty(_cacheHintLabel, "modulate:a", 0.0f, 0.16);
+
+        var footerTw = SwapTween(_footer);
+        footerTw.TweenProperty(_footer, "modulate:a", 0.0f, 0.2);
+        footerTw.Parallel().TweenProperty(_footer, "position", new Vector2(0f, 996f), 0.2)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+
+        var wheelTw = SwapTween(_wheelHolder);
+        wheelTw.TweenInterval(0.05);
+        wheelTw.TweenProperty(_wheelHolder, "position", new Vector2(WheelRest.X - 620f, WheelRest.Y), 0.3)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+
+        var dimTw = SwapTween(_dim);
+        dimTw.TweenInterval(0.1);
+        dimTw.TweenProperty(_dim, "modulate:a", 0.0f, 0.28);
+
+        var master = CreateTween();
+        master.TweenInterval(0.42);
+        master.TweenCallback(Callable.From(FinishClose));
+    }
+
+    /// <summary>概览卡组分层进场/退场（HBox 容器管理 position——只动 modulate + scale，
+    /// pivot 已随 Resized 设为中心；enter = 后进者晚 55ms 减速入位，exit = 反序加速离场）。</summary>
+    private void StaggerContent(HBoxContainer box, bool enter, float delay)
+    {
+        var cards = new List<Control>();
+        foreach (var child in box.GetChildren())
+        {
+            if (child is Control c && c.Visible)
+            {
+                cards.Add(c);
+            }
+        }
+
+        for (var i = 0; i < cards.Count; i++)
+        {
+            var card = cards[enter ? i : cards.Count - 1 - i];
+            var offset = delay + i * 0.055f;
+            var tw = SwapTween(card);
+            if (enter)
+            {
+                card.Modulate = new Color(card.Modulate, 0f);
+                card.Scale = new Vector2(0.92f, 0.92f);
+                tw.TweenInterval(offset);
+                tw.TweenProperty(card, "modulate:a", 1.0f, 0.3);
+                tw.Parallel().TweenProperty(card, "scale", Vector2.One, 0.3)
+                    .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+            }
+            else
+            {
+                tw.TweenInterval(offset);
+                tw.TweenProperty(card, "modulate:a", 0.0f, 0.16).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+                tw.Parallel().TweenProperty(card, "scale", new Vector2(0.94f, 0.94f), 0.16)
+                    .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+            }
+        }
+    }
+
+    // ---------------- 视图切换（概览 ↔ 扇形：旧内容退场 → 新内容进场，不硬切） ----------------
+
+    /// <summary>轮盘层深 ↔ 右区视图（即时版：Open 初始装配用）。</summary>
+    private void SyncRightView() => ApplyView(_wheel.Depth >= 2 && _category != null);
+
+    /// <summary>下钻/回退的编排版：旧内容退场 → 中点切换装配 → 新内容进场。</summary>
+    private void TransitionRightView(bool toFan)
+    {
+        if (_viewTween != null)
+        {
+            _viewTween.Kill();
+            _viewTween = null;
+        }
+
+        Control? oldRoot = toFan ? _overviewBox : _fan;
+        if (oldRoot.Visible)
+        {
+            if (oldRoot == _overviewBox)
+            {
+                StaggerContent(_overviewBox, enter: false, delay: 0f);
+            }
+            else
+            {
+                var fanTw = SwapTween(_fan);
+                fanTw.TweenProperty(_fan, "modulate:a", 0.0f, 0.14).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+            }
+        }
+
+        _viewTween = CreateTween();
+        _viewTween.TweenInterval(0.15);
+        _viewTween.TweenCallback(Callable.From(() =>
+        {
+            ApplyView(toFan);
+            EnterView(toFan);
+        }));
+    }
+
+    /// <summary>视图状态装配（可见性 + 内容重建；不含动画）。</summary>
+    private void ApplyView(bool fan)
+    {
+        _overviewBox.Visible = !fan;
+        _fan.Visible = fan;
+        _detail.Visible = false;
+        if (fan && _category != null)
+        {
+            _fan.SetCategory(_category);
+            _fan.SetSelected(_selectedNode);
         }
         else
         {
+            RebuildOverview();
+        }
+    }
+
+    /// <summary>视图内容进场：扇形 = 整区上浮淡入；概览 = 卡片 stagger（Scale+Fade）。</summary>
+    private void EnterView(bool fan)
+    {
+        if (fan)
+        {
+            _fan.Modulate = new Color(_fan.Modulate, 0f);
+            _fan.Position = new Vector2(24f, FanTop + 26f);
+            var tw = SwapTween(_fan);
+            tw.TweenProperty(_fan, "modulate:a", 1.0f, 0.26);
+            tw.Parallel().TweenProperty(_fan, "position", new Vector2(0f, FanTop), 0.26)
+                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        }
+        else
+        {
+            StaggerContent(_overviewBox, enter: true, delay: 0.02f);
+        }
+    }
+
+    private void OnWheelConfirmed(RadialWheelOption option) => SelectNode(option.Id);
+
+    private void OnWheelDrilled(RadialWheelOption option)
+    {
+        if (_wheel.Depth == 2)
+        {
+            _category = option.Id;
+        }
+
+        TransitionRightView(toFan: true);
+    }
+
+    private void OnWheelBacked()
+    {
+        if (_wheel.Depth == 1)
+        {
+            _category = null;
+            _selectedNode = null;
+        }
+
+        TransitionRightView(toFan: false);
+    }
+
+    private void OnFanNodeActivated(StringName nodeId) => SelectNode(nodeId.ToString());
+
+    /// <summary>联动（2.4）：右侧节点悬停 → 左侧轮盘对应卡亮起（当前层含该节点时）。</summary>
+    private void OnFanNodeHovered(string? nodeId)
+    {
+        if (nodeId == null)
+        {
+            _wheel.HighlightOption(-1);
             return;
         }
 
-        GetViewport().SetInputAsHandled();
+        for (var i = 0; i < _wheel.CurrentCount; i++)
+        {
+            var opt = _wheel.CurrentOption(i);
+            if (opt != null && opt.Id == nodeId)
+            {
+                _wheel.HighlightOption(i);
+                return;
+            }
+        }
+
+        _wheel.HighlightOption(-1);
+    }
+
+    private void SelectNode(string nodeId)
+    {
+        _selectedNode = nodeId;
+        _fan.SetSelected(nodeId);
+        RefreshDetail();
     }
 
     // ---------------- 构建 ----------------
 
     private void BuildDim()
     {
-        var dim = new ColorRect { Color = UITheme.DimBg };
-        dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(dim);
+        _dim = new ColorRect { Color = UITheme.DimBg };
+        _dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_dim);
     }
 
     private void BuildWheel()
     {
-        _wheel = new RadialWheel { Position = new Vector2(-160f, 540f), BackLabel = Tr("TALENT_BACK") };
-        AddChild(_wheel);
+        // holder 承载入场/退场位移：轮盘自身 _Process 视差会写自己的 Position，两者解耦
+        _wheelHolder = new Node2D { Position = WheelRest };
+        _wheel = new RadialWheel { BackLabel = Tr("TALENT_BACK") };
+        _wheelHolder.AddChild(_wheel);
+        AddChild(_wheelHolder);
         _wheel.Confirmed += OnWheelConfirmed;
         _wheel.Drilled += OnWheelDrilled;
         _wheel.Backed += OnWheelBacked;
@@ -299,23 +684,21 @@ public partial class TalentPanel : CanvasLayer
 
     private void BuildFooter()
     {
-        var footer = new ChamferedPanel
+        _footer = new ChamferedPanel
         {
             Position = new Vector2(0f, 950f),
             Size = new Vector2(1300f, 84f),
             Padding = 0f,
         };
-        _rightRoot.AddChild(footer);
+        _rightRoot.AddChild(_footer);
         _footerBox = new HBoxContainer();
         _footerBox.AddThemeConstantOverride("separation", 26);
         _footerBox.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _footerBox.OffsetLeft = 22f;
         _footerBox.OffsetRight = -22f;
         _footerBox.Alignment = BoxContainer.AlignmentMode.Center;
-        footer.AddChild(_footerBox);
+        _footer.AddChild(_footerBox);
     }
-
-    // ---------------- 轮盘数据与联动 ----------------
 
     private void RebuildWheelOptions()
     {
@@ -367,78 +750,6 @@ public partial class TalentPanel : CanvasLayer
         "field" => RadialGlyph.Cross,
         _ => RadialGlyph.Diamond,
     };
-
-    private void OnWheelConfirmed(RadialWheelOption option) => SelectNode(option.Id);
-
-    private void OnWheelDrilled(RadialWheelOption option)
-    {
-        if (_wheel.Depth == 2)
-        {
-            _category = option.Id;
-        }
-
-        SyncRightView();
-    }
-
-    private void OnWheelBacked()
-    {
-        if (_wheel.Depth == 1)
-        {
-            _category = null;
-            _selectedNode = null;
-        }
-
-        SyncRightView();
-    }
-
-    private void OnFanNodeActivated(StringName nodeId) => SelectNode(nodeId.ToString());
-
-    /// <summary>联动（2.4）：右侧节点悬停 → 左侧轮盘对应卡亮起（当前层含该节点时）。</summary>
-    private void OnFanNodeHovered(string? nodeId)
-    {
-        if (nodeId == null)
-        {
-            _wheel.HighlightOption(-1);
-            return;
-        }
-
-        for (var i = 0; i < _wheel.CurrentCount; i++)
-        {
-            var opt = _wheel.CurrentOption(i);
-            if (opt != null && opt.Id == nodeId)
-            {
-                _wheel.HighlightOption(i);
-                return;
-            }
-        }
-
-        _wheel.HighlightOption(-1);
-    }
-
-    private void SelectNode(string nodeId)
-    {
-        _selectedNode = nodeId;
-        _fan.SetSelected(nodeId);
-        RefreshDetail();
-    }
-
-    /// <summary>轮盘层深 ↔ 右区视图：根层 = 大类概览；下钻 = 树状扇形。</summary>
-    private void SyncRightView()
-    {
-        var drilled = _wheel.Depth >= 2 && _category != null;
-        _overviewBox.Visible = !drilled;
-        _fan.Visible = drilled;
-        _detail.Visible = drilled && _selectedNode != null;
-        if (drilled)
-        {
-            _fan.SetCategory(_category);
-            _fan.SetSelected(_selectedNode);
-        }
-        else
-        {
-            RebuildOverview();
-        }
-    }
 
     private void RebuildOverview()
     {
@@ -606,7 +917,19 @@ public partial class TalentPanel : CanvasLayer
         }
 
         var idSn = new StringName(_selectedNode);
+        var wasHidden = !_detail.Visible;
         _detail.Visible = true;
+        if (wasHidden)
+        {
+            // 详情卡从右滑入（不做对称退场——内容切换时直接替换更干净）
+            _detail.Modulate = new Color(_detail.Modulate, 0f);
+            _detail.Position = new Vector2(946f, 200f);
+            var tw = SwapTween(_detail);
+            tw.TweenProperty(_detail, "modulate:a", 1.0f, 0.2);
+            tw.Parallel().TweenProperty(_detail, "position", new Vector2(910f, 200f), 0.2)
+                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        }
+
         _detailName.Text = Tr($"BUFF_{_selectedNode.ToString().ToUpperInvariant()}_NAME");
         _detailCaption.Text = GdFormat.Format(Tr("TALENT_PATH_FMT"), Tr(TalentTree.Category(def.CategoryId).NameKey), Tr(TalentTree.Line(def.LineId).NameKey));
         var level = talent.Level(idSn);

@@ -1239,6 +1239,9 @@
 		"overcharge": {
 			"cost_mult": 2.0,
 			"max_per_run": 3
+		},
+		"panel": {
+			"charge_time": 0.55
 		}
 	}
 }

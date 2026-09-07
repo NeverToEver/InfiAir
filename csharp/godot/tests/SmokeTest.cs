@@ -107,13 +107,23 @@ public partial class SmokeTest : Node
             Check(!GetTree().Paused, "里程碑入账不暂停对局");
             Check(gs.TalentRawCache >= gs.Talent.Config.PointsPerMilestone, "里程碑天赋点入缓存池");
 
-            // 2. 天赋面板开合 + 面板内加点（HUD 指示器点击/G 键的直调路径）
+            // 2. 蓄力进入（缓速语义：按住 G/按住指示器 → 进度条满格才进，松开取消）
             var talentPanel = GetNode<TalentPanel>("Main/TalentUI");
-            talentPanel.Open();
-            Check(talentPanel.Visible && GetTree().Paused, "天赋面板打开时游戏暂停");
+            var hud = GetNode<Hud>("Main/HUD");
+            talentPanel.BeginCharge();
+            Check(talentPanel.IsCharging && hud.TalentChargeBox().Visible, "蓄力中：进度条可见");
+            await Coroutine.WaitSeconds(this, 0.2);
+            Check(!talentPanel.Visible && !GetTree().Paused, "蓄力未满不进入（缓速）");
+            talentPanel.NotifyTriggerReleased(); // 松开取消
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Check(!talentPanel.IsCharging && !hud.TalentChargeBox().Visible && !talentPanel.Visible, "松开取消蓄力");
+            talentPanel.BeginCharge(); // 二次蓄力满格自动进入（charge_time 0.55s）
+            await Coroutine.WaitSeconds(this, 0.7);
+            Check(talentPanel.Visible && GetTree().Paused, "蓄力满格自动进入并暂停");
             Check(gs.TalentUpgrade("power_shot"), "面板内加点成功");
             Check(gs.BuffCount("power_shot") == 1, "天赋层级计入 GameState（效果桥同步）");
-            talentPanel.Close();
+            talentPanel.CloseNow();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(!talentPanel.Visible && !GetTree().Paused, "面板关闭并恢复对局");
 
             // 2b. 单次加分跨两档里程碑：逐档入账（缓存池按档累加，无弹窗挂账语义）

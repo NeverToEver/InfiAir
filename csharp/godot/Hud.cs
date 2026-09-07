@@ -1159,6 +1159,9 @@ public partial class Hud : CanvasLayer
     private ChamferedPanel _cacheChip = null!;
     private Label _cacheCount = null!;
     private Label _cacheTooltip = null!;
+    private VBoxContainer _talentChargeBox = null!;
+    private Label _talentChargeLabel = null!;
+    private ColorRect _talentChargeFill = null!;
     private Tween? _cachePulseTween;
     private int _lastCacheRaw = -1;
 
@@ -1211,14 +1214,95 @@ public partial class Hud : CanvasLayer
             _cacheTooltip.Text = GdFormat.Format((string)Tr("TALENT_CACHE_TIP"), talent.RawCache, talent.EffectiveCache);
             _cacheTooltip.Visible = true;
         };
-        _cacheChip.MouseExited += () => _cacheTooltip.Visible = false;
+        _cacheChip.MouseExited += () =>
+        {
+            _cacheTooltip.Visible = false;
+            _main.TalentPanel().NotifyTriggerReleased(); // 按住蓄力中移出芯片 = 松开，取消蓄力
+        };
+
+        // 蓄力进度条（底部居中，提前离舰同款视觉）：进入天赋面板的「缓速」仪式——满格才进
+        _talentChargeBox = new VBoxContainer
+        {
+            Position = new Vector2(-140.0f, -96.0f),
+            CustomMinimumSize = new Vector2(280.0f, 0.0f),
+            Visible = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _talentChargeBox.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        _talentChargeBox.AddThemeConstantOverride("separation", 6);
+        AddChild(_talentChargeBox);
+        _talentChargeLabel = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _talentChargeLabel.AddThemeFontOverride("font", Font);
+        _talentChargeLabel.AddThemeFontSizeOverride("font_size", 24);
+        _talentChargeLabel.AddThemeColorOverride("font_color", UITheme.ChargeCyan);
+        _talentChargeBox.AddChild(_talentChargeLabel);
+        var talentBarBg = new ColorRect
+        {
+            Color = new Color(1.0f, 1.0f, 1.0f, 0.15f),
+            CustomMinimumSize = new Vector2(280.0f, 10.0f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _talentChargeFill = new ColorRect { Color = UITheme.ChargeCyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        _talentChargeFill.SetAnchorsPreset(Control.LayoutPreset.LeftWide);
+        _talentChargeFill.AnchorRight = 0.0f;
+        talentBarBg.AddChild(_talentChargeFill);
+        _talentChargeBox.AddChild(talentBarBg);
+    }
+
+    /// <summary>A7：测试/诊断白盒（蓄力进度条可见性断言）。</summary>
+    public VBoxContainer TalentChargeBox() => _talentChargeBox;
+
+    /// <summary>进入天赋面板的蓄力进度：ratio &lt; 0 隐藏，否则百分比 + 进度条（ChargeCyan）。</summary>
+    public void SetTalentCharge(float ratio)
+    {
+        if (ratio < 0.0f)
+        {
+            _talentChargeBox.Visible = false;
+        }
+        else
+        {
+            var r = Mathf.Clamp(ratio, 0.0f, 1.0f);
+            _talentChargeBox.Visible = true;
+            _talentChargeLabel.Text = GdFormat.Format((string)Tr("TALENT_CHARGE_FMT"), (int)(r * 100.0f));
+            _talentChargeFill.AnchorRight = r;
+        }
+    }
+
+    /// <summary>指示器蓄力中提亮；结束（取消/进入）复原并交还呼吸脉冲。</summary>
+    public void SetCacheChipCharging(bool charging)
+    {
+        if (_cachePulseTween != null)
+        {
+            _cachePulseTween.Kill();
+            _cachePulseTween = null;
+        }
+
+        _cacheChip.Modulate = charging ? new Color(1.3f, 1.3f, 1.1f) : Colors.White;
+        if (!charging)
+        {
+            _lastCacheRaw = -1; // 强制重启呼吸脉冲（否则同值早退不恢复）
+            RefreshCacheIndicator();
+        }
     }
 
     private void OnCacheChipInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } mb)
         {
-            _main.TalentPanel().Open();
+            // 按住蓄力、松开取消（与按住 G 同一语义——满格自动进入，中途松手作废）
+            if (mb.Pressed)
+            {
+                _main.TalentPanel().BeginCharge();
+            }
+            else
+            {
+                _main.TalentPanel().NotifyTriggerReleased();
+            }
+
             GetViewport().SetInputAsHandled();
         }
     }
@@ -1247,7 +1331,7 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    /// <summary>呼吸脉冲（2s 周期明暗循环）；非呼吸态/ReduceFlash 杀旧 tween 并复位。</summary>
+    /// <summary>呼吸脉冲（2s 周期明暗循环）；非呼吸态/ReduceFlash/蓄力中（芯片被提亮占用）不启动。</summary>
     private void RestartCachePulse(bool breathing)
     {
         if (_cachePulseTween != null)
@@ -1257,7 +1341,7 @@ public partial class Hud : CanvasLayer
         }
 
         _cacheChip.Modulate = Colors.White;
-        if (!breathing || GameState.Instance.ReduceFlash)
+        if (!breathing || GameState.Instance.ReduceFlash || _main.TalentPanel().IsCharging)
         {
             return;
         }

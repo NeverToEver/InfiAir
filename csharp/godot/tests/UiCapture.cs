@@ -54,16 +54,22 @@ public partial class UiCapture : Node
             gs.Talent.TestSetLevel("power_shot", 2);
             gs.Talent.TestSetLevel("rapid_fire", 1);
             var talentPanel = GetNode<TalentPanel>("Main/TalentUI");
-            talentPanel.Open();
+            // 3a. 蓄力进入（缓速）：按住 G 语义 → 底部进度条 → 满格自动进入；入场编排中间帧留档
+            talentPanel.BeginCharge();
+            await Coroutine.WaitSeconds(this, 0.3);
+            Shot("talent_charge");
+            await Coroutine.WaitSeconds(this, 0.4); // 蓄满自动进入
+            await Coroutine.WaitSeconds(this, 0.16); // 入场编排中段（dim→轮盘→标题→卡片 stagger）
+            Shot("talent_enter");
             await Settle();
             Shot("talent");
-            // 3b. 下钻进攻系：树状扇形 + 节点详情卡（轮盘收缩动画约 0.5s，Settle 覆盖）
+            // 3b. 下钻进攻系：树状扇形 + 节点详情卡（轮盘收缩 + 右区退场/进场编排，Settle 覆盖）
             talentPanel.TestDrillCategory(0);
             await Settle();
             talentPanel.TestSelectNode("power_shot");
             await Settle();
             Shot("talent_fan");
-            talentPanel.Close();
+            talentPanel.CloseNow();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
             // 4. 暂停面板（继续 primary）
