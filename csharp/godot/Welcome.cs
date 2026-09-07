@@ -74,13 +74,10 @@ public partial class Welcome : CanvasLayer
     // U01（2026-08-09 审计）：LocaleChanged 连接缓存 Callable 供 _ExitTree 配对断开——
     // welcome→main 切换后残留连接回调已释放实例（Hud.cs:456 实测先例可致退出 segfault）
     private readonly Callable _onLocaleChanged;
-    private readonly Callable _onEscLocaleChanged;
-    private Label _escHint = null!;
 
     public Welcome()
     {
         _onLocaleChanged = Callable.From(RefreshTexts);
-        _onEscLocaleChanged = Callable.From(RefreshEscHint);
     }
 
     public override void _Ready()
@@ -129,7 +126,6 @@ public partial class Welcome : CanvasLayer
         BuildLoginPanel();
         BuildMainZone();
         BuildOverlays();
-        BuildEscHint();
 
         GameState.Instance!.Connect("LocaleChanged", _onLocaleChanged);
         RefreshTexts();
@@ -150,6 +146,7 @@ public partial class Welcome : CanvasLayer
         {
             CustomMinimumSize = new Vector2(520.0f, 460.0f),
             Brackets = true,
+            EdgeRivets = true,
         };
         // 绝对定位（同 hero）：520×460 面板（高度贴内容，防空腔失衡）在 1080 视口内光学居中。
         // 禁用「CenterLeft 锚点 + Position」惯用法——Position 在入树前写入的是裸偏移，
@@ -228,6 +225,7 @@ public partial class Welcome : CanvasLayer
         };
         line.AddThemeFontOverride("font", UITheme.Font);
         line.AddThemeFontSizeOverride("font_size", UITheme.FontBody);
+        UITheme.ApplyMetalLineEdit(line);
         return line;
     }
 
@@ -248,6 +246,7 @@ public partial class Welcome : CanvasLayer
             Size = new Vector2(_usernameLine.Size.X, shown.Count * 44.0f + 8.0f),
             ZIndex = 50,
         };
+        _dropdown.AddThemeStyleboxOverride("panel", UITheme.MakeMetalPanelStyle());
         AddChild(_dropdown);
         var list = new VBoxContainer();
         list.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -911,28 +910,6 @@ public partial class Welcome : CanvasLayer
         }
     }
 
-    private void BuildEscHint()
-    {
-        var escHint = UITheme.MakeLabel(
-            Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Right
-        );
-        escHint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        escHint.Position = new Vector2(-420.0f, -50.0f);
-        escHint.CustomMinimumSize = new Vector2(360.0f, 0.0f);
-        _escHint = escHint;
-        AddChild(escHint);
-        // U01：匿名 lambda 无法断开，改具名回调 + 缓存 Callable（_ExitTree 配对）
-        GameState.Instance!.Connect("LocaleChanged", _onEscLocaleChanged);
-    }
-
-    private void RefreshEscHint()
-    {
-        if (_escHint != null)
-        {
-            _escHint.Text = Tr("START_ESC_HINT") + "    " + Tr("WELCOME_TAB_HINT");
-        }
-    }
-
     public override void _ExitTree()
     {
         // U01：C22 模式配对断开（welcome 此前为全分区唯一无 _ExitTree 的常驻场景）
@@ -945,11 +922,6 @@ public partial class Welcome : CanvasLayer
         if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
         {
             gs.Disconnect("LocaleChanged", _onLocaleChanged);
-        }
-
-        if (gs.IsConnected("LocaleChanged", _onEscLocaleChanged))
-        {
-            gs.Disconnect("LocaleChanged", _onEscLocaleChanged);
         }
     }
 

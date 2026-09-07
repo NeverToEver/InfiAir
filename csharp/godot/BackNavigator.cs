@@ -4,8 +4,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 全局返回/退出状态机（设计文档：docs/EXIT_FLOW.md）。
-/// 所有平台的"返回"输入统一走 go_back()：PC Esc、鼠标右键与手柄 B 经引擎内置 ui_cancel，
-/// Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
+/// 所有平台的"返回"输入统一走 go_back()：PC Esc 与手柄 B 经引擎内置 ui_cancel，
+/// 鼠标右键为独立固定手势（非 ui_cancel），Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
 /// decide_back_action() 为纯决策函数（不执行副作用，供无头测试覆盖全分支）。
 /// M5 全量迁移（2026-08-08 自 scripts/back_navigator.gd）。
 /// </summary>
@@ -28,7 +28,9 @@ public partial class BackNavigator : Node
         SKIP_RETURN,
         /// <summary>buff 滚动栏展开中：返回 = 收起栏（优先于打开暂停）</summary>
         CLOSE_BUFF_PANEL,
-        /// <summary>阻塞态（Buff 三选一/其他暂停态）：忽略</summary>
+        /// <summary>天赋面板打开中：返回 = 关闭面板（模态暂停态，优先于暂停路由）</summary>
+        CLOSE_TALENT,
+        /// <summary>阻塞态（其他暂停态）：忽略</summary>
         IGNORE,
         /// <summary>结算页 → 返回主界面</summary>
         TO_MAIN_MENU,
@@ -42,7 +44,7 @@ public partial class BackNavigator : Node
 
     private Main _main = null!; // U13：typed
     private Hud _hud = null!; // U13：typed
-    private CanvasLayer _buffUi = null!;
+    private TalentPanel _talentUi = null!;
     private PauseUi _pauseUi = null!; // U13：typed
     private SettingsUi _settingsUi = null!; // U13：typed
     private CanvasLayer _gameOverUi = null!;
@@ -53,7 +55,7 @@ public partial class BackNavigator : Node
     {
         _main = GetParent<Main>();
         _hud = GetParent().GetNode<Hud>("HUD");
-        _buffUi = GetParent().GetNode<CanvasLayer>("BuffUI");
+        _talentUi = GetParent().GetNode<TalentPanel>("TalentUI");
         _pauseUi = GetParent().GetNode<PauseUi>("PauseUI");
         _settingsUi = GetParent().GetNode<SettingsUi>("SettingsUI");
         _gameOverUi = GetParent().GetNode<CanvasLayer>("GameOverUI");
@@ -61,25 +63,24 @@ public partial class BackNavigator : Node
         _exitConfirm = GetParent().GetNode<ExitConfirm>("ExitConfirm");
     }
 
-    public override void _UnhandledInput(InputEvent @event)
+    public override void _Input(InputEvent @event)
     {
-        // 右键 = 返回/取消（惯例：许多游戏以右键作为默认返回触发器）。
-        // 固定不参与改键（Esc/R 同类固定）；is_action_pressed 只认 ui_cancel（Esc/手柄 B）。
+        // 右键 = 返回/取消（惯例：许多游戏以右键作为默认返回触发器）。挂 _Input（先于 GUI 相位）——
+        // 面板/按钮 MouseFilter=STOP 会吞掉落在其上的右键，_UnhandledInput 永远收不到
+        // （点在面板内右键返回失灵）。固定手势不参与改键（Esc/R 同类固定）。
+        // 改键捕获态：DecideBackAction = CAPTURE_PASSTHROUGH → GoBack 无副作用且不消费事件，
+        // 由 SettingsUi._Input 取消捕获（两处 _Input 无论先后序均幂等）。
         // 2026-08-06 审计声明：本实现仅覆盖 main.tscn（BackNavigator 挂 Main 下）；
         // welcome 顶层（无返回目标）右键无效，Esc 走退出确认——文档未声明该例外，此处补注
         if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
             GoBack();
-            // 改键捕获态放行（与 ui_cancel 同路由）：不消费事件，让 settings_ui 取消捕获；
-            // 顺带统一走 _mark_handled 的 null 防御（3.12 实机退出报错同源）
-            if (DecideBackAction() != BackAction.CAPTURE_PASSTHROUGH)
-            {
-                MarkHandled();
-            }
-
-            return;
         }
+    }
 
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        // ui_cancel（Esc/手柄 B）：键盘/手柄事件不经 GUI 相位、无面板吞事件路径，留 _UnhandledInput
         if (@event.IsActionPressed("ui_cancel"))
         {
             GoBack();
@@ -131,6 +132,10 @@ public partial class BackNavigator : Node
                 break;
             case BackAction.CLOSE_BUFF_PANEL:
                 _hud.CloseBuffPanel();
+                MarkHandled();
+                break;
+            case BackAction.CLOSE_TALENT:
+                _talentUi.Close();
                 MarkHandled();
                 break;
             case BackAction.IGNORE:
@@ -198,7 +203,12 @@ public partial class BackNavigator : Node
             return BackAction.RESUME_BASE;
         }
 
-        if (_buffUi.Visible || (_main.IsGameOver() && !_gameOverUi.Visible))
+        if (_talentUi.Visible)
+        {
+            return BackAction.CLOSE_TALENT; // 天赋面板打开中：Esc = 关闭面板（对局随之恢复）
+        }
+
+        if (_main.IsGameOver() && !_gameOverUi.Visible)
         {
             return BackAction.IGNORE;
         }

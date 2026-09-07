@@ -90,10 +90,4 @@ public partial class GameState : Node
         new() { ["id"] = new StringName("boss_2"), ["goal"] = 2, ["kind"] = new StringName("boss") },
         new() { ["id"] = new StringName("boss_3"), ["goal"] = 3, ["kind"] = new StringName("boss") },
     };
-
-    private static Godot.Collections.Dictionary BuildRouteLines() => new()
-    {
-        [new StringName("offense")] = new Godot.Collections.Array { new StringName("spread_shot"), new StringName("laser_beam") },
-        [new StringName("mobility")] = new Godot.Collections.Array { new StringName("phase_dash"), new StringName("mothership_recall") },
-    };
 }

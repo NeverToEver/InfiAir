@@ -34,53 +34,36 @@ public partial class HudCapture : Node
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 屏蔽里程碑触发，避免 Buff UI 叠屏（确定性截图）
+            // 屏蔽里程碑入账，保证缓存指示器读数确定（确定性截图）
             gs.SetMilestoneOverride(999999999);
             gs.AddScore(12340);
             gs.Kills = 57;
             gs.EmitSignal(GameState.SignalName.ScoreChanged, gs.Score);
+            // 常态截图缓存 3 点：指示器「可用」呼吸态可见
+            gs.Talent.TestGrant(3);
 
-            // 1. 常态：2 个 buff（单/多层各一）
-            gs.AddBuff("power_shot");
-            gs.AddBuff("power_shot");
-            gs.AddBuff("armor");
+            // 1. 常态：2 个天赋（单/多层各一）
+            gs.Talent.TestSetLevel("power_shot", 2);
+            gs.Talent.TestSetLevel("armor", 1);
             await Settle();
             Shot("normal");
 
-            // 2. 极端：全部已解锁 buff 叠层拉满（BUFF_POOL_SIZE=19 池中 15 种 distinct，R07 修正）
-            for (int i = 0; i < 3; i++)
-            {
-                gs.AddBuff("power_shot");  // 共 5 层
-            }
-            for (int i = 0; i < 4; i++)
-            {
-                gs.AddBuff("rapid_fire");
-            }
-            for (int i = 0; i < 3; i++)
-            {
-                gs.AddBuff("spread_shot");
-            }
-            for (int i = 0; i < 10; i++)
-            {
-                gs.AddBuff("extra_life");
-            }
-            gs.AddBuff("regen");
-            for (int i = 0; i < 2; i++)
-            {
-                gs.AddBuff("piercing");
-            }
-            gs.AddBuff("explosive");
-            gs.AddBuff("lifesteal");
-            gs.AddBuff("evasion");
-            for (int i = 0; i < 3; i++)
-            {
-                gs.AddBuff("phase_dash");
-            }
-            gs.AddBuff("slow_field");
-            gs.AddBuff("efficient_boost");
-            gs.AddBuff("boost_recovery");
-            gs.AddBuff("mothership_recall");
-            gs.AddBuff("laser_beam");
+            // 2. 极端：全部已解锁天赋叠层拉满（19 种 distinct；上限以 buffs.<id>.max_stacks 为准）
+            gs.Talent.TestSetLevel("power_shot", 5);
+            gs.Talent.TestSetLevel("rapid_fire", 4);
+            gs.Talent.TestSetLevel("spread_shot", 2);
+            gs.Talent.TestSetLevel("extra_life", 10);
+            gs.Talent.TestSetLevel("regen", 1);
+            gs.Talent.TestSetLevel("piercing", 2);
+            gs.Talent.TestSetLevel("explosive", 1);
+            gs.Talent.TestSetLevel("lifesteal", 1);
+            gs.Talent.TestSetLevel("evasion", 1);
+            gs.Talent.TestSetLevel("phase_dash", 3);
+            gs.Talent.TestSetLevel("slow_field", 1);
+            gs.Talent.TestSetLevel("efficient_boost", 2);
+            gs.Talent.TestSetLevel("boost_recovery", 2);
+            gs.Talent.TestSetLevel("mothership_recall", 2);
+            gs.Talent.TestSetLevel("laser_beam", 1);
             // 等首发激光束（获得即发，3s）播完再截，避免遮挡画面
             await Coroutine.WaitSeconds(this, 3.4);
             Shot("stress");

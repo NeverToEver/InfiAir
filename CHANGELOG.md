@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### 新增（2026-09-07，天赋缓存系统重构——设计文档落地，替代旧里程碑三选一）
+
+- **旧系统全量删除（无兼容层）**：`BuffSelect` 三选一弹窗（场景节点/候选池/低血防御保底）、line→双 buff 路线（`ChosenRoutes`/`LockedRoutes`/`ROUTE_LINES`/`ChooseRoute`/`IsBuffLocked`）及其全部引用点与独占本地化键；新增 `talent_panel`（G 键）输入动作
+- **Core 纯逻辑**（`csharp/core/Talent/`，xUnit 19 项）：`TalentTree`（4 大类 8 支线 19 节点，id 复用既有 buff——全部效果消费端零改动）；`TalentCache` 有序点值池（前 20 点全值、溢出逐位 -10% 触底 10% 按 LIFO、花费从尾部扣且衰减不可回满）；`TalentEconomy`（递增消耗 base+lv×inc、软上限后分段线性收益递减、派系互斥/专注惩罚/路线契约/风险加点四机制纯函数）；`TalentFanLayout`（扇形几何）
+- **服务与桥接**：`TalentService` 域服务 + `GameState.Talent` 门面（信号 `TalentCacheChanged`/`TalentsChanged`）；里程碑每档 +2 点、Boss 击杀 +1 点入池不弹窗不暂停；层级同步 `CombatStateService.Buffs`（盾层/穿透/散射等整数语义消费端零改动），乘算族（射速/伤害/弹速/暴击/冲刺冷却/母舰召回）改读浮点有效层级 `TalentEffLevel`（收益递减/路线/专注在此折算）；存档 v3 `talent` 子字典随档往返（v2 旧档天赋态按全新处理）；Meta 研究所升级改经 `ApplyStartingLoadout` 注入起始层级
+- **UI**：HUD 右上缓存指示器（空闲/呼吸/橙警/红警四态，ReduceFlash 时静止；G 键/点击开面板）；`TalentPanel` 左右分栏——左侧 `RadialWheel` 路径导航（组件补 Drilled/Backed 事件、层级读取与外部高亮 API）+ 右侧大类概览卡/下钻 `TalentFanView` 树状扇形（前置链/锁定/封顶/MAX/⚡角标、可升级呼吸边框）+ 节点详情加点卡（当前→下一级收益预估）+ 底部经济栏（缓存/路线/代币/风险次数/专注/互斥）；`BackNavigator` 新增 CLOSE_TALENT 路由
+- **基地衔接**：返航存档即时落盘天赋态（4.3 结算顺序语义）；基地「武器挂载」面板改**路线契约**（狂战士/守护者/游侠：核心系 +1 有效层级、其余系上限减半、首次绑定免费、切换耗重置代币、RP 购置代币）；修复 `ChamferedPanel` 嵌套自适应正反馈（socket 子面板棘轮抬升最小尺寸把概览卡 280→430px 持续撑出屏，定宽包裹断环）
+- **数据**：`balance.json` 新增 `talent` 段（缓存衰减/消耗/四机制参数 + 每节点软上限）并为 7 个 buff 补齐 `max_stacks`（json 成唯一上限权威）；BALANCE_MAP 重生成零缺失键；翻译表 +56/-12 键并重导入
+- **验证**：build 0w/0e + xUnit 147/147 + format 三工程零 diff + import 0 警告 + smoke/base 0 FAIL + 300 帧 0 错误 + 窗口化实机过目（面板概览/扇形/基地契约/HUD 指示器四屏）
+- **随本提交入库的前会话工作区遗留**：`RadialWheel` 左缘轮盘组件 + 纯逻辑模型 + 单测/截图工具（本次投产即天赋面板左翼）；UI 金属质感管线（`gen_metal_textures.py` + `assets/sprites/ui/`）及其在 UITheme/ChamferedPanel/SegmentedBar/SettingsUi/Welcome 等的应用改动
+
 ### 变更
 
 - **发布策略改为本地编译**（2026-09-07）：`release.sh` 新增 `--publish` 模式（导出→打包→推 main→打 tag→GitHub API 建 Release→上传资产，凭据取 GITHUB_TOKEN 或凭据管理器），zip 打包器加 zip→7z→bsdtar 回退链（Windows git-bash 常无 zip）；GitHub Actions `release.yml` 发布工作流退役删除

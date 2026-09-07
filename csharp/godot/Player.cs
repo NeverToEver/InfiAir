@@ -672,7 +672,12 @@ public partial class Player : CharacterBody2D
 
     public bool IsDashing() => _dash.IsDashing();
 
-    /// <summary>A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + buffs_changed 信号驱动）。</summary>
+    /// <summary>
+    /// A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + buffs_changed 信号驱动）。
+    /// 天赋缓存系统重构：乘算类（pow）效果改用 TalentEffLevel 浮点有效层级——
+    /// 收益递减/路线加成/专注折扣在有效层级内折算，factor^effLevel 与旧 factor^层数在
+    /// 无修正时逐位一致；cap/bool 类保持整数 Buffs 口径（盾层/穿透/散射语义不变）。
+    /// </summary>
     private void RefreshBuffFactors()
     {
         foreach (var id in BuffEffects.Keys)
@@ -688,30 +693,30 @@ public partial class Player : CharacterBody2D
             _buffValues[id] = kind == "cap" ? (int)value.AsInt64() : (float)value.AsDouble();
         }
 
-        var critStacks = (int)GameState.Instance.BuffCount(BuffCritShot);
-        CritChance = critStacks == 0 ? 0.0f : CritChanceBase * critStacks;
+        var critEff = (float)GameState.Instance.TalentEffLevel(BuffCritShot);
+        CritChance = critEff <= 0f ? 0.0f : CritChanceBase * critEff;
         CritMultiplierValue = CritMultiplier;
         // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnBuffsChanged 同款）——
         // 原每物理帧 BuffCount 字典查找 + Pow（_physics_process 每帧两次）。
         // 2026-08-16 扩展：开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
-        _fuelDrainRate = BuffScale(BuffEfficientBoost, FuelDrain, (int)GameState.Instance.BuffCount(BuffEfficientBoost));
-        _fuelRegenRate = BuffScale(BuffBoostRecovery, FuelRegen, (int)GameState.Instance.BuffCount(BuffBoostRecovery));
-        _fireIntervalValue = BuffScale(BuffRapidFire, BaseFireInterval, (int)GameState.Instance.BuffCount(BuffRapidFire));
-        _bulletDamageValue = Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (int)GameState.Instance.BuffCount(BuffPowerShot)));
-        _bulletSpeedValue = BuffScale(BuffBulletSpeed, BulletSpeed, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+        _fuelDrainRate = BuffScale(BuffEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(BuffEfficientBoost));
+        _fuelRegenRate = BuffScale(BuffBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(BuffBoostRecovery));
+        _fireIntervalValue = BuffScale(BuffRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(BuffRapidFire));
+        _bulletDamageValue = Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (float)GameState.Instance.TalentEffLevel(BuffPowerShot)));
+        _bulletSpeedValue = BuffScale(BuffBulletSpeed, BulletSpeed, (float)GameState.Instance.TalentEffLevel(BuffBulletSpeed));
         _spreadShotCount = BuffCap(BuffSpreadShot);
         _pierceCount = BuffCap(BuffPiercing);
         _explosiveEnabled = BuffEnabled(BuffExplosive);
         var dashStacks = (int)GameState.Instance.BuffCount(BuffPhaseDash);
         _dashUnlocked = dashStacks > 0;
-        _dashCooldownMax = BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max(dashStacks - 1, 0));
-        // H7：MaxHealth 热路径缓存（Hud.cs D08 同款）——extra_life 随 buff 变化才变，
+        _dashCooldownMax = BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(BuffPhaseDash) - 1f, 0f));
+        // H7：MaxHealth 热路径缓存（Hud.cs D08 同款）——extra_life 随天赋层级变化才变，
         // 由本方法（_Ready 首调 + BuffsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
         _cachedMaxHp = GameState.Instance.MaxHealth();
     }
 
-    /// <summary>A4：乘算因子求值——base × factor^count。</summary>
-    private float BuffScale(StringName id, float baseValue, int count) => baseValue * Mathf.Pow((float)_buffValues[id].AsDouble(), count);
+    /// <summary>A4：乘算因子求值——base × factor^effLevel（effLevel 可为分数：收益递减/路线/专注折算）。</summary>
+    private float BuffScale(StringName id, float baseValue, float effLevel) => baseValue * Mathf.Pow((float)_buffValues[id].AsDouble(), effLevel);
 
     /// <summary>A4：堆叠上限截断——min(count, max_stacks)。</summary>
     private int BuffCap(StringName id) => Mathf.Min((int)GameState.Instance.BuffCount(id), (int)_buffValues[id]);
@@ -1515,7 +1520,7 @@ public partial class Player : CharacterBody2D
         {
             BulletSpeed = value;
             // 空间换时间缓存同步：测试/兼容桥运行期改基础弹速时，发射路径须立即生效。
-            _bulletSpeedValue = BuffScale(BuffBulletSpeed, value, (int)GameState.Instance.BuffCount(BuffBulletSpeed));
+            _bulletSpeedValue = BuffScale(BuffBulletSpeed, value, (float)GameState.Instance.TalentEffLevel(BuffBulletSpeed));
         }
     }
 }

@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Esc 暂停面板：继续 / 保存进度 / 设置 / 退出游戏 / 重开提示。
+/// Esc 暂停面板：继续 / 保存进度 / 设置 / 退出游戏。
 /// 「保存进度」是全局唯一主动存档入口；「设置」打开 Ctrl/Shift 模式面板。
 /// ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator（见 docs/EXIT_FLOW.md），
 /// 本面板只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
@@ -17,7 +17,6 @@ public partial class PauseUi : CanvasLayer
     private Button _settingsButton = null!;
     private Button _quitButton = null!;
     private Label _titleLabel = null!;
-    private Label _hintLabel = null!;
     private ChamferedPanel _plate = null!;
     private VBoxContainer _content = null!;
     private SettingsUi? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
@@ -73,9 +72,6 @@ public partial class PauseUi : CanvasLayer
         _quitButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
         _quitButton.Pressed += OnQuitPressed;
         _content.AddChild(_quitButton);
-
-        _hintLabel = UITheme.MakeLabel(Tr("PAUSE_HINT"), UITheme.FontCaption, UITheme.TextDim);
-        _content.AddChild(_hintLabel);
     }
 
     public override void _ExitTree()
@@ -91,7 +87,6 @@ public partial class PauseUi : CanvasLayer
     {
         _titleLabel.Text = Tr("PAUSE_TITLE");
         _resumeButton.Text = Tr("PAUSE_RESUME");
-        _hintLabel.Text = Tr("PAUSE_HINT");
         _settingsButton.Text = Tr("PAUSE_SETTINGS");
         _quitButton.Text = Tr("PAUSE_QUIT");
         // 2026-08-03 审计：按保存态标志选文案（跨语言文本比较在切换语言后会误判为未保存）

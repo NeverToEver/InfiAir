@@ -6,7 +6,7 @@ namespace InfiAir;
 /// <summary>
 /// 设置界面：左侧导航三页——「控制」（可改键表 + 恢复默认）、
 /// 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）。
-/// 改键：点「改键」进入捕获态，下一按键即绑定（Esc 取消），冲突键从占用者移除。
+/// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
 /// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）：CanvasLayer 子类。
 /// UITheme/ChamferedPanel 为 C# 类 typed 直调；GameState（GDScript autoload，M7 迁移）
 /// </summary>
@@ -200,6 +200,7 @@ public partial class SettingsUi : CanvasLayer
         scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
         scroll.AddThemeConstantOverride("scrollbar_margin", 4);
+        UITheme.ApplyMetalScrollBar(scroll.GetVScrollBar());
         page.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         scroll.AddChild(page);
         return scroll;
@@ -253,6 +254,8 @@ public partial class SettingsUi : CanvasLayer
         _resetButton.CustomMinimumSize = new Vector2(220.0f, 44.0f);
         _resetButton.Pressed += OnResetKeys;
         page.AddChild(_resetButton);
+        // 常驻改键规则说明（locale 重建时随页重建，无需单独刷新）
+        page.AddChild(UITheme.MakeLabel(Tr("SET_REBIND_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         return page;
     }
 
@@ -271,6 +274,12 @@ public partial class SettingsUi : CanvasLayer
     {
         _capturingAction = action;
         _hintLabel.Text = GdFormat.Format(Tr("SET_CAPTURE"), Tr("ACT_" + action.ToString().ToUpper()));
+    }
+
+    private void CancelCapture()
+    {
+        _hintLabel.Text = Tr("SET_CANCELLED");
+        _capturingAction = new StringName();
     }
 
     public CanvasLayer? Opener()
@@ -305,6 +314,23 @@ public partial class SettingsUi : CanvasLayer
         _hintLabel.Text = Tr("SET_RESET_DONE");
     }
 
+    /// <summary>捕获态右键撤销走 _Input（先于 GUI/动作消费）：面板与按钮 MouseFilter=STOP 会吞掉
+    /// 落在其上的右键，挂 _UnhandledInput 时右键点在面板内取消失灵。固定 UI 手势先手——
+    /// 即便未来右键被绑进任何动作/输入映射，此处也优先保证撤销可达。</summary>
+    public override void _Input(InputEvent @event)
+    {
+        if (!Visible || _capturingAction == new StringName())
+        {
+            return;
+        }
+
+        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+        {
+            CancelCapture();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (!Visible || _capturingAction == new StringName())
@@ -316,17 +342,7 @@ public partial class SettingsUi : CanvasLayer
         // 事件会传到本节点；原实现只处理 InputEventKey，手柄 B 按下无人消费（唯一 B 失灵的界面态）
         if (@event.IsActionPressed("ui_cancel"))
         {
-            _hintLabel.Text = Tr("SET_CANCELLED");
-            _capturingAction = new StringName();
-            GetViewport().SetInputAsHandled();
-            return;
-        }
-
-        // 鼠标右键：与 Esc 同路由的固定取消触发器（BackNavigator 对捕获态放行不消费，事件传到本节点）
-        if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Right)
-        {
-            _hintLabel.Text = Tr("SET_CANCELLED");
-            _capturingAction = new StringName();
+            CancelCapture();
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -341,8 +357,7 @@ public partial class SettingsUi : CanvasLayer
             // 双键回退后仍为 Key.None（RebindAction 无校验）：取消捕获不写绑定，防动作永久失效
             if (kc == (int)Key.None)
             {
-                _hintLabel.Text = Tr("SET_CANCELLED");
-                _capturingAction = new StringName();
+                CancelCapture();
                 GetViewport().SetInputAsHandled();
                 return;
             }

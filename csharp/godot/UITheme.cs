@@ -11,7 +11,7 @@ namespace InfiAir;
 public partial class UITheme : RefCounted
 {
     // ---------------- 色板（C# typed 直用） ----------------
-    public static readonly Color PanelBg = new(0.039f, 0.063f, 0.102f, 0.78f); // 面板底 藏青
+    public static readonly Color PanelBg = new(0.058f, 0.086f, 0.130f, 0.80f); // 面板底 暗钢藏青（提亮一档让拉丝可辨）
     public static readonly Color PanelBorder = new(0.0f, 0.83f, 1.0f, 0.5f); // 面板边框 青 1px 细线
     public static readonly Color Accent = new(0x00d4ffff); // 主强调青
     public static readonly Color AccentBlue = new(0x0080ffff); // 辅助全息蓝
@@ -22,10 +22,17 @@ public partial class UITheme : RefCounted
     public static readonly Color TextDim = new(0x8a9bb0ff); // 文字次
     public static readonly Color Danger = new(0xff3366ff); // 警报红
     public static readonly Color Success = new(0x00ff88ff); // 成功绿
-    public static readonly Color BtnNormal = new(0.039f, 0.063f, 0.102f, 0.4f); // 透明底
-    public static readonly Color BtnHover = new(0.0f, 0.83f, 1.0f, 0.12f);
-    public static readonly Color BtnPressed = new(0.0f, 0.83f, 1.0f, 0.25f);
     public static readonly Color BtnPrimaryBg = new(0.0f, 0.83f, 1.0f, 0.18f); // 主按钮底（ACCENT 18% alpha）
+
+    // 金属钢面 token：按钮/底衬贴图为近白灰度 + 预烘焙倒角（assets/sprites/ui/button_plate*），
+    // 色相/明度全部由这些 tint 单源派生；hover 允许 >1 的通道（乘贴图后 clamp，读作受激冷光）
+    public static readonly Color SteelTint = new(0.62f, 0.70f, 0.84f); // 冷钢蓝灰（按钮 normal）
+    public static readonly Color SteelTintHover = new(0.78f, 0.96f, 1.10f); // 受激冷光提亮（hover/焦点）
+    public static readonly Color SteelTintPressed = new(0.44f, 0.55f, 0.70f); // 按下凹陷（换凹陷贴图 + 压暗）
+    public static readonly Color SteelCyanTint = new(0.40f, 0.88f, 1.04f); // 主按钮钢面透青（ACCENT 系）
+    public static readonly Color SteelCyanHover = new(0.54f, 1.02f, 1.16f);
+    public static readonly Color SteelCyanPressed = new(0.30f, 0.62f, 0.78f);
+    public static readonly Color PanelSteelTint = new(0.20f, 0.27f, 0.40f, 0.85f); // PanelContainer 暗钢底衬（名牌/下拉等）
     public static readonly Color DimBg = new(0.006f, 0.012f, 0.024f, 0.84f); // 全屏遮罩：深青黑强压暗
     public static readonly Color EventMagenta = new(1.0f, 0.25f, 0.75f); // 随机事件/通讯品红
     public static readonly Color WarnYellow = new(1.0f, 0.8f, 0.35f); // 蓄力/提示黄
@@ -109,12 +116,12 @@ public partial class UITheme : RefCounted
     public static void ApplyPrimaryButton(Button button)
     {
         button.AddThemeFontSizeOverride("font_size", FontHeader);
-        button.AddThemeStyleboxOverride("normal", MakeBtnStyle(BtnPrimaryBg, Accent));
-        button.AddThemeStyleboxOverride("hover", MakeBtnStyle(new Color(Accent, 0.3f), Accent));
-        button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(new Color(Accent, 0.42f), Accent));
-        button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(BtnPrimaryBg, 0.5f), new Color(Accent, 0.4f)));
+        button.AddThemeStyleboxOverride("normal", MakeBtnStyle(SteelCyanTint));
+        button.AddThemeStyleboxOverride("hover", MakeBtnStyle(SteelCyanHover));
+        button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(SteelCyanPressed, inset: true));
+        button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(SteelCyanTint, 0.4f)));
         // 焦点样式与 hover 一致：键盘导航时焦点可见
-        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(new Color(Accent, 0.3f), Accent));
+        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(SteelCyanHover));
         button.AddThemeColorOverride("font_color", Accent);
         button.AddThemeColorOverride("font_hover_color", Text);
         button.AddThemeColorOverride("font_pressed_color", Text);
@@ -223,7 +230,7 @@ public partial class UITheme : RefCounted
         center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         dim.AddChild(center);
 
-        var panel = new ChamferedPanel { Brackets = true };
+        var panel = new ChamferedPanel { Brackets = true, EdgeRivets = true };
         center.AddChild(panel);
 
         var margin = new MarginContainer();
@@ -315,15 +322,15 @@ public partial class UITheme : RefCounted
 
     // ---------------- 基础样式 ----------------
 
-    /// <summary>统一按钮样式：切角系（直角）——normal 透明底+青边框。</summary>
+    /// <summary>统一按钮样式：金属钢板（贴图预烘焙凸起倒角）——normal 冷钢灰面 + 状态差异走 tint。</summary>
     public static void ApplyButton(Button button)
     {
-        button.AddThemeStyleboxOverride("normal", MakeBtnStyle(BtnNormal, PanelBorder));
-        button.AddThemeStyleboxOverride("hover", MakeBtnStyle(BtnHover, Accent));
-        button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(BtnPressed, Accent));
-        button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(BtnNormal, 0.5f), new Color(PanelBorder, 0.4f)));
+        button.AddThemeStyleboxOverride("normal", MakeBtnStyle(SteelTint));
+        button.AddThemeStyleboxOverride("hover", MakeBtnStyle(SteelTintHover));
+        button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(SteelTintPressed, inset: true));
+        button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(SteelTint, 0.4f)));
         // 焦点样式与 hover 一致：键盘导航（Tab/方向键 + Enter）时焦点可见
-        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(BtnHover, Accent));
+        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(SteelTintHover));
         button.AddThemeColorOverride("font_color", Text);
         button.AddThemeColorOverride("font_hover_color", Accent);
         button.AddThemeColorOverride("font_pressed_color", Text);
@@ -337,17 +344,62 @@ public partial class UITheme : RefCounted
         panel.BorderColor = PhantomBorder;
     }
 
-    private static StyleBoxFlat MakeBtnStyle(Color bg, Color border)
+    private const string BtnPlatePath = "res://assets/sprites/ui/button_plate.png";
+    private const string BtnPlatePressedPath = "res://assets/sprites/ui/button_plate_pressed.png";
+
+    /// <summary>按钮钢板样式：九宫格平铺 + 倒角已烘焙进贴图；状态差异全部走 ModulateColor
+    /// （pressed 换凹陷贴图——倒角反转，受光方向不变）。inset=true 用凹陷钢板。</summary>
+    private static StyleBoxTexture MakeBtnStyle(Color tint, bool inset = false)
     {
-        var style = new StyleBoxFlat
+        var style = new StyleBoxTexture
         {
-            BgColor = bg,
-            BorderColor = border,
+            Texture = GD.Load<Texture2D>(inset ? BtnPlatePressedPath : BtnPlatePath),
+            ModulateColor = tint,
+            AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Tile,
+            AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Tile,
         };
-        style.SetBorderWidthAll(1);
-        style.SetCornerRadiusAll(0);
+        style.TextureMarginLeft = 8;
+        style.TextureMarginTop = 8;
+        style.TextureMarginRight = 8;
+        style.TextureMarginBottom = 8;
         style.SetContentMarginAll(8.0f);
         return style;
+    }
+
+    /// <summary>金属面板底衬（PanelContainer/Panel 的 "panel" 样式盒）：暗钢 tint，散落 Panel 统一入口。</summary>
+    public static StyleBoxTexture MakeMetalPanelStyle(Color? tint = null)
+        => MakeBtnStyle(tint ?? PanelSteelTint);
+
+    /// <summary>输入框金属化（normal/focus 钢板 + 文字/光标/占位配色）。散落 LineEdit 统一入口。</summary>
+    public static void ApplyMetalLineEdit(LineEdit edit)
+    {
+        var normal = MakeBtnStyle(new Color(0.26f, 0.33f, 0.46f, 0.80f));
+        normal.ContentMarginLeft = 12.0f;
+        normal.ContentMarginRight = 12.0f;
+        var focus = MakeBtnStyle(new Color(0.32f, 0.42f, 0.58f, 0.88f));
+        focus.ContentMarginLeft = 12.0f;
+        focus.ContentMarginRight = 12.0f;
+        edit.AddThemeStyleboxOverride("normal", normal);
+        edit.AddThemeStyleboxOverride("focus", focus);
+        edit.AddThemeColorOverride("font_color", Text);
+        edit.AddThemeColorOverride("font_placeholder_color", new Color(TextDim, 0.7f));
+        edit.AddThemeColorOverride("caret_color", Accent);
+        edit.AddThemeColorOverride("selection_color", new Color(Accent, 0.30f));
+    }
+
+    /// <summary>滚动条金属化（深槽 + 钢质拉条）。ScrollContainer 两轴滚动条统一入口。</summary>
+    public static void ApplyMetalScrollBar(ScrollBar bar)
+    {
+        var groove = new StyleBoxFlat { BgColor = new Color(0.012f, 0.020f, 0.036f, 0.85f) };
+        groove.SetCornerRadiusAll(3);
+        var grabber = new StyleBoxFlat { BgColor = new Color(0.42f, 0.50f, 0.64f, 0.90f) };
+        grabber.SetCornerRadiusAll(3);
+        var grabberHot = new StyleBoxFlat { BgColor = new Color(0.60f, 0.78f, 0.92f, 0.95f) };
+        grabberHot.SetCornerRadiusAll(3);
+        bar.AddThemeStyleboxOverride("scroll", groove);
+        bar.AddThemeStyleboxOverride("grabber", grabber);
+        bar.AddThemeStyleboxOverride("grabber_highlight", grabberHot);
+        bar.AddThemeStyleboxOverride("grabber_pressed", grabberHot);
     }
 
     /// <summary>面板打开微动效：200ms 淡入（不做位移动画——容器布局会覆盖 position）。</summary>

@@ -97,44 +97,37 @@ public partial class SmokeTest : Node
             player.SetAutoFire(false);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            var buffUi = GetNode<BuffSelect>("Main/BuffUI");
             var spawner = GetNode<Spawner>("Main/Spawner");
 
-            // 1. 里程碑触发 Buff UI（阈值已改曲线，测试用 override 固定 500 保证确定性）
+            // 1. 里程碑 → 天赋点入缓存池（不弹窗、不暂停；override 固定 500 保证确定性）
             gs.SetMilestoneOverride(500);
+            Check(gs.TalentRawCache == 0, "初始缓存为 0");
             gs.AddScore(500);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(buffUi.Visible, "500 分触发 Buff 选择 UI");
-            Check(GetTree().Paused, "Buff UI 弹出时游戏暂停");
-            Check(buffUi.CurrentAvailable().Count == 3, "里程碑三选一候选数为 3（池未满）");
+            Check(!GetTree().Paused, "里程碑入账不暂停对局");
+            Check(gs.TalentRawCache >= gs.Talent.Config.PointsPerMilestone, "里程碑天赋点入缓存池");
 
-            // 2. 选择 buff 后恢复
-            buffUi.PickBuff("power_shot");
-            Check(!buffUi.Visible && !GetTree().Paused, "选择 buff 后关闭并恢复");
-            Check(gs.BuffCount("power_shot") == 1, "buff 计入 GameState");
+            // 2. 天赋面板开合 + 面板内加点（HUD 指示器点击/G 键的直调路径）
+            var talentPanel = GetNode<TalentPanel>("Main/TalentUI");
+            talentPanel.Open();
+            Check(talentPanel.Visible && GetTree().Paused, "天赋面板打开时游戏暂停");
+            Check(gs.TalentUpgrade("power_shot"), "面板内加点成功");
+            Check(gs.BuffCount("power_shot") == 1, "天赋层级计入 GameState（效果桥同步）");
+            talentPanel.Close();
+            Check(!talentPanel.Visible && !GetTree().Paused, "面板关闭并恢复对局");
 
-            // 2b. 单次加分跨两档里程碑：第二档挂账、关闭后补开（2026-08-13 回归——
-            // 原实现第二档被 OnMilestoneReached 的 Visible 守卫直接 return，该档三选一永久丢失）
-            var buffsBefore2b = (Godot.Collections.Dictionary)gs.Buffs.Duplicate(true);  // 段末恢复：选取的 buff 不干扰后续数值断言
+            // 2b. 单次加分跨两档里程碑：逐档入账（缓存池按档累加，无弹窗挂账语义）
+            var cacheBefore2b = gs.TalentRawCache;
             gs.SetMilestoneOverride(500);            // 当前 Score=500，下一档回设 500
             var tier2 = gs.MilestoneThreshold(2);    // 首档触发后 while 续判的曲线阈值
             gs.AddScore(tier2 - 500);                // 一次跨 override 档 + 曲线档（同帧两发 MilestoneReached）
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(buffUi.Visible && GetTree().Paused, "跨档加分：第一档 Buff UI 弹出");
-            buffUi.PickBuff("power_shot");
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(buffUi.Visible && GetTree().Paused, "跨档加分：关闭后补开第二档 Buff UI");
-            buffUi.PickBuff("power_shot");
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(!buffUi.Visible && !GetTree().Paused, "跨档加分：补开档选取后正常关闭");
-            // 2b 把 Score 推高至曲线第二档，后续得分会陆续跨档弹面板（暂停冻结子弹、干扰后续断言）——
-            // 封锁后续里程碑，恢复「后续阈值远高于当前分数」的测试前提；buffs 恢复至 2b 前（3.11 有层数硬断言）
+            Check(gs.TalentRawCache == cacheBefore2b + 2 * gs.Talent.Config.PointsPerMilestone, "跨档加分：两档点数全部入账");
+            // 2b 把 Score 推高至曲线第二档，后续得分会陆续入账（不暂停、无干扰）——
+            // 封锁后续里程碑，恢复「后续阈值远高于当前分数」的测试前提；
+            // 复位 2 段加点（后续 3.11 有层数硬断言前提）
             gs.SetMilestoneOverride(999999999);
-            gs.Buffs.Clear();
-            foreach (var k in buffsBefore2b.Keys)
-            {
-                gs.Buffs[k] = buffsBefore2b[k];
-            }
+            gs.Talent.TestSetLevel("power_shot", 0);
 
             // 3. Boss 生成与弹幕
             spawner.SpawnBoss();
@@ -159,12 +152,7 @@ public partial class SmokeTest : Node
             var expectMult = 1.0 + 0.6 + Mathf.Floor(gs.RunTime / 30.0) * 0.075;
             Check(Mathf.Abs(gs.DifficultyMultiplier - expectMult) < 0.001, "难度乘数按公式更新");
             Check(!GetNode<Control>("Main/HUD/BossBar").Visible, "Boss 血条隐藏");
-            // 里程碑曲线下后续阈值远高于当前分数，Buff UI 一般不再弹出；若弹出则关闭以便继续测试
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
-            Check(!buffUi.Visible && !GetTree().Paused, "里程碑 UI 可重复触发并关闭");
+            // 里程碑不再弹窗：后续得分只入缓存池（指示器驱动），对局节奏零打断
             // 停掉生成器并清场（敌机/敌弹），保证后续断言确定性
             spawner.SetProcess(false);
             foreach (var child in GetNode("Main").GetChildren())
@@ -263,10 +251,6 @@ public partial class SmokeTest : Node
             Check(boss2 != null && boss2.BossType == 2, "Boss 轮换：第 2 只为游击型");
             boss2!.TakeDamage(9999);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
 
             // 3.3 Boss-3 母舰型召唤小怪
             spawner.SpawnBoss();
@@ -294,10 +278,6 @@ public partial class SmokeTest : Node
             Check(minionFound, "母舰型 Boss 召唤小怪");
             boss3!.TakeDamage(9999);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
             // 清理小怪与弹幕
             foreach (var child in GetNode("Main").GetChildren())
             {
@@ -344,10 +324,6 @@ public partial class SmokeTest : Node
             Check(boss4!.FireTimer() < 1.0f, "狂暴后射速提升");
             boss4!.TakeDamage(9999);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
             GetTree().Paused = false;
             // 清理弹幕
             foreach (var child in GetNode("Main").GetChildren())
@@ -360,8 +336,8 @@ public partial class SmokeTest : Node
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
             // 3.5 新 buff 抽查：穿透弹 / 爆炸弹作用于玩家子弹
-            gs.AddBuff("piercing");
-            gs.AddBuff("explosive");
+            gs.Talent.TestSetLevel("piercing", 1);
+            gs.Talent.TestSetLevel("explosive", 1);
             player.Fire(Vector2.Down);
             Bullet? fired = null;
             foreach (var child in GetNode("Main").GetChildren())
@@ -387,7 +363,7 @@ public partial class SmokeTest : Node
             await Coroutine.WaitSeconds(this, 0.5);
             float slowD1 = slowE.Position.Y - 100.0f;
             slowE.QueueFree();
-            gs.AddBuff("slow_field");
+            gs.Talent.TestSetLevel("slow_field", 1);
             var slowE2 = EnemyScene.Instantiate<Enemy>();
             slowE2.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
             slowE2.CanShoot = false;
@@ -400,7 +376,7 @@ public partial class SmokeTest : Node
             Check(slowD1 > 20.0f && slowD2 < slowD1 * 0.9f, "慢速力场全局敌机移速 ×0.8");
 
             // 3.7 相位冲刺：触发、无敌、位移、冷却
-            gs.AddBuff("phase_dash");
+            gs.Talent.TestSetLevel("phase_dash", 1);
             double healthBefore = gs.Health;
             player.SetSinceDamage(0.0f);  // 冻结被动回血，避免干扰 HP 断言
             var posBefore = player.Position;
@@ -429,7 +405,7 @@ public partial class SmokeTest : Node
             await Coroutine.WaitSeconds(this, 0.5);
             Check(player.FuelAmount() > fuelAfterBoost, "燃料回复");
             Check(player.FuelDrainRate() == 35.0f, "无高效推进时消耗 35/s");
-            gs.AddBuff("efficient_boost");
+            gs.Talent.TestSetLevel("efficient_boost", 1);
             Check(Mathf.IsEqualApprox(player.FuelDrainRate(), 35.0f * 0.75f), "高效推进消耗 -25%");
 
             // 3.9 精英击毁：高分奖励（得分制，无掉落物）
@@ -442,10 +418,6 @@ public partial class SmokeTest : Node
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(gs.Score >= scoreBeforeElite + spawner.ELITE_TYPES[0]["score"].AsInt32(), "精英击毁得分奖励");
             // 得分可能再次触发里程碑，关闭之
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
             GetTree().Paused = false;
 
             // 3.10 母舰（原作对齐）：蓄力召唤 → 到位自动对接（点吸附）→ 驻留弹匣 → 提前离舰
@@ -548,10 +520,6 @@ public partial class SmokeTest : Node
             await Coroutine.WaitSeconds(this, 6.5);
             Input.ActionRelease("move_left");
             Check(Mathf.Abs(ms.Position.X - (gs.ViewWorldRect().Position.X + ms.DRIVE_MARGIN_X)) < 30.0f, "母舰驾驶边界钳制");
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
             GetTree().Paused = false;
             // 弹匣随时间消耗（驻留已累计 >2s）
             Check(ms.GetMagCells() < 10, "驻留弹匣消耗");
@@ -606,10 +574,6 @@ public partial class SmokeTest : Node
             gs.ResetCombo(); // 连击基线归零：断言仅覆盖本次单杀（1/3 分），隔离前置击杀残留
             await Coroutine.WaitSeconds(this, 0.3);
             Check(gs.Score == scoreBefore33 + 33, "母舰击杀 1/3 分");
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff("rapid_fire");
-            }
             GetTree().Paused = false;
             // 警告横幅播完（5s）强制离舰：第二艘母舰，缩短计时确定性验证
             main.SetDockCooldown(0.0f);
@@ -639,17 +603,18 @@ public partial class SmokeTest : Node
             }
             gs.LoginUser("smoke_user");
             int savedScore = gs.Score;
-            gs.AddBuff("power_shot");
+            gs.Talent.TestSetLevel("power_shot", 2);
             gs.Health = 66.0;
             gs.SaveRun(55.0, 12.0);
             Check(gs.HasSave(), "存档文件已写入");
             gs.Score = 0;
             gs.Health = 100.0;
-            gs.Buffs.Clear();
+            gs.Talent.ResetAll();
             gs.ApplyRunSave(gs.LoadRunData());
             Check(gs.Score == savedScore, "存档恢复分数");
-            Check(gs.BuffCount("power_shot") == 2, "存档恢复 buff 层数");
-            Check(gs.Health == 66.0, "存档恢复 HP（v2 格式）");
+            Check(gs.TalentLevel("power_shot") == 2, "存档恢复天赋层级");
+            Check(gs.BuffCount("power_shot") == 2, "存档恢复后效果桥同步");
+            Check(gs.Health == 66.0, "存档恢复 HP（v3 格式）");
 
             // 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
             int scoreBeforeHc = gs.Score;
@@ -1051,7 +1016,7 @@ public partial class SmokeTest : Node
             // 6.1d 散射×辅助瞄准适配（2026-08-13 回归）：各散射等级齐射全弹绑定同一追踪目标、
             // 目标死亡后追踪弹解除绑定（stale 引用守卫族，历史崩溃面）
             var buffsBeforeAim = (Godot.Collections.Dictionary)gs.Buffs.Duplicate(true);
-            gs.AddBuff("spread_shot");  // 1 层 → 3 弹（奇数序列）
+            gs.Talent.TestSetLevel("spread_shot", 1);  // 1 层 → 3 弹（奇数序列）
             var aimE3 = EnemyScene.Instantiate<Enemy>();
             aimE3.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
             aimE3.CanShoot = false;
@@ -1104,7 +1069,7 @@ public partial class SmokeTest : Node
             }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             // 2 层 → 5 弹同验（上限层）
-            gs.AddBuff("spread_shot");
+            gs.Talent.TestSetLevel("spread_shot", 2);
             var aimE4 = EnemyScene.Instantiate<Enemy>();
             aimE4.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
             aimE4.CanShoot = false;

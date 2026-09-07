@@ -276,8 +276,7 @@ public partial class Hud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         namePlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        var plateStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.05f, 0.09f, 0.6f) };
-        namePlate.AddThemeStyleboxOverride("panel", plateStyle);
+        namePlate.AddThemeStyleboxOverride("panel", UITheme.MakeMetalPanelStyle());
         _bossName = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -300,6 +299,7 @@ public partial class Hud : CanvasLayer
             Position = new Vector2(-320.0f, 4.0f),
             Size = new Vector2(640.0f, 88.0f),
             Brackets = true,
+            EdgeRivets = true,
             Visible = false,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
@@ -322,10 +322,13 @@ public partial class Hud : CanvasLayer
         BuildEventBar();
         BuildVignette();
         BuildBuffDock();
+        BuildCacheIndicator();
         BuildInfoBanner();
         gs.Connect("BuffsChanged", Callable.From(RebuildBuffDock));
         gs.Connect("KeyBindingsChanged", Callable.From(RefreshBuffTag));
+        gs.Connect("TalentCacheChanged", Callable.From<double, int>(OnTalentCacheChanged));
         RebuildBuffDock();
+        RefreshCacheIndicator();
         _hpBarRest = _hpBar.Position;
         _buffDockRest = _buffDockWrap.Position;
     }
@@ -654,6 +657,7 @@ public partial class Hud : CanvasLayer
         {
             Position = new Vector2(10.0f, 24.0f),
             Size = new Vector2(230.0f, 92.0f),
+            EdgeRivets = true,
         };
         AddChild(scorePlate);
         MoveChild(scorePlate, 0);
@@ -667,6 +671,7 @@ public partial class Hud : CanvasLayer
         {
             Position = new Vector2(10.0f, -134.0f),
             Size = new Vector2(560.0f, 120.0f),
+            EdgeRivets = true,
         };
         statusPlate.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         AddChild(statusPlate);
@@ -690,6 +695,7 @@ public partial class Hud : CanvasLayer
         {
             Position = new Vector2(-240.0f, 24.0f),
             Size = new Vector2(230.0f, 44.0f),
+            EdgeRivets = true,
         };
         diffPlate.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         AddChild(diffPlate);
@@ -1148,6 +1154,121 @@ public partial class Hud : CanvasLayer
         BuildBuffPanel();
     }
 
+    // ---------------- 天赋缓存指示器（右上角，第四章 4.2） ----------------
+
+    private ChamferedPanel _cacheChip = null!;
+    private Label _cacheCount = null!;
+    private Label _cacheTooltip = null!;
+    private Tween? _cachePulseTween;
+    private int _lastCacheRaw = -1;
+
+    /// <summary>缓存指示器芯片（难度块下方）：点数 + 状态光晕；点击/G 键开天赋面板。
+    /// 状态：空闲(0) 灰 / 可用(1..20) 青+呼吸 / 溢出警告(21..29) 橙 / 严重溢出(30+) 红。
+    /// 呼吸脉冲受 ReduceFlash 无障碍约束（开启后静止）。</summary>
+    private void BuildCacheIndicator()
+    {
+        _cacheChip = new ChamferedPanel
+        {
+            CustomMinimumSize = new Vector2(172.0f, 56.0f),
+            Brackets = true,
+            Padding = 0.0f,
+        };
+        _cacheChip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        _cacheChip.Position = new Vector2(-192.0f, 118.0f);
+        AddChild(_cacheChip);
+
+        var box = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        box.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        box.OffsetLeft = 14.0f;
+        box.OffsetRight = -14.0f;
+        box.AddThemeConstantOverride("separation", 8);
+        box.Alignment = BoxContainer.AlignmentMode.Center;
+        _cacheChip.AddChild(box);
+
+        var glyph = UITheme.MakeLabel("◆", UITheme.FontHud, UITheme.Accent);
+        glyph.MouseFilter = Control.MouseFilterEnum.Ignore;
+        box.AddChild(glyph);
+        _cacheCount = UITheme.MakeLabel("0", UITheme.FontHudL, UITheme.TextDim, HorizontalAlignment.Right);
+        _cacheCount.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _cacheCount.MouseFilter = Control.MouseFilterEnum.Ignore;
+        box.AddChild(_cacheCount);
+        var keyHint = UITheme.MakeLabel("G", UITheme.FontSmall, UITheme.TextDim);
+        keyHint.MouseFilter = Control.MouseFilterEnum.Ignore;
+        box.AddChild(keyHint);
+
+        _cacheTooltip = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.Text, HorizontalAlignment.Right);
+        _cacheTooltip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        _cacheTooltip.Position = new Vector2(-360.0f, 178.0f);
+        _cacheTooltip.CustomMinimumSize = new Vector2(340.0f, 0.0f);
+        _cacheTooltip.Visible = false;
+        _cacheTooltip.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_cacheTooltip);
+
+        _cacheChip.GuiInput += OnCacheChipInput;
+        _cacheChip.MouseEntered += () =>
+        {
+            var talent = GameState.Instance.Talent;
+            _cacheTooltip.Text = GdFormat.Format((string)Tr("TALENT_CACHE_TIP"), talent.RawCache, talent.EffectiveCache);
+            _cacheTooltip.Visible = true;
+        };
+        _cacheChip.MouseExited += () => _cacheTooltip.Visible = false;
+    }
+
+    private void OnCacheChipInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+        {
+            _main.TalentPanel().Open();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    /// <summary>指示器四状态刷新（TalentCacheChanged 信号驱动 + _Ready 初刷；签名对齐信号双参）。</summary>
+    private void OnTalentCacheChanged(double _effective, int _raw) => RefreshCacheIndicator();
+
+    private void RefreshCacheIndicator()
+    {
+        var gs = GameState.Instance;
+        var raw = gs.TalentRawCache;
+        var (color, border, breathing) = raw switch
+        {
+            0 => (UITheme.TextDim, new Color(UITheme.PanelBorder, 0.4f), false),
+            <= 20 => (UITheme.Accent, new Color(UITheme.Accent, 0.8f), true),
+            <= 29 => (UITheme.WarnYellow, new Color(UITheme.WarnYellow, 0.9f), false),
+            _ => (UITheme.Danger, new Color(UITheme.Danger, 1.0f), false),
+        };
+        _cacheCount.Text = raw.ToString();
+        _cacheCount.AddThemeColorOverride("font_color", color);
+        _cacheChip.BorderColor = border;
+        if (raw != _lastCacheRaw || !breathing)
+        {
+            _lastCacheRaw = raw;
+            RestartCachePulse(breathing);
+        }
+    }
+
+    /// <summary>呼吸脉冲（2s 周期明暗循环）；非呼吸态/ReduceFlash 杀旧 tween 并复位。</summary>
+    private void RestartCachePulse(bool breathing)
+    {
+        if (_cachePulseTween != null)
+        {
+            _cachePulseTween.Kill();
+            _cachePulseTween = null;
+        }
+
+        _cacheChip.Modulate = Colors.White;
+        if (!breathing || GameState.Instance.ReduceFlash)
+        {
+            return;
+        }
+
+        _cachePulseTween = CreateTween().SetLoops();
+        _cachePulseTween.TweenProperty(_cacheChip, "modulate", new Color(1f, 1f, 1f, 0.72f), 1.0)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        _cachePulseTween.TweenProperty(_cacheChip, "modulate", Colors.White, 1.0)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+    }
+
     /// <summary>L 展开的 buff 滚动栏：右缘居中面板（标题 + 分隔线 + 滚动明细行），不暂停对局。</summary>
     private void BuildBuffPanel()
     {
@@ -1310,9 +1431,9 @@ public partial class Hud : CanvasLayer
             _buffRows.AddChild(MakeBuffRow(entry[0].AsStringName(), (int)entry[1].AsInt64()));
         }
 
-        // AC18（2026-08-11 健壮性审查）：重建末尾重刷 HP 显示——ApplyMetaLoadout 直写 Buffs 只发
-        // BuffsChanged，_cachedMaxHp 已刷新但 _hpBar/_livesLabel 仍用旧 max 显示失真（extra_life
-        // 开局）；OnHealthChanged 幂等，整数档位守卫下值未变不重格式化
+        // 重建末尾重刷 HP 显示——天赋域（起始预置/加点/存档恢复）经 BuffsChanged 驱动本方法，
+        // _cachedMaxHp 已刷新但 _hpBar/_livesLabel 仍用旧 max 显示失真（extra_life 开局）；
+        // OnHealthChanged 幂等，整数档位守卫下值未变不重格式化
         OnHealthChanged((float)GameState.Instance.Health);
     }
 

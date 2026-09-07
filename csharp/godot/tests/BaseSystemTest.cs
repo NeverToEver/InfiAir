@@ -145,37 +145,63 @@ public partial class BaseSystemTest : Node
             Check(gs.SpendRp(gs.RP_REPAIR_COST), "维修消费 2RP 成功");
             Check(gs.Rp == 12, "消费后余额正确");
 
-            // 7. 天赋路线：合并层数 + 锁定未选 buff
-            gs.AddBuff("spread_shot");
-            gs.AddBuff("spread_shot");
-            gs.AddBuff("laser_beam");
-            Check(!gs.ChooseRoute("offense", "phase_dash"), "不属于该线的 buff 被拒绝");
-            Check(!gs.ChooseRoute("bad_line", "spread_shot"), "非法路线名被拒绝");
-            Check(!gs.ChooseRoute("mobility", "phase_dash"), "零层数路线被拒绝");
-            Check(gs.ChooseRoute("offense", "spread_shot"), "路线选择成功");
-            Check(gs.BuffCount("spread_shot") == 3, "同线层数合并到所选 buff");
-            Check(gs.BuffCount("laser_beam") == 0, "未选 buff 层数清零");
-            Check(gs.IsBuffLocked("laser_beam"), "未选 buff 被锁定");
-            Check(!gs.IsBuffLocked("spread_shot"), "所选 buff 不锁定");
-            Check(!gs.IsBuffLocked("phase_dash"), "未选路线的线不锁定");
-            Check(gs.ChosenRoutes["offense"].AsStringName() == new StringName("spread_shot"), "路线选择已记录");
+            // 7. 天赋缓存：点数入账 + 递增消耗加点 + 前置链 + Buffs 效果桥
+            // （基线非零：第 2 节 AddBossKill 已按 points_per_boss 入账一次——相对断言）
+            var cacheBase = gs.TalentRawCache;
+            Check(gs.TalentEffectiveCache == cacheBase, "缓存池有效值与基线一致");
+            gs.Talent.TestGrant(10);
+            Check(gs.TalentRawCache == cacheBase + 10, "缓存入账（测试端口）");
+            Check(gs.TalentUpgrade("power_shot"), "首级加点成功（消耗 2 点）");
+            Check(gs.TalentRawCache == cacheBase + 8, "递增消费扣减正确");
+            Check(gs.BuffCount("power_shot") == 1, "天赋层级同步 Buffs（效果桥）");
+            Check(!gs.TalentUpgrade("crit_shot"), "前置未满足被拒绝（暴击需急速射击 Lv1）");
+            Check(gs.TalentUpgrade("bullet_speed"), "前置链内下级可加点");
+            Check(gs.BuffCount("bullet_speed") == 1, "前置链层级同步");
+            Check(!gs.TalentUpgrade("unknown_buff"), "未知节点被拒绝");
+            Check(gs.TalentUpgrade("power_shot"), "同节点再升级（第 2 级消耗 3 点）");
+            Check(gs.TalentRawCache == cacheBase + 3, "消耗曲线 base+level×inc 正确");
 
-            // 8. 存档往返：rp / 路线 / 任务进度全保留
+            // 7b. 机制 C 路线契约：首次绑定免费、非核心上限减半、切换需代币
+            Check(gs.Talent.Route == "", "初始无路线契约");
+            Check(gs.Talent.ChooseRoute("berserker"), "首次绑定路线免费成功");
+            Check(gs.Talent.RouteCoreFor("power_shot"), "核心大类识别正确");
+            Check(gs.TalentCap("extra_life") == 5, "非核心大类上限减半（10 → 5）");
+            Check(!gs.Talent.ChooseRoute("guardian"), "无重置代币时切换被拒绝");
+            gs.AddRp(10);
+            Check(gs.Talent.BuyResetToken(), "基地购置重置代币成功（RP 扣减）");
+            Check(gs.Rp == 12 + 10 - gs.Talent.ResetTokenCost, "代币购置 RP 扣减正确");
+            Check(gs.Talent.ChooseRoute("guardian"), "消耗代币切换路线成功");
+            Check(gs.Talent.ResetTokens == 0, "切换消耗一枚代币");
+            Check(gs.TalentCap("power_shot") == 2, "切换后原核心大类上限减半（5 → 2）");
+
+            // 7c. 机制 D 风险加点：顶满档双倍价突破 + 永久锁定 + 局限次
+            gs.Talent.TestGrant(20);
+            Check(gs.TalentUpgrade("armor"), "护甲加到结构上限（Lv1）");
+            Check(gs.Talent.IsOverchargePurchase("armor"), "顶满档判定为风险加点");
+            Check(gs.TalentUpgrade("armor"), "风险加点突破成功");
+            Check(gs.Talent.IsOvercharged("armor") && gs.Talent.Level("armor") == 2, "风险加点后 Lv2 + 永久锁定");
+            Check(!gs.TalentUpgrade("armor"), "永久锁定节点拒绝再升级");
+
+            // 8. 存档往返：rp / 天赋缓存域 / 任务进度全保留
             gs.SaveRun(50.0, gs.RunTime);
             var savedRp = gs.Rp;
+            var savedCache = gs.TalentEffectiveCache;
+            var savedPowerLevel = gs.TalentLevel("power_shot");
+            var savedRoute = gs.Talent.Route;
+            var savedTokens = gs.Talent.ResetTokens;
             gs.Rp = 0;
-            gs.Buffs.Clear();
             gs.ResetMissions();
-            gs.ChosenRoutes.Clear();
-            gs.LockedRoutes.Clear();
+            gs.Talent.ResetAll();
             gs.ApplyRunSave(gs.LoadRunData());
             Check(gs.Rp == savedRp, "存档恢复 RP");
             Check(gs.MissionProgress("kill_5") == 5, "存档恢复任务进度");
             Check(gs.IsMissionClaimed("boss_1"), "存档恢复任务已领取标记");
             Check(!gs.ClaimMission("boss_1"), "恢复后已领取任务仍拒绝重复领奖");
-            Check(gs.BuffCount("spread_shot") == 3, "存档恢复合并后的层数");
-            Check(gs.ChosenRoutes["offense"].AsStringName() == new StringName("spread_shot"), "存档恢复路线选择");
-            Check(gs.IsBuffLocked("laser_beam"), "存档恢复锁定 buff");
+            Check(Math.Abs(gs.TalentEffectiveCache - savedCache) < 1e-6, "存档恢复缓存池（含衰减点值）");
+            Check(gs.TalentLevel("power_shot") == savedPowerLevel, "存档恢复天赋层级");
+            Check(gs.BuffCount("power_shot") == savedPowerLevel, "存档恢复后效果桥同步");
+            Check(gs.Talent.Route == savedRoute, "存档恢复路线契约");
+            Check(gs.Talent.ResetTokens == savedTokens, "存档恢复重置代币");
             Check(gs.MissionProgress("survive_180") >= 180, "存档恢复存活进度");
 
             // 9. reset_run 清零新状态
@@ -183,8 +209,10 @@ public partial class BaseSystemTest : Node
             Check(gs.Rp == 0, "reset_run 清零 RP");
             Check(gs.MissionProgress("boss_1") == 0, "reset_run 清零任务进度");
             Check(!gs.IsMissionClaimed("boss_1"), "reset_run 清零领取标记");
-            Check(gs.ChosenRoutes.Count == 0 && gs.LockedRoutes.Count == 0, "reset_run 清零路线");
-            Check(!gs.IsBuffLocked("laser_beam"), "reset_run 解除锁定");
+            Check(gs.TalentRawCache == 0 && gs.TalentEffectiveCache == 0.0, "reset_run 清空缓存池");
+            Check(gs.TalentLevel("power_shot") == 0, "reset_run 清零天赋层级");
+            Check(gs.Talent.Route == "" && gs.Talent.ResetTokens == 0, "reset_run 清零路线契约与代币");
+            Check(gs.Talent.OverchargeUsed == 0, "reset_run 清零风险加点计数");
 
             // 9b. A 审计：SaveManager 原子写——save 后正本存在、数据正确、重复 save（覆盖）不丢
             var sm = new SaveManager();

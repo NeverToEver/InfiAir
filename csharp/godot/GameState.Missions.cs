@@ -20,12 +20,6 @@ public partial class GameState : Node
     /// <summary>任务 id -> {"progress": int, "claimed": bool}——MissionsService 转发。</summary>
     public Godot.Collections.Dictionary Missions { get => _missions.Missions; set => _missions.Missions = value; }
 
-    /// <summary>天赋路线 line -> 所选 buff id——MissionsService 转发。</summary>
-    public Godot.Collections.Dictionary ChosenRoutes { get => _missions.ChosenRoutes; set => _missions.ChosenRoutes = value; }
-
-    /// <summary>天赋路线 line -> 被锁定的未选 buff id（不进奖励池）——MissionsService 转发。</summary>
-    public Godot.Collections.Dictionary LockedRoutes { get => _missions.LockedRoutes; set => _missions.LockedRoutes = value; }
-
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
     /// （balance.json base_task 段覆盖；默认 1 点/次进基地、2 点/次刷新 = 攒两次基地换一次刷新）——
     /// MissionsService 转发。</summary>
@@ -73,13 +67,6 @@ public partial class GameState : Node
 
     /// <summary>刷新任务：消耗 RefreshPoints 重抽任务（槽位数 MISSION_SLOTS）。
     /// 已完成未领取的任务保留（防止刷新吞掉待领奖励），其余槽位从任务池无放回重抽
-    /// （排除在场 id，避免与保留槽位重号）。余额不足返回 false 且不扣减。</summary>
+    /// （排除在场 id，避免与在场任务重号）。余额不足返回 false 且不扣减。</summary>
     public bool RefreshMissions() => _missions.RefreshMissions();
-
-    /// <summary>选择天赋路线：该线两个 buff 的层数合并到所选 buff，另一个锁定不进奖励池。
-    /// line/buff 非法或该线没有任何层数时返回 false。</summary>
-    public bool ChooseRoute(StringName line, StringName buffId) => _missions.ChooseRoute(line, buffId);
-
-    /// <summary>奖励池抽取时排除锁定 buff</summary>
-    public bool IsBuffLocked(StringName buffId) => _missions.IsBuffLocked(buffId);
 }

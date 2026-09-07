@@ -162,15 +162,6 @@
 | `boss.enrage.type_4.release_ring_count` | `E4ReleaseRingCount` |
 | `boss.enrage.type_4.release_ring_speed` | `E4ReleaseRingSpeed` |
 
-### `csharp\godot\BuffSelect.cs`
-
-| json 键路径 | 脚本回退值 |
-| --- | --- |
-| `buffs.explosive.unlock_boss_kills` | `3` |
-| `buffs.dynamic_weight` | `new Godot.Collections.Dictionary(` |
-| `buffs.extra_life.heal_on_pick` | `30` |
-| `buffs.extra_life.heal_on_pick` | `30` |
-
 ### `csharp\godot\Bullet.cs`
 
 | json 键路径 | 脚本回退值 |
@@ -627,6 +618,12 @@
 | `elite_turret_event.carrier.retreat_start_speed` | `RetreatStartSpeed` |
 | `elite_turret_event.carrier.retreat_accel` | `RetreatAccel` |
 
+### `csharp\godot\TalentService.cs`
+
+| json 键路径 | 脚本回退值 |
+| --- | --- |
+| `buffs.extra_life.heal_on_pick` | `30` |
+
 ### `csharp\godot\TurretBattery.cs`
 
 | json 键路径 | 脚本回退值 |
@@ -664,13 +661,57 @@
 ## 动态拼接键前缀
 
 - `boss.phases.type…`
-- `buffs.…`
 - `player.aim_assist.levels.…`
 
 ## json 中存在但脚本未静态引用的键
 
 （经动态键或整段读取覆盖的不列出；剩下的请人工判断是否为死键）
 
+- `buffs.armor.max_stacks`
+- `buffs.bullet_speed.max_stacks`
+- `buffs.crit_shot.max_stacks`
+- `buffs.dynamic_weight.enabled`
+- `buffs.dynamic_weight.hp_ratio`
+- `buffs.dynamic_weight.ids`
+- `buffs.dynamic_weight.weight`
+- `buffs.evasion.max_stacks`
+- `buffs.explosive.max_stacks`
+- `buffs.explosive.unlock_boss_kills`
+- `buffs.extra_life.max_stacks`
+- `buffs.laser_beam.max_stacks`
+- `buffs.lifesteal.max_stacks`
+- `buffs.phase_dash.max_stacks`
+- `buffs.power_shot.max_stacks`
+- `buffs.rapid_fire.max_stacks`
+- `buffs.regen.max_stacks`
+- `buffs.shield.max_stacks`
+- `buffs.slow_field.max_stacks`
+- `talent.cache.decay_floor`
+- `talent.cache.decay_step`
+- `talent.cache.safe_threshold`
+- `talent.cost.base`
+- `talent.cost.increment`
+- `talent.cost.softcap`
+- `talent.diminishing.floor`
+- `talent.diminishing.step`
+- `talent.focus.penalty_cap`
+- `talent.focus.penalty_per_level`
+- `talent.focus.threshold`
+- `talent.grant.points_per_boss`
+- `talent.grant.points_per_milestone`
+- `talent.mutex.cap_reduction`
+- `talent.mutex.threshold`
+- `talent.overcharge.cost_mult`
+- `talent.overcharge.max_per_run`
+- `talent.route.bonus_levels`
+- `talent.route.cap_floor`
+- `talent.route.reset_token_cost`
+- `talent.softcaps.bullet_speed`
+- `talent.softcaps.crit_shot`
+- `talent.softcaps.extra_life`
+- `talent.softcaps.phase_dash`
+- `talent.softcaps.power_shot`
+- `talent.softcaps.rapid_fire`
 - `version`
 
 ## 脚本引用但 json 缺失的键（走回退值，建议补进 json 或确认为有意兜底）

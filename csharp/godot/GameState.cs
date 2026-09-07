@@ -5,7 +5,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 全局状态与信号总线门面：分数、击杀、生命、难度乘数、已选 buff。
+/// 全局状态与信号总线门面：分数、击杀、生命、难度乘数、天赋缓存。
 /// 唯一 autoload（project.godot：*res://csharp/godot/GameState.cs）；组合 8 个基础服务与
 /// 8 个域服务，partial 文件负责各域门面转发，业务实现在对应服务类。
 /// 公开 API 为 PascalCase typed；[Signal] 以 PascalCase 注册（ScoreChanged 等）。
@@ -53,9 +53,6 @@ public partial class GameState : Node
 
     [Signal]
     public delegate void MissionCompletedEventHandler(StringName id);
-
-    [Signal]
-    public delegate void RouteChosenEventHandler(StringName line, StringName buffId);
 
     [Signal]
     public delegate void KeyBindingsChangedEventHandler();
@@ -187,6 +184,10 @@ public partial class GameState : Node
     /// 迁入 UserSessionService（GameState.Users.cs/State.cs 为门面转发；_userDb 与 _saveManager
     /// 经构造注入——GameState 无 SaveManager 公开门面，迁移探测/清理需文件 IO；跨域经 Instance）。</summary>
     private readonly UserSessionService _session;
+
+    /// <summary>天赋缓存域（2026-09-07 重构）：里程碑/Boss 点数入缓存池 + 树状加点/路线契约/
+    /// 风险加点（TalentService；GameState.Talent.cs 为门面）。无构造依赖（跨域经 Instance）。</summary>
+    private readonly TalentService _talent = new();
 
     public GameState()
     {
@@ -402,14 +403,21 @@ public partial class GameState : Node
 
     private void OnMissionsRefreshPointsChanged(int v) => EmitSignal(SignalName.RefreshPointsChanged, v);
 
-    private void OnMissionsRouteChosen(StringName line, StringName buffId) => EmitSignal(SignalName.RouteChosen, line, buffId);
-
     // 计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
     // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
     // AddKillScore/ResetCombo，晚于 _Ready 本订阅；ApplyRunSave 直发路径不与之重复）
+    /// <summary>计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
+    /// （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
+    /// AddKillScore/ResetCombo，晚于 _Ready 本订阅；ApplyRunSave 直发路径不与之重复）
+    /// 里程碑同时是天赋点来源（天赋缓存系统重构）：入账在信号转发前，保证订阅方读到的
+    /// 缓存余额已含本档点数。</summary>
     private void OnScoreScoreChanged(int v) => EmitSignal(SignalName.ScoreChanged, v);
 
-    private void OnScoreMilestoneReached(int v) => EmitSignal(SignalName.MilestoneReached, v);
+    private void OnScoreMilestoneReached(int v)
+    {
+        _talent.GrantForMilestone();
+        EmitSignal(SignalName.MilestoneReached, v);
+    }
 
     private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
 
@@ -473,7 +481,10 @@ public partial class GameState : Node
         _missions.RpChanged += OnMissionsRpChanged;
         _missions.MissionCompleted += OnMissionsMissionCompleted;
         _missions.RefreshPointsChanged += OnMissionsRefreshPointsChanged;
-        _missions.RouteChosen += OnMissionsRouteChosen;
+        // 天赋缓存域：TalentService 事件 → 信号转发订阅（触发点为运行期对局事件/玩家操作，
+        // 晚于本订阅；ApplyBalance 的 LoadTalentConfig 只写配置缓存不发事件）
+        _talent.CacheChanged += OnTalentCacheChanged;
+        _talent.TalentsChanged += OnTalentsChanged;
         // 计分域（第五轮拆域）：ScoreService 事件 → 信号转发订阅（触发点均为运行期对局事件，
         // 晚于 _Ready 本订阅；下方 InitMilestones 不发信号）
         _score.ScoreChanged += OnScoreScoreChanged;

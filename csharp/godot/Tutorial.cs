@@ -199,7 +199,8 @@ public partial class Tutorial : Node2D
             case 1:
                 {
                     // 加速与相位突进
-                    GameState.Instance.AddBuff(new StringName("phase_dash"));
+                    // 教程授予相位冲刺（天赋域层级直写口，含 Buffs 同步广播）
+                    GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
                     _boostCount = 0;
                     _dashCount = 0;
                     _prevDashing = false;
@@ -620,11 +621,7 @@ public partial class Tutorial : Node2D
         _completePanel.SetAnchorsPreset(Control.LayoutPreset.Center);
         _completePanel.Position = new Vector2(-160.0f, -40.0f);
         _completePanel.CustomMinimumSize = new Vector2(320.0f, 0.0f);
-        var style = new StyleBoxFlat();
-        style.BgColor = new Color(0.10f, 0.13f, 0.22f, 0.95f);
-        style.BorderColor = new Color(0.3f, 0.8f, 0.9f);
-        style.SetBorderWidthAll(2);
-        style.SetCornerRadiusAll(8);
+        var style = UITheme.MakeMetalPanelStyle();
         style.SetContentMarginAll(20.0f);
         _completePanel.AddThemeStyleboxOverride("panel", style);
         var button = new Button();

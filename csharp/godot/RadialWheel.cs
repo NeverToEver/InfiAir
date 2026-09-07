@@ -1,0 +1,692 @@
+using Godot;
+
+using InfiAir.Core;
+
+namespace InfiAir;
+
+/// <summary>
+/// 左缘交互轮盘：圆心锚在屏幕外（调用方将节点 Position 设为轮盘圆心，如 (-160, 540)），
+/// 仅右侧 ~1/4 弧面伸入画面，越界部分由视口剪裁。同心圆环承载层级：最外环始终显示当前层
+/// 选项，确认后整轮向圆心收缩（bounce ease-out），父层缩为内环面包屑、外环刷新为子层——
+/// 「纵深下钻」。弧面溢出时滚轮/拖拽旋转、松手吸附最近槽，弧端渐隐提示更多内容。
+/// 悬停卡片沿径向浮起 5px + 亮边；确认触发圆心脉冲波纹 + 环带闪光。视差跟手以 2D 近似：
+/// Skew（绕 X 倾斜 ±3°）+ 非等比缩放（绕 Y ±3°）+ 圆心平移。
+/// 输入经 _Input（先于 GUI 相位）：只消费落在轮盘命中区内的事件，区外原样放行。
+/// 动画全部 _Process 手动积分（bounce/ease 缓动取自 RadialWheelModel，纯函数可测），
+/// 绘制顶点/颜色缓冲静态缓存——热路径零托管分配。
+/// Node2D 而非 Control：全自绘 + 手动命中，无需 GUI 树语义，且 Skew/ToLocal 在此可用。
+/// </summary>
+public partial class RadialWheel : Node2D
+{
+    /// <summary>叶子项确认（无子层可下钻时触发）。</summary>
+    public event Action<RadialWheelOption>? Confirmed;
+
+    /// <summary>下钻收缩动画完成、子层已入栈（携带被下钻的父层选项，供面板联动切换右区）。</summary>
+    public event Action<RadialWheelOption>? Drilled;
+
+    /// <summary>回退到父层（模型即刻回退，动画随后弹回）。</summary>
+    public event Action? Backed;
+
+    // ---------------- 布局常量（1080p 设计值；UI 不走 world_scale） ----------------
+    private const float Radius = 640f; // 主动环半径
+    private const float BandW = 120f; // 环带宽
+    private const float HubR = 150f; // 中心帽半径
+    private const float RingQ = 0.72f; // 下钻内收比例（外圈 → 内圈）
+    private const float CardW = 240f;
+    private const float CardH = 64f;
+    private const float CardChamfer = 11f;
+    private const float MaxTilt = 0.052f; // 视差倾斜上限（≈±3°）
+    private const float ShrinkDur = 0.5f;
+    private const float PopDur = 0.18f;
+    private const float RippleDur = 0.55f;
+    private const float FlashDur = 0.28f;
+    private const float SnapDur = 0.14f;
+    private const float DragAngleThreshold = 2.5f; // 区分点击/拖拽的累计角阈值（度）
+    private const float CardTiltFactor = 0.45f; // 卡片随弧角倾斜比例（保可读性的部分切向倾斜）
+
+    /// <summary>返回芯片文字（深度 > 1 时显示；由调用方传 Tr 后文案，空 = 只画双箭头）。</summary>
+    public string BackLabel { get; set; } = string.Empty;
+
+    private RadialWheelModel? _model;
+    private FontFile? _font;
+
+    // 动画状态（T = -1 表示未激活）
+    private float _contentScale = 1f;
+    private float _shrinkT = -1f;
+    private bool _shrinkIsDrill; // true = 收缩（下钻），false = 回弹（返回）
+    private int _pendingDrill = -1;
+    private RadialWheelOption? _pendingDrillOption;
+    private float _popT = -1f;
+    private float _rippleT = -1f;
+    private float _flashT = -1f;
+    private float _snapFrom;
+    private float _snapTo;
+    private float _snapT = -1f;
+
+    // 指针状态
+    private int _hoverIdx = -1;
+    private int _externalHighlight = -1; // 外部联动高亮（右侧平铺区悬停 → 轮盘对应卡亮起）
+    private bool _pressed;
+    private bool _dragging;
+    private bool _pressInHub;
+    private float _lastDragAngle;
+    private float _dragAccum;
+    private Vector2 _basePos;
+
+    private float _tiltX;
+    private float _tiltY;
+
+    // 静态几何/颜色缓冲（DrawPolygon/DrawPolyline 零分配）
+    private static readonly Vector2[] CardPts = ChamferRect(CardW, CardH, CardChamfer);
+    private static readonly Vector2[] CardLoop = ClosedLoop(CardPts);
+    private static readonly Vector2[] SocketPts = ChamferRect(40f, 40f, 8f);
+    private static readonly Vector2[] SocketLoop = ClosedLoop(SocketPts);
+    private static readonly Color[] CardFill = new Color[CardPts.Length];
+    private static readonly Color[] SocketFill = new Color[SocketPts.Length];
+    private static readonly Color[] Poly4 = new Color[4];
+    private static readonly Color[] Poly3 = new Color[3];
+    private static readonly Color[] Poly6 = new Color[6];
+    private static readonly Vector2[] GlyphDiamond = { new(0f, -1f), new(1f, 0f), new(0f, 1f), new(-1f, 0f) };
+    private static readonly Vector2[] GlyphTriangle = { new(0f, -1f), new(0.9f, 0.7f), new(-0.9f, 0.7f) };
+    private static readonly Vector2[] GlyphBolt =
+    {
+        new(-0.30f, -1f), new(0.60f, -0.20f), new(0.05f, -0.10f),
+        new(0.40f, 1f), new(-0.55f, 0.10f), new(0f, -0.05f),
+    };
+
+    private static Vector2[] ChamferRect(float w, float h, float c)
+    {
+        var hw = w * 0.5f;
+        var hh = h * 0.5f;
+        return new Vector2[]
+        {
+            new(-hw + c, -hh), new(hw - c, -hh), new(hw, -hh + c), new(hw, hh - c),
+            new(hw - c, hh), new(-hw + c, hh), new(-hw, hh - c), new(-hw, -hh + c),
+        };
+    }
+
+    private static Vector2[] ClosedLoop(Vector2[] pts)
+    {
+        var loop = new Vector2[pts.Length + 1];
+        for (var i = 0; i < pts.Length; i++)
+        {
+            loop[i] = pts[i];
+        }
+
+        loop[^1] = pts[0];
+        return loop;
+    }
+
+    private static Color[] Fill(Color[] buf, Color c, int n)
+    {
+        for (var i = 0; i < n; i++)
+        {
+            buf[i] = c;
+        }
+
+        return buf;
+    }
+
+    public override void _Ready()
+    {
+        _font = UITheme.Font;
+        _basePos = Position;
+    }
+
+    /// <summary>装载根级选项（重开轮盘时重复调用即可重置全部状态）。</summary>
+    public void Load(IReadOnlyList<RadialWheelOption> roots)
+    {
+        _model = new RadialWheelModel(roots);
+        _contentScale = 1f;
+        _shrinkT = _popT = _rippleT = _flashT = _snapT = -1f;
+        _hoverIdx = -1;
+        _externalHighlight = -1;
+        _pressed = _dragging = false;
+        QueueRedraw();
+    }
+
+    // ---------------- A7：测试/诊断公开接口 ----------------
+
+    public int TestDepth => _model?.Depth ?? 0;
+
+    // ---------------- 面板联动 API（层级/选项读取 + 外部高亮） ----------------
+
+    /// <summary>当前层深（1 = 根层）。</summary>
+    public int Depth => _model?.Depth ?? 0;
+
+    /// <summary>当前层选项数。</summary>
+    public int CurrentCount => _model?.OptionCount ?? 0;
+
+    /// <summary>当前层第 i 项（越界返回 null）。</summary>
+    public RadialWheelOption? CurrentOption(int i) =>
+        _model != null && i >= 0 && i < _model.Current.Count ? _model.Current[i] : null;
+
+    /// <summary>弧面中点聚焦项（用于面板联动选中态）。</summary>
+    public RadialWheelOption? FocusedOption => _model?.FocusedOption;
+
+    /// <summary>外部联动高亮（右侧平铺区悬停 → 对应卡亮起；-1 清除）。</summary>
+    public void HighlightOption(int index)
+    {
+        if (_externalHighlight != index)
+        {
+            _externalHighlight = index;
+            QueueRedraw();
+        }
+    }
+
+    public void TestScrollBy(double slots)
+    {
+        if (_model == null)
+        {
+            return;
+        }
+
+        _model.ScrollBy(slots);
+        QueueRedraw();
+    }
+
+    public bool TestDrill(int index)
+    {
+        if (_model == null || !_model.CanDrill(index))
+        {
+            return false;
+        }
+
+        StartConfirmFx();
+        _pendingDrill = index;
+        _pendingDrillOption = _model.Current[index];
+        _shrinkIsDrill = true;
+        _shrinkT = 0f;
+        return true;
+    }
+
+    public void TestBack() => DoBack();
+
+    // ---------------- 帧驱动：动画积分 / 视差 / 悬停 / 拖拽 ----------------
+
+    public override void _Process(double delta)
+    {
+        if (!Visible || _model == null)
+        {
+            return;
+        }
+
+        var d = (float)delta;
+        var dirty = false;
+
+        if (_shrinkT >= 0f)
+        {
+            _shrinkT += d / ShrinkDur;
+            if (_shrinkT >= 1f)
+            {
+                FinishShrink(_model);
+            }
+            else
+            {
+                var p = (float)RadialWheelModel.BounceOut(_shrinkT);
+                _contentScale = _shrinkIsDrill ? 1f - (1f - RingQ) * p : RingQ + (1f - RingQ) * p;
+            }
+
+            dirty = true;
+        }
+
+        if (_popT >= 0f)
+        {
+            _popT += d / PopDur;
+            if (_popT >= 1f)
+            {
+                _popT = -1f;
+            }
+
+            dirty = true;
+        }
+
+        if (_rippleT >= 0f)
+        {
+            _rippleT += d / RippleDur;
+            if (_rippleT >= 1f)
+            {
+                _rippleT = -1f;
+            }
+
+            dirty = true;
+        }
+
+        if (_flashT >= 0f)
+        {
+            _flashT += d / FlashDur;
+            if (_flashT >= 1f)
+            {
+                _flashT = -1f;
+            }
+
+            dirty = true;
+        }
+
+        if (_snapT >= 0f)
+        {
+            _snapT += d / SnapDur;
+            var t = (float)RadialWheelModel.EaseOutCubic(Math.Min(_snapT, 1f));
+            _model.ScrollTo(Mathf.Lerp(_snapFrom, _snapTo, t));
+            if (_snapT >= 1f)
+            {
+                _snapT = -1f;
+            }
+
+            dirty = true;
+        }
+
+        // 悬停视差（2D 近似 3D 倾斜 ±3°）：Skew = 绕 X，非等比缩放 = 绕 Y，圆心随鼠标平移
+        var local = ToLocal(GetGlobalMousePosition());
+        var tx = Mathf.Clamp(local.X / Radius, -1f, 1f) * MaxTilt;
+        var ty = Mathf.Clamp(local.Y / Radius, -1f, 1f) * MaxTilt;
+        var k = 1f - Mathf.Exp(-10f * d);
+        _tiltX = Mathf.Lerp(_tiltX, tx, k);
+        _tiltY = Mathf.Lerp(_tiltY, ty, k);
+        Skew = _tiltY;
+        Scale = new Vector2(1f - Mathf.Abs(_tiltX) * 0.5f, 1f - Mathf.Abs(_tiltY) * 0.5f);
+        Position = _basePos + new Vector2(_tiltX, _tiltY) * 140f;
+
+        var a = Mathf.RadToDeg(Mathf.Atan2(local.Y, local.X));
+
+        // 点击/拖拽判定：按下后累计角漂移超阈值即进入拖拽
+        if (_pressed && !_dragging)
+        {
+            _dragAccum += Mathf.Wrap(a - _lastDragAngle, -180f, 180f);
+            _lastDragAngle = a;
+            if (Mathf.Abs(_dragAccum) > DragAngleThreshold)
+            {
+                _dragging = true;
+                _hoverIdx = -1;
+            }
+        }
+
+        // 拖拽旋转：角度差驱动皮带（光标向下转 = 皮带向下），越界由 EffectiveScroll 钳制
+        if (_dragging)
+        {
+            var dTheta = Mathf.Wrap(a - _lastDragAngle, -180f, 180f);
+            if (Mathf.Abs(dTheta) > 0.001f)
+            {
+                _model.ScrollTo(_model.Scroll - dTheta / _model.SlotAngle);
+                _lastDragAngle = a;
+                dirty = true;
+            }
+        }
+
+        // 悬停命中
+        var hov = _dragging ? -1 : HoverIndexAt(_model, local);
+        if (hov != _hoverIdx)
+        {
+            _hoverIdx = hov;
+            dirty = true;
+        }
+
+        if (dirty)
+        {
+            QueueRedraw();
+        }
+    }
+
+    // ---------------- 输入（_Input：轮盘命中区内消费，区外放行） ----------------
+
+    public override void _Input(InputEvent @event)
+    {
+        if (!Visible || _model == null || _shrinkT >= 0f)
+        {
+            return; // 收缩/回弹动画中为忙态，不接输入
+        }
+
+        if (@event is not InputEventMouseButton mb)
+        {
+            return;
+        }
+
+        var local = ToLocal(GetGlobalMousePosition());
+        if (mb.Pressed)
+        {
+            switch (mb.ButtonIndex)
+            {
+                case MouseButton.Left:
+                    if (IsInWheelZone(_model, local))
+                    {
+                        _pressed = true;
+                        _dragging = false;
+                        _dragAccum = 0f;
+                        _pressInHub = local.Length() < (Radius - BandW * 0.5f) * _contentScale;
+                        _lastDragAngle = Mathf.RadToDeg(Mathf.Atan2(local.Y, local.X));
+                        GetViewport().SetInputAsHandled();
+                    }
+
+                    break;
+                case MouseButton.WheelUp:
+                    if (IsInWheelZone(_model, local))
+                    {
+                        ScrollTowards(_model, _model.Scroll - 1);
+                        GetViewport().SetInputAsHandled();
+                    }
+
+                    break;
+                case MouseButton.WheelDown:
+                    if (IsInWheelZone(_model, local))
+                    {
+                        ScrollTowards(_model, _model.Scroll + 1);
+                        GetViewport().SetInputAsHandled();
+                    }
+
+                    break;
+            }
+        }
+        else if (mb.ButtonIndex == MouseButton.Left && _pressed)
+        {
+            _pressed = false;
+            if (_dragging)
+            {
+                _dragging = false;
+                ScrollTowards(_model, Math.Round(_model.Scroll, MidpointRounding.AwayFromZero)); // 松手吸附最近槽
+            }
+            else if (_pressInHub)
+            {
+                DoBack();
+            }
+            else
+            {
+                var hit = CardIndexAt(_model, local);
+                if (hit >= 0)
+                {
+                    Confirm(_model, hit);
+                }
+            }
+        }
+    }
+
+    // ---------------- 交互动作 ----------------
+
+    private void Confirm(RadialWheelModel model, int index)
+    {
+        StartConfirmFx();
+        if (model.CanDrill(index))
+        {
+            _pendingDrill = index;
+            _pendingDrillOption = model.Current[index];
+            _shrinkIsDrill = true;
+            _shrinkT = 0f; // 收缩到内收位，完成时提交下钻并弹出新层
+        }
+        else
+        {
+            Confirmed?.Invoke(model.Current[index]);
+        }
+    }
+
+    private void DoBack()
+    {
+        if (_model == null || !_model.Back())
+        {
+            return;
+        }
+
+        _externalHighlight = -1;
+        _contentScale = RingQ; // 从内收位弹回满幅（bounce-out）
+        _shrinkIsDrill = false;
+        _shrinkT = 0f;
+        Backed?.Invoke();
+        QueueRedraw();
+    }
+
+    private void StartConfirmFx()
+    {
+        _rippleT = 0f;
+        _flashT = 0f;
+    }
+
+    private void FinishShrink(RadialWheelModel model)
+    {
+        _shrinkT = -1f;
+        _contentScale = 1f;
+        if (_shrinkIsDrill)
+        {
+            model.Drill(_pendingDrill); // CanDrill 已在 Confirm 时校验
+            _pendingDrill = -1;
+            _externalHighlight = -1;
+            _popT = 0f; // 新层在满幅环上弹出
+            var drilled = _pendingDrillOption;
+            _pendingDrillOption = null;
+            if (drilled != null)
+            {
+                Drilled?.Invoke(drilled);
+            }
+        }
+
+        _hoverIdx = -1;
+    }
+
+    private void ScrollTowards(RadialWheelModel model, double target)
+    {
+        _snapFrom = (float)model.Scroll;
+        _snapTo = (float)Math.Clamp(target, 0, model.OptionCount - 1);
+        _snapT = 0f;
+    }
+
+    // ---------------- 命中 ----------------
+
+    private bool IsInHubZone(Vector2 local) => local.Length() < (Radius - BandW * 0.5f) * _contentScale;
+
+    private bool IsInWheelZone(RadialWheelModel model, Vector2 local)
+    {
+        var r = local.Length();
+        if (r <= (Radius - BandW * 0.5f) * _contentScale)
+        {
+            return true; // 内域（返回芯片/轮毂）
+        }
+
+        var ang = Mathf.RadToDeg(Mathf.Atan2(local.Y, local.X));
+        return r <= (Radius + BandW * 0.6f) * _contentScale && Mathf.Abs(ang) <= (float)model.HalfSpan + 6f;
+    }
+
+    private int CardIndexAt(RadialWheelModel model, Vector2 local)
+    {
+        if (Mathf.Abs(local.Length() - Radius * _contentScale) > BandW * 0.75f)
+        {
+            return -1;
+        }
+
+        var hit = model.IndexAtAngle(Mathf.RadToDeg(Mathf.Atan2(local.Y, local.X)));
+        return hit ?? -1;
+    }
+
+    private int HoverIndexAt(RadialWheelModel model, Vector2 local) =>
+        IsInWheelZone(model, local) && !IsInHubZone(local) ? CardIndexAt(model, local) : -1;
+
+    // ---------------- 绘制 ----------------
+
+    public override void _Draw()
+    {
+        if (_model == null || _font == null)
+        {
+            return;
+        }
+
+        var cs = _contentScale;
+        var rInn = (Radius - BandW * 0.5f) * cs;
+        var rOut = (Radius + BandW * 0.5f) * cs;
+        var rMid = (rOut + rInn) * 0.5f;
+        var depth = _model.Depth;
+
+        // 面包屑内环（已下钻的旧层级：暗钢细环 + 受光/背光缘线，随收缩一起缩放）
+        for (var j = 0; j < depth - 1; j++)
+        {
+            var rj = Radius * Mathf.Pow(RingQ, depth - 1 - j) * cs;
+            DrawArc(Vector2.Zero, rj, 0f, Mathf.Tau, 96, new Color(0.10f, 0.14f, 0.20f, 0.42f), 14f, true);
+            DrawArc(Vector2.Zero, rj - 8f, 0f, Mathf.Tau, 96, new Color(0f, 0f, 0f, 0.35f), 1f, true);
+            DrawArc(Vector2.Zero, rj + 8f, 0f, Mathf.Tau, 96, new Color(UITheme.PanelBorder, 0.16f), 1f, true);
+        }
+
+        // 内域暗面 + 装饰导引弧 + 返回芯片（回上一层的常驻入口）
+        DrawCircle(Vector2.Zero, (HubR + 40f) * cs, new Color(0.016f, 0.03f, 0.055f, 0.85f));
+        DrawArc(Vector2.Zero, (HubR + 40f) * cs, 0f, Mathf.Tau, 72, new Color(UITheme.PanelBorder, 0.25f), 1.5f, true);
+        DrawArc(Vector2.Zero, (HubR + 40f + (Radius - BandW * 0.5f - HubR - 40f) * 0.45f) * cs, 0f, Mathf.Tau, 96,
+            new Color(UITheme.PanelBorder, 0.10f), 1f, true);
+        DrawArc(Vector2.Zero, (HubR + 40f + (Radius - BandW * 0.5f - HubR - 40f) * 0.75f) * cs, 0f, Mathf.Tau, 96,
+            new Color(UITheme.PanelBorder, 0.07f), 1f, true);
+        if (depth > 1)
+        {
+            DrawBackChip((HubR + rInn) * 0.5f);
+        }
+
+        // 主动环钢带：外缘受光 / 内缘背光（与全站「上偏左受光」一致的径向版）
+        DrawArc(Vector2.Zero, rMid, 0f, Mathf.Tau, 128, new Color(0.052f, 0.078f, 0.118f, 0.90f), BandW, true);
+        DrawArc(Vector2.Zero, rOut, 0f, Mathf.Tau, 128, new Color(UITheme.PanelBorder, 0.55f), 2f, true);
+        DrawArc(Vector2.Zero, rInn, 0f, Mathf.Tau, 128, new Color(0f, 0f, 0f, 0.50f), 2f, true);
+
+        // 当前层卡片
+        var pop = _popT >= 0f ? (float)RadialWheelModel.EaseOutCubic(_popT) : 1f;
+        var n = _model.OptionCount;
+        for (var i = 0; i < n; i++)
+        {
+            var a = (float)_model.AngleOf(i);
+            if (Mathf.Abs(a) > (float)_model.HalfSpan)
+            {
+                continue; // 视口剪裁之外的弧段本就不可见，弧端外不再绘制
+            }
+
+            DrawCard(_model, i, a, pop);
+        }
+
+        // 确认反馈：圆心脉冲波纹 + 环带闪光
+        if (_rippleT >= 0f)
+        {
+            var rr = Mathf.Lerp(HubR * 0.5f, Radius * 1.06f, (float)RadialWheelModel.EaseOutCubic(_rippleT));
+            var al = (1f - _rippleT) * 0.55f;
+            DrawArc(Vector2.Zero, rr, 0f, Mathf.Tau, 96, new Color(UITheme.Accent, al), 3f, true);
+            DrawArc(Vector2.Zero, rr * 0.82f, 0f, Mathf.Tau, 96, new Color(UITheme.Accent, al * 0.5f), 2f, true);
+        }
+
+        if (_flashT >= 0f)
+        {
+            DrawArc(Vector2.Zero, rMid, 0f, Mathf.Tau, 96, new Color(1f, 1f, 1f, (1f - _flashT) * 0.28f), BandW + CardH, true);
+        }
+    }
+
+    private void DrawBackChip(float midR)
+    {
+        // 位置：内域中线上（可视弧中点），双箭头 ‹‹ + 可选文字
+        var p = new Vector2(midR, 0f);
+        DrawSetTransform(p, 0f, Vector2.One);
+        var col = new Color(UITheme.PanelBorder, 0.85f);
+        DrawLine(new Vector2(6f, -9f), new Vector2(-6f, 0f), col, 2.5f, true);
+        DrawLine(new Vector2(-6f, 0f), new Vector2(6f, 9f), col, 2.5f, true);
+        DrawLine(new Vector2(16f, -9f), new Vector2(4f, 0f), col, 2.5f, true);
+        DrawLine(new Vector2(4f, 0f), new Vector2(16f, 9f), col, 2.5f, true);
+        if (BackLabel.Length > 0 && _font != null)
+        {
+            DrawString(_font, new Vector2(26f, 6f), BackLabel, HorizontalAlignment.Left, -1, 16, new Color(UITheme.TextDim, 0.9f));
+        }
+
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    private void DrawCard(RadialWheelModel model, int i, float angleDeg, float pop)
+    {
+        var focused = i == model.FocusedIndex;
+        var hovered = i == _hoverIdx || i == _externalHighlight;
+        var alpha = (float)model.AlphaAt(angleDeg) * pop;
+        if (alpha <= 0.01f)
+        {
+            return;
+        }
+
+        var aRad = Mathf.DegToRad(angleDeg);
+        var lift = hovered ? 5f : 0f; // 悬停沿径向浮起（Z 轴浮起的 2D 表达）
+        var cardScale = (focused ? 1.08f : hovered ? 1.04f : 1f) * Mathf.Lerp(1.12f, 1f, pop);
+        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * ((Radius + lift) * _contentScale);
+        var rot = Mathf.Clamp(angleDeg * CardTiltFactor, -28f, 28f) * Mathf.DegToRad(1f);
+
+        DrawSetTransform(pos, rot, new Vector2(cardScale, cardScale));
+
+        // 底板：暗钢 + 切角（聚焦更亮）
+        var fill = focused
+            ? new Color(0.095f, 0.14f, 0.205f, 0.97f * alpha)
+            : hovered ? new Color(0.075f, 0.11f, 0.165f, 0.95f * alpha)
+            : new Color(0.045f, 0.070f, 0.108f, 0.92f * alpha);
+        DrawPolygon(CardPts, Fill(CardFill, fill, CardFill.Length));
+
+        // 描边：聚焦/悬停走 ACCENT 亮边，聚焦加一圈泛光
+        var border = focused
+            ? new Color(UITheme.Accent, 0.95f * alpha)
+            : hovered ? new Color(UITheme.Accent, 0.70f * alpha)
+            : new Color(UITheme.PanelBorder, 0.55f * alpha);
+        DrawPolyline(CardLoop, border, focused ? 2f : 1.5f, true);
+        if (focused)
+        {
+            DrawPolyline(CardLoop, new Color(UITheme.Accent, 0.20f * alpha), 5f, true);
+        }
+
+        // 图标槽（卡片局部左端）
+        var socketC = new Vector2(-CardW * 0.5f + 50f, 0f);
+        DrawPolygon(SocketPts, Fill(SocketFill, new Color(0.02f, 0.035f, 0.06f, 0.9f * alpha), SocketFill.Length));
+        DrawPolyline(SocketLoop, new Color(UITheme.PanelBorder, 0.4f * alpha), 1f, true);
+
+        // 字形：单位形状 × 图标缩放，经卡片变换组合定位到图标槽中心
+        var socketWorld = pos + (socketC * cardScale).Rotated(rot);
+        DrawSetTransform(socketWorld, rot, new Vector2(15f * cardScale, 15f * cardScale));
+        var glyphCol = focused ? UITheme.Accent : new Color(UITheme.Accent, 0.75f * alpha);
+        DrawGlyph(model.Current[i].Glyph, glyphCol * alpha);
+
+        // 标签（恢复卡片变换）
+        DrawSetTransform(pos, rot, new Vector2(cardScale, cardScale));
+        var labelCol = focused ? new Color(UITheme.Text, alpha) : new Color(UITheme.TextDim, alpha);
+        DrawString(_font, new Vector2(-CardW * 0.5f + 78f, 8f), model.Current[i].Label, HorizontalAlignment.Left, -1, 22, labelCol);
+
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    /// <summary>单位字形（半径 1 的多边形/线段），经 DrawSetTransform 缩放到图标尺寸。</summary>
+    private void DrawGlyph(RadialGlyph glyph, Color col)
+    {
+        switch (glyph)
+        {
+            case RadialGlyph.Diamond:
+                DrawPolygon(GlyphDiamond, Fill(Poly4, col, 4));
+                break;
+            case RadialGlyph.Triangle:
+                DrawPolygon(GlyphTriangle, Fill(Poly3, col, 3));
+                break;
+            case RadialGlyph.Hex:
+                DrawPolygon(HexPts, Fill(Poly6, col, 6));
+                break;
+            case RadialGlyph.Bolt:
+                DrawPolygon(GlyphBolt, Fill(Poly6, col, 6));
+                break;
+            case RadialGlyph.Ring:
+                DrawArc(Vector2.Zero, 0.85f, 0f, Mathf.Tau, 24, col, 0.22f, true);
+                break;
+            case RadialGlyph.Cross:
+                DrawLine(new Vector2(-0.8f, 0f), new Vector2(0.8f, 0f), col, 0.22f, true);
+                DrawLine(new Vector2(0f, -0.8f), new Vector2(0f, 0.8f), col, 0.22f, true);
+                break;
+            case RadialGlyph.Chevron:
+                DrawPolyline(ChevronPts, col, 0.22f, true);
+                break;
+            case RadialGlyph.Star:
+                DrawLine(new Vector2(0f, -1f), new Vector2(0f, 1f), col, 0.16f, true);
+                DrawLine(new Vector2(-1f, 0f), new Vector2(1f, 0f), col, 0.16f, true);
+                DrawLine(new Vector2(-0.6f, -0.6f), new Vector2(0.6f, 0.6f), col, 0.12f, true);
+                DrawLine(new Vector2(-0.6f, 0.6f), new Vector2(0.6f, -0.6f), col, 0.12f, true);
+                break;
+        }
+    }
+
+    private static readonly Vector2[] HexPts = CreateHex();
+    private static readonly Vector2[] ChevronPts = { new(-0.5f, -0.8f), new(0.5f, 0f), new(-0.5f, 0.8f) };
+
+    private static Vector2[] CreateHex()
+    {
+        var pts = new Vector2[6];
+        for (var i = 0; i < 6; i++)
+        {
+            var a = Mathf.DegToRad(60f * i - 90f);
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+        }
+
+        return pts;
+    }
+}

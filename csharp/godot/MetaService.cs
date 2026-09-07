@@ -197,8 +197,9 @@ public sealed partial class MetaService : RefCounted
         return true;
     }
 
-    /// <summary>新局开局预置：已购升级 → Buffs 初始层数（Main.ApplyNewRun 调用；
-    /// tutorial/存档恢复路径不经过——教程隔离、继续对局 buffs 从存档恢复，均不预置）。</summary>
+    /// <summary>新局开局预置：已购升级 → 天赋节点起始层级（Main.ApplyNewRun 调用；
+    /// tutorial/存档恢复路径不经过——教程隔离、继续对局天赋态从存档恢复，均不预置）。
+    /// 天赋缓存系统重构：归口 TalentService.ApplyStartingLoadout（Buffs 同步 + 信号由服务侧发）。</summary>
     public void ApplyMetaLoadout()
     {
         if (GameState.Instance.CurrentUser == "" || GameState.Instance.IsGuest())
@@ -206,25 +207,7 @@ public sealed partial class MetaService : RefCounted
             return;
         }
 
-        var applied = false;
-        foreach (var key in _metaUpgrades.Keys)
-        {
-            var level = (int)_metaUpgrades[key].AsInt64();
-            if (level > 0)
-            {
-                GameState.Instance.Buffs[key.AsStringName()] = level;
-                applied = true;
-            }
-        }
-
-        if (applied)
-        {
-            // 2026-08-10 审查修复：实际写入层数后须广播 buffs_changed——Player.RefreshBuffFactors/
-            // Hud.RebuildBuffDock 为缓存+信号驱动且 _Ready 阶段已跑过，直写 Buffs 不发信号会让
-            // meta 预置 buff（如 crit_shot）整局不生效、HUD 不显示，直到首次里程碑选 buff 自愈；
-            // 与 AddBuff/ConsumeBuff/ApplyRunSave 口径一致（仅实际写入时发，无升级账户不空广播）
-            GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
-        }
+        GameState.Instance.Talent.ApplyStartingLoadout(_metaUpgrades);
     }
 
     /// <summary>meta 档案落盘（每次变更即时写，防掉档）。</summary>

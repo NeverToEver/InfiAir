@@ -6,7 +6,7 @@
 
 InfiAir：单人 2D 纵版射击。Godot 4.6.2 + C#（.NET 8，gl_compatibility，必须用 godot-mono），全量 C#、零 GDScript。
 
-玩法循环：自动射击 + 波次刷怪 → 里程碑三选一 buff → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行，无尽必死曲线，只有分数结算（无掉落拾取）。
+玩法循环：自动射击 + 波次刷怪 → 里程碑/Boss 掉天赋点入缓存池（不弹窗）→ 天赋面板（G 键/HUD 指示器）自主加点 → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行，无尽必死曲线，只有分数结算（无掉落拾取）。
 
 - 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`。
 - 唯一 autoload 是 `GameState`（`csharp/godot/GameState*.cs` 按域拆 partial），各域服务编排门面，C# 统一经 `GameState.Instance` 访问。

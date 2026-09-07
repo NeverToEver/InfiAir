@@ -176,11 +176,14 @@ public partial class SegmentedBar : Control
             if (i < filled)
             {
                 DrawRect(rect, FillColor);
+                DrawSheen(rect);
             }
             else if (i == filled && partial > 0.0f)
             {
                 DrawRect(rect, EmptyColor);
-                DrawRect(new Rect2(rect.Position, new Vector2(segW * partial, rect.Size.Y)), FillColor);
+                var fillRect = new Rect2(rect.Position, new Vector2(segW * partial, rect.Size.Y));
+                DrawRect(fillRect, FillColor);
+                DrawSheen(fillRect);
             }
             else
             {
@@ -188,7 +191,7 @@ public partial class SegmentedBar : Control
             }
         }
 
-        DrawRect(new Rect2(Vector2.Zero, Size), FrameColor, false, 1.0f, true);
+        DrawMetalFrame();
     }
 
     /// <summary>分段血条绘制：按权重分格，逐段按消耗度填充（未消耗全亮、部分消耗暗底+右侧亮区、
@@ -207,6 +210,7 @@ public partial class SegmentedBar : Control
             if (consumed <= 0.0f)
             {
                 DrawRect(rect, col);
+                DrawSheen(rect);
             }
             else if (consumed >= 1.0f)
             {
@@ -216,13 +220,38 @@ public partial class SegmentedBar : Control
             {
                 DrawRect(rect, EmptyColor);
                 var fillW = rect.Size.X * (1.0f - consumed);
-                DrawRect(new Rect2(new Vector2(rect.Position.X + rect.Size.X - fillW, rect.Position.Y), new Vector2(fillW, rect.Size.Y)), col);
+                var fillRect = new Rect2(new Vector2(rect.Position.X + rect.Size.X - fillW, rect.Position.Y), new Vector2(fillW, rect.Size.Y));
+                DrawRect(fillRect, col);
+                DrawSheen(fillRect);
             }
 
             x += w + gap;
         }
 
-        DrawRect(new Rect2(Vector2.Zero, Size), FrameColor, false, 1.0f, true);
+        DrawMetalFrame();
+    }
+
+    /// <summary>受光钢框：顶亮 / 底暗 / 侧翼弱化 + 框内上缘阴影（槽口深度感）；光向与全站面板一致（上偏左）。</summary>
+    private void DrawMetalFrame()
+    {
+        var s = Size;
+        DrawLine(new Vector2(0.5f, 0.5f), new Vector2(s.X - 0.5f, 0.5f), FrameColor, 1.0f, true);
+        DrawLine(new Vector2(0.5f, s.Y - 0.5f), new Vector2(s.X - 0.5f, s.Y - 0.5f), new Color(FrameColor, FrameColor.A * 0.4f), 1.0f, true);
+        var sideCol = new Color(FrameColor, FrameColor.A * 0.75f);
+        DrawLine(new Vector2(0.5f, 0.5f), new Vector2(0.5f, s.Y - 0.5f), sideCol, 1.0f, true);
+        DrawLine(new Vector2(s.X - 0.5f, 0.5f), new Vector2(s.X - 0.5f, s.Y - 0.5f), sideCol, 1.0f, true);
+        DrawLine(new Vector2(1.5f, 1.5f), new Vector2(s.X - 1.5f, 1.5f), new Color(0.0f, 0.0f, 0.0f, 0.5f), 1.0f, true);
+    }
+
+    /// <summary>填充段顶部 1px 镜面高光（段太矮时省略，避免吃掉填充色）。</summary>
+    private void DrawSheen(Rect2 rect)
+    {
+        if (rect.Size.Y < 5.0f)
+        {
+            return;
+        }
+
+        DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, 1.5f)), new Color(1.0f, 1.0f, 1.0f, 0.40f));
     }
 
     private float WeightsTotal()

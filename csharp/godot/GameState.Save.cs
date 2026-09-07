@@ -33,13 +33,12 @@ public partial class GameState : Node
             ["fuel"] = fuel,
             ["boss_kills"] = BossKills,
             ["difficulty_multiplier"] = DifficultyMultiplier,
-            ["buffs"] = Buffs.Duplicate(),
+            // v3：buffs/chosen_routes/locked_routes 废弃，天赋缓存域整体随档往返（TalentService.SaveState）
+            ["talent"] = _talent.SaveState(),
             ["elapsed"] = elapsed,
             ["rp"] = Rp,
             ["refresh_points"] = RefreshPoints,
             ["missions"] = Missions.Duplicate(true),
-            ["chosen_routes"] = ChosenRoutes.Duplicate(),
-            ["locked_routes"] = LockedRoutes.Duplicate(),
             ["ctrl_toggle_mode"] = CtrlToggleMode,
             ["shift_toggle_mode"] = ShiftToggleMode,
             ["touch_controls"] = TouchControls,
@@ -104,7 +103,8 @@ public partial class GameState : Node
     /// <summary>存档整数字段安全读取：save_num 判型 + 钳入 [0, int.MaxValue]（2026-08-10 健壮性审查）——
     /// 手改存档超大值（&gt;2^31）经裸 (int) 截断会回绕成负数（score/kills/rp/date 等统计与
     /// 里程碑错乱、2038 年后时间戳回绕），先钳 long 域再转 int</summary>
-    private int SaveInt(Variant v, int defaultValue) => (int)Math.Clamp(SaveNum(v, defaultValue), 0.0, (double)int.MaxValue);
+    /// <summary>public：天赋域服务（TalentService）存档恢复同样依赖判型+钳制读取（SaveNum/SaveBool 同口径）。</summary>
+    public int SaveInt(Variant v, int defaultValue) => (int)Math.Clamp(SaveNum(v, defaultValue), 0.0, (double)int.MaxValue);
 
     public void ApplyRunSave(Godot.Collections.Dictionary data)
     {
@@ -114,12 +114,22 @@ public partial class GameState : Node
         Kills = SaveInt(data.GetValueOrDefault("kills", 0), 0);
         BossKills = SaveInt(data.GetValueOrDefault("boss_kills", 0), 0);
         DifficultyMultiplier = SaveNum(data.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0);
-        // 第五轮拆域：buffs 恢复改调 CombatStateService（判型/钳制/G013 注释随迁；不发事件——
-        // BuffsChanged 仍由下方直发同名信号，不经服务事件，无双发）
-        _combat.RestoreBuffs(data.GetValueOrDefault("buffs", new Variant()));
+        // 天赋缓存域恢复（v3 起随档往返；v2 旧档无 talent 键 → 全新天赋态，无兼容层）。
+        // 判型/钳制/成员资格校验在 RestoreState 内；不发事件——BuffsChanged 仍由下方直发
+        // （Player.RefreshBuffFactors/Hud 坞缓存+信号驱动）
+        var talentV = data.GetValueOrDefault("talent", new Variant());
+        if (talentV.VariantType == Variant.Type.Dictionary)
+        {
+            _talent.RestoreState(talentV.AsGodotDictionary());
+        }
+        else
+        {
+            _talent.RestoreState(new Godot.Collections.Dictionary());
+        }
+
         EmitSignal(SignalName.BuffsChanged);
-        // 血量在 buffs 恢复之后再处理（max_health() 依赖 extra_life 层数）
-        // v1（3 命制 lives）存档不回迁血量，按满血开；v2 起读 health（钳制在 RestoreHealth 内）
+        // 血量在天赋恢复之后再处理（max_health 依赖 extra_life 层级）
+        // v1/v2 存档天赋态为全新（extra_life 归零 → 上限回落基础值），health 钳制后按该上限恢复
         if ((int)SaveNum(data.GetValueOrDefault("version", 1), 1.0) >= 2)
         {
             _combat.RestoreHealth(SaveNum(data.GetValueOrDefault("health", MaxHealth()), MaxHealth()));
@@ -169,34 +179,6 @@ public partial class GameState : Node
                     // SaveInt 统一钳入 [0, int.MaxValue]（防超大值截断回绕致任务瞬时可领）
                     ["goal"] = SaveInt(md.GetValueOrDefault("goal", MissionGoal(id)), MissionGoal(id)),
                 };
-            }
-        }
-
-        ChosenRoutes.Clear();
-        var savedChosen = data.GetValueOrDefault("chosen_routes", new Variant());
-        if (savedChosen.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var key in savedChosen.AsGodotDictionary().Keys)
-            {
-                var v = savedChosen.AsGodotDictionary()[key];
-                if (v.VariantType is Variant.Type.String or Variant.Type.StringName)
-                {
-                    ChosenRoutes[key.AsStringName()] = v.AsStringName();
-                }
-            }
-        }
-
-        LockedRoutes.Clear();
-        var savedLocked = data.GetValueOrDefault("locked_routes", new Variant());
-        if (savedLocked.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var key in savedLocked.AsGodotDictionary().Keys)
-            {
-                var v = savedLocked.AsGodotDictionary()[key];
-                if (v.VariantType is Variant.Type.String or Variant.Type.StringName)
-                {
-                    LockedRoutes[key.AsStringName()] = v.AsStringName();
-                }
             }
         }
 

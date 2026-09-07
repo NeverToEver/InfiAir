@@ -10,7 +10,7 @@ Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-0
 
 ### 1.2 Core Loop
 ```
-auto-fire + waves → milestone buff 3-choice → 4 rotating bosses + enrage
+auto-fire + waves → milestone/boss talent points → cache spend (talent tree) → 4 rotating bosses + enrage
 → mothership supply/fire platform → return-to-base restock → same run continues
 ```
 Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded player growth, unbounded enemy pressure).
@@ -18,11 +18,11 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.3 Scoring & Economy
 - `GameState.AddScore(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
 - **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window 3.0s / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 3s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards / graze do NOT combo. `ComboChanged` signal → HUD combo label. 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
-- Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances RP/BossKills/difficulty.
+- Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only; spent at base console, not carried between runs.
 - **RefreshPoints**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
 - **TechPoints** (meta progression): cross-run currency, independent of RP (RP stays in-run base economy). **Sole settlement = death** (`SettleRun`): battle exit via `ExitConfirm` (deletes save, abandoned not settled) and homecoming do NOT settle — anti-farm; K-key give-up = self-destruct, settles as death: `floor(score/1000) + boss_kills×2 + missions_claimed×1` (`meta.points.*`). Logged-in users only (guests not persisted). Spent at Research Lab (Welcome main menu + BaseConsole panel); effect = new run starts with purchased buff stacks. Upgrades = `meta.upgrades` (8 items, max_level 2–3, independent of buff stacks — `bullet_speed`/`crit_shot` max_level 2 at `buffs.max_stacks` 3; `regen`/`armor`/`slow_field` entries have **no** `max_stacks` key); balance/levels persist in UserDb `meta` field.
-- Milestones: score thresholds → buff 3-choice (`BuffSelect`).
+- Milestones: score thresholds → talent points into the cache pool (no popup; §1.5).
 
 ### 1.4 Difficulty & Endless Curve
 **Endgame (D1)**: inevitable-death curve. 公式落地 `csharp/core/Progression/ProgressionCurves.cs` 与 `data/balance.json`。
@@ -34,11 +34,18 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Event units scale: turret/formation HP × `GameState.EnemyHpRamp()`.
 - **D2**: Hard-mode buff pacing fastest (×3 score, ×1.5 thresholds) is **intentional**; unchanged.
 
-### 1.5 Buffs
-- 19 buffs (`BuffIcons` 19 glyphs + category colors), via milestone 3-choice, stackable to `buffs.*.max_stacks` (extra_life: 10).
+### 1.5 Talent Cache System（2026-09-07 重构，替代旧里程碑三选一）
+- **Structure**: 19 nodes (= the 19 legacy buff ids; all effect consumers unchanged) in 4 categories × lines — `csharp/core/Talent/TalentTree.cs` is the single structural source. Line order = prerequisite chain (next node needs previous ≥ Lv1). Node caps = `buffs.<id>.max_stacks` (json is sole authority; `extra_life` 10).
+- **Points & cache**: milestone +`talent.grant.points_per_milestone`(2), boss kill +`points_per_boss`(1) → ordered cache pool, no popup. Overflow decay: first `safe_threshold`(20) points full value; each excess position −`decay_step`(10%), floor `decay_floor`(10%) — LIFO (newest decay deepest). Spend is LIFO from tail; decayed/partial points never recover. HUD indicator (top-right, 4 states: 0 / 1–20 breathing / 21–29 warn / 30+ danger) + `G` (`talent_panel`) / click opens `TalentPanel` (tree pauses).
+- **Costs**: next level = `cost.base`(2) + level × `cost.increment`(1).
+- **Diminishing returns**: per-node `softcap` (`talent.softcaps.*`, default 3); past softcap each level's efficiency = max(`diminishing.floor`(0.25), 1 − `diminishing.step`(0.25)×(k−softcap)) → fractional effective level; multiplicative consumers (Player pow-factors, crit, dash CD, mothership_recall CD) read `TalentEffLevel` (= factor^effLevel); integer-semantics consumers (shield layers, pierce, spread, extra_life HP) keep integer levels.
+- **Mechanism A — faction mutex**: offense↔defense; one side's total investment ≥ `mutex.threshold`(5) → opposing nodes' caps −`mutex.cap_reduction`(2), permanent for the run.
+- **Mechanism B — focus penalty**: any node ≥ `focus.threshold`(7) → all lower-level nodes' effective levels × (1 − min(`penalty_cap`(0.4), `penalty_per_level`(0.06)×over)); top-level nodes exempt. Footer indicator in panel.
+- **Mechanism C — route contract** (`TalentTree.Routes`, base console panel): berserker(offense)/guardian(defense)/ranger(mobility); binding free once, switching costs a reset token (bought at base for `route.reset_token_cost`(6) RP). Core category nodes +`route.bonus_levels`(1) effective level; non-core categories' caps halved (floor `route.cap_floor`(1)). Replaces the retired per-line buff routes.
+- **Mechanism D — overcharge**: node at effective cap may +1 level at ×`overcharge.cost_mult`(2) cost, then permanently locked; ≤`overcharge.max_per_run`(3)/run.
+- **Persistence**: v3 run save `talent` dict (cache point values / levels / overcharged / route / tokens). No compat layer — v2 saves start with fresh talent state. Meta tech upgrades still mean "start with N stacks": applied via `Talent.ApplyStartingLoadout` as starting levels.
 - Card text via `BUFF_%s_DESC` keys (single source).
-- **Low-HP defensive pity**: HP < max×`hp_ratio`(0.5) 时防御类 (`ids`: extra_life/regen/armor/shield/evasion) 候选按 `weight`(2.0) 加权展开选 3，且三张全非防御时从可用防御卡中随机保底 1 张（防御满层/锁定则保底自然失效）；满血时行为不变（均匀洗牌）。`BuffSelect.SelectCandidates()` 为选择唯一入口。
-- Key scaling: `rapid_fire.factor` (interval ×0.75 = +33%/stack), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3`), `mothership_recall.cooldown_factor`.
+- Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3` no longer gates purchase — legacy trait), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
 
 ### 1.6 Bosses

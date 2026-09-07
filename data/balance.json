@@ -742,7 +742,8 @@
 			"max_stacks": 10
 		},
 		"regen": {
-			"heal_per_sec": 2
+			"heal_per_sec": 2,
+			"max_stacks": 1
 		},
 		"piercing": {
 			"max_stacks": 2
@@ -750,22 +751,27 @@
 		"explosive": {
 			"radius_per_level": 50,
 			"damage_per_level": 30,
-			"unlock_boss_kills": 3
+			"unlock_boss_kills": 3,
+			"max_stacks": 1
 		},
 		"lifesteal": {
-			"max_hp_fraction": 0.1
+			"max_hp_fraction": 0.1,
+			"max_stacks": 1
 		},
 		"armor": {
-			"multiplier": 0.85
+			"multiplier": 0.85,
+			"max_stacks": 1
 		},
 		"evasion": {
-			"chance": 0.2
+			"chance": 0.2,
+			"max_stacks": 1
 		},
 		"phase_dash": {
 			"max_stacks": 3
 		},
 		"slow_field": {
-			"factor": 0.8
+			"factor": 0.8,
+			"max_stacks": 1
 		},
 		"efficient_boost": {
 			"factor": 0.75
@@ -795,7 +801,8 @@
 			"tick_damage": 16,
 			"length": 2400,
 			"half_width": 26,
-			"hit_radius": 30
+			"hit_radius": 30,
+			"max_stacks": 1
 		},
 		"dynamic_weight": {
 			"enabled": true,
@@ -1146,14 +1153,92 @@
 			"mission_bonus": 1
 		},
 		"upgrades": {
-			"rapid_fire": { "max_level": 2, "base_cost": 10, "cost_growth": 1.6 },
-			"power_shot": { "max_level": 2, "base_cost": 10, "cost_growth": 1.6 },
-			"extra_life": { "max_level": 2, "base_cost": 15, "cost_growth": 1.8 },
-			"regen": { "max_level": 3, "base_cost": 12, "cost_growth": 1.6 },
-			"bullet_speed": { "max_level": 2, "base_cost": 8, "cost_growth": 1.5 },
-			"armor": { "max_level": 3, "base_cost": 12, "cost_growth": 1.6 },
-			"crit_shot": { "max_level": 2, "base_cost": 12, "cost_growth": 1.6 },
-			"slow_field": { "max_level": 2, "base_cost": 15, "cost_growth": 1.8 }
+			"rapid_fire": {
+				"max_level": 2,
+				"base_cost": 10,
+				"cost_growth": 1.6
+			},
+			"power_shot": {
+				"max_level": 2,
+				"base_cost": 10,
+				"cost_growth": 1.6
+			},
+			"extra_life": {
+				"max_level": 2,
+				"base_cost": 15,
+				"cost_growth": 1.8
+			},
+			"regen": {
+				"max_level": 3,
+				"base_cost": 12,
+				"cost_growth": 1.6
+			},
+			"bullet_speed": {
+				"max_level": 2,
+				"base_cost": 8,
+				"cost_growth": 1.5
+			},
+			"armor": {
+				"max_level": 3,
+				"base_cost": 12,
+				"cost_growth": 1.6
+			},
+			"crit_shot": {
+				"max_level": 2,
+				"base_cost": 12,
+				"cost_growth": 1.6
+			},
+			"slow_field": {
+				"max_level": 2,
+				"base_cost": 15,
+				"cost_growth": 1.8
+			}
+		}
+	},
+	"talent": {
+		"cache": {
+			"safe_threshold": 20,
+			"decay_step": 0.1,
+			"decay_floor": 0.1
+		},
+		"grant": {
+			"points_per_milestone": 2,
+			"points_per_boss": 1
+		},
+		"cost": {
+			"base": 2,
+			"increment": 1,
+			"softcap": 3
+		},
+		"softcaps": {
+			"power_shot": 3,
+			"rapid_fire": 2,
+			"crit_shot": 2,
+			"bullet_speed": 2,
+			"phase_dash": 2,
+			"extra_life": 6
+		},
+		"diminishing": {
+			"step": 0.25,
+			"floor": 0.25
+		},
+		"mutex": {
+			"threshold": 5,
+			"cap_reduction": 2
+		},
+		"focus": {
+			"threshold": 7,
+			"penalty_per_level": 0.06,
+			"penalty_cap": 0.4
+		},
+		"route": {
+			"bonus_levels": 1.0,
+			"cap_floor": 1,
+			"reset_token_cost": 6
+		},
+		"overcharge": {
+			"cost_mult": 2.0,
+			"max_per_run": 3
 		}
 	}
 }

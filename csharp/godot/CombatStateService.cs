@@ -103,12 +103,6 @@ public sealed partial class CombatStateService : RefCounted
 
     public int BuffCount(StringName id) => (int)Buffs.GetValueOrDefault(id, 0).AsInt64();
 
-    public void AddBuff(StringName id)
-    {
-        Buffs[id] = BuffCount(id) + 1;
-        BuffsChanged?.Invoke();
-    }
-
     /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 buffs_changed）</summary>
     public bool ConsumeBuff(StringName id)
     {
@@ -130,30 +124,8 @@ public sealed partial class CombatStateService : RefCounted
         Health = MaxHealth();
     }
 
-    /// <summary>存档 buffs 恢复（ApplyRunSave 调用；判型/钳制逻辑随迁，注释随迁）。
-    /// G013：层数钳制 ≥0（手改存档负层数会破坏 buff_count 逻辑；超大值属手改作弊。
-    /// 注：add_buff 本身无 max_stacks 钳制——上限约束在 buff_select 选取侧检查
-    /// （buffs.&lt;id&gt;.max_stacks），此处仅保下限防负层数，不改存档恢复行为）。
-    /// 非 Dictionary（手改）跳过恢复仅清空，与拆域前一致。不发事件——BuffsChanged 由
-    /// ApplyRunSave 直发，顺序不变。</summary>
-    public void RestoreBuffs(Variant savedBuffs)
-    {
-        Buffs.Clear();
-        if (savedBuffs.VariantType == Variant.Type.Dictionary)
-        {
-            foreach (var key in savedBuffs.AsGodotDictionary().Keys)
-            {
-                var v = savedBuffs.AsGodotDictionary()[key];
-                if (v.VariantType is Variant.Type.Int or Variant.Type.Float)
-                {
-                    Buffs[key.AsStringName()] = Mathf.Max((int)v.AsInt64(), 0);
-                }
-            }
-        }
-    }
-
-    /// <summary>存档血量恢复（ApplyRunSave 调用；钳 [0, max_health]。调用须在 RestoreBuffs 之后——
-    /// max_health 依赖 extra_life 层数。v1（3 命制）存档不回迁血量，由调用方传 MaxHealth() 即满血开。
+    /// <summary>存档血量恢复（ApplyRunSave 调用；钳 [0, max_health]。调用须在天赋域恢复之后——
+    /// max_health 依赖 extra_life 层级。v1（3 命制）存档不回迁血量，由调用方传 MaxHealth() 即满血开。
     /// 不发事件——HealthChanged 由 ApplyRunSave 直发，顺序不变。</summary>
     public void RestoreHealth(double health)
     {

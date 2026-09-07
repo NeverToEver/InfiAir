@@ -115,6 +115,8 @@ public partial class GameState : Node
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
         // 局外成长：meta 节配置缓存（科技点结算 + 升级定义；键经 Cfg 静态调用被 BALANCE_MAP 收录）
         LoadMetaConfig();
+        // 天赋缓存：经济参数 + 节点上限/软上限缓存（LoadMetaConfig 同款收录）
+        _talent.LoadTalentConfig();
     }
 
     /// <summary>C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -213,10 +215,7 @@ public partial class GameState : Node
     /// <summary>进基地发放刷新点数（balance.json base_task.grant_per_visit 覆盖；≥0 钳制）。</summary>
     public int GRANT_PER_VISIT { get; set; } = 1;
 
-    // 互斥天赋路线：line -> 两个候选 buff（对齐原作 talent_balance_manager）
-
-    /// <summary>互斥天赋路线表：line -> 两个候选 buff。</summary>
-    public Godot.Collections.Dictionary ROUTE_LINES { get; } = BuildRouteLines();
+    // 互斥天赋路线（旧 line->双 buff 表）已随天赋缓存系统重构删除——路线契约见 TalentTree.Routes
 
     /// <summary>音效资源（原 GDScript const preload；规则 19 禁静态持 Godot 对象——实例只读属性）。</summary>
     public AudioStream SFX_EXPLOSION { get; } = GD.Load<AudioStream>("res://assets/audio/explosion.wav");
@@ -241,8 +240,9 @@ public partial class GameState : Node
     private const string ProfilePathValue = "user://profile.json";
     public string PROFILE_PATH => ProfilePathValue;
 
-    /// <summary>v2：3 命制 lives 字段废弃，改 100 HP 制 health（v1 存档 health 回默认满血）</summary>
-    private const int PersistVersionValue = 2;
+    /// <summary>v3：天赋缓存系统（buffs 三选一层数 → talent 子字典）；v2 的 buffs/chosen_routes/
+    /// locked_routes 字段废弃不读不写（无兼容层，旧档天赋态按全新处理，其余字段照常恢复）</summary>
+    private const int PersistVersionValue = 3;
 
     /// <summary>2026-08-04 账户系统：当前用户会话——"" = 未登录（welcome 前/测试兼容，档案走旧 profile.json 路径）、
     /// "Guest" = 游客（设置仅内存、不存档、不写统计，B7-8）、否则为已登录用户名（档案/存档走 user_db）
@@ -376,8 +376,8 @@ public partial class GameState : Node
         InitMissions();
         RefreshPoints = 0;
         EmitSignal(SignalName.RefreshPointsChanged, RefreshPoints);
-        ChosenRoutes.Clear();
-        LockedRoutes.Clear();
+        // 天赋缓存域复位（缓存/层级/路线/代币/超载；Buff 不在此清——上方 _combat.ResetAll 已清）
+        _talent.ResetAll();
         // 第五轮拆域：计分/难度域复位改调服务（Score/Kills/BossKills/里程碑/连击 + DifficultyMultiplier/
         // 时间档/DDA 计时）；信号发射点/顺序与拆域前一致——_runProg.ResetAll 无信号、_score.ResetAll 内
         // ResetCombo 发 ComboChanged(0)（幂等早退），随后 BuffsChanged 收尾
@@ -399,10 +399,11 @@ public partial class GameState : Node
 
     public void AddBossKill(double scoreScale = 1.0)
     {
-        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ Missions 域（RP/任务进度）→
-        // 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致（ScoreChanged/MilestoneReached
-        // 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
+        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ 天赋域（点数入缓存池，不弹窗）→
+        // Missions 域（RP/任务进度）→ 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致
+        // （ScoreChanged/MilestoneReached 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
         _score.AddBossKill(scoreScale);
+        _talent.GrantForBoss();
         AddRp(RpBossKillValue);
         SetKindProgress("boss", BossKills);
         if (_runProg.RecomputeDifficultyInternal())

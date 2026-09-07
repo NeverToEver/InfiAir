@@ -92,11 +92,10 @@ public partial class VisualCapture : Node
                 case "hud":
                     {
                         // 常态对局 HUD：垫 buff 让芯片区可见 + 压低 HP 展示低血晕影脉动
-                        gs.AddBuff("power_shot");
-                        gs.AddBuff("power_shot");
-                        gs.AddBuff("spread_shot");
-                        gs.AddBuff("armor");
-                        gs.AddBuff("laser_beam");
+                        gs.Talent.TestSetLevel("power_shot", 2);
+                        gs.Talent.TestSetLevel("spread_shot", 1);
+                        gs.Talent.TestSetLevel("armor", 1);
+                        gs.Talent.TestSetLevel("laser_beam", 1);
                         gs.Health = 18.0;
                         for (int i = 0; i < FRAMES_BEFORE_SHOT; i++)
                         {
@@ -139,7 +138,7 @@ public partial class VisualCapture : Node
                         // 基地控制台界面
                         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                         gs.AddRp(10);
-                        gs.AddBuff("spread_shot");
+                        gs.Talent.TestSetLevel("spread_shot", 1);
                         GetNode<Main>("Main").StartHomecoming();
                         await Coroutine.WaitSeconds(this, 2.0);
                         break;

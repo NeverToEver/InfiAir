@@ -1,29 +1,26 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Talent;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
 
 /// <summary>
-/// 基地控制台（返航中场整备）：战机库 / 武器挂载（天赋路线）/ 维修补给 / 任务规划。
+/// 基地控制台（返航中场整备）：战机库 / 路线契约（机制 C）/ 维修补给 / 任务规划。
 /// 顶部 RP 余额，底部「继续出击」返回同一局。
 /// 视觉为「虚影皮肤」（docs/RETURN_HOME_CINEMATIC.md §3）：虚影站背景层 + 全息面板，
 /// 全部信号/回调/GameState 数据接口零改动。
 /// M5 全量迁移（2026-08-08 自 scripts/base_console.gd）：CanvasLayer 子类；
 /// DawnStation 静态工厂 typed 直调；UITheme/ChamferedPanel 为 C# typed 直调。
 /// 注：原 GDScript signal resume_requested 迁移为 C# [Signal] ResumeRequested。
+/// 天赋缓存系统重构：旧「武器挂载·天赋路线」（line->双 buff 合并/锁定，依附三选一奖励池）退役，
+/// 本面板改载机制 C 路线契约（TalentTree.Routes：核心大类增益/其余上限减半/切换耗重置代币）。
 /// </summary>
 public partial class BaseConsole : CanvasLayer
 {
     /// <summary>继续出击：返回同一局（main.gd `_resume_from_base` / tutorial.gd `_on_base_resume` 连接）。</summary>
     [Signal]
     public delegate void ResumeRequestedEventHandler();
-
-    private static readonly Dictionary<string, string> RouteLineNames = new()
-    {
-        { "offense", "ROUTE_OFFENSE" },
-        { "mobility", "ROUTE_MOBILITY" },
-    };
 
     /// <summary>虚影面板底后径向辉光垫（近似毛玻璃，§3.2）：四面板共享一张径向渐变纹理。</summary>
 
@@ -443,6 +440,7 @@ public partial class BaseConsole : CanvasLayer
         RefreshMissions();
     }
 
+    /// <summary>路线契约刷新（机制 C）：三条路线行（绑定/切换/生效中）+ 重置代币购置行。</summary>
     private void RefreshRoutes()
     {
         // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
@@ -452,48 +450,53 @@ public partial class BaseConsole : CanvasLayer
             child.Free();
         }
 
-        var routeLines = GameState.Instance.ROUTE_LINES;
-        var chosenRoutes = GameState.Instance.ChosenRoutes;
-        foreach (var lineKey in routeLines.Keys)
+        var talent = GameState.Instance.Talent;
+        foreach (var route in TalentTree.Routes)
         {
-            var line = lineKey.AsStringName();
-            var options = routeLines[lineKey].AsGodotArray();
-            var total = GameState.Instance.BuffCount(options[0].AsStringName()) + GameState.Instance.BuffCount(options[1].AsStringName());
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 10);
-            var lineNameKey = RouteLineNames.TryGetValue(line.ToString(), out var lineName) ? lineName : line.ToString();
-            var lineLabel = MakeLabel(GdFormat.Format((string)Tr("BASE_LINE_FMT"), (string)Tr(lineNameKey), total), 20);
-            lineLabel.CustomMinimumSize = new Vector2(170.0f, 0.0f);
-            lineLabel.HorizontalAlignment = HorizontalAlignment.Left;
-            row.AddChild(lineLabel);
-            foreach (var optV in options)
+            var active = talent.Route == route.Id;
+            var coreName = (string)Tr(TalentTree.Category(route.CoreCategoryId).NameKey);
+            var label = MakeLabel(GdFormat.Format((string)Tr("BASE_ROUTE_ROW_FMT"), (string)Tr(route.NameKey), coreName), 20);
+            label.CustomMinimumSize = new Vector2(300.0f, 0.0f);
+            label.HorizontalAlignment = HorizontalAlignment.Left;
+            row.AddChild(label);
+            var button = MakeButton("");
+            if (active)
             {
-                var opt = optV.AsStringName();
-                var chosen = chosenRoutes.ContainsKey(line) && chosenRoutes[line].AsStringName() == opt;
-                var locked = GameState.Instance.IsBuffLocked(opt);
-                var button = MakeButton("");
-                var buffNameKey = $"BUFF_{opt.ToString().ToUpperInvariant()}_NAME"; // H20：表缺键兜底改述——约定键，与 BuffSelect.MakeCard 同构
-                var buffName = (string)Tr(buffNameKey);
-                if (chosen)
-                {
-                    button.Text = GdFormat.Format((string)Tr("BASE_CHOSEN_FMT"), buffName, GameState.Instance.BuffCount(opt));
-                }
-                else if (locked)
-                {
-                    button.Text = GdFormat.Format((string)Tr("BASE_LOCKED_FMT"), buffName);
-                }
-                else
-                {
-                    button.Text = GdFormat.Format((string)Tr("BUFF_LV_FMT"), buffName, GameState.Instance.BuffCount(opt));
-                }
-
-                button.Disabled = chosen || locked || total == 0;
-                button.Pressed += () => OnRoutePressed(line, opt);
-                row.AddChild(button);
+                button.Text = (string)Tr("BASE_ROUTE_ACTIVE");
+                button.Disabled = true;
+            }
+            else if (talent.Route == "")
+            {
+                button.Text = (string)Tr("BASE_ROUTE_BIND");
+            }
+            else
+            {
+                // 切换契约消耗重置代币（无代币禁售；购置在下方代币行）
+                button.Text = GdFormat.Format((string)Tr("BASE_ROUTE_SWITCH_FMT"), talent.ResetTokens);
+                button.Disabled = talent.ResetTokens <= 0;
             }
 
+            var routeId = route.Id;
+            button.Pressed += () => OnRoutePressed(routeId);
+            row.AddChild(button);
             _routesBox.AddChild(row);
         }
+
+        // 重置代币购置行（RP 结算；切换路线的唯一来源）
+        var tokenRow = new HBoxContainer();
+        tokenRow.AddThemeConstantOverride("separation", 10);
+        var tokenLabel = MakeLabel(GdFormat.Format((string)Tr("BASE_TOKEN_COUNT_FMT"), talent.ResetTokens), 18);
+        tokenLabel.CustomMinimumSize = new Vector2(300.0f, 0.0f);
+        tokenLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        tokenLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
+        tokenRow.AddChild(tokenLabel);
+        var buyButton = MakeButton(GdFormat.Format((string)Tr("BASE_TOKEN_BUY_FMT"), talent.ResetTokenCost));
+        buyButton.Disabled = GameState.Instance.Rp < talent.ResetTokenCost;
+        buyButton.Pressed += OnBuyTokenPressed;
+        tokenRow.AddChild(buyButton);
+        _routesBox.AddChild(tokenRow);
     }
 
     private void RefreshMissions()
@@ -573,7 +576,10 @@ public partial class BaseConsole : CanvasLayer
 
     public void Recharge() => OnRechargePressed();
 
-    public void ChooseRoute(StringName line, StringName buffId) => OnRoutePressed(line, buffId);
+    /// <summary>路线契约绑定/切换（天赋缓存系统重构后签名：routeId；非法/无代币由服务侧拒绝）。</summary>
+    public void ChooseRoute(StringName routeId) => OnRoutePressed(routeId);
+
+    public void BuyResetToken() => OnBuyTokenPressed();
 
     public void ClaimMission(StringName id) => OnClaimPressed(id);
 
@@ -608,12 +614,19 @@ public partial class BaseConsole : CanvasLayer
         }
     }
 
-    private void OnRoutePressed(StringName line, StringName buffId)
+    private void OnRoutePressed(StringName routeId)
     {
-        // choose_route 只改层数；玩家侧效果均实时读取 GameState.buff_count，无需额外重放（laser/recall 效果本体已在 3.3 实装）
-        if (GameState.Instance.ChooseRoute(line, buffId))
+        // 路线契约（机制 C）：绑定免费、切换耗代币；核心大类增益/其余上限减半即时生效
+        // （有效层级变化由服务侧直发 buffs_changed，Player 缓存自动重算）
+        GameState.Instance.Talent.ChooseRoute(routeId.ToString());
+        Refresh();
+    }
+
+    private void OnBuyTokenPressed()
+    {
+        if (GameState.Instance.Talent.BuyResetToken())
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
         }
 
         Refresh();

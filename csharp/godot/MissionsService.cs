@@ -24,12 +24,6 @@ public sealed partial class MissionsService : RefCounted
     /// <summary>任务 id -> {"progress": int, "claimed": bool}</summary>
     public Godot.Collections.Dictionary Missions { get; set; } = new();
 
-    /// <summary>天赋路线 line -> 所选 buff id</summary>
-    public Godot.Collections.Dictionary ChosenRoutes { get; set; } = new();
-
-    /// <summary>天赋路线 line -> 被锁定的未选 buff id（不进奖励池）</summary>
-    public Godot.Collections.Dictionary LockedRoutes { get; set; } = new();
-
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
     /// （balance.json base_task 段覆盖，经 GameState 侧缓存读取）</summary>
     public int RefreshPoints { get; set; } = 0;
@@ -54,9 +48,6 @@ public sealed partial class MissionsService : RefCounted
     /// <summary>刷新点数变化（GrantRefreshPoints/RefreshMissions）；GameState 订阅后转发为
     /// RefreshPointsChanged 信号（存档恢复/ResetRun 直接赋值路径由 GameState 侧直发）。</summary>
     public event Action<int>? RefreshPointsChanged;
-
-    /// <summary>天赋路线选定（ChooseRoute 成功）；GameState 订阅后转发为 RouteChosen 信号。</summary>
-    public event Action<StringName, StringName>? RouteChosen;
 
     public void AddRp(int amount)
     {
@@ -260,52 +251,5 @@ public sealed partial class MissionsService : RefCounted
         }
 
         return true;
-    }
-
-    /// <summary>选择天赋路线：该线两个 buff 的层数合并到所选 buff，另一个锁定不进奖励池。
-    /// line/buff 非法或该线没有任何层数时返回 false。</summary>
-    public bool ChooseRoute(StringName line, StringName buffId)
-    {
-        if (!GameState.Instance.ROUTE_LINES.ContainsKey(line))
-        {
-            return false;
-        }
-
-        var options = GameState.Instance.ROUTE_LINES[line].AsGodotArray();
-        if (!options.Contains(buffId))
-        {
-            return false;
-        }
-
-        var other = options[1].AsStringName() == buffId ? options[0].AsStringName() : options[1].AsStringName();
-        var total = GameState.Instance.BuffCount(buffId) + GameState.Instance.BuffCount(other);
-        if (total <= 0)
-        {
-            return false;
-        }
-
-        GameState.Instance.Buffs[buffId] = total;
-        GameState.Instance.Buffs.Remove(other);
-        ChosenRoutes[line] = buffId;
-        LockedRoutes[line] = other;
-        RouteChosen?.Invoke(line, buffId);
-        // 2026-08-11 拆域后同 MetaService.ApplyMetaLoadout 口径：Buffs 直写后广播 buffs_changed
-        // （Player.RefreshBuffFactors/Hud.RebuildBuffDock 为缓存+信号驱动）
-        GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
-        return true;
-    }
-
-    /// <summary>奖励池抽取时排除锁定 buff</summary>
-    public bool IsBuffLocked(StringName buffId)
-    {
-        foreach (var v in LockedRoutes.Values)
-        {
-            if (v.AsStringName() == buffId)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

@@ -17,7 +17,6 @@ public partial class GameOverUi : CanvasLayer
     private Label _boardTitleLabel = null!;
     private Label _boardLabel = null!;
     private Label _titleLabel = null!;
-    private Label _hintLabel = null!;
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
     private VBoxContainer _content = null!;
@@ -65,9 +64,6 @@ public partial class GameOverUi : CanvasLayer
         _boardLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
         _content.AddChild(_boardLabel);
 
-        _hintLabel = UITheme.MakeLabel(Tr("GO_RESTART"), UITheme.FontCaption, UITheme.TextDim);
-        _content.AddChild(_hintLabel);
-
         var gs = GameState.Instance;
         if (gs != null)
         {
@@ -110,7 +106,6 @@ public partial class GameOverUi : CanvasLayer
         _recordLabel.Text = Tr("GO_RECORD");
         _rankLabel.Text = GdFormat.Format(Tr("GO_RANK"), _lastRank);
         _boardTitleLabel.Text = Tr("GO_BOARD");
-        _hintLabel.Text = Tr("GO_RESTART");
         // 2026-08-03 审计：去掉 if visible 恒假包裹（死亡态无语言切换入口），刷新不可见文本无害
         _statsLabel.Text = GdFormat.Format(
             Tr("GO_BEST") + "\n" + Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),

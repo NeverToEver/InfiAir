@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="Script" path="res://csharp/godot/Spawner.cs" id="4"]
 [ext_resource type="Script" path="res://csharp/godot/Hud.cs" id="5"]
-[ext_resource type="Script" path="res://csharp/godot/BuffSelect.cs" id="6"]
+[ext_resource type="Script" path="res://csharp/godot/TalentPanel.cs" id="6"]
 [ext_resource type="Script" path="res://csharp/godot/GameOverUi.cs" id="7"]
 [ext_resource type="Script" path="res://csharp/godot/PauseUi.cs" id="8"]
 [ext_resource type="Script" path="res://csharp/godot/CameraShake.cs" id="9"]
@@ -178,7 +178,7 @@ offset_bottom = 44.0
 MaxValue = 100.0
 Value = 100.0
 
-[node name="BuffUI" type="CanvasLayer" parent="."]
+[node name="TalentUI" type="CanvasLayer" parent="."]
 process_mode = 3
 layer = 10
 script = ExtResource("6")

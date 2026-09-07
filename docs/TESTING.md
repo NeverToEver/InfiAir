@@ -22,14 +22,14 @@ Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system
 
 - `smoke_test.tscn` + `base_system_test.tscn` — the two remaining assertion scenes (end-to-end flow + base/saves system).
 - `perf_bench.tscn` — dev benchmark (`--fixed-fps 1000`; interleave runs + medians for A/B).
-- 7 screenshot capture tools (see Screenshots).
+- 8 screenshot capture tools (see Screenshots).
 
-Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests), the two assertion scenes, manual windowed play/screenshot checks. Retired design docs (now under `docs/archive/`) reference those scenes as of their writing; those commands no longer exist.
+Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`), the two assertion scenes (smoke covers the talent cache flow; base_system covers talent persistence/route contracts), manual windowed play/screenshot checks. Retired design docs (now under `docs/archive/`) reference those scenes as of their writing; those commands no longer exist.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
 - **Assertion scenes** = 2 (`smoke_test` + `base_system_test`).
-- **Total scenes** = `ls test/*.tscn | wc -l` → **10** (2 assertion + `perf_bench` + 7 screenshot tools).
+- **Total scenes** = `ls test/*.tscn | wc -l` → **11** (2 assertion + `perf_bench` + 8 screenshot tools).
 - Rule: CI gates on `--quit-after 300` + `smoke_test.tscn` only. **Other docs must not hardcode counts**; reference this file. When adding/removing test scenes, update the counts here.
 
 ## Headless Test Environment Notes
@@ -42,12 +42,13 @@ Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`, 115 tests
 
 ```bash
 godot --path . res://test/visual_capture.tscn     # game frame → /tmp/infiair_capture.png
-godot --path . res://test/ui_capture.tscn         # UI pages → /tmp/ui_*.png
+godot --path . res://test/ui_capture.tscn         # UI pages (incl. talent panel overview/fan) → /tmp/ui_*.png
 godot --path . res://test/return_capture.tscn     # return shots → /tmp/return_shot*.png
 godot --path . res://test/intro_capture.tscn      # intro shots → /tmp/intro_shot*.png
 godot --path . res://test/summon_capture.tscn     # summon sequence → /tmp/summon_*.png
 godot --path . res://test/meta_fx_capture.tscn    # meta HUD tiers → /tmp/meta_fx_*.png
-godot --path . res://test/hud_capture.tscn        # HUD normal/all-buffs → /tmp/hud_*.png
+godot --path . res://test/hud_capture.tscn        # HUD normal / all-talents-maxed (incl. cache indicator) → /tmp/hud_*.png
+godot --path . res://test/radial_wheel_capture.tscn # 左缘轮盘三态 → /tmp/radial_*.png
 ```
 
 ## Unified Check Flow (pre-commit / CI gate)
@@ -71,7 +72,7 @@ push/PR (2026-08-29 W 系削减, 单 job **fast-gate**: Install .NET SDK 8 (offi
 
 ## Strategy & Side Effects
 
-Not a unit framework: each remaining `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **10 scenes: 2 assertions + `perf_bench` + 7 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
+Not a unit framework: each remaining `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **11 scenes: 2 assertions + `perf_bench` + 8 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
 
 - Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): tests `GameState.DeleteSave()` first + clean/restore own state.
 - UI changes: human-check windowed screenshots (headless produces none).

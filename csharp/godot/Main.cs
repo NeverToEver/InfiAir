@@ -36,6 +36,7 @@ public partial class Main : Node2D
     private Hud _hud = null!;
     private PauseUi _pauseUi = null!;
     private BaseConsole _baseUi = null!;
+    private TalentPanel _talentUi = null!;
     private Player _player = null!;
     private Starfield _starfield = null!;
     private Camera2D _camera = null!;
@@ -102,6 +103,7 @@ public partial class Main : Node2D
         _hud = GetNode<Hud>("HUD");
         _pauseUi = GetNode<PauseUi>("PauseUI");
         _baseUi = GetNode<BaseConsole>("BaseUI");
+        _talentUi = GetNode<TalentPanel>("TalentUI");
         _player = GetNode<Player>("Player");
         _starfield = GetNode<Starfield>("Starfield");
         _camera = GetNode<Camera2D>("Camera2D");
@@ -267,6 +269,9 @@ public partial class Main : Node2D
     public BaseConsole BaseUi() => _baseUi;
 
     public PauseUi PauseUi() => _pauseUi;
+
+    /// <summary>天赋缓存面板（HUD 指示器点击入口 / 测试端口）。</summary>
+    public TalentPanel TalentPanel() => _talentUi;
 
     public MetaHealthFX MetaFx() => _metaFx;
 
@@ -894,11 +899,11 @@ public partial class Main : Node2D
 
     private void OnMothershipDepartedInternal(float cooldown)
     {
-        // mothership_recall buff：每层冷却 ×0.5（60s→30s→15s）
+        // mothership_recall 天赋：每级冷却 ×0.5（60s→30s→15s）；浮点有效层级（收益递减折算）
         _dockCooldown = cooldown
             * Mathf.Pow(
                 (float)GameState.Instance.Cfg("buffs.mothership_recall.cooldown_factor", 0.5).AsDouble(),
-                GameState.Instance.BuffCount(new StringName("mothership_recall")));
+                (float)GameState.Instance.TalentEffLevel(new StringName("mothership_recall")));
     }
 
     /// <summary>放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）</summary>

@@ -48,20 +48,23 @@ public partial class UiCapture : Node
             settings.Back();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 3. Buff 三选一（含层数标记：先垫一层 power_shot 候选必含时可见，随缘即可）
-            gs.EmitSignal(GameState.SignalName.MilestoneReached, 100);
+            // 3. 天赋缓存面板（先垫缓存与已购节点，扇形/详情/底栏同屏可见）
+            gs.SetMilestoneOverride(999999999);  // 屏蔽后续里程碑入账（确定性截图）
+            gs.Talent.TestGrant(12);
+            gs.Talent.TestSetLevel("power_shot", 2);
+            gs.Talent.TestSetLevel("rapid_fire", 1);
+            var talentPanel = GetNode<TalentPanel>("Main/TalentUI");
+            talentPanel.Open();
             await Settle();
-            Shot("buff");
-            var buffUi = GetNode<BuffSelect>("Main/BuffUI");
-            if (buffUi.Visible)
-            {
-                // 原 GDScript 遗留无效的 InputEventMouseButton 构造（从未使用，死代码），C# 零警告要求下省略
-                buffUi.PickBuff(buffUi.CurrentAvailable()[0].AsGodotDictionary()["id"].AsString());
-            }
+            Shot("talent");
+            // 3b. 下钻进攻系：树状扇形 + 节点详情卡（轮盘收缩动画约 0.5s，Settle 覆盖）
+            talentPanel.TestDrillCategory(0);
+            await Settle();
+            talentPanel.TestSelectNode("power_shot");
+            await Settle();
+            Shot("talent_fan");
+            talentPanel.Close();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-            // 屏蔽后续里程碑触发，避免 Buff UI 与结算叠屏（确定性截图）
-            gs.SetMilestoneOverride(999999999);
 
             // 4. 暂停面板（继续 primary）
             var pui = GetNode<PauseUi>("Main/PauseUI");
@@ -71,9 +74,9 @@ public partial class UiCapture : Node
             pui.Close();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 5. 基地控制台（四模块 section header；返航过场直接 skip 落基地，截虚影皮肤）
-            gs.AddRp(10);
-            gs.AddBuff("spread_shot");
+            // 5. 基地控制台（路线契约 + 重置代币；返航过场直接 skip 落基地，截虚影皮肤）
+            gs.AddRp(20);
+            gs.Talent.TestSetLevel("spread_shot", 1);
             var main = GetNode<Main>("Main");
             main.StartHomecoming();
             // 先真实时间等过 SKIP_GRACE（1.2s）再跳：跳过重试循环按帧计数，高刷无垂直同步下
@@ -117,11 +120,7 @@ public partial class UiCapture : Node
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
 
-            // 6. 死亡结算（大分数 + 新纪录标记）；先收掉可能被分数再次触发的 Buff UI 避免叠屏
-            if (buffUi.Visible)
-            {
-                buffUi.PickBuff(buffUi.CurrentAvailable()[0].AsGodotDictionary()["id"].AsString());
-            }
+            // 6. 死亡结算（大分数 + 新纪录标记）
             gs.HighScore = 100;  // 压低原纪录，保证「新纪录」标记可见（结尾还原）
             gs.AddScore(8888);
             gs.EmitSignal(GameState.SignalName.PlayerDied);
