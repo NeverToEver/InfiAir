@@ -21,6 +21,12 @@ public partial class IntroCinematic : CanvasLayer
     public delegate void FinishedEventHandler();
 
     private const float Transition = 0.3f;  // 镜头间黑场淡入淡出（含在各镜头时长内）
+    // 差异化转场柔化：原纯白 alpha 1.0（0.10s 冲顶）闪感刺眼，改为暖白低峰值「过曝呼吸」——
+    // 峰值降到 0.38、升/放斜率放缓，配合局部亮部特效保留「被光吞没」的叙事感而不刺目
+    private static readonly Color FlashTint = new(1.0f, 0.93f, 0.82f);  // 暖白（爆燃/点火色温）
+    private const float FlashPeak = 0.38f;
+    private const float FlashRise = 0.24f;
+    private const float FlashRelease = 0.55f;
     private const float OutroFade = 0.7f;  // 镜头 6 末尾淡出到标题定格
     private const float TitleCardIn = 0.2f;  // 收尾标题定格：淡入
     private const float TitleCardHold = 0.8f;  // 收尾标题定格：停留
@@ -107,6 +113,21 @@ public partial class IntroCinematic : CanvasLayer
         _skipHint.AddThemeFontOverride("font", UITheme.Font);
         _subtitle.AddThemeFontOverride("font", UITheme.Font);
         GetNode<Label>("TitleCard/Center/VBox/Title").AddThemeFontOverride("font", UITheme.Font);
+        // 字幕/标题可读性与质感：软阴影把字从亮部画面里托出；标题加同色微辉光
+        _subtitle.AddThemeColorOverride("font_shadow_color", new Color(0.0f, 0.0f, 0.0f, 0.7f));
+        _subtitle.AddThemeConstantOverride("shadow_offset_x", 0);
+        _subtitle.AddThemeConstantOverride("shadow_offset_y", 2);
+        _subtitle.AddThemeConstantOverride("shadow_outline_size", 4);
+        var title = GetNode<Label>("TitleCard/Center/VBox/Title");
+        title.AddThemeColorOverride("font_shadow_color", new Color(UITheme.Accent, 0.35f));
+        title.AddThemeConstantOverride("shadow_offset_x", 0);
+        title.AddThemeConstantOverride("shadow_offset_y", 0);
+        title.AddThemeConstantOverride("shadow_outline_size", 8);
+        // 跳过提示延迟 1.2s 淡入（开局不再与镜头 1 抢注意力）
+        _skipHint.Modulate = new Color(_skipHint.Modulate, 0.0f);
+        var hintTween = CreateTween();
+        hintTween.TweenInterval(1.2);
+        hintTween.TweenProperty(_skipHint, "modulate:a", 0.85f, 0.6);
         _shotTimer = new Godot.Timer { OneShot = true };
         _shotTimer.Timeout += OnShotTimeout;
         AddChild(_shotTimer);
@@ -167,11 +188,11 @@ public partial class IntroCinematic : CanvasLayer
         SetSubtitle(GdFormat.Format("INTRO_SUB_%d", _shotIndex + 1));
         if (_whiteTransition)
         {
-            // 白闪承接：黑层保持透明，白闪直接回收
+            // 白闪承接：黑层保持透明，暖白纱从当前峰值缓释（不再从全白硬切）
             _whiteTransition = false;
             _fade.Color = new Color(_fade.Color, 0.0f);
             var flashTween = CreateTween();
-            flashTween.TweenProperty(_flash, "color:a", 0.0f, 0.28);
+            flashTween.TweenProperty(_flash, "color:a", 0.0f, FlashRelease);
         }
         else
         {
@@ -210,8 +231,9 @@ public partial class IntroCinematic : CanvasLayer
         _subTween.TweenProperty(_subtitle, "modulate:a", 0.0f, FadeOutTime());
         if (_whiteTransition)
         {
+            _flash.Color = FlashTint;
             var flashTween = CreateTween();
-            flashTween.TweenProperty(_flash, "color:a", 1.0f, 0.10);
+            flashTween.TweenProperty(_flash, "color:a", FlashPeak, FlashRise);
             flashTween.TweenCallback(Callable.From(Advance));
         }
         else

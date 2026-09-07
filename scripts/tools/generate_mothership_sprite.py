@@ -11,6 +11,7 @@
 
 import os
 
+import sprite_polish
 from PIL import Image, ImageDraw, ImageFilter
 
 S = 4  # 超采样抗锯齿
@@ -123,6 +124,7 @@ class Ship:
         out = Image.alpha_composite(halo, self.body)
         out = Image.alpha_composite(out, self.glow)
         out = out.resize((self.w, self.h), Image.LANCZOS)
+        out = sprite_polish.polish(out)
         out.save(path)
         print("saved", path)
 

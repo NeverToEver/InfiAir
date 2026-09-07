@@ -912,7 +912,11 @@
 			"far_count": 140,
 			"near_count": 90,
 			"far_speed": 60,
-			"near_speed": 140
+			"near_speed": 140,
+			"bright_count": 16,
+			"nebula_alpha": 0.22,
+			"meteor_min_delay": 6.0,
+			"meteor_max_delay": 13.0
 		},
 		"home_charge_time": 1.5,
 		"give_up_hold_time": 3,

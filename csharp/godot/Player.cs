@@ -207,6 +207,8 @@ public partial class Player : CharacterBody2D
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
     private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
     private Sprite2D? _glow;
+    private Sprite2D? _muzzleGlow;
+    private float _muzzleGlowA; // 枪口辉光剩余强度（FireInternal 置 1，_Process 指数衰减）
 
     private readonly Callable _onRefreshBuffFactors;
     private readonly Callable _onAimAssistLevelChanged;
@@ -278,6 +280,16 @@ public partial class Player : CharacterBody2D
     {
         _visuals.UpdateAfterimages((float)delta);
         UpdateDamageFrame();
+        // 枪口辉光指数衰减（半衰 ~60ms，急促闪光感）
+        if (_muzzleGlowA > 0.01f && _muzzleGlow != null)
+        {
+            _muzzleGlowA *= Mathf.Exp(-12.0f * (float)delta);
+            _muzzleGlow.Modulate = new Color(1.0f, 0.85f, 0.5f, 0.85f * _muzzleGlowA);
+        }
+        else if (_muzzleGlow != null && _muzzleGlow.Modulate.A > 0.0f)
+        {
+            _muzzleGlow.Modulate = new Color(1.0f, 0.85f, 0.5f, 0.0f);
+        }
     }
 
     /// <summary>按 HP 百分比切换受击帧（0=正常, ≤light_ratio=轻伤, ≤heavy_ratio=重伤；阈值经 effects.player_damage_frame 配置）。</summary>
@@ -462,6 +474,15 @@ public partial class Player : CharacterBody2D
         }
 
         _muzzleOffset = 50.0f * ws;
+        // 枪口辉光：常驻软点精灵（64px 软点 → 直径换算 scale），FireInternal 点亮、_Process 逐帧衰减（零分配）
+        _muzzleGlow = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Scale = Vector2.One * (30.0f * ws / 64.0f),
+            Modulate = new Color(1.0f, 0.85f, 0.5f, 0.0f),
+            ZIndex = 1,
+        };
+        AddChild(_muzzleGlow);
         // 鼠标跟随准星（P1-1）：top_level 世界坐标节点
         _crosshair = new AimCrosshair();
         _crosshair.Init(this);
@@ -1184,6 +1205,13 @@ public partial class Player : CharacterBody2D
             }
 
             b.Position = Position + aimRot * _muzzleOffset;
+        }
+
+        // 枪口辉光：以末发弹方向点亮（散射时多方向只有一盏，视觉噪声可控）
+        if (_muzzleGlow != null)
+        {
+            _muzzleGlow.Position = aim * _muzzleOffset;
+            _muzzleGlowA = 1.0f;
         }
 
         _audio ??= GetNodeOrNull<AudioStreamPlayer2D>("AudioStreamPlayer2D");

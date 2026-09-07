@@ -177,10 +177,11 @@ public partial class IntroCinematic : CanvasLayer
             ignite.TweenProperty(nozzle, "scale", nozzleBase, preRoll).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         }
 
-        var igniteFlash = BgRect(new Color(1.0f, 1.0f, 1.0f, 0.55f));
+        // 点火过曝纱：峰值从 0.55 降到 0.22、衰减放缓一倍——「被点燃」的感觉靠尾焰与喷口辉光承载，纱只做氛围（防闪感）
+        var igniteFlash = BgRect(new Color(1.0f, 0.94f, 0.86f, 0.22f));
         shakeRoot.AddChild(igniteFlash);
         var igniteFlashT = root.CreateTween();
-        igniteFlashT.TweenProperty(igniteFlash, "color:a", 0.0f, dur * 0.07f);
+        igniteFlashT.TweenProperty(igniteFlash, "color:a", 0.0f, dur * 0.16f);
         // 轨道电火花：两侧壁轨各一发射器，火花顺轨向 +y 高速喷洒（textured 软点，≤32/侧）
         foreach (var side in new[] { 0, 1 })
         {

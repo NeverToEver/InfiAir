@@ -615,6 +615,10 @@
 | `effects.starfield.near_count` | `_nearCount` |
 | `effects.starfield.far_speed` | `_farSpeed` |
 | `effects.starfield.near_speed` | `_nearSpeed` |
+| `effects.starfield.bright_count` | `_brightCount` |
+| `effects.starfield.nebula_alpha` | `_nebulaAlpha` |
+| `effects.starfield.meteor_min_delay` | `_meteorMinDelay` |
+| `effects.starfield.meteor_max_delay` | `_meteorMaxDelay` |
 
 ### `csharp\godot\StrikeCarrier.cs`
 

@@ -101,6 +101,11 @@ public partial class Welcome : CanvasLayer
         hero.AddThemeConstantOverride("separation", 10);
         AddChild(hero);
         var title = UITheme.MakeLabel("InfiAir", UITheme.FontDisplay, UITheme.Accent, HorizontalAlignment.Left);
+        // 大标题软辉光：同色 shadow 外扩（outline_size 撑开阴影模糊半径），深底上更具品牌质感
+        title.AddThemeColorOverride("font_shadow_color", new Color(UITheme.Accent, 0.4f));
+        title.AddThemeConstantOverride("shadow_offset_x", 0);
+        title.AddThemeConstantOverride("shadow_offset_y", 0);
+        title.AddThemeConstantOverride("shadow_outline_size", 10);
         hero.AddChild(title);
         var accent = new ColorRect
         {
@@ -109,12 +114,17 @@ public partial class Welcome : CanvasLayer
         };
         accent.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
         hero.AddChild(accent);
+        // 最高分 + Top3 榜单固定锚在登录面板下方空白带（y=842 起）：hero 块只留品牌标题，
+        // 避免多行文本透进半透明面板底（历史布局腐烂）；损坏警告同列最底部
         _highScoreLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Left);
-        hero.AddChild(_highScoreLabel);
+        _highScoreLabel.Position = new Vector2(140.0f, 842.0f);
+        AddChild(_highScoreLabel);
         _boardLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left);
-        hero.AddChild(_boardLabel);
+        _boardLabel.Position = new Vector2(140.0f, 884.0f);
+        AddChild(_boardLabel);
         _corruptLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.Danger, HorizontalAlignment.Left);
-        hero.AddChild(_corruptLabel);
+        _corruptLabel.Position = new Vector2(140.0f, 1010.0f);
+        AddChild(_corruptLabel);
 
         BuildLoginPanel();
         BuildMainZone();
@@ -138,13 +148,13 @@ public partial class Welcome : CanvasLayer
     {
         _loginPanel = new ChamferedPanel
         {
-            CustomMinimumSize = new Vector2(520.0f, 560.0f),
+            CustomMinimumSize = new Vector2(520.0f, 460.0f),
             Brackets = true,
         };
-        // 绝对定位（同 hero）：520×560 面板在 1080 视口内垂直居中。
+        // 绝对定位（同 hero）：520×460 面板（高度贴内容，防空腔失衡）在 1080 视口内光学居中。
         // 禁用「CenterLeft 锚点 + Position」惯用法——Position 在入树前写入的是裸偏移，
         // 入树后会叠加 0.5×1080 锚点基线，把面板压到视口底缘（历史缺陷，欢迎页无视觉门禁长期未暴露）。
-        _loginPanel.Position = new Vector2(140.0f, 260.0f);
+        _loginPanel.Position = new Vector2(140.0f, 300.0f);
         AddChild(_loginPanel);
 
         var margin = new MarginContainer();

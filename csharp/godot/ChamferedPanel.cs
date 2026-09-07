@@ -199,7 +199,16 @@ public partial class ChamferedPanel : Control
             _cachedKeyC = c;
         }
 
-        DrawColoredPolygon(_cachedPts, BgColor);
+        // 垂直渐变底（顶亮底暗，金属面板质感）：逐顶点色绘制，色相仍由 BgColor 单源派生
+        var topCol = new Color(BgColor.R + 0.045f, BgColor.G + 0.045f, BgColor.B + 0.06f, BgColor.A);
+        var botCol = new Color(BgColor.R * 0.82f, BgColor.G * 0.82f, BgColor.B * 0.88f, BgColor.A);
+        var vertColors = new[]
+        {
+            topCol, topCol, botCol, botCol, botCol, botCol, topCol, topCol,
+        };
+        DrawPolygon(_cachedPts, vertColors);
+        // 顶缘内高光：1px 冷光细线把面板顶边从深底上托出
+        DrawLine(new Vector2(c + 3.0f, 1.5f), new Vector2(w - c - 3.0f, 1.5f), new Color(BorderColor, BorderColor.A * 0.35f), 1.0f, true);
         for (var i = 0; i < _cachedPts.Length; i++)
         {
             DrawLine(_cachedPts[i], _cachedPts[(i + 1) % _cachedPts.Length], BorderColor, 2.0f, true);

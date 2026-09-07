@@ -58,8 +58,9 @@ public partial class IntroRunnerShot : Node2D
 
         // bob 最低点对齐支撑相中点（腿在重心正下方），腾空相最高
         BobNode.Position = new Vector2(BobNode.Position.X, BobBaseY + 2.6f * (0.5f + 0.5f * Mathf.Cos(runPhase * 2.0f)));
+        // 应急灯呼吸从 6Hz 降至 2.2Hz、峰值减半：高频全屏闪烁易致视不适（低频缓呼吸保留紧张感）
         var redColor = Red.Color;
-        redColor.A = 0.08f + 0.08f * Mathf.Max(0.0f, Mathf.Sin(_t * Mathf.Tau * 6.0f));  // 6Hz 呼吸闪烁
+        redColor.A = 0.05f + 0.06f * Mathf.Max(0.0f, Mathf.Sin(_t * Mathf.Tau * 2.2f));
         Red.Color = redColor;
         foreach (var sl in SpeedLines)
         {

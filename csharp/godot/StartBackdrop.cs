@@ -19,9 +19,13 @@ public partial class StartBackdrop : Control
     /// <summary>是否已订阅视口尺寸变化（仅 CanvasLayer 直挂路径需要手动铺满并跟随视口）。</summary>
     private bool _viewportSizeConnected;
 
+    /// <summary>深空星云贴图（CinematicFx 共享工厂，一次性构建；灰度能量场 → modulate 染色）。</summary>
+    private Texture2D? _nebula;
+
     public override void _Ready()
     {
         MouseFilter = Control.MouseFilterEnum.Ignore;
+        _nebula = CinematicFx.NebulaTexture(512, 20260908);
         if (GetParent() is Control)
         {
             SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -67,6 +71,15 @@ public partial class StartBackdrop : Control
     {
         _rng.Seed = 20260731;  // 每次重绘重置：内容确定性一致
         var rect = GetRect();
+        // 深空星云晕染：紫/青双色大块错位铺底（远低于星点亮度，只提供色层深度）
+        if (_nebula != null)
+        {
+            var purple = new Color(0.40f, 0.30f, 0.62f, 0.16f);
+            var teal = new Color(0.20f, 0.42f, 0.55f, 0.12f);
+            DrawTextureRect(_nebula, new Rect2(new Vector2(rect.Size.X * 0.05f, rect.Size.Y * 0.02f), new Vector2(rect.Size.Y * 1.1f, rect.Size.Y * 1.1f)), false, purple);
+            DrawTextureRect(_nebula, new Rect2(new Vector2(rect.Size.X * 0.52f, rect.Size.Y * 0.38f), new Vector2(rect.Size.Y * 0.9f, rect.Size.Y * 0.9f)), false, teal);
+        }
+
         // 三层静态星点：暗底噪 / 中亮 / 少量亮星带十字微光
         for (var i = 0; i < 160; i++)
         {

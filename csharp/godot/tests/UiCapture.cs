@@ -76,8 +76,10 @@ public partial class UiCapture : Node
             gs.AddBuff("spread_shot");
             var main = GetNode<Main>("Main");
             main.StartHomecoming();
-            // 跳过返航过场：skip() 有 SKIP_GRACE 输入宽限（开播数秒内忽略），宽限期内每帧重试，
-            // 直到过场引用被 _on_return_finished 置空（跳过与自然结束同一出口）
+            // 先真实时间等过 SKIP_GRACE（1.2s）再跳：跳过重试循环按帧计数，高刷无垂直同步下
+            // 600 帧可能 <1.2s 真实时间跑完，宽限未过 → 跳过全程被忽略、后续截图全截到过场帧
+            await Coroutine.WaitSeconds(this, 1.6);
+            // 跳过返航过场：skip() 与自然结束同一出口，重试直到过场引用被 _on_return_finished 置空
             for (int i = 0; i < 600; i++)
             {
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

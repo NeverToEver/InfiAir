@@ -155,7 +155,7 @@ public partial class IntroCinematic : CanvasLayer
             energyGlow.AddPoint(pos);
             energyGlow.Width = 16.0f + step[0] * 3.0f;
             // 节点爆闪（软光晕）+ 一次性火花溅射（textured 软点粒子，播完自毁）
-            var flash = CinematicFx.SoftGlow(36.0f, new Color(1.0f, 0.55f, 0.15f, 0.9f));
+            var flash = CinematicFx.SoftGlow(36.0f, new Color(1.0f, 0.55f, 0.15f, 0.55f));
             flash.Position = pos;
             var flashBase = flash.Scale;
             flash.Scale = Vector2.Zero;

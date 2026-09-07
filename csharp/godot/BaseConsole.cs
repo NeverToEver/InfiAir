@@ -298,6 +298,7 @@ public partial class BaseConsole : CanvasLayer
             },
         };
         var panel = MakePanel("META_TITLE", glyph);
+        panel.CustomMinimumSize = new Vector2(640.0f, 0.0f); // 2×4 升级网格需更宽内容区（8 行纵排曾把整页撑出视口）
         var body = (VBoxContainer)panel.GetNode("Body");
         body.AddChild(new ResearchLab());
         return panel;

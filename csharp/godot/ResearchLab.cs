@@ -64,9 +64,15 @@ public sealed partial class ResearchLab : VBoxContainer
         var pointsLabel = UITheme.MakeLabel(GdFormat.Format(Tr("META_POINTS"), gs.TechPoints), 24, UITheme.AccentGold);
         AddChild(pointsLabel);
         AddChild(UITheme.MakeLabel(Tr("META_HINT"), UITheme.FontCaption, UITheme.TextDim));
+        // 2×4 网格替代 8 行纵排：基地页左列（机库+补给+研究所）总高原超 1080 视口、底部被裁切；
+        // 网格压掉约半数行高后整页可完整收纳（Welcome 模态复用同款布局）
+        var grid = new GridContainer { Columns = 2 };
+        grid.AddThemeConstantOverride("h_separation", 18);
+        grid.AddThemeConstantOverride("v_separation", 6);
+        AddChild(grid);
         foreach (var id in gs.MetaUpgradeIds())
         {
-            AddChild(BuildRow(gs, id));
+            grid.AddChild(BuildRow(gs, id));
         }
     }
 

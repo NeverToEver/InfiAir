@@ -20,6 +20,8 @@ public partial class Explosion : GpuParticles2D
     private static Node? _poolNode;
 
     private GpuParticles2D _debris = null!;
+    private Line2D _ring = null!;
+    private float _age;
     private bool _pooled;
     private bool _repooling;
     private bool _settled;
@@ -90,6 +92,7 @@ public partial class Explosion : GpuParticles2D
         e.Visible = true;
         e.Restart();
         e._debris.Restart();
+        e._age = 0.0f; // 冲击环随粒子生命周期重播（池化复用与新建统一入口）
     }
 
     private static Explosion? _takeFromPool()
@@ -155,6 +158,8 @@ public partial class Explosion : GpuParticles2D
         Lifetime = 0.6;
         OneShot = true;
         Explosiveness = 0.9f;
+        // 软点贴图替代默认方粒（64px 软点 → scale 参数按 1/64 换算），白热→橙→暗红渐隐色阶
+        Texture = CinematicFx.SoftTexture();
         var mat = new ParticleProcessMaterial
         {
             Direction = new Vector3(0.0f, -1.0f, 0.0f),
@@ -164,20 +169,22 @@ public partial class Explosion : GpuParticles2D
             Gravity = Vector3.Zero,
             DampingMin = 60.0f,
             DampingMax = 140.0f,
-            ScaleMin = 2.0f,
-            ScaleMax = 5.0f,
+            ScaleMin = 2.0f / CinematicFx.SoftTexSize,
+            ScaleMax = 5.0f / CinematicFx.SoftTexSize,
             Color = new Color(1.0f, 0.6f, 0.15f),
+            ColorRamp = FireRamp(),
         };
         ProcessMaterial = mat;
         Finished += OnFinished;
 
-        // 碎片发射器：少量、更大、更慢、寿命更长
+        // 碎片发射器：少量、更大、更慢、寿命更长（同款软点 + 余烬色阶）
         _debris = new GpuParticles2D
         {
             Amount = (int)GameState.Instance.Cfg("effects.explosion.debris_amount", 10).AsInt64(),
             Lifetime = 0.9,
             OneShot = true,
             Explosiveness = 0.85f,
+            Texture = CinematicFx.SoftTexture(),
             ProcessMaterial = new ParticleProcessMaterial
             {
                 Direction = new Vector3(0.0f, -1.0f, 0.0f),
@@ -187,17 +194,78 @@ public partial class Explosion : GpuParticles2D
                 Gravity = Vector3.Zero,
                 DampingMin = 100.0f,
                 DampingMax = 220.0f,
-                ScaleMin = 3.0f,
-                ScaleMax = 7.0f,
+                ScaleMin = 3.0f / CinematicFx.SoftTexSize,
+                ScaleMax = 7.0f / CinematicFx.SoftTexSize,
                 Color = new Color(0.9f, 0.4f, 0.1f),
+                ColorRamp = EmberRamp(),
             },
         };
         AddChild(_debris);
 
+        // 冲击环：随池化节点一次构建，_Process 按 Lifetime 推进扩散（复用零分配）
+        _ring = new Line2D
+        {
+            Points = CinematicFx.RingPoints(40, 26.0f),
+            Closed = true,
+            DefaultColor = new Color(1.0f, 0.7f, 0.35f, 0.45f),
+            Width = 5.0f,
+            Material = CinematicFx.AdditiveMaterial(),
+        };
+        AddChild(_ring);
+
         _liveCount++;
         _settled = false;
+        _age = 0.0f;
         Emitting = true;
         _debris.Emitting = true;
+    }
+
+    public override void _Process(double delta)
+    {
+        // 冲击环推进：前 80% 生命周期扩散+淡出，之后隐藏等回池（不可见期直接跳过）
+        if (!Visible || _age >= Lifetime)
+        {
+            return;
+        }
+
+        _age += (float)delta;
+        var p = Mathf.Clamp((float)(_age / Lifetime), 0.0f, 1.0f);
+        var eased = 1.0f - Mathf.Pow(1.0f - p, 2.0f);
+        _ring.Scale = Vector2.One * (0.15f + 3.1f * eased);
+        var ringColor = _ring.DefaultColor;
+        _ring.DefaultColor = new Color(ringColor.R, ringColor.G, ringColor.B, 0.45f * (1.0f - p));
+        _ring.Visible = p < 0.8f;
+    }
+
+    /// <summary>主火花色阶：白热 → 橙 → 暗红渐隐（GradientTexture1D 一次性构建）。</summary>
+    private static GradientTexture1D FireRamp()
+    {
+        var g = new Gradient
+        {
+            Offsets = new[] { 0.0f, 0.3f, 1.0f },
+            Colors = new[]
+            {
+                new Color(1.0f, 0.97f, 0.85f, 1.0f),
+                new Color(1.0f, 0.6f, 0.15f, 0.9f),
+                new Color(0.55f, 0.12f, 0.05f, 0.0f),
+            },
+        };
+        return new GradientTexture1D { Gradient = g };
+    }
+
+    /// <summary>碎片色阶：亮橙余烬 → 深红熄灭。</summary>
+    private static GradientTexture1D EmberRamp()
+    {
+        var g = new Gradient
+        {
+            Offsets = new[] { 0.0f, 1.0f },
+            Colors = new[]
+            {
+                new Color(1.0f, 0.62f, 0.2f, 1.0f),
+                new Color(0.45f, 0.1f, 0.04f, 0.0f),
+            },
+        };
+        return new GradientTexture1D { Gradient = g };
     }
 
     public override void _ExitTree()

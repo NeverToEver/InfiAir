@@ -17,12 +17,24 @@ public partial class IntroCinematic : CanvasLayer
         var dur = _shotDurations[0];
         var root = new Node2D { Name = "Shot1" };
         root.AddChild(new Starfield());  // M1 起 Starfield 为 C#，typed 实例化（原经脚本资源，M6 重定型）
-        // 远处星云（比镜头 6 更淡，只铺层次；软径向光晕消除硬边）
-        var neb1 = CinematicFx.SoftGlow(520.0f, new Color(0.2f, 0.12f, 0.4f, 0.08f));
-        neb1.Position = new Vector2(1560.0f, 260.0f);
+        // 远处星云（比镜头 6 更淡，只铺层次）：程序化星云纹理两块错位（紫/蓝 tint，比软光晕多出云絮层次）
+        var nebTex = CinematicFx.NebulaTexture(512, 20260909);
+        var neb1 = new Sprite2D
+        {
+            Texture = nebTex,
+            Position = new Vector2(1560.0f, 260.0f),
+            Scale = Vector2.One * 2.2f,
+            Modulate = new Color(0.45f, 0.3f, 0.7f, 0.14f),
+        };
         root.AddChild(neb1);
-        var neb2 = CinematicFx.SoftGlow(420.0f, new Color(0.08f, 0.18f, 0.4f, 0.08f));
-        neb2.Position = new Vector2(300.0f, 840.0f);
+        var neb2 = new Sprite2D
+        {
+            Texture = nebTex,
+            Position = new Vector2(300.0f, 840.0f),
+            Scale = Vector2.One * 1.8f,
+            Rotation = 1.1f,
+            Modulate = new Color(0.2f, 0.42f, 0.75f, 0.12f),
+        };
         root.AddChild(neb2);
 
         // 站体构件抽为 DawnStation 共享构建函数（开场=实体毁灭态，纯提取不改视觉；
@@ -97,7 +109,7 @@ public partial class IntroCinematic : CanvasLayer
         root.AddChild(boom2);
         boom2.Timeout += () =>
         {
-            var flash2 = CinematicFx.SoftGlow(56.0f, new Color(1.0f, 0.85f, 0.6f, 0.9f));
+            var flash2 = CinematicFx.SoftGlow(56.0f, new Color(1.0f, 0.85f, 0.6f, 0.55f));
             flash2.Position = blast2Pos;
             var flash2Base = flash2.Scale;
             flash2.Scale = Vector2.Zero;

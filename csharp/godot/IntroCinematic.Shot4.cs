@@ -14,7 +14,7 @@ public partial class IntroCinematic : CanvasLayer
     /// <summary>驾驶舱前景框架（含舱壁缝线）+ 两侧仪表副屏（玻璃高光；左副屏带雷达距圈/扫掠针/回波亮点）+ 三分区航电控制台
     /// （斜切梯形台体：推进区按钮簇+节流阀滑槽 / 导航区旋钮+按钮排 / 武器区拨杆开关，LED 指示排+分区铭牌）+
     /// 4 指+拇指手形剪影带按下起伏地点按 + 主屏红色倒计时 3→2→1（bezel 边框）与警告行闪烁 + 两侧金属把手；
-    /// 倒计时结束五指扣合把手，结尾 0.5s 整体后仰 -3° + 短促震动 + 屏幕白光渐强。</summary>
+    /// 倒计时结束五指扣合把手，结尾 0.5s 整体后仰 -3° + 短促震动 + 屏幕暖光渐强。</summary>
     private IntroConsoleShot BuildShot4()
     {
         var dur = _shotDurations[3];
@@ -482,8 +482,9 @@ public partial class IntroCinematic : CanvasLayer
             root.GripShapes.Add(gripShape);
         }
 
-        // 结尾 0.5s：双手抓把手 + 整体后仰 + 短促震动 + 屏幕白光渐强
-        var white = BgRect(new Color(1.0f, 1.0f, 1.0f, 0.0f));
+        // 结尾 0.5s：双手抓把手 + 整体后仰 + 短促震动 + 屏幕暖光渐强
+        // （原纯白 alpha 0.9 与导演层白闪叠加近全白，改为暖色 0.32 低峰渐强，点火过曝感保留、闪感消除）
+        var white = BgRect(new Color(1.0f, 0.94f, 0.85f, 0.0f));
         root.AddChild(white);
         var endTimer = new Godot.Timer { OneShot = true, WaitTime = Mathf.Max(dur - 0.5f, 0.1f), Autostart = true };
         root.AddChild(endTimer);
@@ -498,7 +499,7 @@ public partial class IntroCinematic : CanvasLayer
 
             var tween = root.CreateTween().SetParallel(true);
             tween.TweenProperty(root, "rotation", Mathf.DegToRad(-3.0f), 0.5);
-            tween.TweenProperty(white, "color:a", 0.9f, 0.5);
+            tween.TweenProperty(white, "color:a", 0.32f, 0.5);
             // 顿悟瞬间的短促震动：±5px 快速抖动 6 次
             var shake = root.CreateTween();
             for (var sI = 0; sI < 6; sI++)

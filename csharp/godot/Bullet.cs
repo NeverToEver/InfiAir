@@ -576,7 +576,8 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>P0-3：共享纹理惰性生成（静态，全实例共用；首次调用光栅化一次）。</summary>
+    /// <summary>P0-3：共享纹理惰性生成（静态，全实例共用；首次调用光栅化一次）。
+    /// 弹体之下预铺椭圆辉光（横向拉长的能量拖尾感）；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void _ensureTextures()
     {
         if (_playerTex != null)
@@ -584,15 +585,23 @@ public partial class Bullet : Area2D
             return;
         }
 
-        _playerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.9f, 0.25f), ArrowCore, Colors.White);
-        _enemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.38f, 0.3f), System.Array.Empty<Vector2>(), Colors.Transparent);
+        _playerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.9f, 0.25f), ArrowCore, Colors.White,
+            new Color(1.0f, 0.8f, 0.35f, 0.4f));
+        _enemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.38f, 0.3f), System.Array.Empty<Vector2>(), Colors.Transparent,
+            new Color(1.0f, 0.42f, 0.3f, 0.4f));
     }
 
-    /// <summary>P0-3：把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）。</summary>
-    private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor)
+    /// <summary>P0-3：把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）；
+    /// glowColor.A &gt; 0 时先铺椭圆径向辉光（横向拖尾感，pow 衰减）。</summary>
+    private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor, Color? glowColor = null)
     {
         var img = Image.CreateEmpty(TexSize.X, TexSize.Y, false, Image.Format.Rgba8);
         img.Fill(new Color(0, 0, 0, 0));
+        if (glowColor is { A: > 0.0f } glow)
+        {
+            _addGlow(img, glow);
+        }
+
         _fillPolygon(img, body, bodyColor);
         if (core.Length > 0)
         {
@@ -600,6 +609,42 @@ public partial class Bullet : Area2D
         }
 
         return ImageTexture.CreateFromImage(img);
+    }
+
+    /// <summary>椭圆径向辉光：中心取弹体几何中心，横轴覆盖整张弹贴图（拖尾）、纵轴压扁；
+    /// 逐像素 pow 衰减叠加（乘算混合进已有像素，仅构建期执行一次）。</summary>
+    private static void _addGlow(Image img, Color glow)
+    {
+        var cx = TexOffset.X + 1.0f;
+        var cy = TexOffset.Y;
+        var rx = 11.5f;
+        var ry = 3.8f;
+        for (var y = 0; y < img.GetHeight(); y++)
+        {
+            for (var x = 0; x < img.GetWidth(); x++)
+            {
+                var dx = (x + 0.5f - cx) / rx;
+                var dy = (y + 0.5f - cy) / ry;
+                var d = Mathf.Sqrt(dx * dx + dy * dy);
+                if (d >= 1.0f)
+                {
+                    continue;
+                }
+
+                var a = glow.A * Mathf.Pow(1.0f - d, 2.0f);
+                var dst = img.GetPixel(x, y);
+                var outA = a + dst.A * (1.0f - a);
+                if (outA <= 0.0f)
+                {
+                    continue;
+                }
+
+                var r = (glow.R * a + dst.R * dst.A * (1.0f - a)) / outA;
+                var g = (glow.G * a + dst.G * dst.A * (1.0f - a)) / outA;
+                var b = (glow.B * a + dst.B * dst.A * (1.0f - a)) / outA;
+                img.SetPixel(x, y, new Color(r, g, b, outA));
+            }
+        }
     }
 
     /// <summary>凸多边形扫描线填充（三角扇分解：以第一个点为公共顶点，全部顶点平移纹理偏移）。</summary>

@@ -6,6 +6,7 @@
 """
 
 import os
+import sprite_polish
 from PIL import Image, ImageDraw, ImageFilter
 
 SPRITE_DIR = os.path.normpath(
@@ -54,6 +55,7 @@ def add_damage(src_path: str, dst_path: str, cracks: list, sparks: list) -> None
 
     # 缩小输出
     out = big.resize((w, h), Image.LANCZOS)
+    out = sprite_polish.polish(out)
     out.save(dst_path)
     print(f"saved {dst_path}")
 

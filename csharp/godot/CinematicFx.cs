@@ -38,6 +38,64 @@ public partial class CinematicFx : RefCounted
         return ImageTexture.CreateFromImage(img);
     }
 
+    /// <summary>深空星云贴图工厂：256² 画布逐像素累积 10 枚软斑（确定性种子），再双线性放大。
+    /// 灰度能量场（RGB=alpha=能量值），颜色全部交给调用方 modulate 染色——星空/开始页/过场共用一张。
+    /// 一次性构建（调用方自持实例字段），热路径零分配。</summary>
+    public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907)
+    {
+        const int BaseSize = 256;
+        const int BlobCount = 10;
+        var rng = new RandomNumberGenerator();
+        rng.Seed = (ulong)seed;
+        var blobX = new float[BlobCount];
+        var blobY = new float[BlobCount];
+        var blobR = new float[BlobCount];
+        var blobS = new float[BlobCount];
+        for (var i = 0; i < BlobCount; i++)
+        {
+            blobX[i] = rng.Randf() * BaseSize;
+            blobY[i] = rng.Randf() * BaseSize;
+            blobR[i] = rng.RandfRange(BaseSize * 0.16f, BaseSize * 0.42f);
+            blobS[i] = rng.RandfRange(0.35f, 1.0f);
+        }
+
+        var img = Image.CreateEmpty(BaseSize, BaseSize, false, Image.Format.Rgba8);
+        for (var y = 0; y < BaseSize; y++)
+        {
+            for (var x = 0; x < BaseSize; x++)
+            {
+                var v = 0.0f;
+                for (var i = 0; i < BlobCount; i++)
+                {
+                    var dx = Mathf.Abs(x + 0.5f - blobX[i]);
+                    var dy = Mathf.Abs(y + 0.5f - blobY[i]);
+                    // 环面距离：贴图四向平铺无缝（星空滚动回绕无接缝）
+                    if (dx > BaseSize * 0.5f)
+                    {
+                        dx = BaseSize - dx;
+                    }
+
+                    if (dy > BaseSize * 0.5f)
+                    {
+                        dy = BaseSize - dy;
+                    }
+
+                    var d = new Vector2(dx, dy).Length() / blobR[i];
+                    if (d < 1.0f)
+                    {
+                        v += blobS[i] * Mathf.Pow(1.0f - d, 2.2f);
+                    }
+                }
+
+                v = Mathf.Clamp(v, 0.0f, 1.0f);
+                img.SetPixel(x, y, new Color(v, v, v, v));
+            }
+        }
+
+        img.Resize(size, size, Image.Interpolation.Bilinear);
+        return ImageTexture.CreateFromImage(img);
+    }
+
     /// <summary>软径向光晕：Sprite2D 承载软点贴图，scale/modulate 语义与旧 GlowDot 一致（可直接 tween）。
     /// G022：additive material 共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）——
     /// M6 迁移注：原 static var 缓存改为每次新建（退出 segfault 规则），语义等价。</summary>

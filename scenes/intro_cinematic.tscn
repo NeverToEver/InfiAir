@@ -71,6 +71,19 @@ anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 
+[node name="LetterboxTop" type="ColorRect" parent="."]
+offset_right = 1920.0
+offset_bottom = 132.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="LetterboxBottom" type="ColorRect" parent="."]
+offset_top = 948.0
+offset_right = 1920.0
+offset_bottom = 1080.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
 [node name="TitleCard" type="Control" parent="."]
 modulate = Color(1, 1, 1, 0)
 anchors_preset = 15

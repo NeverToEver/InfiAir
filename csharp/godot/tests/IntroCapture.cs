@@ -18,13 +18,13 @@ public partial class IntroCapture : Node
     /// 镜头 1 取 51%（dur*0.45 的二次殉爆刚起，冲击波扩散中段）</summary>
     private static readonly (double, string)[] Schedule =
     {
-        (4.1, System.IO.Path.GetTempPath() + ""),
-        (12.2, System.IO.Path.GetTempPath() + ""),
-        (20.0, System.IO.Path.GetTempPath() + ""),
-        (28.4, System.IO.Path.GetTempPath() + ""),
-        (36.5, System.IO.Path.GetTempPath() + ""),
-        (45.0, System.IO.Path.GetTempPath() + ""),
-        (48.6, System.IO.Path.GetTempPath() + ""),
+        (4.1, System.IO.Path.GetTempPath() + "intro_shot1.png"),
+        (12.2, System.IO.Path.GetTempPath() + "intro_shot2.png"),
+        (20.0, System.IO.Path.GetTempPath() + "intro_shot3.png"),
+        (28.4, System.IO.Path.GetTempPath() + "intro_shot4.png"),
+        (36.5, System.IO.Path.GetTempPath() + "intro_shot5.png"),
+        (45.0, System.IO.Path.GetTempPath() + "intro_shot6.png"),
+        (48.6, System.IO.Path.GetTempPath() + "intro_title.png"),
     };
 
     public override void _Ready()
