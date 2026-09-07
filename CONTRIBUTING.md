@@ -32,7 +32,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 ```
 
    涉及子系统时加跑对应专项场景（完整清单见 `docs/TESTING.md`）；改动数值键后重跑 `python3 scripts/tools/gen_balance_map.py` 刷新 `docs/BALANCE_MAP.md`。
-4. **提交**：单主题提交，信息遵循项目风格——`类型: 简述——要点列表（日期）`，类型取 `fix`/`feat`/`docs`/`test`/`refactor`/`perf`/`chore`（可参考 `git log --oneline` 近期风格）。
+4. **提交**：单主题提交，信息风格 `类型: 简述——要点列表`（类型取 `fix`/`feat`/`docs`/`test`/`refactor`/`perf`/`chore`；权威定义见 `AGENTS.md`「验证」节，可参考 `git log --oneline` 近期风格）。
 5. **推送并开 PR**：PR 会自动触发 GitHub Actions CI（单 fast-gate：dotnet build 零警告 + dotnet test → 无头导入警告闸 → 主场景 300 帧冒烟 + smoke_test），**CI 全绿是合入门槛**。
 
 ## PR 检查清单

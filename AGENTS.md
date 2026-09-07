@@ -4,11 +4,11 @@
 
 ## 项目
 
-InfiAir：单人 2D 纵版射击。Godot 4.6.2 + C#（.NET 8，gl_compatibility，必须用 godot-mono），全量 C#、零 GDScript。
+InfiAir：单人 2D 俯视射击（top-down shmup；玩家全屏自由移动 + 鼠标/触屏瞄准，非底部锁定纵版）。Godot 4.6.2 + C#（.NET 8，gl_compatibility，必须用 godot-mono），全量 C#、零 GDScript。
 
 玩法循环：自动射击 + 波次刷怪 → 里程碑/Boss 掉天赋点入缓存池（不弹窗）→ 天赋面板（G 键/HUD 指示器）自主加点 → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行，无尽必死曲线，只有分数结算（无掉落拾取）。
 
-- 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`。
+- 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`（Windows `run.bat`，macOS 双击 `run.command`；三者同一参数协议，透传引擎参数）。
 - 唯一 autoload 是 `GameState`（`csharp/godot/GameState*.cs` 按域拆 partial），各域服务编排门面，C# 统一经 `GameState.Instance` 访问。
 - main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / MouseTrap / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
 - UI 文本中英双语，默认中文。所有可见文本走 `Tr("UPPER_SNAKE_CASE")`，新 key 同时填 `data/translations.csv` zh/en 两列并重新导入。禁止硬编码中文可见文本。
@@ -34,6 +34,8 @@ godot-mono --headless --path . --quit-after 300                  # 300 帧运行
 godot-mono --headless --path . res://test/base_system_test.tscn  # 触碰存档/基地/母舰时
 dotnet format --verify-no-changes                                # 本地提交前；裸跑有工作区歧义，显式指定 csproj
 ```
+
+提交信息风格：`类型: 简述——要点列表`（类型取 fix/feat/docs/test/refactor/perf/chore；单主题提交），对齐 `git log` 现行风格；分支/PR 清单/发布流程见 `CONTRIBUTING.md`（人类贡献者入口）。
 
 **无头门禁看不见渲染画面**（结构盲区：welcome 页布局腐烂一个月无人发现即为例证）。任何 UI/视觉/布局改动必须窗口化实机过目再交付；截图工具清单见 `docs/TESTING.md`。
 
@@ -73,3 +75,4 @@ dotnet format --verify-no-changes                                # 本地提交�
 1. **不为"行为"写规格文档。** 行为以代码与测试为准。历史行为规格（Boss/事件/演出/管理器/架构速览等 13 份）已归档 `docs/archive/`——它们曾需要专门的纠偏轮次追平漂移（一次 19 份文档 40+ 处失实），不再维护、不再新增引用。
 2. **每类信息只有一个家**（上表）。写东西前先问它属于哪个家；不属于任何家 = 不写。审计档案/执行留档/审计 SOP 制度已废止：提交信息 + CHANGELOG 就是变更史；已知债务与开放发现登记在 `docs/ROADMAP.md`。
 3. 改约定改本文件，改设计数值改 DESIGN_BASELINE，改方向改 ROADMAP——不交叉复制。`CLAUDE.md` 保持纯指针。README 文档表只列活文档。
+4. `CONTRIBUTING.md`/`README`/`SECURITY.md`/`CHANGELOG.md` 是仓库标准门面（贡献流程入口/项目门面/安全政策/变更史），不占活文档席位、不承载约定；与活文档冲突时以对应的家为权威。
