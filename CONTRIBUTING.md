@@ -45,6 +45,18 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 - [ ] 改动设计意图/架构基线时已同步 `docs/DESIGN_BASELINE.md`；方向类决策登记 `docs/ROADMAP.md`
 - [ ] 每类信息只有一个家：约定改 `AGENTS.md`、设计数值改 `docs/DESIGN_BASELINE.md`、方向与债务改 `docs/ROADMAP.md`（见 `AGENTS.md`「文档」节；行为规格文档已退役，不为行为写规格）
 
+## 发布策略（本地编译）
+
+发布采用**本地编译 + API 发布**（2026-09-07 起；原 GitHub Actions release.yml 工作流已退役）：
+
+```bash
+./release.sh --publish   # 导出双平台 → 打包 → 推 main → 打 tag → 建 GitHub Release → 上传资产
+```
+
+- 前置：干净工作树；本机装 4.6.2 mono 导出模板；凭据（GITHUB_TOKEN 或凭据管理器中的 github.com 凭据）。
+- 发布说明取自 `CHANGELOG.md` 对应版本章节；发布前请先把版本号 bump + CHANGELOG 归版提交。
+- 只打包不发布：`./release.sh`（产物在 `builds/release/`，目录已 gitignore）。
+
 ## 测试体系说明
 
 - 场景测试是无头 C# 场景脚本（非单元测试框架；脚本在 `csharp/godot/tests/`，纯逻辑另有 `tests-csharp/` xUnit 单测），每个 `test/*.tscn` 以 `[PASS]`/`[FAIL]` 输出与退出码自检。

@@ -147,7 +147,7 @@ cd InfiAir
 ./run.sh        # auto-detects godot-mono / godot; you can also use: godot --path .
 ```
 
-Release builds go through `./release.sh` (requires export templates strictly matching engine 4.6.2 mono).
+Releases are built locally: `./release.sh --publish` exports, packages, tags and publishes the GitHub Release in one command (requires the engine-matched 4.6.2 mono export templates + GitHub credentials; see [CONTRIBUTING.md](./CONTRIBUTING.md)).
 
 ---
 

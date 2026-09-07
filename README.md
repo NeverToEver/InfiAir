@@ -147,7 +147,7 @@ cd InfiAir
 ./run.sh        # 自动探测 godot-mono / godot，也可直接用: godot --path .
 ```
 
-发布构建使用 `./release.sh`，需要与引擎严格匹配的 4.6.2 mono 导出模板。
+发布采用本地编译：`./release.sh --publish` 一条命令完成导出、打包、打 tag 与 GitHub Release 发布（需与引擎严格匹配的 4.6.2 mono 导出模板 + GitHub 凭据；详见 [CONTRIBUTING.md](./CONTRIBUTING.md)）。
 
 ---
 

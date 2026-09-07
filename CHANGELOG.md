@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **发布策略改为本地编译**（2026-09-07）：`release.sh` 新增 `--publish` 模式（导出→打包→推 main→打 tag→GitHub API 建 Release→上传资产，凭据取 GITHUB_TOKEN 或凭据管理器），zip 打包器加 zip→7z→bsdtar 回退链（Windows git-bash 常无 zip）；GitHub Actions `release.yml` 发布工作流退役删除
+
 ## [3.33] - 2026-09-07
 
 ### 修复（2026-09-07，主游戏链路深度诊断——设计基线核实 + 无头门禁盲区实机扫查，5 项）
