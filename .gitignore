@@ -34,3 +34,4 @@ data/balance.json.bak
 .zcode/
 .playwright-mcp/
 kimi-export-session_*.md
+_joblog.txt
