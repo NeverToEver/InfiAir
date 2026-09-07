@@ -190,7 +190,8 @@ if [ "$PUBLISH" = 1 ]; then
 
 	NOTES_FILE="$(mktemp)"
 	# 发布说明取 CHANGELOG.md 对应版本章节
-	awk -v sec "## \$[$VERSION\]" '$0 ~ sec { flag = 1; next } flag && /^## /{ exit } flag { print }' CHANGELOG.md > "$NOTES_FILE"
+	# index() 前缀匹配而非正则——版本号中的 `.` 与章节名的 `[]` 免转义，且不会被当 ERE 元字符
+	awk -v sec="## [$VERSION]" 'index($0, sec) == 1 { flag = 1; next } flag && /^## /{ exit } flag { print }' CHANGELOG.md > "$NOTES_FILE"
 	[ -s "$NOTES_FILE" ] || echo "[release] 提示：CHANGELOG.md 未找到 [$VERSION] 章节，发布说明为空" >&2
 	PAYLOAD=$(python3 -c '
 import json, sys
