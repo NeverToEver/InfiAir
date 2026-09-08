@@ -17,43 +17,43 @@ public partial class IntroCinematic : CanvasLayer
     private IntroRunnerShot BuildShot3()
     {
         var root = new IntroRunnerShot { Name = "Shot3" };
-        root.AddChild(BgRect(new Color(0.02f, 0.02f, 0.04f)));
-        // 天花板/地面透视带 + 向右侧灭点收敛的走廊线
-        root.AddChild(Line(new[] { new Vector2(0.0f, 200.0f), new Vector2(1920.0f, 430.0f) }, new Color(0.16f, 0.22f, 0.32f, 0.7f), 3.0f));
-        root.AddChild(Line(new[] { new Vector2(0.0f, 880.0f), new Vector2(1920.0f, 650.0f) }, new Color(0.16f, 0.22f, 0.32f, 0.7f), 3.0f));
-        root.AddChild(Line(new[] { new Vector2(0.0f, 540.0f), new Vector2(1920.0f, 540.0f) }, new Color(0.1f, 0.14f, 0.22f, 0.5f)));
+        root.AddChild(BgRect(new Color(0.012f, 0.018f, 0.035f)));
+        // 天花板/地面透视带 + 向右侧灭点收敛的走廊线（冷钢蓝主调，暖色只留给应急光与警示条纹）
+        root.AddChild(Line(new[] { new Vector2(0.0f, 200.0f), new Vector2(1920.0f, 430.0f) }, new Color(0.2f, 0.28f, 0.42f, 0.8f), 3.0f));
+        root.AddChild(Line(new[] { new Vector2(0.0f, 880.0f), new Vector2(1920.0f, 650.0f) }, new Color(0.2f, 0.28f, 0.42f, 0.8f), 3.0f));
+        root.AddChild(Line(new[] { new Vector2(0.0f, 540.0f), new Vector2(1920.0f, 540.0f) }, new Color(0.12f, 0.16f, 0.26f, 0.5f)));
         var ceilPoly = new Polygon2D
         {
             Polygon = new[] { new Vector2(0.0f, 0.0f), new Vector2(1920.0f, 0.0f), new Vector2(1920.0f, 430.0f), new Vector2(0.0f, 200.0f) },
-            Color = new Color(0.05f, 0.06f, 0.09f),
+            Color = new Color(0.04f, 0.052f, 0.082f),
         };
         root.AddChild(ceilPoly);
         var floorPoly = new Polygon2D
         {
             Polygon = new[] { new Vector2(0.0f, 880.0f), new Vector2(1920.0f, 650.0f), new Vector2(1920.0f, 1080.0f), new Vector2(0.0f, 1080.0f) },
-            Color = new Color(0.06f, 0.07f, 0.1f),
+            Color = new Color(0.048f, 0.062f, 0.098f),
         };
         root.AddChild(floorPoly);
         // 天花板管道：双管沿顶棚走向 + 管节环
         var pipes = new[] { new[] { 150.0f, 380.0f, 8.0f }, new[] { 178.0f, 408.0f, 5.0f } };
         foreach (var pipe in pipes)
         {
-            root.AddChild(Line(new[] { new Vector2(0.0f, pipe[0]), new Vector2(1920.0f, pipe[1]) }, new Color(0.2f, 0.26f, 0.36f), pipe[2]));
+            root.AddChild(Line(new[] { new Vector2(0.0f, pipe[0]), new Vector2(1920.0f, pipe[1]) }, new Color(0.24f, 0.3f, 0.44f), pipe[2]));
         }
 
         for (var i = 0; i < 5; i++)
         {
-            var joint = new GlowDot { Radius = 7.0f, DotColor = new Color(0.24f, 0.3f, 0.42f) };
+            var joint = new GlowDot { Radius = 7.0f, DotColor = new Color(0.3f, 0.38f, 0.52f) };
             var jx = 200.0f + 400.0f * i;
             joint.Position = new Vector2(jx, 150.0f + jx * 230.0f / 1920.0f);
             root.AddChild(joint);
         }
 
-        // 顶部体积光：五条锥形光带（叠加态，上窄下宽）
+        // 顶部体积光：五条锥形光带（叠加态，上窄下宽）+ 地面光斑反射（湿冷金属地板的镜面回声）
         for (var i = 0; i < 5; i++)
         {
-            var cone = new Polygon2D();
             var cx = 320.0f + 320.0f * i;
+            var cone = new Polygon2D();
             cone.Polygon = new[]
             {
                 new Vector2(cx - 50.0f, 60.0f),
@@ -61,9 +61,14 @@ public partial class IntroCinematic : CanvasLayer
                 new Vector2(cx + 170.0f, 950.0f),
                 new Vector2(cx - 170.0f, 950.0f),
             };
-            cone.Color = new Color(1.0f, 0.85f, 0.6f, 0.05f);
+            cone.Color = new Color(0.72f, 0.82f, 1.0f, 0.07f);
             cone.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
             root.AddChild(cone);
+            var reflY = 920.0f - 0.12f * (cx + 120.0f);
+            var refl = CinematicFx.SoftGlow(42.0f, new Color(0.6f, 0.72f, 1.0f, 0.10f));
+            refl.Position = new Vector2(cx + 120.0f, reflY);
+            refl.Scale = new Vector2(6.5f, 1.1f);  // 压扁成地面光斑
+            root.AddChild(refl);
         }
 
         // 顶部旋转警灯光锥：红色叠加态，锚点往复扫掠
@@ -72,7 +77,7 @@ public partial class IntroCinematic : CanvasLayer
             var beacon = new Polygon2D
             {
                 Polygon = new[] { new Vector2(0.0f, 0.0f), new Vector2(-70.0f, 760.0f), new Vector2(70.0f, 760.0f) },
-                Color = new Color(1.0f, 0.12f, 0.1f, 0.08f),
+                Color = new Color(1.0f, 0.12f, 0.1f, 0.055f),
                 Position = new Vector2(640.0f + 640.0f * i, 40.0f),
                 Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
             };
@@ -80,6 +85,18 @@ public partial class IntroCinematic : CanvasLayer
             var beaconSweep = root.CreateTween().SetLoops();
             beaconSweep.TweenProperty(beacon, "rotation", 0.55f, 1.1).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
             beaconSweep.TweenProperty(beacon, "rotation", -0.55f, 1.1).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        }
+
+        // 墙面疏散箭头（指向 +x 逃生方向，随墙肋同速滚动讲「往弹射舱跑」的叙事）
+        for (var i = 0; i < 3; i++)
+        {
+            var chevron = Line(
+                new[] { new Vector2(0.0f, 0.0f), new Vector2(26.0f, 18.0f), new Vector2(0.0f, 36.0f) },
+                new Color(1.0f, 0.72f, 0.2f, 0.85f),
+                5.0f);
+            chevron.Position = new Vector2(300.0f + 640.0f * i, 462.0f);
+            root.AddChild(chevron);
+            root.Scrollers.Add(chevron);
         }
 
         // 黄色警示条纹（地面）+ 深色墙肋 + 舱门框：加入反向滚动列表
@@ -137,10 +154,14 @@ public partial class IntroCinematic : CanvasLayer
         });
         steam.Position = new Vector2(1500.0f, 320.0f);
         root.AddChild(steam);
-        // 驾驶员背光（叠加态暖光，把剪影从暗舱里托出来）
-        var backlight = CinematicFx.SoftGlow(170.0f, new Color(1.0f, 0.6f, 0.25f, 0.16f));
+        // 驾驶员背光（叠加态暖光，把剪影从暗舱里托出来）+ 地面接地阴影（人物不再悬浮）
+        var backlight = CinematicFx.SoftGlow(210.0f, new Color(1.0f, 0.6f, 0.25f, 0.22f));
         backlight.Position = new Vector2(880.0f, 520.0f);
         root.AddChild(backlight);
+        var contactShadow = CinematicFx.SoftGlow(40.0f, new Color(0.0f, 0.0f, 0.02f, 0.55f), additive: false);
+        contactShadow.Position = new Vector2(880.0f, 766.0f);
+        contactShadow.Scale = new Vector2(2.2f, 0.5f);
+        root.AddChild(contactShadow);
         // 驾驶员：多段式飞行服人物（骨盆/胸廓/头盔/维生背包/双关节四肢），两拍奔跑由 _process 相位驱动
         var bodyColor = new Color(0.24f, 0.3f, 0.4f);  // 近侧肢体
         var farColor = new Color(0.14f, 0.18f, 0.26f);  // 远侧肢体（深度层次）

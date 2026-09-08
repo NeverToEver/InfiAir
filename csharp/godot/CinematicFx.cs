@@ -40,11 +40,14 @@ public partial class CinematicFx : RefCounted
 
     /// <summary>深空星云贴图工厂：256² 画布逐像素累积 10 枚软斑（确定性种子），再双线性放大。
     /// 灰度能量场（RGB=alpha=能量值），颜色全部交给调用方 modulate 染色——星空/开始页/过场共用一张。
+    /// edgeFade：贴图边缘 20px 渐隐（独幅平铺的过场星云用，避免半透明下露出矩形硬边）；
+    /// 默认 false 保持四向平铺无缝（星空滚动回绕依赖边缘连续，不可衰减）。
     /// 一次性构建（调用方自持实例字段），热路径零分配。</summary>
-    public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907)
+    public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907, bool edgeFade = false)
     {
         const int BaseSize = 256;
         const int BlobCount = 10;
+        const float FadeBand = 20.0f;
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong)seed;
         var blobX = new float[BlobCount];
@@ -88,6 +91,15 @@ public partial class CinematicFx : RefCounted
                 }
 
                 v = Mathf.Clamp(v, 0.0f, 1.0f);
+                if (edgeFade)
+                {
+                    // 独幅模式：四边 20px 线性渐隐，sprite 平铺不出硬边
+                    var fade = Mathf.Min(
+                        Mathf.Min(x, BaseSize - 1 - x) / FadeBand,
+                        Mathf.Min(y, BaseSize - 1 - y) / FadeBand);
+                    v *= Mathf.Clamp(fade, 0.0f, 1.0f);
+                }
+
                 img.SetPixel(x, y, new Color(v, v, v, v));
             }
         }

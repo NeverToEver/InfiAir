@@ -138,6 +138,58 @@ public partial class IntroCinematic : CanvasLayer
             engines.Add(coreFlame);
         }
 
+        // 尾焰连续光柱：粒子散点是「屑」，光柱是「焰」——白热渐变窄条从喷口向画面下方拖出并搏动；
+        // 点火前 scale:x=0（时轴在下方 ignite 段接线）
+        var plumes = new List<Line2D>();
+        foreach (var side in new[] { -46.0f, 46.0f })
+        {
+            var plumeRamp = new Gradient
+            {
+                Offsets = new[] { 0.0f, 0.18f, 0.55f, 1.0f },
+                Colors = new[]
+                {
+                    new Color(1.0f, 0.96f, 0.85f, 0.85f),
+                    new Color(1.0f, 0.6f, 0.18f, 0.6f),
+                    new Color(1.0f, 0.42f, 0.1f, 0.22f),
+                    new Color(1.0f, 0.4f, 0.08f, 0.0f),
+                },
+            };
+            var plume = Line(new[] { new Vector2(0.0f, 0.0f), new Vector2(0.0f, 150.0f) }, new Color(1.0f, 0.6f, 0.2f, 0.8f), 18.0f);
+            plume.Position = new Vector2(960.0f + side, 648.0f);
+            plume.Gradient = plumeRamp;
+            plume.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+            plume.Scale = new Vector2(0.0f, 1.0f);
+            shakeRoot.AddChild(plume);
+            plumes.Add(plume);
+            var plumeTween = plume.CreateTween().SetLoops();
+            plumeTween.TweenProperty(plume, "scale:y", 1.2f, 0.09).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            plumeTween.Parallel().TweenProperty(plume, "modulate:a", 0.75f, 0.09).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            plumeTween.TweenProperty(plume, "scale:y", 0.95f, 0.09).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            plumeTween.Parallel().TweenProperty(plume, "modulate:a", 1.0f, 0.09).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        }
+
+        // 引擎光洒壁：尾焰把两侧轨壁内缘照亮（随喷口辉光同步呼吸）
+        foreach (var side in new[] { 700.0f, 1220.0f })
+        {
+            var wallSpill = CinematicFx.SoftGlow(240.0f, new Color(1.0f, 0.5f, 0.18f, 0.10f));
+            wallSpill.Position = new Vector2(side, 570.0f);
+            shakeRoot.AddChild(wallSpill);
+            var spillTween = wallSpill.CreateTween().SetLoops();
+            spillTween.TweenProperty(wallSpill, "modulate:a", 0.6f, 0.18).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            spillTween.TweenProperty(wallSpill, "modulate:a", 1.0f, 0.18).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        }
+
+        // 壁面纵向接缝 + 内缘青色舷灯带（轨壁不是两块平涂色板）
+        foreach (var seamX in new[] { 545.0f, 585.0f, 665.0f, 1335.0f, 1415.0f, 1455.0f })
+        {
+            shakeRoot.AddChild(Line(new[] { new Vector2(seamX, -50.0f), new Vector2(seamX + (seamX < 960.0f ? -60.0f : 60.0f), 1130.0f) }, new Color(0.16f, 0.2f, 0.28f), 2.0f));
+        }
+
+        foreach (var stripX in new[] { 692.0f, 1228.0f })
+        {
+            shakeRoot.AddChild(Line(new[] { new Vector2(stripX, -50.0f), new Vector2(stripX + (stripX < 960.0f ? -72.0f : 72.0f), 1130.0f) }, new Color(0.0f, 0.7f, 0.9f, 0.35f), 2.5f));
+        }
+
         // 机身两侧舔舐火焰舌（斜外下方向、更短寿命，包住机身两侧）
         foreach (var side in new[] { -1.0f, 1.0f })
         {
@@ -165,6 +217,11 @@ public partial class IntroCinematic : CanvasLayer
         {
             e.AmountRatio = 0.0f;
             ignite.TweenProperty(e, "amount_ratio", 1.0f, preRoll).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+
+        foreach (var plume in plumes)
+        {
+            ignite.TweenProperty(plume, "scale:x", 1.0f, preRoll).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         }
 
         foreach (var side in new[] { -46.0f, 46.0f })

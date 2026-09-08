@@ -309,6 +309,16 @@ public partial class IntroCinematic : CanvasLayer
         var screen = RectPoly(520.0f, 320.0f, new Color(0.15f, 0.03f, 0.05f));
         screen.Position = new Vector2(960.0f, 380.0f);
         root.AddChild(screen);
+        // 主屏辉光溢出：屏幕光洒在舱壁与台面上（红屏是本镜唯一光源，必须有空间存在感）
+        var spill = CinematicFx.SoftGlow(250.0f, new Color(1.0f, 0.22f, 0.16f, 0.13f));
+        spill.Position = new Vector2(960.0f, 400.0f);
+        root.AddChild(spill);
+        // 屏面扫描线（CRT 质感）
+        for (var scan = 0; scan < 6; scan++)
+        {
+            var scanY = 252.0f + 48.0f * scan;
+            root.AddChild(Line(new[] { new Vector2(712.0f, scanY), new Vector2(1208.0f, scanY) }, new Color(1.0f, 0.5f, 0.45f, 0.06f), 1.5f));
+        }
         var screenBorder = Line(
             new[]
             {
@@ -353,8 +363,13 @@ public partial class IntroCinematic : CanvasLayer
         var arcSweep = root.CreateTween().SetLoops();
         arcSweep.TweenProperty(cdArc, "rotation", Mathf.Tau, 0.6).SetTrans(Tween.TransitionType.Linear);
         var countdown = UITheme.MakeLabel("3", UITheme.FontDisplay, UITheme.Danger);
-        countdown.Position = new Vector2(860.0f, 252.0f);
-        countdown.Size = new Vector2(200.0f, 120.0f);
+        countdown.AddThemeFontSizeOverride("font_size", 112);  // 倒计时是本镜视觉锚点，放大一档
+        countdown.AddThemeColorOverride("font_shadow_color", new Color(1.0f, 0.45f, 0.3f, 0.5f));
+        countdown.AddThemeConstantOverride("shadow_offset_x", 0);
+        countdown.AddThemeConstantOverride("shadow_offset_y", 0);
+        countdown.AddThemeConstantOverride("shadow_outline_size", 12);
+        countdown.Position = new Vector2(860.0f, 232.0f);
+        countdown.Size = new Vector2(200.0f, 160.0f);
         countdown.HorizontalAlignment = HorizontalAlignment.Center;
         root.AddChild(countdown);
         var warning = UITheme.MakeLabel((string)Tr("INTRO_WARNING"), UITheme.FontHeader, UITheme.Danger);
@@ -417,7 +432,7 @@ public partial class IntroCinematic : CanvasLayer
         {
             var hand = new Node2D { Position = new Vector2(700.0f + 500.0f * h, 940.0f) };
             // 前臂（斜向下方伸出画面）
-            var forearm = RectPoly(18.0f, 260.0f, new Color(0.16f, 0.2f, 0.28f));
+            var forearm = RectPoly(18.0f, 260.0f, new Color(0.22f, 0.27f, 0.37f));
             forearm.Position = new Vector2(-40.0f + 80.0f * h, 130.0f);
             forearm.Rotation = 0.35f - 0.7f * h;
             hand.AddChild(forearm);
@@ -442,7 +457,7 @@ public partial class IntroCinematic : CanvasLayer
                     new Vector2(7.0f, 6.0f),
                     new Vector2(9.0f, 12.0f),
                 },
-                Color = new Color(0.2f, 0.25f, 0.34f),
+                Color = new Color(0.27f, 0.33f, 0.44f),
             };
             hand.AddChild(openShape);
             // 扣合手形：握拳剪影（指节凹槽线朝把手外侧，初始隐藏）
@@ -473,7 +488,7 @@ public partial class IntroCinematic : CanvasLayer
             }
 
             hand.AddChild(gripShape);
-            var palmRim = CinematicFx.SoftGlow(15.0f, new Color(0.0f, 0.83f, 1.0f, 0.15f));
+            var palmRim = CinematicFx.SoftGlow(15.0f, new Color(0.0f, 0.83f, 1.0f, 0.22f));
             hand.AddChild(palmRim);
             root.AddChild(hand);
             root.Hands.Add(hand);
@@ -481,6 +496,15 @@ public partial class IntroCinematic : CanvasLayer
             root.OpenShapes.Add(openShape);
             root.GripShapes.Add(gripShape);
         }
+
+        // 缓推镜：整舱向主屏缓慢推近（scale 绕原点，position 反向补偿保持画面中心不漂），
+        // 在结尾抓把手节拍前结束，把 position 移交给出仰震的 shake tween
+        var pushSpan = Mathf.Max(dur - 0.55f, 0.1f);
+        var pushScale = 1.035f;
+        var pushOffset = new Vector2(960.0f, 540.0f) * (1.0f - pushScale);
+        var pushTween = root.CreateTween().SetParallel(true);
+        pushTween.TweenProperty(root, "scale", Vector2.One * pushScale, pushSpan).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.In);
+        pushTween.TweenProperty(root, "position", pushOffset, pushSpan).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.In);
 
         // 结尾 0.5s：双手抓把手 + 整体后仰 + 短促震动 + 屏幕暖光渐强
         // （原纯白 alpha 0.9 与导演层白闪叠加近全白，改为暖色 0.32 低峰渐强，点火过曝感保留、闪感消除）
@@ -500,14 +524,14 @@ public partial class IntroCinematic : CanvasLayer
             var tween = root.CreateTween().SetParallel(true);
             tween.TweenProperty(root, "rotation", Mathf.DegToRad(-3.0f), 0.5);
             tween.TweenProperty(white, "color:a", 0.32f, 0.5);
-            // 顿悟瞬间的短促震动：±5px 快速抖动 6 次
+            // 顿悟瞬间的短促震动：±5px 快速抖动 6 次，落回推镜末位（不是零点，避免画面跳变）
             var shake = root.CreateTween();
             for (var sI = 0; sI < 6; sI++)
             {
-                shake.TweenProperty(root, "position", new Vector2((float)GD.RandRange(-5.0, 5.0), (float)GD.RandRange(-5.0, 5.0)), 0.06);
+                shake.TweenProperty(root, "position", pushOffset + new Vector2((float)GD.RandRange(-5.0, 5.0), (float)GD.RandRange(-5.0, 5.0)), 0.06);
             }
 
-            shake.TweenProperty(root, "position", Vector2.Zero, 0.08);
+            shake.TweenProperty(root, "position", pushOffset, 0.08);
         };
         return root;
     }

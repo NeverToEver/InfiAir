@@ -317,21 +317,21 @@ public partial class DawnStation : RefCounted
         };
     }
 
-    /// <summary>实体毁灭态：现状配色 + 破口暗弧覆盖/锯齿填充/3 块剥落碎片外飘翻滚</summary>
+    /// <summary>实体毁灭态：冷钢蓝灰（受光面提亮保证深空可读）+ 破口残骸（开场镜头 1）</summary>
     private static void BuildDestroyed(Node2D station)
     {
         BuildBody(
             station,
             new Godot.Collections.Dictionary
             {
-                ["ring"] = new Color(0.38f, 0.45f, 0.58f),
-                ["detail"] = new Color(0.55f, 0.65f, 0.8f, 0.5f),
-                ["tick"] = new Color(0.18f, 0.22f, 0.3f),
-                ["seg"] = new Color(0.48f, 0.56f, 0.68f),
-                ["seg_edge"] = new Color(0.6f, 0.7f, 0.85f, 0.35f),
-                ["spoke"] = new Color(0.3f, 0.36f, 0.48f),
-                ["hub"] = new Color(0.28f, 0.34f, 0.45f),
-                ["hub_ring"] = new Color(0.5f, 0.6f, 0.75f, 0.6f),
+                ["ring"] = new Color(0.55f, 0.63f, 0.78f),
+                ["detail"] = new Color(0.68f, 0.76f, 0.9f, 0.6f),
+                ["tick"] = new Color(0.3f, 0.36f, 0.48f),
+                ["seg"] = new Color(0.66f, 0.73f, 0.85f),
+                ["seg_edge"] = new Color(0.78f, 0.85f, 0.95f, 0.45f),
+                ["spoke"] = new Color(0.42f, 0.5f, 0.64f),
+                ["hub"] = new Color(0.42f, 0.48f, 0.6f),
+                ["hub_ring"] = new Color(0.62f, 0.72f, 0.88f, 0.7f),
             },
             false,
             new Godot.Collections.Array());

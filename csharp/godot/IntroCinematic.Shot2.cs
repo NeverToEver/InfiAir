@@ -119,7 +119,19 @@ public partial class IntroCinematic : CanvasLayer
             deckLights.Add(dl);
         }
 
-        // 链式能量路径：逐节点点亮（折线穿过各层甲板）；外发光 = 更宽更淡的叠加态底线
+        // 链式能量路径：逐节点点亮（折线穿过各层甲板）；双线白热渐变——尾部冷凝暗红、波前白炽
+        // （Gradient 沿整条线映射：头端=新点亮节点，保持亮色，尾端自然"降温"）
+        var hotRamp = new Gradient
+        {
+            Offsets = new[] { 0.0f, 0.55f, 0.85f, 1.0f },
+            Colors = new[]
+            {
+                new Color(0.55f, 0.12f, 0.04f, 0.55f),
+                new Color(1.0f, 0.45f, 0.12f, 0.9f),
+                new Color(1.0f, 0.8f, 0.45f, 1.0f),
+                new Color(1.0f, 0.98f, 0.85f, 1.0f),
+            },
+        };
         var path = new[]
         {
             new Vector2(200.0f, 700.0f),
@@ -135,7 +147,18 @@ public partial class IntroCinematic : CanvasLayer
         energyGlow.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         root.AddChild(energyGlow);
         var energy = Line(System.Array.Empty<Vector2>(), new Color(1.0f, 0.45f, 0.15f), 6.0f);
+        energy.JointMode = Line2D.LineJointMode.Round;
+        energy.BeginCapMode = Line2D.LineCapMode.Round;
+        energy.EndCapMode = Line2D.LineCapMode.Round;
         root.AddChild(energy);
+        energyGlow.Gradient = hotRamp;
+        energy.Gradient = hotRamp;
+        // X 光区四角取景括号（扫描态版式感）+ 顶行小读数刻度
+        foreach (var (cx, cy, dx, dy) in new[] { (150.0f, 300.0f, 1.0f, 1.0f), (1770.0f, 300.0f, -1.0f, 1.0f), (150.0f, 920.0f, 1.0f, -1.0f), (1770.0f, 920.0f, -1.0f, -1.0f) })
+        {
+            root.AddChild(Line(new[] { new Vector2(cx, cy + 26.0f * dy), new Vector2(cx, cy), new Vector2(cx + 26.0f * dx, cy) }, new Color(0.5f, 0.8f, 1.0f, 0.55f), 2.5f));
+        }
+
         var step = new int[] { 0 };
         var shakeState = new Godot.Collections.Array { default(Variant) };  // 每次引爆刷新一次颤动峰值（连锁震感）
         var timer = new Godot.Timer { WaitTime = 0.2f, Autostart = true };  // 构建期未入树，用 autostart（入树后自动启动）
@@ -154,6 +177,36 @@ public partial class IntroCinematic : CanvasLayer
             energy.Width = 6.0f + step[0] * 1.5f;
             energyGlow.AddPoint(pos);
             energyGlow.Width = 16.0f + step[0] * 3.0f;
+            // 波前炽亮团：贴在最新节点上短暂驻留后熄灭（渐变线 + 流动波前，能量才有"头"）
+            var head = CinematicFx.SoftGlow(30.0f, new Color(1.0f, 0.95f, 0.8f, 0.95f));
+            head.Position = pos;
+            var headBase = head.Scale;
+            root.AddChild(head);
+            var headT = root.CreateTween();
+            headT.TweenProperty(head, "scale", headBase * 1.6f, 0.14).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+            headT.TweenProperty(head, "modulate:a", 0.0f, 0.3);
+            headT.TweenCallback(Callable.From(head.QueueFree));
+            // 舱室烧穿：波前所在舱室被能量吞没——暖色填充闪起后回落到余烬态（叙事：逐层吞没）；
+            // 矩形纵向收敛在蓝图框内（306..914），顶层甲板上方不再悬空露块
+            var roomX = Mathf.Floor((pos.X - 150.0f) / 270.0f) * 270.0f + 150.0f;
+            var burnY0 = Mathf.Max(pos.Y - 78.0f, 306.0f);
+            var burnY1 = Mathf.Min(pos.Y + 78.0f, 914.0f);
+            var burn = new Polygon2D
+            {
+                Polygon = new[]
+                {
+                    new Vector2(roomX + 8.0f, burnY0),
+                    new Vector2(roomX + 262.0f, burnY0),
+                    new Vector2(roomX + 262.0f, burnY1),
+                    new Vector2(roomX + 8.0f, burnY1),
+                },
+                Color = new Color(1.0f, 0.5f, 0.15f, 0.0f),
+                Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
+            };
+            root.AddChild(burn);
+            var burnT = burn.CreateTween();
+            burnT.TweenProperty(burn, "color:a", 0.22f, 0.1);
+            burnT.TweenProperty(burn, "color:a", 0.06f, 0.7);
             // 节点爆闪（软光晕）+ 一次性火花溅射（textured 软点粒子，播完自毁）
             var flash = CinematicFx.SoftGlow(36.0f, new Color(1.0f, 0.55f, 0.15f, 0.55f));
             flash.Position = pos;
@@ -213,6 +266,32 @@ public partial class IntroCinematic : CanvasLayer
             {
                 // 链式三连发：音量逐发递减
                 GameState.Instance.PlaySfx(SfxId.Explosion, -2.0f - 3.0f * (step[0] / 2) + AudioVolOffset, AudioPitch);
+            }
+
+            if (step[0] == path.Length - 1)
+            {
+                // 链爆终点大爆：能量抵达舰艉引擎区——终段闪爆比链上节点大一档，接白闪转场
+                var finale = CinematicFx.SoftGlow(80.0f, new Color(1.0f, 0.9f, 0.65f, 0.9f));
+                finale.Position = pos;
+                var finaleBase = finale.Scale;
+                finale.Scale = Vector2.Zero;
+                root.AddChild(finale);
+                var finT = root.CreateTween();
+                finT.TweenProperty(finale, "scale", finaleBase * 2.2f, 0.18).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+                finT.TweenProperty(finale, "modulate:a", 0.0f, 0.5);
+                finT.TweenCallback(Callable.From(finale.QueueFree));
+                var finWave = CinematicFx.Shockwave(new Godot.Collections.Dictionary
+                {
+                    ["radius"] = 240.0f,
+                    ["time"] = 0.7f,
+                    ["color"] = new Color(1.0f, 0.6f, 0.25f, 0.6f),
+                    ["core_color"] = new Color(1.0f, 0.92f, 0.75f, 0.9f),
+                    ["width"] = 12.0f,
+                });
+                finWave.Position = pos;
+                root.AddChild(finWave);
+                KickShake(root, 8.0f, shakeState);
+                GameState.Instance.PlaySfx(SfxId.Explosion, -2.0f + AudioVolOffset, AudioPitch);
             }
 
             step[0] += 1;

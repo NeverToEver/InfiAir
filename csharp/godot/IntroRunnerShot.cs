@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 两拍跑步循环：双腿反相、手臂与对侧腿反相、躯干 2 倍频起伏（就地写 rotation/position，零堆分配）。</summary>
 public partial class IntroRunnerShot : Node2D
 {
-    public List<Polygon2D> Scrollers = new();  // 警示条纹/墙肋/舱门框，反向滚动表现冲刺
+    public List<Node2D> Scrollers = new();  // 警示条纹/墙肋/舱门框/疏散箭头，反向滚动表现冲刺
     public List<Node2D> HipPivots = new();  // 髋：大腿前后摆幅
     public List<Node2D> KneePivots = new();  // 膝：摆动相屈膝、支撑相伸展
     public List<Node2D> ShoulderPivots = new();  // 肩：与对侧腿反相摆动
@@ -58,9 +58,9 @@ public partial class IntroRunnerShot : Node2D
 
         // bob 最低点对齐支撑相中点（腿在重心正下方），腾空相最高
         BobNode.Position = new Vector2(BobNode.Position.X, BobBaseY + 2.6f * (0.5f + 0.5f * Mathf.Cos(runPhase * 2.0f)));
-        // 应急灯呼吸从 6Hz 降至 2.2Hz、峰值减半：高频全屏闪烁易致视不适（低频缓呼吸保留紧张感）
+        // 应急灯呼吸从 6Hz 降至 2.2Hz、峰值压低：红闪只做氛围脉动，不再把整舱染成红泥（低频缓呼吸保留紧张感）
         var redColor = Red.Color;
-        redColor.A = 0.05f + 0.06f * Mathf.Max(0.0f, Mathf.Sin(_t * Mathf.Tau * 2.2f));
+        redColor.A = 0.03f + 0.045f * Mathf.Max(0.0f, Mathf.Sin(_t * Mathf.Tau * 2.2f));
         Red.Color = redColor;
         foreach (var sl in SpeedLines)
         {

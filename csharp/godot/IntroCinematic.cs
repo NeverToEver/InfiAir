@@ -56,6 +56,7 @@ public partial class IntroCinematic : CanvasLayer
     private Label _subtitle = null!;
     private Control _titleCard = null!;
     private Label _skipHint = null!;
+    private float _subtitleBaseY;  // 字幕停靠 y：入场从 +8px 上浮，退场只动 alpha
 
     // A7：测试/诊断白盒断言经公开接口（过场镜头）
     public void SetShotDurations(float[] durations)
@@ -108,6 +109,7 @@ public partial class IntroCinematic : CanvasLayer
         _subtitle = GetNode<Label>("Subtitle");
         _titleCard = GetNode<Control>("TitleCard");
         _skipHint = GetNode<Label>("SkipHint");
+        _subtitleBaseY = _subtitle.Position.Y;
 
         _skipHint.Text = (string)Tr("INTRO_SKIP");
         _skipHint.AddThemeFontOverride("font", UITheme.Font);
@@ -123,6 +125,9 @@ public partial class IntroCinematic : CanvasLayer
         title.AddThemeConstantOverride("shadow_offset_x", 0);
         title.AddThemeConstantOverride("shadow_offset_y", 0);
         title.AddThemeConstantOverride("shadow_outline_size", 8);
+        PolishTitleCard(title);
+        PolishLetterbox();
+        PolishGrain();
         // 跳过提示延迟 1.2s 淡入（开局不再与镜头 1 抢注意力）
         _skipHint.Modulate = new Color(_skipHint.Modulate, 0.0f);
         var hintTween = CreateTween();
@@ -133,6 +138,60 @@ public partial class IntroCinematic : CanvasLayer
         AddChild(_shotTimer);
         // 首镜头延后到帧末启动：测试可在 add_child 同帧替换 _shot_durations
         Play();
+    }
+
+    /// <summary>标题定格精修：字距拉开 + 标题背后呼吸辉光垫；缩放沉降与 accent 线扫入在 PlayTitleCard 触发。</summary>
+    private void PolishTitleCard(Label title)
+    {
+        // 标题字距：FontVariation 只在此处实例化（一次性），glyph 间距把小字重标题撑出电影片头版式
+        title.AddThemeFontOverride(
+            "font",
+            new FontVariation { BaseFont = UITheme.Font, SpacingGlyph = 14 });
+        // 文字后方低频呼吸辉光：给纯黑底一点纵深（挂 Center 之前 = 垫在文字下；低峰值只做氛围不抢字）
+        var pad = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        pad.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        var glow = CinematicFx.SoftGlow(240.0f, new Color(UITheme.Accent, 0.06f));
+        glow.Position = new Vector2(960.0f, 540.0f);
+        glow.Scale *= new Vector2(1.6f, 0.9f);  // 横向拉扁成片头光带，避免圆形光球感
+        pad.AddChild(glow);
+        var glowTween = glow.CreateTween().SetLoops();
+        glowTween.TweenProperty(glow, "modulate:a", 0.55f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        glowTween.TweenProperty(glow, "modulate:a", 1.0f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        _titleCard.AddChild(pad);
+        _titleCard.MoveChild(pad, 0);
+    }
+
+    /// <summary>遮幅条开场展开：从更厚的收拢态缓释到工作位，模拟「画幅打开」的入场仪式感。</summary>
+    private void PolishLetterbox()
+    {
+        var top = GetNode<Control>("LetterboxTop");
+        var bottom = GetNode<Control>("LetterboxBottom");
+        top.OffsetBottom = 202.0f;
+        bottom.OffsetTop = 878.0f;
+        var tween = CreateTween().SetParallel(true);
+        tween.TweenProperty(top, "offset_bottom", 132.0f, 1.5).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        tween.TweenProperty(bottom, "offset_top", 948.0f, 1.5).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+    }
+
+    /// <summary>胶片颗粒：程序化 value-noise 片元着色器（additive 低强度，只给暗部铺一层动态细颗粒质感）。</summary>
+    private void PolishGrain()
+    {
+        const string Code = @"
+            shader_type canvas_item;
+            render_mode blend_add;
+            uniform float intensity : hint_range(0.0, 0.2) = 0.035;
+            float grain_hash(vec2 p) {
+                p = fract(p * vec2(443.897, 441.423));
+                p += dot(p, p + 19.19);
+                return fract((p.x + p.y) * p.x);
+            }
+            void fragment() {
+                vec2 cell = UV * vec2(480.0, 270.0);
+                float g = grain_hash(cell + vec2(fract(TIME * 7.13) * 91.0, fract(TIME * 3.71) * 57.0));
+                COLOR = vec4(vec3(g), intensity);
+            }";
+        var grain = GetNode<ColorRect>("Grain");
+        grain.Material = new ShaderMaterial { Shader = new Shader { Code = Code } };
     }
 
     /// <summary>任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.skip_intro()（公开接口，A7 后经 _skip_intro 落地）</summary>
@@ -152,13 +211,16 @@ public partial class IntroCinematic : CanvasLayer
         }
     }
 
-    /// <summary>导演级手持漂移：共享容器低频正弦位移/微旋转，零堆分配</summary>
+    /// <summary>导演级手持漂移：共享容器低频正弦位移/微旋转，零堆分配。
+    /// Position 同时补偿镜头切入缩放（scale 绕原点，把画面中心拉回 (960,540)）。</summary>
     public override void _Process(double delta)
     {
         _driftT += (float)delta;
-        _shotRoot.Position = new Vector2(
+        var zoom = _shotRoot.Scale.X;
+        var drift = new Vector2(
             Mathf.Sin(_driftT * 0.45f) * 3.0f,
             Mathf.Cos(_driftT * 0.38f) * 2.5f);
+        _shotRoot.Position = drift + new Vector2(960.0f, 540.0f) * (1.0f - zoom);
         _shotRoot.Rotation = Mathf.Sin(_driftT * 0.3f) * 0.003f;
     }
 
@@ -186,8 +248,11 @@ public partial class IntroCinematic : CanvasLayer
         _shotRoot.AddChild(_currentShot);
         var dur = _shotDurations[_shotIndex];
         SetSubtitle(GdFormat.Format("INTRO_SUB_%d", _shotIndex + 1));
+        // 镜头切入沉降：从轻微放大缓释回 1.0（白闪承接的镜头起幅更大，模拟冲击余波）；Position 补偿在 _Process
+        var entryScale = 1.02f;
         if (_whiteTransition)
         {
+            entryScale = 1.05f;
             // 白闪承接：黑层保持透明，暖白纱从当前峰值缓释（不再从全白硬切）
             _whiteTransition = false;
             _fade.Color = new Color(_fade.Color, 0.0f);
@@ -202,6 +267,9 @@ public partial class IntroCinematic : CanvasLayer
             fadeTween.TweenProperty(_fade, "color:a", 0.0f, Mathf.Min(Transition, dur * 0.5f));
         }
 
+        _shotRoot.Scale = Vector2.One * entryScale;
+        var settleTween = CreateTween();
+        settleTween.TweenProperty(_shotRoot, "scale", Vector2.One, 0.9).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         _shotTimer.Start(dur - FadeOutTime());
     }
 
@@ -244,7 +312,8 @@ public partial class IntroCinematic : CanvasLayer
         }
     }
 
-    /// <summary>收尾标题定格：淡入 → 停留 → 淡出 → skip() 统一出口</summary>
+    /// <summary>收尾标题定格：淡入 → 停留 → 淡出 → skip() 统一出口。
+    /// 入场带轻微缩放沉降 + accent 线从零展宽（片头版式仪式感）。</summary>
     private void PlayTitleCard()
     {
         if (_subTween != null && _subTween.IsValid())
@@ -253,14 +322,21 @@ public partial class IntroCinematic : CanvasLayer
         }
 
         _subtitle.Modulate = new Color(_subtitle.Modulate, 0.0f);
-        var tween = CreateTween();
+        var center = GetNode<CenterContainer>("TitleCard/Center");
+        center.PivotOffset = new Vector2(960.0f, 540.0f);
+        center.Scale = Vector2.One * 1.06f;
+        var accentLine = GetNode<ColorRect>("TitleCard/Center/VBox/AccentLine");
+        accentLine.CustomMinimumSize = new Vector2(0.0f, 3.0f);
+        var tween = CreateTween().SetParallel(true);
         tween.TweenProperty(_titleCard, "modulate:a", 1.0f, TitleCardIn);
-        tween.TweenInterval(TitleCardHold);
-        tween.TweenProperty(_titleCard, "modulate:a", 0.0f, TitleCardOut);
-        tween.TweenCallback(Callable.From(Skip));
+        tween.TweenProperty(center, "scale", Vector2.One, 1.1).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        tween.TweenProperty(accentLine, "custom_minimum_size:x", 140.0f, 0.6).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out).SetDelay(0.15);
+        tween.Chain().TweenInterval(TitleCardHold);
+        tween.Chain().TweenProperty(_titleCard, "modulate:a", 0.0f, TitleCardOut);
+        tween.Chain().TweenCallback(Callable.From(Skip));
     }
 
-    /// <summary>叙事字幕卡：设置文本并淡入（淡出由 _on_shot_timeout 随转场处理）</summary>
+    /// <summary>叙事字幕卡：设置文本并从 +8px 上浮淡入（淡出由 _on_shot_timeout 随转场处理）</summary>
     private void SetSubtitle(string key)
     {
         if (_subTween != null && _subTween.IsValid())
@@ -270,8 +346,10 @@ public partial class IntroCinematic : CanvasLayer
 
         _subtitle.Text = (string)Tr(key);
         _subtitle.Modulate = new Color(_subtitle.Modulate, 0.0f);
-        _subTween = CreateTween();
+        _subtitle.Position = new Vector2(_subtitle.Position.X, _subtitleBaseY + 8.0f);
+        _subTween = CreateTween().SetParallel(true);
         _subTween.TweenProperty(_subtitle, "modulate:a", 1.0f, 0.3);
+        _subTween.TweenProperty(_subtitle, "position:y", _subtitleBaseY, 0.45).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
     }
 
     private Node2D BuildShot(int i)
