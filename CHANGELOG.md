@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 移除 / 流程改造（2026-09-08，纯街机流：开机「过场 → 标题屏 → 任意键开局」）
+
+- **移除登录/账户系统**：welcome 场景与登录面板（注册/登录/游客/删除/下拉/最近登录）、`UserSessionService`/`UserDB`/`UserDbInterop`/`GameState.Users`/Core `UserDb`（users.json + PBKDF2）及对应 xUnit（UserDbTests/UserDbPasswordTests/UserDbMetaTests）全量删除
+- **移除对局存档系统**：`SaveRun`/`LoadRunData`/`ApplyRunSave`/`HasSave`/`DeleteSave`/`SaveManager` 对局档链、`TalentService` 存档往返（SaveState/RestoreState）；每次启动均为全新一局，死亡即结算，无继续对局；暂停页「保存进度」项删除
+- **移除排行榜与分数记录**：本地榜（users.json `_leaderboard` + profile.json highscores）、`RecordScore`/`SubmitHighscore`/`HighscoresText`/`HighScore`/`Highscores`、HUD 分数/连击标签（击杀计数收编独立背板并按计数节流刷新）、结算页大分数/新纪录/名次/榜单（只留击杀 + Boss 击杀）、welcome 战绩区与排行榜 overlay
+- **移除局外成长**：研究所（welcome overlay + BaseConsole 面板与目录项）、`MetaService`/`GameState.Meta`/Core `MetaProgression`/科技点结算/开局预置（ApplyMetaLoadout）、`balance.json meta.*` 段（BALANCE_MAP 重生成）；对局内天赋点（里程碑/Boss/基地补给）不受影响
+- **对局内计分引擎保留**（隐藏化）：AddScore/连击/里程碑不显示不记录，继续驱动敌机解锁门、Boss 生成节奏、事件 min_score 与里程碑→天赋点入账
+- **新开机流程**：`project.godot` 主场景切 `main.tscn`——开机自动播开场过场（任意键/点击/Esc 可跳过）→ 新增 `title.tscn`/`TitleScreen` 黑屏标题屏（InfiAir 辉光标题 + 闪烁「按任意键开始」+ T 教程入口 + 0.5s 输入守卫）→ 任意键回 main 直接开局（`IntroPlayedThisSession` 会话旗标，同进程不重播过场）；IntroCinematic 末尾标题定格职责移交标题屏；死亡结算「返回标题」/教程退出/暂停重开统一 ResetRun 后路由
+- **设置页扩展**（操作模式页）：难度三档（原欢迎页入口迁入，`SetDifficulty` 持久化不变）+ 新增「默认跳过入场动画」开关（开启后开机直达标题屏，`settings.json skip_intro` 键）
+- **设置持久化本地化**：账户删除后收敛单文件 `user://settings.json`（`LoadSettings`/`SaveSettings`，键位/locale/难度/视图/无障碍/手柄/TutorialDone/跳过过场），损坏隔离 `.corrupt` 回落默认
+- **文档与工具**：AGENTS（入口场景/持久化约定）、DESIGN_BASELINE（计分/天赋持久化/层级栈/研究所条目）、ROADMAP（纯街机流决策登记 + InputProbe 探针随 welcome 删除附注）、TESTING、README 同步；翻译删 50 死键增 5 新键；截图工具 welcome 模式退役、ui_capture 增操作模式页、intro_capture 移除标题帧
+- **验证**：build 0w/0e + xUnit 103/103 + import 零警告 + smoke/base 0 FAIL + 300 帧零错误（主场景现为 main+过场）+ format 三 csproj 零 diff + 窗口化截图巡检（HUD 击杀块/结算页/标题屏/设置页难度与跳过开关/暂停菜单/基地目录）+ 临时流程探针实机驱动全链路 15 断言全 PASS（开机过场→跳过→标题屏→任意键开局→死亡结算→R 重开→返回标题→跳过设置直达标题屏，探针用完即删未入库）
+
 ## [3.34] - 2026-09-08
 
 ### 优化（2026-09-08，轮盘高科技弹出面板化——物化动效 + FUI 仪表细节）
