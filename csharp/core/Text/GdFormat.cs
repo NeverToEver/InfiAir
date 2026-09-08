@@ -6,8 +6,8 @@ namespace InfiAir.Core.Text;
 /// <summary>
 /// GDScript `%` 运算符等价格式化（Y 系列收敛，2026-08-09）。
 /// 合并原 Godot 层 11 份重复实现（Hud/Main/BaseConsole/GameState/Mothership/IntroCinematic/
-/// ReturnCinematic/Tutorial/SettingsUi×2/BuffSelect.GsFormat）为单一 core 纯 .NET 实现：
-/// 零 Godot 依赖 → xUnit 直测（tests-csharp/GdFormatTests.cs）。
+/// ReturnCinematic/Tutorial/SettingsUi×2/BuffSelect.GsFormat）为单一 core 纯 .NET 实现，
+/// 零 Godot 依赖。
 ///
 /// 语义基准 = Hud 标准版（全库唯一支持 %.Nf 与 %f 固定 6 位小数的实现）：
 /// - %s：参数 ToString()；%d：Convert.ToInt64（GDScript int() 语义近似）；

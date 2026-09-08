@@ -1,10 +1,8 @@
 name: CI
 
-# InfiAir 持续集成（2026-08-29 W 系「削减」版本）。
-# 2026-08-29：移除 full-regression（51 断言场景随场景删除而退役）、format 闸、
-# zero-GDScript 闸（项目无 .gd，由 import 探针兜底）、compile probe、BALANCE_MAP 闸、
-# dotnet/NuGet 缓存（安装成本低，YAML 优先简洁）；断言场景大幅退役后本地验证以
-# smoke_test + base_system_test + xUnit 为主（见 docs/TESTING.md）。
+# InfiAir 持续集成（fast-gate）。
+# 2026-09-09：测试资产全量退役（xUnit 工程与断言/截图场景删除），门禁收敛为
+# C# 构建零警告 → 资源导入无警告 → 主场景 300 帧运行无错误。
 # 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
 # + 官方 Godot 引擎/模板，禁止其他第三方依赖。
 
@@ -27,7 +25,7 @@ env:
 
 jobs:
   fast-gate:
-    name: Fast gate (C# build/test + import + smoke)
+    name: Fast gate (C# build + import + smoke)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -41,10 +39,8 @@ jobs:
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
           dotnet --version
 
-      - name: Build & test C# (warnings-as-errors + xUnit)
-        run: |
-          dotnet build --nologo
-          dotnet test tests-csharp/ --nologo
+      - name: Build C# (warnings-as-errors)
+        run: dotnet build --nologo
 
       - name: Cache Godot mono engine
         id: cache-godot
@@ -75,10 +71,8 @@ jobs:
       - name: Import project resources (warning gate)
         run: bash scripts/ci/check_import.sh /tmp/import.log
 
-      - name: Main scene smoke (300 frames) + smoke_test
-        run: |
-          bash scripts/ci/check_smoke.sh /tmp/smoke.log
-          godot --headless --path . res://test/smoke_test.tscn
+      - name: Main scene smoke (300 frames)
+        run: bash scripts/ci/check_smoke.sh /tmp/smoke.log
 
       - name: Upload fast-gate failure logs
         if: failure()

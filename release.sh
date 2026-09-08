@@ -104,7 +104,7 @@ fi
 # 报错）。事前硬检查，杜绝带病出包
 if [ ! -f InfiAir.sln ]; then
 	echo "[release] 缺少 InfiAir.sln（.NET 导出必需）" >&2
-	echo "         生成：dotnet new sln -n InfiAir && dotnet sln add InfiAir.csproj csharp/core/InfiAir.Core.csproj tests-csharp/InfiAir.Core.Tests.csproj" >&2
+	echo "         生成：dotnet new sln -n InfiAir && dotnet sln add InfiAir.csproj csharp/core/InfiAir.Core.csproj" >&2
 	exit 1
 fi
 
