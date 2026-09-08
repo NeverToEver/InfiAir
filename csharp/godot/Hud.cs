@@ -109,6 +109,15 @@ public partial class Hud : CanvasLayer
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
     private const int BuffDockMaxTiles = 4;
 
+    /// <summary>Boss 逃跑倒计时明暗闪烁半周期（ms）：取模翻转透明度，快于人眼追踪的告警节奏。</summary>
+    private const long CountdownBlinkHalfPeriodMs = 500;
+
+    /// <summary>仪表条回写 epsilon：0.1s 轮询下值未变不写 ProgressBar（setter 内部 queue_redraw）。</summary>
+    private const float BarWriteEpsilon = 0.001f;
+
+    /// <summary>燃料低量警戒线（比例）：低于此值油条转警示色。</summary>
+    private const float FuelWarnRatio = 0.3f;
+
     /// <summary>
     /// Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层。
     /// </summary>
@@ -513,7 +522,7 @@ public partial class Hud : CanvasLayer
                 _bossCountdown.Visible = true;
                 _bossCountdown.Text = GdFormat.Format("%d", Mathf.CeilToInt(remaining));
                 var cm = _bossCountdown.Modulate;
-                cm.A = Time.GetTicksMsec() / 500 % 2 == 0 ? 1.0f : 0.45f;
+                cm.A = Time.GetTicksMsec() / CountdownBlinkHalfPeriodMs % 2 == 0 ? 1.0f : 0.45f;
                 _bossCountdown.Modulate = cm;
             }
             else
@@ -536,21 +545,21 @@ public partial class Hud : CanvasLayer
         // P1-3（2026-08-05 审计）：值变化才写 setter（ProgressBar setter 内部 queue_redraw，
         // 0.1s 轮询下值未变也触发无意义重绘；epsilon 守卫只写变化帧）
         var fuelVal = fuel * 100.0f;
-        if (Mathf.Abs(fuelVal - _fuelBar.Value) > 0.001f)
+        if (Mathf.Abs(fuelVal - _fuelBar.Value) > BarWriteEpsilon)
         {
             _fuelBar.Value = fuelVal;
         }
 
-        _fuelBar.FillColor = fuel < 0.3f ? UITheme.Danger : UITheme.Accent;
+        _fuelBar.FillColor = fuel < FuelWarnRatio ? UITheme.Danger : UITheme.Accent;
         var dashVal = player.DashReadyRatio() * 100.0f;
-        if (Mathf.Abs(dashVal - _dashBar.Value) > 0.001f)
+        if (Mathf.Abs(dashVal - _dashBar.Value) > BarWriteEpsilon)
         {
             _dashBar.Value = dashVal;
         }
 
         // 机制四：弹反能量槽（满格=可用；流程期清空；冷却匀速充能——player.parry_energy_ratio）
         var parryVal = player.ParryEnergyRatio() * 100.0f;
-        if (Mathf.Abs(parryVal - _parryBar.Value) > 0.001f)
+        if (Mathf.Abs(parryVal - _parryBar.Value) > BarWriteEpsilon)
         {
             _parryBar.Value = parryVal;
         }

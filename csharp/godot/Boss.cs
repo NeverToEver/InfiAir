@@ -63,6 +63,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>2026-08-07 审计：逃跑警告闪烁与狂暴底色提常量（原每帧构造 Color）。</summary>
     private static readonly Color EscapeBlinkColor = new(1.8f, 1.3f, 0.5f);
     private static readonly Color EnrageBlinkColor = new(1.5f, 0.65f, 0.65f);
+    /// <summary>逃跑警告期机身闪烁频率（Hz）：警告期与狂暴序列警告期共用同一明暗节奏。</summary>
+    private const float EscapeBlinkHz = 8.0f;
 
     /// <summary>
     /// 模式表脚本默认值（与 balance.json boss.phases.typeN 保持一致，AGENTS.md 约定）：
@@ -877,7 +879,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         {
             if (_survival >= EscapeTime - EscapeWarning)
             {
-                _sprite.Modulate = (int)(_survival * 8.0) % 2 == 0 ? EscapeBlinkColor : BaseModulate();
+                _sprite.Modulate = (int)(_survival * EscapeBlinkHz) % 2 == 0 ? EscapeBlinkColor : BaseModulate();
             }
 
             _enrageSequence.Update(d, this);
@@ -891,7 +893,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             // （type1 P2/type3 P2/type4）经 _escape_drift_offset 累计后在 BossMovement 叠加
             Position += new Vector2(0.0f, -EscapeDrift * d);
             _escapeDriftOffset += EscapeDrift * d;
-            _sprite.Modulate = (int)(_survival * 8.0) % 2 == 0 ? EscapeBlinkColor : BaseModulate();
+            _sprite.Modulate = (int)(_survival * EscapeBlinkHz) % 2 == 0 ? EscapeBlinkColor : BaseModulate();
         }
 
         // 冲刺掠过（二型 P2）接管移动与模式编排；否则走位 + 模式表循环

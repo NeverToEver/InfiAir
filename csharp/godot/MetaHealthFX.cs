@@ -16,6 +16,9 @@ namespace InfiAir;
 /// </summary>
 public partial class MetaHealthFX : CanvasLayer
 {
+    /// <summary>D5 精度口径：动态量稳定判定与参数上传的 epsilon 检测共用同一阈值。</summary>
+    private const float Epsilon = 0.001f;
+
     public const int STATE_NORMAL = 0;
     public const int STATE_CAUTION = 1;
     public const int STATE_DAMAGED = 2;
@@ -498,19 +501,19 @@ public partial class MetaHealthFX : CanvasLayer
         // 早退（D10）：全部动态量稳定时零参数上传；满血时连全屏 ColorRect 也隐藏（零 GPU）
         var d = (float)delta;
         var idle = (
-            Mathf.Abs(_targetX - _damageX) < 0.001f
-            && _hitPulse < 0.001f
+            Mathf.Abs(_targetX - _damageX) < Epsilon
+            && _hitPulse < Epsilon
             && _rippleT > 1.0f
             && _heartPhase < 0.0f
-            && _heartEnv < 0.001f
+            && _heartEnv < Epsilon
             && _healT < 0.0f
-            && _growBoost < 0.001f
-            && Mathf.Abs(_breath - 1.0f) < 0.001f
+            && _growBoost < Epsilon
+            && Mathf.Abs(_breath - 1.0f) < Epsilon
         );
         if (idle && !_forceRefresh)
         {
             _earlyOutCount += 1;
-            if (_damageX < 0.001f && _rect.Visible)
+            if (_damageX < Epsilon && _rect.Visible)
             {
                 _rect.Visible = false;
             }
@@ -636,7 +639,7 @@ public partial class MetaHealthFX : CanvasLayer
         var progress = Mathf.Min(CrackProgress() + _growBoost, 1.0f);
         var pulse = _hitPulse;
         var chromatic = 0.0f;
-        if (pulse > 0.001f)
+        if (pulse > Epsilon)
         {
             chromatic = _chromaticBase + _chromaticPeak * pulse;
             if (reduceFlash)
@@ -699,7 +702,7 @@ public partial class MetaHealthFX : CanvasLayer
     {
         if (a.VariantType == Variant.Type.Float && b.VariantType == Variant.Type.Float)
         {
-            return Mathf.Abs(a.AsSingle() - b.AsSingle()) < 0.001f;
+            return Mathf.Abs(a.AsSingle() - b.AsSingle()) < Epsilon;
         }
 
         if (a.VariantType == Variant.Type.Vector2 && b.VariantType == Variant.Type.Vector2)

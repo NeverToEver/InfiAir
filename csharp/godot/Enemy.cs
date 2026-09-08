@@ -101,6 +101,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private float _scoreScale = 1.0f;
     private float _flashTimer;
     private const float FlashTime = 0.1f;
+    /// <summary>寿命离场出屏判定余量（px）：顶/左/右三边对称，底边不入判定（离场方向向上/侧向）。</summary>
+    private const float ExitDespawnMargin = 150.0f;
     private float _shakeDieNormal = 5.0f;
     private float _shakeDieElite = 9.0f;
 
@@ -615,9 +617,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             _exitSpeed += ExitAccel * d;
             Position += _exitDir * _exitSpeed * d;
             var exitView = FrameCache.ViewRect();
-            if (Position.Y < exitView.Position.Y - 150.0f
-                || Position.X < exitView.Position.X - 150.0f
-                || Position.X > exitView.End.X + 150.0f)
+            if (Position.Y < exitView.Position.Y - ExitDespawnMargin
+                || Position.X < exitView.Position.X - ExitDespawnMargin
+                || Position.X > exitView.End.X + ExitDespawnMargin)
             {
                 DespawnInternal();
             }

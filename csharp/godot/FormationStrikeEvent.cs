@@ -55,6 +55,9 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     public float BombRadius { get; set; } = 120.0f;
     public int RewardAllClear { get; set; } = 200;
 
+    /// <summary>水平出界判定的基础余量（px）：叠加在投弹动态余量上，投弹表为空时兜底。</summary>
+    private const float RunOutMarginBase = 120.0f;
+
     private State _state = State.IDLE;
     private float _stateTime;
     private float _cooldownLeft;
@@ -317,8 +320,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
                     // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
                     var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
                     if (_dropIndex >= _dropTimes.Count
-                        || _anchor.X < view.Position.X - runMargin - 120.0f
-                        || _anchor.X > view.End.X + runMargin + 120.0f)
+                        || _anchor.X < view.Position.X - runMargin - RunOutMarginBase
+                        || _anchor.X > view.End.X + runMargin + RunOutMarginBase)
                     {
                         BeginExit();
                     }

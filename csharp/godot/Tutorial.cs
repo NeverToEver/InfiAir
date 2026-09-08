@@ -35,6 +35,12 @@ public partial class Tutorial : Node2D
     private int _stage;
     private bool _advancing;
     private int _stageKills;
+    /// <summary>训练靶阶段（case 0）目标击杀数：补刷兜底与进度判定共用。</summary>
+    private const int AimTargetKillGoal = 3;
+    /// <summary>实战阶段（case 2）目标击杀数：补刷兜底与进度判定共用。</summary>
+    private const int CombatKillGoal = 5;
+    /// <summary>蓄力百分比文本刷新节流（G015，对齐 HUD 仪表约定）。</summary>
+    private const float ObjectivePollInterval = 0.1f;
     private int _boostCount;
     private int _dashCount;
     private bool _prevDashing;
@@ -448,9 +454,9 @@ public partial class Tutorial : Node2D
                     // 补刷兜底（对齐 case 2 口径）：训练靶走正常 Enemy 生命周期，15s 寿命到期/飞出屏底
                     // 静默 despawn 不发 Died，场上无靶且 _stageKills 未达标时补足剩余数，防新手超时软锁。
                     // 保持每帧检查（与 case 2 同理，不引入节流窗口）
-                    if (!_advancing && _stageKills < 3 && AliveEnemyCount() == 0)
+                    if (!_advancing && _stageKills < AimTargetKillGoal && AliveEnemyCount() == 0)
                     {
-                        SpawnAimTargets(3 - _stageKills);
+                        SpawnAimTargets(AimTargetKillGoal - _stageKills);
                     }
 
                     break;
@@ -492,9 +498,9 @@ public partial class Tutorial : Node2D
                     // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
                     // 注意：保持每帧检查（tutorial_test 依赖 queue_free 释放与检查窗口的即时性，
                     // 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
-                    if (!_advancing && _stageKills < 5 && AliveEnemyCount() == 0)
+                    if (!_advancing && _stageKills < CombatKillGoal && AliveEnemyCount() == 0)
                     {
-                        SpawnCombatWave(5 - _stageKills);
+                        SpawnCombatWave(CombatKillGoal - _stageKills);
                     }
 
                     break;
@@ -511,7 +517,7 @@ public partial class Tutorial : Node2D
                             _objectivePoll -= d;
                             if (_objectivePoll <= 0.0f)
                             {
-                                _objectivePoll = 0.1f; // G015：百分比文本 0.1s 节流
+                                _objectivePoll = ObjectivePollInterval; // G015：百分比文本节流
                                 SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
                             }
 
@@ -539,7 +545,7 @@ public partial class Tutorial : Node2D
                         _objectivePoll -= d;
                         if (_objectivePoll <= 0.0f)
                         {
-                            _objectivePoll = 0.1f; // G015：百分比文本 0.1s 节流
+                            _objectivePoll = ObjectivePollInterval; // G015：百分比文本节流
                             SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
                         }
 

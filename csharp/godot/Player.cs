@@ -104,6 +104,12 @@ public partial class Player : CharacterBody2D
     /// <summary>尾焰染色乘区（Buff 外观反馈）。</summary>
     public Color EngineTint { get; set; } = Colors.White;
 
+    /// <summary>推进器三态强度 (speedScale, amountRatio, alpha)：加速（冲刺/Boost 共用一条曲线）/巡航/待机；
+    /// 逐帧调用的视觉调参，语义见 PlayerVisuals.SetThruster。静态只读免热路径分配。</summary>
+    private static readonly (float Speed, float Amount, float Alpha) ThrusterBoost = (1.7f, 1.0f, 1.0f);
+    private static readonly (float Speed, float Amount, float Alpha) ThrusterCruise = (1.0f, 0.8f, 0.85f);
+    private static readonly (float Speed, float Amount, float Alpha) ThrusterIdle = (0.6f, 0.35f, 0.6f);
+
     private static readonly Color BodyTintBase = new(1.35f, 1.4f, 1.55f);
 
     public float DashDistance { get; private set; } = 200.0f;
@@ -770,6 +776,10 @@ public partial class Player : CharacterBody2D
 
     public float FuelRegenRate() => _fuelRegenRate;
 
+    /// <summary>推进器状态下发（统一注入 EngineTint；入场冲刺 ×2.0 强度为一次性演出，不走三态表）。</summary>
+    private void ApplyThruster((float Speed, float Amount, float Alpha) state)
+        => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint);
+
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
@@ -849,7 +859,7 @@ public partial class Player : CharacterBody2D
         if (_dash.IsDashing())
         {
             _dash.UpdateMove(d, this);
-            _visuals.SetThruster(1.7f, 1.0f, 1.0f, EngineTint);
+            ApplyThruster(ThrusterBoost);
             return;
         }
 
@@ -901,15 +911,15 @@ public partial class Player : CharacterBody2D
 
         if (boosting && inputDir != Vector2.Zero)
         {
-            _visuals.SetThruster(1.7f, 1.0f, 1.0f, EngineTint);
+            ApplyThruster(ThrusterBoost);
         }
         else if (inputDir != Vector2.Zero)
         {
-            _visuals.SetThruster(1.0f, 0.8f, 0.85f, EngineTint);
+            ApplyThruster(ThrusterCruise);
         }
         else
         {
-            _visuals.SetThruster(0.6f, 0.35f, 0.6f, EngineTint);
+            ApplyThruster(ThrusterIdle);
         }
 
         var aim = AimPoint() - GlobalPosition;
