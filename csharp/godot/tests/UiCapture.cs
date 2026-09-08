@@ -23,25 +23,27 @@ public partial class UiCapture : Node
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
-            gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
             AddChild(mainScene.Instantiate());
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 1. 入口界面（welcome 登录面板，StartPanel 已退役）
-            var wl = GD.Load<PackedScene>("res://scenes/welcome.tscn").Instantiate<CanvasLayer>();
-            AddChild(wl);
+            // 1. 标题屏（开机流程第二拍：黑底标题 + 按任意键开始）
+            var ts = GD.Load<PackedScene>("res://scenes/title.tscn").Instantiate<CanvasLayer>();
+            AddChild(ts);
             await Settle();
-            Shot("welcome");
-            wl.QueueFree();
+            Shot("title");
+            ts.QueueFree();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 2. 设置页（对局内打开）
+            // 2. 设置页（对局内打开；控制页 + 操作模式页各一张）
             var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
             settings!.ShowSettings();
             await Settle();
             Shot("settings");
+            settings.ShowPage(new StringName("modes"));
+            await Settle();
+            Shot("settings_modes");
             settings.Back();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
@@ -138,7 +140,7 @@ public partial class UiCapture : Node
             Shot("gameover");
 
             // 恢复现场：profile 落盘
-            gs.SaveProfile();
+            gs.SaveSettings();
             GD.Print("ui capture done");
         }
         catch (System.Exception e)

@@ -96,7 +96,7 @@ public sealed partial class RunProgressionService : RefCounted
         Difficulty = pDifficulty;
         RefreshRegenCache();
         DifficultySelected?.Invoke(Difficulty);
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
     }
 
     public string DifficultyLabel() => (string)GameState.Instance.Tr("DIFF_" + Difficulty.ToString().ToUpperInvariant());

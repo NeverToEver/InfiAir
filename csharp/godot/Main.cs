@@ -201,8 +201,31 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 无存档系统：每次进入 main 均为全新一局（_apply_new_run 负责开场演出与死亡回放录制起点）
-        ApplyNewRun();
+        // 开机流程（2026-09-08 标题屏改造）：正常启动首次进入 → 播开场过场（或按设置跳过）→
+        // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
+        // 测试以子节点实例化 main.tscn 时 current_scene != self：不过场、不入场（测试自行驱动）。
+        if (GetTree().CurrentScene != this)
+        {
+            ApplyNewRun();
+        }
+        else if (GameState.Instance.IntroPlayedThisSession)
+        {
+            ApplyNewRun();
+            StartEntrySequenceInternal(); // 从标题屏返回：直接开局
+        }
+        else
+        {
+            GameState.Instance.IntroPlayedThisSession = true;
+            ApplyNewRun();
+            if (GameState.Instance.SkipIntro)
+            {
+                GoTitleScreen(); // 设置「默认跳过入场动画」：开机直达标题屏
+            }
+            else
+            {
+                PlayIntroCinematic();
+            }
+        }
     }
 
     public override void _ExitTree()
@@ -601,18 +624,11 @@ public partial class Main : Node2D
         _bgmPlayer.Play();
     }
 
-    /// <summary>新对局（无存档或开始面板选「新游戏」）：数据层已由 reset_run/读档就绪，无需额外处理。
-    /// 仅正常启动入口播放开场过场（测试以子节点实例化 main.tscn 时 current_scene != self，不播）</summary>
+    /// <summary>新对局数据起点（数据层已由 ResetRun/全新默认态就绪）：死亡回放录制重开
+    /// （缓冲清空重录；死亡后 main._process 冻结自然停止）。</summary>
     private void ApplyNewRun()
     {
-        // 局外成长：新局预置已购 buff 层数（2026-08-09；tutorial/存档恢复路径不经过）
-        GameState.Instance.ApplyMetaLoadout();
-        // B 梯队：死亡回放录制开始（缓冲清空重录；死亡后 main._process 冻结自然停止）
         _replay.Begin();
-        if (GetTree().CurrentScene == this)
-        {
-            PlayIntroCinematic();
-        }
     }
 
     /// <summary>播放开场过场：冻结对局帧 0（树暂停，过场 process_mode=Always 照常播放），
@@ -643,7 +659,13 @@ public partial class Main : Node2D
     {
         _intro = null;
         GetTree().Paused = false;
-        StartEntrySequenceInternal(); // 开场动画后播战机入场动画（替代原地无敌闪现）
+        GoTitleScreen(); // 过场结束 → 黑屏标题屏（按任意键开始）
+    }
+
+    /// <summary>切换到标题屏（title.tscn：InfiAir 标题 + 按任意键开始 / T 教程）。</summary>
+    private void GoTitleScreen()
+    {
+        GetTree().ChangeSceneToFile("res://scenes/title.tscn");
     }
 
     /// <summary>播放返航过场：与 _play_intro_cinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。

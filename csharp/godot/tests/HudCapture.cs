@@ -27,7 +27,6 @@ public partial class HudCapture : Node
             var gs = GetNode<GameState>("/root/GameState");
 
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
-            gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             AddChild(mainScene.Instantiate());
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -81,7 +80,7 @@ public partial class HudCapture : Node
             Shot("panel");
 
             // 恢复现场：profile 落盘
-            gs.SaveProfile();
+            gs.SaveSettings();
             GD.Print("hud capture done");
         }
         catch (System.Exception e)

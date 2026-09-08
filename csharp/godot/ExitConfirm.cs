@@ -136,7 +136,7 @@ public partial class ExitConfirm : CanvasLayer
 
     private void ExecuteExitCleanupInner(bool battle)
     {
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         OnExitCleanup();
     }
 

@@ -6,7 +6,7 @@
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent (`docs/archive/PORTING_PARITY.md`).
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent (`docs/archive/PORTING_PARITY.md`). 2026-09-08 纯街机流：无登录/无对局存档/无排行榜/无局外成长；开机 = 开场过场 → 黑屏标题屏（按任意键开始 / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。
 
 ### 1.2 Core Loop
 ```
@@ -17,11 +17,11 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.3 Scoring & Economy
 - `GameState.AddScore(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
-- **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window 3.0s / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 3s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards / graze do NOT combo. `ComboChanged` signal → HUD combo label. 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
+- **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window 3.0s / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 3s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards / graze do NOT combo. 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only; spent at base console, not carried between runs.
 - **RefreshPoints**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
-- **TechPoints** (meta progression): cross-run currency, independent of RP (RP stays in-run base economy). **Sole settlement = death** (`SettleRun`): battle exit via `ExitConfirm` (deletes save, abandoned not settled) and homecoming do NOT settle — anti-farm; K-key give-up = self-destruct, settles as death: `floor(score/1000) + boss_kills×2 + missions_claimed×1` (`meta.points.*`). Logged-in users only (guests not persisted). Spent at Research Lab (Welcome radial menu + BaseConsole panel); effect = new run starts with purchased augment levels. Upgrades = `meta.upgrades` (10 items — 8 original + `homing`/`graze_field` (2026-09-08), max_level 1–3, independent of augment levels); balance/levels persist in UserDb `meta` field.
+- ~~TechPoints / Research Lab（局外成长）~~：2026-09-08 随账户/存档系统一并移除（方向决策见 ROADMAP）。
 - Milestones: score thresholds → talent points into the cache pool (no popup; §1.5).
 
 ### 1.4 Difficulty & Endless Curve
@@ -30,7 +30,6 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - No hard cap. `RecomputeDifficulty()` unified (kill + time tier + save-restore); broadcasts `DifficultyChanged`.
 - Enemy growth: Boss HP linear × mult (50s-escape DPS check = "can't kill → flees" valve); `enemies.hp_ramp_factor`/`damage_ramp_factor` (k=0.25 HP / 0.20 dmg)/spawn ramp unbounded.
 - Survival: `extra_life` cap **10** (HP 100+500=600); card "max 10"; lifesteal ≤10% feedback offset by HP cap + ramp.
-- **Meta-growth boundedness**: tech-tree upgrades capped per item with a finite total point sink → players eventually graduate; enemy pressure stays unbounded → D1 preserved. Meta only shifts opening strength, never the "death is the only end" rule.
 - Event units scale: turret/formation HP × `GameState.EnemyHpRamp()`.
 - **D2**: Hard-mode buff pacing fastest (×3 score, ×1.5 thresholds) is **intentional**; unchanged.
 
@@ -43,7 +42,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **Mechanism B — focus penalty**: any node ≥ `focus.threshold`(7) → all lower-level nodes' effective levels × (1 − min(`penalty_cap`(0.4), `penalty_per_level`(0.06)×over)); top-level nodes exempt. Footer indicator in panel.
 - **Mechanism C — route contract** (`TalentTree.Routes`, base console panel): berserker(offense)/guardian(defense)/ranger(mobility); binding free once, switching costs a reset token (bought at base for `route.reset_token_cost`(6) RP). Core category nodes +`route.bonus_levels`(1) effective level; non-core categories' caps halved (floor `route.cap_floor`(1)). Replaces the retired per-line buff routes.
 - **Mechanism D — overcharge**: node at effective cap may +1 level at ×`overcharge.cost_mult`(2) cost, then permanently locked; ≤`overcharge.max_per_run`(3)/run.
-- **Persistence**: v3 run save `talent` dict (cache point values / levels / overcharged / route / tokens). No compat layer — v2 saves start with fresh talent state. Meta tech upgrades still mean "start with N stacks": applied via `Talent.ApplyStartingLoadout` as starting levels.
+- **Persistence**: 无对局存档（2026-09-08 移除）——天赋态每局全新，只在本局内累积。
 - Card text via `AUG_%s_DESC` keys (single source).
 - Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3` no longer gates purchase — legacy trait), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
@@ -58,9 +57,9 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 ### 1.7 Mothership & Return
 - Summon (`dock` H charge): run not paused, input locked + event invincibility. Hanger window → warp gate → DESCEND decelerate → dual-ring slow zone → DOCKING pod (`EnterPod()`) → resupply → RELEASE (`ExitPod()`) → loiter/leave. Values `effects.mothership_summon`.
 - Fire platform: GATLING/MISSILE during loiter.
-- Return: hold B (`homecoming`, `effects.home_charge_time`) → input lock → spawner stop → recall → `SaveRun()` → `starfield.Warp(18)` → cinematic → base UI (tree paused).
-- Base: `BaseConsole.cs` + `DawnStation.cs` skin（2026-09-08 圆盘目录化：左缘轮盘目录 机库/补给/契约/任务/研究所 + 「继续出击」叶，右区单面板切换，分类芯片行保键盘可达）；"continue sortie" → orbital strike clear (Boss kept) → entry animation.
-- **增幅补给（基地↔增幅联动，2026-09-08）**：补给面板 RP 购置——「增幅缓存」`base.supply.cache_cost_rp`(4) RP → `cache_points`(2) 点直入天赋缓存池（LIFO 衰减口径同里程碑入账）；「超载槽」`overcharge_cost_rp`(8) RP → 本局风险加点上限 +1（至多 `overcharge_slot_max`(2) 档，存档 `talent.oc_bonus` 随档往返，ResetRun 清零）。
+- Return: hold B (`homecoming`, `effects.home_charge_time`) → input lock → spawner stop → recall → `starfield.Warp(18)` → cinematic → base UI (tree paused).
+- Base: `BaseConsole.cs` + `DawnStation.cs` skin（2026-09-08 圆盘目录化：左缘轮盘目录 机库/补给/契约/任务 + 「继续出击」叶，右区单面板切换，分类芯片行保键盘可达）；"continue sortie" → orbital strike clear (Boss kept) → entry animation.
+- **增幅补给（基地↔增幅联动，2026-09-08）**：补给面板 RP 购置——「增幅缓存」`base.supply.cache_cost_rp`(4) RP → `cache_points`(2) 点直入天赋缓存池（LIFO 衰减口径同里程碑入账）；「超载槽」`overcharge_cost_rp`(8) RP → 本局风险加点上限 +1（至多 `overcharge_slot_max`(2) 档，ResetRun 清零）。
 - Entry animation (`player.PlayEntryAnimation()`): dive to bottom-third → slow backward drift; horizontal-only, vertical locked, invincible (no flicker); spawns delayed.
 
 ### 1.8 Events
@@ -86,8 +85,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.12 Exit/Back Navigation
 - All back inputs → `BackNavigator.GoBack()` via pure `DecideBackAction()` (confirm → cinematic skip → settings/base/blocking/results → augment dock → pause → top → combat).
-- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock) → L0 Welcome (accounts entry).
-- **圆盘 UI 全覆盖（2026-09-08）**：左缘 `RadialWheel`（圆心锚屏外左侧，卡片沿弧排列；槽距按选项数自适应 `SlotAngleFor`，端点角钳 ±36° 防压 HUD；全容弧面时键盘/滚轮经 `FocusBias` 移动聚焦项）为全站菜单导航面：天赋面板（已有）、暂停、死亡结算、基地目录、欢迎主区、设置页导航；`RadialMenuLayer` 为统一开合骨架（dim+轮盘过冲滑入，`SetWheelActive` 同步轮盘/chrome 遮罩显隐——非模态页须显式关遮罩）；方向键旋转 + Enter 确认（GUI 焦点存在时自动让位焦点链）。
+- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock)。标题屏 `title.tscn` 为独立场景（黑底标题 + 任意键开局 + T 教程；设置页「默认跳过入场动画」开启时开机直达）。
+- **圆盘 UI 全覆盖（2026-09-08）**：左缘 `RadialWheel`（圆心锚屏外左侧，卡片沿弧排列；槽距按选项数自适应 `SlotAngleFor`，端点角钳 ±36° 防压 HUD；全容弧面时键盘/滚轮经 `FocusBias` 移动聚焦项）为全站菜单导航面：天赋面板（已有）、暂停、死亡结算、基地目录、设置页导航；`RadialMenuLayer` 为统一开合骨架（dim+轮盘过冲滑入，`SetWheelActive` 同步轮盘/chrome 遮罩显隐——非模态页须显式关遮罩）；方向键旋转 + Enter 确认（GUI 焦点存在时自动让位焦点链）。
 - Battle exit: 2nd confirm (progress-loss warning); `ExecuteExitCleanup`: save profile, delete save in battle, stop SFX, fade quit.
 - PC Esc / gamepad `ui_cancel` / Android back, one state machine.
 

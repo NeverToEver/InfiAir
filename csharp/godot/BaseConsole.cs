@@ -21,7 +21,7 @@ public partial class BaseConsole : RadialMenuLayer
     public delegate void ResumeRequestedEventHandler();
 
     /// <summary>轮盘目录 id（与根级选项/面板表同键）。</summary>
-    private static readonly string[] CategoryIds = { "hangar", "supply", "routes", "missions", "lab" };
+    private static readonly string[] CategoryIds = { "hangar", "supply", "routes", "missions" };
 
     private readonly Callable _localeChanged;
 
@@ -204,7 +204,6 @@ public partial class BaseConsole : RadialMenuLayer
         _pages["supply"] = BuildSupply();
         _pages["routes"] = BuildRoutes();
         _pages["missions"] = BuildMissions();
-        _pages["lab"] = BuildLab();
         foreach (var kv in _pages)
         {
             kv.Value.Visible = kv.Key == _currentCategory;
@@ -328,28 +327,6 @@ public partial class BaseConsole : RadialMenuLayer
         return panel;
     }
 
-    private ChamferedPanel BuildLab()
-    {
-        // 六边形科技节点极简折线图标
-        var glyph = new Vector2[][]
-        {
-            new[]
-            {
-                new Vector2(8, 1),
-                new Vector2(14, 4),
-                new Vector2(14, 11),
-                new Vector2(8, 15),
-                new Vector2(2, 11),
-                new Vector2(2, 4),
-                new Vector2(8, 1),
-            },
-        };
-        var panel = MakePanel("META_TITLE", glyph);
-        var body = (VBoxContainer)panel.GetNode("Body");
-        body.AddChild(new ResearchLab());
-        return panel;
-    }
-
     private ChamferedPanel BuildRoutes()
     {
         // 交叉线极简折线图标
@@ -411,7 +388,6 @@ public partial class BaseConsole : RadialMenuLayer
                 new() { Id = "supply", Label = Tr("BASE_SUPPLY"), Glyph = RadialGlyph.Bolt },
                 new() { Id = "routes", Label = Tr("BASE_ROUTES"), Glyph = RadialGlyph.Cross },
                 new() { Id = "missions", Label = Tr("BASE_MISSIONS"), Glyph = RadialGlyph.Ring },
-                new() { Id = "lab", Label = Tr("META_TITLE"), Glyph = RadialGlyph.Hex },
                 new() { Id = "resume", Label = Tr("BASE_RESUME"), Glyph = RadialGlyph.Star },
             },
             string.Empty);
@@ -470,7 +446,6 @@ public partial class BaseConsole : RadialMenuLayer
         "supply" => "BASE_SUPPLY",
         "routes" => "BASE_ROUTES",
         "missions" => "BASE_MISSIONS",
-        "lab" => "META_TITLE",
         _ => "BASE_HANGAR",
     };
 

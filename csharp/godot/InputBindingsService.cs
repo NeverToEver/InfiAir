@@ -9,7 +9,7 @@ namespace InfiAir;
 /// CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/BindJoypadDefaults/AddJoyAxis/
 /// AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
 /// ResetKeyBindings/ActionKeysText 方法，H02/G04/P0-1/H01/2026-08-03 审计等注释随迁。
-/// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveProfile（RebindAction/ResetKeyBindings
+/// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
 /// 持久化）与 JoyDeadzone（BindJoypadDefaults 读设置域死区）经门面；Tr 为 GodotObject 实例方法
 /// （RefCounted 继承链可用），ActionKeysText 保持直调。
 /// 门面转发先例：与 MetaService/SettingsService 同构——GameState 组合持有本服务，
@@ -319,7 +319,7 @@ public sealed partial class InputBindingsService : RefCounted
 
         KeyBindings[action] = new Godot.Collections.Array { keycode };
         ApplyKeyBindings();
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         KeyBindingsChanged?.Invoke();
         return true;
     }
@@ -328,7 +328,7 @@ public sealed partial class InputBindingsService : RefCounted
     {
         KeyBindings = (Godot.Collections.Dictionary)_defaultBindings.Duplicate(true);
         ApplyKeyBindings();
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         KeyBindingsChanged?.Invoke();
     }
 

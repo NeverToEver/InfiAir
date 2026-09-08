@@ -10,9 +10,9 @@ namespace InfiAir;
 /// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/WINDOW_SIZE_LEVELS/AIM_ASSIST_ORDER）及状态字段
 /// （CtrlToggleMode/ShiftToggleMode/TouchControls/ViewZoom/WindowSize/AimAssistLevel/ReduceFlash/
 /// MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）迁入本服务；持久化桥 ApplySettingsDict/
-/// CollectSettingsDict 自 GameState.Save.cs 随迁（设置域持久化，SaveProfile 留在 GameState 侧）。
+/// CollectSettingsDict 自 GameState.Save.cs 随迁（设置域持久化，SaveSettings 留在 GameState 侧）。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度域（KeyBindings/TutorialDone/
-/// Difficulty/DIFFICULTY_DEFS）与 SaveProfile/RefreshRegenCache/Cfg/SaveBool/JOYPAD_ACTIONS 及
+/// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool/JOYPAD_ACTIONS 及
 /// GetViewport/GetWindow 均经 Instance 门面访问（跨域键不迁入，保持单一事实源）；_registry
 /// （EntityManager）经构造注入（CameraRef 转发，与 MetaService 构造注入 UserDB/RunProgressionService
 /// 注入 BalanceService 同构）。
@@ -61,9 +61,12 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
     public bool ReduceFlash { get; set; } = false;
 
-    /// <summary>鼠标锁定窗口内（profile 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
+    /// <summary>鼠标锁定窗口内（持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
     public bool MouseLock { get; set; } = true;
+
+    /// <summary>默认跳过开场过场（持久化，默认关=播过场；开启后开机直达标题屏）</summary>
+    public bool SkipIntroCinematic { get; set; } = false;
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。
     /// 存储承载于 snake 字段（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
@@ -108,21 +111,21 @@ public sealed partial class SettingsService : RefCounted
     public void SetCtrlToggleMode(bool enabled)
     {
         CtrlToggleMode = enabled;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 profile</summary>
     public void SetShiftToggleMode(bool enabled)
     {
         ShiftToggleMode = enabled;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）</summary>
     public void SetTouchControls(bool enabled)
     {
         TouchControls = enabled;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         TouchControlsChanged?.Invoke(enabled);
     }
 
@@ -176,7 +179,7 @@ public sealed partial class SettingsService : RefCounted
         ViewZoom = level;
         _viewZoomFactor = (double)VIEW_ZOOM_LEVELS[level].AsDouble();
         InvalidateViewRectCache();
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         ViewZoomChanged?.Invoke(_viewZoomFactor);
     }
 
@@ -216,7 +219,7 @@ public sealed partial class SettingsService : RefCounted
 
         WindowSize = level;
         ApplyWindowSize();
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         WindowSizeChanged?.Invoke(WindowSize);
     }
 
@@ -270,7 +273,7 @@ public sealed partial class SettingsService : RefCounted
         }
 
         AimAssistLevel = level;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         AimAssistChanged?.Invoke(level);
     }
 
@@ -283,11 +286,11 @@ public sealed partial class SettingsService : RefCounted
         }
 
         ReduceFlash = enabled;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         ReduceFlashChanged?.Invoke(enabled);
     }
 
-    /// <summary>鼠标锁定窗口内：开关持久化到 profile 并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
+    /// <summary>鼠标锁定窗口内：开关持久化并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
     public void SetMouseLock(bool enabled)
     {
         if (enabled == MouseLock)
@@ -296,8 +299,20 @@ public sealed partial class SettingsService : RefCounted
         }
 
         MouseLock = enabled;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         MouseLockChanged?.Invoke(enabled);
+    }
+
+    /// <summary>默认跳过开场过场：开关持久化（无运行期副作用——只在下次开机生效）</summary>
+    public void SetSkipIntroCinematic(bool enabled)
+    {
+        if (enabled == SkipIntroCinematic)
+        {
+            return;
+        }
+
+        SkipIntroCinematic = enabled;
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。
@@ -326,7 +341,7 @@ public sealed partial class SettingsService : RefCounted
     }
 
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
-    public void PersistJoySettings() => GameState.Instance.SaveProfile();
+    public void PersistJoySettings() => GameState.Instance.SaveSettings();
 
     // ---------------- 视图簇（热路径：ViewWorldRect 帧缓存，2026-08-12 自 GameState.Settings.cs 逐字搬迁） ----------------
 
@@ -384,13 +399,13 @@ public sealed partial class SettingsService : RefCounted
 
         Locale = pLocale;
         TranslationServer.SetLocale(pLocale);
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         LocaleChanged?.Invoke();
     }
 
-    // ---------------- 设置域持久化桥（2026-08-12 自 GameState.Save.cs 迁入；SaveProfile 本体留在 GameState 侧） ----------------
+    // ---------------- 设置域持久化桥（2026-08-12 自 GameState.Save.cs 迁入；SaveSettings 本体留在 GameState 侧） ----------------
 
-    /// <summary>设置字段应用（profile.json 与 user_db settings 共用；含键位/窗口/视图缓存副作用，对齐原 load_profile）。
+    /// <summary>设置字段应用（settings.json；含键位/窗口/视图缓存副作用，对齐原 load_profile）。
     /// 跨域键经 GameState.Instance 访问：TutorialDone/KeyBindings/Difficulty 本体留在 GameState（Input/Constants
     /// 域），本桥只读经门面；Difficulty 恢复后的 RefreshRegenCache 亦经 Instance 调用（RunProgressionService
     /// 回血缓存——GameState.Difficulty.cs 门面包装，第六轮起 public）。</summary>
@@ -477,6 +492,7 @@ public sealed partial class SettingsService : RefCounted
 
         ReduceFlash = GameState.Instance.SaveBool(data.GetValueOrDefault("reduce_flash", ReduceFlash), ReduceFlash);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
+        SkipIntroCinematic = GameState.Instance.SaveBool(data.GetValueOrDefault("skip_intro", SkipIntroCinematic), SkipIntroCinematic);
         // P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
         var joySpeed = data.GetValueOrDefault("joy_aim_speed", GameState.Instance.Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
         if (joySpeed.VariantType is Variant.Type.Float or Variant.Type.Int)
@@ -491,7 +507,7 @@ public sealed partial class SettingsService : RefCounted
         }
     }
 
-    /// <summary>当前设置字段收集（profile.json 与 user_db settings 共用；统计类字段不在此列）</summary>
+    /// <summary>当前设置字段收集（settings.json；统计类字段不在此列）</summary>
     public Godot.Collections.Dictionary CollectSettingsDict() => new()
     {
         ["tutorial_done"] = GameState.Instance.TutorialDone,
@@ -505,6 +521,7 @@ public sealed partial class SettingsService : RefCounted
         ["aim_assist"] = AimAssistLevel.ToString(),
         ["reduce_flash"] = ReduceFlash,
         ["mouse_lock"] = MouseLock,
+        ["skip_intro"] = SkipIntroCinematic,
         ["joy_aim_speed"] = JoyAimSpeed,
         ["joy_deadzone"] = JoyDeadzone,
     };

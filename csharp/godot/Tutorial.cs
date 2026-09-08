@@ -607,7 +607,7 @@ public partial class Tutorial : Node2D
     {
         _finished = true;
         GameState.Instance.TutorialDone = true;
-        GameState.Instance.SaveProfile();
+        GameState.Instance.SaveSettings();
         PlaySfxAugmentPick();
         // 清场
         foreach (var child in GetChildren())
@@ -642,12 +642,12 @@ public partial class Tutorial : Node2D
         Engine.TimeScale = 1.0f; // 防御性复位
         GetTree().Paused = false;
         GameState.Instance.ResetRun(); // 不污染正常对局
-        GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
+        GetTree().ChangeSceneToFile("res://scenes/title.tscn");
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        // 教程中按 Esc 直接退出回开始面板（无暂停菜单）
+        // 教程中按 Esc 直接退出回标题屏（无暂停菜单）
         if (@event.IsActionPressed("ui_cancel"))
         {
             ExitTutorial();

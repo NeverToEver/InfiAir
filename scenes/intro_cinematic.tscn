@@ -78,35 +78,6 @@ anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 
-[node name="TitleCard" type="Control" parent="."]
-modulate = Color(1, 1, 1, 0)
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-mouse_filter = 2
-
-[node name="Center" type="CenterContainer" parent="TitleCard"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-
-[node name="VBox" type="VBoxContainer" parent="TitleCard/Center"]
-layout_mode = 2
-alignment = 1
-
-[node name="Title" type="Label" parent="TitleCard/Center/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.83, 1, 1)
-theme_override_font_sizes/font_size = 92
-text = "InfiAir"
-horizontal_alignment = 1
-
-[node name="AccentLine" type="ColorRect" parent="TitleCard/Center/VBox"]
-custom_minimum_size = Vector2(140, 3)
-layout_mode = 2
-size_flags_horizontal = 4
-color = Color(0, 0.83, 1, 0.4)
-
 [node name="Subtitle" type="Label" parent="."]
 modulate = Color(1, 1, 1, 0)
 offset_left = 360.0

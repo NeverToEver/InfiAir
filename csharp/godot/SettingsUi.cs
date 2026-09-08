@@ -6,7 +6,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 设置界面：左缘圆盘导航三页——「控制」（可改键表 + 恢复默认）、
-/// 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
+/// 「操作模式」（难度、跳过过场、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
 /// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）；2026-09-08 圆盘 UI 全覆盖接入。
@@ -49,6 +49,9 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly Godot.Collections.Dictionary _aimButtons = new(); // 瞄准辅助强度档位 -> Button
     private readonly ButtonGroup _windowGroup = new();
     private readonly Godot.Collections.Dictionary _windowButtons = new(); // 窗口尺寸档位 -> Button
+    private readonly ButtonGroup _diffGroup = new();
+    private readonly Godot.Collections.Dictionary _diffButtons = new(); // 难度档位 -> Button
+    private Button _skipIntroBtn = null!; // 流程·默认跳过入场动画开关
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
     private Button _touchBtn = null!; // 触控·虚拟控件开关（mobile touch）
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
@@ -413,6 +416,27 @@ public partial class SettingsUi : RadialMenuLayer
     {
         var page = new VBoxContainer();
         page.AddThemeConstantOverride("separation", 14);
+        // 难度档位（原欢迎页入口迁入；影响敌方数值/得分倍率，随设置持久化）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_DIFFICULTY")));
+        var diffRow = new HBoxContainer();
+        diffRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(diffRow);
+        _diffButtons.Clear();
+        foreach (var d in GameState.Instance.DIFFICULTY_ORDER)
+        {
+            var db = UITheme.MakeToggleButton(Tr("DIFF_" + d.ToString().ToUpper()), _diffGroup);
+            db.CustomMinimumSize = new Vector2(120.0f, 48.0f);
+            db.Pressed += () => GameState.Instance.SetDifficulty(d); // SetDifficulty 内部落盘
+            diffRow.AddChild(db);
+            _diffButtons[d] = Variant.From(db);
+        }
+
+        // 流程：默认跳过入场动画（开启后开机直达标题屏；只在下次启动生效）
+        _skipIntroBtn = UITheme.MakeToggleButton(Tr("SET_SKIP_INTRO"), new ButtonGroup { AllowUnpress = true });
+        _skipIntroBtn.CustomMinimumSize = new Vector2(280.0f, 48.0f);
+        _skipIntroBtn.Pressed += OnSkipIntro;
+        page.AddChild(_skipIntroBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_SKIP_INTRO_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 按键模式（Ctrl/Shift）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_MODES")));
         var ctrlPair = MakeModeRow(page, Tr("SET_CTRL_MODE"), _ctrlGroup);
@@ -584,7 +608,7 @@ public partial class SettingsUi : RadialMenuLayer
             valueLabel.Text = GdFormat.Format(format, (float)v);
             onChanged((float)v);
             // AB23：键盘焦点链方向键调整只走 ValueChanged（原仅 DragEnded 落盘，正常退出
-            // 靠 SaveProfile 兜底，仅进程异常终止丢失调整值）——滑杆调整频率低，写盘直接可接受
+            // 靠 SaveSettings 兜底，仅进程异常终止丢失调整值）——滑杆调整频率低，写盘直接可接受
             GameState.Instance.PersistJoySettings();
         };
         // K06：拖动结束同样持久化（与 ValueChanged 并存，拖动场景双保险）
@@ -652,10 +676,12 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshLangButtons();
         RefreshZoomButtons();
         RefreshWindowButtons();
+        RefreshDiffButtons();
         RefreshAimButtons();
         _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
+        _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
         _hintLabel.Text = "";
         _capturingAction = new StringName();
         ShowPage(PageControls);
@@ -687,6 +713,14 @@ public partial class SettingsUi : RadialMenuLayer
         foreach (var level in _windowButtons.Keys)
         {
             ((Button)_windowButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.WindowSize);
+        }
+    }
+
+    private void RefreshDiffButtons()
+    {
+        foreach (var d in _diffButtons.Keys)
+        {
+            ((Button)_diffButtons[d].AsGodotObject()).SetPressedNoSignal(d.AsStringName() == GameState.Instance.Difficulty);
         }
     }
 
@@ -758,10 +792,12 @@ public partial class SettingsUi : RadialMenuLayer
         _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
         RefreshZoomButtons();
         RefreshWindowButtons();
+        RefreshDiffButtons();
         RefreshAimButtons();
         _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
+        _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
     }
 
     /// <summary>首个内容页的父容器（= shell content VBox；GDScript `_pages.values()[0].get_parent()`）。</summary>
@@ -800,6 +836,11 @@ public partial class SettingsUi : RadialMenuLayer
         GameState.Instance.SetMouseLock(_mouseLockBtn.ButtonPressed);
     }
 
+    private void OnSkipIntro()
+    {
+        GameState.Instance.SetSkipIntro(_skipIntroBtn.ButtonPressed);
+    }
+
     /// <summary>测试/诊断经公开接口（对齐 window_buttons() 模式）</summary>
     public Button MouseLockButton()
     {
@@ -815,15 +856,10 @@ public partial class SettingsUi : RadialMenuLayer
         {
             _opener.Visible = true;
             // 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
-            // U13：typed 分派（打开者 = 开始面板 Welcome 或暂停面板 PauseUi，均有 GrabPrimaryFocus）
-            switch (_opener)
+            // U13：typed 分派（打开者 = 暂停面板 PauseUi，有 GrabPrimaryFocus）
+            if (_opener is PauseUi p)
             {
-                case PauseUi p:
-                    p.GrabPrimaryFocus();
-                    break;
-                case Welcome w:
-                    w.GrabPrimaryFocus();
-                    break;
+                p.GrabPrimaryFocus();
             }
         }
 

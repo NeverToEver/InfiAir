@@ -81,25 +81,25 @@ InfiAir 是一款**单机得分制街机空战射击游戏**：驾驶战机迎�
 <tr>
   <td width="50%" valign="top">
 
-### 💥 连击计分与防御保底
+### 💥 连击节奏与防御保底
 
-3 秒连击窗口最高 ×2.0 得分；低血时防御 Buff 加权并保底出现。
+3 秒连击窗口最高 ×2.0 计分倍率（隐藏分数驱动里程碑/解锁节奏）；低血时防御 Buff 加权并保底出现。
 
   </td>
   <td width="50%" valign="top">
 
-### 📈 跨局成长
+### 🎮 免登录直玩
 
-死亡结算科技点，用于研究所解锁开局预置 Buff（有界成长，不破坏必死曲线）。
+点开即玩：开场过场 → 黑屏标题屏「按任意键开始」，无登录/无存档/无排行榜，死亡即结算的纯街机流。
 
   </td>
 </tr>
 <tr>
   <td width="50%" valign="top">
 
-### 🔒 本地账户与安全存档
+### ⚙️ 本地设置持久化
 
-用户级存档、PBKDF2 密码派生、原子写与损坏隔离、本地排行榜。
+键位/难度/语言/视角等设置单文件落盘（原子写 + 损坏隔离回落默认），无网络、无第三方运行时依赖。
 
   </td>
   <td width="50%" valign="top">
@@ -118,7 +118,7 @@ Godot 4.6.2 .NET + .NET 8，纯逻辑层零 Godot 依赖，三层测试与 CI �
 
 <table align="center">
 <tr>
-  <td align="center"><strong>🏠 主菜单</strong><br><img src="./docs/screenshots/start.png" alt="主菜单" width="380"></td>
+  <td align="center"><strong>🏠 标题屏</strong><br><img src="./docs/screenshots/title.png" alt="标题屏" width="380"></td>
   <td align="center"><strong>⚔️ 对局中</strong><br><img src="./docs/screenshots/gameplay.png" alt="对局" width="380"></td>
 </tr>
 <tr>
@@ -219,8 +219,8 @@ tests-csharp/                   xUnit 单测（引用 core，不依赖 Godot 运
 
 | 层级 | 范围 | 耗时 |
 |:-----|:-----|:-----|
-| **xUnit 单测** | 数值模型 / 路径解析 / 任务池 / 进程曲线 / 存档原子写 / 用户库与密码派生 | 毫秒级 |
-| **无头断言场景** | 端到端主流程（`smoke_test`）/ 存档与基地系统（`base_system_test`） | 秒~分钟级 |
+| **xUnit 单测** | 数值模型 / 路径解析 / 任务池 / 进程曲线 / 存储原子写 / 天赋缓存经济 | 毫秒级 |
+| **无头断言场景** | 端到端主流程（`smoke_test`）/ 基地 RP/天赋/手柄（`base_system_test`） | 秒~分钟级 |
 | **CI 门禁** | 单 job `fast-gate`（构建 + 单测 + import 警告 + smoke 300 帧 + `smoke_test`） | ~10 min |
 
 纯文档改动不触发 CI；Godot 引擎经 actions/cache 缓存，同分支新推送取消旧运行。
@@ -246,7 +246,7 @@ godot --headless --path . res://test/smoke_test.tscn  # 主流程冒烟（自检
 csharp/core/        纯 .NET 类库（零 Godot 依赖）：模型/曲线/存储/任务池/配置解析
 csharp/godot/       引擎绑定层：GameState + 8 域服务 + 8 基础服务 + 场景脚本 + 实体/事件/UI
 tests-csharp/       xUnit 单测
-scenes/             场景文件（welcome 入口 / main 对局 / boss / mothership / 过场）
+scenes/             场景文件（main 对局与启动入口 / title 标题屏 / tutorial / boss / mothership / 过场）
 test/               无头断言场景（*_test.tscn）+ 截图工具
 data/               balance.json（数值配置）+ translations.csv（中英双语）
 scripts/tools/      离线工具（gen_balance_map.py 等，非运行时依赖）

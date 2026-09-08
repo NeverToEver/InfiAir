@@ -33,7 +33,6 @@ public partial class SummonCapture : Node
             var gs = GetNode<GameState>("/root/GameState");
             gs.ResetRun();
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
-            gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             AddChild(mainScene.Instantiate());
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

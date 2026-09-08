@@ -10,7 +10,7 @@ public partial class BaseSystemTest : Node
 {
     private int _failures;
 
-    /// <summary>M7（2026-08-06 审计）：profile 快照还原——设置段 SaveProfile/LoadProfile
+    /// <summary>M7（2026-08-06 审计）：profile 快照还原——设置段 SaveSettings/LoadSettings
     /// 会覆写本地 profile.json，备份/还原防开发者本地设置被永久销毁。</summary>
     private Godot.Collections.Dictionary _profileBackup = new();
 
@@ -34,7 +34,7 @@ public partial class BaseSystemTest : Node
     {
         var gs = GetNode<GameState>("/root/GameState");
         _profileBackup = new Godot.Collections.Dictionary();
-        foreach (var f in new[] { gs.PROFILE_PATH, gs.PROFILE_PATH + ".corrupt" })
+        foreach (var f in new[] { gs.SETTINGS_PATH, gs.SETTINGS_PATH + ".corrupt" })
         {
             var exists = Godot.FileAccess.FileExists(f);
             _profileBackup[f] = new Godot.Collections.Dictionary
@@ -76,7 +76,7 @@ public partial class BaseSystemTest : Node
         var gs = GetNode<GameState>("/root/GameState");
         gs.KeyBindings = _keyBackup.Duplicate(true);
         gs.ApplyKeyBindings();
-        gs.SaveProfile();
+        gs.SaveSettings();
     }
 
     public override void _Ready()
@@ -272,13 +272,13 @@ public partial class BaseSystemTest : Node
             gs.SetJoyDeadzone(0.7);
             Check(Mathf.IsEqualApprox(InputMap.ActionGetDeadzone(new StringName("move_up")), 0.7f), "P0-1：死区 setter 应用至 InputMap");
             gs.SetJoyAimSpeed(1800.0);
-            gs.SaveProfile();
-            gs.LoadProfile();
+            gs.SaveSettings();
+            gs.LoadSettings();
             Check(gs.JoyAimSpeed == 1800.0, "P0-1：瞄准灵敏度持久化往返");
             Check(gs.JoyDeadzone == 0.7, "P0-1：死区持久化往返");
             gs.SetJoyDeadzone(0.5);
             gs.SetJoyAimSpeed(gs.Cfg("player.aim_assist.joy_speed", 1400.0).AsDouble());
-            gs.SaveProfile();  // K06：setter 不再自动写盘，收尾恢复默认值须显式落盘（否则 profile 留存 0.7/1800 污染后续场景）
+            gs.SaveSettings();  // K06：setter 不再自动写盘，收尾恢复默认值须显式落盘（否则 profile 留存 0.7/1800 污染后续场景）
 
             // 13. PS 布局适配（P0-1 延伸）：GUID 判定纯函数 + 按钮标签映射（默认 Xbox / 切 PS）
             Check(gs.IsPsGuid("030000004c050000c405000000010000"), "P0-1：Sony GUID 判定（vendor 054c）");

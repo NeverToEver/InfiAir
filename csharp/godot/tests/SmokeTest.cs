@@ -36,7 +36,7 @@ public partial class SmokeTest : Node
     private void BackupProfile(GameState gs)
     {
         _profileBackup = new Godot.Collections.Dictionary();
-        foreach (var f in new[] { gs.PROFILE_PATH, gs.PROFILE_PATH + ".corrupt" })
+        foreach (var f in new[] { gs.SETTINGS_PATH, gs.SETTINGS_PATH + ".corrupt" })
         {
             var exists = Godot.FileAccess.FileExists(f);
             _profileBackup[f] = new Godot.Collections.Dictionary
@@ -83,7 +83,6 @@ public partial class SmokeTest : Node
             // 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
             gs.SetDifficulty("easy");
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
-            gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             AddChild(mainScene.Instantiate<Main>());
             var main = GetNode<Main>("Main");
             // 玩家已改全自动开火：测试全程禁用，避免误伤敌机/Boss 或触发意外得分里程碑
@@ -1133,8 +1132,7 @@ public partial class SmokeTest : Node
             Check(Mathf.Abs(fineSpeed - player.MaxSpeed * 0.35f) < 25.0f, "Ctrl 按住移速 ×0.35");
 
             // 收尾清理（不污染用户 profile/设置）
-            gs.SaveProfile();
-            gs.LogoutUser();
+            gs.SaveSettings();
             // 2026-08-06 审计：还原原始 profile（难度/瞄准辅助/切换模式等设置项）——
             // 原「恢复默认难度」覆盖用户原档
             RestoreProfile();

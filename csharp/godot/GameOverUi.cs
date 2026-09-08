@@ -114,11 +114,13 @@ public partial class GameOverUi : RadialMenuLayer
                 Restart();
                 break;
             case "home":
-                // 结算已完成（SettleRun 删档）：直接回开始界面，无进度可丢
+                // 结算后无进度可留：ResetRun 后回标题屏（title.tscn），任意键重新开局
                 GetTree().Paused = false;
-                GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
-                break;            case "quit":
-                GameState.Instance.SaveProfile();
+                GameState.Instance.ResetRun();
+                GetTree().ChangeSceneToFile("res://scenes/title.tscn");
+                break;
+            case "quit":
+                GameState.Instance.SaveSettings();
                 GetTree().Quit();
                 break;
         }
@@ -126,9 +128,7 @@ public partial class GameOverUi : RadialMenuLayer
 
     private void OnPlayerDied()
     {
-        // 2026-08-09 Y 系列：结算编排下沉 GameState.SettleRun（原子链）；
-        // UI 表现（文本/面板）留本层，PlayerDied 订阅者角色不变
-        GameState.Instance.SettleRun();
+        // 无分数记录/局外结算：死亡只呈现击杀统计（PlayerDied 订阅者角色不变）
         RefreshStats();
         GetTree().Paused = true;
         Visible = true;

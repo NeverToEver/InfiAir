@@ -103,10 +103,6 @@ public partial class GameState : Node
     [Signal]
     public delegate void RefreshPointsChangedEventHandler(int points);
 
-    /// <summary>科技点变化（死亡结算入账/升级消费）；研究所 UI 数据源（局外成长，2026-08-09）</summary>
-    [Signal]
-    public delegate void TechPointsChangedEventHandler(long points);
-
     // ---------------- 全局数值配置中心 ----------------
     // A2 阶段 1：balance.json 的加载/查询/纯数值 ramp 已剥离到 BalanceService（组合委托）。
     // 缺失/损坏时全部回退脚本默认值；访问统一走 GameState.cfg("分层.路径", 默认值)；
@@ -137,21 +133,12 @@ public partial class GameState : Node
     /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd</summary>
     private readonly GameEventManager _events = new();
 
-    /// <summary>2026-08-04 账户系统：本地用户数据库（M7 已 typed 直调；原「GDScript 薄壳」描述删除）。</summary>
-    private readonly UserDB _userDb = new();
-
     /// <summary>2026-08-07：进程曲线 C# 桥（ProgressionInterop → InfiAir.Core.Progression 纯函数）——
     /// milestone_threshold / _recompute_difficulty / apply_run_save 批量推进转发，语义逐位等价</summary>
     private readonly ProgressionInterop _progression = new();
 
-    /// <summary>第三轮拆域试点（2026-08-11）：局外成长 Meta 职责域——原 GameState.Meta.cs 全部职责
-    /// （科技点结算/升级消费/开局 buff 预置）迁入 MetaService，GameState.Meta.cs 为门面转发；
-    /// 与 BalanceService/SaveManager 等组合服务同构，保持唯一 autoload：GameState 约定。
-    /// _userDb 经构造注入（字段初始化器不可引用实例字段，故在构造器赋值）。</summary>
-    private readonly MetaService _meta;
-
     /// <summary>第四轮拆域（2026-08-11）：RP 经济/基地任务/天赋路线职责域——原 GameState.Missions.cs
-    /// 全部职责迁入 MissionsService，GameState.Missions.cs 为门面转发；与 MetaService 等组合服务同构。
+    /// 全部职责迁入 MissionsService，GameState.Missions.cs 为门面转发；与 ScoreService 等组合服务同构。
     /// 无构造依赖（跨域访问统一经 GameState.Instance，运行期单例已就绪），构造器直接实例化。</summary>
     private readonly MissionsService _missions;
 
@@ -166,24 +153,19 @@ public partial class GameState : Node
 
     /// <summary>第五轮拆域（2026-08-11）：对局进程域服务——难度档位/倍率缓存/DDA 降档/进程 ramp/
     /// 里程碑曲线求值迁入 RunProgressionService（GameState.Difficulty.cs 为门面转发；
-    /// _balanceService 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
+    /// _balanceService 经构造注入，与 SettingsService 构造注入 EntityManager 同构）。</summary>
     private readonly RunProgressionService _runProg;
 
     /// <summary>第六轮拆域收官（2026-08-12）：设置+视图域服务——设置 setter 簇/视图簇/状态字段/
     /// 设置域持久化桥迁入 SettingsService（GameState.Settings.cs/State.cs 为门面转发；
-    /// 跨域经 Instance；_registry 经构造注入，与 MetaService 构造注入 UserDB 同构）。</summary>
+    /// 跨域经 Instance；_registry 经构造注入）。</summary>
     private readonly SettingsService _settings;
 
     /// <summary>第七轮拆域收官（2026-08-12）：键位+手柄域服务——可改键系统/手柄装配与
     /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout 迁入 InputBindingsService
-    /// （GameState.Input.cs/State.cs 为门面转发；跨域经 Instance；SaveProfile/JoyDeadzone
+    /// （GameState.Input.cs/State.cs 为门面转发；跨域经 Instance；SaveSettings/JoyDeadzone
     /// 经门面，无构造依赖）。</summary>
     private readonly InputBindingsService _input;
-
-    /// <summary>第七轮拆域收官（2026-08-12）：用户会话域服务——账户系统/会话与 CurrentUser 状态
-    /// 迁入 UserSessionService（GameState.Users.cs/State.cs 为门面转发；_userDb 与 _saveManager
-    /// 经构造注入——GameState 无 SaveManager 公开门面，迁移探测/清理需文件 IO；跨域经 Instance）。</summary>
-    private readonly UserSessionService _session;
 
     /// <summary>天赋缓存域（2026-09-07 重构）：里程碑/Boss 点数入缓存池 + 树状加点/路线契约/
     /// 风险加点（TalentService；GameState.Talent.cs 为门面）。无构造依赖（跨域经 Instance）。</summary>
@@ -191,12 +173,10 @@ public partial class GameState : Node
 
     public GameState()
     {
-        _meta = new MetaService(_userDb);
         _missions = new MissionsService();
         _runProg = new RunProgressionService(_balanceService);
         _settings = new SettingsService(_registry);
         _input = new InputBindingsService();
-        _session = new UserSessionService(_userDb, _saveManager);
     }
 
     /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经
@@ -387,10 +367,6 @@ public partial class GameState : Node
 
     private void OnRegistryEntityUnregistered(Node node) => EmitSignal(SignalName.EntityUnregistered, node);
 
-    // 局外成长（第三轮拆域）：MetaService C# 事件 → GameState TechPointsChanged 信号转发
-    // （ResearchLab 等仍连同名信号；LoadMeta 仅在登录/登出/游客切换时触发，均晚于本订阅）
-    private void OnMetaTechPointsChanged(long v) => EmitSignal(SignalName.TechPointsChanged, v);
-
     // Missions 域（第四轮拆域）：MissionsService C# 事件 → GameState 同名信号转发
     // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen；与 MetaService 同款——
     // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；存档恢复/ResetRun 直接赋值
@@ -471,9 +447,6 @@ public partial class GameState : Node
         // M2：C# [Signal] 以 PascalCase 注册，GDScript 侧同名连接
         _registry.EntityRegistered += OnRegistryEntityRegistered;
         _registry.EntityUnregistered += OnRegistryEntityUnregistered;
-        // 局外成长（第三轮拆域）：MetaService 入账/消费通知 → 信号转发订阅（LoadMeta 触发点
-        // 均为用户操作——登录/登出/游客切换，晚于 _Ready 本订阅；LoadMetaConfig 不发信号）
-        _meta.TechPointsChanged += OnMetaTechPointsChanged;
         // Missions 域（第四轮拆域）：MissionsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作/对局事件，晚于 _Ready 本订阅；下方 InitMissions 不发信号）
         _missions.RpChanged += OnMissionsRpChanged;
@@ -498,7 +471,7 @@ public partial class GameState : Node
         _combat.HealthChanged += OnCombatHealthChanged;
         _combat.AugmentsChanged += OnCombatAugmentsChanged;
         // 设置/视图域（第六轮拆域收官）：SettingsService 事件 → 信号转发订阅（触发点均为运行期
-        // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadProfile/LoadSessionSettings/
+        // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings/
         // ApplyRunSave 直写字段路径不发服务事件，重发不与之重复）
         _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
         _settings.ViewZoomChanged += OnSettingsViewZoomChanged;
@@ -523,9 +496,8 @@ public partial class GameState : Node
         _fogEvents.Wire(_events);
         _input.CaptureDefaultBindings(); // 第七轮拆域：键位域启动快照（InputBindingsService）
         InitMissions();
-        LoadProfile();
-        _session.MaybeMigrateLegacyProfile(); // 第七轮拆域：账户系统旧 profile.json 迁移缓存（UserSessionService）
-        ApplyWindowSize(); // 无 profile 时 load_profile 不会应用窗口尺寸，这里补一次默认档位
+        LoadSettings();
+        ApplyWindowSize(); // 无设置文件时 load 不会应用窗口尺寸，这里补一次默认档位
         var trZh = GD.Load<Translation>("res://data/translations.zh.translation");
         var trEn = GD.Load<Translation>("res://data/translations.en.translation");
         if (trZh != null)

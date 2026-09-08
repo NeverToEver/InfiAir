@@ -9,22 +9,22 @@ Run at repo root. Engine: .NET build preferred — `godot-mono` (PATH → `~/.lo
 godot --headless --import --path .         # import + script parse
 godot --headless --path . --quit-after 300 # main scene, 300 frames
 godot --headless --path . res://test/smoke_test.tscn          # minimal smoke
-godot --headless --path . res://test/base_system_test.tscn    # saves/RP/tasks/base
+godot --headless --path . res://test/base_system_test.tscn    # RP/tasks/talent routes/gamepad
 dotnet build                               # C# compile (TreatWarningsAsErrors: zero warnings)
 dotnet test tests-csharp/                  # xUnit pure-logic unit tests
 ```
 
-Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching saves/base/mothership; `dotnet build` + `dotnet test tests-csharp/` (add `dotnet format --verify-no-changes` three-csproj check locally) when touching `csharp/**` or `tests-csharp/**`.
+Minimal set: `--import`, `--quit-after 300`, `smoke_test.tscn`; add `base_system_test.tscn` when touching base/RP/gamepad settings; `dotnet build` + `dotnet test tests-csharp/` (add `dotnet format --verify-no-changes` three-csproj check locally) when touching `csharp/**` or `tests-csharp/**`.
 
 ## 2026-08-29 Test Reduction
 
 51 assertion scenes + their `csharp/godot/tests/*.cs` drivers were **removed** (retired 2026-08-29; recoverable from git history). Rationale: CI full-regression (~40min) and redundant per-subsystem assertion scenes outweighed their value once core logic moved to xUnit. Survivors:
 
-- `smoke_test.tscn` + `base_system_test.tscn` — the two remaining assertion scenes (end-to-end flow + base/saves system).
+- `smoke_test.tscn` + `base_system_test.tscn` — the two remaining assertion scenes (end-to-end flow + base/RP/talent/gamepad system).
 - `perf_bench.tscn` — dev benchmark (`--fixed-fps 1000`; interleave runs + medians for A/B).
 - 8 screenshot capture tools (see Screenshots).
 
-Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`), the two assertion scenes (smoke covers the talent cache flow; base_system covers talent persistence/route contracts), manual windowed play/screenshot checks. Retired design docs (now under `docs/archive/`) reference those scenes as of their writing; those commands no longer exist.
+Behavior changes now rely on: xUnit pure-logic tests (`tests-csharp/`), the two assertion scenes (smoke covers the talent cache flow; base_system covers RP economy/route contracts), manual windowed play/screenshot checks. Retired design docs (now under `docs/archive/`) reference those scenes as of their writing; those commands no longer exist.
 
 ## Scene Counts (authoritative — don't hardcode elsewhere)
 
@@ -74,6 +74,6 @@ push/PR (2026-08-29 W 系削减, 单 job **fast-gate**: Install .NET SDK 8 (offi
 
 Not a unit framework: each remaining `test/*.tscn` runs its C# test script, self-checks `[PASS]`/`[FAIL]` + exit code. **11 scenes: 2 assertions + `perf_bench` + 8 screenshot tools.** Pure-logic unit tests live in `tests-csharp/` (xUnit, `dotnet test tests-csharp/`).
 
-- Tests may touch `user://` saves (`savegame_<user>_<hash>.json` / `users.json` / `profile.json`): tests `GameState.DeleteSave()` first + clean/restore own state.
+- Tests may touch `user://settings.json` (the only persisted file since 2026-09-08): snapshot + restore around overwriting tests (`BackupProfile` pattern in smoke/base tests).
 - UI changes: human-check windowed screenshots (headless produces none).
 - Historical audit records: `docs/archive/AUDIT_VAULT.md`（只读归档，不再更新；活债务清单见 `docs/ROADMAP.md`）。

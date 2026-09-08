@@ -6,9 +6,9 @@
 
 InfiAir：单人 2D 俯视射击（top-down shmup；玩家全屏自由移动 + 鼠标/触屏瞄准，非底部锁定纵版）。Godot 4.6.2 + C#（.NET 8，gl_compatibility，必须用 godot-mono），全量 C#、零 GDScript。
 
-玩法循环：自动射击 + 波次刷怪 → 里程碑/Boss 掉天赋点入缓存池（不弹窗）→ 天赋面板（G 键/HUD 指示器）自主加点 → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行，无尽必死曲线，只有分数结算（无掉落拾取）。
+玩法循环：自动射击 + 波次刷怪 → 里程碑/Boss 掉天赋点入缓存池（不弹窗）→ 天赋面板（G 键/HUD 指示器）自主加点 → 4 个轮换 Boss + 狂暴 → 母舰补给/火力平台 → 中途返城补给，同一局持续进行，无尽必死曲线，无分数显示/记录（对局内分数仅作隐藏进度引擎：解锁门/里程碑/天赋点触发）。
 
-- 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`（Windows `run.bat`，macOS 双击 `run.command`；三者同一参数协议，透传引擎参数）。
+- 启动场景 `scenes/main.tscn`：开机自动播开场过场（可跳过/设置可关）→ `scenes/title.tscn` 黑屏标题屏（按任意键开始 / T 教程）→ 回 main 开局；`scenes/tutorial.tscn` 教程独立场景。测试对 main 一律显式子节点实例化（此时不过场、不入场）。无登录/存档/排行榜：每次启动全新一局，死亡即结算。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`（Windows `run.bat`，macOS 双击 `run.command`；三者同一参数协议，透传引擎参数）。
 - 唯一 autoload 是 `GameState`（`csharp/godot/GameState*.cs` 按域拆 partial），各域服务编排门面，C# 统一经 `GameState.Instance` 访问。
 - main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / TalentUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / MouseTrap / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
 - UI 文本中英双语，默认中文。所有可见文本走 `Tr("UPPER_SNAKE_CASE")`，新 key 同时填 `data/translations.csv` zh/en 两列并重新导入。禁止硬编码中文可见文本。
@@ -31,7 +31,7 @@ godot-mono --headless --import --path .                          # 不许出现�
 godot-mono --headless --path . res://test/smoke_test.tscn        # 主流程冒烟
 # 按需
 godot-mono --headless --path . --quit-after 300                  # 300 帧运行检查（CI 必跑）
-godot-mono --headless --path . res://test/base_system_test.tscn  # 触碰存档/基地/母舰时
+godot-mono --headless --path . res://test/base_system_test.tscn  # 触碰基地/RP/天赋路线/手柄设置时
 dotnet format --verify-no-changes                                # 本地提交前；裸跑有工作区歧义，显式指定 csproj
 ```
 
@@ -51,13 +51,13 @@ dotnet format --verify-no-changes                                # 本地提交�
 - `world_scale = 0.4` 是唯一缩放杆：Hull 尺寸族（贴图/碰撞半径/枪口等偏移）设计值 × world_scale，赋值必须幂等（`radius = design × ws`），共享 Shape2D 禁 `*=` 累乘，运行时改尺寸需 `resource_local_to_scene = true`；玩法范围/UI/过场不缩放（`mothership.drive.margin_*` × ws 是有意例外）。
 - 子弹与波次敌机走 `GameState.BulletPool`/`EnemyPool`，formation 敌机直建直毁；禁止对池化实体直接 `QueueFree` 或绕开池复用。
 - UI 样式统一走 `csharp/godot/UITheme.cs` 工厂方法，新页面用 `MakePageShell`；暂停类 UI 需 `ProcessMode = Always`；返回/退出统一 `BackNavigator` 路由，页面不自行消费 `ui_cancel`。
-- 持久化只写 `user://`，存档 per-user + owner 校验；损坏 JSON 隔离为 `.corrupt` 并在开始屏提示，禁止静默丢弃用户数据。无网络/无凭据/无第三方运行时依赖。
+- 持久化只写 `user://settings.json`（设置/键位/难度/locale/TutorialDone/跳过过场的单一本地档案，`SettingsService` 为唯一读写口）；损坏 JSON 隔离为 `.corrupt` 并回落默认值。无对局存档、无账户、无网络/无凭据/无第三方运行时依赖。
 - **注释只写代码本身表达不了的约束**（为什么这样、防什么坑），不写流水账、不署名、不带审计轮次编号（`L01`/`AC8`/`W4` 式标签废止——存量注释不必清理，但不再新增）。
 
 ## 测试
 
 - 行为测试优先写 xUnit 纯逻辑测试（`tests-csharp/`）；断言场景只保留 `smoke_test` + `base_system_test`，确需新增先在 `docs/TESTING.md` 的 Scene Counts 登记（该文件是场景计数唯一权威）。
-- 测试只走公开测试端口（如 `SetMilestoneOverride`/`TestExit`），禁止直调私有方法或 `_UnhandledInput`；测试碰 `user://` 存档前先 `DeleteSave()` 并自清理。
+- 测试只走公开测试端口（如 `SetMilestoneOverride`/`TestExit`），禁止直调私有方法或 `_UnhandledInput`；测试覆写持久化设置（settings.json）前先快照文件并还原。
 - Roslynator（`tools/roslynator/`，已 gitignore）只做 info 级参考，非门禁；其中 CA1822（标 static）不要应用——Godot 场景/信号按名字连接方法，static 化有运行期解析风险。
 
 ## 文档（只保留 5 份活文档）

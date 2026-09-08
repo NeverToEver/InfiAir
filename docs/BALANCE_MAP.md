@@ -407,15 +407,6 @@
 | `effects.meta_health.adapt.explosion_weight` | `0.15f` |
 | `effects.meta_health.reduce_flash.chromatic_scale` | `0.4f` |
 
-### `csharp\godot\MetaService.cs`
-
-| json 键路径 | 脚本回退值 |
-| --- | --- |
-| `meta.points.score_divisor` | `_metaScoreDivisor` |
-| `meta.points.boss_kill_bonus` | `_metaBossKillBonus` |
-| `meta.points.mission_bonus` | `_metaMissionBonus` |
-| `meta.upgrades` | `new Godot.Collections.Dictionary(` |
-
 ### `csharp\godot\Mothership.cs`
 
 | json 键路径 | 脚本回退值 |

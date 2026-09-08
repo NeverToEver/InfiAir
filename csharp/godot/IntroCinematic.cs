@@ -27,10 +27,7 @@ public partial class IntroCinematic : CanvasLayer
     private const float FlashPeak = 0.38f;
     private const float FlashRise = 0.24f;
     private const float FlashRelease = 0.55f;
-    private const float OutroFade = 0.7f;  // 镜头 6 末尾淡出到标题定格
-    private const float TitleCardIn = 0.2f;  // 收尾标题定格：淡入
-    private const float TitleCardHold = 0.8f;  // 收尾标题定格：停留
-    private const float TitleCardOut = 0.2f;  // 收尾标题定格：淡出（随后走统一出口 skip）
+    private const float OutroFade = 0.7f;  // 镜头 6 末尾淡出黑场（随后走统一出口 skip → 标题屏）
     /// 过场音频统一策略：全部音量下移 + 变调下沉柔和化（避免爆炸/引擎音突兀炸耳）
     private const float AudioVolOffset = -6.0f;  // 各音效在原设定基础上统一 -6dB
     private const float AudioPitch = 0.88f;  // 变调下沉，音色更闷柔
@@ -54,7 +51,6 @@ public partial class IntroCinematic : CanvasLayer
     private ColorRect _fade = null!;
     private ColorRect _flash = null!;
     private Label _subtitle = null!;
-    private Control _titleCard = null!;
     private Label _skipHint = null!;
     private float _subtitleBaseY;  // 字幕停靠 y：入场从 +8px 上浮，退场只动 alpha
 
@@ -107,25 +103,13 @@ public partial class IntroCinematic : CanvasLayer
         _fade = GetNode<ColorRect>("Fade");
         _flash = GetNode<ColorRect>("Flash");
         _subtitle = GetNode<Label>("Subtitle");
-        _titleCard = GetNode<Control>("TitleCard");
         _skipHint = GetNode<Label>("SkipHint");
         _subtitleBaseY = _subtitle.Position.Y;
 
         _skipHint.Text = (string)Tr("INTRO_SKIP");
         _skipHint.AddThemeFontOverride("font", UITheme.Font);
         _subtitle.AddThemeFontOverride("font", UITheme.Font);
-        GetNode<Label>("TitleCard/Center/VBox/Title").AddThemeFontOverride("font", UITheme.Font);
-        // 字幕/标题可读性与质感：软阴影把字从亮部画面里托出；标题加同色微辉光
-        _subtitle.AddThemeColorOverride("font_shadow_color", new Color(0.0f, 0.0f, 0.0f, 0.7f));
-        _subtitle.AddThemeConstantOverride("shadow_offset_x", 0);
-        _subtitle.AddThemeConstantOverride("shadow_offset_y", 2);
-        _subtitle.AddThemeConstantOverride("shadow_outline_size", 4);
-        var title = GetNode<Label>("TitleCard/Center/VBox/Title");
-        title.AddThemeColorOverride("font_shadow_color", new Color(UITheme.Accent, 0.35f));
-        title.AddThemeConstantOverride("shadow_offset_x", 0);
-        title.AddThemeConstantOverride("shadow_offset_y", 0);
-        title.AddThemeConstantOverride("shadow_outline_size", 8);
-        PolishTitleCard(title);
+        // 字幕可读性与质感：软阴影把字从亮部画面里托出
         PolishLetterbox();
         PolishGrain();
         // 跳过提示延迟 1.2s 淡入（开局不再与镜头 1 抢注意力）
@@ -138,27 +122,6 @@ public partial class IntroCinematic : CanvasLayer
         AddChild(_shotTimer);
         // 首镜头延后到帧末启动：测试可在 add_child 同帧替换 _shot_durations
         Play();
-    }
-
-    /// <summary>标题定格精修：字距拉开 + 标题背后呼吸辉光垫；缩放沉降与 accent 线扫入在 PlayTitleCard 触发。</summary>
-    private void PolishTitleCard(Label title)
-    {
-        // 标题字距：FontVariation 只在此处实例化（一次性），glyph 间距把小字重标题撑出电影片头版式
-        title.AddThemeFontOverride(
-            "font",
-            new FontVariation { BaseFont = UITheme.Font, SpacingGlyph = 14 });
-        // 文字后方低频呼吸辉光：给纯黑底一点纵深（挂 Center 之前 = 垫在文字下；低峰值只做氛围不抢字）
-        var pad = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        pad.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        var glow = CinematicFx.SoftGlow(240.0f, new Color(UITheme.Accent, 0.06f));
-        glow.Position = new Vector2(960.0f, 540.0f);
-        glow.Scale *= new Vector2(1.6f, 0.9f);  // 横向拉扁成片头光带，避免圆形光球感
-        pad.AddChild(glow);
-        var glowTween = glow.CreateTween().SetLoops();
-        glowTween.TweenProperty(glow, "modulate:a", 0.55f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        glowTween.TweenProperty(glow, "modulate:a", 1.0f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        _titleCard.AddChild(pad);
-        _titleCard.MoveChild(pad, 0);
     }
 
     /// <summary>遮幅条开场展开：从更厚的收拢态缓释到工作位，模拟「画幅打开」的入场仪式感。</summary>
@@ -240,7 +203,7 @@ public partial class IntroCinematic : CanvasLayer
         _shotIndex += 1;
         if (_shotIndex >= _shotDurations.Length)
         {
-            PlayTitleCard();  // 自然结束：标题定格后走统一出口
+            Skip(); // 自然结束：镜头 6 黑场淡出后走统一出口（标题屏由 Main 路由）
             return;
         }
 
@@ -310,30 +273,6 @@ public partial class IntroCinematic : CanvasLayer
             fadeTween.TweenProperty(_fade, "color:a", 1.0f, FadeOutTime());
             fadeTween.TweenCallback(Callable.From(Advance));
         }
-    }
-
-    /// <summary>收尾标题定格：淡入 → 停留 → 淡出 → skip() 统一出口。
-    /// 入场带轻微缩放沉降 + accent 线从零展宽（片头版式仪式感）。</summary>
-    private void PlayTitleCard()
-    {
-        if (_subTween != null && _subTween.IsValid())
-        {
-            _subTween.Kill();
-        }
-
-        _subtitle.Modulate = new Color(_subtitle.Modulate, 0.0f);
-        var center = GetNode<CenterContainer>("TitleCard/Center");
-        center.PivotOffset = new Vector2(960.0f, 540.0f);
-        center.Scale = Vector2.One * 1.06f;
-        var accentLine = GetNode<ColorRect>("TitleCard/Center/VBox/AccentLine");
-        accentLine.CustomMinimumSize = new Vector2(0.0f, 3.0f);
-        var tween = CreateTween().SetParallel(true);
-        tween.TweenProperty(_titleCard, "modulate:a", 1.0f, TitleCardIn);
-        tween.TweenProperty(center, "scale", Vector2.One, 1.1).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-        tween.TweenProperty(accentLine, "custom_minimum_size:x", 140.0f, 0.6).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out).SetDelay(0.15);
-        tween.Chain().TweenInterval(TitleCardHold);
-        tween.Chain().TweenProperty(_titleCard, "modulate:a", 0.0f, TitleCardOut);
-        tween.Chain().TweenCallback(Callable.From(Skip));
     }
 
     /// <summary>叙事字幕卡：设置文本并从 +8px 上浮淡入（淡出由 _on_shot_timeout 随转场处理）</summary>

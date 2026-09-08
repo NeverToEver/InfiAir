@@ -142,11 +142,10 @@ public partial class BackNavigator : Node
                 MarkHandled();
                 break;
             case BackAction.TO_MAIN_MENU:
-                // 账户系统（2026-08-04）：结算页回主菜单 = 回 welcome 主场景（welcome 重进时全量重置）
+                // 结算页回标题屏（title.tscn）：ResetRun 保证下次开局为全新一局
                 GetTree().Paused = false;
                 GameState.Instance.ResetRun();
-                GameState.Instance.LogoutUser();
-                GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
+                GetTree().ChangeSceneToFile("res://scenes/title.tscn");
                 MarkHandled();
                 break;
             case BackAction.RESUME_GAME:

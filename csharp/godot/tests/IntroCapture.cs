@@ -7,14 +7,14 @@ namespace InfiAir.Tests;
 /// 开场过场逐镜头截图工具（人工核对用，非常规断言测试）。
 /// 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ///   godot --path . res://test/intro_capture.tscn
-/// 把 _shot_durations 拉长到每镜头 8s，在各镜头关键动作展开后截图存 /tmp/intro_shot*.png；
-/// 末尾加一张标题定格（48.6s = 6×8 + 0.6，定格段 1.2s 中段）。
+/// 把 _shot_durations 拉长到每镜头 8s，在各镜头关键动作展开后截图存 /tmp/intro_shot*.png。
+/// （2026-09-08 标题定格已移除——过场结束后由 Main 切标题屏，本工具只覆盖六镜头。）
 /// </summary>
 public partial class IntroCapture : Node
 {
     private const float SHOT_LEN = 8.0f;
 
-    /// <summary>[距过场启动的秒数, 输出路径]：各镜头取 50–65% 处（关键动作已展开），外加标题定格
+    /// <summary>[距过场启动的秒数, 输出路径]：各镜头取 50–65% 处（关键动作已展开）。
     /// 镜头 1 取 51%（dur*0.45 的二次殉爆刚起，冲击波扩散中段）</summary>
     private static readonly (double, string)[] Schedule =
     {
@@ -24,7 +24,6 @@ public partial class IntroCapture : Node
         (28.4, System.IO.Path.GetTempPath() + "intro_shot4.png"),
         (36.5, System.IO.Path.GetTempPath() + "intro_shot5.png"),
         (45.0, System.IO.Path.GetTempPath() + "intro_shot6.png"),
-        (48.6, System.IO.Path.GetTempPath() + "intro_title.png"),
     };
 
     public override void _Ready()

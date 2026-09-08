@@ -8,7 +8,7 @@ namespace InfiAir.Tests;
 /// 需窗口模式运行（headless 为 dummy 渲染，截不到画面）：
 ///   godot --path . res://test/visual_capture.tscn
 /// MODE: gameplay（默认，Boss 警告画面）/ hud（常态对局 HUD：buff 芯片 + 低血晕影）/
-/// boss_fight（Boss 名牌 + 血条 + 狂暴态）/ welcome（登录面板）/ base（基地控制台）/
+/// boss_fight（Boss 名牌 + 血条 + 狂暴态）/ base（基地控制台）/
 /// mothership（母舰驻留）/ summon（召唤机库小窗）/ settings（设置页）/ exit_confirm（暂停面板 + 战斗退出确认窗）
 /// </summary>
 public partial class VisualCapture : Node
@@ -17,7 +17,7 @@ public partial class VisualCapture : Node
     private static readonly string SHOT_PATH = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "infiair_capture.png");
     private static readonly string MODE = ModeFromArgs();
 
-    // MODE 经命令行用户参数传入（-- --mode=welcome），缺省 gameplay——与头注用法一致
+    // MODE 经命令行用户参数传入（-- --mode=boss_fight 等），缺省 gameplay——与头注用法一致
     private static string ModeFromArgs()
     {
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -47,22 +47,6 @@ public partial class VisualCapture : Node
             {
                 gs.SetLocale(FORCE_LOCALE);
             }
-            if (MODE == "welcome")
-            {
-                // 登录面板截图（welcome 主场景，非对局画面）
-                gs.LoginGuest();
-                var wl = GD.Load<PackedScene>("res://scenes/welcome.tscn").Instantiate<CanvasLayer>();
-                AddChild(wl);
-                for (int i = 0; i < 30; i++)
-                {
-                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                }
-                var img = GetViewport().GetTexture().GetImage();
-                img.SavePng(SHOT_PATH);
-                GD.Print("saved: " + SHOT_PATH);
-                return;
-            }
-            gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
             AddChild(mainScene.Instantiate());
             switch (MODE)

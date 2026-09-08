@@ -117,9 +117,7 @@ public partial class GameState : Node
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
-        // 局外成长：meta 节配置缓存（科技点结算 + 升级定义；键经 Cfg 静态调用被 BALANCE_MAP 收录）
-        LoadMetaConfig();
-        // 天赋缓存：经济参数 + 节点上限/软上限缓存（LoadMetaConfig 同款收录）
+        // 天赋缓存：经济参数 + 节点上限/软上限缓存（键经 Cfg 静态调用被 BALANCE_MAP 收录）
         _talent.LoadTalentConfig();
     }
 
@@ -223,17 +221,11 @@ public partial class GameState : Node
 
     // 音效资源/音量/冷却/复音的唯一目录已收编进 SfxPlayer（SfxId 枚举 + 目录表）
 
-    private const string ProfilePathValue = "user://profile.json";
-    public string PROFILE_PATH => ProfilePathValue;
+    private const string SettingsPathValue = "user://settings.json";
+    public string SETTINGS_PATH => SettingsPathValue;
 
-    /// <summary>v3：天赋缓存系统（buffs 三选一层数 → talent 子字典）；v2 的 buffs/chosen_routes/
-    /// locked_routes 字段废弃不读不写（无兼容层，旧档天赋态按全新处理，其余字段照常恢复）</summary>
+    /// <summary>v3：历史版本号（原对局存档格式；现仅作 settings.json 版本标记）</summary>
     private const int PersistVersionValue = 3;
-
-    /// <summary>2026-08-04 账户系统：当前用户会话——"" = 未登录（welcome 前/测试兼容，档案走旧 profile.json 路径）、
-    /// "Guest" = 游客（设置仅内存、不存档、不写统计，B7-8）、否则为已登录用户名（档案/存档走 user_db）
-    /// ——UserSessionService 转发（测试白盒直读直写保留）。</summary>
-    public string CurrentUser { get => _session.CurrentUser; set => _session.CurrentUser = value; }
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
@@ -287,8 +279,17 @@ public partial class GameState : Node
 
     public bool ShiftToggleMode { get => _settings.ShiftToggleMode; set => _settings.ShiftToggleMode = value; }
 
-    /// <summary>触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）——SettingsService 转发。</summary>
+    /// <summary>触屏虚拟控件开关（持久化，默认关；Main 挂载 VirtualControls 联动）——SettingsService 转发。</summary>
     public bool TouchControls { get => _settings.TouchControls; set => _settings.TouchControls = value; }
+
+    /// <summary>默认跳过开场过场（settings.json 持久化，默认关=播过场；开启后开机直达标题屏）——SettingsService 转发。</summary>
+    public bool SkipIntro => _settings.SkipIntroCinematic;
+
+    public void SetSkipIntro(bool enabled) => _settings.SetSkipIntroCinematic(enabled);
+
+    /// <summary>本次进程内开场过场是否已播/已跳过（标题屏路由旗标：开机播一次，之后从标题屏直接开局）。
+    /// 存活于 autoload，跨场景切换保持。</summary>
+    public bool IntroPlayedThisSession { get; set; } = false;
 
     /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
     public StringName ViewZoom { get => _settings.ViewZoom; set => _settings.ViewZoom = value; }
