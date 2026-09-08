@@ -12,7 +12,7 @@ public enum SfxId
     Explosion,
     ExplosionBig,
     PlayerHit,
-    BuffPick,
+    AugmentPick,
     Dash,
     Resupply,
     Heartbeat,

@@ -5,8 +5,8 @@ namespace InfiAir;
 /// <summary>
 /// 玩家战机（M3c 全量迁移，2026-08-08 自 scripts/player.gd 迁移）：WASD 平滑移动、朝准星旋转、
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
-/// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerBuffVisuals（Node2D）。
-/// 语义保持：声明式 BUFF_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
+/// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
+/// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
 /// 公开 API 为 PascalCase；少量 snake_case 兼容桥因测试调用方保留（桥段见文件底部）。
 /// </summary>
 public partial class Player : CharacterBody2D
@@ -21,16 +21,21 @@ public partial class Player : CharacterBody2D
     private readonly Script _bulletScript = GD.Load<Script>("res://csharp/godot/Bullet.cs");
 
     // U14（2026-08-09 审计）：热路径每帧禁 StringName/string 字面量构造——buff 名与输入 action 名静态缓存
-    private static readonly StringName BuffCritShot = new("crit_shot");
-    private static readonly StringName BuffRapidFire = new("rapid_fire");
-    private static readonly StringName BuffPowerShot = new("power_shot");
-    private static readonly StringName BuffBulletSpeed = new("bullet_speed");
-    private static readonly StringName BuffPhaseDash = new("phase_dash");
-    private static readonly StringName BuffEfficientBoost = new("efficient_boost");
-    private static readonly StringName BuffBoostRecovery = new("boost_recovery");
-    private static readonly StringName BuffSpreadShot = new("spread_shot");
-    private static readonly StringName BuffPiercing = new("piercing");
-    private static readonly StringName BuffExplosive = new("explosive");
+    private static readonly StringName AugCritShot = new("crit_shot");
+    private static readonly StringName AugRapidFire = new("rapid_fire");
+    private static readonly StringName AugPowerShot = new("power_shot");
+    private static readonly StringName AugBulletSpeed = new("bullet_speed");
+    private static readonly StringName AugPhaseDash = new("phase_dash");
+    private static readonly StringName AugEfficientBoost = new("efficient_boost");
+    private static readonly StringName AugBoostRecovery = new("boost_recovery");
+    private static readonly StringName AugSpreadShot = new("spread_shot");
+    private static readonly StringName AugPiercing = new("piercing");
+    private static readonly StringName AugExplosive = new("explosive");
+    private static readonly StringName AugHoming = new("homing");
+    private static readonly StringName AugSalvo = new("salvo");
+    private static readonly StringName AugDeflector = new("deflector");
+    private static readonly StringName AugGrazeField = new("graze_field");
+    private static readonly StringName AugDashStrike = new("dash_strike");
     private static readonly StringName ActMoveLeft = new("move_left");
     private static readonly StringName ActMoveRight = new("move_right");
     private static readonly StringName ActMoveUp = new("move_up");
@@ -73,25 +78,25 @@ public partial class Player : CharacterBody2D
     public float ShakeHit { get; private set; } = 12.0f;
 
     // ---- A4：声明式 buff 效果表（buff id → 效果定义；单一事实源） ----
-    private static readonly Godot.Collections.Dictionary BuffEffects = new()
+    private static readonly Godot.Collections.Dictionary AugmentEffects = new()
     {
-        ["rapid_fire"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.rapid_fire.factor", ["default"] = 0.75 },
-        ["power_shot"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.power_shot.factor", ["default"] = 1.25 },
-        ["efficient_boost"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.efficient_boost.factor", ["default"] = 0.75 },
-        ["boost_recovery"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.boost_recovery.factor", ["default"] = 1.5 },
+        ["rapid_fire"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.rapid_fire.factor", ["default"] = 0.75 },
+        ["power_shot"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.power_shot.factor", ["default"] = 1.25 },
+        ["efficient_boost"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.efficient_boost.factor", ["default"] = 0.75 },
+        ["boost_recovery"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.boost_recovery.factor", ["default"] = 1.5 },
         ["phase_dash"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "player.dash.cooldown_stack_factor", ["default"] = 0.8 },
-        ["spread_shot"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "buffs.spread_shot.max_stacks", ["default"] = 2 },
-        ["piercing"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "buffs.piercing.max_stacks", ["default"] = 2 },
+        ["spread_shot"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "augments.spread_shot.max_stacks", ["default"] = 2 },
+        ["piercing"] = new Godot.Collections.Dictionary { ["kind"] = "cap", ["cfg"] = "augments.piercing.max_stacks", ["default"] = 2 },
         ["explosive"] = new Godot.Collections.Dictionary { ["kind"] = "bool" },
-        ["bullet_speed"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "buffs.bullet_speed.factor", ["default"] = 1.2 },
+        ["bullet_speed"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.bullet_speed.factor", ["default"] = 1.2 },
     };
 
     /// <summary>声明式 buff 效果表公开访问（测试 A4 架构断言读取）。</summary>
-    public Godot.Collections.Dictionary GetBuffEffects() => BuffEffects;
+    public Godot.Collections.Dictionary GetAugmentEffects() => AugmentEffects;
 
-    private readonly Godot.Collections.Dictionary _buffValues = new();
+    private readonly Godot.Collections.Dictionary _augmentValues = new();
 
-    /// <summary>crit_shot 暴击参数缓存（buffs_changed 刷新；bullet 命中经 player_ref 读取）。</summary>
+    /// <summary>crit_shot 暴击参数缓存（augments_changed 刷新；bullet 命中经 player_ref 读取）。</summary>
     public float CritChance { get; private set; }
 
     /// <summary>crit_shot 暴击倍率（同缓存）。</summary>
@@ -117,6 +122,10 @@ public partial class Player : CharacterBody2D
     public float DashCooldownMaxValue { get; private set; } = 4.0f;
     public float AfterimageInterval { get; private set; } = 0.08f;
     public float DashFuelRatio { get; private set; } = 0.25f;
+
+    /// <summary>擦弹环基础值（balance 注入；graze_field 乘区后的运行值见 GrazeRadius）。</summary>
+    private float GrazeRadiusBase = 20.0f;
+    private int GrazeScoreBase = 10;
 
     public float GrazeRadius { get; private set; } = 20.0f;
     public int GrazeScore { get; private set; } = 10;
@@ -204,14 +213,14 @@ public partial class Player : CharacterBody2D
     private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
     private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
     private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
-    private double _cachedMaxHp = 100.0; // H7：MaxHealth 热路径缓存（extra_life 随 buff 变化，BuffsChanged 时刷新）
+    private double _cachedMaxHp = 100.0; // H7：MaxHealth 热路径缓存（extra_life 随 buff 变化，AugmentsChanged 时刷新）
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
     private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
     private Sprite2D? _glow;
     private Sprite2D? _muzzleGlow;
     private float _muzzleGlowA; // 枪口辉光剩余强度（FireInternal 置 1，_Process 指数衰减）
 
-    private readonly Callable _onRefreshBuffFactors;
+    private readonly Callable _onRefreshAugmentFactors;
     private readonly Callable _onAimAssistLevelChanged;
     private readonly Callable _onJoySettingsChanged;
     private readonly Callable _onFogEventStarted;
@@ -222,7 +231,7 @@ public partial class Player : CharacterBody2D
 
     public Player()
     {
-        _onRefreshBuffFactors = Callable.From(RefreshBuffFactors);
+        _onRefreshAugmentFactors = Callable.From(RefreshAugmentFactors);
         _onAimAssistLevelChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
         _onJoySettingsChanged = Callable.From<float, float>(OnJoySettingsChanged);
         _onFogEventStarted = Callable.From<string, float>(OnFogEventStarted);
@@ -238,13 +247,13 @@ public partial class Player : CharacterBody2D
         _hitbox = GetNode<Area2D>("Hitbox");
         GameState.Instance.PlayerHitbox = _hitbox;
         LoadBalance();
-        RefreshBuffFactors();
+        RefreshAugmentFactors();
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
+            if (!gs.IsConnected("AugmentsChanged", _onRefreshAugmentFactors))
             {
-                gs.Connect("BuffsChanged", _onRefreshBuffFactors);
+                gs.Connect("AugmentsChanged", _onRefreshAugmentFactors);
             }
 
             if (!gs.IsConnected("JoySettingsChanged", _onJoySettingsChanged))
@@ -326,8 +335,8 @@ public partial class Player : CharacterBody2D
         BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, CfgFx.IntervalFloor);
         BulletSpeed = CfgFx.Float("player.bullet_speed", BulletSpeed, 0.0f);
         // AC2：crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
-        CritChanceBase = CfgFx.Float("buffs.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
-        CritMultiplier = CfgFx.Float("buffs.crit_shot.multiplier", CritMultiplier, 0.0f);
+        CritChanceBase = CfgFx.Float("augments.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
+        CritMultiplier = CfgFx.Float("augments.crit_shot.multiplier", CritMultiplier, 0.0f);
         BulletSpreadDeg = CfgFx.Float("player.bullet_spread_deg", BulletSpreadDeg, 0.0f);
         // AC2：bullet_damage 钳 ≥0（CfgFx.Int 统一判型 + 域钳）——负伤害给敌机回血
         BulletDamage = CfgFx.Int("player.bullet_damage", BulletDamage, 0);
@@ -344,9 +353,9 @@ public partial class Player : CharacterBody2D
         EntryRushHsRatio = CfgFx.Float("player.entry.rush_hspeed_ratio", EntryRushHsRatio, 0.0f);
         // AC2：armor.multiplier 钳 [0,1]——≤0 受击回血（GameState.Settings 乘算）；
         // evasion.chance 钳 [0,1]——≥1 软无敌；regen.heal_per_sec 钳 ≥0——负值逐秒扣血
-        ArmorMult = CfgFx.Float("buffs.armor.multiplier", ArmorMult, 0.0f, 1.0f);
-        EvasionChance = CfgFx.Float("buffs.evasion.chance", EvasionChance, 0.0f, 1.0f);
-        RegenPerSec = CfgFx.Float("buffs.regen.heal_per_sec", RegenPerSec, 0.0f);
+        ArmorMult = CfgFx.Float("augments.armor.multiplier", ArmorMult, 0.0f, 1.0f);
+        EvasionChance = CfgFx.Float("augments.evasion.chance", EvasionChance, 0.0f, 1.0f);
+        RegenPerSec = CfgFx.Float("augments.regen.heal_per_sec", RegenPerSec, 0.0f);
         ShakeHit = CfgFx.Float("effects.shake.player_hit", ShakeHit, 0.0f);
         // AC3：受击帧阈值钳 [0,1]——ratio 为百分比；配置非法（light<=heavy）回退默认 0.7/0.4
         _damageLightRatio = CfgFx.Float("effects.player_damage_frame.light_ratio", _damageLightRatio, 0.0f, 1.0f);
@@ -376,16 +385,26 @@ public partial class Player : CharacterBody2D
         DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
         AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
         // AC2：graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣
-        GrazeRadius = CfgFx.Float("player.graze_radius", GrazeRadius, 0.0f);
-        GrazeScore = CfgFx.Int("player.graze_score", GrazeScore, 0);
+        GrazeRadiusBase = CfgFx.Float("player.graze_radius", GrazeRadiusBase, 0.0f);
+        GrazeScoreBase = CfgFx.Int("player.graze_score", GrazeScoreBase, 0);
+        GrazeRadius = GrazeRadiusBase;
+        GrazeScore = GrazeScoreBase;
         // AC2：parry.* 钳 ≥0——负半径/负角度致弹反扇形判定异常
         ParryArcDeg = CfgFx.Float("player.parry.arc_deg", ParryArcDeg, 0.0f);
         ParryRadius = CfgFx.Float("player.parry.radius", ParryRadius, 0.0f);
+        _parryCooldownBase = CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f);
         _parry.Configure(
             CfgFx.Float("player.parry.duration", 0.8f, 0.0f),
             CfgFx.Float("player.parry.active_time", 0.5f, 0.0f),
-            CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f));
-        _damage.Configure(InvincibleTime, ArmorMult, EvasionChance, RegenPerSec, ShakeHit);
+            _parryCooldownBase);
+        _damage.Configure(
+            InvincibleTime,
+            ArmorMult,
+            EvasionChance,
+            RegenPerSec,
+            ShakeHit,
+            CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
+            CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
         // AC2：aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
         _magnetInputMin = CfgFx.Float("player.aim_assist.input.magnet_input_min", _magnetInputMin, 0.0f);
@@ -516,13 +535,13 @@ public partial class Player : CharacterBody2D
         }
 
         AddChild(hitboxHalo);
-        // Buff 外观反馈附件（buffs_changed 信号驱动）
-        var buffVisuals = new PlayerBuffVisuals
+        // Buff 外观反馈附件（augments_changed 信号驱动）
+        var augmentVisuals = new PlayerAugmentVisuals
         {
-            Scale = _sprite.Scale / PlayerBuffVisuals.BaseShipScale,
+            Scale = _sprite.Scale / PlayerAugmentVisuals.BaseShipScale,
         };
-        AddChild(buffVisuals);
-        buffVisuals.Init(_sprite, this);
+        AddChild(augmentVisuals);
+        augmentVisuals.Init(_sprite, this);
         // A8：视觉组件初始化（残影池预建；Main 场景构建期 add_child 报 busy，延迟到帧末）
         _visuals.Init(_sprite, _thruster, hitboxDot, parryArc, parryRim, parryShine, parryPulse, GetParent());
     }
@@ -674,16 +693,16 @@ public partial class Player : CharacterBody2D
     public bool IsDashing() => _dash.IsDashing();
 
     /// <summary>
-    /// A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + buffs_changed 信号驱动）。
+    /// A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + augments_changed 信号驱动）。
     /// 天赋缓存系统重构：乘算类（pow）效果改用 TalentEffLevel 浮点有效层级——
     /// 收益递减/路线加成/专注折扣在有效层级内折算，factor^effLevel 与旧 factor^层数在
-    /// 无修正时逐位一致；cap/bool 类保持整数 Buffs 口径（盾层/穿透/散射语义不变）。
+    /// 无修正时逐位一致；cap/bool 类保持整数 Augments 口径（盾层/穿透/散射语义不变）。
     /// </summary>
-    private void RefreshBuffFactors()
+    private void RefreshAugmentFactors()
     {
-        foreach (var id in BuffEffects.Keys)
+        foreach (var id in AugmentEffects.Keys)
         {
-            var effect = (Godot.Collections.Dictionary)BuffEffects[id];
+            var effect = (Godot.Collections.Dictionary)AugmentEffects[id];
             var kind = (string)(StringName)effect["kind"];
             if (kind == "bool")
             {
@@ -691,45 +710,92 @@ public partial class Player : CharacterBody2D
             }
 
             var value = GameState.Instance.Cfg((StringName)effect["cfg"], effect["default"]);
-            _buffValues[id] = kind == "cap" ? (int)value.AsInt64() : (float)value.AsDouble();
+            _augmentValues[id] = kind == "cap" ? (int)value.AsInt64() : (float)value.AsDouble();
         }
 
-        var critEff = (float)GameState.Instance.TalentEffLevel(BuffCritShot);
+        var critEff = (float)GameState.Instance.TalentEffLevel(AugCritShot);
         CritChance = critEff <= 0f ? 0.0f : CritChanceBase * critEff;
         CritMultiplierValue = CritMultiplier;
-        // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnBuffsChanged 同款）——
-        // 原每物理帧 BuffCount 字典查找 + Pow（_physics_process 每帧两次）。
+        // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnAugmentsChanged 同款）——
+        // 原每物理帧 AugmentLevel 字典查找 + Pow（_physics_process 每帧两次）。
         // 2026-08-16 扩展：开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
-        _fuelDrainRate = BuffScale(BuffEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(BuffEfficientBoost));
-        _fuelRegenRate = BuffScale(BuffBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(BuffBoostRecovery));
-        _fireIntervalValue = BuffScale(BuffRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(BuffRapidFire));
-        _bulletDamageValue = Mathf.Max(1, (int)BuffScale(BuffPowerShot, BulletDamage, (float)GameState.Instance.TalentEffLevel(BuffPowerShot)));
-        _bulletSpeedValue = BuffScale(BuffBulletSpeed, BulletSpeed, (float)GameState.Instance.TalentEffLevel(BuffBulletSpeed));
-        _spreadShotCount = BuffCap(BuffSpreadShot);
-        _pierceCount = BuffCap(BuffPiercing);
-        _explosiveEnabled = BuffEnabled(BuffExplosive);
-        var dashStacks = (int)GameState.Instance.BuffCount(BuffPhaseDash);
+        _fuelDrainRate = AugmentScale(AugEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(AugEfficientBoost));
+        _fuelRegenRate = AugmentScale(AugBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(AugBoostRecovery));
+        _fireIntervalValue = AugmentScale(AugRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(AugRapidFire));
+        _bulletDamageValue = Mathf.Max(1, (int)AugmentScale(AugPowerShot, BulletDamage, (float)GameState.Instance.TalentEffLevel(AugPowerShot)));
+        _bulletSpeedValue = AugmentScale(AugBulletSpeed, BulletSpeed, (float)GameState.Instance.TalentEffLevel(AugBulletSpeed));
+        _spreadShotCount = AugmentCap(AugSpreadShot);
+        _pierceCount = AugmentCap(AugPiercing);
+        _explosiveEnabled = AugmentEnabled(AugExplosive);
+        var dashStacks = (int)GameState.Instance.AugmentLevel(AugPhaseDash);
         _dashUnlocked = dashStacks > 0;
-        _dashCooldownMax = BuffScale(BuffPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(BuffPhaseDash) - 1f, 0f));
+        _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(AugPhaseDash) - 1f, 0f));
+        // ---- 作战增幅扩展（乘算走 EffLevel 浮点层级；整数语义走层数）----
+        var homingEff = (float)GameState.Instance.TalentEffLevel(AugHoming);
+        if (homingEff > 0f)
+        {
+            _homingAugTurnRate = CfgFx.Float("augments.homing.turn_rate_deg", 150.0f, 0.0f) * homingEff;
+            _homingLockTime = CfgFx.Float("augments.homing.lock_time", 8.0f, CfgFx.IntervalFloor);
+            _homingLockRange = CfgFx.Float("augments.homing.lock_range", 900.0f, 0.0f);
+            var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
+            _homingLockConeCos = Mathf.Cos(Mathf.DegToRad(coneDeg * 0.5f));
+        }
+        else
+        {
+            _homingAugTurnRate = 0f;
+        }
+
+        var salvoLevel = (int)GameState.Instance.AugmentLevel(AugSalvo);
+        _salvoInterval = salvoLevel > 0
+            ? Mathf.Max((int)CfgFx.Float("augments.salvo.every_base", 7.0f, 1.0f) - (int)CfgFx.Float("augments.salvo.every_step", 2.0f, 0.0f) * salvoLevel, 3)
+            : 0;
+        _salvoDamageMult = CfgFx.Float("augments.salvo.damage_mult", 3.0f, 1.0f);
+
+        var deflectorEff = (float)GameState.Instance.TalentEffLevel(AugDeflector);
+        _deflectorCooldownFactor = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.cooldown_factor", 0.78f, 0.05f, 1.0f), deflectorEff) : 1.0f;
+        _deflectorReflectMult = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.reflect_mult", 1.6f, 1.0f), deflectorEff) : 1.0f;
+        // 格挡冷却 = 基值（_load_balance 定值一次）× 当前偏转乘区；乘区变化时整体重设组件
+        _parry.Configure(_parry.Duration, _parry.ActiveTime, _parryCooldownBase * _deflectorCooldownFactor);
+
+        var grazeEff = (float)GameState.Instance.TalentEffLevel(AugGrazeField);
+        GrazeRadius = GrazeRadiusBase * (grazeEff > 0f ? Mathf.Pow(CfgFx.Float("augments.graze_field.radius_factor", 1.2f, 1.0f), grazeEff) : 1.0f);
+        GrazeScore = GrazeScoreBase + CfgFx.Int("augments.graze_field.score_per_level", 5, 0) * (int)GameState.Instance.AugmentLevel(AugGrazeField);
+        RefreshGrazeShape();
+
+        _dashStrikeLevel = (int)GameState.Instance.AugmentLevel(AugDashStrike);
+        _dashStrikeRadius = CfgFx.Float("augments.dash_strike.radius", 80.0f, 0.0f);
+        _dashStrikeDamage = Mathf.Max(1, CfgFx.Int("augments.dash_strike.damage_per_level", 35, 0));
+        _dashStrikeTick = 0f;
+
         // H7：MaxHealth 热路径缓存（Hud.cs D08 同款）——extra_life 随天赋层级变化才变，
-        // 由本方法（_Ready 首调 + BuffsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
+        // 由本方法（_Ready 首调 + AugmentsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
         _cachedMaxHp = GameState.Instance.MaxHealth();
     }
 
+    /// <summary>graze_field 改变擦弹环半径后同步碰撞形状（增减层时刷新；非热路径）。</summary>
+    private void RefreshGrazeShape()
+    {
+        var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
+        if (grazeArea?.GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D grazeCircle)
+        {
+            grazeCircle.Radius = GrazeRadius;
+        }
+    }
+
     /// <summary>A4：乘算因子求值——base × factor^effLevel（effLevel 可为分数：收益递减/路线/专注折算）。</summary>
-    private float BuffScale(StringName id, float baseValue, float effLevel) => baseValue * Mathf.Pow((float)_buffValues[id].AsDouble(), effLevel);
+    private float AugmentScale(StringName id, float baseValue, float effLevel) => baseValue * Mathf.Pow((float)_augmentValues[id].AsDouble(), effLevel);
 
     /// <summary>A4：堆叠上限截断——min(count, max_stacks)。</summary>
-    private int BuffCap(StringName id) => Mathf.Min((int)GameState.Instance.BuffCount(id), (int)_buffValues[id]);
+    private int AugmentCap(StringName id) => Mathf.Min((int)GameState.Instance.AugmentLevel(id), (int)_augmentValues[id]);
 
     /// <summary>A4：布尔启用——count &gt; 0。</summary>
-    private bool BuffEnabled(StringName id) => (int)GameState.Instance.BuffCount(id) > 0;
+    private bool AugmentEnabled(StringName id) => (int)GameState.Instance.AugmentLevel(id) > 0;
 
     public float FireIntervalValue() => _fireIntervalValue;
 
     public int BulletDamageValue() => _bulletDamageValue;
 
-    /// <summary>bullet_speed buff 后的当前弹速（buffs_changed 时缓存）。</summary>
+    /// <summary>bullet_speed buff 后的当前弹速（augments_changed 时缓存）。</summary>
     public float BulletSpeedValue() => _bulletSpeedValue;
 
     public float FuelRatio() => _fuel / FuelMax;
@@ -756,13 +822,13 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
-    /// <summary>H6：燃油速率缓存（RefreshBuffFactors 刷新：_ready 初始 + buffs_changed 信号驱动；
+    /// <summary>H6：燃油速率缓存（RefreshAugmentFactors 刷新：_ready 初始 + augments_changed 信号驱动；
     /// 默认值 = 无 buff 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
     private float _fuelDrainRate = 35.0f;
     private float _fuelRegenRate = 20.0f;
 
     /// <summary>空间换时间：射速/伤害/弹速/冲刺解锁与冲刺冷却上限随 buff 变化一次性缓存，
-    /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 BuffCount 字典查找 + Pow。</summary>
+    /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 AugmentLevel 字典查找 + Pow。</summary>
     private float _fireIntervalValue = 0.15f;
     private int _bulletDamageValue = 10;
     private float _bulletSpeedValue = 1800.0f;
@@ -771,6 +837,27 @@ public partial class Player : CharacterBody2D
     private bool _explosiveEnabled;
     private bool _dashUnlocked;
     private float _dashCooldownMax = 4.0f;
+
+    // ---- 2026-09-08 作战增幅扩展（homing/salvo/deflector/graze_field/dash_strike）----
+    /// <summary>homing 制导：0 = 未购；>0 = 出膛弹追踪角速率（deg/s，随有效层级放大）。</summary>
+    private float _homingAugTurnRate;
+    private float _homingLockTime = 8.0f;
+    private float _homingLockRange = 900.0f;
+    private float _homingLockConeCos;
+    /// <summary>salvo 齐射重弹：0 = 未购；>0 = 每 N 发触发一次重弹。</summary>
+    private int _salvoInterval;
+    private int _salvoCounter;
+    private float _salvoDamageMult = 3.0f;
+    /// <summary>deflector 偏转：格挡冷却乘区（<1 = 已购生效）与反射伤害乘区（>1 = 已购生效）。</summary>
+    private float _deflectorCooldownFactor = 1.0f;
+    private float _deflectorReflectMult = 1.0f;
+    private float _parryCooldownBase = 3.0f;
+    /// <summary>dash_strike 冲刺打击：0 层 = 未购；触发半径/伤害/节流缓存。</summary>
+    private int _dashStrikeLevel;
+    private float _dashStrikeRadius = 80.0f;
+    private int _dashStrikeDamage = 35;
+    private float _dashStrikeTick;
+    private const float DashStrikeDefaultInterval = 0.12f;
 
     public float FuelDrainRate() => _fuelDrainRate;
 
@@ -860,6 +947,7 @@ public partial class Player : CharacterBody2D
         {
             _dash.UpdateMove(d, this);
             ApplyThruster(ThrusterBoost);
+            TickDashStrike(d);
             return;
         }
 
@@ -1139,6 +1227,66 @@ public partial class Player : CharacterBody2D
         EmitSignal(SignalName.EntryFinished);
     }
 
+    /// <summary>dash_strike 冲刺打击：冲刺期间按节流间隔对触及敌机结算伤害（未购零开销）。</summary>
+    private void TickDashStrike(float d)
+    {
+        if (_dashStrikeLevel <= 0)
+        {
+            return;
+        }
+
+        _dashStrikeTick -= d;
+        if (_dashStrikeTick > 0f)
+        {
+            return;
+        }
+
+        _dashStrikeTick = DashStrikeDefaultInterval;
+        var radiusSq = _dashStrikeRadius * _dashStrikeRadius;
+        var enemies = GameState.Instance.Enemies;
+        for (var i = enemies.Count - 1; i >= 0; i--)
+        {
+            if (enemies[i] is Enemy e && GodotObject.IsInstanceValid(e)
+                && e.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            {
+                EntityDamage.Dispatch(e, _dashStrikeDamage * _dashStrikeLevel);
+                Explosion.SpawnAt(GetParent(), e.GlobalPosition, 0.4f);
+            }
+        }
+    }
+
+    /// <summary>homing 制导增幅的落靶搜索：锁定锥 + 射程内最近注册表敌机（开火频次路径，零分配）。</summary>
+    private Enemy? NearestAugHomingTarget(Vector2 aimDir)
+    {
+        Enemy? best = null;
+        var bestD = _homingLockRange;
+        var enemies = GameState.Instance.Enemies;
+        for (var i = 0; i < enemies.Count; i++)
+        {
+            if (enemies[i] is not Enemy e || !GodotObject.IsInstanceValid(e))
+            {
+                continue;
+            }
+
+            var to = e.GlobalPosition - GlobalPosition;
+            var d = to.Length();
+            if (d > bestD || d <= 0.0f)
+            {
+                continue;
+            }
+
+            if (aimDir.Dot(to / d) < _homingLockConeCos)
+            {
+                continue;
+            }
+
+            bestD = d;
+            best = e;
+        }
+
+        return best;
+    }
+
     private void FireInternal(Vector2 aim)
     {
         var spread = _spreadShotCount;
@@ -1171,12 +1319,40 @@ public partial class Player : CharacterBody2D
             }
         }
 
+        // salvo 齐射重弹：每 N 发（层数越多间隔越短）末发伤害乘区，计数以 Fire 调用为单位
+        var heavyShot = false;
+        if (_salvoInterval > 0)
+        {
+            _salvoCounter += 1;
+            if (_salvoCounter >= _salvoInterval)
+            {
+                _salvoCounter = 0;
+                heavyShot = true;
+            }
+        }
+
+        // homing 制导增幅：辅助瞄准未锁定时，自行在锁定锥/射程内取最近敌机（弱追踪、长时限）
+        var augmentHoming = false;
+        if (homingTarget == null && _homingAugTurnRate > 0f)
+        {
+            homingTarget = NearestAugHomingTarget(aim.Normalized());
+            if (homingTarget != null)
+            {
+                homingRate = _homingAugTurnRate;
+                augmentHoming = true;
+            }
+        }
+
         // 散射弹道数恒为奇数（1/3/5，每层 +2）：偶数弹数扇形无中心弹（准星方向落空 = 负提升），
         // 居中索引即层数（spread=1→3 弹 [-1,0,+1]，spread=2→5 弹 [-2..+2]）
         var count = 1 + spread * 2;
         // P1-2：循环不变量外提；buff 变化时缓存，开火路径零字典/Pow。
         var loopSpeed = BulletSpeedValue();
         var loopDamage = BulletDamageValue();
+        if (heavyShot)
+        {
+            loopDamage = Mathf.Max(1, (int)Mathf.Round(loopDamage * _salvoDamageMult));
+        }
         for (var i = 0; i < count; i++)
         {
             var offset = Mathf.DegToRad(BulletSpreadDeg * (i - spread));
@@ -1210,7 +1386,7 @@ public partial class Player : CharacterBody2D
             if (homingTarget != null)
             {
                 b.HomingTarget = homingTarget;
-                b.HomingTime = HomingTime;
+                b.HomingTime = augmentHoming ? _homingLockTime : HomingTime;
                 b.HomingTurnRate = homingRate;
             }
 
@@ -1281,7 +1457,7 @@ public partial class Player : CharacterBody2D
         GameState.Instance.AddScore(GrazeScore);
         _visuals.SetGrazeFlash(GrazeFlashTime);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.25f);
-        GameState.Instance.PlaySfx(SfxId.BuffPick);
+        GameState.Instance.PlaySfx(SfxId.AugmentPick);
     }
 
     public int ParryPhase() => (int)_parry.Phase;
@@ -1316,6 +1492,11 @@ public partial class Player : CharacterBody2D
         if (Mathf.Abs(Mathf.AngleDifference(rel.Angle(), noseAngle)) > arc)
         {
             return;
+        }
+
+        if (_deflectorReflectMult > 1.0f)
+        {
+            b.Damage = Mathf.Max(1, (int)Mathf.Round(b.Damage * _deflectorReflectMult));
         }
 
         b.Reflect();
@@ -1454,9 +1635,9 @@ public partial class Player : CharacterBody2D
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("BuffsChanged", _onRefreshBuffFactors))
+            if (gs.IsConnected("AugmentsChanged", _onRefreshAugmentFactors))
             {
-                gs.Disconnect("BuffsChanged", _onRefreshBuffFactors);
+                gs.Disconnect("AugmentsChanged", _onRefreshAugmentFactors);
             }
 
             if (gs.IsConnected("AimAssistChanged", _onAimAssistLevelChanged))
@@ -1522,7 +1703,7 @@ public partial class Player : CharacterBody2D
         {
             BulletSpeed = value;
             // 空间换时间缓存同步：测试/兼容桥运行期改基础弹速时，发射路径须立即生效。
-            _bulletSpeedValue = BuffScale(BuffBulletSpeed, value, (float)GameState.Instance.TalentEffLevel(BuffBulletSpeed));
+            _bulletSpeedValue = AugmentScale(AugBulletSpeed, value, (float)GameState.Instance.TalentEffLevel(AugBulletSpeed));
         }
     }
 }

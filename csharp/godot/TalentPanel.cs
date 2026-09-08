@@ -63,8 +63,9 @@ public partial class TalentPanel : CanvasLayer
     private const float FanTop = 170f;
     private const float FanHeight = 720f;
 
-    /// <summary>轮盘圆心（holder 静止位；入场/退场动画位移加在 holder 上，与轮盘自身视差解耦）。</summary>
-    private static readonly Vector2 WheelRest = new(-160f, 540f);
+    /// <summary>轮盘圆心（holder 静止位；入场/退场动画位移加在 holder 上，与轮盘自身视差解耦）。
+    /// y=480 与端点角钳 36°（RadialWheel.SlotAngleFor）同口径：卡片不压左下生命 HUD 区。</summary>
+    private static readonly Vector2 WheelRest = new(-160f, 480f);
 
     public TalentPanel()
     {
@@ -714,7 +715,7 @@ public partial class TalentPanel : CanvasLayer
                     leaves.Add(new RadialWheelOption
                     {
                         Id = nodeId,
-                        Label = Tr($"BUFF_{nodeId.ToUpperInvariant()}_NAME"),
+                        Label = Tr($"AUG_{nodeId.ToUpperInvariant()}_NAME"),
                         Glyph = GlyphForCategory(cat.Id),
                     });
                 }
@@ -728,7 +729,7 @@ public partial class TalentPanel : CanvasLayer
         _category = null;
         _selectedNode = null;
         _wheel.BackLabel = Tr("TALENT_BACK");
-        _wheel.Load(roots);
+        _wheel.Load(roots, RadialWheel.SlotAngleFor(roots.Count));
     }
 
     private static RadialGlyph GlyphForCategory(string categoryId) => categoryId switch
@@ -795,14 +796,14 @@ public partial class TalentPanel : CanvasLayer
             }
 
             var firstId = new StringName(cat.Lines[0].NodeIds[0]);
-            // 定宽包裹：MakeBuffSocket 自身是自增自适应 ChamferedPanel，直接作为 Fill 布局子项时
+            // 定宽包裹：MakeAugmentSocket 自身是自增自适应 ChamferedPanel，直接作为 Fill 布局子项时
             // 「外板变宽 → socket 撑满 → socket 最小尺寸棘轮回写 → 外板更宽」正反馈撑爆整行概览卡
             var socketWrap = new Control { CustomMinimumSize = new Vector2(64.0f, 64.0f), MouseFilter = Control.MouseFilterEnum.Ignore };
-            var socket = UITheme.MakeBuffSocket(firstId, 64.0f);
+            var socket = UITheme.MakeAugmentSocket(firstId, 64.0f);
             socket.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             socketWrap.AddChild(socket);
             vbox.AddChild(socketWrap);
-            vbox.AddChild(UITheme.MakeLabel(Tr(cat.NameKey), UITheme.FontHeader, BuffIcons.ColorFor(firstId), HorizontalAlignment.Center));
+            vbox.AddChild(UITheme.MakeLabel(Tr(cat.NameKey), UITheme.FontHeader, AugmentIcons.ColorFor(firstId), HorizontalAlignment.Center));
             vbox.AddChild(UITheme.MakeLabel(GdFormat.Format(Tr("TALENT_CAT_INVESTED_FMT"), invested, totalLevels), UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Center));
             var hintWrap = new Control { CustomMinimumSize = new Vector2(224.0f, 72.0f), MouseFilter = Control.MouseFilterEnum.Ignore };
             var hint = UITheme.MakeLabel(Tr("TALENT_CAT_DRILL_HINT"), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Center);
@@ -930,16 +931,16 @@ public partial class TalentPanel : CanvasLayer
                 .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
 
-        _detailName.Text = Tr($"BUFF_{_selectedNode.ToString().ToUpperInvariant()}_NAME");
+        _detailName.Text = Tr($"AUG_{_selectedNode.ToString().ToUpperInvariant()}_NAME");
         _detailCaption.Text = GdFormat.Format(Tr("TALENT_PATH_FMT"), Tr(TalentTree.Category(def.CategoryId).NameKey), Tr(TalentTree.Line(def.LineId).NameKey));
         var level = talent.Level(idSn);
         var cap = talent.CapFor(idSn);
         var maxLevel = talent.MaxLevel(idSn);
         _detailLevel.Text = GdFormat.Format(Tr("TALENT_LV_FULL_FMT"), level, cap, maxLevel);
-        _detailDesc.Text = Tr($"BUFF_{_selectedNode.ToString().ToUpperInvariant()}_DESC");
+        _detailDesc.Text = Tr($"AUG_{_selectedNode.ToString().ToUpperInvariant()}_DESC");
 
         // 效果读数：乘算节点给「当前累计 → 下一级预估」（5.2 UI 要求）
-        var factorV = GameState.Instance.Cfg($"buffs.{_selectedNode}.factor", 0.0);
+        var factorV = GameState.Instance.Cfg($"augments.{_selectedNode}.factor", 0.0);
         var hasFactor = factorV.VariantType is Variant.Type.Int or Variant.Type.Float && factorV.AsDouble() > 0.0;
         if (hasFactor)
         {
@@ -966,7 +967,7 @@ public partial class TalentPanel : CanvasLayer
         {
             var prev = TalentTree.Prerequisite(_selectedNode.ToString());
             _detailStatus.Text = prev != null
-                ? GdFormat.Format(Tr("TALENT_STATUS_PREREQ_FMT"), Tr($"BUFF_{prev.ToUpperInvariant()}_NAME"))
+                ? GdFormat.Format(Tr("TALENT_STATUS_PREREQ_FMT"), Tr($"AUG_{prev.ToUpperInvariant()}_NAME"))
                 : "";
             _upgradeButton.Visible = false;
             _overchargeButton.Visible = false;

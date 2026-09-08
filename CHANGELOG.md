@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 新增（2026-09-08，作战增幅系统成熟化 + 圆盘 UI 全覆盖）
+
+- **增幅节点 19 → 27**：`TalentTree` 新增 8 节点（各自支线前置链延长）——`homing` 制导航弹（出膛弹锁定锥内追踪最近敌机，锥/射程/角速率可配）、`salvo` 齐射重弹（每 N 发 ×3 伤害、层数缩短间隔）、`deflector` 偏导护盾（弹反冷却 ×0.78^eff、反射伤害 ×1.6^eff）、`second_wind` 背水回涌（受击后 3s 每秒 +3 HP/层）、`dash_strike` 相位冲击（冲刺触及敌机 35×层伤害）、`graze_field` 擦弹力场（擦弹环 ×1.2^eff、擦弹分 +5/层）、`score_amp` 战果增幅（击杀分 ×1.08^eff）、`combo_guard` 连击护持（连击窗口 ×1.5^eff）；乘算族走浮点有效层级、整数族走层数，与既有消费端口径一致
+- **基地↔增幅联动**：`balance.json` 新增 `base.supply` 段——补给面板 RP 购置「增幅缓存」（4 RP → 2 点直入天赋缓存池）与「超载槽」（8 RP → 本局风险加点上限 +1，至多 2 档，存档 `talent.oc_bonus` 随档往返、ResetRun 清零）
+- **旧 buff 身份全站退役**：代码/信号/文本键/配置键全量更名「增幅/Augment」——`CombatStateService.Buffs→Augments`、信号 `BuffsChanged→AugmentsChanged`、`BuffCount→AugmentLevel`、`ConsumeBuff→ConsumeAugment`、`BuffIcons/PlayerBuffVisuals/BuffBoolCache→AugmentIcons/PlayerAugmentVisuals/AugmentBoolCache`（含 .uid 连带）、`SfxId.BuffPick→AugmentPick`、翻译键 `BUFF_*→AUG_*`、配置段 `buffs.*→augments.*`、输入动作 `buff_panel→augment_panel`（档案旧键位迁移映射）；AGENTS/DESIGN_BASELINE 场景树与措辞同步
+- **圆盘 UI 全覆盖**：`RadialWheel` 键盘/手柄化（方向键旋转 + Enter 确认，GUI 焦点存在时自动让位焦点链；全容弧面新增 `FocusBias` 虚拟聚焦——修复选项全可见时滚动位钳居中导致键盘/滚轮无法移焦的结构性缺陷）+ 槽距按选项数自适应（`SlotAngleFor`，端点角钳 ±36°，卡片不压左下 HUD）；新骨架 `RadialMenuLayer`（dim + 轮盘过冲滑入统一开合）；接入五处菜单——暂停页（轮盘 + 聚焦项说明卡）、死亡结算（新增 返回主菜单/退出 入口）、基地控制台（双列五面板改「左缘轮盘目录 + 右区单面板」，分类芯片行保键盘可达，Window/实现链路重构但信号与测试公开接口一一对应）、欢迎主区（按钮列改轮盘，难度/战绩区右移，战绩/损坏警告登录前常显）、设置页（轮盘页导航 + 面板右移加高，改键 12 行 + 说明完整收纳）
+- **视觉验收闭环**：judge 四轮截图评审——修复 轮盘 z 序被页面遮罩压暗、`ApplyDataFlicker` 对自由定位标签的位置回写（基地标题被拽到 x≈0）、`BASE_STATUS_FMT` "Buff:" 与 HUD 「增益 [L]」残留、设置改键表 `ACT_AUGMENT_PANEL` 裸键名；实机窗口化验证 欢迎亮度回归（chrome 遮罩误盖非模态页）与键盘全链路（登录→游客确认→轮盘移焦→确认触发）
+- **数据/测试**：`augments` 为 `efficient_boost`/`boost_recovery`/`mothership_recall` 补齐 `max_stacks`（json 唯一上限权威收口）+ `meta.upgrades` 新增 `homing`/`graze_field`；xUnit 新增 增幅前置链、树结构↔balance 同步守卫（148/148）；smoke/base 断言场景 0 FAIL、300 帧零错误、BALANCE_MAP 重生成零缺失键
+
 ### 新增（2026-09-07，天赋缓存系统重构——设计文档落地，替代旧里程碑三选一）
 
 - **旧系统全量删除（无兼容层）**：`BuffSelect` 三选一弹窗（场景节点/候选池/低血防御保底）、line→双 buff 路线（`ChosenRoutes`/`LockedRoutes`/`ROUTE_LINES`/`ChooseRoute`/`IsBuffLocked`）及其全部引用点与独占本地化键；新增 `talent_panel`（G 键）输入动作

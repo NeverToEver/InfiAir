@@ -1,23 +1,24 @@
 using Godot;
+using InfiAir.Core;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
 
 /// <summary>
-/// 设置界面：左侧导航三页——「控制」（可改键表 + 恢复默认）、
-/// 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）。
+/// 设置界面：左缘圆盘导航三页——「控制」（可改键表 + 恢复默认）、
+/// 「操作模式」（Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
+/// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
-/// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）：CanvasLayer 子类。
-/// UITheme/ChamferedPanel 为 C# 类 typed 直调；GameState（GDScript autoload，M7 迁移）
+/// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）；2026-09-08 圆盘 UI 全覆盖接入。
 /// </summary>
-public partial class SettingsUi : CanvasLayer
+public partial class SettingsUi : RadialMenuLayer
 {
     // ---------------- GDScript 常量（C# 无法访问 GDScript const，硬编码等价副本，来源 autoload/game_state.gd） ----------------
     private static readonly StringName[] RebindableActions =
     {
         new("move_up"), new("move_down"), new("move_left"), new("move_right"),
         new("boost"), new("fine_move"), new("dash"), new("dock"),
-        new("homecoming"), new("give_up"), new("buff_panel"), new("parry"),
+        new("homecoming"), new("give_up"), new("augment_panel"), new("parry"),
     };
     private static readonly StringName[] AimAssistOrder = { new("low"), new("medium"), new("high") };
     private static readonly StringName[] ViewZoomOrder = { new("small"), new("medium"), new("large") };
@@ -86,13 +87,27 @@ public partial class SettingsUi : CanvasLayer
         AddToGroup("settings_ui");
         Visible = false;
         ProcessMode = Node.ProcessModeEnum.Always;
+        // 圆盘导航（chrome dim 弃用：本页遮罩由 page shell 提供，双遮罩会过压暗）；
+        // 面板整体右移让出左缘轮盘弧面通航区
+        BuildChrome();
+        Dim.Visible = false;
+        Wheel.Confirmed += OnWheelConfirmed;
+        RebuildWheelMenu();
         var shell = UITheme.MakePageShell("SET_TITLE");
         AddChild((Node)shell["root"].AsGodotObject());
+        RaiseWheel(); // shell 自带全屏遮罩：轮盘必须保持在遮罩之上
         _dim = (ColorRect)shell["dim"].AsGodotObject();
+        // 面板右移：shell 的 CenterContainer（dim 首子节点）左缘内推，避让轮盘卡片
+        if (shell["dim"].AsGodotObject() is Control shellRoot && shellRoot.GetChild(0) is Control center)
+        {
+            center.OffsetLeft = 580.0f; // 右移面板：左缘让出轮盘弧面通航区（卡片右缘 ≈570）
+        }
+
         _plate = (ChamferedPanel)shell["panel"].AsGodotObject();
-        _plate.CustomMinimumSize = new Vector2(1000.0f, 700.0f);
+        _plate.CustomMinimumSize = new Vector2(1000.0f, 960.0f);
         // L17：面板内容自适应高度钳制——modes 页 895px+ 曾把面板撑到 ~1150px 超屏；
         // 钳到 1040（1080p 留上下边距），超限内容由 _wrap_scroll 的滚动容器在内容区内滚动。
+        // 2026-09-08：min 高度 700→860（改键 12 行完整展示免滚动；modes 页仍走滚动）。
         _plate.MaxContentHeight = 1040.0f;
         _titleLabel = (Label)shell["title"].AsGodotObject();
         var vbox = (VBoxContainer)shell["content"].AsGodotObject();
@@ -119,7 +134,7 @@ public partial class SettingsUi : CanvasLayer
 
         // 内容区
         var content = new VBoxContainer();
-        content.CustomMinimumSize = new Vector2(760.0f, 480.0f);
+        content.CustomMinimumSize = new Vector2(760.0f, 720.0f);
         content.AddThemeConstantOverride("separation", 12);
         // L17：纵向填满 body（面板高度受限后由滚动容器在内容区内滚动，而非撑大面板）
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
@@ -189,6 +204,26 @@ public partial class SettingsUi : CanvasLayer
         }
     }
 
+    // ---------------- 圆盘导航 ----------------
+
+    /// <summary>装配页目录（打开/locale 时重装）。</summary>
+    private void RebuildWheelMenu()
+    {
+        LoadMenu(
+            new List<RadialWheelOption>
+            {
+                new() { Id = PageControls, Label = Tr("SET_CONTROLS"), Glyph = RadialGlyph.Cross },
+                new() { Id = PageModes, Label = Tr("SET_MODES"), Glyph = RadialGlyph.Bolt },
+                new() { Id = PageAbout, Label = Tr("SET_ABOUT"), Glyph = RadialGlyph.Ring },
+            },
+            string.Empty);
+    }
+
+    private void OnWheelConfirmed(RadialWheelOption option)
+    {
+        ShowPage(option.Id);
+    }
+
     // ---------------- 控制（改键） ----------------
 
     /// <summary>内容页统一包滚动容器（L17）：面板最大高度限制后，超限内容在内容区内滚动而非撑大面板。
@@ -209,7 +244,8 @@ public partial class SettingsUi : CanvasLayer
     private VBoxContainer BuildControlsPage()
     {
         var page = new VBoxContainer();
-        page.AddThemeConstantOverride("separation", 8);
+        // 行距收紧：12 行 + 恢复默认 + 规则说明要在内容视口（≈690px）内完整收纳，免滚动折叠
+        page.AddThemeConstantOverride("separation", 4);
         var actions = RebindableActions;
         for (var i = 0; i < actions.Length; i++)
         {
@@ -225,7 +261,7 @@ public partial class SettingsUi : CanvasLayer
             keysLabel.CustomMinimumSize = new Vector2(280.0f, 0.0f);
             row.AddChild(keysLabel);
             var rebindButton = UITheme.MakeButton(Tr("SET_REBIND"));
-            rebindButton.CustomMinimumSize = new Vector2(110.0f, 40.0f);
+            rebindButton.CustomMinimumSize = new Vector2(110.0f, 36.0f);
             rebindButton.AddThemeFontSizeOverride("font_size", UITheme.FontCaption);
             rebindButton.Pressed += () => StartCapture(action);
             row.AddChild(rebindButton);
@@ -622,7 +658,10 @@ public partial class SettingsUi : CanvasLayer
         _hintLabel.Text = "";
         _capturingAction = new StringName();
         ShowPage(PageControls);
+        RebuildWheelMenu();
         Visible = true;
+        SetWheelActive(true, dimActive: false); // 本页遮罩由 page shell 提供
+        PlayWheelEntrance();
         UITheme.AnimateModalOpen(_dim, _plate);
         // 键盘/手柄链路：打开即有焦点（方向键在导航/行间遍历，Enter 触发）
         ((Button)_navButtons[PageControls].AsGodotObject()).GrabFocus();
@@ -668,6 +707,7 @@ public partial class SettingsUi : CanvasLayer
         }
 
         _titleLabel.Text = Tr("SET_TITLE");
+        RebuildWheelMenu();
         _backButton.Text = Tr("SET_BACK");
         _resetButton.Text = Tr("SET_RESET");
         _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString());
@@ -769,6 +809,7 @@ public partial class SettingsUi : CanvasLayer
     {
         _capturingAction = new StringName();
         Visible = false;
+        SetWheelActive(false, dimActive: false);
         if (_opener != null && GodotObject.IsInstanceValid(_opener))
         {
             _opener.Visible = true;

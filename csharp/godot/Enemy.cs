@@ -93,8 +93,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private float _summonSlowFactor = 1.0f;
     /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
-    /// <summary>2026-08-11 二轮收敛 BuffBoolCache：slow_field 布尔缓存（BuffsChanged 信号事件驱动，热路径禁字典）。</summary>
-    private readonly BuffBoolCache _slowCache;
+    /// <summary>2026-08-11 二轮收敛 AugmentBoolCache：slow_field 布尔缓存（AugmentsChanged 信号事件驱动，热路径禁字典）。</summary>
+    private readonly AugmentBoolCache _slowCache;
     private Sprite2D? _sprite;
     private CollisionShape2D? _shape;
     private Sprite2D? _tailGlow;
@@ -108,7 +108,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public Enemy()
     {
-        _slowCache = new BuffBoolCache(SlowFieldId);
+        _slowCache = new AugmentBoolCache(SlowFieldId);
     }
 
     public override void _Ready()
@@ -126,7 +126,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         BulletDamageLaser = CfgFx.Int("enemies.bullet_damage.laser", BulletDamageLaser, 0);
         CollisionDamage = CfgFx.Int("enemies.collision_damage", CollisionDamage, 0);
         // slow_field.factor 钳 [0,1]——>1 反而加速敌机、≤0 使慢速力场变加速场
-        SlowFieldFactor = CfgFx.Float("buffs.slow_field.factor", SlowFieldFactor, 0.0f, 1.0f);
+        SlowFieldFactor = CfgFx.Float("augments.slow_field.factor", SlowFieldFactor, 0.0f, 1.0f);
         SpreadFanStep = CfgFx.Float("enemies.spread_fan_step", SpreadFanStep, 0.0f);
         // lifetime ≥0.05——≤0 使 _lifeTimer 首帧即达上限，敌机出生即寿命离场
         Lifetime = CfgFx.Float("enemies.lifetime", Lifetime, CfgFx.IntervalFloor);
@@ -468,7 +468,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     // 白盒访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留；原 pool_reuse_test
     // 断言点，2026-08-29 场景退役后保留）
-    public Callable _on_buffs_changed => _slowCache.CallableBridge;
+    public Callable _on_augments_changed => _slowCache.CallableBridge;
 
     public static float CosFast(float x) => SinFast(x + Mathf.Pi / 2.0f);
 

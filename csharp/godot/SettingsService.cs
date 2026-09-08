@@ -432,7 +432,14 @@ public sealed partial class SettingsService : RefCounted
                     keys.Add((int)k.AsInt64());
                 }
 
-                GameState.Instance.KeyBindings[a.AsStringName()] = keys;
+                var action = a.AsStringName();
+                // 旧 buff 系统退役（2026-09-08 作战增幅重构）：档案里的 buff_panel 键位迁往新动作名
+                if (action == new StringName("buff_panel"))
+                {
+                    action = new StringName("augment_panel");
+                }
+
+                GameState.Instance.KeyBindings[action] = keys;
             }
         }
 

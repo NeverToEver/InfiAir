@@ -73,7 +73,7 @@ public partial class TalentFanView : Control
     {
         foreach (var child in GetChildren())
         {
-            child.Free(); // 立即释放：防同帧新旧卡片并存闪帧（Hud.RebuildBuffDock 同款）
+            child.Free(); // 立即释放：防同帧新旧卡片并存闪帧（Hud.RebuildAugmentDock 同款）
         }
 
         _cards.Clear();
@@ -144,7 +144,7 @@ public partial class TalentFanView : Control
         socketWrap.OffsetRight = -(CardW - 44f) / 2f;
         socketWrap.OffsetTop = 8.0f;
         socketWrap.OffsetBottom = 52.0f;
-        var socket = UITheme.MakeBuffSocket(idSn, 44.0f);
+        var socket = UITheme.MakeAugmentSocket(idSn, 44.0f);
         socket.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         socketWrap.AddChild(socket);
         card.AddChild(socketWrap);
@@ -157,7 +157,7 @@ public partial class TalentFanView : Control
         card.AddChild(levelLabel);
         _levelLabels[nodeId] = levelLabel;
 
-        var nameLabel = UITheme.MakeLabel(Tr($"BUFF_{nodeId.ToUpperInvariant()}_NAME"), 13, UITheme.TextDim, HorizontalAlignment.Center);
+        var nameLabel = UITheme.MakeLabel(Tr($"AUG_{nodeId.ToUpperInvariant()}_NAME"), 13, UITheme.TextDim, HorizontalAlignment.Center);
         nameLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
         nameLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         nameLabel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
@@ -239,7 +239,7 @@ public partial class TalentFanView : Control
         var overcharged = talent.IsOvercharged(idSn);
         var canPay = talent.EffectiveCache + 1e-9 >= talent.NextCost(idSn);
         var capSealed = cap < maxLevel && level >= cap && !overcharged; // 互斥/路线封顶
-        var catColor = BuffIcons.ColorFor(idSn);
+        var catColor = AugmentIcons.ColorFor(idSn);
 
         var (border, bg) = (overcharged, level, prereqOk) switch
         {
@@ -290,7 +290,7 @@ public partial class TalentFanView : Control
 
         // 右下角增益值：乘算节点显示每级倍率（与详情面板同源换算）
         var valueLabel = _valueLabels[nodeId];
-        var factorV = GameState.Instance.Cfg($"buffs.{nodeId}.factor", 0.0);
+        var factorV = GameState.Instance.Cfg($"augments.{nodeId}.factor", 0.0);
         if (factorV.VariantType is Variant.Type.Int or Variant.Type.Float && factorV.AsDouble() > 0.0)
         {
             valueLabel.Text = GdFormat.Format(Tr("TALENT_VAL_FMT"), factorV.AsDouble());
@@ -374,7 +374,7 @@ public partial class TalentFanView : Control
                 var lit = talent.Level(idSn) > 0;
                 var sealed_ = talent.CapFor(idSn) < talent.MaxLevel(idSn) && talent.Level(idSn) >= talent.CapFor(idSn);
                 var col = sealed_ ? new Color(UITheme.Danger, 0.35f)
-                    : lit ? new Color(BuffIcons.ColorFor(idSn), 0.75f)
+                    : lit ? new Color(AugmentIcons.ColorFor(idSn), 0.75f)
                     : new Color(UITheme.PanelBorder, 0.18f);
                 DrawLine(prev, cur, new Color(0f, 0f, 0f, 0.4f), 4.5f, true);
                 DrawLine(prev, cur, col, 2f, true);

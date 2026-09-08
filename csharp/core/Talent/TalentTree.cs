@@ -2,7 +2,7 @@ namespace InfiAir.Core.Talent;
 
 /// <summary>天赋节点结构定义（id = 既有 buff id，效果消费端零改动）。层级：大类 → 支线 → 节点，
 /// 同一支线内按声明序构成前置链（后置节点需前置节点 Lv≥1）。数值上限不在结构内：
-/// buffs.&lt;id&gt;.max_stacks（balance.json）为唯一上限来源，由服务层注入。</summary>
+/// augments.&lt;id&gt;.max_stacks（balance.json）为唯一上限来源，由服务层注入。</summary>
 public sealed class TalentNodeDef
 {
     public required string Id { get; init; }
@@ -58,8 +58,8 @@ public static class TalentTree
             Id = "offense", NameKey = "TALENT_CAT_OFFENSE",
             Lines = new List<TalentLineDef>
             {
-                new() { Id = "gunnery", NameKey = "TALENT_LINE_GUNNERY", NodeIds = new[] { "power_shot", "bullet_speed", "piercing" } },
-                new() { Id = "firecontrol", NameKey = "TALENT_LINE_FIRECONTROL", NodeIds = new[] { "rapid_fire", "crit_shot", "spread_shot" } },
+                new() { Id = "gunnery", NameKey = "TALENT_LINE_GUNNERY", NodeIds = new[] { "power_shot", "bullet_speed", "piercing", "homing" } },
+                new() { Id = "firecontrol", NameKey = "TALENT_LINE_FIRECONTROL", NodeIds = new[] { "rapid_fire", "crit_shot", "spread_shot", "salvo" } },
                 new() { Id = "ordnance", NameKey = "TALENT_LINE_ORDNANCE", NodeIds = new[] { "explosive", "laser_beam" } },
             },
         },
@@ -68,8 +68,8 @@ public static class TalentTree
             Id = "defense", NameKey = "TALENT_CAT_DEFENSE",
             Lines = new List<TalentLineDef>
             {
-                new() { Id = "armor", NameKey = "TALENT_LINE_ARMOR", NodeIds = new[] { "armor", "shield" } },
-                new() { Id = "vitality", NameKey = "TALENT_LINE_VITALITY", NodeIds = new[] { "extra_life", "regen", "lifesteal" } },
+                new() { Id = "armor", NameKey = "TALENT_LINE_ARMOR", NodeIds = new[] { "armor", "shield", "deflector" } },
+                new() { Id = "vitality", NameKey = "TALENT_LINE_VITALITY", NodeIds = new[] { "extra_life", "regen", "lifesteal", "second_wind" } },
             },
         },
         new()
@@ -77,8 +77,8 @@ public static class TalentTree
             Id = "mobility", NameKey = "TALENT_CAT_MOBILITY",
             Lines = new List<TalentLineDef>
             {
-                new() { Id = "assault", NameKey = "TALENT_LINE_ASSAULT", NodeIds = new[] { "phase_dash", "boost_recovery" } },
-                new() { Id = "field", NameKey = "TALENT_LINE_FIELD", NodeIds = new[] { "evasion", "slow_field" } },
+                new() { Id = "assault", NameKey = "TALENT_LINE_ASSAULT", NodeIds = new[] { "phase_dash", "boost_recovery", "dash_strike" } },
+                new() { Id = "field", NameKey = "TALENT_LINE_FIELD", NodeIds = new[] { "evasion", "slow_field", "graze_field" } },
             },
         },
         new()
@@ -86,7 +86,7 @@ public static class TalentTree
             Id = "special", NameKey = "TALENT_CAT_SPECIAL",
             Lines = new List<TalentLineDef>
             {
-                new() { Id = "logistics", NameKey = "TALENT_LINE_LOGISTICS", NodeIds = new[] { "efficient_boost", "mothership_recall" } },
+                new() { Id = "logistics", NameKey = "TALENT_LINE_LOGISTICS", NodeIds = new[] { "efficient_boost", "mothership_recall", "score_amp", "combo_guard" } },
             },
         },
     };

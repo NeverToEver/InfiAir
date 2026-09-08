@@ -57,6 +57,15 @@ public sealed partial class ScoreService : RefCounted
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）。</summary>
     public double ComboWindow { get; private set; } = 3.0;
 
+    /// <summary>score_amp 增幅：击杀分乘区底数（combo_guard 同款：pow(factor, 有效层级)，1.0 = 未购）。</summary>
+    private double _scoreAmpFactor = 1.0;
+
+    /// <summary>combo_guard 增幅：连击窗口延长底数（pow(factor, 有效层级)）。</summary>
+    private double _comboWindowFactor = 1.0;
+
+    private static readonly StringName AugScoreAmpId = new("score_amp");
+    private static readonly StringName AugComboGuardId = new("combo_guard");
+
     public double ComboStep { get; private set; } = 0.1;
 
     public double ComboMaxMult { get; private set; } = 2.0;
@@ -81,6 +90,18 @@ public sealed partial class ScoreService : RefCounted
         ComboStep = step;
         ComboMaxMult = maxMult;
     }
+
+    /// <summary>增幅配置注入（ApplyBalance 调用；Cfg 调用留在 GameState 侧）。
+    /// 底数 ≤1 视为未购档（pow 语义下 ×1 不放大），钳制下限防倒扣。</summary>
+    public void ApplyAugmentScoreConfig(double scoreAmpFactor, double comboWindowFactor)
+    {
+        _scoreAmpFactor = Math.Max(scoreAmpFactor, 1.0);
+        _comboWindowFactor = Math.Max(comboWindowFactor, 1.0);
+    }
+
+    /// <summary>combo_guard 后的生效连击窗口（每杀刷新时求值；击杀频率下开销可忽略）。</summary>
+    public double EffectiveComboWindow() =>
+        ComboWindow * Math.Pow(_comboWindowFactor, GameState.Instance.TalentEffLevel(AugComboGuardId));
 
     public void AddScore(int points)
     {
@@ -121,11 +142,12 @@ public sealed partial class ScoreService : RefCounted
     public void AddKillScore(int basePoints)
     {
         Combo += 1;
-        _comboTimer = ComboWindow;
+        _comboTimer = EffectiveComboWindow();
         // long 域乘算防回绕（乘区 double，截断前钳制 int 域；AddScore 内另有总分钳制）
         // AC1 双保险（2026-08-11 健壮性审查）：乘积钳 [0, long.MaxValue]——组合极端路径
         // （basePoints×乘区越界 → double→long 转换未定义/回绕巨负）下兜底防负分入账（AB12 双保险先例）
-        var scaled = (long)Math.Round(Math.Clamp(basePoints * ComboMultiplier(), 0.0, (double)long.MaxValue));
+        var amplified = basePoints * Math.Pow(_scoreAmpFactor, GameState.Instance.TalentEffLevel(AugScoreAmpId));
+        var scaled = (long)Math.Round(Math.Clamp(amplified * ComboMultiplier(), 0.0, (double)long.MaxValue));
         AddScore((int)Math.Min(scaled, (long)int.MaxValue));
         ComboChanged?.Invoke(Combo);
     }

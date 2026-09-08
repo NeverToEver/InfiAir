@@ -1,15 +1,17 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
 /// <summary>
 /// welcome 主场景（2026-08-04 账户系统 T3；规格 PORTING_PARITY 附录 B B1-B3/B6/B7 去 bug 清单）。
-/// 登录阶段：左栏账号面板（注册/登录/游客/删除 + 下拉）+ 右栏难度/教程/设置/排行榜/最高分；
-/// 登录/游客放行后切主区：继续对局（有档）/ 开始游戏 + 新游戏。进入 main 后由 main 依存档自动继续。
+/// 登录阶段：左栏账号面板（注册/登录/游客/删除 + 下拉）；登录/游客放行后切主区 =
+/// 左缘圆盘菜单（出击/教程/设置/排行榜/研究所/退出；2026-09-08 圆盘 UI 全覆盖）
+/// + 右栏难度档位/最高分。进入 main 后由 main 依存档自动继续。
 /// ESC 层级（对齐 B3/B7-1/2/3）：关排行榜 → 关游客/删除确认 → 关下拉 → 退出确认（welcome 是首场景）。
-/// M5 全量迁移（2026-08-08 自 scripts/welcome.gd）：CanvasLayer 子类，挂 scenes/welcome.tscn。
+/// M5 全量迁移（2026-08-08 自 scripts/welcome.gd），挂 scenes/welcome.tscn。
 /// </summary>
-public partial class Welcome : CanvasLayer
+public partial class Welcome : RadialMenuLayer
 {
     private enum Stage
     {
@@ -41,12 +43,8 @@ public partial class Welcome : CanvasLayer
     private Panel? _focusExitDropdown;
     private readonly System.Collections.Generic.List<Button> _dropdownButtons = new();
     private VBoxContainer _mainZone = null!;
-    private Button _continueButton = null!;
-    private Button _newButton = null!;
-    private Button _tutorialButton = null!;
-    private Button _leaderboardButton = null!;
-    private Button _settingsButton = null!;
-    private Button _labButton = null!; // 局外成长：研究所入口（仅登录用户可见，2026-08-09）
+    private VBoxContainer _recordsBox = null!; // 战绩/损坏警告区（登录前也可见；.corrupt 提示是开始屏契约）
+    private bool _isUser; // 当前主区是否登录用户（研究所入口显隐）
     private CanvasLayer _labOverlay = null!;
     private Button _labClose = null!;
     private ResearchLab _labRows = null!;
@@ -111,21 +109,12 @@ public partial class Welcome : CanvasLayer
         };
         accent.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
         hero.AddChild(accent);
-        // 最高分 + Top3 榜单固定锚在登录面板下方空白带（y=842 起）：hero 块只留品牌标题，
-        // 避免多行文本透进半透明面板底（历史布局腐烂）；损坏警告同列最底部
-        _highScoreLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Left);
-        _highScoreLabel.Position = new Vector2(140.0f, 842.0f);
-        AddChild(_highScoreLabel);
-        _boardLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left);
-        _boardLabel.Position = new Vector2(140.0f, 884.0f);
-        AddChild(_boardLabel);
-        _corruptLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.Danger, HorizontalAlignment.Left);
-        _corruptLabel.Position = new Vector2(140.0f, 1010.0f);
-        AddChild(_corruptLabel);
-
         BuildLoginPanel();
         BuildMainZone();
         BuildOverlays();
+        BuildChrome();
+        SetWheelActive(false, dimActive: false); // chrome dim 常开会压暗整个不透明欢迎页
+        Wheel.Confirmed += OnMenuConfirmed;
 
         GameState.Instance!.Connect("LocaleChanged", _onLocaleChanged);
         RefreshTexts();
@@ -471,23 +460,38 @@ public partial class Welcome : CanvasLayer
         }
 
         _stage = Stage.Main;
+        _isUser = isUser;
         _loginPanel.Visible = false;
         _mainZone.Visible = true;
-        _labButton.Visible = isUser; // 研究所仅登录用户可用（游客无持久化档案，B7-8）
+        // 研究所仅登录用户可用（游客无持久化档案，B7-8）——菜单重建时动态收录
+        SetWheelActive(true, dimActive: false);
+        RebuildMenu();
+        PlayWheelEntrance();
         RefreshTexts();
-        GrabMainFocus();
     }
 
     // ---------------- 主区（登录后） ----------------
 
     private void BuildMainZone()
     {
+        // 战绩/损坏警告区：常显（不随登录态切换）——损坏存档提示是开始屏契约，登录前必须可见
+        _recordsBox = new VBoxContainer();
+        _recordsBox.Position = new Vector2(620.0f, 130.0f);
+        _recordsBox.CustomMinimumSize = new Vector2(1100.0f, 0.0f);
+        _recordsBox.AddThemeConstantOverride("separation", 8);
+        AddChild(_recordsBox);
+        _highScoreLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Left);
+        _recordsBox.AddChild(_highScoreLabel);
+        _boardLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left);
+        _recordsBox.AddChild(_boardLabel);
+        _corruptLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.Danger, HorizontalAlignment.Left);
+        _corruptLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _recordsBox.AddChild(_corruptLabel);
+
+        // 难度区（登录放行后显示）
         _mainZone = new VBoxContainer();
-        // 右栏定位（头注设计：左栏账号面板 + 右栏难度/教程/设置/排行榜）：
-        // x=1260 与左栏 140 对称（520 宽面板 + 140 边距），y=260 与登录面板同基线，
-        // 避让左上品牌区的历史最佳/榜单文本（W1 修复时主区归位后暴露的次生重叠）
-        _mainZone.Position = new Vector2(1260.0f, 260.0f);
-        _mainZone.CustomMinimumSize = new Vector2(520.0f, 0.0f);
+        _mainZone.Position = new Vector2(620.0f, 300.0f);
+        _mainZone.CustomMinimumSize = new Vector2(1100.0f, 0.0f);
         _mainZone.AddThemeConstantOverride("separation", 14);
         _mainZone.Visible = false;
         AddChild(_mainZone);
@@ -517,54 +521,80 @@ public partial class Welcome : CanvasLayer
             _diffButtons[d] = b;
         }
 
-        _continueButton = UITheme.MakeButton(Tr("START_CONTINUE"), true);
-        _continueButton.CustomMinimumSize = new Vector2(0.0f, 64.0f);
-        _continueButton.Pressed += OnContinuePressed;
-        _mainZone.AddChild(_continueButton);
-        _newButton = UITheme.MakeButton(Tr("START_BEGIN"));
-        _newButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
-        _newButton.Pressed += OnNewGamePressed;
-        _mainZone.AddChild(_newButton);
-        _tutorialButton = UITheme.MakeButton(Tr("START_TUTORIAL"));
-        _tutorialButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
-        _tutorialButton.Pressed += OnTutorialPressed;
-        _mainZone.AddChild(_tutorialButton);
-        _settingsButton = UITheme.MakeButton(Tr("START_SETTINGS"));
-        _settingsButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
-        _settingsButton.Pressed += OnSettingsPressed;
-        _mainZone.AddChild(_settingsButton);
-        _leaderboardButton = UITheme.MakeButton(Tr("WELCOME_LEADERBOARD"));
-        _leaderboardButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
-        _leaderboardButton.Pressed += OpenLeaderboard;
-        _mainZone.AddChild(_leaderboardButton);
-        // 局外成长：研究所入口（仅登录用户可见；游客在 EnterMainZone 隐藏）
-        _labButton = UITheme.MakeButton(Tr("META_TITLE"));
-        _labButton.CustomMinimumSize = new Vector2(0.0f, 56.0f);
-        _labButton.Pressed += OpenLab;
-        _labButton.Visible = false;
-        _mainZone.AddChild(_labButton);
+        // 难度档位行之后：主区导航全部收口左缘圆盘（见 RebuildMenu），右栏不再放按钮列
     }
 
-    private void GrabMainFocus()
+    /// <summary>圆盘主菜单（进主区/语言切换/存档态变化时重装；出击子层按存档态动态显隐「继续对局」）。</summary>
+    private void RebuildMenu()
     {
-        if (_continueButton.Visible)
+        var hasSave = GameState.Instance.HasSave();
+        var sortieChildren = new List<RadialWheelOption>();
+        if (hasSave)
         {
-            _continueButton.GrabFocus();
+            sortieChildren.Add(new RadialWheelOption { Id = "continue", Label = Tr("START_CONTINUE"), Glyph = RadialGlyph.Triangle });
         }
-        else
+
+        sortieChildren.Add(new RadialWheelOption
         {
-            _newButton.GrabFocus();
+            Id = "new",
+            Label = hasSave ? Tr("START_NEW") : Tr("START_BEGIN"),
+            Glyph = RadialGlyph.Bolt,
+        });
+        var roots = new List<RadialWheelOption>
+        {
+            new() { Id = "sortie", Label = Tr("WELCOME_MENU_SORTIE"), Glyph = RadialGlyph.Triangle, Children = sortieChildren },
+            new() { Id = "tutorial", Label = Tr("START_TUTORIAL"), Glyph = RadialGlyph.Diamond },
+            new() { Id = "settings", Label = Tr("START_SETTINGS"), Glyph = RadialGlyph.Cross },
+            new() { Id = "leaderboard", Label = Tr("WELCOME_LEADERBOARD"), Glyph = RadialGlyph.Ring },
+        };
+        if (_isUser)
+        {
+            roots.Add(new RadialWheelOption { Id = "lab", Label = Tr("META_TITLE"), Glyph = RadialGlyph.Hex });
+        }
+
+        roots.Add(new RadialWheelOption { Id = "quit", Label = Tr("MENU_QUIT_GAME"), Glyph = RadialGlyph.Star });
+        LoadMenu(roots, string.Empty);
+    }
+
+    private void OnMenuConfirmed(RadialWheelOption option)
+    {
+        switch (option.Id)
+        {
+            case "continue":
+                OnContinuePressed();
+                break;
+            case "new":
+                OnNewGamePressed();
+                break;
+            case "tutorial":
+                OnTutorialPressed();
+                break;
+            case "settings":
+                OnSettingsPressed();
+                break;
+            case "leaderboard":
+                OpenLeaderboard();
+                break;
+            case "lab":
+                OpenLab();
+                break;
+            case "quit":
+                ShowExitConfirm();
+                break;
         }
     }
 
-    /// <summary>主按钮重获焦点（设置返回/退出确认取消后）。settings_ui.gd 经 has_method+grab_primary_focus 动态调用。</summary>
+    private void ShowExitConfirm()
+    {
+        _exitConfirm.Layer.Visible = true;
+        _exitConfirm.Cancel.GrabFocus();
+    }
+
+    /// <summary>主按钮重获焦点（设置返回/退出确认取消后）。settings_ui.gd 经 has_method+grab_primary_focus 动态调用；
+    /// 圆盘版主区无焦点控件，仅登录阶段归还输入框焦点。</summary>
     public void GrabPrimaryFocus()
     {
-        if (_stage == Stage.Main)
-        {
-            GrabMainFocus();
-        }
-        else
+        if (_stage == Stage.Login)
         {
             _usernameLine.GrabFocus();
         }
@@ -606,6 +636,7 @@ public partial class Welcome : CanvasLayer
         }
 
         Visible = false; // 面板遮挡：先隐藏自己（对齐 StartPanel 行为）
+        SetWheelActive(false, dimActive: false);
         (settings as SettingsUi)?.ShowSettings(this);
     }
 
@@ -842,10 +873,9 @@ public partial class Welcome : CanvasLayer
             {
                 CloseDropdown();
             }
-            else
+            else if (_stage == Stage.Main)
             {
-                _exitConfirm.Layer.Visible = true;
-                _exitConfirm.Cancel.GrabFocus();
+                ShowExitConfirm();
             }
 
             GetViewport().SetInputAsHandled();
@@ -881,26 +911,11 @@ public partial class Welcome : CanvasLayer
                     ? Tr("START_PROFILE_CORRUPT")
                     : Tr("START_SAVE_CORRUPT")
             );
-        _continueButton.Visible = _stage == Stage.Main && hasSave;
-        _newButton.Text = hasSave ? Tr("START_NEW") : Tr("START_BEGIN");
-        if (_stage == Stage.Main)
+        if (_stage == Stage.Main && Wheel.Visible)
         {
-            // 主按钮层级：有存档=继续对局 primary；无存档=开始游戏 primary
-            if (hasSave)
-            {
-                UITheme.ApplyPrimaryButton(_continueButton);
-                UITheme.ApplyButton(_newButton);
-                _newButton.AddThemeFontSizeOverride("font_size", UITheme.FontBody);
-            }
-            else
-            {
-                UITheme.ApplyPrimaryButton(_newButton);
-            }
+            RebuildMenu(); // 出击子层（继续对局显隐）随存档变化重装
         }
 
-        // E02/G03 + P1-6：进行中存档时禁用教程按钮（重进会删档）；已通关无存档时放行
-        _tutorialButton.Disabled = _stage == Stage.Main && hasSave;
-        _labButton.Text = Tr("META_TITLE"); // 局外成长：研究所按钮 locale 刷新
         foreach (var pair in _diffButtons)
         {
             var d = pair.Key;
@@ -930,12 +945,6 @@ public partial class Welcome : CanvasLayer
     public LineEdit UsernameLine() => _usernameLine;
 
     public Label CorruptLabel() => _corruptLabel;
-
-    public Button ContinueButton() => _continueButton;
-
-    public Button NewButton() => _newButton;
-
-    public Button TutorialButton() => _tutorialButton;
 
     public LineEdit PasswordLine() => _passwordLine;
 

@@ -1,6 +1,10 @@
 using InfiAir.Core.Talent;
 using Xunit;
 
+using Directory = System.IO.Directory;
+using File = System.IO.File;
+using Path = System.IO.Path;
+
 namespace InfiAir.Core.Tests;
 
 /// <summary>天赋缓存系统纯逻辑单测：缓存池 LIFO 衰减/花费、递增消耗、收益递减、
@@ -157,11 +161,33 @@ public sealed class TalentTests
 
     // ---------------- TalentTree：结构完整性 ----------------
 
+    /// <summary>树结构与 balance.json 增幅数值段的同步守卫：每个节点必须有
+    /// augments.&lt;id&gt;.max_stacks（json 为上限唯一权威；新增节点漏配在此暴露）。</summary>
+    [Fact]
+    public void Tree_EveryNodeHasAugmentMaxStacksInBalance()
+    {
+        var path = Path.Combine(Directory.GetCurrentDirectory(), "data", "balance.json");
+        if (!File.Exists(path))
+        {
+            path = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "data", "balance.json");
+        }
+
+        Assert.True(File.Exists(path), $"balance.json not found at {path}");
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        var augments = doc.RootElement.GetProperty("augments");
+        foreach (var id in TalentTree.NodeIds())
+        {
+            Assert.True(augments.TryGetProperty(id, out var node), $"augments.{id} missing in balance.json");
+            Assert.True(node.TryGetProperty("max_stacks", out _), $"augments.{id}.max_stacks missing in balance.json");
+        }
+    }
+
     [Fact]
     public void Tree_AllNodeIdsUniqueAndComplete()
     {
         var ids = TalentTree.NodeIds();
-        Assert.Equal(19, ids.Count);
+        // 2026-09-08 作战增幅扩展：19 节点 → 27 节点（8 个新增幅）
+        Assert.Equal(27, ids.Count);
         Assert.Equal(ids.Count, new HashSet<string>(ids).Count);
         foreach (var id in ids)
         {
@@ -177,6 +203,15 @@ public sealed class TalentTests
         Assert.Equal("bullet_speed", TalentTree.Prerequisite("piercing"));
         Assert.Equal("explosive", TalentTree.Prerequisite("laser_beam"));
         Assert.Null(TalentTree.Prerequisite("unknown"));
+        // 2026-09-08 作战增幅扩展：8 个新节点的前置链（各自支线上一节点）
+        Assert.Equal("piercing", TalentTree.Prerequisite("homing"));
+        Assert.Equal("spread_shot", TalentTree.Prerequisite("salvo"));
+        Assert.Equal("shield", TalentTree.Prerequisite("deflector"));
+        Assert.Equal("lifesteal", TalentTree.Prerequisite("second_wind"));
+        Assert.Equal("boost_recovery", TalentTree.Prerequisite("dash_strike"));
+        Assert.Equal("slow_field", TalentTree.Prerequisite("graze_field"));
+        Assert.Equal("mothership_recall", TalentTree.Prerequisite("score_amp"));
+        Assert.Equal("score_amp", TalentTree.Prerequisite("combo_guard"));
     }
 
     [Fact]

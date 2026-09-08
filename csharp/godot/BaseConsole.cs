@@ -1,28 +1,27 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core;
 using InfiAir.Core.Talent;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
 
 /// <summary>
-/// 基地控制台（返航中场整备）：战机库 / 路线契约（机制 C）/ 维修补给 / 任务规划。
-/// 顶部 RP 余额，底部「继续出击」返回同一局。
-/// 视觉为「虚影皮肤」（docs/RETURN_HOME_CINEMATIC.md §3）：虚影站背景层 + 全息面板，
-/// 全部信号/回调/GameState 数据接口零改动。
-/// M5 全量迁移（2026-08-08 自 scripts/base_console.gd）：CanvasLayer 子类；
-/// DawnStation 静态工厂 typed 直调；UITheme/ChamferedPanel 为 C# typed 直调。
-/// 注：原 GDScript signal resume_requested 迁移为 C# [Signal] ResumeRequested。
-/// 天赋缓存系统重构：旧「武器挂载·天赋路线」（line->双 buff 合并/锁定，依附三选一奖励池）退役，
-/// 本面板改载机制 C 路线契约（TalentTree.Routes：核心大类增益/其余上限减半/切换耗重置代币）。
+/// 基地控制台（返航中场整备；2026-09-08 圆盘 UI 全覆盖重构）：
+/// 左缘轮盘目录（战机库 / 维修补给 / 路线契约 / 任务规划 / 研究所 + 「继续出击」叶）→
+/// 右区单面板内容切换（旧双列五面板一屏堆叠退役；顶部分类芯片行保留键盘/手柄可达性）。
+/// 补给面板承载基地↔增幅系统联动：RP 购置「增幅缓存点」（直接入天赋缓存池）与
+/// 「超载槽」（本局风险加点上限扩容）。顶部 RP 余额，路线契约 = 机制 C（TalentTree.Routes）。
+/// 视觉延续「虚影皮肤」：虚影站背景层 + 全息面板。信号/测试公开接口与旧实现一一对应。
 /// </summary>
-public partial class BaseConsole : CanvasLayer
+public partial class BaseConsole : RadialMenuLayer
 {
-    /// <summary>继续出击：返回同一局（main.gd `_resume_from_base` / tutorial.gd `_on_base_resume` 连接）。</summary>
+    /// <summary>继续出击：返回同一局（main `_resume_from_base` / tutorial `_on_base_resume` 连接）。</summary>
     [Signal]
     public delegate void ResumeRequestedEventHandler();
 
-    /// <summary>虚影面板底后径向辉光垫（近似毛玻璃，§3.2）：四面板共享一张径向渐变纹理。</summary>
+    /// <summary>轮盘目录 id（与根级选项/面板表同键）。</summary>
+    private static readonly string[] CategoryIds = { "hangar", "supply", "routes", "missions", "lab" };
 
     private readonly Callable _localeChanged;
 
@@ -36,20 +35,25 @@ public partial class BaseConsole : CanvasLayer
     private Label _statusLabel = null!;
     private Button _repairButton = null!;
     private Button _rechargeButton = null!;
+    private Button _buyCacheButton = null!;
+    private Button _buyOverchargeButton = null!;
     private VBoxContainer _routesBox = null!;
     private VBoxContainer _missionsBox = null!;
-    private Button _refreshButton = null!; // 2026-08-05：任务轮换——刷新任务按钮
+    private Button _refreshButton = null!; // 任务轮换——刷新任务按钮
     private Label _refreshPointsLabel = null!;
     private Label _refreshHintLabel = null!; // 点数不足提示（临时显示，2s 后隐藏）
     private Godot.Timer? _refreshHintTimer;
     private readonly Dictionary<string, Label> _titleLabels = new();
-    private HBoxContainer _columns = null!;
     private Label _routeHintLabel = null!;
-    private readonly List<ChamferedPanel> _panels = new();
-    private Button _resumeButton = null!; // L08（2026-08-03 审查）：成员引用——焦点归还 + locale 刷新
+    private readonly Dictionary<string, ChamferedPanel> _pages = new();
+    private readonly Dictionary<string, Button> _categoryChips = new();
+    private readonly ButtonGroup _chipGroup = new();
+    private string _currentCategory = "hangar";
+    private Label _categoryLabel = null!;
+    private Control _pageHolder = null!;
     private GradientTexture2D? _glowTexture;
 
-    /// <summary>虚影面板底后径向辉光垫（近似毛玻璃，§3.2）：四面板共享一张径向渐变纹理。</summary>
+    /// <summary>虚影面板底后径向辉光垫（近似毛玻璃）：全面板共享一张径向渐变纹理。</summary>
     private GradientTexture2D MakeGlowTexture()
     {
         if (_glowTexture != null)
@@ -72,8 +76,8 @@ public partial class BaseConsole : CanvasLayer
         return _glowTexture;
     }
 
-    /// <summary>数据抖动装饰（§3.2）：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
-    ///（tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。</summary>
+    /// <summary>数据抖动装饰：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
+    /// （tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。</summary>
     private void ApplyDataFlicker(Label label)
     {
         var tween = CreateTween().SetLoops();
@@ -97,24 +101,43 @@ public partial class BaseConsole : CanvasLayer
             gs.Connect("LocaleChanged", _localeChanged);
         }
 
-        var dim = new ColorRect { Color = UITheme.PhantomBg };
-        dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(dim);
+        BuildChrome();
+        BuildBackdrop();
+        RaiseWheel(); // 背景站体/扫描带在 chrome 之后入树：轮盘保持在其上
+        BuildRightArea();
+        BuildPages();
+        Wheel.Confirmed += OnWheelConfirmed;
+    }
 
-        // 虚影站内部概念背景层（§3.3.1）：PHANTOM 站体 r≈520 以 (960,540) 为圆心，
-        // 父容器压 α≈0.12（站体自呼吸写自身 modulate:a，不能直接在站体上压 alpha）+ 8s/趟全屏慢扫描带。
-        // 该层放在 dim 之后、CenterContainer 之前。
+    public override void _ExitTree()
+    {
+        // C22 模式配对断开——死亡重开场景重载后残留连接在切语言时回调已释放实例
+        var gs = GameState.Instance;
+        if (gs == null)
+        {
+            return;
+        }
+
+        if (gs.IsConnected("LocaleChanged", _localeChanged))
+        {
+            gs.Disconnect("LocaleChanged", _localeChanged);
+        }
+    }
+
+    /// <summary>虚影站内部概念背景层：PHANTOM 站体 + 全屏慢扫描带（绘制序在 dim 之后、内容之前）。</summary>
+    private void BuildBackdrop()
+    {
         var bgWrap = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         bgWrap.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         var bgModulate = bgWrap.Modulate;
         bgModulate.A = 0.12f;
         bgWrap.Modulate = bgModulate;
         AddChild(bgWrap);
-        var station = DawnStation.Build(1); // M6：DawnStation 迁 C#，typed（Mode.PHANTOM）
+        var station = DawnStation.Build(1);
         station.Position = new Vector2(960.0f, 540.0f);
         station.Scale = Vector2.One * 2.0f;
         bgWrap.AddChild(station);
-        // 慢扫描带（纯装饰；2026-08-05 P4：尺寸/行程改 viewport 可见区——原硬编码 1920×1080）
+        // 慢扫描带（纯装饰）：尺寸/行程取 viewport 可见区
         var viewportSize = GetViewport().GetVisibleRect().Size;
         var scanH = 140.0f;
         var slowScan = new ColorRect { Color = UITheme.PhantomScan };
@@ -125,64 +148,67 @@ public partial class BaseConsole : CanvasLayer
         var scanTween = CreateTween().SetLoops();
         scanTween.TweenProperty(slowScan, "position:y", viewportSize.Y, 8.0).SetTrans(Tween.TransitionType.Linear);
         scanTween.TweenProperty(slowScan, "position:y", -scanH, 0.0);
+    }
 
-        var center = new CenterContainer();
-        center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(center);
-
-        var vbox = new VBoxContainer();
-        vbox.AddThemeConstantOverride("separation", 14);
-        center.AddChild(vbox);
-
+    /// <summary>右区：标题 + RP 余额 + 分类芯片行 + 当前分类标题 + 面板容器。</summary>
+    private void BuildRightArea()
+    {
+        // 自由定位标签不做 ApplyDataFlicker——该动效末段会把 position.x 回写为 0
+        // （容器管理布局时被布局覆盖无碍，自由定位标签会被拽到屏左缘，实测基地标题位移）
         _titleLabel = MakeLabel((string)Tr("BASE_TITLE"), 44);
-        vbox.AddChild(_titleLabel);
-        ApplyDataFlicker(_titleLabel);
+        _titleLabel.Position = new Vector2(560f, 40f);
+        _titleLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        AddChild(_titleLabel);
+
         _rpLabel = MakeLabel("", 26);
+        _rpLabel.Position = new Vector2(560f, 106f);
         _rpLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
-        vbox.AddChild(_rpLabel);
-        ApplyDataFlicker(_rpLabel);
+        _rpLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        AddChild(_rpLabel);
 
-        _columns = new HBoxContainer();
-        var columns = _columns;
-        columns.AddThemeConstantOverride("separation", 140); // §3.3.2：露出中央环体轴心，容器层级/热区/焦点链不变
-        vbox.AddChild(columns);
+        // 分类芯片行（键盘/手柄可达的目录回退入口；与轮盘双向联动）
+        var chipRow = new HBoxContainer();
+        chipRow.AddThemeConstantOverride("separation", 10);
+        chipRow.Position = new Vector2(560f, 152f);
+        AddChild(chipRow);
+        foreach (var id in CategoryIds)
+        {
+            var chip = UITheme.MakeToggleButton("", _chipGroup);
+            chip.CustomMinimumSize = new Vector2(150.0f, 44.0f);
+            chip.AddThemeFontSizeOverride("font_size", UITheme.FontCaption);
+            var captured = id;
+            chip.Pressed += () => SwitchCategory(captured, animate: true);
+            chipRow.AddChild(chip);
+            _categoryChips[id] = chip;
+        }
 
-        // 左列：战机库 + 维修补给 + 研究所
-        var left = new VBoxContainer();
-        left.AddThemeConstantOverride("separation", 20);
-        columns.AddChild(left);
-        left.AddChild(BuildHangar());
-        left.AddChild(BuildSupply());
-        left.AddChild(BuildLab()); // 局外成长：研究所（2026-08-09）
+        _categoryLabel = MakeLabel("", 28);
+        _categoryLabel.Position = new Vector2(560f, 214f);
+        _categoryLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        AddChild(_categoryLabel);
 
-        // 右列：武器挂载 + 任务规划
-        var right = new VBoxContainer();
-        right.AddThemeConstantOverride("separation", 20);
-        columns.AddChild(right);
-        right.AddChild(BuildRoutes());
-        right.AddChild(BuildMissions());
+        // 面板容器（右区满幅；页板在 BuildPages 挂入，单页可见）
+        _pageHolder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _pageHolder.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _pageHolder.OffsetLeft = 560f;
+        _pageHolder.OffsetTop = 260f;
+        _pageHolder.OffsetBottom = -40f;
+        AddChild(_pageHolder);
+    }
 
-        var resumeButton = UITheme.MakeButton((string)Tr("BASE_RESUME"), true);
-        _resumeButton = resumeButton;
-        resumeButton.CustomMinimumSize = new Vector2(280.0f, 52.0f);
-        resumeButton.Pressed += OnResumePressed;
-        // 底部 2px 投影线 + 1.5s 呼吸辉光（§3.3.4，只动 alpha；尺寸/位置/回调不变）
-        var shadowLine = new ColorRect { Color = UITheme.AccentDim };
-        shadowLine.MouseFilter = Control.MouseFilterEnum.Ignore;
-        shadowLine.AnchorLeft = 0.15f;
-        shadowLine.AnchorRight = 0.85f;
-        shadowLine.AnchorTop = 1.0f;
-        shadowLine.AnchorBottom = 1.0f;
-        shadowLine.OffsetTop = 2.0f;
-        shadowLine.OffsetBottom = 4.0f;
-        var shadowModulate = shadowLine.Modulate;
-        shadowModulate.A = 0.3f;
-        shadowLine.Modulate = shadowModulate;
-        resumeButton.AddChild(shadowLine);
-        var glowBreathe = CreateTween().SetLoops();
-        glowBreathe.TweenProperty(shadowLine, "modulate:a", 1.0f, 0.75).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        glowBreathe.TweenProperty(shadowLine, "modulate:a", 0.3f, 0.75).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        vbox.AddChild(resumeButton);
+    private void BuildPages()
+    {
+        _pages["hangar"] = BuildHangar();
+        _pages["supply"] = BuildSupply();
+        _pages["routes"] = BuildRoutes();
+        _pages["missions"] = BuildMissions();
+        _pages["lab"] = BuildLab();
+        foreach (var kv in _pages)
+        {
+            kv.Value.Visible = kv.Key == _currentCategory;
+        }
+
+        _categoryLabel.Text = (string)Tr(ChipKey(_currentCategory));
     }
 
     private Label MakeLabel(string text, int size) => UITheme.MakeLabel(text, size);
@@ -190,10 +216,9 @@ public partial class BaseConsole : CanvasLayer
     private ChamferedPanel MakePanel(string titleKey, Vector2[][] glyph)
     {
         var panel = new ChamferedPanel();
-        UITheme.ApplyPhantomPanel(panel); // §3.3.3 虚影材质
-        panel.CustomMinimumSize = new Vector2(560.0f, 0.0f);
-        _panels.Add(panel);
-        // 面板底后径向辉光垫（近似毛玻璃，§3.2）：绘于面板底之下，随面板尺寸自适应
+        UITheme.ApplyPhantomPanel(panel);
+        panel.CustomMinimumSize = new Vector2(1260.0f, 0.0f);
+        // 面板底后径向辉光垫：随面板尺寸自适应
         var glow = new TextureRect
         {
             Texture = MakeGlowTexture(),
@@ -204,7 +229,7 @@ public partial class BaseConsole : CanvasLayer
         };
         glow.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         panel.AddChild(glow);
-        // 扫描线叠加层（§3.2）：单节点自绘，绘于面板底之上、内容之下
+        // 扫描线叠加层：绘于面板底之上、内容之下
         var scan = new BaseConsoleScanlines();
         scan.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         panel.AddChild(scan);
@@ -216,7 +241,7 @@ public partial class BaseConsole : CanvasLayer
         vbox.OffsetRight = -14.0f;
         vbox.OffsetBottom = -14.0f;
         panel.AddChild(vbox);
-        // 标题行：16×16 线性发光图标 + section header（仅基地内组装，不影响其它页面的 make_section_header）
+        // 标题行：16×16 线性发光图标 + section header
         var header = UITheme.MakeSectionHeader((string)Tr(titleKey));
         header.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         _titleLabels[titleKey] = (Label)header.GetChild(0);
@@ -227,6 +252,7 @@ public partial class BaseConsole : CanvasLayer
         headerRow.AddChild(icon);
         headerRow.AddChild(header);
         vbox.AddChild(headerRow);
+        _pageHolder.AddChild(panel);
         return panel;
     }
 
@@ -275,6 +301,13 @@ public partial class BaseConsole : CanvasLayer
         _rechargeButton = MakeButton("");
         _rechargeButton.Pressed += OnRechargePressed;
         body.AddChild(_rechargeButton);
+        // 基地↔增幅联动补给（2026-09-08）：RP 购置增幅缓存点 / 超载槽
+        _buyCacheButton = MakeButton("");
+        _buyCacheButton.Pressed += OnBuyCachePressed;
+        body.AddChild(_buyCacheButton);
+        _buyOverchargeButton = MakeButton("");
+        _buyOverchargeButton.Pressed += OnBuyOverchargePressed;
+        body.AddChild(_buyOverchargeButton);
         return panel;
     }
 
@@ -295,7 +328,6 @@ public partial class BaseConsole : CanvasLayer
             },
         };
         var panel = MakePanel("META_TITLE", glyph);
-        panel.CustomMinimumSize = new Vector2(640.0f, 0.0f); // 2×4 升级网格需更宽内容区（8 行纵排曾把整页撑出视口）
         var body = (VBoxContainer)panel.GetNode("Body");
         body.AddChild(new ResearchLab());
         return panel;
@@ -332,7 +364,7 @@ public partial class BaseConsole : CanvasLayer
         _missionsBox = new VBoxContainer();
         _missionsBox.AddThemeConstantOverride("separation", 8);
         ((VBoxContainer)panel.GetNode("Body")).AddChild(_missionsBox);
-        // 任务轮换（2026-08-05）：刷新点数 + 刷新按钮 + 点数不足提示
+        // 任务轮换：刷新点数 + 刷新按钮 + 点数不足提示
         var refreshRow = new HBoxContainer();
         refreshRow.AddThemeConstantOverride("separation", 10);
         _refreshPointsLabel = MakeLabel("", 18);
@@ -352,38 +384,109 @@ public partial class BaseConsole : CanvasLayer
         return panel;
     }
 
-    /// <summary>进入基地（main.gd 返航结束 / tutorial.gd 过关调用）：发放刷新点数、重绘、全息启动、焦点落到「继续出击」。</summary>
+    /// <summary>装配轮盘目录（打开/locale 时重装）。</summary>
+    private void RebuildMenu()
+    {
+        LoadMenu(
+            new List<RadialWheelOption>
+            {
+                new() { Id = "hangar", Label = Tr("BASE_HANGAR"), Glyph = RadialGlyph.Triangle },
+                new() { Id = "supply", Label = Tr("BASE_SUPPLY"), Glyph = RadialGlyph.Bolt },
+                new() { Id = "routes", Label = Tr("BASE_ROUTES"), Glyph = RadialGlyph.Cross },
+                new() { Id = "missions", Label = Tr("BASE_MISSIONS"), Glyph = RadialGlyph.Ring },
+                new() { Id = "lab", Label = Tr("META_TITLE"), Glyph = RadialGlyph.Hex },
+                new() { Id = "resume", Label = Tr("BASE_RESUME"), Glyph = RadialGlyph.Star },
+            },
+            string.Empty);
+    }
+
+    private void OnWheelConfirmed(RadialWheelOption option)
+    {
+        if (option.Id == "resume")
+        {
+            OnResumePressed();
+            return;
+        }
+
+        SwitchCategory(option.Id, animate: true);
+    }
+
+    /// <summary>目录切换：轮盘确认/芯片行共用；单面板可见 + 轻量入场动效。</summary>
+    private void SwitchCategory(string categoryId, bool animate)
+    {
+        if (!_pages.ContainsKey(categoryId))
+        {
+            return;
+        }
+
+        _currentCategory = categoryId;
+        foreach (var kv in _pages)
+        {
+            kv.Value.Visible = kv.Key == categoryId;
+        }
+
+        if (_categoryChips.TryGetValue(categoryId, out var chip))
+        {
+            chip.SetPressedNoSignal(true);
+        }
+
+        _categoryLabel.Text = (string)Tr(ChipKey(categoryId));
+        if (animate && _pages.TryGetValue(categoryId, out var page))
+        {
+            page.Modulate = new Color(page.Modulate, 0f);
+            var tw = CreateTween();
+            tw.TweenProperty(page, "modulate:a", 1.0f, 0.18);
+        }
+    }
+
+    private void RefreshChipLabels()
+    {
+        foreach (var kv in _categoryChips)
+        {
+            kv.Value.Text = (string)Tr(ChipKey(kv.Key));
+            kv.Value.SetPressedNoSignal(kv.Key == _currentCategory);
+        }
+    }
+
+    private static string ChipKey(string id) => id switch
+    {
+        "supply" => "BASE_SUPPLY",
+        "routes" => "BASE_ROUTES",
+        "missions" => "BASE_MISSIONS",
+        "lab" => "META_TITLE",
+        _ => "BASE_HANGAR",
+    };
+
+    /// <summary>进入基地（main 返航结束 / tutorial 过关调用）：发放刷新点数、重绘、全息启动。</summary>
     public void ShowBase()
     {
         // 任务轮换：进基地发放刷新点数（GRANT_PER_VISIT 档位，攒两次基地换一次刷新）
         GameState.Instance.GrantRefreshPoints();
         Refresh();
         Visible = true;
+        SetWheelActive(true);
+        RebuildMenu();
+        PlayWheelEntrance();
+        SwitchCategory("hangar", animate: false);
         HoloBoot();
-        UITheme.AnimateOpen(_columns);
-        // L08（2026-08-03 审查）：全项目模态页唯一无焦点初始化的页面——手柄/键盘玩家
-        // 进入基地后方向键+Enter 无法操作（对齐 settings/pause/buff_select 的聚焦约定）
-        _resumeButton.GrabFocus();
     }
 
-    /// <summary>全息启动（§3.3.5）：四面板 α0 + scale 0.98→1.0，stagger 60ms；
-    /// pivot 设为中心（否则从左上角缩放），tween 终值保证 scale 精确回 1.0。</summary>
+    /// <summary>全息启动：当前面板 α0 + scale 0.98→1.0；pivot 设为中心（否则从左上角缩放）。</summary>
     private void HoloBoot()
     {
-        var i = 0;
-        foreach (var panel in _panels)
+        if (!_pages.TryGetValue(_currentCategory, out var panel))
         {
-            panel.PivotOffset = panel.Size * 0.5f;
-            var modulate = panel.Modulate;
-            modulate.A = 0.0f;
-            panel.Modulate = modulate;
-            panel.Scale = Vector2.One * 0.98f;
-            var tween = CreateTween();
-            tween.TweenInterval(0.06 * i);
-            tween.TweenProperty(panel, "modulate:a", 1.0f, 0.25);
-            tween.Parallel().TweenProperty(panel, "scale", Vector2.One, 0.25);
-            i += 1;
+            return;
         }
+
+        panel.PivotOffset = panel.Size * 0.5f;
+        var modulate = panel.Modulate;
+        modulate.A = 0.0f;
+        panel.Modulate = modulate;
+        panel.Scale = Vector2.One * 0.98f;
+        var tween = CreateTween();
+        tween.TweenProperty(panel, "modulate:a", 1.0f, 0.25);
+        tween.Parallel().TweenProperty(panel, "scale", Vector2.One, 0.25);
     }
 
     private void Refresh()
@@ -391,20 +494,20 @@ public partial class BaseConsole : CanvasLayer
         var rp = GameState.Instance.Rp;
         _rpLabel.Text = GdFormat.Format((string)Tr("BASE_RP"), rp);
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
+        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C# # A5：走注册表
         // 战机库状态总览
-        var buffText = "";
-        var buffs = GameState.Instance.Buffs;
-        foreach (var key in buffs.Keys)
+        var augmentText = "";
+        var augments = GameState.Instance.Augments;
+        foreach (var key in augments.Keys)
         {
             var id = key.AsStringName();
-            // 显示名走翻译键（与 Buff 三选一/HUD 明细栏同源），不裸显内部 id
-            buffText += GdFormat.Format("%s×%d  ", (string)Tr("BUFF_" + id.ToString().ToUpperInvariant() + "_NAME"), buffs[key].AsInt32());
+            // 显示名走翻译键（与天赋面板/HUD 明细栏同源），不裸显内部 id
+            augmentText += GdFormat.Format("%s×%d  ", (string)Tr("AUG_" + id.ToString().ToUpperInvariant() + "_NAME"), augments[key].AsInt32());
         }
 
-        if (buffText.Length == 0)
+        if (augmentText.Length == 0)
         {
-            buffText = (string)Tr("BASE_NO_BUFF");
+            augmentText = (string)Tr("BASE_NO_AUGMENT");
         }
 
         var fuelPct = 0;
@@ -413,26 +516,37 @@ public partial class BaseConsole : CanvasLayer
             fuelPct = (int)(player.FuelRatio() * 100.0f);
         }
 
-        var health = (float)GameState.Instance.Health; // M5：AsSingle 精度损失致 heal 后 99.9999≠max（smoke flake 根因）
+        var health = (float)GameState.Instance.Health; // double 全程——(float) 截断致维修后 99.9999≠max（smoke flake 根因）
         var maxHealth = (float)GameState.Instance.MaxHealth();
-        _statusLabel.Text = GdFormat.Format((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, buffText);
-        // 维修补给按钮状态
+        _statusLabel.Text = GdFormat.Format((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, augmentText);
+        // 文案刷新
         _titleLabel.Text = (string)Tr("BASE_TITLE");
         foreach (var kv in _titleLabels)
         {
             kv.Value.Text = (string)Tr(kv.Key);
         }
 
+        RefreshChipLabels();
         _routeHintLabel.Text = (string)Tr("BASE_ROUTE_HINT");
+        _categoryLabel.Text = (string)Tr(ChipKey(_currentCategory));
         _repairButton.Text = (string)Tr("BASE_REPAIR");
         _rechargeButton.Text = (string)Tr("BASE_RECHARGE");
-        _resumeButton.Text = (string)Tr("BASE_RESUME"); // L08：locale 刷新路径补齐（其余按钮均在此刷新）
         // 维修 = 2RP 回满（对齐原作 repair_at_base：health = max_health，满血拒售）
         var rpRepairCost = GameState.Instance.RP_REPAIR_COST;
         var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
         _repairButton.Disabled = rp < rpRepairCost || health >= maxHealth;
         _rechargeButton.Disabled = rp < rpRechargeCost || player == null || player.FuelAmount() >= player.FuelMax;
-        // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 _on_refresh_pressed 内）
+        // 增幅补给按钮（价格与售罄态随刷新更新）
+        var cacheCost = SupplyCfg("cache_cost_rp", 4);
+        _buyCacheButton.Text = GdFormat.Format((string)Tr("BASE_SUPPLY_CACHE_FMT"), cacheCost);
+        _buyCacheButton.Disabled = rp < cacheCost || SupplyCfg("cache_points", 2) <= 0;
+        var slotCost = SupplyCfg("overcharge_cost_rp", 8);
+        var slotsMaxed = GameState.Instance.Talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2);
+        _buyOverchargeButton.Text = slotsMaxed
+            ? (string)Tr("BASE_SUPPLY_OVERCHARGE_MAXED")
+            : GdFormat.Format((string)Tr("BASE_SUPPLY_OVERCHARGE_FMT"), slotCost);
+        _buyOverchargeButton.Disabled = slotsMaxed || rp < slotCost;
+        // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 OnRefreshPressed 内）
         _refreshPointsLabel.Text = GdFormat.Format((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
         _refreshButton.Text = GdFormat.Format((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
         _refreshButton.Disabled = !GameState.Instance.CanRefreshMissions();
@@ -440,11 +554,14 @@ public partial class BaseConsole : CanvasLayer
         RefreshMissions();
     }
 
+    /// <summary>base.supply 档位读取（低频补给路径，直查免缓存）。</summary>
+    private int SupplyCfg(string key, int fallback) =>
+        Mathf.Max((int)GameState.Instance.Cfg("base.supply." + key, fallback).AsInt64(), 0);
+
     /// <summary>路线契约刷新（机制 C）：三条路线行（绑定/切换/生效中）+ 重置代币购置行。</summary>
     private void RefreshRoutes()
     {
         // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
-        //（Hud.cs:1194 同场景先例）
         foreach (var child in _routesBox.GetChildren())
         {
             child.Free();
@@ -501,7 +618,7 @@ public partial class BaseConsole : CanvasLayer
 
     private void RefreshMissions()
     {
-        // U16：同 RefreshRoutes（同步删除防同帧并存闪一帧）
+        // U16：同步删除防同帧并存闪一帧
         foreach (var child in _missionsBox.GetChildren())
         {
             child.Free();
@@ -553,21 +670,9 @@ public partial class BaseConsole : CanvasLayer
     private void OnLocaleChanged()
     {
         Refresh();
-    }
-
-    public override void _ExitTree()
-    {
-        // U06（2026-08-09 审计）：C22 模式配对断开——死亡重开场景重载后残留连接
-        // 在切语言时回调已释放实例
-        var gs = GameState.Instance;
-        if (gs == null)
+        if (Visible)
         {
-            return;
-        }
-
-        if (gs.IsConnected("LocaleChanged", _localeChanged))
-        {
-            gs.Disconnect("LocaleChanged", _localeChanged);
+            RebuildMenu();
         }
     }
 
@@ -576,7 +681,7 @@ public partial class BaseConsole : CanvasLayer
 
     public void Recharge() => OnRechargePressed();
 
-    /// <summary>路线契约绑定/切换（天赋缓存系统重构后签名：routeId；非法/无代币由服务侧拒绝）。</summary>
+    /// <summary>路线契约绑定/切换（签名：routeId；非法/无代币由服务侧拒绝）。</summary>
     public void ChooseRoute(StringName routeId) => OnRoutePressed(routeId);
 
     public void BuyResetToken() => OnBuyTokenPressed();
@@ -591,8 +696,7 @@ public partial class BaseConsole : CanvasLayer
         var rpRepairCost = GameState.Instance.RP_REPAIR_COST;
         if (GameState.Instance.SpendRp(rpRepairCost))
         {
-            // M5：heal 量全程 double 计算——(float) 截断致 59.2000004798174 + 40.7999992371
-            // ≈ 99.9999997 ≠ max（smoke 维修 flake 根因，实测）；GDScript float=double，double 差值精确回满
+            // heal 量全程 double 计算——(float) 截断致差值不精确回满（smoke 维修 flake 根因）
             var health = GameState.Instance.Health;
             var maxHealth = GameState.Instance.MaxHealth();
             GameState.Instance.Heal(Mathf.Max(0.0, maxHealth - health)); // H20：防负治疗扣血
@@ -604,7 +708,7 @@ public partial class BaseConsole : CanvasLayer
     private void OnRechargePressed()
     {
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C#  # A5：走注册表，替代 group 现找
+        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C# # A5：走注册表
         var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
         if (player != null && GameState.Instance.SpendRp(rpRechargeCost))
         {
@@ -614,10 +718,48 @@ public partial class BaseConsole : CanvasLayer
         }
     }
 
+    /// <summary>增幅缓存补给：RP → 天赋缓存点（点值经 Talent.Grant 入 LIFO 池，衰减口径与里程碑入账一致）。</summary>
+    private void OnBuyCachePressed()
+    {
+        var cost = SupplyCfg("cache_cost_rp", 4);
+        var points = SupplyCfg("cache_points", 2);
+        if (points <= 0)
+        {
+            return;
+        }
+
+        if (GameState.Instance.SpendRp(cost))
+        {
+            GameState.Instance.Talent.Grant(points);
+            GameState.Instance.PlaySfx(SfxId.AugmentPick);
+        }
+
+        Refresh();
+    }
+
+    /// <summary>超载槽补给：RP → 本局风险加点上限 +1（上限 base.supply.overcharge_slot_max，随存档保存）。</summary>
+    private void OnBuyOverchargePressed()
+    {
+        var cost = SupplyCfg("overcharge_cost_rp", 8);
+        var talent = GameState.Instance.Talent;
+        if (talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2))
+        {
+            return;
+        }
+
+        if (GameState.Instance.SpendRp(cost))
+        {
+            talent.AddOverchargeSlot();
+            GameState.Instance.PlaySfx(SfxId.Resupply);
+        }
+
+        Refresh();
+    }
+
     private void OnRoutePressed(StringName routeId)
     {
         // 路线契约（机制 C）：绑定免费、切换耗代币；核心大类增益/其余上限减半即时生效
-        // （有效层级变化由服务侧直发 buffs_changed，Player 缓存自动重算）
+        // （有效层级变化由服务侧直发 augments_changed，Player 缓存自动重算）
         GameState.Instance.Talent.ChooseRoute(routeId.ToString());
         Refresh();
     }
@@ -636,7 +778,7 @@ public partial class BaseConsole : CanvasLayer
     {
         if (GameState.Instance.ClaimMission(id))
         {
-            GameState.Instance.PlaySfx(SfxId.BuffPick);
+            GameState.Instance.PlaySfx(SfxId.AugmentPick);
         }
 
         Refresh();
@@ -647,7 +789,7 @@ public partial class BaseConsole : CanvasLayer
     {
         if (GameState.Instance.RefreshMissions())
         {
-            GameState.Instance.PlaySfx(SfxId.BuffPick);
+            GameState.Instance.PlaySfx(SfxId.AugmentPick);
             HideRefreshHint();
         }
         else
@@ -692,15 +834,18 @@ public partial class BaseConsole : CanvasLayer
     /// <summary>A7：测试/诊断经公开接口（动作包装）。</summary>
     public void RefreshTasks() => OnRefreshPressed();
 
+    /// <summary>A7：测试/诊断经公开接口（目录切换，走与轮盘确认同一路径）。</summary>
+    public void ShowCategory(string categoryId) => SwitchCategory(categoryId, animate: false);
+
     private void OnResumePressed()
     {
         Visible = false;
+        SetWheelActive(false);
         EmitSignal(SignalName.ResumeRequested);
     }
 }
 
-/// <summary>面板扫描线叠加层（§3.2）：单节点自绘每 4px 一条 1px 横线，1 draw call。
-/// 原 GDScript base_console.gd 内嵌类 _Scanlines，迁移为同文件顶层类（C# 源生成器不支持内嵌类）。</summary>
+/// <summary>面板扫描线叠加层：单节点自绘每 4px 一条 1px 横线，1 draw call。</summary>
 public partial class BaseConsoleScanlines : Control
 {
     public override void _Ready()
@@ -720,8 +865,7 @@ public partial class BaseConsoleScanlines : Control
     }
 }
 
-/// <summary>16×16 程序化线性发光图标（§3.2）：极简折线，青色双层描边模拟辉光。
-/// 原 GDScript base_console.gd 内嵌类 _GlyphIcon，迁移为同文件顶层类。</summary>
+/// <summary>16×16 程序化线性发光图标：极简折线，青色双层描边模拟辉光。</summary>
 public partial class BaseConsoleGlyphIcon : Control
 {
     public Vector2[][] Strokes { get; set; } = System.Array.Empty<Vector2[]>();

@@ -27,7 +27,7 @@ public partial class BackNavigator : Node
         /// <summary>返航过场播放中：返回 = 跳过过场</summary>
         SKIP_RETURN,
         /// <summary>buff 滚动栏展开中：返回 = 收起栏（优先于打开暂停）</summary>
-        CLOSE_BUFF_PANEL,
+        CLOSE_AUG_PANEL,
         /// <summary>天赋面板打开中：返回 = 关闭面板（模态暂停态，优先于暂停路由）</summary>
         CLOSE_TALENT,
         /// <summary>阻塞态（其他暂停态）：忽略</summary>
@@ -130,8 +130,8 @@ public partial class BackNavigator : Node
                 _main.SkipReturn();
                 MarkHandled();
                 break;
-            case BackAction.CLOSE_BUFF_PANEL:
-                _hud.CloseBuffPanel();
+            case BackAction.CLOSE_AUG_PANEL:
+                _hud.CloseAugmentPanel();
                 MarkHandled();
                 break;
             case BackAction.CLOSE_TALENT:
@@ -218,9 +218,9 @@ public partial class BackNavigator : Node
             return BackAction.TO_MAIN_MENU;
         }
 
-        if (_hud.IsBuffPanelOpen())
+        if (_hud.IsAugmentPanelOpen())
         {
-            return BackAction.CLOSE_BUFF_PANEL; // buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
+            return BackAction.CLOSE_AUG_PANEL; // buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
         }
 
         if (_pauseUi.Visible)

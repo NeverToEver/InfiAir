@@ -81,7 +81,7 @@ public partial class GameState : Node
 
     /// <summary>buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新</summary>
     [Signal]
-    public delegate void BuffsChangedEventHandler();
+    public delegate void AugmentsChangedEventHandler();
 
     /// <summary>实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）</summary>
     [Signal]
@@ -159,7 +159,7 @@ public partial class GameState : Node
     /// 里程碑推进迁入 ScoreService（GameState.State.cs 为门面转发；跨域经 Instance）。无构造依赖。</summary>
     private readonly ScoreService _score = new();
 
-    /// <summary>第五轮拆域（2026-08-11）：健康/Buff 战斗状态域服务——Health/Buffs 状态与生命上限/
+    /// <summary>第五轮拆域（2026-08-11）：健康/Buff 战斗状态域服务——Health/Augments 状态与生命上限/
     /// 受击/治疗/吸血/选 buff 逻辑迁入 CombatStateService（GameState.Settings.cs C 簇为门面转发；
     /// 跨域经 Instance；PlayerDied 经 Instance 直发）。无构造依赖。</summary>
     private readonly CombatStateService _combat = new();
@@ -422,12 +422,12 @@ public partial class GameState : Node
     private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
 
     // 战斗状态域（第五轮拆域）：CombatStateService C# 事件 → GameState 同名信号转发
-    // （HealthChanged/BuffsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
-    // ConsumeBuff，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发路径不经本事件，
+    // （HealthChanged/AugmentsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
+    // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发路径不经本事件，
     // 订阅重发不与之重复）
     private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, v);
 
-    private void OnCombatBuffsChanged() => EmitSignal(SignalName.BuffsChanged);
+    private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
 
     // 设置/视图域（第六轮拆域收官）：SettingsService C# 事件 → GameState 同名信号转发
     // （TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
@@ -498,7 +498,7 @@ public partial class GameState : Node
         // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发
         // 路径不经本事件，重发不与之重复）
         _combat.HealthChanged += OnCombatHealthChanged;
-        _combat.BuffsChanged += OnCombatBuffsChanged;
+        _combat.AugmentsChanged += OnCombatAugmentsChanged;
         // 设置/视图域（第六轮拆域收官）：SettingsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadProfile/LoadSessionSettings/
         // ApplyRunSave 直写字段路径不发服务事件，重发不与之重复）

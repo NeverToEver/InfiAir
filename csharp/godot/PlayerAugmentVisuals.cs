@@ -3,16 +3,16 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Buff 外观反馈（M3c 全量迁移，2026-08-08 自 scripts/player_buff_visuals.gd 迁移）：
+/// Buff 外观反馈（M3c 全量迁移，2026-08-08 自 scripts/player_augment_visuals.gd 迁移）：
 /// 一次性构建全部附件（程序化 Polygon2D/Line2D/Sprite2D，无新增贴图），
-/// 由 GameState.buffs_changed 信号驱动 Refresh() 切换显隐与层数强度。
+/// 由 GameState.augments_changed 信号驱动 Refresh() 切换显隐与层数强度。
 /// 作为 Player 子节点随机体旋转；坐标按基准机体系数 BaseShipScale（0.65，贴图 254px ≈ 165px 翼展
 /// 三角拦截机，机头朝 -Y）设计，Player 创建本节点时按实际 sprite 缩放等比放大。
 /// 部位锚点与 scripts/tools/generate_player_sprite.py 头部注释的贴图坐标对应（偏移 × 0.65）。
 /// Enemy.SinFast（M3b 已迁）为同命名空间静态方法，直接引用。
 /// Player 为 InfiAir.Player（M3c 并行迁移；EngineTint 公开属性由其提供，编译期稍后统一验证）。
 /// </summary>
-public partial class PlayerBuffVisuals : Node2D
+public partial class PlayerAugmentVisuals : Node2D
 {
     private static readonly Color ColorCyan = new(0.45f, 0.9f, 1.0f);
     private static readonly Color ColorGold = new(1.0f, 0.85f, 0.35f);
@@ -45,11 +45,11 @@ public partial class PlayerBuffVisuals : Node2D
     private Line2D _slowRing = null!;
     private Polygon2D _beacon = null!;
 
-    private readonly Callable _onBuffsChanged;
+    private readonly Callable _onAugmentsChanged;
 
-    public PlayerBuffVisuals()
+    public PlayerAugmentVisuals()
     {
-        _onBuffsChanged = Callable.From(Refresh);
+        _onAugmentsChanged = Callable.From(Refresh);
     }
 
     // ---- 外观节点 getter（A7：测试/诊断白盒断言经公开接口） ----
@@ -89,9 +89,9 @@ public partial class PlayerBuffVisuals : Node2D
         _BuildAll(shipSprite.Texture);
         Refresh();
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("BuffsChanged", _onBuffsChanged))
+        if (gs != null && !gs.IsConnected("AugmentsChanged", _onAugmentsChanged))
         {
-            gs.Connect("BuffsChanged", _onBuffsChanged);
+            gs.Connect("AugmentsChanged", _onAugmentsChanged);
         }
     }
 
@@ -99,9 +99,9 @@ public partial class PlayerBuffVisuals : Node2D
     {
         // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("BuffsChanged", _onBuffsChanged))
+        if (gs != null && gs.IsConnected("AugmentsChanged", _onAugmentsChanged))
         {
-            gs.Disconnect("BuffsChanged", _onBuffsChanged);
+            gs.Disconnect("AugmentsChanged", _onAugmentsChanged);
         }
     }
 
@@ -134,10 +134,10 @@ public partial class PlayerBuffVisuals : Node2D
         }
     }
 
-    /// <summary>buff 显隐/强度刷新（GameState.buffs_changed 信号驱动 + init 首次调用）。</summary>
+    /// <summary>buff 显隐/强度刷新（GameState.augments_changed 信号驱动 + init 首次调用）。</summary>
     public void Refresh()
     {
-        var stacks = BuffCount(new StringName("power_shot"));
+        var stacks = AugmentLevel(new StringName("power_shot"));
         _powerGlow.Visible = stacks > 0;
         if (stacks > 0)
         {
@@ -146,7 +146,7 @@ public partial class PlayerBuffVisuals : Node2D
             _powerGlow.Modulate = WithAlpha(_powerGlow.Modulate, 0.45f + 0.09f * Mathf.Min(stacks, StackVisualCap));
         }
 
-        stacks = BuffCount(new StringName("rapid_fire"));
+        stacks = AugmentLevel(new StringName("rapid_fire"));
         _rapidFins.Visible = stacks > 0;
         if (stacks > 0)
         {
@@ -157,39 +157,39 @@ public partial class PlayerBuffVisuals : Node2D
             }
         }
 
-        stacks = Mathf.Min(BuffCount(new StringName("spread_shot")), _spreadPods.Count);
+        stacks = Mathf.Min(AugmentLevel(new StringName("spread_shot")), _spreadPods.Count);
         for (var i = 0; i < _spreadPods.Count; i++)
         {
             _spreadPods[i].Visible = i < stacks;
         }
 
-        _pierceSpike.Visible = BuffCount(new StringName("piercing")) > 0;
-        _explosiveGlow.Visible = BuffCount(new StringName("explosive")) > 0;
-        _laserPod.Visible = BuffCount(new StringName("laser_beam")) > 0;
-        _lifestealTips.Visible = BuffCount(new StringName("lifesteal")) > 0;
-        _shieldHex.Visible = BuffCount(new StringName("armor")) > 0;
-        _evasionGhost.Visible = BuffCount(new StringName("evasion")) > 0;
-        _dashFins.Visible = BuffCount(new StringName("phase_dash")) > 0;
-        _slowRing.Visible = BuffCount(new StringName("slow_field")) > 0;
-        _beacon.Visible = BuffCount(new StringName("mothership_recall")) > 0;
+        _pierceSpike.Visible = AugmentLevel(new StringName("piercing")) > 0;
+        _explosiveGlow.Visible = AugmentLevel(new StringName("explosive")) > 0;
+        _laserPod.Visible = AugmentLevel(new StringName("laser_beam")) > 0;
+        _lifestealTips.Visible = AugmentLevel(new StringName("lifesteal")) > 0;
+        _shieldHex.Visible = AugmentLevel(new StringName("armor")) > 0;
+        _evasionGhost.Visible = AugmentLevel(new StringName("evasion")) > 0;
+        _dashFins.Visible = AugmentLevel(new StringName("phase_dash")) > 0;
+        _slowRing.Visible = AugmentLevel(new StringName("slow_field")) > 0;
+        _beacon.Visible = AugmentLevel(new StringName("mothership_recall")) > 0;
 
-        stacks = BuffCount(new StringName("extra_life"));
+        stacks = AugmentLevel(new StringName("extra_life"));
         _armorRing.Visible = stacks > 0;
         if (stacks > 0)
         {
             _armorRing.Width = 2.0f + 0.6f * Mathf.Min(stacks, StackVisualCap);
         }
 
-        _regenRing.Visible = BuffCount(new StringName("regen")) > 0;
+        _regenRing.Visible = AugmentLevel(new StringName("regen")) > 0;
 
         // 尾焰染色：player 每帧用 engine_tint 乘算基色
         var tint = Colors.White;
-        if (BuffCount(new StringName("efficient_boost")) > 0)
+        if (AugmentLevel(new StringName("efficient_boost")) > 0)
         {
             tint *= TintEfficient;
         }
 
-        if (BuffCount(new StringName("boost_recovery")) > 0)
+        if (AugmentLevel(new StringName("boost_recovery")) > 0)
         {
             tint *= TintRecovery;
         }
@@ -201,8 +201,8 @@ public partial class PlayerBuffVisuals : Node2D
 
     // ---------------- 内部实现 ----------------
 
-    /// <summary>GameState.buff_count 事件驱动访问（非热路径；buff 变更频率极低）。</summary>
-    private static int BuffCount(StringName name) => (int)GameState.Instance.BuffCount(name);
+    /// <summary>GameState.augment_level 事件驱动访问（非热路径；buff 变更频率极低）。</summary>
+    private static int AugmentLevel(StringName name) => (int)GameState.Instance.AugmentLevel(name);
 
     /// <summary>保色相只改 alpha（原 GDScript `modulate.a = x` 链式赋值语义）。</summary>
     private static Color WithAlpha(Color c, float a) => new(c.R, c.G, c.B, a);

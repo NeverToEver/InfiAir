@@ -219,8 +219,8 @@ public partial class Bullet : Area2D
     {
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
-        ExplosiveRadius = (float)GameState.Instance.Cfg("buffs.explosive.radius_per_level", ExplosiveRadius).AsDouble();
-        ExplosiveDamage = (int)GameState.Instance.Cfg("buffs.explosive.damage_per_level", ExplosiveDamage).AsInt64();
+        ExplosiveRadius = (float)GameState.Instance.Cfg("augments.explosive.radius_per_level", ExplosiveRadius).AsDouble();
+        ExplosiveDamage = (int)GameState.Instance.Cfg("augments.explosive.damage_per_level", ExplosiveDamage).AsInt64();
         VisualScale = (float)GameState.Instance.Cfg("effects.bullet_visual_scale", VisualScale).AsDouble()
             * (float)GameState.Instance.WorldScale;
         EnemyVisualScale = (float)GameState.Instance.Cfg("effects.enemy_bullet_visual_scale", EnemyVisualScale).AsDouble()

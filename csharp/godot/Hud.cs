@@ -88,26 +88,26 @@ public partial class Hud : CanvasLayer
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
-    private float _cachedMaxHp = 100.0f; // 缓存 max_health()（extra_life 层数驱动，buffs_changed 刷新；D08）
-    private Control _buffDockWrap = null!; // 右下角锚定包装（meta_jitter 抖动对象，避免直接动自动生长的网格）
-    private GridContainer _buffDock = null!;
-    private Label _buffTag = null!;
-    private Label? _buffOverflowLabel; // 收起态溢出计数（">4 个 buff 时 +N"）
-    private ChamferedPanel _buffPanel = null!; // L 键展开的 buff 滚动栏
-    private Label _buffPanelTitle = null!;
-    private VBoxContainer _buffRows = null!;
-    private string _lastBuffSignature = "";
+    private float _cachedMaxHp = 100.0f; // 缓存 max_health()（extra_life 层数驱动，augments_changed 刷新；D08）
+    private Control _augmentDockWrap = null!; // 右下角锚定包装（meta_jitter 抖动对象，避免直接动自动生长的网格）
+    private GridContainer _augmentDock = null!;
+    private Label _augmentTag = null!;
+    private Label? _augmentOverflowLabel; // 收起态溢出计数（">4 个 buff 时 +N"）
+    private ChamferedPanel _augmentPanel = null!; // L 键展开的 buff 滚动栏
+    private Label _augmentPanelTitle = null!;
+    private VBoxContainer _augmentRows = null!;
+    private string _lastAugmentSignature = "";
     private ChamferedPanel _infoPlate = null!;
     private Label _infoLabel = null!;
     private Tween? _infoTween;
     private Tween? _warningTween; // H09：警告横幅闪烁 tween 互斥缓存
     // Meta HUD DYING 抖动（D9）：仅 _hp_bar 与 buff 坞两控件的静止位与补间
     private Vector2 _hpBarRest;
-    private Vector2 _buffDockRest;
+    private Vector2 _augmentDockRest;
     private Tween? _jitterTween;
 
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
-    private const int BuffDockMaxTiles = 4;
+    private const int AugmentDockMaxTiles = 4;
 
     /// <summary>Boss 逃跑倒计时明暗闪烁半周期（ms）：取模翻转透明度，快于人眼追踪的告警节奏。</summary>
     private const long CountdownBlinkHalfPeriodMs = 500;
@@ -273,16 +273,16 @@ public partial class Hud : CanvasLayer
         AddChild(_bossCountdown);
         BuildEventBar();
         BuildVignette();
-        BuildBuffDock();
+        BuildAugmentDock();
         BuildCacheIndicator();
         BuildInfoBanner();
-        gs.Connect("BuffsChanged", Callable.From(RebuildBuffDock));
-        gs.Connect("KeyBindingsChanged", Callable.From(RefreshBuffTag));
+        gs.Connect("AugmentsChanged", Callable.From(RebuildAugmentDock));
+        gs.Connect("KeyBindingsChanged", Callable.From(RefreshAugmentTag));
         gs.Connect("TalentCacheChanged", Callable.From<double, int>(OnTalentCacheChanged));
-        RebuildBuffDock();
+        RebuildAugmentDock();
         RefreshCacheIndicator();
         _hpBarRest = _hpBar.Position;
-        _buffDockRest = _buffDockWrap.Position;
+        _augmentDockRest = _augmentDockWrap.Position;
     }
 
     /// <summary>精英炮塔事件计时条（顶部居中，Boss 血条下方；与 Boss 互斥不会同屏）。</summary>
@@ -421,12 +421,12 @@ public partial class Hud : CanvasLayer
         AddChild(_magBox);
     }
 
-    /// <summary>L（buff_panel）切换 buff 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
+    /// <summary>L（augment_panel）切换 buff 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event.IsActionPressed("buff_panel"))
+        if (@event.IsActionPressed("augment_panel"))
         {
-            ToggleBuffPanel();
+            ToggleAugmentPanel();
             GetViewport().SetInputAsHandled();
         }
     }
@@ -457,8 +457,8 @@ public partial class Hud : CanvasLayer
         var diff = Callable.From<float>(OnDifficultyChanged);
         var diffSel = Callable.From<StringName>(OnDifficultySelected);
         var locale = Callable.From(OnLocaleChanged);
-        var buffs = Callable.From(RebuildBuffDock);
-        var keybinds = Callable.From(RefreshBuffTag);
+        var buffs = Callable.From(RebuildAugmentDock);
+        var keybinds = Callable.From(RefreshAugmentTag);
         if (gs.IsConnected("ScoreChanged", score))
         {
             gs.Disconnect("ScoreChanged", score);
@@ -489,9 +489,9 @@ public partial class Hud : CanvasLayer
             gs.Disconnect("LocaleChanged", locale);
         }
 
-        if (gs.IsConnected("BuffsChanged", buffs))
+        if (gs.IsConnected("AugmentsChanged", buffs))
         {
-            gs.Disconnect("BuffsChanged", buffs);
+            gs.Disconnect("AugmentsChanged", buffs);
         }
 
         if (gs.IsConnected("KeyBindingsChanged", keybinds))
@@ -896,14 +896,14 @@ public partial class Hud : CanvasLayer
         _dashTag.Text = (string)Tr("UI_DASH");
         _parryTag.Text = (string)Tr("UI_PARRY");
         RefreshTagLabels();
-        if (_buffTag != null)
+        if (_augmentTag != null)
         {
-            RefreshBuffTag();
+            RefreshAugmentTag();
         }
 
-        if (_buffPanelTitle != null)
+        if (_augmentPanelTitle != null)
         {
-            _buffPanelTitle.Text = (string)Tr("UI_BUFFS_TITLE");
+            _augmentPanelTitle.Text = (string)Tr("UI_AUGMENTS_TITLE");
         }
 
         if (_eventBox != null && _eventBox.Visible)
@@ -912,7 +912,7 @@ public partial class Hud : CanvasLayer
             _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), Mathf.Max(_lastEventAlive, 0));
         }
 
-        RebuildBuffDock(true);
+        RebuildAugmentDock(true);
         if (_bossBar.Visible)
         {
             RefreshBossName();
@@ -1061,34 +1061,34 @@ public partial class Hud : CanvasLayer
 
         var off = new Vector2((float)GD.RandRange(-px, px), (float)GD.RandRange(-px, px));
         _hpBar.Position = _hpBarRest + off;
-        _buffDockWrap.Position = _buffDockRest + off * 0.5f;
+        _augmentDockWrap.Position = _augmentDockRest + off * 0.5f;
         _jitterTween = CreateTween();
         _jitterTween.TweenProperty(_hpBar, "position", _hpBarRest, 0.08);
-        _jitterTween.Parallel().TweenProperty(_buffDockWrap, "position", _buffDockRest, 0.08);
+        _jitterTween.Parallel().TweenProperty(_augmentDockWrap, "position", _augmentDockRest, 0.08);
     }
 
     /// <summary>
     /// 右下 buff 区：收起态单行瓦片（最新 4 个 + 溢出 +N，标签带 [L] 快捷键提示），
     /// L 键展开右侧滚动栏（全部 buff 明细，不暂停对局）；与左下状态区/底部蓄力提示分角隔离。
     /// </summary>
-    private void BuildBuffDock()
+    private void BuildAugmentDock()
     {
-        _buffDockWrap = new Control
+        _augmentDockWrap = new Control
         {
             Position = new Vector2(-20.0f, -44.0f), // 底部留 28px 给标签行（右缘与标签同 20px 边距）
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        _buffDockWrap.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        AddChild(_buffDockWrap);
-        _buffDock = new GridContainer { Columns = BuffDockMaxTiles + 1 }; // 瓦片 + 溢出格，恒单行
-        _buffDock.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        _buffDock.GrowHorizontal = Control.GrowDirection.Begin;
-        _buffDock.GrowVertical = Control.GrowDirection.Begin;
-        _buffDock.AddThemeConstantOverride("h_separation", 6);
-        _buffDock.AddThemeConstantOverride("v_separation", 6);
-        _buffDock.MouseFilter = Control.MouseFilterEnum.Ignore;
-        _buffDockWrap.AddChild(_buffDock);
-        _buffTag = new Label
+        _augmentDockWrap.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        AddChild(_augmentDockWrap);
+        _augmentDock = new GridContainer { Columns = AugmentDockMaxTiles + 1 }; // 瓦片 + 溢出格，恒单行
+        _augmentDock.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        _augmentDock.GrowHorizontal = Control.GrowDirection.Begin;
+        _augmentDock.GrowVertical = Control.GrowDirection.Begin;
+        _augmentDock.AddThemeConstantOverride("h_separation", 6);
+        _augmentDock.AddThemeConstantOverride("v_separation", 6);
+        _augmentDock.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _augmentDockWrap.AddChild(_augmentDock);
+        _augmentTag = new Label
         {
             Position = new Vector2(-160.0f, -26.0f),
             CustomMinimumSize = new Vector2(140.0f, 18.0f),
@@ -1096,13 +1096,13 @@ public partial class Hud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
             Visible = false,
         };
-        _buffTag.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        _buffTag.AddThemeFontOverride("font", Font);
-        _buffTag.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
-        _buffTag.AddThemeColorOverride("font_color", UITheme.Accent);
-        AddChild(_buffTag);
-        RefreshBuffTag();
-        BuildBuffPanel();
+        _augmentTag.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        _augmentTag.AddThemeFontOverride("font", Font);
+        _augmentTag.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
+        _augmentTag.AddThemeColorOverride("font_color", UITheme.Accent);
+        AddChild(_augmentTag);
+        RefreshAugmentTag();
+        BuildAugmentPanel();
     }
 
     // ---------------- 天赋缓存指示器（右上角，第四章 4.2） ----------------
@@ -1254,29 +1254,29 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>L 展开的 buff 滚动栏：右缘居中面板（标题 + 分隔线 + 滚动明细行），不暂停对局。</summary>
-    private void BuildBuffPanel()
+    private void BuildAugmentPanel()
     {
-        _buffPanel = new ChamferedPanel
+        _augmentPanel = new ChamferedPanel
         {
             Padding = 0.0f,
             Position = new Vector2(-356.0f, -320.0f),
             Size = new Vector2(340.0f, 640.0f),
             Visible = false,
         };
-        _buffPanel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
-        AddChild(_buffPanel);
+        _augmentPanel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+        AddChild(_augmentPanel);
         var margin = new MarginContainer();
         margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         margin.AddThemeConstantOverride("margin_left", 14);
         margin.AddThemeConstantOverride("margin_right", 14);
         margin.AddThemeConstantOverride("margin_top", 12);
         margin.AddThemeConstantOverride("margin_bottom", 12);
-        _buffPanel.AddChild(margin);
+        _augmentPanel.AddChild(margin);
         var vbox = new VBoxContainer();
         vbox.AddThemeConstantOverride("separation", 10);
         margin.AddChild(vbox);
-        _buffPanelTitle = UITheme.MakeLabel((string)Tr("UI_BUFFS_TITLE"), UITheme.FontHud, UITheme.Accent, HorizontalAlignment.Left);
-        vbox.AddChild(_buffPanelTitle);
+        _augmentPanelTitle = UITheme.MakeLabel((string)Tr("UI_AUGMENTS_TITLE"), UITheme.FontHud, UITheme.Accent, HorizontalAlignment.Left);
+        vbox.AddChild(_augmentPanelTitle);
         var divider = new ColorRect
         {
             Color = UITheme.AccentDim,
@@ -1291,21 +1291,21 @@ public partial class Hud : CanvasLayer
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         vbox.AddChild(scroll);
-        _buffRows = new VBoxContainer();
-        _buffRows.AddThemeConstantOverride("separation", 6);
-        _buffRows.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        scroll.AddChild(_buffRows);
+        _augmentRows = new VBoxContainer();
+        _augmentRows.AddThemeConstantOverride("separation", 6);
+        _augmentRows.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        scroll.AddChild(_augmentRows);
     }
 
     /// <summary>滚动栏明细行：字形 + 名称 + 层数（&gt;1 时右侧 ×N）。</summary>
-    private HBoxContainer MakeBuffRow(StringName id, int stacks)
+    private HBoxContainer MakeAugmentRow(StringName id, int stacks)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
         row.MouseFilter = Control.MouseFilterEnum.Ignore;
-        row.AddChild(BuffIcons.MakeGlyph(id, BuffIcons.ColorFor(id), 24.0f));
+        row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
         var nameLabel = UITheme.MakeLabel(
-            (string)Tr(GdFormat.Format("BUFF_%s_NAME", id.ToString().ToUpperInvariant())), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
+            (string)Tr(GdFormat.Format("AUG_%s_NAME", id.ToString().ToUpperInvariant())), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
         nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         row.AddChild(nameLabel);
         if (stacks > 1)
@@ -1330,27 +1330,27 @@ public partial class Hud : CanvasLayer
             InnerFrameColor = new Color(UITheme.Accent, 0.28f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        _buffOverflowLabel = UITheme.MakeLabel(GdFormat.Format("+%d", count), UITheme.FontCaption, UITheme.Accent);
-        _buffOverflowLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        _buffOverflowLabel.VerticalAlignment = VerticalAlignment.Center;
-        _buffOverflowLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
-        panel.AddChild(_buffOverflowLabel);
+        _augmentOverflowLabel = UITheme.MakeLabel(GdFormat.Format("+%d", count), UITheme.FontCaption, UITheme.Accent);
+        _augmentOverflowLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _augmentOverflowLabel.VerticalAlignment = VerticalAlignment.Center;
+        _augmentOverflowLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        panel.AddChild(_augmentOverflowLabel);
         return panel;
     }
 
-    /// <summary>buffs_changed / locale_changed 驱动重建；内容签名不变不重建。</summary>
-    private void RebuildBuffDock() => RebuildBuffDock(false);
+    /// <summary>augments_changed / locale_changed 驱动重建；内容签名不变不重建。</summary>
+    private void RebuildAugmentDock() => RebuildAugmentDock(false);
 
-    private void RebuildBuffDock(bool force)
+    private void RebuildAugmentDock(bool force)
     {
         _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // D08：buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
         var signature = "";
         var active = new Godot.Collections.Array(); // [[id, stacks], ...] 按获得顺序
-        var buffs = GameState.Instance.Buffs;
-        foreach (var key in buffs.Keys)
+        var augments = GameState.Instance.Augments;
+        foreach (var key in augments.Keys)
         {
             var id = key.AsStringName();
-            var stacks = (int)buffs[key].AsInt64();
+            var stacks = (int)augments[key].AsInt64();
             if (stacks > 0)
             {
                 signature += GdFormat.Format("%s:%d;", id.ToString(), stacks);
@@ -1358,14 +1358,14 @@ public partial class Hud : CanvasLayer
             }
         }
 
-        if (!force && signature == _lastBuffSignature)
+        if (!force && signature == _lastAugmentSignature)
         {
             return;
         }
 
-        _lastBuffSignature = signature;
+        _lastAugmentSignature = signature;
         // 立即释放旧瓦片/行：queue_free 帧末才删除，同帧 add_child 新旧并存会闪一帧（P3）
-        foreach (var child in _buffDock.GetChildren())
+        foreach (var child in _augmentDock.GetChildren())
         {
             if (child is Control tile)
             {
@@ -1373,7 +1373,7 @@ public partial class Hud : CanvasLayer
             }
         }
 
-        foreach (var child in _buffRows.GetChildren())
+        foreach (var child in _augmentRows.GetChildren())
         {
             if (child is Control row)
             {
@@ -1383,15 +1383,15 @@ public partial class Hud : CanvasLayer
 
         if (active.Count == 0)
         {
-            _buffTag.Visible = false;
-            _buffPanel.Visible = false;
+            _augmentTag.Visible = false;
+            _augmentPanel.Visible = false;
             return;
         }
 
-        _buffTag.Visible = true;
-        // 收起态单行：最新 BUFF_DOCK_MAX_TILES 个，更早的折叠为 +N 溢出格
+        _augmentTag.Visible = true;
+        // 收起态单行：最新 AUG_DOCK_MAX_TILES 个，更早的折叠为 +N 溢出格
         var shown = new Godot.Collections.Array();
-        for (var i = Mathf.Max(active.Count - BuffDockMaxTiles, 0); i < active.Count; i++)
+        for (var i = Mathf.Max(active.Count - AugmentDockMaxTiles, 0); i < active.Count; i++)
         {
             shown.Add(active[i]);
         }
@@ -1399,56 +1399,56 @@ public partial class Hud : CanvasLayer
         foreach (var entryVariant in shown)
         {
             var entry = entryVariant.AsGodotArray();
-            _buffDock.AddChild(UITheme.MakeBuffTile(entry[0].AsStringName(), (int)entry[1].AsInt64()));
+            _augmentDock.AddChild(UITheme.MakeAugmentTile(entry[0].AsStringName(), (int)entry[1].AsInt64()));
         }
 
         var overflow = active.Count - shown.Count;
         if (overflow > 0)
         {
-            _buffDock.AddChild(MakeOverflowTile(overflow));
+            _augmentDock.AddChild(MakeOverflowTile(overflow));
         }
 
         // 滚动栏：全量明细行
         foreach (var entryVariant in active)
         {
             var entry = entryVariant.AsGodotArray();
-            _buffRows.AddChild(MakeBuffRow(entry[0].AsStringName(), (int)entry[1].AsInt64()));
+            _augmentRows.AddChild(MakeAugmentRow(entry[0].AsStringName(), (int)entry[1].AsInt64()));
         }
 
-        // 重建末尾重刷 HP 显示——天赋域（起始预置/加点/存档恢复）经 BuffsChanged 驱动本方法，
+        // 重建末尾重刷 HP 显示——天赋域（起始预置/加点/存档恢复）经 AugmentsChanged 驱动本方法，
         // _cachedMaxHp 已刷新但 _hpBar/_livesLabel 仍用旧 max 显示失真（extra_life 开局）；
         // OnHealthChanged 幂等，整数档位守卫下值未变不重格式化
         OnHealthChanged((float)GameState.Instance.Health);
     }
 
     /// <summary>buff 滚动栏开关（L 键路由至此；无 buff 时不展开）。</summary>
-    public void ToggleBuffPanel()
+    public void ToggleAugmentPanel()
     {
-        if (_buffPanel.Visible)
+        if (_augmentPanel.Visible)
         {
-            _buffPanel.Visible = false;
+            _augmentPanel.Visible = false;
         }
-        else if (!string.IsNullOrEmpty(_lastBuffSignature))
+        else if (!string.IsNullOrEmpty(_lastAugmentSignature))
         {
-            _buffPanel.Visible = true;
+            _augmentPanel.Visible = true;
         }
     }
 
-    public bool IsBuffPanelOpen()
+    public bool IsAugmentPanelOpen()
     {
-        return _buffPanel.Visible;
+        return _augmentPanel.Visible;
     }
 
-    /// <summary>BackNavigator CLOSE_BUFF_PANEL 路由：Esc 先关栏再进暂停。</summary>
-    public void CloseBuffPanel()
+    /// <summary>BackNavigator CLOSE_AUG_PANEL 路由：Esc 先关栏再进暂停。</summary>
+    public void CloseAugmentPanel()
     {
-        _buffPanel.Visible = false;
+        _augmentPanel.Visible = false;
     }
 
     /// <summary>收起态标签：名称 + 当前绑定键提示（改键后同步刷新）。</summary>
-    private void RefreshBuffTag()
+    private void RefreshAugmentTag()
     {
-        _buffTag.Text = GdFormat.Format("%s [%s]", (string)Tr("UI_BUFFS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("buff_panel")));
+        _augmentTag.Text = GdFormat.Format("%s [%s]", (string)Tr("UI_AUGMENTS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("augment_panel")));
     }
 
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>
@@ -1511,15 +1511,15 @@ public partial class Hud : CanvasLayer
 
     public Label BossCountdown() => _bossCountdown;
 
-    public GridContainer BuffDock() => _buffDock;
+    public GridContainer AugmentDock() => _augmentDock;
 
-    public Label BuffTag() => _buffTag;
+    public Label AugmentTag() => _augmentTag;
 
-    public Label? BuffOverflowLabel() => _buffOverflowLabel;
+    public Label? AugmentOverflowLabel() => _augmentOverflowLabel;
 
-    public VBoxContainer BuffRows() => _buffRows;
+    public VBoxContainer AugmentRows() => _augmentRows;
 
-    public Label BuffPanelTitle() => _buffPanelTitle;
+    public Label AugmentPanelTitle() => _augmentPanelTitle;
 
     /// <summary>A7 遗留清理：提前离舰蓄力条节点公开查询（测试替代 _ 直读）。</summary>
     public VBoxContainer EarlyLeaveBox() => _chargeBars[ChargeChannel.EarlyLeave];

@@ -7,12 +7,12 @@ namespace InfiAir;
 /// 天赋缓存域服务（天赋缓存系统重构，2026-09-07）：里程碑/Boss 击杀 → 点数入缓存池（LIFO 溢出衰减，
 /// 不弹窗）→ 玩家经天赋面板自主加点（递增消耗/收益递减/互斥锁/专注惩罚/路线契约/风险加点）。
 /// 替代旧「里程碑三选一 BuffSelect」：天赋节点 id = 既有 buff id，最终层级同步进
-/// CombatStateService.Buffs——Player/Bullet/PlayerDamage/HUD 坞等全部效果消费端零改动；
-/// 浮点有效层级（收益递减/路线加成/专注折扣后）经 EffLevel 供乘算类效果（Player.RefreshBuffFactors）。
+/// CombatStateService.Augments——Player/Bullet/PlayerDamage/HUD 坞等全部效果消费端零改动；
+/// 浮点有效层级（收益递减/路线加成/专注折扣后）经 EffLevel 供乘算类效果（Player.RefreshAugmentFactors）。
 /// Godot 绑定层：配置经 GameState.Instance.Cfg 缓存（LoadTalentConfig，ApplyBalance 调用）；
 /// RP 消费经 Instance 跨域（与 MetaService 同构）。门面：GameState.Talent.cs 转发 + Talent 属性。
 /// 信号：C# 事件 CacheChanged/TalentsChanged → GameState 订阅转发为 TalentCacheChanged/TalentsChanged；
-/// 层级写入 Buffs 后经 Instance 直发 BuffsChanged（ChooseRoute 先例），驱动 Player/HUD 缓存刷新。
+/// 层级写入 Augments 后经 Instance 直发 AugmentsChanged（ChooseRoute 先例），驱动 Player/HUD 缓存刷新。
 /// </summary>
 public sealed partial class TalentService : RefCounted
 {
@@ -20,14 +20,14 @@ public sealed partial class TalentService : RefCounted
     private readonly TalentConfig _config = new();
     private readonly TalentCache _cache;
 
-    /// <summary>节点最终层级（含 Meta 研究所起始预置；shield 等消耗型 buff 由 ConsumeBuff 在
-    /// Buffs 内扣减运行层，不影响本表的已购层级）。</summary>
+    /// <summary>节点最终层级（含 Meta 研究所起始预置；shield 等消耗型 buff 由 ConsumeAugment 在
+    /// Augments 内扣减运行层，不影响本表的已购层级）。</summary>
     private readonly Dictionary<StringName, int> _levels = new();
 
     /// <summary>已风险加点节点（机制 D：永久锁定不可再升级）。</summary>
     private readonly HashSet<StringName> _overcharged = new();
 
-    /// <summary>结构上限回退表（与旧 BuffSelect 池一致；balance.json buffs.&lt;id&gt;.max_stacks 为唯一权威）。</summary>
+    /// <summary>结构上限回退表（与旧 BuffSelect 池一致；balance.json augments.&lt;id&gt;.max_stacks 为唯一权威）。</summary>
     private static readonly Dictionary<string, int> MaxLevelFallbacks = new()
     {
         ["power_shot"] = 5,
@@ -49,6 +49,14 @@ public sealed partial class TalentService : RefCounted
         ["crit_shot"] = 3,
         ["shield"] = 2,
         ["bullet_speed"] = 3,
+        ["homing"] = 2,
+        ["salvo"] = 2,
+        ["deflector"] = 2,
+        ["second_wind"] = 2,
+        ["dash_strike"] = 2,
+        ["graze_field"] = 3,
+        ["score_amp"] = 3,
+        ["combo_guard"] = 2,
     };
 
     private readonly Dictionary<StringName, int> _maxLevels = new();
@@ -58,6 +66,23 @@ public sealed partial class TalentService : RefCounted
     private string _route = "";
 
     private int _resetTokens;
+
+    /// <summary>基地补给购置的额外超载槽（run 域；存档字段 oc_bonus）。</summary>
+    private int _bonusOverchargeSlots;
+
+    /// <summary>本局超载总上限 = 配置档 + 基地补给购置档。</summary>
+    public int OverchargeMaxPerRun => _config.OverchargeMaxPerRun + _bonusOverchargeSlots;
+
+    /// <summary>已购置的补给超载档（基地面板售罄判定）。</summary>
+    public int BonusOverchargeSlots => _bonusOverchargeSlots;
+
+    /// <summary>基地补给：购置 +1 超载槽（RP 结算在调用侧；上限由调用侧钳制）。</summary>
+    public bool AddOverchargeSlot()
+    {
+        _bonusOverchargeSlots += 1;
+        TalentsChanged?.Invoke();
+        return true;
+    }
 
     /// <summary>配置注入后面板/UI 可直接读取经济参数（阈值/衰减/消耗曲线）。</summary>
     public TalentConfig Config => _config;
@@ -99,7 +124,7 @@ public sealed partial class TalentService : RefCounted
         foreach (var id in TalentTree.NodeIds())
         {
             var idSn = new StringName(id);
-            var max = Math.Max((int)gs.Cfg("buffs." + id + ".max_stacks", MaxLevelFallbacks.GetValueOrDefault(id, 1)).AsInt64(), 1);
+            var max = Math.Max((int)gs.Cfg("augments." + id + ".max_stacks", MaxLevelFallbacks.GetValueOrDefault(id, 1)).AsInt64(), 1);
             _maxLevels[idSn] = max;
             var softcap = (int)gs.Cfg("talent.softcaps." + id, softcapDefault).AsInt64();
             _softcaps[idSn] = Mathf.Clamp(softcap, 1, max);
@@ -253,8 +278,8 @@ public sealed partial class TalentService : RefCounted
 
     /// <summary>
     /// 浮点有效层级（效果桥）：收益递减 + 路线核心加成 + 专注折扣后的乘算层级。
-    /// Player.RefreshBuffFactors/Main（母舰召回冷却）等乘算效果据此求值；
-    /// 盾层/穿透等整数语义消费端仍读 Buffs（本表 SyncBuff 的整数层级）。
+    /// Player.RefreshAugmentFactors/Main（母舰召回冷却）等乘算效果据此求值；
+    /// 盾层/穿透等整数语义消费端仍读 Augments（本表 SyncAugment 的整数层级）。
     /// </summary>
     public double EffLevel(StringName id) =>
         TalentEconomy.EffectiveLevel(_config, Level(id), Softcap(id), RouteCoreFor(id), FocusDiscounted(id), FocusOver());
@@ -291,7 +316,7 @@ public sealed partial class TalentService : RefCounted
         if (level >= cap)
         {
             // 上限侧：可走风险加点（次数未满）否则顶满
-            return _overcharged.Count < _config.OverchargeMaxPerRun ? "" : "OVERCHARGE_LIMIT";
+            return _overcharged.Count < OverchargeMaxPerRun ? "" : "OVERCHARGE_LIMIT";
         }
 
         if (_cache.Effective + 1e-9 < TalentEconomy.CostForLevel(_config, level))
@@ -322,7 +347,7 @@ public sealed partial class TalentService : RefCounted
         return !IsOvercharged(id) && PrerequisiteMet(id) && level >= CapFor(id);
     }
 
-    /// <summary>加点主入口：扣缓存 → 层级 +1 → 同步 Buffs；上限档自动走风险加点（双倍价 + 永久锁定 + 局限次）。
+    /// <summary>加点主入口：扣缓存 → 层级 +1 → 同步 Augments；上限档自动走风险加点（双倍价 + 永久锁定 + 局限次）。
     /// 失败返回 false 且无副作用。</summary>
     public bool Upgrade(StringName id)
     {
@@ -345,15 +370,15 @@ public sealed partial class TalentService : RefCounted
             _overcharged.Add(id);
         }
 
-        SyncBuff(id);
+        SyncAugment(id);
         if (id == new StringName("extra_life"))
         {
             // 沿袭旧 pick 语义：购入即时回血（heal_on_pick，上限随层数自动生效）
-            GameState.Instance.Heal(GameState.Instance.Cfg("buffs.extra_life.heal_on_pick", 30).AsDouble());
+            GameState.Instance.Heal(GameState.Instance.Cfg("augments.extra_life.heal_on_pick", 30).AsDouble());
         }
 
-        GameState.Instance.PlaySfx(SfxId.BuffPick);
-        GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
+        GameState.Instance.PlaySfx(SfxId.AugmentPick);
+        GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
         CacheChanged?.Invoke(_cache.Effective, _cache.Raw);
         TalentsChanged?.Invoke();
         return true;
@@ -380,9 +405,9 @@ public sealed partial class TalentService : RefCounted
         }
 
         _route = routeId;
-        GameState.Instance.PlaySfx(SfxId.BuffPick);
-        // 有效层级与上限同时变化：BuffsChanged 驱动 Player.RefreshBuffFactors 重算乘算缓存
-        GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
+        GameState.Instance.PlaySfx(SfxId.AugmentPick);
+        // 有效层级与上限同时变化：AugmentsChanged 驱动 Player.RefreshAugmentFactors 重算乘算缓存
+        GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
         TalentsChanged?.Invoke();
         return true;
     }
@@ -413,32 +438,32 @@ public sealed partial class TalentService : RefCounted
         return null;
     }
 
-    // ---------------- Buffs 同步（效果桥） ----------------
+    // ---------------- Augments 同步（效果桥） ----------------
 
-    /// <summary>已购层级写入 CombatStateService.Buffs（0 层移除键）；消耗型盾层的运行扣减不回写本表。</summary>
-    private void SyncBuff(StringName id)
+    /// <summary>已购层级写入 CombatStateService.Augments（0 层移除键）；消耗型盾层的运行扣减不回写本表。</summary>
+    private void SyncAugment(StringName id)
     {
-        var buffs = GameState.Instance.Buffs;
+        var augments = GameState.Instance.Augments;
         var level = Level(id);
         if (level > 0)
         {
-            buffs[id] = level;
+            augments[id] = level;
         }
         else
         {
-            buffs.Remove(id);
+            augments.Remove(id);
         }
     }
 
-    private void SyncAllBuffs()
+    private void SyncAllAugments()
     {
-        var buffs = GameState.Instance.Buffs;
-        buffs.Clear();
+        var augments = GameState.Instance.Augments;
+        augments.Clear();
         foreach (var kv in _levels)
         {
             if (kv.Value > 0)
             {
-                buffs[kv.Key] = kv.Value;
+                augments[kv.Key] = kv.Value;
             }
         }
     }
@@ -446,7 +471,7 @@ public sealed partial class TalentService : RefCounted
     // ---------------- 生命周期 / 存档 ----------------
 
     /// <summary>Meta 研究所起始预置（Main.ApplyNewRun 经门面调用）：升级项 → 起始层级。
-    /// 与旧 ApplyMetaLoadout 语义一致（直接落 Buffs），但归口本服务保持单一事实源。</summary>
+    /// 与旧 ApplyMetaLoadout 语义一致（直接落 Augments），但归口本服务保持单一事实源。</summary>
     public void ApplyStartingLoadout(Godot.Collections.Dictionary metaUpgrades)
     {
         var applied = false;
@@ -463,14 +488,14 @@ public sealed partial class TalentService : RefCounted
 
         if (applied)
         {
-            SyncAllBuffs();
-            GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
+            SyncAllAugments();
+            GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
             TalentsChanged?.Invoke();
         }
     }
 
     /// <summary>对局复位（ResetRun 调用）：缓存/层级/路线/代币/超载全部清空（不发信号——
-    /// BuffsChanged 由 ResetRun 末尾直发，CacheChanged/TalentsChanged 由本方法尾播发一次）。</summary>
+    /// AugmentsChanged 由 ResetRun 末尾直发，CacheChanged/TalentsChanged 由本方法尾播发一次）。</summary>
     public void ResetAll()
     {
         _cache.Clear();
@@ -478,6 +503,7 @@ public sealed partial class TalentService : RefCounted
         _overcharged.Clear();
         _route = "";
         _resetTokens = 0;
+        _bonusOverchargeSlots = 0;
         CacheChanged?.Invoke(0.0, 0);
         TalentsChanged?.Invoke();
     }
@@ -513,6 +539,7 @@ public sealed partial class TalentService : RefCounted
             ["overcharged"] = overcharged,
             ["route"] = _route,
             ["tokens"] = _resetTokens,
+            ["oc_bonus"] = _bonusOverchargeSlots,
         };
     }
 
@@ -580,8 +607,10 @@ public sealed partial class TalentService : RefCounted
         _route = FindRoute(route)?.Id ?? "";
 
         _resetTokens = gs.SaveInt(data.GetValueOrDefault("tokens", 0), 0);
+        // 补给扩容档：缺键 = 旧版存档 → 0；钳 [0, 8] 防手改巨值
+        _bonusOverchargeSlots = Mathf.Clamp(gs.SaveInt(data.GetValueOrDefault("oc_bonus", 0), 0), 0, 8);
 
-        SyncAllBuffs();
+        SyncAllAugments();
         CacheChanged?.Invoke(_cache.Effective, _cache.Raw);
         TalentsChanged?.Invoke();
     }
@@ -590,7 +619,7 @@ public sealed partial class TalentService : RefCounted
 
     public void TestGrant(int points) => Grant(points);
 
-    /// <summary>层级直写（教程关卡授予/测试垫层）：含 Buffs 同步与广播，与加点同口径但不扣缓存。</summary>
+    /// <summary>层级直写（教程关卡授予/测试垫层）：含 Augments 同步与广播，与加点同口径但不扣缓存。</summary>
     public void GrantLevel(StringName id, int level)
     {
         if (!_maxLevels.ContainsKey(id))
@@ -599,12 +628,14 @@ public sealed partial class TalentService : RefCounted
         }
 
         _levels[id] = Mathf.Clamp(level, 0, MaxLevel(id));
-        SyncBuff(id);
-        GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
+        SyncAugment(id);
+        GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
         TalentsChanged?.Invoke();
     }
 
     public void TestSetLevel(StringName id, int level) => GrantLevel(id, level);
 
     public void TestSetTokens(int tokens) => _resetTokens = Math.Max(tokens, 0);
+
+    public void TestSetBonusOverchargeSlots(int slots) => _bonusOverchargeSlots = Math.Max(slots, 0);
 }

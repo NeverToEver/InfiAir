@@ -119,11 +119,11 @@ public partial class GameState : Node
     /// <summary>吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
     public void TryLifesteal() => _combat.TryLifesteal();
 
-    public int BuffCount(StringName id) => _combat.BuffCount(id);
+    public int AugmentLevel(StringName id) => _combat.AugmentLevel(id);
 
-    /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 buffs_changed）
-    /// 注：层级写入唯一入口 = TalentService（天赋缓存系统重构）——AddBuff 直写口已随旧三选一删除。</summary>
-    public bool ConsumeBuff(StringName id) => _combat.ConsumeBuff(id);
+    /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）
+    /// 注：层级写入唯一入口 = TalentService（天赋缓存系统重构）——AddAugment 直写口已随旧三选一删除。</summary>
+    public bool ConsumeAugment(StringName id) => _combat.ConsumeAugment(id);
 
     // ---------------- 语言（中英双语；门面转发 → SettingsService） ----------------
 

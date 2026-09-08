@@ -1,13 +1,15 @@
 using Godot;
+using InfiAir.Core;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
 
 /// <summary>
-/// 死亡结算面板：DISPLAY 级大分数 + 新纪录标记 + 击杀统计，按 R 重开。
+/// 死亡结算面板：DISPLAY 级大分数 + 新纪录标记 + 击杀统计 + 左缘轮盘菜单
+/// （重新出击/返回主菜单/退出；2026-09-08 圆盘 UI 全覆盖，R 快捷键保留）。
 /// M5 全量迁移（2026-08-08 自 scripts/game_over_ui.gd）。
 /// </summary>
-public partial class GameOverUi : CanvasLayer
+public partial class GameOverUi : RadialMenuLayer
 {
     private Label _scoreLabel = null!;
     private Label _scoreTagLabel = null!;
@@ -34,8 +36,12 @@ public partial class GameOverUi : CanvasLayer
     public override void _Ready()
     {
         Visible = false;
+        BuildChrome();
+        BuildMenu();
+        Wheel.Confirmed += OnWheelConfirmed;
         var shell = UITheme.MakePageShell("GO_TITLE");
         AddChild((Node)shell["root"].AsGodotObject());
+        RaiseWheel(); // shell 自带全屏遮罩：轮盘必须保持在遮罩之上，否则卡片被压暗
         _dim = (ColorRect)shell["dim"].AsGodotObject();
         _plate = (ChamferedPanel)shell["panel"].AsGodotObject();
         _plate.CustomMinimumSize = new Vector2(640.0f, 600.0f);
@@ -115,6 +121,38 @@ public partial class GameOverUi : CanvasLayer
         _boardLabel.Text = GameState.Instance.HighscoresText(5);
     }
 
+    /// <summary>装配结算菜单（打开时重装，复位轮盘导航态）。</summary>
+    private void BuildMenu()
+    {
+        LoadMenu(
+            new List<RadialWheelOption>
+            {
+                new() { Id = "restart", Label = Tr("GO_MENU_RESTART"), Glyph = RadialGlyph.Bolt },
+                new() { Id = "home", Label = Tr("GO_MENU_HOME"), Glyph = RadialGlyph.Ring },
+                new() { Id = "quit", Label = Tr("GO_MENU_QUIT"), Glyph = RadialGlyph.Star },
+            },
+            string.Empty);
+    }
+
+    private void OnWheelConfirmed(RadialWheelOption option)
+    {
+        switch (option.Id)
+        {
+            case "restart":
+                Restart();
+                break;
+            case "home":
+                // 结算已完成（SettleRun 删档）：直接回开始界面，无进度可丢
+                GetTree().Paused = false;
+                GetTree().ChangeSceneToFile("res://scenes/welcome.tscn");
+                break;
+            case "quit":
+                GameState.Instance.SaveProfile();
+                GetTree().Quit();
+                break;
+        }
+    }
+
     private void OnPlayerDied()
     {
         // 2026-08-09 Y 系列：结算编排下沉 GameState.SettleRun（原子链 + 快照）；
@@ -133,21 +171,30 @@ public partial class GameOverUi : CanvasLayer
         _recordLabel.Visible = newRecord;
         if (newRecord)
         {
-            GameState.Instance.PlaySfx(SfxId.BuffPick);
+            GameState.Instance.PlaySfx(SfxId.AugmentPick);
         }
 
         GetTree().Paused = true;
         Visible = true;
+        SetWheelActive(true);
+        BuildMenu();
+        PlayWheelEntrance();
         UITheme.AnimateModalOpen(_dim, _plate, _content);
+    }
+
+    /// <summary>重新出击（轮盘/R 快捷键共用）：结算完成后重开同一场景。</summary>
+    private void Restart()
+    {
+        GetTree().Paused = false;
+        GameState.Instance.ResetRun();
+        GetTree().ReloadCurrentScene();
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
         if (Visible && @event.IsActionPressed("restart"))
         {
-            GetTree().Paused = false;
-            GameState.Instance.ResetRun();
-            GetTree().ReloadCurrentScene();
+            Restart();
         }
     }
 }

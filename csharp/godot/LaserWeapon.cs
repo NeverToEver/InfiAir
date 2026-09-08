@@ -4,10 +4,10 @@ namespace InfiAir;
 
 /// <summary>
 /// 激光束武器（M3b 全量迁移，2026-08-08 自 scripts/laser_weapon.gd 迁移，对齐原作
-/// LaserBuff + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.buff_count(&amp;"laser_beam")
+/// LaserAugmentId + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.augment_level(&amp;"laser_beam")
 /// &gt; 0 时启用。就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
 /// 穿透性直线，线上敌人每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
-/// 语义保持：buff 层数经 BuffsChanged 信号缓存（避免每物理帧字典/信号查询）；
+/// 语义保持：buff 层数经 AugmentsChanged 信号缓存（避免每物理帧字典/信号查询）；
 /// C23 预分配 points 数组帧内原地写；E08 buff 归零时收束激活态光束。
 /// SFX 资源在 _Ready 惰性加载（GD.Load 命中引擎资源缓存）。
 /// </summary>
@@ -34,9 +34,9 @@ public partial class LaserWeapon : Node2D
     private float _tickTimer;
     private bool _savedAutofire = true;
     // U14（2026-08-09 审计）：buff 名静态缓存——热路径禁 StringName 构造（Refresh 信号驱动，低频但保持口径）
-    private static readonly StringName BuffLaserBeam = new("laser_beam");
-    /// <summary>laser_beam 层数缓存（BuffBoolCache 实例：buffs_changed 信号驱动；热路径禁跨语言调用）。</summary>
-    private readonly BuffBoolCache _laserBeamCache;
+    private static readonly StringName AugLaserBeam = new("laser_beam");
+    /// <summary>laser_beam 层数缓存（AugmentBoolCache 实例：augments_changed 信号驱动；热路径禁跨语言调用）。</summary>
+    private readonly AugmentBoolCache _laserBeamCache;
 
     /// <summary>父节点（player.tscn 中 LaserWeapon 挂 Player 下；场景结构保证非空）。</summary>
     private Player? _player; // U16：可空（节点脱离 Player 挂载时判空早退，不再 null! 压制）
@@ -45,8 +45,8 @@ public partial class LaserWeapon : Node2D
 
     public LaserWeapon()
     {
-        // 构造回调：buffs_changed 信号触发时刷新缓存（BuffBoolCache 内部 Callable 桥；Enemy.cs 同款语义）
-        _laserBeamCache = new BuffBoolCache(BuffLaserBeam);
+        // 构造回调：augments_changed 信号触发时刷新缓存（AugmentBoolCache 内部 Callable 桥；Enemy.cs 同款语义）
+        _laserBeamCache = new AugmentBoolCache(AugLaserBeam);
     }
 
     // ---------------- A7：测试/诊断白盒断言经公开接口 ----------------
@@ -72,16 +72,16 @@ public partial class LaserWeapon : Node2D
         _player = GetParent() as Player;
         // AC3（2026-08-11 审计）：duration/cooldown 钳 0.05 下限（同 tick_interval 族）——≤0 时
         // 光束结束即重触发（EndBeam→_cooldown≤0→下帧 StartBeam 循环），自动开火永久禁用
-        BeamDuration = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.duration", BeamDuration).AsDouble(), CfgFx.IntervalFloor);
-        CooldownDuration = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.cooldown", CooldownDuration).AsDouble(), CfgFx.IntervalFloor);
+        BeamDuration = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.duration", BeamDuration).AsDouble(), CfgFx.IntervalFloor);
+        CooldownDuration = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.cooldown", CooldownDuration).AsDouble(), CfgFx.IntervalFloor);
         // V 系列：tick_interval 钳 0.05 下限（R06 同族）——0/负值时 DamageTick 每物理帧结算（≈960 DPS）
-        TickInterval = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.tick_interval", TickInterval).AsDouble(), CfgFx.IntervalFloor);
+        TickInterval = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.tick_interval", TickInterval).AsDouble(), CfgFx.IntervalFloor);
         // AC3：tick_damage 钳 ≥1（long 域比较再 (int) 防回绕）——≤0 经 EntityDamage.Dispatch 给敌机回血
-        TickDamage = (int)Mathf.Max(GameState.Instance.Cfg("buffs.laser_beam.tick_damage", TickDamage).AsInt64(), 1L);
+        TickDamage = (int)Mathf.Max(GameState.Instance.Cfg("augments.laser_beam.tick_damage", TickDamage).AsInt64(), 1L);
         // AC3：length/half_width/hit_radius 钳 0.1 下限——≤0 光束线段退化永不命中；hit_radius 先钳再乘 WorldScale
-        BeamLength = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.length", BeamLength).AsDouble(), 0.1f);
-        BeamHalfWidth = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble(), 0.1f);
-        EnemyHitRadius = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble(), 0.1f)
+        BeamLength = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.length", BeamLength).AsDouble(), 0.1f);
+        BeamHalfWidth = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.half_width", BeamHalfWidth).AsDouble(), 0.1f);
+        EnemyHitRadius = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.hit_radius", EnemyHitRadius).AsDouble(), 0.1f)
             * (float)GameState.Instance.WorldScale;
         // 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
         _beam = new Line2D
@@ -115,15 +115,15 @@ public partial class LaserWeapon : Node2D
         };
         _glow.ProcessMaterial = mat;
         AddChild(_glow);
-        // buffs_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 buff_count；
-        // BuffBoolCache 收敛：Connect 内部判 null，初始 Refresh 等价原 OnBuffsChanged() 首调）
+        // augments_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 augment_level；
+        // AugmentBoolCache 收敛：Connect 内部判 null，初始 Refresh 等价原 OnAugmentsChanged() 首调）
         _laserBeamCache.Connect(GameState.Instance);
         _laserBeamCache.Refresh();
     }
 
     public override void _ExitTree()
     {
-        // buffs_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放；BuffBoolCache 内部判 null）
+        // augments_changed 信号断开（Enemy.cs C22 模式；节点随 Player 一起释放；AugmentBoolCache 内部判 null）
         _laserBeamCache.Disconnect(GameState.Instance);
     }
 

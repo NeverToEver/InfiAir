@@ -2,7 +2,7 @@ namespace InfiAir.Core.Meta;
 
 /// <summary>
 /// 局外成长（Meta Progression）升级定义：单个科技树项（2026-08-09 计划 M1）。
-/// Id 与 balance.json buffs.&lt;id&gt; 对齐——升级效果 = 新局开局预置该 buff 层数
+/// Id 与 balance.json augments.&lt;id&gt; 对齐——升级效果 = 新局开局预置该 buff 层数
 /// （消费方在 GameState.Meta 与 ResetRun，见 docs/archive/2026-08-09-meta-progression-plan.md）。
 /// 纯 .NET、零 Godot 依赖 → xUnit 直测。
 ///

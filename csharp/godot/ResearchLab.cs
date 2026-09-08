@@ -8,7 +8,7 @@ namespace InfiAir;
 /// （名称 / 当前等级 / 升级费用按钮）。Welcome 主菜单模态与 BaseConsole 基地面板复用。
 /// TechPointsChanged 信号驱动刷新（不每帧轮询）；升级点击 → GameState.SpendTechPoints
 /// （未登录/余额不足/已满级由消费侧守卫，按钮禁用态与守卫一致）。
-/// 升级名称复用 BUFF_&lt;ID&gt;_NAME 翻译键（id 即 buff id）。
+/// 升级名称复用 AUG_&lt;ID&gt;_NAME 翻译键（id 即 buff id）。
 /// </summary>
 public sealed partial class ResearchLab : VBoxContainer
 {
@@ -81,7 +81,7 @@ public sealed partial class ResearchLab : VBoxContainer
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
 
-        var name = UITheme.MakeLabel(Tr(BuffNameKey(id)), 20);
+        var name = UITheme.MakeLabel(Tr(AugmentNameKey(id)), 20);
         name.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         row.AddChild(name);
 
@@ -101,5 +101,5 @@ public sealed partial class ResearchLab : VBoxContainer
         return row;
     }
 
-    private static StringName BuffNameKey(StringName id) => $"BUFF_{id.ToString().ToUpperInvariant()}_NAME";
+    private static StringName AugmentNameKey(StringName id) => $"AUG_{id.ToString().ToUpperInvariant()}_NAME";
 }

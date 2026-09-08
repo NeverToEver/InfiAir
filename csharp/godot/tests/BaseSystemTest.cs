@@ -145,7 +145,7 @@ public partial class BaseSystemTest : Node
             Check(gs.SpendRp(gs.RP_REPAIR_COST), "维修消费 2RP 成功");
             Check(gs.Rp == 12, "消费后余额正确");
 
-            // 7. 天赋缓存：点数入账 + 递增消耗加点 + 前置链 + Buffs 效果桥
+            // 7. 天赋缓存：点数入账 + 递增消耗加点 + 前置链 + Augments 效果桥
             // （基线非零：第 2 节 AddBossKill 已按 points_per_boss 入账一次——相对断言）
             var cacheBase = gs.TalentRawCache;
             Check(gs.TalentEffectiveCache == cacheBase, "缓存池有效值与基线一致");
@@ -153,11 +153,11 @@ public partial class BaseSystemTest : Node
             Check(gs.TalentRawCache == cacheBase + 10, "缓存入账（测试端口）");
             Check(gs.TalentUpgrade("power_shot"), "首级加点成功（消耗 2 点）");
             Check(gs.TalentRawCache == cacheBase + 8, "递增消费扣减正确");
-            Check(gs.BuffCount("power_shot") == 1, "天赋层级同步 Buffs（效果桥）");
+            Check(gs.AugmentLevel("power_shot") == 1, "天赋层级同步 Augments（效果桥）");
             Check(!gs.TalentUpgrade("crit_shot"), "前置未满足被拒绝（暴击需急速射击 Lv1）");
             Check(gs.TalentUpgrade("bullet_speed"), "前置链内下级可加点");
-            Check(gs.BuffCount("bullet_speed") == 1, "前置链层级同步");
-            Check(!gs.TalentUpgrade("unknown_buff"), "未知节点被拒绝");
+            Check(gs.AugmentLevel("bullet_speed") == 1, "前置链层级同步");
+            Check(!gs.TalentUpgrade("unknown_augment"), "未知节点被拒绝");
             Check(gs.TalentUpgrade("power_shot"), "同节点再升级（第 2 级消耗 3 点）");
             Check(gs.TalentRawCache == cacheBase + 3, "消耗曲线 base+level×inc 正确");
 
@@ -199,7 +199,7 @@ public partial class BaseSystemTest : Node
             Check(!gs.ClaimMission("boss_1"), "恢复后已领取任务仍拒绝重复领奖");
             Check(Math.Abs(gs.TalentEffectiveCache - savedCache) < 1e-6, "存档恢复缓存池（含衰减点值）");
             Check(gs.TalentLevel("power_shot") == savedPowerLevel, "存档恢复天赋层级");
-            Check(gs.BuffCount("power_shot") == savedPowerLevel, "存档恢复后效果桥同步");
+            Check(gs.AugmentLevel("power_shot") == savedPowerLevel, "存档恢复后效果桥同步");
             Check(gs.Talent.Route == savedRoute, "存档恢复路线契约");
             Check(gs.Talent.ResetTokens == savedTokens, "存档恢复重置代币");
             Check(gs.MissionProgress("survive_180") >= 180, "存档恢复存活进度");

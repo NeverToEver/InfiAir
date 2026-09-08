@@ -146,9 +146,9 @@ public partial class UITheme : RefCounted
     }
 
     /// <summary>Buff 字形槽（socket）：ChamferedPanel 瓦片，分类色描边 + 同色内框 + 淡色底。</summary>
-    public static Control MakeBuffSocket(StringName id, float tilePx = 46.0f)
+    public static Control MakeAugmentSocket(StringName id, float tilePx = 46.0f)
     {
-        var color = BuffIcons.ColorFor(id);
+        var color = AugmentIcons.ColorFor(id);
         var panel = new ChamferedPanel
         {
             Chamfer = Mathf.Max(tilePx * 0.15f, 4.0f),
@@ -166,18 +166,18 @@ public partial class UITheme : RefCounted
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        center.AddChild(BuffIcons.MakeGlyph(id, color, tilePx * 0.57f)); // 46→26px / 76→43px，留白一致
+        center.AddChild(AugmentIcons.MakeGlyph(id, color, tilePx * 0.57f)); // 46→26px / 76→43px，留白一致
         panel.AddChild(center);
         return panel;
     }
 
     /// <summary>Buff 图标格：46×46 socket 瓦片，层数 &gt;1 时右下角叠一枚切角 ×N 徽标芯片。</summary>
-    public static Control MakeBuffTile(StringName id, int stacks)
+    public static Control MakeAugmentTile(StringName id, int stacks)
     {
-        var panel = MakeBuffSocket(id);
+        var panel = MakeAugmentSocket(id);
         if (stacks > 1)
         {
-            var color = BuffIcons.ColorFor(id);
+            var color = AugmentIcons.ColorFor(id);
             var chip = new ChamferedPanel
             {
                 Chamfer = 4.0f,

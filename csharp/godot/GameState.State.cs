@@ -9,8 +9,8 @@ namespace InfiAir;
 /// 公开 API 签名/语义不变（测试白盒直写 Score/Kills/BossKills 经 setter 转发零适配）；
 /// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState
 /// 订阅重发（ApplyRunSave 直发路径在 GameState 侧直发同名信号，不重复）。
-/// 健康/Buff 域（Health/Buffs 属性与 _maxHpBase/_maxHpBonus 字段）迁至 CombatStateService
-/// （csharp/godot/CombatStateService.cs），Health/Buffs 属性此处保留转发（测试白盒直读直写零适配）；
+/// 健康/Buff 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）迁至 CombatStateService
+/// （csharp/godot/CombatStateService.cs），Health/Augments 属性此处保留转发（测试白盒直读直写零适配）；
 /// AddKill/AddBossKill 击杀编排自 GameState.Settings.cs 移入本文件（对局状态方法归位）。
 /// </summary>
 public partial class GameState : Node
@@ -102,14 +102,18 @@ public partial class GameState : Node
             Mathf.Max(Cfg("scoring.combo.window", _score.ComboWindow).AsDouble(), 0.1),
             Mathf.Clamp(Cfg("scoring.combo.step", _score.ComboStep).AsDouble(), 0.0, 1e3),
             Mathf.Clamp(Cfg("scoring.combo.max_mult", _score.ComboMaxMult).AsDouble(), 1.0, 1e3));
+        // score_amp/combo_guard 增幅底数缓存（击杀路径免 cfg；底数 ≤1 钳为未购档）
+        _score.ApplyAugmentScoreConfig(
+            Cfg("augments.score_amp.factor", 1.0).AsDouble(),
+            Cfg("augments.combo_guard.window_factor", 1.0).AsDouble());
         // 第五轮拆域：健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
         // 与 ScoreService.ApplyComboConfig 同构）——H15 同款：≤0 使 max_health 归零/负值，玩家秒死
         // 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
         // 2026-08-03 审计：吸血比例缓存（击杀帧免 cfg 路径解析，P0-2 同款）
         _combat.ApplyHealthConfig(
             Mathf.Max(Cfg("player.max_health", _combat.MaxHpBase).AsDouble(), 0.1),
-            Mathf.Max(Cfg("buffs.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
-            Mathf.Max(Cfg("buffs.lifesteal.max_hp_fraction", 0.1).AsDouble(), 0.0));
+            Mathf.Max(Cfg("augments.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
+            Mathf.Max(Cfg("augments.lifesteal.max_hp_fraction", 0.1).AsDouble(), 0.0));
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
@@ -317,7 +321,7 @@ public partial class GameState : Node
     public bool MouseLock { get => _settings.MouseLock; set => _settings.MouseLock = value; }
 
     /// <summary>buff id -> 已选层数——CombatStateService 转发。</summary>
-    public Godot.Collections.Dictionary Buffs { get => _combat.Buffs; set => _combat.Buffs = value; }
+    public Godot.Collections.Dictionary Augments { get => _combat.Augments; set => _combat.Augments = value; }
 
     /// <summary>对局存活秒数（survive_180 任务进度来源）</summary>
     public double RunTime { get; set; } = 0.0;
@@ -352,8 +356,8 @@ public partial class GameState : Node
 
     public void ResetRun()
     {
-        // 第五轮拆域：健康/Buff 复位改调 CombatStateService（Buffs.Clear + Health=MaxHealth；
-        // 不发事件——BuffsChanged 仍由下方直发收尾，顺序不变）
+        // 第五轮拆域：健康/Buff 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
+        // 不发事件——AugmentsChanged 仍由下方直发收尾，顺序不变）
         _combat.ResetAll();
         Rp = 0;
         RunTime = 0.0;
@@ -364,10 +368,10 @@ public partial class GameState : Node
         _talent.ResetAll();
         // 第五轮拆域：计分/难度域复位改调服务（Score/Kills/BossKills/里程碑/连击 + DifficultyMultiplier/
         // 时间档/DDA 计时）；信号发射点/顺序与拆域前一致——_runProg.ResetAll 无信号、_score.ResetAll 内
-        // ResetCombo 发 ComboChanged(0)（幂等早退），随后 BuffsChanged 收尾
+        // ResetCombo 发 ComboChanged(0)（幂等早退），随后 AugmentsChanged 收尾
         _runProg.ResetAll();
         _score.ResetAll();
-        EmitSignal(SignalName.BuffsChanged);
+        EmitSignal(SignalName.AugmentsChanged);
     }
 
     /// <summary>得分（难度分数倍率统一在此乘算）——ScoreService 转发。</summary>

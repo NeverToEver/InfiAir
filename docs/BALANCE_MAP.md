@@ -82,7 +82,7 @@
 | `boss.sniper_bullet_speed` | `SniperBulletSpeed` |
 | `boss.cross_bullet_speed` | `CrossBulletSpeed` |
 | `boss.collision_damage` | `CollisionDamage` |
-| `buffs.slow_field.factor` | `SlowFieldFactor` |
+| `augments.slow_field.factor` | `SlowFieldFactor` |
 | `boss.bullet_damage.fan` | `BulletDamageFan` |
 | `boss.bullet_damage.homing` | `BulletDamageHoming` |
 | `boss.bullet_damage.sniper` | `BulletDamageSniper` |
@@ -166,8 +166,8 @@
 
 | json 键路径 | 脚本回退值 |
 | --- | --- |
-| `buffs.explosive.radius_per_level` | `ExplosiveRadius` |
-| `buffs.explosive.damage_per_level` | `ExplosiveDamage` |
+| `augments.explosive.radius_per_level` | `ExplosiveRadius` |
+| `augments.explosive.damage_per_level` | `ExplosiveDamage` |
 | `effects.bullet_visual_scale` | `VisualScale` |
 | `effects.enemy_bullet_visual_scale` | `EnemyVisualScale` |
 | `player.grace_period` | `GracePeriod` |
@@ -217,7 +217,7 @@
 | `enemies.bullet_damage.spread` | `BulletDamageSpread` |
 | `enemies.bullet_damage.laser` | `BulletDamageLaser` |
 | `enemies.collision_damage` | `CollisionDamage` |
-| `buffs.slow_field.factor` | `SlowFieldFactor` |
+| `augments.slow_field.factor` | `SlowFieldFactor` |
 | `enemies.spread_fan_step` | `SpreadFanStep` |
 | `enemies.lifetime` | `Lifetime` |
 | `enemies.exit_accel` | `ExitAccel` |
@@ -318,9 +318,11 @@
 | `scoring.combo.window` | `_score.ComboWindow` |
 | `scoring.combo.step` | `_score.ComboStep` |
 | `scoring.combo.max_mult` | `_score.ComboMaxMult` |
+| `augments.score_amp.factor` | `1.0` |
+| `augments.combo_guard.window_factor` | `1.0` |
 | `player.max_health` | `_combat.MaxHpBase` |
-| `buffs.extra_life.max_hp_bonus` | `_combat.MaxHpBonus` |
-| `buffs.lifesteal.max_hp_fraction` | `0.1` |
+| `augments.extra_life.max_hp_bonus` | `_combat.MaxHpBonus` |
+| `augments.lifesteal.max_hp_fraction` | `0.1` |
 | `base_task.refresh_cost` | `REFRESH_COST` |
 | `base_task.grant_per_visit` | `GRANT_PER_VISIT` |
 
@@ -340,13 +342,13 @@
 
 | json 键路径 | 脚本回退值 |
 | --- | --- |
-| `buffs.laser_beam.duration` | `BeamDuration` |
-| `buffs.laser_beam.cooldown` | `CooldownDuration` |
-| `buffs.laser_beam.tick_interval` | `TickInterval` |
-| `buffs.laser_beam.tick_damage` | `TickDamage` |
-| `buffs.laser_beam.length` | `BeamLength` |
-| `buffs.laser_beam.half_width` | `BeamHalfWidth` |
-| `buffs.laser_beam.hit_radius` | `EnemyHitRadius` |
+| `augments.laser_beam.duration` | `BeamDuration` |
+| `augments.laser_beam.cooldown` | `CooldownDuration` |
+| `augments.laser_beam.tick_interval` | `TickInterval` |
+| `augments.laser_beam.tick_damage` | `TickDamage` |
+| `augments.laser_beam.length` | `BeamLength` |
+| `augments.laser_beam.half_width` | `BeamHalfWidth` |
+| `augments.laser_beam.hit_radius` | `EnemyHitRadius` |
 
 ### `csharp\godot\Main.cs`
 
@@ -359,7 +361,7 @@
 | `boss.enrage.bullet_time` | `ENRAGE_BULLET_TIME` |
 | `boss.enrage.ramp_time` | `ENRAGE_RAMP_TIME` |
 | `effects.mothership_summon.shake_gate` | `6.0` |
-| `buffs.mothership_recall.cooldown_factor` | `0.5` |
+| `augments.mothership_recall.cooldown_factor` | `0.5` |
 | `mothership.depart_cooldown` | `60.0` |
 
 ### `csharp\godot\MetaHealthFX.cs`
@@ -488,8 +490,7 @@
 | `effects.orbital_strike.missile_from` | `MISSILE_FROM` |
 | `effects.orbital_strike.reticle_radius` | `RETICLE_RADIUS` |
 | `effects.orbital_strike.impact_y_ratio` | `IMPACT_Y_RATIO` |
-| `effects.shake.boss_seq_final` | `24.0` |
-| `effects.shake.boss_seq_final` | `24.0` |
+| `effects.shake.boss_seq_final` | `_impactShake` |
 
 ### `csharp\godot\Player.cs`
 
@@ -506,8 +507,8 @@
 | `player.fine_move_mult` | `FineMoveMult` |
 | `player.base_fire_interval` | `BaseFireInterval` |
 | `player.bullet_speed` | `BulletSpeed` |
-| `buffs.crit_shot.chance` | `CritChanceBase` |
-| `buffs.crit_shot.multiplier` | `CritMultiplier` |
+| `augments.crit_shot.chance` | `CritChanceBase` |
+| `augments.crit_shot.multiplier` | `CritMultiplier` |
 | `player.bullet_spread_deg` | `BulletSpreadDeg` |
 | `player.bullet_damage` | `BulletDamage` |
 | `player.invincible_time` | `InvincibleTime` |
@@ -520,9 +521,9 @@
 | `player.entry.invincible` | `EntryInvincible` |
 | `player.entry.spawn_clearance` | `EntrySpawnClearance` |
 | `player.entry.rush_hspeed_ratio` | `EntryRushHsRatio` |
-| `buffs.armor.multiplier` | `ArmorMult` |
-| `buffs.evasion.chance` | `EvasionChance` |
-| `buffs.regen.heal_per_sec` | `RegenPerSec` |
+| `augments.armor.multiplier` | `ArmorMult` |
+| `augments.evasion.chance` | `EvasionChance` |
+| `augments.regen.heal_per_sec` | `RegenPerSec` |
 | `effects.shake.player_hit` | `ShakeHit` |
 | `effects.player_damage_frame.light_ratio` | `_damageLightRatio` |
 | `effects.player_damage_frame.heavy_ratio` | `_damageHeavyRatio` |
@@ -535,26 +536,41 @@
 | `player.dash.cooldown` | `DashCooldownMaxValue` |
 | `player.dash.fuel_ratio` | `DashFuelRatio` |
 | `player.dash.afterimage_interval` | `AfterimageInterval` |
-| `player.graze_radius` | `GrazeRadius` |
-| `player.graze_score` | `GrazeScore` |
+| `player.graze_radius` | `GrazeRadiusBase` |
+| `player.graze_score` | `GrazeScoreBase` |
 | `player.parry.arc_deg` | `ParryArcDeg` |
 | `player.parry.radius` | `ParryRadius` |
+| `player.parry.cooldown` | `3.0f` |
 | `player.parry.duration` | `0.8f` |
 | `player.parry.active_time` | `0.5f` |
-| `player.parry.cooldown` | `3.0f` |
+| `augments.second_wind.duration` | `3.0f` |
+| `augments.second_wind.heal_per_sec` | `3.0f` |
 | `player.aim_assist.input.magnet_input_min` | `_magnetInputMin` |
 | `player.aim_assist.input.magnet_input_full` | `_magnetInputFull` |
 | `player.aim_assist.falloff.peak` | `_falloffPeak` |
 | `player.aim_assist.falloff.end` | `_falloffEnd` |
 | `player.aim_assist.falloff.min` | `_falloffMin` |
-| `buffs.rapid_fire.factor` | `—` |
-| `buffs.power_shot.factor` | `—` |
-| `buffs.efficient_boost.factor` | `—` |
-| `buffs.boost_recovery.factor` | `—` |
+| `augments.homing.turn_rate_deg` | `150.0f` |
+| `augments.homing.lock_time` | `8.0f` |
+| `augments.homing.lock_range` | `900.0f` |
+| `augments.homing.lock_cone_deg` | `44.0f` |
+| `augments.salvo.every_base` | `7.0f` |
+| `augments.salvo.every_step` | `2.0f` |
+| `augments.salvo.damage_mult` | `3.0f` |
+| `augments.deflector.cooldown_factor` | `0.78f` |
+| `augments.deflector.reflect_mult` | `1.6f` |
+| `augments.graze_field.radius_factor` | `1.2f` |
+| `augments.graze_field.score_per_level` | `5` |
+| `augments.dash_strike.radius` | `80.0f` |
+| `augments.dash_strike.damage_per_level` | `35` |
+| `augments.rapid_fire.factor` | `—` |
+| `augments.power_shot.factor` | `—` |
+| `augments.efficient_boost.factor` | `—` |
+| `augments.boost_recovery.factor` | `—` |
 | `player.dash.cooldown_stack_factor` | `—` |
-| `buffs.spread_shot.max_stacks` | `—` |
-| `buffs.piercing.max_stacks` | `—` |
-| `buffs.bullet_speed.factor` | `—` |
+| `augments.spread_shot.max_stacks` | `—` |
+| `augments.piercing.max_stacks` | `—` |
+| `augments.bullet_speed.factor` | `—` |
 
 ### `csharp\godot\ReturnCinematic.cs`
 
@@ -628,7 +644,7 @@
 
 | json 键路径 | 脚本回退值 |
 | --- | --- |
-| `buffs.extra_life.heal_on_pick` | `30` |
+| `augments.extra_life.heal_on_pick` | `30` |
 
 ### `csharp\godot\TurretBattery.cs`
 
@@ -666,6 +682,7 @@
 
 ## 动态拼接键前缀
 
+- `base.supply.…`
 - `boss.phases.type…`
 - `player.aim_assist.levels.…`
 
@@ -673,25 +690,37 @@
 
 （经动态键或整段读取覆盖的不列出；剩下的请人工判断是否为死键）
 
-- `buffs.armor.max_stacks`
-- `buffs.bullet_speed.max_stacks`
-- `buffs.crit_shot.max_stacks`
-- `buffs.dynamic_weight.enabled`
-- `buffs.dynamic_weight.hp_ratio`
-- `buffs.dynamic_weight.ids`
-- `buffs.dynamic_weight.weight`
-- `buffs.evasion.max_stacks`
-- `buffs.explosive.max_stacks`
-- `buffs.explosive.unlock_boss_kills`
-- `buffs.extra_life.max_stacks`
-- `buffs.laser_beam.max_stacks`
-- `buffs.lifesteal.max_stacks`
-- `buffs.phase_dash.max_stacks`
-- `buffs.power_shot.max_stacks`
-- `buffs.rapid_fire.max_stacks`
-- `buffs.regen.max_stacks`
-- `buffs.shield.max_stacks`
-- `buffs.slow_field.max_stacks`
+- `augments.armor.max_stacks`
+- `augments.boost_recovery.max_stacks`
+- `augments.bullet_speed.max_stacks`
+- `augments.combo_guard.max_stacks`
+- `augments.crit_shot.max_stacks`
+- `augments.dash_strike.max_stacks`
+- `augments.dash_strike.tick_interval`
+- `augments.deflector.max_stacks`
+- `augments.dynamic_weight.enabled`
+- `augments.dynamic_weight.hp_ratio`
+- `augments.dynamic_weight.ids`
+- `augments.dynamic_weight.weight`
+- `augments.efficient_boost.max_stacks`
+- `augments.evasion.max_stacks`
+- `augments.explosive.max_stacks`
+- `augments.explosive.unlock_boss_kills`
+- `augments.extra_life.max_stacks`
+- `augments.graze_field.max_stacks`
+- `augments.homing.max_stacks`
+- `augments.laser_beam.max_stacks`
+- `augments.lifesteal.max_stacks`
+- `augments.mothership_recall.max_stacks`
+- `augments.phase_dash.max_stacks`
+- `augments.power_shot.max_stacks`
+- `augments.rapid_fire.max_stacks`
+- `augments.regen.max_stacks`
+- `augments.salvo.max_stacks`
+- `augments.score_amp.max_stacks`
+- `augments.second_wind.max_stacks`
+- `augments.shield.max_stacks`
+- `augments.slow_field.max_stacks`
 - `talent.cache.decay_floor`
 - `talent.cache.decay_step`
 - `talent.cache.safe_threshold`
@@ -713,11 +742,19 @@
 - `talent.route.cap_floor`
 - `talent.route.reset_token_cost`
 - `talent.softcaps.bullet_speed`
+- `talent.softcaps.combo_guard`
 - `talent.softcaps.crit_shot`
+- `talent.softcaps.dash_strike`
+- `talent.softcaps.deflector`
 - `talent.softcaps.extra_life`
+- `talent.softcaps.graze_field`
+- `talent.softcaps.homing`
 - `talent.softcaps.phase_dash`
 - `talent.softcaps.power_shot`
 - `talent.softcaps.rapid_fire`
+- `talent.softcaps.salvo`
+- `talent.softcaps.score_amp`
+- `talent.softcaps.second_wind`
 - `version`
 
 ## 脚本引用但 json 缺失的键（走回退值，建议补进 json 或确认为有意兜底）

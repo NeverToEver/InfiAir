@@ -4,25 +4,27 @@ namespace InfiAir;
 
 /// <summary>
 /// Buff 程序化字形图标库：19 种 buff 各一个几何字形（24 单位坐标系按尺寸缩放），
-/// 供 HUD 图标格与 Buff 三选一卡片图标位共用（经 UITheme.MakeBuffSocket 统一槽位样式）。
+/// 供 HUD 图标格与 Buff 三选一卡片图标位共用（经 UITheme.MakeAugmentSocket 统一槽位样式）。
 /// 分类配色：进攻=ACCENT 青，维生=SUCCESS 绿，通用=ACCENT_GOLD 金。
-/// M5 全量迁移（2026-08-08 自 scripts/ui_buff_icons.gd）：RefCounted + 静态工厂；
+/// M5 全量迁移（2026-08-08 自 scripts/ui_augment_icons.gd）：RefCounted + 静态工厂；
 /// 字形内嵌 Glyph（Control 子类）经 MakeGlyph 实例化。
 /// </summary>
-public partial class BuffIcons : RefCounted
+public partial class AugmentIcons : RefCounted
 {
     private static readonly StringName[] Offense =
     {
         new("power_shot"), new("rapid_fire"), new("spread_shot"), new("piercing"), new("explosive"),
-        new("laser_beam"), new("crit_shot"), new("bullet_speed"),
+        new("laser_beam"), new("crit_shot"), new("bullet_speed"), new("homing"), new("salvo"),
     };
 
     private static readonly StringName[] Sustain =
     {
         new("extra_life"), new("regen"), new("lifesteal"), new("armor"), new("evasion"), new("shield"),
+        new("second_wind"),
     };
 
     // 其余归入通用：phase_dash / slow_field / efficient_boost / boost_recovery / mothership_recall
+    // + deflector / dash_strike / graze_field / score_amp / combo_guard（2026-09-08 作战增幅扩展）
 
     /// <summary>分类色：进攻青 / 维生绿 / 通用金。</summary>
     public static Color ColorFor(StringName id)
@@ -80,6 +82,23 @@ public partial class BuffIcons : RefCounted
         private static readonly float[] MothershipRecallTrayPts = { 4f, 11f, 4f, 19f, 20f, 19f, 20f, 11f };
         private static readonly float[] LaserBeamPts = { 5f, 8.5f, 8.5f, 12f, 5f, 15.5f, 1.5f, 12f, 5f, 8.5f };
         private static readonly float[] BulletSpeedPts = { 7f, 12f, 13f, 6f, 21f, 12f, 13f, 18f };
+        private static readonly float[] HomingBrackets =
+        {
+            5f, 5f, 9f, 5f, 5f, 5f, 5f, 9f,
+            19f, 5f, 15f, 5f, 19f, 5f, 19f, 9f,
+            5f, 19f, 9f, 19f, 5f, 19f, 5f, 15f,
+            19f, 19f, 15f, 19f, 19f, 19f, 19f, 15f,
+        };
+        private static readonly float[] SalvoTrailPts = { 4f, 15f, 9f, 12f, 4f, 9f };
+        private static readonly float[] DeflectorShieldPts = { 6f, 4f, 18f, 4f, 18f, 12f, 12f, 20f, 6f, 12f, 6f, 4f };
+        private static readonly float[] DeflectorZigzagPts = { 8f, 16f, 12f, 12f, 10f, 12f, 14f, 8f };
+        private static readonly float[] SecondWindPulsePts = { 3f, 12f, 8f, 12f, 10f, 7f, 13f, 17f, 15f, 12f, 21f, 12f };
+        private static readonly float[] DashStrikeBurst =
+        {
+            19f, 6f, 16f, 10f, 19f, 12f, 16f, 14f, 19f, 18f,
+        };
+        private static readonly float[] ScoreAmpRisePts = { 4f, 17f, 10f, 11f, 14f, 15f, 20f, 7f };
+        private static readonly float[] ScoreAmpHeadPts = { 20f, 12f, 20f, 7f, 15f, 7f };
 
         public override void _Draw()
         {
@@ -189,6 +208,39 @@ public partial class BuffIcons : RefCounted
                     Line(u, 3, 9, 6, 9, c, w);
                     Line(u, 1.5f, 12, 6, 12, c, w);
                     Line(u, 3, 15, 6, 15, c, w);
+                    break;
+                case "homing": // 锁定框四角 + 中心目标点（制导锁定）
+                    DrawPolyline(Pts(u, HomingBrackets), c, w, true);
+                    DrawCircle(new Vector2(12, 12) * u, 2.5f * u, c);
+                    break;
+                case "salvo": // 主弹 + 两个尾随小弹（齐射重弹）
+                    DrawCircle(new Vector2(15, 12) * u, 5.0f * u, c);
+                    DrawArc(new Vector2(7, 12) * u, 2.5f * u, 0.0f, Mathf.Tau, 16, c, w, true);
+                    DrawPolyline(Pts(u, SalvoTrailPts), c, w, true);
+                    break;
+                case "deflector": // 盾形 + 内部反射折线（偏转强化）
+                    DrawPolyline(Pts(u, DeflectorShieldPts), c, w, true);
+                    DrawPolyline(Pts(u, DeflectorZigzagPts), c, w, true);
+                    break;
+                case "second_wind": // 心电脉冲波（逆境回复）
+                    DrawPolyline(Pts(u, SecondWindPulsePts), c, w, true);
+                    break;
+                case "dash_strike": // 冲刺双箭头 + 右缘冲击刺
+                    DrawPolyline(Pts(u, PhaseDashLeftPts), c, w, true);
+                    DrawPolyline(Pts(u, PhaseDashRightPts), c, w, true);
+                    DrawPolyline(Pts(u, DashStrikeBurst), c, w, true);
+                    break;
+                case "graze_field": // 同心扩散弧 + 中心点（擦弹场）
+                    DrawArc(new Vector2(12, 12) * u, 4.0f * u, 0.0f, Mathf.Tau, 16, c, w, true);
+                    DrawArc(new Vector2(12, 12) * u, 8.5f * u, 0.0f, Mathf.Tau, 24, new Color(c, 0.6f), w, true);
+                    break;
+                case "score_amp": // 上扬折线 + 箭头（计分增幅）
+                    DrawPolyline(Pts(u, ScoreAmpRisePts), c, w, true);
+                    DrawPolyline(Pts(u, ScoreAmpHeadPts), c, w, true);
+                    break;
+                case "combo_guard": // 双连环（连击护持）
+                    DrawArc(new Vector2(8, 12) * u, 5.0f * u, 0.0f, Mathf.Tau, 20, c, w, true);
+                    DrawArc(new Vector2(16, 12) * u, 5.0f * u, 0.0f, Mathf.Tau, 20, new Color(c, 0.65f), w, true);
                     break;
                 default: // 未登记字形回退：圆环
                     DrawArc(new Vector2(12, 12) * u, 8 * u, 0.0f, Mathf.Tau, 24, c, w, true);

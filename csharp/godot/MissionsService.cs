@@ -5,12 +5,12 @@ namespace InfiAir;
 /// <summary>
 /// RP 经济 / 基地任务 / 天赋路线服务（第四轮拆域，2026-08-11）：原 GameState.Missions.cs 全部职责
 /// 迁入本服务——征用点(RP)入账消费 / 常驻基地任务(进度按 kind 分发、领取、轮换刷新) / 互斥天赋路线。
-/// Godot 绑定层：跨域访问（任务定义/路线表/刷新经济档位/Buffs）统一经 GameState.Instance；
+/// Godot 绑定层：跨域访问（任务定义/路线表/刷新经济档位/Augments）统一经 GameState.Instance；
 /// 任务池 TaskPool（C# typed）为本服务内部状态（_taskPool，每局 InitMissions 重建）。
 /// 门面转发先例：与 MetaService/BalanceService/SaveManager 同构——GameState 组合持有本服务，
 /// GameState.Missions.cs 为门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
 /// 信号：本服务以 C# 事件 RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen 通知变化；
-/// GameState 订阅后转发为同名信号。ChooseRoute 另直发 BuffsChanged（经 GameState.Instance，
+/// GameState 订阅后转发为同名信号。ChooseRoute 另直发 AugmentsChanged（经 GameState.Instance，
 /// MetaService.ApplyMetaLoadout 同款）。
 /// </summary>
 public sealed partial class MissionsService : RefCounted

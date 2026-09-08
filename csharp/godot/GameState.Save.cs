@@ -115,8 +115,8 @@ public partial class GameState : Node
         BossKills = SaveInt(data.GetValueOrDefault("boss_kills", 0), 0);
         DifficultyMultiplier = SaveNum(data.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0);
         // 天赋缓存域恢复（v3 起随档往返；v2 旧档无 talent 键 → 全新天赋态，无兼容层）。
-        // 判型/钳制/成员资格校验在 RestoreState 内；不发事件——BuffsChanged 仍由下方直发
-        // （Player.RefreshBuffFactors/Hud 坞缓存+信号驱动）
+        // 判型/钳制/成员资格校验在 RestoreState 内；不发事件——AugmentsChanged 仍由下方直发
+        // （Player.RefreshAugmentFactors/Hud 坞缓存+信号驱动）
         var talentV = data.GetValueOrDefault("talent", new Variant());
         if (talentV.VariantType == Variant.Type.Dictionary)
         {
@@ -127,7 +127,7 @@ public partial class GameState : Node
             _talent.RestoreState(new Godot.Collections.Dictionary());
         }
 
-        EmitSignal(SignalName.BuffsChanged);
+        EmitSignal(SignalName.AugmentsChanged);
         // 血量在天赋恢复之后再处理（max_health 依赖 extra_life 层级）
         // v1/v2 存档天赋态为全新（extra_life 归零 → 上限回落基础值），health 钳制后按该上限恢复
         if ((int)SaveNum(data.GetValueOrDefault("version", 1), 1.0) >= 2)
@@ -188,7 +188,7 @@ public partial class GameState : Node
         _settings.ShiftToggleMode = SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
         _settings.TouchControls = SaveBool(data.GetValueOrDefault("touch_controls", TouchControls), TouchControls);
         // AB14：恢复值回流 VirtualControls——存档恢复只写内存字段不广播，启用态与设置页脱钩
-        // （Ctrl/Shift 直读字段不受影响，唯独触屏有状态缓存消费方；与 :134 BuffsChanged 同款发射）
+        // （Ctrl/Shift 直读字段不受影响，唯独触屏有状态缓存消费方；与 :134 AugmentsChanged 同款发射）
         EmitSignal(SignalName.TouchControlsChanged, TouchControls);
         // 里程碑曲线：恢复到大于当前分数的第一档（2026-08-07 批量推进迁移 C# 侧——
         // CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；

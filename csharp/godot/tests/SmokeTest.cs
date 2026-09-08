@@ -121,7 +121,7 @@ public partial class SmokeTest : Node
             await Coroutine.WaitSeconds(this, 0.7);
             Check(talentPanel.Visible && GetTree().Paused, "蓄力满格自动进入并暂停");
             Check(gs.TalentUpgrade("power_shot"), "面板内加点成功");
-            Check(gs.BuffCount("power_shot") == 1, "天赋层级计入 GameState（效果桥同步）");
+            Check(gs.AugmentLevel("power_shot") == 1, "天赋层级计入 GameState（效果桥同步）");
             talentPanel.CloseNow();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(!talentPanel.Visible && !GetTree().Paused, "面板关闭并恢复对局");
@@ -623,12 +623,12 @@ public partial class SmokeTest : Node
             gs.ApplyRunSave(gs.LoadRunData());
             Check(gs.Score == savedScore, "存档恢复分数");
             Check(gs.TalentLevel("power_shot") == 2, "存档恢复天赋层级");
-            Check(gs.BuffCount("power_shot") == 2, "存档恢复后效果桥同步");
+            Check(gs.AugmentLevel("power_shot") == 2, "存档恢复后效果桥同步");
             Check(gs.Health == 66.0, "存档恢复 HP（v3 格式）");
 
             // 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
             int scoreBeforeHc = gs.Score;
-            int powerBefore = gs.BuffCount("power_shot");
+            int powerBefore = gs.AugmentLevel("power_shot");
             gs.AddRp(5);
             gs.Health = 50.0;
             // 蓄力松手取消
@@ -688,7 +688,7 @@ public partial class SmokeTest : Node
             }
             Check(!GetTree().Paused && !main.IsHomecoming(), "继续出击恢复游戏");
             Check(gs.Score == scoreBeforeHc, "返回同一局：分数保留");
-            Check(gs.BuffCount("power_shot") == powerBefore, "返回同一局：buff 保留");
+            Check(gs.AugmentLevel("power_shot") == powerBefore, "返回同一局：buff 保留");
             Check(gs.HasSave(), "返航后存档保留");
             gs.LoginGuest();  // 恢复游客会话（§3.11 起的用户档断言已结束）
             // 注册表驱动清场：非 Boss 实体（Enemy/FormationCraft/事件残留）全清
@@ -1025,7 +1025,7 @@ public partial class SmokeTest : Node
 
             // 6.1d 散射×辅助瞄准适配（2026-08-13 回归）：各散射等级齐射全弹绑定同一追踪目标、
             // 目标死亡后追踪弹解除绑定（stale 引用守卫族，历史崩溃面）
-            var buffsBeforeAim = (Godot.Collections.Dictionary)gs.Buffs.Duplicate(true);
+            var augmentsBeforeAim = (Godot.Collections.Dictionary)gs.Augments.Duplicate(true);
             gs.Talent.TestSetLevel("spread_shot", 1);  // 1 层 → 3 弹（奇数序列）
             var aimE3 = EnemyScene.Instantiate<Enemy>();
             aimE3.Setup(spawner.ENEMY_TYPES[0], "straight", 1.0f);
@@ -1130,10 +1130,10 @@ public partial class SmokeTest : Node
                 }
             }
             player.AimPointOverride = Vector2.Inf;
-            gs.Buffs.Clear();
-            foreach (var k in buffsBeforeAim.Keys)
+            gs.Augments.Clear();
+            foreach (var k in augmentsBeforeAim.Keys)
             {
-                gs.Buffs[k] = buffsBeforeAim[k];
+                gs.Augments[k] = augmentsBeforeAim[k];
             }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 

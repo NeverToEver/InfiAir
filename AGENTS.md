@@ -10,7 +10,7 @@ InfiAir：单人 2D 俯视射击（top-down shmup；玩家全屏自由移动 + �
 
 - 入口场景 `scenes/welcome.tscn`（账户/难度/教程/设置/排行榜），战斗场景 `scenes/main.tscn` 由测试显式实例化。视口 1920×1080，stretch `canvas_items` + aspect `keep`。本地运行 `./run.sh`（Windows `run.bat`，macOS 双击 `run.command`；三者同一参数协议，透传引擎参数）。
 - 唯一 autoload 是 `GameState`（`csharp/godot/GameState*.cs` 按域拆 partial），各域服务编排门面，C# 统一经 `GameState.Instance` 访问。
-- main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / BuffUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / MouseTrap / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
+- main 场景树速览：`Starfield / Camera2D / Player / Spawner / BulletPool / EnemyPool / HUD / TalentUI / PauseUI / SettingsUI / GameOverUI / BaseUI / ExitConfirm / BackNavigator / MouseTrap / VirtualControls / MetaHealthFX / AimFrameLayer / IntroCinematic / ReturnCinematic / OrbitalStrike / MothershipSummonWindow / EliteTurretEvent / FormationStrikeEvent`。动态运行时实体一律挂在 Main 下。
 - UI 文本中英双语，默认中文。所有可见文本走 `Tr("UPPER_SNAKE_CASE")`，新 key 同时填 `data/translations.csv` zh/en 两列并重新导入。禁止硬编码中文可见文本。
 
 ## 目录

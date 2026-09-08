@@ -47,6 +47,18 @@ public partial class RadialWheel : Node2D
     /// <summary>返回芯片文字（深度 > 1 时显示；由调用方传 Tr 后文案，空 = 只画双箭头）。</summary>
     public string BackLabel { get; set; } = string.Empty;
 
+    /// <summary>默认槽距（度）。</summary>
+    public const double DefaultSlotAngle = 27.0;
+
+    /// <summary>选项数 → 槽距：端点卡弧角钳在 ±36° 内（1080p 下圆心 y=480 时，
+    /// 卡片旋转包络底缘 ≈927 < 左下 HUD 面板顶缘 ≈940；更大的端点角会与 HUD 交叠）。</summary>
+    public static double SlotAngleFor(int count) => count <= 1 ? DefaultSlotAngle : Math.Min(DefaultSlotAngle, 72.0 / (count - 1));
+
+    /// <summary>键盘/手柄接管开关（方向键旋转 + Enter 确认聚焦项）。轮盘是全站统一菜单导航，
+    /// 纯轮盘页保持开启；GUI 焦点落在页面内按钮时方向键/Enter 在 GUI 相位已被消费，
+    /// 自然回落为焦点链导航，无需调用方切换。</summary>
+    public bool KeyboardEnabled { get; set; } = true;
+
     private RadialWheelModel? _model;
     private FontFile? _font;
 
@@ -133,10 +145,12 @@ public partial class RadialWheel : Node2D
         _basePos = Position;
     }
 
-    /// <summary>装载根级选项（重开轮盘时重复调用即可重置全部状态）。</summary>
-    public void Load(IReadOnlyList<RadialWheelOption> roots)
+    /// <summary>装载根级选项（重开轮盘时重复调用即可重置全部状态）。
+    /// slotAngle 覆盖默认槽距：选项多的菜单页（5-7 项）收紧间距，避免弧面两端卡片
+    /// 超出可视半幅被剔除/溢出屏幕下缘（1080p 下 |弧角| ≳ 50° 的卡片出屏）。</summary>
+    public void Load(IReadOnlyList<RadialWheelOption> roots, double slotAngle = DefaultSlotAngle)
     {
-        _model = new RadialWheelModel(roots);
+        _model = new RadialWheelModel(roots) { SlotAngle = slotAngle };
         _contentScale = 1f;
         _shrinkT = _popT = _rippleT = _flashT = _snapT = -1f;
         _hoverIdx = -1;
@@ -361,7 +375,7 @@ public partial class RadialWheel : Node2D
                 case MouseButton.WheelUp:
                     if (IsInWheelZone(_model, local))
                     {
-                        ScrollTowards(_model, _model.Scroll - 1);
+                        MoveFocusOrScroll(_model, -1);
                         GetViewport().SetInputAsHandled();
                     }
 
@@ -369,7 +383,7 @@ public partial class RadialWheel : Node2D
                 case MouseButton.WheelDown:
                     if (IsInWheelZone(_model, local))
                     {
-                        ScrollTowards(_model, _model.Scroll + 1);
+                        MoveFocusOrScroll(_model, +1);
                         GetViewport().SetInputAsHandled();
                     }
 
@@ -464,6 +478,51 @@ public partial class RadialWheel : Node2D
         _snapFrom = (float)model.Scroll;
         _snapTo = (float)Math.Clamp(target, 0, model.OptionCount - 1);
         _snapT = 0f;
+    }
+
+    /// <summary>聚焦步进：溢出弧面走滚动吸附（原语义）；全容弧面滚动位被钳居中，
+    /// 改走模型焦点偏移（否则键盘/滚轮在整容菜单上永远无法移动聚焦项）。</summary>
+    private void MoveFocusOrScroll(RadialWheelModel model, int delta)
+    {
+        if (model.FitsSpan(model.OptionCount))
+        {
+            model.MoveFocus(delta);
+            QueueRedraw();
+            return;
+        }
+
+        ScrollTowards(model, Math.Round(model.EffectiveScroll, MidpointRounding.AwayFromZero) + delta);
+    }
+
+    // ---------------- 键盘/手柄（_UnhandledInput：GUI 相位无人消费时接管） ----------------
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (!Visible || _model == null || _shrinkT >= 0f || !KeyboardEnabled)
+        {
+            return; // 忙态/关闭态不接；KeyboardEnabled=false 时方向键留给页面焦点链
+        }
+
+        if (@event.IsActionPressed("ui_down"))
+        {
+            MoveFocusOrScroll(_model, +1);
+            GetViewport().SetInputAsHandled();
+        }
+        else if (@event.IsActionPressed("ui_up"))
+        {
+            MoveFocusOrScroll(_model, -1);
+            GetViewport().SetInputAsHandled();
+        }
+        else if (@event.IsActionPressed("ui_accept"))
+        {
+            var focused = _model.FocusedIndex;
+            if (focused >= 0)
+            {
+                Confirm(_model, focused);
+            }
+
+            GetViewport().SetInputAsHandled();
+        }
     }
 
     // ---------------- 命中 ----------------
@@ -634,7 +693,8 @@ public partial class RadialWheel : Node2D
         // 标签（恢复卡片变换）
         DrawSetTransform(pos, rot, new Vector2(cardScale, cardScale));
         var labelCol = focused ? new Color(UITheme.Text, alpha) : new Color(UITheme.TextDim, alpha);
-        DrawString(_font, new Vector2(-CardW * 0.5f + 78f, 8f), model.Current[i].Label, HorizontalAlignment.Left, -1, 22, labelCol);
+        // 宽度钳制：超长标签省略号截断（不裁字到描边外）
+        DrawString(_font, new Vector2(-CardW * 0.5f + 78f, 8f), model.Current[i].Label, HorizontalAlignment.Left, CardW - 90f, 22, labelCol);
 
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }

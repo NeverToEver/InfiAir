@@ -11,11 +11,12 @@ namespace InfiAir;
 /// </summary>
 public class PlayerDamage
 {
-    // U14（2026-08-09 审计）：HealTick 每物理帧 BuffCount——buff 名静态缓存防每帧 StringName 构造
-    private static readonly StringName RegenBuff = new("regen");
-    private static readonly StringName EvasionBuff = new("evasion");
-    private static readonly StringName ShieldBuff = new("shield");
-    private static readonly StringName ArmorBuff = new("armor");
+    // U14（2026-08-09 审计）：HealTick 每物理帧 AugmentLevel——buff 名静态缓存防每帧 StringName 构造
+    private static readonly StringName RegenId = new("regen");
+    private static readonly StringName EvasionId = new("evasion");
+    private static readonly StringName ShieldId = new("shield");
+    private static readonly StringName ArmorId = new("armor");
+    private static readonly StringName SecondWindId = new("second_wind");
 
 
 
@@ -34,14 +35,28 @@ public class PlayerDamage
     public float EvasionChance { get; private set; } = 0.2f;
     public float RegenPerSec { get; private set; } = 2.0f;
     public float ShakeHit { get; private set; } = 12.0f;
+    /// <summary>second_wind 逆境回血：受击后持续秒数 / 每秒每层回复量（Configure 注入）。</summary>
+    public float SecondWindDuration { get; private set; } = 3.0f;
+    public float SecondWindHealPerSec { get; private set; } = 3.0f;
+
+    /// <summary>逆境回血剩余秒数（受击时置满；仅在窗口内按层数结算，归零后零开销）。</summary>
+    private float _secondWindTimer;
 
     public void Configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit)
+    {
+        Configure(invincibleTime, armorMult, evasionChance, regenPerSec, shakeHit, SecondWindDuration, SecondWindHealPerSec);
+    }
+
+    public void Configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit,
+        float secondWindDuration, float secondWindHealPerSec)
     {
         InvincibleTime = invincibleTime;
         ArmorMult = armorMult;
         EvasionChance = evasionChance;
         RegenPerSec = regenPerSec;
         ShakeHit = shakeHit;
+        SecondWindDuration = Mathf.Max(secondWindDuration, 0.0f);
+        SecondWindHealPerSec = Mathf.Max(secondWindHealPerSec, 0.0f);
     }
 
     public void SetInvincible(float seconds) => Invincible = seconds;
@@ -69,7 +84,7 @@ public class PlayerDamage
         }
 
         // 闪避 buff：20% 完全免伤（不置无敌、不清弹）
-        if (GameState.Instance.BuffCount(EvasionBuff) > 0
+        if (GameState.Instance.AugmentLevel(EvasionId) > 0
             && GD.Randf() < EvasionChance)
         {
             return false;
@@ -80,15 +95,15 @@ public class PlayerDamage
         // 2026-08-06 审计登记：吸收分支有意不写 last_hit_frame——同帧多弹命中时每层吸收
         // 一发（「每层吸收一次」语义优先）；若计入 A16 单帧守卫则同帧第二弹被拦截免费，
         // 盾层数与弹数消耗不对称（hit_logic_test 同帧连打回归）。概率极低，维持现状登记
-        if (GameState.Instance.BuffCount(ShieldBuff) > 0)
+        if (GameState.Instance.AugmentLevel(ShieldId) > 0)
         {
-            GameState.Instance.ConsumeBuff(ShieldBuff);
+            GameState.Instance.ConsumeAugment(ShieldId);
             GameState.Instance.Shake(2.0);
             return true;
         }
 
         // 护甲 buff：固定 ×0.85 减伤
-        if (GameState.Instance.BuffCount(ArmorBuff) > 0)
+        if (GameState.Instance.AugmentLevel(ArmorId) > 0)
         {
             amount *= ArmorMult;
         }
@@ -96,6 +111,7 @@ public class PlayerDamage
         LastHitFrame = (int)Engine.GetPhysicsFrames();
         SinceDamage = 0.0f;
         Invincible = InvincibleTime;
+        _secondWindTimer = SecondWindDuration;
         GameState.Instance.PlaySfx(SfxId.PlayerHit);
         GameState.Instance.Shake(ShakeHit);
         GameState.Instance.LoseHealth(amount);
@@ -113,7 +129,18 @@ public class PlayerDamage
     public void HealTick(float delta)
     {
         SinceDamage += delta;
-        if (GameState.Instance.BuffCount(RegenBuff) > 0)
+        // second_wind 逆境回血：受击后窗口内按层数线性回复（层查询只在窗口内发生）
+        if (_secondWindTimer > 0.0f)
+        {
+            _secondWindTimer = Mathf.Max(_secondWindTimer - delta, 0.0f);
+            var windLevel = GameState.Instance.AugmentLevel(SecondWindId);
+            if (windLevel > 0)
+            {
+                GameState.Instance.Heal(SecondWindHealPerSec * windLevel * delta);
+            }
+        }
+
+        if (GameState.Instance.AugmentLevel(RegenId) > 0)
         {
             GameState.Instance.Heal(RegenPerSec * delta);
         }

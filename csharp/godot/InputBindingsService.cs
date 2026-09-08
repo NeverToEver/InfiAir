@@ -38,7 +38,7 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("dock"),
         new StringName("homecoming"),
         new StringName("give_up"),
-        new StringName("buff_panel"),
+        new StringName("augment_panel"),
         new StringName("parry"),
     };
 
@@ -97,7 +97,7 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("dock"),
         new StringName("homecoming"),
         new StringName("give_up"),
-        new StringName("buff_panel"),
+        new StringName("augment_panel"),
         new StringName("restart"),
         new StringName("parry"),
     };
@@ -188,7 +188,7 @@ public sealed partial class InputBindingsService : RefCounted
         AddJoyButton("dock", 2); // X
         AddJoyButton("homecoming", 3); // Y（长按返航）
         AddJoyButton("give_up", 7); // R3（长按放弃）
-        AddJoyButton("buff_panel", 6); // L3（展开/收起 buff 栏）
+        AddJoyButton("augment_panel", 6); // L3（展开/收起 buff 栏）
         AddJoyButton("restart", 0); // A（结算/暂停重开）
         AddJoyAxis("parry", 4, -1.0); // LT 左扳机（弧光弹反盾，轴 4 负向按下；阈值经 deadzone）
         // 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。

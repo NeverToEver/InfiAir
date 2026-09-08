@@ -76,7 +76,7 @@ public class PlayerVisuals
     }
 
     /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 player 传入——buff 外观
-    /// 写入 player.engine_tint，公开字段被 PlayerBuffVisuals/测试访问，留在 player 侧）。</summary>
+    /// 写入 player.engine_tint，公开字段被 PlayerAugmentVisuals/测试访问，留在 player 侧）。</summary>
     public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint)
     {
         _thruster.SpeedScale = speedScale;

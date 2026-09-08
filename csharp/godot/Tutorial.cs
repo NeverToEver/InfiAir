@@ -204,7 +204,7 @@ public partial class Tutorial : Node2D
             case 1:
                 {
                     // 加速与相位突进
-                    // 教程授予相位冲刺（天赋域层级直写口，含 Buffs 同步广播）
+                    // 教程授予相位冲刺（天赋域层级直写口，含 Augments 同步广播）
                     GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
                     _boostCount = 0;
                     _dashCount = 0;
@@ -412,7 +412,7 @@ public partial class Tutorial : Node2D
         }
 
         _advancing = true;
-        PlaySfxBuffPick();
+        PlaySfxAugmentPick();
         // 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程，退出时协程状态泄漏）
         var timer = new Godot.Timer();
         timer.OneShot = true;
@@ -610,7 +610,7 @@ public partial class Tutorial : Node2D
         _finished = true;
         GameState.Instance.TutorialDone = true;
         GameState.Instance.SaveProfile();
-        PlaySfxBuffPick();
+        PlaySfxAugmentPick();
         // 清场
         foreach (var child in GetChildren())
         {
@@ -656,7 +656,7 @@ public partial class Tutorial : Node2D
         }
     }
 
-    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(SfxId.BuffPick);
+    private void PlaySfxAugmentPick() => GameState.Instance.PlaySfx(SfxId.AugmentPick);
 
     /// <summary>Variant 数组转 object[]（GDScript `%` 参数补参用；GodotSharp 无 Array.ToArray）。</summary>
     private static object[] ToObjects(Godot.Collections.Array args)

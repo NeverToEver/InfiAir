@@ -906,7 +906,7 @@ public partial class Main : Node2D
         // mothership_recall 天赋：每级冷却 ×0.5（60s→30s→15s）；浮点有效层级（收益递减折算）
         _dockCooldown = cooldown
             * Mathf.Pow(
-                (float)GameState.Instance.Cfg("buffs.mothership_recall.cooldown_factor", 0.5).AsDouble(),
+                (float)GameState.Instance.Cfg("augments.mothership_recall.cooldown_factor", 0.5).AsDouble(),
                 (float)GameState.Instance.TalentEffLevel(new StringName("mothership_recall")));
     }
 

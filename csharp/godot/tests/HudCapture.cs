@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir.Tests;
 
 /// <summary>
-/// HUD 布局巡检截图：常态（2 个 buff）与极端（已解锁 buff 满层：BUFF_POOL_SIZE=19
+/// HUD 布局巡检截图：常态（2 个 buff）与极端（已解锁 buff 满层：AUG_POOL_SIZE=19
 /// 池中当前 15 种 distinct 加满，R07 注释修正）两种形态，
 /// 每屏截图存 /tmp/hud_&lt;name&gt;.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ///   godot --path . res://test/hud_capture.tscn
@@ -58,7 +58,7 @@ public partial class HudCapture : Node
             GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.GiveUp, -1f);
             GetNode<Hud>("Main/HUD").SetCharge(Hud.ChargeChannel.EarlyLeave, -1f);
 
-            // 2. 极端：全部已解锁天赋叠层拉满（19 种 distinct；上限以 buffs.<id>.max_stacks 为准）
+            // 2. 极端：全部已解锁天赋叠层拉满（19 种 distinct；上限以 augments.<id>.max_stacks 为准）
             gs.Talent.TestSetLevel("power_shot", 5);
             gs.Talent.TestSetLevel("rapid_fire", 4);
             gs.Talent.TestSetLevel("spread_shot", 2);
@@ -79,7 +79,7 @@ public partial class HudCapture : Node
             Shot("stress");
 
             // 3. L 展开 buff 滚动栏（已解锁 15 种 distinct 明细行，R07 修正）
-            GetNode<Hud>("Main/HUD").ToggleBuffPanel();
+            GetNode<Hud>("Main/HUD").ToggleAugmentPanel();
             await Settle();
             Shot("panel");
 

@@ -724,7 +724,7 @@
 			"interval_mult": 0.8
 		}
 	},
-	"buffs": {
+	"augments": {
 		"power_shot": {
 			"factor": 1.25,
 			"max_stacks": 5
@@ -774,13 +774,16 @@
 			"max_stacks": 1
 		},
 		"efficient_boost": {
-			"factor": 0.75
+			"factor": 0.75,
+			"max_stacks": 2
 		},
 		"boost_recovery": {
-			"factor": 1.5
+			"factor": 1.5,
+			"max_stacks": 2
 		},
 		"mothership_recall": {
-			"cooldown_factor": 0.5
+			"cooldown_factor": 0.5,
+			"max_stacks": 2
 		},
 		"crit_shot": {
 			"chance": 0.12,
@@ -803,6 +806,48 @@
 			"half_width": 26,
 			"hit_radius": 30,
 			"max_stacks": 1
+		},
+		"homing": {
+			"turn_rate_deg": 150.0,
+			"lock_time": 8.0,
+			"lock_cone_deg": 44.0,
+			"lock_range": 900.0,
+			"max_stacks": 2
+		},
+		"salvo": {
+			"every_base": 7,
+			"every_step": 2,
+			"damage_mult": 3.0,
+			"max_stacks": 2
+		},
+		"deflector": {
+			"cooldown_factor": 0.78,
+			"reflect_mult": 1.6,
+			"max_stacks": 2
+		},
+		"second_wind": {
+			"duration": 3.0,
+			"heal_per_sec": 3.0,
+			"max_stacks": 2
+		},
+		"dash_strike": {
+			"damage_per_level": 35,
+			"radius": 80.0,
+			"tick_interval": 0.12,
+			"max_stacks": 2
+		},
+		"graze_field": {
+			"radius_factor": 1.2,
+			"score_per_level": 5,
+			"max_stacks": 3
+		},
+		"score_amp": {
+			"factor": 1.08,
+			"max_stacks": 3
+		},
+		"combo_guard": {
+			"window_factor": 1.5,
+			"max_stacks": 2
 		},
 		"dynamic_weight": {
 			"enabled": true,
@@ -830,6 +875,14 @@
 		],
 		"cycle_mult": 1.35,
 		"boss_kill_base": 500.0
+	},
+	"base": {
+		"supply": {
+			"cache_cost_rp": 4,
+			"cache_points": 2,
+			"overcharge_cost_rp": 8,
+			"overcharge_slot_max": 2
+		}
 	},
 	"base_task": {
 		"refresh_cost": 2,
@@ -1192,6 +1245,16 @@
 				"max_level": 2,
 				"base_cost": 15,
 				"cost_growth": 1.8
+			},
+			"homing": {
+				"max_level": 1,
+				"base_cost": 14,
+				"cost_growth": 1.6
+			},
+			"graze_field": {
+				"max_level": 1,
+				"base_cost": 15,
+				"cost_growth": 1.6
 			}
 		}
 	},
@@ -1216,7 +1279,15 @@
 			"crit_shot": 2,
 			"bullet_speed": 2,
 			"phase_dash": 2,
-			"extra_life": 6
+			"extra_life": 6,
+			"homing": 2,
+			"salvo": 1,
+			"deflector": 1,
+			"second_wind": 1,
+			"dash_strike": 1,
+			"graze_field": 2,
+			"score_amp": 2,
+			"combo_guard": 1
 		},
 		"diminishing": {
 			"step": 0.25,

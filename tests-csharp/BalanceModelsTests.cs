@@ -66,7 +66,9 @@ public sealed class BalanceModelsTests
         Assert.NotNull(root);
         // AB22：hud 配置段整体删除（boss_bar_segments 键移除后无剩余键），不再出现在 Extra
         Assert.False(root!.Extra!.ContainsKey("hud"));
-        Assert.True(root.Extra.ContainsKey("buffs"));
+        // 2026-09-08 作战增幅重构：buffs 节更名 augments（旧 buff 身份退役）
+        Assert.False(root.Extra.ContainsKey("buffs"));
+        Assert.True(root.Extra.ContainsKey("augments"));
         Assert.True(root.Extra.ContainsKey("fog_events"));
     }
 

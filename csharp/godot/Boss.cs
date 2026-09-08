@@ -329,9 +329,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private float _summonSlowFactor = 1.0f;
     /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
-    /// <summary>2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 buff_count 字典查询；
-    /// 2026-08-11 二轮收敛 BuffBoolCache：BuffsChanged 信号事件驱动）。</summary>
-    private readonly BuffBoolCache _slowCache;
+    /// <summary>2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 augment_level 字典查询；
+    /// 2026-08-11 二轮收敛 AugmentBoolCache：AugmentsChanged 信号事件驱动）。</summary>
+    private readonly AugmentBoolCache _slowCache;
     /// <summary>2026-08-07 审计：体碰改信号事件驱动（对齐 enemy.gd P0-2）。</summary>
     private bool _bodyContact;
     // 阶段框架与模式表循环（§4.1）
@@ -364,7 +364,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             GD.Load<Texture2D>("res://assets/sprites/boss_ship_3_p2.png"),
             GD.Load<Texture2D>("res://assets/sprites/boss_ship_4_p2.png"),
         };
-        _slowCache = new BuffBoolCache(SlowFieldId);
+        _slowCache = new AugmentBoolCache(SlowFieldId);
     }
 
     public override void _Ready()
@@ -438,7 +438,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EscapeDrift = CfgFx.Float("boss.escape.drift", EscapeDrift);
         EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed);
         EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel);
-        // 2026-08-07 审计：slow_field 缓存初始值 + buffs_changed 增量刷新（对齐 enemy.gd C22）
+        // 2026-08-07 审计：slow_field 缓存初始值 + augments_changed 增量刷新（对齐 enemy.gd C22）
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
 
@@ -480,7 +480,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // 决策（2026-08-11 CfgFx 批 5）：slow_field.factor 此处保持无钳制直读——Enemy 侧同键
         // 钳 [0,1]，Boss 侧慢速力场仅作减速系数、无加速场语义；行为零变化铁律下不补钳，
         // CfgFx.Float 仅加判型回退（坏类型不崩）
-        SlowFieldFactor = CfgFx.Float("buffs.slow_field.factor", SlowFieldFactor);
+        SlowFieldFactor = CfgFx.Float("augments.slow_field.factor", SlowFieldFactor);
         BulletDamageFan = CfgFx.Int("boss.bullet_damage.fan", BulletDamageFan);
         BulletDamageHoming = CfgFx.Int("boss.bullet_damage.homing", BulletDamageHoming);
         BulletDamageSniper = CfgFx.Int("boss.bullet_damage.sniper", BulletDamageSniper);
@@ -599,7 +599,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public override void _ExitTree()
     {
         GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
-        // C22：显式断开 buffs_changed 信号连接（重入树不重复连接）
+        // C22：显式断开 augments_changed 信号连接（重入树不重复连接）
         _slowCache.Disconnect(GameState.Instance);
 
         _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（A3 归 EnrageSequence）

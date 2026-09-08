@@ -6,7 +6,7 @@ namespace InfiAir;
 /// GameState 部分定义（局外成长 Meta Progression，2026-08-09 计划 M3）：
 /// 科技点死亡结算 / 升级消费 / 新局开局预置 buff 层数。
 /// 数据模型与公式在 InfiAir.Core.Meta（纯逻辑，xUnit 直测）；本文件为 Godot 绑定层：
-/// UserDb meta 档案读写 + balance.json meta 节配置缓存 + Buffs 预置应用。
+/// UserDb meta 档案读写 + balance.json meta 节配置缓存 + Augments 预置应用。
 /// 仅登录用户（游客不持久化，B7-8 口径延伸）；结算唯一入口 = SettleRun（死亡）——
 /// AC26（2026-08-11 审计订正）：ExitConfirm 删档不结算；K 键自毁（give_up）经 PlayerDied
 /// 按死亡正常结算——防刷点口径仅限删档退出（与实现/DESIGN_BASELINE 一致）。
@@ -53,7 +53,7 @@ public partial class GameState : Node
     /// <summary>消费科技点升级（未登录/余额不足/已满级返回 false）；成功即时落盘 UserDb。</summary>
     public bool SpendTechPoints(StringName id) => _meta.SpendTechPoints(id);
 
-    /// <summary>新局开局预置：已购升级 → Buffs 初始层数（Main.ApplyNewRun 调用；
+    /// <summary>新局开局预置：已购升级 → Augments 初始层数（Main.ApplyNewRun 调用；
     /// tutorial/存档恢复路径不经过——教程隔离、继续对局 buffs 从存档恢复，均不预置）。</summary>
     public void ApplyMetaLoadout() => _meta.ApplyMetaLoadout();
 }

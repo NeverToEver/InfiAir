@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 局外成长 Meta 服务（第三轮拆域试点，2026-08-11）：原 GameState.Meta.cs 全部职责迁入本服务——
 /// 科技点死亡结算 / 升级消费 / 新局开局预置 buff 层数。
 /// Godot 绑定层：UserDb meta 档案读写（UserDB 经构造注入）+ balance.json meta 节配置缓存
-/// （经 GameState.Instance.Cfg）+ Buffs 预置应用（经 GameState.Instance）。
+/// （经 GameState.Instance.Cfg）+ Augments 预置应用（经 GameState.Instance）。
 /// 门面转发先例：与 BalanceService/SaveManager/EntityManager 同构——GameState 组合持有本服务，
 /// GameState.Meta.cs 为门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定；
 /// 跨域访问统一经 GameState.Instance。文档引用保留：docs/archive/2026-08-09-meta-progression-plan.md。
@@ -199,7 +199,7 @@ public sealed partial class MetaService : RefCounted
 
     /// <summary>新局开局预置：已购升级 → 天赋节点起始层级（Main.ApplyNewRun 调用；
     /// tutorial/存档恢复路径不经过——教程隔离、继续对局天赋态从存档恢复，均不预置）。
-    /// 天赋缓存系统重构：归口 TalentService.ApplyStartingLoadout（Buffs 同步 + 信号由服务侧发）。</summary>
+    /// 天赋缓存系统重构：归口 TalentService.ApplyStartingLoadout（Augments 同步 + 信号由服务侧发）。</summary>
     public void ApplyMetaLoadout()
     {
         if (GameState.Instance.CurrentUser == "" || GameState.Instance.IsGuest())

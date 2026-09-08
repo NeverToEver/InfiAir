@@ -71,6 +71,16 @@ public sealed class RadialWheelModel
     /// <summary>弧端渐隐带宽（度）：从 HalfSpan - FadeDeg 起向边缘平滑渐隐到 0。</summary>
     public double FadeDeg { get; init; } = 18.0;
 
+    /// <summary>全容弧面时的焦点偏移（槽位）：选项全部可见时 EffectiveScroll 钳在居中、
+    /// 滚动位失效，键盘/滚轮改驱动本偏移移动聚焦项（展示层 focused 高亮跟随 FocusedIndex）。</summary>
+    public int FocusBias { get; private set; }
+
+    /// <summary>聚焦项偏移一步（钳制在首末项；仅全容态有意义，调用方负责分流）。</summary>
+    public void MoveFocus(int delta) => FocusBias += delta;
+
+    /// <summary>复位焦点偏移（下钻/回退/装载时调用，聚焦回弧面中点）。</summary>
+    public void ResetFocus() => FocusBias = 0;
+
     public int Depth => _stack.Count;
 
     public IReadOnlyList<RadialWheelOption> Current => Top.Options;
@@ -100,7 +110,7 @@ public sealed class RadialWheelModel
         get
         {
             var n = Top.Options.Count;
-            return Math.Clamp((int)Math.Round(EffectiveScroll, MidpointRounding.AwayFromZero), 0, n - 1);
+            return Math.Clamp((int)Math.Round(EffectiveScroll, MidpointRounding.AwayFromZero) + FocusBias, 0, n - 1);
         }
     }
 
@@ -128,7 +138,7 @@ public sealed class RadialWheelModel
         return Current[index].HasChildren;
     }
 
-    /// <summary>下钻：子层入栈（滚动位归 0，聚焦首项）。不可下钻返回 false（叶子语义由调用方触发确认）。</summary>
+    /// <summary>下钻：子层入栈（滚动位归 0，聚焦回弧面中点）。不可下钻返回 false（叶子语义由调用方触发确认）。</summary>
     public bool Drill(int index)
     {
         if (!CanDrill(index))
@@ -137,6 +147,7 @@ public sealed class RadialWheelModel
         }
 
         _stack.Add(new Level(Current[index].Children!));
+        FocusBias = 0;
         return true;
     }
 
@@ -149,6 +160,7 @@ public sealed class RadialWheelModel
         }
 
         _stack.RemoveAt(_stack.Count - 1);
+        FocusBias = 0;
         return true;
     }
 
