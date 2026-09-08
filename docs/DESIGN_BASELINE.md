@@ -1,12 +1,12 @@
 # InfiAir Design Baseline (DESIGN_BASELINE)
 
 > **玩法设计意图的单一权威**：数值/规则/系统边界定稿在这里，改设计只改这里。
-> 系统行为不在此维护——以代码与测试为准；历史行为规格（BOSS/事件/演出/管理器等）已归档 `docs/archive/`，仅作快照参考。工程约定/门禁/流程见 `AGENTS.md`；方向与已知债务见 `docs/ROADMAP.md`。
+> 系统行为不在此维护——以代码为准；方向决策与已知债务见 `docs/ROADMAP.md`。
 
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent (`docs/archive/PORTING_PARITY.md`). 2026-09-08 纯街机流：无登录/无对局存档/无排行榜/无局外成长；开机 = 开场过场 → 黑屏标题屏（按任意键开始 / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无对局存档/无排行榜/无局外成长；开机 = 开场过场 → 黑屏标题屏（按任意键开始 / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。
 
 ### 1.2 Core Loop
 ```
@@ -97,4 +97,4 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **F parry**: full 360° circle, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
 
 ---
-*玩法设计意图修订唯一入口；历史修订轨迹见 git 历史与 CHANGELOG。*
+*玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*
