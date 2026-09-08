@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 攻击状态机（A3 拆分，docs/AUDIT_VAULT.md A3；2026-08-08 全量迁移，自 scripts/boss_attacks.gd）。
+/// Boss 攻击状态机（A3 拆分；2026-08-08 全量迁移，自 scripts/boss_attacks.gd）。
 /// 承载持续型攻击（狙击 telegraph / 蓄力重炮 / 冲刺掠过 / 编队齐射）的时序状态与轮询；
 /// 一次性攻击（fan/homing/cross/bullet_wall）在 execute 内直接委托 BossFire。
 /// 配置字段经 Boss typed 公开属性/方法直读，弹幕发射经注入的 BossFire，避免跨类私有访问（A1 约束）。

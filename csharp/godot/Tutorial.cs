@@ -481,7 +481,7 @@ public partial class Tutorial : Node2D
                     }
 
                     // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
-                    // 注意：保持每帧检查（tutorial_test 依赖 queue_free 释放与检查窗口的即时性，
+                    // 注意：保持每帧检查（queue_free 释放与检查窗口需即时生效，
                     // 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
                     if (!_advancing && _stageKills < CombatKillGoal && AliveEnemyCount() == 0)
                     {

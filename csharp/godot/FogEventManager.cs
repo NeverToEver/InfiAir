@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 迷雾事件效果层 + API 门面（docs/EVENT_MANAGER.md §4 迁移图；M 批次全量迁移）。
+/// 迷雾事件效果层 + API 门面（M 批次全量迁移）。
 /// 挂载：GameState autoload 子节点（GameState.fog_events 全局访问口）。
 /// 2026-08-05 统一事件管理器收敛：迷雾事件的注册（EVENT_FACTORIES）/触发策略/生命周期/
 /// 计时/冷却/信号广播全部由 GameEventManager（GameState.events）统一接管（fog 组）；

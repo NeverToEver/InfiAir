@@ -6,7 +6,7 @@ namespace InfiAir.Core;
 /// <summary>
 /// data/balance.json 的类型化模型（InfiAir.Core 首个样板模块）。
 /// 纯 .NET、零 Godot 依赖 → 可在 xUnit 中直接单测；
-/// 字段值语义对齐 docs/BALANCE_MAP.md 与 test/balance_test.gd 抽查项
+/// 字段值语义对齐 data/balance.json 定稿值的抽查项
 ///（U19：原"与 GDScript 侧 GameState.cfg() 并行存在"注记随 M7 全量迁移失效——现为唯一类型化入口）。
 /// </summary>
 public sealed class BalanceRoot
@@ -102,14 +102,14 @@ public sealed class BalanceRoot
         return true;
     }
 
-    /// <summary>旋转 Boss 数量（与 docs/BALANCE_MAP.md boss.hp_mults 长度一致）。</summary>
+    /// <summary>旋转 Boss 数量（与 balance.json boss.hp_mults 长度一致）。</summary>
     public const int BossCount = 4;
 
     /// <summary>里程碑档数（与 spawner.unlock_scores 长度一致）。</summary>
     public const int MilestoneCount = 5;
 }
 
-/// <summary>player section 类型化（字段值示例见 test/balance_test.gd：max_speed 420、max_health 100、bullet_damage 10）。</summary>
+/// <summary>player section 类型化（字段值示例 data/balance.json：max_speed 420、max_health 100、bullet_damage 10）。</summary>
 public sealed class PlayerBalance
 {
     [JsonPropertyName("max_speed")]
@@ -128,7 +128,7 @@ public sealed class PlayerBalance
     public FuelBalance? Fuel { get; set; }
 }
 
-/// <summary>player.fuel section 类型化（drain 燃料消耗率，抽查见 test/balance_test.gd）。</summary>
+/// <summary>player.fuel section 类型化（drain 燃料消耗率，抽查 data/balance.json）。</summary>
 public sealed class FuelBalance
 {
     [JsonPropertyName("drain")]
@@ -148,7 +148,7 @@ public sealed class EnemyBalance
     public double HpRampFactor { get; set; }
 }
 
-/// <summary>enemies.bullet_damage section 类型化（single/spread/laser 三弹种伤害，抽查见 test/balance_test.gd）。</summary>
+/// <summary>enemies.bullet_damage section 类型化（single/spread/laser 三弹种伤害，抽查 data/balance.json）。</summary>
 public sealed class BulletDamageBalance
 {
     [JsonPropertyName("single")]
@@ -161,7 +161,7 @@ public sealed class BulletDamageBalance
     public int Laser { get; set; }
 }
 
-/// <summary>boss section 类型化（hp_mults 首档 1.3、collision_damage 30，抽查见 test/balance_test.gd）。</summary>
+/// <summary>boss section 类型化（hp_mults 首档 1.3、collision_damage 30，抽查 data/balance.json）。</summary>
 public sealed class BossBalance
 {
     [JsonPropertyName("hp_mults")]
@@ -181,7 +181,7 @@ public sealed class SpawnerBalance
     public double[] UnlockScores { get; set; } = [];
 }
 
-/// <summary>mothership section 类型化（depart_cooldown 60、mag_cells 10、missile.damage 80，抽查见 test/balance_test.gd）。</summary>
+/// <summary>mothership section 类型化（depart_cooldown 60、mag_cells 10、missile.damage 80，抽查 data/balance.json）。</summary>
 public sealed class MothershipBalance
 {
     [JsonPropertyName("depart_cooldown")]
@@ -194,7 +194,7 @@ public sealed class MothershipBalance
     public MissileBalance? Missile { get; set; }
 }
 
-/// <summary>mothership.missile section 类型化（damage 80，抽查见 test/balance_test.gd）。</summary>
+/// <summary>mothership.missile section 类型化（damage 80，抽查 data/balance.json）。</summary>
 public sealed class MissileBalance
 {
     [JsonPropertyName("damage")]

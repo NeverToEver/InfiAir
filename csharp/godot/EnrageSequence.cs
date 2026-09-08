@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 狂暴状态机（A3 拆分，docs/AUDIT_VAULT.md A3；2026-08-08 全量迁移，自 scripts/enrage_sequence.gd）。
+/// Boss 狂暴状态机（A3 拆分；2026-08-08 全量迁移，自 scripts/enrage_sequence.gd）。
 /// 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
 /// 轨道路径计算 + 锁血/玩家减速。经 Boss typed 公开属性/方法直读配置与位置，
 /// 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问（A1 约束）。
@@ -421,7 +421,7 @@ public partial class EnrageSequence : RefCounted
     private void HiveVolleyAllMinions(Boss boss)
     {
         var minions = new Godot.Collections.Array();
-        // 统一实体管理器批量 API（docs/ENTITY_MANAGER.md）：收集在场活跃小怪
+        // 统一实体管理器批量 API：收集在场活跃小怪
         // M3d：直接遍历注册表（for_each_enemy 的 bool 谓词无法用 Callable.From——无 Func 重载）；
         // 语义等价：失效实例跳过 + Enemy 判型 + 活跃过滤
         foreach (var item in GameState.Instance.Enemies)

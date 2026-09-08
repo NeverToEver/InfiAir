@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家受击减免 + 回血组件（M3c 全量迁移，2026-08-08 自 scripts/player_damage.gd 迁移；A8 拆分，
-/// docs/AUDIT_VAULT.md A8）。持无敌/单帧守卫/受击延迟计时；受击结算与回血逻辑自本类。
+/// 玩家受击减免 + 回血组件（M3c 全量迁移，2026-08-08 自 scripts/player_damage.gd 迁移；A8 拆分）。
+/// 持无敌/单帧守卫/受击延迟计时；受击结算与回血逻辑自本类。
 /// 经 Player 属性转发（Player.Invincible 等，测试白盒兼容）与 GameState 全局交互，
 /// 不访问 Player 私有字段（A1 约束）。
 /// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；GameState（GDScript

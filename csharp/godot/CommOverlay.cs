@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件·通讯浮层（docs/ELITE_TURRET_EVENT.md 第 4 节；2026-08-08 自 scripts/comm_overlay.gd 迁移）：
+/// 精英炮塔事件·通讯浮层（2026-08-08 自 scripts/comm_overlay.gd 迁移）：
 /// 屏幕左下角六边切角通讯框（品红描边）+ 打字机字幕，显示 3.5s 后淡出；
 /// 不暂停游戏（process_mode 跟随对局）；新台词顶掉未播完的旧台词。
 /// </summary>

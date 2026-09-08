@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 统一实体管理器（M2 全量迁移，2026-08-08 自 scripts/entity_manager.gd 迁移；
-/// docs/ENTITY_MANAGER.md）：对局实体注册表 + 生命周期信号。
+/// 统一实体管理器（M2 全量迁移，2026-08-08 自 scripts/entity_manager.gd 迁移）：
+/// 对局实体注册表 + 生命周期信号。
 /// 语义保持：enemies 注册表 + O(1) has_enemy 热路径索引；敌弹注册表（death_replay 数据源）；
 /// 特殊引用（player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref/
 /// virtual_controls）；统一绑定样板 bind_enemy/unbind_enemy。

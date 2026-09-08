@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 协程/异步工具层（M1 全量迁移建立，2026-08-08）。
-/// 规则（同步登记 AGENTS.md「硬性约定」）：
+/// 规则：
 /// - 游戏内计时一律 SceneTree.CreateTimer + ToSignal，禁止裸 Task.Delay（恢复在线程池，访问 Godot API 线程不安全）；
 /// - 挂起 await 无法取消（SignalAwaiter 无内置取消，proposal #11909 未落地）→ 所有等待都以
 ///   SceneTree 所属计时器为兜底（必触发），配合恢复后 GodotObject.IsInstanceValid 判活，从根上消灭永久挂起/对象图泄漏；

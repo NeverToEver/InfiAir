@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轰炸编队事件编排（docs/FORMATION_STRIKE_EVENT.md）：最低优先级随机遭遇——
+/// 轰炸编队事件编排：最低优先级随机遭遇——
 /// IDLE → FORMATION_ENTER（自屏顶外靠近）→ FORMATION_TURN（90° 转航向）
 /// → BOMBING_RUN（横穿交错投弹）→ FORMATION_EXIT（加速离场）→ IDLE（冷却）。
 /// 不冻结 Boss 调度；2026-07-29 修订为占用波次槽——运行期间暂停普通波次

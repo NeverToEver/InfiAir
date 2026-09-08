@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 触屏虚拟输入层（mobile touch，docs/archive/2026-08-07-deferred-restart-plan.md §3）：
+/// 触屏虚拟输入层（mobile touch）：
 /// 左虚拟摇杆 → move_*，右虚拟摇杆 → aim_*（增量，与手柄右摇杆虚拟准星同语义），
 /// 虚拟按钮 → boost / fine_move / dash / parry。
 /// 注入路径：Input.action_press/release（等价 InputEventAction）——player 的

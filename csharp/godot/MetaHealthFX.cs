@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// M3b：Enemy 迁 C#，sin_fast 静态直调（Enemy.SinFast，原经脚本资源 load）。
-/// Meta HUD 血量与受击反馈（docs/META_HUD_DESIGN.md）：全屏后处理承载受击色差/径向模糊、
+/// Meta HUD 血量与受击反馈：全屏后处理承载受击色差/径向模糊、
 /// 攻击方向定向波纹、低血裂纹生长/错峰消散、去饱和/冷青色偏/晕影与 DYING 心跳/呼吸/抖动。
 /// layer=1：世界之上、HUD 之下（HUD 在主场景抬至 layer=2；低于 OrbitalStrike 24、过场 35）。
 /// 性能（§2 决策）：满血静止隐藏全屏 ColorRect + _process 早退（常态零 GPU、≈零 CPU）；

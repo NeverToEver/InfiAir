@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轨道打击清场动画（对齐原作 homecoming ORBITAL_STRIKE 阶段，见 docs/PORTING_PARITY.md）。
+/// 轨道打击清场动画（对齐原作 homecoming ORBITAL_STRIKE 阶段）。
 /// 从基地「继续出击」时由 main._resume_from_base() 触发；树保持暂停播放（process_mode=Always）。
 /// 时轴（进度 p = t / DURATION）：
 ///   [0, MISSILE_FROM)         瞄准具淡入：命中点脉冲环 ×3 + 十字线（青色）
@@ -26,7 +26,7 @@ public partial class OrbitalStrike : CanvasLayer
     [Signal]
     public delegate void FinishedEventHandler();
 
-    // ---- 时轴/尺寸配置（_ready 从 balance.json 覆盖；与脚本默认值一致；测试直写 DURATION） ----
+    // ---- 时轴/尺寸配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     public float DURATION = 1.4f;
 
     public float IMPACT_AT = 0.56f;
@@ -293,7 +293,6 @@ public partial class OrbitalStrike : CanvasLayer
     }
 
     // ---------------- UPPER_SNAKE 配置字段（M7 后保留） ----------------
-    // DURATION 等 UPPER_SNAKE 公开字段保留原 GDScript 公开 var 语义：测试直写（orbital_strike_test /
-    // ui_capture / return_cinematic / elite_turret_event_test 经 `strike.DURATION` / `main.strike().DURATION`）。
+    // DURATION 等 UPPER_SNAKE 公开字段保留原 GDScript 公开 var 语义（upper_case 直接读写）。
     // 本类无 snake_case 方法桥（C# 迁移后无动态派发调用面）。
 }

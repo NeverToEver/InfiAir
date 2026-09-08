@@ -101,7 +101,7 @@ public partial class GameState : Node
     /// RunProgressionService.RecomputeDifficultyInternal——2026-08-11 迁入）。</summary>
     public void RecomputeDifficulty() => _runProg.RecomputeDifficulty();
 
-    /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线，docs/archive/ENDLESS_BALANCE_PLAN.md）：
+    /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线）：
     /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）——
     /// 私有一行包装（本体在 RunProgressionService）。</summary>

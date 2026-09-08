@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 全局退出确认窗（复用组件，设计见 docs/EXIT_FLOW.md）。
+/// 全局退出确认窗（复用组件）。
 /// normal/battle 双模式：battle 模式显示进度损失警告（战斗中退出路径：
 /// 暂停 →「退出游戏」→ 本窗，构成二次确认）。确认后统一执行退出前清理：
 /// profile 落盘 → 战斗中删档（放弃对局）→ 资源 hook → 淡出 0.3s → quit。

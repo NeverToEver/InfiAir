@@ -6,7 +6,6 @@ namespace InfiAir;
 
 /// <summary>
 /// 开场过场导演：6 镜头时序串联、黑场转场、跳过与整树清理。
-/// 设计文档（单一事实源）：docs/INTRO_CINEMATIC.md。
 /// 全部按 1920×1080 设计坐标布局；镜头内连续动画用 tween / Timer 节点 / _process，
 /// 严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/intro_cinematic.gd）：CanvasLayer 子类。

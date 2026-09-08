@@ -53,7 +53,7 @@ public sealed partial class ScoreService : RefCounted
         3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
     };
 
-    /// <summary>击杀连击（2026-08-11，docs/archive/2026-08-11-score-combo-buff-pity-plan.md）：
+    /// <summary>击杀连击（2026-08-11）：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）。</summary>
     public double ComboWindow { get; private set; } = 3.0;
 
@@ -115,12 +115,11 @@ public sealed partial class ScoreService : RefCounted
         // 在单次加分跨多档时漏档：如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值），
         // 两路径行为统一（milestone_reached 按触发的档位逐档发，消费方按里程碑数计档）。
         // 2026-08-07：阈值求值迁移 C#（milestone_threshold 转发）；此处保持基于
-        // _next_milestone 的 while——set_milestone_override 测试钩子允许阈值脱离曲线，
+        // _next_milestone 的 while 逐档推进（阈值可随难度倍率脱离基础曲线），
         // 批量推进（CountThresholdsUpTo）仅用于 apply_run_save 的存档恢复路径（低频、
         // 病态档数场景，批量收益大）；加分逐档仅 1-2 档，单值调用开销可忽略。
         // H03 兜底挂死守卫：与 MilestoneCurve.CountThresholdsUpTo 同款迭代上限——
-        // cycle_mult 已钳 ≥1.0 后曲线单调，但 set_milestone_override 测试钩子允许阈值脱离
-        // 曲线恒 ≤ Score（或阈值求值 int 溢出回绕为负），此时 while 永不退出，超限直接 break
+        // cycle_mult 已钳 ≥1.0 后曲线单调，但阈值求值 int 溢出回绕为负时 while 永不退出，超限直接 break
         int iterations = 0;
         while (Score >= _nextMilestone)
         {

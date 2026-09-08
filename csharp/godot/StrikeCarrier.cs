@@ -5,7 +5,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件·打击航母（docs/ELITE_TURRET_EVENT.md 第 2 节；2026-08-08 自 scripts/strike_carrier.gd 迁移）：
+/// 精英炮塔事件·打击航母（2026-08-08 自 scripts/strike_carrier.gd 迁移）：
 /// 背景式巨型单位（不可被攻击，无碰撞层），自屏幕上方深空降入悬停，
 /// 作为炮台展开的舞台；事件结束按胜负两种姿态撤离（受创慢速 / 完整加速）。
 /// 基座环即状态灯：待命暗红 → 升起充能品红高亮 → 炮台被毁对应环熄灭。

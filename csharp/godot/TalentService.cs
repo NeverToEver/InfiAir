@@ -92,7 +92,7 @@ public sealed partial class TalentService : RefCounted
         _cache = new TalentCache(_config);
     }
 
-    // ---------------- 配置缓存（ApplyBalance 调用；键走 Cfg 静态调用 → BALANCE_MAP 收录） ----------------
+    // ---------------- 配置缓存（ApplyBalance 调用） ----------------
 
     public void LoadTalentConfig()
     {

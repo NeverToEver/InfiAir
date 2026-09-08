@@ -8,8 +8,7 @@
 用法：
     python3 scripts/tools/balance_editor.py [--port 8931] [--no-browser]
 
-仅依赖 Python 标准库。改完数值后按 AGENTS.md 约定跑最小验证集
-（--headless --import / --quit-after 300 / smoke_test.tscn）。
+仅依赖 Python 标准库。改完数值后跑最小验证集（--headless --import / --quit-after 300）。
 """
 
 import argparse

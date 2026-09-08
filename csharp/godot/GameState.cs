@@ -83,7 +83,7 @@ public partial class GameState : Node
     [Signal]
     public delegate void AugmentsChangedEventHandler();
 
-    /// <summary>实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）</summary>
+    /// <summary>实体注册信号转发（新功能订阅口，监听 EntityManager）</summary>
     [Signal]
     public delegate void EntityRegisteredEventHandler(Node node);
 
@@ -121,15 +121,15 @@ public partial class GameState : Node
 
     private readonly SfxPlayer _sfxPlayer = new();
 
-    /// <summary>实体注册信号转发（docs/ENTITY_MANAGER.md：新功能订阅口，监听 EntityManager）。</summary>
-    /// <summary>统一实体管理器（C# typed；docs/ENTITY_MANAGER.md）。</summary>
+    /// <summary>实体注册信号转发（新功能订阅口，监听 EntityManager）。</summary>
+    /// <summary>统一实体管理器（C# typed）。</summary>
     private readonly EntityManager _registry = new();
 
     /// <summary>迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
     /// 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）</summary>
     private readonly FogEventManager _fogEvents = new();
 
-    /// <summary>统一游戏事件管理器（docs/EVENT_MANAGER.md）：批量管理全部随机游戏事件（迷雾 +
+    /// <summary>统一游戏事件管理器：批量管理全部随机游戏事件（迷雾 +
     /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd</summary>
     private readonly GameEventManager _events = new();
 
@@ -218,7 +218,7 @@ public partial class GameState : Node
     }
 
     /// <summary>实体管理器（A2 阶段 4 起数据归 EntityManager，2026-08-05 演进：绑定样板/生命周期信号/
-    /// 批量操作 API；docs/ENTITY_MANAGER.md。属性转发保持外部语法不变；M2 起内部改 C# PascalCase）。
+    /// 批量操作 API。属性转发保持外部语法不变；M2 起内部改 C# PascalCase）。
     /// 热路径缓存，避免每帧 get_nodes_in_group 分配。
     /// enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。</summary>
     public Godot.Collections.Array<Node> Enemies => _registry.Enemies;
@@ -276,7 +276,7 @@ public partial class GameState : Node
 
     public void RegisterEnemy(Node node) => _registry.RegisterEnemy(node);
 
-    /// <summary>统一单位绑定样板（docs/ENTITY_MANAGER.md）：add_to_group("enemy") + 注册 + entity_registered</summary>
+    /// <summary>统一单位绑定样板：add_to_group("enemy") + 注册 + entity_registered</summary>
     public void BindEnemy(Node node) => _registry.BindEnemy(node);
 
     /// <summary>统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）</summary>

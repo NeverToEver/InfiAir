@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 统一游戏事件管理器（docs/EVENT_MANAGER.md；M 批次全量迁移）：批量管理全部随机游戏事件。
+/// 统一游戏事件管理器（M 批次全量迁移）：批量管理全部随机游戏事件。
 /// 挂载：GameState autoload 子节点（维持唯一 autoload 约定；经 GameState.Events 全局访问）。
 /// 设计要点：
 ///   - 统一注册表 EVENT_FACTORIES（id -> 工厂 Callable，唯一事实源）：迷雾 4 事件默认注册，
@@ -197,7 +197,7 @@ public partial class GameEventManager : Node
         {
             EndFog();
             // AB10：遭遇活跃态一并复位（防场景重入残留 → 对从未 start 的新实例广播幽灵
-            // EventEnded + 首帧 ForceTrigger 被拒触发）
+            // EventEnded 残留）
             _encounterActiveId = EmptyId;
             _encounterEndPending.Clear();
             return;
@@ -416,7 +416,7 @@ public partial class GameEventManager : Node
     {
         // AB20：autoload _Process 帧序在 main 场景 Spawner 之前——同帧 Boss/遭遇竞态
         // 由事件先启动（SetBossFrozen(true)），Boss 推迟至事件结束 + boss_resume_delay，
-        // 仍保证触发不累积（见 docs/ELITE_TURRET_EVENT.md §6.3 实际行为口径）
+        // 仍保证触发不累积
         var d = (float)delta;
         PollEncounters();
         // fog 组（未接线前惰性，避免与旧 FogEventManager 双驱动）

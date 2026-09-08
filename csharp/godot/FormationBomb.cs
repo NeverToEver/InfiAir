@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轰炸编队事件·炸弹（docs/FORMATION_STRIKE_EVENT.md 第 4.2 节）：
+/// 轰炸编队事件·炸弹：
 /// 引信制下落弹（不走命中即毁）：投放时继承编队水平速度 ×0.35 + 垂直下落，
 /// 引信倒计时期间弹体脉冲辉光（8Hz）、警示环随剩余引信收缩（0.9×AoE → 0.15×AoE），
 /// 引爆对 player_hitbox 做距离判定（无敌/闪避由 Player.take_damage 语义处理），

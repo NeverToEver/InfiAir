@@ -130,7 +130,7 @@ public partial class Main : Node2D
         AddChild(_formation);
         _formation.SetSpawner(_spawner); // K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
         _spawner.SetFormationEvent(_formation);
-        // 统一事件管理器接线（docs/EVENT_MANAGER.md）：遭遇事件注册进统一注册表（缓存单例），
+        // 统一事件管理器接线：遭遇事件注册进统一注册表（缓存单例），
         // 触发策略/信号由管理器接管；spawner 注入用于触发门控与特殊槽通知
         var evV = GameState.Instance.Events;
         _events = evV;

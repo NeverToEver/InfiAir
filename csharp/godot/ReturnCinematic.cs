@@ -6,7 +6,6 @@ namespace InfiAir;
 
 /// <summary>
 /// 返航过场导演：7 镜头时序串联、黑场转场、跳过与整树清理。
-/// 设计文档（单一事实源）：docs/RETURN_HOME_CINEMATIC.md §2 分镜表。
 /// 架构镜像 scripts/intro_cinematic.gd；无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
 /// 让基地 UI 在黑场下淡入。严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/return_cinematic.gd）：CanvasLayer 子类；

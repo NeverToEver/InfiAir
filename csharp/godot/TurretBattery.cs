@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位（docs/ELITE_TURRET_EVENT.md；
-/// 2026-08-08 自 scripts/turret_battery.gd 迁移）。
+/// 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位
+///（2026-08-08 自 scripts/turret_battery.gd 迁移）。
 /// 弱锁定索敌：炮塔以限速转向玩家，开火朝向 = 当前朝向 + ±spread_deg 出膛散布；
 /// 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
 /// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
@@ -98,7 +98,7 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public override void _Ready()
     {
-        GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        GameState.Instance.BindEnemy(this); // 统一绑定
         // 数值配置缓存（启动一次读入）
         SingleSpeed = CfgFx.Float("enemies.bullet_speed", SingleSpeed);
         SpreadSpeed = CfgFx.Float("enemies.spread_bullet_speed", SpreadSpeed);
@@ -136,7 +136,7 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public override void _ExitTree()
     {
-        GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
+        GameState.Instance.UnbindEnemy(this); // 统一解绑
     }
 
     /// <summary>升起充能动画（盖板旋开炮塔升起，约 rise_time 秒；期间不可被攻击）。</summary>

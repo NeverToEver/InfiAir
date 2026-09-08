@@ -39,7 +39,7 @@ public partial class UITheme : RefCounted
     public static readonly Color ChargeCyan = new(0.5f, 0.9f, 1.0f); // 蓄力青
     public static readonly Color BannerDangerBg = new(0.35f, 0.06f, 0.10f, 0.7f); // 警告横幅底
 
-    // 虚影基地皮肤 token（docs/RETURN_HOME_CINEMATIC.md §3.2）
+    // 虚影基地皮肤 token
     public static readonly Color PhantomBg = new(0.01f, 0.03f, 0.06f, 0.90f); // 基地全屏底
     public static readonly Color PhantomPanelBg = new(0.03f, 0.08f, 0.12f, 0.55f); // 虚影面板底
     public static readonly Color PhantomBorder = new(0.0f, 0.83f, 1.0f, 0.65f); // 虚影面板边框

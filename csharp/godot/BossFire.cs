@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 弹幕发射器（M3 批次迁移，2026-08-08 自 scripts/boss_fire.gd 迁移；docs/AUDIT_VAULT.md A3）。
+/// Boss 弹幕发射器（M3 批次迁移，2026-08-08 自 scripts/boss_fire.gd 迁移）。
 /// 纯发射逻辑，不持 Boss 状态；位置经 boss 参数、出弹点偏移/机体缩放经注入字段。
 /// Boss / BossAttacks / EnrageSequence 共用本发射器，避免跨类私有访问（A1 约束）。
 /// 纯 C# 类（原 RefCounted，无信号/导出）：弹池经 BulletPool（C# 类型）类型化发射，

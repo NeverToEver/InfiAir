@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轰炸编队事件·编队战机（docs/FORMATION_STRIKE_EVENT.md §3）：
+/// 轰炸编队事件·编队战机：
 /// 楔形编队成员，注册 enemy 组与 GameState.Enemies（玩家子弹/激光可命中）；实现 IDamageable。
 /// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动。
 /// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
@@ -48,7 +48,7 @@ public partial class FormationCraft : Area2D, IDamageable
         var circle = new CircleShape2D { Radius = 26.0f * (float)GameState.Instance.WorldScale };
         shape.Shape = circle;
         AddChild(shape);
-        GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        GameState.Instance.BindEnemy(this); // 统一绑定
         // P1-6：击杀震动强度缓存
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
@@ -73,7 +73,7 @@ public partial class FormationCraft : Area2D, IDamageable
 
     public override void _ExitTree()
     {
-        GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
+        GameState.Instance.UnbindEnemy(this); // 统一解绑
     }
 
     public void TakeDamage(int amount, float scoreScale)

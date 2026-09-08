@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件编排（docs/ELITE_TURRET_EVENT.md；2026-08-08 自 scripts/elite_turret_event.gd 迁移）：
+/// 精英炮塔事件编排（2026-08-08 自 scripts/elite_turret_event.gd 迁移）：
 /// IDLE → CARRIER_ENTER（航母降入 2s）→ 炮塔升起充能 1.5s → TURRET_ACTIVE（30s 倒计时）
 /// → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
 /// 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），

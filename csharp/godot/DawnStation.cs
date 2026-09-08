@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 初代环带空间站「曙光」共享构件（docs/RETURN_HOME_CINEMATIC.md §0.2 几何 / §1.1 虚影变换）。
+/// 初代环带空间站「曙光」共享构件（几何/虚影变换为开场与返航过场、基地背景共用）。
 /// 纯静态工厂：build() 返回中心在原点的 Node2D，调用方负责 position/scale 与入树。
 /// 三处复用：开场镜头 1（DESTROYED 实体毁灭态）、返航镜头 2/3/4（PHANTOM 全息虚影态）、
 /// 基地 UI 背景层（PHANTOM，自行压 modulate.a）。粒子发射器 ≤96/个，与过场性能预算一致。

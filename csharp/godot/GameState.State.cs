@@ -117,7 +117,7 @@ public partial class GameState : Node
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
-        // 天赋缓存：经济参数 + 节点上限/软上限缓存（键经 Cfg 静态调用被 BALANCE_MAP 收录）
+        // 天赋缓存：经济参数 + 节点上限/软上限缓存
         _talent.LoadTalentConfig();
     }
 
@@ -334,7 +334,7 @@ public partial class GameState : Node
         set => _runProg.DDA_FACTOR = value;
     }
 
-    /// <summary>击杀连击（2026-08-11，docs/archive/2026-08-11-score-combo-buff-pity-plan.md）：
+    /// <summary>击杀连击（2026-08-11）：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）——ScoreService 转发。</summary>
     public double ComboWindow => _score.ComboWindow;
 

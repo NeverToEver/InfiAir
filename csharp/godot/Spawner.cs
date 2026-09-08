@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
 /// （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
 /// + Boss 触发（4 种轮换，2026-08-04 扩 4 型含月蚀）。遭遇事件（精英炮塔/轰炸编队）触发策略
-/// 自 2026-08-05 起由统一事件管理器接管（GameState.events，docs/EVENT_MANAGER.md）：本类仅保留
+/// 自 2026-08-05 起由统一事件管理器接管（GameState.events）：本类仅保留
 /// 互斥钩子（Boss 冻结/波次暂停）与特殊槽登记（notify_event_triggered）。
 /// M6 全量迁移（2026-08-08 自 scripts/spawner.gd）：原 M3b/M3d 经脚本资源判型/实例化
 /// （_spawn_telegraph_script/_enemy_script/_boss_script）在 C# 侧改为 typed 直调（SpawnTelegraph/
@@ -313,7 +313,7 @@ public partial class Spawner : Node
     /// <summary>当前在屏的 spread 弹种敌机数（离场中的不计）。
     /// B8 修复：改遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
     /// 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
-    /// 2026-08-05：统一实体管理器 count_enemies 批量 API（docs/ENTITY_MANAGER.md）。</summary>
+    /// 2026-08-05：统一实体管理器 count_enemies 批量 API。</summary>
     private int CountSpreadEnemiesInternal()
     {
         return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>

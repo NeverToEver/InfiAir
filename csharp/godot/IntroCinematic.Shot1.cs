@@ -48,7 +48,7 @@ public partial class IntroCinematic : CanvasLayer
         root.AddChild(starStreak);
 
         // 站体构件抽为 DawnStation 共享构建函数（开场=实体毁灭态，纯提取不改视觉；
-        // 返航/基地背景复用虚影态，docs/RETURN_HOME_CINEMATIC.md §5）
+        // 返航/基地背景复用虚影态）
         var station = DawnStation.Build(DawnStation.Mode.Destroyed);
         station.Position = new Vector2(960.0f, 470.0f);
         station.Scale = Vector2.One * 0.7f;

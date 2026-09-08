@@ -20,7 +20,7 @@ public sealed class MoveCtx
 }
 
 /// <summary>
-/// 敌机移动策略基类（A4a 拆分；docs/AUDIT_VAULT.md A4）：各策略自包含的纯位置计算块，
+/// 敌机移动策略基类（A4a 拆分）：各策略自包含的纯位置计算块，
 /// 经 ctx 传入共享只读上下文，唯一副作用写 enemy.Position 与少量公开 setter。
 /// 纯 C# 类（非 GodotObject）——无外部 GDScript 引用（实测），不注册进引擎。
 /// 共享悬停常量经构造 params 注入（Enemy._ready 从 balance 缓存值传入；Q29 策略专属参数覆盖）。

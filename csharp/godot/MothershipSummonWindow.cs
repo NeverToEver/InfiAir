@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 母舰召唤·机库小窗（左侧竖长画中画通讯屏）：蓄力完成后由 main._summon_mothership() 弹出。
+/// 母舰召唤·机库小窗（左侧竖长画中画通讯屏）：蓄力完成后由 Main 召唤流程弹出。
 /// 时轴（不暂停对局，process_mode 跟随树）：
 ///   [0, OPEN_TIME)                    面板淡入
 ///   镜头 1 SHOT_DURATIONS[0]          机库剖面：3 条充能管线依次断开（MS_SEQ_CHARGE）

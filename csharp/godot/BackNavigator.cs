@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 全局返回/退出状态机（设计文档：docs/EXIT_FLOW.md）。
+/// 全局返回/退出状态机。
 /// 所有平台的"返回"输入统一走 go_back()：PC Esc 与手柄 B 经引擎内置 ui_cancel，
 /// 鼠标右键为独立固定手势（非 ui_cancel），Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
 /// decide_back_action() 为纯决策函数（不执行副作用，供无头测试覆盖全分支）。
@@ -39,7 +39,7 @@ public partial class BackNavigator : Node
         /// <summary>战斗中 → 打开暂停（返回上一级）</summary>
         OPEN_PAUSE,
         // R12（M07 落地，2026-08-05）：CONFIRM_EXIT 已删——决策表无任何状态返回该动作，
-        // 顶层退出确认由 welcome 场景自处理（EXIT_FLOW.md 同步）
+        // 顶层退出确认由入口场景自处理
     }
 
     private Main _main = null!; // U13：typed

@@ -325,7 +325,7 @@ public sealed partial class SettingsService : RefCounted
     }
 
     /// <summary>P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。
-    /// K06：立即应用死区（InputMap 全局生效，base_system_test 契约）+ 广播；不自动写盘</summary>
+    /// K06：立即应用死区（InputMap 全局生效）+ 广播；不自动写盘</summary>
     public void SetJoyDeadzone(double value)
     {
         JoyDeadzone = Mathf.Clamp(value, 0.05, 0.9);

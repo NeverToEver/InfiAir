@@ -706,7 +706,7 @@ public partial class Mothership : Area2D
     {
         GameState.Instance.Shake(ShakeSlow);
         GameState.Instance.PlaySfx(SfxId.ExplosionBig, -10.0, 0.6);
-        // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：
+        // 统一实体管理器批量 API 语义等价直迭代：
         // 经 ISlowable 契约分派，失效实例跳过；新增减速响应单位实现接口即可被覆盖。
         foreach (var item in GameState.Instance.Enemies)
         {
@@ -808,7 +808,7 @@ public partial class Mothership : Area2D
     private List<Node2D> LiveTargets()
     {
         _targetsBuf.Clear();
-        // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：
+        // 统一实体管理器批量 API 语义等价直迭代：
         // 失效实例跳过 + Node2D 判型 + Enemy 离场 / Boss 逃跑过滤
         foreach (var item in GameState.Instance.Enemies)
         {

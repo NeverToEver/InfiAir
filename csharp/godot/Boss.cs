@@ -67,7 +67,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private const float EscapeBlinkHz = 8.0f;
 
     /// <summary>
-    /// 模式表脚本默认值（与 balance.json boss.phases.typeN 保持一致，AGENTS.md 约定）：
+    /// 模式表脚本默认值（与 balance.json boss.phases.typeN 保持一致）：
     /// 1 型 P1=[5路扇形,追踪弹] P2=[蓄力重炮,7路扇形]；2 型 P1=[3连狙] P2=[冲刺掠过,3连狙]；
     /// 3 型 P1=[旋转cross+召唤] P2=[编队齐射,弹幕墙]（召唤为独立计时，不在模式表内）；
     /// 4 型 P1=[ring_burst×3,追踪弹] P2=[ring_burst×3,旋转cross,3连狙]。
@@ -369,7 +369,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
     public override void _Ready()
     {
-        GameState.Instance.BindEnemy(this); // 统一绑定（docs/ENTITY_MANAGER.md）
+        GameState.Instance.BindEnemy(this); // 统一绑定
         // 机体尺寸族：设计值 × 全局缩放（tscn 存 1.0 基准，幂等覆盖）
         _ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
@@ -598,7 +598,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
     public override void _ExitTree()
     {
-        GameState.Instance.UnbindEnemy(this); // 统一解绑（docs/ENTITY_MANAGER.md）
+        GameState.Instance.UnbindEnemy(this); // 统一解绑
         // C22：显式断开 augments_changed 信号连接（重入树不重复连接）
         _slowCache.Disconnect(GameState.Instance);
 
@@ -1045,7 +1045,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>模式表载入：配置缺键/损坏时逐项回退脚本默认值（AGENTS.md 约定两者保持一致）。
+    /// <summary>模式表载入：配置缺键/损坏时逐项回退脚本默认值（两者保持一致）。
     /// 注意：cfg 返回的是 GameState 缓存 JSON 的共享引用，必须深拷贝，
     /// 否则 _apply_difficulty_scaling 的 interval 乘算会污染缓存、叠加到后续 Boss 实例。</summary>
     private void LoadPatterns()

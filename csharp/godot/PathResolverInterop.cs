@@ -6,7 +6,7 @@ namespace InfiAir;
 /// <summary>
 /// P1-1 绑定壳：BalanceService.cfg() 点路径解析核心的 C# 桥（InfiAir.Core.Config.PathResolver 纯函数）。
 /// GDScript 侧（scripts/balance_service.gd）load() 时 SetData 一次、cfg() 转发 Resolve——
-/// 469 处调用点签名不变；BALANCE_MAP 生成器（M8）零影响。
+/// 469 处调用点签名不变。
 /// </summary>
 public partial class PathResolverInterop : RefCounted
 {
