@@ -166,7 +166,7 @@ public partial class TalentPanel : CanvasLayer
         _main.Hud().SetCacheChipCharging(false);
     }
 
-    /// <summary>A7：测试/诊断白盒。</summary>
+    /// <summary>蓄力中（HUD 呼吸指示与缓存芯片提亮联动读取）。</summary>
     public bool IsCharging => _charging;
 
     public override void _Process(double delta)
@@ -840,20 +840,6 @@ public partial class TalentPanel : CanvasLayer
             }
         }
     }
-
-    // ---------------- A7：测试/截图端口 ----------------
-
-    /// <summary>A7：测试/截图端口——按轮盘根层序号下钻大类（走与点击轮盘同一动画+联动路径）。</summary>
-    public void TestDrillCategory(int rootIndex)
-    {
-        if (rootIndex >= 0 && rootIndex < _wheel.CurrentCount)
-        {
-            _wheel.TestDrill(rootIndex);
-        }
-    }
-
-    /// <summary>A7：测试/截图端口——直选节点（详情卡与轮盘高亮联动）。</summary>
-    public void TestSelectNode(string nodeId) => SelectNode(nodeId);
 
     // ---------------- 详情与操作 ----------------
 

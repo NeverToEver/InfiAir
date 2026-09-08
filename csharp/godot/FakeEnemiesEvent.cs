@@ -64,7 +64,4 @@ public partial class FakeEnemiesEvent : FogEvent
 
         _fakes.Clear();
     }
-
-    /// <summary>已生成的伪敌机（测试/诊断；manager.spawned_fakes 委托到本方法）。</summary>
-    public Godot.Collections.Array<Node> SpawnedFakes() => _fakes.Duplicate();
 }

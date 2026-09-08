@@ -1146,9 +1146,6 @@ public partial class Hud : CanvasLayer
         };
     }
 
-    /// <summary>A7：测试/诊断白盒（蓄力进度条可见性断言）。</summary>
-    public VBoxContainer TalentChargeBox() => _chargeBars[ChargeChannel.TalentPanel];
-
     /// <summary>指示器蓄力中提亮；结束（取消/进入）复原并交还呼吸脉冲。</summary>
     public void SetCacheChipCharging(bool charging)
     {
@@ -1483,27 +1480,6 @@ public partial class Hud : CanvasLayer
         _infoTween.Chain().TweenCallback(Callable.From(_infoPlate.Hide));
         _infoTween.TweenCallback(Callable.From(_infoLabel.Hide));
     }
-
-    // ---------------- A7：测试/诊断白盒断言经公开接口（UI 节点引用 getter） ----------------
-
-    public Label BossCountdown() => _bossCountdown;
-
-    public GridContainer AugmentDock() => _augmentDock;
-
-    public Label AugmentTag() => _augmentTag;
-
-    public Label? AugmentOverflowLabel() => _augmentOverflowLabel;
-
-    public VBoxContainer AugmentRows() => _augmentRows;
-
-    public Label AugmentPanelTitle() => _augmentPanelTitle;
-
-    /// <summary>A7 遗留清理：提前离舰蓄力条节点公开查询（测试替代 _ 直读）。</summary>
-    public VBoxContainer EarlyLeaveBox() => _chargeBars[ChargeChannel.EarlyLeave];
-
-    public ColorRect EarlyLeaveFill() => _chargeBars[ChargeChannel.EarlyLeave].Fill;
-
-    public TextureRect Vignette() => _vignette;
 
     // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
 

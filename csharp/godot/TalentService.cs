@@ -508,11 +508,7 @@ public sealed partial class TalentService : RefCounted
         TalentsChanged?.Invoke();
     }
 
-    // ---------------- A7：测试/诊断公开端口 ----------------
-
-    public void TestGrant(int points) => Grant(points);
-
-    /// <summary>层级直写（教程关卡授予/测试垫层）：含 Augments 同步与广播，与加点同口径但不扣缓存。</summary>
+    /// <summary>层级直写（教程关卡授予）：含 Augments 同步与广播，与加点同口径但不扣缓存。</summary>
     public void GrantLevel(StringName id, int level)
     {
         if (!_maxLevels.ContainsKey(id))
@@ -525,10 +521,4 @@ public sealed partial class TalentService : RefCounted
         GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
         TalentsChanged?.Invoke();
     }
-
-    public void TestSetLevel(StringName id, int level) => GrantLevel(id, level);
-
-    public void TestSetTokens(int tokens) => _resetTokens = Math.Max(tokens, 0);
-
-    public void TestSetBonusOverchargeSlots(int slots) => _bonusOverchargeSlots = Math.Max(slots, 0);
 }

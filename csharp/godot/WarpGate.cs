@@ -135,9 +135,6 @@ public partial class WarpGate : Node2D
         GameState.Instance.PlaySfx(SfxId.Dash, -6.0, 0.5);
     }
 
-    /// <summary>当前阶段（原 GDScript `phase()`；A7：测试/诊断白盒断言经公开接口）。</summary>
-    public Phase GetPhase() => _phase;
-
     /// <summary>母舰穿出完成（或提前收回）时调用：进入关闭段（幂等）。</summary>
     public void Close()
     {

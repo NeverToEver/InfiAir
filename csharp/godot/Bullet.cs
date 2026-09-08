@@ -86,12 +86,8 @@ public partial class Bullet : Area2D
     private static Texture2D? _playerTex;
     private static Texture2D? _enemyTex;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
+    /// <summary>回池（Player 磁吸拾取等路径调用）。</summary>
     public void Despawn() => _despawn();
-
-    public void Explode() => _explode();
-
-    public void Splash() => _splash();
 
     /// <summary>兼容路径：直接实例化时 setup() 后由 _ready 应用阵营外观（4 参便捷重载）。</summary>
     public void Setup(Vector2 pDirection, float pSpeed, int pDamage, bool pIsPlayer)

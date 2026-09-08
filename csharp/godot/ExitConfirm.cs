@@ -126,15 +126,7 @@ public partial class ExitConfirm : CanvasLayer
         FadeAndQuit();
     }
 
-    /// <summary>退出前统一清理（测试可直接调用断言副作用）：档案落盘。
-    /// A7：测试/诊断白盒断言经公开接口</summary>
-    public bool BattleMode() => _battle;
-
-    public Label MsgLabel() => _msgLabel;
-
-    public void ExecuteExitCleanup(bool battle) => ExecuteExitCleanupInner(battle);
-
-    private void ExecuteExitCleanupInner(bool battle)
+    private void ExecuteExitCleanup(bool battle)
     {
         GameState.Instance.SaveSettings();
         OnExitCleanup();

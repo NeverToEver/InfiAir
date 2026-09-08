@@ -24,9 +24,6 @@ public partial class FormationBomb : Area2D
     private Polygon2D _body = null!;
     private Line2D _ring = null!;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
-    public Line2D Ring() => _ring;
-
     /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
     public void Setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
     {

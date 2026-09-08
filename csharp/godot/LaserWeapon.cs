@@ -49,24 +49,6 @@ public partial class LaserWeapon : Node2D
         _laserBeamCache = new AugmentBoolCache(AugLaserBeam);
     }
 
-    // ---------------- A7：测试/诊断白盒断言经公开接口 ----------------
-
-    public bool Active() => _active;
-
-    public float ActiveTime() => _activeTime;
-
-    public float Cooldown() => _cooldown;
-
-    public void SetCooldown(float seconds) => _cooldown = seconds;
-
-    public void SetActiveTime(float seconds) => _activeTime = seconds;
-
-    public Line2D Beam() => _beam;
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float active_time() => ActiveTime();
-
     public override void _Ready()
     {
         _player = GetParent() as Player;

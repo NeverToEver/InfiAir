@@ -275,64 +275,22 @@ public partial class Main : Node2D
 
     public Mothership? Mothership() => _mothership;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化）</summary>
-    public Player Player() => _player;
-
     public Hud Hud() => _hud;
 
     public BaseConsole BaseUi() => _baseUi;
 
     public PauseUi PauseUi() => _pauseUi;
 
-    /// <summary>天赋缓存面板（HUD 指示器点击入口 / 测试端口）。</summary>
+    /// <summary>天赋缓存面板（HUD 指示器点击入口）。</summary>
     public TalentPanel TalentPanel() => _talentUi;
 
     public MetaHealthFX MetaFx() => _metaFx;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化）；遭遇事件实例由统一事件管理器
-    /// 持有（main._ready 注册），访问器经管理器注册表取缓存单例</summary>
-    public Node? Event() => _events.Event(new StringName("elite_turret")).AsGodotObject() as Node;
-
-    public Node? Formation() => _events.Event(new StringName("formation_strike")).AsGodotObject() as Node;
-
-    public OrbitalStrike? Strike() => _strike;
-
-    public MothershipSummonWindow? SummonWindow() => _summonWindow;
-
-    public void SetHomecoming(bool v) => _homecoming = v;
-
-    public void SetGameOver(bool v) => _gameOver = v;
-
-    public void SetBulletTime(float seconds) => _bulletTimeLeft = seconds;
-
     public float TimeScaleRamp() => _timeScaleRamp;
-
-    public void PlayIntro() => PlayIntroCinematic();
 
     public void SkipIntro() => SkipIntroInternal();
 
-    public void PlayReturn() => PlayReturnCinematic();
-
     public void SkipReturn() => SkipReturnInternal();
-
-    public void StartHomecoming() => StartHomecomingInternal();
-
-    public void SummonMothership() => SummonMothershipInternal();
-
-    public void ResumeFromBase() => ResumeFromBaseInternal();
-
-    /// <summary>A7：测试/诊断经公开接口（动作包装）——开场/继续出击后的战机入场序列</summary>
-    public void StartEntrySequence() => StartEntrySequenceInternal();
-
-    public void StopCharging() => StopChargingInternal();
-
-    public void SetDockCooldown(float seconds) => _dockCooldown = seconds;
-
-    public void OnMothershipDeparted(float seconds) => OnMothershipDepartedInternal(seconds);
-
-    public bool Charging() => _charging;
-
-    public Mothership ChargeGhost() => _chargeGhost;
 
     public float GiveUpCharge() => _giveUpCharge;
 

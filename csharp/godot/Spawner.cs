@@ -628,21 +628,6 @@ public partial class Spawner : Node
 
     public void SetFormationEvent(Node? eventNode) => _formation = eventNode;
 
-    // AC15 兜底（2026-08-11 健壮性审查）：第二入口钳 [0, 1e6]——任何调用方传 +Inf/负值都会
-    // 污染波次节奏/难度 ramp 并随存档落盘（Main.OnContinueRun 已钳，此处双保险）
-    public void SetElapsed(float seconds) => _elapsed = Mathf.Clamp(seconds, 0.0f, 1e6f);
-
-    /// <summary>A7：测试/诊断白盒断言经公开接口（命名语义化）。</summary>
-    public void SpawnBoss(int pType = 0) => SpawnBossInternal(pType);
-
-    public void SpawnEnemy() => SpawnEnemyInternal();
-
-    public StringName PickBulletType(Godot.Collections.Dictionary config) => PickBulletTypeInternal(config);
-
-    public Vector2 HoverBand() => _hoverBand;
-
-    public float Elapsed() => _elapsed;
-
     public void SetBossFrozen(bool frozen) => _bossFrozen = frozen;
 
     public void SetWavesPaused(bool paused) => _wavesPaused = paused;

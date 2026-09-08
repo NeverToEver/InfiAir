@@ -11,8 +11,7 @@ namespace InfiAir;
 /// 严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// M6 全量迁移（2026-08-08 自 scripts/intro_cinematic.gd）：CanvasLayer 子类。
 /// CinematicFx/DawnStation/Starfield 已迁 C# typed 直调。
-/// 注：原 GDScript signal finished 迁移为 C# [Signal] Finished（Main/测试均 typed 连接）；
-/// 测试经 PascalCase SetShotDurations(float[]) 注入镜头时长。
+/// 注：原 GDScript signal finished 迁移为 C# [Signal] Finished（Main typed 连接）。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {
@@ -35,7 +34,7 @@ public partial class IntroCinematic : CanvasLayer
     /// <summary>原 const PLAYER_SHIP = preload(...)：C# 静态字段禁止持有 Godot Resource（退出 segfault 实测），改实例字段。</summary>
     private readonly Texture2D _playerShip = GD.Load<Texture2D>("res://assets/sprites/player_ship.png");
 
-    /// <summary>每镜头时长（§2 分镜表；六镜头 16.1s = 总和，转场含在内；+标题定格 1.2s = 总 17.3s）。测试可改短。</summary>
+    /// <summary>每镜头时长（§2 分镜表；六镜头 16.1s = 总和，转场含在内；+标题定格 1.2s = 总 17.3s）。</summary>
     private float[] _shotDurations = { 2.8f, 2.5f, 2.5f, 2.5f, 2.8f, 3.0f };
 
     private int _shotIndex = -1;
@@ -53,20 +52,6 @@ public partial class IntroCinematic : CanvasLayer
     private Label _subtitle = null!;
     private Label _skipHint = null!;
     private float _subtitleBaseY;  // 字幕停靠 y：入场从 +8px 上浮，退场只动 alpha
-
-    // A7：测试/诊断白盒断言经公开接口（过场镜头）
-    public void SetShotDurations(float[] durations)
-    {
-        _shotDurations = durations;
-    }
-
-    public int ShotIndex() => _shotIndex;
-
-    public Node2D? CurrentShot() => _currentShot;
-
-    public Node2D ShotRoot() => _shotRoot;
-
-    public Label Subtitle() => _subtitle;
 
     /// <summary>跳过（幂等）：与自然结束同一出口——停计时、发 finished、整树 queue_free。</summary>
     public void Skip()

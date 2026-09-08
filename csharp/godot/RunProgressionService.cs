@@ -127,9 +127,6 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）</summary>
     public double DdaFactor() => _ddaTimer > 0.0 ? DDA_FACTOR : 1.0;
 
-    /// <summary>测试/诊断：立即结束降档（对齐「测试经公开接口」白盒契约）</summary>
-    public void ResetDda() => _ddaTimer = 0.0;
-
     public double EnemyHpMultiplier()
     {
         if (Difficulty != _multCachedDifficulty)

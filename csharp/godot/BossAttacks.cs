@@ -628,18 +628,6 @@ public partial class BossAttacks : RefCounted
     /// <summary>冲刺掠过进行中（Boss._physics_process 据此决定移动接管）。</summary>
     public bool IsSweepActive() => _sweepState != SweepNone;
 
-    /// <summary>状态查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public int SweepState() => _sweepState;
-
-    /// <summary>蓄力剩余计时查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public float CannonElapsed() => _cannonElapsed;
-
-    /// <summary>狙击瞄准线引用查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public Line2D? AimLine() => _aimLine;
-
-    /// <summary>冲刺预警线引用查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public Line2D? SweepLine() => _sweepLine;
-
     /// <summary>单独取消瞄准线（狂暴 ACTIVE 各型复用；cancel_all 用于整体中断）。</summary>
     public void CancelAimLine() => CancelAimLineInternal();
 

@@ -64,15 +64,7 @@ public partial class Starfield : Node2D
     /// <summary>M5 审计：星点区域锚点（_ready 时可见区左上角），随可见区平移，回绕同基线。</summary>
     private Vector2 _origin = Vector2.Zero;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口（M5 断言星空覆盖区域）。</summary>
-    public Vector2 Origin() => _origin;
-
-    public Vector2 AreaSize() => _areaSize;
-
     public void Warp(float factor) => WarpFactor = factor;
-
-    /// <summary>M3a 探针：验证 GDScript → C# 静态方法经脚本资源调用（静态属性不可达——实测）。</summary>
-    public static int StaticProbe() => 42;
 
     public override void _Ready()
     {

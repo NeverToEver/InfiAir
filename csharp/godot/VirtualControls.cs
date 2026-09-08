@@ -102,12 +102,6 @@ public partial class VirtualControls : CanvasLayer
     /// player.aim_point() 在虚拟控件启用时以它为 raw 基准，右摇杆增量偏移（同手柄语义）。</summary>
     public Vector2 BaseAimPosition() => GameState.Instance.ViewWorldRect().GetCenter();
 
-    /// <summary>当前左摇杆向量（0..1，测试/诊断）</summary>
-    public Vector2 MoveVec() => _moveVec;
-
-    /// <summary>当前右摇杆向量（0..1，测试/诊断）</summary>
-    public Vector2 AimVec() => _aimVec;
-
     public override void _Ready()
     {
         Layer = LayerId;

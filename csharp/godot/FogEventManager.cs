@@ -144,69 +144,13 @@ public partial class FogEventManager : Node
         bannerLayer.AddChild(bannerLabel);
     }
 
-    // ---------------- 对外公开接口（A1 约定：测试/诊断经公开接口；转发到统一管理器 fog 组） ----------------
-
-    public bool IsRunActive() => Events().IsRunActive();
+    // ---------------- 对外公开接口（转发到统一管理器 fog 组） ----------------
 
     /// <summary>对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。</summary>
     public void SetRunActive(bool active) => Events().SetRunActive(active);
 
-    public StringName ActiveId() => Events().ActiveId(GroupFog);
-
-    /// <summary>进行中的事件对象（测试/诊断与事件类 getter；无事件返回 null）。</summary>
-    public Variant ActiveEvent() => Events().ActiveEvent(GroupFog);
-
-    /// <summary>迷雾组已注册事件 id 列表（统一注册表按 fog 组过滤；测试断言 4 种）。</summary>
-    public Godot.Collections.Array<StringName> EventIds()
-    {
-        var ids = new Godot.Collections.Array<StringName>();
-        var ev = Events();
-        foreach (var id in ev.EventIds())
-        {
-            if (ev.GroupOf(id) == GroupFog)
-            {
-                ids.Add(id);
-            }
-        }
-
-        return ids;
-    }
-
-    public float CooldownLeft() => Events().CooldownLeft();
-
-    /// <summary>测试/诊断：直接设定迷雾组冷却剩余（压缩时长确定性测试，不动 balance.json）。</summary>
-    public void SetCooldownLeft(float seconds) => Events().SetCooldownLeft(seconds);
-
-    /// <summary>测试/诊断：直接设定迷雾组开局保护剩余。</summary>
-    public void SetFirstDelayLeft(float seconds) => Events().SetFirstDelayLeft(seconds);
-
-    /// <summary>当前迷雾事件剩余时长（无事件返回 0）。</summary>
-    public float ActiveRemaining() => Events().ActiveRemaining();
-
-    /// <summary>迷雾组触发资格（自动触发路径用；force_trigger 不受 run_active 门控，供测试直调）。</summary>
-    public bool CanTrigger() => Events().CanTriggerGroup(GroupFog);
-
-    /// <summary>迷雾组自动触发路径单步检查：资格满足则按权重掷签并启动事件。返回是否触发。</summary>
-    public bool TryTrigger() => Events().TryTriggerGroup(GroupFog);
-
-    /// <summary>测试/诊断：强制启动指定事件（进行中/未注册 id 返回 false；不受概率与冷却门控）。</summary>
-    public bool ForceTrigger(StringName pEventId) => Events().ForceTrigger(pEventId);
-
     /// <summary>立即结束进行中的迷雾事件（返航/死亡/离场清理；效果随 fog_event_ended 一并复位）。</summary>
     public void EndActive() => Events().EndActive(GroupFog);
-
-    /// <summary>已生成的伪敌机（测试插桩；委托进行中的 FakeEnemiesEvent，无则空）。</summary>
-    public Godot.Collections.Array<Node> SpawnedFakes()
-    {
-        var v = Events().ActiveEvent(GroupFog);
-        var e = v.VariantType == Variant.Type.Object ? v.AsGodotObject() as FakeEnemiesEvent : null;
-        if (e == null)
-        {
-            return new Godot.Collections.Array<Node>();
-        }
-
-        return e.SpawnedFakes();
-    }
 
     /// <summary>伪敌机容器（FogEvent 子类挂接点）。</summary>
     public Node2D FakeContainer() => _fakeContainer!;

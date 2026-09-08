@@ -668,11 +668,6 @@ public partial class BaseConsole : RadialMenuLayer
         }
     }
 
-    /// <summary>A7：测试/诊断经公开接口（动作包装）。</summary>
-    public void Repair() => OnRepairPressed();
-
-    public void Recharge() => OnRechargePressed();
-
     /// <summary>路线契约绑定/切换（签名：routeId；非法/无代币由服务侧拒绝）。</summary>
     public void ChooseRoute(StringName routeId) => OnRoutePressed(routeId);
 
@@ -822,12 +817,6 @@ public partial class BaseConsole : RadialMenuLayer
             _refreshHintTimer = null;
         }
     }
-
-    /// <summary>A7：测试/诊断经公开接口（动作包装）。</summary>
-    public void RefreshTasks() => OnRefreshPressed();
-
-    /// <summary>A7：测试/诊断经公开接口（目录切换，走与轮盘确认同一路径）。</summary>
-    public void ShowCategory(string categoryId) => SwitchCategory(categoryId, animate: false);
 
     private void OnResumePressed()
     {

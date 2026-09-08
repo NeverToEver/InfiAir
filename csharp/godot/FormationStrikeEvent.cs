@@ -131,18 +131,9 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
 
     public bool IsActive() => _state != State.IDLE;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
-    public State GetState() => _state;
-
-    public Godot.Collections.Array GetCrafts() => _crafts;
-
     public int AliveCount() => _alive;
 
     public int DroppedCount() => _dropped;
-
-    public void SetCooldownLeft(float seconds) => _cooldownLeft = seconds;
-
-    public float CooldownLeft() => _cooldownLeft;
 
     /// <summary>触发条件（最低优先级）：自身 IDLE 且冷却结束、分数达标、Boss 未激活、精英炮塔事件未激活。
     /// 掷签间隔/概率由 spawner 侧持有（elite 事件在本事件之前检查，本 tick 先启动则 is_active 拦截）。</summary>

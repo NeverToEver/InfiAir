@@ -76,17 +76,6 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     /// <summary>A5：spawner 依赖注入（main._ready 调用；替代 group 现找）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
-    public State GetState() => _state;
-
-    public Godot.Collections.Array<TurretBattery> Turrets() => _turrets;
-
-    public int LineStage() => _lineStage;
-
-    public void SetCooldownLeft(float seconds) => _cooldownLeft = seconds;
-
-    public float CooldownLeft() => _cooldownLeft;
-
     public override void _Ready()
     {
         // duration 钳下限——≤0 时事件开启即超时结算，波次暂停/恢复空转
@@ -500,12 +489,4 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
         };
         timer.Start(seconds);
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int state() => (int)GetState();
-
-    public float DURATION { get => Duration; set => Duration = value; }
-
-    public float HOVER_Y { get => HoverY; set => HoverY = value; }
 }

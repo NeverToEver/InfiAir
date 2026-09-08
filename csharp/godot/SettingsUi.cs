@@ -309,7 +309,7 @@ public partial class SettingsUi : RadialMenuLayer
         }
     }
 
-    /// <summary>A7：测试/诊断经公开接口</summary>
+    /// <summary>进入按键捕获态（重绑行按钮点击入口；Esc 由 _UnhandledKeyInput 取消）。</summary>
     public void StartCapture(StringName action)
     {
         _capturingAction = action;
@@ -839,12 +839,6 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnSkipIntro()
     {
         GameState.Instance.SetSkipIntro(_skipIntroBtn.ButtonPressed);
-    }
-
-    /// <summary>测试/诊断经公开接口（对齐 window_buttons() 模式）</summary>
-    public Button MouseLockButton()
-    {
-        return _mouseLockBtn;
     }
 
     private void OnBackPressed()

@@ -5,9 +5,8 @@ namespace InfiAir;
 /// <summary>
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：难度档位 / 里程碑阈值曲线。
 /// 第五轮拆域（2026-08-11）：全部职责迁至 RunProgressionService（csharp/godot/RunProgressionService.cs，
-/// 组合持有；ScoreService 迁出计分域语义的 SetMilestoneOverride/MilestoneCount/SetMilestoneCount/
-/// NextMilestone，见下方门面转发），本文件为门面对齐转发——公开 API 签名/语义不变（测试与对局
-/// 消费方经此处零适配调用）；DifficultyChanged/DifficultySelected 信号由 RunProgressionService 的
+/// 组合持有；计分域语义在 ScoreService），本文件为门面对齐转发——公开 API 签名/语义不变；
+/// DifficultyChanged/DifficultySelected 信号由 RunProgressionService 的
 /// C# 事件经 GameState 订阅重发（AddBossKill/ApplyRunSave 直发路径在 GameState 侧直发同名信号，不重复）。
 /// </summary>
 public partial class GameState : Node
@@ -32,9 +31,6 @@ public partial class GameState : Node
 
     /// <summary>DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）</summary>
     public double DdaFactor() => _runProg.DdaFactor();
-
-    /// <summary>测试/诊断：立即结束降档（对齐「测试经公开接口」白盒契约）</summary>
-    public void ResetDda() => _runProg.ResetDda();
 
     public double EnemyHpMultiplier() => _runProg.EnemyHpMultiplier();
 
@@ -98,19 +94,8 @@ public partial class GameState : Node
     /// ScoreService.RestoreMilestones 经此 internal 包装跨域调用——原私有，第五轮拆域起 internal）。</summary>
     internal double MilestoneMult() => _runProg.MilestoneMult();
 
-    /// <summary>测试钩子（A7 遗留清理，公开化）：直接设定下一个里程碑阈值（不动曲线计数，保证测试确定性）
-    /// ——ScoreService 转发（计分域语义，2026-08-11 归 ScoreService）。</summary>
-    public void SetMilestoneOverride(int threshold) => _score.SetMilestoneOverride(threshold);
-
-    /// <summary>A7：测试/诊断白盒断言经公开接口
-    /// 当前已触发的里程碑数（2026-08-04 母舰升级档位等消费点）——ScoreService 转发。</summary>
+    /// <summary>当前已触发的里程碑数——ScoreService 转发（Mothership.Tier 消费）。</summary>
     public int MilestoneCount() => _score.MilestoneCount();
-
-    /// <summary>A7：测试/诊断白盒 setter（2026-08-06 审计：mothership_upgrade_test 曾直写
-    /// _milestone_count ×5，补语义化公开接口；负值钳 0）——ScoreService 转发。</summary>
-    public void SetMilestoneCount(int count) => _score.SetMilestoneCount(count);
-
-    public int NextMilestone() => _score.NextMilestone();
 
     /// <summary>难度乘数对局进程曲线重算（公开口；曲线公式/迭代语义见
     /// RunProgressionService.RecomputeDifficultyInternal——2026-08-11 迁入）。</summary>

@@ -52,16 +52,6 @@ public partial class PlayerAugmentVisuals : Node2D
         _onAugmentsChanged = Callable.From(Refresh);
     }
 
-    // ---- 外观节点 getter（A7：测试/诊断白盒断言经公开接口） ----
-
-    public Polygon2D PowerGlow() => _powerGlow;
-
-    public Node2D RapidFins() => _rapidFins;
-
-    public Godot.Collections.Array<Node2D> SpreadPods() => _spreadPods;
-
-    public Polygon2D PierceSpike() => _pierceSpike;
-
     public Polygon2D ExplosiveGlow() => _explosiveGlow;
 
     public Node2D LaserPod() => _laserPod;

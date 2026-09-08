@@ -184,9 +184,6 @@ public sealed partial class ScoreService : RefCounted
         ComboChanged?.Invoke(0);
     }
 
-    /// <summary>连击窗口剩余时长（测试/诊断白盒读取；0 = 已断连）。</summary>
-    public double ComboTimeLeft() => _comboTimer;
-
     /// <summary>里程碑恢复（ApplyRunSave 存档恢复路径调用）：按分数批量推进到当前档
     /// （CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；
     /// 原逐档跨语言往返的 while 循环删除，存档恢复路径不再每档一次 GDScript 求值）。
@@ -233,16 +230,6 @@ public sealed partial class ScoreService : RefCounted
 
     // ---------------- 里程碑曲线（2026-08-11 自 GameState.Difficulty.cs 迁入的计分域语义部分） ----------------
 
-    /// <summary>测试钩子（A7 遗留清理，公开化）：直接设定下一个里程碑阈值（不动曲线计数，保证测试确定性）</summary>
-    public void SetMilestoneOverride(int threshold) => _nextMilestone = threshold;
-
-    /// <summary>A7：测试/诊断白盒断言经公开接口
-    /// 当前已触发的里程碑数（2026-08-04 母舰升级档位等消费点）</summary>
+    /// <summary>当前已触发的里程碑数（Mothership.Tier 升级档位等消费点）。</summary>
     public int MilestoneCount() => _milestoneCount;
-
-    /// <summary>A7：测试/诊断白盒 setter（2026-08-06 审计：mothership_upgrade_test 曾直写
-    /// _milestone_count ×5，补语义化公开接口；负值钳 0）</summary>
-    public void SetMilestoneCount(int count) => _milestoneCount = Mathf.Max(count, 0);
-
-    public int NextMilestone() => _nextMilestone;
 }

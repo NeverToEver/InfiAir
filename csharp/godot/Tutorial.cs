@@ -71,19 +71,6 @@ public partial class Tutorial : Node2D
         _onPlayerDied = Callable.From(OnPlayerDied);
     }
 
-    // A7：测试/诊断白盒断言经公开接口
-    public int Stage() => _stage;
-
-    public Boss? Boss() => _boss;
-
-    public Mothership? Mothership() => _mothership;
-
-    public int StageKills() => _stageKills;
-
-    public int BoostCount() => _boostCount;
-
-    public int DashCount() => _dashCount;
-
     public CanvasLayer? BaseUi() => _baseUi;
 
     public bool Finished() => _finished;
@@ -667,14 +654,4 @@ public partial class Tutorial : Node2D
 
         return objs;
     }
-
-    /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public Boss? boss() => Boss();
-
-    public Mothership? mothership() => Mothership();
-
-    /// <summary>tutorial_test.gd:120 以 SCREAMING_SNAKE 直读蓄力时长（tut.DOCK_CHARGE_TIME）。</summary>
-    public float DOCK_CHARGE_TIME => DockChargeTime;
 }

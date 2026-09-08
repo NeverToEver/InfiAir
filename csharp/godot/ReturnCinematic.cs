@@ -53,27 +53,6 @@ public partial class ReturnCinematic : CanvasLayer
     private Label _subtitle = null!;
     private Label _skipHint = null!;
 
-    // ---------------- A7：测试/诊断白盒断言经公开接口（过场镜头） ----------------
-
-    public void SetShotDurations(Godot.Collections.Array durations)
-    {
-        var arr = new float[durations.Count];
-        for (var i = 0; i < durations.Count; i++)
-        {
-            arr[i] = (float)durations[i].AsDouble();
-        }
-
-        _shotDurations = arr;
-    }
-
-    public int ShotIndex() => _shotIndex;
-
-    public Node2D? CurrentShot() => _currentShot;
-
-    public Node2D ShotRoot() => _shotRoot;
-
-    public Label Subtitle() => _subtitle;
-
     public override void _Ready()
     {
         SKIP_GRACE = (float)GameState.Instance.Cfg("effects.return_skip_grace", SKIP_GRACE).AsDouble();

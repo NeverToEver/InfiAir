@@ -28,9 +28,6 @@ public partial class GameState : Node
     /// <summary>缓存原始点数（含已衰减点）。</summary>
     public int TalentRawCache => _talent.RawCache;
 
-    /// <summary>缓存有效点数（衰减后可花值）。</summary>
-    public double TalentEffectiveCache => _talent.EffectiveCache;
-
     /// <summary>节点已购层级（含 Meta 起始预置）。</summary>
     public int TalentLevel(StringName id) => _talent.Level(id);
 

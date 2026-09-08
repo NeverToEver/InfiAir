@@ -109,30 +109,6 @@ public partial class EnrageSequence : RefCounted
     /// <summary>狂暴序列进行中（Boss._physics_process 据此进入序列驱动）。</summary>
     public bool IsActive() => _phase != EnrageNone;
 
-    /// <summary>状态查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public int Phase() => _phase;
-
-    /// <summary>
-    /// 1/2 型 RELEASE 一次性收尾是否已结算（测试观测；不依赖弹在场时序——
-    /// 8 路齐射向上路 ~0.27s 即出屏，场上计数在慢 runner 上与发射时刻竞争失败）。
-    /// </summary>
-    public bool ReleaseSalvoDone() => _releaseSalvoDone;
-
-    /// <summary>已推进的 ACTIVE 攻击波次数（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public int AttackIndex() => _attackIndex;
-
-    /// <summary>1 型环弹当前起始角（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public float RingAngle() => _ringAngle;
-
-    /// <summary>3 型已放小怪波数（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public int SummonWaves() => _summonWaves;
-
-    /// <summary>触发时玩家位置快照（轨道中心；测试/诊断白盒断言经公开接口，A3）。</summary>
-    public Vector2 SnapshotTarget() => _snapshotTarget;
-
-    /// <summary>2 型瞄准线引用查询（测试/诊断白盒断言经公开接口，A3）。</summary>
-    public Line2D? AimLine() => _aimLine;
-
     /// <summary>释放本类持有的瞄准线（B1 修复）。`BossAttacks.MakeAimLine` 创建的 Line2D
     /// 只由本类 `_aimLine` 持有，`BossAttacks.CancelAimLine()` 仅清其自身 `_aimLine`，
     /// 到不了这里——不显式清理会残留静态瞄准线并泄漏节点（每次 2 型狂暴约 6 个）。</summary>

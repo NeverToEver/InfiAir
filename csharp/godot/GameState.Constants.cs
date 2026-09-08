@@ -65,12 +65,6 @@ public partial class GameState : Node
         },
     };
 
-    /// <summary>A7 白盒（第三轮 SOLID 重构，测试桥）：暴露内建难度默认表的原始构造结果。
-    /// DIFFICULTY_DEFS 实例属性会被 ApplyBalance（GameState.State.cs）在 json difficulty 节
-    /// 校验通过时整表替换为 balance.json 值，无法代表 C# 内建默认表；DifficultyTest 全表
-    /// 一致性断言须直取私有构造器比对。不改任何逻辑，仅测试调用（非热路径）。</summary>
-    public static Godot.Collections.Dictionary BuildDifficultyDefsPublic() => BuildDifficultyDefs();
-
     private static Godot.Collections.Array<Godot.Collections.Dictionary> BuildMissionDefs() => new()
     {
         new() { ["id"] = new StringName("kill_5"), ["goal"] = 5, ["kind"] = new StringName("kill") },

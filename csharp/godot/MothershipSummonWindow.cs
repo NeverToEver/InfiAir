@@ -111,10 +111,6 @@ public partial class MothershipSummonWindow : CanvasLayer
         Update(0.0f);
     }
 
-    /// <summary>立即结束（幂等）：测试或外部流程直推召唤序列
-    /// A7：测试/诊断白盒断言经公开接口</summary>
-    public Label Subtitle() => _subtitle;
-
     public void Skip()
     {
         if (_done)

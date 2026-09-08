@@ -294,9 +294,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public bool IsExiting() => _exiting;
 
-    /// <summary>母舰减速带剩余时长（A7 遗留清理：测试/诊断公开查询）。</summary>
-    public float SummonSlowTimer() => _summonSlowTimer;
-
     /// <summary>池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）。</summary>
     public void Reactivate(
         Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
@@ -441,9 +438,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public bool aim_marked { get => AimMarked; set => AimMarked = value; }
 
-    // 测试/调用方读取的配置常量别名（原 GDScript 公开 var 语义；A7 白盒测试兼容保留）
-    public float HOVER_BOB_AMP { get => HoverBobAmp; set => HoverBobAmp = value; }
-
     /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值，2026-08-07 perf 批次引入）。</summary>
     private const int TrigSize = 256;
     private static float[]? _sinTable;
@@ -465,10 +459,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         return Mathf.Lerp(_sinTable[idx], _sinTable[idx + 1], t - idx);
     }
 
-
-    // 白盒访问（L02 信号保持连接 / slow_field 缓存复位；A7 测试兼容保留；原 pool_reuse_test
-    // 断言点，2026-08-29 场景退役后保留）
-    public Callable _on_augments_changed => _slowCache.CallableBridge;
 
     public static float CosFast(float x) => SinFast(x + Mathf.Pi / 2.0f);
 

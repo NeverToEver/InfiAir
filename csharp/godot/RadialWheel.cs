@@ -278,10 +278,6 @@ public partial class RadialWheel : Node2D
         RepaintAll();
     }
 
-    // ---------------- A7：测试/诊断公开接口 ----------------
-
-    public int TestDepth => _model?.Depth ?? 0;
-
     // ---------------- 面板联动 API（层级/选项读取 + 外部高亮） ----------------
 
     /// <summary>当前层深（1 = 根层）。</summary>

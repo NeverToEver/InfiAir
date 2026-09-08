@@ -88,9 +88,6 @@ public partial class CommOverlay : CanvasLayer
         _panel.Visible = false;
     }
 
-    /// <summary>A7：测试/诊断白盒断言经公开接口。</summary>
-    public string FullText() => _fullText;
-
     public override void _Process(double delta)
     {
         var d = (float)delta;

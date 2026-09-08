@@ -400,9 +400,6 @@ public partial class GameState : Node
     /// <summary>连击乘区：min(1 + (combo−1)×step, max_mult)；combo 0/1 → 1.0（第 1 杀不放大）。</summary>
     public double ComboMultiplier() => _score.ComboMultiplier();
 
-    /// <summary>断连（受击/测试/重开）：连击归零 + 计时清空 + 广播 HUD。幂等。</summary>
+    /// <summary>断连（受击/重开）：连击归零 + 计时清空 + 广播 HUD。幂等。</summary>
     public void ResetCombo() => _score.ResetCombo();
-
-    /// <summary>连击窗口剩余时长（测试/诊断白盒读取；0 = 已断连）。</summary>
-    public double ComboTimeLeft() => _score.ComboTimeLeft();
 }

@@ -191,11 +191,6 @@ public partial class PauseUi : RadialMenuLayer
         return _settingsUi;
     }
 
-    /// <summary>A7：测试/诊断经公开接口（动作包装）</summary>
-    public void OpenSettings() => OnSettingsPressed();
-
-    public void Quit() => OnQuitPressed();
-
     public void Restart() => RestartRun();
 
     private void OnSettingsPressed()

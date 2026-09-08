@@ -355,49 +355,6 @@ public partial class GameEventManager : Node
         return false;
     }
 
-    /// <summary>强制启动指定事件（进行中/未注册返回 false；不受概率与冷却门控，测试/诊断直调）。</summary>
-    public bool ForceTrigger(StringName pId)
-    {
-        var factory = EVENT_FACTORIES.GetValueOrDefault(pId, new Variant());
-        if (factory.VariantType != Variant.Type.Callable)
-        {
-            return false;
-        }
-
-        if (GroupOf(pId) == GroupFog)
-        {
-            // 迷雾组未接线（分阶段迁移期间）或已有进行中事件 → 拒触发
-            if (!_fogWired || _fogActiveId != EmptyId)
-            {
-                return false;
-            }
-
-            return StartFog(pId);
-        }
-
-        if (GroupOf(pId) == GroupEncounter)
-        {
-            // 遭遇组单事件并发（含手动 start 兜底登记，_encounter_active_id 为准）
-            if (_encounterActiveId != EmptyId)
-            {
-                return false;
-            }
-
-            var evRaw = factory.AsCallable().Call();
-            var ev = evRaw.VariantType == Variant.Type.Object ? evRaw.AsGodotObject() as Node : null;
-            // U14：typed 分派（is_active 经 IEncounterEvent 契约）
-            if (ev is not IEncounterEvent enc || enc.IsActive())
-            {
-                return false;
-            }
-
-            StartEncounter(pId, enc);
-            return true;
-        }
-
-        return false;
-    }
-
     /// <summary>立即结束指定分组进行中的事件（fog：清理效果；encounter：abort 打断）。</summary>
     public void EndActive(StringName pGroup)
     {
@@ -441,26 +398,6 @@ public partial class GameEventManager : Node
         EndFog();
         EndActive(GroupEncounter);
     }
-
-    /// <summary>测试/诊断：直接设定 fog 组冷却剩余（压缩时长确定性测试，不动 balance.json）。</summary>
-    public void SetCooldownLeft(float seconds) => _fogCooldownLeft = seconds;
-
-    public float CooldownLeft() => _fogCooldownLeft;
-
-    /// <summary>测试/诊断：直接设定 fog 组开局保护剩余。</summary>
-    public void SetFirstDelayLeft(float seconds) => _fogFirstDelayLeft = seconds;
-
-    /// <summary>测试/诊断：fog 开局保护剩余（Q12 断言用）。</summary>
-    public float FirstDelayLeft() => _fogFirstDelayLeft;
-
-    /// <summary>测试/诊断：直接设定 fog 检查计时剩余（压缩检查周期，确定性测试）。</summary>
-    public void SetCheckTimerLeft(float seconds) => _fogCheckTimer = Mathf.Max(seconds, 0.0f);
-
-    /// <summary>测试/诊断：遭遇事件触发计时剩余（Q10 断言用）。</summary>
-    public float EncounterTimerRemaining(StringName pId) => (float)_encounterTimers.GetValueOrDefault(pId, 0.0).AsDouble();
-
-    /// <summary>测试/诊断：直接设定遭遇事件触发计时剩余（压缩时长确定性测试）。</summary>
-    public void SetEncounterTimerRemaining(StringName pId, float seconds) => _encounterTimers[pId] = Mathf.Max(seconds, 0.0f);
 
     /// <summary>当前 fog 事件剩余时长（无事件返回 0）。</summary>
     public float ActiveRemaining()
