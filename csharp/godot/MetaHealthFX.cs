@@ -81,6 +81,35 @@ public partial class MetaHealthFX : CanvasLayer
     private float _smoothDownTau;
     private float _smoothUpTau;
     private float _crackExponent;
+    private float _pulseScale;
+    private float _pulseMin;
+    private float _pulseDecayTau;
+    private float _chromaticBase;
+    private float _chromaticPeak;
+    private float _reduceFlashChromaticScale;
+    private float _blurStrength;
+    private float _rippleDuration;
+    private float _rippleAlpha;
+    private float _crackHealJitter;
+    private float _crackGrowOvershoot;
+    private float _crackGrowTime;
+    private float _desatMax;
+    private float _desatExponent;
+    private float _vignetteMaxAlpha;
+    private float _vignetteInnerCfg;
+    private float _vignetteDyingShrink;
+    private float _dyingThreshold;
+    private float _heartMinHz;
+    private float _heartMaxHz;
+    private float _breathAmp;
+    private float _jitterPx;
+    private float _warnHz;
+    private float _dyingFade;
+    private float _adaptInterval;
+    private float _adaptMin;
+    private float _adaptMax;
+    private float _adaptBulletWeight;
+    private float _adaptExplosionWeight;
     private int _lod;
     private float _adaptTimer;
     private float _adaptGain = 1.0f;
@@ -116,7 +145,7 @@ public partial class MetaHealthFX : CanvasLayer
     /// <summary>血量-裂纹映射曲线（§4.2；测试采样点不含生长过冲）</summary>
     public float CrackProgress()
     {
-        return Mathf.Pow(_damageX, _crackExponent); // 字段化：原 CfgFloat("crack_exponent") 每帧 2 次字典查找（622/643 行调用）
+        return Mathf.Pow(_damageX, _crackExponent);
     }
 
     public float HitPulse() => _hitPulse;
@@ -165,7 +194,7 @@ public partial class MetaHealthFX : CanvasLayer
         _mat.SetShaderParameter("u_crack_width", CfgFloat("crack_width"));
         // K04：crack_glow 死配置键接线——shader ADD 伪泛光强度原为字面 0.8，改由配置驱动
         _mat.SetShaderParameter("u_crack_glow", CfgFloat("crack_glow"));
-        _vigInner = CfgFloat("vignette_inner");
+        _vigInner = _vignetteInnerCfg;
         // 启动即对齐当前血量（读档续局/场景重载），不产生过渡演出
         var health = GameState.Instance.Health;
         var maxHealth = GameState.Instance.MaxHealth();
@@ -350,6 +379,35 @@ public partial class MetaHealthFX : CanvasLayer
         _smoothDownTau = _cfg["smooth_down_tau"].AsSingle();
         _smoothUpTau = _cfg["smooth_up_tau"].AsSingle();
         _crackExponent = _cfg["crack_exponent"].AsSingle();
+        _pulseScale = _cfg["pulse_scale"].AsSingle();
+        _pulseMin = _cfg["pulse_min"].AsSingle();
+        _pulseDecayTau = _cfg["pulse_decay_tau"].AsSingle();
+        _chromaticBase = _cfg["chromatic_base"].AsSingle();
+        _chromaticPeak = _cfg["chromatic_peak"].AsSingle();
+        _reduceFlashChromaticScale = _cfg["reduce_flash_chromatic_scale"].AsSingle();
+        _blurStrength = _cfg["blur_strength"].AsSingle();
+        _rippleDuration = _cfg["ripple_duration"].AsSingle();
+        _rippleAlpha = _cfg["ripple_alpha"].AsSingle();
+        _crackHealJitter = _cfg["crack_heal_jitter"].AsSingle();
+        _crackGrowOvershoot = _cfg["crack_grow_overshoot"].AsSingle();
+        _crackGrowTime = _cfg["crack_grow_time"].AsSingle();
+        _desatMax = _cfg["desat_max"].AsSingle();
+        _desatExponent = _cfg["desat_exponent"].AsSingle();
+        _vignetteMaxAlpha = _cfg["vignette_max_alpha"].AsSingle();
+        _vignetteInnerCfg = _cfg["vignette_inner"].AsSingle();
+        _vignetteDyingShrink = _cfg["vignette_dying_shrink"].AsSingle();
+        _dyingThreshold = _cfg["dying_threshold"].AsSingle();
+        _heartMinHz = _cfg["heart_min_hz"].AsSingle();
+        _heartMaxHz = _cfg["heart_max_hz"].AsSingle();
+        _breathAmp = _cfg["breath"].AsSingle();
+        _jitterPx = _cfg["jitter_px"].AsSingle();
+        _warnHz = _cfg["warn_hz"].AsSingle();
+        _dyingFade = _cfg["dying_fade"].AsSingle();
+        _adaptInterval = _cfg["adapt_interval"].AsSingle();
+        _adaptMin = _cfg["adapt_min"].AsSingle();
+        _adaptMax = _cfg["adapt_max"].AsSingle();
+        _adaptBulletWeight = _cfg["adapt_bullet_weight"].AsSingle();
+        _adaptExplosionWeight = _cfg["adapt_explosion_weight"].AsSingle();
     }
 
     /// <summary>effects.meta_health.* 配置读入（GameState.cfg 动态调用，Variant → float）。</summary>
@@ -372,7 +430,7 @@ public partial class MetaHealthFX : CanvasLayer
             var t = THRESHOLDS[i];
             if (i == THRESHOLDS.Length - 1)
             {
-                t = CfgFloat("dying_threshold"); // DYING 阈值统一读 cfg（默认 0.2，与常量一致）
+                t = _dyingThreshold; // DYING 阈值以配置优先于常量表（默认 0.2），防双源漂移
             }
 
             if (ratio < t)
@@ -393,7 +451,7 @@ public partial class MetaHealthFX : CanvasLayer
     {
         var r = amount / (float)GameState.Instance.MaxHealth();
         // max 池化：高频低伤不累积（R2）
-        _hitPulse = Mathf.Max(_hitPulse, Mathf.Clamp(r * CfgFloat("pulse_scale"), CfgFloat("pulse_min"), 1.0f));
+        _hitPulse = Mathf.Max(_hitPulse, Mathf.Clamp(r * _pulseScale, _pulseMin, 1.0f));
         var playerV = GameState.Instance.PlayerRef;
         if (fromPos == Vector2.Inf || playerV == null)
         {
@@ -467,14 +525,14 @@ public partial class MetaHealthFX : CanvasLayer
 
         // 1. 损伤度指数趋近：下行快入（tau=0.10）、上行慢出（tau=0.80）
         var down = _targetX > _damageX;
-        var tau = down ? _smoothDownTau : _smoothUpTau; // 字段化：原 CfgFloat 三元每帧 2 次字典查找
+        var tau = down ? _smoothDownTau : _smoothUpTau;
         _damageX += (_targetX - _damageX) * (1.0f - Mathf.Exp(-d / tau));
 
         // 2. 状态跃迁：下行跨阈值 → 裂纹生长过冲；上行跨阈值 → 修复错峰消散（0.7s）
         var newState = StateForX(_damageX);
         if (newState > _state)
         {
-            _growBoost = CfgFloat("crack_grow_overshoot");
+            _growBoost = _crackGrowOvershoot;
         }
         else if (newState < _state)
         {
@@ -482,7 +540,7 @@ public partial class MetaHealthFX : CanvasLayer
         }
 
         _state = newState;
-        _growBoost = Mathf.MoveToward(_growBoost, 0.0f, CfgFloat("crack_grow_overshoot") / CfgFloat("crack_grow_time") * d);
+        _growBoost = Mathf.MoveToward(_growBoost, 0.0f, _crackGrowOvershoot / _crackGrowTime * d);
         if (_healT >= 0.0f)
         {
             _healT += d / 0.7f;
@@ -493,13 +551,13 @@ public partial class MetaHealthFX : CanvasLayer
             }
             else
             {
-                _healJitter = CfgFloat("crack_heal_jitter") * Enemy.SinFast(Mathf.Pi * _healT);
+                _healJitter = _crackHealJitter * Enemy.SinFast(Mathf.Pi * _healT);
             }
         }
 
         // 3. HitPulse 指数衰减与波纹推进（与状态正交）
-        _hitPulse *= Mathf.Exp(-d / CfgFloat("pulse_decay_tau"));
-        _rippleT += d / CfgFloat("ripple_duration");
+        _hitPulse *= Mathf.Exp(-d / _pulseDecayTau);
+        _rippleT += d / _rippleDuration;
 
         // 4. DYING 临界层：心跳（1.0→1.2Hz 随 x 插值）/呼吸/抖动/警告脉动；进出均 0.3s 淡出无硬切
         var reduceFlash = GameState.Instance.ReduceFlash;
@@ -511,10 +569,10 @@ public partial class MetaHealthFX : CanvasLayer
                 _heartPhase = 0.0f;
             }
 
-            var thresholdX = 1.0f - CfgFloat("dying_threshold");
+            var thresholdX = 1.0f - _dyingThreshold;
             _heartRate = Mathf.Lerp(
-                CfgFloat("heart_min_hz"),
-                CfgFloat("heart_max_hz"),
+                _heartMinHz,
+                _heartMaxHz,
                 Mathf.Clamp((_damageX - thresholdX) / Mathf.Max(1.0f - thresholdX, 0.01f), 0.0f, 1.0f));
             var prev = _heartPhase;
             _heartPhase += d * _heartRate;
@@ -525,36 +583,36 @@ public partial class MetaHealthFX : CanvasLayer
                 GameState.Instance.PlaySfx(SfxId.Heartbeat); // D7：单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
                 {
-                    GetTree().CallGroup("hud", "meta_jitter", CfgFloat("jitter_px")); // D9
+                    GetTree().CallGroup("hud", "meta_jitter", _jitterPx); // D9
                 }
             }
 
-            _heartEnv = Mathf.Max(_heartEnv - d / CfgFloat("dying_fade"), 0.0f);
-            _breath = 1.0f + CfgFloat("breath") * Enemy.SinFast(_heartPhase * Mathf.Tau);
+            _heartEnv = Mathf.Max(_heartEnv - d / _dyingFade, 0.0f);
+            _breath = 1.0f + _breathAmp * Enemy.SinFast(_heartPhase * Mathf.Tau);
             _warnT += d;
         }
         else
         {
             _heartPhase = -1.0f;
-            _heartEnv = Mathf.Max(_heartEnv - d / CfgFloat("dying_fade"), 0.0f);
-            _breath = Mathf.MoveToward(_breath, 1.0f, d * CfgFloat("breath") / CfgFloat("dying_fade"));
+            _heartEnv = Mathf.Max(_heartEnv - d / _dyingFade, 0.0f);
+            _breath = Mathf.MoveToward(_breath, 1.0f, d * _breathAmp / _dyingFade);
             _warnT = 0.0f;
         }
 
         // DYING 视野收窄 6%（0.3s 平滑）
-        var vigInnerTarget = CfgFloat("vignette_inner");
+        var vigInnerTarget = _vignetteInnerCfg;
         if (_state == STATE_DYING && healthNow > 0.0)
         {
-            vigInnerTarget -= CfgFloat("vignette_dying_shrink");
+            vigInnerTarget -= _vignetteDyingShrink;
         }
 
-        _vigInner = Mathf.MoveToward(_vigInner, vigInnerTarget, CfgFloat("vignette_dying_shrink") / CfgFloat("dying_fade") * d);
+        _vigInner = Mathf.MoveToward(_vigInner, vigInnerTarget, _vignetteDyingShrink / _dyingFade * d);
 
         // 5. D3 自适应可读性：注册表代理亮度（活跃弹数/爆炸数），0.25s 节流，零 GPU 回读
         _adaptTimer -= d;
         if (_adaptTimer <= 0.0f)
         {
-            _adaptTimer = CfgFloat("adapt_interval");
+            _adaptTimer = _adaptInterval;
             // P2-1（2026-08-05 审计）：注册表/静态计数替代 get_children 扫描——活跃子弹数
             // （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion _live_count），
             // 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历。
@@ -569,8 +627,8 @@ public partial class MetaHealthFX : CanvasLayer
                 explosions = pool.LiveExplosionCount;
             }
 
-            var proxy = bullets * CfgFloat("adapt_bullet_weight") + explosions * CfgFloat("adapt_explosion_weight");
-            _adaptGain = Mathf.Clamp(1.0f - proxy, CfgFloat("adapt_min"), CfgFloat("adapt_max"));
+            var proxy = bullets * _adaptBulletWeight + explosions * _adaptExplosionWeight;
+            _adaptGain = Mathf.Clamp(1.0f - proxy, _adaptMin, _adaptMax);
         }
 
         // 6. 参数合成（§4.2 曲线；「减少闪光」在传参前折算，shader 零分支）
@@ -580,14 +638,14 @@ public partial class MetaHealthFX : CanvasLayer
         var chromatic = 0.0f;
         if (pulse > 0.001f)
         {
-            chromatic = CfgFloat("chromatic_base") + CfgFloat("chromatic_peak") * pulse;
+            chromatic = _chromaticBase + _chromaticPeak * pulse;
             if (reduceFlash)
             {
-                chromatic *= CfgFloat("reduce_flash_chromatic_scale");
+                chromatic *= _reduceFlashChromaticScale;
             }
         }
 
-        var blur = CfgFloat("blur_strength") * pulse;
+        var blur = _blurStrength * pulse;
         var rippleOn = _rippleT <= 1.0f;
         var caps = _cfg["crack_density"].AsGodotArray();
         var density = caps[Mathf.Min(_state, caps.Count - 1)].AsSingle();
@@ -596,17 +654,17 @@ public partial class MetaHealthFX : CanvasLayer
             density = 0.0f; // 距离场未烘焙完成前不出裂纹（避免空采样全屏闪）
         }
 
-        var vigStrength = Mathf.Min(CfgFloat("vignette_max_alpha"), CrackProgress() * 0.55f);
+        var vigStrength = Mathf.Min(_vignetteMaxAlpha, CrackProgress() * 0.55f);
         if (_state == STATE_DYING && healthNow > 0.0 && !reduceFlash)
         {
             // 警告边框 2.5Hz 正弦（减少闪光时改静态，正弦折叠在 GDScript 侧）
-            vigStrength *= 1.0f + 0.25f * Enemy.SinFast(_warnT * Mathf.Tau * CfgFloat("warn_hz"));
+            vigStrength *= 1.0f + 0.25f * Enemy.SinFast(_warnT * Mathf.Tau * _warnHz);
         }
 
         var heartbeat = reduceFlash ? 0.0f : _heartEnv;
 
         // 7. D5 epsilon 检测上传（变化 <0.001 不上传）
-        Put(UHitIntensity, rippleOn ? pulse * CfgFloat("ripple_alpha") : 0.0f);
+        Put(UHitIntensity, rippleOn ? pulse * _rippleAlpha : 0.0f);
         Put(UHitDir, _hitDir);
         Put(UChromaticAmount, chromatic);
         Put(URadialBlurStrength, blur);
@@ -615,7 +673,7 @@ public partial class MetaHealthFX : CanvasLayer
         Put(UCrackColor, CrackColor(x));
         Put(UCrackDensity, density);
         Put(UHealJitter, _healJitter);
-        Put(UDesaturation, CfgFloat("desat_max") * Mathf.Pow(x, CfgFloat("desat_exponent")));
+        Put(UDesaturation, _desatMax * Mathf.Pow(x, _desatExponent));
         Put(UHueCool, 0.6f * x);
         Put(UVignetteStrength, vigStrength);
         Put(UVignetteInner, _vigInner);
