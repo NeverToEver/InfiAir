@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [3.34] - 2026-09-08
+
 ### 优化（2026-09-08，轮盘高科技弹出面板化——物化动效 + FUI 仪表细节）
 
 - **开机物化入场**（`RadialWheel.PlayBoot`，由 `RadialMenuLayer.PlayWheelEntrance` 编排）：环带自弧面中点向两端扫掠成形（焊点辉光 + 成形期品红/蓝全息色差重影）+ 卡片按与聚焦项的槽距交错过冲部署（新增 `RadialWheelModel.EaseOutBack` 纯函数，聚焦卡先出的涟漪次序）+ 前段确定性阶梯全息闪烁；装载（Load）不自动触发，语言切换重装载不重播
