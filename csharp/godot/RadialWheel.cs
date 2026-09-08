@@ -30,7 +30,8 @@ public partial class RadialWheel : Node2D
     /// <summary>回退到父层（模型即刻回退，动画随后弹回）。</summary>
     public event Action? Backed;
 
-    /// <summary>弧面中点聚焦项变化（滚轮/键盘步进、拖拽、改层后）；参数为新聚焦索引，供面板联动。</summary>
+    /// <summary>弧面中点聚焦项变化（滚轮/键盘步进、拖拽、改层后）；参数为新聚焦索引，供面板联动。
+    /// 回调在轮盘 _Process 内同步触发：只读轮盘状态/刷新页面控件，不得回写轮盘导航态。</summary>
     public event Action<int>? FocusChanged;
 
     // ---------------- 布局常量（1080p 设计值；UI 不走 world_scale） ----------------
@@ -105,14 +106,13 @@ public partial class RadialWheel : Node2D
     private float _tiltX;
     private float _tiltY;
 
-    // 活体动效状态：呼吸/活性环只在「活性态」（指针在轮盘域内或 AliveGrace 内有过交互）演进，
-    // 空闲态冻结回中性值且不重铺——菜单常开但零持续开销
+    // 活体动效状态：呼吸/活性环只在「活性态」（最近 AliveGrace 内有指针移动/点击/键盘交互）演进，
+    // 空闲（输入静默超 AliveGrace）冻结回中性值且不重铺——菜单常开但零持续开销
     private float[] _h = Array.Empty<float>(); // 卡片悬停/聚焦过渡因子（0..1，逐卡平滑）
     private float _breath = 0.5f; // 聚焦呼吸相位（0..1）
     private float _time;
-    private float _idleT = 100f; // 距上次交互秒数（初值视为已超时）
+    private float _idleT = 100f; // 距上次交互秒数（初值视为已超时；指针移动也算交互）
     private bool _engaged;
-    private bool _mouseInZone;
     private int _lastFocusIdx = -1;
     private float _spinA; // 轮毂活性环透明度（随活性态淡入淡出）
 
@@ -221,7 +221,7 @@ public partial class RadialWheel : Node2D
         _rescan = true;
         Array.Clear(_h);
         _idleT = 0f;
-        _lastFocusIdx = -1;
+        _lastFocusIdx = _model.FocusedIndex; // 不发合成 FocusChanged（开页联动由 _rescan 与页面自身刷新负责）
         RepaintAll();
     }
 
@@ -300,21 +300,17 @@ public partial class RadialWheel : Node2D
             return null;
         }
 
-        if (_h.Length != _model.OptionCount)
-        {
-            Array.Resize(ref _h, _model.OptionCount);
-        }
-
         var a = (float)_model.AngleOf(i);
         if (Mathf.Abs(a) > (float)_model.HalfSpan || (float)_model.AlphaAt(a) <= 0.05f)
         {
             return null;
         }
 
-        var h = Mathf.Max(_h[i], 1f); // 聚焦卡 h 恒满（同 DrawCard 口径）
+        // 聚焦卡口径（同 DrawCard）：h 恒满 + pop 缩放；纯查询不改绘制状态
+        var pop = _popT >= 0f ? Mathf.Lerp(1.12f, 1f, (float)RadialWheelModel.EaseOutCubic(_popT)) : 1f;
         var aRad = Mathf.DegToRad(a);
-        var cardScale = 1f + 0.09f * h;
-        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * ((Radius + 6f * h) * _contentScale);
+        var cardScale = 1.09f * pop;
+        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * (Radius * _contentScale);
         var rot = Mathf.Clamp(a * CardTiltFactor, -20f, 20f) * Mathf.DegToRad(1f);
         return pos + (new Vector2((CardW * 0.5f + 6f) * cardScale, 0f)).Rotated(rot);
     }
@@ -404,8 +400,9 @@ public partial class RadialWheel : Node2D
             anim = true;
         }
 
-        // 活性态判定与退出定格（呼吸值回中性 + 补一次重铺收尾）
-        var engaged = _mouseInZone || _idleT < AliveGrace;
+        // 活性态判定与退出定格（呼吸值回中性 + 补一次重铺收尾）；活性环透明度衰减放在
+        // 扫描 gate 之外——否则脱离活性后的快路径拦截帧让渐隐永不发生，留下冻结的幽灵弧
+        var engaged = _idleT < AliveGrace;
         if (engaged != _engaged)
         {
             _engaged = engaged;
@@ -417,17 +414,28 @@ public partial class RadialWheel : Node2D
             }
         }
 
+        var prevSpin = _spinA;
+        _spinA = Mathf.MoveToward(_spinA, _engaged ? 1f : 0f, d * 4f);
+        if (_spinA != prevSpin)
+        {
+            _fx.Repaint();
+        }
+
         // 空闲快路径：无动画、无活性、无按压且鼠标未动时不做视差积分/悬停扫描（零变换写入零重绘）；
         // _rescan 兜底「内容变了但鼠标没动」：吸附/收缩/装载/聚焦步进完成后强制重扫一次
         var local = ToLocal(GetGlobalMousePosition());
-        if (!(_engaged || anim || _rescan || _pressed || local.DistanceSquaredTo(_lastLocal) > 0.25f))
+        var moved = local.DistanceSquaredTo(_lastLocal) > 0.25f;
+        if (!(_engaged || anim || _rescan || _pressed || moved))
         {
             return;
         }
 
         _rescan = false;
         _lastLocal = local;
-        _mouseInZone = IsInWheelZone(_model, local);
+        if (moved)
+        {
+            _idleT = 0f; // 指针移动即交互（活性续期），静止驻留域内同样转入空闲
+        }
 
         // 悬停视差（2D 近似 3D 倾斜 ±3°）：Skew = 绕 X，非等比缩放 = 绕 Y，圆心随鼠标平移；
         // 变化低于阈值不写（每帧写 Skew/Scale/Position 会无谓脏化 CanvasItem 变换）
@@ -520,13 +528,6 @@ public partial class RadialWheel : Node2D
                 _h[i] = nh;
                 _cards.Repaint();
             }
-        }
-
-        var prevSpin = _spinA;
-        _spinA = Mathf.MoveToward(_spinA, _engaged ? 1f : 0f, d * 4f);
-        if (_spinA != prevSpin)
-        {
-            _fx.Repaint();
         }
 
         if (_engaged)
@@ -987,7 +988,7 @@ public partial class RadialWheel : Node2D
             c.DrawPolyline(CardLoop, new Color(UITheme.Accent, (0.14f + 0.10f * _breath) * alpha), 6f, true);
         }
 
-        // 图标槽 + 字形：同变换绘制在槽中心（槽框此前错画在卡片原点压住标签——修复）
+        // 图标槽 + 字形：必须同变换绘制在槽中心（分开变换会让槽框错位到卡片原点）
         var socketC = new Vector2(-CardW * 0.5f + 50f, 0f);
         var socketWorld = pos + (socketC * cardScale).Rotated(rot);
         c.DrawSetTransform(socketWorld, rot, new Vector2(cardScale, cardScale));

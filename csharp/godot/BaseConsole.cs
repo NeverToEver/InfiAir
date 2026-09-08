@@ -47,18 +47,6 @@ public partial class BaseConsole : RadialMenuLayer
     private Label _routeHintLabel = null!;
     private readonly Dictionary<string, ChamferedPanel> _pages = new();
 
-    private Control? VisiblePage()
-    {
-        foreach (var page in _pages.Values)
-        {
-            if (page.Visible)
-            {
-                return page;
-            }
-        }
-
-        return null;
-    }
     private readonly Dictionary<string, Button> _categoryChips = new();
     private readonly ButtonGroup _chipGroup = new();
     private string _currentCategory = "hangar";
@@ -226,6 +214,21 @@ public partial class BaseConsole : RadialMenuLayer
     }
 
     private Label MakeLabel(string text, int size) => UITheme.MakeLabel(text, size);
+
+
+    /// <summary>引线锚点解析：当前可见目录面板（右区单面板切换）。</summary>
+    private Control? VisiblePage()
+    {
+        foreach (var page in _pages.Values)
+        {
+            if (page.Visible)
+            {
+                return page;
+            }
+        }
+
+        return null;
+    }
 
     private ChamferedPanel MakePanel(string titleKey, Vector2[][] glyph)
     {

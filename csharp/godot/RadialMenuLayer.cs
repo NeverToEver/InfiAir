@@ -9,10 +9,10 @@ namespace InfiAir;
 /// + 右侧内容区的统一开合编排，与 TalentPanel 同一视觉语言——全站菜单/条目目录的导航
 /// 面统一收敛为圆盘。入场：dim 淡入 + 轮盘过冲滑入；退场反序加速（内容层由子类自编排）。
 /// 子类契约：_Ready 内先 BuildChrome() 再自建内容区；打开前 LoadMenu() 装配根级选项；
-/// 轮盘叶子确认经 Wheel.Confirmed 订阅自处理。宿主页 Visible=false 期间必须同步
-/// Wheel.Visible=false（Node2D._Input 只看自身可见性，不随 CanvasLayer 隐藏失效）。
-/// 空间链路（2026-09-08）：子类经 SetContentAnchor() 注册右区内容面板后，聚焦引线把
-/// 轮盘聚焦卡与内容区连成一条 HUD 引线（聚焦变化时脉冲提示），轮盘收缩/回弹期间逐帧跟随。
+/// 轮盘叶子确认经 Wheel.Confirmed 订阅自处理。宿主页隐藏时轮盘/引线经 VisibilityChanged
+/// 自动断供（Node2D._Input 不随 CanvasLayer 隐藏失效，漏同步会隐形吞命中区输入）。
+/// 空间链路：子类经 SetContentAnchor() 注册右区内容面板后，聚焦引线把轮盘聚焦卡与
+/// 内容区连成一条 HUD 引线（聚焦变化时脉冲提示）；锚点空间不足时守卫放弃该页引线。
 /// </summary>
 public abstract partial class RadialMenuLayer : CanvasLayer
 {
@@ -61,6 +61,17 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         Wheel.FocusChanged += OnFocusChangedForTether;
         Wheel.Drilled += _ => _tetherDirty = true;
         Wheel.Backed += () => _tetherDirty = true;
+        VisibilityChanged += OnVisibilityChangedForWheel;
+    }
+
+    /// <summary>页面隐藏时强制断供轮盘/引线（防隐形轮盘继续吞命中区输入）；恢复由宿主页 Open 流程的 SetWheelActive 负责。</summary>
+    private void OnVisibilityChangedForWheel()
+    {
+        if (!Visible)
+        {
+            Wheel.Visible = false;
+            _tether.Visible = false;
+        }
     }
 
     /// <summary>注册右区内容锚点（引线指向面板左缘中点）。</summary>
