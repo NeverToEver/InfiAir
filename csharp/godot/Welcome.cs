@@ -468,6 +468,7 @@ public partial class Welcome : RadialMenuLayer
         SetWheelActive(true, dimActive: false);
         RebuildMenu();
         PlayWheelEntrance();
+        RaiseWheel(); // 主区面板在 chrome 之后入树：轮盘/引线/取景括弧保持其上
         RefreshTexts();
     }
 

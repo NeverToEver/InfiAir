@@ -7,10 +7,10 @@ using InfiAir.Core;
 namespace InfiAir.Tests;
 
 /// <summary>
-/// 左缘轮盘截图工具：根层溢出 / 滚动偏移 / 下钻子层三态。
+/// 左缘轮盘截图工具：开机物化中段 / 根层全容 / 溢出滚动 / 下钻子层四态。
 /// 需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ///   godot --path . res://test/radial_wheel_capture.tscn
-/// 输出 /tmp/radial_*.png。
+/// 输出 /tmp/radial_*.png。开机帧用帧计数等待（真实时间过短会截到窗口首帧呈现前的黑帧）。
 /// </summary>
 public partial class RadialWheelCapture : Node
 {
@@ -28,10 +28,19 @@ public partial class RadialWheelCapture : Node
             var wheel = new RadialWheel { BackLabel = "BACK" };
             wheel.Position = new Vector2(-260f, 540f); // 圆心在屏幕外，右侧 ~1/4 弧面伸入
             AddChild(wheel);
-            wheel.Load(DemoTree());
-            await Settle(0.8);
+            await WaitFrames(20); // 热身：等窗口完成首帧呈现，开机帧不再截到黑帧
+
+            // 全容态（宿主页同款槽距压缩）：8 卡全部署，开机涟漪完整可见
+            wheel.Load(DemoTree(), RadialWheel.SlotAngleFor(8));
+            wheel.PlayBoot(); // 开机物化：扫掠成形 + 卡片交错部署 + 全息闪烁
+            await WaitFrames(5); // ≈0.13s：扫掠中段 + 首批卡片部署中
+            Shot("radial_boot");
+            await Settle(0.7);
             Shot("radial_root");
 
+            // 溢出态（默认槽距）：8 项 × 27° 超出可视半幅，演示滚动/吸附/下钻
+            wheel.Load(DemoTree());
+            await Settle(0.3);
             wheel.TestScrollBy(2); // 滚动两槽（含松手吸附语义的展示）
             await Settle(0.6);
             Shot("radial_scroll");
@@ -55,6 +64,15 @@ public partial class RadialWheelCapture : Node
 
     private async Task Settle(double seconds) =>
         await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
+
+    /// <summary>帧计数等待：避开窗口启动期真实时间短、首帧未呈现的空窗（截图黑帧）。</summary>
+    private async Task WaitFrames(int frames)
+    {
+        for (var i = 0; i < frames; i++)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+    }
 
     private void Shot(string name)
     {

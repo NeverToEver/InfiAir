@@ -224,4 +224,13 @@ public sealed class RadialWheelModel
 
     /// <summary>ease-out cubic：淡入/吸附等次级动效。</summary>
     public static double EaseOutCubic(double t) => 1.0 - Math.Pow(1.0 - Math.Clamp(t, 0.0, 1.0), 3.0);
+
+    /// <summary>ease-out back（轻微过冲后回落到 1，峰值 ≈1.1）：卡片开机部署等需要弹性的入场。</summary>
+    public static double EaseOutBack(double t)
+    {
+        const double c1 = 1.70158;
+        const double c3 = c1 + 1.0;
+        var x = Math.Clamp(t, 0.0, 1.0) - 1.0;
+        return 1.0 + c3 * x * x * x + c1 * x * x;
+    }
 }

@@ -7,9 +7,10 @@ namespace InfiAir;
 /// <summary>
 /// 左缘轮盘菜单页骨架（2026-09-08 圆盘 UI 全覆盖）：dim 遮罩 + RadialWheel（左缘 1/4 弧）
 /// + 右侧内容区的统一开合编排，与 TalentPanel 同一视觉语言——全站菜单/条目目录的导航
-/// 面统一收敛为圆盘。入场：dim 淡入 + 轮盘过冲滑入；退场反序加速（内容层由子类自编排）。
-/// 子类契约：_Ready 内先 BuildChrome() 再自建内容区；打开前 LoadMenu() 装配根级选项；
-/// 轮盘叶子确认经 Wheel.Confirmed 订阅自处理。宿主页隐藏时轮盘/引线经 VisibilityChanged
+/// 面统一收敛为圆盘。入场：dim 淡入 + 轮盘过冲滑入 + 开机物化（Wheel.PlayBoot：环带扫掠
+/// 成形/卡片交错部署/全息闪烁）+ 屏幕四角 HUD 括弧错峰绘入；退场反序加速（内容层由子类
+/// 自编排）。子类契约：_Ready 内先 BuildChrome() 再自建内容区；打开前 LoadMenu() 装配根级
+/// 选项；轮盘叶子确认经 Wheel.Confirmed 订阅自处理。宿主页隐藏时轮盘/引线经 VisibilityChanged
 /// 自动断供（Node2D._Input 不随 CanvasLayer 隐藏失效，漏同步会隐形吞命中区输入）。
 /// 空间链路：子类经 SetContentAnchor() 注册右区内容面板后，聚焦引线把轮盘聚焦卡与
 /// 内容区连成一条 HUD 引线（聚焦变化时脉冲提示）；锚点空间不足时守卫放弃该页引线。
@@ -24,11 +25,15 @@ public abstract partial class RadialMenuLayer : CanvasLayer
     /// <summary>引线菱形端点/线宽的静态缓冲（重绘零分配）。</summary>
     private static readonly Vector2[] TipDiamond = { new(6f, 0f), new(0f, 5f), new(-6f, 0f), new(0f, -5f) };
     private static readonly Color[] TipDiamondCols = new Color[4];
+    private static readonly Vector2[] MidTickPts = new Vector2[6]; // 三缘中点刻度端点（重绘零分配）
 
     protected RadialWheel Wheel = null!;
 
     private Node2D _wheelHolder = null!;
     private RadialWheelLayer _tether = null!;
+    private RadialWheelLayer _frame = null!;
+    private float _frameT; // 四角括弧绘制因子 0..1（错峰绘入/收起）
+    private float _frameTarget;
     private bool _tetherDirty = true;
     private Tween? _tetherPulse;
     private Vector2 _lastWheelG;
@@ -57,6 +62,9 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         // 会被冻结在已画几何里、跟着 holder 漂移离面板；端点跟随由 _Process 运动门控重绘保证
         _tether = new RadialWheelLayer { Painter = DrawTether };
         AddChild(_tether);
+        // 屏幕四角 HUD 括弧：整个弹出面板的「系统层」取景框，最上、纯几何零输入
+        _frame = new RadialWheelLayer { Painter = DrawFrame };
+        AddChild(_frame);
 
         Wheel.FocusChanged += OnFocusChangedForTether;
         Wheel.Drilled += _ => _tetherDirty = true;
@@ -92,14 +100,19 @@ public abstract partial class RadialMenuLayer : CanvasLayer
     {
         _wheelHolder.MoveToFront();
         _tether.MoveToFront(); // 引线保持紧贴轮盘之上（否则被后入树的背景/遮罩盖住）
+        _frame.MoveToFront(); // 取景括弧保持最上（轮盘环带是整圆，左下角会盖住括弧）
     }
 
-    /// <summary>入场编排：dim 淡入 + 轮盘过冲滑入 + 引线延迟淡入（等轮盘/内容就位后再建立空间关联）。</summary>
+    /// <summary>入场编排：dim 淡入 + 轮盘过冲滑入 + 开机物化 + 四角括弧错峰绘入 +
+    /// 引线延迟淡入（等轮盘/内容就位后再建立空间关联）。</summary>
     protected void PlayWheelEntrance()
     {
         Dim.Modulate = new Color(Dim.Modulate, 0f);
         _tether.Modulate = new Color(1f, 1f, 1f, 0f);
         _wheelHolder.Position = new Vector2(WheelRest.X - 620f, WheelRest.Y);
+        Wheel.PlayBoot();
+        _frameT = 0f;
+        _frameTarget = 1f;
         var tw = CreateTween();
         tw.Parallel().TweenProperty(Dim, "modulate:a", 1.0f, 0.2);
         tw.Parallel().TweenProperty(_wheelHolder, "position", WheelRest, 0.5)
@@ -107,9 +120,11 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         tw.Parallel().TweenProperty(_tether, "modulate:a", 1.0f, 0.3).SetDelay(0.42);
     }
 
-    /// <summary>退场编排：轮盘加速滑出 + dim 收尾 + 引线先行淡出，完成后回调（回调里再置 Visible=false）。</summary>
+    /// <summary>退场编排：轮盘加速滑出 + dim 收尾 + 引线与括弧先行淡出/收起，完成后回调
+    /// （回调里再置 Visible=false）。</summary>
     protected void PlayWheelExit(Action finished, float total = 0.36f)
     {
+        _frameTarget = 0f;
         var tw = CreateTween();
         tw.Parallel().TweenProperty(_tether, "modulate:a", 0.0f, 0.14);
         tw.TweenProperty(_wheelHolder, "position", new Vector2(WheelRest.X - 620f, WheelRest.Y), 0.26)
@@ -128,11 +143,19 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         Wheel.Visible = active;
         _tether.Visible = active;
         Dim.Visible = dimActive ?? active;
+        _frameTarget = active ? 1f : 0f;
         _tetherDirty = true;
     }
 
     public override void _Process(double delta)
     {
+        // 四角括弧绘制因子：开合渐次绘入/收起，仅在变化帧重绘
+        if (_frameT != _frameTarget)
+        {
+            _frameT = Mathf.MoveToward(_frameT, _frameTarget, (float)delta * (_frameTarget > _frameT ? 2.6f : 3.8f));
+            _frame.Repaint();
+        }
+
         // 引线重绘时机：收缩/回弹或入场/退场/视差期间（轮盘或 holder 在动）逐帧跟随，
         // 其余仅在聚焦/层级变化后补一次；静止时两次比较零成本、零重绘
         if (_tether == null || !Wheel.Visible)
@@ -212,5 +235,76 @@ public abstract partial class RadialMenuLayer : CanvasLayer
 
         c.DrawPolygon(TipDiamond, TipDiamondCols);
         c.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    /// <summary>屏幕四角 HUD 括弧 + 四缘中点刻度：把整屏取景成一块「系统面板」。
+    /// 四角按 0.12s 步进错峰绘入（臂长随局部因子生长），缘中刻度最后收尾；纯几何零分配。</summary>
+    private void DrawFrame(RadialWheelLayer c)
+    {
+        if (_frameT <= 0.001f)
+        {
+            return;
+        }
+
+        var vp = GetViewport().GetVisibleRect().Size;
+        const float margin = 24f;
+        const float leg = 64f;
+        for (var k = 0; k < 4; k++)
+        {
+            var s = Mathf.Clamp((_frameT - k * 0.12f) * 2.2f, 0f, 1f);
+            if (s <= 0f)
+            {
+                continue;
+            }
+
+            var e = (float)RadialWheelModel.EaseOutCubic(s);
+            var cx = k % 2 == 0 ? margin : vp.X - margin;
+            var cy = k < 2 ? margin : vp.Y - margin;
+            var sx = k % 2 == 0 ? 1f : -1f;
+            var sy = k < 2 ? 1f : -1f;
+            // 暗托底 + 亮线双描：括弧要压在宿主页/HUD 面板之上仍可辨
+            var under = new Color(0f, 0f, 0f, 0.55f * e);
+            var col = new Color(UITheme.Accent, 0.6f * e);
+            var x2 = cx + (sx * leg * e);
+            var y2 = cy + (sy * leg * e);
+            c.DrawLine(new Vector2(cx, cy), new Vector2(x2, cy), under, 5.5f, true);
+            c.DrawLine(new Vector2(cx, cy), new Vector2(cx, y2), under, 5.5f, true);
+            c.DrawLine(new Vector2(cx, cy), new Vector2(x2, cy), col, 2.5f, true);
+            c.DrawLine(new Vector2(cx, cy), new Vector2(cx, y2), col, 2.5f, true);
+            // 臂外延伸刻度：括弧到位后浮现的短续线
+            var tA = Mathf.Clamp((e - 0.85f) / 0.15f, 0f, 1f);
+            if (tA > 0f)
+            {
+                var lx = cx + (sx * (leg + 7f));
+                var ly = cy + (sy * (leg + 7f));
+                var eCol = new Color(UITheme.Accent, 0.28f * tA);
+                c.DrawLine(new Vector2(lx, cy), new Vector2(lx + (sx * 9f * tA), cy), eCol, 1.5f, true);
+                c.DrawLine(new Vector2(cx, ly), new Vector2(cx, ly + (sy * 9f * tA)), eCol, 1.5f, true);
+            }
+        }
+
+        // 三缘中点刻度（最后收尾）：上/下竖刻、右横刻。左缘不设——轮盘整圆在本骨架
+        // 所有页面上都叠压左缘中点，刻度放那里永不可辨
+        var sE = Mathf.Clamp((_frameT - 0.55f) * 2.3f, 0f, 1f);
+        if (sE <= 0f)
+        {
+            return;
+        }
+
+        var eE = (float)RadialWheelModel.EaseOutCubic(sE);
+        var midU = new Color(0f, 0f, 0f, 0.45f * eE);
+        var colE = new Color(UITheme.Accent, 0.45f * eE);
+        var len = 12f * eE;
+        MidTickPts[0] = new Vector2(vp.X * 0.5f, margin);
+        MidTickPts[1] = new Vector2(vp.X * 0.5f, margin + len);
+        MidTickPts[2] = new Vector2(vp.X * 0.5f, vp.Y - margin);
+        MidTickPts[3] = new Vector2(vp.X * 0.5f, vp.Y - margin - len);
+        MidTickPts[4] = new Vector2(vp.X - margin, vp.Y * 0.5f);
+        MidTickPts[5] = new Vector2(vp.X - margin - len, vp.Y * 0.5f);
+        for (var m = 0; m < 6; m += 2)
+        {
+            c.DrawLine(MidTickPts[m], MidTickPts[m + 1], midU, 4.5f, true);
+            c.DrawLine(MidTickPts[m], MidTickPts[m + 1], colE, 2f, true);
+        }
     }
 }

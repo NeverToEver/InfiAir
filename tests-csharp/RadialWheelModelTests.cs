@@ -158,6 +158,15 @@ public sealed class RadialWheelModelTests
     }
 
     [Fact]
+    public void Easing_BackOvershootsThenSettles()
+    {
+        Assert.Equal(0.0, RadialWheelModel.EaseOutBack(0), 9);
+        Assert.Equal(1.0, RadialWheelModel.EaseOutBack(1), 9);
+        Assert.True(RadialWheelModel.EaseOutBack(0.7) > 1.0); // 过冲是弹性入场手感的来源
+        Assert.True(RadialWheelModel.EaseOutBack(0.3) is > 0.0 and < 1.0); // 过冲起点（≈0.4）之前仍在爬升
+    }
+
+    [Fact]
     public void Drill_ResetsChildScroll_ToFocusFirst()
     {
         var m = MakeOverflowModel();
