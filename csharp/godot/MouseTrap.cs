@@ -15,11 +15,13 @@ namespace InfiAir;
 /// 反而把"移回窗口时的位置跳变"钳在边缘内侧（原无 confine 时可有数十 px 跳变）。
 /// 已知取舍：拖动标题栏时鼠标位于 OS 装饰区会触发 mouse_exited 被拉回（固定尺寸窗口下
 /// 可接受，用户可在设置中关闭本功能规避）。
+/// 聚焦判定必须实时查询（TrapActive 内 win.HasFocus()），不能缓存 FocusEntered/FocusExited
+/// 信号——Windows 下焦点事件可能被 OS 级抢占（通知/UAC/虚拟桌面切换）吞掉，缓存一旦滞留
+/// true 会在窗口实际失焦后继续 warp，鼠标被钉死在窗口内、永远无法切换焦点。
 /// M5 全量迁移（2026-08-08 自 scripts/mouse_trap.gd）。
 /// </summary>
 public partial class MouseTrap : Node
 {
-    private bool _focused;
     /// <summary>最后已知窗口内容区内的鼠标位置（每帧缓存；移出后 get_mouse_position() 不再更新，
     /// 供 mouse_exited 时生成 warp 目标；从未进入窗口内时为负，此时不拉回）</summary>
     private Vector2 _lastKnownPos = new(-1.0f, -1.0f);
@@ -29,33 +31,16 @@ public partial class MouseTrap : Node
         ProcessMode = Node.ProcessModeEnum.Always; // 暂停时也维持位置缓存与防御；放行判定在 _trap_active
         var win = GetWindow();
         win.MouseExited += OnMouseExited;
-        win.FocusExited += OnFocusExited;
-        win.FocusEntered += OnFocusEntered;
-        _focused = win.HasFocus();
     }
 
     public override void _ExitTree()
     {
-        // 2026-08-03 审计（C22 模式）：Window 信号断开——节点未 free 重入树防双连回调
-        // U04（2026-08-09 审计）：移除 M5 调试临时 return（原使断开代码成为不可达死代码，
-        // Window 三信号永不断开，场景重载后移出窗口回调已释放实例）
+        // Window 信号断开——节点未 free 重入树防双连回调；场景重载后防移出窗口回调已释放实例
         var win = GetWindow();
-        if (win != null)
+        if (win != null
+            && win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
         {
-            if (win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
-            {
-                win.MouseExited -= OnMouseExited;
-            }
-
-            if (win.IsConnected(Window.SignalName.FocusExited, Callable.From(OnFocusExited)))
-            {
-                win.FocusExited -= OnFocusExited;
-            }
-
-            if (win.IsConnected(Window.SignalName.FocusEntered, Callable.From(OnFocusEntered)))
-            {
-                win.FocusEntered -= OnFocusEntered;
-            }
+            win.MouseExited -= OnMouseExited;
         }
     }
 
@@ -78,20 +63,17 @@ public partial class MouseTrap : Node
 
     private void OnMouseExited() => Trap();
 
-    private void OnFocusExited() => _focused = false; // 失焦放行：鼠标可自由移出切换应用
-
-    private void OnFocusEntered() => _focused = true;
-
     /// <summary>生效条件：设置开启 + 对局准星态（未暂停且系统光标隐藏）+ 窗口可见 + 聚焦 + 有内容尺寸。
     /// 暂停/Buff/基地/结算/过场/开始页（AimCrosshair 均恢复系统光标）与失焦一律放行，
-    /// 鼠标可自由移出窗口（如点系统标题栏关闭按钮退出游戏）。</summary>
+    /// 鼠标可自由移出窗口（如点系统标题栏关闭按钮退出游戏）。
+    /// 聚焦用 HasFocus() 实时查询而非缓存信号（焦点事件可能被 OS 抢占吞掉，见文件头注释）。</summary>
     private bool TrapActive()
     {
         var win = GetWindow();
         return TrapEnabled(
             GameState.Instance.MouseLock,
             win.Visible,
-            _focused,
+            win.HasFocus(),
             win.Size.X > 0 && win.Size.Y > 0,
             !GetTree().Paused,
             Input.MouseMode == Input.MouseModeEnum.Hidden);
