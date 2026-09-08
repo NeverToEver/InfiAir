@@ -28,9 +28,6 @@ public partial class LaserWeapon : Node2D
     /// <summary>敌机碰撞半径设计值（spawner 机型配置基准 30，× world_scale 生效）。</summary>
     public float EnemyHitRadius { get; private set; } = 30.0f;
 
-    // V 系列：静态 AudioStream 持有 → 实例字段（禁静态持 Godot RefCounted；激光低频触发，惰性加载即可）
-    private AudioStream? _sfxBeam;  // 原 const SFX_BEAM = preload(...)，_ready 惰性加载
-
     private bool _active;
     private float _activeTime;
     private float _cooldown;
@@ -86,7 +83,6 @@ public partial class LaserWeapon : Node2D
         BeamHalfWidth = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.half_width", BeamHalfWidth).AsDouble(), 0.1f);
         EnemyHitRadius = Mathf.Max((float)GameState.Instance.Cfg("buffs.laser_beam.hit_radius", EnemyHitRadius).AsDouble(), 0.1f)
             * (float)GameState.Instance.WorldScale;
-        _sfxBeam = GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav");
         // 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
         _beam = new Line2D
         {
@@ -217,7 +213,7 @@ public partial class LaserWeapon : Node2D
         _beam.Visible = true;
         _glow.Emitting = true;
         _player!.SetAutoFire(false);
-        if (_sfxBeam != null) GameState.Instance.PlaySfx(_sfxBeam, -6.0);
+        GameState.Instance.PlaySfx(SfxId.FireC);
     }
 
     private void EndBeam()

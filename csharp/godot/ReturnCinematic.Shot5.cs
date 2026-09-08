@@ -123,7 +123,7 @@ public partial class ReturnCinematic : CanvasLayer
         land.TweenProperty(ship, "scale:y", 1.0f, 0.12f * u);
         Once(root, 0.9f * u, Callable.From(() =>
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -18.0f); // 落地极轻闷响
+            GameState.Instance.PlaySfx(SfxId.Explosion, -18.0f); // 落地极轻闷响
             var dust = Particles(new Godot.Collections.Dictionary
             {
                 ["amount"] = 24,
@@ -165,7 +165,7 @@ public partial class ReturnCinematic : CanvasLayer
         }));
         Once(root, 1.15f * u, Callable.From(() =>
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -14.0f); // 跃下短促音
+            GameState.Instance.PlaySfx(SfxId.Dash, -14.0f); // 跃下短促音
             pnode.Visible = true;
             var jump = root.CreateTween();
             jump.TweenProperty(pnode, "position", new Vector2(935.0f, 390.0f), 0.25f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);

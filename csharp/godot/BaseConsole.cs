@@ -596,7 +596,7 @@ public partial class BaseConsole : CanvasLayer
             var health = GameState.Instance.Health;
             var maxHealth = GameState.Instance.MaxHealth();
             GameState.Instance.Heal(Mathf.Max(0.0, maxHealth - health)); // H20：防负治疗扣血
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
+            GameState.Instance.PlaySfx(SfxId.Resupply);
             Refresh();
         }
     }
@@ -609,7 +609,7 @@ public partial class BaseConsole : CanvasLayer
         if (player != null && GameState.Instance.SpendRp(rpRechargeCost))
         {
             player.RefillFuel();
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
+            GameState.Instance.PlaySfx(SfxId.Resupply);
             Refresh();
         }
     }
@@ -626,7 +626,7 @@ public partial class BaseConsole : CanvasLayer
     {
         if (GameState.Instance.Talent.BuyResetToken())
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
+            GameState.Instance.PlaySfx(SfxId.Resupply);
         }
 
         Refresh();
@@ -636,7 +636,7 @@ public partial class BaseConsole : CanvasLayer
     {
         if (GameState.Instance.ClaimMission(id))
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+            GameState.Instance.PlaySfx(SfxId.BuffPick);
         }
 
         Refresh();
@@ -647,7 +647,7 @@ public partial class BaseConsole : CanvasLayer
     {
         if (GameState.Instance.RefreshMissions())
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+            GameState.Instance.PlaySfx(SfxId.BuffPick);
             HideRefreshHint();
         }
         else

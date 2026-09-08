@@ -107,7 +107,7 @@ public partial class FormationBomb : Area2D
     private void Detonate()
     {
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.9f);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enemy_die", 5.0).AsDouble());
         var hitbox = GameState.Instance.PlayerHitbox;
         var player = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调

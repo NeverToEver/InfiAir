@@ -1006,7 +1006,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         TransitionCleanup(); // 机制三：转场清弹 + 玩家短暂无敌（公平感喘息）
         _attacks.ChargeGlow(this, PhaseShiftDuration);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enrage", 16.0).AsDouble() * 0.5);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -10.0, 0.7);
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig, -10.0, 0.7);
         EmitSignal(SignalName.PhaseChanged, (int)pPhase);
     }
 
@@ -1303,7 +1303,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _enrageSequence.Begin(this, snapshot, _bossSize);
         _sprite.Modulate = BaseModulate();
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enrage", 16.0).AsDouble());
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -6.0);
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig);
         EmitSignal(SignalName.PhaseChanged, (int)FightPhase.ENRAGE);
         EmitSignal(SignalName.Enraged);
     }

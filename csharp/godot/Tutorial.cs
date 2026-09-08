@@ -18,7 +18,6 @@ public partial class Tutorial : Node2D
     private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
     private readonly PackedScene _mothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
-    private readonly AudioStream _sfxBuffPick = GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
 
     public float HomeChargeTime = 1.5f;
     public float DockChargeTime = 3.0f; // 母舰召唤蓄力（mothership.dock_charge_time，对齐正局）
@@ -651,7 +650,7 @@ public partial class Tutorial : Node2D
         }
     }
 
-    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(_sfxBuffPick);
+    private void PlaySfxBuffPick() => GameState.Instance.PlaySfx(SfxId.BuffPick);
 
     /// <summary>Variant 数组转 object[]（GDScript `%` 参数补参用；GodotSharp 无 Array.ToArray）。</summary>
     private static object[] ToObjects(Godot.Collections.Array args)

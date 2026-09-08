@@ -21,34 +21,26 @@ public partial class BossAttacks : RefCounted
 
     // B 梯队（fair plan §8）：每攻击独特 tell——起手音效变体 + 视觉前兆冲击环。
     // 玩家凭音效/闪光区分「来的是什么」；音效复用现有资源变体（缺专属资产，登记后续音频项）。
-    // V 系列（2026-08-09）：静态 AudioStream 持有违反「静态字段禁持 Godot RefCounted」规则
-    // （UITheme.cs 退出 segfault 先例），改存路径 StringName，播放处 GD.Load 命中资源缓存。
-    private static readonly StringName TellFireAPath = new("res://assets/audio/bullet_fire.wav");
-    private static readonly StringName TellFireBPath = new("res://assets/audio/bullet_fire_b.wav");
-    private static readonly StringName TellFireCPath = new("res://assets/audio/bullet_fire_c.wav");
-    private static readonly StringName TellDashPath = new("res://assets/audio/dash.wav");
-    private static readonly StringName TellExplosionPath = new("res://assets/audio/explosion.wav");
-
     /// <summary>attack id → tell 配置（sfx 路径/音高/视觉环色）；缺失键 = 该攻击无 tell（新攻击须补配）。</summary>
     private sealed class TellInfo
     {
-        public StringName? Path;
+        public SfxId Id;
         public float Pitch;
         public Color Color;
     }
 
     private static readonly Dictionary<StringName, TellInfo> AttackTells = new()
     {
-        [new StringName("fan5")] = new TellInfo { Path = TellFireAPath, Pitch = 1.0f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
-        [new StringName("fan7")] = new TellInfo { Path = TellFireAPath, Pitch = 1.15f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
-        [new StringName("homing")] = new TellInfo { Path = TellFireBPath, Pitch = 1.0f, Color = new Color(1.0f, 0.3f, 0.3f, 0.55f) },
-        [new StringName("sniper3")] = new TellInfo { Path = TellFireCPath, Pitch = 1.0f, Color = new Color(0.95f, 0.95f, 1.0f, 0.6f) },
-        [new StringName("cross")] = new TellInfo { Path = TellFireAPath, Pitch = 1.25f, Color = new Color(0.8f, 0.4f, 1.0f, 0.55f) },
-        [new StringName("charged_cannon")] = new TellInfo { Path = TellDashPath, Pitch = 0.8f, Color = new Color(1.0f, 0.85f, 0.3f, 0.6f) },
-        [new StringName("dash_sweep")] = new TellInfo { Path = TellExplosionPath, Pitch = 0.7f, Color = new Color(0.4f, 0.9f, 1.0f, 0.55f) },
-        [new StringName("minion_volley")] = new TellInfo { Path = TellFireCPath, Pitch = 0.8f, Color = new Color(0.5f, 1.0f, 0.5f, 0.55f) },
-        [new StringName("bullet_wall")] = new TellInfo { Path = TellFireBPath, Pitch = 1.2f, Color = new Color(0.4f, 0.6f, 1.0f, 0.55f) },
-        [new StringName("ring_burst")] = new TellInfo { Path = TellFireAPath, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
+        [new StringName("fan5")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.0f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
+        [new StringName("fan7")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.15f, Color = new Color(1.0f, 0.6f, 0.2f, 0.55f) },
+        [new StringName("homing")] = new TellInfo { Id = SfxId.FireB, Pitch = 1.0f, Color = new Color(1.0f, 0.3f, 0.3f, 0.55f) },
+        [new StringName("sniper3")] = new TellInfo { Id = SfxId.FireC, Pitch = 1.0f, Color = new Color(0.95f, 0.95f, 1.0f, 0.6f) },
+        [new StringName("cross")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.25f, Color = new Color(0.8f, 0.4f, 1.0f, 0.55f) },
+        [new StringName("charged_cannon")] = new TellInfo { Id = SfxId.Dash, Pitch = 0.8f, Color = new Color(1.0f, 0.85f, 0.3f, 0.6f) },
+        [new StringName("dash_sweep")] = new TellInfo { Id = SfxId.Explosion, Pitch = 0.7f, Color = new Color(0.4f, 0.9f, 1.0f, 0.55f) },
+        [new StringName("minion_volley")] = new TellInfo { Id = SfxId.FireC, Pitch = 0.8f, Color = new Color(0.5f, 1.0f, 0.5f, 0.55f) },
+        [new StringName("bullet_wall")] = new TellInfo { Id = SfxId.FireB, Pitch = 1.2f, Color = new Color(0.4f, 0.6f, 1.0f, 0.55f) },
+        [new StringName("ring_burst")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
     };
     /// <summary>攻击 tell 表公开访问（boss_registry_test 校验用）。</summary>
     public static Godot.Collections.Dictionary GetAttackTells()
@@ -165,8 +157,7 @@ public partial class BossAttacks : RefCounted
             return;
         }
 
-        // V 系列：路径 StringName → GD.Load 命中资源缓存（不静态持有 AudioStream）
-        GameState.Instance.PlaySfx(GD.Load<AudioStream>(tell.Path!), -8.0, tell.Pitch);
+        GameState.Instance.PlaySfx(tell.Id, -8.0, tell.Pitch);
         var ring = (Node2D)CinematicFx.Shockwave(
             new Godot.Collections.Dictionary
             {

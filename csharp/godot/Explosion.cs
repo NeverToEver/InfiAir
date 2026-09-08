@@ -113,7 +113,7 @@ public partial class Explosion : GpuParticles2D
     /// <summary>Boss 多段爆炸序列：连续小爆炸 + 最终大爆炸 + 震动（Timer 驱动而非协程，防泄漏）。</summary>
     public static void SpawnBossSequence(Node parent, Vector2 pos)
     {
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG);
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_initial", 20.0).AsDouble());
         _bossSeqBurst(parent, pos); // 第 1 段立即触发
         var step = new int[] { 1 }; // 已触发段数（数组引用跨回调共享计数）

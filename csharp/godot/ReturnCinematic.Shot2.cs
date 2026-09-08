@@ -128,7 +128,7 @@ public partial class ReturnCinematic : CanvasLayer
         inflow.Emitting = false;
         push.AddChild(inflow);
         Once(root, 0.45f, Callable.From(() => inflow.Emitting = true));
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -12.0f, 0.5f); // 0.5 倍速低沉撕裂感
+        GameState.Instance.PlaySfx(SfxId.Explosion, -12.0f, 0.5f); // 0.5 倍速低沉撕裂感
         return root;
     }
 }

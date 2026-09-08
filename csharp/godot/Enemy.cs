@@ -420,7 +420,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         GameState.Instance.AddKillScore((int)(ScoreValue * _scoreScale));
         GameState.Instance.AddKill();
         GameState.Instance.TryLifesteal();
-        GameState.Instance.PlaySfx(IsElite ? GameState.Instance.SFX_EXPLOSION_BIG : GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.PlaySfx(IsElite ? SfxId.ExplosionBig : SfxId.Explosion);
         GameState.Instance.Shake(IsElite ? _shakeDieElite : _shakeDieNormal);
         Explosion.SpawnAt(GetParent(), GlobalPosition, IsElite ? 1.5f : 1.0f);
         EmitSignal(SignalName.Died, this);

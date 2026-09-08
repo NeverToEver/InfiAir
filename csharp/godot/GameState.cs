@@ -517,7 +517,7 @@ public partial class GameState : Node
         _input.JoyLayoutChanged += OnInputJoyLayoutChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
-        _sfxPlayer.BuildPool(SfxPoolSizeValue);
+        _sfxPlayer.BuildPool();
         // 迷雾事件管理器挂载（balance 已在 _apply_balance 就绪；管理器 _ready 读 cfg）
         AddChild(_fogEvents);
         // 统一事件管理器挂载（fog 组经迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
@@ -583,24 +583,17 @@ public partial class GameState : Node
         _score.Tick(delta);
     }
 
-    public void PlaySfx(AudioStream stream, double volumeDb = 0.0, double pitchScale = 1.0)
+    /// <summary>volumeDb/pitchScale 缺省 = SfxPlayer 目录基准（音量基准/抖动/冷却/复音都在目录表）；
+    /// 显式传入 = 精确覆盖（过场/tell 调音），显式音高不参与抖动。</summary>
+    public void PlaySfx(SfxId id, double? volumeDb = null, double? pitchScale = null)
     {
-        // headless 短路与池化复用逻辑在 SfxPlayer（A2 阶段 3）
-        _sfxPlayer.Play(stream, (float)volumeDb, (float)pitchScale);
+        _sfxPlayer.Play(id, volumeDb, pitchScale);
     }
 
     /// <summary>退出前停止所有仍在播放的音效：带播未停时 AudioStreamPlayback 会在退出时泄漏</summary>
     public void StopAllSfx()
     {
         _sfxPlayer.StopAll();
-        if (PlayerRef != null && GodotObject.IsInstanceValid(PlayerRef))
-        {
-            var audio = PlayerRef.GetNodeOrNull<AudioStreamPlayer2D>("AudioStreamPlayer2D");
-            if (audio != null)
-            {
-                audio.Stop();
-            }
-        }
     }
 
     public void Shake(double strength) => EmitSignal(SignalName.ScreenShake, strength);

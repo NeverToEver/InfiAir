@@ -217,23 +217,7 @@ public partial class GameState : Node
 
     // 互斥天赋路线（旧 line->双 buff 表）已随天赋缓存系统重构删除——路线契约见 TalentTree.Routes
 
-    /// <summary>音效资源（原 GDScript const preload；规则 19 禁静态持 Godot 对象——实例只读属性）。</summary>
-    public AudioStream SFX_EXPLOSION { get; } = GD.Load<AudioStream>("res://assets/audio/explosion.wav");
-
-    public AudioStream SFX_EXPLOSION_BIG { get; } = GD.Load<AudioStream>("res://assets/audio/explosion_big.wav");
-
-    public AudioStream SFX_PLAYER_HIT { get; } = GD.Load<AudioStream>("res://assets/audio/player_hit.wav");
-
-    public AudioStream SFX_BUFF_PICK { get; } = GD.Load<AudioStream>("res://assets/audio/buff_pick.wav");
-
-    public AudioStream SFX_DASH { get; } = GD.Load<AudioStream>("res://assets/audio/dash.wav");
-
-    public AudioStream SFX_RESUPPLY { get; } = GD.Load<AudioStream>("res://assets/audio/resupply.wav");
-
-    public AudioStream SFX_HEARTBEAT { get; } = GD.Load<AudioStream>("res://assets/audio/heartbeat.wav");
-
-    /// <summary>常驻音效播放器池大小。</summary>
-    private const int SfxPoolSizeValue = 6;
+    // 音效资源/音量/冷却/复音的唯一目录已收编进 SfxPlayer（SfxId 枚举 + 目录表）
 
     private const string SavePathValue = "user://savegame.json";
     public string SAVE_PATH => SavePathValue;

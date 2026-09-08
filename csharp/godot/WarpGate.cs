@@ -132,7 +132,7 @@ public partial class WarpGate : Node2D
         };
         _lip.AddChild(lipCore);
         AddChild(_lip);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0, 0.5);
+        GameState.Instance.PlaySfx(SfxId.Dash, -6.0, 0.5);
     }
 
     /// <summary>当前阶段（原 GDScript `phase()`；A7：测试/诊断白盒断言经公开接口）。</summary>

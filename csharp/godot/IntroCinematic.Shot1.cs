@@ -129,7 +129,7 @@ public partial class IntroCinematic : CanvasLayer
             wave2.Position = blast2Pos;
             station.AddChild(wave2);
             KickShake(root, 5.0f, waveShakeState);
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -8.0f + AudioVolOffset, AudioPitch);
+            GameState.Instance.PlaySfx(SfxId.Explosion, -8.0f + AudioVolOffset, AudioPitch);
         };
 
         // 余烬：全镜头持续的橙色慢速上飘细屑（低透明度，燃烧余韵层）
@@ -197,7 +197,7 @@ public partial class IntroCinematic : CanvasLayer
             move.TweenProperty(driftShard, "position", driftShard.Position, 4.0f + k).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         }
 
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, AudioVolOffset, AudioPitch);
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig, AudioVolOffset, AudioPitch);
         return root;
     }
 }

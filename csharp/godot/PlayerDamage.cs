@@ -96,7 +96,7 @@ public class PlayerDamage
         LastHitFrame = (int)Engine.GetPhysicsFrames();
         SinceDamage = 0.0f;
         Invincible = InvincibleTime;
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT);
+        GameState.Instance.PlaySfx(SfxId.PlayerHit);
         GameState.Instance.Shake(ShakeHit);
         GameState.Instance.LoseHealth(amount);
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDamaged, amount, fromPos); // U16：SignalName 常量 + 类型链统一 float

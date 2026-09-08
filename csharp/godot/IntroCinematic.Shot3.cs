@@ -307,7 +307,7 @@ public partial class IntroCinematic : CanvasLayer
         // 低频警报脉冲（既有命中音压低至 -14dB 基础，叠加过场音量策略，0.7s 间隔）
         var alarm = new Godot.Timer { WaitTime = 0.7f, Autostart = true };
         root.AddChild(alarm);
-        alarm.Timeout += () => GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT, -14.0f + AudioVolOffset, AudioPitch);
+        alarm.Timeout += () => GameState.Instance.PlaySfx(SfxId.PlayerHit, -14.0f + AudioVolOffset, AudioPitch);
         return root;
     }
 }

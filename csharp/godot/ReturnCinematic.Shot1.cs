@@ -116,7 +116,7 @@ public partial class ReturnCinematic : CanvasLayer
             warpIn.Parallel().TweenProperty(ring, "scale", Vector2.One * 0.85f, 0.25f);
         }
 
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0f, 0.6f); // 0.6 倍速拉长为充能上升感
+        GameState.Instance.PlaySfx(SfxId.Dash, -6.0f, 0.6f); // 0.6 倍速拉长为充能上升感
         return root;
     }
 }

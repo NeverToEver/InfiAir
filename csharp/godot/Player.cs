@@ -15,12 +15,8 @@ public partial class Player : CharacterBody2D
     public delegate void EntryFinishedEventHandler();
 
     // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
-    private readonly AudioStream[] _fireSounds =
-    {
-        GD.Load<AudioStream>("res://assets/audio/bullet_fire.wav"),
-        GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav"),
-        GD.Load<AudioStream>("res://assets/audio/bullet_fire_c.wav"),
-    };
+    // 射击音效：FireA..FireC 三采样轮换（资源装载/音量/抖动/复音统一在 SfxPlayer 目录表）
+    private const int FireSoundVariants = 3;
 
     private readonly Script _bulletScript = GD.Load<Script>("res://csharp/godot/Bullet.cs");
 
@@ -194,7 +190,6 @@ public partial class Player : CharacterBody2D
     private float _fogForcedHold;
 
     private Sprite2D? _sprite;
-    private AudioStreamPlayer2D? _audio;
     private Area2D? _hitbox;
     private GpuParticles2D? _thruster;
 
@@ -1219,13 +1214,10 @@ public partial class Player : CharacterBody2D
             _muzzleGlowA = 1.0f;
         }
 
-        _audio ??= GetNodeOrNull<AudioStreamPlayer2D>("AudioStreamPlayer2D");
-        if (_audio != null)
-        {
-            _audio.Stream = _fireSounds[_soundIndex];
-            _soundIndex = (_soundIndex + 1) % _fireSounds.Length;
-            _audio.Play();
-        }
+        // 射击音效走 SfxPlayer 目录（原独立 AudioStreamPlayer2D 裸 0dB 直打 Master，全自动
+        // 射击下是炸耳主源）；三采样轮换防同采样疲劳，音量/抖动/复音/冷却由目录统一管
+        GameState.Instance.PlaySfx(SfxId.FireA + _soundIndex);
+        _soundIndex = (_soundIndex + 1) % FireSoundVariants;
     }
 
     /// <summary>受击结算（100 HP 制）。返回 true = 本帧实际结算。A8 委托 PlayerDamage。
@@ -1279,7 +1271,7 @@ public partial class Player : CharacterBody2D
         GameState.Instance.AddScore(GrazeScore);
         _visuals.SetGrazeFlash(GrazeFlashTime);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.25f);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -8.0);
+        GameState.Instance.PlaySfx(SfxId.BuffPick);
     }
 
     public int ParryPhase() => (int)_parry.Phase;
@@ -1319,7 +1311,7 @@ public partial class Player : CharacterBody2D
         b.Reflect();
         _visuals.SetParryFlash();
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0);
+        GameState.Instance.PlaySfx(SfxId.Dash);
     }
 
     /// <summary>盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。</summary>

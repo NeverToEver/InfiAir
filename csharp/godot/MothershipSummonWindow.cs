@@ -390,7 +390,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             _subtitle.Text = (string)Tr(ShotKeys[idx]);
             if (idx == 2)
             {
-                GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -4.0, 0.6);
+                GameState.Instance.PlaySfx(SfxId.Dash, -4.0, 0.6);
                 _flash.Color = new Color(WarpBlue, 0.55f);
                 // 弹射起步冲击环（出仓点，一次性自毁）
                 var launchSw = CinematicFx.Shockwave(new Godot.Collections.Dictionary

@@ -143,7 +143,7 @@ public partial class ReturnCinematic : CanvasLayer
                 return;
             }
 
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK, -20.0f);
+            GameState.Instance.PlaySfx(SfxId.BuffPick, -20.0f);
         };
         return root;
     }

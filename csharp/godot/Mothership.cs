@@ -29,9 +29,6 @@ public partial class Mothership : Area2D
     /// RELEASE 出舱 → DEPART 离场（数值对齐原 GDScript 枚举，GDScript 调用方按序数比较）。</summary>
     public enum State { DESCEND, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
-    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
-    private readonly AudioStream _gatlingSfx = GD.Load<AudioStream>("res://assets/audio/bullet_fire_b.wav");
-
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     /// <summary>G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）。</summary>
     public float ShipScale { get; private set; } = 1.25f;
@@ -708,7 +705,7 @@ public partial class Mothership : Area2D
     private void DeploySlowField()
     {
         GameState.Instance.Shake(ShakeSlow);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG, -10.0, 0.6);
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig, -10.0, 0.6);
         // 统一实体管理器批量 API 语义等价直迭代（docs/ENTITY_MANAGER.md）：
         // 经 ISlowable 契约分派，失效实例跳过；新增减速响应单位实现接口即可被覆盖。
         foreach (var item in GameState.Instance.Enemies)
@@ -912,7 +909,7 @@ public partial class Mothership : Area2D
             }
         }
 
-        GameState.Instance.PlaySfx(_gatlingSfx, -8.0);
+        GameState.Instance.PlaySfx(SfxId.FireB);
     }
 
     /// <summary>导弹齐射（对齐原作）：驻留（STAY）与回收牵引（DOCKING）期，每 0.3s 一波，锁定距对接点最近的 ≤5 个目标
@@ -1012,7 +1009,7 @@ public partial class Mothership : Area2D
         // 回满生命与燃料（重制版增强：原作母舰无补给，回复在基地 RP 交易）
         GameState.Instance.Heal(GameState.Instance.MaxHealth() - GameState.Instance.Health);
         _player.RefillFuel();
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY);
+        GameState.Instance.PlaySfx(SfxId.Resupply);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.mothership", 4.0).AsDouble());
         var hud = Hud();
         if (hud != null)

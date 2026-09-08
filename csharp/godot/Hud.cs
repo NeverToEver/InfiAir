@@ -730,7 +730,7 @@ public partial class Hud : CanvasLayer
     /// <summary>母舰弹匣不足警告（≤4 格时触发一次）。</summary>
     public void ShowMagazineWarning()
     {
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_PLAYER_HIT);
+        GameState.Instance.PlaySfx(SfxId.PlayerHit);
         ShowWarning((string)Tr("WARN_MAG"));
     }
 

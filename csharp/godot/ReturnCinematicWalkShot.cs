@@ -91,7 +91,7 @@ public partial class ReturnCinematicWalkShot : Node2D
         }
 
         _door_opened = true;
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -10.0f, 0.7f); // 舱门滑开 0.7 倍速
+        GameState.Instance.PlaySfx(SfxId.Dash, -10.0f, 0.7f); // 舱门滑开 0.7 倍速
         var tween = CreateTween().SetParallel(true);
         tween.TweenProperty(_door_l, "position:x", _door_l.Position.X - 85.0f, 0.5f * _time_u);
         tween.TweenProperty(_door_r, "position:x", _door_r.Position.X + 85.0f, 0.5f * _time_u);

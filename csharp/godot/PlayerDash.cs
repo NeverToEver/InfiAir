@@ -70,7 +70,7 @@ public class PlayerDash
 
         DashCooldown = player.DashCooldownMax();
         AfterimageTimer = 0.0f;
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH);
+        GameState.Instance.PlaySfx(SfxId.Dash);
     }
 
     /// <summary>冲刺移动驱动（残影生成/位移/回弹；尾焰由 Player 侧保留视觉）。</summary>
@@ -90,7 +90,7 @@ public class PlayerDash
         if (DashTimer <= 0.0f)
         {
             Dashing = false;
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -3.0);
+            GameState.Instance.PlaySfx(SfxId.Dash, -3.0);
         }
     }
 

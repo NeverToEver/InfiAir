@@ -133,7 +133,7 @@ public partial class GameOverUi : CanvasLayer
         _recordLabel.Visible = newRecord;
         if (newRecord)
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+            GameState.Instance.PlaySfx(SfxId.BuffPick);
         }
 
         GetTree().Paused = true;

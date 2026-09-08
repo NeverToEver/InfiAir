@@ -227,7 +227,7 @@ public partial class IntroCinematic : CanvasLayer
             root.EdgeLines.Add((edgeSl, sideSign));
         }
 
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, AudioVolOffset, AudioPitch);
+        GameState.Instance.PlaySfx(SfxId.Dash, AudioVolOffset, AudioPitch);
         // 引擎音持续：1.1s 后压低 6dB 补一发，覆盖镜头后段
         var engine = new Godot.Timer { OneShot = true, WaitTime = 1.1f, Autostart = true };
         root.AddChild(engine);  // 随镜头销毁：跳过/切镜后不残留迟发回调
@@ -235,7 +235,7 @@ public partial class IntroCinematic : CanvasLayer
         {
             if (GodotObject.IsInstanceValid(root))
             {
-                GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -6.0f + AudioVolOffset, AudioPitch);
+                GameState.Instance.PlaySfx(SfxId.Dash, -6.0f + AudioVolOffset, AudioPitch);
             }
         };
         return root;

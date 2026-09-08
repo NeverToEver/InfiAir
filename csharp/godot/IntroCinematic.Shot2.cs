@@ -212,7 +212,7 @@ public partial class IntroCinematic : CanvasLayer
             if (step[0] == 1 || step[0] == 3 || step[0] == 5)
             {
                 // 链式三连发：音量逐发递减
-                GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -2.0f - 3.0f * (step[0] / 2) + AudioVolOffset, AudioPitch);
+                GameState.Instance.PlaySfx(SfxId.Explosion, -2.0f - 3.0f * (step[0] / 2) + AudioVolOffset, AudioPitch);
             }
 
             step[0] += 1;

@@ -128,7 +128,7 @@ public partial class ReturnCinematic : CanvasLayer
             var ft = root.CreateTween();
             ft.TweenProperty(flash, "color:a", 1.0f, 0.05f);
             ft.TweenProperty(flash, "color:a", 0.0f, 0.25f);
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH); // 白闪瞬间正常速
+            GameState.Instance.PlaySfx(SfxId.Dash); // 白闪瞬间正常速
             var emerge = root.CreateTween().SetParallel(true);
             emerge.TweenProperty(ringB, "scale", Vector2.One, 0.2f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
             emerge.TweenProperty(shipB, "scale", Vector2.One, 0.7f * u).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -137,7 +137,7 @@ public partial class ReturnCinematic : CanvasLayer
             dissolve.TweenInterval(0.7f * u);
             dissolve.TweenProperty(ringB, "modulate:a", 0.0f, 0.2f * u); // 端口闭合消散
         }));
-        Once(root, 1.2f * u, Callable.From(() => GameState.Instance.PlaySfx(GameState.Instance.SFX_DASH, -10.0f))); // 飞出段尾音
+        Once(root, 1.2f * u, Callable.From(() => GameState.Instance.PlaySfx(SfxId.Dash, -10.0f))); // 飞出段尾音
         return root;
     }
 }

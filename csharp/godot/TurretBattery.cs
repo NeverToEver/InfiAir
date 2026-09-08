@@ -336,7 +336,7 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public void Die()
     {
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION);
+        GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(_shakeDie);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);
         EmitSignal(SignalName.Died, this);

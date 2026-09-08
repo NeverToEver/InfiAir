@@ -149,7 +149,7 @@ public partial class ReturnCinematic : CanvasLayer
         }));
         Once(root, 1.3f * u, Callable.From(() =>
         {
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY, -16.0f); // 躺下轻柔音
+            GameState.Instance.PlaySfx(SfxId.Resupply, -16.0f); // 躺下轻柔音
             // 躺下：整体后倒 -90° 卧上休眠床（床面 y≈762）+ 四肢舒展微调
             var lie = root.CreateTween().SetParallel(true);
             lie.TweenProperty(pnode, "rotation", -Mathf.Pi * 0.5f, 0.4f * u).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);

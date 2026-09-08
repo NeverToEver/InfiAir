@@ -89,7 +89,7 @@ public partial class ReturnCinematic : CanvasLayer
         ship.AddChild(shipTrail);
         var pull = root.CreateTween();
         pull.TweenProperty(root, "_ship_u", 0.06f, dur).SetTrans(Tween.TransitionType.Sine); // _ship_u 保持原名：tween 按 ClassDB 属性名驱动
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_RESUPPLY, -8.0f); // 对接感
+        GameState.Instance.PlaySfx(SfxId.Resupply, -8.0f); // 对接感
         return root;
     }
 }

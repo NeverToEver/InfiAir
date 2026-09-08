@@ -344,7 +344,7 @@ public partial class Bullet : Area2D
         }
 
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.6f);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -6.0);
+        GameState.Instance.PlaySfx(SfxId.Explosion);
     }
 
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害。</summary>
@@ -367,7 +367,7 @@ public partial class Bullet : Area2D
         }
 
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.8f);
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION, -6.0);
+        GameState.Instance.PlaySfx(SfxId.Explosion);
     }
 
     private void OnAreaEntered(Area2D area)

@@ -601,10 +601,12 @@ public partial class Main : Node2D
 
         // 只设 loop_mode 即可整段循环；显式写 loop_begin/loop_end 会在退出时泄漏播放实例
         stream.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        SfxPlayer.EnsureBuses(); // 与 SFX 总线解耦：BGM 走独立总线，混音互不牵连
         _bgmPlayer = new AudioStreamPlayer
         {
             Stream = stream,
             VolumeDb = -18.0f,
+            Bus = SfxPlayer.BgmBus,
         };
         AddChild(_bgmPlayer);
         _bgmPlayer.Play();

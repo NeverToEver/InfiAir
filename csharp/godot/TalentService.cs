@@ -352,7 +352,7 @@ public sealed partial class TalentService : RefCounted
             GameState.Instance.Heal(GameState.Instance.Cfg("buffs.extra_life.heal_on_pick", 30).AsDouble());
         }
 
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+        GameState.Instance.PlaySfx(SfxId.BuffPick);
         GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
         CacheChanged?.Invoke(_cache.Effective, _cache.Raw);
         TalentsChanged?.Invoke();
@@ -380,7 +380,7 @@ public sealed partial class TalentService : RefCounted
         }
 
         _route = routeId;
-        GameState.Instance.PlaySfx(GameState.Instance.SFX_BUFF_PICK);
+        GameState.Instance.PlaySfx(SfxId.BuffPick);
         // 有效层级与上限同时变化：BuffsChanged 驱动 Player.RefreshBuffFactors 重算乘算缓存
         GameState.Instance.EmitSignal(GameState.SignalName.BuffsChanged);
         TalentsChanged?.Invoke();

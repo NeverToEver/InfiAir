@@ -522,7 +522,7 @@ public partial class MetaHealthFX : CanvasLayer
             {
                 _heartBeats += 1;
                 _heartEnv = 1.0f;
-                GameState.Instance.PlaySfx(GameState.Instance.SFX_HEARTBEAT, -8.0); // D7：单发触发，音效不受减少闪光影响
+                GameState.Instance.PlaySfx(SfxId.Heartbeat); // D7：单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
                 {
                     GetTree().CallGroup("hud", "meta_jitter", CfgFloat("jitter_px")); // D9

@@ -91,7 +91,7 @@ public partial class OrbitalStrike : CanvasLayer
                 _impacted = true;
                 _missile.Hide();
                 _reticle.Hide();
-                GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG);
+                GameState.Instance.PlaySfx(SfxId.ExplosionBig);
                 GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
                 EmitSignal(SignalName.Struck);
             }
@@ -104,7 +104,7 @@ public partial class OrbitalStrike : CanvasLayer
             _impacted = true;
             _missile.Hide();
             _reticle.Hide();
-            GameState.Instance.PlaySfx(GameState.Instance.SFX_EXPLOSION_BIG);
+            GameState.Instance.PlaySfx(SfxId.ExplosionBig);
             GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
             EmitSignal(SignalName.Struck);
         }
