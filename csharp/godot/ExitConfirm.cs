@@ -126,8 +126,7 @@ public partial class ExitConfirm : CanvasLayer
         FadeAndQuit();
     }
 
-    /// <summary>退出前统一清理（测试可直接调用断言副作用）：
-    /// 档案落盘；战斗中退出 = 放弃对局（删档，与死亡语义一致）；开始面板退出保留存档
+    /// <summary>退出前统一清理（测试可直接调用断言副作用）：档案落盘。
     /// A7：测试/诊断白盒断言经公开接口</summary>
     public bool BattleMode() => _battle;
 
@@ -138,10 +137,6 @@ public partial class ExitConfirm : CanvasLayer
     private void ExecuteExitCleanupInner(bool battle)
     {
         GameState.Instance.SaveProfile();
-        if (battle)
-        {
-            GameState.Instance.DeleteSave();
-        }
         OnExitCleanup();
     }
 

@@ -5,7 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 用户会话域服务（第七轮拆域收官，2026-08-12）：原 GameState.Users.cs 账户系统/会话与
 /// GameState.State.cs 的 CurrentUser 状态迁入本服务——LoginUser/LoginGuest/LogoutUser/IsGuest/
-/// SavePathForCurrent/LoadSessionSettings/MaybeMigrateLegacyProfile/LegacyMigrationPending/
+/// LoadSessionSettings/MaybeMigrateLegacyProfile/LegacyMigrationPending/
 /// ScanLegacyMigration/ClearLegacyMigration/CreateUser 与 UserDB 转发（VerifyUser/
 /// UserDbCorrupt/UserExists/ListUsernames/ReloadUserDb/GetLastLoginUser/DeleteUser/
 /// GetUserSettings/UpdateUserSettings/GetUserData/UpdateUserData/UserDbSavefileFor），
@@ -13,8 +13,8 @@ namespace InfiAir;
 /// Godot 绑定层：UserDB 与 SaveManager 经构造注入（与 MetaService 注入 UserDB 同构——
 /// GameState 无 SaveManager 公开门面，迁移探测/迁移清理需文件 IO）；跨域访问统一经
 /// GameState.Instance——LoadMeta（Meta 门面）、ApplySettingsDict/ApplyWindowSize/
-/// InvalidateViewRectCache（Settings 门面）、ApplyKeyBindings（Input 门面）、SaveProfile/
-/// SaveNum/Locale、SAVE_PATH/PROFILE_PATH。
+/// InvalidateViewRectCache（Settings 门面）、ApplyKeyBindings（Input 门面）、SaveProfile/Locale、
+/// PROFILE_PATH。
 /// 门面转发先例：与 MetaService/SettingsService 同构——GameState 组合持有本服务，
 /// GameState.Users.cs 为门面对齐转发（签名/语义不变）+ SavePathForCurrent 私有一行包装
 /// （GameState.Save.cs 内部调用零改动），State.cs CurrentUser 转发；保持唯一 autoload：
@@ -85,23 +85,7 @@ public sealed partial class UserSessionService : RefCounted
 
     public bool IsGuest() => CurrentUser == "Guest";
 
-    /// <summary>当前会话存档路径：登录用户 = 每用户文件；未登录 = 旧单文件；游客无路径（不存档）</summary>
-    public string SavePathForCurrent()
-    {
-        if (CurrentUser == "")
-        {
-            return GameState.Instance.SAVE_PATH;
-        }
-
-        if (IsGuest())
-        {
-            return "";
-        }
-
-        return _userDb.SavefileForUser(CurrentUser);
-    }
-
-    /// <summary>载入当前会话档案：登录用户 → user_db settings + 统计；游客/未登录 → 保留内存（游客不落盘）</summary>
+    /// <summary>载入当前会话档案：登录用户 → user_db settings；游客/未登录 → 保留内存（游客不落盘）</summary>
     private void LoadSessionSettings()
     {
         if (CurrentUser == "" || IsGuest())

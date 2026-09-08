@@ -6,7 +6,7 @@ namespace InfiAir.Tests;
 /// <summary>
 /// 每屏截图存 /tmp/ui_&lt;name&gt;.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ///   godot --path . res://test/ui_capture.tscn
-/// 结束恢复现场：删除测试产生的存档，profile 当前值落盘。
+/// 结束恢复现场：profile 当前值落盘。
 /// </summary>
 public partial class UiCapture : Node
 {
@@ -137,8 +137,7 @@ public partial class UiCapture : Node
             await Settle();
             Shot("gameover");
 
-            // 恢复现场：删测试存档 + profile 落盘
-            gs.DeleteSave();
+            // 恢复现场：profile 落盘
             gs.SaveProfile();
             GD.Print("ui capture done");
         }

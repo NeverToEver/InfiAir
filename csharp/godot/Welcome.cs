@@ -6,9 +6,7 @@ namespace InfiAir;
 /// <summary>
 /// welcome 主场景（2026-08-04 账户系统 T3）。
 /// 登录阶段：左栏账号面板（注册/登录/游客/删除 + 下拉）；登录/游客放行后切主区 =
-/// 左缘圆盘菜单（出击/教程/设置/研究所/退出）+ 右栏难度档位。
-/// 进入 main 后由 main 依存档自动继续。
-/// ESC 层级：关游客/删除确认 → 关下拉 → 退出确认（welcome 是首场景）。
+/// 左缘圆盘菜单（开始游戏/教程/设置/研究所/退出）+ 右栏难度档位。
 /// </summary>
 public partial class Welcome : RadialMenuLayer
 {
@@ -515,25 +513,12 @@ public partial class Welcome : RadialMenuLayer
         // 难度档位行之后：主区导航全部收口左缘圆盘（见 RebuildMenu），右栏不再放按钮列
     }
 
-    /// <summary>圆盘主菜单（进主区/语言切换/存档态变化时重装；出击子层按存档态动态显隐「继续对局」）。</summary>
+    /// <summary>圆盘主菜单（进主区/语言切换时重装）。</summary>
     private void RebuildMenu()
     {
-        var hasSave = GameState.Instance.HasSave();
-        var sortieChildren = new List<RadialWheelOption>();
-        if (hasSave)
-        {
-            sortieChildren.Add(new RadialWheelOption { Id = "continue", Label = Tr("START_CONTINUE"), Glyph = RadialGlyph.Triangle });
-        }
-
-        sortieChildren.Add(new RadialWheelOption
-        {
-            Id = "new",
-            Label = hasSave ? Tr("START_NEW") : Tr("START_BEGIN"),
-            Glyph = RadialGlyph.Bolt,
-        });
         var roots = new List<RadialWheelOption>
         {
-            new() { Id = "sortie", Label = Tr("WELCOME_MENU_SORTIE"), Glyph = RadialGlyph.Triangle, Children = sortieChildren },
+            new() { Id = "new", Label = Tr("START_BEGIN"), Glyph = RadialGlyph.Triangle },
             new() { Id = "tutorial", Label = Tr("START_TUTORIAL"), Glyph = RadialGlyph.Diamond },
             new() { Id = "settings", Label = Tr("START_SETTINGS"), Glyph = RadialGlyph.Cross },
         };
@@ -550,9 +535,6 @@ public partial class Welcome : RadialMenuLayer
     {
         switch (option.Id)
         {
-            case "continue":
-                OnContinuePressed();
-                break;
             case "new":
                 OnNewGamePressed();
                 break;
@@ -592,25 +574,13 @@ public partial class Welcome : RadialMenuLayer
         GameState.Instance.SetDifficulty(d);
     }
 
-    private void OnContinuePressed()
-    {
-        GotoMain();
-    }
-
     private void OnNewGamePressed()
     {
-        GameState.Instance.DeleteSave();
         GotoMain();
     }
 
     private void OnTutorialPressed()
     {
-        // E02/G03：存在进行中存档时禁入教程（UI 已禁用按钮，此处兜底）
-        if (GameState.Instance.HasSave())
-        {
-            return;
-        }
-
         GetTree().ChangeSceneToFile("res://scenes/tutorial.tscn");
     }
 
@@ -661,7 +631,7 @@ public partial class Welcome : RadialMenuLayer
         _deleteConfirm = MakeModal(
             "WELCOME_DELETE_CONFIRM_TITLE", "WELCOME_DELETE_CONFIRM", "WELCOME_CONFIRM_YES", "WELCOME_CONFIRM_CANCEL", OnConfirmDelete
         );
-        // 退出确认（welcome 是首场景，ESC=退出游戏；battle=false 保留存档）
+        // 退出确认（welcome 是首场景，ESC=退出游戏）
         _exitConfirm = MakeModal("EXIT_TITLE", "WELCOME_EXIT_MSG", "EXIT_OK", "EXIT_CANCEL", OnExitOk);
     }
 
@@ -722,7 +692,7 @@ public partial class Welcome : RadialMenuLayer
     private void OnExitOk()
     {
         _exitConfirm.Layer.Visible = false;
-        GameState.Instance.SaveProfile(); // 登录用户设置落盘（battle=false 保留存档）
+        GameState.Instance.SaveProfile(); // 登录用户设置落盘
         GetTree().Quit();
     }
 
@@ -787,17 +757,11 @@ public partial class Welcome : RadialMenuLayer
     {
         // 2026-08-10 健壮性审查：users.json 损坏同列提示（账号表被隔离重建，.corrupt 备份保留）
         var gs = GameState.Instance;
-        _corruptLabel.Visible = gs.SaveCorrupt || gs.ProfileCorrupt || gs.UserDbCorrupt;
-        _corruptLabel.Text = gs.UserDbCorrupt
-            ? Tr("START_USERS_CORRUPT")
-            : (
-                gs.ProfileCorrupt && !gs.SaveCorrupt
-                    ? Tr("START_PROFILE_CORRUPT")
-                    : Tr("START_SAVE_CORRUPT")
-            );
+        _corruptLabel.Visible = gs.ProfileCorrupt || gs.UserDbCorrupt;
+        _corruptLabel.Text = gs.UserDbCorrupt ? Tr("START_USERS_CORRUPT") : Tr("START_PROFILE_CORRUPT");
         if (_stage == Stage.Main && Wheel.Visible)
         {
-            RebuildMenu(); // 出击子层（继续对局显隐）随存档变化重装
+            RebuildMenu();
         }
 
         foreach (var pair in _diffButtons)
@@ -847,8 +811,6 @@ public partial class Welcome : RadialMenuLayer
     public void PressLab() => OpenLab(); // 局外成长：测试钩子
 
     public void PressNewGame() => OnNewGamePressed();
-
-    public void PressContinue() => OnContinuePressed();
 
     public void PressTutorial() => OnTutorialPressed();
 

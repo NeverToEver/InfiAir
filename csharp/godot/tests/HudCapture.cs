@@ -8,8 +8,7 @@ namespace InfiAir.Tests;
 /// 池中当前 15 种 distinct 加满，R07 注释修正）两种形态，
 /// 每屏截图存 /tmp/hud_&lt;name&gt;.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ///   godot --path . res://test/hud_capture.tscn
-/// 结束恢复现场：删除测试产生的存档，profile 按备份内容还原落盘（R07：注释修正——
-/// 原「原始值还原」措辞失实，实际为删除测试存档 + save_profile 落盘当前值）。
+/// 结束恢复现场：profile 当前值落盘。
 /// </summary>
 public partial class HudCapture : Node
 {
@@ -26,7 +25,6 @@ public partial class HudCapture : Node
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
-            gs.DeleteSave();
 
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
             gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
@@ -82,8 +80,7 @@ public partial class HudCapture : Node
             await Settle();
             Shot("panel");
 
-            // 恢复现场：删测试存档 + 还原 profile 原始值落盘
-            gs.DeleteSave();
+            // 恢复现场：profile 落盘
             gs.SaveProfile();
             GD.Print("hud capture done");
         }

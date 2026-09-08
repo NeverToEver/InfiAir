@@ -223,8 +223,6 @@ public partial class GameState : Node
 
     // 音效资源/音量/冷却/复音的唯一目录已收编进 SfxPlayer（SfxId 枚举 + 目录表）
 
-    private const string SavePathValue = "user://savegame.json";
-    public string SAVE_PATH => SavePathValue;
     private const string ProfilePathValue = "user://profile.json";
     public string PROFILE_PATH => ProfilePathValue;
 

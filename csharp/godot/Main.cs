@@ -201,17 +201,8 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 账户系统（2026-08-04）：welcome 主场景已确认入口——有存档=「继续对局」启动即恢复
-        // （main 侧自加载，welcome 不重复加载）；无存档=新开局（_apply_new_run 负责开场演出与
-        // 死亡回放录制起点，原由 StartPanel 信号触发）
-        if (GameState.Instance.HasSave())
-        {
-            OnContinueRun();
-        }
-        else
-        {
-            ApplyNewRun();
-        }
+        // 无存档系统：每次进入 main 均为全新一局（_apply_new_run 负责开场演出与死亡回放录制起点）
+        ApplyNewRun();
     }
 
     public override void _ExitTree()
@@ -321,8 +312,6 @@ public partial class Main : Node2D
     public Mothership ChargeGhost() => _chargeGhost;
 
     public float GiveUpCharge() => _giveUpCharge;
-
-    public void ContinueRun() => OnContinueRun();
 
     public float BulletTime() => _bulletTimeLeft;
 
@@ -700,31 +689,6 @@ public partial class Main : Node2D
         }
     }
 
-    private void OnContinueRun()
-    {
-        var data = GameState.Instance.LoadRunData();
-        if (data.Count == 0)
-        {
-            // 存档损坏已被 GameState 隔离备份：回退为新对局（数据层本就在默认态），不留死路径
-            ApplyNewRun();
-            return;
-        }
-
-        GameState.Instance.ApplyRunSave(data);
-        // V 系列：续局同样重开死亡回放录制——原 OnContinueRun 无 Begin()，读档续局的
-        // 死亡回放播的是上一次 Begin 的旧缓冲（旧死因画面）且本局不再录制（P2-1）
-        _replay.Begin();
-        var fuelV = data.GetValueOrDefault("fuel", Variant.From(_player.FuelMax));
-        _player.SetFuel((float)GameState.Instance.SaveNum(fuelV, _player.FuelMax));
-        var elapsedV = data.GetValueOrDefault("elapsed", Variant.From(0.0f));
-        // AC15（2026-08-11 健壮性审查）：elapsed 钳 [0, 1e6]——+Inf/巨值渗透波次节奏并随存档
-        // 落盘 → SaveRun JsonException → 返航检查点静默失效（AB12 孪生；SetElapsed 内另有兜底）
-        _spawner.SetElapsed(Mathf.Clamp((float)GameState.Instance.SaveNum(elapsedV, 0.0f), 0.0f, 1e6f));
-        // D01 印证：continue 后同样存在入场动画窗口（敌机生成延迟由入场序列接管），
-        // 与开场 _on_intro_finished / 继续出击 _on_orbital_struck 同构；is_connected 守卫可幂等调用
-        StartEntrySequenceInternal();
-    }
-
     private void OnPlayerDied()
     {
         _gameOver = true;
@@ -968,11 +932,6 @@ public partial class Main : Node2D
         // 遭遇事件（轰炸编队/精英炮塔）进行中则打断：编队解散离场/航母完整撤离，无结算，
         // 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
         _events.EndActive(_events.GROUP_ENCOUNTER);
-        // 返航后存档保留更新，供「继续对局」使用
-        // 2026-08-13：elapsed 统一存 RunTime（真实存活时间，暂停不计）——原存 spawner.Elapsed()，
-        // 恢复时回灌 RunTime 造成时钟混用（入场动画窗口 spawner 停走但 RunTime 照走，
-        // 读档后 survive 任务进度/难度曲线时间分量回退）
-        GameState.Instance.SaveRun(_player.FuelAmount(), GameState.Instance.RunTime);
         _starfield.Warp(18.0f); // 保留：过场镜头 1 的充能与星光拉伸自然衔接
         PlayReturnCinematic();
     }

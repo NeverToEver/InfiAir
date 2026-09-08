@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir.Tests;
 
 /// <summary>
-/// 基地数据层测试：RP 经济、三常驻任务、天赋路线互斥、存档往返。
+/// 基地数据层测试：RP 经济、三常驻任务、天赋路线互斥、手柄设置。
 /// 只操作 GameState autoload，不加载 main 场景。
 /// </summary>
 public partial class BaseSystemTest : Node
@@ -94,8 +94,6 @@ public partial class BaseSystemTest : Node
             BackupProfile();
             // 键位快照（H02 改键段自动落盘）
             BackupKeys();
-            // 清理持久化状态，保证测试确定性
-            gs.DeleteSave();
             gs.ResetRun();
             gs.SetRunActive(true); // _Process 时钟仅在活跃对局推进（本测试模拟局内语义）
 
@@ -179,29 +177,7 @@ public partial class BaseSystemTest : Node
             Check(gs.Talent.IsOvercharged("armor") && gs.Talent.Level("armor") == 2, "风险加点后 Lv2 + 永久锁定");
             Check(!gs.TalentUpgrade("armor"), "永久锁定节点拒绝再升级");
 
-            // 8. 存档往返：rp / 天赋缓存域 / 任务进度全保留
-            gs.SaveRun(50.0, gs.RunTime);
-            var savedRp = gs.Rp;
-            var savedCache = gs.TalentEffectiveCache;
-            var savedPowerLevel = gs.TalentLevel("power_shot");
-            var savedRoute = gs.Talent.Route;
-            var savedTokens = gs.Talent.ResetTokens;
-            gs.Rp = 0;
-            gs.ResetMissions();
-            gs.Talent.ResetAll();
-            gs.ApplyRunSave(gs.LoadRunData());
-            Check(gs.Rp == savedRp, "存档恢复 RP");
-            Check(gs.MissionProgress("kill_5") == 5, "存档恢复任务进度");
-            Check(gs.IsMissionClaimed("boss_1"), "存档恢复任务已领取标记");
-            Check(!gs.ClaimMission("boss_1"), "恢复后已领取任务仍拒绝重复领奖");
-            Check(Math.Abs(gs.TalentEffectiveCache - savedCache) < 1e-6, "存档恢复缓存池（含衰减点值）");
-            Check(gs.TalentLevel("power_shot") == savedPowerLevel, "存档恢复天赋层级");
-            Check(gs.AugmentLevel("power_shot") == savedPowerLevel, "存档恢复后效果桥同步");
-            Check(gs.Talent.Route == savedRoute, "存档恢复路线契约");
-            Check(gs.Talent.ResetTokens == savedTokens, "存档恢复重置代币");
-            Check(gs.MissionProgress("survive_180") >= 180, "存档恢复存活进度");
-
-            // 9. reset_run 清零新状态
+            // 8. reset_run 清零新状态
             gs.ResetRun();
             Check(gs.Rp == 0, "reset_run 清零 RP");
             Check(gs.MissionProgress("boss_1") == 0, "reset_run 清零任务进度");
@@ -313,7 +289,6 @@ public partial class BaseSystemTest : Node
             Check(gs.JoyButtonLabel(0) == "✕" && gs.JoyButtonLabel(4) == "L1", "P0-1：PS 布局标签映射（✕/L1）");
             gs.JoyLayout = savedLayout;
 
-            gs.DeleteSave();
             // M7：还原原始 profile（设置项），防本地数据被覆写
             RestoreProfile();
             // 还原用户自定义键位（H02 改键段已把测试键位落盘）

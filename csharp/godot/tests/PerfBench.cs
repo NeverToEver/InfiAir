@@ -26,7 +26,6 @@ public partial class PerfBench : Node
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
-            gs.DeleteSave();
             gs.ResetRun();
             // 物理帧率拉满，让循环 CPU 受限，测纯耗时
             Engine.PhysicsTicksPerSecond = 1000;
@@ -72,7 +71,6 @@ public partial class PerfBench : Node
             var avg = (double)elapsed / FRAMES;
             GD.Print($"PERF_RESULT frames={FRAMES} total_ms={elapsed} avg_frame_ms={avg:0.000} equivalent_fps={1000.0 / avg:0.0}");
             Engine.PhysicsTicksPerSecond = 60;
-            gs.DeleteSave();
         }
         catch (System.Exception e)
         {

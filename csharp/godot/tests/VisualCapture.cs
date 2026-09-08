@@ -182,7 +182,6 @@ public partial class VisualCapture : Node
             var img2 = GetViewport().GetTexture().GetImage();
             img2.SavePng(SHOT_PATH);
             GD.Print("capture saved: " + SHOT_PATH);
-            gs.DeleteSave();
         }
         catch (System.Exception e)
         {

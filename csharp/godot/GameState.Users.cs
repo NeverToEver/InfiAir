@@ -29,10 +29,6 @@ public partial class GameState : Node
 
     public bool IsGuest() => _session.IsGuest();
 
-    /// <summary>当前会话存档路径：登录用户 = 每用户文件；未登录 = 旧单文件；游客无路径（不存档）
-    /// ——私有一行包装（本体在 UserSessionService；GameState.Save.cs 内部调用）。</summary>
-    private string SavePathForCurrent() => _session.SavePathForCurrent();
-
     /// <summary>Q25（2026-08-05）：旧 profile 迁移缓存查询/触发/清空公开化（A7 私有访问残留收敛，
     /// 测试经公开接口；生产路径不变——create_user 消费后自清）</summary>
     public bool LegacyMigrationPending() => _session.LegacyMigrationPending();

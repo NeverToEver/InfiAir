@@ -98,8 +98,6 @@ public partial class Tutorial : Node2D
 
     public override void _Ready()
     {
-        // 存档隔离：教程不读写 savegame
-        GameState.Instance.DeleteSave();
         GameState.Instance.ResetRun();
         _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));

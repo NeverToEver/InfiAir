@@ -80,8 +80,6 @@ public partial class SmokeTest : Node
             // 2026-08-06 审计：profile 全量快照（结尾还原用户难度/瞄准辅助/切换模式等设置项，
             // 原"恢复默认难度"覆盖用户原档——持久化设置结尾恢复默认值而非用户原值）
             BackupProfile(gs);
-            // 清理持久化状态，保证测试确定性（上一轮可能留下存档）
-            gs.DeleteSave();
             // 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
             gs.SetDifficulty("easy");
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
@@ -602,26 +600,6 @@ public partial class SmokeTest : Node
                 main.Mothership()!.QueueFree();
             }
 
-            // 3.11 对局存档：写入 → 清空 → 恢复（游客不存档，切真实用户验证；结束后恢复游客）
-            if (!gs.UserExists("smoke_user"))
-            {
-                gs.CreateUser("smoke_user", "pass123");
-            }
-            gs.LoginUser("smoke_user");
-            int savedScore = gs.Score;
-            gs.Talent.TestSetLevel("power_shot", 2);
-            gs.Health = 66.0;
-            gs.SaveRun(55.0, 12.0);
-            Check(gs.HasSave(), "存档文件已写入");
-            gs.Score = 0;
-            gs.Health = 100.0;
-            gs.Talent.ResetAll();
-            gs.ApplyRunSave(gs.LoadRunData());
-            Check(gs.Score == savedScore, "存档恢复分数");
-            Check(gs.TalentLevel("power_shot") == 2, "存档恢复天赋层级");
-            Check(gs.AugmentLevel("power_shot") == 2, "存档恢复后效果桥同步");
-            Check(gs.Health == 66.0, "存档恢复 HP（v3 格式）");
-
             // 3.12 返航（局内中场整备）：蓄力 → 基地 → 维修 → 继续出击返回同局
             int scoreBeforeHc = gs.Score;
             int powerBefore = gs.AugmentLevel("power_shot");
@@ -685,8 +663,6 @@ public partial class SmokeTest : Node
             Check(!GetTree().Paused && !main.IsHomecoming(), "继续出击恢复游戏");
             Check(gs.Score == scoreBeforeHc, "返回同一局：分数保留");
             Check(gs.AugmentLevel("power_shot") == powerBefore, "返回同一局：buff 保留");
-            Check(gs.HasSave(), "返航后存档保留");
-            gs.LoginGuest();  // 恢复游客会话（§3.11 起的用户档断言已结束）
             // 注册表驱动清场：非 Boss 实体（Enemy/FormationCraft/事件残留）全清
             var enemyLeft = false;
             foreach (var e in gs.Enemies)
@@ -740,12 +716,11 @@ public partial class SmokeTest : Node
             gs.SetCtrlToggleMode(false);
             player.SetFineToggle(false);
 
-            // 4. 玩家受击至死 → 结算（此时存档存在，死亡应删档）
+            // 4. 玩家受击至死 → 结算
             player.SetInvincible(0.0f);
             player.SetLastHitFrame(-1);
             player.TakeDamage(9999.0f, Vector2.Inf);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(!gs.HasSave(), "死亡后删除存档");
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(GetNode<CanvasLayer>("Main/GameOverUI").Visible, "Game Over 面板显示");
             Check(GetTree().Paused, "Game Over 时游戏暂停");
@@ -1157,14 +1132,9 @@ public partial class SmokeTest : Node
             Check(fullSpeed > player.MaxSpeed * 0.9f, "无微调时接近满速");
             Check(Mathf.Abs(fineSpeed - player.MaxSpeed * 0.35f) < 25.0f, "Ctrl 按住移速 ×0.35");
 
-            // 收尾清理（不污染用户 profile/存档）
+            // 收尾清理（不污染用户 profile/设置）
             gs.SaveProfile();
             gs.LogoutUser();
-            gs.DeleteSave();
-            if (Godot.FileAccess.FileExists(gs.UserDbSavefileFor("smoke_user")))
-            {
-                Godot.DirAccess.RemoveAbsolute(gs.UserDbSavefileFor("smoke_user"));
-            }
             // 2026-08-06 审计：还原原始 profile（难度/瞄准辅助/切换模式等设置项）——
             // 原「恢复默认难度」覆盖用户原档
             RestoreProfile();

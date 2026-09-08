@@ -8,7 +8,7 @@ namespace InfiAir;
 /// Esc 暂停页（2026-09-08 圆盘 UI 全覆盖）：左缘轮盘菜单（继续/保存/设置/重开/退出）
 /// + 右区聚焦项说明卡。ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator，
 /// 本页只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
-/// 「保存进度」仍是全局唯一主动存档入口。轮盘方向键/Enter 导航（页面无焦点控件，全时接管）。
+/// 轮盘方向键/Enter 导航（页面无焦点控件，全时接管）。
 /// （process_mode=Always/layer=15 仍在 scenes/main.tscn 设置。）
 /// </summary>
 public partial class PauseUi : RadialMenuLayer
@@ -16,11 +16,8 @@ public partial class PauseUi : RadialMenuLayer
     private Label _titleLabel = null!;
     private Label _hintTitle = null!;
     private Label _hintBody = null!;
-    private Label _saveStateLabel = null!;
     private ChamferedPanel _hintPlate = null!;
     private SettingsUi? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
-    private bool _saved; // 保存态标志（跨语言文本比较判保存态会误判）
-    private Godot.Timer? _saveTimer; // 缓存单实例：连按时 Start 重启计时，避免旧 Timer 提前打回本次文案/状态
 
     private readonly Callable _onLocaleChanged;
 
@@ -94,8 +91,6 @@ public partial class PauseUi : RadialMenuLayer
         _hintBody.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _hintBody.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         vbox.AddChild(_hintBody);
-        _saveStateLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.Success, HorizontalAlignment.Left);
-        vbox.AddChild(_saveStateLabel);
     }
 
     /// <summary>装配根级选项（每次打开重装，复位轮盘导航态）。</summary>
@@ -105,7 +100,6 @@ public partial class PauseUi : RadialMenuLayer
             new List<RadialWheelOption>
             {
                 new() { Id = "resume", Label = Tr("PAUSE_RESUME"), Glyph = RadialGlyph.Triangle },
-                new() { Id = "save", Label = Tr("PAUSE_SAVE"), Glyph = RadialGlyph.Ring },
                 new() { Id = "settings", Label = Tr("PAUSE_SETTINGS"), Glyph = RadialGlyph.Cross },
                 new() { Id = "restart", Label = Tr("GO_MENU_RESTART"), Glyph = RadialGlyph.Bolt },
                 new() { Id = "quit", Label = Tr("PAUSE_QUIT"), Glyph = RadialGlyph.Star },
@@ -120,10 +114,6 @@ public partial class PauseUi : RadialMenuLayer
         {
             case "resume":
                 Close();
-                break;
-            case "save":
-                OnSavePressed();
-                RefreshHint();
                 break;
             case "settings":
                 OnSettingsPressed();
@@ -150,7 +140,6 @@ public partial class PauseUi : RadialMenuLayer
         _hintPlate.Visible = true;
         _hintTitle.Text = focused.Label;
         _hintBody.Text = Tr("MENU_HINT_" + focused.Id.ToUpperInvariant());
-        _saveStateLabel.Text = focused.Id == "save" && _saved ? Tr("PAUSE_SAVED") : string.Empty;
     }
 
     private void OnLocaleChanged()
@@ -161,7 +150,6 @@ public partial class PauseUi : RadialMenuLayer
 
     public void Open()
     {
-        _saved = false;
         GetTree().Paused = true;
         Visible = true;
         SetWheelActive(true);
@@ -206,8 +194,6 @@ public partial class PauseUi : RadialMenuLayer
     /// <summary>A7：测试/诊断经公开接口（动作包装）</summary>
     public void OpenSettings() => OnSettingsPressed();
 
-    public void Save() => OnSavePressed();
-
     public void Quit() => OnQuitPressed();
 
     public void Restart() => RestartRun();
@@ -221,29 +207,6 @@ public partial class PauseUi : RadialMenuLayer
         Visible = false;
         SetWheelActive(false);
         _settingsUi!.ShowSettings(this);
-    }
-
-    private void OnSavePressed()
-    {
-        GameState.Instance.SaveRun(); // Y 系列：编排下沉（内部取 Fuel/Elapsed，缺节点兜底 100/0）
-        _saved = true;
-        // 用信号连接而非协程：退出时挂起的协程函数状态会泄漏
-        // 缓存单个 Timer——原实现每次按下新建，1s 内连按时旧 Timer 会提前打回文案/状态
-        if (_saveTimer == null)
-        {
-            _saveTimer = new Godot.Timer { OneShot = true };
-            AddChild(_saveTimer); // 本节点 process_mode=Always，暂停中仍计时
-            _saveTimer.Connect(Godot.Timer.SignalName.Timeout, Callable.From(ResetSaveLabel));
-        }
-
-        _saveTimer.Start(1.0); // 重复保存重启计时
-        RefreshHint();
-    }
-
-    private void ResetSaveLabel()
-    {
-        _saved = false;
-        RefreshHint();
     }
 
     private void OnQuitPressed()
@@ -262,8 +225,8 @@ public partial class PauseUi : RadialMenuLayer
     /// <summary>R 重开主入口（轮盘「重新出击」与 _UnhandledInput 的 restart 动作共用）。</summary>
     private void RestartRun()
     {
-        // AB13：确认退出淡出窗口内忽略 R——删档后 ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行
-        // （档删、未退出、静默重开新局的静默数据丢失路径）
+        // AB13：确认退出淡出窗口内忽略 R——ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行
+        // （未退出、静默重开新局的静默丢退出路径）
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null && exitConfirm.Exiting())
         {
@@ -271,9 +234,7 @@ public partial class PauseUi : RadialMenuLayer
         }
 
         GetTree().Paused = false;
-        // R 重开=弃局（对齐 ExitConfirm 战斗退出语义：删档、不结算 TechPoints）。
-        // 不删档则 main._Ready 的 HasSave() 自动续局，重开退化为回滚到返航检查点。
-        GameState.Instance.DeleteSave();
+        // R 重开=弃局重开（ReloadCurrentScene 重建 main → 全新一局）
         GameState.Instance.ResetRun();
         GetTree().ReloadCurrentScene();
     }

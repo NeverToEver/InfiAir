@@ -97,7 +97,6 @@ public partial class MetaFxCapture : Node
             }
             await Shot("settings_modes");
 
-            gs.DeleteSave();
         }
         catch (System.Exception e)
         {

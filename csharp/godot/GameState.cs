@@ -206,9 +206,7 @@ public partial class GameState : Node
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
 
-    /// <summary>启动/读档时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）</summary>
-    public bool SaveCorrupt { get; set; } = false;
-
+    /// <summary>启动加载档案时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）</summary>
     public bool ProfileCorrupt { get; set; } = false;
 
     /// 静态缓存——autoload 在 root 下恒存在，测试进程同样适用）</summary>
