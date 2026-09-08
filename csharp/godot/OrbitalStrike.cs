@@ -45,6 +45,8 @@ public partial class OrbitalStrike : CanvasLayer
     private float _t;
     private bool _impacted;
     private Vector2 _impactPoint = Vector2.Zero;
+    /// <summary>命中抖屏强度（_ready 一次缓存：Cfg 禁每帧查；p≥1 兜底帧与常规命中帧共用）。</summary>
+    private float _impactShake = 24.0f;
 
     private Node2D _reticle = null!; // 瞄准具（3 脉冲环 + 十字线）
     private readonly List<Line2D> _reticleRings = new();
@@ -71,6 +73,7 @@ public partial class OrbitalStrike : CanvasLayer
         MISSILE_FROM = Mathf.Max(Mathf.Min((float)GameState.Instance.Cfg("effects.orbital_strike.missile_from", MISSILE_FROM).AsDouble(), IMPACT_AT - 0.05f), 0.0f);
         RETICLE_RADIUS = (float)GameState.Instance.Cfg("effects.orbital_strike.reticle_radius", RETICLE_RADIUS).AsDouble();
         IMPACT_Y_RATIO = (float)GameState.Instance.Cfg("effects.orbital_strike.impact_y_ratio", IMPACT_Y_RATIO).AsDouble();
+        _impactShake = (float)GameState.Instance.Cfg("effects.shake.boss_seq_final", _impactShake).AsDouble();
         _screen = GetViewport().GetVisibleRect().Size;
         _impactPoint = new Vector2(_screen.X * 0.5f, _screen.Y * IMPACT_Y_RATIO);
         BuildReticle();
@@ -86,29 +89,32 @@ public partial class OrbitalStrike : CanvasLayer
         {
             // 兜底（2026-08-03 审计）：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达 1.0，
             // 必须先补发 struck——它是 main 恢复对局（paused=false + unlock_input）的唯一入口，缺发则软锁
-            if (!_impacted)
-            {
-                _impacted = true;
-                _missile.Hide();
-                _reticle.Hide();
-                GameState.Instance.PlaySfx(SfxId.ExplosionBig);
-                GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
-                EmitSignal(SignalName.Struck);
-            }
+            TriggerImpact();
             EmitSignal(SignalName.Finished);
             QueueFree();
             return;
         }
         if (!_impacted && p >= IMPACT_AT)
         {
-            _impacted = true;
-            _missile.Hide();
-            _reticle.Hide();
-            GameState.Instance.PlaySfx(SfxId.ExplosionBig);
-            GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
-            EmitSignal(SignalName.Struck);
+            TriggerImpact();
         }
         UpdateVisuals(p);
+    }
+
+    /// <summary>命中结算（幂等）：main 在 struck 信号清场并恢复对局，常规帧与越段兜底帧共用。</summary>
+    private void TriggerImpact()
+    {
+        if (_impacted)
+        {
+            return;
+        }
+
+        _impacted = true;
+        _missile.Hide();
+        _reticle.Hide();
+        GameState.Instance.PlaySfx(SfxId.ExplosionBig);
+        GameState.Instance.Shake(_impactShake);
+        EmitSignal(SignalName.Struck);
     }
 
     /// <summary>瞄准具：3 圈脉冲环 + 缓慢旋转的十字线，贴在命中点上。</summary>
