@@ -4,7 +4,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：对局存档 / 局外档案 / 榜单。
+/// GameState 部分定义（Y 系列拆分，2026-08-09）：对局存档 / 局外档案。
 /// </summary>
 public partial class GameState : Node
 {
@@ -211,18 +211,13 @@ public partial class GameState : Node
         }
     }
 
-    /// <summary>死亡结算原子链（Y 系列下沉，2026-08-09）：DeleteSave → RecordScore →
-    /// RecordGameOver → SubmitHighscore(Score)，返回 (是否破纪录, 本地榜名次) 快照——
-    /// GameOverUi.OnPlayerDied 不再逐步编排，结算后 UI 读 Score/HighScore 时序与原来一致
-    /// （GameOverUi 仍为 PlayerDied 信号订阅者，信号同步调用顺序不变）。</summary>
-    public (bool NewRecord, int Rank) SettleRun()
+    /// <summary>死亡结算原子链（Y 系列下沉，2026-08-09）：DeleteSave → RecordGameOver →
+    /// SettleTechPoints——GameOverUi 仍为 PlayerDied 信号订阅者，信号同步调用顺序不变。</summary>
+    public void SettleRun()
     {
         DeleteSave(); // 死亡删档：防止一死档永存
-        var newRecord = RecordScore();
         RecordGameOver(); // Q06：登录用户累计 total_kills/games_played（游客跳过）
-        var rank = (int)SubmitHighscore(Score); // P0-3：本局分数提交本地榜
         SettleTechPoints(); // 局外成长：死亡结算科技点（游客/未登录 no-op，2026-08-09）
-        return (newRecord, rank);
     }
 
     /// <summary>对局存档（无参版，Y 系列下沉）：内部经注册表取 PlayerRef→FuelAmount()，
@@ -258,53 +253,8 @@ public partial class GameState : Node
             return;
         }
 
-        // save_int 判型+钳制：手改档案 high_score > 2^31 时裸 (int) 截断回绕为负，
-        // RecordScore 的 Score > HighScore 恒真 → 每局误报破纪录
-        HighScore = SaveInt(parsed.GetValueOrDefault("high_score", 0), 0);
         // 第六轮拆域：设置域持久化桥迁 SettingsService（设置字段应用含键位/窗口/视图缓存副作用）
         _settings.ApplySettingsDict(parsed);
-        // P0-3：高分榜判型加载（手改档案的元素级守卫，对齐 E11）——非法条目跳过、排序截断
-        Highscores.Clear();
-        var savedHighscores = parsed.GetValueOrDefault("highscores", new Variant());
-        if (savedHighscores.VariantType == Variant.Type.Array)
-        {
-            foreach (var entryV in savedHighscores.AsGodotArray())
-            {
-                if (entryV.VariantType != Variant.Type.Dictionary)
-                {
-                    continue;
-                }
-
-                var entry = entryV.AsGodotDictionary();
-                var s = entry.GetValueOrDefault("score", 0);
-                if (s.VariantType is not Variant.Type.Int and not Variant.Type.Float)
-                {
-                    continue;
-                }
-
-                Highscores.Add(new Godot.Collections.Dictionary { ["score"] = SaveInt(s, 0), ["date"] = SaveInt(entry.GetValueOrDefault("date", 0), 0) }); // E11 同款：date 走 save_num 判型
-            }
-
-            // 泛型 Array&lt;Dictionary&gt; 无 SortCustom（Godot C# 未绑定）——List.Sort 降序重建
-            var sortList = new List<Godot.Collections.Dictionary>();
-            foreach (var entry in Highscores)
-            {
-                sortList.Add(entry);
-            }
-
-            // U15：int64 直接比较（原 (int) 截断 + 减法——score>2^31 手改档案排序语义漂移）
-            sortList.Sort((a, b) => b["score"].AsInt64().CompareTo(a["score"].AsInt64()));
-            Highscores.Clear();
-            foreach (var entry in sortList)
-            {
-                Highscores.Add(entry);
-            }
-
-            if (Highscores.Count > HighscoreLimitValue)
-            {
-                Highscores.Resize(HighscoreLimitValue);
-            }
-        }
     }
 
     /// <summary>当前设置字段收集（profile.json 与 user_db settings 共用；统计类字段不在此列）——
@@ -324,35 +274,7 @@ public partial class GameState : Node
 
         var data = _settings.CollectSettingsDict();
         data["version"] = PersistVersionValue;
-        data["high_score"] = HighScore;
-        data["highscores"] = Highscores;
         _saveManager.Save(ProfilePathValue, data);
-    }
-
-    /// <summary>记录最高分，破纪录返回 true（登录用户写 user_db；游客仅内存；未登录写旧 profile.json）</summary>
-    public bool RecordScore()
-    {
-        if (Score > HighScore)
-        {
-            HighScore = Score;
-            if (IsGuest())
-            {
-                return true;
-            }
-
-            if (CurrentUser != "")
-            {
-                _userDb.UpdateHighScore(CurrentUser, Score);
-            }
-            else
-            {
-                SaveProfile();
-            }
-
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>Q06（2026-08-05）：一局对局统计落地（账户计划 Task 2 game_over_stats）——死亡结算调用。
@@ -372,89 +294,6 @@ public partial class GameState : Node
             ["total_kills"] = SaveInt(data.GetValueOrDefault("total_kills", 0), 0) + Kills,
             ["games_played"] = SaveInt(data.GetValueOrDefault("games_played", 0), 0) + 1,
         });
-    }
-
-    /// <summary>提交本局分数入本地榜，返回名次（1-based；未上榜返回 0）。
-    /// 同分新条目排后（先到先得）；超出上限的分数不入榜。登录/游客走 user_db 排行榜（游客以 "Guest" 提交，B7-8）。</summary>
-    public int SubmitHighscore(int runScore)
-    {
-        if (CurrentUser != "")
-        {
-            return (int)_userDb.SubmitScore(CurrentUser, runScore);
-        }
-
-        if (runScore <= 0)
-        {
-            return 0;
-        }
-
-        var rank = 1;
-        foreach (var e in Highscores)
-        {
-            if ((int)e["score"].AsInt64() >= runScore)
-            {
-                rank += 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        if (rank > HighscoreLimitValue)
-        {
-            return 0;
-        }
-
-        Highscores.Insert(rank - 1, new Godot.Collections.Dictionary
-        {
-            ["score"] = runScore,
-            // 2026-08-10 健壮性审查：时间戳钳 int 上限——2038 年后 (int) 截断回绕为负
-            ["date"] = (int)Math.Min(Time.GetUnixTimeFromSystem(), int.MaxValue),
-        });
-        if (Highscores.Count > HighscoreLimitValue)
-        {
-            Highscores.Resize(HighscoreLimitValue);
-        }
-
-        SaveProfile();
-        return rank;
-    }
-
-    /// <summary>榜单文本（供结算页/开始页展示）："1. 12345\n2. 9876..."；空榜返回空串</summary>
-    public string HighscoresText(int limit = 5)
-    {
-        if (CurrentUser != "")
-        {
-            var board = _userDb.GetLeaderboard();
-            if (board.Count == 0)
-            {
-                return "";
-            }
-
-            var lines = new List<string>();
-            for (var i = 0; i < Mathf.Min(limit, board.Count); i++)
-            {
-                // AB17：显示处钳制（双保险）——core 已归一化，此处防未来其他入口绕过 (int) 回绕
-                lines.Add(GdFormat.Format("%d. %d", i + 1,
-                    (int)Math.Clamp(board[i].AsGodotDictionary()["score"].AsInt64(), 0L, (long)int.MaxValue)));
-            }
-
-            return string.Join("\n", lines);
-        }
-
-        if (Highscores.Count == 0)
-        {
-            return "";
-        }
-
-        var localLines = new List<string>();
-        for (var i = 0; i < Mathf.Min(limit, Highscores.Count); i++)
-        {
-            localLines.Add(GdFormat.Format("%d. %d", i + 1, (int)Highscores[i]["score"].AsInt64()));
-        }
-
-        return string.Join("\n", localLines);
     }
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，

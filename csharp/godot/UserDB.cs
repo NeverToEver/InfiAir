@@ -7,14 +7,14 @@ namespace InfiAir;
 /// P0-2（2026-08-07）：数据层迁移 InfiAir.Core.Storage.UserDb（C#，见 csharp/core/Storage/UserDb.cs +
 /// csharp/godot/UserDbInterop.cs），本文件为薄壳转发——公开 API/常量/iterations 降档机制不变。
 /// 密码派生为逐字节等价迁移（自建 PBKDF2 变体，固定向量对照 tests-csharp/UserDbPasswordTests.cs）。
-/// 不移植：fcntl 文件锁（单进程桌面无并发）、远程排行榜（联机已砍）。
+/// 不移植：fcntl 文件锁（单进程桌面无并发）。
 /// M7 全量迁移（2026-08-09 自 scripts/user_db.gd）
 /// </summary>
 public partial class UserDB : RefCounted
 {
     public const string UsersPath = "user://users.json";
 
-    public static readonly string[] ReservedNames = { "_leaderboard", "Guest" };
+    public static readonly string[] ReservedNames = { "Guest" };
 
     public const int NameMin = 3;
 
@@ -23,10 +23,6 @@ public partial class UserDB : RefCounted
     public const int PasswordMin = 3;
 
     public const int PasswordMax = 16;
-
-    public const int LeaderboardCap = 10;
-
-    public const int PlayerNameMax = 32;
 
     public const int Pbkdf2Iterations = 50_000;
 
@@ -73,9 +69,6 @@ public partial class UserDB : RefCounted
     /// <summary>通用字段合并更新（统计类）；密码/盐/迭代数不可经此覆盖</summary>
     public void UpdateUserData(string name, Godot.Collections.Dictionary data) => _interop.UpdateUserData(name, data);
 
-    /// <summary>仅更高才写（B4 update_high_score 语义）；分数负钳 0</summary>
-    public void UpdateHighScore(string name, int score) => _interop.UpdateHighScore(name, score);
-
     public Godot.Collections.Dictionary GetUserSettings(string name) => _interop.GetUserSettings(name);
 
     public void UpdateUserSettings(string name, Godot.Collections.Dictionary settings) => _interop.UpdateUserSettings(name, settings);
@@ -90,19 +83,4 @@ public partial class UserDB : RefCounted
 
     /// <summary>每用户存档路径：user://savegame_&lt;sanitized&gt;_&lt;sha256[:12]&gt;.json（B5，对齐原作 _save_file_for_user）</summary>
     public string SavefileForUser(string name) => "user://" + _interop.SaveFileName(name);
-
-    /// <summary>提交成绩：score 负钳 0（≤0 不入榜，对齐现 GameState 高分榜语义）；cap 10；
-    /// 排序 score 降序 + 提交序（seq 自增，先到先得）；返回 1-indexed 名次，0 = 未上榜。</summary>
-    public int SubmitScore(string name, int score) => (int)_interop.SubmitScore(name, score);
-
-    public Godot.Collections.Array GetLeaderboard()
-    {
-        var board = new Godot.Collections.Array();
-        foreach (var entry in _interop.GetLeaderboard())
-        {
-            board.Add(entry);
-        }
-
-        return board;
-    }
 }

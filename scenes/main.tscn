@@ -46,21 +46,6 @@ script = ExtResource("14")
 layer = 2
 script = ExtResource("5")
 
-[node name="ScoreLabel" type="Label" parent="HUD"]
-offset_left = 20.0
-offset_top = 14.0
-offset_right = 400.0
-offset_bottom = 50.0
-text = "Score: 0"
-
-[node name="ComboLabel" type="Label" parent="HUD"]
-offset_left = 20.0
-offset_top = 90.0
-offset_right = 400.0
-offset_bottom = 126.0
-visible = false
-text = "Combo x1.0"
-
 [node name="KillsLabel" type="Label" parent="HUD"]
 offset_left = 20.0
 offset_top = 52.0

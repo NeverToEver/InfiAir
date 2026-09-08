@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 组合持有；LoginUser/LoginGuest/LogoutUser/IsGuest/LoadSessionSettings/MaybeMigrateLegacyProfile/
 /// LegacyMigrationPending/ScanLegacyMigration/ClearLegacyMigration/CreateUser + UserDB 转发 14 个
 /// 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变（测试白盒经此处零适配直调
-/// LoginUser/LoginGuest/LogoutUser/IsGuest/CreateUser/VerifyUser/ListUsernames/GetLeaderboard 等
+/// LoginUser/LoginGuest/LogoutUser/IsGuest/CreateUser/VerifyUser/ListUsernames 等
 /// 全保留）；CurrentUser 状态在 GameState.State.cs 转发（原定义处）；SavePathForCurrent 保留
 /// 私有一行包装（GameState.Save.cs 内部调用零改动）。
 /// 信号：Users 域不广播，无需信号重发。
@@ -62,8 +62,6 @@ public partial class GameState : Node
     public string GetLastLoginUser() => _session.GetLastLoginUser();
 
     public bool DeleteUser(string name, string password) => _session.DeleteUser(name, password);
-
-    public Godot.Collections.Array GetLeaderboard() => _session.GetLeaderboard();
 
     public Godot.Collections.Dictionary GetUserSettings(string name) => _session.GetUserSettings(name);
 

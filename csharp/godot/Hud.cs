@@ -6,20 +6,16 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// HUD：分数/击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
+/// HUD：击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
 /// 带 70%/30% 阶段刻度线与阶段切换短闪，逃跑最后 10s 血条下方倒计时）。
 /// Buff 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
 /// （Esc 经 BackNavigator 优先关栏），与左下状态区、底部居中蓄力提示、左中通讯浮层分角隔离。
-/// M5 全量迁移（2026-08-08 自 scripts/hud.gd）：CanvasLayer 子类；GameState/玩家/Main
-/// （Enemy.SinFast/Mothership.GetStateStay 静态；Boss 信号经 C# event 连接）。
 /// </summary>
 public partial class Hud : CanvasLayer
 {
     private readonly FontFile Font = UITheme.Font;
 
     // ---------------- @onready 节点（_ready 内 GetNode 赋值） ----------------
-    private Label _scoreLabel = null!;
-    private Label _comboLabel = null!;
     private Label _killsLabel = null!;
     private Label _difficultyLabel = null!;
     private Label _livesLabel = null!;
@@ -139,8 +135,6 @@ public partial class Hud : CanvasLayer
     {
         AddToGroup("hud");
         _main = GetParent<Main>(); // A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
-        _scoreLabel = GetNode<Label>("ScoreLabel");
-        _comboLabel = GetNode<Label>("ComboLabel");
         _killsLabel = GetNode<Label>("KillsLabel");
         _difficultyLabel = GetNode<Label>("DifficultyLabel");
         _livesLabel = GetNode<Label>("LivesLabel");
@@ -161,19 +155,13 @@ public partial class Hud : CanvasLayer
         _lowHpPulseMin = (float)GameState.Instance.Cfg("effects.low_hp.pulse_min", _lowHpPulseMin).AsDouble();
         _lowHpPulseMax = (float)GameState.Instance.Cfg("effects.low_hp.pulse_max", _lowHpPulseMax).AsDouble();
         _lowHpPulsePeriod = Mathf.Max((float)GameState.Instance.Cfg("effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // H15：=0 sin NaN
-        foreach (var label in new[] { _scoreLabel, _killsLabel, _difficultyLabel, _livesLabel })
+        foreach (var label in new[] { _killsLabel, _difficultyLabel, _livesLabel })
         {
             label.AddThemeFontOverride("font", Font);
         }
 
-        _scoreLabel.AddThemeFontSizeOverride("font_size", UITheme.FontScore);
-        _scoreLabel.AddThemeColorOverride("font_color", UITheme.Text);
-        _comboLabel.AddThemeFontOverride("font", Font);
-        _comboLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
-        _comboLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
-        _comboLabel.Visible = false;
-        _killsLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
-        _killsLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
+        _killsLabel.AddThemeFontSizeOverride("font_size", UITheme.FontScore);
+        _killsLabel.AddThemeColorOverride("font_color", UITheme.Text);
         _difficultyLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHud);
         _difficultyLabel.AddThemeColorOverride("font_color", UITheme.Accent);
         _livesLabel.AddThemeFontSizeOverride("font_size", UITheme.FontHudL);
@@ -200,13 +188,11 @@ public partial class Hud : CanvasLayer
         _hpBar.Material = hpHolo;
         var gs = GameState.Instance!;
         gs.Connect("ScoreChanged", Callable.From<int>(OnScoreChanged));
-        gs.Connect("ComboChanged", Callable.From<int>(OnComboChanged));
         gs.Connect("HealthChanged", Callable.From<float>(OnHealthChanged));
         gs.Connect("DifficultyChanged", Callable.From<float>(OnDifficultyChanged));
         gs.Connect("DifficultySelected", Callable.From<StringName>(OnDifficultySelected));
         gs.Connect("LocaleChanged", Callable.From(OnLocaleChanged));
         OnScoreChanged(GameState.Instance.Score);
-        OnComboChanged(GameState.Instance.Combo);
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");
@@ -452,7 +438,6 @@ public partial class Hud : CanvasLayer
         }
 
         var score = Callable.From<int>(OnScoreChanged);
-        var combo = Callable.From<int>(OnComboChanged);
         var health = Callable.From<float>(OnHealthChanged);
         var diff = Callable.From<float>(OnDifficultyChanged);
         var diffSel = Callable.From<StringName>(OnDifficultySelected);
@@ -462,11 +447,6 @@ public partial class Hud : CanvasLayer
         if (gs.IsConnected("ScoreChanged", score))
         {
             gs.Disconnect("ScoreChanged", score);
-        }
-
-        if (gs.IsConnected("ComboChanged", combo))
-        {
-            gs.Disconnect("ComboChanged", combo);
         }
 
         if (gs.IsConnected("HealthChanged", health))
@@ -601,23 +581,21 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    /// <summary>左上分数块、左下状态块与右上难度块的切角背板 + 小标签（标签置于背板上方外侧，不与边框/数值重叠）。</summary>
+    /// <summary>左上击杀块、左下状态块与右上难度块的切角背板 + 小标签（标签置于背板上方外侧，不与边框/数值重叠）。</summary>
     private void BuildBackplates()
     {
-        var scorePlate = new ChamferedPanel
+        var killsPlate = new ChamferedPanel
         {
             Position = new Vector2(10.0f, 24.0f),
-            Size = new Vector2(230.0f, 92.0f),
+            Size = new Vector2(230.0f, 64.0f),
             EdgeRivets = true,
         };
-        AddChild(scorePlate);
-        MoveChild(scorePlate, 0);
-        // 大数值下移，给标签行留位
-        _scoreLabel.Position = new Vector2(24.0f, 30.0f);
-        _killsLabel.Position = new Vector2(24.0f, 72.0f);
-        var scoreTag = MakeCornerTag((string)Tr("UI_SCORE_TAG"));
-        scoreTag.Position = new Vector2(24.0f, 6.0f);
-        AddChild(scoreTag);
+        AddChild(killsPlate);
+        MoveChild(killsPlate, 0);
+        _killsLabel.Position = new Vector2(24.0f, 30.0f);
+        var killsTag = MakeCornerTag((string)Tr("UI_KILLS_TAG"));
+        killsTag.Position = new Vector2(24.0f, 6.0f);
+        AddChild(killsTag);
         var statusPlate = new ChamferedPanel
         {
             Position = new Vector2(10.0f, -134.0f),
@@ -661,8 +639,8 @@ public partial class Hud : CanvasLayer
         diffTag.Position = new Vector2(-236.0f, 6.0f);
         AddChild(diffTag);
         // 刷新时同步小标签语言
-        _tagLabels = new[] { scoreTag, livesTag, diffTag };
-        _tagKeys = new[] { new StringName("UI_SCORE_TAG"), new StringName("UI_LIVES_TAG"), new StringName("UI_DIFF_TAG") };
+        _tagLabels = new[] { killsTag, livesTag, diffTag };
+        _tagKeys = new[] { new StringName("UI_KILLS_TAG"), new StringName("UI_LIVES_TAG"), new StringName("UI_DIFF_TAG") };
     }
 
     /// <summary>角落板块小标签（分数/生命/难度共用样式）。</summary>
@@ -815,24 +793,25 @@ public partial class Hud : CanvasLayer
         RefreshBossName();
     }
 
-    private void OnScoreChanged(int newScore)
+    private int _lastKills = -1;
+
+    /// <summary>击杀计数标签（分数/连击显示已移除，内部计分引擎保留驱动里程碑/解锁）。
+    /// ScoreChanged 伴随击杀/擦弹等高频来源，按计数变化节流格式化。</summary>
+    private void OnScoreChanged(int _newScore)
     {
-        _scoreLabel.Text = GdFormat.Format((string)Tr("UI_SCORE"), newScore);
-        _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), GameState.Instance.Kills);
+        RefreshKills();
     }
 
-    /// <summary>击杀连击标签：连击 ≥2（乘区 &gt;1.0）时显示当前乘区，断连即隐。</summary>
-    private void OnComboChanged(int combo)
+    private void RefreshKills()
     {
-        if (combo >= 2 && GameState.Instance.ComboMultiplier() > 1.0)
+        var kills = GameState.Instance.Kills;
+        if (kills == _lastKills)
         {
-            _comboLabel.Text = GdFormat.Format((string)Tr("UI_COMBO_FMT"), GameState.Instance.ComboMultiplier());
-            _comboLabel.Visible = true;
+            return;
         }
-        else
-        {
-            _comboLabel.Visible = false;
-        }
+
+        _lastKills = kills;
+        _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), kills);
     }
 
     private void OnHealthChanged(float newHealth)
@@ -886,10 +865,8 @@ public partial class Hud : CanvasLayer
 
     private void OnLocaleChanged()
     {
-        OnScoreChanged(GameState.Instance.Score);
-        // AC20（2026-08-11 健壮性审查）：切语言补刷连击标签——原实现未刷 ComboLabel，
-        // 连击生效中（乘区 >1）切语言后残留旧语言文本
-        OnComboChanged(GameState.Instance.Combo);
+        _lastKills = -1; // 强制重写文本（语言切换）
+        RefreshKills();
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
         _fuelTag.Text = (string)Tr("UI_FUEL");

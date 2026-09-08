@@ -237,8 +237,6 @@ public partial class GameState : Node
     /// ——UserSessionService 转发（测试白盒直读直写保留）。</summary>
     public string CurrentUser { get => _session.CurrentUser; set => _session.CurrentUser = value; }
 
-    public int HighScore { get; set; } = 0;
-
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
     public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
@@ -257,12 +255,6 @@ public partial class GameState : Node
     /// <summary>手柄相关动作清单（死区应用与装配共用）——InputBindingsService 转发。
     /// SettingsService.SetJoyDeadzone 经 Instance 跨域访问。</summary>
     public Godot.Collections.Array<StringName> JOYPAD_ACTIONS => _input.JOYPAD_ACTIONS;
-
-    /// <summary>竞品调研 P0-3：本地高分榜（降序，上限 HIGHSCORE_LIMIT 条，profile 持久化）</summary>
-    public Godot.Collections.Array<Godot.Collections.Dictionary> Highscores { get; set; } = new();
-
-    private const int HighscoreLimitValue = 10;
-    public int HIGHSCORE_LIMIT => HighscoreLimitValue;
 
     public bool TutorialDone { get; set; } = false;
 

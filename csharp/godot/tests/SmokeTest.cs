@@ -80,12 +80,8 @@ public partial class SmokeTest : Node
             // 2026-08-06 审计：profile 全量快照（结尾还原用户难度/瞄准辅助/切换模式等设置项，
             // 原"恢复默认难度"覆盖用户原档——持久化设置结尾恢复默认值而非用户原值）
             BackupProfile(gs);
-            // 清理持久化状态，保证测试确定性（上一轮可能留下存档/最高分）
+            // 清理持久化状态，保证测试确定性（上一轮可能留下存档）
             gs.DeleteSave();
-            // L15：快照用户最高分，结尾还原（high_score setter 自动落盘，不清用户 profile 数据）
-            var origHighScore = gs.HighScore;
-            gs.HighScore = 0;
-            gs.SaveProfile();
             // 固定 easy 档（分数 ×1），保持本测试既有数值断言；结束时恢复 medium
             gs.SetDifficulty("easy");
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
@@ -722,14 +718,6 @@ public partial class SmokeTest : Node
             }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 3.13 最高分
-            gs.HighScore = 0;
-            Check(gs.RecordScore(), "首次破纪录");
-            Check(gs.HighScore == gs.Score, "最高分已更新");
-            gs.Score = 5;
-            Check(!gs.RecordScore(), "低分不覆盖最高分");
-            gs.Score = gs.HighScore;
-
             // 3.14 Shift/Ctrl toggle 模式（按一下切换开/关）
             gs.SetShiftToggleMode(true);
             Input.ActionPress("boost");
@@ -1169,8 +1157,7 @@ public partial class SmokeTest : Node
             Check(fullSpeed > player.MaxSpeed * 0.9f, "无微调时接近满速");
             Check(Mathf.Abs(fineSpeed - player.MaxSpeed * 0.35f) < 25.0f, "Ctrl 按住移速 ×0.35");
 
-            // L15：还原用户最高分并落盘（收尾不污染用户 profile）
-            gs.HighScore = origHighScore;
+            // 收尾清理（不污染用户 profile/存档）
             gs.SaveProfile();
             gs.LogoutUser();
             gs.DeleteSave();

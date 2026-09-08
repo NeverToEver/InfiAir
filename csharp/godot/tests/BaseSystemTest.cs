@@ -10,11 +10,8 @@ public partial class BaseSystemTest : Node
 {
     private int _failures;
 
-    /// <summary>
-    /// M7（2026-08-06 审计）：profile 快照还原——base_system 的高分榜段直写
-    /// GameState.highscores + save_profile 清零落盘（L15 档案称已修与 git 事实不符），
-    /// 备份/还原防本地 pre-login 最高分与高分榜被永久销毁。
-    /// </summary>
+    /// <summary>M7（2026-08-06 审计）：profile 快照还原——设置段 SaveProfile/LoadProfile
+    /// 会覆写本地 profile.json，备份/还原防开发者本地设置被永久销毁。</summary>
     private Godot.Collections.Dictionary _profileBackup = new();
 
     /// <summary>2026-08-06 审计：键位快照还原（H02 段 rebind/reset 自动落盘，防开发者键位被重置）。</summary>
@@ -93,7 +90,7 @@ public partial class BaseSystemTest : Node
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
-            // M7：profile 快照（须在任何覆写/落盘前捕获原始 pre-login 最高分与高分榜）
+            // M7：profile 快照（须在任何覆写/落盘前捕获原始设置项）
             BackupProfile();
             // 键位快照（H02 改键段自动落盘）
             BackupKeys();
@@ -229,34 +226,6 @@ public partial class BaseSystemTest : Node
             // 损坏隔离不影响正本
             sm.Delete(testPath);
 
-            // 10. 本地高分榜（P0-3）：排序 / 同分排后 / 上限截断 / 持久化往返
-            gs.Highscores.Clear();
-            gs.SaveProfile();
-            Check(gs.SubmitHighscore(0) == 0, "高分榜：0 分不入榜");
-            Check(gs.SubmitHighscore(100) == 1, "高分榜：首条排第 1");
-            Check(gs.SubmitHighscore(50) == 2, "高分榜：低分排第 2");
-            Check(gs.SubmitHighscore(80) == 2, "高分榜：中间分插入第 2");
-            Check(gs.SubmitHighscore(100) == 2, "高分榜：同分新条目排后");
-            Check(gs.Highscores.Count == 4, "高分榜：条目数正确");
-            Check(gs.Highscores[0]["score"].AsInt32() == 100, "高分榜：榜首为最高分");
-            Check(gs.Highscores[1]["score"].AsInt32() == 100, "高分榜：同分按先到先得排前");
-            Check(gs.HighscoresText(3) == "1. 100\n2. 100\n3. 80", "高分榜：榜单文本 Top3");
-            for (var i = 0; i < 100; i++)
-            {
-                gs.SubmitHighscore(200 - i);
-            }
-
-            Check(gs.Highscores.Count == gs.HIGHSCORE_LIMIT, "高分榜：上限截断");
-            Check(gs.SubmitHighscore(1) == 0, "高分榜：超出上限的分数不入榜");
-            var firstScore = gs.Highscores[0]["score"].AsInt32();
-            Check(firstScore == 200, "高分榜：截断后榜首不变");
-            gs.SaveProfile();
-            gs.LoadProfile();
-            Check(gs.Highscores.Count == gs.HIGHSCORE_LIMIT, "高分榜：持久化往返条目数一致");
-            Check(gs.Highscores[0]["score"].AsInt32() == firstScore, "高分榜：持久化往返榜首一致");
-            gs.Highscores.Clear();
-            gs.SaveProfile();
-
             // 11. 手柄默认绑定（P0-1 竞品调研）：运行时装配 + 右摇杆四向动作（H01 修正）
             Check(
                 InputMap.HasAction("aim_left")
@@ -345,7 +314,7 @@ public partial class BaseSystemTest : Node
             gs.JoyLayout = savedLayout;
 
             gs.DeleteSave();
-            // M7：还原原始 profile（最高分/高分榜/设置项），防本地数据被清零
+            // M7：还原原始 profile（设置项），防本地数据被覆写
             RestoreProfile();
             // 还原用户自定义键位（H02 改键段已把测试键位落盘）
             RestoreKeys();

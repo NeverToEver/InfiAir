@@ -6,10 +6,10 @@ namespace InfiAir;
 /// 用户会话域服务（第七轮拆域收官，2026-08-12）：原 GameState.Users.cs 账户系统/会话与
 /// GameState.State.cs 的 CurrentUser 状态迁入本服务——LoginUser/LoginGuest/LogoutUser/IsGuest/
 /// SavePathForCurrent/LoadSessionSettings/MaybeMigrateLegacyProfile/LegacyMigrationPending/
-/// ScanLegacyMigration/ClearLegacyMigration/CreateUser 与 UserDB 转发 14 个（VerifyUser/
+/// ScanLegacyMigration/ClearLegacyMigration/CreateUser 与 UserDB 转发（VerifyUser/
 /// UserDbCorrupt/UserExists/ListUsernames/ReloadUserDb/GetLastLoginUser/DeleteUser/
-/// GetLeaderboard/GetUserSettings/UpdateUserSettings/GetUserData/UpdateUserData/
-/// UserDbSavefileFor），B5/Q25/2026-08-10 健壮性审查/2026-08-06 审计等注释随迁。
+/// GetUserSettings/UpdateUserSettings/GetUserData/UpdateUserData/UserDbSavefileFor），
+/// B5/Q25/2026-08-10 健壮性审查/2026-08-06 审计等注释随迁。
 /// Godot 绑定层：UserDB 与 SaveManager 经构造注入（与 MetaService 注入 UserDB 同构——
 /// GameState 无 SaveManager 公开门面，迁移探测/迁移清理需文件 IO）；跨域访问统一经
 /// GameState.Instance——LoadMeta（Meta 门面）、ApplySettingsDict/ApplyWindowSize/
@@ -47,7 +47,7 @@ public sealed partial class UserSessionService : RefCounted
     /// <summary>profile.json 退役迁移缓存：启动时存在旧 profile 且用户表为空 → 首个注册用户合并后删除（B5）</summary>
     private Godot.Collections.Dictionary _pendingLegacyProfile = new();
 
-    /// <summary>登录已有用户：载入其设置/最高分并即时生效（locale 即时 set_locale——B7-11）</summary>
+    /// <summary>登录已有用户：载入其设置并即时生效（locale 即时 set_locale——B7-11）</summary>
     public void LoginUser(string name)
     {
         if (!_userDb.UserExists(name))
@@ -111,12 +111,6 @@ public sealed partial class UserSessionService : RefCounted
 
         // 第七轮拆域：设置域持久化桥经 GameState 门面跨域（ApplySettingsDict 本体在 SettingsService）
         GameState.Instance.ApplySettingsDict(_userDb.GetUserSettings(CurrentUser));
-        // 2026-08-10 健壮性审查：判型守卫 + 截断钳制——手改 users.json 的 high_score 为字符串时
-        // AsInt64 抛 InvalidCastException（登录即崩）；超大值裸 (int) 截断回绕为负
-        var hs = _userDb.GetUserData(CurrentUser).GetValueOrDefault("high_score", 0);
-        GameState.Instance.HighScore = hs.VariantType is Variant.Type.Int or Variant.Type.Float
-            ? (int)Math.Clamp(hs.AsInt64(), 0L, (long)int.MaxValue)
-            : 0;
         GameState.Instance.LoadMeta(); // 局外成长：会话 meta 档案加载（2026-08-09）
     }
 
@@ -158,9 +152,8 @@ public sealed partial class UserSessionService : RefCounted
         {
             var legacy = (Godot.Collections.Dictionary)_pendingLegacyProfile.Duplicate();
             _pendingLegacyProfile.Clear();
-            _userDb.UpdateHighScore(name, (int)Math.Clamp(GameState.Instance.SaveNum(legacy.GetValueOrDefault("high_score", 0), 0.0), 0.0, (double)int.MaxValue));
-            legacy.Remove("high_score");
             legacy.Remove("version");
+            legacy.Remove("high_score");
             legacy.Remove("highscores");
             _userDb.UpdateUserSettings(name, legacy);
             _saveManager.Delete(GameState.Instance.PROFILE_PATH);
@@ -197,8 +190,6 @@ public sealed partial class UserSessionService : RefCounted
     public string GetLastLoginUser() => _userDb.GetLastLoginUser();
 
     public bool DeleteUser(string name, string password) => _userDb.DeleteUser(name, password);
-
-    public Godot.Collections.Array GetLeaderboard() => _userDb.GetLeaderboard();
 
     public Godot.Collections.Dictionary GetUserSettings(string name) => _userDb.GetUserSettings(name);
 

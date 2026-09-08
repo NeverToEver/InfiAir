@@ -6,7 +6,7 @@ namespace InfiAir.Tests;
 /// <summary>
 /// 每屏截图存 /tmp/ui_&lt;name&gt;.png。需窗口模式运行（headless 为 dummy 渲染截不到画面）：
 ///   godot --path . res://test/ui_capture.tscn
-/// 结束恢复现场：删除测试产生的存档，profile 原始值（最高分）还原落盘。
+/// 结束恢复现场：删除测试产生的存档，profile 当前值落盘。
 /// </summary>
 public partial class UiCapture : Node
 {
@@ -23,9 +23,6 @@ public partial class UiCapture : Node
         try
         {
             var gs = GetNode<GameState>("/root/GameState");
-            // 快照 profile 原始值，结束还原（测试要伪造最高分/新纪录）
-            var origHighScore = gs.HighScore;
-            gs.HighScore = 12345;
             gs.LoginGuest();  // T4：游客会话直接开局（StartPanel 已退役）
             var mainScene = GD.Load<PackedScene>("res://scenes/main.tscn");
             AddChild(mainScene.Instantiate());
@@ -126,9 +123,7 @@ public partial class UiCapture : Node
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
 
-            // 6. 死亡结算（大分数 + 新纪录标记）
-            gs.HighScore = 100;  // 压低原纪录，保证「新纪录」标记可见（结尾还原）
-            gs.AddScore(8888);
+            // 6. 死亡结算（击杀统计）
             gs.EmitSignal(GameState.SignalName.PlayerDied);
             // 等结算面板真正可见再截
             for (int i = 0; i < 60; i++)
@@ -142,9 +137,8 @@ public partial class UiCapture : Node
             await Settle();
             Shot("gameover");
 
-            // 恢复现场：删测试存档 + 还原 profile 原始值落盘
+            // 恢复现场：删测试存档 + profile 落盘
             gs.DeleteSave();
-            gs.HighScore = origHighScore;
             gs.SaveProfile();
             GD.Print("ui capture done");
         }

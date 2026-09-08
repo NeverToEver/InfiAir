@@ -4,12 +4,11 @@ using InfiAir.Core;
 namespace InfiAir;
 
 /// <summary>
-/// welcome 主场景（2026-08-04 账户系统 T3；规格 PORTING_PARITY 附录 B B1-B3/B6/B7 去 bug 清单）。
+/// welcome 主场景（2026-08-04 账户系统 T3）。
 /// 登录阶段：左栏账号面板（注册/登录/游客/删除 + 下拉）；登录/游客放行后切主区 =
-/// 左缘圆盘菜单（出击/教程/设置/排行榜/研究所/退出；2026-09-08 圆盘 UI 全覆盖）
-/// + 右栏难度档位/最高分。进入 main 后由 main 依存档自动继续。
-/// ESC 层级（对齐 B3/B7-1/2/3）：关排行榜 → 关游客/删除确认 → 关下拉 → 退出确认（welcome 是首场景）。
-/// M5 全量迁移（2026-08-08 自 scripts/welcome.gd），挂 scenes/welcome.tscn。
+/// 左缘圆盘菜单（出击/教程/设置/研究所/退出）+ 右栏难度档位。
+/// 进入 main 后由 main 依存档自动继续。
+/// ESC 层级：关游客/删除确认 → 关下拉 → 退出确认（welcome 是首场景）。
 /// </summary>
 public partial class Welcome : RadialMenuLayer
 {
@@ -43,7 +42,7 @@ public partial class Welcome : RadialMenuLayer
     private Panel? _focusExitDropdown;
     private readonly System.Collections.Generic.List<Button> _dropdownButtons = new();
     private VBoxContainer _mainZone = null!;
-    private VBoxContainer _recordsBox = null!; // 战绩/损坏警告区（登录前也可见；.corrupt 提示是开始屏契约）
+    private Label _corruptLabel = null!; // 损坏警告区（登录前也可见；.corrupt 提示是开始屏契约）
     private bool _isUser; // 当前主区是否登录用户（研究所入口显隐）
     private CanvasLayer _labOverlay = null!;
     private Button _labClose = null!;
@@ -51,12 +50,6 @@ public partial class Welcome : RadialMenuLayer
     /// <summary>2026-08-09 审计：难度按钮表 typed 化（原 Variant Dictionary + 运行时强转）。</summary>
     private readonly System.Collections.Generic.Dictionary<StringName, Button> _diffButtons = new();
     private readonly ButtonGroup _diffGroup = new();
-    private Label _highScoreLabel = null!;
-    private Label _boardLabel = null!;
-    private Label _corruptLabel = null!;
-    private CanvasLayer _leaderboardOverlay = null!;
-    private Button _leaderboardClose = null!; // Q21：排行榜关闭按钮（打开时 grab_focus）
-    private VBoxContainer _leaderboardRows = null!;
     // 模态引用（2026-08-09 审计：原 Variant Dictionary {"layer","ok","cancel"} + 类内 15 处强转 → typed）
     private ModalParts _guestConfirm = null!;
     private ModalParts _deleteConfirm = null!;
@@ -476,19 +469,15 @@ public partial class Welcome : RadialMenuLayer
 
     private void BuildMainZone()
     {
-        // 战绩/损坏警告区：常显（不随登录态切换）——损坏存档提示是开始屏契约，登录前必须可见
-        _recordsBox = new VBoxContainer();
-        _recordsBox.Position = new Vector2(620.0f, 130.0f);
-        _recordsBox.CustomMinimumSize = new Vector2(1100.0f, 0.0f);
-        _recordsBox.AddThemeConstantOverride("separation", 8);
-        AddChild(_recordsBox);
-        _highScoreLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Left);
-        _recordsBox.AddChild(_highScoreLabel);
-        _boardLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left);
-        _recordsBox.AddChild(_boardLabel);
+        // 损坏警告区：常显（不随登录态切换）——损坏存档提示是开始屏契约，登录前必须可见
+        var recordsBox = new VBoxContainer();
+        recordsBox.Position = new Vector2(620.0f, 130.0f);
+        recordsBox.CustomMinimumSize = new Vector2(1100.0f, 0.0f);
+        recordsBox.AddThemeConstantOverride("separation", 8);
+        AddChild(recordsBox);
         _corruptLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.Danger, HorizontalAlignment.Left);
         _corruptLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _recordsBox.AddChild(_corruptLabel);
+        recordsBox.AddChild(_corruptLabel);
 
         // 难度区（登录放行后显示）
         _mainZone = new VBoxContainer();
@@ -547,7 +536,6 @@ public partial class Welcome : RadialMenuLayer
             new() { Id = "sortie", Label = Tr("WELCOME_MENU_SORTIE"), Glyph = RadialGlyph.Triangle, Children = sortieChildren },
             new() { Id = "tutorial", Label = Tr("START_TUTORIAL"), Glyph = RadialGlyph.Diamond },
             new() { Id = "settings", Label = Tr("START_SETTINGS"), Glyph = RadialGlyph.Cross },
-            new() { Id = "leaderboard", Label = Tr("WELCOME_LEADERBOARD"), Glyph = RadialGlyph.Ring },
         };
         if (_isUser)
         {
@@ -573,9 +561,6 @@ public partial class Welcome : RadialMenuLayer
                 break;
             case "settings":
                 OnSettingsPressed();
-                break;
-            case "leaderboard":
-                OpenLeaderboard();
                 break;
             case "lab":
                 OpenLab();
@@ -647,29 +632,10 @@ public partial class Welcome : RadialMenuLayer
         GetTree().ChangeSceneToFile("res://scenes/main.tscn");
     }
 
-    // ---------------- Overlay：排行榜 / 游客确认 / 删除确认 / 退出确认 ----------------
+    // ---------------- Overlay：研究所 / 游客确认 / 删除确认 / 退出确认 ----------------
 
     private void BuildOverlays()
     {
-        // 排行榜（B6）：遮罩 + 520×580 面板 + 最多 10 行 + 页脚 + ×关闭；打开时重新读取（B7-13）
-        _leaderboardOverlay = new CanvasLayer { Layer = 50, Visible = false };
-        AddChild(_leaderboardOverlay);
-        var shell = UITheme.MakePageShell("LEAD_TITLE");
-        _leaderboardOverlay.AddChild((Node)shell["root"].AsGodotObject());
-        ((ChamferedPanel)shell["panel"].AsGodotObject()).CustomMinimumSize = new Vector2(520.0f, 580.0f);
-        _leaderboardRows = new VBoxContainer();
-        _leaderboardRows.AddThemeConstantOverride("separation", 6);
-        ((VBoxContainer)shell["content"].AsGodotObject()).AddChild(_leaderboardRows);
-        var footer = UITheme.MakeLabel(Tr("LEAD_FOOTER"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center);
-        ((VBoxContainer)shell["content"].AsGodotObject()).AddChild(footer);
-        var closeButton = UITheme.MakeButton(Tr("LEAD_CLOSE"));
-        closeButton.CustomMinimumSize = new Vector2(200.0f, 48.0f);
-        closeButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-        closeButton.Pressed += OnCloseLeaderboard;
-        _leaderboardClose = closeButton;
-        ((VBoxContainer)shell["content"].AsGodotObject()).AddChild(closeButton);
-        ((VBoxContainer)shell["content"].AsGodotObject()).AddThemeConstantOverride("separation", 12);
-
         // 研究所（局外成长，2026-08-09）：科技点余额 + 升级列表；打开时重建（ResearchLab 自刷新）
         _labOverlay = new CanvasLayer { Layer = 50, Visible = false };
         AddChild(_labOverlay);
@@ -740,80 +706,6 @@ public partial class Welcome : RadialMenuLayer
         GrabPrimaryFocus();
     }
 
-    private void OpenLeaderboard()
-    {
-        // B7-13 修复：overlay 每次打开重新读取榜单（不作 10s 缓存）
-        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 AddChild 新旧行并存闪一帧
-        //（Hud.cs:1230、SettingsUi.cs:663 同场景先例）
-        foreach (var child in _leaderboardRows.GetChildren())
-        {
-            child.Free();
-        }
-
-        var board = GameState.Instance.GetLeaderboard();
-        if (board.Count == 0)
-        {
-            _leaderboardRows.AddChild(
-                UITheme.MakeLabel(Tr("LEAD_EMPTY"), UITheme.FontBody, UITheme.TextDim, HorizontalAlignment.Center)
-            );
-        }
-
-        // Q20（2026-08-05）：条目级判型——手改 users.json 的非 Dictionary 条目/字符串 score 跳过
-        // （原实现 as Dictionary 直接解引用崩溃、字符串 score 静默转 0）
-        var rowIdx = 0;
-        foreach (var entry in board)
-        {
-            if (rowIdx >= 10)
-            {
-                break;
-            }
-
-            if (entry.VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
-
-            var dict = entry.AsGodotDictionary();
-            var score = dict.GetValueOrDefault("score", Variant.From(0));
-            if (score.VariantType != Variant.Type.Int && score.VariantType != Variant.Type.Float)
-            {
-                continue;
-            }
-
-            var color = UITheme.Text;
-            if (rowIdx == 0)
-            {
-                color = UITheme.AccentGold;
-            }
-            else if (rowIdx == 1)
-            {
-                color = UITheme.Accent;
-            }
-            else if (rowIdx == 2)
-            {
-                color = UITheme.TextDim;
-            }
-
-            var line = UITheme.MakeLabel(
-                $"{rowIdx + 1}. {dict.GetValueOrDefault("player_name", "").AsString()}  {score.AsInt32()}",
-                UITheme.FontBody,
-                color,
-                HorizontalAlignment.Left
-            );
-            _leaderboardRows.AddChild(line);
-            rowIdx += 1;
-        }
-
-        _leaderboardOverlay.Visible = true;
-        _leaderboardClose.GrabFocus(); // Q21：模态打开聚焦关闭按钮（原无 grab_focus，焦点停留被遮挡按钮，Enter 重复打开）
-    }
-
-    private void OnCloseLeaderboard()
-    {
-        _leaderboardOverlay.Visible = false;
-        GrabPrimaryFocus();
-    }
-
     private void OpenLab()
     {
         _labRows.Refresh(); // 打开时重建（余额/等级/费用即时）
@@ -851,11 +743,7 @@ public partial class Welcome : RadialMenuLayer
                 return;
             }
 
-            if (_leaderboardOverlay.Visible)
-            {
-                CloseLeaderboard();
-            }
-            else if (_labOverlay.Visible)
+            if (_labOverlay.Visible)
             {
                 OnCloseLab();
             }
@@ -897,12 +785,6 @@ public partial class Welcome : RadialMenuLayer
 
     private void RefreshTexts()
     {
-        var hasSave = GameState.Instance.HasSave();
-        _highScoreLabel.Visible = GameState.Instance.HighScore > 0;
-        _highScoreLabel.Text = Tr("WELCOME_HIGH_SCORE").Replace("%d", GameState.Instance.HighScore.ToString());
-        var board = GameState.Instance.HighscoresText(3);
-        _boardLabel.Visible = board != "";
-        _boardLabel.Text = Tr("START_BOARD") + "\n" + board;
         // 2026-08-10 健壮性审查：users.json 损坏同列提示（账号表被隔离重建，.corrupt 备份保留）
         var gs = GameState.Instance;
         _corruptLabel.Visible = gs.SaveCorrupt || gs.ProfileCorrupt || gs.UserDbCorrupt;
@@ -962,11 +844,7 @@ public partial class Welcome : RadialMenuLayer
 
     public void ConfirmDelete() => OnConfirmDelete();
 
-    public void PressLeaderboard() => OpenLeaderboard();
-
-    public void PressLab() => OpenLab(); // 局外成长：测试钩子（对齐 PressLeaderboard 模式）
-
-    public void CloseLeaderboard() => OnCloseLeaderboard();
+    public void PressLab() => OpenLab(); // 局外成长：测试钩子
 
     public void PressNewGame() => OnNewGamePressed();
 
@@ -977,8 +855,6 @@ public partial class Welcome : RadialMenuLayer
     public void PressSettings() => OnSettingsPressed();
 
     public bool MainZoneVisible() => _stage == Stage.Main;
-
-    public CanvasLayer LeaderboardOverlay() => _leaderboardOverlay;
 
     public CanvasLayer GuestConfirm() => _guestConfirm.Layer;
 

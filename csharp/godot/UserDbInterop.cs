@@ -71,11 +71,6 @@ public partial class UserDbInterop : RefCounted
         }
     }
 
-    public void UpdateHighScore(string name, long score)
-    {
-        _core.UpdateHighScore(name, score);
-    }
-
     public Godot.Collections.Dictionary GetUserSettings(string name)
     {
         return VariantBridge.ToVariant(_core.GetUserSettings(name)).AsGodotDictionary();
@@ -113,22 +108,6 @@ public partial class UserDbInterop : RefCounted
     public string SaveFileName(string name)
     {
         return _core.SaveFileName(name);
-    }
-
-    public long SubmitScore(string name, long score)
-    {
-        return _core.SubmitScore(name, score);
-    }
-
-    public Godot.Collections.Array GetLeaderboard()
-    {
-        var arr = new Godot.Collections.Array();
-        foreach (var item in _core.GetLeaderboard())
-        {
-            arr.Add(VariantBridge.ToVariant(item));
-        }
-
-        return arr;
     }
 
     public void Reload()

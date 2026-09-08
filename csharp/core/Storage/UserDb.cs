@@ -5,7 +5,7 @@ using System.Text;
 namespace InfiAir.Core.Storage;
 
 /// <summary>
-/// 本地用户数据库核心（P0-2，2026-08-07 落地）：用户 CRUD / 登录记录 / 本地排行榜 /
+/// 本地用户数据库核心（P0-2，2026-08-07 落地）：用户 CRUD / 登录记录 /
 /// 名称校验 / 密码派生。逐条镜像原 GDScript UserDB（scripts/user_db.gd，2026-08-04 账户系统，
 /// 规格 docs/archive/2026-08-04-local-accounts-plan.md + PORTING_PARITY 附录 B）；
 /// 纯 .NET、零 Godot 依赖，xUnit 直测。持久化经 <see cref="SaveStore"/>（原子写 + 损坏隔离）。
@@ -23,13 +23,11 @@ public sealed class UserDb
     public const int NameMax = 16;
     public const int PasswordMin = 3;
     public const int PasswordMax = 16;
-    public const int LeaderboardCap = 10;
-    public const int PlayerNameMax = 32;
     public const long Pbkdf2Iterations = 50_000;
     /// <summary>V 系列：迭代数防御性上限（正常 50k 的 20 倍）——手改 users.json iterations 为巨值
     /// 会单线程挂死登录（10^11 次 HMAC），钳制后派生必然失败 → 登录拒绝而非冻结。</summary>
     public const long MaxPbkdf2Iterations = 1_000_000;
-    public static readonly string[] ReservedNames = ["_leaderboard", "Guest"];
+    public static readonly string[] ReservedNames = ["Guest"];
 
     private readonly SaveStore _store = new();
     private readonly string _path;
@@ -75,7 +73,6 @@ public sealed class UserDb
             ["password"] = HexEncode(Derive(password, salt, iterations)),
             ["salt"] = HexEncode(salt),
             ["iterations"] = iterations,
-            ["high_score"] = 0L,
             ["total_kills"] = 0L,
             ["games_played"] = 0L,
             ["last_login_order"] = 0L,
@@ -212,29 +209,6 @@ public sealed class UserDb
         Save();
     }
 
-    /// <summary>仅更高才写（B4 语义）；分数负钳 0。</summary>
-    public void UpdateHighScore(string name, long score)
-    {
-        EnsureLoaded();
-        if (!Users.ContainsKey(name))
-        {
-            return;
-        }
-
-        var rec = UserRecord(name);
-        if (rec.Count == 0)
-        {
-            return;
-        }
-
-        var clamped = Math.Max(score, 0);
-        if (clamped > ToInt64(rec.GetValueOrDefault("high_score", 0L)))
-        {
-            rec["high_score"] = clamped;
-            Save();
-        }
-    }
-
     /// <summary>用户设置浅拷贝（手改非字典 settings 按空表处理——原实现 duplicate() 会崩溃）。</summary>
     public Dictionary<string, object?> GetUserSettings(string name)
     {
@@ -357,76 +331,6 @@ public sealed class UserDb
         return $"savegame_{sanitized}_{digest}.json";
     }
 
-    /// <summary>提交成绩：score 负钳 0（≤0 不入榜）；cap 10；排序 score 降序 + seq 升序（先到先得）；
-    /// 返回 1-indexed 名次，0 = 未上榜（含落盘失败）。</summary>
-    public long SubmitScore(string name, long score)
-    {
-        if (score <= 0)
-        {
-            return 0;
-        }
-
-        EnsureLoaded();
-        var board = Leaderboard;
-        // AC24（2026-08-11 第九轮审计）：_seq 同 AC21——读值钳 ≥0 + 递增防溢出
-        // （手改巨值 +1 回绕 long.MinValue → 新条目负 seq 排序破坏 + 负值落盘）
-        var prevSeq = Math.Max(ToInt64(_db.GetValueOrDefault("_seq", 0L)), 0L);
-        var seq = prevSeq == long.MaxValue ? prevSeq : prevSeq + 1;
-        _db["_seq"] = seq;
-        var entry = new Dictionary<string, object?>
-        {
-            ["player_name"] = TruncateRunes(name, PlayerNameMax),
-            ["score"] = Math.Max(score, 0),
-            ["seq"] = seq,
-            ["timestamp"] = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture),
-        };
-        board.Add(entry);
-        SortBoard(board);
-        if (board.Count > LeaderboardCap)
-        {
-            board.RemoveRange(LeaderboardCap, board.Count - LeaderboardCap);
-        }
-
-        long rank = 0;
-        for (var i = 0; i < board.Count; i++)
-        {
-            if (ReferenceEquals(board[i], entry))
-            {
-                rank = i + 1;
-                break;
-            }
-        }
-
-        return Save() ? rank : 0;
-    }
-
-    /// <summary>榜单读取（Q20 判型：非 Dictionary 条目/非数字 score 跳过），返回过滤后排序副本。
-    /// AB17：score 归一化钳 [0, long.MaxValue]——手改 users.json 超大/负 score 经显示路径
-    /// (int) 截断回绕负数名次分（本地榜经加载期 SaveInt 钳制，此处是孪生遗漏）。
-    /// 注：不能复用 ToInt64（double 分支为 unchecked 转换，1e300 溢出未定义），此处独立安全转换。</summary>
-    public List<object?> GetLeaderboard()
-    {
-        EnsureLoaded();
-        var board = new List<object?>();
-        foreach (var item in Leaderboard)
-        {
-            if (item is Dictionary<string, object?> entry && entry.GetValueOrDefault("score") is long or double)
-            {
-                var copy = new Dictionary<string, object?>(entry);
-                copy["score"] = entry["score"] switch
-                {
-                    long l => Math.Max(l, 0L),
-                    double d => d >= 9.223372036854776E18 ? long.MaxValue : (long)Math.Round(Math.Max(d, 0.0), MidpointRounding.AwayFromZero),
-                    _ => 0L,
-                };
-                board.Add(copy);
-            }
-        }
-
-        SortBoard(board);
-        return board;
-    }
-
     /// <summary>自建 PBKDF2 变体（逐字节等价端口；勿当标准 PBKDF2-HMAC-SHA256 使用）：
     /// 块 = 盐 || INT32_BE(块号)（20 字节），T = 首块 ^ U1 ^ U2 …（仅前 20 字节参与异或），
     /// 输出 = 各块前段拼接后截 32 字节。固定向量对照 tests-csharp/UserDbPasswordTests.cs。</summary>
@@ -476,7 +380,7 @@ public sealed class UserDb
         return len >= PasswordMin && len <= PasswordMax;
     }
 
-    /// <summary>Q17 结构守卫：_users 非 Dictionary → 空库重建；_leaderboard 非 Array → 补空。</summary>
+    /// <summary>Q17 结构守卫：_users 非 Dictionary → 空库重建。</summary>
     private void EnsureLoaded()
     {
         if (_loaded)
@@ -496,18 +400,11 @@ public sealed class UserDb
             _db = new Dictionary<string, object?>
             {
                 ["_users"] = new Dictionary<string, object?>(),
-                ["_leaderboard"] = new List<object?>(),
             };
-        }
-        else if (_db.GetValueOrDefault("_leaderboard") is not List<object?>)
-        {
-            _db["_leaderboard"] = new List<object?>();
         }
     }
 
     private Dictionary<string, object?> Users => (Dictionary<string, object?>)_db["_users"]!;
-
-    private List<object?> Leaderboard => (List<object?>)_db["_leaderboard"]!;
 
     /// <summary>用户记录安全读取（Q17 条目级守卫：非 Dictionary 条目回空字典）。</summary>
     private Dictionary<string, object?> UserRecord(string name)
@@ -659,52 +556,5 @@ public sealed class UserDb
             >= 'a' and <= 'f' => c - 'a' + 10,
             _ => -1,
         };
-    }
-
-    /// <summary>按 code point 截断（对齐 GDScript substr(0, max)，CJK/代理对安全）。</summary>
-    private static string TruncateRunes(string s, int max)
-    {
-        var sb = new StringBuilder();
-        var count = 0;
-        foreach (var rune in s.EnumerateRunes())
-        {
-            if (count >= max)
-            {
-                break;
-            }
-
-            sb.Append(rune.ToString());
-            count++;
-        }
-
-        return sb.ToString();
-    }
-
-    /// <summary>排序：score 降序 + seq 升序（Q20 兜底：非 Dictionary 对按相等处理，不抛类型错误）。</summary>
-    private static void SortBoard(List<object?> board)
-    {
-        board.Sort((a, b) =>
-        {
-            if (a is not Dictionary<string, object?> da || b is not Dictionary<string, object?> db)
-            {
-                return 0;
-            }
-
-            var sa = ToInt64(da.GetValueOrDefault("score", 0L));
-            var sb = ToInt64(db.GetValueOrDefault("score", 0L));
-            if (sa != sb)
-            {
-                return sa > sb ? -1 : 1;
-            }
-
-            var seqA = ToInt64(da.GetValueOrDefault("seq", 0L));
-            var seqB = ToInt64(db.GetValueOrDefault("seq", 0L));
-            if (seqA != seqB)
-            {
-                return seqA < seqB ? -1 : 1;
-            }
-
-            return 0;
-        });
     }
 }

@@ -5,8 +5,7 @@ namespace InfiAir.Core.Tests;
 
 /// <summary>
 /// UserDb（P0-2）行为单测：CRUD / 校验约束 / 排序 / 统计 / 删号连档清理 /
-/// 排行榜 cap 与名次 / Q17/Q18/Q20 结构守卫 / 损坏隔离。语义对齐 test/user_db_test.gd
-/// （GDScript 断言场景）与 docs/archive/2026-08-04-local-accounts-plan.md。
+/// Q17 结构守卫 / 损坏隔离。语义对齐 docs/archive/2026-08-04-local-accounts-plan.md。
 /// </summary>
 public sealed class UserDbTests
 {
@@ -48,9 +47,7 @@ public sealed class UserDbTests
             Assert.False(db.CreateUser(new string('a', 17), "pass123", 1000), "用户名 >16 拒绝");
             Assert.False(db.CreateUser("carol", "pw", 1000), "密码 <3 拒绝");
             Assert.False(db.CreateUser("carol", new string('p', 17), 1000), "密码 >16 拒绝");
-            Assert.False(db.CreateUser("_leaderboard", "pass123", 1000), "保留名 _leaderboard 拒绝");
             Assert.False(db.CreateUser("Guest", "pass123", 1000), "保留名 Guest 拒绝");
-            Assert.False(db.UserExists("_leaderboard"));
             // 中文名按 code point 计数（GDScript String.length() 语义）
             Assert.True(db.CreateUser("玩家一", "pass123", 1000), "3 个 code point 的中文名合法");
             Assert.False(db.CreateUser("玩家", "pass123", 1000), "2 个 code point 的中文名 <3 拒绝");
@@ -83,16 +80,12 @@ public sealed class UserDbTests
     }
 
     [Fact]
-    public void StatsUpdate_MergeAndHighScoreOnlyIfHigher()
+    public void StatsUpdate_MergeOnly()
     {
         var db = NewDb(out var dir, out _);
         try
         {
             db.CreateUser("alice", "s3cret", 1000);
-            Assert.Equal(0L, (long)db.GetUserData("alice")["high_score"]!);
-            db.UpdateHighScore("alice", 100);
-            db.UpdateHighScore("alice", 50);
-            Assert.Equal(100L, (long)db.GetUserData("alice")["high_score"]!);
             db.UpdateUserData("alice", new Dictionary<string, object?> { ["total_kills"] = 5L });
             db.UpdateUserData("alice", new Dictionary<string, object?> { ["total_kills"] = 9L });
             Assert.Equal(9L, (long)db.GetUserData("alice")["total_kills"]!);
@@ -199,53 +192,17 @@ public sealed class UserDbTests
     }
 
     [Fact]
-    public void Leaderboard_OrderingCapAndRanks()
-    {
-        var db = NewDb(out var dir, out _);
-        try
-        {
-            Assert.Equal(0L, db.SubmitScore("alice", 0));
-            Assert.Equal(1L, db.SubmitScore("alice", 100));
-            Assert.Equal(2L, db.SubmitScore("bob", 50));
-            Assert.Equal(2L, db.SubmitScore("alice", 80));
-            Assert.Equal(2L, db.SubmitScore("alice", 100));
-            Assert.Equal(0L, db.SubmitScore("carol", -5));
-            var board = db.GetLeaderboard();
-            Assert.Equal(4, board.Count);
-            Assert.Equal(100L, (long)((Dictionary<string, object?>)board[0]!)["score"]!);
-            Assert.Equal(100L, (long)((Dictionary<string, object?>)board[1]!)["score"]!);
-            Assert.Equal("alice", (string)((Dictionary<string, object?>)board[0]!)["player_name"]!);
-
-            for (var i = 0; i < 100; i++)
-            {
-                db.SubmitScore("alice", 200 - i);
-            }
-
-            board = db.GetLeaderboard();
-            Assert.Equal(UserDb.LeaderboardCap, board.Count);
-            Assert.Equal(200L, (long)((Dictionary<string, object?>)board[0]!)["score"]!);
-            Assert.Equal(0L, db.SubmitScore("alice", 1));
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
     public void Persistence_ReloadKeepsData()
     {
         var db = NewDb(out var dir, out var usersPath);
         try
         {
             db.CreateUser("alice", "s3cret", 1000);
-            db.SubmitScore("alice", 200);
             db.UpdateUserSettings("alice", new Dictionary<string, object?> { ["locale"] = "en" });
 
             var db2 = new UserDb(usersPath);
             Assert.True(db2.UserExists("alice"));
             Assert.True(db2.VerifyUser("alice", "s3cret", 1000));
-            Assert.Single(db2.GetLeaderboard());
             Assert.Equal("en", db2.GetUserSettings("alice")["locale"]);
         }
         finally
@@ -264,7 +221,6 @@ public sealed class UserDbTests
             Assert.True(db.CreateUser("dave", "pass123", 1000), "损坏后按空库重建可注册");
             Assert.True(File.Exists(usersPath + ".corrupt"), "损坏文件隔离为 .corrupt");
             Assert.False(db.UserExists("alice"));
-            Assert.Empty(db.GetLeaderboard());
         }
         finally
         {
@@ -278,56 +234,9 @@ public sealed class UserDbTests
         var db = NewDb(out var dir, out var usersPath);
         try
         {
-            File.WriteAllText(usersPath, """{"_users": "not-a-dict", "_leaderboard": [1, 2]}""");
+            File.WriteAllText(usersPath, """{"_users": "not-a-dict"}""");
             Assert.False(db.UserExists("alice"), "用户表非 Dictionary → 空库重建（不崩溃）");
-            Assert.Empty(db.GetLeaderboard());
             Assert.True(db.CreateUser("bob", "pass123", 1000));
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void Q20_LeaderboardEntryTyping_FiltersJunk()
-    {
-        var db = NewDb(out var dir, out var usersPath);
-        try
-        {
-            File.WriteAllText(
-                usersPath,
-                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [{"player_name": "bob", "score": 50, "seq": 1}, "junk", {"player_name": "bad", "score": "100", "seq": 2}]}""");
-            var board = db.GetLeaderboard();
-            Assert.Single(board);
-            Assert.Equal(50L, (long)((Dictionary<string, object?>)board[0]!)["score"]!);
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void AB17_HugeLeaderboardScore_NormalizedOnRead()
-    {
-        // AB17：手改 users.json 超大 score（>2^31 整数 / 1e300 double）经 GetLeaderboard
-        // 归一化钳 [0, long.MaxValue]——旧实现裸传，显示路径 (int) 截断回绕负数名次分
-        var db = NewDb(out var dir, out var usersPath);
-        try
-        {
-            File.WriteAllText(
-                usersPath,
-                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [{"player_name": "bob", "score": 5000000000, "seq": 1}, {"player_name": "carol", "score": 1e300, "seq": 2}]}""");
-            var board = db.GetLeaderboard();
-            Assert.Equal(2, board.Count);
-            var scores = board
-                .Select(b => (long)((Dictionary<string, object?>)b!)["score"]!)
-                .OrderDescending()
-                .ToArray();
-            Assert.Equal(long.MaxValue, scores[0]);  // 1e300 → ToInt64 钳至 long.MaxValue
-            Assert.Equal(5_000_000_000L, scores[1]); // >2^31 整数原样保留（>0 不回绕负）
-            Assert.All(scores, s => Assert.True(s >= 0, "归一化后不为负"));
         }
         finally
         {
@@ -343,7 +252,7 @@ public sealed class UserDbTests
         {
             File.WriteAllText(
                 usersPath,
-                """{"_users": {"junk": "not-a-dict", "bad": {"last_login_order": "7"}}, "_leaderboard": []}""");
+                """{"_users": {"junk": "not-a-dict", "bad": {"last_login_order": "7"}}}""");
             Assert.False(db.VerifyUser("junk", "x", 1000), "非 Dictionary 条目按不存在处理");
             Assert.Equal(["bad", "junk"], db.ListUsernames()); // 排序：bad(last_login "7") 在 junk(0) 前
             Assert.Equal("7", db.GetUserData("bad")["last_login_order"]);
@@ -368,7 +277,7 @@ public sealed class UserDbTests
         {
             File.WriteAllText(
                 usersPath,
-                """{"_users": {"bob": {"last_login_order": 9223372036854775807}, "alice": {"last_login_order": 5}}, "_leaderboard": []}""");
+                """{"_users": {"bob": {"last_login_order": 9223372036854775807}, "alice": {"last_login_order": 5}}}""");
             db.RecordLogin("bob");
             Assert.Equal(long.MaxValue, (long)db.GetUserData("bob")["last_login_order"]!); // maxOrder 已达 long.MaxValue → 保持原值不回绕
             db.RecordLogin("alice");
@@ -377,43 +286,6 @@ public sealed class UserDbTests
             var db2 = new UserDb(usersPath);
             Assert.Equal(long.MaxValue, (long)db2.GetUserData("bob")["last_login_order"]!); // 落盘值不变量：重载后仍为 long.MaxValue
             Assert.Equal(long.MaxValue, (long)db2.GetUserData("alice")["last_login_order"]!); // 落盘值不变量：无回绕负值
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void AC24_HugeSeq_SubmitScoreNoOverflow()
-    {
-        // AC24（2026-08-11 第九轮审计）：手改 _seq 巨值 → SubmitScore 曾 +1 回绕/负数化
-        // （新条目负 seq → 排序破坏）；读值钳 ≥0 + 递增防溢出后不溢出、排序不破坏
-        var db = NewDb(out var dir, out var usersPath);
-        try
-        {
-            // 9.2e18（double 域，2^63 以下可精确表示）→ 读值 9200000000000000000，+1 后仍为正且递增
-            File.WriteAllText(
-                usersPath,
-                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [], "_seq": 9.2e18}""");
-            Assert.Equal(1L, db.SubmitScore("alice", 100));
-            var board = db.GetLeaderboard();
-            Assert.Equal(9_200_000_000_000_000_001L, (long)((Dictionary<string, object?>)board[0]!)["seq"]!); // seq 为正且 +1 未溢出
-            Assert.Equal(2L, db.SubmitScore("bob", 100));
-            board = db.GetLeaderboard();
-            Assert.Equal("alice", (string)((Dictionary<string, object?>)board[0]!)["player_name"]!); // 排序不破坏：同分先到先得（seq 升序）
-            Assert.Equal("bob", (string)((Dictionary<string, object?>)board[1]!)["player_name"]!);
-
-            // 边界：_seq = long.MaxValue（整数域）→ 递增必须防溢出（曾 +1 回绕 long.MinValue → 新条目排最前）
-            File.WriteAllText(
-                usersPath,
-                """{"_users": {"bob": {"last_login_order": 0}}, "_leaderboard": [{"player_name": "bob", "score": 100, "seq": 5}], "_seq": 9223372036854775807}""");
-            db.Reload();
-            Assert.Equal(2L, db.SubmitScore("alice", 100)); // seq 钳至 long.MaxValue：新条目排在同分旧条目后（先到先得）
-            board = db.GetLeaderboard();
-            Assert.Equal(long.MaxValue, (long)((Dictionary<string, object?>)board[1]!)["seq"]!); // seq 不溢出（保持 long.MaxValue）
-            Assert.DoesNotContain("-9223372036854775808", File.ReadAllText(usersPath)); // 落盘 _seq 不出现回绕负值
-            Assert.Equal(3L, db.SubmitScore("carol", 50)); // 连续提交仍正常（seq 保持钳制值）
         }
         finally
         {

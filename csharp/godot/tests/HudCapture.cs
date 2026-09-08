@@ -34,9 +34,8 @@ public partial class HudCapture : Node
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-            // 屏蔽里程碑入账，保证缓存指示器读数确定（确定性截图）
+            // 屏蔽里程碑入账，保证缓存指示器读数确定（确定性截图）；击杀计数固定 57
             gs.SetMilestoneOverride(999999999);
-            gs.AddScore(12340);
             gs.Kills = 57;
             gs.EmitSignal(GameState.SignalName.ScoreChanged, gs.Score);
             // 常态截图缓存 3 点：指示器「可用」呼吸态可见
