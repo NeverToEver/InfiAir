@@ -90,6 +90,7 @@ public partial class SettingsUi : RadialMenuLayer
         // 圆盘导航（chrome dim 弃用：本页遮罩由 page shell 提供，双遮罩会过压暗）；
         // 面板整体右移让出左缘轮盘弧面通航区
         BuildChrome();
+        SetContentAnchor(() => _plate);
         Dim.Visible = false;
         Wheel.Confirmed += OnWheelConfirmed;
         RebuildWheelMenu();

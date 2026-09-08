@@ -113,6 +113,7 @@ public partial class Welcome : RadialMenuLayer
         BuildMainZone();
         BuildOverlays();
         BuildChrome();
+        SetContentAnchor(() => _mainZone);
         SetWheelActive(false, dimActive: false); // chrome dim 常开会压暗整个不透明欢迎页
         Wheel.Confirmed += OnMenuConfirmed;
 

@@ -30,6 +30,9 @@ public partial class RadialWheel : Node2D
     /// <summary>回退到父层（模型即刻回退，动画随后弹回）。</summary>
     public event Action? Backed;
 
+    /// <summary>弧面中点聚焦项变化（滚轮/键盘步进、拖拽、改层后）；参数为新聚焦索引，供面板联动。</summary>
+    public event Action<int>? FocusChanged;
+
     // ---------------- 布局常量（1080p 设计值；UI 不走 world_scale） ----------------
     private const float Radius = 640f; // 主动环半径
     private const float BandW = 120f; // 环带宽
@@ -110,6 +113,7 @@ public partial class RadialWheel : Node2D
     private float _idleT = 100f; // 距上次交互秒数（初值视为已超时）
     private bool _engaged;
     private bool _mouseInZone;
+    private int _lastFocusIdx = -1;
     private float _spinA; // 轮毂活性环透明度（随活性态淡入淡出）
 
     // 静态几何/颜色缓冲（DrawPolygon/DrawPolyline 零分配）
@@ -217,6 +221,7 @@ public partial class RadialWheel : Node2D
         _rescan = true;
         Array.Clear(_h);
         _idleT = 0f;
+        _lastFocusIdx = -1;
         RepaintAll();
     }
 
@@ -277,6 +282,42 @@ public partial class RadialWheel : Node2D
     }
 
     public void TestBack() => DoBack();
+
+    /// <summary>收缩/回弹动画进行中（忙态）。外部联动绘制（如内容引线）可据此暂停跟随。</summary>
+    public bool IsBusy => _shrinkT >= 0f;
+
+    /// <summary>聚焦卡径向外缘尖端（含浮起/缩放/倾斜）的轮盘本地坐标；无可见聚焦卡返回 null。供引线类联动锚定。</summary>
+    public Vector2? FocusedTipLocal()
+    {
+        if (_model == null)
+        {
+            return null;
+        }
+
+        var i = _model.FocusedIndex;
+        if (i < 0 || i >= _model.OptionCount)
+        {
+            return null;
+        }
+
+        if (_h.Length != _model.OptionCount)
+        {
+            Array.Resize(ref _h, _model.OptionCount);
+        }
+
+        var a = (float)_model.AngleOf(i);
+        if (Mathf.Abs(a) > (float)_model.HalfSpan || (float)_model.AlphaAt(a) <= 0.05f)
+        {
+            return null;
+        }
+
+        var h = Mathf.Max(_h[i], 1f); // 聚焦卡 h 恒满（同 DrawCard 口径）
+        var aRad = Mathf.DegToRad(a);
+        var cardScale = 1f + 0.09f * h;
+        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * ((Radius + 6f * h) * _contentScale);
+        var rot = Mathf.Clamp(a * CardTiltFactor, -20f, 20f) * Mathf.DegToRad(1f);
+        return pos + (new Vector2((CardW * 0.5f + 6f) * cardScale, 0f)).Rotated(rot);
+    }
 
     // ---------------- 帧驱动：动画积分 / 视差 / 悬停 / 拖拽 ----------------
 
@@ -464,6 +505,12 @@ public partial class RadialWheel : Node2D
 
         _breath = 0.5f + (0.5f * Mathf.Sin(_time * Mathf.Tau * 0.8f));
         var fi = model.FocusedIndex;
+        if (fi != _lastFocusIdx)
+        {
+            _lastFocusIdx = fi;
+            FocusChanged?.Invoke(fi);
+        }
+
         for (var i = 0; i < n; i++)
         {
             var target = i == fi || i == _hoverIdx || i == _externalHighlight ? 1f : 0f;

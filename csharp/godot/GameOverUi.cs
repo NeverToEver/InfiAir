@@ -37,6 +37,7 @@ public partial class GameOverUi : RadialMenuLayer
     {
         Visible = false;
         BuildChrome();
+        SetContentAnchor(() => _plate);
         BuildMenu();
         Wheel.Confirmed += OnWheelConfirmed;
         var shell = UITheme.MakePageShell("GO_TITLE");

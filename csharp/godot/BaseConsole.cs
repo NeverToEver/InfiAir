@@ -46,6 +46,19 @@ public partial class BaseConsole : RadialMenuLayer
     private readonly Dictionary<string, Label> _titleLabels = new();
     private Label _routeHintLabel = null!;
     private readonly Dictionary<string, ChamferedPanel> _pages = new();
+
+    private Control? VisiblePage()
+    {
+        foreach (var page in _pages.Values)
+        {
+            if (page.Visible)
+            {
+                return page;
+            }
+        }
+
+        return null;
+    }
     private readonly Dictionary<string, Button> _categoryChips = new();
     private readonly ButtonGroup _chipGroup = new();
     private string _currentCategory = "hangar";
@@ -102,6 +115,7 @@ public partial class BaseConsole : RadialMenuLayer
         }
 
         BuildChrome();
+        SetContentAnchor(VisiblePage); // 右区面板按目录切换：引线锚定当前可见面板
         BuildBackdrop();
         RaiseWheel(); // 背景站体/扫描带在 chrome 之后入树：轮盘保持在其上
         BuildRightArea();

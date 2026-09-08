@@ -41,9 +41,11 @@ public partial class PauseUi : RadialMenuLayer
 
         BuildChrome();
         BuildRightArea();
+        SetContentAnchor(() => _hintPlate);
         Wheel.Confirmed += OnWheelConfirmed;
         Wheel.Drilled += _ => RefreshHint();
         Wheel.Backed += RefreshHint;
+        Wheel.FocusChanged += _ => RefreshHint(); // 说明卡实时跟随聚焦项（方向键/滚轮移动即刷新）
     }
 
     public override void _ExitTree()
