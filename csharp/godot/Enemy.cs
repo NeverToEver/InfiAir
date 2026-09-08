@@ -127,7 +127,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         SlowFieldFactor = CfgFx.Float("buffs.slow_field.factor", SlowFieldFactor, 0.0f, 1.0f);
         SpreadFanStep = CfgFx.Float("enemies.spread_fan_step", SpreadFanStep, 0.0f);
         // lifetime ≥0.05——≤0 使 _lifeTimer 首帧即达上限，敌机出生即寿命离场
-        Lifetime = CfgFx.Float("enemies.lifetime", Lifetime, 0.05f);
+        Lifetime = CfgFx.Float("enemies.lifetime", Lifetime, CfgFx.IntervalFloor);
         // exit_accel ≥0——负值使离场反向加速，寿命离场机永远离不开屏幕
         ExitAccel = CfgFx.Float("enemies.exit_accel", ExitAccel, 0.0f);
         AggrChaseSpeed = CfgFx.Float("enemies.aggressive_chase_speed", AggrChaseSpeed, 0.0f);

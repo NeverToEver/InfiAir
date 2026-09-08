@@ -93,11 +93,11 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
         Duration = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.duration", Duration).AsDouble(), 1.0f);
         // 2026-08-10 健壮性审查：enter_time 钳下限（StrikeCarrier.ENTER 的 _enterT/该值除零，
         // Clamp 兜底无 NaN，但降入瞬完成、视觉跳变）
-        EnterTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble(), 0.05f);
+        EnterTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble(), CfgFx.IntervalFloor);
         // rise_time 钳下限（同 enter_time 视觉跳变口径）
-        RiseTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.rise_time", RiseTime).AsDouble(), 0.05f);
+        RiseTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.rise_time", RiseTime).AsDouble(), CfgFx.IntervalFloor);
         // boss_resume_delay 钳下限（Schedule 负值行为未定义）
-        BossResumeDelay = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble(), 0.05f);
+        BossResumeDelay = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble(), CfgFx.IntervalFloor);
         TurretHpBase = (int)GameState.Instance.Cfg("elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
         // K14（H13 同族延续）：turret_counts/ammo_sequences 判型回退——非 Dictionary 时
         // 后续 .get() 在 Variant 上调用会运行时崩溃（G06 口径只覆盖了 fire_interval 等标量）
@@ -133,7 +133,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
         RewardScore = (int)GameState.Instance.Cfg("elite_turret_event.reward_score", RewardScore).AsInt64();
         HoverY = (float)GameState.Instance.Cfg("elite_turret_event.carrier.hover_y", HoverY).AsDouble();
         // cooldown 钳下限——0 冷却 + 高触发率下事件背靠背连发，波次被长期挤占近饿死
-        Cooldown = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.cooldown", Cooldown).AsDouble(), 0.05f);
+        Cooldown = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.cooldown", Cooldown).AsDouble(), CfgFx.IntervalFloor);
         _comm = new CommOverlay();
         AddChild(_comm);
         // U16：K15 对称兜底——与 FormationStrikeEvent 同款（事件节点先于 spawner 入树时

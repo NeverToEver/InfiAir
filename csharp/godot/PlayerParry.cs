@@ -42,7 +42,7 @@ public partial class PlayerParry : RefCounted
 
     public void Configure(float pDuration, float pActiveTime, float pCooldown)
     {
-        ActiveTime = Mathf.Clamp(pActiveTime, 0.05f, Mathf.Max(pDuration, 0.05f));
+        ActiveTime = Mathf.Clamp(pActiveTime, CfgFx.IntervalFloor, Mathf.Max(pDuration, CfgFx.IntervalFloor));
         Duration = Mathf.Max(pDuration, ActiveTime);
         CooldownMax = Mathf.Max(pCooldown, 0.0f);
     }

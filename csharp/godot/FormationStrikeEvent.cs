@@ -85,7 +85,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         // 崩溃，判型失败回退脚本默认）——min_score 负值分数 0 即触发；cooldown ≤0
         // 冷却失效、事件结束即刻可再触发（风暴）
         MinScore = CfgFx.Int("formation_strike_event.min_score", MinScore, 0);
-        Cooldown = CfgFx.Float("formation_strike_event.cooldown", Cooldown, 0.05f);
+        Cooldown = CfgFx.Float("formation_strike_event.cooldown", Cooldown, CfgFx.IntervalFloor);
         // Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
         var cc = GameState.Instance.Cfg("formation_strike_event.craft_counts", CraftCounts);
@@ -109,13 +109,13 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         ApproachY = CfgFx.Float("formation_strike_event.approach_y", ApproachY);
         // 2026-08-10 健壮性审查：turn_time 钳下限——0/负值时 FORMATION_TURN 的
         // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
-        TurnTime = CfgFx.Float("formation_strike_event.turn_time", TurnTime, 0.05f);
+        TurnTime = CfgFx.Float("formation_strike_event.turn_time", TurnTime, CfgFx.IntervalFloor);
         RunSpeed = CfgFx.Float("formation_strike_event.run_speed", RunSpeed, 0.1f);
-        BombInterval = CfgFx.Float("formation_strike_event.bomb_interval", BombInterval, 0.05f);
+        BombInterval = CfgFx.Float("formation_strike_event.bomb_interval", BombInterval, CfgFx.IntervalFloor);
         // AC8：bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
         BombsPerCraft = CfgFx.Int("formation_strike_event.bombs_per_craft", BombsPerCraft, 1, 20);
         BombFallSpeed = CfgFx.Float("formation_strike_event.bomb_fall_speed", BombFallSpeed, 0.1f);
-        BombFuse = CfgFx.Float("formation_strike_event.bomb_fuse", BombFuse, 0.05f);
+        BombFuse = CfgFx.Float("formation_strike_event.bomb_fuse", BombFuse, CfgFx.IntervalFloor);
         BombDamage = CfgFx.Int("formation_strike_event.bomb_damage", BombDamage, 0);
         BombRadius = CfgFx.Float("formation_strike_event.bomb_radius", BombRadius, 0.1f);
         RewardAllClear = CfgFx.Int("formation_strike_event.reward_all_clear", RewardAllClear, 0);

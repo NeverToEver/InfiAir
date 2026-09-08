@@ -317,7 +317,7 @@ public partial class Player : CharacterBody2D
         BoostMult = CfgFx.Float("player.boost_mult", BoostMult, 0.0f);
         FineMoveMult = CfgFx.Float("player.fine_move_mult", FineMoveMult, 0.0f);
         // AC2：base_fire_interval 钳 0.05 下限（同 laser tick_interval 族）——≤0 时每物理帧开火
-        BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, 0.05f);
+        BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, CfgFx.IntervalFloor);
         BulletSpeed = CfgFx.Float("player.bullet_speed", BulletSpeed, 0.0f);
         // AC2：crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
         CritChanceBase = CfgFx.Float("buffs.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
@@ -362,11 +362,11 @@ public partial class Player : CharacterBody2D
         // AC2：dash.distance/fuel_ratio/afterimage_interval 钳 ≥0——负值冲刺反向
         DashDistance = CfgFx.Float("player.dash.distance", DashDistance, 0.0f);
         // V 系列：dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
-        DashTime = CfgFx.Float("player.dash.time", DashTime, 0.05f);
+        DashTime = CfgFx.Float("player.dash.time", DashTime, CfgFx.IntervalFloor);
         // 2026-08-10 健壮性审查：dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
         // 且无 phase_dash 层数时 DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0
         // = NaN（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
-        DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, 0.05f);
+        DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, CfgFx.IntervalFloor);
         DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
         AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
         // AC2：graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣

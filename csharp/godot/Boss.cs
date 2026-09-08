@@ -413,18 +413,18 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EnrageRingSpeed = CfgFx.Float("boss.enrage.ring_speed", EnrageRingSpeed);
         // 2026-08-09 审计（R06 同族）：三个时序键作 EnrageSequence 除数的分母，0 值除零得 ±inf——
         // float 不崩、Clamp 收敛，但狂暴序列 1-2 帧内瞬间走完（行为退化）；下限钳制 ≥0.05
-        EnrageDuration = CfgFx.Float("boss.enrage.duration", EnrageDuration, 0.05f);
-        EnrageTransitionDuration = CfgFx.Float("boss.enrage.transition_duration", EnrageTransitionDuration, 0.05f);
+        EnrageDuration = CfgFx.Float("boss.enrage.duration", EnrageDuration, CfgFx.IntervalFloor);
+        EnrageTransitionDuration = CfgFx.Float("boss.enrage.transition_duration", EnrageTransitionDuration, CfgFx.IntervalFloor);
         // AC9（2026-08-11 健壮性审查）：三时序键钳下限 ≥0.05（R06 只封了 duration 族）——
         // attack_windup≤0 使 ACTIVE 一进入 _attackTimer 即触发（蓄力 telegraph 归零）；
         // attack_interval/release_interval≤0 → 狂暴回退/释放路径每帧攻击风暴
-        EnrageAttackInterval = CfgFx.Float("boss.enrage.attack_interval", EnrageAttackInterval, 0.05f);
-        EnrageAttackWindup = CfgFx.Float("boss.enrage.attack_windup", EnrageAttackWindup, 0.05f);
-        EnrageReleaseInterval = CfgFx.Float("boss.enrage.release_interval", EnrageReleaseInterval, 0.05f);
+        EnrageAttackInterval = CfgFx.Float("boss.enrage.attack_interval", EnrageAttackInterval, CfgFx.IntervalFloor);
+        EnrageAttackWindup = CfgFx.Float("boss.enrage.attack_windup", EnrageAttackWindup, CfgFx.IntervalFloor);
+        EnrageReleaseInterval = CfgFx.Float("boss.enrage.release_interval", EnrageReleaseInterval, CfgFx.IntervalFloor);
         // R06 同族：release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
         // （Clamp(1-(-inf))=1，Boss 瞬跳回退），下限钳制 ≥0.05
-        EnrageReleaseHoldDuration = CfgFx.Float("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration, 0.05f);
-        EnrageReturnDuration = CfgFx.Float("boss.enrage.return_duration", EnrageReturnDuration, 0.05f);
+        EnrageReleaseHoldDuration = CfgFx.Float("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration, CfgFx.IntervalFloor);
+        EnrageReturnDuration = CfgFx.Float("boss.enrage.return_duration", EnrageReturnDuration, CfgFx.IntervalFloor);
         EnragePathRadiusScale = CfgFx.Float("boss.enrage.path_radius_scale", EnragePathRadiusScale);
         // H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
         EnrageSquarePathRatio = CfgFx.Float("boss.enrage.square_path_ratio", EnrageSquarePathRatio, 0.05f, 1.0f);
@@ -518,7 +518,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         SweepDropDamage = CfgFx.Int("boss.phases.attacks.dash_sweep.drop_damage", SweepDropDamage);
         // 2026-08-10 健壮性审查：return_duration 钳下限——0 时 dash_sweep RETURN 段
         // _sweepTimer/该值除零（Clamp 兜底无 NaN，但 Boss 冲刺后全程钉在回退原点不动）
-        SweepReturnDuration = CfgFx.Float("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration, 0.05f);
+        SweepReturnDuration = CfgFx.Float("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration, CfgFx.IntervalFloor);
         VolleyCount = CfgFx.Int("boss.phases.attacks.minion_volley.count", VolleyCount);
         VolleyDelay = CfgFx.Float("boss.phases.attacks.minion_volley.delay", VolleyDelay);
         VolleyBulletSpeed = CfgFx.Float("boss.phases.attacks.minion_volley.bullet_speed", VolleyBulletSpeed);
@@ -529,32 +529,32 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         WallArcDeg = CfgFx.Float("boss.phases.attacks.bullet_wall.arc_deg", WallArcDeg);
         // 差异化狂暴参数（boss.enrage.type_*）
         // R06：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
-        E1RingInterval = CfgFx.Float("boss.enrage.type_1.ring_interval", E1RingInterval, 0.05f);
+        E1RingInterval = CfgFx.Float("boss.enrage.type_1.ring_interval", E1RingInterval, CfgFx.IntervalFloor);
         E1RingCount = CfgFx.Int("boss.enrage.type_1.ring_count", E1RingCount);
         E1RingSpeed = CfgFx.Float("boss.enrage.type_1.ring_speed", E1RingSpeed);
         E1RingPrecessionDeg = CfgFx.Float("boss.enrage.type_1.ring_precession_deg", E1RingPrecessionDeg);
-        E1SalvoCharge = CfgFx.Float("boss.enrage.type_1.salvo_charge", E1SalvoCharge, 0.05f);
+        E1SalvoCharge = CfgFx.Float("boss.enrage.type_1.salvo_charge", E1SalvoCharge, CfgFx.IntervalFloor);
         E1SalvoCount = CfgFx.Int("boss.enrage.type_1.salvo_count", E1SalvoCount);
         E1SalvoSpeed = CfgFx.Float("boss.enrage.type_1.salvo_speed", E1SalvoSpeed);
         E1SalvoDamage = CfgFx.Int("boss.enrage.type_1.salvo_damage", E1SalvoDamage);
         // AB4：point_count 钳下限 4（同族 count 键 E1RingCount/E3RingCount 等均有 floor，
         // 独漏此项）——配 0 使 _attackIndex < E2PointCount 恒假，二型狂暴 ACTIVE 冻结
         E2PointCount = CfgFx.Int("boss.enrage.type_2.point_count", E2PointCount, 4);
-        E2PointInterval = CfgFx.Float("boss.enrage.type_2.point_interval", E2PointInterval, 0.05f);
+        E2PointInterval = CfgFx.Float("boss.enrage.type_2.point_interval", E2PointInterval, CfgFx.IntervalFloor);
         E2Aim = CfgFx.Float("boss.enrage.type_2.aim", E2Aim);
         E2SniperSpeed = CfgFx.Float("boss.enrage.type_2.sniper_speed", E2SniperSpeed);
         E2SniperDamage = CfgFx.Int("boss.enrage.type_2.sniper_damage", E2SniperDamage);
         E2ReleaseRingCount = CfgFx.Int("boss.enrage.type_2.release_ring_count", E2ReleaseRingCount);
         E2ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_2.release_ring_speed", E2ReleaseRingSpeed);
-        E3SummonInterval = CfgFx.Float("boss.enrage.type_3.summon_interval", E3SummonInterval, 0.05f);
+        E3SummonInterval = CfgFx.Float("boss.enrage.type_3.summon_interval", E3SummonInterval, CfgFx.IntervalFloor);
         // G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
         // AC7（2026-08-11 健壮性审查）：孪生键 E3SummonInterval 已钳 ≥0.05（上方同族）；≤0 时
         // _summonTimer 每帧归零 → 每物理帧召唤风暴（SummonMinions 刷兵失控）
-        _summonInterval = CfgFx.Float("boss.phases.type3.summon_interval", _summonInterval, 0.05f);
+        _summonInterval = CfgFx.Float("boss.phases.type3.summon_interval", _summonInterval, CfgFx.IntervalFloor);
         _summonTimer = _summonInterval;
         E3SummonWaves = CfgFx.Int("boss.enrage.type_3.summon_waves", E3SummonWaves);
         E3SummonCount = CfgFx.Int("boss.enrage.type_3.summon_count", E3SummonCount);
-        E3RingInterval = CfgFx.Float("boss.enrage.type_3.ring_interval", E3RingInterval, 0.05f);
+        E3RingInterval = CfgFx.Float("boss.enrage.type_3.ring_interval", E3RingInterval, CfgFx.IntervalFloor);
         E3RingCount = CfgFx.Int("boss.enrage.type_3.ring_count", E3RingCount);
         E3RingSpeed = CfgFx.Float("boss.enrage.type_3.ring_speed", E3RingSpeed);
         E3ReleaseRingCount = CfgFx.Int("boss.enrage.type_3.release_ring_count", E3ReleaseRingCount);
@@ -564,9 +564,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         BulletDamageRing = CfgFx.Int("boss.bullet_damage.ring", BulletDamageRing);
         Move4BobAmp = CfgFx.Float("boss.movement.type4.bob_amp", Move4BobAmp);
         // W 系列（2026-08-09）：bob_period 下限 0.05——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 越界（R06 同族，MoveBob 侧已有 0.01 保护）
-        Move4BobPeriod = CfgFx.Float("boss.movement.type4.bob_period", Move4BobPeriod, 0.05f);
+        Move4BobPeriod = CfgFx.Float("boss.movement.type4.bob_period", Move4BobPeriod, CfgFx.IntervalFloor);
         E4RingCount = CfgFx.Int("boss.enrage.type_4.ring_count", E4RingCount);
-        E4RingInterval = CfgFx.Float("boss.enrage.type_4.ring_interval", E4RingInterval, 0.05f);
+        E4RingInterval = CfgFx.Float("boss.enrage.type_4.ring_interval", E4RingInterval, CfgFx.IntervalFloor);
         E4RingSpeed = CfgFx.Float("boss.enrage.type_4.ring_speed", E4RingSpeed);
         E4PrecessionDeg = CfgFx.Float("boss.enrage.type_4.precession_deg", E4PrecessionDeg);
         E4ReleaseRingCount = CfgFx.Int("boss.enrage.type_4.release_ring_count", E4ReleaseRingCount);
@@ -911,7 +911,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             {
                 var pattern = CurrentPattern();
                 // AB3：运行期兜底——interval 钳下限 0.05（装入清洗外的入口防每帧攻击风暴）
-                _fireTimer = Mathf.Max(PatternInterval(pattern), 0.05f);
+                _fireTimer = Mathf.Max(PatternInterval(pattern), CfgFx.IntervalFloor);
                 _attacks.Execute((StringName)pattern.GetValueOrDefault("attack", NoAttack), this);
                 if (!_patternIsDuration)
                 {
@@ -971,7 +971,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
 
         // AB3：运行期兜底——首装同样钳下限（装入清洗外的入口）
-        _fireTimer = Mathf.Max(PatternInterval(pattern), 0.05f);
+        _fireTimer = Mathf.Max(PatternInterval(pattern), CfgFx.IntervalFloor);
     }
 
     private void AdvancePattern()
@@ -1080,7 +1080,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
                     // 即触发攻击（波次模式 1 帧烧 1 波、时长模式连射至弹上限）
                     if (pat.GetValueOrDefault("interval", new Variant()).VariantType is Variant.Type.Int or Variant.Type.Float)
                     {
-                        pat["interval"] = Mathf.Max((float)pat["interval"].AsDouble(), 0.05f);
+                        pat["interval"] = Mathf.Max((float)pat["interval"].AsDouble(), CfgFx.IntervalFloor);
                     }
                     cleaned.Add(pat);
                 }

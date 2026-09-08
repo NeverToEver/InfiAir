@@ -456,7 +456,7 @@ public partial class ReturnCinematic : CanvasLayer
         var t = new Godot.Timer
         {
             OneShot = true,
-            WaitTime = Mathf.Max(wait, 0.05f),
+            WaitTime = Mathf.Max(wait, CfgFx.IntervalFloor),
             Autostart = true,
         };
         parent.AddChild(t);

@@ -138,8 +138,8 @@ public partial class Spawner : Node
         // L06（2026-08-03 审查）：间隔键下限钳制（H15 同族遗漏）——wave_interval_start ≤ 0 时
         // _current_interval 的 clampf 上界 ≤0 返回负值，_wave_timer 恒 ≤0 每帧刷一波（预告线
         // /Timer 无界增长挂死）；ramp_time ≤ 0 时 ramp 曲线瞬时跳变
-        WAVE_INTERVAL_START = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_start", WAVE_INTERVAL_START).AsDouble(), 0.05f);
-        WAVE_INTERVAL_END = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), 0.05f);
+        WAVE_INTERVAL_START = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_start", WAVE_INTERVAL_START).AsDouble(), CfgFx.IntervalFloor);
+        WAVE_INTERVAL_END = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), CfgFx.IntervalFloor);
         RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("spawner.ramp_time", RAMP_TIME).AsDouble(), 0.01f);
         INTERVAL_MIN = Mathf.Max((float)GameState.Instance.Cfg("spawner.interval_min", INTERVAL_MIN).AsDouble(), 0.0f);
         // L06 同族延续：boss_score_step 下限钳制——配 ≤0 时 _nextBossScore 不推进

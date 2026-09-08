@@ -727,7 +727,7 @@ public partial class GameEventManager : Node
         }
 
         _fogActiveEvent = ev;
-        var duration = Mathf.Max((float)FogNum(FOG_EVENT_DURATIONS, pId, 6.0), 0.05f);
+        var duration = Mathf.Max((float)FogNum(FOG_EVENT_DURATIONS, pId, 6.0), CfgFx.IntervalFloor);
         if (_fogTimer != null && GodotObject.IsInstanceValid(_fogTimer))
         {
             _fogTimer.Stop(); // 防御：异常时序下的旧 timer 残留

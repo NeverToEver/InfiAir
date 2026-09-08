@@ -20,7 +20,7 @@ public partial class DirectionShiftEvent : FogEvent
     {
         // H15 族：≤0 每帧脉冲
         _interval = Mathf.Max(
-            (float)GameState.Instance.Cfg("fog_events.direction_shift.shift_interval", _interval).AsDouble(), 0.05f);
+            (float)GameState.Instance.Cfg("fog_events.direction_shift.shift_interval", _interval).AsDouble(), CfgFx.IntervalFloor);
         _hold = Mathf.Max((float)GameState.Instance.Cfg("fog_events.direction_shift.hold_time", _hold).AsDouble(), 0.0f);
         _acc = 0.0f;
         EmitShift(); // 事件开始立即脉冲一次

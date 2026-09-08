@@ -10,6 +10,10 @@ namespace InfiAir;
 /// </summary>
 public static class CfgFx
 {
+    /// <summary>时长/间隔类配置的统一钳制下限（R06 口径）：≤0 使计时器每帧触发（攻击风暴）
+    /// 或作除数产生 NaN/inf；0.05s ≈ 3 帧@60fps，为仍可感知的最小时长。</summary>
+    public const float IntervalFloor = 0.05f;
+
     public static float Float(string path, float def, float min = float.NegativeInfinity, float max = float.PositiveInfinity)
     {
         var v = GameState.Instance.Cfg(path, def);

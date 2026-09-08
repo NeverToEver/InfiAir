@@ -234,7 +234,7 @@ public partial class Mothership : Area2D
         MagCells = Mathf.Max((int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64(), 1);
         // AB7：mag_cell_time 钳下限 0.05（MagCells 同批孪生遗漏）——≤0 时 _magCellTimer ≥ 恒真
         // 每帧耗 1 格，STAY 驻留瞬结、警告/提前离舰路径失效
-        MagCellTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble(), 0.05f);
+        MagCellTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble(), CfgFx.IntervalFloor);
         MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
         WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
         // 2026-08-10 健壮性审查：early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰
@@ -273,9 +273,9 @@ public partial class Mothership : Area2D
         // _sweepTime * Tau / period 除零得 inf → SinFast 返回 NaN → 炮塔/弹方向 NaN（弹被
         // HasPoint(NaN) 恒 false 立即回收，每发开火空耗且无伤害）
         GatlingSweepLeftPeriod = Mathf.Max((float)GameState.Instance.Cfg("mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
-            .AsDouble(), 0.05f);
+            .AsDouble(), CfgFx.IntervalFloor);
         GatlingSweepRightPeriod = Mathf.Max((float)GameState.Instance.Cfg("mothership.gatling.sweep_right_period", GatlingSweepRightPeriod)
-            .AsDouble(), 0.05f);
+            .AsDouble(), CfgFx.IntervalFloor);
         GatlingSweepRightPhase = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_phase", GatlingSweepRightPhase)
             .AsDouble();
         MissileInterval = (float)GameState.Instance.Cfg("mothership.missile.interval", MissileInterval).AsDouble();

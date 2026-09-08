@@ -77,7 +77,7 @@ public partial class TalentPanel : CanvasLayer
     {
         Visible = false;
         _main = GetParent<Main>();
-        _chargeDuration = Mathf.Max((float)GameState.Instance.Cfg("talent.panel.charge_time", 0.55).AsDouble(), 0.05f); // H15：=0 除零
+        _chargeDuration = Mathf.Max((float)GameState.Instance.Cfg("talent.panel.charge_time", 0.55).AsDouble(), CfgFx.IntervalFloor); // H15：=0 除零
         BuildDim();
         BuildWheel();
         BuildRightArea();
