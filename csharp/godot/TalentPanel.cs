@@ -562,6 +562,9 @@ public partial class TalentPanel : CanvasLayer
         // holder 承载入场/退场位移：轮盘自身 _Process 视差会写自己的 Position，两者解耦
         _wheelHolder = new Node2D { Position = WheelRest };
         _wheel = new RadialWheel { BackLabel = Tr("TALENT_BACK") };
+        // 混合页（右区面板含焦点控件：升级/超载按钮与概览卡）：轮盘不接管方向键，
+        // 留给页面焦点链（轮盘 _Input 先于 GUI 相位，不关会抢走整页键盘导航）
+        _wheel.KeyboardEnabled = false;
         _wheelHolder.AddChild(_wheel);
         AddChild(_wheelHolder);
         _wheel.Confirmed += OnWheelConfirmed;

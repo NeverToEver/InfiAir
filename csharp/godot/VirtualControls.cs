@@ -154,13 +154,24 @@ public partial class VirtualControls : CanvasLayer
             return;
         }
 
+        // 暂停中只放行抬起（清理触摸态，防恢复后残留注入）；新按下/拖动一律忽略——
+        // 注入目标（玩家）已冻结，且按下命中区可能与暂停页轮盘命中区重叠双消费
+        var paused = GetTree().Paused;
         if (@event is InputEventScreenTouch touch)
         {
+            if (paused && touch.Pressed)
+            {
+                return;
+            }
+
             OnTouch(touch.Index, touch.Pressed, touch.Position);
         }
         else if (@event is InputEventScreenDrag drag)
         {
-            OnDrag(drag.Index, drag.Position);
+            if (!paused)
+            {
+                OnDrag(drag.Index, drag.Position);
+            }
         }
     }
 

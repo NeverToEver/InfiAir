@@ -703,14 +703,16 @@ public partial class RadialWheel : Node2D
 
             if (@event.IsActionPressed("ui_accept"))
             {
+                // 先标输入再 Confirm：确认回调可能同步切场景/重载（结算页、暂停页），
+                // 本节点摘树后 GetViewport() 返回 null，后置标记必 NRE
                 _idleT = 0f;
+                GetViewport().SetInputAsHandled();
                 var focused = _model.FocusedIndex;
                 if (focused >= 0)
                 {
                     Confirm(_model, focused);
                 }
 
-                GetViewport().SetInputAsHandled();
                 return;
             }
         }

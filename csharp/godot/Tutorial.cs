@@ -675,6 +675,8 @@ public partial class TutorialEscRouter : Node
     {
         if (@event.IsActionPressed("ui_cancel"))
         {
+            // 先标输入再转发：转发回调（ExitTutorial）切场景摘树后 GetViewport() 为 null
+            GetViewport().SetInputAsHandled();
             OnCancel?.Invoke();
         }
     }
