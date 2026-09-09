@@ -121,9 +121,8 @@ public abstract partial class RadialMenuLayer : CanvasLayer
     }
 
     /// <summary>轮盘可见性同步（宿主开/关时调用；Node2D._Input 不随 CanvasLayer 隐藏失效）。
-    /// dimActive：chrome 遮罩的显隐（默认跟随轮盘）。非模态宿主页（welcome 自带不透明底、
-    /// settings 自带 page shell 遮罩）必须显式传 false——chrome Dim 是最上层全屏 84% 黑罩，
-    /// 常开会把整页压暗（welcome 实测整页发暗）。</summary>
+    /// dimActive：chrome 遮罩的显隐（默认跟随轮盘）。自带遮罩的非模态宿主页（settings 的
+    /// page shell）必须显式传 false——chrome Dim 是最上层全屏 84% 黑罩，常开会把整页过压暗。</summary>
     protected void SetWheelActive(bool active, bool? dimActive = null)
     {
         Wheel.Visible = active;

@@ -192,8 +192,8 @@ public partial class Hud : CanvasLayer
         _parryTag.AddThemeFontOverride("font", Font);
         _parryTag.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
         _parryTag.AddThemeColorOverride("font_color", UITheme.TextDim);
-        // HpBar 全息化（META_HUD_DESIGN §4.3/§6 明示层）：底盘更透 + 填充段 ADD 伪泛光
-        _hpBar.EmptyColor = new Color(0.05f, 0.09f, 0.14f, 0.25f);
+        // HpBar 全息化：底盘更透 + 填充段 ADD 伪泛光
+        _hpBar.EmptyColor = new Color(UITheme.SlotDark, 0.25f);
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         _hpBar.Material = hpHolo;
         var gs = GameState.Instance;
@@ -571,7 +571,7 @@ public partial class Hud : CanvasLayer
             _lastMagCells = ms.GetMagCells();
             for (var i = 0; i < _magCellsNodes.Count; i++)
             {
-                _magCellsNodes[i].Color = i < ms.GetMagCells() ? UITheme.Accent : new Color(0.05f, 0.09f, 0.14f, 0.8f);
+                _magCellsNodes[i].Color = i < ms.GetMagCells() ? UITheme.Accent : new Color(UITheme.SlotDark, 0.8f);
             }
         }
         else
@@ -945,7 +945,7 @@ public partial class Hud : CanvasLayer
         string phaseText;
         if (_bossPhase == FightPhaseP2) // M3d：Boss.FightPhase.P2（C# 枚举经常量）
         {
-            phaseText = "P2";
+            phaseText = (string)Tr("BOSS_PHASE_P2");
         }
         else if (_bossPhase == FightPhaseEnrage) // M3d：Boss.FightPhase.ENRAGE（C# 枚举经常量）
         {
@@ -953,10 +953,10 @@ public partial class Hud : CanvasLayer
         }
         else
         {
-            phaseText = "P1";
+            phaseText = (string)Tr("BOSS_PHASE_P1");
         }
 
-        _bossName.Text = GdFormat.Format("%s · %s", (string)Tr(GdFormat.Format("BOSS_TYPE_%d", _boss.BossType)), phaseText);
+        _bossName.Text = GdFormat.Format("%s · %s", (string)Tr($"BOSS_TYPE_{_boss.BossType}"), phaseText);
         _bossName.AddThemeColorOverride("font_color", _bossPhase == FightPhaseEnrage ? UITheme.Danger : UITheme.Text);
     }
 
@@ -1279,7 +1279,7 @@ public partial class Hud : CanvasLayer
         row.MouseFilter = Control.MouseFilterEnum.Ignore;
         row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
         var nameLabel = UITheme.MakeLabel(
-            (string)Tr(GdFormat.Format("AUG_%s_NAME", id.ToString().ToUpperInvariant())), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
+            (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
         nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         row.AddChild(nameLabel);
         if (stacks > 1)

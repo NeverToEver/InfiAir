@@ -612,7 +612,7 @@ public partial class Spawner : Node
         // 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
         var interval = baseInterval * (float)GameState.Instance.SpawnIntervalMultiplier()
             / (1.0f + DIFFICULTY_FACTOR * ((float)GameState.Instance.DifficultyMultiplier - 1.0f));
-        // B 梯队（fair plan §8）：DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
+        // B 梯队：DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
         // clamp 上界同步乘因子，避免拉长效果被上限吞掉
         return Mathf.Clamp(
             interval * (float)GameState.Instance.DdaFactor(),

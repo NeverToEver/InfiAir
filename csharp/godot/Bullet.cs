@@ -17,7 +17,7 @@ public partial class Bullet : Area2D
     public const float CollisionRadius = 6.0f;
 
     /// <summary>U14 同款：bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
-    /// 本类 _applyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
+    /// 本类 ApplyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
     internal static readonly StringName MetaBulletType = new("bullet_type");
 
     /// <summary>R07 访问器（供 Player 擦弹环形带判定等调用方读取；常量唯一事实源不变）。</summary>
@@ -86,7 +86,7 @@ public partial class Bullet : Area2D
     // 静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规）
 
     /// <summary>回池（Player 磁吸拾取等路径调用）。</summary>
-    public void Despawn() => _despawn();
+    public void Despawn() => DespawnInternal();
 
     /// <summary>兼容路径：直接实例化时 setup() 后由 _ready 应用阵营外观（4 参便捷重载）。</summary>
     public void Setup(Vector2 pDirection, float pSpeed, int pDamage, bool pIsPlayer)
@@ -135,7 +135,7 @@ public partial class Bullet : Area2D
         Visible = true;
         Monitoring = true;
         SetPhysicsProcess(true); // C04：位移走物理帧，与 Area2D overlap 检测同步
-        _applyFaction();
+        ApplyFaction();
     }
 
     /// <summary>池化回收：停用但保留实例。</summary>
@@ -152,7 +152,7 @@ public partial class Bullet : Area2D
             GameState.Instance.UnregisterEnemyBullet(this);
         }
 
-        _cancelGrace();
+        CancelGrace();
         CallDeferred(MethodName.DeferredDisableMonitoring);
     }
 
@@ -206,8 +206,8 @@ public partial class Bullet : Area2D
         Damage = Mathf.Max(1, (int)Mathf.Round(Damage * ReflectDamageMult));
         Homing = false;
         HomingTarget = null;
-        _cancelGrace();
-        _applyFaction();
+        CancelGrace();
+        ApplyFaction();
     }
 
     public override void _Ready()
@@ -232,7 +232,7 @@ public partial class Bullet : Area2D
             circle.Radius = CollisionRadius * (float)GameState.Instance.WorldScale;
         }
 
-        _applyFaction();
+        ApplyFaction();
     }
 
     public override void _ExitTree()
@@ -314,13 +314,13 @@ public partial class Bullet : Area2D
         Position += Direction * Speed * d;
         if (!FrameCache.ViewRect().Grow(80.0f).HasPoint(Position))
         {
-            _despawn();
+            DespawnInternal();
         }
     }
 
     /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
-    /// AC16（2026-08-11 审计）：删除其上孤儿「monitoring 延迟」summary（与 _explode 无关，AB21 同族）。</summary>
-    private void _explode()
+    /// AC16（2026-08-11 审计）：删除其上孤儿「monitoring 延迟」summary（与 Explode 无关，AB21 同族）。</summary>
+    private void Explode()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
         var radiusSq = ExplosiveRadius * ExplosiveRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
@@ -343,7 +343,7 @@ public partial class Bullet : Area2D
     }
 
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害。</summary>
-    private void _splash()
+    private void Splash()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
         var radiusSq = SplashRadius * SplashRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
@@ -396,12 +396,12 @@ public partial class Bullet : Area2D
                 // U13：is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 爆炸条件原为 !is_boss || 无方法 = true）
                 if (Explosive && area is not Boss)
                 {
-                    _explode();
+                    Explode();
                 }
 
                 if (SplashDamage > 0)
                 {
-                    _splash();
+                    Splash();
                 }
 
                 if (Pierce > 0)
@@ -410,14 +410,14 @@ public partial class Bullet : Area2D
                 }
                 else
                 {
-                    _despawn();
+                    DespawnInternal();
                 }
             }
         }
         else if (area.IsInGroup("player_hitbox"))
         {
             // 机制一：受击宽限帧——进入 Hitbox 不立即结算，窗口内离开视为擦过不计伤
-            _startGraceCheck(area);
+            StartGraceCheck(area);
         }
     }
 
@@ -426,12 +426,12 @@ public partial class Bullet : Area2D
     {
         if (area.IsInGroup("player_hitbox"))
         {
-            _cancelGrace();
+            CancelGrace();
         }
     }
 
     /// <summary>机制一：启动宽限窗口（事件驱动；一次性 Timer 挂子弹下随场景释放）。</summary>
-    private void _startGraceCheck(Area2D hitbox)
+    private void StartGraceCheck(Area2D hitbox)
     {
         if (_graceTimer != null && !_graceTimer.IsStopped())
         {
@@ -450,7 +450,7 @@ public partial class Bullet : Area2D
         _graceTimer.Start();
     }
 
-    private void _cancelGrace()
+    private void CancelGrace()
     {
         _graceTimer?.Stop();
         _graceHitbox = null; // 回收弹不携带旧 Hitbox 悬空引用
@@ -461,7 +461,7 @@ public partial class Bullet : Area2D
     {
         // 不以 _active 作守卫：非池化直实例化弹（Setup 路径）_active 恒 false，
         // 以它守卫会让兼容路径的宽限复核永远短路（受击免伤）。池化弹停用路径
-        // 已由 Deactivate→_cancelGrace 停 Timer，不会走到这里；摘树守卫防外部销毁
+        // 已由 Deactivate→CancelGrace 停 Timer，不会走到这里；摘树守卫防外部销毁
         if (!IsInsideTree() || _graceHitbox == null || !GodotObject.IsInstanceValid(_graceHitbox))
         {
             return;
@@ -487,17 +487,17 @@ public partial class Bullet : Area2D
             // P2-10：致死一击弹丸高亮残留
             if (player.IsDead())
             {
-                _lingerFatal();
+                LingerFatal();
             }
             else
             {
-                _despawn();
+                DespawnInternal();
             }
         }
     }
 
     /// <summary>P2-10：致死弹 0.5s 高亮残留（停位移/关碰撞/红闪高亮，一次性 Timer 到期回收）。</summary>
-    private void _lingerFatal(float duration = 0.5f)
+    private void LingerFatal(float duration = 0.5f)
     {
         SetPhysicsProcess(false);
         Monitoring = false;
@@ -511,14 +511,14 @@ public partial class Bullet : Area2D
         var t = new Godot.Timer { OneShot = true, WaitTime = duration };
         t.Timeout += () =>
         {
-            _despawn();
+            DespawnInternal();
             t.QueueFree();
         };
         AddChild(t);
         t.Start();
     }
 
-    private void _despawn()
+    private void DespawnInternal()
     {
         if (_pool != null && GodotObject.IsInstanceValid(_pool))
         {
@@ -530,13 +530,13 @@ public partial class Bullet : Area2D
         }
     }
 
-    private void _applyFaction()
+    private void ApplyFaction()
     {
         Rotation = Direction.Angle();
         // 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
         Scale = Vector2.One;
         Modulate = Colors.White;
-        _ensureTextures(); // P0-3：共享图集惰性生成（静态，首次调用）
+        EnsureTextures(); // P0-3：共享图集惰性生成（静态，首次调用）
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite == null)
         {
@@ -576,7 +576,7 @@ public partial class Bullet : Area2D
 
     /// <summary>P0-3：共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
     /// 弹体之下预铺椭圆辉光（横向拉长的能量拖尾感）；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
-    private static void _ensureTextures()
+    private static void EnsureTextures()
     {
         var gs = GameState.Instance;
         if (gs.BulletPlayerTex != null)

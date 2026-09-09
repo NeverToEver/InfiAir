@@ -16,7 +16,7 @@ namespace InfiAir;
 /// </summary>
 public partial class BaseConsole : RadialMenuLayer
 {
-    /// <summary>继续出击：返回同一局（main `_resume_from_base` / tutorial `_on_base_resume` 连接）。</summary>
+    /// <summary>继续出击：返回同一局（Main/Tutorial 经 ResumeRequested 信号连接）。</summary>
     [Signal]
     public delegate void ResumeRequestedEventHandler();
 
@@ -63,8 +63,8 @@ public partial class BaseConsole : RadialMenuLayer
         }
 
         var gradient = new Gradient();
-        gradient.SetColor(0, new Color(0.0f, 0.83f, 1.0f, 0.12f));
-        gradient.SetColor(1, new Color(0.0f, 0.83f, 1.0f, 0.0f));
+        gradient.SetColor(0, new Color(UITheme.Accent, 0.12f));
+        gradient.SetColor(1, new Color(UITheme.Accent, 0.0f));
         _glowTexture = new GradientTexture2D
         {
             Gradient = gradient,
@@ -78,26 +78,57 @@ public partial class BaseConsole : RadialMenuLayer
     }
 
     /// <summary>数据抖动装饰：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
-    /// （tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。</summary>
+    /// （tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。
+    /// 页面隐藏时经 VisibleChanged 暂停/恢复（关页后不再空转）。</summary>
     private void ApplyDataFlicker(Label label)
     {
-        var tween = CreateTween().SetLoops();
+        _dataFlickerTween = CreateTween().SetLoops();
         for (var i = 0; i < 8; i++) // 8 × 0.334s ≈ 2.67s
         {
-            tween.TweenProperty(label, "modulate:a", 0.92f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-            tween.TweenProperty(label, "modulate:a", 1.0f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            _dataFlickerTween.TweenProperty(label, "modulate:a", 0.92f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            _dataFlickerTween.TweenProperty(label, "modulate:a", 1.0f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         }
 
-        tween.TweenProperty(label, "position:x", 1.0f, 0.03);
-        tween.TweenInterval(0.03);
-        tween.TweenProperty(label, "position:x", 0.0f, 0.0);
+        _dataFlickerTween.TweenProperty(label, "position:x", 1.0f, 0.03);
+        _dataFlickerTween.TweenInterval(0.03);
+        _dataFlickerTween.TweenProperty(label, "position:x", 0.0f, 0.0);
+    }
+
+    /// <summary>永续装饰 tween 互斥缓存（页面隐藏期间暂停，防关页空转）。</summary>
+    private Tween? _dataFlickerTween;
+    private Tween? _scanTween;
+
+    /// <summary>页面隐藏时暂停装饰 tween、可见时恢复；树暂停期间照常播放
+    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。</summary>
+    private void OnVisibleChangedForFx()
+    {
+        void Apply(Tween? tween)
+        {
+            if (tween == null || !tween.IsValid())
+            {
+                return;
+            }
+
+            if (Visible)
+            {
+                tween.Play();
+            }
+            else
+            {
+                tween.Pause();
+            }
+        }
+
+        Apply(_dataFlickerTween);
+        Apply(_scanTween);
     }
 
     public override void _Ready()
     {
         Visible = false;
+        OnVisibleChangedForFx(); // 初始隐藏态：装饰 tween 直接暂停
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
             gs.Connect(GameState.SignalName.LocaleChanged, _localeChanged);
         }
@@ -112,17 +143,13 @@ public partial class BaseConsole : RadialMenuLayer
         // 混合页（右区面板含焦点控件：修复/充能/购买/领取按钮）：轮盘不接管方向键，
         // 留给页面焦点链（键盘导航已移到 _Input 先 GUI 相位，不关会抢走整页键盘导航）
         Wheel.KeyboardEnabled = false;
+        OnVisibleChangedForFx(); // 初始隐藏态：装饰 tween 直接暂停
     }
 
     public override void _ExitTree()
     {
         // C22 模式配对断开——死亡重开场景重载后残留连接在切语言时回调已释放实例
         var gs = GameState.Instance;
-        if (gs == null)
-        {
-            return;
-        }
-
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _localeChanged);
@@ -151,6 +178,7 @@ public partial class BaseConsole : RadialMenuLayer
         slowScan.Position = new Vector2(0.0f, -scanH);
         AddChild(slowScan);
         var scanTween = CreateTween().SetLoops();
+        _scanTween = scanTween;
         scanTween.TweenProperty(slowScan, "position:y", viewportSize.Y, 8.0).SetTrans(Tween.TransitionType.Linear);
         scanTween.TweenProperty(slowScan, "position:y", -scanH, 0.0);
     }
@@ -444,6 +472,7 @@ public partial class BaseConsole : RadialMenuLayer
         GameState.Instance.GrantRefreshPoints();
         Refresh();
         Visible = true;
+        OnVisibleChangedForFx();
         SetWheelActive(true);
         RebuildMenu();
         Wheel.FocusOption(0); // 开页聚焦「战机库」与默认目录对齐：默认弧面中点槽停在「任务规划」（聚焦/面板读法冲突）
@@ -475,7 +504,7 @@ public partial class BaseConsole : RadialMenuLayer
         var rp = GameState.Instance.Rp;
         _rpLabel.Text = GdFormat.Format((string)Tr("BASE_RP"), rp);
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C# # A5：走注册表
+        var player = playerV as Player; // M3c：Player 迁 C#（A5：走注册表，as 对非 Player/null 均得 null）
         // 战机库状态总览
         var augmentText = "";
         var augments = GameState.Instance.Augments;
@@ -483,7 +512,7 @@ public partial class BaseConsole : RadialMenuLayer
         {
             var id = key.AsStringName();
             // 显示名走翻译键（与天赋面板/HUD 明细栏同源），不裸显内部 id
-            augmentText += GdFormat.Format("%s×%d  ", (string)Tr("AUG_" + id.ToString().ToUpperInvariant() + "_NAME"), augments[key].AsInt32());
+            augmentText += GdFormat.Format("%s×%d  ", (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), augments[key].AsInt32());
         }
 
         if (augmentText.Length == 0)
@@ -497,7 +526,7 @@ public partial class BaseConsole : RadialMenuLayer
             fuelPct = (int)(player.FuelRatio() * 100.0f);
         }
 
-        var health = (float)GameState.Instance.Health; // double 全程——(float) 截断致维修后 99.9999≠max（smoke flake 根因）
+        var health = (float)GameState.Instance.Health; // double 全程——(float) 截断会使维修 heal 差值无法精确回满
         var maxHealth = (float)GameState.Instance.MaxHealth();
         _statusLabel.Text = GdFormat.Format((string)Tr("BASE_STATUS_FMT"), Mathf.CeilToInt(health), fuelPct, augmentText);
         // 文案刷新
@@ -657,12 +686,8 @@ public partial class BaseConsole : RadialMenuLayer
         }
     }
 
-    /// <summary>路线契约绑定/切换（签名：routeId；非法/无代币由服务侧拒绝）。</summary>
-    public void ChooseRoute(StringName routeId) => OnRoutePressed(routeId);
 
-    public void BuyResetToken() => OnBuyTokenPressed();
 
-    public void ClaimMission(StringName id) => OnClaimPressed(id);
 
     public void Resume() => OnResumePressed();
 
@@ -684,7 +709,7 @@ public partial class BaseConsole : RadialMenuLayer
     private void OnRechargePressed()
     {
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV != null ? playerV as Player : null; // M3c：Player 迁 C# # A5：走注册表
+        var player = playerV as Player; // M3c：Player 迁 C#（A5：走注册表，as 对非 Player/null 均得 null）
         var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
         if (player != null && GameState.Instance.SpendRp(rpRechargeCost))
         {
@@ -810,6 +835,7 @@ public partial class BaseConsole : RadialMenuLayer
     private void OnResumePressed()
     {
         Visible = false;
+        OnVisibleChangedForFx();
         SetWheelActive(false);
         EmitSignal(SignalName.ResumeRequested);
     }

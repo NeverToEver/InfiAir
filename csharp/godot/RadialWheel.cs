@@ -276,7 +276,7 @@ public partial class RadialWheel : Node2D
         }
 
         _model.MoveFocus(index - _model.FocusedIndex);
-        _lastFocusIdx = _model.FocusedIndex; // 抑合成 FocusChanged（同 Load:261）
+        _lastFocusIdx = _model.FocusedIndex; // 与 Load 的初始装载共用同一「不重发 FocusChanged」抑合口径
         _rescan = true;
         _cards.Repaint();
     }
@@ -322,19 +322,9 @@ public partial class RadialWheel : Node2D
         }
     }
 
-    public void TestScrollBy(double slots)
-    {
-        if (_model == null)
-        {
-            return;
-        }
-
-        _model.ScrollBy(slots);
-        _rescan = true;
-        _cards?.Repaint();
-    }
-
-    public bool TestDrill(int index)
+    /// <summary>程序化下钻探测（TalentPanel 右区节点激活联动左轮下钻）：目标层可下钻时
+    /// 置下钻态并启动收缩动画（收缩完成时提交下钻），返回能否下钻。</summary>
+    public bool DrillInto(int index)
     {
         if (_model == null || !_model.CanDrill(index))
         {
@@ -348,8 +338,6 @@ public partial class RadialWheel : Node2D
         _shrinkT = 0f;
         return true;
     }
-
-    public void TestBack() => DoBack();
 
     /// <summary>收缩/回弹动画进行中（忙态）。外部联动绘制（如内容引线）可据此暂停跟随。</summary>
     public bool IsBusy => _shrinkT >= 0f;

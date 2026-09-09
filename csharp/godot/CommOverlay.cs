@@ -31,7 +31,7 @@ public partial class CommOverlay : CanvasLayer
         {
             Position = new Vector2(24.0f, 760.0f),
             Size = new Vector2(760.0f, 96.0f),
-            BgColor = new Color(0.10f, 0.03f, 0.09f, 0.78f),
+            BgColor = UITheme.CommBgDark,
             BorderColor = new Color(UITheme.EventMagenta, 0.6f), // 精英品红描边
             BracketColor = UITheme.EventMagenta,
             Brackets = true,

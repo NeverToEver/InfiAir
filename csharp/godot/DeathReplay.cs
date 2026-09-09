@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// B 梯队（fair plan §8）：死亡回放——环形缓冲录制最近 RECORD_SECONDS 秒的敌弹位置轨迹，
+/// B 梯队：死亡回放——环形缓冲录制最近 RECORD_SECONDS 秒的敌弹位置轨迹，
 /// 玩家死亡后以幽灵弹幕重放（死因可见，最强公平感信号；只重放不结算，零碰撞）。
 /// 录制在 main._process（存活期渲染帧采样；死亡后树暂停，main._process 冻结自然停止）；
 /// 重放演出节点 process_mode=ALWAYS，暂停树中照常播放，播完自毁。
@@ -125,7 +125,5 @@ public partial class DeathReplay : RefCounted
         return player;
     }
 
-    /// <summary>已录制帧数（诊断观测口）。</summary>
-    public int FrameCount() => _frameCount;
 
 }

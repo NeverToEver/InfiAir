@@ -66,7 +66,7 @@ public partial class ReturnCinematic : CanvasLayer
         Callable.From(Advance).CallDeferred();
     }
 
-    /// <summary>任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.skip_return()（公开接口，A7 后经 _skip_return 落地）</summary>
+    /// <summary>任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.SkipReturn()</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
         if (_done || @event.IsActionPressed("ui_cancel"))

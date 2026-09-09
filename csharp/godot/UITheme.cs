@@ -34,6 +34,9 @@ public partial class UITheme : RefCounted
     public static readonly Color SteelCyanPressed = new(0.30f, 0.62f, 0.78f);
     public static readonly Color PanelSteelTint = new(0.20f, 0.27f, 0.40f, 0.85f); // PanelContainer 暗钢底衬（名牌/下拉等）
     public static readonly Color DimBg = new(0.006f, 0.012f, 0.024f, 0.84f); // 全屏遮罩：深青黑强压暗
+    /// <summary>暗钢空槽基色：仪表空槽/弹仓空格/扇形根圆的公共 RGB，各用途配不同 alpha。</summary>
+    public static readonly Color SlotDark = new(0.05f, 0.09f, 0.14f);
+    public static readonly Color CommBgDark = new(0.10f, 0.03f, 0.09f, 0.78f); // 通讯面板暗品红底（与 EventMagenta 同系不同值）
     public static readonly Color EventMagenta = new(1.0f, 0.25f, 0.75f); // 随机事件/通讯品红
     public static readonly Color WarnYellow = new(1.0f, 0.8f, 0.35f); // 蓄力/提示黄
     public static readonly Color ChargeCyan = new(0.5f, 0.9f, 1.0f); // 蓄力青

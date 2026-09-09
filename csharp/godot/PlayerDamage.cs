@@ -142,7 +142,7 @@ public class PlayerDamage
         else if (SinceDamage >= GameState.Instance.PassiveRegenDelay())
         {
             // M5：(float) 截断致 health 被 float 精度污染（50+9.2→59.2000004798174），
-            // 后续 base 维修 heal 差值不精确回满（smoke flake 根因）；全程 double
+            // 后续 base 维修 heal 差值不精确回满；健康全程 double
             GameState.Instance.Heal(GameState.Instance.PassiveRegenRate() * delta);
         }
     }

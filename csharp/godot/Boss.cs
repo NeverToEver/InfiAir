@@ -1208,7 +1208,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>慢速力场与狂暴移速倍率之间的基础开火间隔（DDA 降档拉长，不降弹数/收益）。</summary>
     private float BaseFireInterval()
     {
-        // B 梯队（fair plan §8）：DDA 降档拉长 Boss 攻击间隔（不降弹数/收益，分数公平）
+        // B 梯队：DDA 降档拉长 Boss 攻击间隔（不降弹数/收益，分数公平）
         var idx = Mathf.Clamp(BossType - 1, 0, FireIntervals.Count - 1);
         return (float)FireIntervals[idx].AsDouble() * (float)GameState.Instance.DdaFactor();
     }

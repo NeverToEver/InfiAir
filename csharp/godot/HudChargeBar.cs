@@ -20,8 +20,6 @@ public partial class HudChargeBar : VBoxContainer
     private string _promptFormat = "";
     private int _lastPercent = -1;
 
-    /// <summary>填充条（诊断白盒：AnchorRight 即进度）。</summary>
-    public ColorRect Fill => _fill;
 
     /// <summary>工厂：promptFormat 走翻译串（%d 百分比占位），color 为通道色，slot 为底部居中锚下的槽位偏移。</summary>
     public static HudChargeBar Create(string promptFormat, Color color, Vector2 slot)

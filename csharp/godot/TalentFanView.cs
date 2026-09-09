@@ -354,7 +354,7 @@ public partial class TalentFanView : Control
         var talent = GameState.Instance.Talent;
         // 根芯片（大类入口）
         var pulse = _pulsePhase ? 0.35f : 0.22f;
-        DrawCircle(new Vector2((float)rootX, (float)rootY), 30f, new Color(0.05f, 0.09f, 0.14f, 0.95f));
+        DrawCircle(new Vector2((float)rootX, (float)rootY), 30f, new Color(UITheme.SlotDark, 0.95f));
         DrawArc(new Vector2((float)rootX, (float)rootY), 30f, 0f, Mathf.Tau, 40, new Color(UITheme.Accent, pulse), 2f, true);
         DrawString(_font, new Vector2((float)rootX - 100f, (float)rootY + 6f), Tr(cat.NameKey),
             HorizontalAlignment.Center, 200f, 14, UITheme.TextDim);

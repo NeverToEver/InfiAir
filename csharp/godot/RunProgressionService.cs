@@ -35,7 +35,7 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>难度进程乘数（GameState 公开属性转发）。</summary>
     public double DifficultyMultiplier { get; set; } = 1.0;
 
-    /// <summary>B 梯队（fair plan §8）：DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
+    /// <summary>B 梯队：DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
     /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存（GameState 公开属性转发）。</summary>
     public double DDA_DURATION { get; set; } = 5.0;
 
@@ -123,7 +123,7 @@ public sealed partial class RunProgressionService : RefCounted
             GameState.Instance.DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["score"].AsInt64(), 0L, (long)int.MaxValue);
     }
 
-    /// <summary>B 梯队（fair plan §8）：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
+    /// <summary>B 梯队：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
     /// （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
     public bool DdaActive() => _ddaTimer > 0.0;
 

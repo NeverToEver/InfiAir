@@ -315,10 +315,6 @@ public partial class SettingsUi : RadialMenuLayer
         _capturingAction = new StringName();
     }
 
-    public CanvasLayer? Opener()
-    {
-        return _opener;
-    }
 
     public void Back()
     {
@@ -331,15 +327,7 @@ public partial class SettingsUi : RadialMenuLayer
         return _capturingAction;
     }
 
-    public Godot.Collections.Dictionary ZoomButtons()
-    {
-        return _zoomButtons;
-    }
 
-    public Godot.Collections.Dictionary WindowButtons()
-    {
-        return _windowButtons;
-    }
 
     private void OnResetKeys()
     {
@@ -652,21 +640,13 @@ public partial class SettingsUi : RadialMenuLayer
         }
     }
 
-    /// <summary>打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见</summary>
-    public void ShowSettings()
+    /// <summary>开关/按钮组选中态从 GameState 全量刷新（开页与切语言共用一套序列）。</summary>
+    private void RefreshToggleStates()
     {
-        ShowSettings(null);
-    }
-
-    public void ShowSettings(CanvasLayer? openerLayer)
-    {
-        _opener = openerLayer;
         _ctrlHold.SetPressedNoSignal(!GameState.Instance.CtrlToggleMode);
         _ctrlToggle.SetPressedNoSignal(GameState.Instance.CtrlToggleMode);
         _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
         _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
-        RefreshRebindRows();
-        RefreshLangButtons();
         RefreshZoomButtons();
         RefreshWindowButtons();
         RefreshDiffButtons();
@@ -675,6 +655,16 @@ public partial class SettingsUi : RadialMenuLayer
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
+    }
+
+    /// <summary>打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见</summary>
+
+    public void ShowSettings(CanvasLayer? openerLayer)
+    {
+        _opener = openerLayer;
+        RefreshRebindRows();
+        RefreshLangButtons();
+        RefreshToggleStates();
         _hintLabel.Text = "";
         _capturingAction = new StringName();
         ShowPage(PageControls);
@@ -780,18 +770,7 @@ public partial class SettingsUi : RadialMenuLayer
         // 键盘 Tab 循环与手柄方向键导航中断（对齐 show_settings 的 grab_focus 约定）
         ((Button)_navButtons[current].AsGodotObject()).GrabFocus();
         // 操作模式按钮选中态刷新
-        _ctrlHold.SetPressedNoSignal(!GameState.Instance.CtrlToggleMode);
-        _ctrlToggle.SetPressedNoSignal(GameState.Instance.CtrlToggleMode);
-        _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
-        _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
-        RefreshZoomButtons();
-        RefreshWindowButtons();
-        RefreshDiffButtons();
-        RefreshAimButtons();
-        _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
-        _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
-        _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
-        _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
+        RefreshToggleStates();
     }
 
     /// <summary>首个内容页的父容器（= shell content VBox；取 _pages 首个值的父容器）。</summary>

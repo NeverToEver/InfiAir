@@ -869,7 +869,7 @@ public partial class Player : CharacterBody2D
         var d = (float)delta;
         // 帧首缓存 GameState 门面：本方法多次读取设置域，避免重复 Instance 判活/根节点查询。
         var gs = GameState.Instance;
-        // A2(2026-08-11 审计):同帧双 GetTicksMsec 合并——帧首取一次,761/866 行复用(免同帧两次系统时钟查询)
+        // 同帧双 GetTicksMsec 合并：帧首取一次、本帧内复用（免同帧多次系统时钟查询）
         var nowMs = (long)Time.GetTicksMsec();
         if (_dead)
         {

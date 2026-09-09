@@ -140,7 +140,7 @@ public partial class IntroCinematic : CanvasLayer
         grain.Material = new ShaderMaterial { Shader = new Shader { Code = Code } };
     }
 
-    /// <summary>任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.skip_intro()（公开接口，A7 后经 _skip_intro 落地）</summary>
+    /// <summary>任意键/鼠标点击跳过；Esc（ui_cancel）放行给 BackNavigator 路由到 Main.SkipIntro()</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
         if (_done || @event.IsActionPressed("ui_cancel"))

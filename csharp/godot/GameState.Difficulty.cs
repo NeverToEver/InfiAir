@@ -25,7 +25,7 @@ public partial class GameState : Node
 
     public int ScoreMultiplier() => _runProg.ScoreMultiplier();
 
-    /// <summary>B 梯队（fair plan §8）：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
+    /// <summary>B 梯队：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
     /// （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
     public bool DdaActive() => _runProg.DdaActive();
 

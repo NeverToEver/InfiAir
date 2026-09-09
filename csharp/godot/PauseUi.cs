@@ -173,17 +173,6 @@ public partial class PauseUi : RadialMenuLayer
         GameState.Instance.SetTreePaused(false);
     }
 
-    public void Toggle()
-    {
-        if (Visible)
-        {
-            Close();
-        }
-        else
-        {
-            Open();
-        }
-    }
 
     /// <summary>设置页返回/退出确认取消时的恢复入口：恢复可见 + 轮盘活性
     /// （OnSettingsPressed/OnQuitPressed 离开前均做了 Visible=false + SetWheelActive(false)，

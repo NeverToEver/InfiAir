@@ -153,7 +153,7 @@ public partial class ExitConfirm : CanvasLayer
         var tween = CreateTween();
         tween.TweenProperty(fade, "color:a", 1.0, 0.3);
         // H17（健壮性审核）：tween_callback 替代 await——淡出期间场景卸载/双退出时
-        // tween 随节点释放自动取消，不留挂起协程（AGENTS 协程纪律）
+        // tween 随节点释放自动取消，不留挂起协程
         tween.TweenCallback(Callable.From(() => GetTree().Quit()));
     }
 

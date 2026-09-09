@@ -5,9 +5,9 @@ namespace InfiAir;
 /// <summary>
 /// 分段条（Sci-Fi FUI）：N 段小切角块，填充主强调色，空段暗色。
 /// 兼容旧 ProgressBar 用法：value / max_value（0-100）。
-/// 分段血条（2026-08-03 机制三）：seg_weights 非空时按权重分格（段序 = 文档阶段顺序，
+/// 分段血条：SegWeights 非空时按权重分格（段序 = Boss 阶段顺序，
 /// P1→P2→ENRAGE 从左到右），每段对应一段 HP 区间、消耗从左端开始（P1 段先暗化），
-/// 段色按 seg_colors 逐段着色；未设置时保持既有等分语义（HP/燃料/dash 条零改动）。
+/// 段色按 SegColors 逐段着色；未设置时保持等分语义（HP/燃料/dash 条）.
 /// Control 子类，[Export] PascalCase 属性（tscn 以同名访问）。
 /// </summary>
 public partial class SegmentedBar : Control
@@ -38,7 +38,7 @@ public partial class SegmentedBar : Control
         }
     }
 
-    private Color _emptyColor = new(0.05f, 0.09f, 0.14f, 0.8f);
+    private Color _emptyColor = new(UITheme.SlotDark, 0.8f);
 
     [Export]
     public Color EmptyColor
@@ -194,7 +194,7 @@ public partial class SegmentedBar : Control
     }
 
     /// <summary>分段血条绘制：按权重分格，逐段按消耗度填充（未消耗全亮、部分消耗暗底+右侧亮区、
-    /// 已消耗全暗）。段色按 seg_colors 逐段取色（当前消耗段的高亮 = 段内亮区）。</summary>
+    /// 已消耗全暗）。段色按 SegColors 逐段取色（当前消耗段的高亮 = 段内亮区）。</summary>
     private void DrawWeighted(float gap)
     {
         var ratio = Mathf.Clamp(Value / MaxValue, 0.0f, 1.0f);

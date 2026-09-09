@@ -41,7 +41,7 @@ public partial class Main : Node2D
     private Starfield _starfield = null!;
     private Camera2D _camera = null!;
     private bool _gameOver;
-    /// <summary>B 梯队（fair plan §8）：死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
+    /// <summary>B 梯队：死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
     private readonly DeathReplay _replay = new();
     private bool _homecoming;
     private AudioStreamPlayer? _bgmPlayer;
@@ -277,9 +277,7 @@ public partial class Main : Node2D
 
     public Hud Hud() => _hud;
 
-    public BaseConsole BaseUi() => _baseUi;
 
-    public PauseUi PauseUi() => _pauseUi;
 
     /// <summary>天赋缓存面板（HUD 指示器点击入口）。</summary>
     public TalentPanel TalentPanel() => _talentUi;

@@ -70,17 +70,11 @@ public partial class Tutorial : Node2D
         _onPlayerDied = Callable.From(OnPlayerDied);
     }
 
-    public CanvasLayer? BaseUi() => _baseUi;
 
-    public bool Finished() => _finished;
 
-    public bool Failed() => _failed;
 
-    public Label TitleLabel() => _titleLabel;
 
-    public Label ObjectiveLabel() => _objectiveLabel;
 
-    public PanelContainer? CompletePanel() => _completePanel;
 
     public override void _Ready()
     {
@@ -327,7 +321,7 @@ public partial class Tutorial : Node2D
         if (_stage == 0)
         {
             SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { _stageKills });
-            if (_stageKills >= 3)
+            if (_stageKills >= AimTargetKillGoal)
             {
                 PassStage();
             }
@@ -335,7 +329,7 @@ public partial class Tutorial : Node2D
         else if (_stage == 2)
         {
             SetObjectiveTr("TUT_S3_OBJ", new Godot.Collections.Array { _stageKills });
-            if (_stageKills >= 5)
+            if (_stageKills >= CombatKillGoal)
             {
                 PassStage();
             }

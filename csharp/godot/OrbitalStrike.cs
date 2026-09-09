@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 轨道打击清场动画（对齐原作 homecoming ORBITAL_STRIKE 阶段）。
-/// 从基地「继续出击」时由 main._resume_from_base() 触发；树保持暂停播放（process_mode=Always）。
+/// 从基地「继续出击」时由 Main 恢复路径触发；树保持暂停播放（process_mode=Always）。
 /// 时轴（进度 p = t / DURATION）：
 ///   [0, MISSILE_FROM)         瞄准具淡入：命中点脉冲环 ×3 + 十字线（青色）
 ///   [MISSILE_FROM, IMPACT_AT) 导弹自屏顶 ease-in 下落（拖尾线 + 三角弹体 + 辉光头）

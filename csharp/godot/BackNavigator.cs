@@ -46,7 +46,7 @@ public partial class BackNavigator : Node
     private TalentPanel _talentUi = null!;
     private PauseUi _pauseUi = null!; // U13：typed
     private SettingsUi _settingsUi = null!; // U13：typed
-    private CanvasLayer _gameOverUi = null!;
+    private GameOverUi _gameOverUi = null!; // U13：typed
     private BaseConsole _baseUi = null!; // U13：typed
     private ExitConfirm _exitConfirm = null!; // U13：typed
 
@@ -57,7 +57,7 @@ public partial class BackNavigator : Node
         _talentUi = GetParent().GetNode<TalentPanel>("TalentUI");
         _pauseUi = GetParent().GetNode<PauseUi>("PauseUI");
         _settingsUi = GetParent().GetNode<SettingsUi>("SettingsUI");
-        _gameOverUi = GetParent().GetNode<CanvasLayer>("GameOverUI");
+        _gameOverUi = GetParent().GetNode<GameOverUi>("GameOverUI");
         _baseUi = GetParent().GetNode<BaseConsole>("BaseUI");
         _exitConfirm = GetParent().GetNode<ExitConfirm>("ExitConfirm");
     }
@@ -69,8 +69,7 @@ public partial class BackNavigator : Node
         // （点在面板内右键返回失灵）。固定手势不参与改键（Esc/R 同类固定）。
         // 改键捕获态：DecideBackAction = CAPTURE_PASSTHROUGH → GoBack 无副作用且不消费事件，
         // 由 SettingsUi._Input 取消捕获（两处 _Input 无论先后序均幂等）。
-        // 2026-08-06 审计声明：本实现仅覆盖 main.tscn（BackNavigator 挂 Main 下）；
-        // welcome 顶层（无返回目标）右键无效，Esc 走退出确认——文档未声明该例外，此处补注
+        // 本实现仅覆盖 main.tscn（BackNavigator 挂 Main 下），其余场景各自处理返回
         if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
             GoBack();
