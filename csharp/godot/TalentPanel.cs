@@ -83,22 +83,19 @@ public partial class TalentPanel : CanvasLayer
         BuildWheel();
         BuildRightArea();
         var gs = GameState.Instance;
-        if (gs != null)
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
-            {
-                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
-            }
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.TalentsChanged, _onTalentsChanged))
-            {
-                gs.Connect(GameState.SignalName.TalentsChanged, _onTalentsChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.TalentsChanged, _onTalentsChanged))
+        {
+            gs.Connect(GameState.SignalName.TalentsChanged, _onTalentsChanged);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.TalentCacheChanged, _onCacheChanged))
-            {
-                gs.Connect(GameState.SignalName.TalentCacheChanged, _onCacheChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.TalentCacheChanged, _onCacheChanged))
+        {
+            gs.Connect(GameState.SignalName.TalentCacheChanged, _onCacheChanged);
         }
     }
 
@@ -106,11 +103,6 @@ public partial class TalentPanel : CanvasLayer
     {
         // C22 模式：显式断开 GameState 信号连接（对齐 PauseUi/Hud）
         var gs = GameState.Instance;
-        if (gs == null)
-        {
-            return;
-        }
-
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);

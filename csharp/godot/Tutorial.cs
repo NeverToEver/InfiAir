@@ -88,12 +88,12 @@ public partial class Tutorial : Node2D
         _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
-        if (gs != null && !gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
+        if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
@@ -113,11 +113,6 @@ public partial class Tutorial : Node2D
         // U02（2026-08-09 审计）：C22 模式配对断开——教程 Esc/完成退出后残留连接
         // 在正局死亡（PlayerDied 高频）或切语言时回调已释放实例
         var gs = GameState.Instance;
-        if (gs == null)
-        {
-            return;
-        }
-
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);

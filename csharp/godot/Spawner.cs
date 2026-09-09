@@ -470,6 +470,8 @@ public partial class Spawner : Node
         boss.SetSpawner(this); // A5：依赖注入，替代 Boss 侧 group 现找
         var view = GameState.Instance.ViewWorldRect(); // D10：Boss 入场锚点统一 view 基线
         boss.Position = new Vector2(view.GetCenter().X, view.Position.Y - 160.0f);
+        // C# 事件订阅（非 Godot Connect）：委托随发布者 boss 的包装对象消亡，无需手动退订
+        // （C22 手动断开纪律仅针对 Connect 连接不随接收方释放自动断开的场景）
         boss.Died += () => OnBossDied(boss);
         boss.Escaped += OnBossEscaped;
         GetParent()!.AddChild(boss);

@@ -61,7 +61,7 @@ public partial class ExitConfirm : CanvasLayer
         row.AddChild(_okButton);
 
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
@@ -70,7 +70,7 @@ public partial class ExitConfirm : CanvasLayer
     public override void _ExitTree()
     {
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }

@@ -140,7 +140,7 @@ public partial class Main : Node2D
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
         _events.SetRunActive(GetTree().CurrentScene == this);
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
+        if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
@@ -169,13 +169,13 @@ public partial class Main : Node2D
         AddChild(_virtualControls);
         GameState.Instance.VirtualControls = _virtualControls;
         _virtualControls.SetEnabled(GameState.Instance.TouchControls);
-        if (gs != null && !gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
+        if (!gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
         {
             gs.Connect(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged);
         }
 
         ApplyCameraZoom();
-        if (gs != null && !gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
+        if (!gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
         {
             gs.Connect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
         }
@@ -248,11 +248,6 @@ public partial class Main : Node2D
         // C22 模式（M6）：GameState 信号显式断开——退出时 GameState 先于本节点释放的
         // 时序下连接悬空可致退出 segfault（M5 实测定位；原 GDScript 自动断开，C# 需手动）
         var gs = GameState.Instance;
-        if (gs == null)
-        {
-            return;
-        }
-
         if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
@@ -855,6 +850,7 @@ public partial class Main : Node2D
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
         _mothership = MothershipScene.Instantiate<Mothership>();
         _mothership.BeginWarpIn(gatePos, gate);
+        // C# 事件/TreeExited 订阅随 _mothership 包装对象消亡，无需手动退订（C22 仅针对 Connect）
         _mothership.Departed += OnMothershipDepartedInternal;
         _mothership.TreeExited += () => _mothership = null;
         AddChild(_mothership);

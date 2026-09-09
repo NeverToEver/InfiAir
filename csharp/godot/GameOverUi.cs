@@ -45,19 +45,16 @@ public partial class GameOverUi : RadialMenuLayer
         _content.AddChild(_statsLabel);
 
         var gs = GameState.Instance;
-        if (gs != null)
+        // C22 IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
+        // 结算回调双跑（SettleRun 双执行）
+        if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            // 2026-08-10 健壮性审查：C22 IsConnected 守卫（对齐 PauseUi/Hud）——未走
-            // _ExitTree 的重入树路径会重复订阅，结算回调双跑（SettleRun 双执行）
-            if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
-            {
-                gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
-            }
+            gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
-            {
-                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        {
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
     }
 
@@ -65,17 +62,14 @@ public partial class GameOverUi : RadialMenuLayer
     {
         // C22：显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
-        if (gs != null)
+        if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
-            {
-                gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
-            }
+            gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
+        }
 
-            if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
-            {
-                gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
-            }
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        {
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
     }
 

@@ -31,7 +31,7 @@ public partial class PauseUi : RadialMenuLayer
         Visible = false;
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
@@ -48,6 +48,7 @@ public partial class PauseUi : RadialMenuLayer
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {
+            // C# 事件订阅：两者同树同生命周期，随对方消亡，无需退订（C22 仅针对 Connect）
             exitConfirm.Canceled += OnExitCanceled;
         }
     }
@@ -55,7 +56,7 @@ public partial class PauseUi : RadialMenuLayer
     public override void _ExitTree()
     {
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }

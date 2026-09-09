@@ -249,39 +249,36 @@ public partial class Player : CharacterBody2D
         LoadBalance();
         RefreshAugmentFactors();
         var gs = GameState.Instance;
-        if (gs != null)
+        if (!gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
         {
-            if (!gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
-            {
-                gs.Connect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
-            }
+            gs.Connect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
-            {
-                gs.Connect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
+        {
+            gs.Connect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
-            {
-                gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
+        {
+            gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
+        }
 
-            // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
-            var fogEvents = gs.FogEvents;
-            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
-            {
-                fogEvents.Connect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
-            }
+        // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
+        var fogEvents = gs.FogEvents;
+        if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
+        {
+            fogEvents.Connect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
+        }
 
-            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
-            {
-                fogEvents.Connect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
-            }
+        if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
+        {
+            fogEvents.Connect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
+        }
 
-            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
-            {
-                fogEvents.Connect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
-            }
+        if (!fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
+        {
+            fogEvents.Connect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
         }
     }
 
@@ -1641,38 +1638,35 @@ public partial class Player : CharacterBody2D
     {
         // C22：显式断开 GameState 信号连接（重入树不重复连接）
         var gs = GameState.Instance;
-        if (gs != null)
+        if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
         {
-            if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
-            {
-                gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
-            }
+            gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
+        }
 
-            if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
-            {
-                gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
-            }
+        if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
+        {
+            gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
+        }
 
-            if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
-            {
-                gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
-            }
+        if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
+        {
+            gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
+        }
 
-            var fogEvents = gs.FogEvents;
-            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
-            {
-                fogEvents.Disconnect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
-            }
+        var fogEvents = gs.FogEvents;
+        if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
+        {
+            fogEvents.Disconnect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
+        }
 
-            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
-            {
-                fogEvents.Disconnect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
-            }
+        if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
+        {
+            fogEvents.Disconnect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
+        }
 
-            if (fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
-            {
-                fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
-            }
+        if (fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
+        {
+            fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
         }
 
         // 2026-08-03 审计（C22 补齐）：子节点信号断开

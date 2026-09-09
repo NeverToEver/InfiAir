@@ -12,11 +12,11 @@ public partial class Explosion : GpuParticles2D
 {
     public const int PoolCap = 24;
 
-    private static readonly Godot.Collections.Array<Explosion> Pool = new();
     private static int _liveCount;
     private static float _visualScale = -1.0f;
     private static int _poolCap = -1;
-    private static Node? _poolNode;
+    // 池可用队列与宿主节点在 GameState 实例字段（ExplosionStock / ExplosionPoolHost）——
+    // 静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规）
 
     private GpuParticles2D _debris = null!;
     private Line2D _ring = null!;
@@ -28,24 +28,7 @@ public partial class Explosion : GpuParticles2D
     /// <summary>P2-1：活跃爆炸实例数（Meta HUD D3 亮度代理查询）。</summary>
     public static int LiveCount() => _liveCount;
 
-    /// <summary>P1-5：统一池节点惰性创建（挂 current_scene 下；跨场景重载失效重建）。</summary>
-    private static Node? _ensurePoolNode()
-    {
-        if (_poolNode != null && GodotObject.IsInstanceValid(_poolNode))
-        {
-            return _poolNode;
-        }
-
-        var tree = (SceneTree?)Engine.GetMainLoop();
-        if (tree == null || tree.CurrentScene == null)
-        {
-            return null;
-        }
-
-        _poolNode = new Node { Name = "ExplosionPool" };
-        tree.CurrentScene.AddChild(_poolNode);
-        return _poolNode;
-    }
+    private static Godot.Collections.Array<Explosion> Stock => GameState.Instance.ExplosionStock;
 
     public static void SpawnAt(Node parent, Vector2 pos)
     {
@@ -63,7 +46,7 @@ public partial class Explosion : GpuParticles2D
                 _poolCap = (int)GameState.Instance.Cfg("effects.explosion.pool_cap", PoolCap).AsInt64();
             }
 
-            e._pooled = Pool.Count < _poolCap;
+            e._pooled = Stock.Count < _poolCap;
             parent.AddChild(e);
         }
         else
@@ -96,10 +79,10 @@ public partial class Explosion : GpuParticles2D
 
     private static Explosion? _takeFromPool()
     {
-        while (Pool.Count > 0)
+        while (Stock.Count > 0)
         {
-            var e = Pool[Pool.Count - 1];
-            Pool.RemoveAt(Pool.Count - 1);
+            var e = Stock[Stock.Count - 1];
+            Stock.RemoveAt(Stock.Count - 1);
             if (GodotObject.IsInstanceValid(e))
             {
                 return e;
@@ -278,7 +261,7 @@ public partial class Explosion : GpuParticles2D
                 _liveCount--;
             }
 
-            Pool.Remove(this);
+            GameState.Instance.ExplosionStock.Remove(this);
         }
     }
 
@@ -293,10 +276,10 @@ public partial class Explosion : GpuParticles2D
         if (_pooled)
         {
             Visible = false;
-            Pool.Add(this);
+            Stock.Add(this);
             // P1-5：回池统一池节点——隐藏爆炸不再堆积在各 parent 下
             _repooling = true;
-            var pool = _ensurePoolNode();
+            var pool = GameState.Instance.ExplosionPoolHost();
             if (pool != null && pool != GetParent())
             {
                 Reparent(pool);

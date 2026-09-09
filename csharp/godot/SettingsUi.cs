@@ -166,33 +166,25 @@ public partial class SettingsUi : RadialMenuLayer
 
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameState.Instance;
-        if (gs != null)
+        if (!gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
         {
-            if (!gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
-            {
-                gs.Connect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
-            }
+            gs.Connect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
-            {
-                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
+        {
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        }
 
-            if (!gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
-            {
-                gs.Connect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
-            }
+        if (!gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
+        {
+            gs.Connect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
         }
     }
 
     public override void _ExitTree()
     {
         var gs = GameState.Instance;
-        if (gs == null)
-        {
-            return;
-        }
-
         if (gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
         {
             gs.Disconnect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);

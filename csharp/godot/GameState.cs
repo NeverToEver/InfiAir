@@ -182,7 +182,39 @@ public partial class GameState : Node
     /// Main._Process 逐帧维护，Main._Ready/_ExitTree 复位（场景切换不残留）。</summary>
     public bool SummonInProgress { get; set; }
 
-    /// 静态缓存——autoload 在 root 下恒存在）</summary>
+    /// <summary>弹体共享纹理缓存（Bullet 首次应用外观时惰性生成，全实例共用）。
+    /// 实例字段而非静态——静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规），
+    /// 本 autoload 与引擎同生命周期，承担跨对局缓存职责。</summary>
+    public Texture2D? BulletPlayerTex { get; set; }
+    public Texture2D? BulletEnemyTex { get; set; }
+
+    /// <summary>爆炸粒子池可用队列（Explosion.OnFinished 回池 / SpawnAt 取用；元素失效由
+    /// 取用方 IsInstanceValid 过滤）。实例字段而非静态——同上铁律。</summary>
+    public Godot.Collections.Array<Explosion> ExplosionStock { get; } = new();
+
+    private Node? _explosionPoolHost;
+
+    /// <summary>爆炸回池统一宿主（挂 current_scene 下维持绘制序在场景内容之上；跨场景
+    /// 重载随旧场景销毁，此处检测失效并重建）。</summary>
+    public Node? ExplosionPoolHost()
+    {
+        if (_explosionPoolHost != null && GodotObject.IsInstanceValid(_explosionPoolHost))
+        {
+            return _explosionPoolHost;
+        }
+
+        var tree = (SceneTree?)Engine.GetMainLoop();
+        if (tree == null || tree.CurrentScene == null)
+        {
+            return null;
+        }
+
+        _explosionPoolHost = new Node { Name = "ExplosionPool" };
+        tree.CurrentScene.AddChild(_explosionPoolHost);
+        return _explosionPoolHost;
+    }
+
+    /// <summary>静态缓存——autoload 在 root 下恒存在，缓存失效（场景树已拆）时重查，取不到抛异常。</summary>
     private static GameState? _instance;
 
     public static GameState Instance
@@ -461,7 +493,8 @@ public partial class GameState : Node
         TranslationServer.SetLocale(Locale);
         _input.ApplyKeyBindings(); // 第七轮拆域：键位域 InputMap 应用（InputBindingsService）
         _input.BindJoypadDefaults(); // 第七轮拆域：键位域手柄装配（InputBindingsService）
-        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——第七轮拆域：服务公开方法接线
+        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——第七轮拆域：服务公开方法接线。
+        // 引擎静态事件 + 本 autoload 进程级恒存，无需退订（C22 仅针对 Connect）
         Input.JoyConnectionChanged += _input.OnJoyConnectionChanged;
         _input.DetectJoyLayout();
         _score.InitMilestones(); // 里程碑首档初始化（ScoreService；默认 3000 = MilestoneBase[0]）

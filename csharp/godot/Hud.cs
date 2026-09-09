@@ -101,6 +101,16 @@ public partial class Hud : CanvasLayer
     private Vector2 _hpBarRest;
     private Vector2 _augmentDockRest;
     private Tween? _jitterTween;
+    /// <summary>GameState 信号连接（C22：保存在字段，连接/断开共用同一 Callable，
+    /// 不依赖现场重建 Callable 的委托相等语义）。</summary>
+    private Callable _onScoreChanged;
+    private Callable _onHealthChanged;
+    private Callable _onDifficultyChanged;
+    private Callable _onDifficultySelected;
+    private Callable _onLocaleChanged;
+    private Callable _onAugmentsChanged;
+    private Callable _onKeyBindingsChanged;
+    private Callable _onTalentCacheChanged;
 
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
     private const int AugmentDockMaxTiles = 4;
@@ -186,12 +196,17 @@ public partial class Hud : CanvasLayer
         _hpBar.EmptyColor = new Color(0.05f, 0.09f, 0.14f, 0.25f);
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         _hpBar.Material = hpHolo;
-        var gs = GameState.Instance!;
-        gs.Connect(GameState.SignalName.ScoreChanged, Callable.From<int>(OnScoreChanged));
-        gs.Connect(GameState.SignalName.HealthChanged, Callable.From<float>(OnHealthChanged));
-        gs.Connect(GameState.SignalName.DifficultyChanged, Callable.From<float>(OnDifficultyChanged));
-        gs.Connect(GameState.SignalName.DifficultySelected, Callable.From<StringName>(OnDifficultySelected));
-        gs.Connect(GameState.SignalName.LocaleChanged, Callable.From(OnLocaleChanged));
+        var gs = GameState.Instance;
+        _onScoreChanged = Callable.From<int>(OnScoreChanged);
+        _onHealthChanged = Callable.From<float>(OnHealthChanged);
+        _onDifficultyChanged = Callable.From<float>(OnDifficultyChanged);
+        _onDifficultySelected = Callable.From<StringName>(OnDifficultySelected);
+        _onLocaleChanged = Callable.From(OnLocaleChanged);
+        ConnectGs(GameState.SignalName.ScoreChanged, _onScoreChanged);
+        ConnectGs(GameState.SignalName.HealthChanged, _onHealthChanged);
+        ConnectGs(GameState.SignalName.DifficultyChanged, _onDifficultyChanged);
+        ConnectGs(GameState.SignalName.DifficultySelected, _onDifficultySelected);
+        ConnectGs(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         OnScoreChanged(GameState.Instance.Score);
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
@@ -262,9 +277,12 @@ public partial class Hud : CanvasLayer
         BuildAugmentDock();
         BuildCacheIndicator();
         BuildInfoBanner();
-        gs.Connect(GameState.SignalName.AugmentsChanged, Callable.From(RebuildAugmentDock));
-        gs.Connect(GameState.SignalName.KeyBindingsChanged, Callable.From(RefreshAugmentTag));
-        gs.Connect(GameState.SignalName.TalentCacheChanged, Callable.From<double, int>(OnTalentCacheChanged));
+        _onAugmentsChanged = Callable.From(RebuildAugmentDock);
+        _onKeyBindingsChanged = Callable.From(RefreshAugmentTag);
+        _onTalentCacheChanged = Callable.From<double, int>(OnTalentCacheChanged);
+        ConnectGs(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
+        ConnectGs(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
+        ConnectGs(GameState.SignalName.TalentCacheChanged, _onTalentCacheChanged);
         RebuildAugmentDock();
         RefreshCacheIndicator();
         _hpBarRest = _hpBar.Position;
@@ -419,8 +437,8 @@ public partial class Hud : CanvasLayer
 
     public override void _ExitTree()
     {
-        // U05（2026-08-09 审计）：Boss 四 [Signal] 配对断开——Godot 信号不随接收方释放
-        // 自动断开，Hud 先于 Boss 释放时存活期信号回调已释放 Hud
+        // Boss 四 [Signal] 配对断开——Godot 信号不随接收方释放自动断开，
+        // Hud 先于 Boss 释放时存活期信号回调已释放 Hud
         if (_boss != null && GodotObject.IsInstanceValid(_boss))
         {
             _boss.HealthChanged -= OnBossHealthChanged;
@@ -429,54 +447,36 @@ public partial class Hud : CanvasLayer
             _boss.PhaseChanged -= OnBossPhaseChanged;
         }
 
-        // C22 模式（M5）：GameState 信号显式断开——本类此前缺 _ExitTree（其他 C# UI 均有），
-        // 退出时 GameState 先于本节点释放的时序下连接悬空可致退出 segfault（实测定位）
+        // C22 模式（M5）：GameState 信号显式断开——GameState 为 autoload 恒存于 root，
+        // 本节点释放后存活期信号回调仍指向已释放的 Hud 可致退出崩溃；断开与连接共用
+        // 同一字段 Callable，八个信号全部配对（含 TalentCacheChanged）
+        DisconnectGs(GameState.SignalName.ScoreChanged, _onScoreChanged);
+        DisconnectGs(GameState.SignalName.HealthChanged, _onHealthChanged);
+        DisconnectGs(GameState.SignalName.DifficultyChanged, _onDifficultyChanged);
+        DisconnectGs(GameState.SignalName.DifficultySelected, _onDifficultySelected);
+        DisconnectGs(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        DisconnectGs(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
+        DisconnectGs(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
+        DisconnectGs(GameState.SignalName.TalentCacheChanged, _onTalentCacheChanged);
+    }
+
+    /// <summary>GameState 信号连接（IsConnected 守卫防场景重载时序下重复连接）。</summary>
+    private void ConnectGs(StringName signal, Callable callable)
+    {
         var gs = GameState.Instance;
-        if (gs == null)
+        if (!gs.IsConnected(signal, callable))
         {
-            return;
+            gs.Connect(signal, callable);
         }
+    }
 
-        var score = Callable.From<int>(OnScoreChanged);
-        var health = Callable.From<float>(OnHealthChanged);
-        var diff = Callable.From<float>(OnDifficultyChanged);
-        var diffSel = Callable.From<StringName>(OnDifficultySelected);
-        var locale = Callable.From(OnLocaleChanged);
-        var buffs = Callable.From(RebuildAugmentDock);
-        var keybinds = Callable.From(RefreshAugmentTag);
-        if (gs.IsConnected(GameState.SignalName.ScoreChanged, score))
+    /// <summary>GameState 信号断开（IsConnected 守卫防未连先断报错）。</summary>
+    private void DisconnectGs(StringName signal, Callable callable)
+    {
+        var gs = GameState.Instance;
+        if (gs.IsConnected(signal, callable))
         {
-            gs.Disconnect(GameState.SignalName.ScoreChanged, score);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.HealthChanged, health))
-        {
-            gs.Disconnect(GameState.SignalName.HealthChanged, health);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.DifficultyChanged, diff))
-        {
-            gs.Disconnect(GameState.SignalName.DifficultyChanged, diff);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.DifficultySelected, diffSel))
-        {
-            gs.Disconnect(GameState.SignalName.DifficultySelected, diffSel);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.LocaleChanged, locale))
-        {
-            gs.Disconnect(GameState.SignalName.LocaleChanged, locale);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.AugmentsChanged, buffs))
-        {
-            gs.Disconnect(GameState.SignalName.AugmentsChanged, buffs);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.KeyBindingsChanged, keybinds))
-        {
-            gs.Disconnect(GameState.SignalName.KeyBindingsChanged, keybinds);
+            gs.Disconnect(signal, callable);
         }
     }
 

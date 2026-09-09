@@ -68,7 +68,13 @@ public sealed partial class CombatStateService : RefCounted
 
     public void LoseHealth(double amount = 1.0)
     {
+        var before = Health;
         Health = Mathf.Max(Health - amount, 0.0);
+        if (Health == before)
+        {
+            return; // 值未变（已为 0 的重复掉血）不重复发射，幂等
+        }
+
         HealthChanged?.Invoke(Health);
         // PlayerDied 不在此发射（2026-09-09 时序修复）：原此处 Health<=0 即发，先于 player.Die()，
         // 回调内 IsDead()==false 是订阅者时序陷阱；现由 Player.DieInternal 在 _dead 置位后发射，

@@ -82,8 +82,8 @@ public partial class Bullet : Area2D
         new(-4.5f, -1.5f), new(2, -1.5f), new(5.5f, 0), new(2, 1.5f), new(-4.5f, 1.5f),
     };
 
-    private static Texture2D? _playerTex;
-    private static Texture2D? _enemyTex;
+    // 弹体共享纹理缓存放 GameState 实例字段（BulletPlayerTex/BulletEnemyTex）——
+    // 静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规）
 
     /// <summary>回池（Player 磁吸拾取等路径调用）。</summary>
     public void Despawn() => _despawn();
@@ -459,7 +459,10 @@ public partial class Bullet : Area2D
     /// <summary>宽限到期：单次 overlaps 复核——仍与 Hitbox 重叠才结算。</summary>
     private void OnGraceTimeout()
     {
-        if (!_active || _graceHitbox == null || !GodotObject.IsInstanceValid(_graceHitbox))
+        // 不以 _active 作守卫：非池化直实例化弹（Setup 路径）_active 恒 false，
+        // 以它守卫会让兼容路径的宽限复核永远短路（受击免伤）。池化弹停用路径
+        // 已由 Deactivate→_cancelGrace 停 Timer，不会走到这里；摘树守卫防外部销毁
+        if (!IsInsideTree() || _graceHitbox == null || !GodotObject.IsInstanceValid(_graceHitbox))
         {
             return;
         }
@@ -540,7 +543,7 @@ public partial class Bullet : Area2D
             return;
         }
 
-        _sprite.Texture = IsPlayerBullet ? _playerTex : _enemyTex;
+        _sprite.Texture = IsPlayerBullet ? GameState.Instance.BulletPlayerTex : GameState.Instance.BulletEnemyTex;
         _sprite.Scale = Vector2.One * (IsPlayerBullet ? VisualScale : EnemyVisualScale);
         // M1 审计：self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）
         _sprite.SelfModulate = Colors.White;
@@ -571,18 +574,19 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>P0-3：共享纹理惰性生成（静态，全实例共用；首次调用光栅化一次）。
+    /// <summary>P0-3：共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
     /// 弹体之下预铺椭圆辉光（横向拉长的能量拖尾感）；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void _ensureTextures()
     {
-        if (_playerTex != null)
+        var gs = GameState.Instance;
+        if (gs.BulletPlayerTex != null)
         {
             return;
         }
 
-        _playerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.9f, 0.25f), ArrowCore, Colors.White,
+        gs.BulletPlayerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.9f, 0.25f), ArrowCore, Colors.White,
             new Color(1.0f, 0.8f, 0.35f, 0.4f));
-        _enemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.38f, 0.3f), System.Array.Empty<Vector2>(), Colors.Transparent,
+        gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.38f, 0.3f), System.Array.Empty<Vector2>(), Colors.Transparent,
             new Color(1.0f, 0.42f, 0.3f, 0.4f));
     }
 

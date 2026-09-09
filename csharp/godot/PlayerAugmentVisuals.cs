@@ -79,7 +79,7 @@ public partial class PlayerAugmentVisuals : Node2D
         _BuildAll(shipSprite.Texture);
         Refresh();
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
+        if (!gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
             gs.Connect(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         }
@@ -89,7 +89,7 @@ public partial class PlayerAugmentVisuals : Node2D
     {
         // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
+        if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
             gs.Disconnect(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         }
