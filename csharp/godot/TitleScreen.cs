@@ -137,6 +137,8 @@ public partial class TitleScreen : CanvasLayer
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
         {
+            // 先标输入再切场景：ChangeSceneToFile 立即摘树，其后 GetViewport() 返回 null
+            GetViewport().SetInputAsHandled();
             var kc = key.Keycode != Key.None ? key.Keycode : key.PhysicalKeycode;
             if (kc == Key.T)
             {
@@ -146,13 +148,11 @@ public partial class TitleScreen : CanvasLayer
             {
                 StartGame();
             }
-
-            GetViewport().SetInputAsHandled();
         }
         else if (@event is InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true })
         {
-            StartGame();
             GetViewport().SetInputAsHandled();
+            StartGame();
         }
     }
 

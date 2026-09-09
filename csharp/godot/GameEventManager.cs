@@ -459,7 +459,9 @@ public partial class GameEventManager : Node
 
         // encounter 组（门控：注入 spawner 处理中——set_process(false)/暂停语义与现状一致；
         // is_processing() 反映 set_process 维度，can_process() 反映树/暂停维度）
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsProcessing() && _spawner.CanProcess())
+        // IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发
+        // 这一次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误
+        if (IsInsideTree() && _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsProcessing() && _spawner.CanProcess())
         {
             TickEncounterTriggers(d);
         }
