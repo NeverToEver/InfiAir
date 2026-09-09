@@ -20,6 +20,10 @@ public partial class Spawner : Node
     private static readonly StringName BulletTypeSpread = new("spread");
     private static readonly StringName BulletTypeLaser = new("laser");
 
+    /// <summary>生成区水平内边距（px）：波次槽位与随机单机的 x 范围两侧各内收此距离
+    /// （敌机不在屏幕边缘贴边生成）。</summary>
+    private const float SpawnInsetX = 60.0f;
+
     /// <summary>Boss 降入完成（SpawnBossInternal 末尾发出；Main/Hud 连接）。</summary>
     [Signal]
     public delegate void BossSpawnedEventHandler(Boss boss);
@@ -104,7 +108,10 @@ public partial class Spawner : Node
 
     private bool _bossActive;
 
-    /// <summary>精英炮塔事件互斥：事件期间 Boss 触发被冻结（到期记 _boss_pending 一次，不累积）。</summary>
+    /// <summary>精英炮塔事件互斥：事件期间 Boss 触发被冻结（到期记 _boss_pending 一次，不累积）。
+    /// 对偶契约：GameEventManager.CanDriveEncounters 每帧重验本端处理状态后才驱动事件掷签，
+    /// 同帧 Boss/遭遇竞态由「事件先冻结 Boss + 本端 boss_resume_delay 推迟恢复」兜住（AB20）——
+    /// 本端提供冻结/ pending/恢复状态，触发时序归事件管理器。</summary>
     private bool _bossFrozen;
     private bool _bossPending;
 
@@ -351,7 +358,7 @@ public partial class Spawner : Node
         for (var i = 0; i < n; i++)
         {
             var config = pool[(int)(GD.Randi() % (uint)pool.Count)];
-            var x = SlotPos(view.Position.X + 60.0f, view.Size.X - 120.0f, n, i);
+            var x = SlotPos(view.Position.X + SpawnInsetX, view.Size.X - SpawnInsetX * 2, n, i);
             var anchor = SlotPos(view.Position.Y + _hoverBand.X, _hoverBand.Y - _hoverBand.X, n, i);
             QueueEnemy(config, x, anchor);
         }
@@ -364,7 +371,7 @@ public partial class Spawner : Node
         for (var i = 0; i < ELITE_WAVE_SIZE; i++)
         {
             var config = ELITE_TYPES[(int)(GD.Randi() % (uint)ELITE_TYPES.Count)];
-            var x = SlotPos(view.Position.X + 60.0f, view.Size.X - 120.0f, ELITE_WAVE_SIZE, i);
+            var x = SlotPos(view.Position.X + SpawnInsetX, view.Size.X - SpawnInsetX * 2, ELITE_WAVE_SIZE, i);
             QueueEnemy(config, x, (float)GD.RandRange(view.Position.Y + _hoverBand.X, view.Position.Y + _hoverBand.Y), true);
         }
     }
@@ -377,7 +384,7 @@ public partial class Spawner : Node
         var view = GameState.Instance.ViewWorldRect();
         QueueEnemy(
             config,
-            (float)GD.RandRange(view.Position.X + 60.0f, view.End.X - 60.0f),
+            (float)GD.RandRange(view.Position.X + SpawnInsetX, view.End.X - SpawnInsetX),
             (float)GD.RandRange(view.Position.Y + _hoverBand.X, view.Position.Y + _hoverBand.Y));
     }
 

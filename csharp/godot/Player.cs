@@ -1042,10 +1042,15 @@ public partial class Player : CharacterBody2D
     /// <summary>屏幕边缘钳制：随可见世界区域收窄。</summary>
     public Vector2 ClampToView(Vector2 p) => ClampToView(p, GameState.Instance.ViewWorldRect());
 
+    /// <summary>移动钳制视口内边距（px）：玩家位置保持在可见区域内侧此距离——「留在场内」的
+    /// padding（语义区别于 Enemy/Boss 的出屏离场判定余量）。</summary>
+    private const float ViewClampInset = 40.0f;
+
     /// <summary>给定视野的屏幕边缘钳制（_PhysicsProcess 复用帧内已取视野，免重复 Instance/ViewWorldRect）。</summary>
     private static Vector2 ClampToView(Vector2 p, Rect2 view)
     {
-        return p.Clamp(view.Position + new Vector2(40.0f, 40.0f), view.End - new Vector2(40.0f, 40.0f));
+        var inset = new Vector2(ViewClampInset, ViewClampInset);
+        return p.Clamp(view.Position + inset, view.End - inset);
     }
 
     /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先，否则平滑鼠标位置（每渲染帧推进一次）。</summary>

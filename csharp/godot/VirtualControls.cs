@@ -303,13 +303,18 @@ public partial class VirtualControls : CanvasLayer
         _ui.QueueRedraw();
     }
 
+    /// <summary>摇杆噪声地板（px）：dist 低于此值视为未动（防触摸抖动产生除法噪声）。
+    /// 注意这是噪声阈值而非半径比较——模拟量响应链 = v/radius 比例归一 → 死区截断 → 限幅 1，
+    /// 改成 dist &gt; radius 会让半径内恒零输出（摇杆退化为二值）。</summary>
+    private const float StickNoiseFloorPx = 1.0f;
+
     /// <summary>摇杆向量：位移/半径归一化（死区截断、限幅 1）；超半径时基座跟随手指由调用方
     /// _update_* 的 base 重锚处理，此处只算当前向量。</summary>
     private Vector2 StickVec(Vector2 basePos, Vector2 pos, float radius)
     {
         var v = pos - basePos;
         var dist = v.Length();
-        var nv = dist > 1.0f ? v / radius : Vector2.Zero;
+        var nv = dist > StickNoiseFloorPx ? v / radius : Vector2.Zero;
         if (nv.Length() < Deadzone)
         {
             return Vector2.Zero;

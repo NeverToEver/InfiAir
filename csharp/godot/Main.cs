@@ -16,6 +16,10 @@ public partial class Main : Node2D
 {
     private const string BgmPath = "res://assets/audio/bgm_loop.wav";
 
+    /// <summary>召唤窗口期无敌时长（s）：伪永久哨兵值——窗口结束/返航（K01 路径）统一清除，
+    /// 不依赖时长自然到期。</summary>
+    private const float SummonInvincibleSeconds = 999.0f;
+
     /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
     private static readonly StringName NoActiveEncounter = new();
     // V 系列：静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
@@ -831,7 +835,7 @@ public partial class Main : Node2D
         _chargeInflow.Emitting = false;
         _player.LockInput();
         _player.Velocity = Vector2.Zero;
-        _player.SetInvincible(999.0f);
+        _player.SetInvincible(SummonInvincibleSeconds);
         _summonWindow = new MothershipSummonWindow();
         _summonWindow.Finished += OnSummonWindowFinished;
         AddChild(_summonWindow);

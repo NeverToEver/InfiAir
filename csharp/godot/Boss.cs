@@ -58,6 +58,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private static readonly Color EscapeBlinkColor = new(1.8f, 1.3f, 0.5f);
     private static readonly Color EnrageBlinkColor = new(1.5f, 0.65f, 0.65f);
     /// <summary>逃跑警告期机身闪烁频率（Hz）：警告期与狂暴序列警告期共用同一明暗节奏。</summary>
+    /// <summary>逃跑离场出屏判定余量（px）：语义同 Enemy.ExitDespawnMargin(150)，取值更大——
+    /// Boss 机体显著大于敌机且逃跑离场速度快，余量不足会屏上可辨地凭空消失。</summary>
+    private const float EscapeExitMargin = 280.0f;
+
     private const float EscapeBlinkHz = 8.0f;
 
     /// <summary>
@@ -843,7 +847,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             // 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
             _escapeSpeed += EscapeAccel * d;
             Position += new Vector2(0.0f, -_escapeSpeed * d);
-            if (Position.Y < FrameCache.ViewRect().Position.Y - 280.0f) // G08：出界基线对齐 view_world_rect
+            if (Position.Y < FrameCache.ViewRect().Position.Y - EscapeExitMargin) // G08：出界基线对齐 view_world_rect
             {
                 EmitSignal(SignalName.Escaped);
                 EmitSignal(SignalName.Died); // 离场通知（血条/生成器重排）；非击毁，无击杀奖励

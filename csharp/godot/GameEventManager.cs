@@ -444,19 +444,26 @@ public partial class GameEventManager : Node
             }
         }
 
-        // encounter 组（门控：注入 spawner 处理中——set_process(false)/暂停语义与现状一致；
-        // is_processing() 反映 set_process 维度，can_process() 反映树/暂停维度）
-        // IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发
-        // 这一次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误
-        // SummonInProgress：母舰召唤蓄力/机库小窗窗口期不掷签（玩家锁输入+999s 无敌，
-        // 事件奖励会被母舰自动火力白拿——L13 互斥的窗口期补全）
-        if (IsInsideTree()
-            && !GameState.Instance.SummonInProgress
-            && _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsInsideTree()
-            && _spawner.IsProcessing() && _spawner.CanProcess())
+        // encounter 组
+        if (CanDriveEncounters())
         {
             TickEncounterTriggers(d);
         }
+    }
+
+    /// <summary>遭遇触发驱动权门控（契约单点）：本类 _Process 依赖「autoload 树序先于 main 场景
+    /// 处理」这一引擎保证（AB20）——同帧 Boss/遭遇竞态由事件先启动 SetBossFrozen(true)、Boss
+    /// 推迟至事件结束 + boss_resume_delay 兜住，触发不累积；本端提供 spawner 状态的逐帧重验。
+    /// IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发这一
+    /// 次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误。SummonInProgress：母舰
+    /// 召唤蓄力/机库小窗窗口期不掷签（玩家锁输入 + 999s 无敌，事件奖励会被母舰自动火力白拿
+    /// ——L13 互斥的窗口期补全）。</summary>
+    private bool CanDriveEncounters()
+    {
+        return IsInsideTree()
+            && !GameState.Instance.SummonInProgress
+            && _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsInsideTree()
+            && _spawner.IsProcessing() && _spawner.CanProcess();
     }
 
     /// <summary>遭遇事件触发检查（镜像 spawner._process 原逻辑 + ScheduledEventTrigger 语义）：

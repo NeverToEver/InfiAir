@@ -75,8 +75,22 @@ public partial class EntityManager : RefCounted
     {
         if (_enemySet.Remove(node))
         {
+            // 双表一致性守卫：set 在册而索引缺键/越界 = 表分歧——直接取索引会静默得 0，
+            // swap-remove 将错删 0 号元素。守卫命中走数组权威重建自愈（Repair*Tables）
+            if (!_enemyIndex.ContainsKey(node))
+            {
+                RepairEnemyTables(node);
+                return;
+            }
+
             var idx = (int)_enemyIndex[node].AsInt64();
             _enemyIndex.Remove(node);
+            if (idx < 0 || idx >= Enemies.Count)
+            {
+                RepairEnemyTables(node);
+                return;
+            }
+
             var last = Enemies[Enemies.Count - 1];
             if (!ReferenceEquals(last, node))
             {
@@ -85,6 +99,28 @@ public partial class EntityManager : RefCounted
             }
 
             Enemies.RemoveAt(Enemies.Count - 1);
+        }
+    }
+
+    /// <summary>敌机表分歧自愈：以数组为权威重建 set + 索引表，并从数组移除目标条目。
+    /// 分歧属异常路径（正常时三表同步维护），线性操作不在乎 O(n)；PushError 留取证。</summary>
+    private void RepairEnemyTables(Node node)
+    {
+        GD.PushError($"[EntityManager] 敌机注册表分歧（set 在册而索引缺失/越界）：{node.Name}，已按数组权威重建");
+        for (var i = Enemies.Count - 1; i >= 0; i--)
+        {
+            if (ReferenceEquals(Enemies[i], node))
+            {
+                Enemies.RemoveAt(i);
+            }
+        }
+
+        _enemyIndex.Clear();
+        _enemySet.Clear();
+        for (var i = 0; i < Enemies.Count; i++)
+        {
+            _enemyIndex[Enemies[i]] = i;
+            _enemySet[Enemies[i]] = true;
         }
     }
 
@@ -111,8 +147,21 @@ public partial class EntityManager : RefCounted
     {
         if (_enemyBulletSet.Remove(b))
         {
+            // 双表一致性守卫（UnregisterEnemy 同款）：缺键直接取索引会静默得 0，错删 0 号元素
+            if (!_enemyBulletIndex.ContainsKey(b))
+            {
+                RepairEnemyBulletTables(b);
+                return;
+            }
+
             var idx = (int)_enemyBulletIndex[b].AsInt64();
             _enemyBulletIndex.Remove(b);
+            if (idx < 0 || idx >= EnemyBullets.Count)
+            {
+                RepairEnemyBulletTables(b);
+                return;
+            }
+
             var last = EnemyBullets[EnemyBullets.Count - 1];
             if (!ReferenceEquals(last, b))
             {
@@ -121,6 +170,27 @@ public partial class EntityManager : RefCounted
             }
 
             EnemyBullets.RemoveAt(EnemyBullets.Count - 1);
+        }
+    }
+
+    /// <summary>敌弹表分歧自愈（RepairEnemyTables 同款，数组权威重建）。</summary>
+    private void RepairEnemyBulletTables(GodotObject b)
+    {
+        GD.PushError("[EntityManager] 敌弹注册表分歧（set 在册而索引缺失/越界），已按数组权威重建");
+        for (var i = EnemyBullets.Count - 1; i >= 0; i--)
+        {
+            if (ReferenceEquals(EnemyBullets[i], b))
+            {
+                EnemyBullets.RemoveAt(i);
+            }
+        }
+
+        _enemyBulletIndex.Clear();
+        _enemyBulletSet.Clear();
+        for (var i = 0; i < EnemyBullets.Count; i++)
+        {
+            _enemyBulletIndex[EnemyBullets[i]] = i;
+            _enemyBulletSet[EnemyBullets[i]] = true;
         }
     }
 
