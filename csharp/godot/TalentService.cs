@@ -1,3 +1,4 @@
+using System.Globalization;
 using Godot;
 using InfiAir.Core.Talent;
 
@@ -147,6 +148,19 @@ public sealed partial class TalentService : RefCounted
     public int RawCache => _cache.Raw;
 
     public double EffectiveCache => _cache.Effective;
+
+    /// <summary>有效缓存显示口径：近整数取整，否则一位小数（溢出衰减产生小数，%s 直格式
+    /// 化 double 会泄漏精度尾数如 26.900000000000034）；Invariant 防系统区域小数符漂移。</summary>
+    public string EffectiveCacheText
+    {
+        get
+        {
+            var v = Math.Round(EffectiveCache, 1);
+            return Math.Abs(v - Math.Round(v)) < 1e-9
+                ? ((long)Math.Round(v)).ToString(CultureInfo.InvariantCulture)
+                : v.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+    }
 
     /// <summary>溢出衰减压力预览（UI 悬停提示用）：满员后每点实际价值。</summary>
     public double TailValue()

@@ -878,7 +878,7 @@ public partial class TalentPanel : CanvasLayer
     private void RefreshCacheReadout()
     {
         var talent = GameState.Instance.Talent;
-        _cacheLabel.Text = GdFormat.Format(Tr("TALENT_CACHE_FMT"), talent.EffectiveCache, talent.RawCache);
+        _cacheLabel.Text = GdFormat.Format(Tr("TALENT_CACHE_FMT"), talent.EffectiveCacheText, talent.RawCache);
         _cacheLabel.AddThemeColorOverride("font_color",
             talent.RawCache > talent.Config.SafeThreshold ? UITheme.WarnYellow : UITheme.Accent);
         _cacheHintLabel.Text = talent.RawCache > talent.Config.SafeThreshold
@@ -997,7 +997,7 @@ public partial class TalentPanel : CanvasLayer
         }
 
         var talent = GameState.Instance.Talent;
-        _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_CACHE_FMT"), talent.EffectiveCache, talent.RawCache), UITheme.Accent));
+        _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_CACHE_FMT"), talent.EffectiveCacheText, talent.RawCache), UITheme.Accent));
         if (talent.RawCache > talent.Config.SafeThreshold)
         {
             _footerBox.AddChild(MakeFooterChip(Tr("TALENT_FOOTER_DECAY_FMT"), UITheme.WarnYellow));

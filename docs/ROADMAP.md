@@ -4,34 +4,19 @@
 
 ## Current State (2026-09-09)
 
-- 纯街机流落地（2026-09-08 用户指令）：账户/登录、对局存档（继续对局）、排行榜、分数显示与记录、局外成长（研究所/科技点）全量移除；开机流程 = main.tscn 开机自动播开场过场 → `scenes/title.tscn` 黑屏标题屏（按任意键开始 / T 教程）→ 开局。对局内分数保留为隐藏进度引擎（敌机解锁/Boss 节奏/事件门控/里程碑→天赋点）。无尽必死曲线（D1）为既定设计。
+- 纯街机流落地（2026-09-08 用户指令）：账户/登录、对局存档（继续对局）、排行榜、分数显示与记录、局外成长（研究所/科技点）全量移除；开机流程 = main.tscn 开机自动播开场过场 → `scenes/title.tscn` 深空机库标题屏（形态详见 DESIGN_BASELINE §1.12）→ 开局。对局内分数保留为隐藏进度引擎（敌机解锁/Boss 节奏/事件门控/里程碑→天赋点）。无尽必死曲线（D1）为既定设计。
 - 内容演进：4 Boss 轮换、母舰火力平台、触屏输入、天赋缓存系统（2026-09-07，替代旧里程碑三选一与 line→双 buff 路线，低血保底随之退役）。
 - 质量形态：CI 单 job fast-gate = 构建零警告 + 资源导入无警告 + 主场景 300 帧运行（2026-09-09 测试资产全量退役后的形态）；回归验证 = 人工窗口化实机过目。
-- 2026-09-07 深度链路修复：设计基线核实无污染；修复 welcome 布局腐烂、RunTime 菜单污染、R 重开不删档、返航后 Boss 绕过入场窗口、精英事件钳制缺口（详见 git log）。
 - 文档形态（2026-09-09 大削减后）：仅存本文件与 `docs/DESIGN_BASELINE.md` 两份设计文稿。
 
 ## 已知债务与开放发现
 
-> 唯一登记处。修复后原地划掉并注日期；新发现追加在末尾。
+> 唯一登记处，只保留未关闭项；修复后直接删除（变更史在 git log）；新发现追加在末尾。
 
-- **[高·调查中] 间歇性全站输入丢失态（用户实报：welcome 页鼠标/键入全灭、仅方向键有效）**：2026-09-08 排查结论——游戏代码层无责：静态排查 Welcome/RadialWheel/遮罩层无吞输入路径；`ParseInputEvent` 合成事件探针在干净启动下 100% 通过（点击→确认框、聚焦、键入全通）。但同一构建同一序列可**间歇复现引擎级故障态**（连跑采样 0%~80% 失败率随时段波动），指纹：① 所有鼠标**按下**事件（合成与真实 OS SendInput 同）在到达 `Node._Input` 前被引擎丢弃，移动/抬起正常放行 → 按钮永远收不到完整点击；② `ui_*` 方向键焦点导航正常，字符键事件可达 `_Input` 但焦点 LineEdit 不录入；③ 故障态下 `Input.IsMouseButtonPressed(L)`=False、`Tree.Paused`=False、`TimeScale`=1（排除掩码卡死/树暂停）；④ 同机最小 Godot 工程与裸 InfiAir 工程（无 welcome 场景内容）对照均正常 → 与场景内容存在未知交互，未定位到具体组件。环境线索（Windows 11 笔记本 125% DPI、中文 IME、Console 会话）：IME 候选栏拦截字符输入已截图实锤（"zz"→中文候选，引擎零键盘事件）；WinForms 对照测试文本同样未送达 → 不排除系统会话级输入拦截（远程控制工具/触屏 WM_POINTER）参与。下一步：故障态启动时对比成功启动的全量事件日志（`pressed=`/掩码/焦点指纹）；排查 `Viewport::push_input`/`Window::_window_input` 门控（Godot 4.6.2 mono）与会话输入劫持源。诊断方法：临时探针场景实例化 welcome + `Input.ParseInputEvent` 注入 + `Node._Input` 全量事件打印（已删，按此描述可重建）；真实输入对照用 PowerShell SendInput/SendMessage 驱动实机窗口。
-  2026-09-08 二轮实锤（探针重建为 `test/input_probe.tscn` + `csharp/godot/tests/InputProbe.cs`，调查中暂存）：**故障态真实输入现场首次完整捕获**——同一次运行内健康启动（合成事件全通、VERDICT 全 1），进入真实输入阶段后连续 10 次真实点击只见 release 不见 press（press 在 `Node._Input` 之前消失），期间窗口焦点无任何转移（无 FocusExited/Entered），键盘事件（q/Backspace/Enter/Esc/方向键）全程正常到达 `_Input`；用户连按 5 次 Esc 后点击**局内自愈**、press+release 恢复成对。结论收敛：与游戏代码无关、与窗口焦点无关；press 丢失点在引擎 WndProc 之前或之外（OS 投递/覆盖窗）；「Esc 治愈」指向 IME 候选窗/覆盖层的模态捕获被解除。
-  2026-09-08 三轮（环境枚举）：机器上发现 **`oopz-overlay2.exe`（Oopz 语音开黑的游戏覆盖层）**，持有一个 `Topmost + Layered + Transparent + NoActivate + Visible`、290×1152px 常驻于 (1742,488) 的隐形全高覆盖窗——该类覆盖窗最吻合「吃 press 放行 release」的故障指纹与随时段波动的间歇性（覆盖层状态变化）。双击参数正常（500ms/4px），排除双击转换吞 press。**下一步验证：复现故障时先 `Stop-Process -Name oopz-overlay2` 再点击——恢复即实锤**；游戏内根治不可行（外部进程），可考虑在标题屏/设置页检测 overlay 注入并提示。
-  2026-09-08 附注：探针场景（`test/input_probe.tscn` + `csharp/godot/tests/InputProbe.cs`）随 welcome 场景移除一并删除（探针依赖 welcome 测试钩子）；按上方诊断方法描述可在新入口场景（标题屏/设置页）重建。
-- ~~**[中低] 召唤蓄力/机库小窗窗口期事件可触发**~~：已修（2026-09-09）——`GameState.SummonInProgress` 旗帜由 Main 逐帧维护（蓄力/小窗期 true，_Ready/_ExitTree 复位），`GameEventManager` 遭遇触发门控读取；窗口期事件不掷签，L13 反向漏出封闭。无头全流程探针实测蓄力+小窗期 encounter 触发 0 次。
-- ~~**[中低] 基地任务绝对计数轮换即完成**~~：已修（2026-09-09）——任务条目改相对口径：抽取时快照该 kind 对局绝对计数为 `baseline`（`MissionsService._lastKindValue` 逐次上报缓存），进度 = 绝对值 − 基线；初始手牌 baseline=0，保留的已完成未领取任务基线不动。无头探针实测 50 杀刷新后新任务 progress=0、再 1 杀=1（探针用后即删）。
-- ~~**[低] `PlayerDied` 信号发射先于 `player.Die()`**（PlayerDamage.cs）~~：已修（2026-09-09）——发射点自 `CombatStateService.LoseHealth` 迁入 `Player.DieInternal`（`_dead` 置位+死亡结算完成后），回调内 `IsDead()` 恒 true；`DieInternal` 补幂等守卫（同帧二次致死不重复结算/双发）。探针实测发射 1 次且回调内 `IsDead()==true`（探针用后即删）。
-- ~~**[低] `_wavesPaused` 单布尔双写者**~~：已修（2026-09-09）——改计数口径（Start +1 / ResumeWaves −1 钳底 0），双写者互踩不再提前解禁。
-- ~~**[低] `Main.OnPlayerDied` 不清遭遇事件**~~：已修（2026-09-09）——死亡路径补 `EndActive(GROUP_ENCOUNTER)` + spawner `SetProcess(false)`/`ClearPending`，不再依赖「结算 UI 同帧暂停树」的巧合安全。
-- **[低] 视觉层无自动化覆盖**：全部无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏一个月（2026-09-07 W1 实证）。现行纪律 = UI/视觉改动窗口化人工过目；可选改进 = 视觉捕获探针场景（2026-09-09 已随测试资产移除，需要时可重建）。
-- ~~**[低] 天赋描述文案沿用三选一时代措辞**~~：已修（2026-09-09）——`AUG_*_DESC` 18×2 键订正（债务登记时称 BUFF_*，键已更名）：去「最多 X 层/可叠/max stacks」随机抽取措辞，改「每级」等级语义；上限数值不再入文案（去双源——天赋面板详情卡 TALENT_LV_FULL_FMT 已显示生效/结构上限）；salvo 间隔（7−2/级→5 发起）/second_wind(3 HP/s×级）/dash_strike(35×级）/deflector(×0.78/×1.6)/graze(×1.2、+5) 等数值逐一对照 balance.json 与 Player.RefreshAugmentFactors 核实。
-- **[低] 专注惩罚触发面窄**：`talent.focus.threshold`(7) 实际仅 extra_life(上限10) 与风险加点档可达；若日后放宽节点等级上限需同步重校该阈值与惩罚曲线。
-- ~~[低] v2 存档升 v3 天赋态归零~~：随对局存档系统移除（2026-09-08）失效。
+- **[低] 视觉层无自动化覆盖**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏（2026-09-07 W1 实证）。现行纪律 = UI/视觉改动窗口化人工过目；可选改进 = 视觉捕获探针场景（已随测试资产移除，需要时重建）。2026-09-09 巡检一轮：临时重建捕获探针，全屏面双语截图 53 张逐张过目（截图存 builds/probe_logs/visual_sweep/），实锤并修复 2 处——天赋缓存读数浮点尾数泄漏（EffectiveCache 经 %s 直格式化 double 显示 26.900000000000034，新增 TalentService.EffectiveCacheText 一位小数/整数显示口径，TalentPanel 标题+底栏与 Hud 悬停提示三处消费）、按钮焦点整板高亮洗白文字（focus 样式盒叠画于状态层之上，改描边环 + hover 字色翻深 TextOnBright，UITheme 单源）；探针用后即删。
+- **[低] 专注惩罚触发面窄**：`talent.focus.threshold`(7) 按原始等级判定，现网唯 extra_life（上限 10）可达（2026-09-09 核实：其余节点结构上限最高 5，风险加点 +1 后 6 < 7，原登记「风险加点档可达」不准确）；若日后放宽节点等级上限需同步重校该阈值与惩罚曲线。
 - **[手工·发布前] Cinematic stage 4**：低配机复测 + 手柄/移动端手工项。
 - **[手工·发布前] 真机手感验证**：15+ 分钟连续实机游玩（无尽校准与公平性机制的人工验收）。
-- ~~**[低] 设置/基地页轮盘聚焦项与右区面板初始章节不同步**~~：已修（2026-09-09）——取「轮盘聚焦指定项」方案（沿用暂停/结算页 FocusOption(0) 先例）：SettingsUi.ShowSettings/BaseConsole.ShowBase 开页聚焦首项（控制/战机库），与默认面板对齐；基地页引线锚点自「当前目录面板左缘中点」（恰与切角面板装饰性中位拼板缝 h*0.5 重合）改锚「当前分类标题」标签，VisiblePage() 死代码随删。探针实测开页聚焦 controls/hangar + 锚点 = _categoryLabel（探针用后即删）。
-- **2026-09-09 游玩问题修复批次**（无头全流程探针定位+验证，探针用后即删）：① ~~暂停→退出游戏→取消退出软锁~~（ExitConfirm 增 `Canceled` 事件，PauseUi 取消后恢复可见+轮盘活性）；② ~~设置页返回暂停页轮盘永久失活~~（`PauseUi.GrabPrimaryFocus` 恢复 `SetWheelActive(true)`）；③ ~~标题屏同帧多输入双重切场景/T 组合键目的地错~~（一次性 `_started` 守卫）；④ ~~暂停/结算页轮盘键盘导航全灭~~——根因：TalentPanel 隐藏后其轮盘子节点 `Visible` 标志仍为 true，在 `_UnhandledInput` 相位抢吞 `ui_*`（`RadialWheel` 键盘导航移入 `_Input` 先 GUI 相位 + 输入门控改 `IsVisibleInTree()`；SettingsUi/BaseConsole 混合页轮盘设 `KeyboardEnabled=false` 让位页面焦点链）；⑤ ~~暂停/结算轮盘开页默认聚焦弧面中点槽~~（4 项停在「重新出击」，Esc 后误 Enter 直接重开）——`FocusOption(0)` 开页聚焦首项；⑥ 标题屏→开局路径补幂等 `ResetRun`（不再依赖上游约定）；⑦ 死代码清理（`RestoreHealth`/`RestoreMilestones`/`MilestoneMult` 内部桥，随存档系统删除后零调用）。
-- ~~**[低] 教程基地开启的 ~1.2s 窗口内 Esc 失灵**~~：已修（2026-09-09）——补 Always 态返回路由：`TutorialEscRouter`（OpenBase 时挂载、CloseBase 时释放，ProcessMode=Always）暂停树期间代收 `ui_cancel` 转发 `ExitTutorial`；探针实测暂停树下路由节点收到 `_UnhandledInput`（探针用后即删）。
 
 ## Direction Shift
 
@@ -51,7 +36,7 @@ Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect
 
 ### Phase 3 — Deferred/cut (restart needs explicit decision)
 
-- ~~**Local accounts**~~：landed 后于 2026-09-08 全量移除（纯街机流，见 Decisions）。
+- **Local accounts**：landed 后于 2026-09-08 全量移除（纯街机流，见 Decisions）。
 - **Mothership expansion**：landed（里程碑门控的加特林/导弹升级）。
 - **Content evolution**：landed（3 buffs、分裂者、重型炮塔、第 4 Boss「月蚀」）+ mobile touch landed（2026-08-07）。（独立排行榜页未做；排行榜体系 2026-09-08 随账户移除。）
 - **Endless k-value calibration**：landed（`progression.*` + ramp 因子；3 × 900s 探针零异常）。
@@ -74,4 +59,4 @@ Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect
 ## Maintenance
 
 - 方向/阶段变化 → 更新本文件对应小节；不在此复述变更细节（git log 的职责）。
-- 新债务/新发现 → 「已知债务与开放发现」末尾追加；修复后划掉注日期。
+- 新债务/新发现 → 「已知债务与开放发现」末尾追加；修复后直接删除条目。

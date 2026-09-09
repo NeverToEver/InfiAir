@@ -1136,7 +1136,7 @@ public partial class Hud : CanvasLayer
         _cacheChip.MouseEntered += () =>
         {
             var talent = GameState.Instance.Talent;
-            _cacheTooltip.Text = GdFormat.Format((string)Tr("TALENT_CACHE_TIP"), talent.RawCache, talent.EffectiveCache);
+            _cacheTooltip.Text = GdFormat.Format((string)Tr("TALENT_CACHE_TIP"), talent.RawCache, talent.EffectiveCacheText);
             _cacheTooltip.Visible = true;
         };
         _cacheChip.MouseExited += () =>

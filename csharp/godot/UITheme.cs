@@ -18,6 +18,7 @@ public partial class UITheme : RefCounted
     public static readonly Color AccentDim = new(0.0f, 0.83f, 1.0f, 0.22f); // 装饰分隔线/页头短线
     public static readonly Color BgDeep = new(0.024f, 0.039f, 0.067f, 0.92f); // 更深面板底（欢迎页/满屏遮罩层）
     public static readonly Color Text = new(0xe0e8f0ff); // 文字主
+    public static readonly Color TextOnBright = new(0x0a1420ff); // 高亮钢板上的文字（hover 钢板近白，浅色字会洗白）
     public static readonly Color TextDim = new(0x8a9bb0ff); // 文字次
     public static readonly Color Danger = new(0xff3366ff); // 警报红
     public static readonly Color Success = new(0x00ff88ff); // 成功绿
@@ -117,12 +118,14 @@ public partial class UITheme : RefCounted
         button.AddThemeStyleboxOverride("normal", MakeBtnStyle(SteelCyanTint));
         button.AddThemeStyleboxOverride("hover", MakeBtnStyle(SteelCyanHover));
         button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(SteelCyanPressed, inset: true));
+        button.AddThemeStyleboxOverride("hover_pressed", MakeBtnStyle(SteelCyanPressed, inset: true));
         button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(SteelCyanTint, 0.4f)));
-        // 焦点样式与 hover 一致：键盘导航时焦点可见
-        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(SteelCyanHover));
+        // 焦点 = 描边环：focus 样式盒叠画在最上层，整板高亮会把浅色字洗白（焦点+按下态实测不可读）
+        button.AddThemeStyleboxOverride("focus", MakeFocusRing());
         button.AddThemeColorOverride("font_color", Accent);
-        button.AddThemeColorOverride("font_hover_color", Text);
+        button.AddThemeColorOverride("font_hover_color", TextOnBright);
         button.AddThemeColorOverride("font_pressed_color", Text);
+        button.AddThemeColorOverride("font_hover_pressed_color", Text);
         button.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
     }
 
@@ -326,12 +329,14 @@ public partial class UITheme : RefCounted
         button.AddThemeStyleboxOverride("normal", MakeBtnStyle(SteelTint));
         button.AddThemeStyleboxOverride("hover", MakeBtnStyle(SteelTintHover));
         button.AddThemeStyleboxOverride("pressed", MakeBtnStyle(SteelTintPressed, inset: true));
+        button.AddThemeStyleboxOverride("hover_pressed", MakeBtnStyle(SteelTintPressed, inset: true));
         button.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(SteelTint, 0.4f)));
-        // 焦点样式与 hover 一致：键盘导航（Tab/方向键 + Enter）时焦点可见
-        button.AddThemeStyleboxOverride("focus", MakeBtnStyle(SteelTintHover));
+        // 焦点 = 描边环（原因同 ApplyPrimaryButton）
+        button.AddThemeStyleboxOverride("focus", MakeFocusRing());
         button.AddThemeColorOverride("font_color", Text);
-        button.AddThemeColorOverride("font_hover_color", Accent);
+        button.AddThemeColorOverride("font_hover_color", TextOnBright);
         button.AddThemeColorOverride("font_pressed_color", Text);
+        button.AddThemeColorOverride("font_hover_pressed_color", Text);
         button.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
     }
 
@@ -344,6 +349,19 @@ public partial class UITheme : RefCounted
 
     private const string BtnPlatePath = "res://assets/sprites/ui/button_plate.png";
     private const string BtnPlatePressedPath = "res://assets/sprites/ui/button_plate_pressed.png";
+
+    /// <summary>焦点描边环（不填底——focus 样式盒叠画在状态样式之上，填底会盖住钢板）。</summary>
+    private static StyleBoxFlat MakeFocusRing()
+    {
+        var ring = new StyleBoxFlat
+        {
+            DrawCenter = false,
+            BorderColor = Accent,
+        };
+        ring.SetBorderWidthAll(2);
+        ring.SetExpandMarginAll(2.0f);
+        return ring;
+    }
 
     /// <summary>按钮钢板样式：九宫格平铺 + 倒角已烘焙进贴图；状态差异全部走 ModulateColor
     /// （pressed 换凹陷贴图——倒角反转，受光方向不变）。inset=true 用凹陷钢板。</summary>

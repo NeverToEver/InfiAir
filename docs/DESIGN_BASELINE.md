@@ -21,7 +21,6 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only; spent at base console, not carried between runs.
 - **RefreshPoints**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
-- ~~TechPoints / Research Lab（局外成长）~~：2026-09-08 随账户/存档系统一并移除（方向决策见 ROADMAP）。
 - Milestones: score thresholds → talent points into the cache pool (no popup; §1.5).
 
 ### 1.4 Difficulty & Endless Curve
