@@ -334,6 +334,9 @@ public partial class Main : Node2D
 
         if (_timeScaleRamp >= 0.0f)
         {
+            // d 为已被 Engine.TimeScale 缩放后的帧长：慢速段 ramp 推进同样被放缓，
+            // 实际恢复耗时显著长于 ENRAGE_RAMP_TIME 名义值（从深慢档起愈明显）——
+            // 演出节奏依赖这一放大，勿改为按未缩放时长推进
             _timeScaleRamp += d / ENRAGE_RAMP_TIME;
             if (_timeScaleRamp >= 1.0f)
             {

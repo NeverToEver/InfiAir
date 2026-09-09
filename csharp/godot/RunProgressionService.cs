@@ -81,7 +81,9 @@ public sealed partial class RunProgressionService : RefCounted
     {
         _progPerBossKill = perBossKill;
         _progPerTenMinutes = perTenMinutes;
-        _progTimeStepSeconds = timeStepSeconds;
+        // 本地防线：timeStep ≤0 使本类两处 RunTime/_progTimeStepSeconds 除零；
+        // 上游注入点（GameState.State.cs）已钳 0.1，此处不依赖跨层契约
+        _progTimeStepSeconds = Math.Max(timeStepSeconds, 0.1);
     }
 
     // ---------------- 难度档位（2026-08-11 自 GameState.Difficulty.cs 迁入） ----------------

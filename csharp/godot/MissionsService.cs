@@ -262,7 +262,8 @@ public sealed partial class MissionsService : RefCounted
             // 起算——防止绝对计数（如已击杀 50）直接灌入低门槛新任务下一秒瞬领 RP（刷新经济泄漏）
             var kind = def["kind"].AsStringName();
             var baseline = _lastKindValue.TryGetValue(kind, out var abs) ? abs : 0;
-            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = def["goal"], ["baseline"] = baseline };
+            // goal 与 InitMissions 同口径转 int（Variant 原样入典会让同键双类型并存）
+            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = (int)def["goal"].AsInt64(), ["baseline"] = baseline };
         }
 
         return true;

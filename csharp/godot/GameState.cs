@@ -25,10 +25,10 @@ public partial class GameState : Node
     public delegate void ComboChangedEventHandler(int combo);
 
     [Signal]
-    public delegate void HealthChangedEventHandler(double newHealth);
+    public delegate void HealthChangedEventHandler(float newHealth);
 
     [Signal]
-    public delegate void DifficultyChangedEventHandler(double newMultiplier);
+    public delegate void DifficultyChangedEventHandler(float newMultiplier);
 
     [Signal]
     public delegate void DifficultySelectedEventHandler(StringName difficulty);
@@ -379,7 +379,7 @@ public partial class GameState : Node
     // （HealthChanged/AugmentsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
     // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发路径
     // 不经本事件，订阅重发不与之重复）
-    private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, v);
+    private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, (float)v);
 
     private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
 
@@ -415,7 +415,7 @@ public partial class GameState : Node
     // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill 直发路径不重复）
-    private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, v);
+    private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, (float)v);
 
     private void OnRunProgDifficultySelected(StringName v) => EmitSignal(SignalName.DifficultySelected, v);
 

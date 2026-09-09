@@ -448,7 +448,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         {
             foreach (var v in ss.AsGodotArray())
             {
-                ssArr.Add((float)v.AsDouble());
+                // 元素级判型 + 正值钳制：坏元素直转静默为 0，对应模式（索引恒 0/1/2）走位彻底静止
+                var num = v.VariantType is Variant.Type.Float or Variant.Type.Int ? (float)v.AsDouble() : 0.0f;
+                ssArr.Add(Mathf.Max(num, 1.0f));
             }
         }
 
@@ -459,10 +461,19 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // 2026-08-10：空数组/不足 3 元素同回退（BaseFireInterval 的 Clamp(0,0,-1) 得 -1
         // 索引 FireIntervals[-1] 抛 IndexOutOfRangeException，与 StrafeSpeeds H11 同口径）
         var fiRaw = GameState.Instance.Cfg("boss.fire_intervals", FireIntervals);
+        var fiDefault = (Godot.Collections.Array)FireIntervals.Duplicate(true);
         var fiArr = new Godot.Collections.Array();
         if (fiRaw.VariantType == Variant.Type.Array)
         {
-            fiArr = (Godot.Collections.Array)fiRaw.AsGodotArray().Duplicate(true);
+            for (var i = 0; i < fiRaw.AsGodotArray().Count; i++)
+            {
+                var v = fiRaw.AsGodotArray()[i];
+                // 元素级判型：非数值回退默认对应位（下游 AsDouble 对坏类型静默为 0，
+                // 难度缩放会把 0 写回缓存；运行期另有 AB3 IntervalFloor 兜底）
+                fiArr.Add(v.VariantType is Variant.Type.Float or Variant.Type.Int
+                    ? v
+                    : fiDefault[Mathf.Min(i, fiDefault.Count - 1)]);
+            }
         }
 
         FireIntervals = fiArr.Count >= 3 ? fiArr : (Godot.Collections.Array)FireIntervals.Duplicate(true);
