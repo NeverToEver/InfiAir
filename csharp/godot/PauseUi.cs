@@ -159,7 +159,7 @@ public partial class PauseUi : RadialMenuLayer
 
     public void Open()
     {
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
         Visible = true;
         SetWheelActive(true);
         RebuildMenu();
@@ -170,7 +170,7 @@ public partial class PauseUi : RadialMenuLayer
     {
         Visible = false;
         SetWheelActive(false);
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
     }
 
     public void Toggle()
@@ -242,7 +242,7 @@ public partial class PauseUi : RadialMenuLayer
             return;
         }
 
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
         // R 重开=弃局重开（ReloadCurrentScene 重建 main → 全新一局）
         GameState.Instance.ResetRun();
         GetTree().ReloadCurrentScene();

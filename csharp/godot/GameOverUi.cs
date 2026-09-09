@@ -109,10 +109,8 @@ public partial class GameOverUi : RadialMenuLayer
                 Restart();
                 break;
             case "home":
-                // 结算后无进度可留：ResetRun 后回标题屏（title.tscn），任意键重新开局
-                GetTree().Paused = false;
-                GameState.Instance.ResetRun();
-                GetTree().ChangeSceneToFile("res://scenes/title.tscn");
+                // 结算后无进度可留：回标题屏（title.tscn），任意键重新开局
+                GameState.Instance.ExitToTitle();
                 break;
             case "quit":
                 GameState.Instance.SaveSettings();
@@ -125,7 +123,7 @@ public partial class GameOverUi : RadialMenuLayer
     {
         // 无分数记录/局外结算：死亡只呈现击杀统计（PlayerDied 订阅者角色不变）
         RefreshStats();
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
         Visible = true;
         SetWheelActive(true);
         BuildMenu();
@@ -136,9 +134,7 @@ public partial class GameOverUi : RadialMenuLayer
     /// <summary>重新出击（轮盘/R 快捷键共用）：结算完成后重开同一场景。</summary>
     private void Restart()
     {
-        GetTree().Paused = false;
-        GameState.Instance.ResetRun();
-        GetTree().ReloadCurrentScene();
+        GameState.Instance.RestartRun();
     }
 
     public override void _UnhandledInput(InputEvent @event)

@@ -182,6 +182,36 @@ public partial class GameState : Node
     /// Main._Process 逐帧维护，Main._Ready/_ExitTree 复位（场景切换不残留）。</summary>
     public bool SummonInProgress { get; set; }
 
+    /// <summary>树暂停单口：暂停/恢复统一经此（原六类节点各自直写 GetTree().Paused 十六处，
+    /// 新增退出路径漏写复位即全局卡死；autoload 场景无关，拆树期 GetTree() 判空防线集中一处）。</summary>
+    public void SetTreePaused(bool paused)
+    {
+        var tree = (SceneTree?)Engine.GetMainLoop();
+        if (tree != null)
+        {
+            tree.Paused = paused;
+        }
+    }
+
+    /// <summary>终止本局回标题屏单口（结算页「返回标题」/暂停/教程 Esc/BackNavigator 同路由）：
+    /// 子弹时间与暂停复位 + 全新一局 + 切场景。新增退出入口一律复用本出口，防漏复位软锁。</summary>
+    public void ExitToTitle()
+    {
+        Engine.TimeScale = 1.0f; // 狂暴子弹时间残留复位（无残留时无副作用）
+        SetTreePaused(false);
+        ResetRun(); // 保证下次开局为全新一局，不污染正常对局
+        ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile("res://scenes/title.tscn");
+    }
+
+    /// <summary>弃局静默重开单口（结算页「重新出击」/暂停页 R 重开共用）：解除暂停 + 全新一局 +
+    /// 重载当前场景（main 重建）。</summary>
+    public void RestartRun()
+    {
+        SetTreePaused(false);
+        ResetRun();
+        ((SceneTree?)Engine.GetMainLoop())?.ReloadCurrentScene();
+    }
+
     /// <summary>弹体共享纹理缓存（Bullet 首次应用外观时惰性生成，全实例共用）。
     /// 实例字段而非静态——静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规），
     /// 本 autoload 与引擎同生命周期，承担跨对局缓存职责。</summary>

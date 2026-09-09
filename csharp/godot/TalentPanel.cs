@@ -63,9 +63,7 @@ public partial class TalentPanel : CanvasLayer
     private const float FanTop = 170f;
     private const float FanHeight = 720f;
 
-    /// <summary>轮盘圆心（holder 静止位；入场/退场动画位移加在 holder 上，与轮盘自身视差解耦）。
-    /// y=480 与端点角钳 36°（RadialWheel.SlotAngleFor）同口径：卡片不压左下生命 HUD 区。</summary>
-    private static readonly Vector2 WheelRest = new(-160f, 480f);
+    // 轮盘圆心（holder 静止位）单一来源 RadialMenuLayer.WheelRest——自管骨架不另设常量
 
     public TalentPanel()
     {
@@ -214,7 +212,7 @@ public partial class TalentPanel : CanvasLayer
             return;
         }
 
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
         Visible = true;
         _selectedNode = null;
         RebuildWheelOptions();
@@ -246,7 +244,7 @@ public partial class TalentPanel : CanvasLayer
     {
         _closing = false;
         Visible = false;
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
     }
 
     /// <summary>G 键（talent_panel）：按住蓄力（松开取消）、满格进入；打开态按 G 动画关闭。
@@ -304,8 +302,8 @@ public partial class TalentPanel : CanvasLayer
         _dim.Modulate = new Color(1f, 1f, 1f, 0f);
         SwapTween(_dim).TweenProperty(_dim, "modulate:a", 1.0f, 0.22);
 
-        _wheelHolder.Position = new Vector2(WheelRest.X - 620f, WheelRest.Y);
-        SwapTween(_wheelHolder).TweenProperty(_wheelHolder, "position", WheelRest, 0.55)
+        _wheelHolder.Position = new Vector2(RadialMenuLayer.WheelRest.X - 620f, RadialMenuLayer.WheelRest.Y);
+        SwapTween(_wheelHolder).TweenProperty(_wheelHolder, "position", RadialMenuLayer.WheelRest, 0.55)
             .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
 
         _titleLabel.Modulate = new Color(_titleLabel.Modulate, 0f);
@@ -365,7 +363,7 @@ public partial class TalentPanel : CanvasLayer
 
         var wheelTw = SwapTween(_wheelHolder);
         wheelTw.TweenInterval(0.05);
-        wheelTw.TweenProperty(_wheelHolder, "position", new Vector2(WheelRest.X - 620f, WheelRest.Y), 0.3)
+        wheelTw.TweenProperty(_wheelHolder, "position", new Vector2(RadialMenuLayer.WheelRest.X - 620f, RadialMenuLayer.WheelRest.Y), 0.3)
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
 
         var dimTw = SwapTween(_dim);
@@ -552,7 +550,7 @@ public partial class TalentPanel : CanvasLayer
     private void BuildWheel()
     {
         // holder 承载入场/退场位移：轮盘自身 _Process 视差会写自己的 Position，两者解耦
-        _wheelHolder = new Node2D { Position = WheelRest };
+        _wheelHolder = new Node2D { Position = RadialMenuLayer.WheelRest };
         _wheel = new RadialWheel { BackLabel = Tr("TALENT_BACK") };
         // 混合页（右区面板含焦点控件：升级/超载按钮与概览卡）：轮盘不接管方向键，
         // 留给页面焦点链（轮盘 _Input 先于 GUI 相位，不关会抢走整页键盘导航）

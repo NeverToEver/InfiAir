@@ -392,14 +392,9 @@ public partial class Tutorial : Node2D
 
         _advancing = true;
         PlaySfxAugmentPick();
-        // 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程，退出时协程状态泄漏）
-        var timer = new Godot.Timer();
-        timer.OneShot = true;
-        timer.ProcessMode = Node.ProcessModeEnum.Always; // 对齐原 SceneTreeTimer 暂停树仍计时
-        timer.WaitTime = 1.0;
-        timer.Timeout += FinishPassStage;
-        AddChild(timer);
-        timer.Start();
+        // 一次性 Timer 节点 + 信号回调（禁 await create_timer 协程，退出时协程状态泄漏）；
+        // Always：树暂停中仍计时（对齐原 SceneTreeTimer 语义）
+        TimerFx.OneShot(this, 1.0, FinishPassStage, alwaysProcessing: true);
     }
 
     /// <summary>C01 修复：_pass_stage 的延迟推进改为 Timer 回调（原 await create_timer 在教程被释放时协程悬死）</summary>
@@ -557,21 +552,15 @@ public partial class Tutorial : Node2D
         AddChild(_baseUi);
         _baseUi.ResumeRequested += OnBaseResume;
         _baseUi.ShowBase();
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
         // Always 态 Esc 返回路由（2026-09-09）：基地开启的 ~1.2s 窗口期树暂停，本节点（Pausable）
         // 的 _UnhandledInput 收不到 Esc（窗口期 Esc 失灵）；路由节点 Always 态代收转发退出
         _escRouter = new TutorialEscRouter { ProcessMode = Node.ProcessModeEnum.Always, OnCancel = ExitTutorial };
         AddChild(_escRouter);
-        // 打开即过关：1s 后自动关闭进入下一阶段（玩家点继续出击同样推进）
+        // 打开即过关：1s 后自动关闭进入下一阶段（玩家点继续出击同样推进）；
+        // Always：树暂停（基地 UI）中仍需计时
         PassStage();
-        // 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程）
-        var timer = new Godot.Timer();
-        timer.OneShot = true;
-        timer.ProcessMode = Node.ProcessModeEnum.Always; // 树暂停（基地 UI）中仍需计时
-        timer.WaitTime = 1.2;
-        timer.Timeout += CloseBase;
-        AddChild(timer);
-        timer.Start();
+        TimerFx.OneShot(this, 1.2, CloseBase, alwaysProcessing: true);
     }
 
     private void CloseBase()
@@ -581,7 +570,7 @@ public partial class Tutorial : Node2D
             return;
         }
 
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
         if (_escRouter != null)
         {
             _escRouter.QueueFree();
@@ -630,10 +619,7 @@ public partial class Tutorial : Node2D
 
     private void ExitTutorial()
     {
-        Engine.TimeScale = 1.0f; // 防御性复位
-        GetTree().Paused = false;
-        GameState.Instance.ResetRun(); // 不污染正常对局
-        GetTree().ChangeSceneToFile("res://scenes/title.tscn");
+        GameState.Instance.ExitToTitle(); // 单口内含 TimeScale/暂停复位与 ResetRun（不污染正常对局）
     }
 
     public override void _UnhandledInput(InputEvent @event)

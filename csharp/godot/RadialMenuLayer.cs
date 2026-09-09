@@ -19,8 +19,8 @@ public abstract partial class RadialMenuLayer : CanvasLayer
 {
     /// <summary>轮盘圆心静止位（1080p 设计坐标；UI 不走 world_scale）。
     /// y=480 与端点角钳 36°（RadialWheel.SlotAngleFor）配合：卡片旋转包络底缘 ≈927，
-    /// 不压左下生命/状态 HUD 区（顶缘 ≈940）。</summary>
-    protected static readonly Vector2 WheelRest = new(-160f, 480f);
+    /// 不压左下生命/状态 HUD 区（顶缘 ≈940）。全站轮盘页单一来源（TalentPanel 自管骨架同用）。</summary>
+    public static readonly Vector2 WheelRest = new(-160f, 480f);
 
     /// <summary>引线菱形端点/线宽的静态缓冲（重绘零分配）。</summary>
     private static readonly Vector2[] TipDiamond = { new(6f, 0f), new(0f, 5f), new(-6f, 0f), new(0f, -5f) };

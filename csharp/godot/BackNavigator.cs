@@ -141,10 +141,8 @@ public partial class BackNavigator : Node
                 MarkHandled();
                 break;
             case BackAction.TO_MAIN_MENU:
-                // 结算页回标题屏（title.tscn）：ResetRun 保证下次开局为全新一局
-                GetTree().Paused = false;
-                GameState.Instance.ResetRun();
-                GetTree().ChangeSceneToFile("res://scenes/title.tscn");
+                // 结算页回标题屏（title.tscn）：ExitToTitle 内含 ResetRun（全新一局）
+                GameState.Instance.ExitToTitle();
                 MarkHandled();
                 break;
             case BackAction.RESUME_GAME:

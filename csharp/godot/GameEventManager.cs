@@ -665,10 +665,7 @@ public partial class GameEventManager : Node
             _fogTimer.QueueFree();
         }
 
-        _fogTimer = new Godot.Timer { OneShot = true };
-        _fogTimer.Timeout += EndFog;
-        AddChild(_fogTimer);
-        _fogTimer.Start(duration);
+        _fogTimer = TimerFx.OneShot(this, duration, EndFog);
         // context：迷雾门面构建（视觉容器/覆盖层/方向脉冲回调），request_end 回调指向本管理器
         var layer = FogLayer();
         Godot.Collections.Dictionary ctx;

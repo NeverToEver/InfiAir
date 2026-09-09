@@ -608,7 +608,7 @@ public partial class Main : Node2D
         _intro = IntroScene.Instantiate<IntroCinematic>();
         _intro.Finished += OnIntroFinished;
         AddChild(_intro);
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
     }
 
     /// <summary>Esc 经 BackNavigator 路由至此；任意键/点击由过场自身 _unhandled_input 捕获</summary>
@@ -623,7 +623,7 @@ public partial class Main : Node2D
     private void OnIntroFinished()
     {
         _intro = null;
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
         GoTitleScreen(); // 过场结束 → 深空机库标题屏（机体飞入悬挂展示，按任意键开始）
     }
 
@@ -650,7 +650,7 @@ public partial class Main : Node2D
         }
 
         AddChild(_return);
-        GetTree().Paused = true;
+        GameState.Instance.SetTreePaused(true);
     }
 
     /// <summary>Esc 经 BackNavigator 路由至此；任意键/点击由过场自身 _unhandled_input 捕获</summary>
@@ -976,7 +976,7 @@ public partial class Main : Node2D
 
         _player.UnlockInput();
         _homecoming = false;
-        GetTree().Paused = false;
+        GameState.Instance.SetTreePaused(false);
         // 继续出击后播战机入场动画：无敌与敌机延迟由入场序列接管（替代原地无敌闪现）
         StartEntrySequenceInternal();
     }
