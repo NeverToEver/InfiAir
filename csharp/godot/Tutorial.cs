@@ -49,6 +49,7 @@ public partial class Tutorial : Node2D
     private float _maxHp = 100.0f; // G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // G015：蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // M5：BaseConsole 已迁 C#，typed 字段（原 GDScript set_script 不需要）
+    private TutorialEscRouter? _escRouter; // 基地开启窗口期（树暂停）的 Always 态 Esc 返回路由
     private Boss _boss = null!; // M3d：Boss 迁 C#，typed 字段
     private Mothership? _mothership;
     private bool _finished;
@@ -564,6 +565,10 @@ public partial class Tutorial : Node2D
         _baseUi.ResumeRequested += OnBaseResume;
         _baseUi.ShowBase();
         GetTree().Paused = true;
+        // Always 态 Esc 返回路由（2026-09-09）：基地开启的 ~1.2s 窗口期树暂停，本节点（Pausable）
+        // 的 _UnhandledInput 收不到 Esc（窗口期 Esc 失灵）；路由节点 Always 态代收转发退出
+        _escRouter = new TutorialEscRouter { ProcessMode = Node.ProcessModeEnum.Always, OnCancel = ExitTutorial };
+        AddChild(_escRouter);
         // 打开即过关：1s 后自动关闭进入下一阶段（玩家点继续出击同样推进）
         PassStage();
         // 一次性 Timer 节点 + 信号回调（AGENTS：禁止 await create_timer 协程）
@@ -584,6 +589,12 @@ public partial class Tutorial : Node2D
         }
 
         GetTree().Paused = false;
+        if (_escRouter != null)
+        {
+            _escRouter.QueueFree();
+            _escRouter = null;
+        }
+
         _baseUi.QueueFree();
         _baseUi = null;
     }
@@ -653,5 +664,20 @@ public partial class Tutorial : Node2D
         }
 
         return objs;
+    }
+}
+
+/// <summary>Always 态 Esc 返回路由（2026-09-09）：教程基地开启的 ~1.2s 窗口期树暂停，
+/// Tutorial（Pausable）的 _UnhandledInput 收不到 Esc；本节点 Always 态代收并转发退出回调。</summary>
+public partial class TutorialEscRouter : Node
+{
+    public Action? OnCancel { get; set; }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event.IsActionPressed("ui_cancel"))
+        {
+            OnCancel?.Invoke();
+        }
     }
 }

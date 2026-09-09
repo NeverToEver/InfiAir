@@ -1562,6 +1562,11 @@ public partial class Player : CharacterBody2D
 
     private void DieInternal()
     {
+        if (_dead)
+        {
+            return; // 幂等：同帧二次致死不重复结算，PlayerDied 不双发
+        }
+
         _dead = true;
         AbortEntry(); // D06：入场期间自毁复位入场状态机
         _enrageSlow = 1.0f; // 死亡/重生路径兜底
@@ -1585,6 +1590,9 @@ public partial class Player : CharacterBody2D
 
         SetPhysicsProcess(false);
         Explosion.SpawnAt(GetParent(), Position, 2.0f);
+        // PlayerDied 在 _dead 置位、死亡结算完成后发射（2026-09-09 自 CombatStateService.LoseHealth
+        // 迁入）：订阅者回调内 IsDead() 恒为 true，不再有时序陷阱
+        GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
     }
 
     /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。</summary>

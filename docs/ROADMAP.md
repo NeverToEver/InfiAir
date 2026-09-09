@@ -19,19 +19,19 @@
   2026-09-08 三轮（环境枚举）：机器上发现 **`oopz-overlay2.exe`（Oopz 语音开黑的游戏覆盖层）**，持有一个 `Topmost + Layered + Transparent + NoActivate + Visible`、290×1152px 常驻于 (1742,488) 的隐形全高覆盖窗——该类覆盖窗最吻合「吃 press 放行 release」的故障指纹与随时段波动的间歇性（覆盖层状态变化）。双击参数正常（500ms/4px），排除双击转换吞 press。**下一步验证：复现故障时先 `Stop-Process -Name oopz-overlay2` 再点击——恢复即实锤**；游戏内根治不可行（外部进程），可考虑在标题屏/设置页检测 overlay 注入并提示。
   2026-09-08 附注：探针场景（`test/input_probe.tscn` + `csharp/godot/tests/InputProbe.cs`）随 welcome 场景移除一并删除（探针依赖 welcome 测试钩子）；按上方诊断方法描述可在新入口场景（标题屏/设置页）重建。
 - ~~**[中低] 召唤蓄力/机库小窗窗口期事件可触发**~~：已修（2026-09-09）——`GameState.SummonInProgress` 旗帜由 Main 逐帧维护（蓄力/小窗期 true，_Ready/_ExitTree 复位），`GameEventManager` 遭遇触发门控读取；窗口期事件不掷签，L13 反向漏出封闭。无头全流程探针实测蓄力+小窗期 encounter 触发 0 次。
-- **[中低] 基地任务绝对计数轮换即完成**：kill/boss/survive 进度为对局绝对值，刷新抽到低门槛任务下一秒瞬领 RP（刷新经济泄漏）。修复需任务实例改为「抽取时快照基线」的相对进度。
+- ~~**[中低] 基地任务绝对计数轮换即完成**~~：已修（2026-09-09）——任务条目改相对口径：抽取时快照该 kind 对局绝对计数为 `baseline`（`MissionsService._lastKindValue` 逐次上报缓存），进度 = 绝对值 − 基线；初始手牌 baseline=0，保留的已完成未领取任务基线不动。无头探针实测 50 杀刷新后新任务 progress=0、再 1 杀=1（探针用后即删）。
+- ~~**[低] `PlayerDied` 信号发射先于 `player.Die()`**（PlayerDamage.cs）~~：已修（2026-09-09）——发射点自 `CombatStateService.LoseHealth` 迁入 `Player.DieInternal`（`_dead` 置位+死亡结算完成后），回调内 `IsDead()` 恒 true；`DieInternal` 补幂等守卫（同帧二次致死不重复结算/双发）。探针实测发射 1 次且回调内 `IsDead()==true`（探针用后即删）。
 - ~~**[低] `_wavesPaused` 单布尔双写者**~~：已修（2026-09-09）——改计数口径（Start +1 / ResumeWaves −1 钳底 0），双写者互踩不再提前解禁。
 - ~~**[低] `Main.OnPlayerDied` 不清遭遇事件**~~：已修（2026-09-09）——死亡路径补 `EndActive(GROUP_ENCOUNTER)` + spawner `SetProcess(false)`/`ClearPending`，不再依赖「结算 UI 同帧暂停树」的巧合安全。
 - **[低] 视觉层无自动化覆盖**：全部无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏一个月（2026-09-07 W1 实证）。现行纪律 = UI/视觉改动窗口化人工过目；可选改进 = 视觉捕获探针场景（2026-09-09 已随测试资产移除，需要时可重建）。
-- **[低] 天赋描述文案沿用三选一时代措辞**：`BUFF_*_DESC`（19×2 键）仍是「最多 X 层」式的随机抽取措辞，与天赋面板的等级/收益递减语义有出入；需一轮文案订正。
+- ~~**[低] 天赋描述文案沿用三选一时代措辞**~~：已修（2026-09-09）——`AUG_*_DESC` 18×2 键订正（债务登记时称 BUFF_*，键已更名）：去「最多 X 层/可叠/max stacks」随机抽取措辞，改「每级」等级语义；上限数值不再入文案（去双源——天赋面板详情卡 TALENT_LV_FULL_FMT 已显示生效/结构上限）；salvo 间隔（7−2/级→5 发起）/second_wind(3 HP/s×级）/dash_strike(35×级）/deflector(×0.78/×1.6)/graze(×1.2、+5) 等数值逐一对照 balance.json 与 Player.RefreshAugmentFactors 核实。
 - **[低] 专注惩罚触发面窄**：`talent.focus.threshold`(7) 实际仅 extra_life(上限10) 与风险加点档可达；若日后放宽节点等级上限需同步重校该阈值与惩罚曲线。
 - ~~[低] v2 存档升 v3 天赋态归零~~：随对局存档系统移除（2026-09-08）失效。
 - **[手工·发布前] Cinematic stage 4**：低配机复测 + 手柄/移动端手工项。
 - **[手工·发布前] 真机手感验证**：15+ 分钟连续实机游玩（无尽校准与公平性机制的人工验收）。
-- **[低] 设置/基地页轮盘聚焦项与右区面板初始章节不同步**：轮盘开后聚焦停在弧面居中槽，右面板默认第一个 tab（设置页「操作模式 vs 控制」、基地页「任务规划 vs 战机库」读法冲突）；基地页引线锚点（当前目录面板左缘中点）会落进面板装饰空域。宿主页联动接线遗留——打开时面板跟随聚焦项或轮盘聚焦指定项二选一。
+- ~~**[低] 设置/基地页轮盘聚焦项与右区面板初始章节不同步**~~：已修（2026-09-09）——取「轮盘聚焦指定项」方案（沿用暂停/结算页 FocusOption(0) 先例）：SettingsUi.ShowSettings/BaseConsole.ShowBase 开页聚焦首项（控制/战机库），与默认面板对齐；基地页引线锚点自「当前目录面板左缘中点」（恰与切角面板装饰性中位拼板缝 h*0.5 重合）改锚「当前分类标题」标签，VisiblePage() 死代码随删。探针实测开页聚焦 controls/hangar + 锚点 = _categoryLabel（探针用后即删）。
 - **2026-09-09 游玩问题修复批次**（无头全流程探针定位+验证，探针用后即删）：① ~~暂停→退出游戏→取消退出软锁~~（ExitConfirm 增 `Canceled` 事件，PauseUi 取消后恢复可见+轮盘活性）；② ~~设置页返回暂停页轮盘永久失活~~（`PauseUi.GrabPrimaryFocus` 恢复 `SetWheelActive(true)`）；③ ~~标题屏同帧多输入双重切场景/T 组合键目的地错~~（一次性 `_started` 守卫）；④ ~~暂停/结算页轮盘键盘导航全灭~~——根因：TalentPanel 隐藏后其轮盘子节点 `Visible` 标志仍为 true，在 `_UnhandledInput` 相位抢吞 `ui_*`（`RadialWheel` 键盘导航移入 `_Input` 先 GUI 相位 + 输入门控改 `IsVisibleInTree()`；SettingsUi/BaseConsole 混合页轮盘设 `KeyboardEnabled=false` 让位页面焦点链）；⑤ ~~暂停/结算轮盘开页默认聚焦弧面中点槽~~（4 项停在「重新出击」，Esc 后误 Enter 直接重开）——`FocusOption(0)` 开页聚焦首项；⑥ 标题屏→开局路径补幂等 `ResetRun`（不再依赖上游约定）；⑦ 死代码清理（`RestoreHealth`/`RestoreMilestones`/`MilestoneMult` 内部桥，随存档系统删除后零调用）。
-- **[低] 教程基地开启的 ~1.2s 窗口内 Esc 失灵**：Tutorial 为默认 Pausable，`OpenBase()` 暂停树后 `_UnhandledInput` 收不到 Esc（1.2s 自动关基地后自愈）。可接受，需要时给 Tutorial 补 Always 态返回路由。
-- **[低] `PlayerDied` 信号发射先于 `player.Die()`**（PlayerDamage.cs）：现有订阅者（Main/GameOverUi/MetaHealthFX/Tutorial）不受影响，但对未来订阅者是时序陷阱（回调内 `IsDead()==false`）。
+- ~~**[低] 教程基地开启的 ~1.2s 窗口内 Esc 失灵**~~：已修（2026-09-09）——补 Always 态返回路由：`TutorialEscRouter`（OpenBase 时挂载、CloseBase 时释放，ProcessMode=Always）暂停树期间代收 `ui_cancel` 转发 `ExitTutorial`；探针实测暂停树下路由节点收到 `_UnhandledInput`（探针用后即删）。
 
 ## Direction Shift
 

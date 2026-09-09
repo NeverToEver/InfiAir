@@ -17,7 +17,8 @@ public partial class GameState : Node
     /// <summary>征用点数（基地经济）——MissionsService 转发。</summary>
     public int Rp { get => _missions.Rp; set => _missions.Rp = value; }
 
-    /// <summary>任务 id -> {"progress": int, "claimed": bool}——MissionsService 转发。</summary>
+    /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
+    /// （progress 为相对口径：对局绝对计数 − 任务入场基线快照）——MissionsService 转发。</summary>
     public Godot.Collections.Dictionary Missions { get => _missions.Missions; set => _missions.Missions = value; }
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST

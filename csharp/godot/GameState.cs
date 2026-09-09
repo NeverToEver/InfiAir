@@ -148,7 +148,7 @@ public partial class GameState : Node
 
     /// <summary>第五轮拆域（2026-08-11）：健康/Buff 战斗状态域服务——Health/Augments 状态与生命上限/
     /// 受击/治疗/吸血/选 buff 逻辑迁入 CombatStateService（GameState.Settings.cs C 簇为门面转发；
-    /// 跨域经 Instance；PlayerDied 经 Instance 直发）。无构造依赖。</summary>
+    /// 跨域经 Instance；PlayerDied 由 Player.DieInternal 在死亡结算后发射）。无构造依赖。</summary>
     private readonly CombatStateService _combat = new();
 
     /// <summary>第五轮拆域（2026-08-11）：对局进程域服务——难度档位/倍率缓存/DDA 降档/进程 ramp/

@@ -689,6 +689,7 @@ public partial class SettingsUi : RadialMenuLayer
         _capturingAction = new StringName();
         ShowPage(PageControls);
         RebuildWheelMenu();
+        Wheel.FocusOption(0); // 开页聚焦「控制」与默认页对齐：默认弧面中点槽停在「操作模式」（聚焦/面板读法冲突）
         Visible = true;
         SetWheelActive(true, dimActive: false); // 本页遮罩由 page shell 提供
         PlayWheelEntrance();

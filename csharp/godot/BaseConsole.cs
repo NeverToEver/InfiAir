@@ -103,7 +103,7 @@ public partial class BaseConsole : RadialMenuLayer
         }
 
         BuildChrome();
-        SetContentAnchor(VisiblePage); // 右区面板按目录切换：引线锚定当前可见面板
+        SetContentAnchor(() => _categoryLabel); // 引线锚定「当前分类标题」：面板左缘中点恰与切角面板装饰性中位拼板缝（h*0.5）重合，落入装饰空域
         BuildBackdrop();
         RaiseWheel(); // 背景站体/扫描带在 chrome 之后入树：轮盘保持在其上
         BuildRightArea();
@@ -216,21 +216,6 @@ public partial class BaseConsole : RadialMenuLayer
     }
 
     private Label MakeLabel(string text, int size) => UITheme.MakeLabel(text, size);
-
-
-    /// <summary>引线锚点解析：当前可见目录面板（右区单面板切换）。</summary>
-    private Control? VisiblePage()
-    {
-        foreach (var page in _pages.Values)
-        {
-            if (page.Visible)
-            {
-                return page;
-            }
-        }
-
-        return null;
-    }
 
     private ChamferedPanel MakePanel(string titleKey, Vector2[][] glyph)
     {
@@ -461,6 +446,7 @@ public partial class BaseConsole : RadialMenuLayer
         Visible = true;
         SetWheelActive(true);
         RebuildMenu();
+        Wheel.FocusOption(0); // 开页聚焦「战机库」与默认目录对齐：默认弧面中点槽停在「任务规划」（聚焦/面板读法冲突）
         PlayWheelEntrance();
         SwitchCategory("hangar", animate: false);
         HoloBoot();

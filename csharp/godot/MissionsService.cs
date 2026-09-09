@@ -21,7 +21,8 @@ public sealed partial class MissionsService : RefCounted
     /// <summary>征用点数（基地经济）</summary>
     public int Rp { get; set; } = 0;
 
-    /// <summary>任务 id -> {"progress": int, "claimed": bool}</summary>
+    /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
+    /// （progress 为相对口径：对局绝对计数 − baseline；baseline = 任务入场/抽取时的绝对计数快照）</summary>
     public Godot.Collections.Dictionary Missions { get; set; } = new();
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
@@ -33,6 +34,11 @@ public sealed partial class MissionsService : RefCounted
 
     /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
     private readonly Godot.Collections.Dictionary _missionsByKind = new();
+
+    /// <summary>kind -> 最近一次上报的对局绝对计数（kill=击杀 / boss=Boss 击杀 / survive=存活秒）。
+    /// 轮换抽取新任务时快照为该任务的 baseline，进度 = 绝对值 − 基线（相对口径），防止绝对计数
+    /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏修复，2026-09-09）。</summary>
+    private readonly Dictionary<StringName, int> _lastKindValue = new();
 
     /// <summary>任务领取奖励 RP（对齐原作 RequisitionConstants）。</summary>
     private const int RpMissionRewardValue = 3;
@@ -71,10 +77,12 @@ public sealed partial class MissionsService : RefCounted
     public void InitMissions()
     {
         Missions.Clear();
+        _lastKindValue.Clear(); // 对局重开：绝对计数随 Kills/RunTime 归零，基线源同步清零
         foreach (var def in GameState.Instance.MISSION_DEFS)
         {
             // P0-3：goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL
-            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = (int)def["goal"].AsInt64() };
+            // 初始手牌 baseline=0（对局起点即任务起点）
+            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = (int)def["goal"].AsInt64(), ["baseline"] = 0 };
         }
 
         // 任务轮换：每局从全新洗牌序列开始（初始手牌固定 MISSION_DEFS，刷新才随机）
@@ -110,8 +118,10 @@ public sealed partial class MissionsService : RefCounted
         }
 
         var m = Missions[id].AsGodotDictionary();
-        // P4（2026-08-05）：进度负值钳 0（防御；正常路径 value 恒 ≥0，手改存档/异常注入不产生负进度）
-        var clamped = Mathf.Max(value, 0);
+        // 相对口径（2026-09-09）：上报值为对局绝对计数，进度 = 绝对值 − 入场基线快照；
+        // 负值钳 0 兼作防御（P4；正常路径 value 单调不减，不出现负进度）
+        var baseline = (int)m.GetValueOrDefault("baseline", 0).AsInt64();
+        var clamped = Mathf.Max(value - baseline, 0);
         // P0-3：survive 类每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
         if ((int)m["progress"].AsInt64() == clamped)
         {
@@ -131,6 +141,7 @@ public sealed partial class MissionsService : RefCounted
     /// 已不在场的 id 由 _set_mission_progress 的 missions.has 守卫自动跳过）</summary>
     public void SetKindProgress(StringName kind, int value)
     {
+        _lastKindValue[kind] = value; // 绝对计数源：轮换抽取时作新任务基线快照
         // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Array）
         if (_missionsByKind.TryGetValue(kind, out var list))
         {
@@ -247,7 +258,11 @@ public sealed partial class MissionsService : RefCounted
 
         foreach (var def in drawn) // U13：Draw 返回 typed Array<Dictionary>，元素直接是 Dictionary
         {
-            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = def["goal"] };
+            // 基线快照（2026-09-09）：新任务以抽取时刻该 kind 的对局绝对计数为基线，进度从 0
+            // 起算——防止绝对计数（如已击杀 50）直接灌入低门槛新任务下一秒瞬领 RP（刷新经济泄漏）
+            var kind = def["kind"].AsStringName();
+            var baseline = _lastKindValue.TryGetValue(kind, out var abs) ? abs : 0;
+            Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = def["goal"], ["baseline"] = baseline };
         }
 
         return true;

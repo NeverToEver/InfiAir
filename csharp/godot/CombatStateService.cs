@@ -6,9 +6,10 @@ namespace InfiAir;
 /// 战斗状态域服务（第五轮拆域，2026-08-11）：原 GameState.Settings.cs C 簇健康/Buff 域——
 /// Health/Augments 状态、生命上限/受击/治疗/吸血/选 buff 逻辑迁入本服务。
 /// Godot 绑定层：本域无跨域状态依赖——MaxHealth/AugmentLevel 均为本域直调（难度域 regen 缓存等
-/// 跨域数值如需访问经 GameState.Instance 门面，当前 C 簇无此访问）；PlayerDied 信号经
-/// GameState.Instance 直发（RefCounted 非 Node 无法 EmitSignal，与 MissionsService.ChooseRoute 的
-/// AugmentsChanged 直发先例同构——发射点/次数/顺序不变）；健康配置（MaxHpBase/MaxHpBonus/
+/// 跨域数值如需访问经 GameState.Instance 门面，当前 C 簇无此访问）；PlayerDied 信号不在本域——
+/// 由 Player.DieInternal 在 _dead 置位、死亡结算完成后经 GameState.Instance 发射（2026-09-09
+/// 时序修复：原 LoseHealth 内 Health<=0 即发，先于 player.Die()，回调内 IsDead()==false 是
+/// 订阅者时序陷阱）；健康配置（MaxHpBase/MaxHpBonus/
 /// _lifestealFraction）经 ApplyHealthConfig 注入（Cfg 调用留在 GameState 侧）。
 /// 门面转发先例：与 MetaService/MissionsService/ScoreService/RunProgressionService 同构——
 /// GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
@@ -69,12 +70,9 @@ public sealed partial class CombatStateService : RefCounted
     {
         Health = Mathf.Max(Health - amount, 0.0);
         HealthChanged?.Invoke(Health);
-        if (Health <= 0.0)
-        {
-            // PlayerDied 直发（RefCounted 非 Node 无法 EmitSignal；经 GameState.Instance 发射，
-            // 与 MissionsService.ChooseRoute 的 AugmentsChanged 直发先例同构——发射点/次数/顺序不变）
-            GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
-        }
+        // PlayerDied 不在此发射（2026-09-09 时序修复）：原此处 Health<=0 即发，先于 player.Die()，
+        // 回调内 IsDead()==false 是订阅者时序陷阱；现由 Player.DieInternal 在 _dead 置位后发射，
+        // 两处致死路径（PlayerDamage 弹击 / Main.GiveUp 自毁）均在 LoseHealth 后调 Die()。
     }
 
     /// <summary>治疗（单点封顶 max_health，调用侧不再各自判断）</summary>
