@@ -82,20 +82,23 @@ public partial class BaseConsole : RadialMenuLayer
     /// 页面隐藏时经 VisibleChanged 暂停/恢复（关页后不再空转）。</summary>
     private void ApplyDataFlicker(Label label)
     {
-        _dataFlickerTween = CreateTween().SetLoops();
+        var tween = CreateTween().SetLoops();
         for (var i = 0; i < 8; i++) // 8 × 0.334s ≈ 2.67s
         {
-            _dataFlickerTween.TweenProperty(label, "modulate:a", 0.92f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-            _dataFlickerTween.TweenProperty(label, "modulate:a", 1.0f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            tween.TweenProperty(label, "modulate:a", 0.92f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            tween.TweenProperty(label, "modulate:a", 1.0f, 0.167).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         }
 
-        _dataFlickerTween.TweenProperty(label, "position:x", 1.0f, 0.03);
-        _dataFlickerTween.TweenInterval(0.03);
-        _dataFlickerTween.TweenProperty(label, "position:x", 0.0f, 0.0);
+        tween.TweenProperty(label, "position:x", 1.0f, 0.03);
+        tween.TweenInterval(0.03);
+        tween.TweenProperty(label, "position:x", 0.0f, 0.0);
+        _dataFlickerTweens.Add(tween);
     }
 
-    /// <summary>永续装饰 tween 互斥缓存（页面隐藏期间暂停，防关页空转）。</summary>
-    private Tween? _dataFlickerTween;
+    /// <summary>永续装饰 tween 缓存（页面隐藏期间暂停，防关页空转）。
+    /// flicker 每分类页一条（BuildPages 时 MakePanel×4 各建一条），单字段装不下会漏出
+    /// 三条不受暂停控制的孤儿循环 tween，故收进列表与 _scanTween 一并接管。</summary>
+    private readonly List<Tween> _dataFlickerTweens = new();
     private Tween? _scanTween;
 
     /// <summary>页面隐藏时暂停装饰 tween、可见时恢复；树暂停期间照常播放
@@ -119,7 +122,11 @@ public partial class BaseConsole : RadialMenuLayer
             }
         }
 
-        Apply(_dataFlickerTween);
+        foreach (var flicker in _dataFlickerTweens)
+        {
+            Apply(flicker);
+        }
+
         Apply(_scanTween);
     }
 

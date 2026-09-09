@@ -18,6 +18,9 @@
 - **[手工·发布前] Cinematic stage 4**：低配机复测 + 手柄/移动端手工项。
 - **[手工·发布前] 真机手感验证**：15+ 分钟连续实机游玩（无尽校准与公平性机制的人工验收）。
 - **[低] 注释日期戳全量清理**：全库约 327 处注释含 `2026-0x-xx` 日期戳/审计编号前缀（c30ef49 自立「去日期戳/历史叙事」纪律后遗留；注释主体语义有效的仅去前缀）。2026-09-09 风格审查批次已订正失实注释 21 处（指向已删文档/旧 snake 名/行号漂移），渐进处理残余。
+- **[低] GameState.RestartRun 单口缺 AB13 退出确认互斥**：暂停页 R 重开序列仍在 PauseUi 本地（含 ExitConfirm 淡出窗口期守卫——确认期重开会 ReloadCurrentScene 杀掉淡出 tween 致退出静默丢失），GameState.RestartRun 单口无该守卫且当前唯一调用方是结算页（与退出流程互斥，现不可达）；两套同构序列已实际分歧，未来任何暂停态重开入口直调单口即复活该 bug。修法：守卫并入单口，或在单口注释显式声明「不含退出确认互斥，调用方自理」。
+- **[低] Explosion._ExitTree 新增 GameState.Instance 依赖**：批次二把静态爆炸池迁 GameState 实例字段后，`_ExitTree` 经 Instance getter 取池（旧静态数组任何拆树序恒安全）；autoload 先于场景节点失效的非常规拆树序（崩溃恢复/编辑器停止）下 getter 抛 InvalidOperationException。常规退出序（CurrentScene 先于 autoload 释放）已核实不触发。
+- **[低] EntityManager 双表防线未覆盖第三种分歧**：Unregister 守卫拦「索引缺键」「索引越界」两种；「索引在界但元素不符」仍会 swap-remove 错删数组末元素且 Repair 不介入（正常维护纪律下不可达，防线为纯增量，覆盖面比提交描述窄）。
 
 ## Direction Shift
 
