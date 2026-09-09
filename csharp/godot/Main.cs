@@ -617,10 +617,10 @@ public partial class Main : Node2D
     {
         _intro = null;
         GetTree().Paused = false;
-        GoTitleScreen(); // 过场结束 → 黑屏标题屏（按任意键开始）
+        GoTitleScreen(); // 过场结束 → 深空机库标题屏（机体飞入悬挂展示，按任意键开始）
     }
 
-    /// <summary>切换到标题屏（title.tscn：InfiAir 标题 + 按任意键开始 / T 教程）。</summary>
+    /// <summary>切换到标题屏（title.tscn：星空 + 远景战场 + 机体飞入悬挂展示 + 按任意键开始 / T 教程）。</summary>
     private void GoTitleScreen()
     {
         GetTree().ChangeSceneToFile("res://scenes/title.tscn");
