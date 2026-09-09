@@ -6,13 +6,17 @@ namespace InfiAir;
 /// 全局退出确认窗（复用组件）。
 /// normal/battle 双模式：battle 模式显示进度损失警告（战斗中退出路径：
 /// 暂停 →「退出游戏」→ 本窗，构成二次确认）。确认后统一执行退出前清理：
-/// profile 落盘 → 战斗中删档（放弃对局）→ 资源 hook → 淡出 0.3s → quit。
-/// Esc/手柄 B 取消由 BackNavigator 路由到 cancel()。
+/// 设置落盘 → 资源 hook → 淡出 0.3s → quit。
+/// Esc/手柄 B 取消由 BackNavigator 路由到 cancel()；取消（按钮/Esc 同路径）经
+/// Canceled 事件通知打开者恢复（暂停页在弹确认窗前隐藏了自己，不恢复则树保持
+/// 暂停且无任何可见 UI——软锁）。
 /// M5 全量迁移（2026-08-08 自 scripts/exit_confirm.gd）：UITheme/ChamferedPanel typed 直调；
 /// （process_mode=Always/layer=40）仍在 scenes/main.tscn 设置。
 /// </summary>
 public partial class ExitConfirm : CanvasLayer
 {
+    /// <summary>取消退出时发出（按钮点击与 BackNavigator 路由的 Esc 同一出口）；打开者据此恢复自身。</summary>
+    public event System.Action? Canceled;
     private Label _msgLabel = null!;
     private Button _okButton = null!;
     private Button _cancelButton = null!;
@@ -110,6 +114,7 @@ public partial class ExitConfirm : CanvasLayer
             return;
         }
         Visible = false;
+        Canceled?.Invoke();
     }
 
     /// <summary>AB13：退出确认已受理（_exiting），调用方（PauseUi）须屏蔽冲突快捷键。</summary>

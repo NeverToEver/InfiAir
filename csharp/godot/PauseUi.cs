@@ -43,6 +43,13 @@ public partial class PauseUi : RadialMenuLayer
         Wheel.Drilled += _ => RefreshHint();
         Wheel.Backed += RefreshHint;
         Wheel.FocusChanged += _ => RefreshHint(); // 说明卡实时跟随聚焦项（方向键/滚轮移动即刷新）
+        // 退出确认取消 → 恢复本页（OnQuitPressed 弹确认窗前隐藏了本页并停用轮盘；
+        // 不恢复则树保持暂停且无任何可见/可操作 UI——软锁）
+        var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
+        if (exitConfirm != null)
+        {
+            exitConfirm.Canceled += OnExitCanceled;
+        }
     }
 
     public override void _ExitTree()
@@ -105,6 +112,7 @@ public partial class PauseUi : RadialMenuLayer
                 new() { Id = "quit", Label = Tr("PAUSE_QUIT"), Glyph = RadialGlyph.Star },
             },
             string.Empty);
+        Wheel.FocusOption(0); // 开页聚焦「继续」：默认弧面中点槽会停在「重新出击」（误 Enter 重开对局）
         RefreshHint();
     }
 
@@ -176,11 +184,16 @@ public partial class PauseUi : RadialMenuLayer
         }
     }
 
-    /// <summary>主按钮重获焦点（设置页返回时由 SettingsUI 调用，与开始面板 grab_primary_focus 同约定）。
-    /// 圆盘版无焦点控件：保留入口为兼容 SettingsUI 的 typed 回派发。</summary>
+    /// <summary>设置页返回/退出确认取消时的恢复入口：恢复可见 + 轮盘活性
+    /// （OnSettingsPressed/OnQuitPressed 离开前均做了 Visible=false + SetWheelActive(false)，
+    /// 只还 Visible 不还轮盘会让轮盘菜单键盘/鼠标全死）。</summary>
     public void GrabPrimaryFocus()
     {
+        Visible = true;
+        SetWheelActive(true);
     }
+
+    private void OnExitCanceled() => GrabPrimaryFocus();
 
     private SettingsUi? GetSettingsUi()
     {

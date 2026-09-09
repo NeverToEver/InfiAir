@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
-/// 不启动正常 spawner 波次；进场 reset_run + 删档隔离，出场再 reset 并保证 time_scale=1。
+/// 不启动正常 spawner 波次；进场/出场各 reset_run 隔离对局状态，出场保证 time_scale=1。
 /// M5 全量迁移（2026-08-08 自 scripts/tutorial.gd）。
 /// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型——原 GDScript 的
 /// 脚本资源判型（load() + is_instance_of）在 C# 侧不再需要。

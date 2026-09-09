@@ -183,18 +183,6 @@ public sealed partial class ScoreService : RefCounted
         ComboChanged?.Invoke(0);
     }
 
-    /// <summary>里程碑恢复（ApplyRunSave 存档恢复路径调用）：按分数批量推进到当前档
-    /// （CountThresholdsUpTo 单次调用 + O(1)/档 增量推进，含原 while 的 10000 档挂死守卫；
-    /// 原逐档跨语言往返的 while 循环删除，存档恢复路径不再每档一次 GDScript 求值）。
-    /// 只写内部计数/阈值，不发事件——信号由 ApplyRunSave 末尾统一直发（顺序不变）。</summary>
-    public void RestoreMilestones(int score)
-    {
-        // H03 挂死守卫同源：CountThresholdsUpTo 内部封顶 10000 档（对齐原 apply_run_save 的 ms_cap）
-        _milestoneCount = (int)GameState.Instance.Progression.CountThresholdsUpTo(
-            score, Variant.From(MilestoneBase).AsGodotArray(), MilestoneCycleMult, GameState.Instance.MilestoneMult());
-        _nextMilestone = GameState.Instance.MilestoneThreshold(_milestoneCount);
-    }
-
     /// <summary>里程碑初始化（_Ready 与 ResetRun 共用）：计数归零 + 下一档阈值重算。</summary>
     public void InitMilestones()
     {

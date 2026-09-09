@@ -94,6 +94,9 @@ public partial class SettingsUi : RadialMenuLayer
         // 面板整体右移让出左缘轮盘弧面通航区
         BuildChrome();
         SetContentAnchor(() => _plate);
+        // 混合页（面板内含焦点控件：改键/按钮行）：轮盘不接管方向键，留给页面焦点链
+        // （键盘导航已移到 _Input 先 GUI 相位，不关会抢走整页键盘导航）
+        Wheel.KeyboardEnabled = false;
         Dim.Visible = false;
         Wheel.Confirmed += OnWheelConfirmed;
         RebuildWheelMenu();

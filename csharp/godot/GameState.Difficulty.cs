@@ -90,10 +90,6 @@ public partial class GameState : Node
     /// 逐位等价：pow 钳制、roundf half-away-from-zero、累加顺序一致）——RunProgressionService 转发。</summary>
     public int MilestoneThreshold(int index) => _runProg.MilestoneThreshold(index);
 
-    /// <summary>难度档阈值倍率（DIFFICULTY_DEFS 经 _valid_difficulty_defs 校验，milestone 恒为正数；
-    /// ScoreService.RestoreMilestones 经此 internal 包装跨域调用——原私有，第五轮拆域起 internal）。</summary>
-    internal double MilestoneMult() => _runProg.MilestoneMult();
-
     /// <summary>当前已触发的里程碑数——ScoreService 转发（Mothership.Tier 消费）。</summary>
     public int MilestoneCount() => _score.MilestoneCount();
 

@@ -15,7 +15,10 @@ namespace InfiAir;
 /// 卡片按与聚焦项的槽距交错过冲部署、前段全息闪烁——由宿主页入场编排触发。
 /// 聚焦变化在环带外缘打一道锁定 ping 弧；轮毂带径向辉光/准星/序号读出/层深小格，
 /// 内域活性雷达扫掠——活体仪表语义全部限定活性态，空闲冻结零重绘。
-/// 输入经 _Input（先于 GUI 相位）：只消费落在轮盘命中区内的事件，区外原样放行。
+/// 输入经 _Input（先于 GUI 相位）：鼠标只消费落在轮盘命中区内的事件，区外原样放行；
+/// 键盘/手柄 ui_up/ui_down/ui_accept 在 KeyboardEnabled 且无焦点控件的页面（暂停/结算）全时接管
+/// （GUI 相位会吞掉无焦点时的 ui_* 焦点导航键），混合页（settings/base）KeyboardEnabled=false 让位焦点链。
+/// 输入门控用 IsVisibleInTree：宿主页隐藏不改写本节点 Visible 标志，隐形轮盘不得吞输入。
 /// 动画全部 _Process 手动积分（bounce/ease 缓动取自 RadialWheelModel，纯函数可测），
 /// 绘制顶点/颜色缓冲静态缓存——热路径零托管分配。
 /// 绘制拆三个子层（RadialWheelLayer）按重绘频率独立重铺：钢构（面包屑/环带/轮毂，
@@ -260,6 +263,22 @@ public partial class RadialWheel : Node2D
         _idleT = 0f;
         _lastFocusIdx = _model.FocusedIndex; // 不发合成 FocusChanged（开页联动由 _rescan 与页面自身刷新负责）
         RepaintAll();
+    }
+
+    /// <summary>开页初始聚焦指定项（不发 FocusChanged，同 Load 的开页口径）。
+    /// 默认聚焦 = 弧面中点槽：偶数项页面中点四舍五入落在几何中点偏下槽（4 项停在 index 2），
+    /// 暂停页开页停在「重新出击」——Esc 后误按 Enter 直接重开对局；首项才是安全默认。</summary>
+    public void FocusOption(int index)
+    {
+        if (_model == null)
+        {
+            return;
+        }
+
+        _model.MoveFocus(index - _model.FocusedIndex);
+        _lastFocusIdx = _model.FocusedIndex; // 抑合成 FocusChanged（同 Load:261）
+        _rescan = true;
+        _cards.Repaint();
     }
 
     /// <summary>开机物化入场：环带自弧面中点向两端扫掠成形 + 卡片按槽距交错过冲部署 +
@@ -653,9 +672,47 @@ public partial class RadialWheel : Node2D
 
     public override void _Input(InputEvent @event)
     {
-        if (!Visible || _model == null || _shrinkT >= 0f)
+        // IsVisibleInTree 而非 Visible：宿主页隐藏（CanvasLayer.Visible=false）不会改写
+        // 本子节点自身的 Visible 标志——宿主已隐藏时本标志仍为 true，隐形轮盘会在 _Input
+        // 相位吞掉命中区鼠标点击与 ui_* 键盘导航（暂停页轮盘键盘导航全灭的实机根因）
+        if (!IsVisibleInTree() || _model == null || _shrinkT >= 0f)
         {
             return; // 收缩/回弹动画中为忙态，不接输入
+        }
+
+        // 键盘/手柄导航必须挂 _Input（先于 GUI 相位）：无焦点控件时引擎视口的焦点导航会在
+        // GUI 相位吞掉 ui_up/ui_down，方向键永远到不了 _UnhandledInput。
+        // KeyboardEnabled=false 的混合页（settings/base 有焦点控件）不接管，方向键留给页面焦点链。
+        if (KeyboardEnabled)
+        {
+            if (@event.IsActionPressed("ui_down"))
+            {
+                MoveFocusOrScroll(_model, +1);
+                _idleT = 0f;
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            if (@event.IsActionPressed("ui_up"))
+            {
+                MoveFocusOrScroll(_model, -1);
+                _idleT = 0f;
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            if (@event.IsActionPressed("ui_accept"))
+            {
+                _idleT = 0f;
+                var focused = _model.FocusedIndex;
+                if (focused >= 0)
+                {
+                    Confirm(_model, focused);
+                }
+
+                GetViewport().SetInputAsHandled();
+                return;
+            }
         }
 
         if (@event is not InputEventMouseButton mb)
@@ -813,39 +870,9 @@ public partial class RadialWheel : Node2D
         ScrollTowards(model, Math.Round(model.EffectiveScroll, MidpointRounding.AwayFromZero) + delta);
     }
 
-    // ---------------- 键盘/手柄（_UnhandledInput：GUI 相位无人消费时接管） ----------------
-
-    public override void _UnhandledInput(InputEvent @event)
-    {
-        if (!Visible || _model == null || _shrinkT >= 0f || !KeyboardEnabled)
-        {
-            return; // 忙态/关闭态不接；KeyboardEnabled=false 时方向键留给页面焦点链
-        }
-
-        if (@event.IsActionPressed("ui_down"))
-        {
-            MoveFocusOrScroll(_model, +1);
-            _idleT = 0f;
-            GetViewport().SetInputAsHandled();
-        }
-        else if (@event.IsActionPressed("ui_up"))
-        {
-            MoveFocusOrScroll(_model, -1);
-            _idleT = 0f;
-            GetViewport().SetInputAsHandled();
-        }
-        else if (@event.IsActionPressed("ui_accept"))
-        {
-            _idleT = 0f;
-            var focused = _model.FocusedIndex;
-            if (focused >= 0)
-            {
-                Confirm(_model, focused);
-            }
-
-            GetViewport().SetInputAsHandled();
-        }
-    }
+    // ---------------- 键盘/手柄 ----------------
+    // 注：键盘导航已并入 _Input（先于 GUI 相位）；_UnhandledInput 时相位太晚，
+    // ui_* 在无焦点控件时被引擎视口焦点导航吞掉，永远到不了这里。
 
     // ---------------- 命中 ----------------
 

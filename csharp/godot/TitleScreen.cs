@@ -19,6 +19,9 @@ public partial class TitleScreen : CanvasLayer
     private static readonly Vector2 ShipFarPos = new(1560.0f, 230.0f);
 
     private ulong _readyMs;
+    /// <summary>开局/进教程一次性守卫：同帧多个按下事件（键+点击、T+其他键）会各触发一次
+    /// ChangeSceneToFile（deferred 双倍执行），且 T 与其他键同帧时目的地由后调用者覆盖</summary>
+    private bool _started;
 
     public override void _Ready()
     {
@@ -125,7 +128,7 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (Time.GetTicksMsec() - _readyMs < InputGuardMs)
+        if (_started || Time.GetTicksMsec() - _readyMs < InputGuardMs)
         {
             return;
         }
@@ -139,6 +142,7 @@ public partial class TitleScreen : CanvasLayer
         {
             // 先标输入再切场景：ChangeSceneToFile 立即摘树，其后 GetViewport() 返回 null
             GetViewport().SetInputAsHandled();
+            _started = true;
             var kc = key.Keycode != Key.None ? key.Keycode : key.PhysicalKeycode;
             if (kc == Key.T)
             {
@@ -152,6 +156,7 @@ public partial class TitleScreen : CanvasLayer
         else if (@event is InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true })
         {
             GetViewport().SetInputAsHandled();
+            _started = true;
             StartGame();
         }
     }

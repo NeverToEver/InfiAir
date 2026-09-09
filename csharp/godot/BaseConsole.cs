@@ -109,6 +109,9 @@ public partial class BaseConsole : RadialMenuLayer
         BuildRightArea();
         BuildPages();
         Wheel.Confirmed += OnWheelConfirmed;
+        // 混合页（右区面板含焦点控件：修复/充能/购买/领取按钮）：轮盘不接管方向键，
+        // 留给页面焦点链（键盘导航已移到 _Input 先 GUI 相位，不关会抢走整页键盘导航）
+        Wheel.KeyboardEnabled = false;
     }
 
     public override void _ExitTree()

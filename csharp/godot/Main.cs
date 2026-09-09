@@ -116,6 +116,8 @@ public partial class Main : Node2D
         ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
         // 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
         Engine.TimeScale = 1.0f;
+        // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
+        GameState.Instance.SummonInProgress = false;
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
         _spawner.BossSpawned += _hud.ShowBossBar;
         _spawner.BossSpawned += OnBossSpawned;
@@ -210,6 +212,9 @@ public partial class Main : Node2D
         }
         else if (GameState.Instance.IntroPlayedThisSession)
         {
+            // 幂等兜底：标题屏→开局依赖「到标题屏前必已 ResetRun」的上游约定
+            // （当前所有到 title 的边均已复位）；此处直进开局分支补一次，新增到 title 的路径不踩雷
+            GameState.Instance.ResetRun();
             ApplyNewRun();
             StartEntrySequenceInternal(); // 从标题屏返回：直接开局
         }
@@ -232,6 +237,7 @@ public partial class Main : Node2D
     {
         // 子弹时间内退出（重开/测试结束）也要保证全局速度复位
         Engine.TimeScale = 1.0f;
+        GameState.Instance.SummonInProgress = false; // 同 TimeScale：跨场景不残留
         var camRef = GameState.Instance.CameraRef;
         if (camRef == _camera)
         {
@@ -364,6 +370,10 @@ public partial class Main : Node2D
             && _summonWindow == null
             && _giveUpCharge <= 0.0f
             && _events.ActiveId(_events.GROUP_ENCOUNTER) == NoActiveEncounter;
+        // 遭遇事件触发互斥旗帜（GameEventManager 门控读取）：蓄力期 + 小窗演出期事件不掷签，
+        // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（L13 窗口期补全）；
+        // 逐帧维护——暂停/死亡冻结 _Process 时残留 true 由 _ExitTree/_Ready 复位兜住
+        GameState.Instance.SummonInProgress = _charging || _summonWindow != null;
         if (canCharge && Input.IsActionPressed("dock"))
         {
             _charging = true;
@@ -672,8 +682,14 @@ public partial class Main : Node2D
     private void OnPlayerDied()
     {
         _gameOver = true;
+        GameState.Instance.SummonInProgress = false; // 死亡可能冻结 _Process（蓄力旗残留 true）
         // 迷雾事件：死亡终局清除进行中的事件（伪敌机/变色层/玩家效果信号复位）
         _fogEvents.EndActive();
+        // 遭遇事件：死亡终局打断（精英炮塔/轰炸编队无结算解散）——不再依赖「结算 UI 同帧
+        // 暂停树 + 场景重建」的巧合安全；spawner 停驱动后管理器遭遇触发门控随之关闭
+        _events.EndActive(_events.GROUP_ENCOUNTER);
+        _spawner.SetProcess(false);
+        _spawner.ClearPending(); // 释放排队中的敌机/Boss 预告（死亡局不再进场）
         // 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
         _player.UnlockInput();
         _player.MovementLocked = false;
@@ -854,7 +870,7 @@ public partial class Main : Node2D
                 (float)GameState.Instance.TalentEffLevel(new StringName("mothership_recall")));
     }
 
-    /// <summary>放弃出击（长按 K 3s）：自毁，走正常死亡结算（删档/最高分/结算面板）</summary>
+    /// <summary>放弃出击（长按 K 3s）：自毁，走正常死亡结算（击杀统计结算面板）</summary>
     private void GiveUp()
     {
         var health = (float)GameState.Instance.Health;
@@ -868,7 +884,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>返航（局内中场整备）：锁输入、星光拉伸 + 返航过场，过场结束后进入基地控制台。
-    /// 对局继续：不删档（反而更新存档）、Boss 保留、死亡才是唯一终局。</summary>
+    /// 对局继续：Boss 保留、死亡才是唯一终局。</summary>
     private void StartHomecomingInternal()
     {
         _homecoming = true;

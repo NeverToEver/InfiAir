@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// A2 阶段 2：对局存档 / 局外档案的文件 IO。
+/// A2 阶段 2：设置持久化（user://settings.json）的文件 IO。
 /// P0-1（2026-08-07）：原子写 / 损坏隔离 / JSON 序列化迁移 InfiAir.Core.Storage.SaveStore
 /// （C#，见 csharp/core/Storage/SaveStore.cs + csharp/godot/SaveStoreInterop.cs），
 /// 本文件为薄壳转发——公开 API 与行为等价不变（损坏隔离 &lt;path&gt;.corrupt + last_was_corrupt）。

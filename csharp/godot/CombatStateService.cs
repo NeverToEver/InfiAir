@@ -123,12 +123,4 @@ public sealed partial class CombatStateService : RefCounted
         Augments.Clear();
         Health = MaxHealth();
     }
-
-    /// <summary>存档血量恢复（ApplyRunSave 调用；钳 [0, max_health]。调用须在天赋域恢复之后——
-    /// max_health 依赖 extra_life 层级。v1（3 命制）存档不回迁血量，由调用方传 MaxHealth() 即满血开。
-    /// 不发事件——HealthChanged 由 ApplyRunSave 直发，顺序不变。</summary>
-    public void RestoreHealth(double health)
-    {
-        Health = Mathf.Clamp(health, 0.0, MaxHealth());
-    }
 }

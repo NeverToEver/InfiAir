@@ -104,6 +104,7 @@ public partial class GameOverUi : RadialMenuLayer
                 new() { Id = "quit", Label = Tr("GO_MENU_QUIT"), Glyph = RadialGlyph.Star },
             },
             string.Empty);
+        Wheel.FocusOption(0); // 开页聚焦「重新出击」：默认弧面中点槽会停在「返回标题」
     }
 
     private void OnWheelConfirmed(RadialWheelOption option)

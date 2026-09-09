@@ -186,6 +186,11 @@ public partial class GameState : Node
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
 
+    /// <summary>母舰召唤窗口（H 蓄力中或机库小窗演出中）。遭遇事件触发门控读取——窗口期玩家
+    /// 锁输入 + 999s 无敌，事件掷签命中会被母舰自动火力白拿奖励（L13 反向漏出）。
+    /// Main._Process 逐帧维护，Main._Ready/_ExitTree 复位（场景切换不残留）。</summary>
+    public bool SummonInProgress { get; set; }
+
     /// <summary>启动加载档案时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）</summary>
     public bool ProfileCorrupt { get; set; } = false;
 

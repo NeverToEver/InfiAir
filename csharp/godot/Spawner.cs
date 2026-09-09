@@ -109,8 +109,10 @@ public partial class Spawner : Node
     private bool _bossFrozen;
     private bool _bossPending;
 
-    /// <summary>事件期间普通波次暂停。</summary>
-    private bool _wavesPaused;
+    /// <summary>事件期间普通波次暂停（计数口径：事件 Start 时 +1、收尾 ResumeWaves 时 -1。
+    /// 生产路径由统一事件管理器保证 encounter 组单活跃；计数化后即使不变量被绕过
+    /// （直启两事件），先结束者也不会提前解除后结束者的暂停）。</summary>
+    private int _wavesPauseDepth;
 
     /// <summary>事件编排节点（main 在 _ready 登记；遭遇事件触发策略由统一事件管理器接管，
     /// 本引用供互斥查询（formation.can_trigger 检查 elite active）与测试访问器）。</summary>
@@ -570,7 +572,7 @@ public partial class Spawner : Node
         var d = (float)delta;
         _elapsed += d;
         // Boss 激活与事件暂停期间波次计时冻结（Boss/事件占用波次槽）
-        if (!_wavesPaused && !_bossActive)
+        if (_wavesPauseDepth <= 0 && !_bossActive)
         {
             _waveTimer -= d;
             if (_waveTimer <= 0.0f)
@@ -630,7 +632,10 @@ public partial class Spawner : Node
 
     public void SetBossFrozen(bool frozen) => _bossFrozen = frozen;
 
-    public void SetWavesPaused(bool paused) => _wavesPaused = paused;
+    public void SetWavesPaused(bool paused)
+    {
+        _wavesPauseDepth = paused ? _wavesPauseDepth + 1 : Mathf.Max(_wavesPauseDepth - 1, 0);
+    }
 
     public bool IsBossActive() => _bossActive;
 

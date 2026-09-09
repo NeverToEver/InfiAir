@@ -230,8 +230,7 @@ public sealed partial class RunProgressionService : RefCounted
     public int MilestoneThreshold(int index) => (int)GameState.Instance.Progression.MilestoneThreshold(
         index, Variant.From(GameState.Instance.MilestoneBase).AsGodotArray(), GameState.Instance.MilestoneCycleMult, MilestoneMult());
 
-    /// <summary>难度档阈值倍率（DIFFICULTY_DEFS 经 _valid_difficulty_defs 校验，milestone 恒为正数；
-    /// ScoreService.RestoreMilestones 经 GameState 私有包装调用）</summary>
+    /// <summary>难度档阈值倍率（DIFFICULTY_DEFS 经 _valid_difficulty_defs 校验，milestone 恒为正数）</summary>
     public double MilestoneMult() => (double)GameState.Instance.DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["milestone"].AsDouble();
 
     /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线）：

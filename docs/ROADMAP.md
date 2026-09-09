@@ -18,10 +18,10 @@
   2026-09-08 二轮实锤（探针重建为 `test/input_probe.tscn` + `csharp/godot/tests/InputProbe.cs`，调查中暂存）：**故障态真实输入现场首次完整捕获**——同一次运行内健康启动（合成事件全通、VERDICT 全 1），进入真实输入阶段后连续 10 次真实点击只见 release 不见 press（press 在 `Node._Input` 之前消失），期间窗口焦点无任何转移（无 FocusExited/Entered），键盘事件（q/Backspace/Enter/Esc/方向键）全程正常到达 `_Input`；用户连按 5 次 Esc 后点击**局内自愈**、press+release 恢复成对。结论收敛：与游戏代码无关、与窗口焦点无关；press 丢失点在引擎 WndProc 之前或之外（OS 投递/覆盖窗）；「Esc 治愈」指向 IME 候选窗/覆盖层的模态捕获被解除。
   2026-09-08 三轮（环境枚举）：机器上发现 **`oopz-overlay2.exe`（Oopz 语音开黑的游戏覆盖层）**，持有一个 `Topmost + Layered + Transparent + NoActivate + Visible`、290×1152px 常驻于 (1742,488) 的隐形全高覆盖窗——该类覆盖窗最吻合「吃 press 放行 release」的故障指纹与随时段波动的间歇性（覆盖层状态变化）。双击参数正常（500ms/4px），排除双击转换吞 press。**下一步验证：复现故障时先 `Stop-Process -Name oopz-overlay2` 再点击——恢复即实锤**；游戏内根治不可行（外部进程），可考虑在标题屏/设置页检测 overlay 注入并提示。
   2026-09-08 附注：探针场景（`test/input_probe.tscn` + `csharp/godot/tests/InputProbe.cs`）随 welcome 场景移除一并删除（探针依赖 welcome 测试钩子）；按上方诊断方法描述可在新入口场景（标题屏/设置页）重建。
-- **[中低] 召唤蓄力/机库小窗窗口期事件可触发**：事件互斥只拦「母舰在场」，蓄力 3s + 小窗 2.6s 内事件掷签命中 → 玩家锁输入 + 999s 无敌、母舰自动火力白拿事件奖励（L13 反向漏出）。需 Main↔GameEventManager 召唤窗口互斥标志，涉及遭遇触发门控时序。
+- ~~**[中低] 召唤蓄力/机库小窗窗口期事件可触发**~~：已修（2026-09-09）——`GameState.SummonInProgress` 旗帜由 Main 逐帧维护（蓄力/小窗期 true，_Ready/_ExitTree 复位），`GameEventManager` 遭遇触发门控读取；窗口期事件不掷签，L13 反向漏出封闭。无头全流程探针实测蓄力+小窗期 encounter 触发 0 次。
 - **[中低] 基地任务绝对计数轮换即完成**：kill/boss/survive 进度为对局绝对值，刷新抽到低门槛任务下一秒瞬领 RP（刷新经济泄漏）。修复需任务实例改为「抽取时快照基线」的相对进度。
-- **[低] `_wavesPaused` 单布尔双写者**（Spawner × 2 事件）：正确性依赖管理器「encounter 组单活跃」不变量，绕过管理器直启事件会互踩。生产路径不可达。
-- **[低] `Main.OnPlayerDied` 不清遭遇事件**：当前依赖「死亡必终局 + 场景重建」兜底；未来加复活/同局续命玩法需补 `EndActive(GROUP_ENCOUNTER)`。
+- ~~**[低] `_wavesPaused` 单布尔双写者**~~：已修（2026-09-09）——改计数口径（Start +1 / ResumeWaves −1 钳底 0），双写者互踩不再提前解禁。
+- ~~**[低] `Main.OnPlayerDied` 不清遭遇事件**~~：已修（2026-09-09）——死亡路径补 `EndActive(GROUP_ENCOUNTER)` + spawner `SetProcess(false)`/`ClearPending`，不再依赖「结算 UI 同帧暂停树」的巧合安全。
 - **[低] 视觉层无自动化覆盖**：全部无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏一个月（2026-09-07 W1 实证）。现行纪律 = UI/视觉改动窗口化人工过目；可选改进 = 视觉捕获探针场景（2026-09-09 已随测试资产移除，需要时可重建）。
 - **[低] 天赋描述文案沿用三选一时代措辞**：`BUFF_*_DESC`（19×2 键）仍是「最多 X 层」式的随机抽取措辞，与天赋面板的等级/收益递减语义有出入；需一轮文案订正。
 - **[低] 专注惩罚触发面窄**：`talent.focus.threshold`(7) 实际仅 extra_life(上限10) 与风险加点档可达；若日后放宽节点等级上限需同步重校该阈值与惩罚曲线。
@@ -29,6 +29,9 @@
 - **[手工·发布前] Cinematic stage 4**：低配机复测 + 手柄/移动端手工项。
 - **[手工·发布前] 真机手感验证**：15+ 分钟连续实机游玩（无尽校准与公平性机制的人工验收）。
 - **[低] 设置/基地页轮盘聚焦项与右区面板初始章节不同步**：轮盘开后聚焦停在弧面居中槽，右面板默认第一个 tab（设置页「操作模式 vs 控制」、基地页「任务规划 vs 战机库」读法冲突）；基地页引线锚点（当前目录面板左缘中点）会落进面板装饰空域。宿主页联动接线遗留——打开时面板跟随聚焦项或轮盘聚焦指定项二选一。
+- **2026-09-09 游玩问题修复批次**（无头全流程探针定位+验证，探针用后即删）：① ~~暂停→退出游戏→取消退出软锁~~（ExitConfirm 增 `Canceled` 事件，PauseUi 取消后恢复可见+轮盘活性）；② ~~设置页返回暂停页轮盘永久失活~~（`PauseUi.GrabPrimaryFocus` 恢复 `SetWheelActive(true)`）；③ ~~标题屏同帧多输入双重切场景/T 组合键目的地错~~（一次性 `_started` 守卫）；④ ~~暂停/结算页轮盘键盘导航全灭~~——根因：TalentPanel 隐藏后其轮盘子节点 `Visible` 标志仍为 true，在 `_UnhandledInput` 相位抢吞 `ui_*`（`RadialWheel` 键盘导航移入 `_Input` 先 GUI 相位 + 输入门控改 `IsVisibleInTree()`；SettingsUi/BaseConsole 混合页轮盘设 `KeyboardEnabled=false` 让位页面焦点链）；⑤ ~~暂停/结算轮盘开页默认聚焦弧面中点槽~~（4 项停在「重新出击」，Esc 后误 Enter 直接重开）——`FocusOption(0)` 开页聚焦首项；⑥ 标题屏→开局路径补幂等 `ResetRun`（不再依赖上游约定）；⑦ 死代码清理（`RestoreHealth`/`RestoreMilestones`/`MilestoneMult` 内部桥，随存档系统删除后零调用）。
+- **[低] 教程基地开启的 ~1.2s 窗口内 Esc 失灵**：Tutorial 为默认 Pausable，`OpenBase()` 暂停树后 `_UnhandledInput` 收不到 Esc（1.2s 自动关基地后自愈）。可接受，需要时给 Tutorial 补 Always 态返回路由。
+- **[低] `PlayerDied` 信号发射先于 `player.Die()`**（PlayerDamage.cs）：现有订阅者（Main/GameOverUi/MetaHealthFX/Tutorial）不受影响，但对未来订阅者是时序陷阱（回调内 `IsDead()==false`）。
 
 ## Direction Shift
 

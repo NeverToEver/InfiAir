@@ -461,7 +461,12 @@ public partial class GameEventManager : Node
         // is_processing() 反映 set_process 维度，can_process() 反映树/暂停维度）
         // IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发
         // 这一次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误
-        if (IsInsideTree() && _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsProcessing() && _spawner.CanProcess())
+        // SummonInProgress：母舰召唤蓄力/机库小窗窗口期不掷签（玩家锁输入+999s 无敌，
+        // 事件奖励会被母舰自动火力白拿——L13 互斥的窗口期补全）
+        if (IsInsideTree()
+            && !GameState.Instance.SummonInProgress
+            && _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsInsideTree()
+            && _spawner.IsProcessing() && _spawner.CanProcess())
         {
             TickEncounterTriggers(d);
         }
