@@ -3,16 +3,15 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// M3b：Enemy 迁 C#，sin_fast 静态直调（Enemy.SinFast，原经脚本资源 load）。
+/// Enemy.SinFast 静态直调。
 /// Meta HUD 血量与受击反馈：全屏后处理承载受击色差/径向模糊、
 /// 攻击方向定向波纹、低血裂纹生长/错峰消散、去饱和/冷青色偏/晕影与 DYING 心跳/呼吸/抖动。
 /// layer=1：世界之上、HUD 之下（HUD 在主场景抬至 layer=2；低于 OrbitalStrike 24、过场 35）。
 /// 性能（§2 决策）：满血静止隐藏全屏 ColorRect + _process 早退（常态零 GPU、≈零 CPU）；
 /// 参数上传 D5 epsilon 检测；自适应增益 D3 注册表代理亮度（0.25s 节流，零 GPU 回读）。
-/// M6 全量迁移（2026-08-08 自 scripts/meta_health_fx.gd）。
-/// 迁移注：P1-4 首帧延后烘焙由 await process_frame 改一次性 ProcessFrame 信号回调
-/// （OneShot 连接，不挂 await 协程——退出无泄漏；C15 守卫保留）；META_SHADER/BAKE_SHADER
-/// 原 preload 常量按批次规则 19 不静态持有 Godot Resource，改 _ready GD.Load（资源缓存命中）；
+/// 注：首帧延后烘焙用一次性 ProcessFrame 信号回调（OneShot 连接，不挂 await 协程——退出无泄漏；
+/// C15 守卫保留）；META_SHADER/BAKE_SHADER 不静态持有 Godot Resource（C# 静态字段持 Godot 对象
+/// 退出 segfault 实测根因），改 _Ready GD.Load（资源缓存命中）；
 /// </summary>
 public partial class MetaHealthFX : CanvasLayer
 {
@@ -20,9 +19,6 @@ public partial class MetaHealthFX : CanvasLayer
     private const float Epsilon = 0.001f;
 
     public const int STATE_NORMAL = 0;
-    public const int STATE_CAUTION = 1;
-    public const int STATE_DAMAGED = 2;
-    public const int STATE_CRITICAL = 3;
     public const int STATE_DYING = 4;
 
     public static int GetStateNormal() => STATE_NORMAL;
@@ -70,7 +66,7 @@ public partial class MetaHealthFX : CanvasLayer
     private float _healJitter;
     private float _heartPhase = -1.0f; // <0 表示非 DYING
     private float _heartEnv; // 心跳脉冲包络（0.3s，减少闪光时视觉置零、音效保留）
-    private float _heartRate; // 当前心率 Hz（测试可验）
+    private float _heartRate; // 当前心率 Hz
     private float _breath = 1.0f;
     private float _vigInner = 0.62f;
     private float _warnT; // DYING 警告边框正弦相位
@@ -119,10 +115,9 @@ public partial class MetaHealthFX : CanvasLayer
     private bool _fieldReady;
     private Texture2D _fieldTex = null!;
     private bool _forceRefresh; // 减少闪光切换等外部态变化时强制刷新一帧
-    // 测试插桩（§7 验收）：per-frame 参数上传次数 / 早退命中次数 / DYING 累计心跳次数
+    // 诊断计数（§7 验收口径）：per-frame 参数上传次数 / 早退命中次数
     private int _uploadCount;
     private int _earlyOutCount;
-    private int _heartBeats;
 
     private Shader _metaShader = null!;
     private Shader _bakeShader = null!;
@@ -143,9 +138,9 @@ public partial class MetaHealthFX : CanvasLayer
         _deferFrame = Callable.From(OnDeferFrame);
     }
 
-    // ---------------- A7：测试/诊断白盒断言经公开接口（平滑参数注入统一测试口 + 状态 getter） ----------------
+    // ---------------- A7：诊断白盒断言经公开接口（平滑参数注入口 + 状态 getter） ----------------
 
-    /// <summary>血量-裂纹映射曲线（§4.2；测试采样点不含生长过冲）</summary>
+    /// <summary>血量-裂纹映射曲线（§4.2；纯映射值，不含生长过冲）</summary>
     public float CrackProgress()
     {
         return Mathf.Pow(_damageX, _crackExponent);
@@ -169,7 +164,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     public int EarlyOutCount() => _earlyOutCount;
 
-    /// <summary>DYING 呼吸缩放（main.gd D6 组合相机 zoom 用）</summary>
+    /// <summary>DYING 呼吸缩放（Main D6 组合相机 zoom 用）</summary>
     public float BreathScale() => _breath;
 
     public bool BreathActive()
@@ -184,7 +179,7 @@ public partial class MetaHealthFX : CanvasLayer
         _bakeShader = GD.Load<Shader>("res://assets/shaders/crack_field_bake.gdshader");
         LoadCfg();
         _lod = _cfg["lod"].AsInt32();
-        GameState.Instance.MetaFxLod = _lod; // 供 hud.gd 低血晕影回退判断（D2）
+        GameState.Instance.MetaFxLod = _lod; // 供 Hud 低血晕影回退判断（D2）
         _rect = new ColorRect();
         _rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _rect.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -216,24 +211,24 @@ public partial class MetaHealthFX : CanvasLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("HealthChanged", _onHealthChanged))
+            if (!gs.IsConnected(GameState.SignalName.HealthChanged, _onHealthChanged))
             {
-                gs.Connect("HealthChanged", _onHealthChanged);
+                gs.Connect(GameState.SignalName.HealthChanged, _onHealthChanged);
             }
 
-            if (!gs.IsConnected("PlayerDamaged", _onPlayerDamaged))
+            if (!gs.IsConnected(GameState.SignalName.PlayerDamaged, _onPlayerDamaged))
             {
-                gs.Connect("PlayerDamaged", _onPlayerDamaged);
+                gs.Connect(GameState.SignalName.PlayerDamaged, _onPlayerDamaged);
             }
 
-            if (!gs.IsConnected("PlayerDied", _onPlayerDied))
+            if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
             {
-                gs.Connect("PlayerDied", _onPlayerDied);
+                gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
             }
 
-            if (!gs.IsConnected("ReduceFlashChanged", _onReduceFlashChanged))
+            if (!gs.IsConnected(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged))
             {
-                gs.Connect("ReduceFlashChanged", _onReduceFlashChanged);
+                gs.Connect(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
             }
         }
 
@@ -256,24 +251,24 @@ public partial class MetaHealthFX : CanvasLayer
         if (gs != null)
         {
             gs.MetaFxLod = 1;
-            if (gs.IsConnected("HealthChanged", _onHealthChanged))
+            if (gs.IsConnected(GameState.SignalName.HealthChanged, _onHealthChanged))
             {
-                gs.Disconnect("HealthChanged", _onHealthChanged);
+                gs.Disconnect(GameState.SignalName.HealthChanged, _onHealthChanged);
             }
 
-            if (gs.IsConnected("PlayerDamaged", _onPlayerDamaged))
+            if (gs.IsConnected(GameState.SignalName.PlayerDamaged, _onPlayerDamaged))
             {
-                gs.Disconnect("PlayerDamaged", _onPlayerDamaged);
+                gs.Disconnect(GameState.SignalName.PlayerDamaged, _onPlayerDamaged);
             }
 
-            if (gs.IsConnected("PlayerDied", _onPlayerDied))
+            if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
             {
-                gs.Disconnect("PlayerDied", _onPlayerDied);
+                gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
             }
 
-            if (gs.IsConnected("ReduceFlashChanged", _onReduceFlashChanged))
+            if (gs.IsConnected(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged))
             {
-                gs.Disconnect("ReduceFlashChanged", _onReduceFlashChanged);
+                gs.Disconnect(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
             }
         }
 
@@ -581,7 +576,6 @@ public partial class MetaHealthFX : CanvasLayer
             _heartPhase += d * _heartRate;
             if (Mathf.Floor(_heartPhase) > Mathf.Floor(prev))
             {
-                _heartBeats += 1;
                 _heartEnv = 1.0f;
                 GameState.Instance.PlaySfx(SfxId.Heartbeat); // D7：单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
@@ -617,10 +611,9 @@ public partial class MetaHealthFX : CanvasLayer
         {
             _adaptTimer = _adaptInterval;
             // P2-1（2026-08-05 审计）：注册表/静态计数替代 get_children 扫描——活跃子弹数
-            // （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion _live_count），
+            // （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion.LiveCount()），
             // 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历。
-            // M3a：计数迁 C# 静态——GDScript 不能以类名引用 C# 静态成员，经
-            // GameState.bullet_pool 实例访问（ActiveBulletCount/LiveExplosionCount，判空）
+            // 计数经 GameState.BulletPool 实例读取（ActiveBulletCount/LiveExplosionCount，判空）
             var bullets = 0;
             var explosions = 0;
             var poolV = GameState.Instance.BulletPool;
@@ -660,7 +653,7 @@ public partial class MetaHealthFX : CanvasLayer
         var vigStrength = Mathf.Min(_vignetteMaxAlpha, CrackProgress() * 0.55f);
         if (_state == STATE_DYING && healthNow > 0.0 && !reduceFlash)
         {
-            // 警告边框 2.5Hz 正弦（减少闪光时改静态，正弦折叠在 GDScript 侧）
+            // 警告边框 2.5Hz 正弦（减少闪光时不进本分支，边框保持静态）
             vigStrength *= 1.0f + 0.25f * Enemy.SinFast(_warnT * Mathf.Tau * _warnHz);
         }
 
@@ -685,7 +678,7 @@ public partial class MetaHealthFX : CanvasLayer
         _forceRefresh = false;
     }
 
-    /// <summary>D5：epsilon 变化检测后上传；上传计数供测试插桩</summary>
+    /// <summary>D5：epsilon 变化检测后上传；上传计数供诊断读取</summary>
     private void Put(StringName pname, Variant value)
     {
         if (_last.TryGetValue(pname, out var prev) && SameParam(prev, value))
@@ -727,7 +720,7 @@ public partial class MetaHealthFX : CanvasLayer
     /// <summary>P1-4（2026-08-05 审计）：延后烘焙——await 首帧后执行，SubViewport GPU 回读不占
     /// 启动关键路径；headless CPU 回退与窗口 GPU 路径均延后（等价性不变量保持）。
     /// C# 侧改一次性 ProcessFrame 信号回调（OneShot）而非 await 协程：进程退出时挂起协程会
-    /// 泄漏函数状态；C15 同款守卫：首帧前本节点被释放（无头测试同帧实例化释放）则不再操作 freed 实例。</summary>
+    /// 泄漏函数状态；C15 同款守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例。</summary>
     private void DeferBake()
     {
         GetTree().Connect(SceneTree.SignalName.ProcessFrame, _deferFrame, (uint)GodotObject.ConnectFlags.OneShot);
@@ -735,7 +728,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     private void OnDeferFrame()
     {
-        // C15 同款守卫：首帧前本节点被释放（无头测试同帧实例化释放）则不再操作 freed 实例
+        // C15 同款守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例
         if (!IsInsideTree())
         {
             return;
@@ -855,9 +848,5 @@ public partial class MetaHealthFX : CanvasLayer
     {
         return v - Mathf.Floor(v);
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float heal_jitter() => HealJitter();
 
 }

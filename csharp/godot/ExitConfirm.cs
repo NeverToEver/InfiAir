@@ -10,8 +10,7 @@ namespace InfiAir;
 /// Esc/手柄 B 取消由 BackNavigator 路由到 cancel()；取消（按钮/Esc 同路径）经
 /// Canceled 事件通知打开者恢复（暂停页在弹确认窗前隐藏了自己，不恢复则树保持
 /// 暂停且无任何可见 UI——软锁）。
-/// M5 全量迁移（2026-08-08 自 scripts/exit_confirm.gd）：UITheme/ChamferedPanel typed 直调；
-/// （process_mode=Always/layer=40）仍在 scenes/main.tscn 设置。
+/// UITheme/ChamferedPanel typed 直调；（process_mode=Always/layer=40）仍在 scenes/main.tscn 设置。
 /// </summary>
 public partial class ExitConfirm : CanvasLayer
 {
@@ -62,18 +61,18 @@ public partial class ExitConfirm : CanvasLayer
         row.AddChild(_okButton);
 
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Connect("LocaleChanged", _onLocaleChanged);
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
     }
 
     public override void _ExitTree()
     {
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs != null && gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
     }
 

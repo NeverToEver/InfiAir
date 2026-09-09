@@ -14,20 +14,18 @@ namespace InfiAir;
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度域（KeyBindings/TutorialDone/
 /// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool/JOYPAD_ACTIONS 及
 /// GetViewport/GetWindow 均经 Instance 门面访问（跨域键不迁入，保持单一事实源）；_registry
-/// （EntityManager）经构造注入（CameraRef 转发，与 MetaService 构造注入 UserDB/RunProgressionService
-/// 注入 BalanceService 同构）。
-/// 门面转发先例：与 MetaService/MissionsService/ScoreService/RunProgressionService/CombatStateService
+/// （EntityManager）经构造注入（CameraRef 转发，与 RunProgressionService 注入 BalanceService 同构）。
+/// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService/CombatStateService
 /// 同构——GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
 /// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 TouchControlsChanged/ViewZoomChanged/
 /// WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/
 /// LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致——
-/// ApplyRunSave 的 TouchControlsChanged 直发路径在 GameState 侧直发同名信号，不经本事件，无双发）。
+/// LoadSettings 直写字段路径不发服务事件，无双发）。
 /// </summary>
 public sealed partial class SettingsService : RefCounted
 {
 
-    /// <summary>组合注入：GameState 持有的实体注册表（CameraRef 转发；
-    /// GameState.cs 构造器传入，与 MetaService 构造注入 UserDB 同构）。</summary>
+    /// <summary>组合注入：GameState 持有的实体注册表（CameraRef 转发；GameState.cs 构造器传入）。</summary>
     private readonly EntityManager _registry;
 
     public SettingsService(EntityManager registry)
@@ -37,28 +35,28 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 状态字段（2026-08-12 自 GameState.State.cs/Settings.cs 迁入） ----------------
 
-    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）</summary>
+    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；Player 移动/加速读取）</summary>
     public bool CtrlToggleMode { get; set; } = false;
 
     public bool ShiftToggleMode { get; set; } = false;
 
-    /// <summary>触屏虚拟控件开关（profile 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
+    /// <summary>触屏虚拟控件开关（settings.json 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
     public bool TouchControls { get; set; } = false;
 
-    /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
+    /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
     public StringName ViewZoom { get; set; } = new StringName("small");
 
-    /// <summary>窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）</summary>
+    /// <summary>窗口尺寸档位（settings.json 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）</summary>
     public StringName WindowSize { get; set; } = new StringName("large");
 
-    /// <summary>瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
+    /// <summary>瞄准辅助强度档位（settings.json 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
     public StringName AimAssistLevel { get; set; } = new StringName("medium");
 
     /// <summary>Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
     /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）</summary>
     public int MetaFxLod { get; set; } = 1;
 
-    /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
+    /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
     public bool ReduceFlash { get; set; } = false;
 
     /// <summary>鼠标锁定窗口内（持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
@@ -68,20 +66,18 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>默认跳过开场过场（持久化，默认关=播过场；开启后开机直达标题屏）</summary>
     public bool SkipIntroCinematic { get; set; } = false;
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。
-    /// 存储承载于 snake 字段（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
+    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。</summary>
     public double JoyAimSpeed { get; set; } = 1400.0;
 
     public double JoyDeadzone { get; set; } = 0.5;
 
-    /// <summary>当前语言（"zh"/"en"，profile 持久化）。
-    /// 存储承载于 snake 字段 locale（GDScript 直读写；桥，M7 过渡，删除前）——属性转发字段。</summary>
+    /// <summary>当前语言（"zh"/"en"，settings.json 持久化）。</summary>
     public string Locale { get; set; } = "zh";
 
     // ---------------- 信号 C# 事件（2026-08-12 自 GameState.Settings.cs EmitSignal 迁入） ----------------
 
     /// <summary>触屏虚拟控件开关变化；GameState 订阅后转发为 TouchControlsChanged 信号
-    /// （ApplyRunSave 的直发路径在 GameState 侧直发同名信号，不经本事件——无双发）。</summary>
+    /// （LoadSettings 直写字段路径不经本事件——无双发）。</summary>
     public event Action<bool>? TouchControlsChanged;
 
     /// <summary>视角档位变化（参数为生效 zoom 倍率）；GameState 订阅后转发为 ViewZoomChanged 信号。</summary>
@@ -107,14 +103,14 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 设置项（Ctrl/Shift 模式，2026-08-12 自 GameState.Settings.cs 迁入） ----------------
 
-    /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 profile</summary>
+    /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetCtrlToggleMode(bool enabled)
     {
         CtrlToggleMode = enabled;
         GameState.Instance.SaveSettings();
     }
 
-    /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 profile</summary>
+    /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetShiftToggleMode(bool enabled)
     {
         ShiftToggleMode = enabled;
@@ -131,7 +127,7 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 视角缩放 ----------------
 
-    /// <summary>视角档位表（设置页三选，profile 持久化；值为相机 zoom 倍率）。
+    /// <summary>视角档位表（设置页三选，settings.json 持久化；值为相机 zoom 倍率）。
     /// zoom&gt;1 时可见世界区域 = 视口 ÷ zoom（以相机位置为中心收窄），
     /// 所有"屏幕边缘/出屏"逻辑统一走 view_world_rect() 适配。</summary>
     public Godot.Collections.Dictionary VIEW_ZOOM_LEVELS { get; } = new()
@@ -148,7 +144,7 @@ public sealed partial class SettingsService : RefCounted
         new StringName("large"),
     };
 
-    /// <summary>main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算</summary>
+    /// <summary>main 场景相机注册表（Main 在 _Ready/_ExitTree 维护），供可见区域计算</summary>
     public Camera2D? CameraRef
     {
         get => _registry.CameraRef;
@@ -159,7 +155,7 @@ public sealed partial class SettingsService : RefCounted
         }
     }
 
-    /// <summary>生效 zoom 倍率缓存（set_view_zoom/load_profile 同步；热路径免查表，须与 small 档一致）</summary>
+    /// <summary>生效 zoom 倍率缓存（SetViewZoom/ApplySettingsDict 同步；热路径免查表，须与 small 档一致）</summary>
     private double _viewZoomFactor = 1.0;
 
     /// <summary>view_world_rect 物理帧缓存：同帧多次调用免重复视口查询（子弹/敌机/玩家每帧共用一帧结果）。
@@ -168,7 +164,7 @@ public sealed partial class SettingsService : RefCounted
 
     private Rect2 _viewRectCached = new();
 
-    /// <summary>切换视角档位（非法/同档忽略），持久化到 profile 并广播</summary>
+    /// <summary>切换视角档位（非法/同档忽略），持久化到 settings.json 并广播</summary>
     public void SetViewZoom(StringName level)
     {
         if (!VIEW_ZOOM_LEVELS.ContainsKey(level) || level == ViewZoom)
@@ -193,7 +189,7 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 窗口大小 ----------------
 
-    /// <summary>窗口尺寸档位表（设置页三选，profile 持久化；stretch 等比缩放，仅改窗口物理尺寸）。
+    /// <summary>窗口尺寸档位表（设置页三选，settings.json 持久化；stretch 等比缩放，仅改窗口物理尺寸）。
     /// 非 const：Vector2i 构造为非常量表达式（同 spawner.ENEMY_TYPES 先例）。</summary>
     public Godot.Collections.Dictionary WINDOW_SIZE_LEVELS { get; set; } = new()
     {
@@ -209,7 +205,7 @@ public sealed partial class SettingsService : RefCounted
         new StringName("large"),
     };
 
-    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 profile 并广播</summary>
+    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 settings.json 并广播</summary>
     public void SetWindowSize(StringName level)
     {
         if (!WINDOW_SIZE_LEVELS.ContainsKey(level) || level == WindowSize)
@@ -255,7 +251,7 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 瞄准辅助强度 ----------------
 
-    /// <summary>强度档位表（设置页三选，profile 持久化；辅助瞄准常驻、刻意不提供关闭档）。
+    /// <summary>强度档位表（设置页三选，settings.json 持久化；辅助瞄准常驻、刻意不提供关闭档）。
     /// 各档数值（辅助框内边距 frame_pad/追踪转向速率 homing_turn_rate）在 balance.json player.aim_assist.levels。</summary>
     public Godot.Collections.Array<StringName> AIM_ASSIST_ORDER { get; } = new()
     {
@@ -264,7 +260,7 @@ public sealed partial class SettingsService : RefCounted
         new StringName("high"),
     };
 
-    /// <summary>切换瞄准辅助强度档位（非法/同档忽略），持久化到 profile 并广播</summary>
+    /// <summary>切换瞄准辅助强度档位（非法/同档忽略），持久化到 settings.json 并广播</summary>
     public void SetAimAssistLevel(StringName level)
     {
         if (!AIM_ASSIST_ORDER.Contains(level) || level == AimAssistLevel)
@@ -277,7 +273,7 @@ public sealed partial class SettingsService : RefCounted
         AimAssistChanged?.Invoke(level);
     }
 
-    /// <summary>无障碍·减少闪光：开关持久化到 profile 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
+    /// <summary>无障碍·减少闪光：开关持久化到 settings.json 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
     public void SetReduceFlash(bool enabled)
     {
         if (enabled == ReduceFlash)
@@ -389,7 +385,7 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 语言（中英双语） ----------------
 
-    /// <summary>切换语言（白名单 zh/en，非法值忽略）：应用 TranslationServer + 持久化到 profile 并广播</summary>
+    /// <summary>切换语言（白名单 zh/en，非法值忽略）：应用 TranslationServer + 持久化到 settings.json 并广播</summary>
     public void SetLocale(string pLocale)
     {
         if (pLocale != "zh" && pLocale != "en")
@@ -405,14 +401,14 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 设置域持久化桥（2026-08-12 自 GameState.Save.cs 迁入；SaveSettings 本体留在 GameState 侧） ----------------
 
-    /// <summary>设置字段应用（settings.json；含键位/窗口/视图缓存副作用，对齐原 load_profile）。
+    /// <summary>设置字段应用（user://settings.json 读入的字典；含键位/窗口/视图缓存副作用）。
     /// 跨域键经 GameState.Instance 访问：TutorialDone/KeyBindings/Difficulty 本体留在 GameState（Input/Constants
     /// 域），本桥只读经门面；Difficulty 恢复后的 RefreshRegenCache 亦经 Instance 调用（RunProgressionService
     /// 回血缓存——GameState.Difficulty.cs 门面包装，第六轮起 public）。</summary>
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
     {
         GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
-        // E10：locale 加载经 zh/en 白名单守卫（对齐 set_locale）——手改非法值保持当前语言，
+        // E10：locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
         var savedLocale = data.GetValueOrDefault("locale", Locale).AsString();
         if (savedLocale == "zh" || savedLocale == "en")

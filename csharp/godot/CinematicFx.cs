@@ -5,11 +5,11 @@ namespace InfiAir;
 
 /// <summary>
 /// 过场/演出共享特效工具：软径向光晕、带纹理粒子、冲击波环、分层能量束、速度线/放射线场。
-/// 供 intro_cinematic / return_cinematic / mothership_summon_window / warp_gate / mothership 复用，
+/// 供 IntroCinematic / ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
 /// 替代此前在多处复制的硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
-/// M6 全量迁移（2026-08-08 自 scripts/cinematic_fx.gd）：RefCounted + 全静态工厂。
-/// 注：原 GDScript static var 缓存贴图/材质（G022 共享优化）——C# 静态字段禁止持有 Godot 对象
-/// （引擎退出 finalize segfault 实测根因，M1-M6 批次规则 19），改每次构建（UITheme.Font 同款处理）；
+/// RefCounted + 全静态工厂。
+/// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——贴图/材质
+/// 不做静态缓存，改每次构建（UITheme.Font 同款处理）；
 /// 内容确定性一致，仅多次构建时重复生成。
 /// C# 调用方（BossAttacks/Enemy/Mothership 过场）经 typed 直调——公开方法名为 PascalCase。
 /// </summary>
@@ -19,9 +19,9 @@ public partial class CinematicFx : RefCounted
 
     public const int ParticleAmountCap = 96; // 硬性上限：每发射器 ≤96（性能预算：总存活 ≤400）
 
-    /// <summary>静态缓存的 64×64 径向渐变软点贴图（白色，alpha pow 衰减）：
+    /// <summary>64×64 径向渐变软点贴图（白色，alpha pow 衰减）：
     /// 粒子与光晕共用，消除硬边实心圆的廉价感；颜色经 modulate/process_material 乘算。
-    /// M6 迁移注：原 GDScript static var 缓存——按批次规则每次构建（内容确定性一致）。</summary>
+    /// 不做静态缓存（C# 静态字段禁持 Godot 对象——退出 segfault），每次构建（内容确定性一致）。</summary>
     public static ImageTexture SoftTexture()
     {
         var img = Image.CreateEmpty(SoftTexSize, SoftTexSize, false, Image.Format.Rgba8);
@@ -110,7 +110,7 @@ public partial class CinematicFx : RefCounted
 
     /// <summary>软径向光晕：Sprite2D 承载软点贴图，scale/modulate 语义与旧 GlowDot 一致（可直接 tween）。
     /// G022：additive material 共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）——
-    /// M6 迁移注：原 static var 缓存改为每次新建（退出 segfault 规则），语义等价。</summary>
+    /// 不做静态缓存（退出 segfault 规则），每次新建，语义等价。</summary>
     public static CanvasItemMaterial AdditiveMaterial()
     {
         return new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -231,7 +231,7 @@ public partial class CinematicFx : RefCounted
     }
 
     /// <summary>闭合椭圆环点集（Line2D 用；ry_ratio 压扁做透视门洞/光圈）。
-    /// M6 迁移注：PackedVector2Array → Vector2[]（批次规则 9，互操作语义一致）。</summary>
+    /// 返回 Vector2[]（互操作语义一致）。</summary>
     public static Vector2[] RingPoints(int n, float r) => RingPoints(n, r, 1.0f);
 
     public static Vector2[] RingPoints(int n, float r, float ryRatio)
@@ -317,7 +317,7 @@ public partial class CinematicFx : RefCounted
 }
 
 /// <summary>双层扩散冲击环（粗辉光环 + 细亮芯环 + 可选低 alpha 填充盘），_ready 起 tween，播完自毁。
-/// 原 GDScript cinematic_fx.gd 内嵌类 Shockwave，迁移为同文件顶层类（C# 源生成器不支持内嵌类）。</summary>
+/// 同文件顶层类（C# 源生成器不支持内嵌类）。</summary>
 public partial class CinematicFxShockwave : Node2D
 {
     public float Radius = 300.0f;

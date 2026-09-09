@@ -11,11 +11,11 @@ namespace InfiAir;
 /// 时序修复：原 LoseHealth 内 Health<=0 即发，先于 player.Die()，回调内 IsDead()==false 是
 /// 订阅者时序陷阱）；健康配置（MaxHpBase/MaxHpBonus/
 /// _lifestealFraction）经 ApplyHealthConfig 注入（Cfg 调用留在 GameState 侧）。
-/// 门面转发先例：与 MetaService/MissionsService/ScoreService/RunProgressionService 同构——
+/// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService 同构——
 /// GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
 /// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 HealthChanged/AugmentsChanged 通知；
 /// GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致——AddBuff/ConsumeAugment 经
-/// 本事件重发；ResetRun/ApplyRunSave/ChooseRoute/Meta 的直发路径在 GameState/其他服务侧直发
+/// 本事件重发；ResetRun/天赋路线（TalentService 层级写入）的直发路径在 GameState/其他服务侧直发
 /// 同名信号，不经本事件，不造成双发）。
 /// </summary>
 public sealed partial class CombatStateService : RefCounted
@@ -24,7 +24,7 @@ public sealed partial class CombatStateService : RefCounted
     // ---------------- 健康/Buff 域（2026-08-11 自 GameState.Settings.cs/State.cs 迁入） ----------------
 
     /// <summary>玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）。
-    /// double（GDScript float 64 位逐位等价——BaseConsole smoke flake 根因）。</summary>
+    /// double（GDScript float 64 位逐位等价）。</summary>
     public double Health { get; set; } = 100.0;
 
     /// <summary>buff id -> 已选层数</summary>
@@ -48,7 +48,7 @@ public sealed partial class CombatStateService : RefCounted
     public event Action<double>? HealthChanged;
 
     /// <summary>buff 层数变动（AddBuff/ConsumeAugment）；GameState 订阅后转发为 AugmentsChanged 信号
-    /// （ResetRun/ApplyRunSave/ChooseRoute/Meta 的直发路径在 GameState/其他服务侧直发同名信号，
+    /// （ResetRun/天赋路线（TalentService 层级写入）的直发路径在 GameState/其他服务侧直发同名信号，
     /// 不经本事件——无双发）。</summary>
     public event Action? AugmentsChanged;
 

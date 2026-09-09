@@ -3,13 +3,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 伪敌机（迷雾事件·fake_enemies；M 批次全量迁移）：无伤害/无碰撞的幽灵敌机，纯视觉干扰。
+/// 伪敌机（迷雾事件·fake_enemies）：无伤害/无碰撞的幽灵敌机，纯视觉干扰。
 /// 复用敌机贴图 + 幽灵闪烁（半透明青白调），不注册 GameState.enemies、不入 "enemy" 组、
 /// 无碰撞形状——玩家子弹直接穿过（不结算、不消耗穿透），不参与任何对局系统
 /// （辅助瞄准标记/击杀/分数/波次上限/注册表一致性均不受影响）。
 /// 行为：可选入场延迟（错峰）→ 自屏幕顶降入 → 悬停带内水平摇摆，事件结束统一移除。
-/// 迁移期：FakeEnemiesEvent（C#）直接 new + 强类型访问；GDScript 侧如实例化须
-/// load("res://csharp/godot/FakeEnemy.cs").new() 并经 snake_case 动态访问。
+/// FakeEnemiesEvent 直接 new + 强类型访问。
 /// </summary>
 public partial class FakeEnemy : Node2D
 {

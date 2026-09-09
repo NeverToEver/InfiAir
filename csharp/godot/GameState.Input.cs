@@ -8,8 +8,7 @@ namespace InfiAir;
 /// 组合持有；REBINDABLE_ACTIONS/KeyBindings/JoyLayout/JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS 状态与
 /// CaptureDefaultBindings/ApplyKeyBindings/BindJoypadDefaults/DetectJoyLayout/IsPsGuid/JoyButtonLabel/
 /// RebindAction/ResetKeyBindings/ActionKeysText 方法一并迁入），本文件为门面对齐转发——公开 API
-/// 签名/语义不变（测试白盒经此处零适配直读直写 KeyBindings、直调 RebindAction/ResetKeyBindings/
-/// ApplyKeyBindings/ActionKeysText 全保留）；JOYPAD_ACTIONS/JoyLayout/PS/XBOX_BUTTON_LABELS 在
+/// 签名/语义不变；JOYPAD_ACTIONS/JoyLayout/PS/XBOX_BUTTON_LABELS 在
 /// GameState.State.cs 转发（原定义处）。
 /// 信号：KeyBindingsChanged/JoyLayoutChanged 由 InputBindingsService 的 C# 事件经 GameState 订阅
 /// 重发（发射点/次数/顺序与拆域前逐位一致；本门面不再直发，无双发）。
@@ -29,7 +28,7 @@ public partial class GameState : Node
         set => _input.KeyBindings = value;
     }
 
-    /// <summary>用 key_bindings（含 profile 覆盖）刷新 InputMap</summary>
+    /// <summary>用 KeyBindings（含 settings.json 覆盖）刷新 InputMap</summary>
     public void ApplyKeyBindings() => _input.ApplyKeyBindings();
 
     /// <summary>Sony 手柄 GUID 判定（SDL GUID：vendor 0x054c 小端序为 "4c05"；PS4/PS5/DualShock/DualSense）</summary>

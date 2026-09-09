@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 6 通道步行（原 return_cinematic.gd 内嵌类 _WalkShot；C# 源生成器不支持
-/// 内嵌类，迁为同文件顶层类——BaseConsole 先例）。字段名保持原 snake 名（shot 构建/tween 依赖）。</summary>
+/// <summary>镜头 6 通道步行（ReturnCinematic 顶层镜头类；C# 源生成器不支持内嵌类）。
+/// 字段名保持 snake 名（shot 构建/tween 依赖）。</summary>
 public partial class ReturnCinematicWalkShot : Node2D
 {
     public Node2D _world = null!; // 走廊世界容器（跟随主角 x 匀速平移，主角固定在画面左 1/3）

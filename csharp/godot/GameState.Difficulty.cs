@@ -7,14 +7,14 @@ namespace InfiAir;
 /// 第五轮拆域（2026-08-11）：全部职责迁至 RunProgressionService（csharp/godot/RunProgressionService.cs，
 /// 组合持有；计分域语义在 ScoreService），本文件为门面对齐转发——公开 API 签名/语义不变；
 /// DifficultyChanged/DifficultySelected 信号由 RunProgressionService 的
-/// C# 事件经 GameState 订阅重发（AddBossKill/ApplyRunSave 直发路径在 GameState 侧直发同名信号，不重复）。
+/// C# 事件经 GameState 订阅重发（AddBossKill 直发路径在 GameState 侧直发同名信号，不重复）。
 /// </summary>
 public partial class GameState : Node
 {
 
     // ---------------- 难度档位（门面转发 → RunProgressionService） ----------------
 
-    /// <summary>切换难度档位（非法档位忽略），持久化到 profile 并广播</summary>
+    /// <summary>切换难度档位（非法档位忽略），持久化到 settings.json 并广播</summary>
     public void SetDifficulty(StringName pDifficulty) => _runProg.SetDifficulty(pDifficulty);
 
     public string DifficultyLabel() => _runProg.DifficultyLabel();
@@ -41,7 +41,7 @@ public partial class GameState : Node
     public float EnemyHpRamp() => _runProg.EnemyHpRamp();
 
     /// <summary>敌方 HP ramp（显式难度乘数版本，2026-08-09 审计补充）：调用方以自身难度快照计算——
-    /// Enemy.Setup 的 pDifficulty 参数是显式入参（分裂子机/测试可传非全局 DifficultyMultiplier 值），
+    /// Enemy.Setup 的 pDifficulty 参数是显式入参（分裂子机可传非全局 DifficultyMultiplier 值），
     /// 语义同原直查 Cfg 全链路，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
     public float EnemyHpRamp(double difficultyMultiplier) => _runProg.EnemyHpRamp(difficultyMultiplier);
 
@@ -86,7 +86,7 @@ public partial class GameState : Node
 
     /// <summary>第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
     /// 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
-    /// 2026-08-07：算法核心迁移 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，xUnit 直测；
+    /// 2026-08-07：算法核心迁移 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，零 Godot 依赖；
     /// 逐位等价：pow 钳制、roundf half-away-from-zero、累加顺序一致）——RunProgressionService 转发。</summary>
     public int MilestoneThreshold(int index) => _runProg.MilestoneThreshold(index);
 
@@ -99,7 +99,7 @@ public partial class GameState : Node
 
     /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线）：
     /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
-    /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（apply_run_save 统一在末尾广播）——
+    /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（AddBossKill 结算末尾统一广播）——
     /// 私有一行包装（本体在 RunProgressionService）。</summary>
     private bool RecomputeDifficultyInternal() => _runProg.RecomputeDifficultyInternal();
 }

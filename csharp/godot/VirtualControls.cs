@@ -9,9 +9,8 @@ namespace InfiAir;
 /// 注入路径：Input.action_press/release（等价 InputEventAction）——player 的
 /// Input.get_vector / is_action_pressed 读取路径零改动；仅输入目标为 action 状态，
 /// 与手柄/键鼠事件互不覆盖（无摇杆输入时零注入，桌面零回归）。
-/// 启用：设置「触控控件」开关（GameState.touch_controls，profile 持久化），
-/// Main._ready 创建本层并联动开关（touch_controls_changed 信号）。
-/// M5 全量迁移（2026-08-08 自 scripts/virtual_controls.gd）。
+/// 启用：设置「触控控件」开关（GameState.TouchControls，settings.json 持久化），
+/// Main._Ready 创建本层并联动开关（TouchControlsChanged 信号）。
 /// </summary>
 public partial class VirtualControls : CanvasLayer
 {

@@ -5,10 +5,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
-/// 不启动正常 spawner 波次；进场/出场各 reset_run 隔离对局状态，出场保证 time_scale=1。
-/// M5 全量迁移（2026-08-08 自 scripts/tutorial.gd）。
-/// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型——原 GDScript 的
-/// 脚本资源判型（load() + is_instance_of）在 C# 侧不再需要。
+/// 不启动正常 Spawner 波次；进场/出场各 ResetRun 隔离对局状态，出场保证 TimeScale=1。
+/// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型。
 /// </summary>
 public partial class Tutorial : Node2D
 {
@@ -48,9 +46,9 @@ public partial class Tutorial : Node2D
     private float _dockCharge;
     private float _maxHp = 100.0f; // G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // G015：蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
-    private BaseConsole? _baseUi; // M5：BaseConsole 已迁 C#，typed 字段（原 GDScript set_script 不需要）
+    private BaseConsole? _baseUi; // typed 字段
     private TutorialEscRouter? _escRouter; // 基地开启窗口期（树暂停）的 Always 态 Esc 返回路由
-    private Boss _boss = null!; // M3d：Boss 迁 C#，typed 字段
+    private Boss _boss = null!; // typed 字段
     private Mothership? _mothership;
     private bool _finished;
     private bool _failed;
@@ -90,20 +88,20 @@ public partial class Tutorial : Node2D
         _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Connect("LocaleChanged", _onLocaleChanged);
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
-        if (gs != null && !gs.IsConnected("PlayerDied", _onPlayerDied))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            gs.Connect("PlayerDied", _onPlayerDied);
+            gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
 
-        // 辅助瞄准框覆盖层：与 main.gd 同款运行时创建（登记 GameState.aim_frame_layer），
+        // 辅助瞄准框覆盖层：与 Main 同款运行时创建（登记 GameState.AimFrameLayer），
         // 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
-        AddChild(new AimFrameLayer()); // M3c：AimFrameLayer 迁 C#，typed 实例化
-        _player = GetNode<Player>("Player"); // M3c：Player 迁 C#，typed 字段
+        AddChild(new AimFrameLayer());
+        _player = GetNode<Player>("Player");
         BuildHud();
         HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
         DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
@@ -120,14 +118,14 @@ public partial class Tutorial : Node2D
             return;
         }
 
-        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
-        if (gs.IsConnected("PlayerDied", _onPlayerDied))
+        if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            gs.Disconnect("PlayerDied", _onPlayerDied);
+            gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
     }
 
@@ -304,10 +302,10 @@ public partial class Tutorial : Node2D
         return n;
     }
 
-    /// <summary>敌机配置取 spawner.ENEMY_TYPES[0]（教程只用 straight 基础型；static var 经脚本资源读取）</summary>
+    /// <summary>敌机配置取默认表首项（教程只用 straight 基础型）。</summary>
     private static Godot.Collections.Dictionary EnemyTypeConfig()
     {
-        // M6：Spawner 迁 C#，ENEMY_TYPES 为实例属性——默认表静态构建（教程只用 straight 基础型）
+        // Spawner.ENEMY_TYPES 为实例属性——默认表经静态工厂构建（教程只用 straight 基础型）
         return Spawner.BuildEnemyTypes()[0];
     }
 
@@ -483,7 +481,7 @@ public partial class Tutorial : Node2D
 
                     // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
                     // 注意：保持每帧检查（queue_free 释放与检查窗口需即时生效，
-                    // 2026-08-03 曾尝试 0.25s 节流被测试证伪——释放帧与节流窗口交错会跳过补刷）
+                    // 2026-08-03 曾尝试 0.25s 节流——释放帧与节流窗口交错会跳过补刷，已回退）
                     if (!_advancing && _stageKills < CombatKillGoal && AliveEnemyCount() == 0)
                     {
                         SpawnCombatWave(CombatKillGoal - _stageKills);

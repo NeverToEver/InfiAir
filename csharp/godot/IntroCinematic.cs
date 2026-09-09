@@ -8,13 +8,12 @@ namespace InfiAir;
 /// 开场过场导演：6 镜头时序串联、黑场转场、跳过与整树清理。
 /// 全部按 1920×1080 设计坐标布局；镜头内连续动画用 tween / Timer 节点 / _process，
 /// 严禁 await create_timer 协程（退出时协程状态泄漏）。
-/// M6 全量迁移（2026-08-08 自 scripts/intro_cinematic.gd）：CanvasLayer 子类。
-/// CinematicFx/DawnStation/Starfield 已迁 C# typed 直调。
-/// 注：原 GDScript signal finished 迁移为 C# [Signal] Finished（Main typed 连接）。
+/// CanvasLayer 子类。
+/// CinematicFx/DawnStation/Starfield 均 C# typed 直调；播放完毕信号为 [Signal] Finished（Main typed 连接）。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {
-    /// <summary>开场过场播放完毕（自然结束或跳过，统一出口 skip()；main.gd `_on_intro_finished` 连接）。</summary>
+    /// <summary>开场过场播放完毕（自然结束或跳过，统一出口 skip()；由 Main 连接）。</summary>
     [Signal]
     public delegate void FinishedEventHandler();
 
@@ -66,8 +65,8 @@ public partial class IntroCinematic : CanvasLayer
         QueueFree();
     }
 
-    /// <summary>播放入口（M6 接线层兼容方法）：原 GDScript 无 play()——_Ready 自动起播；
-    /// 幂等：未开始且未结束时把首镜头延后到帧末启动（测试可在 add_child 同帧替换 _shot_durations）。</summary>
+    /// <summary>播放入口：_Ready 自动起播；
+    /// 幂等：未开始且未结束时把首镜头延后到帧末启动（同帧重复触发防护）。</summary>
     public void Play()
     {
         if (!IsInsideTree() || _done || _startQueued || _shotIndex >= 0)
@@ -104,7 +103,7 @@ public partial class IntroCinematic : CanvasLayer
         _shotTimer = new Godot.Timer { OneShot = true };
         _shotTimer.Timeout += OnShotTimeout;
         AddChild(_shotTimer);
-        // 首镜头延后到帧末启动：测试可在 add_child 同帧替换 _shot_durations
+        // 首镜头延后到帧末启动（_Ready 同帧不抢首帧，帧末开播）
         Play();
     }
 

@@ -31,9 +31,9 @@ public partial class PauseUi : RadialMenuLayer
         Visible = false;
         // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Connect("LocaleChanged", _onLocaleChanged);
+            gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
         BuildChrome();
@@ -55,9 +55,9 @@ public partial class PauseUi : RadialMenuLayer
     public override void _ExitTree()
     {
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs != null && gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
     }
 
@@ -220,7 +220,7 @@ public partial class PauseUi : RadialMenuLayer
     private void OnQuitPressed()
     {
         // 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
-        // C17：get_node_or_null + 判空，测试场景缺该节点不崩溃
+        // C17：GetNodeOrNull + 判空——宿主缺 ExitConfirm 节点时不崩溃（防御性，正常 main.tscn 必有）
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {

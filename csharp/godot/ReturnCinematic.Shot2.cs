@@ -31,7 +31,7 @@ public partial class ReturnCinematic : CanvasLayer
         mouth.Scale = mouthScale * 0.02f;
         push.AddChild(mouth);
         // 内部景象先露（环张开时透出）：虚影站极简版（小比例 + 低 alpha + 弥散抖动）
-        var inner = DawnStation.Build(1); // DawnStation.Mode.PHANTOM（0=DESTROYED, 1=PHANTOM）
+        var inner = DawnStation.Build(DawnStation.Mode.Phantom);
         inner.Scale = Vector2.One * 0.28f;
         inner.Position = center;
         var innerMod = inner.Modulate;

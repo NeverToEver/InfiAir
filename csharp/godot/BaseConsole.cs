@@ -12,7 +12,7 @@ namespace InfiAir;
 /// 右区单面板内容切换（旧双列五面板一屏堆叠退役；顶部分类芯片行保留键盘/手柄可达性）。
 /// 补给面板承载基地↔增幅系统联动：RP 购置「增幅缓存点」（直接入天赋缓存池）与
 /// 「超载槽」（本局风险加点上限扩容）。顶部 RP 余额，路线契约 = 机制 C（TalentTree.Routes）。
-/// 视觉延续「虚影皮肤」：虚影站背景层 + 全息面板。信号/测试公开接口与旧实现一一对应。
+/// 视觉延续「虚影皮肤」：虚影站背景层 + 全息面板。
 /// </summary>
 public partial class BaseConsole : RadialMenuLayer
 {
@@ -97,9 +97,9 @@ public partial class BaseConsole : RadialMenuLayer
     {
         Visible = false;
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("LocaleChanged", _localeChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
-            gs.Connect("LocaleChanged", _localeChanged);
+            gs.Connect(GameState.SignalName.LocaleChanged, _localeChanged);
         }
 
         BuildChrome();
@@ -123,9 +123,9 @@ public partial class BaseConsole : RadialMenuLayer
             return;
         }
 
-        if (gs.IsConnected("LocaleChanged", _localeChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
-            gs.Disconnect("LocaleChanged", _localeChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _localeChanged);
         }
     }
 
@@ -138,7 +138,7 @@ public partial class BaseConsole : RadialMenuLayer
         bgModulate.A = 0.12f;
         bgWrap.Modulate = bgModulate;
         AddChild(bgWrap);
-        var station = DawnStation.Build(1);
+        var station = DawnStation.Build(DawnStation.Mode.Phantom);
         station.Position = new Vector2(960.0f, 540.0f);
         station.Scale = Vector2.One * 2.0f;
         bgWrap.AddChild(station);

@@ -6,12 +6,10 @@ namespace InfiAir;
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图。
 /// 第六轮拆域收官（2026-08-12）：设置+视图域全部职责迁至 SettingsService（csharp/godot/SettingsService.cs，
 /// 组合持有；职责 A 设置 setter 簇 + 职责 B 视图簇 + 状态字段 + 设置域持久化桥 ApplySettingsDict/
-/// CollectSettingsDict 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变（测试白盒经
-/// 此处零适配直读直写 ViewZoom/WindowSize/AimAssistLevel/Locale 等属性、直调 ViewWorldRect 全保留）；
+/// CollectSettingsDict 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变；
 /// ApplyWindowSize 为私有一行包装（GameState._Ready 启动补一次默认档位调用）。
 /// 信号：TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
-/// MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件经 GameState 订阅重发
-/// （ApplyRunSave 的 TouchControlsChanged 直发路径在 GameState 侧直发同名信号，不经服务事件，不重复）。
+/// MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件经 GameState 订阅重发。
 /// 健康/Buff 域 C 簇（第五轮拆域）保留转发 → CombatStateService，见文件末尾。
 /// </summary>
 public partial class GameState : Node
@@ -19,10 +17,10 @@ public partial class GameState : Node
 
     // ---------------- 设置项（Ctrl/Shift 模式；门面转发 → SettingsService） ----------------
 
-    /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 profile</summary>
+    /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetCtrlToggleMode(bool enabled) => _settings.SetCtrlToggleMode(enabled);
 
-    /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 profile</summary>
+    /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetShiftToggleMode(bool enabled) => _settings.SetShiftToggleMode(enabled);
 
     /// <summary>触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）</summary>
@@ -30,21 +28,21 @@ public partial class GameState : Node
 
     // ---------------- 视角缩放（门面转发 → SettingsService） ----------------
 
-    /// <summary>视角档位表（设置页三选，profile 持久化；值为相机 zoom 倍率）。
+    /// <summary>视角档位表（设置页三选，settings.json 持久化；值为相机 zoom 倍率）。
     /// zoom&gt;1 时可见世界区域 = 视口 ÷ zoom（以相机位置为中心收窄），
     /// 所有"屏幕边缘/出屏"逻辑统一走 view_world_rect() 适配。</summary>
     public Godot.Collections.Dictionary VIEW_ZOOM_LEVELS => _settings.VIEW_ZOOM_LEVELS;
 
     public Godot.Collections.Array<StringName> VIEW_ZOOM_ORDER => _settings.VIEW_ZOOM_ORDER;
 
-    /// <summary>main 场景相机注册表（main.gd 在 _ready/_exit_tree 维护），供可见区域计算</summary>
+    /// <summary>main 场景相机注册表（Main 在 _Ready/_ExitTree 维护），供可见区域计算</summary>
     public Camera2D? CameraRef
     {
         get => _settings.CameraRef;
         set => _settings.CameraRef = value;
     }
 
-    /// <summary>切换视角档位（非法/同档忽略），持久化到 profile 并广播</summary>
+    /// <summary>切换视角档位（非法/同档忽略），持久化到 settings.json 并广播</summary>
     public void SetViewZoom(StringName level) => _settings.SetViewZoom(level);
 
     public double ViewZoomFactor() => _settings.ViewZoomFactor();
@@ -59,7 +57,7 @@ public partial class GameState : Node
 
     // ---------------- 窗口大小（门面转发 → SettingsService） ----------------
 
-    /// <summary>窗口尺寸档位表（设置页三选，profile 持久化；stretch 等比缩放，仅改窗口物理尺寸）。</summary>
+    /// <summary>窗口尺寸档位表（设置页三选，settings.json 持久化；stretch 等比缩放，仅改窗口物理尺寸）。</summary>
     public Godot.Collections.Dictionary WINDOW_SIZE_LEVELS
     {
         get => _settings.WINDOW_SIZE_LEVELS;
@@ -68,32 +66,31 @@ public partial class GameState : Node
 
     public Godot.Collections.Array<StringName> WINDOW_SIZE_ORDER => _settings.WINDOW_SIZE_ORDER;
 
-    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 profile 并广播</summary>
+    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 settings.json 并广播</summary>
     public void SetWindowSize(StringName level) => _settings.SetWindowSize(level);
 
     /// <summary>应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过——
-    /// 一行包装（本体在 SettingsService；GameState._Ready 启动补一次默认档位调用；
-    /// 第七轮拆域：UserSessionService.LoginUser 跨域经 Instance 调用——可见性提升，
-    /// 与 RefreshRegenCache private→public 先例同款）。</summary>
+    /// 一行包装（本体在 SettingsService；GameState._Ready 启动补一次默认档位调用，
+    /// 无设置文件时 LoadSettings 不会应用窗口尺寸）。</summary>
     public void ApplyWindowSize() => _settings.ApplyWindowSize();
 
-    /// <summary>视角缓存失效（UserSessionService.LoginUser 登录即时生效路径调用；本体在
-    /// SettingsService）——一行包装（第七轮拆域：跨域经 Instance 调用——可见性提升）。</summary>
+    /// <summary>视角缓存失效（切换视角/窗口档位后下一物理帧强制重算 ViewWorldRect；
+    /// 本体在 SettingsService，服务内部变更档位时自行失效）——一行包装。</summary>
     public void InvalidateViewRectCache() => _settings.InvalidateViewRectCache();
 
     // ---------------- 瞄准辅助强度（门面转发 → SettingsService） ----------------
 
-    /// <summary>强度档位表（设置页三选，profile 持久化；辅助瞄准常驻、刻意不提供关闭档）。
+    /// <summary>强度档位表（设置页三选，settings.json 持久化；辅助瞄准常驻、刻意不提供关闭档）。
     /// 各档数值（辅助框内边距 frame_pad/追踪转向速率 homing_turn_rate）在 balance.json player.aim_assist.levels。</summary>
     public Godot.Collections.Array<StringName> AIM_ASSIST_ORDER => _settings.AIM_ASSIST_ORDER;
 
-    /// <summary>切换瞄准辅助强度档位（非法/同档忽略），持久化到 profile 并广播</summary>
+    /// <summary>切换瞄准辅助强度档位（非法/同档忽略），持久化到 settings.json 并广播</summary>
     public void SetAimAssistLevel(StringName level) => _settings.SetAimAssistLevel(level);
 
-    /// <summary>无障碍·减少闪光：开关持久化到 profile 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
+    /// <summary>无障碍·减少闪光：开关持久化到 settings.json 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
     public void SetReduceFlash(bool enabled) => _settings.SetReduceFlash(enabled);
 
-    /// <summary>鼠标锁定窗口内：开关持久化到 profile 并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
+    /// <summary>鼠标锁定窗口内：开关持久化到 settings.json 并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
     public void SetMouseLock(bool enabled) => _settings.SetMouseLock(enabled);
 
     /// <summary>P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。</summary>
@@ -127,7 +124,7 @@ public partial class GameState : Node
 
     // ---------------- 语言（中英双语；门面转发 → SettingsService） ----------------
 
-    /// <summary>当前语言（"zh"/"en"，profile 持久化）——SettingsService 转发（测试白盒直读直写保留）。</summary>
+    /// <summary>当前语言（"zh"/"en"，settings.json 持久化）——SettingsService 转发。</summary>
     public string Locale
     {
         get => _settings.Locale;
@@ -136,10 +133,10 @@ public partial class GameState : Node
 
     public void SetLocale(string pLocale) => _settings.SetLocale(pLocale);
 
-    // ---------------- 设置域持久化桥（第七轮拆域：UserSessionService.LoadSessionSettings 跨域
-    // 经 Instance 调用——公开转发；CollectSettingsDict 仍在 GameState.Save.cs 内部直调服务，无需门面） ----------------
+    // ---------------- 设置域持久化桥（ApplySettingsDict 公开转发；
+    // CollectSettingsDict 仍在 GameState.Save.cs 内部直调服务，无需门面） ----------------
 
-    /// <summary>设置字段应用（profile.json 与 user_db settings 共用；含键位/窗口/视图缓存副作用，
-    /// 对齐原 load_profile）——本体在 SettingsService，UserSessionService 登录会话应用经此跨域。</summary>
+    /// <summary>设置字段应用（user://settings.json 读入的设置字典；含键位/窗口/视图缓存副作用）
+    /// ——本体在 SettingsService。</summary>
     public void ApplySettingsDict(Godot.Collections.Dictionary data) => _settings.ApplySettingsDict(data);
 }

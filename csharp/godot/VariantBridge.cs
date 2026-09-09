@@ -4,10 +4,10 @@ using InfiAir.Core.Config;
 namespace InfiAir;
 
 /// <summary>
-/// GDScript Variant ↔ CLR JSON 兼容树双向转换（Godot 绑定层共享工具，P1-1 起各互操作壳复用）。
+/// GDScript Variant ↔ CLR JSON 兼容树双向转换（Godot 绑定层共享工具，P1-1 起配置/存档路径复用）。
 /// 纯 JSON 语义映射：Dictionary → Dictionary&lt;string, object?&gt;、Array → List&lt;object?&gt;、
 /// int → long、float → double、StringName → string（键与值同规），其余引擎类型不支持（返回失败）。
-/// 供 PathResolverInterop / SaveStoreInterop / UserDbInterop 复用；核心层零 Godot 依赖。
+/// 供 BalanceService / SaveManager 复用；核心层零 Godot 依赖。
 /// </summary>
 internal static class VariantBridge
 {

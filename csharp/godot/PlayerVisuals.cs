@@ -3,13 +3,13 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家视觉职责聚合（M3c 全量迁移，2026-08-08 自 scripts/player_visuals.gd 迁移）：尾焰、
+/// 玩家视觉职责聚合：尾焰、
 /// 冲刺残影池、机身色调（弹反金/擦弹金/无敌闪烁）、受击点脉动、弹反盾视觉、擦弹闪光状态。
-/// 组合委托模式（同 PlayerDamage/PlayerDash/PlayerParry）：不持有节点所有权，经 player
-/// 传入的节点引用操作；公开接口供 player 帧驱动与外部（player_dash 残影入口）调用。
-/// 拆分动机：player.gd 视觉与战斗逻辑解耦（DESIGN_BASELINE §7.1）。
-/// 源文件 extends RefCounted 且无信号/导出 → 纯 C# 类（不继承 GodotObject）；仅 player.gd
-/// （随 M3c 批次迁 C#）调用。Enemy.SinFast（M3b 已迁）为同命名空间静态方法，直接引用。
+/// 组合委托模式（同 PlayerDamage/PlayerDash/PlayerParry）：不持有节点所有权，经 Player
+/// 传入的节点引用操作；公开接口供 Player 帧驱动与外部（PlayerDash 残影入口）调用。
+/// 拆分动机：Player 视觉与战斗逻辑解耦（DESIGN_BASELINE §7.1）。
+/// 无信号/导出 → 纯 C# 类（不继承 GodotObject）；仅 Player 调用。Enemy.SinFast 为同命名空间
+/// 静态方法，直接引用。
 /// </summary>
 public class PlayerVisuals
 {
@@ -47,7 +47,7 @@ public class PlayerVisuals
 
     /// <summary>
     /// 初始化：接收节点引用 + 预建残影池。world_root = Main（残影固定世界坐标，不随玩家移动；
-    /// Main 场景构建期 add_child 会报 "busy setting up children"，延迟到帧末执行——原 _ready 逻辑迁移）。
+    /// Main 场景构建期 add_child 会报 "busy setting up children"，延迟到帧末执行）。
     /// </summary>
     public void Init(
         Sprite2D sprite, GpuParticles2D thruster, Polygon2D hitboxDot, Polygon2D parryArc, Node2D parryRim,
@@ -75,8 +75,8 @@ public class PlayerVisuals
         }
     }
 
-    /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 player 传入——buff 外观
-    /// 写入 player.engine_tint，公开字段被 PlayerAugmentVisuals/测试访问，留在 player 侧）。</summary>
+    /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 Player 传入——buff 外观
+    /// 写入 Player.EngineTint，公开字段被 PlayerAugmentVisuals 访问，留在 Player 侧）。</summary>
     public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint)
     {
         _thruster.SpeedScale = speedScale;

@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 迷雾事件效果层 + API 门面（M 批次全量迁移）。
+/// 迷雾事件效果层 + API 门面。
 /// 挂载：GameState autoload 子节点（GameState.fog_events 全局访问口）。
 /// 2026-08-05 统一事件管理器收敛：迷雾事件的注册（EVENT_FACTORIES）/触发策略/生命周期/
 /// 计时/冷却/信号广播全部由 GameEventManager（GameState.events）统一接管（fog 组）；
@@ -11,11 +11,10 @@ namespace InfiAir;
 ///   - 迷雾专属视觉基座（伪敌机容器/精神错乱覆盖层/事件横幅，经 context 注入事件类）；
 ///   - 迷雾信号 fog_event_started/ended/fog_direction_shift（监听统一管理器信号重发，
 ///     player 侧消费面不变：输入反转/子弹参数/方向脉冲）；
-///   - 公开 API 与配置 var（测试/诊断/player 引用面不变）——全部转发/代理到 GameState.events
+///   - 公开 API 与配置 var（诊断/Player 引用面不变）——全部转发/代理到 GameState.events
 ///     fog 组配置与状态。
-/// 接线：GameState._ready 经 wire(events) 调用（activate_fog + 信号连接）。
-/// 迁移期：GDScript 调用方（main.gd/测试）经 GameState.fog_events 以 snake_case 动态访问；
-/// 信号经 [Signal] PascalCase 名注册（fog_event_started → FogEventStarted 等，调用点适配）。
+/// 接线：GameState._Ready 经 Wire(events) 调用（activate_fog + 信号连接）；
+/// 信号经 [Signal] PascalCase 名注册（FogEventStarted 等）。
 /// </summary>
 public partial class FogEventManager : Node
 {
@@ -33,7 +32,7 @@ public partial class FogEventManager : Node
 
     private static readonly StringName GroupFog = GameEventManager.GroupFog;
 
-    /// <summary>事件工厂注册表代理（唯一事实源在 GameState.events；测试可增删注册以走通生命周期）。</summary>
+    /// <summary>事件工厂注册表代理（唯一事实源在 GameState.events；注册表可增删以扩展事件）。</summary>
     public Godot.Collections.Dictionary EVENT_FACTORIES
     {
         get => Events().EVENT_FACTORIES;

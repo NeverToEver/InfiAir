@@ -14,7 +14,7 @@ namespace InfiAir;
 /// HUD 底部进度条，松开/受击/其他模态打断即取消），满格后 dim 淡入 → 轮盘滑入（轻微过冲）→
 /// 标题/读数/概览卡逐级 stagger → 底栏上浮收尾；退出反序加速（内容先走、dim 最后收），
 /// 完成才恢复对局。概览↔扇形切换同款「旧内容退场 → 新内容进场」编排；详情卡右侧滑入。
-/// Esc/右键经 BackNavigator 路由关闭（动画版）；测试/截图用 CloseNow 即时关。
+/// Esc/右键经 BackNavigator 路由关闭（动画版）；CloseNow 为即时关闭端口（跳过退场编排）。
 /// 打开时暂停对局（与 PauseUI/BaseConsole 同款模态语义）；process_mode=Always（场景内配置，
 /// 暂停中 tween 照常推进，HoloBoot 先例）。
 /// </summary>
@@ -85,19 +85,19 @@ public partial class TalentPanel : CanvasLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
             {
-                gs.Connect("LocaleChanged", _onLocaleChanged);
+                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
             }
 
-            if (!gs.IsConnected("TalentsChanged", _onTalentsChanged))
+            if (!gs.IsConnected(GameState.SignalName.TalentsChanged, _onTalentsChanged))
             {
-                gs.Connect("TalentsChanged", _onTalentsChanged);
+                gs.Connect(GameState.SignalName.TalentsChanged, _onTalentsChanged);
             }
 
-            if (!gs.IsConnected("TalentCacheChanged", _onCacheChanged))
+            if (!gs.IsConnected(GameState.SignalName.TalentCacheChanged, _onCacheChanged))
             {
-                gs.Connect("TalentCacheChanged", _onCacheChanged);
+                gs.Connect(GameState.SignalName.TalentCacheChanged, _onCacheChanged);
             }
         }
     }
@@ -111,19 +111,19 @@ public partial class TalentPanel : CanvasLayer
             return;
         }
 
-        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
-        if (gs.IsConnected("TalentsChanged", _onTalentsChanged))
+        if (gs.IsConnected(GameState.SignalName.TalentsChanged, _onTalentsChanged))
         {
-            gs.Disconnect("TalentsChanged", _onTalentsChanged);
+            gs.Disconnect(GameState.SignalName.TalentsChanged, _onTalentsChanged);
         }
 
-        if (gs.IsConnected("TalentCacheChanged", _onCacheChanged))
+        if (gs.IsConnected(GameState.SignalName.TalentCacheChanged, _onCacheChanged))
         {
-            gs.Disconnect("TalentCacheChanged", _onCacheChanged);
+            gs.Disconnect(GameState.SignalName.TalentCacheChanged, _onCacheChanged);
         }
     }
 
@@ -214,7 +214,7 @@ public partial class TalentPanel : CanvasLayer
         && !_main.IsReturnPlaying()
         && !_main.IsHomecoming();
 
-    /// <summary>打开（同步置态 + 异步入场编排）。生产入口 = 蓄力满格；测试/截图可直调。</summary>
+    /// <summary>打开（同步置态 + 异步入场编排）。生产入口 = 蓄力满格；亦可直调。</summary>
     public void Open()
     {
         if (!CanOpen())
@@ -235,7 +235,7 @@ public partial class TalentPanel : CanvasLayer
     /// 完成后才恢复对局——避免「元素未走完就露出对局」的二次割裂。</summary>
     public void Close() => BeginClose();
 
-    /// <summary>即时关闭（测试/截图/诊断端口）：跳过退场编排。</summary>
+    /// <summary>即时关闭（诊断端口）：跳过退场编排。</summary>
     public void CloseNow() => FinishClose();
 
     private void BeginClose()

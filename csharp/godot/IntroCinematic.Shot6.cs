@@ -17,7 +17,7 @@ public partial class IntroCinematic : CanvasLayer
     {
         var dur = _shotDurations[5];
         var root = new Node2D { Name = "Shot6" };
-        root.AddChild(new Starfield());  // M1 起 Starfield 为 C#，typed 实例化（原经脚本资源，M6 重定型）
+        root.AddChild(new Starfield());  // Starfield 为 C#，typed 实例化
         // 星云（主层用程序化星云纹理铺云絮层次，副层保留软径向光晕）
         var nebTex = CinematicFx.NebulaTexture(512, 20260911, edgeFade: true);
         var nebula1 = new Sprite2D

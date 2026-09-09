@@ -11,8 +11,10 @@ namespace InfiAir;
 /// 可被返航 Abort() 打断（无结算，冷却照计）。编队锚点运动与战机偏移/朝向由本节点
 /// _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
 /// CommOverlay（C# 同程序集 typed）；FormationCraft/FormationBomb 为 C# typed 直调。
+/// 公共骨架（spawner 注入/母舰缓存/冷却/ResumeWaves 等）在 EncounterEventBase
+/// （2026-09-09 抽取，与 EliteTurretEvent 共享）。
 /// </summary>
-public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
+public partial class FormationStrikeEvent : EncounterEventBase
 {
     public enum State
     {
@@ -59,8 +61,9 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     private const float RunOutMarginBase = 120.0f;
 
     private State _state = State.IDLE;
+    protected override bool IsIdle => _state == State.IDLE;
+
     private float _stateTime;
-    private float _cooldownLeft;
     private Vector2 _anchor;
     private float _heading = Mathf.Pi / 2.0f; // 编队航向角（Vector2.Right.Rotated 语义；初始 +y 下降）
     private float _turnTarget;
@@ -72,14 +75,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     private Godot.Collections.Array<float> _dropTimes = new();
     private Godot.Collections.Array<int> _dropCraft = new();
     private int _dropIndex;
-    /// <summary>已投弹计数（测试可观测）。</summary>
+    /// <summary>已投弹计数（DroppedCount() 对外观测）。</summary>
     private int _dropped;
-    /// <summary>台词层（U14：typed 化——原降级 CanvasLayer + 动态派发，同族 EliteTurretEvent 为 typed）。</summary>
-    private CommOverlay? _comm;
-    private Spawner? _spawner;
-
-    /// <summary>K15：spawner 依赖注入（main._ready 调用，A5 延续——替代 group 现找，与 EliteTurretEvent 同款）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner; // U14：typed 字段
 
     public override void _Ready()
     {
@@ -122,14 +119,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         BombDamage = CfgFx.Int("formation_strike_event.bomb_damage", BombDamage, 0);
         BombRadius = CfgFx.Float("formation_strike_event.bomb_radius", BombRadius, 0.1f);
         RewardAllClear = CfgFx.Int("formation_strike_event.reward_all_clear", RewardAllClear, 0);
-        _comm = new CommOverlay();
-        AddChild(_comm);
-        // K15：A5 依赖注入延续——由 main._ready 经 set_spawner 注入，替代 group 现找
-        //（原实现事件节点先于 spawner 入树时 _spawner=null，互斥检查与波次暂停钩子静默失效）
-        _spawner ??= GetTree().GetFirstNodeInGroup("spawner") as Spawner;
+        base._Ready(); // 台词层创建 + spawner 兜底（公共骨架，见 EncounterEventBase）
     }
-
-    public bool IsActive() => _state != State.IDLE;
 
     public int AliveCount() => _alive;
 
@@ -137,19 +128,12 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
 
     /// <summary>触发条件（最低优先级）：自身 IDLE 且冷却结束、分数达标、Boss 未激活、精英炮塔事件未激活。
     /// 掷签间隔/概率由 spawner 侧持有（elite 事件在本事件之前检查，本 tick 先启动则 is_active 拦截）。</summary>
-    public bool CanTrigger()
+    public override bool CanTrigger()
     {
-        // 分数实时读取（不走帧缓存）：测试/调用方同帧改分须立即生效（原 GDScript 直读
-        // GameState.score 语义；帧缓存仅保留给 _process 热路径的 CachedView）
+        // 分数实时读取（不走帧缓存）：调用方同帧改分须立即生效（直读 GameState.Score；
+        // 帧缓存仅保留给 _Process 热路径的 CachedView）
         var liveScore = (int)GameState.Instance.Score;
-        if (_state != State.IDLE || _cooldownLeft > 0.0f || liveScore < MinScore)
-        {
-            return false;
-        }
-
-        // L13：母舰在场期不触发（同 elite：母舰自动火力清事件单位全额发奖，玩家零参与挂机）。
-        // U14：惰性缓存替代每帧组查询（节点释放失效自动重查）
-        if (MothershipPresent())
+        if (liveScore < MinScore || !base.CanTrigger())
         {
             return false;
         }
@@ -170,23 +154,8 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         return true;
     }
 
-    /// <summary>母舰在场惰性缓存（同 EliteTurretEvent：首次查得缓存，释放/退组失效重查，替代每帧组查询）。</summary>
-    private Node? _mothershipCache;
-
-    private bool MothershipPresent()
-    {
-        if (_mothershipCache != null && GodotObject.IsInstanceValid(_mothershipCache)
-            && _mothershipCache.IsInGroup("mothership"))
-        {
-            return true;
-        }
-
-        _mothershipCache = GetTree().GetFirstNodeInGroup("mothership");
-        return _mothershipCache != null;
-    }
-
     /// <summary>事件启动（互斥检查通过后由 spawner 调用）。</summary>
-    public void Start()
+    public override void Start()
     {
         if (_state != State.IDLE)
         {
@@ -250,7 +219,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
     }
 
     /// <summary>返航打断：编队立即解散离场，无结算，冷却照计（已投放的炸弹自然存续）。</summary>
-    public void Abort()
+    public override void Abort()
     {
         if (_state == State.IDLE)
         {
@@ -269,11 +238,7 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         var d = (float)delta;
         if (_state == State.IDLE)
         {
-            if (_cooldownLeft > 0.0f)
-            {
-                _cooldownLeft -= d;
-            }
-
+            TickCooldown(d);
             return;
         }
 
@@ -380,15 +345,6 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         ResumeWaves();
     }
 
-    /// <summary>恢复普通波次（事件结束/打断时；精英炮塔事件可能同时持有暂停，以其自身恢复为准）。</summary>
-    private void ResumeWaves()
-    {
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
-        {
-            _spawner.SetWavesPaused(false);
-        }
-    }
-
     /// <summary>按时刻表投弹：投弹点即当前位置正下方；已毁机跳过（时刻表照走）。</summary>
     private void ProcessDrops()
     {
@@ -476,9 +432,4 @@ public partial class FormationStrikeEvent : Node, IEncounterEvent // U14：遭�
         _offsets.Clear();
         _alive = 0;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    // GDScript 无法以类名引用 C# 嵌套枚举（实测）——状态值经静态方法访问（脚本资源可调）
-    public static int GetStateIdle() => (int)State.IDLE;
 }

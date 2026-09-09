@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss（M3d 全量迁移，2026-08-08 自 scripts/boss.gd 迁移）：4 种轮换（1 重装 / 2 游击 / 3 母舰 /
+/// Boss：4 种轮换（1 重装 / 2 游击 / 3 母舰 /
 /// 4 月蚀），HP 分段驱动阶段框架（BOSS_REDESIGN §4.1）：P1（100–70%）→ P2（70–30%）→ ENRAGE
 /// （&lt;30%），P1/P2 各为数据驱动的模式表循环；段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身
 /// 开火计时。走位/攻击/狂暴经 A3 组合委托 BossMovement/BossAttacks/EnrageSequence（纯 C# 类）；
@@ -37,14 +37,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     [Signal]
     public delegate void EscapedEventHandler();
 
-    /// <summary>狂暴子状态机（对齐原作 BossState 的 4 个 ENRAGE_* 子状态）。</summary>
-    public enum EnragePhase { NONE, TRANSITION, ACTIVE, RELEASE_HOLD, RETURN }
-
     /// <summary>常规阶段（§4.1）：P1/P2 模式表循环，ENRAGE 为狂暴（序列结束后「余怒」沿用 P2 表提速）。</summary>
     public enum FightPhase { P1, P2, ENRAGE }
-
-    /// <summary>冲刺掠过（二型 P2 攻击）子状态。</summary>
-    public enum SweepState { NONE, AIM, DASH, RETURN }
 
     // ---- 静态常量表 / 实例资源（U07：静态 Godot 资源改实例字段——退出 segfault 实测教训） ----
     private readonly Texture2D _bossSprite1 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_1.png");
@@ -305,7 +299,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>慢速力场：机体移速 ×0.8（对齐原作 boss 移动 slow_factor）。</summary>
     public float SlowFieldFactor { get; set; } = 0.8f;
 
-    // ---- 对局状态（setup/take_damage 写入；GDScript 调用方/测试读写） ----
+    // ---- 对局状态（Setup/TakeDamage 写入；公开属性直读写） ----
     public int BossType { get; set; } = 1;
     public float MaxHp { get; set; } = 30.0f;
     public float Hp { get; set; } = 30.0f;
@@ -329,10 +323,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private float _summonSlowFactor = 1.0f;
     /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
-    /// <summary>2026-08-07 审计：slow_field 布尔缓存（对齐 enemy.gd C22——物理帧免每帧 augment_level 字典查询；
+    /// <summary>2026-08-07 审计：slow_field 布尔缓存（同 Enemy 的 C22 模式——物理帧免每帧 AugmentLevel 字典查询；
     /// 2026-08-11 二轮收敛 AugmentBoolCache：AugmentsChanged 信号事件驱动）。</summary>
     private readonly AugmentBoolCache _slowCache;
-    /// <summary>2026-08-07 审计：体碰改信号事件驱动（对齐 enemy.gd P0-2）。</summary>
+    /// <summary>2026-08-07 审计：体碰改信号事件驱动（同 Enemy 的 P0-2 模式）。</summary>
     private bool _bodyContact;
     // 阶段框架与模式表循环（§4.1）
     private FightPhase _fightPhase = FightPhase.P1;
@@ -438,11 +432,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EscapeDrift = CfgFx.Float("boss.escape.drift", EscapeDrift);
         EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed);
         EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel);
-        // 2026-08-07 审计：slow_field 缓存初始值 + augments_changed 增量刷新（对齐 enemy.gd C22）
+        // 2026-08-07 审计：slow_field 缓存初始值 + AugmentsChanged 增量刷新（同 Enemy 的 C22 模式）
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
 
-        // 2026-08-07 审计：体碰信号事件驱动（对齐 enemy.gd P0-2；collision_mask=3 已含 player Hitbox 层 1）
+        // 2026-08-07 审计：体碰信号事件驱动（同 Enemy 的 P0-2 模式；collision_mask=3 已含 Player Hitbox 层 1）
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
         EscapeCountdownFrom = CfgFx.Float("boss.escape.countdown_visible_from", EscapeCountdownFrom);
@@ -1026,7 +1020,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
         foreach (var child in GetParent().GetChildren())
         {
-            // M3a 起 Bullet 为 C# 类（is 判定）；FormationBomb 同为 C# 类（M7 全量迁移），is 判定
+            // Bullet/FormationBomb 均为 C# 类，is 判定
             if (child is Bullet || child is FormationBomb)
             {
                 child.QueueFree();
@@ -1218,8 +1212,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         var count = (int)GD.RandRange(2, 3);
         for (var i = 0; i < count; i++)
         {
-            _spawner.Call(
-                "spawn_minion",
+            _spawner.SpawnMinion(
                 Position + new Vector2((float)GD.RandRange(-80.0, 80.0), 110.0f) * _ws);
         }
     }
@@ -1270,7 +1263,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         player.TakeDamage(dmg, GlobalPosition);
     }
 
-    /// <summary>2026-08-07 审计：体碰重叠标记（对齐 enemy.gd P0-2；判定交回 _physics_process 守卫）。</summary>
+    /// <summary>2026-08-07 审计：体碰重叠标记（同 Enemy 的 P0-2 模式；判定交回 _PhysicsProcess 守卫）。</summary>
     private void OnAreaEntered(Area2D area)
     {
         if (!area.IsInGroup("player_hitbox"))
@@ -1350,26 +1343,4 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _sprite.Modulate = BaseModulate();
         GD.Print($"[BOSS] 存活 {(int)EscapeTime}s 未被击杀，逃离战场（无击杀奖励）");
     }
-
-    // ---------------- Fire_* 转发（Y 系列：生产调用已 typed 直调 BossFire；保留供测试契约——
-    // HitLogicTest 经 Boss.FireFan 等触发发射，签名与 BossFire.cs 对应方法逐参一致） ----------------
-    public void FireFan(Node2D boss, int pCount, float speed, int damage) => _fire.FireFan(boss, pCount, speed, damage);
-
-    public void FireHoming(Node2D boss, Vector2 pOffset, float speed, int damage) => _fire.FireHoming(boss, pOffset, speed, damage);
-
-    public void FireSniper(Node2D boss, Vector2 pDir, float speed, int damage) => _fire.FireSniper(boss, pDir, speed, damage);
-
-    public void FireCross(Node2D boss, float speed, int damage) => _fire.FireCross(boss, speed, damage);
-
-    public void FireHeavy(Node2D boss, Vector2 pDir, float pSpeed, int pDamage) => _fire.FireHeavy(boss, pDir, pSpeed, pDamage);
-
-    public void FireRing(Node2D boss, int pCount, float pSpeed, int pDamage, float pOffset)
-        => _fire.FireRing(boss, pCount, pSpeed, pDamage, pOffset);
-
-    public void FireEnrageWave(
-        Node2D boss, float laserSpeed, float ringSpeed, int laserDamage, int ringDamage, int laserCount, int ringCount)
-        => _fire.FireEnrageWave(boss, laserSpeed, ringSpeed, laserDamage, ringDamage, laserCount, ringCount);
-
-    public void FireBulletWall(Node2D boss, int count, float speed, int damage, float arcDeg)
-        => _fire.FireBulletWall(boss, count, speed, damage, arcDeg);
 }

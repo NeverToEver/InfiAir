@@ -3,14 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Buff 外观反馈（M3c 全量迁移，2026-08-08 自 scripts/player_augment_visuals.gd 迁移）：
+/// Buff 外观反馈：
 /// 一次性构建全部附件（程序化 Polygon2D/Line2D/Sprite2D，无新增贴图），
-/// 由 GameState.augments_changed 信号驱动 Refresh() 切换显隐与层数强度。
+/// 由 GameState.AugmentsChanged 信号驱动 Refresh() 切换显隐与层数强度。
 /// 作为 Player 子节点随机体旋转；坐标按基准机体系数 BaseShipScale（0.65，贴图 254px ≈ 165px 翼展
 /// 三角拦截机，机头朝 -Y）设计，Player 创建本节点时按实际 sprite 缩放等比放大。
 /// 部位锚点与 scripts/tools/generate_player_sprite.py 头部注释的贴图坐标对应（偏移 × 0.65）。
-/// Enemy.SinFast（M3b 已迁）为同命名空间静态方法，直接引用。
-/// Player 为 InfiAir.Player（M3c 并行迁移；EngineTint 公开属性由其提供，编译期稍后统一验证）。
+/// Enemy.SinFast 为同命名空间静态方法，直接引用。
+/// Player 为 InfiAir.Player（EngineTint 公开属性由其提供）。
 /// </summary>
 public partial class PlayerAugmentVisuals : Node2D
 {
@@ -79,9 +79,9 @@ public partial class PlayerAugmentVisuals : Node2D
         _BuildAll(shipSprite.Texture);
         Refresh();
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("AugmentsChanged", _onAugmentsChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
-            gs.Connect("AugmentsChanged", _onAugmentsChanged);
+            gs.Connect(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         }
     }
 
@@ -89,9 +89,9 @@ public partial class PlayerAugmentVisuals : Node2D
     {
         // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected("AugmentsChanged", _onAugmentsChanged))
+        if (gs != null && gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
-            gs.Disconnect("AugmentsChanged", _onAugmentsChanged);
+            gs.Disconnect(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         }
     }
 

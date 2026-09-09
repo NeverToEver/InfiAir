@@ -5,7 +5,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 母舰补给平台（M4 全量迁移，2026-08-08 自 scripts/mothership.gd 迁移）：长按 H 蓄力召唤
+/// 母舰补给平台：长按 H 蓄力召唤
 /// （main 管理蓄力）→ 机库小窗演出（main 编排）→ 穿梭门打开，母舰 DESCEND 穿出减速
 /// （缩放+ease-out 滑入停驻点）→ 到位释放减速带（冲击波短时减速敌人）并立即以加特林+导弹
 /// 火力掩护，DOCKING 牵引回收玩家进保护舱（隐藏+关受击判定）→ RESUPPLY 补给 → STAY 驻留
@@ -18,7 +18,7 @@ namespace InfiAir;
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
 /// M7 后调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
-/// 少量 snake_case 兼容桥因测试调用方保留（桥段见文件底部）。
+/// 文件底部保留 GetStateStay snake_case 兼容桥（Hud.cs 静态访问器口径）。
 /// </summary>
 public partial class Mothership : Area2D
 {
@@ -26,7 +26,7 @@ public partial class Mothership : Area2D
     public delegate void DepartedEventHandler(float cooldown);
 
     /// <summary>状态机：DESCEND 穿出 → DOCKING 牵引回收 → RESUPPLY 补给 → STAY 驻留 →
-    /// RELEASE 出舱 → DEPART 离场（数值对齐原 GDScript 枚举，GDScript 调用方按序数比较）。</summary>
+    /// RELEASE 出舱 → DEPART 离场（Hud 经 GetStateStay() 按序数比较）。</summary>
     public enum State { DESCEND, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
@@ -206,7 +206,7 @@ public partial class Mothership : Area2D
             }
         }
 
-        // 直接实例化（测试/教程，未经 begin_warp_in）：穿梭参数按当前位置补默认
+        // 直接实例化（蓄力虚影等未经 BeginWarpIn 的路径）：穿梭参数按当前位置补默认
         if (_warpTarget == Vector2.Zero)
         {
             _warpTarget = new Vector2(Position.X, HoverY);
@@ -456,21 +456,9 @@ public partial class Mothership : Area2D
 
     public float IntervalMult() => Tier() == 1 ? _upgradeIntervalMult : 1.0f;
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
+    // ---------------- snake_case 兼容桥（GetStateStay：Hud.cs 经此读 State.STAY——沿用静态访问器口径） ----------------
 
     public static int GetStateStay() => (int)State.STAY;
-
-    public static int GetStateRelease() => (int)State.RELEASE;
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float HOVER_Y { get => HoverY; set => HoverY = value; }
-
-    public float DOCK_OFFSET_Y { get => DockOffsetY; set => DockOffsetY = value; }
-
-    public float WARP_IN_TIME { get => WarpInTime; set => WarpInTime = value; }
-
-    public float DRIVE_MARGIN_X { get => DriveMarginX; set => DriveMarginX = value; }
 
     // ---------------- 内部实现 ----------------
 
@@ -580,8 +568,7 @@ public partial class Mothership : Area2D
                             var hud = Hud();
                             if (hud != null)
                             {
-                                hud.Call(
-                                    "show_popup",
+                                hud.ShowPopup(
                                     Tr("POD_SECURED"),
                                     GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
                             }
@@ -1014,8 +1001,7 @@ public partial class Mothership : Area2D
         var hud = Hud();
         if (hud != null)
         {
-            hud.Call(
-                "show_popup",
+            hud.ShowPopup(
                 Tr("POP_RESUPPLY"),
                 GlobalPosition + new Vector2(0.0f, 120.0f) * (float)GameState.Instance.WorldScale);
         }
@@ -1033,8 +1019,7 @@ public partial class Mothership : Area2D
         {
             hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
             var factor = Mathf.Max(0.6f, 1.0f - EarlyMaxDiscount * ratio) * (1.0f - _prefill);
-            hud.Call(
-                "show_popup",
+            hud.ShowPopup(
                 GdFormat.Format((string)Tr("POP_EARLY_LEAVE"), (int)((1.0f - factor) * 100.0f)),
                 GlobalPosition);
         }

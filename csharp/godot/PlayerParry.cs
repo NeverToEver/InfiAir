@@ -3,8 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 弧光弹反盾组件（M3c 全量迁移，2026-08-08 自 scripts/player_parry.gd 迁移；2026-08-03 公平感
-/// 机制四）。时间轴状态机
+/// 弧光弹反盾组件（2026-08-03 公平感机制四）。时间轴状态机
 /// IDLE → WINDUP(前摇，无判定) → ACTIVE(有效弹反) → RECOVER(后摇，无判定) → IDLE；
 /// 硬冷却 3.0s 自 RECOVER 完成（进入 IDLE）起算——完整周期 0.8 + 3.0 = 3.8s，占空比约 21%，
 /// 盾是「决策性资源」而非常驻免伤。仅 ACTIVE 期由 Player 侧启用盾 Area2D 判定。
@@ -172,7 +171,7 @@ public partial class PlayerParry : RefCounted
         }
     }
 
-    // GDScript 无法以类名引用 C# 嵌套枚举（实测）——相位值经静态方法访问（脚本资源可调）
+    // 相位值静态访问器（int 口径；当前无生产调用方，保留为公开查询口）
     public static int GetPhaseIdle() => (int)ParryPhase.IDLE;
 
     public static int GetPhaseWindup() => (int)ParryPhase.WINDUP;
@@ -180,10 +179,4 @@ public partial class PlayerParry : RefCounted
     public static int GetPhaseActive() => (int)ParryPhase.ACTIVE;
 
     public static int GetPhaseRecover() => (int)ParryPhase.RECOVER;
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float cooldown { get => Cooldown; set => Cooldown = value; }
-
-    public float DURATION { get => Duration; set => Duration = value; }
 }

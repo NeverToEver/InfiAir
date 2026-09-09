@@ -15,7 +15,7 @@ public partial class ReturnCinematic : CanvasLayer
     private Node2D BuildShot3()
     {
         var dur = _shotDurations[2];
-        var u = dur / 2.0f; // 内部关键帧按基准时长等比缩放（测试短时长表兼容）
+        var u = dur / 2.0f; // 内部关键帧以半时长为基准等比缩放（时长表调整时比例不变）
         var root = new Node2D { Name = "Shot3" };
         var portalPos = new Vector2(1180.0f, 400.0f);
         // ---- 前半：原星域冲入 ----
@@ -71,7 +71,7 @@ public partial class ReturnCinematic : CanvasLayer
         neb.Position = new Vector2(420.0f, 780.0f);
         partB.AddChild(neb);
         // 远处虚影站剪影（α0.15，为镜头 4 铺垫）
-        var farStation = DawnStation.Build(1); // DawnStation.Mode.PHANTOM
+        var farStation = DawnStation.Build(DawnStation.Mode.Phantom);
         farStation.Scale = Vector2.One * 0.3f;
         farStation.Position = new Vector2(1560.0f, 300.0f);
         var farMod = farStation.Modulate;

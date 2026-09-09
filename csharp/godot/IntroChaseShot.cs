@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 5：弹射尾追视角容器（原 GDScript intro_cinematic.gd 内嵌类 _ChaseShot，迁移为同文件顶层类）。
+/// <summary>镜头 5：弹射尾追视角容器（IntroCinematic 顶层镜头类）。
 /// 壁面/防撞灯/速度线按透视收缩向后流动（数组预建，_process 零分配）。</summary>
 public partial class IntroChaseShot : Node2D
 {

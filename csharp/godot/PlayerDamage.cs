@@ -3,11 +3,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家受击减免 + 回血组件（M3c 全量迁移，2026-08-08 自 scripts/player_damage.gd 迁移；A8 拆分）。
+/// 玩家受击减免 + 回血组件（A8 拆分）。
 /// 持无敌/单帧守卫/受击延迟计时；受击结算与回血逻辑自本类。
-/// 经 Player 属性转发（Player.Invincible 等，测试白盒兼容）与 GameState 全局交互，
+/// 经 Player 属性转发（Player.Invincible 等）与 GameState 全局交互，
 /// 不访问 Player 私有字段（A1 约束）。
-/// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；GameState（GDScript
+/// 纯 C# 逻辑类（无信号/导出）：由 C# Player 组合持有；GameState 经 Instance 门面访问。
 /// </summary>
 public class PlayerDamage
 {
@@ -41,11 +41,6 @@ public class PlayerDamage
 
     /// <summary>逆境回血剩余秒数（受击时置满；仅在窗口内按层数结算，归零后零开销）。</summary>
     private float _secondWindTimer;
-
-    public void Configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit)
-    {
-        Configure(invincibleTime, armorMult, evasionChance, regenPerSec, shakeHit, SecondWindDuration, SecondWindHealPerSec);
-    }
 
     public void Configure(float invincibleTime, float armorMult, float evasionChance, float regenPerSec, float shakeHit,
         float secondWindDuration, float secondWindHealPerSec)
@@ -151,10 +146,4 @@ public class PlayerDamage
             GameState.Instance.Heal(GameState.Instance.PassiveRegenRate() * delta);
         }
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float invincible { get => Invincible; set => Invincible = value; }
-
-    public float INVINCIBLE_TIME { get => InvincibleTime; set => InvincibleTime = value; }
 }

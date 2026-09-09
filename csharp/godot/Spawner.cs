@@ -10,9 +10,8 @@ namespace InfiAir;
 /// + Boss 触发（4 种轮换，2026-08-04 扩 4 型含月蚀）。遭遇事件（精英炮塔/轰炸编队）触发策略
 /// 自 2026-08-05 起由统一事件管理器接管（GameState.events）：本类仅保留
 /// 互斥钩子（Boss 冻结/波次暂停）与特殊槽登记（notify_event_triggered）。
-/// M6 全量迁移（2026-08-08 自 scripts/spawner.gd）：原 M3b/M3d 经脚本资源判型/实例化
-/// （_spawn_telegraph_script/_enemy_script/_boss_script）在 C# 侧改为 typed 直调（SpawnTelegraph/
-/// Enemy/Boss 均为 C# 类）；UPPER_SNAKE 配置表为实例属性（规则 19：静态字段禁持 Godot 对象）。
+/// SpawnTelegraph/Enemy/Boss 均为 C# typed 直调；UPPER_SNAKE 配置表为实例属性
+/// （静态字段禁持 Godot 对象——退出 segfault 实测根因）。
 /// </summary>
 public partial class Spawner : Node
 {
@@ -21,11 +20,11 @@ public partial class Spawner : Node
     private static readonly StringName BulletTypeSpread = new("spread");
     private static readonly StringName BulletTypeLaser = new("laser");
 
-    /// <summary>Boss 降入完成（_spawn_boss 后发出；main.gd/_hud 连接，M6 改连 PascalCase 名）。</summary>
+    /// <summary>Boss 降入完成（SpawnBossInternal 末尾发出；Main/Hud 连接）。</summary>
     [Signal]
     public delegate void BossSpawnedEventHandler(Boss boss);
 
-    /// <summary>Boss 出场预警（_trigger_boss 时发出；main.gd/_hud 连接，M6 改连 PascalCase 名）。</summary>
+    /// <summary>Boss 出场预警（TriggerBossInternal 时发出；Main/Hud 连接）。</summary>
     [Signal]
     public delegate void BossWarningEventHandler();
 
@@ -34,7 +33,7 @@ public partial class Spawner : Node
     private readonly List<Godot.Timer> _pendingTimers = new();
     private readonly List<Node2D> _pendingTelegraphs = new();
 
-    // 静态资源原为 GDScript const preload；规则 19 禁静态持 Godot 对象 → 实例只读字段
+    // 禁静态持 Godot 对象（退出 segfault 实测根因）→ 场景资源用实例只读字段
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
 
     /// <summary>贴图复用常量（2026-08-04：分裂者复用 3 型、重装炮台复用精英 1 型）。</summary>
@@ -114,12 +113,9 @@ public partial class Spawner : Node
     /// （直启两事件），先结束者也不会提前解除后结束者的暂停）。</summary>
     private int _wavesPauseDepth;
 
-    /// <summary>事件编排节点（main 在 _ready 登记；遭遇事件触发策略由统一事件管理器接管，
-    /// 本引用供互斥查询（formation.can_trigger 检查 elite active）与测试访问器）。</summary>
+    /// <summary>事件编排节点（Main 在 _Ready 登记；遭遇事件触发策略由统一事件管理器接管，
+    /// 本引用供互斥查询——FormationStrikeEvent 触发判定检查 elite 是否活跃）。</summary>
     private Node? _event;
-
-    /// <summary>轰炸编队事件编排节点（main 在 _ready 登记；互斥/访问器同上）。</summary>
-    private Node? _formation;
 
     public Spawner()
     {
@@ -194,7 +190,7 @@ public partial class Spawner : Node
         }
 
         // 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）自 2026-08-05 起由
-        // 统一事件管理器读取（scripts/event_manager.gd _load_balance，键不变）
+        // 统一事件管理器读取（GameEventManager，键不变）
         var normal = GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array());
         if (normal.VariantType == Variant.Type.Array)
         {
@@ -373,7 +369,7 @@ public partial class Spawner : Node
         }
     }
 
-    /// <summary>单机随机入口（兼容旧调用/测试）：随机 x + 悬停带内随机锚点。</summary>
+    /// <summary>单机随机入口（兼容既有调用）：随机 x + 悬停带内随机锚点。</summary>
     private void SpawnEnemyInternal()
     {
         var pool = UnlockedTypes();
@@ -480,9 +476,9 @@ public partial class Spawner : Node
         EmitSignal(SignalName.BossSpawned, boss);
     }
 
-    /// <summary>Boss 离场统一结算。逃跑离场也会发 died（boss.gd 逃跑路径同时 emit escaped+died，
-    /// 用于血条隐藏/生成器重排）；此处按 is_escaped 区分，只对真·击杀推进轮换与休整（B3 修复）。
-    /// 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，is_escaped 判定无歧义。</summary>
+    /// <summary>Boss 离场统一结算。逃跑离场也会发 Died（Boss 逃跑路径同时发 Escaped+Died，
+    /// 用于血条隐藏/生成器重排）；此处按 IsEscaped 区分，只对真·击杀推进轮换与休整（B3 修复）。
+    /// 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，IsEscaped 判定无歧义。</summary>
     private void OnBossDied(Boss? boss = null)
     {
         _bossActive = false;
@@ -623,12 +619,9 @@ public partial class Spawner : Node
     }
 
     // ---------------- 对外公开接口（A1 修复） ----------------
-    // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名，
-    // snake_case 别名见文末兼容桥（spawn_minion 经 Boss 动态派发调用）。
+    // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名。
 
     public void SetEliteEvent(Node? eventNode) => _event = eventNode;
-
-    public void SetFormationEvent(Node? eventNode) => _formation = eventNode;
 
     public void SetBossFrozen(bool frozen) => _bossFrozen = frozen;
 
@@ -784,8 +777,4 @@ public partial class Spawner : Node
             },
         };
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：Boss.cs SummonMinions() 经 _spawner.Call("spawn_minion") 动态派发） ----------------
-
-    public Enemy spawn_minion(Vector2 pos) => SpawnMinion(pos);
 }

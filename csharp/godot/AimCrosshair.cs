@@ -3,14 +3,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 鼠标跟随准星（M3b 全量迁移，2026-08-08 自 scripts/aim_crosshair.gd 迁移，P1-1 辅助瞄准
-/// 重设计）：世界坐标 top_level Node2D，挂 Player 下。
+/// 鼠标跟随准星（P1-1 辅助瞄准重设计）：世界坐标 top_level Node2D，挂 Player 下。
 /// 对局活跃（未暂停、未锁输入、存活）时显示并跟随 Player.aim_point()，同时隐藏系统光标；
 /// 暂停/Buff/基地/结算/死亡/过场恢复系统光标并隐藏准星——同一条件驱动两处，
-/// 避免双光标/无光标死角。laser_weapon 光束走原始鼠标，与本准星天然一致。
+/// 避免双光标/无光标死角。LaserWeapon 光束走原始鼠标，与本准星天然一致。
 /// 程序化四角 bracket + 中心点（指示器族，不乘 world_scale）。
-/// 迁移期动态访问：Player 为 C# 类（InfiAir.Player，M3c 并行迁移）直接调用；
-/// Enemy.SinFast 静态直接调用（原经脚本资源 load）。
+/// Player 与 Enemy.SinFast 均 C# typed 直调。
 /// </summary>
 public partial class AimCrosshair : Node2D
 {

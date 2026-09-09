@@ -116,15 +116,11 @@ public partial class FormationBomb : Area2D
             if (hitboxNode.GlobalPosition.DistanceTo(GlobalPosition) <= AoeRadius)
             {
                 // K08：A1 同款遗漏——原 (hitbox.get_parent() as Player) 硬强转，Player 节点结构变动即
-                // null 调用崩溃；改经注册表引用（与 bullet.gd 命中结算同口径）
+                // null 调用崩溃；改经注册表引用（与 Bullet 命中结算同口径）
                 ((Player)player).TakeDamage((float)Damage, GlobalPosition);
             }
         }
 
         QueueFree();
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int damage { get => Damage; set => Damage = value; }
 }

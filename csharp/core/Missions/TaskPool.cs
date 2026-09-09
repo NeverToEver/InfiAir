@@ -1,16 +1,16 @@
 namespace InfiAir.Core.Missions;
 
-/// <summary>基地任务定义（id 为身份标识；goal/kind 供进度/展示逻辑消费）。</summary>
-public sealed record TaskDef(string Id, int Goal, string Kind);
+/// <summary>基地任务定义（id 为身份标识）。</summary>
+public sealed record TaskDef(string Id);
 
 /// <summary>
-/// 任务池无放回抽取核心（2026-08-07 自 scripts/task_pool.gd 迁移）：洗牌索引序列 + 游标
-/// 推进。单次 <see cref="Draw"/> 内不重复；一次 draw 消耗完当前批次后若仍有名额且全池
-/// 还有可用候选则重洗继续补足（跨 draw 尽量延迟复用；排除项导致批次提前耗尽不再截断——
+/// 任务池无放回抽取核心：洗牌索引序列 + 游标
+/// 推进。单次 <see cref="Draw"/> 内不重复；一次 Draw 消耗完当前批次后若仍有名额且全池
+/// 还有可用候选则重洗继续补足（跨 Draw 尽量延迟复用；排除项导致批次提前耗尽不再截断——
 /// Q05）。排除覆盖全池时安全返回空（不抛错不死循环）。
 ///
-/// 分布语义与 GDScript shuffle 等价（Fisher–Yates）；RNG 独立于 GDScript 全局随机源，
-/// xUnit 可注入种子复现序列。不做与旧实现逐序列等价的承诺（无外部依赖此语义）。
+/// 分布语义为 Fisher–Yates 洗牌；RNG 为独立 Random 实例，可注入种子复现序列。
+/// 不做与任何外部实现逐序列等价的承诺（无外部依赖此语义）。
 /// </summary>
 public sealed class TaskPool
 {

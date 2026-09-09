@@ -8,8 +8,7 @@ namespace InfiAir;
 /// 分段血条（2026-08-03 机制三）：seg_weights 非空时按权重分格（段序 = 文档阶段顺序，
 /// P1→P2→ENRAGE 从左到右），每段对应一段 HP 区间、消耗从左端开始（P1 段先暗化），
 /// 段色按 seg_colors 逐段着色；未设置时保持既有等分语义（HP/燃料/dash 条零改动）。
-/// M5 全量迁移（2026-08-08 自 scripts/ui_segmented_bar.gd）：Control 子类，
-/// [Export] PascalCase 属性；snake_case 别名供未迁移 GDScript 调用方过渡。
+/// Control 子类，[Export] PascalCase 属性（tscn 以同名访问）。
 /// </summary>
 public partial class SegmentedBar : Control
 {
@@ -115,7 +114,7 @@ public partial class SegmentedBar : Control
         }
     }
 
-    /// <summary>分段模式下第 index 段的消耗度（0..1，纯函数供绘制与测试共用）：
+    /// <summary>分段模式下第 index 段的消耗度（0..1，纯函数供绘制与外部查询共用）：
     /// 段 i 对应 HP 区间 [hi, lo]（首段 hi=1.0 满血，段宽 = 权占比），ratio 低于段上界越多
     /// 消耗越多——消耗从血条左端（P1 段）开始，与既有「值高左端亮」的整体语义方向一致。</summary>
     public static float SegmentFill(float ratio, Godot.Collections.Array weights, int index)
@@ -264,14 +263,4 @@ public partial class SegmentedBar : Control
 
         return total > 0.0f ? total : 1.0f;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int segments { get => Segments; set => Segments = value; }
-
-    public Color fill_color { get => FillColor; set => FillColor = value; }
-
-    public float max_value { get => MaxValue; set => MaxValue = value; }
-
-    public float value { get => Value; set => Value = value; }
 }

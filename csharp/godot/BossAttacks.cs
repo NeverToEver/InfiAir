@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 攻击状态机（A3 拆分；2026-08-08 全量迁移，自 scripts/boss_attacks.gd）。
+/// Boss 攻击状态机（A3 拆分）。
 /// 承载持续型攻击（狙击 telegraph / 蓄力重炮 / 冲刺掠过 / 编队齐射）的时序状态与轮询；
 /// 一次性攻击（fan/homing/cross/bullet_wall）在 execute 内直接委托 BossFire。
 /// 配置字段经 Boss typed 公开属性/方法直读，弹幕发射经注入的 BossFire，避免跨类私有访问（A1 约束）。
@@ -13,7 +13,7 @@ namespace InfiAir;
 /// </summary>
 public partial class BossAttacks : RefCounted
 {
-    // ---- 对齐 Boss.SweepState（enum { NONE, AIM, DASH, RETURN }） ----
+    // ---- 冲刺掠过（二型 P2 攻击）子状态常量 ----
     public const int SweepNone = 0;
     public const int SweepAim = 1;
     public const int SweepDash = 2;
@@ -171,10 +171,10 @@ public partial class BossAttacks : RefCounted
         boss.GetParent().AddChild(ring);
     }
 
-    /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
     public bool HasAttack(StringName id) => _attackHandlers.ContainsKey(id);
 
-    /// <summary>全部已注册攻击 id（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>全部已注册攻击 id（A3：经公开接口断言注册表完整）。</summary>
     public Godot.Collections.Array AttackIds()
     {
         var ids = new Godot.Collections.Array();

@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 子弹对象池（M3a 全量迁移，2026-08-08 自 scripts/bullet_pool.gd 迁移；挂在 Main 下）：
-/// 复用 bullet.tscn 实例，避免高频 instantiate/free。活跃弹挂 Main 下（清场/测试遍历可见），
+/// 子弹对象池（挂在 Main 下）：
+/// 复用 bullet.tscn 实例，避免高频 instantiate/free。活跃弹挂 Main 下（清场遍历可见），
 /// 闲置弹收回池节点下。P2-3 同屏敌弹显式硬上限（500）保持。
 /// </summary>
 public partial class BulletPool : Node
@@ -31,11 +31,10 @@ public partial class BulletPool : Node
         }
     }
 
-    /// <summary>M3a 过渡：活跃子弹总数（meta_health_fx D3 代理经本实例访问——
-    /// GDScript 不能以类名引用 C# 静态成员，仅实例可达；M7 后改 typed 直调）。</summary>
+    /// <summary>活跃子弹总数（MetaHealthFX D3 亮度代理经本实例读取；转发 Bullet.ActiveCount）。</summary>
     public int ActiveBulletCount => Bullet.ActiveCount;
 
-    /// <summary>M3a 过渡：活跃爆炸实例数（同上）。</summary>
+    /// <summary>活跃爆炸实例数（同上；转发 Explosion.LiveCount()）。</summary>
     public int LiveExplosionCount => Explosion.LiveCount();
 
     /// <summary>取一枚子弹并激活（4 参便捷重载）。敌弹超硬上限时返回 null（调用方判空跳过）。</summary>
@@ -112,6 +111,6 @@ public partial class BulletPool : Node
         }
     }
 
-    /// <summary>子弹被外部 queue_free（清场/测试）时从池清单移除，防止悬空引用。</summary>
+    /// <summary>子弹被外部 queue_free（清场等池外销毁路径）时从池清单移除，防止悬空引用。</summary>
     public void Forget(Bullet b) => _free.Remove(b);
 }

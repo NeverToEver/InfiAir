@@ -4,16 +4,16 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件编排（2026-08-08 自 scripts/elite_turret_event.gd 迁移）：
+/// 精英炮塔事件编排：
 /// IDLE → CARRIER_ENTER（航母降入 2s）→ 炮塔升起充能 1.5s → TURRET_ACTIVE（30s 倒计时）
 /// → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
 /// 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
-/// enemy_hp_multiplier/enemy_hp_ramp/world_scale）；M7 后 spawner/HUD 为 C# typed 调用，
-/// turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
-/// 白盒断言 API 为 PascalCase（少量 snake_case 兼容桥保留）。
+/// Spawner/HUD 为 C# typed 调用，turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
+/// 公开 API 为 PascalCase。公共骨架（spawner 注入/母舰缓存/冷却/ResumeWaves 等）在
+/// EncounterEventBase（2026-09-09 抽取，与 FormationStrikeEvent 共享）。
 /// </summary>
-public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契约接口（管理器 typed 轮询）
+public partial class EliteTurretEvent : EncounterEventBase
 {
     public enum State { IDLE, CARRIER_ENTER, TURRET_ACTIVE, CARRIER_EXIT, BOSS_DELAY }
 
@@ -57,9 +57,8 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     public float Cooldown { get; private set; } = 60.0f;
 
     private State _state = State.IDLE;
-    /// <summary>A5：spawner 依赖注入（main._ready 经 SetSpawner 设置；替代 group 现找）。
-    /// U14：字段 typed 化（Spawner 已 C#，消除动态派发）。</summary>
-    private Spawner? _spawner;
+    protected override bool IsIdle => _state == State.IDLE;
+
     private StrikeCarrier? _carrier;
     private readonly Godot.Collections.Array<TurretBattery> _turrets = new();
     private float _timer;
@@ -69,12 +68,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     /// <summary>台词节点：0 未播 / 1 已播第1句 / 2 已播第2句。</summary>
     private int _lineStage;
     private readonly Godot.Collections.Array<String> _lines = new();
-    private float _cooldownLeft;
-    private CommOverlay? _comm;
     private Hud? _hud; // U13：typed
-
-    /// <summary>A5：spawner 依赖注入（main._ready 调用；替代 group 现找）。</summary>
-    public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
     public override void _Ready()
     {
@@ -123,50 +117,11 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
         HoverY = (float)GameState.Instance.Cfg("elite_turret_event.carrier.hover_y", HoverY).AsDouble();
         // cooldown 钳下限——0 冷却 + 高触发率下事件背靠背连发，波次被长期挤占近饿死
         Cooldown = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.cooldown", Cooldown).AsDouble(), CfgFx.IntervalFloor);
-        _comm = new CommOverlay();
-        AddChild(_comm);
-        // U16：K15 对称兜底——与 FormationStrikeEvent 同款（事件节点先于 spawner 入树时
-        // 注入为 null，Boss 冻结/波次暂停钩子会静默失效；兜底 group 现找）
-        _spawner ??= GetTree().GetFirstNodeInGroup("spawner") as Spawner;
-    }
-
-    public bool IsActive() => _state != State.IDLE;
-
-    /// <summary>触发条件：IDLE 且冷却结束（Boss 互斥由 spawner 侧检查）。</summary>
-    public bool CanTrigger()
-    {
-        if (_state != State.IDLE || _cooldownLeft > 0.0f)
-        {
-            return false;
-        }
-
-        // L13：母舰在场期不触发——母舰自动火力（玩家弹阵营）可摧毁事件单位并全额发奖，
-        // 玩家进保护舱零参与挂机收益；在场判定经惰性缓存（U14：原每帧组查询，节点失效重查）
-        if (MothershipPresent())
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>母舰在场惰性缓存：首次查得后缓存引用，释放/退组失效自动重查（替代每帧组查询）。</summary>
-    private Node? _mothershipCache;
-
-    private bool MothershipPresent()
-    {
-        if (_mothershipCache != null && GodotObject.IsInstanceValid(_mothershipCache)
-            && _mothershipCache.IsInGroup("mothership"))
-        {
-            return true;
-        }
-
-        _mothershipCache = GetTree().GetFirstNodeInGroup("mothership");
-        return _mothershipCache != null;
+        base._Ready(); // 台词层创建 + spawner 兜底（公共骨架，见 EncounterEventBase）
     }
 
     /// <summary>事件启动（互斥检查通过后由事件管理器调用）。</summary>
-    public void Start()
+    public override void Start()
     {
         if (_state != State.IDLE)
         {
@@ -211,7 +166,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     /// <summary>返航中止（main._start_homecoming 调用）：IDLE 直接返回；清掉在场炮塔（queue_free
     /// 不触发 died 计分，自行清理注册清单）、隐藏 HUD 事件条、恢复普通波次，航母按完整
     /// 撤离处理；Boss 解冻/_boss_pending 补触发沿用现有 BOSS_DELAY → OnBossDelayEnd。</summary>
-    public void Abort()
+    public override void Abort()
     {
         if (_state == State.IDLE)
         {
@@ -326,10 +281,7 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
     public override void _Process(double delta)
     {
         var d = (float)delta;
-        if (_cooldownLeft > 0.0f && _state == State.IDLE)
-        {
-            _cooldownLeft -= d;
-        }
+        TickCooldown(d);
 
         if (_state != State.TURRET_ACTIVE)
         {
@@ -469,12 +421,6 @@ public partial class EliteTurretEvent : Node, IEncounterEvent // U14：遭遇契
                 _spawner.TriggerBoss();
             }
         }
-    }
-
-    /// <summary>普通波次在 CARRIER_EXIT 起恢复（Boss 冻结保留到 BOSS_DELAY 结束）。</summary>
-    private void ResumeWaves()
-    {
-        _spawner?.SetWavesPaused(false);
     }
 
     /// <summary>一次性计时回调（同 spawner._schedule：Godot.Timer 节点 + 信号，避免协程泄漏）。</summary>

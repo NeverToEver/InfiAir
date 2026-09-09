@@ -3,9 +3,9 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 辅助瞄准框覆盖层（P1-1，M3b 全量迁移，2026-08-08 自 scripts/aim_frame_layer.gd 迁移）：
-/// 世界坐标单节点，main.gd _ready 运行时创建挂 Main 下（tutorial.gd 同款，登记
-/// GameState.aim_frame_layer）。
+/// 辅助瞄准框覆盖层（P1-1）：
+/// 世界坐标单节点，Main._Ready 运行时创建挂 Main 下（Tutorial 同款，登记
+/// GameState.AimFrameLayer）。
 /// 每帧一次 _draw 遍历 GameState.enemies 中带 aim_marked 的 Enemy 统一画四角 bracket 框
 /// （单节点零逐敌节点开销）；框半径 = 碰撞半径 + frame_pad（指示器族，frame_pad 不乘
 /// world_scale）。青色强对比 + 低频频闪；准星入框的个体框转金色高亮（即时反馈
@@ -91,19 +91,19 @@ public partial class AimFrameLayer : Node2D
         _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
         if (gs != null)
         {
-            gs.Connect("AimAssistChanged", _onAimAssistChanged);
+            gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistChanged);
         }
     }
 
     public override void _ExitTree()
     {
-        // G016：显式断开档位信号（对齐 player.gd C22 模式），节点未 free 重新入树不重复连接
+        // G016：显式断开档位信号（同 Player 的 C22 模式），节点未 free 重新入树不重复连接
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("AimAssistChanged", _onAimAssistChanged))
+            if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistChanged))
             {
-                gs.Disconnect("AimAssistChanged", _onAimAssistChanged);
+                gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistChanged);
             }
 
             if (gs.AimFrameLayer == this)
@@ -136,7 +136,7 @@ public partial class AimFrameLayer : Node2D
     }
 
     /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 写入 meta）+ frame_pad
-    /// A7：测试/诊断白盒断言经公开接口。</summary>
+    /// A7：诊断白盒断言经公开接口。</summary>
     public float FrameHalfSize(Enemy e)
     {
         // C23：碰撞半径经 meta 缓存——setup 后恒定（仅 scale.x 随缩放变化），
@@ -161,7 +161,7 @@ public partial class AimFrameLayer : Node2D
         return r + _framePad;
     }
 
-    /// <summary>当前档位辅助框内边距（A7：测试/诊断白盒断言经公开接口）。</summary>
+    /// <summary>当前档位辅助框内边距（A7：诊断白盒断言经公开接口）。</summary>
     public float FramePad() => _framePad;
 
     /// <summary>世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null。

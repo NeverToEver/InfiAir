@@ -5,8 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 全 UI 统一色板、字号阶梯与样式工厂（HUD / Sci-Fi FUI：细线、切角、全息青）。
 /// 各 UI 一律从这里取色/取样式/取控件，不再散落硬编码色值与 Label/Button 样板。
-/// M5 全量迁移（2026-08-08 自 scripts/ui_theme.gd）：RefCounted + 全静态工厂。
-/// C# 调用方经静态字段/方法 typed 直调。
+/// RefCounted + 全静态工厂；C# 调用方经静态字段/方法 typed 直调。
 /// </summary>
 public partial class UITheme : RefCounted
 {
@@ -40,7 +39,6 @@ public partial class UITheme : RefCounted
     public static readonly Color BannerDangerBg = new(0.35f, 0.06f, 0.10f, 0.7f); // 警告横幅底
 
     // 虚影基地皮肤 token
-    public static readonly Color PhantomBg = new(0.01f, 0.03f, 0.06f, 0.90f); // 基地全屏底
     public static readonly Color PhantomPanelBg = new(0.03f, 0.08f, 0.12f, 0.55f); // 虚影面板底
     public static readonly Color PhantomBorder = new(0.0f, 0.83f, 1.0f, 0.65f); // 虚影面板边框
     public static readonly Color PhantomScan = new(0.0f, 0.83f, 1.0f, 0.06f); // 扫描线/毛玻璃叠加层

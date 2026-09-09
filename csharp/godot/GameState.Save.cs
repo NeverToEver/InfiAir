@@ -11,7 +11,7 @@ public partial class GameState : Node
 {
 
     /// <summary>存档数值字段安全读取：手改数据的非法类型（字符串/数组/字典等）回默认值
-    /// （委托 SaveManager 壳 sanitize_num——GDScript 浮点为 64 位，经 Variant 往返保持逐位等价）</summary>
+    /// （委托 SaveManager.SanitizeNum——GDScript 浮点为 64 位，经 Variant 往返保持逐位等价）</summary>
     public double SaveNum(Variant v, double defaultValue) => _saveManager.SanitizeNum(v, defaultValue);
 
     /// <summary>C16 修复：布尔字段安全读取——仅接受真 bool（GDScript 的 bool("false") 为 true，
@@ -28,11 +28,9 @@ public partial class GameState : Node
     /// <summary>启动加载设置：缺少新字段时保留当前内存值；损坏文件隔离备份后按默认值继续。</summary>
     public void LoadSettings()
     {
-        ProfileCorrupt = false;
         var parsed = _saveManager.Load(SettingsPathValue);
         if (_saveManager.LastWasCorrupt)
         {
-            ProfileCorrupt = true;
             return;
         }
 

@@ -6,8 +6,6 @@ namespace InfiAir;
 /// <summary>
 /// 死亡回放演出：暂停树中以 process_mode=ALWAYS 重放录制的敌弹轨迹——
 /// 幽灵红点按快照逐帧出现/移动（与录制时弹生成/销毁一致），播完自毁。纯演出无碰撞。
-/// M5 全量迁移（2026-08-08 自 scripts/death_replay.gd 内嵌类 DeathReplayPlayer）。
-/// 原 GDScript 内嵌类不能经 C# 引用，迁移为独立顶层类/独立文件。
 /// </summary>
 public partial class DeathReplayPlayer : Node2D
 {

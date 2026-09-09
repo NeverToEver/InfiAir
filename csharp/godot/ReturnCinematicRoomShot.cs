@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 7 休息室（原 return_cinematic.gd 内嵌类 _RoomShot；C# 源生成器不支持
-/// 内嵌类，迁为同文件顶层类——BaseConsole 先例）。字段名保持原 snake 名（shot 构建/tween 依赖）。</summary>
+/// <summary>镜头 7 休息室（ReturnCinematic 顶层镜头类；C# 源生成器不支持内嵌类）。
+/// 字段名保持 snake 名（shot 构建/tween 依赖）。</summary>
 public partial class ReturnCinematicRoomShot : Node2D
 {
     public Godot.Collections.Dictionary _person = null!; // 人物关节（走入步行循环 + 躺后呼吸共用）

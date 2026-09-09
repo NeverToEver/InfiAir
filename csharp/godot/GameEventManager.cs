@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 统一游戏事件管理器（M 批次全量迁移）：批量管理全部随机游戏事件。
+/// 统一游戏事件管理器：批量管理全部随机游戏事件。
 /// 挂载：GameState autoload 子节点（维持唯一 autoload 约定；经 GameState.Events 全局访问）。
 /// 设计要点：
 ///   - 统一注册表 EVENT_FACTORIES（id -> 工厂 Callable，唯一事实源）：迷雾 4 事件默认注册，
@@ -29,12 +29,12 @@ public partial class GameEventManager : Node
     [Signal]
     public delegate void EventEndedEventHandler(StringName eventId);
 
-    /// <summary>分组常量（组内单事件并发，组间并行）——实例属性 GROUP_FOG/GROUP_ENCOUNTER 供兼容访问。</summary>
+    /// <summary>分组常量（组内单事件并发，组间并行）。</summary>
     public static readonly StringName GroupFog = new StringName("fog");
 
     public static readonly StringName GroupEncounter = new StringName("encounter");
 
-    /// <summary>原 GDScript const 兼容（实例访问；静态成员经脚本资源不可达，故转发实例属性）。</summary>
+    /// <summary>分组常量实例属性转发（UPPER_SNAKE 访问口径保持）。</summary>
     public StringName GROUP_FOG => GroupFog;
 
     public StringName GROUP_ENCOUNTER => GroupEncounter;
@@ -87,8 +87,8 @@ public partial class GameEventManager : Node
     private static readonly StringName EmptyId = new();
 
     /// <summary>V 系列：遭遇配置缓存（注册时固化内层字典引用——消除 Tick 每帧空字典分配 +
-    /// AsGodotDictionary cast；引用而非值：EventManagerTest 直写 ENCOUNTER_CONFIG 内层
-    /// chance/min_score 固定掷签（132/268 行），值缓存会导致测试修改不可见）。</summary>
+    /// AsGodotDictionary cast；引用而非值：外部直写 ENCOUNTER_CONFIG 内层 chance/min_score
+    /// 即时可见，值缓存会导致此类修改不可见）。</summary>
     private readonly Dictionary<StringName, Godot.Collections.Dictionary> _encounterCfg = new();
 
     /// <summary>V 系列：遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
@@ -96,8 +96,7 @@ public partial class GameEventManager : Node
     private readonly Dictionary<StringName, Node> _encounterInstance = new();
 
     private bool _runActive;
-    /// <summary>迷雾组是否已接线（GameState 在迷雾门面 wire() 时开启；未接线则本组完全惰性，
-    /// 保证分阶段迁移期间与旧 FogEventManager 驱动不重叠）。</summary>
+    /// <summary>迷雾组是否已接线（GameState 在迷雾门面 Wire() 时开启；未接线则本组完全惰性）。</summary>
     private bool _fogWired;
     private StringName _fogActiveId = EmptyId;
     private GameEvent? _fogActiveEvent;
@@ -171,13 +170,13 @@ public partial class GameEventManager : Node
         };
     }
 
-    /// <summary>P4（2026-08-05）：配置重载公开入口（GameState.reload_balance 联动——原诊断/测试注入
-    /// 路径只刷平衡缓存，fog 配置停留旧值，与运行时不一致）。注意：遭遇组（ENCOUNTER_CONFIG）注册时
-    /// 固化内层字典引用（fe1a186 为测试直写可见性），重载后遭遇策略仍为注册时值——仅诊断/测试路径，
-    /// 运行时 _ready 只走一次（W 系列 2026-08-09 口径澄清）。</summary>
+    /// <summary>P4（2026-08-05）：配置重载公开入口（GameState.ReloadBalance 联动——只刷平衡缓存
+    /// 会让 fog 配置停留旧值，与运行时不一致）。注意：遭遇组（ENCOUNTER_CONFIG）注册时
+    /// 固化内层字典引用，重载后遭遇策略仍为注册时值——重载属诊断路径，
+    /// 运行时 _Ready 只走一次（W 系列 2026-08-09 口径澄清）。</summary>
     public void ReloadConfig() => LoadBalance();
 
-    // ---------------- 对外公开接口（A1 约定：测试/诊断经公开接口） ----------------
+    // ---------------- 对外公开接口（A1 约定：诊断/外部驱动经公开接口） ----------------
 
     public bool IsRunActive() => _runActive;
 
@@ -225,14 +224,14 @@ public partial class GameEventManager : Node
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
     }
 
-    /// <summary>遭遇事件注册（main._ready 调用；实例由 main 创建并挂 Main 下，测试经 main.event()/
-    /// main.formation() 访问；注册进统一注册表并初始化触发计时）。</summary>
+    /// <summary>遭遇事件注册（main._ready 调用；实例由 main 创建并挂 Main 下；
+    /// 注册进统一注册表并初始化触发计时）。</summary>
     public void RegisterEncounter(StringName pId, Node pEvent)
     {
         // 2026-08-10 AA 系列：事件实例随 Main 释放后，长命管理器仍持有工厂闭包——重进 main
         // 的再注册窗口内 PollEncounters/EventFor 调旧闭包触碰已释放实例（ObjectDisposedException，
         // autoplay 探针实证；X7 只守了 EventFor 实例缓存分支，工厂闭包分支漏守）；闭包内判活，
-        // 死实例 Yield Nil（三处调用点 StartFog/EventFor/Event 均容忍 Nil，再注册后自愈）
+        // 死实例 Yield Nil（两处调用点 StartFog/EventFor 均容忍 Nil，再注册后自愈）
         EVENT_FACTORIES[pId] = Callable.From<Node?>(() => GodotObject.IsInstanceValid(pEvent) ? pEvent : null);
         if (!_encounterOrder.Contains(pId))
         {
@@ -240,7 +239,7 @@ public partial class GameEventManager : Node
         }
 
         // V 系列：配置与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
-        // 缓存内层字典引用——测试直写 chance/min_score 即时可见）
+        // 缓存内层字典引用——外部直写 chance/min_score 即时可见）
         var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
         var dict = cfg.AsGodotDictionary();
         _encounterCfg[pId] = dict;
@@ -265,18 +264,6 @@ public partial class GameEventManager : Node
         }
 
         return ids;
-    }
-
-    /// <summary>指定事件实例（遭遇事件返回缓存单例；迷雾事件返回新实例——仅诊断用）。</summary>
-    public Variant Event(StringName pId)
-    {
-        var factory = EVENT_FACTORIES.GetValueOrDefault(pId, new Variant());
-        if (factory.VariantType == Variant.Type.Callable)
-        {
-            return factory.AsCallable().Call();
-        }
-
-        return new Variant();
     }
 
     /// <summary>指定分组当前激活事件 id（无则空）。</summary>
@@ -494,7 +481,7 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            // V 系列：注册时缓存的内层字典引用（零分配读取；测试直写即时可见）
+            // V 系列：注册时缓存的内层字典引用（零分配读取；外部直写即时可见）
             var dict = _encounterCfg.GetValueOrDefault(id);
             if (dict == null)
             {
@@ -755,8 +742,4 @@ public partial class GameEventManager : Node
     {
         return GameState.Instance.FogEvents;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public Variant @event(StringName pId) => Event(pId);
 }

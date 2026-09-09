@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 程序化多层视差滚动星空背景（M1 全量迁移，2026-08-08 自 scripts/starfield.gd 迁移）。
+/// 程序化多层视差滚动星空背景。
 /// P1-4 合批保持：每层单条 draw_multiline（星点 1px 短线段 + 线宽，视觉等价圆点）；
 /// _Process 原地写 PackedVector2Array，零每帧分配（热路径红线）。
 /// C07/M5 保持：星点范围随可见世界区域 view_world_rect（尺寸 + 锚点，zoom>1 时锚点

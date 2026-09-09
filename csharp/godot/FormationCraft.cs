@@ -13,7 +13,7 @@ public partial class FormationCraft : Area2D, IDamageable
     [Signal]
     public delegate void DiedEventHandler(FormationCraft craft);
 
-    /// <summary>机体贴图（原 GDScript preload）。</summary>
+    /// <summary>机体贴图。</summary>
     // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     private readonly Texture2D _texture = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png");
 
@@ -107,8 +107,4 @@ public partial class FormationCraft : Area2D, IDamageable
         EmitSignal(SignalName.Died, this);
         QueueFree();
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int hp { get => Hp; set => Hp = value; }
 }

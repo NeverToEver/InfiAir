@@ -7,11 +7,11 @@ namespace InfiAir;
 /// 迁入本服务——征用点(RP)入账消费 / 常驻基地任务(进度按 kind 分发、领取、轮换刷新) / 互斥天赋路线。
 /// Godot 绑定层：跨域访问（任务定义/路线表/刷新经济档位/Augments）统一经 GameState.Instance；
 /// 任务池 TaskPool（C# typed）为本服务内部状态（_taskPool，每局 InitMissions 重建）。
-/// 门面转发先例：与 MetaService/BalanceService/SaveManager 同构——GameState 组合持有本服务，
+/// 门面转发先例：与 BalanceService/SaveManager 同构——GameState 组合持有本服务，
 /// GameState.Missions.cs 为门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
 /// 信号：本服务以 C# 事件 RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen 通知变化；
 /// GameState 订阅后转发为同名信号。ChooseRoute 另直发 AugmentsChanged（经 GameState.Instance，
-/// MetaService.ApplyMetaLoadout 同款）。
+/// 天赋层级落 Augments 的统一收尾）。
 /// </summary>
 public sealed partial class MissionsService : RefCounted
 {
@@ -44,7 +44,7 @@ public sealed partial class MissionsService : RefCounted
     private const int RpMissionRewardValue = 3;
 
     /// <summary>RP 变化（AddRp/SpendRp，2 处触发点）；GameState 订阅后转发为 RpChanged 信号
-    /// （存档恢复/ResetRun 直接赋值路径由 GameState 侧直发同名信号，不重复）。</summary>
+    /// （ResetRun 直接赋值路径由 GameState 侧直发同名信号，不重复）。</summary>
     public event Action<int>? RpChanged;
 
     /// <summary>任务进度达到 goal（SetMissionProgress 越过完成线触发）；GameState 订阅后转发为
@@ -52,7 +52,7 @@ public sealed partial class MissionsService : RefCounted
     public event Action<StringName>? MissionCompleted;
 
     /// <summary>刷新点数变化（GrantRefreshPoints/RefreshMissions）；GameState 订阅后转发为
-    /// RefreshPointsChanged 信号（存档恢复/ResetRun 直接赋值路径由 GameState 侧直发）。</summary>
+    /// RefreshPointsChanged 信号（ResetRun 直接赋值路径由 GameState 侧直发）。</summary>
     public event Action<int>? RefreshPointsChanged;
 
     public void AddRp(int amount)
@@ -106,8 +106,8 @@ public sealed partial class MissionsService : RefCounted
         }
     }
 
-    /// <summary>C32 修复：公开任务重置口（仅清任务进度，不清 rp/buffs——比 reset_run 副作用小，
-    /// 供测试/调用方在保留状态的前提下重置 missions）</summary>
+    /// <summary>公开任务重置口（仅清任务进度，不清 rp/buffs——比 ResetRun 副作用小，
+    /// 供需要在保留其余对局状态的前提下重置 missions 的调用方）</summary>
     public void ResetMissions() => InitMissions();
 
     private void SetMissionProgress(StringName id, int value)
@@ -164,7 +164,7 @@ public sealed partial class MissionsService : RefCounted
         return outArr;
     }
 
-    /// <summary>任务定义查询（MISSION_POOL 无命中返回 {}，供 goal/存档恢复校验共用）</summary>
+    /// <summary>任务定义查询（MISSION_POOL 无命中返回 {}，供 goal 查询等调用方共用）</summary>
     public Godot.Collections.Dictionary MissionDef(StringName id)
     {
         foreach (var def in GameState.Instance.MISSION_POOL)

@@ -3,9 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 敌机对象池（M3b 全量迁移，2026-08-08 自 scripts/enemy_pool.gd 迁移；挂在 Main 下，
-/// 模式同 BulletPool）：复用 enemy.tscn 实例。活跃敌机挂 Main 下（清场/测试遍历可见），
-/// 闲置收回池节点下。
+/// 敌机对象池（挂在 Main 下，模式同 BulletPool）：复用 enemy.tscn 实例。活跃敌机挂 Main 下
+/// （清场遍历可见），闲置收回池节点下。
 /// </summary>
 public partial class EnemyPool : Node
 {
@@ -78,7 +77,7 @@ public partial class EnemyPool : Node
             return;
         }
 
-        // USE_POOL 恒 true（性能 A/B 对照开关；false 分支为纯 instantiate/free，已随迁移移除）
+        // USE_POOL 恒 true（性能 A/B 对照开关已收敛；纯 instantiate/free 分支已移除）
         e.Deactivate();
         _free.Add(e);
         CallDeferred(MethodName.ReparentDeferred, e);
@@ -112,6 +111,6 @@ public partial class EnemyPool : Node
         }
     }
 
-    /// <summary>被外部 queue_free（清场/测试/场景重载）时从池清单移除。</summary>
+    /// <summary>被外部 queue_free（清场/场景重载等池外销毁路径）时从池清单移除。</summary>
     public void Forget(Enemy e) => _free.Remove(e);
 }

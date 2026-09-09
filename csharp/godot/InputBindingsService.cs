@@ -12,7 +12,7 @@ namespace InfiAir;
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
 /// 持久化）与 JoyDeadzone（BindJoypadDefaults 读设置域死区）经门面；Tr 为 GodotObject 实例方法
 /// （RefCounted 继承链可用），ActionKeysText 保持直调。
-/// 门面转发先例：与 MetaService/SettingsService 同构——GameState 组合持有本服务，
+/// 门面转发先例：与 SettingsService 同构——GameState 组合持有本服务，
 /// GameState.Input.cs/State.cs 为门面对齐转发（签名/语义不变），保持唯一 autoload：GameState
 /// 约定；跨域访问统一经 GameState.Instance。
 /// 信号：本服务以 C# 事件 KeyBindingsChanged/JoyLayoutChanged 通知；GameState 订阅后转发为
@@ -141,7 +141,7 @@ public sealed partial class InputBindingsService : RefCounted
         return outArr;
     }
 
-    /// <summary>用 key_bindings（含 profile 覆盖）刷新 InputMap</summary>
+    /// <summary>用 KeyBindings（含 settings.json 覆盖）刷新 InputMap</summary>
     public void ApplyKeyBindings()
     {
         // H02（健壮性审核）：只擦除键盘事件，保留手柄事件——action_erase_events 会连

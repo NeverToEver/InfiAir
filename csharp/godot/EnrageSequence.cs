@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 狂暴状态机（A3 拆分；2026-08-08 全量迁移，自 scripts/enrage_sequence.gd）。
+/// Boss 狂暴状态机（A3 拆分）。
 /// 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
 /// 轨道路径计算 + 锁血/玩家减速。经 Boss typed 公开属性/方法直读配置与位置，
 /// 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问（A1 约束）。
@@ -13,7 +13,7 @@ namespace InfiAir;
 /// </summary>
 public partial class EnrageSequence : RefCounted
 {
-    // ---- 对齐 Boss.EnragePhase（enum { NONE, TRANSITION, ACTIVE, RELEASE_HOLD, RETURN }） ----
+    // ---- 狂暴子状态机常量（对齐原作 BossState 的 ENRAGE_* 子状态） ----
     public const int EnrageNone = 0;
     public const int EnrageTransition = 1;
     public const int EnrageActive = 2;
@@ -89,13 +89,13 @@ public partial class EnrageSequence : RefCounted
         _releaseBeginHandlers[4] = ReleaseBeginEclipse;
     }
 
-    /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
     public bool HasActiveHandler(int type) => _activeHandlers.ContainsKey(type);
 
-    /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
     public bool HasReleaseHandler(int type) => _releaseHandlers.ContainsKey(type);
 
-    /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
     public bool HasReleaseBeginHandler(int type) => _releaseBeginHandlers.ContainsKey(type);
 
     /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。V 系列：参数 typed。</summary>

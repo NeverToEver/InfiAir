@@ -11,9 +11,7 @@ namespace InfiAir;
 /// P0-1（2026-08-05 审计）：录制数据源从 main.get_children() 改为 GameState.enemy_bullets
 /// 注册表（零 cast 遍历）；帧缓冲固定容量环形缓冲（索引取模写入，删除 pop_front O(n) 整表
 /// 移位）；内层 [x,y] 改交错存储（槽复用 clear 保留容量，录制循环零分配）。
-/// M5 全量迁移（2026-08-08 自 scripts/death_replay.gd）。
-/// 原 GDScript 内嵌类 DeathReplayPlayer 迁移为独立顶层类 csharp/godot/DeathReplayPlayer.cs
-/// （GDScript 不能经 C# 引用内嵌类；测试判型改经脚本资源，见该文件头注释）。
+/// 重放演出节点为独立顶层类 csharp/godot/DeathReplayPlayer.cs（C# 源生成器不支持内嵌类）。
 /// </summary>
 public partial class DeathReplay : RefCounted
 {
@@ -127,7 +125,7 @@ public partial class DeathReplay : RefCounted
         return player;
     }
 
-    /// <summary>已录制帧数（测试观测）</summary>
+    /// <summary>已录制帧数（诊断观测口）。</summary>
     public int FrameCount() => _frameCount;
 
 }

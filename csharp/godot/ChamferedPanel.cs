@@ -6,8 +6,7 @@ namespace InfiAir;
 /// 切角面板（Sci-Fi FUI）：四角斜切的矩形 + 1px 青色细边框，
 /// 可选四角 L 形括号标记（brackets=true，重要面板开启）。
 /// 直接作为容器使用：子节点绘制在面板底/边框之上。
-/// M5 全量迁移（2026-08-08 自 scripts/ui_chamfered_panel.gd）：Control 子类，
-/// [Export] PascalCase 属性（tscn 以同名访问）。
+/// Control 子类，[Export] PascalCase 属性（tscn 以同名访问）。
 /// </summary>
 public partial class ChamferedPanel : Control
 {

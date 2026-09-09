@@ -7,8 +7,9 @@ namespace InfiAir;
 /// 计分域服务（第五轮拆域，2026-08-11）：原 GameState.State.cs 计分簇——Score/Kills/BossKills/
 /// Combo 状态、连击系统与里程碑推进全部职责迁入本服务。
 /// Godot 绑定层：里程碑曲线/连击配置经 GameState.Instance 跨域访问（ScoreMultiplier 经
-/// RunProgression 门面、MilestoneMult 经 GameState 私有包装、_progression 经
-/// GameState.Progression 转发）。门面转发先例：与 MetaService/MissionsService 同构——
+/// RunProgression 门面、MilestoneMult 经 GameState 私有包装、MilestoneThreshold 经
+/// GameState → RunProgressionService 直调 InfiAir.Core.Progression 纯函数）。门面转发先例：
+/// 与 MissionsService 同构——
 /// GameState 组合持有本服务，GameState.State.cs 为门面对齐转发（签名/语义不变），保持
 /// 唯一 autoload：GameState 约定。信号：本服务以 C# 事件 ScoreChanged/MilestoneReached/
 /// ComboChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致）。
@@ -111,14 +112,13 @@ public sealed partial class ScoreService : RefCounted
         // 先回绕为负再进 Min（负分进入里程碑/榜单），long 域乘算后与上限钳制才生效
         Score = (int)Math.Min((long)Score + (long)points * GameState.Instance.ScoreMultiplier(), (long)ScoreCapValue);
         ScoreChanged?.Invoke(Score);
-        // 2026-08-06 审计：里程碑推进改 while——与 apply_run_save 的全补口径一致（原单次 +1
-        // 在单次加分跨多档时漏档：如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值），
-        // 两路径行为统一（milestone_reached 按触发的档位逐档发，消费方按里程碑数计档）。
+        // 2026-08-06 审计：里程碑推进改 while——单次 +1 在单次加分跨多档时漏档
+        // （如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值）；
+        // milestone_reached 按触发的档位逐档发，消费方按里程碑数计档。
         // 2026-08-07：阈值求值迁移 C#（milestone_threshold 转发）；此处保持基于
         // _next_milestone 的 while 逐档推进（阈值可随难度倍率脱离基础曲线），
-        // 批量推进（CountThresholdsUpTo）仅用于 apply_run_save 的存档恢复路径（低频、
-        // 病态档数场景，批量收益大）；加分逐档仅 1-2 档，单值调用开销可忽略。
-        // H03 兜底挂死守卫：与 MilestoneCurve.CountThresholdsUpTo 同款迭代上限——
+        // 加分逐档仅 1-2 档，单值调用开销可忽略。
+        // H03 兜底挂死守卫：迭代上限沿用 MilestoneCurve.MaxIterations——
         // cycle_mult 已钳 ≥1.0 后曲线单调，但阈值求值 int 溢出回绕为负时 while 永不退出，超限直接 break
         int iterations = 0;
         while (Score >= _nextMilestone)
@@ -170,7 +170,7 @@ public sealed partial class ScoreService : RefCounted
         return Math.Min(1.0 + (Combo - 1) * ComboStep, ComboMaxMult);
     }
 
-    /// <summary>断连（受击/测试/重开）：连击归零 + 计时清空 + 广播 HUD。幂等。</summary>
+    /// <summary>断连（受击/重开）：连击归零 + 计时清空 + 广播 HUD。幂等。</summary>
     public void ResetCombo()
     {
         if (Combo == 0 && _comboTimer <= 0.0)

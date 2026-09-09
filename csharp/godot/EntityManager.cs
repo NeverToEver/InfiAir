@@ -3,15 +3,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 统一实体管理器（M2 全量迁移，2026-08-08 自 scripts/entity_manager.gd 迁移）：
-/// 对局实体注册表 + 生命周期信号。
-/// 语义保持：enemies 注册表 + O(1) has_enemy 热路径索引；敌弹注册表（death_replay 数据源）；
+/// 统一实体管理器：对局实体注册表 + 生命周期信号。
+/// 语义：enemies 注册表 + O(1) has_enemy 热路径索引；敌弹注册表（death_replay 数据源）；
 /// 特殊引用（player_ref/player_hitbox/bullet_pool/enemy_pool/aim_frame_layer/camera_ref/
 /// virtual_controls）；统一绑定样板 bind_enemy/unbind_enemy。
-/// M2 过渡：Callable 参数化批量 API（for_each/clear/count）留在 GDScript facade 层
-/// （GDScript lambda 跨语言传参不可靠），直接迭代本类 Enemies 集合；随调用方迁移后由 C# 实现。
-/// 迁移期类型注记：BulletPool/EnemyPool/AimFrameLayer/VirtualControls 为 GDScript 类，
-/// 以 GodotObject 承载（动态），随 M3/M5 重定型为强类型。
+/// 消费方直接迭代本类 Enemies 集合；BulletPool/EnemyPool/AimFrameLayer/VirtualControls
+/// 均为 C# 类（BulletPool 已重定型强类型，其余以 GodotObject 承载）。
 /// </summary>
 public partial class EntityManager : RefCounted
 {
@@ -35,7 +32,7 @@ public partial class EntityManager : RefCounted
     /// DeathReplay 只读敌弹表）与 Contains/Count 判定均与顺序无关。</summary>
     private readonly Godot.Collections.Dictionary _enemyIndex = new();
 
-    /// <summary>P0-1：敌弹注册表（death_replay 录制数据源；M3 重定型 Array&lt;Bullet&gt;）。</summary>
+    /// <summary>P0-1：敌弹注册表（death_replay 录制数据源；元素为 Bullet）。</summary>
     public Godot.Collections.Array<GodotObject> EnemyBullets { get; } = new();
 
     private readonly Godot.Collections.Dictionary _enemyBulletSet = new(); // node -> true
@@ -47,13 +44,13 @@ public partial class EntityManager : RefCounted
 
     public Area2D? PlayerHitbox { get; set; }
 
-    /// <summary>子弹对象池实例（bullet_pool.gd 在 _ready 登记；M3 重定型 BulletPool）。</summary>
-    public BulletPool? BulletPool { get; set; } // U13：typed（原 GodotObject? 类型残留）
+    /// <summary>子弹对象池实例（BulletPool 自身 _Ready 登记）。</summary>
+    public BulletPool? BulletPool { get; set; }
 
-    /// <summary>敌机对象池实例（enemy_pool.gd 在 _ready 登记；M3 重定型 EnemyPool）。</summary>
+    /// <summary>敌机对象池实例（EnemyPool 自身 _Ready 登记）。</summary>
     public GodotObject? EnemyPool { get; set; }
 
-    /// <summary>辅助瞄准框覆盖层实例（M5 重定型 AimFrameLayer）。</summary>
+    /// <summary>辅助瞄准框覆盖层实例（AimFrameLayer 自身 _Ready 登记）。</summary>
     public GodotObject? AimFrameLayer { get; set; }
 
     public Camera2D? CameraRef { get; set; }

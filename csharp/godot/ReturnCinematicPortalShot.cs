@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 2 传送端口（原 return_cinematic.gd 内嵌类 _PortalShot；C# 源生成器不支持
-/// 内嵌类，迁为同文件顶层类——BaseConsole 先例）。字段名保持原 snake 名（shot 构建/tween 依赖）。</summary>
+/// <summary>镜头 2 传送端口（ReturnCinematic 顶层镜头类；C# 源生成器不支持内嵌类）。
+/// 字段名保持 snake 名（shot 构建/tween 依赖）。</summary>
 public partial class ReturnCinematicPortalShot : Node2D
 {
     public readonly List<Node2D> _dots = new(); // 环缘能量翻涌：12 个小 glow 点沿椭圆游走

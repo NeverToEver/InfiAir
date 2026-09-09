@@ -14,7 +14,7 @@ namespace InfiAir;
 /// </summary>
 public partial class GameState : Node
 {
-    // ---------------- 信号（原 GDScript snake 名 → C# PascalCase 注册名） ----------------
+    // ---------------- 信号（C# [Signal] PascalCase 注册名） ----------------
 
     /// <summary>得分变化。</summary>
     [Signal]
@@ -75,11 +75,11 @@ public partial class GameState : Node
     [Signal]
     public delegate void MouseLockChangedEventHandler(bool enabled);
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 + 摇杆死区（profile 持久化；变更时广播供 player 重读）</summary>
+    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 + 摇杆死区（settings.json 持久化；变更时广播供 Player 重读）</summary>
     [Signal]
     public delegate void JoySettingsChangedEventHandler(double aimSpeed, double deadzone);
 
-    /// <summary>buff 层数任何变动（选取/路线合并/存档恢复/重开清空）后发出，驱动外观刷新</summary>
+    /// <summary>buff 层数任何变动（选取/路线合并/重开清空）后发出，驱动外观刷新</summary>
     [Signal]
     public delegate void AugmentsChangedEventHandler();
 
@@ -111,9 +111,8 @@ public partial class GameState : Node
     private const string BalancePathValue = "res://data/balance.json";
     public string BALANCE_PATH => BalancePathValue;
 
-    /// <summary>A2 组合服务（均非 autoload，保持"唯一 autoload：GameState"约定；GameState 委托）
-    /// M2（2026-08-08）：BalanceService/SfxPlayer/EntityManager 迁 C#，C# 侧 typed 直调
-    /// （原 GDScript 经脚本资源实例化）。</summary>
+    /// <summary>组合服务（均非 autoload，保持"唯一 autoload：GameState"约定；GameState 委托，
+    /// C# 侧 typed 直调）。</summary>
     private readonly BalanceService _balanceService = new();
 
     /// <summary>V 系列（U19 注释失实清理）：M7 已 typed 直调（原「GDScript 薄壳」描述删除）。</summary>
@@ -130,12 +129,8 @@ public partial class GameState : Node
     private readonly FogEventManager _fogEvents = new();
 
     /// <summary>统一游戏事件管理器：批量管理全部随机游戏事件（迷雾 +
-    /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 main 注册——见 scripts/event_manager.gd</summary>
+    /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 Main 注册——实现见 GameEventManager.cs</summary>
     private readonly GameEventManager _events = new();
-
-    /// <summary>2026-08-07：进程曲线 C# 桥（ProgressionInterop → InfiAir.Core.Progression 纯函数）——
-    /// milestone_threshold / _recompute_difficulty / apply_run_save 批量推进转发，语义逐位等价</summary>
-    private readonly ProgressionInterop _progression = new();
 
     /// <summary>第四轮拆域（2026-08-11）：RP 经济/基地任务/天赋路线职责域——原 GameState.Missions.cs
     /// 全部职责迁入 MissionsService，GameState.Missions.cs 为门面转发；与 ScoreService 等组合服务同构。
@@ -179,10 +174,6 @@ public partial class GameState : Node
         _input = new InputBindingsService();
     }
 
-    /// <summary>进程曲线 C# 桥转发（第五轮拆域）：ScoreService/RunProgressionService 经
-    /// GameState.Instance 跨域访问原私有字段 _progression 的最小桥（非对局公开 API）。</summary>
-    public ProgressionInterop Progression => _progression;
-
     /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
 
@@ -191,10 +182,7 @@ public partial class GameState : Node
     /// Main._Process 逐帧维护，Main._Ready/_ExitTree 复位（场景切换不残留）。</summary>
     public bool SummonInProgress { get; set; }
 
-    /// <summary>启动加载档案时检测到损坏并已隔离备份（开始面板据此提示；读取正常后置回 false）</summary>
-    public bool ProfileCorrupt { get; set; } = false;
-
-    /// 静态缓存——autoload 在 root 下恒存在，测试进程同样适用）</summary>
+    /// 静态缓存——autoload 在 root 下恒存在）</summary>
     private static GameState? _instance;
 
     public static GameState Instance
@@ -244,29 +232,29 @@ public partial class GameState : Node
         set => _registry.PlayerHitbox = value;
     }
 
-    /// <summary>子弹对象池实例（由 bullet_pool.gd 在 _ready 时登记）</summary>
+    /// <summary>子弹对象池实例（由 BulletPool 在 _Ready 时登记）</summary>
     public BulletPool? BulletPool
     {
         get => _registry.BulletPool;
         set => _registry.BulletPool = value;
     }
 
-    /// <summary>敌机对象池实例（由 enemy_pool.gd 在 _ready 时登记）</summary>
+    /// <summary>敌机对象池实例（由 EnemyPool 在 _Ready 时登记）</summary>
     public GodotObject? EnemyPool
     {
         get => _registry.EnemyPool;
         set => _registry.EnemyPool = value;
     }
 
-    /// <summary>辅助瞄准框覆盖层实例（由 aim_frame_layer.gd 在 _ready 时登记；player._fire 查询框内标记敌）</summary>
+    /// <summary>辅助瞄准框覆盖层实例（Main/Tutorial 运行时创建，自身 _Ready 登记；Player 开火时查询框内标记敌）</summary>
     public GodotObject? AimFrameLayer
     {
         get => _registry.AimFrameLayer;
         set => _registry.AimFrameLayer = value;
     }
 
-    /// <summary>触屏虚拟输入层实例（mobile touch，由 main.gd 在 _ready 时创建并登记；
-    /// player.aim_point 查询触屏瞄准基准）</summary>
+    /// <summary>触屏虚拟输入层实例（mobile touch，由 Main 在 _Ready 时创建并登记；
+    /// Player 瞄准点查询触屏瞄准基准）</summary>
     public GodotObject? VirtualControls
     {
         get => _registry.VirtualControls;
@@ -287,59 +275,14 @@ public partial class GameState : Node
     /// <summary>统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）</summary>
     public void UnbindEnemy(Node node) => _registry.UnbindEnemy(node);
 
-    /// <summary>批量遍历注册表（失效实例跳过；谓词可选过滤）。清场/索敌/冻结等非热路径统一入口
-    /// M2 过渡：Callable 参数化迭代留在 GDScript facade 层（GDScript lambda 跨语言传参不可靠），
-    /// 直接迭代 C# 侧注册表集合（_registry.Enemies）；随调用方迁移（M3-M6）后由 C# 实现</summary>
-    /// <summary>Callable 空判定（Godot C# Callable 无 IsValid 属性——空 callable 的 Method 为空 StringName，
+    /// <summary>计数（谓词可选过滤）。spread 上限/统计用。
+    /// Callable 空判定（Godot C# Callable 无 IsValid 属性——空 callable 的 Method 为空 StringName，
     /// 替代 GDScript predicate.is_valid()）。</summary>
-    private static bool IsEmptyCallable(Variant v) => v.VariantType != Variant.Type.Callable || v.AsCallable().Method == new StringName();
-
-    public void ForEachEnemy(Variant action, Variant predicate = default)
-    {
-        foreach (var node in _registry.Enemies)
-        {
-            if (!GodotObject.IsInstanceValid(node))
-            {
-                continue;
-            }
-
-            if (!IsEmptyCallable(predicate) && !predicate.AsCallable().Call(node).AsBool())
-            {
-                continue;
-            }
-
-            action.AsCallable().Call(node);
-        }
-    }
-
-    /// <summary>批量清除注册表实体（predicate 为保留项过滤，如 Boss）；返回清除数</summary>
-    public int ClearEnemies(Variant predicate = default)
-    {
-        var cleared = 0;
-        // 泛型 Duplicate() 返回 Array&lt;Node&gt;（浅拷贝）
-        foreach (var node in _registry.Enemies.Duplicate())
-        {
-            if (node == null || !GodotObject.IsInstanceValid(node))
-            {
-                continue;
-            }
-
-            if (!IsEmptyCallable(predicate) && predicate.AsCallable().Call(node).AsBool())
-            {
-                continue;
-            }
-
-            node.QueueFree();
-            cleared += 1;
-        }
-
-        return cleared;
-    }
-
-    /// <summary>计数（谓词可选过滤）。spread 上限/统计用</summary>
     public int CountEnemies(Variant predicate = default)
     {
         var count = 0;
+        var hasPredicate = predicate.VariantType == Variant.Type.Callable
+            && predicate.AsCallable().Method != new StringName();
         foreach (var node in _registry.Enemies)
         {
             if (!GodotObject.IsInstanceValid(node))
@@ -347,7 +290,7 @@ public partial class GameState : Node
                 continue;
             }
 
-            if (!IsEmptyCallable(predicate) && !predicate.AsCallable().Call(node).AsBool())
+            if (hasPredicate && !predicate.AsCallable().Call(node).AsBool())
             {
                 continue;
             }
@@ -358,7 +301,7 @@ public partial class GameState : Node
         return count;
     }
 
-    /// <summary>P0-1：敌弹注册/注销转发（bullet.gd 维护；M3a 起 Bullet 为 C# 类）</summary>
+    /// <summary>P0-1：敌弹注册/注销转发（Bullet 激活/回收时维护）</summary>
     public void RegisterEnemyBullet(GodotObject b) => _registry.RegisterEnemyBullet(b);
 
     public void UnregisterEnemyBullet(GodotObject b) => _registry.UnregisterEnemyBullet(b);
@@ -373,9 +316,9 @@ public partial class GameState : Node
     private void OnRegistryEntityUnregistered(Node node) => EmitSignal(SignalName.EntityUnregistered, node);
 
     // Missions 域（第四轮拆域）：MissionsService C# 事件 → GameState 同名信号转发
-    // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen；与 MetaService 同款——
-    // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；存档恢复/ResetRun 直接赋值
-    // 路径由 Save.cs/State.cs 直发同名信号，经此订阅的重发不与之重复）
+    // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen——
+    // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；ResetRun 直接赋值
+    // 路径由 State.cs 直发同名信号，经此订阅的重发不与之重复）
     private void OnMissionsRpChanged(int v) => EmitSignal(SignalName.RpChanged, v);
 
     private void OnMissionsMissionCompleted(StringName id) => EmitSignal(SignalName.MissionCompleted, id);
@@ -384,10 +327,10 @@ public partial class GameState : Node
 
     // 计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
     // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
-    // AddKillScore/ResetCombo，晚于 _Ready 本订阅；ApplyRunSave 直发路径不与之重复）
+    // AddKillScore/ResetCombo，晚于 _Ready 本订阅）
     /// <summary>计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
     /// （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
-    /// AddKillScore/ResetCombo，晚于 _Ready 本订阅；ApplyRunSave 直发路径不与之重复）
+    /// AddKillScore/ResetCombo，晚于 _Ready 本订阅）
     /// 里程碑同时是天赋点来源（天赋缓存系统重构）：入账在信号转发前，保证订阅方读到的
     /// 缓存余额已含本档点数。</summary>
     private void OnScoreScoreChanged(int v) => EmitSignal(SignalName.ScoreChanged, v);
@@ -402,8 +345,8 @@ public partial class GameState : Node
 
     // 战斗状态域（第五轮拆域）：CombatStateService C# 事件 → GameState 同名信号转发
     // （HealthChanged/AugmentsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
-    // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发路径不经本事件，
-    // 订阅重发不与之重复）
+    // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发路径
+    // 不经本事件，订阅重发不与之重复）
     private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, v);
 
     private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
@@ -411,7 +354,7 @@ public partial class GameState : Node
     // 设置/视图域（第六轮拆域收官）：SettingsService C# 事件 → GameState 同名信号转发
     // （TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
     // MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家操作——设置页/手柄
-    // 设置，晚于 _Ready 本订阅；ApplyRunSave 的 TouchControlsChanged 直发路径不经本事件，重发不重复）
+    // 设置，晚于 _Ready 本订阅；LoadSettings 直写字段路径不发服务事件，重发不与之重复）
     private void OnSettingsTouchControlsChanged(bool v) => EmitSignal(SignalName.TouchControlsChanged, v);
 
     private void OnSettingsViewZoomChanged(double v) => EmitSignal(SignalName.ViewZoomChanged, v);
@@ -439,7 +382,7 @@ public partial class GameState : Node
 
     // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
-    // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill/ApplyRunSave 直发路径不重复）
+    // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill 直发路径不重复）
     private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, v);
 
     private void OnRunProgDifficultySelected(StringName v) => EmitSignal(SignalName.DifficultySelected, v);
@@ -449,7 +392,7 @@ public partial class GameState : Node
         LoadBalance();
         ApplyBalance();
         // 实体生命周期信号转发（EntityManager 非 Node，无树内信号；GameState 收口转发）
-        // M2：C# [Signal] 以 PascalCase 注册，GDScript 侧同名连接
+        // C# [Signal] 以 PascalCase 注册
         _registry.EntityRegistered += OnRegistryEntityRegistered;
         _registry.EntityUnregistered += OnRegistryEntityUnregistered;
         // Missions 域（第四轮拆域）：MissionsService 事件 → 信号转发订阅（触发点均为运行期
@@ -471,13 +414,13 @@ public partial class GameState : Node
         _runProg.DifficultyChanged += OnRunProgDifficultyChanged;
         _runProg.DifficultySelected += OnRunProgDifficultySelected;
         // 战斗状态域（第五轮拆域）：CombatStateService 事件 → 信号转发订阅（触发点均为运行期
-        // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/ApplyRunSave/ChooseRoute/Meta 直发
+        // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发
         // 路径不经本事件，重发不与之重复）
         _combat.HealthChanged += OnCombatHealthChanged;
         _combat.AugmentsChanged += OnCombatAugmentsChanged;
         // 设置/视图域（第六轮拆域收官）：SettingsService 事件 → 信号转发订阅（触发点均为运行期
-        // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings/
-        // ApplyRunSave 直写字段路径不发服务事件，重发不与之重复）
+        // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings
+        // 直写字段路径不发服务事件，重发不与之重复）
         _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
         _settings.ViewZoomChanged += OnSettingsViewZoomChanged;
         _settings.WindowSizeChanged += OnSettingsWindowSizeChanged;
@@ -531,7 +474,7 @@ public partial class GameState : Node
     // 暂停不计（本节点 Pausable）。
     private bool _runActive;
 
-    /// <summary>由 Main 依 current_scene 置位/复位（同事件管理器惯例）；测试场景显式开启。</summary>
+    /// <summary>由 Main 依 current_scene 置位/复位（同事件管理器惯例）。</summary>
     public void SetRunActive(bool active) => _runActive = active;
 
     // 暂停（Buff/结算 UI）时不计存活时间

@@ -3,9 +3,9 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 直线子弹（M3a 全量迁移，2026-08-08 自 scripts/bullet.gd 迁移）：玩家弹与敌弹共用
+/// 直线子弹：玩家弹与敌弹共用
 /// bullet.tscn，经 setup/activate 区分阵营。正常产弹走 GameState.bullet_pool（对象池复用）；
-/// 直接实例化（测试）走兼容路径。
+/// 直接实例化（不经对象池）走兼容路径。
 /// 保持语义：R07 碰撞半径唯一事实源；P2-1 活跃计数；P0-3 共享图集单 Sprite2D；
 /// 公平机制一（受击宽限）/二（擦弹单次）/四（弹反）；P0-1 敌弹注册表；P1-1 辅助瞄准追踪；
 /// P2-10 致死高亮；宽限/擦弹/反射的池化复位。
@@ -13,15 +13,14 @@ namespace InfiAir;
 /// </summary>
 public partial class Bullet : Area2D
 {
-    /// <summary>R07：碰撞半径唯一事实源（player.gd 擦弹环形带判定引用此常量）。</summary>
+    /// <summary>R07：碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
 
     /// <summary>U14 同款：bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
     /// 本类 _applyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
     internal static readonly StringName MetaBulletType = new("bullet_type");
 
-    /// <summary>R07 跨语言访问器（GDScript 不能经脚本资源读 C# 常量/静态属性——实测，
-    /// 静态方法可调；M3c player 迁移后改直接引用常量）。</summary>
+    /// <summary>R07 访问器（供 Player 擦弹环形带判定等调用方读取；常量唯一事实源不变）。</summary>
     public static float GetCollisionRadius() => CollisionRadius;
 
     public Vector2 Direction { get; set; } = Vector2.Down;
@@ -59,7 +58,7 @@ public partial class Bullet : Area2D
     public float ReflectSpeedMult { get; private set; } = 2.0f;
     public float ReflectDamageMult { get; private set; } = 1.5f;
 
-    /// <summary>P2-1：场上活跃子弹总数（activate/deactivate 成对维护；直实例化测试弹不计）。</summary>
+    /// <summary>P2-1：场上活跃子弹总数（activate/deactivate 成对维护；不经对象池直实例化的弹不计）。</summary>
     public static int ActiveCount { get; private set; }
 
     private float _homingElapsed;
@@ -104,7 +103,7 @@ public partial class Bullet : Area2D
             Direction = Vector2.Down;
         }
 
-        // R07：零速钳制（0 速弹不位移不脱界，永驻场景；测试直写字段绕过 setup）
+        // R07：零速钳制（0 速弹不位移不脱界，永驻场景；直写字段绕过 Setup 时也兜底）
         Speed = Mathf.Max(pSpeed, 1.0f);
         // 敌方子弹伤害随对局进程 ramp
         Damage = pIsPlayer ? pDamage : Mathf.Max(1, (int)Mathf.Round(pDamage * GameState.Instance.EnemyDamageRamp()));

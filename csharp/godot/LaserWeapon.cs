@@ -3,8 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 激光束武器（M3b 全量迁移，2026-08-08 自 scripts/laser_weapon.gd 迁移，对齐原作
-/// LaserAugmentId + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.augment_level(&amp;"laser_beam")
+/// 激光束武器（对齐原作 LaserAugmentId + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.AugmentLevel(&amp;"laser_beam")
 /// &gt; 0 时启用。就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
 /// 穿透性直线，线上敌人每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
 /// 语义保持：buff 层数经 AugmentsChanged 信号缓存（避免每物理帧字典/信号查询）；
@@ -180,14 +179,14 @@ public partial class LaserWeapon : Node2D
 
     private void StartBeam()
     {
-        // K02 双保险：入场期直接调用（测试/其他路径）也不进入光束
+        // K02 双保险：入场期直接调用（非自动触发路径）也不进入光束
         if (_player!.IsEntryPlaying())
         {
             return;
         }
 
         // H06（健壮性审核）：autofire 捕获必须在 _active=true 之前——旧代码在门闩之后
-        // 为不可达死代码，_end_beam 无条件恢复 true 会破坏入场期/测试关闭的 autofire 状态
+        // 为不可达死代码，EndBeam 无条件恢复 true 会破坏入场期等外部关闭的 autofire 状态
         _savedAutofire = _player.AutoFireEnabled();
         _active = true;
         _activeTime = BeamDuration;

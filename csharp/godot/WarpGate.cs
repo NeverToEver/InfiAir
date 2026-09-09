@@ -9,8 +9,7 @@ namespace InfiAir;
 /// 由 Mothership.begin_warp_in 收尾时调 close()；超时自动关闭兜底）→
 /// CLOSING 收缩关闭（gate.close_time）→ 自销毁。
 /// 数值取 balance.json effects.mothership_summon.gate，脚本默认值须保持一致。
-/// M6 全量迁移（2026-08-08 自 scripts/warp_gate.gd）。
-/// Enemy.sin_fast/cos_fast 为 C# 静态方法 typed 直调（原 GDScript 经脚本资源调用）。
+/// Enemy.SinFast/CosFast 为 C# 静态方法 typed 直调。
 /// </summary>
 public partial class WarpGate : Node2D
 {
@@ -272,13 +271,4 @@ public partial class WarpGate : Node2D
         }
         return pts;
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    /// <summary>静态枚举访问器（mothership_summon_test 经此读枚举值；先例 Mothership.GetState*）。</summary>
-    public static int GetPhaseOpening() => (int)Phase.OPENING;
-
-    public static int GetPhaseHold() => (int)Phase.HOLD;
-
-    public static int GetPhaseClosing() => (int)Phase.CLOSING;
 }

@@ -6,11 +6,10 @@ namespace InfiAir;
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：对局状态字段与核心状态方法（ResetRun/AddScore 等）。
 /// 第五轮拆域（2026-08-11）：计分域职责（Score/Kills/BossKills/Combo 状态、连击系统、里程碑推进）
 /// 迁至 ScoreService（csharp/godot/ScoreService.cs，组合持有），本文件为门面对齐转发——
-/// 公开 API 签名/语义不变（测试白盒直写 Score/Kills/BossKills 经 setter 转发零适配）；
-/// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState
-/// 订阅重发（ApplyRunSave 直发路径在 GameState 侧直发同名信号，不重复）。
+/// 公开 API 签名/语义不变；
+/// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState 订阅重发。
 /// 健康/Buff 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）迁至 CombatStateService
-/// （csharp/godot/CombatStateService.cs），Health/Augments 属性此处保留转发（测试白盒直读直写零适配）；
+/// （csharp/godot/CombatStateService.cs），Health/Augments 属性此处保留转发；
 /// AddKill/AddBossKill 击杀编排自 GameState.Settings.cs 移入本文件（对局状态方法归位）。
 /// </summary>
 public partial class GameState : Node
@@ -40,7 +39,7 @@ public partial class GameState : Node
         _balanceService.Load(BalancePathValue);
     }
 
-    /// <summary>配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；测试/诊断用）</summary>
+    /// <summary>配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；诊断用）</summary>
     public bool HasBalance() => !_balanceService.IsEmpty();
 
     /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。</summary>
@@ -70,7 +69,7 @@ public partial class GameState : Node
         _score.MilestoneBase = baseArr.Count > 0 ? baseArr : ScoreService.BuildMilestoneBase();
         // H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——曲线语义要求阈值单调增长，
         // 下限须钳 ≥1.0：mult ∈ (0,1) 时阈值级数收敛（上确界 ≈ base_last/(1-mult)），Score 一旦
-        // 越过收敛上界，AddScore/apply_run_save 的 while 里程碑推进永不退出（主线程挂死）——
+        // 越过收敛上界，AddScore 的 while 里程碑推进永不退出（主线程挂死）——
         // 原 0.01 下限恰好放任收敛区间，防挂死目标未达成。difficulty 子表无 cycle_mult 键
         // （原 _valid_difficulty_defs 内检查恒真为死代码），此处对全局键钳制下限（同 world_scale 款）
         _score.MilestoneCycleMult = Mathf.Max(Cfg("milestones.cycle_mult", _score.MilestoneCycleMult).AsDouble(), 1.0);
@@ -228,7 +227,7 @@ public partial class GameState : Node
     private const int PersistVersionValue = 3;
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
-    /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
+    /// ——SettingsService 转发。</summary>
     public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
 
     public double JoyDeadzone { get => _settings.JoyDeadzone; set => _settings.JoyDeadzone = value; }
@@ -256,7 +255,7 @@ public partial class GameState : Node
     public int BossKills { get => _score.BossKills; set => _score.BossKills = value; }
 
     /// <summary>玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）。
-    /// double（GDScript float 64 位逐位等价——BaseConsole smoke flake 根因）——CombatStateService 转发。</summary>
+    /// double（GDScript float 64 位逐位等价）——CombatStateService 转发。</summary>
     public double Health { get => _combat.Health; set => _combat.Health = value; }
 
     /// <summary>难度进程乘数——RunProgressionService 转发。</summary>
@@ -266,15 +265,15 @@ public partial class GameState : Node
         set => _runProg.DifficultyMultiplier = value;
     }
 
-    /// <summary>难度档位（profile 持久化，默认 medium）——RunProgressionService 转发。</summary>
+    /// <summary>难度档位（settings.json 持久化，默认 medium）——RunProgressionService 转发。</summary>
     public StringName Difficulty
     {
         get => _runProg.Difficulty;
         set => _runProg.Difficulty = value;
     }
 
-    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；player.gd 侧接入由集成阶段完成）
-    /// ——SettingsService 转发（测试白盒直读直写保留）。</summary>
+    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；Player 移动/加速读取）
+    /// ——SettingsService 转发。</summary>
     public bool CtrlToggleMode { get => _settings.CtrlToggleMode; set => _settings.CtrlToggleMode = value; }
 
     public bool ShiftToggleMode { get => _settings.ShiftToggleMode; set => _settings.ShiftToggleMode = value; }
@@ -291,23 +290,23 @@ public partial class GameState : Node
     /// 存活于 autoload，跨场景切换保持。</summary>
     public bool IntroPlayedThisSession { get; set; } = false;
 
-    /// <summary>视角档位（profile 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
+    /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
     public StringName ViewZoom { get => _settings.ViewZoom; set => _settings.ViewZoom = value; }
 
-    /// <summary>窗口尺寸档位（profile 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）——SettingsService 转发。</summary>
+    /// <summary>窗口尺寸档位（settings.json 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）——SettingsService 转发。</summary>
     public StringName WindowSize { get => _settings.WindowSize; set => _settings.WindowSize = value; }
 
-    /// <summary>瞄准辅助强度档位（profile 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）——SettingsService 转发。</summary>
+    /// <summary>瞄准辅助强度档位（settings.json 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）——SettingsService 转发。</summary>
     public StringName AimAssistLevel { get => _settings.AimAssistLevel; set => _settings.AimAssistLevel = value; }
 
     /// <summary>Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
     /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）——SettingsService 转发。</summary>
     public int MetaFxLod { get => _settings.MetaFxLod; set => _settings.MetaFxLod = value; }
 
-    /// <summary>无障碍：减少闪光（profile 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
+    /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
     public bool ReduceFlash { get => _settings.ReduceFlash; set => _settings.ReduceFlash = value; }
 
-    /// <summary>鼠标锁定窗口内（profile 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
+    /// <summary>鼠标锁定窗口内（settings.json 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）——SettingsService 转发。</summary>
     public bool MouseLock { get => _settings.MouseLock; set => _settings.MouseLock = value; }
 

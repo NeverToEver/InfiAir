@@ -145,23 +145,6 @@ public sealed class TalentCache
         }
     }
 
-    /// <summary>存档往返：点值序列直存直取（服务层判型/钳制后传入）。</summary>
-    public IReadOnlyList<double> Snapshot() => _values.ToArray();
-
-    public void Restore(IReadOnlyList<double> values)
-    {
-        _values.Clear();
-        foreach (var v in values)
-        {
-            if (v > 0.0)
-            {
-                _values.Add(Math.Clamp(v, 0.0, 1.0));
-            }
-        }
-
-        ApplyDecay();
-    }
-
     public void Clear() => _values.Clear();
 }
 

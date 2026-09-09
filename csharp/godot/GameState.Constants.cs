@@ -10,7 +10,7 @@ public partial class GameState : Node
 
     // ---------------- 常量（private const + 同名 UPPER_SNAKE 实例属性 + 静态 GetXxx() 访问器） ----------------
 
-    /// <summary>难度档位表（开始面板选择，profile 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
+    /// <summary>难度档位表（开始面板选择，settings.json 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
     /// hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
     /// spread_cap 为 spread 弹种敌机同屏上限；milestone 为里程碑阈值倍率
     /// （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难 Buff 节奏过稀）；

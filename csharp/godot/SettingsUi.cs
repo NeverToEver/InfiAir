@@ -9,11 +9,11 @@ namespace InfiAir;
 /// 「操作模式」（难度、跳过过场、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
-/// M5 全量迁移（2026-08-08 自 scripts/settings_ui.gd）；2026-09-08 圆盘 UI 全覆盖接入。
+/// 2026-09-08 圆盘 UI 全覆盖接入。
 /// </summary>
 public partial class SettingsUi : RadialMenuLayer
 {
-    // ---------------- GDScript 常量（C# 无法访问 GDScript const，硬编码等价副本，来源 autoload/game_state.gd） ----------------
+    // ---------------- 可改键动作清单（硬编码表，须与 GameState.REBINDABLE_ACTIONS 保持一致） ----------------
     private static readonly StringName[] RebindableActions =
     {
         new("move_up"), new("move_down"), new("move_left"), new("move_right"),
@@ -55,8 +55,6 @@ public partial class SettingsUi : RadialMenuLayer
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
     private Button _touchBtn = null!; // 触控·虚拟控件开关（mobile touch）
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
-    private HSlider _joySpeedSlider = null!; // 手柄·右摇杆瞄准灵敏度
-    private HSlider _joyDeadzoneSlider = null!; // 手柄·摇杆死区
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
     private Label _cheatsheetLabel = null!;
@@ -170,19 +168,19 @@ public partial class SettingsUi : RadialMenuLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("KeyBindingsChanged", _onKeyBindingsChanged))
+            if (!gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
             {
-                gs.Connect("KeyBindingsChanged", _onKeyBindingsChanged);
+                gs.Connect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
             }
 
-            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
             {
-                gs.Connect("LocaleChanged", _onLocaleChanged);
+                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
             }
 
-            if (!gs.IsConnected("JoyLayoutChanged", _onJoyLayoutChanged))
+            if (!gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
             {
-                gs.Connect("JoyLayoutChanged", _onJoyLayoutChanged);
+                gs.Connect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
             }
         }
     }
@@ -195,19 +193,19 @@ public partial class SettingsUi : RadialMenuLayer
             return;
         }
 
-        if (gs.IsConnected("KeyBindingsChanged", _onKeyBindingsChanged))
+        if (gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
         {
-            gs.Disconnect("KeyBindingsChanged", _onKeyBindingsChanged);
+            gs.Disconnect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
         }
 
-        if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
-            gs.Disconnect("LocaleChanged", _onLocaleChanged);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
-        if (gs.IsConnected("JoyLayoutChanged", _onJoyLayoutChanged))
+        if (gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
         {
-            gs.Disconnect("JoyLayoutChanged", _onJoyLayoutChanged);
+            gs.Disconnect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
         }
     }
 
@@ -526,7 +524,7 @@ public partial class SettingsUi : RadialMenuLayer
         _joyLayoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
         page.AddChild(_joyLayoutLabel);
         RefreshJoyLayoutLabel();
-        _joySpeedSlider = MakeJoySlider(
+        MakeJoySlider(
             page,
             Tr("SET_JOY_AIM_SPEED"),
             200.0f,
@@ -535,7 +533,7 @@ public partial class SettingsUi : RadialMenuLayer
             "%.0f",
             v => GameState.Instance.SetJoyAimSpeed(v)
         );
-        _joyDeadzoneSlider = MakeJoySlider(
+        MakeJoySlider(
             page,
             Tr("SET_JOY_DEADZONE"),
             5.0f,
@@ -804,7 +802,7 @@ public partial class SettingsUi : RadialMenuLayer
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
     }
 
-    /// <summary>首个内容页的父容器（= shell content VBox；GDScript `_pages.values()[0].get_parent()`）。</summary>
+    /// <summary>首个内容页的父容器（= shell content VBox；取 _pages 首个值的父容器）。</summary>
     private Container? FirstPageParent()
     {
         foreach (var p in _pages.Values)

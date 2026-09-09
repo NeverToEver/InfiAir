@@ -3,11 +3,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家战机（M3c 全量迁移，2026-08-08 自 scripts/player.gd 迁移）：WASD 平滑移动、朝准星旋转、
+/// 玩家战机：WASD 平滑移动、朝准星旋转、
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
 /// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
 /// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
-/// 公开 API 为 PascalCase；少量 snake_case 兼容桥因测试调用方保留（桥段见文件底部）。
+/// 公开 API 为 PascalCase。
 /// </summary>
 public partial class Player : CharacterBody2D
 {
@@ -91,7 +91,7 @@ public partial class Player : CharacterBody2D
         ["bullet_speed"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.bullet_speed.factor", ["default"] = 1.2 },
     };
 
-    /// <summary>声明式 buff 效果表公开访问（测试 A4 架构断言读取）。</summary>
+    /// <summary>声明式 buff 效果表公开访问口（供外部按 id 遍历效果定义）。</summary>
     public Godot.Collections.Dictionary GetAugmentEffects() => AugmentEffects;
 
     private readonly Godot.Collections.Dictionary _augmentValues = new();
@@ -176,7 +176,7 @@ public partial class Player : CharacterBody2D
     private bool _entryPrevAutoFire = true;
     private Tween? _entryTween;
 
-    // A8 转发（测试白盒语法兼容）
+    // A8 组合组件属性转发（PlayerDamage/PlayerDash 状态经 Player 门面读写）
     public float Invincible { get => _damage.Invincible; set => _damage.Invincible = value; }
     public int LastHitFrame { get => _damage.LastHitFrame; set => _damage.LastHitFrame = value; }
     public float SinceDamage { get => _damage.SinceDamage; set => _damage.SinceDamage = value; }
@@ -251,36 +251,36 @@ public partial class Player : CharacterBody2D
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (!gs.IsConnected("AugmentsChanged", _onRefreshAugmentFactors))
+            if (!gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
             {
-                gs.Connect("AugmentsChanged", _onRefreshAugmentFactors);
+                gs.Connect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
             }
 
-            if (!gs.IsConnected("JoySettingsChanged", _onJoySettingsChanged))
+            if (!gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
             {
-                gs.Connect("JoySettingsChanged", _onJoySettingsChanged);
+                gs.Connect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
             }
 
-            if (!gs.IsConnected("AimAssistChanged", _onAimAssistLevelChanged))
+            if (!gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
             {
-                gs.Connect("AimAssistChanged", _onAimAssistLevelChanged);
+                gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
             }
 
             // 迷雾事件：管理器信号驱动效果（解耦：Player 侧只应用）
             var fogEvents = gs.FogEvents;
-            if (!fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
+            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
             {
-                fogEvents.Connect("FogEventStarted", _onFogEventStarted);
+                fogEvents.Connect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
             }
 
-            if (!fogEvents.IsConnected("FogEventEnded", _onFogEventEnded))
+            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
             {
-                fogEvents.Connect("FogEventEnded", _onFogEventEnded);
+                fogEvents.Connect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
             }
 
-            if (!fogEvents.IsConnected("FogDirectionShift", _onFogDirectionShift))
+            if (!fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
             {
-                fogEvents.Connect("FogDirectionShift", _onFogDirectionShift);
+                fogEvents.Connect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
             }
         }
     }
@@ -645,7 +645,7 @@ public partial class Player : CharacterBody2D
         ["falloff_min"] = _falloffMin,
     };
 
-    /// <summary>P1-3 距离衰减曲线（公开供测试；_fire 弱追踪与 AimFrameLayer 磁吸共用）。</summary>
+    /// <summary>P1-3 距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
     public float AimDistFalloff(float d) => DistFalloffCurve(d, _falloffPeak, _falloffEnd, _falloffMin);
 
     /// <summary>G018：距离衰减分段纯函数（单实现）。</summary>
@@ -1051,7 +1051,7 @@ public partial class Player : CharacterBody2D
         return p.Clamp(view.Position + new Vector2(40.0f, 40.0f), view.End - new Vector2(40.0f, 40.0f));
     }
 
-    /// <summary>当前瞄准点（世界坐标）：测试注入点优先，否则平滑鼠标位置（每渲染帧推进一次）。</summary>
+    /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先，否则平滑鼠标位置（每渲染帧推进一次）。</summary>
     public Vector2 AimPoint()
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
@@ -1154,7 +1154,7 @@ public partial class Player : CharacterBody2D
         _entryTween.TweenCallback(Callable.From(OnEntryLanded));
     }
 
-    /// <summary>入场动画进行中（main/测试查询）。</summary>
+    /// <summary>入场动画进行中（Main/LaserWeapon 等流程查询）。</summary>
     public bool IsEntryPlaying() => _entryPhase != 0;
 
     /// <summary>中断入场动画（返航/自毁等流程接管时调用）：复位状态机并静默收尾。</summary>
@@ -1643,35 +1643,35 @@ public partial class Player : CharacterBody2D
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("AugmentsChanged", _onRefreshAugmentFactors))
+            if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
             {
-                gs.Disconnect("AugmentsChanged", _onRefreshAugmentFactors);
+                gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
             }
 
-            if (gs.IsConnected("AimAssistChanged", _onAimAssistLevelChanged))
+            if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
             {
-                gs.Disconnect("AimAssistChanged", _onAimAssistLevelChanged);
+                gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
             }
 
-            if (gs.IsConnected("JoySettingsChanged", _onJoySettingsChanged))
+            if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
             {
-                gs.Disconnect("JoySettingsChanged", _onJoySettingsChanged);
+                gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
             }
 
             var fogEvents = gs.FogEvents;
-            if (fogEvents.IsConnected("FogEventStarted", _onFogEventStarted))
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
             {
-                fogEvents.Disconnect("FogEventStarted", _onFogEventStarted);
+                fogEvents.Disconnect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
             }
 
-            if (fogEvents.IsConnected("FogEventEnded", _onFogEventEnded))
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
             {
-                fogEvents.Disconnect("FogEventEnded", _onFogEventEnded);
+                fogEvents.Disconnect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
             }
 
-            if (fogEvents.IsConnected("FogDirectionShift", _onFogDirectionShift))
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
             {
-                fogEvents.Disconnect("FogDirectionShift", _onFogDirectionShift);
+                fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
             }
         }
 
@@ -1695,23 +1695,6 @@ public partial class Player : CharacterBody2D
         if (GameState.Instance.PlayerHitbox == _hitbox)
         {
             GameState.Instance.PlayerHitbox = null;
-        }
-    }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int bullet_damage() => BulletDamageValue();
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public float BULLET_SPEED
-    {
-        get => BulletSpeed;
-        set
-        {
-            BulletSpeed = value;
-            // 空间换时间缓存同步：测试/兼容桥运行期改基础弹速时，发射路径须立即生效。
-            _bulletSpeedValue = AugmentScale(AugBulletSpeed, value, (float)GameState.Instance.TalentEffLevel(AugBulletSpeed));
         }
     }
 }

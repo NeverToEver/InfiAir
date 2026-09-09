@@ -13,10 +13,7 @@ namespace InfiAir;
 ///                             命中演出：全屏青闪 + 纵向光柱 + 扩散环/内环 + 侧向光线，衰减至结束
 ///   >= 1.0                    finished 信号并自销毁
 /// 数值取 balance.json effects.orbital_strike，脚本默认值须保持一致。
-/// M6 全量迁移（2026-08-08 自 scripts/orbital_strike.gd）。
-/// 注：原 GDScript 信号 struck/finished 迁移为 C# [Signal] Struck/Finished——
-/// main.gd/tests 连接处需改连 PascalCase 名（先例 main.gd `_mothership.Departed.connect`：
-/// GDScript 连 C# [Signal] 用 PascalCase，主代理集中处理）。
+/// 信号为 C# [Signal] Struck/Finished（Main 侧 typed 连接）。
 /// </summary>
 public partial class OrbitalStrike : CanvasLayer
 {
@@ -292,7 +289,6 @@ public partial class OrbitalStrike : CanvasLayer
         return pts;
     }
 
-    // ---------------- UPPER_SNAKE 配置字段（M7 后保留） ----------------
-    // DURATION 等 UPPER_SNAKE 公开字段保留原 GDScript 公开 var 语义（upper_case 直接读写）。
-    // 本类无 snake_case 方法桥（C# 迁移后无动态派发调用面）。
+    // ---------------- UPPER_SNAKE 配置字段 ----------------
+    // DURATION 等 UPPER_SNAKE 公开字段为直接读写的公开 var（调用方按需直改）。
 }

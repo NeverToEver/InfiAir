@@ -18,7 +18,6 @@ namespace InfiAir;
 /// 聚焦判定必须实时查询（TrapActive 内 win.HasFocus()），不能缓存 FocusEntered/FocusExited
 /// 信号——Windows 下焦点事件可能被 OS 级抢占（通知/UAC/虚拟桌面切换）吞掉，缓存一旦滞留
 /// true 会在窗口实际失焦后继续 warp，鼠标被钉死在窗口内、永远无法切换焦点。
-/// M5 全量迁移（2026-08-08 自 scripts/mouse_trap.gd）。
 /// </summary>
 public partial class MouseTrap : Node
 {
@@ -79,9 +78,9 @@ public partial class MouseTrap : Node
             Input.MouseMode == Input.MouseModeEnum.Hidden);
     }
 
-    /// <summary>confine 放行判定纯函数（公开供测试）：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
+    /// <summary>confine 放行判定纯函数：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
     /// 暂停/非准星态必须放行，否则暂停后鼠标无法移出窗口点系统关闭按钮退出游戏
-    /// K16：K8 审计——A7 清理后测试白盒直调 _ 前缀函数再现，公开化（纯函数无状态，公开测试接口合法）</summary>
+    /// K16：纯函数无状态，公开供诊断/复用（TrapActive 内部同用）。</summary>
     public static bool TrapEnabled(
         bool mouseLock,
         bool windowVisible,
@@ -122,13 +121,9 @@ public partial class MouseTrap : Node
 
     /// <summary>warp 目标：已知窗口内位置 clamp 到内容区边缘内侧 1px（窗口相对坐标）。
     /// 避免系统判定鼠标仍在窗外造成 exited/warp 循环；窗口最小边假设 ≥ 2px。
-    /// K16：公开供测试（纯函数，见 TrapEnabled）</summary>
+    /// K16：纯函数，公开（见 TrapEnabled）。</summary>
     public static Vector2 WarpTarget(Vector2 knownPos, Vector2I winSize)
     {
         return knownPos.Clamp(Vector2.One, (Vector2)(winSize - Vector2I.One));
     }
-
-    // ---------------- snake → PascalCase 静态桥（M5 过渡；V 系列清理注释：测试已直调 PascalCase） ----------------
-
-
 }

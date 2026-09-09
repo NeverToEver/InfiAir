@@ -1,18 +1,20 @@
 using Godot;
+using InfiAir.Core.Config;
 
 namespace InfiAir;
 
 /// <summary>
-/// 数值配置中心（M2 全量迁移，2026-08-08 自 scripts/balance_service.gd 迁移）。
+/// 数值配置中心。
 /// 持有 balance.json 解析字典，提供 cfg 路径查询与纯数值查询；由 GameState 组合并委托。
-/// 语义保持（A2/P1-1 约定）：缺失/损坏 JSON 回退脚本默认值；点路径解析经
-/// PathResolverInterop → InfiAir.Core.Config.PathResolver（数值宽容/容器拷贝/typeof 相等）；
+/// 语义保持（A2/P1-1 约定）：缺失/损坏 JSON 回退脚本默认值；点路径解析直调
+/// InfiAir.Core.Config.PathResolver（数值宽容/容器拷贝/typeof 相等），Variant↔CLR
+/// 转换经 VariantBridge；
 /// ramp 因子 load() 缓存一次——热路径（每发敌弹创建）免 path.split/字典遍历。
 /// </summary>
 public partial class BalanceService : RefCounted
 {
     private Godot.Collections.Dictionary _balance = new();
-    private readonly PathResolverInterop _interop = new();
+    private Dictionary<string, object?> _tree = new();
 
     /// <summary>G09：ramp 因子 load() 时缓存一次（热路径免 JSON 查询）。
     /// U15：64 位 double 运算（对齐原 GDScript 与文件头"纯标量 double 逐位等价"纪律）。</summary>
@@ -39,18 +41,21 @@ public partial class BalanceService : RefCounted
             }
         }
 
-        // P1-1：配置树同步到 C# 解析壳（损坏/缺失时为空字典，全部回退默认）
-        _interop.SetData(_balance);
+        // P1-1：配置树转 CLR（损坏/缺失时为空字典，全部回退默认）
+        _tree = VariantBridge.TryToClr(_balance, out var clr, out _)
+                && clr is Dictionary<string, object?> d
+            ? d
+            : new Dictionary<string, object?>();
         // G09：缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
-        _hpRampFactor = _interop.Resolve("enemies.hp_ramp_factor", 0.25).AsDouble();
-        _damageRampFactor = _interop.Resolve("enemies.damage_ramp_factor", 0.20).AsDouble();
+        _hpRampFactor = Cfg("enemies.hp_ramp_factor", 0.25).AsDouble();
+        _damageRampFactor = Cfg("enemies.damage_ramp_factor", 0.20).AsDouble();
         // 2026-08-10 perf 批次：每 spawn 热路径键同款缓存（默认值与原调用点回退一致）
-        var ms = _interop.Resolve("enemies.move_strategies", new Godot.Collections.Dictionary());
+        var ms = Cfg("enemies.move_strategies", new Godot.Collections.Dictionary());
         _moveStrategies = ms.VariantType == Variant.Type.Dictionary ? ms.AsGodotDictionary() : new Godot.Collections.Dictionary();
-        _speedRampFactor = _interop.Resolve("enemies.speed_ramp_factor", 0.1).AsDouble();
-        _aimMarkRatio = _interop.Resolve("player.aim_assist.mark_ratio", 0.25).AsDouble();
+        _speedRampFactor = Cfg("enemies.speed_ramp_factor", 0.1).AsDouble();
+        _aimMarkRatio = Cfg("player.aim_assist.mark_ratio", 0.25).AsDouble();
         // R07：判型 + 下限钳制（0/负值使预告线立即超时或 Timer 反向；坏值回退默认）
-        var td = _interop.Resolve("spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
+        var td = Cfg("spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
         _telegraphDuration = Mathf.Max(
             td.VariantType == Variant.Type.Float || td.VariantType == Variant.Type.Int
                 ? (float)td.AsDouble()
@@ -61,8 +66,18 @@ public partial class BalanceService : RefCounted
     /// <summary>配置字典是否为空（缺失/损坏 JSON 时为空，全部回退脚本默认值）。</summary>
     public bool IsEmpty() => _balance.Count == 0;
 
-    /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。</summary>
-    public Variant Cfg(string path, Variant defaultValue) => _interop.Resolve(path, defaultValue);
+    /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default
+    /// （语义见 PathResolver：数值宽容；容器拷贝；不可转换的默认值原样返回）。</summary>
+    public Variant Cfg(string path, Variant defaultValue)
+    {
+        var kind = VariantBridge.KindOf(defaultValue);
+        if (!VariantBridge.TryToClr(defaultValue, out var clr, out _))
+        {
+            return defaultValue;
+        }
+
+        return VariantBridge.ToVariant(PathResolver.Resolve(_tree, path, clr, kind));
+    }
 
     /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))。</summary>
     public double EnemyHpRamp(double difficultyMultiplier) => 1.0 + _hpRampFactor * (difficultyMultiplier - 1.0);

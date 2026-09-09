@@ -9,7 +9,7 @@ namespace InfiAir;
 /// 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
 /// 开始面板（继续对局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
 /// 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
-/// M6 全量迁移（2026-08-08 自 scripts/main.gd）；生产调用方全部 C# typed。
+/// 生产调用方全部 C# typed。
 /// 轨道清场经 GameState.Enemies 单次遍历完成「爆炸演出 + 批量清除」（Boss 保留）。
 /// </summary>
 public partial class Main : Node2D
@@ -122,7 +122,7 @@ public partial class Main : Node2D
         _spawner.BossSpawned += _hud.ShowBossBar;
         _spawner.BossSpawned += OnBossSpawned;
         _spawner.BossWarning += _hud.ShowBossBanner;
-        // 精英炮塔事件：编排节点挂 Main 下（清场/测试遍历可见），spawner 持引用做互斥
+        // 精英炮塔事件：编排节点挂 Main 下（清场遍历可见），spawner 持引用做互斥
         _event = new EliteTurretEvent();
         AddChild(_event);
         _event.SetSpawner(_spawner); // A5：依赖注入，替代事件侧 group 现找
@@ -131,7 +131,6 @@ public partial class Main : Node2D
         _formation = new FormationStrikeEvent();
         AddChild(_formation);
         _formation.SetSpawner(_spawner); // K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
-        _spawner.SetFormationEvent(_formation);
         // 统一事件管理器接线：遭遇事件注册进统一注册表（缓存单例），
         // 触发策略/信号由管理器接管；spawner 注入用于触发门控与特殊槽通知
         var evV = GameState.Instance.Events;
@@ -141,21 +140,21 @@ public partial class Main : Node2D
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
         _events.SetRunActive(GetTree().CurrentScene == this);
         var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected("PlayerDied", _onPlayerDied))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            gs.Connect("PlayerDied", _onPlayerDied);
+            gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
 
         _baseUi.ResumeRequested += OnResumeFromBase;
         // 迷雾事件：仅真实对局（main 为 current_scene）开启自动触发。
-        // 测试以子节点实例化 main.tscn 时 current_scene 为测试场景 → 保持关闭，
-        // 防止随机迷雾事件（如方向偏转把测试玩家推入弹幕触发擦弹得分）破坏测试断言确定性；
-        // 需要测迷雾的用例显式 set_run_active(true)（同 intro 过场的 current_scene 判定惯例）
+        // main.tscn 作为子节点嵌入宿主场景（current_scene 为宿主）时保持关闭，
+        // 防止随机迷雾事件（如方向偏转把玩家推入弹幕触发擦弹得分）破坏宿主场景确定性；
+        // 需要启用时显式 SetRunActive(true)（同 intro 过场的 current_scene 判定惯例）
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
         _fogEvents.SetRunActive(GetTree().CurrentScene == this);
         // 运行期时钟门控（GameState._Process）：welcome 停留时间不计入对局 RunTime/
-        // 难度时间档/survive 任务——子节点实例化（测试）时同样保持关闭
+        // 难度时间档/survive 任务——子节点嵌入宿主场景时同样保持关闭
         GameState.Instance.SetRunActive(GetTree().CurrentScene == this);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
         GameState.Instance.CameraRef = _camera;
@@ -170,15 +169,15 @@ public partial class Main : Node2D
         AddChild(_virtualControls);
         GameState.Instance.VirtualControls = _virtualControls;
         _virtualControls.SetEnabled(GameState.Instance.TouchControls);
-        if (gs != null && !gs.IsConnected("TouchControlsChanged", _onTouchControlsChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
         {
-            gs.Connect("TouchControlsChanged", _onTouchControlsChanged);
+            gs.Connect(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged);
         }
 
         ApplyCameraZoom();
-        if (gs != null && !gs.IsConnected("ViewZoomChanged", _onViewZoomChanged))
+        if (gs != null && !gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
         {
-            gs.Connect("ViewZoomChanged", _onViewZoomChanged);
+            gs.Connect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
         }
 
         _ = StartBgmAsync();
@@ -205,7 +204,7 @@ public partial class Main : Node2D
         BuildChargeFx();
         // 开机流程（2026-09-08 标题屏改造）：正常启动首次进入 → 播开场过场（或按设置跳过）→
         // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
-        // 测试以子节点实例化 main.tscn 时 current_scene != self：不过场、不入场（测试自行驱动）。
+        // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不过场、不入场（由宿主驱动）。
         if (GetTree().CurrentScene != this)
         {
             ApplyNewRun();
@@ -235,7 +234,7 @@ public partial class Main : Node2D
 
     public override void _ExitTree()
     {
-        // 子弹时间内退出（重开/测试结束）也要保证全局速度复位
+        // 子弹时间内退出（重开/中途退出）也要保证全局速度复位
         Engine.TimeScale = 1.0f;
         GameState.Instance.SummonInProgress = false; // 同 TimeScale：跨场景不残留
         var camRef = GameState.Instance.CameraRef;
@@ -254,19 +253,19 @@ public partial class Main : Node2D
             return;
         }
 
-        if (gs.IsConnected("PlayerDied", _onPlayerDied))
+        if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
-            gs.Disconnect("PlayerDied", _onPlayerDied);
+            gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
         }
 
-        if (gs.IsConnected("ViewZoomChanged", _onViewZoomChanged))
+        if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
         {
-            gs.Disconnect("ViewZoomChanged", _onViewZoomChanged);
+            gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
         }
 
-        if (gs.IsConnected("TouchControlsChanged", _onTouchControlsChanged))
+        if (gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
         {
-            gs.Disconnect("TouchControlsChanged", _onTouchControlsChanged);
+            gs.Disconnect(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged);
         }
     }
 
@@ -533,7 +532,7 @@ public partial class Main : Node2D
         {
             // U17：await 段异常统一 try/catch（约定 §Async）——恢复期节点释放/引擎错误不静默吞
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            // C15：await 后守卫——首帧前 main 被释放（无头测试同帧实例化释放）则不再操作 freed 实例
+            // C15：await 后守卫——首帧前 main 被释放（场景早退/摘树路径）则不再操作 freed 实例
             if (!IsInsideTree())
             {
                 return;
@@ -600,7 +599,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>播放开场过场：冻结对局帧 0（树暂停，过场 process_mode=Always 照常播放），
-    /// 播完/跳过统一走 finished 恢复。测试可直接调用本函数触发。</summary>
+    /// 播完/跳过统一走 finished 恢复。幂等（已播中重复调用直接返回）。</summary>
     private void PlayIntroCinematic()
     {
         if (_intro != null)
@@ -636,8 +635,8 @@ public partial class Main : Node2D
         GetTree().ChangeSceneToFile("res://scenes/title.tscn");
     }
 
-    /// <summary>播放返航过场：与 _play_intro_cinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。
-    /// BGM 引用交给过场做镜头 7 渐暗期淡出（_bgm_player 异步创建，取值判空）。测试可直接调用。</summary>
+    /// <summary>播放返航过场：与 PlayIntroCinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。
+    /// BGM 引用交给过场做镜头 7 渐暗期淡出（_bgmPlayer 异步创建，取值判空）。幂等。</summary>
     private void PlayReturnCinematic()
     {
         if (_return != null)
@@ -831,7 +830,7 @@ public partial class Main : Node2D
             return;
         }
 
-        // 成功路径保底隐藏蓄力特效（自然流程 _stop_charging 已处理；测试直调走此分支）
+        // 成功路径保底隐藏蓄力特效（自然流程 _stopCharging 已处理；直调本方法走此分支）
         _chargeFx.Visible = false;
         _chargeInflow.Emitting = false;
         _player.LockInput();

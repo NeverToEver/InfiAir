@@ -10,7 +10,7 @@ namespace InfiAir;
 /// CombatStateService.Augments——Player/Bullet/PlayerDamage/HUD 坞等全部效果消费端零改动；
 /// 浮点有效层级（收益递减/路线加成/专注折扣后）经 EffLevel 供乘算类效果（Player.RefreshAugmentFactors）。
 /// Godot 绑定层：配置经 GameState.Instance.Cfg 缓存（LoadTalentConfig，ApplyBalance 调用）；
-/// RP 消费经 Instance 跨域（与 MetaService 同构）。门面：GameState.Talent.cs 转发 + Talent 属性。
+/// RP 消费经 Instance 跨域。门面：GameState.Talent.cs 转发 + Talent 属性。
 /// 信号：C# 事件 CacheChanged/TalentsChanged → GameState 订阅转发为 TalentCacheChanged/TalentsChanged；
 /// 层级写入 Augments 后经 Instance 直发 AugmentsChanged（ChooseRoute 先例），驱动 Player/HUD 缓存刷新。
 /// </summary>
@@ -20,7 +20,7 @@ public sealed partial class TalentService : RefCounted
     private readonly TalentConfig _config = new();
     private readonly TalentCache _cache;
 
-    /// <summary>节点最终层级（含 Meta 研究所起始预置；shield 等消耗型 buff 由 ConsumeAugment 在
+    /// <summary>节点最终层级（含 ApplyStartingLoadout 起始预置；shield 等消耗型 buff 由 ConsumeAugment 在
     /// Augments 内扣减运行层，不影响本表的已购层级）。</summary>
     private readonly Dictionary<StringName, int> _levels = new();
 
@@ -136,7 +136,7 @@ public sealed partial class TalentService : RefCounted
 
     // ---------------- C# 事件（GameState 订阅转发为信号） ----------------
 
-    /// <summary>缓存池变化（Grant/Spend/Restore/Reset）。</summary>
+    /// <summary>缓存池变化（Grant/Spend/Reset）。</summary>
     public event Action<double, int>? CacheChanged;
 
     /// <summary>天赋配置变化（加点/路线/代币/复位）。</summary>
@@ -470,8 +470,8 @@ public sealed partial class TalentService : RefCounted
 
     // ---------------- 生命周期 / 存档 ----------------
 
-    /// <summary>Meta 研究所起始预置（Main.ApplyNewRun 经门面调用）：升级项 → 起始层级。
-    /// 与旧 ApplyMetaLoadout 语义一致（直接落 Augments），但归口本服务保持单一事实源。</summary>
+    /// <summary>起始层级预置：升级项 → 起始层级（直接落 Augments，归口本服务保持单一事实源；
+    /// 局外成长系统已移除，当前无生产调用方，入口保留）。</summary>
     public void ApplyStartingLoadout(Godot.Collections.Dictionary metaUpgrades)
     {
         var applied = false;

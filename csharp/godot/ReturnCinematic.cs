@@ -6,18 +6,14 @@ namespace InfiAir;
 
 /// <summary>
 /// 返航过场导演：7 镜头时序串联、黑场转场、跳过与整树清理。
-/// 架构镜像 scripts/intro_cinematic.gd；无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
+/// 架构与 IntroCinematic 同构；无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
 /// 让基地 UI 在黑场下淡入。严禁 await create_timer 协程（退出时协程状态泄漏）。
-/// M6 全量迁移（2026-08-08 自 scripts/return_cinematic.gd）：CanvasLayer 子类；
-/// UITheme/Starfield/CinematicFx/DawnStation 均为 C# typed 直调；原内嵌镜头类
-/// _PortalShot/_CaptureShot/_WalkShot/_RoomShot 迁为顶层类（C# 源生成器不支持内嵌类，
-/// BaseConsole 先例；2026-08-12 拆分后各自独立文件：ReturnCinematicPortalShot.cs 等）。
-/// 注：原 signal finished 迁移为 [Signal] Finished——ClassDB 以 PascalCase 注册，
-/// main.gd / return_cinematic_test.gd 的 finished.connect 需改连 Finished（主代理集中处理）。
+/// CanvasLayer 子类；UITheme/Starfield/CinematicFx/DawnStation 均为 C# typed 直调；
+/// 各镜头类为独立顶层类（ReturnCinematicPortalShot.cs 等；C# 源生成器不支持内嵌类）。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {
-    /// <summary>过场播完（skip 与自然结束同一出口发出；main.gd `_on_return_finished` 连接）。</summary>
+    /// <summary>过场播完（skip 与自然结束同一出口发出；由 Main 连接）。</summary>
     [Signal]
     public delegate void FinishedEventHandler();
 
@@ -31,7 +27,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// 任意键/点击/Esc 路由统一收敛在 skip() 内受控；effects.return_skip_grace 可调）</summary>
     public float SKIP_GRACE = 1.2f;
 
-    /// <summary>每镜头时长（§2 分镜表；七镜头 11.8s = 总和，转场含在内）。测试可改短。</summary>
+    /// <summary>每镜头时长（§2 分镜表；七镜头 11.8s = 总和，转场含在内）。</summary>
     private float[] _shotDurations = { 1.6f, 1.2f, 1.4f, 2.2f, 1.8f, 1.6f, 2.0f };
 
     /// <summary>由 main 注入（_bgm_player 异步创建，可能为 null）：镜头 7 渐暗期淡出到 -40dB</summary>
@@ -66,7 +62,7 @@ public partial class ReturnCinematic : CanvasLayer
         _shotTimer = new Godot.Timer { OneShot = true };
         _shotTimer.Timeout += OnShotTimeout;
         AddChild(_shotTimer);
-        // 首镜头延后到帧末启动：测试可在 add_child 同帧替换 _shot_durations
+        // 首镜头延后到帧末启动（_Ready 同帧不抢首帧，帧末开播）
         Callable.From(Advance).CallDeferred();
     }
 
@@ -285,7 +281,7 @@ public partial class ReturnCinematic : CanvasLayer
         return CinematicFx.SoftGlow(radius, color, additive);
     }
 
-    // ---------------- 人物构件（复用开场镜头 3 多段式飞行服人物，改姿态/相位） ----------------
+    // ---------------- 人物构件（本过场自绘：多段式飞行服人物 + 姿态关键帧/相位驱动） ----------------
 
     /// <summary>多段式飞行服驾驶员：骨盆/胸廓/头盔/维生背包/双关节四肢，面朝 +x。
     /// 返回 {node, hips[2], knees[2], shoulders[2], elbows[2], torso, eyelid}，

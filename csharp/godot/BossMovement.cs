@@ -4,7 +4,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 走位策略（M3 批次迁移，2026-08-08 自 scripts/boss_movement.gd 迁移）。
+/// Boss 走位策略。
 /// 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.Position（Node2D 公开属性），
 /// 经 Boss typed 公开接口（SlowFactor/StrafeRange/IsEnraged/FightPhaseValue/FightAnchorY/EscapeDriftOffset）
 /// 交互，不访问私有字段（A1 约束）。
@@ -91,7 +91,7 @@ public partial class BossMovement : RefCounted
         _moverCached!(delta, boss);
     }
 
-    /// <summary>注册表完整性查询（A3 架构断言测试经公开接口访问）。</summary>
+    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
     public bool HasMover(int type) => _movers.ContainsKey(type);
 
     // ---------------- 内部实现 ----------------

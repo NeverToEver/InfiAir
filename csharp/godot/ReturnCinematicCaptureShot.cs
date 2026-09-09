@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 4 捕获轨道（原 return_cinematic.gd 内嵌类 _CaptureShot；C# 源生成器不支持
-/// 内嵌类，迁为同文件顶层类——BaseConsole 先例）。字段名保持原 snake 名（shot 构建/tween 依赖）。</summary>
+/// <summary>镜头 4 捕获轨道（ReturnCinematic 顶层镜头类；C# 源生成器不支持内嵌类）。
+/// 字段名保持 snake 名（shot 构建/tween 依赖）。</summary>
 public partial class ReturnCinematicCaptureShot : Node2D
 {
     public Vector2[] _samples = System.Array.Empty<Vector2>(); // 捕获轨道弧采样（构建期预计算，供战机定位）
@@ -42,7 +42,7 @@ public partial class ReturnCinematicCaptureShot : Node2D
         {
             _ship.Position = SampleAt(_ship_u);
             var ahead = SampleAt(Mathf.Max(_ship_u - 0.02f, 0.0f));
-            // 贴图机头朝 +y 上（player.gd 同款：rotation = 航向角 + PI/2）
+            // 贴图机头朝 +y 上（Player 同款：rotation = 航向角 + PI/2）
             _ship.Rotation = (ahead - _ship.Position).Angle() + Mathf.Pi * 0.5f;
         }
     }

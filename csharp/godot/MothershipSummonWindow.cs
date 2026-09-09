@@ -12,13 +12,12 @@ namespace InfiAir;
 ///   镜头 3 SHOT_DURATIONS[2]          母舰弹射出仓 + 穿梭器蓝环点亮（MS_SEQ_LAUNCH）
 ///   收尾 CLOSE_TIME                   面板淡出，finished 信号并自销毁
 /// 数值取 balance.json effects.mothership_summon.window，脚本默认值须保持一致。
-/// skip() 幂等：立即发 finished（供测试/流程直推）。
-/// M6 全量迁移（2026-08-08 自 scripts/mothership_summon_window.gd）：CanvasLayer 子类；
-/// signal finished → [Signal] Finished（main.gd 连接处改连 PascalCase 名，主代理集中处理）；
+/// Skip() 幂等：立即发 Finished（供流程直推）。
+/// CanvasLayer 子类；结束信号为 [Signal] Finished。
 /// </summary>
 public partial class MothershipSummonWindow : CanvasLayer
 {
-    /// <summary>小窗演出结束（main.gd `_on_summon_window_finished` 连接：开穿梭门 + 母舰穿出）。</summary>
+    /// <summary>小窗演出结束（Main 连接：开穿梭门 + 母舰穿出）。</summary>
     [Signal]
     public delegate void FinishedEventHandler();
 
@@ -32,7 +31,7 @@ public partial class MothershipSummonWindow : CanvasLayer
 
     private static readonly string[] ShotKeys = { "MS_SEQ_CHARGE", "MS_SEQ_ARMS", "MS_SEQ_LAUNCH" };
 
-    /// <summary>M6 迁移注：原 GDScript const preload 静态持 Texture2D——C# 静态字段禁止持有
+    /// <summary>母舰贴图：C# 静态字段禁止持有
     /// Godot 对象（退出 segfault 实测根因），改 GD.Load（命中资源缓存，仅构建期一次）。</summary>
     private static Texture2D ShipTexture => GD.Load<Texture2D>("res://assets/sprites/mothership.png");
 

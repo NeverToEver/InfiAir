@@ -3,10 +3,10 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家相位冲刺组件（M3c 全量迁移，2026-08-08 自 scripts/player_dash.gd 迁移；A8 拆分）。
-/// Dash 状态机与计时；经 Player 属性转发（_dashing 等语法不变）
-/// 与公开方法交互。需要解锁 buff（Player.dash_unlocked）且耗 25% 满值燃料。
-/// 纯 C# 逻辑类（原 RefCounted、无信号/导出）：由 C# Player 组合持有；GameState 经
+/// 玩家相位冲刺组件（A8 拆分）。
+/// Dash 状态机与计时；经 Player 属性转发与公开方法交互。需要解锁 buff（dash_unlocked）且耗 25% 满值燃料。
+/// 纯 C# 逻辑类（无信号/导出）：由 C# Player 组合持有；GameState 经
+/// Instance 门面访问。
 /// </summary>
 public class PlayerDash
 {

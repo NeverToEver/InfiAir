@@ -120,20 +120,6 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         tw.Parallel().TweenProperty(_tether, "modulate:a", 1.0f, 0.3).SetDelay(0.42);
     }
 
-    /// <summary>退场编排：轮盘加速滑出 + dim 收尾 + 引线与括弧先行淡出/收起，完成后回调
-    /// （回调里再置 Visible=false）。</summary>
-    protected void PlayWheelExit(Action finished, float total = 0.36f)
-    {
-        _frameTarget = 0f;
-        var tw = CreateTween();
-        tw.Parallel().TweenProperty(_tether, "modulate:a", 0.0f, 0.14);
-        tw.TweenProperty(_wheelHolder, "position", new Vector2(WheelRest.X - 620f, WheelRest.Y), 0.26)
-            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In).SetDelay(0.04);
-        tw.Parallel().TweenProperty(Dim, "modulate:a", 0.0f, 0.24).SetDelay(0.1);
-        tw.TweenInterval(Mathf.Max(total - 0.3f, 0.02f));
-        tw.TweenCallback(Callable.From(finished));
-    }
-
     /// <summary>轮盘可见性同步（宿主开/关时调用；Node2D._Input 不随 CanvasLayer 隐藏失效）。
     /// dimActive：chrome 遮罩的显隐（默认跟随轮盘）。非模态宿主页（welcome 自带不透明底、
     /// settings 自带 page shell 遮罩）必须显式传 false——chrome Dim 是最上层全屏 84% 黑罩，

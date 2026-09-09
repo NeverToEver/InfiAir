@@ -6,8 +6,7 @@ namespace InfiAir;
 /// Buff 程序化字形图标库：19 种 buff 各一个几何字形（24 单位坐标系按尺寸缩放），
 /// 供 HUD 图标格与 Buff 三选一卡片图标位共用（经 UITheme.MakeAugmentSocket 统一槽位样式）。
 /// 分类配色：进攻=ACCENT 青，维生=SUCCESS 绿，通用=ACCENT_GOLD 金。
-/// M5 全量迁移（2026-08-08 自 scripts/ui_augment_icons.gd）：RefCounted + 静态工厂；
-/// 字形内嵌 Glyph（Control 子类）经 MakeGlyph 实例化。
+/// RefCounted + 静态工厂；字形内嵌 Glyph（Control 子类）经 MakeGlyph 实例化。
 /// </summary>
 public partial class AugmentIcons : RefCounted
 {

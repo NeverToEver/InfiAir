@@ -62,7 +62,7 @@ public static class GdFormat
                 {
                     // 2026-08-09 Y 系列：j 从 '.' 之后（i+2）扫描位数——原 11 份实现均从
                     // '.' 处（i+1）起扫，char.IsDigit('.') 恒假 → %.Nf 永不匹配，UI_DIFF_FMT
-                    // 实际渲染为字面 "难度 x%.2f · 中"（GDScript 迁移缺陷）；此处为行为修复
+                    // 实际渲染为字面 "难度 x%.2f · 中"（旧实现的格式化缺陷）；此处为行为修复
                     var j = i + 2;
                     var digits = "";
                     while (j < format.Length && char.IsDigit(format[j]))
@@ -113,7 +113,7 @@ public static class GdFormat
     /// <summary>%d 安全转换（2026-08-10 健壮性审查）：仅吞 OverflowException——±Infinity/超
     /// long 域 double 的 Convert.ToInt64 抛此异常（配置/存档数据驱动的参数可达）；
     /// 类型错误（FormatException/InvalidCastException）按既定契约照抛不吞
-    /// （测试 Format_NonNumericArgForIntSpec_ThrowsLikeOldImplementations 钉死语义）。</summary>
+    /// （与 GDScript % 格式化对非数值参数的报错语义一致）。</summary>
     private static string FormatInt(object? v)
     {
         try

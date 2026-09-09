@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 4：操作台紧急启动容器（原 GDScript intro_cinematic.gd 内嵌类 _ConsoleShot，迁移为同文件顶层类）。
+/// <summary>镜头 4：操作台紧急启动容器（IntroCinematic 顶层镜头类）。
 /// 双手点按 / 扣合 + 雷达扫掠/回波点亮（预计算角度，零堆分配）。</summary>
 public partial class IntroConsoleShot : Node2D
 {

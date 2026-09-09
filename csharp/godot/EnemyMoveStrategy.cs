@@ -3,8 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 敌机移动上下文（M3b 迁移 scripts/enemy_move_strategy.gd 的 ctx，2026-08-08）。
-/// A4a/C06：每敌机复用单个实例、字段原地更新，替代 GDScript 每物理帧新建 Dictionary。
+/// 敌机移动上下文（MoveCtx：Enemy 移动策略的每帧入参包）。
+/// A4a/C06：每敌机复用单个实例、字段原地更新，替代每物理帧新建 Dictionary。
 /// </summary>
 public sealed class MoveCtx
 {
@@ -22,7 +22,7 @@ public sealed class MoveCtx
 /// <summary>
 /// 敌机移动策略基类（A4a 拆分）：各策略自包含的纯位置计算块，
 /// 经 ctx 传入共享只读上下文，唯一副作用写 enemy.Position 与少量公开 setter。
-/// 纯 C# 类（非 GodotObject）——无外部 GDScript 引用（实测），不注册进引擎。
+/// 纯 C# 类（非 GodotObject）——不注册进引擎。
 /// 共享悬停常量经构造 params 注入（Enemy._ready 从 balance 缓存值传入；Q29 策略专属参数覆盖）。
 /// </summary>
 public abstract class EnemyMoveStrategy

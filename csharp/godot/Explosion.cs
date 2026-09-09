@@ -3,11 +3,10 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 一次性爆炸粒子（M3a 全量迁移，2026-08-08 自 scripts/explosion.gd 迁移）：
-/// 主火花 + 飞散碎片双发射器，纯代码构建。池化复用（上限 24），超出上限的临时实例照旧销毁。
+/// 一次性爆炸粒子：主火花 + 飞散碎片双发射器，纯代码构建。池化复用（上限 24），超出上限的临时实例照旧销毁。
 /// P1-5 回池 reparent 到统一 ExplosionPool 节点；P2-1 活跃实例计数（Meta HUD D3 亮度代理）。
 /// B16：process_mode Always（玩家死亡爆炸生成于暂停的树）。
-/// 注：GDScript _init 的 cfg 读取移入 _Ready（C# 构造器内不可访问场景树/autoload）。
+/// 注：cfg 读取在 _Ready（C# 构造器内不可访问场景树/autoload）。
 /// </summary>
 public partial class Explosion : GpuParticles2D
 {

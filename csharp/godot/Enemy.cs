@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 普通/精英敌机（M3b 全量迁移，2026-08-08 自 scripts/enemy.gd 迁移）：straight/sine/zigzag/
+/// 普通/精英敌机：straight/sine/zigzag/
 /// dive/spiral/noise/hover/aggressive 八种移动策略；single/spread/laser 弹种；入场两阶段
 /// （下降→悬停机动）；寿命离场（不给分不计击杀）；分裂者；体碰信号事件驱动（P0-2）；
 /// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点（P0-5）。
@@ -55,7 +55,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private static readonly Color TailGlowColor = new(1.0f, 0.22f, 0.38f, 0.32f);
     private static readonly Color TailGlowColorElite = new(1.0f, 0.25f, 0.42f, 0.46f);
 
-    // ---- 对局状态（setup/reactivate 写入；GDScript 调用方/测试读写） ----
+    // ---- 对局状态（Setup/Reactivate 写入；公开属性直读写） ----
     public StringName Strategy { get; set; } = "straight";
     public bool IsElite { get; private set; }
     public int Hp { get; set; } = 2;
@@ -237,7 +237,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
                 * (float)GameState.Instance.EnemyHpMultiplier()
                 // 2026-08-09 审计：原直查 Cfg("enemies.hp_ramp_factor") 全链路（path.Split+字典遍历+Variant 装箱），
                 // hp_ramp 有 Load 时缓存的 API 未用；改走显式难度重载——pDifficulty 为调用方快照
-                // （分裂子机/测试可传非全局 DifficultyMultiplier 值，须保持原参数语义）
+                // （分裂子机可传非全局 DifficultyMultiplier 值，须保持原参数语义）
                 * (float)GameState.Instance.EnemyHpRamp(pDifficulty)));
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
@@ -426,15 +426,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         DespawnInternal();
     }
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int hp { get => Hp; set => Hp = value; }
-
-    public float speed { get => Speed; set => Speed = value; }
-
-    public float fire_interval { get => FireInterval; set => FireInterval = value; }
-
-    public StringName bullet_type { get => BulletType; set => BulletType = value; }
+    // ---------------- snake_case 兼容桥（aim_marked：AimMarked private set，Tutorial.cs 经此桥写入） ----------------
 
     public bool aim_marked { get => AimMarked; set => AimMarked = value; }
 

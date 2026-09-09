@@ -8,9 +8,8 @@ namespace InfiAir;
 /// 纯静态工厂：build() 返回中心在原点的 Node2D，调用方负责 position/scale 与入树。
 /// 三处复用：开场镜头 1（DESTROYED 实体毁灭态）、返航镜头 2/3/4（PHANTOM 全息虚影态）、
 /// 基地 UI 背景层（PHANTOM，自行压 modulate.a）。粒子发射器 ≤96/个，与过场性能预算一致。
-/// M6 全量迁移（2026-08-08 自 scripts/dawn_station.gd）。
-/// 迁移注：内嵌类 _Dot 迁为同文件顶层类 DawnStationDot（C# 源生成器不支持内嵌类，BaseConsole 先例）；
-/// PackedVector2Array → Vector2[]（批次规则 9，互操作语义一致）。
+/// 注：DawnStationDot 为同文件顶层类（C# 源生成器不支持内嵌类）；
+/// PackedVector2Array → Vector2[]（互操作语义一致）。
 /// </summary>
 public partial class DawnStation : RefCounted
 {
@@ -28,8 +27,6 @@ public partial class DawnStation : RefCounted
     public const float BreachEnd = 1.2f; // 破口止角
 
     public static Node2D Build() => Build(Mode.Destroyed);
-
-    public static Node2D Build(int mode) => Build((Mode)mode);
 
     /// <summary>构建站体（中心在原点，未定位）。DESTROYED = 开场镜头 1 现状视觉（纯提取，行为不变）；
     /// PHANTOM = §1.1 四层虚影变换全开（全息基底/扫描带/数据流/破口能量网格）。</summary>
@@ -591,7 +588,7 @@ public partial class DawnStation : RefCounted
 }
 
 /// <summary>站体构件：纯色圆点（环心毂/辉光垫共用）。
-/// 原 GDScript dawn_station.gd 内嵌类 _Dot，迁移为同文件顶层类（C# 源生成器不支持内嵌类）。</summary>
+/// 同文件顶层类（C# 源生成器不支持内嵌类）。</summary>
 public partial class DawnStationDot : Node2D
 {
     public float Radius = 8.0f;

@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 通用游戏事件基类（纯生命周期接口，零系统耦合，2026-08-05 接口方向重构；M 批次全量迁移）。
+/// 通用游戏事件基类（纯生命周期接口，零系统耦合，2026-08-05 接口方向重构）。
 /// 这是「事件」的唯一基底：编排器（GameEventManager）负责注册/选择/统一计时/结束清理；
 /// 本类只定义事件自身的生命周期契约与上下文注入：
 ///   - context：执行上下文 Dictionary（编排器注入；本类存浅拷贝隔离，键约定由各系统
@@ -17,7 +17,7 @@ namespace InfiAir;
 ///     不会叠加半状态（子类 _on_start 无需为重复调用特判）；
 ///   - end() 幂等；tick() 仅活跃期派发；context 浅拷贝隔离编排器后续修改；
 ///   - duration ≤ 0 钳制为 0（编排器侧另有下限，双保险）。
-/// M7 后测试经 C# typed 实例化（RefCounted 基链）；公开 API 为 PascalCase。
+/// 公开 API 为 PascalCase。
 /// </summary>
 public partial class GameEvent : RefCounted
 {

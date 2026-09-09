@@ -11,7 +11,6 @@ namespace InfiAir;
 /// 事件类不触碰 Player。
 /// 健壮性（2026-08-05 审计）：访问器对缺失/类型不符键返回 null，不抛错；
 /// 子类应在 _on_start 缓存访问器结果并判空（缺键时降级空转，见各事件实现）。
-/// 迁移期：GDScript 侧不得继承本类（跨语言继承禁令）——测试子类须改 C# 侧定义。
 /// </summary>
 public partial class FogEvent : GameEvent
 {

@@ -21,10 +21,10 @@ public enum ValueKind
 
 /// <summary>
 /// 点路径解析核心（P1-1，2026-08-07 落地）：在 CLR JSON 兼容树上按 "a.b.c" 路径取值。
-/// 逐条镜像原 GDScript <c>BalanceService.cfg()</c>（scripts/balance_service.gd，469 处调用点语义）
-/// 并保持数值宽容 / 容器浅拷贝 / typeof 相等判定语义；纯 .NET、零 Godot 依赖，xUnit 可直测。
+/// 承载 Godot 侧 BalanceService.cfg() 全部调用点语义：数值宽容 / 容器浅拷贝 / typeof 相等判定；
+/// 纯 .NET、零 Godot 依赖，可独立单测。
 /// 行为差异（均为防御性收敛，仅作用于手改/非 JSON 数据）：
-/// 容器拷贝为逐层新建（嵌套容器不再与源共享——比 GDScript 单层 duplicate 更隔离，不污染配置真值）。
+/// 容器拷贝为逐层新建（嵌套容器不再与源共享——比引擎单层 duplicate 更隔离，不污染配置真值）。
 /// </summary>
 public static class PathResolver
 {
@@ -91,29 +91,6 @@ public static class PathResolver
         }
 
         return defaultValue;
-    }
-
-    /// <summary>按默认值 CLR 类型推断 <see cref="ValueKind"/> 的简版（xUnit 直测用）。</summary>
-    public static object? Resolve(
-        IReadOnlyDictionary<string, object?> root, string path, object? defaultValue)
-    {
-        return Resolve(root, path, defaultValue, KindOf(defaultValue));
-    }
-
-    /// <summary>CLR 类型 → <see cref="ValueKind"/>（绑定壳对 Variant 类型用同一映射，见 csharp/godot/VariantBridge.cs）。</summary>
-    public static ValueKind KindOf(object? value)
-    {
-        return value switch
-        {
-            null => ValueKind.Null,
-            bool => ValueKind.Bool,
-            long => ValueKind.Int,
-            double => ValueKind.Float,
-            string => ValueKind.String,
-            List<object?> => ValueKind.Array,
-            Dictionary<string, object?> => ValueKind.Dictionary,
-            _ => ValueKind.Other,
-        };
     }
 
     /// <summary>GDScript int() 语义：float → 向零截断（JSON 数值域内安全，unchecked 防越界 UB）。</summary>

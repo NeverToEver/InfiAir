@@ -5,10 +5,10 @@ namespace InfiAir;
 /// <summary>
 /// GameState 部分定义：天赋缓存系统（2026-09-07 重构，替代旧里程碑三选一）。
 /// 业务实现在 TalentService（csharp/godot/TalentService.cs，组合持有），本文件为门面：
-/// 常用读取走转发（效果消费端/测试零适配），面板等富交互经 Talent 属性直用服务
+/// 常用读取走转发（效果消费端零适配），面板等富交互经 Talent 属性直用服务
 /// （与 FogEvents/Events 服务暴露先例同构）。
 /// 信号：TalentService 的 C# 事件 CacheChanged/TalentsChanged 经此处订阅转发为
-/// TalentCacheChanged/TalentsChanged（HUD 缓存指示器/天赋面板数据源；存档恢复/ResetRun
+/// TalentCacheChanged/TalentsChanged（HUD 缓存指示器/天赋面板数据源；ResetRun
 /// 由服务事件同源触发，无双发）。
 /// </summary>
 public partial class GameState : Node
@@ -28,7 +28,7 @@ public partial class GameState : Node
     /// <summary>缓存原始点数（含已衰减点）。</summary>
     public int TalentRawCache => _talent.RawCache;
 
-    /// <summary>节点已购层级（含 Meta 起始预置）。</summary>
+    /// <summary>节点已购层级（含 ApplyStartingLoadout 起始预置）。</summary>
     public int TalentLevel(StringName id) => _talent.Level(id);
 
     /// <summary>浮点有效层级（收益递减/路线/专注折算后）——乘算类效果桥。</summary>

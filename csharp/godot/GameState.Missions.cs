@@ -5,9 +5,9 @@ namespace InfiAir;
 /// <summary>
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：RP 经济 / 基地任务 / 天赋路线。
 /// 第四轮拆域（2026-08-11）：职责迁至 MissionsService（csharp/godot/MissionsService.cs，组合持有），
-/// 本文件为门面转发——公开 API 签名/语义不变（测试与 UI 经此处零适配调用）；
+/// 本文件为门面转发——公开 API 签名/语义不变；
 /// RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen 信号由 MissionsService 的 C# 事件
-/// 经 GameState 订阅重发（消费方不变；存档恢复/ResetRun 直接赋值路径在 GameState 侧直发同名信号）。
+/// 经 GameState 订阅重发（消费方不变；ResetRun 直接赋值路径在 GameState 侧直发同名信号）。
 /// </summary>
 public partial class GameState : Node
 {
@@ -31,11 +31,11 @@ public partial class GameState : Node
     /// <summary>余额不足返回 false 且不扣减</summary>
     public bool SpendRp(int amount) => _missions.SpendRp(amount);
 
-    /// <summary>初始手牌/任务池/kind 索引重建（_Ready/ResetRun/ApplyRunSave/ResetMissions 调用）</summary>
+    /// <summary>初始手牌/任务池/kind 索引重建（_Ready/ResetRun/ResetMissions 调用）</summary>
     private void InitMissions() => _missions.InitMissions();
 
-    /// <summary>C32 修复：公开任务重置口（仅清任务进度，不清 rp/buffs——比 reset_run 副作用小，
-    /// 供测试/调用方在保留状态的前提下重置 missions）</summary>
+    /// <summary>公开任务重置口（仅清任务进度，不清 rp/buffs——比 ResetRun 副作用小，
+    /// 供需要在保留其余对局状态的前提下重置 missions 的调用方）</summary>
     public void ResetMissions() => _missions.ResetMissions();
 
     /// <summary>按 kind 推进全部该类型在场任务的进度（任务轮换后 id 变化，进度源按 kind 分发；
@@ -47,7 +47,7 @@ public partial class GameState : Node
 
     public int MissionGoal(StringName id) => _missions.MissionGoal(id);
 
-    /// <summary>任务定义查询（MISSION_POOL 无命中返回 {}，供 goal/存档恢复校验共用）</summary>
+    /// <summary>任务定义查询（MISSION_POOL 无命中返回 {}，供 goal 查询等调用方共用）</summary>
     private Godot.Collections.Dictionary MissionDef(StringName id) => _missions.MissionDef(id);
 
     // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Dictionary）

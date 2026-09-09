@@ -24,7 +24,7 @@ public partial class ReturnCinematic : CanvasLayer
         camTween.TweenProperty(cam, "scale", Vector2.One * 1.12f, dur).SetTrans(Tween.TransitionType.Sine);
         camTween.TweenProperty(cam, "position", new Vector2(-60.0f, 0.0f), dur).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         // 虚影站全貌（与开场镜头 1 同位同构）
-        var station = DawnStation.Build(1); // DawnStation.Mode.PHANTOM
+        var station = DawnStation.Build(DawnStation.Mode.Phantom);
         station.Position = new Vector2(960.0f, 470.0f);
         cam.AddChild(station);
         // 站体环缘航行灯 ×8（慢速追逐明灭，预建后由 _CaptureShot 相位驱动 alpha）

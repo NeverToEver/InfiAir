@@ -6,12 +6,11 @@ namespace InfiAir;
 /// 全局返回/退出状态机。
 /// 所有平台的"返回"输入统一走 go_back()：PC Esc 与手柄 B 经引擎内置 ui_cancel，
 /// 鼠标右键为独立固定手势（非 ui_cancel），Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
-/// decide_back_action() 为纯决策函数（不执行副作用，供无头测试覆盖全分支）。
-/// M5 全量迁移（2026-08-08 自 scripts/back_navigator.gd）。
+/// decide_back_action() 为纯决策函数（不执行副作用，全分支可无头驱动）。
 /// </summary>
 public partial class BackNavigator : Node
 {
-    /// <summary>返回动作枚举（值序 = 声明序；GDScript 测试经 back_actions() 字典访问）。</summary>
+    /// <summary>返回动作枚举（值序 = 声明序）。</summary>
     public enum BackAction
     {
         /// <summary>退出确认窗可见：返回 = 取消退出</summary>
@@ -96,7 +95,7 @@ public partial class BackNavigator : Node
         }
     }
 
-    /// <summary>公开路由：所有返回输入统一入口（测试 C30 直接调用）。</summary>
+    /// <summary>公开路由：所有返回输入统一入口。</summary>
     public void GoBack()
     {
         var action = DecideBackAction();

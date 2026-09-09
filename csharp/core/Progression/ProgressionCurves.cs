@@ -1,21 +1,17 @@
 namespace InfiAir.Core.Progression;
 
 /// <summary>
-/// 里程碑阈值曲线核心（2026-08-07 自 autoload/game_state.gd milestone_threshold 迁移）：
+/// 里程碑阈值曲线核心：
 /// 8 档基础阈值循环，每循环档差按 ×cycleMultiplier^cycle 放大（阈值单调不回退），
-/// 最终值 × difficultyMultiplier（难度档倍率）。纯 .NET、零 Godot 依赖 → xUnit 直测。
+/// 最终值 × difficultyMultiplier（难度档倍率）。纯 .NET、零 Godot 依赖，可独立单测。
 ///
-/// 行为与原 GDScript 实现逐位等价：累加顺序与 Math.Pow 调用逐项一致（同一 double
+/// 行为与 Godot 引擎 64 位浮点运算逐位等价：累加顺序与 Math.Pow 调用逐项一致（同一 double
 /// 运算序列，结果位级相同）；roundf 的 "half away from zero" 语义用
 /// <see cref="Math.Round(double, MidpointRounding)"/> 对齐。
-///
-/// 迁移收益：apply_run_save 的 while 推进（上限 10000 档）原先每档一次 GDScript 求值，
-/// <see cref="CountThresholdsUpTo"/> 改为单次跨语言调用 + O(1)/档 增量推进（档间复用
-/// 同一累加序列，不重复外层循环）。
 /// </summary>
 public static class MilestoneCurve
 {
-    /// <summary>批量推进的档数上限（对齐原 GDScript apply_run_save 的 ms_cap=10000 挂死守卫）。</summary>
+    /// <summary>里程碑批量推进的档数上限（while 逐档推进的挂死守卫，超限直接 break）。</summary>
     public const int MaxIterations = 10000;
 
     /// <summary>
@@ -48,52 +44,8 @@ public static class MilestoneCurve
         return ToInt64(total * difficultyMultiplier);
     }
 
-    /// <summary>
-    /// 自 0 起连续满足 threshold(i) ≤ score 的档位数（封顶 <see cref="MaxIterations"/>），
-    /// 即原 GDScript `while count &lt; cap and threshold(count) &lt;= score: count += 1` 的结果。
-    /// 增量推进复用与 <see cref="Threshold"/> 相同的逐项累加序列（步进 + 循环边界换档），
-    /// 任意 index 下结果逐位一致，整体 O(档数)。
-    /// </summary>
-    public static int CountThresholdsUpTo(
-        long score, long[] baseThresholds, double cycleMultiplier, double difficultyMultiplier)
-    {
-        var n = baseThresholds.Length;
-        if (n <= 0)
-        {
-            return 0;
-        }
-        double mult = Math.Min(Math.Pow(cycleMultiplier, 0), 1e15);
-        double total = 0.0;
-        int count = 0;
-        while (count < MaxIterations)
-        {
-            int cycle = count / n;
-            int step = count % n;
-            if (step == 0)
-            {
-                if (cycle > 0)
-                {
-                    // 循环边界换档：mult 走与 Threshold 相同的 pow 调用（不增量连乘，避免 ULP 漂移）
-                    mult = Math.Min(Math.Pow(cycleMultiplier, cycle), 1e15);
-                }
-                total += baseThresholds[0] * mult;
-            }
-            else
-            {
-                total += (baseThresholds[step] - baseThresholds[step - 1]) * mult;
-            }
-            if (ToInt64(total * difficultyMultiplier) > score)
-            {
-                break;
-            }
-            count++;
-        }
-        return count;
-    }
-
     /// <summary>GDScript int(roundf(x)) 语义：roundf = half away from zero。
-    /// 超 int64 范围在原实现为 UB（A 审计仅钳 mult 防 inf）——此处显式钳制保证确定性
-    /// （difficulty_test 极大 index 断言：≥0 且非 int32 哨兵值）。</summary>
+    /// 超 int64 范围显式钳制保证确定性（极大 index 下仍 ≥0 且非 int32 哨兵值）。</summary>
     private static long ToInt64(double value)
     {
         if (value >= 9.223372036854776E18)
@@ -109,9 +61,9 @@ public static class MilestoneCurve
 }
 
 /// <summary>
-/// 难度乘数对局进程曲线核心（2026-08-07 自 autoload/game_state.gd _recompute_difficulty 迁移）：
+/// 难度乘数对局进程曲线核心：
 /// 1 + perBossKill×Boss击杀 + 时间轴累进（每 timeStepSeconds 量化一档，每 10 分钟 +perTenMinutes）。
-/// 纯函数：输入即输出，xUnit 直测；与原 GDScript 表达式运算顺序逐位一致。
+/// 纯函数：输入即输出，零 Godot 依赖可独立单测；与引擎 64 位浮点表达式运算顺序逐位一致。
 /// </summary>
 public static class DifficultyCurve
 {

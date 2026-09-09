@@ -3,8 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位
-///（2026-08-08 自 scripts/turret_battery.gd 迁移）。
+/// 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位。
 /// 弱锁定索敌：炮塔以限速转向玩家，开火朝向 = 当前朝向 + ±spread_deg 出膛散布；
 /// 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
 /// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
@@ -65,7 +64,7 @@ public partial class TurretBattery : Area2D, IDamageable
     private float _facing = Mathf.Pi / 2.0f;
 
     private Sprite2D _sprite = null!; // _Ready 赋值（tscn 固定结构）
-    private Control _hpBar = null!; // _Ready 赋值（tscn 固定结构）
+    private SegmentedBar _hpBar = null!; // _Ready 赋值（tscn 固定结构）
     private float _muzzleOffset; // 出弹点偏移（40 × world_scale，_ready 覆写）
 
     /// <summary>Setup() 在入树/_Ready() 之前调用，不能用 GetNode。</summary>
@@ -120,15 +119,15 @@ public partial class TurretBattery : Area2D, IDamageable
             bodyCircle.Radius = 26.0f * ws;
         }
 
-        _hpBar = GetNode<Control>("HpBar");
+        _hpBar = GetNode<SegmentedBar>("HpBar");
         _hpBar.OffsetLeft = -24.0f * ws;
         _hpBar.OffsetTop = -46.0f * ws;
         _hpBar.OffsetRight = 24.0f * ws;
         _hpBar.OffsetBottom = -38.0f * ws;
         _muzzleOffset = 40.0f * ws;
-        _hpBar.Set("max_value", 100.0f);
-        _hpBar.Set("value", 100.0f);
-        _hpBar.Set("fill_color", new Color(1.0f, 0.25f, 0.75f)); // 精英品红
+        _hpBar.MaxValue = 100.0f;
+        _hpBar.Value = 100.0f;
+        _hpBar.FillColor = new Color(1.0f, 0.25f, 0.75f); // 精英品红
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
         // P1-6：击杀震动强度缓存
         _shakeDie = CfgFx.Float("effects.shake.enemy_die", _shakeDie);
@@ -315,7 +314,7 @@ public partial class TurretBattery : Area2D, IDamageable
         }
 
         Hp -= amount;
-        _hpBar.Set("value", Mathf.Clamp(Hp / (float)MaxHp, 0.0f, 1.0f) * 100.0f);
+        _hpBar.Value = Mathf.Clamp(Hp / (float)MaxHp, 0.0f, 1.0f) * 100.0f;
         FlashFx.Hit(_sprite, ref _flashTimer, FlashTime); // 受击闪白
         if (Hp <= 0)
         {
@@ -342,18 +341,4 @@ public partial class TurretBattery : Area2D, IDamageable
         EmitSignal(SignalName.Died, this);
         QueueFree();
     }
-
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public int hp { get => Hp; set => Hp = value; }
-
-    public Vector2 fire_interval { get => FireInterval; set => FireInterval = value; }
-
-    public float homing_turn_rate { get => HomingTurnRate; set => HomingTurnRate = value; }
-
-    public float homing_time { get => HomingTime; set => HomingTime = value; }
-
-    public float spread_deg { get => SpreadDeg; set => SpreadDeg = value; }
-
-    public float SPREAD_FAN_STEP { get => SpreadFanStep; set => SpreadFanStep = value; }
 }

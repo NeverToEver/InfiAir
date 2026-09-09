@@ -49,14 +49,14 @@ public partial class GameOverUi : RadialMenuLayer
         {
             // 2026-08-10 健壮性审查：C22 IsConnected 守卫（对齐 PauseUi/Hud）——未走
             // _ExitTree 的重入树路径会重复订阅，结算回调双跑（SettleRun 双执行）
-            if (!gs.IsConnected("PlayerDied", _onPlayerDied))
+            if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
             {
-                gs.Connect("PlayerDied", _onPlayerDied);
+                gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
             }
 
-            if (!gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
             {
-                gs.Connect("LocaleChanged", _onLocaleChanged);
+                gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
             }
         }
     }
@@ -67,14 +67,14 @@ public partial class GameOverUi : RadialMenuLayer
         var gs = GameState.Instance;
         if (gs != null)
         {
-            if (gs.IsConnected("PlayerDied", _onPlayerDied))
+            if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
             {
-                gs.Disconnect("PlayerDied", _onPlayerDied);
+                gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
             }
 
-            if (gs.IsConnected("LocaleChanged", _onLocaleChanged))
+            if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
             {
-                gs.Disconnect("LocaleChanged", _onLocaleChanged);
+                gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
             }
         }
     }

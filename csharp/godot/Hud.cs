@@ -187,11 +187,11 @@ public partial class Hud : CanvasLayer
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         _hpBar.Material = hpHolo;
         var gs = GameState.Instance!;
-        gs.Connect("ScoreChanged", Callable.From<int>(OnScoreChanged));
-        gs.Connect("HealthChanged", Callable.From<float>(OnHealthChanged));
-        gs.Connect("DifficultyChanged", Callable.From<float>(OnDifficultyChanged));
-        gs.Connect("DifficultySelected", Callable.From<StringName>(OnDifficultySelected));
-        gs.Connect("LocaleChanged", Callable.From(OnLocaleChanged));
+        gs.Connect(GameState.SignalName.ScoreChanged, Callable.From<int>(OnScoreChanged));
+        gs.Connect(GameState.SignalName.HealthChanged, Callable.From<float>(OnHealthChanged));
+        gs.Connect(GameState.SignalName.DifficultyChanged, Callable.From<float>(OnDifficultyChanged));
+        gs.Connect(GameState.SignalName.DifficultySelected, Callable.From<StringName>(OnDifficultySelected));
+        gs.Connect(GameState.SignalName.LocaleChanged, Callable.From(OnLocaleChanged));
         OnScoreChanged(GameState.Instance.Score);
         OnHealthChanged((float)GameState.Instance.Health);
         RefreshDifficultyLabel();
@@ -262,9 +262,9 @@ public partial class Hud : CanvasLayer
         BuildAugmentDock();
         BuildCacheIndicator();
         BuildInfoBanner();
-        gs.Connect("AugmentsChanged", Callable.From(RebuildAugmentDock));
-        gs.Connect("KeyBindingsChanged", Callable.From(RefreshAugmentTag));
-        gs.Connect("TalentCacheChanged", Callable.From<double, int>(OnTalentCacheChanged));
+        gs.Connect(GameState.SignalName.AugmentsChanged, Callable.From(RebuildAugmentDock));
+        gs.Connect(GameState.SignalName.KeyBindingsChanged, Callable.From(RefreshAugmentTag));
+        gs.Connect(GameState.SignalName.TalentCacheChanged, Callable.From<double, int>(OnTalentCacheChanged));
         RebuildAugmentDock();
         RefreshCacheIndicator();
         _hpBarRest = _hpBar.Position;
@@ -444,39 +444,39 @@ public partial class Hud : CanvasLayer
         var locale = Callable.From(OnLocaleChanged);
         var buffs = Callable.From(RebuildAugmentDock);
         var keybinds = Callable.From(RefreshAugmentTag);
-        if (gs.IsConnected("ScoreChanged", score))
+        if (gs.IsConnected(GameState.SignalName.ScoreChanged, score))
         {
-            gs.Disconnect("ScoreChanged", score);
+            gs.Disconnect(GameState.SignalName.ScoreChanged, score);
         }
 
-        if (gs.IsConnected("HealthChanged", health))
+        if (gs.IsConnected(GameState.SignalName.HealthChanged, health))
         {
-            gs.Disconnect("HealthChanged", health);
+            gs.Disconnect(GameState.SignalName.HealthChanged, health);
         }
 
-        if (gs.IsConnected("DifficultyChanged", diff))
+        if (gs.IsConnected(GameState.SignalName.DifficultyChanged, diff))
         {
-            gs.Disconnect("DifficultyChanged", diff);
+            gs.Disconnect(GameState.SignalName.DifficultyChanged, diff);
         }
 
-        if (gs.IsConnected("DifficultySelected", diffSel))
+        if (gs.IsConnected(GameState.SignalName.DifficultySelected, diffSel))
         {
-            gs.Disconnect("DifficultySelected", diffSel);
+            gs.Disconnect(GameState.SignalName.DifficultySelected, diffSel);
         }
 
-        if (gs.IsConnected("LocaleChanged", locale))
+        if (gs.IsConnected(GameState.SignalName.LocaleChanged, locale))
         {
-            gs.Disconnect("LocaleChanged", locale);
+            gs.Disconnect(GameState.SignalName.LocaleChanged, locale);
         }
 
-        if (gs.IsConnected("AugmentsChanged", buffs))
+        if (gs.IsConnected(GameState.SignalName.AugmentsChanged, buffs))
         {
-            gs.Disconnect("AugmentsChanged", buffs);
+            gs.Disconnect(GameState.SignalName.AugmentsChanged, buffs);
         }
 
-        if (gs.IsConnected("KeyBindingsChanged", keybinds))
+        if (gs.IsConnected(GameState.SignalName.KeyBindingsChanged, keybinds))
         {
-            gs.Disconnect("KeyBindingsChanged", keybinds);
+            gs.Disconnect(GameState.SignalName.KeyBindingsChanged, keybinds);
         }
     }
 
@@ -1389,7 +1389,7 @@ public partial class Hud : CanvasLayer
             _augmentRows.AddChild(MakeAugmentRow(entry[0].AsStringName(), (int)entry[1].AsInt64()));
         }
 
-        // 重建末尾重刷 HP 显示——天赋域（起始预置/加点/存档恢复）经 AugmentsChanged 驱动本方法，
+        // 重建末尾重刷 HP 显示——天赋域（起始预置/加点/重置）经 AugmentsChanged 驱动本方法，
         // _cachedMaxHp 已刷新但 _hpBar/_livesLabel 仍用旧 max 显示失真（extra_life 开局）；
         // OnHealthChanged 幂等，整数档位守卫下值未变不重格式化
         OnHealthChanged((float)GameState.Instance.Health);
@@ -1481,11 +1481,8 @@ public partial class Hud : CanvasLayer
         _infoTween.TweenCallback(Callable.From(_infoLabel.Hide));
     }
 
-    // ---------------- snake_case 兼容桥（M7 后保留：仍有 C# 动态派发/测试调用方；新代码直接调 PascalCase 主方法） ----------------
-
-    public void show_popup(string text, Vector2 worldPos) => ShowPopup(text, worldPos);
-
-    public void meta_jitter() => MetaJitter(2.0f);
+    // ---------------- snake_case 兼容桥（meta_jitter 由 MetaHealthFX 经 CallGroup("hud", "meta_jitter", ...) 动态派发——
+    // CallGroup 走方法名字符串，保留原名避免调用点失效） ----------------
 
     public void meta_jitter(float px) => MetaJitter(px);
 }

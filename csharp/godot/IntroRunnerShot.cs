@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 
-/// <summary>镜头 3：侧视走廊奔跑容器（原 GDScript intro_cinematic.gd 内嵌类 _RunnerShot，迁移为同文件顶层类）。
+/// <summary>镜头 3：侧视走廊奔跑容器（IntroCinematic 顶层镜头类）。
 /// 两拍跑步循环：双腿反相、手臂与对侧腿反相、躯干 2 倍频起伏（就地写 rotation/position，零堆分配）。</summary>
 public partial class IntroRunnerShot : Node2D
 {

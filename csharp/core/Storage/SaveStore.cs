@@ -3,10 +3,10 @@ using System.Text.Json.Nodes;
 
 namespace InfiAir.Core.Storage;
 
-/// <summary>加载结果状态（对齐 GDScript SaveManager.load 三态：缺失/正常/损坏隔离）。</summary>
+/// <summary>加载结果状态（三态：缺失/正常/损坏隔离）。</summary>
 public enum SaveLoadStatus
 {
-    /// <summary>文件不存在或读取失败（不置损坏——GDScript f == null 语义）。</summary>
+    /// <summary>文件不存在或读取失败（不置损坏——打不开按无存档处理）。</summary>
     Missing,
 
     /// <summary>JSON 解析成功且根为对象。</summary>
@@ -26,15 +26,15 @@ public sealed record SaveLoadResult(
 /// <summary>
 /// 存档文件存储核心（P0-1，2026-08-07 落地）：原子写（临时文件 + rename 回退）、
 /// 损坏隔离（.corrupt + 状态标记）、JSON 序列化（System.Text.Json）。
-/// 逐条对齐原 GDScript SaveManager（scripts/save_manager.gd，E12 审计口径）；
-/// 纯 .NET、零 Godot 依赖，xUnit 直测。文件内容差异（无害）：System.Text.Json 对整数值
+/// 语义与 Godot 侧 SaveManager 一致；纯 .NET、零 Godot 依赖，可独立单测。
+/// 文件内容差异（无害）：System.Text.Json 对整数值
 /// double 不写小数点（35.0 → "35"），回读数值等价；键序随 Dictionary 枚举序（插入序）。
 /// </summary>
 public sealed class SaveStore
 {
     public bool Exists(string path) => File.Exists(path);
 
-    /// <summary>删除文件（不存在时静默成功，对齐 GDScript 先判存在再删）。</summary>
+    /// <summary>删除文件（不存在时静默成功，先判存在再删）。</summary>
     public void Delete(string path)
     {
         // 2026-08-10 健壮性审查：IO 防护——只读/占用时 File.Delete 抛异常会让删号流程崩溃，

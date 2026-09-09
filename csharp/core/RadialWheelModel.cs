@@ -78,9 +78,6 @@ public sealed class RadialWheelModel
     /// <summary>聚焦项偏移一步（钳制在首末项；仅全容态有意义，调用方负责分流）。</summary>
     public void MoveFocus(int delta) => FocusBias += delta;
 
-    /// <summary>复位焦点偏移（下钻/回退/装载时调用，聚焦回弧面中点）。</summary>
-    public void ResetFocus() => FocusBias = 0;
-
     public int Depth => _stack.Count;
 
     public IReadOnlyList<RadialWheelOption> Current => Top.Options;
