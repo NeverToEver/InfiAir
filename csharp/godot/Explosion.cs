@@ -153,7 +153,7 @@ public partial class Explosion : GpuParticles2D
             DampingMax = 140.0f,
             ScaleMin = 2.0f / CinematicFx.SoftTexSize,
             ScaleMax = 5.0f / CinematicFx.SoftTexSize,
-            Color = new Color(1.0f, 0.6f, 0.15f),
+            Color = new Color(1.0f, 0.66f, 0.22f),
             ColorRamp = FireRamp(),
         };
         ProcessMaterial = mat;
@@ -189,7 +189,7 @@ public partial class Explosion : GpuParticles2D
         {
             Points = CinematicFx.RingPoints(40, 26.0f),
             Closed = true,
-            DefaultColor = new Color(1.0f, 0.7f, 0.35f, 0.45f),
+            DefaultColor = new Color(1.0f, 0.74f, 0.38f, 0.45f),
             Width = 5.0f,
             Material = CinematicFx.AdditiveMaterial(),
         };
@@ -228,8 +228,8 @@ public partial class Explosion : GpuParticles2D
             Colors = new[]
             {
                 new Color(1.0f, 0.97f, 0.85f, 1.0f),
-                new Color(1.0f, 0.6f, 0.15f, 0.9f),
-                new Color(0.55f, 0.12f, 0.05f, 0.0f),
+                new Color(1.0f, 0.66f, 0.22f, 0.9f),
+                new Color(0.58f, 0.16f, 0.04f, 0.0f),
             },
         };
         return new GradientTexture1D { Gradient = g };

@@ -87,6 +87,8 @@ public partial class Main : Node2D
     private FormationStrikeEvent _formation = null!;
     /// <summary>Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）</summary>
     private MetaHealthFX _metaFx = null!;
+    /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
+    private WorldPostFx _worldPostFx = null!;
     /// <summary>辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）</summary>
     private AimFrameLayer _aimFrames = null!;
     /// <summary>触屏虚拟输入层（mobile touch）</summary>
@@ -130,7 +132,7 @@ public partial class Main : Node2D
         Engine.TimeScale = 1.0f;
         // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
         GameState.Instance.SummonInProgress = false;
-        RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
+        RenderingServer.SetDefaultClearColor(new Color(0.025f, 0.022f, 0.018f));
         _spawner.BossSpawned += _hud.ShowBossBar;
         _spawner.BossSpawned += OnBossSpawned;
         _spawner.BossWarning += _hud.ShowBossBanner;
@@ -170,10 +172,13 @@ public partial class Main : Node2D
         GameState.Instance.SetRunActive(GetTree().CurrentScene == this);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
         GameState.Instance.CameraRef = _camera;
+        // 世界层画面增强（layer=1，世界之上、HUD 之下）：先于 MetaFX 入树——同 layer 靠树序，
+        // 使 MetaFX 的屏幕采样包含辉光/分级结果（世界 → 增强 → Meta → HUD）
+        _worldPostFx = new WorldPostFx();
+        AddChild(_worldPostFx);
         // Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
         _metaFx = new MetaHealthFX();
-        AddChild(_metaFx);
-        // 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
+        AddChild(_metaFx);        // 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
         _aimFrames = new AimFrameLayer();
         AddChild(_aimFrames);
         // 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
@@ -225,9 +230,28 @@ public partial class Main : Node2D
         {
             // 幂等兜底：标题屏→开局依赖「到标题屏前必已 ResetRun」的上游约定
             // （当前所有到 title 的边均已复位）；此处直进开局分支补一次，新增到 title 的路径不踩雷
-            GameState.Instance.ResetRun();
+            //
+            // 本局存档（2026-09-10）：标题屏选「继续上次出击」→ PendingLoadRun 置位，读档成功则
+            // 跳过 ResetRun（LoadRun 内部已 ResetRun 并按存档还原）；否则全新一局。
+            //
+            // 非破坏性：选「新的一局」或读档失败都**不删旧档**——检查点保留到被新档覆盖（回基地/保存退出）
+            // 或被本局终结清除（死亡/重开）。这样标题屏一次误触不会抹掉进度，且读档失败（损坏档已隔离）
+            // 也不额外破坏文件。
+            var bootGs = GameState.Instance;
+            var loaded = false;
+            if (bootGs.PendingLoadRun)
+            {
+                loaded = bootGs.LoadRun();
+                bootGs.PendingLoadRun = false;
+            }
+
+            if (!loaded)
+            {
+                bootGs.ResetRun(); // 全新一局（保留旧档，待新档覆盖）
+            }
+
             ApplyNewRun();
-            StartEntrySequenceInternal(); // 从标题屏返回：直接开局
+            StartEntrySequenceInternal(); // 从标题屏返回：读档或全新开局
         }
         else
         {
@@ -678,6 +702,9 @@ public partial class Main : Node2D
     {
         _return = null;
         _baseUi.ShowBase();
+        // 本局存档：回到基地（母舰坞修/返航）自动落盘——基地是天然的安全点，
+        // 崩溃/断电后可从基地继续；「不保存退出」仍可主动丢弃。
+        GameState.Instance.SaveRun();
         if (_bgmPlayer != null)
         {
             var bgmTween = CreateTween();

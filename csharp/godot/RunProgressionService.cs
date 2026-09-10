@@ -133,6 +133,12 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）</summary>
     public double DdaFactor() => _ddaTimer > 0.0 ? DDA_FACTOR : 1.0;
 
+    /// <summary>DDA 计时剩余（读档写出用）。</summary>
+    public double DdaRemaining() => _ddaTimer;
+
+    /// <summary>当前难度时间档（读档写出用；本可由 RunTime 推导，存下以免曲线参数变化后档位漂移）。</summary>
+    public int DifficultyTimeStep() => _difficultyTimeStep;
+
     public double EnemyHpMultiplier()
     {
         if (Difficulty != _multCachedDifficulty)
@@ -308,5 +314,15 @@ public sealed partial class RunProgressionService : RefCounted
         DifficultyMultiplier = 1.0;
         _difficultyTimeStep = 0;
         _ddaTimer = 0.0; // A 审计：DDA 计时跨对局残留——旧局受击降档渗透新局
+    }
+
+    /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新
+    /// （DDA 计时不还原剩余时长——读档从新一波开始，降档仅作参考量不持久化语义）。</summary>
+    public void RestoreRunState(double difficultyMultiplier, int difficultyTimeStep, double ddaTimer)
+    {
+        DifficultyMultiplier = Math.Max(difficultyMultiplier, 1.0);
+        _difficultyTimeStep = Math.Max(difficultyTimeStep, 0);
+        _ddaTimer = Math.Max(ddaTimer, 0.0);
+        RefreshRegenCache();
     }
 }

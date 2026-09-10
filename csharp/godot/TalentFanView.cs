@@ -244,9 +244,9 @@ public partial class TalentFanView : Control
         var (border, bg) = (overcharged, level, prereqOk) switch
         {
             (true, _, _) => (new Color(UITheme.AccentGold, 0.9f), new Color(0.09f, 0.075f, 0.045f, 0.92f)), // 已风险加点：暗金
-            (_, > 0, _) => (new Color(catColor, capSealed ? 0.65f : 0.9f), new Color(0.075f, 0.11f, 0.165f, 0.95f)),
-            (_, _, false) => (new Color(UITheme.PanelBorder, 0.28f), new Color(0.04f, 0.055f, 0.085f, 0.75f)), // 未解锁
-            _ => (new Color(catColor, 0.55f), new Color(0.058f, 0.086f, 0.130f, 0.85f)),
+            (_, > 0, _) => (new Color(catColor, capSealed ? 0.65f : 0.9f), new Color(0.105f, 0.092f, 0.075f, 0.95f)),
+            (_, _, false) => (new Color(UITheme.PanelBorder, 0.28f), new Color(0.055f, 0.050f, 0.044f, 0.75f)), // 未解锁
+            _ => (new Color(catColor, 0.55f), new Color(0.078f, 0.073f, 0.065f, 0.85f)),
         };
         if (!overcharged && level < cap && prereqOk && canPay)
         {

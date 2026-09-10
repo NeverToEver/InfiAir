@@ -18,6 +18,8 @@ public partial class ExitConfirm : CanvasLayer
     public event System.Action? Canceled;
     private Label _msgLabel = null!;
     private Button _okButton = null!;
+    private Button _saveQuitButton = null!;
+    private Button _noSaveQuitButton = null!;
     private Button _cancelButton = null!;
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
@@ -47,12 +49,22 @@ public partial class ExitConfirm : CanvasLayer
         content.AddChild(_msgLabel);
 
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        row.AddThemeConstantOverride("separation", 24);
+        row.AddThemeConstantOverride("separation", 20);
         content.AddChild(row);
 
         _cancelButton = MakeButton(Tr("EXIT_CANCEL"));
         _cancelButton.Pressed += Cancel;
         row.AddChild(_cancelButton);
+
+        // 战斗模式专属：存档并退出 / 不保存退出（正常模式只有「确认退出 / 取消」两键）
+        _saveQuitButton = MakeButton(Tr("EXIT_SAVE_QUIT"));
+        _saveQuitButton.Pressed += OnSaveQuitPressed;
+        row.AddChild(_saveQuitButton);
+        _noSaveQuitButton = MakeButton(Tr("EXIT_NOSAVE_QUIT"));
+        _noSaveQuitButton.AddThemeColorOverride("font_color", UITheme.Danger);
+        _noSaveQuitButton.AddThemeColorOverride("font_hover_color", UITheme.Danger);
+        _noSaveQuitButton.Pressed += OnOkPressed;
+        row.AddChild(_noSaveQuitButton);
 
         _okButton = MakeButton(Tr("EXIT_OK"));
         _okButton.AddThemeColorOverride("font_color", UITheme.Danger);
@@ -102,7 +114,13 @@ public partial class ExitConfirm : CanvasLayer
         _msgLabel.Text = _battle ? Tr("EXIT_BATTLE_MSG") : Tr("EXIT_MSG");
         _msgLabel.AddThemeColorOverride("font_color", _battle ? UITheme.Danger : UITheme.Text);
         _okButton.Text = Tr("EXIT_OK");
+        _saveQuitButton.Text = Tr("EXIT_SAVE_QUIT");
+        _noSaveQuitButton.Text = Tr("EXIT_NOSAVE_QUIT");
         _cancelButton.Text = Tr("EXIT_CANCEL");
+        // 战斗模式三键（存档并退出 / 不保存退出 / 取消）；正常模式仅「确认退出 / 取消」
+        _saveQuitButton.Visible = _battle;
+        _noSaveQuitButton.Visible = _battle;
+        _okButton.Visible = !_battle;
     }
 
     /// <summary>取消退出（Esc/手柄 B 由 BackNavigator 路由到这里）</summary>
@@ -126,6 +144,19 @@ public partial class ExitConfirm : CanvasLayer
             return;
         }
         _exiting = true;
+        ExecuteExitCleanup(_battle);
+        FadeAndQuit();
+    }
+
+    /// <summary>「存档并退出」：先落盘本局进度再走统一退出清理（战斗模式专属）。</summary>
+    private void OnSaveQuitPressed()
+    {
+        if (_exiting)
+        {
+            return;
+        }
+        _exiting = true;
+        GameState.Instance.SaveRun();
         ExecuteExitCleanup(_battle);
         FadeAndQuit();
     }

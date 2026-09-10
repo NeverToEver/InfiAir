@@ -246,6 +246,33 @@ public partial class DawnStation : RefCounted
             station.AddChild(segEdge);
             station.MoveChild(segEdge, seg.GetIndex());
             edges.Add(segEdge);
+            // 舱段模块细节（挂在 seg 下，随其 rotation/position 继承几何）：
+            // 舷窗灯带 + 纵向装甲分缝 + 两端端盖条 + 顶部散热格栅——环体从「矩形块」变「舱段模块」
+            for (var w = 0; w < 5; w++)
+            {
+                var win = RectPoly(4.0f, 4.0f, new Color(1.0f, 0.78f, 0.42f, 0.85f));
+                win.Position = new Vector2(-24.0f + 12.0f * w, -9.0f);
+                Additive(win);
+                seg.AddChild(win);
+            }
+
+            var panelSeam = Line(new[] { new Vector2(-30.0f, 2.0f), new Vector2(30.0f, 2.0f) }, PaletteColor(palette, "tick"), 1.6f);
+            seg.AddChild(panelSeam);
+            var panelSeam2 = Line(new[] { new Vector2(-30.0f, -14.0f), new Vector2(30.0f, -14.0f) }, PaletteColor(palette, "tick"), 1.2f);
+            seg.AddChild(panelSeam2);
+            foreach (var ex in new[] { -29.0f, 29.0f })
+            {
+                var cap = RectPoly(4.0f, 34.0f, PaletteColor(palette, "seg_edge"));
+                cap.Position = new Vector2(ex, 0.0f);
+                seg.AddChild(cap);
+            }
+
+            for (var g = 0; g < 4; g++)
+            {
+                var ventBar = Line(new[] { new Vector2(-14.0f + 9.0f * g, 12.0f), new Vector2(-14.0f + 9.0f * g, 18.0f) }, PaletteColor(palette, "tick"), 1.4f);
+                seg.AddChild(ventBar);
+            }
+
             var spoke = Line(new[] { dir * 70.0f, dir * 240.0f }, PaletteColor(palette, "spoke"), 8.0f);
             if (additive)
             {
@@ -321,14 +348,14 @@ public partial class DawnStation : RefCounted
             station,
             new Godot.Collections.Dictionary
             {
-                ["ring"] = new Color(0.55f, 0.63f, 0.78f),
-                ["detail"] = new Color(0.68f, 0.76f, 0.9f, 0.6f),
-                ["tick"] = new Color(0.3f, 0.36f, 0.48f),
-                ["seg"] = new Color(0.66f, 0.73f, 0.85f),
-                ["seg_edge"] = new Color(0.78f, 0.85f, 0.95f, 0.45f),
-                ["spoke"] = new Color(0.42f, 0.5f, 0.64f),
-                ["hub"] = new Color(0.42f, 0.48f, 0.6f),
-                ["hub_ring"] = new Color(0.62f, 0.72f, 0.88f, 0.7f),
+                ["ring"] = new Color(0.62f, 0.60f, 0.56f),
+                ["detail"] = new Color(0.76f, 0.72f, 0.66f, 0.6f),
+                ["tick"] = new Color(0.36f, 0.34f, 0.31f),
+                ["seg"] = new Color(0.72f, 0.68f, 0.62f),
+                ["seg_edge"] = new Color(0.88f, 0.83f, 0.75f, 0.45f),
+                ["spoke"] = new Color(0.48f, 0.45f, 0.41f),
+                ["hub"] = new Color(0.47f, 0.44f, 0.40f),
+                ["hub_ring"] = new Color(0.70f, 0.66f, 0.60f, 0.7f),
             },
             false,
             new Godot.Collections.Array());
@@ -340,9 +367,9 @@ public partial class DawnStation : RefCounted
             brokenPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
         }
 
-        station.AddChild(Line(brokenPoints, new Color(0.05f, 0.05f, 0.08f), 30.0f));
+        station.AddChild(Line(brokenPoints, new Color(0.055f, 0.052f, 0.048f), 30.0f));
         // 破口锯齿边缘
-        var jagged = new Polygon2D { Polygon = JaggedPoints(), Color = new Color(0.03f, 0.03f, 0.05f) };
+        var jagged = new Polygon2D { Polygon = JaggedPoints(), Color = new Color(0.035f, 0.032f, 0.030f) };
         station.AddChild(jagged);
         // 破口剥落碎片：小多边形缓慢外飘 + 翻滚
         for (var k = 0; k < 3; k++)
@@ -356,7 +383,7 @@ public partial class DawnStation : RefCounted
                     new Vector2(5.0f, 7.0f),
                     new Vector2(-6.0f, 6.0f),
                 },
-                Color = new Color(0.3f, 0.36f, 0.46f),
+                Color = new Color(0.34f, 0.32f, 0.29f),
             };
             var fa = 0.6f + 0.3f * k;
             flake.Position = new Vector2(Mathf.Cos(fa), Mathf.Sin(fa)) * 265.0f;

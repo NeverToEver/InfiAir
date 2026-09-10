@@ -90,6 +90,18 @@ public partial class GameState : Node
     /// <summary>无障碍·减少闪光：开关持久化到 settings.json 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
     public void SetReduceFlash(bool enabled) => _settings.SetReduceFlash(enabled);
 
+    /// <summary>世界层画面增强：开关持久化到 settings.json 并广播（WorldPostFx 据此显隐全屏增强层）</summary>
+    public void SetWorldPostFx(bool enabled) => _settings.SetWorldPostFx(enabled);
+
+    /// <summary>帧率上限档位：持久化到 settings.json + 立即应用到引擎并广播</summary>
+    public void SetFpsCap(StringName level) => _settings.SetFpsCap(level);
+
+    /// <summary>垂直同步：持久化到 settings.json + 立即应用到引擎并广播</summary>
+    public void SetVSync(bool enabled) => _settings.SetVSync(enabled);
+
+    /// <summary>把持久化的帧率上限/垂直同步应用到引擎（启动加载后调用一次）</summary>
+    public void ApplyDisplaySettings() => _settings.ApplyDisplay();
+
     /// <summary>鼠标锁定窗口内：开关持久化到 settings.json 并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
     public void SetMouseLock(bool enabled) => _settings.SetMouseLock(enabled);
 

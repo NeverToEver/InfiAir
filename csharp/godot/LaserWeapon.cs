@@ -69,7 +69,7 @@ public partial class LaserWeapon : Node2D
         {
             TopLevel = true,
             Width = 14.0f,
-            DefaultColor = new Color(0.55f, 0.9f, 1.0f, 0.9f),
+            DefaultColor = new Color(1.0f, 0.74f, 0.34f, 0.9f),
             BeginCapMode = Line2D.LineCapMode.Round,
             EndCapMode = Line2D.LineCapMode.Round,
             Visible = false,
@@ -92,7 +92,7 @@ public partial class LaserWeapon : Node2D
             InitialVelocityMax = 120.0f,
             ScaleMin = 1.5f,
             ScaleMax = 3.0f,
-            Color = new Color(0.6f, 0.95f, 1.0f, 0.9f),
+            Color = new Color(1.0f, 0.78f, 0.42f, 0.9f),
         };
         _glow.ProcessMaterial = mat;
         AddChild(_glow);

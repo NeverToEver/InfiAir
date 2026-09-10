@@ -162,12 +162,10 @@ public partial class IntroCinematic : CanvasLayer
         contactShadow.Position = new Vector2(880.0f, 766.0f);
         contactShadow.Scale = new Vector2(2.2f, 0.5f);
         root.AddChild(contactShadow);
-        // 驾驶员：多段式飞行服人物（骨盆/胸廓/头盔/维生背包/双关节四肢），两拍奔跑由 _process 相位驱动
-        var bodyColor = new Color(0.24f, 0.3f, 0.4f);  // 近侧肢体
-        var farColor = new Color(0.14f, 0.18f, 0.26f);  // 远侧肢体（深度层次）
-        var edgeColor = new Color(0.55f, 0.66f, 0.84f, 0.7f);  // 分件边缘线
+        // 驾驶员与双层残影（动态模糊）：细节收敛至共享构件工厂 CrewFigure；
+        // 残影复用其胸廓剪影与头盔尺度，拖在奔跑反方向
+        var bodyColor = new Color(0.26f, 0.31f, 0.41f);  // 与 CrewFigure.SuitNear 一致（残影用）
         var chestPoints = new[] { new Vector2(-7.0f, -14.0f), new Vector2(13.0f, -16.0f), new Vector2(17.0f, -42.0f), new Vector2(-3.0f, -46.0f) };
-        // 双层残影（动态模糊）：胸廓/头盔淡影，拖在奔跑反方向
         foreach (var k in new[] { 2, 1 })
         {
             var ghost = new Node2D
@@ -184,113 +182,34 @@ public partial class IntroCinematic : CanvasLayer
             ghost.AddChild(gHead);
         }
 
-        var pilot = new Node2D
-        {
-            Position = new Vector2(880.0f, 566.0f),
-            Scale = Vector2.One * 2.3f,
-        };
+        // 乘员（琥珀状态灯，贴合开场暖调+应急红）
+        var crew = CrewFigure.Build(new Color(1.0f, 0.72f, 0.28f));
+        var pilot = (Node2D)crew["node"].AsGodotObject();
+        pilot.Position = new Vector2(880.0f, 566.0f);
+        pilot.Scale = Vector2.One * 2.3f;
         root.AddChild(pilot);
         root.BobNode = pilot;
         root.BobBaseY = pilot.Position.Y;
-        // 腿部（远侧先画）：髋→大腿→膝→小腿→飞行靴（靴底加厚线）
-        foreach (var sideI in new[] { 1, 0 })
+        // 奔跑前倾：躯干组 0.3rad（与旧内联版一致，动画相位公式照旧）
+        ((Node2D)crew["torso"].AsGodotObject()).Rotation = 0.3f;
+        foreach (var h in crew["hips"].AsGodotArray())
         {
-            var c = sideI == 0 ? bodyColor : farColor;
-            var hip = new Node2D { Position = new Vector2(2.0f - 4.0f * sideI, -4.0f + 2.0f * sideI) };
-            pilot.AddChild(hip);
-            var thigh = RectPoly(6.5f, 22.0f, c);
-            thigh.Position = new Vector2(0.0f, 11.0f);
-            hip.AddChild(thigh);
-            thigh.AddChild(Line(new[] { new Vector2(2.6f, -9.0f), new Vector2(2.6f, 9.0f) }, edgeColor, 1.2f));
-            var knee = new Node2D { Position = new Vector2(0.0f, 22.0f) };
-            hip.AddChild(knee);
-            var shin = RectPoly(5.0f, 20.0f, c);
-            shin.Position = new Vector2(0.0f, 10.0f);
-            knee.AddChild(shin);
-            var boot = new Polygon2D
-            {
-                Polygon = new[] { new Vector2(-4.0f, 16.0f), new Vector2(7.0f, 16.0f), new Vector2(10.0f, 22.0f), new Vector2(-4.0f, 22.0f) },
-                Color = c,
-            };
-            knee.AddChild(boot);
-            knee.AddChild(Line(new[] { new Vector2(-4.0f, 22.5f), new Vector2(10.0f, 22.5f) }, edgeColor, 1.6f));
-            root.HipPivots.Add(hip);
-            root.KneePivots.Add(knee);
+            root.HipPivots.Add((Node2D)h.AsGodotObject());
         }
 
-        // 躯干组：绕骨盆前倾 0.3rad（胸廓/背包/头盔/手臂随体倾斜）
-        var torsoGrp = new Node2D { Rotation = 0.3f };
-        pilot.AddChild(torsoGrp);
-        var pelvis = new Polygon2D
+        foreach (var kn in crew["knees"].AsGodotArray())
         {
-            Polygon = new[] { new Vector2(-9.0f, -2.0f), new Vector2(7.0f, -4.0f), new Vector2(9.0f, -14.0f), new Vector2(-7.0f, -14.0f) },
-            Color = bodyColor,
-        };
-        torsoGrp.AddChild(pelvis);
-        // 生命维持背包（背部方块结构 + 顶部管线 + 青色指示灯）与腰侧挂点
-        var backpack = RectPoly(12.0f, 24.0f, farColor);
-        backpack.Position = new Vector2(-11.0f, -30.0f);
-        torsoGrp.AddChild(backpack);
-        torsoGrp.AddChild(Line(new[] { new Vector2(-11.0f, -44.0f), new Vector2(-11.0f, -50.0f), new Vector2(2.0f, -54.0f) }, edgeColor, 1.4f));
-        var packLight = Glow(2.0f, new Color(0.0f, 0.83f, 1.0f, 0.8f));
-        packLight.Position = new Vector2(-13.0f, -24.0f);
-        torsoGrp.AddChild(packLight);
-        var pouch = RectPoly(5.0f, 7.0f, farColor);
-        pouch.Position = new Vector2(-9.0f, -8.0f);
-        torsoGrp.AddChild(pouch);
-        // 胸廓 + 胸包 + 前缘分件线 + 肩部护甲
-        var chest = new Polygon2D { Polygon = chestPoints, Color = bodyColor };
-        torsoGrp.AddChild(chest);
-        torsoGrp.AddChild(Line(new[] { new Vector2(13.0f, -16.0f), new Vector2(17.0f, -42.0f) }, edgeColor, 1.6f));
-        var chestPack = RectPoly(6.0f, 9.0f, new Color(0.3f, 0.38f, 0.5f));
-        chestPack.Position = new Vector2(11.0f, -28.0f);
-        torsoGrp.AddChild(chestPack);
-        var shoulderPad = new Polygon2D
+            root.KneePivots.Add((Node2D)kn.AsGodotObject());
+        }
+
+        foreach (var sh in crew["shoulders"].AsGodotArray())
         {
-            Polygon = new[] { new Vector2(-4.0f, -52.0f), new Vector2(10.0f, -54.0f), new Vector2(12.0f, -44.0f), new Vector2(-2.0f, -43.0f) },
-            Color = new Color(0.22f, 0.28f, 0.38f),
-        };
-        torsoGrp.AddChild(shoulderPad);
-        // 颈 + 头盔（面罩高光 + 暖色边缘光）
-        var neck = RectPoly(4.0f, 7.0f, bodyColor);
-        neck.Position = new Vector2(8.0f, -51.0f);
-        torsoGrp.AddChild(neck);
-        var helmet = new GlowDot { Radius = 10.5f, DotColor = bodyColor, Position = new Vector2(11.0f, -62.0f) };
-        torsoGrp.AddChild(helmet);
-        var helmetRim = CinematicFx.SoftGlow(12.0f, new Color(1.0f, 0.6f, 0.3f, 0.3f));
-        helmetRim.Position = new Vector2(13.0f, -64.0f);
-        torsoGrp.AddChild(helmetRim);
-        var visor = Glow(3.5f, new Color(0.5f, 0.9f, 1.0f, 0.8f));
-        visor.Position = new Vector2(19.0f, -64.0f);
-        torsoGrp.AddChild(visor);
-        // 躯干暖色边缘光（胸廓描边副本，叠加态微偏移）
-        var rimTorso = new Polygon2D
+            root.ShoulderPivots.Add((Node2D)sh.AsGodotObject());
+        }
+
+        foreach (var el in crew["elbows"].AsGodotArray())
         {
-            Polygon = chestPoints,
-            Color = new Color(1.0f, 0.6f, 0.3f, 0.3f),
-            Position = new Vector2(2.0f, -2.0f),
-            Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
-        };
-        torsoGrp.AddChild(rimTorso);
-        // 手臂（远侧先画）：肩→上臂→肘→前臂→手，与对侧腿反相摆动
-        foreach (var sideI in new[] { 1, 0 })
-        {
-            var c = sideI == 0 ? bodyColor : farColor;
-            var shoulder = new Node2D { Position = new Vector2(8.0f - 6.0f * sideI, -42.0f + 2.0f * sideI) };
-            torsoGrp.AddChild(shoulder);
-            var upper = RectPoly(5.0f, 16.0f, c);
-            upper.Position = new Vector2(0.0f, 8.0f);
-            shoulder.AddChild(upper);
-            var elbow = new Node2D { Position = new Vector2(0.0f, 16.0f) };
-            shoulder.AddChild(elbow);
-            var forearm = RectPoly(4.5f, 15.0f, c);
-            forearm.Position = new Vector2(0.0f, 7.5f);
-            elbow.AddChild(forearm);
-            forearm.AddChild(Line(new[] { new Vector2(1.8f, -6.0f), new Vector2(1.8f, 6.0f) }, edgeColor, 1.2f));
-            var hand = new GlowDot { Radius = 4.0f, DotColor = c, Position = new Vector2(0.0f, 16.0f) };
-            elbow.AddChild(hand);
-            root.ShoulderPivots.Add(shoulder);
-            root.ElbowPivots.Add(elbow);
+            root.ElbowPivots.Add((Node2D)el.AsGodotObject());
         }
 
         // 速度线（加密）

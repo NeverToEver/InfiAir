@@ -58,6 +58,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private static readonly Color TailGlowColor = new(1.0f, 0.22f, 0.38f, 0.32f);
     private static readonly Color TailGlowColorElite = new(1.0f, 0.25f, 0.42f, 0.46f);
 
+    // ---- 机体背光轮廓（阵营染色加法剪影，替代平面贴图的"平"感；随机体旋转/缩放） ----
+    private static readonly Color RimGlowColor = new(1.0f, 0.30f, 0.46f, 0.34f);
+    private static readonly Color RimGlowColorElite = new(1.0f, 0.34f, 0.52f, 0.46f);
+    private Sprite2D? _rimGlow;
+
     // ---- 对局状态（Setup/Reactivate 写入；公开属性直读写） ----
     public StringName Strategy { get; set; } = "straight";
     public bool IsElite { get; private set; }
@@ -300,6 +305,34 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
 
         AimFrameRadius = hitR; // G07：辅助框半径缓存随 setup 刷新（P1-6-8：meta 改实例字段直读）
+        UpdateRimGlow();
+    }
+
+    /// <summary>机体背光轮廓：贴图同源副本 + 加性材质 + 阵营染色，略放大垫在机体之下，
+    /// 给平面精灵加一圈"受光剪影"（纯装饰子节点，随 Sprite2D 旋转/缩放自动跟随）。</summary>
+    private void UpdateRimGlow()
+    {
+        _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+        if (_sprite == null || _sprite.Texture == null)
+        {
+            return;
+        }
+
+        if (_rimGlow == null)
+        {
+            _rimGlow = new Sprite2D
+            {
+                Texture = _sprite.Texture,
+                Scale = new Vector2(1.16f, 1.16f),
+                Material = CinematicFx.AdditiveMaterial(),
+                ZIndex = -1,
+                ShowBehindParent = true,
+            };
+            _sprite.AddChild(_rimGlow);
+        }
+
+        _rimGlow.Texture = _sprite.Texture;
+        _rimGlow.Modulate = IsElite ? RimGlowColorElite : RimGlowColor;
     }
 
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)

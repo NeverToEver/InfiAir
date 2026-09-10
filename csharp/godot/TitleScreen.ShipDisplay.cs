@@ -29,11 +29,11 @@ public partial class TitleScreen : CanvasLayer
         _shipAnchor = new Node2D { Position = ShipFarPos, Scale = Vector2.One * 0.05f };
         AddChild(_shipAnchor);
 
-        // 轮廓背光：大范围低强度青辉光 + 内圈亮芯（光源不随机体浮动，落位后托出金属体积感）
-        var rim = CinematicFx.SoftGlow(190.0f, new Color(0.0f, 0.83f, 1.0f, 0.14f));
+        // 轮廓背光：大范围低强度琥珀辉光 + 内圈亮芯（光源不随机体浮动，落位后托出金属体积感）
+        var rim = CinematicFx.SoftGlow(190.0f, new Color(1.0f, 0.66f, 0.24f, 0.16f));
         rim.Position = new Vector2(0.0f, 10.0f);
         _shipAnchor.AddChild(rim);
-        var rimCore = CinematicFx.SoftGlow(90.0f, new Color(0.5f, 0.95f, 1.0f, 0.16f));
+        var rimCore = CinematicFx.SoftGlow(90.0f, new Color(1.0f, 0.86f, 0.52f, 0.18f));
         rimCore.Position = new Vector2(0.0f, -6.0f);
         _shipAnchor.AddChild(rimCore);
 
@@ -91,7 +91,7 @@ public partial class TitleScreen : CanvasLayer
                 ["vel_max"] = 330.0f,
                 ["scale_min"] = 5.0f,
                 ["scale_max"] = 9.0f,
-                ["color"] = new Color(0.0f, 0.83f, 1.0f, 0.8f),
+                ["color"] = new Color(1.0f, 0.68f, 0.26f, 0.8f),
             });
             flame.Position = new Vector2(side, 114.0f);
             flame.AmountRatio = 0.0f; // 点火前无粒子
@@ -108,7 +108,7 @@ public partial class TitleScreen : CanvasLayer
                 ["vel_max"] = 230.0f,
                 ["scale_min"] = 2.5f,
                 ["scale_max"] = 5.0f,
-                ["color"] = new Color(0.85f, 0.98f, 1.0f, 1.0f),
+                ["color"] = new Color(1.0f, 0.92f, 0.72f, 1.0f),
             });
             coreFlame.Position = new Vector2(side, 110.0f);
             coreFlame.AmountRatio = 0.0f;
@@ -116,7 +116,7 @@ public partial class TitleScreen : CanvasLayer
             _engines.Add(coreFlame);
 
             // 喷口辉光（SoftGlow(24) 基准 scale = 24/32 = 0.75）
-            var nozzle = CinematicFx.SoftGlow(24.0f, new Color(0.0f, 0.83f, 1.0f, 0.6f));
+            var nozzle = CinematicFx.SoftGlow(24.0f, new Color(1.0f, 0.72f, 0.30f, 0.6f));
             nozzle.Position = new Vector2(side, 108.0f);
             nozzle.Scale = Vector2.Zero;
             _shipBobber.AddChild(nozzle);
@@ -160,8 +160,8 @@ public partial class TitleScreen : CanvasLayer
         {
             ["radius"] = 130.0f,
             ["time"] = 0.5f,
-            ["color"] = new Color(0.0f, 0.83f, 1.0f, 0.3f),
-            ["core_color"] = new Color(0.8f, 0.97f, 1.0f, 0.5f),
+            ["color"] = new Color(1.0f, 0.70f, 0.28f, 0.32f),
+            ["core_color"] = new Color(1.0f, 0.92f, 0.72f, 0.5f),
             ["width"] = 8.0f,
         });
         brake.Position = ShipAnchorPos;

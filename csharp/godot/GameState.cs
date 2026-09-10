@@ -72,6 +72,14 @@ public partial class GameState : Node
     [Signal]
     public delegate void ReduceFlashChangedEventHandler(bool enabled);
 
+    /// <summary>世界层画面增强开关（辉光/分级）变更广播；WorldPostFx 据此显隐全屏增强层</summary>
+    [Signal]
+    public delegate void WorldPostFxChangedEventHandler(bool enabled);
+
+    /// <summary>性能/显示设置（帧率上限 / 垂直同步）变更广播（设置页即时生效，UI 可据此刷新）</summary>
+    [Signal]
+    public delegate void DisplaySettingsChangedEventHandler();
+
     [Signal]
     public delegate void MouseLockChangedEventHandler(bool enabled);
 
@@ -203,12 +211,15 @@ public partial class GameState : Node
         ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile("res://scenes/title.tscn");
     }
 
-    /// <summary>弃局静默重开单口（结算页「重新出击」/暂停页 R 重开共用）：解除暂停 + 全新一局 +
-    /// 重载当前场景（main 重建）。不含 AB13 退出确认守卫——暂停页 R 重开由 PauseUi.RestartRun
-    /// 本地守卫后转调本单口，其他入口直接调用即可。</summary>
+    /// <summary>弃局静默重开单口（结算页「重新出击」/暂停页 R 重开共用）：解除暂停 + 本局终结清档
+    /// + 全新一局 + 重载当前场景（main 重建）。不含 AB13 退出确认守卫——暂停页 R 重开由
+    /// PauseUi.RestartRun 本地守卫后转调本单口，其他入口直接调用即可。
+    /// 清档理由：重开 = 主动放弃本局（结算页本就是死亡后入口），检查点随之作废——
+    /// 否则「读档 → 暂停重开 → 再退出重进」可反复读回同一份进度（无限回滚）。</summary>
     public void RestartRun()
     {
         SetTreePaused(false);
+        DeleteRunSave(); // 本局终结：检查点作废（与死亡删档同口径）
         ResetRun();
         ((SceneTree?)Engine.GetMainLoop())?.ReloadCurrentScene();
     }
@@ -428,6 +439,10 @@ public partial class GameState : Node
 
     private void OnSettingsReduceFlashChanged(bool v) => EmitSignal(SignalName.ReduceFlashChanged, v);
 
+    private void OnSettingsWorldPostFxChanged(bool v) => EmitSignal(SignalName.WorldPostFxChanged, v);
+
+    private void OnSettingsDisplaySettingsChanged() => EmitSignal(SignalName.DisplaySettingsChanged);
+
     private void OnSettingsMouseLockChanged(bool v) => EmitSignal(SignalName.MouseLockChanged, v);
 
     private void OnSettingsJoySettingsChanged(double aimSpeed, double deadzone) => EmitSignal(SignalName.JoySettingsChanged, aimSpeed, deadzone);
@@ -489,6 +504,8 @@ public partial class GameState : Node
         _settings.WindowSizeChanged += OnSettingsWindowSizeChanged;
         _settings.AimAssistChanged += OnSettingsAimAssistChanged;
         _settings.ReduceFlashChanged += OnSettingsReduceFlashChanged;
+        _settings.WorldPostFxChanged += OnSettingsWorldPostFxChanged;
+        _settings.DisplaySettingsChanged += OnSettingsDisplaySettingsChanged;
         _settings.MouseLockChanged += OnSettingsMouseLockChanged;
         _settings.JoySettingsChanged += OnSettingsJoySettingsChanged;
         _settings.LocaleChanged += OnSettingsLocaleChanged;
@@ -508,6 +525,7 @@ public partial class GameState : Node
         _input.CaptureDefaultBindings(); // 第七轮拆域：键位域启动快照（InputBindingsService）
         InitMissions();
         LoadSettings();
+        _settings.ApplyDisplay(); // 帧率上限/垂直同步：无设置文件时 load 不应用，这里补一次默认档
         ApplyWindowSize(); // 无设置文件时 load 不会应用窗口尺寸，这里补一次默认档位
         var trZh = GD.Load<Translation>("res://data/translations.zh.translation");
         var trEn = GD.Load<Translation>("res://data/translations.en.translation");
@@ -531,7 +549,13 @@ public partial class GameState : Node
         _score.InitMilestones(); // 里程碑首档初始化（ScoreService；默认 3000 = MilestoneBase[0]）
         // B 梯队：受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
         PlayerDamaged += OnPlayerDamagedDda;
+        // 本局存档：死亡即删档（不可读档回滚，保住必死曲线紧张感）。PlayerDied 由
+        // Player.DieInternal 在死亡结算后发射；本 autoload 与引擎同生命周期，无需退订。
+        PlayerDied += OnPlayerDiedDeleteRunSave;
     }
+
+    /// <summary>死亡即删档（本局存档单一钩子）。</summary>
+    private void OnPlayerDiedDeleteRunSave() => DeleteRunSave();
 
     // 运行期时钟门控：仅真实对局（main 为 current_scene）累积 RunTime/推进 survive 任务/
     // 难度时间档/连击窗口——welcome 等非对局场景的停留时间不得污染下一局难度曲线。

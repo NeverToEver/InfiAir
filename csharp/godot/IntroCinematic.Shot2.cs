@@ -75,6 +75,65 @@ public partial class IntroCinematic : CanvasLayer
             root.AddChild(Line(new[] { new Vector2(x, 520.0f), new Vector2(x, 700.0f) }, new Color(0.4f, 0.65f, 1.0f, 0.55f), 3.5f));
         }
 
+        // 舱室内部设备（蓝图不再是空网格）：每格摆一组控制台/货箱/管线 + 状态点，
+        // 布局确定性（无随机），只加细节密度不引入噪声
+        for (var deck = 0; deck < deckYs.Length - 1; deck++)
+        {
+            var yTop = deckYs[deck] + 22.0f;
+            var yBot = deckYs[deck + 1] - 8.0f;
+            var roomH = yBot - yTop;
+            if (roomH <= 10.0f)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < 6; i++)
+            {
+                var rx = 150.0f + 270.0f * i;
+                // 控制台长条（贴甲板）+ 顶缘受光线
+                var consoleW = 96.0f + 34.0f * ((i + deck) % 3);
+                var consoleBar = CinematicFx.RectPoly(consoleW, 12.0f, new Color(0.28f, 0.5f, 0.9f, 0.13f));
+                consoleBar.Position = new Vector2(rx + 34.0f + consoleW * 0.5f, yBot - 8.0f);
+                root.AddChild(consoleBar);
+                root.AddChild(Line(
+                    new[] { new Vector2(rx + 34.0f, yBot - 14.0f), new Vector2(rx + 34.0f + consoleW, yBot - 14.0f) },
+                    new Color(0.5f, 0.75f, 1.0f, 0.35f),
+                    1.2f));
+                // 货箱小方块 ×2（错位高度）
+                for (var b = 0; b < 2; b++)
+                {
+                    var bw = 16.0f + 6.0f * ((i + b) % 3);
+                    var bh = Mathf.Min(roomH * 0.34f, 26.0f) - 4.0f * b;
+                    if (bh < 6.0f)
+                    {
+                        continue;
+                    }
+
+                    var crate = CinematicFx.RectPoly(bw, bh, new Color(0.24f, 0.42f, 0.8f, 0.16f));
+                    crate.Position = new Vector2(rx + 172.0f - 30.0f * b, yBot - bh * 0.5f - 4.0f);
+                    root.AddChild(crate);
+                }
+
+                // 状态点（青/红交替，确定性）
+                root.AddChild(new GlowDot
+                {
+                    Radius = 2.0f,
+                    DotColor = (i + deck) % 3 == 0 ? new Color(1.0f, 0.45f, 0.3f, 0.8f) : new Color(0.0f, 0.83f, 1.0f, 0.8f),
+                    Position = new Vector2(rx + 18.0f, yTop + 8.0f),
+                });
+            }
+        }
+
+        // 甲板走线槽 + 铆钉列：沿每层甲板底缘一排铆点，钢构感从「单线」变「结构件」
+        foreach (var y in deckYs)
+        {
+            root.AddChild(Line(new[] { new Vector2(150.0f, y + 9.0f), new Vector2(1770.0f, y + 9.0f) }, new Color(0.3f, 0.5f, 0.85f, 0.25f), 1.0f));
+            for (var rx = 180.0f; rx < 1770.0f; rx += 60.0f)
+            {
+                root.AddChild(new GlowDot { Radius = 1.4f, DotColor = new Color(0.45f, 0.62f, 0.9f, 0.55f), Position = new Vector2(rx, y + 9.0f) });
+            }
+        }
+
         // 外框
         var frame = Line(
             new[]

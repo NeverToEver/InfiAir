@@ -18,8 +18,8 @@ public partial class AimFrameLayer : Node2D
 {
     private const float ArmRatio = 0.45f;  // bracket 单臂长占框半宽比例
     private const float Width = 2.0f;
-    private static readonly Color FrameColor = new(0.35f, 0.95f, 1.0f);
-    private static readonly Color FrameColorHover = new(1.0f, 0.85f, 0.35f);
+    private static readonly Color FrameColor = new(1.0f, 0.72f, 0.30f);
+    private static readonly Color FrameColorHover = new(1.0f, 0.90f, 0.45f);
     /// <summary>bracket 四角符号（静态复用，_draw 零分配）。</summary>
     private static readonly float[] SignValues = { -1.0f, 1.0f };
 

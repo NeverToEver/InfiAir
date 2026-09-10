@@ -115,7 +115,7 @@ public partial class Player : CharacterBody2D
     private static readonly (float Speed, float Amount, float Alpha) ThrusterCruise = (1.0f, 0.8f, 0.85f);
     private static readonly (float Speed, float Amount, float Alpha) ThrusterIdle = (0.6f, 0.35f, 0.6f);
 
-    private static readonly Color BodyTintBase = new(1.35f, 1.4f, 1.55f);
+    private static readonly Color BodyTintBase = new(1.42f, 1.34f, 1.24f);
 
     public float DashDistance { get; private set; } = 200.0f;
     public float DashTime { get; private set; } = 0.25f;
@@ -484,10 +484,16 @@ public partial class Player : CharacterBody2D
         AddChild(parryPulse);
         _thruster = GetNode<GpuParticles2D>("Thruster");
         _thruster.Position = new Vector2(0.0f, 70.0f * ws);
+        // 尾焰质感：默认方粒（无纹理）是"廉价"观感主源之一——改软点贴图 + 白热→琥珀→暗橙渐隐色阶
+        _thruster.Texture = CinematicFx.SoftTexture();
         if (_thruster.ProcessMaterial is ParticleProcessMaterial thrusterMat)
         {
-            thrusterMat.ScaleMin = 2.5f * ws;
-            thrusterMat.ScaleMax = 5.5f * ws;
+            // 软点 64px 基准换算：cfg scale 语义 = 像素直径（同 CinematicFx.Particles），
+            // 设计直径 18–44px(×ws) → 贴图比例；软衰减使亮芯更小，比原 1px 方粒饱满
+            thrusterMat.ScaleMin = 18.0f * ws / CinematicFx.SoftTexSize;
+            thrusterMat.ScaleMax = 44.0f * ws / CinematicFx.SoftTexSize;
+            thrusterMat.Color = new Color(1.0f, 0.72f, 0.30f);
+            thrusterMat.ColorRamp = ThrusterRamp();
         }
 
         _muzzleOffset = 50.0f * ws;
@@ -510,7 +516,7 @@ public partial class Player : CharacterBody2D
         {
             Texture = _sprite.Texture,
             Scale = new Vector2(1.2f, 1.2f),
-            Modulate = new Color(0.45f, 0.9f, 1.0f, 0.45f),
+            Modulate = new Color(1.0f, 0.72f, 0.32f, 0.42f),
             ZIndex = -1,
         };
         _sprite.AddChild(_glow);
@@ -522,9 +528,9 @@ public partial class Player : CharacterBody2D
             dotPts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 3.5f;
         }
 
-        var hitboxDot = new Polygon2D { Polygon = dotPts, Color = new Color(0.65f, 0.95f, 1.0f) };
+        var hitboxDot = new Polygon2D { Polygon = dotPts, Color = new Color(1.0f, 0.86f, 0.52f) };
         AddChild(hitboxDot);
-        var hitboxHalo = new Line2D { Width = 1.5f, DefaultColor = new Color(0.5f, 0.9f, 1.0f, 0.45f), Closed = true };
+        var hitboxHalo = new Line2D { Width = 1.5f, DefaultColor = new Color(1.0f, 0.72f, 0.32f, 0.45f), Closed = true };
         for (var i = 0; i < 16; i++)
         {
             var a = Mathf.Tau * i / 16.0f;
@@ -863,6 +869,22 @@ public partial class Player : CharacterBody2D
     /// <summary>推进器状态下发（统一注入 EngineTint；入场冲刺 ×2.0 强度为一次性演出，不走三态表）。</summary>
     private void ApplyThruster((float Speed, float Amount, float Alpha) state)
         => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint);
+
+    /// <summary>尾焰色阶：白热芯 → 琥珀 → 暗橙熄灭（GradientTexture1D 一次性构建，随粒子寿命采样）。</summary>
+    private static GradientTexture1D ThrusterRamp()
+    {
+        var g = new Gradient
+        {
+            Offsets = new[] { 0.0f, 0.35f, 1.0f },
+            Colors = new[]
+            {
+                new Color(1.0f, 0.96f, 0.86f, 1.0f),
+                new Color(1.0f, 0.66f, 0.24f, 0.85f),
+                new Color(0.62f, 0.22f, 0.06f, 0.0f),
+            },
+        };
+        return new GradientTexture1D { Gradient = g };
+    }
 
     public override void _PhysicsProcess(double delta)
     {

@@ -14,12 +14,12 @@ namespace InfiAir;
 /// </summary>
 public partial class PlayerAugmentVisuals : Node2D
 {
-    private static readonly Color ColorCyan = new(0.45f, 0.9f, 1.0f);
+    private static readonly Color ColorCyan = new(1.0f, 0.72f, 0.30f); // 增幅能量色：随机体统一为琥珀
     private static readonly Color ColorGold = new(1.0f, 0.85f, 0.35f);
     private static readonly Color ColorOrange = new(1.0f, 0.55f, 0.2f);
     private static readonly Color ColorGreen = new(0.45f, 1.0f, 0.6f);
     private static readonly Color ColorMagenta = new(0.9f, 0.35f, 0.7f);
-    private static readonly Color ColorSteel = new(0.5f, 0.65f, 0.75f);
+    private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰（原冷钢蓝灰）
     /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
     public const float BaseShipScale = 0.65f;
     /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双 buff 时色相自然混合。</summary>
@@ -140,7 +140,7 @@ public partial class PlayerAugmentVisuals : Node2D
         _rapidFins.Visible = stacks > 0;
         if (stacks > 0)
         {
-            var finColor = stacks < 2 ? ColorCyan : new Color(0.3f, 0.8f, 1.0f);
+            var finColor = stacks < 2 ? ColorCyan : new Color(1.0f, 0.86f, 0.45f);
             foreach (var child in _rapidFins.GetChildren())
             {
                 ((Polygon2D)child).Color = finColor;
@@ -229,7 +229,7 @@ public partial class PlayerAugmentVisuals : Node2D
         }
 
         // 机头穿甲尖刺（piercing）
-        _pierceSpike = _MakePoly(new Vector2[] { new(0, -102), new(6, -74), new(-6, -74) }, new Color(0.55f, 0.95f, 1.0f));
+        _pierceSpike = _MakePoly(new Vector2[] { new(0, -102), new(6, -74), new(-6, -74) }, new Color(1.0f, 0.82f, 0.42f));
         AddChild(_pierceSpike);
 
         // 机腹弹舱辉光（explosive，压底不盖机体）
@@ -241,7 +241,7 @@ public partial class PlayerAugmentVisuals : Node2D
         // 背部激光发射基座（laser_beam，座舱后方脊线）
         _laserPod = new Node2D { Position = new Vector2(0.0f, 10.0f) };
         var podBody = _MakePoly(
-            new Vector2[] { new(-6, -11), new(6, -11), new(6, 11), new(-6, 11) }, new Color(0.35f, 0.45f, 0.55f));
+            new Vector2[] { new(-6, -11), new(6, -11), new(6, 11), new(-6, 11) }, new Color(0.5f, 0.46f, 0.40f));
         _laserPod.AddChild(podBody);
         var lens = _MakeCircle(3.5f, new Color(0.6f, 0.95f, 1.0f));
         lens.Position = new Vector2(0.0f, -11.0f);
@@ -282,10 +282,10 @@ public partial class PlayerAugmentVisuals : Node2D
 
         // 尾部相位鳍（phase_dash）
         _dashFins = new Node2D();
-        var dfinL = _MakePoly(new Vector2[] { new(-8, 12), new(0, -6), new(2, 12) }, new Color(0.4f, 0.8f, 1.0f));
+        var dfinL = _MakePoly(new Vector2[] { new(-8, 12), new(0, -6), new(2, 12) }, new Color(1.0f, 0.72f, 0.34f));
         dfinL.Position = new Vector2(-14.0f, 64.0f);
         _dashFins.AddChild(dfinL);
-        var dfinR = _MakePoly(new Vector2[] { new(8, 12), new(0, -6), new(-2, 12) }, new Color(0.4f, 0.8f, 1.0f));
+        var dfinR = _MakePoly(new Vector2[] { new(8, 12), new(0, -6), new(-2, 12) }, new Color(1.0f, 0.72f, 0.34f));
         dfinR.Position = new Vector2(14.0f, 64.0f);
         _dashFins.AddChild(dfinR);
         AddChild(_dashFins);

@@ -623,10 +623,11 @@ public partial class Bullet : Area2D
             return;
         }
 
-        gs.BulletPlayerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.9f, 0.25f), ArrowCore, Colors.White,
-            new Color(1.0f, 0.8f, 0.35f, 0.4f));
-        gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.38f, 0.3f), System.Array.Empty<Vector2>(), Colors.Transparent,
-            new Color(1.0f, 0.42f, 0.3f, 0.4f));
+        // 战术琥珀：玩家弹 = 白热芯 + 琥珀晕（正面辨识）；敌弹 = 更锐利的红/品红（不与琥珀 UI 混同）
+        gs.BulletPlayerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.70f, 0.24f), ArrowCore, Colors.White,
+            new Color(1.0f, 0.74f, 0.34f, 0.42f));
+        gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.28f, 0.34f), System.Array.Empty<Vector2>(), Colors.Transparent,
+            new Color(1.0f, 0.24f, 0.42f, 0.42f));
     }
 
     /// <summary>P0-3：把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）；

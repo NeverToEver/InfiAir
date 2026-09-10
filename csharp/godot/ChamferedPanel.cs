@@ -135,6 +135,21 @@ public partial class ChamferedPanel : Control
         }
     }
 
+    /// <summary>四角琥珀短线（"目标锁定"角标）：切角内侧的 L 形短刻度，尺寸足够才绘制；
+    /// 默认开——全站面板统一得到受激边缘的精密仪表感（战术琥珀视觉语言）。</summary>
+    private bool _cornerTicks = true;
+
+    [Export]
+    public bool CornerTicks
+    {
+        get => _cornerTicks;
+        set
+        {
+            _cornerTicks = value;
+            QueueRedraw();
+        }
+    }
+
     private Texture2D? _streakTex;
 
     /// <summary>实例级缓存 GD.Load（命中引擎资源缓存）；不做 static 持有——引擎退出后 .NET finalize 触碰 native 会 segfault（见 UITheme.Font）。</summary>
@@ -278,7 +293,8 @@ public partial class ChamferedPanel : Control
         }
 
         // 倒角受光逻辑（光来自上偏左，与按钮钢板贴图一致）：顶缘双线受光带托出面板，底/侧缘内阴影沉入底面
-        DrawLine(new Vector2(c + 3.0f, 1.5f), new Vector2(w - c - 3.0f, 1.5f), new Color(BorderColor, BorderColor.A * 0.55f), 1.0f, true);
+        // 顶缘主受光线取全 BorderColor（琥珀受激），读作面板被顶部光源打亮
+        DrawLine(new Vector2(c + 3.0f, 1.5f), new Vector2(w - c - 3.0f, 1.5f), BorderColor, 1.0f, true);
         DrawLine(new Vector2(c + 5.0f, 2.5f), new Vector2(w - c - 5.0f, 2.5f), new Color(BorderColor, BorderColor.A * 0.22f), 1.0f, true);
         DrawLine(new Vector2(c + 3.0f, h - 1.5f), new Vector2(w - c - 3.0f, h - 1.5f), new Color(0.0f, 0.0f, 0.0f, 0.55f), 1.0f, true);
         DrawLine(new Vector2(1.5f, c + 3.0f), new Vector2(1.5f, h - c - 3.0f), new Color(0.0f, 0.0f, 0.0f, 0.30f), 1.0f, true);
@@ -289,6 +305,23 @@ public partial class ChamferedPanel : Control
             var sy = h * 0.5f;
             DrawLine(new Vector2(c + 12.0f, sy), new Vector2(w - c - 12.0f, sy), new Color(0.0f, 0.0f, 0.0f, 0.32f), 1.0f, true);
             DrawLine(new Vector2(c + 12.0f, sy + 1.5f), new Vector2(w - c - 12.0f, sy + 1.5f), new Color(1.0f, 1.0f, 1.0f, 0.09f), 1.0f, true);
+        }
+
+        // 四角琥珀刻度：切角之后的直边短标（受激边缘，战术仪表角标）——尺寸不足时不画
+        if (CornerTicks && w >= 64.0f && h >= 48.0f)
+        {
+            var t = Mathf.Clamp(Mathf.Min(w, h) * 0.06f, 4.0f, 10.0f); // 单臂长
+            var tickCol = new Color(BorderColor, Mathf.Min(0.95f, BorderColor.A * 2.0f));
+            var o = c + 4.0f; // 越过切角段的起点
+            // 每条边在切角两侧各留一短线：顶缘左右、底缘左右、左缘上下、右缘上下
+            DrawLine(new Vector2(o, 2.5f), new Vector2(o + t, 2.5f), tickCol, 1.5f, true);
+            DrawLine(new Vector2(w - o - t, 2.5f), new Vector2(w - o, 2.5f), tickCol, 1.5f, true);
+            DrawLine(new Vector2(o, h - 2.5f), new Vector2(o + t, h - 2.5f), tickCol, 1.5f, true);
+            DrawLine(new Vector2(w - o - t, h - 2.5f), new Vector2(w - o, h - 2.5f), tickCol, 1.5f, true);
+            DrawLine(new Vector2(2.5f, o), new Vector2(2.5f, o + t), tickCol, 1.5f, true);
+            DrawLine(new Vector2(2.5f, h - o - t), new Vector2(2.5f, h - o), tickCol, 1.5f, true);
+            DrawLine(new Vector2(w - 2.5f, o), new Vector2(w - 2.5f, o + t), tickCol, 1.5f, true);
+            DrawLine(new Vector2(w - 2.5f, h - o - t), new Vector2(w - 2.5f, h - o), tickCol, 1.5f, true);
         }
         // 板金拼缝：外轮廓内缩 2.5px 的暗色 keyline（socket 类 InnerFrame 已有自己的内框则跳过，避免双线打架）
         if (!InnerFrame && w >= 48.0f && h >= 32.0f)

@@ -549,4 +549,78 @@ public sealed partial class TalentService : RefCounted
         GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
         TalentsChanged?.Invoke();
     }
+
+    /// <summary>读档还原（本局存档）：层级/风险加点/路线/代币/超载槽/缓存点值序列整体覆盖。
+    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；末尾 SyncAllAugments + 广播
+    /// CacheChanged/TalentsChanged/AugmentsChanged，驱动 HUD 与 Player 增幅件重建。
+    /// 与 ResetAll 对称——先清空再写入，保证残留态不串档。</summary>
+    public void RestoreRunState(
+        IReadOnlyDictionary<string, int> levels,
+        IReadOnlyCollection<string> overcharged,
+        string route,
+        int resetTokens,
+        int bonusOverchargeSlots,
+        IReadOnlyList<double> cacheValues)
+    {
+        _levels.Clear();
+        _overcharged.Clear();
+        _route = "";
+        _resetTokens = Math.Max(resetTokens, 0);
+        _bonusOverchargeSlots = Math.Max(bonusOverchargeSlots, 0);
+        foreach (var kv in levels)
+        {
+            var id = new StringName(kv.Key);
+            if (kv.Value > 0 && _maxLevels.ContainsKey(id))
+            {
+                _levels[id] = Mathf.Clamp(kv.Value, 0, MaxLevel(id));
+            }
+        }
+
+        foreach (var oc in overcharged)
+        {
+            _overcharged.Add(new StringName(oc));
+        }
+
+        // 路线只接受已定义的 id（FindRoute 判型；空串 = 未绑定）
+        if (!string.IsNullOrEmpty(route) && FindRoute(route) != null)
+        {
+            _route = route;
+        }
+
+        _cache.RestoreValues(cacheValues);
+        SyncAllAugments();
+        CacheChanged?.Invoke(_cache.Effective, _cache.Raw);
+        TalentsChanged?.Invoke();
+        GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
+    }
+
+    /// <summary>缓存点值序列快照（读档写出用）。</summary>
+    public List<double> CacheSnapshot() => _cache.Snapshot();
+
+    /// <summary>已购层级快照（只含 &gt;0 层；读档写出用）。</summary>
+    public Dictionary<string, int> LevelsSnapshot()
+    {
+        var result = new Dictionary<string, int>();
+        foreach (var kv in _levels)
+        {
+            if (kv.Value > 0)
+            {
+                result[kv.Key.ToString()] = kv.Value;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>风险加点节点快照（读档写出用）。</summary>
+    public List<string> OverchargedSnapshot()
+    {
+        var result = new List<string>(_overcharged.Count);
+        foreach (var id in _overcharged)
+        {
+            result.Add(id.ToString());
+        }
+
+        return result;
+    }
 }

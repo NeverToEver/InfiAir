@@ -21,9 +21,9 @@ public partial class MothershipSummonWindow : CanvasLayer
     [Signal]
     public delegate void FinishedEventHandler();
 
-    private static readonly Color Cyan = new(0.32f, 0.93f, 0.85f);
+    private static readonly Color Cyan = new(1.0f, 0.78f, 0.34f);
 
-    private static readonly Color WarpBlue = new(0.35f, 0.6f, 1.0f);
+    private static readonly Color WarpBlue = new(0.45f, 0.70f, 1.0f);
 
     private static readonly Vector2 PanelSize = new(560.0f, 840.0f); // 左侧竖长画中画
 
@@ -145,7 +145,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         // 左侧竖长：贴左缘垂直居中（1920×1080 设计坐标）
         _panel.Position = new Vector2(24.0f, (1080.0f - PanelSize.Y) * 0.5f);
         _panel.Size = PanelSize;
-        _panel.BgColor = new Color(0.02f, 0.04f, 0.08f, 0.92f);
+        _panel.BgColor = new Color(0.038f, 0.032f, 0.026f, 0.92f);
         _panel.BorderColor = new Color(UITheme.Accent, 0.7f);
         _panel.BracketColor = UITheme.Accent;
         _panel.Brackets = true;
@@ -168,14 +168,14 @@ public partial class MothershipSummonWindow : CanvasLayer
     {
         var bg = new ColorRect
         {
-            Color = new Color(0.012f, 0.025f, 0.05f, 1.0f),
+            Color = new Color(0.028f, 0.024f, 0.020f, 1.0f),
             Position = new Vector2(14.0f, 40.0f),
             Size = PanelSize - new Vector2(28.0f, 110.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _stage.AddChild(bg);
         // 后景龙门架剪影（深色结构层，增加纵深）
-        var gantryColor = new Color(0.03f, 0.055f, 0.1f, 1.0f);
+        var gantryColor = new Color(0.058f, 0.050f, 0.042f, 1.0f);
         foreach (var gx in new[] { 110.0f, 280.0f, 450.0f })
         {
             var strut = new Polygon2D
