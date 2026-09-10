@@ -176,9 +176,6 @@ public partial class AimFrameLayer : Node2D
         return r + _framePad;
     }
 
-    /// <summary>当前档位辅助框内边距（诊断白盒断言经公开接口）。</summary>
-    public float FramePad() => _framePad;
-
     /// <summary>世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null。
     /// 同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
     /// 按帧共享帧首结果，见字段注释）。</summary>

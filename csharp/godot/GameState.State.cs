@@ -39,9 +39,6 @@ public partial class GameState : Node
         _balanceService.Load(BalancePathValue);
     }
 
-    /// <summary>配置字典是否已加载（缺失/损坏 JSON 时为 false，全部回退脚本默认值；诊断用）</summary>
-    public bool HasBalance() => !_balanceService.IsEmpty();
-
     /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。</summary>
     public Variant Cfg(string path, Variant defaultValue) => _balanceService.Cfg(path, defaultValue);
 

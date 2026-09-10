@@ -15,7 +15,7 @@
 > 唯一登记处，只保留未关闭项；修复后直接删除（变更史在 git log）；新发现追加在末尾。
 
 - **[低] 视觉层无自动化覆盖（已评估的接受项）**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏。常驻 CI 视觉捕获不可行——Godot headless 为 dummy 渲染截不到画面，CI runner 无 GPU 且项目禁第三方依赖（软光栅方案越线）。纪律 = UI/视觉改动窗口化人工过目；不重引入截图探针场景（与 lean-reset 一致）。
-- **[低] 死代码候选待分类**：脚本扫出 89 个「声明后全库无引用」的公开/内部成员（含 Godot 信号回调、字符串派发、预留 API 混在一起），需人工分三类：删（真死）/ 保留并注明理由 / 门禁豁免。工具见 git 历史中的临时审核脚本。
+- **[低] 零引用成员保留面（已 triage，口径封存）**：全库扫描零引用（.cs + .tscn + 字符串派发全查）的公开/内部成员 85 个。其中 9 个是**退役测试/诊断探针的遗留白盒访问口**（注释自述「诊断白盒断言」「boss_registry_test 校验用」「注册表完整性查询」「诊断用」）——已删除（`AimFrameLayer.FramePad`、`BossAttacks.GetAttackTells/HasAttack/AttackIds`、`BossMovement.HasMover`、`EnrageSequence.Has*Handler`、`GameState.HasBalance`）。其余 76 个属**刻意保留的公开门面与白盒读口**（GameState 门面成对 API、Player/MetaHealthFX 调试读口、Main 调试开关），保留并以此口径封存：**新增零引用成员必须在注释里写明保留理由，否则视为死代码**。批量删除需人工确认（这些读口是实机调参时的观察面）。
 
 ## 发布前人工验收
 

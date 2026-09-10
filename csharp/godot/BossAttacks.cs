@@ -42,17 +42,6 @@ public partial class BossAttacks : RefCounted
         [new StringName("ring_burst")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
     };
     /// <summary>攻击 tell 表公开访问（boss_registry_test 校验用）。</summary>
-    public static Godot.Collections.Dictionary GetAttackTells()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kv in AttackTells)
-        {
-            result[kv.Key] = true;
-        }
-
-        return result;
-    }
-
 
     // ---- 注入：弹幕发射器（Boss._ready 经 configure 传入）与机体缩放 ----
     // typed（原 GodotObject 动态派发；Boss 代持桥删除后直调 BossFire）
@@ -170,21 +159,7 @@ public partial class BossAttacks : RefCounted
         boss.GetParent().AddChild(ring);
     }
 
-    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
-    public bool HasAttack(StringName id) => _attackHandlers.ContainsKey(id);
-
     /// <summary>全部已注册攻击 id（经公开接口断言注册表完整）。</summary>
-    public Godot.Collections.Array AttackIds()
-    {
-        var ids = new Godot.Collections.Array();
-        foreach (var id in _attackHandlers.Keys)
-        {
-            ids.Add(id);
-        }
-
-        return ids;
-    }
-
     private void HandleFan5(Boss boss)
     {
         _fire.FireFan(

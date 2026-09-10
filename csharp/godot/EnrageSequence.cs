@@ -88,15 +88,6 @@ public partial class EnrageSequence : RefCounted
         _releaseBeginHandlers[4] = ReleaseBeginEclipse;
     }
 
-    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
-    public bool HasActiveHandler(int type) => _activeHandlers.ContainsKey(type);
-
-    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
-    public bool HasReleaseHandler(int type) => _releaseHandlers.ContainsKey(type);
-
-    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
-    public bool HasReleaseBeginHandler(int type) => _releaseBeginHandlers.ContainsKey(type);
-
     /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。</summary>
     public void Configure(BossFire fire, BossAttacks attacks, float ws)
     {

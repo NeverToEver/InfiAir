@@ -90,9 +90,6 @@ public partial class BossMovement : RefCounted
         _moverCached!(delta, boss);
     }
 
-    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
-    public bool HasMover(int type) => _movers.ContainsKey(type);
-
     // ---------------- 内部实现 ----------------
 
     /// <summary>一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（§5.1）。</summary>
