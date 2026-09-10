@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 返航过场 镜头 4 构建器（文件粒度拆分自 ReturnCinematic.cs，2026-08-12；逻辑零改动）。
+/// 返航过场 镜头 4 构建器。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {
@@ -17,7 +17,7 @@ public partial class ReturnCinematic : CanvasLayer
     {
         var dur = _shotDurations[3];
         var root = new ReturnCinematicCaptureShot { Name = "Shot4" };
-        root.AddChild(new Starfield()); // M1 起 Starfield 为 C#，typed 实例化
+        root.AddChild(new Starfield()); // Starfield 为 C# typed，typed 实例化
         var cam = new Node2D(); // 侧跟推镜容器
         root.AddChild(cam);
         var camTween = root.CreateTween().SetParallel(true);

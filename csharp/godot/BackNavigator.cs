@@ -37,18 +37,17 @@ public partial class BackNavigator : Node
         RESUME_GAME,
         /// <summary>战斗中 → 打开暂停（返回上一级）</summary>
         OPEN_PAUSE,
-        // R12（M07 落地，2026-08-05）：CONFIRM_EXIT 已删——决策表无任何状态返回该动作，
-        // 顶层退出确认由入口场景自处理
+        // 决策表不含 CONFIRM_EXIT——顶层退出确认由入口场景自处理
     }
 
-    private Main _main = null!; // U13：typed
-    private Hud _hud = null!; // U13：typed
+    private Main _main = null!; // typed
+    private Hud _hud = null!; // typed
     private TalentPanel _talentUi = null!;
-    private PauseUi _pauseUi = null!; // U13：typed
-    private SettingsUi _settingsUi = null!; // U13：typed
-    private GameOverUi _gameOverUi = null!; // U13：typed
-    private BaseConsole _baseUi = null!; // U13：typed
-    private ExitConfirm _exitConfirm = null!; // U13：typed
+    private PauseUi _pauseUi = null!; // typed
+    private SettingsUi _settingsUi = null!; // typed
+    private GameOverUi _gameOverUi = null!; // typed
+    private BaseConsole _baseUi = null!; // typed
+    private ExitConfirm _exitConfirm = null!; // typed
 
     public override void _Ready()
     {

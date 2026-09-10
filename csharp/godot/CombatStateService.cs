@@ -3,25 +3,23 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 战斗状态域服务（第五轮拆域，2026-08-11）：原 GameState.Settings.cs C 簇健康/Buff 域——
-/// Health/Augments 状态、生命上限/受击/治疗/吸血/选 buff 逻辑迁入本服务。
+/// 战斗状态域服务：Health/Augments 状态、生命上限/受击/治疗/吸血/选 buff 逻辑。
 /// Godot 绑定层：本域无跨域状态依赖——MaxHealth/AugmentLevel 均为本域直调（难度域 regen 缓存等
-/// 跨域数值如需访问经 GameState.Instance 门面，当前 C 簇无此访问）；PlayerDied 信号不在本域——
-/// 由 Player.DieInternal 在 _dead 置位、死亡结算完成后经 GameState.Instance 发射（2026-09-09
-/// 时序修复：原 LoseHealth 内 Health<=0 即发，先于 player.Die()，回调内 IsDead()==false 是
+/// 跨域数值如需访问经 GameState.Instance 门面，本域无此访问）；PlayerDied 信号不在本域——
+/// 由 Player.DieInternal 在 _dead 置位、死亡结算完成后经 GameState.Instance 发射
+/// （LoseHealth 内 Health<=0 不得发射：此时先于 player.Die()，回调内 IsDead()==false 是
 /// 订阅者时序陷阱）；健康配置（MaxHpBase/MaxHpBonus/
 /// _lifestealFraction）经 ApplyHealthConfig 注入（Cfg 调用留在 GameState 侧）。
-/// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService 同构——
-/// GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
-/// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 HealthChanged/AugmentsChanged 通知；
-/// GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致——AddBuff/ConsumeAugment 经
+/// GameState 组合持有本服务并做门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
+/// 信号：本服务以 C# 事件 HealthChanged/AugmentsChanged 通知；
+/// GameState 订阅后转发为同名信号（发射点/次数/顺序恒定——AddBuff/ConsumeAugment 经
 /// 本事件重发；ResetRun/天赋路线（TalentService 层级写入）的直发路径在 GameState/其他服务侧直发
 /// 同名信号，不经本事件，不造成双发）。
 /// </summary>
 public sealed partial class CombatStateService : RefCounted
 {
 
-    // ---------------- 健康/Buff 域（2026-08-11 自 GameState.Settings.cs/State.cs 迁入） ----------------
+    // ---------------- 健康/Buff 域 ----------------
 
     /// <summary>玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）。
     /// double（GDScript float 64 位逐位等价）。</summary>
@@ -30,15 +28,15 @@ public sealed partial class CombatStateService : RefCounted
     /// <summary>buff id -> 已选层数</summary>
     public Godot.Collections.Dictionary Augments { get; set; } = new();
 
-    /// <summary>回血链热路径缓存（P0-2）：max_health 基础值 _apply_balance 缓存，热路径免 cfg
+    /// <summary>回血链热路径缓存：max_health 基础值 _apply_balance 缓存，热路径免 cfg
     /// 路径解析（extra_life 层数查询 O(1)）。默认值须与 balance.json 默认一致（player.max_health=100）。</summary>
     public double MaxHpBase { get; set; } = 100.0;
 
-    /// <summary>2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限
+    /// <summary>与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限
     /// （生存轴收紧意图相悖）；ApplyBalance 注入钳制后的值。</summary>
     public double MaxHpBonus { get; set; } = 50.0;
 
-    /// <summary>吸血比例缓存（P0-2 同款：_apply_balance 刷新，击杀帧免 cfg 路径解析）。</summary>
+    /// <summary>吸血比例缓存（_apply_balance 刷新，击杀帧免 cfg 路径解析）。</summary>
     private double _lifestealFraction = 0.1;
 
     /// <summary>吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
@@ -53,7 +51,7 @@ public sealed partial class CombatStateService : RefCounted
     public event Action? AugmentsChanged;
 
     /// <summary>健康配置注入（ApplyBalance 调用；Cfg 调用留在 GameState 侧，钳制注释随迁）。
-    /// H15 同款：baseHp ≤0 使 max_health 归零/负值，玩家秒死——钳制下限；
+    /// baseHp ≤0 使 max_health 归零/负值，玩家秒死——钳制下限；
     /// bonusHp 负值使 extra_life 叠层反而降血上限——钳制 ≥0；lifestealFraction 负值使吸血变扣血——钳制 ≥0。</summary>
     public void ApplyHealthConfig(double baseHp, double bonusHp, double lifestealFraction)
     {
@@ -63,7 +61,7 @@ public sealed partial class CombatStateService : RefCounted
     }
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
-    /// P0-2：基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）</summary>
+    /// 基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）</summary>
     public double MaxHealth() => MaxHpBase + MaxHpBonus * AugmentLevel("extra_life");
 
     public void LoseHealth(double amount = 1.0)
@@ -76,8 +74,8 @@ public sealed partial class CombatStateService : RefCounted
         }
 
         HealthChanged?.Invoke(Health);
-        // PlayerDied 不在此发射（2026-09-09 时序修复）：原此处 Health<=0 即发，先于 player.Die()，
-        // 回调内 IsDead()==false 是订阅者时序陷阱；现由 Player.DieInternal 在 _dead 置位后发射，
+        // PlayerDied 不在此发射：Health<=0 即发会先于 player.Die()，
+        // 回调内 IsDead()==false 是订阅者时序陷阱；由 Player.DieInternal 在 _dead 置位后发射，
         // 两处致死路径（PlayerDamage 弹击 / Main.GiveUp 自毁）均在 LoseHealth 后调 Die()。
     }
 

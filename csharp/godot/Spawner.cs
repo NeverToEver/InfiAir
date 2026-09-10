@@ -7,8 +7,8 @@ namespace InfiAir;
 /// <summary>
 /// 敌机生成器：波次化刷新（普通波成组均布入场、按分数阶段解锁机型）+ 特殊槽调度
 /// （每 3~4 个普通波一个精英波；Boss/精英/事件占用特殊槽，精英/Boss 击杀后追加休整波次）
-/// + Boss 触发（4 种轮换，2026-08-04 扩 4 型含月蚀）。遭遇事件（精英炮塔/轰炸编队）触发策略
-/// 自 2026-08-05 起由统一事件管理器接管（GameState.events）：本类仅保留
+/// + Boss 触发（4 种轮换，含月蚀）。遭遇事件（精英炮塔/轰炸编队）触发策略
+/// 由统一事件管理器接管（GameState.events）：本类仅保留
 /// 互斥钩子（Boss 冻结/波次暂停）与特殊槽登记（notify_event_triggered）。
 /// SpawnTelegraph/Enemy/Boss 均为 C# typed 直调；UPPER_SNAKE 配置表为实例属性
 /// （静态字段禁持 Godot 对象——退出 segfault 实测根因）。
@@ -32,7 +32,7 @@ public partial class Spawner : Node
     [Signal]
     public delegate void BossWarningEventHandler();
 
-    /// <summary>排队中的一次性回调 Timer 与屏上入场预告线（D01）。返航时经 clear_pending() 释放，
+    /// <summary>排队中的一次性回调 Timer 与屏上入场预告线。返航时经 clear_pending() 释放，
     /// 防止 continue 继续出击后、入场动画窗口内敌机/Boss 带预告进场。</summary>
     private readonly List<Godot.Timer> _pendingTimers = new();
     private readonly List<Node2D> _pendingTelegraphs = new();
@@ -40,14 +40,14 @@ public partial class Spawner : Node
     // 禁静态持 Godot 对象（退出 segfault 实测根因）→ 场景资源用实例只读字段
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
 
-    /// <summary>贴图复用常量（2026-08-04：分裂者复用 3 型、重装炮台复用精英 1 型）。</summary>
+    /// <summary>贴图复用常量（分裂者复用 3 型、重装炮台复用精英 1 型）。</summary>
 
     private Godot.Collections.Array<Godot.Collections.Dictionary> _enemyTypes = null!;
     private Godot.Collections.Array<Godot.Collections.Dictionary> _eliteTypes = null!;
 
     /// <summary>普通机型配置表（贴图即机型，数值差异化；弹种池仅 single/spread）
     /// scale 为纯视觉缩放：以锁定环/碰撞提示等指示器尺寸为锚（不动指示器），舰船视觉应明显大于指示器
-    /// HP 定标（A11）：玩家弹伤 10、射速 0.15s 下 TTK≈1.2s（对齐原作 DPS 平衡器稳态）。</summary>
+    /// HP 定标：玩家弹伤 10、射速 0.15s 下 TTK≈1.2s（对齐原作 DPS 平衡器稳态）。</summary>
     public Godot.Collections.Array<Godot.Collections.Dictionary> ENEMY_TYPES
     {
         get => _enemyTypes;
@@ -56,7 +56,7 @@ public partial class Spawner : Node
 
     /// <summary>精英机型配置表（弹种池仅 spread/laser）
     /// HP ≈ 普通均值 ×2.5（对齐原作精英倍率）；radius 与普通机同档
-    /// （A10：原作精英碰撞盒不大于普通机，"精英更大"为疑似 bug 不移植）。</summary>
+    /// （原作精英碰撞盒不大于普通机，"精英更大"为疑似 bug 不移植）。</summary>
     public Godot.Collections.Array<Godot.Collections.Dictionary> ELITE_TYPES
     {
         get => _eliteTypes;
@@ -64,7 +64,7 @@ public partial class Spawner : Node
     }
 
     /// <summary>机型 i 在分数 >= UNLOCK_SCORES[i] 时解锁（5 档对应 5 型普通机；
-    /// 2026-08-06 审计 H2：分裂者落地时未扩展解锁表 → 上界 mini(5, 4) 截断永不入池）。</summary>
+    /// 解锁表项数须 ≥ 机型数，否则末尾机型被上界截断、永不入池）。</summary>
     public Godot.Collections.Array<int> UNLOCK_SCORES { get; set; } = new() { 0, 300, 800, 1500, 2500 };
 
     /// <summary>波次节奏：普通波成组刷新，间隔/规模随对局时间 ramp。</summary>
@@ -110,7 +110,7 @@ public partial class Spawner : Node
 
     /// <summary>精英炮塔事件互斥：事件期间 Boss 触发被冻结（到期记 _boss_pending 一次，不累积）。
     /// 对偶契约：GameEventManager.CanDriveEncounters 每帧重验本端处理状态后才驱动事件掷签，
-    /// 同帧 Boss/遭遇竞态由「事件先冻结 Boss + 本端 boss_resume_delay 推迟恢复」兜住（AB20）——
+    /// 同帧 Boss/遭遇竞态由「事件先冻结 Boss + 本端 boss_resume_delay 推迟恢复」兜住——
     /// 本端提供冻结/ pending/恢复状态，触发时序归事件管理器。</summary>
     private bool _bossFrozen;
     private bool _bossPending;
@@ -140,28 +140,28 @@ public partial class Spawner : Node
     /// <summary>数值配置注入：机型表数值覆盖（贴图/策略/弹种池留在脚本），常量读入。</summary>
     private void ApplyBalance()
     {
-        // L06（2026-08-03 审查）：间隔键下限钳制（H15 同族遗漏）——wave_interval_start ≤ 0 时
+        // 间隔键下限钳制——wave_interval_start ≤ 0 时
         // _current_interval 的 clampf 上界 ≤0 返回负值，_wave_timer 恒 ≤0 每帧刷一波（预告线
         // /Timer 无界增长挂死）；ramp_time ≤ 0 时 ramp 曲线瞬时跳变
         WAVE_INTERVAL_START = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_start", WAVE_INTERVAL_START).AsDouble(), CfgFx.IntervalFloor);
         WAVE_INTERVAL_END = Mathf.Max((float)GameState.Instance.Cfg("spawner.wave_interval_end", WAVE_INTERVAL_END).AsDouble(), CfgFx.IntervalFloor);
         RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("spawner.ramp_time", RAMP_TIME).AsDouble(), 0.01f);
         INTERVAL_MIN = Mathf.Max((float)GameState.Instance.Cfg("spawner.interval_min", INTERVAL_MIN).AsDouble(), 0.0f);
-        // L06 同族延续：boss_score_step 下限钳制——配 ≤0 时 _nextBossScore 不推进
+        // 同族延续：boss_score_step 下限钳制——配 ≤0 时 _nextBossScore 不推进
         // （line 454 += 步长 ≤0），Boss 轮换/休整编排失效
         BOSS_SCORE_STEP = Mathf.Max((int)GameState.Instance.Cfg("spawner.boss_score_step", BOSS_SCORE_STEP).AsDouble(), 1);
-        // AB6：时间兜底 ≤0 时 Boss 无限连出（_bossTimer≥0 恒满足）；分数门负值恒真——钳下限（L06 口径）
+        // 时间兜底 ≤0 时 Boss 无限连出（_bossTimer≥0 恒满足）；分数门负值恒真——钳下限
         BOSS_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble(), 0.0f);
         BOSS_TIME_LIMIT = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble(), 5.0f);
         DIFFICULTY_FACTOR = (float)GameState.Instance.Cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();
-        // C18：cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
+        // cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
         var us = GameState.Instance.Cfg("spawner.unlock_scores", UNLOCK_SCORES);
         var usArr = new Godot.Collections.Array<int>();
         if (us.VariantType == Variant.Type.Array)
         {
             foreach (var v in us.AsGodotArray())
             {
-                // L05（2026-08-03 审查）：元素级判型（E04 同族遗漏）——Dict 元素 int() 抛运行时
+                // 元素级判型——Dict 元素 int() 抛运行时
                 // 错误（启动即崩）、字符串静默转 0 使全部机型开局解锁；非数字元素跳过
                 if ((v.VariantType == Variant.Type.Int || v.VariantType == Variant.Type.Float) && v.VariantType != Variant.Type.Bool)
                 {
@@ -171,7 +171,7 @@ public partial class Spawner : Node
         }
 
         UNLOCK_SCORES = usArr.Count > 0 ? usArr : new Godot.Collections.Array<int> { 0, 300, 800, 1500, 2500 };
-        // AC17（2026-08-11 健壮性审查）：wave_size 下限钳 1——0/负使 ramp 起点错乱
+        // wave_size 下限钳 1——0/负使 ramp 起点错乱
         //（WaveSizeInternal 兜底 1 但 Lerp 起点错误，早期波次全被兜成 1 机）；special_gap
         // 下限 0 + 保序——倒挂时 GD.RandRange 交换参数、实际区间 [max,min] 比配置更小，
         // 每个普通波都可能出精英波；rest_waves_after_kill 下限 0——负值休整计数
@@ -180,12 +180,12 @@ public partial class Spawner : Node
         WAVE_SIZE_END = Mathf.Max((int)GameState.Instance.Cfg("spawner.wave_size_end", WAVE_SIZE_END).AsDouble(), 1);
         SPECIAL_GAP_MIN = Mathf.Max((int)GameState.Instance.Cfg("spawner.special_gap_min", SPECIAL_GAP_MIN).AsDouble(), 0);
         SPECIAL_GAP_MAX = Mathf.Max((int)GameState.Instance.Cfg("spawner.special_gap_max", SPECIAL_GAP_MAX).AsDouble(), 0);
-        SPECIAL_GAP_MAX = Mathf.Max(SPECIAL_GAP_MAX, SPECIAL_GAP_MIN); // AC17：保序——倒挂区间翻转 → 精英波过频
+        SPECIAL_GAP_MAX = Mathf.Max(SPECIAL_GAP_MAX, SPECIAL_GAP_MIN); // 保序——倒挂区间翻转 → 精英波过频
         REST_WAVES_AFTER_KILL = Mathf.Max((int)GameState.Instance.Cfg("spawner.rest_waves_after_kill", REST_WAVES_AFTER_KILL).AsDouble(), 0);
-        // AB5：elite_wave_size 钳下限 1（WaveSizeInternal 同族口径）——0/负使精英波循环
+        // elite_wave_size 钳下限 1（WaveSizeInternal 同族口径）——0/负使精英波循环
         // 不执行、特殊槽静默吞掉
         ELITE_WAVE_SIZE = Mathf.Max((int)GameState.Instance.Cfg("spawner.elite_wave_size", ELITE_WAVE_SIZE).AsDouble(), 1);
-        // G06：嵌套结构判型（对齐 C03/E03 损坏 JSON 回退默认口径）——手改 JSON 使 band 非 2 元素数组时不崩溃
+        // 嵌套结构判型（对齐损坏 JSON 回退默认口径）——手改 JSON 使 band 非 2 元素数组时不崩溃
         var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { _hoverBand.X, _hoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
         {
@@ -196,7 +196,7 @@ public partial class Spawner : Node
             }
         }
 
-        // 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）自 2026-08-05 起由
+        // 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）由
         // 统一事件管理器读取（GameEventManager，键不变）
         var normal = GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array());
         if (normal.VariantType == Variant.Type.Array)
@@ -225,11 +225,11 @@ public partial class Spawner : Node
     {
         if (srcV.VariantType != Variant.Type.Dictionary)
         {
-            return; // G06：结构损坏的机型条目整体跳过（回退脚本默认）
+            return; // 结构损坏的机型条目整体跳过（回退脚本默认）
         }
 
         var src = srcV.AsGodotDictionary();
-        // L05（2026-08-03 审查）：嵌套数组元素级判型（G06 只判容器形状）——Dict 元素
+        // 嵌套数组元素级判型（外层只判容器形状）——Dict 元素
         // int()/float() 启动即崩、字符串静默 0（敌机 0 HP 秒死）；元素非数字整组跳过
         if (src.ContainsKey("hp"))
         {
@@ -257,12 +257,12 @@ public partial class Spawner : Node
             }
         }
 
-        // AB8：判型后按键钳值域（对齐 L05/L06 域校验族；坏值回退脚本默认而非覆写）——
+        // 判型后按键钳值域（对齐域校验族；坏值回退脚本默认而非覆写）——
         // fire_interval:0 → 机枪化、score:-100 → 击杀倒扣分、radius:0 → 碰撞半径 0 子弹直穿
         foreach (var k in new[] { "score", "fire", "fire_interval", "scale", "radius" })
         {
             var v = src.GetValueOrDefault(k, new Variant());
-            // 2026-08-03 审计（G06 口径对齐）：标量判型——坏值（字符串/数组）会在击杀结算
+            // 标量判型——坏值（字符串/数组）会在击杀结算
             // int(score_value) 处报类型错误；非数字整体跳过，回退脚本默认（bool 是 int 子类，排除）
             if (!IsNumber(v))
             {
@@ -270,10 +270,10 @@ public partial class Spawner : Node
             }
             switch (k)
             {
-                case "score": dst[k] = Math.Max(v.AsInt64(), 0L); break;              // AB8：负分倒扣
-                case "fire_interval": dst[k] = Math.Max(v.AsDouble(), 0.05); break;  // AB8：≤0 机枪化
-                case "scale": dst[k] = Math.Max(v.AsDouble(), 0.1); break;           // AB8：0 缩放不可见
-                case "radius": dst[k] = Math.Max(v.AsDouble(), 0.5); break;          // AB8：0 半径子弹直穿
+                case "score": dst[k] = Math.Max(v.AsInt64(), 0L); break;              // 负分倒扣
+                case "fire_interval": dst[k] = Math.Max(v.AsDouble(), 0.05); break;  // ≤0 机枪化
+                case "scale": dst[k] = Math.Max(v.AsDouble(), 0.1); break;           // 0 缩放不可见
+                case "radius": dst[k] = Math.Max(v.AsDouble(), 0.5); break;          // 0 半径子弹直穿
                 default: dst[k] = v; break;                                           // "fire" 布尔原样
             }
         }
@@ -294,7 +294,7 @@ public partial class Spawner : Node
     }
 
     /// <summary>当前分数阶段已解锁的普通机型池
-    /// H07（健壮性审核）：unlock_scores 异常（全正/为空）时空池回退首型，防 randi()%0 崩溃。</summary>
+    /// unlock_scores 异常（全正/为空）时空池回退首型，防 randi()%0 崩溃。</summary>
     public Godot.Collections.Array<Godot.Collections.Dictionary> UnlockedTypes()
     {
         var pool = new Godot.Collections.Array<Godot.Collections.Dictionary>();
@@ -316,9 +316,9 @@ public partial class Spawner : Node
     }
 
     /// <summary>当前在屏的 spread 弹种敌机数（离场中的不计）。
-    /// B8 修复：改遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
+    /// 遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
     /// 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
-    /// 2026-08-05：统一实体管理器 count_enemies 批量 API。</summary>
+    /// 经统一实体管理器 count_enemies 批量 API 统计。</summary>
     private int CountSpreadEnemiesInternal()
     {
         return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
@@ -334,7 +334,7 @@ public partial class Spawner : Node
         if (raw.VariantType == Variant.Type.Array)
         {
             var pool = raw.AsGodotArray();
-            // H07（健壮性审核）：空弹种池回退单发
+            // 空弹种池回退单发
             if (pool.Count > 0)
             {
                 btype = (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
@@ -395,9 +395,9 @@ public partial class Spawner : Node
         var strategy = strategies[(int)(GD.Randi() % (uint)strategies.Count)];
         var btype = PickBulletTypeInternal(config);
         var view = GameState.Instance.ViewWorldRect();
-        // R07：telegraph 时长判型 + 下限钳制已随缓存内聚到 BalanceService.Load
-        // （2026-08-10 审计：原每 spawn Cfg 全链路 + 逐次判型）——坏值回退/钳制语义不变。
-        // 2026-08-06 审计：时长同步注入预告线实例（原视觉 DURATION 硬编码 0.6，调参时
+        // telegraph 时长判型 + 下限钳制已随缓存内聚到 BalanceService.Load
+        // （免每 spawn 走一遍 Cfg 全链路 + 逐次判型）——坏值回退/钳制语义不变。
+        // 时长同步注入预告线实例（避免视觉 DURATION 硬编码使调参时
         // 视觉寿命与敌机出现时刻脱钩——预告线自毁与 _schedule 计时两套时钟）
         var telegraphDuration = GameState.Instance.SpawnerTelegraphDuration();
         var telegraph = new SpawnTelegraph();
@@ -410,7 +410,7 @@ public partial class Spawner : Node
         Schedule(telegraphDuration, () => OnTelegraphTimeout(config, strategy, btype, x, anchor, special));
     }
 
-    /// <summary>预告计时结束后敌机实际进场（P1-1：普通波次统一走对象池，消灭每波 instantiate 抖动）。</summary>
+    /// <summary>预告计时结束后敌机实际进场（普通波次统一走对象池，消灭每波 instantiate 抖动）。</summary>
     private void OnTelegraphTimeout(Godot.Collections.Dictionary config, StringName strategy, StringName btype, float x, float anchor, bool special)
     {
         var e = ((EnemyPool)GameState.Instance.EnemyPool!).Spawn(
@@ -463,22 +463,22 @@ public partial class Spawner : Node
         Schedule(2.0f, () => SpawnBossInternal(0));
     }
 
-    /// <summary>p_type &lt;= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（2026-08-04：轮换扩 4 型含月蚀）。</summary>
+    /// <summary>p_type &lt;= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（轮换扩 4 型含月蚀）。</summary>
     private void SpawnBossInternal(int pType = 0)
     {
         _bossActive = true;
         if (pType <= 0)
         {
-            pType = GameState.Instance.BossKills % 4 + 1; // 2026-08-04：轮换扩 4 型（月蚀）
+            pType = GameState.Instance.BossKills % 4 + 1; // 轮换 4 型（含月蚀）
         }
 
         var boss = _bossScene.Instantiate<Boss>();
         boss.Setup((float)GameState.Instance.DifficultyMultiplier, pType);
-        boss.SetSpawner(this); // A5：依赖注入，替代 Boss 侧 group 现找
-        var view = GameState.Instance.ViewWorldRect(); // D10：Boss 入场锚点统一 view 基线
+        boss.SetSpawner(this); // 依赖注入，替代 Boss 侧 group 现找
+        var view = GameState.Instance.ViewWorldRect(); // Boss 入场锚点统一 view 基线
         boss.Position = new Vector2(view.GetCenter().X, view.Position.Y - 160.0f);
         // C# 事件订阅（非 Godot Connect）：委托随发布者 boss 的包装对象消亡，无需手动退订
-        // （C22 手动断开纪律仅针对 Connect 连接不随接收方释放自动断开的场景）
+        // （手动断开纪律仅针对 Connect 连接不随接收方释放自动断开的场景）
         boss.Died += () => OnBossDied(boss);
         boss.Escaped += OnBossEscaped;
         GetParent()!.AddChild(boss);
@@ -486,7 +486,7 @@ public partial class Spawner : Node
     }
 
     /// <summary>Boss 离场统一结算。逃跑离场也会发 Died（Boss 逃跑路径同时发 Escaped+Died，
-    /// 用于血条隐藏/生成器重排）；此处按 IsEscaped 区分，只对真·击杀推进轮换与休整（B3 修复）。
+    /// 用于血条隐藏/生成器重排）；此处按 IsEscaped 区分，只对真·击杀推进轮换与休整。
     /// 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，IsEscaped 判定无歧义。</summary>
     private void OnBossDied(Boss? boss = null)
     {
@@ -536,15 +536,15 @@ public partial class Spawner : Node
         _pendingTelegraphs.Remove(telegraph);
     }
 
-    /// <summary>清空排队回调与入场预告线（D01/G01）：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
+    /// <summary>清空排队回调与入场预告线：返航时调用，防 continue 后入场动画窗口内敌机/Boss 进场。
     /// 未入场的 Boss 预警随之取消：仅当场上已无存活 Boss 时复位 _boss_active，否则波次/Boss/事件
-    /// 三守卫被永久冻结（continue 后整局空转无怪无 Boss）——但 Boss 已在场（返航链明确保留 Boss，
-    /// 2026-08-06 审计 H1 修法）时不得复位：_boss_timer 战时持续增长、_next_boss_score 仅击杀才推进，
+    /// 三守卫被永久冻结（continue 后整局空转无怪无 Boss）——但 Boss 已在场（返航链明确保留 Boss）时
+    /// 不得复位：_boss_timer 战时持续增长、_next_boss_score 仅击杀才推进，
     /// 复位后 continue 继续出击分数门控立即满足，会出第二个同型 Boss（轮换/休整/狂暴单槽编排脱节）。
     /// 复位后按分数/时间门控再触发，属预期。</summary>
     public void ClearPending()
     {
-        // G01 修复（H1 扩展）：预警 2s 窗口内取消须解除占用（SpawnBossInternal 未执行则无 died/escaped 复位
+        // 预警 2s 窗口内取消须解除占用（SpawnBossInternal 未执行则无 died/escaped 复位
         // 路径）；Boss 已生成在场上则由注册表判定——存活 Boss 存在时保持 _bossActive 占用
         if (GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e => e is Boss)) == 0)
         {
@@ -619,7 +619,7 @@ public partial class Spawner : Node
         // 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
         var interval = baseInterval * (float)GameState.Instance.SpawnIntervalMultiplier()
             / (1.0f + DIFFICULTY_FACTOR * ((float)GameState.Instance.DifficultyMultiplier - 1.0f));
-        // B 梯队：DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
+        // DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
         // clamp 上界同步乘因子，避免拉长效果被上限吞掉
         return Mathf.Clamp(
             interval * (float)GameState.Instance.DdaFactor(),
@@ -627,7 +627,7 @@ public partial class Spawner : Node
             WAVE_INTERVAL_START * (float)GameState.Instance.SpawnIntervalMultiplier() * (float)GameState.Instance.DdaFactor());
     }
 
-    // ---------------- 对外公开接口（A1 修复） ----------------
+    // ---- 对外公开接口 ----
     // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名。
 
     public void SetEliteEvent(Node? eventNode) => _event = eventNode;
@@ -643,7 +643,7 @@ public partial class Spawner : Node
 
     public Node? EliteEvent() => _event;
 
-    /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用；镜像原 _waves_since_special = 0）。</summary>
+    /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用）。</summary>
     public void NotifyEventTriggered() => _wavesSinceSpecial = 0;
 
     /// <summary>读取并清除一次 Boss pending（事件解冻时若期间触发过 Boss 则补触发）。</summary>
@@ -656,8 +656,8 @@ public partial class Spawner : Node
 
     public void TriggerBoss() => TriggerBossInternal();
 
-    /// <summary>普通机型配置表（见 ENEMY_TYPES 属性；表构造自实例字段贴图——规则 19）。</summary>
-    /// <summary>默认普通机型表（M6：静态化供 Tutorial 读 [0]——教程只用 straight 基础型；局部构建非静态持有）。</summary>
+    /// <summary>普通机型配置表（见 ENEMY_TYPES 属性；表构造自实例字段贴图）。</summary>
+    /// <summary>默认普通机型表（静态化供 Tutorial 读 [0]——教程只用 straight 基础型；局部构建非静态持有）。</summary>
     public static Godot.Collections.Array<Godot.Collections.Dictionary> BuildEnemyTypes()
     {
         return new Godot.Collections.Array<Godot.Collections.Dictionary>
@@ -710,7 +710,7 @@ public partial class Spawner : Node
                 ["radius"] = 34.0f,
                 ["bullet_types"] = new Godot.Collections.Array<StringName> { "spread", "single" },
             },
-            new() { // 5 型 分裂者（2026-08-04）：死亡分裂 2 小机（×0.6 缩放/HP 半/无分数/不开火）
+            new() { // 5 型 分裂者：死亡分裂 2 小机（×0.6 缩放/HP 半/无分数/不开火）
                 ["texture"] = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_3.png"),
                 ["strategies"] = new Godot.Collections.Array<StringName> { "straight", "hover" },
                 ["hp"] = new Vector2I(80, 92),
@@ -726,8 +726,8 @@ public partial class Spawner : Node
         };
     }
 
-    /// <summary>精英机型配置表（见 ELITE_TYPES 属性；表构造自实例字段贴图——规则 19）。</summary>
-    /// <summary>默认精英机型表（M6：静态化供 difficulty_test 读 [0]；局部构建非静态持有）。</summary>
+    /// <summary>精英机型配置表（见 ELITE_TYPES 属性；表构造自实例字段贴图）。</summary>
+    /// <summary>默认精英机型表（静态化供 difficulty_test 读 [0]；局部构建非静态持有）。</summary>
     public static Godot.Collections.Array<Godot.Collections.Dictionary> BuildEliteTypes()
     {
         return new Godot.Collections.Array<Godot.Collections.Dictionary>
@@ -771,7 +771,7 @@ public partial class Spawner : Node
                 ["elite"] = true,
                 ["bullet_types"] = new Godot.Collections.Array<StringName> { "spread", "laser" },
             },
-            new() { // 重装炮台（2026-08-04）：最高 HP 慢速弹幕机
+            new() { // 重装炮台：最高 HP 慢速弹幕机
                 ["texture"] = GD.Load<Texture2D>("res://assets/sprites/elite_ship_1.png"),
                 ["strategies"] = new Godot.Collections.Array<StringName> { "hover", "straight" },
                 ["hp"] = new Vector2I(240, 270),

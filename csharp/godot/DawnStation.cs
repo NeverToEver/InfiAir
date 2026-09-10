@@ -401,10 +401,10 @@ public partial class DawnStation : RefCounted
     /// <summary>全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补，
     /// 外加破碎感：主弧断弧缺口 ×3、舱段逐个掉线闪烁、破口全息碎片外飘、整站 glitch 瞬闪。
     /// 全部视觉挂在 inner 下：呼吸写 BreatheRoot、glitch 写 inner.modulate，互不打架；
-    /// station.modulate 归调用方所有（E04，调用方压站体 alpha 不被呼吸覆盖）。</summary>
+    /// station.modulate 归调用方所有（调用方压站体 alpha 不被呼吸覆盖）。</summary>
     private static void BuildPhantom(Node2D station)
     {
-        // E04 修复：全部视觉挂 BreatheRoot 呼吸容器下，4s 慢呼吸写容器 modulate:a 而非站体本身——
+        // 全部视觉挂 BreatheRoot 呼吸容器下，4s 慢呼吸写容器 modulate:a 而非站体本身——
         // 调用方压 station.modulate.a（return_cinematic 0.35/0.5、base_console 包装层 0.12）
         // 不再被呼吸 tween 抬高 2.5~3 倍；两种用法统一为「站体 alpha 归调用方，呼吸只动内部容器」。
         var breatheRoot = new Node2D { Name = "BreatheRoot" };
@@ -450,7 +450,7 @@ public partial class DawnStation : RefCounted
         }
 
         // 整体容器 4s 慢呼吸（0.85–1.0，投影不稳定感；下限抬高保证存在感）
-        // E04：写 BreatheRoot 容器而非 station（调用方压 station.modulate.a 不被呼吸覆盖）
+        // 写 BreatheRoot 容器而非 station（调用方压 station.modulate.a 不被呼吸覆盖）
         var breatheTween = station.CreateTween().SetLoops();
         breatheTween.TweenProperty(breatheRoot, "modulate:a", 0.85f, 2.0).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         breatheTween.TweenProperty(breatheRoot, "modulate:a", 1.0f, 2.0).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);

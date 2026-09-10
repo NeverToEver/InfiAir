@@ -6,7 +6,7 @@ namespace InfiAir;
 /// 精英炮塔事件炮台：航母甲板上升起的独立可摧毁单位。
 /// 弱锁定索敌：炮塔以限速转向玩家，开火朝向 = 当前朝向 + ±spread_deg 出膛散布；
 /// 弹药按预设序列轮换（全部复用敌侧弹种，参数读 enemies/boss 配置段）。
-/// 升起期间不可被攻击（monitorable=false 为主机制，K09；monitoring 口径同步关闭）；
+/// 升起期间不可被攻击（monitorable=false 为主机制；monitoring 口径同步关闭）；
 /// 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
 /// HpBar 为 C# SegmentedBar 直调；实现 IDamageable，伤害经 EntityDamage 统一分派。
 /// </summary>
@@ -15,7 +15,7 @@ public partial class TurretBattery : Area2D, IDamageable
     [Signal]
     public delegate void DiedEventHandler(TurretBattery turret);
 
-    // U14 同款：开火热路径 StringName 静态缓存（原每发炮弹 new StringName/字符串字面量比较，2026-08-10 审计 H1）
+    // 开火热路径 StringName 静态缓存——避免每发炮弹 new StringName/字符串字面量比较
     private static readonly StringName AmmoSingle = new("single");
     private static readonly StringName AmmoSpread = new("spread");
     private static readonly StringName AmmoLaser = new("laser");
@@ -52,10 +52,10 @@ public partial class TurretBattery : Area2D, IDamageable
 
     private bool _rising;
     private bool _ceased;
-    /// <summary>P1-2：受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）。</summary>
+    /// <summary>受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
     private const float FlashTime = 0.1f;
-    /// <summary>P1-6：击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）。</summary>
+    /// <summary>击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
 
     private float _fireTimer;
@@ -75,7 +75,7 @@ public partial class TurretBattery : Area2D, IDamageable
         AmmoSequence.Clear();
         foreach (var a in pAmmo)
         {
-            // L07 元素级判型口径（对齐 EliteTurretEvent 弹药序列审查）：混入非字符串元素时
+            // 元素级判型口径（对齐 EliteTurretEvent 弹药序列）：混入非字符串元素时
             // AsStringName() 抛 InvalidCastException，坏值跳过；全坏回退单发 single
             if (a.VariantType == Variant.Type.String || a.VariantType == Variant.Type.StringName)
             {
@@ -129,7 +129,7 @@ public partial class TurretBattery : Area2D, IDamageable
         _hpBar.Value = 100.0f;
         _hpBar.FillColor = new Color(1.0f, 0.25f, 0.75f); // 精英品红
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
-        // P1-6：击杀震动强度缓存
+        // 击杀震动强度缓存
         _shakeDie = CfgFx.Float("effects.shake.enemy_die", _shakeDie);
     }
 
@@ -142,8 +142,8 @@ public partial class TurretBattery : Area2D, IDamageable
     public void Rise(float duration)
     {
         _rising = true;
-        // K09：monitorable=false 才是「不可被攻击」的正确机制——monitoring 只控制本 Area
-        // 检测别人，玩家弹命中与否取决于弹侧 monitoring + 本侧 monitorable；原 monitoring=false
+        // monitorable=false 才是「不可被攻击」的正确机制——monitoring 只控制本 Area
+        // 检测别人，玩家弹命中与否取决于弹侧 monitoring + 本侧 monitorable；monitoring=false
         // 不阻止玩家弹 area_entered（弹丸命中被 take_damage 守卫吃掉，白白销毁）
         Monitoring = false;
         Monitorable = false;
@@ -175,7 +175,7 @@ public partial class TurretBattery : Area2D, IDamageable
 
         _ceased = true;
         Monitoring = false;
-        Monitorable = false; // K09：同 rise 期——收回动画期间玩家弹应穿过而非被白吃
+        Monitorable = false; // 同 rise 期——收回动画期间玩家弹应穿过而非被白吃
         var tween = CreateTween();
         tween.SetParallel(true);
         tween.TweenProperty(this, "scale", Vector2.Zero, 0.8f).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.In);
@@ -186,7 +186,7 @@ public partial class TurretBattery : Area2D, IDamageable
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
-        // P1-2：受击闪白手动衰减（rising/ceased 时也推进，闪白不残留）
+        // 受击闪白手动衰减（rising/ceased 时也推进，闪白不残留）
         UpdateFlash(d);
         if (_rising || _ceased || Hp <= 0)
         {
@@ -248,7 +248,7 @@ public partial class TurretBattery : Area2D, IDamageable
             var b = pool!.Fire(dir, HomingSpeed, DmgHoming, false, true, HomingTime);
             if (b == null)
             {
-                return; // P2-3：同屏敌弹硬上限，本次开火放弃
+                return; // 同屏敌弹硬上限，本次开火放弃
             }
 
             b.HomingTurnRate = HomingTurnRate;
@@ -287,7 +287,7 @@ public partial class TurretBattery : Area2D, IDamageable
         var b = pool!.Fire(dir, bulletSpeed, dmg, false);
         if (b == null)
         {
-            return; // P2-3：同屏敌弹硬上限，本次开火放弃
+            return; // 同屏敌弹硬上限，本次开火放弃
         }
 
         b.Position = GlobalPosition + dir * _muzzleOffset;
@@ -299,7 +299,7 @@ public partial class TurretBattery : Area2D, IDamageable
             if (poly != null)
             {
                 poly.Scale = new Vector2(2.2f, 0.55f);
-                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // P0-3：Sprite2D 无 color，用 self_modulate
+                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // Sprite2D 无 color，用 self_modulate
             }
         }
     }
@@ -322,7 +322,7 @@ public partial class TurretBattery : Area2D, IDamageable
         }
     }
 
-    /// <summary>P1-2：受击闪白手动衰减（替代 Tween；FlashFx 共享实现，零分配）。</summary>
+    /// <summary>受击闪白手动衰减（替代 Tween；FlashFx 共享实现，零分配）。</summary>
     private void UpdateFlash(float delta)
     {
         if (_flashTimer <= 0.0f)

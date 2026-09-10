@@ -83,10 +83,10 @@ public partial class GameEventManager : Node
 
     // ---------------- 运行时状态 ----------------
 
-    /// <summary>V 系列：空 StringName 复用（原多处 `new StringName()` 每帧构造，native 引用计数分配）。</summary>
+    /// <summary>空 StringName 复用——避免每帧构造 `new StringName()` 的 native 引用计数分配。</summary>
     private static readonly StringName EmptyId = new();
 
-    /// <summary>V 系列：遭遇触发参数值缓存（注册时一次性固化 interval/chance/min_score——
+    /// <summary>遭遇触发参数值缓存（注册时一次性固化 interval/chance/min_score——
     /// Tick 每帧免 StringName 键构造 + Variant 装箱往返。值而非引用：ENCOUNTER_CONFIG 仅
     /// LoadBalance 重建、注册后无写入方（重载属诊断路径，见 ReloadConfig 注释），值缓存无可见性风险）。</summary>
     private readonly Dictionary<StringName, EncounterTriggerCfg> _encounterTrig = new();
@@ -99,7 +99,7 @@ public partial class GameEventManager : Node
         public readonly int MinScore = minScore;
     }
 
-    /// <summary>V 系列：遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
+    /// <summary>遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
     /// 消除 Poll/Tick 每帧 Callable.Call 动态派发；IsInstanceValid 校验防场景重载后死节点）。</summary>
     private readonly Dictionary<StringName, Node> _encounterInstance = new();
 
@@ -114,11 +114,11 @@ public partial class GameEventManager : Node
     private float _fogCheckTimer;
     /// <summary>遭遇事件注册顺序（触发检查按注册序；main 先注册 elite 再 formation，保持原优先级）。</summary>
     private readonly Godot.Collections.Array<StringName> _encounterOrder = new();
-    /// <summary>遭遇触发策略计时器（id -> 剩余秒）。V 系列：CLR 字典镜像（原 Godot 字典
-    /// 每帧 GetValueOrDefault/写入经 Variant 装箱 + native 往返）。</summary>
+    /// <summary>遭遇触发策略计时器（id -> 剩余秒）。CLR 字典镜像——避免每帧 GetValueOrDefault/
+    /// 写入的 Variant 装箱 + native 往返。</summary>
     private readonly Dictionary<StringName, float> _encounterTimers = new();
     /// <summary>遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）。</summary>
-    /// <summary>Q13（2026-08-05）：遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
+    /// <summary>遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
     private readonly Godot.Collections.Dictionary _encounterEndPending = new();
     /// <summary>当前激活的遭遇事件 id（无则空）。</summary>
@@ -126,8 +126,8 @@ public partial class GameEventManager : Node
 
     /// <summary>PickFogId 专用临时缓冲：仅同步流程内短暂使用，复用避免每次触发新建 Array。</summary>
     private readonly Godot.Collections.Array<StringName> _fogPickBuffer = new();
-    /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，A5 依赖注入延续）。</summary>
-    /// <summary>遭遇触发门控注入（U14：typed 化，消除每帧 HasMethod/Call）。</summary>
+    /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 特殊槽通知，依赖注入延续）。</summary>
+    /// <summary>遭遇触发门控注入（typed 化，消除每帧 HasMethod/Call）。</summary>
     private Spawner? _spawner;
 
     public override void _Ready()
@@ -135,7 +135,7 @@ public partial class GameEventManager : Node
         LoadBalance();
         _fogCheckTimer = FOG_CHECK_INTERVAL;
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
-        // 2026-09-10：无对局时完全惰性（_runActive 初值 false；标题屏不跑 Poll/Tick，SetRunActive 翻转启停）
+        // 无对局时完全惰性（_runActive 初值 false；标题屏不跑 Poll/Tick，SetRunActive 翻转启停）
         SetProcess(false);
     }
 
@@ -143,7 +143,7 @@ public partial class GameEventManager : Node
     {
         FOG_ENABLED = GameState.Instance.Cfg("fog_events.enabled", FOG_ENABLED).AsBool();
         FOG_TRIGGER_CHANCE = (float)GameState.Instance.Cfg("fog_events.trigger_chance", FOG_TRIGGER_CHANCE).AsDouble();
-        // H15 族：≤0 每帧掷签
+        // ≤0 会每帧掷签
         FOG_CHECK_INTERVAL = Mathf.Max(
             (float)GameState.Instance.Cfg("fog_events.check_interval", FOG_CHECK_INTERVAL).AsDouble(), 0.1f);
         FOG_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("fog_events.min_interval", FOG_MIN_INTERVAL).AsDouble(), 0.0f);
@@ -181,20 +181,19 @@ public partial class GameEventManager : Node
         };
     }
 
-    /// <summary>P4（2026-08-05）：配置重载公开入口（GameState.ReloadBalance 联动——只刷平衡缓存
+    /// <summary>配置重载公开入口（GameState.ReloadBalance 联动——只刷平衡缓存
     /// 会让 fog 配置停留旧值，与运行时不一致）。注意：遭遇组（ENCOUNTER_CONFIG）注册时
     /// 固化内层字典引用，重载后遭遇策略仍为注册时值——重载属诊断路径，
-    /// 运行时 _Ready 只走一次（W 系列 2026-08-09 口径澄清）。</summary>
+    /// 运行时 _Ready 只走一次。</summary>
     public void ReloadConfig() => LoadBalance();
 
-    // ---------------- 对外公开接口（A1 约定：诊断/外部驱动经公开接口） ----------------
+    // ---------------- 对外公开接口（诊断/外部驱动经公开接口） ----------------
 
     public bool IsRunActive() => _runActive;
 
-    /// <summary>对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）
-    /// Q10/Q12（2026-08-05）：激活时重置遭遇触发计时与 fog 开局保护/检查计时——
-    /// 原实现两者仅注册/接线时初始化且挂 autoload，死亡重开/重进 main 继承上局剩余值
-    /// （遭遇计时可 ≤0 → 新局开局即触发精英/编队；fog 每进程一次保护、第二局开局即触发）。</summary>
+    /// <summary>对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。
+    /// 激活时必须重置遭遇触发计时与 fog 开局保护/检查计时——否则死亡重开/重进 main 会继承
+    /// 上局剩余值（遭遇计时可 ≤0 → 新局开局即触发精英/编队；fog 每进程一次保护、第二局开局即触发）。</summary>
     public void SetRunActive(bool active)
     {
         if (active == _runActive)
@@ -203,19 +202,19 @@ public partial class GameEventManager : Node
         }
 
         _runActive = active;
-        // 2026-09-10：帧驱动随对局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
+        // 帧驱动随对局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
         SetProcess(active);
         if (!active)
         {
             EndFog();
-            // AB10：遭遇活跃态一并复位（防场景重入残留 → 对从未 start 的新实例广播幽灵
+            // 遭遇活跃态一并复位（防场景重入残留 → 对从未 start 的新实例广播幽灵
             // EventEnded 残留）
             _encounterActiveId = EmptyId;
             _encounterEndPending.Clear();
             return;
         }
 
-        // V 系列：按注册序重置（计时键 = 注册 id，与 _encounterOrder 同集；interval 读注册固化值）
+        // 按注册序重置（计时键 = 注册 id，与 _encounterOrder 同集；interval 读注册固化值）
         foreach (var id in _encounterOrder)
         {
             if (_encounterTrig.TryGetValue(id, out var trig))
@@ -226,7 +225,7 @@ public partial class GameEventManager : Node
 
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
         _fogCheckTimer = FOG_CHECK_INTERVAL;
-        // 2026-08-06 审计：fog 冷却重置（Q12 同族遗漏）——上局事件结束残留的
+        // fog 冷却必须重置——否则上局事件结束残留的
         // _fog_cooldown_left 会额外推迟新局首个迷雾事件（最晚 12s）
         _fogCooldownLeft = 0.0f;
     }
@@ -243,17 +242,16 @@ public partial class GameEventManager : Node
     /// 注册进统一注册表并初始化触发计时）。</summary>
     public void RegisterEncounter(StringName pId, Node pEvent)
     {
-        // 2026-08-10 AA 系列：事件实例随 Main 释放后，长命管理器仍持有工厂闭包——重进 main
-        // 的再注册窗口内 PollEncounters/EventFor 调旧闭包触碰已释放实例（ObjectDisposedException，
-        // autoplay 探针实证；X7 只守了 EventFor 实例缓存分支，工厂闭包分支漏守）；闭包内判活，
-        // 死实例 Yield Nil（两处调用点 StartFog/EventFor 均容忍 Nil，再注册后自愈）
+        // 事件实例随 Main 释放后，长命管理器仍持有工厂闭包——重进 main
+        // 的再注册窗口内 PollEncounters/EventFor 调旧闭包会触碰已释放实例（ObjectDisposedException）；
+        // 闭包内必须判活，死实例 Yield Nil（两处调用点 StartFog/EventFor 均容忍 Nil，再注册后自愈）
         EVENT_FACTORIES[pId] = Callable.From<Node?>(() => GodotObject.IsInstanceValid(pEvent) ? pEvent : null);
         if (!_encounterOrder.Contains(pId))
         {
             _encounterOrder.Add(pId);
         }
 
-        // V 系列：触发参数与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
+        // 触发参数与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
         // 参数值固化——注册后无写入方，重载属诊断路径不改遭遇策略，见 ReloadConfig 注释）
         var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
         var dict = cfg.AsGodotDictionary();
@@ -377,16 +375,15 @@ public partial class GameEventManager : Node
             }
 
             var ev = EventFor(id);
-            if (ev is IEncounterEvent enc) // U13：typed（Abort 进遭遇契约接口）
+            if (ev is IEncounterEvent enc) // typed（Abort 进遭遇契约接口）
             {
                 enc.Abort();
             }
 
             _encounterActiveId = EmptyId;
-            // Q13（2026-08-05）：event_ended 统一由轮询在 FSM 回 IDLE 后发——
-            // 原实现此处即发 + 轮询再发 = 双发且第二次发在事件仍活跃时；
-            // 同步回 IDLE 则本处补发，异步则记 pending 由轮询补发
-            var stillActive = ev is IEncounterEvent enc2 && enc2.IsActive(); // U13：typed
+            // event_ended 统一由轮询在 FSM 回 IDLE 后发——否则此处即发 + 轮询再发会双发，
+            // 且第二次发在事件仍活跃时；同步回 IDLE 则本处补发，异步则记 pending 由轮询补发
+            var stillActive = ev is IEncounterEvent enc2 && enc2.IsActive(); // typed
             if (stillActive)
             {
                 _encounterEndPending[id] = true;
@@ -420,12 +417,12 @@ public partial class GameEventManager : Node
 
     public override void _Process(double delta)
     {
-        // AB20：autoload _Process 帧序在 main 场景 Spawner 之前——同帧 Boss/遭遇竞态
+        // autoload _Process 帧序在 main 场景 Spawner 之前——同帧 Boss/遭遇竞态
         // 由事件先启动（SetBossFrozen(true)），Boss 推迟至事件结束 + boss_resume_delay，
         // 仍保证触发不累积
         var d = (float)delta;
         PollEncounters();
-        // fog 组（未接线前惰性，避免与旧 FogEventManager 双驱动）
+        // fog 组（未接线前惰性，避免双驱动）
         if (_fogWired)
         {
             if (_fogActiveId != EmptyId)
@@ -439,7 +436,7 @@ public partial class GameEventManager : Node
             }
             else if (_runActive && FOG_ENABLED)
             {
-                // Q07：总开关关闭时自动触发路径完全惰性
+                // 总开关关闭时自动触发路径完全惰性
                 if (_fogFirstDelayLeft > 0.0f)
                 {
                     _fogFirstDelayLeft -= d;
@@ -471,12 +468,12 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>遭遇触发驱动权门控（契约单点）：本类 _Process 依赖「autoload 树序先于 main 场景
-    /// 处理」这一引擎保证（AB20）——同帧 Boss/遭遇竞态由事件先启动 SetBossFrozen(true)、Boss
+    /// 处理」这一引擎保证——同帧 Boss/遭遇竞态由事件先启动 SetBossFrozen(true)、Boss
     /// 推迟至事件结束 + boss_resume_delay 兜住，触发不累积；本端提供 spawner 状态的逐帧重验。
     /// IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发这一
     /// 次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误。SummonInProgress：母舰
     /// 召唤蓄力/机库小窗窗口期不掷签（玩家锁输入 + 999s 无敌，事件奖励会被母舰自动火力白拿
-    /// ——L13 互斥的窗口期补全）。</summary>
+    /// ——召唤蓄力与遭遇事件的互斥窗口补全）。</summary>
     private bool CanDriveEncounters()
     {
         return IsInsideTree()
@@ -493,9 +490,9 @@ public partial class GameEventManager : Node
         var score = GameState.Instance.Score;
         foreach (var id in _encounterOrder)
         {
-            // U14：遭遇事件 typed 分派（IEncounterEvent 契约，替代每帧 HasMethod/Call 动态派发）
+            // 遭遇事件 typed 分派（IEncounterEvent 契约，替代每帧 HasMethod/Call 动态派发）
             var ev = EventFor(id);
-            // 2026-08-09 审计：EventFor fallback 工厂闭包捕获的正是已失效实例，可返回死引用
+            // EventFor fallback 工厂闭包捕获的正是已失效实例，可返回死引用
             // （正常路径被 RegisterEncounter 覆盖缓存防护）——触发侧二次判活，死引用不可触发
             if (!GodotObject.IsInstanceValid(ev) || ev is not IEncounterEvent enc || enc.IsActive())
             {
@@ -507,7 +504,7 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            // V 系列：注册时固化的触发参数（零分配读取；替代每帧 Variant 字典往返）
+            // 注册时固化的触发参数（零分配读取；替代每帧 Variant 字典往返）
             if (!_encounterTrig.TryGetValue(id, out var trig))
             {
                 continue;
@@ -579,15 +576,15 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>轮询遭遇事件结束（FSM 回 IDLE → 广播 event_ended；手动 start 亦被覆盖检测；
-    /// Q13：pending 打断在检测到回 IDLE 后补发，信号恒在事件不活跃时发、恒只发一次）。</summary>
+    /// pending 打断在检测到回 IDLE 后补发，信号恒在事件不活跃时发、恒只发一次）。</summary>
     private void PollEncounters()
     {
         foreach (var id in _encounterOrder)
         {
             var ev = EventFor(id);
-            // 2026-08-09 审计：死引用按「不活跃」处理——直接跳过会让 _encounterActiveId 残留、编排卡死；
+            // 死引用按「不活跃」处理——直接跳过会让 _encounterActiveId 残留、编排卡死；
             // 按不活跃走下方分支把事件状态复位并广播结束，属自愈路径
-            var active = GodotObject.IsInstanceValid(ev) && ev is IEncounterEvent enc && enc.IsActive(); // U14：typed 分派
+            var active = GodotObject.IsInstanceValid(ev) && ev is IEncounterEvent enc && enc.IsActive(); // typed 分派
             if (_encounterEndPending.ContainsKey(id) && !active)
             {
                 _encounterEndPending.Remove(id);
@@ -607,10 +604,9 @@ public partial class GameEventManager : Node
     }
 
     /// <summary>加权随机选 fog 事件（weights 缺键回退 1.0；注册表为空返回空；
-    /// P4：全零权重退化为均匀随机——原实现恒选首个（roll=0 立即命中第一项））。</summary>
-    /// <summary>AB9：条目级判型（FakeEnemiesEvent 同族口径）——fog weights/durations 坏值
-    /// （字符串/数组）回退默认，不抛 InvalidCastException（2026-08-10 批次只修了
-    /// FakeEnemiesEvent/遭遇事件难度键，此处为孪生遗漏）。</summary>
+    /// 全零权重退化为均匀随机，不得恒选首个（roll=0 会立即命中第一项）。</summary>
+    /// <summary>条目级判型（FakeEnemiesEvent 同族口径）——fog weights/durations 坏值
+    /// （字符串/数组）回退默认，不抛 InvalidCastException。</summary>
     private static double FogNum(Godot.Collections.Dictionary dict, StringName key, double def)
     {
         var v = dict.GetValueOrDefault(key, def);
@@ -737,7 +733,7 @@ public partial class GameEventManager : Node
     /// <summary>注册表工厂取已注册实例（遭遇缓存单例；fog 事件返回新实例——仅 _event_for 用）。</summary>
     private Node? EventFor(StringName pId)
     {
-        // V 系列：注册实例缓存优先（零动态派发；场景重载后旧实例失效 → fallback 工厂）
+        // 注册实例缓存优先（零动态派发；场景重载后旧实例失效 → fallback 工厂）
         if (_encounterInstance.TryGetValue(pId, out var cached) && GodotObject.IsInstanceValid(cached))
         {
             return cached;

@@ -3,27 +3,25 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 键位+手柄域服务（第七轮拆域收官，2026-08-12）：原 GameState.Input.cs 可改键系统/手柄装配与
-/// GameState.State.cs 的 JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout 迁入本服务——
-/// REBINDABLE_ACTIONS/KeyBindings/_defaultBindings/JoyLayout/_joypadBound 状态与
-/// CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/BindJoypadDefaults/AddJoyAxis/
+/// 键位+手柄域服务：可改键系统/手柄装配与
+/// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout。
+/// 状态：REBINDABLE_ACTIONS/KeyBindings/_defaultBindings/JoyLayout/_joypadBound；
+/// 方法：CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/BindJoypadDefaults/AddJoyAxis/
 /// AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
-/// ResetKeyBindings/ActionKeysText 方法，H02/G04/P0-1/H01/2026-08-03 审计等注释随迁。
+/// ResetKeyBindings/ActionKeysText。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
 /// 持久化）与 JoyDeadzone（BindJoypadDefaults 读设置域死区）经门面；Tr 为 GodotObject 实例方法
 /// （RefCounted 继承链可用），ActionKeysText 保持直调。
-/// 门面转发先例：与 SettingsService 同构——GameState 组合持有本服务，
-/// GameState.Input.cs/State.cs 为门面对齐转发（签名/语义不变），保持唯一 autoload：GameState
-/// 约定；跨域访问统一经 GameState.Instance。
+/// GameState 组合持有本服务并做门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
 /// 信号：本服务以 C# 事件 KeyBindingsChanged/JoyLayoutChanged 通知；GameState 订阅后转发为
-/// 同名信号（发射点/次数/顺序与拆域前 EmitSignal 逐位一致——RebindAction/ResetKeyBindings
+/// 同名信号（发射点/次数/顺序恒定——RebindAction/ResetKeyBindings
 /// 各 1 处 KeyBindingsChanged，DetectJoyLayout 2 处 JoyLayoutChanged；GameState 侧门面不再
 /// 直发，无双发）。
 /// </summary>
 public sealed partial class InputBindingsService : RefCounted
 {
 
-    // ---------------- 可改键系统（2026-08-12 自 GameState.Input.cs 迁入） ----------------
+    // ---------------- 可改键系统 ----------------
 
     /// <summary>可改键动作清单（restart/pause 固定不可改）。</summary>
     public Godot.Collections.Array<StringName> REBINDABLE_ACTIONS { get; } = new()
@@ -47,13 +45,13 @@ public sealed partial class InputBindingsService : RefCounted
 
     private readonly Godot.Collections.Dictionary _defaultBindings = new();
 
-    /// <summary>P0-1：手柄默认绑定装配标志（幂等，避免重载重复追加）——原 GameState.State.cs 迁入</summary>
+    /// <summary>手柄默认绑定装配标志（幂等，避免重载重复追加）。</summary>
     private bool _joypadBound;
 
-    /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）——原 GameState.State.cs 迁入</summary>
+    /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）。</summary>
     public StringName JoyLayout { get; set; } = new StringName("xbox");
 
-    /// <summary>Xbox/SDL 布局手柄按钮物理标签（SDL 标准位置）——原 GameState.State.cs 迁入。</summary>
+    /// <summary>Xbox/SDL 布局手柄按钮物理标签（SDL 标准位置）。</summary>
     public Godot.Collections.Dictionary XBOX_BUTTON_LABELS { get; } = new()
     {
         [0] = "A",
@@ -66,7 +64,7 @@ public sealed partial class InputBindingsService : RefCounted
         [7] = "RS",
     };
 
-    /// <summary>PS 布局手柄按钮物理标签——原 GameState.State.cs 迁入。</summary>
+    /// <summary>PS 布局手柄按钮物理标签。</summary>
     public Godot.Collections.Dictionary PS_BUTTON_LABELS { get; } = new()
     {
         [0] = "✕",
@@ -79,7 +77,7 @@ public sealed partial class InputBindingsService : RefCounted
         [7] = "R3",
     };
 
-    /// <summary>手柄相关动作清单（死区应用与装配共用）——原 GameState.State.cs 迁入。
+    /// <summary>手柄相关动作清单（死区应用与装配共用）。
     /// SettingsService.SetJoyDeadzone 经 GameState.Instance.JOYPAD_ACTIONS 跨域访问。</summary>
     public Godot.Collections.Array<StringName> JOYPAD_ACTIONS { get; } = new()
     {
@@ -102,7 +100,7 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("parry"),
     };
 
-    // ---------------- 信号 C# 事件（2026-08-12 自 GameState.Input.cs EmitSignal 迁入） ----------------
+    // ---------------- 信号 C# 事件 ----------------
 
     /// <summary>键位变更（改键/恢复默认）；GameState 订阅后转发为 KeyBindingsChanged 信号。</summary>
     public event Action? KeyBindingsChanged;
@@ -110,7 +108,7 @@ public sealed partial class InputBindingsService : RefCounted
     /// <summary>手柄布局变更（检测/拔出回落）；GameState 订阅后转发为 JoyLayoutChanged 信号。</summary>
     public event Action<StringName>? JoyLayoutChanged;
 
-    // ---------------- 可改键系统方法（2026-08-12 自 GameState.Input.cs 逐字搬迁） ----------------
+    // ---------------- 可改键系统方法 ----------------
 
     /// <summary>启动默认键位快照（_ready 首调；改键冲突/恢复默认的数据源）</summary>
     public void CaptureDefaultBindings()
@@ -144,7 +142,7 @@ public sealed partial class InputBindingsService : RefCounted
     /// <summary>用 KeyBindings（含 settings.json 覆盖）刷新 InputMap</summary>
     public void ApplyKeyBindings()
     {
-        // H02（健壮性审核）：只擦除键盘事件，保留手柄事件——action_erase_events 会连
+        // 只擦除键盘事件，保留手柄事件——action_erase_events 会连
         // _bind_joypad_defaults 装配的手柄绑定一起清掉（改键后本会话手柄失效）
         foreach (var a in REBINDABLE_ACTIONS)
         {
@@ -165,7 +163,7 @@ public sealed partial class InputBindingsService : RefCounted
         }
     }
 
-    /// <summary>P0-1（竞品调研）：手柄默认绑定运行时装配——project.godot 保持键盘单一事实源，
+    /// <summary>手柄默认绑定运行时装配——project.godot 保持键盘单一事实源，
     /// 手柄左摇杆移动/动作键/右摇杆瞄准在此追加（InputMap.action_add_event），
     /// 与 keybind 改键系统（只改键盘事件）互不覆盖；一次装配幂等。</summary>
     public void BindJoypadDefaults()
@@ -192,7 +190,7 @@ public sealed partial class InputBindingsService : RefCounted
         AddJoyButton("restart", 0); // A（结算/暂停重开）
         AddJoyAxis("parry", 4, -1.0); // LT 左扳机（弧光弹反盾，轴 4 负向按下；阈值经 deadzone）
         // 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。
-        // H01（健壮性审核）：必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
+        // 必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
         // 同一动作正负双向传会恒为零（右摇杆瞄准完全失效）
         AddJoyAxis("aim_left", 2, -1.0);
         AddJoyAxis("aim_right", 2, 1.0);
@@ -261,7 +259,7 @@ public sealed partial class InputBindingsService : RefCounted
         }
         else if (found == new StringName() && JoyLayout != new StringName("xbox"))
         {
-            // 2026-08-03 审计：全部手柄拔出时回落 Xbox/SDL 布局，防 PS 标签残留误导设置页
+            // 全部手柄拔出时回落 Xbox/SDL 布局，防 PS 标签残留误导设置页
             JoyLayout = new StringName("xbox");
             JoyLayoutChanged?.Invoke(JoyLayout);
         }
@@ -282,7 +280,7 @@ public sealed partial class InputBindingsService : RefCounted
     }
 
     /// <summary>改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）
-    /// G04：冲突清理同时扫默认绑定——未自定义动作的默认键被占用时置空绑定覆盖默认，
+    /// 冲突清理同时扫默认绑定——未自定义动作的默认键被占用时置空绑定覆盖默认，
     /// 避免 apply_key_bindings 从默认表重灌同键造成两动作冲突</summary>
     public bool RebindAction(StringName action, int keycode)
     {

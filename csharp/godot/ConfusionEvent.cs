@@ -12,7 +12,7 @@ namespace InfiAir;
 /// </summary>
 public partial class ConfusionEvent : FogEvent
 {
-    /// <summary>呼吸包络（alpha 0.06..0.16，周期 1s；对齐原 Tween 幅度）。</summary>
+    /// <summary>呼吸包络（alpha 0.06..0.16，周期 1s）。</summary>
     private const float BaseAlpha = 0.11f;
 
     private const float PulseAlpha = 0.05f;
@@ -30,7 +30,7 @@ public partial class ConfusionEvent : FogEvent
         _layer = OverlayLayer();
         _rect = OverlayRect();
         _t = 0.0f;
-        // P4（2026-08-05）：缺键降级改为空转——原实现自行 end() 使效果 0s 消失但
+        // 缺键必须降级为空转——自行 end() 会使效果 0s 消失但
         // event_ended 延后 duration 才发（信号不同步）；空转保持生命周期由编排器统一驱动
         if (_layer != null)
         {

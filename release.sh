@@ -14,7 +14,7 @@ for arg in "$@"; do
             echo "用法: ./release.sh [--publish]"
             echo "  默认       导出+打包到 builds/release/"
             echo "  --publish  打包后继续发布：推送 main → 打 tag v<版本> → 建 GitHub Release → 上传资产"
-            echo "             （发布策略 2026-09-07 起为本地编译；发布通道为 GitHub API，替代原 release.yml 工作流）"
+            echo "             （发布策略为本地编译；发布通道为 GitHub API，替代旧 release.yml 工作流）"
             echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（探测链 godot-mono → ~/.local/bin/godot → PATH）、"
             echo "          GITHUB_TOKEN（--publish 可选；缺省经 git credential fill 取 github.com 已存凭据）"
             exit 0
@@ -26,7 +26,7 @@ done
 
 # R07：版本号自动读取 project.godot（L 系列工具链登记遗留）——本地跑 release.sh 忘传
 # VERSION 不再产出与项目版本不符的包名；sed 取不到时硬失败并提示显式传 VERSION
-# （原回退 3.26 会静默产出与 project.godot 脱节的包名，2026-08-06 规范化修正）
+# （回退硬编码版本号会静默产出与 project.godot 脱节的包名）
 VERSION="${VERSION:-$(sed -n 's/^config\/version="\([^"]*\)"/\1/p' project.godot)}"
 if [ -z "$VERSION" ]; then
     echo "[release] 无法从 project.godot 读取 config/version；请显式传入 VERSION=x.y" >&2
@@ -55,7 +55,7 @@ host=github.com
         echo "[release] 未取得 GitHub 凭据：设 GITHUB_TOKEN，或在凭据管理器保存 github.com 凭据" >&2; exit 1; }
     echo "==> --publish 模式：版本 v$VERSION，前置检查通过"
 fi
-# 2026-08-07 C# 立项：探测链 .NET 版优先（godot-mono）——含 .cs 工程标准版引擎无法导出
+# 探测链 .NET 版优先（godot-mono）——含 .cs 工程标准版引擎无法导出
 # 显式传 GODOT 时不回退（尊重调用方指定）
 if [ -n "${GODOT:-}" ]; then
 	command -v "$GODOT" >/dev/null 2>&1 || {
@@ -67,10 +67,10 @@ else
 	command -v "$GODOT" >/dev/null 2>&1 || GODOT="$HOME/.local/bin/godot"
 	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot-mono"
 	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot"
-	# 2026-08-07 环境适配：仅安装 godot4 命名的发行版（如多数 Linux 仓库包）也可直接发布
+		# 环境适配：仅安装 godot4 命名的发行版（如多数 Linux 仓库包）也可直接发布
 	command -v "$GODOT" >/dev/null 2>&1 || GODOT="godot4"
 fi
-# 2026-08-06 审计：GODOT 兜底链断裂无诊断（原回退链末端 command not found 裸报错）——
+# GODOT 兜底链断裂必须给出诊断——回退链末端 command not found 裸报错对用户无指引，
 # 最终探测失败立即给出引擎安装指引（对齐 run.sh 诊断口径）
 if ! command -v "$GODOT" >/dev/null 2>&1; then
     echo "[release] 未找到 Godot 引擎：$GODOT（需要 4.6+，推荐 .NET 版）" >&2
@@ -78,8 +78,7 @@ if ! command -v "$GODOT" >/dev/null 2>&1; then
     exit 1
 fi
 
-# 2026-08-06 审计：打包工具前置检查移到导出之前（原位于两次导出之后——
-# 缺 tar/zip 时白白跑完两次导出才报错，stage 残留）
+# 打包工具前置检查必须在导出之前——否则缺 tar/zip 时会白白跑完两次导出才报错，stage 残留
 command -v tar >/dev/null 2>&1 || {
 	echo "[release] 缺少打包工具: tar" >&2
 	exit 1
@@ -98,10 +97,9 @@ fi
 	exit 1
 }
 
-# 2026-08-12 修复（Windows 发布包 logo 后闪退）：Godot .NET 导出强依赖解决方案文件——
-# 缺失时 dotnet publish 被静默跳过，导出仍以 exit 0「completed with warnings」收尾，
-# 产出不带任何 C# 程序集的空壳包（引擎 logo 后 .NET 初始化失败直接退出，Windows 无控制台无可见
-# 报错）。事前硬检查，杜绝带病出包
+# Godot .NET 导出强依赖解决方案文件——缺失时 dotnet publish 被静默跳过，导出仍以
+# exit 0「completed with warnings」收尾，产出不带任何 C# 程序集的空壳包（Windows 无控制台，
+# 引擎 logo 后 .NET 初始化失败直接退出无可见报错）。必须事前硬检查，杜绝带病出包
 if [ ! -f InfiAir.sln ]; then
 	echo "[release] 缺少 InfiAir.sln（.NET 导出必需）" >&2
 	echo "         生成：dotnet new sln -n InfiAir && dotnet sln add InfiAir.csproj csharp/core/InfiAir.Core.csproj" >&2
@@ -115,7 +113,7 @@ OUT_DIR="$BUILD_DIR/release"
 echo "==> 资源导入"
 "$GODOT" --headless --import --path .
 
-# 2026-08-12：导出包装函数——Godot 导出即使 C# 构建失败也以 exit 0 收尾（日志仅见 ERROR），
+# 导出包装函数——Godot 导出即使 C# 构建失败也以 exit 0 收尾（日志仅见 ERROR），
 # 仅靠退出码会放行空壳包；故强制扫描日志 ERROR + 校验托管程序集目录存在
 export_platform() {
 	local preset="$1" out="$2" data_dir="$3" log
@@ -127,8 +125,8 @@ export_platform() {
 		exit 1
 	fi
 	# Godot 4.6 headless 导出在引擎退出阶段可能打印「RID allocations leaked at exit」
-	# （dummy 渲染器 teardown 噪音，发生在产物落盘之后，与包内容无关——审计档案有
-	# 基线对照先例）；精确豁免该行，其余 ^ERROR 仍中止（防空壳包的门禁语义不变）
+	# （dummy 渲染器 teardown 噪音，发生在产物落盘之后，与包内容无关）；精确豁免该行，
+	# 其余 ^ERROR 仍中止（防空壳包的门禁语义不变）
 	if grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep -q "^ERROR"; then
 		grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep "^ERROR" | sort -u | head -5 >&2
 		rm -f "$log"
@@ -155,8 +153,7 @@ echo "==> 打包"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/linux" "$STAGE_DIR/windows" "$OUT_DIR"
 
-# 2026-08-12：托管运行时目录（coreclr + InfiAir.dll 等）必须随包发布——
-# 仅拷可执行文件的包在目标机启动 logo 后即闪退（.NET 初始化失败）
+# 托管运行时目录（coreclr + InfiAir.dll 等）必须随包发布——仅拷可执行文件的包在目标机启动 logo 后即闪退（.NET 初始化失败）
 cp "$BUILD_DIR/linux/InfiAir.x86_64" "$STAGE_DIR/linux/"
 cp -r "$BUILD_DIR/linux/data_InfiAir_linuxbsd_x86_64" "$STAGE_DIR/linux/"
 cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/infiair.desktop "$STAGE_DIR/linux/"
@@ -189,7 +186,7 @@ if [ "$PUBLISH" = 1 ]; then
 	git push "$PUSH_URL" "v$VERSION"
 
 	NOTES_FILE="$(mktemp)"
-	# 2026-09-09 文档收敛：CHANGELOG.md 已移除，发布说明为空（如需说明请手写后另行上传）
+	# 文档收敛：CHANGELOG.md 已移除，发布说明为空（如需说明请手写后另行上传）
 	PAYLOAD=$(python3 -c '
 import json, sys
 print(json.dumps({"tag_name": "v" + sys.argv[1], "name": "InfiAir v" + sys.argv[1], "body": sys.stdin.read()}))' "$VERSION" < "$NOTES_FILE")

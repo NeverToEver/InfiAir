@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 敌机移动上下文（MoveCtx：Enemy 移动策略的每帧入参包）。
-/// A4a/C06：每敌机复用单个实例、字段原地更新，替代每物理帧新建 Dictionary。
+/// 每敌机复用单个实例、字段原地更新，替代每物理帧新建 Dictionary。
 /// </summary>
 public sealed class MoveCtx
 {
@@ -20,10 +20,10 @@ public sealed class MoveCtx
 }
 
 /// <summary>
-/// 敌机移动策略基类（A4a 拆分）：各策略自包含的纯位置计算块，
+/// 敌机移动策略基类：各策略自包含的纯位置计算块，
 /// 经 ctx 传入共享只读上下文，唯一副作用写 enemy.Position 与少量公开 setter。
 /// 纯 C# 类（非 GodotObject）——不注册进引擎。
-/// 共享悬停常量经构造 params 注入（Enemy._ready 从 balance 缓存值传入；Q29 策略专属参数覆盖）。
+/// 共享悬停常量经构造 params 注入（Enemy._ready 从 balance 缓存值传入；策略专属参数覆盖）。
 /// </summary>
 public abstract class EnemyMoveStrategy
 {
@@ -40,7 +40,7 @@ public abstract class EnemyMoveStrategy
     {
     }
 
-    /// <summary>Q29 参数注入（whitelist 键；freqs/phases 数组长度 ≥3 校验——R07 防越界）。</summary>
+    /// <summary>参数注入（whitelist 键；freqs/phases 数组长度 ≥3 校验——防越界）。</summary>
     protected EnemyMoveStrategy(Godot.Collections.Dictionary? p)
     {
         if (p == null)
@@ -65,7 +65,7 @@ public abstract class EnemyMoveStrategy
 
     protected static float GetFloat(Godot.Collections.Dictionary p, StringName key, float fallback)
     {
-        // AC5（2026-08-11 审计）：判型——非 Int/Float 键（String/Vector 等）回退脚本默认，不抛不崩
+        // 判型——非 Int/Float 键（String/Vector 等）回退脚本默认，不抛不崩
         //（FakeEnemiesEvent.cs:31-32 FogNum 同族先例）
         if (!p.ContainsKey(key) || p[key].VariantType is not (Variant.Type.Int or Variant.Type.Float))
         {
@@ -74,8 +74,6 @@ public abstract class EnemyMoveStrategy
 
         return (float)p[key].AsDouble();
     }
-
-    // AC5（2026-08-11 审计）：GetBool 无任何调用方（全仓 grep 仅定义处），删除死代码
 
     public abstract void Update(float delta, Enemy enemy, MoveCtx ctx);
 
@@ -123,7 +121,7 @@ public sealed class HoverMove : EnemyMoveStrategy
     }
 }
 
-/// <summary>sine：横向正弦 + 悬停微浮（参数：enemies.move_strategies.sine，Q29 入库）。</summary>
+/// <summary>sine：横向正弦 + 悬停微浮（参数：enemies.move_strategies.sine）。</summary>
 public sealed class SineMove : EnemyMoveStrategy
 {
     private float _amp = 90.0f;
@@ -155,7 +153,7 @@ public sealed class SineMove : EnemyMoveStrategy
     }
 }
 
-/// <summary>zigzag：折返横移 + 悬停微浮（参数：enemies.move_strategies.zigzag，Q29 入库）。</summary>
+/// <summary>zigzag：折返横移 + 悬停微浮（参数：enemies.move_strategies.zigzag）。</summary>
 public sealed class ZigzagMove : EnemyMoveStrategy
 {
     private float _zigDir = 1.0f;
@@ -211,7 +209,7 @@ public sealed class ZigzagMove : EnemyMoveStrategy
     }
 }
 
-/// <summary>dive：入场冲刺直扑玩家 → 转悬停（冲刺期例外；参数：enemies.move_strategies.dive，Q29 入库）。</summary>
+/// <summary>dive：入场冲刺直扑玩家 → 转悬停（冲刺期例外；参数：enemies.move_strategies.dive）。</summary>
 public sealed class DiveMove : EnemyMoveStrategy
 {
     private Vector2 _diveTarget = Vector2.Zero;
@@ -308,7 +306,7 @@ public sealed class SpiralMove : EnemyMoveStrategy
     }
 }
 
-/// <summary>noise：三正弦叠加伪噪声横移 + 悬停微浮（参数：enemies.move_strategies.noise，Q29 入库）。</summary>
+/// <summary>noise：三正弦叠加伪噪声横移 + 悬停微浮（参数：enemies.move_strategies.noise）。</summary>
 public sealed class NoiseMove : EnemyMoveStrategy
 {
     private readonly float[] _freqs = { 1.7f, 2.9f, 4.3f };
@@ -327,8 +325,8 @@ public sealed class NoiseMove : EnemyMoveStrategy
         ReadArrays(p);
     }
 
-    /// <summary>Q29/R07：freqs/phases 数组长度 ≥3 才覆盖，坏值回退默认。
-    /// AC5（2026-08-11 审计）：数组元素逐位判型——非 Int/Float 元素回退该位脚本默认，不抛不崩。</summary>
+    /// <summary>freqs/phases 数组长度 ≥3 才覆盖，坏值回退默认。
+    /// 数组元素逐位判型——非 Int/Float 元素回退该位脚本默认，不抛不崩。</summary>
     private void ReadArrays(Godot.Collections.Dictionary p)
     {
         if (p.ContainsKey("freqs") && p["freqs"].VariantType == Variant.Type.Array)
@@ -398,7 +396,7 @@ public sealed class NoiseMove : EnemyMoveStrategy
 }
 
 /// <summary>aggressive：追踪性噪声漂移（持续偏向玩家 x）+ 悬停微浮
-/// （参数：enemies.move_strategies.aggressive，Q29 入库；悬停下移系数 hover_speed_scale）。</summary>
+/// （参数：enemies.move_strategies.aggressive；悬停下移系数 hover_speed_scale）。</summary>
 public sealed class AggressiveMove : EnemyMoveStrategy
 {
     private readonly float[] _freqs = { 2.1f, 3.4f, 5.3f };
@@ -421,7 +419,7 @@ public sealed class AggressiveMove : EnemyMoveStrategy
             var arr = p["freqs"].AsGodotArray();
             if (arr.Count >= 3)
             {
-                // AC5（2026-08-11 审计）：元素级判型——坏值回退该位脚本默认，不抛不崩（同 NoiseMove.ReadArrays）
+                // 元素级判型——坏值回退该位脚本默认，不抛不崩（同 NoiseMove.ReadArrays）
                 if (arr[0].VariantType is Variant.Type.Int or Variant.Type.Float)
                 {
                     _freqs[0] = (float)arr[0].AsDouble();

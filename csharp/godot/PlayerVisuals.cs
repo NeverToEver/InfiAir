@@ -13,7 +13,7 @@ namespace InfiAir;
 /// </summary>
 public class PlayerVisuals
 {
-    /// <summary>P1-5：冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）。</summary>
+    /// <summary>冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）。</summary>
     private const int AfterimagePoolSize = 4;
     private const float AfterimageFadeTime = 0.3f;
     private static readonly Color AfterimageColor = new(1.0f, 0.72f, 0.34f, 0.5f);
@@ -34,7 +34,7 @@ public class PlayerVisuals
     private float _parryPulseTimer;
     private const float ParryPulseTime = 0.32f;
 
-    /// <summary>2026-08-09 审计：弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
+    /// <summary>弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
     private readonly Vector2[] _parryShinePoly = new Vector2[6];
 
     /// <summary>BODY_TINT_BASE 迁入（可视性增强提亮青白）。</summary>
@@ -232,7 +232,7 @@ public class PlayerVisuals
         var arc = Mathf.DegToRad(arcDeg) * 0.5f;
         var centerA = -Mathf.Pi / 2.0f - arc + 2.0f * arc * shine;
         var w = Mathf.DegToRad(14.0f); // 高光带角宽
-        var sp = _parryShinePoly; // 2026-08-09：预分配复用，防每物理帧 new Vector2[6]
+        var sp = _parryShinePoly; // 预分配复用，防每物理帧 new Vector2[6]
         sp[0] = Vector2.Zero;
         for (var i = 0; i < 5; i++)
         {

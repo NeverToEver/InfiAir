@@ -3,14 +3,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 开场过场 镜头 5 构建器（文件粒度拆分自 IntroCinematic.cs，2026-08-12）。
-/// 2026-09-10 重构：原 ~340 行单方法拆为「编排 + 四个分层构建器」——
+/// 开场过场 镜头 5 构建器。
+/// 「编排 + 四个分层构建器」结构——
 /// BuildLaunchCorridor（走廊结构）/ BuildShipRig（机体与尾焰）/ BuildSpeedField（速度场）/ PlayIgnition（点火时序）。
-/// 同时收掉叠加过量的层：尾焰每喷口原 5 层橙光（主焰粒子 + 白芯粒子 + 柔光柱 + 独立喷口热辉 + 壁面投光）
-/// 收敛为 3 层（主焰粒子 + 柔光柱含喷口炽芯 + 壁面投光），走廊去掉与轨枕灯重复的独立铆钉列、
-/// 6 条任意位置接缝收敛为每壁 1 条。
+/// 尾焰为 3 层：主焰粒子 + 柔光柱含喷口炽芯 + 壁面投光；走廊每壁 1 条接缝。
 /// 硬约束：机身挂点（喷口）一律由贴图锚点推导，禁止硬编码像素坐标
-/// （原 `(960±46, y640)` 与真位 `(960±26.6, y704)` 错位 ~60px，是「尾焰悬在机身上」的根因）。
+/// （硬编码 `(960±46, y640)` 与真位 `(960±26.6, y704)` 错位 ~60px，会使尾焰悬在机身上）。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {
@@ -339,8 +337,7 @@ public partial class IntroCinematic : CanvasLayer
         }
     }
 
-    /// <summary>点火时序：前 ~11% 镜头时长内尾焰 amount 0→1、柔光柱从收束态展开；同步过曝纱淡出。
-    /// （原独立喷口辉光弹起已并入柔光柱基座炽芯，不再单列。）</summary>
+    /// <summary>点火时序：前 ~11% 镜头时长内尾焰 amount 0→1、柔光柱从收束态展开；同步过曝纱淡出。</summary>
     private void PlayIgnition(IntroChaseShot root, float dur, List<GpuParticles2D> engines, List<Node2D> plumes)
     {
         var preRoll = dur * 0.11f;

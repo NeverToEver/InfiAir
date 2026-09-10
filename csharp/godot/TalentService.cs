@@ -5,7 +5,7 @@ using InfiAir.Core.Talent;
 namespace InfiAir;
 
 /// <summary>
-/// 天赋缓存域服务（天赋缓存系统重构，2026-09-07）：里程碑/Boss 击杀 → 点数入缓存池（LIFO 溢出衰减，
+/// 天赋缓存域服务：里程碑/Boss 击杀 → 点数入缓存池（LIFO 溢出衰减，
 /// 不弹窗）→ 玩家经天赋面板自主加点（递增消耗/收益递减/互斥锁/专注惩罚/路线契约/风险加点）。
 /// 替代旧「里程碑三选一 BuffSelect」：天赋节点 id = 既有 buff id，最终层级同步进
 /// CombatStateService.Augments——Player/Bullet/PlayerDamage/HUD 坞等全部效果消费端零改动；
@@ -25,7 +25,7 @@ public sealed partial class TalentService : RefCounted
     /// Augments 内扣减运行层，不影响本表的已购层级）。</summary>
     private readonly Dictionary<StringName, int> _levels = new();
 
-    /// <summary>2026-09-10：StringName→string 缓存（TalentTree.Find 仅收 string，每次 ToString 分配；
+    /// <summary>StringName→string 缓存（TalentTree.Find 仅收 string，每次 ToString 分配；
     /// StringName 内容不可变，缓存安全）。</summary>
     private readonly Dictionary<StringName, string> _idStrings = new();
 
@@ -287,7 +287,7 @@ public sealed partial class TalentService : RefCounted
     /// <summary>本节点是否处于专注折扣侧（焦点属性 = 当前最高层节点，并列时全部豁免）。</summary>
     public bool FocusDiscounted(StringName id) => FocusDiscounted(id, FocusOver());
 
-    /// <summary>2026-09-10：超限档数外参版（EffLevel 一次 FocusOver 两路复用，免二次全表迭代）。</summary>
+    /// <summary>超限档数外参版（EffLevel 一次 FocusOver 两路复用，免二次全表迭代）。</summary>
     private bool FocusDiscounted(StringName id, int over)
     {
         if (over <= 0)
@@ -306,7 +306,7 @@ public sealed partial class TalentService : RefCounted
     /// </summary>
     public double EffLevel(StringName id)
     {
-        // 2026-09-10：FocusOver 一次求值两路复用（原 FocusDiscounted 内部 + 本调用各全表迭代一次）
+        // FocusOver 一次求值两路复用（否则 FocusDiscounted 内部 + 本调用各全表迭代一次）
         var focusOver = FocusOver();
         return TalentEconomy.EffectiveLevel(
             _config, Level(id), Softcap(id), RouteCoreFor(id), FocusDiscounted(id, focusOver), focusOver);
@@ -499,7 +499,7 @@ public sealed partial class TalentService : RefCounted
     // ---------------- 生命周期 / 存档 ----------------
 
     /// <summary>起始层级预置：升级项 → 起始层级（直接落 Augments，归口本服务保持单一事实源；
-    /// 局外成长系统已移除，当前无生产调用方，入口保留）。</summary>
+    /// 局外成长系统入口（当前无生产调用方，保留）。</summary>
     public void ApplyStartingLoadout(Godot.Collections.Dictionary metaUpgrades)
     {
         var applied = false;

@@ -3,15 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 设置+视图域服务（第六轮拆域收官，2026-08-12）：原 GameState.Settings.cs 设置/视图域——职责 A 设置
-/// setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
+/// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
 /// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
-/// PersistJoySettings）与职责 B 视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
+/// PersistJoySettings）与视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
 /// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/RESOLUTION_LEVELS/AIM_ASSIST_ORDER）及状态字段
 /// （CtrlToggleMode/ShiftToggleMode/TouchControls/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
 /// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）
-/// 迁入本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 自 GameState.Save.cs 随迁（设置域
-/// 持久化，SaveSettings 留在 GameState 侧）。窗口管理（2026-09-10 重构）：窗口模式（窗口化/无边框
+/// 均在本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 亦在此（设置域
+/// 持久化，SaveSettings 留在 GameState 侧）。窗口管理：窗口模式（窗口化/无边框
 /// 全屏）+ 渲染分辨率档（分辨率档即实际渲染分辨率，canvas_items 拉伸下窗口物理像素即渲染缓冲尺寸）
 /// + 窗口化自由拖拽（拖拽捕获为自定义档）；ApplyWindow 单点应用，OnWindowResized 捕获拖拽结果
 /// （GameState 侧对根窗口 SizeChanged 去抖后落盘并广播）。
@@ -23,8 +22,8 @@ namespace InfiAir;
 /// 同构——GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
 /// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 TouchControlsChanged/ViewZoomChanged/
 /// WindowModeChanged/ResolutionChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/
-/// JoySettingsChanged/LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前
-/// 逐位一致——LoadSettings 直写字段路径不发服务事件，无双发）。
+/// JoySettingsChanged/LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序
+/// 保持不变——LoadSettings 直写字段路径不发服务事件，无双发）。
 /// </summary>
 public sealed partial class SettingsService : RefCounted
 {
@@ -37,7 +36,7 @@ public sealed partial class SettingsService : RefCounted
         _registry = registry;
     }
 
-    // ---------------- 状态字段（2026-08-12 自 GameState.State.cs/Settings.cs 迁入） ----------------
+    // ---------------- 状态字段 ----------------
 
     /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；Player 移动/加速读取）</summary>
     public bool CtrlToggleMode { get; set; } = false;
@@ -94,7 +93,7 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>默认跳过开场过场（持久化，默认关=播过场；开启后开机直达标题屏）</summary>
     public bool SkipIntroCinematic { get; set; } = false;
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。</summary>
+    /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。</summary>
     public double JoyAimSpeed { get; set; } = 1400.0;
 
     public double JoyDeadzone { get; set; } = 0.5;
@@ -102,7 +101,7 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>当前语言（"zh"/"en"，settings.json 持久化）。</summary>
     public string Locale { get; set; } = "zh";
 
-    // ---------------- 信号 C# 事件（2026-08-12 自 GameState.Settings.cs EmitSignal 迁入） ----------------
+    // ---------------- 信号 C# 事件 ----------------
 
     /// <summary>触屏虚拟控件开关变化；GameState 订阅后转发为 TouchControlsChanged 信号
     /// （LoadSettings 直写字段路径不经本事件——无双发）。</summary>
@@ -132,13 +131,13 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>鼠标锁定开关变化；GameState 订阅后转发为 MouseLockChanged 信号。</summary>
     public event Action<bool>? MouseLockChanged;
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 + 摇杆死区变更；GameState 订阅后转发为 JoySettingsChanged 信号。</summary>
+    /// <summary>手柄设置：右摇杆瞄准灵敏度 + 摇杆死区变更；GameState 订阅后转发为 JoySettingsChanged 信号。</summary>
     public event Action<double, double>? JoySettingsChanged;
 
     /// <summary>语言变化；GameState 订阅后转发为 LocaleChanged 信号。</summary>
     public event Action? LocaleChanged;
 
-    // ---------------- 设置项（Ctrl/Shift 模式，2026-08-12 自 GameState.Settings.cs 迁入） ----------------
+    // ---------------- 设置项（Ctrl/Shift 模式） ----------------
 
     /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetCtrlToggleMode(bool enabled)
@@ -224,7 +223,7 @@ public sealed partial class SettingsService : RefCounted
         InvalidateViewRectCache();
     }
 
-    // ---------------- 窗口管理（2026-09-10 重构：窗口模式 + 渲染分辨率档 + 自由拖拽） ----------------
+    // ---------------- 窗口管理（窗口模式 + 渲染分辨率档 + 自由拖拽） ----------------
 
     /// <summary>窗口模式常量：窗口化（可拖拽/可缩放）与无边框全屏（铺满显示器、无标题栏、不改显示模式）。</summary>
     public static readonly StringName WindowModeWindowed = new("windowed");
@@ -549,17 +548,17 @@ public sealed partial class SettingsService : RefCounted
         GameState.Instance.SaveSettings();
     }
 
-    /// <summary>P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。
-    /// K06：只更新内存 + 广播（灵敏度不影响 InputMap 死区）；持久化由设置页 drag_ended 统一
-    /// 提交——原实现每步全量原子写盘，滑杆拖动（数十次 value_changed）放大为磁盘写风暴</summary>
+    /// <summary>手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。
+    /// 只更新内存 + 广播（灵敏度不影响 InputMap 死区）；持久化由设置页 drag_ended 统一
+    /// 提交——不得每步全量原子写盘，否则滑杆拖动（数十次 value_changed）放大为磁盘写风暴</summary>
     public void SetJoyAimSpeed(double value)
     {
         JoyAimSpeed = Mathf.Clamp(value, 200.0, 4000.0);
         JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
     }
 
-    /// <summary>P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。
-    /// K06：立即应用死区（InputMap 全局生效）+ 广播；不自动写盘</summary>
+    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。
+    /// 立即应用死区（InputMap 全局生效）+ 广播；不自动写盘</summary>
     public void SetJoyDeadzone(double value)
     {
         JoyDeadzone = Mathf.Clamp(value, 0.05, 0.9);
@@ -577,11 +576,11 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
     public void PersistJoySettings() => GameState.Instance.SaveSettings();
 
-    // ---------------- 视图簇（热路径：ViewWorldRect 帧缓存，2026-08-12 自 GameState.Settings.cs 逐字搬迁） ----------------
+    // ---------------- 视图簇（热路径：ViewWorldRect 帧缓存） ----------------
 
     /// <summary>当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
     /// 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
-    /// 物理帧内缓存（P0-1）：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询。</summary>
+    /// 物理帧内缓存：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询。</summary>
     public Rect2 ViewWorldRect(double margin = 0.0)
     {
         if (margin == 0.0)
@@ -612,7 +611,7 @@ public sealed partial class SettingsService : RefCounted
             // 视角缩放只在相机已注册时参与收窄：zoom 经 Main.ApplyCameraZoom 写入相机才真正
             // 作用于渲染，"可见世界区域"必须与实际可见范围一致。相机未注册的屏幕（标题屏/
             // 教程）渲染本就是全画布，rect 若仍除持久化 zoom 会把星空/刷怪布局收窄成屏幕
-            // 中央一块（2026-09-10 欢迎页星空缩块修复）；过场镜头等 CanvasLayer 内 1:1 画布
+            // 中央一块；过场镜头等 CanvasLayer 内 1:1 画布
             // 的装饰（相机已注册但 zoom 不作用于该画布）由 Starfield 侧按语境自行取全视口。
             if (CameraRef != null && GodotObject.IsInstanceValid(CameraRef))
             {
@@ -642,16 +641,16 @@ public sealed partial class SettingsService : RefCounted
         LocaleChanged?.Invoke();
     }
 
-    // ---------------- 设置域持久化桥（2026-08-12 自 GameState.Save.cs 迁入；SaveSettings 本体留在 GameState 侧） ----------------
+    // ---------------- 设置域持久化桥（SaveSettings 本体留在 GameState 侧） ----------------
 
     /// <summary>设置字段应用（user://settings.json 读入的字典；含键位/窗口/视图缓存副作用）。
     /// 跨域键经 GameState.Instance 访问：TutorialDone/KeyBindings/Difficulty 本体留在 GameState（Input/Constants
     /// 域），本桥只读经门面；Difficulty 恢复后的 RefreshRegenCache 亦经 Instance 调用（RunProgressionService
-    /// 回血缓存——GameState.Difficulty.cs 门面包装，第六轮起 public）。</summary>
+    /// 回血缓存——GameState.Difficulty.cs 门面包装）。</summary>
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
     {
         GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
-        // E10：locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
+        // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
         var savedLocale = data.GetValueOrDefault("locale", Locale).AsString();
         if (savedLocale == "zh" || savedLocale == "en")
@@ -659,7 +658,7 @@ public sealed partial class SettingsService : RefCounted
             Locale = savedLocale;
         }
 
-        // C02 修复：key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
+        // key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
         // 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
         GameState.Instance.KeyBindings.Clear();
         var savedKeys = data.GetValueOrDefault("key_bindings", new Variant());
@@ -676,7 +675,7 @@ public sealed partial class SettingsService : RefCounted
                 var keys = new Godot.Collections.Array<int>();
                 foreach (var k in raw.AsGodotArray())
                 {
-                    // E11：元素级判型（C02 外层守卫的补全）——手改字符串 keycode 直接跳过，
+                    // 元素级判型（外层守卫的补全）——手改字符串 keycode 直接跳过，
                     // 不再 int() 转换错误刷屏（不崩溃但不干净）
                     if (k.VariantType is not Variant.Type.Int and not Variant.Type.Float)
                     {
@@ -687,7 +686,7 @@ public sealed partial class SettingsService : RefCounted
                 }
 
                 var action = a.AsStringName();
-                // 旧 buff 系统退役（2026-09-08 作战增幅重构）：档案里的 buff_panel 键位迁往新动作名
+                // 档案里的旧 buff 面板键位迁往新动作名
                 if (action == new StringName("buff_panel"))
                 {
                     action = new StringName("augment_panel");
@@ -701,8 +700,8 @@ public sealed partial class SettingsService : RefCounted
         if (GameState.Instance.DIFFICULTY_DEFS.ContainsKey(savedDifficulty))
         {
             GameState.Instance.Difficulty = savedDifficulty;
-            // Q04（2026-08-05）：存档/账户设置恢复难度后刷新被动回血缓存——
-            // 原实现仅 _apply_balance 与 set_difficulty 刷新，重启后 hard 玩家按 medium 回血
+            // 存档/账户设置恢复难度后必须刷新被动回血缓存——
+            // 否则仅 _apply_balance 与 set_difficulty 刷新，重启后 hard 玩家按 medium 回血
             GameState.Instance.RefreshRegenCache();
         }
 
@@ -716,7 +715,7 @@ public sealed partial class SettingsService : RefCounted
             InvalidateViewRectCache();
         }
 
-        // 窗口管理（2026-09-10 重构）：新模式键缺失时兼容迁移旧 window_size（small/medium/large）。
+        // 新模式键缺失时兼容迁移旧 window_size（small/medium/large）。
         var savedMode = data.GetValueOrDefault("window_mode", "").AsStringName();
         if (savedMode == WindowModeWindowed || savedMode == WindowModeBorderless)
         {
@@ -773,7 +772,7 @@ public sealed partial class SettingsService : RefCounted
         WorldPostFx = GameState.Instance.SaveBool(data.GetValueOrDefault("world_post_fx", WorldPostFx), WorldPostFx);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
         SkipIntroCinematic = GameState.Instance.SaveBool(data.GetValueOrDefault("skip_intro", SkipIntroCinematic), SkipIntroCinematic);
-        // P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
+        // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
         var joySpeed = data.GetValueOrDefault("joy_aim_speed", GameState.Instance.Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
         if (joySpeed.VariantType is Variant.Type.Float or Variant.Type.Int)
         {

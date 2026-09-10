@@ -6,7 +6,7 @@ namespace InfiAir;
 /// <summary>
 /// 过场/演出共享特效工具：软径向光晕、带纹理粒子、冲击波环、分层能量束、速度线/放射线场。
 /// 供 IntroCinematic / ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
-/// 替代此前在多处复制的硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
+/// 避免多处重复实现硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
 /// RefCounted + 全静态工厂。
 /// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——贴图/材质
 /// 不做静态缓存，改每次构建（UITheme.Font 同款处理）；
@@ -108,8 +108,8 @@ public partial class CinematicFx : RefCounted
         return ImageTexture.CreateFromImage(img);
     }
 
-    /// <summary>软径向光晕：Sprite2D 承载软点贴图，scale/modulate 语义与旧 GlowDot 一致（可直接 tween）。
-    /// G022：additive material 共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）——
+    /// <summary>软径向光晕：Sprite2D 承载软点贴图，scale/modulate 可直接 tween。
+    /// additive material 共享（N 机 N 份相同材质 → 1 份，材质只读属性无实例差异）——
     /// 不做静态缓存（退出 segfault 规则），每次新建，语义等价。</summary>
     public static CanvasItemMaterial AdditiveMaterial()
     {
@@ -423,7 +423,7 @@ public partial class CinematicFxBeamFlow : Node2D
 
     private static Vector2[] Resample(Vector2[] points, int n)
     {
-        // H20（健壮性审核）：点列 <2 或目标 <2 时直接返回，防负索引/除零
+        // 点列 <2 或目标 <2 时直接返回，防负索引/除零
         if (points.Length < 2 || n < 2)
         {
             return System.Array.Empty<Vector2>();
@@ -443,7 +443,7 @@ public partial class CinematicFxBeamFlow : Node2D
 
     private Vector2 SampleAt(float u)
     {
-        // H20 补全：_resample 对点列 <2 返回空集，此处防空 _samples 负索引越界（-2 越界）
+        // _resample 对点列 <2 返回空集，此处防空 _samples 负索引越界（-2 越界）
         if (_samples.Length == 0)
         {
             return Vector2.Zero;

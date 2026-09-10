@@ -18,7 +18,7 @@ public partial class DirectionShiftEvent : FogEvent
 
     protected override void OnStart()
     {
-        // H15 族：≤0 每帧脉冲
+        // ≤0 每帧脉冲
         _interval = Mathf.Max(
             (float)GameState.Instance.Cfg("fog_events.direction_shift.shift_interval", _interval).AsDouble(), CfgFx.IntervalFloor);
         _hold = Mathf.Max((float)GameState.Instance.Cfg("fog_events.direction_shift.hold_time", _hold).AsDouble(), 0.0f);

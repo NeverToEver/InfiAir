@@ -20,7 +20,7 @@ public partial class CommOverlay : CanvasLayer
     private float _charT;
     private int _shownChars;
     private float _holdLeft = -1.0f; // <0：打字中
-    /// <summary>C13 修复：淡出 tween 缓存——ShowLine/Clear 必须 kill 进行中的淡出，
+    /// <summary>淡出 tween 缓存——ShowLine/Clear 必须 kill 进行中的淡出，
     /// 否则新台词恰落淡出窗口时被残留 tween 拉回 alpha=0 并 hide。</summary>
     private Tween? _fadeTween;
 
@@ -51,7 +51,7 @@ public partial class CommOverlay : CanvasLayer
     /// <summary>播放一句台词（翻译键）：新台词顶掉未播完的旧台词。</summary>
     public void ShowLine(string key)
     {
-        // C13：先取消进行中的淡出，避免新台词被残留 tween 拖回 alpha=0
+        // 先取消进行中的淡出，避免新台词被残留 tween 拖回 alpha=0
         if (_fadeTween != null && _fadeTween.IsValid())
         {
             _fadeTween.Kill();
@@ -70,10 +70,10 @@ public partial class CommOverlay : CanvasLayer
         GameState.Instance.PlaySfx(SfxId.FireC);
     }
 
-    /// <summary>清空当前台词并隐藏（B13：返航打断事件时调用，避免恢复对局后台词残留）。</summary>
+    /// <summary>清空当前台词并隐藏（返航打断事件时调用，避免恢复对局后台词残留）。</summary>
     public void Clear()
     {
-        // C13：取消进行中的淡出，防止 Clear 后 alpha 残留改变
+        // 取消进行中的淡出，防止 Clear 后 alpha 残留改变
         if (_fadeTween != null && _fadeTween.IsValid())
         {
             _fadeTween.Kill();
@@ -98,7 +98,7 @@ public partial class CommOverlay : CanvasLayer
 
         if (_holdLeft < 0.0f)
         {
-            // 打字机（P2：字符数未变时不 set_text，避免逐帧字形 shaping）
+            // 打字机（字符数未变时不 set_text，避免逐帧字形 shaping）
             var prev = _shownChars;
             _charT += d;
             while (_charT >= CharInterval && _shownChars < _fullText.Length)

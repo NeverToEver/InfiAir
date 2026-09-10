@@ -3,14 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：对局状态字段与核心状态方法（ResetRun/AddScore 等）。
-/// 第五轮拆域（2026-08-11）：计分域职责（Score/Kills/BossKills/Combo 状态、连击系统、里程碑推进）
-/// 迁至 ScoreService（csharp/godot/ScoreService.cs，组合持有），本文件为门面对齐转发——
+/// GameState 部分定义：对局状态字段与核心状态方法（ResetRun/AddScore 等）。
+/// 计分域职责（Score/Kills/BossKills/Combo 状态、连击系统、里程碑推进）
+/// 由 ScoreService（csharp/godot/ScoreService.cs，组合持有）承担，本文件为门面对齐转发——
 /// 公开 API 签名/语义不变；
 /// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState 订阅重发。
-/// 健康/Buff 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）迁至 CombatStateService
-/// （csharp/godot/CombatStateService.cs），Health/Augments 属性此处保留转发；
-/// AddKill/AddBossKill 击杀编排自 GameState.Settings.cs 移入本文件（对局状态方法归位）。
+/// 健康/Buff 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）由 CombatStateService
+/// （csharp/godot/CombatStateService.cs）承担，Health/Augments 属性此处保留转发；
+/// AddKill/AddBossKill 击杀编排在本文件（对局状态方法归位）。
 /// </summary>
 public partial class GameState : Node
 {
@@ -28,7 +28,7 @@ public partial class GameState : Node
         set => _score.MilestoneCycleMult = value;
     }
 
-    /// <summary>全局机体尺寸缩放（balance.json 顶层 world_scale；0.4 = 当前默认观感，2026-07-31 由 1/3 上调）。
+    /// <summary>全局机体尺寸缩放（balance.json 顶层 world_scale；0.4 = 当前默认观感）。
     /// 机体尺寸族数值（贴图 scale/碰撞 radius/机体偏移/随机体特效比例）在 json/tscn/脚本回退中
     /// 一律存设计值（1.0 基准），实体在 _ready()/setup() 统一乘本系数后应用；游戏性范围族不乘。
     /// 回退默认值须与 balance.json 一致（损坏/缺键时全局比例不错位）。</summary>
@@ -47,17 +47,17 @@ public partial class GameState : Node
 
     private void ApplyBalance()
     {
-        // H16（健壮性审核）：world_scale 域校验——0/负值使机体贴图/碰撞归零或镜像翻转，钳制下限
+        // world_scale 域校验——0/负值使机体贴图/碰撞归零或镜像翻转，钳制下限
         WorldScale = Mathf.Max(Cfg("world_scale", WorldScale).AsDouble(), 0.01);
-        // C03 修复：milestones.base 须为非空数组，否则下游 milestone_threshold 除零
-        // C18：显式转 Array[int]（cfg 返回 Variant，typed 赋值需转换）
+        // milestones.base 须为非空数组，否则下游 milestone_threshold 除零
+        // 显式转 Array[int]（cfg 返回 Variant，typed 赋值需转换）
         var baseV = Cfg("milestones.base", ScoreService.BuildMilestoneBase());
         var baseArr = new Godot.Collections.Array<int>();
         if (baseV.VariantType == Variant.Type.Array && baseV.AsGodotArray().Count > 0)
         {
             foreach (var v in baseV.AsGodotArray())
             {
-                // 元素级判型（2026-08-03 审计）：int(v) 对字符串返回 0（阈值全 0 → 里程碑风暴）、
+                // 元素级判型：int(v) 对字符串返回 0（阈值全 0 → 里程碑风暴）、
                 // 对 Array/Dict 抛运行时错误（启动即崩）；非数字元素跳过，与「损坏回退默认」宣称一致
                 if (v.VariantType is Variant.Type.Int or Variant.Type.Float)
                 {
@@ -67,19 +67,18 @@ public partial class GameState : Node
         }
 
         _score.MilestoneBase = baseArr.Count > 0 ? baseArr : ScoreService.BuildMilestoneBase();
-        // H03（健壮性审核）补全：milestones.cycle_mult 全局域校验——曲线语义要求阈值单调增长，
+        // milestones.cycle_mult 全局域校验——曲线语义要求阈值单调增长，
         // 下限须钳 ≥1.0：mult ∈ (0,1) 时阈值级数收敛（上确界 ≈ base_last/(1-mult)），Score 一旦
-        // 越过收敛上界，AddScore 的 while 里程碑推进永不退出（主线程挂死）——
-        // 原 0.01 下限恰好放任收敛区间，防挂死目标未达成。difficulty 子表无 cycle_mult 键
-        // （原 _valid_difficulty_defs 内检查恒真为死代码），此处对全局键钳制下限（同 world_scale 款）
+        // 越过收敛上界，AddScore 的 while 里程碑推进永不退出（主线程挂死）。
+        // difficulty 子表无 cycle_mult 键，此处只对全局键钳制下限（同 world_scale 款）
         _score.MilestoneCycleMult = Mathf.Max(Cfg("milestones.cycle_mult", _score.MilestoneCycleMult).AsDouble(), 1.0);
         // 难度进程曲线参数：负值会使难度乘数随时间/Boss 击杀下行，钳制 ≥0 保曲线单调不减
         // （RunProgressionService.ApplyProgressionParams 注入）
         _runProg.ApplyProgressionParams(
             Mathf.Max(Cfg("progression.per_boss_kill", 0.6).AsDouble(), 0.0),
             Mathf.Max(Cfg("progression.per_ten_minutes", 1.5).AsDouble(), 0.0),
-            Mathf.Max(Cfg("progression.time_step_seconds", 30.0).AsDouble(), 0.1)); // H15：=0 除零挂死
-        // C03 修复：难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
+            Mathf.Max(Cfg("progression.time_step_seconds", 30.0).AsDouble(), 0.1)); // =0 除零挂死
+        // 难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
         // （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
         var diff = Cfg("difficulty", new Godot.Collections.Dictionary());
         if (ValidDifficultyDefs(diff))
@@ -87,16 +86,16 @@ public partial class GameState : Node
             DIFFICULTY_DEFS = diff.AsGodotDictionary();
         }
 
-        // P0-2：回血链数值一次性缓存（热路径禁 cfg 约定）——RunProgressionService
+        // 回血链数值一次性缓存（热路径禁 cfg 约定）——RunProgressionService
         _runProg.RefreshRegenCache();
-        // B 梯队：DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）
+        // DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）
         DDA_DURATION = Mathf.Max(Cfg("dda.duration", DDA_DURATION).AsDouble(), 0.1);
         DDA_FACTOR = Mathf.Max(Cfg("dda.factor", DDA_FACTOR).AsDouble(), 1.0);
         // 击杀连击参数缓存（热路径禁 cfg 约定；window ≤0 会每帧断连——钳制下限，
         // step ≤0 乘区不增、max_mult <1 会倒扣击杀分——钳制 ≥1）
-        // AC1（2026-08-11 健壮性审查）：step/max_mult 上界钳 [0,1e3]/[1,1e3]——巨值乘区在
+        // step/max_mult 上界钳 [0,1e3]/[1,1e3]——巨值乘区在
         // AddKillScore 的 (long) 乘算下溢出回绕为负（分数巨负进里程碑/榜单）；1e3 远超合理域
-        // （设计封顶 ×2.0）但杜绝 long 溢出（AB15/AB16 上界钳先例）
+        // （设计封顶 ×2.0）但杜绝 long 溢出
         _score.ApplyComboConfig(
             Mathf.Max(Cfg("scoring.combo.window", _score.ComboWindow).AsDouble(), 0.1),
             Mathf.Clamp(Cfg("scoring.combo.step", _score.ComboStep).AsDouble(), 0.0, 1e3),
@@ -105,10 +104,10 @@ public partial class GameState : Node
         _score.ApplyAugmentScoreConfig(
             Cfg("augments.score_amp.factor", 1.0).AsDouble(),
             Cfg("augments.combo_guard.window_factor", 1.0).AsDouble());
-        // 第五轮拆域：健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
-        // 与 ScoreService.ApplyComboConfig 同构）——H15 同款：≤0 使 max_health 归零/负值，玩家秒死
-        // 2026-08-03 审计：与 _max_hp_base 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
-        // 2026-08-03 审计：吸血比例缓存（击杀帧免 cfg 路径解析，P0-2 同款）
+        // 健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
+        // 与 ScoreService.ApplyComboConfig 同构）——max_health ≤0 使上限归零/负值，玩家秒死
+        // 与 _maxHpBase 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
+        // 吸血比例缓存（击杀帧免 cfg 路径解析）
         _combat.ApplyHealthConfig(
             Mathf.Max(Cfg("player.max_health", _combat.MaxHpBase).AsDouble(), 0.1),
             Mathf.Max(Cfg("augments.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
@@ -120,10 +119,10 @@ public partial class GameState : Node
         _talent.LoadTalentConfig();
     }
 
-    /// <summary>C03/E03 修复：难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
+    /// <summary>难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
     /// 且每个子字典含全部数值键（缺子键时下游 8 处 DIFFICULTY_DEFS[difficulty][...] 访问 KeyError，
     /// 部分损坏 JSON 通过后敌方 0 HP 秒死/得分倍率 0，违背「损坏回退默认」宣称）。
-    /// label 键已由 D04 改走 tr() 不再消费，不纳入校验。</summary>
+    /// label 键已改走 tr() 不再消费，不纳入校验。</summary>
     private static readonly string[] DifficultyDefKeys = new[]
     {
         "hp",
@@ -155,24 +154,23 @@ public partial class GameState : Node
             foreach (var k in DifficultyDefKeys)
             {
                 var v = def.GetValueOrDefault(k, new Variant()); // 缺键时 get 返回 null，一并落入类型校验
-                // L04（2026-08-03 审查）：bool 是 int 子类需显式排除（E21 已修 spawner 同型
-                // 遗漏）——"score": false 通过校验后得分倍率恒 0，里程碑永不触发（Buff 系统软锁）
+                // bool 是 int 子类需显式排除——"score": false 通过校验后得分倍率恒 0，
+                // 里程碑永不触发（Buff 系统软锁）
                 if ((v.VariantType != Variant.Type.Int && v.VariantType != Variant.Type.Float) || v.VariantType == Variant.Type.Bool)
                 {
                     return false;
                 }
             }
 
-            // H03（健壮性审核）：数值域校验——milestone ≤ 0 会破坏阈值单调性，
+            // 数值域校验——milestone ≤ 0 会破坏阈值单调性，
             // 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴。
-            // 原 cycle_mult 检查为死代码：difficulty 子表无 cycle_mult 键（get 恒返回默认 1.0），
-            // 全局 milestones.cycle_mult 的 >0 域校验已移至 _apply_balance
+            // difficulty 子表无 cycle_mult 键，全局 milestones.cycle_mult 的域校验在 _apply_balance
             if (def.GetValueOrDefault("milestone", 1.0).AsDouble() <= 0.0)
             {
                 return false;
             }
 
-            // 2026-08-03 审计：hp/speed/spawn/score/spread_cap 负值会使敌机 0 HP 秒死/反向移动/负得分倍率，
+            // hp/speed/spawn/score/spread_cap 负值会使敌机 0 HP 秒死/反向移动/负得分倍率，
             // 与 milestone 同款域校验——任一负值整表回退默认（「损坏回退默认」宣称）
             foreach (var k2 in new[] { "hp", "speed", "spawn", "score", "spread_cap" })
             {
@@ -198,7 +196,7 @@ public partial class GameState : Node
     // 初始手牌 = MISSION_DEFS 三项（保持既有 id 语义）；刷新（refresh_missions）从
     // MISSION_POOL 无放回重抽 3 个槽位。kind 决定进度来源（kill=击杀数 / survive=存活
     // 秒 / boss=Boss 击杀数），goal 为各自目标——任务轮换后 id 变化，进度源按 kind 分发。
-    // 显示文本全走 tr()（翻译表 MISSION_* 键），此处不保留 name/desc（2026-08-05 P4 去双源）。
+    // 显示文本全走 tr()（翻译表 MISSION_* 键），此处不保留 name/desc（避免双源）。
 
     /// <summary>常驻基地任务初始手牌（对齐原作 base_talent_console 三任务）。</summary>
     public Godot.Collections.Array<Godot.Collections.Dictionary> MISSION_DEFS { get; } = BuildMissionDefs();
@@ -216,18 +214,18 @@ public partial class GameState : Node
     /// <summary>进基地发放刷新点数（balance.json base_task.grant_per_visit 覆盖；≥0 钳制）。</summary>
     public int GRANT_PER_VISIT { get; set; } = 1;
 
-    // 互斥天赋路线（旧 line->双 buff 表）已随天赋缓存系统重构删除——路线契约见 TalentTree.Routes
+    // 互斥天赋路线契约见 TalentTree.Routes（本类不维护 line->双 buff 表）
 
     // 音效资源/音量/冷却/复音的唯一目录已收编进 SfxPlayer（SfxId 枚举 + 目录表）
 
     private const string SettingsPathValue = "user://settings.json";
     public string SETTINGS_PATH => SettingsPathValue;
 
-    /// <summary>v4：历史版本号（原对局存档格式；现仅作 settings.json 版本标记）。
+    /// <summary>settings.json 版本标记。
     /// v4 = 窗口管理重构（window_size → window_mode + resolution + custom_width/height）。</summary>
     private const int PersistVersionValue = 4;
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
+    /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// ——SettingsService 转发。</summary>
     public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
 
@@ -337,7 +335,7 @@ public partial class GameState : Node
     /// <summary>任务进度整秒缓存（_process 热路径免每帧字典访问）</summary>
     private int _surviveSecCached = -1;
 
-    /// <summary>B 梯队：DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
+    /// <summary>DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
     /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存——RunProgressionService 转发。</summary>
     public double DDA_DURATION
     {
@@ -351,7 +349,7 @@ public partial class GameState : Node
         set => _runProg.DDA_FACTOR = value;
     }
 
-    /// <summary>击杀连击（2026-08-11）：
+    /// <summary>击杀连击：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）——ScoreService 转发。</summary>
     public double ComboWindow => _score.ComboWindow;
 
@@ -364,7 +362,7 @@ public partial class GameState : Node
 
     public void ResetRun()
     {
-        // 第五轮拆域：健康/Buff 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
+        // 健康/Buff 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
         // 不发事件——AugmentsChanged 仍由下方直发收尾，顺序不变）
         _combat.ResetAll();
         Rp = 0;
@@ -374,8 +372,8 @@ public partial class GameState : Node
         EmitSignal(SignalName.RefreshPointsChanged, RefreshPoints);
         // 天赋缓存域复位（缓存/层级/路线/代币/超载；Buff 不在此清——上方 _combat.ResetAll 已清）
         _talent.ResetAll();
-        // 第五轮拆域：计分/难度域复位改调服务（Score/Kills/BossKills/里程碑/连击 + DifficultyMultiplier/
-        // 时间档/DDA 计时）；信号发射点/顺序与拆域前一致——_runProg.ResetAll 无信号、_score.ResetAll 内
+        // 计分/难度域复位改调服务（Score/Kills/BossKills/里程碑/连击 + DifficultyMultiplier/
+        // 时间档/DDA 计时）；信号发射点/顺序不变——_runProg.ResetAll 无信号、_score.ResetAll 内
         // ResetCombo 发 ComboChanged(0)（幂等早退），随后 AugmentsChanged 收尾
         _runProg.ResetAll();
         _score.ResetAll();
@@ -385,7 +383,7 @@ public partial class GameState : Node
     /// <summary>得分（难度分数倍率统一在此乘算）——ScoreService 转发。</summary>
     public void AddScore(int points) => _score.AddScore(points);
 
-    // ---------------- 击杀编排（2026-08-11 自 GameState.Settings.cs 移入；对局状态方法归位） ----------------
+    // ---------------- 击杀编排（对局状态方法） ----------------
 
     public void AddKill()
     {
@@ -395,8 +393,8 @@ public partial class GameState : Node
 
     public void AddBossKill(double scoreScale = 1.0)
     {
-        // 第五轮拆域编排：计分域（BossKills 推进 + 加分）→ 天赋域（点数入缓存池，不弹窗）→
-        // Missions 域（RP/任务进度）→ 进程域（难度重算 + 信号）——对外行为/信号顺序与拆域前一致
+        // 击杀编排：计分域（BossKills 推进 + 加分）→ 天赋域（点数入缓存池，不弹窗）→
+        // Missions 域（RP/任务进度）→ 进程域（难度重算 + 信号）——对外行为/信号顺序固定
         // （ScoreChanged/MilestoneReached 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
         _score.AddBossKill(scoreScale);
         _talent.GrantForBoss();
@@ -408,7 +406,7 @@ public partial class GameState : Node
         }
     }
 
-    // ---------------- 击杀连击（2026-08-11；scoring.combo 段） ----------------
+    // ---------------- 击杀连击（scoring.combo 段） ----------------
 
     /// <summary>击杀计分唯一入口（敌机击杀路径统一走此）：连击推进 + 乘区放大，
     /// 随后经 AddScore 乘难度倍率。Boss 击杀（AddBossKill）/事件奖励/擦弹不计连击。——ScoreService 转发。</summary>

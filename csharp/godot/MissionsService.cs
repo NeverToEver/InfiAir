@@ -3,8 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// RP 经济 / 基地任务 / 天赋路线服务（第四轮拆域，2026-08-11）：原 GameState.Missions.cs 全部职责
-/// 迁入本服务——征用点(RP)入账消费 / 常驻基地任务(进度按 kind 分发、领取、轮换刷新) / 互斥天赋路线。
+/// RP 经济 / 基地任务 / 天赋路线服务：征用点(RP)入账消费 / 常驻基地任务(进度按 kind 分发、领取、轮换刷新) / 互斥天赋路线。
 /// Godot 绑定层：跨域访问（任务定义/路线表/刷新经济档位/Augments）统一经 GameState.Instance；
 /// 任务池 TaskPool（C# typed）为本服务内部状态（_taskPool，每局 InitMissions 重建）。
 /// 门面转发先例：与 BalanceService/SaveManager 同构——GameState 组合持有本服务，
@@ -29,7 +28,7 @@ public sealed partial class MissionsService : RefCounted
     /// （balance.json base_task 段覆盖，经 GameState 侧缓存读取）</summary>
     public int RefreshPoints { get; set; } = 0;
 
-    /// <summary>任务池实例（InitMissions 重建，保证每次对局从全新洗牌序列开始；M7 已 typed）。</summary>
+    /// <summary>任务池实例（InitMissions 重建，保证每次对局从全新洗牌序列开始）。</summary>
     private TaskPool? _taskPool;
 
     /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
@@ -37,7 +36,7 @@ public sealed partial class MissionsService : RefCounted
 
     /// <summary>kind -> 最近一次上报的对局绝对计数（kill=击杀 / boss=Boss 击杀 / survive=存活秒）。
     /// 轮换抽取新任务时快照为该任务的 baseline，进度 = 绝对值 − 基线（相对口径），防止绝对计数
-    /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏修复，2026-09-09）。</summary>
+    /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏）。</summary>
     private readonly Dictionary<StringName, int> _lastKindValue = new();
 
     /// <summary>任务领取奖励 RP（对齐原作 RequisitionConstants）。</summary>
@@ -80,13 +79,13 @@ public sealed partial class MissionsService : RefCounted
         _lastKindValue.Clear(); // 对局重开：绝对计数随 Kills/RunTime 归零，基线源同步清零
         foreach (var def in GameState.Instance.MISSION_DEFS)
         {
-            // P0-3：goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL
+            // goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL
             // 初始手牌 baseline=0（对局起点即任务起点）
             Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = (int)def["goal"].AsInt64(), ["baseline"] = 0 };
         }
 
         // 任务轮换：每局从全新洗牌序列开始（初始手牌固定 MISSION_DEFS，刷新才随机）
-        _taskPool = new TaskPool(GameState.Instance.MISSION_POOL); // M7：TaskPool 迁 C#，typed
+        _taskPool = new TaskPool(GameState.Instance.MISSION_POOL); // TaskPool 为 C# typed
         RebuildKindIndex();
     }
 
@@ -178,11 +177,11 @@ public sealed partial class MissionsService : RefCounted
         }
 
         var m = Missions[id].AsGodotDictionary();
-        // 相对口径（2026-09-09）：上报值为对局绝对计数，进度 = 绝对值 − 入场基线快照；
+        // 相对口径：上报值为对局绝对计数，进度 = 绝对值 − 入场基线快照；
         // 负值钳 0 兼作防御（P4；正常路径 value 单调不减，不出现负进度）
         var baseline = (int)m.GetValueOrDefault("baseline", 0).AsInt64();
         var clamped = Mathf.Max(value - baseline, 0);
-        // P0-3：survive 类每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
+        // survive 类每帧触发但整秒才变化一次，未变化跳过字典写与完成判定
         if ((int)m["progress"].AsInt64() == clamped)
         {
             return;
@@ -202,7 +201,7 @@ public sealed partial class MissionsService : RefCounted
     public void SetKindProgress(StringName kind, int value)
     {
         _lastKindValue[kind] = value; // 绝对计数源：轮换抽取时作新任务基线快照
-        // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Array）
+        // TryGetValue 免空容器默认值每次分配（GetValueOrDefault 实参先求值分配空 Array）
         if (_missionsByKind.TryGetValue(kind, out var list))
         {
             foreach (var idV in list.AsGodotArray())
@@ -240,7 +239,7 @@ public sealed partial class MissionsService : RefCounted
 
     public int MissionGoal(StringName id) => (int)MissionDef(id).GetValueOrDefault("goal", 0).AsInt64();
 
-    // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Dictionary）
+    // TryGetValue 免空容器默认值每次分配（GetValueOrDefault 实参先求值分配空 Dictionary）
     public int MissionProgress(StringName id) =>
         Missions.TryGetValue(id, out var rec)
             ? (int)rec.AsGodotDictionary().GetValueOrDefault("progress", 0).AsInt64()
@@ -316,9 +315,9 @@ public sealed partial class MissionsService : RefCounted
             Missions[idV] = kept[idV];
         }
 
-        foreach (var def in drawn) // U13：Draw 返回 typed Array<Dictionary>，元素直接是 Dictionary
+        foreach (var def in drawn) // Draw 返回 typed Array<Dictionary>，元素直接是 Dictionary
         {
-            // 基线快照（2026-09-09）：新任务以抽取时刻该 kind 的对局绝对计数为基线，进度从 0
+            // 基线快照：新任务以抽取时刻该 kind 的对局绝对计数为基线，进度从 0
             // 起算——防止绝对计数（如已击杀 50）直接灌入低门槛新任务下一秒瞬领 RP（刷新经济泄漏）
             var kind = def["kind"].AsStringName();
             var baseline = _lastKindValue.TryGetValue(kind, out var abs) ? abs : 0;

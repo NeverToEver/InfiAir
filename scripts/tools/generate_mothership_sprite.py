@@ -229,8 +229,8 @@ def mothership() -> Ship:
 
 
 def main() -> None:
-    # R07（2026-08-05 独立审计）：输出路径锚定脚本位置（同 generate_audio 口径），
-    # 不再依赖调用时 cwd——非仓库根运行不会在别处落盘或崩溃
+    # 输出路径必须锚定脚本位置（同 generate_audio 口径）——不得依赖调用时 cwd，
+    # 否则非仓库根运行会在别处落盘或崩溃
     out = os.path.normpath(
         os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites", "mothership.png")
     )

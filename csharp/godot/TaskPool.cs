@@ -5,10 +5,10 @@ namespace InfiAir;
 
 /// <summary>
 /// 基地任务池（TaskPool，任务轮换核心）：无放回随机抽取任务定义。
-/// 2026-08-07：抽取算法核心迁移 InfiAir.Core.Missions.TaskPool（csharp/core/Missions/TaskPool.cs），
+/// 抽取算法核心在 InfiAir.Core.Missions.TaskPool（csharp/core/Missions/TaskPool.cs），
 /// 本壳直接组合 core TaskPool + id→原始定义字典映射，行为语义不变：
 /// 单次 Draw 内不重复；一次 Draw 消耗完当前批次后若仍有名额且全池还有可用候选则重洗
-/// 继续补足（跨 Draw 尽量延迟复用，排除在场任务导致的提前耗尽不再截断——Q05）；
+/// 继续补足（跨 Draw 尽量延迟复用，排除在场任务导致的提前耗尽不截断）；
 /// 排除覆盖全池时安全返回空。RNG 为独立随机源（性质等价、序列不等价——无外部依赖具体序列）。
 /// </summary>
 public partial class TaskPool : RefCounted
@@ -66,8 +66,8 @@ public partial class TaskPool : RefCounted
     public Godot.Collections.Array<Godot.Collections.Dictionary> Draw(int count)
         => Draw(count, new Godot.Collections.Array<StringName>());
 
-    /// <summary>装载任务定义池（条目须含 id/goal/kind；2026-08-10 健壮性审查：
-    /// 条目级判型——非 Dictionary / 缺键 / 类型不符的条目跳过，不再整池崩溃（当前数据源为
+    /// <summary>装载任务定义池（条目须含 id/goal/kind；
+    /// 条目级判型——非 Dictionary / 缺键 / 类型不符的条目跳过（当前数据源为
     /// 代码内建受信，防未来外部数据源接入；对齐本库「防御性收敛」口径）。</summary>
     private void SetDefs(Godot.Collections.Array defs)
     {

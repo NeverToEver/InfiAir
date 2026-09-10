@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 玩家相位冲刺组件（A8 拆分）。
+/// 玩家相位冲刺组件。
 /// Dash 状态机与计时；经 Player 属性转发与公开方法交互。需要解锁 buff（dash_unlocked）且耗 25% 满值燃料。
 /// 纯 C# 逻辑类（无信号/导出）：由 C# Player 组合持有；GameState 经
 /// Instance 门面访问。
@@ -59,8 +59,8 @@ public class PlayerDash
         }
         else
         {
-            // K04：无方向输入时向虚拟准星方向冲刺（aim_point 为键鼠+右摇杆统一平滑点）——
-            // 原实现取真实鼠标位置，纯手柄玩家鼠标停在任意处，冲刺方向与机头/瞄准无关
+            // 无方向输入时向虚拟准星方向冲刺（aim_point 为键鼠+右摇杆统一平滑点）——
+            // 不得取真实鼠标位置：纯手柄玩家鼠标停在任意处，冲刺方向会与机头/瞄准无关
             DashDir = (player.AimPoint() - player.GlobalPosition).Normalized();
             if (DashDir == Vector2.Zero)
             {

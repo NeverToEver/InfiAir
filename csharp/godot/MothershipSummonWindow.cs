@@ -75,23 +75,23 @@ public partial class MothershipSummonWindow : CanvasLayer
 
     private readonly List<Line2D> _arms = new(); // [左臂, 右臂]，各 3 点（基座/关节/末端）
 
-    private readonly List<Vector2[]> _chargeLineOrigins = new(); // P2：充能管线构建期原始端点 [anchor, tip]
+    private readonly List<Vector2[]> _chargeLineOrigins = new(); // 充能管线构建期原始端点 [anchor, tip]
 
-    private readonly List<Vector2[]> _armOrigins = new(); // P2：机械臂构建期原始端点 [base, joint, tip]
+    private readonly List<Vector2[]> _armOrigins = new(); // 机械臂构建期原始端点 [base, joint, tip]
 
     public override void _Ready()
     {
         Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
-        // 2026-08-10 健壮性审查：open/close 时长钳下限（H13 同族补全）——0 时 t/OpenTime 除零
+        // open/close 时长钳下限——0 时 t/OpenTime 除零
         // 经 Clamp 兜底无 NaN，但面板淡入淡出退化为瞬现/瞬隐，_total 计算也失真
         OpenTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.window.open_time", OpenTime).AsDouble(), 0.001f);
         CloseTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.window.close_time", CloseTime).AsDouble(), 0.001f);
-        // H13（健壮性审核）：shot_durations 判型/判长回退——短数组/非数组时用默认，防 _ready 崩溃
+        // shot_durations 判型/判长回退——短数组/非数组时用默认，防 _ready 崩溃
         var durs = GameState.Instance.Cfg("effects.mothership_summon.window.shot_durations", Variant.From(_shotDurations));
         if (durs.VariantType == Variant.Type.Array && durs.AsGodotArray().Count >= 3)
         {
             var arr = durs.AsGodotArray();
-            // 2026-08-10：元素钳下限——0/负值经 st 循环整体吞掉，镜头段时序失真
+            // 元素钳下限——0/负值经 st 循环整体吞掉，镜头段时序失真
             _shotDurations = new[]
             {
                 Mathf.Max((float)arr[0].AsDouble(), 0.001f),
@@ -328,7 +328,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         grad.SetColor(0, new Color(WarpBlue, 0.0f));
         grad.SetColor(1, new Color(WarpBlue, 0.8f));
         _shipTrail.Gradient = grad;
-        _shipTrail.Points = new Vector2[] { Vector2.Zero, Vector2.Zero }; // C28：预分配，帧内只写元素
+        _shipTrail.Points = new Vector2[] { Vector2.Zero, Vector2.Zero }; // 预分配，帧内只写元素
         _stage.AddChild(_shipTrail);
         // 拖首软光（镜头 3 随弹射点亮，贴在舰尾）
         _shipGlow = CinematicFx.SoftGlow(30.0f, new Color(WarpBlue, 0.0f));
@@ -340,7 +340,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             Width = 3.0f,
             Closed = true,
             DefaultColor = new Color(WarpBlue, 0.0f),
-            Points = CirclePoints(1.0f, 48), // C28：预建单位点集，帧内仅写 scale
+            Points = CirclePoints(1.0f, 48), // 预建单位点集，帧内仅写 scale
         };
         _stage.AddChild(_warpRing);
         // 镜头 3 起步白闪
@@ -428,7 +428,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             var at = 0.15f + 0.3f * i;
             var lp = Mathf.Clamp((p - at) / 0.25f, 0.0f, 1.0f);
             var line = _chargeLines[i];
-            // P2：插值基准取构建期原始端点——points[1] 逐帧被改写，读当前值会累积失真（帧率相关）
+            // 插值基准取构建期原始端点——points[1] 逐帧被改写，读当前值会累积失真（帧率相关）
             var orig = _chargeLineOrigins[i];
             var anchor = orig[0];
             var tip = orig[1];
@@ -451,7 +451,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         for (var i = 0; i < _arms.Count; i++)
         {
             var arm = _arms[i];
-            // P2：插值基准取构建期原始端点——points[1]/points[2] 逐帧被改写，读当前值会累积失真
+            // 插值基准取构建期原始端点——points[1]/points[2] 逐帧被改写，读当前值会累积失真
             var orig = _armOrigins[i];
             var basePos = orig[0];
             var joint = orig[1];
@@ -467,7 +467,7 @@ public partial class MothershipSummonWindow : CanvasLayer
     {
         var e = p * p; // ease-in 加速
         _ship.Position = ShipHome + new Vector2(0.0f, -560.0f * e);
-        // C28：点集已预分配，经 set_point_position 原地写（points[i]= 是值语义副本不生效）
+        // 点集已预分配，经 set_point_position 原地写（points[i]= 是值语义副本不生效）
         _shipTrail.SetPointPosition(0, _ship.Position + new Vector2(0.0f, 26.0f));
         _shipTrail.SetPointPosition(1, _ship.Position + new Vector2(0.0f, 26.0f + 220.0f * e));
         _shipTrail.DefaultColor = new Color(WarpBlue, 0.8f * p);
@@ -492,7 +492,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         return pts;
     }
 
-    /// <summary>C28：原地写穿梭器环点集（预分配数组 + set_point_position，零分配、线宽不随 scale 变）</summary>
+    /// <summary>原地写穿梭器环点集（预分配数组 + set_point_position，零分配、线宽不随 scale 变）</summary>
     private void LayoutWarpRing(float radius)
     {
         for (var i = 0; i < 48; i++)

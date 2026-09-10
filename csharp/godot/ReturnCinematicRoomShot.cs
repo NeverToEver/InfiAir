@@ -26,7 +26,7 @@ public partial class ReturnCinematicRoomShot : Node2D
         {
             // 走入步行循环（窗口两端权重淡入淡出，结束自动缓回直立；肢体公式同 _WalkShot）
             _phase += d * 16.0f;
-            var k = Mathf.Clamp(Mathf.Min(_t, 0.6f * u - _t) / Mathf.Max(0.12f * u, 0.001f), 0.0f, 1.0f); // H20：镜头时长 0 除零防御
+            var k = Mathf.Clamp(Mathf.Min(_t, 0.6f * u - _t) / Mathf.Max(0.12f * u, 0.001f), 0.0f, 1.0f); // 镜头时长 0 除零防御
             var personNode = (Node2D)_person["node"].AsGodotObject();
             var hips = _person["hips"].AsGodotArray();
             var knees = _person["knees"].AsGodotArray();

@@ -34,11 +34,11 @@ public partial class Hud : CanvasLayer
 
     private HBoxContainer _magBox = null!;
     private readonly Godot.Collections.Array<ColorRect> _magCellsNodes = new();
-    private Main _main = null!; // U13：typed
+    private Main _main = null!; // typed
     private float _pollTimer;
     private string _lastDockText = "";
     private int _lastMagCells = -1;
-    private int _lastFuelWarn = -1; // P1-3 同族：燃料警戒态缓存（0/1），未翻转跳过 FillColor 写入
+    private int _lastFuelWarn = -1; // 燃料警戒态缓存（0/1），未翻转跳过 FillColor 写入
     private Label[] _tagLabels = System.Array.Empty<Label>();
     private StringName[] _tagKeys = System.Array.Empty<StringName>();
     private VBoxContainer _eventBox = null!;
@@ -46,25 +46,25 @@ public partial class Hud : CanvasLayer
     private Label _eventTitle = null!;
     private Label _eventTurretsLabel = null!;
     private int _lastEventAlive = -1;
-    /// <summary>当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）。M3d：Boss 迁 C#，直接 typed。</summary>
+    /// <summary>当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）。Boss 为 C# typed。</summary>
     private Boss? _boss;
     private Label _bossCountdown = null!;
     private Label _bossName = null!; // Boss 名牌（型号 + 阶段），血条子节点随其显隐
     private ChamferedPanel _bossPlate = null!; // Boss 血条 + 名牌的切角背板（随血条显隐）
-    /// <summary>M3d：Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
+    /// <summary>Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
     /// GetFightPhaseTransition/Active 一致；ENRAGE=2 由声明顺序确定）——值镜像。</summary>
     private const int FightPhaseP1 = 0;
     private const int FightPhaseP2 = 1;
     private const int FightPhaseEnrage = 2;
     private int _bossPhase = FightPhaseP1;
-    /// <summary>仪表类刷新降频（信号驱动的文本不受影响）。H15：≤0 节流失效。</summary>
+    /// <summary>仪表类刷新降频（信号驱动的文本不受影响）。≤0 节流失效。</summary>
     private float _pollInterval = 0.1f;
-    /// <summary>分段血条（2026-08-03 机制三）：段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
+    /// <summary>分段血条：段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
     /// （段界 = 阶段阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
     /// （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）。
-    /// AB22：段数恒由权重数组决定（hud.boss_bar_segments 配置键已删除——加权分支只迭代
-    /// SegWeights.Count，原键改 5/7 无任何视觉变化，名实不符）。</summary>
-    // M5：静态 Godot 集合在引擎退出后被 .NET finalize 触碰 native → segfault（实测），改实例字段
+    /// 段数恒由权重数组决定（不读 hud.boss_bar_segments 配置键——加权分支只迭代
+    /// SegWeights.Count，改该键无任何视觉变化）。</summary>
+    // 静态 Godot 集合在引擎退出后被 .NET finalize 触碰 native → segfault（实测），改实例字段
     private readonly Godot.Collections.Array BossSegWeights = new() { 0.3f, 0.4f, 0.3f };
     private readonly Godot.Collections.Array BossSegColors = new()
     {
@@ -85,7 +85,7 @@ public partial class Hud : CanvasLayer
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
-    private float _cachedMaxHp = 100.0f; // 缓存 max_health()（extra_life 层数驱动，augments_changed 刷新；D08）
+    private float _cachedMaxHp = 100.0f; // 缓存 max_health()（extra_life 层数驱动，augments_changed 刷新）
     private Control _augmentDockWrap = null!; // 右下角锚定包装（meta_jitter 抖动对象，避免直接动自动生长的网格）
     private GridContainer _augmentDock = null!;
     private Label _augmentTag = null!;
@@ -97,12 +97,12 @@ public partial class Hud : CanvasLayer
     private ChamferedPanel _infoPlate = null!;
     private Label _infoLabel = null!;
     private Tween? _infoTween;
-    private Tween? _warningTween; // H09：警告横幅闪烁 tween 互斥缓存
-    // Meta HUD DYING 抖动（D9）：仅 _hp_bar 与 buff 坞两控件的静止位与补间
+    private Tween? _warningTween; // 警告横幅闪烁 tween 互斥缓存
+    // Meta HUD DYING 抖动：仅 _hp_bar 与 buff 坞两控件的静止位与补间
     private Vector2 _hpBarRest;
     private Vector2 _augmentDockRest;
     private Tween? _jitterTween;
-    /// <summary>GameState 信号连接（C22：保存在字段，连接/断开共用同一 Callable，
+    /// <summary>GameState 信号连接（保存在字段，连接/断开共用同一 Callable，
     /// 不依赖现场重建 Callable 的委托相等语义）。</summary>
     private Callable _onScoreChanged;
     private Callable _onHealthChanged;
@@ -145,7 +145,7 @@ public partial class Hud : CanvasLayer
     public override void _Ready()
     {
         AddToGroup("hud");
-        _main = GetParent<Main>(); // A5：HUD 是 main 子节点，_ready 直接缓存，替代 0.1s 轮询现找
+        _main = GetParent<Main>(); // HUD 是 main 子节点，_ready 直接缓存，不靠 0.1s 轮询现找
         _killsLabel = GetNode<Label>("KillsLabel");
         _difficultyLabel = GetNode<Label>("DifficultyLabel");
         _livesLabel = GetNode<Label>("LivesLabel");
@@ -158,14 +158,14 @@ public partial class Hud : CanvasLayer
         _dashTag = GetNode<Label>("DashTag");
         _parryTag = GetNode<Label>("ParryTag");
         _dockTag = GetNode<Label>("DockTag");
-        _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // H15：≤0 节流失效
-        // AB22：hud.boss_bar_segments 配置键已删除——段数恒由权重数组决定（见 ShowBossBar）
+        _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // ≤0 节流失效
+        // hud.boss_bar_segments 配置键不参与——段数恒由权重数组决定（见 ShowBossBar）
         _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
         _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
         _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
         _lowHpPulseMin = (float)GameState.Instance.Cfg("effects.low_hp.pulse_min", _lowHpPulseMin).AsDouble();
         _lowHpPulseMax = (float)GameState.Instance.Cfg("effects.low_hp.pulse_max", _lowHpPulseMax).AsDouble();
-        _lowHpPulsePeriod = Mathf.Max((float)GameState.Instance.Cfg("effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // H15：=0 sin NaN
+        _lowHpPulsePeriod = Mathf.Max((float)GameState.Instance.Cfg("effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // =0 sin NaN
         foreach (var label in new[] { _killsLabel, _difficultyLabel, _livesLabel })
         {
             label.AddThemeFontOverride("font", Font);
@@ -448,7 +448,7 @@ public partial class Hud : CanvasLayer
             _boss.PhaseChanged -= OnBossPhaseChanged;
         }
 
-        // C22 模式（M5）：GameState 信号显式断开——GameState 为 autoload 恒存于 root，
+        // GameState 信号显式断开（GameState 为 autoload 恒存于 root，
         // 本节点释放后存活期信号回调仍指向已释放的 Hud 可致退出崩溃；断开与连接共用
         // 同一字段 Callable，八个信号全部配对（含 TalentCacheChanged）
         DisconnectGs(GameState.SignalName.ScoreChanged, _onScoreChanged);
@@ -522,8 +522,8 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        var fuel = player.FuelRatio(); // M3c：Player 迁 C#，动态调用显式 float 型
-        // P1-3（2026-08-05 审计）：值变化才写 setter（ProgressBar setter 内部 queue_redraw，
+        var fuel = player.FuelRatio(); // Player 为 C# typed，动态调用显式 float 型
+        // 值变化才写 setter（ProgressBar setter 内部 queue_redraw，
         // 0.1s 轮询下值未变也触发无意义重绘；epsilon 守卫只写变化帧）
         var fuelVal = fuel * 100.0f;
         if (Mathf.Abs(fuelVal - _fuelBar.Value) > BarWriteEpsilon)
@@ -531,7 +531,7 @@ public partial class Hud : CanvasLayer
             _fuelBar.Value = fuelVal;
         }
 
-        // P1-3 同族：警戒态未翻转跳过 FillColor 写入（SegmentedBar setter 值守卫之外的调用侧防线）
+        // 警戒态未翻转跳过 FillColor 写入（SegmentedBar setter 值守卫之外的调用侧防线）
         var fuelWarn = fuel < FuelWarnRatio ? 1 : 0;
         if (fuelWarn != _lastFuelWarn)
         {
@@ -728,10 +728,10 @@ public partial class Hud : CanvasLayer
         ShowWarning((string)Tr("WARN_MAG"));
     }
 
-    /// <summary>对外公开接口（A1 修复）：Boss 逃跑警告经公开入口触发。</summary>
+    /// <summary>对外公开接口：Boss 逃跑警告经公开入口触发。</summary>
     public void ShowWarning(string text)
     {
-        // H09（健壮性审核）：互斥缓存——旧警告 tween 仍在跑时 kill 再建，防同属性竞争与 hide 竞态。
+        // 互斥缓存——旧警告 tween 仍在跑时 kill 再建，防同属性竞争与 hide 竞态。
         // 背板闪烁（t1）/label 闪烁（t2）与淡出全部纳入 _warning_tween：闪烁阶段缓存 blink，
         // 其 finished 后缓存 fade，任意时刻 kill 的都是当前活跃阶段（旧 fade 被杀不会再 hide 压制新警告）
         if (_warningTween != null && _warningTween.IsValid())
@@ -749,7 +749,7 @@ public partial class Hud : CanvasLayer
         lm.A = 1.0f;
         _bannerLabel.Modulate = lm;
         // 闪烁对（0.25→1.0）循环 4 次 ≈2s（与 spawner 预警同步）；set_loops 作用于整链，
-        // 旧实现把淡出+hide 也包进循环，首轮末尾 hide 即永久隐藏——淡出移出循环外
+        // 淡出必须移出循环——把淡出+hide 也包进循环时，首轮末尾 hide 即永久隐藏
         var blink = CreateTween();
         blink.TweenProperty(_bannerPlate, "modulate:a", 0.25f, 0.25);
         blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 0.25f, 0.25);
@@ -773,14 +773,14 @@ public partial class Hud : CanvasLayer
     public void ShowBossBar(Boss boss)
     {
         _bossBar.FillColor = UITheme.Accent; // 重置上一只 Boss 狂暴留下的红色
-        // 机制三：分段血条——段权/段色按权重数组登记（AB22：段数 = 权重数，恒为 3）
+        // 分段血条——段权/段色按权重数组登记（段数 = 权重数，恒为 3）
         _bossBar.Segments = BossSegWeights.Count;
         _bossBar.SegWeights = BossSegWeights;
         _bossBar.SegColors = BossSegColors;
         _bossBar.Visible = true;
         _bossPlate.Visible = true;
         _bossBar.Value = 100.0f;
-        // 2026-08-10 健壮性审查：换绑前断开上一只 Boss 的四信号（U05 同款配对）——
+        // 换绑前断开上一只 Boss 的四信号（配对连接/断开）——
         // 旧 Boss 存活（异常时序下与下一只交错）时双连会以旧 Boss 血量事件驱动新血条
         if (_boss != null && GodotObject.IsInstanceValid(_boss))
         {
@@ -792,8 +792,8 @@ public partial class Hud : CanvasLayer
 
         _boss = boss;
         _bossCountdown.Visible = false;
-        _bossPhase = FightPhaseP1; // M3d：Boss.FightPhase.P1（C# 枚举经常量，见顶部注释）
-        boss.HealthChanged += OnBossHealthChanged; // M3d：C# [Signal] 以 PascalCase 注册
+        _bossPhase = FightPhaseP1; // Boss.FightPhase.P1（C# 枚举经常量，见顶部注释）
+        boss.HealthChanged += OnBossHealthChanged; // C# [Signal] 以 PascalCase 注册
         boss.Died += OnBossDied;
         boss.Enraged += OnBossEnraged;
         boss.PhaseChanged += OnBossPhaseChanged;
@@ -802,7 +802,7 @@ public partial class Hud : CanvasLayer
 
     private int _lastKills = -1;
 
-    /// <summary>击杀计数标签（分数/连击显示已移除，内部计分引擎保留驱动里程碑/解锁）。
+    /// <summary>击杀计数标签（不显示分数/连击，内部计分引擎只驱动里程碑/解锁）。
     /// ScoreChanged 伴随击杀/擦弹等高频来源，按计数变化节流格式化。</summary>
     private void OnScoreChanged(int _newScore)
     {
@@ -840,7 +840,7 @@ public partial class Hud : CanvasLayer
         _lastHpValue = newHealth;
         _hpBar.Value = Mathf.Clamp(newHealth / maxHp, 0.0f, 1.0f) * 100.0f;
         _hpBar.FillColor = newHealth / maxHp < 0.3f ? UITheme.Danger : UITheme.Accent;
-        // P0-2：回血每帧触发信号，仅整数档位/上限变化时才格式化（连续帧 HP 小数差异不刷新文本）
+        // 回血每帧触发信号，仅整数档位/上限变化时才格式化（连续帧 HP 小数差异不刷新文本）
         var hpInt = Mathf.CeilToInt(newHealth);
         var maxInt = (int)maxHp;
         if (hpInt != _lastHpInt || maxInt != _lastMaxInt)
@@ -857,8 +857,8 @@ public partial class Hud : CanvasLayer
     }
 
     private string _lastHpText = "";
-    private int _lastHpInt = -1; // P0-2：整数档位守卫，回血逐帧信号时跳过无变化格式化
-    private int _lastMaxInt = -1; // P0-2：上限整数守卫（extra_life 叠加改变 max_hp 时强制刷新）
+    private int _lastHpInt = -1; // 整数档位守卫，回血逐帧信号时跳过无变化格式化
+    private int _lastMaxInt = -1; // 上限整数守卫（extra_life 叠加改变 max_hp 时强制刷新）
 
     private void OnDifficultyChanged(float _newMultiplier)
     {
@@ -950,11 +950,11 @@ public partial class Hud : CanvasLayer
         }
 
         string phaseText;
-        if (_bossPhase == FightPhaseP2) // M3d：Boss.FightPhase.P2（C# 枚举经常量）
+        if (_bossPhase == FightPhaseP2) // Boss.FightPhase.P2（C# 枚举经常量）
         {
             phaseText = (string)Tr("BOSS_PHASE_P2");
         }
-        else if (_bossPhase == FightPhaseEnrage) // M3d：Boss.FightPhase.ENRAGE（C# 枚举经常量）
+        else if (_bossPhase == FightPhaseEnrage) // Boss.FightPhase.ENRAGE（C# 枚举经常量）
         {
             phaseText = (string)Tr("BOSS_PHASE_ENRAGE");
         }
@@ -1004,7 +1004,7 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        // LOD0 移交 MetaFX 后处理（D2），旧晕影恒 0；非 0（回退/MetaFX 离场）保留现状
+        // LOD0 移交 MetaFX 后处理，旧晕影恒 0；非 0（回退/MetaFX 离场）保留现状
         if (GameState.Instance.MetaFxLod == 0)
         {
             if (_vignette.Modulate.A > 0.0f)
@@ -1035,7 +1035,7 @@ public partial class Hud : CanvasLayer
         _vignette.Modulate = vm2;
     }
 
-    /// <summary>Meta HUD DYING 抖动（D9）：只抖 _hp_bar 与 buff 坞包装两个控件（±px，80ms burst）。</summary>
+    /// <summary>Meta HUD DYING 抖动：只抖 _hp_bar 与 buff 坞包装两个控件（±px，80ms burst）。</summary>
     public void MetaJitter(float px)
     {
         if (_jitterTween != null && _jitterTween.IsValid())
@@ -1324,7 +1324,7 @@ public partial class Hud : CanvasLayer
 
     private void RebuildAugmentDock(bool force)
     {
-        _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // D08：buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
+        _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
         var signature = "";
         var active = new Godot.Collections.Array(); // [[id, stacks], ...] 按获得顺序
         var augments = GameState.Instance.Augments;

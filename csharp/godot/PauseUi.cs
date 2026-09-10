@@ -5,7 +5,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// Esc 暂停页（2026-09-08 圆盘 UI 全覆盖）：左缘轮盘菜单（继续/保存/设置/重开/退出）
+/// Esc 暂停页：左缘轮盘菜单（继续/保存/设置/重开/退出）
 /// + 右区聚焦项说明卡。ui_cancel（Esc/手柄 B）的全局返回路由统一在 BackNavigator，
 /// 本页只提供 open()/close() 供其调用；「退出游戏」走 ExitConfirm 战斗模式二次确认。
 /// 轮盘方向键/Enter 导航（页面无焦点控件，全时接管）。
@@ -29,7 +29,7 @@ public partial class PauseUi : RadialMenuLayer
     public override void _Ready()
     {
         Visible = false;
-        // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
+        // is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
@@ -48,7 +48,7 @@ public partial class PauseUi : RadialMenuLayer
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {
-            // C# 事件订阅：两者同树同生命周期，随对方消亡，无需退订（C22 仅针对 Connect）
+            // C# 事件订阅：两者同树同生命周期，随对方消亡，无需退订（仅 Connect 需守卫）
             exitConfirm.Canceled += OnExitCanceled;
         }
     }
@@ -210,7 +210,7 @@ public partial class PauseUi : RadialMenuLayer
     private void OnQuitPressed()
     {
         // 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
-        // C17：GetNodeOrNull + 判空——宿主缺 ExitConfirm 节点时不崩溃（防御性，正常 main.tscn 必有）
+        // GetNodeOrNull + 判空——宿主缺 ExitConfirm 节点时不崩溃（防御性，正常 main.tscn 必有）
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {
@@ -220,18 +220,10 @@ public partial class PauseUi : RadialMenuLayer
         }
     }
 
-    /// <summary>R 重开主入口（轮盘「重新出击」与 _UnhandledInput 的 restart 动作共用）。
-    /// 与 GameState.RestartRun 同名但职责不同：此处先做 AB13 退出确认守卫，再转调单口。</summary>
+    /// <summary>R 重开主入口（轮盘「重新出击」与 _UnhandledInput 的 restart 动作共用）：转调单口
+    /// （退出确认互斥守卫已在 GameState.RestartRun 内收口）。</summary>
     private void RestartRun()
     {
-        // AB13：确认退出淡出窗口内忽略 R——ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行
-        // （未退出、静默重开新局的静默丢退出路径）
-        var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
-        if (exitConfirm != null && exitConfirm.Exiting())
-        {
-            return;
-        }
-
         GameState.Instance.RestartRun();
     }
 

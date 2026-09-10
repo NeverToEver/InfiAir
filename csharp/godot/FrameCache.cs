@@ -6,7 +6,7 @@ namespace InfiAir;
 /// view_world_rect 查询，替代 10 处同构样板（Enemy/Boss/EnrageSequence/BossAttacks/
 /// TurretBattery/AimFrameLayer/Bullet/FormationStrikeEvent/StrikeCarrier/FormationBomb）
 /// 各自每帧一次 Engine.GetPhysicsFrames + GameState.Instance.ViewWorldRect 调用。
-/// U07 教训保留：静态缓存绝不持有 Godot 对象引用（悬空访问 + 退出 finalize 触碰），
+/// 静态缓存绝不持有 Godot 对象引用（悬空访问 + 退出 finalize 触碰），
 /// 故只缓存纯值类型 Rect2；player 取用直读 GameState.Instance.PlayerRef（EntityManager
 /// O(1) typed 属性，不缓存不装箱——原 Variant 包拆纯负优化）。</summary>
 public static class FrameCache

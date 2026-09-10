@@ -290,8 +290,8 @@ class Handler(BaseHTTPRequestHandler):
             tmp.write_text(json.dumps(payload, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
             os.replace(tmp, BALANCE)
         except OSError as e:
-            # 2026-08-06 审计：写盘侧 OSError 兜底（R08 只给读侧加了友好 400）——
-            # 磁盘满/只读/权限不足时原实现裸 traceback 且无任何响应
+            # 写盘侧 OSError 必须兜底为 400 响应——磁盘满/只读/权限不足时若裸抛
+            # traceback，服务端不返回任何响应
             self._send(400, f"保存失败：写入/备份 balance.json 失败（磁盘满或权限不足？）{e}")
             return
         self._send(200, "已保存（原文件备份为 balance.json.bak）")

@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 返航过场 镜头 3 构建器（文件粒度拆分自 ReturnCinematic.cs，2026-08-12；逻辑零改动）。
+/// 返航过场 镜头 3 构建器。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {
@@ -21,7 +21,7 @@ public partial class ReturnCinematic : CanvasLayer
         // ---- 前半：原星域冲入 ----
         var partA = new Node2D();
         root.AddChild(partA);
-        partA.AddChild(new Starfield()); // M1 起 Starfield 为 C#，typed 实例化
+        partA.AddChild(new Starfield()); // Starfield 为 C#，typed 实例化
         // 跃迁隧道放射条纹（以端口为中心，白闪切镜时随 part_a 隐藏）
         var streaks = CinematicFx.RadialStreaks(new Godot.Collections.Dictionary
         {
@@ -66,7 +66,7 @@ public partial class ReturnCinematic : CanvasLayer
         // ---- 后半：虚影站星域飞出（初始隐藏，白闪后揭示） ----
         var partB = new Node2D { Visible = false };
         root.AddChild(partB);
-        partB.AddChild(new Starfield()); // M1 起 Starfield 为 C#，typed 实例化
+        partB.AddChild(new Starfield()); // Starfield 为 C#，typed 实例化
         var neb = Glow(420.0f, new Color(0.08f, 0.2f, 0.45f, 0.06f));
         neb.Position = new Vector2(420.0f, 780.0f);
         partB.AddChild(neb);

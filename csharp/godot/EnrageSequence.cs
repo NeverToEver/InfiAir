@@ -4,12 +4,12 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 狂暴状态机（A3 拆分）。
+/// Boss 狂暴状态机（拆分自 Boss 的组合职责）。
 /// 狂暴 5 子状态机（TRANSITION→ACTIVE→RELEASE_HOLD→RETURN→NONE）+ 四型差异化 ACTIVE +
 /// 轨道路径计算 + 锁血/玩家减速。经 Boss typed 公开属性/方法直读配置与位置，
-/// 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问（A1 约束）。
-/// Y 系列（2026-08-09）：Boss 链 typed 化——StringName 动态派发（Get/Call）与双命名桥删除，
-/// 参数直用 Boss 类型；Enemy 迁 C# 后直接 Enemy.SinFast/CosFast 与 is Enemy 判型。
+/// 弹幕发射经注入 BossFire/BossAttacks，避免跨类私有访问。
+/// Boss 链 typed 化：参数直用 Boss 类型，不经 StringName 动态派发；
+/// Enemy 为 C# 类型，直接 Enemy.SinFast/CosFast 与 is Enemy 判型。
 /// </summary>
 public partial class EnrageSequence : RefCounted
 {
@@ -24,7 +24,7 @@ public partial class EnrageSequence : RefCounted
     private static readonly float[] StalkerPointAnglesDeg = { 0.0f, -90.0f, 180.0f, 90.0f, 0.0f, -90.0f };
 
     // ---- 注入：弹幕发射器 / 攻击状态机 / 机体缩放（Boss._ready 经 configure 传入） ----
-    // V 系列：typed（原 GodotObject 动态派发）
+    // typed 字段（非 GodotObject 动态派发）
     private BossFire _fire = null!;
     private BossAttacks _attacks = null!;
 
@@ -45,7 +45,7 @@ public partial class EnrageSequence : RefCounted
     private Vector2 _transitionOrigin = Vector2.Zero;
     private Vector2 _returnOrigin = Vector2.Zero;
     private Vector2 _returnTarget = Vector2.Zero;
-    private Player? _slowedPlayer; // 被施加狂暴减速的玩家（用于精确复位；M3c：Player 已迁 C#）
+    private Player? _slowedPlayer; // 被施加狂暴减速的玩家（用于精确复位）
     private Vector2 _bossSize = new(328.0f, 328.0f); // 贴图有效尺寸（begin 传入，算轨道半径）
     // 差异化狂暴各型状态
     private float _ringAngle; // 1 型环弹起始角（随波次进动）
@@ -57,16 +57,15 @@ public partial class EnrageSequence : RefCounted
     private Line2D? _aimLine;
     private Vector2 _sniperDir = Vector2.Down;
 
-    // A3 收敛：狂暴各阶段机型处理器注册表（boss_type → 处理器，_init 装配）。
-    // 新增机型只需注册一行 + 一个处理器方法，不再改 update/_begin_release_hold 的 match（O 原则达成）。
-    // AC10（2026-08-11 健壮性审查）：注册表 Callable → System.Action 直调（BossMovement.cs:44-54
-    // 同款先例）——狂暴期每物理帧 TryGetValue 后 Call 走 Godot 动态派发（委托包装/跨边界开销），
-    // 改 Action 委托直调零分配；注册/查询公开接口签名不变，行为逐字节等价
+    // 狂暴各阶段机型处理器注册表（boss_type → 处理器，_init 装配）。
+    // 新增机型只需注册一行 + 一个处理器方法，不再改 update/_begin_release_hold 的 match。
+    // 注册表用 System.Action 直调（非 Callable）——狂暴期每物理帧 TryGetValue 后避免
+    // Godot 动态派发（委托包装/跨边界开销），零分配；注册/查询公开接口签名与行为不变
     private readonly Dictionary<int, System.Action<float, Boss>> _activeHandlers = new();
     private readonly Dictionary<int, System.Action<float, Boss>> _releaseHandlers = new();
     private readonly Dictionary<int, System.Action<Boss>> _releaseBeginHandlers = new();
 
-    // A3 机型参数表：TRANSITION 阶段悬停原地不滑入轨道（1 型「旋转堡垒」专属）
+    // 机型参数表：TRANSITION 阶段悬停原地不滑入轨道（1 型「旋转堡垒」专属）
     private static readonly Godot.Collections.Dictionary<int, bool> TransitionHoverTypes = new()
     {
         [1] = true,
@@ -89,16 +88,16 @@ public partial class EnrageSequence : RefCounted
         _releaseBeginHandlers[4] = ReleaseBeginEclipse;
     }
 
-    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
     public bool HasActiveHandler(int type) => _activeHandlers.ContainsKey(type);
 
-    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
     public bool HasReleaseHandler(int type) => _releaseHandlers.ContainsKey(type);
 
-    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
     public bool HasReleaseBeginHandler(int type) => _releaseBeginHandlers.ContainsKey(type);
 
-    /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。V 系列：参数 typed。</summary>
+    /// <summary>注入发射器 / 攻击状态机 / 机体缩放（Boss._ready 调用）。</summary>
     public void Configure(BossFire fire, BossAttacks attacks, float ws)
     {
         _fire = fire;
@@ -109,7 +108,7 @@ public partial class EnrageSequence : RefCounted
     /// <summary>狂暴序列进行中（Boss._physics_process 据此进入序列驱动）。</summary>
     public bool IsActive() => _phase != EnrageNone;
 
-    /// <summary>释放本类持有的瞄准线（B1 修复）。`BossAttacks.MakeAimLine` 创建的 Line2D
+    /// <summary>释放本类持有的瞄准线。`BossAttacks.MakeAimLine` 创建的 Line2D
     /// 只由本类 `_aimLine` 持有，`BossAttacks.CancelAimLine()` 仅清其自身 `_aimLine`，
     /// 到不了这里——不显式清理会残留静态瞄准线并泄漏节点（每次 2 型狂暴约 6 个）。</summary>
     private void FreeAimLine()
@@ -254,7 +253,7 @@ public partial class EnrageSequence : RefCounted
             _sniperDir = PlayerDir(boss);
             if (_aimLine != null)
             {
-                // C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
+                // 创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
                 _aimLine.SetPointPosition(0, _sniperDir * boss.MuzzleOffset);
                 _aimLine.SetPointPosition(1, _sniperDir * 1200.0f);
                 _aimLine.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.18f + 0.18f * Mathf.Abs(Enemy.SinFast(_aimElapsed * 25.0f)));
@@ -312,7 +311,7 @@ public partial class EnrageSequence : RefCounted
         }
     }
 
-    /// <summary>4 型「月蚀」ACTIVE（2026-08-04）：中心悬停 + 双环反向进动——正环 + 反角环
+    /// <summary>4 型「月蚀」ACTIVE：中心悬停 + 双环反向进动——正环 + 反角环
     /// 交替成波（起始角 = precession × 波次索引，每波进动 E4_PRECESSION_DEG；_ring_angle 为 1 型字段，不在此用）。</summary>
     private void ActiveEclipse(float delta, Boss boss)
     {
@@ -356,7 +355,7 @@ public partial class EnrageSequence : RefCounted
         return Mathf.Min(baseRadius, maxRadius);
     }
 
-    /// <summary>C10：方形路径角点（底→左→顶→右，index 4 循环回底），配合 PathCenter 无数组求值。</summary>
+    /// <summary>方形路径角点（底→左→顶→右，index 4 循环回底），配合 PathCenter 无数组求值。</summary>
     private static Vector2 SquareCorner(int index, float radius)
     {
         switch (index % 4)
@@ -384,7 +383,7 @@ public partial class EnrageSequence : RefCounted
             var sp = progress / squareRatio;
             var segment = Mathf.Min(3, (int)(sp * 4.0f));
             var local = sp * 4.0f - segment;
-            // C10：方形路径四角直接求两端点 lerp，避免每帧构建 5 元素数组（GC 压力）
+            // 方形路径四角直接求两端点 lerp，避免每帧构建 5 元素数组（GC 压力）
             var from = c + SquareCorner(segment, radius);
             var to = c + SquareCorner(segment + 1, radius);
             return from.Lerp(to, local);
@@ -422,7 +421,7 @@ public partial class EnrageSequence : RefCounted
     {
         var minions = new Godot.Collections.Array();
         // 统一实体管理器批量 API：收集在场活跃小怪
-        // M3d：直接遍历注册表（for_each_enemy 的 bool 谓词无法用 Callable.From——无 Func 重载）；
+        // 直接遍历注册表（for_each_enemy 的 bool 谓词无法用 Callable.From——无 Func 重载）；
         // 语义等价：失效实例跳过 + Enemy 判型 + 活跃过滤
         foreach (var item in GameState.Instance.Enemies)
         {
@@ -482,14 +481,14 @@ public partial class EnrageSequence : RefCounted
         return Vector2.Down;
     }
 
-    /// <summary>A3：TRANSITION 悬停判定（机型参数表驱动，取代散落的类型特判）。</summary>
+    /// <summary>TRANSITION 悬停判定（机型参数表驱动，取代散落的类型特判）。</summary>
     private static bool HoverInTransition(Boss boss)
     {
         var type = boss.BossType;
         return TransitionHoverTypes.TryGetValue(type, out var hover) && hover;
     }
 
-    /// <summary>A3：ACTIVE 回退处理器（非法 boss_type，防御路径：轨道环绕 + 定时狂暴波）。</summary>
+    /// <summary>ACTIVE 回退处理器（非法 boss_type，防御路径：轨道环绕 + 定时狂暴波）。</summary>
     private void ActiveFallback(float delta, Boss boss)
     {
         boss.Position = PathCenter(Progress(boss), boss);
@@ -509,7 +508,7 @@ public partial class EnrageSequence : RefCounted
         }
     }
 
-    /// <summary>A3：1 型「旋转堡垒」释放——8 路蓄力重炮齐射（蓄力辉光 telegraph 已在 ReleaseBeginBulwark 起手）。</summary>
+    /// <summary>1 型「旋转堡垒」释放——8 路蓄力重炮齐射（蓄力辉光 telegraph 已在 ReleaseBeginBulwark 起手）。</summary>
     private void ReleaseBulwark(float delta, Boss boss)
     {
         if (!_releaseSalvoDone)
@@ -528,7 +527,7 @@ public partial class EnrageSequence : RefCounted
         }
     }
 
-    /// <summary>A3：2 型「猎杀环绕」释放——回轨道底部放 12 向慢速环弹。</summary>
+    /// <summary>2 型「猎杀环绕」释放——回轨道底部放 12 向慢速环弹。</summary>
     private void ReleaseStalker(float delta, Boss boss)
     {
         var t = Mathf.Clamp(1.0f - _releaseHoldTimer / boss.EnrageReleaseHoldDuration, 0.0f, 1.0f);
@@ -542,12 +541,12 @@ public partial class EnrageSequence : RefCounted
         }
     }
 
-    /// <summary>A3：3 型「倾巢」释放——无持续结算（16 向环弹 + 小怪齐射已在 ReleaseBeginHive 一次性结算）。</summary>
+    /// <summary>3 型「倾巢」释放——无持续结算（16 向环弹 + 小怪齐射已在 ReleaseBeginHive 一次性结算）。</summary>
     private void ReleaseHive(float delta, Boss boss)
     {
     }
 
-    /// <summary>A3：RELEASE_HOLD 回退处理器（非法 boss_type，防御路径：按固定间隔放狂暴波）。</summary>
+    /// <summary>RELEASE_HOLD 回退处理器（非法 boss_type，防御路径：按固定间隔放狂暴波）。</summary>
     private void ReleaseFallback(float delta, Boss boss)
     {
         _attackTimer -= delta;
@@ -565,7 +564,7 @@ public partial class EnrageSequence : RefCounted
         }
     }
 
-    /// <summary>A3：1 型释放起手——蓄力辉光 telegraph。</summary>
+    /// <summary>1 型释放起手——蓄力辉光 telegraph。</summary>
     private void ReleaseBeginBulwark(Boss boss)
     {
         var charge = boss.E1SalvoCharge;
@@ -573,10 +572,10 @@ public partial class EnrageSequence : RefCounted
         _attacks.ChargeGlow(boss, charge);
     }
 
-    /// <summary>A3：2 型释放起手——记录当前位置为回轨道底部起点。</summary>
+    /// <summary>2 型释放起手——记录当前位置为回轨道底部起点。</summary>
     private void ReleaseBeginStalker(Boss boss) => _releaseOrigin = boss.Position;
 
-    /// <summary>A3：3 型释放起手——16 向环弹 + 全部在场小怪齐射（§5.4 峰值一次性结算）。</summary>
+    /// <summary>3 型释放起手——16 向环弹 + 全部在场小怪齐射（§5.4 峰值一次性结算）。</summary>
     private void ReleaseBeginHive(Boss boss)
     {
         _fire.FireRing(

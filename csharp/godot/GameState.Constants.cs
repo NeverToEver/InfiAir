@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：常量表与静态构造辅助。
+/// GameState 部分定义：常量表与静态构造辅助。
 /// </summary>
 public partial class GameState : Node
 {

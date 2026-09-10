@@ -6,8 +6,8 @@ public sealed record TaskDef(string Id);
 /// <summary>
 /// 任务池无放回抽取核心：洗牌索引序列 + 游标
 /// 推进。单次 <see cref="Draw"/> 内不重复；一次 Draw 消耗完当前批次后若仍有名额且全池
-/// 还有可用候选则重洗继续补足（跨 Draw 尽量延迟复用；排除项导致批次提前耗尽不再截断——
-/// Q05）。排除覆盖全池时安全返回空（不抛错不死循环）。
+/// 还有可用候选则重洗继续补足（跨 Draw 尽量延迟复用；排除项导致批次提前耗尽不再截断）。
+/// 排除覆盖全池时安全返回空（不抛错不死循环）。
 ///
 /// 分布语义为 Fisher–Yates 洗牌；RNG 为独立 Random 实例，可注入种子复现序列。
 /// 不做与任何外部实现逐序列等价的承诺（无外部依赖此语义）。
@@ -35,9 +35,9 @@ public sealed class TaskPool
         {
             return [];
         }
-        // 2026-08-09 审计：usable 按 id 去重计数——原按条目计数在重复 id 定义下（_defs=[A,A]）
+        // usable 必须按去重后的 id 计数——按条目计数时，重复 id 定义（_defs=[A,A]）
         // 会因 drawnIds 恒跳过重复项而 result.Count 永远追不上 usable → Refill 无限循环挂死；
-        // 去重后抽取名额 = 可用 id 数，语义更正确（防数据配置错误挂死）
+        // 去重后抽取名额 = 可用 id 数（防数据配置错误挂死）
         var usableIds = new HashSet<string>();
         foreach (var def in _defs)
         {
@@ -53,14 +53,14 @@ public sealed class TaskPool
             return [];  // 防呆：全池被排除，无可用任务
         }
         var result = new List<TaskDef>(Math.Min(count, usable));
-        var drawnIds = new HashSet<string>();  // Q05：跨批补足时防单次 draw 内重复（新批次可能重含已抽 id）
+        var drawnIds = new HashSet<string>();  // 跨批补足时防单次 draw 内重复（新批次可能重含已抽 id）
         while (result.Count < count && result.Count < usable)
         {
             if (_cursor >= _order.Count)
             {
                 if (result.Count < usable)
                 {
-                    Refill();  // Q05：批次耗尽但全池仍有可用候选 → 重洗继续补足
+                    Refill();  // 批次耗尽但全池仍有可用候选 → 重洗继续补足
                 }
                 else
                 {

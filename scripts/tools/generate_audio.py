@@ -205,10 +205,9 @@ XFade = 0.5  # 和弦间交叉淡化时长
 
 def chord_weight(t: float, slot: int) -> float:
     """第 slot 个和弦槽在时刻 t 的权重，对 ±LOOP_DUR 平移周期化以保证无缝循环。
-    R07（2026-08-05 独立审计）：有效区间原为 [0, CHORD_DUR)，槽边界处权重严格
-    截断 → 相邻和弦在交界点权重和 = 0（每 5s 一次 pad/bass 零谷塌陷，已烘焙进
-    旧 bgm_loop.wav）。区间扩至 CHORD_DUR + XFade 后槽尾衰减与下一槽头上升重叠，
-    交界处权重和恒为 1（线性交叉淡化）。
+    有效区间必须为 [0, CHORD_DUR + XFade)：若在 CHORD_DUR 处严格截断，相邻和弦
+    交界点权重和为 0，每 5s 出现一次 pad/bass 零谷塌陷；区间扩展后槽尾衰减与
+    下一槽头上升重叠，交界处权重和恒为 1（线性交叉淡化）。
     """
     w = 0.0
     for shift in (-LOOP_DUR, 0.0, LOOP_DUR):
@@ -251,9 +250,6 @@ def make_bgm() -> list:
             out[i] += 0.11 * w * math.sin(phase)
             phase += bass_inc
         # 琶音：八分音符拨弦
-        # 2026-08-06 审计：原「跨越接缝」分支为死代码且语义写反——三元表达式
-        # 优先级致第二元素恒为 LOOP_DUR（>=LOOP_DUR 被跳过）或 None（被跳过），
-        # 等效单元素循环；删除无行为影响
         onset = slot * CHORD_DUR
         while onset < (slot + 1) * CHORD_DUR:
             idx = int((onset / step)) % len(arp_pattern)
@@ -269,9 +265,9 @@ def make_bgm() -> list:
                 out[i] += 0.05 * env * math.sin(2.0 * math.pi * freq * lt)
             onset += step
 
-    # 首尾交叉淡化（2026-08-06 审计：原单边 50ms 淡入烘焙进资产——圈首 ≈5dB/50ms
-    # 凹陷且回绕点（40s→0）波形跳变，与「40s 无缝循环」声称相悖；改首尾互补淡化，
-    # 回绕点两侧均趋于 0 连续，播放起点仍防爆音）
+    # 首尾交叉淡化——必须首尾互补：单边 50ms 淡入会使圈首 ≈5dB/50ms 凹陷、
+    # 回绕点（40s→0）波形跳变，与「40s 无缝循环」相悖；首尾互补淡出后回绕点
+    # 两侧均趋于 0、连续，播放起点仍防爆音
     fade = int(0.05 * SR)
     for i in range(fade):
         k = i / fade
@@ -290,10 +286,9 @@ def main() -> None:
     write_wav("resupply.wav", make_resupply())
     write_wav("heartbeat.wav", make_heartbeat())
     write_wav("bgm_loop.wav", make_bgm())
-    # R07（2026-08-05 独立审计）：bullet_fire 三变体资产为「random 流起点独立生成」的
-    # 历史产物（在全序列流中生成会得到不同音色，实测 max 差 ~3000/16bit）——调用前
-    # 重置种子对齐资产，保证全量重跑输出与提交资产逐字节一致（bf 是 main() 末段，
-    # 重置不影响其他音效）
+    # bullet_fire 三变体必须在调用前重置种子对齐资产——它们是在「random 流起点
+    # 独立生成」的，在全序列流中生成会得到不同音色（实测 max 差 ~3000/16bit）；
+    # 重置保证全量重跑输出与提交资产逐字节一致（bf 位于 main() 末段，不影响其他音效）
     random.seed(20260720)
     write_wav("bullet_fire.wav", make_bullet_fire(135.0, 0.8), peak_target=0.42)
     write_wav("bullet_fire_b.wav", make_bullet_fire(115.0, 0.65), peak_target=0.42)

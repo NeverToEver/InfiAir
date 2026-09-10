@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义：天赋缓存系统（2026-09-07 重构，替代旧里程碑三选一）。
+/// GameState 部分定义：天赋缓存系统（替代里程碑三选一）。
 /// 业务实现在 TalentService（csharp/godot/TalentService.cs，组合持有），本文件为门面：
 /// 常用读取走转发（效果消费端零适配），面板等富交互经 Talent 属性直用服务
 /// （与 FogEvents/Events 服务暴露先例同构）。

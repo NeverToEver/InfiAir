@@ -4,8 +4,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 一次性爆炸粒子：主火花 + 飞散碎片双发射器，纯代码构建。池化复用（上限 24），超出上限的临时实例照旧销毁。
-/// P1-5 回池 reparent 到统一 ExplosionPool 节点；P2-1 活跃实例计数（Meta HUD D3 亮度代理）。
-/// B16：process_mode Always（玩家死亡爆炸生成于暂停的树）。
+/// 回池 reparent 到统一 ExplosionPool 节点；活跃实例计数（Meta HUD 亮度代理）。
+/// process_mode Always（玩家死亡爆炸生成于暂停的树）。
 /// 注：cfg 读取在 _Ready（C# 构造器内不可访问场景树/autoload）。
 /// </summary>
 public partial class Explosion : GpuParticles2D
@@ -25,7 +25,7 @@ public partial class Explosion : GpuParticles2D
     private bool _repooling;
     private bool _settled;
 
-    /// <summary>P2-1：活跃爆炸实例数（Meta HUD D3 亮度代理查询）。</summary>
+    /// <summary>活跃爆炸实例数（Meta HUD 亮度代理查询）。</summary>
     public static int LiveCount() => _liveCount;
 
     private static Godot.Collections.Array<Explosion> Stock => GameState.Instance.ExplosionStock;
@@ -56,9 +56,9 @@ public partial class Explosion : GpuParticles2D
                 e.Reparent(parent);
             }
 
-            // V 系列（2026-08-09）：U16 复位计数原在 if/else 之外无条件执行——fresh 分支
-            // AddChild 后 _Ready 已 ++（U16 前双计数 +1 残留，LiveCount() 永久偏高），
-            // 移入池取分支：复用弹不触发 _Ready，在此补计数与 _settled 复位。
+            // 复位计数只在池取分支（else）内执行——新建分支 AddChild 后 _Ready 已 ++，
+            // 若在 if/else 之外无条件执行会双计数（LiveCount() 永久偏高）；
+            // 复用弹不触发 _Ready，故在此补计数与 _settled 复位。
             e._settled = false;
             _liveCount++;
         }
@@ -67,7 +67,7 @@ public partial class Explosion : GpuParticles2D
         // effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
         if (_visualScale < 0.0f)
         {
-            _visualScale = (float)GameState.Instance.Cfg("effects.explosion_visual_scale", 1.6).AsDouble(); // G022：一次性缓存
+            _visualScale = (float)GameState.Instance.Cfg("effects.explosion_visual_scale", 1.6).AsDouble(); // 一次性缓存
         }
 
         e.Scale = Vector2.One * pScale * _visualScale * (float)GameState.Instance.WorldScale;
@@ -116,7 +116,7 @@ public partial class Explosion : GpuParticles2D
     {
         if (!GodotObject.IsInstanceValid(parent))
         {
-            return; // G023：parent 已销毁时 timer 必然已随父销毁
+            return; // parent 已销毁时 timer 必然已随父销毁
         }
 
         step[0]++;
@@ -134,7 +134,7 @@ public partial class Explosion : GpuParticles2D
 
     public override void _Ready()
     {
-        // B16：process_mode Always（死亡/放弃/暂停时爆炸仍正常播放）
+        // process_mode Always（死亡/放弃/暂停时爆炸仍正常播放）
         ProcessMode = Node.ProcessModeEnum.Always;
         Amount = (int)GameState.Instance.Cfg("effects.explosion.amount", 24).AsInt64();
         Lifetime = 0.6;
@@ -261,7 +261,9 @@ public partial class Explosion : GpuParticles2D
                 _liveCount--;
             }
 
-            GameState.Instance.ExplosionStock.Remove(this);
+            // 用安全取值：autoload 先于场景节点失效的非常规拆树序（崩溃恢复/编辑器停止）下
+            // Instance getter 会抛 InvalidOperationException
+            GameState.TryGetInstance()?.ExplosionStock.Remove(this);
         }
     }
 
@@ -277,7 +279,7 @@ public partial class Explosion : GpuParticles2D
         {
             Visible = false;
             Stock.Add(this);
-            // P1-5：回池统一池节点——隐藏爆炸不再堆积在各 parent 下
+            // 回池统一池节点——隐藏爆炸不再堆积在各 parent 下
             _repooling = true;
             var pool = GameState.Instance.ExplosionPoolHost();
             if (pool != null && pool != GetParent())

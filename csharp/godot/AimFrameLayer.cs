@@ -3,14 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 辅助瞄准框覆盖层（P1-1）：
+/// 辅助瞄准框覆盖层：
 /// 世界坐标单节点，Main._Ready 运行时创建挂 Main 下（Tutorial 同款，登记
 /// GameState.AimFrameLayer）。
 /// 每帧一次 _draw 遍历 GameState.enemies 中带 aim_marked 的 Enemy 统一画四角 bracket 框
 /// （单节点零逐敌节点开销）；框半径 = 碰撞半径 + frame_pad（指示器族，frame_pad 不乘
 /// world_scale）。青色强对比 + 低频频闪；准星入框的个体框转金色高亮（即时反馈
 /// 「追踪已生效」）。Boss/炮塔/编队战机非 Enemy 类，is 判定天然排除；精英纳入。
-/// 语义保持：P1-3 磁吸/锥形弱追踪/输入反比/距离衰减（Player.dist_falloff_curve 单实现）；
+/// 语义：磁吸/锥形弱追踪/输入反比/距离衰减（Player.dist_falloff_curve 单实现）；
 /// marked_target_at 渲染帧缓存；player_ref/enemies 每渲染帧一次静态缓存（Enemy.cs
 /// CachedPlayer 模式，避免逐帧跨语言动态访问）。
 /// </summary>
@@ -25,18 +25,18 @@ public partial class AimFrameLayer : Node2D
 
     /// <summary>当前档位辅助框内边距（balance.json player.aim_assist.levels，信号联动刷新）。</summary>
     private float _framePad = 16.0f;
-    /// <summary>P1-3：准星磁吸档位参数（同 levels 前缀、同信号刷新）。</summary>
+    /// <summary>准星磁吸档位参数（同 levels 前缀、同信号刷新）。</summary>
     private float _magnetRange = 100.0f;
     private float _magnetStrength = 6.0f;
     private float _magnetMaxSpeed = 8.0f;
-    /// <summary>P1-3：磁吸输入阈值与距离衰减全局参数（player.aim_assist.input / falloff，_ready 一次缓存）。</summary>
+    /// <summary>磁吸输入阈值与距离衰减全局参数（player.aim_assist.input / falloff，_ready 一次缓存）。</summary>
     private float _magnetInputMin = 2.0f;
     private float _magnetInputFull = 40.0f;
     private float _falloffPeak = 400.0f;
     private float _falloffEnd = 1400.0f;
     private float _falloffMin = 0.3f;
     private Enemy? _hover;  // 本帧准星入框的标记敌（高亮显示用）
-    /// <summary>P1-3：marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧各调一次，
+    /// <summary>marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧各调一次，
     /// 命中缓存免重复 O(enemies) 扫描）。</summary>
     private ulong _targetCacheFrame = ulong.MaxValue;
     private Enemy? _targetCacheResult;
@@ -44,11 +44,11 @@ public partial class AimFrameLayer : Node2D
     private readonly Callable _onAimAssistChanged;
 
     /// <summary>热路径缓存：enemies 每渲染帧一次取 typed Array<Node>（单实例共享，帧内复用）。
-    /// U07：静态集合持 Godot 对象引用改实例字段（悬空访问 + 退出 finalize 触碰风险）。</summary>
+    /// 不得用静态集合持 Godot 对象引用（悬空访问 + 退出 finalize 触碰风险）。</summary>
     private ulong _cacheFrame = ulong.MaxValue;
     private Godot.Collections.Array<Node> _frameEnemies = new();
 
-    /// <summary>P1-6-8：上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
+    /// <summary>上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
     private bool _hadMarked;
 
     public AimFrameLayer()
@@ -84,7 +84,7 @@ public partial class AimFrameLayer : Node2D
         LoadLevelParams();
         _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
         _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
-        // 2026-08-10 健壮性审查：full 钳到 min 之上——两键相等时 MagnetPull 的 t = 0/0 = NaN 污染准星
+        // full 钳到 min 之上——两键相等时 MagnetPull 的 t = 0/0 = NaN 污染准星
         _magnetInputFull = Mathf.Max(_magnetInputFull, _magnetInputMin + 0.01f);
         _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
         _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
@@ -97,7 +97,7 @@ public partial class AimFrameLayer : Node2D
 
     public override void _ExitTree()
     {
-        // G016：显式断开档位信号（同 Player 的 C22 模式），节点未 free 重新入树不重复连接
+        // 显式断开档位信号（Player 同款），节点未 free 重新入树不重复连接
         var gs = GameState.Instance;
         if (gs != null)
         {
@@ -130,7 +130,7 @@ public partial class AimFrameLayer : Node2D
 
     public override void _Process(double delta)
     {
-        // P1-6-8：无标记敌常态跳过扫描+重绘（原每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
+        // 无标记敌常态跳过扫描+重绘（否则每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
         // 归零当帧补一次重绘清残框
         if (Enemy.AimMarkedCount == 0)
         {
@@ -151,18 +151,18 @@ public partial class AimFrameLayer : Node2D
     }
 
     /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 缓存进 Enemy.AimFrameRadius）+ frame_pad
-    /// A7：诊断白盒断言经公开接口。</summary>
+    /// 诊断白盒断言经公开接口。</summary>
     public float FrameHalfSize(Enemy e)
     {
-        // C23：碰撞半径缓存放 Enemy 实例字段——setup 后恒定（仅 scale.x 随缩放变化），
+        // 碰撞半径缓存放 Enemy 实例字段——setup 后恒定（仅 scale.x 随缩放变化），
         // 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
-        // 2026-08-03 审计：meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
+        // meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
         //（scale.x 同样含 ws，再乘即 ws 平方，0.5 钳制恰好掩盖；ws 上调时框尺寸非线性暴涨）
-        // P1-6-8：meta HasMeta/GetMeta 改实例字段直读（每敌每扫描 ×3 路）
+        // HasMeta/GetMeta 直读实例字段（每敌每扫描 ×3 路）
         var r = e.AimFrameRadius;
         if (r < 0.0f)
         {
-            // 未经 setup 的兼容路径：回退读碰撞形状并回填（原 meta 缺键回退同款语义）
+            // 未经 setup 的兼容路径：回退读碰撞形状并回填（meta 缺键回退同款语义）
             var shapeNode = e.GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
             r = 0.0f;
             if (shapeNode != null && shapeNode.Shape is CircleShape2D circle)
@@ -176,15 +176,15 @@ public partial class AimFrameLayer : Node2D
         return r + _framePad;
     }
 
-    /// <summary>当前档位辅助框内边距（A7：诊断白盒断言经公开接口）。</summary>
+    /// <summary>当前档位辅助框内边距（诊断白盒断言经公开接口）。</summary>
     public float FramePad() => _framePad;
 
     /// <summary>世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null。
-    /// P1-3：同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
-    /// 2026-08-07 起按帧共享帧首结果，见字段注释）。</summary>
+    /// 同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
+    /// 按帧共享帧首结果，见字段注释）。</summary>
     public Enemy? MarkedTargetAt(Vector2 point)
     {
-        // P1-6-8：零标记早退（外部调用方不经 _Process 门控）
+        // 零标记早退（外部调用方不经 _Process 门控）
         if (Enemy.AimMarkedCount == 0)
         {
             return null;
@@ -226,14 +226,14 @@ public partial class AimFrameLayer : Node2D
         return best;
     }
 
-    /// <summary>P1-3 准星磁吸修正向量：把准星轻微拉向最近框外标记敌（框内归 stickiness 管辖）。
+    /// <summary>准星磁吸修正向量：把准星轻微拉向最近框外标记敌（框内归 stickiness 管辖）。
     /// 静止/抖动（|delta| &lt; input_min）与高速甩枪（&gt;= input_full）直接返回 ZERO——输入优先，
     /// 静止无磁吸天然满足；强度 = strength × (1 - 框沿距/range) × 输入 smoothstep × 距离衰减，
     /// 钳到 max_speed 防瞬移。无标记敌返回 ZERO。热路径无 sin/cos、无 cfg。</summary>
     public Vector2 MagnetPull(Vector2 point, Vector2 inputDelta)
     {
         var ilen = inputDelta.Length();
-        // P1-6-8：零标记早退（省整表扫描）
+        // 零标记早退（省整表扫描）
         if (ilen < _magnetInputMin || ilen >= _magnetInputFull || Enemy.AimMarkedCount == 0)
         {
             return Vector2.Zero;
@@ -263,7 +263,7 @@ public partial class AimFrameLayer : Node2D
                 continue;  // 轴距粗筛，省 sqrt
             }
 
-            // 2026-08-10 健壮性审查：框沿距负分量钳 0——单轴出框时另一轴为负，计入欧氏长度会
+            // 框沿距负分量钳 0——单轴出框时另一轴为负，计入欧氏长度会
             // 系统性偏近（磁吸偏弱、range 边界误判），标准 AABB 距离只取框外分量
             var d = new Vector2(Mathf.Max(dx, 0.0f), Mathf.Max(dy, 0.0f)).Length();
             if (d >= bestD || d > _magnetRange)
@@ -288,11 +288,11 @@ public partial class AimFrameLayer : Node2D
         return (best.GlobalPosition - point).Normalized() * Mathf.Min(mag, _magnetMaxSpeed);
     }
 
-    /// <summary>P1-3 锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近标记敌；
+    /// <summary>锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近标记敌；
     /// 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。</summary>
     public Enemy? NearestConeTarget(Vector2 origin, Vector2 aimDir, float coneCos)
     {
-        // P1-6-8：零标记早退
+        // 零标记早退
         if (Enemy.AimMarkedCount == 0)
         {
             return null;
@@ -315,8 +315,8 @@ public partial class AimFrameLayer : Node2D
                 continue;
             }
 
-            // AC11（2026-08-11 审计）注释订正：与原点重合时 to/d 除零得 NaN → NaN < coneCos 恒 false
-            // → 该敌「不排除」被选中（原注释「恒 false 排除」语义相反）；coneCos 为 NaN 时同理不排除
+            // 与原点重合时 to/d 除零得 NaN，NaN < coneCos 恒 false，该敌不得被排除（会被选中）；
+            // coneCos 为 NaN 时同理不排除
             if (aimDir.Dot(to / d) < coneCos)
             {
                 continue;
@@ -329,7 +329,7 @@ public partial class AimFrameLayer : Node2D
         return best;
     }
 
-    /// <summary>P1-3 距离衰减（G018：与 Player.aim_dist_falloff 共用 Player.dist_falloff_curve 单实现）。</summary>
+    /// <summary>距离衰减（与 Player.aim_dist_falloff 共用 Player.dist_falloff_curve 单实现）。</summary>
     private float DistFalloff(float d)
     {
         return Player.DistFalloffCurve(d, _falloffPeak, _falloffEnd, _falloffMin);

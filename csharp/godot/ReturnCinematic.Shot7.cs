@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 返航过场 镜头 7 构建器（文件粒度拆分自 ReturnCinematic.cs，2026-08-12；逻辑零改动）。
+/// 返航过场 镜头 7 构建器。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {
@@ -167,7 +167,7 @@ public partial class ReturnCinematic : CanvasLayer
             }
         }));
         // 面部特写：镜头推近至头部（scale→1.6，聚焦平躺后的头盔位置 ≈(981,744)）
-        // C12 修复：set_parallel 下前置 tween_interval 不延迟并行成员（特写提前完成）；
+        // set_parallel 下前置 tween_interval 不延迟并行成员（特写提前完成）；
         // 改顺序 tween + 前置 interval，scale/position 两属性经 parallel() 同时推进
         var pushIn = root.CreateTween();
         pushIn.TweenInterval(1.5f * u);

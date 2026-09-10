@@ -11,10 +11,11 @@
 ## 验证门禁（提交前必过）
 
 ```bash
-dotnet build                      # C# 构建，零警告（TreatWarningsAsErrors）
-bash scripts/ci/check_import.sh   # 资源导入无警告
-bash scripts/ci/check_smoke.sh    # 主场景 300 帧无头冒烟
-./release.sh                      # 打包发布（仅发布时需要）
+dotnet build                          # C# 构建，零警告（TreatWarningsAsErrors）
+bash scripts/ci/check_comment_stamps.sh  # 源码注释无日期戳
+bash scripts/ci/check_import.sh       # 资源导入无警告
+bash scripts/ci/check_smoke.sh        # 主场景 300 帧无头冒烟
+./release.sh                          # 打包发布（仅发布时需要）
 ```
 
 CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改动另需窗口化实机人工过目——无头门禁不覆盖 GPU/shader 管线。

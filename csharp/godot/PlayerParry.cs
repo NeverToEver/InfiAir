@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 弧光弹反盾组件（2026-08-03 公平感机制四）。时间轴状态机
+/// 弧光弹反盾组件。时间轴状态机
 /// IDLE → WINDUP(前摇，无判定) → ACTIVE(有效弹反) → RECOVER(后摇，无判定) → IDLE；
 /// 硬冷却 3.0s 自 RECOVER 完成（进入 IDLE）起算——完整周期 0.8 + 3.0 = 3.8s，占空比约 21%，
 /// 盾是「决策性资源」而非常驻免伤。仅 ACTIVE 期由 Player 侧启用盾 Area2D 判定。

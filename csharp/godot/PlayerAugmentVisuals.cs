@@ -19,7 +19,7 @@ public partial class PlayerAugmentVisuals : Node2D
     private static readonly Color ColorOrange = new(1.0f, 0.55f, 0.2f);
     private static readonly Color ColorGreen = new(0.45f, 1.0f, 0.6f);
     private static readonly Color ColorMagenta = new(0.9f, 0.35f, 0.7f);
-    private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰（原冷钢蓝灰）
+    private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰
     /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
     public const float BaseShipScale = 0.65f;
     /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双 buff 时色相自然混合。</summary>
@@ -87,7 +87,7 @@ public partial class PlayerAugmentVisuals : Node2D
 
     public override void _ExitTree()
     {
-        // C22：显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
+        // 显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
@@ -194,7 +194,7 @@ public partial class PlayerAugmentVisuals : Node2D
     /// <summary>GameState.augment_level 事件驱动访问（非热路径；buff 变更频率极低）。</summary>
     private static int AugmentLevel(StringName name) => (int)GameState.Instance.AugmentLevel(name);
 
-    /// <summary>保色相只改 alpha（原 GDScript `modulate.a = x` 链式赋值语义）。</summary>
+    /// <summary>保色相只改 alpha。</summary>
     private static Color WithAlpha(Color c, float a) => new(c.R, c.G, c.B, a);
 
     /// <summary>一次性构建全部附件（部位锚点注释对应 generate_player_sprite.py 贴图坐标）。</summary>

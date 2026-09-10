@@ -23,14 +23,14 @@ public partial class CameraShake : Camera2D
 
     public override void _Ready()
     {
-        // C22：is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
+        // is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
         var gs = GameState.Instance;
         if (gs != null && !gs.IsConnected(GameState.SignalName.ScreenShake, _onShake))
         {
             gs.Connect(GameState.SignalName.ScreenShake, _onShake);
         }
 
-        _decay = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.decay", _decay).AsDouble(), 0.001f); // H15：decay=0 震动永不衰减
+        _decay = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.decay", _decay).AsDouble(), 0.001f); // decay=0 震动永不衰减
     }
 
     public override void _ExitTree()
@@ -53,7 +53,7 @@ public partial class CameraShake : Camera2D
         else
         {
             _strength = 0.0f;
-            if (_offsetActive) // 静止写门：仅过渡帧归零一次（原每空帧重复写 Vector2.Zero）
+            if (_offsetActive) // 静止写门：仅过渡帧归零一次（否则每空帧重复写 Vector2.Zero）
             {
                 _offsetActive = false;
                 Offset = Vector2.Zero;

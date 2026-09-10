@@ -134,7 +134,7 @@ public partial class ExitConfirm : CanvasLayer
         Canceled?.Invoke();
     }
 
-    /// <summary>AB13：退出确认已受理（_exiting），调用方（PauseUi）须屏蔽冲突快捷键。</summary>
+    /// <summary>退出确认已受理（_exiting），调用方（GameState.RestartRun）须屏蔽冲突快捷键。</summary>
     public bool Exiting() => _exiting;
 
     private void OnOkPressed()
@@ -183,7 +183,7 @@ public partial class ExitConfirm : CanvasLayer
         fadeLayer.AddChild(fade);
         var tween = CreateTween();
         tween.TweenProperty(fade, "color:a", 1.0, 0.3);
-        // H17（健壮性审核）：tween_callback 替代 await——淡出期间场景卸载/双退出时
+        // tween_callback 替代 await——淡出期间场景卸载/双退出时
         // tween 随节点释放自动取消，不留挂起协程
         tween.TweenCallback(Callable.From(() => GetTree().Quit()));
     }

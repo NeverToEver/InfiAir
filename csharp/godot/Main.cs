@@ -16,13 +16,13 @@ public partial class Main : Node2D
 {
     private const string BgmPath = "res://assets/audio/bgm_loop.wav";
 
-    /// <summary>召唤窗口期无敌时长（s）：伪永久哨兵值——窗口结束/返航（K01 路径）统一清除，
+    /// <summary>召唤窗口期无敌时长（s）：伪永久哨兵值——窗口结束/返航统一清除，
     /// 不依赖时长自然到期。</summary>
     private const float SummonInvincibleSeconds = 999.0f;
 
     /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
     private static readonly StringName NoActiveEncounter = new();
-    // V 系列：静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
+    // 静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
     // 改实例字段——Main 每局重建实例，加载命中资源缓存。
     private readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
     private readonly PackedScene IntroScene = GD.Load<PackedScene>("res://scenes/intro_cinematic.tscn");
@@ -45,13 +45,13 @@ public partial class Main : Node2D
     private Starfield _starfield = null!;
     private Camera2D _camera = null!;
     private bool _gameOver;
-    /// <summary>B 梯队：死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
+    /// <summary>死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
     private readonly DeathReplay _replay = new();
     private bool _homecoming;
     private AudioStreamPlayer? _bgmPlayer;
     private float _dockCooldown;
     private Mothership? _mothership;
-    /// <summary>坞态文本缓存（2026-09-10：HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
+    /// <summary>坞态文本缓存（HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
     /// 免每轮 Tr/GdFormat 分配；母舰态文本由状态机自驱、输入不可廉价观测，不缓存）。</summary>
     private enum DockTextBranch { None, Charging, SummonWindow, Mothership, Cooldown, Ready }
 
@@ -69,7 +69,7 @@ public partial class Main : Node2D
     private float _homeChargeTime;
     private float _giveUpCharge;
     // Boss 狂暴子弹时间状态（main 统一接管）。time_scale 复位覆盖全部路径（离场/逃跑/返航/
-    // 放弃/玩家死亡统一复位，B2 已修复——2026-08-05 P4 注释修正）
+    // 放弃/玩家死亡统一复位）
     private float _bulletTimeLeft; // >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
     private float _timeScaleRamp = -1.0f; // >=0：恢复过渡进度 0..1
     private Boss? _enrageBoss;
@@ -122,12 +122,12 @@ public partial class Main : Node2D
         _starfield = GetNode<Starfield>("Starfield");
         _camera = GetNode<Camera2D>("Camera2D");
         _giveUpBound = InputMap.HasAction("give_up"); // 静态动作绑定缓存（_process 每帧读取）
-        DOCK_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零
-        HOME_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
-        GIVE_UP_HOLD_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME).AsDouble(), 0.01f); // H15：=0 除零（蓄力进度比例）
-        ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // H15 族：=0 使狂暴慢速完全冻结
-        ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // H15 族：=0 跳过子弹时间演出
-        ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // K05：H15 同族遗漏（=0 时 _time_scale_ramp 除零）
+        DOCK_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // =0 除零
+        HOME_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // =0 除零（蓄力进度比例）
+        GIVE_UP_HOLD_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME).AsDouble(), 0.01f); // =0 除零（蓄力进度比例）
+        ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // =0 使狂暴慢速完全冻结
+        ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // =0 跳过子弹时间演出
+        ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // =0 时 _time_scale_ramp 除零
         // 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
         Engine.TimeScale = 1.0f;
         // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
@@ -139,12 +139,12 @@ public partial class Main : Node2D
         // 精英炮塔事件：编排节点挂 Main 下（清场遍历可见），spawner 持引用做互斥
         _event = new EliteTurretEvent();
         AddChild(_event);
-        _event.SetSpawner(_spawner); // A5：依赖注入，替代事件侧 group 现找
+        _event.SetSpawner(_spawner); // 依赖注入，替代事件侧 group 现找
         _spawner.SetEliteEvent(_event);
         // 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
         _formation = new FormationStrikeEvent();
         AddChild(_formation);
-        _formation.SetSpawner(_spawner); // K15：A5 依赖注入延续——编队事件侧不再 group 现找 spawner
+        _formation.SetSpawner(_spawner); // 依赖注入延续——编队事件侧不再 group 现找 spawner
         // 统一事件管理器接线：遭遇事件注册进统一注册表（缓存单例），
         // 触发策略/信号由管理器接管；spawner 注入用于触发门控与特殊槽通知
         var evV = GameState.Instance.Events;
@@ -178,10 +178,10 @@ public partial class Main : Node2D
         AddChild(_worldPostFx);
         // Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
         _metaFx = new MetaHealthFX();
-        AddChild(_metaFx);        // 辅助瞄准框覆盖层（P1-1）：世界坐标单节点，每帧统一画标记敌 bracket 框
+        AddChild(_metaFx);        // 辅助瞄准框覆盖层：世界坐标单节点，每帧统一画标记敌 bracket 框
         _aimFrames = new AimFrameLayer();
         AddChild(_aimFrames);
-        // 触屏虚拟输入层（mobile touch，2026-08-07）：设置开关联动（默认关，桌面零回归）
+        // 触屏虚拟输入层（mobile touch）：设置开关联动（默认关，桌面零回归）
         _virtualControls = new VirtualControls();
         AddChild(_virtualControls);
         GameState.Instance.VirtualControls = _virtualControls;
@@ -207,19 +207,19 @@ public partial class Main : Node2D
         // 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
         _chargeGhost = MothershipScene.Instantiate<Mothership>();
         AddChild(_chargeGhost);
-        // L13：蓄力虚影非在场母舰——事件互斥（can_trigger 查 group "mothership"）须排除
+        // 蓄力虚影非在场母舰——事件互斥（can_trigger 查 group "mothership"）须排除
         // 常驻虚影：虚影 main 场景常驻且 _ready 已入组，不退组则事件在整个对局恒被虚影拦截
         _chargeGhost.RemoveFromGroup("mothership");
         // 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
         _chargeGhost.SetPhysicsProcess(false);
-        // C14：蓄力虚影居中取可见世界中心，不写死 960
+        // 蓄力虚影居中取可见世界中心，不写死 960
         _chargeGhost.Position = new Vector2(GameState.Instance.ViewWorldRect().GetCenter().X, _chargeGhost.HoverY);
         var ghostMod = _chargeGhost.Modulate;
         ghostMod.A = 0.15f;
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 开机流程（2026-09-08 标题屏改造）：正常启动首次进入 → 播开场过场（或按设置跳过）→
+        // 开机流程：正常启动首次进入 → 播开场过场（或按设置跳过）→
         // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
         // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不过场、不入场（由宿主驱动）。
         if (GetTree().CurrentScene != this)
@@ -231,7 +231,7 @@ public partial class Main : Node2D
             // 幂等兜底：标题屏→开局依赖「到标题屏前必已 ResetRun」的上游约定
             // （当前所有到 title 的边均已复位）；此处直进开局分支补一次，新增到 title 的路径不踩雷
             //
-            // 本局存档（2026-09-10）：标题屏选「继续上次出击」→ PendingLoadRun 置位，读档成功则
+            // 本局存档：标题屏选「继续上次出击」→ PendingLoadRun 置位，读档成功则
             // 跳过 ResetRun（LoadRun 内部已 ResetRun 并按存档还原）；否则全新一局。
             //
             // 非破坏性：选「新的一局」或读档失败都**不删旧档**——检查点保留到被新档覆盖（回基地/保存退出）
@@ -259,7 +259,9 @@ public partial class Main : Node2D
             ApplyNewRun();
             if (GameState.Instance.SkipIntro)
             {
-                GoTitleScreen(); // 设置「默认跳过入场动画」：开机直达标题屏
+                // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
+                // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
+                Callable.From(GoTitleScreen).CallDeferred(); // 设置「默认跳过入场动画」：开机直达标题屏
             }
             else
             {
@@ -281,8 +283,8 @@ public partial class Main : Node2D
 
         _fogEvents.SetRunActive(false);
         GameState.Instance.SetRunActive(false);
-        // C22 模式（M6）：GameState 信号显式断开——退出时 GameState 先于本节点释放的
-        // 时序下连接悬空可致退出 segfault（M5 实测定位；原 GDScript 自动断开，C# 需手动）
+        // GameState 信号显式断开——退出时 GameState 先于本节点释放的
+        // 时序下连接悬空可致退出 segfault（GDScript 自动断开，C# 需手动）
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
@@ -300,7 +302,7 @@ public partial class Main : Node2D
         }
     }
 
-    /// <summary>对外公开接口（A1 修复）：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
+    /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
     public bool IsIntroPlaying() => _intro != null;
 
     public bool IsReturnPlaying() => _return != null;
@@ -340,7 +342,7 @@ public partial class Main : Node2D
 
     private void OnViewZoomChanged(float _factor) => ApplyCameraZoom();
 
-    /// <summary>相机 zoom 单点组合（D6）：视角档位 × DYING 呼吸缩放；震动只写 offset 不受影响</summary>
+    /// <summary>相机 zoom 单点组合：视角档位 × DYING 呼吸缩放；震动只写 offset 不受影响</summary>
     private void ApplyCameraZoom()
     {
         var breath = 1.0f;
@@ -391,9 +393,9 @@ public partial class Main : Node2D
 
         // 长按 H 蓄力召唤母舰（松手取消，不进冷却；召唤小窗播放中不再进入蓄力，
         // 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）。
-        // 2026-08-06 审计：遭遇事件进行中禁止蓄力（L13 互斥只查触发期——事件中召唤
+        // 遭遇事件进行中禁止蓄力（互斥只查触发期——事件中召唤
         // 母舰自动火力可清场全额领奖，玩家零参与挂机收益）
-        // 2026-08-13：与 K（give_up）蓄力互斥——先按下的锁定另一路，消除同帧蓄满双触发的时序耦合
+        // 与 K（give_up）蓄力互斥——先按下的锁定另一路，消除同帧蓄满双触发的时序耦合
         var canCharge = _mothership == null
             && _dockCooldown <= 0.0f
             && !_gameOver
@@ -402,7 +404,7 @@ public partial class Main : Node2D
             && _giveUpCharge <= 0.0f
             && _events.ActiveId(_events.GROUP_ENCOUNTER) == NoActiveEncounter;
         // 遭遇事件触发互斥旗帜（GameEventManager 门控读取）：蓄力期 + 小窗演出期事件不掷签，
-        // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（L13 窗口期补全）；
+        // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（蓄力互斥窗口期补全）；
         // 逐帧维护——暂停/死亡冻结 _Process 时残留 true 由 _ExitTree/_Ready 复位兜住
         GameState.Instance.SummonInProgress = _charging || _summonWindow != null;
         if (canCharge && Input.IsActionPressed("dock"))
@@ -462,7 +464,7 @@ public partial class Main : Node2D
         }
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
-        // 2026-08-13：与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
+        // 与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
         if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed("give_up"))
         {
             _giveUpCharge += d;
@@ -480,7 +482,7 @@ public partial class Main : Node2D
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
         }
 
-        // DYING 呼吸缩放（D6）：仅激活期逐帧组合；退出激活时复位一次到基础 zoom
+        // DYING 呼吸缩放：仅激活期逐帧组合；退出激活时复位一次到基础 zoom
         var breathOn = _metaFx != null && _metaFx.BreathActive();
         if (breathOn || _breathWasActive)
         {
@@ -488,8 +490,8 @@ public partial class Main : Node2D
         }
 
         _breathWasActive = breathOn;
-        // B 梯队：死亡回放录制（每渲染帧采样敌弹轨迹；死亡后树暂停本函数不再执行）
-        // P0-1（2026-08-05 审计）：数据源改敌弹注册表，消除每帧 get_children + cast 分配链
+        // 死亡回放录制（每渲染帧采样敌弹轨迹；死亡后树暂停本函数不再执行）
+        // 数据源为敌弹注册表，消除每帧 get_children + cast 分配链
         _replay.Record();
     }
 
@@ -509,7 +511,7 @@ public partial class Main : Node2D
     {
         var ws = (float)GameState.Instance.WorldScale;
         _chargeFx = new Node2D();
-        // C14：与虚影同位（复用 _charge_ghost.position.x，不写死 960）
+        // 与虚影同位（复用 _charge_ghost.position.x，不写死 960）
         _chargeFx.Position = new Vector2(_chargeGhost.Position.X, _chargeGhost.HoverY);
         _chargeFx.Visible = false;
         AddChild(_chargeFx);
@@ -562,9 +564,9 @@ public partial class Main : Node2D
     {
         try
         {
-            // U17：await 段异常统一 try/catch（约定 §Async）——恢复期节点释放/引擎错误不静默吞
+            // await 段异常统一 try/catch（约定 §Async）——恢复期节点释放/引擎错误不静默吞
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            // C15：await 后守卫——首帧前 main 被释放（场景早退/摘树路径）则不再操作 freed 实例
+            // await 后守卫——首帧前 main 被释放（场景早退/摘树路径）则不再操作 freed 实例
             if (!IsInsideTree())
             {
                 return;
@@ -583,7 +585,7 @@ public partial class Main : Node2D
     {
         try
         {
-            // U17：await 段异常统一 try/catch + 判活守卫
+            // await 段异常统一 try/catch + 判活守卫
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!IsInsideTree())
             {
@@ -600,10 +602,10 @@ public partial class Main : Node2D
 
     private void StartBgm()
     {
-        // P1-4（2026-08-05 审计）：CACHE_MODE_IGNORE 每次进 main 重新 load + 解码 3.5MB WAV；
-        // 改 CACHE_MODE_REUSE 复用资源缓存（静态音频，缓存复用无副作用；音频路径保持等价不变）
+        // CACHE_MODE_REUSE 复用资源缓存——CACHE_MODE_IGNORE 会每次进 main 重新 load + 解码 3.5MB WAV
+        //（静态音频，缓存复用无副作用；音频路径保持等价不变）
         var stream = ResourceLoader.Load(BgmPath, "AudioStreamWAV", ResourceLoader.CacheMode.Reuse) as AudioStreamWav;
-        // H04（健壮性审核）：运行时 load 判空——打包漏资源/磁盘异常时降级静默而非空引用崩溃
+        // 运行时 load 判空——打包漏资源/磁盘异常时降级静默而非空引用崩溃
         if (stream == null)
         {
             GD.PushWarning("BGM 资源加载失败：" + BgmPath);
@@ -727,11 +729,11 @@ public partial class Main : Node2D
         // 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
         _player.UnlockInput();
         _player.MovementLocked = false;
-        // 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24（B2 修复）
+        // 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24
         ResetGlobalTimeScale();
-        // C25：死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
+        // 死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
         StopChargingInternal();
-        // 2026-08-06 审计：死亡路径清理召唤小窗（原仅返航路径清理）——give_up 与 dock
+        // 死亡路径必须清理召唤小窗——否则 give_up 与 dock
         // 蓄力同按 3s 同帧完成时小窗打开同帧死亡，finished 无人消费（_process 已冻结）小窗永驻
         if (_summonWindow != null)
         {
@@ -740,11 +742,11 @@ public partial class Main : Node2D
             _summonWindow = null;
         }
 
-        // B 梯队：死亡回放演出（幽灵弹幕重放死因 3s，播完自毁；process_mode=ALWAYS 暂停中照常）
+        // 死亡回放演出（幽灵弹幕重放死因 3s，播完自毁；process_mode=ALWAYS 暂停中照常）
         AddChild(_replay.Play());
     }
 
-    /// <summary>对局终态复位全局速度（B2 修复）：返航/死亡/放弃路径会冻结 _process，
+    /// <summary>对局终态复位全局速度：返航/死亡/放弃路径会冻结 _process，
     /// 狂暴子弹时间（time_scale=0.24）不显式复位会卡到下次场景重载
     /// （返航过场 4 倍慢速播放直到轨道打击才自愈）。</summary>
     private void ResetGlobalTimeScale()
@@ -756,7 +758,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）。
-    /// U17：具名无参回调替代闭包捕获——闭包无法配对断开，Boss 若改对象池复用即双订阅；
+    /// 具名无参回调替代闭包捕获——闭包无法配对断开，Boss 若改对象池复用即双订阅；
     /// 上一只 Boss 仍存活时先断开再挂新（防双订阅）</summary>
     private void OnBossSpawned(Boss boss)
     {
@@ -833,7 +835,7 @@ public partial class Main : Node2D
     /// <summary>母舰状态文本（HUD 轮询）</summary>
     public string DockStatusText()
     {
-        // 2026-09-10：0.1s 轮询缓存——分支/取整参数/语言未变直接复用上次结果
+        // 0.1s 轮询缓存——分支/取整参数/语言未变直接复用上次结果
         var locale = GameState.Instance.Locale;
         if (_charging)
         {
@@ -925,7 +927,7 @@ public partial class Main : Node2D
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
         _mothership = MothershipScene.Instantiate<Mothership>();
         _mothership.BeginWarpIn(gatePos, gate);
-        // C# 事件/TreeExited 订阅随 _mothership 包装对象消亡，无需手动退订（C22 仅针对 Connect）
+        // C# 事件/TreeExited 订阅随 _mothership 包装对象消亡，无需手动退订（仅针对 Connect）
         _mothership.Departed += OnMothershipDepartedInternal;
         _mothership.TreeExited += () => _mothership = null;
         AddChild(_mothership);
@@ -958,16 +960,16 @@ public partial class Main : Node2D
     private void StartHomecomingInternal()
     {
         _homecoming = true;
-        // 返航冻结对局：狂暴子弹时间若在播先复位，避免过场以慢速播放（B2 修复）
+        // 返航冻结对局：狂暴子弹时间若在播先复位，避免过场以慢速播放
         ResetGlobalTimeScale();
-        // C25：返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
+        // 返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
         StopChargingInternal();
         _homeChargeTime = 0.0f;
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         _player.LockInput();
         // 迷雾事件：返航中场整备清除进行中的干扰效果（继续出击后干净开局）
         _fogEvents.EndActive();
-        // K01：返航统一清除召唤/对接期残留的 999s 无敌——_summon_mothership 设 set_invincible(999.0)，
+        // 返航统一清除召唤/对接期残留的 999s 无敌——_summon_mothership 设 set_invincible(999.0)，
         // 提前收回路径（下方 queue_free → mothership._exit_tree 仅 exit_pod 恢复显示）不重置无敌，
         // 正常 RELEASE 路径有 set_invincible(2.0) 覆盖；此处复位后继续出击的无敌由入场序列接管
         _player.SetInvincible(0.0f);
@@ -975,10 +977,10 @@ public partial class Main : Node2D
         // 不归零（继续出击后移速残留 ×0.35 至该 Boss 狂暴结束）；不中止序列本身（防"按 B 躲狂暴"），
         // 狂暴攻击照常继续，序列后续解锁（BeginReleaseHold/Abort）幂等重复置 1.0 无副作用
         _player.ApplyEnrageSlow(1.0f);
-        _player.AbortEntry(); // D06：入场中按 B 返航时复位入场状态机（防新入场被守卫跳过）
+        _player.AbortEntry(); // 入场中按 B 返航时复位入场状态机（防新入场被守卫跳过）
         _player.Velocity = Vector2.Zero;
         _spawner.SetProcess(false);
-        // D01：释放排队中的敌机/Boss 预告与一次性回调，防 continue 后入场动画窗口内进场
+        // 释放排队中的敌机/Boss 预告与一次性回调，防 continue 后入场动画窗口内进场
         _spawner.ClearPending();
         // 召唤小窗在播则断开回调后关闭（避免 finished 触发穿梭门/母舰创建）
         if (_summonWindow != null)
@@ -1059,7 +1061,7 @@ public partial class Main : Node2D
         _spawner.SetProcess(false);
         if (!_entryFinishedConnected)
         {
-            _player.EntryFinished += OnEntryFinished; // M3c：C# [Signal] 以 PascalCase 注册
+            _player.EntryFinished += OnEntryFinished; // C# [Signal] 以 PascalCase 注册
             _entryFinishedConnected = true;
         }
 
