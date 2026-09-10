@@ -5,9 +5,9 @@ namespace InfiAir;
 /// <summary>
 /// 激光束武器（对齐原作 LaserAugmentId + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.AugmentLevel(&amp;"laser_beam")
 /// &gt; 0 时启用。就绪即自动触发：3s 持续光束替换普通子弹（禁用玩家自动开火），光束为
-/// 穿透性直线，线上敌人每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
-/// 语义保持：buff 层数经 AugmentsChanged 信号缓存（避免每物理帧字典/信号查询）；
-/// 预分配 points 数组帧内原地写；buff 归零时收束激活态光束。
+/// 穿透性直线，线上敌机每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
+/// 语义保持：增幅 层数经 AugmentsChanged 信号缓存（避免每物理帧字典/信号查询）；
+/// 预分配 points 数组帧内原地写；增幅 归零时收束激活态光束。
 /// SFX 资源在 _Ready 惰性加载（GD.Load 命中引擎资源缓存）。
 /// </summary>
 public partial class LaserWeapon : Node2D
@@ -18,7 +18,7 @@ public partial class LaserWeapon : Node2D
     public float CooldownDuration { get; private set; } = 8.0f;
     /// <summary>穿透结算间隔（s）。</summary>
     public float TickInterval { get; private set; } = 0.1f;
-    /// <summary>每 tick 对线上敌人结算的伤害。</summary>
+    /// <summary>每 tick 对线上敌机结算的伤害。</summary>
     public int TickDamage { get; private set; } = 16;
     /// <summary>光束长度（世界单位）。</summary>
     public float BeamLength { get; private set; } = 2400.0f;
@@ -32,7 +32,7 @@ public partial class LaserWeapon : Node2D
     private float _cooldown;
     private float _tickTimer;
     private bool _savedAutofire = true;
-    // buff 名静态缓存——热路径禁 StringName 构造（Refresh 信号驱动，低频但保持口径）
+    // 增幅 名静态缓存——热路径禁 StringName 构造（Refresh 信号驱动，低频但保持口径）
     private static readonly StringName AugLaserBeam = new("laser_beam");
     /// <summary>laser_beam 层数缓存（AugmentBoolCache 实例：augments_changed 信号驱动；热路径禁跨语言调用）。</summary>
     private readonly AugmentBoolCache _laserBeamCache;
@@ -118,8 +118,8 @@ public partial class LaserWeapon : Node2D
         }
         if (!_laserBeamCache.Value)
         {
-            // buff 归零时收束激活态光束——防未来 buff 移除机制引入后 _end_beam 不执行、
-            // autofire 卡禁（当前无 buff 移除机制不可达，兜底成本一行）
+            // 增幅 归零时收束激活态光束——防未来增幅 移除机制引入后 _end_beam 不执行、
+            // autofire 卡禁（当前无增幅 移除机制不可达，兜底成本一行）
             if (_active)
             {
                 EndBeam();
@@ -212,7 +212,7 @@ public partial class LaserWeapon : Node2D
         }
     }
 
-    /// <summary>穿透结算：光束线段两侧的敌人（含 Boss）都吃伤害，不打断。
+    /// <summary>穿透结算：光束线段两侧的敌机（含 Boss）都吃伤害，不打断。
     /// 从尾向前索引遍历（take_damage→die→注销注册表 erase 只影响已处理的高索引区，
     /// 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝。</summary>
     private void DamageTick(Vector2 start, Vector2 end)

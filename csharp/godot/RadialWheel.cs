@@ -267,7 +267,7 @@ public partial class RadialWheel : Node2D
 
     /// <summary>开页初始聚焦指定项（不发 FocusChanged，同 Load 的开页口径）。
     /// 默认聚焦 = 弧面中点槽：偶数项页面中点四舍五入落在几何中点偏下槽（4 项停在 index 2），
-    /// 暂停页开页停在「重新出击」——Esc 后误按 Enter 直接重开对局；首项才是安全默认。</summary>
+    /// 暂停页开页停在「重新出击」——Esc 后误按 Enter 直接重开本局；首项才是安全默认。</summary>
     public void FocusOption(int index)
     {
         if (_model == null)

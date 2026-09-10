@@ -145,7 +145,7 @@ public partial class FogEventManager : Node
 
     // ---------------- 对外公开接口（转发到统一管理器 fog 组） ----------------
 
-    /// <summary>对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。</summary>
+    /// <summary>本局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。</summary>
     public void SetRunActive(bool active) => Events().SetRunActive(active);
 
     /// <summary>立即结束进行中的迷雾事件（返航/死亡/离场清理；效果随 fog_event_ended 一并复位）。</summary>

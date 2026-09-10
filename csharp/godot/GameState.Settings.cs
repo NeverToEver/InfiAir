@@ -11,7 +11,7 @@ namespace InfiAir;
 /// 信号：TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
 /// ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件
 /// 经 GameState 订阅重发。
-/// 健康/Buff 域保留转发 → CombatStateService，见文件末尾。
+/// 健康/增幅 域保留转发 → CombatStateService，见文件末尾。
 /// </summary>
 public partial class GameState : Node
 {
@@ -120,7 +120,7 @@ public partial class GameState : Node
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
     public void PersistJoySettings() => _settings.PersistJoySettings();
 
-    // ---------------- 健康/Buff 域（门面转发 → CombatStateService） ----------------
+    // ---------------- 健康/增幅 域（门面转发 → CombatStateService） ----------------
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
     /// 基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）——CombatStateService 转发。</summary>
@@ -131,12 +131,12 @@ public partial class GameState : Node
     /// <summary>治疗（单点封顶 max_health，调用侧不再各自判断）</summary>
     public void Heal(double amount) => _combat.Heal(amount);
 
-    /// <summary>吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
+    /// <summary>吸血增幅：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
     public void TryLifesteal() => _combat.TryLifesteal();
 
     public int AugmentLevel(StringName id) => _combat.AugmentLevel(id);
 
-    /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）
+    /// <summary>消耗一层增幅（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）
     /// 注：层级写入唯一入口 = TalentService。</summary>
     public bool ConsumeAugment(StringName id) => _combat.ConsumeAugment(id);
 

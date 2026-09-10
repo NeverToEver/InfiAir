@@ -79,13 +79,13 @@ public partial class BalanceService : RefCounted
         return VariantBridge.ToVariant(PathResolver.Resolve(_tree, path, clr, kind));
     }
 
-    /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))。</summary>
+    /// <summary>敌方 HP 本局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))。</summary>
     public double EnemyHpRamp(double difficultyMultiplier) => 1.0 + _hpRampFactor * (difficultyMultiplier - 1.0);
 
-    /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))。</summary>
+    /// <summary>敌方伤害本局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))。</summary>
     public double EnemyDamageRamp(double difficultyMultiplier) => 1.0 + _damageRampFactor * (difficultyMultiplier - 1.0);
 
-    /// <summary>敌方速度对局进程 ramp：×(1 + speed_ramp_factor × (难度乘数 − 1))（load 缓存；免每 spawn Cfg 全链路）。</summary>
+    /// <summary>敌方速度本局进程 ramp：×(1 + speed_ramp_factor × (难度乘数 − 1))（load 缓存；免每 spawn Cfg 全链路）。</summary>
     public double EnemySpeedRamp(double difficultyMultiplier) => 1.0 + _speedRampFactor * (difficultyMultiplier - 1.0);
 
     /// <summary>敌机移动策略参数表（load 缓存引用，只读消费；免每 spawn Cfg 深拷贝）。</summary>

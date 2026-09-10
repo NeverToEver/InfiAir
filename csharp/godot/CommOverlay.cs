@@ -5,7 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 精英炮塔事件·通讯浮层：
 /// 屏幕左下角六边切角通讯框（品红描边）+ 打字机字幕，显示 3.5s 后淡出；
-/// 不暂停游戏（process_mode 跟随对局）；新台词顶掉未播完的旧台词。
+/// 不暂停游戏（process_mode 跟随本局）；新台词顶掉未播完的旧台词。
 /// </summary>
 public partial class CommOverlay : CanvasLayer
 {
@@ -70,7 +70,7 @@ public partial class CommOverlay : CanvasLayer
         GameState.Instance.PlaySfx(SfxId.FireC);
     }
 
-    /// <summary>清空当前台词并隐藏（返航打断事件时调用，避免恢复对局后台词残留）。</summary>
+    /// <summary>清空当前台词并隐藏（返航打断事件时调用，避免恢复本局后台词残留）。</summary>
     public void Clear()
     {
         // 取消进行中的淡出，防止 Clear 后 alpha 残留改变

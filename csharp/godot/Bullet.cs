@@ -37,20 +37,20 @@ public partial class Bullet : Area2D
     public float HomingTurnRate { get; set; } = 4.0f;
     /// <summary>辅助瞄准追踪目标（玩家弹专用）；池化 activate 复位为 null。</summary>
     public Node2D? HomingTarget { get; set; }
-    /// <summary>穿透剩余次数（玩家弹，穿透弹 buff）。</summary>
+    /// <summary>穿透剩余次数（玩家弹，穿透弹增幅）。</summary>
     public int Pierce { get; set; }
-    /// <summary>命中产生 AoE 爆炸（玩家弹，爆炸弹 buff）。</summary>
+    /// <summary>命中产生 AoE 爆炸（玩家弹，爆炸弹增幅）。</summary>
     public bool Explosive { get; set; }
     /// <summary>导弹溅射（母舰导弹）。</summary>
     public int SplashDamage { get; set; }
     public float SplashRadius { get; set; }
-    /// <summary>击毁得分系数（母舰弹丸为 1/3）。</summary>
+    /// <summary>击毁得分系数（母舰弹为 1/3）。</summary>
     public float ScoreScale { get; set; } = 1.0f;
 
-    /// <summary>爆炸弹 buff 固定值（对齐原作单层取值：半径 50、伤害 30）。</summary>
+    /// <summary>爆炸弹增幅 固定值（对齐原作单层取值：半径 50、伤害 30）。</summary>
     public float ExplosiveRadius { get; private set; } = 50.0f;
     public int ExplosiveDamage { get; private set; } = 30;
-    /// <summary>弹丸视觉缩放（设计值 × world_scale，碰撞半径不变）。</summary>
+    /// <summary>弹体视觉缩放（设计值 × world_scale，碰撞半径不变）。</summary>
     public float VisualScale { get; private set; } = 1.3f;
     /// <summary>敌弹视觉缩放（设计值 × world_scale）。</summary>
     public float EnemyVisualScale { get; private set; } = 2.4f;
@@ -113,7 +113,7 @@ public partial class Bullet : Area2D
 
         // 零速钳制（0 速弹不位移不脱界，永驻场景；直写字段绕过 Setup 时也兜底）
         Speed = Mathf.Max(pSpeed, 1.0f);
-        // 敌方子弹伤害随对局进程 ramp
+        // 敌方子弹伤害随本局进程 ramp
         Damage = pIsPlayer ? pDamage : Mathf.Max(1, (int)Mathf.Round(pDamage * GameState.Instance.EnemyDamageRamp()));
         IsPlayerBullet = pIsPlayer;
         Homing = pHoming;
@@ -326,7 +326,7 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
+    /// <summary>爆炸弹增幅：命中时对周围敌机造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void Explode()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
@@ -349,7 +349,7 @@ public partial class Bullet : Area2D
         GameState.Instance.PlaySfx(SfxId.Explosion);
     }
 
-    /// <summary>导弹溅射（母舰导弹）：半径内全部敌人（含主目标与 Boss）追加固定伤害。</summary>
+    /// <summary>导弹溅射（母舰导弹）：半径内全部敌机（含主目标与 Boss）追加固定伤害。</summary>
     private void Splash()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
@@ -527,7 +527,7 @@ public partial class Bullet : Area2D
         var player = (Player)pRef; // typed
         if (player.TakeDamage((float)Damage, GlobalPosition))
         {
-            // 致死一击弹丸高亮残留
+            // 致死一击弹体高亮残留
             if (player.IsDead())
             {
                 LingerFatal();

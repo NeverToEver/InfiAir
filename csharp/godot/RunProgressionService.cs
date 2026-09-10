@@ -4,7 +4,7 @@ using InfiAir.Core.Progression;
 namespace InfiAir;
 
 /// <summary>
-/// 对局进程服务：难度档位 / 倍率缓存 / DDA 降档 / 进程 ramp / 里程碑曲线求值。
+/// 本局进程服务：难度档位 / 倍率缓存 / DDA 降档 / 进程 ramp / 里程碑曲线求值。
 /// Godot 绑定层：DIFFICULTY_DEFS/Difficulty/DifficultyMultiplier/RunTime/MilestoneBase/
 /// MilestoneCycleMult 经 GameState.Instance 跨域访问（状态字段本体在本服务，GameState 公开
 /// 属性为门面转发）；里程碑阈值/难度乘数曲线直调 InfiAir.Core.Progression 静态纯函数；
@@ -169,7 +169,7 @@ public sealed partial class RunProgressionService : RefCounted
         _multCachedDifficulty = Difficulty;
     }
 
-    /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
+    /// <summary>敌方 HP 本局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyHpRamp() => (float)_balanceService.EnemyHpRamp(GameState.Instance.DifficultyMultiplier);
 
@@ -178,7 +178,7 @@ public sealed partial class RunProgressionService : RefCounted
     /// 与直查 Cfg 语义相同，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
     public float EnemyHpRamp(double difficultyMultiplier) => (float)_balanceService.EnemyHpRamp(difficultyMultiplier);
 
-    /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
+    /// <summary>敌方伤害本局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
     /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹）。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyDamageRamp() => (float)_balanceService.EnemyDamageRamp(GameState.Instance.DifficultyMultiplier);
@@ -259,7 +259,7 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>难度档阈值倍率（DIFFICULTY_DEFS 经 _valid_difficulty_defs 校验，milestone 恒为正数）</summary>
     public double MilestoneMult() => (double)GameState.Instance.DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["milestone"].AsDouble();
 
-    /// <summary>难度乘数对局进程曲线（D1=必死曲线）：
+    /// <summary>难度乘数本局进程曲线（D1=必死曲线）：
     /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
     /// 线性无封顶：敌方 HP/伤害 ramp 随之无限增长，最终超过玩家固定成长上限。
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（AddBossKill 结算末尾统一广播）。</summary>
@@ -285,7 +285,7 @@ public sealed partial class RunProgressionService : RefCounted
     public void RecomputeDifficulty() => RecomputeDifficultyInternal();
 
     /// <summary>难度时间档重算 + DDA 计时（_Process 经 GameState 调用）：跨过量化步进边界时重算
-    /// 难度乘数（去硬顶曲线的时间分量）；DDA 降档计时（受击触发；暂停时 process 冻结，与对局节奏一致）。</summary>
+    /// 难度乘数（去硬顶曲线的时间分量）；DDA 降档计时（受击触发；暂停时 process 冻结，与本局节奏一致）。</summary>
     public void Tick(double delta)
     {
         // 时间轴难度档：跨过量化步进边界时重算难度乘数（去硬顶曲线的时间分量）
@@ -298,7 +298,7 @@ public sealed partial class RunProgressionService : RefCounted
             }
         }
 
-        // DDA 降档计时（受击触发；暂停时 process 冻结，与对局节奏一致）
+        // DDA 降档计时（受击触发；暂停时 process 冻结，与本局节奏一致）
         if (_ddaTimer > 0.0)
         {
             _ddaTimer -= delta;

@@ -13,9 +13,9 @@ namespace InfiAir;
 /// 开合编排（减少硬切割裂感）：进入需蓄力——按住 G/按住 HUD 指示器（talent.panel.charge_time，
 /// HUD 底部进度条，松开/受击/其他模态打断即取消），满格后 dim 淡入 → 轮盘滑入（轻微过冲）→
 /// 标题/读数/概览卡逐级 stagger → 底栏上浮收尾；退出反序加速（内容先走、dim 最后收），
-/// 完成才恢复对局。概览↔扇形切换同款「旧内容退场 → 新内容进场」编排；详情卡右侧滑入。
+/// 完成才恢复本局。概览↔扇形切换同款「旧内容退场 → 新内容进场」编排；详情卡右侧滑入。
 /// Esc/右键经 BackNavigator 路由关闭（动画版）。
-/// 打开时暂停对局（与 PauseUI/BaseConsole 同款模态语义）；process_mode=Always（场景内配置，
+/// 打开时暂停本局（与 PauseUI/BaseConsole 同款模态语义）；process_mode=Always（场景内配置，
 /// 暂停中 tween 照常推进，HoloBoot 先例）。
 /// </summary>
 public partial class TalentPanel : CanvasLayer
@@ -166,7 +166,7 @@ public partial class TalentPanel : CanvasLayer
             return;
         }
 
-        // 打断守卫：对局被其他模态暂停 / 死亡结算 / 开场返航过场抢占 / 蓄力期间受击
+        // 打断守卫：本局被其他模态暂停 / 死亡结算 / 开场返航过场抢占 / 蓄力期间受击
         var interrupted = GetTree().Paused
             || Visible
             || _main.IsGameOver()
@@ -222,7 +222,7 @@ public partial class TalentPanel : CanvasLayer
     }
 
     /// <summary>关闭（动画版，生产入口：G/Esc/右键）：内容反序加速退场，dim 最后收，
-    /// 完成后才恢复对局——避免「元素未走完就露出对局」的二次割裂。</summary>
+    /// 完成后才恢复本局——避免「元素未走完就露出本局」的二次割裂。</summary>
     public void Close() => BeginClose();
 
 

@@ -3,14 +3,14 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义：对局状态字段与核心状态方法（ResetRun/AddScore 等）。
+/// GameState 部分定义：本局状态字段与核心状态方法（ResetRun/AddScore 等）。
 /// 计分域职责（Score/Kills/BossKills/Combo 状态、连击系统、里程碑推进）
 /// 由 ScoreService（csharp/godot/ScoreService.cs，组合持有）承担，本文件为门面对齐转发——
 /// 公开 API 签名/语义不变；
 /// ScoreChanged/MilestoneReached/ComboChanged 信号由 ScoreService 的 C# 事件经 GameState 订阅重发。
-/// 健康/Buff 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）由 CombatStateService
+/// 健康/增幅 域（Health/Augments 属性与 _maxHpBase/_maxHpBonus 字段）由 CombatStateService
 /// （csharp/godot/CombatStateService.cs）承担，Health/Augments 属性此处保留转发；
-/// AddKill/AddBossKill 击杀编排在本文件（对局状态方法归位）。
+/// AddKill/AddBossKill 击杀编排在本文件（本局状态方法归位）。
 /// </summary>
 public partial class GameState : Node
 {
@@ -155,7 +155,7 @@ public partial class GameState : Node
             {
                 var v = def.GetValueOrDefault(k, new Variant()); // 缺键时 get 返回 null，一并落入类型校验
                 // bool 是 int 子类需显式排除——"score": false 通过校验后得分倍率恒 0，
-                // 里程碑永不触发（Buff 系统软锁）
+                // 里程碑永不触发（增幅 系统软锁）
                 if ((v.VariantType != Variant.Type.Int && v.VariantType != Variant.Type.Float) || v.VariantType == Variant.Type.Bool)
                 {
                     return false;
@@ -163,7 +163,7 @@ public partial class GameState : Node
             }
 
             // 数值域校验——milestone ≤ 0 会破坏阈值单调性，
-            // 导致 continue_run 的 while 里程碑推进永不退出（挂死）或对局内里程碑风暴。
+            // 导致 continue_run 的 while 里程碑推进永不退出（挂死）或本局内里程碑风暴。
             // difficulty 子表无 cycle_mult 键，全局 milestones.cycle_mult 的域校验在 _apply_balance
             if (def.GetValueOrDefault("milestone", 1.0).AsDouble() <= 0.0)
             {
@@ -214,7 +214,7 @@ public partial class GameState : Node
     /// <summary>进基地发放刷新点数（balance.json base_task.grant_per_visit 覆盖；≥0 钳制）。</summary>
     public int GRANT_PER_VISIT { get; set; } = 1;
 
-    // 互斥天赋路线契约见 TalentTree.Routes（本类不维护 line->双 buff 表）
+    // 互斥天赋路线契约见 TalentTree.Routes（本类不维护 line->双增幅 表）
 
     // 音效资源/音量/冷却/复音的唯一目录已收编进 SfxPlayer（SfxId 枚举 + 目录表）
 
@@ -246,7 +246,7 @@ public partial class GameState : Node
 
     public bool TutorialDone { get; set; } = false;
 
-    /// <summary>得分（对局会话态）——ScoreService 转发。</summary>
+    /// <summary>得分（本局会话态）——ScoreService 转发。</summary>
     public int Score { get => _score.Score; set => _score.Score = value; }
 
     public int Kills { get => _score.Kills; set => _score.Kills = value; }
@@ -326,10 +326,10 @@ public partial class GameState : Node
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）——SettingsService 转发。</summary>
     public bool MouseLock { get => _settings.MouseLock; set => _settings.MouseLock = value; }
 
-    /// <summary>buff id -> 已选层数——CombatStateService 转发。</summary>
+    /// <summary>增幅 id -> 已选层数——CombatStateService 转发。</summary>
     public Godot.Collections.Dictionary Augments { get => _combat.Augments; set => _combat.Augments = value; }
 
-    /// <summary>对局存活秒数（survive_180 任务进度来源）</summary>
+    /// <summary>本局存活秒数（survive_180 任务进度来源）</summary>
     public double RunTime { get; set; } = 0.0;
 
     /// <summary>任务进度整秒缓存（_process 热路径免每帧字典访问）</summary>
@@ -362,7 +362,7 @@ public partial class GameState : Node
 
     public void ResetRun()
     {
-        // 健康/Buff 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
+        // 健康/增幅 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
         // 不发事件——AugmentsChanged 仍由下方直发收尾，顺序不变）
         _combat.ResetAll();
         Rp = 0;
@@ -370,7 +370,7 @@ public partial class GameState : Node
         InitMissions();
         RefreshPoints = 0;
         EmitSignal(SignalName.RefreshPointsChanged, RefreshPoints);
-        // 天赋缓存域复位（缓存/层级/路线/代币/超载；Buff 不在此清——上方 _combat.ResetAll 已清）
+        // 天赋缓存域复位（缓存/层级/路线/代币/超载；增幅 不在此清——上方 _combat.ResetAll 已清）
         _talent.ResetAll();
         // 计分/难度域复位改调服务（Score/Kills/BossKills/里程碑/连击 + DifficultyMultiplier/
         // 时间档/DDA 计时）；信号发射点/顺序不变——_runProg.ResetAll 无信号、_score.ResetAll 内
@@ -383,7 +383,7 @@ public partial class GameState : Node
     /// <summary>得分（难度分数倍率统一在此乘算）——ScoreService 转发。</summary>
     public void AddScore(int points) => _score.AddScore(points);
 
-    // ---------------- 击杀编排（对局状态方法） ----------------
+    // ---------------- 击杀编排（本局状态方法） ----------------
 
     public void AddKill()
     {

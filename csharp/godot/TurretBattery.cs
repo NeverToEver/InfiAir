@@ -144,7 +144,7 @@ public partial class TurretBattery : Area2D, IDamageable
         _rising = true;
         // monitorable=false 才是「不可被攻击」的正确机制——monitoring 只控制本 Area
         // 检测别人，玩家弹命中与否取决于弹侧 monitoring + 本侧 monitorable；monitoring=false
-        // 不阻止玩家弹 area_entered（弹丸命中被 take_damage 守卫吃掉，白白销毁）
+        // 不阻止玩家弹 area_entered（玩家弹命中被 take_damage 守卫吃掉，白白销毁）
         Monitoring = false;
         Monitorable = false;
         Scale = Vector2.Zero;

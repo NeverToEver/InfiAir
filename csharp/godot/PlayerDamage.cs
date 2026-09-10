@@ -11,7 +11,7 @@ namespace InfiAir;
 /// </summary>
 public class PlayerDamage
 {
-    // HealTick 每物理帧 AugmentLevel——buff 名静态缓存防每帧 StringName 构造
+    // HealTick 每物理帧 AugmentLevel——增幅 名静态缓存防每帧 StringName 构造
     private static readonly StringName RegenId = new("regen");
     private static readonly StringName EvasionId = new("evasion");
     private static readonly StringName ShieldId = new("shield");
@@ -78,14 +78,14 @@ public class PlayerDamage
             return false;
         }
 
-        // 闪避 buff：20% 完全免伤（不置无敌、不清弹）
+        // 闪避增幅：20% 完全免伤（不置无敌、不清弹）
         if (GameState.Instance.AugmentLevel(EvasionId) > 0
             && GD.Randf() < EvasionChance)
         {
             return false;
         }
 
-        // 护盾 buff：每层吸收一次全额伤害——扣层并销毁子弹，不置无敌/不清弹/
+        // 护盾增幅：每层吸收一次全额伤害——扣层并销毁子弹，不置无敌/不清弹/
         // 不掉血（盾碎后下一发照常结算）；吸收反馈轻震屏。
         // 吸收分支有意不写 last_hit_frame——同帧多弹命中时每层吸收
         // 一发（「每层吸收一次」语义优先）；若计入单帧守卫则同帧第二弹被拦截免费，
@@ -97,7 +97,7 @@ public class PlayerDamage
             return true;
         }
 
-        // 护甲 buff：固定 ×0.85 减伤
+        // 护甲增幅：固定 ×0.85 减伤
         if (GameState.Instance.AugmentLevel(ArmorId) > 0)
         {
             amount *= ArmorMult;
@@ -120,7 +120,7 @@ public class PlayerDamage
         return true;
     }
 
-    /// <summary>回血 tick：regen buff 固定 +2 HP/s；无 buff 时被动回血——距上次受伤 delay 秒起按难度速率回复。</summary>
+    /// <summary>回血 tick：regen 增幅 固定 +2 HP/s；无增幅 时被动回血——距上次受伤 delay 秒起按难度速率回复。</summary>
     public void HealTick(float delta)
     {
         SinceDamage += delta;

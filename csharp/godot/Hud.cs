@@ -8,7 +8,7 @@ namespace InfiAir;
 /// <summary>
 /// HUD：击杀（左上）、难度（右上）、生命（左下）、Boss 血条（顶部，
 /// 带 70%/30% 阶段刻度线与阶段切换短闪，逃跑最后 10s 血条下方倒计时）。
-/// Buff 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
+/// 增幅 收起态为右下角单行图标坞（最新 4 个 + 溢出 +N），L 键展开右缘滚动明细栏
 /// （Esc 经 BackNavigator 优先关栏），与左下状态区、底部居中蓄力提示、左中通讯浮层分角隔离。
 /// </summary>
 public partial class Hud : CanvasLayer
@@ -98,7 +98,7 @@ public partial class Hud : CanvasLayer
     private Label _infoLabel = null!;
     private Tween? _infoTween;
     private Tween? _warningTween; // 警告横幅闪烁 tween 互斥缓存
-    // Meta HUD DYING 抖动：仅 _hp_bar 与 buff 坞两控件的静止位与补间
+    // Meta HUD DYING 抖动：仅 _hp_bar 与增幅 坞两控件的静止位与补间
     private Vector2 _hpBarRest;
     private Vector2 _augmentDockRest;
     private Tween? _jitterTween;
@@ -426,7 +426,7 @@ public partial class Hud : CanvasLayer
         AddChild(_magBox);
     }
 
-    /// <summary>L（augment_panel）切换 buff 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
+    /// <summary>L（augment_panel）切换增幅 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event.IsActionPressed("augment_panel"))
@@ -1035,7 +1035,7 @@ public partial class Hud : CanvasLayer
         _vignette.Modulate = vm2;
     }
 
-    /// <summary>Meta HUD DYING 抖动：只抖 _hp_bar 与 buff 坞包装两个控件（±px，80ms burst）。</summary>
+    /// <summary>Meta HUD DYING 抖动：只抖 _hp_bar 与增幅 坞包装两个控件（±px，80ms burst）。</summary>
     public void MetaJitter(float px)
     {
         if (_jitterTween != null && _jitterTween.IsValid())
@@ -1052,8 +1052,8 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>
-    /// 右下 buff 区：收起态单行瓦片（最新 4 个 + 溢出 +N，标签带 [L] 快捷键提示），
-    /// L 键展开右侧滚动栏（全部 buff 明细，不暂停对局）；与左下状态区/底部蓄力提示分角隔离。
+    /// 右下增幅 区：收起态单行瓦片（最新 4 个 + 溢出 +N，标签带 [L] 快捷键提示），
+    /// L 键展开右侧滚动栏（全部增幅 明细，不暂停本局）；与左下状态区/底部蓄力提示分角隔离。
     /// </summary>
     private void BuildAugmentDock()
     {
@@ -1234,7 +1234,7 @@ public partial class Hud : CanvasLayer
             .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
     }
 
-    /// <summary>L 展开的 buff 滚动栏：右缘居中面板（标题 + 分隔线 + 滚动明细行），不暂停对局。</summary>
+    /// <summary>L 展开的增幅 滚动栏：右缘居中面板（标题 + 分隔线 + 滚动明细行），不暂停本局。</summary>
     private void BuildAugmentPanel()
     {
         _augmentPanel = new ChamferedPanel
@@ -1297,7 +1297,7 @@ public partial class Hud : CanvasLayer
         return row;
     }
 
-    /// <summary>收起态溢出格：46×46 同尺寸瓦片（与 buff socket 同一套：淡色底 + 内框），中央 "+N"。</summary>
+    /// <summary>收起态溢出格：46×46 同尺寸瓦片（与增幅 socket 同一套：淡色底 + 内框），中央 "+N"。</summary>
     private ChamferedPanel MakeOverflowTile(int count)
     {
         var panel = new ChamferedPanel
@@ -1402,7 +1402,7 @@ public partial class Hud : CanvasLayer
         OnHealthChanged((float)GameState.Instance.Health);
     }
 
-    /// <summary>buff 滚动栏开关（L 键路由至此；无 buff 时不展开）。</summary>
+    /// <summary>增幅 滚动栏开关（L 键路由至此；无增幅 时不展开）。</summary>
     public void ToggleAugmentPanel()
     {
         if (_augmentPanel.Visible)

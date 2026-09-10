@@ -4,9 +4,9 @@ namespace InfiAir;
 
 /// <summary>
 /// 鼠标锁定窗口内（mouse_lock 设置项运行组件，挂 Main）：
-/// 对局准星活跃（未暂停且系统光标隐藏）且窗口聚焦时，鼠标移出内容区即被
+/// 本局准星活跃（未暂停且系统光标隐藏）且窗口聚焦时，鼠标移出内容区即被
 /// Input.warp_mouse() 拉回边缘内侧，从根上消除"鼠标出框 → get_global_mouse_position
-/// 冻结 → 准星失控"的前提；暂停/Buff/基地/结算/过场/开始页等非准星态（AimCrosshair
+/// 冻结 → 准星失控"的前提；暂停/增幅/基地/结算/过场/开始页等非准星态（AimCrosshair
 /// 恢复系统光标）与窗口失焦一律放行——暂停后鼠标可自由移出窗口（如点系统标题栏
 /// 关闭按钮退出游戏）。
 /// Godot 4 的 Input.warp_mouse 接受屏幕坐标：warp 目标 = 窗口左上角屏幕坐标 + 内容区 clamp 点。
@@ -62,8 +62,8 @@ public partial class MouseTrap : Node
 
     private void OnMouseExited() => Trap();
 
-    /// <summary>生效条件：设置开启 + 对局准星态（未暂停且系统光标隐藏）+ 窗口可见 + 聚焦 + 有内容尺寸。
-    /// 暂停/Buff/基地/结算/过场/开始页（AimCrosshair 均恢复系统光标）与失焦一律放行，
+    /// <summary>生效条件：设置开启 + 本局准星态（未暂停且系统光标隐藏）+ 窗口可见 + 聚焦 + 有内容尺寸。
+    /// 暂停/增幅/基地/结算/过场/开始页（AimCrosshair 均恢复系统光标）与失焦一律放行，
     /// 鼠标可自由移出窗口（如点系统标题栏关闭按钮退出游戏）。
     /// 聚焦用 HasFocus() 实时查询而非缓存信号（焦点事件可能被 OS 抢占吞掉，见文件头注释）。</summary>
     private bool TrapActive()
@@ -78,7 +78,7 @@ public partial class MouseTrap : Node
             Input.MouseMode == Input.MouseModeEnum.Hidden);
     }
 
-    /// <summary>confine 放行判定纯函数：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
+    /// <summary>confine 放行判定纯函数：仅本局准星活跃（未暂停 + 系统光标隐藏）时生效；
     /// 暂停/非准星态必须放行，否则暂停后鼠标无法移出窗口点系统关闭按钮退出游戏
     /// 纯函数无状态，公开供诊断/复用（TrapActive 内部同用）。</summary>
     public static bool TrapEnabled(

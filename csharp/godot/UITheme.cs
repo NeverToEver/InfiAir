@@ -154,7 +154,7 @@ public partial class UITheme : RefCounted
         return button;
     }
 
-    /// <summary>Buff 字形槽（socket）：ChamferedPanel 瓦片，分类色描边 + 同色内框 + 淡色底。</summary>
+    /// <summary>增幅 字形槽（socket）：ChamferedPanel 瓦片，分类色描边 + 同色内框 + 淡色底。</summary>
     public static Control MakeAugmentSocket(StringName id, float tilePx = 46.0f)
     {
         var color = AugmentIcons.ColorFor(id);
@@ -180,7 +180,7 @@ public partial class UITheme : RefCounted
         return panel;
     }
 
-    /// <summary>Buff 图标格：46×46 socket 瓦片，层数 &gt;1 时右下角叠一枚切角 ×N 徽标芯片。</summary>
+    /// <summary>增幅 图标格：46×46 socket 瓦片，层数 &gt;1 时右下角叠一枚切角 ×N 徽标芯片。</summary>
     public static Control MakeAugmentTile(StringName id, int stacks)
     {
         var panel = MakeAugmentSocket(id);

@@ -13,7 +13,7 @@ public partial class GameState : Node
     /// <summary>难度档位表（开始面板选择，settings.json 持久化；对齐原作 settings.py DIFFICULTY_SETTINGS）
     /// hp/speed/spawn 为敌机数值与刷怪间隔倍率；score 为分数倍率（add_score 统一乘算）；
     /// spread_cap 为 spread 弹种敌机同屏上限；milestone 为里程碑阈值倍率
-    /// （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难 Buff 节奏过稀）；
+    /// （原作阈值与分数同倍 ×1/×2/×3，此处按设计取 ×1/×1/×1.5，避免高难增幅 节奏过稀）；
     /// regen_delay/regen_rate 为被动回血（对齐原作 settings.py HEALTH_REGEN）：
     /// 距上次受伤 regen_delay 秒起每秒回 regen_rate HP（原作延迟不重置为疑似 bug，本版受伤即重置）。</summary>
     public Godot.Collections.Dictionary DIFFICULTY_DEFS { get; set; } = BuildDifficultyDefs();

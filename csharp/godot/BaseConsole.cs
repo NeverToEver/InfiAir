@@ -766,7 +766,7 @@ public partial class BaseConsole : RadialMenuLayer
 
     private void OnRoutePressed(StringName routeId)
     {
-        // 路线契约（机制 C）：绑定免费、切换耗代币；核心大类增益/其余上限减半即时生效
+        // 路线契约（机制 C）：绑定免费、切换耗代币；核心大类增幅/其余上限减半即时生效
         // （有效层级变化由服务侧直发 augments_changed，Player 缓存自动重算）
         GameState.Instance.Talent.ChooseRoute(routeId.ToString());
         Refresh();

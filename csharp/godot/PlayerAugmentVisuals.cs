@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Buff 外观反馈：
+/// 增幅 外观反馈：
 /// 一次性构建全部附件（程序化 Polygon2D/Line2D/Sprite2D，无新增贴图），
 /// 由 GameState.AugmentsChanged 信号驱动 Refresh() 切换显隐与层数强度。
 /// 作为 Player 子节点随机体旋转；坐标按基准机体系数 BaseShipScale（0.65，贴图 254px ≈ 165px 翼展
@@ -22,10 +22,10 @@ public partial class PlayerAugmentVisuals : Node2D
     private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰
     /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
     public const float BaseShipScale = 0.65f;
-    /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双 buff 时色相自然混合。</summary>
+    /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双增幅 时色相自然混合。</summary>
     private static readonly Color TintEfficient = new Color(1.100f, 0.954f, 0.750f);
     private static readonly Color TintRecovery = new(1.15f, 1.05f, 0.75f);
-    /// <summary>层数视觉封顶：无限叠加 buff 的外观强度只表达到第 5 层。</summary>
+    /// <summary>层数视觉封顶：无限叠加增幅 的外观强度只表达到第 5 层。</summary>
     private const int StackVisualCap = 5;
 
     private Player _player = null!;
@@ -72,7 +72,7 @@ public partial class PlayerAugmentVisuals : Node2D
 
     public Polygon2D Beacon() => _beacon;
 
-    /// <summary>由 Player._ready() 调用：构建附件、按当前 buff 刷新、监听后续变更。</summary>
+    /// <summary>由 Player._ready() 调用：构建附件、按当前增幅 刷新、监听后续变更。</summary>
     public void Init(Sprite2D shipSprite, Player player)
     {
         _player = player;
@@ -124,7 +124,7 @@ public partial class PlayerAugmentVisuals : Node2D
         }
     }
 
-    /// <summary>buff 显隐/强度刷新（GameState.augments_changed 信号驱动 + init 首次调用）。</summary>
+    /// <summary>增幅 显隐/强度刷新（GameState.augments_changed 信号驱动 + init 首次调用）。</summary>
     public void Refresh()
     {
         var stacks = AugmentLevel(new StringName("power_shot"));
@@ -191,7 +191,7 @@ public partial class PlayerAugmentVisuals : Node2D
 
     // ---------------- 内部实现 ----------------
 
-    /// <summary>GameState.augment_level 事件驱动访问（非热路径；buff 变更频率极低）。</summary>
+    /// <summary>GameState.augment_level 事件驱动访问（非热路径；增幅 变更频率极低）。</summary>
     private static int AugmentLevel(StringName name) => (int)GameState.Instance.AugmentLevel(name);
 
     /// <summary>保色相只改 alpha。</summary>

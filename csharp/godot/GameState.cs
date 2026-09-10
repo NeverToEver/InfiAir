@@ -92,7 +92,7 @@ public partial class GameState : Node
     [Signal]
     public delegate void JoySettingsChangedEventHandler(double aimSpeed, double deadzone);
 
-    /// <summary>buff 层数任何变动（选取/路线合并/重开清空）后发出，驱动外观刷新</summary>
+    /// <summary>增幅 层数任何变动（选取/路线合并/重开清空）后发出，驱动外观刷新</summary>
     [Signal]
     public delegate void AugmentsChangedEventHandler();
 
@@ -138,7 +138,7 @@ public partial class GameState : Node
     private readonly EntityManager _registry = new();
 
     /// <summary>迷雾事件管理器：全局单例，挂 GameState 下
-    /// 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）</summary>
+    /// 维持唯一 autoload 约定；本局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）</summary>
     private readonly FogEventManager _fogEvents = new();
 
     /// <summary>统一游戏事件管理器：批量管理全部随机游戏事件（迷雾 +
@@ -154,12 +154,12 @@ public partial class GameState : Node
     /// 里程碑推进；GameState 组合持有并做门面转发，跨域经 Instance。无构造依赖。</summary>
     private readonly ScoreService _score = new();
 
-    /// <summary>健康/Buff 战斗状态域服务（CombatStateService）——Health/Augments 状态与生命上限/
-    /// 受击/治疗/吸血/选 buff 逻辑；GameState 组合持有并做门面转发，跨域经 Instance；
+    /// <summary>健康/增幅 战斗状态域服务（CombatStateService）——Health/Augments 状态与生命上限/
+    /// 受击/治疗/吸血/选增幅 逻辑；GameState 组合持有并做门面转发，跨域经 Instance；
     /// PlayerDied 由 Player.DieInternal 在死亡结算后发射。无构造依赖。</summary>
     private readonly CombatStateService _combat = new();
 
-    /// <summary>对局进程域服务（RunProgressionService）——难度档位/倍率缓存/DDA 降档/进程 ramp/
+    /// <summary>本局进程域服务（RunProgressionService）——难度档位/倍率缓存/DDA 降档/进程 ramp/
     /// 里程碑曲线求值；GameState 组合持有并做门面转发；
     /// _balanceService 经构造注入，与 SettingsService 构造注入 EntityManager 同构。</summary>
     private readonly RunProgressionService _runProg;
@@ -237,7 +237,7 @@ public partial class GameState : Node
 
     /// <summary>弹体共享纹理缓存（Bullet 首次应用外观时惰性生成，全实例共用）。
     /// 实例字段而非静态——静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规），
-    /// 本 autoload 与引擎同生命周期，承担跨对局缓存职责。</summary>
+    /// 本 autoload 与引擎同生命周期，承担跨本局缓存职责。</summary>
     public Texture2D? BulletPlayerTex { get; set; }
     public Texture2D? BulletEnemyTex { get; set; }
 
@@ -399,7 +399,7 @@ public partial class GameState : Node
 
     // Missions 域：MissionsService C# 事件 → GameState 同名信号转发
     // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen——
-    // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；ResetRun 直接赋值
+    // 触发点均为运行期玩家操作/本局事件，晚于 _Ready 本订阅；ResetRun 直接赋值
     // 路径由 State.cs 直发同名信号，经此订阅的重发不与之重复）
     private void OnMissionsRpChanged(int v) => EmitSignal(SignalName.RpChanged, v);
 
@@ -408,10 +408,10 @@ public partial class GameState : Node
     private void OnMissionsRefreshPointsChanged(int v) => EmitSignal(SignalName.RefreshPointsChanged, v);
 
     // 计分域：ScoreService C# 事件 → GameState 同名信号转发
-    // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
+    // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期本局事件——AddScore/
     // AddKillScore/ResetCombo，晚于 _Ready 本订阅）
     /// <summary>计分域：ScoreService C# 事件 → GameState 同名信号转发
-    /// （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
+    /// （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期本局事件——AddScore/
     /// AddKillScore/ResetCombo，晚于 _Ready 本订阅）
     /// 里程碑同时是天赋点来源（天赋缓存系统重构）：入账在信号转发前，保证订阅方读到的
     /// 缓存余额已含本档点数。</summary>
@@ -426,7 +426,7 @@ public partial class GameState : Node
     private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
 
     // 战斗状态域：CombatStateService C# 事件 → GameState 同名信号转发
-    // （HealthChanged/AugmentsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
+    // （HealthChanged/AugmentsChanged；触发点均为运行期本局事件/玩家操作——LoseHealth/Heal/AddBuff/
     // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发路径
     // 不经本事件，订阅重发不与之重复）
     private void OnCombatHealthChanged(double v) => EmitSignal(SignalName.HealthChanged, (float)v);
@@ -468,8 +468,8 @@ public partial class GameState : Node
 
     private void OnInputJoyLayoutChanged(StringName v) => EmitSignal(SignalName.JoyLayoutChanged, v);
 
-    // 对局进程域：RunProgressionService C# 事件 → GameState 同名信号转发
-    // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
+    // 本局进程域：RunProgressionService C# 事件 → GameState 同名信号转发
+    // （DifficultyChanged/DifficultySelected；触发点均为运行期本局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill 直发路径不重复）
     private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, (float)v);
 
@@ -512,25 +512,25 @@ public partial class GameState : Node
         _registry.EntityRegistered += OnRegistryEntityRegistered;
         _registry.EntityUnregistered += OnRegistryEntityUnregistered;
         // Missions 域：MissionsService 事件 → 信号转发订阅（触发点均为运行期
-        // 玩家操作/对局事件，晚于 _Ready 本订阅；下方 InitMissions 不发信号）
+        // 玩家操作/本局事件，晚于 _Ready 本订阅；下方 InitMissions 不发信号）
         _missions.RpChanged += OnMissionsRpChanged;
         _missions.MissionCompleted += OnMissionsMissionCompleted;
         _missions.RefreshPointsChanged += OnMissionsRefreshPointsChanged;
-        // 天赋缓存域：TalentService 事件 → 信号转发订阅（触发点为运行期对局事件/玩家操作，
+        // 天赋缓存域：TalentService 事件 → 信号转发订阅（触发点为运行期本局事件/玩家操作，
         // 晚于本订阅；ApplyBalance 的 LoadTalentConfig 只写配置缓存不发事件）
         _talent.CacheChanged += OnTalentCacheChanged;
         _talent.TalentsChanged += OnTalentsChanged;
-        // 计分域：ScoreService 事件 → 信号转发订阅（触发点均为运行期对局事件，
+        // 计分域：ScoreService 事件 → 信号转发订阅（触发点均为运行期本局事件，
         // 晚于 _Ready 本订阅；下方 InitMilestones 不发信号）
         _score.ScoreChanged += OnScoreScoreChanged;
         _score.MilestoneReached += OnScoreMilestoneReached;
         _score.ComboChanged += OnScoreComboChanged;
-        // 对局进程域：RunProgressionService 事件 → 信号转发订阅（触发点均为运行期
-        // 对局事件/玩家操作，晚于 _Ready 本订阅）
+        // 本局进程域：RunProgressionService 事件 → 信号转发订阅（触发点均为运行期
+        // 本局事件/玩家操作，晚于 _Ready 本订阅）
         _runProg.DifficultyChanged += OnRunProgDifficultyChanged;
         _runProg.DifficultySelected += OnRunProgDifficultySelected;
         // 战斗状态域：CombatStateService 事件 → 信号转发订阅（触发点均为运行期
-        // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发
+        // 本局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发
         // 路径不经本事件，重发不与之重复）
         _combat.HealthChanged += OnCombatHealthChanged;
         _combat.AugmentsChanged += OnCombatAugmentsChanged;
@@ -606,15 +606,15 @@ public partial class GameState : Node
     /// <summary>死亡即删档（本局存档单一钩子）。</summary>
     private void OnPlayerDiedDeleteRunSave() => DeleteRunSave();
 
-    // 运行期时钟门控：仅真实对局（main 为 current_scene）累积 RunTime/推进 survive 任务/
-    // 难度时间档/连击窗口——welcome 等非对局场景的停留时间不得污染下一局难度曲线。
+    // 运行期时钟门控：仅真实本局（main 为 current_scene）累积 RunTime/推进 survive 任务/
+    // 难度时间档/连击窗口——welcome 等非本局场景的停留时间不得污染下一局难度曲线。
     // 暂停不计（本节点 Pausable）。
     private bool _runActive;
 
     /// <summary>由 Main 依 current_scene 置位/复位（同事件管理器惯例）。</summary>
     public void SetRunActive(bool active) => _runActive = active;
 
-    // 暂停（Buff/结算 UI）时不计存活时间
+    // 暂停（增幅/结算 UI）时不计存活时间
     public override void _Process(double delta)
     {
         if (!_runActive)

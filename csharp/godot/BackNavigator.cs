@@ -25,7 +25,7 @@ public partial class BackNavigator : Node
         SKIP_INTRO,
         /// <summary>返航过场播放中：返回 = 跳过过场</summary>
         SKIP_RETURN,
-        /// <summary>buff 滚动栏展开中：返回 = 收起栏（优先于打开暂停）</summary>
+        /// <summary>增幅 滚动栏展开中：返回 = 收起栏（优先于打开暂停）</summary>
         CLOSE_AUG_PANEL,
         /// <summary>天赋面板打开中：返回 = 关闭面板（模态暂停态，优先于暂停路由）</summary>
         CLOSE_TALENT,
@@ -164,7 +164,7 @@ public partial class BackNavigator : Node
         }
     }
 
-    /// <summary>纯决策：按页面优先级（模态 &gt; 覆盖 &gt; 对局 &gt; 顶层）决定返回动作。</summary>
+    /// <summary>纯决策：按页面优先级（模态 &gt; 覆盖 &gt; 本局 &gt; 顶层）决定返回动作。</summary>
     public BackAction DecideBackAction()
     {
         if (_exitConfirm.Visible)

@@ -135,7 +135,7 @@ public partial class GameEventManager : Node
         LoadBalance();
         _fogCheckTimer = FOG_CHECK_INTERVAL;
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
-        // 无对局时完全惰性（_runActive 初值 false；标题屏不跑 Poll/Tick，SetRunActive 翻转启停）
+        // 无本局时完全惰性（_runActive 初值 false；标题屏不跑 Poll/Tick，SetRunActive 翻转启停）
         SetProcess(false);
     }
 
@@ -191,7 +191,7 @@ public partial class GameEventManager : Node
 
     public bool IsRunActive() => _runActive;
 
-    /// <summary>对局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。
+    /// <summary>本局活跃开关（main._ready/_exit_tree 设置；非活跃时强制结束进行中的迷雾事件）。
     /// 激活时必须重置遭遇触发计时与 fog 开局保护/检查计时——否则死亡重开/重进 main 会继承
     /// 上局剩余值（遭遇计时可 ≤0 → 新局开局即触发精英/编队；fog 每进程一次保护、第二局开局即触发）。</summary>
     public void SetRunActive(bool active)
@@ -202,7 +202,7 @@ public partial class GameEventManager : Node
         }
 
         _runActive = active;
-        // 帧驱动随对局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
+        // 帧驱动随本局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
         SetProcess(active);
         if (!active)
         {
@@ -470,7 +470,7 @@ public partial class GameEventManager : Node
     /// <summary>遭遇触发驱动权门控（契约单点）：本类 _Process 依赖「autoload 树序先于 main 场景
     /// 处理」这一引擎保证——同帧 Boss/遭遇竞态由事件先启动 SetBossFrozen(true)、Boss
     /// 推迟至事件结束 + boss_resume_delay 兜住，触发不累积；本端提供 spawner 状态的逐帧重验。
-    /// IsInsideTree 前置：对局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发这一
+    /// IsInsideTree 前置：本局回标题屏的场景切换立即摘树，本帧已排队的 _Process 仍会触发这一
     /// 次，摘树后对 spawner 调 CanProcess 会报原生 !is_inside_tree 错误。SummonInProgress：母舰
     /// 召唤蓄力/机库小窗窗口期不掷签（玩家锁输入 + 999s 无敌，事件奖励会被母舰自动火力白拿
     /// ——召唤蓄力与遭遇事件的互斥窗口补全）。</summary>

@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 玩家战机：WASD 平滑移动、朝准星旋转、
-/// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
+/// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需增幅，耗 25% 燃料）。
 /// 组合委托：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
 /// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（追踪/锥形/磁吸）、入场动画、迷雾事件。
 /// 公开 API 为 PascalCase。
@@ -20,7 +20,7 @@ public partial class Player : CharacterBody2D
 
     private readonly Script _bulletScript = GD.Load<Script>("res://csharp/godot/Bullet.cs");
 
-    // 热路径每帧禁 StringName/string 字面量构造——buff 名与输入 action 名静态缓存
+    // 热路径每帧禁 StringName/string 字面量构造——增幅 名与输入 action 名静态缓存
     private static readonly StringName AugCritShot = new("crit_shot");
     private static readonly StringName AugRapidFire = new("rapid_fire");
     private static readonly StringName AugPowerShot = new("power_shot");
@@ -77,7 +77,7 @@ public partial class Player : CharacterBody2D
     public float RegenPerSec { get; private set; } = 2.0f;
     public float ShakeHit { get; private set; } = 12.0f;
 
-    // ---- 声明式 buff 效果表（buff id → 效果定义；单一事实源） ----
+    // ---- 声明式增幅 效果表（增幅 id → 效果定义；单一事实源） ----
     private static readonly Godot.Collections.Dictionary AugmentEffects = new()
     {
         ["rapid_fire"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.rapid_fire.factor", ["default"] = 0.75 },
@@ -91,7 +91,7 @@ public partial class Player : CharacterBody2D
         ["bullet_speed"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.bullet_speed.factor", ["default"] = 1.2 },
     };
 
-    /// <summary>声明式 buff 效果表公开访问口（供外部按 id 遍历效果定义）。</summary>
+    /// <summary>声明式增幅 效果表公开访问口（供外部按 id 遍历效果定义）。</summary>
     public Godot.Collections.Dictionary GetAugmentEffects() => AugmentEffects;
 
     private readonly Godot.Collections.Dictionary _augmentValues = new();
@@ -106,7 +106,7 @@ public partial class Player : CharacterBody2D
     public float FuelRegen { get; private set; } = 20.0f;
     public float FuelRestart { get; private set; } = 30.0f;
 
-    /// <summary>尾焰染色乘区（Buff 外观反馈）。</summary>
+    /// <summary>尾焰染色乘区（增幅 外观反馈）。</summary>
     public Color EngineTint { get; set; } = Colors.White;
 
     /// <summary>推进器三态强度 (speedScale, amountRatio, alpha)：加速（冲刺/Boost 共用一条曲线）/巡航/待机；
@@ -538,7 +538,7 @@ public partial class Player : CharacterBody2D
         }
 
         AddChild(hitboxHalo);
-        // Buff 外观反馈附件（augments_changed 信号驱动）
+        // 增幅 外观反馈附件（augments_changed 信号驱动）
         var augmentVisuals = new PlayerAugmentVisuals
         {
             Scale = _sprite.Scale / PlayerAugmentVisuals.BaseShipScale,
@@ -696,7 +696,7 @@ public partial class Player : CharacterBody2D
     public bool IsDashing() => _dash.IsDashing();
 
     /// <summary>
-    /// 按声明式效果表刷新 buff 值缓存（_ready 初始 + augments_changed 信号驱动）。
+    /// 按声明式效果表刷新增幅 值缓存（_ready 初始 + augments_changed 信号驱动）。
     /// 乘算类（pow）效果用 TalentEffLevel 浮点有效层级——收益递减/路线加成/专注折扣
     /// 在有效层级内折算；cap/bool 类保持整数 Augments 口径（盾层/穿透/散射语义不变）。
     /// </summary>
@@ -756,7 +756,7 @@ public partial class Player : CharacterBody2D
         var deflectorEff = (float)GameState.Instance.TalentEffLevel(AugDeflector);
         _deflectorCooldownFactor = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.cooldown_factor", 0.78f, 0.05f, 1.0f), deflectorEff) : 1.0f;
         _deflectorReflectMult = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.reflect_mult", 1.6f, 1.0f), deflectorEff) : 1.0f;
-        // 格挡冷却 = 基值（_load_balance 定值一次）× 当前偏转乘区；乘区变化时整体重设组件
+        // 弹反冷却 = 基值（_load_balance 定值一次）× 当前偏转乘区；乘区变化时整体重设组件
         _parry.Configure(_parry.Duration, _parry.ActiveTime, _parryCooldownBase * _deflectorCooldownFactor);
 
         var grazeEff = (float)GameState.Instance.TalentEffLevel(AugGrazeField);
@@ -797,7 +797,7 @@ public partial class Player : CharacterBody2D
 
     public int BulletDamageValue() => _bulletDamageValue;
 
-    /// <summary>bullet_speed buff 后的当前弹速（augments_changed 时缓存）。</summary>
+    /// <summary>bullet_speed 增幅 后的当前弹速（augments_changed 时缓存）。</summary>
     public float BulletSpeedValue() => _bulletSpeedValue;
 
     public float FuelRatio() => _fuel / FuelMax;
@@ -825,11 +825,11 @@ public partial class Player : CharacterBody2D
     }
 
     /// <summary>燃油速率缓存（RefreshAugmentFactors 刷新：_ready 初始 + augments_changed 信号驱动；
-    /// 默认值 = 无 buff 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
+    /// 默认值 = 无增幅 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
     private float _fuelDrainRate = 35.0f;
     private float _fuelRegenRate = 20.0f;
 
-    /// <summary>空间换时间：射速/伤害/弹速/冲刺解锁与冲刺冷却上限随 buff 变化一次性缓存，
+    /// <summary>空间换时间：射速/伤害/弹速/冲刺解锁与冲刺冷却上限随增幅 变化一次性缓存，
     /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 AugmentLevel 字典查找 + Pow。</summary>
     private float _fireIntervalValue = 0.15f;
     private int _bulletDamageValue = 10;
@@ -850,7 +850,7 @@ public partial class Player : CharacterBody2D
     private int _salvoInterval;
     private int _salvoCounter;
     private float _salvoDamageMult = 3.0f;
-    /// <summary>deflector 偏转：格挡冷却乘区（<1 = 已购生效）与反射伤害乘区（>1 = 已购生效）。</summary>
+    /// <summary>deflector 偏转：弹反冷却乘区（<1 = 已购生效）与反射伤害乘区（>1 = 已购生效）。</summary>
     private float _deflectorCooldownFactor = 1.0f;
     private float _deflectorReflectMult = 1.0f;
     private float _parryCooldownBase = 3.0f;
@@ -1399,7 +1399,7 @@ public partial class Player : CharacterBody2D
         // 散射弹道数恒为奇数（1/3/5，每层 +2）：偶数弹数扇形无中心弹（准星方向落空 = 负提升），
         // 居中索引即层数（spread=1→3 弹 [-1,0,+1]，spread=2→5 弹 [-2..+2]）
         var count = 1 + spread * 2;
-        // 循环不变量外提；buff 变化时缓存，开火路径零字典/Pow。
+        // 循环不变量外提；增幅 变化时缓存，开火路径零字典/Pow。
         var loopSpeed = BulletSpeedValue();
         var loopDamage = BulletDamageValue();
         if (heavyShot)

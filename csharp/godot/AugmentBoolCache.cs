@@ -2,7 +2,7 @@ using Godot;
 
 namespace InfiAir;
 
-/// <summary>buff 层数→布尔缓存（AugmentsChanged 信号驱动；热路径禁字典约定）。
+/// <summary>增幅 层数→布尔缓存（AugmentsChanged 信号驱动；热路径禁字典约定）。
 /// 3 处同构收敛（Enemy slow_field / Boss slow_field / LaserWeapon laser_beam）——
 /// 每物理帧直读 GameState.AugmentLevel 字典查询改由信号事件驱动。
 /// id 由构造注入；信号触发时内部刷新自身（零闭包捕获，NRT 安全）。</summary>

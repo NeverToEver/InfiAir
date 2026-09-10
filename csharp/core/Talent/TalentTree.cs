@@ -1,6 +1,6 @@
 namespace InfiAir.Core.Talent;
 
-/// <summary>天赋节点结构定义（id = 既有 buff id，效果消费端零改动）。层级：大类 → 支线 → 节点，
+/// <summary>天赋节点结构定义（id = 既有增幅 id，效果消费端零改动）。层级：大类 → 支线 → 节点，
 /// 同一支线内按声明序构成前置链（后置节点需前置节点 Lv≥1）。数值上限不在结构内：
 /// augments.&lt;id&gt;.max_stacks（balance.json）为唯一上限来源，由服务层注入。</summary>
 public sealed class TalentNodeDef

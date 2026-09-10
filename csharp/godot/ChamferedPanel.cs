@@ -75,7 +75,7 @@ public partial class ChamferedPanel : Control
         }
     }
 
-    /// <summary>内框线（嵌套切角细线，槽位/socket 质感）：默认关，buff 瓦片类开启。</summary>
+    /// <summary>内框线（嵌套切角细线，槽位/socket 质感）：默认关，增幅 瓦片类开启。</summary>
     private bool _innerFrame;
 
     [Export]

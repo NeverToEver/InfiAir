@@ -17,7 +17,7 @@ public partial class GameState : Node
     public int Rp { get => _missions.Rp; set => _missions.Rp = value; }
 
     /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
-    /// （progress 为相对口径：对局绝对计数 − 任务入场基线快照）——MissionsService 转发。</summary>
+    /// （progress 为相对口径：本局绝对计数 − 任务入场基线快照）——MissionsService 转发。</summary>
     public Godot.Collections.Dictionary Missions { get => _missions.Missions; set => _missions.Missions = value; }
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
@@ -34,7 +34,7 @@ public partial class GameState : Node
     private void InitMissions() => _missions.InitMissions();
 
     /// <summary>公开任务重置口（仅清任务进度，不清 rp/buffs——比 ResetRun 副作用小，
-    /// 供需要在保留其余对局状态的前提下重置 missions 的调用方）</summary>
+    /// 供需要在保留其余本局状态的前提下重置 missions 的调用方）</summary>
     public void ResetMissions() => _missions.ResetMissions();
 
     /// <summary>按 kind 推进全部该类型在场任务的进度（任务轮换后 id 变化，进度源按 kind 分发；

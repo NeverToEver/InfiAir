@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 引信制下落弹（不走命中即毁）：投放时继承编队水平速度 ×0.35 + 垂直下落，
 /// 引信倒计时期间弹体脉冲辉光（8Hz）、警示环随剩余引信收缩（0.9×AoE → 0.15×AoE），
 /// 引爆对 player_hitbox 做距离判定（无敌/闪避由 Player.take_damage 语义处理），
-/// 只伤玩家不伤敌机（与敌方弹丸语义一致）；出界/引爆后 queue_free。
+/// 只伤玩家不伤敌机（与敌弹语义一致）；出界/引爆后 queue_free。
 /// </summary>
 public partial class FormationBomb : Area2D
 {

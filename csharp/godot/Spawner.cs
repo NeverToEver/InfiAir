@@ -67,7 +67,7 @@ public partial class Spawner : Node
     /// 解锁表项数须 ≥ 机型数，否则末尾机型被上界截断、永不入池）。</summary>
     public Godot.Collections.Array<int> UNLOCK_SCORES { get; set; } = new() { 0, 300, 800, 1500, 2500 };
 
-    /// <summary>波次节奏：普通波成组刷新，间隔/规模随对局时间 ramp。</summary>
+    /// <summary>波次节奏：普通波成组刷新，间隔/规模随本局时间 ramp。</summary>
     public float WAVE_INTERVAL_START { get; set; } = 7.0f;
     public float WAVE_INTERVAL_END { get; set; } = 4.0f;
     public float RAMP_TIME { get; set; } = 300.0f;
@@ -279,7 +279,7 @@ public partial class Spawner : Node
         }
     }
 
-    /// <summary>当前波次规模：随对局时间 ramp（WAVE_SIZE_START → WAVE_SIZE_END）。</summary>
+    /// <summary>当前波次规模：随本局时间 ramp（WAVE_SIZE_START → WAVE_SIZE_END）。</summary>
     private int WaveSizeInternal()
     {
         var t = Mathf.Clamp(_elapsed / RAMP_TIME, 0.0f, 1.0f);

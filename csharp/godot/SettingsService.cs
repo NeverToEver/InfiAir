@@ -686,7 +686,7 @@ public sealed partial class SettingsService : RefCounted
                 }
 
                 var action = a.AsStringName();
-                // 档案里的旧 buff 面板键位迁往新动作名
+                // 档案里的旧增幅 面板键位迁往新动作名
                 if (action == new StringName("buff_panel"))
                 {
                     action = new StringName("augment_panel");

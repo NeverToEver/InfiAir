@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 玩家相位冲刺组件。
-/// Dash 状态机与计时；经 Player 属性转发与公开方法交互。需要解锁 buff（dash_unlocked）且耗 25% 满值燃料。
+/// Dash 状态机与计时；经 Player 属性转发与公开方法交互。需要解锁增幅（dash_unlocked）且耗 25% 满值燃料。
 /// 纯 C# 逻辑类（无信号/导出）：由 C# Player 组合持有；GameState 经
 /// Instance 门面访问。
 /// </summary>
@@ -28,7 +28,7 @@ public class PlayerDash
     // ---- 数值配置（Player._load_balance 经 Configure 注入；与脚本默认值一致） ----
     public float DashDistance { get; private set; } = 200.0f;
     public float DashTime { get; private set; } = 0.25f;
-    /// <summary>冲刺基础冷却上限（满值；实际生效上限经 Player.dash_cooldown_max 按 buff 缩放）。</summary>
+    /// <summary>冲刺基础冷却上限（满值；实际生效上限经 Player.dash_cooldown_max 按增幅 缩放）。</summary>
     public float DashCooldownMax { get; private set; } = 4.0f;
     public float AfterimageInterval { get; private set; } = 0.08f;
 

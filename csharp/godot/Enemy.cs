@@ -63,7 +63,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private static readonly Color RimGlowColorElite = new(1.0f, 0.34f, 0.52f, 0.46f);
     private Sprite2D? _rimGlow;
 
-    // ---- 对局状态（Setup/Reactivate 写入；公开属性直读写） ----
+    // ---- 本局状态（Setup/Reactivate 写入；公开属性直读写） ----
     public StringName Strategy { get; set; } = "straight";
     public bool IsElite { get; private set; }
     public int Hp { get; set; } = 2;
@@ -124,7 +124,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private float _exitSpeed;
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    /// <summary>slow_field buff 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
+    /// <summary>slow_field 增幅 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
     /// <summary>slow_field 布尔缓存（AugmentsChanged 信号事件驱动，热路径禁字典）。</summary>
     private readonly AugmentBoolCache _slowCache;
@@ -232,7 +232,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             GameState.Instance.UnbindEnemy(this);
         }
 
-        // buff 信号断开（池化 reparent 复用由 Reactivate 对称重连）
+        // 增幅 信号断开（池化 reparent 复用由 Reactivate 对称重连）
         _slowCache.Disconnect(GameState.Instance);
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -365,7 +365,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public void Reactivate(
         Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
-        // 池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
+        // 池化复用重连增幅 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
         _slowCache.Connect(GameState.Instance);
         _slowCache.Refresh();
         _active = true;
@@ -526,7 +526,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         ["aggressive"] = d => new AggressiveMove(d),
     };
 
-    /// <summary>Strategy 键未变复用策略实例（构造参数为对局常量、可变状态由 Reset 复位，
+    /// <summary>Strategy 键未变复用策略实例（构造参数为本局常量、可变状态由 Reset 复位，
     /// 与新建+Reset 语义一致）；键变才重建。出生/重激活共用入口。</summary>
     private void EnsureStrategy()
     {

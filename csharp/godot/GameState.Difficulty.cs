@@ -36,7 +36,7 @@ public partial class GameState : Node
 
     public double EnemySpeedMultiplier() => _runProg.EnemySpeedMultiplier();
 
-    /// <summary>敌方 HP 对局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
+    /// <summary>敌方 HP 本局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))，随 Boss 击杀线性成长。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyHpRamp() => _runProg.EnemyHpRamp();
 
@@ -45,7 +45,7 @@ public partial class GameState : Node
     /// 语义同直查 Cfg 全链路，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
     public float EnemyHpRamp(double difficultyMultiplier) => _runProg.EnemyHpRamp(difficultyMultiplier);
 
-    /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
+    /// <summary>敌方伤害本局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
     /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹）。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyDamageRamp() => _runProg.EnemyDamageRamp();
@@ -93,11 +93,11 @@ public partial class GameState : Node
     /// <summary>当前已触发的里程碑数——ScoreService 转发（Mothership.Tier 消费）。</summary>
     public int MilestoneCount() => _score.MilestoneCount();
 
-    /// <summary>难度乘数对局进程曲线重算（公开口；曲线公式/迭代语义见
+    /// <summary>难度乘数本局进程曲线重算（公开口；曲线公式/迭代语义见
     /// RunProgressionService.RecomputeDifficultyInternal）。</summary>
     public void RecomputeDifficulty() => _runProg.RecomputeDifficulty();
 
-    /// <summary>难度乘数对局进程曲线（D1 = 必死曲线）：
+    /// <summary>难度乘数本局进程曲线（D1 = 必死曲线）：
     /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（AddBossKill 结算末尾统一广播）——
     /// 私有一行包装（本体在 RunProgressionService）。</summary>

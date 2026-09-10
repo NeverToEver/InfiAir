@@ -214,7 +214,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         var tcV = TurretCounts.GetValueOrDefault(diffStr, new Variant());
         var rawTotal = tcV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)tcV.AsInt64() : 4;
         _total = Mathf.Clamp(rawTotal, 1, StrikeCarrier.Sockets.Length);
-        // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
+        // HP 三级乘算：基准 × 难度档 × 本局进程 ramp（与普通敌机同口径，避免后期退化为送分道具）
         var hp = Mathf.Max(
             1,
             (int)Mathf.Round(

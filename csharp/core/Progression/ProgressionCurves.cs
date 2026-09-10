@@ -61,7 +61,7 @@ public static class MilestoneCurve
 }
 
 /// <summary>
-/// 难度乘数对局进程曲线核心：
+/// 难度乘数本局进程曲线核心：
 /// 1 + perBossKill×Boss击杀 + 时间轴累进（每 timeStepSeconds 量化一档，每 10 分钟 +perTenMinutes）。
 /// 纯函数：输入即输出，零 Godot 依赖可独立单测；与引擎 64 位浮点表达式运算顺序逐位一致。
 /// </summary>
@@ -73,7 +73,7 @@ public static class DifficultyCurve
     {
         // 0/负值钳制——负 runTime 使 step 为负、难度乘数反向下降；
         // 巨值防御——(long)Math.Floor 对超大 double 为未定义转换（实践得 long.MinValue），
-        // 使难度乘数巨负击穿「单调不减」防线；1e6 秒 ≈ 11.6 天远超合理对局时长
+        // 使难度乘数巨负击穿「单调不减」防线；1e6 秒 ≈ 11.6 天远超合理本局时长
         if (runTime <= 0.0)
         {
             return 1.0 + perBossKill * bossKills;

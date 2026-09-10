@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
-/// 不启动正常 Spawner 波次；进场/出场各 ResetRun 隔离对局状态，出场保证 TimeScale=1。
+/// 不启动正常 Spawner 波次；进场/出场各 ResetRun 隔离本局状态，出场保证 TimeScale=1。
 /// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型。
 /// </summary>
 public partial class Tutorial : Node2D

@@ -17,7 +17,7 @@ public sealed partial class ScoreService : RefCounted
 
     // ---------------- 计分域 ----------------
 
-    /// <summary>得分（对局会话态）。</summary>
+    /// <summary>得分（本局会话态）。</summary>
     public int Score { get; set; }
 
     public int Kills { get; set; }
@@ -39,7 +39,7 @@ public sealed partial class ScoreService : RefCounted
 
     public double MilestoneCycleMult { get; set; } = MilestoneCycleMultValue;
 
-    /// <summary>得分总量上限（防手改 difficulty score 倍率导致 int64 溢出；正常对局远达不到）</summary>
+    /// <summary>得分总量上限（防手改 difficulty score 倍率导致 int64 溢出；正常本局远达不到）</summary>
     private const int ScoreCapValue = 1_000_000_000;
 
     private const double MilestoneCycleMultValue = 1.35;
@@ -189,10 +189,10 @@ public sealed partial class ScoreService : RefCounted
     }
 
     /// <summary>连击窗口计时（_Process 经 GameState 调用）：窗口内无新击杀 → 超时断连
-    /// （暂停时 process 冻结，与对局节奏一致）。</summary>
+    /// （暂停时 process 冻结，与本局节奏一致）。</summary>
     public void Tick(double delta)
     {
-        // 连击窗口计时：窗口内无新击杀 → 超时断连（暂停时冻结，与对局节奏一致）
+        // 连击窗口计时：窗口内无新击杀 → 超时断连（暂停时冻结，与本局节奏一致）
         if (_comboTimer > 0.0)
         {
             _comboTimer -= delta;

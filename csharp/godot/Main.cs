@@ -7,7 +7,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
-/// 开始面板（继续对局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
+/// 开始面板（继续本局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
 /// 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
 /// 生产调用方全部 C# typed。
 /// 轨道清场经 GameState.Enemies 单次遍历完成「爆炸演出 + 批量清除」（Boss 保留）。
@@ -128,7 +128,7 @@ public partial class Main : Node2D
         ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // =0 使狂暴慢速完全冻结
         ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // =0 跳过子弹时间演出
         ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // =0 时 _time_scale_ramp 除零
-        // 防御：上一场对局若在子弹时间内结束（死亡重开），确保全局速度已复位
+        // 防御：上一场本局若在子弹时间内结束（死亡重开），确保全局速度已复位
         Engine.TimeScale = 1.0f;
         // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
         GameState.Instance.SummonInProgress = false;
@@ -160,14 +160,14 @@ public partial class Main : Node2D
         }
 
         _baseUi.ResumeRequested += OnResumeFromBase;
-        // 迷雾事件：仅真实对局（main 为 current_scene）开启自动触发。
+        // 迷雾事件：仅真实本局（main 为 current_scene）开启自动触发。
         // main.tscn 作为子节点嵌入宿主场景（current_scene 为宿主）时保持关闭，
         // 防止随机迷雾事件（如方向偏转把玩家推入弹幕触发擦弹得分）破坏宿主场景确定性；
         // 需要启用时显式 SetRunActive(true)（同 intro 过场的 current_scene 判定惯例）
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
         _fogEvents.SetRunActive(GetTree().CurrentScene == this);
-        // 运行期时钟门控（GameState._Process）：welcome 停留时间不计入对局 RunTime/
+        // 运行期时钟门控（GameState._Process）：welcome 停留时间不计入本局 RunTime/
         // 难度时间档/survive 任务——子节点嵌入宿主场景时同样保持关闭
         GameState.Instance.SetRunActive(GetTree().CurrentScene == this);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
@@ -208,7 +208,7 @@ public partial class Main : Node2D
         _chargeGhost = MothershipScene.Instantiate<Mothership>();
         AddChild(_chargeGhost);
         // 蓄力虚影非在场母舰——事件互斥（can_trigger 查 group "mothership"）须排除
-        // 常驻虚影：虚影 main 场景常驻且 _ready 已入组，不退组则事件在整个对局恒被虚影拦截
+        // 常驻虚影：虚影 main 场景常驻且 _ready 已入组，不退组则事件在整个本局恒被虚影拦截
         _chargeGhost.RemoveFromGroup("mothership");
         // 必须在入树后禁用：入树前调用 set_physics_process(false) 不生效（4.6 实测）
         _chargeGhost.SetPhysicsProcess(false);
@@ -444,7 +444,7 @@ public partial class Main : Node2D
             StopChargingInternal();
         }
 
-        // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期对局不暂停）播放中禁止——与 dock 蓄力
+        // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期本局不暂停）播放中禁止——与 dock 蓄力
         // 的 _summonWindow 守卫对齐，防 B 在母舰机库小窗演出期间触发返航打断召唤流程
         if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed("homecoming"))
         {
@@ -625,14 +625,14 @@ public partial class Main : Node2D
         _bgmPlayer.Play();
     }
 
-    /// <summary>新对局数据起点（数据层已由 ResetRun/全新默认态就绪）：死亡回放录制重开
+    /// <summary>新本局数据起点（数据层已由 ResetRun/全新默认态就绪）：死亡回放录制重开
     /// （缓冲清空重录；死亡后 main._process 冻结自然停止）。</summary>
     private void ApplyNewRun()
     {
         _replay.Begin();
     }
 
-    /// <summary>播放开场过场：冻结对局帧 0（树暂停，过场 process_mode=Always 照常播放），
+    /// <summary>播放开场过场：冻结本局帧 0（树暂停，过场 process_mode=Always 照常播放），
     /// 播完/跳过统一走 finished 恢复。幂等（已播中重复调用直接返回）。</summary>
     private void PlayIntroCinematic()
     {
@@ -669,7 +669,7 @@ public partial class Main : Node2D
         GetTree().ChangeSceneToFile("res://scenes/title.tscn");
     }
 
-    /// <summary>播放返航过场：与 PlayIntroCinematic 同构（冻结对局，树暂停，process_mode=Always 播放）。
+    /// <summary>播放返航过场：与 PlayIntroCinematic 同构（冻结本局，树暂停，process_mode=Always 播放）。
     /// BGM 引用交给过场做镜头 7 渐暗期淡出（_bgmPlayer 异步创建，取值判空）。幂等。</summary>
     private void PlayReturnCinematic()
     {
@@ -746,7 +746,7 @@ public partial class Main : Node2D
         AddChild(_replay.Play());
     }
 
-    /// <summary>对局终态复位全局速度：返航/死亡/放弃路径会冻结 _process，
+    /// <summary>本局终态复位全局速度：返航/死亡/放弃路径会冻结 _process，
     /// 狂暴子弹时间（time_scale=0.24）不显式复位会卡到下次场景重载
     /// （返航过场 4 倍慢速播放直到轨道打击才自愈）。</summary>
     private void ResetGlobalTimeScale()
@@ -893,7 +893,7 @@ public partial class Main : Node2D
         return _dockTextCached;
     }
 
-    /// <summary>召唤序列（蓄力完成）：锁输入 + 事件驱动无敌（演出期对局不暂停，保护窗口与
+    /// <summary>召唤序列（蓄力完成）：锁输入 + 事件驱动无敌（演出期本局不暂停，保护窗口与
     /// 对接期一致），弹出机库小窗演出；小窗 finished 后开穿梭门、母舰穿出</summary>
     private void SummonMothershipInternal()
     {
@@ -955,12 +955,12 @@ public partial class Main : Node2D
         _player.Die();
     }
 
-    /// <summary>返航（局内中场整备）：锁输入、星光拉伸 + 返航过场，过场结束后进入基地控制台。
-    /// 对局继续：Boss 保留、死亡才是唯一终局。</summary>
+    /// <summary>返航（本局中场整备）：锁输入、星光拉伸 + 返航过场，过场结束后进入基地控制台。
+    /// 本局继续：Boss 保留、死亡才是唯一终局。</summary>
     private void StartHomecomingInternal()
     {
         _homecoming = true;
-        // 返航冻结对局：狂暴子弹时间若在播先复位，避免过场以慢速播放
+        // 返航冻结本局：狂暴子弹时间若在播先复位，避免过场以慢速播放
         ResetGlobalTimeScale();
         // 返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
         StopChargingInternal();
@@ -1005,7 +1005,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>继续出击：播放轨道打击清场动画（对齐原作 ORBITAL_STRIKE 阶段；树保持暂停）。
-    /// 命中帧（struck）清场并恢复对局，动画结束（finished）仅释放引用。</summary>
+    /// 命中帧（struck）清场并恢复本局，动画结束（finished）仅释放引用。</summary>
     private void ResumeFromBaseInternal()
     {
         if (_strike != null)
@@ -1020,7 +1020,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>轨道打击命中：注册表驱动清场——Enemy（含池化）/FormationCraft/事件残留逐机触发爆炸
-    /// 后移除（Boss 保留），再清全部弹丸与编队炸弹，恢复同一局</summary>
+    /// 后移除（Boss 保留），再清全部敌弹与编队炸弹，恢复同一局</summary>
     private void OnOrbitalStruck()
     {
         // 单次遍历注册表完成「爆炸演出 + 批量清除」：QueueFree 延迟到帧末释放，

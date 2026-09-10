@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 战斗状态域服务：Health/Augments 状态、生命上限/受击/治疗/吸血/选 buff 逻辑。
+/// 战斗状态域服务：Health/Augments 状态、生命上限/受击/治疗/吸血/选增幅 逻辑。
 /// Godot 绑定层：本域无跨域状态依赖——MaxHealth/AugmentLevel 均为本域直调（难度域 regen 缓存等
 /// 跨域数值如需访问经 GameState.Instance 门面，本域无此访问）；PlayerDied 信号不在本域——
 /// 由 Player.DieInternal 在 _dead 置位、死亡结算完成后经 GameState.Instance 发射
@@ -19,13 +19,13 @@ namespace InfiAir;
 public sealed partial class CombatStateService : RefCounted
 {
 
-    // ---------------- 健康/Buff 域 ----------------
+    // ---------------- 健康/增幅 域 ----------------
 
     /// <summary>玩家当前 HP（100 制，对齐原作 MAX_HEALTH；上限见 max_health()）。
     /// double（GDScript float 64 位逐位等价）。</summary>
     public double Health { get; set; } = 100.0;
 
-    /// <summary>buff id -> 已选层数</summary>
+    /// <summary>增幅 id -> 已选层数</summary>
     public Godot.Collections.Dictionary Augments { get; set; } = new();
 
     /// <summary>回血链热路径缓存：max_health 基础值 _apply_balance 缓存，热路径免 cfg
@@ -39,13 +39,13 @@ public sealed partial class CombatStateService : RefCounted
     /// <summary>吸血比例缓存（_apply_balance 刷新，击杀帧免 cfg 路径解析）。</summary>
     private double _lifestealFraction = 0.1;
 
-    /// <summary>吸血 buff：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
+    /// <summary>吸血增幅：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
     private long _lifestealFrame = -1;
 
     /// <summary>生命变化（LoseHealth/Heal）；GameState 订阅后转发为 HealthChanged 信号。</summary>
     public event Action<double>? HealthChanged;
 
-    /// <summary>buff 层数变动（AddBuff/ConsumeAugment）；GameState 订阅后转发为 AugmentsChanged 信号
+    /// <summary>增幅 层数变动（AddBuff/ConsumeAugment）；GameState 订阅后转发为 AugmentsChanged 信号
     /// （ResetRun/天赋路线（TalentService 层级写入）的直发路径在 GameState/其他服务侧直发同名信号，
     /// 不经本事件——无双发）。</summary>
     public event Action? AugmentsChanged;
@@ -111,7 +111,7 @@ public sealed partial class CombatStateService : RefCounted
 
     public int AugmentLevel(StringName id) => (int)Augments.GetValueOrDefault(id, 0).AsInt64();
 
-    /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）</summary>
+    /// <summary>消耗一层增幅（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）</summary>
     public bool ConsumeAugment(StringName id)
     {
         if (AugmentLevel(id) <= 0)
@@ -124,7 +124,7 @@ public sealed partial class CombatStateService : RefCounted
         return true;
     }
 
-    /// <summary>健康/Buff 域复位（ResetRun 调用；Augments.Clear 后 extra_life 归零 → MaxHealth 回基础值，
+    /// <summary>健康/增幅 域复位（ResetRun 调用；Augments.Clear 后 extra_life 归零 → MaxHealth 回基础值，
     /// Health=MaxHealth 为满血口径；不发事件——AugmentsChanged 由 ResetRun 末尾直发保持顺序）。</summary>
     public void ResetAll()
     {

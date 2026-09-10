@@ -9,7 +9,7 @@ namespace InfiAir;
 /// 时轴（进度 p = t / DURATION）：
 ///   [0, MISSILE_FROM)         瞄准具淡入：命中点脉冲环 ×3 + 十字线（青色）
 ///   [MISSILE_FROM, IMPACT_AT) 导弹自屏顶 ease-in 下落（拖尾线 + 三角弹体 + 辉光头）
-///   IMPACT_AT                 struck 信号：main 在此刻清场（Boss 保留）并恢复对局；
+///   IMPACT_AT                 struck 信号：main 在此刻清场（Boss 保留）并恢复本局；
 ///                             命中演出：全屏青闪 + 纵向光柱 + 扩散环/内环 + 侧向光线，衰减至结束
 ///   >= 1.0                    finished 信号并自销毁
 /// 数值取 balance.json effects.orbital_strike，脚本默认值须保持一致。
@@ -85,7 +85,7 @@ public partial class OrbitalStrike : CanvasLayer
         if (p >= 1.0f)
         {
             // 兜底：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达 1.0，
-            // 必须先补发 struck——它是 main 恢复对局（paused=false + unlock_input）的唯一入口，缺发则软锁
+            // 必须先补发 struck——它是 main 恢复本局（paused=false + unlock_input）的唯一入口，缺发则软锁
             TriggerImpact();
             EmitSignal(SignalName.Finished);
             QueueFree();
@@ -98,7 +98,7 @@ public partial class OrbitalStrike : CanvasLayer
         UpdateVisuals(p);
     }
 
-    /// <summary>命中结算（幂等）：main 在 struck 信号清场并恢复对局，常规帧与越段兜底帧共用。</summary>
+    /// <summary>命中结算（幂等）：main 在 struck 信号清场并恢复本局，常规帧与越段兜底帧共用。</summary>
     private void TriggerImpact()
     {
         if (_impacted)

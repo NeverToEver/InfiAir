@@ -165,7 +165,7 @@ public partial class TalentFanView : Control
         nameLabel.OffsetBottom = -6.0f;
         card.AddChild(nameLabel);
 
-        // 右上角状态角标（MAX/锁/⚡）与右下角增益数值（条件显示）
+        // 右上角状态角标（MAX/锁/⚡）与右下角增幅数值（条件显示）
         var badge = UITheme.MakeLabel("", 13, UITheme.AccentGold, HorizontalAlignment.Right);
         badge.MouseFilter = Control.MouseFilterEnum.Ignore;
         badge.SetAnchorsPreset(Control.LayoutPreset.TopRight);
@@ -227,7 +227,7 @@ public partial class TalentFanView : Control
         QueueRedraw();
     }
 
-    /// <summary>节点卡片样式（状态色/徽标/层数/增益值；数据源 TalentService 单一事实源）。</summary>
+    /// <summary>节点卡片样式（状态色/徽标/层数/增幅值；数据源 TalentService 单一事实源）。</summary>
     private void StyleCard(string nodeId, ChamferedPanel card)
     {
         var talent = GameState.Instance.Talent;
@@ -288,7 +288,7 @@ public partial class TalentFanView : Control
             badge.Text = "";
         }
 
-        // 右下角增益值：乘算节点显示每级倍率（与详情面板同源换算）
+        // 右下角增幅值：乘算节点显示每级倍率（与详情面板同源换算）
         var valueLabel = _valueLabels[nodeId];
         var factorV = GameState.Instance.Cfg($"augments.{nodeId}.factor", 0.0);
         if (factorV.VariantType is Variant.Type.Int or Variant.Type.Float && factorV.AsDouble() > 0.0)

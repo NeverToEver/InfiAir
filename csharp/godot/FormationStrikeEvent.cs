@@ -184,7 +184,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         // craft_counts 条目值域钳 [1,5]（对齐 EliteTurretEvent
         // turret_counts 口径）——巨值生成海量战机节点 OOM/软锁、0/负空跑（占波次槽无实体）
         var count = Mathf.Clamp(craftV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftV.AsInt64() : 4, 1, 5);
-        // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
+        // HP 三级乘算：基准 × 难度档 × 本局进程 ramp（与普通敌机同口径）
         var hp = Mathf.Max(
             1,
             (int)Mathf.Round(
@@ -365,7 +365,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
 
             var bomb = new FormationBomb();
             var dir = Vector2.Right.Rotated(_heading);
-            // 炸弹伤害随对局进程 ramp（与敌弹同一系数）
+            // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
             bomb.Setup(
                 new Vector2(dir.X * RunSpeed * 0.35f, BombFallSpeed),
                 BombFuse,

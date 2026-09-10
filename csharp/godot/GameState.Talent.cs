@@ -40,7 +40,7 @@ public partial class GameState : Node
     /// <summary>加点（上限档自动风险加点）；失败无副作用。</summary>
     public bool TalentUpgrade(StringName id) => _talent.Upgrade(id);
 
-    // 事件转发（订阅点在 _Ready；触发点均为运行期对局事件/玩家操作，晚于订阅）
+    // 事件转发（订阅点在 _Ready；触发点均为运行期本局事件/玩家操作，晚于订阅）
     private void OnTalentCacheChanged(double effective, int raw) => EmitSignal(SignalName.TalentCacheChanged, effective, raw);
 
     private void OnTalentsChanged() => EmitSignal(SignalName.TalentsChanged);

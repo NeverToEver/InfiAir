@@ -161,7 +161,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public float EnragePlayerSlow { get; set; } = 0.35f;
     /// <summary>段切换演出时长（蓄力辉光 + 停火，§4.1）。</summary>
     public float PhaseShiftDuration { get; set; } = 0.6f;
-    /// <summary>阶段转场公平感：切换时清全部活跃弹丸 + 给玩家短暂无敌。</summary>
+    /// <summary>阶段转场公平感：切换时清全部活跃敌弹 + 给玩家短暂无敌。</summary>
     public bool ClearOnShift { get; set; } = true;
     public float TransitionInvincible { get; set; } = 1.0f;
     /// <summary>狙击 telegraph（§4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹。</summary>
@@ -303,7 +303,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>慢速力场：机体移速 ×0.8（对齐原作 boss 移动 slow_factor）。</summary>
     public float SlowFieldFactor { get; set; } = 0.8f;
 
-    // ---- 对局状态（Setup/TakeDamage 写入；公开属性直读写） ----
+    // ---- 本局状态（Setup/TakeDamage 写入；公开属性直读写） ----
     public int BossType { get; set; } = 1;
     public float MaxHp { get; set; } = 30.0f;
     public float Hp { get; set; } = 30.0f;
@@ -325,7 +325,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>母舰召唤减速带：短时减速乘区（仅位移，经 slow_factor 生效）。</summary>
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    /// <summary>slow_field buff 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
+    /// <summary>slow_field 增幅 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
     /// <summary>slow_field 布尔缓存（物理帧免每帧 AugmentLevel 字典查询；
     /// AugmentsChanged 信号事件驱动）。</summary>
@@ -1052,7 +1052,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     }
 
     /// <summary>
-    /// 阶段转场公平感清理：清全部活跃弹丸（含编队炸弹，复用
+    /// 阶段转场公平感清理：清全部活跃敌弹（含编队炸弹，复用
     /// main._on_orbital_struck 同款遍历）+ 给玩家短暂无敌。逃跑期不走本路径（_begin_escape
     /// 不经阶段切换）。低频（一局数次）直接遍历可接受，无逐帧轮询。无敌只增不减。
     /// </summary>
@@ -1303,7 +1303,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             return;
         }
 
-        // 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向
+        // 撞体伤害随本局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向
         var dmg = EnemyFx.RampCollisionDamage(CollisionDamage);
         player.TakeDamage(dmg, GlobalPosition);
     }
@@ -1352,7 +1352,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     {
         _enrageSequence.Abort();
         GameState.Instance.AddBossKill(_scoreScale);
-        // 吸血 buff：Boss 击杀同样触发（对齐原作 boss_manager 路径，每帧至多一次）
+        // 吸血增幅：Boss 击杀同样触发（对齐原作 boss_manager 路径，每帧至多一次）
         GameState.Instance.TryLifesteal();
         // Explosion 静态方法直接调用
         Explosion.SpawnBossSequence(GetParent(), GlobalPosition);

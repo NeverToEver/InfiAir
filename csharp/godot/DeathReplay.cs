@@ -42,7 +42,7 @@ public partial class DeathReplay : RefCounted
     /// <summary>敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，零拷贝）。</summary>
     private Godot.Collections.Array _bulletRegistry = new();
 
-    /// <summary>开始录制（main 新对局入口调用；幂等——重复调用清缓冲重录）</summary>
+    /// <summary>开始录制（main 新本局入口调用；幂等——重复调用清缓冲重录）</summary>
     public void Begin()
     {
         _recording = true;

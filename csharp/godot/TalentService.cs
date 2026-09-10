@@ -7,7 +7,7 @@ namespace InfiAir;
 /// <summary>
 /// 天赋缓存域服务：里程碑/Boss 击杀 → 点数入缓存池（LIFO 溢出衰减，
 /// 不弹窗）→ 玩家经天赋面板自主加点（递增消耗/收益递减/互斥锁/专注惩罚/路线契约/风险加点）。
-/// 替代旧「里程碑三选一 BuffSelect」：天赋节点 id = 既有 buff id，最终层级同步进
+/// 替代旧「里程碑三选一 BuffSelect」：天赋节点 id = 既有增幅 id，最终层级同步进
 /// CombatStateService.Augments——Player/Bullet/PlayerDamage/HUD 坞等全部效果消费端零改动；
 /// 浮点有效层级（收益递减/路线加成/专注折扣后）经 EffLevel 供乘算类效果（Player.RefreshAugmentFactors）。
 /// Godot 绑定层：配置经 GameState.Instance.Cfg 缓存（LoadTalentConfig，ApplyBalance 调用）；
@@ -21,7 +21,7 @@ public sealed partial class TalentService : RefCounted
     private readonly TalentConfig _config = new();
     private readonly TalentCache _cache;
 
-    /// <summary>节点最终层级（shield 等消耗型 buff 由 ConsumeAugment 在
+    /// <summary>节点最终层级（shield 等消耗型增幅 由 ConsumeAugment 在
     /// Augments 内扣减运行层，不影响本表的已购层级）。</summary>
     private readonly Dictionary<StringName, int> _levels = new();
 
@@ -498,7 +498,7 @@ public sealed partial class TalentService : RefCounted
 
     // ---------------- 生命周期 / 存档 ----------------
 
-    /// <summary>对局复位（ResetRun 调用）：缓存/层级/路线/代币/超载全部清空（不发信号——
+    /// <summary>本局复位（ResetRun 调用）：缓存/层级/路线/代币/超载全部清空（不发信号——
     /// AugmentsChanged 由 ResetRun 末尾直发，CacheChanged/TalentsChanged 由本方法尾播发一次）。</summary>
     public void ResetAll()
     {

@@ -21,20 +21,20 @@ public sealed partial class MissionsService : RefCounted
     public int Rp { get; set; } = 0;
 
     /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
-    /// （progress 为相对口径：对局绝对计数 − baseline；baseline = 任务入场/抽取时的绝对计数快照）</summary>
+    /// （progress 为相对口径：本局绝对计数 − baseline；baseline = 任务入场/抽取时的绝对计数快照）</summary>
     public Godot.Collections.Dictionary Missions { get; set; } = new();
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
     /// （balance.json base_task 段覆盖，经 GameState 侧缓存读取）</summary>
     public int RefreshPoints { get; set; } = 0;
 
-    /// <summary>任务池实例（InitMissions 重建，保证每次对局从全新洗牌序列开始）。</summary>
+    /// <summary>任务池实例（InitMissions 重建，保证每次本局从全新洗牌序列开始）。</summary>
     private TaskPool? _taskPool;
 
     /// <summary>kind -> 池内全部该类型任务 id（进度按 kind 分发，任务轮换后 id 变化仍可推进）</summary>
     private readonly Godot.Collections.Dictionary _missionsByKind = new();
 
-    /// <summary>kind -> 最近一次上报的对局绝对计数（kill=击杀 / boss=Boss 击杀 / survive=存活秒）。
+    /// <summary>kind -> 最近一次上报的本局绝对计数（kill=击杀 / boss=Boss 击杀 / survive=存活秒）。
     /// 轮换抽取新任务时快照为该任务的 baseline，进度 = 绝对值 − 基线（相对口径），防止绝对计数
     /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏）。</summary>
     private readonly Dictionary<StringName, int> _lastKindValue = new();
@@ -80,7 +80,7 @@ public sealed partial class MissionsService : RefCounted
         foreach (var def in GameState.Instance.MISSION_DEFS)
         {
             // goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL
-            // 初始手牌 baseline=0（对局起点即任务起点）
+            // 初始手牌 baseline=0（本局起点即任务起点）
             Missions[def["id"]] = new Godot.Collections.Dictionary { ["progress"] = 0, ["claimed"] = false, ["goal"] = (int)def["goal"].AsInt64(), ["baseline"] = 0 };
         }
 
@@ -106,7 +106,7 @@ public sealed partial class MissionsService : RefCounted
     }
 
     /// <summary>公开任务重置口（仅清任务进度，不清 rp/buffs——比 ResetRun 副作用小，
-    /// 供需要在保留其余对局状态的前提下重置 missions 的调用方）</summary>
+    /// 供需要在保留其余本局状态的前提下重置 missions 的调用方）</summary>
     public void ResetMissions() => InitMissions();
 
     /// <summary>读档还原（本局存档）：RP/刷新点/任务条目/绝对计数基线整体覆盖。
@@ -177,7 +177,7 @@ public sealed partial class MissionsService : RefCounted
         }
 
         var m = Missions[id].AsGodotDictionary();
-        // 相对口径：上报值为对局绝对计数，进度 = 绝对值 − 入场基线快照；
+        // 相对口径：上报值为本局绝对计数，进度 = 绝对值 − 入场基线快照；
         // 负值钳 0 兼作防御（P4；正常路径 value 单调不减，不出现负进度）
         var baseline = (int)m.GetValueOrDefault("baseline", 0).AsInt64();
         var clamped = Mathf.Max(value - baseline, 0);
@@ -317,7 +317,7 @@ public sealed partial class MissionsService : RefCounted
 
         foreach (var def in drawn) // Draw 返回 typed Array<Dictionary>，元素直接是 Dictionary
         {
-            // 基线快照：新任务以抽取时刻该 kind 的对局绝对计数为基线，进度从 0
+            // 基线快照：新任务以抽取时刻该 kind 的本局绝对计数为基线，进度从 0
             // 起算——防止绝对计数（如已击杀 50）直接灌入低门槛新任务下一秒瞬领 RP（刷新经济泄漏）
             var kind = def["kind"].AsStringName();
             var baseline = _lastKindValue.TryGetValue(kind, out var abs) ? abs : 0;

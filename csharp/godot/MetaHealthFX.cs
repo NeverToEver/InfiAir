@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 攻击方向定向波纹、低血裂纹生长/错峰消散、去饱和/冷青色偏/晕影与 DYING 心跳/呼吸/抖动。
 /// layer=1：世界之上、HUD 之下（HUD 在主场景抬至 layer=2；低于 OrbitalStrike 24、过场 35）。
 /// 性能（§2 决策）：满血静止隐藏全屏 ColorRect + _process 早退（常态零 GPU、≈零 CPU）；
-/// 参数上传走 epsilon 检测；自适应增益取注册表代理亮度（0.25s 节流，零 GPU 回读）。
+/// 参数上传走 epsilon 检测；自适应增幅取注册表代理亮度（0.25s 节流，零 GPU 回读）。
 /// 注：首帧延后烘焙用一次性 ProcessFrame 信号回调（OneShot 连接，不挂 await 协程——退出无泄漏；
 /// 首帧守卫保留）；META_SHADER/BAKE_SHADER 不静态持有 Godot Resource（C# 静态字段持 Godot 对象
 /// 退出 segfault 实测根因），改 _Ready GD.Load（资源缓存命中）；

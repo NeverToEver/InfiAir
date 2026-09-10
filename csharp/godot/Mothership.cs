@@ -7,14 +7,14 @@ namespace InfiAir;
 /// <summary>
 /// 母舰补给平台：长按 H 蓄力召唤
 /// （main 管理蓄力）→ 机库小窗演出（main 编排）→ 穿梭门打开，母舰 DESCEND 穿出减速
-/// （缩放+ease-out 滑入停驻点）→ 到位释放减速带（冲击波短时减速敌人）并立即以加特林+导弹
+/// （缩放+ease-out 滑入停驻点）→ 到位释放减速带（冲击波短时减速敌机）并立即以加特林+导弹
 /// 火力掩护，DOCKING 牵引回收玩家进保护舱（隐藏+关受击判定）→ RESUPPLY 补给 → STAY 驻留
 /// 20s（弹匣 10 格，2s/格；≤4 格警告，警告 5s 后强制离舰；可长按 H 2s 提前离舰，冷却双机制
 /// 折扣：时长 max(0.6, 1-0.4×剩余比例) + 进度预填 min(0.3, 0.5×剩余比例)）→ RELEASE 释放
 /// （玩家出舱恢复显示）→ DEPART 加速离场。
 /// 无敌窗口：演出/对接开始即无敌（锁输入），弹射结束才解除（释放后 2s 为重制版 QoL）。
 /// STAY 期间 WASD 直接驾驶母舰，加特林双塔向上 80° 扫射 + 导弹齐射（≤5 目标）。
-/// 母舰弹丸/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
+/// 母舰弹/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
 /// 调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
@@ -82,10 +82,10 @@ public partial class Mothership : Area2D
     /// <summary>减速带冲击波扩散半径。</summary>
     public float SlowRadius { get; private set; } = 900.0f;
 
-    /// <summary>敌人减速持续秒数。</summary>
+    /// <summary>敌机减速持续秒数。</summary>
     public float SlowDuration { get; private set; } = 2.0f;
 
-    /// <summary>敌人位移速度乘区。</summary>
+    /// <summary>敌机位移速度乘区。</summary>
     public float SlowFactor { get; private set; } = 0.4f;
 
     /// <summary>扩散环视觉时长。</summary>
@@ -125,7 +125,7 @@ public partial class Mothership : Area2D
     public int MissileSplashDamage { get; private set; } = 20;
     public float MissileSplashRadius { get; private set; } = 80.0f;
 
-    // ---- 对局状态 ----
+    // ---- 本局状态 ----
     private State _state = State.DESCEND;
     private float _stateTimer;
     private float _departSpeed;
@@ -694,7 +694,7 @@ public partial class Mothership : Area2D
         }
     }
 
-    /// <summary>减速带冲击波（穿梭入场到位帧）：短时减速全场敌人（仅位移乘区，duck-typing
+    /// <summary>减速带冲击波（穿梭入场到位帧）：短时减速全场敌机（仅位移乘区，duck-typing
     /// 仅 Enemy/Boss 响应）；视觉为双环冲击波（主环满半径+填充盘，副环尾随），播完自毁。</summary>
     private void DeploySlowField()
     {
@@ -1085,7 +1085,7 @@ public partial class Mothership : Area2D
 
     public override void _ExitTree()
     {
-        // 提前收回（返航/对局重置等）：穿梭门关闭兜底；玩家若仍在保护舱则恢复显示
+        // 提前收回（返航/本局重置等）：穿梭门关闭兜底；玩家若仍在保护舱则恢复显示
         if (_warpGate != null)
         {
             // 穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
