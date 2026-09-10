@@ -2,7 +2,7 @@ name: CI
 
 # InfiAir 持续集成（fast-gate）。
 # 测试资产全量退役（xUnit 工程与断言/截图场景删除），门禁收敛为
-# 源码注释无日期戳 → 玩家可见文案无开发措辞 → C# 构建零警告 → 资源导入无警告 → 主场景 300 帧运行无错误。
+# 源码注释无日期戳 → 注释语种与术语 → 玩家可见文案无开发措辞 → C# 构建零警告 → 资源导入无警告 → 主场景 300 帧运行无错误。
 # 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
 # + 官方 Godot 引擎/模板，禁止其他第三方依赖。
 
@@ -41,6 +41,9 @@ jobs:
 
       - name: Comment date-stamp gate
         run: bash scripts/ci/check_comment_stamps.sh
+
+      - name: Language style gate
+        run: bash scripts/ci/check_language_style.sh
 
       - name: Player-facing copy gate
         run: bash scripts/ci/check_ui_copy.sh

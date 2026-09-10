@@ -13,6 +13,7 @@
 ```bash
 dotnet build                          # C# 构建，零警告（TreatWarningsAsErrors）
 bash scripts/ci/check_comment_stamps.sh  # 源码注释无日期戳
+bash scripts/ci/check_language_style.sh  # 注释语种 + 散文术语单一叫法
 bash scripts/ci/check_ui_copy.sh      # 玩家可见文案：无开发措辞/无缺键/无空字段
 bash scripts/ci/check_import.sh       # 资源导入无警告
 bash scripts/ci/check_smoke.sh        # 主场景 300 帧无头冒烟
@@ -27,6 +28,25 @@ CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改�
 - `ROADMAP.md`：Current State 只在方向变化时更新；Decisions 只登记一行「决策 + 为什么」（细节在 git 历史）；债务修复后直接删除条目。
 - `DESIGN_BASELINE.md`：只写设计意图定稿；系统行为以代码为准，不在此维护。
 - 代码注释：禁日期戳与审计轮次编号，只写代码本身无法表达的约束。
+
+## 语言风格
+
+- 散文（注释 / 文档 / 提交信息）一律简体中文；标识符、类型名、引擎 API（`Area2D`、`GD.Load`）、
+  配置路径、动作名、外部产品名保留英文。门禁只判散文，不要求翻译标识符。
+- 术语单一叫法——同一概念全库只写一种：
+
+  | 用 | 不用 |
+  | --- | --- |
+  | 本局（合法复合词：本局内） | 对局 / 单局 / 局内 |
+  | 敌机 / 敌弹 | 敌人 / 弹丸 |
+  | 增幅 | buff / 增益 |
+  | 天赋 | 技能树 |
+  | 弹反 | 格挡 |
+  | 通用弹写「弹体」，按阵营写「玩家弹 / 母舰弹」 | 弹丸（语义分裂，勿用） |
+  | 黎明站（地点专名）/ 基地（功能语境） | — |
+
+- 本表与「验证门禁」的 `check_language_style.sh` 一一对应：术语表改动须同步脚本，否则门禁与纪律脱节。
+- 玩家可见文案另有独立口径与门禁（`check_ui_copy.sh`），两者互不替代。
 
 ## 提交信息
 
