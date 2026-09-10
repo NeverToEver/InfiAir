@@ -722,7 +722,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     {
         if (_escaping)
         {
-            return; // G02：逃跑期不再受任何伤害——激光 _damage_tick/溅射 _splash 按注册表+距离判定
+            return; // G02：逃跑期不再受任何伤害——激光 DamageTick/溅射 Splash 按注册表+距离判定
             // 绕开 collision_layer=0，此处统一拦截，防逃跑窗口内补刀致死触发击杀奖励
         }
 

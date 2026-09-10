@@ -536,7 +536,7 @@ public partial class Bullet : Area2D
         // 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
         Scale = Vector2.One;
         Modulate = Colors.White;
-        EnsureTextures(); // P0-3：共享图集惰性生成（静态，首次调用）
+        EnsureTextures(); // P0-3：共享图集惰性生成（缓存于 GameState 实例字段，首次调用）
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite == null)
         {

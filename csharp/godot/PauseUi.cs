@@ -220,7 +220,8 @@ public partial class PauseUi : RadialMenuLayer
         }
     }
 
-    /// <summary>R 重开主入口（轮盘「重新出击」与 _UnhandledInput 的 restart 动作共用）。</summary>
+    /// <summary>R 重开主入口（轮盘「重新出击」与 _UnhandledInput 的 restart 动作共用）。
+    /// 与 GameState.RestartRun 同名但职责不同：此处先做 AB13 退出确认守卫，再转调单口。</summary>
     private void RestartRun()
     {
         // AB13：确认退出淡出窗口内忽略 R——ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行
@@ -231,10 +232,7 @@ public partial class PauseUi : RadialMenuLayer
             return;
         }
 
-        GameState.Instance.SetTreePaused(false);
-        // R 重开=弃局重开（ReloadCurrentScene 重建 main → 全新一局）
-        GameState.Instance.ResetRun();
-        GetTree().ReloadCurrentScene();
+        GameState.Instance.RestartRun();
     }
 
     public override void _UnhandledInput(InputEvent @event)

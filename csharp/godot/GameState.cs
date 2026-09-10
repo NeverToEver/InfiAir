@@ -204,7 +204,8 @@ public partial class GameState : Node
     }
 
     /// <summary>弃局静默重开单口（结算页「重新出击」/暂停页 R 重开共用）：解除暂停 + 全新一局 +
-    /// 重载当前场景（main 重建）。</summary>
+    /// 重载当前场景（main 重建）。不含 AB13 退出确认守卫——暂停页 R 重开由 PauseUi.RestartRun
+    /// 本地守卫后转调本单口，其他入口直接调用即可。</summary>
     public void RestartRun()
     {
         SetTreePaused(false);

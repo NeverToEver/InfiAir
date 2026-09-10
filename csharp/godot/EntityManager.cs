@@ -106,7 +106,9 @@ public partial class EntityManager : RefCounted
     /// 分歧属异常路径（正常时三表同步维护），线性操作不在乎 O(n)；PushError 留取证。</summary>
     private void RepairEnemyTables(Node node)
     {
-        GD.PushError($"[EntityManager] 敌机注册表分歧（set 在册而索引缺失/越界）：{node.Name}，已按数组权威重建");
+        // 分歧路径节点原生侧可能已释放，直接取 .Name 会抛 ObjectDisposedException——降级输出防自愈路径反崩
+        var label = GodotObject.IsInstanceValid(node) ? node.Name.ToString() : "<已释放节点>";
+        GD.PushError($"[EntityManager] 敌机注册表分歧（set 在册而索引缺失/越界）：{label}，已按数组权威重建");
         for (var i = Enemies.Count - 1; i >= 0; i--)
         {
             if (ReferenceEquals(Enemies[i], node))
