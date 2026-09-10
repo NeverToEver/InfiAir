@@ -146,6 +146,26 @@ public sealed class TalentCache
     }
 
     public void Clear() => _values.Clear();
+
+    /// <summary>缓存点值序列快照（读档用）：返回内部逐点值的副本（含已衰减尾值）。
+    /// 缓存是衰减型 LIFO 点值序列，Grant/Spend 都无法回到某个历史状态，故读档必须整体还原原始序列。</summary>
+    public List<double> Snapshot() => new(_values);
+
+    /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/裁剪——
+    /// 快照已是历史衰减后的真实状态，重算会二次衰减。null/空 = 清空。</summary>
+    public void RestoreValues(IEnumerable<double>? values)
+    {
+        _values.Clear();
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (var v in values)
+        {
+            _values.Add(v);
+        }
+    }
 }
 
 /// <summary>天赋经济纯规则（消耗/上限/有效层级/惩罚；服务层与 UI 共用单一事实源）。</summary>

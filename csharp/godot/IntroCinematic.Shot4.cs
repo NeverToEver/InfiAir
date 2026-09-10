@@ -419,6 +419,35 @@ public partial class IntroCinematic : CanvasLayer
                 logLines[li].Text = (string)Tr(GdFormat.Format("INTRO_LOG_%d", (logStep[0] + li) % 4 + 1));
             }
         };
+        // 面板浮雕与铆接：凸起面板块 + 顶缘受光线/底缘暗线 + 四角螺钉（机械台面的结构层次）
+        // 先铺不透明浮雕底板，仪表群再叠其上（否则表盘被底板盖住）
+        foreach (var (rx, ry, rw, rh) in new[]
+        {
+            (405.0f, 915.0f, 214.0f, 86.0f), (855.0f, 786.0f, 210.0f, 58.0f),
+            (1205.0f, 915.0f, 306.0f, 86.0f),
+        })
+        {
+            var relief = RectPoly(rw, rh, new Color(0.055f, 0.07f, 0.10f));
+            relief.Position = new Vector2(rx, ry);
+            root.AddChild(relief);
+            root.AddChild(Line(new[] { new Vector2(rx - rw * 0.5f, ry - rh * 0.5f), new Vector2(rx + rw * 0.5f, ry - rh * 0.5f) }, new Color(0.22f, 0.27f, 0.37f), 1.2f));
+            root.AddChild(Line(new[] { new Vector2(rx - rw * 0.5f, ry + rh * 0.5f), new Vector2(rx + rw * 0.5f, ry + rh * 0.5f) }, new Color(0.02f, 0.03f, 0.05f), 1.2f));
+        }
+
+        foreach (var (sx, sy) in new[]
+        {
+            (300.0f, 915.0f), (510.0f, 915.0f), (300.0f, 955.0f), (510.0f, 955.0f),
+            (750.0f, 786.0f), (960.0f, 786.0f), (1170.0f, 786.0f),
+            (1055.0f, 915.0f), (1355.0f, 915.0f), (1055.0f, 955.0f), (1355.0f, 955.0f),
+        })
+        {
+            root.AddChild(new GlowDot { Radius = 2.2f, DotColor = new Color(0.30f, 0.36f, 0.46f), Position = new Vector2(sx, sy) });
+            root.AddChild(new GlowDot { Radius = 0.9f, DotColor = new Color(0.72f, 0.78f, 0.88f, 0.7f), Position = new Vector2(sx - 0.6f, sy - 0.6f) });
+        }
+
+        // 仪表群：三个分区各补一组精密仪表（圆形读数表 + 分段电平条），叠在浮雕板上
+        AddConsoleGauges(root);
+
         // 两侧金属把手
         var handleL = RectPoly(36.0f, 160.0f, new Color(0.5f, 0.55f, 0.62f));
         handleL.Position = new Vector2(380.0f, 560.0f);
@@ -534,5 +563,79 @@ public partial class IntroCinematic : CanvasLayer
             shake.TweenProperty(root, "position", pushOffset, 0.08);
         };
         return root;
+    }
+
+    /// <summary>航电仪表群：三个分区各一组精密仪表（圆形读数表 + 分段电平条 + 小刻度盘），
+    /// 填补台面空板——表盘有刻度环/危险区标红/指针/中心轴，电平条有逐格亮灯与边框。</summary>
+    private void AddConsoleGauges(Node2D root)
+    {
+        // 推进区：小表盘 ×2 + 推力电平条
+        RoundGauge(root, 362.0f, 912.0f, 20.0f, -0.9f);
+        RoundGauge(root, 452.0f, 912.0f, 20.0f, 0.7f);
+        BarMeter(root, 352.0f, 516.0f, 940.0f, 12, 8);
+        // 导航区：姿态表盘 ×2
+        RoundGauge(root, 855.0f, 905.0f, 20.0f, 1.2f);
+        RoundGauge(root, 1120.0f, 905.0f, 20.0f, -1.5f);
+        // 武器区：装填电平条 + 表盘 ×2
+        BarMeter(root, 1105.0f, 1250.0f, 912.0f, 10, 6);
+        RoundGauge(root, 1330.0f, 912.0f, 20.0f, 0.4f);
+        RoundGauge(root, 1450.0f, 912.0f, 20.0f, -0.5f);
+    }
+
+    /// <summary>圆形读数表：表壳 + 盘面 + 12 格刻度环（危险区标红）+ 指针 + 中心轴 + 顶部状态灯。</summary>
+    private static void RoundGauge(Node2D root, float cx, float cy, float r, float needleA)
+    {
+        var c = new Vector2(cx, cy);
+        var bezel = new GlowDot { Radius = r + 2.0f, DotColor = new Color(0.09f, 0.11f, 0.15f), Position = c };
+        root.AddChild(bezel);
+        var face = new GlowDot { Radius = r - 1.0f, DotColor = new Color(0.02f, 0.05f, 0.075f), Position = c };
+        root.AddChild(face);
+        var ringPts = new Vector2[24];
+        for (var i = 0; i < 24; i++)
+        {
+            var a = Mathf.Tau * i / 24.0f;
+            ringPts[i] = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (r - 1.0f);
+        }
+
+        var ring = Line(ringPts, new Color(0.0f, 0.83f, 1.0f, 0.30f), 1.4f);
+        ring.Closed = true;
+        root.AddChild(ring);
+        // 刻度：从右下起 12 格，末 3 格标红（危险区）
+        for (var t = 0; t < 12; t++)
+        {
+            var a = -Mathf.Pi * 0.5f + Mathf.Tau * t / 12.0f;
+            var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            var col = t >= 9 ? new Color(1.0f, 0.3f, 0.28f, 0.9f) : new Color(0.5f, 0.85f, 1.0f, 0.7f);
+            root.AddChild(Line(new[] { c + dir * (r - 2.0f), c + dir * (r - 5.5f) }, col, 1.3f));
+        }
+
+        // 指针 + 中心轴
+        var nd = new Vector2(Mathf.Cos(needleA), Mathf.Sin(needleA));
+        root.AddChild(Line(new[] { c - nd * 3.0f, c + nd * (r - 4.0f) }, new Color(1.0f, 0.78f, 0.36f, 0.95f), 1.8f));
+        root.AddChild(new GlowDot { Radius = 2.4f, DotColor = new Color(0.55f, 0.6f, 0.7f), Position = c });
+        root.AddChild(new GlowDot { Radius = 1.0f, DotColor = new Color(1.0f, 0.85f, 0.5f, 0.9f), Position = c });
+    }
+
+    /// <summary>分段电平条：外框 + n 格竖灯（前 lit 格亮琥珀，其余暗底），底部刻度线。</summary>
+    private static void BarMeter(Node2D root, float x0, float x1, float y, int n, int lit)
+    {
+        var w = x1 - x0;
+        var h = 14.0f;
+        var frame = RectPoly(w + 6.0f, h + 6.0f, new Color(0.03f, 0.05f, 0.08f));
+        frame.Position = new Vector2((x0 + x1) * 0.5f, y);
+        root.AddChild(frame);
+        root.AddChild(Line(new[] { new Vector2(x0 - 3.0f, y - h * 0.5f - 3.0f), new Vector2(x1 + 3.0f, y - h * 0.5f - 3.0f) }, new Color(0.28f, 0.34f, 0.44f), 1.2f));
+        var segW = (w - (n - 1) * 2.0f) / n;
+        for (var i = 0; i < n; i++)
+        {
+            var sx = x0 + i * (segW + 2.0f) + segW * 0.5f;
+            var on = i < lit;
+            var col = on ? new Color(1.0f, 0.7f, 0.26f, 0.9f) : new Color(0.10f, 0.13f, 0.17f);
+            var seg = RectPoly(segW, h, col);
+            seg.Position = new Vector2(sx, y);
+            root.AddChild(seg);
+        }
+
+        root.AddChild(Line(new[] { new Vector2(x0, y + h * 0.5f + 3.0f), new Vector2(x1, y + h * 0.5f + 3.0f) }, new Color(0.18f, 0.22f, 0.30f), 1.0f));
     }
 }

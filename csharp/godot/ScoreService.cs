@@ -219,4 +219,20 @@ public sealed partial class ScoreService : RefCounted
 
     /// <summary>当前已触发的里程碑数（Mothership.Tier 升级档位等消费点）。</summary>
     public int MilestoneCount() => _milestoneCount;
+
+    /// <summary>读档还原（本局存档）：写回汇总计数 + 里程碑档位，并以还原后的档位重算下一档阈值
+    /// （_nextMilestone 无需持久化——它是档位的纯函数）。连击窗口计时不还原（读档从新一波开始）；
+    /// 末尾补发 ScoreChanged 驱动 HUD 刷新。</summary>
+    public void RestoreRunState(int score, int kills, int bossKills, int combo, int milestoneCount)
+    {
+        Score = Math.Clamp(score, 0, ScoreCapValue);
+        Kills = Math.Max(kills, 0);
+        BossKills = Math.Max(bossKills, 0);
+        Combo = Math.Max(combo, 0);
+        _comboTimer = 0.0;
+        _milestoneCount = Math.Max(milestoneCount, 0);
+        _nextMilestone = GameState.Instance.MilestoneThreshold(_milestoneCount);
+        ScoreChanged?.Invoke(Score);
+        ComboChanged?.Invoke(Combo);
+    }
 }

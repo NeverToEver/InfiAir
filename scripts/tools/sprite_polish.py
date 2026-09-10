@@ -24,17 +24,23 @@ BOTTOM_FACTOR = 237        # 底部乘数（≈0.93）
 SOLID_ALPHA_THRESHOLD = 180  # ≥ 视为实心甲板（辉光 halo 的半透明像素不参与描边/缘光）
 
 
-def polish(img: Image.Image) -> Image.Image:
-    """输入/输出均为 RGBA、最终分辨率；返回新图，不改入参。"""
+def polish(img: Image.Image, outline_color=None, rim_color=None) -> Image.Image:
+    """输入/输出均为 RGBA、最终分辨率；返回新图，不改入参。
+
+    outline_color/rim_color：可选覆盖（默认 None = 用本模块常量，敌方晶体棱镜族保持原口径，
+    输出逐字节不变）。玩家机走暖钛/琥珀语言时传暖色描边与暖缘光，与机体色温统一。
+    """
     img = img.convert("RGBA")
     w, h = img.size
+    o_color = outline_color if outline_color is not None else OUTLINE_COLOR
+    r_color = rim_color if rim_color is not None else RIM_COLOR
     alpha = img.getchannel("A")
     solid = alpha.point(lambda v: 255 if v >= SOLID_ALPHA_THRESHOLD else 0)
 
     # ---- 1. 深色描边（合成在底层） ----
     size = OUTLINE_WIDTH * 2 + 1
     dilated = solid.filter(ImageFilter.MaxFilter(size))
-    outline = Image.new("RGBA", (w, h), OUTLINE_COLOR)
+    outline = Image.new("RGBA", (w, h), o_color)
     outline.putalpha(dilated)
     out = Image.alpha_composite(outline, img)
 
@@ -50,7 +56,7 @@ def polish(img: Image.Image) -> Image.Image:
     # solid 下移右 2px：原本实心、平移后变空的像素 = 朝上/朝左的受光边缘
     edge = ImageChops.subtract(solid, ImageChops.offset(solid, 2, 2))
     edge = edge.filter(ImageFilter.GaussianBlur(0.8))
-    rim = Image.new("RGBA", (w, h), (*RIM_COLOR, 0))
+    rim = Image.new("RGBA", (w, h), (*r_color, 0))
     rim.putalpha(edge.point(lambda v: int(v / 255 * RIM_ALPHA)))
     out = Image.alpha_composite(out, rim)
     return out

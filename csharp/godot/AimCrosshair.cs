@@ -15,7 +15,7 @@ public partial class AimCrosshair : Node2D
     private const float HalfSize = 14.0f;  // bracket 外接半宽
     private const float Arm = 6.0f;  // bracket 单臂长
     private const float Width = 2.0f;
-    private static readonly Color CrosshairColor = new(0.55f, 0.95f, 1.0f, 0.95f);
+    private static readonly Color CrosshairColor = new(1.0f, 0.76f, 0.30f, 0.95f);
     /// <summary>bracket 四角符号（静态复用，_draw 零分配）。</summary>
     private static readonly float[] SignValues = { -1.0f, 1.0f };
 

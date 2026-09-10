@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""离线玩家战机贴图生成器（钛灰钢甲 + 青色能量，非游戏运行时依赖）。
+"""离线玩家战机贴图生成器（暖钛/青铜钢甲 + 琥珀能量，非游戏运行时依赖）。
 
 重绘 assets/sprites/player_ship.png（画布 254×254 与原版一致，机头朝上即游戏内 -Y）。
 设计语言参考经典纵版射击主机（Vic Viper / Raiden 系）：尖锐长机头、鸭翼、
 后掠三角主翼、双引擎尾喷；与敌方晶体棱镜风格区分——玩家为分层装甲板 + 铆接接缝。
+2026-09-10 视觉升级：机体改暖钛/青铜色温 + 琥珀能量语言，装甲板细分/铆接/散热格栅/
+舱口加密；外形轮廓与下列锚点严格不变（几何坐标零改动，仅换色与叠加细节）。
 
 精细化层次（外形轮廓与下列锚点严格不变，仅叠加细节）：
 - 装甲板细分：子面 + 环带/板划接缝 + 铆接点（panel_dot）+ 散热格栅（vent）+ 舱口（greeble）
 - 引擎区：喷管装甲环（nozzle_ring）+ 内焰白芯 + 微粒子点（engine_particles）
 - 霓虹加密：脊线/翼后缘二级走线 + 节点航行灯（lamp）
-- 座舱：钢甲框缘 + 原有青色玻璃高光
+- 座舱：钢甲框缘 + 原有琥珀玻璃高光
 
 附件锚点（贴图像素坐标，供 scripts/player_buff_visuals.gd 对齐机体部位）：
     机头尖端 (127, 16)   座舱 (127, 92)    鸭翼翼尖 (84/170, 96)
@@ -25,17 +27,21 @@ from PIL import Image, ImageDraw, ImageFilter
 
 S = 4  # 超采样抗锯齿
 
-# 钛灰钢甲分层（冷调蓝灰，由暗到亮）
-HULL_A = (26, 32, 44, 255)
-HULL_B = (38, 48, 64, 255)
-HULL_C = (54, 68, 88, 255)
-HULL_D = (76, 94, 118, 255)
-SEAM = (10, 14, 22, 255)
-RIM = (168, 196, 226, 255)
-RIVET = (122, 142, 170, 255)   # 铆接点（亮于 SEAM 暗于 RIM）
+# 暖钛/青铜钢甲分层（暖调褐灰，由暗到亮）——战术琥珀视觉语言
+HULL_A = (30, 27, 25, 255)
+HULL_B = (46, 41, 37, 255)
+HULL_C = (66, 59, 52, 255)
+HULL_D = (94, 85, 74, 255)
+SEAM = (14, 12, 11, 255)
+RIM = (228, 210, 178, 255)
+RIVET = (150, 136, 116, 255)   # 铆接点（亮于 SEAM 暗于 RIM）
 
-ACCENT = (88, 216, 255)     # 青色能量
-CORE = (150, 240, 255)
+ACCENT = (255, 166, 46)     # 琥珀能量
+CORE = (255, 214, 140)
+
+# 玩家机专用后期色（暖描边 + 暖缘光，与机体色温统一；敌方晶体族用模块默认冷色）
+PLAYER_OUTLINE = (12, 9, 7, 255)
+PLAYER_RIM = (255, 232, 196)
 
 
 class Ship:
@@ -152,7 +158,7 @@ class Ship:
         out = Image.alpha_composite(halo, self.body)
         out = Image.alpha_composite(out, self.glow)
         out = out.resize((self.w, self.h), Image.LANCZOS)
-        out = sprite_polish.polish(out)
+        out = sprite_polish.polish(out, outline_color=PLAYER_OUTLINE, rim_color=PLAYER_RIM)
         out.save(path)
         print("saved", path)
 
@@ -180,18 +186,29 @@ def player_ship() -> Ship:
     s.neon([(103, 120), (14, 206)])                                          # 前缘能量走线
     s.neon([(38, 212), (96, 180)], width=1)                                  # 后缘二级走线
     s.lamp(104, 186, 1.5)                                                    # 引擎舱前节点灯
+    # 视觉升级：外翼加密——第二道板划分缝 + 翼中铆钉 + 翼尖散热格栅 + 副舱口
+    s.seam([(98, 146), (62, 192)], width=1)                                  # 外翼二级板划分
+    s.seam([(86, 160), (52, 204)], width=1)                                  # 外翼三级细分
+    s.panel_dot(88, 170, r=1.2)
+    s.panel_dot(74, 188, r=1.2)
+    s.vent(40, 208, length=12, gap=3, n=2)                                   # 翼尖散热格栅
+    s.greeble(62, 194, 6, 5)                                                 # 外翼副舱口
 
     # ---- 鸭翼（前部小翼） ----
     s.facet([(108, 86), (84, 96), (92, 106), (108, 100)], HULL_C)
     s.facet([(106, 90), (92, 97), (97, 102), (106, 98)], HULL_D)             # 鸭翼子面
     s.rim([(108, 86), (84, 96)])
     s.panel_dot(104, 94, r=1.2)
+    s.seam([(107, 88), (90, 100)], width=1)                                  # 鸭翼板划分
+    s.panel_dot(98, 98, r=1.0)
 
     # ---- 尾翼（小垂尾外八，根部接翼根） ----
     s.facet([(102, 168), (78, 228), (92, 232), (106, 206)], HULL_B)
     s.facet([(100, 176), (86, 222), (92, 224), (102, 204)], HULL_C)          # 垂尾子面
     s.seam([(100, 178), (86, 222)], width=1)
     s.panel_dot(98, 196, r=1.2)
+    s.seam([(104, 172), (82, 226)], width=1)                                 # 垂尾二级板划分
+    s.greeble(94, 208, 4, 5)                                                 # 垂尾小舱口
 
     # ---- 主机身（细长梭形，多面装甲） ----
     s.facet([(cx, 16), (143, 96), (137, 196), (cx, 236), (117, 196), (111, 96)], HULL_A, False)
@@ -210,6 +227,16 @@ def player_ship() -> Ship:
     s.panel_dot(119, 160, r=1.2)
     s.panel_dot(119, 186, r=1.2)
     s.panel_dot(122, 210, r=1.2)
+    # 视觉升级：机身加密——机头分段缝 + 前段环带 + 侧舷铆钉列 + 机头副舱口/散热缝
+    s.seam([(cx, 48), (128, 66)], width=1, mirror=False)                     # 机头前段环带
+    s.seam([(cx, 48), (126, 66)], width=1, mirror=False)
+    s.seam([(113, 118), (139, 118)], width=1, mirror=False)                  # 座舱后前段环带
+    s.panel_dot(122, 132, r=1.2)
+    s.panel_dot(132, 132, r=1.2)
+    s.panel_dot(121, 172, r=1.0)
+    s.panel_dot(133, 172, r=1.0)
+    s.greeble(124, 106, 6, 6)                                                # 机头副舱口
+    s.vent(114, 100, length=9, gap=3, n=2)                                   # 机头侧散热缝
 
     # ---- 引擎舱（尾部双发整流罩） ----
     s.facet([(96, 188), (110, 182), (112, 228), (98, 234)], HULL_C)
@@ -223,6 +250,10 @@ def player_ship() -> Ship:
     s.engine(146, 230, 6, 4)
     s.engine_particles(108, 237)
     s.engine_particles(146, 237)
+    # 视觉升级：整流罩加密——第三道节缝 + 加强环铆钉
+    s.seam([(99, 222), (113, 219)], width=1)
+    s.panel_dot(104, 206, r=1.0)
+    s.panel_dot(104, 220, r=1.0)
 
     # ---- 能量细节 ----
     s.canopy_frame(cx, 92, 9, 18)                                            # 座舱钢甲框缘
@@ -234,6 +265,12 @@ def player_ship() -> Ship:
     s.neon([(13, 205), (22, 201)], width=3)                                  # 主翼尖灯
     s.neon([(80, 226), (90, 230)], width=2)                                  # 垂尾尖灯
     s.lamp(cx, 24, 1.5, mirror=False)                                        # 机头信标
+    # 视觉升级：能量加密——脊线三级走线 + 翼面航灯 + 座舱边缘描线
+    s.neon([(cx, 136), (cx, 176)], width=1, mirror=False)                    # 脊线复走
+    s.lamp(72, 190, 1.3)                                                     # 外翼航灯
+    s.lamp(96, 176, 1.2)                                                     # 内翼航灯
+    s.neon([(119, 80), (119, 104)], width=1)                                 # 座舱侧描线
+    s.neon([(135, 80), (135, 104)], width=1)
     return s
 
 

@@ -31,10 +31,10 @@ public partial class MetaHealthFX : CanvasLayer
     // 各状态裂纹密度上限（NORMAL 无裂纹；balance.json effects.meta_health.crack.density 可覆盖）
     private static readonly float[] DENSITY_CAPS = { 0.0f, 0.30f, 0.50f, 0.75f, 1.0f };
 
-    // 裂纹发光色带（§4.2 crossfade，带宽 0.08）
-    private static readonly Color CRACK_CYAN = new(0x35e0ffff);
-    private static readonly Color CRACK_YELLOW = new(0xffd23fff);
-    private static readonly Color CRACK_ORANGE = new(0xff8a3dff);
+    // 裂纹发光色带（§4.2 crossfade，带宽 0.08）——战术琥珀：青→黄→橙→红，与主色板同族
+    private static readonly Color CRACK_CYAN = new(0x6fd8ffff);
+    private static readonly Color CRACK_YELLOW = new(0xffc24bff);
+    private static readonly Color CRACK_ORANGE = new(0xff8a2bff);
     private static readonly Color CRACK_RED = new(0xff3b4eff);
     private const float COLOR_BAND = 0.08f;
 

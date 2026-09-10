@@ -306,6 +306,15 @@ public partial class GameState : Node
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
     public bool ReduceFlash { get => _settings.ReduceFlash; set => _settings.ReduceFlash = value; }
 
+    /// <summary>世界层画面增强（辉光/色彩分级/晕影，settings.json 持久化，默认开）——SettingsService 转发。</summary>
+    public bool WorldPostFx { get => _settings.WorldPostFx; set => _settings.WorldPostFx = value; }
+
+    /// <summary>帧率上限档位（settings.json 持久化，默认 "60"；生效值写入 Engine.MaxFps）——SettingsService 转发。</summary>
+    public StringName FpsCap { get => _settings.FpsCap; set => _settings.FpsCap = value; }
+
+    /// <summary>垂直同步（settings.json 持久化，默认开）——SettingsService 转发。</summary>
+    public bool VSync { get => _settings.VSync; set => _settings.VSync = value; }
+
     /// <summary>鼠标锁定窗口内（settings.json 持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）——SettingsService 转发。</summary>
     public bool MouseLock { get => _settings.MouseLock; set => _settings.MouseLock = value; }

@@ -68,8 +68,8 @@ public partial class Hud : CanvasLayer
     private readonly Godot.Collections.Array BossSegWeights = new() { 0.3f, 0.4f, 0.3f };
     private readonly Godot.Collections.Array BossSegColors = new()
     {
-        new Color(1.0f, 0.72f, 0.3f),
-        new Color(1.0f, 0.5f, 0.15f),
+        new Color(0.98f, 0.80f, 0.42f),
+        new Color(1.0f, 0.46f, 0.14f),
         UITheme.Danger,
     };
     // 受击/低血屏幕反馈（effects.hit_flash / effects.low_hp，_ready 缓存）
@@ -380,11 +380,11 @@ public partial class Hud : CanvasLayer
     /// <summary>通道规格：提示翻译键（%d 占位）/ 通道色 / 底部居中槽位（沿用历史堆叠次序防互叠）。</summary>
     private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, float SlotY)> ChargeBarSpecs = new()
     {
-        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeCyan, -268.0f),
-        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeCyan, -120.0f),
+        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeAccent, -268.0f),
+        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeAccent, -120.0f),
         [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, -164.0f),
         [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, -220.0f),
-        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeCyan, -96.0f),
+        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeAccent, -96.0f),
     };
 
     private readonly Dictionary<ChargeChannel, HudChargeBar> _chargeBars = new();

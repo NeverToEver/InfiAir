@@ -167,12 +167,12 @@ public partial class RadialWheel : Node2D
     private static readonly Vector2[][] BandQuad = new Vector2[BandSegs][];
     private static readonly Color[][] BandQuadCols = new Color[BandSegs][];
 
-    // 卡片/环带基色（rgb；alpha 绘制时按透明度因子重写）
-    private static readonly Color CardFillIdle = new(0.058f, 0.090f, 0.135f);
-    private static readonly Color CardFillHot = new(0.088f, 0.128f, 0.188f);
-    private static readonly Color CardFillFocus = new(0.105f, 0.152f, 0.220f);
-    private static readonly Color BandColInn = new(0.028f, 0.045f, 0.072f);
-    private static readonly Color BandColOut = new(0.058f, 0.090f, 0.138f);
+    // 卡片/环带基色（rgb；alpha 绘制时按透明度因子重写）——战术琥珀：暖炭灰底，焦点偏琥珀
+    private static readonly Color CardFillIdle = new(0.075f, 0.072f, 0.068f);
+    private static readonly Color CardFillHot = new(0.120f, 0.104f, 0.082f);
+    private static readonly Color CardFillFocus = new(0.175f, 0.134f, 0.078f);
+    private static readonly Color BandColInn = new(0.040f, 0.038f, 0.036f);
+    private static readonly Color BandColOut = new(0.080f, 0.073f, 0.064f);
 
     static RadialWheel()
     {

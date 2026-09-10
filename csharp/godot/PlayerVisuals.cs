@@ -16,7 +16,7 @@ public class PlayerVisuals
     /// <summary>P1-5：冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）。</summary>
     private const int AfterimagePoolSize = 4;
     private const float AfterimageFadeTime = 0.3f;
-    private static readonly Color AfterimageColor = new(0.5f, 0.9f, 1.0f, 0.5f);
+    private static readonly Color AfterimageColor = new(1.0f, 0.72f, 0.34f, 0.5f);
 
     private Sprite2D _sprite = null!;
     private GpuParticles2D _thruster = null!;

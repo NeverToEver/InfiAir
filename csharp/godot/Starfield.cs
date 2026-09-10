@@ -39,10 +39,10 @@ public partial class Starfield : Node2D
     private float[] _brightBaseA = System.Array.Empty<float>();
     private static readonly Color[] BrightPalette =
     {
-        new(1.0f, 0.95f, 0.85f),  // 暖白
-        new(0.80f, 0.88f, 1.0f),  // 冷蓝白
-        new(0.60f, 0.90f, 1.0f),  // 全息青
-        new(1.0f, 0.80f, 0.55f),  // 琥珀
+        new(1.0f, 0.94f, 0.82f),  // 暖白
+        new(0.82f, 0.86f, 1.0f),  // 冷蓝白
+        new(1.0f, 0.78f, 0.46f),  // 琥珀（战术主色温）
+        new(0.66f, 0.88f, 1.0f),  // 全息青（次要数据通道）
     };
 
     // ---- 星云层：一张灰度能量场贴图（环面无缝），紫/青双色 tint 错半格滚动 ----
@@ -177,8 +177,8 @@ public partial class Starfield : Node2D
         {
             _nebulaTileY = _areaSize.Y * 0.7f;
             _nebulaMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/starfield_nebula.gdshader") };
-            _nebulaMat.SetShaderParameter("purple", new Color(0.45f, 0.32f, 0.68f, _nebulaAlpha));
-            _nebulaMat.SetShaderParameter("teal", new Color(0.22f, 0.45f, 0.58f, _nebulaAlpha * 0.7f));
+            _nebulaMat.SetShaderParameter("purple", new Color(0.62f, 0.36f, 0.18f, _nebulaAlpha));
+            _nebulaMat.SetShaderParameter("teal", new Color(0.20f, 0.42f, 0.56f, _nebulaAlpha * 0.7f));
             var nebula = new Sprite2D
             {
                 Texture = _nebulaTex,

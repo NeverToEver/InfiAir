@@ -80,7 +80,7 @@ public partial class Tutorial : Node2D
     {
         GameState.Instance.ResetRun();
         _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
-        RenderingServer.SetDefaultClearColor(new Color(0.02f, 0.02f, 0.06f));
+        RenderingServer.SetDefaultClearColor(new Color(0.025f, 0.022f, 0.018f));
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
@@ -96,6 +96,9 @@ public partial class Tutorial : Node2D
         // 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
         AddChild(new AimFrameLayer());
         _player = GetNode<Player>("Player");
+        // 世界层画面增强（layer=1，世界之上、HUD 之下）：先于 BuildHud 入树，
+        // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
+        AddChild(new WorldPostFx());
         BuildHud();
         HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
         DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
@@ -120,7 +123,7 @@ public partial class Tutorial : Node2D
 
     private void BuildHud()
     {
-        _hudLayer = new CanvasLayer();
+        _hudLayer = new CanvasLayer { Layer = 2 };
         AddChild(_hudLayer);
         _titleLabel = new Label();
         _titleLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);

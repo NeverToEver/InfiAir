@@ -23,11 +23,14 @@ public partial class TitleScreen : CanvasLayer
     /// ChangeSceneToFile（deferred 双倍执行），且 T 与其他键同帧时目的地由后调用者覆盖</summary>
     private bool _started;
 
+    /// <summary>存在本局存档（_Ready 缓存：标题屏 UI 与输入路由共用）。</summary>
+    private bool _hasSave;
+
     public override void _Ready()
     {
         // 深空底色 + 程序化星空（IntroCinematic Shot1/6 同款直接 new）
         // Starfield._Ready 自置 ZIndex=-10，底色须再低一层否则星点被底色盖住
-        var bg = CinematicFx.BgRect(new Color(0.012f, 0.02f, 0.04f));
+        var bg = CinematicFx.BgRect(new Color(0.020f, 0.018f, 0.015f));
         bg.ZIndex = -20;
         AddChild(bg);
         AddChild(new Starfield());
@@ -35,6 +38,10 @@ public partial class TitleScreen : CanvasLayer
         BuildWarzone();
         BuildShipDisplay();
         BuildTitleUi();
+
+        // 世界层画面增强（layer=1，独立 CanvasLayer 于标题内容之上）：整屏辉光/分级/晕影，
+        // 与正局同款视觉语言；黑场淡出在其后入树，保证淡出覆盖增强层
+        AddChild(new WorldPostFx());
 
         // 开场黑场淡出：掩盖过场/主场景 → 标题屏的场景硬切（0.5s）
         var fadeIn = CinematicFx.BgRect(new Color(0.0f, 0.0f, 0.0f, 1.0f));
@@ -98,6 +105,17 @@ public partial class TitleScreen : CanvasLayer
         hint.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f); // 落位后（2.2s）才启动闪烁
         vbox.AddChild(hint);
 
+        // 本局存档存在时：额外一行「按 C 继续上次出击」提示（高亮于「任意键新局」之上）
+        if (GameState.Instance.HasRunSave())
+        {
+            _hasSave = true;
+            var contHint = UITheme.MakeLabel((string)Tr("TITLE_CONTINUE"), UITheme.FontBody, UITheme.Accent, HorizontalAlignment.Center);
+            contHint.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
+            vbox.AddChild(contHint);
+            var contIn = contHint.CreateTween();
+            contIn.TweenProperty(contHint, "modulate:a", 1.0f, 0.5).SetDelay(1.4).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+
         // 标题块滑入淡入（1.0s 起，与机体飞入并行）
         var titleIn = vbox.CreateTween().SetParallel(true);
         titleIn.TweenProperty(vbox, "modulate:a", 1.0f, 0.5).SetDelay(1.0).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -147,6 +165,12 @@ public partial class TitleScreen : CanvasLayer
             if (kc == Key.T)
             {
                 GetTree().ChangeSceneToFile("res://scenes/tutorial.tscn");
+            }
+            else if (kc == Key.C && _hasSave)
+            {
+                // 读取上次存档（仅在存在存档时消费 C；无档时 C 等同「任意键」新局）
+                GameState.Instance.PendingLoadRun = true;
+                StartGame();
             }
             else
             {

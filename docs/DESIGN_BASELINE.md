@@ -6,7 +6,7 @@
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无对局存档/无排行榜/无局外成长；开机 = 开场过场 → 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始 / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无排行榜/无局外成长；开机 = 开场过场 → 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始新的一局 / **C 继续上次出击** / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。**本局存档**（2026-09-10 追加，见 §2.5）：回基地与选择「保存并退出」时落盘、死亡即删档、读档还原进度从新一波开始。
 
 ### 1.2 Core Loop
 ```
@@ -95,6 +95,75 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (10, × difficulty), once/bullet; hitbox area gives none. 玩家受击判定仅经 `Player/Hitbox`（r=7 × world_scale = 2.8）；机身 r=22 不参与碰撞（mask=0）。
 - **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).
 - **F parry**: full 360° circle, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
+
+---
+
+## 2. 视觉与表现系统（2026-09-10 全面升级：战术琥珀）
+
+### 2.1 色板（单源 `csharp/godot/UITheme.cs`）
+全站颜色 token 单源；改此一处 = 全站换色。金属按钮/面板贴图为近白灰度 + 预烘焙倒角，
+色相全部由这些 tint 派生（`assets/sprites/ui/metal_streak.png`、`button_plate*.png` 未重绘）。
+
+- **主交互琥珀** `Accent #FF9F1C`：按钮/焦点/进度/边框；`AccentHot #FFC14D` 受激提亮；`AccentDim` 琥珀 22% 分隔线。
+- **数据青** `AccentBlue #38BDF8`：**降级为数据/次要通道**（次级弧、虚影基地皮肤）；不再作主色。
+- **稀有金** `AccentGold #E8C170`；**危险红** `Danger #FF3B4E`；**成功绿** `Success #3FD68C`（降饱和）。
+- 底：`BgDeep #070A0F` 深炭蓝黑 / `PanelBg` 暗钢 / `PanelSteelTint` 暖暗钢；文字 `#E6EDF3` / `#8A97A6`。
+- 暖钢 tint：`SteelTint`(normal) / `SteelTintHover`(受激暖光) / `SteelAccentTint`(主按钮琥珀面)；焦点环取 `AccentHot`。
+- 次级局部色板同步收编：`RadialWheel`(Card/Band 暖炭灰)、`DawnStation`(暖钢/全息青虚影)、`AimCrosshair`/`AimFrameLayer`(琥珀)、
+  `MothershipSummonWindow`、`TalentFanView`、`VirtualControls`(移动=柔青/瞄准=琥珀)、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
+- **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红/品红（不与琥珀 UI 混同）。玩家机能量/尾焰/激光/残影/增幅附件统一琥珀。
+
+### 2.2 世界层后处理（画面"平/廉"的主要补齐手段）
+GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕纹理后处理：
+
+- `assets/shaders/world_grade.gdshader`（单趟）：亮部提取 → 旋转网格环采样柔光（quality 档：单环 4 tap / 双环 8 tap）
+  → 暖调色彩分级（gain+lift+S 曲线对比）→ 常量晕影 → 胶片颗粒。
+- `csharp/godot/WorldPostFx.cs`（`CanvasLayer` layer=1）：`hint_screen_texture` 全屏 ColorRect。
+  **层序靠树序**：世界(layer0) → 增强 → `MetaHealthFX` → HUD(layer2)；Meta 采样含辉光结果。
+  接入 `main.tscn`(Main) / `title.tscn` / `tutorial.tscn`（教程 HUD 抬至 layer=2）。
+- 性能纪律：设置关闭（`WorldPostFx=false`）整层 `Visible=false`（零 GPU）；`reduce_flash` 颗粒置零 + 辉光减半；
+  静态参数启动一次、动态参数 epsilon 检测。
+- 数值 `data/balance.json effects.world_post.*`（threshold/intensity/radius/tint/quality/grade/gain/lift/contrast/vignette/grain）。
+- **设置开关**：设置页「画面」段 `SET_WORLD_POST_FX`（持久化 `world_post_fx`，默认开）；走 `SettingsService` → `GameState` 信号广播（同 `ReduceFlash` 模式）。
+
+### 2.3 战机与战场表现（纯表现层，**玩法判定零改动**）
+- **玩家机贴图**（`scripts/tools/generate_player_sprite.py`）：暖钛/青铜钢甲 + 琥珀能量语言，装甲板/铆接/散热格栅/舱口加密，
+  暖描边 + 暖缘光（`sprite_polish.py` 新增可选 outline/rim 覆盖——敌方晶体族用模块默认冷色，输出逐字节不变）。
+  **画布 254×254 与头部锚点严格不变**（`PlayerAugmentVisuals` 按 `BaseShipScale=0.65` 对位锚点，叠加件仍贴合）。
+- **尾焰**：默认方粒 → `CinematicFx.SoftTexture()` 软点 + 白热→琥珀→暗橙 `GradientTexture1D` 色阶（廉价感主源之一）。
+- **机体背光轮廓**：敌/精英/Boss 新增同源贴图副本 + 加性材质 + 阵营染色剪影（`Enemy.UpdateRimGlow` / `Boss.RefreshRimGlow`），贴图未改。
+- **星云/亮星/爆炸/激光**：星云改琥珀+青双色、亮星色温重调；爆炸 ramp 深琥珀；玩家激光/枪口/残影/受击指示琥珀。
+- **面板铬件**：`ChamferedPanel` 新增四角琥珀刻度（`CornerTicks` 默认开）+ 顶缘全强调色受光线（受激边缘）。
+
+### 2.4 过场演出细节（2026-09-10 精修）
+「简单处够简单、精细处不够」的补课——对入场/返航过场的乘员与场景追加设计细节（纯表现层，时序/时长/字幕/音效口径全不变）：
+
+- **共享乘员构件 `csharp/godot/CrewFigure.cs`**：把原先两处近乎重复的简笔人物（圆头 + 棍状四肢 + 平板躯干）重建为有设计细节的宇航服——分件头盔（棱面壳/面罩玻璃/框缘/颈环/侧通讯舱/天线信号灯/下颌护板）、分层胸甲 + 背带扣具 + 状态灯排、双筒维生背包（罐体/喷嘴/供气管/压力表/散热格栅）、肩部叠甲 + 铆钉、关节环/护膝胫甲/护腕分指手套/齿纹战术靴、全身边缘走线与琥珀状态灯。**关节契约逐位不变**（返回 {node,hips,knees,shoulders,elbows,torso,eyelid}），步行/握姿/呼吸相位公式与 eye-lid 特写全部照旧；`ReturnCinematic.BuildPerson`（冷青状态灯）与 `IntroCinematic.Shot3`（琥珀）共用，删除两处重复内联。
+- **操作台仪表（镜头 4）**：三分区各补精密仪表——圆形读数表（表壳/12 格刻度环/危险区标红/指针/中心轴/状态灯）+ 分段电平条（外框/逐格亮灯/刻度）；面板浮雕板 + 四角螺钉 + 顶缘受光线（先铺浮雕、仪表叠其上）。
+- **舱段模块（`DawnStation` 共享）**：环体舱段加舷窗灯带 + 装甲分缝 + 端盖条 + 散热格栅（环站不再是光板矩形块）；返航/基地背景同享。
+- **X 光剖面（镜头 2）**：舱室内部补控制台长条/货箱/状态点（确定性布局，无随机），甲板底缘加走线槽 + 铆钉列——蓝图不再是空网格。
+- **弹射通道（镜头 5）**：两侧导轨（轨面/暗边/受光棱）+ 轨枕横梁 + 轨端铆灯 + 壁面横向加强肋/铆钉列/警示斜纹——战机压在真实导轨上滑出，而非悬在空走廊。
+- **尾焰修正（镜头 5）**：原喷口位置硬编码 `(960±46, y640)` 与贴图真实喷口（锚点 ×1.4 = `960±26.6, y704`）错位约 60px，且尾焰用等宽硬边 `Line2D` 读作灰色矩形块——改为**由贴图锚点推导真实喷口位**，尾焰改软点辉光链（喷口炽芯→沿轴递减半径/亮度→尾端透明，无硬边）+ 喷口外圈热辉；拖影改加性暖色微放大（读作加速辉光而非重影复制）；机身提亮一档。
+- **镜头 5 代码重构（去叠加）**：原 ~340 行单方法拆为「编排 `BuildShot5` + 四个分层构建器」——`BuildLaunchCorridor`（走廊结构）/`BuildShipRig`（机体与尾焰）/`BuildSpeedField`（速度场）/`PlayIgnition`（点火时序），辅以 `ExhaustParticles`/`Poly`/`LaunchNozzlePositions` 小工厂。同时收掉叠加过量的层：每喷口原 5 层橙光（主焰粒子 + 白芯粒子 + 柔光柱 + 独立喷口热辉 + 壁面投光）收敛为 3 层（主焰粒子 + 柔光柱含喷口炽芯 + 壁面投光）；走廊去掉与轨枕灯重复的独立铆钉列、6 条任意位置接缝收敛为每壁 1 条；走廊几何/色板提为常量单源（`WallInnerL/R`、`RailL/R`、`Corridor*` 色板）。**渲染结果实测一致（略减噪），时序/时长/音效口径不变。**
+
+### 2.5 本局存档（2026-09-10 追加）
+反转 2026-09-08「无对局存档」：新增**单存档位**本局存档 `user://run.json`（与 `settings.json` 分区；复用 `SaveManager`/`SaveStore` 原子写 + 损坏隔离）。
+
+- **模型：存档 = 可继续的检查点**，三条规则覆盖全部边界：
+  1. **写入/覆盖**：退出确认「保存并退出」+ **回到基地**（母舰坞修/返航，`Main.OnReturnFinished`）自动落盘，新档覆盖旧档。
+  2. **终结删档**：玩家**死亡**（`GameState._Ready` 订阅自身 `PlayerDied`）与**「放弃重开」**（`GameState.RestartRun`）——本局终结，检查点一并作废，不可读档回滚（保住必死曲线、防 save-scum；也堵住「读档→暂停重开→再退出重进」的无限回滚）。
+  3. **非破坏性**：标题屏选「**新的一局**」**不删旧档**——一次误触不会抹掉进度；旧档保留到被新档覆盖或被本局终结清除。`ExitToTitle` 同样不删（Tutorial 走此口，删档会误伤；且「回标题保留检查点」语义正确）。
+- **读档**：标题屏 `HasRunSave()`（**校验可读性**：文件存在 + `version` 匹配；损坏档被既有隔离逻辑移为 `.corrupt` 并返回 false，不显示假承诺）为真时显示 `C — 继续上次出击`；`C` 置 `GameState.PendingLoadRun`，`Main._Ready` 返回标题分支读档成功则跳过 `ResetRun`（`LoadRun` 内部先 ResetRun 再按存档还原），否则回退全新一局（保留旧档）。
+- **粒度**：**还原局内进度，战场从新一波开始**——持久化 score/kills/boss_kills/combo/milestone_count、run_time/difficulty_multiplier/dda_timer/difficulty_time_step、health/augments、talent(levels/overcharged/route/reset_tokens/bonus_overcharge_slots/cache_values)、missions(rp/refresh_points/条目/last_kind_value)。**不持久化**敌机/子弹/Boss 位置、波次计时、连击窗口、DDA 剩余、回血延迟、TaskPool 洗牌游标、玩家无敌/受击帧守卫。
+- **还原顺序**（`GameState.RunSave.cs.ApplyRunDict`）：talent → combat（先恢复 extra_life 层级才有正确 MaxHealth）→ score → progress → missions；各服务 `RestoreRunState` 末尾补发既有信号（`AugmentsChanged/TalentsChanged/CacheChanged/RpChanged/…`）驱动 HUD 与 Player 增幅件重建。
+- **健壮性**：档案带 `version`（=1），不符按无存档忽略（不隔离不阻塞开机）；损坏 JSON 走既有隔离（且 `HasRunSave` 会触发该自愈，无需人工清理）；**JSON 往返会把 `StringName` 键退化为 `String`**，还原时对 `augments`/`missions` 键做 StringName 归一化（否则查表落空、增幅与任务进度静默失效）；所有字段判型读取，非法回默认。
+
+### 2.6 性能设置（2026-09-10 追加）
+设置页「操作模式」页新增**性能**段（`SettingsService` + `SettingsUi`，settings.json 持久化）：
+
+- **帧率上限** `fps_cap`：六档 `60 / 120 / 144 / 165 / 180 / 240`（默认 **60**）。生效值写入 `Engine.MaxFps`。此前项目**未设任何帧率上限与垂直同步**（实测未锁帧约 680fps），故新增该控制。
+- **垂直同步** `vsync`：开关，默认**开**。生效值写入 `DisplayServer.WindowSetVsyncMode`（headless 跳过窗口 API）。开启时实际帧率再受显示器刷新率钳制；关闭可降输入延迟（竞技向），配合帧率上限使用。
+- **应用时机**：`GameState._Ready` → `LoadSettings()` 后显式调用 `ApplyDisplaySettings()`（无设置文件时 load 不应用，故补默认档）；设置页切换即时生效 + 落盘 + 广播 `DisplaySettingsChanged`。档位非白名单值忽略、保持默认。
 
 ---
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*

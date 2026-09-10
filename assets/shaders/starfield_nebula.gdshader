@@ -10,8 +10,8 @@ shader_type canvas_item;
 // 时后绘压紫层，其余区域紫层在上；下方按同序 over 合成，与两次绘制逐位等价。
 // 贴图为环面无缝灰度能量场（rgba=v），repeat 跨缝采样与原逐格 clamp 边缘视觉等价。
 uniform vec2 phase_off = vec2(0.15, 1.0); // CPU 每帧 1 次上传（滚动唯一动态量）
-uniform vec4 purple : source_color = vec4(0.45, 0.32, 0.68, 0.22);
-uniform vec4 teal : source_color = vec4(0.22, 0.45, 0.58, 0.154);
+uniform vec4 purple : source_color = vec4(0.62, 0.36, 0.18, 0.22);
+uniform vec4 teal : source_color = vec4(0.20, 0.42, 0.56, 0.154);
 
 void fragment() {
     vec2 ph = fract(UV / 0.7 + phase_off);

@@ -405,8 +405,8 @@ public partial class VirtualControls : CanvasLayer
             return;
         }
 
-        DrawStick(MoveCenter, MoveRadius, _moveVec, new Color(0.3f, 0.8f, 1.0f, 0.35f));
-        DrawStick(AimCenter, AimRadius, _aimVec, new Color(1.0f, 0.6f, 0.2f, 0.35f));
+        DrawStick(MoveCenter, MoveRadius, _moveVec, new Color(0.42f, 0.78f, 0.94f, 0.35f));
+        DrawStick(AimCenter, AimRadius, _aimVec, new Color(1.0f, 0.72f, 0.30f, 0.35f));
         foreach (var key in Buttons.Keys)
         {
             var action = key.AsStringName();
@@ -414,9 +414,9 @@ public partial class VirtualControls : CanvasLayer
             var c = b["center"].AsVector2();
             var r = (float)b["radius"].AsDouble();
             var lit = _buttons.ContainsKey(action);
-            var col = lit ? new Color(0.3f, 0.8f, 1.0f, 0.5f) : new Color(0.3f, 0.8f, 1.0f, 0.28f);
+            var col = lit ? new Color(1.0f, 0.76f, 0.32f, 0.5f) : new Color(0.66f, 0.70f, 0.74f, 0.28f);
             _ui.DrawCircle(c, r, col);
-            _ui.DrawArc(c, r, 0.0f, Mathf.Tau, 32, new Color(0.7f, 0.95f, 1.0f, 0.6f), 2.0f);
+            _ui.DrawArc(c, r, 0.0f, Mathf.Tau, 32, new Color(1.0f, 0.88f, 0.62f, 0.6f), 2.0f);
             _ui.DrawString(
                 ThemeDB.FallbackFont,
                 c + new Vector2(-7.0f, 6.0f),

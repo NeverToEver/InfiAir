@@ -348,6 +348,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>贴图有效尺寸（_ready 实测更新，算轨道半径）。</summary>
     private Vector2 _bossSize = new(328.0f, 328.0f);
     private Sprite2D _sprite = null!;
+    // 机体背光轮廓（阵营染色加法剪影；贴图随 Boss 类型/P2 换帧刷新，故单独维护）
+    private static readonly Color RimGlowColor = new(1.0f, 0.32f, 0.48f, 0.30f);
+    private Sprite2D? _rimGlow;
     /// <summary>P1-2：受击闪白手动衰减（_physics_process 逐帧 lerp 回 _base_modulate）。</summary>
     private float _flashTimer;
     private float _flashTotal = 0.1f;
@@ -662,6 +665,32 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         Hp = MaxHp;
         // setup() 在 _ready() 之前调用，不能用 @onready 变量
         GetNode<Sprite2D>("Sprite2D").Texture = _bossTextures[pType - 1];
+        RefreshRimGlow();
+    }
+
+    /// <summary>机体背光轮廓：同源贴图副本 + 加性材质 + 深红阵营染色，垫在机体之下做受光剪影。
+    /// Boss 贴图运行期换帧（类型/P2 损伤），故每次换贴图后调用刷新。</summary>
+    private void RefreshRimGlow()
+    {
+        if (_sprite == null || _sprite.Texture == null)
+        {
+            return;
+        }
+
+        if (_rimGlow == null)
+        {
+            _rimGlow = new Sprite2D
+            {
+                Scale = new Vector2(1.12f, 1.12f),
+                Material = CinematicFx.AdditiveMaterial(),
+                Modulate = RimGlowColor,
+                ZIndex = -1,
+                ShowBehindParent = true,
+            };
+            _sprite.AddChild(_rimGlow);
+        }
+
+        _rimGlow.Texture = _sprite.Texture;
     }
 
     public bool IsInFight() => _inFight;
@@ -1004,6 +1033,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             if (idx >= 0 && idx < _bossP2Textures.Length)
             {
                 GetNode<Sprite2D>("Sprite2D").Texture = _bossP2Textures[idx];
+                RefreshRimGlow();
             }
         }
         _patternIndex = 0;

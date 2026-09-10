@@ -23,6 +23,7 @@ public partial class SettingsUi : RadialMenuLayer
     private static readonly StringName[] AimAssistOrder = { new("low"), new("medium"), new("high") };
     private static readonly StringName[] ViewZoomOrder = { new("small"), new("medium"), new("large") };
     private static readonly StringName[] WindowSizeOrder = { new("small"), new("medium"), new("large") };
+    private static readonly StringName[] FpsCapOrder = { new("fps60"), new("fps120"), new("fps144"), new("fps165"), new("fps180"), new("fps240") };
     private static readonly StringName[] PageIds = { new("controls"), new("modes"), new("about") };
     private static readonly StringName PageControls = new("controls");
     private static readonly StringName PageModes = new("modes");
@@ -55,6 +56,10 @@ public partial class SettingsUi : RadialMenuLayer
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
     private Button _touchBtn = null!; // 触控·虚拟控件开关（mobile touch）
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
+    private Button _worldPostFxBtn = null!; // 画面·世界层增强（辉光/分级）开关
+    private readonly ButtonGroup _fpsGroup = new();
+    private readonly Godot.Collections.Dictionary _fpsButtons = new(); // 帧率上限档位 -> Button
+    private Button _vsyncBtn = null!; // 性能·垂直同步开关
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
     private Label _cheatsheetLabel = null!;
@@ -491,6 +496,32 @@ public partial class SettingsUi : RadialMenuLayer
             _windowButtons[level] = Variant.From(b);
         }
 
+        // 性能：帧率上限（六档）+ 垂直同步
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_PERFORMANCE")));
+        var fpsRow = new HBoxContainer();
+        fpsRow.AddThemeConstantOverride("separation", 14);
+        page.AddChild(fpsRow);
+        var fpsLabel = UITheme.MakeLabel(Tr("SET_FPS_CAP"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
+        fpsLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        fpsRow.AddChild(fpsLabel);
+        _fpsButtons.Clear();
+        foreach (var level in FpsCapOrder)
+        {
+            var b = UITheme.MakeToggleButton(Tr("SET_FPS_" + level.ToString().ToUpper()), _fpsGroup);
+            b.CustomMinimumSize = new Vector2(96.0f, 48.0f);
+            b.Pressed += () => GameState.Instance.SetFpsCap(level);
+            fpsRow.AddChild(b);
+            _fpsButtons[level] = Variant.From(b);
+        }
+
+        page.AddChild(UITheme.MakeLabel(Tr("SET_FPS_CAP_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 垂直同步（关闭可降输入延迟，配合帧率上限；开启时实际帧率再受显示器刷新率钳制）
+        var vsyncGroup = new ButtonGroup { AllowUnpress = true };
+        _vsyncBtn = UITheme.MakeToggleButton(Tr("SET_VSYNC"), vsyncGroup);
+        _vsyncBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
+        _vsyncBtn.Pressed += OnVSync;
+        page.AddChild(_vsyncBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_VSYNC_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 鼠标锁定窗口内（MouseTrap：窗口聚焦期间鼠标移出内容区即被拉回，防止准星失控；失焦放行）
         var lockGroup = new ButtonGroup { AllowUnpress = true };
         _mouseLockBtn = UITheme.MakeToggleButton(Tr("SET_MOUSE_LOCK"), lockGroup);
@@ -542,6 +573,17 @@ public partial class SettingsUi : RadialMenuLayer
         _reduceFlashBtn.CustomMinimumSize = new Vector2(160.0f, 48.0f);
         _reduceFlashBtn.Pressed += OnReduceFlash;
         rfRow.AddChild(_reduceFlashBtn);
+        // 画面：世界层增强（辉光/色彩分级/晕影）开关——关闭走逐元素发光回退路径（低配机）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_VIDEO")));
+        var wpfRow = new HBoxContainer();
+        wpfRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(wpfRow);
+        var wpfGroup = new ButtonGroup { AllowUnpress = true };
+        _worldPostFxBtn = UITheme.MakeToggleButton(Tr("SET_WORLD_POST_FX"), wpfGroup);
+        _worldPostFxBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
+        _worldPostFxBtn.Pressed += OnWorldPostFx;
+        wpfRow.AddChild(_worldPostFxBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_WORLD_POST_FX_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         return page;
     }
 
@@ -652,6 +694,9 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshDiffButtons();
         RefreshAimButtons();
         _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
+        _worldPostFxBtn.SetPressedNoSignal(GameState.Instance.WorldPostFx);
+        RefreshFpsButtons();
+        _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
@@ -713,6 +758,14 @@ public partial class SettingsUi : RadialMenuLayer
         foreach (var level in _aimButtons.Keys)
         {
             ((Button)_aimButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.AimAssistLevel);
+        }
+    }
+
+    private void RefreshFpsButtons()
+    {
+        foreach (var level in _fpsButtons.Keys)
+        {
+            ((Button)_fpsButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.FpsCap);
         }
     }
 
@@ -797,6 +850,16 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnReduceFlash()
     {
         GameState.Instance.SetReduceFlash(_reduceFlashBtn.ButtonPressed);
+    }
+
+    private void OnWorldPostFx()
+    {
+        GameState.Instance.SetWorldPostFx(_worldPostFxBtn.ButtonPressed);
+    }
+
+    private void OnVSync()
+    {
+        GameState.Instance.SetVSync(_vsyncBtn.ButtonPressed);
     }
 
     private void OnTouchControls()

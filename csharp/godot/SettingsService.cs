@@ -59,6 +59,18 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
     public bool ReduceFlash { get; set; } = false;
 
+    /// <summary>世界层画面增强（辉光/色彩分级/晕影，settings.json 持久化，默认开）。
+    /// 关闭 = 逐元素发光回退路径，WorldPostFx 全屏层隐藏（低配机/风格偏好）。</summary>
+    public bool WorldPostFx { get; set; } = true;
+
+    /// <summary>帧率上限档位（settings.json 持久化，默认 "60"；档位表见 FPS_CAP_LEVELS）。
+    /// 生效值写入 Engine.MaxFps；与垂直同步共同决定实际帧率（VSync 开时受显示器刷新率再钳制）。</summary>
+    public StringName FpsCap { get; set; } = new StringName("60");
+
+    /// <summary>垂直同步（settings.json 持久化，默认开；关闭可降输入延迟、配合帧率上限使用）。
+    /// 生效值写入 DisplayServer WindowSetVsyncMode。</summary>
+    public bool VSync { get; set; } = true;
+
     /// <summary>鼠标锁定窗口内（持久化，默认开启；开启后窗口聚焦期间鼠标移出内容区即被拉回，
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
     public bool MouseLock { get; set; } = true;
@@ -91,6 +103,12 @@ public sealed partial class SettingsService : RefCounted
 
     /// <summary>减少闪光开关变化；GameState 订阅后转发为 ReduceFlashChanged 信号。</summary>
     public event Action<bool>? ReduceFlashChanged;
+
+    /// <summary>世界层画面增强开关变化；GameState 订阅后转发为 WorldPostFxChanged 信号。</summary>
+    public event Action<bool>? WorldPostFxChanged;
+
+    /// <summary>性能/显示设置（帧率上限 / 垂直同步）变化；GameState 订阅后转发为 DisplaySettingsChanged 信号。</summary>
+    public event Action? DisplaySettingsChanged;
 
     /// <summary>鼠标锁定开关变化；GameState 订阅后转发为 MouseLockChanged 信号。</summary>
     public event Action<bool>? MouseLockChanged;
@@ -219,6 +237,69 @@ public sealed partial class SettingsService : RefCounted
         WindowSizeChanged?.Invoke(WindowSize);
     }
 
+    // ---------------- 性能（帧率上限 / 垂直同步） ----------------
+
+    /// <summary>帧率上限档位表（设置页六选，settings.json 持久化；值为 Engine.MaxFps）。
+    /// 0 = 无限制（本作未列入档位表——默认 60；如需无限制档可加 "unlimited"→0）。</summary>
+    public Godot.Collections.Dictionary FPS_CAP_LEVELS { get; } = new()
+    {
+        [new StringName("fps60")] = 60,
+        [new StringName("fps120")] = 120,
+        [new StringName("fps144")] = 144,
+        [new StringName("fps165")] = 165,
+        [new StringName("fps180")] = 180,
+        [new StringName("fps240")] = 240,
+    };
+
+    public Godot.Collections.Array<StringName> FPS_CAP_ORDER { get; } = new()
+    {
+        new StringName("fps60"),
+        new StringName("fps120"),
+        new StringName("fps144"),
+        new StringName("fps165"),
+        new StringName("fps180"),
+        new StringName("fps240"),
+    };
+
+    /// <summary>切换帧率上限档位（非法/同档忽略）：立即应用 + 持久化 + 广播</summary>
+    public void SetFpsCap(StringName level)
+    {
+        if (!FPS_CAP_LEVELS.ContainsKey(level) || level == FpsCap)
+        {
+            return;
+        }
+
+        FpsCap = level;
+        ApplyDisplay();
+        GameState.Instance.SaveSettings();
+        DisplaySettingsChanged?.Invoke();
+    }
+
+    /// <summary>切换垂直同步（同值忽略）：立即应用 + 持久化 + 广播</summary>
+    public void SetVSync(bool enabled)
+    {
+        if (enabled == VSync)
+        {
+            return;
+        }
+
+        VSync = enabled;
+        ApplyDisplay();
+        GameState.Instance.SaveSettings();
+        DisplaySettingsChanged?.Invoke();
+    }
+
+    /// <summary>把帧率上限 + 垂直同步应用到引擎（启动加载后与设置变更时调用；headless 跳过窗口 API）。
+    /// 两者相互独立：VSync 开时实际帧率再受显示器刷新率钳制；关则只受 MaxFps 限制。</summary>
+    public void ApplyDisplay()
+    {
+        Engine.MaxFps = (int)FPS_CAP_LEVELS.GetValueOrDefault(FpsCap, 60).AsInt64();
+        if (DisplayServer.GetName() != "headless")
+        {
+            DisplayServer.WindowSetVsyncMode(VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
+        }
+    }
+
     /// <summary>应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过。
     /// 档位尺寸按逻辑点定义：高分屏（Retina 等 content scale&gt;1）乘屏幕缩放换算物理像素，
     /// 否则 1920×1080 档位在 2x 屏上只显示为 960×540 点的小窗；超出当前屏可用区域时等比收缩并居中。</summary>
@@ -284,6 +365,19 @@ public sealed partial class SettingsService : RefCounted
         ReduceFlash = enabled;
         GameState.Instance.SaveSettings();
         ReduceFlashChanged?.Invoke(enabled);
+    }
+
+    /// <summary>世界层画面增强：开关持久化并广播（WorldPostFx 据此显隐全屏增强层）</summary>
+    public void SetWorldPostFx(bool enabled)
+    {
+        if (enabled == WorldPostFx)
+        {
+            return;
+        }
+
+        WorldPostFx = enabled;
+        GameState.Instance.SaveSettings();
+        WorldPostFxChanged?.Invoke(enabled);
     }
 
     /// <summary>鼠标锁定窗口内：开关持久化并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
@@ -486,7 +580,17 @@ public sealed partial class SettingsService : RefCounted
             AimAssistLevel = savedAim;
         }
 
+        // 性能：帧率上限档（白名单）+ 垂直同步；非法值保持默认，末尾统一应用到引擎
+        var savedFps = data.GetValueOrDefault("fps_cap", "").AsStringName();
+        if (FPS_CAP_LEVELS.ContainsKey(savedFps))
+        {
+            FpsCap = savedFps;
+        }
+
+        VSync = GameState.Instance.SaveBool(data.GetValueOrDefault("vsync", VSync), VSync);
+        ApplyDisplay();
         ReduceFlash = GameState.Instance.SaveBool(data.GetValueOrDefault("reduce_flash", ReduceFlash), ReduceFlash);
+        WorldPostFx = GameState.Instance.SaveBool(data.GetValueOrDefault("world_post_fx", WorldPostFx), WorldPostFx);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
         SkipIntroCinematic = GameState.Instance.SaveBool(data.GetValueOrDefault("skip_intro", SkipIntroCinematic), SkipIntroCinematic);
         // P0-1 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
@@ -516,6 +620,9 @@ public sealed partial class SettingsService : RefCounted
         ["window_size"] = WindowSize.ToString(),
         ["aim_assist"] = AimAssistLevel.ToString(),
         ["reduce_flash"] = ReduceFlash,
+        ["world_post_fx"] = WorldPostFx,
+        ["fps_cap"] = FpsCap.ToString(),
+        ["vsync"] = VSync,
         ["mouse_lock"] = MouseLock,
         ["skip_intro"] = SkipIntroCinematic,
         ["joy_aim_speed"] = JoyAimSpeed,

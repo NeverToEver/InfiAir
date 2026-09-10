@@ -110,6 +110,66 @@ public sealed partial class MissionsService : RefCounted
     /// 供需要在保留其余对局状态的前提下重置 missions 的调用方）</summary>
     public void ResetMissions() => InitMissions();
 
+    /// <summary>读档还原（本局存档）：RP/刷新点/任务条目/绝对计数基线整体覆盖。
+    /// 任务池洗牌游标不还原（刷新序列从新洗牌开始，与「读档从新一波开始」一致）；
+    /// 末尾重建 kind 索引 + 补发 RpChanged/RefreshPointsChanged 驱动 HUD。</summary>
+    public void RestoreRunState(
+        int rp,
+        int refreshPoints,
+        Godot.Collections.Dictionary missions,
+        IReadOnlyDictionary<string, int> lastKindValue)
+    {
+        Rp = Math.Max(rp, 0);
+        RefreshPoints = Math.Max(refreshPoints, 0);
+        // JSON 往返把 StringName 键退化为 String——必须重建成 StringName 键，
+        // 否则 SetMissionProgress 以 StringName 查 ContainsKey 会全部落空（任务进度静默停摆）。
+        Missions = new Godot.Collections.Dictionary();
+        if (missions != null)
+        {
+            foreach (var key in missions.Keys)
+            {
+                if (missions[key].VariantType != Variant.Type.Dictionary)
+                {
+                    continue;
+                }
+
+                var src = missions[key].AsGodotDictionary();
+                Missions[new StringName(key.AsString())] = new Godot.Collections.Dictionary
+                {
+                    ["progress"] = Math.Max((int)src.GetValueOrDefault("progress", 0).AsInt64(), 0),
+                    ["claimed"] = src.GetValueOrDefault("claimed", false).AsBool(),
+                    ["goal"] = Math.Max((int)src.GetValueOrDefault("goal", 1).AsInt64(), 1),
+                    ["baseline"] = Math.Max((int)src.GetValueOrDefault("baseline", 0).AsInt64(), 0),
+                };
+            }
+        }
+
+        _lastKindValue.Clear();
+        foreach (var kv in lastKindValue)
+        {
+            _lastKindValue[new StringName(kv.Key)] = kv.Value;
+        }
+
+        // 任务池重建（新洗牌序列）：仅当池尚未建立（读档发生在 InitMissions 之前）时才建，
+        // 避免覆盖同一局的既有池；kind 索引恒随 Missions 重建
+        _taskPool ??= new TaskPool(GameState.Instance.MISSION_POOL);
+        RebuildKindIndex();
+        RpChanged?.Invoke(Rp);
+        RefreshPointsChanged?.Invoke(RefreshPoints);
+    }
+
+    /// <summary>绝对计数基线快照（读档写出用）。</summary>
+    public Dictionary<string, int> LastKindValueSnapshot()
+    {
+        var result = new Dictionary<string, int>();
+        foreach (var kv in _lastKindValue)
+        {
+            result[kv.Key.ToString()] = kv.Value;
+        }
+
+        return result;
+    }
+
     private void SetMissionProgress(StringName id, int value)
     {
         if (!Missions.ContainsKey(id))
