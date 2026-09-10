@@ -15,6 +15,8 @@
 > 唯一登记处，只保留未关闭项；修复后直接删除（变更史在 git log）；新发现追加在末尾。
 
 - **[低] 视觉层无自动化覆盖（已评估的接受项）**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏。常驻 CI 视觉捕获不可行——Godot headless 为 dummy 渲染截不到画面，CI runner 无 GPU 且项目禁第三方依赖（软光栅方案越线）。纪律 = UI/视觉改动窗口化人工过目；不重引入截图探针场景（与 lean-reset 一致）。
+- **[中] 弹体结算在信号回调内改 `Monitoring`**：`Bullet.OnAreaExited → SettleHit → LingerFatal`（`Bullet.cs`）直写 `Area2D.Monitoring`，引擎拒绝执行并报 `Function blocked during in/out signal`——即致死弹的碰撞实际未关闭，只在实机日志可见。无头 300 帧冒烟覆盖不到（需敌弹真正命中玩家判定框才走到该分支）。
+- **[低] 局外成长死入口保留**：`TalentService.ApplyStartingLoadout` 无生产调用方（注释自述「保留」），是局外成长移除后的残留公开接口；若无复用计划应直接删除。
 
 ## 发布前人工验收
 
