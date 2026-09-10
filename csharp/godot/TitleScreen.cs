@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 标题屏：程序化星空 + 远景实况战场（敌机编队/远处爆炸/Boss 剪影，
-/// 见 Warzone 部分）+ 玩家机自远处跃迁飞入悬挂展示（轮廓背光/尾焰怠速/机体铭牌，见 ShipDisplay 部分）+
+/// 见 Warzone 部分）+ 玩家机自远处跃迁飞入悬挂展示（轮廓背光/尾焰怠速，见 ShipDisplay 部分）+
 /// 左侧标题区。开场演出全程不阻塞输入，任意时刻可开局。
 /// 输入路由不变：任意键/点击 → main.tscn 开局；T → tutorial.tscn；Esc 不消费。
 /// 0.5s 输入守卫：过场跳过键/入场期残留按键不误触发开局。
@@ -121,7 +121,7 @@ public partial class TitleScreen : CanvasLayer
         titleIn.TweenProperty(vbox, "modulate:a", 1.0f, 0.5).SetDelay(1.0).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         titleIn.TweenProperty(vbox, "position:x", 140.0f, 0.5).From(104.0f).SetDelay(1.0).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
 
-        // 底部教程入口（随铭牌 1.8s 淡入）
+        // 底部教程入口（1.8s 淡入）
         var tutorialHint = UITheme.MakeLabel((string)Tr("TITLE_TUTORIAL_HINT"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center);
         tutorialHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         tutorialHint.OffsetTop = -72.0f;

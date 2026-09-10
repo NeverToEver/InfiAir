@@ -4,8 +4,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 标题屏·玩家机悬挂展示部分：自跃迁远点飞入（RadialStreaks 光线场 + 位置/尺寸减速缓动）→
-/// 右侧停驻（轮廓背光 + 幽灵拖影退场 + 尾焰怠速点火 + 悬浮浮动）+ 机体铭牌卡。
-/// 时轴：0.2s 起飞 1.4s → 1.6s 落位收尾 → 1.8s 铭牌淡入；全程 Tween/Timer，无 await。
+/// 右侧停驻（轮廓背光 + 幽灵拖影退场 + 尾焰怠速点火 + 悬浮浮动）。
+/// 时轴：0.2s 起飞 1.4s → 1.6s 落位收尾；全程 Tween/Timer，无 await。
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
@@ -43,7 +43,7 @@ public partial class TitleScreen : CanvasLayer
             ["count"] = 26,
             ["max_radius"] = 640.0f,
             ["cycle"] = 0.9f,
-            ["color"] = new Color(0.6f, 0.85f, 1.0f, 0.32f),
+            ["color"] = new Color(UITheme.HoloPale, 0.32f),
         });
         _warpStreaks.Position = (ShipFarPos + ShipAnchorPos) * 0.5f;
         _warpStreaks.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
@@ -140,8 +140,6 @@ public partial class TitleScreen : CanvasLayer
         {
             ignite.TweenProperty(nozzle, "scale", Vector2.One * 0.75f, 0.3).SetDelay(1.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         }
-
-        BuildNameplate();
     }
 
     /// <summary>落位收尾（飞入 Tween 结束回调）：残影/光线退场 + 制动冲击环 + 启动悬浮浮动。</summary>
@@ -174,48 +172,5 @@ public partial class TitleScreen : CanvasLayer
         var sway = _shipBobber.CreateTween().SetLoops();
         sway.TweenProperty(_shipBobber, "rotation", 0.018f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         sway.TweenProperty(_shipBobber, "rotation", -0.018f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-    }
-
-    /// <summary>机体铭牌卡（切角面板 + 档案文案 + 引擎输出装饰条）：纯装饰 FUI，不绑真实数值。</summary>
-    private void BuildNameplate()
-    {
-        var plate = new ChamferedPanel
-        {
-            Brackets = true,
-            Position = new Vector2(975.0f, 742.0f),
-            Padding = 22.0f,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f),
-        };
-        // Padding 只参与面板自适应尺寸，内容需自行内缩半个 Padding 才不贴边
-        var box = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(11.0f, 11.0f) };
-        box.AddThemeConstantOverride("separation", 6);
-        plate.AddChild(box);
-
-        box.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PLATE_TITLE"), UITheme.FontSmall, UITheme.Accent, HorizontalAlignment.Left));
-        box.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PLATE_STATUS"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left));
-        box.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PLATE_SYSTEMS"), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Left));
-
-        var outRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        outRow.AddThemeConstantOverride("separation", 12);
-        outRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PLATE_OUTPUT"), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Left));
-        var outputBar = new SegmentedBar
-        {
-            Segments = 12,
-            MaxValue = 12.0f,
-            Value = 2.0f,
-            CustomMinimumSize = new Vector2(220.0f, 12.0f),
-            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        outRow.AddChild(outputBar);
-        box.AddChild(outRow);
-
-        AddChild(plate);
-        var plateIn = plate.CreateTween();
-        plateIn.TweenProperty(plate, "modulate:a", 1.0f, 0.45).SetDelay(1.8).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-        // 引擎输出条随铭牌上线缓升（TweenMethod 直写属性，规避导出名/别名路径歧义）
-        var barUp = outputBar.CreateTween();
-        barUp.TweenMethod(Callable.From<float>(v => outputBar.Value = v), 2.0f, 9.0f, 0.9).SetDelay(2.0).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
     }
 }
