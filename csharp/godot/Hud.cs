@@ -38,6 +38,7 @@ public partial class Hud : CanvasLayer
     private float _pollTimer;
     private string _lastDockText = "";
     private int _lastMagCells = -1;
+    private int _lastFuelWarn = -1; // P1-3 同族：燃料警戒态缓存（0/1），未翻转跳过 FillColor 写入
     private Label[] _tagLabels = System.Array.Empty<Label>();
     private StringName[] _tagKeys = System.Array.Empty<StringName>();
     private VBoxContainer _eventBox = null!;
@@ -530,7 +531,13 @@ public partial class Hud : CanvasLayer
             _fuelBar.Value = fuelVal;
         }
 
-        _fuelBar.FillColor = fuel < FuelWarnRatio ? UITheme.Danger : UITheme.Accent;
+        // P1-3 同族：警戒态未翻转跳过 FillColor 写入（SegmentedBar setter 值守卫之外的调用侧防线）
+        var fuelWarn = fuel < FuelWarnRatio ? 1 : 0;
+        if (fuelWarn != _lastFuelWarn)
+        {
+            _lastFuelWarn = fuelWarn;
+            _fuelBar.FillColor = fuelWarn == 1 ? UITheme.Danger : UITheme.Accent;
+        }
         var dashVal = player.DashReadyRatio() * 100.0f;
         if (Mathf.Abs(dashVal - _dashBar.Value) > BarWriteEpsilon)
         {

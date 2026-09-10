@@ -61,6 +61,7 @@ public sealed partial class RunProgressionService : RefCounted
     private double _enemyHpMult = 1.0;
     private double _enemySpeedMult = 1.0;
     private double _spawnIntervalMult = 1.0;
+    private int _scoreMult = 1; // 2026-09-10：score 倍率并入 M6 档位惰性缓存（回退约束覆盖见 ScoreMultiplier）
 
     /// <summary>回血链热路径缓存（P0-2）：regen 档位难度变更时刷新。
     /// 默认值须与脚本默认 difficulty=medium 档一致（medium: regen_delay=4.0, regen_rate=2.0）。</summary>
@@ -115,12 +116,14 @@ public sealed partial class RunProgressionService : RefCounted
     public int ScoreMultiplier()
     {
         // 2026-08-03 审计回退：曾尝试缓存 _score_multiplier_cache，但 difficulty 是公开字段，
-        // 直写不触发 RefreshRegenCache，缓存会返回旧值——本方法保持直接查表
-        // （M6 后 enemy_hp/speed/spawn 三倍率改档位惰性缓存，直写经 StringName 比较失效检测，见下）
-        // 2026-08-10 健壮性审查：钳入 [0, int.MaxValue]——手改 balance.json 倍率超大值时
-        // 裸 (int) 截断回绕为负（负倍率 → 加分变扣分）
-        return (int)Math.Clamp(
-            GameState.Instance.DIFFICULTY_DEFS[Difficulty].AsGodotDictionary()["score"].AsInt64(), 0L, (long)int.MaxValue);
+        // 直写不触发 RefreshRegenCache，缓存会返回旧值——M6 档位惰性缓存（直写经 StringName
+        // 比较失效检测，与 enemy_hp/speed/spawn 三倍率同款）兼容该约束，2026-09-10 起并入缓存
+        if (Difficulty != _multCachedDifficulty)
+        {
+            RefreshDifficultyMultCache();
+        }
+
+        return _scoreMult;
     }
 
     /// <summary>B 梯队：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
@@ -156,6 +159,9 @@ public sealed partial class RunProgressionService : RefCounted
         _enemyHpMult = def["hp"].AsDouble();
         _enemySpeedMult = def["speed"].AsDouble();
         _spawnIntervalMult = def["spawn"].AsDouble();
+        // 2026-08-10 健壮性审查：钳入 [0, int.MaxValue]——手改 balance.json 倍率超大值时
+        // 裸 (int) 截断回绕为负（负倍率 → 加分变扣分）
+        _scoreMult = (int)Math.Clamp(def["score"].AsInt64(), 0L, (long)int.MaxValue);
         _multCachedDifficulty = Difficulty;
     }
 

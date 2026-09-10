@@ -33,6 +33,11 @@ public partial class SegmentedBar : Control
         get => _fillColor;
         set
         {
+            if (value == _fillColor)
+            {
+                return; // 2026-09-10：值未变不重绘（HUD 0.1s 轮询直写/回血信号残差路径）
+            }
+
             _fillColor = value;
             QueueRedraw();
         }
@@ -83,6 +88,11 @@ public partial class SegmentedBar : Control
         get => _value;
         set
         {
+            if (value == _value)
+            {
+                return; // 2026-09-10：值未变不重绘（调用侧赋同一计算值；精确比较足够）
+            }
+
             _value = value;
             QueueRedraw();
         }

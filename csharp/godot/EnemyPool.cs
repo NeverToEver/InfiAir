@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace InfiAir;
@@ -12,6 +13,11 @@ public partial class EnemyPool : Node
     private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
 
     private readonly Godot.Collections.Array<Enemy> _free = new();
+
+    /// <summary>P1-6-1：待回收/待激活回挂队列——Release/Spawn 入队，_Process（idle 帧，物理回调外）
+    /// 批量执行，替代原每敌 CallDeferred（ReparentDeferred/ReparentToActive）逐条消息派发。</summary>
+    private readonly List<Enemy> _pendingPark = new();
+    private readonly List<Enemy> _pendingActivate = new();
     public override void _Ready()
     {
         GameState.Instance.EnemyPool = this;
@@ -52,8 +58,8 @@ public partial class EnemyPool : Node
         else if (e.GetParent() != GetParent())
         {
             // R12：spawn 侧 reparent 在物理回调（碰撞信号）内触发 area_set_shape_disabled flush 报错，
-            // 与 Release 侧 ReparentDeferred 对称延迟到空闲帧；SetRepooling 置位移入 ReparentToActive。
-            CallDeferred(MethodName.ReparentToActive, e);
+            // 与 Release 侧停放对称入队，_Process 帧末批量回挂（P1-6-1，替代原 CallDeferred 逐条派发）
+            _pendingActivate.Add(e);
         }
 
         e.Position = pos;
@@ -66,8 +72,8 @@ public partial class EnemyPool : Node
         return Spawn(config, strategy, pDifficulty, pos, Enemy.NoBulletType);
     }
 
-    /// <summary>回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行；
-    /// 若敌机在延迟执行前已被重激活（同帧复用）则跳过。幂等防重复回收。
+    /// <summary>回收：重置状态并入队待停放（不销毁）。monitoring 关闭与 reparent 由 _Process 帧末
+    /// 批量执行（物理回调内不改场景树）；若敌机在批量执行前已被重激活（同帧复用）则跳过。幂等防重复回收。
     /// H2（2026-08-10 审计）：幂等守卫改 IsActive O(1)——Deactivate 必置 false（本方法是
     /// Deactivate 唯一调用方），与 _free.Contains 线性扫描等价且免 O(n)。</summary>
     public void Release(Enemy e)
@@ -80,34 +86,58 @@ public partial class EnemyPool : Node
         // USE_POOL 恒 true（性能 A/B 对照开关已收敛；纯 instantiate/free 分支已移除）
         e.Deactivate();
         _free.Add(e);
-        CallDeferred(MethodName.ReparentDeferred, e);
+        _pendingPark.Add(e);
     }
 
-    /// <summary>延迟 reparent（物理回调内不直接改场景树）。public：CallDeferred 需引擎注册。</summary>
-    public void ReparentDeferred(Enemy e)
+    /// <summary>P1-6-1：帧末批量停放/激活回挂（idle _Process 处于物理回调外，与原 CallDeferred
+    /// 同帧末语义）。两队列以 IsActive 双向仲裁（同原 ReparentDeferred/ReparentToActive 互斥）：
+    /// 先停放（回收优先，激活队列里已失效的条目随后被仲裁跳过），再回挂激活。</summary>
+    public override void _Process(double delta)
     {
-        if (GodotObject.IsInstanceValid(e) && !e.IsActive())
+        if (_pendingPark.Count > 0)
         {
-            // 4.6 实测 reparent 会触发 e._exit_tree，置位防 forget 把敌机误清出 _free
-            e.SetRepooling(true);
-            e.Reparent(this);
-            e.SetRepooling(false);
+            for (var i = 0; i < _pendingPark.Count; i++)
+            {
+                var e = _pendingPark[i];
+                if (!GodotObject.IsInstanceValid(e) || e.IsQueuedForDeletion() || e.IsActive())
+                {
+                    continue;
+                }
+
+                e.Monitoring = false;
+                if (e.GetParent() != this)
+                {
+                    // 4.6 实测 reparent 会触发 e._exit_tree，置位防 forget 把敌机误清出 _free
+                    e.SetRepooling(true);
+                    e.Reparent(this);
+                    e.SetRepooling(false);
+                }
+            }
+
+            _pendingPark.Clear();
         }
-    }
 
-    /// <summary>延迟 reparent 到 Main（活跃池位）。与 ReparentDeferred 双向互斥（IsActive 仲裁）：
-    /// 极端时序（deferred 执行前敌机已被回收）下保持闲置敌机在池节点下。</summary>
-    public void ReparentToActive(Enemy e)
-    {
-        if (GodotObject.IsInstanceValid(e) && e.IsActive() && e.GetParent() != GetParent())
+        if (_pendingActivate.Count > 0)
         {
-            // R04：reparent 触发 e._exit_tree，置位防 unbind_enemy 误发信号
-            e.SetRepooling(true);
-            e.Reparent(GetParent());
-            e.SetRepooling(false);
-            // R12：reparent 的 _exit_tree（repooling 路径）会 UnregisterEnemy，而 Reactivate 注册在先——
-            // 延迟 reparent 后补注册（幂等），与同步版「先 reparent 后 Reactivate 注册」语义对齐。
-            GameState.Instance.RegisterEnemy(e);
+            for (var i = 0; i < _pendingActivate.Count; i++)
+            {
+                var e = _pendingActivate[i];
+                if (!GodotObject.IsInstanceValid(e) || e.IsQueuedForDeletion() || !e.IsActive()
+                    || e.GetParent() == GetParent())
+                {
+                    continue;
+                }
+
+                // R04：reparent 触发 e._exit_tree，置位防 unbind_enemy 误发信号
+                e.SetRepooling(true);
+                e.Reparent(GetParent());
+                e.SetRepooling(false);
+                // R12：reparent 的 _exit_tree（repooling 路径）会 UnregisterEnemy，而 Reactivate 注册在先——
+                // 回挂后补注册（幂等），与「先 reparent 后 Reactivate 注册」语义对齐。
+                GameState.Instance.RegisterEnemy(e);
+            }
+
+            _pendingActivate.Clear();
         }
     }
 

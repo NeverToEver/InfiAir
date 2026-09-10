@@ -29,6 +29,13 @@ public partial class Mothership : Area2D
     /// RELEASE 出舱 → DEPART 离场（Hud 经 GetStateStay() 按序数比较）。</summary>
     public enum State { DESCEND, DOCKING, RESUPPLY, STAY, RELEASE, DEPART }
 
+    // 输入动作名静态缓存（Player 同款；STAY 驾驶/提前离舰物理帧热路径免字符串字面量逐次转换）
+    private static readonly StringName ActDock = new("dock");
+    private static readonly StringName ActMoveLeft = new("move_left");
+    private static readonly StringName ActMoveRight = new("move_right");
+    private static readonly StringName ActMoveUp = new("move_up");
+    private static readonly StringName ActMoveDown = new("move_down");
+
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     /// <summary>G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）。</summary>
     public float ShipScale { get; private set; } = 1.25f;
@@ -621,7 +628,7 @@ public partial class Mothership : Area2D
                 }
 
                 // 提前离舰：长按 H 2s（蓄力进度条经 HUD 显示，松手清零隐藏）
-                if (Input.IsActionPressed("dock"))
+                if (Input.IsActionPressed(ActDock))
                 {
                     _earlyTimer += d;
                     var hud = Hud();
@@ -770,7 +777,7 @@ public partial class Mothership : Area2D
     /// 玩家机每帧钉在对接点。</summary>
     private void UpdateDrive(float delta)
     {
-        var inputDir = Input.GetVector("move_left", "move_right", "move_up", "move_down");
+        var inputDir = Input.GetVector(ActMoveLeft, ActMoveRight, ActMoveUp, ActMoveDown);
         if (inputDir == Vector2.Zero)
         {
             _driveVel = Vector2.Zero;
@@ -781,7 +788,7 @@ public partial class Mothership : Area2D
         }
 
         Position += _driveVel * delta;
-        var view = GameState.Instance.ViewWorldRect();
+        var view = FrameCache.ViewRect(); // 每物理帧共享缓存（同帧语义一致），替代逐帧直查
         Position = Position.Clamp(
             view.Position + new Vector2(DriveMarginX, DriveMarginTop), view.End - new Vector2(DriveMarginX, DriveMarginBottom));
         if (GodotObject.IsInstanceValid(_player) && !_player.IsDead())

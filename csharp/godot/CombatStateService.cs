@@ -84,7 +84,13 @@ public sealed partial class CombatStateService : RefCounted
     /// <summary>治疗（单点封顶 max_health，调用侧不再各自判断）</summary>
     public void Heal(double amount)
     {
+        var before = Health;
         Health = Mathf.Min(Health + amount, MaxHealth());
+        if (Health == before)
+        {
+            return; // 值未变（满血被动回血逐帧调用）不重复发射，幂等（LoseHealth 同款守卫）
+        }
+
         HealthChanged?.Invoke(Health);
     }
 

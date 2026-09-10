@@ -48,8 +48,8 @@ public partial class AimFrameLayer : Node2D
     private ulong _cacheFrame = ulong.MaxValue;
     private Godot.Collections.Array<Node> _frameEnemies = new();
 
-    /// <summary>U14：meta 键静态缓存（每敌每帧 HasMeta/GetMeta 字符串字面量转换开销）。</summary>
-    private static readonly StringName MetaAimFrameRadius = new("aim_frame_radius");
+    /// <summary>P1-6-8：上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
+    private bool _hadMarked;
 
     public AimFrameLayer()
     {
@@ -130,34 +130,49 @@ public partial class AimFrameLayer : Node2D
 
     public override void _Process(double delta)
     {
+        // P1-6-8：无标记敌常态跳过扫描+重绘（原每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
+        // 归零当帧补一次重绘清残框
+        if (Enemy.AimMarkedCount == 0)
+        {
+            _hover = null;
+            if (_hadMarked)
+            {
+                _hadMarked = false;
+                QueueRedraw();
+            }
+
+            return;
+        }
+
+        _hadMarked = true;
         var p = CachedPlayer();
         _hover = p != null ? MarkedTargetAt(p.AimPoint()) : null;
         QueueRedraw();
     }
 
-    /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 写入 meta）+ frame_pad
+    /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 缓存进 Enemy.AimFrameRadius）+ frame_pad
     /// A7：诊断白盒断言经公开接口。</summary>
     public float FrameHalfSize(Enemy e)
     {
-        // C23：碰撞半径经 meta 缓存——setup 后恒定（仅 scale.x 随缩放变化），
+        // C23：碰撞半径缓存放 Enemy 实例字段——setup 后恒定（仅 scale.x 随缩放变化），
         // 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
         // 2026-08-03 审计：meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
         //（scale.x 同样含 ws，再乘即 ws 平方，0.5 钳制恰好掩盖；ws 上调时框尺寸非线性暴涨）
-        // U14：meta 键静态 StringName 缓存（每敌每帧 HasMeta/GetMeta 字符串字面量转换开销）
-        var r = 0.0f;
-        if (!e.HasMeta(MetaAimFrameRadius))
+        // P1-6-8：meta HasMeta/GetMeta 改实例字段直读（每敌每扫描 ×3 路）
+        var r = e.AimFrameRadius;
+        if (r < 0.0f)
         {
+            // 未经 setup 的兼容路径：回退读碰撞形状并回填（原 meta 缺键回退同款语义）
             var shapeNode = e.GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
-            var rBase = 0.0f;
-            if (shapeNode != null && shapeNode.Shape is CircleShape2D)
+            r = 0.0f;
+            if (shapeNode != null && shapeNode.Shape is CircleShape2D circle)
             {
-                rBase = ((CircleShape2D)shapeNode.Shape).Radius;
+                r = circle.Radius;
             }
 
-            e.SetMeta(MetaAimFrameRadius, rBase);
+            e.AimFrameRadius = r;
         }
 
-        r = (float)e.GetMeta(MetaAimFrameRadius).AsDouble();
         return r + _framePad;
     }
 
@@ -169,6 +184,12 @@ public partial class AimFrameLayer : Node2D
     /// 2026-08-07 起按帧共享帧首结果，见字段注释）。</summary>
     public Enemy? MarkedTargetAt(Vector2 point)
     {
+        // P1-6-8：零标记早退（外部调用方不经 _Process 门控）
+        if (Enemy.AimMarkedCount == 0)
+        {
+            return null;
+        }
+
         var frame = Engine.GetProcessFrames();
         if (frame == _targetCacheFrame)
         {
@@ -212,7 +233,8 @@ public partial class AimFrameLayer : Node2D
     public Vector2 MagnetPull(Vector2 point, Vector2 inputDelta)
     {
         var ilen = inputDelta.Length();
-        if (ilen < _magnetInputMin || ilen >= _magnetInputFull)
+        // P1-6-8：零标记早退（省整表扫描）
+        if (ilen < _magnetInputMin || ilen >= _magnetInputFull || Enemy.AimMarkedCount == 0)
         {
             return Vector2.Zero;
         }
@@ -270,6 +292,12 @@ public partial class AimFrameLayer : Node2D
     /// 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。</summary>
     public Enemy? NearestConeTarget(Vector2 origin, Vector2 aimDir, float coneCos)
     {
+        // P1-6-8：零标记早退
+        if (Enemy.AimMarkedCount == 0)
+        {
+            return null;
+        }
+
         Enemy? best = null;
         var bestD = float.PositiveInfinity;
         var arr = CachedEnemies();

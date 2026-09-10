@@ -109,12 +109,14 @@ public partial class MetaHealthFX : CanvasLayer
     private float _adaptMax;
     private float _adaptBulletWeight;
     private float _adaptExplosionWeight;
+    private float[] _crackDensityCaps = null!; // crack_density 数组同族字段化（原 _Process 每帧字典查找 + Variant 数组转换）
     private int _lod;
     private float _adaptTimer;
     private float _adaptGain = 1.0f;
     private bool _fieldReady;
     private Texture2D _fieldTex = null!;
     private bool _forceRefresh; // 减少闪光切换等外部态变化时强制刷新一帧
+    private Hud? _hudCache; // A5 同族：HUD 延迟缓存（DYING 心跳 meta_jitter 直调用）
     // 诊断计数（§7 验收口径）：per-frame 参数上传次数 / 早退命中次数
     private int _uploadCount;
     private int _earlyOutCount;
@@ -319,8 +321,9 @@ public partial class MetaHealthFX : CanvasLayer
 
     private void LoadCfg()
     {
+        _crackDensityCaps = LoadDensityCaps(); // 字段化缓存（热路径直读 float[]）
         var densityCaps = new Godot.Collections.Array();
-        foreach (var d in LoadDensityCaps())
+        foreach (var d in _crackDensityCaps)
         {
             densityCaps.Add(d);
         }
@@ -417,6 +420,18 @@ public partial class MetaHealthFX : CanvasLayer
     private float CfgFloat(string key)
     {
         return _cfg[key].AsSingle();
+    }
+
+    /// <summary>A5 同族（Mothership 模式）：HUD 延迟缓存——hud 组仅 Hud 单节点（main.tscn 固定层，
+    /// 生命周期内恒定）；IsInstanceValid 守卫，缓存失效重新查找。替代 CallGroup 字符串派发。</summary>
+    private Hud? Hud()
+    {
+        if (!GodotObject.IsInstanceValid(_hudCache))
+        {
+            _hudCache = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        }
+
+        return _hudCache;
     }
 
     private int StateForX(float x)
@@ -580,7 +595,7 @@ public partial class MetaHealthFX : CanvasLayer
                 GameState.Instance.PlaySfx(SfxId.Heartbeat); // D7：单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
                 {
-                    GetTree().CallGroup("hud", "meta_jitter", _jitterPx); // D9
+                    Hud()?.MetaJitter(_jitterPx); // D9（A5 同族：缓存直调替代 CallGroup 字符串派发）
                 }
             }
 
@@ -643,8 +658,7 @@ public partial class MetaHealthFX : CanvasLayer
 
         var blur = _blurStrength * pulse;
         var rippleOn = _rippleT <= 1.0f;
-        var caps = _cfg["crack_density"].AsGodotArray();
-        var density = caps[Mathf.Min(_state, caps.Count - 1)].AsSingle();
+        var density = _crackDensityCaps[Mathf.Min(_state, _crackDensityCaps.Length - 1)]; // 字段化（LoadCfg 一次性缓存，免每帧字典 + Variant 数组转换）
         if (!_fieldReady)
         {
             density = 0.0f; // 距离场未烘焙完成前不出裂纹（避免空采样全屏闪）

@@ -51,6 +51,14 @@ public partial class Main : Node2D
     private AudioStreamPlayer? _bgmPlayer;
     private float _dockCooldown;
     private Mothership? _mothership;
+    /// <summary>坞态文本缓存（2026-09-10：HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
+    /// 免每轮 Tr/GdFormat 分配；母舰态文本由状态机自驱、输入不可廉价观测，不缓存）。</summary>
+    private enum DockTextBranch { None, Charging, SummonWindow, Mothership, Cooldown, Ready }
+
+    private DockTextBranch _dockTextBranch = DockTextBranch.None;
+    private int _dockTextArg = -1;
+    private string _dockTextLocale = "";
+    private string _dockTextCached = "";
     private bool _charging;
     private float _chargeTime;
     private Mothership _chargeGhost = null!;
@@ -798,27 +806,62 @@ public partial class Main : Node2D
     /// <summary>母舰状态文本（HUD 轮询）</summary>
     public string DockStatusText()
     {
+        // 2026-09-10：0.1s 轮询缓存——分支/取整参数/语言未变直接复用上次结果
+        var locale = GameState.Instance.Locale;
         if (_charging)
         {
-            return GdFormat.Format((string)Tr("MS_CHARGING"), (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f));
+            var pct = (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f);
+            if (_dockTextBranch != DockTextBranch.Charging || _dockTextArg != pct || _dockTextLocale != locale)
+            {
+                _dockTextBranch = DockTextBranch.Charging;
+                _dockTextArg = pct;
+                _dockTextLocale = locale;
+                _dockTextCached = GdFormat.Format((string)Tr("MS_CHARGING"), pct);
+            }
+
+            return _dockTextCached;
         }
 
         if (_summonWindow != null)
         {
-            return Tr("MS_DESCEND");
+            if (_dockTextBranch != DockTextBranch.SummonWindow || _dockTextLocale != locale)
+            {
+                _dockTextBranch = DockTextBranch.SummonWindow;
+                _dockTextLocale = locale;
+                _dockTextCached = Tr("MS_DESCEND");
+            }
+
+            return _dockTextCached;
         }
 
         if (_mothership != null)
         {
+            _dockTextBranch = DockTextBranch.Mothership; // 不缓存（母舰状态机自驱，输入不可廉价观测）
             return _mothership.StateText();
         }
 
         if (_dockCooldown > 0.0f)
         {
-            return GdFormat.Format((string)Tr("MS_COOLDOWN"), Mathf.CeilToInt(_dockCooldown));
+            var cd = Mathf.CeilToInt(_dockCooldown);
+            if (_dockTextBranch != DockTextBranch.Cooldown || _dockTextArg != cd || _dockTextLocale != locale)
+            {
+                _dockTextBranch = DockTextBranch.Cooldown;
+                _dockTextArg = cd;
+                _dockTextLocale = locale;
+                _dockTextCached = GdFormat.Format((string)Tr("MS_COOLDOWN"), cd);
+            }
+
+            return _dockTextCached;
         }
 
-        return Tr("MS_READY");
+        if (_dockTextBranch != DockTextBranch.Ready || _dockTextLocale != locale)
+        {
+            _dockTextBranch = DockTextBranch.Ready;
+            _dockTextLocale = locale;
+            _dockTextCached = Tr("MS_READY");
+        }
+
+        return _dockTextCached;
     }
 
     /// <summary>召唤序列（蓄力完成）：锁输入 + 事件驱动无敌（演出期对局不暂停，保护窗口与

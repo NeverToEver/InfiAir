@@ -10,6 +10,9 @@ namespace InfiAir;
 /// 随可见区平移，回绕同基线）；R07 判型 + 非负钳制保持。
 /// 视觉增厚（2026-09）：星云贴图双层（确定性程序化生成，灰度能量场 modulate 染色）+
 /// 亮星层（软点贴图、逐星色温/闪烁相位）+ 低频流星；全部一次性建缓存，绘制零分配。
+/// P1-5（2026-09-10）：星云 _Draw 3×3×2 = 18 次 DrawTextureRect（≈8.8 屏/帧混合填充）
+/// → 单全屏精灵 + canvas_item shader（GPU repeat 平铺，1 draw、1 屏/帧；相位/tint/混合序
+/// 逐位还原，见 starfield_nebula.gdshader 头注）。
 /// </summary>
 public partial class Starfield : Node2D
 {
@@ -42,10 +45,15 @@ public partial class Starfield : Node2D
         new(1.0f, 0.80f, 0.55f),  // 琥珀
     };
 
-    // ---- 星云层：一张灰度能量场贴图、2×2 平铺滚动（环面无缝），双色 tint 错半格 ----
+    // ---- 星云层：一张灰度能量场贴图（环面无缝），紫/青双色 tint 错半格滚动 ----
+    private const float NebulaTexSize = 768.0f; // 贴图边长（NebulaTexture 实参，平铺相位换算用）
     private Texture2D? _nebulaTex;
     private Texture2D? _starTex;
     private float _nebulaScroll;
+    // P1-5：星云全屏精灵材质（精灵本体 _Ready 建为子节点由树持有，无需字段；每帧仅 1 个相位 uniform）
+    private ShaderMaterial? _nebulaMat;
+    private float _nebulaTileY = 1.0f; // 平铺世界高（= 区域高 ×0.7），滚动回绕基线
+    private static readonly StringName UNebulaPhase = new("phase_off");
 
     // ---- 流星：低频装饰（GD.Randf 运行时随机，非 gameplay 元素允许） ----
     private bool _meteorActive;
@@ -160,8 +168,29 @@ public partial class Starfield : Node2D
         }
 
         // 星云/亮星贴图一次性构建（灰度能量场 + 软点），实例字段持有（C# 静态禁持 Godot 对象规则）
-        _nebulaTex = CinematicFx.NebulaTexture(768, 20260907);
+        _nebulaTex = CinematicFx.NebulaTexture((int)NebulaTexSize, 20260907);
         _starTex = CinematicFx.SoftTexture();
+
+        // P1-5：星云改单全屏精灵（repeat 平铺 + 相位 shader），替代 _Draw 18 次 DrawTextureRect；
+        // ShowBehindParent 保持星云在星点之下；alpha≈0 整层不建（同原早退门槛）
+        if (_nebulaTex != null && _nebulaAlpha > 0.001f)
+        {
+            _nebulaTileY = _areaSize.Y * 0.7f;
+            _nebulaMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/starfield_nebula.gdshader") };
+            _nebulaMat.SetShaderParameter("purple", new Color(0.45f, 0.32f, 0.68f, _nebulaAlpha));
+            _nebulaMat.SetShaderParameter("teal", new Color(0.22f, 0.45f, 0.58f, _nebulaAlpha * 0.7f));
+            var nebula = new Sprite2D
+            {
+                Texture = _nebulaTex,
+                Centered = false,
+                Position = _origin,
+                Scale = _areaSize / NebulaTexSize, // 贴图铺满可见区域（UV 0..1 ↔ 区域）
+                TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled,
+                ShowBehindParent = true,
+                Material = _nebulaMat,
+            };
+            AddChild(nebula);
+        }
     }
 
     public override void _Process(double delta)
@@ -198,6 +227,8 @@ public partial class Starfield : Node2D
 
         // 星云缓慢下卷（Warp 时同步加速）；亮星 1.35× 近层速度（更近的视差层）
         _nebulaScroll += 12.0f * WarpFactor * d;
+        // P1-5：星云相位单 uniform（x 偏 0.15 格；y = 1 − PosMod(scroll, tile)/tile，同原回绕基线）
+        _nebulaMat?.SetShaderParameter(UNebulaPhase, new Vector2(0.15f, 1.0f - Mathf.PosMod(_nebulaScroll, _nebulaTileY) / _nebulaTileY));
         var brightSpeed = _nearSpeed * 1.35f * WarpFactor;
         for (int i = 0; i < _bright.Length; i++)
         {
@@ -239,24 +270,7 @@ public partial class Starfield : Node2D
 
     public override void _Draw()
     {
-        // 星云底：2×2 平铺（tile = 区域 0.7），紫/青双色 tint 各错半格叠 depth；滚动回绕同星空基线
-        if (_nebulaTex != null && _nebulaAlpha > 0.001f)
-        {
-            var tile = _areaSize * 0.7f;
-            var off = Mathf.PosMod(_nebulaScroll, tile.Y);
-            var purple = new Color(0.45f, 0.32f, 0.68f, _nebulaAlpha);
-            var teal = new Color(0.22f, 0.45f, 0.58f, _nebulaAlpha * 0.7f);
-            for (var gy = -1; gy <= 1; gy++)
-            {
-                for (var gx = -1; gx <= 1; gx++)
-                {
-                    var basePos = _origin + new Vector2(gx * tile.X - tile.X * 0.15f, gy * tile.Y + off - tile.Y);
-                    DrawTextureRect(_nebulaTex, new Rect2(basePos, tile), false, purple);
-                    var tealPos = basePos + new Vector2(tile.X * 0.5f, tile.Y * 0.5f);
-                    DrawTextureRect(_nebulaTex, new Rect2(tealPos, tile), false, teal);
-                }
-            }
-        }
+        // P1-5：星云底已迁至全屏精灵（_Ready 建，ShowBehindParent 绘于本节点星点之下）
 
         // P1-4：每层单条 draw_multiline 合批（230 条绘制指令 → 2 条）；线宽对应原圆直径
         DrawMultiline(_farLines, new Color(0.7f, 0.75f, 0.9f, 0.6f), 3.0f);

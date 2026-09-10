@@ -137,8 +137,8 @@
 				"score": 100,
 				"fire": 0.25,
 				"fire_interval": 2.2,
-				"scale": 0.62,
-				"radius": 34
+				"scale": 0.80,
+				"radius": 41
 			},
 			{
 				"hp": [
@@ -152,8 +152,8 @@
 				"score": 150,
 				"fire": 0.3,
 				"fire_interval": 2.4,
-				"scale": 0.62,
-				"radius": 34
+				"scale": 0.80,
+				"radius": 41
 			},
 			{
 				"hp": [
@@ -167,8 +167,8 @@
 				"score": 200,
 				"fire": 0.4,
 				"fire_interval": 2,
-				"scale": 0.68,
-				"radius": 38
+				"scale": 0.88,
+				"radius": 46
 			},
 			{
 				"hp": [
@@ -182,8 +182,8 @@
 				"score": 250,
 				"fire": 0.8,
 				"fire_interval": 1.8,
-				"scale": 0.62,
-				"radius": 34
+				"scale": 0.80,
+				"radius": 41
 			},
 			{
 				"hp": [
@@ -197,8 +197,8 @@
 				"score": 220,
 				"fire": 0.3,
 				"fire_interval": 2.2,
-				"scale": 0.66,
-				"radius": 36
+				"scale": 0.86,
+				"radius": 43
 			}
 		],
 		"speed_ramp_factor": 0.1,
@@ -259,8 +259,8 @@
 				"score": 400,
 				"fire": 0.5,
 				"fire_interval": 2.2,
-				"scale": 0.9,
-				"radius": 38
+				"scale": 1.15,
+				"radius": 46
 			},
 			{
 				"hp": [
@@ -274,8 +274,8 @@
 				"score": 350,
 				"fire": 0.6,
 				"fire_interval": 2,
-				"scale": 0.68,
-				"radius": 34
+				"scale": 0.88,
+				"radius": 41
 			},
 			{
 				"hp": [
@@ -289,8 +289,8 @@
 				"score": 500,
 				"fire": 1,
 				"fire_interval": 1.5,
-				"scale": 0.78,
-				"radius": 38
+				"scale": 1.0,
+				"radius": 46
 			},
 			{
 				"hp": [
@@ -304,8 +304,8 @@
 				"score": 550,
 				"fire": 0.7,
 				"fire_interval": 1.8,
-				"scale": 1.0,
-				"radius": 42
+				"scale": 1.28,
+				"radius": 50
 			}
 		]
 	},

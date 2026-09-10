@@ -20,6 +20,10 @@ public partial class Bullet : Area2D
     /// 本类 ApplyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
     internal static readonly StringName MetaBulletType = new("bullet_type");
 
+    /// <summary>P1-6-3：组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，MetaBulletType 同款）。</summary>
+    private static readonly StringName GroupEnemy = new("enemy");
+    private static readonly StringName GroupPlayerHitbox = new("player_hitbox");
+
     /// <summary>R07 访问器（供 Player 擦弹环形带判定等调用方读取；常量唯一事实源不变）。</summary>
     public static float GetCollisionRadius() => CollisionRadius;
 
@@ -67,6 +71,10 @@ public partial class Bullet : Area2D
     private bool _repooling;
     private Godot.Timer? _graceTimer;
     private Area2D? _graceHitbox;
+    /// <summary>宽限入口位（相对命中框圆心；玩家移动经两端同减圆心自然抵消）——离场穿核判定用。</summary>
+    private Vector2 _graceEntryRel;
+    /// <summary>命中框核心半径缓存（= 形状半径，已含 world_scale；&lt;0 未读）。</summary>
+    private float _graceHitboxR = -1.0f;
     private bool _grazeDone;
     private Sprite2D? _sprite;
 
@@ -153,17 +161,8 @@ public partial class Bullet : Area2D
         }
 
         CancelGrace();
-        CallDeferred(MethodName.DeferredDisableMonitoring);
-    }
-
-    /// <summary>物理回调内不能直改 monitoring，延迟到帧末；若已被重激活（同帧复用）则跳过。
-    /// public：CallDeferred 需引擎注册。</summary>
-    public void DeferredDisableMonitoring()
-    {
-        if (!_active)
-        {
-            Monitoring = false;
-        }
+        // P1-6-1：monitoring 关闭并入 BulletPool._Process 帧末批量停放（原 CallDeferred 逐弹一条，
+        // 高频火力下原生消息队列 Variant 编组开销；idle 帧处理同样处于物理回调外，语义不变）
     }
 
     /// <summary>对象池协调的内部状态封装（A1 修复，禁止跨类直写 _ 私有字段）。</summary>
@@ -289,10 +288,13 @@ public partial class Bullet : Area2D
                     if (dist > 0.0f)
                     {
                         // 距离越近转向越急：螺旋收敛
+                        // P1-6-4：AngleTo 一次 atan2 直接得带符号角差，角度空间线性推进
+                        // ≡ LerpAngle(from, to, t)（= from + wrap差*t）；Rotation 与 Direction 恒同步
+                        // （所有写入点成对赋值），以 Rotation 累进替代再次取角，省第二次 atan2
                         var rate = HomingTurnRate * (1.0f + HomingSnapRadius * 2.0f / dist);
-                        var targetAngle = Mathf.LerpAngle(Direction.Angle(), toTarget.Angle(), rate * d);
-                        Direction = Vector2.Right.Rotated(targetAngle);
-                        Rotation = targetAngle;
+                        var newAngle = Rotation + Direction.AngleTo(toTarget) * (rate * d);
+                        Direction = Vector2.Right.Rotated(newAngle);
+                        Rotation = newAngle;
                     }
                 }
             }
@@ -304,8 +306,9 @@ public partial class Bullet : Area2D
             if (playerRef != null)
             {
                 var playerNode = (Node2D)playerRef;
-                var newAngle = Mathf.LerpAngle(
-                    Direction.Angle(), (playerNode.GlobalPosition - GlobalPosition).Angle(), HomingTurnRate * d);
+                // P1-6-4：同上——AngleTo 单 atan2 + Rotation 累进，等价原 LerpAngle 双 atan2 链
+                var newAngle = Rotation
+                    + Direction.AngleTo(playerNode.GlobalPosition - GlobalPosition) * (HomingTurnRate * d);
                 Direction = Vector2.Right.Rotated(newAngle);
                 Rotation = newAngle;
             }
@@ -375,7 +378,7 @@ public partial class Bullet : Area2D
 
         if (IsPlayerBullet)
         {
-            if (area.IsInGroup("enemy"))
+            if (area.IsInGroup(GroupEnemy))
             {
                 // crit_shot 暴击：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
                 var hitDamage = Damage;
@@ -414,20 +417,41 @@ public partial class Bullet : Area2D
                 }
             }
         }
-        else if (area.IsInGroup("player_hitbox"))
+        else if (area.IsInGroup(GroupPlayerHitbox))
         {
-            // 机制一：受击宽限帧——进入 Hitbox 不立即结算，窗口内离开视为擦过不计伤
+            // 机制一：受击宽限帧——进入 Hitbox 不立即结算；窗口内擦边离场免伤，贯穿核心仍结算（见 OnAreaExited）
             StartGraceCheck(area);
         }
     }
 
-    /// <summary>机制一：弹离开玩家 Hitbox（窗口内擦过）→ 取消宽限 Timer，不计伤。</summary>
+    /// <summary>机制一：弹离开玩家 Hitbox——擦边入框（轨迹最近距 &gt; 核心半径）窗口内离场 = 免伤；
+    /// 贯穿核心（视觉直击）则结算。2026-09-10 修复：敌弹 420px/s 穿越 2.8px 核心仅 ~25ms，
+    /// 必在 0.05s 宽限内离场，原「离场即 CancelGrace」使直击永不结算（玩家对弹近乎无敌）。</summary>
     private void OnAreaExited(Area2D area)
     {
-        if (area.IsInGroup("player_hitbox"))
+        if (!area.IsInGroup(GroupPlayerHitbox))
+        {
+            return;
+        }
+
+        if (_graceHitbox == area && _graceTimer != null && !_graceTimer.IsStopped()
+            && SegmentClosestToOrigin(_graceEntryRel, GlobalPosition - area.GlobalPosition) <= _graceHitboxR)
         {
             CancelGrace();
+            SettleHit();
+            return;
         }
+
+        CancelGrace();
+    }
+
+    /// <summary>点到原点距离（弹心相对轨迹段 ab 与命中框圆心最近距；事件率，开方可接受）。</summary>
+    private static float SegmentClosestToOrigin(Vector2 a, Vector2 b)
+    {
+        var ab = b - a;
+        var lenSq = ab.LengthSquared();
+        var t = lenSq > 0.0f ? Mathf.Clamp(-a.Dot(ab) / lenSq, 0.0f, 1.0f) : 0.0f;
+        return (a + ab * t).Length();
     }
 
     /// <summary>机制一：启动宽限窗口（事件驱动；一次性 Timer 挂子弹下随场景释放）。</summary>
@@ -439,6 +463,15 @@ public partial class Bullet : Area2D
         }
 
         _graceHitbox = hitbox;
+        // 穿核判定采样：入口相对位 + 核心半径（形状半径已含 world_scale，见 Player _hitboxRadius）
+        _graceEntryRel = GlobalPosition - hitbox.GlobalPosition;
+        if (_graceHitboxR < 0.0f)
+        {
+            _graceHitboxR = hitbox.GetNodeOrNull<CollisionShape2D>("CollisionShape2D")?.Shape is CircleShape2D c
+                ? c.Radius
+                : 2.8f; // 兜底 = 7×0.4 设计值
+        }
+
         if (_graceTimer == null)
         {
             _graceTimer = new Godot.Timer { OneShot = true };
@@ -474,7 +507,13 @@ public partial class Bullet : Area2D
             return;
         }
 
-        // 既有受击结算链路（含无敌/闪避/单帧守卫、受击清弹、致死高亮）
+        SettleHit();
+    }
+
+    /// <summary>受击结算（宽限到期仍在框内 / 离场穿核两路径共用）：
+    /// 既有链路含无敌/闪避/单帧守卫、受击清弹、致死高亮。</summary>
+    private void SettleHit()
+    {
         var pRef = GameState.Instance.PlayerRef;
         if (pRef == null)
         {

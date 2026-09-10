@@ -813,21 +813,22 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public float EscapeDriftOffset() => _survival >= EscapeTime - EscapeWarning ? _escapeDriftOffset : 0.0f;
 
     /// <summary>
-    /// 战斗锚线 y：FIGHT_Y 为距可见区域顶缘的偏移，调用时实时取 view 基线
-    /// （与 StrafeRange() 边距处理对齐；zoom=1 时 view.position.y=0，锚线 = FIGHT_Y 本身）。
-    /// 注：此处不缓存——view_zoom_test 同帧切换视角档并做精确相等断言，必须实时读。
+    /// 战斗锚线 y：FIGHT_Y 为距可见区域顶缘的偏移（与 StrafeRange() 边距处理对齐；
+    /// zoom=1 时 view.position.y=0，锚线 = FIGHT_Y 本身）。
+    /// FrameCache 每物理帧共享缓存：原「不缓存」仅为 view_zoom_test 同帧精确断言，
+    /// 测试套件 2026-09-09 已全量移除；运行时 zoom 仅经设置页信号切换，物理帧内不变。
     /// </summary>
-    public float FightAnchorY() => GameState.Instance.ViewWorldRect().Position.Y + FightY;
+    public float FightAnchorY() => FrameCache.ViewRect().Position.Y + FightY;
 
     /// <summary>
     /// 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）。
     /// 右缘边距 = 设计宽 1920 − STRAFE_MAX_X = 300px，随 view.end.x 平移保持（view_zoom_test
     /// 断言 large 档 hi = view.end.x − 300；2026-08-05 P4 复核后保留原语义，1920 为设计宽度常量）。
-    /// 实时读 view（见 FightAnchorY 注释）。
+    /// FrameCache 帧缓存读 view（见 FightAnchorY 注释）。
     /// </summary>
     public Vector2 StrafeRange()
     {
-        var view = GameState.Instance.ViewWorldRect();
+        var view = FrameCache.ViewRect();
         var lo = view.Position.X + StrafeMinX;
         var hi = Mathf.Max(view.End.X - (1920.0f - StrafeMaxX), lo);
         return new Vector2(lo, hi);

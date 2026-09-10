@@ -20,6 +20,8 @@ public partial class AimCrosshair : Node2D
     private static readonly float[] SignValues = { -1.0f, 1.0f };
 
     private Player? _player;
+    /// <summary>P1-6-9：SceneTree 缓存（原 _Process 每帧 GetTree() 原生往返取 Paused）。</summary>
+    private SceneTree? _tree;
 
     /// <summary>Player._load_balance 在 add_child 前调用（top_level 需入树前置位）。</summary>
     public void Init(Player p)
@@ -28,6 +30,11 @@ public partial class AimCrosshair : Node2D
         TopLevel = true;
         ZIndex = 10;  // 世界实体之上（辅助框层 9、敌机/子弹 0），CanvasLayer HUD 之下
         ProcessMode = Node.ProcessModeEnum.Always;  // 暂停态也要能切回系统光标并隐藏准星
+    }
+
+    public override void _Ready()
+    {
+        _tree = GetTree();
     }
 
     public override void _ExitTree()
@@ -42,7 +49,7 @@ public partial class AimCrosshair : Node2D
     public override void _Process(double delta)
     {
         var active = _player != null
-            && !GetTree().Paused
+            && _tree is { Paused: false }
             && !_player.IsDead()
             && !_player.IsInputLocked();
         if (active)

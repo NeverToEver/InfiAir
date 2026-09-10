@@ -1046,6 +1046,9 @@ public partial class Player : CharacterBody2D
     /// padding（语义区别于 Enemy/Boss 的出屏离场判定余量）。</summary>
     private const float ViewClampInset = 40.0f;
 
+    /// <summary>准星钳制内边距（px）：仅防 bracket 半幅画出窗外，与移动钳制的「留在场内」语义不同。</summary>
+    private const float AimClampInset = 4.0f;
+
     /// <summary>给定视野的屏幕边缘钳制（_PhysicsProcess 复用帧内已取视野，免重复 Instance/ViewWorldRect）。</summary>
     private static Vector2 ClampToView(Vector2 p, Rect2 view)
     {
@@ -1053,7 +1056,8 @@ public partial class Player : CharacterBody2D
         return p.Clamp(view.Position + inset, view.End - inset);
     }
 
-    /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先，否则平滑鼠标位置（每渲染帧推进一次）。</summary>
+    /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先；
+    /// 键鼠/手柄下准星与系统光标逐像素绑定（2026-09-10 重设计，见内注）；触屏保持差值累积平滑。</summary>
     public Vector2 AimPoint()
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
@@ -1068,16 +1072,18 @@ public partial class Player : CharacterBody2D
             var raw = GetGlobalMousePosition();
             // U14：VirtualControls 已 C#，typed 直调（原每渲染帧动态派发 + Variant 装箱）
             var vc = GameState.Instance.VirtualControls as VirtualControls;
-            if (vc != null && vc.IsEnabled())
+            var touch = vc != null && vc.IsEnabled();
+            if (touch)
             {
-                raw = vc.BaseAimPosition();
+                raw = vc!.BaseAimPosition();
             }
 
             // H01：右摇杆虚拟准星（四向独立动作，差值驱动）
+            var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
             if (joy.LengthSquared() > 0.01f)
             {
-                raw += joy * _aimJoySpeed * (float)GetProcessDeltaTime();
+                joyDelta = joy * _aimJoySpeed * (float)GetProcessDeltaTime();
             }
 
             var factor = 1.0f;
@@ -1096,8 +1102,32 @@ public partial class Player : CharacterBody2D
                 }
             }
 
-            _aimSmooth = !_aimInitialized ? raw : _aimSmooth + (raw - _aimLastRaw) * factor + magnet;
-            _aimLastRaw = raw;
+            if (touch)
+            {
+                // 触屏：无系统光标可绑，保持差值累积（粘滞/磁吸作用于平滑点）
+                var touchRaw = raw + joyDelta;
+                _aimSmooth = !_aimInitialized ? touchRaw : _aimSmooth + (touchRaw - _aimLastRaw) * factor + magnet;
+                _aimLastRaw = touchRaw;
+            }
+            else
+            {
+                // 键鼠/手柄准星-光标绑定：物理增量（raw − _aimLastRaw）全量通过，粘滞(factor<1)/
+                // 磁吸/摇杆偏移经 Viewport.WarpMouse 反写真实光标，下一帧 raw 即新锚点——准星永不
+                // 脱钩（原差值累积下准星与光标解耦，光标顶到屏幕边缘后物理增量归零、准星看似卡死）；
+                // 目标钳制在可视世界域内（视角档自适应），准星/光标均不出窗。
+                var desired = !_aimInitialized ? raw : _aimSmooth + (raw - _aimLastRaw) * factor + magnet + joyDelta;
+                var view = GameState.Instance.ViewWorldRect();
+                var inset = new Vector2(AimClampInset, AimClampInset);
+                desired = desired.Clamp(view.Position + inset, view.End - inset);
+                if ((desired - raw).LengthSquared() > 0.25f)
+                {
+                    GetViewport().WarpMouse(GetCanvasTransform() * desired);
+                }
+
+                _aimSmooth = desired;
+                _aimLastRaw = desired;
+            }
+
             _aimInitialized = true;
         }
 

@@ -218,6 +218,9 @@ public partial class LaserWeapon : Node2D
     private void DamageTick(Vector2 start, Vector2 end)
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        // P1-6-5：平方距离比较免每敌 sqrt（Bullet.Explode 的 radiusSq 同口径）
+        var hitRadiusSq = BeamHalfWidth + EnemyHitRadius;
+        hitRadiusSq *= hitRadiusSq;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
@@ -226,7 +229,7 @@ public partial class LaserWeapon : Node2D
                 continue;
             }
 
-            if (DistToSegment(n2d.GlobalPosition, start, end) <= BeamHalfWidth + EnemyHitRadius)
+            if (DistToSegmentSq(n2d.GlobalPosition, start, end) <= hitRadiusSq)
             {
                 // 激光路径不传 ScoreScale——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同）。
                 EntityDamage.Dispatch(n2d, TickDamage);
@@ -234,11 +237,11 @@ public partial class LaserWeapon : Node2D
         }
     }
 
-    /// <summary>点到线段距离（静态纯函数）。</summary>
-    private static float DistToSegment(Vector2 p, Vector2 a, Vector2 b)
+    /// <summary>点到线段距离平方（静态纯函数；P1-6-5：配合 hitRadiusSq 平方比较，调用方免开方）。</summary>
+    private static float DistToSegmentSq(Vector2 p, Vector2 a, Vector2 b)
     {
         var ab = b - a;
         var t = Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0.0f, 1.0f);
-        return (p - (a + ab * t)).Length();
+        return (p - (a + ab * t)).LengthSquared();
     }
 }

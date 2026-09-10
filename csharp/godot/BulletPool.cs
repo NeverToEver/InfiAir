@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace InfiAir;
@@ -16,6 +17,11 @@ public partial class BulletPool : Node
     public const int MaxEnemyActive = 500;
 
     private readonly Godot.Collections.Array<Bullet> _free = new();
+
+    /// <summary>P1-6-1：待停放队列——Release 入队，_Process（idle 帧，物理回调外）批量
+    /// 关 monitoring + 回挂池节点，替代原每弹 2 条 CallDeferred（Deactivate 一条 + 本类
+    /// ReparentDeferred 一条）的原生消息队列 Variant 编组开销。</summary>
+    private readonly List<Bullet> _pendingPark = new();
 
     public override void _Ready()
     {
@@ -82,8 +88,8 @@ public partial class BulletPool : Node
     }
 
     /// <summary>
-    /// 回收：重置状态并移回池节点下（不销毁）。reparent 延迟到空闲时执行（物理回调内不
-    /// 改场景树）；若子弹在延迟执行前已被重激活（同帧复用）则跳过。幂等。
+    /// 回收：重置状态并入队待停放（不销毁）。monitoring 关闭与 reparent 由 _Process 帧末批量执行
+    /// （物理回调内不改场景树）；若子弹在批量执行前已被重激活（同帧复用）则跳过。幂等。
     /// H2（2026-08-10 审计）：幂等守卫改 IsActive O(1)——Deactivate 必置 false（本方法是
     /// Deactivate 唯一调用方），与 _free.Contains 线性扫描等价且免 O(n)。
     /// </summary>
@@ -96,19 +102,38 @@ public partial class BulletPool : Node
 
         b.Deactivate();
         _free.Add(b);
-        CallDeferred(MethodName.ReparentDeferred, b);
+        _pendingPark.Add(b);
     }
 
-    /// <summary>延迟 reparent（物理回调内不直接改场景树）。public：CallDeferred 需引擎注册。</summary>
-    public void ReparentDeferred(Bullet b)
+    /// <summary>P1-6-1：帧末批量停放（idle _Process 处于物理回调外，与原 CallDeferred 同帧末语义）。
+    /// IsActive 仲裁同原 ReparentDeferred/DeferredDisableMonitoring——同帧重激活的弹跳过；
+    /// 待帧末删除的弹跳过（原 deferred 路径由引擎静默丢弃）。</summary>
+    public override void _Process(double delta)
     {
-        if (GodotObject.IsInstanceValid(b) && !b.IsActive())
+        if (_pendingPark.Count == 0)
         {
-            // 4.6 实测 reparent 会触发 b._exit_tree，置位防 forget 把子弹误清出 _free
-            b.SetRepooling(true);
-            b.Reparent(this);
-            b.SetRepooling(false);
+            return;
         }
+
+        for (var i = 0; i < _pendingPark.Count; i++)
+        {
+            var b = _pendingPark[i];
+            if (!GodotObject.IsInstanceValid(b) || b.IsQueuedForDeletion() || b.IsActive())
+            {
+                continue;
+            }
+
+            b.Monitoring = false;
+            if (b.GetParent() != this)
+            {
+                // 4.6 实测 reparent 会触发 b._exit_tree，置位防 forget 把子弹误清出 _free
+                b.SetRepooling(true);
+                b.Reparent(this);
+                b.SetRepooling(false);
+            }
+        }
+
+        _pendingPark.Clear();
     }
 
     /// <summary>子弹被外部 queue_free（清场等池外销毁路径）时从池清单移除，防止悬空引用。</summary>

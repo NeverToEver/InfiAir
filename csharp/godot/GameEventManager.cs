@@ -86,10 +86,18 @@ public partial class GameEventManager : Node
     /// <summary>V 系列：空 StringName 复用（原多处 `new StringName()` 每帧构造，native 引用计数分配）。</summary>
     private static readonly StringName EmptyId = new();
 
-    /// <summary>V 系列：遭遇配置缓存（注册时固化内层字典引用——消除 Tick 每帧空字典分配 +
-    /// AsGodotDictionary cast；引用而非值：外部直写 ENCOUNTER_CONFIG 内层 chance/min_score
-    /// 即时可见，值缓存会导致此类修改不可见）。</summary>
-    private readonly Dictionary<StringName, Godot.Collections.Dictionary> _encounterCfg = new();
+    /// <summary>V 系列：遭遇触发参数值缓存（注册时一次性固化 interval/chance/min_score——
+    /// Tick 每帧免 StringName 键构造 + Variant 装箱往返。值而非引用：ENCOUNTER_CONFIG 仅
+    /// LoadBalance 重建、注册后无写入方（重载属诊断路径，见 ReloadConfig 注释），值缓存无可见性风险）。</summary>
+    private readonly Dictionary<StringName, EncounterTriggerCfg> _encounterTrig = new();
+
+    /// <summary>遭遇触发参数（注册时固化，见 _encounterTrig）。</summary>
+    private sealed class EncounterTriggerCfg(float interval, float chance, int minScore)
+    {
+        public readonly float Interval = interval;
+        public readonly float Chance = chance;
+        public readonly int MinScore = minScore;
+    }
 
     /// <summary>V 系列：遭遇实例缓存（注册工厂即返回该实例的闭包——直接缓存实例，
     /// 消除 Poll/Tick 每帧 Callable.Call 动态派发；IsInstanceValid 校验防场景重载后死节点）。</summary>
@@ -106,8 +114,9 @@ public partial class GameEventManager : Node
     private float _fogCheckTimer;
     /// <summary>遭遇事件注册顺序（触发检查按注册序；main 先注册 elite 再 formation，保持原优先级）。</summary>
     private readonly Godot.Collections.Array<StringName> _encounterOrder = new();
-    /// <summary>遭遇触发策略计时器（id -> 剩余秒）。</summary>
-    private readonly Godot.Collections.Dictionary _encounterTimers = new();
+    /// <summary>遭遇触发策略计时器（id -> 剩余秒）。V 系列：CLR 字典镜像（原 Godot 字典
+    /// 每帧 GetValueOrDefault/写入经 Variant 装箱 + native 往返）。</summary>
+    private readonly Dictionary<StringName, float> _encounterTimers = new();
     /// <summary>遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）。</summary>
     /// <summary>Q13（2026-08-05）：遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
@@ -126,6 +135,8 @@ public partial class GameEventManager : Node
         LoadBalance();
         _fogCheckTimer = FOG_CHECK_INTERVAL;
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
+        // 2026-09-10：无对局时完全惰性（_runActive 初值 false；标题屏不跑 Poll/Tick，SetRunActive 翻转启停）
+        SetProcess(false);
     }
 
     private void LoadBalance()
@@ -192,6 +203,8 @@ public partial class GameEventManager : Node
         }
 
         _runActive = active;
+        // 2026-09-10：帧驱动随对局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
+        SetProcess(active);
         if (!active)
         {
             EndFog();
@@ -202,11 +215,13 @@ public partial class GameEventManager : Node
             return;
         }
 
-        foreach (var k in _encounterTimers.Keys)
+        // V 系列：按注册序重置（计时键 = 注册 id，与 _encounterOrder 同集；interval 读注册固化值）
+        foreach (var id in _encounterOrder)
         {
-            var id = k.AsStringName();
-            var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(id, new Godot.Collections.Dictionary());
-            _encounterTimers[id] = Mathf.Max((float)cfg.AsGodotDictionary().GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
+            if (_encounterTrig.TryGetValue(id, out var trig))
+            {
+                _encounterTimers[id] = trig.Interval;
+            }
         }
 
         _fogFirstDelayLeft = FOG_FIRST_DELAY;
@@ -238,15 +253,19 @@ public partial class GameEventManager : Node
             _encounterOrder.Add(pId);
         }
 
-        // V 系列：配置与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
-        // 缓存内层字典引用——外部直写 chance/min_score 即时可见）
+        // V 系列：触发参数与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
+        // 参数值固化——注册后无写入方，重载属诊断路径不改遭遇策略，见 ReloadConfig 注释）
         var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
         var dict = cfg.AsGodotDictionary();
-        _encounterCfg[pId] = dict;
+        var interval = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
+        _encounterTrig[pId] = new EncounterTriggerCfg(
+            interval,
+            (float)dict.GetValueOrDefault("chance", 0.3).AsDouble(),
+            (int)dict.GetValueOrDefault("min_score", 0).AsInt64());
         _encounterInstance[pId] = pEvent;
         if (!_encounterTimers.ContainsKey(pId))
         {
-            _encounterTimers[pId] = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
+            _encounterTimers[pId] = interval;
         }
     }
 
@@ -488,26 +507,22 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            // V 系列：注册时缓存的内层字典引用（零分配读取；外部直写即时可见）
-            var dict = _encounterCfg.GetValueOrDefault(id);
-            if (dict == null)
+            // V 系列：注册时固化的触发参数（零分配读取；替代每帧 Variant 字典往返）
+            if (!_encounterTrig.TryGetValue(id, out var trig))
             {
                 continue;
             }
 
-            var minScore = (int)dict.GetValueOrDefault("min_score", 0).AsInt64();
-            if (score < minScore)
+            if (score < trig.MinScore)
             {
                 continue; // 分数门槛未过：计时不推进（镜像 ScheduledEventTrigger）
             }
 
-            var interval = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
-            var timer = (float)_encounterTimers.GetValueOrDefault(id, interval).AsDouble();
-            timer -= delta;
+            var timer = _encounterTimers.GetValueOrDefault(id, trig.Interval) - delta;
             if (timer <= 0.0f)
             {
-                _encounterTimers[id] = interval;
-                if (GD.Randf() < (float)dict.GetValueOrDefault("chance", 0.3).AsDouble())
+                _encounterTimers[id] = trig.Interval;
+                if (GD.Randf() < trig.Chance)
                 {
                     StartEncounter(id, enc);
                 }

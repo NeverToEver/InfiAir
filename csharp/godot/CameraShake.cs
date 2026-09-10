@@ -14,6 +14,7 @@ public partial class CameraShake : Camera2D
     private readonly Callable _onShake;
     private float _decay = 6.0f;
     private float _strength;
+    private bool _offsetActive; // 偏移非零标记：静止写门，仅在震动→静止过渡帧归零 Offset
 
     public CameraShake()
     {
@@ -45,13 +46,18 @@ public partial class CameraShake : Camera2D
     {
         if (_strength > 0.1f)
         {
+            _offsetActive = true;
             Offset = new Vector2((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0)) * _strength;
             _strength = Mathf.Lerp(_strength, 0.0f, _decay * (float)delta);
         }
         else
         {
             _strength = 0.0f;
-            Offset = Vector2.Zero;
+            if (_offsetActive) // 静止写门：仅过渡帧归零一次（原每空帧重复写 Vector2.Zero）
+            {
+                _offsetActive = false;
+                Offset = Vector2.Zero;
+            }
         }
     }
 
