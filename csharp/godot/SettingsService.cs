@@ -458,11 +458,6 @@ public sealed partial class SettingsService : RefCounted
         {
             _viewRectFrame = frame;
             var center = new Vector2(960.0f, 540.0f);
-            if (CameraRef != null && GodotObject.IsInstanceValid(CameraRef))
-            {
-                center = CameraRef.GlobalPosition;
-            }
-
             var size = new Vector2(1920.0f, 1080.0f);
             var viewport = GameState.Instance.GetViewport();
             if (viewport != null)
@@ -470,7 +465,17 @@ public sealed partial class SettingsService : RefCounted
                 size = viewport.GetVisibleRect().Size;
             }
 
-            size /= (float)_viewZoomFactor;
+            // 视角缩放只在相机已注册时参与收窄：zoom 经 Main.ApplyCameraZoom 写入相机才真正
+            // 作用于渲染，"可见世界区域"必须与实际可见范围一致。相机未注册的屏幕（标题屏/
+            // 教程）渲染本就是全画布，rect 若仍除持久化 zoom 会把星空/刷怪布局收窄成屏幕
+            // 中央一块（2026-09-10 欢迎页星空缩块修复）；过场镜头等 CanvasLayer 内 1:1 画布
+            // 的装饰（相机已注册但 zoom 不作用于该画布）由 Starfield 侧按语境自行取全视口。
+            if (CameraRef != null && GodotObject.IsInstanceValid(CameraRef))
+            {
+                center = CameraRef.GlobalPosition;
+                size /= (float)_viewZoomFactor;
+            }
+
             _viewRectCached = new Rect2(center - size * 0.5f, size);
         }
 

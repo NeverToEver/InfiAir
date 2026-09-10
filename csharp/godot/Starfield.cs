@@ -8,6 +8,10 @@ namespace InfiAir;
 /// _Process 原地写 PackedVector2Array，零每帧分配（热路径红线）。
 /// C07/M5 保持：星点范围随可见世界区域 view_world_rect（尺寸 + 锚点，zoom>1 时锚点
 /// 随可见区平移，回绕同基线）；R07 判型 + 非负钳制保持。
+/// 语境适配（2026-09-10 视角缩放修复）：挂在 CanvasLayer 下（标题屏/开场返航过场镜头）
+/// 渲染 1:1 画布、相机 zoom 不作用于该画布——星区取全视口 rect；挂世界层（main/tutorial）
+/// 才走 zoom 感知的 view_world_rect，且视角档位切换时星区按相对坐标重映射（星云/回绕基线
+/// 同步），消除「大档位建区后切回小档位，星空只盖中央一块」的残留。
 /// 视觉增厚（2026-09）：星云贴图双层（确定性程序化生成，灰度能量场 modulate 染色）+
 /// 亮星层（软点贴图、逐星色温/闪烁相位）+ 低频流星；全部一次性建缓存，绘制零分配。
 /// P1-5（2026-09-10）：星云 _Draw 3×3×2 = 18 次 DrawTextureRect（≈8.8 屏/帧混合填充）
@@ -55,6 +59,17 @@ public partial class Starfield : Node2D
     private float _nebulaTileY = 1.0f; // 平铺世界高（= 区域高 ×0.7），滚动回绕基线
     private static readonly StringName UNebulaPhase = new("phase_off");
 
+    /// <summary>星云精灵引用（视角档位切换重映射时同步位置/缩放；未建星云层时为 null）。</summary>
+    private Sprite2D? _nebulaSprite;
+
+    /// <summary>渲染语境：true = 挂 CanvasLayer 下（标题屏/过场镜头）1:1 画布，星区恒为全视口；
+    /// false = 世界层，星区走 zoom 感知的 view_world_rect。_Ready 判定一次（节点不迁移语境）。</summary>
+    private bool _canvasSpace;
+
+    /// <summary>建区时生效的视角档位倍率（世界语境重映射判据；CanvasLayer 语境不参与）。
+    /// 轮询设置档位而非视口 rect——DYING 呼吸缩放每帧改相机 Zoom 组合，按 rect 判会逐帧抖动重映射。</summary>
+    private float _builtZoom = -1.0f;
+
     // ---- 流星：低频装饰（GD.Randf 运行时随机，非 gameplay 元素允许） ----
     private bool _meteorActive;
     private float _meteorNextDelay = 4.0f;
@@ -73,6 +88,58 @@ public partial class Starfield : Node2D
     private Vector2 _origin = Vector2.Zero;
 
     public void Warp(float factor) => WarpFactor = factor;
+
+    /// <summary>是否挂在 CanvasLayer 之下（标题屏/开场返航过场镜头等 1:1 画布语境）。</summary>
+    private bool InCanvasLayerSpace()
+    {
+        for (Node? n = this; n != null; n = n.GetParent())
+        {
+            if (n is CanvasLayer)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>视角档位切换后的星区重映射（世界语境）：三层星点按旧区相对坐标原地映射进
+    /// 新区（密度模式连续，无重掷跳变、零分配），星云精灵位置/缩放与回绕基线同步更新。
+    /// 区域未变（如教程等相机未注册语境 zoom 不影响 rect）则只对齐倍率记录，幂等跳过。</summary>
+    private void RebuildArea()
+    {
+        var view = GameState.Instance.ViewWorldRect();
+        var factor = (float)GameState.Instance.ViewZoomFactor();
+        _builtZoom = factor;
+        if (view.Size == _areaSize && view.Position == _origin)
+        {
+            return;
+        }
+
+        RemapArea(_far, view);
+        RemapArea(_near, view);
+        RemapArea(_bright, view);
+        _areaSize = view.Size;
+        _origin = view.Position;
+        _nebulaTileY = _areaSize.Y * 0.7f;
+        if (_nebulaSprite != null)
+        {
+            _nebulaSprite.Position = _origin;
+            _nebulaSprite.Scale = _areaSize / NebulaTexSize;
+        }
+    }
+
+    /// <summary>单层星点相对坐标重映射（RebuildArea 口径；旧区/新区字段由调用方维护次序）。</summary>
+    private void RemapArea(Vector2[] stars, Rect2 view)
+    {
+        var oldOrigin = _origin;
+        var oldSize = _areaSize;
+        for (var i = 0; i < stars.Length; i++)
+        {
+            var rel = (stars[i] - oldOrigin) / oldSize;
+            stars[i] = new Vector2(view.Position.X + rel.X * view.Size.X, view.Position.Y + rel.Y * view.Size.Y);
+        }
+    }
 
     public override void _Ready()
     {
@@ -130,12 +197,18 @@ public partial class Starfield : Node2D
             _meteorMaxDelay = Mathf.Max(_meteorMinDelay, (float)mMax.AsDouble());
         }
 
-        // C07：星点范围随可见世界区域而非写死 1920×1080；M5：区域锚点 = 可见区左上角
+        // C07：星点范围随可见世界区域而非写死 1920×1080；M5：区域锚点 = 可见区左上角。
+        // 语境适配（2026-09-10）：CanvasLayer 下 1:1 画布取全视口（zoom 不作用于该画布，
+        // 过场镜头/标题屏按 zoom 收窄会把星空缩成屏幕中央一块）；世界层走 view_world_rect。
+        _canvasSpace = InCanvasLayerSpace();
         var rng = new RandomNumberGenerator();
         rng.Seed = 12345;
-        var view = GameState.Instance.ViewWorldRect();
+        var view = _canvasSpace
+            ? GameState.Instance.GetViewport().GetVisibleRect()
+            : GameState.Instance.ViewWorldRect();
         _areaSize = view.Size;
         _origin = view.Position;
+        _builtZoom = _canvasSpace ? -1.0f : (float)GameState.Instance.ViewZoomFactor();
         _far = new Vector2[_farCount];
         _near = new Vector2[_nearCount];
         for (int i = 0; i < _farCount; i++)
@@ -189,6 +262,7 @@ public partial class Starfield : Node2D
                 ShowBehindParent = true,
                 Material = _nebulaMat,
             };
+            _nebulaSprite = nebula; // 重映射同步位置/缩放（RebuildArea）
             AddChild(nebula);
         }
     }
@@ -196,6 +270,14 @@ public partial class Starfield : Node2D
     public override void _Process(double delta)
     {
         var d = (float)delta;
+        // 世界语境下切换视角档位 → 可见区域变化 → 星区重映射（2026-09-10：原实现建区后
+        // 恒定，大档位开局再切小档位会留下「星空只盖中央一块」的空边残留）。
+        // 只比对设置档位倍率：DYING 呼吸缩放走相机 Zoom 组合、不改档位，不会触发抖动。
+        if (!_canvasSpace && (float)GameState.Instance.ViewZoomFactor() != _builtZoom)
+        {
+            RebuildArea();
+        }
+
         _t += d;
         WarpFactor = Mathf.Lerp(WarpFactor, 1.0f, 1.5f * d);
         var wrapY = _origin.Y + _areaSize.Y; // M5：回绕基线随区域锚点（zoom>1 时非 0）
