@@ -3,9 +3,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：RP 经济 / 基地任务 / 天赋路线。
-/// 第四轮拆域（2026-08-11）：职责迁至 MissionsService（csharp/godot/MissionsService.cs，组合持有），
-/// 本文件为门面转发——公开 API 签名/语义不变；
+/// GameState 部分定义：RP 经济 / 基地任务 / 天赋路线，职责在 MissionsService
+/// （csharp/godot/MissionsService.cs，组合持有），本文件为门面转发——公开 API 签名/语义不变；
 /// RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen 信号由 MissionsService 的 C# 事件
 /// 经 GameState 订阅重发（消费方不变；ResetRun 直接赋值路径在 GameState 侧直发同名信号）。
 /// </summary>
@@ -50,7 +49,7 @@ public partial class GameState : Node
     /// <summary>任务定义查询（MISSION_POOL 无命中返回 {}，供 goal 查询等调用方共用）</summary>
     private Godot.Collections.Dictionary MissionDef(StringName id) => _missions.MissionDef(id);
 
-    // U16：TryGetValue 免空容器默认值每次分配（原 GetValueOrDefault 实参先求值分配空 Dictionary）
+    // TryGetValue 免空容器默认值每次分配（GetValueOrDefault 实参先求值会分配空 Dictionary）
     public int MissionProgress(StringName id) => _missions.MissionProgress(id);
 
     public bool IsMissionDone(StringName id) => _missions.IsMissionDone(id);

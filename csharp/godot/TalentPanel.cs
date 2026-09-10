@@ -6,7 +6,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 天赋缓存面板（天赋缓存系统重构，2026-09-07，替代旧 BuffSelect 三选一弹窗）：
+/// 天赋缓存面板：
 /// 左右分栏——左 35% 为 RadialWheel 路径导航（左缘 1/4 弧，大类→支线→节点下钻，仅指示不承载加点），
 /// 右 65% 为平铺区（根层 = 大类概览；下钻后 = TalentFanView 树状扇形）+ 节点详情加点卡 + 底部经济栏
 /// （有效缓存/衰减警示/路线契约/重置代币/风险加点/专注折扣/互斥警告）。
@@ -76,7 +76,7 @@ public partial class TalentPanel : CanvasLayer
     {
         Visible = false;
         _main = GetParent<Main>();
-        _chargeDuration = Mathf.Max((float)GameState.Instance.Cfg("talent.panel.charge_time", 0.55).AsDouble(), CfgFx.IntervalFloor); // H15：=0 除零
+        _chargeDuration = Mathf.Max((float)GameState.Instance.Cfg("talent.panel.charge_time", 0.55).AsDouble(), CfgFx.IntervalFloor); // =0 除零
         BuildDim();
         BuildWheel();
         BuildRightArea();
@@ -99,7 +99,7 @@ public partial class TalentPanel : CanvasLayer
 
     public override void _ExitTree()
     {
-        // C22 模式：显式断开 GameState 信号连接（对齐 PauseUi/Hud）
+        // 显式断开 GameState 信号连接（对齐 PauseUi/Hud）
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {

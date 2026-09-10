@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 返航过场 镜头 1 构建器（文件粒度拆分自 ReturnCinematic.cs，2026-08-12；逻辑零改动）。
+/// 返航过场 镜头 1 构建器。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {
@@ -15,7 +15,7 @@ public partial class ReturnCinematic : CanvasLayer
     {
         var dur = _shotDurations[0];
         var root = new Node2D { Name = "Shot1" };
-        var starfield = new Starfield(); // M1 起 Starfield 为 C#，typed 实例化
+        var starfield = new Starfield(); // Starfield 为 C# typed，typed 实例化
         starfield.Warp(12.0f); // 承接对局 _starfield.Warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
         root.AddChild(starfield);
         var neb1 = Glow(480.0f, new Color(0.08f, 0.18f, 0.4f, 0.05f));

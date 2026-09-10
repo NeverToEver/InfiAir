@@ -3,9 +3,9 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：难度档位 / 里程碑阈值曲线。
-/// 第五轮拆域（2026-08-11）：全部职责迁至 RunProgressionService（csharp/godot/RunProgressionService.cs，
-/// 组合持有；计分域语义在 ScoreService），本文件为门面对齐转发——公开 API 签名/语义不变；
+/// GameState 部分定义：难度档位 / 里程碑阈值曲线。
+/// 全部职责由 RunProgressionService（csharp/godot/RunProgressionService.cs，
+/// 组合持有；计分域语义在 ScoreService）承担，本文件为门面对齐转发——公开 API 签名/语义不变；
 /// DifficultyChanged/DifficultySelected 信号由 RunProgressionService 的
 /// C# 事件经 GameState 订阅重发（AddBossKill 直发路径在 GameState 侧直发同名信号，不重复）。
 /// </summary>
@@ -19,13 +19,13 @@ public partial class GameState : Node
 
     public string DifficultyLabel() => _runProg.DifficultyLabel();
 
-    /// <summary>B 梯队：受击触发 DDA 降档（重入安全——幂等置位，重复受击刷新计时）；
-    /// 2026-08-11：同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
+    /// <summary>DDA 降档：受击触发（重入安全——幂等置位，重复受击刷新计时）；
+    /// 同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
     private void OnPlayerDamagedDda(float amount, Vector2 fromPos) => _runProg.OnPlayerDamagedDda(amount, fromPos);
 
     public int ScoreMultiplier() => _runProg.ScoreMultiplier();
 
-    /// <summary>B 梯队：DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
+    /// <summary>DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
     /// （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
     public bool DdaActive() => _runProg.DdaActive();
 
@@ -40,35 +40,35 @@ public partial class GameState : Node
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyHpRamp() => _runProg.EnemyHpRamp();
 
-    /// <summary>敌方 HP ramp（显式难度乘数版本，2026-08-09 审计补充）：调用方以自身难度快照计算——
+    /// <summary>敌方 HP ramp（显式难度乘数版本）：调用方以自身难度快照计算——
     /// Enemy.Setup 的 pDifficulty 参数是显式入参（分裂子机可传非全局 DifficultyMultiplier 值），
-    /// 语义同原直查 Cfg 全链路，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
+    /// 语义同直查 Cfg 全链路，但走 Load 时缓存的 ramp 因子（免每敌机 path.Split + Variant 装箱）。</summary>
     public float EnemyHpRamp(double difficultyMultiplier) => _runProg.EnemyHpRamp(difficultyMultiplier);
 
     /// <summary>敌方伤害对局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))，
-    /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹；2026-07-29 无限段修订）。
+    /// 统一作用于全部敌方伤害源（敌弹/Boss 弹/撞体/编队炸弹）。
     /// 纯查询委托 BalanceService（难度乘数作参数）。</summary>
     public float EnemyDamageRamp() => _runProg.EnemyDamageRamp();
 
     public double SpawnIntervalMultiplier() => _runProg.SpawnIntervalMultiplier();
 
     /// <summary>spread 弹种敌机同屏上限（easy 1 / medium 2 / hard 3）。
-    /// AB15：钳 [0, int.MaxValue]（同文件 ScoreMultiplier 已钳，孪生遗漏）——手改 &gt;2^31
+    /// 钳 [0, int.MaxValue]（同文件 ScoreMultiplier 已钳，孪生遗漏）——手改 &gt;2^31
     /// 经裸 (int) 回绕负 → spread 敌机同屏上限恒负、整类玩法消失。</summary>
     public int SpreadEnemyCap() => _runProg.SpreadEnemyCap();
 
     /// <summary>被动回血：距上次受伤 regen_delay 秒起每秒回 regen_rate HP（对齐原作 HEALTH_REGEN）
-    /// P0-2：档位值在难度变更/重新加载时缓存，热路径免双层字典查找</summary>
+    /// 档位值在难度变更/重新加载时缓存，热路径免双层字典查找</summary>
     public double PassiveRegenDelay() => _runProg.PassiveRegenDelay();
 
     public double PassiveRegenRate() => _runProg.PassiveRegenRate();
 
     /// <summary>回血链/倍率缓存刷新（SetDifficulty/ApplyBalance/ApplySettingsDict 调用；
-    /// 本体在 RunProgressionService，此处门面一行包装。第六轮拆域起 public——SettingsService 的
-    /// ApplySettingsDict 跨域调用（与 MilestoneMult 第五轮 private→internal 先例同款可见性提升）。</summary>
+    /// 本体在 RunProgressionService，此处门面一行包装。public——SettingsService 的
+    /// ApplySettingsDict 跨域调用（与 MilestoneMult private→internal 同款可见性提升）。</summary>
     public void RefreshRegenCache() => _runProg.RefreshRegenCache();
 
-    // ---------------- BalanceService Load 缓存转发（2026-08-10 perf 批次；原每 spawn Cfg 全链路） ----------------
+    // ---------------- BalanceService Load 缓存转发（免每 spawn Cfg 全链路） ----------------
 
     /// <summary>敌方速度 ramp（显式难度乘数版本）：Enemy.Setup 以自身难度快照计算（EnemyHpRamp 同款模式）。</summary>
     public float EnemySpeedRamp(double difficultyMultiplier) => _runProg.EnemySpeedRamp(difficultyMultiplier);
@@ -86,18 +86,18 @@ public partial class GameState : Node
 
     /// <summary>第 index 次（0 起）里程碑的分数阈值：8 档基础阈值循环，档差按 ×1.35^cycle 增长，
     /// 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
-    /// 2026-08-07：算法核心迁移 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，零 Godot 依赖；
-    /// 逐位等价：pow 钳制、roundf half-away-from-zero、累加顺序一致）——RunProgressionService 转发。</summary>
+    /// 算法核心在 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，零 Godot 依赖；
+    /// pow 钳制、roundf half-away-from-zero、累加顺序须保持逐位一致）——RunProgressionService 转发。</summary>
     public int MilestoneThreshold(int index) => _runProg.MilestoneThreshold(index);
 
     /// <summary>当前已触发的里程碑数——ScoreService 转发（Mothership.Tier 消费）。</summary>
     public int MilestoneCount() => _score.MilestoneCount();
 
     /// <summary>难度乘数对局进程曲线重算（公开口；曲线公式/迭代语义见
-    /// RunProgressionService.RecomputeDifficultyInternal——2026-08-11 迁入）。</summary>
+    /// RunProgressionService.RecomputeDifficultyInternal）。</summary>
     public void RecomputeDifficulty() => _runProg.RecomputeDifficulty();
 
-    /// <summary>难度乘数对局进程曲线（2026-07-29 无限段修订，D1=必死曲线）：
+    /// <summary>难度乘数对局进程曲线（D1 = 必死曲线）：
     /// 1 + per_boss_kill×Boss击杀 + 时间轴累进（每 time_step_seconds 量化一档，每 10 分钟 +per_ten_minutes）。
     /// 返回乘数是否变化；变化时由调用方广播 difficulty_changed（AddBossKill 结算末尾统一广播）——
     /// 私有一行包装（本体在 RunProgressionService）。</summary>

@@ -35,7 +35,7 @@ public partial class SegmentedBar : Control
         {
             if (value == _fillColor)
             {
-                return; // 2026-09-10：值未变不重绘（HUD 0.1s 轮询直写/回血信号残差路径）
+                return; // 值未变不重绘（HUD 0.1s 轮询直写/回血信号残差路径）
             }
 
             _fillColor = value;
@@ -90,7 +90,7 @@ public partial class SegmentedBar : Control
         {
             if (value == _value)
             {
-                return; // 2026-09-10：值未变不重绘（调用侧赋同一计算值；精确比较足够）
+                return; // 值未变不重绘（调用侧赋同一计算值；精确比较足够）
             }
 
             _value = value;
@@ -209,7 +209,7 @@ public partial class SegmentedBar : Control
     {
         var ratio = Mathf.Clamp(Value / MaxValue, 0.0f, 1.0f);
         var x = gap;
-        var total = WeightsTotal(); // 2026-08-03 审计：循环外缓存（段循环内每段重复全量累加）
+        var total = WeightsTotal(); // 循环外缓存（段循环内每段重复全量累加）
         for (var i = 0; i < SegWeights.Count; i++)
         {
             var w = (float)SegWeights[i].AsDouble() / total * (Size.X - gap * (SegWeights.Count + 1));

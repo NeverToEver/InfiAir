@@ -8,14 +8,14 @@ namespace InfiAir;
 /// 攻击方向定向波纹、低血裂纹生长/错峰消散、去饱和/冷青色偏/晕影与 DYING 心跳/呼吸/抖动。
 /// layer=1：世界之上、HUD 之下（HUD 在主场景抬至 layer=2；低于 OrbitalStrike 24、过场 35）。
 /// 性能（§2 决策）：满血静止隐藏全屏 ColorRect + _process 早退（常态零 GPU、≈零 CPU）；
-/// 参数上传 D5 epsilon 检测；自适应增益 D3 注册表代理亮度（0.25s 节流，零 GPU 回读）。
+/// 参数上传走 epsilon 检测；自适应增益取注册表代理亮度（0.25s 节流，零 GPU 回读）。
 /// 注：首帧延后烘焙用一次性 ProcessFrame 信号回调（OneShot 连接，不挂 await 协程——退出无泄漏；
-/// C15 守卫保留）；META_SHADER/BAKE_SHADER 不静态持有 Godot Resource（C# 静态字段持 Godot 对象
+/// 首帧守卫保留）；META_SHADER/BAKE_SHADER 不静态持有 Godot Resource（C# 静态字段持 Godot 对象
 /// 退出 segfault 实测根因），改 _Ready GD.Load（资源缓存命中）；
 /// </summary>
 public partial class MetaHealthFX : CanvasLayer
 {
-    /// <summary>D5 精度口径：动态量稳定判定与参数上传的 epsilon 检测共用同一阈值。</summary>
+    /// <summary>精度口径：动态量稳定判定与参数上传的 epsilon 检测共用同一阈值。</summary>
     private const float Epsilon = 0.001f;
 
     public const int STATE_NORMAL = 0;
@@ -38,7 +38,7 @@ public partial class MetaHealthFX : CanvasLayer
     private static readonly Color CRACK_RED = new(0xff3b4eff);
     private const float COLOR_BAND = 0.08f;
 
-    // D5 上传参数名（StringName 为 struct 可静态；等价 GDScript &"..." 字面量）
+    // 上传参数名（StringName 为 struct 可静态；等价 GDScript &"..." 字面量）
     private static readonly StringName UHitIntensity = new("u_hit_intensity");
     private static readonly StringName UHitDir = new("u_hit_dir");
     private static readonly StringName UChromaticAmount = new("u_chromatic_amount");
@@ -72,11 +72,11 @@ public partial class MetaHealthFX : CanvasLayer
     private float _warnT; // DYING 警告边框正弦相位
     private ShaderMaterial _mat = null!;
     private ColorRect _rect = null!;
-    private readonly Godot.Collections.Dictionary _last = new(); // D5 epsilon 缓存（参数名 -> 上次上传值）
+    private readonly Godot.Collections.Dictionary _last = new(); // epsilon 缓存（参数名 -> 上次上传值）
     private Godot.Collections.Dictionary _cfg = null!; // effects.meta_health.* 一次性缓存
     // 热路径字段化（空间换时间）：非 idle 帧每帧必用的配置键提为字段，LoadCfg 一次性缓存，
     // 免每帧 `_cfg[key].AsSingle()` 字典查找（哈希查询 + Variant 转换）；值继承 _cfg 入列时的
-    // H15 钳制（Mathf.Max 下限）/类型转换，运行期恒定，行为逐位等价
+    // 钳制（Mathf.Max 下限）/类型转换，运行期恒定，行为逐位等价
     private float _smoothDownTau;
     private float _smoothUpTau;
     private float _crackExponent;
@@ -109,14 +109,14 @@ public partial class MetaHealthFX : CanvasLayer
     private float _adaptMax;
     private float _adaptBulletWeight;
     private float _adaptExplosionWeight;
-    private float[] _crackDensityCaps = null!; // crack_density 数组同族字段化（原 _Process 每帧字典查找 + Variant 数组转换）
+    private float[] _crackDensityCaps = null!; // crack_density 数组同族字段化（免 _Process 每帧字典查找 + Variant 数组转换）
     private int _lod;
     private float _adaptTimer;
     private float _adaptGain = 1.0f;
     private bool _fieldReady;
     private Texture2D _fieldTex = null!;
     private bool _forceRefresh; // 减少闪光切换等外部态变化时强制刷新一帧
-    private Hud? _hudCache; // A5 同族：HUD 延迟缓存（DYING 心跳 meta_jitter 直调用）
+    private Hud? _hudCache; // HUD 延迟缓存（DYING 心跳 meta_jitter 直调用）
     // 诊断计数（§7 验收口径）：per-frame 参数上传次数 / 早退命中次数
     private int _uploadCount;
     private int _earlyOutCount;
@@ -140,7 +140,7 @@ public partial class MetaHealthFX : CanvasLayer
         _deferFrame = Callable.From(OnDeferFrame);
     }
 
-    // ---------------- A7：诊断白盒断言经公开接口（平滑参数注入口 + 状态 getter） ----------------
+    // ---------------- 诊断白盒断言经公开接口（平滑参数注入口 + 状态 getter） ----------------
 
     /// <summary>血量-裂纹映射曲线（§4.2；纯映射值，不含生长过冲）</summary>
     public float CrackProgress()
@@ -166,7 +166,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     public int EarlyOutCount() => _earlyOutCount;
 
-    /// <summary>DYING 呼吸缩放（Main D6 组合相机 zoom 用）</summary>
+    /// <summary>DYING 呼吸缩放（Main 组合相机 zoom 用）</summary>
     public float BreathScale() => _breath;
 
     public bool BreathActive()
@@ -181,7 +181,7 @@ public partial class MetaHealthFX : CanvasLayer
         _bakeShader = GD.Load<Shader>("res://assets/shaders/crack_field_bake.gdshader");
         LoadCfg();
         _lod = _cfg["lod"].AsInt32();
-        GameState.Instance.MetaFxLod = _lod; // 供 Hud 低血晕影回退判断（D2）
+        GameState.Instance.MetaFxLod = _lod; // 供 Hud 低血晕影回退判断
         _rect = new ColorRect();
         _rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _rect.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -192,7 +192,7 @@ public partial class MetaHealthFX : CanvasLayer
         _mat.SetShaderParameter("u_crack_spread_min", CfgFloat("crack_spread_min"));
         _mat.SetShaderParameter("u_crack_edge_softness", CfgFloat("crack_edge_softness"));
         _mat.SetShaderParameter("u_crack_width", CfgFloat("crack_width"));
-        // K04：crack_glow 死配置键接线——shader ADD 伪泛光强度原为字面 0.8，改由配置驱动
+        // crack_glow 配置键接线——shader ADD 伪泛光强度不得写死字面 0.8，由配置驱动
         _mat.SetShaderParameter("u_crack_glow", CfgFloat("crack_glow"));
         _vigInner = _vignetteInnerCfg;
         // 启动即对齐当前血量（读档续局/场景重载），不产生过渡演出
@@ -206,7 +206,7 @@ public partial class MetaHealthFX : CanvasLayer
             _heartPhase = 0.0f;
         }
 
-        // P1-4（2026-08-05 审计）：裂纹场烘焙延后到首帧后——SubViewport 512² GPU 回读是
+        // 裂纹场烘焙延后到首帧后——SubViewport 512² GPU 回读是
         // 启动一次性 pipeline stall，不占首帧关键路径；烘焙完成前 _field_ready=false，
         // shader 侧已早退不显示裂纹（379 行），满血开局无感知、读档续局延迟一帧
         DeferBake();
@@ -239,7 +239,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     public override void _ExitTree()
     {
-        // U11（2026-08-09 审计）：FramePostDraw 静态事件显式断开（连接存在才断开，防
+        // FramePostDraw 静态事件显式断开（连接存在才断开，防
         // "disconnect nonexistent" 报错）；与下方 GameState 信号断开并列
         if (_bakeFrameConnected)
         {
@@ -247,8 +247,8 @@ public partial class MetaHealthFX : CanvasLayer
             _bakeFrameConnected = false;
         }
 
-        // C22 模式：GameState 信号显式断开 + 挂起的烘焙延迟回调——防退出 segfault
-        // MetaFX 不在场时 hud 低血晕影走回退路径（D2）
+        // GameState 信号显式断开 + 挂起的烘焙延迟回调——防退出 segfault
+        // MetaFX 不在场时 hud 低血晕影走回退路径
         var gs = GameState.Instance;
         if (gs != null)
         {
@@ -282,7 +282,7 @@ public partial class MetaHealthFX : CanvasLayer
     }
 
     /// <summary>数值配置缓存（启动一次读入；默认值与 balance.json effects.meta_health.* 保持一致）
-    /// H08（健壮性审核）：crack.density 长度/元素校验回退——损坏 JSON 短数组/非数值时
+    /// crack.density 长度/元素校验回退——损坏 JSON 短数组/非数值时
     /// 用默认档位，防每帧越界索引与 float 转换报错</summary>
     private float[] LoadDensityCaps()
     {
@@ -333,12 +333,10 @@ public partial class MetaHealthFX : CanvasLayer
             ["lod"] = GameState.Instance.Cfg("effects.meta_health.lod", 0).AsInt32(),
             ["pulse_scale"] = CfgVal("effects.meta_health.pulse.scale", 2.5f),
             ["pulse_min"] = CfgVal("effects.meta_health.pulse.min", 0.15f),
-            // H15
             ["pulse_decay_tau"] = Mathf.Max(CfgVal("effects.meta_health.pulse.decay_tau", 0.09f), 0.001f),
             ["chromatic_base"] = CfgVal("effects.meta_health.chromatic.base", 0.006f),
             ["chromatic_peak"] = CfgVal("effects.meta_health.chromatic.peak", 0.014f),
             ["blur_strength"] = CfgVal("effects.meta_health.blur.strength", 0.6f),
-            // H15
             ["ripple_duration"] = Mathf.Max(CfgVal("effects.meta_health.ripple.duration", 0.4f), 0.001f),
             ["ripple_alpha"] = CfgVal("effects.meta_health.ripple.alpha", 0.8f),
             ["crack_exponent"] = CfgVal("effects.meta_health.crack.exponent", 1.6f),
@@ -348,7 +346,7 @@ public partial class MetaHealthFX : CanvasLayer
             ["crack_glow"] = CfgVal("effects.meta_health.crack.glow", 0.8f),
             ["crack_heal_jitter"] = CfgVal("effects.meta_health.crack.heal_jitter", 0.35f),
             ["crack_grow_overshoot"] = CfgVal("effects.meta_health.crack.grow_overshoot", 0.08f),
-            // K03：H15 同族遗漏（=0 时 _grow_boost 衰减除零）
+            // =0 时 _grow_boost 衰减除零
             ["crack_grow_time"] = Mathf.Max(CfgVal("effects.meta_health.crack.grow_time", 0.6f), 0.001f),
             ["crack_density"] = densityCaps,
             ["desat_max"] = CfgVal("effects.meta_health.desat.max", 0.35f),
@@ -362,11 +360,8 @@ public partial class MetaHealthFX : CanvasLayer
             ["breath"] = CfgVal("effects.meta_health.dying.breath", 0.015f),
             ["jitter_px"] = CfgVal("effects.meta_health.dying.jitter_px", 2.0f),
             ["warn_hz"] = CfgVal("effects.meta_health.dying.warn_hz", 2.5f),
-            // H15
             ["dying_fade"] = Mathf.Max(CfgVal("effects.meta_health.dying.fade", 0.3f), 0.001f),
-            // H15
             ["smooth_down_tau"] = Mathf.Max(CfgVal("effects.meta_health.smooth.down_tau", 0.10f), 0.001f),
-            // H15
             ["smooth_up_tau"] = Mathf.Max(CfgVal("effects.meta_health.smooth.up_tau", 0.80f), 0.001f),
             ["adapt_interval"] = CfgVal("effects.meta_health.adapt.interval", 0.25f),
             ["adapt_min"] = CfgVal("effects.meta_health.adapt.min", 0.8f),
@@ -376,7 +371,7 @@ public partial class MetaHealthFX : CanvasLayer
             ["reduce_flash_chromatic_scale"] = CfgVal("effects.meta_health.reduce_flash.chromatic_scale", 0.4f),
         };
 
-        // 每帧必用键字段化（见字段声明注释）：值已含 H15 钳制/类型转换，运行期恒定
+        // 每帧必用键字段化（见字段声明注释）：值已含钳制/类型转换，运行期恒定
         _smoothDownTau = _cfg["smooth_down_tau"].AsSingle();
         _smoothUpTau = _cfg["smooth_up_tau"].AsSingle();
         _crackExponent = _cfg["crack_exponent"].AsSingle();
@@ -422,7 +417,7 @@ public partial class MetaHealthFX : CanvasLayer
         return _cfg[key].AsSingle();
     }
 
-    /// <summary>A5 同族（Mothership 模式）：HUD 延迟缓存——hud 组仅 Hud 单节点（main.tscn 固定层，
+    /// <summary>HUD 延迟缓存——hud 组仅 Hud 单节点（main.tscn 固定层，
     /// 生命周期内恒定）；IsInstanceValid 守卫，缓存失效重新查找。替代 CallGroup 字符串派发。</summary>
     private Hud? Hud()
     {
@@ -463,7 +458,7 @@ public partial class MetaHealthFX : CanvasLayer
     private void OnPlayerDamaged(float amount, Vector2 fromPos)
     {
         var r = amount / (float)GameState.Instance.MaxHealth();
-        // max 池化：高频低伤不累积（R2）
+        // max 池化：高频低伤不累积
         _hitPulse = Mathf.Max(_hitPulse, Mathf.Clamp(r * _pulseScale, _pulseMin, 1.0f));
         var playerV = GameState.Instance.PlayerRef;
         if (fromPos == Vector2.Inf || playerV == null)
@@ -508,7 +503,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     public override void _Process(double delta)
     {
-        // 早退（D10）：全部动态量稳定时零参数上传；满血时连全屏 ColorRect 也隐藏（零 GPU）
+        // 早退：全部动态量稳定时零参数上传；满血时连全屏 ColorRect 也隐藏（零 GPU）
         var d = (float)delta;
         var idle = (
             Mathf.Abs(_targetX - _damageX) < Epsilon
@@ -592,10 +587,10 @@ public partial class MetaHealthFX : CanvasLayer
             if (Mathf.Floor(_heartPhase) > Mathf.Floor(prev))
             {
                 _heartEnv = 1.0f;
-                GameState.Instance.PlaySfx(SfxId.Heartbeat); // D7：单发触发，音效不受减少闪光影响
+                GameState.Instance.PlaySfx(SfxId.Heartbeat); // 单发触发，音效不受减少闪光影响
                 if (!reduceFlash)
                 {
-                    Hud()?.MetaJitter(_jitterPx); // D9（A5 同族：缓存直调替代 CallGroup 字符串派发）
+                    Hud()?.MetaJitter(_jitterPx); // 缓存直调替代 CallGroup 字符串派发
                 }
             }
 
@@ -620,14 +615,14 @@ public partial class MetaHealthFX : CanvasLayer
 
         _vigInner = Mathf.MoveToward(_vigInner, vigInnerTarget, _vignetteDyingShrink / _dyingFade * d);
 
-        // 5. D3 自适应可读性：注册表代理亮度（活跃弹数/爆炸数），0.25s 节流，零 GPU 回读
+        // 5. 自适应可读性：注册表代理亮度（活跃弹数/爆炸数），0.25s 节流，零 GPU 回读
         _adaptTimer -= d;
         if (_adaptTimer <= 0.0f)
         {
             _adaptTimer = _adaptInterval;
-            // P2-1（2026-08-05 审计）：注册表/静态计数替代 get_children 扫描——活跃子弹数
+            // 注册表/静态计数替代 get_children 扫描——活跃子弹数
             // （Bullet activate/deactivate 成对维护）与活跃爆炸数（Explosion.LiveCount()），
-            // 语义与原 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历。
+            // 语义与 get_children + is_active/visible 过滤等价，消除 4 次/秒树遍历。
             // 计数经 GameState.BulletPool 实例读取（ActiveBulletCount/LiveExplosionCount，判空）
             var bullets = 0;
             var explosions = 0;
@@ -673,7 +668,7 @@ public partial class MetaHealthFX : CanvasLayer
 
         var heartbeat = reduceFlash ? 0.0f : _heartEnv;
 
-        // 7. D5 epsilon 检测上传（变化 <0.001 不上传）
+        // 7. epsilon 检测上传（变化 <0.001 不上传）
         Put(UHitIntensity, rippleOn ? pulse * _rippleAlpha : 0.0f);
         Put(UHitDir, _hitDir);
         Put(UChromaticAmount, chromatic);
@@ -692,7 +687,7 @@ public partial class MetaHealthFX : CanvasLayer
         _forceRefresh = false;
     }
 
-    /// <summary>D5：epsilon 变化检测后上传；上传计数供诊断读取</summary>
+    /// <summary>epsilon 变化检测后上传；上传计数供诊断读取</summary>
     private void Put(StringName pname, Variant value)
     {
         if (_last.TryGetValue(pname, out var prev) && SameParam(prev, value))
@@ -729,12 +724,12 @@ public partial class MetaHealthFX : CanvasLayer
         return a.Equals(b);
     }
 
-    // ---------------- 裂纹距离场预烘焙（D1） ----------------
+    // ---------------- 裂纹距离场预烘焙 ----------------
 
-    /// <summary>P1-4（2026-08-05 审计）：延后烘焙——await 首帧后执行，SubViewport GPU 回读不占
+    /// <summary>延后烘焙——首帧后执行，SubViewport GPU 回读不占
     /// 启动关键路径；headless CPU 回退与窗口 GPU 路径均延后（等价性不变量保持）。
     /// C# 侧改一次性 ProcessFrame 信号回调（OneShot）而非 await 协程：进程退出时挂起协程会
-    /// 泄漏函数状态；C15 同款守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例。</summary>
+    /// 泄漏函数状态；首帧守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例。</summary>
     private void DeferBake()
     {
         GetTree().Connect(SceneTree.SignalName.ProcessFrame, _deferFrame, (uint)GodotObject.ConnectFlags.OneShot);
@@ -742,7 +737,7 @@ public partial class MetaHealthFX : CanvasLayer
 
     private void OnDeferFrame()
     {
-        // C15 同款守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例
+        // 首帧守卫：首帧前本节点被释放（场景早退/摘树路径）则不再操作 freed 实例
         if (!IsInsideTree())
         {
             return;
@@ -778,7 +773,7 @@ public partial class MetaHealthFX : CanvasLayer
         _bakeFrameConnected = true;
     }
 
-    /// <summary>烘焙回调是否已注册（U11：_ExitTree 断开前判活，未连接时 -= 报错）。</summary>
+    /// <summary>烘焙回调是否已注册（_ExitTree 断开前判活，未连接时 -= 报错）。</summary>
     private bool _bakeFrameConnected;
 
     private void OnBakeFrame()

@@ -12,7 +12,7 @@ namespace InfiAir;
 /// Godot 4 的 Input.warp_mouse 接受屏幕坐标：warp 目标 = 窗口左上角屏幕坐标 + 内容区 clamp 点。
 /// warp 目标恒取"出框前最后窗口内位置"（_last_known_pos），位移 ≤ 1-2px；且鼠标在窗口外时
 /// get_global_mouse_position() 本就冻结在最后内部位置，warp 后读值连续——不引入准星跳变，
-/// 反而把"移回窗口时的位置跳变"钳在边缘内侧（原无 confine 时可有数十 px 跳变）。
+/// 反而把"移回窗口时的位置跳变"钳在边缘内侧（无 confine 时可有数十 px 跳变）。
 /// 已知取舍：拖动标题栏时鼠标位于 OS 装饰区会触发 mouse_exited 被拉回（固定尺寸窗口下
 /// 可接受，用户可在设置中关闭本功能规避）。
 /// 聚焦判定必须实时查询（TrapActive 内 win.HasFocus()），不能缓存 FocusEntered/FocusExited
@@ -80,7 +80,7 @@ public partial class MouseTrap : Node
 
     /// <summary>confine 放行判定纯函数：仅对局准星活跃（未暂停 + 系统光标隐藏）时生效；
     /// 暂停/非准星态必须放行，否则暂停后鼠标无法移出窗口点系统关闭按钮退出游戏
-    /// K16：纯函数无状态，公开供诊断/复用（TrapActive 内部同用）。</summary>
+    /// 纯函数无状态，公开供诊断/复用（TrapActive 内部同用）。</summary>
     public static bool TrapEnabled(
         bool mouseLock,
         bool windowVisible,
@@ -121,7 +121,7 @@ public partial class MouseTrap : Node
 
     /// <summary>warp 目标：已知窗口内位置 clamp 到内容区边缘内侧 1px（窗口相对坐标）。
     /// 避免系统判定鼠标仍在窗外造成 exited/warp 循环；窗口最小边假设 ≥ 2px。
-    /// K16：纯函数，公开（见 TrapEnabled）。</summary>
+    /// 纯函数，公开（见 TrapEnabled）。</summary>
     public static Vector2 WarpTarget(Vector2 knownPos, Vector2I winSize)
     {
         return knownPos.Clamp(Vector2.One, (Vector2)(winSize - Vector2I.One));

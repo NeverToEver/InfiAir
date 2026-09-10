@@ -6,8 +6,8 @@ namespace InfiAir;
 /// <summary>
 /// Boss 弹幕发射器。
 /// 纯发射逻辑，不持 Boss 状态；位置经 boss 参数、出弹点偏移/机体缩放经注入字段。
-/// Boss / BossAttacks / EnrageSequence 共用本发射器，避免跨类私有访问（A1 约束）。
-/// 纯 C# 类（原 RefCounted，无信号/导出）：弹池经 BulletPool（C# 类型）类型化发射，
+/// Boss / BossAttacks / EnrageSequence 共用本发射器，避免跨类私有访问。
+/// 纯 C# 类（RefCounted，无信号/导出）：弹池经 BulletPool（C# 类型）类型化发射，
 /// </summary>
 public partial class BossFire : RefCounted
 {
@@ -28,7 +28,7 @@ public partial class BossFire : RefCounted
         {
             var p = (Node2D)player;
             var dir = (p.GlobalPosition - from.GlobalPosition).Normalized();
-            return dir != Vector2.Zero ? dir : Vector2.Down; // G026：圆心重合时回退
+            return dir != Vector2.Zero ? dir : Vector2.Down; // 圆心重合时回退
         }
 
         return Vector2.Down;
@@ -44,7 +44,7 @@ public partial class BossFire : RefCounted
             var b = SpawnBullet(dir, speed, damage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限，跳过本次发射（槽位剩余照常）
+                continue; // 同屏敌弹硬上限，跳过本次发射（槽位剩余照常）
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
@@ -62,7 +62,7 @@ public partial class BossFire : RefCounted
         var b = pool.Fire(Vector2.Down, speed, damage, false, true, 1.5f);
         if (b == null)
         {
-            return; // P2-3：同屏敌弹硬上限
+            return; // 同屏敌弹硬上限
         }
 
         b.Position = boss.Position + pOffset * WorldScale;
@@ -75,7 +75,7 @@ public partial class BossFire : RefCounted
         var b = SpawnBullet(dir, speed, damage);
         if (b == null)
         {
-            return; // P2-3：同屏敌弹硬上限
+            return; // 同屏敌弹硬上限
         }
 
         b.Position = boss.Position + dir * MuzzleOffset;
@@ -89,7 +89,7 @@ public partial class BossFire : RefCounted
             var b = SpawnBullet(dir, speed, damage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限
+                continue; // 同屏敌弹硬上限
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
@@ -104,29 +104,29 @@ public partial class BossFire : RefCounted
         var b = SpawnBullet(pDir, pSpeed, pDamage);
         if (b == null)
         {
-            return; // P2-3：同屏敌弹硬上限
+            return; // 同屏敌弹硬上限
         }
 
         b.Position = boss.Position + pDir * MuzzleOffset;
-        var poly = b.SpriteNode(); // C24：缓存引用，不再每次 get_node（Bullet 为 C# 类）
+        var poly = b.SpriteNode(); // 缓存引用，不再每次 get_node（Bullet 为 C# 类）
         if (poly != null)
         {
             poly.Scale = new Vector2(2.4f, 2.4f);
-            poly.SelfModulate = new Color(1.0f, 0.6f, 0.3f); // P0-3：Sprite2D 无 color，用 self_modulate
+            poly.SelfModulate = new Color(1.0f, 0.6f, 0.3f); // Sprite2D 无 color，用 self_modulate
         }
     }
 
     /// <summary>环弹（差异化狂暴各型共用）：meta=enrage_ring（与快照环弹同标记）。</summary>
     public void FireRing(Node2D boss, int pCount, float pSpeed, int pDamage, float pOffset)
     {
-        var count = Mathf.Max(2, pCount); // H15：cfg 直读为 0 时 float(i)/float(p_count) 除零 NaN 方向
+        var count = Mathf.Max(2, pCount); // cfg 直读为 0 时 float(i)/float(p_count) 除零 NaN 方向
         for (var i = 0; i < count; i++)
         {
             var dir = Vector2.Right.Rotated(pOffset + Mathf.Tau * i / count);
             var b = SpawnBullet(dir, pSpeed, pDamage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限
+                continue; // 同屏敌弹硬上限
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
@@ -138,7 +138,7 @@ public partial class BossFire : RefCounted
     public void FireEnrageWave(
         Node2D boss, float laserSpeed, float ringSpeed, int laserDamage, int ringDamage, int laserCount, int ringCount)
     {
-        // H15：count 下限钳制——cfg 直读为 0/负时防空齐射、float(i)/float(ring_count) 除零 NaN 方向
+        // count 下限钳制——cfg 直读为 0/负时防空齐射、float(i)/float(ring_count) 除零 NaN 方向
         var lasers = Mathf.Max(2, laserCount);
         var rings = Mathf.Max(2, ringCount);
         var aim = PlayerDir(boss);
@@ -148,18 +148,18 @@ public partial class BossFire : RefCounted
             var laser = SpawnBullet(aim, laserSpeed, laserDamage);
             if (laser == null)
             {
-                continue; // P2-3：同屏敌弹硬上限
+                continue; // 同屏敌弹硬上限
             }
 
-            // 横向散布按实际道数动态定心（原硬编码 (i - 1.5f) 仅对 4 道居中，laserCount 配 2/3/5… 时散布偏心）
+            // 横向散布必须按实际道数动态定心——写死 (i - 1.5f) 仅对 4 道居中，laserCount 配 2/3/5… 时散布偏心
             laser.Position = boss.Position + aim * MuzzleOffset + side * (i - (lasers - 1) * 0.5f) * 44.0f * WorldScale;
             laser.SetMeta("bullet_type", new StringName("laser"));
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
-            var poly = laser.SpriteNode(); // C24：缓存引用，不再每次 get_node（Bullet 为 C# 类）
+            var poly = laser.SpriteNode(); // 缓存引用，不再每次 get_node（Bullet 为 C# 类）
             if (poly != null)
             {
                 poly.Scale = new Vector2(2.2f, 0.55f);
-                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // P0-3：Sprite2D 无 color，用 self_modulate
+                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // Sprite2D 无 color，用 self_modulate
             }
         }
 
@@ -169,7 +169,7 @@ public partial class BossFire : RefCounted
             var b = SpawnBullet(dir, ringSpeed, ringDamage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限
+                continue; // 同屏敌弹硬上限
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
@@ -177,11 +177,11 @@ public partial class BossFire : RefCounted
         }
     }
 
-    /// <summary>弹幕墙（三型 P2）：arc_deg 度扇形 count 槽位，留 2 个相邻缺口；
+    /// <summary>弹幕墙（三型）：arc_deg 度扇形 count 槽位，留 2 个相邻缺口；
     /// 缺口方位避开自机当前方位 ±30°（无可行槽位时退化为离自机最远的槽，保证理论上可躲）。</summary>
     public void FireBulletWall(Node2D boss, int count, float speed, int damage, float arcDeg)
     {
-        var slots = Mathf.Max(2, count); // H15：cfg 直读为 0/1 时 float(count-1) 除零 NaN 方向
+        var slots = Mathf.Max(2, count); // cfg 直读为 0/1 时 float(count-1) 除零 NaN 方向
         var arc = Mathf.DegToRad(arcDeg);
         var baseAngle = Vector2.Down.Angle();
         var toPlayer = PlayerDir(boss).Angle();
@@ -229,7 +229,7 @@ public partial class BossFire : RefCounted
             var b = SpawnBullet(dir, speed, damage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限
+                continue; // 同屏敌弹硬上限
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;

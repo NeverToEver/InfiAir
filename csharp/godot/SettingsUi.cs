@@ -9,7 +9,6 @@ namespace InfiAir;
 /// 「操作模式」（难度、跳过过场、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
-/// 2026-09-08 圆盘 UI 全覆盖接入。
 /// </summary>
 public partial class SettingsUi : RadialMenuLayer
 {
@@ -30,7 +29,7 @@ public partial class SettingsUi : RadialMenuLayer
     private static readonly StringName LayoutPs = new("ps");
 
     /// <summary>关闭信号（设置页已关闭）：生产侧暂无消费方（BackNavigator 以可见态路由），
-    /// E13 先例——保留 API 供外部/未来 UI 连接，勿当死代码删除。</summary>
+    /// 保留 API 供外部/未来 UI 连接，勿当死代码删除。</summary>
     [Signal]
     public delegate void BackPressedEventHandler();
 
@@ -121,9 +120,9 @@ public partial class SettingsUi : RadialMenuLayer
 
         _plate = (ChamferedPanel)shell["panel"].AsGodotObject();
         _plate.CustomMinimumSize = new Vector2(1000.0f, 960.0f);
-        // L17：面板内容自适应高度钳制——modes 页 895px+ 曾把面板撑到 ~1150px 超屏；
+        // 面板内容自适应高度钳制——modes 页 895px+ 曾把面板撑到 ~1150px 超屏；
         // 钳到 1040（1080p 留上下边距），超限内容由 _wrap_scroll 的滚动容器在内容区内滚动。
-        // 2026-09-08：min 高度 700→860（改键 12 行完整展示免滚动；modes 页仍走滚动）。
+        // min 高度 860：改键 12 行完整展示免滚动；modes 页仍走滚动。
         _plate.MaxContentHeight = 1040.0f;
         _titleLabel = (Label)shell["title"].AsGodotObject();
         var vbox = (VBoxContainer)shell["content"].AsGodotObject();
@@ -152,7 +151,7 @@ public partial class SettingsUi : RadialMenuLayer
         var content = new VBoxContainer();
         content.CustomMinimumSize = new Vector2(760.0f, 720.0f);
         content.AddThemeConstantOverride("separation", 12);
-        // L17：纵向填满 body（面板高度受限后由滚动容器在内容区内滚动，而非撑大面板）
+        // 纵向填满 body（面板高度受限后由滚动容器在内容区内滚动，而非撑大面板）
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         body.AddChild(content);
         _pages[PageControls] = Variant.From(WrapScroll(BuildControlsPage()));
@@ -175,7 +174,7 @@ public partial class SettingsUi : RadialMenuLayer
         _backButton.Pressed += OnBackPressed;
         vbox.AddChild(_backButton);
 
-        // C22：is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
+        // is_connected 守卫，场景重载（reload_current_scene）后重进树不重复连接
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
         {
@@ -255,9 +254,9 @@ public partial class SettingsUi : RadialMenuLayer
 
     // ---------------- 控制（改键） ----------------
 
-    /// <summary>内容页统一包滚动容器（L17）：面板最大高度限制后，超限内容在内容区内滚动而非撑大面板。
+    /// <summary>内容页统一包滚动容器：面板最大高度限制后，超限内容在内容区内滚动而非撑大面板。
     /// ScrollContainer 自动滚动到聚焦子控件（Godot 4 内置 ensure_visible），手柄/键盘焦点链
-    /// （L08 全项目模态聚焦约定）不受影响；页内容横向填满、纵向保持自身高度以启用滚动。</summary>
+    /// （全项目模态聚焦约定）不受影响；页内容横向填满、纵向保持自身高度以启用滚动。</summary>
     private ScrollContainer WrapScroll(Control page)
     {
         var scroll = new ScrollContainer();
@@ -353,7 +352,7 @@ public partial class SettingsUi : RadialMenuLayer
         OnBackPressed();
     }
 
-    /// <summary>对外公开接口（A1 修复）：BackNavigator 决策查询改键捕获态</summary>
+    /// <summary>对外公开接口：BackNavigator 决策查询改键捕获态</summary>
     public StringName CapturingAction()
     {
         return _capturingAction;
@@ -391,8 +390,8 @@ public partial class SettingsUi : RadialMenuLayer
             return;
         }
 
-        // K06：手柄 B（ui_cancel）在捕获态同样取消捕获——BackNavigator 对捕获态放行不消费，
-        // 事件会传到本节点；原实现只处理 InputEventKey，手柄 B 按下无人消费（唯一 B 失灵的界面态）
+        // 手柄 B（ui_cancel）在捕获态同样取消捕获——BackNavigator 对捕获态放行不消费，
+        // 事件会传到本节点；只处理 InputEventKey 会使手柄 B 按下无人消费（唯一 B 失灵的界面态）
         if (@event.IsActionPressed("ui_cancel"))
         {
             CancelCapture();
@@ -402,9 +401,9 @@ public partial class SettingsUi : RadialMenuLayer
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
         {
-            // 2026-08-03 审计：删除不可达的 KEY_ESCAPE 分支——ui_cancel 不在 REBINDABLE_ACTIONS，
-            // 捕获态下 Esc 必先命中上方 ui_cancel 取消分支并 return，到不了此处
-            // 2026-08-10 健壮性审查：捕获对齐 GetActionKeycodes 的双键回退语义——非标准布局/
+            // Esc 由上方 ui_cancel 取消分支消费，此处不处理 KEY_ESCAPE——ui_cancel 不在
+            // REBINDABLE_ACTIONS，捕获态下必先命中取消分支并 return。
+            // 捕获对齐 GetActionKeycodes 的双键回退语义——非标准布局/
             // IME 键的 Keycode 为 Key.None 时裸绑定 0（KEY_NONE）致该动作永久无法触发
             var kc = key.Keycode != Key.None ? (int)key.Keycode : (int)key.PhysicalKeycode;
             // 双键回退后仍为 Key.None（RebindAction 无校验）：取消捕获不写绑定，防动作永久失效
@@ -429,7 +428,7 @@ public partial class SettingsUi : RadialMenuLayer
     {
         var page = new VBoxContainer();
         page.AddThemeConstantOverride("separation", 14);
-        // 难度档位（原欢迎页入口迁入；影响敌方数值/得分倍率，随设置持久化）
+        // 难度档位（影响敌方数值/得分倍率，随设置持久化）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_DIFFICULTY")));
         var diffRow = new HBoxContainer();
         diffRow.AddThemeConstantOverride("separation", 16);
@@ -487,7 +486,7 @@ public partial class SettingsUi : RadialMenuLayer
             _aimButtons[level] = Variant.From(ab);
         }
 
-        // 机制说明（P1-1 新语义）：准星入标记框 → 出膛弹追踪该敌；档位调节框大小与追踪速度
+        // 机制说明：准星入标记框 → 出膛弹追踪该敌；档位调节框大小与追踪速度
         page.AddChild(UITheme.MakeLabel(Tr("SET_AIM_ASSIST_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 显示：视角缩放 + 窗口大小
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_DISPLAY")));
@@ -589,7 +588,7 @@ public partial class SettingsUi : RadialMenuLayer
         _mouseLockBtn.Pressed += OnMouseLock;
         page.AddChild(_mouseLockBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_MOUSE_LOCK_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
-        // 手柄（P0-1）：右摇杆瞄准灵敏度 + 摇杆死区（InputMap 全局 deadzone）
+        // 手柄：右摇杆瞄准灵敏度 + 摇杆死区（InputMap 全局 deadzone）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_JOY")));
         // PS 布局适配：按已连接手柄显示布局与按钮标签对照（Xbox A/B/X/Y vs PS ✕/○/□/△）
         _joyLayoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
@@ -662,7 +661,7 @@ public partial class SettingsUi : RadialMenuLayer
         return new[] { hold, toggle };
     }
 
-    /// <summary>P0-1：手柄参数滑杆行（标题 + HSlider + 数值标签；value_changed 实时回调并更新数值显示）</summary>
+    /// <summary>手柄参数滑杆行（标题 + HSlider + 数值标签；value_changed 实时回调并更新数值显示）</summary>
     private HSlider MakeJoySlider(
         Container parent, string title, float minValue, float maxValue, float value, string format, Action<float> onChanged
     )
@@ -690,11 +689,11 @@ public partial class SettingsUi : RadialMenuLayer
         {
             valueLabel.Text = GdFormat.Format(format, (float)v);
             onChanged((float)v);
-            // AB23：键盘焦点链方向键调整只走 ValueChanged（原仅 DragEnded 落盘，正常退出
-            // 靠 SaveSettings 兜底，仅进程异常终止丢失调整值）——滑杆调整频率低，写盘直接可接受
+            // 键盘焦点链方向键调整只走 ValueChanged（仅 DragEnded 落盘会在正常退出
+            // 靠 SaveSettings 兜底，进程异常终止则丢失调整值）——滑杆调整频率低，写盘直接可接受
             GameState.Instance.PersistJoySettings();
         };
-        // K06：拖动结束同样持久化（与 ValueChanged 并存，拖动场景双保险）
+        // 拖动结束同样持久化（与 ValueChanged 并存，拖动场景双保险）
         slider.DragEnded += _ => GameState.Instance.PersistJoySettings();
         return slider;
     }
@@ -888,8 +887,8 @@ public partial class SettingsUi : RadialMenuLayer
 
     private void OnLocaleChanged()
     {
-        // H20（健壮性审核）：_pages 空（locale_changed 早于 _ready）时防御，必须最先执行——
-        // 原守卫在后，前面的 _title_label 等节点 _ready 前为 null 会先空引用崩溃
+        // _pages 空（locale_changed 早于 _ready）时防御，必须先于任何节点访问执行——
+        // _titleLabel 等节点在 _ready 前为 null，守卫在后会先空引用崩溃
         if (_pages.Count == 0)
         {
             return;
@@ -903,7 +902,7 @@ public partial class SettingsUi : RadialMenuLayer
         _cheatsheetLabel.Text = Tr("SET_CHEATSHEET");
         RefreshLangButtons();
         RefreshNavLabels();
-        // 2026-08-03 审计：重建前记录当前页并恢复（原实现无条件跳回「控制」页）；
+        // 重建前记录当前页并恢复——否则无条件跳回「控制」页；
         // 旧行的一次冗余刷新随旧页一起销毁，统一由重建后 _refresh_rebind_rows 刷新
         var current = PageControls;
         foreach (var key in _pages.Keys)
@@ -916,7 +915,7 @@ public partial class SettingsUi : RadialMenuLayer
         }
 
         // 重建内容区文本（重建代价低，保证全部文案换语言）
-        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
+        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
         //（Hud.cs:1194 同场景先例）
         var content = FirstPageParent();
         foreach (var p in _pages.Values)
@@ -936,7 +935,7 @@ public partial class SettingsUi : RadialMenuLayer
 
         RefreshRebindRows();
         ShowPage(current);
-        // L08（2026-08-03 审查）：重建后归还焦点——旧按钮已 queue_free，焦点丢失使
+        // 重建后归还焦点——旧按钮已销毁，焦点丢失使
         // 键盘 Tab 循环与手柄方向键导航中断（对齐 show_settings 的 grab_focus 约定）
         ((Button)_navButtons[current].AsGodotObject()).GrabFocus();
         // 操作模式按钮选中态刷新
@@ -1003,7 +1002,7 @@ public partial class SettingsUi : RadialMenuLayer
         {
             _opener.Visible = true;
             // 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
-            // U13：typed 分派（打开者 = 暂停面板 PauseUi，有 GrabPrimaryFocus）
+            // typed 分派（打开者 = 暂停面板 PauseUi，有 GrabPrimaryFocus）
             if (_opener is PauseUi p)
             {
                 p.GrabPrimaryFocus();

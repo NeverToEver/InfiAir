@@ -12,7 +12,7 @@ namespace InfiAir;
 /// </summary>
 public partial class FakeEnemy : Node2D
 {
-    // V 系列：静态 Texture2D 持有 → 实例字段（禁静态持 Godot RefCounted；事件实例化时惰性加载）
+    // 静态 Texture2D 持有改实例字段（禁静态持 Godot RefCounted；事件实例化时惰性加载）
     private readonly Texture2D[] FakeTextures =
     {
         GD.Load<Texture2D>("res://assets/sprites/enemy_ship_1.png"),
@@ -107,7 +107,7 @@ public partial class FakeEnemy : Node2D
 
         var d = (float)delta;
         _t += d;
-        // L2（2026-08-10 审计）：正弦走 Enemy.SinFast 查表（热路径禁直接三角函数约定；纯视觉精度足够）
+        // 正弦走 Enemy.SinFast 查表（热路径禁直接三角函数；纯视觉精度足够）
         // 幽灵闪烁（alpha 正弦，视觉干扰）
         var sprite = _sprite!;
         var m = sprite.Modulate;
@@ -126,8 +126,8 @@ public partial class FakeEnemy : Node2D
         }
 
         // 出屏销毁兜底（正常路径由 FogEventManager 在事件结束时统一移除，此路径防事件异常残留）。
-        // 2026-08-06 审计 M3：余量对齐最大出生深度（事件侧出生 y = 视野顶 − randf(20,260)）——
-        // 原 80px 余量使约 75% 个体出生即被销毁（幽灵机群实际可见 1-2 只，违背错峰入场设计）
+        // 余量对齐最大出生深度（事件侧出生 y = 视野顶 − randf(20,260)）——
+        // 80px 余量会使约 75% 个体出生即被销毁（幽灵机群实际可见 1-2 只，违背错峰入场设计）
         if (!CachedView280().HasPoint(Position))
         {
             QueueFree();

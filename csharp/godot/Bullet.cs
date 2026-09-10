@@ -6,25 +6,25 @@ namespace InfiAir;
 /// 直线子弹：玩家弹与敌弹共用
 /// bullet.tscn，经 setup/activate 区分阵营。正常产弹走 GameState.bullet_pool（对象池复用）；
 /// 直接实例化（不经对象池）走兼容路径。
-/// 保持语义：R07 碰撞半径唯一事实源；P2-1 活跃计数；P0-3 共享图集单 Sprite2D；
-/// 公平机制一（受击宽限）/二（擦弹单次）/四（弹反）；P0-1 敌弹注册表；P1-1 辅助瞄准追踪；
-/// P2-10 致死高亮；宽限/擦弹/反射的池化复位。
+/// 保持语义：碰撞半径唯一事实源；活跃计数；共享图集单 Sprite2D；
+/// 公平机制一（受击宽限）/二（擦弹单次）/四（弹反）；敌弹注册表；辅助瞄准追踪；
+/// 致死高亮；宽限/擦弹/反射的池化复位。
 /// 命中结算经 EntityDamage 统一分派（IDamageable 契约）；生产调用方均为 C# typed。
 /// </summary>
 public partial class Bullet : Area2D
 {
-    /// <summary>R07：碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
+    /// <summary>碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
 
-    /// <summary>U14 同款：bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
-    /// 本类 ApplyFaction 复位消费；2026-08-10 审计 H1——原每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
+    /// <summary>bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
+    /// 本类 ApplyFaction 复位消费；不得每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
     internal static readonly StringName MetaBulletType = new("bullet_type");
 
-    /// <summary>P1-6-3：组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，MetaBulletType 同款）。</summary>
+    /// <summary>组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，MetaBulletType 同款）。</summary>
     private static readonly StringName GroupEnemy = new("enemy");
     private static readonly StringName GroupPlayerHitbox = new("player_hitbox");
 
-    /// <summary>R07 访问器（供 Player 擦弹环形带判定等调用方读取；常量唯一事实源不变）。</summary>
+    /// <summary>访问器（供 Player 擦弹环形带判定等调用方读取；常量唯一事实源不变）。</summary>
     public static float GetCollisionRadius() => CollisionRadius;
 
     public Vector2 Direction { get; set; } = Vector2.Down;
@@ -35,7 +35,7 @@ public partial class Bullet : Area2D
     public float HomingTime { get; set; }
     /// <summary>追踪转向速率（rad 级插值系数；精英炮台弱锁定追踪弹降为 1.5）。</summary>
     public float HomingTurnRate { get; set; } = 4.0f;
-    /// <summary>辅助瞄准追踪目标（P1-1，玩家弹专用）；池化 activate 复位为 null。</summary>
+    /// <summary>辅助瞄准追踪目标（玩家弹专用）；池化 activate 复位为 null。</summary>
     public Node2D? HomingTarget { get; set; }
     /// <summary>穿透剩余次数（玩家弹，穿透弹 buff）。</summary>
     public int Pierce { get; set; }
@@ -62,11 +62,11 @@ public partial class Bullet : Area2D
     public float ReflectSpeedMult { get; private set; } = 2.0f;
     public float ReflectDamageMult { get; private set; } = 1.5f;
 
-    /// <summary>P2-1：场上活跃子弹总数（activate/deactivate 成对维护；不经对象池直实例化的弹不计）。</summary>
+    /// <summary>场上活跃子弹总数（activate/deactivate 成对维护；不经对象池直实例化的弹不计）。</summary>
     public static int ActiveCount { get; private set; }
 
     private float _homingElapsed;
-    private BulletPool? _pool; // U13：typed（原 GodotObject? 动态派发）
+    private BulletPool? _pool; // typed
     private bool _active;
     private bool _repooling;
     private Godot.Timer? _graceTimer;
@@ -78,7 +78,7 @@ public partial class Bullet : Area2D
     private bool _grazeDone;
     private Sprite2D? _sprite;
 
-    /// <summary>P0-3：共享图集 Sprite2D（弹体+白芯光栅化进单张共享纹理）。</summary>
+    /// <summary>共享图集 Sprite2D（弹体+白芯光栅化进单张共享纹理）。</summary>
     private static readonly Vector2I TexSize = new(24, 8);
     private static readonly Vector2 TexOffset = new(11.0f, 4.0f);
     private static readonly Vector2[] ArrowBody =
@@ -105,13 +105,13 @@ public partial class Bullet : Area2D
     public void Setup(Vector2 pDirection, float pSpeed, int pDamage, bool pIsPlayer, bool pHoming, float pHomingTime)
     {
         Direction = pDirection.Normalized();
-        // H10：零方向弹回退 DOWN（防静止弹永驻场景）
+        // 零方向弹回退 DOWN（防静止弹永驻场景）
         if (Direction == Vector2.Zero)
         {
             Direction = Vector2.Down;
         }
 
-        // R07：零速钳制（0 速弹不位移不脱界，永驻场景；直写字段绕过 Setup 时也兜底）
+        // 零速钳制（0 速弹不位移不脱界，永驻场景；直写字段绕过 Setup 时也兜底）
         Speed = Mathf.Max(pSpeed, 1.0f);
         // 敌方子弹伤害随对局进程 ramp
         Damage = pIsPlayer ? pDamage : Mathf.Max(1, (int)Mathf.Round(pDamage * GameState.Instance.EnemyDamageRamp()));
@@ -142,7 +142,7 @@ public partial class Bullet : Area2D
         HomingTurnRate = 4.0f;
         Visible = true;
         Monitoring = true;
-        SetPhysicsProcess(true); // C04：位移走物理帧，与 Area2D overlap 检测同步
+        SetPhysicsProcess(true); // 位移走物理帧，与 Area2D overlap 检测同步
         ApplyFaction();
     }
 
@@ -154,25 +154,25 @@ public partial class Bullet : Area2D
         Visible = false;
         SetPhysicsProcess(false);
         Position = new Vector2(-500.0f, -500.0f);
-        // P0-1：回收弹移出敌弹注册表（death_replay 录制数据源）
+        // 回收弹移出敌弹注册表（death_replay 录制数据源）
         if (!IsPlayerBullet)
         {
             GameState.Instance.UnregisterEnemyBullet(this);
         }
 
         CancelGrace();
-        // P1-6-1：monitoring 关闭并入 BulletPool._Process 帧末批量停放（原 CallDeferred 逐弹一条，
+        // monitoring 关闭并入 BulletPool._Process 帧末批量停放（不得逐弹 CallDeferred，
         // 高频火力下原生消息队列 Variant 编组开销；idle 帧处理同样处于物理回调外，语义不变）
     }
 
-    /// <summary>对象池协调的内部状态封装（A1 修复，禁止跨类直写 _ 私有字段）。</summary>
+    /// <summary>对象池协调的内部状态封装（禁止跨类直写 _ 私有字段）。</summary>
     public void SetPool(BulletPool pool) => _pool = pool;
 
     public bool IsActive() => _active;
 
     public void SetRepooling(bool value) => _repooling = value;
 
-    /// <summary>P0-3：视觉节点公开接口（替代原 polygon_node/core_node 双节点——已合并单 Sprite2D）。</summary>
+    /// <summary>视觉节点公开接口（单 Sprite2D，替代原 polygon_node/core_node 双节点）。</summary>
     public Sprite2D? SpriteNode()
     {
         if (_sprite == null)
@@ -249,7 +249,7 @@ public partial class Bullet : Area2D
             ActiveCount--;
         }
 
-        // P0-1：外部销毁同步移出敌弹注册表（幂等）
+        // 外部销毁同步移出敌弹注册表（幂等）
         if (!IsPlayerBullet)
         {
             GameState.Instance.UnregisterEnemyBullet(this);
@@ -261,12 +261,12 @@ public partial class Bullet : Area2D
         var d = (float)delta;
         if (HomingTarget != null)
         {
-            // 辅助瞄准追踪（P1-1）：优先于 homing 玩家追踪分支；目标失效/超时限即直行
+            // 辅助瞄准追踪：优先于 homing 玩家追踪分支；目标失效/超时限即直行
             if (!GodotObject.IsInstanceValid(HomingTarget))
             {
                 HomingTarget = null;
             }
-            else if (!(bool)GameState.Instance.EnemiesHas(HomingTarget)) // G010：注册表 O(1) 判定
+            else if (!(bool)GameState.Instance.EnemiesHas(HomingTarget)) // 注册表 O(1) 判定
             {
                 HomingTarget = null;
             }
@@ -283,12 +283,12 @@ public partial class Bullet : Area2D
                 }
                 else
                 {
-                    // H05：dist==0 时保持原向（除零产生 inf/NaN 污染）。
-                    // V 系列：原实现置 Vector2.Right 为 90° 突变，与注释「保持原向」矛盾——改为不动 Direction
+                    // dist==0 时必须保持原向（除零产生 inf/NaN 污染）。
+                    // 不得置 Vector2.Right（会造成 90° 突变），与「保持原向」矛盾——不动 Direction
                     if (dist > 0.0f)
                     {
                         // 距离越近转向越急：螺旋收敛
-                        // P1-6-4：AngleTo 一次 atan2 直接得带符号角差，角度空间线性推进
+                        // AngleTo 一次 atan2 直接得带符号角差，角度空间线性推进
                         // ≡ LerpAngle(from, to, t)（= from + wrap差*t）；Rotation 与 Direction 恒同步
                         // （所有写入点成对赋值），以 Rotation 累进替代再次取角，省第二次 atan2
                         var rate = HomingTurnRate * (1.0f + HomingSnapRadius * 2.0f / dist);
@@ -306,7 +306,7 @@ public partial class Bullet : Area2D
             if (playerRef != null)
             {
                 var playerNode = (Node2D)playerRef;
-                // P1-6-4：同上——AngleTo 单 atan2 + Rotation 累进，等价原 LerpAngle 双 atan2 链
+                // 同上——AngleTo 单 atan2 + Rotation 累进，等价 LerpAngle 双 atan2 链
                 var newAngle = Rotation
                     + Direction.AngleTo(playerNode.GlobalPosition - GlobalPosition) * (HomingTurnRate * d);
                 Direction = Vector2.Right.Rotated(newAngle);
@@ -321,12 +321,11 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。
-    /// AC16（2026-08-11 审计）：删除其上孤儿「monitoring 延迟」summary（与 Explode 无关，AB21 同族）。</summary>
+    /// <summary>爆炸弹 buff：命中时对周围敌人造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void Explode()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
-        var radiusSq = ExplosiveRadius * ExplosiveRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
+        var radiusSq = ExplosiveRadius * ExplosiveRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             // 爆炸 AoE 仅作用于普通敌机（Enemy 子类）；Boss/炮塔/编队机与失效实例跳过。
@@ -349,7 +348,7 @@ public partial class Bullet : Area2D
     private void Splash()
     {
         var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
-        var radiusSq = SplashRadius * SplashRadius; // 2026-08-10 审计 H5：平方距离比较免每敌 sqrt
+        var radiusSq = SplashRadius * SplashRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
@@ -383,7 +382,7 @@ public partial class Bullet : Area2D
                 // crit_shot 暴击：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
                 var hitDamage = Damage;
                 var pRef = GameState.Instance.PlayerRef;
-                if (pRef is Player p) // U13：typed（Player.CritChance/CritMultiplierValue 为 buff 缓存属性）
+                if (pRef is Player p) // typed（Player.CritChance/CritMultiplierValue 为 buff 缓存属性）
                 {
                     var critChance = p.CritChance;
                     if (critChance > 0.0f && GD.Randf() < critChance)
@@ -392,11 +391,11 @@ public partial class Bullet : Area2D
                     }
                 }
 
-                // 2026-08-09 Y 系列：统一分派（原三处 switch 收敛）；直击路径带 ScoreScale
+                // 统一分派；直击路径带 ScoreScale
                 EntityDamage.Dispatch(area, hitDamage, ScoreScale);
 
                 // 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
-                // U13：is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 爆炸条件原为 !is_boss || 无方法 = true）
+                // is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 无该方法即视为 true）
                 if (Explosive && area is not Boss)
                 {
                     Explode();
@@ -425,8 +424,8 @@ public partial class Bullet : Area2D
     }
 
     /// <summary>机制一：弹离开玩家 Hitbox——擦边入框（轨迹最近距 &gt; 核心半径）窗口内离场 = 免伤；
-    /// 贯穿核心（视觉直击）则结算。2026-09-10 修复：敌弹 420px/s 穿越 2.8px 核心仅 ~25ms，
-    /// 必在 0.05s 宽限内离场，原「离场即 CancelGrace」使直击永不结算（玩家对弹近乎无敌）。</summary>
+    /// 贯穿核心（视觉直击）则结算。敌弹 420px/s 穿越 2.8px 核心仅 ~25ms，
+    /// 必在 0.05s 宽限内离场，故离场不得直接 CancelGrace——否则直击永不结算（玩家对弹近乎无敌）。</summary>
     private void OnAreaExited(Area2D area)
     {
         if (!area.IsInGroup(GroupPlayerHitbox))
@@ -520,10 +519,10 @@ public partial class Bullet : Area2D
             return;
         }
 
-        var player = (Player)pRef; // U13：typed
+        var player = (Player)pRef; // typed
         if (player.TakeDamage((float)Damage, GlobalPosition))
         {
-            // P2-10：致死一击弹丸高亮残留
+            // 致死一击弹丸高亮残留
             if (player.IsDead())
             {
                 LingerFatal();
@@ -535,7 +534,7 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>P2-10：致死弹 0.5s 高亮残留（停位移/关碰撞/红闪高亮，一次性 Timer 到期回收）。</summary>
+    /// <summary>致死弹 0.5s 高亮残留（停位移/关碰撞/红闪高亮，一次性 Timer 到期回收）。</summary>
     private void LingerFatal(float duration = 0.5f)
     {
         SetPhysicsProcess(false);
@@ -575,7 +574,7 @@ public partial class Bullet : Area2D
         // 重置外观（敌机/Boss 激光长弹、母舰弹的自定义外观）
         Scale = Vector2.One;
         Modulate = Colors.White;
-        EnsureTextures(); // P0-3：共享图集惰性生成（缓存于 GameState 实例字段，首次调用）
+        EnsureTextures(); // 共享图集惰性生成（缓存于 GameState 实例字段，首次调用）
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite == null)
         {
@@ -584,7 +583,7 @@ public partial class Bullet : Area2D
 
         _sprite.Texture = IsPlayerBullet ? GameState.Instance.BulletPlayerTex : GameState.Instance.BulletEnemyTex;
         _sprite.Scale = Vector2.One * (IsPlayerBullet ? VisualScale : EnemyVisualScale);
-        // M1 审计：self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）
+        // self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）
         _sprite.SelfModulate = Colors.White;
         if (HasMeta(MetaBulletType))
         {
@@ -602,7 +601,7 @@ public partial class Bullet : Area2D
             CollisionMask = 1; // 命中第 1 层：player
         }
 
-        // P0-1：敌弹注册表维护（幂等）——activate/_ready/reflect 均经此路径
+        // 敌弹注册表维护（幂等）——activate/_ready/reflect 均经此路径
         if (IsPlayerBullet)
         {
             GameState.Instance.UnregisterEnemyBullet(this);
@@ -613,7 +612,7 @@ public partial class Bullet : Area2D
         }
     }
 
-    /// <summary>P0-3：共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
+    /// <summary>共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
     /// 弹体之下预铺椭圆辉光（横向拉长的能量拖尾感）；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void EnsureTextures()
     {
@@ -630,7 +629,7 @@ public partial class Bullet : Area2D
             new Color(1.0f, 0.24f, 0.42f, 0.42f));
     }
 
-    /// <summary>P0-3：把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）；
+    /// <summary>把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）；
     /// glowColor.A &gt; 0 时先铺椭圆径向辉光（横向拖尾感，pow 衰减）。</summary>
     private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor, Color? glowColor = null)
     {

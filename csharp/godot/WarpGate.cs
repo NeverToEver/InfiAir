@@ -42,7 +42,7 @@ public partial class WarpGate : Node2D
 
     public override void _Ready()
     {
-        // 2026-08-10 健壮性审查：gate 开/关时长钳下限（_Process 的 _t/OPEN_TIME 除零，
+        // gate 开/关时长钳下限（_Process 的 _t/OPEN_TIME 除零，
         // Clamp 兜底无 NaN，但传送门瞬开/瞬闭）
         OPEN_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.gate.open_time", OPEN_TIME).AsDouble(), 0.01f);
         CLOSE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.gate.close_time", CLOSE_TIME).AsDouble(), 0.01f);
@@ -51,13 +51,13 @@ public partial class WarpGate : Node2D
         ZIndex = -1; // 门洞衬在母舰之后
         _ring = MakeRing(4.0f, CYAN);
         _ringInner = MakeRing(2.0f, WARP_BLUE);
-        // C28：环预建单位半径点集，_layout 帧内仅写 scale（零分配）
+        // 环预建单位半径点集，_layout 帧内仅写 scale（零分配）
         _ring.Points = EllipsePoints(1.0f, 48);
         _ringInner.Points = EllipsePoints(1.0f, 48);
         for (var i = 0; i < 3; i++)
         {
             var arc = new Line2D { Width = 3.0f, DefaultColor = new Color(CYAN, 0.7f) };
-            // C28：弧预建单位点集（span 50°、10 点），_layout 帧内仅写 scale
+            // 弧预建单位点集（span 50°、10 点），_layout 帧内仅写 scale
             var pts = new Vector2[10];
             var a0 = Mathf.Tau * i / 3.0f;
             for (var j = 0; j < 10; j++)
@@ -164,7 +164,7 @@ public partial class WarpGate : Node2D
                 }
             case Phase.HOLD:
                 // 保持期：呼吸脉动 + 弧段旋转
-                Layout(1.0f + 0.04f * Enemy.SinFast(_t * 6.0f), 1.0f); // M3b：Enemy 迁 C#，静态直调
+                Layout(1.0f + 0.04f * Enemy.SinFast(_t * 6.0f), 1.0f); // Enemy 为 C#，静态直调
                 if (_t >= HOLD_MAX)
                 {
                     Close();
@@ -195,7 +195,7 @@ public partial class WarpGate : Node2D
     /// <summary>scale_p：门洞开合比例；alpha_p：整体透明度。</summary>
     private void Layout(float scaleP, float alphaP)
     {
-        // C28：环/弧预建点集，帧内经 set_point_position 原地写（零分配、线宽不随 scale 变）
+        // 环/弧预建点集，帧内经 set_point_position 原地写（零分配、线宽不随 scale 变）
         LayoutEllipse(_ring, RADIUS * scaleP, 48);
         _ring.DefaultColor = new Color(CYAN, 0.9f * alphaP);
         LayoutEllipse(_ringInner, RADIUS * 0.82f * scaleP, 48);
@@ -220,7 +220,7 @@ public partial class WarpGate : Node2D
         for (var i = 0; i < _arcs.Count; i++)
         {
             var arc = _arcs[i];
-            // C28：弧预建点集（_ready），帧内 set_point_position 原地写（线宽不变）
+            // 弧预建点集（_ready），帧内 set_point_position 原地写（线宽不变）
             var r = RADIUS * 1.12f * scaleP;
             var a0 = Mathf.Tau * i / 3.0f;
             for (var j = 0; j < 10; j++)
@@ -244,7 +244,7 @@ public partial class WarpGate : Node2D
         return pts;
     }
 
-    /// <summary>C28：原地写椭圆点集（set_point_position 直写内部数组，零分配、线宽不随 scale 变）。</summary>
+    /// <summary>原地写椭圆点集（set_point_position 直写内部数组，零分配、线宽不随 scale 变）。</summary>
     private void LayoutEllipse(Line2D line, float radius, int count)
     {
         for (var i = 0; i < count; i++)

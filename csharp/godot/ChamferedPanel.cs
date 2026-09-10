@@ -174,7 +174,7 @@ public partial class ChamferedPanel : Control
         TextureRepeat = TextureRepeatEnum.Enabled;
     }
 
-    // P2：切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配）
+    // 切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配）
     private Vector2[] _cachedPts = System.Array.Empty<Vector2>();
     private float _cachedKeyW = -1.0f;
     private float _cachedKeyH = -1.0f;
@@ -182,7 +182,7 @@ public partial class ChamferedPanel : Control
 
     public override void _Process(double delta)
     {
-        // C27：隐藏面板不做内容自适应（消除不可见实例的每帧空转）
+        // 隐藏面板不做内容自适应（消除不可见实例的每帧空转）
         if (!IsVisibleInTree())
         {
             return;
@@ -240,7 +240,7 @@ public partial class ChamferedPanel : Control
             return;
         }
 
-        // P2：几何缓存——尺寸/chamfer 未变直接复用上次数组
+        // 几何缓存——尺寸/chamfer 未变直接复用上次数组
         if (_cachedPts.Length == 0 || w != _cachedKeyW || h != _cachedKeyH || c != _cachedKeyC)
         {
             _cachedPts = new Vector2[]

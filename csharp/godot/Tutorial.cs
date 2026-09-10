@@ -10,8 +10,8 @@ namespace InfiAir;
 /// </summary>
 public partial class Tutorial : Node2D
 {
-    // U07（2026-08-09 审计）：静态 Godot 资源改实例字段——静态持 RefCounted/资源
-    // 在引擎退出后被 .NET finalize 触碰 native 可致 segfault（UITheme.cs:53 实测教训）
+    // 静态 Godot 资源必须改实例字段——静态持 RefCounted/资源
+    // 在引擎退出后被 .NET finalize 触碰 native 可致 segfault
     private readonly FontFile _font = UITheme.Font;
     private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
@@ -37,15 +37,15 @@ public partial class Tutorial : Node2D
     private const int AimTargetKillGoal = 3;
     /// <summary>实战阶段（case 2）目标击杀数：补刷兜底与进度判定共用。</summary>
     private const int CombatKillGoal = 5;
-    /// <summary>蓄力百分比文本刷新节流（G015，对齐 HUD 仪表约定）。</summary>
+    /// <summary>蓄力百分比文本刷新节流（对齐 HUD 仪表约定）。</summary>
     private const float ObjectivePollInterval = 0.1f;
     private int _boostCount;
     private int _dashCount;
     private bool _prevDashing;
     private float _homeCharge;
     private float _dockCharge;
-    private float _maxHp = 100.0f; // G05：阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
-    private float _objectivePoll; // G015：蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
+    private float _maxHp = 100.0f; // 阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
+    private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
     private TutorialEscRouter? _escRouter; // 基地开启窗口期（树暂停）的 Always 态 Esc 返回路由
     private Boss _boss = null!; // typed 字段
@@ -79,7 +79,7 @@ public partial class Tutorial : Node2D
     public override void _Ready()
     {
         GameState.Instance.ResetRun();
-        _maxHp = (float)GameState.Instance.MaxHealth(); // G05：热路径缓存（阶段 2 锁血每物理帧读）
+        _maxHp = (float)GameState.Instance.MaxHealth(); // 热路径缓存（阶段 2 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.025f, 0.022f, 0.018f));
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
@@ -96,7 +96,7 @@ public partial class Tutorial : Node2D
         // 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
         AddChild(new AimFrameLayer());
         _player = GetNode<Player>("Player");
-        // 世界层画面增强（layer=1，世界之上、HUD 之下）：先于 BuildHud 入树，
+        // 世界层画面增强（layer=1，世界之上、HUD 之下）：BuildHud 之前入树，
         // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
         AddChild(new WorldPostFx());
         BuildHud();
@@ -107,7 +107,7 @@ public partial class Tutorial : Node2D
 
     public override void _ExitTree()
     {
-        // U02（2026-08-09 审计）：C22 模式配对断开——教程 Esc/完成退出后残留连接
+        // 配对的信号断开——教程 Esc/完成退出后残留连接
         // 在正局死亡（PlayerDied 高频）或切语言时回调已释放实例
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
@@ -218,14 +218,14 @@ public partial class Tutorial : Node2D
                     // 首领遭遇：低 HP Boss-1，触发狂暴即过关
                     SetObjectiveTr("TUT_S6_OBJ");
                     _player.SetInvincible(999.0f); // 教程不判负
-                    var view5 = GameState.Instance.ViewWorldRect(); // G014
-                    _boss = _bossScene.Instantiate<Boss>(); // M3d：Boss 迁 C#，typed 实例化
+                    var view5 = GameState.Instance.ViewWorldRect();
+                    _boss = _bossScene.Instantiate<Boss>(); // Boss 为 C# typed，typed 实例化
                     _boss.Setup(1.0f, 1);
                     _boss.MaxHp = (float)GameState.Instance.Cfg("tutorial.boss_hp", 120.0).AsDouble();
                     _boss.Hp = _boss.MaxHp;
                     _boss.Position = new Vector2(view5.GetCenter().X, view5.Position.Y - 160.0f);
-                    _boss.Enraged += OnBossEnraged; // M3d：C# [Signal] 以 PascalCase 注册
-                    _boss.Died += OnBossGone; // M3d：C# [Signal] 以 PascalCase 注册
+                    _boss.Enraged += OnBossEnraged; // C# [Signal] 以 PascalCase 注册
+                    _boss.Died += OnBossGone; // C# [Signal] 以 PascalCase 注册
                     AddChild(_boss);
                     break;
                 }
@@ -259,7 +259,7 @@ public partial class Tutorial : Node2D
     /// 防复制漂移；布局对齐正局追踪弹体验，强制 aim_marked 保证确定性）</summary>
     private void SpawnAimTargets(int count)
     {
-        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线（D10 口径，去 960/600 硬编码）
+        var view = GameState.Instance.ViewWorldRect(); // 视口基线（不得硬编码 960/600）
         for (int i = 0; i < count; i++)
         {
             var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
@@ -270,7 +270,7 @@ public partial class Tutorial : Node2D
 
     private void SpawnCombatWave(int count)
     {
-        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线
+        var view = GameState.Instance.ViewWorldRect(); // 视口基线
         for (int i = 0; i < count; i++)
         {
             var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"));
@@ -278,14 +278,14 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>场上存活敌机数（教程实体均为本节点子节点；U14：注册表迭代替代每物理帧
+    /// <summary>场上存活敌机数（教程实体均为本节点子节点；注册表迭代替代每物理帧
     /// GetChildren()——后者每次分配新 Array，注册表为零分配迭代；教程无池化/外部来源差异）</summary>
     private int AliveEnemyCount()
     {
         var n = 0;
         foreach (var node in GameState.Instance.Enemies)
         {
-            if (node is Enemy) // M3b：Enemy 迁 C#，typed `is` 判型
+            if (node is Enemy) // Enemy 为 C#，typed `is` 判型
             {
                 n += 1;
             }
@@ -303,12 +303,12 @@ public partial class Tutorial : Node2D
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
     {
-        var e = _enemyScene.Instantiate<Enemy>(); // M3b：Enemy 迁 C#，typed 实例化
+        var e = _enemyScene.Instantiate<Enemy>(); // Enemy 为 C# typed，typed 实例化
         e.Setup(config, strategy, 1.0f);
         e.CanShoot = _stage == 2; // 仅战斗阶段敌机开火
-        var view = GameState.Instance.ViewWorldRect(); // G014：视口基线（去 960 硬编码）
+        var view = GameState.Instance.ViewWorldRect(); // 视口基线（不得硬编码 960）
         e.Position = new Vector2(view.GetCenter().X, view.Position.Y - 60.0f);
-        e.Died += OnEnemyDied; // M3b：Enemy 迁 C#，[Signal] 以 PascalCase 注册
+        e.Died += OnEnemyDied; // Enemy 为 C# typed，[Signal] 以 PascalCase 注册
         AddChild(e);
         return e;
     }
@@ -351,7 +351,7 @@ public partial class Tutorial : Node2D
         var gatePos = new Vector2(
             GameState.Instance.ViewWorldRect().GetCenter().X,
             (float)GameState.Instance.Cfg("mothership.hover_y", 270.0).AsDouble());
-        var gate = new WarpGate(); // M6：WarpGate 迁 C#，typed 实例化
+        var gate = new WarpGate(); // WarpGate 为 C# typed，typed 实例化
         gate!.Position = gatePos;
         AddChild(gate);
         _mothership = _mothershipScene.Instantiate<Mothership>();
@@ -394,10 +394,10 @@ public partial class Tutorial : Node2D
         TimerFx.OneShot(this, 1.0, FinishPassStage, alwaysProcessing: true);
     }
 
-    /// <summary>C01 修复：_pass_stage 的延迟推进改为 Timer 回调（原 await create_timer 在教程被释放时协程悬死）</summary>
+    /// <summary>_pass_stage 的延迟推进必须走 Timer 回调（await create_timer 在教程被释放时协程悬死）</summary>
     private void FinishPassStage()
     {
-        // H20（健壮性审核）：失败/结束态防阶段推进（失败态下已挂起的推进 Timer 仍会触发）
+        // 失败/结束态必须防阶段推进（失败态下已挂起的推进 Timer 仍会触发）
         if (_failed || _finished)
         {
             return;
@@ -467,8 +467,8 @@ public partial class Tutorial : Node2D
                     }
 
                     // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
-                    // 注意：保持每帧检查（queue_free 释放与检查窗口需即时生效，
-                    // 2026-08-03 曾尝试 0.25s 节流——释放帧与节流窗口交错会跳过补刷，已回退）
+                    // 注意：必须保持每帧检查（queue_free 释放与检查窗口需即时生效；
+                    // 0.25s 节流会因释放帧与节流窗口交错而跳过补刷）
                     if (!_advancing && _stageKills < CombatKillGoal && AliveEnemyCount() == 0)
                     {
                         SpawnCombatWave(CombatKillGoal - _stageKills);
@@ -488,7 +488,7 @@ public partial class Tutorial : Node2D
                             _objectivePoll -= d;
                             if (_objectivePoll <= 0.0f)
                             {
-                                _objectivePoll = ObjectivePollInterval; // G015：百分比文本节流
+                                _objectivePoll = ObjectivePollInterval; // 百分比文本节流
                                 SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
                             }
 
@@ -516,7 +516,7 @@ public partial class Tutorial : Node2D
                         _objectivePoll -= d;
                         if (_objectivePoll <= 0.0f)
                         {
-                            _objectivePoll = ObjectivePollInterval; // G015：百分比文本节流
+                            _objectivePoll = ObjectivePollInterval; // 百分比文本节流
                             SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
                         }
 
@@ -544,13 +544,13 @@ public partial class Tutorial : Node2D
             return;
         }
 
-        _baseUi = new BaseConsole(); // M5：BaseConsole 已迁 C#，typed 实例化（原 set_script 不再需要）
+        _baseUi = new BaseConsole(); // BaseConsole 为 C# typed，typed 实例化
         _baseUi.ProcessMode = Node.ProcessModeEnum.Always;
         AddChild(_baseUi);
         _baseUi.ResumeRequested += OnBaseResume;
         _baseUi.ShowBase();
         GameState.Instance.SetTreePaused(true);
-        // Always 态 Esc 返回路由（2026-09-09）：基地开启的 ~1.2s 窗口期树暂停，本节点（Pausable）
+        // Always 态 Esc 返回路由：基地开启的 ~1.2s 窗口期树暂停，本节点（Pausable）
         // 的 _UnhandledInput 收不到 Esc（窗口期 Esc 失灵）；路由节点 Always 态代收转发退出
         _escRouter = new TutorialEscRouter { ProcessMode = Node.ProcessModeEnum.Always, OnCancel = ExitTutorial };
         AddChild(_escRouter);
@@ -643,7 +643,7 @@ public partial class Tutorial : Node2D
     }
 }
 
-/// <summary>Always 态 Esc 返回路由（2026-09-09）：教程基地开启的 ~1.2s 窗口期树暂停，
+/// <summary>Always 态 Esc 返回路由：教程基地开启的 ~1.2s 窗口期树暂停，
 /// Tutorial（Pausable）的 _UnhandledInput 收不到 Esc；本节点 Always 态代收并转发退出回调。</summary>
 public partial class TutorialEscRouter : Node
 {

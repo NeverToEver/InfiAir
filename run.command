@@ -1,5 +1,5 @@
 #!/bin/bash
-# InfiAir 双击启动（macOS）+ 终端参数透传（2026-08-02 与 run.sh 对齐；2026-08-09 探测链改 .NET 版优先）
+# InfiAir 双击启动（macOS）+ 终端参数透传（与 run.sh 参数协议对齐；探测链 .NET 版优先）
 # 双击启动：直接开游戏；异常退出保留窗口与输出，方便排查。
 # 终端用法：./run.command [引擎参数]——与 run.sh 同一参数协议：
 #           例：./run.command --editor              （打开编辑器）

@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 返航过场 镜头 5 构建器（文件粒度拆分自 ReturnCinematic.cs，2026-08-12；逻辑零改动）。
+/// 返航过场 镜头 5 构建器。
 /// </summary>
 public partial class ReturnCinematic : CanvasLayer
 {

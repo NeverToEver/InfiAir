@@ -5,9 +5,9 @@ using InfiAir.Core;
 namespace InfiAir;
 
 /// <summary>
-/// 左缘轮盘菜单页骨架（2026-09-08 圆盘 UI 全覆盖）：dim 遮罩 + RadialWheel（左缘 1/4 弧）
+/// 左缘轮盘菜单页骨架：dim 遮罩 + RadialWheel（左缘 1/4 弧）
 /// + 右侧内容区的统一开合编排，与 TalentPanel 同一视觉语言——全站菜单/条目目录的导航
-/// 面统一收敛为圆盘。入场：dim 淡入 + 轮盘过冲滑入 + 开机物化（Wheel.PlayBoot：环带扫掠
+/// 面统一为圆盘。入场：dim 淡入 + 轮盘过冲滑入 + 开机物化（Wheel.PlayBoot：环带扫掠
 /// 成形/卡片交错部署/全息闪烁）+ 屏幕四角 HUD 括弧错峰绘入；退场反序加速（内容层由子类
 /// 自编排）。子类契约：_Ready 内先 BuildChrome() 再自建内容区；打开前 LoadMenu() 装配根级
 /// 选项；轮盘叶子确认经 Wheel.Confirmed 订阅自处理。宿主页隐藏时轮盘/引线经 VisibilityChanged

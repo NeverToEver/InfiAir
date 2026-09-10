@@ -4,7 +4,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 标题屏（2026-09-09 深空机库改版）：程序化星空 + 远景实况战场（敌机编队/远处爆炸/Boss 剪影，
+/// 标题屏：程序化星空 + 远景实况战场（敌机编队/远处爆炸/Boss 剪影，
 /// 见 Warzone 部分）+ 玩家机自远处跃迁飞入悬挂展示（轮廓背光/尾焰怠速/机体铭牌，见 ShipDisplay 部分）+
 /// 左侧标题区。开场演出全程不阻塞输入，任意时刻可开局。
 /// 输入路由不变：任意键/点击 → main.tscn 开局；T → tutorial.tscn；Esc 不消费。

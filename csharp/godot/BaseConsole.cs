@@ -7,7 +7,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 基地控制台（返航中场整备；2026-09-08 圆盘 UI 全覆盖重构）：
+/// 基地控制台（返航中场整备）：
 /// 左缘轮盘目录（战机库 / 维修补给 / 路线契约 / 任务规划 / 研究所 + 「继续出击」叶）→
 /// 右区单面板内容切换（旧双列五面板一屏堆叠退役；顶部分类芯片行保留键盘/手柄可达性）。
 /// 补给面板承载基地↔增幅系统联动：RP 购置「增幅缓存点」（直接入天赋缓存池）与
@@ -155,7 +155,7 @@ public partial class BaseConsole : RadialMenuLayer
 
     public override void _ExitTree()
     {
-        // C22 模式配对断开——死亡重开场景重载后残留连接在切语言时回调已释放实例
+        // 配对断开——死亡重开场景重载后残留连接在切语言时回调已释放实例
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
@@ -340,7 +340,7 @@ public partial class BaseConsole : RadialMenuLayer
         _rechargeButton = MakeButton("");
         _rechargeButton.Pressed += OnRechargePressed;
         body.AddChild(_rechargeButton);
-        // 基地↔增幅联动补给（2026-09-08）：RP 购置增幅缓存点 / 超载槽
+        // 基地↔增幅联动补给：RP 购置增幅缓存点 / 超载槽
         _buyCacheButton = MakeButton("");
         _buyCacheButton.Pressed += OnBuyCachePressed;
         body.AddChild(_buyCacheButton);
@@ -511,7 +511,7 @@ public partial class BaseConsole : RadialMenuLayer
         var rp = GameState.Instance.Rp;
         _rpLabel.Text = GdFormat.Format((string)Tr("BASE_RP"), rp);
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV as Player; // M3c：Player 迁 C#（A5：走注册表，as 对非 Player/null 均得 null）
+        var player = playerV as Player; // Player 走注册表，as 对非 Player/null 均得 null
         // 战机库状态总览
         var augmentText = "";
         var augments = GameState.Instance.Augments;
@@ -578,7 +578,7 @@ public partial class BaseConsole : RadialMenuLayer
     /// <summary>路线契约刷新（机制 C）：三条路线行（绑定/切换/生效中）+ 重置代币购置行。</summary>
     private void RefreshRoutes()
     {
-        // U16：Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
+        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
         foreach (var child in _routesBox.GetChildren())
         {
             child.Free();
@@ -635,7 +635,7 @@ public partial class BaseConsole : RadialMenuLayer
 
     private void RefreshMissions()
     {
-        // U16：同步删除防同帧并存闪一帧
+        // 同步删除防同帧并存闪一帧
         foreach (var child in _missionsBox.GetChildren())
         {
             child.Free();
@@ -651,7 +651,7 @@ public partial class BaseConsole : RadialMenuLayer
             var progress = GameState.Instance.MissionProgress(id);
             var goal = GameState.Instance.MissionGoal(id);
             var idUpper = id.ToString().ToUpperInvariant();
-            // C26：任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
+            // 任务行格式串走 tr()（BASE_MISSION_FMT），语言切换标点随 locale 变化
             var text = GdFormat.Format(
                 (string)Tr("BASE_MISSION_FMT"),
                 (string)Tr("MISSION_" + idUpper + "_NAME"),
@@ -707,7 +707,7 @@ public partial class BaseConsole : RadialMenuLayer
             // heal 量全程 double 计算——(float) 截断致差值不精确回满（smoke 维修 flake 根因）
             var health = GameState.Instance.Health;
             var maxHealth = GameState.Instance.MaxHealth();
-            GameState.Instance.Heal(Mathf.Max(0.0, maxHealth - health)); // H20：防负治疗扣血
+            GameState.Instance.Heal(Mathf.Max(0.0, maxHealth - health)); // 防负治疗扣血
             GameState.Instance.PlaySfx(SfxId.Resupply);
             Refresh();
         }
@@ -716,7 +716,7 @@ public partial class BaseConsole : RadialMenuLayer
     private void OnRechargePressed()
     {
         var playerV = GameState.Instance.PlayerRef;
-        var player = playerV as Player; // M3c：Player 迁 C#（A5：走注册表，as 对非 Player/null 均得 null）
+        var player = playerV as Player; // Player 走注册表，as 对非 Player/null 均得 null
         var rpRechargeCost = GameState.Instance.RP_RECHARGE_COST;
         if (player != null && GameState.Instance.SpendRp(rpRechargeCost))
         {
@@ -831,7 +831,7 @@ public partial class BaseConsole : RadialMenuLayer
     private void HideRefreshHint()
     {
         _refreshHintLabel.Visible = false;
-        // U16：一次性提示 Timer 触发后自清理（原触发后仍挂树，每次提示泄漏一个已触发 Timer）
+        // 一次性提示 Timer 触发后自清理（否则每次提示泄漏一个已触发 Timer）
         if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
         {
             _refreshHintTimer.QueueFree();

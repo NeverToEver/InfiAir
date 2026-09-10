@@ -6,13 +6,13 @@ namespace InfiAir;
 /// 轰炸编队事件编排：最低优先级随机遭遇——
 /// IDLE → FORMATION_ENTER（自屏顶外靠近）→ FORMATION_TURN（90° 转航向）
 /// → BOMBING_RUN（横穿交错投弹）→ FORMATION_EXIT（加速离场）→ IDLE（冷却）。
-/// 不冻结 Boss 调度；2026-07-29 修订为占用波次槽——运行期间暂停普通波次
+/// 不冻结 Boss 调度；占用波次槽——运行期间暂停普通波次
 /// （Start() 置 spawner 波次暂停，与精英炮塔事件互斥，见设计文档 §1/§2）；
 /// 可被返航 Abort() 打断（无结算，冷却照计）。编队锚点运动与战机偏移/朝向由本节点
 /// _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
 /// CommOverlay（C# 同程序集 typed）；FormationCraft/FormationBomb 为 C# typed 直调。
 /// 公共骨架（spawner 注入/母舰缓存/冷却/ResumeWaves 等）在 EncounterEventBase
-/// （2026-09-09 抽取，与 EliteTurretEvent 共享）。
+/// （与 EliteTurretEvent 共享）。
 /// </summary>
 public partial class FormationStrikeEvent : EncounterEventBase
 {
@@ -80,13 +80,13 @@ public partial class FormationStrikeEvent : EncounterEventBase
 
     public override void _Ready()
     {
-        // AC8（2026-08-11 健壮性审查）：min_score/cooldown 判型 + 域钳（对齐
+        // min_score/cooldown 判型 + 域钳（对齐
         // FakeEnemiesEvent 条目判型口径——坏值 AsInt64/AsDouble 抛 InvalidCastException
         // 崩溃，判型失败回退脚本默认）——min_score 负值分数 0 即触发；cooldown ≤0
         // 冷却失效、事件结束即刻可再触发（风暴）
         MinScore = CfgFx.Int("formation_strike_event.min_score", MinScore, 0);
         Cooldown = CfgFx.Float("formation_strike_event.cooldown", Cooldown, CfgFx.IntervalFloor);
-        // Q14（2026-08-05）：craft_counts 判型回退（K14 精英侧同口径）——配置损坏为非 Dictionary
+        // craft_counts 判型回退（精英炮塔侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
         var cc = GameState.Instance.Cfg("formation_strike_event.craft_counts", CraftCounts);
         if (cc.VariantType == Variant.Type.Dictionary)
@@ -94,7 +94,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             CraftCounts = cc.AsGodotDictionary();
         }
 
-        // AC8（2026-08-11 健壮性审查）：以下标量键判型 + 语义域钳（判型失败回退脚本
+        // 以下标量键判型 + 语义域钳（判型失败回退脚本
         // 默认，不抛不崩；当前默认数据行为零变化）——craft_hp_base ≥1（0/负编队机 1 点
         // 即毁、事件瞬结反复刷全歼奖励）、craft_score/reward_all_clear ≥0（负分倒扣被
         // 连击放大）、run_speed ≥0.1（≤0 转弯/轰炸/离场悬挂屏内）、bomb_interval ≥0.05
@@ -103,16 +103,16 @@ public partial class FormationStrikeEvent : EncounterEventBase
         // bomb_radius ≥0.1（≤0 爆炸永不命中）
         CraftHpBase = CfgFx.Int("formation_strike_event.craft_hp_base", CraftHpBase, 1);
         CraftScore = CfgFx.Int("formation_strike_event.craft_score", CraftScore, 0);
-        // Q15（2026-08-05）：approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
+        // approach_speed 下限钳制——≤0 时编队永驻 FORMATION_ENTER，
         // 波次暂停常驻 → 普通波次与 Boss 调度全冻结
         ApproachSpeed = CfgFx.Float("formation_strike_event.approach_speed", ApproachSpeed, 1.0f);
         ApproachY = CfgFx.Float("formation_strike_event.approach_y", ApproachY);
-        // 2026-08-10 健壮性审查：turn_time 钳下限——0/负值时 FORMATION_TURN 的
+        // turn_time 钳下限——0/负值时 FORMATION_TURN 的
         // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
         TurnTime = CfgFx.Float("formation_strike_event.turn_time", TurnTime, CfgFx.IntervalFloor);
         RunSpeed = CfgFx.Float("formation_strike_event.run_speed", RunSpeed, 0.1f);
         BombInterval = CfgFx.Float("formation_strike_event.bomb_interval", BombInterval, CfgFx.IntervalFloor);
-        // AC8：bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
+        // bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
         BombsPerCraft = CfgFx.Int("formation_strike_event.bombs_per_craft", BombsPerCraft, 1, 20);
         BombFallSpeed = CfgFx.Float("formation_strike_event.bomb_fall_speed", BombFallSpeed, 0.1f);
         BombFuse = CfgFx.Float("formation_strike_event.bomb_fuse", BombFuse, CfgFx.IntervalFloor);
@@ -167,7 +167,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _heading = Mathf.Pi / 2.0f;
         _speed = ApproachSpeed;
         _dropped = 0;
-        // 占用波次槽：事件期间暂停普通波次（结束/打断时恢复。U14：typed 直调）
+        // 占用波次槽：事件期间暂停普通波次（结束/打断时恢复；typed 直调）
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
             _spawner.SetWavesPaused(true);
@@ -178,10 +178,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _anchor = new Vector2(x0, view.Position.Y - 120.0f);
         // 生成编队：长机居中，僚机后掠 ±55px 递增（楔形，槽位稳定）
         var difficulty = (string)(StringName)GameState.Instance.Difficulty;
-        // 2026-08-10 健壮性审查：难度键条目值判型（Q14 只判容器层）——坏值 AsInt64 抛
+        // 难度键条目值判型（craft_counts 只判容器层）——坏值 AsInt64 抛
         // InvalidCastException 崩溃，回退默认 4
         var craftV = CraftCounts.GetValueOrDefault(difficulty, new Variant());
-        // AC8（2026-08-11 健壮性审查）：craft_counts 条目值域钳 [1,5]（对齐 EliteTurretEvent
+        // craft_counts 条目值域钳 [1,5]（对齐 EliteTurretEvent
         // turret_counts 口径）——巨值生成海量战机节点 OOM/软锁、0/负空跑（占波次槽无实体）
         var count = Mathf.Clamp(craftV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)craftV.AsInt64() : 4, 1, 5);
         // HP 三级乘算：基准 × 难度档 × 对局进程 ramp（与普通敌机同口径）
@@ -230,7 +230,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         ResumeWaves();
-        _comm?.Clear(); // B13：清掉已显警告台词，避免返航恢复后残留
+        _comm?.Clear(); // 清掉已显警告台词，避免返航恢复后残留
     }
 
     public override void _Process(double delta)
@@ -272,7 +272,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
                     _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
                     ProcessDrops();
                     var view = FrameCache.ViewRect();
-                    // 出界余量按投弹表剩余最大时长折算（2026-08-03 审计）：原固定 ±120 会在 hard 5 机
+                    // 出界余量按投弹表剩余最大时长折算：固定 ±120 会在 hard 5 机
                     // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
                     var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
                     if (_dropIndex >= _dropTimes.Count
@@ -316,7 +316,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _dropTimes.Clear();
         _dropCraft.Clear();
         _dropIndex = 0;
-        // 循环次序 i 外层 / k 内层（2026-08-02 修复）：原 k 外层产生非排序时刻表
+        // 循环次序必须 i 外层 / k 内层：k 外层产生非排序时刻表
         // [0,0.8,1.6,2.4,0.4,...]，ProcessDrops 按单调 _stateTime 贪心消费会把第二波炸弹堆积到末尾同帧
         for (var i = 0; i < _crafts.Count; i++)
         {

@@ -65,7 +65,7 @@ public partial class UITheme : RefCounted
     {
         get
         {
-            // M5 定位：静态缓存 FontFile（Godot RefCounted）在引擎退出后被 .NET finalize 触碰
+            // 静态缓存 FontFile（Godot RefCounted）在引擎退出后被 .NET finalize 触碰
             // native → 退出 segfault（实测）；GD.Load 命中资源缓存，代价可接受，不做静态持有
             return GD.Load<FontFile>("res://assets/fonts/NotoSansSC.ttf");
         }
@@ -453,7 +453,7 @@ public partial class UITheme : RefCounted
             return;
         }
 
-        // H20（健壮性审核）：互斥——快速进出按钮时旧 tween kill 再建，防同属性竞争抖动
+        // 互斥——快速进出按钮时旧 tween kill 再建，防同属性竞争抖动
         if (button.HasMeta("motion_tween"))
         {
             var old = button.GetMeta("motion_tween").AsGodotObject() as Tween;

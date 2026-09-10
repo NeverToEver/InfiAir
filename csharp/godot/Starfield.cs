@@ -4,17 +4,17 @@ namespace InfiAir;
 
 /// <summary>
 /// 程序化多层视差滚动星空背景。
-/// P1-4 合批保持：每层单条 draw_multiline（星点 1px 短线段 + 线宽，视觉等价圆点）；
+/// 合批：每层单条 draw_multiline（星点 1px 短线段 + 线宽，视觉等价圆点）；
 /// _Process 原地写 PackedVector2Array，零每帧分配（热路径红线）。
-/// C07/M5 保持：星点范围随可见世界区域 view_world_rect（尺寸 + 锚点，zoom>1 时锚点
-/// 随可见区平移，回绕同基线）；R07 判型 + 非负钳制保持。
-/// 语境适配（2026-09-10 视角缩放修复）：挂在 CanvasLayer 下（标题屏/开场返航过场镜头）
+/// 星点范围随可见世界区域 view_world_rect（尺寸 + 锚点，zoom>1 时锚点
+/// 随可见区平移，回绕同基线）；配置须判型 + 非负钳制。
+/// 语境适配：挂在 CanvasLayer 下（标题屏/开场返航过场镜头）
 /// 渲染 1:1 画布、相机 zoom 不作用于该画布——星区取全视口 rect；挂世界层（main/tutorial）
 /// 才走 zoom 感知的 view_world_rect，且视角档位切换时星区按相对坐标重映射（星云/回绕基线
 /// 同步），消除「大档位建区后切回小档位，星空只盖中央一块」的残留。
 /// 视觉增厚（2026-09）：星云贴图双层（确定性程序化生成，灰度能量场 modulate 染色）+
 /// 亮星层（软点贴图、逐星色温/闪烁相位）+ 低频流星；全部一次性建缓存，绘制零分配。
-/// P1-5（2026-09-10）：星云 _Draw 3×3×2 = 18 次 DrawTextureRect（≈8.8 屏/帧混合填充）
+/// 星云 _Draw 为 3×3×2 = 18 次 DrawTextureRect（≈8.8 屏/帧混合填充）
 /// → 单全屏精灵 + canvas_item shader（GPU repeat 平铺，1 draw、1 屏/帧；相位/tint/混合序
 /// 逐位还原，见 starfield_nebula.gdshader 头注）。
 /// </summary>
@@ -54,7 +54,7 @@ public partial class Starfield : Node2D
     private Texture2D? _nebulaTex;
     private Texture2D? _starTex;
     private float _nebulaScroll;
-    // P1-5：星云全屏精灵材质（精灵本体 _Ready 建为子节点由树持有，无需字段；每帧仅 1 个相位 uniform）
+    // 星云全屏精灵材质（精灵本体 _Ready 建为子节点由树持有，无需字段；每帧仅 1 个相位 uniform）
     private ShaderMaterial? _nebulaMat;
     private float _nebulaTileY = 1.0f; // 平铺世界高（= 区域高 ×0.7），滚动回绕基线
     private static readonly StringName UNebulaPhase = new("phase_off");
@@ -81,10 +81,10 @@ public partial class Starfield : Node2D
     /// <summary>返航过场的星光拉伸倍率，随时间衰减回 1（过场导演 warp() 设置）。</summary>
     public float WarpFactor { get; private set; } = 1.0f;
 
-    /// <summary>C07 修复：可见世界区域尺寸缓存（view_world_rect），替代硬编码 1920×1080。</summary>
+    /// <summary>可见世界区域尺寸缓存（view_world_rect），不得硬编码 1920×1080。</summary>
     private Vector2 _areaSize = new(1920.0f, 1080.0f);
 
-    /// <summary>M5 审计：星点区域锚点（_ready 时可见区左上角），随可见区平移，回绕同基线。</summary>
+    /// <summary>星点区域锚点（_ready 时可见区左上角），随可见区平移，回绕同基线。</summary>
     private Vector2 _origin = Vector2.Zero;
 
     public void Warp(float factor) => WarpFactor = factor;
@@ -144,9 +144,9 @@ public partial class Starfield : Node2D
     public override void _Ready()
     {
         ZIndex = -10;
-        // R07：判型 + 非负钳制（L 系列判型族登记遗留）——字符串/负数手改配置不崩、不做负尺寸 resize
-        // U03（2026-08-09 审计）：M7d 漏改的 Call("cfg") → typed（原动态调用已不存在，配置静默失效 + 每局 4 条引擎错误）
-        // AB16：count 钳 [0, 4096]（默认 140/90；上界防手改巨值 OOM——new Vector2[1e9] ≈ 24GB 启动即崩，
+        // 判型 + 非负钳制——字符串/负数手改配置不崩、不做负尺寸 resize；
+        // 配置读取必须 typed 直调（动态 Call("cfg") 会静默失效 + 每局 4 条引擎错误）
+        // count 钳 [0, 4096]（默认 140/90；上界防手改巨值 OOM——new Vector2[1e9] ≈ 24GB 启动即崩，
         // >2^31 还经 (int) 回绕负）
         const long MaxCount = 4096;
         var fc = GameState.Instance.Cfg("effects.starfield.far_count", _farCount);
@@ -197,8 +197,8 @@ public partial class Starfield : Node2D
             _meteorMaxDelay = Mathf.Max(_meteorMinDelay, (float)mMax.AsDouble());
         }
 
-        // C07：星点范围随可见世界区域而非写死 1920×1080；M5：区域锚点 = 可见区左上角。
-        // 语境适配（2026-09-10）：CanvasLayer 下 1:1 画布取全视口（zoom 不作用于该画布，
+        // 星点范围随可见世界区域而非写死 1920×1080；区域锚点 = 可见区左上角。
+        // 语境适配：CanvasLayer 下 1:1 画布取全视口（zoom 不作用于该画布，
         // 过场镜头/标题屏按 zoom 收窄会把星空缩成屏幕中央一块）；世界层走 view_world_rect。
         _canvasSpace = InCanvasLayerSpace();
         var rng = new RandomNumberGenerator();
@@ -221,7 +221,7 @@ public partial class Starfield : Node2D
             _near[i] = new Vector2(_origin.X + rng.Randf() * _areaSize.X, _origin.Y + rng.Randf() * _areaSize.Y);
         }
 
-        // P1-4：线段数组一次性分配（每星 2 点：起点 + 1px 尾端）
+        // 线段数组一次性分配（每星 2 点：起点 + 1px 尾端）
         _farLines = new Vector2[_farCount * 2];
         _nearLines = new Vector2[_nearCount * 2];
 
@@ -244,7 +244,7 @@ public partial class Starfield : Node2D
         _nebulaTex = CinematicFx.NebulaTexture((int)NebulaTexSize, 20260907);
         _starTex = CinematicFx.SoftTexture();
 
-        // P1-5：星云改单全屏精灵（repeat 平铺 + 相位 shader），替代 _Draw 18 次 DrawTextureRect；
+        // 星云改单全屏精灵（repeat 平铺 + 相位 shader），替代 _Draw 18 次 DrawTextureRect；
         // ShowBehindParent 保持星云在星点之下；alpha≈0 整层不建（同原早退门槛）
         if (_nebulaTex != null && _nebulaAlpha > 0.001f)
         {
@@ -270,8 +270,8 @@ public partial class Starfield : Node2D
     public override void _Process(double delta)
     {
         var d = (float)delta;
-        // 世界语境下切换视角档位 → 可见区域变化 → 星区重映射（2026-09-10：原实现建区后
-        // 恒定，大档位开局再切小档位会留下「星空只盖中央一块」的空边残留）。
+        // 世界语境下切换视角档位 → 可见区域变化 → 星区必须重映射——否则大档位开局再切
+        // 小档位会留下「星空只盖中央一块」的空边残留。
         // 只比对设置档位倍率：DYING 呼吸缩放走相机 Zoom 组合、不改档位，不会触发抖动。
         if (!_canvasSpace && (float)GameState.Instance.ViewZoomFactor() != _builtZoom)
         {
@@ -280,7 +280,7 @@ public partial class Starfield : Node2D
 
         _t += d;
         WarpFactor = Mathf.Lerp(WarpFactor, 1.0f, 1.5f * d);
-        var wrapY = _origin.Y + _areaSize.Y; // M5：回绕基线随区域锚点（zoom>1 时非 0）
+        var wrapY = _origin.Y + _areaSize.Y; // 回绕基线随区域锚点（zoom>1 时非 0）
         for (int i = 0; i < _far.Length; i++)
         {
             var p = _far[i] + new Vector2(0.0f, _farSpeed * WarpFactor * d);
@@ -309,7 +309,7 @@ public partial class Starfield : Node2D
 
         // 星云缓慢下卷（Warp 时同步加速）；亮星 1.35× 近层速度（更近的视差层）
         _nebulaScroll += 12.0f * WarpFactor * d;
-        // P1-5：星云相位单 uniform（x 偏 0.15 格；y = 1 − PosMod(scroll, tile)/tile，同原回绕基线）
+        // 星云相位单 uniform（x 偏 0.15 格；y = 1 − PosMod(scroll, tile)/tile，同原回绕基线）
         _nebulaMat?.SetShaderParameter(UNebulaPhase, new Vector2(0.15f, 1.0f - Mathf.PosMod(_nebulaScroll, _nebulaTileY) / _nebulaTileY));
         var brightSpeed = _nearSpeed * 1.35f * WarpFactor;
         for (int i = 0; i < _bright.Length; i++)
@@ -352,9 +352,9 @@ public partial class Starfield : Node2D
 
     public override void _Draw()
     {
-        // P1-5：星云底已迁至全屏精灵（_Ready 建，ShowBehindParent 绘于本节点星点之下）
+        // 星云底已迁至全屏精灵（_Ready 建，ShowBehindParent 绘于本节点星点之下）
 
-        // P1-4：每层单条 draw_multiline 合批（230 条绘制指令 → 2 条）；线宽对应原圆直径
+        // 每层单条 draw_multiline 合批（230 条绘制指令 → 2 条）；线宽对应原圆直径
         DrawMultiline(_farLines, new Color(0.7f, 0.75f, 0.9f, 0.6f), 3.0f);
         DrawMultiline(_nearLines, new Color(1.0f, 1.0f, 1.0f, 0.9f), 5.0f);
 

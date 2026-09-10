@@ -5,8 +5,8 @@ namespace InfiAir;
 /// <summary>
 /// 普通/精英敌机：straight/sine/zigzag/
 /// dive/spiral/noise/hover/aggressive 八种移动策略；single/spread/laser 弹种；入场两阶段
-/// （下降→悬停机动）；寿命离场（不给分不计击杀）；分裂者；体碰信号事件驱动（P0-2）；
-/// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点（P0-5）。
+/// （下降→悬停机动）；寿命离场（不给分不计击杀）；分裂者；体碰信号事件驱动；
+/// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点。
 /// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、可见区域经 FrameCache 每物理帧共享。
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达，新增单位无需改分派器。
 /// </summary>
@@ -15,10 +15,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
 
-    // U14 同款：开火热路径 StringName 静态缓存（原每发敌弹 new StringName，2026-08-10 审计 H1）
+    // 开火热路径 StringName 静态缓存（不得每发敌弹 new StringName）
     private static readonly StringName BulletTypeSingle = new("single");
 
-    /// <summary>P1-6-3：组名静态缓存（体碰热路径 IsInGroup 字符串字面量逐次转换）。</summary>
+    /// <summary>组名静态缓存（体碰热路径 IsInGroup 字符串字面量逐次转换）。</summary>
     private static readonly StringName GroupPlayerHitbox = new("player_hitbox");
 
     /// <summary>「未指定弹种」哨兵：spawn 每敌复用，替代每次调用 new StringName()（空间换时间）。</summary>
@@ -52,7 +52,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public float HpRampFactor { get; private set; } = 0.25f;
     public float SpeedRampFactor { get; private set; } = 0.1f;
 
-    // ---- 尾焰软光点（P0-5 副轨） ----
+    // ---- 尾焰软光点 ----
     private const float TailGlowRadius = 26.0f;
     private const float TailGlowRadiusElite = 36.0f;
     private static readonly Color TailGlowColor = new(1.0f, 0.22f, 0.38f, 0.32f);
@@ -73,13 +73,13 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public StringName BulletType { get; private set; } = "single";
     /// <summary>悬停锚点 y（spawner 分配；&lt;0 时按悬停带自取）。</summary>
     public float AnchorY { get; set; } = -1.0f;
-    /// <summary>辅助瞄准「强辅助」标记（P1-1；池化 deactivate 复位）。</summary>
+    /// <summary>辅助瞄准「强辅助」标记（池化 deactivate 复位）。</summary>
     public bool AimMarked
     {
         get => _aimMarked;
         private set
         {
-            // P1-6-8：成对维护在屏标记计数（AimFrameLayer 零标记跳过扫描/重绘）；同值赋值幂等
+            // 成对维护在屏标记计数（AimFrameLayer 零标记跳过扫描/重绘）；同值赋值幂等
             if (_aimMarked == value)
             {
                 return;
@@ -90,10 +90,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>P1-6-8：在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。</summary>
+    /// <summary>在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。</summary>
     public static int AimMarkedCount { get; private set; }
 
-    /// <summary>P1-6-8：辅助框半径缓存（setup 写入，已含 world_scale；替代 aim_frame_radius meta 的
+    /// <summary>辅助框半径缓存（setup 写入，已含 world_scale；替代 aim_frame_radius meta 的
     /// HasMeta/GetMeta——AimFrameLayer.FrameHalfSize 直读）。&lt;0 = 未初始化（兼容路径回退读形状）。</summary>
     public float AimFrameRadius { get; internal set; } = -1.0f;
 
@@ -107,7 +107,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private float _spawnX;
     private float _fireTimer = 2.2f;
     private EnemyMoveStrategy? _strategy;
-    /// <summary>P1-6-6：缓存策略实例对应的 Strategy 键（键未变则复用实例，免每 spawn 重建）。</summary>
+    /// <summary>缓存策略实例对应的 Strategy 键（键未变则复用实例，免每 spawn 重建）。</summary>
     private StringName _strategyKey = new();
     private readonly MoveCtx _moveCtx = new();
 
@@ -124,9 +124,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private float _exitSpeed;
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
+    /// <summary>slow_field buff 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
-    /// <summary>2026-08-11 二轮收敛 AugmentBoolCache：slow_field 布尔缓存（AugmentsChanged 信号事件驱动，热路径禁字典）。</summary>
+    /// <summary>slow_field 布尔缓存（AugmentsChanged 信号事件驱动，热路径禁字典）。</summary>
     private readonly AugmentBoolCache _slowCache;
     private Sprite2D? _sprite;
     private CollisionShape2D? _shape;
@@ -147,8 +147,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public override void _Ready()
     {
         GameState.Instance.BindEnemy(this); // 统一绑定：add_to_group("enemy") + 注册 + entity_registered
-        // AC4（2026-08-11 健壮性审查）：标量键判型回退 + 语义域钳（同文件 hover_band 判型、
-        // FakeEnemiesEvent.cs:31 同族先例）——坏类型（字符串/数组/字典）AsDouble/AsInt64 抛
+        // 标量键判型回退 + 语义域钳（同文件 hover_band 判型）——坏类型（字符串/数组/字典）AsDouble/AsInt64 抛
         // InvalidCastException 崩溃；0/负值使敌弹静止或反向、伤害倒扣、slow_field 变加速场；
         // 当前默认数据全部在合法域内，行为零变化
         EnemyBulletSpeed = CfgFx.Float("enemies.bullet_speed", EnemyBulletSpeed, 0.0f);
@@ -166,7 +165,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         // exit_accel ≥0——负值使离场反向加速，寿命离场机永远离不开屏幕
         ExitAccel = CfgFx.Float("enemies.exit_accel", ExitAccel, 0.0f);
         AggrChaseSpeed = CfgFx.Float("enemies.aggressive_chase_speed", AggrChaseSpeed, 0.0f);
-        // H19：hover_band 判型回退（防非数组 _ready 崩溃）
+        // hover_band 判型回退（防非数组 _ready 崩溃）
         var band = GameState.Instance.Cfg("enemies.hover_band", new Godot.Collections.Array { HoverBand.X, HoverBand.Y });
         if (band.VariantType == Variant.Type.Array)
         {
@@ -177,7 +176,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             }
         }
 
-        // AC4（2026-08-11 健壮性审查）：hover/spiral 几何参数同款判型 + 非负钳（负振幅/频率
+        // hover/spiral 几何参数同款判型 + 非负钳（负振幅/频率
         // 使机动轨迹反向、负半径绕转中心反向，属配置损坏语义；回退默认 + 钳制保底）
         HoverBobAmp = CfgFx.Float("enemies.hover_bob_amp", HoverBobAmp, 0.0f);
         HoverBobFreq = CfgFx.Float("enemies.hover_bob_freq", HoverBobFreq, 0.0f);
@@ -197,13 +196,13 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         _phase = GD.Randf() * Mathf.Tau;
         _fireTimer = (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
         EnsureStrategy();
-        // 尾焰软光点（P0-5 副轨）
+        // 尾焰软光点
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
         _tailGlow = (Sprite2D)CinematicFx.SoftGlow(glowRadius * (float)GameState.Instance.WorldScale, TailGlowColor);
         _tailGlow.ShowBehindParent = true;
         AddChild(_tailGlow);
         UpdateTailGlow();
-        // AC4（2026-08-11 健壮性审查）：shake 幅度键判型 + 非负钳（负值传 GameState.Shake
+        // shake 幅度键判型 + 非负钳（负值传 GameState.Shake
         // 抖动幅度为负表现异常；坏类型回退默认）
         _shakeDieNormal = CfgFx.Float("effects.shake.enemy_die", _shakeDieNormal, 0.0f);
         _shakeDieElite = CfgFx.Float("effects.shake.elite_die", _shakeDieElite, 0.0f);
@@ -216,14 +215,14 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public override void _ExitTree()
     {
-        // P1-6-8：外部 queue_free（轨道打击清场等）不经 deactivate，离树兜底回标记计数（幂等；
+        // 外部 queue_free（轨道打击清场等）不经 deactivate，离树兜底回标记计数（幂等；
         // 池化 reparent 豁免——回挂 Main 方向 Reactivate 已重掷标记，不得误清）
         if (!_repooling)
         {
             AimMarked = false;
         }
 
-        // Q19：池化 reparent 只注销注册表、不发 entity_unregistered
+        // 池化 reparent 只注销注册表、不发 entity_unregistered
         if (_repooling)
         {
             GameState.Instance.UnregisterEnemy(this);
@@ -233,7 +232,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             GameState.Instance.UnbindEnemy(this);
         }
 
-        // L02：buff 信号断开（C22 模式；池化 reparent 复用由 Reactivate 对称重连）
+        // buff 信号断开（池化 reparent 复用由 Reactivate 对称重连）
         _slowCache.Disconnect(GameState.Instance);
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -258,7 +257,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             }
         }
 
-        return BulletTypeSingle; // H07：空弹种池/坏值回退单发
+        return BulletTypeSingle; // 空弹种池/坏值回退单发
     }
 
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
@@ -274,8 +273,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             (int)Mathf.Round(
                 GD.RandRange(hpRange.X, hpRange.Y)
                 * (float)GameState.Instance.EnemyHpMultiplier()
-                // 2026-08-09 审计：原直查 Cfg("enemies.hp_ramp_factor") 全链路（path.Split+字典遍历+Variant 装箱），
-                // hp_ramp 有 Load 时缓存的 API 未用；改走显式难度重载——pDifficulty 为调用方快照
+                // hp_ramp 必须走 Load 时缓存的 API，不得直查 Cfg("enemies.hp_ramp_factor") 全链路
+                // （path.Split+字典遍历+Variant 装箱）；改走显式难度重载——pDifficulty 为调用方快照
                 // （分裂子机可传非全局 DifficultyMultiplier 值，须保持原参数语义）
                 * (float)GameState.Instance.EnemyHpRamp(pDifficulty)));
         ScoreValue = (int)config["score"].AsInt64();
@@ -286,15 +285,15 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             : PickConfiguredBulletType(config);
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
-            // 2026-08-10 审计：原直查 Cfg("enemies.speed_ramp_factor") 每 spawn 全链路——改走
-            // Load 时缓存的 ramp API（上方 hp_ramp 同款模式；pDifficulty 保持调用方快照语义）
+            // speed_ramp 必须走 Load 时缓存的 ramp API，不得每 spawn 直查 Cfg 全链路
+            // （上方 hp_ramp 同款模式；pDifficulty 保持调用方快照语义）
             * (float)GameState.Instance.EnemySpeedRamp(pDifficulty)
             * (float)GameState.Instance.EnemySpeedMultiplier();
-        // P1-6-6：复用 _sprite/_shape 字段缓存（池化路径 _ready 已取；直实例化 setup 先于 _ready 时 ??= 回填）
+        // 复用 _sprite/_shape 字段缓存（池化路径 _ready 已取；直实例化 setup 先于 _ready 时 ??= 回填）
         var sprite = _sprite ??= GetNode<Sprite2D>("Sprite2D");
         var shapeNode = _shape ??= GetNode<CollisionShape2D>("CollisionShape2D");
         sprite.Texture = (Texture2D)config["texture"];
-        // 2026-08-10 审计：mark_ratio 同款——Load 时缓存 API，免每 spawn Cfg 全链路
+        // mark_ratio 同款——走 Load 时缓存 API，免每 spawn Cfg 全链路
         AimMarked = GD.Randf() < (float)GameState.Instance.AimMarkRatio();
         var sc = (float)config.GetValueOrDefault("scale", 0.85).AsDouble();
         sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
@@ -304,7 +303,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             circle.Radius = hitR;
         }
 
-        AimFrameRadius = hitR; // G07：辅助框半径缓存随 setup 刷新（P1-6-8：meta 改实例字段直读）
+        AimFrameRadius = hitR; // 辅助框半径缓存随 setup 刷新（meta 改实例字段直读）
         UpdateRimGlow();
     }
 
@@ -343,7 +342,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     /// <summary>分裂者标记（子机复用 config 后取消，防止无限分裂）。</summary>
     public void SetSplit(bool enabled) => _split = enabled;
 
-    /// <summary>对外公开接口（A1 修复）：语义化类型查询（Boss override 返回 true）。</summary>
+    /// <summary>对外公开接口：语义化类型查询（Boss override 返回 true）。</summary>
     public bool IsBoss() => false;
 
     public bool Hovering() => _hovering;
@@ -366,7 +365,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public void Reactivate(
         Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
-        // L02：池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
+        // 池化复用重连 buff 信号（_ready 只执行一次，_exit_tree 断开后必须重连）
         _slowCache.Connect(GameState.Instance);
         _slowCache.Refresh();
         _active = true;
@@ -381,14 +380,14 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         Visible = true;
         Monitoring = true;
         SetPhysicsProcess(true);
-        _bodyContact = false; // P0-2：重叠标记复位（池化复用防残留）
+        _bodyContact = false; // 重叠标记复位（池化复用防残留）
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite != null)
         {
             _sprite.Modulate = Colors.White;
         }
 
-        _flashTimer = 0.0f; // P1-2：闪白计时复位
+        _flashTimer = 0.0f; // 闪白计时复位
         GameState.Instance.RegisterEnemy(this);
         Setup(config, pStrategy, pDifficulty, pBulletType);
         UpdateTailGlow();
@@ -411,10 +410,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         AimMarked = false; // 辅助瞄准标记复位，防池残留串到下一任使用者
         Visible = false;
         SetPhysicsProcess(false);
-        _bodyContact = false; // P0-2：回收后 area_exited 未必投递
+        _bodyContact = false; // 回收后 area_exited 未必投递
         GameState.Instance.UnregisterEnemy(this);
         // 断开 died 信号的全部连接（死亡回放等监听方；C# [Signal] 连接不随接收方自动断开）
-        // 2026-08-10 审计 M3：HasConnections 门控——零订阅常态下免 GetSignalConnectionList 数组分配
+        // HasConnections 门控——零订阅常态下免 GetSignalConnectionList 数组分配
         if (HasConnections(SignalName.Died))
         {
             foreach (var conn in GetSignalConnectionList(SignalName.Died))
@@ -429,7 +428,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
 
         Position = new Vector2(-500.0f, -500.0f);
-        // P1-6-1：monitoring 关闭并入 EnemyPool._Process 帧末批量停放（原 CallDeferred 逐敌一条；
+        // monitoring 关闭并入 EnemyPool._Process 帧末批量停放（不得逐敌 CallDeferred；
         // idle 帧处理同样处于物理回调外，语义不变）
     }
 
@@ -469,7 +468,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         // 分裂者：死亡生成 2 小机（子机独立结算，母体分数照常给）
         if (_split)
         {
-            // R12：Bullet.OnAreaEntered（物理 flush）内同步生成会触发 area_set_shape_disabled 报错，
+            // Bullet.OnAreaEntered（物理 flush）内同步生成会触发 area_set_shape_disabled 报错，
             // 同步快照分裂参数、延迟到空闲帧生成（本机随后被回收，参数已捕获）。
             ScheduleSplitSpawn();
         }
@@ -488,7 +487,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public bool aim_marked { get => AimMarked; set => AimMarked = value; }
 
-    /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值，2026-08-07 perf 批次引入）。</summary>
+    /// <summary>正弦查表（热路径禁 Mathf.Sin；表 256 项线性插值）。</summary>
     private const int TrigSize = 256;
     private static float[]? _sinTable;
 
@@ -515,8 +514,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     // ---------------- 内部实现 ----------------
 
     /// <summary>O 原则：移动策略工厂注册表（strategy 名 → 构造器；新增策略注册一行即可，
-    /// 不再改 MakeStrategy 本体；默认 HoverMove 兜底 straight/hover，见 A4a 注释）。
-    /// P1-6-6：键改 StringName——原 string 键每 spawn 查找时 Strategy 隐式转 managed string 分配。</summary>
+    /// 不再改 MakeStrategy 本体；默认 HoverMove 兜底 straight/hover）。
+    /// 键用 StringName——string 键每 spawn 查找时 Strategy 隐式转 managed string 分配。</summary>
     private static readonly Dictionary<StringName, Func<Godot.Collections.Dictionary, EnemyMoveStrategy>> StrategyFactories = new()
     {
         ["sine"] = d => new SineMove(d),
@@ -527,7 +526,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         ["aggressive"] = d => new AggressiveMove(d),
     };
 
-    /// <summary>P1-6-6：Strategy 键未变复用策略实例（构造参数为对局常量、可变状态由 Reset 复位，
+    /// <summary>Strategy 键未变复用策略实例（构造参数为对局常量、可变状态由 Reset 复位，
     /// 与新建+Reset 语义一致）；键变才重建。出生/重激活共用入口。</summary>
     private void EnsureStrategy()
     {
@@ -540,7 +539,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         _strategy.Reset(this);
     }
 
-    /// <summary>A4a：按 strategy 构建移动策略实例（共享悬停常量注入；Q29 策略专属参数覆盖）。</summary>
+    /// <summary>按 strategy 构建移动策略实例（共享悬停常量注入；策略专属参数覆盖）。</summary>
     private EnemyMoveStrategy MakeStrategy()
     {
         var params_ = _strategyParams;
@@ -553,16 +552,16 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         params_["spiral_drift_freq"] = SpiralDriftFreq;
         params_["spiral_radius"] = SpiralRadius;
         params_["aggressive_chase_speed"] = AggrChaseSpeed;
-        // 2026-08-10 审计：move_strategies 子树改读 Load 时缓存引用（原每 spawn Cfg 深拷贝整棵子树）；
+        // move_strategies 子树只读 Load 时缓存引用（不得每 spawn Cfg 深拷贝整棵子树）；
         // 此处只读（参数拷贝进 params_ 后不再触碰源表），缓存引用无别名污染风险
-        // P1-6-6：TryGetValue 替代 GetValueOrDefault——原默认实参 new Dictionary() 每 spawn 白分配一次
+        // TryGetValue 替代 GetValueOrDefault——后者默认实参 new Dictionary() 每 spawn 白分配一次
         if (GameState.Instance.MoveStrategies().TryGetValue(Strategy, out var strategyCfg)
             && strategyCfg.VariantType == Variant.Type.Dictionary)
         {
             var sc = strategyCfg.AsGodotDictionary();
             foreach (var k in sc.Keys)
             {
-                params_[k] = sc[k]; // Q29：策略专属参数覆盖
+                params_[k] = sc[k]; // 策略专属参数覆盖
             }
         }
 
@@ -607,7 +606,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             : Mathf.Clamp(Position.Y + (float)GD.RandRange(120.0, 240.0), bandTop, bandBottom);
     }
 
-    /// <summary>撞击结算（P0-2 信号驱动版）：重叠标记置位期每物理帧调用。
+    /// <summary>撞击结算（信号驱动版）：重叠标记置位期每物理帧调用。
     /// 无 _active 守卫：直实例化敌机 _active 恒 false（语义缺口），陈旧调用由 deactivate 防住。</summary>
     private void TryBodyCollision()
     {
@@ -617,8 +616,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             return;
         }
 
-        // 2026-08-10 审计 M4：typed 直调（M3c 后 player_ref 恒为 Player；Boss.CheckBodyCollision 同款），
-        // 替代原每物理帧 p.Call("take_damage", ...) 动态派发
+        // typed 直调（player_ref 恒为 Player；Boss.CheckBodyCollision 同款），
+        // 不得每物理帧 p.Call("take_damage", ...) 动态派发
         var p = player as Player;
         if (p == null || !GodotObject.IsInstanceValid(p))
         {
@@ -704,7 +703,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
         var mdelta = d * slowMult;
         var view = FrameCache.ViewRect();
-        // A4a/C06：复用 _moveCtx（字段原地更新，避免每帧分配）
+        // 复用 _moveCtx（字段原地更新，避免每帧分配）
         _moveCtx.View = view;
         _moveCtx.MDelta = mdelta;
         _moveCtx.Speed = Speed;
@@ -733,7 +732,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
         if (CanShoot)
         {
-            // B 梯队：DDA 降档拉长开火间隔（只拉间隔不降收益）
+            // DDA 降档拉长开火间隔（只拉间隔不降收益）
             _fireTimer -= d / FrameCache.DdaFactor();
             if (_fireTimer <= 0.0f)
             {
@@ -783,7 +782,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         var baseDir = (player.GlobalPosition - GlobalPosition).Normalized();
         if (baseDir == Vector2.Zero)
         {
-            baseDir = Vector2.Down; // G026：与玩家圆心重合时回退，防零方向弹永不销毁
+            baseDir = Vector2.Down; // 与玩家圆心重合时回退，防零方向弹永不销毁
         }
 
         var spec = BulletSpec();
@@ -805,7 +804,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         var b = pool!.Fire(dir, bulletSpeed, damage, false);
         if (b == null)
         {
-            return; // P2-3：同屏敌弹硬上限
+            return; // 同屏敌弹硬上限
         }
 
         b.Position = Position; // 敌方子弹出生在敌机位置（typed；Player 开火同款）
@@ -817,7 +816,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             if (poly != null)
             {
                 poly.Scale = new Vector2(2.2f, 0.55f);
-                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // P0-3：Sprite2D 无 color，用 self_modulate
+                poly.SelfModulate = new Color(1.0f, 0.85f, 0.35f); // Sprite2D 无 color，用 self_modulate
             }
         }
     }
@@ -833,7 +832,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
         else
         {
-            // 侧向离场（AB19：注释订正——向镜像侧离场：左半区向右、右半区向左，与旧版一致）
+            // 侧向离场（向镜像侧离场：左半区向右、右半区向左）
             _exitDir = new Vector2(
                 Position.X < FrameCache.ViewRect().GetCenter().X ? 1.0f : -1.0f, (float)GD.RandRange(-0.4, 0.0)).Normalized();
         }
@@ -842,11 +841,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     }
 
     /// <summary>分裂者死亡生成 2 小机：同步快照分裂参数，生成延迟到空闲帧
-    /// （R12：Bullet.OnAreaEntered 物理 flush 内直接建实体触发 area_set_shape_disabled 报错）。
+    /// （Bullet.OnAreaEntered 物理 flush 内直接建实体触发 area_set_shape_disabled 报错）。
     /// 缩放 ×0.6 / HP 半 / 无分数 / 不开火 / 不再分裂。</summary>
     private void ScheduleSplitSpawn()
     {
-        // P1-6-7：typed 取用（原 GodotObject 承载 + pool.Call("Spawn") Variant 装箱动态派发；
+        // typed 取用（不得 pool.Call("Spawn") Variant 装箱动态派发；
         // EntityManager.EnemyPool 属性保持 GodotObject——GameState 桥未重定型，取用侧 cast 对齐 Spawner 口径）
         var pool = GameState.Instance.EnemyPool as EnemyPool;
         if (pool == null)
@@ -868,7 +867,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
         for (var i = 0; i < 2; i++)
         {
-            // P1-6-7：typed Spawn 直调（Spawn 必返回有效实例，原 Nil/判活守卫随之收敛）
+            // typed Spawn 直调（Spawn 必返回有效实例，无需 Nil/判活守卫）
             var e = pool.Spawn(config, strategy, diff,
                 pos + new Vector2(i == 0 ? 24.0f : -24.0f, 0.0f));
             var miniSprite = e.GetNodeOrNull<Sprite2D>("Sprite2D");
@@ -884,7 +883,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>P1-2：受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）。</summary>
+    /// <summary>受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）。</summary>
     private void UpdateFlash(float delta)
     {
         if (_flashTimer <= 0.0f)

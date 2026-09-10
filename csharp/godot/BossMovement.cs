@@ -7,9 +7,8 @@ namespace InfiAir;
 /// Boss 走位策略。
 /// 四型移动（strafe / dash / bulwark 纵向下压 / 月蚀中心微摆）与移动状态；写 boss.Position（Node2D 公开属性），
 /// 经 Boss typed 公开接口（SlowFactor/StrafeRange/IsEnraged/FightPhaseValue/FightAnchorY/EscapeDriftOffset）
-/// 交互，不访问私有字段（A1 约束）。
-/// Y 系列（2026-08-09）：Boss 链 typed 化——StringName 动态派发（Get/Call）与双命名桥删除，
-/// 参数与注册表直用 Boss 类型。
+/// 交互，不访问私有字段。
+/// Boss 链 typed 化——参数与注册表直用 Boss 类型，无 StringName 动态派发。
 /// Enemy.SinFast 查表静态直接调用。纯 C# 类（原 RefCounted）。
 /// </summary>
 public partial class BossMovement : RefCounted
@@ -17,7 +16,7 @@ public partial class BossMovement : RefCounted
     /// <summary>对齐 Boss.FightPhase.P1（enum FightPhase { P1, P2, ENRAGE }）。</summary>
     private const int FightP1 = 0;
 
-    /// <summary>L14：段切换 y 平滑过渡时长（ease-out）。</summary>
+    /// <summary>段切换 y 平滑过渡时长（ease-out）。</summary>
     private const float BobSmoothTime = 0.6f;
 
     /// <summary>一型 P1 纵向下压窗口（周期末段 1.6s）。</summary>
@@ -34,16 +33,16 @@ public partial class BossMovement : RefCounted
     private float _bandTimer;
     /// <summary>三型 P1 下压偏移（target 从 0 起步，无初始跳变）。</summary>
     private float _bandOffset;
-    // L14：段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）的当前偏移未补偿，
+    // 段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）的当前偏移未补偿，
     // P2 绝对赋值锚线会瞬间跳变（三型可达 ~280px）；切换后从当前 y 平滑追锚线（ease-out）
     private float _bobSmoothT;
     private float _bobSmoothFrom;
 
-    /// <summary>A3 收敛：机型移动器注册表（boss_type → 移动策略方法，构造函数装配）。
+    /// <summary>机型移动器注册表（boss_type → 移动策略方法，构造函数装配）。
     /// 新增机型只需注册一行 + 一个策略方法，不再改 update 的分发（O 原则达成）。</summary>
     private readonly Dictionary<int, System.Action<float, Boss>> _movers;
-    /// <summary>A4 收敛：mover 类型戳缓存（空间换时间——BossType 一场战斗恒定，免每帧字典查询；
-    /// 非法类型同样缓存回退 MoveType1，K13 语义逐位保留；_moverCachedType=-1 保证首帧必刷新）。</summary>
+    /// <summary>mover 类型戳缓存（空间换时间——BossType 一场战斗恒定，免每帧字典查询；
+    /// 非法类型同样缓存回退 MoveType1；_moverCachedType=-1 保证首帧必刷新）。</summary>
     private int _moverCachedType = -1;
     private System.Action<float, Boss>? _moverCached;
 
@@ -61,17 +60,17 @@ public partial class BossMovement : RefCounted
     /// <summary>同步下压周期初始值（Boss._ready 在 PressInterval 从 balance 覆盖后调用，保持精确一致）。</summary>
     public void SyncPressTimer(float interval) => _pressTimer = interval;
 
-    /// <summary>C11 + L14：段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
+    /// <summary>段切换（P1→P2）时归零下压偏移——若切换恰落在下压窗口内，
     /// _press_offset/_band_offset 保留非零值而 _update_press/_move_band 不再被调用，
-    /// 机身会以偏移永久留在锚线下方（C11 原只清 press，L14 补清三型 band）。</summary>
+    /// 机身会以偏移永久留在锚线下方（press 与三型 band 都要清）。</summary>
     public void ResetPress()
     {
         _pressOffset = 0.0f; // 仅清偏移，保留下压周期相位（_press_timer 不动）
-        _bandOffset = 0.0f; // L14：三型 band 同族清理
-        _bobPhase = 0.0f; // D05：段切换归零纵向正弦（sin 0 = 0 平滑衔接锚线）
+        _bandOffset = 0.0f; // 三型 band 同族清理
+        _bobPhase = 0.0f; // 段切换归零纵向正弦（sin 0 = 0 平滑衔接锚线）
     }
 
-    /// <summary>L14：段切换入口——记录当前 y 作为平滑过渡起点（由 boss._enter_phase 在切换帧调用）。
+    /// <summary>段切换入口——记录当前 y 作为平滑过渡起点（由 boss._enter_phase 在切换帧调用）。
     /// 不在此处直接写 y（走位由各 mover 每帧驱动），过渡在 _move_bob 内收敛到锚线正弦轨迹。</summary>
     public void BeginBobSmooth(float currentY)
     {
@@ -79,19 +78,19 @@ public partial class BossMovement : RefCounted
         _bobSmoothFrom = currentY;
     }
 
-    /// <summary>每物理帧驱动：类型戳缓存分发（非法 boss_type 回退一型，K13 语义不变）。</summary>
+    /// <summary>每物理帧驱动：类型戳缓存分发（非法 boss_type 回退一型，语义不变）。</summary>
     public void Update(float delta, Boss boss)
     {
         if (boss.BossType != _moverCachedType)
         {
             _moverCachedType = boss.BossType;
-            _moverCached = _movers.TryGetValue(boss.BossType, out var m) ? m : MoveType1; // K13：非法 boss_type（防御，正常路径恒 1..4）回退一型走位，防非法值下完全静止
+            _moverCached = _movers.TryGetValue(boss.BossType, out var m) ? m : MoveType1; // 非法 boss_type（防御，正常路径恒 1..4）回退一型走位，防非法值下完全静止
         }
 
         _moverCached!(delta, boss);
     }
 
-    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
     public bool HasMover(int type) => _movers.ContainsKey(type);
 
     // ---------------- 内部实现 ----------------
@@ -107,7 +106,7 @@ public partial class BossMovement : RefCounted
         }
         else if (phase == 1) // FightPhase.P2
         {
-            // D05：strafe 提速 + 纵向正弦往复
+            // strafe 提速 + 纵向正弦往复
             MoveStrafe(delta, boss, boss.Type1P2Strafe);
             MoveBob(delta, boss, boss.Type1P2BobAmp, boss.Type1P2BobPeriod);
         }
@@ -126,13 +125,13 @@ public partial class BossMovement : RefCounted
         var phase = boss.FightPhaseValue();
         if (phase == FightP1)
         {
-            // D05：三型 P1 缓慢下压/回升（锚线下 [lo, hi] 区间，周期 9s）
+            // 三型 P1 缓慢下压/回升（锚线下 [lo, hi] 区间，周期 9s）
             MoveStrafe(delta, boss, StrafeSpeed(boss, 2));
             MoveBand(delta, boss, boss.Type3P1BobMin, boss.Type3P1BobMax, boss.Type3P1BobPeriod);
         }
         else if (phase == 1) // FightPhase.P2
         {
-            // D05：strafe 提速 + 纵向正弦往复
+            // strafe 提速 + 纵向正弦往复
             MoveStrafe(delta, boss, boss.Type3P2Strafe);
             MoveBob(delta, boss, boss.Type3P2BobAmp, boss.Type3P2BobPeriod);
         }
@@ -142,14 +141,14 @@ public partial class BossMovement : RefCounted
         }
     }
 
-    /// <summary>4 型「月蚀」（2026-08-04）：中心悬停微摆——不 strafe，纵向小振幅正弦（相位归零平滑衔接锚线）。
-    /// Q27（2026-08-05）：正弦峰值速度（AMP×TAU/PERIOD ≈ 78.5px/s）> 原 MOVE4_SPEED 40 时，
-    /// move_toward 速度上限把振幅压到 ±15px 且波形低通失真——与 _move_bob 同款直接绝对赋值
+    /// <summary>4 型「月蚀」：中心悬停微摆——不 strafe，纵向小振幅正弦（相位归零平滑衔接锚线）。
+    /// 正弦峰值速度（AMP×TAU/PERIOD ≈ 78.5px/s）超过 move_toward 速度上限时，
+    /// 速度上限会把振幅压到 ±15px 且波形低通失真——故与 _move_bob 同款直接绝对赋值
     /// （战斗与逃跑警告期独占 y，入场/逃跑/狂暴序列均早退不干扰；MOVE4_SPEED 键已随修复移除）。</summary>
     private void MoveType4(float delta, Boss boss)
     {
         _bobPhase += delta * Mathf.Tau / boss.Move4BobPeriod;
-        // 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘）
+        // 绝对 y 赋值必须叠加逃跑警告期上飘偏移（否则赋值覆盖 boss 侧上飘）
         var pos = boss.Position;
         pos.Y = boss.FightAnchorY() + boss.Move4BobAmp * Enemy.SinFast(_bobPhase) + boss.EscapeDriftOffset();
         boss.Position = pos;
@@ -179,15 +178,15 @@ public partial class BossMovement : RefCounted
         _pressOffset = target;
     }
 
-    /// <summary>纵向正弦（P2 通用，D05）：围绕锚线 ±amp 正弦往复。
+    /// <summary>纵向正弦（P2 通用）：围绕锚线 ±amp 正弦往复。
     /// 直接设置 y（_in_fight 后才被调用，入场/逃跑/狂暴序列均早退不干扰；FightAnchorY()
     /// 逐帧求值支持战斗中切视角档）。相位累计驱动，Enemy.SinFast 查表零分配。
-    /// L14：段切换后 BOB_SMOOTH_TIME 内从切换前 y 平滑收敛到锚线正弦轨迹（ease-out），
+    /// 段切换后 BOB_SMOOTH_TIME 内从切换前 y 平滑收敛到锚线正弦轨迹（ease-out），
     /// 消除 P1 增量式下压（press/band）残留偏移的瞬间跳变。</summary>
     private void MoveBob(float delta, Boss boss, float amp, float period)
     {
         _bobPhase += Mathf.Tau * delta / Mathf.Max(period, 0.01f);
-        // 2026-08-06 审计：绝对 y 赋值叠加逃跑警告期上飘偏移（原赋值覆盖 boss 侧上飘，三型无效果）
+        // 绝对 y 赋值必须叠加逃跑警告期上飘偏移（否则赋值覆盖 boss 侧上飘，三型无效果）
         var target = boss.FightAnchorY()
             + Enemy.SinFast(_bobPhase) * amp
             + boss.EscapeDriftOffset();
@@ -216,7 +215,7 @@ public partial class BossMovement : RefCounted
 
         _bandTimer -= delta;
         var elapsed = period - _bandTimer;
-        // 2026-08-10 健壮性审查：分母钳下限（对齐同文件 MoveBob 的 Max(period, 0.01f) 保护）——
+        // 分母钳下限（对齐同文件 MoveBob 的 Max(period, 0.01f) 保护）——
         // 0 时除零得 inf 经 Clamp 兜为 1，走位恒处下压最深点且 _bandTimer 每帧重置（P1 走位失效）
         var u = Mathf.Clamp(elapsed / Mathf.Max(period, 0.01f), 0.0f, 1.0f);
         var depth = (yLo + yHi) * 0.5f;
@@ -251,14 +250,14 @@ public partial class BossMovement : RefCounted
         if (_moveTimer <= 0.0f)
         {
             _dashing = !_dashing;
-            // D05：P2 冲刺更频（0.4s/0.5s）；P1 与 ENRAGE 维持现状（0.5s/0.7s）
+            // P2 冲刺更频（0.4s/0.5s）；P1 与 ENRAGE 维持现状（0.5s/0.7s）
             var phase = boss.FightPhaseValue();
             var dashT = phase == 1 ? boss.Type2P2DashTime : 0.5f;
             var restT = phase == 1 ? boss.Type2P2RestTime : 0.7f;
             _moveTimer = _dashing ? dashT : restT;
             if (_dashing)
             {
-                // 偏向屏幕中心方向冲刺，避免长期贴边（C14：中心取可见世界，不写死 960）
+                // 偏向屏幕中心方向冲刺，避免长期贴边（中心取可见世界，不写死 960）
                 var centerX = GameState.Instance.ViewWorldRect().GetCenter().X;
                 _strafeDir = GD.Randf() < 0.6f ? Mathf.Sign(centerX - boss.Position.X) : -_strafeDir;
                 if (_strafeDir == 0.0f)

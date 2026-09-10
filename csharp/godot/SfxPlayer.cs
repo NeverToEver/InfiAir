@@ -106,7 +106,7 @@ public partial class SfxPlayer : Node
     {
         if (IsHeadless || _voices.Length == 0)
         {
-            return; // G028：BuildPool 未调用（直接 new() 而未入树准备的路径）时防空引用
+            return; // BuildPool 未调用（直接 new() 而未入树准备的路径）时防空引用
         }
 
         var i = (int)id;

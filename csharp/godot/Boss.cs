@@ -7,10 +7,10 @@ namespace InfiAir;
 /// Boss：4 种轮换（1 重装 / 2 游击 / 3 母舰 /
 /// 4 月蚀），HP 分段驱动阶段框架（BOSS_REDESIGN §4.1）：P1（100–70%）→ P2（70–30%）→ ENRAGE
 /// （&lt;30%），P1/P2 各为数据驱动的模式表循环；段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身
-/// 开火计时。走位/攻击/狂暴经 A3 组合委托 BossMovement/BossAttacks/EnrageSequence（纯 C# 类）；
+/// 开火计时。走位/攻击/狂暴经组合委托 BossMovement/BossAttacks/EnrageSequence（纯 C# 类）；
 /// 弹幕经 BossFire（纯 C# 类）。语义保持：模式表脚本默认值镜像 balance.json、难度分档统一应用
-/// （§4.4）、阶段转场清弹 + 玩家短暂无敌（机制三）、狂暴锁血 30% + 玩家移速 ×0.35、逃跑警告 +
-/// 上飘、体碰信号事件驱动（P0-2）、受击闪白手动衰减（P1-2）。
+/// （§4.4）、阶段转场清弹 + 玩家短暂无敌、狂暴锁血 30% + 玩家移速 ×0.35、逃跑警告 +
+/// 上飘、体碰信号事件驱动、受击闪白手动衰减。
 /// 全部生产调用方为 C# typed（EnrageSequence/BossAttacks/BossMovement 经构造注入 Boss 引用）；
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达。
 /// </summary>
@@ -40,21 +40,21 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>常规阶段（§4.1）：P1/P2 模式表循环，ENRAGE 为狂暴（序列结束后「余怒」沿用 P2 表提速）。</summary>
     public enum FightPhase { P1, P2, ENRAGE }
 
-    // ---- 静态常量表 / 实例资源（U07：静态 Godot 资源改实例字段——退出 segfault 实测教训） ----
+    // ---- 静态常量表 / 实例资源（静态 Godot 资源必须改实例字段——退出 segfault） ----
     private readonly Texture2D _bossSprite1 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_1.png");
     private readonly Texture2D _bossSprite2 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_2.png");
     private readonly Texture2D _bossSprite3 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_3.png");
     private readonly Texture2D _bossSprite4 = GD.Load<Texture2D>("res://assets/sprites/boss_ship_4.png");
     /// <summary>P2 阶段损伤贴图（裂纹 + 火花）。</summary>
     private readonly Texture2D[] _bossP2Textures;
-    /// <summary>4 型「月蚀」专属贴图（环刃法师，2026-08-09 接线）。
+    /// <summary>4 型「月蚀」专属贴图（环刃法师）。
     /// 数组在构造器装配（字段初始化器禁引用实例字段）。</summary>
     private readonly Texture2D[] _bossTextures;
     /// <summary>独立召唤计时（不占模式表）：3 型「母舰」专属（_physics_process 查询）。</summary>
     private static readonly Dictionary<int, bool> SummonerTypes = new() { [3] = true, [4] = false };
     /// <summary>受击闪白总时长（游击型更短）：_flash_hit 查询。</summary>
     private static readonly Dictionary<int, float> HitFlashByType = new() { [1] = 0.1f, [2] = 0.05f, [3] = 0.1f, [4] = 0.1f };
-    /// <summary>2026-08-07 审计：逃跑警告闪烁与狂暴底色提常量（原每帧构造 Color）。</summary>
+    /// <summary>逃跑警告闪烁与狂暴底色提常量（不得每帧构造 Color）。</summary>
     private static readonly Color EscapeBlinkColor = new(1.8f, 1.3f, 0.5f);
     private static readonly Color EnrageBlinkColor = new(1.5f, 0.65f, 0.65f);
     /// <summary>逃跑警告期机身闪烁频率（Hz）：警告期与狂暴序列警告期共用同一明暗节奏。</summary>
@@ -125,13 +125,13 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         },
     };
 
-    // ---- A3：组合组件（纯 C# 类；Configure 注入） ----
+    // ---- 组合组件（纯 C# 类；Configure 注入） ----
     private readonly BossFire _fire = new();
     private readonly BossMovement _movement = new();
     private readonly BossAttacks _attacks = new();
     private readonly EnrageSequence _enrageSequence = new();
-    /// <summary>A5：spawner 依赖注入（spawner._spawn_boss 设置；替代 group 现找）。</summary>
-    private Spawner? _spawner; // U13：typed
+    /// <summary>spawner 依赖注入（spawner._spawn_boss 设置；替代 group 现找）。</summary>
+    private Spawner? _spawner; // typed
 
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
     public float EnterSpeed { get; set; } = 140.0f;
@@ -148,7 +148,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public float HomingBulletSpeed { get; set; } = 300.0f;
     public float SniperBulletSpeed { get; set; } = 650.0f;
     public float CrossBulletSpeed { get; set; } = 260.0f;
-    /// <summary>4 型「月蚀」ring_burst 环弹攻击参数（2026-08-04；默认值与 balance.json 双写）。</summary>
+    /// <summary>4 型「月蚀」ring_burst 环弹攻击参数（默认值与 balance.json 双写）。</summary>
     public float RingBurstSpeed { get; set; } = 340.0f;
     public int BulletDamageRing { get; set; } = 14;
     /// <summary>阶段阈值：P2 = 70%（新增），ENRAGE = 30%（沿用原作）。</summary>
@@ -161,7 +161,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public float EnragePlayerSlow { get; set; } = 0.35f;
     /// <summary>段切换演出时长（蓄力辉光 + 停火，§4.1）。</summary>
     public float PhaseShiftDuration { get; set; } = 0.6f;
-    /// <summary>阶段转场公平感（2026-08-03 机制三）：切换时清全部活跃弹丸 + 给玩家短暂无敌。</summary>
+    /// <summary>阶段转场公平感：切换时清全部活跃弹丸 + 给玩家短暂无敌。</summary>
     public bool ClearOnShift { get; set; } = true;
     public float TransitionInvincible { get; set; } = 1.0f;
     /// <summary>狙击 telegraph（§4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹。</summary>
@@ -171,7 +171,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>一型 P1 纵向下压（§5.1）：每 6s 下压 80px 再回。</summary>
     public float PressInterval { get; set; } = 6.0f;
     public float PressDepth { get; set; } = 80.0f;
-    /// <summary>D05 P2 走位（balance.json boss.movement，公开字段供 BossMovement 读取）。</summary>
+    /// <summary>P2 走位（balance.json boss.movement，公开字段供 BossMovement 读取）。</summary>
     public int Type1P2Strafe { get; set; } = 200;
     public float Type1P2BobAmp { get; set; } = 40.0f;
     public float Type1P2BobPeriod { get; set; } = 6.0f;
@@ -224,7 +224,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         ["salvo"] = new Godot.Collections.Array { -2, 0, 2 },
         ["summon"] = new Godot.Collections.Array { -1, 0, 1 },
         ["drops"] = new Godot.Collections.Array { -1, 0, 1 },
-        // 2026-08-05 Q28：ring_burst 为绝对值分档（json 缺键时回退此表，与 §5.6 一致）
+        // ring_burst 为绝对值分档（json 缺键时回退此表，与 §5.6 一致）
         ["ring_burst"] = new Godot.Collections.Array { 10, 12, 14 },
     };
     public int EnrageSnapshotLasers { get; set; } = 4;
@@ -318,19 +318,19 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private bool _escapeWarned;
     private bool _escaping;
     private float _escapeSpeed;
-    /// <summary>2026-08-06 审计：逃跑警告期上飘累计偏移——直接 `position.y -= drift*delta` 会被
+    /// <summary>逃跑警告期上飘累计偏移——直接 `position.y -= drift*delta` 会被
     /// 绝对 y 赋值走位（type1 P2 / type3 P2 _move_bob、type4）逐帧覆盖，三型无上飘效果；
     /// 累计偏移由绝对赋值处（BossMovement）叠加，增量式走位保留直接减。</summary>
     private float _escapeDriftOffset;
     /// <summary>母舰召唤减速带：短时减速乘区（仅位移，经 slow_factor 生效）。</summary>
     private float _summonSlowTimer;
     private float _summonSlowFactor = 1.0f;
-    /// <summary>slow_field buff 名（信号驱动 Refresh 用；U14 静态 StringName 口径）。</summary>
+    /// <summary>slow_field buff 名（信号驱动 Refresh 用；静态 StringName 口径）。</summary>
     private static readonly StringName SlowFieldId = new("slow_field");
-    /// <summary>2026-08-07 审计：slow_field 布尔缓存（同 Enemy 的 C22 模式——物理帧免每帧 AugmentLevel 字典查询；
-    /// 2026-08-11 二轮收敛 AugmentBoolCache：AugmentsChanged 信号事件驱动）。</summary>
+    /// <summary>slow_field 布尔缓存（物理帧免每帧 AugmentLevel 字典查询；
+    /// AugmentsChanged 信号事件驱动）。</summary>
     private readonly AugmentBoolCache _slowCache;
-    /// <summary>2026-08-07 审计：体碰改信号事件驱动（同 Enemy 的 P0-2 模式）。</summary>
+    /// <summary>体碰信号事件驱动。</summary>
     private bool _bodyContact;
     // 阶段框架与模式表循环（§4.1）
     private FightPhase _fightPhase = FightPhase.P1;
@@ -339,11 +339,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private float _patternLeft; // 当前模式剩余波次（或剩余时长秒）
     private bool _patternIsDuration;
     private float _fireTimer = 1.6f;
-    /// <summary>G024：三型普通阶段召唤小怪间隔（balance.json boss.phases.type3.summon_interval 可覆盖）。</summary>
+    /// <summary>三型普通阶段召唤小怪间隔（balance.json boss.phases.type3.summon_interval 可覆盖）。</summary>
     private float _summonInterval = 6.0f;
     private float _summonTimer = 6.0f;
-    /// <summary>A3 收敛：召唤机标志字段化（原每物理帧 SummonerTypes.TryGetValue 查询；Setup 按 BossType 固化）。
-    /// 默认 BossType=1 非字典键 → 默认 false，与直实例化不调 Setup 的 TryGetValue 结果一致。</summary>
+    /// <summary>召唤机标志字段化（Setup 按 BossType 固化，免每物理帧 SummonerTypes.TryGetValue 查询）。
+    /// 默认 BossType=1 非字典键 → 默认 false，与不调 Setup 的 TryGetValue 结果一致。</summary>
     private bool _isSummoner;
     /// <summary>贴图有效尺寸（_ready 实测更新，算轨道半径）。</summary>
     private Vector2 _bossSize = new(328.0f, 328.0f);
@@ -351,7 +351,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     // 机体背光轮廓（阵营染色加法剪影；贴图随 Boss 类型/P2 换帧刷新，故单独维护）
     private static readonly Color RimGlowColor = new(1.0f, 0.32f, 0.48f, 0.30f);
     private Sprite2D? _rimGlow;
-    /// <summary>P1-2：受击闪白手动衰减（_physics_process 逐帧 lerp 回 _base_modulate）。</summary>
+    /// <summary>受击闪白手动衰减（_physics_process 逐帧 lerp 回 _base_modulate）。</summary>
     private float _flashTimer;
     private float _flashTotal = 0.1f;
 
@@ -383,7 +383,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         MuzzleOffset = 100.0f * _ws;
         _fire.MuzzleOffset = MuzzleOffset;
         _fire.WorldScale = _ws;
-        // V 系列：Configure 参数已 typed（BossFire）——直调发射器，原「注入本类并转发」桥删除
+        // Configure 参数已 typed（BossFire）——直调发射器，原「注入本类并转发」桥删除
         _attacks.Configure(_fire, _ws);
         _enrageSequence.Configure(_fire, _attacks, _ws);
         // 数值配置缓存（启动一次读入）
@@ -398,10 +398,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         FightY = CfgFx.Float("boss.fight_y", FightY);
         StrafeMinX = CfgFx.Float("boss.strafe_min_x", StrafeMinX);
         StrafeMaxX = CfgFx.Float("boss.strafe_max_x", StrafeMaxX);
-        // V 系列：阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害（Q02 同根因）
+        // 阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害
         Phase2HpRatio = CfgFx.Float("boss.phase2_hp_ratio", Phase2HpRatio, 0.01f, 0.99f);
         EnrageHpRatio = CfgFx.Float("boss.enrage.hp_ratio", EnrageHpRatio, 0.01f, 0.99f);
-        // AB18：保序修正——P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），
+        // 保序：P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），
         // 倒挂配置（phase2=0.2, enrage=0.3）使 P2 段整体跳过、Boss 以 P1 强度直接狂暴且无告警
         if (Phase2HpRatio <= EnrageHpRatio)
         {
@@ -414,22 +414,22 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EnrageSnapshotRing = CfgFx.Int("boss.enrage.snapshot_ring", EnrageSnapshotRing);
         EnrageLaserSpeed = CfgFx.Float("boss.enrage.laser_speed", EnrageLaserSpeed);
         EnrageRingSpeed = CfgFx.Float("boss.enrage.ring_speed", EnrageRingSpeed);
-        // 2026-08-09 审计（R06 同族）：三个时序键作 EnrageSequence 除数的分母，0 值除零得 ±inf——
-        // float 不崩、Clamp 收敛，但狂暴序列 1-2 帧内瞬间走完（行为退化）；下限钳制 ≥0.05
+        // 三个时序键作 EnrageSequence 除数的分母，0 值除零得 ±inf——
+        // float 不崩、Clamp 兜底，但狂暴序列 1-2 帧内瞬间走完（行为退化）；必须下限钳制 ≥0.05
         EnrageDuration = CfgFx.Float("boss.enrage.duration", EnrageDuration, CfgFx.IntervalFloor);
         EnrageTransitionDuration = CfgFx.Float("boss.enrage.transition_duration", EnrageTransitionDuration, CfgFx.IntervalFloor);
-        // AC9（2026-08-11 健壮性审查）：三时序键钳下限 ≥0.05（R06 只封了 duration 族）——
+        // 三时序键必须钳下限 ≥0.05——
         // attack_windup≤0 使 ACTIVE 一进入 _attackTimer 即触发（蓄力 telegraph 归零）；
         // attack_interval/release_interval≤0 → 狂暴回退/释放路径每帧攻击风暴
         EnrageAttackInterval = CfgFx.Float("boss.enrage.attack_interval", EnrageAttackInterval, CfgFx.IntervalFloor);
         EnrageAttackWindup = CfgFx.Float("boss.enrage.attack_windup", EnrageAttackWindup, CfgFx.IntervalFloor);
         EnrageReleaseInterval = CfgFx.Float("boss.enrage.release_interval", EnrageReleaseInterval, CfgFx.IntervalFloor);
-        // R06 同族：release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
+        // release_hold_duration 同为 EnrageSequence 除数，0/负值时 RELEASE_HOLD 段一帧压完
         // （Clamp(1-(-inf))=1，Boss 瞬跳回退），下限钳制 ≥0.05
         EnrageReleaseHoldDuration = CfgFx.Float("boss.enrage.release_hold_duration", EnrageReleaseHoldDuration, CfgFx.IntervalFloor);
         EnrageReturnDuration = CfgFx.Float("boss.enrage.return_duration", EnrageReturnDuration, CfgFx.IntervalFloor);
         EnragePathRadiusScale = CfgFx.Float("boss.enrage.path_radius_scale", EnragePathRadiusScale);
-        // H12（健壮性审核）：square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
+        // square_path_ratio 钳制 (0,1]——0 会除零产生 inf 轨道 NaN
         EnrageSquarePathRatio = CfgFx.Float("boss.enrage.square_path_ratio", EnrageSquarePathRatio, 0.05f, 1.0f);
         EnrageReleaseLaserSpeed = CfgFx.Float("boss.enrage.release_laser_speed", EnrageReleaseLaserSpeed);
         EnrageReleaseRingSpeed = CfgFx.Float("boss.enrage.release_ring_speed", EnrageReleaseRingSpeed);
@@ -439,16 +439,16 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EscapeDrift = CfgFx.Float("boss.escape.drift", EscapeDrift);
         EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed);
         EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel);
-        // 2026-08-07 审计：slow_field 缓存初始值 + AugmentsChanged 增量刷新（同 Enemy 的 C22 模式）
+        // slow_field 缓存初始值 + AugmentsChanged 增量刷新
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
 
-        // 2026-08-07 审计：体碰信号事件驱动（同 Enemy 的 P0-2 模式；collision_mask=3 已含 Player Hitbox 层 1）
+        // 体碰信号事件驱动（collision_mask=3 已含 Player Hitbox 层 1）
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
         EscapeCountdownFrom = CfgFx.Float("boss.escape.countdown_visible_from", EscapeCountdownFrom);
         HpBase = CfgFx.Float("boss.hp_base", HpBase);
-        // C18：cfg 返回 Variant，显式转 Array[float] 再赋 typed 变量
+        // cfg 返回 Variant，显式转 Array[float] 再赋 typed 变量
         var ss = GameState.Instance.Cfg("boss.strafe_speeds", StrafeSpeeds);
         var ssArr = new Godot.Collections.Array<float>();
         if (ss.VariantType == Variant.Type.Array)
@@ -461,12 +461,12 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             }
         }
 
-        StrafeSpeeds = ssArr.Count >= 3 ? ssArr : new Godot.Collections.Array<float> { 150.0f, 400.0f, 60.0f }; // H11：不足 3 元素回退默认
-        // B5 修复：cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
-        // FIRE_INTERVALS[i]——不拷贝会污染全局缓存、easy/hard 下跨 Boss 复合叠加。
-        // H11：非数组类型时回退默认（原 .duplicate() 对非数组直接崩溃）；
-        // 2026-08-10：空数组/不足 3 元素同回退（BaseFireInterval 的 Clamp(0,0,-1) 得 -1
-        // 索引 FireIntervals[-1] 抛 IndexOutOfRangeException，与 StrafeSpeeds H11 同口径）
+        StrafeSpeeds = ssArr.Count >= 3 ? ssArr : new Godot.Collections.Array<float> { 150.0f, 400.0f, 60.0f }; // 不足 3 元素回退默认
+        // cfg 对数组返回共享 JSON 引用，_apply_difficulty_scaling 会就地乘算
+        // FIRE_INTERVALS[i]——必须拷贝，否则污染全局缓存、easy/hard 下跨 Boss 复合叠加。
+        // 非数组类型时回退默认；
+        // 空数组/不足 3 元素同回退（BaseFireInterval 的 Clamp(0,0,-1) 得 -1
+        // 索引 FireIntervals[-1] 抛 IndexOutOfRangeException，与 StrafeSpeeds 同口径）
         var fiRaw = GameState.Instance.Cfg("boss.fire_intervals", FireIntervals);
         var fiDefault = (Godot.Collections.Array)FireIntervals.Duplicate(true);
         var fiArr = new Godot.Collections.Array();
@@ -476,7 +476,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             {
                 var v = fiRaw.AsGodotArray()[i];
                 // 元素级判型：非数值回退默认对应位（下游 AsDouble 对坏类型静默为 0，
-                // 难度缩放会把 0 写回缓存；运行期另有 AB3 IntervalFloor 兜底）
+                // 难度缩放会把 0 写回缓存；运行期另有 IntervalFloor 兜底）
                 fiArr.Add(v.VariantType is Variant.Type.Float or Variant.Type.Int
                     ? v
                     : fiDefault[Mathf.Min(i, fiDefault.Count - 1)]);
@@ -489,7 +489,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         SniperBulletSpeed = CfgFx.Float("boss.sniper_bullet_speed", SniperBulletSpeed);
         CrossBulletSpeed = CfgFx.Float("boss.cross_bullet_speed", CrossBulletSpeed);
         CollisionDamage = CfgFx.Int("boss.collision_damage", CollisionDamage);
-        // 决策（2026-08-11 CfgFx 批 5）：slow_field.factor 此处保持无钳制直读——Enemy 侧同键
+        // slow_field.factor 此处保持无钳制直读——Enemy 侧同键
         // 钳 [0,1]，Boss 侧慢速力场仅作减速系数、无加速场语义；行为零变化铁律下不补钳，
         // CfgFx.Float 仅加判型回退（坏类型不崩）
         SlowFieldFactor = CfgFx.Float("augments.slow_field.factor", SlowFieldFactor);
@@ -530,7 +530,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         SweepDropCount = CfgFx.Int("boss.phases.attacks.dash_sweep.drop_count", SweepDropCount);
         SweepDropSpeed = CfgFx.Float("boss.phases.attacks.dash_sweep.drop_speed", SweepDropSpeed);
         SweepDropDamage = CfgFx.Int("boss.phases.attacks.dash_sweep.drop_damage", SweepDropDamage);
-        // 2026-08-10 健壮性审查：return_duration 钳下限——0 时 dash_sweep RETURN 段
+        // return_duration 钳下限——0 时 dash_sweep RETURN 段
         // _sweepTimer/该值除零（Clamp 兜底无 NaN，但 Boss 冲刺后全程钉在回退原点不动）
         SweepReturnDuration = CfgFx.Float("boss.phases.attacks.dash_sweep.return_duration", SweepReturnDuration, CfgFx.IntervalFloor);
         VolleyCount = CfgFx.Int("boss.phases.attacks.minion_volley.count", VolleyCount);
@@ -542,7 +542,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         WallDamage = CfgFx.Int("boss.phases.attacks.bullet_wall.damage", WallDamage);
         WallArcDeg = CfgFx.Float("boss.phases.attacks.bullet_wall.arc_deg", WallArcDeg);
         // 差异化狂暴参数（boss.enrage.type_*）
-        // R06：interval 类键钳下限（L 系列判型族登记遗留）——0/负值使狂暴攻击每帧触发风暴
+        // interval 类键钳下限——0/负值使狂暴攻击每帧触发风暴
         E1RingInterval = CfgFx.Float("boss.enrage.type_1.ring_interval", E1RingInterval, CfgFx.IntervalFloor);
         E1RingCount = CfgFx.Int("boss.enrage.type_1.ring_count", E1RingCount);
         E1RingSpeed = CfgFx.Float("boss.enrage.type_1.ring_speed", E1RingSpeed);
@@ -551,7 +551,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E1SalvoCount = CfgFx.Int("boss.enrage.type_1.salvo_count", E1SalvoCount);
         E1SalvoSpeed = CfgFx.Float("boss.enrage.type_1.salvo_speed", E1SalvoSpeed);
         E1SalvoDamage = CfgFx.Int("boss.enrage.type_1.salvo_damage", E1SalvoDamage);
-        // AB4：point_count 钳下限 4（同族 count 键 E1RingCount/E3RingCount 等均有 floor，
+        // point_count 钳下限 4（同族 count 键 E1RingCount/E3RingCount 等均有 floor，
         // 独漏此项）——配 0 使 _attackIndex < E2PointCount 恒假，二型狂暴 ACTIVE 冻结
         E2PointCount = CfgFx.Int("boss.enrage.type_2.point_count", E2PointCount, 4);
         E2PointInterval = CfgFx.Float("boss.enrage.type_2.point_interval", E2PointInterval, CfgFx.IntervalFloor);
@@ -561,8 +561,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E2ReleaseRingCount = CfgFx.Int("boss.enrage.type_2.release_ring_count", E2ReleaseRingCount);
         E2ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_2.release_ring_speed", E2ReleaseRingSpeed);
         E3SummonInterval = CfgFx.Float("boss.enrage.type_3.summon_interval", E3SummonInterval, CfgFx.IntervalFloor);
-        // G024：三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
-        // AC7（2026-08-11 健壮性审查）：孪生键 E3SummonInterval 已钳 ≥0.05（上方同族）；≤0 时
+        // 三型普通阶段召唤间隔入配置（对齐狂暴 E3 键）
+        // E3SummonInterval 已钳 ≥0.05（上方同族）；≤0 时
         // _summonTimer 每帧归零 → 每物理帧召唤风暴（SummonMinions 刷兵失控）
         _summonInterval = CfgFx.Float("boss.phases.type3.summon_interval", _summonInterval, CfgFx.IntervalFloor);
         _summonTimer = _summonInterval;
@@ -573,11 +573,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E3RingSpeed = CfgFx.Float("boss.enrage.type_3.ring_speed", E3RingSpeed);
         E3ReleaseRingCount = CfgFx.Int("boss.enrage.type_3.release_ring_count", E3ReleaseRingCount);
         E3ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_3.release_ring_speed", E3ReleaseRingSpeed);
-        // 4 型「月蚀」（2026-08-04）
+        // 4 型「月蚀」
         RingBurstSpeed = CfgFx.Float("boss.ring_burst.bullet_speed", RingBurstSpeed);
         BulletDamageRing = CfgFx.Int("boss.bullet_damage.ring", BulletDamageRing);
         Move4BobAmp = CfgFx.Float("boss.movement.type4.bob_amp", Move4BobAmp);
-        // W 系列（2026-08-09）：bob_period 下限 0.05——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 越界（R06 同族，MoveBob 侧已有 0.01 保护）
+        // bob_period 下限 0.05——≤0 时 MoveType4 周期除零 → 相位 NaN → SinFast 越界（MoveBob 侧已有 0.01 保护）
         Move4BobPeriod = CfgFx.Float("boss.movement.type4.bob_period", Move4BobPeriod, CfgFx.IntervalFloor);
         E4RingCount = CfgFx.Int("boss.enrage.type_4.ring_count", E4RingCount);
         E4RingInterval = CfgFx.Float("boss.enrage.type_4.ring_interval", E4RingInterval, CfgFx.IntervalFloor);
@@ -586,8 +586,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E4ReleaseRingCount = CfgFx.Int("boss.enrage.type_4.release_ring_count", E4ReleaseRingCount);
         E4ReleaseRingSpeed = CfgFx.Float("boss.enrage.type_4.release_ring_speed", E4ReleaseRingSpeed);
         _movement.SyncPressTimer(PressInterval);
-        // W 系列（2026-08-09）：difficulty_scaling 判型+空表守卫——损坏类型/空数组时 AsGodotArray 得空表，
-        // ApplyDifficultyScaling 的 Clamp(tier,0,Count-1) 返回 -1 → 越界 SCRIPT ERROR（Q14/R06 同族防呆口径，坏值保持默认）
+        // difficulty_scaling 判型+空表守卫——损坏类型/空数组时 AsGodotArray 得空表，
+        // ApplyDifficultyScaling 的 Clamp(tier,0,Count-1) 返回 -1 → 越界 SCRIPT ERROR（防呆口径，坏值保持默认）
         var diffInterval = GameState.Instance.Cfg("boss.difficulty_scaling.interval_mult", DiffIntervalMult);
         if (diffInterval.VariantType == Variant.Type.Array && diffInterval.AsGodotArray().Count >= 3)
         {
@@ -611,26 +611,26 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     public override void _ExitTree()
     {
         GameState.Instance.UnbindEnemy(this); // 统一解绑
-        // C22：显式断开 augments_changed 信号连接（重入树不重复连接）
+        // 显式断开 augments_changed 信号连接（重入树不重复连接）
         _slowCache.Disconnect(GameState.Instance);
 
-        _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（A3 归 EnrageSequence）
+        _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（归 EnrageSequence）
     }
 
-    // ---------------- 对外公开接口（A1 修复） ----------------
+    // ---------------- 对外公开接口 ----------------
 
     /// <summary>setup：类型/HP 初始化（_ready 之前调用，不用 @onready）。</summary>
     public void Setup(float pDifficulty, int pType)
     {
-        // K12：p_type 越界钳制（公开接口）——保护下方 hp_mults[p_type-1] 与 TEXTURES[p_type-1]
-        // 双双越界（H11 只校验了数组长度）；轮换扩 4 型（2026-08-04 月蚀）后上限放开为 4
+        // p_type 越界钳制（公开接口）——保护下方 hp_mults[p_type-1] 与 TEXTURES[p_type-1]
+        // 双双越界；上限为 4（4 型月蚀）
         pType = Mathf.Clamp(pType, 1, 4);
         BossType = pType;
-        // A3 收敛：召唤机标志字段化（原每物理帧 SummonerTypes.TryGetValue 查询；BossType 仅此处写入，Setup 固化）
+        // 召唤机标志字段化（免每物理帧 SummonerTypes.TryGetValue 查询；BossType 仅此处写入，Setup 固化）
         _isSummoner = SummonerTypes.TryGetValue(BossType, out var s) && s;
         // HP 四级乘算：基准 × 型别倍率 × Boss 击杀 ramp × 难度档（与敌机同源 0.75/1.0/1.5）
-        // H11（健壮性审核）：hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默
-        // Q02（2026-08-05）：校验与回退数组随 4 型扩容——原 3 元素校验/回退在 json 缺键/截断时
+        // hp_mults 长度/元素校验——短数组越界得 null→float 0.0 → Boss 免疫伤害静默
+        // 校验与回退数组随 4 型扩容——3 元素校验/回退在 json 缺键/截断时
         // 令 hp_mults[3] 越界 → max_hp=0 → type4 出生即免疫伤害（仅 50s 逃跑兜底）
         var hpMultsRaw = GameState.Instance.Cfg("boss.hp_mults", new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 });
         var hpMultsValid = false;
@@ -643,8 +643,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             {
                 foreach (var v in hpMultsArr)
                 {
-                    // R06：正值域校验（L 系列判型族登记遗留）——0/负倍率经 float() 后
-                    // max_hp≤0 → take_damage 首行早退 → Boss 出生即免疫伤害（与 Q02 同根因）
+                    // 正值域校验——0/负倍率经 float() 后
+                    // max_hp≤0 → take_damage 首行早退 → Boss 出生即免疫伤害（与越界回退同根因）
                     var num = v.VariantType == Variant.Type.Int ? (float)v.AsInt64() : v.AsDouble();
                     if (v.VariantType == Variant.Type.Bool
                         || !(v.VariantType == Variant.Type.Int || v.VariantType == Variant.Type.Float)
@@ -699,16 +699,16 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
     public void AbortEnrageSequence() => _enrageSequence.Abort();
 
-    /// <summary>狂暴态查询（A3：BossMovement/BossAttacks/EnrageSequence 经公开接口交互）。</summary>
+    /// <summary>狂暴态查询（BossMovement/BossAttacks/EnrageSequence 经公开接口交互）。</summary>
     public bool IsEnraged() => _enraged;
 
-    /// <summary>A6：语义化类型查询（调用方不再依赖 `is Boss` 具体类型）。</summary>
+    /// <summary>语义化类型查询（调用方不再依赖 `is Boss` 具体类型）。</summary>
     public bool IsBoss() => true;
 
     public int FightPhaseValue() => (int)_fightPhase;
 
     /// <summary>读取模式间隔；缺键/坏值才回退 BaseFireInterval。
-    /// 原 GetValueOrDefault 的默认实参每帧求值一次（DDA 查询），改为显式取 variant（空间换时间）。</summary>
+    /// 不用 GetValueOrDefault——其默认实参每帧求值一次（DDA 查询），故显式取 variant（空间换时间）。</summary>
     private float PatternInterval(Godot.Collections.Dictionary pattern)
     {
         var v = pattern.GetValueOrDefault("interval", default(Variant));
@@ -717,7 +717,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             : BaseFireInterval();
     }
 
-    /// <summary>A3：模式循环计时复位（BossAttacks 冲刺掠过 RETURN 结束调用）。</summary>
+    /// <summary>模式循环计时复位（BossAttacks 冲刺掠过 RETURN 结束调用）。</summary>
     public void ResetFireTimer()
     {
         _fireTimer = PatternInterval(CurrentPattern());
@@ -733,7 +733,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
     public Color BaseModulateColor() => BaseModulate();
 
-    /// <summary>A5：spawner 依赖注入（A5 改注入 spawner；BossAttacks/EnrageSequence 经公开接口调用）。</summary>
+    /// <summary>spawner 依赖注入（BossAttacks/EnrageSequence 经公开接口调用）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;
 
     /// <summary>编队小怪召唤（BossAttacks/EnrageSequence 经公开接口调用；返回实例供调用方标记）。</summary>
@@ -751,7 +751,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     {
         if (_escaping)
         {
-            return; // G02：逃跑期不再受任何伤害——激光 DamageTick/溅射 Splash 按注册表+距离判定
+            return; // 逃跑期不再受任何伤害——激光 DamageTick/溅射 Splash 按注册表+距离判定
             // 绕开 collision_layer=0，此处统一拦截，防逃跑窗口内补刀致死触发击杀奖励
         }
 
@@ -781,8 +781,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
         else
         {
-            // 单发跨 70%+30% 双线：P2 转场先于狂暴判定——原 else-if 链直走 Enrage 会跳过
-            // P2 转场（停火蓄力/清弹无敌/PhaseChanged），状态机缺边（2026-08-13 修复）
+            // 单发跨 70%+30% 双线：P2 转场必须先于狂暴判定——else-if 链直走 Enrage 会跳过
+            // P2 转场（停火蓄力/清弹无敌/PhaseChanged），状态机缺边
             if (_fightPhase == FightPhase.P1 && Hp <= MaxHp * Phase2HpRatio)
             {
                 EnterPhase(FightPhase.P2);
@@ -844,15 +844,14 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>
     /// 战斗锚线 y：FIGHT_Y 为距可见区域顶缘的偏移（与 StrafeRange() 边距处理对齐；
     /// zoom=1 时 view.position.y=0，锚线 = FIGHT_Y 本身）。
-    /// FrameCache 每物理帧共享缓存：原「不缓存」仅为 view_zoom_test 同帧精确断言，
-    /// 测试套件 2026-09-09 已全量移除；运行时 zoom 仅经设置页信号切换，物理帧内不变。
+    /// FrameCache 每物理帧共享缓存：运行时 zoom 仅经设置页信号切换，物理帧内不变。
     /// </summary>
     public float FightAnchorY() => FrameCache.ViewRect().Position.Y + FightY;
 
     /// <summary>
     /// 巡航范围随可见世界区域收窄（zoom=1 时与配置值 STRAFE_MIN_X/MAX_X 一致）。
-    /// 右缘边距 = 设计宽 1920 − STRAFE_MAX_X = 300px，随 view.end.x 平移保持（view_zoom_test
-    /// 断言 large 档 hi = view.end.x − 300；2026-08-05 P4 复核后保留原语义，1920 为设计宽度常量）。
+    /// 右缘边距 = 设计宽 1920 − STRAFE_MAX_X = 300px，随 view.end.x 平移保持
+    /// （large 档 hi = view.end.x − 300，1920 为设计宽度常量）。
     /// FrameCache 帧缓存读 view（见 FightAnchorY 注释）。
     /// </summary>
     public Vector2 StrafeRange()
@@ -877,7 +876,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             // 逃跑离场：向上加速飘出屏幕（不再受弹、不再开火）
             _escapeSpeed += EscapeAccel * d;
             Position += new Vector2(0.0f, -_escapeSpeed * d);
-            if (Position.Y < FrameCache.ViewRect().Position.Y - EscapeExitMargin) // G08：出界基线对齐 view_world_rect
+            if (Position.Y < FrameCache.ViewRect().Position.Y - EscapeExitMargin) // 出界基线对齐 ViewWorldRect
             {
                 EmitSignal(SignalName.Escaped);
                 EmitSignal(SignalName.Died); // 离场通知（血条/生成器重排）；非击毁，无击杀奖励
@@ -942,7 +941,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
         else
         {
-            // 走位与攻击解耦（§4.1）：A3 委托 BossMovement
+            // 走位与攻击解耦（§4.1）：委托 BossMovement
             _movement.Update(d, this);
 
             // 模式表循环：波间隔由当前模式给出，波次/时长播完切下一个
@@ -951,7 +950,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             if (_fireTimer <= 0.0f)
             {
                 var pattern = CurrentPattern();
-                // AB3：运行期兜底——interval 钳下限 0.05（装入清洗外的入口防每帧攻击风暴）
+                // 运行期兜底——interval 钳下限 0.05（装入清洗外的入口防每帧攻击风暴）
                 _fireTimer = Mathf.Max(PatternInterval(pattern), CfgFx.IntervalFloor);
                 _attacks.Execute((StringName)pattern.GetValueOrDefault("attack", NoAttack), this);
                 if (!_patternIsDuration)
@@ -980,7 +979,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             _summonTimer -= d;
             if (_summonTimer <= 0.0f)
             {
-                _summonTimer = _summonInterval; // G024：间隔入配置
+                _summonTimer = _summonInterval; // 间隔入配置
                 SummonMinions();
             }
         }
@@ -1011,7 +1010,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             _patternLeft = (float)pattern.GetValueOrDefault("waves", 1).AsInt64();
         }
 
-        // AB3：运行期兜底——首装同样钳下限（装入清洗外的入口）
+        // 运行期兜底——首装同样钳下限（装入清洗外的入口）
         _fireTimer = Mathf.Max(PatternInterval(pattern), CfgFx.IntervalFloor);
     }
 
@@ -1039,9 +1038,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _patternIndex = 0;
         StartPatternInternal();
         _fireTimer = PhaseShiftDuration; // 段切换蓄力期停火
-        // C11 修复：段切换归零一型纵向下压偏移，避免 P2 以残留下压永久停在锚线下方
+        // 段切换归零一型纵向下压偏移，避免 P2 以残留下压永久停在锚线下方
         _movement.ResetPress();
-        // L14：段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）当前偏移未补偿，
+        // 段切换 y 平滑过渡——P1 增量式下压（一型 press / 三型 band）当前偏移未补偿，
         // P2 绝对赋值锚线会 1/4 屏瞬移；从当前 y 平滑追锚线（过渡期由 _move_bob 收敛）
         _movement.BeginBobSmooth(Position.Y);
         _attacks.CancelAll();
@@ -1053,7 +1052,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     }
 
     /// <summary>
-    /// 阶段转场公平感清理（2026-08-03 机制三）：清全部活跃弹丸（含编队炸弹，复用
+    /// 阶段转场公平感清理：清全部活跃弹丸（含编队炸弹，复用
     /// main._on_orbital_struck 同款遍历）+ 给玩家短暂无敌。逃跑期不走本路径（_begin_escape
     /// 不经阶段切换）。低频（一局数次）直接遍历可接受，无逐帧轮询。无敌只增不减。
     /// </summary>
@@ -1073,7 +1072,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             }
         }
 
-        // M3c：Player 迁 C#，player_ref 恒为 Player（null 语义保留）
+        // player_ref 恒为 Player（null 语义保留）
         var playerV = GameState.Instance.PlayerRef;
         if (playerV != null)
         {
@@ -1090,7 +1089,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// 否则 _apply_difficulty_scaling 的 interval 乘算会污染缓存、叠加到后续 Boss 实例。</summary>
     private void LoadPatterns()
     {
-        // Q03（2026-08-05）：clampi 随 4 型扩容放开——原钳为 3 时 DEFAULT_PATTERNS 键 4 死数据、
+        // clampi 必须随 4 型扩容放开——钳为 3 时 DEFAULT_PATTERNS 键 4 死数据、
         // type4 配置损坏时静默回退三型（母舰）模式表，违背「脚本回退镜像 json」约定
         var defaults = (Godot.Collections.Dictionary)_defaultPatterns[Mathf.Clamp(BossType, 1, 4)];
         _patterns = (Godot.Collections.Dictionary)defaults.Duplicate(true);
@@ -1104,7 +1103,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         foreach (var key in new[] { "p1", "p2" })
         {
             var list = cfgDict.GetValueOrDefault(key, new Godot.Collections.Array());
-            // L07（2026-08-03 审查）：元素级判型（G06 只判容器层）——混入非 Dictionary 元素
+            // 元素级判型（容器层之外）——混入非 Dictionary 元素
             // 时 _current_pattern() typed 返回运行时类型错误、pattern.has 崩溃；坏元素跳过，
             // 全坏时保留脚本默认表（「损坏回退默认」口径）；深拷贝同样逐元素隔离共享 JSON
             if (list.VariantType != Variant.Type.Array)
@@ -1118,7 +1117,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
                 if (raw.VariantType == Variant.Type.Dictionary)
                 {
                     var pat = raw.AsGodotDictionary().Duplicate(true);
-                    // AB3：装入时清洗 interval 下限（R06 口径 0.05）——≤0 使 _fireTimer 每帧重装
+                    // 装入时清洗 interval 下限（口径 0.05）——≤0 使 _fireTimer 每帧重装
                     // 即触发攻击（波次模式 1 帧烧 1 波、时长模式连射至弹上限）
                     if (pat.GetValueOrDefault("interval", new Variant()).VariantType is Variant.Type.Int or Variant.Type.Float)
                     {
@@ -1177,13 +1176,13 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E1RingInterval *= intervalMult;
         E2PointInterval *= intervalMult;
         E3SummonInterval *= intervalMult;
-        // 2026-08-03 审计：三型普通阶段召唤间隔随难度分档（对齐 §8.3「各内部节奏 ×interval_mult」）；
+        // 三型普通阶段召唤间隔随难度分档（对齐 §8.3「各内部节奏 ×interval_mult」）；
         // 同步首唤计时，否则第一个召唤用 _ready 时的未分档间隔
         _summonInterval *= intervalMult;
         _summonTimer = _summonInterval;
         E3RingInterval *= intervalMult;
-        // 2026-08-06 审计 M4：4 型「月蚀」狂暴分档补齐（E33 同族遗漏）——interval/speed/count
-        // 三表原无 type4 行，狂暴参数三档恒定（easy 偏难、hard 偏易）；与 1/2/3 型同款乘区
+        // 4 型「月蚀」狂暴分档：interval/speed/count
+        // 三表必须有 type4 行，否则狂暴参数三档恒定（easy 偏难、hard 偏易）；与 1/2/3 型同款乘区
         E4RingInterval *= intervalMult;
         // 弹速（不含 main 编排的快照激光/环弹）
         FanBulletSpeed *= speedMult;
@@ -1200,12 +1199,12 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E2ReleaseRingSpeed *= speedMult;
         E3RingSpeed *= speedMult;
         E3ReleaseRingSpeed *= speedMult;
-        // M4：4 型普通阶段 ring_burst 环弹速 + 狂暴双环/蓄力环阵弹速随难度档（对齐 §4.4 全弹速分档）
+        // 4 型普通阶段 ring_burst 环弹速 + 狂暴双环/蓄力环阵弹速随难度档（对齐 §4.4 全弹速分档）
         RingBurstSpeed *= speedMult;
         E4RingSpeed *= speedMult;
         E4ReleaseRingSpeed *= speedMult;
-        // 弹数：逐参数分档增减，按攻击语义钳制下限（A3：增量迁入 BossAttacks）；
-        // ring_burst 例外：counts.ring_burst 为每档弹数绝对值（Q01），直接写入 ring_delta
+        // 弹数：逐参数分档增减，按攻击语义钳制下限（增量在 BossAttacks）；
+        // ring_burst 例外：counts.ring_burst 为每档弹数绝对值，直接写入 ring_delta
         _attacks.FanDelta = CountDelta("fan", tier);
         _attacks.HomingDelta = CountDelta("homing", tier);
         _attacks.RingDelta = CountDelta("ring_burst", tier);
@@ -1219,7 +1218,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         E3ReleaseRingCount = Mathf.Max(4, E3ReleaseRingCount + CountDelta("ring", tier));
         E1SalvoCount = Mathf.Max(4, E1SalvoCount + CountDelta("salvo", tier));
         E3SummonCount = Mathf.Max(1, E3SummonCount + CountDelta("summon", tier));
-        // M4：4 型狂暴弹数分档（ring 增量 [-2,0,2]，同 1/3 型环弹口径；下限 4 防越界）
+        // 4 型狂暴弹数分档（ring 增量 [-2,0,2]，同 1/3 型环弹口径；下限 4 防越界）
         E4RingCount = Mathf.Max(4, E4RingCount + CountDelta("ring", tier));
         E4ReleaseRingCount = Mathf.Max(4, E4ReleaseRingCount + CountDelta("ring", tier));
     }
@@ -1243,7 +1242,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>慢速力场与狂暴移速倍率之间的基础开火间隔（DDA 降档拉长，不降弹数/收益）。</summary>
     private float BaseFireInterval()
     {
-        // B 梯队：DDA 降档拉长 Boss 攻击间隔（不降弹数/收益，分数公平）
+        // DDA 降档拉长 Boss 攻击间隔（不降弹数/收益，分数公平）
         var idx = Mathf.Clamp(BossType - 1, 0, FireIntervals.Count - 1);
         return (float)FireIntervals[idx].AsDouble() * (float)GameState.Instance.DdaFactor();
     }
@@ -1263,7 +1262,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>受击闪白（锁血期复用；P1-2 手动衰减替代 Tween，高频命中零分配）。</summary>
+    /// <summary>受击闪白（锁血期复用；手动衰减替代 Tween，高频命中零分配）。</summary>
     private void FlashHit()
     {
         // 游击型受击硬直（闪白）更短（机型参数表驱动）
@@ -1271,7 +1270,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         FlashFx.Hit(_sprite, ref _flashTimer, _flashTotal); // 受击闪白
     }
 
-    /// <summary>P1-2：受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）。</summary>
+    /// <summary>受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）。</summary>
     private void UpdateFlash(float delta)
     {
         if (_flashTimer <= 0.0f)
@@ -1287,8 +1286,8 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>
     /// 身体撞击（对齐原作 boss_vs_player.py 逐帧轮询语义）：入场降入与逃跑离场阶段不判定；
     /// 玩家 -30 HP（受击无敌帧节流连撞，无敌结束仍重叠会再次命中），Boss 不掉血、不自毁。
-    /// 2026-08-07 审计：重叠状态由 area_entered/exited 事件驱动标记（collision_mask=3 已含
-    /// player Hitbox 层 1），此处仅 O(1) 标记守卫（替代原每物理帧 overlaps_area 空间查询）。
+    /// 重叠状态由 area_entered/exited 事件驱动标记（collision_mask=3 已含
+    /// player Hitbox 层 1），此处仅 O(1) 标记守卫（不得每物理帧 overlaps_area 空间查询）。
     /// </summary>
     private void CheckBodyCollision()
     {
@@ -1297,19 +1296,19 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             return;
         }
 
-        // M3c：Player 迁 C#，player_ref 恒为 Player
+        // player_ref 恒为 Player
         var player = FrameCache.Player() as Player;
         if (player == null || !GodotObject.IsInstanceValid(player))
         {
             return;
         }
 
-        // 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向（D8）
+        // 撞体伤害随对局进程 ramp（与 Boss 弹同一系数）；补传撞体位置作伤害源方向
         var dmg = EnemyFx.RampCollisionDamage(CollisionDamage);
         player.TakeDamage(dmg, GlobalPosition);
     }
 
-    /// <summary>2026-08-07 审计：体碰重叠标记（同 Enemy 的 P0-2 模式；判定交回 _PhysicsProcess 守卫）。</summary>
+    /// <summary>体碰重叠标记（判定交回 _PhysicsProcess 守卫）。</summary>
     private void OnAreaEntered(Area2D area)
     {
         if (!area.IsInGroup("player_hitbox"))
@@ -1320,7 +1319,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _bodyContact = true;
     }
 
-    /// <summary>2026-08-07 审计：离开玩家 Hitbox → 清除重叠标记（停止每帧重掷）。</summary>
+    /// <summary>离开玩家 Hitbox → 清除重叠标记（停止每帧重掷）。</summary>
     private void OnAreaExited(Area2D area)
     {
         if (area.IsInGroup("player_hitbox"))
@@ -1334,7 +1333,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _enraged = true;
         _fightPhase = FightPhase.ENRAGE;
         // 中断进行中的常规攻击/telegraph，启动狂暴序列：锁血 30% 检查点 + 快照玩家位置 + 玩家减速
-        // （狂暴数据初始化 + 锁血 + 玩家减速委托 EnrageSequence，A3）
+        // （狂暴数据初始化 + 锁血 + 玩家减速委托 EnrageSequence）
         _attacks.CancelAll();
         TransitionCleanup(); // 机制三：ENRAGE 转场同款清弹 + 玩家短暂无敌
         var playerV = GameState.Instance.PlayerRef;
@@ -1355,7 +1354,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         GameState.Instance.AddBossKill(_scoreScale);
         // 吸血 buff：Boss 击杀同样触发（对齐原作 boss_manager 路径，每帧至多一次）
         GameState.Instance.TryLifesteal();
-        // M3a 起 Explosion 为 C#，静态方法直接调用
+        // Explosion 静态方法直接调用
         Explosion.SpawnBossSequence(GetParent(), GlobalPosition);
         EmitSignal(SignalName.Died);
         QueueFree();
@@ -1379,13 +1378,13 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private void BeginEscapeInternal()
     {
         _enrageSequence.Abort(); // 序列中断：解血锁 + 复位减速 + 清 telegraph
-        _attacks.CancelAll(); // R07：常规攻击中断（瞄准线/蓄力/齐射计时/拖弹点），防逃跑期残留攻击继续结算
+        _attacks.CancelAll(); // 常规攻击中断（瞄准线/蓄力/齐射计时/拖弹点），防逃跑期残留攻击继续结算
         _escaping = true;
         IsEscaped = true;
         _escapeSpeed = EscapeStartSpeed;
         CollisionLayer = 0; // 离场阶段不再受弹
         CollisionMask = 0;
-        _bodyContact = false; // 2026-08-07 审计：逃跑期监控关闭，重叠标记复位防残留
+        _bodyContact = false; // 逃跑期监控关闭，重叠标记复位防残留
         _sprite.Modulate = BaseModulate();
         GD.Print($"[BOSS] 存活 {(int)EscapeTime}s 未被击杀，逃离战场（无击杀奖励）");
     }

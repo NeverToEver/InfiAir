@@ -5,7 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 伪敌机事件：生成无伤害/无碰撞的幽灵机群（纯视觉干扰，单机外观/移动见 FakeEnemy）。
 /// 配置：balance.json fog_events.fake_enemies（count / spawn_interval）。
-/// 健壮性：_on_start 缓存容器并判空——context 缺 fake_container 时降级空转（不崩，
+/// _on_start 缓存容器并判空——context 缺 fake_container 时降级空转（不崩，
 /// 事件仍走完 duration，由 GameEvent.End 幂等清理）。
 /// </summary>
 public partial class FakeEnemiesEvent : FogEvent
@@ -26,7 +26,7 @@ public partial class FakeEnemiesEvent : FogEvent
             return;
         }
 
-        // 2026-08-10 健壮性审查：条目值判型——配置坏值为字符串/数组时 AsInt64/AsDouble 抛
+        // 条目值判型——配置坏值为字符串/数组时 AsInt64/AsDouble 抛
         // InvalidCastException 崩溃（对齐 Spawner.IsNumber 口径），坏值回退默认
         var countV = GameState.Instance.Cfg("fog_events.fake_enemies.count", _count);
         _count = Mathf.Max(countV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)countV.AsInt64() : _count, 1);

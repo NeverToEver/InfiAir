@@ -6,7 +6,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 死亡结算面板：击杀统计 + 左缘轮盘菜单
-/// （重新出击/返回标题/退出；2026-09-08 圆盘 UI 全覆盖，R 快捷键保留）。
+/// （重新出击/返回标题/退出；R 快捷键保留）。
 /// </summary>
 public partial class GameOverUi : RadialMenuLayer
 {
@@ -45,7 +45,7 @@ public partial class GameOverUi : RadialMenuLayer
         _content.AddChild(_statsLabel);
 
         var gs = GameState.Instance;
-        // C22 IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
+        // IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
         // 结算回调双跑（SettleRun 双执行）
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
@@ -60,7 +60,7 @@ public partial class GameOverUi : RadialMenuLayer
 
     public override void _ExitTree()
     {
-        // C22：显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
+        // 显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {

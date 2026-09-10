@@ -24,7 +24,7 @@ public sealed record SaveLoadResult(
 }
 
 /// <summary>
-/// 存档文件存储核心（P0-1，2026-08-07 落地）：原子写（临时文件 + rename 回退）、
+/// 存档文件存储核心：原子写（临时文件 + rename 回退）、
 /// 损坏隔离（.corrupt + 状态标记）、JSON 序列化（System.Text.Json）。
 /// 语义与 Godot 侧 SaveManager 一致；纯 .NET、零 Godot 依赖，可独立单测。
 /// 文件内容差异（无害）：System.Text.Json 对整数值
@@ -37,7 +37,7 @@ public sealed class SaveStore
     /// <summary>删除文件（不存在时静默成功，先判存在再删）。</summary>
     public void Delete(string path)
     {
-        // 2026-08-10 健壮性审查：IO 防护——只读/占用时 File.Delete 抛异常会让删号流程崩溃，
+        // IO 防护——只读/占用时 File.Delete 抛异常会让删号流程崩溃，
         // 吞 IOException/UnauthorizedAccessException 对齐"不存在时静默成功"的宽松语义
         try
         {
@@ -56,7 +56,7 @@ public sealed class SaveStore
 
     /// <summary>
     /// 原子写：先写 &lt;path&gt;.tmp 再 rename 覆盖正本；首次 rename 失败（平台不支持
-    /// 原子覆盖）时删正本重试（回退路径，与原实现风险窗口等价）。失败返回 false + 错误信息。
+    /// 原子覆盖）时删正本重试（回退路径）。失败返回 false + 错误信息。
     /// </summary>
     public bool TrySave(string path, object? tree, out string? error)
     {
@@ -124,7 +124,7 @@ public sealed class SaveStore
         }
         catch (ArgumentException)
         {
-            // 2026-08-10 健壮性审查：重复键 JSON 在 JsonNode.Parse/JsonToClr 枚举时抛
+            // 重复键 JSON 在 JsonNode.Parse/JsonToClr 枚举时抛
             // ArgumentException（dotnet/runtime#71784，.NET 8 未修）——只 catch JsonException
             // 会让异常逃逸击穿"损坏隔离"契约（欢迎页崩溃），此处与语法损坏同路径隔离
         }
@@ -193,7 +193,7 @@ public sealed class SaveStore
                             return l;
                         }
 
-                        // U09（2026-08-09 审计）：溢出数字（如手改 1e999）TryGetValue 返回 false，
+                        // 溢出数字（如手改 1e999）TryGetValue 返回 false，
                         // 回退 null 而非 GetValue<double>() 抛异常击穿 Load 的"损坏回退"契约
                         if (val.TryGetValue<double>(out var dbl))
                         {

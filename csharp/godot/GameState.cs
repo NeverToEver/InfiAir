@@ -40,7 +40,7 @@ public partial class GameState : Node
     public delegate void PlayerDiedEventHandler();
 
     /// <summary>玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源。
-    /// U16：参数统一 float（发射/监听均为 float，原 double 声明不一致）。</summary>
+    /// 参数统一 float（发射/监听均为 float，不得声明为 double）。</summary>
     [Signal]
     public delegate void PlayerDamagedEventHandler(float amount, Vector2 fromPos);
 
@@ -88,7 +88,7 @@ public partial class GameState : Node
     [Signal]
     public delegate void MouseLockChangedEventHandler(bool enabled);
 
-    /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 + 摇杆死区（settings.json 持久化；变更时广播供 Player 重读）</summary>
+    /// <summary>手柄设置：右摇杆瞄准灵敏度 + 摇杆死区（settings.json 持久化；变更时广播供 Player 重读）</summary>
     [Signal]
     public delegate void JoySettingsChangedEventHandler(double aimSpeed, double deadzone);
 
@@ -107,7 +107,7 @@ public partial class GameState : Node
     [Signal]
     public delegate void TouchControlsChangedEventHandler(bool enabled);
 
-    /// <summary>PS 布局适配（P0-1 延伸）：SDL 标准位置（JOY_BUTTON_A=底部等）跨 Xbox/PS 一致，
+    /// <summary>PS 布局适配：SDL 标准位置（JOY_BUTTON_A=底部等）跨 Xbox/PS 一致，
     /// 仅物理标签不同——按已连接手柄 GUID/名称检测布局，供 UI/文档显示对应标签</summary>
     [Signal]
     public delegate void JoyLayoutChangedEventHandler(StringName layout);
@@ -117,7 +117,7 @@ public partial class GameState : Node
     public delegate void RefreshPointsChangedEventHandler(int points);
 
     // ---------------- 全局数值配置中心 ----------------
-    // A2 阶段 1：balance.json 的加载/查询/纯数值 ramp 已剥离到 BalanceService（组合委托）。
+    // balance.json 的加载/查询/纯数值 ramp 归 BalanceService（组合委托）。
     // 缺失/损坏时全部回退脚本默认值；访问统一走 GameState.cfg("分层.路径", 默认值)；
     // 热路径在各自 _ready 缓存进成员变量。
 
@@ -128,7 +128,7 @@ public partial class GameState : Node
     /// C# 侧 typed 直调）。</summary>
     private readonly BalanceService _balanceService = new();
 
-    /// <summary>V 系列（U19 注释失实清理）：M7 已 typed 直调（原「GDScript 薄壳」描述删除）。</summary>
+    /// <summary>存档管理器（C# typed 直调）。</summary>
     private readonly SaveManager _saveManager = new();
 
     private readonly SfxPlayer _sfxPlayer = new();
@@ -137,7 +137,7 @@ public partial class GameState : Node
     /// <summary>统一实体管理器（C# typed）。</summary>
     private readonly EntityManager _registry = new();
 
-    /// <summary>迷雾事件管理器（2026-08-05 任务轮换/迷雾事件系统）：全局单例，挂 GameState 下
+    /// <summary>迷雾事件管理器：全局单例，挂 GameState 下
     /// 维持唯一 autoload 约定；对局中概率触发干扰事件（触发纪律/信号解耦见脚本头注释）</summary>
     private readonly FogEventManager _fogEvents = new();
 
@@ -145,38 +145,36 @@ public partial class GameState : Node
     /// 遭遇）；fog 组经迷雾门面接线，encounter 组由 Main 注册——实现见 GameEventManager.cs</summary>
     private readonly GameEventManager _events = new();
 
-    /// <summary>第四轮拆域（2026-08-11）：RP 经济/基地任务/天赋路线职责域——原 GameState.Missions.cs
-    /// 全部职责迁入 MissionsService，GameState.Missions.cs 为门面转发；与 ScoreService 等组合服务同构。
-    /// 无构造依赖（跨域访问统一经 GameState.Instance，运行期单例已就绪），构造器直接实例化。</summary>
+    /// <summary>RP 经济/基地任务/天赋路线职责域（MissionsService）——GameState 组合持有并做
+    /// 门面转发，与 ScoreService 等组合服务同构。无构造依赖（跨域访问统一经 GameState.Instance，
+    /// 运行期单例已就绪），构造器直接实例化。</summary>
     private readonly MissionsService _missions;
 
-    /// <summary>第五轮拆域（2026-08-11）：计分域服务——Score/Kills/BossKills/Combo 状态、连击系统与
-    /// 里程碑推进迁入 ScoreService（GameState.State.cs 为门面转发；跨域经 Instance）。无构造依赖。</summary>
+    /// <summary>计分域服务（ScoreService）——Score/Kills/BossKills/Combo 状态、连击系统与
+    /// 里程碑推进；GameState 组合持有并做门面转发，跨域经 Instance。无构造依赖。</summary>
     private readonly ScoreService _score = new();
 
-    /// <summary>第五轮拆域（2026-08-11）：健康/Buff 战斗状态域服务——Health/Augments 状态与生命上限/
-    /// 受击/治疗/吸血/选 buff 逻辑迁入 CombatStateService（GameState.Settings.cs C 簇为门面转发；
-    /// 跨域经 Instance；PlayerDied 由 Player.DieInternal 在死亡结算后发射）。无构造依赖。</summary>
+    /// <summary>健康/Buff 战斗状态域服务（CombatStateService）——Health/Augments 状态与生命上限/
+    /// 受击/治疗/吸血/选 buff 逻辑；GameState 组合持有并做门面转发，跨域经 Instance；
+    /// PlayerDied 由 Player.DieInternal 在死亡结算后发射。无构造依赖。</summary>
     private readonly CombatStateService _combat = new();
 
-    /// <summary>第五轮拆域（2026-08-11）：对局进程域服务——难度档位/倍率缓存/DDA 降档/进程 ramp/
-    /// 里程碑曲线求值迁入 RunProgressionService（GameState.Difficulty.cs 为门面转发；
-    /// _balanceService 经构造注入，与 SettingsService 构造注入 EntityManager 同构）。</summary>
+    /// <summary>对局进程域服务（RunProgressionService）——难度档位/倍率缓存/DDA 降档/进程 ramp/
+    /// 里程碑曲线求值；GameState 组合持有并做门面转发；
+    /// _balanceService 经构造注入，与 SettingsService 构造注入 EntityManager 同构。</summary>
     private readonly RunProgressionService _runProg;
 
-    /// <summary>第六轮拆域收官（2026-08-12）：设置+视图域服务——设置 setter 簇/视图簇/状态字段/
-    /// 设置域持久化桥迁入 SettingsService（GameState.Settings.cs/State.cs 为门面转发；
-    /// 跨域经 Instance；_registry 经构造注入）。</summary>
+    /// <summary>设置+视图域服务（SettingsService）——设置 setter 簇/视图簇/状态字段/
+    /// 设置域持久化桥；GameState 组合持有并做门面转发，跨域经 Instance；_registry 经构造注入。</summary>
     private readonly SettingsService _settings;
 
-    /// <summary>第七轮拆域收官（2026-08-12）：键位+手柄域服务——可改键系统/手柄装配与
-    /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout 迁入 InputBindingsService
-    /// （GameState.Input.cs/State.cs 为门面转发；跨域经 Instance；SaveSettings/JoyDeadzone
-    /// 经门面，无构造依赖）。</summary>
+    /// <summary>键位+手柄域服务（InputBindingsService）——可改键系统/手柄装配与
+    /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout；GameState 组合持有并做门面转发，
+    /// 跨域经 Instance；SaveSettings/JoyDeadzone 经门面，无构造依赖。</summary>
     private readonly InputBindingsService _input;
 
-    /// <summary>天赋缓存域（2026-09-07 重构）：里程碑/Boss 点数入缓存池 + 树状加点/路线契约/
-    /// 风险加点（TalentService；GameState.Talent.cs 为门面）。无构造依赖（跨域经 Instance）。</summary>
+    /// <summary>天赋缓存域（TalentService）——里程碑/Boss 点数入缓存池 + 树状加点/路线契约/
+    /// 风险加点；GameState 组合持有并做门面。无构造依赖（跨域经 Instance）。</summary>
     private readonly TalentService _talent = new();
 
     public GameState()
@@ -191,12 +189,12 @@ public partial class GameState : Node
     public int BootTicksMsec { get; set; } = 0;
 
     /// <summary>母舰召唤窗口（H 蓄力中或机库小窗演出中）。遭遇事件触发门控读取——窗口期玩家
-    /// 锁输入 + 999s 无敌，事件掷签命中会被母舰自动火力白拿奖励（L13 反向漏出）。
+    /// 锁输入 + 999s 无敌，事件掷签命中会被母舰自动火力白拿奖励。
     /// Main._Process 逐帧维护，Main._Ready/_ExitTree 复位（场景切换不残留）。</summary>
     public bool SummonInProgress { get; set; }
 
-    /// <summary>树暂停单口：暂停/恢复统一经此（原六类节点各自直写 GetTree().Paused 十六处，
-    /// 新增退出路径漏写复位即全局卡死；autoload 场景无关，拆树期 GetTree() 判空防线集中一处）。</summary>
+    /// <summary>树暂停单口：暂停/恢复统一经此——多节点各自直写 GetTree().Paused 时，
+    /// 新增退出路径漏写复位即全局卡死；autoload 场景无关，拆树期 GetTree() 判空防线集中一处。</summary>
     public void SetTreePaused(bool paused)
     {
         var tree = (SceneTree?)Engine.GetMainLoop();
@@ -217,12 +215,20 @@ public partial class GameState : Node
     }
 
     /// <summary>弃局静默重开单口（结算页「重新出击」/暂停页 R 重开共用）：解除暂停 + 本局终结清档
-    /// + 全新一局 + 重载当前场景（main 重建）。不含 AB13 退出确认守卫——暂停页 R 重开由
-    /// PauseUi.RestartRun 本地守卫后转调本单口，其他入口直接调用即可。
+    /// + 全新一局 + 重载当前场景（main 重建）。
     /// 清档理由：重开 = 主动放弃本局（结算页本就是死亡后入口），检查点随之作废——
-    /// 否则「读档 → 暂停重开 → 再退出重进」可反复读回同一份进度（无限回滚）。</summary>
+    /// 否则「读档 → 暂停重开 → 再退出重进」可反复读回同一份进度（无限回滚）。
+    /// 退出确认淡出窗口内必须忽略重开（ReloadCurrentScene 会杀淡出 tween 使 Quit 永不执行，
+    /// 静默丢退出路径）——守卫在本单口收口，任何入口直调都安全。</summary>
     public void RestartRun()
     {
+        var exitConfirm = ((SceneTree?)Engine.GetMainLoop())?.CurrentScene?
+            .GetNodeOrNull<ExitConfirm>("ExitConfirm");
+        if (exitConfirm != null && exitConfirm.Exiting())
+        {
+            return;
+        }
+
         SetTreePaused(false);
         DeleteRunSave(); // 本局终结：检查点作废（与死亡删档同口径）
         ResetRun();
@@ -264,38 +270,35 @@ public partial class GameState : Node
     /// <summary>静态缓存——autoload 在 root 下恒存在，缓存失效（场景树已拆）时重查，取不到抛异常。</summary>
     private static GameState? _instance;
 
-    public static GameState Instance
+    /// <summary>安全取值：取不到返回 null 不抛。仅供拆树期（如 _ExitTree）等非常规退出序使用——
+    /// autoload 先于场景节点失效时 Instance getter 会抛 InvalidOperationException 污染退出路径。</summary>
+    public static GameState? TryGetInstance()
     {
-        get
+        if (_instance != null && GodotObject.IsInstanceValid(_instance))
         {
-            if (_instance != null && GodotObject.IsInstanceValid(_instance))
-            {
-                return _instance;
-            }
-
-            var tree = (SceneTree?)Engine.GetMainLoop();
-            _instance = tree?.Root?.GetNodeOrNull<GameState>("GameState");
-            if (_instance == null)
-            {
-                throw new InvalidOperationException("GameState autoload 不可用");
-            }
-
             return _instance;
         }
+
+        var tree = (SceneTree?)Engine.GetMainLoop();
+        _instance = tree?.Root?.GetNodeOrNull<GameState>("GameState");
+        return _instance;
     }
+
+    public static GameState Instance =>
+        TryGetInstance() ?? throw new InvalidOperationException("GameState autoload 不可用");
 
     public override void _EnterTree()
     {
         BootTicksMsec = (int)Time.GetTicksMsec();
     }
 
-    /// <summary>实体管理器（A2 阶段 4 起数据归 EntityManager，2026-08-05 演进：绑定样板/生命周期信号/
-    /// 批量操作 API。属性转发保持外部语法不变；M2 起内部改 C# PascalCase）。
+    /// <summary>实体管理器（EntityManager）：绑定样板/生命周期信号/批量操作 API。
+    /// 属性转发保持外部语法不变；内部用 C# PascalCase。
     /// 热路径缓存，避免每帧 get_nodes_in_group 分配。
     /// enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。</summary>
     public Godot.Collections.Array<Node> Enemies => _registry.Enemies;
 
-    /// <summary>P0-1（2026-08-05 审计）：敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）</summary>
+    /// <summary>敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）</summary>
     public Godot.Collections.Array<GodotObject> EnemyBullets => _registry.EnemyBullets;
 
     public Node2D? PlayerRef
@@ -380,12 +383,12 @@ public partial class GameState : Node
         return count;
     }
 
-    /// <summary>P0-1：敌弹注册/注销转发（Bullet 激活/回收时维护）</summary>
+    /// <summary>敌弹注册/注销转发（Bullet 激活/回收时维护）</summary>
     public void RegisterEnemyBullet(GodotObject b) => _registry.RegisterEnemyBullet(b);
 
     public void UnregisterEnemyBullet(GodotObject b) => _registry.UnregisterEnemyBullet(b);
 
-    /// <summary>G010：注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）</summary>
+    /// <summary>注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）</summary>
     public bool EnemiesHas(Node node) => _registry.HasEnemy(node);
 
     public void UnregisterEnemy(Node node) => _registry.UnregisterEnemy(node);
@@ -394,7 +397,7 @@ public partial class GameState : Node
 
     private void OnRegistryEntityUnregistered(Node node) => EmitSignal(SignalName.EntityUnregistered, node);
 
-    // Missions 域（第四轮拆域）：MissionsService C# 事件 → GameState 同名信号转发
+    // Missions 域：MissionsService C# 事件 → GameState 同名信号转发
     // （RpChanged/MissionCompleted/RefreshPointsChanged/RouteChosen——
     // 触发点均为运行期玩家操作/对局事件，晚于 _Ready 本订阅；ResetRun 直接赋值
     // 路径由 State.cs 直发同名信号，经此订阅的重发不与之重复）
@@ -404,10 +407,10 @@ public partial class GameState : Node
 
     private void OnMissionsRefreshPointsChanged(int v) => EmitSignal(SignalName.RefreshPointsChanged, v);
 
-    // 计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
+    // 计分域：ScoreService C# 事件 → GameState 同名信号转发
     // （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
     // AddKillScore/ResetCombo，晚于 _Ready 本订阅）
-    /// <summary>计分域（第五轮拆域）：ScoreService C# 事件 → GameState 同名信号转发
+    /// <summary>计分域：ScoreService C# 事件 → GameState 同名信号转发
     /// （ScoreChanged/MilestoneReached/ComboChanged；触发点均为运行期对局事件——AddScore/
     /// AddKillScore/ResetCombo，晚于 _Ready 本订阅）
     /// 里程碑同时是天赋点来源（天赋缓存系统重构）：入账在信号转发前，保证订阅方读到的
@@ -422,7 +425,7 @@ public partial class GameState : Node
 
     private void OnScoreComboChanged(int v) => EmitSignal(SignalName.ComboChanged, v);
 
-    // 战斗状态域（第五轮拆域）：CombatStateService C# 事件 → GameState 同名信号转发
+    // 战斗状态域：CombatStateService C# 事件 → GameState 同名信号转发
     // （HealthChanged/AugmentsChanged；触发点均为运行期对局事件/玩家操作——LoseHealth/Heal/AddBuff/
     // ConsumeAugment，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发路径
     // 不经本事件，订阅重发不与之重复）
@@ -430,7 +433,7 @@ public partial class GameState : Node
 
     private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
 
-    // 设置/视图域（第六轮拆域收官）：SettingsService C# 事件 → GameState 同名信号转发
+    // 设置/视图域：SettingsService C# 事件 → GameState 同名信号转发
     // （TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
     // ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家
     // 操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings 直写字段路径不发服务事件，重发不与之重复）
@@ -456,7 +459,7 @@ public partial class GameState : Node
 
     private void OnSettingsLocaleChanged() => EmitSignal(SignalName.LocaleChanged);
 
-    // 键位域（第七轮拆域收官）：InputBindingsService C# 事件 → GameState 同名信号转发
+    // 键位域：InputBindingsService C# 事件 → GameState 同名信号转发
     // （KeyBindingsChanged/JoyLayoutChanged；触发点均为运行期玩家操作/手柄插拔——RebindAction/
     // ResetKeyBindings/DetectJoyLayout，晚于 _Ready 本订阅；下方启动装配 CaptureDefaultBindings/
     // BindJoypadDefaults 不发事件，DetectJoyLayout 无手柄不发射，有 PS 手柄时首帧发射一次经
@@ -465,14 +468,14 @@ public partial class GameState : Node
 
     private void OnInputJoyLayoutChanged(StringName v) => EmitSignal(SignalName.JoyLayoutChanged, v);
 
-    // 对局进程域（第五轮拆域）：RunProgressionService C# 事件 → GameState 同名信号转发
+    // 对局进程域：RunProgressionService C# 事件 → GameState 同名信号转发
     // （DifficultyChanged/DifficultySelected；触发点均为运行期对局事件/玩家操作——_Process
     // 时间档重算/SetDifficulty，晚于 _Ready 本订阅；AddBossKill 直发路径不重复）
     private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, (float)v);
 
     private void OnRunProgDifficultySelected(StringName v) => EmitSignal(SignalName.DifficultySelected, v);
 
-    // ---------------- 窗口拖拽捕获（2026-09-10 窗口管理重构） ----------------
+    // ---------------- 窗口拖拽捕获 ----------------
 
     /// <summary>根窗口 SizeChanged 去抖计时器（一次性）：拖拽期间高频触发，聚合到停手后
     /// 再折算分辨率档并落盘/广播，避免拖动写盘风暴。</summary>
@@ -508,7 +511,7 @@ public partial class GameState : Node
         // C# [Signal] 以 PascalCase 注册
         _registry.EntityRegistered += OnRegistryEntityRegistered;
         _registry.EntityUnregistered += OnRegistryEntityUnregistered;
-        // Missions 域（第四轮拆域）：MissionsService 事件 → 信号转发订阅（触发点均为运行期
+        // Missions 域：MissionsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作/对局事件，晚于 _Ready 本订阅；下方 InitMissions 不发信号）
         _missions.RpChanged += OnMissionsRpChanged;
         _missions.MissionCompleted += OnMissionsMissionCompleted;
@@ -517,21 +520,21 @@ public partial class GameState : Node
         // 晚于本订阅；ApplyBalance 的 LoadTalentConfig 只写配置缓存不发事件）
         _talent.CacheChanged += OnTalentCacheChanged;
         _talent.TalentsChanged += OnTalentsChanged;
-        // 计分域（第五轮拆域）：ScoreService 事件 → 信号转发订阅（触发点均为运行期对局事件，
+        // 计分域：ScoreService 事件 → 信号转发订阅（触发点均为运行期对局事件，
         // 晚于 _Ready 本订阅；下方 InitMilestones 不发信号）
         _score.ScoreChanged += OnScoreScoreChanged;
         _score.MilestoneReached += OnScoreMilestoneReached;
         _score.ComboChanged += OnScoreComboChanged;
-        // 对局进程域（第五轮拆域）：RunProgressionService 事件 → 信号转发订阅（触发点均为运行期
+        // 对局进程域：RunProgressionService 事件 → 信号转发订阅（触发点均为运行期
         // 对局事件/玩家操作，晚于 _Ready 本订阅）
         _runProg.DifficultyChanged += OnRunProgDifficultyChanged;
         _runProg.DifficultySelected += OnRunProgDifficultySelected;
-        // 战斗状态域（第五轮拆域）：CombatStateService 事件 → 信号转发订阅（触发点均为运行期
+        // 战斗状态域：CombatStateService 事件 → 信号转发订阅（触发点均为运行期
         // 对局事件/玩家操作，晚于 _Ready 本订阅；ResetRun/天赋路线（TalentService 层级写入）直发
         // 路径不经本事件，重发不与之重复）
         _combat.HealthChanged += OnCombatHealthChanged;
         _combat.AugmentsChanged += OnCombatAugmentsChanged;
-        // 设置/视图域（第六轮拆域收官）：SettingsService 事件 → 信号转发订阅（触发点均为运行期
+        // 设置/视图域：SettingsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings
         // 直写字段路径不发服务事件，重发不与之重复）
         _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
@@ -545,7 +548,7 @@ public partial class GameState : Node
         _settings.MouseLockChanged += OnSettingsMouseLockChanged;
         _settings.JoySettingsChanged += OnSettingsJoySettingsChanged;
         _settings.LocaleChanged += OnSettingsLocaleChanged;
-        // 键位域（第七轮拆域收官）：InputBindingsService 事件 → 信号转发订阅（触发点均为运行期
+        // 键位域：InputBindingsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作/手柄插拔——RebindAction/ResetKeyBindings/DetectJoyLayout，晚于 _Ready 本订阅；
         // 下方启动装配 DetectJoyLayout 按需发射一次，订阅在前保证转发）
         _input.KeyBindingsChanged += OnInputKeyBindingsChanged;
@@ -558,13 +561,13 @@ public partial class GameState : Node
         // 统一事件管理器挂载（fog 组经迷雾门面 wire() 接线；encounter 组由 main._ready 注册）
         AddChild(_events);
         _fogEvents.Wire(_events);
-        _input.CaptureDefaultBindings(); // 第七轮拆域：键位域启动快照（InputBindingsService）
+        _input.CaptureDefaultBindings(); // 键位域启动快照（InputBindingsService）
         InitMissions();
         LoadSettings();
         _settings.ApplyDisplay(); // 帧率上限/垂直同步：无设置文件时 load 不应用，这里补一次默认档
         ApplyWindow(); // 无设置文件时 load 不会应用窗口，这里补一次默认档（窗口模式 + 分辨率）
         // 窗口拖拽捕获：根窗口 SizeChanged 去抖后折算分辨率档（窗口化自由拖拽 → 自定义/命中预设）。
-        // C22 惯例：Connect 侧 IsConnected 守卫；autoload 与引擎同生命周期，无需退订。
+        // Connect 侧统一 IsConnected 守卫；autoload 与引擎同生命周期，无需退订。
         _windowResizeDebounce = new Godot.Timer { OneShot = true, WaitTime = 0.3, ProcessMode = Node.ProcessModeEnum.Always };
         AddChild(_windowResizeDebounce);
         _windowResizeDebounce.Timeout += OnWindowResizeDebounced;
@@ -586,14 +589,14 @@ public partial class GameState : Node
         }
 
         TranslationServer.SetLocale(Locale);
-        _input.ApplyKeyBindings(); // 第七轮拆域：键位域 InputMap 应用（InputBindingsService）
-        _input.BindJoypadDefaults(); // 第七轮拆域：键位域手柄装配（InputBindingsService）
-        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——第七轮拆域：服务公开方法接线。
-        // 引擎静态事件 + 本 autoload 进程级恒存，无需退订（C22 仅针对 Connect）
+        _input.ApplyKeyBindings(); // 键位域 InputMap 应用（InputBindingsService）
+        _input.BindJoypadDefaults(); // 键位域手柄装配（InputBindingsService）
+        // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——服务公开方法接线。
+        // 引擎静态事件 + 本 autoload 进程级恒存，无需退订（仅 Connect 需守卫）
         Input.JoyConnectionChanged += _input.OnJoyConnectionChanged;
         _input.DetectJoyLayout();
         _score.InitMilestones(); // 里程碑首档初始化（ScoreService；默认 3000 = MilestoneBase[0]）
-        // B 梯队：受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
+        // 受击触发 DDA 降档（player_damaged 为减免后信号，Meta HUD 受击层同源）
         PlayerDamaged += OnPlayerDamagedDda;
         // 本局存档：死亡即删档（不可读档回滚，保住必死曲线紧张感）。PlayerDied 由
         // Player.DieInternal 在死亡结算后发射；本 autoload 与引擎同生命周期，无需退订。
@@ -628,9 +631,9 @@ public partial class GameState : Node
             SetKindProgress("survive", surviveSec);
         }
 
-        // 第五轮拆域：难度时间档重算 + DDA 计时（RunProgressionService.Tick；DifficultyChanged
-        // 经订阅重发）→ 连击断连计时（ScoreService.Tick；ComboChanged 经订阅重发）——发射顺序与
-        // 拆域前逐位一致（难度档信号先于连击信号）
+        // 难度时间档重算 + DDA 计时（RunProgressionService.Tick；DifficultyChanged
+        // 经订阅重发）→ 连击断连计时（ScoreService.Tick；ComboChanged 经订阅重发）——发射顺序
+        // 必须难度档信号先于连击信号
         _runProg.Tick(delta);
         _score.Tick(delta);
     }

@@ -44,7 +44,7 @@ public partial class IntroChaseShot : Node2D
                 outerX = Mathf.Lerp(1490.0f, 1670.0f, ty);
             }
 
-            // C28：创建时已预分配 2 点，set_point_position 原地写（points[i]= 是值语义副本不生效）
+            // 创建时已预分配 2 点，set_point_position 原地写（points[i]= 是值语义副本不生效）
             strut.SetPointPosition(0, new Vector2(innerX, y));
             strut.SetPointPosition(1, new Vector2(outerX, y + 70.0f));
         }

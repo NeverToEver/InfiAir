@@ -17,7 +17,7 @@ namespace InfiAir;
 /// 母舰弹丸/导弹击毁只给 1/3 分（score_scale 标记，结算时向下取整）。
 /// 语义保持：穿梭入场/驻留驾驶/弹匣警告/提前离舰折扣、火力升级档（阈值 5，伤害 ×1.5 /
 /// 射速 ×0.8）、牵引光束附件组帧驱动零分配、注册表批量遍历（for_each_enemy 语义等价直迭代）。
-/// M7 后调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
+/// 调用方全部 C# typed（Enemy/Boss/Bullet/Player/BulletPool 类型化调用）；
 /// 文件底部保留 GetStateStay snake_case 兼容桥（Hud.cs 静态访问器口径）。
 /// </summary>
 public partial class Mothership : Area2D
@@ -37,7 +37,7 @@ public partial class Mothership : Area2D
     private static readonly StringName ActMoveDown = new("move_down");
 
     // ---- 数值配置（_ready 从 balance.json 覆盖；与脚本默认值一致） ----
-    /// <summary>G032：母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）。</summary>
+    /// <summary>母舰贴图基线缩放设计值（tscn 同存 1.25，脚本幂等覆盖 ×ws）。</summary>
     public float ShipScale { get; private set; } = 1.25f;
 
     public float HoverY { get; private set; } = 270.0f;
@@ -106,7 +106,7 @@ public partial class Mothership : Area2D
     public int GatlingDamage { get; private set; } = 8;
     public float GatlingScoreScale { get; private set; } = 1.0f / 3.0f;
 
-    /// <summary>G030：导弹得分系数独立命名（与加特林同为 1/3，分别调参时不误改）。</summary>
+    /// <summary>导弹得分系数独立命名（与加特林同为 1/3，分别调参时不误改）。</summary>
     public float MissileScoreScale { get; private set; } = 1.0f / 3.0f;
 
     public float GatlingSweepLeftMin { get; private set; } = -60.0f;
@@ -129,7 +129,7 @@ public partial class Mothership : Area2D
     private State _state = State.DESCEND;
     private float _stateTimer;
     private float _departSpeed;
-    private Player? _player; // M3c：Player 迁 C#，player_ref 恒为 Player
+    private Player? _player; // player_ref 恒为 Player
     private float _gatlingTimer;
     private float _sweepTime;
     private float _missileTimer;
@@ -139,10 +139,10 @@ public partial class Mothership : Area2D
     private bool _magWarned;
     private float _warnEjectTimer;
     private float _earlyTimer;
-    private Hud? _hudCache; // A5 收敛：HUD 延迟缓存（驻留期每帧刷新进度条用）
+    private Hud? _hudCache; // HUD 延迟缓存（驻留期每帧刷新进度条用）
     private float _cooldownFactor = 1.0f;
     private float _prefill;
-    private WarpGate? _warpGate; // U13：typed
+    private WarpGate? _warpGate; // typed
     private Vector2 _warpFrom;
     private Vector2 _warpTarget;
     private float _ws = 1.0f; // world_scale 缓存（_ready 写入，帧内复用）
@@ -158,10 +158,10 @@ public partial class Mothership : Area2D
     private GpuParticles2D _beamDust = null!; // 光束下端上升尘粒
     private Polygon2D _beam = null!;
     private readonly List<Node2D> _turrets = new();
-    private readonly List<GpuParticles2D> _muzzles = new(); // C24 修复：MuzzleFlash 缓存（与 _turrets 同序）
+    private readonly List<GpuParticles2D> _muzzles = new(); // MuzzleFlash 缓存（与 _turrets 同序）
     private Sprite2D _sprite = null!;
 
-    /// <summary>P2：目标数组输出缓冲（_targetsBuf 复用，免每次调用分配新 List）。</summary>
+    /// <summary>目标数组输出缓冲（_targetsBuf 复用，免每次调用分配新 List）。</summary>
     private readonly List<Node2D> _targetsBuf = new();
 
 
@@ -176,7 +176,7 @@ public partial class Mothership : Area2D
 
     public override void _Ready()
     {
-        // L13：注册在场组——事件（精英炮塔/编队）can_trigger 据此互斥：
+        // 注册在场组——事件（精英炮塔/编队）can_trigger 据此互斥：
         // 母舰在场期事件不触发（母舰自动火力会摧毁事件单位并全额发奖，玩家进舱零参与挂机）
         AddToGroup("mothership");
         _beam = GetNode<Polygon2D>("TractorBeam");
@@ -185,7 +185,7 @@ public partial class Mothership : Area2D
         LoadBalance();
         _magCells = MagCells;
         _departSpeed = DepartStartSpeed;
-        // 机体尺寸族：设计值 × 全局缩放（tscn 存母舰基线 1.25，此处幂等覆盖——G032：注释与实际一致）
+        // 机体尺寸族：设计值 × 全局缩放（tscn 存母舰基线 1.25，此处幂等覆盖，与注释一致）
         var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _sprite.Scale = Vector2.One * ShipScale * ws;
@@ -236,15 +236,15 @@ public partial class Mothership : Area2D
         ReleaseTime = (float)GameState.Instance.Cfg("mothership.release_time", ReleaseTime).AsDouble();
         ReleaseDrop = (float)GameState.Instance.Cfg("mothership.release_drop", ReleaseDrop).AsDouble()
             * (float)GameState.Instance.WorldScale;
-        // 2026-08-10 健壮性审查：mag_cells 钳下限 1——0 时 EarlyDepart/StartReleaseInternal 的
+        // mag_cells 钳下限 1——0 时 EarlyDepart/StartReleaseInternal 的
         // _magCells/MagCells 除零得 NaN，经 _prefill 传入 DepartCooldown 冷却信号使母舰冷却静默失效
         MagCells = Mathf.Max((int)GameState.Instance.Cfg("mothership.mag_cells", MagCells).AsInt64(), 1);
-        // AB7：mag_cell_time 钳下限 0.05（MagCells 同批孪生遗漏）——≤0 时 _magCellTimer ≥ 恒真
+        // mag_cell_time 钳下限 0.05——≤0 时 _magCellTimer ≥ 恒真
         // 每帧耗 1 格，STAY 驻留瞬结、警告/提前离舰路径失效
         MagCellTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble(), CfgFx.IntervalFloor);
         MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
         WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
-        // 2026-08-10 健壮性审查：early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰
+        // early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰
         // 除零得 inf，且 _earlyTimer >= 0 恒真致长按 H 第一帧即触发离舰
         EarlyHoldTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.early_hold_time", EarlyHoldTime).AsDouble(), 0.01f);
         EarlyMaxDiscount = (float)GameState.Instance.Cfg("mothership.early_max_discount", EarlyMaxDiscount).AsDouble();
@@ -255,7 +255,7 @@ public partial class Mothership : Area2D
         DepartAccel = (float)GameState.Instance.Cfg("mothership.depart_accel", DepartAccel).AsDouble();
         DriveAccel = (float)GameState.Instance.Cfg("mothership.drive.accel", DriveAccel).AsDouble();
         DriveMaxSpeed = (float)GameState.Instance.Cfg("mothership.drive.max_speed", DriveMaxSpeed).AsDouble();
-        // B11 口径澄清：DRIVE_MARGIN_* 乘 world_scale 是有意例外——margin 语义是「舰体边缘到屏边
+        // DRIVE_MARGIN_* 乘 world_scale 是有意例外——margin 语义是「舰体边缘到屏边
         // 视觉距离恒定」（舰体缩放后边缘保持同屏距），归类为机体偏移族（乘 ws），
         // 区别于 boss.strafe/hover_band/fight_y 等「中心坐标」屏幕边界族（不乘）。
         DriveMarginX = (float)GameState.Instance.Cfg("mothership.drive.margin_x", DriveMarginX).AsDouble()
@@ -264,7 +264,7 @@ public partial class Mothership : Area2D
             * (float)GameState.Instance.WorldScale;
         DriveMarginBottom = (float)GameState.Instance.Cfg("mothership.drive.margin_bottom", DriveMarginBottom).AsDouble()
             * (float)GameState.Instance.WorldScale;
-        // 2026-08-04 母舰扩展：升级档位配置（阈值/伤害/射速倍率）
+        // 升级档位配置（阈值/伤害/射速倍率）
         _upgradeThreshold = (int)GameState.Instance.Cfg("mothership.upgrade.threshold", _upgradeThreshold).AsInt64();
         _upgradeDamageMult = (float)GameState.Instance.Cfg("mothership.upgrade.damage_mult", _upgradeDamageMult).AsDouble();
         _upgradeIntervalMult = (float)GameState.Instance.Cfg("mothership.upgrade.interval_mult", _upgradeIntervalMult).AsDouble();
@@ -276,7 +276,7 @@ public partial class Mothership : Area2D
         GatlingSweepLeftMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_left_max", GatlingSweepLeftMax).AsDouble();
         GatlingSweepRightMin = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_min", GatlingSweepRightMin).AsDouble();
         GatlingSweepRightMax = (float)GameState.Instance.Cfg("mothership.gatling.sweep_right_max", GatlingSweepRightMax).AsDouble();
-        // 2026-08-10 健壮性审查：扫掠周期钳下限（对齐 Enemy.SinFast 注释口径）——0 时
+        // 扫掠周期钳下限（对齐 Enemy.SinFast 注释口径）——0 时
         // _sweepTime * Tau / period 除零得 inf → SinFast 返回 NaN → 炮塔/弹方向 NaN（弹被
         // HasPoint(NaN) 恒 false 立即回收，每发开火空耗且无伤害）
         GatlingSweepLeftPeriod = Mathf.Max((float)GameState.Instance.Cfg("mothership.gatling.sweep_left_period", GatlingSweepLeftPeriod)
@@ -291,7 +291,7 @@ public partial class Mothership : Area2D
         MissileTargetCount = (int)GameState.Instance.Cfg("mothership.missile.target_count", MissileTargetCount).AsInt64();
         MissileSplashDamage = (int)GameState.Instance.Cfg("mothership.missile.splash_damage", MissileSplashDamage).AsInt64();
         MissileSplashRadius = (float)GameState.Instance.Cfg("mothership.missile.splash_radius", MissileSplashRadius).AsDouble();
-        // H15 同族：warp_in_time 作 Mothership._state_timer/WarpInTime 除数，0 值除零得 NaN/±inf
+        // warp_in_time 作 Mothership._state_timer/WarpInTime 除数，0 值除零得 NaN/±inf
         // 经 Lerp 传播污染母舰位置——钳 ≥0.01（对齐 Main.cs DOCK/HOME/GIVE_UP 钳制口径）
         WarpInTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_time", WarpInTime).AsDouble(), 0.01f);
         WarpInDrop = (float)GameState.Instance.Cfg("effects.mothership_summon.warp_in_drop", WarpInDrop).AsDouble()
@@ -436,7 +436,7 @@ public partial class Mothership : Area2D
         return "";
     }
 
-    // ---------------- 对外公开接口（A1 修复）：HUD 轮询读取状态/弹匣，禁止跨类直接写 _ 私有字段 ----------------
+    // ---------------- 对外公开接口：HUD 轮询读取状态/弹匣，禁止跨类直接写 _ 私有字段 ----------------
 
     public State GetState() => _state;
 
@@ -456,7 +456,7 @@ public partial class Mothership : Area2D
 
     public void SetWarnEjectTimer(float seconds) => _warnEjectTimer = seconds;
 
-    /// <summary>2026-08-04 母舰扩展：升级档位——里程碑数 ≥ 阈值即升档（0 或 1）。</summary>
+    /// <summary>升级档位——里程碑数 ≥ 阈值即升档（0 或 1）。</summary>
     public int Tier() => (int)GameState.Instance.MilestoneCount() >= _upgradeThreshold ? 1 : 0;
 
     public float DamageMult() => Tier() == 1 ? _upgradeDamageMult : 1.0f;
@@ -490,10 +490,10 @@ public partial class Mothership : Area2D
 
         if (_beam.Visible)
         {
-            // 淡光束：低调脉动，不刺眼（P2：查表 sin）；时钟取一次，脉动与附件共用
+            // 淡光束：低调脉动，不刺眼（查表 sin）；时钟取一次，脉动与附件共用
             var nowS = (float)(Time.GetTicksMsec() / 1000.0);
             var bm = _beam.Modulate;
-            bm.A = 0.55f + 0.45f * Enemy.SinFast(nowS * 8.0f); // M3b：Enemy 迁 C#，静态直调
+            bm.A = 0.55f + 0.45f * Enemy.SinFast(nowS * 8.0f); // Enemy 静态直调
             _beam.Modulate = bm;
             UpdateBeamFx(d, nowS);
         }
@@ -525,7 +525,7 @@ public partial class Mothership : Area2D
                         _engineGlow.Modulate = eg;
                         if (_warpGate != null)
                         {
-                            // H14（健壮性审核）：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
+                            // 穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
                             if (GodotObject.IsInstanceValid(_warpGate))
                             {
                                 _warpGate!.Close();
@@ -541,7 +541,7 @@ public partial class Mothership : Area2D
                             hud.ShowInfoBanner(Tr("BANNER_MOTHERSHIP_ARRIVED"));
                         }
 
-                        StartDocking(GameState.Instance.PlayerRef); // M3c：player_ref 恒为 Player
+                        StartDocking(GameState.Instance.PlayerRef); // player_ref 恒为 Player
                     }
 
                     break;
@@ -750,14 +750,14 @@ public partial class Mothership : Area2D
             var k = Mathf.Lerp(40.0f, 90.0f, u) / 90.0f;
             ring.Scale = new Vector2(k, k);
             var rm = ring.Modulate;
-            rm.A = 0.75f * Enemy.SinFast(Mathf.Pi * u); // M3b：Enemy 迁 C#，静态直调
+            rm.A = 0.75f * Enemy.SinFast(Mathf.Pi * u); // Enemy 静态直调
             ring.Modulate = rm;
         }
 
         for (var i = 0; i < _beamEdges.Count; i++)
         {
             var em = _beamEdges[i].Modulate;
-            em.A = 0.5f + 0.25f * Enemy.SinFast(nowS * 9.0f + i * 2.1f); // M3b：Enemy 迁 C#，静态直调
+            em.A = 0.5f + 0.25f * Enemy.SinFast(nowS * 9.0f + i * 2.1f); // Enemy 静态直调
             _beamEdges[i].Modulate = em;
         }
     }
@@ -798,7 +798,7 @@ public partial class Mothership : Area2D
     }
 
     /// <summary>场上有效目标（敌机注册表筛掉离场中；Boss 筛掉逃跑中）。
-    /// P2：复用 _targetsBuf，调用方仅当帧消费（is_empty/排序后不再保留引用）。</summary>
+    /// 复用 _targetsBuf，调用方仅当帧消费（is_empty/排序后不再保留引用）。</summary>
     private List<Node2D> LiveTargets()
     {
         _targetsBuf.Clear();
@@ -848,7 +848,7 @@ public partial class Mothership : Area2D
             return;
         }
 
-        _gatlingTimer = GatlingInterval * IntervalMult(); // G027：先置位再判空——空目标不每物理帧分配数组+扫注册表
+        _gatlingTimer = GatlingInterval * IntervalMult(); // 先置位再判空——空目标不每物理帧分配数组+扫注册表
         if (LiveTargets().Count == 0)
         {
             return;
@@ -868,7 +868,7 @@ public partial class Mothership : Area2D
             {
                 var center = Mathf.DegToRad((GatlingSweepLeftMin + GatlingSweepLeftMax) * 0.5f);
                 var half = Mathf.DegToRad((GatlingSweepLeftMax - GatlingSweepLeftMin) * 0.5f);
-                angle = center + half * Enemy.SinFast(_sweepTime * Mathf.Tau / GatlingSweepLeftPeriod); // M3b：Enemy 静态直调
+                angle = center + half * Enemy.SinFast(_sweepTime * Mathf.Tau / GatlingSweepLeftPeriod); // Enemy 静态直调
             }
             else
             {
@@ -887,8 +887,8 @@ public partial class Mothership : Area2D
 
             b.ScoreScale = GatlingScoreScale;
             b.Position = turret.GlobalPosition;
-            // 比玩家弹更细更亮（2026-08-06 审计：原 b.scale 连带缩放 Area2D 碰撞形状——
-            // 命中半径 6→3.6×ws 判定变严；仅视觉缩放应作用于子 Sprite2D，池化复用自动复位）
+            // 比玩家弹更细更亮——b.scale 会连带缩放 Area2D 碰撞形状使命中判定变严
+            // （命中半径 6→3.6×ws）；仅视觉缩放应作用于子 Sprite2D，池化复用自动复位
             var bSprite = b.SpriteNode();
             if (bSprite != null)
             {
@@ -896,7 +896,7 @@ public partial class Mothership : Area2D
             }
 
             b.Modulate = new Color(1.4f, 1.4f, 1.1f);
-            // C24：用缓存的 muzzle 引用（与 _turrets 同序），不再每次 get_node
+            // 用缓存的 muzzle 引用（与 _turrets 同序），不再每次 get_node
             if (i < _muzzles.Count && _muzzles[i] != null)
             {
                 _muzzles[i].Restart();
@@ -916,7 +916,7 @@ public partial class Mothership : Area2D
             return;
         }
 
-        _missileTimer = MissileInterval * IntervalMult(); // G027：先置位再判空——空目标不每物理帧扫描
+        _missileTimer = MissileInterval * IntervalMult(); // 先置位再判空——空目标不每物理帧扫描
         var targets = LiveTargets();
         if (targets.Count == 0)
         {
@@ -947,7 +947,7 @@ public partial class Mothership : Area2D
                 continue; // 玩家弹无硬上限，理论上不可达（NRT 守卫）
             }
 
-            b.ScoreScale = MissileScoreScale; // G030：独立常量（原复用 GATLING_SCORE_SCALE 语义混用）
+            b.ScoreScale = MissileScoreScale; // 独立常量（不得复用加特林得分系数）
             b.SplashDamage = MissileSplashDamage;
             b.SplashRadius = MissileSplashRadius;
             b.Position = dock;
@@ -959,7 +959,7 @@ public partial class Mothership : Area2D
     /// <summary>对接开始：锁输入 + 即无敌（对齐原作无敌窗口起点，堵对接/补给空窗）+ 吸附补间。</summary>
     private void StartDocking(GodotObject? player)
     {
-        // M3c：Player 迁 C#，player_ref 恒为 Player；null 或已死即不可用
+        // player_ref 恒为 Player；null 或已死即不可用
         var p = player as Player;
         if (p == null || p.IsDead())
         {
@@ -980,7 +980,7 @@ public partial class Mothership : Area2D
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
     }
 
-    /// <summary>A5 收敛（DESIGN_BASELINE §7.1）：HUD 引用统一经延迟缓存获取——hud 是 main.tscn
+    /// <summary>HUD 引用统一经延迟缓存获取——hud 是 main.tscn（DESIGN_BASELINE §7.1）
     /// 固定层，生命周期内恒定；8 处重复 group 查找收敛为单点缓存。行为与直接查找等价
     /// （is_instance_valid 守卫：极端重载时序下缓存失效则重新查找）。</summary>
     private Hud? Hud()
@@ -1016,7 +1016,7 @@ public partial class Mothership : Area2D
 
     /// <summary>提前离舰（长按 H 2s）：冷却双机制折扣——时长 max(0.6, 1-0.4×剩余比例)
     /// + 进度预填 min(0.3, 0.5×剩余比例)（对齐原作；预填仅此路径）。
-    /// 2026-08-10：ratio 补 Clamp（MagCells 已钳 ≥1，双保险防超范围渗入 _prefill）。</summary>
+    /// ratio 必须 Clamp（MagCells 已钳 ≥1，双保险防超范围渗入 _prefill）。</summary>
     private void EarlyDepart()
     {
         var ratio = Mathf.Clamp((float)_magCells / MagCells, 0.0f, 1.0f);
@@ -1036,14 +1036,14 @@ public partial class Mothership : Area2D
 
     private void StartReleaseInternal()
     {
-        // P2：STAY 多入口（警告到期/弹匣耗尽/提前离舰 _early_depart）可能同帧二次触发，
+        // STAY 多入口（警告到期/弹匣耗尽/提前离舰 _early_depart）可能同帧二次触发，
         // 非 STAY 直接短路，令 start_release 幂等
         if (_state != State.STAY)
         {
             return;
         }
 
-        // E05：所有强制离舰路径（警告到期/弹匣耗尽）统一清 HUD 提前离舰进度条——
+        // 所有强制离舰路径（警告到期/弹匣耗尽）统一清 HUD 提前离舰进度条——
         // H 按住时走本路径不复位，进度条残留可见（_early_depart 已有清理，此处兜底全部入口）
         var hud = Hud();
         if (hud != null)
@@ -1088,7 +1088,7 @@ public partial class Mothership : Area2D
         // 提前收回（返航/对局重置等）：穿梭门关闭兜底；玩家若仍在保护舱则恢复显示
         if (_warpGate != null)
         {
-            // H14：穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
+            // 穿梭门可能先于母舰释放（场景卸载时序不定），防悬挂引用
             if (GodotObject.IsInstanceValid(_warpGate))
             {
                 _warpGate!.Close();
@@ -1097,7 +1097,7 @@ public partial class Mothership : Area2D
             _warpGate = null;
         }
 
-        // G011：隐藏 HUD 提前离舰蓄力进度条（E05 只覆盖 start_release 强制离舰路径，返航提前回收漏清）
+        // 隐藏 HUD 提前离舰蓄力进度条（返航提前回收也须清理，不能只覆盖 start_release 强制离舰路径）
         var hud = Hud();
         if (hud != null)
         {
@@ -1111,7 +1111,7 @@ public partial class Mothership : Area2D
     }
 
     /// <summary>GDScript 字符串 % 格式化单参语义（%s/%d 占位 + %% 转义；tr() 文案补参用，
-    // 2026-08-04 母舰扩展：火力随里程碑升级（阈值/伤害/射速倍率；默认值与 balance.json 双写）
+    // 火力随里程碑升级（阈值/伤害/射速倍率；默认值与 balance.json 双写）
     private int _upgradeThreshold = 5;
     private float _upgradeDamageMult = 1.5f;
     private float _upgradeIntervalMult = 0.8f;

@@ -31,7 +31,7 @@ public static class MilestoneCurve
         double total = 0.0;
         for (int c = 0; c <= cycle; c++)
         {
-            // A 审计（对齐原实现）：cycle_mult>1 时 pow 指数增长，极大 cycle 溢出至 inf —— 钳至有限
+            // cycle_mult>1 时 pow 指数增长，极大 cycle 溢出至 inf——必须钳至有限值（1e15）
             double mult = Math.Min(Math.Pow(cycleMultiplier, c), 1e15);
             int lastStep = c == cycle ? step : n - 1;
             double prev = 0.0;
@@ -71,7 +71,7 @@ public static class DifficultyCurve
     public static double Compute(
         double runTime, double timeStepSeconds, double perTenMinutes, double perBossKill, int bossKills)
     {
-        // AB12：0/负值钳制（既有口径）——负 runTime 使 step 为负、难度乘数反向下降；
+        // 0/负值钳制——负 runTime 使 step 为负、难度乘数反向下降；
         // 巨值防御——(long)Math.Floor 对超大 double 为未定义转换（实践得 long.MinValue），
         // 使难度乘数巨负击穿「单调不减」防线；1e6 秒 ≈ 11.6 天远超合理对局时长
         if (runTime <= 0.0)

@@ -23,7 +23,7 @@ public partial class AugmentIcons : RefCounted
     };
 
     // 其余归入通用：phase_dash / slow_field / efficient_boost / boost_recovery / mothership_recall
-    // + deflector / dash_strike / graze_field / score_amp / combo_guard（2026-09-08 作战增幅扩展）
+    // + deflector / dash_strike / graze_field / score_amp / combo_guard
 
     /// <summary>分类色：进攻青 / 维生绿 / 通用金。</summary>
     public static Color ColorFor(StringName id)

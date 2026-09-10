@@ -98,7 +98,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// <summary>跳过（幂等）：与自然结束同一出口——停计时、kill 音频 tween 并置目标音量、
     /// 停在全黑画面、发 finished、整树 queue_free。
     /// 输入宽限期（开播前 SKIP_GRACE 秒）内直接忽略：任意键/点击与 Esc 路由都经此收敛。
-    /// B15 修复：输入宽限只门控"输入跳过"，不门控"程序化自然结束"（_advance 走 _do_skip(true)，
+    /// 输入宽限只门控"输入跳过"，不门控"程序化自然结束"（_advance 走 _do_skip(true)，
     /// 否则未来压缩过场总时长 &lt;SKIP_GRACE 时自然结束会被永久拦截）。</summary>
     public void Skip() => DoSkip(false);
 
@@ -149,7 +149,7 @@ public partial class ReturnCinematic : CanvasLayer
         _shotIndex += 1;
         if (_shotIndex >= _shotDurations.Length)
         {
-            DoSkip(true); // 自然结束：绕过输入宽限（B15），无标题定格，渐暗已停在全黑，直接走统一出口
+            DoSkip(true); // 自然结束：绕过输入宽限，无标题定格，渐暗已停在全黑，直接走统一出口
             return;
         }
 

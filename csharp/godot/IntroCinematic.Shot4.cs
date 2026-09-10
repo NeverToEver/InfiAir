@@ -4,7 +4,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 开场过场 镜头 4 构建器（文件粒度拆分自 IntroCinematic.cs，2026-08-12；逻辑零改动）。
+/// 开场过场 镜头 4 构建器。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {

@@ -11,7 +11,7 @@ namespace InfiAir;
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
 /// Spawner/HUD 为 C# typed 调用，turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
 /// 公开 API 为 PascalCase。公共骨架（spawner 注入/母舰缓存/冷却/ResumeWaves 等）在
-/// EncounterEventBase（2026-09-09 抽取，与 FormationStrikeEvent 共享）。
+/// EncounterEventBase（与 FormationStrikeEvent 共享）。
 /// </summary>
 public partial class EliteTurretEvent : EncounterEventBase
 {
@@ -68,13 +68,13 @@ public partial class EliteTurretEvent : EncounterEventBase
     /// <summary>台词节点：0 未播 / 1 已播第1句 / 2 已播第2句。</summary>
     private int _lineStage;
     private readonly Godot.Collections.Array<String> _lines = new();
-    private Hud? _hud; // U13：typed
+    private Hud? _hud; // typed
 
     public override void _Ready()
     {
         // duration 钳下限——≤0 时事件开启即超时结算，波次暂停/恢复空转
         Duration = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.duration", Duration).AsDouble(), 1.0f);
-        // 2026-08-10 健壮性审查：enter_time 钳下限（StrikeCarrier.ENTER 的 _enterT/该值除零，
+        // enter_time 钳下限（StrikeCarrier.ENTER 的 _enterT/该值除零，
         // Clamp 兜底无 NaN，但降入瞬完成、视觉跳变）
         EnterTime = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.enter_time", EnterTime).AsDouble(), CfgFx.IntervalFloor);
         // rise_time 钳下限（同 enter_time 视觉跳变口径）
@@ -82,8 +82,8 @@ public partial class EliteTurretEvent : EncounterEventBase
         // boss_resume_delay 钳下限（Schedule 负值行为未定义）
         BossResumeDelay = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble(), CfgFx.IntervalFloor);
         TurretHpBase = (int)GameState.Instance.Cfg("elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
-        // K14（H13 同族延续）：turret_counts/ammo_sequences 判型回退——非 Dictionary 时
-        // 后续 .get() 在 Variant 上调用会运行时崩溃（G06 口径只覆盖了 fire_interval 等标量）
+        // turret_counts/ammo_sequences 判型回退——非 Dictionary 时
+        // 后续 .get() 在 Variant 上调用会运行时崩溃（标量口径判型只覆盖 fire_interval 等）
         var tc = GameState.Instance.Cfg("elite_turret_event.turret_counts", TurretCounts);
         if (tc.VariantType == Variant.Type.Dictionary)
         {
@@ -96,7 +96,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             AmmoSequences = am.AsGodotDictionary();
         }
 
-        // H13（健壮性审核）：fire_interval 判型回退（G06 口径，防非数组/短数组 _ready 崩溃）
+        // fire_interval 判型回退（防非数组/短数组 _ready 崩溃）
         var fi = GameState.Instance.Cfg(
             "elite_turret_event.fire_interval", new Godot.Collections.Array { FireInterval.X, FireInterval.Y });
         if (fi.VariantType == Variant.Type.Array && fi.AsGodotArray().Count >= 2)
@@ -105,7 +105,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             FireInterval = new Vector2((float)fiArr[0].AsDouble(), (float)fiArr[1].AsDouble());
         }
 
-        // R07：WEAK_LOCK 判型（K14 同族延续）——非 Dictionary 时 :203 透传给
+        // WEAK_LOCK 判型——非 Dictionary 时透传给
         // turret.Setup 的弱锁参数会在消费方崩溃，与 TURRET_COUNTS 同口径回退
         var wl = GameState.Instance.Cfg("elite_turret_event.weak_lock", WeakLock);
         if (wl.VariantType == Variant.Type.Dictionary)
@@ -145,19 +145,19 @@ public partial class EliteTurretEvent : EncounterEventBase
             _lines.Add(pool[i]);
         }
 
-        // 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；A5 注入 _spawner。U14：typed 直调）
+        // 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；注入 _spawner，typed 直调）
         _spawner?.SetBossFrozen(true);
         _spawner?.SetWavesPaused(true);
 
         _carrier = new StrikeCarrier();
         var carrier = _carrier;
-        var evView = GameState.Instance.ViewWorldRect(); // D10：载体入场锚点统一 view 基线
+        var evView = GameState.Instance.ViewWorldRect(); // 载体入场锚点统一 view 基线
         carrier.Position = new Vector2(evView.GetCenter().X, evView.Position.Y - 450.0f);
         carrier.Entered += OnCarrierEntered;
         carrier.Exited += OnCarrierExited;
         GetParent().AddChild(carrier);
-        // 2026-08-06 审计：HOVER_Y 为距可见区顶缘偏移（D10 同族遗漏）——原绝对 y 在
-        // 非默认视角档（zoom>1 可见区下移）偏高 140~222px，炮塔行锚点随之偏高
+        // HOVER_Y 为距可见区顶缘偏移——绝对 y 在
+        // 非默认视角档（zoom>1 可见区下移）会偏高 140~222px，炮塔行锚点随之偏高
         carrier.Enter(evView.Position.Y + HoverY, EnterTime);
         GameState.Instance.Shake(GameState.Instance.Cfg("elite_turret_event.carrier.shake", 4.0).AsDouble());
         _hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
@@ -189,7 +189,7 @@ public partial class EliteTurretEvent : EncounterEventBase
 
         if (_comm != null)
         {
-            _comm.Clear(); // B13：清掉已显台词，避免返航恢复后残留
+            _comm.Clear(); // 清掉已显台词，避免返航恢复后残留
         }
 
         ResumeWaves();
@@ -204,12 +204,12 @@ public partial class EliteTurretEvent : EncounterEventBase
     /// <summary>航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）。</summary>
     private void OnCarrierEntered()
     {
-        // Q16（2026-08-05）：turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
+        // turret_counts 上限钳制——配置 >5 时 SOCKETS[i] 越界崩溃
         //（StrikeCarrier.Sockets 固定 5 槽）。
-        // 2026-08-10：难度键条目值判型（K14 只判容器层）——字符串/数组等坏值 AsInt64 抛
+        // 难度键条目值判型——字符串/数组等坏值 AsInt64 抛
         // InvalidCastException 崩溃（事件触发即崩），坏值回退默认 4
-        // AC13（2026-08-11）：下限 0/负 → 无炮塔事件空跑（30s 倒计时 + BOSS_DELAY 4s，
-        // Boss 冻结/波次暂停共 34s 玩家干等）——钳 [1, Sockets.Length]（Q16 只封上限）
+        // 下限 0/负 → 无炮塔事件空跑（30s 倒计时 + BOSS_DELAY 4s，
+        // Boss 冻结/波次暂停共 34s 玩家干等）——钳 [1, Sockets.Length]
         var diffStr = GameState.Instance.Difficulty.ToString();
         var tcV = TurretCounts.GetValueOrDefault(diffStr, new Variant());
         var rawTotal = tcV.VariantType is Variant.Type.Int or Variant.Type.Float ? (int)tcV.AsInt64() : 4;
@@ -221,8 +221,8 @@ public partial class EliteTurretEvent : EncounterEventBase
                 TurretHpBase
                 * (float)GameState.Instance.EnemyHpMultiplier()
                 * (float)GameState.Instance.EnemyHpRamp()));
-        // 2026-08-06 审计：ammo 条目级判型（K14 只判容器 Dictionary 未判难度键条目）——
-        // 难度键缺失/非 Array 时 `for a in p_ammo` 崩溃（boss patterns 侧有 L07 元素级判型）；
+        // ammo 条目级判型（容器 Dictionary 之外还要判难度键条目）——
+        // 难度键缺失/非 Array 时 `for a in p_ammo` 崩溃；
         // 缺键回退 medium，仍非 Array 回退内置默认序列
         var ammo = AmmoSequences.GetValueOrDefault(diffStr, new Variant());
         if (ammo.VariantType != Variant.Type.Array)
@@ -370,7 +370,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             }
         }
 
-        // 2026-08-03 审计：收回中的炮塔已无 died 依赖（_ceased 守卫），立即清引用数组，
+        // 收回中的炮塔已无 died 依赖（_ceased 守卫），立即清引用数组，
         // 消除最长 ~6s（BOSS_RESUME_DELAY 窗口）的失效引用驻留（OnBossDelayEnd 的 clear 幂等）
         _turrets.Clear();
         _comm!.ShowLine("ETQ_RETREAT");

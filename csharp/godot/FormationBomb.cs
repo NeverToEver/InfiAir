@@ -107,7 +107,7 @@ public partial class FormationBomb : Area2D
         GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.enemy_die", 5.0).AsDouble());
         var hitbox = GameState.Instance.PlayerHitbox;
-        var player = GameState.Instance.PlayerRef; // M3c：Player 迁 C#，typed 直调
+        var player = GameState.Instance.PlayerRef; // typed 直调
         if (hitbox != null
             && GodotObject.IsInstanceValid(hitbox)
             && player != null)
@@ -115,7 +115,7 @@ public partial class FormationBomb : Area2D
             var hitboxNode = (Node2D)hitbox;
             if (hitboxNode.GlobalPosition.DistanceTo(GlobalPosition) <= AoeRadius)
             {
-                // K08：A1 同款遗漏——原 (hitbox.get_parent() as Player) 硬强转，Player 节点结构变动即
+                // 不得用 (hitbox.get_parent() as Player) 硬强转——Player 节点结构变动即
                 // null 调用崩溃；改经注册表引用（与 Bullet 命中结算同口径）
                 ((Player)player).TakeDamage((float)Damage, GlobalPosition);
             }

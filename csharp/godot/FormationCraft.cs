@@ -14,17 +14,17 @@ public partial class FormationCraft : Area2D, IDamageable
     public delegate void DiedEventHandler(FormationCraft craft);
 
     /// <summary>机体贴图。</summary>
-    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    // 静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     private readonly Texture2D _texture = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_2.png");
 
     public int MaxHp { get; set; } = 60;
     public int Hp { get; set; } = 60;
 
     private Sprite2D? _sprite;
-    /// <summary>P1-2：受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
+    /// <summary>受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
     private const float FlashTime = 0.1f;
-    /// <summary>P1-6：击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
+    /// <summary>击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
 
     /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
@@ -49,11 +49,11 @@ public partial class FormationCraft : Area2D, IDamageable
         shape.Shape = circle;
         AddChild(shape);
         GameState.Instance.BindEnemy(this); // 统一绑定
-        // P1-6：击杀震动强度缓存
+        // 击杀震动强度缓存
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
 
-    /// <summary>P1-2：受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。</summary>
+    /// <summary>受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。</summary>
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
@@ -62,7 +62,7 @@ public partial class FormationCraft : Area2D, IDamageable
             return;
         }
 
-        // 判空守卫保留在调用前（timer 早退之后、归色之前，与原顺序一致）
+        // 判空守卫必须在调用前（timer 早退之后、归色之前），顺序不可调换
         if (_sprite == null)
         {
             return;

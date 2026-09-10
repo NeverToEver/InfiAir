@@ -4,20 +4,18 @@ using InfiAir.Core.Progression;
 namespace InfiAir;
 
 /// <summary>
-/// 计分域服务（第五轮拆域，2026-08-11）：原 GameState.State.cs 计分簇——Score/Kills/BossKills/
-/// Combo 状态、连击系统与里程碑推进全部职责迁入本服务。
+/// 计分域服务：Score/Kills/BossKills/Combo 状态、连击系统与里程碑推进。
 /// Godot 绑定层：里程碑曲线/连击配置经 GameState.Instance 跨域访问（ScoreMultiplier 经
 /// RunProgression 门面、MilestoneMult 经 GameState 私有包装、MilestoneThreshold 经
-/// GameState → RunProgressionService 直调 InfiAir.Core.Progression 纯函数）。门面转发先例：
-/// 与 MissionsService 同构——
-/// GameState 组合持有本服务，GameState.State.cs 为门面对齐转发（签名/语义不变），保持
-/// 唯一 autoload：GameState 约定。信号：本服务以 C# 事件 ScoreChanged/MilestoneReached/
-/// ComboChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致）。
+/// GameState → RunProgressionService 直调 InfiAir.Core.Progression 纯函数）。
+/// GameState 组合持有本服务并做门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
+/// 信号：本服务以 C# 事件 ScoreChanged/MilestoneReached/ComboChanged 通知；GameState 订阅后
+/// 转发为同名信号（发射点/次数/顺序恒定不变）。
 /// </summary>
 public sealed partial class ScoreService : RefCounted
 {
 
-    // ---------------- 计分域（2026-08-11 自 GameState.State.cs 迁入） ----------------
+    // ---------------- 计分域 ----------------
 
     /// <summary>得分（对局会话态）。</summary>
     public int Score { get; set; }
@@ -41,20 +39,20 @@ public sealed partial class ScoreService : RefCounted
 
     public double MilestoneCycleMult { get; set; } = MilestoneCycleMultValue;
 
-    /// <summary>得分总量上限（P4 防御：手改 difficulty score 倍率防 int64 溢出；正常对局远达不到）</summary>
+    /// <summary>得分总量上限（防手改 difficulty score 倍率导致 int64 溢出；正常对局远达不到）</summary>
     private const int ScoreCapValue = 1_000_000_000;
 
     private const double MilestoneCycleMultValue = 1.35;
 
     /// <summary>里程碑阈值曲线（对齐原作 constants.py GameBalanceConstants 算法）：
     /// 首循环 8 档基础阈值，之后每循环的档差按 ×1.35^cycle 放大（阈值单调不回退）。
-    /// GameState.ApplyBalance 的 Cfg 默认值与整表回退共用（2026-08-11 迁入本服务）。</summary>
+    /// GameState.ApplyBalance 的 Cfg 默认值与整表回退共用。</summary>
     public static Godot.Collections.Array<int> BuildMilestoneBase() => new()
     {
         3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000,
     };
 
-    /// <summary>击杀连击（2026-08-11）：
+    /// <summary>击杀连击：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）。</summary>
     public double ComboWindow { get; private set; } = 3.0;
 
@@ -82,9 +80,9 @@ public sealed partial class ScoreService : RefCounted
 
     /// <summary>连击配置注入（ApplyBalance 调用；Cfg 调用留在 GameState 侧，钳制注释随迁）。
     /// window ≤0 会每帧断连——钳制下限，step ≤0 乘区不增、max_mult &lt;1 会倒扣击杀分——钳制 ≥1；
-    /// AC1（2026-08-11 健壮性审查）：step/max_mult 上界钳 [0,1e3]/[1,1e3]——巨值乘区在
+    /// step/max_mult 上界钳 [0,1e3]/[1,1e3]——否则巨值乘区在
     /// AddKillScore 的 (long) 乘算下溢出回绕为负（分数巨负进里程碑/榜单）；1e3 远超合理域
-    /// （设计封顶 ×2.0）但杜绝 long 溢出（AB15/AB16 上界钳先例）。</summary>
+    /// （设计封顶 ×2.0）但杜绝 long 溢出。</summary>
     public void ApplyComboConfig(double window, double step, double maxMult)
     {
         ComboWindow = window;
@@ -107,18 +105,18 @@ public sealed partial class ScoreService : RefCounted
     public void AddScore(int points)
     {
         // 难度分数倍率统一在此乘算（easy ×1 / medium ×2 / hard ×3，配置表里的分值不变）
-        // P4（2026-08-05）：得分总量钳制——手改配置 score 倍率极大时 int64 溢出（1e308 级）
-        // 2026-08-10 健壮性审查：乘算提升 long 域——int × int 在 points×倍率超 2^31 时
+        // 得分总量钳制——手改配置 score 倍率极大时 int64 溢出（1e308 级）；
+        // 乘算必须在 long 域：int × int 在 points×倍率超 2^31 时
         // 先回绕为负再进 Min（负分进入里程碑/榜单），long 域乘算后与上限钳制才生效
         Score = (int)Math.Min((long)Score + (long)points * GameState.Instance.ScoreMultiplier(), (long)ScoreCapValue);
         ScoreChanged?.Invoke(Score);
-        // 2026-08-06 审计：里程碑推进改 while——单次 +1 在单次加分跨多档时漏档
+        // 里程碑推进必须 while 逐档——单次 +1 在单次加分跨多档时漏档
         // （如 hard 倍率下高分击杀/Boss 奖励一次跨两档阈值）；
         // milestone_reached 按触发的档位逐档发，消费方按里程碑数计档。
-        // 2026-08-07：阈值求值迁移 C#（milestone_threshold 转发）；此处保持基于
+        // 阈值求值在 C#（milestone_threshold 转发）；此处保持基于
         // _next_milestone 的 while 逐档推进（阈值可随难度倍率脱离基础曲线），
         // 加分逐档仅 1-2 档，单值调用开销可忽略。
-        // H03 兜底挂死守卫：迭代上限沿用 MilestoneCurve.MaxIterations——
+        // 兜底挂死守卫：迭代上限沿用 MilestoneCurve.MaxIterations——
         // cycle_mult 已钳 ≥1.0 后曲线单调，但阈值求值 int 溢出回绕为负时 while 永不退出，超限直接 break
         int iterations = 0;
         while (Score >= _nextMilestone)
@@ -134,7 +132,7 @@ public sealed partial class ScoreService : RefCounted
         }
     }
 
-    // ---------------- 击杀连击（2026-08-11；scoring.combo 段） ----------------
+    // ---------------- 击杀连击（scoring.combo 段） ----------------
 
     /// <summary>击杀计分唯一入口（敌机击杀路径统一走此）：连击推进 + 乘区放大，
     /// 随后经 AddScore 乘难度倍率。Boss 击杀（AddBossKill）/事件奖励/擦弹不计连击。</summary>
@@ -143,8 +141,8 @@ public sealed partial class ScoreService : RefCounted
         Combo += 1;
         _comboTimer = EffectiveComboWindow();
         // long 域乘算防回绕（乘区 double，截断前钳制 int 域；AddScore 内另有总分钳制）
-        // AC1 双保险（2026-08-11 健壮性审查）：乘积钳 [0, long.MaxValue]——组合极端路径
-        // （basePoints×乘区越界 → double→long 转换未定义/回绕巨负）下兜底防负分入账（AB12 双保险先例）
+        // 双保险：乘积钳 [0, long.MaxValue]——组合极端路径
+        // （basePoints×乘区越界 → double→long 转换未定义/回绕巨负）下兜底防负分入账
         var amplified = basePoints * Math.Pow(_scoreAmpFactor, GameState.Instance.TalentEffLevel(AugScoreAmpId));
         var scaled = (long)Math.Round(Math.Clamp(amplified * ComboMultiplier(), 0.0, (double)long.MaxValue));
         AddScore((int)Math.Min(scaled, (long)int.MaxValue));
@@ -152,7 +150,7 @@ public sealed partial class ScoreService : RefCounted
     }
 
     /// <summary>Boss 击杀计分（AddBossKill 编排内的计分域部分）：BossKills 推进 + 加分
-    /// （G012：加分基准入 balance.json milestones.boss_kill_base；击杀低频，非热路径可直查）。</summary>
+    /// （加分基准入 balance.json milestones.boss_kill_base；击杀低频，非热路径可直查）。</summary>
     public void AddBossKill(double scoreScale)
     {
         BossKills += 1;
@@ -205,7 +203,7 @@ public sealed partial class ScoreService : RefCounted
         }
     }
 
-    /// <summary>计分域复位（ResetRun 调用；信号发射点/顺序与拆域前一致——ComboChanged 经 ResetCombo）。</summary>
+    /// <summary>计分域复位（ResetRun 调用；信号发射点/顺序恒定——ComboChanged 经 ResetCombo）。</summary>
     public void ResetAll()
     {
         Score = 0;
@@ -215,7 +213,7 @@ public sealed partial class ScoreService : RefCounted
         ResetCombo(); // 连击跨对局清零（幂等 + 广播 HUD）
     }
 
-    // ---------------- 里程碑曲线（2026-08-11 自 GameState.Difficulty.cs 迁入的计分域语义部分） ----------------
+    // ---------------- 里程碑曲线 ----------------
 
     /// <summary>当前已触发的里程碑数（Mothership.Tier 升级档位等消费点）。</summary>
     public int MilestoneCount() => _milestoneCount;

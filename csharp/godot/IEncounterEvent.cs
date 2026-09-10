@@ -1,7 +1,7 @@
 namespace InfiAir;
 
 /// <summary>
-/// 遭遇事件契约（U14，2026-08-09 审计）：GameEventManager 遭遇轮询 typed 化接口——
+/// 遭遇事件契约：GameEventManager 遭遇轮询 typed 化接口——
 /// 消除每帧 HasMethod/Call 动态派发；新增遭遇事件类型实现本接口
 /// 即可经 RegisterEncounter 注册（GameEventManager 内部以 is IEncounterEvent 分派）。
 /// </summary>

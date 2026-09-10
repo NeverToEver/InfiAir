@@ -22,22 +22,22 @@ public partial class EntityManager : RefCounted
     /// <summary>enemies 注册表（GameState.enemies 转发）。</summary>
     public Godot.Collections.Array<Node> Enemies { get; } = new();
 
-    /// <summary>G010：enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定）。</summary>
+    /// <summary>enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定）。</summary>
     private readonly Godot.Collections.Dictionary _enemySet = new(); // node -> true
 
-    /// <summary>2026-08-10 审计：enemies 在册索引表（node -> 数组下标），swap-remove 双维护
-    /// （_enemyBulletIndex 同款模式）——原 UnregisterEnemy 的 Array.Remove 为 O(n) 线性扫描+搬移，
-    /// 敌机死亡即触发（池化回收路径每次死亡调两次）。消费方已核实不依赖数组顺序：
+    /// <summary>enemies 在册索引表（node -> 数组下标），swap-remove 双维护
+    /// （_enemyBulletIndex 同款模式）——Array.Remove 为 O(n) 线性扫描+搬移，
+    /// 敌机死亡即触发（池化回收路径每次死亡调两次）。消费方不依赖数组顺序：
     /// 迭代类（AimFrameLayer 严格最近选取/Bullet 溅射倒序/Mothership/EnrageSequence/Main 清场/
     /// DeathReplay 只读敌弹表）与 Contains/Count 判定均与顺序无关。</summary>
     private readonly Godot.Collections.Dictionary _enemyIndex = new();
 
-    /// <summary>P0-1：敌弹注册表（death_replay 录制数据源；元素为 Bullet）。</summary>
+    /// <summary>敌弹注册表（death_replay 录制数据源；元素为 Bullet）。</summary>
     public Godot.Collections.Array<GodotObject> EnemyBullets { get; } = new();
 
     private readonly Godot.Collections.Dictionary _enemyBulletSet = new(); // node -> true
 
-    /// <summary>2026-08-09 审计：敌弹在册索引表（node -> 数组下标），swap-remove 双维护。</summary>
+    /// <summary>敌弹在册索引表（node -> 数组下标），swap-remove 双维护。</summary>
     private readonly Godot.Collections.Dictionary _enemyBulletIndex = new();
 
     public Node2D? PlayerRef { get; set; }
@@ -55,7 +55,7 @@ public partial class EntityManager : RefCounted
 
     public Camera2D? CameraRef { get; set; }
 
-    /// <summary>触屏虚拟输入层实例（M5 重定型 VirtualControls）。</summary>
+    /// <summary>触屏虚拟输入层实例（VirtualControls 重定型）。</summary>
     public GodotObject? VirtualControls { get; set; }
 
     /// <summary>敌机登记（幂等；set 单次查找，索引表与数组同步维护）。</summary>
@@ -75,7 +75,7 @@ public partial class EntityManager : RefCounted
     {
         if (_enemySet.Remove(node))
         {
-            // 双表一致性守卫：set 在册而索引缺键/越界 = 表分歧——直接取索引会静默得 0，
+            // 双表一致性守卫：set 在册而索引缺键/越界/槽位不符 = 表分歧——直接取索引会静默得 0，
             // swap-remove 将错删 0 号元素。守卫命中走数组权威重建自愈（Repair*Tables）
             if (!_enemyIndex.ContainsKey(node))
             {
@@ -86,6 +86,13 @@ public partial class EntityManager : RefCounted
             var idx = (int)_enemyIndex[node].AsInt64();
             _enemyIndex.Remove(node);
             if (idx < 0 || idx >= Enemies.Count)
+            {
+                RepairEnemyTables(node);
+                return;
+            }
+
+            // 第三类分歧：索引在界但槽位元素不符（index → 错误对象）——swap-remove 会错删末位
+            if (!ReferenceEquals(Enemies[idx], node))
             {
                 RepairEnemyTables(node);
                 return;
@@ -108,7 +115,7 @@ public partial class EntityManager : RefCounted
     {
         // 分歧路径节点原生侧可能已释放，直接取 .Name 会抛 ObjectDisposedException——降级输出防自愈路径反崩
         var label = GodotObject.IsInstanceValid(node) ? node.Name.ToString() : "<已释放节点>";
-        GD.PushError($"[EntityManager] 敌机注册表分歧（set 在册而索引缺失/越界）：{label}，已按数组权威重建");
+        GD.PushError($"[EntityManager] 敌机注册表分歧（set 在册而索引缺失/越界/槽位不符）：{label}，已按数组权威重建");
         for (var i = Enemies.Count - 1; i >= 0; i--)
         {
             if (ReferenceEquals(Enemies[i], node))
@@ -126,10 +133,10 @@ public partial class EntityManager : RefCounted
         }
     }
 
-    /// <summary>G010：注册表存在性判定 O(1)（语义同注册表包含，deactivate 即移除）。</summary>
+    /// <summary>注册表存在性判定 O(1)（语义同注册表包含，deactivate 即移除）。</summary>
     public bool HasEnemy(Node node) => _enemySet.ContainsKey(node);
 
-    /// <summary>P0-1：敌弹登记（幂等；set/索引表与数组同步维护）。</summary>
+    /// <summary>敌弹登记（幂等；set/索引表与数组同步维护）。</summary>
     public void RegisterEnemyBullet(GodotObject b)
     {
         if (!_enemyBulletSet.ContainsKey(b))
@@ -141,10 +148,10 @@ public partial class EntityManager : RefCounted
         _enemyBulletSet[b] = true;
     }
 
-    /// <summary>P0-1：敌弹注销（幂等；set 判定真实在册才移除）。
-    /// 2026-08-09 审计：原 Array.Remove 为 O(n) 线性扫描+搬移——敌弹消亡频率 = 弹幕生成频率，
+    /// <summary>敌弹注销（幂等；set 判定真实在册才移除）。
+    /// Array.Remove 为 O(n) 线性扫描+搬移——敌弹消亡频率 = 弹幕生成频率，
     /// 同屏数百时每帧多次 O(n)；改 swap-remove + 索引表 O(1)。消费方（ClearNearbyEnemyBullets 倒序 /
-    /// DeathReplay 只读采样）不依赖数组顺序，已核实。</summary>
+    /// DeathReplay 只读采样）不依赖数组顺序。</summary>
     public void UnregisterEnemyBullet(GodotObject b)
     {
         if (_enemyBulletSet.Remove(b))
@@ -164,6 +171,13 @@ public partial class EntityManager : RefCounted
                 return;
             }
 
+            // 第三类分歧：索引在界但槽位元素不符（index → 错误对象）——swap-remove 会错删末位
+            if (!ReferenceEquals(EnemyBullets[idx], b))
+            {
+                RepairEnemyBulletTables(b);
+                return;
+            }
+
             var last = EnemyBullets[EnemyBullets.Count - 1];
             if (!ReferenceEquals(last, b))
             {
@@ -178,7 +192,7 @@ public partial class EntityManager : RefCounted
     /// <summary>敌弹表分歧自愈（RepairEnemyTables 同款，数组权威重建）。</summary>
     private void RepairEnemyBulletTables(GodotObject b)
     {
-        GD.PushError("[EntityManager] 敌弹注册表分歧（set 在册而索引缺失/越界），已按数组权威重建");
+        GD.PushError("[EntityManager] 敌弹注册表分歧（set 在册而索引缺失/越界/槽位不符），已按数组权威重建");
         for (var i = EnemyBullets.Count - 1; i >= 0; i--)
         {
             if (ReferenceEquals(EnemyBullets[i], b))

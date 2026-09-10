@@ -5,8 +5,8 @@ namespace InfiAir;
 /// <summary>
 /// 玩家战机：WASD 平滑移动、朝准星旋转、
 /// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需 buff，耗 25% 燃料）。
-/// A8 组合：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
-/// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（P1-1/P1-3 追踪/锥形/磁吸）、入场动画、迷雾事件。
+/// 组合委托：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
+/// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（追踪/锥形/磁吸）、入场动画、迷雾事件。
 /// 公开 API 为 PascalCase。
 /// </summary>
 public partial class Player : CharacterBody2D
@@ -14,13 +14,13 @@ public partial class Player : CharacterBody2D
     [Signal]
     public delegate void EntryFinishedEventHandler();
 
-    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    // 静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     // 射击音效：FireA..FireC 三采样轮换（资源装载/音量/抖动/复音统一在 SfxPlayer 目录表）
     private const int FireSoundVariants = 3;
 
     private readonly Script _bulletScript = GD.Load<Script>("res://csharp/godot/Bullet.cs");
 
-    // U14（2026-08-09 审计）：热路径每帧禁 StringName/string 字面量构造——buff 名与输入 action 名静态缓存
+    // 热路径每帧禁 StringName/string 字面量构造——buff 名与输入 action 名静态缓存
     private static readonly StringName AugCritShot = new("crit_shot");
     private static readonly StringName AugRapidFire = new("rapid_fire");
     private static readonly StringName AugPowerShot = new("power_shot");
@@ -77,7 +77,7 @@ public partial class Player : CharacterBody2D
     public float RegenPerSec { get; private set; } = 2.0f;
     public float ShakeHit { get; private set; } = 12.0f;
 
-    // ---- A4：声明式 buff 效果表（buff id → 效果定义；单一事实源） ----
+    // ---- 声明式 buff 效果表（buff id → 效果定义；单一事实源） ----
     private static readonly Godot.Collections.Dictionary AugmentEffects = new()
     {
         ["rapid_fire"] = new Godot.Collections.Dictionary { ["kind"] = "pow", ["cfg"] = "augments.rapid_fire.factor", ["default"] = 0.75 },
@@ -159,7 +159,7 @@ public partial class Player : CharacterBody2D
     private float _enrageSlow = 1.0f;
     private bool _autoFireEnabled = true;
 
-    // ---- A8：受击/回血与冲刺/弹反/视觉组件（组合委托，纯 C# 类） ----
+    // ---- 受击/回血与冲刺/弹反/视觉组件（组合委托，纯 C# 类） ----
     private readonly PlayerDamage _damage = new();
     private readonly PlayerDash _dash = new();
     private readonly PlayerParry _parry = new();
@@ -176,7 +176,7 @@ public partial class Player : CharacterBody2D
     private bool _entryPrevAutoFire = true;
     private Tween? _entryTween;
 
-    // A8 组合组件属性转发（PlayerDamage/PlayerDash 状态经 Player 门面读写）
+    // 组合组件属性转发（PlayerDamage/PlayerDash 状态经 Player 门面读写）
     public float Invincible { get => _damage.Invincible; set => _damage.Invincible = value; }
     public int LastHitFrame { get => _damage.LastHitFrame; set => _damage.LastHitFrame = value; }
     public float SinceDamage { get => _damage.SinceDamage; set => _damage.SinceDamage = value; }
@@ -213,7 +213,7 @@ public partial class Player : CharacterBody2D
     private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
     private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
     private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
-    private double _cachedMaxHp = 100.0; // H7：MaxHealth 热路径缓存（extra_life 随 buff 变化，AugmentsChanged 时刷新）
+    private double _cachedMaxHp = 100.0; // MaxHealth 热路径缓存（extra_life 随 buff 变化，AugmentsChanged 时刷新）
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
     private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
     private Sprite2D? _glow;
@@ -282,7 +282,7 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    /// <summary>A8：残影逐帧淡出（渲染帧）——委托 PlayerVisuals。</summary>
+    /// <summary>残影逐帧淡出（渲染帧）——委托 PlayerVisuals。</summary>
     public override void _Process(double delta)
     {
         _visuals.UpdateAfterimages((float)delta);
@@ -322,25 +322,25 @@ public partial class Player : CharacterBody2D
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>
     private void LoadBalance()
     {
-        // AC2（2026-08-11 审计）：运动/速度族钳 ≥0——负值致反向移动/反向加速
+        // 运动/速度族钳 ≥0——负值致反向移动/反向加速
         MaxSpeed = CfgFx.Float("player.max_speed", MaxSpeed, 0.0f);
         Accel = CfgFx.Float("player.accel", Accel, 0.0f);
         Decel = CfgFx.Float("player.decel", Decel, 0.0f);
         BoostMult = CfgFx.Float("player.boost_mult", BoostMult, 0.0f);
         FineMoveMult = CfgFx.Float("player.fine_move_mult", FineMoveMult, 0.0f);
-        // AC2：base_fire_interval 钳 0.05 下限（同 laser tick_interval 族）——≤0 时每物理帧开火
+        // base_fire_interval 钳 0.05 下限（同 laser tick_interval 族）——≤0 时每物理帧开火
         BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, CfgFx.IntervalFloor);
         BulletSpeed = CfgFx.Float("player.bullet_speed", BulletSpeed, 0.0f);
-        // AC2：crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
+        // crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
         CritChanceBase = CfgFx.Float("augments.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
         CritMultiplier = CfgFx.Float("augments.crit_shot.multiplier", CritMultiplier, 0.0f);
         BulletSpreadDeg = CfgFx.Float("player.bullet_spread_deg", BulletSpreadDeg, 0.0f);
-        // AC2：bullet_damage 钳 ≥0（CfgFx.Int 统一判型 + 域钳）——负伤害给敌机回血
+        // bullet_damage 钳 ≥0（CfgFx.Int 统一判型 + 域钳）——负伤害给敌机回血
         BulletDamage = CfgFx.Int("player.bullet_damage", BulletDamage, 0);
         InvincibleTime = CfgFx.Float("player.invincible_time", InvincibleTime, 0.0f);
         SpawnInvincibleTime = CfgFx.Float("player.spawn_invincible_time", SpawnInvincibleTime, 0.0f);
         BulletClearRadius = CfgFx.Float("player.bullet_clear_radius", BulletClearRadius, 0.0f);
-        // AC2：entry.* 钳 ≥0——负值入场时序/位移反向
+        // entry.* 钳 ≥0——负值入场时序/位移反向
         EntryLandRatio = CfgFx.Float("player.entry.land_ratio", EntryLandRatio, 0.0f);
         EntryRushTime = CfgFx.Float("player.entry.rush_time", EntryRushTime, 0.0f);
         EntryRetreatSpeed = CfgFx.Float("player.entry.retreat_speed", EntryRetreatSpeed, 0.0f);
@@ -348,13 +348,13 @@ public partial class Player : CharacterBody2D
         EntryInvincible = CfgFx.Float("player.entry.invincible", EntryInvincible, 0.0f);
         EntrySpawnClearance = CfgFx.Float("player.entry.spawn_clearance", EntrySpawnClearance, 0.0f);
         EntryRushHsRatio = CfgFx.Float("player.entry.rush_hspeed_ratio", EntryRushHsRatio, 0.0f);
-        // AC2：armor.multiplier 钳 [0,1]——≤0 受击回血（GameState.Settings 乘算）；
+        // armor.multiplier 钳 [0,1]——≤0 受击回血（GameState.Settings 乘算）；
         // evasion.chance 钳 [0,1]——≥1 软无敌；regen.heal_per_sec 钳 ≥0——负值逐秒扣血
         ArmorMult = CfgFx.Float("augments.armor.multiplier", ArmorMult, 0.0f, 1.0f);
         EvasionChance = CfgFx.Float("augments.evasion.chance", EvasionChance, 0.0f, 1.0f);
         RegenPerSec = CfgFx.Float("augments.regen.heal_per_sec", RegenPerSec, 0.0f);
         ShakeHit = CfgFx.Float("effects.shake.player_hit", ShakeHit, 0.0f);
-        // AC3：受击帧阈值钳 [0,1]——ratio 为百分比；配置非法（light<=heavy）回退默认 0.7/0.4
+        // 受击帧阈值钳 [0,1]——ratio 为百分比；配置非法（light<=heavy）回退默认 0.7/0.4
         _damageLightRatio = CfgFx.Float("effects.player_damage_frame.light_ratio", _damageLightRatio, 0.0f, 1.0f);
         _damageHeavyRatio = CfgFx.Float("effects.player_damage_frame.heavy_ratio", _damageHeavyRatio, 0.0f, 1.0f);
         if (_damageLightRatio <= _damageHeavyRatio)
@@ -363,30 +363,30 @@ public partial class Player : CharacterBody2D
             _damageHeavyRatio = 0.4f;
         }
         Invincible = SpawnInvincibleTime; // 出生保护
-        // 2026-08-10 健壮性审查：fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
+        // fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
         //（燃料条显示 NaN；SetFuel 的 Clamp 上下界同为 0 致燃料机制失效）
         FuelMax = CfgFx.Float("player.fuel.max", FuelMax, 1.0f);
         _fuel = FuelMax;
-        // AC2：fuel.drain/regen/restart 钳 ≥0——负值反转充能/消耗方向
+        // fuel.drain/regen/restart 钳 ≥0——负值反转充能/消耗方向
         FuelDrain = CfgFx.Float("player.fuel.drain", FuelDrain, 0.0f);
         FuelRegen = CfgFx.Float("player.fuel.regen", FuelRegen, 0.0f);
         FuelRestart = CfgFx.Float("player.fuel.restart", FuelRestart, 0.0f);
-        // AC2：dash.distance/fuel_ratio/afterimage_interval 钳 ≥0——负值冲刺反向
+        // dash.distance/fuel_ratio/afterimage_interval 钳 ≥0——负值冲刺反向
         DashDistance = CfgFx.Float("player.dash.distance", DashDistance, 0.0f);
-        // V 系列：dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
+        // dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
         DashTime = CfgFx.Float("player.dash.time", DashTime, CfgFx.IntervalFloor);
-        // 2026-08-10 健壮性审查：dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
+        // dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
         // 且无 phase_dash 层数时 DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0
         // = NaN（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
         DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, CfgFx.IntervalFloor);
         DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
         AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
-        // AC2：graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣
+        // graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣
         GrazeRadiusBase = CfgFx.Float("player.graze_radius", GrazeRadiusBase, 0.0f);
         GrazeScoreBase = CfgFx.Int("player.graze_score", GrazeScoreBase, 0);
         GrazeRadius = GrazeRadiusBase;
         GrazeScore = GrazeScoreBase;
-        // AC2：parry.* 钳 ≥0——负半径/负角度致弹反扇形判定异常
+        // parry.* 钳 ≥0——负半径/负角度致弹反扇形判定异常
         ParryArcDeg = CfgFx.Float("player.parry.arc_deg", ParryArcDeg, 0.0f);
         ParryRadius = CfgFx.Float("player.parry.radius", ParryRadius, 0.0f);
         _parryCooldownBase = CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f);
@@ -403,7 +403,7 @@ public partial class Player : CharacterBody2D
             CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
             CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
-        // AC2：aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
+        // aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
         _magnetInputMin = CfgFx.Float("player.aim_assist.input.magnet_input_min", _magnetInputMin, 0.0f);
         _magnetInputFull = CfgFx.Float("player.aim_assist.input.magnet_input_full", _magnetInputFull, 0.0f);
         _falloffPeak = CfgFx.Float("player.aim_assist.falloff.peak", _falloffPeak, 0.0f);
@@ -426,7 +426,7 @@ public partial class Player : CharacterBody2D
         }
 
         _hitboxRadius = 7.0f * ws;
-        // 机制二：擦弹环（GrazeArea）——游戏性范围族运行值，不乘 world_scale
+        // 擦弹环（GrazeArea）——游戏性范围族运行值，不乘 world_scale
         var grazeArea = GetNode<Area2D>("GrazeArea");
         if (grazeArea.GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D grazeCircle)
         {
@@ -434,10 +434,10 @@ public partial class Player : CharacterBody2D
         }
 
         grazeArea.Connect(Area2D.SignalName.AreaEntered, _onGrazeEntered);
-        // 机制四：弹反盾——tscn 占位节点；圆盘 shape 触发进入检测，回调内精确扇形过滤
+        // 弹反盾——tscn 占位节点；圆盘 shape 触发进入检测，回调内精确扇形过滤
         _parryShield = GetNode<Area2D>("ParryShield");
         _parryShield.Connect(Area2D.SignalName.AreaEntered, _onParryShieldEntered);
-        // 机制四：tscn 占位无 shape——新建圆盘判定形状（原 GDScript CircleShape2D.new() 语义）
+        // tscn 占位无 shape——新建圆盘判定形状
         _parryShield.GetNode<CollisionShape2D>("CollisionShape2D").Shape = new CircleShape2D { Radius = ParryRadius };
 
         // 盾视觉三层（程序化，零 shader，全 ADD 混合出辉光）：淡金填充扇面 + 亮金分段盾缘
@@ -489,7 +489,7 @@ public partial class Player : CharacterBody2D
         if (_thruster.ProcessMaterial is ParticleProcessMaterial thrusterMat)
         {
             // 软点 64px 基准换算：cfg scale 语义 = 像素直径（同 CinematicFx.Particles），
-            // 设计直径 18–44px(×ws) → 贴图比例；软衰减使亮芯更小，比原 1px 方粒饱满
+            // 设计直径 18–44px(×ws) → 贴图比例；软衰减使亮芯更小
             thrusterMat.ScaleMin = 18.0f * ws / CinematicFx.SoftTexSize;
             thrusterMat.ScaleMax = 44.0f * ws / CinematicFx.SoftTexSize;
             thrusterMat.Color = new Color(1.0f, 0.72f, 0.30f);
@@ -506,7 +506,7 @@ public partial class Player : CharacterBody2D
             ZIndex = 1,
         };
         AddChild(_muzzleGlow);
-        // 鼠标跟随准星（P1-1）：top_level 世界坐标节点
+        // 鼠标跟随准星：top_level 世界坐标节点
         _crosshair = new AimCrosshair();
         _crosshair.Init(this);
         AddChild(_crosshair);
@@ -545,11 +545,11 @@ public partial class Player : CharacterBody2D
         };
         AddChild(augmentVisuals);
         augmentVisuals.Init(_sprite, this);
-        // A8：视觉组件初始化（残影池预建；Main 场景构建期 add_child 报 busy，延迟到帧末）
+        // 视觉组件初始化（残影池预建；Main 场景构建期 add_child 报 busy，延迟到帧末）
         _visuals.Init(_sprite, _thruster, hitboxDot, parryArc, parryRim, parryShine, parryPulse, GetParent());
     }
 
-    // ---------------- 对外公开接口（A1 修复） ----------------
+    // ---- 对外公开接口 ----
 
     public bool IsDead() => _dead;
 
@@ -648,10 +648,10 @@ public partial class Player : CharacterBody2D
         ["falloff_min"] = _falloffMin,
     };
 
-    /// <summary>P1-3 距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
+    /// <summary>距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
     public float AimDistFalloff(float d) => DistFalloffCurve(d, _falloffPeak, _falloffEnd, _falloffMin);
 
-    /// <summary>G018：距离衰减分段纯函数（单实现）。</summary>
+    /// <summary>距离衰减分段纯函数（单实现）。</summary>
     public static float DistFalloffCurve(float d, float peak, float end, float minV)
     {
         if (d <= peak)
@@ -681,7 +681,7 @@ public partial class Player : CharacterBody2D
 
     public void SetAutoFire(bool enabled) => _autoFireEnabled = enabled;
 
-    /// <summary>AB1：入场序列期间外部系统（LaserWeapon.EndBeam）恢复 autofire 时同步覆盖捕获值，
+    /// <summary>入场序列期间外部系统（LaserWeapon.EndBeam）恢复 autofire 时同步覆盖捕获值，
     /// 防 FinishEntry 把激光恢复的 true 踩回 false（返航暂停冻结激光 active 的孪生路径）。</summary>
     public void OverrideEntryAutoFire(bool value)
     {
@@ -696,10 +696,9 @@ public partial class Player : CharacterBody2D
     public bool IsDashing() => _dash.IsDashing();
 
     /// <summary>
-    /// A4：按声明式效果表刷新 buff 值缓存（_ready 初始 + augments_changed 信号驱动）。
-    /// 天赋缓存系统重构：乘算类（pow）效果改用 TalentEffLevel 浮点有效层级——
-    /// 收益递减/路线加成/专注折扣在有效层级内折算，factor^effLevel 与旧 factor^层数在
-    /// 无修正时逐位一致；cap/bool 类保持整数 Augments 口径（盾层/穿透/散射语义不变）。
+    /// 按声明式效果表刷新 buff 值缓存（_ready 初始 + augments_changed 信号驱动）。
+    /// 乘算类（pow）效果用 TalentEffLevel 浮点有效层级——收益递减/路线加成/专注折扣
+    /// 在有效层级内折算；cap/bool 类保持整数 Augments 口径（盾层/穿透/散射语义不变）。
     /// </summary>
     private void RefreshAugmentFactors()
     {
@@ -719,9 +718,9 @@ public partial class Player : CharacterBody2D
         var critEff = (float)GameState.Instance.TalentEffLevel(AugCritShot);
         CritChance = critEff <= 0f ? 0.0f : CritChanceBase * critEff;
         CritMultiplierValue = CritMultiplier;
-        // 2026-08-10 审计 H6：燃油速率缓存（LaserWeapon.OnAugmentsChanged 同款）——
-        // 原每物理帧 AugmentLevel 字典查找 + Pow（_physics_process 每帧两次）。
-        // 2026-08-16 扩展：开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
+        // 燃油速率缓存（LaserWeapon.OnAugmentsChanged 同款）——避免每物理帧
+        // AugmentLevel 字典查找 + Pow（_physics_process 每帧两次）。
+        // 开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
         _fuelDrainRate = AugmentScale(AugEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(AugEfficientBoost));
         _fuelRegenRate = AugmentScale(AugBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(AugBoostRecovery));
         _fireIntervalValue = AugmentScale(AugRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(AugRapidFire));
@@ -770,7 +769,7 @@ public partial class Player : CharacterBody2D
         _dashStrikeDamage = Mathf.Max(1, CfgFx.Int("augments.dash_strike.damage_per_level", 35, 0));
         _dashStrikeTick = 0f;
 
-        // H7：MaxHealth 热路径缓存（Hud.cs D08 同款）——extra_life 随天赋层级变化才变，
+        // MaxHealth 热路径缓存（extra_life 随天赋层级变化才变，
         // 由本方法（_Ready 首调 + AugmentsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
         _cachedMaxHp = GameState.Instance.MaxHealth();
     }
@@ -785,13 +784,13 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    /// <summary>A4：乘算因子求值——base × factor^effLevel（effLevel 可为分数：收益递减/路线/专注折算）。</summary>
+    /// <summary>乘算因子求值——base × factor^effLevel（effLevel 可为分数：收益递减/路线/专注折算）。</summary>
     private float AugmentScale(StringName id, float baseValue, float effLevel) => baseValue * Mathf.Pow((float)_augmentValues[id].AsDouble(), effLevel);
 
-    /// <summary>A4：堆叠上限截断——min(count, max_stacks)。</summary>
+    /// <summary>堆叠上限截断——min(count, max_stacks)。</summary>
     private int AugmentCap(StringName id) => Mathf.Min((int)GameState.Instance.AugmentLevel(id), (int)_augmentValues[id]);
 
-    /// <summary>A4：布尔启用——count &gt; 0。</summary>
+    /// <summary>布尔启用——count &gt; 0。</summary>
     private bool AugmentEnabled(StringName id) => (int)GameState.Instance.AugmentLevel(id) > 0;
 
     public float FireIntervalValue() => _fireIntervalValue;
@@ -825,7 +824,7 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
-    /// <summary>H6：燃油速率缓存（RefreshAugmentFactors 刷新：_ready 初始 + augments_changed 信号驱动；
+    /// <summary>燃油速率缓存（RefreshAugmentFactors 刷新：_ready 初始 + augments_changed 信号驱动；
     /// 默认值 = 无 buff 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
     private float _fuelDrainRate = 35.0f;
     private float _fuelRegenRate = 20.0f;
@@ -841,7 +840,7 @@ public partial class Player : CharacterBody2D
     private bool _dashUnlocked;
     private float _dashCooldownMax = 4.0f;
 
-    // ---- 2026-09-08 作战增幅扩展（homing/salvo/deflector/graze_field/dash_strike）----
+    // ---- 作战增幅扩展（homing/salvo/deflector/graze_field/dash_strike）----
     /// <summary>homing 制导：0 = 未购；>0 = 出膛弹追踪角速率（deg/s，随有效层级放大）。</summary>
     private float _homingAugTurnRate;
     private float _homingLockTime = 8.0f;
@@ -900,7 +899,7 @@ public partial class Player : CharacterBody2D
 
         if (_inputLocked)
         {
-            // R07：锁输入期关闭弹反盾物理判定（原实现整体早退使 monitoring 停留在锁定前值）
+            // 锁输入期关闭弹反盾物理判定（整体早退会使 monitoring 停留在锁定前值）
             if (_parryShield != null && _parryShield.Monitoring)
             {
                 _parryShield.Monitoring = false;
@@ -1050,14 +1049,14 @@ public partial class Player : CharacterBody2D
             _fireCooldown = Mathf.Max(interval, 0.01f);
         }
 
-        // 机身色调四源 + 受击点脉动（A8 委托 PlayerVisuals）
+        // 机身色调四源 + 受击点脉动（委托 PlayerVisuals）
         if (Invincible > 0.0f)
         {
             Invincible -= d;
         }
 
         _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, nowMs);
-        // 回血（A8 委托 PlayerDamage）
+        // 回血（委托 PlayerDamage）
         _damage.HealTick(d);
     }
 
@@ -1079,7 +1078,7 @@ public partial class Player : CharacterBody2D
     }
 
     /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先；
-    /// 键鼠/手柄下准星与系统光标逐像素绑定（2026-09-10 重设计，见内注）；触屏保持差值累积平滑。</summary>
+    /// 键鼠/手柄下准星与系统光标逐像素绑定（见内注）；触屏保持差值累积平滑。</summary>
     public Vector2 AimPoint()
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
@@ -1092,7 +1091,7 @@ public partial class Player : CharacterBody2D
         {
             _aimSmoothedFrame = frame;
             var raw = GetGlobalMousePosition();
-            // U14：VirtualControls 已 C#，typed 直调（原每渲染帧动态派发 + Variant 装箱）
+            // VirtualControls 已 C#，typed 直调（免去原来的动态派发 + Variant 装箱）
             var vc = GameState.Instance.VirtualControls as VirtualControls;
             var touch = vc != null && vc.IsEnabled();
             if (touch)
@@ -1100,7 +1099,7 @@ public partial class Player : CharacterBody2D
                 raw = vc!.BaseAimPosition();
             }
 
-            // H01：右摇杆虚拟准星（四向独立动作，差值驱动）
+            // 右摇杆虚拟准星（四向独立动作，差值驱动）
             var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
             if (joy.LengthSquared() > 0.01f)
@@ -1134,8 +1133,8 @@ public partial class Player : CharacterBody2D
             else
             {
                 // 键鼠/手柄准星-光标绑定：物理增量（raw − _aimLastRaw）全量通过，粘滞(factor<1)/
-                // 磁吸/摇杆偏移经 Viewport.WarpMouse 反写真实光标，下一帧 raw 即新锚点——准星永不
-                // 脱钩（原差值累积下准星与光标解耦，光标顶到屏幕边缘后物理增量归零、准星看似卡死）；
+                // 磁吸/摇杆偏移经 Viewport.WarpMouse 反写真实光标，下一帧 raw 即新锚点——准星始终与
+                // 光标绑定（差值累积会在光标顶到屏幕边缘后物理增量归零、准星看似卡死）；
                 // 目标钳制在可视世界域内（视角档自适应），准星/光标均不出窗。
                 var desired = !_aimInitialized ? raw : _aimSmooth + (raw - _aimLastRaw) * factor + magnet + joyDelta;
                 var view = GameState.Instance.ViewWorldRect();
@@ -1161,12 +1160,12 @@ public partial class Player : CharacterBody2D
     {
         var level = (string)(StringName)GameState.Instance.AimAssistLevel;
         var basePath = "player.aim_assist.levels." + level + ".";
-        // AC2（2026-08-11 审计）：档位参数钳 ≥0——负值致追踪/磁吸反向
+        // 档位参数钳 ≥0——负值致追踪/磁吸反向
         _homingTurnRate = Mathf.Max((float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble(), 0.0f);
         _aimStickFactor = Mathf.Max((float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble(), 0.0f);
         HomingTime = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble(), 0.0f);
-        // AC2：cone_angle_deg 钳 [0,360]——越界角度（负/超 360）致 coneCos 周期折叠，
-        // 锥形弱追踪判定失真（360 时 cos=1 → angT 0/0=NaN，AC6 NaN 守卫兜底）
+        // cone_angle_deg 钳 [0,360]——越界角度（负/超 360）致 coneCos 周期折叠，
+        // 锥形弱追踪判定失真（360 时 cos=1 → angT 0/0=NaN，NaN 守卫兜底）
         _coneAngleDeg = Mathf.Clamp((float)GameState.Instance.Cfg(basePath + "cone_angle_deg", _coneAngleDeg).AsDouble(), 0.0f, 360.0f);
         _coneCos = Mathf.Cos(Mathf.DegToRad(_coneAngleDeg));
         _coneStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), 0.0f);
@@ -1177,10 +1176,10 @@ public partial class Player : CharacterBody2D
 
     private void OnAimAssistLevelChanged(StringName level) => LoadAimAssistParams();
 
-    /// <summary>P0-1：手柄设置变更（右摇杆灵敏度）重读。</summary>
+    /// <summary>手柄设置变更（右摇杆灵敏度）重读。</summary>
     private void OnJoySettingsChanged(float aimSpeed, float deadzone) => _aimJoySpeed = aimSpeed;
 
-    /// <summary>A8：冲刺残影公开入口——委托 PlayerVisuals 池化生成。</summary>
+    /// <summary>冲刺残影公开入口——委托 PlayerVisuals 池化生成。</summary>
     public void SpawnAfterimage() => _visuals.SpawnAfterimage(_sprite!.Texture, _sprite.Scale, GlobalPosition, Rotation);
 
     /// <summary>入场动画（开场/返航继续出击后由 main 调用）。</summary>
@@ -1347,7 +1346,7 @@ public partial class Player : CharacterBody2D
         var pierce = _pierceCount;
         var explosive = _explosiveEnabled;
         var gs = GameState.Instance;
-        // 辅助瞄准（P1-1/P1-3）：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
+        // 辅助瞄准：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
         Enemy? homingTarget = null;
         var homingRate = _homingTurnRate;
         if (gs.AimFrameLayer is AimFrameLayer aimLayer)
@@ -1363,8 +1362,8 @@ public partial class Player : CharacterBody2D
                     var angT = Mathf.Clamp((dot - _coneCos) / (1.0f - _coneCos), 0.0f, 1.0f);
                     homingRate = _homingTurnRate * _coneStrength * angT
                         * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.GlobalPosition));
-                    // AC6（2026-08-11 审计）：NaN 守卫——cone_angle_deg=360 时 _coneCos=1 使 angT 0/0 得
-                    // NaN，homingRate=NaN 恒不满足 ≤0 守卫（NaN 比较 false），弱追踪修正失控（Z 批次同族写法）
+                    // NaN 守卫——cone_angle_deg=360 时 _coneCos=1 使 angT 0/0 得
+                    // NaN，homingRate=NaN 恒不满足 ≤0 守卫（NaN 比较 false），弱追踪修正失控
                     if (homingRate <= 0.0f || float.IsNaN(homingRate))
                     {
                         homingTarget = null;
@@ -1400,7 +1399,7 @@ public partial class Player : CharacterBody2D
         // 散射弹道数恒为奇数（1/3/5，每层 +2）：偶数弹数扇形无中心弹（准星方向落空 = 负提升），
         // 居中索引即层数（spread=1→3 弹 [-1,0,+1]，spread=2→5 弹 [-2..+2]）
         var count = 1 + spread * 2;
-        // P1-2：循环不变量外提；buff 变化时缓存，开火路径零字典/Pow。
+        // 循环不变量外提；buff 变化时缓存，开火路径零字典/Pow。
         var loopSpeed = BulletSpeedValue();
         var loopDamage = BulletDamageValue();
         if (heavyShot)
@@ -1454,15 +1453,14 @@ public partial class Player : CharacterBody2D
             _muzzleGlowA = 1.0f;
         }
 
-        // 射击音效走 SfxPlayer 目录（原独立 AudioStreamPlayer2D 裸 0dB 直打 Master，全自动
+        // 射击音效走 SfxPlayer 目录（独立 AudioStreamPlayer2D 裸 0dB 直打 Master 在全自动
         // 射击下是炸耳主源）；三采样轮换防同采样疲劳，音量/抖动/复音/冷却由目录统一管
         GameState.Instance.PlaySfx(SfxId.FireA + _soundIndex);
         _soundIndex = (_soundIndex + 1) % FireSoundVariants;
     }
 
-    /// <summary>受击结算（100 HP 制）。返回 true = 本帧实际结算。A8 委托 PlayerDamage。
-    /// U15：单参重载默认 Vector2.Inf（原 default(Zero) 与 GDScript INF 语义漂移——C# 默认
-    /// 参数须编译期常量，Vector2.Inf 非常量，拆重载保留"无方向均匀环"语义）。</summary>
+    /// <summary>受击结算（100 HP 制）。返回 true = 本帧实际结算。委托 PlayerDamage。
+    /// 单参重载默认 Vector2.Inf（C# 默认参数须编译期常量，Vector2.Inf 非常量，拆重载保留"无方向均匀环"语义）。</summary>
     public bool TakeDamage(float amount = 1.0f) => TakeDamage(amount, Vector2.Inf);
 
     public bool TakeDamage(float amount, Vector2 fromPos)
@@ -1474,7 +1472,7 @@ public partial class Player : CharacterBody2D
     public void ClearNearbyEnemyBullets()
     {
         var bullets = GameState.Instance.EnemyBullets;
-        var clearRadiusSq = BulletClearRadius * BulletClearRadius; // 2026-08-10 审计 H5：平方距离比较免每弹 sqrt
+        var clearRadiusSq = BulletClearRadius * BulletClearRadius; // 平方距离比较免每弹 sqrt
         for (var i = bullets.Count - 1; i >= 0; i--)
         {
             var b = (Bullet?)bullets[i];
@@ -1488,7 +1486,7 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    /// <summary>机制二：擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。</summary>
+    /// <summary>擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。</summary>
     private void OnGrazeEntered(Area2D area)
     {
         var b = area.GetScript().AsGodotObject() == _bulletScript ? (Bullet)area : null;
@@ -1540,7 +1538,7 @@ public partial class Player : CharacterBody2D
         }
 
         var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
-        // 2026-08-10 健壮性审查：过滤基准改机头方向（含机身 Rotation）——原 -π/2 全局上方在
+        // 过滤基准用机头方向（含机身 Rotation）——-π/2 全局上方在
         // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；AngleDifference 已处理 ±π wrap
         var noseAngle = Vector2.Up.Rotated(Rotation).Angle();
         if (Mathf.Abs(Mathf.AngleDifference(rel.Angle(), noseAngle)) > arc)
@@ -1622,7 +1620,7 @@ public partial class Player : CharacterBody2D
         }
 
         _dead = true;
-        AbortEntry(); // D06：入场期间自毁复位入场状态机
+        AbortEntry(); // 入场期间自毁复位入场状态机
         _enrageSlow = 1.0f; // 死亡/重生路径兜底
         Hide();
         if (_hitbox != null)
@@ -1630,7 +1628,7 @@ public partial class Player : CharacterBody2D
             _hitbox.SetDeferred("monitoring", false);
         }
 
-        // L03/K03：死亡路径关闭擦弹环与弹反盾判定
+        // 死亡路径关闭擦弹环与弹反盾判定
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
@@ -1644,8 +1642,7 @@ public partial class Player : CharacterBody2D
 
         SetPhysicsProcess(false);
         Explosion.SpawnAt(GetParent(), Position, 2.0f);
-        // PlayerDied 在 _dead 置位、死亡结算完成后发射（2026-09-09 自 CombatStateService.LoseHealth
-        // 迁入）：订阅者回调内 IsDead() 恒为 true，不再有时序陷阱
+        // PlayerDied 在 _dead 置位、死亡结算完成后发射：订阅者回调内 IsDead() 恒为 true，无时序陷阱
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
     }
 
@@ -1693,7 +1690,7 @@ public partial class Player : CharacterBody2D
 
     public override void _ExitTree()
     {
-        // C22：显式断开 GameState 信号连接（重入树不重复连接）
+        // 显式断开 GameState 信号连接（重入树不重复连接）
         var gs = GameState.Instance;
         if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
         {
@@ -1726,7 +1723,7 @@ public partial class Player : CharacterBody2D
             fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
         }
 
-        // 2026-08-03 审计（C22 补齐）：子节点信号断开
+        // 子节点信号断开
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null && grazeArea.IsConnected(Area2D.SignalName.AreaEntered, _onGrazeEntered))
         {

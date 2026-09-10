@@ -2,7 +2,7 @@ using Godot;
 
 namespace InfiAir;
 
-/// <summary>受击闪白共享实现（P1-2 手动衰减替代 Tween；线性 lerp 回本色，零分配）。
+/// <summary>受击闪白共享实现（手动衰减替代 Tween；线性 lerp 回本色，零分配）。
 /// 4 处同构收敛（Enemy/Boss/TurretBattery/FormationCraft）；恢复色/时长由调用方注入，
 /// 兼容 Boss 狂暴态 BaseModulate() 与 HitFlashByType 表驱动时长。调用方保留 timer 早退与判空守卫。</summary>
 public static class FlashFx

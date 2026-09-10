@@ -19,7 +19,7 @@ public partial class StrikeCarrier : Node2D
     [Signal]
     public delegate void ExitedEventHandler();
 
-    // U07：静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
+    // 静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     private readonly Texture2D _carrierTexture = GD.Load<Texture2D>("res://assets/sprites/strike_carrier.png");
 
     /// <summary>基座相对偏移设计值（与生成器 TURRET_WELLS 对齐：贴图坐标 - 画布中心；使用点 × world_scale）。</summary>
@@ -62,7 +62,7 @@ public partial class StrikeCarrier : Node2D
 
     public override void _Ready()
     {
-        // 2026-08-10 健壮性审查：撤离速度下限钳制（同批 enter_time 钳制同根因）——配 0/负值时
+        // 撤离速度下限钳制（同 enter_time 钳制同根因）——配 0/负值时
         // RETREAT 分支 _retreatSpeed 永不增长，Position.Y 永不越顶界-500，Exited 永不发出
         // （EliteTurretEvent 卡死、_bossFrozen 永不解除）
         RetreatStartSpeed = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.carrier.retreat_start_speed", RetreatStartSpeed).AsDouble(), 1.0f);

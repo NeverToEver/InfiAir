@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 开场过场 镜头 1 构建器（文件粒度拆分自 IntroCinematic.cs，2026-08-12；逻辑零改动）。
+/// 开场过场 镜头 1 构建器。
 /// </summary>
 public partial class IntroCinematic : CanvasLayer
 {
@@ -115,8 +115,8 @@ public partial class IntroCinematic : CanvasLayer
             station.AddChild(waveRing);
             var wt = root.CreateTween();
             wt.TweenInterval(0.15f + 0.3f * wave);
-            // 2026-08-03 审计：扩散与淡出同步起播（原 parallel 模式把淡出从 tween 起点开始，
-            // 第二波环在扩散中段即不可见）；改为 interval 后 scale/alpha 并行（与镜头 2 ripple 同款）
+            // 扩散与淡出必须同步起播——parallel 模式会把淡出从 tween 起点开始，
+            // 第二波环在扩散中段即不可见；改为 interval 后 scale/alpha 并行（与镜头 2 ripple 同款）
             wt.TweenProperty(waveRing, "scale", Vector2.One * 4.5f, 0.9).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
             wt.Parallel().TweenProperty(waveRing, "modulate:a", 0.0f, 0.8);
             // 起爆同步一次主爆颤动（幅度略大于镜头 2 单节点）

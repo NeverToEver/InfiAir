@@ -48,7 +48,7 @@ public partial class OrbitalStrike : CanvasLayer
     private Node2D _reticle = null!; // 瞄准具（3 脉冲环 + 十字线）
     private readonly List<Line2D> _reticleRings = new();
     private Node2D _reticleCross = null!;
-    private Vector2[] _unitCircle = System.Array.Empty<Vector2>(); // P4：单位圆点集缓存（_layout_ring 帧内免重算三角）
+    private Vector2[] _unitCircle = System.Array.Empty<Vector2>(); // 单位圆点集缓存（_layout_ring 帧内免重算三角）
     private Node2D _missile = null!; // 导弹容器（拖尾/弹体/辉光）
     private Line2D _missileTrail = null!;
     private ColorRect _flash = null!;
@@ -56,16 +56,16 @@ public partial class OrbitalStrike : CanvasLayer
     private Line2D _ringOuter = null!;
     private Line2D _ringInner = null!;
     private readonly List<Polygon2D> _rays = new();
-    private Vector2 _screen = Vector2.Zero; // _ready 缓存视口尺寸（D17：命中段热路径免每帧查询）
+    private Vector2 _screen = Vector2.Zero; // _ready 缓存视口尺寸（命中段热路径免每帧查询）
 
     public override void _Ready()
     {
         ProcessMode = Node.ProcessModeEnum.Always;
         Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下
-        // H15（健壮性审核）：时轴序钳制——duration=0 首帧 finished、impact_at≥1.0 时 struck 不可达
+        // 时轴序钳制——duration=0 首帧 finished、impact_at≥1.0 时 struck 不可达
         // （main 收不到 _on_orbital_struck，树保持暂停+锁输入软锁）、missile_from≥impact_at 时瞄准段除零
         DURATION = Mathf.Max((float)GameState.Instance.Cfg("effects.orbital_strike.duration", DURATION).AsDouble(), 0.01f);
-        // W 系列（2026-08-09）：补下限 0.05——impact_at≤0 时首帧即 struck+清场（H15 只封了另一侧，E07 单帧大 delta 同族另一入口）
+        // 补下限 0.05——impact_at≤0 时首帧即 struck+清场（单帧大 delta 同族另一入口）
         IMPACT_AT = Mathf.Clamp((float)GameState.Instance.Cfg("effects.orbital_strike.impact_at", IMPACT_AT).AsDouble(), 0.05f, 0.95f);
         MISSILE_FROM = Mathf.Max(Mathf.Min((float)GameState.Instance.Cfg("effects.orbital_strike.missile_from", MISSILE_FROM).AsDouble(), IMPACT_AT - 0.05f), 0.0f);
         RETICLE_RADIUS = (float)GameState.Instance.Cfg("effects.orbital_strike.reticle_radius", RETICLE_RADIUS).AsDouble();
@@ -84,7 +84,7 @@ public partial class OrbitalStrike : CanvasLayer
         var p = _t / DURATION;
         if (p >= 1.0f)
         {
-            // 兜底（2026-08-03 审计）：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达 1.0，
+            // 兜底：单帧大 delta（窗口失焦恢复/低端机卡顿）可越过 IMPACT_AT 直达 1.0，
             // 必须先补发 struck——它是 main 恢复对局（paused=false + unlock_input）的唯一入口，缺发则软锁
             TriggerImpact();
             EmitSignal(SignalName.Finished);
@@ -152,7 +152,7 @@ public partial class OrbitalStrike : CanvasLayer
         grad.SetColor(0, new Color(CYAN, 0.0f));
         grad.SetColor(1, CYAN);
         _missileTrail.Gradient = grad;
-        _missileTrail.Points = new[] { Vector2.Zero, Vector2.Zero }; // C28：预分配，帧内只写元素
+        _missileTrail.Points = new[] { Vector2.Zero, Vector2.Zero }; // 预分配，帧内只写元素
         _missile.AddChild(_missileTrail);
         var body = new Polygon2D
         {
@@ -218,7 +218,7 @@ public partial class OrbitalStrike : CanvasLayer
             _reticle.Modulate = new Color(1.0f, 1.0f, 1.0f, fade);
             for (var i = 0; i < _reticleRings.Count; i++)
             {
-                var pulse = 0.7f + 0.3f * Enemy.SinFast(Mathf.Tau * (p * 4.0f + i / 3.0f)); // M3b：Enemy 迁 C#，静态直调
+                var pulse = 0.7f + 0.3f * Enemy.SinFast(Mathf.Tau * (p * 4.0f + i / 3.0f)); // Enemy 为 C#，静态直调
                 LayoutRing(_reticleRings[i], RETICLE_RADIUS * pulse);
             }
             _reticleCross.Rotation = p * 1.5f;
@@ -228,7 +228,7 @@ public partial class OrbitalStrike : CanvasLayer
                 var mp = (p - MISSILE_FROM) / (IMPACT_AT - MISSILE_FROM);
                 var head = new Vector2(_impactPoint.X, Mathf.Lerp(MISSILE_START_Y, _impactPoint.Y, mp * mp));
                 _missile.Position = head;
-                // C28：预分配 2 点，set_point_position 原地写（points[i]= 值语义副本不生效）
+                // 预分配 2 点，set_point_position 原地写（points[i]= 值语义副本不生效）
                 _missileTrail.SetPointPosition(0, new Vector2(0.0f, MISSILE_START_Y - head.Y));
                 _missileTrail.SetPointPosition(1, Vector2.Zero);
             }
@@ -256,7 +256,7 @@ public partial class OrbitalStrike : CanvasLayer
     private Line2D MakeRingLine(float radius, float width, Color color)
     {
         var ring = new Line2D { Width = width, DefaultColor = color, Closed = true };
-        // C28：预建点集（长度固定），帧内经 set_point_position 原地改写（零分配、线宽不随 scale 变）
+        // 预建点集（长度固定），帧内经 set_point_position 原地改写（零分配、线宽不随 scale 变）
         ring.Points = CirclePoints(1.0f, RING_POINTS);
         LayoutRing(ring, radius);
         return ring;
@@ -264,9 +264,9 @@ public partial class OrbitalStrike : CanvasLayer
 
     private void LayoutRing(Line2D ring, float radius)
     {
-        // C28：原地写点集元素（set_point_position 直写内部数组），不重建 PackedVector2Array、
+        // 原地写点集元素（set_point_position 直写内部数组），不重建 PackedVector2Array、
         // 不缩放节点（缩放会连带放大线宽）
-        // P4（2026-08-05）：单位圆点集缓存一次——原每帧重算 RING_POINTS 次常数 cos/sin
+        // 单位圆点集缓存一次——否则每帧重算 RING_POINTS 次常数 cos/sin
         //（reticle/瞄准环多环叠加帧内数十次三角调用）
         if (_unitCircle.Length == 0)
         {

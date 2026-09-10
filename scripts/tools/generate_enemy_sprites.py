@@ -674,7 +674,7 @@ def boss_3() -> Ship:  # 巨柱：六边要塞
 
 
 def eclipse() -> Ship:  # 月蚀：月食之轮——暗月盘 + 双正交轨道环刃（织网者）
-    # 设计（2026-08-09 重制，参照业内 shmup Boss 视觉最佳实践）：
+    # 设计（参照业内 shmup Boss 视觉最佳实践）：
     #   剪影可读性——圆形月盘 + 横/竖双正交椭圆环，全游戏唯一"圆/环"剪影，与
     #   君王(宽翼)/九头(三联)/巨柱(六边柱)直线舰体一眼区分；
     #   主题 body language——"月蚀"天象 + 浑天仪双环，直接映射 ring_burst/双环
@@ -899,8 +899,8 @@ def turret() -> Ship:  # 小型六棱柱基座 + 单管晶体炮身（炮口朝�
 
 
 def main() -> None:
-    # R07（2026-08-05 独立审计）：输出路径锚定脚本位置（同 generate_audio 口径），
-    # 不再依赖调用时 cwd——非仓库根运行不会在别处落盘或崩溃
+    # 输出路径必须锚定脚本位置（同 generate_audio 口径）——不得依赖调用时 cwd，
+    # 否则非仓库根运行会在别处落盘或崩溃
     base = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites")) + os.sep
     ships = [
         (enemy_1, "enemy_ship_1.png", PALETTE_BRIGHT), (enemy_2, "enemy_ship_2.png", PALETTE_BRIGHT),

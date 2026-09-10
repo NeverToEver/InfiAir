@@ -3,16 +3,15 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义（Y 系列拆分，2026-08-09）：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图。
-/// 第六轮拆域收官（2026-08-12）：设置+视图域全部职责迁至 SettingsService（csharp/godot/SettingsService.cs，
-/// 组合持有；职责 A 设置 setter 簇 + 职责 B 视图簇 + 状态字段 + 设置域持久化桥 ApplySettingsDict/
-/// CollectSettingsDict 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变。
-/// 窗口管理（2026-09-10 重构）：ApplyWindow/OnWindowResized 为一行包装（GameState._Ready 启动补一次
-/// 默认档；拖拽捕获经根窗口 SizeChanged 去抖后调 OnWindowResized）。
+/// GameState 部分定义：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图，职责在 SettingsService
+/// （csharp/godot/SettingsService.cs，组合持有；设置 setter 簇 + 视图簇 + 状态字段 +
+/// 设置域持久化桥 ApplySettingsDict/CollectSettingsDict 均在其中），本文件为门面对齐转发——公开 API 签名/语义不变。
+/// ApplyWindow/OnWindowResized 为一行包装（GameState._Ready 启动补一次默认档；
+/// 拖拽捕获经根窗口 SizeChanged 去抖后调 OnWindowResized）。
 /// 信号：TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
 /// ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件
 /// 经 GameState 订阅重发。
-/// 健康/Buff 域 C 簇（第五轮拆域）保留转发 → CombatStateService，见文件末尾。
+/// 健康/Buff 域保留转发 → CombatStateService，见文件末尾。
 /// </summary>
 public partial class GameState : Node
 {
@@ -53,7 +52,7 @@ public partial class GameState : Node
 
     /// <summary>当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
     /// 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
-    /// 物理帧内缓存（P0-1）：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询——
+    /// 物理帧内缓存：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询——
     /// SettingsService 转发（帧缓存逻辑在服务侧逐字保持）。</summary>
     public Rect2 ViewWorldRect(double margin = 0.0) => _settings.ViewWorldRect(margin);
 
@@ -112,10 +111,10 @@ public partial class GameState : Node
     /// <summary>鼠标锁定窗口内：开关持久化到 settings.json 并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
     public void SetMouseLock(bool enabled) => _settings.SetMouseLock(enabled);
 
-    /// <summary>P0-1 手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。</summary>
+    /// <summary>手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。</summary>
     public void SetJoyAimSpeed(double value) => _settings.SetJoyAimSpeed(value);
 
-    /// <summary>P0-1 手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。</summary>
+    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。</summary>
     public void SetJoyDeadzone(double value) => _settings.SetJoyDeadzone(value);
 
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
@@ -124,7 +123,7 @@ public partial class GameState : Node
     // ---------------- 健康/Buff 域（门面转发 → CombatStateService） ----------------
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
-    /// P0-2：基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）——CombatStateService 转发。</summary>
+    /// 基础值 _apply_balance 缓存，热路径免 cfg 路径解析（extra_life 层数查询 O(1)）——CombatStateService 转发。</summary>
     public double MaxHealth() => _combat.MaxHealth();
 
     public void LoseHealth(double amount = 1.0) => _combat.LoseHealth(amount);
@@ -138,7 +137,7 @@ public partial class GameState : Node
     public int AugmentLevel(StringName id) => _combat.AugmentLevel(id);
 
     /// <summary>消耗一层 buff（护盾等一次性层；无剩余层返回 false；层数变动广播 augments_changed）
-    /// 注：层级写入唯一入口 = TalentService（天赋缓存系统重构）——AddAugment 直写口已随旧三选一删除。</summary>
+    /// 注：层级写入唯一入口 = TalentService。</summary>
     public bool ConsumeAugment(StringName id) => _combat.ConsumeAugment(id);
 
     // ---------------- 语言（中英双语；门面转发 → SettingsService） ----------------

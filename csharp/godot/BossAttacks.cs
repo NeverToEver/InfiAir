@@ -4,12 +4,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// Boss 攻击状态机（A3 拆分）。
+/// Boss 攻击状态机（拆分自 Boss 的组合职责）。
 /// 承载持续型攻击（狙击 telegraph / 蓄力重炮 / 冲刺掠过 / 编队齐射）的时序状态与轮询；
 /// 一次性攻击（fan/homing/cross/bullet_wall）在 execute 内直接委托 BossFire。
-/// 配置字段经 Boss typed 公开属性/方法直读，弹幕发射经注入的 BossFire，避免跨类私有访问（A1 约束）。
-/// Y 系列（2026-08-09）：Boss 链 typed 化——StringName 动态派发（Get/Call）与双命名桥删除，
-/// 参数直用 Boss 类型。
+/// 配置字段经 Boss typed 公开属性/方法直读，弹幕发射经注入的 BossFire，避免跨类私有访问。
+/// Boss 链 typed 化——参数直用 Boss 类型，无 StringName 动态派发。
 /// </summary>
 public partial class BossAttacks : RefCounted
 {
@@ -19,7 +18,7 @@ public partial class BossAttacks : RefCounted
     public const int SweepDash = 2;
     public const int SweepReturn = 3;
 
-    // B 梯队（fair plan §8）：每攻击独特 tell——起手音效变体 + 视觉前兆冲击环。
+    // 每攻击独特 tell——起手音效变体 + 视觉前兆冲击环。
     // 玩家凭音效/闪光区分「来的是什么」；音效复用现有资源变体（缺专属资产，登记后续音频项）。
     /// <summary>attack id → tell 配置（sfx 路径/音高/视觉环色）；缺失键 = 该攻击无 tell（新攻击须补配）。</summary>
     private sealed class TellInfo
@@ -56,7 +55,7 @@ public partial class BossAttacks : RefCounted
 
 
     // ---- 注入：弹幕发射器（Boss._ready 经 configure 传入）与机体缩放 ----
-    // V 系列：typed（原 GodotObject 动态派发；Boss 代持桥删除后直调 BossFire）
+    // typed（原 GodotObject 动态派发；Boss 代持桥删除后直调 BossFire）
     private BossFire _fire = null!;
 
     /// <summary>机体缩放（configure 注入；charge_glow 默认辉光半径 / 拖弹偏移共用）。</summary>
@@ -68,7 +67,7 @@ public partial class BossAttacks : RefCounted
     /// <summary>难度分档弹数增量（同 FanDelta，供 homing 取用）。</summary>
     public int HomingDelta { get; set; }
 
-    /// <summary>4 型环弹难度分档绝对值（counts.ring_burst = [10,12,14]，Q01）。</summary>
+    /// <summary>4 型环弹难度分档绝对值（counts.ring_burst = [10,12,14]）。</summary>
     public int RingDelta { get; set; }
 
     // 狙击 telegraph（游击型）
@@ -96,7 +95,7 @@ public partial class BossAttacks : RefCounted
     private readonly Godot.Collections.Array _volleyMinions = new();
     private float _volleyTimer;
 
-    // A3 收敛：攻击处理器注册表（attack id → 处理器，_init 装配）。
+    // 攻击处理器注册表（attack id → 处理器，_init 装配）。
     // 新增攻击只需注册一行 + 模式表加 id，不再改 execute 分发本身（O 原则达成）。
     private readonly Godot.Collections.Dictionary<StringName, Callable> _attackHandlers = new();
 
@@ -115,7 +114,7 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>注入发射器与机体缩放（Boss._ready 调用；模式循环重置回调在 Boss 侧）。
-    /// V 系列：参数 typed（原 GodotObject 动态派发）。</summary>
+    /// 参数 typed（原 GodotObject 动态派发）。</summary>
     public void Configure(BossFire fire, float ws)
     {
         _fire = fire;
@@ -139,7 +138,7 @@ public partial class BossAttacks : RefCounted
     {
         if (_attackHandlers.TryGetValue(attack, out var handler))
         {
-            // B 梯队：起手 tell（音效变体 + 视觉前兆环），玩家可区分「来的是什么」
+            // 起手 tell（音效变体 + 视觉前兆环），玩家可区分「来的是什么」
             PlayTell(attack, boss);
             handler.Call(boss);
         }
@@ -171,10 +170,10 @@ public partial class BossAttacks : RefCounted
         boss.GetParent().AddChild(ring);
     }
 
-    /// <summary>注册表完整性查询（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>注册表完整性查询（经公开接口断言注册表完整）。</summary>
     public bool HasAttack(StringName id) => _attackHandlers.ContainsKey(id);
 
-    /// <summary>全部已注册攻击 id（A3：经公开接口断言注册表完整）。</summary>
+    /// <summary>全部已注册攻击 id（经公开接口断言注册表完整）。</summary>
     public Godot.Collections.Array AttackIds()
     {
         var ids = new Godot.Collections.Array();
@@ -199,9 +198,9 @@ public partial class BossAttacks : RefCounted
     }
 
     /// <summary>
-    /// 4 型「月蚀」ring_burst（2026-08-04）：360° 全圆环弹（难度分档弹数绝对值，counts.ring_burst）。
-    /// 2026-08-05 Q01：counts.ring_burst 是每档弹数绝对值（§5.6）——直接消费档值
-    ///（原实现基准 12 上叠加增量 → easy 22/medium 24/hard 26 ≈ 2× 设计密度）。
+    /// 4 型「月蚀」ring_burst：360° 全圆环弹（难度分档弹数绝对值，counts.ring_burst）。
+    /// counts.ring_burst 是每档弹数绝对值（§5.6）——直接消费档值（不得在基准值上叠加增量，
+    /// 否则 easy 22/medium 24/hard 26 ≈ 2× 设计密度）。
     /// </summary>
     private void HandleRingBurst(Boss boss)
     {
@@ -210,8 +209,8 @@ public partial class BossAttacks : RefCounted
 
     private void HandleHoming(Boss boss)
     {
-        // 2026-08-03 审计：难度分档弹数生效（原 homing_delta 只被已删除的死代码 homing2 消费，
-        // easy/hard 追踪弹数恒 1；现并入单发路径，多弹横向 80px 散开；medium 档恒单发与原行为一致）
+        // 难度分档弹数必须并入单发路径——否则 easy/hard 追踪弹数恒 1；
+        // 多弹横向 80px 散开；medium 档恒单发
         var count = Mathf.Max(1, 1 + HomingDelta);
         for (var i = 0; i < count; i++)
         {
@@ -254,7 +253,7 @@ public partial class BossAttacks : RefCounted
                 _sniperDir = PlayerDir(boss);
                 if (_aimLine != null)
                 {
-                    // C23：创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
+                    // 创建时已 add_point 预置 2 点，set_point_position 原地写（points[i]= 值语义不生效）
                     _aimLine.SetPointPosition(0, _sniperDir * boss.MuzzleOffset);
                     _aimLine.SetPointPosition(1, _sniperDir * 1200.0f);
                 }
@@ -281,7 +280,7 @@ public partial class BossAttacks : RefCounted
             _burstTimer -= delta;
             if (_burstTimer <= 0.0f)
             {
-                _burstTimer = boss.SniperBurstInterval; // Q30：三连发间隔入库（原硬编码 0.12）
+                _burstTimer = boss.SniperBurstInterval; // 三连发间隔入库（不硬编码 0.12）
                 _burstLeft -= 1;
                 _fire.FireSniper(boss, _burstDir, boss.SniperBulletSpeed, boss.BulletDamageSniper);
                 if (_burstLeft == 0)
@@ -424,7 +423,7 @@ public partial class BossAttacks : RefCounted
 
         _sweepState = SweepAim;
         _sweepTimer = boss.SweepAim;
-        // C14：默认方向/高度取可见世界中心，不写死 960/300
+        // 默认方向/高度取可见世界中心，不写死 960/300
         var view = FrameCache.ViewRect();
         var playerX = view.GetCenter().X;
         var dy = view.GetCenter().Y - boss.Position.Y;
@@ -504,7 +503,7 @@ public partial class BossAttacks : RefCounted
                             Vector2.Down, boss.SweepDropSpeed, boss.SweepDropDamage);
                         if (b == null)
                         {
-                            break; // P2-3：同屏敌弹硬上限——跳出本轮撒弹（cap 持续期剩余 drop 下轮重试，防死循环）
+                            break; // 同屏敌弹硬上限——跳出本轮撒弹（cap 持续期剩余 drop 下轮重试，防死循环）
                         }
 
                         b.Position = boss.Position + new Vector2(0.0f, 60.0f) * WorldScale;
@@ -522,7 +521,7 @@ public partial class BossAttacks : RefCounted
                     _sweepState = SweepReturn;
                     _sweepTimer = boss.SweepReturnDuration;
                     _sweepOrigin = boss.Position;
-                    // C14：返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
+                    // 返回目标 x 取可见世界中心，不写死 960（zoom 加宽时仍居中）
                     _sweepReturnTarget = new Vector2(
                         Mathf.Clamp(FrameCache.ViewRect().GetCenter().X, dashBounds.X, dashBounds.Y), boss.FightAnchorY());
                 }
@@ -565,7 +564,7 @@ public partial class BossAttacks : RefCounted
     {
         if (_volleyTimer > 0.0f)
         {
-            return; // R07：进行中守卫（L 系列防御缺口登记遗留）——待发期间重复触发清空重召
+            return; // 进行中守卫——待发期间重复触发会清空重召
         }
 
         _volleyMinions.Clear();
@@ -609,7 +608,7 @@ public partial class BossAttacks : RefCounted
             }
 
             var dir = (player.GlobalPosition - e.GlobalPosition).Normalized();
-            // H10（健壮性审核）：玩家与僚机重合时零向量回退（防静止弹，G026 同族）
+            // 玩家与僚机重合时零向量回退（防静止弹）
             if (dir == Vector2.Zero)
             {
                 dir = Vector2.Down;
@@ -618,7 +617,7 @@ public partial class BossAttacks : RefCounted
             var b = FireFromPool(dir, volleySpeed, volleyDamage);
             if (b == null)
             {
-                continue; // P2-3：同屏敌弹硬上限，跳过该僚机本轮齐射
+                continue; // 同屏敌弹硬上限，跳过该僚机本轮齐射
             }
 
             b.Position = e.Position + dir * 40.0f * WorldScale;
@@ -649,7 +648,7 @@ public partial class BossAttacks : RefCounted
         _volleyMinions.Clear();
     }
 
-    /// <summary>敌弹池发射（P2-3：同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
+    /// <summary>敌弹池发射（同屏敌弹硬上限——池满返回 null，调用方按语义跳过）。</summary>
     private static Bullet? FireFromPool(Vector2 dir, float speed, int damage)
     {
         var pool = GameState.Instance.BulletPool;

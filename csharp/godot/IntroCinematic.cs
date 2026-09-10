@@ -42,7 +42,7 @@ public partial class IntroCinematic : CanvasLayer
     private float _driftT;  // 导演级手持漂移相位（共享容器，单 _process 零堆分配）
     private bool _whiteTransition;  // 差异化转场：下一镜头以白闪承接
     private Tween? _subTween;  // 字幕淡入/淡出互斥
-    private bool _startQueued;  // M6：Play() 幂等入口守卫（_ready 同帧重复触发防护）
+    private bool _startQueued;  // Play() 幂等入口守卫（_ready 同帧重复触发防护）
 
     private Node2D _shotRoot = null!;
     private ColorRect _fade = null!;

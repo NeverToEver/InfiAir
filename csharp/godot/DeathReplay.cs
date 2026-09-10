@@ -4,13 +4,13 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// B 梯队：死亡回放——环形缓冲录制最近 RECORD_SECONDS 秒的敌弹位置轨迹，
+/// 死亡回放——环形缓冲录制最近 RECORD_SECONDS 秒的敌弹位置轨迹，
 /// 玩家死亡后以幽灵弹幕重放（死因可见，最强公平感信号；只重放不结算，零碰撞）。
 /// 录制在 main._process（存活期渲染帧采样；死亡后树暂停，main._process 冻结自然停止）；
 /// 重放演出节点 process_mode=ALWAYS，暂停树中照常播放，播完自毁。
-/// P0-1（2026-08-05 审计）：录制数据源从 main.get_children() 改为 GameState.enemy_bullets
-/// 注册表（零 cast 遍历）；帧缓冲固定容量环形缓冲（索引取模写入，删除 pop_front O(n) 整表
-/// 移位）；内层 [x,y] 改交错存储（槽复用 clear 保留容量，录制循环零分配）。
+/// 录制数据源为 GameState.enemy_bullets 注册表（零 cast 遍历）；帧缓冲固定容量环形缓冲
+/// （索引取模写入，删除 pop_front O(n) 整表移位）；内层 [x,y] 交错存储
+/// （槽复用 clear 保留容量，录制循环零分配）。
 /// 重放演出节点为独立顶层类 csharp/godot/DeathReplayPlayer.cs（C# 源生成器不支持内嵌类）。
 /// </summary>
 public partial class DeathReplay : RefCounted
@@ -34,13 +34,12 @@ public partial class DeathReplay : RefCounted
     private int _frameCount;
     private bool _recording;
 
-    /// <summary>H4（2026-08-10 审计）：上次录制的物理帧号——Record 由 main._process 每渲染帧调用，
+    /// <summary>上次录制的物理帧号——Record 由 main._process 每渲染帧调用，
     /// 渲染帧率高于物理帧率时同物理帧重复采样纯浪费（重放时钟本就按 60Hz 物理帧对齐，见 RecordFps），
     /// 门控到每物理帧至多采样一次（Bullet.CachedViewRect 同款帧缓存模式）。</summary>
     private ulong _lastRecordFrame = ulong.MaxValue;
 
-    /// <summary>P0-1：敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，零拷贝）。
-    /// AC16（2026-08-11 审计）：补全被截断的 XML summary（AB21 同族）。</summary>
+    /// <summary>敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，零拷贝）。</summary>
     private Godot.Collections.Array _bulletRegistry = new();
 
     /// <summary>开始录制（main 新对局入口调用；幂等——重复调用清缓冲重录）</summary>
@@ -49,7 +48,7 @@ public partial class DeathReplay : RefCounted
         _recording = true;
         _frameCount = 0;
         _writeIdx = 0;
-        _lastRecordFrame = ulong.MaxValue; // H4：重录期间强制首帧采样
+        _lastRecordFrame = ulong.MaxValue; // 重录期间强制首帧采样
         if (_frames.Length != MaxFrames)
         {
             _frames = new List<float>[MaxFrames];
@@ -66,7 +65,7 @@ public partial class DeathReplay : RefCounted
     public void Stop() => _recording = false;
 
     /// <summary>每渲染帧采样（main._process 存活期调用）：从敌弹注册表录制位置轨迹（环形覆盖最旧帧）。
-    /// 帧槽 clear 复用（容量保留），录制循环内零分配。H4：同物理帧重复调用早退（采样上限 = 物理帧率）。</summary>
+    /// 帧槽 clear 复用（容量保留），录制循环内零分配。同物理帧重复调用早退（采样上限 = 物理帧率）。</summary>
     public void Record()
     {
         if (!_recording)
