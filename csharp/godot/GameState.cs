@@ -63,8 +63,13 @@ public partial class GameState : Node
     [Signal]
     public delegate void ViewZoomChangedEventHandler(double factor);
 
+    /// <summary>窗口模式变化（窗口化/无边框全屏）</summary>
     [Signal]
-    public delegate void WindowSizeChangedEventHandler(StringName level);
+    public delegate void WindowModeChangedEventHandler(StringName mode);
+
+    /// <summary>渲染分辨率档变化（含窗口拖拽捕获为自定义档）</summary>
+    [Signal]
+    public delegate void ResolutionChangedEventHandler(StringName resolution);
 
     [Signal]
     public delegate void AimAssistChangedEventHandler(StringName level);
@@ -426,14 +431,16 @@ public partial class GameState : Node
     private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
 
     // 设置/视图域（第六轮拆域收官）：SettingsService C# 事件 → GameState 同名信号转发
-    // （TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
-    // MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家操作——设置页/手柄
-    // 设置，晚于 _Ready 本订阅；LoadSettings 直写字段路径不发服务事件，重发不与之重复）
+    // （TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
+    // ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家
+    // 操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings 直写字段路径不发服务事件，重发不与之重复）
     private void OnSettingsTouchControlsChanged(bool v) => EmitSignal(SignalName.TouchControlsChanged, v);
 
     private void OnSettingsViewZoomChanged(double v) => EmitSignal(SignalName.ViewZoomChanged, v);
 
-    private void OnSettingsWindowSizeChanged(StringName v) => EmitSignal(SignalName.WindowSizeChanged, v);
+    private void OnSettingsWindowModeChanged(StringName v) => EmitSignal(SignalName.WindowModeChanged, v);
+
+    private void OnSettingsResolutionChanged(StringName v) => EmitSignal(SignalName.ResolutionChanged, v);
 
     private void OnSettingsAimAssistChanged(StringName v) => EmitSignal(SignalName.AimAssistChanged, v);
 
@@ -464,6 +471,34 @@ public partial class GameState : Node
     private void OnRunProgDifficultyChanged(double v) => EmitSignal(SignalName.DifficultyChanged, (float)v);
 
     private void OnRunProgDifficultySelected(StringName v) => EmitSignal(SignalName.DifficultySelected, v);
+
+    // ---------------- 窗口拖拽捕获（2026-09-10 窗口管理重构） ----------------
+
+    /// <summary>根窗口 SizeChanged 去抖计时器（一次性）：拖拽期间高频触发，聚合到停手后
+    /// 再折算分辨率档并落盘/广播，避免拖动写盘风暴。</summary>
+    private Godot.Timer? _windowResizeDebounce;
+
+    /// <summary>根窗口尺寸变化（拖动边框/最大化等）→ 重启去抖计时（不立即处理）。</summary>
+    private void OnRootWindowSizeChanged() => _windowResizeDebounce?.Start();
+
+    /// <summary>去抖到期：把物理窗口尺寸折算回分辨率档（窗口化自由拖拽 → 自定义/命中预设）；
+    /// 档位有变化才落盘 + 广播 ResolutionChanged（供设置页实时刷新选中态）。</summary>
+    private void OnWindowResizeDebounced()
+    {
+        var win = GetWindow();
+        if (win == null)
+        {
+            return;
+        }
+
+        if (!_settings.OnWindowResized(win.Size))
+        {
+            return;
+        }
+
+        SaveSettings();
+        EmitSignal(SignalName.ResolutionChanged, _settings.Resolution);
+    }
 
     public override void _Ready()
     {
@@ -501,7 +536,8 @@ public partial class GameState : Node
         // 直写字段路径不发服务事件，重发不与之重复）
         _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
         _settings.ViewZoomChanged += OnSettingsViewZoomChanged;
-        _settings.WindowSizeChanged += OnSettingsWindowSizeChanged;
+        _settings.WindowModeChanged += OnSettingsWindowModeChanged;
+        _settings.ResolutionChanged += OnSettingsResolutionChanged;
         _settings.AimAssistChanged += OnSettingsAimAssistChanged;
         _settings.ReduceFlashChanged += OnSettingsReduceFlashChanged;
         _settings.WorldPostFxChanged += OnSettingsWorldPostFxChanged;
@@ -526,7 +562,17 @@ public partial class GameState : Node
         InitMissions();
         LoadSettings();
         _settings.ApplyDisplay(); // 帧率上限/垂直同步：无设置文件时 load 不应用，这里补一次默认档
-        ApplyWindowSize(); // 无设置文件时 load 不会应用窗口尺寸，这里补一次默认档位
+        ApplyWindow(); // 无设置文件时 load 不会应用窗口，这里补一次默认档（窗口模式 + 分辨率）
+        // 窗口拖拽捕获：根窗口 SizeChanged 去抖后折算分辨率档（窗口化自由拖拽 → 自定义/命中预设）。
+        // C22 惯例：Connect 侧 IsConnected 守卫；autoload 与引擎同生命周期，无需退订。
+        _windowResizeDebounce = new Godot.Timer { OneShot = true, WaitTime = 0.3, ProcessMode = Node.ProcessModeEnum.Always };
+        AddChild(_windowResizeDebounce);
+        _windowResizeDebounce.Timeout += OnWindowResizeDebounced;
+        var rootWin = GetWindow();
+        if (rootWin != null && !rootWin.IsConnected(Viewport.SignalName.SizeChanged, Callable.From(OnRootWindowSizeChanged)))
+        {
+            rootWin.SizeChanged += OnRootWindowSizeChanged;
+        }
         var trZh = GD.Load<Translation>("res://data/translations.zh.translation");
         var trEn = GD.Load<Translation>("res://data/translations.en.translation");
         if (trZh != null)

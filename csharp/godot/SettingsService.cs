@@ -4,13 +4,17 @@ namespace InfiAir;
 
 /// <summary>
 /// 设置+视图域服务（第六轮拆域收官，2026-08-12）：原 GameState.Settings.cs 设置/视图域——职责 A 设置
-/// setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetTouchControls/SetViewZoom/SetWindowSize/
-/// SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
+/// setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
+/// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
 /// PersistJoySettings）与职责 B 视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
-/// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/WINDOW_SIZE_LEVELS/AIM_ASSIST_ORDER）及状态字段
-/// （CtrlToggleMode/ShiftToggleMode/TouchControls/ViewZoom/WindowSize/AimAssistLevel/ReduceFlash/
-/// MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）迁入本服务；持久化桥 ApplySettingsDict/
-/// CollectSettingsDict 自 GameState.Save.cs 随迁（设置域持久化，SaveSettings 留在 GameState 侧）。
+/// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/RESOLUTION_LEVELS/AIM_ASSIST_ORDER）及状态字段
+/// （CtrlToggleMode/ShiftToggleMode/TouchControls/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
+/// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）
+/// 迁入本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 自 GameState.Save.cs 随迁（设置域
+/// 持久化，SaveSettings 留在 GameState 侧）。窗口管理（2026-09-10 重构）：窗口模式（窗口化/无边框
+/// 全屏）+ 渲染分辨率档（分辨率档即实际渲染分辨率，canvas_items 拉伸下窗口物理像素即渲染缓冲尺寸）
+/// + 窗口化自由拖拽（拖拽捕获为自定义档）；ApplyWindow 单点应用，OnWindowResized 捕获拖拽结果
+/// （GameState 侧对根窗口 SizeChanged 去抖后落盘并广播）。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度域（KeyBindings/TutorialDone/
 /// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool/JOYPAD_ACTIONS 及
 /// GetViewport/GetWindow 均经 Instance 门面访问（跨域键不迁入，保持单一事实源）；_registry
@@ -18,9 +22,9 @@ namespace InfiAir;
 /// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService/CombatStateService
 /// 同构——GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
 /// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 TouchControlsChanged/ViewZoomChanged/
-/// WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/
-/// LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前逐位一致——
-/// LoadSettings 直写字段路径不发服务事件，无双发）。
+/// WindowModeChanged/ResolutionChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/
+/// JoySettingsChanged/LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序与拆域前
+/// 逐位一致——LoadSettings 直写字段路径不发服务事件，无双发）。
 /// </summary>
 public sealed partial class SettingsService : RefCounted
 {
@@ -46,8 +50,20 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
     public StringName ViewZoom { get; set; } = new StringName("small");
 
-    /// <summary>窗口尺寸档位（settings.json 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）</summary>
-    public StringName WindowSize { get; set; } = new StringName("large");
+    /// <summary>窗口模式（settings.json 持久化，默认 windowed=窗口化；borderless=无边框全屏）。
+    /// 常量见 WindowModeWindowed/WindowModeBorderless。</summary>
+    public StringName WindowMode { get; set; } = new StringName("windowed");
+
+    /// <summary>渲染分辨率档（settings.json 持久化，默认 1920x1080；值为窗口逻辑尺寸，
+    /// 表见 RESOLUTION_LEVELS；"custom"=用户拖拽出的自由尺寸，数值见 CustomWindowWidth/Height）。
+    /// 窗口化模式下即实际窗口物理像素（×屏幕缩放），"分辨率档即渲染分辨率"。</summary>
+    public StringName Resolution { get; set; } = new StringName("1920x1080");
+
+    /// <summary>自定义窗口逻辑宽（Resolution=="custom" 时生效；拖拽窗口后记录）</summary>
+    public int CustomWindowWidth { get; set; } = 1920;
+
+    /// <summary>自定义窗口逻辑高（Resolution=="custom" 时生效；拖拽窗口后记录）</summary>
+    public int CustomWindowHeight { get; set; } = 1080;
 
     /// <summary>瞄准辅助强度档位（settings.json 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
     public StringName AimAssistLevel { get; set; } = new StringName("medium");
@@ -95,8 +111,11 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>视角档位变化（参数为生效 zoom 倍率）；GameState 订阅后转发为 ViewZoomChanged 信号。</summary>
     public event Action<double>? ViewZoomChanged;
 
-    /// <summary>窗口尺寸档位变化；GameState 订阅后转发为 WindowSizeChanged 信号。</summary>
-    public event Action<StringName>? WindowSizeChanged;
+    /// <summary>窗口模式变化（窗口化/无边框全屏）；GameState 订阅后转发为 WindowModeChanged 信号。</summary>
+    public event Action<StringName>? WindowModeChanged;
+
+    /// <summary>渲染分辨率档变化（含拖拽捕获为 custom）；GameState 订阅后转发为 ResolutionChanged 信号。</summary>
+    public event Action<StringName>? ResolutionChanged;
 
     /// <summary>瞄准辅助强度档位变化；GameState 订阅后转发为 AimAssistChanged 信号。</summary>
     public event Action<StringName>? AimAssistChanged;
@@ -205,36 +224,191 @@ public sealed partial class SettingsService : RefCounted
         InvalidateViewRectCache();
     }
 
-    // ---------------- 窗口大小 ----------------
+    // ---------------- 窗口管理（2026-09-10 重构：窗口模式 + 渲染分辨率档 + 自由拖拽） ----------------
 
-    /// <summary>窗口尺寸档位表（设置页三选，settings.json 持久化；stretch 等比缩放，仅改窗口物理尺寸）。
-    /// 非 const：Vector2i 构造为非常量表达式（同 spawner.ENEMY_TYPES 先例）。</summary>
-    public Godot.Collections.Dictionary WINDOW_SIZE_LEVELS { get; set; } = new()
+    /// <summary>窗口模式常量：窗口化（可拖拽/可缩放）与无边框全屏（铺满显示器、无标题栏、不改显示模式）。</summary>
+    public static readonly StringName WindowModeWindowed = new("windowed");
+    public static readonly StringName WindowModeBorderless = new("borderless");
+
+    /// <summary>渲染分辨率档表（设置页选项 + settings.json 持久化；值为窗口逻辑尺寸（逻辑点），
+    /// 应用时 × DisplayServer.ScreenGetScale 换算物理像素）。canvas_items 拉伸下逻辑坐标系恒
+    /// 1920×1080，档位只改窗口物理像素（即实际渲染分辨率）。仅列 16:9 档位；非 16:9 由用户拖拽
+    /// 自由尺寸（stretch/aspect=keep 会留黑边，世界坐标不受影响）。</summary>
+    public Godot.Collections.Dictionary RESOLUTION_LEVELS { get; } = new()
     {
-        [new StringName("small")] = new Vector2I(1280, 720),
-        [new StringName("medium")] = new Vector2I(1600, 900),
-        [new StringName("large")] = new Vector2I(1920, 1080),
+        [new StringName("1280x720")] = new Vector2I(1280, 720),
+        [new StringName("1600x900")] = new Vector2I(1600, 900),
+        [new StringName("1920x1080")] = new Vector2I(1920, 1080),
+        [new StringName("2560x1440")] = new Vector2I(2560, 1440),
+        [new StringName("3840x2160")] = new Vector2I(3840, 2160),
     };
 
-    public Godot.Collections.Array<StringName> WINDOW_SIZE_ORDER { get; } = new()
+    public Godot.Collections.Array<StringName> RESOLUTION_ORDER { get; } = new()
     {
-        new StringName("small"),
-        new StringName("medium"),
-        new StringName("large"),
+        new StringName("1280x720"),
+        new StringName("1600x900"),
+        new StringName("1920x1080"),
+        new StringName("2560x1440"),
+        new StringName("3840x2160"),
     };
 
-    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 settings.json 并广播</summary>
-    public void SetWindowSize(StringName level)
+    /// <summary>自定义档键（拖拽出非预设尺寸时 Resolution 切到此值，数值存 CustomWindowWidth/Height）</summary>
+    public static readonly StringName ResolutionCustom = new("custom");
+
+    /// <summary>上次由 ApplyWindow 写入的物理窗口尺寸（拖拽捕获据此区分"程序改"与"用户拖"）</summary>
+    private Vector2I _lastAppliedWindowSize = Vector2I.Zero;
+
+    /// <summary>ApplyWindow 写入窗口期间置位，抑制 SizeChanged 回写（避免自触发→改档→再应用循环）</summary>
+    private bool _applyingWindow;
+
+    /// <summary>切换窗口模式（非法/同值忽略）：立即应用 + 持久化 + 广播</summary>
+    public void SetWindowMode(StringName mode)
     {
-        if (!WINDOW_SIZE_LEVELS.ContainsKey(level) || level == WindowSize)
+        if ((mode != WindowModeWindowed && mode != WindowModeBorderless) || mode == WindowMode)
         {
             return;
         }
 
-        WindowSize = level;
-        ApplyWindowSize();
+        WindowMode = mode;
+        ApplyWindow();
         GameState.Instance.SaveSettings();
-        WindowSizeChanged?.Invoke(WindowSize);
+        WindowModeChanged?.Invoke(mode);
+    }
+
+    /// <summary>切换渲染分辨率档（非法/同值忽略）：立即应用窗口，持久化并广播</summary>
+    public void SetResolution(StringName preset)
+    {
+        if (!RESOLUTION_LEVELS.ContainsKey(preset) || preset == Resolution)
+        {
+            return;
+        }
+
+        Resolution = preset;
+        ApplyWindow();
+        GameState.Instance.SaveSettings();
+        ResolutionChanged?.Invoke(preset);
+    }
+
+    /// <summary>应用当前窗口模式 + 分辨率到实际窗口（启动加载后与设置变更时调用）。
+    /// headless 为 dummy 渲染直接跳过窗口 API（沿用 ApplyDisplay 惯例）。
+    /// 窗口化：写 Windowed 模式 + 可缩放 + 逻辑尺寸 × 屏幕缩放 → 越界等比收缩 → 居中；
+    /// 无边框全屏：写 Fullscreen 模式（Godot 自动铺满显示器、用桌面分辨率、不改显示模式），
+    /// 无需显式设尺寸。写入前后以 _applyingWindow/_lastAppliedWindowSize 标记，供拖拽捕获区分。</summary>
+    public void ApplyWindow()
+    {
+        if (DisplayServer.GetName() == "headless")
+        {
+            return;
+        }
+
+        var win = GameState.Instance.GetWindow();
+        if (win == null)
+        {
+            return;
+        }
+
+        _applyingWindow = true;
+        try
+        {
+            if (WindowMode == WindowModeBorderless)
+            {
+                win.Mode = Window.ModeEnum.Fullscreen;
+                return;
+            }
+
+            win.Mode = Window.ModeEnum.Windowed;
+            win.Unresizable = false; // 窗口化允许自由拖拽（分辨率档只是预设起点）
+            var screen = win.CurrentScreen;
+            var scale = DisplayServer.ScreenGetScale(screen);
+            var logical = ResolutionPointSize();
+            var phys = (Vector2I)((Vector2)logical * scale);
+            var usable = DisplayServer.ScreenGetUsableRect(screen);
+            if (phys.X > usable.Size.X || phys.Y > usable.Size.Y)
+            {
+                var fit = Mathf.Min((float)usable.Size.X / phys.X, (float)usable.Size.Y / phys.Y);
+                phys = (Vector2I)((Vector2)phys * fit);
+            }
+
+            win.Size = phys;
+            win.Position = usable.Position + (usable.Size - phys) / 2;
+            _lastAppliedWindowSize = phys;
+        }
+        finally
+        {
+            _applyingWindow = false;
+        }
+    }
+
+    /// <summary>当前档位的逻辑尺寸：预设档查 RESOLUTION_LEVELS，custom 用 CustomWindowWidth/Height。</summary>
+    public Vector2I ResolutionPointSize()
+    {
+        if (RESOLUTION_LEVELS.TryGetValue(Resolution, out var v))
+        {
+            return v.AsVector2I();
+        }
+
+        return new Vector2I(Mathf.Max(CustomWindowWidth, 320), Mathf.Max(CustomWindowHeight, 240));
+    }
+
+    /// <summary>拖拽捕获（GameState 对根窗口 SizeChanged 去抖后调用）：把物理窗口尺寸折算回逻辑档。
+    /// 程序写入（_applyingWindow 或等于 _lastAppliedWindowSize）与无边框全屏一律忽略；
+    /// 与当前档位逻辑尺寸一致则不变；命中某预设档切到该档，否则切 custom 并记录尺寸。
+    /// 返回 true = 档位/自定义尺寸有变化（调用侧据此落盘 + 广播）。</summary>
+    public bool OnWindowResized(Vector2I physicalSize)
+    {
+        if (_applyingWindow || WindowMode == WindowModeBorderless || physicalSize == _lastAppliedWindowSize)
+        {
+            return false;
+        }
+
+        var win = GameState.Instance.GetWindow();
+        if (win == null || physicalSize.X <= 0 || physicalSize.Y <= 0)
+        {
+            return false;
+        }
+
+        // 用户拖拽已生效：更新基线，保证后续拖回原尺寸不被误判为程序写入
+        _lastAppliedWindowSize = physicalSize;
+        var scale = win.CurrentScreen >= 0 ? DisplayServer.ScreenGetScale(win.CurrentScreen) : 1.0f;
+        if (scale <= 0.0f)
+        {
+            scale = 1.0f;
+        }
+
+        var logical = new Vector2I(
+            Mathf.Max((int)Mathf.Round(physicalSize.X / scale), 320),
+            Mathf.Max((int)Mathf.Round(physicalSize.Y / scale), 240)
+        );
+        if (logical == ResolutionPointSize())
+        {
+            return false;
+        }
+
+        // 命中预设档（容差 1 逻辑点，容忍 scale 舍入）→ 切档；否则自定义
+        foreach (var key in RESOLUTION_ORDER)
+        {
+            var preset = RESOLUTION_LEVELS[key].AsVector2I();
+            if (Mathf.Abs(preset.X - logical.X) <= 1 && Mathf.Abs(preset.Y - logical.Y) <= 1)
+            {
+                if (key == Resolution)
+                {
+                    return false;
+                }
+
+                Resolution = key;
+                return true;
+            }
+        }
+
+        CustomWindowWidth = logical.X;
+        CustomWindowHeight = logical.Y;
+        if (Resolution == ResolutionCustom)
+        {
+            return true; // 尺寸变了但仍是 custom 档：调用侧仍需落盘
+        }
+
+        Resolution = ResolutionCustom;
+        return true;
     }
 
     // ---------------- 性能（帧率上限 / 垂直同步） ----------------
@@ -298,36 +472,6 @@ public sealed partial class SettingsService : RefCounted
         {
             DisplayServer.WindowSetVsyncMode(VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
         }
-    }
-
-    /// <summary>应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过。
-    /// 档位尺寸按逻辑点定义：高分屏（Retina 等 content scale&gt;1）乘屏幕缩放换算物理像素，
-    /// 否则 1920×1080 档位在 2x 屏上只显示为 960×540 点的小窗；超出当前屏可用区域时等比收缩并居中。</summary>
-    public void ApplyWindowSize()
-    {
-        if (DisplayServer.GetName() == "headless")
-        {
-            return;
-        }
-
-        var win = GameState.Instance.GetWindow();
-        if (win == null || win.Mode != Window.ModeEnum.Windowed)
-        {
-            return;
-        }
-
-        var screen = win.CurrentScreen;
-        var scale = DisplayServer.ScreenGetScale(screen);
-        var phys = (Vector2I)((Vector2)WINDOW_SIZE_LEVELS[WindowSize].AsVector2I() * scale);
-        var usable = DisplayServer.ScreenGetUsableRect(screen);
-        if (phys.X > usable.Size.X || phys.Y > usable.Size.Y)
-        {
-            var fit = Mathf.Min((float)usable.Size.X / phys.X, (float)usable.Size.Y / phys.Y);
-            phys = (Vector2I)((Vector2)phys * fit);
-        }
-
-        win.Size = phys;
-        win.Position = usable.Position + (usable.Size - phys) / 2;
     }
 
     // ---------------- 瞄准辅助强度 ----------------
@@ -572,12 +716,43 @@ public sealed partial class SettingsService : RefCounted
             InvalidateViewRectCache();
         }
 
-        var savedWindow = data.GetValueOrDefault("window_size", "").AsStringName();
-        if (WINDOW_SIZE_LEVELS.ContainsKey(savedWindow))
+        // 窗口管理（2026-09-10 重构）：新模式键缺失时兼容迁移旧 window_size（small/medium/large）。
+        var savedMode = data.GetValueOrDefault("window_mode", "").AsStringName();
+        if (savedMode == WindowModeWindowed || savedMode == WindowModeBorderless)
         {
-            WindowSize = savedWindow;
-            ApplyWindowSize();
+            WindowMode = savedMode;
         }
+
+        var savedResolution = data.GetValueOrDefault("resolution", "").AsStringName();
+        if (RESOLUTION_LEVELS.ContainsKey(savedResolution) || savedResolution == ResolutionCustom)
+        {
+            Resolution = savedResolution;
+        }
+        else if (!data.ContainsKey("window_mode") && data.ContainsKey("window_size"))
+        {
+            // 旧档案迁移：window_size 三档 → 16:9 分辨率档（旧档位仅窗口化生效，模式取默认 windowed）
+            var legacy = data.GetValueOrDefault("window_size", "").AsStringName();
+            Resolution = legacy switch
+            {
+                var s when s == new StringName("small") => new StringName("1280x720"),
+                var s when s == new StringName("medium") => new StringName("1600x900"),
+                _ => new StringName("1920x1080"),
+            };
+        }
+
+        // custom 尺寸判型（对齐 joy 字段惯例）：手改档案非数值时跳过，不触发 Variant 转换错误
+        var customW = data.GetValueOrDefault("custom_width", new Variant());
+        var customH = data.GetValueOrDefault("custom_height", new Variant());
+        if (customW.VariantType is Variant.Type.Int or Variant.Type.Float
+            && customH.VariantType is Variant.Type.Int or Variant.Type.Float)
+        {
+            var w = (int)Mathf.Clamp(customW.AsInt32(), 320, 16384);
+            var h = (int)Mathf.Clamp(customH.AsInt32(), 240, 16384);
+            CustomWindowWidth = w;
+            CustomWindowHeight = h;
+        }
+
+        ApplyWindow();
 
         var savedAim = data.GetValueOrDefault("aim_assist", "").AsStringName();
         if (AIM_ASSIST_ORDER.Contains(savedAim))
@@ -622,7 +797,10 @@ public sealed partial class SettingsService : RefCounted
         ["ctrl_toggle_mode"] = CtrlToggleMode,
         ["shift_toggle_mode"] = ShiftToggleMode,
         ["view_zoom"] = ViewZoom.ToString(),
-        ["window_size"] = WindowSize.ToString(),
+        ["window_mode"] = WindowMode.ToString(),
+        ["resolution"] = Resolution.ToString(),
+        ["custom_width"] = CustomWindowWidth,
+        ["custom_height"] = CustomWindowHeight,
         ["aim_assist"] = AimAssistLevel.ToString(),
         ["reduce_flash"] = ReduceFlash,
         ["world_post_fx"] = WorldPostFx,
