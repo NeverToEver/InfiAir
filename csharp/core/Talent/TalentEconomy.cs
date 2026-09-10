@@ -207,7 +207,10 @@ public static class TalentEconomy
             eff -= 1.0 - Math.Max(config.DiminishingFloor, 1.0 - config.DiminishingStep * (k - softcap));
         }
 
-        if (routeCore)
+        // 路线加成只作用于已投入的节点：未投入（level 0）节点的有效层级必须是 0。
+        // 否则绑定路线即凭空获得该大类全部节点的「一级效果」——未买 homing 也每发制导、
+        // 未买 deflector 也有偏转冷却乘区，且面板同时显示「已投入 0 点」，自相矛盾。
+        if (routeCore && level > 0)
         {
             eff += config.RouteBonusLevels;
         }
