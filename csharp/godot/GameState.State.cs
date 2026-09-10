@@ -223,8 +223,9 @@ public partial class GameState : Node
     private const string SettingsPathValue = "user://settings.json";
     public string SETTINGS_PATH => SettingsPathValue;
 
-    /// <summary>v3：历史版本号（原对局存档格式；现仅作 settings.json 版本标记）</summary>
-    private const int PersistVersionValue = 3;
+    /// <summary>v4：历史版本号（原对局存档格式；现仅作 settings.json 版本标记）。
+    /// v4 = 窗口管理重构（window_size → window_mode + resolution + custom_width/height）。</summary>
+    private const int PersistVersionValue = 4;
 
     /// <summary>P0-1 手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// ——SettingsService 转发。</summary>
@@ -293,8 +294,16 @@ public partial class GameState : Node
     /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
     public StringName ViewZoom { get => _settings.ViewZoom; set => _settings.ViewZoom = value; }
 
-    /// <summary>窗口尺寸档位（settings.json 持久化，默认 large=1920×1080；尺寸表见 WINDOW_SIZE_LEVELS）——SettingsService 转发。</summary>
-    public StringName WindowSize { get => _settings.WindowSize; set => _settings.WindowSize = value; }
+    /// <summary>窗口模式（settings.json 持久化，默认 windowed=窗口化；borderless=无边框全屏）——SettingsService 转发。</summary>
+    public StringName WindowMode { get => _settings.WindowMode; set => _settings.WindowMode = value; }
+
+    /// <summary>渲染分辨率档（settings.json 持久化，默认 1920x1080；"custom"=自由尺寸，
+    /// 数值见 CustomWindowWidth/Height；表见 RESOLUTION_LEVELS）——SettingsService 转发。</summary>
+    public StringName Resolution { get => _settings.Resolution; set => _settings.Resolution = value; }
+
+    public int CustomWindowWidth { get => _settings.CustomWindowWidth; set => _settings.CustomWindowWidth = value; }
+
+    public int CustomWindowHeight { get => _settings.CustomWindowHeight; set => _settings.CustomWindowHeight = value; }
 
     /// <summary>瞄准辅助强度档位（settings.json 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）——SettingsService 转发。</summary>
     public StringName AimAssistLevel { get => _settings.AimAssistLevel; set => _settings.AimAssistLevel = value; }

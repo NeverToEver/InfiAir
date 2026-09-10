@@ -6,10 +6,12 @@ namespace InfiAir;
 /// GameState 部分定义（Y 系列拆分，2026-08-09）：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图。
 /// 第六轮拆域收官（2026-08-12）：设置+视图域全部职责迁至 SettingsService（csharp/godot/SettingsService.cs，
 /// 组合持有；职责 A 设置 setter 簇 + 职责 B 视图簇 + 状态字段 + 设置域持久化桥 ApplySettingsDict/
-/// CollectSettingsDict 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变；
-/// ApplyWindowSize 为私有一行包装（GameState._Ready 启动补一次默认档位调用）。
-/// 信号：TouchControlsChanged/ViewZoomChanged/WindowSizeChanged/AimAssistChanged/ReduceFlashChanged/
-/// MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件经 GameState 订阅重发。
+/// CollectSettingsDict 一并迁入），本文件为门面对齐转发——公开 API 签名/语义不变。
+/// 窗口管理（2026-09-10 重构）：ApplyWindow/OnWindowResized 为一行包装（GameState._Ready 启动补一次
+/// 默认档；拖拽捕获经根窗口 SizeChanged 去抖后调 OnWindowResized）。
+/// 信号：TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
+/// ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件
+/// 经 GameState 订阅重发。
 /// 健康/Buff 域 C 簇（第五轮拆域）保留转发 → CombatStateService，见文件末尾。
 /// </summary>
 public partial class GameState : Node
@@ -55,24 +57,29 @@ public partial class GameState : Node
     /// SettingsService 转发（帧缓存逻辑在服务侧逐字保持）。</summary>
     public Rect2 ViewWorldRect(double margin = 0.0) => _settings.ViewWorldRect(margin);
 
-    // ---------------- 窗口大小（门面转发 → SettingsService） ----------------
+    // ---------------- 窗口管理（门面转发 → SettingsService） ----------------
 
-    /// <summary>窗口尺寸档位表（设置页三选，settings.json 持久化；stretch 等比缩放，仅改窗口物理尺寸）。</summary>
-    public Godot.Collections.Dictionary WINDOW_SIZE_LEVELS
-    {
-        get => _settings.WINDOW_SIZE_LEVELS;
-        set => _settings.WINDOW_SIZE_LEVELS = value;
-    }
+    /// <summary>渲染分辨率档表（设置页选项，settings.json 持久化；值为窗口逻辑尺寸，
+    /// canvas_items 拉伸下逻辑坐标系恒 1920×1080，档位只改窗口物理像素=实际渲染分辨率）。</summary>
+    public Godot.Collections.Dictionary RESOLUTION_LEVELS => _settings.RESOLUTION_LEVELS;
 
-    public Godot.Collections.Array<StringName> WINDOW_SIZE_ORDER => _settings.WINDOW_SIZE_ORDER;
+    public Godot.Collections.Array<StringName> RESOLUTION_ORDER => _settings.RESOLUTION_ORDER;
 
-    /// <summary>切换窗口尺寸档位（非法/同档忽略）：立即应用窗口，持久化到 settings.json 并广播</summary>
-    public void SetWindowSize(StringName level) => _settings.SetWindowSize(level);
+    /// <summary>切换窗口模式（窗口化/无边框全屏；非法/同值忽略）：立即应用 + 持久化 + 广播</summary>
+    public void SetWindowMode(StringName mode) => _settings.SetWindowMode(mode);
 
-    /// <summary>应用当前档位到窗口：仅窗口模式生效；headless 为 dummy 渲染直接跳过——
-    /// 一行包装（本体在 SettingsService；GameState._Ready 启动补一次默认档位调用，
-    /// 无设置文件时 LoadSettings 不会应用窗口尺寸）。</summary>
-    public void ApplyWindowSize() => _settings.ApplyWindowSize();
+    /// <summary>切换渲染分辨率档（非法/同值忽略）：立即应用 + 持久化 + 广播</summary>
+    public void SetResolution(StringName preset) => _settings.SetResolution(preset);
+
+    /// <summary>当前档位的逻辑尺寸（预设查表，custom 用 CustomWindowWidth/Height）——转发。</summary>
+    public Vector2I ResolutionPointSize() => _settings.ResolutionPointSize();
+
+    /// <summary>应用当前窗口模式 + 分辨率到实际窗口（启动补默认档调用；
+    /// headless 跳过窗口 API）——一行包装（本体在 SettingsService）。</summary>
+    public void ApplyWindow() => _settings.ApplyWindow();
+
+    /// <summary>拖拽捕获（根窗口 SizeChanged 去抖后调用，返回档位是否变化）——转发。</summary>
+    public bool OnWindowResized(Vector2I physicalSize) => _settings.OnWindowResized(physicalSize);
 
     /// <summary>视角缓存失效（切换视角/窗口档位后下一物理帧强制重算 ViewWorldRect；
     /// 本体在 SettingsService，服务内部变更档位时自行失效）——一行包装。</summary>

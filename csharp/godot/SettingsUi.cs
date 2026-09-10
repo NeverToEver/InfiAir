@@ -22,7 +22,6 @@ public partial class SettingsUi : RadialMenuLayer
     };
     private static readonly StringName[] AimAssistOrder = { new("low"), new("medium"), new("high") };
     private static readonly StringName[] ViewZoomOrder = { new("small"), new("medium"), new("large") };
-    private static readonly StringName[] WindowSizeOrder = { new("small"), new("medium"), new("large") };
     private static readonly StringName[] FpsCapOrder = { new("fps60"), new("fps120"), new("fps144"), new("fps165"), new("fps180"), new("fps240") };
     private static readonly StringName[] PageIds = { new("controls"), new("modes"), new("about") };
     private static readonly StringName PageControls = new("controls");
@@ -48,8 +47,11 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly Godot.Collections.Dictionary _zoomButtons = new(); // 视角档位 -> Button
     private readonly ButtonGroup _aimGroup = new();
     private readonly Godot.Collections.Dictionary _aimButtons = new(); // 瞄准辅助强度档位 -> Button
-    private readonly ButtonGroup _windowGroup = new();
-    private readonly Godot.Collections.Dictionary _windowButtons = new(); // 窗口尺寸档位 -> Button
+    private readonly ButtonGroup _modeGroup = new();
+    private readonly Godot.Collections.Dictionary _modeButtons = new(); // 窗口模式（windowed/borderless）-> Button
+    private readonly ButtonGroup _resolutionGroup = new() { AllowUnpress = true };
+    private readonly Godot.Collections.Dictionary _resolutionButtons = new(); // 分辨率档 -> Button
+    private Label _resolutionInfoLabel = null!; // 分辨率说明/当前尺寸（custom/无边框时提示）
     private readonly ButtonGroup _diffGroup = new();
     private readonly Godot.Collections.Dictionary _diffButtons = new(); // 难度档位 -> Button
     private Button _skipIntroBtn = null!; // 流程·默认跳过入场动画开关
@@ -80,12 +82,16 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly Callable _onKeyBindingsChanged;
     private readonly Callable _onLocaleChanged;
     private readonly Callable _onJoyLayoutChanged;
+    private readonly Callable _onResolutionChanged;
+    private readonly Callable _onWindowModeChanged;
 
     public SettingsUi()
     {
         _onKeyBindingsChanged = Callable.From(RefreshRebindRows);
         _onLocaleChanged = Callable.From(OnLocaleChanged);
         _onJoyLayoutChanged = Callable.From(RefreshJoyLayoutLabel);
+        _onResolutionChanged = Callable.From((StringName _) => RefreshResolutionButtons());
+        _onWindowModeChanged = Callable.From((StringName _) => RefreshWindowModeButtons());
     }
 
     public override void _Ready()
@@ -185,6 +191,17 @@ public partial class SettingsUi : RadialMenuLayer
         {
             gs.Connect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
         }
+
+        // 窗口分辨率档变化（含拖拽捕获为自定义）：设置页开着时同步选中态
+        if (!gs.IsConnected(GameState.SignalName.ResolutionChanged, _onResolutionChanged))
+        {
+            gs.Connect(GameState.SignalName.ResolutionChanged, _onResolutionChanged);
+        }
+
+        if (!gs.IsConnected(GameState.SignalName.WindowModeChanged, _onWindowModeChanged))
+        {
+            gs.Connect(GameState.SignalName.WindowModeChanged, _onWindowModeChanged);
+        }
     }
 
     public override void _ExitTree()
@@ -203,6 +220,16 @@ public partial class SettingsUi : RadialMenuLayer
         if (gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
         {
             gs.Disconnect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
+        }
+
+        if (gs.IsConnected(GameState.SignalName.ResolutionChanged, _onResolutionChanged))
+        {
+            gs.Disconnect(GameState.SignalName.ResolutionChanged, _onResolutionChanged);
+        }
+
+        if (gs.IsConnected(GameState.SignalName.WindowModeChanged, _onWindowModeChanged))
+        {
+            gs.Disconnect(GameState.SignalName.WindowModeChanged, _onWindowModeChanged);
         }
     }
 
@@ -479,22 +506,55 @@ public partial class SettingsUi : RadialMenuLayer
             _zoomButtons[level] = Variant.From(b);
         }
 
-        // 窗口大小（按钮含分辨率文本，加宽）
-        var winRow = new HBoxContainer();
-        winRow.AddThemeConstantOverride("separation", 16);
-        page.AddChild(winRow);
-        var winLabel = UITheme.MakeLabel(Tr("SET_WINDOW_SIZE"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        winLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
-        winRow.AddChild(winLabel);
-        _windowButtons.Clear();
-        foreach (var level in WindowSizeOrder)
+        // 窗口模式（窗口化 / 无边框全屏）
+        var modeRow = new HBoxContainer();
+        modeRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(modeRow);
+        var modeLabel = UITheme.MakeLabel(Tr("SET_WINDOW_MODE"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
+        modeLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        modeRow.AddChild(modeLabel);
+        _modeButtons.Clear();
+        foreach (var mode in new[] { new StringName("windowed"), new StringName("borderless") })
         {
-            var b = UITheme.MakeToggleButton(Tr("SET_WINDOW_" + level.ToString().ToUpper()), _windowGroup);
+            var b = UITheme.MakeToggleButton(Tr("SET_WINDOW_MODE_" + mode.ToString().ToUpper()), _modeGroup);
             b.CustomMinimumSize = new Vector2(210.0f, 48.0f);
-            b.Pressed += () => GameState.Instance.SetWindowSize(level);
-            winRow.AddChild(b);
-            _windowButtons[level] = Variant.From(b);
+            b.Pressed += () => GameState.Instance.SetWindowMode(mode);
+            modeRow.AddChild(b);
+            _modeButtons[mode] = Variant.From(b);
         }
+
+        // 渲染分辨率（预设档；超出当前屏的档位不列出——避免 1080p 屏出现 4K 无意义项）
+        var resRow = new HBoxContainer();
+        resRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(resRow);
+        var resLabel = UITheme.MakeLabel(Tr("SET_RESOLUTION"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
+        resLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        resRow.AddChild(resLabel);
+        var resFlow = new HFlowContainer();
+        resFlow.AddThemeConstantOverride("h_separation", 10);
+        resFlow.AddThemeConstantOverride("v_separation", 8);
+        resFlow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        resRow.AddChild(resFlow);
+        _resolutionButtons.Clear();
+        foreach (var preset in GameState.Instance.RESOLUTION_ORDER)
+        {
+            if (!ResolutionFitsScreen(preset))
+            {
+                continue;
+            }
+
+            var size = GameState.Instance.RESOLUTION_LEVELS[preset].AsVector2I();
+            var b = UITheme.MakeToggleButton($"{size.X}×{size.Y}", _resolutionGroup);
+            b.CustomMinimumSize = new Vector2(150.0f, 48.0f);
+            b.Pressed += () => GameState.Instance.SetResolution(preset);
+            resFlow.AddChild(b);
+            _resolutionButtons[preset] = Variant.From(b);
+        }
+
+        page.AddChild(UITheme.MakeLabel(Tr("SET_WINDOW_MODE_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        _resolutionInfoLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_resolutionInfoLabel);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_RESOLUTION_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
 
         // 性能：帧率上限（六档）+ 垂直同步
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_PERFORMANCE")));
@@ -690,7 +750,8 @@ public partial class SettingsUi : RadialMenuLayer
         _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
         _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
         RefreshZoomButtons();
-        RefreshWindowButtons();
+        RefreshWindowModeButtons();
+        RefreshResolutionButtons();
         RefreshDiffButtons();
         RefreshAimButtons();
         _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
@@ -737,12 +798,68 @@ public partial class SettingsUi : RadialMenuLayer
         }
     }
 
-    private void RefreshWindowButtons()
+    private void RefreshWindowModeButtons()
     {
-        foreach (var level in _windowButtons.Keys)
+        foreach (var mode in _modeButtons.Keys)
         {
-            ((Button)_windowButtons[level].AsGodotObject()).SetPressedNoSignal(level.AsStringName() == GameState.Instance.WindowSize);
+            ((Button)_modeButtons[mode].AsGodotObject()).SetPressedNoSignal(mode.AsStringName() == GameState.Instance.WindowMode);
         }
+
+        RefreshResolutionButtons();
+    }
+
+    /// <summary>分辨率档与信息行刷新：custom 档时全部不选中（AllowUnpress）；无边框全屏/自定义时
+    /// 在信息行显示实际生效尺寸，窗口化预设档时清空信息行。</summary>
+    private void RefreshResolutionButtons()
+    {
+        var resolution = GameState.Instance.Resolution;
+        foreach (var preset in _resolutionButtons.Keys)
+        {
+            ((Button)_resolutionButtons[preset].AsGodotObject()).SetPressedNoSignal(preset.AsStringName() == resolution);
+        }
+
+        var borderless = GameState.Instance.WindowMode == new StringName("borderless");
+        var size = GameState.Instance.ResolutionPointSize();
+        if (borderless)
+        {
+            _resolutionInfoLabel.Text = Tr("SET_RESOLUTION_DESKTOP");
+        }
+        else if (resolution == new StringName("custom") || !_resolutionButtons.ContainsKey(resolution))
+        {
+            // custom 或当前档位被显示器尺寸过滤掉（换到更小屏）：信息行显示实际尺寸
+            _resolutionInfoLabel.Text = GdFormat.Format(Tr("SET_RESOLUTION_CUSTOM"), size.X, size.Y);
+        }
+        else
+        {
+            _resolutionInfoLabel.Text = "";
+        }
+
+        // 无边框全屏下分辨率档不适用（用桌面分辨率）：禁用按钮并保留选中态显示
+        foreach (var preset in _resolutionButtons.Keys)
+        {
+            ((Button)_resolutionButtons[preset].AsGodotObject()).Disabled = borderless;
+        }
+    }
+
+    /// <summary>预设档是否适配当前显示器（物理像素比较：逻辑尺寸 × 屏幕缩放 ≤ 可用区）。
+    /// headless 或无窗口时一律放行（无头探针/CI 需要完整档位表）。</summary>
+    private static bool ResolutionFitsScreen(StringName preset)
+    {
+        if (DisplayServer.GetName() == "headless")
+        {
+            return true;
+        }
+
+        var size = GameState.Instance.RESOLUTION_LEVELS[preset].AsVector2I();
+        var screen = DisplayServer.WindowGetCurrentScreen();
+        if (screen < 0)
+        {
+            return true;
+        }
+
+        var scale = DisplayServer.ScreenGetScale(screen);
+        var usable = DisplayServer.ScreenGetUsableRect(screen).Size;
+        return (int)(size.X * scale) <= usable.X && (int)(size.Y * scale) <= usable.Y;
     }
 
     private void RefreshDiffButtons()
