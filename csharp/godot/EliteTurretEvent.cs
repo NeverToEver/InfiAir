@@ -17,7 +17,10 @@ public partial class EliteTurretEvent : EncounterEventBase
 {
     public enum State { IDLE, CARRIER_ENTER, TURRET_ACTIVE, CARRIER_EXIT, BOSS_DELAY }
 
-    private static readonly PackedScene TurretScene = GD.Load<PackedScene>("res://scenes/turret.tscn");
+    /// <summary>炮台场景按需加载，不做静态持有——静态字段持 Godot 资源会在引擎退出后
+    /// 被 .NET finalize 触碰 native 而 segfault（同 UITheme.Font / MothershipSummonWindow.ShipTexture 口径）；
+    /// GD.Load 命中引擎资源缓存，每次取用代价可忽略。</summary>
+    private static PackedScene TurretScene => GD.Load<PackedScene>("res://scenes/turret.tscn");
 
     // ---- 配置（读 balance.json elite_turret_event 段，脚本值为缺键回退） ----
     public float Duration { get; private set; } = 30.0f;
