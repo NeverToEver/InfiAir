@@ -21,9 +21,9 @@
 
 ## 截图
 
-| 局内交战 | Boss 遭遇 |
+| 本局交战 | Boss 遭遇 |
 | --- | --- |
-| ![局内交战](docs/images/combat.webp) | ![Boss 遭遇](docs/images/boss.webp) |
+| ![本局交战](docs/images/combat.webp) | ![Boss 遭遇](docs/images/boss.webp) |
 | 天赋缓存树 | 黎明站 · 基地整备 |
 | ![天赋缓存树](docs/images/talent.webp) | ![黎明站基地](docs/images/station.webp) |
 
