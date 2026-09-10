@@ -21,7 +21,7 @@ public sealed partial class TalentService : RefCounted
     private readonly TalentConfig _config = new();
     private readonly TalentCache _cache;
 
-    /// <summary>节点最终层级（含 ApplyStartingLoadout 起始预置；shield 等消耗型 buff 由 ConsumeAugment 在
+    /// <summary>节点最终层级（shield 等消耗型 buff 由 ConsumeAugment 在
     /// Augments 内扣减运行层，不影响本表的已购层级）。</summary>
     private readonly Dictionary<StringName, int> _levels = new();
 
@@ -497,30 +497,6 @@ public sealed partial class TalentService : RefCounted
     }
 
     // ---------------- 生命周期 / 存档 ----------------
-
-    /// <summary>起始层级预置：升级项 → 起始层级（直接落 Augments，归口本服务保持单一事实源；
-    /// 局外成长系统入口（当前无生产调用方，保留）。</summary>
-    public void ApplyStartingLoadout(Godot.Collections.Dictionary metaUpgrades)
-    {
-        var applied = false;
-        foreach (var key in metaUpgrades.Keys)
-        {
-            var level = (int)metaUpgrades[key].AsInt64();
-            var id = key.AsStringName();
-            if (level > 0 && _maxLevels.ContainsKey(id))
-            {
-                _levels[id] = Mathf.Clamp(Mathf.Max(Level(id), level), 0, MaxLevel(id));
-                applied = true;
-            }
-        }
-
-        if (applied)
-        {
-            SyncAllAugments();
-            GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
-            TalentsChanged?.Invoke();
-        }
-    }
 
     /// <summary>对局复位（ResetRun 调用）：缓存/层级/路线/代币/超载全部清空（不发信号——
     /// AugmentsChanged 由 ResetRun 末尾直发，CacheChanged/TalentsChanged 由本方法尾播发一次）。</summary>

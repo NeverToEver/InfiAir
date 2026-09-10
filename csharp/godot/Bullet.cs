@@ -538,7 +538,8 @@ public partial class Bullet : Area2D
     private void LingerFatal(float duration = 0.5f)
     {
         SetPhysicsProcess(false);
-        Monitoring = false;
+        // 本方法经 OnAreaExited（信号分发中）到达：引擎锁定本 Area，直写 monitoring 被拒且不生效，必须延迟
+        SetDeferred("monitoring", false);
         Modulate = new Color(2.0f, 0.7f, 0.7f);
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite != null)

@@ -28,7 +28,7 @@ public partial class GameState : Node
     /// <summary>缓存原始点数（含已衰减点）。</summary>
     public int TalentRawCache => _talent.RawCache;
 
-    /// <summary>节点已购层级（含 ApplyStartingLoadout 起始预置）。</summary>
+    /// <summary>节点已购层级。</summary>
     public int TalentLevel(StringName id) => _talent.Level(id);
 
     /// <summary>浮点有效层级（收益递减/路线/专注折算后）——乘算类效果桥。</summary>
