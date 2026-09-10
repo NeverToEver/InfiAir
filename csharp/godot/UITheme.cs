@@ -10,26 +10,28 @@ namespace InfiAir;
 public partial class UITheme : RefCounted
 {
     // ---------------- 色板（C# typed 直用） ----------------
-    // 战术琥珀：深炭蓝黑底 + 琥珀主交互（按钮/焦点/进度/边框）+ 全息青降为数据通道
-    // + 金=稀有 + 红=危险。金属钢面 tint 全部由这些 token 单源派生——改此一处 = 全站换色。
-    public static readonly Color PanelBg = new(0.063f, 0.086f, 0.125f, 0.82f); // 面板底 暗钢蓝黑（提亮一档让拉丝可辨）
+    // 战术琥珀：暖炭黑底 + 琥珀主交互（按钮/焦点/进度/边框）+ 金=稀有 + 红=危险。
+    // 面板/金属/文字灰全部暖偏（冷蓝灰会与琥珀主色互相打架）；金属钢面 tint 全部由这些
+    // token 单源派生——改此一处 = 全站换色。
+    public static readonly Color PanelBg = new(0.086f, 0.070f, 0.058f, 0.82f); // 面板底 暖炭黑（提亮一档让拉丝可辨）
     public static readonly Color PanelBorder = new(1.0f, 0.624f, 0.110f, 0.45f); // 面板边框 琥珀 1px 细线
     public static readonly Color Accent = new(0xff9f1cff); // 主强调琥珀（交互/焦点/进度/边框）
     public static readonly Color AccentHot = new(0xffc14dff); // 受激琥珀（hover/焦点峰值/脉冲）
-    public static readonly Color AccentBlue = new(0x38bdf8ff); // 数据全息青（次要通道：数据/次级弧）
+    public static readonly Color Holo = new(0xffc861ff); // 全息线光（仪表/舱段/站体 holo 线，取代旧全息青）
+    public static readonly Color HoloPale = new(0xffe6bfff); // 全息高光/读数峰值（暖白，用于热读数与光晕芯）
     public static readonly Color AccentGold = new(0xe8c170ff); // 数值金（RP/最高分/新纪录等关键数值）
     public static readonly Color AccentDim = new(1.0f, 0.624f, 0.110f, 0.22f); // 装饰分隔线/页头短线
-    public static readonly Color BgDeep = new(0.027f, 0.039f, 0.059f, 0.92f); // 更深面板底（欢迎页/满屏遮罩层）
-    public static readonly Color Text = new(0xe6edf3ff); // 文字主
+    public static readonly Color BgDeep = new(0.043f, 0.034f, 0.027f, 0.92f); // 更深面板底（欢迎页/满屏遮罩层）
+    public static readonly Color Text = new(0xeee7dcff); // 文字主（暖白）
     public static readonly Color TextOnBright = new(0x17110aff); // 高亮暖钢面上的深暖字（hover 钢面近白，浅色字会洗白）
-    public static readonly Color TextDim = new(0x8a97a6ff); // 文字次
+    public static readonly Color TextDim = new(0x9c9184ff); // 文字次（暖灰）
     public static readonly Color Danger = new(0xff3b4eff); // 警报红
-    public static readonly Color Success = new(0x3fd68cff); // 成功绿（降饱和）
+    public static readonly Color Success = new(0xc2d16bff); // 成功色（暖橄榄金，替代冷绿——冷绿与琥珀互斥）
     public static readonly Color BtnPrimaryBg = new(1.0f, 0.624f, 0.110f, 0.18f); // 主按钮底（ACCENT 18% alpha）
 
     // 金属钢面 token：按钮/底衬贴图为近白灰度 + 预烘焙倒角（assets/sprites/ui/button_plate*），
     // 色相/明度全部由这些 tint 单源派生；hover 允许 >1 的通道（乘贴图后 clamp，读作受激暖光）
-    public static readonly Color SteelTint = new(0.66f, 0.62f, 0.56f); // 暖钢灰（按钮 normal）
+    public static readonly Color SteelTint = new(0.60f, 0.52f, 0.42f); // 暖青铜灰（按钮 normal；冷灰会读成白塑料）
     public static readonly Color SteelTintHover = new(0.98f, 0.88f, 0.72f); // 受激暖光提亮（hover/焦点）
     public static readonly Color SteelTintPressed = new(0.46f, 0.40f, 0.34f); // 按下凹陷（换凹陷贴图 + 压暗）
     public static readonly Color SteelAccentTint = new(1.0f, 0.72f, 0.30f); // 主按钮钢面透琥珀（ACCENT 系）
@@ -39,16 +41,16 @@ public partial class UITheme : RefCounted
     public static readonly Color DimBg = new(0.008f, 0.007f, 0.006f, 0.84f); // 全屏遮罩：暖黑强压暗
     /// <summary>暗钢空槽基色：仪表空槽/弹仓空格/扇形根圆的公共 RGB，各用途配不同 alpha。</summary>
     public static readonly Color SlotDark = new(0.060f, 0.055f, 0.050f);
-    public static readonly Color CommBgDark = new(0.10f, 0.03f, 0.09f, 0.78f); // 通讯面板暗品红底（与 EventMagenta 同系不同值）
-    public static readonly Color EventMagenta = new(1.0f, 0.25f, 0.75f); // 随机事件/通讯品红
+    public static readonly Color CommBgDark = new(0.13f, 0.05f, 0.05f, 0.78f); // 通讯面板暗暖红底（与 EventMagenta 同系不同值）
+    public static readonly Color EventMagenta = new(1.0f, 0.25f, 0.75f); // 随机事件/通讯品红（敌对通讯身份色，唯一非琥珀强调）
     public static readonly Color WarnYellow = new(1.0f, 0.86f, 0.30f); // 蓄力/提示黄（比琥珀更黄更亮，与主交互色区分）
     public static readonly Color ChargeAccent = new(1.0f, 0.76f, 0.30f); // 蓄力琥珀（蓄力进度条）
     public static readonly Color BannerDangerBg = new(0.35f, 0.06f, 0.10f, 0.7f); // 警告横幅底
 
-    // 虚影基地皮肤 token（基地控制台全息青身份，与琥珀主交互刻意区分）
-    public static readonly Color PhantomPanelBg = new(0.03f, 0.08f, 0.12f, 0.55f); // 虚影面板底
-    public static readonly Color PhantomBorder = new(new Color(0x38bdf8ff), 0.65f); // 虚影面板边框
-    public static readonly Color PhantomScan = new(new Color(0x38bdf8ff), 0.06f); // 扫描线/毛玻璃叠加层
+    // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
+    public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）
+    public static readonly Color PhantomBorder = new(new Color(0xffc861ff), 0.65f); // 虚影面板边框（全息琥珀）
+    public static readonly Color PhantomScan = new(new Color(0xffc861ff), 0.06f); // 扫描线/毛玻璃叠加层
 
     // ---------------- 字号阶梯（层级靠字号/颜色/透明度区分） ----------------
     public const int FontDisplay = 72; // 超大展示（主标题/结算大数字）
@@ -395,10 +397,10 @@ public partial class UITheme : RefCounted
     /// <summary>输入框金属化（normal/focus 钢板 + 文字/光标/占位配色）。散落 LineEdit 统一入口。</summary>
     public static void ApplyMetalLineEdit(LineEdit edit)
     {
-        var normal = MakeBtnStyle(new Color(0.26f, 0.33f, 0.46f, 0.80f));
+        var normal = MakeBtnStyle(new Color(0.30f, 0.25f, 0.20f, 0.80f));
         normal.ContentMarginLeft = 12.0f;
         normal.ContentMarginRight = 12.0f;
-        var focus = MakeBtnStyle(new Color(0.32f, 0.42f, 0.58f, 0.88f));
+        var focus = MakeBtnStyle(new Color(0.38f, 0.31f, 0.24f, 0.88f));
         focus.ContentMarginLeft = 12.0f;
         focus.ContentMarginRight = 12.0f;
         edit.AddThemeStyleboxOverride("normal", normal);
@@ -412,11 +414,11 @@ public partial class UITheme : RefCounted
     /// <summary>滚动条金属化（深槽 + 钢质拉条）。ScrollContainer 两轴滚动条统一入口。</summary>
     public static void ApplyMetalScrollBar(ScrollBar bar)
     {
-        var groove = new StyleBoxFlat { BgColor = new Color(0.012f, 0.020f, 0.036f, 0.85f) };
+        var groove = new StyleBoxFlat { BgColor = new Color(0.022f, 0.017f, 0.013f, 0.85f) };
         groove.SetCornerRadiusAll(3);
-        var grabber = new StyleBoxFlat { BgColor = new Color(0.42f, 0.50f, 0.64f, 0.90f) };
+        var grabber = new StyleBoxFlat { BgColor = new Color(0.48f, 0.42f, 0.34f, 0.90f) };
         grabber.SetCornerRadiusAll(3);
-        var grabberHot = new StyleBoxFlat { BgColor = new Color(0.60f, 0.78f, 0.92f, 0.95f) };
+        var grabberHot = new StyleBoxFlat { BgColor = new Color(0.72f, 0.60f, 0.44f, 0.95f) };
         grabberHot.SetCornerRadiusAll(3);
         bar.AddThemeStyleboxOverride("scroll", groove);
         bar.AddThemeStyleboxOverride("grabber", grabber);

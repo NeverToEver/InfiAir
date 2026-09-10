@@ -307,7 +307,7 @@ public partial class Mothership : Area2D
     private void BuildFx()
     {
         // 引擎光晕（舰底喷口位）：DESCEND 巨大→常态收敛，DEPART 随加速增大
-        _engineGlow = (Sprite2D)CinematicFx.SoftGlow(70.0f * _ws, new Color(0.45f, 0.85f, 1.0f, 0.0f));
+        _engineGlow = (Sprite2D)CinematicFx.SoftGlow(70.0f * _ws, new Color(1.000f, 0.771f, 0.450f, 0.0f));
         _engineGlow.Position = new Vector2(0.0f, 85.0f * _ws);
         _engineGlowBase = _engineGlow.Scale;
         AddChild(_engineGlow);
@@ -322,7 +322,7 @@ public partial class Mothership : Area2D
             ["vel_max"] = 640.0f * _ws,
             ["scale_min"] = 8.0f * _ws,
             ["scale_max"] = 18.0f * _ws,
-            ["color"] = new Color(0.5f, 0.85f, 1.0f, 0.6f),
+            ["color"] = new Color(1.000f, 0.792f, 0.500f, 0.6f),
         });
         _descendTrail.Position = new Vector2(0.0f, 30.0f * _ws);
         _descendTrail.Emitting = false;
@@ -338,7 +338,7 @@ public partial class Mothership : Area2D
             ["vel_max"] = 640.0f * _ws,
             ["scale_min"] = 8.0f * _ws,
             ["scale_max"] = 20.0f * _ws,
-            ["color"] = new Color(0.55f, 0.9f, 1.0f, 0.65f),
+            ["color"] = new Color(1.000f, 0.812f, 0.550f, 0.65f),
         });
         _departTrail.Position = new Vector2(0.0f, 90.0f * _ws);
         _departTrail.Emitting = false;
@@ -353,7 +353,7 @@ public partial class Mothership : Area2D
             var ring = new Line2D
             {
                 Width = 2.5f,
-                DefaultColor = new Color(0.55f, 0.95f, 1.0f),
+                DefaultColor = new Color(1.000f, 0.812f, 0.550f),
                 Points = CinematicFx.RingPoints(28, 90.0f * _ws * 0.92f, 0.35f),
                 Material = (CanvasItemMaterial)CinematicFx.AdditiveMaterial(),
             };
@@ -367,7 +367,7 @@ public partial class Mothership : Area2D
             var edge = new Line2D
             {
                 Width = 2.0f,
-                DefaultColor = new Color(0.6f, 0.95f, 1.0f),
+                DefaultColor = new Color(1.000f, 0.833f, 0.600f),
                 Points = new[]
                 {
                     new Vector2(40.0f * sx, 60.0f) * _ws,
@@ -390,7 +390,7 @@ public partial class Mothership : Area2D
             ["vel_max"] = 120.0f * _ws,
             ["scale_min"] = 3.5f * _ws,
             ["scale_max"] = 7.0f * _ws,
-            ["color"] = new Color(0.6f, 0.95f, 1.0f, 0.65f),
+            ["color"] = new Color(1.000f, 0.833f, 0.600f, 0.65f),
         });
         _beamDust.Position = new Vector2(0.0f, 190.0f * _ws);
         _beamDust.Emitting = false;
@@ -408,7 +408,7 @@ public partial class Mothership : Area2D
         _warpFrom = gatePos + new Vector2(0.0f, -drop) * (float)GameState.Instance.WorldScale;
         Position = _warpFrom;
         Scale = Vector2.One * 0.25f;
-        Modulate = new Color(1.8f, 1.8f, 2.2f);
+        Modulate = new Color(2.200f, 2.033f, 1.800f);
     }
 
     public string StateText()
@@ -508,7 +508,7 @@ public partial class Mothership : Area2D
                     var e = 1.0f - Mathf.Pow(1.0f - p, 3.0f);
                     Position = _warpFrom.Lerp(_warpTarget, e);
                     Scale = Vector2.One * Mathf.Lerp(0.25f, 1.0f, e);
-                    Modulate = new Color(1.8f, 1.8f, 2.2f).Lerp(Colors.White, e);
+                    Modulate = new Color(2.200f, 2.033f, 1.800f).Lerp(Colors.White, e);
                     // 引擎制动光晕随同一 ease-out 从巨大收到常态；上冲气流全程伴随
                     _descendTrail.Emitting = p < 1.0f;
                     var eg = _engineGlow.Modulate;
@@ -565,13 +565,13 @@ public partial class Mothership : Area2D
                                 ["radius"] = 120.0f * _ws,
                                 ["time"] = 0.5,
                                 ["ry_ratio"] = 0.6,
-                                ["color"] = new Color(0.5f, 0.95f, 1.0f, 0.5f),
-                                ["core_color"] = new Color(0.9f, 1.0f, 1.0f, 0.9f),
+                                ["color"] = new Color(1.000f, 0.792f, 0.500f, 0.5f),
+                                ["core_color"] = new Color(1.000f, 0.958f, 0.900f, 0.9f),
                                 ["width"] = 8.0,
                             });
                             sw.Position = DockPoint();
                             GetParent()!.AddChild(sw);
-                            SoftFlash(DockPoint(), 70.0f * _ws, new Color(0.8f, 1.0f, 1.0f, 0.9f));
+                            SoftFlash(DockPoint(), 70.0f * _ws, new Color(1.000f, 0.917f, 0.800f, 0.9f));
                             var hud = Hud();
                             if (hud != null)
                             {
@@ -716,8 +716,8 @@ public partial class Mothership : Area2D
         {
             ["radius"] = SlowRadius,
             ["time"] = SlowRingTime,
-            ["color"] = new Color(0.32f, 0.93f, 0.85f, 0.45f),
-            ["core_color"] = new Color(0.75f, 1.0f, 0.95f, 0.85f),
+            ["color"] = new Color(0.930f, 0.676f, 0.320f, 0.45f),
+            ["core_color"] = new Color(1.000f, 0.896f, 0.750f, 0.85f),
             ["width"] = 14.0,
             ["fill"] = true,
         });
@@ -729,8 +729,8 @@ public partial class Mothership : Area2D
             ["radius"] = SlowRadius,
             ["time"] = SlowRingTime * 1.4f,
             ["start_scale"] = 0.45,
-            ["color"] = new Color(0.32f, 0.93f, 0.85f, 0.3f),
-            ["core_color"] = new Color(0.7f, 1.0f, 0.95f, 0.6f),
+            ["color"] = new Color(0.930f, 0.676f, 0.320f, 0.3f),
+            ["core_color"] = new Color(1.000f, 0.875f, 0.700f, 0.6f),
             ["width"] = 7.0,
         });
         echo.Position = Position;
@@ -1069,7 +1069,7 @@ public partial class Mothership : Area2D
             ["vel_max"] = 200.0f * _ws,
             ["scale_min"] = 2.0f * _ws,
             ["scale_max"] = 5.0f * _ws,
-            ["color"] = new Color(0.55f, 0.95f, 1.0f, 0.75f),
+            ["color"] = new Color(1.000f, 0.812f, 0.550f, 0.75f),
         });
         burst.Position = new Vector2(0.0f, DockOffsetY);
         AddChild(burst);

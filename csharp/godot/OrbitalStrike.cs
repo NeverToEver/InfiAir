@@ -35,7 +35,7 @@ public partial class OrbitalStrike : CanvasLayer
     public float IMPACT_Y_RATIO = 0.42f;
 
     /// <summary>瞄准具/光柱主色（对齐原作青色 82,236,218 系）。</summary>
-    private static readonly Color CYAN = new(0.32f, 0.93f, 0.85f);
+    private static readonly Color CYAN = new Color(0.930f, 0.676f, 0.320f);
     private const int RING_POINTS = 48;
     private const float MISSILE_START_Y = -140.0f;
 

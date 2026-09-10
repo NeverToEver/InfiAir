@@ -17,13 +17,13 @@ public partial class PlayerAugmentVisuals : Node2D
     private static readonly Color ColorCyan = new(1.0f, 0.72f, 0.30f); // 增幅能量色：随机体统一为琥珀
     private static readonly Color ColorGold = new(1.0f, 0.85f, 0.35f);
     private static readonly Color ColorOrange = new(1.0f, 0.55f, 0.2f);
-    private static readonly Color ColorGreen = new(0.45f, 1.0f, 0.6f);
+    private static readonly Color ColorGreen = new Color(1.000f, 0.771f, 0.450f);
     private static readonly Color ColorMagenta = new(0.9f, 0.35f, 0.7f);
     private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰
     /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
     public const float BaseShipScale = 0.65f;
     /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双 buff 时色相自然混合。</summary>
-    private static readonly Color TintEfficient = new(0.75f, 1.1f, 0.85f);
+    private static readonly Color TintEfficient = new Color(1.100f, 0.954f, 0.750f);
     private static readonly Color TintRecovery = new(1.15f, 1.05f, 0.75f);
     /// <summary>层数视觉封顶：无限叠加 buff 的外观强度只表达到第 5 层。</summary>
     private const int StackVisualCap = 5;
@@ -243,13 +243,13 @@ public partial class PlayerAugmentVisuals : Node2D
         var podBody = _MakePoly(
             new Vector2[] { new(-6, -11), new(6, -11), new(6, 11), new(-6, 11) }, new Color(0.5f, 0.46f, 0.40f));
         _laserPod.AddChild(podBody);
-        var lens = _MakeCircle(3.5f, new Color(0.6f, 0.95f, 1.0f));
+        var lens = _MakeCircle(3.5f, new Color(1.000f, 0.833f, 0.600f));
         lens.Position = new Vector2(0.0f, -11.0f);
         _laserPod.AddChild(lens);
         AddChild(_laserPod);
 
         // 装甲环（extra_life，层数加粗）
-        _armorRing = _MakeRing(78.0f, 2.0f, new Color(0.6f, 0.85f, 1.0f, 0.55f));
+        _armorRing = _MakeRing(78.0f, 2.0f, new Color(UITheme.HoloPale, 0.55f));
         AddChild(_armorRing);
 
         // 呼吸光环（regen）
@@ -267,7 +267,7 @@ public partial class PlayerAugmentVisuals : Node2D
         AddChild(_lifestealTips);
 
         // 六边形护盾弧（armor）
-        _shieldHex = _MakeRing(96.0f, 2.0f, new Color(0.5f, 0.9f, 1.0f, 0.3f), 6);
+        _shieldHex = _MakeRing(96.0f, 2.0f, new Color(1.000f, 0.792f, 0.500f, 0.3f), 6);
         AddChild(_shieldHex);
 
         // 残像覆盖层（evasion）：独立 Sprite2D，不占用主 sprite 的无敌帧 alpha
@@ -275,7 +275,7 @@ public partial class PlayerAugmentVisuals : Node2D
         {
             Texture = shipTexture,
             Scale = Vector2.One * (BaseShipScale + 0.02f),
-            Modulate = new Color(0.6f, 0.95f, 1.0f, 0.2f),
+            Modulate = new Color(1.000f, 0.833f, 0.600f, 0.2f),
             ZIndex = -1,
         };
         AddChild(_evasionGhost);
@@ -291,7 +291,7 @@ public partial class PlayerAugmentVisuals : Node2D
         AddChild(_dashFins);
 
         // 慢速力场环（slow_field，半径脉动在 _process）
-        _slowRing = _MakeRing(104.0f, 2.0f, new Color(0.55f, 0.8f, 1.0f, 0.35f));
+        _slowRing = _MakeRing(104.0f, 2.0f, new Color(1.000f, 0.812f, 0.550f, 0.35f));
         AddChild(_slowRing);
 
         // 机顶信标（mothership_recall，座舱前方）

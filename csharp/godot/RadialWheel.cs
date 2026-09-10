@@ -1005,7 +1005,7 @@ public partial class RadialWheel : Node2D
                 c.DrawArc(Vector2.Zero, rOut, sweepRad - wSeg, sweepRad, 6, new Color(UITheme.Accent, weldA), 3f, true);
                 c.DrawArc(Vector2.Zero, rOut, -sweepRad, -sweepRad + wSeg, 6, new Color(UITheme.Accent, weldA), 3f, true);
                 c.DrawArc(Vector2.Zero, rOut + 2.5f, -sweepRad, sweepRad, 96, new Color(UITheme.EventMagenta, weldA * 0.4f), 1.5f, true);
-                c.DrawArc(Vector2.Zero, rOut - 2.5f, -sweepRad, sweepRad, 96, new Color(UITheme.AccentBlue, weldA * 0.4f), 1.5f, true);
+                c.DrawArc(Vector2.Zero, rOut - 2.5f, -sweepRad, sweepRad, 96, new Color(UITheme.Holo, weldA * 0.4f), 1.5f, true);
             }
         }
     }

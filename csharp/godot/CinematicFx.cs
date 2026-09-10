@@ -389,7 +389,7 @@ public partial class CinematicFxBeamFlow : Node2D
 
     public void Setup(Vector2[] points, Godot.Collections.Dictionary cfg)
     {
-        var color = CinematicFx.CfgColor(cfg, "color", new Color(0.4f, 0.9f, 1.0f));
+        var color = CinematicFx.CfgColor(cfg, "color", UITheme.Holo);
         var width = CinematicFx.CfgFloat(cfg, "width", 14.0f);
         _samples = Resample(points, 24);
         var glow = new Line2D
@@ -474,13 +474,13 @@ public partial class CinematicFxRadialStreaks : Node2D
     private float[] _progress = System.Array.Empty<float>();
     private float[] _rates = System.Array.Empty<float>();
     private float _maxRadius = 900.0f;
-    private Color _color = new(0.6f, 0.85f, 1.0f, 0.5f);
+    private Color _color = new(UITheme.HoloPale, 0.5f);
 
     public void Setup(Godot.Collections.Dictionary cfg)
     {
         var count = CinematicFx.CfgInt(cfg, "count", 28);
         _maxRadius = CinematicFx.CfgFloat(cfg, "max_radius", 900.0f);
-        _color = CinematicFx.CfgColor(cfg, "color", new Color(0.6f, 0.85f, 1.0f, 0.5f));
+        _color = CinematicFx.CfgColor(cfg, "color", new Color(UITheme.HoloPale, 0.5f));
         var cycle = CinematicFx.CfgFloat(cfg, "cycle", 1.2f);
         _angles = new float[count];
         _progress = new float[count];

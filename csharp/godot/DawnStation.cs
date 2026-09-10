@@ -106,7 +106,7 @@ public partial class DawnStation : RefCounted
             DampingMax = CfgFloat(cfg, "damping_max", 0.0f),
             ScaleMin = CfgFloat(cfg, "scale_min", 2.0f),
             ScaleMax = CfgFloat(cfg, "scale_max", 4.0f),
-            Color = CfgColor(cfg, "color", new Color(0.0f, 0.83f, 1.0f, 0.35f)),
+            Color = CfgColor(cfg, "color", new Color(UITheme.Holo, 0.35f)),
         };
         if (cfg.ContainsKey("emission_ring_radius"))
         {
@@ -417,14 +417,14 @@ public partial class DawnStation : RefCounted
             inner,
             new Godot.Collections.Dictionary
             {
-                ["ring"] = new Color(0.0f, 0.83f, 1.0f, 0.55f),
-                ["detail"] = new Color(0.0f, 0.83f, 1.0f, 0.35f),
-                ["tick"] = new Color(0.0f, 0.83f, 1.0f, 0.35f),
-                ["seg"] = new Color(0.0f, 0.83f, 1.0f, 0.45f),
-                ["seg_edge"] = new Color(0.0f, 0.83f, 1.0f, 0.40f),
-                ["spoke"] = new Color(0.0f, 0.75f, 1.0f, 0.35f),
-                ["hub"] = new Color(0.0f, 0.83f, 1.0f, 0.50f),
-                ["hub_ring"] = new Color(0.0f, 0.83f, 1.0f, 0.35f),
+                ["ring"] = new Color(UITheme.Holo, 0.55f),
+                ["detail"] = new Color(UITheme.Holo, 0.35f),
+                ["tick"] = new Color(UITheme.Holo, 0.35f),
+                ["seg"] = new Color(UITheme.Holo, 0.45f),
+                ["seg_edge"] = new Color(UITheme.Holo, 0.40f),
+                ["spoke"] = new Color(UITheme.Holo, 0.35f),
+                ["hub"] = new Color(UITheme.Holo, 0.50f),
+                ["hub_ring"] = new Color(UITheme.Holo, 0.35f),
             },
             true,
             new Godot.Collections.Array
@@ -460,8 +460,8 @@ public partial class DawnStation : RefCounted
         glitch.TweenProperty(inner, "modulate:a", 0.3f, 0.04);
         glitch.TweenProperty(inner, "modulate:a", 1.0f, 0.04);
         // 第 2 层：扫描线光晕——环体外缘常亮大半径辉光 + 40px 扫描带纵向 3.5s/趟
-        inner.AddChild(Dot(360.0f, new Color(0.0f, 0.83f, 1.0f, 0.15f)));
-        var scanBand = RectPoly(680.0f, 40.0f, new Color(0.0f, 0.83f, 1.0f, 0.12f));
+        inner.AddChild(Dot(360.0f, new Color(UITheme.Holo, 0.15f)));
+        var scanBand = RectPoly(680.0f, 40.0f, new Color(UITheme.Holo, 0.12f));
         scanBand.Position = new Vector2(0.0f, -340.0f);
         Additive(scanBand);
         inner.AddChild(scanBand);
@@ -478,7 +478,7 @@ public partial class DawnStation : RefCounted
                 ["vel_max"] = 35.0f,
                 ["scale_min"] = 1.0f,
                 ["scale_max"] = 2.0f,
-                ["color"] = new Color(0.0f, 0.83f, 1.0f, 0.4f),
+                ["color"] = new Color(UITheme.Holo, 0.4f),
                 ["emission_ring_radius"] = 260.0f,
                 ["emission_ring_inner_radius"] = 250.0f,
             });
@@ -492,7 +492,7 @@ public partial class DawnStation : RefCounted
                 ["vel_max"] = 45.0f,
                 ["scale_min"] = 1.0f,
                 ["scale_max"] = 2.0f,
-                ["color"] = new Color(0.0f, 0.75f, 1.0f, 0.3f),
+                ["color"] = new Color(UITheme.Holo, 0.3f),
                 ["emission_ring_radius"] = 200.0f,
                 ["emission_ring_inner_radius"] = 80.0f,
             });
@@ -504,7 +504,7 @@ public partial class DawnStation : RefCounted
         {
             var a = BreachStart + (BreachEnd - BreachStart) * (float)g / 3.0f;
             var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-            var meridian = Line(new[] { dir * 240.0f, dir * 280.0f }, new Color(0.0f, 0.83f, 1.0f, 0.75f), 2.5f);
+            var meridian = Line(new[] { dir * 240.0f, dir * 280.0f }, new Color(UITheme.Holo, 0.75f), 2.5f);
             Additive(meridian);
             inner.AddChild(meridian);
             gridLines.Add(meridian);
@@ -520,7 +520,7 @@ public partial class DawnStation : RefCounted
                 latPoints[s] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rLat;
             }
 
-            var latitude = Line(latPoints, new Color(0.0f, 0.83f, 1.0f, 0.75f), 2.5f);
+            var latitude = Line(latPoints, new Color(UITheme.Holo, 0.75f), 2.5f);
             Additive(latitude);
             inner.AddChild(latitude);
             gridLines.Add(latitude);
@@ -543,7 +543,7 @@ public partial class DawnStation : RefCounted
             flicker.TweenProperty(gl, "modulate:a", 0.75f, 0.08);
         }
 
-        var jaggedOutline = Line(JaggedPoints(), new Color(0.0f, 0.83f, 1.0f, 0.8f), 2.5f);
+        var jaggedOutline = Line(JaggedPoints(), new Color(UITheme.Holo, 0.8f), 2.5f);
         Additive(jaggedOutline);
         inner.AddChild(jaggedOutline);
         // 破口附近全息碎片：3 块半透明青色多边形缓慢外飘翻滚（往复，不瞬移）
@@ -558,7 +558,7 @@ public partial class DawnStation : RefCounted
                     new Vector2(5.0f, 7.0f),
                     new Vector2(-6.0f, 6.0f),
                 },
-                Color = new Color(0.0f, 0.83f, 1.0f, 0.35f),
+                Color = new Color(UITheme.Holo, 0.35f),
             };
             Additive(flake);
             var fa = 0.6f + 0.25f * k;

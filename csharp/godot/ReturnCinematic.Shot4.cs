@@ -32,7 +32,7 @@ public partial class ReturnCinematic : CanvasLayer
         for (var i = 0; i < 8; i++)
         {
             var a = Mathf.Tau * i / 8.0f;
-            var lamp = SoftGlow(5.0f, new Color(0.5f, 0.95f, 1.0f, 1.0f));
+            var lamp = SoftGlow(5.0f, new Color(1.000f, 0.792f, 0.500f, 1.0f));
             lamp.Position = new Vector2(960.0f, 470.0f) + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (ringRadius + 4.0f);
             var lampMod = lamp.Modulate;
             lampMod.A = 0.12f;
@@ -56,12 +56,12 @@ public partial class ReturnCinematic : CanvasLayer
         // 分层能量束（辉光层 + 亮芯层 + 3 个循环流光软点，内部零分配 _process）
         var beam = CinematicFx.Beam(root._samples, new Godot.Collections.Dictionary
         {
-            ["color"] = new Color(0.0f, 0.83f, 1.0f),
+            ["color"] = UITheme.Holo,
             ["width"] = 14.0f,
             ["dot_count"] = 3,
             ["dot_speed"] = 0.5f,
             ["dot_radius"] = 8.0f,
-            ["dot_color"] = new Color(0.6f, 0.98f, 1.0f),
+            ["dot_color"] = new Color(1.000f, 0.833f, 0.600f),
         });
         cam.AddChild(beam);
         // 战机沿轨道弧线缓速滑向停机坪入口（TRANS_SINE 吸附感）
@@ -83,7 +83,7 @@ public partial class ReturnCinematic : CanvasLayer
             ["vel_max"] = 180.0f,
             ["scale_min"] = 2.0f,
             ["scale_max"] = 3.5f,
-            ["color"] = new Color(0.6f, 0.9f, 1.0f, 0.55f),
+            ["color"] = new Color(1.000f, 0.833f, 0.600f, 0.55f),
         });
         shipTrail.Position = new Vector2(-26.0f, 0.0f);
         ship.AddChild(shipTrail);

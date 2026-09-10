@@ -525,7 +525,7 @@ public partial class Main : Node2D
             var ring = new Line2D
             {
                 Width = 2.5f,
-                DefaultColor = new Color(0.4f, 0.9f, 1.0f),
+                DefaultColor = UITheme.Holo,
             };
             ring.Points = CinematicFx.RingPoints(48, 160.0f * ws, 0.5f);
             ring.Material = CinematicFx.AdditiveMaterial();

@@ -23,8 +23,8 @@ public partial class ReturnCinematic : CanvasLayer
         root.AddChild(world);
         root._world = world;
         // 天花板/地面透视线 + 舱壁管线（远景透出虚影站结构微光）
-        world.AddChild(Line(new[] { new Vector2(0.0f, 340.0f), new Vector2(2600.0f, 340.0f) }, new Color(0.16f, 0.22f, 0.32f, 0.7f), 3.0f));
-        world.AddChild(Line(new[] { new Vector2(0.0f, 820.0f), new Vector2(2600.0f, 820.0f) }, new Color(0.16f, 0.22f, 0.32f, 0.7f), 3.0f));
+        world.AddChild(Line(new[] { new Vector2(0.0f, 340.0f), new Vector2(2600.0f, 340.0f) }, new Color(0.320f, 0.253f, 0.160f, 0.7f), 3.0f));
+        world.AddChild(Line(new[] { new Vector2(0.0f, 820.0f), new Vector2(2600.0f, 820.0f) }, new Color(0.320f, 0.253f, 0.160f, 0.7f), 3.0f));
         // 舱壁肋板 ×12：宽窄/深浅交替，破除等距重复感
         for (var i = 0; i < 12; i++)
         {
@@ -41,12 +41,12 @@ public partial class ReturnCinematic : CanvasLayer
             var panel = RectPoly(84.0f, 56.0f, new Color(0.06f, 0.08f, 0.12f));
             panel.Position = new Vector2(px, 560.0f);
             world.AddChild(panel);
-            world.AddChild(Line(new[] { new Vector2(px - 42.0f, 531.0f), new Vector2(px + 42.0f, 531.0f) }, new Color(0.2f, 0.3f, 0.42f, 0.5f), 1.5f));
+            world.AddChild(Line(new[] { new Vector2(px - 42.0f, 531.0f), new Vector2(px + 42.0f, 531.0f) }, new Color(0.420f, 0.328f, 0.200f, 0.5f), 1.5f));
         }
 
         foreach (var pipe in new[] { new[] { 360.0f, 6.0f }, new[] { 382.0f, 4.0f } })
         {
-            world.AddChild(Line(new[] { new Vector2(0.0f, pipe[0]), new Vector2(2600.0f, pipe[0]) }, new Color(0.2f, 0.26f, 0.36f), pipe[1]));
+            world.AddChild(Line(new[] { new Vector2(0.0f, pipe[0]), new Vector2(2600.0f, pipe[0]) }, new Color(0.360f, 0.293f, 0.200f), pipe[1]));
         }
 
         // 顶灯光锥 ×3（叠加态低 alpha，挂在世界容器随滚动视差）
@@ -61,7 +61,7 @@ public partial class ReturnCinematic : CanvasLayer
                     new Vector2(cx + 150.0f, 820.0f),
                     new Vector2(cx - 150.0f, 820.0f),
                 },
-                Color = new Color(0.6f, 0.9f, 1.0f, 0.05f),
+                Color = new Color(1.000f, 0.833f, 0.600f, 0.05f),
             };
             var coneMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
             lampCone.Material = coneMat;
@@ -69,19 +69,19 @@ public partial class ReturnCinematic : CanvasLayer
         }
 
         // 地面反光提示条（灯带光在地板上的长条泛光）
-        var floorHint = Line(new[] { new Vector2(0.0f, 812.0f), new Vector2(2600.0f, 812.0f) }, new Color(0.5f, 0.8f, 1.0f, 0.10f), 2.5f);
+        var floorHint = Line(new[] { new Vector2(0.0f, 812.0f), new Vector2(2600.0f, 812.0f) }, new Color(1.000f, 0.792f, 0.500f, 0.10f), 2.5f);
         var floorHintMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         floorHint.Material = floorHintMat;
         world.AddChild(floorHint);
         // 远处结构微光（虚影站内部）
-        var farGlow = Glow(300.0f, new Color(0.0f, 0.5f, 1.0f, 0.06f));
+        var farGlow = Glow(300.0f, new Color(1.000f, 0.583f, 0.000f, 0.06f));
         farGlow.Position = new Vector2(2300.0f, 540.0f);
         world.AddChild(farGlow);
         // 顶部感应灯带：12 节点分段（初始暗，随主角 x 阈值点亮）
         for (var i = 0; i < 12; i++)
         {
             var lx = 200.0f + 200.0f * i;
-            var seg = Line(new[] { new Vector2(lx - 80.0f, 352.0f), new Vector2(lx + 80.0f, 352.0f) }, new Color(0.6f, 0.95f, 1.0f, 0.08f), 5.0f);
+            var seg = Line(new[] { new Vector2(lx - 80.0f, 352.0f), new Vector2(lx + 80.0f, 352.0f) }, new Color(1.000f, 0.833f, 0.600f, 0.08f), 5.0f);
             var segMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
             seg.Material = segMat;
             world.AddChild(seg);
@@ -99,14 +99,14 @@ public partial class ReturnCinematic : CanvasLayer
                 new Vector2(doorX + 76.0f, 820.0f),
                 new Vector2(doorX - 76.0f, 820.0f),
             },
-            new Color(0.0f, 0.83f, 1.0f, 0.4f),
+            new Color(UITheme.Holo, 0.4f),
             2.5f
         );
         frame.Closed = true;
         world.AddChild(frame);
         var leak = new ColorRect
         {
-            Color = new Color(0.6f, 0.95f, 1.0f, 0.0f),
+            Color = new Color(1.000f, 0.833f, 0.600f, 0.0f),
             Position = new Vector2(doorX - 66.0f, 546.0f),
             Size = new Vector2(132.0f, 268.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,

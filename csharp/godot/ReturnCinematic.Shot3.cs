@@ -27,7 +27,7 @@ public partial class ReturnCinematic : CanvasLayer
         {
             ["count"] = 26,
             ["max_radius"] = 1000.0f,
-            ["color"] = new Color(0.5f, 0.85f, 1.0f, 0.45f),
+            ["color"] = new Color(1.000f, 0.792f, 0.500f, 0.45f),
             ["cycle"] = 1.0f,
         });
         streaks.Position = portalPos;
@@ -44,7 +44,7 @@ public partial class ReturnCinematic : CanvasLayer
             ringAPoints[i] = new Vector2(Mathf.Cos(a) * 90.0f, Mathf.Sin(a) * 150.0f);
         }
 
-        var ringA = Line(ringAPoints, new Color(0.0f, 0.9f, 1.0f, 0.9f), 4.0f);
+        var ringA = Line(ringAPoints, new Color(1.000f, 0.583f, 0.000f, 0.9f), 4.0f);
         ringA.Closed = true;
         ringA.Position = portalPos;
         partA.AddChild(ringA);
@@ -67,7 +67,7 @@ public partial class ReturnCinematic : CanvasLayer
         var partB = new Node2D { Visible = false };
         root.AddChild(partB);
         partB.AddChild(new Starfield()); // Starfield 为 C#，typed 实例化
-        var neb = Glow(420.0f, new Color(0.08f, 0.2f, 0.45f, 0.06f));
+        var neb = Glow(420.0f, new Color(0.450f, 0.296f, 0.080f, 0.06f));
         neb.Position = new Vector2(420.0f, 780.0f);
         partB.AddChild(neb);
         // 远处虚影站剪影（α0.15，为镜头 4 铺垫）
@@ -78,7 +78,7 @@ public partial class ReturnCinematic : CanvasLayer
         farMod.A = 0.5f;
         farStation.Modulate = farMod;
         partB.AddChild(farStation);
-        var ringB = Line(ringAPoints, new Color(0.0f, 0.9f, 1.0f, 0.9f), 4.0f);
+        var ringB = Line(ringAPoints, new Color(1.000f, 0.583f, 0.000f, 0.9f), 4.0f);
         ringB.Closed = true;
         ringB.Position = portalPos;
         ringB.Scale = Vector2.One * 0.02f;
@@ -102,7 +102,7 @@ public partial class ReturnCinematic : CanvasLayer
             ["vel_max"] = 220.0f,
             ["scale_min"] = 2.0f,
             ["scale_max"] = 4.0f,
-            ["color"] = new Color(0.6f, 0.9f, 1.0f, 0.7f),
+            ["color"] = new Color(1.000f, 0.833f, 0.600f, 0.7f),
         });
         trail.Position = new Vector2(-26.0f, 0.0f);
         shipB.AddChild(trail);
@@ -119,7 +119,7 @@ public partial class ReturnCinematic : CanvasLayer
                 ["radius"] = 520.0f,
                 ["time"] = 0.4f,
                 ["ry_ratio"] = 0.7f,
-                ["color"] = new Color(0.6f, 0.95f, 1.0f, 0.5f),
+                ["color"] = new Color(1.000f, 0.833f, 0.600f, 0.5f),
                 ["core_color"] = new Color(1.0f, 1.0f, 1.0f, 0.85f),
                 ["width"] = 14.0f,
             });

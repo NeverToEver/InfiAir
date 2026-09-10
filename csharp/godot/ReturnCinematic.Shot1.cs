@@ -18,10 +18,10 @@ public partial class ReturnCinematic : CanvasLayer
         var starfield = new Starfield(); // Starfield 为 C# typed，typed 实例化
         starfield.Warp(12.0f); // 承接对局 _starfield.Warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
         root.AddChild(starfield);
-        var neb1 = Glow(480.0f, new Color(0.08f, 0.18f, 0.4f, 0.05f));
+        var neb1 = Glow(480.0f, new Color(0.400f, 0.267f, 0.080f, 0.05f));
         neb1.Position = new Vector2(360.0f, 800.0f);
         root.AddChild(neb1);
-        var neb2 = Glow(420.0f, new Color(0.1f, 0.3f, 0.45f, 0.05f));
+        var neb2 = Glow(420.0f, new Color(0.450f, 0.304f, 0.100f, 0.05f));
         neb2.Position = new Vector2(1520.0f, 280.0f);
         root.AddChild(neb2);
         // 战机尾部视角悬停（同开场镜头 5 摆位）
@@ -61,7 +61,7 @@ public partial class ReturnCinematic : CanvasLayer
             ["vel_max"] = -25.0f,
             ["scale_min"] = 1.5f,
             ["scale_max"] = 3.0f,
-            ["color"] = new Color(0.6f, 0.85f, 1.0f, 0.5f),
+            ["color"] = new Color(UITheme.HoloPale, 0.5f),
         });
         inbound.Position = new Vector2(960.0f, 580.0f);
         root.AddChild(inbound);
@@ -73,8 +73,8 @@ public partial class ReturnCinematic : CanvasLayer
                 ["radius"] = 700.0f,
                 ["time"] = 0.5f,
                 ["ry_ratio"] = 0.6f,
-                ["color"] = new Color(0.0f, 0.83f, 1.0f, 0.35f),
-                ["core_color"] = new Color(0.7f, 0.97f, 1.0f, 0.7f),
+                ["color"] = new Color(UITheme.Holo, 0.35f),
+                ["core_color"] = new Color(1.000f, 0.875f, 0.700f, 0.7f),
                 ["width"] = 12.0f,
             });
             wave1.Position = new Vector2(960.0f, 570.0f);
@@ -86,8 +86,8 @@ public partial class ReturnCinematic : CanvasLayer
                     ["radius"] = 900.0f,
                     ["time"] = 0.5f,
                     ["ry_ratio"] = 0.6f,
-                    ["color"] = new Color(0.0f, 0.83f, 1.0f, 0.3f),
-                    ["core_color"] = new Color(0.6f, 0.95f, 1.0f, 0.6f),
+                    ["color"] = new Color(UITheme.Holo, 0.3f),
+                    ["core_color"] = new Color(1.000f, 0.833f, 0.600f, 0.6f),
                     ["width"] = 10.0f,
                 });
                 wave2.Position = new Vector2(960.0f, 570.0f);
@@ -104,7 +104,7 @@ public partial class ReturnCinematic : CanvasLayer
                 ringPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (40.0f + 30.0f * k);
             }
 
-            var ring = Line(ringPoints, new Color(0.6f, 0.9f, 1.0f, 0.0f), 2.0f);
+            var ring = Line(ringPoints, new Color(1.000f, 0.833f, 0.600f, 0.0f), 2.0f);
             ring.Closed = true;
             ring.Position = new Vector2(960.0f, 480.0f);
             var ringMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };

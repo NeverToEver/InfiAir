@@ -23,7 +23,7 @@ public partial class MothershipSummonWindow : CanvasLayer
 
     private static readonly Color Cyan = new(1.0f, 0.78f, 0.34f);
 
-    private static readonly Color WarpBlue = new(0.45f, 0.70f, 1.0f);
+    private static readonly Color WarpBlue = new Color(1.000f, 0.771f, 0.450f);
 
     private static readonly Vector2 PanelSize = new(560.0f, 840.0f); // 左侧竖长画中画
 
@@ -292,7 +292,7 @@ public partial class MothershipSummonWindow : CanvasLayer
                 ["vel_max"] = 130.0,
                 ["scale_min"] = 1.5,
                 ["scale_max"] = 3.5,
-                ["color"] = new Color(0.7f, 1.0f, 0.95f, 0.9f),
+                ["color"] = new Color(1.000f, 0.875f, 0.700f, 0.9f),
             });
             burst.Position = ShipHome + attach[i];
             burst.Emitting = false;
@@ -311,7 +311,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             var arm = new Line2D
             {
                 Width = 6.0f,
-                DefaultColor = new Color(0.55f, 0.65f, 0.75f),
+                DefaultColor = new Color(0.750f, 0.667f, 0.550f),
                 Points = pts,
             };
             _stage.AddChild(arm);
@@ -393,7 +393,7 @@ public partial class MothershipSummonWindow : CanvasLayer
                     ["radius"] = 170.0,
                     ["time"] = 0.55,
                     ["color"] = new Color(WarpBlue, 0.5f),
-                    ["core_color"] = new Color(0.85f, 0.95f, 1.0f, 0.9f),
+                    ["core_color"] = new Color(1.000f, 0.938f, 0.850f, 0.9f),
                     ["width"] = 9.0,
                 });
                 launchSw.Position = ShipHome;
@@ -458,7 +458,7 @@ public partial class MothershipSummonWindow : CanvasLayer
             var tip = orig[2];
             arm.SetPointPosition(2, tip.Lerp(basePos, e));
             arm.SetPointPosition(1, joint.Lerp(basePos, e * 0.6f));
-            arm.DefaultColor = new Color(0.55f, 0.65f, 0.75f, 1.0f - 0.7f * e);
+            arm.DefaultColor = new Color(0.750f, 0.667f, 0.550f, 1.0f - 0.7f * e);
         }
     }
 

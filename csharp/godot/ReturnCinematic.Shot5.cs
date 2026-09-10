@@ -23,13 +23,13 @@ public partial class ReturnCinematic : CanvasLayer
         for (var i = 0; i < 3; i++)
         {
             var y = 380.0f + 140.0f * i;
-            root.AddChild(Line(new[] { new Vector2(150.0f, y), new Vector2(1770.0f, y) }, new Color(0.0f, 0.6f, 1.0f, 0.08f)));
+            root.AddChild(Line(new[] { new Vector2(150.0f, y), new Vector2(1770.0f, y) }, new Color(1.000f, 0.583f, 0.000f, 0.08f)));
         }
 
         for (var i = 0; i < 7; i++)
         {
             var x = 150.0f + 270.0f * i;
-            root.AddChild(Line(new[] { new Vector2(x, 340.0f), new Vector2(x, 860.0f) }, new Color(0.0f, 0.6f, 1.0f, 0.06f)));
+            root.AddChild(Line(new[] { new Vector2(x, 340.0f), new Vector2(x, 860.0f) }, new Color(1.000f, 0.583f, 0.000f, 0.06f)));
         }
 
         // 六边形甲板平台：深色实体底 + 青色发光边界 + 中线引导灯带（低角度：整体下移 60px）
@@ -48,7 +48,7 @@ public partial class ReturnCinematic : CanvasLayer
             Position = new Vector2(960.0f, 780.0f),
         };
         root.AddChild(deck);
-        var deckEdge = Line(deck.Polygon, new Color(0.0f, 0.83f, 1.0f, 0.5f), 2.0f);
+        var deckEdge = Line(deck.Polygon, new Color(UITheme.Holo, 0.5f), 2.0f);
         deckEdge.Closed = true;
         var deckEdgeMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         deckEdge.Material = deckEdgeMat;
@@ -57,7 +57,7 @@ public partial class ReturnCinematic : CanvasLayer
         var guides = new List<GlowDot>();
         for (var i = 0; i < 8; i++)
         {
-            var guide = Glow(3.0f, new Color(0.0f, 0.83f, 1.0f, 0.7f));
+            var guide = Glow(3.0f, new Color(UITheme.Holo, 0.7f));
             guide.Position = new Vector2(-210.0f + 60.0f * i, 0.0f);
             var guideMod = guide.Modulate;
             guideMod.A = 0.2f;
@@ -88,7 +88,7 @@ public partial class ReturnCinematic : CanvasLayer
                 new Vector2(1510.0f, 810.0f),
                 new Vector2(1390.0f, 810.0f),
             },
-            new Color(0.0f, 0.83f, 1.0f, 0.35f),
+            new Color(UITheme.Holo, 0.35f),
             2.0f
         );
         gateFrame.Closed = true;
@@ -104,7 +104,7 @@ public partial class ReturnCinematic : CanvasLayer
         var canopy = new Polygon2D
         {
             Polygon = new[] { new Vector2(-20.0f, 0.0f), new Vector2(20.0f, 0.0f), new Vector2(12.0f, -36.0f), new Vector2(-12.0f, -36.0f) },
-            Color = new Color(0.15f, 0.35f, 0.5f, 0.85f),
+            Color = new Color(0.500f, 0.354f, 0.150f, 0.85f),
             Position = new Vector2(0.0f, -80.0f),
         };
         ship.AddChild(canopy);
@@ -136,7 +136,7 @@ public partial class ReturnCinematic : CanvasLayer
                 ["vel_max"] = 110.0f,
                 ["scale_min"] = 2.0f,
                 ["scale_max"] = 5.0f,
-                ["color"] = new Color(0.5f, 0.7f, 0.9f, 0.3f),
+                ["color"] = new Color(0.900f, 0.733f, 0.500f, 0.3f),
             });
             dust.Position = new Vector2(960.0f, 705.0f);
             root.AddChild(dust);
@@ -185,7 +185,7 @@ public partial class ReturnCinematic : CanvasLayer
                     ["vel_max"] = 80.0f,
                     ["scale_min"] = 1.5f,
                     ["scale_max"] = 3.5f,
-                    ["color"] = new Color(0.5f, 0.7f, 0.9f, 0.25f),
+                    ["color"] = new Color(0.900f, 0.733f, 0.500f, 0.25f),
                 });
                 landDust.Position = new Vector2(905.0f, 706.0f);
                 root.AddChild(landDust);

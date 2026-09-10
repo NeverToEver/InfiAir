@@ -23,14 +23,14 @@ public partial class ReturnCinematic : CanvasLayer
         var room = new Node2D(); // 推近面部特写的运镜容器
         root.AddChild(room);
         // 舱室结构：地面线 + 舱壁
-        room.AddChild(Line(new[] { new Vector2(300.0f, 840.0f), new Vector2(1620.0f, 840.0f) }, new Color(0.16f, 0.22f, 0.32f, 0.7f), 3.0f));
-        room.AddChild(Line(new[] { new Vector2(300.0f, 300.0f), new Vector2(300.0f, 840.0f) }, new Color(0.10f, 0.14f, 0.22f, 0.5f)));
-        room.AddChild(Line(new[] { new Vector2(1620.0f, 300.0f), new Vector2(1620.0f, 840.0f) }, new Color(0.10f, 0.14f, 0.22f, 0.5f)));
+        room.AddChild(Line(new[] { new Vector2(300.0f, 840.0f), new Vector2(1620.0f, 840.0f) }, new Color(0.320f, 0.253f, 0.160f, 0.7f), 3.0f));
+        room.AddChild(Line(new[] { new Vector2(300.0f, 300.0f), new Vector2(300.0f, 840.0f) }, new Color(0.220f, 0.170f, 0.100f, 0.5f)));
+        room.AddChild(Line(new[] { new Vector2(1620.0f, 300.0f), new Vector2(1620.0f, 840.0f) }, new Color(0.220f, 0.170f, 0.100f, 0.5f)));
         // 观察窗：窗外虚影环体缓慢旋转轮廓（提醒此处仍在虚影站内）+ 远景星点漂移
         root._star_bounds = new Rect2(392.0f, 412.0f, 316.0f, 156.0f); // 窗框内缘留边
         for (var i = 0; i < 3; i++)
         {
-            var star = SoftGlow(2.0f, new Color(0.85f, 0.92f, 1.0f, 0.7f));
+            var star = SoftGlow(2.0f, new Color(1.000f, 0.938f, 0.850f, 0.7f));
             star.Position = new Vector2(
                 (float)GD.RandRange(root._star_bounds.Position.X, root._star_bounds.End.X),
                 (float)GD.RandRange(root._star_bounds.Position.Y, root._star_bounds.End.Y)
@@ -48,7 +48,7 @@ public partial class ReturnCinematic : CanvasLayer
                 new Vector2(720.0f, 580.0f),
                 new Vector2(380.0f, 580.0f),
             },
-            new Color(0.0f, 0.83f, 1.0f, 0.35f),
+            new Color(UITheme.Holo, 0.35f),
             2.5f
         );
         windowFrame.Closed = true;
@@ -62,7 +62,7 @@ public partial class ReturnCinematic : CanvasLayer
             outPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 150.0f;
         }
 
-        var outRing = Line(outPoints, new Color(0.0f, 0.6f, 1.0f, 0.12f), 14.0f);
+        var outRing = Line(outPoints, new Color(1.000f, 0.583f, 0.000f, 0.12f), 14.0f);
         outRing.Closed = true;
         ringOutside.AddChild(outRing);
         for (var i = 0; i < 4; i++)
@@ -74,7 +74,7 @@ public partial class ReturnCinematic : CanvasLayer
                     new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 40.0f,
                     new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 140.0f,
                 },
-                new Color(0.0f, 0.6f, 1.0f, 0.10f),
+                new Color(1.000f, 0.583f, 0.000f, 0.10f),
                 4.0f
             ));
         }
@@ -106,16 +106,16 @@ public partial class ReturnCinematic : CanvasLayer
         var pod = RectPoly(260.0f, 26.0f, new Color(0.08f, 0.10f, 0.14f));
         pod.Position = new Vector2(1080.0f, 786.0f);
         room.AddChild(pod);
-        room.AddChild(Line(new[] { new Vector2(950.0f, 773.0f), new Vector2(1210.0f, 773.0f) }, new Color(0.0f, 0.83f, 1.0f, 0.4f), 2.0f));
-        var pillow = RectPoly(50.0f, 12.0f, new Color(0.12f, 0.15f, 0.2f));
+        room.AddChild(Line(new[] { new Vector2(950.0f, 773.0f), new Vector2(1210.0f, 773.0f) }, new Color(UITheme.Holo, 0.4f), 2.0f));
+        var pillow = RectPoly(50.0f, 12.0f, new Color(0.200f, 0.167f, 0.120f));
         pillow.Position = new Vector2(980.0f, 766.0f);
         room.AddChild(pillow);
-        var holo = RectPoly(44.0f, 32.0f, new Color(0.0f, 0.83f, 1.0f, 0.15f));
+        var holo = RectPoly(44.0f, 32.0f, new Color(UITheme.Holo, 0.15f));
         holo.Position = new Vector2(946.0f, 700.0f);
         var holoMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         holo.Material = holoMat;
         room.AddChild(holo);
-        var holoGlow = Glow(40.0f, new Color(0.0f, 0.83f, 1.0f, 0.1f));
+        var holoGlow = Glow(40.0f, new Color(UITheme.Holo, 0.1f));
         holoGlow.Position = new Vector2(946.0f, 700.0f);
         room.AddChild(holoGlow);
         // 主角：步行循环走入（_RoomShot 驱动肢体，位置仍由 tween 推进）→ 床沿坐下 → 平躺

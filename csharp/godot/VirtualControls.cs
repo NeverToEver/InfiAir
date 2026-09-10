@@ -405,7 +405,7 @@ public partial class VirtualControls : CanvasLayer
             return;
         }
 
-        DrawStick(MoveCenter, MoveRadius, _moveVec, new Color(0.42f, 0.78f, 0.94f, 0.35f));
+        DrawStick(MoveCenter, MoveRadius, _moveVec, new Color(0.940f, 0.723f, 0.420f, 0.35f));
         DrawStick(AimCenter, AimRadius, _aimVec, new Color(1.0f, 0.72f, 0.30f, 0.35f));
         foreach (var key in Buttons.Keys)
         {
@@ -433,7 +433,7 @@ public partial class VirtualControls : CanvasLayer
         _ui.DrawCircle(center, radius, new Color(col, col.A * 0.6f));
         _ui.DrawArc(center, radius, 0.0f, Mathf.Tau, 48, new Color(col, col.A * 1.4f), 2.0f);
         var knob = center + vec * radius * 0.7f;
-        _ui.DrawCircle(knob, radius * 0.35f, new Color(0.9f, 0.98f, 1.0f, 0.7f));
+        _ui.DrawCircle(knob, radius * 0.35f, new Color(1.000f, 0.958f, 0.900f, 0.7f));
     }
 
     private static string ButtonLabel(StringName action)

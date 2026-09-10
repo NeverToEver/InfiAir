@@ -22,8 +22,8 @@ public partial class WarpGate : Node2D
     /// <summary>HOLD 兜底时长：正常由母舰到达触发 close()，母舰被提前回收（返航）时自动关闭。</summary>
     public float HOLD_MAX = 3.0f;
 
-    private static readonly Color CYAN = new(0.32f, 0.93f, 0.85f);
-    private static readonly Color WARP_BLUE = new(0.35f, 0.6f, 1.0f);
+    private static readonly Color CYAN = new Color(0.930f, 0.676f, 0.320f);
+    private static readonly Color WARP_BLUE = new Color(1.000f, 0.729f, 0.350f);
     private const float ELLIPSE_RATIO = 0.55f; // 竖向压扁（透视门洞）
 
     public enum Phase { OPENING, HOLD, CLOSING }

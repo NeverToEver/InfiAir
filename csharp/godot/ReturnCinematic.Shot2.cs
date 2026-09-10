@@ -25,7 +25,7 @@ public partial class ReturnCinematic : CanvasLayer
         var center = new Vector2(1150.0f, 430.0f);
         root._center = center;
         // 端口口腔软辉光垫（椭圆压扁，垫在虚影站之下，随撕裂同步张开）
-        var mouth = SoftGlow(32.0f, new Color(0.0f, 0.7f, 1.0f, 0.15f));
+        var mouth = SoftGlow(32.0f, new Color(1.000f, 0.583f, 0.000f, 0.15f));
         mouth.Position = center;
         var mouthScale = new Vector2(root._rx * 0.95f / 32.0f, root._ry * 0.95f / 32.0f);
         mouth.Scale = mouthScale * 0.02f;
@@ -48,13 +48,13 @@ public partial class ReturnCinematic : CanvasLayer
             ringPoints[i] = new Vector2(Mathf.Cos(a) * root._rx, Mathf.Sin(a) * root._ry);
         }
 
-        var ringGlow = Line(ringPoints, new Color(0.0f, 0.83f, 1.0f, 0.25f), 12.0f);
+        var ringGlow = Line(ringPoints, new Color(UITheme.Holo, 0.25f), 12.0f);
         ringGlow.Closed = true;
         ringGlow.Position = center;
         var glowMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         ringGlow.Material = glowMat;
         push.AddChild(ringGlow);
-        var ring = Line(ringPoints, new Color(0.0f, 0.9f, 1.0f, 0.9f), 4.0f);
+        var ring = Line(ringPoints, new Color(1.000f, 0.583f, 0.000f, 0.9f), 4.0f);
         ring.Closed = true;
         ring.Position = center;
         push.AddChild(ring);
@@ -74,7 +74,7 @@ public partial class ReturnCinematic : CanvasLayer
                 swirlPoints[i] = new Vector2(Mathf.Cos(a) * root._rx * rr, Mathf.Sin(a) * root._ry * rr);
             }
 
-            var swirl = Line(swirlPoints, new Color(0.3f, 0.9f, 1.0f, 0.3f), 3.0f);
+            var swirl = Line(swirlPoints, new Color(1.000f, 0.708f, 0.300f, 0.3f), 3.0f);
             swirl.Position = center;
             swirl.Scale = Vector2.One * 0.02f;
             var swirlMat = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -96,7 +96,7 @@ public partial class ReturnCinematic : CanvasLayer
         // 环缘能量翻涌：12 个小 glow 点（本镜头唯一 _process 逐帧换位）
         for (var i = 0; i < 12; i++)
         {
-            var dot = Glow(3.5f, new Color(0.5f, 0.95f, 1.0f, 0.9f));
+            var dot = Glow(3.5f, new Color(1.000f, 0.792f, 0.500f, 0.9f));
             push.AddChild(dot);
             root._dots.Add(dot);
         }
@@ -113,7 +113,7 @@ public partial class ReturnCinematic : CanvasLayer
             ["vel_max"] = 15.0f,
             ["scale_min"] = 2.0f,
             ["scale_max"] = 4.0f,
-            ["color"] = new Color(0.5f, 0.9f, 1.0f, 0.45f),
+            ["color"] = new Color(1.000f, 0.792f, 0.500f, 0.45f),
         });
         var inflowMat = (ParticleProcessMaterial)inflow.ProcessMaterial;
         inflowMat.EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Ring;

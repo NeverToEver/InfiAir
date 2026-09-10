@@ -289,7 +289,7 @@ public static class CrewFigure
         var nozzle = CinematicFx.RectPoly(4.0f, 3.0f, Metal);
         nozzle.Position = new Vector2(0.0f, 14.0f);
         pack.AddChild(nozzle);
-        var packLight = new GlowDot { Radius = 2.0f, DotColor = new Color(0.0f, 0.83f, 1.0f, 0.8f), Position = new Vector2(-2.0f, 6.0f) };
+        var packLight = new GlowDot { Radius = 2.0f, DotColor = new Color(UITheme.Holo, 0.8f), Position = new Vector2(-2.0f, 6.0f) };
         pack.AddChild(packLight);
 
         // ---------------- 手臂（远侧先画） ----------------

@@ -289,7 +289,7 @@ public partial class ReturnCinematic : CanvasLayer
     private static Godot.Collections.Dictionary BuildPerson()
     {
         // 返航段整体冷调，乘员状态灯走冷青（与开场琥珀区分）
-        return CrewFigure.Build(new Color(0.35f, 0.78f, 0.95f));
+        return CrewFigure.Build(new Color(0.950f, 0.700f, 0.350f));
     }
 
     /// <summary>直立姿态（步行/站立基准）</summary>

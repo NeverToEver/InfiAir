@@ -261,9 +261,10 @@ public partial class ChamferedPanel : Control
 
         // 垂直渐变底（顶亮底暗，金属板受光）：逐顶点色绘制，色相仍由 BgColor 单源派生；
         // MetalFill 叠加平铺拉丝钢纹理（近白灰度），tint 已按纹理基色 ~0.83 预补偿。
-        // 梯度刻意拉大（顶亮底暗一倍以上）——深色 tint 下弱梯度读作平涂，强梯度才是「受光钢板」
-        var topCol = new Color(BgColor.R + 0.120f, BgColor.G + 0.125f, BgColor.B + 0.150f, BgColor.A);
-        var botCol = new Color(BgColor.R * 0.72f, BgColor.G * 0.75f, BgColor.B * 0.80f, BgColor.A);
+        // 梯度刻意拉大（顶亮底暗一倍以上）——深色 tint 下弱梯度读作平涂，强梯度才是「受光钢板」。
+        // 亮度偏移带暖偏（红>绿>蓝）：均匀偏移会在琥珀主题里留下冷蓝灰的面板底
+        var topCol = new Color(BgColor.R + 0.135f, BgColor.G + 0.108f, BgColor.B + 0.080f, BgColor.A);
+        var botCol = new Color(BgColor.R * 0.78f, BgColor.G * 0.70f, BgColor.B * 0.60f, BgColor.A);
         var vertColors = new[]
         {
             topCol, topCol, botCol, botCol, botCol, botCol, topCol, topCol,

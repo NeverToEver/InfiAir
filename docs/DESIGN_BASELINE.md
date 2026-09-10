@@ -105,13 +105,17 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 色相全部由这些 tint 派生（`assets/sprites/ui/metal_streak.png`、`button_plate*.png` 未重绘）。
 
 - **主交互琥珀** `Accent #FF9F1C`：按钮/焦点/进度/边框；`AccentHot #FFC14D` 受激提亮；`AccentDim` 琥珀 22% 分隔线。
-- **数据青** `AccentBlue #38BDF8`：**降级为数据/次要通道**（次级弧、虚影基地皮肤）；不再作主色。
-- **稀有金** `AccentGold #E8C170`；**危险红** `Danger #FF3B4E`；**成功绿** `Success #3FD68C`（降饱和）。
-- 底：`BgDeep #070A0F` 深炭蓝黑 / `PanelBg` 暗钢 / `PanelSteelTint` 暖暗钢；文字 `#E6EDF3` / `#8A97A6`。
-- 暖钢 tint：`SteelTint`(normal) / `SteelTintHover`(受激暖光) / `SteelAccentTint`(主按钮琥珀面)；焦点环取 `AccentHot`。
-- 次级局部色板同步收编：`RadialWheel`(Card/Band 暖炭灰)、`DawnStation`(暖钢/全息青虚影)、`AimCrosshair`/`AimFrameLayer`(琥珀)、
-  `MothershipSummonWindow`、`TalentFanView`、`VirtualControls`(移动=柔青/瞄准=琥珀)、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
-- **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红/品红（不与琥珀 UI 混同）。玩家机能量/尾焰/激光/残影/增幅附件统一琥珀。
+- **全息琥珀** `Holo #FFC861` / `HoloPale #FFE6BF`：仪表/舱段/站体 holo 线光与热读数。原「数据青」通道退役——
+  冷青与琥珀主色互相打架（基地控制台整页青、天赋列冷绿、面板冷蓝灰底），全站收归暖族。
+- **稀有金** `AccentGold #E8C170`；**危险红** `Danger #FF3B4E`；**成功色** `Success #C2D16B`（暖橄榄金，替代冷绿）。
+- 底：`BgDeep` 暖炭黑 / `PanelBg` 暖炭 / `PanelSteelTint` 暖暗钢；文字 `#EEE7DC` / `#9C9184`（暖白/暖灰）。
+  面板垂直渐变与金属/输入框/滚动条 tint 一律暖偏（冷偏会在琥珀主题里留下蓝灰底）。
+- 暖钢 tint：`SteelTint`(暖青铜灰) / `SteelTintHover`(受激暖光) / `SteelAccentTint`(主按钮琥珀面)；焦点环取 `AccentHot`。
+- 次级局部色板同步收编：`RadialWheel`(Card/Band 暖炭灰)、`DawnStation`(暖钢/全息琥珀虚影)、`AimCrosshair`/`AimFrameLayer`(琥珀)、
+  `MothershipSummonWindow`、`TalentFanView`、`VirtualControls`(移动=全息琥珀/瞄准=琥珀)、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
+  返航过场（黎明站/舱室）与玩家侧（母舰/跃迁门/轨道打击）同属暖族；**开场过场（曙光站）保留冷色**——那是失事的敌方场所，冷暖对照是刻意的。
+- **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红/品红（不与琥珀 UI 混同）。玩家机能量/尾焰/激光/残影/增幅附件统一琥珀；
+  Boss 预警色（telegraph）保留多色编码，属玩法信号不作统一。
 
 ### 2.2 世界层后处理（画面"平/廉"的主要补齐手段）
 GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕纹理后处理：
