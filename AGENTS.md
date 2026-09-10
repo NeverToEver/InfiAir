@@ -15,6 +15,7 @@ dotnet build                          # C# 构建，零警告（TreatWarningsAsE
 bash scripts/ci/check_comment_stamps.sh  # 源码注释无日期戳
 bash scripts/ci/check_language_style.sh  # 注释语种 + 散文术语单一叫法
 bash scripts/ci/check_ui_copy.sh      # 玩家可见文案：无开发措辞/无缺键/无空字段
+bash scripts/ci/check_balance_keys.sh # 数值键真实存在（防键名写错静默回退默认值）
 bash scripts/ci/check_import.sh       # 资源导入无警告
 bash scripts/ci/check_smoke.sh        # 主场景 300 帧无头冒烟
 ./release.sh                          # 打包发布（仅发布时需要）
