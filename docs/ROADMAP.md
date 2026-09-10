@@ -15,6 +15,7 @@
 > 唯一登记处，只保留未关闭项；修复后直接删除（变更史在 git log）；新发现追加在末尾。
 
 - **[低] 视觉层无自动化覆盖（已评估的接受项）**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏。常驻 CI 视觉捕获不可行——Godot headless 为 dummy 渲染截不到画面，CI runner 无 GPU 且项目禁第三方依赖（软光栅方案越线）。纪律 = UI/视觉改动窗口化人工过目；不重引入截图探针场景（与 lean-reset 一致）。
+- **[中] 路线契约给未投入节点发放免费层级**：`TalentEconomy.EffectiveLevel` 对核心大类节点无条件 `+route.bonus_levels`，于是 level 0（从未加点）的节点也得到 eff 1；一切按浮点层级判定的效果凭空生效——实测绑定 berserker 后 `homing` 未投入即获得 150°/s × 8s 追踪（每发子弹都制导），`deflector` 同类。DESIGN_BASELINE §1 口径「Core category nodes +1 effective level」未区分「已投入」与「全部核心节点」，需先确认语义再决定是否加 `level > 0` 前置。
 
 ## 发布前人工验收
 

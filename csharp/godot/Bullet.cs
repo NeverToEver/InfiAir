@@ -259,6 +259,8 @@ public partial class Bullet : Area2D
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        // 本帧位移：追踪命中段会把它钳到目标点上，故提为局部量
+        var step = Speed * d;
         if (HomingTarget != null)
         {
             // 辅助瞄准追踪：优先于 homing 玩家追踪分支；目标失效/超时限即直行
@@ -275,27 +277,30 @@ public partial class Bullet : Area2D
                 _homingElapsed += d;
                 var toTarget = HomingTarget.GlobalPosition - GlobalPosition;
                 var dist = toTarget.Length();
-                if (dist > 0.0f && dist <= HomingSnapRadius + Speed * d)
+                if (dist > 0.0f && dist <= HomingSnapRadius + step)
                 {
-                    // 近距直取：进入收敛半径后直接对准目标
+                    // 近距直取：对准目标，并把本帧位移钳到目标点——位移大于目标判定直径时
+                    // （子弹 1800~3600px/s → 单帧 30~60px，超过 ~37px 的命中窗口），
+                    // 只对准不钳位会整步跨过目标，下一帧再从背后对准跨回，形成永不命中的
+                    // 来回穿越：高射速/多弹道下就是整屏乱飞。钳位后落点必在判定内，本帧即结算。
                     Direction = toTarget / dist;
                     Rotation = Direction.Angle();
+                    step = dist;
                 }
-                else
+                else if (dist > 0.0f)
                 {
-                    // dist==0 时必须保持原向（除零产生 inf/NaN 污染）。
-                    // 不得置 Vector2.Right（会造成 90° 突变），与「保持原向」矛盾——不动 Direction
-                    if (dist > 0.0f)
-                    {
-                        // 距离越近转向越急：螺旋收敛
-                        // AngleTo 一次 atan2 直接得带符号角差，角度空间线性推进
-                        // ≡ LerpAngle(from, to, t)（= from + wrap差*t）；Rotation 与 Direction 恒同步
-                        // （所有写入点成对赋值），以 Rotation 累进替代再次取角，省第二次 atan2
-                        var rate = HomingTurnRate * (1.0f + HomingSnapRadius * 2.0f / dist);
-                        var newAngle = Rotation + Direction.AngleTo(toTarget) * (rate * d);
-                        Direction = Vector2.Right.Rotated(newAngle);
-                        Rotation = newAngle;
-                    }
+                    // 距离越近转向越急：螺旋收敛
+                    // AngleTo 一次 atan2 直接得带符号角差，角度空间线性推进
+                    // ≡ LerpAngle(from, to, t)（= from + wrap差*t）；Rotation 与 Direction 恒同步
+                    // （所有写入点成对赋值），以 Rotation 累进替代再次取角，省第二次 atan2
+                    var rate = HomingTurnRate * (1.0f + HomingSnapRadius * 2.0f / dist);
+                    var angleDiff = Direction.AngleTo(toTarget);
+                    // 单帧转角钳到剩余夹角：rate 随距离收紧而放大，不钳位会一步转过头，
+                    // 下一帧再反向修正 → 目标附近左右摆动（乱飞的另一半来源）
+                    var turn = Mathf.Clamp(angleDiff * rate * d, -Mathf.Abs(angleDiff), Mathf.Abs(angleDiff));
+                    var newAngle = Rotation + turn;
+                    Direction = Vector2.Right.Rotated(newAngle);
+                    Rotation = newAngle;
                 }
             }
         }
@@ -314,7 +319,7 @@ public partial class Bullet : Area2D
             }
         }
 
-        Position += Direction * Speed * d;
+        Position += Direction * step;
         if (!FrameCache.ViewRect().Grow(80.0f).HasPoint(Position))
         {
             DespawnInternal();
