@@ -28,10 +28,16 @@ public partial class VirtualControls : CanvasLayer
     private const float Deadzone = 0.15f;
 
     /// <summary>虚拟按钮：action(StringName) -&gt; {center, radius}（屏幕位置常量）。
-    /// fire 半径加大：手动开火是持续按压的主力键，命中区与其余动作键拉开差距。</summary>
+    /// fire 与 aim 同属右拇指扇区且半径加大：手动开火是持续按压的主力键，边瞄准边开火
+    /// 才成立——开火键必须在拇指不离摇杆的可达范围内，不能挂到屏幕中上部的空地。
+    /// 落点 (1600,710) r72 是按「按钮命中区两两不重叠」反解出来的，余量很紧（px）：
+    /// dash 0.54（最紧的一对，半径加 1 即重叠）、parry 67.2。开火键比 aim 摇杆命中区
+    /// 内收 40px 是刻意的——HitZone 按本表顺序先命中先返回，按钮族整体先于摇杆判定，
+    /// 该重叠区的触摸归开火（摇杆基座外沿距开火键仍有 52px，视觉上不压基座）。
+    /// 挪动本行必须重算这几对距离，命中区一旦嵌套就是「按了 A 出 B」。</summary>
     private static readonly Godot.Collections.Dictionary Buttons = new()
     {
-        [new StringName("fire")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(1640.0f, 430.0f), ["radius"] = 76.0f },
+        [new StringName("fire")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(1600.0f, 710.0f), ["radius"] = 72.0f },
         [new StringName("boost")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(520.0f, 560.0f), ["radius"] = 60.0f },
         [new StringName("fine_move")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(660.0f, 700.0f), ["radius"] = 52.0f },
         [new StringName("dash")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(1500.0f, 620.0f), ["radius"] = 62.0f },
@@ -441,9 +447,11 @@ public partial class VirtualControls : CanvasLayer
 
     private static string ButtonLabel(StringName action)
     {
+        // 开火符号不入首字母体系：其余标签都是英文功能词首字母（Boost/Fine/Dash/Parry），
+        // 开火在键鼠/手柄侧是鼠标左键与 RT，没有可对应的字母——用符号避免指向不存在的键
         if (action == FireName)
         {
-            return "G";
+            return "◎";
         }
 
         if (action == BoostName)

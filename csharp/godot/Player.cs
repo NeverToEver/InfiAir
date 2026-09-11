@@ -168,6 +168,9 @@ public partial class Player : CharacterBody2D
     /// <summary>切换开火模式下的闩定态（按住模式恒不读；开火键按下时翻转）。</summary>
     private bool _fireToggleOn;
 
+    /// <summary>_fireToggleOn 所属的开火方式（设置域切换时清闩定，防残留 true 变自持连发）。</summary>
+    private bool _fireToggleModeLatched;
+
     // ---- 受击/回血与冲刺/弹反/视觉组件（组合委托，纯 C# 类） ----
     private readonly PlayerDamage _damage = new();
     private readonly PlayerDash _dash = new();
@@ -579,10 +582,6 @@ public partial class Player : CharacterBody2D
     public void SetLastHitFrame(int frame) => _damage.LastHitFrame = frame;
 
     public float DashCooldownRemaining() => _dash.CooldownRemaining();
-
-    public void Fire(Vector2 aim) => FireInternal(aim);
-
-    public void ResetFireCooldown() => _fireCooldown = 0.0f;
 
     public bool FogInvertActive() => _fogInvertInput;
 
@@ -1048,12 +1047,21 @@ public partial class Player : CharacterBody2D
 
         // 开火意愿（设置域 fire_toggle_mode）：按住 = 开火键按下期间连发；
         // 切换 = 按一下闩定、再按一下解除（闩定值跨帧保留在 _fireToggleOn）。
-        if (gs.FireToggleMode && Input.IsActionJustPressed(ActFire))
+        // 方式一改就立刻清闩定：按住模式期间 _fireToggleOn 不参与判定，残留的 true
+        // 会让改选「切换」的当帧开始自持连发（鼠标此刻并未按下）。
+        var fireToggleMode = gs.FireToggleMode;
+        if (fireToggleMode != _fireToggleModeLatched)
+        {
+            _fireToggleModeLatched = fireToggleMode;
+            _fireToggleOn = false;
+        }
+
+        if (fireToggleMode && Input.IsActionJustPressed(ActFire))
         {
             _fireToggleOn = !_fireToggleOn;
         }
 
-        var wantFire = gs.FireToggleMode ? _fireToggleOn : Input.IsActionPressed(ActFire);
+        var wantFire = fireToggleMode ? _fireToggleOn : Input.IsActionPressed(ActFire);
         _fireCooldown -= d;
         if (_fireGateEnabled && wantFire && _fireCooldown <= 0.0f && aim.Length() > 1.0f)
         {

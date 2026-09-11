@@ -140,7 +140,7 @@ public partial class MetaHealthFX : CanvasLayer
         _deferFrame = Callable.From(OnDeferFrame);
     }
 
-    // ---------------- 诊断白盒断言经公开接口（平滑参数注入口 + 状态 getter） ----------------
+    // ---------------- 实机调参阅数读口（平滑参数注入口 + 状态 getter；无生产调用方，保留理由见 ROADMAP） ----------------
 
     /// <summary>血量-裂纹映射曲线（§4.2；纯映射值，不含生长过冲）</summary>
     public float CrackProgress()

@@ -44,7 +44,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | --- | --- |
 | WASD / Arrows | Move (Ctrl fine adjust, Shift boost) |
 | Mouse / Right stick | Aim (crosshair is pixel-bound to your cursor) |
-| Left mouse / RT | Fire (hold to fire; switch to click-to-toggle in Settings) |
+| Left mouse / RT / touch ◎ | Fire (hold to fire; switch to click-to-toggle in Settings) |
 | Space | Dash |
 | F / LT | Parry (reflect enemy bullets 360°) |
 | G (hold to charge) | Talent panel |

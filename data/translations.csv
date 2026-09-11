@@ -172,9 +172,9 @@ TUT_S4_TITLE,"阶段 4/6：母舰停靠","Stage 4/6: Docking"
 TUT_S5_TITLE,"阶段 5/6：返航与基地","Stage 5/6: Homecoming"
 TUT_S6_TITLE,"阶段 6/6：首领遭遇","Stage 6/6: Boss"
 TUT_S1_OBJ,"WASD 移动，鼠标瞄准，按住鼠标左键开火
-准星套住青色标记框，子弹会追踪目标
+准星套住琥珀标记框，子弹会追踪目标
 击杀 3 个训练靶 (%d/3)","Move with WASD, aim with mouse, hold the left button to fire
-Catch a cyan bracket frame with your crosshair to make bullets home in
+Catch an amber bracket frame with your crosshair to make bullets home in
 Destroy 3 targets (%d/3)"
 TUT_S2_OBJ,"按住 Shift 加速（耗燃料，松开恢复）：%d/2
 空格相位突进（需 25%% 燃料）：%d/2","Hold Shift to boost (drains fuel): %d/2

@@ -151,7 +151,7 @@ public partial class AimFrameLayer : Node2D
     }
 
     /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 缓存进 Enemy.AimFrameRadius）+ frame_pad
-    /// 诊断白盒断言经公开接口。</summary>
+    /// ——实机调参阅数读口（框尺寸与标靶视觉对齐的观察面）。</summary>
     public float FrameHalfSize(Enemy e)
     {
         // 碰撞半径缓存放 Enemy 实例字段——setup 后恒定（仅 scale.x 随缩放变化），

@@ -41,7 +41,6 @@ public partial class BossAttacks : RefCounted
         [new StringName("bullet_wall")] = new TellInfo { Id = SfxId.FireB, Pitch = 1.2f, Color = new Color(0.4f, 0.6f, 1.0f, 0.55f) },
         [new StringName("ring_burst")] = new TellInfo { Id = SfxId.FireA, Pitch = 1.4f, Color = new Color(1.0f, 0.3f, 0.9f, 0.55f) },
     };
-    /// <summary>攻击 tell 表公开访问（boss_registry_test 校验用）。</summary>
 
     // ---- 注入：弹幕发射器（Boss._ready 经 configure 传入）与机体缩放 ----
     // typed（原 GodotObject 动态派发；Boss 代持桥删除后直调 BossFire）
@@ -159,7 +158,6 @@ public partial class BossAttacks : RefCounted
         boss.GetParent().AddChild(ring);
     }
 
-    /// <summary>全部已注册攻击 id（经公开接口断言注册表完整）。</summary>
     private void HandleFan5(Boss boss)
     {
         _fire.FireFan(

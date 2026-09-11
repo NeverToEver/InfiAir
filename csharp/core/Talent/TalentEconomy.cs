@@ -195,7 +195,8 @@ public static class TalentEconomy
     /// <summary>
     /// 有效层级（收益递减 5.2 + 路线加成 6.3 + 专注惩罚 6.2）：
     /// 软上限内 1:1；超出后每级效率线性衰减到下限（分段线性）；
-    /// 路线核心大类整体 +RouteBonusLevels；非焦点属性在专注惩罚触发时按 (1 - 惩罚) 折扣。
+    /// 路线核心大类中已投入（Lv≥1）的节点 +RouteBonusLevels；未投入节点有效层级恒为 0；
+    /// 非焦点属性在专注惩罚触发时按 (1 - 惩罚) 折扣。
     /// </summary>
     public static double EffectiveLevel(
         TalentConfig config, int level, int softcap, bool routeCore, bool focusDiscounted, int focusOver)

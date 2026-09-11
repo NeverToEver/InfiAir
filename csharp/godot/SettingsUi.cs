@@ -776,7 +776,6 @@ public partial class SettingsUi : RadialMenuLayer
     }
 
     /// <summary>打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见</summary>
-
     public void ShowSettings(CanvasLayer? openerLayer)
     {
         _opener = openerLayer;
