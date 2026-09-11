@@ -24,6 +24,8 @@ bash scripts/ci/check_smoke.sh        # 主场景 300 帧无头冒烟
 
 CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改动另需窗口化实机人工过目——无头门禁不覆盖 GPU/shader 管线。
 
+Windows 本地一次跑完上述八步（推荐）：`python3 scripts/ci/gates.py`——自动发现 bash（Git Bash 优先、WSL 兜底，路径按目标 shell 自动转换）与 Godot 引擎，按 CI 顺序执行并汇总；`--only <slug>` 只跑子集，`--list` 列出步骤。它只做调度，判定逻辑仍在各门禁脚本，不复制口径。
+
 ## 文档纪律
 
 - 事实单源：任何事实只写一份，其余位置用指针引用，禁止复述。门禁口径只在本文件声明。
