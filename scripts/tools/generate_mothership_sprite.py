@@ -6,6 +6,9 @@
 与敌方晶体棱镜风格区分。剪影保持「宽翼平台」：两侧梯形翼台 + 中央高舰体 +
 顶部舰桥塔楼 + 中部货舱条 + 下方机库灯带 + 舰尾引擎组。
 
+另输出能量发光遮罩 mothership_glow.png（黑底同画布）：R=霓虹走线/灯带，B=引擎喷口，
+供 ship_energy.gdshader 运行期叠加（基础贴图生成逻辑零改动）。
+
 用法：python3 scripts/tools/generate_mothership_sprite.py
 """
 
@@ -31,14 +34,19 @@ CORE = (150, 240, 255)
 
 
 class Ship:
-    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。"""
+    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。
+
+    engine_glow 为引擎喷口图元的独立副本层（engine/engine_particles 同时写入 glow 与本层，
+    glow 合成保持原样——基础贴图逐字节不变），仅供发光遮罩导出 B 通道。"""
 
     def __init__(self, w: int, h: int) -> None:
         self.w, self.h = w, h
         self.body = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+        self.engine_glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.bd = ImageDraw.Draw(self.body)
         self.gd = ImageDraw.Draw(self.glow)
+        self.ed = ImageDraw.Draw(self.engine_glow)
 
     def p(self, pts):
         return [(x * S, y * S) for x, y in pts]
@@ -106,9 +114,12 @@ class Ship:
         self.bd.ellipse(self.p([(cx - rx - 1, cy - ry - 1), (cx + rx + 1, cy + ry + 1)]), fill=HULL_C)
 
     def engine(self, cx, cy, rx, ry):
+        # 同图元双写 glow/engine_glow（遮罩 B 通道取后者）
         self.gd.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=ACCENT + (230,))
+        self.ed.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=ACCENT + (230,))
         w = max(rx * 0.45, 2.0)
         self.gd.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 240))
+        self.ed.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 240))
 
     def engine_particles(self, cx, cy, n=3, drop=8, spread=4):
         c = ACCENT + (200,)
@@ -118,6 +129,7 @@ class Ship:
             y = cy + drop * t / n + 2
             r = max(1.2 - 0.2 * i, 0.7)
             self.gd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
+            self.ed.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
 
     def finish(self, path: str, blur: float = 6.0) -> None:
         halo = self.glow.filter(ImageFilter.GaussianBlur(blur * S))
@@ -127,6 +139,10 @@ class Ship:
         out = sprite_polish.polish(out)
         out.save(path)
         print("saved", path)
+
+    def finish_glow(self, path: str, blur: float = 6.0) -> None:
+        """能量发光遮罩导出（黑底 R/B 通道，见 sprite_polish.save_glow_mask）。"""
+        sprite_polish.save_glow_mask(self.glow, self.engine_glow, (self.w, self.h), blur * S, path)
 
 
 def mothership() -> Ship:
@@ -235,6 +251,7 @@ def main() -> None:
         os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites", "mothership.png")
     )
     mothership().finish(out)
+    mothership().finish_glow(out.replace(".png", "_glow.png"))
 
 
 if __name__ == "__main__":

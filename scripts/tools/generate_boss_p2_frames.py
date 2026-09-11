@@ -2,12 +2,14 @@
 """为 Boss 精灵生成 P2 阶段损伤变体（裂纹 + 暗淡 + 火花）。
 
 基于现有 boss_ship_N.png 叠加损伤效果，输出 boss_ship_N_p2.png。
+另基于 boss_ship_N_glow.png 叠加裂纹辉光/火花，输出 boss_ship_N_p2_glow.png
+（P2 专属能量遮罩：损伤能量缝并入 R 通道，引擎 B 通道沿用基础遮罩）。
 用法：python3 scripts/tools/generate_boss_p2_frames.py
 """
 
 import os
 import sprite_polish
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SPRITE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites")
@@ -57,6 +59,32 @@ def add_damage(src_path: str, dst_path: str, cracks: list, sparks: list) -> None
     out = big.resize((w, h), Image.LANCZOS)
     out = sprite_polish.polish(out)
     out.save(dst_path)
+    print(f"saved {dst_path}")
+
+
+def add_damage_glow(src_path: str, dst_path: str, cracks: list, sparks: list) -> None:
+    """P2 能量遮罩：基础遮罩 R 通道并入裂纹辉光/火花（与 add_damage 同坐标），B 通道原样保留。"""
+    img = Image.open(src_path).convert("RGBA")
+    w, h = img.size
+    S = 4  # 超采样
+
+    # 损伤增量层（灰度，超采样绘制 + 柔化，降采样后并入 R）
+    add = Image.new("L", (w * S, h * S), 0)
+    ad = ImageDraw.Draw(add)
+    for crack in cracks:
+        scaled = [(x * S, y * S) for x, y in crack]
+        ad.line(scaled, fill=190, width=5 * S, joint="curve")
+    for sx, sy in sparks:
+        r = 3 if (sx + sy) % 5 < 2 else 2
+        ad.ellipse([(sx * S - r * S, sy * S - r * S),
+                    (sx * S + r * S, sy * S + r * S)], fill=220)
+    add = add.filter(ImageFilter.GaussianBlur(2 * S))
+    add = add.resize((w, h), Image.LANCZOS)
+
+    r_ch, g_ch, b_ch, a_ch = img.split()
+    r_ch = ImageChops.lighter(r_ch, add)
+    a_ch = ImageChops.lighter(a_ch, add)
+    Image.merge("RGBA", (r_ch, g_ch, b_ch, a_ch)).save(dst_path)
     print(f"saved {dst_path}")
 
 
@@ -116,6 +144,11 @@ def main() -> None:
         add_damage(
             os.path.join(SPRITE_DIR, src),
             os.path.join(SPRITE_DIR, dst),
+            cracks, sparks,
+        )
+        add_damage_glow(
+            os.path.join(SPRITE_DIR, src.replace(".png", "_glow.png")),
+            os.path.join(SPRITE_DIR, dst.replace(".png", "_glow.png")),
             cracks, sparks,
         )
 

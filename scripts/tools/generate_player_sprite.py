@@ -13,6 +13,10 @@
 - 霓虹加密：脊线/翼后缘二级走线 + 节点航行灯（lamp）
 - 座舱：钢甲框缘 + 原有琥珀玻璃高光
 
+另输出能量发光遮罩 player_ship_glow.png（同画布 254×254，黑底）：
+从 glow/engine_glow 图元层提取发光像素——R=霓虹走线/航行灯/座舱，B=引擎喷口，
+供 ship_energy.gdshader 运行期叠加（基础贴图生成逻辑零改动）。
+
 附件锚点（贴图像素坐标，供 scripts/player_buff_visuals.gd 对齐机体部位）：
     机头尖端 (127, 16)   座舱 (127, 92)    鸭翼翼尖 (84/170, 96)
     主翼翼尖 (12/242, 206)                翼根前缘 (104/150, 118)
@@ -45,14 +49,19 @@ PLAYER_RIM = (255, 232, 196)
 
 
 class Ship:
-    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。"""
+    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。
+
+    engine_glow 为引擎喷口图元的独立副本层（engine/engine_particles 同时写入 glow 与本层，
+    glow 合成保持原样——基础贴图逐字节不变），仅供发光遮罩导出 B 通道。"""
 
     def __init__(self, w: int, h: int) -> None:
         self.w, self.h = w, h
         self.body = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+        self.engine_glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.bd = ImageDraw.Draw(self.body)
         self.gd = ImageDraw.Draw(self.glow)
+        self.ed = ImageDraw.Draw(self.engine_glow)
 
     def p(self, pts):
         return [(x * S, y * S) for x, y in pts]
@@ -139,12 +148,15 @@ class Ship:
         self.bd.ellipse(self.p([(cx - rx - 1, cy - ry - 1), (cx + rx + 1, cy + ry + 1)]), fill=HULL_C)
 
     def engine(self, cx, cy, rx, ry):
+        # 同图元双写 glow/engine_glow（遮罩 B 通道取后者）
         self.gd.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=ACCENT + (230,))
+        self.ed.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=ACCENT + (230,))
         w = max(rx * 0.45, 2.0)
         self.gd.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 240))
+        self.ed.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 240))
 
     def engine_particles(self, cx, cy, n=3, drop=8, spread=4):
-        """喷口微粒子点（glow 层，确定性排布）。"""
+        """喷口微粒子点（glow + engine_glow 双写，确定性排布）。"""
         c = ACCENT + (200,)
         for i in range(n):
             t = i + 1
@@ -152,6 +164,7 @@ class Ship:
             y = cy + drop * t / n + 2
             r = max(1.2 - 0.2 * i, 0.7)
             self.gd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
+            self.ed.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
 
     def finish(self, path: str, blur: float = 6.0) -> None:
         halo = self.glow.filter(ImageFilter.GaussianBlur(blur * S))
@@ -161,6 +174,10 @@ class Ship:
         out = sprite_polish.polish(out, outline_color=PLAYER_OUTLINE, rim_color=PLAYER_RIM)
         out.save(path)
         print("saved", path)
+
+    def finish_glow(self, path: str, blur: float = 6.0) -> None:
+        """能量发光遮罩导出（黑底 R/B 通道，见 sprite_polish.save_glow_mask）。"""
+        sprite_polish.save_glow_mask(self.glow, self.engine_glow, (self.w, self.h), blur * S, path)
 
 
 def player_ship() -> Ship:
@@ -331,6 +348,7 @@ def main() -> None:
         os.path.join(os.path.dirname(__file__), "..", "..", "assets", "sprites")
     )
     player_ship().finish(os.path.join(sprite_dir, "player_ship.png"))
+    player_ship().finish_glow(os.path.join(sprite_dir, "player_ship_glow.png"))
     player_ship_hit_1().finish(os.path.join(sprite_dir, "player_ship_hit_1.png"))
     player_ship_hit_2().finish(os.path.join(sprite_dir, "player_ship_hit_2.png"))
 

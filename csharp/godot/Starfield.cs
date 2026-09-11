@@ -20,12 +20,12 @@ namespace InfiAir;
 /// </summary>
 public partial class Starfield : Node2D
 {
-    private int _farCount = 140;
-    private int _nearCount = 90;
+    private int _farCount = 180;
+    private int _nearCount = 120;
     private float _farSpeed = 60.0f;
     private float _nearSpeed = 140.0f;
-    private int _brightCount = 16;
-    private float _nebulaAlpha = 0.22f;
+    private int _brightCount = 20;
+    private float _nebulaAlpha = 0.3f;
     private float _meteorMinDelay = 6.0f;
     private float _meteorMaxDelay = 13.0f;
 
@@ -49,7 +49,7 @@ public partial class Starfield : Node2D
         new(0.66f, 0.88f, 1.0f),  // 全息青（次要数据通道）
     };
 
-    // ---- 星云层：一张灰度能量场贴图（环面无缝），紫/青双色 tint 错半格滚动 ----
+    // ---- 星云层：一张灰度能量场贴图（环面无缝），暖琥珀/冷青双色 tint 错半格滚动 ----
     private const float NebulaTexSize = 768.0f; // 贴图边长（NebulaTexture 实参，平铺相位换算用）
     private Texture2D? _nebulaTex;
     private Texture2D? _starTex;
@@ -146,7 +146,7 @@ public partial class Starfield : Node2D
         ZIndex = -10;
         // 判型 + 非负钳制——字符串/负数手改配置不崩、不做负尺寸 resize；
         // 配置读取必须 typed 直调（动态 Call("cfg") 会静默失效 + 每局 4 条引擎错误）
-        // count 钳 [0, 4096]（默认 140/90；上界防手改巨值 OOM——new Vector2[1e9] ≈ 24GB 启动即崩，
+        // count 钳 [0, 4096]（默认 180/120；上界防手改巨值 OOM——new Vector2[1e9] ≈ 24GB 启动即崩，
         // >2^31 还经 (int) 回绕负）
         const long MaxCount = 4096;
         var fc = GameState.Instance.Cfg("effects.starfield.far_count", _farCount);
@@ -250,8 +250,8 @@ public partial class Starfield : Node2D
         {
             _nebulaTileY = _areaSize.Y * 0.7f;
             _nebulaMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/starfield_nebula.gdshader") };
-            _nebulaMat.SetShaderParameter("purple", new Color(0.62f, 0.36f, 0.18f, _nebulaAlpha));
-            _nebulaMat.SetShaderParameter("teal", new Color(0.20f, 0.42f, 0.56f, _nebulaAlpha * 0.7f));
+            _nebulaMat.SetShaderParameter("warm", new Color(0.72f, 0.42f, 0.16f, _nebulaAlpha));
+            _nebulaMat.SetShaderParameter("cool", new Color(0.16f, 0.38f, 0.55f, _nebulaAlpha * 0.7f));
             var nebula = new Sprite2D
             {
                 Texture = _nebulaTex,

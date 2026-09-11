@@ -79,17 +79,24 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>已被弧光弹反（IParryable 契约）：防同一次挥盾把同一枚弹反射两次。</summary>
     private bool _reflected;
     private Sprite2D? _sprite;
+    /// <summary>玩家弹呼吸脉冲（effects.player_bullet_pulse_*；幅度钳 ≤0.12；敌弹不脉冲，可读性优先）。</summary>
+    private float _pulseAmp;
+    private float _pulseHz = 2.4f;
+    private float _pulseT;
+    private float _pulsePhase; // 激活时随机，全场弹相位错开防同步闪烁
 
-    /// <summary>共享图集 Sprite2D（弹体+白芯光栅化进单张共享纹理）。</summary>
-    private static readonly Vector2I TexSize = new(24, 8);
-    private static readonly Vector2 TexOffset = new(11.0f, 4.0f);
+    /// <summary>共享图集 Sprite2D（弹体 + 白芯 + 双层辉光 + 能量尾迹光栅化进单张共享纹理）。
+    /// 48×16 图集：弹头贴右缘（几何与原 24×8 一致），左侧余量画弹尾渐变拖尾；
+    /// 视觉缩放不变，屏幕观感与判定对应关系不变。</summary>
+    private static readonly Vector2I TexSize = new(48, 16);
+    private static readonly Vector2 TexOffset = new(35.0f, 8.0f);
     private static readonly Vector2[] ArrowBody =
     {
         new(-10, -3), new(4, -3), new(12, 0), new(4, 3), new(-10, 3),
     };
     private static readonly Vector2[] ArrowCore =
     {
-        new(-4.5f, -1.5f), new(2, -1.5f), new(5.5f, 0), new(2, 1.5f), new(-4.5f, 1.5f),
+        new(-7.5f, -2), new(2, -2), new(6.5f, 0), new(2, 2), new(-7.5f, 2),
     };
 
     // 弹体共享纹理缓存放 GameState 实例字段（BulletPlayerTex/BulletEnemyTex）——
@@ -143,6 +150,8 @@ public partial class Bullet : Area2D, IParryable
         SplashRadius = 0.0f;
         ScoreScale = 1.0f;
         HomingTurnRate = 4.0f;
+        _pulseT = 0.0f;
+        _pulsePhase = GD.Randf() * Mathf.Tau; // 呼吸脉冲相位按实例错开
         Visible = true;
         Monitoring = true;
         SetPhysicsProcess(true); // 位移走物理帧，与 Area2D overlap 检测同步
@@ -235,6 +244,9 @@ public partial class Bullet : Area2D, IParryable
         // 机制四：弹反倍率
         ReflectSpeedMult = (float)GameState.Instance.Cfg("player.parry.reflect_speed_mult", ReflectSpeedMult).AsDouble();
         ReflectDamageMult = (float)GameState.Instance.Cfg("player.parry.reflect_damage_mult", ReflectDamageMult).AsDouble();
+        // 玩家弹呼吸脉冲：幅度钳 ≤0.12（过强闪烁干扰弹幕判读）
+        _pulseAmp = Mathf.Clamp((float)GameState.Instance.Cfg("effects.player_bullet_pulse_amp", 0.1).AsDouble(), 0.0f, 0.12f);
+        _pulseHz = Mathf.Max((float)GameState.Instance.Cfg("effects.player_bullet_pulse_hz", _pulseHz).AsDouble(), 0.1f);
         // 碰撞半径：设计值 × 全局缩放（幂等赋值）
         var shape = GetNode<CollisionShape2D>("CollisionShape2D");
         if (shape.Shape is CircleShape2D circle)
@@ -331,6 +343,18 @@ public partial class Bullet : Area2D, IParryable
         }
 
         Position += Direction * step;
+        // 玩家弹呼吸脉冲：亮度正弦微振（相位按实例错开）；敌弹不动（可读性优先）
+        if (IsPlayerBullet && _pulseAmp > 0.0f)
+        {
+            _pulseT += d;
+            _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+            if (_sprite != null)
+            {
+                var k = 1.0f + _pulseAmp * Mathf.Sin(Mathf.Tau * _pulseHz * _pulseT + _pulsePhase);
+                _sprite.Modulate = new Color(k, k, k);
+            }
+        }
+
         if (!FrameCache.ViewRect().Grow(80.0f).HasPoint(Position))
         {
             DespawnInternal();
@@ -600,8 +624,10 @@ public partial class Bullet : Area2D, IParryable
 
         _sprite.Texture = IsPlayerBullet ? GameState.Instance.BulletPlayerTex : GameState.Instance.BulletEnemyTex;
         _sprite.Scale = Vector2.One * (IsPlayerBullet ? VisualScale : EnemyVisualScale);
-        // self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）
+        // self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）；
+        // modulate 复位为白（玩家弹呼吸脉冲亮度残留——反射/换阵营复用同实例）
         _sprite.SelfModulate = Colors.White;
+        _sprite.Modulate = Colors.White;
         if (HasMeta(MetaBulletType))
         {
             RemoveMeta(MetaBulletType);
@@ -630,7 +656,7 @@ public partial class Bullet : Area2D, IParryable
     }
 
     /// <summary>共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
-    /// 弹体之下预铺椭圆辉光（横向拉长的能量拖尾感）；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
+    /// 双层辉光（内白芯 / 外阵营色）+ 弹尾能量拖尾直接画进图集；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void EnsureTextures()
     {
         var gs = GameState.Instance;
@@ -639,25 +665,37 @@ public partial class Bullet : Area2D, IParryable
             return;
         }
 
-        // 战术琥珀：玩家弹 = 白热芯 + 琥珀晕（正面辨识）；敌弹 = 更锐利的红/品红（不与琥珀 UI 混同）
+        // 战术琥珀：玩家弹 = 白热芯 + 琥珀外层辉光（正面辨识）；敌弹 = 红/品红弹体 +
+        // 偏品红的近白内芯（保留白芯层次但不与玩家弹琥珀混同）
         gs.BulletPlayerTex = _stampTexture(ArrowBody, new Color(1.0f, 0.70f, 0.24f), ArrowCore, Colors.White,
-            new Color(1.0f, 0.74f, 0.34f, 0.42f));
-        gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.28f, 0.34f), System.Array.Empty<Vector2>(), Colors.Transparent,
-            new Color(1.0f, 0.24f, 0.42f, 0.42f));
+            new Color(1.0f, 0.72f, 0.30f, 0.38f), new Color(1.0f, 0.95f, 0.82f, 0.50f), new Color(1.0f, 0.62f, 0.22f, 0.55f));
+        gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.28f, 0.34f), ArrowCore, new Color(1.0f, 0.88f, 0.92f),
+            new Color(1.0f, 0.24f, 0.42f, 0.38f), new Color(1.0f, 0.72f, 0.80f, 0.45f), new Color(1.0f, 0.30f, 0.46f, 0.50f));
     }
 
-    /// <summary>把多边形（弹体 + 可选白芯）光栅化进共享纹理（像素级平移对齐，无缩放损失）；
-    /// glowColor.A &gt; 0 时先铺椭圆径向辉光（横向拖尾感，pow 衰减）。</summary>
-    private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor, Color? glowColor = null)
+    /// <summary>把多边形（弹体 + 可选白芯）与双层辉光、弹尾拖尾光栅化进共享纹理
+    /// （像素级平移对齐，无缩放损失）；叠层顺序：外辉光 → 尾迹 → 弹体 → 内芯辉光 → 白芯。</summary>
+    private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor,
+        Color outerGlow, Color innerGlow, Color tailColor)
     {
         var img = Image.CreateEmpty(TexSize.X, TexSize.Y, false, Image.Format.Rgba8);
         img.Fill(new Color(0, 0, 0, 0));
-        if (glowColor is { A: > 0.0f } glow)
+        if (outerGlow.A > 0.0f)
         {
-            _addGlow(img, glow);
+            _addGlow(img, outerGlow, TexOffset.X - 4.0f, TexOffset.Y, 19.0f, 6.8f, 2.0f);
+        }
+
+        if (tailColor.A > 0.0f)
+        {
+            _addTail(img, tailColor);
         }
 
         _fillPolygon(img, body, bodyColor);
+        if (innerGlow.A > 0.0f)
+        {
+            _addGlow(img, innerGlow, TexOffset.X - 1.0f, TexOffset.Y, 8.0f, 3.4f, 1.6f);
+        }
+
         if (core.Length > 0)
         {
             _fillPolygon(img, core, coreColor);
@@ -666,14 +704,10 @@ public partial class Bullet : Area2D, IParryable
         return ImageTexture.CreateFromImage(img);
     }
 
-    /// <summary>椭圆径向辉光：中心取弹体几何中心，横轴覆盖整张弹贴图（拖尾）、纵轴压扁；
-    /// 逐像素 pow 衰减叠加（乘算混合进已有像素，仅构建期执行一次）。</summary>
-    private static void _addGlow(Image img, Color glow)
+    /// <summary>椭圆径向辉光：横轴拉长覆盖弹体与尾迹（能量拖尾感）、纵轴压扁；
+    /// 逐像素 pow 衰减 over 混合进已有像素（仅构建期执行一次）。</summary>
+    private static void _addGlow(Image img, Color glow, float cx, float cy, float rx, float ry, float falloff)
     {
-        var cx = TexOffset.X + 1.0f;
-        var cy = TexOffset.Y;
-        var rx = 11.5f;
-        var ry = 3.8f;
         for (var y = 0; y < img.GetHeight(); y++)
         {
             for (var x = 0; x < img.GetWidth(); x++)
@@ -686,20 +720,59 @@ public partial class Bullet : Area2D, IParryable
                     continue;
                 }
 
-                var a = glow.A * Mathf.Pow(1.0f - d, 2.0f);
-                var dst = img.GetPixel(x, y);
-                var outA = a + dst.A * (1.0f - a);
-                if (outA <= 0.0f)
+                _over(img, x, y, glow, glow.A * Mathf.Pow(1.0f - d, falloff));
+            }
+        }
+    }
+
+    /// <summary>弹尾能量拖尾：弹头后方的横向亮带，向尾端 pow 渐隐，纵向抛物线收窄。</summary>
+    private static void _addTail(Image img, Color tail)
+    {
+        // 尾迹区间：贴图左缘 → 弹体中段（盖进弹体下方，衔接无断口）
+        var x0 = 1.0f;
+        var x1 = TexOffset.X - 6.0f;
+        var cy = TexOffset.Y;
+        for (var y = 0; y < img.GetHeight(); y++)
+        {
+            var dy = (y + 0.5f - cy) / 3.0f;
+            var vfall = 1.0f - dy * dy;
+            if (vfall <= 0.0f)
+            {
+                continue;
+            }
+
+            for (var x = 0; x < img.GetWidth(); x++)
+            {
+                var u = (x + 0.5f - x0) / (x1 - x0);
+                if (u is <= 0.0f or >= 1.0f)
                 {
                     continue;
                 }
 
-                var r = (glow.R * a + dst.R * dst.A * (1.0f - a)) / outA;
-                var g = (glow.G * a + dst.G * dst.A * (1.0f - a)) / outA;
-                var b = (glow.B * a + dst.B * dst.A * (1.0f - a)) / outA;
-                img.SetPixel(x, y, new Color(r, g, b, outA));
+                _over(img, x, y, tail, tail.A * Mathf.Pow(u, 1.7f) * vfall);
             }
         }
+    }
+
+    /// <summary>源色按有效 alpha 做 over 混合到目标像素（辉光/尾迹共用）。</summary>
+    private static void _over(Image img, int x, int y, Color src, float a)
+    {
+        if (a <= 0.0f)
+        {
+            return;
+        }
+
+        var dst = img.GetPixel(x, y);
+        var outA = a + dst.A * (1.0f - a);
+        if (outA <= 0.0f)
+        {
+            return;
+        }
+
+        var r = (src.R * a + dst.R * dst.A * (1.0f - a)) / outA;
+        var g = (src.G * a + dst.G * dst.A * (1.0f - a)) / outA;
+        var b = (src.B * a + dst.B * dst.A * (1.0f - a)) / outA;
+        img.SetPixel(x, y, new Color(r, g, b, outA));
     }
 
     /// <summary>凸多边形扫描线填充（三角扇分解：以第一个点为公共顶点，全部顶点平移纹理偏移）。</summary>

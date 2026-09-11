@@ -78,15 +78,17 @@ public partial class TitleScreen : CanvasLayer
         };
         AddChild(vbox);
 
-        var title = new Label { Text = "InfiAir", HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
-        // 字距拉开（FontVariation 一次性实例化）+ 同色软辉光，片头版式质感
-        title.AddThemeFontOverride("font", new FontVariation { BaseFont = UITheme.Font, SpacingGlyph = 14 });
-        title.AddThemeFontSizeOverride("font_size", 92);
-        title.AddThemeColorOverride("font_color", UITheme.Accent);
-        title.AddThemeColorOverride("font_shadow_color", new Color(UITheme.Accent, 0.35f));
-        title.AddThemeConstantOverride("shadow_offset_x", 0);
-        title.AddThemeConstantOverride("shadow_offset_y", 0);
-        title.AddThemeConstantOverride("shadow_outline_size", 8);
+        // 标题 logo（离线生成 assets/sprites/ui/logo.png：琥珀渐变字标 + 切角菱形徽章，
+        // 生成器 scripts/tools/generate_logo.py）；后方呼吸光带保留
+        var title = new TextureRect
+        {
+            Texture = GD.Load<Texture2D>("res://assets/sprites/ui/logo.png"),
+            CustomMinimumSize = new Vector2(560.0f, 162.0f),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
         vbox.AddChild(title);
 
         var accentLine = new ColorRect

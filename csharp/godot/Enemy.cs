@@ -63,6 +63,15 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private static readonly Color RimGlowColorElite = new(1.0f, 0.34f, 0.52f, 0.46f);
     private Sprite2D? _rimGlow;
 
+    // ---- 能量发光层（tscn GlowLayer，ship_energy shader 叠加；遮罩随主贴图变体同步） ----
+    private Sprite2D? _glowLayer;
+    // 阵营分档懒加载一次（effects.ship_energy.*；静态标量/结构体，非 Godot 对象）
+    private static bool _glowCfgLoaded;
+    private static Color _glowTintEnemy = new(0.78f, 0.50f, 0.90f); // 紫晶
+    private static Color _glowTintElite = new(1.0f, 0.39f, 0.75f);  // 淡品红
+    private static float _glowIntEnemy = 0.30f;
+    private static float _glowIntElite = 0.40f;
+
     // ---- 本局状态（Setup/Reactivate 写入；公开属性直读写） ----
     public StringName Strategy { get; set; } = "straight";
     public bool IsElite { get; private set; }
@@ -133,6 +142,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private Sprite2D? _tailGlow;
     private float _scoreScale = 1.0f;
     private float _flashTimer;
+    private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private const float FlashTime = 0.1f;
     /// <summary>寿命离场出屏判定余量（px）：顶/左/右三边对称，底边不入判定（离场方向向上/侧向）。</summary>
     private const float ExitDespawnMargin = 150.0f;
@@ -305,6 +315,38 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
         AimFrameRadius = hitR; // 辅助框半径缓存随 setup 刷新（meta 改实例字段直读）
         UpdateRimGlow();
+        UpdateGlowLayer(sprite);
+    }
+
+    /// <summary>能量发光层（GlowLayer）：遮罩随主贴图变体同步派生（同资源路径 "_glow.png"），
+    /// tint/强度按 敌机/精英 分档；纯视觉叠加层，缺节点/缺遮罩静默保持默认。</summary>
+    private void UpdateGlowLayer(Sprite2D sprite)
+    {
+        _glowLayer ??= sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName);
+        if (_glowLayer == null)
+        {
+            return;
+        }
+
+        var glowTex = ShipEnergyFx.GlowTextureFor(sprite.Texture);
+        if (glowTex != null)
+        {
+            _glowLayer.Texture = glowTex;
+        }
+
+        if (!_glowCfgLoaded)
+        {
+            _glowTintEnemy = ShipEnergyFx.CfgColor("effects.ship_energy.tint_enemy", _glowTintEnemy);
+            _glowTintElite = ShipEnergyFx.CfgColor("effects.ship_energy.tint_elite", _glowTintElite);
+            _glowIntEnemy = CfgFx.Float("effects.ship_energy.intensity_enemy", _glowIntEnemy, 0.0f);
+            _glowIntElite = CfgFx.Float("effects.ship_energy.intensity_elite", _glowIntElite, 0.0f);
+            _glowCfgLoaded = true;
+        }
+
+        ShipEnergyFx.Apply(
+            _glowLayer,
+            IsElite ? _glowTintElite : _glowTintEnemy,
+            IsElite ? _glowIntElite : _glowIntEnemy);
     }
 
     /// <summary>机体背光轮廓：贴图同源副本 + 加性材质 + 阵营染色，略放大垫在机体之下，
@@ -455,7 +497,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite != null)
         {
-            FlashFx.Hit(_sprite, ref _flashTimer, FlashTime); // 受击闪白
+            FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale); // 受击闪白 + 缩放回弹
         }
         if (Hp <= 0)
         {
@@ -897,6 +939,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             return;
         }
 
-        FlashFx.Update(_sprite!, ref _flashTimer, delta, FlashTime, Colors.White);
+        FlashFx.Update(_sprite!, ref _flashTimer, delta, FlashTime, Colors.White, ref _flashBaseScale);
     }
 }

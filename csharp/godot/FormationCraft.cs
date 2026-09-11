@@ -30,6 +30,7 @@ public partial class FormationCraft : Area2D, IDamageable
     private float _bayFlash;
     /// <summary>受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
+    private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private const float FlashTime = 0.1f;
     private const float BayFlashTime = 0.18f;
     /// <summary>击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
@@ -97,7 +98,7 @@ public partial class FormationCraft : Area2D, IDamageable
         var d = (float)delta;
         if (_flashTimer > 0.0f && _sprite != null)
         {
-            FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White);
+            FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White, ref _flashBaseScale);
         }
 
         if (_bayFlash <= 0.0f)
@@ -134,13 +135,16 @@ public partial class FormationCraft : Area2D, IDamageable
         }
 
         Hp -= amount;
-        // 受击闪白（_sprite 在 _Ready 构建；防御性判空与 _PhysicsProcess 同口径）
+        // 受击闪白 + 缩放回弹（_sprite 在 _Ready 构建；防御性判空与 _PhysicsProcess 同口径）
         if (_sprite != null)
         {
-            _sprite.Modulate = new Color(2.0f, 2.0f, 2.0f);
+            FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale);
+        }
+        else
+        {
+            _flashTimer = FlashTime;
         }
 
-        _flashTimer = FlashTime;
         if (Hp <= 0)
         {
             Die();

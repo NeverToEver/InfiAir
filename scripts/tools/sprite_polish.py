@@ -60,3 +60,27 @@ def polish(img: Image.Image, outline_color=None, rim_color=None) -> Image.Image:
     rim.putalpha(edge.point(lambda v: int(v / 255 * RIM_ALPHA)))
     out = Image.alpha_composite(out, rim)
     return out
+
+
+def save_glow_mask(glow: Image.Image, engine_glow: Image.Image, size, blur_px: float, path: str) -> None:
+    """能量发光遮罩落盘（黑底 RGBA，与机体贴图同画布）。
+
+    从机体分层绘制的 glow/engine_glow 两图元层提取发光像素：R=霓虹走线/航行灯/能量核，
+    B=引擎喷口，各带一圈柔光晕（光晕半径与 finish() 同源）；alpha=max(R,B) 仅供编辑器预览，
+    shader（ship_energy.gdshader）只采 R/B 通道做分通道动画（R 流动 / B 呼吸）。
+    输入为超采样画布，输出最终分辨率；纯 PIL 确定性运算，逐字节可复现。
+    """
+    def _channel(layer: Image.Image) -> Image.Image:
+        halo = layer.filter(ImageFilter.GaussianBlur(blur_px))
+        comp = Image.alpha_composite(halo, layer)
+        return comp.resize(size, Image.LANCZOS).getchannel("A")
+
+    r = _channel(glow)
+    b = _channel(engine_glow)
+    # 引擎图元双写于 glow 层（基础贴图需要）——R 通道减去 B 还原「纯走线」语义，
+    # 两通道同图元同合成，引擎区逐位抵消为零，仅残留邻域光晕渗透
+    r = ImageChops.subtract(r, b)
+    a = ImageChops.lighter(r, b)
+    mask = Image.merge("RGBA", (r, Image.new("L", size, 0), b, a))
+    mask.save(path)
+    print("saved", path)

@@ -351,8 +351,22 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     // 机体背光轮廓（阵营染色加法剪影；贴图随 Boss 类型/P2 换帧刷新，故单独维护）
     private static readonly Color RimGlowColor = new(1.0f, 0.32f, 0.48f, 0.30f);
     private Sprite2D? _rimGlow;
+    /// <summary>能量发光层（tscn GlowLayer，ship_energy shader 叠加；遮罩随类型/P2 换帧同步）。</summary>
+    private Sprite2D? _glowLayer;
+    /// <summary>各机型能量 tint（effects.ship_energy.tint_boss_N，懒加载一次；P2 狂暴配色单列）。</summary>
+    private static Color[]? _glowTints;
+    private static readonly Color[] GlowTintDefaults =
+    {
+        new Color(1.0f, 0.67f, 0.20f), // 1 型 琥珀
+        new Color(0.67f, 0.35f, 1.0f), // 2 型 紫罗兰
+        new Color(1.0f, 0.24f, 0.35f), // 3 型 红宝石
+        new Color(0.35f, 0.78f, 1.0f), // 4 型 霜蓝
+    };
+    private static readonly Color GlowTintP2Default = new(1.0f, 0.78f, 0.94f); // 品红→白炽方向
+    private static Color _glowTintP2 = GlowTintP2Default;
     /// <summary>受击闪白手动衰减（_physics_process 逐帧 lerp 回 _base_modulate）。</summary>
     private float _flashTimer;
+    private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private float _flashTotal = 0.1f;
 
     public Boss()
@@ -666,6 +680,72 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // setup() 在 _ready() 之前调用，不能用 @onready 变量
         GetNode<Sprite2D>("Sprite2D").Texture = _bossTextures[pType - 1];
         RefreshRimGlow();
+        UpdateGlowLayer(pType);
+    }
+
+    /// <summary>能量发光层：遮罩随 Boss 类型换帧同步（同资源路径 "_glow.png"），tint 按机型阶段色；
+    /// 纯视觉叠加层，缺节点/缺遮罩静默保持默认。P2 换帧走 EnterP2Visuals。</summary>
+    private void UpdateGlowLayer(int pType)
+    {
+        _glowLayer ??= GetNode<Sprite2D>("Sprite2D").GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName);
+        if (_glowLayer == null)
+        {
+            return;
+        }
+
+        var glowTex = ShipEnergyFx.GlowTextureFor(_bossTextures[pType - 1]);
+        if (glowTex != null)
+        {
+            _glowLayer.Texture = glowTex;
+        }
+
+        _glowTints ??= new[]
+        {
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_boss_1", GlowTintDefaults[0]),
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_boss_2", GlowTintDefaults[1]),
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_boss_3", GlowTintDefaults[2]),
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_boss_4", GlowTintDefaults[3]),
+        };
+        _glowTintP2 = ShipEnergyFx.CfgColor("effects.ship_energy.tint_boss_p2", _glowTintP2);
+        ShipEnergyFx.Apply(
+            _glowLayer,
+            _glowTints[pType - 1],
+            CfgFx.Float("effects.ship_energy.intensity_boss", 0.5f, 0.0f));
+    }
+
+    /// <summary>P2 变身强化（纯视觉，判定零改动）：能量层遮罩换 P2 损伤帧 + tint 切狂暴配色 +
+    /// 强度上调；装甲碎片炸散一圈 + P2 期间低频环绕光环（effects.boss_p2_transform.*）。</summary>
+    private void EnterP2Visuals(int idx)
+    {
+        if (_glowLayer != null)
+        {
+            var glowTex = ShipEnergyFx.GlowTextureFor(_bossP2Textures[idx]);
+            if (glowTex != null)
+            {
+                _glowLayer.Texture = glowTex;
+            }
+
+            ShipEnergyFx.Apply(
+                _glowLayer,
+                _glowTintP2,
+                CfgFx.Float("effects.ship_energy.intensity_boss_p2", 0.85f, 0.0f));
+        }
+
+        var parent = GetParent();
+        if (parent != null)
+        {
+            BossP2Fx.Shatter(parent, GlobalPosition, _ws);
+        }
+
+        var halo = new BossP2Halo();
+        halo.Setup(
+            CfgFx.Int("effects.boss_p2_transform.halo_count", 6, 0, 16),
+            CfgFx.Float("effects.boss_p2_transform.halo_radius", 210.0f, 0.0f) * _ws,
+            CfgFx.Float("effects.boss_p2_transform.halo_speed", 0.5f, 0.0f),
+            CfgFx.Float("effects.boss_p2_transform.halo_size", 26.0f, 1.0f) * _ws,
+            _glowTintP2,
+            CfgFx.Float("effects.boss_p2_transform.halo_alpha", 0.35f, 0.0f, 1.0f));
+        AddChild(halo);
     }
 
     /// <summary>机体背光轮廓：同源贴图副本 + 加性材质 + 深红阵营染色，垫在机体之下做受光剪影。
@@ -1033,6 +1113,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             {
                 GetNode<Sprite2D>("Sprite2D").Texture = _bossP2Textures[idx];
                 RefreshRimGlow();
+                EnterP2Visuals(idx); // 变身强化：能量层切狂暴配色 + 碎片炸散 + 持续光环（纯视觉）
             }
         }
         _patternIndex = 0;
@@ -1267,7 +1348,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     {
         // 游击型受击硬直（闪白）更短（机型参数表驱动）
         _flashTotal = HitFlashByType.TryGetValue(BossType, out var ft) ? ft : 0.1f;
-        FlashFx.Hit(_sprite, ref _flashTimer, _flashTotal); // 受击闪白
+        FlashFx.Hit(_sprite, ref _flashTimer, _flashTotal, ref _flashBaseScale); // 受击闪白 + 缩放回弹
     }
 
     /// <summary>受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）。</summary>
@@ -1278,7 +1359,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             return;
         }
 
-        FlashFx.Update(_sprite, ref _flashTimer, delta, _flashTotal, BaseModulate());
+        FlashFx.Update(_sprite, ref _flashTimer, delta, _flashTotal, BaseModulate(), ref _flashBaseScale);
     }
 
     private Color BaseModulate() => _enraged ? EnrageBlinkColor : Colors.White;

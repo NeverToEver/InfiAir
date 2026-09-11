@@ -32,8 +32,8 @@ public partial class WorldPostFx : CanvasLayer
     private readonly Godot.Collections.Dictionary _last = new();
 
     // cfg 缓存（effects.world_post.*）
-    private float _bloomThreshold = 0.58f;
-    private float _bloomIntensity = 0.60f;
+    private float _bloomThreshold = 0.52f;
+    private float _bloomIntensity = 0.75f;
     private float _bloomRadius = 5.5f;
     private Color _bloomTint = new(1.0f, 0.74f, 0.36f);
     private float _quality = 1.0f;
@@ -41,7 +41,7 @@ public partial class WorldPostFx : CanvasLayer
     private Color _gain = new(1.085f, 1.0f, 0.90f);
     private Color _lift = new(0.014f, 0.010f, 0.006f);
     private float _contrast = 0.18f;
-    private float _vignette = 0.38f;
+    private float _vignette = 0.33f;
     private float _grain = 0.028f;
 
     private readonly Callable _onWorldPostFxChanged;

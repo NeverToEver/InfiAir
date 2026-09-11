@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 统一素材生成入口:依固定顺序重跑 5 个离线生成器,输出与仓库提交资产一致。
+# 统一素材生成入口:依固定顺序重跑 7 个离线生成器,输出与仓库提交资产一致。
 # 用法:scripts/tools/regenerate_all.sh
 # - 生成器输出路径均锚定脚本位置,可在任意 cwd 下运行;
 # - 脚本幂等、可重复执行:贴图生成器为纯确定性绘制(无随机源),
@@ -23,24 +23,36 @@ else
 fi
 echo "==> 使用解释器: $PY"
 
-echo "==> [1/5] 玩家战机 + 受击帧贴图 (generate_player_sprite.py)"
+echo "==> [1/7] 玩家战机 + 受击帧贴图 (generate_player_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_player_sprite.py"
-echo "    产物: assets/sprites/player_ship.png, player_ship_hit_1.png, player_ship_hit_2.png"
+echo "    产物: assets/sprites/player_ship.png, player_ship_hit_1.png, player_ship_hit_2.png,"
+echo "          player_ship_glow.png(能量发光遮罩)"
 
-echo "==> [2/5] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
+echo "==> [2/7] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
 "$PY" "$SCRIPT_DIR/generate_enemy_sprites.py"
 echo "    产物: assets/sprites/enemy_ship_1..4.png, elite_ship_1..3.png,"
 echo "          boss_ship_1..4.png, strike_carrier.png(800x460), elite_turret.png"
+echo "          + 各机 *_glow.png(能量发光遮罩,elite_turret 除外)"
 
-echo "==> [3/5] Boss P2 损伤帧 (generate_boss_p2_frames.py)"
+echo "==> [3/7] Boss P2 损伤帧 (generate_boss_p2_frames.py)"
 "$PY" "$SCRIPT_DIR/generate_boss_p2_frames.py"
 echo "    产物: assets/sprites/boss_ship_1_p2.png .. boss_ship_4_p2.png"
+echo "          + boss_ship_1_p2_glow.png .. boss_ship_4_p2_glow.png(损伤能量遮罩)"
 
-echo "==> [4/5] 母舰贴图 (generate_mothership_sprite.py)"
+echo "==> [4/7] 母舰贴图 (generate_mothership_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_mothership_sprite.py"
-echo "    产物: assets/sprites/mothership.png"
+echo "    产物: assets/sprites/mothership.png, mothership_glow.png(能量发光遮罩)"
 
-echo "==> [5/5] 音效/BGM (generate_audio.py)"
+echo "==> [5/7] 深空背景贴图 (generate_backdrop_sprites.py)"
+"$PY" "$SCRIPT_DIR/generate_backdrop_sprites.py"
+echo "    产物: assets/sprites/backdrop/planet_1.png(900x900), planet_2.png(640x640),"
+echo "          debris_1..3.png"
+
+echo "==> [6/7] 标题 logo (generate_logo.py)"
+"$PY" "$SCRIPT_DIR/generate_logo.py"
+echo "    产物: assets/sprites/ui/logo.png(900x260)"
+
+echo "==> [7/7] 音效/BGM (generate_audio.py)"
 "$PY" "$SCRIPT_DIR/generate_audio.py"
 echo "    产物: assets/audio/explosion.wav, explosion_big.wav, player_hit.wav,"
 echo "          buff_pick.wav, dash.wav, resupply.wav, heartbeat.wav,"

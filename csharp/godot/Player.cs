@@ -510,11 +510,13 @@ public partial class Player : CharacterBody2D
 
         _muzzleOffset = 50.0f * ws;
         // 枪口辉光：常驻软点精灵（64px 软点 → 直径换算 scale），FireInternal 点亮、_Process 逐帧衰减（零分配）
+        // additive 混合喂 world_grade 辉光，开火瞬间形成能量爆点
         _muzzleGlow = new Sprite2D
         {
             Texture = CinematicFx.SoftTexture(),
             Scale = Vector2.One * (30.0f * ws / 64.0f),
             Modulate = new Color(1.0f, 0.85f, 0.5f, 0.0f),
+            Material = CinematicFx.AdditiveMaterial(),
             ZIndex = 1,
         };
         AddChild(_muzzleGlow);
@@ -532,6 +534,12 @@ public partial class Player : CharacterBody2D
             ZIndex = -1,
         };
         _sprite.AddChild(_glow);
+        // 能量发光层（GlowLayer，tscn 挂载于主贴图下）：琥珀 tint 呼应尾焰，强度克制入配置；
+        // 受击帧切换时遮罩不动（遮罩只含能量图元，不含损伤结构）
+        ShipEnergyFx.Apply(
+            _sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName),
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_player", new Color(1.0f, 0.65f, 0.18f)),
+            CfgFx.Float("effects.ship_energy.intensity_player", 0.45f, 0.0f));
         // 碰撞点指示：受击判定点闪烁小光点 + 淡色光圈
         var dotPts = new Vector2[10];
         for (var i = 0; i < 10; i++)
@@ -1659,7 +1667,7 @@ public partial class Player : CharacterBody2D
         }
 
         SetPhysicsProcess(false);
-        Explosion.SpawnAt(GetParent(), Position, 2.0f);
+        Explosion.SpawnAt(GetParent(), Position, 2.0f, true); // 玩家侧残骸：琥珀钢碎片
         // PlayerDied 在 _dead 置位、死亡结算完成后发射：订阅者回调内 IsDead() 恒为 true，无时序陷阱
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
     }

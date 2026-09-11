@@ -4,6 +4,10 @@
 重绘 4 普通机 + 3 精英 + 4 Boss，直接覆盖 assets/sprites/ 同名 PNG
 （画布尺寸与原贴图一致：190/245/410，机头朝上，场景根节点 rotation=PI 翻转）。
 
+另输出能量发光遮罩 *_glow.png（黑底同画布，elite_turret 不导出）：
+从 glow/engine_glow 图元层提取发光像素——R=霓虹走线/航行灯/晶体能量核，
+B=引擎喷口，供 ship_energy.gdshader 运行期叠加（基础贴图生成逻辑零改动）。
+
 精细化层次（在既有设计骨架上叠加，剪影与炮塔基座锚点不变）：
 - 装甲板细分：子面（sub-facet）+ 接缝线 + 铆接点（panel_dot）+ 散热格栅（vent）+ 舱口（greeble）
 - 晶体风：晶簇凸起（crystal）+ 同心环/内切六边/白芯核心（ring_core）+ 棱线高光
@@ -77,7 +81,10 @@ BOSS_CORES = [
 
 
 class Ship:
-    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。"""
+    """分层绘制：body（实体面）+ glow（霓虹线/能量，模糊光晕 + 清晰本体）。
+
+    engine_glow 为引擎喷口图元的独立副本层（engine/engine_particles 同时写入 glow 与本层，
+    glow 合成保持原样——基础贴图逐字节不变），仅供发光遮罩导出 B 通道。"""
 
     def __init__(self, w: int, h: int, accent: tuple, core: tuple,
                  orig_w: int = 0, orig_h: int = 0) -> None:
@@ -90,8 +97,10 @@ class Ship:
         self.accent, self.core = accent, core
         self.body = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+        self.engine_glow = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
         self.bd = ImageDraw.Draw(self.body)
         self.gd = ImageDraw.Draw(self.glow)
+        self.ed = ImageDraw.Draw(self.engine_glow)
 
     def p(self, pts):
         return [(x * self._sx * S, y * self._sy * S) for x, y in pts]
@@ -242,14 +251,17 @@ class Ship:
         self.bd.ellipse(self.p([(cx - rx - 1, cy - ry - 1), (cx + rx + 1, cy + ry + 1)]), fill=HULL_C)
 
     def engine(self, cx, cy, rx, ry, color=None):
+        # 同图元双写 glow/engine_glow（遮罩 B 通道取后者）
         c = (color or self.accent) + (230,)
         self.gd.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=c)
+        self.ed.ellipse(self.p([(cx - rx, cy - ry), (cx + rx, cy + ry)]), fill=c)
         # 内焰白芯
         w = max(rx * 0.42, 1.8)
         self.gd.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 235))
+        self.ed.ellipse(self.p([(cx - w, cy - ry * 0.5), (cx + w, cy + ry * 0.5)]), fill=(255, 255, 255, 235))
 
     def engine_particles(self, cx, cy, n=3, drop=9, spread=5, color=None):
-        """喷口微粒子点（glow 层，确定性排布）。"""
+        """喷口微粒子点（glow + engine_glow 双写，确定性排布）。"""
         c = (color or self.accent) + (200,)
         for i in range(n):
             t = i + 1
@@ -257,6 +269,7 @@ class Ship:
             y = cy + drop * t / n + 2
             r = max(1.2 - 0.2 * i, 0.7)
             self.gd.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
+            self.ed.ellipse(self.p([(x - r, y - r), (x + r, y + r)]), fill=c)
 
     def finish(self, path: str, blur: float = 6.0) -> None:
         halo = self.glow.filter(ImageFilter.GaussianBlur(blur * S * self._ls))
@@ -266,6 +279,11 @@ class Ship:
         out = sprite_polish.polish(out)
         out.save(path)
         print("saved", path)
+
+    def finish_glow(self, path: str, blur: float = 6.0) -> None:
+        """能量发光遮罩导出（黑底 R/B 通道，见 sprite_polish.save_glow_mask）。"""
+        sprite_polish.save_glow_mask(
+            self.glow, self.engine_glow, (self.w, self.h), blur * S * self._ls, path)
 
 
 # ---------------- 普通机（190×190，猩红） ----------------
@@ -913,7 +931,10 @@ def main() -> None:
     ]
     for fn, name, palette in ships:
         _apply_palette(palette)
-        fn().finish(base + name)
+        ship = fn()
+        ship.finish(base + name)
+        if name != "elite_turret.png":  # 炮塔无 GlowLayer 挂载，不导出遮罩
+            ship.finish_glow(base + name.replace(".png", "_glow.png"))
 
 
 if __name__ == "__main__":

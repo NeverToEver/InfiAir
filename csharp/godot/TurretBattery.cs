@@ -54,6 +54,7 @@ public partial class TurretBattery : Area2D, IDamageable
     private bool _ceased;
     /// <summary>受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
+    private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private const float FlashTime = 0.1f;
     /// <summary>击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
@@ -315,7 +316,7 @@ public partial class TurretBattery : Area2D, IDamageable
 
         Hp -= amount;
         _hpBar.Value = Mathf.Clamp(Hp / (float)MaxHp, 0.0f, 1.0f) * 100.0f;
-        FlashFx.Hit(_sprite, ref _flashTimer, FlashTime); // 受击闪白
+        FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale); // 受击闪白 + 缩放回弹
         if (Hp <= 0)
         {
             Die();
@@ -330,7 +331,7 @@ public partial class TurretBattery : Area2D, IDamageable
             return;
         }
 
-        FlashFx.Update(_sprite, ref _flashTimer, delta, FlashTime, Colors.White);
+        FlashFx.Update(_sprite, ref _flashTimer, delta, FlashTime, Colors.White, ref _flashBaseScale);
     }
 
     public void Die()

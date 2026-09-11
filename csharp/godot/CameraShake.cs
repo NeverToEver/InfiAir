@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 屏幕震动：监听
-/// GameState.ScreenShake 信号，随机偏移 + 指数衰减。process_mode 需为 Always
+/// GameState.ScreenShake 信号，随机偏移 + 微旋转（±0.4° 内）+ 指数衰减。process_mode 需为 Always
 /// （场景文件中设置），保证暂停时震动也能衰减结束。
 /// 信号声明 double、监听 float 类型不一致
 /// （PlayerDamaged 已统一为 float，此信号低频无精度压力）——监听侧适配 double。
@@ -14,7 +14,8 @@ public partial class CameraShake : Camera2D
     private readonly Callable _onShake;
     private float _decay = 6.0f;
     private float _strength;
-    private bool _offsetActive; // 偏移非零标记：静止写门，仅在震动→静止过渡帧归零 Offset
+    private float _rotMaxDeg; // 微旋转上限（effects.shake.rotation_deg，钳 ≤0.4°）
+    private bool _offsetActive; // 偏移非零标记：静止写门，仅在震动→静止过渡帧归零 Offset/Rotation
 
     public CameraShake()
     {
@@ -31,6 +32,7 @@ public partial class CameraShake : Camera2D
         }
 
         _decay = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.decay", _decay).AsDouble(), 0.001f); // decay=0 震动永不衰减
+        _rotMaxDeg = Mathf.Clamp((float)GameState.Instance.Cfg("effects.shake.rotation_deg", 0.4).AsDouble(), 0.0f, 0.4f);
     }
 
     public override void _ExitTree()
@@ -48,6 +50,9 @@ public partial class CameraShake : Camera2D
         {
             _offsetActive = true;
             Offset = new Vector2((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0)) * _strength;
+            // 微旋转分量：与强度同比例（24 = 最大震源 boss_seq_final），同速率指数衰减
+            var rotDeg = Mathf.Min(_strength / 24.0f, 1.0f) * _rotMaxDeg;
+            Rotation = Mathf.DegToRad((float)GD.RandRange(-1.0, 1.0) * rotDeg);
             _strength = Mathf.Lerp(_strength, 0.0f, _decay * (float)delta);
         }
         else
@@ -57,6 +62,7 @@ public partial class CameraShake : Camera2D
             {
                 _offsetActive = false;
                 Offset = Vector2.Zero;
+                Rotation = 0.0f;
             }
         }
     }

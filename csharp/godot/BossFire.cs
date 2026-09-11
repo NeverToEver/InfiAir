@@ -20,6 +20,10 @@ public partial class BossFire : RefCounted
     /// <summary>cross 攻击起始角（随波次进动，BossFire 内维护）。</summary>
     private float _crossAngle;
 
+    /// <summary>开火口闪光（敌弹品红同族；懒建常驻复用一盏，高频齐射不增节点）。</summary>
+    private static readonly Color MuzzleColor = new(1.0f, 0.42f, 0.58f, 0.9f);
+    private MuzzleFlash? _flash;
+
     /// <summary>面向玩家的方向（player 为空回退 Vector2.DOWN）。</summary>
     public static Vector2 PlayerDir(Node2D from)
     {
@@ -49,6 +53,8 @@ public partial class BossFire : RefCounted
 
             b.Position = boss.Position + dir * MuzzleOffset;
         }
+
+        FlashMuzzle(boss, baseDir * MuzzleOffset);
     }
 
     public void FireHoming(Node2D boss, Vector2 pOffset, float speed, int damage)
@@ -66,6 +72,7 @@ public partial class BossFire : RefCounted
         }
 
         b.Position = boss.Position + pOffset * WorldScale;
+        FlashMuzzle(boss, pOffset * WorldScale);
     }
 
     /// <summary>狙击弹：p_dir 为零向量时自机狙（保留旧语义），否则沿 telegraph 锁定方向。</summary>
@@ -79,6 +86,7 @@ public partial class BossFire : RefCounted
         }
 
         b.Position = boss.Position + dir * MuzzleOffset;
+        FlashMuzzle(boss, dir * MuzzleOffset);
     }
 
     public void FireCross(Node2D boss, float speed, int damage)
@@ -96,6 +104,7 @@ public partial class BossFire : RefCounted
         }
 
         _crossAngle += Mathf.DegToRad(15.0f);
+        FlashMuzzle(boss, Vector2.Zero); // 四向齐射：闪光置机体中心
     }
 
     /// <summary>重弹（蓄力重炮/狂暴齐射/猎杀狙击共用）：高亮加粗外观。</summary>
@@ -108,6 +117,7 @@ public partial class BossFire : RefCounted
         }
 
         b.Position = boss.Position + pDir * MuzzleOffset;
+        FlashMuzzle(boss, pDir * MuzzleOffset);
         var poly = b.SpriteNode(); // 缓存引用，不再每次 get_node（Bullet 为 C# 类）
         if (poly != null)
         {
@@ -132,6 +142,8 @@ public partial class BossFire : RefCounted
             b.Position = boss.Position + dir * MuzzleOffset;
             b.SetMeta("bullet_type", new StringName("enrage_ring"));
         }
+
+        FlashMuzzle(boss, Vector2.Zero); // 全向环弹：闪光置机体中心
     }
 
     /// <summary>快照激光 + 环形慢弹（狂暴进入一次性齐射 / RELEASE 回退路径共用）。</summary>
@@ -175,6 +187,8 @@ public partial class BossFire : RefCounted
             b.Position = boss.Position + dir * MuzzleOffset;
             b.SetMeta("bullet_type", new StringName("enrage_ring"));
         }
+
+        FlashMuzzle(boss, aim * MuzzleOffset); // 快照激光阀：闪光朝自机方位
     }
 
     /// <summary>弹幕墙（三型）：arc_deg 度扇形 count 槽位，留 2 个相邻缺口；
@@ -234,9 +248,23 @@ public partial class BossFire : RefCounted
 
             b.Position = boss.Position + dir * MuzzleOffset;
         }
+
+        FlashMuzzle(boss, Vector2.Zero); // 弹幕墙多槽位：闪光置机体中心
     }
 
     // ---------------- 内部实现 ----------------
+
+    /// <summary>开火口闪光：一阀一次（扇形/环弹多方向也只有一盏，视觉噪声可控；
+    /// 与玩家枪口辉光同口径）。挂 boss 节点下用局部坐标。</summary>
+    private void FlashMuzzle(Node2D boss, Vector2 localPos)
+    {
+        if (_flash == null || !GodotObject.IsInstanceValid(_flash))
+        {
+            _flash = MuzzleFlash.Attach(boss);
+        }
+
+        _flash.Flash(localPos, MuzzleColor);
+    }
 
     /// <summary>普通敌弹发射（4 参路径）：同屏硬上限时返回 null（调用方判空跳过）。</summary>
     private static Bullet? SpawnBullet(Vector2 dir, float speed, int damage)

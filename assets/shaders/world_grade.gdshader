@@ -18,8 +18,8 @@ uniform float u_time = 0.0;
 uniform vec2  u_texel = vec2(0.0005208, 0.0009259); // 1/1920, 1/1080（运行期由 texel uniform 覆盖）
 
 // 辉光
-uniform float u_bloom_threshold = 0.58;   // 亮部阈值（低于此不参与泛光）
-uniform float u_bloom_intensity = 0.60;   // 泛光强度
+uniform float u_bloom_threshold = 0.52;   // 亮部阈值（低于此不参与泛光）
+uniform float u_bloom_intensity = 0.75;   // 泛光强度
 uniform float u_bloom_radius = 5.5;       // 环采样半径（像素）
 uniform vec3  u_bloom_tint = vec3(1.0, 0.74, 0.36); // 泛光暖调（战术琥珀）
 uniform float u_quality = 1.0;            // >0.5 = 双环 8 tap，否则单环 4 tap
@@ -31,7 +31,7 @@ uniform vec3  u_lift = vec3(0.014, 0.010, 0.006);
 uniform float u_contrast = 0.18;
 
 // 晕影 / 颗粒
-uniform float u_vignette = 0.38;
+uniform float u_vignette = 0.33;
 uniform float u_grain = 0.028;
 
 vec3 bright(vec2 uv) {

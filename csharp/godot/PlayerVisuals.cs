@@ -45,6 +45,25 @@ public class PlayerVisuals
     private int _afterimageIdx;
     private readonly System.Collections.Generic.List<Sprite2D> _activeAfterimages = new();
 
+    // ---- 核心喷口三层软点（白芯/琥珀/红外，additive；叠加在 GpuParticles 尾焰之上） ----
+    private Sprite2D? _flareCore;
+    private Sprite2D? _flareMid;
+    private Sprite2D? _flareOuter;
+    // 数值 effects.thruster_core.*（Init 一次性读入，尺寸已乘全局缩放）
+    private float _flareCoreSize = 12.0f;
+    private float _flareMidSize = 24.0f;
+    private float _flareOuterSize = 38.0f;
+    private float _flareMidY = 6.0f;
+    private float _flareOuterY = 14.0f;
+    private float _flareSpeedStretch = 0.4f;
+    private float _flareJitterPx = 1.5f;
+    private float _flareAlphaCore = 0.85f;
+    private float _flareAlphaMid = 0.5f;
+    private float _flareAlphaOuter = 0.28f;
+    private static readonly Color FlareCoreColor = new(1.0f, 0.96f, 0.88f); // 白芯
+    private static readonly Color FlareMidColor = new(1.0f, 0.62f, 0.16f);   // 琥珀
+    private static readonly Color FlareOuterColor = new(0.85f, 0.22f, 0.05f); // 红外
+
     /// <summary>
     /// 初始化：接收节点引用 + 预建残影池。world_root = Main（残影固定世界坐标，不随玩家移动；
     /// Main 场景构建期 add_child 会报 "busy setting up children"，延迟到帧末执行）。
@@ -73,6 +92,41 @@ public class PlayerVisuals
             worldRoot.CallDeferred(Node.MethodName.AddChild, ghost);
             _afterimagePool.Add(ghost);
         }
+
+        BuildThrusterFlare();
+    }
+
+    /// <summary>核心喷口三层软点（白芯/琥珀/红外，additive）：作为喷口根部的持续亮核，
+    /// 叠加在 GpuParticles 尾焰之上；挂在 Thruster 节点下随其位置/缩放。数值 effects.thruster_core.*。</summary>
+    private void BuildThrusterFlare()
+    {
+        var ws = (float)GameState.Instance.WorldScale;
+        _flareCoreSize = CfgFx.Float("effects.thruster_core.core_size", _flareCoreSize, 1.0f) * ws;
+        _flareMidSize = CfgFx.Float("effects.thruster_core.mid_size", _flareMidSize, 1.0f) * ws;
+        _flareOuterSize = CfgFx.Float("effects.thruster_core.outer_size", _flareOuterSize, 1.0f) * ws;
+        _flareMidY = 6.0f * ws;
+        _flareOuterY = 14.0f * ws;
+        _flareSpeedStretch = CfgFx.Float("effects.thruster_core.speed_stretch", _flareSpeedStretch, 0.0f);
+        _flareJitterPx = CfgFx.Float("effects.thruster_core.jitter_px", _flareJitterPx, 0.0f) * ws;
+        _flareAlphaCore = CfgFx.Float("effects.thruster_core.alpha_core", _flareAlphaCore, 0.0f, 1.0f);
+        _flareAlphaMid = CfgFx.Float("effects.thruster_core.alpha_mid", _flareAlphaMid, 0.0f, 1.0f);
+        _flareAlphaOuter = CfgFx.Float("effects.thruster_core.alpha_outer", _flareAlphaOuter, 0.0f, 1.0f);
+        _flareCore = MakeFlareLayer(0.0f);
+        _flareMid = MakeFlareLayer(_flareMidY);
+        _flareOuter = MakeFlareLayer(_flareOuterY);
+    }
+
+    private Sprite2D MakeFlareLayer(float yOff)
+    {
+        var s = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f), // 初始灭，SetThruster 逐帧点亮
+            Material = CinematicFx.AdditiveMaterial(),
+            Position = new Vector2(0.0f, yOff),
+        };
+        _thruster.AddChild(s);
+        return s;
     }
 
     /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 Player 传入——增幅 外观
@@ -82,6 +136,40 @@ public class PlayerVisuals
         _thruster.SpeedScale = speedScale;
         _thruster.AmountRatio = amountRatio;
         _thruster.SelfModulate = new Color(1.0f, 1.0f, 1.0f, alpha) * engineTint;
+        UpdateThrusterFlare(speedScale, alpha, engineTint);
+    }
+
+    /// <summary>核心喷口三层逐帧驱动（SetThruster 逐帧调用）：随速度 Y 向伸缩（外层拉伸更大）+
+    /// 双正交高频小幅抖动；alpha 随尾焰档位，增幅 染色经 engineTint 只染琥珀/红外两层（白芯保白）。
+    /// 只写 struct 属性，零托管分配。</summary>
+    private void UpdateThrusterFlare(float speedScale, float alpha, Color engineTint)
+    {
+        if (_flareCore == null || _flareMid == null || _flareOuter == null)
+        {
+            return;
+        }
+
+        var t = Time.GetTicksMsec() / 1000.0f;
+        var stretch = 1.0f + _flareSpeedStretch * Mathf.Max(speedScale - 1.0f, 0.0f);
+        var jx = Mathf.Sin(t * 43.0f) * _flareJitterPx;
+        var jy = Mathf.Cos(t * 37.0f) * _flareJitterPx;
+        ApplyFlare(_flareCore, _flareCoreSize, _flareAlphaCore * alpha, stretch, jx, 0.0f + jy * 0.4f, FlareCoreColor);
+        ApplyFlare(_flareMid, _flareMidSize, _flareAlphaMid * alpha, stretch * 1.15f, jx * 0.7f, _flareMidY + jy * 0.7f, FlareMidColor);
+        ApplyFlare(_flareOuter, _flareOuterSize, _flareAlphaOuter * alpha, stretch * 1.35f, jx * 0.5f, _flareOuterY + jy, FlareOuterColor);
+        // 琥珀/红外两层乘增幅 染色（白芯不染）
+        _flareMid.Modulate = new Color(
+            _flareMid.Modulate.R * engineTint.R, _flareMid.Modulate.G * engineTint.G,
+            _flareMid.Modulate.B * engineTint.B, _flareMid.Modulate.A);
+        _flareOuter.Modulate = new Color(
+            _flareOuter.Modulate.R * engineTint.R, _flareOuter.Modulate.G * engineTint.G,
+            _flareOuter.Modulate.B * engineTint.B, _flareOuter.Modulate.A);
+    }
+
+    private static void ApplyFlare(Sprite2D flare, float size, float a, float stretchY, float x, float y, Color color)
+    {
+        flare.Scale = new Vector2(size / CinematicFx.SoftTexSize, size / CinematicFx.SoftTexSize * stretchY);
+        flare.Modulate = new Color(color.R, color.G, color.B, a);
+        flare.Position = new Vector2(x, y);
     }
 
     /// <summary>残影生成（player_dash 冲刺时经 player.spawn_afterimage 转发）：复用池节点；

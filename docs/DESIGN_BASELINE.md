@@ -194,4 +194,15 @@ GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕
 - **应用时机**：`GameState._Ready` → `LoadSettings()` 后显式调用 `ApplyDisplaySettings()`（无设置文件时 load 不应用，故补默认档）；设置页切换即时生效 + 落盘 + 广播 `DisplaySettingsChanged`。档位非白名单值忽略、保持默认。
 
 ---
+### 2.7 战场纵深与材质表现（2026-09-11 追加）
+针对「战斗画面大面积死黑、特效词汇单一、机体无材质感」的第二轮美术升级，仍为纯表现层、**玩法判定零改动**：
+
+- **纵深背景**（`DeepSpaceBackdrop.cs`，z=-5 介于星空与实体之间）：远景行星/残月、中层空间站残骸带、近景高速尘埃三层视差，贴图走确定性 PIL 管线（`generate_backdrop_sprites.py`）；星云改暖琥珀 + 冷青双通道并提密度，星点分档加密——深空基调不变，只是不再死黑。
+- **材质级能量层**：机体首次引入材质 shader（`ship_energy.gdshader`）——生成器额外导出 `*_glow.png` 发光遮罩（R=霓虹走线 / B=引擎喷口，基础贴图逐字节不变），运行时 additive 叠加，走线流动 + 喷口呼吸 + 阵营染色；玩家尾焰叠白芯/琥珀/红外三层喷口。
+- **打击感**：爆炸四件套（白炽核心闪帧 / 装甲碎片多边形 / 烟尾 / 双层冲击环）+ Boss 多段错拍；受击白闪叠加缩放回弹；相机微旋转分量。
+- **弹体能量化**：弹体图集加宽出弹尾渐变拖尾 + 双层辉光，玩家弹呼吸脉冲（相位错开），敌弹只提亮不脉冲（可读性优先）；开火口闪光、激光三线结构（白芯/主线/外辉光）。
+- **Boss P2 变身**：切换瞬间装甲碎片炸散 + 能量层切狂暴配色（品红→白炽）+ 持续光环粒子；贴图沿用 `_p2` 帧不重绘。
+- **标题品牌化**：`generate_logo.py` 确定性生成字标 + 切角徽章（呼应 ChamferedPanel 与机体剪影），文字 Label 退役。
+- 数值全部落 `data/balance.json` effects 段（`backdrop` / `explosion` / `ship_energy` / `thruster_core` / `boss_p2_transform` 等）；world_grade 辉光阈值/强度随新亮点上调。
+
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*

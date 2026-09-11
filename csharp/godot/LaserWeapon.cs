@@ -5,7 +5,8 @@ namespace InfiAir;
 /// <summary>
 /// 激光束武器（对齐原作 LaserAugmentId + LASER_DURATION=180 帧）：挂载于 Player 节点下，GameState.AugmentLevel(&amp;"laser_beam")
 /// &gt; 0 时启用。就绪即自动触发：3s 持续光束替换普通子弹（关闭玩家开火门），光束为
-/// 穿透性直线，线上敌机每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
+/// 穿透性直线（视觉为白芯细线 + 琥珀主线 + 外辉光三线结构 + 命中端溅射软点），
+/// 线上敌机每 0.1s 结算 16 伤害；结束后进入 8s 冷却再次触发。
 /// 语义保持：增幅 层数经 AugmentsChanged 信号缓存（避免每物理帧字典/信号查询）；
 /// 预分配 points 数组帧内原地写；增幅 归零时收束激活态光束。
 /// SFX 资源在 _Ready 惰性加载（GD.Load 命中引擎资源缓存）。
@@ -39,8 +40,12 @@ public partial class LaserWeapon : Node2D
 
     /// <summary>父节点（player.tscn 中 LaserWeapon 挂 Player 下；场景结构保证非空）。</summary>
     private Player? _player; // 可空（节点脱离 Player 挂载时判空早退，不用 null! 压制）
-    private Line2D _beam = null!;
+    private Line2D _beamGlow = null!; // 外层宽淡辉光线（最底）
+    private Line2D _beam = null!; // 琥珀主线
+    private Line2D _beamCore = null!; // 内白芯细线（最顶）
     private GpuParticles2D _glow = null!;
+    private Sprite2D _endGlow = null!; // 命中端溅射软点
+    private float _beamPulse; // 命中端软点脉动相位
 
     public LaserWeapon()
     {
@@ -64,7 +69,20 @@ public partial class LaserWeapon : Node2D
         BeamHalfWidth = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.half_width", BeamHalfWidth).AsDouble(), 0.1f);
         EnemyHitRadius = Mathf.Max((float)GameState.Instance.Cfg("augments.laser_beam.hit_radius", EnemyHitRadius).AsDouble(), 0.1f)
             * (float)GameState.Instance.WorldScale;
-        // 光束与末端光晕用 top_level 全局坐标，避免随机身旋转
+        // 光束三线结构与末端光晕用 top_level 全局坐标，避免随机身旋转；
+        // 叠层自底向上：宽淡辉光 → 琥珀主线 → 白芯细线
+        _beamGlow = new Line2D
+        {
+            TopLevel = true,
+            Width = 34.0f,
+            DefaultColor = new Color(1.0f, 0.68f, 0.28f, 0.22f),
+            BeginCapMode = Line2D.LineCapMode.Round,
+            EndCapMode = Line2D.LineCapMode.Round,
+            Visible = false,
+            Material = CinematicFx.AdditiveMaterial(),
+        };
+        _beamGlow.Points = new Vector2[] { Vector2.Zero, Vector2.Zero };  // 预分配，帧内只写元素
+        AddChild(_beamGlow);
         _beam = new Line2D
         {
             TopLevel = true,
@@ -73,9 +91,22 @@ public partial class LaserWeapon : Node2D
             BeginCapMode = Line2D.LineCapMode.Round,
             EndCapMode = Line2D.LineCapMode.Round,
             Visible = false,
+            Material = CinematicFx.AdditiveMaterial(),
         };
         _beam.Points = new Vector2[] { Vector2.Zero, Vector2.Zero };  // 预分配，帧内只写元素
         AddChild(_beam);
+        _beamCore = new Line2D
+        {
+            TopLevel = true,
+            Width = 4.5f,
+            DefaultColor = new Color(1.0f, 0.97f, 0.88f, 0.95f),
+            BeginCapMode = Line2D.LineCapMode.Round,
+            EndCapMode = Line2D.LineCapMode.Round,
+            Visible = false,
+            Material = CinematicFx.AdditiveMaterial(),
+        };
+        _beamCore.Points = new Vector2[] { Vector2.Zero, Vector2.Zero };  // 预分配，帧内只写元素
+        AddChild(_beamCore);
         _glow = new GpuParticles2D
         {
             TopLevel = true,
@@ -96,6 +127,11 @@ public partial class LaserWeapon : Node2D
         };
         _glow.ProcessMaterial = mat;
         AddChild(_glow);
+        // 命中端溅射软点：additive 白琥珀亮点，激活期贴光束末端，微脉动（能量汇聚感）
+        _endGlow = CinematicFx.SoftGlow(20.0f, new Color(1.0f, 0.88f, 0.6f, 0.85f));
+        _endGlow.TopLevel = true;
+        _endGlow.Visible = false;
+        AddChild(_endGlow);
         // augments_changed 缓存：laser_beam 层数（Enemy.cs 同款；避免每物理帧跨语言 augment_level；
         // AugmentBoolCache：Connect 内部判 null，初始 Refresh 即首调）
         _laserBeamCache.Connect(GameState.Instance);
@@ -142,9 +178,17 @@ public partial class LaserWeapon : Node2D
             var start = _player.GlobalPosition;
             var end = start + AimDir() * BeamLength;
             // 预分配数组经 set_point_position 原地写（points[i]= 值语义副本不生效）
+            _beamGlow.SetPointPosition(0, start);
+            _beamGlow.SetPointPosition(1, end);
             _beam.SetPointPosition(0, start);
             _beam.SetPointPosition(1, end);
+            _beamCore.SetPointPosition(0, start);
+            _beamCore.SetPointPosition(1, end);
             _glow.Position = end;
+            // 命中端溅射软点：贴末端 + 微脉动（±12%）
+            _beamPulse += d;
+            _endGlow.Position = end;
+            _endGlow.Scale = Vector2.One * (20.0f / (CinematicFx.SoftTexSize * 0.5f) * (1.0f + 0.12f * Mathf.Sin(_beamPulse * 28.0f)));
             if (_tickTimer <= 0.0f)
             {
                 _tickTimer += TickInterval;
@@ -191,7 +235,10 @@ public partial class LaserWeapon : Node2D
         _active = true;
         _activeTime = BeamDuration;
         _tickTimer = 0.0f;
+        _beamGlow.Visible = true;
         _beam.Visible = true;
+        _beamCore.Visible = true;
+        _endGlow.Visible = true;
         _glow.Emitting = true;
         _player!.SetFireGate(false);
         GameState.Instance.PlaySfx(SfxId.FireC);
@@ -200,7 +247,10 @@ public partial class LaserWeapon : Node2D
     private void EndBeam()
     {
         _active = false;
+        _beamGlow.Visible = false;
         _beam.Visible = false;
+        _beamCore.Visible = false;
+        _endGlow.Visible = false;
         _glow.Emitting = false;
         _cooldown = CooldownDuration;
         if (GodotObject.IsInstanceValid(_player))
