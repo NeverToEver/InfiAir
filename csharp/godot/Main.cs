@@ -85,6 +85,8 @@ public partial class Main : Node2D
     private EliteTurretEvent _event = null!;
     /// <summary>轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）</summary>
     private FormationStrikeEvent _formation = null!;
+    /// <summary>遭遇 id → 实例（仅 --event-probe 用；生产路径不读）。</summary>
+    private readonly System.Collections.Generic.Dictionary<StringName, IEncounterEvent> _encounterForProbe = new();
     /// <summary>Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）</summary>
     private MetaHealthFX _metaFx = null!;
     /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
@@ -148,6 +150,9 @@ public partial class Main : Node2D
         _events.SetSpawner(_spawner);
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
+        // 事件 id → 实例（--event-probe 用；管理器侧的事件查找口是内部实现，不作公开面）
+        _encounterForProbe[new StringName("elite_turret")] = _event;
+        _encounterForProbe[new StringName("formation_strike")] = _formation;
         _events.SetRunActive(GetTree().CurrentScene == this);
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
@@ -206,12 +211,23 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 设置页冒烟开关（仅显式传 --settings-probe 时）：无头门禁看不到设置页，
-        // 开页后才构建的五个分组一旦写错就是「玩家点开即崩」——此开关让冒烟把五个分组都建一遍。
-        // 延后到帧末：此刻同场景的 SettingsUi 尚未就绪入组（GetFirstNodeInGroup 会取空）。
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--settings-probe") >= 0)
+        // 门禁用冒烟开关（仅显式传参时生效）：
+        //   --settings-probe 开设置页并逐页切过（设置项在开页时才构建，300 帧基线碰不到）
+        //   --event-probe=<id> 强制触发一次遭遇事件（遭遇要过分数门槛与掷签，无头跑不到）
+        var userArgs = OS.GetCmdlineUserArgs();
+        if (System.Array.IndexOf(userArgs, "--settings-probe") >= 0)
         {
+            // 延后到帧末：此刻同场景的 SettingsUi 尚未就绪入组（GetFirstNodeInGroup 会取空）。
             CallDeferred(MethodName.OpenSettingsForProbe);
+        }
+
+        foreach (var arg in userArgs)
+        {
+            if (arg.StartsWith("--event-probe=", System.StringComparison.Ordinal))
+            {
+                var id = arg["--event-probe=".Length..];
+                CallDeferred(MethodName.StartEventForProbe, id);
+            }
         }
         // 开机流程：正常启动首次进入 → 播开场过场（或按设置跳过）→
         // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
@@ -295,7 +311,8 @@ public partial class Main : Node2D
     /// 只用于门禁的无头开页验证——五个分组的内容都在 ShowSettings 之后才构建，
     /// 平时的 300 帧冒烟碰不到它们（玩家点开即崩的写法在这里暴露）。</summary>
     private void OpenSettingsForProbe()
-    {        var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
+    {
+        var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
         if (settings == null)
         {
             return;
@@ -305,6 +322,17 @@ public partial class Main : Node2D
         foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
         {
             settings.ShowPage(new StringName(page));
+        }
+    }
+
+    /// <summary>遭遇事件冒烟（--event-probe=&lt;id&gt;）：强制触发一次指定遭遇。
+    /// 遭遇要过分数门槛 + 掷签，无头 300 帧跑不到，而这类事件的编排/投弹/清场逻辑
+    /// 正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。</summary>
+    private void StartEventForProbe(string id)
+    {
+        if (_encounterForProbe.TryGetValue(new StringName(id), out var ev) && !ev.IsActive())
+        {
+            ev.Start();
         }
     }
 

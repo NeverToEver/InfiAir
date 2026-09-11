@@ -40,7 +40,7 @@ STEPS = (
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "主场景 300 帧 + 设置页开页", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "冒烟三趟（主场景/设置页/编队事件）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
 
 

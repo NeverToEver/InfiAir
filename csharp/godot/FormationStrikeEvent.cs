@@ -4,12 +4,17 @@ namespace InfiAir;
 
 /// <summary>
 /// 轰炸编队事件编排：最低优先级随机遭遇——
-/// IDLE → FORMATION_ENTER（自屏顶外靠近）→ FORMATION_TURN（90° 转航向）
-/// → BOMBING_RUN（横穿交错投弹）→ FORMATION_EXIT（加速离场）→ IDLE（冷却）。
+/// IDLE → FORMATION_ENTER（自屏顶外靠近）→ FORMATION_TURN（90° 转航向，全程压坡）
+/// → BOMBING_RUN（横穿、按波次交错投弹）→ FORMATION_EXIT（加速离场）→ IDLE（冷却）。
 /// 不冻结 Boss 调度；占用波次槽——运行期间暂停普通波次
 /// （Start() 置 spawner 波次暂停，与精英炮塔事件互斥，见设计文档 §1/§2）；
-/// 可被返航 Abort() 打断（无结算，冷却照计）。编队锚点运动与战机偏移/朝向由本节点
-/// _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。动态实体（战机/炸弹）一律挂 Main 下。
+/// 可被返航 Abort() 打断（编队与在场炸弹一并清除，无结算，冷却照计）。编队锚点运动与战机
+/// 偏移/朝向/侧倾由本节点 _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。
+/// 动态实体（战机/炸弹）一律挂 Main 下。
+/// 结算三分支（决定这场遭遇的收益上限）：
+///   全数拦截 = 一架未坠 + 一枚未投 → reward_intercept + 逐枚拦截奖（最难）；
+///   全歼 = 打光编队（含已投弹）→ reward_all_clear；
+///   放它离场 → 只有击坠得分。
 /// CommOverlay（C# 同程序集 typed）；FormationCraft/FormationBomb 为 C# typed 直调。
 /// 公共骨架（spawner 注入/母舰缓存/冷却/ResumeWaves 等）在 EncounterEventBase
 /// （与 EliteTurretEvent 共享）。
@@ -55,13 +60,28 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public float BombFuse { get; set; } = 1.2f;
     public int BombDamage { get; set; } = 20;
     public float BombRadius { get; set; } = 120.0f;
+    public float BombEdgeFalloff { get; set; } = 0.35f;
+    public int BombHp { get; set; } = 8;
+    public int BombScore { get; set; } = 50;
+    public int BombReflectDamage { get; set; } = 45;
+    /// <summary>投弹波次数（每机每波投一枚）：1 = 单次齐投（无波次感），≥2 = 拉成多波轰炸。</summary>
+    public int VolleyBatches { get; set; } = 2;
+    /// <summary>相邻两波之间的间隔（秒）——波次间隔是「威胁有节奏」的来源。</summary>
+    public float VolleyGap { get; set; } = 1.35f;
     public int RewardAllClear { get; set; } = 200;
+    /// <summary>全歼奖励：一架未坠、一枚未投就把编队打光（比全歼更难）。</summary>
+    public int RewardIntercept { get; set; } = 400;
+    /// <summary>每枚被空中击落/弹反的炸弹额外奖励（拦住威胁本身的回报）。</summary>
+    public int RewardPerIntercept { get; set; } = 25;
 
     /// <summary>水平出界判定的基础余量（px）：叠加在投弹动态余量上，投弹表为空时兜底。</summary>
     private const float RunOutMarginBase = 120.0f;
 
     private State _state = State.IDLE;
     protected override bool IsIdle => _state == State.IDLE;
+
+    /// <summary>本事件的通讯强调色（琥珀：与精英炮塔的品红区分，也让台词框与编队身份色一致）。</summary>
+    protected override Color CommAccent => UITheme.AccentGold;
 
     private float _stateTime;
     private Vector2 _anchor;
@@ -77,6 +97,20 @@ public partial class FormationStrikeEvent : EncounterEventBase
     private int _dropIndex;
     /// <summary>已投弹计数（DroppedCount() 对外观测）。</summary>
     private int _dropped;
+
+    /// <summary>未被引信引爆就消失的弹数（空中被击落 / 被弹反）——拦截计数的唯一来源。</summary>
+    private int _intercepted;
+    /// <summary>本次事件已发放过拦截奖励（防 Finish/Abort 双路径重发）。</summary>
+    private bool _interceptAwarded;
+    /// <summary>侧倾量（0..1，转弯与离场期写入，压坡用）。</summary>
+    private float _bank;
+    /// <summary>在场炸弹（事件结束/打断时随编队一并清理，与 FreeCrafts 同口径）。</summary>
+    private readonly Godot.Collections.Array<FormationBomb> _bombs = new();
+
+    /// <summary>入场警告后补播战术提示的倒计时（&lt;=0 已播/已取消）。</summary>
+    private float _intelLeft;
+    /// <summary>战术提示延迟（警告台词 3.5s 播完后再补一条，不叠字）。</summary>
+    private const float IntelDelay = 4.0f;
 
     public override void _Ready()
     {
@@ -118,13 +152,29 @@ public partial class FormationStrikeEvent : EncounterEventBase
         BombFuse = CfgFx.Float("formation_strike_event.bomb_fuse", BombFuse, CfgFx.IntervalFloor);
         BombDamage = CfgFx.Int("formation_strike_event.bomb_damage", BombDamage, 0);
         BombRadius = CfgFx.Float("formation_strike_event.bomb_radius", BombRadius, 0.1f);
+        // 边缘衰减倍率钳 [0,1]——>1 会让边缘比中心更疼（反直觉），负值回血
+        BombEdgeFalloff = CfgFx.Float("formation_strike_event.bomb_edge_falloff", BombEdgeFalloff, 0.0f, 1.0f);
+        // 炸弹可击落：hp ≥1（0 会让任何擦伤立即引爆，拦截分白送）
+        BombHp = CfgFx.Int("formation_strike_event.bomb_hp", BombHp, 1);
+        BombScore = CfgFx.Int("formation_strike_event.bomb_score", BombScore, 0);
+        BombReflectDamage = CfgFx.Int("formation_strike_event.bomb_reflect_damage", BombReflectDamage, 0);
+        // 波次数钳 [1,10]——0 会空跑（占波次槽不投弹），巨值把轰炸拉成永不停歇的弹幕
+        VolleyBatches = CfgFx.Int("formation_strike_event.volley_batches", VolleyBatches, 1, 10);
+        VolleyGap = CfgFx.Float("formation_strike_event.volley_gap", VolleyGap, CfgFx.IntervalFloor);
         RewardAllClear = CfgFx.Int("formation_strike_event.reward_all_clear", RewardAllClear, 0);
+        RewardIntercept = CfgFx.Int("formation_strike_event.reward_intercept", RewardIntercept, 0);
+        RewardPerIntercept = CfgFx.Int("formation_strike_event.reward_per_intercept", RewardPerIntercept, 0);
         base._Ready(); // 台词层创建 + spawner 兜底（公共骨架，见 EncounterEventBase）
     }
 
+    /// <summary>编队存活数（HUD/诊断读）。</summary>
     public int AliveCount() => _alive;
 
+    /// <summary>已投出弹数（含被拦截的；DroppedCount 对外观测）。</summary>
     public int DroppedCount() => _dropped;
+
+    /// <summary>被空中拦截/弹反的弹数（威胁被玩家拆掉的计数）。</summary>
+    public int InterceptedCount() => _intercepted;
 
     /// <summary>触发条件（最低优先级）：自身 IDLE 且冷却结束、分数达标、Boss 未激活、精英炮塔事件未激活。
     /// 掷签间隔/概率由 spawner 侧持有（elite 事件在本事件之前检查，本 tick 先启动则 is_active 拦截）。</summary>
@@ -167,6 +217,11 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _heading = Mathf.Pi / 2.0f;
         _speed = ApproachSpeed;
         _dropped = 0;
+        _intercepted = 0;
+        _interceptAwarded = false;
+        _bank = 0.0f;
+        _intelLeft = 0.0f;
+        FreeBombs();
         // 占用波次槽：事件期间暂停普通波次（结束/打断时恢复；typed 直调）
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
@@ -216,9 +271,26 @@ public partial class FormationStrikeEvent : EncounterEventBase
 
         _alive = count;
         _comm?.ShowLine("FBQ_WARN");
+        _intelLeft = IntelDelay;
     }
 
-    /// <summary>返航打断：编队立即解散离场，无结算，冷却照计（已投放的炸弹自然存续）。</summary>
+    /// <summary>入场提示后补一条战术提示（只播一次）：告诉玩家这一场可以打、可以拦、可以弹反。
+    /// 事件结束/打断即取消（残留提示会指向已不存在的编队）。</summary>
+    private void TickIntelHint(float delta)
+    {
+        if (_intelLeft <= 0.0f || _comm == null)
+        {
+            return;
+        }
+
+        _intelLeft -= delta;
+        if (_intelLeft <= 0.0f)
+        {
+            _comm.ShowLine("FBQ_INTEL");
+        }
+    }
+
+    /// <summary>返航打断：编队与在场炸弹一并清除，无结算（拦截奖不发），冷却照计。</summary>
     public override void Abort()
     {
         if (_state == State.IDLE)
@@ -227,8 +299,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         FreeCrafts();
+        FreeBombs();
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
+        _intelLeft = 0.0f; // 战术提示随事件取消（提示已不存在的编队等于误导）
         ResumeWaves();
         _comm?.Clear(); // 清掉已显警告台词，避免返航恢复后残留
     }
@@ -243,6 +317,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         _stateTime += d;
+        TickIntelHint(d);
         switch (_state)
         {
             case State.FORMATION_ENTER:
@@ -259,6 +334,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
                     _heading = Mathf.LerpAngle(Mathf.Pi / 2.0f, _turnTarget, t);
                     _speed = Mathf.Lerp(ApproachSpeed, RunSpeed, t);
                     _anchor += Vector2.Right.Rotated(_heading) * _speed * d;
+                    // 压坡：转弯中段最深（sin 峰），进出两端归零——俯视视角下的「质量感」
+                    _bank = Enemy.SinFast(Mathf.Pi * t);
+                    ApplyBank();
                     if (t >= 1.0f)
                     {
                         BeginRun();
@@ -271,9 +349,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 {
                     _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
                     ProcessDrops();
+                    PruneBombs();
                     var view = FrameCache.ViewRect();
                     // 出界余量按投弹表剩余最大时长折算：固定 ±120 会在 hard 5 机
-                    // 投弹段（最长 3.6s）未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
+                    // 投弹段（未完时截断末机炸弹，最坏第 5 机 0 投弹；余量动态 = 末弹时刻 × 速度
                     var runMargin = _dropTimes.Count > 0 ? _dropTimes[_dropTimes.Count - 1] * RunSpeed : 0.0f;
                     if (_dropIndex >= _dropTimes.Count
                         || _anchor.X < view.Position.X - runMargin - RunOutMarginBase
@@ -288,6 +367,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
             case State.FORMATION_EXIT:
                 _exitSpeed += 420.0f * d;
                 _anchor += Vector2.Right.Rotated(_heading) * _exitSpeed * d;
+                // 离场压坡收正（提速爬升的姿态）
+                _bank = Mathf.Lerp(_bank, 0.0f, Mathf.Min(1.0f, d * 3.0f));
+                ApplyBank();
                 if (_stateTime >= ExitTime)
                 {
                     Finish();
@@ -299,6 +381,23 @@ public partial class FormationStrikeEvent : EncounterEventBase
         UpdateCrafts();
     }
 
+    /// <summary>把当前侧倾量写到全体在编队机（被击坠槽位跳过）。</summary>
+    private void ApplyBank()
+    {
+        foreach (var craftV in _crafts)
+        {
+            if (craftV.VariantType == Variant.Type.Nil)
+            {
+                continue;
+            }
+
+            if (craftV.AsGodotObject() is FormationCraft craft && GodotObject.IsInstanceValid(craft))
+            {
+                craft.SetBank(_bank);
+            }
+        }
+    }
+
     /// <summary>转航向：朝较远侧缘方向 90° 转向。</summary>
     private void BeginTurn()
     {
@@ -308,7 +407,12 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _turnTarget = _anchor.X < view.Position.X + view.Size.X * 0.5f ? 0.0f : Mathf.Pi;
     }
 
-    /// <summary>横穿投弹：构建交错投弹时刻表（长机先投，僚机错开 bomb_interval，同机间隔 0.4s）。</summary>
+    /// <summary>横穿投弹：构建交错投弹时刻表。
+    /// 波次化：每波内长机先投、僚机按到长机的排序依次错开 bomb_interval（时间=名次×间隔，
+    /// 而非阵位索引——侧翼阵位不会把首枚弹推到波次末尾），同机两枚间隔 BombStagger；
+    /// 相邻两波之间插入 volley_gap，形成「一波压制 → 呼吸 → 下一波」的节奏。
+    /// 循环次序必须 i（波）外层 / k（机）内层：k 外层产生非排序时刻表，
+    /// ProcessDrops 按单调 _stateTime 贪心消费会把后续波次堆积到末尾同帧。</summary>
     private void BeginRun()
     {
         _state = State.BOMBING_RUN;
@@ -316,36 +420,86 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _dropTimes.Clear();
         _dropCraft.Clear();
         _dropIndex = 0;
-        // 循环次序必须 i 外层 / k 内层：k 外层产生非排序时刻表
-        // [0,0.8,1.6,2.4,0.4,...]，ProcessDrops 按单调 _stateTime 贪心消费会把第二波炸弹堆积到末尾同帧
-        for (var i = 0; i < _crafts.Count; i++)
+        _bank = 0.0f;
+        var batches = VolleyBatches;
+        // 每机的投弹名次 = 到长机的距离排序（长机恒 0，僚机按侧移排序）
+        var rank = new int[_crafts.Count];
+        for (var i = 0; i < rank.Length; i++)
         {
-            for (var k = 0; k < BombsPerCraft; k++)
+            rank[i] = i;
+        }
+
+        System.Array.Sort(rank, (a, b) => _offsets[a].LengthSquared().CompareTo(_offsets[b].LengthSquared()));
+        var order = new int[_crafts.Count];
+        for (var i = 0; i < rank.Length; i++)
+        {
+            order[rank[i]] = i;
+        }
+
+        for (var b = 0; b < batches; b++)
+        {
+            for (var i = 0; i < _crafts.Count; i++)
             {
-                _dropTimes.Add(i * BombInterval + k * BombStagger);
-                _dropCraft.Add(i);
+                for (var k = 0; k < BombsPerCraft; k++)
+                {
+                    _dropTimes.Add(b * VolleyGap + order[i] * BombInterval + k * BombStagger);
+                    _dropCraft.Add(i);
+                }
             }
         }
     }
 
-    /// <summary>离场：沿当前航向加速穿出侧缘。</summary>
+    /// <summary>离场：沿当前航向加速穿出侧缘（压坡回正，收尾干净）。</summary>
     private void BeginExit()
     {
         _state = State.FORMATION_EXIT;
         _stateTime = 0.0f;
         _exitSpeed = RunSpeed;
+        _bank = 0.0f;
+        ApplyBank();
     }
 
-    /// <summary>离场结束：清理剩余战机，回 IDLE 进冷却。</summary>
+    /// <summary>离场结束：清场结算 → 回 IDLE 进冷却。</summary>
     private void Finish()
     {
+        SettleInterceptBonus();
+        // 非拦截收尾补一条清除提示（拦截路径已由奖励台词收尾，不叠）
+        if (_dropped > 0)
+        {
+            _comm?.ShowLine("FBQ_CLEAR");
+        }
+
         FreeCrafts();
+        FreeBombs();
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         ResumeWaves();
     }
 
-    /// <summary>按时刻表投弹：投弹点即当前位置正下方；已毁机跳过（时刻表照走）。</summary>
+    /// <summary>拦截结算：一架未坠 + 一枚未投 = 全数拦截（比全歼更难），
+    /// 逐枚拦截另有 RewardPerIntercept 小奖。只在事件正常收尾时发（Abort 无结算）。</summary>
+    private void SettleInterceptBonus()
+    {
+        if (_interceptAwarded)
+        {
+            return;
+        }
+
+        _interceptAwarded = true;
+        if (_intercepted > 0)
+        {
+            GameState.Instance.AddScore(_intercepted * RewardPerIntercept);
+        }
+
+        if (_dropped == 0 && _alive > 0 && RewardIntercept > 0)
+        {
+            GameState.Instance.AddScore(RewardIntercept);
+            _comm?.ShowLine("FBQ_INTERCEPT_BONUS");
+            GameState.Instance.PlaySfx(SfxId.Resupply, -4.0, 1.35);
+        }
+    }
+
+    /// <summary>按时刻表投弹：投弹点即当前编队机位置（+机腹偏移）；已毁机跳过（时刻表照走）。</summary>
     private void ProcessDrops()
     {
         while (_dropIndex < _dropTimes.Count && _stateTime >= _dropTimes[_dropIndex])
@@ -363,18 +517,67 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 continue;
             }
 
-            var bomb = new FormationBomb();
-            var dir = Vector2.Right.Rotated(_heading);
-            // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
-            bomb.Setup(
-                new Vector2(dir.X * RunSpeed * 0.35f, BombFallSpeed),
-                BombFuse,
-                Mathf.Max(1, (int)Mathf.Round(BombDamage * (float)GameState.Instance.EnemyDamageRamp())),
-                BombRadius);
-            bomb.Position = craft.Position + new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale;
-            GetParent().AddChild(bomb);
-            _dropped++;
+            SpawnBomb(craft);
         }
+    }
+
+    private void SpawnBomb(FormationCraft craft)
+    {
+        var bomb = new FormationBomb
+        {
+            EdgeFalloff = BombEdgeFalloff,
+            BombScore = BombScore,
+            ReflectDamage = BombReflectDamage,
+        };
+        var dir = Vector2.Right.Rotated(_heading);
+        // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
+        bomb.Setup(
+            new Vector2(dir.X * RunSpeed * 0.35f, BombFallSpeed),
+            BombFuse,
+            Mathf.Max(1, (int)Mathf.Round(BombDamage * (float)GameState.Instance.EnemyDamageRamp())),
+            BombRadius);
+        bomb.MaxHp = Mathf.Max(1, BombHp);
+        bomb.Hp = bomb.MaxHp;
+        bomb.Position = craft.Position + new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale;
+        GetParent().AddChild(bomb);
+        _bombs.Add(bomb);
+        craft.FlashBay(); // 机腹照明亮一下：投弹动作可见
+        GameState.Instance.PlaySfx(SfxId.Dash, -14.0, 1.7); // 投弹舱释放的轻响（复用采样 + 高音变体）
+        _dropped++;
+    }
+
+    /// <summary>统计并回收已消失的炸弹：只有「引爆前被拆掉」（空中击落/弹反命中）才计拦截，
+    /// 引信到期引爆与出界不算——否则没躲开也能领拦截奖。</summary>
+    private void PruneBombs()
+    {
+        for (var i = _bombs.Count - 1; i >= 0; i--)
+        {
+            var bomb = _bombs[i];
+            if (bomb != null && GodotObject.IsInstanceValid(bomb))
+            {
+                continue;
+            }
+
+            _bombs.RemoveAt(i);
+            if (bomb != null && bomb.Intercepted)
+            {
+                _intercepted++;
+            }
+        }
+    }
+
+    /// <summary>清空在场炸弹（事件结束/返航打断时；已投放的弹不留给下一局）。</summary>
+    private void FreeBombs()
+    {
+        foreach (var bomb in _bombs)
+        {
+            if (bomb != null && GodotObject.IsInstanceValid(bomb))
+            {
+                bomb.QueueFree();
+            }
+        }
+
+        _bombs.Clear();
     }
 
     /// <summary>编队驱动：位置 = 锚点 + 随航向旋转的楔形偏移；机头朝航向。</summary>

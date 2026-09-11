@@ -28,6 +28,10 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// <summary>子类 FSM 是否处于 IDLE（桥接各事件私有状态枚举；IsActive/CanTrigger/TickCooldown 共用）。</summary>
     protected abstract bool IsIdle { get; }
 
+    /// <summary>通讯浮层强调色（子类各自的身份色）：精英炮塔＝品红、轰炸编队＝琥珀。
+    /// 两个事件共用同一浮层实现，但「谁在说话」必须一眼可辨。</summary>
+    protected virtual Color CommAccent => UITheme.EventMagenta;
+
     public bool IsActive() => !IsIdle;
 
     /// <summary>spawner 依赖注入（main._ready 调用；替代 group 现找）。</summary>
@@ -35,7 +39,7 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
 
     public override void _Ready()
     {
-        _comm = new CommOverlay();
+        _comm = new CommOverlay(CommAccent);
         AddChild(_comm);
         // 对称兜底——事件节点先于 spawner 入树时注入为 null，Boss 冻结/波次暂停
         // 钩子会静默失效；兜底 group 现找

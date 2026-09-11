@@ -11,7 +11,7 @@ namespace InfiAir;
 /// 致死高亮；宽限/擦弹/反射的池化复位。
 /// 命中结算经 EntityDamage 统一分派（IDamageable 契约）；生产调用方均为 C# typed。
 /// </summary>
-public partial class Bullet : Area2D
+public partial class Bullet : Area2D, IParryable
 {
     /// <summary>碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
@@ -76,6 +76,8 @@ public partial class Bullet : Area2D
     /// <summary>命中框核心半径缓存（= 形状半径，已含 world_scale；&lt;0 未读）。</summary>
     private float _graceHitboxR = -1.0f;
     private bool _grazeDone;
+    /// <summary>已被弧光弹反（IParryable 契约）：防同一次挥盾把同一枚弹反射两次。</summary>
+    private bool _reflected;
     private Sprite2D? _sprite;
 
     /// <summary>共享图集 Sprite2D（弹体+白芯光栅化进单张共享纹理）。</summary>
@@ -134,6 +136,7 @@ public partial class Bullet : Area2D
         _homingElapsed = 0.0f;
         HomingTarget = null;
         _grazeDone = false;
+        _reflected = false;
         Pierce = 0;
         Explosive = false;
         SplashDamage = 0;
@@ -196,9 +199,16 @@ public partial class Bullet : Area2D
     }
 
     /// <summary>机制四：弧光弹反——转玩家弹、镜面反射（盾法线=机头前方，direction.y 取反）、
-    /// ×REFLECT_SPEED_MULT 返回、伤害 ×REFLECT_DAMAGE_MULT；追踪终止；取消受击宽限。</summary>
-    public void Reflect()
+    /// ×REFLECT_SPEED_MULT 返回、伤害 ×REFLECT_DAMAGE_MULT；追踪终止；取消受击宽限。
+    /// 已反射的弹返回 false（不可二次弹反）——与非子弹类威胁（FormationBomb）同契约。</summary>
+    public bool Reflect()
     {
+        if (_reflected || !IsActive())
+        {
+            return false;
+        }
+
+        _reflected = true;
         IsPlayerBullet = true;
         Direction = new Vector2(Direction.X, -Direction.Y);
         Speed *= ReflectSpeedMult;
@@ -207,6 +217,7 @@ public partial class Bullet : Area2D
         HomingTarget = null;
         CancelGrace();
         ApplyFaction();
+        return true;
     }
 
     public override void _Ready()

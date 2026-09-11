@@ -1533,10 +1533,16 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var b = area.GetScript().AsGodotObject() == _bulletScript ? (Bullet)area : null;
-        if (b == null || b.IsPlayerBullet)
+        // 弹反契约：敌弹与轰炸编队的下落炸弹都实现 IParryable（盾只判定并转交反射语义）
+        if (area is not IParryable target)
         {
             return;
+        }
+
+        var b = area as Bullet;
+        if (b != null && b.IsPlayerBullet)
+        {
+            return; // 玩家自己的弹不进盾判定（反射态炸弹已换层，不会再触发本回调）
         }
 
         var rel = area.GlobalPosition - GlobalPosition;
@@ -1554,12 +1560,16 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        if (_deflectorReflectMult > 1.0f)
+        if (b != null && _deflectorReflectMult > 1.0f)
         {
             b.Damage = Mathf.Max(1, (int)Mathf.Round(b.Damage * _deflectorReflectMult));
         }
 
-        b.Reflect();
+        if (!target.Reflect())
+        {
+            return; // 已反射/已失活：不进闪屏与音效（盾白挥一下，不误导）
+        }
+
         _visuals.SetParryFlash();
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(SfxId.Dash);

@@ -22,7 +22,7 @@ bash scripts/ci/check_balance_keys.sh # 数值键真实存在（防键名写错�
 bash scripts/ci/check_save_symmetry.sh # 存档写读字段一一对应（防进度静默丢失）
 bash scripts/ci/check_settings_symmetry.sh # 设置写读字段一一对应 + 设置页文案键存在
 bash scripts/ci/check_import.sh       # 资源导入无警告
-bash scripts/ci/check_smoke.sh        # 主场景 300 帧 + 设置页开页冒烟（五个分组都建一遍）
+bash scripts/ci/check_smoke.sh        # 冒烟三趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期
 ./release.sh                          # 打包发布（仅发布时需要）
 ```
 
@@ -30,6 +30,9 @@ CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改�
 **设置页专属纪律**：设置项口径见 `DESIGN_BASELINE.md` §1.15；新增/改动设置项必须同时过
 `check_settings_symmetry.sh`（写读对称 + 文案键存在）与设置页开页冒烟——设置项写错的表现是
 「玩家点开设置就崩」或「改了设置下次启动回到默认」，两者都不编译报错。
+**遭遇事件专属纪律**：遭遇要过分数门槛 + 掷签，常规冒烟跑不到；改动编队/精英事件后必须跑
+`godot --headless --path . --quit-after 400 -- --event-probe=formation_strike`（或 `elite_turret`），
+它强制触发一次事件并跑完全周期——编排、投弹、落点圈、反射弹、结算分支都在这条路径上。
 
 Windows 本地一次跑完上述九步（推荐）：`python3 scripts/ci/gates.py`——自动发现 bash（Git Bash 优先、WSL 兜底，路径按目标 shell 自动转换）与 Godot 引擎，按 CI 顺序执行并汇总；`--only <slug>` 只跑子集，`--list` 列出步骤。它只做调度，判定逻辑仍在各门禁脚本，不复制口径。
 

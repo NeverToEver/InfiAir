@@ -3,10 +3,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 精英炮塔事件·通讯浮层：
-/// 屏幕左下角六边切角通讯框（品红描边）+ 打字机字幕，显示 3.5s 后淡出；
+/// 遭遇事件·通讯浮层：
+/// 屏幕左下角六边切角通讯框 + 打字机字幕，显示 3.5s 后淡出；
 /// 不暂停游戏（process_mode 跟随本局）；新台词顶掉未播完的旧台词。
-/// </summary>
+/// 强调色由事件经构造函数注入（精英炮塔＝品红、轰炸编队＝琥珀）——两个事件共用同一浮层，
+/// 但各自的身份色要能一眼区分，否则「谁在说话」无从判断。</summary>
 public partial class CommOverlay : CanvasLayer
 {
     private const float CharInterval = 0.03f; // 打字机字间隔
@@ -24,16 +25,25 @@ public partial class CommOverlay : CanvasLayer
     /// 否则新台词恰落淡出窗口时被残留 tween 拉回 alpha=0 并 hide。</summary>
     private Tween? _fadeTween;
 
+    private readonly Color _accent;
+
+    /// <summary>构造函数注入强调色（默认品红＝精英炮塔旧观感，旧调用点语义不变）。</summary>
     public CommOverlay()
+        : this(UITheme.EventMagenta)
     {
+    }
+
+    public CommOverlay(Color accent)
+    {
+        _accent = accent;
         Layer = 12;
         var panel = new ChamferedPanel
         {
             Position = new Vector2(24.0f, 760.0f),
             Size = new Vector2(760.0f, 96.0f),
             BgColor = UITheme.CommBgDark,
-            BorderColor = new Color(UITheme.EventMagenta, 0.6f), // 精英品红描边
-            BracketColor = UITheme.EventMagenta,
+            BorderColor = new Color(accent, 0.6f),
+            BracketColor = accent,
             Brackets = true,
             Visible = false,
         };

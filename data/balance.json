@@ -1169,11 +1169,19 @@
 		"run_speed": 340,
 		"bomb_interval": 0.8,
 		"bombs_per_craft": 2,
+		"volley_batches": 2,
+		"volley_gap": 1.35,
 		"bomb_fall_speed": 300,
 		"bomb_fuse": 1.2,
 		"bomb_damage": 20,
 		"bomb_radius": 120,
-		"reward_all_clear": 200
+		"bomb_edge_falloff": 0.35,
+		"bomb_hp": 8,
+		"bomb_score": 50,
+		"bomb_reflect_damage": 45,
+		"reward_all_clear": 200,
+		"reward_intercept": 400,
+		"reward_per_intercept": 25
 	},
 	"fog_events": {
 		"enabled": true,

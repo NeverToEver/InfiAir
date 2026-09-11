@@ -5,7 +5,9 @@ namespace InfiAir;
 /// <summary>
 /// 轰炸编队事件·编队战机：
 /// 楔形编队成员，注册 enemy 组与 GameState.Enemies（玩家子弹/激光可命中）；实现 IDamageable。
-/// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动。
+/// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动，侧倾（bank）由事件按
+/// 转向/离场进度写入（俯视视角下「压坡转弯」比平推更有质量感）。
+/// 身份识别：琥珀色调 + 翼尖航行灯（红/绿）+ 机腹投弹舱照明——与普通敌机同贴图但一眼可区分。
 /// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
 /// </summary>
 public partial class FormationCraft : Area2D, IDamageable
@@ -20,10 +22,16 @@ public partial class FormationCraft : Area2D, IDamageable
     public int MaxHp { get; set; } = 60;
     public int Hp { get; set; } = 60;
 
+    /// <summary>编队身份色（琥珀偏橙：与普通敌机的冷灰、精英炮塔的品红区分）。</summary>
+    private static readonly Color FormationTint = new(1.0f, 0.82f, 0.62f);
+
     private Sprite2D? _sprite;
+    private GlowDot? _bayLight; // 机腹投弹舱照明（投弹瞬间闪亮）
+    private float _bayFlash;
     /// <summary>受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
     private const float FlashTime = 0.1f;
+    private const float BayFlashTime = 0.18f;
     /// <summary>击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
 
@@ -42,8 +50,21 @@ public partial class FormationCraft : Area2D, IDamageable
         {
             Texture = _texture,
             Scale = Vector2.One * 0.9f * (float)GameState.Instance.WorldScale, // 设计值 0.9 × 全局缩放
+            Modulate = FormationTint,
         };
         AddChild(_sprite);
+        // 翼尖航行灯（编队身份）+ 机腹投弹舱照明（默认灭，投弹时亮起）
+        var ws = (float)GameState.Instance.WorldScale;
+        var portLight = CinematicFx.Glow(4.5f * ws, new Color(1.0f, 0.35f, 0.3f, 0.85f));
+        var starboardLight = CinematicFx.Glow(4.5f * ws, new Color(0.4f, 1.0f, 0.55f, 0.85f));
+        portLight.Position = new Vector2(-26.0f, 4.0f) * ws;
+        starboardLight.Position = new Vector2(26.0f, 4.0f) * ws;
+        _sprite.AddChild(portLight);
+        _sprite.AddChild(starboardLight);
+        _bayLight = CinematicFx.Glow(7.0f * ws, new Color(1.0f, 0.78f, 0.35f, 1.0f));
+        _bayLight.Position = new Vector2(0.0f, 12.0f) * ws;
+        _bayLight.Visible = false;
+        _sprite.AddChild(_bayLight);
         var shape = new CollisionShape2D();
         var circle = new CircleShape2D { Radius = 26.0f * (float)GameState.Instance.WorldScale };
         shape.Shape = circle;
@@ -53,22 +74,51 @@ public partial class FormationCraft : Area2D, IDamageable
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
 
+    /// <summary>侧倾写入（事件按转弯/离场进度调用）：节点横向压缩模拟俯视压坡。</summary>
+    public void SetBank(float bank01)
+    {
+        var b = Mathf.Clamp(bank01, 0.0f, 1.0f);
+        Scale = new Vector2(Mathf.Lerp(1.0f, 0.82f, b), 1.0f);
+    }
+
+    /// <summary>投弹舱闪亮（每次投弹由事件调用）：机腹照明亮一下，一眼看出「这架刚扔了弹」。</summary>
+    public void FlashBay()
+    {
+        _bayFlash = BayFlashTime;
+        if (_bayLight != null && GodotObject.IsInstanceValid(_bayLight))
+        {
+            _bayLight.Visible = true;
+        }
+    }
+
     /// <summary>受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。</summary>
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
-        if (_flashTimer <= 0.0f)
+        if (_flashTimer > 0.0f && _sprite != null)
+        {
+            FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White);
+        }
+
+        if (_bayFlash <= 0.0f)
         {
             return;
         }
 
-        // 判空守卫必须在调用前（timer 早退之后、归色之前），顺序不可调换
-        if (_sprite == null)
+        _bayFlash -= d;
+        if (_bayLight == null || !GodotObject.IsInstanceValid(_bayLight))
         {
             return;
         }
 
-        FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White);
+        // 投弹舱灯的可见期 = 闪亮窗口：宽度与亮度同衰
+        var k = Mathf.Clamp(_bayFlash / BayFlashTime, 0.0f, 1.0f);
+        _bayLight.Visible = true;
+        _bayLight.Modulate = new Color(1.0f, 1.0f, 1.0f, k);
+        if (_bayFlash <= 0.0f)
+        {
+            _bayLight.Visible = false;
+        }
     }
 
     public override void _ExitTree()
