@@ -16,17 +16,27 @@ public sealed partial class MissionsService : RefCounted
 {
 
     // ---------------- RP 经济 / 基地任务 / 天赋路线 ----------------
+    // 经济状态写入收口：setter 只许本类（AddRp/SpendRp/GrantRefreshPoints/RefreshMissions/
+    // RestoreRunState/ResetEconomy）——外部直写会绕过 RpChanged 等事件让 UI 静默失真。
 
     /// <summary>征用点数（基地经济）</summary>
-    public int Rp { get; set; } = 0;
+    public int Rp { get; private set; } = 0;
 
     /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
     /// （progress 为相对口径：本局绝对计数 − baseline；baseline = 任务入场/抽取时的绝对计数快照）</summary>
-    public Godot.Collections.Dictionary Missions { get; set; } = new();
+    public Godot.Collections.Dictionary Missions { get; private set; } = new();
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
     /// （balance.json base_task 段覆盖，经 GameState 侧缓存读取）</summary>
-    public int RefreshPoints { get; set; } = 0;
+    public int RefreshPoints { get; private set; } = 0;
+
+    /// <summary>经济字段归零（ResetRun 调用；不发事件——信号仍由 GameState.ResetRun 侧直发，
+    /// 发射点/顺序不变）。</summary>
+    public void ResetEconomy()
+    {
+        Rp = 0;
+        RefreshPoints = 0;
+    }
 
     /// <summary>任务池实例（InitMissions 重建，保证每次本局从全新洗牌序列开始）。</summary>
     private TaskPool? _taskPool;

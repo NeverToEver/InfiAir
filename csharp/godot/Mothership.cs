@@ -778,14 +778,14 @@ public partial class Mothership : Area2D
         tw.TweenCallback(Callable.From(g.QueueFree));
     }
 
-    /// <summary>驻留期间 WASD 驾驶母舰（对齐原作：加速 900、极速 180、松手即停、边界夹紧），
-    /// 玩家机每帧钉在对接点。</summary>
+    /// <summary>驻留期间 WASD 驾驶母舰（对齐原作：加速 900、极速 180、边界夹紧；松手滑行刹停——
+    /// 同加速率 MoveToward 归零，无生硬顿挫），玩家机每帧钉在对接点。</summary>
     private void UpdateDrive(float delta)
     {
         var inputDir = Input.GetVector(ActMoveLeft, ActMoveRight, ActMoveUp, ActMoveDown);
         if (inputDir == Vector2.Zero)
         {
-            _driveVel = Vector2.Zero;
+            _driveVel = _driveVel.MoveToward(Vector2.Zero, DriveAccel * delta);
         }
         else
         {

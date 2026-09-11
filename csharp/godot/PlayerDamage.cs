@@ -109,6 +109,7 @@ public class PlayerDamage
         _secondWindTimer = SecondWindDuration;
         GameState.Instance.PlaySfx(SfxId.PlayerHit);
         GameState.Instance.Shake(ShakeHit);
+        RumbleService.Hit(); // 受击震动（扣血生效才触发；闪避/盾吸收分支不震）
         GameState.Instance.LoseHealth(amount);
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDamaged, amount, fromPos); // SignalName 常量 + 类型链统一 float
         player.ClearNearbyEnemyBullets();

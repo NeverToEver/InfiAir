@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Input;
 
 namespace InfiAir;
 
@@ -138,6 +139,7 @@ public partial class Player : CharacterBody2D
     private float _homingTurnRate = 5.5f;
     private float _aimStickFactor = 0.5f;
     private float _aimJoySpeed = 1400.0f;
+    private float _aimJoyExpo = 2.2f;
     private float _coneAngleDeg = 6.0f;
     private float _coneCos = 0.9945f;
     private float _coneStrength = 0.45f;
@@ -932,7 +934,11 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var inputDir = Input.GetVector(ActMoveLeft, ActMoveRight, ActMoveUp, ActMoveDown);
+        // 手柄摇杆读取侧整形：径向死区（设置域）+ 重标定（StickShaper，InputMap 侧只滤硬件噪声）。
+        // 键盘输出满行程（长度 1），整形后是恒等映射——键鼠/手柄共用本路径不分叉；移动保持线性（expo 1.0）。
+        var rawMove = Input.GetVector(ActMoveLeft, ActMoveRight, ActMoveUp, ActMoveDown);
+        var shapedMove = StickShaper.Shape(rawMove.X, rawMove.Y, (float)gs.JoyDeadzone, 1.0f);
+        var inputDir = new Vector2(shapedMove.X, shapedMove.Y);
         if (_fogInvertInput)
         {
             inputDir = -inputDir;
@@ -1126,12 +1132,14 @@ public partial class Player : CharacterBody2D
         {
             _aimSmoothedFrame = frame;
             var raw = GetGlobalMousePosition();
-            // 右摇杆虚拟准星（四向独立动作，差值驱动）
+            // 右摇杆虚拟准星（四向独立动作，差值驱动）：读取侧 StickShaper 整形——
+            // 径向死区（设置域）+ 指数响应曲线（joy_expo，轻推精瞄/推满甩枪）
             var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
-            if (joy.LengthSquared() > 0.01f)
+            var joyShaped = StickShaper.Shape(joy.X, joy.Y, (float)GameState.Instance.JoyDeadzone, _aimJoyExpo);
+            if (joyShaped.X != 0.0f || joyShaped.Y != 0.0f)
             {
-                joyDelta = joy * _aimJoySpeed * (float)GetProcessDeltaTime();
+                joyDelta = new Vector2(joyShaped.X, joyShaped.Y) * _aimJoySpeed * (float)GetProcessDeltaTime();
             }
 
             var factor = 1.0f;
@@ -1146,7 +1154,10 @@ public partial class Player : CharacterBody2D
                 }
                 else
                 {
-                    magnet = aimLayer.MagnetPull(_aimSmooth, raw - _aimLastRaw);
+                    // 磁吸输入窗口：摇杆有输入时取摇杆增量（joyDelta 与鼠标增量同量纲 px/帧，
+                    // 1400px/s ÷ 60fps ≈ 23px/帧 落在 magnet_input_min/full 窗口内），否则取鼠标
+                    // 物理增量——两路二选一，避免同帧双输入叠加放大磁吸强度
+                    magnet = aimLayer.MagnetPull(_aimSmooth, joyDelta != Vector2.Zero ? joyDelta : raw - _aimLastRaw);
                 }
             }
 
@@ -1188,6 +1199,8 @@ public partial class Player : CharacterBody2D
         _magnetRange = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), 0.0f);
         _magnetStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), 0.0f);
         _magnetMaxSpeed = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), 0.0f);
+        // 摇杆瞄准响应曲线指数：钳 ≥1.0——<1 会变成轻推即满速的反曲线
+        _aimJoyExpo = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.joy_expo", _aimJoyExpo).AsDouble(), 1.0f);
     }
 
     private void OnAimAssistLevelChanged(StringName level) => LoadAimAssistParams();
@@ -1579,6 +1592,7 @@ public partial class Player : CharacterBody2D
         }
 
         _visuals.SetParryFlash();
+        RumbleService.Parry(); // 弹反成功震动
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(SfxId.Dash);
     }

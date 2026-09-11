@@ -4,18 +4,18 @@ namespace InfiAir;
 
 /// <summary>
 /// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetFireToggleMode/SetViewZoom/SetWindowMode/
-/// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
+/// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetJoyVibration/SetLocale/
 /// PersistJoySettings）与视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
 /// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/RESOLUTION_LEVELS/AIM_ASSIST_ORDER）及状态字段
 /// （CtrlToggleMode/ShiftToggleMode/FireToggleMode/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
-/// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）
+/// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/JoyVibration/MetaFxLod）
 /// 均在本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 亦在此（设置域
 /// 持久化，SaveSettings 留在 GameState 侧）。窗口管理：窗口模式（窗口化/无边框
 /// 全屏）+ 渲染分辨率档（分辨率档即实际渲染分辨率，canvas_items 拉伸下窗口物理像素即渲染缓冲尺寸）
 /// + 窗口化自由拖拽（拖拽捕获为自定义档）；ApplyWindow 单点应用，OnWindowResized 捕获拖拽结果
 /// （GameState 侧对根窗口 SizeChanged 去抖后落盘并广播）。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度域（KeyBindings/TutorialDone/
-/// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool/JOYPAD_ACTIONS 及
+/// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool 及
 /// GetViewport/GetWindow 均经 Instance 门面访问（跨域键不迁入，保持单一事实源）；_registry
 /// （EntityManager）经构造注入（CameraRef 转发，与 RunProgressionService 注入 BalanceService 同构）。
 /// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService/CombatStateService
@@ -93,10 +93,14 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>默认跳过开场过场（持久化，默认关=播过场；开启后开机直达标题屏）</summary>
     public bool SkipIntroCinematic { get; set; } = false;
 
-    /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区。</summary>
+    /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
+    /// （径向语义，读取侧 StickShaper 生效——不写 InputMap deadzone）。</summary>
     public double JoyAimSpeed { get; set; } = 1400.0;
 
-    public double JoyDeadzone { get; set; } = 0.5;
+    public double JoyDeadzone { get; set; } = 0.2;
+
+    /// <summary>手柄震动开关（settings.json 持久化，默认开；RumbleService 脉冲门控）。</summary>
+    public bool JoyVibration { get; set; } = true;
 
     /// <summary>当前语言（"zh"/"en"，settings.json 持久化）。</summary>
     public string Locale { get; set; } = "zh";
@@ -127,7 +131,8 @@ public sealed partial class SettingsService : RefCounted
         MouseLock = true;
         SkipIntroCinematic = false;
         JoyAimSpeed = 1400.0;
-        JoyDeadzone = 0.5;
+        JoyDeadzone = 0.2;
+        JoyVibration = true;
         MasterVolume = 0.8;
         MusicVolume = 0.8;
         SfxVolume = 0.8;
@@ -665,20 +670,26 @@ public sealed partial class SettingsService : RefCounted
         JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
     }
 
-    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。
-    /// 立即应用死区（InputMap 全局生效）+ 广播；不自动写盘</summary>
+    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，径向语义）。读取侧生效——Player 移动/瞄准
+    /// 经 StickShaper 整形时每帧读取本值，不写 InputMap（摇杆 action 的 InputMap deadzone 恒 0.05
+    /// 只滤硬件噪声，扳机阈值恒 0.2，均与本设置解耦）。只更新内存 + 广播；不自动写盘</summary>
     public void SetJoyDeadzone(double value)
     {
         JoyDeadzone = Mathf.Clamp(value, 0.05, 0.9);
-        foreach (var a in GameState.Instance.JOYPAD_ACTIONS)
+        JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
+    }
+
+    /// <summary>手柄震动开关：持久化（无广播——RumbleService 每次脉冲直读设置域，
+    /// 开关即时生效；进行中的脉冲由引擎按时长自停，不强行打断）</summary>
+    public void SetJoyVibration(bool enabled)
+    {
+        if (enabled == JoyVibration)
         {
-            if (InputMap.HasAction(a))
-            {
-                InputMap.ActionSetDeadzone(a, (float)JoyDeadzone);
-            }
+            return;
         }
 
-        JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
+        JoyVibration = enabled;
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
@@ -807,10 +818,9 @@ public sealed partial class SettingsService : RefCounted
         var savedDifficulty = data.GetValueOrDefault("difficulty", "").AsStringName();
         if (GameState.Instance.DIFFICULTY_DEFS.ContainsKey(savedDifficulty))
         {
-            GameState.Instance.Difficulty = savedDifficulty;
-            // 存档/账户设置恢复难度后必须刷新被动回血缓存——
-            // 否则仅 _apply_balance 与 set_difficulty 刷新，重启后 hard 玩家按 medium 回血
-            GameState.Instance.RefreshRegenCache();
+            // 读档恢复难度（不写盘、不发事件）；服务侧刷新被动回血与档位倍率缓存——
+            // 否则重启后 hard 玩家按 medium 回血/吃倍率
+            GameState.Instance.ApplyLoadedDifficulty(savedDifficulty);
         }
 
         CtrlToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
@@ -886,7 +896,7 @@ public sealed partial class SettingsService : RefCounted
         SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
         ShakeScale = ReadVolume(data.GetValueOrDefault("shake_scale", ShakeScale), ShakeScale);
         ApplyVolumes();
-        // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
+        // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.2（径向，读取侧生效）
         var joySpeed = data.GetValueOrDefault("joy_aim_speed", GameState.Instance.Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
         if (joySpeed.VariantType is Variant.Type.Float or Variant.Type.Int)
         {
@@ -898,6 +908,8 @@ public sealed partial class SettingsService : RefCounted
         {
             JoyDeadzone = Mathf.Clamp(joyDz.AsDouble(), 0.05, 0.9);
         }
+
+        JoyVibration = GameState.Instance.SaveBool(data.GetValueOrDefault("joy_vibration", JoyVibration), JoyVibration);
     }
 
     /// <summary>音量字段读档：非数值/越界回退当前值（对齐 joy 字段惯例，手改档案不触发 Variant 转换错误）。</summary>
@@ -935,6 +947,7 @@ public sealed partial class SettingsService : RefCounted
         ["skip_intro"] = SkipIntroCinematic,
         ["joy_aim_speed"] = JoyAimSpeed,
         ["joy_deadzone"] = JoyDeadzone,
+        ["joy_vibration"] = JoyVibration,
         ["master_volume"] = MasterVolume,
         ["music_volume"] = MusicVolume,
         ["sfx_volume"] = SfxVolume,

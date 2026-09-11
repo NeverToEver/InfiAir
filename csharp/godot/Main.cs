@@ -1107,6 +1107,4 @@ public partial class Main : Node2D
     private void OnOrbitalStrikeFinished() => _strike = null;
 
     private void OnResumeFromBase() => ResumeFromBaseInternal();
-
-    /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
 }

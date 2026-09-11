@@ -677,8 +677,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             * pDifficulty
             * (float)GameState.Instance.EnemyHpMultiplier();
         Hp = MaxHp;
-        // setup() 在 _ready() 之前调用，不能用 @onready 变量
-        GetNode<Sprite2D>("Sprite2D").Texture = _bossTextures[pType - 1];
+        // setup() 在 _ready() 之前调用，不能用 @onready 变量——GetNode 对场景分支子节点
+        // 在入树前可用，顺带缓存 _sprite 供 EnterPhase 等运行期换帧复用
+        _sprite ??= GetNode<Sprite2D>("Sprite2D");
+        _sprite.Texture = _bossTextures[pType - 1];
         RefreshRimGlow();
         UpdateGlowLayer(pType);
     }
@@ -1111,7 +1113,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             var idx = BossType - 1;
             if (idx >= 0 && idx < _bossP2Textures.Length)
             {
-                GetNode<Sprite2D>("Sprite2D").Texture = _bossP2Textures[idx];
+                _sprite.Texture = _bossP2Textures[idx];
                 RefreshRimGlow();
                 EnterP2Visuals(idx); // 变身强化：能量层切狂暴配色 + 碎片炸散 + 持续光环（纯视觉）
             }
@@ -1335,7 +1337,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             return;
         }
 
-        var count = (int)GD.RandRange(2, 3);
+        // 召唤数量读 boss.summon_minions（召唤低频路径直查 cfg；上限钳 8 防手改巨值刷爆实体）
+        var countMin = Mathf.Max(GameState.Instance.Cfg("boss.summon_minions.count_min", 2.0).AsDouble(), 1.0);
+        var countMax = Mathf.Max(GameState.Instance.Cfg("boss.summon_minions.count_max", 3.0).AsDouble(), countMin);
+        var count = (int)Mathf.Clamp(GD.RandRange(countMin, Mathf.Min(countMax, 8.0)), 1.0, 8.0);
         for (var i = 0; i < count; i++)
         {
             _spawner.SpawnMinion(

@@ -165,8 +165,8 @@ public partial class GameState : Node
     private readonly SettingsService _settings;
 
     /// <summary>键位+手柄域服务（InputBindingsService）——可改键系统/手柄装配与
-    /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout；GameState 组合持有并做门面转发，
-    /// 跨域经 Instance；SaveSettings/JoyDeadzone 经门面，无构造依赖。</summary>
+    /// PS/XBOX_BUTTON_LABELS/JoyLayout；GameState 组合持有并做门面转发，
+    /// 跨域经 Instance；SaveSettings 经门面，无构造依赖。</summary>
     private readonly InputBindingsService _input;
 
     /// <summary>天赋缓存域（TalentService）——里程碑/Boss 点数入缓存池 + 树状加点/路线契约/

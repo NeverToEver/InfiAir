@@ -71,6 +71,7 @@ public class PlayerDash
         DashCooldown = player.DashCooldownMax();
         AfterimageTimer = 0.0f;
         GameState.Instance.PlaySfx(SfxId.Dash);
+        RumbleService.Dash(); // 冲刺震动
     }
 
     /// <summary>冲刺移动驱动（残影生成/位移/回弹；尾焰由 Player 侧保留视觉）。</summary>

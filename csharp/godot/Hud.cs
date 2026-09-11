@@ -76,6 +76,8 @@ public partial class Hud : CanvasLayer
     private float _hitFlashAlpha = 0.55f;
     private float _hitFlashTime = 0.25f;
     private float _lowHpRatio = 0.2f;
+    // 血条变红阈值——与低血脉动（ratio）分档：条先于脉动变红，各读各的键
+    private float _lowHpBarRatio = 0.3f;
     private float _lowHpPulseMin = 0.15f;
     private float _lowHpPulseMax = 0.3f;
     private float _lowHpPulsePeriod = 1.2f;
@@ -163,6 +165,7 @@ public partial class Hud : CanvasLayer
         _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
         _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
         _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
+        _lowHpBarRatio = Mathf.Clamp((float)GameState.Instance.Cfg("effects.low_hp.bar_ratio", _lowHpBarRatio).AsDouble(), 0.0f, 1.0f);
         _lowHpPulseMin = (float)GameState.Instance.Cfg("effects.low_hp.pulse_min", _lowHpPulseMin).AsDouble();
         _lowHpPulseMax = (float)GameState.Instance.Cfg("effects.low_hp.pulse_max", _lowHpPulseMax).AsDouble();
         _lowHpPulsePeriod = Mathf.Max((float)GameState.Instance.Cfg("effects.low_hp.pulse_period", _lowHpPulsePeriod).AsDouble(), 0.01f); // =0 sin NaN
@@ -839,7 +842,7 @@ public partial class Hud : CanvasLayer
 
         _lastHpValue = newHealth;
         _hpBar.Value = Mathf.Clamp(newHealth / maxHp, 0.0f, 1.0f) * 100.0f;
-        _hpBar.FillColor = newHealth / maxHp < 0.3f ? UITheme.Danger : UITheme.Accent;
+        _hpBar.FillColor = newHealth / maxHp < _lowHpBarRatio ? UITheme.Danger : UITheme.Accent;
         // 回血每帧触发信号，仅整数档位/上限变化时才格式化（连续帧 HP 小数差异不刷新文本）
         var hpInt = Mathf.CeilToInt(newHealth);
         var maxInt = (int)maxHp;

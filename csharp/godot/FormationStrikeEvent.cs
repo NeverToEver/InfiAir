@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 namespace InfiAir;
 
@@ -54,6 +55,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public float ApproachY { get; set; } = 260.0f; // 接近高度（相对视野上缘偏移）
     public float TurnTime { get; set; } = 1.2f;
     public float RunSpeed { get; set; } = 340.0f;
+    /// <summary>离场加速度（px/s²）：FORMATION_EXIT 段逐帧加速的斜率。</summary>
+    public float ExitAccel { get; set; } = 420.0f;
     public float BombInterval { get; set; } = 0.8f;
     public int BombsPerCraft { get; set; } = 2;
     public float BombFallSpeed { get; set; } = 300.0f;
@@ -107,6 +110,14 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// <summary>在场炸弹（事件结束/打断时随编队一并清理，与 FreeCrafts 同口径）。</summary>
     private readonly Godot.Collections.Array<FormationBomb> _bombs = new();
 
+    /// <summary>炸弹对象池：闲置弹停用后回挂本节点（事件节点与 Main 同生命周期，跨场次事件复用）。
+    /// 同屏活跃量小（≤5 机 × 波次），不设硬上限；取用侧 IsInstanceValid 过滤外部销毁的悬空条目。</summary>
+    private readonly List<FormationBomb> _bombStock = new();
+
+    /// <summary>待停放队列——ReleaseBomb 入队，_Process（idle 帧，物理回调外）批量 reparent 回
+    /// 本节点；回收可能发生在物理信号分发中（击落/弹反命中），不得当场改树。</summary>
+    private readonly List<FormationBomb> _pendingBombPark = new();
+
     /// <summary>入场警告后补播战术提示的倒计时（&lt;=0 已播/已取消）。</summary>
     private float _intelLeft;
     /// <summary>战术提示延迟（警告台词 3.5s 播完后再补一条，不叠字）。</summary>
@@ -145,6 +156,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
         // _stateTime / TurnTime 除零（Clamp 兜底无 NaN，但转弯瞬完成、视觉跳变）
         TurnTime = CfgFx.Float("formation_strike_event.turn_time", TurnTime, CfgFx.IntervalFloor);
         RunSpeed = CfgFx.Float("formation_strike_event.run_speed", RunSpeed, 0.1f);
+        // exit_accel 钳 ≥0——负值离场段反向减速（编队永驻屏内占波次槽）
+        ExitAccel = CfgFx.Float("formation_strike_event.exit_accel", ExitAccel, 0.0f);
         BombInterval = CfgFx.Float("formation_strike_event.bomb_interval", BombInterval, CfgFx.IntervalFloor);
         // bombs_per_craft 钳 [1,20]——0 空跑（占波次槽无弹）、巨值投弹表/炸弹节点爆炸
         BombsPerCraft = CfgFx.Int("formation_strike_event.bombs_per_craft", BombsPerCraft, 1, 20);
@@ -310,6 +323,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public override void _Process(double delta)
     {
         var d = (float)delta;
+        ProcessPendingBombParks(); // 帧末停放不限事件状态——IDLE 期也可能有待停放的回收弹
         if (_state == State.IDLE)
         {
             TickCooldown(d);
@@ -365,7 +379,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 }
 
             case State.FORMATION_EXIT:
-                _exitSpeed += 420.0f * d;
+                _exitSpeed += ExitAccel * d;
                 _anchor += Vector2.Right.Rotated(_heading) * _exitSpeed * d;
                 // 离场压坡收正（提速爬升的姿态）
                 _bank = Mathf.Lerp(_bank, 0.0f, Mathf.Min(1.0f, d * 3.0f));
@@ -523,12 +537,19 @@ public partial class FormationStrikeEvent : EncounterEventBase
 
     private void SpawnBomb(FormationCraft craft)
     {
-        var bomb = new FormationBomb
+        var bomb = AcquireBomb();
+        if (bomb.GetParent() == null)
         {
-            EdgeFalloff = BombEdgeFalloff,
-            BombScore = BombScore,
-            ReflectDamage = BombReflectDamage,
-        };
+            GetParent().AddChild(bomb); // 新弹入树触发 _Ready（外观一次性构建）
+        }
+        else if (bomb.GetParent() != GetParent())
+        {
+            bomb.Reparent(GetParent()); // 池中弹：从池节点（本事件）挂回 Main
+        }
+
+        bomb.EdgeFalloff = BombEdgeFalloff;
+        bomb.BombScore = BombScore;
+        bomb.ReflectDamage = BombReflectDamage;
         var dir = Vector2.Right.Rotated(_heading);
         // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
         bomb.Setup(
@@ -538,16 +559,81 @@ public partial class FormationStrikeEvent : EncounterEventBase
             BombRadius);
         bomb.MaxHp = Mathf.Max(1, BombHp);
         bomb.Hp = bomb.MaxHp;
+        bomb.Activate(); // 全运行态/外观复位（新弹幂等重入；回收弹经此复活并重绑注册表）
         bomb.Position = craft.Position + new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale;
-        GetParent().AddChild(bomb);
         _bombs.Add(bomb);
         craft.FlashBay(); // 机腹照明亮一下：投弹动作可见
         GameState.Instance.PlaySfx(SfxId.Dash, -14.0, 1.7); // 投弹舱释放的轻响（复用采样 + 高音变体）
         _dropped++;
     }
 
-    /// <summary>统计并回收已消失的炸弹：只有「引爆前被拆掉」（空中击落/弹反命中）才计拦截，
-    /// 引信到期引爆与出界不算——否则没躲开也能领拦截奖。</summary>
+    /// <summary>取弹：池中有存活实例则复用，否则新建并登记归属池。</summary>
+    private FormationBomb AcquireBomb()
+    {
+        while (_bombStock.Count > 0)
+        {
+            var b = _bombStock[_bombStock.Count - 1];
+            _bombStock.RemoveAt(_bombStock.Count - 1);
+            if (GodotObject.IsInstanceValid(b) && !b.IsQueuedForDeletion())
+            {
+                return b;
+            }
+        }
+
+        var bomb = new FormationBomb();
+        bomb.SetPool(this);
+        return bomb;
+    }
+
+    /// <summary>炸弹回收入池（弹体终局路径回调）：在场表移除 + 拦截计数 + 停用入待停放队列。
+    /// 幂等由弹侧 _parked 守卫（ReturnToPool 重入直接返回）。</summary>
+    public void ReleaseBomb(FormationBomb bomb)
+    {
+        if (!GodotObject.IsInstanceValid(bomb))
+        {
+            return;
+        }
+
+        _bombs.Remove(bomb);
+        if (bomb.Intercepted)
+        {
+            _intercepted++; // 拦截计数由回收路径同步结算（替代 PruneBombs 的事后对账）
+        }
+
+        bomb.Deactivate();
+        _bombStock.Add(bomb);
+        _pendingBombPark.Add(bomb);
+    }
+
+    /// <summary>帧末批量停放（idle _Process 处于物理回调外）：reparent 回本节点；
+    /// IsParked 仲裁——同帧复活（重新 Activate）的弹跳过，避免活跃弹被误挂进池节点。</summary>
+    private void ProcessPendingBombParks()
+    {
+        if (_pendingBombPark.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _pendingBombPark.Count; i++)
+        {
+            var b = _pendingBombPark[i];
+            if (!GodotObject.IsInstanceValid(b) || b.IsQueuedForDeletion() || !b.IsParked())
+            {
+                continue;
+            }
+
+            if (b.GetParent() != this)
+            {
+                b.Reparent(this); // reparent 触发 b._ExitTree → UnbindEnemy（停放弹离开注册表）
+            }
+        }
+
+        _pendingBombPark.Clear();
+    }
+
+    /// <summary>清除在场表中已被外部销毁（清场 sweep）的悬空条目。正常终局（引爆/击落/弹反/
+    /// 出界）经 ReturnToPool 同步移除并在回收路径计拦截；本方法只对账未经池回收的外部销毁——
+    /// 此类不算拦截（轨道打击清场的炸弹既没炸到人也没被玩家拆掉，与原口径一致）。</summary>
     private void PruneBombs()
     {
         for (var i = _bombs.Count - 1; i >= 0; i--)
@@ -559,25 +645,24 @@ public partial class FormationStrikeEvent : EncounterEventBase
             }
 
             _bombs.RemoveAt(i);
-            if (bomb != null && bomb.Intercepted)
-            {
-                _intercepted++;
-            }
         }
     }
 
-    /// <summary>清空在场炸弹（事件结束/返航打断时；已投放的弹不留给下一局）。</summary>
+    /// <summary>清空在场炸弹（事件结束/返航打断时）：存活弹走回收入池（跨场次复用），
+    /// 已投放的弹不留给下一局——池弹同属本事件节点，场景销毁时一并消亡。</summary>
     private void FreeBombs()
     {
-        foreach (var bomb in _bombs)
+        // 倒序迭代：ReleaseBomb 内部会从 _bombs 移除条目
+        for (var i = _bombs.Count - 1; i >= 0; i--)
         {
+            var bomb = _bombs[i];
             if (bomb != null && GodotObject.IsInstanceValid(bomb))
             {
-                bomb.QueueFree();
+                bomb.ReturnToPool();
             }
         }
 
-        _bombs.Clear();
+        _bombs.Clear(); // 外部销毁（清场 sweep）的悬空条目兜底清除；拦截计数不经此处（原口径）
     }
 
     /// <summary>编队驱动：位置 = 锚点 + 随航向旋转的楔形偏移；机头朝航向。</summary>

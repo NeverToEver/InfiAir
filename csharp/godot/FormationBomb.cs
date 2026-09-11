@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 轰炸编队事件·下落炸弹（可交互威胁）：
+/// 轰炸编队事件·下落炸弹（可交互威胁，对象池复用——归属事件 FormationStrikeEvent 管理）：
 /// 引信制下落弹——投放时继承编队水平速度 ×0.35 + 垂直下落，引信到期在**弹体当前位置**引爆，
 /// 对 player_hitbox 做距离判定并按边缘衰减结算伤害（中心满伤、边缘 floor 倍，见
 /// balance formation_strike_event.bomb_edge_falloff）。
@@ -15,6 +15,8 @@ namespace InfiAir;
 /// 可读性：落点圈（完整伤害半径的实心轮廓 + 收缩倒计时弧）标出「会炸到哪、还剩多久」，
 /// 圈随引信收缩但**亮度递增**（最危险的一刻最显眼，与「越缩越暗」相反）。
 /// 与敌弹语义差异：不注册进敌弹注册表（不是弹幕流），也不触发玩家受击宽限——爆炸是即时判定。
+/// 池化契约：外观在 _Ready 一次性构建；Activate 重置全部运行态与外观（含 _Ready 不再重跑的
+/// 回收复用路径）；终局路径一律 ReturnToPool（池失效时 QueueFree 兜底）。
 /// </summary>
 public partial class FormationBomb : Area2D, IDamageable, IParryable
 {
@@ -22,6 +24,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 
     /// <summary>反射弹寻敌转向加速度（px/s²）——够快以咬住横穿的编队，又不至于瞬间掉头。</summary>
     private const float ReflectTurnAccel = 1600.0f;
+
+    /// <summary>弹头本色（_Ready 初值；弹反改冰蓝，Activate 复位）。</summary>
+    private static readonly Color WarheadColor = new(1.0f, 0.42f, 0.14f);
 
     /// <summary>投放参数（事件 Setup 注入；数值源 formation_strike_event.*）。</summary>
     public Vector2 Velocity { get; set; } = new(0.0f, 300.0f);
@@ -40,6 +45,14 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 
     /// <summary>是否已引爆/被击落（防同帧双路径重入结算）。</summary>
     private bool _spent;
+
+    /// <summary>已回池（防回收路径重入；Activate 复位）。IsParked 供池侧停放步骤跳过已复活的弹。</summary>
+    private bool _parked;
+
+    public bool IsParked() => _parked;
+
+    /// <summary>归属池（事件侧；事件节点与 Main 同生命周期，一般不失效）。</summary>
+    private FormationStrikeEvent? _pool;
 
     /// <summary>是否在引爆前就被拆掉（空中击落 / 弹反命中）——拦截计奖的唯一依据；
     /// 引信到期引爆的弹**不算**拦截（否则「没躲开」也能领拦截奖）。</summary>
@@ -62,6 +75,76 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         Fuse = pFuse;
         Damage = pDamage;
         AoeRadius = pRadius;
+    }
+
+    /// <summary>登记归属池（事件侧 Acquire 首次创建时调用）。</summary>
+    public void SetPool(FormationStrikeEvent pool) => _pool = pool;
+
+    /// <summary>
+    /// 池化激活：重置全部运行态与外观。新弹（_Ready 刚建完外观）重复调用幂等；
+    /// 回收复用弹经此恢复——_Ready 不重跑，BindEnemy/碰撞层/引信/弹反态都在这里复位。
+    /// </summary>
+    public void Activate()
+    {
+        _parked = false;
+        _spent = false;
+        Intercepted = false;
+        IsReflected = false;
+        _t = 0.0f;
+        _fuseLeft = Fuse;
+        CollisionLayer = 8; // 复位敌弹语义层（弹反态改写过）
+        CollisionMask = 1;
+        if (_warhead != null)
+        {
+            _warhead.Color = WarheadColor;
+            _warhead.Modulate = Colors.White; // 受击闪白复位
+        }
+
+        if (_ring != null)
+        {
+            _ring.Visible = true; // 弹反态隐藏的落点圈/倒计时弧复位
+            _ring.Scale = Vector2.One * AoeRadius;
+        }
+
+        if (_fuseArc != null)
+        {
+            _fuseArc.Visible = true;
+            _fuseArc.Scale = Vector2.One * AoeRadius;
+            UpdateFuseArc();
+        }
+
+        SetProcess(true);
+        Visible = true;
+        GameState.Instance.BindEnemy(this); // 停放期 reparent 触发 _ExitTree 解绑，复用需重绑
+    }
+
+    /// <summary>池化停用：只停结算与可见性（可发生在物理信号分发中，不改树）；
+    /// reparent 回池节点由事件侧帧末批量执行。</summary>
+    public void Deactivate()
+    {
+        _spent = true; // 停掉 TakeDamage/Reflect/OnAreaEntered/_Process 全部结算路径
+        SetProcess(false);
+        Visible = false;
+    }
+
+    /// <summary>终局统一出口：回池（池失效时 QueueFree 兜底）。引信到期/被击落/弹反命中/
+    /// 出界四条路径共用。</summary>
+    public void ReturnToPool()
+    {
+        if (_parked)
+        {
+            return;
+        }
+
+        _parked = true;
+        if (_pool != null && GodotObject.IsInstanceValid(_pool))
+        {
+            _pool.ReleaseBomb(this);
+        }
+        else
+        {
+            QueueFree();
+        }
     }
 
     public override void _Ready()
@@ -92,7 +175,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
                 new Vector2(-5.0f, 10.0f) * ws,
                 new Vector2(-7.0f, -2.0f) * ws,
             },
-            Color = new Color(1.0f, 0.42f, 0.14f),
+            Color = WarheadColor,
         };
         _body.AddChild(_warhead);
         var shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = 12.0f * ws } };
@@ -162,7 +245,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
             SteerHome(d);
             if (!FrameCache.ViewRect().Grow(120.0f).HasPoint(Position))
             {
-                QueueFree(); // 反射弹未命中即出界（无爆炸：它已经不再是威胁）
+                ReturnToPool(); // 反射弹未命中即出界（无爆炸：它已经不再是威胁）
             }
 
             return;
@@ -184,10 +267,10 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
             return;
         }
 
-        // 出界即释放，不留悬空节点
+        // 出界即回收，不留悬空节点
         if (!FrameCache.ViewRect().Grow(120.0f).HasPoint(Position))
         {
-            QueueFree();
+            ReturnToPool();
         }
     }
 
@@ -281,7 +364,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         GameState.Instance.PlaySfx(SfxId.FireB, -6.0, 1.5);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.45f);
         GameState.Instance.AddKillScore(BombScore);
-        QueueFree();
+        ReturnToPool();
     }
 
     // ---------------- IParryable：弧光弹反 ----------------
@@ -323,7 +406,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         Intercepted = true; // 弹反命中＝成功拆弹，计拦截奖
         GameState.Instance.PlaySfx(SfxId.Explosion, -4.0, 1.3);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.7f);
-        QueueFree();
+        ReturnToPool();
     }
 
     // ---------------- 引爆 ----------------
@@ -351,6 +434,6 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
             }
         }
 
-        QueueFree();
+        ReturnToPool();
     }
 }

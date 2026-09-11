@@ -15,6 +15,7 @@
 
 ```bash
 dotnet build                          # C# 构建，零警告（TreatWarningsAsErrors）
+bash scripts/ci/check_unit_tests.sh   # core/ 纯逻辑层单测（存档判型/配置回退/输入整形/经济契约）
 bash scripts/ci/check_comment_stamps.sh  # 源码注释无日期戳
 bash scripts/ci/check_language_style.sh  # 注释语种 + 散文术语单一叫法
 bash scripts/ci/check_ui_copy.sh      # 玩家可见文案：无开发措辞/无缺键/无空字段
@@ -27,6 +28,8 @@ bash scripts/ci/check_smoke.sh        # 冒烟三趟：主场景 300 帧 / 设�
 ```
 
 CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改动另需窗口化实机人工过目——无头门禁不覆盖 GPU/shader 管线。
+**单测边界**：测试工程在 `csharp/tests/`（不入主 sln，游戏构建/打包不耦合测试工具链），只测
+`csharp/core/` 纯逻辑（零 Godot 依赖）；引擎耦合行为测试已退役（2026-09-09），不在此恢复。
 **设置页专属纪律**：设置项口径见 `DESIGN_BASELINE.md` §1.15；新增/改动设置项必须同时过
 `check_settings_symmetry.sh`（写读对称 + 文案键存在）与设置页开页冒烟——设置项写错的表现是
 「玩家点开设置就崩」或「改了设置下次启动回到默认」，两者都不编译报错。
@@ -34,7 +37,7 @@ CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改�
 `godot --headless --path . --quit-after 400 -- --event-probe=formation_strike`（或 `elite_turret`），
 它强制触发一次事件并跑完全周期——编排、投弹、落点圈、反射弹、结算分支都在这条路径上。
 
-Windows 本地一次跑完上述九步（推荐）：`python3 scripts/ci/gates.py`——自动发现 bash（Git Bash 优先、WSL 兜底，路径按目标 shell 自动转换）与 Godot 引擎，按 CI 顺序执行并汇总；`--only <slug>` 只跑子集，`--list` 列出步骤。它只做调度，判定逻辑仍在各门禁脚本，不复制口径。
+Windows 本地一次跑完上述十步（推荐）：`python3 scripts/ci/gates.py`——自动发现 bash（Git Bash 优先、WSL 兜底，路径按目标 shell 自动转换）与 Godot 引擎，按 CI 顺序执行并汇总；`--only <slug>` 只跑子集，`--list` 列出步骤。它只做调度，判定逻辑仍在各门禁脚本，不复制口径。
 
 ## 文档纪律
 

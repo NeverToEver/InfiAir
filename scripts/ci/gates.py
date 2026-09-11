@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部八步：注释无日期戳 → 注释语种与术语 → 玩家可见文案 →
-数值键存在性 → 存档写读对称性 → C# 构建零警告 → 资源导入无警告 → 主场景 300 帧无错误。
+按 CI fast-gate 顺序跑完全部十步：注释无日期戳 → 注释语种与术语 → 玩家可见文案 →
+数值键存在性 → 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 →
+资源导入无警告 → 主场景 300 帧无错误。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
@@ -39,6 +40,7 @@ STEPS = (
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
+    {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
     {"slug": "smoke", "name": "冒烟三趟（主场景/设置页/编队事件）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )

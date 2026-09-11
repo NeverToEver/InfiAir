@@ -13,17 +13,18 @@ public partial class GameState : Node
 
     // ---------------- RP 经济 / 基地任务 / 天赋路线（门面转发 → MissionsService） ----------------
 
-    /// <summary>征用点数（基地经济）——MissionsService 转发。</summary>
-    public int Rp { get => _missions.Rp; set => _missions.Rp = value; }
+    /// <summary>征用点数（基地经济，只读——写入收口到 AddRp/SpendRp/ResetRun）——MissionsService 转发。</summary>
+    public int Rp => _missions.Rp;
 
     /// <summary>任务 id -> {"progress": int, "claimed": bool, "goal": int, "baseline": int}
-    /// （progress 为相对口径：本局绝对计数 − 任务入场基线快照）——MissionsService 转发。</summary>
-    public Godot.Collections.Dictionary Missions { get => _missions.Missions; set => _missions.Missions = value; }
+    /// （progress 为相对口径：本局绝对计数 − 任务入场基线快照；写入收口在 MissionsService）——
+    /// MissionsService 转发。</summary>
+    public Godot.Collections.Dictionary Missions => _missions.Missions;
 
     /// <summary>刷新点数（RefreshPoints）经济：进基地每次 +GRANT_PER_VISIT，刷新任务消耗 REFRESH_COST
-    /// （balance.json base_task 段覆盖；默认 1 点/次进基地、2 点/次刷新 = 攒两次基地换一次刷新）——
-    /// MissionsService 转发。</summary>
-    public int RefreshPoints { get => _missions.RefreshPoints; set => _missions.RefreshPoints = value; }
+    /// （balance.json base_task 段覆盖；默认 1 点/次进基地、2 点/次刷新 = 攒两次基地换一次刷新；
+    /// 写入收口到 GrantRefreshPoints/RefreshMissions/ResetRun）——MissionsService 转发。</summary>
+    public int RefreshPoints => _missions.RefreshPoints;
 
     public void AddRp(int amount) => _missions.AddRp(amount);
 

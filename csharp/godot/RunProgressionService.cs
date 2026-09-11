@@ -26,18 +26,36 @@ public sealed partial class RunProgressionService : RefCounted
     }
 
     // ---------------- 难度档位 ----------------
+    // 难度域写入收口：Difficulty 只经 SetDifficulty（玩家改档）/ApplyLoadedDifficulty（读档），
+    // DifficultyMultiplier 只经本类 Tick/Recompute/RestoreRunState/ResetAll，DDA 参数只经
+    // ApplyDdaParams——外部直写会绕过回血/倍率缓存失效（RefreshRegenCache）读到旧档数值。
 
-    /// <summary>难度档位（settings.json 持久化，默认 medium；GameState 公开属性转发）。</summary>
-    public StringName Difficulty { get; set; } = new StringName("medium");
+    /// <summary>难度档位（settings.json 持久化，默认 medium；GameState 公开属性转发，只读）。</summary>
+    public StringName Difficulty { get; private set; } = new StringName("medium");
 
-    /// <summary>难度进程乘数（GameState 公开属性转发）。</summary>
-    public double DifficultyMultiplier { get; set; } = 1.0;
+    /// <summary>难度进程乘数（GameState 公开属性转发，只读）。</summary>
+    public double DifficultyMultiplier { get; private set; } = 1.0;
 
     /// <summary>DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
-    /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存（GameState 公开属性转发）。</summary>
-    public double DDA_DURATION { get; set; } = 5.0;
+    /// （只拉间隔不降收益，分数公平）；_apply_balance 经 ApplyDdaParams 注入（GameState 公开属性转发，只读）。</summary>
+    public double DDA_DURATION { get; private set; } = 5.0;
 
-    public double DDA_FACTOR { get; set; } = 1.3;
+    public double DDA_FACTOR { get; private set; } = 1.3;
+
+    /// <summary>设置域读档恢复难度（不写盘、不发事件——玩家改档走 SetDifficulty）。
+    /// 缓存失效同 SetDifficulty：RefreshRegenCache 内重置倍率缓存游标。</summary>
+    public void ApplyLoadedDifficulty(StringName difficulty)
+    {
+        Difficulty = difficulty;
+        RefreshRegenCache();
+    }
+
+    /// <summary>DDA 参数注入（ApplyBalance 调用；调用方已钳下限，duration ≤0 段长无效、factor &lt;1 逆降档）。</summary>
+    public void ApplyDdaParams(double duration, double factor)
+    {
+        DDA_DURATION = duration;
+        DDA_FACTOR = factor;
+    }
 
     /// <summary>DDA 降档剩余计时（受击置位，_Process 经 Tick 推进；0 = 未降档）。</summary>
     private double _ddaTimer;
@@ -52,9 +70,10 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>已计入难度乘数的时间档位（按 time_step_seconds 量化步进，避免连续漂移）</summary>
     private int _difficultyTimeStep;
 
-    /// <summary>难度倍率缓存——Difficulty 是公开属性，直写不经
-    /// SetDifficulty（见 ScoreMultiplier 上方缓存失效说明），故按档位惰性刷新（StringName
-    /// 相等比较零分配）；DIFFICULTY_DEFS 替换（ReloadBalance→ApplyBalance）经 RefreshRegenCache 失效。</summary>
+    /// <summary>难度倍率缓存——Difficulty 变更已收口（SetDifficulty/ApplyLoadedDifficulty 均经
+    /// RefreshRegenCache 重置 _multCachedDifficulty 游标），但保留按档位惰性刷新作兜底
+    /// （StringName 相等比较零分配）：未来新增直写路径不至静默读到旧档倍率；
+    /// DIFFICULTY_DEFS 替换（ReloadBalance→ApplyBalance）同样经 RefreshRegenCache 失效。</summary>
     private StringName _multCachedDifficulty = new(); // 空 StringName ≠ 任何合法档位 → 首读惰性重算
     private double _enemyHpMult = 1.0;
     private double _enemySpeedMult = 1.0;
@@ -113,9 +132,8 @@ public sealed partial class RunProgressionService : RefCounted
 
     public int ScoreMultiplier()
     {
-        // 缓存必须按 Difficulty 失效：difficulty 是公开字段，直写不触发 RefreshRegenCache，
-        // 否则缓存返回旧值——档位惰性缓存经 StringName 比较检测该变更（与 enemy_hp/speed/spawn
-        // 三倍率同款）
+        // 兜底失效（正常路径已收口，见 _multCachedDifficulty 注释）：档位惰性缓存经
+        // StringName 比较检测异常变更（与 enemy_hp/speed/spawn 三倍率同款）
         if (Difficulty != _multCachedDifficulty)
         {
             RefreshDifficultyMultCache();

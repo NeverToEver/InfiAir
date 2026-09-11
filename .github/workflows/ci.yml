@@ -1,8 +1,10 @@
 name: CI
 
 # InfiAir 持续集成（fast-gate）。
-# 测试资产全量退役（xUnit 工程与断言/截图场景删除），门禁收敛为
-# 源码注释无日期戳 → 注释语种与术语 → 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → 资源导入无警告 → 主场景 300 帧 + 设置页开页 + 编队遭遇全周期冒烟无错误。
+# 引擎耦合行为测试（断言/截图场景）已退役；当前保留的 xUnit 工程只测
+# csharp/core 纯逻辑层（零 Godot 依赖，决策见 ROADMAP Decisions），不入主 sln。
+# 门禁链：
+# 源码注释无日期戳 → 注释语种与术语 → 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 主场景 300 帧 + 设置页开页 + 编队遭遇全周期冒烟无错误。
 # 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
 # + 官方 Godot 引擎/模板，禁止其他第三方依赖。
 
@@ -59,6 +61,9 @@ jobs:
 
       - name: Build C# (warnings-as-errors)
         run: dotnet build --nologo
+
+      - name: Core unit tests
+        run: bash scripts/ci/check_unit_tests.sh
 
       - name: Cache Godot mono engine
         id: cache-godot

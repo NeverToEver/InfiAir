@@ -193,9 +193,9 @@ public sealed class SaveStore
                             return l;
                         }
 
-                        // 溢出数字（如手改 1e999）TryGetValue 返回 false，
-                        // 回退 null 而非 GetValue<double>() 抛异常击穿 Load 的"损坏回退"契约
-                        if (val.TryGetValue<double>(out var dbl))
+                        // 溢出数字（手改 1e999 等）解析为 ±∞——非有限值按缺失处理，
+                        // 不让它渗进存档字段（下游 Clamp 虽能兜住部分路径，但 ∞ 参与比较/求和仍会产 NaN）
+                        if (val.TryGetValue<double>(out var dbl) && double.IsFinite(dbl))
                         {
                             return dbl;
                         }

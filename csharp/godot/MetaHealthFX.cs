@@ -25,9 +25,12 @@ public partial class MetaHealthFX : CanvasLayer
 
     public static int GetStateDying() => STATE_DYING;
 
-    // 下行边界（HP 比例，低于即进入下一状态）；末级 DYING 阈值以 balance.json
-    // effects.meta_health.dying.threshold 为准（_state_for_x 运行时用 cfg 覆盖 0.20，防双源漂移）
+    // 下行边界（HP 比例，低于即进入下一状态）默认表：前三档可被 balance.json
+    // effects.meta_health.stage_thresholds 覆盖（3 元素），末档 DYING 以
+    // effects.meta_health.dying.threshold 为准（防双源漂移）——运行值见 _stageThresholds
     private static readonly float[] THRESHOLDS = { 0.75f, 0.50f, 0.25f, 0.20f };
+    // 运行期状态阈值表（_Ready 组装：stage_thresholds 三档 + dying.threshold 末档）
+    private float[] _stageThresholds = (float[])THRESHOLDS.Clone();
     // 各状态裂纹密度上限（NORMAL 无裂纹；balance.json effects.meta_health.crack.density 可覆盖）
     private static readonly float[] DENSITY_CAPS = { 0.0f, 0.30f, 0.50f, 0.75f, 1.0f };
 
@@ -404,6 +407,45 @@ public partial class MetaHealthFX : CanvasLayer
         _adaptMax = _cfg["adapt_max"].AsSingle();
         _adaptBulletWeight = _cfg["adapt_bullet_weight"].AsSingle();
         _adaptExplosionWeight = _cfg["adapt_explosion_weight"].AsSingle();
+        AssembleStageThresholds();
+    }
+
+    /// <summary>组装状态阈值表：前三档读 stage_thresholds（3 元素，判型 + 域 (0,1] + 严格递减，
+    /// 且须全部大于 DYING 末档——坏值整组回退默认表），末档固定 dying.threshold（单源）。</summary>
+    private void AssembleStageThresholds()
+    {
+        var fallback = new Godot.Collections.Array { THRESHOLDS[0], THRESHOLDS[1], THRESHOLDS[2] };
+        var stageArr = GameState.Instance.Cfg("effects.meta_health.stage_thresholds", fallback);
+        var stages = new[] { THRESHOLDS[0], THRESHOLDS[1], THRESHOLDS[2] };
+        var ok = stageArr.VariantType == Variant.Type.Array;
+        if (ok)
+        {
+            var arr = stageArr.AsGodotArray();
+            ok = arr.Count == 3;
+            var values = new float[3];
+            for (var i = 0; ok && i < 3; i++)
+            {
+                var v = arr[i];
+                ok = v.VariantType is Variant.Type.Float or Variant.Type.Int
+                    && (float)v.AsDouble() is > 0.0f and <= 1.0f;
+                if (ok)
+                {
+                    values[i] = (float)v.AsDouble();
+                }
+            }
+
+            if (ok)
+            {
+                stages = values;
+            }
+        }
+
+        if (!ok || stages[0] <= stages[1] || stages[1] <= stages[2] || stages[2] <= _dyingThreshold)
+        {
+            stages = new[] { THRESHOLDS[0], THRESHOLDS[1], THRESHOLDS[2] }; // 倒挂/越界整组回退
+        }
+
+        _stageThresholds = new[] { stages[0], stages[1], stages[2], _dyingThreshold };
     }
 
     /// <summary>effects.meta_health.* 配置读入（GameState.cfg 动态调用，Variant → float）。</summary>
@@ -433,15 +475,9 @@ public partial class MetaHealthFX : CanvasLayer
     {
         var ratio = Mathf.Clamp(1.0f - x, 0.0f, 1.0f);
         var s = STATE_NORMAL;
-        for (var i = 0; i < THRESHOLDS.Length; i++)
+        for (var i = 0; i < _stageThresholds.Length; i++)
         {
-            var t = THRESHOLDS[i];
-            if (i == THRESHOLDS.Length - 1)
-            {
-                t = _dyingThreshold; // DYING 阈值以配置优先于常量表（默认 0.2），防双源漂移
-            }
-
-            if (ratio < t)
+            if (ratio < _stageThresholds[i])
             {
                 s += 1;
             }

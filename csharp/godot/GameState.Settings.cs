@@ -126,8 +126,11 @@ public partial class GameState : Node
     /// <summary>手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。</summary>
     public void SetJoyAimSpeed(double value) => _settings.SetJoyAimSpeed(value);
 
-    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，应用至全部手柄动作的 InputMap deadzone）。</summary>
+    /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，径向语义，读取侧 StickShaper 生效，不写 InputMap）。</summary>
     public void SetJoyDeadzone(double value) => _settings.SetJoyDeadzone(value);
+
+    /// <summary>手柄震动开关：持久化（RumbleService 每次脉冲直读设置域）。</summary>
+    public void SetJoyVibration(bool enabled) => _settings.SetJoyVibration(enabled);
 
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
     public void PersistJoySettings() => _settings.PersistJoySettings();
@@ -174,7 +177,7 @@ public partial class GameState : Node
         var tutorialDone = TutorialDone;
         // 键位与难度各有独立事实源：先复位它们，再重置设置域字段并重放副作用
         ResetKeyBindings();
-        Difficulty = new StringName("medium");
+        SetDifficulty(new StringName("medium")); // 走玩家改档正口：校验/落盘/广播，已在 medium 时幂等早退
         _settings.ResetToDefaults();
         TutorialDone = tutorialDone;
         // 语言经 SetLocale 重放（走 LocaleChanged 广播，设置页据此整页重建文案）；

@@ -128,6 +128,17 @@ public partial class RadialWheel : Node2D
     private float _breath = 0.5f; // 聚焦呼吸相位（0..1）
     private float _time;
     private float _idleT = 100f; // 距上次交互秒数（初值视为已超时；指针移动也算交互）
+
+    /// <summary>手柄方向按住连发：初始延迟（秒）后按重复节拍步进（业界标准 0.4s + 0.08s）。</summary>
+    private const float DpadInitialDelay = 0.4f;
+
+    private const float DpadRepeatRate = 0.08f;
+
+    // dpad/摇杆按住连发状态：joypad 按钮/轴无 echo，按住方向由 _Process 按节拍重复；
+    // 键盘 echo 由引擎驱动（原路径），双通道互不干扰
+    private int _dpadHold; // +1 = ui_down 按住，-1 = ui_up 按住，0 = 无
+    private float _dpadHoldT; // 按住累计秒（初始延迟计时）
+    private float _dpadRepeatT; // 重复节拍累计秒
     private bool _engaged;
     private int _lastFocusIdx = -1;
     private float _spinA; // 轮毂活性环透明度（随活性态淡入淡出）
@@ -387,12 +398,29 @@ public partial class RadialWheel : Node2D
     {
         if (!Visible || _model == null)
         {
+            _dpadHold = 0; // 隐藏期不积累连发
             return;
         }
 
         var d = (float)delta;
         _time += d;
         _idleT += d;
+        // 手柄按住连发：初始延迟后按节拍重复步进（首步已由 _Input 按下事件触发）
+        if (KeyboardEnabled && _dpadHold != 0)
+        {
+            _dpadHoldT += d;
+            if (_dpadHoldT >= DpadInitialDelay)
+            {
+                _dpadRepeatT += d;
+                while (_dpadRepeatT >= DpadRepeatRate)
+                {
+                    _dpadRepeatT -= DpadRepeatRate;
+                    MoveFocusOrScroll(_model, _dpadHold);
+                    _idleT = 0f;
+                }
+            }
+        }
+
         var anim = false;
 
         if (_shrinkT >= 0f)
@@ -665,6 +693,7 @@ public partial class RadialWheel : Node2D
         // 相位吞掉命中区鼠标点击与 ui_* 键盘导航（暂停页轮盘键盘导航全灭的实机根因）
         if (!IsVisibleInTree() || _model == null || _shrinkT >= 0f)
         {
+            _dpadHold = 0; // 忙态/隐藏期不积累连发（恢复可见时不爆发补发）
             return; // 收缩/回弹动画中为忙态，不接输入
         }
 
@@ -673,6 +702,34 @@ public partial class RadialWheel : Node2D
         // KeyboardEnabled=false 的混合页（settings/base 有焦点控件）不接管，方向键留给页面焦点链。
         if (KeyboardEnabled)
         {
+            // 手柄方向按住连发记录：joypad 按钮/轴事件无 echo——按下记方向（首步仍由下方
+            // IsActionPressed 分支即时触发），释放/方向变更清零；键盘事件不进本状态机
+            if (@event is InputEventJoypadButton or InputEventJoypadMotion)
+            {
+                if (@event.IsActionPressed("ui_down"))
+                {
+                    _dpadHold = +1;
+                    _dpadHoldT = 0f;
+                    _dpadRepeatT = 0f;
+                }
+                else if (@event.IsActionPressed("ui_up"))
+                {
+                    _dpadHold = -1;
+                    _dpadHoldT = 0f;
+                    _dpadRepeatT = 0f;
+                }
+
+                if (@event.IsActionReleased("ui_down") && _dpadHold > 0)
+                {
+                    _dpadHold = 0;
+                }
+
+                if (@event.IsActionReleased("ui_up") && _dpadHold < 0)
+                {
+                    _dpadHold = 0;
+                }
+            }
+
             if (@event.IsActionPressed("ui_down"))
             {
                 MoveFocusOrScroll(_model, +1);

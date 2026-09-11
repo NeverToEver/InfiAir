@@ -185,6 +185,13 @@ public partial class TitleScreen : CanvasLayer
             _started = true;
             StartGame();
         }
+        else if (@event is InputEventJoypadMotion joyMotion && Mathf.Abs(joyMotion.AxisValue) > 0.6f)
+        {
+            // 摇杆/扳机推过阈值也能开始（手柄玩家无需刻意够按钮）
+            GetViewport().SetInputAsHandled();
+            _started = true;
+            StartGame();
+        }
     }
 
     private void StartGame()

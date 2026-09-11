@@ -85,9 +85,10 @@ public partial class GameState : Node
 
         // 回血链数值一次性缓存（热路径禁 cfg 约定）——RunProgressionService
         _runProg.RefreshRegenCache();
-        // DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）
-        DDA_DURATION = Mathf.Max(Cfg("dda.duration", DDA_DURATION).AsDouble(), 0.1);
-        DDA_FACTOR = Mathf.Max(Cfg("dda.factor", DDA_FACTOR).AsDouble(), 1.0);
+        // DDA 降档参数缓存（热路径禁 cfg 约定；=0 时段长无效——钳制下限）；参数写入收口到服务
+        _runProg.ApplyDdaParams(
+            Mathf.Max(Cfg("dda.duration", _runProg.DDA_DURATION).AsDouble(), 0.1),
+            Mathf.Max(Cfg("dda.factor", _runProg.DDA_FACTOR).AsDouble(), 1.0));
         // 击杀连击参数缓存（热路径禁 cfg 约定；window ≤0 会每帧断连——钳制下限，
         // step ≤0 乘区不增、max_mult <1 会倒扣击杀分——钳制 ≥1）
         // step/max_mult 上界钳 [0,1e3]/[1,1e3]——巨值乘区在
@@ -223,10 +224,13 @@ public partial class GameState : Node
     private const int PersistVersionValue = 4;
 
     /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
-    /// ——SettingsService 转发。</summary>
+    /// （径向，读取侧 StickShaper 生效）——SettingsService 转发。</summary>
     public double JoyAimSpeed { get => _settings.JoyAimSpeed; set => _settings.JoyAimSpeed = value; }
 
     public double JoyDeadzone { get => _settings.JoyDeadzone; set => _settings.JoyDeadzone = value; }
+
+    /// <summary>手柄震动开关（settings.json 持久化，默认开；RumbleService 脉冲门控）——SettingsService 转发。</summary>
+    public bool JoyVibration { get => _settings.JoyVibration; set => _settings.JoyVibration = value; }
 
     /// <summary>手柄布局（默认 Xbox/SDL 标准名；检测到 Sony 手柄切 &amp;"ps"）——InputBindingsService 转发。</summary>
     public StringName JoyLayout { get => _input.JoyLayout; set => _input.JoyLayout = value; }
@@ -236,10 +240,6 @@ public partial class GameState : Node
 
     /// <summary>PS 布局手柄按钮物理标签——InputBindingsService 转发。</summary>
     public Godot.Collections.Dictionary PS_BUTTON_LABELS => _input.PS_BUTTON_LABELS;
-
-    /// <summary>手柄相关动作清单（死区应用与装配共用）——InputBindingsService 转发。
-    /// SettingsService.SetJoyDeadzone 经 Instance 跨域访问。</summary>
-    public Godot.Collections.Array<StringName> JOYPAD_ACTIONS => _input.JOYPAD_ACTIONS;
 
     public bool TutorialDone { get; set; } = false;
 
@@ -254,19 +254,17 @@ public partial class GameState : Node
     /// double（GDScript float 64 位逐位等价）——CombatStateService 转发。</summary>
     public double Health { get => _combat.Health; set => _combat.Health = value; }
 
-    /// <summary>难度进程乘数——RunProgressionService 转发。</summary>
-    public double DifficultyMultiplier
-    {
-        get => _runProg.DifficultyMultiplier;
-        set => _runProg.DifficultyMultiplier = value;
-    }
+    /// <summary>难度进程乘数（只读——写入收口在 RunProgressionService 的 Tick/RestoreRunState/
+    /// ResetAll）——RunProgressionService 转发。</summary>
+    public double DifficultyMultiplier => _runProg.DifficultyMultiplier;
 
-    /// <summary>难度档位（settings.json 持久化，默认 medium）——RunProgressionService 转发。</summary>
-    public StringName Difficulty
-    {
-        get => _runProg.Difficulty;
-        set => _runProg.Difficulty = value;
-    }
+    /// <summary>难度档位（settings.json 持久化，默认 medium；只读——写入收口到
+    /// SetDifficulty/ApplyLoadedDifficulty）——RunProgressionService 转发。</summary>
+    public StringName Difficulty => _runProg.Difficulty;
+
+    /// <summary>设置域读档恢复难度（不写盘、不发事件——SetDifficulty 是玩家改档口）；
+    /// 服务侧同步刷新回血与档位倍率缓存。</summary>
+    public void ApplyLoadedDifficulty(StringName difficulty) => _runProg.ApplyLoadedDifficulty(difficulty);
 
     /// <summary>设置项：Ctrl 微调 / Shift 加速 / 开火方式的模式（false=按住，true=切换；Player 移动/加速/开火读取）
     /// ——SettingsService 转发。</summary>
@@ -346,18 +344,11 @@ public partial class GameState : Node
     private int _surviveSecCached = -1;
 
     /// <summary>DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
-    /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存——RunProgressionService 转发。</summary>
-    public double DDA_DURATION
-    {
-        get => _runProg.DDA_DURATION;
-        set => _runProg.DDA_DURATION = value;
-    }
+    /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存（只读——
+    /// 写入收口到 ApplyDdaParams）——RunProgressionService 转发。</summary>
+    public double DDA_DURATION => _runProg.DDA_DURATION;
 
-    public double DDA_FACTOR
-    {
-        get => _runProg.DDA_FACTOR;
-        set => _runProg.DDA_FACTOR = value;
-    }
+    public double DDA_FACTOR => _runProg.DDA_FACTOR;
 
     /// <summary>击杀连击：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）——ScoreService 转发。</summary>
@@ -375,10 +366,9 @@ public partial class GameState : Node
         // 健康/增幅 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
         // 不发事件——AugmentsChanged 仍由下方直发收尾，顺序不变）
         _combat.ResetAll();
-        Rp = 0;
+        _missions.ResetEconomy(); // Rp/RefreshPoints 归零（服务侧收口；信号仍由下方直发）
         RunTime = 0.0;
         InitMissions();
-        RefreshPoints = 0;
         EmitSignal(SignalName.RefreshPointsChanged, RefreshPoints);
         // 天赋缓存域复位（缓存/层级/路线/代币/超载；增幅 不在此清——上方 _combat.ResetAll 已清）
         _talent.ResetAll();

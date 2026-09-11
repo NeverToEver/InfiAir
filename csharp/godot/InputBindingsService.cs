@@ -4,14 +4,13 @@ namespace InfiAir;
 
 /// <summary>
 /// 键位+手柄域服务：可改键系统/手柄装配与
-/// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout。
+/// PS/XBOX_BUTTON_LABELS/JoyLayout。
 /// 状态：REBINDABLE_ACTIONS/KeyBindings/_defaultBindings/JoyLayout/_joypadBound；
 /// 方法：CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/EnsureFireBinding/BindJoypadDefaults/
 /// AddJoyAxis/AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
 /// ResetKeyBindings/ActionKeysText。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
-/// 持久化）与 JoyDeadzone（BindJoypadDefaults 读设置域死区）经门面；Tr 为 GodotObject 实例方法
-/// （RefCounted 继承链可用），ActionKeysText 保持直调。
+/// 持久化）经门面；Tr 为 GodotObject 实例方法（RefCounted 继承链可用），ActionKeysText 保持直调。
 /// GameState 组合持有本服务并做门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
 /// 信号：本服务以 C# 事件 KeyBindingsChanged/JoyLayoutChanged 通知；GameState 订阅后转发为
 /// 同名信号（发射点/次数/顺序恒定——RebindAction/ResetKeyBindings
@@ -77,29 +76,33 @@ public sealed partial class InputBindingsService : RefCounted
         [7] = "R3",
     };
 
-    /// <summary>手柄相关动作清单（死区应用与装配共用）。
-    /// SettingsService.SetJoyDeadzone 经 GameState.Instance.JOYPAD_ACTIONS 跨域访问。</summary>
-    public Godot.Collections.Array<StringName> JOYPAD_ACTIONS { get; } = new()
+    /// <summary>摇杆 action（左杆移动 + 右杆瞄准）：InputMap deadzone 恒为滤噪小常数——
+    /// 用户死区改由读取侧 StickShaper 径向生效（GetVector 输出即近似 raw）。</summary>
+    private static readonly StringName[] StickActions =
     {
-        new StringName("move_up"),
-        new StringName("move_down"),
-        new StringName("move_left"),
-        new StringName("move_right"),
-        new StringName("aim_left"),
-        new StringName("aim_right"),
-        new StringName("aim_up"),
-        new StringName("aim_down"),
-        new StringName("dash"),
-        new StringName("boost"),
-        new StringName("fine_move"),
-        new StringName("fire"),
-        new StringName("dock"),
-        new StringName("homecoming"),
-        new StringName("give_up"),
-        new StringName("augment_panel"),
-        new StringName("restart"),
-        new StringName("parry"),
+        new("move_up"),
+        new("move_down"),
+        new("move_left"),
+        new("move_right"),
+        new("aim_left"),
+        new("aim_right"),
+        new("aim_up"),
+        new("aim_down"),
     };
+
+    /// <summary>扳机 action（轴当按钮用，触发阈值 = InputMap deadzone）：轻扣即触发，
+    /// 与摇杆死区解耦、不受设置页死区滑杆影响。</summary>
+    private static readonly StringName[] TriggerActions =
+    {
+        new("parry"),
+        new("fire"),
+    };
+
+    /// <summary>摇杆 InputMap 死区常数（只滤硬件噪声；用户死区在读取侧径向生效）。</summary>
+    private const float StickDeadzone = 0.05f;
+
+    /// <summary>扳机触发阈值常数（轴强度越过即触发，业界手柄射击惯例）。</summary>
+    private const float TriggerDeadzone = 0.2f;
 
     /// <summary>开火动作名（不在 REBINDABLE_ACTIONS——开火无键盘绑定，只装配鼠标左键/手柄扳机）。</summary>
     private static readonly StringName FireAction = new("fire");
@@ -223,12 +226,26 @@ public sealed partial class InputBindingsService : RefCounted
         AddJoyAxis("aim_right", 2, 1.0);
         AddJoyAxis("aim_up", 3, -1.0);
         AddJoyAxis("aim_down", 3, 1.0);
-        // 应用已持久化的摇杆死区（不触发 save/广播，启动装配专用）——设置域跨域经 Instance
-        foreach (var a in JOYPAD_ACTIONS)
+        // 左摇杆导航全部引擎焦点链 UI（ui_* 追加轴绑定；只追加，引擎默认键盘/dpad 绑定保留）
+        AddJoyAxis("ui_up", 1, -1.0);
+        AddJoyAxis("ui_down", 1, 1.0);
+        AddJoyAxis("ui_left", 0, -1.0);
+        AddJoyAxis("ui_right", 0, 1.0);
+        // 分域死区（常数，与设置页死区滑杆解耦）：摇杆只滤硬件噪声，用户死区由读取侧
+        // StickShaper 径向整形生效；扳机 0.2 轻扣即触发。按钮维持引擎默认。
+        foreach (var a in StickActions)
         {
             if (InputMap.HasAction(a))
             {
-                InputMap.ActionSetDeadzone(a, (float)GameState.Instance.JoyDeadzone);
+                InputMap.ActionSetDeadzone(a, StickDeadzone);
+            }
+        }
+
+        foreach (var a in TriggerActions)
+        {
+            if (InputMap.HasAction(a))
+            {
+                InputMap.ActionSetDeadzone(a, TriggerDeadzone);
             }
         }
     }

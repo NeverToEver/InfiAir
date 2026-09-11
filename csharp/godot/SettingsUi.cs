@@ -63,6 +63,7 @@ public partial class SettingsUi : RadialMenuLayer
     private Button _skipIntroBtn = null!; // 流程·默认跳过入场动画开关
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
+    private Button _joyVibrationBtn = null!; // 手柄·震动开关
     private Button _worldPostFxBtn = null!; // 画面·世界层增强（辉光/分级）开关
     private readonly ButtonGroup _fpsGroup = new();
     private readonly Godot.Collections.Dictionary _fpsButtons = new(); // 帧率上限档位 -> Button
@@ -330,13 +331,17 @@ public partial class SettingsUi : RadialMenuLayer
             _rebindRows[action] = Variant.From(info);
         }
 
-        // 手柄分组归「控制」页（输入面同页）：瞄准灵敏度 + 摇杆死区 + 当前布局
+        // 手柄分组归「控制」页（输入面同页）：瞄准灵敏度 + 摇杆死区 + 震动开关 + 当前布局
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_JOY")));
         _joyLayoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
         page.AddChild(_joyLayoutLabel);
         RefreshJoyLayoutLabel();
         MakeJoySlider(page, Tr("SET_JOY_AIM_SPEED"), 200.0f, 4000.0f, (float)GameState.Instance.JoyAimSpeed, "%.0f", v => GameState.Instance.SetJoyAimSpeed(v));
         MakeJoySlider(page, Tr("SET_JOY_DEADZONE"), 5.0f, 90.0f, (float)(GameState.Instance.JoyDeadzone * 100.0), "%.0f%%", v => GameState.Instance.SetJoyDeadzone(v / 100.0));
+        _joyVibrationBtn = UITheme.MakeToggleButton(Tr("SET_JOY_VIBRATION"), new ButtonGroup { AllowUnpress = true });
+        _joyVibrationBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
+        _joyVibrationBtn.Pressed += OnJoyVibration;
+        page.AddChild(_joyVibrationBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_JOY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 重置（破坏性动作各带二次确认，见 ConfirmDestructive）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_RESET_SECTION")));
@@ -934,6 +939,7 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshFpsButtons();
         _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
+        _joyVibrationBtn.SetPressedNoSignal(GameState.Instance.JoyVibration);
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
         RefreshShakeLabel();
         RefreshVolumeSliders();
@@ -1242,6 +1248,11 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnMouseLock()
     {
         GameState.Instance.SetMouseLock(_mouseLockBtn.ButtonPressed);
+    }
+
+    private void OnJoyVibration()
+    {
+        GameState.Instance.SetJoyVibration(_joyVibrationBtn.ButtonPressed);
     }
 
     private void OnSkipIntro()
