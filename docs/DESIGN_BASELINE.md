@@ -97,7 +97,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **F parry**: full 360° circle, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
 
 ### 1.14 Input Surface（PC 专用，定稿）
-- **两路输入：键鼠 + 手柄**。触屏（虚拟摇杆/按钮/触屏开火键）已于 2026-09-11 全量退役：手动开火之后，「瞄准与开火必须同手」在右拇指扇区内无解（命中区已顶到不重叠下限），而双拇指布局要求砍掉摇杆瞄准——取舍不成立，改为 PC 专用。工程面因此不留触屏分支：平台判定、`InputEventScreenTouch/Drag`、虚拟控件层与设置开关均不再存在，重新引入须先推翻本条（见 ROADMAP 决策）。
+- **两路输入：键鼠 + 手柄**。**移动端不做**（2026-09-11 产品范围决定，非技术限制）：触屏输入全量退役——虚拟摇杆/按钮层、触屏瞄准基准与差值累积分支、触屏开火键、设置开关、Android 返回手势路径均不再存在，`Player.AimPoint()` 只剩光标绑定一条路径。工程面不留任何触屏分支，重新引入须先推翻本条（见 ROADMAP 决策）。
 - **键盘**：`project.godot` 的 `[input]` 是可改键动作的唯一默认源；改键/恢复默认只擦写 `InputEventKey`（`InputBindingsService.ApplyKeyBindings`），冲突键从占用者移除。开火不进可改键表——它在键盘侧没有绑定（`EnsureFireBinding` 运行时装配鼠标左键，与手柄同层装配）。
 - **手柄**：`BindJoypadDefaults` 运行时装配（左摇杆移动 / 右摇杆瞄准 / A 冲刺 / RB 加速 / LB 微调 / X 停靠 / Y 返航 / R3 放弃 / L3 增幅面板 / LT 弹反 / RT 开火），`project.godot` 不承载手柄事件；摇杆死区统一走 `settings.json joy_deadzone`；PS 布局只改标签不改位置语义。
 - **轮盘 UI 的输入面**：方向键/摇杆旋转、确认键按下；GUI 焦点存在时方向键让位焦点链（键盘导航先于 GUI 相位）。

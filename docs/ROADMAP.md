@@ -7,7 +7,7 @@
 - 纯街机流落地（2026-09-08 用户指令）：账户/登录、排行榜、分数显示与记录、局外成长（研究所/科技点）全量移除；开机流程 = main.tscn 开机自动播开场过场 → `scenes/title.tscn` 深空机库标题屏（形态详见 DESIGN_BASELINE §1.12）→ 开局。对局内分数保留为隐藏进度引擎（敌机解锁/Boss 节奏/事件门控/里程碑→天赋点）。无尽必死曲线（D1）为既定设计。
 - 本局存档回归（2026-09-10，反转 09-08「无对局存档」）：单存档位检查点模型——保存退出/回基地落盘，死亡或放弃重开删档，标题屏可读档续局。口径见 DESIGN_BASELINE §2.5。
 - 内容演进：4 Boss 轮换、母舰火力平台、触屏输入、天赋缓存系统（2026-09-07，替代旧里程碑三选一与 line→双 buff 路线，低血保底随之退役）。
-- 平台收束（2026-09-11，方向变化）：**PC 桌面专用**，输入面 = 键鼠 + 手柄两路；触屏虚拟控件全量退役（口径见 DESIGN_BASELINE §1.14）。
+- 平台收束（2026-09-11，方向变化）：**PC 桌面专用、移动端不做**（产品范围决定），输入面 = 键鼠 + 手柄两路；触屏虚拟控件与 Android 返回路径全量退役（口径见 DESIGN_BASELINE §1.14）。
 - 质量形态：CI 单 job fast-gate 与本地门禁一致（口径见 AGENTS.md）；回归验证 = 人工窗口化实机过目。
 - 文档形态（2026-09-10 惯例整改后）：本文件（方向/债务/决策索引）+ `docs/DESIGN_BASELINE.md`（设计定稿）+ `AGENTS.md`（流程/门禁/提交纪律）三份，单源分工。
 
@@ -74,7 +74,7 @@ Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect
 - **2026-09-11 路线加成只作用于已投入节点**：`TalentEconomy.EffectiveLevel` 的 `+route.bonus_levels` 增加 `level > 0` 前置（DESIGN_BASELINE 机制 C 同步改写）。为什么：原实现让未投入节点也拿 eff 1，绑定路线即凭空获得该大类全部节点的一级效果——实测未买 `homing` 的局每发子弹都获得 150°/s × 8s 制导，而面板同时显示「已投入 0 点」，机制与读数自相矛盾。
 - **2026-09-11 手动开火（反转自动开火）**：鼠标左键 / 手柄 RT / 触屏按钮开火，设置页选「按住连发」或「按一下切换」。为什么：自动开火让射击决策消失，手动开火把输出节奏交回玩家；空格已归相位冲刺，开火不再占用键盘键。
 - **2026-09-11 门禁自检加固**：新增 `scripts/ci/gates.py` 作 Windows 本地统一入口（自动发现 bash 与 Godot 引擎，按 CI 顺序跑完八步），并修复 `check_comment_stamps.sh` 在 `git` 不可用时「零命中=clean」的静默假绿（改为显式失败）。为什么：门禁跑不起来或悄悄不跑，都会把「绿」变成假信号——本地环境与 CI 的差异必须显式暴露。
-- **2026-09-11 平台收束为 PC 专用（反转 2026-08-07 mobile touch landed）**：触屏输入全量退役——删除 `VirtualControls` 层与设置开关、`InputEventScreenTouch/Drag` 处理、`GameState.VirtualControls` 注册与 `TouchControlsChanged` 信号链、玩家瞄准的触屏差值累积分支、触屏文案与 3 条翻译键；平台判定不再需要。为什么：手动开火之后「瞄准与开火必须同手」，而右拇指扇区（瞄准摇杆 + dash + parry）已顶到命中区不重叠的下限，加开火键无论怎么放都要么够不到、要么抢触摸；改成双拇指布局就得砍摇杆瞄准。取舍不成立 → 专项只做键鼠与手柄两路。口径见 DESIGN_BASELINE §1.14，重新引入须先推翻本条。
+- **2026-09-11 平台收束为 PC 专用（反转 2026-08-07 mobile touch landed）**：移动端彻底不做——触屏输入全量退役，删除 `VirtualControls` 层与设置开关、`InputEventScreenTouch/Drag` 处理、`GameState.VirtualControls` 注册与 `TouchControlsChanged` 信号链、玩家瞄准的触屏差值累积分支、Android 返回通知死路径、触屏文案与 3 条翻译键；平台判定不再需要。为什么：产品范围决定（不是「做不到」）——专项只做 PC 上的键鼠与手柄两路，移动端与触屏是明确的范围外，相关输入面一律不留。口径见 DESIGN_BASELINE §1.14，重新引入须先推翻本条。
 
 ## Maintenance
 
