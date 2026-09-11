@@ -133,13 +133,16 @@ SET_CTRL_MODE,"Ctrl 微调模式","Ctrl Fine-move"
 SET_SHIFT_MODE,"Shift 加速模式","Shift Boost"
 SET_HOLD,"按住","Hold"
 SET_TOGGLE,"切换","Toggle"
+SET_FIRE,"开火","Fire"
+SET_FIRE_MODE,"开火方式","Fire Input"
+SET_FIRE_MODE_DESC,"按住：按住鼠标左键持续开火；切换：按一下开火、再按一下停火。手柄为右扳机，触屏为开火按钮","Hold: fire while the left mouse button is held; Toggle: press once to fire, press again to stop. Gamepad fires with RT, touch with the fire button"
 SET_CHEATSHEET,"操作速查：
-WASD/方向键 移动 · 鼠标 瞄准（自动开火）
-Shift 加速 · Ctrl 微调 · 空格 相位冲刺
+WASD/方向键 移动 · 鼠标 瞄准
+鼠标左键 开火 · Shift 加速 · Ctrl 微调 · 空格 相位冲刺
 长按 H 召唤母舰 · 长按 B 返航 · 长按 K 放弃
 Esc 暂停 · R 重开（固定不可改）","Controls:
-WASD/Arrows Move · Mouse Aim (auto-fire)
-Shift Boost · Ctrl Fine · Space Dash
+WASD/Arrows Move · Mouse Aim
+Left Mouse Fire · Shift Boost · Ctrl Fine · Space Dash
 Hold H Mothership · Hold B Home · Hold K Abandon
 Esc Pause · R Restart (fixed)"
 SET_VERSION,"InfiAir · Godot %s","InfiAir · Godot %s"
@@ -168,9 +171,9 @@ TUT_S3_TITLE,"阶段 3/6：战斗基础","Stage 3/6: Combat"
 TUT_S4_TITLE,"阶段 4/6：母舰停靠","Stage 4/6: Docking"
 TUT_S5_TITLE,"阶段 5/6：返航与基地","Stage 5/6: Homecoming"
 TUT_S6_TITLE,"阶段 6/6：首领遭遇","Stage 6/6: Boss"
-TUT_S1_OBJ,"WASD 移动，鼠标瞄准（自动开火）
+TUT_S1_OBJ,"WASD 移动，鼠标瞄准，按住鼠标左键开火
 准星套住青色标记框，子弹会追踪目标
-击杀 3 个训练靶 (%d/3)","Move with WASD, aim with mouse (auto-fire)
+击杀 3 个训练靶 (%d/3)","Move with WASD, aim with mouse, hold the left button to fire
 Catch a cyan bracket frame with your crosshair to make bullets home in
 Destroy 3 targets (%d/3)"
 TUT_S2_OBJ,"按住 Shift 加速（耗燃料，松开恢复）：%d/2
@@ -266,7 +269,7 @@ SET_WORLD_POST_FX,"画面增强（辉光/分级）","Visual enhancement (bloom/g
 SET_WORLD_POST_FX_DESC,"世界层辉光、色彩分级与晕影；关闭后回退逐元素发光，适合低配机器","World-layer bloom, colour grading and vignette; off falls back to per-element glow for low-end machines"
 SET_TOUCH,"触控","Touch"
 SET_TOUCH_CONTROLS,"触控控件（虚拟摇杆/按钮）","Touch controls (virtual sticks/buttons)"
-SET_TOUCH_DESC,"触屏设备使用：左侧移动、右侧瞄准，按钮对应加速/微调/冲刺/弹反；桌面键鼠/手柄不受影响","On touch devices: left stick moves, right stick aims; buttons map to boost/fine/dash/parry. Mouse/keyboard/gamepad unaffected"
+SET_TOUCH_DESC,"触屏设备使用：左侧移动、右侧瞄准，按钮对应开火/加速/微调/冲刺/弹反；桌面键鼠/手柄不受影响","On touch devices: left stick moves, right stick aims; buttons map to fire/boost/fine/dash/parry. Mouse/keyboard/gamepad unaffected"
 BOSS_ESCAPE_WARNING,"⚠ Boss 试图逃离战场 ⚠","⚠ Boss is trying to escape! ⚠"
 BASE_MISSION_FMT,"%s：%s（%d/%d）","%s: %s (%d/%d)"
 MS_UPGRADED,"火力升级 ★","Weapons UP ★"

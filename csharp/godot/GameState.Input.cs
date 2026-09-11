@@ -6,7 +6,7 @@ namespace InfiAir;
 /// GameState 部分定义：可改键系统 / 手柄装配。
 /// 全部职责由 InputBindingsService（csharp/godot/InputBindingsService.cs，
 /// 组合持有；REBINDABLE_ACTIONS/KeyBindings/JoyLayout/JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS 状态与
-/// CaptureDefaultBindings/ApplyKeyBindings/BindJoypadDefaults/DetectJoyLayout/IsPsGuid/JoyButtonLabel/
+/// CaptureDefaultBindings/ApplyKeyBindings/EnsureFireBinding/BindJoypadDefaults/DetectJoyLayout/IsPsGuid/JoyButtonLabel/
 /// RebindAction/ResetKeyBindings/ActionKeysText 方法一并在此），本文件为门面对齐转发——公开 API
 /// 签名/语义不变；JOYPAD_ACTIONS/JoyLayout/PS/XBOX_BUTTON_LABELS 在
 /// GameState.State.cs 转发。

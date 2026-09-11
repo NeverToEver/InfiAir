@@ -590,6 +590,7 @@ public partial class GameState : Node
 
         TranslationServer.SetLocale(Locale);
         _input.ApplyKeyBindings(); // 键位域 InputMap 应用（InputBindingsService）
+        _input.EnsureFireBinding(); // 开火动作装配（鼠标左键；手柄扳机在下一行随柄装配）
         _input.BindJoypadDefaults(); // 键位域手柄装配（InputBindingsService）
         // PS 布局检测：监听手柄插拔并刷新布局（标签显示用）——服务公开方法接线。
         // 引擎静态事件 + 本 autoload 进程级恒存，无需退订（仅 Connect 需守卫）

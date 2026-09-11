@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// GameState 部分定义：设置项（Ctrl/Shift/视角/窗口/瞄准/语言）与视图，职责在 SettingsService
+/// GameState 部分定义：设置项（Ctrl/Shift/开火/视角/窗口/瞄准/语言）与视图，职责在 SettingsService
 /// （csharp/godot/SettingsService.cs，组合持有；设置 setter 簇 + 视图簇 + 状态字段 +
 /// 设置域持久化桥 ApplySettingsDict/CollectSettingsDict 均在其中），本文件为门面对齐转发——公开 API 签名/语义不变。
 /// ApplyWindow/OnWindowResized 为一行包装（GameState._Ready 启动补一次默认档；
@@ -16,13 +16,16 @@ namespace InfiAir;
 public partial class GameState : Node
 {
 
-    // ---------------- 设置项（Ctrl/Shift 模式；门面转发 → SettingsService） ----------------
+    // ---------------- 设置项（Ctrl/Shift/开火 模式；门面转发 → SettingsService） ----------------
 
     /// <summary>Ctrl 微调模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetCtrlToggleMode(bool enabled) => _settings.SetCtrlToggleMode(enabled);
 
     /// <summary>Shift 加速模式：false=按住生效，true=按一下切换；持久化到 settings.json</summary>
     public void SetShiftToggleMode(bool enabled) => _settings.SetShiftToggleMode(enabled);
+
+    /// <summary>开火方式：false=按住鼠标左键连发，true=按一下切换；持久化到 settings.json</summary>
+    public void SetFireToggleMode(bool enabled) => _settings.SetFireToggleMode(enabled);
 
     /// <summary>触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）</summary>
     public void SetTouchControls(bool enabled) => _settings.SetTouchControls(enabled);

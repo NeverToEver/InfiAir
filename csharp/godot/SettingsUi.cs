@@ -6,7 +6,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 设置界面：左缘圆盘导航三页——「控制」（可改键表 + 恢复默认）、
-/// 「操作模式」（难度、跳过过场、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
+/// 「操作模式」（难度、跳过过场、开火方式、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
 /// </summary>
@@ -37,8 +37,11 @@ public partial class SettingsUi : RadialMenuLayer
     private Button _ctrlToggle = null!;
     private Button _shiftHold = null!;
     private Button _shiftToggle = null!;
+    private Button _fireHold = null!;
+    private Button _fireToggle = null!;
     private readonly ButtonGroup _ctrlGroup = new();
     private readonly ButtonGroup _shiftGroup = new();
+    private readonly ButtonGroup _fireGroup = new();
     private readonly ButtonGroup _langGroup = new();
     private Button _langZh = null!;
     private Button _langEn = null!;
@@ -449,6 +452,14 @@ public partial class SettingsUi : RadialMenuLayer
         _skipIntroBtn.Pressed += OnSkipIntro;
         page.AddChild(_skipIntroBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_SKIP_INTRO_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 开火方式（鼠标左键：按住连发 / 按一下切换）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_FIRE")));
+        var firePair = MakeModeRow(page, Tr("SET_FIRE_MODE"), _fireGroup);
+        _fireHold = firePair[0];
+        _fireToggle = firePair[1];
+        _fireHold.Pressed += () => OnFireMode(false);
+        _fireToggle.Pressed += () => OnFireMode(true);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_FIRE_MODE_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 按键模式（Ctrl/Shift）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_MODES")));
         var ctrlPair = MakeModeRow(page, Tr("SET_CTRL_MODE"), _ctrlGroup);
@@ -748,6 +759,8 @@ public partial class SettingsUi : RadialMenuLayer
         _ctrlToggle.SetPressedNoSignal(GameState.Instance.CtrlToggleMode);
         _shiftHold.SetPressedNoSignal(!GameState.Instance.ShiftToggleMode);
         _shiftToggle.SetPressedNoSignal(GameState.Instance.ShiftToggleMode);
+        _fireHold.SetPressedNoSignal(!GameState.Instance.FireToggleMode);
+        _fireToggle.SetPressedNoSignal(GameState.Instance.FireToggleMode);
         RefreshZoomButtons();
         RefreshWindowModeButtons();
         RefreshResolutionButtons();
@@ -961,6 +974,11 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnShiftMode(bool toggleMode)
     {
         GameState.Instance.SetShiftToggleMode(toggleMode);
+    }
+
+    private void OnFireMode(bool toggleMode)
+    {
+        GameState.Instance.SetFireToggleMode(toggleMode);
     }
 
     private void OnReduceFlash()

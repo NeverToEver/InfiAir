@@ -268,11 +268,15 @@ public partial class GameState : Node
         set => _runProg.Difficulty = value;
     }
 
-    /// <summary>设置项：Ctrl 微调 / Shift 加速的模式（false=按住，true=切换；Player 移动/加速读取）
+    /// <summary>设置项：Ctrl 微调 / Shift 加速 / 开火方式的模式（false=按住，true=切换；Player 移动/加速/开火读取）
     /// ——SettingsService 转发。</summary>
     public bool CtrlToggleMode { get => _settings.CtrlToggleMode; set => _settings.CtrlToggleMode = value; }
 
     public bool ShiftToggleMode { get => _settings.ShiftToggleMode; set => _settings.ShiftToggleMode = value; }
+
+    /// <summary>开火方式（settings.json 持久化，默认按住）：false=按住鼠标左键连发，true=按一下闩定——
+    /// SettingsService 转发。</summary>
+    public bool FireToggleMode { get => _settings.FireToggleMode; set => _settings.FireToggleMode = value; }
 
     /// <summary>触屏虚拟控件开关（持久化，默认关；Main 挂载 VirtualControls 联动）——SettingsService 转发。</summary>
     public bool TouchControls { get => _settings.TouchControls; set => _settings.TouchControls = value; }

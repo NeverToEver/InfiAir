@@ -4,7 +4,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 玩家战机：WASD 平滑移动、朝准星旋转、
-/// 全自动开火、Shift 加速、Ctrl 微调、空格相位冲刺（需增幅，耗 25% 燃料）。
+/// 手动开火（鼠标左键：按住连发 / 切换模式闩定，见 GameState.FireToggleMode）、
+/// Shift 加速、Ctrl 微调、空格相位冲刺（需增幅，耗 25% 燃料）。
 /// 组合委托：PlayerDamage/PlayerDash/PlayerParry/PlayerVisuals（纯 C# 类）+ PlayerAugmentVisuals（Node2D）。
 /// 语义保持：声明式 AUG_EFFECTS 表、辅助瞄准（追踪/锥形/磁吸）、入场动画、迷雾事件。
 /// 公开 API 为 PascalCase。
@@ -48,6 +49,7 @@ public partial class Player : CharacterBody2D
     private static readonly StringName ActAimRight = new("aim_right");
     private static readonly StringName ActAimUp = new("aim_up");
     private static readonly StringName ActAimDown = new("aim_down");
+    private static readonly StringName ActFire = new("fire");
 
     // ---- 入场动画（balance.json player.entry） ----
     public float EntryLandRatio { get; private set; } = 0.74f;
@@ -157,7 +159,14 @@ public partial class Player : CharacterBody2D
     private bool _inputLocked;
     public bool MovementLocked { get; set; }
     private float _enrageSlow = 1.0f;
-    private bool _autoFireEnabled = true;
+
+    /// <summary>开火门：外部系统（入场序列 / 激光光束）临时屏蔽普通子弹发射。
+    /// 玩家侧的开火意愿另见 ActFire 与 GameState.FireToggleMode——门关闭时不发射，
+    /// 门打开后仍须玩家按下开火键（手动开火）。</summary>
+    private bool _fireGateEnabled = true;
+
+    /// <summary>切换开火模式下的闩定态（按住模式恒不读；开火键按下时翻转）。</summary>
+    private bool _fireToggleOn;
 
     // ---- 受击/回血与冲刺/弹反/视觉组件（组合委托，纯 C# 类） ----
     private readonly PlayerDamage _damage = new();
@@ -173,7 +182,7 @@ public partial class Player : CharacterBody2D
     private int _soundIndex;
     private int _entryPhase;
     private float _entryRetreatLeft;
-    private bool _entryPrevAutoFire = true;
+    private bool _entryPrevFireGate = true;
     private Tween? _entryTween;
 
     // 组合组件属性转发（PlayerDamage/PlayerDash 状态经 Player 门面读写）
@@ -679,19 +688,21 @@ public partial class Player : CharacterBody2D
 
     public void ApplyEnrageSlow(float factor) => _enrageSlow = factor;
 
-    public void SetAutoFire(bool enabled) => _autoFireEnabled = enabled;
+    /// <summary>开火门开关（外部系统用：激光光束发射期间屏蔽普通子弹）。</summary>
+    public void SetFireGate(bool enabled) => _fireGateEnabled = enabled;
 
-    /// <summary>入场序列期间外部系统（LaserWeapon.EndBeam）恢复 autofire 时同步覆盖捕获值，
+    /// <summary>入场序列期间外部系统（LaserWeapon.EndBeam）恢复开火门时同步覆盖捕获值，
     /// 防 FinishEntry 把激光恢复的 true 踩回 false（返航暂停冻结激光 active 的孪生路径）。</summary>
-    public void OverrideEntryAutoFire(bool value)
+    public void OverrideEntryFireGate(bool value)
     {
         if (_entryPhase != 0)
         {
-            _entryPrevAutoFire = value;
+            _entryPrevFireGate = value;
         }
     }
 
-    public bool AutoFireEnabled() => _autoFireEnabled;
+    /// <summary>当前开火门状态（LaserWeapon 捕获-恢复用）。</summary>
+    public bool FireGateEnabled() => _fireGateEnabled;
 
     public bool IsDashing() => _dash.IsDashing();
 
@@ -1035,8 +1046,16 @@ public partial class Player : CharacterBody2D
             Rotation = aim.Angle() + Mathf.Pi / 2.0f;
         }
 
+        // 开火意愿（设置域 fire_toggle_mode）：按住 = 开火键按下期间连发；
+        // 切换 = 按一下闩定、再按一下解除（闩定值跨帧保留在 _fireToggleOn）。
+        if (gs.FireToggleMode && Input.IsActionJustPressed(ActFire))
+        {
+            _fireToggleOn = !_fireToggleOn;
+        }
+
+        var wantFire = gs.FireToggleMode ? _fireToggleOn : Input.IsActionPressed(ActFire);
         _fireCooldown -= d;
-        if (_autoFireEnabled && _fireCooldown <= 0.0f && aim.Length() > 1.0f)
+        if (_fireGateEnabled && wantFire && _fireCooldown <= 0.0f && aim.Length() > 1.0f)
         {
             FireInternal(aim.Normalized());
             var interval = FireIntervalValue();
@@ -1197,8 +1216,8 @@ public partial class Player : CharacterBody2D
         SetInvincible(EntryInvincible);
         Velocity = Vector2.Zero;
         Dashing = false;
-        _entryPrevAutoFire = _autoFireEnabled;
-        _autoFireEnabled = false;
+        _entryPrevFireGate = _fireGateEnabled;
+        _fireGateEnabled = false;
         Position = new Vector2(rect.GetCenter().X, rect.End.Y + EntrySpawnClearance);
         _visuals.SetThruster(2.0f, 1.0f, 1.0f, EngineTint);
         _entryTween = CreateTween();
@@ -1219,7 +1238,7 @@ public partial class Player : CharacterBody2D
         }
 
         _entryPhase = 0;
-        _autoFireEnabled = _entryPrevAutoFire;
+        _fireGateEnabled = _entryPrevFireGate;
         if (_entryTween != null && _entryTween.IsValid())
         {
             _entryTween.Kill();
@@ -1275,7 +1294,7 @@ public partial class Player : CharacterBody2D
     private void FinishEntry()
     {
         _entryPhase = 0;
-        _autoFireEnabled = _entryPrevAutoFire;
+        _fireGateEnabled = _entryPrevFireGate;
         Velocity = Vector2.Zero;
         EmitSignal(SignalName.EntryFinished);
     }
@@ -1453,7 +1472,7 @@ public partial class Player : CharacterBody2D
             _muzzleGlowA = 1.0f;
         }
 
-        // 射击音效走 SfxPlayer 目录（独立 AudioStreamPlayer2D 裸 0dB 直打 Master 在全自动
+        // 射击音效走 SfxPlayer 目录（独立 AudioStreamPlayer2D 裸 0dB 直打 Master 在持续
         // 射击下是炸耳主源）；三采样轮换防同采样疲劳，音量/抖动/复音/冷却由目录统一管
         GameState.Instance.PlaySfx(SfxId.FireA + _soundIndex);
         _soundIndex = (_soundIndex + 1) % FireSoundVariants;

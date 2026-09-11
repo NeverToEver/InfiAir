@@ -3,11 +3,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
+/// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetFireToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
 /// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
 /// PersistJoySettings）与视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
 /// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/RESOLUTION_LEVELS/AIM_ASSIST_ORDER）及状态字段
-/// （CtrlToggleMode/ShiftToggleMode/TouchControls/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
+/// （CtrlToggleMode/ShiftToggleMode/FireToggleMode/TouchControls/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
 /// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）
 /// 均在本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 亦在此（设置域
 /// 持久化，SaveSettings 留在 GameState 侧）。窗口管理：窗口模式（窗口化/无边框
@@ -42,6 +42,9 @@ public sealed partial class SettingsService : RefCounted
     public bool CtrlToggleMode { get; set; } = false;
 
     public bool ShiftToggleMode { get; set; } = false;
+
+    /// <summary>开火方式（false=按住鼠标左键连发，true=按一下闩定、再按一下停火；Player 开火路径读取）</summary>
+    public bool FireToggleMode { get; set; } = false;
 
     /// <summary>触屏虚拟控件开关（settings.json 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
     public bool TouchControls { get; set; } = false;
@@ -150,6 +153,13 @@ public sealed partial class SettingsService : RefCounted
     public void SetShiftToggleMode(bool enabled)
     {
         ShiftToggleMode = enabled;
+        GameState.Instance.SaveSettings();
+    }
+
+    /// <summary>开火方式：false=按住鼠标左键连发，true=按一下切换；持久化到 settings.json</summary>
+    public void SetFireToggleMode(bool enabled)
+    {
+        FireToggleMode = enabled;
         GameState.Instance.SaveSettings();
     }
 
@@ -707,6 +717,7 @@ public sealed partial class SettingsService : RefCounted
 
         CtrlToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
         ShiftToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
+        FireToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("fire_toggle_mode", FireToggleMode), FireToggleMode);
         var savedZoom = data.GetValueOrDefault("view_zoom", "").AsStringName();
         if (VIEW_ZOOM_LEVELS.ContainsKey(savedZoom))
         {
@@ -795,6 +806,7 @@ public sealed partial class SettingsService : RefCounted
         ["difficulty"] = GameState.Instance.Difficulty.ToString(),
         ["ctrl_toggle_mode"] = CtrlToggleMode,
         ["shift_toggle_mode"] = ShiftToggleMode,
+        ["fire_toggle_mode"] = FireToggleMode,
         ["view_zoom"] = ViewZoom.ToString(),
         ["window_mode"] = WindowMode.ToString(),
         ["resolution"] = Resolution.ToString(),

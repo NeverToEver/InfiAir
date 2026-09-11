@@ -5,7 +5,7 @@ namespace InfiAir;
 /// <summary>
 /// 触屏虚拟输入层（mobile touch）：
 /// 左虚拟摇杆 → move_*，右虚拟摇杆 → aim_*（增量，与手柄右摇杆虚拟准星同语义），
-/// 虚拟按钮 → boost / fine_move / dash / parry。
+/// 虚拟按钮 → fire / boost / fine_move / dash / parry。
 /// 注入路径：Input.action_press/release（等价 InputEventAction）——player 的
 /// Input.get_vector / is_action_pressed 读取路径零改动；仅输入目标为 action 状态，
 /// 与手柄/键鼠事件互不覆盖（无摇杆输入时零注入，桌面零回归）。
@@ -27,9 +27,11 @@ public partial class VirtualControls : CanvasLayer
     /// <summary>摇杆死区（归一化，按下起点周围静止区）</summary>
     private const float Deadzone = 0.15f;
 
-    /// <summary>虚拟按钮：action(StringName) -&gt; {center, radius}（屏幕位置常量）</summary>
+    /// <summary>虚拟按钮：action(StringName) -&gt; {center, radius}（屏幕位置常量）。
+    /// fire 半径加大：手动开火是持续按压的主力键，命中区与其余动作键拉开差距。</summary>
     private static readonly Godot.Collections.Dictionary Buttons = new()
     {
+        [new StringName("fire")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(1640.0f, 430.0f), ["radius"] = 76.0f },
         [new StringName("boost")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(520.0f, 560.0f), ["radius"] = 60.0f },
         [new StringName("fine_move")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(660.0f, 700.0f), ["radius"] = 52.0f },
         [new StringName("dash")] = new Godot.Collections.Dictionary { ["center"] = new Vector2(1500.0f, 620.0f), ["radius"] = 62.0f },
@@ -53,6 +55,7 @@ public partial class VirtualControls : CanvasLayer
     private static readonly StringName ZoneAimName = new("aim");
     private static readonly StringName ZoneButtonName = new("button");
     private static readonly StringName BoostName = new("boost");
+    private static readonly StringName FireName = new("fire");
     private static readonly StringName FineMoveName = new("fine_move");
     private static readonly StringName DashName = new("dash");
     private static readonly StringName ParryName = new("parry");
@@ -438,6 +441,11 @@ public partial class VirtualControls : CanvasLayer
 
     private static string ButtonLabel(StringName action)
     {
+        if (action == FireName)
+        {
+            return "G";
+        }
+
         if (action == BoostName)
         {
             return "B";

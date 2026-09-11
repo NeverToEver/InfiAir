@@ -10,7 +10,7 @@ Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-0
 
 ### 1.2 Core Loop
 ```
-auto-fire + waves → milestone/boss talent points → cache spend (talent tree) → 4 rotating bosses + enrage
+manual fire (left mouse / RT / touch button; hold or toggle per `settings.json fire_toggle_mode`) + waves → milestone/boss talent points → cache spend (talent tree) → 4 rotating bosses + enrage
 → mothership supply/fire platform → return-to-base restock → same run continues
 ```
 Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded player growth, unbounded enemy pressure).

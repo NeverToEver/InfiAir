@@ -6,8 +6,8 @@ namespace InfiAir;
 /// 键位+手柄域服务：可改键系统/手柄装配与
 /// JOYPAD_ACTIONS/PS/XBOX_BUTTON_LABELS/JoyLayout。
 /// 状态：REBINDABLE_ACTIONS/KeyBindings/_defaultBindings/JoyLayout/_joypadBound；
-/// 方法：CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/BindJoypadDefaults/AddJoyAxis/
-/// AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
+/// 方法：CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/EnsureFireBinding/BindJoypadDefaults/
+/// AddJoyAxis/AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
 /// ResetKeyBindings/ActionKeysText。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
 /// 持久化）与 JoyDeadzone（BindJoypadDefaults 读设置域死区）经门面；Tr 为 GodotObject 实例方法
@@ -92,6 +92,7 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("dash"),
         new StringName("boost"),
         new StringName("fine_move"),
+        new StringName("fire"),
         new StringName("dock"),
         new StringName("homecoming"),
         new StringName("give_up"),
@@ -99,6 +100,9 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("restart"),
         new StringName("parry"),
     };
+
+    /// <summary>开火动作名（不在 REBINDABLE_ACTIONS——开火无键盘绑定，只装配鼠标左键/手柄扳机/触屏按钮）。</summary>
+    private static readonly StringName FireAction = new("fire");
 
     // ---------------- 信号 C# 事件 ----------------
 
@@ -163,6 +167,28 @@ public sealed partial class InputBindingsService : RefCounted
         }
     }
 
+    /// <summary>开火动作装配（幂等）：鼠标左键事件在运行时注册——开火无键盘绑定，
+    /// project.godot 只承载可改键的键盘默认值，鼠标/手柄/触屏三路同层装配
+    /// （Player 读 Input.is_action_pressed(&amp;"fire") 的路径因此零特判）。
+    /// 幂等判定按「已存在左键事件」而非布尔标志——重进树/热重载不重复追加。</summary>
+    public void EnsureFireBinding()
+    {
+        if (!InputMap.HasAction(FireAction))
+        {
+            InputMap.AddAction(FireAction);
+        }
+
+        foreach (var ev in InputMap.ActionGetEvents(FireAction))
+        {
+            if (ev is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
+            {
+                return;
+            }
+        }
+
+        InputMap.ActionAddEvent(FireAction, new InputEventMouseButton { ButtonIndex = MouseButton.Left });
+    }
+
     /// <summary>手柄默认绑定运行时装配——project.godot 保持键盘单一事实源，
     /// 手柄左摇杆移动/动作键/右摇杆瞄准在此追加（InputMap.action_add_event），
     /// 与 keybind 改键系统（只改键盘事件）互不覆盖；一次装配幂等。</summary>
@@ -189,6 +215,7 @@ public sealed partial class InputBindingsService : RefCounted
         AddJoyButton("augment_panel", 6); // L3（展开/收起 buff 栏）
         AddJoyButton("restart", 0); // A（结算/暂停重开）
         AddJoyAxis("parry", 4, -1.0); // LT 左扳机（弧光弹反盾，轴 4 负向按下；阈值经 deadzone）
+        AddJoyAxis("fire", 5, 1.0); // RT 右扳机（轴 5 正向；与 LT 弹反同族，阈值经 deadzone）
         // 右摇杆瞄准（player.aim_point 经 Input.get_vector 读取四向动作，虚拟准星）。
         // 必须装配正负两个独立动作——get_vector(pos, neg) 取 strength 差值，
         // 同一动作正负双向传会恒为零（右摇杆瞄准完全失效）
