@@ -27,6 +27,7 @@ TERMS = {
     "增幅": r"\bbuff\b|\bBuff\b|增益",
     "弹反": r"格挡",
     "天赋": r"技能树",
+    "键鼠": r"触屏|触控|移动端",
 }
 
 prose, term_hits = [], defaultdict(list)
