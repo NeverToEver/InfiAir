@@ -5,6 +5,9 @@
 ## 项目形态
 
 - Godot 4.6 .NET + C#（全量 C#，零 GDScript），GL Compatibility，1920×1080。
+- **平台：PC 桌面专用**；输入面只有键鼠与手柄两路，触屏虚拟控件已全量退役（2026-09-11）。
+  口径与理由见 `docs/DESIGN_BASELINE.md` §1.14 / `docs/ROADMAP.md` 决策——重新引入触屏须先推翻该决策，
+  并同步恢复被删除的平台判定、虚拟控件层与设置开关。
 - 分层：`csharp/core/` 纯逻辑（不依赖 Godot）/ `csharp/godot/` 绑定层（场景脚本、UI、服务）。
 - 数值单源 `data/balance.json`；颜色单源 `csharp/godot/UITheme.cs`。
 

@@ -101,7 +101,7 @@ public sealed partial class InputBindingsService : RefCounted
         new StringName("parry"),
     };
 
-    /// <summary>开火动作名（不在 REBINDABLE_ACTIONS——开火无键盘绑定，只装配鼠标左键/手柄扳机/触屏按钮）。</summary>
+    /// <summary>开火动作名（不在 REBINDABLE_ACTIONS——开火无键盘绑定，只装配鼠标左键/手柄扳机）。</summary>
     private static readonly StringName FireAction = new("fire");
 
     // ---------------- 信号 C# 事件 ----------------
@@ -168,7 +168,7 @@ public sealed partial class InputBindingsService : RefCounted
     }
 
     /// <summary>开火动作装配（幂等）：鼠标左键事件在运行时注册——开火无键盘绑定，
-    /// project.godot 只承载可改键的键盘默认值，鼠标/手柄/触屏三路同层装配
+    /// project.godot 只承载可改键的键盘默认值，鼠标/手柄两路同层装配
     /// （Player 读 Input.is_action_pressed(&amp;"fire") 的路径因此零特判）。
     /// 幂等判定按「已存在左键事件」而非布尔标志——重进树/热重载不重复追加。</summary>
     public void EnsureFireBinding()

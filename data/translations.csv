@@ -135,7 +135,7 @@ SET_HOLD,"按住","Hold"
 SET_TOGGLE,"切换","Toggle"
 SET_FIRE,"开火","Fire"
 SET_FIRE_MODE,"开火方式","Fire Input"
-SET_FIRE_MODE_DESC,"按住：按住鼠标左键持续开火；切换：按一下开火、再按一下停火。手柄为右扳机，触屏为开火按钮","Hold: fire while the left mouse button is held; Toggle: press once to fire, press again to stop. Gamepad fires with RT, touch with the fire button"
+SET_FIRE_MODE_DESC,"按住：按住鼠标左键持续开火；切换：按一下开火、再按一下停火。手柄为右扳机 RT","Hold: fire while the left mouse button is held; Toggle: press once to fire, press again to stop. Gamepad fires with RT"
 SET_CHEATSHEET,"操作速查：
 WASD/方向键 移动 · 鼠标 瞄准
 鼠标左键 开火 · Shift 加速 · Ctrl 微调 · 空格 相位冲刺
@@ -267,9 +267,6 @@ SET_REDUCE_FLASH,"减少闪光","Reduce flashes"
 SET_VIDEO,"画面","Video"
 SET_WORLD_POST_FX,"画面增强（辉光/分级）","Visual enhancement (bloom/grade)"
 SET_WORLD_POST_FX_DESC,"世界层辉光、色彩分级与晕影；关闭后回退逐元素发光，适合低配机器","World-layer bloom, colour grading and vignette; off falls back to per-element glow for low-end machines"
-SET_TOUCH,"触控","Touch"
-SET_TOUCH_CONTROLS,"触控控件（虚拟摇杆/按钮）","Touch controls (virtual sticks/buttons)"
-SET_TOUCH_DESC,"触屏设备使用：左侧移动、右侧瞄准，按钮对应开火/加速/微调/冲刺/弹反；桌面键鼠/手柄不受影响","On touch devices: left stick moves, right stick aims; buttons map to fire/boost/fine/dash/parry. Mouse/keyboard/gamepad unaffected"
 BOSS_ESCAPE_WARNING,"⚠ Boss 试图逃离战场 ⚠","⚠ Boss is trying to escape! ⚠"
 BASE_MISSION_FMT,"%s：%s（%d/%d）","%s: %s (%d/%d)"
 MS_UPGRADED,"火力升级 ★","Weapons UP ★"

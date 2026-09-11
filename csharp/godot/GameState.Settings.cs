@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 设置域持久化桥 ApplySettingsDict/CollectSettingsDict 均在其中），本文件为门面对齐转发——公开 API 签名/语义不变。
 /// ApplyWindow/OnWindowResized 为一行包装（GameState._Ready 启动补一次默认档；
 /// 拖拽捕获经根窗口 SizeChanged 去抖后调 OnWindowResized）。
-/// 信号：TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
+/// 信号：ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
 /// ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged 由 SettingsService 的 C# 事件
 /// 经 GameState 订阅重发。
 /// 健康/增幅 域保留转发 → CombatStateService，见文件末尾。
@@ -26,9 +26,6 @@ public partial class GameState : Node
 
     /// <summary>开火方式：false=按住鼠标左键连发，true=按一下切换；持久化到 settings.json</summary>
     public void SetFireToggleMode(bool enabled) => _settings.SetFireToggleMode(enabled);
-
-    /// <summary>触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）</summary>
-    public void SetTouchControls(bool enabled) => _settings.SetTouchControls(enabled);
 
     // ---------------- 视角缩放（门面转发 → SettingsService） ----------------
 

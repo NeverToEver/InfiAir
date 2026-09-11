@@ -1105,7 +1105,7 @@ public partial class Player : CharacterBody2D
     }
 
     /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先；
-    /// 键鼠/手柄下准星与系统光标逐像素绑定（见内注）；触屏保持差值累积平滑。</summary>
+    /// 键鼠/手柄下准星与系统光标逐像素绑定（见内注）。</summary>
     public Vector2 AimPoint()
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
@@ -1118,14 +1118,6 @@ public partial class Player : CharacterBody2D
         {
             _aimSmoothedFrame = frame;
             var raw = GetGlobalMousePosition();
-            // VirtualControls 已 C#，typed 直调（免去原来的动态派发 + Variant 装箱）
-            var vc = GameState.Instance.VirtualControls as VirtualControls;
-            var touch = vc != null && vc.IsEnabled();
-            if (touch)
-            {
-                raw = vc!.BaseAimPosition();
-            }
-
             // 右摇杆虚拟准星（四向独立动作，差值驱动）
             var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
@@ -1150,32 +1142,21 @@ public partial class Player : CharacterBody2D
                 }
             }
 
-            if (touch)
+            // 键鼠/手柄准星-光标绑定：物理增量（raw − _aimLastRaw）全量通过，粘滞(factor<1)/
+            // 磁吸/摇杆偏移经 Viewport.WarpMouse 反写真实光标，下一帧 raw 即新锚点——准星始终与
+            // 光标绑定（差值累积会在光标顶到屏幕边缘后物理增量归零、准星看似卡死）；
+            // 目标钳制在可视世界域内（视角档自适应），准星/光标均不出窗。
+            var desired = !_aimInitialized ? raw : _aimSmooth + (raw - _aimLastRaw) * factor + magnet + joyDelta;
+            var view = GameState.Instance.ViewWorldRect();
+            var inset = new Vector2(AimClampInset, AimClampInset);
+            desired = desired.Clamp(view.Position + inset, view.End - inset);
+            if ((desired - raw).LengthSquared() > 0.25f)
             {
-                // 触屏：无系统光标可绑，保持差值累积（粘滞/磁吸作用于平滑点）
-                var touchRaw = raw + joyDelta;
-                _aimSmooth = !_aimInitialized ? touchRaw : _aimSmooth + (touchRaw - _aimLastRaw) * factor + magnet;
-                _aimLastRaw = touchRaw;
-            }
-            else
-            {
-                // 键鼠/手柄准星-光标绑定：物理增量（raw − _aimLastRaw）全量通过，粘滞(factor<1)/
-                // 磁吸/摇杆偏移经 Viewport.WarpMouse 反写真实光标，下一帧 raw 即新锚点——准星始终与
-                // 光标绑定（差值累积会在光标顶到屏幕边缘后物理增量归零、准星看似卡死）；
-                // 目标钳制在可视世界域内（视角档自适应），准星/光标均不出窗。
-                var desired = !_aimInitialized ? raw : _aimSmooth + (raw - _aimLastRaw) * factor + magnet + joyDelta;
-                var view = GameState.Instance.ViewWorldRect();
-                var inset = new Vector2(AimClampInset, AimClampInset);
-                desired = desired.Clamp(view.Position + inset, view.End - inset);
-                if ((desired - raw).LengthSquared() > 0.25f)
-                {
-                    GetViewport().WarpMouse(GetCanvasTransform() * desired);
-                }
-
-                _aimSmooth = desired;
-                _aimLastRaw = desired;
+                GetViewport().WarpMouse(GetCanvasTransform() * desired);
             }
 
+            _aimSmooth = desired;
+            _aimLastRaw = desired;
             _aimInitialized = true;
         }
 

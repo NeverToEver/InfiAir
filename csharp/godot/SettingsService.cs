@@ -3,11 +3,11 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetFireToggleMode/SetTouchControls/SetViewZoom/SetWindowMode/
+/// 设置+视图域服务：设置 setter 簇（SetCtrlToggleMode/SetShiftToggleMode/SetFireToggleMode/SetViewZoom/SetWindowMode/
 /// SetResolution/SetAimAssistLevel/SetReduceFlash/SetMouseLock/SetJoyAimSpeed/SetJoyDeadzone/SetLocale/
 /// PersistJoySettings）与视图簇（CameraRef/ViewWorldRect/CachedViewRect 物理帧缓存/
 /// InvalidateViewRectCache/VIEW_ZOOM_LEVELS/RESOLUTION_LEVELS/AIM_ASSIST_ORDER）及状态字段
-/// （CtrlToggleMode/ShiftToggleMode/FireToggleMode/TouchControls/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
+/// （CtrlToggleMode/ShiftToggleMode/FireToggleMode/ViewZoom/WindowMode/Resolution/CustomWindowWidth/
 /// CustomWindowHeight/AimAssistLevel/ReduceFlash/MouseLock/Locale/JoyAimSpeed/JoyDeadzone/MetaFxLod）
 /// 均在本服务；持久化桥 ApplySettingsDict/CollectSettingsDict 亦在此（设置域
 /// 持久化，SaveSettings 留在 GameState 侧）。窗口管理：窗口模式（窗口化/无边框
@@ -20,7 +20,7 @@ namespace InfiAir;
 /// （EntityManager）经构造注入（CameraRef 转发，与 RunProgressionService 注入 BalanceService 同构）。
 /// 门面转发先例：与 MissionsService/ScoreService/RunProgressionService/CombatStateService
 /// 同构——GameState 组合持有本服务，GameState.Settings.cs/State.cs 为门面对齐转发（签名/语义不变），
-/// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 TouchControlsChanged/ViewZoomChanged/
+/// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 ViewZoomChanged/
 /// WindowModeChanged/ResolutionChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/
 /// JoySettingsChanged/LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序
 /// 保持不变——LoadSettings 直写字段路径不发服务事件，无双发）。
@@ -45,9 +45,6 @@ public sealed partial class SettingsService : RefCounted
 
     /// <summary>开火方式（false=按住鼠标左键连发，true=按一下闩定、再按一下停火；Player 开火路径读取）</summary>
     public bool FireToggleMode { get; set; } = false;
-
-    /// <summary>触屏虚拟控件开关（settings.json 持久化，默认关；Main 挂载 VirtualControls 联动）</summary>
-    public bool TouchControls { get; set; } = false;
 
     /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）</summary>
     public StringName ViewZoom { get; set; } = new StringName("small");
@@ -106,10 +103,6 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 信号 C# 事件 ----------------
 
-    /// <summary>触屏虚拟控件开关变化；GameState 订阅后转发为 TouchControlsChanged 信号
-    /// （LoadSettings 直写字段路径不经本事件——无双发）。</summary>
-    public event Action<bool>? TouchControlsChanged;
-
     /// <summary>视角档位变化（参数为生效 zoom 倍率）；GameState 订阅后转发为 ViewZoomChanged 信号。</summary>
     public event Action<double>? ViewZoomChanged;
 
@@ -161,14 +154,6 @@ public sealed partial class SettingsService : RefCounted
     {
         FireToggleMode = enabled;
         GameState.Instance.SaveSettings();
-    }
-
-    /// <summary>触屏虚拟控件开关（mobile touch）：持久化 + 广播（Main 联动 VirtualControls.set_enabled）</summary>
-    public void SetTouchControls(bool enabled)
-    {
-        TouchControls = enabled;
-        GameState.Instance.SaveSettings();
-        TouchControlsChanged?.Invoke(enabled);
     }
 
     // ---------------- 视角缩放 ----------------

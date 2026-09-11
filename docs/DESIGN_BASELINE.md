@@ -6,11 +6,11 @@
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无排行榜/无局外成长；开机 = 开场过场 → 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始新的一局 / **C 继续上次出击** / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。**本局存档**（2026-09-10 追加，见 §2.5）：回基地与选择「保存并退出」时落盘、死亡即删档、读档还原进度从新一波开始。
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **平台定稿：PC 桌面专用**（Windows / Linux / macOS），输入面只有键鼠与手柄两路（2026-09-11 触屏虚拟控件全量退役，见 §1.14 与 ROADMAP 决策）。**Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无排行榜/无局外成长；开机 = 开场过场 → 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始新的一局 / **C 继续上次出击** / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。**本局存档**（2026-09-10 追加，见 §2.5）：回基地与选择「保存并退出」时落盘、死亡即删档、读档还原进度从新一波开始。
 
 ### 1.2 Core Loop
 ```
-manual fire (left mouse / RT / touch button; hold or toggle per `settings.json fire_toggle_mode`) + waves → milestone/boss talent points → cache spend (talent tree) → 4 rotating bosses + enrage
+manual fire (left mouse / RT; hold or toggle per `settings.json fire_toggle_mode`) + waves → milestone/boss talent points → cache spend (talent tree) → 4 rotating bosses + enrage
 → mothership supply/fire platform → return-to-base restock → same run continues
 ```
 Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded player growth, unbounded enemy pressure).
@@ -45,7 +45,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Card text via `AUG_%s_DESC` keys (single source).
 - Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3` no longer gates purchase — legacy trait), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
-- **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。触屏无系统光标，保持差值累积平滑（VirtualControls 路径不绑定）。
+- **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
 
 ### 1.6 Bosses
 - Rotation: Nth boss = type `(N-1)%4+1` via `spawner.SpawnBoss()`.
@@ -88,13 +88,19 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock)。标题屏 `title.tscn` 为独立场景（2026-09-09 深空机库改版：程序化星空 + 远景实况战场〔敌机编队/远处爆炸/Boss 剪影〕+ 玩家机自远处跃迁飞入右侧悬挂展示〔轮廓背光/尾焰怠速/铭牌卡〕+ 左侧标题区，开场演出 ~2.2s 不阻塞输入；任意键开局 + T 教程；设置页「默认跳过入场动画」开启时开机直达）。
 - **圆盘 UI 全覆盖（2026-09-08）**：左缘 `RadialWheel`（圆心锚屏外左侧，卡片沿弧排列；槽距按选项数自适应 `SlotAngleFor`，端点角钳 ±36° 防压 HUD；全容弧面时键盘/滚轮经 `FocusBias` 移动聚焦项）为全站菜单导航面：天赋面板（已有）、暂停、死亡结算、基地目录、设置页导航；`RadialMenuLayer` 为统一开合骨架（dim+轮盘过冲滑入，`SetWheelActive` 同步轮盘/chrome 遮罩显隐——非模态页须显式关遮罩）；方向键旋转 + Enter 确认（GUI 焦点存在时自动让位焦点链）。
 - Battle exit: 2nd confirm (progress-loss warning); `ExecuteExitCleanup`: save profile, delete save in battle, stop SFX, fade quit.
-- PC Esc / gamepad `ui_cancel` / Android back, one state machine.
+- Esc / gamepad `ui_cancel`, one state machine.
 
 ### 1.13 Combat Fairness (数值定稿)
 - **Grace frames**: enemy bullet in Hitbox defers settlement `player.grace_period` (0.05s); only enemy-bullet→player timing. **离场判定（2026-09-10 修复直击不结算）**：窗口内离场时按弹心相对轨迹段（入口→离场，圆心参考系两端同减抵消玩家移动）最近距 ≤ 核心半径（7×ws = 2.8px）判定——贯穿核心 = 视觉直击，照常吃伤害；仅擦边入框（最近距 > 核心）才免伤。修复前高速弹（420px/s 穿越核心 ~25ms）必在宽限内离场，「离场即免伤」使直击永不结算。到期仍在框内同样结算（不变）。
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (10, × difficulty), once/bullet; hitbox area gives none. 玩家受击判定仅经 `Player/Hitbox`（r=7 × world_scale = 2.8）；机身 r=22 不参与碰撞（mask=0）。
 - **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).
 - **F parry**: full 360° circle, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
+
+### 1.14 Input Surface（PC 专用，定稿）
+- **两路输入：键鼠 + 手柄**。触屏（虚拟摇杆/按钮/触屏开火键）已于 2026-09-11 全量退役：手动开火之后，「瞄准与开火必须同手」在右拇指扇区内无解（命中区已顶到不重叠下限），而双拇指布局要求砍掉摇杆瞄准——取舍不成立，改为 PC 专用。工程面因此不留触屏分支：平台判定、`InputEventScreenTouch/Drag`、虚拟控件层与设置开关均不再存在，重新引入须先推翻本条（见 ROADMAP 决策）。
+- **键盘**：`project.godot` 的 `[input]` 是可改键动作的唯一默认源；改键/恢复默认只擦写 `InputEventKey`（`InputBindingsService.ApplyKeyBindings`），冲突键从占用者移除。开火不进可改键表——它在键盘侧没有绑定（`EnsureFireBinding` 运行时装配鼠标左键，与手柄同层装配）。
+- **手柄**：`BindJoypadDefaults` 运行时装配（左摇杆移动 / 右摇杆瞄准 / A 冲刺 / RB 加速 / LB 微调 / X 停靠 / Y 返航 / R3 放弃 / L3 增幅面板 / LT 弹反 / RT 开火），`project.godot` 不承载手柄事件；摇杆死区统一走 `settings.json joy_deadzone`；PS 布局只改标签不改位置语义。
+- **轮盘 UI 的输入面**：方向键/摇杆旋转、确认键按下；GUI 焦点存在时方向键让位焦点链（键盘导航先于 GUI 相位）。
 
 ---
 
@@ -112,7 +118,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   面板垂直渐变与金属/输入框/滚动条 tint 一律暖偏（冷偏会在琥珀主题里留下蓝灰底）。
 - 暖钢 tint：`SteelTint`(暖青铜灰) / `SteelTintHover`(受激暖光) / `SteelAccentTint`(主按钮琥珀面)；焦点环取 `AccentHot`。
 - 次级局部色板同步收编：`RadialWheel`(Card/Band 暖炭灰)、`DawnStation`(暖钢/全息琥珀虚影)、`AimCrosshair`/`AimFrameLayer`(琥珀)、
-  `MothershipSummonWindow`、`TalentFanView`、`VirtualControls`(移动=全息琥珀/瞄准=琥珀)、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
+  `MothershipSummonWindow`、`TalentFanView`、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
   返航过场（黎明站/舱室）与玩家侧（母舰/跃迁门/轨道打击）同属暖族；**开场过场（曙光站）保留冷色**——那是失事的敌方场所，冷暖对照是刻意的。
 - **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红/品红（不与琥珀 UI 混同）。玩家机能量/尾焰/激光/残影/增幅附件统一琥珀；
   Boss 预警色（telegraph）保留多色编码，属玩法信号不作统一。

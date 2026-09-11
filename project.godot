@@ -109,4 +109,3 @@ parry={
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"

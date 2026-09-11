@@ -58,7 +58,6 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly Godot.Collections.Dictionary _diffButtons = new(); // 难度档位 -> Button
     private Button _skipIntroBtn = null!; // 流程·默认跳过入场动画开关
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
-    private Button _touchBtn = null!; // 触控·虚拟控件开关（mobile touch）
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
     private Button _worldPostFxBtn = null!; // 画面·世界层增强（辉光/分级）开关
     private readonly ButtonGroup _fpsGroup = new();
@@ -624,14 +623,6 @@ public partial class SettingsUi : RadialMenuLayer
             v => GameState.Instance.SetJoyDeadzone(v / 100.0)
         );
         page.AddChild(UITheme.MakeLabel(Tr("SET_JOY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
-        // 触控（mobile touch）：虚拟摇杆/按钮开关（触屏设备；桌面键鼠/手柄不受影响，默认关）
-        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_TOUCH")));
-        var touchGroup = new ButtonGroup { AllowUnpress = true };
-        _touchBtn = UITheme.MakeToggleButton(Tr("SET_TOUCH_CONTROLS"), touchGroup);
-        _touchBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
-        _touchBtn.Pressed += OnTouchControls;
-        page.AddChild(_touchBtn);
-        page.AddChild(UITheme.MakeLabel(Tr("SET_TOUCH_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ACCESSIBILITY")));
         var rfRow = new HBoxContainer();
@@ -771,7 +762,6 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshFpsButtons();
         _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
-        _touchBtn.SetPressedNoSignal(GameState.Instance.TouchControls);
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
     }
 
@@ -993,11 +983,6 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnVSync()
     {
         GameState.Instance.SetVSync(_vsyncBtn.ButtonPressed);
-    }
-
-    private void OnTouchControls()
-    {
-        GameState.Instance.SetTouchControls(_touchBtn.ButtonPressed);
     }
 
     private void OnMouseLock()

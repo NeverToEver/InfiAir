@@ -7,7 +7,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 主场景：串联生成器、HUD 与各 UI 层，处理母舰召唤（H）、返航（B）、
-/// 开始面板（继续本局/新游戏）与常驻 BGM。Esc/手柄 B/Android 返回的全局路由
+/// 开始面板（继续本局/新游戏）与常驻 BGM。Esc/手柄 B/鼠标右键的全局返回路由
 /// 在 BackNavigator（process_mode=Always；本节点暂停时收不到 _unhandled_input）。
 /// 生产调用方全部 C# typed。
 /// 轨道清场经 GameState.Enemies 单次遍历完成「爆炸演出 + 批量清除」（Boss 保留）。
@@ -91,8 +91,6 @@ public partial class Main : Node2D
     private WorldPostFx _worldPostFx = null!;
     /// <summary>辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）</summary>
     private AimFrameLayer _aimFrames = null!;
-    /// <summary>触屏虚拟输入层（mobile touch）</summary>
-    private VirtualControls _virtualControls = null!;
     private bool _breathWasActive;
     /// <summary>give_up（K 键自毁）动作静态绑定判定（project.godot 定义，改键系统不删动作，结果全程不变）：
     /// _ready 缓存一次，避免 _process 每帧 InputMap.has_action 字典查找</summary>
@@ -102,13 +100,11 @@ public partial class Main : Node2D
     private FogEventManager _fogEvents = null!;
     private readonly Callable _onPlayerDied;
     private readonly Callable _onViewZoomChanged;
-    private readonly Callable _onTouchControlsChanged;
 
     public Main()
     {
         _onPlayerDied = Callable.From(OnPlayerDied);
         _onViewZoomChanged = Callable.From<float>(OnViewZoomChanged);
-        _onTouchControlsChanged = Callable.From<bool>(OnTouchControlsChanged);
     }
 
     public override void _Ready()
@@ -181,15 +177,6 @@ public partial class Main : Node2D
         AddChild(_metaFx);        // 辅助瞄准框覆盖层：世界坐标单节点，每帧统一画标记敌 bracket 框
         _aimFrames = new AimFrameLayer();
         AddChild(_aimFrames);
-        // 触屏虚拟输入层（mobile touch）：设置开关联动（默认关，桌面零回归）
-        _virtualControls = new VirtualControls();
-        AddChild(_virtualControls);
-        GameState.Instance.VirtualControls = _virtualControls;
-        _virtualControls.SetEnabled(GameState.Instance.TouchControls);
-        if (!gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
-        {
-            gs.Connect(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged);
-        }
 
         ApplyCameraZoom();
         if (!gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
@@ -294,11 +281,6 @@ public partial class Main : Node2D
         if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
         {
             gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged))
-        {
-            gs.Disconnect(GameState.SignalName.TouchControlsChanged, _onTouchControlsChanged);
         }
     }
 
@@ -1073,8 +1055,6 @@ public partial class Main : Node2D
     private void OnOrbitalStrikeFinished() => _strike = null;
 
     private void OnResumeFromBase() => ResumeFromBaseInternal();
-
-    private void OnTouchControlsChanged(bool enabled) => _virtualControls.SetEnabled(enabled);
 
     /// <summary>GDScript 字符串 % 格式化语义（%s/%d/%f 占位 + %% 转义；tr() 文案补参用，
 }

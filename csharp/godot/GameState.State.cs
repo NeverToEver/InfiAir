@@ -278,9 +278,6 @@ public partial class GameState : Node
     /// SettingsService 转发。</summary>
     public bool FireToggleMode { get => _settings.FireToggleMode; set => _settings.FireToggleMode = value; }
 
-    /// <summary>触屏虚拟控件开关（持久化，默认关；Main 挂载 VirtualControls 联动）——SettingsService 转发。</summary>
-    public bool TouchControls { get => _settings.TouchControls; set => _settings.TouchControls = value; }
-
     /// <summary>默认跳过开场过场（settings.json 持久化，默认关=播过场；开启后开机直达标题屏）——SettingsService 转发。</summary>
     public bool SkipIntro => _settings.SkipIntroCinematic;
 

@@ -229,7 +229,7 @@ public partial class PauseUi : RadialMenuLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        // ui_cancel（Esc/手柄 B/Android 返回）的全局路由已移交 BackNavigator；
+        // ui_cancel（Esc/手柄 B）与鼠标右键的全局路由已移交 BackNavigator；
         // 此处只保留暂停中的 R 重开（轮盘 KeyboardEnabled 只接管方向键/Enter）
         if (!Visible || !@event.IsActionPressed("restart"))
         {

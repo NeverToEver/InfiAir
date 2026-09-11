@@ -103,10 +103,6 @@ public partial class GameState : Node
     [Signal]
     public delegate void EntityUnregisteredEventHandler(Node node);
 
-    /// <summary>触屏虚拟控件开关变化（mobile touch；Main 联动 VirtualControls 启用）</summary>
-    [Signal]
-    public delegate void TouchControlsChangedEventHandler(bool enabled);
-
     /// <summary>PS 布局适配：SDL 标准位置（JOY_BUTTON_A=底部等）跨 Xbox/PS 一致，
     /// 仅物理标签不同——按已连接手柄 GUID/名称检测布局，供 UI/文档显示对应标签</summary>
     [Signal]
@@ -335,14 +331,6 @@ public partial class GameState : Node
         set => _registry.AimFrameLayer = value;
     }
 
-    /// <summary>触屏虚拟输入层实例（mobile touch，由 Main 在 _Ready 时创建并登记；
-    /// Player 瞄准点查询触屏瞄准基准）</summary>
-    public GodotObject? VirtualControls
-    {
-        get => _registry.VirtualControls;
-        set => _registry.VirtualControls = value;
-    }
-
     /// <summary>迷雾事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）</summary>
     public FogEventManager FogEvents => _fogEvents;
 
@@ -434,11 +422,9 @@ public partial class GameState : Node
     private void OnCombatAugmentsChanged() => EmitSignal(SignalName.AugmentsChanged);
 
     // 设置/视图域：SettingsService C# 事件 → GameState 同名信号转发
-    // （TouchControlsChanged/ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
+    // （ViewZoomChanged/WindowModeChanged/ResolutionChanged/AimAssistChanged/
     // ReduceFlashChanged/MouseLockChanged/JoySettingsChanged/LocaleChanged；触发点均为运行期玩家
     // 操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings 直写字段路径不发服务事件，重发不与之重复）
-    private void OnSettingsTouchControlsChanged(bool v) => EmitSignal(SignalName.TouchControlsChanged, v);
-
     private void OnSettingsViewZoomChanged(double v) => EmitSignal(SignalName.ViewZoomChanged, v);
 
     private void OnSettingsWindowModeChanged(StringName v) => EmitSignal(SignalName.WindowModeChanged, v);
@@ -537,7 +523,6 @@ public partial class GameState : Node
         // 设置/视图域：SettingsService 事件 → 信号转发订阅（触发点均为运行期
         // 玩家操作——设置页/手柄设置，晚于 _Ready 本订阅；LoadSettings
         // 直写字段路径不发服务事件，重发不与之重复）
-        _settings.TouchControlsChanged += OnSettingsTouchControlsChanged;
         _settings.ViewZoomChanged += OnSettingsViewZoomChanged;
         _settings.WindowModeChanged += OnSettingsWindowModeChanged;
         _settings.ResolutionChanged += OnSettingsResolutionChanged;

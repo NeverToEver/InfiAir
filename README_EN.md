@@ -14,7 +14,8 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | | |
 | --- | --- |
 | Engine | Godot 4.6 .NET — 100% C# (zero GDScript), GL Compatibility, 1920×1080 |
-| Platforms | Windows / Linux prebuilt packages; macOS from source |
+| Platforms | Windows / Linux prebuilt packages; macOS from source (desktop only) |
+| Input | Keyboard & mouse plus gamepad (touch support retired) |
 | UI languages | 简体中文 / English (switchable in game) |
 | Version | 3.34 |
 | License | [MIT](LICENSE) |
@@ -36,6 +37,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 - **Mothership & the Dawn Station** — charge-summon the mothership for fire support and a hangar pod, then return to the Dawn Station to refit: hangar, repair & resupply, route contracts and mission planning, spending RP on the way back out.
 - **Tactical-amber presentation** — warm charcoal base with amber interaction accents; metal, hologram lines and text greys all sit in the same warm family (the old cool cyan is retired); hand-written screen-space post-processing (bloom / grade / vignette / grain) fills in what GL Compatibility lacks; heavy damage cracks the screen and sinks your heartbeat into it, with a flash-reduction toggle for accessibility.
 - **Window & performance options** — windowed / borderless fullscreen; five render resolution tiers (720p / 900p / 1080p / 1440p / 4K, filtered to your monitor), free window resizing that remembers custom sizes; 3-step view zoom; a six-tier FPS cap (60 / 120 / 144 / 165 / 180 / 240) plus vsync.
+- **Tunable input** — keyboard/mouse and gamepad side by side: every keyboard action is rebindable (conflicting keys yield automatically, defaults restorable), the gamepad is bound by SDL position with automatic Xbox / PS labels; right-stick sensitivity and deadzone, fire hold-or-toggle and Ctrl/Shift hold-or-toggle all live in Settings.
 - **The inevitable-death curve** — difficulty climbs without bound with boss kills and time; three difficulty tiers set your score multiplier (×1 / ×2 / ×3) and pacing; every number lives in a single `data/balance.json`.
 
 ## Controls
@@ -44,7 +46,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | --- | --- |
 | WASD / Arrows | Move (Ctrl fine adjust, Shift boost) |
 | Mouse / Right stick | Aim (crosshair is pixel-bound to your cursor) |
-| Left mouse / RT / touch ◎ | Fire (hold to fire; switch to click-to-toggle in Settings) |
+| Left mouse / RT | Fire (hold to fire; switch to click-to-toggle in Settings) |
 | Space | Dash |
 | F / LT | Parry (reflect enemy bullets 360°) |
 | G (hold to charge) | Talent panel |
@@ -53,7 +55,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | R | Restart run (pause screen) |
 | Esc | Back / Pause |
 
-Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial. Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm. Gamepad and touch (virtual sticks) are supported.
+Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial. Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
 
 ## Running
 

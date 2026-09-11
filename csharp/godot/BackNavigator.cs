@@ -4,8 +4,8 @@ namespace InfiAir;
 
 /// <summary>
 /// 全局返回/退出状态机。
-/// 所有平台的"返回"输入统一走 go_back()：PC Esc 与手柄 B 经引擎内置 ui_cancel，
-/// 鼠标右键为独立固定手势（非 ui_cancel），Android 系统返回经 NOTIFICATION_WM_GO_BACK_REQUEST。
+/// 所有返回输入统一走 go_back()：Esc 与手柄 B 经引擎内置 ui_cancel，
+/// 鼠标右键为独立固定手势（非 ui_cancel）。
 /// decide_back_action() 为纯决策函数（不执行副作用，全分支可无头驱动）。
 /// </summary>
 public partial class BackNavigator : Node
@@ -79,15 +79,6 @@ public partial class BackNavigator : Node
     {
         // ui_cancel（Esc/手柄 B）：键盘/手柄事件不经 GUI 相位、无面板吞事件路径，留 _UnhandledInput
         if (@event.IsActionPressed("ui_cancel"))
-        {
-            GoBack();
-        }
-    }
-
-    /// <summary>Android 系统返回手势：与 Esc/手柄 B 走同一状态机。</summary>
-    public override void _Notification(int what)
-    {
-        if (what == NotificationWMGoBackRequest)
         {
             GoBack();
         }
