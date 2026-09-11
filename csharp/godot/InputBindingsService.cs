@@ -357,6 +357,27 @@ public sealed partial class InputBindingsService : RefCounted
         KeyBindingsChanged?.Invoke();
     }
 
+    /// <summary>键位占用者查询（改键前提示用）：返回当前已绑该键的动作，无占用返回空 StringName。
+    /// 遍历口径与 RebindAction 的冲突清理一致（有效绑定 = KeyBindings 覆盖，否则默认表）。</summary>
+    public StringName OccupiedBy(int keycode, StringName except)
+    {
+        foreach (var a in REBINDABLE_ACTIONS)
+        {
+            if (a == except)
+            {
+                continue;
+            }
+
+            var effective = KeyBindings.GetValueOrDefault(a, _defaultBindings.GetValueOrDefault(a, new Variant())).AsGodotArray();
+            if (effective.Contains(keycode))
+            {
+                return a;
+            }
+        }
+
+        return new StringName();
+    }
+
     public string ActionKeysText(StringName action)
     {
         var keys = KeyBindings.GetValueOrDefault(action, _defaultBindings.GetValueOrDefault(action, new Variant())).AsGodotArray();

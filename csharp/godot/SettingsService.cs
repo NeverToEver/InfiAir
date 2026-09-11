@@ -101,6 +101,38 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>当前语言（"zh"/"en"，settings.json 持久化）。</summary>
     public string Locale { get; set; } = "zh";
 
+    // ---------------- 恢复默认（设置页「全部恢复默认」） ----------------
+
+    /// <summary>全部设置项回到出厂默认（键位与 TutorialDone 不归本服务，由调用侧保留）。
+    /// 只改内存字段，运行期副作用由调用侧统一重放——避免此处反向依赖窗口/音频/视图的应用顺序。</summary>
+    public void ResetToDefaults()
+    {
+        Locale = "zh";
+        CtrlToggleMode = false;
+        ShiftToggleMode = false;
+        FireToggleMode = false;
+        ViewZoom = new StringName("small");
+        _viewZoomFactor = (double)VIEW_ZOOM_LEVELS[ViewZoom].AsDouble();
+        InvalidateViewRectCache();
+        WindowMode = WindowModeWindowed;
+        Resolution = new StringName("1920x1080");
+        CustomWindowWidth = 1920;
+        CustomWindowHeight = 1080;
+        AimAssistLevel = new StringName("medium");
+        ReduceFlash = false;
+        ShakeScale = 1.0;
+        WorldPostFx = true;
+        FpsCap = new StringName("60");
+        VSync = true;
+        MouseLock = true;
+        SkipIntroCinematic = false;
+        JoyAimSpeed = 1400.0;
+        JoyDeadzone = 0.5;
+        MasterVolume = 0.8;
+        MusicVolume = 0.8;
+        SfxVolume = 0.8;
+    }
+
     // ---------------- 信号 C# 事件 ----------------
 
     /// <summary>视角档位变化（参数为生效 zoom 倍率）；GameState 订阅后转发为 ViewZoomChanged 信号。</summary>
@@ -407,26 +439,32 @@ public sealed partial class SettingsService : RefCounted
 
     // ---------------- 性能（帧率上限 / 垂直同步） ----------------
 
-    /// <summary>帧率上限档位表（设置页六选，settings.json 持久化；值为 Engine.MaxFps）。
-    /// 0 = 无限制（本作未列入档位表——默认 60；如需无限制档可加 "unlimited"→0）。</summary>
+    /// <summary>帧率上限档位表（设置页九选，settings.json 持久化；值为 Engine.MaxFps，
+    /// 0 = 不限制）。30/45 供低配机与省电场景；unlimited 只受垂直同步与显示器刷新率约束。</summary>
     public Godot.Collections.Dictionary FPS_CAP_LEVELS { get; } = new()
     {
+        [new StringName("fps30")] = 30,
+        [new StringName("fps45")] = 45,
         [new StringName("fps60")] = 60,
         [new StringName("fps120")] = 120,
         [new StringName("fps144")] = 144,
         [new StringName("fps165")] = 165,
         [new StringName("fps180")] = 180,
         [new StringName("fps240")] = 240,
+        [new StringName("unlimited")] = 0,
     };
 
     public Godot.Collections.Array<StringName> FPS_CAP_ORDER { get; } = new()
     {
+        new StringName("fps30"),
+        new StringName("fps45"),
         new StringName("fps60"),
         new StringName("fps120"),
         new StringName("fps144"),
         new StringName("fps165"),
         new StringName("fps180"),
         new StringName("fps240"),
+        new StringName("unlimited"),
     };
 
     /// <summary>切换帧率上限档位（非法/同档忽略）：立即应用 + 持久化 + 广播</summary>
@@ -516,6 +554,81 @@ public sealed partial class SettingsService : RefCounted
         WorldPostFx = enabled;
         GameState.Instance.SaveSettings();
         WorldPostFxChanged?.Invoke(enabled);
+    }
+
+    // ---------------- 音量（主 / 音乐 / 音效三总线） ----------------
+
+    /// <summary>主音量（0..1，settings.json 持久化；0 = 静音）。作用于 Master 总线，
+    /// 与音乐/音效音量相乘——玩家可单独压低音乐而不动音效。</summary>
+    public double MasterVolume { get; set; } = 0.8;
+
+    /// <summary>音乐音量（BGM 总线，0..1；0 = 静音）</summary>
+    public double MusicVolume { get; set; } = 0.8;
+
+    /// <summary>音效音量（SFX 总线，0..1；0 = 静音）</summary>
+    public double SfxVolume { get; set; } = 0.8;
+
+    /// <summary>0..1 线性音量 → 总线 dB；0 直接落到静音下限（LinearToDb(0) = -inf，不能写进总线属性）。</summary>
+    public static double VolumeToDb(double linear) => linear <= 0.0 ? SfxPlayer.VolumeFloorDb : Mathf.LinearToDb(linear);
+
+    /// <summary>把三路音量写入音频总线（启动加载后与滑杆提交时调用；headless 无音频驱动，跳过）。</summary>
+    public void ApplyVolumes()
+    {
+        if (DisplayServer.GetName() == "headless")
+        {
+            return;
+        }
+
+        SfxPlayer.EnsureBuses();
+        SetBusVolume(SfxPlayer.MasterBus, MasterVolume);
+        SetBusVolume(SfxPlayer.BgmBus, MusicVolume);
+        SetBusVolume(SfxPlayer.SfxBus, SfxVolume);
+    }
+
+    private static void SetBusVolume(string bus, double linear)
+    {
+        var idx = AudioServer.GetBusIndex(bus);
+        if (idx >= 0)
+        {
+            AudioServer.SetBusVolumeDb(idx, (float)VolumeToDb(linear));
+        }
+    }
+
+    /// <summary>设置主音量（钳 [0,1]）：立即应用 + 持久化（滑杆在 drag_ended 提交，见手柄滑杆同族口径）</summary>
+    public void SetMasterVolume(double value)
+    {
+        MasterVolume = Mathf.Clamp(value, 0.0, 1.0);
+        ApplyVolumes();
+        GameState.Instance.SaveSettings();
+    }
+
+    /// <summary>设置音乐音量（钳 [0,1]）：立即应用 + 持久化</summary>
+    public void SetMusicVolume(double value)
+    {
+        MusicVolume = Mathf.Clamp(value, 0.0, 1.0);
+        ApplyVolumes();
+        GameState.Instance.SaveSettings();
+    }
+
+    /// <summary>设置音效音量（钳 [0,1]）：立即应用 + 持久化</summary>
+    public void SetSfxVolume(double value)
+    {
+        SfxVolume = Mathf.Clamp(value, 0.0, 1.0);
+        ApplyVolumes();
+        GameState.Instance.SaveSettings();
+    }
+
+    // ---------------- 无障碍：屏幕震动强度 ----------------
+
+    /// <summary>屏幕震动强度倍率（0..1，settings.json 持久化）：0 = 完全关闭画面震动。
+    /// 与「减少闪光」并列——两者针对不同的不适来源（频闪 vs 运动）。</summary>
+    public double ShakeScale { get; set; } = 1.0;
+
+    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化（消费端每次震动读取）</summary>
+    public void SetShakeScale(double value)
+    {
+        ShakeScale = Mathf.Clamp(value, 0.0, 1.0);
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>鼠标锁定窗口内：开关持久化并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
@@ -768,6 +881,11 @@ public sealed partial class SettingsService : RefCounted
         WorldPostFx = GameState.Instance.SaveBool(data.GetValueOrDefault("world_post_fx", WorldPostFx), WorldPostFx);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
         SkipIntroCinematic = GameState.Instance.SaveBool(data.GetValueOrDefault("skip_intro", SkipIntroCinematic), SkipIntroCinematic);
+        MasterVolume = ReadVolume(data.GetValueOrDefault("master_volume", MasterVolume), MasterVolume);
+        MusicVolume = ReadVolume(data.GetValueOrDefault("music_volume", MusicVolume), MusicVolume);
+        SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
+        ShakeScale = ReadVolume(data.GetValueOrDefault("shake_scale", ShakeScale), ShakeScale);
+        ApplyVolumes();
         // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.5
         var joySpeed = data.GetValueOrDefault("joy_aim_speed", GameState.Instance.Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
         if (joySpeed.VariantType is Variant.Type.Float or Variant.Type.Int)
@@ -780,6 +898,17 @@ public sealed partial class SettingsService : RefCounted
         {
             JoyDeadzone = Mathf.Clamp(joyDz.AsDouble(), 0.05, 0.9);
         }
+    }
+
+    /// <summary>音量字段读档：非数值/越界回退当前值（对齐 joy 字段惯例，手改档案不触发 Variant 转换错误）。</summary>
+    private static double ReadVolume(Variant raw, double fallback)
+    {
+        if (raw.VariantType is not (Variant.Type.Float or Variant.Type.Int))
+        {
+            return fallback;
+        }
+
+        return Mathf.Clamp(raw.AsDouble(), 0.0, 1.0);
     }
 
     /// <summary>当前设置字段收集（settings.json；统计类字段不在此列）</summary>
@@ -806,5 +935,9 @@ public sealed partial class SettingsService : RefCounted
         ["skip_intro"] = SkipIntroCinematic,
         ["joy_aim_speed"] = JoyAimSpeed,
         ["joy_deadzone"] = JoyDeadzone,
+        ["master_volume"] = MasterVolume,
+        ["music_volume"] = MusicVolume,
+        ["sfx_volume"] = SfxVolume,
+        ["shake_scale"] = ShakeScale,
     };
 }

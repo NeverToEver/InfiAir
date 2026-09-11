@@ -311,6 +311,18 @@ public partial class GameState : Node
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
     public bool ReduceFlash { get => _settings.ReduceFlash; set => _settings.ReduceFlash = value; }
 
+    /// <summary>无障碍：屏幕震动强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭画面震动）——SettingsService 转发。</summary>
+    public double ShakeScale { get => _settings.ShakeScale; set => _settings.ShakeScale = value; }
+
+    /// <summary>主音量（0..1，settings.json 持久化，默认 0.8；作用于 Master 总线）——SettingsService 转发。</summary>
+    public double MasterVolume { get => _settings.MasterVolume; set => _settings.MasterVolume = value; }
+
+    /// <summary>音乐音量（0..1，settings.json 持久化，默认 0.8；作用于 BGM 总线）——SettingsService 转发。</summary>
+    public double MusicVolume { get => _settings.MusicVolume; set => _settings.MusicVolume = value; }
+
+    /// <summary>音效音量（0..1，settings.json 持久化，默认 0.8；作用于 SFX 总线）——SettingsService 转发。</summary>
+    public double SfxVolume { get => _settings.SfxVolume; set => _settings.SfxVolume = value; }
+
     /// <summary>世界层画面增强（辉光/色彩分级/晕影，settings.json 持久化，默认开）——SettingsService 转发。</summary>
     public bool WorldPostFx { get => _settings.WorldPostFx; set => _settings.WorldPostFx = value; }
 

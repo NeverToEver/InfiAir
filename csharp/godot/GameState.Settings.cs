@@ -96,6 +96,18 @@ public partial class GameState : Node
     /// <summary>无障碍·减少闪光：开关持久化到 settings.json 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
     public void SetReduceFlash(bool enabled) => _settings.SetReduceFlash(enabled);
 
+    /// <summary>无障碍·屏幕震动强度（0..1，0 = 完全关闭）：持久化到 settings.json，Shake 出口按此折算</summary>
+    public void SetShakeScale(double value) => _settings.SetShakeScale(value);
+
+    /// <summary>主音量（0..1）：立即应用到 Master 总线 + 持久化</summary>
+    public void SetMasterVolume(double value) => _settings.SetMasterVolume(value);
+
+    /// <summary>音乐音量（0..1）：立即应用到 BGM 总线 + 持久化</summary>
+    public void SetMusicVolume(double value) => _settings.SetMusicVolume(value);
+
+    /// <summary>音效音量（0..1）：立即应用到 SFX 总线 + 持久化</summary>
+    public void SetSfxVolume(double value) => _settings.SetSfxVolume(value);
+
     /// <summary>世界层画面增强：开关持久化到 settings.json 并广播（WorldPostFx 据此显隐全屏增强层）</summary>
     public void SetWorldPostFx(bool enabled) => _settings.SetWorldPostFx(enabled);
 
@@ -150,6 +162,40 @@ public partial class GameState : Node
     }
 
     public void SetLocale(string pLocale) => _settings.SetLocale(pLocale);
+
+    // ---------------- 恢复默认（设置页「全部恢复默认」） ----------------
+
+    /// <summary>全部设置回到出厂默认并落盘：键位/难度/画质/音频/无障碍/手柄/跳过过场全量复位。
+    /// 刻意保留 `tutorial_done`（教程完成度不是偏好设置，复位它等于让玩家重看教程）。
+    /// 只做内存复位 + 重放必要的运行期副作用（键位/开火动作/手柄装配/显示/窗口/音量/换语言）；
+    /// 画质类开关的显隐由各消费方读设置或由设置页刷新，此处不广播（避免半套信号语义）。</summary>
+    public void ResetAllSettings()
+    {
+        var tutorialDone = TutorialDone;
+        // 键位与难度各有独立事实源：先复位它们，再重置设置域字段并重放副作用
+        ResetKeyBindings();
+        Difficulty = new StringName("medium");
+        _settings.ResetToDefaults();
+        TutorialDone = tutorialDone;
+        // 语言经 SetLocale 重放（走 LocaleChanged 广播，设置页据此整页重建文案）；
+        // TranslationServer 已由其内部写，避免此处再写一次
+        if (_settings.Locale != "zh")
+        {
+            SetLocale("zh");
+        }
+        else
+        {
+            TranslationServer.SetLocale(_settings.Locale);
+        }
+
+        _input.ApplyKeyBindings();
+        _input.EnsureFireBinding();
+        _input.BindJoypadDefaults();
+        _settings.ApplyDisplay();
+        _settings.ApplyWindow();
+        _settings.ApplyVolumes();
+        SaveSettings();
+    }
 
     // ---------------- 设置域持久化桥（ApplySettingsDict 公开转发；
     // CollectSettingsDict 仍在 GameState.Save.cs 内部直调服务，无需门面） ----------------

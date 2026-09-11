@@ -206,6 +206,13 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
+        // 设置页冒烟开关（仅显式传 --settings-probe 时）：无头门禁看不到设置页，
+        // 开页后才构建的五个分组一旦写错就是「玩家点开即崩」——此开关让冒烟把五个分组都建一遍。
+        // 延后到帧末：此刻同场景的 SettingsUi 尚未就绪入组（GetFirstNodeInGroup 会取空）。
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--settings-probe") >= 0)
+        {
+            CallDeferred(MethodName.OpenSettingsForProbe);
+        }
         // 开机流程：正常启动首次进入 → 播开场过场（或按设置跳过）→
         // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
         // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不过场、不入场（由宿主驱动）。
@@ -281,6 +288,23 @@ public partial class Main : Node2D
         if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
         {
             gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
+        }
+    }
+
+    /// <summary>设置页冒烟（--settings-probe）：打开设置页并逐页切换一次。
+    /// 只用于门禁的无头开页验证——五个分组的内容都在 ShowSettings 之后才构建，
+    /// 平时的 300 帧冒烟碰不到它们（玩家点开即崩的写法在这里暴露）。</summary>
+    private void OpenSettingsForProbe()
+    {        var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
+        if (settings == null)
+        {
+            return;
+        }
+
+        settings.ShowSettings(null);
+        foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
+        {
+            settings.ShowPage(new StringName(page));
         }
     }
 

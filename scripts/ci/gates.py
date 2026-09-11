@@ -37,9 +37,10 @@ STEPS = (
     {"slug": "ui_copy", "name": "玩家可见文案", "kind": "bash", "script": "check_ui_copy.sh", "godot": False},
     {"slug": "balance_keys", "name": "数值键存在性", "kind": "bash", "script": "check_balance_keys.sh", "godot": False},
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
+    {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "主场景 300 帧", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "主场景 300 帧 + 设置页开页", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
 
 

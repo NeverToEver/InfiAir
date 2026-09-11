@@ -5,28 +5,32 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 设置界面：左缘圆盘导航三页——「控制」（可改键表 + 恢复默认）、
-/// 「操作模式」（难度、跳过过场、开火方式、Ctrl/Shift 按住切换、语言、视角缩放、窗口大小）、「关于」（版本与操作速查）；
+/// 设置界面：左缘圆盘导航五页——「控制」（可改键表 + 恢复默认）、「游戏」（难度、开火方式、
+/// Ctrl/Shift 模式、辅助瞄准、跳过过场）、「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
+/// 鼠标锁定）、「音频」（主/音乐/音效音量）、「辅助与关于」（无障碍项 + 版本与操作速查）。
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
-/// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除。
+/// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除并提示来源。
 /// </summary>
 public partial class SettingsUi : RadialMenuLayer
 {
-    // ---------------- 可改键动作清单（硬编码表，须与 GameState.REBINDABLE_ACTIONS 保持一致） ----------------
-    private static readonly StringName[] RebindableActions =
-    {
-        new("move_up"), new("move_down"), new("move_left"), new("move_right"),
-        new("boost"), new("fine_move"), new("dash"), new("dock"),
-        new("homecoming"), new("give_up"), new("augment_panel"), new("parry"),
-    };
+    /// <summary>页定义表：导航按钮、轮盘菜单、内容构建、页标题共用这一份——
+    /// 页数/顺序/文案只在此声明（原先三处各写一遍，增页必漏一处）。</summary>
+    private sealed record PageDef(StringName Id, string LabelKey, RadialGlyph Glyph, Func<VBoxContainer> Build);
+
+    private readonly List<PageDef> _pageDefs;
+
+    // ---------------- 可改键动作清单（单一事实源：GameState.REBINDABLE_ACTIONS，本页只读） ----------------
+    private static Godot.Collections.Array<StringName> RebindableActions => GameState.Instance.REBINDABLE_ACTIONS;
+
     private static readonly StringName[] AimAssistOrder = { new("low"), new("medium"), new("high") };
     private static readonly StringName[] ViewZoomOrder = { new("small"), new("medium"), new("large") };
-    private static readonly StringName[] FpsCapOrder = { new("fps60"), new("fps120"), new("fps144"), new("fps165"), new("fps180"), new("fps240") };
-    private static readonly StringName[] PageIds = { new("controls"), new("modes"), new("about") };
-    private static readonly StringName PageControls = new("controls");
-    private static readonly StringName PageModes = new("modes");
-    private static readonly StringName PageAbout = new("about");
+    private static readonly StringName[] FpsCapOrder = { new("fps30"), new("fps45"), new("fps60"), new("fps120"), new("fps144"), new("fps165"), new("fps180"), new("fps240"), new("unlimited") };
+    private static readonly StringName DefaultPage = new("controls");
     private static readonly StringName LayoutPs = new("ps");
+
+    /// <summary>设置行标签列宽（全页统一：标签左缘对齐是设置页的基本可读性要求，
+    /// 四个分组原本各写 140/180/200/240 四种宽度，视觉上参差）。</summary>
+    private const float LabelColumnWidth = 220.0f;
 
     /// <summary>关闭信号（设置页已关闭）：生产侧暂无消费方（BackNavigator 以可见态路由），
     /// 保留 API 供外部/未来 UI 连接，勿当死代码删除。</summary>
@@ -63,6 +67,12 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly ButtonGroup _fpsGroup = new();
     private readonly Godot.Collections.Dictionary _fpsButtons = new(); // 帧率上限档位 -> Button
     private Button _vsyncBtn = null!; // 性能·垂直同步开关
+    private Label _vsyncStateLabel = null!; // 垂直同步实际生效状态读出（偏好≠实际时告知）
+    private Label _fpsReadoutLabel = null!; // 当前 FPS / 显示器刷新率读出
+    private Label _shakeValueLabel = null!; // 屏幕震动强度档位读出（如「100%（关闭震动请拉到 0）」）
+    private Label _shakeValueLabelInline = null!; // 震动滑杆行内数值
+    private HSlider _shakeSlider = null!;
+    private readonly List<(HSlider Slider, Func<double> Read, Label Value)> _volumeSliders = new(); // 音量滑杆（语言重建后需重置显示值）
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
     private Label _cheatsheetLabel = null!;
@@ -77,8 +87,11 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _titleLabel = null!;
     private Button _backButton = null!;
     private Button _resetButton = null!;
+    private Button _resetAllButton = null!;
     private readonly ButtonGroup _navGroup = new();
     private CanvasLayer? _opener; // 打开者（开始/暂停面板），返回时恢复其可见
+    private StringName _lastPage = DefaultPage; // 上次查看的页（重开设置页恢复，HIG：恢复最近面板）
+    private double _readoutTimer;
 
     private readonly Callable _onKeyBindingsChanged;
     private readonly Callable _onLocaleChanged;
@@ -93,7 +106,18 @@ public partial class SettingsUi : RadialMenuLayer
         _onJoyLayoutChanged = Callable.From(RefreshJoyLayoutLabel);
         _onResolutionChanged = Callable.From((StringName _) => RefreshResolutionButtons());
         _onWindowModeChanged = Callable.From((StringName _) => RefreshWindowModeButtons());
+        _pageDefs = new List<PageDef>
+        {
+            new(new StringName("controls"), "SET_PAGE_CONTROLS", RadialGlyph.Cross, BuildControlsPage),
+            new(new StringName("gameplay"), "SET_PAGE_GAMEPLAY", RadialGlyph.Diamond, BuildGameplayPage),
+            new(new StringName("display"), "SET_PAGE_DISPLAY", RadialGlyph.Ring, BuildDisplayPage),
+            new(new StringName("audio"), "SET_PAGE_AUDIO", RadialGlyph.Bolt, BuildAudioPage),
+            new(new StringName("about"), "SET_PAGE_ABOUT", RadialGlyph.Triangle, BuildAboutPage),
+        };
     }
+
+    /// <summary>页 id → 定义（未知 id 回退默认页）。</summary>
+    private PageDef DefFor(StringName id) => _pageDefs.Find(d => d.Id == id) ?? _pageDefs[0];
 
     public override void _Ready()
     {
@@ -136,17 +160,17 @@ public partial class SettingsUi : RadialMenuLayer
         body.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         vbox.AddChild(body);
 
-        // 左侧导航
+        // 左侧导航（页表驱动：与轮盘菜单/内容页同源，增页只改 _pageDefs）
         var nav = new VBoxContainer();
         nav.AddThemeConstantOverride("separation", 8);
         body.AddChild(nav);
-        foreach (var pageId in PageIds)
+        foreach (var def in _pageDefs)
         {
             var b = UITheme.MakeToggleButton("", _navGroup);
-            b.CustomMinimumSize = new Vector2(140.0f, 48.0f);
-            b.Pressed += () => ShowPage(pageId);
+            b.CustomMinimumSize = new Vector2(180.0f, 48.0f);
+            b.Pressed += () => ShowPage(def.Id);
             nav.AddChild(b);
-            _navButtons[pageId] = Variant.From(b);
+            _navButtons[def.Id] = Variant.From(b);
         }
 
         // 内容区
@@ -156,9 +180,11 @@ public partial class SettingsUi : RadialMenuLayer
         // 纵向填满 body（面板高度受限后由滚动容器在内容区内滚动，而非撑大面板）
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         body.AddChild(content);
-        _pages[PageControls] = Variant.From(WrapScroll(BuildControlsPage()));
-        _pages[PageModes] = Variant.From(WrapScroll(BuildModesPage()));
-        _pages[PageAbout] = Variant.From(WrapScroll(BuildAboutPage()));
+        foreach (var def in _pageDefs)
+        {
+            _pages[def.Id] = Variant.From(WrapScroll(def.Build()));
+        }
+
         RefreshNavLabels();
         foreach (var p in _pages.Values)
         {
@@ -236,17 +262,16 @@ public partial class SettingsUi : RadialMenuLayer
 
     // ---------------- 圆盘导航 ----------------
 
-    /// <summary>装配页目录（打开/locale 时重装）。</summary>
+    /// <summary>装配页目录（打开/locale 时重装）：条目即 _pageDefs，与左侧导航/内容页同源。</summary>
     private void RebuildWheelMenu()
     {
-        LoadMenu(
-            new List<RadialWheelOption>
-            {
-                new() { Id = PageControls, Label = Tr("SET_CONTROLS"), Glyph = RadialGlyph.Cross },
-                new() { Id = PageModes, Label = Tr("SET_MODES"), Glyph = RadialGlyph.Bolt },
-                new() { Id = PageAbout, Label = Tr("SET_ABOUT"), Glyph = RadialGlyph.Ring },
-            },
-            string.Empty);
+        var options = new List<RadialWheelOption>();
+        foreach (var def in _pageDefs)
+        {
+            options.Add(new RadialWheelOption { Id = def.Id, Label = Tr(def.LabelKey), Glyph = def.Glyph });
+        }
+
+        LoadMenu(options, string.Empty);
     }
 
     private void OnWheelConfirmed(RadialWheelOption option)
@@ -277,7 +302,7 @@ public partial class SettingsUi : RadialMenuLayer
         // 行距收紧：12 行 + 恢复默认 + 规则说明要在内容视口（≈690px）内完整收纳，免滚动折叠
         page.AddThemeConstantOverride("separation", 4);
         var actions = RebindableActions;
-        for (var i = 0; i < actions.Length; i++)
+        for (var i = 0; i < actions.Count; i++)
         {
             var action = actions[i];
             var row = new HBoxContainer();
@@ -285,10 +310,10 @@ public partial class SettingsUi : RadialMenuLayer
             var nameLabel = UITheme.MakeLabel(
                 Tr("ACT_" + action.ToString().ToUpper()), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left
             );
-            nameLabel.CustomMinimumSize = new Vector2(180.0f, 0.0f);
+            nameLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
             row.AddChild(nameLabel);
             var keysLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.TextDim, HorizontalAlignment.Left);
-            keysLabel.CustomMinimumSize = new Vector2(280.0f, 0.0f);
+            keysLabel.CustomMinimumSize = new Vector2(260.0f, 0.0f);
             row.AddChild(keysLabel);
             var rebindButton = UITheme.MakeButton(Tr("SET_REBIND"));
             rebindButton.CustomMinimumSize = new Vector2(110.0f, 36.0f);
@@ -303,23 +328,29 @@ public partial class SettingsUi : RadialMenuLayer
                 ["name"] = Variant.From(nameLabel),
             };
             _rebindRows[action] = Variant.From(info);
-            // 行间细分隔线（末行不加）：密集列表的视觉分组
-            if (i < actions.Length - 1)
-            {
-                var sep = new ColorRect
-                {
-                    Color = new Color(UITheme.AccentDim, 0.4f),
-                    CustomMinimumSize = new Vector2(0.0f, 1.0f),
-                    SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                };
-                page.AddChild(sep);
-            }
         }
 
+        // 手柄分组归「控制」页（输入面同页）：瞄准灵敏度 + 摇杆死区 + 当前布局
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_JOY")));
+        _joyLayoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_joyLayoutLabel);
+        RefreshJoyLayoutLabel();
+        MakeJoySlider(page, Tr("SET_JOY_AIM_SPEED"), 200.0f, 4000.0f, (float)GameState.Instance.JoyAimSpeed, "%.0f", v => GameState.Instance.SetJoyAimSpeed(v));
+        MakeJoySlider(page, Tr("SET_JOY_DEADZONE"), 5.0f, 90.0f, (float)(GameState.Instance.JoyDeadzone * 100.0), "%.0f%%", v => GameState.Instance.SetJoyDeadzone(v / 100.0));
+        page.AddChild(UITheme.MakeLabel(Tr("SET_JOY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 重置（破坏性动作各带二次确认，见 ConfirmDestructive）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_RESET_SECTION")));
+        var resetRow = new HBoxContainer();
+        resetRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(resetRow);
         _resetButton = UITheme.MakeButton(Tr("SET_RESET"));
         _resetButton.CustomMinimumSize = new Vector2(220.0f, 44.0f);
         _resetButton.Pressed += OnResetKeys;
-        page.AddChild(_resetButton);
+        resetRow.AddChild(_resetButton);
+        _resetAllButton = UITheme.MakeButton(Tr("SET_RESET_ALL"));
+        _resetAllButton.CustomMinimumSize = new Vector2(220.0f, 44.0f);
+        _resetAllButton.Pressed += OnResetAllSettings;
+        resetRow.AddChild(_resetAllButton);
         // 常驻改键规则说明（locale 重建时随页重建，无需单独刷新）
         page.AddChild(UITheme.MakeLabel(Tr("SET_REBIND_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         return page;
@@ -362,10 +393,50 @@ public partial class SettingsUi : RadialMenuLayer
 
 
 
+    // ---------------- 破坏性操作确认 ----------------
+
+    /// <summary>破坏性操作的二次确认（改键/全量重置）：Material「确认与告知」要求破坏性动作
+    /// 在生效前让玩家确认并说明后果；确认文案由调用方给出（不同动作后果不同）。</summary>
+    private void ConfirmDestructive(string messageKey, Action onConfirm)
+    {
+        var dialog = new ConfirmationDialog
+        {
+            Title = Tr("SET_CONFIRM_TITLE"),
+            DialogText = Tr(messageKey),
+            OkButtonText = Tr("SET_CONFIRM_OK"),
+            CancelButtonText = Tr("SET_CONFIRM_CANCEL"),
+            ProcessMode = Node.ProcessModeEnum.Always,
+        };
+        dialog.Confirmed += () =>
+        {
+            onConfirm();
+            dialog.QueueFree();
+        };
+        dialog.Canceled += () => dialog.QueueFree();
+        AddChild(dialog);
+        dialog.PopupCentered();
+    }
+
     private void OnResetKeys()
     {
-        GameState.Instance.ResetKeyBindings();
-        _hintLabel.Text = Tr("SET_RESET_DONE");
+        ConfirmDestructive("SET_RESET_CONFIRM", () =>
+        {
+            GameState.Instance.ResetKeyBindings();
+            _hintLabel.Text = Tr("SET_RESET_DONE");
+        });
+    }
+
+    /// <summary>全量恢复默认：键位 + 全部设置项回到出厂值（改键是全量的一部分，不再单独提示）。</summary>
+    private void OnResetAllSettings()
+    {
+        ConfirmDestructive("SET_RESET_ALL_CONFIRM", () =>
+        {
+            GameState.Instance.ResetAllSettings();
+            RefreshRebindRows();
+            RefreshLangButtons();
+            RefreshToggleStates();
+            _hintLabel.Text = Tr("SET_RESET_ALL_DONE");
+        });
     }
 
     /// <summary>捕获态右键撤销走 _Input（先于 GUI/动作消费）：面板与按钮 MouseFilter=STOP 会吞掉
@@ -418,15 +489,19 @@ public partial class SettingsUi : RadialMenuLayer
 
             GameState.Instance.RebindAction(_capturingAction, kc);
             var boundKey = OS.GetKeycodeString((Key)kc);
-            _hintLabel.Text = GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey);
+            // 冲突来源一并告知：被抢占的动作原本绑着这个键，只说「已绑定」会让玩家以为出现了重复绑定
+            var stolen = GameState.Instance.OccupiedBy(kc, _capturingAction);
+            _hintLabel.Text = stolen == new StringName()
+                ? GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey)
+                : GdFormat.Format(Tr("SET_BOUND_STOLEN"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey, Tr("ACT_" + stolen.ToString().ToUpper()));
             _capturingAction = new StringName();
             GetViewport().SetInputAsHandled();
         }
     }
 
-    // ---------------- 操作模式 ----------------
+    // ---------------- 游戏（难度/开火/按键模式/辅助瞄准/流程） ----------------
 
-    private VBoxContainer BuildModesPage()
+    private VBoxContainer BuildGameplayPage()
     {
         var page = new VBoxContainer();
         page.AddThemeConstantOverride("separation", 14);
@@ -445,12 +520,6 @@ public partial class SettingsUi : RadialMenuLayer
             _diffButtons[d] = Variant.From(db);
         }
 
-        // 流程：默认跳过入场动画（开启后开机直达标题屏；只在下次启动生效）
-        _skipIntroBtn = UITheme.MakeToggleButton(Tr("SET_SKIP_INTRO"), new ButtonGroup { AllowUnpress = true });
-        _skipIntroBtn.CustomMinimumSize = new Vector2(280.0f, 48.0f);
-        _skipIntroBtn.Pressed += OnSkipIntro;
-        page.AddChild(_skipIntroBtn);
-        page.AddChild(UITheme.MakeLabel(Tr("SET_SKIP_INTRO_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 开火方式（鼠标左键：按住连发 / 按一下切换）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_FIRE")));
         var firePair = MakeModeRow(page, Tr("SET_FIRE_MODE"), _fireGroup);
@@ -498,13 +567,22 @@ public partial class SettingsUi : RadialMenuLayer
 
         // 机制说明：准星入标记框 → 出膛弹追踪该敌；档位调节框大小与追踪速度
         page.AddChild(UITheme.MakeLabel(Tr("SET_AIM_ASSIST_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        return page;
+    }
+
+    // ---------------- 显示（窗口/分辨率/视角/画面增强/性能/鼠标） ----------------
+
+    private VBoxContainer BuildDisplayPage()
+    {
+        var page = new VBoxContainer();
+        page.AddThemeConstantOverride("separation", 14);
         // 显示：视角缩放 + 窗口大小
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_DISPLAY")));
         var zoomRow = new HBoxContainer();
         zoomRow.AddThemeConstantOverride("separation", 16);
         page.AddChild(zoomRow);
         var zoomLabel = UITheme.MakeLabel(Tr("SET_VIEW_ZOOM"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        zoomLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        zoomLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         zoomRow.AddChild(zoomLabel);
         _zoomButtons.Clear();
         foreach (var level in ViewZoomOrder)
@@ -520,7 +598,7 @@ public partial class SettingsUi : RadialMenuLayer
         modeRow.AddThemeConstantOverride("separation", 16);
         page.AddChild(modeRow);
         var modeLabel = UITheme.MakeLabel(Tr("SET_WINDOW_MODE"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        modeLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        modeLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         modeRow.AddChild(modeLabel);
         _modeButtons.Clear();
         foreach (var mode in new[] { new StringName("windowed"), new StringName("borderless") })
@@ -537,7 +615,7 @@ public partial class SettingsUi : RadialMenuLayer
         resRow.AddThemeConstantOverride("separation", 16);
         page.AddChild(resRow);
         var resLabel = UITheme.MakeLabel(Tr("SET_RESOLUTION"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        resLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        resLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         resRow.AddChild(resLabel);
         var resFlow = new HFlowContainer();
         resFlow.AddThemeConstantOverride("h_separation", 10);
@@ -565,18 +643,18 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(_resolutionInfoLabel);
         page.AddChild(UITheme.MakeLabel(Tr("SET_RESOLUTION_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
 
-        // 性能：帧率上限（六档）+ 垂直同步
+        // 性能：帧率上限（九档：30/45/60/120/144/165/180/240/不限制）+ 垂直同步
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_PERFORMANCE")));
         var fpsRow = new HBoxContainer();
         fpsRow.AddThemeConstantOverride("separation", 14);
         page.AddChild(fpsRow);
         var fpsLabel = UITheme.MakeLabel(Tr("SET_FPS_CAP"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        fpsLabel.CustomMinimumSize = new Vector2(140.0f, 0.0f);
+        fpsLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         fpsRow.AddChild(fpsLabel);
         _fpsButtons.Clear();
         foreach (var level in FpsCapOrder)
         {
-            var b = UITheme.MakeToggleButton(Tr("SET_FPS_" + level.ToString().ToUpper()), _fpsGroup);
+            var b = UITheme.MakeToggleButton(Tr("SET_FPS_" + level.ToString().ToUpperInvariant()), _fpsGroup);
             b.CustomMinimumSize = new Vector2(96.0f, 48.0f);
             b.Pressed += () => GameState.Instance.SetFpsCap(level);
             fpsRow.AddChild(b);
@@ -591,6 +669,12 @@ public partial class SettingsUi : RadialMenuLayer
         _vsyncBtn.Pressed += OnVSync;
         page.AddChild(_vsyncBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_VSYNC_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 生效状态读出：垂直同步被驱动/平台覆盖时，偏好值不等于实际值，须让玩家看到真实状态
+        _vsyncStateLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_vsyncStateLabel);
+        // 当前帧率/显示器刷新率：帧率上限的生效结果，玩家据此判断该不该调档
+        _fpsReadoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_fpsReadoutLabel);
         // 鼠标锁定窗口内（MouseTrap：窗口聚焦期间鼠标移出内容区即被拉回，防止准星失控；失焦放行）
         var lockGroup = new ButtonGroup { AllowUnpress = true };
         _mouseLockBtn = UITheme.MakeToggleButton(Tr("SET_MOUSE_LOCK"), lockGroup);
@@ -598,31 +682,77 @@ public partial class SettingsUi : RadialMenuLayer
         _mouseLockBtn.Pressed += OnMouseLock;
         page.AddChild(_mouseLockBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_MOUSE_LOCK_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
-        // 手柄：右摇杆瞄准灵敏度 + 摇杆死区（InputMap 全局 deadzone）
-        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_JOY")));
-        // PS 布局适配：按已连接手柄显示布局与按钮标签对照（Xbox A/B/X/Y vs PS ✕/○/□/△）
-        _joyLayoutLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
-        page.AddChild(_joyLayoutLabel);
-        RefreshJoyLayoutLabel();
-        MakeJoySlider(
-            page,
-            Tr("SET_JOY_AIM_SPEED"),
-            200.0f,
-            4000.0f,
-            (float)GameState.Instance.JoyAimSpeed,
-            "%.0f",
-            v => GameState.Instance.SetJoyAimSpeed(v)
-        );
-        MakeJoySlider(
-            page,
-            Tr("SET_JOY_DEADZONE"),
-            5.0f,
-            90.0f,
-            (float)(GameState.Instance.JoyDeadzone * 100.0),
-            "%.0f%%",
-            v => GameState.Instance.SetJoyDeadzone(v / 100.0)
-        );
-        page.AddChild(UITheme.MakeLabel(Tr("SET_JOY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 画面：世界层增强（辉光/色彩分级/晕影）开关——关闭走逐元素发光回退路径（低配机）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_VIDEO")));
+        var wpfGroup = new ButtonGroup { AllowUnpress = true };
+        _worldPostFxBtn = UITheme.MakeToggleButton(Tr("SET_WORLD_POST_FX"), wpfGroup);
+        _worldPostFxBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
+        _worldPostFxBtn.Pressed += OnWorldPostFx;
+        page.AddChild(_worldPostFxBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_WORLD_POST_FX_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 流程：默认跳过入场动画（开启后开机直达标题屏；只在下次启动生效）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_STARTUP")));
+        _skipIntroBtn = UITheme.MakeToggleButton(Tr("SET_SKIP_INTRO"), new ButtonGroup { AllowUnpress = true });
+        _skipIntroBtn.CustomMinimumSize = new Vector2(280.0f, 48.0f);
+        _skipIntroBtn.Pressed += OnSkipIntro;
+        page.AddChild(_skipIntroBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_SKIP_INTRO_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        return page;
+    }
+
+    // ---------------- 音频（主 / 音乐 / 音效） ----------------
+
+    private VBoxContainer BuildAudioPage()
+    {
+        var page = new VBoxContainer();
+        page.AddThemeConstantOverride("separation", 14);
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_AUDIO")));
+        MakeVolumeSlider(page, Tr("SET_VOLUME_MASTER"), () => GameState.Instance.MasterVolume, v => GameState.Instance.SetMasterVolume(v));
+        MakeVolumeSlider(page, Tr("SET_VOLUME_MUSIC"), () => GameState.Instance.MusicVolume, v => GameState.Instance.SetMusicVolume(v));
+        MakeVolumeSlider(page, Tr("SET_VOLUME_SFX"), () => GameState.Instance.SfxVolume, v => GameState.Instance.SetSfxVolume(v));
+        page.AddChild(UITheme.MakeLabel(Tr("SET_VOLUME_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        return page;
+    }
+
+    /// <summary>音量滑杆行（0..100%）：拖动即时生效（总线音量无重资源），松手落盘一次。</summary>
+    private void MakeVolumeSlider(VBoxContainer parent, string title, Func<double> read, Action<double> onChanged)
+    {
+        var value = read();
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 12);
+        parent.AddChild(row);
+        var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
+        label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
+        row.AddChild(label);
+        var slider = new HSlider
+        {
+            MinValue = 0.0f,
+            MaxValue = 100.0f,
+            Step = 1.0f,
+            Value = value * 100.0,
+            CustomMinimumSize = new Vector2(240.0f, 0.0f),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        row.AddChild(slider);
+        var valueLabel = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
+        valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
+        row.AddChild(valueLabel);
+        // 拖动实时改总线音量，但不逐帧写盘：ValueChanged 只应用，DragEnded 才持久化
+        slider.ValueChanged += v =>
+        {
+            valueLabel.Text = $"{v:0}%";
+            onChanged(v / 100.0);
+        };
+        slider.DragEnded += _ => GameState.Instance.SaveSettings();
+        _volumeSliders.Add((slider, read, valueLabel));
+    }
+
+    // ---------------- 辅助与关于 ----------------
+
+    private VBoxContainer BuildAboutPage()
+    {
+        var page = new VBoxContainer();
+        page.AddThemeConstantOverride("separation", 10);
         // 无障碍（Meta HUD）：减少闪光（色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ACCESSIBILITY")));
         var rfRow = new HBoxContainer();
@@ -634,19 +764,61 @@ public partial class SettingsUi : RadialMenuLayer
         _reduceFlashBtn.CustomMinimumSize = new Vector2(160.0f, 48.0f);
         _reduceFlashBtn.Pressed += OnReduceFlash;
         rfRow.AddChild(_reduceFlashBtn);
-        // 画面：世界层增强（辉光/色彩分级/晕影）开关——关闭走逐元素发光回退路径（低配机）
-        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_VIDEO")));
-        var wpfRow = new HBoxContainer();
-        wpfRow.AddThemeConstantOverride("separation", 16);
-        page.AddChild(wpfRow);
-        var wpfGroup = new ButtonGroup { AllowUnpress = true };
-        _worldPostFxBtn = UITheme.MakeToggleButton(Tr("SET_WORLD_POST_FX"), wpfGroup);
-        _worldPostFxBtn.CustomMinimumSize = new Vector2(200.0f, 48.0f);
-        _worldPostFxBtn.Pressed += OnWorldPostFx;
-        wpfRow.AddChild(_worldPostFxBtn);
-        page.AddChild(UITheme.MakeLabel(Tr("SET_WORLD_POST_FX_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        page.AddChild(UITheme.MakeLabel(Tr("SET_REDUCE_FLASH_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 屏幕震动强度（0 = 完全关闭）：与减少闪光并列，针对不同的不适来源（运动 vs 频闪）
+        MakePercentSlider(
+            page,
+            Tr("SET_SHAKE_SCALE"),
+            GameState.Instance.ShakeScale,
+            v =>
+            {
+                GameState.Instance.SetShakeScale(v);
+                RefreshShakeLabel();
+            });
+        _shakeValueLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_shakeValueLabel);
+        RefreshShakeLabel();
+        page.AddChild(UITheme.MakeLabel(Tr("SET_SHAKE_SCALE_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 关于：版本与操作速查（设置页承载「关于」是单机游戏的通行做法，便于一处查版本与按键）
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ABOUT")));
+        _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString()), UITheme.FontBody, UITheme.AccentGold);
+        page.AddChild(_versionLabel);
+        _cheatsheetLabel = UITheme.MakeLabel(Tr("SET_CHEATSHEET"), UITheme.FontCaption, UITheme.TextDim);
+        page.AddChild(_cheatsheetLabel);
         return page;
     }
+
+    /// <summary>百分比滑杆行（0..100%，与音量滑杆同构，但不落盘音量域）。</summary>
+    private void MakePercentSlider(VBoxContainer parent, string title, double value, Action<double> onChanged)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 12);
+        parent.AddChild(row);
+        var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
+        label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
+        row.AddChild(label);
+        var slider = new HSlider
+        {
+            MinValue = 0.0f,
+            MaxValue = 100.0f,
+            Step = 5.0f,
+            Value = value * 100.0,
+            CustomMinimumSize = new Vector2(240.0f, 0.0f),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        row.AddChild(slider);
+        _shakeSlider = slider;
+        _shakeValueLabelInline = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
+        _shakeValueLabelInline.CustomMinimumSize = new Vector2(70.0f, 0.0f);
+        row.AddChild(_shakeValueLabelInline);
+        slider.ValueChanged += v =>
+        {
+            _shakeValueLabelInline.Text = $"{v:0}%";
+            onChanged(v / 100.0);
+        };
+        slider.DragEnded += _ => GameState.Instance.SaveSettings();
+    }
+
 
     private Button[] MakeModeRow(Container parent, string labelText, ButtonGroup group)
     {
@@ -672,7 +844,7 @@ public partial class SettingsUi : RadialMenuLayer
         row.AddThemeConstantOverride("separation", 12);
         parent.AddChild(row);
         var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        label.CustomMinimumSize = new Vector2(200.0f, 0.0f);
+        label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
         var slider = new HSlider
         {
@@ -711,36 +883,36 @@ public partial class SettingsUi : RadialMenuLayer
         _joyLayoutLabel.Text = GameState.Instance.JoyLayout == LayoutPs ? Tr("SET_JOY_LAYOUT_PS") : Tr("SET_JOY_LAYOUT_XBOX");
     }
 
-    // ---------------- 关于 ----------------
-
-    private VBoxContainer BuildAboutPage()
-    {
-        var page = new VBoxContainer();
-        page.AddThemeConstantOverride("separation", 10);
-        _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString()), UITheme.FontBody, UITheme.AccentGold);
-        page.AddChild(_versionLabel);
-        _cheatsheetLabel = UITheme.MakeLabel(Tr("SET_CHEATSHEET"), UITheme.FontCaption, UITheme.TextDim);
-        page.AddChild(_cheatsheetLabel);
-        return page;
-    }
-
     // ---------------- 通用 ----------------
 
     private void RefreshNavLabels()
     {
-        ((Button)_navButtons[PageControls].AsGodotObject()).Text = Tr("SET_CONTROLS");
-        ((Button)_navButtons[PageModes].AsGodotObject()).Text = Tr("SET_MODES");
-        ((Button)_navButtons[PageAbout].AsGodotObject()).Text = Tr("SET_ABOUT");
+        foreach (var def in _pageDefs)
+        {
+            ((Button)_navButtons[def.Id].AsGodotObject()).Text = Tr(def.LabelKey);
+        }
     }
 
     public void ShowPage(StringName pageName)
     {
+        _lastPage = DefFor(pageName).Id; // 未知名回退首页，并同步记忆值
         foreach (var key in _pages.Keys)
         {
             var k = key.AsStringName();
-            (_pages[key].AsGodotObject() as Control)!.Visible = k == pageName;
-            ((Button)_navButtons[key].AsGodotObject()).SetPressedNoSignal(k == pageName);
+            var active = k == _lastPage;
+            (_pages[key].AsGodotObject() as Control)!.Visible = active;
+            ((Button)_navButtons[key].AsGodotObject()).SetPressedNoSignal(active);
         }
+
+        RefreshDisplayReadouts();
+    }
+
+    /// <summary>帧率/垂直同步读出轮询（仅设置页可见时；Engine.FramesPerSecond 本身是滑动平均）。
+    /// base._Process 必须调用——基类的括号/引线动画在那一侧。</summary>
+    public override void _Process(double delta)
+    {
+        base._Process(delta);
+        TickDisplayReadout(delta);
     }
 
     /// <summary>开关/按钮组选中态从 GameState 全量刷新（开页与切语言共用一套序列）。</summary>
@@ -763,6 +935,77 @@ public partial class SettingsUi : RadialMenuLayer
         _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
+        RefreshShakeLabel();
+        RefreshVolumeSliders();
+        RefreshDisplayReadouts();
+    }
+
+    /// <summary>震动强度读出：0 单独说明（否则玩家不知道 0 = 关闭）</summary>
+    private void RefreshShakeLabel()
+    {
+        if (_shakeValueLabel == null)
+        {
+            return;
+        }
+
+        var pct = (int)Mathf.Round(GameState.Instance.ShakeScale * 100.0);
+        _shakeValueLabel.Text = pct == 0 ? Tr("SET_SHAKE_OFF_STATE") : GdFormat.Format(Tr("SET_SHAKE_STATE"), pct);
+    }
+
+    private void RefreshVolumeSliders()
+    {
+        // 音量滑杆行随页重建（语言切换/全部恢复默认后）重新取值，避免显示值与设置域脱钩
+        foreach (var (slider, read, valueLabel) in _volumeSliders)
+        {
+            var value = read() * 100.0;
+            slider.SetValueNoSignal(value);
+            valueLabel.Text = $"{value:0}%";
+        }
+
+        if (_shakeSlider != null)
+        {
+            _shakeSlider.SetValueNoSignal(GameState.Instance.ShakeScale * 100.0);
+        }
+    }
+
+    /// <summary>垂直同步实际生效状态 + 当前帧率/显示器刷新率读出：偏好值与实际值可能不一致
+    /// （驱动/平台可覆盖 vsync），只显示开关会误导玩家。</summary>
+    private void RefreshDisplayReadouts()
+    {
+        if (_vsyncStateLabel == null)
+        {
+            return;
+        }
+
+        var actual = DisplayServer.GetName() == "headless"
+            ? GameState.Instance.VSync
+            : DisplayServer.WindowGetVsyncMode() == DisplayServer.VSyncMode.Enabled;
+        _vsyncStateLabel.Text = actual != GameState.Instance.VSync
+            ? Tr("SET_VSYNC_STATE_OVERRIDDEN")
+            : GdFormat.Format(Tr("SET_VSYNC_STATE"), Tr(actual ? "SET_STATE_ON" : "SET_STATE_OFF"));
+        _fpsReadoutLabel.Text = GdFormat.Format(
+            Tr("SET_FPS_READOUT"),
+            (int)Mathf.Round(Engine.GetFramesPerSecond()),
+            DisplayServer.ScreenGetRefreshRate());
+    }
+
+    /// <summary>帧率读出每 0.25s 刷新一次（Engine.FramesPerSecond 本身是滑动平均，
+    /// 逐帧刷新既无意义也白费一次格式化）。</summary>
+    private void TickDisplayReadout(double delta)
+    {
+        if (!Visible || _fpsReadoutLabel == null)
+        {
+            return;
+        }
+
+        _readoutTimer += delta;
+        if (_readoutTimer < 0.25)
+        {
+            return;
+        }
+
+        _readoutTimer = 0.0;
+        RefreshDisplayReadouts();
     }
 
     /// <summary>打开面板并刷新选中态；opener 为打开者（开始/暂停面板），返回时恢复其可见</summary>
@@ -774,15 +1017,22 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshToggleStates();
         _hintLabel.Text = "";
         _capturingAction = new StringName();
-        ShowPage(PageControls);
+        ShowPage(_lastPage);
         RebuildWheelMenu();
-        Wheel.FocusOption(0); // 开页聚焦「控制」与默认页对齐：默认弧面中点槽停在「操作模式」（聚焦/面板读法冲突）
+        Wheel.FocusOption(OptionIndexFor(_lastPage)); // 轮盘聚焦与当前页对齐（轮盘与左侧导航同源，序号一致）
         Visible = true;
         SetWheelActive(true, dimActive: false); // 本页遮罩由 page shell 提供
         PlayWheelEntrance();
         UITheme.AnimateModalOpen(_dim, _plate);
         // 键盘/手柄链路：打开即有焦点（方向键在导航/行间遍历，Enter 触发）
-        ((Button)_navButtons[PageControls].AsGodotObject()).GrabFocus();
+        ((Button)_navButtons[_lastPage].AsGodotObject()).GrabFocus();
+    }
+
+    /// <summary>页 id → 轮盘/导航序号（同一份页表，两者序号恒等）。</summary>
+    private int OptionIndexFor(StringName id)
+    {
+        var idx = _pageDefs.FindIndex(d => d.Id == id);
+        return idx < 0 ? 0 : idx;
     }
 
     private void RefreshLangButtons()
@@ -900,13 +1150,14 @@ public partial class SettingsUi : RadialMenuLayer
         RebuildWheelMenu();
         _backButton.Text = Tr("SET_BACK");
         _resetButton.Text = Tr("SET_RESET");
+        _resetAllButton.Text = Tr("SET_RESET_ALL");
         _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString());
         _cheatsheetLabel.Text = Tr("SET_CHEATSHEET");
         RefreshLangButtons();
         RefreshNavLabels();
         // 重建前记录当前页并恢复——否则无条件跳回「控制」页；
         // 旧行的一次冗余刷新随旧页一起销毁，统一由重建后 _refresh_rebind_rows 刷新
-        var current = PageControls;
+        var current = DefaultPage;
         foreach (var key in _pages.Keys)
         {
             if ((_pages[key].AsGodotObject() as Control)!.Visible)
@@ -925,9 +1176,12 @@ public partial class SettingsUi : RadialMenuLayer
             (p.AsGodotObject() as Control)!.Free();
         }
 
-        _pages[PageControls] = Variant.From(WrapScroll(BuildControlsPage()));
-        _pages[PageModes] = Variant.From(WrapScroll(BuildModesPage()));
-        _pages[PageAbout] = Variant.From(WrapScroll(BuildAboutPage()));
+        _volumeSliders.Clear();
+        foreach (var def in _pageDefs)
+        {
+            _pages[def.Id] = Variant.From(WrapScroll(def.Build()));
+        }
+
         foreach (var p in _pages.Values)
         {
             var page = p.AsGodotObject() as Control;

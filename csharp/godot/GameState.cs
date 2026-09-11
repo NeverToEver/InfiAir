@@ -637,5 +637,7 @@ public partial class GameState : Node
         _sfxPlayer.StopAll();
     }
 
-    public void Shake(double strength) => EmitSignal(SignalName.ScreenShake, strength);
+    /// <summary>屏幕震动唯一入口（所有来源的震动强度在此按无障碍倍率折算后广播）。
+    /// 倍率 0 = 完全关闭画面震动；过场内部的镜头抖动不走本入口，属演出编排不经此缩放。</summary>
+    public void Shake(double strength) => EmitSignal(SignalName.ScreenShake, strength * _settings.ShakeScale);
 }

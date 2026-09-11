@@ -13,6 +13,10 @@ public partial class SfxPlayer : Node
 {
     public const string SfxBus = "SFX";
     public const string BgmBus = "BGM";
+    public const string MasterBus = "Master";
+
+    /// <summary>音量域统一下限（dB）：滑杆 0 = 该总线的静音下限。</summary>
+    public const float VolumeFloorDb = -60.0f;
 
     private static readonly string[] Paths =
     {

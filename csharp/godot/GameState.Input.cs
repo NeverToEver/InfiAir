@@ -44,5 +44,8 @@ public partial class GameState : Node
 
     public void ResetKeyBindings() => _input.ResetKeyBindings();
 
+    /// <summary>键位占用者查询（改键提示「该键原属 XX」用）；无占用返回空 StringName。</summary>
+    public StringName OccupiedBy(int keycode, StringName except) => _input.OccupiedBy(keycode, except);
+
     public string ActionKeysText(StringName action) => _input.ActionKeysText(action);
 }
