@@ -70,6 +70,8 @@ public partial class EliteTurretEvent : EncounterEventBase
     private int _destroyed;
     /// <summary>台词节点：0 未播 / 1 已播第1句 / 2 已播第2句。</summary>
     private int _lineStage;
+    /// <summary>打断标志（返航/死亡 Abort 置位）：收场不补触发被冻结的 Boss。</summary>
+    private bool _aborted;
     private readonly Godot.Collections.Array<String> _lines = new();
     private Hud? _hud; // typed
 
@@ -134,6 +136,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         _state = State.CARRIER_ENTER;
         _destroyed = 0;
         _lineStage = 0;
+        _aborted = false;
         // 10 句台词无放回随机抽取 3 句，绑定三个进度节点
         var pool = new Godot.Collections.Array<String>();
         for (var i = 0; i < 10; i++)
@@ -168,7 +171,7 @@ public partial class EliteTurretEvent : EncounterEventBase
 
     /// <summary>返航中止（main._start_homecoming 调用）：IDLE 直接返回；清掉在场炮塔（queue_free
     /// 不触发 died 计分，自行清理注册清单）、隐藏 HUD 事件条、恢复普通波次，航母按完整
-    /// 撤离处理；Boss 解冻/_boss_pending 补触发沿用现有 BOSS_DELAY → OnBossDelayEnd。</summary>
+    /// 撤离处理；Boss 解冻沿用 BOSS_DELAY → OnBossDelayEnd，打断路径不补触发 pending Boss。</summary>
     public override void Abort()
     {
         if (_state == State.IDLE)
@@ -196,6 +199,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         }
 
         ResumeWaves();
+        _aborted = true;
         if (_state == State.CARRIER_ENTER || _state == State.TURRET_ACTIVE)
         {
             _state = State.CARRIER_EXIT;
@@ -283,7 +287,9 @@ public partial class EliteTurretEvent : EncounterEventBase
 
     public override void _Process(double delta)
     {
-        var d = (float)delta;
+        // 单帧推进上限（口径单源 FrameCache.MaxStepDelta，与编队事件同口径）：
+        // 巨帧（开局/卡顿实测 >1s）一次吞掉事件窗口，极端下单帧直接判负
+        var d = Mathf.Min((float)delta, FrameCache.MaxStepDelta);
         TickCooldown(d);
 
         if (_state != State.TURRET_ACTIVE)
@@ -410,13 +416,14 @@ public partial class EliteTurretEvent : EncounterEventBase
         }
     }
 
-    /// <summary>BOSS_DELAY 结束：回 IDLE；若存在被冻结的 Boss 触发 → 立即触发一次（不累积）。</summary>
+    /// <summary>BOSS_DELAY 结束：回 IDLE；若存在被冻结的 Boss 触发 → 立即触发一次（不累积）。
+    /// 打断路径（_aborted）按基类口径不补触发——返航/死亡后在结算画面弹预警横幅。</summary>
     private void OnBossDelayEnd()
     {
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         _turrets.Clear();
-        ReleaseBoss();
+        ReleaseBoss(triggerPending: !_aborted);
     }
 
     /// <summary>一次性计时回调（同 spawner._schedule：Godot.Timer 节点 + 信号，避免协程泄漏）。</summary>
