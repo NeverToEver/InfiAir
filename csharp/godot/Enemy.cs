@@ -389,12 +389,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public bool Hovering() => _hovering;
 
-    public void SetFireTimer(float seconds) => _fireTimer = seconds;
-
-    public void FireAtPlayer() => FireAtPlayerInternal();
-
-    public void SetLifeTimer(float seconds) => _lifeTimer = seconds;
-
     public void SetPool(EnemyPool pool) => _pool = pool;
 
     public bool IsActive() => _active;

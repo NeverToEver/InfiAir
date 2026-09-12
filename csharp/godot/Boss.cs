@@ -805,15 +805,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         _fireTimer = PatternInterval(CurrentPattern());
     }
 
-    public void SetFireTimer(float seconds) => _fireTimer = seconds;
-
-    public float FireTimer() => _fireTimer;
-
     public Godot.Collections.Dictionary Patterns() => _patterns;
 
     public void StartPattern() => StartPatternInternal();
-
-    public Color BaseModulateColor() => BaseModulate();
 
     /// <summary>spawner 依赖注入（BossAttacks/EnrageSequence 经公开接口调用）。</summary>
     public void SetSpawner(Node spawner) => _spawner = spawner as Spawner;

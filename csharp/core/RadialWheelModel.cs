@@ -123,8 +123,6 @@ public sealed class RadialWheelModel
     /// <summary>设置原始滚动位（调用方负责动画；展示按 EffectiveScroll 钳制）。</summary>
     public void ScrollTo(double slots) => Top.Scroll = slots;
 
-    public void ScrollBy(double slots) => ScrollTo(Top.Scroll + slots);
-
     public bool CanDrill(int index)
     {
         if (Depth >= MaxDepth || index < 0 || index >= Current.Count)
