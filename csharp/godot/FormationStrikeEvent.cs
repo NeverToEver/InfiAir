@@ -837,15 +837,20 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         RefreshEventBar(0.0f, force: true);
-        if (_alive == 0 && _state != State.IDLE && _state != State.FORMATION_EXIT)
+        if (_alive == 0 && _state != State.IDLE)
         {
+            // 离场段（FORMATION_EXIT）击落最后一架同样记全歼——原守卫把奖励与台词
+            // 一并跳过，玩家打光编队只拿「它自己走了」档；只有 BeginExit 需要防重入
             _allClear = true;
             if (RewardAllClear > 0)
             {
                 GameState.Instance.AddScore(RewardAllClear);
             }
 
-            BeginExit();
+            if (_state != State.FORMATION_EXIT)
+            {
+                BeginExit();
+            }
         }
     }
 
