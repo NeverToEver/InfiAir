@@ -15,7 +15,7 @@ namespace InfiAir;
 /// 偏移/朝向/侧倾由本节点 _Process 驱动；状态计时全在 _Process，不产生 Timer 节点。
 /// 动态实体（战机/炸弹）一律挂 Main 下。
 /// 结算三分支（决定这场遭遇的收益上限）：
-///   全数拦截 = 一架未坠 + 一枚未投 → 拦截奖励（另有逐枚拦截分，在拦截当帧入账）；
+///   全数拦截 = 投出全拦 + 一架未坠 → 拦截奖励（另有逐枚拦截分，在拦截当帧入账）；
 ///   全歼 = 打光编队（含已投弹）→ 全歼奖励；
 ///   放它离场 → 只有击坠得分。
 /// 编队几何与投弹时刻表在 core（FormationPlan，可单测）；本节点只做逐帧消费与节点写入，
@@ -93,7 +93,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// <summary>相邻两波之间的间隔（秒）——波次间隔是「威胁有节奏」的来源。</summary>
     public float VolleyGap { get; set; } = 1.35f;
     public int RewardAllClear { get; set; } = 200;
-    /// <summary>全歼奖励：一架未坠、一枚未投就把编队打光（比全歼更难）。</summary>
+    /// <summary>全数拦截奖励：投出全拦 + 一架未坠（比全歼更难）。</summary>
     public int RewardIntercept { get; set; } = 400;
     /// <summary>每枚被空中击落/弹反的炸弹奖励（拦住威胁本身的回报，拦截当帧入账）。</summary>
     public int RewardPerIntercept { get; set; } = 25;
@@ -535,8 +535,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
         ResumeWaves();
     }
 
-    /// <summary>结算（只发一次）：全数拦截（一架未坠 + 一枚未投）→ 拦截奖励 + 专属台词；
-    /// 全歼 → 全歼台词；放它离场 → 清除台词。逐枚拦截分在拦截当帧已入账，不在此处补发。
+    /// <summary>结算（只发一次）：档位判定在 core（FormationSettle.Verdict）——
+    /// 全数拦截（投出全拦 + 一架未坠）→ 拦截奖励 + 专属台词；全歼 → 全歼台词；
+    /// 放它离场/有弹漏网 → 清除台词。逐枚拦截分在拦截当帧已入账，不在此处补发。
     /// 台词与奖励分开判：奖励可为 0（配置），台词不能省——否则玩家分不清「打光了」「拦住了」
     /// 与「它自己走了」。</summary>
     private void Settle()
@@ -547,23 +548,23 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         _settled = true;
-        if (_dropped == 0 && _alive > 0)
+        switch (FormationSettle.Verdict(_dropped, _intercepted, _alive, _total, _allClear))
         {
-            if (RewardIntercept > 0)
-            {
-                GameState.Instance.AddScore(RewardIntercept);
-            }
+            case FormationSettle.Tier.InterceptBonus:
+                if (RewardIntercept > 0)
+                {
+                    GameState.Instance.AddScore(RewardIntercept);
+                }
 
-            _comm?.ShowLine("FBQ_INTERCEPT_BONUS");
-            GameState.Instance.PlaySfx(SfxId.Resupply, -4.0, 1.35);
-        }
-        else if (_allClear)
-        {
-            _comm?.ShowLine("FBQ_ALL_CLEAR");
-        }
-        else if (_dropped > 0)
-        {
-            _comm?.ShowLine("FBQ_CLEAR");
+                _comm?.ShowLine("FBQ_INTERCEPT_BONUS");
+                GameState.Instance.PlaySfx(SfxId.Resupply, -4.0, 1.35);
+                break;
+            case FormationSettle.Tier.AllClear:
+                _comm?.ShowLine("FBQ_ALL_CLEAR");
+                break;
+            case FormationSettle.Tier.Clear:
+                _comm?.ShowLine("FBQ_CLEAR");
+                break;
         }
     }
 
