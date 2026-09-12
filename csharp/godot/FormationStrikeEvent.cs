@@ -41,7 +41,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
     private const float BombStagger = 0.4f;
 
     // ---- 配置（读 balance.json formation_strike_event 段，脚本值为缺键回退，两者保持一致） ----
-    public int MinScore { get; set; } = 500;
+    // 触发策略（min_score/trigger_interval/trigger_chance）归 GameEventManager 单源持有，
+    // 本事件只报自身就绪（见 EncounterEventBase.CanTrigger）
     public float Cooldown { get; set; } = 50.0f;
     public Godot.Collections.Dictionary CraftCounts { get; set; } = new()
     {
@@ -137,7 +138,6 @@ public partial class FormationStrikeEvent : EncounterEventBase
         // FakeEnemiesEvent 条目判型口径——坏值 AsInt64/AsDouble 抛 InvalidCastException
         // 崩溃，判型失败回退脚本默认）——min_score 负值分数 0 即触发；cooldown ≤0
         // 冷却失效、事件结束即刻可再触发（风暴）
-        MinScore = CfgFx.Int("formation_strike_event.min_score", MinScore, 0);
         Cooldown = CfgFx.Float("formation_strike_event.cooldown", Cooldown, CfgFx.IntervalFloor);
         // craft_counts 判型回退（精英炮塔侧同口径）——配置损坏为非 Dictionary
         // 时 start() 的 .get() 在 Variant 上运行时崩溃
@@ -200,34 +200,6 @@ public partial class FormationStrikeEvent : EncounterEventBase
 
     /// <summary>被空中拦截/弹反的弹数（威胁被玩家拆掉的计数）。</summary>
     public int InterceptedCount() => _intercepted;
-
-    /// <summary>触发条件（最低优先级）：自身 IDLE 且冷却结束、分数达标、Boss 未激活、精英炮塔事件未激活。
-    /// 掷签间隔/概率由 spawner 侧持有（elite 事件在本事件之前检查，本 tick 先启动则 is_active 拦截）。</summary>
-    public override bool CanTrigger()
-    {
-        // 分数实时读取（不走帧缓存）：调用方同帧改分须立即生效（直读 GameState.Score；
-        // 帧缓存仅保留给 _Process 热路径的 CachedView）
-        var liveScore = (int)GameState.Instance.Score;
-        if (liveScore < MinScore || !base.CanTrigger())
-        {
-            return false;
-        }
-
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
-        {
-            if (_spawner.IsBossActive())
-            {
-                return false;
-            }
-
-            if (_spawner.EliteEvent() is IEncounterEvent elite && elite.IsActive())
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     /// <summary>事件启动（互斥检查通过后由 spawner 调用）。</summary>
     public override void Start()

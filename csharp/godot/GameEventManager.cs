@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Events;
 
 namespace InfiAir;
 
@@ -160,23 +161,22 @@ public partial class GameEventManager : Node
             FOG_EVENT_DURATIONS = durations.AsGodotDictionary();
         }
 
-        // 遭遇触发策略（与 spawner 原读键一致，balance.json 零变化）
+        // 遭遇触发策略（与 spawner 原读键一致，balance.json 零变化）；
+        // 判型经 CfgFx：坏类型（字符串/数组）直接 AsDouble/AsInt64 会抛 InvalidCastException
+        // 崩在管理器 _Ready，回退脚本默认值才是「坏了也能开局」的口径
         ENCOUNTER_CONFIG = new Godot.Collections.Dictionary
         {
             [new StringName("elite_turret")] = new Godot.Collections.Dictionary
             {
-                ["interval"] = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.trigger_interval", 45.0).AsDouble(), 0.1f),
-                ["chance"] = Mathf.Clamp(
-                    (float)GameState.Instance.Cfg("elite_turret_event.trigger_chance", 0.35).AsDouble(), 0.0f, 1.0f),
-                ["min_score"] = (int)GameState.Instance.Cfg("elite_turret_event.min_score", 800).AsInt64(),
+                ["interval"] = CfgFx.Float("elite_turret_event.trigger_interval", 45.0f, 0.1f),
+                ["chance"] = CfgFx.Float("elite_turret_event.trigger_chance", 0.35f, 0.0f, 1.0f),
+                ["min_score"] = CfgFx.Int("elite_turret_event.min_score", 800, 0),
             },
             [new StringName("formation_strike")] = new Godot.Collections.Dictionary
             {
-                ["interval"] = Mathf.Max(
-                    (float)GameState.Instance.Cfg("formation_strike_event.trigger_interval", 40.0).AsDouble(), 0.1f),
-                ["chance"] = Mathf.Clamp(
-                    (float)GameState.Instance.Cfg("formation_strike_event.trigger_chance", 0.30).AsDouble(), 0.0f, 1.0f),
-                ["min_score"] = (int)GameState.Instance.Cfg("formation_strike_event.min_score", 500).AsInt64(),
+                ["interval"] = CfgFx.Float("formation_strike_event.trigger_interval", 40.0f, 0.1f),
+                ["chance"] = CfgFx.Float("formation_strike_event.trigger_chance", 0.30f, 0.0f, 1.0f),
+                ["min_score"] = CfgFx.Int("formation_strike_event.min_score", 500, 0),
             },
         };
     }
@@ -253,18 +253,26 @@ public partial class GameEventManager : Node
 
         // 触发参数与实例一次性缓存（Tick 每帧读缓存，不再每帧解析/分配；
         // 参数值固化——注册后无写入方，重载属诊断路径不改遭遇策略，见 ReloadConfig 注释）
+        // 条目级判型（与 LoadBalance 同口径）：注册发生在 Main._Ready，异常在这里同样开不了局
         var cfg = ENCOUNTER_CONFIG.GetValueOrDefault(pId, new Godot.Collections.Dictionary());
         var dict = cfg.AsGodotDictionary();
-        var interval = Mathf.Max((float)dict.GetValueOrDefault("interval", 45.0).AsDouble(), 0.1f);
         _encounterTrig[pId] = new EncounterTriggerCfg(
-            interval,
-            (float)dict.GetValueOrDefault("chance", 0.3).AsDouble(),
-            (int)dict.GetValueOrDefault("min_score", 0).AsInt64());
+            Num(dict, "interval", 45.0f, 0.1f, float.MaxValue),
+            Num(dict, "chance", 0.3f, 0.0f, 1.0f),
+            (int)Num(dict, "min_score", 0.0f, 0.0f, int.MaxValue));
         _encounterInstance[pId] = pEvent;
         if (!_encounterTimers.ContainsKey(pId))
         {
-            _encounterTimers[pId] = interval;
+            _encounterTimers[pId] = _encounterTrig[pId].Interval;
         }
+    }
+
+    /// <summary>注册表条目取值（判型 + 域钳）：坏类型回退默认，不抛 InvalidCastException。</summary>
+    private static float Num(Godot.Collections.Dictionary dict, string key, float def, float min, float max)
+    {
+        var v = dict.GetValueOrDefault(key, def);
+        var x = v.VariantType is Variant.Type.Int or Variant.Type.Float ? (float)v.AsDouble() : def;
+        return Mathf.Clamp(x, min, max);
     }
 
     /// <summary>spawner 依赖注入（main._ready 调用；遭遇触发门控 + 触发时占用特殊槽）。</summary>
@@ -357,6 +365,26 @@ public partial class GameEventManager : Node
         }
 
         return false;
+    }
+
+    /// <summary>强制启动一次已注册遭遇（诊断/无头探针入口）：与自动触发共用同一条启动路径
+    /// ——活跃 id 登记、特殊槽通知、EventStarted 广播一并走齐。绕过管理器直调 Start 会让
+    /// 「事件在跑、管理器不知道」，只能靠轮询兜底自愈；触发路径因此只留这一条。</summary>
+    public bool TryStartEncounter(StringName pId)
+    {
+        if (!_encounterOrder.Contains(pId))
+        {
+            return false;
+        }
+
+        var ev = EventFor(pId);
+        if (!GodotObject.IsInstanceValid(ev) || ev is not IEncounterEvent enc || enc.IsActive())
+        {
+            return false;
+        }
+
+        StartEncounter(pId, enc);
+        return true;
     }
 
     /// <summary>立即结束指定分组进行中的事件（fog：清理效果；encounter：abort 打断）。</summary>
@@ -482,9 +510,9 @@ public partial class GameEventManager : Node
             && _spawner.IsProcessing() && _spawner.CanProcess();
     }
 
-    /// <summary>遭遇事件触发检查（镜像 spawner._process 原逻辑 + ScheduledEventTrigger 语义）：
-    /// 按注册序逐个——事件可触发（can_trigger + Boss 互斥 + 精英事件额外要求编队不在场）
-    /// 且分数门槛通过才推进计时，计时归零按概率掷签启动。</summary>
+    /// <summary>遭遇事件触发检查（触发条件与计时推进的判定在 core EncounterTrigger，可单测）：
+    /// 按注册序逐个——事件自身就绪、Boss 未激活、组内无其他遭遇在跑、分数达标才算有资格；
+    /// 无资格时计时冻结（不累积），到点按概率掷签启动。</summary>
     private void TickEncounterTriggers(float delta)
     {
         var score = GameState.Instance.Score;
@@ -499,52 +527,31 @@ public partial class GameEventManager : Node
                 continue;
             }
 
-            if (!EncounterCanTrigger(id, enc))
-            {
-                continue;
-            }
-
             // 注册时固化的触发参数（零分配读取；替代每帧 Variant 字典往返）
             if (!_encounterTrig.TryGetValue(id, out var trig))
             {
                 continue;
             }
 
-            if (score < trig.MinScore)
+            var eligible = EncounterTrigger.Eligible(
+                enc.CanTrigger(), BossActive(), AnyOtherEncounterActive(id), score, trig.MinScore);
+            var step = EncounterTrigger.Advance(
+                _encounterTimers.GetValueOrDefault(id, trig.Interval), delta, trig.Interval, eligible, score, trig.MinScore);
+            _encounterTimers[id] = step.Remaining;
+            if (step.Due && GD.Randf() < trig.Chance)
             {
-                continue; // 分数门槛未过：计时不推进（镜像 ScheduledEventTrigger）
-            }
-
-            var timer = _encounterTimers.GetValueOrDefault(id, trig.Interval) - delta;
-            if (timer <= 0.0f)
-            {
-                _encounterTimers[id] = trig.Interval;
-                if (GD.Randf() < trig.Chance)
-                {
-                    StartEncounter(id, enc);
-                }
-            }
-            else
-            {
-                _encounterTimers[id] = timer;
+                StartEncounter(id, enc);
             }
         }
     }
 
-    /// <summary>遭遇事件触发资格：事件自身 can_trigger（冷却/分数/母舰）+ Boss 未激活 +
-    /// 任一其他遭遇事件未在活跃（组内单活跃，未来新增遭遇自动沿用，无需在此硬编码 id）。</summary>
-    private bool EncounterCanTrigger(StringName pId, IEncounterEvent ev)
+    /// <summary>Boss 是否占用遭遇槽（注入的 spawner 判活后直读；未注入按未激活处理）。</summary>
+    private bool BossActive()
+        => _spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsBossActive();
+
+    /// <summary>组内除本事件外是否有别的遭遇在跑（组内单活跃；未来新增遭遇自动沿用，无需硬编码 id）。</summary>
+    private bool AnyOtherEncounterActive(StringName pId)
     {
-        if (!ev.CanTrigger())
-        {
-            return false;
-        }
-
-        if (_spawner != null && GodotObject.IsInstanceValid(_spawner) && _spawner.IsBossActive())
-        {
-            return false;
-        }
-
         foreach (var other in _encounterOrder)
         {
             if (other == pId)
@@ -555,11 +562,11 @@ public partial class GameEventManager : Node
             var o = EventFor(other);
             if (o is IEncounterEvent oe && oe.IsActive())
             {
-                return false;
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 
     /// <summary>遭遇事件启动：调事件 start()（事件内部处理波次/Boss 钩子），登记活跃并广播。</summary>

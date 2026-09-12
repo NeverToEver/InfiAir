@@ -108,21 +108,19 @@ public partial class Spawner : Node
 
     private bool _bossActive;
 
-    /// <summary>精英炮塔事件互斥：事件期间 Boss 触发被冻结（到期记 _boss_pending 一次，不累积）。
+    /// <summary>遭遇事件对 Boss 调度的冻结（深度计数口径：事件持有 +1、释放 -1，与
+    /// _wavesPauseDepth 同构）——两个事件各自持有时，先结束者不会提前解冻后结束者的冻结。
+    /// 到期记 _boss_pending 一次，不累积。
     /// 对偶契约：GameEventManager.CanDriveEncounters 每帧重验本端处理状态后才驱动事件掷签，
     /// 同帧 Boss/遭遇竞态由「事件先冻结 Boss + 本端 boss_resume_delay 推迟恢复」兜住——
     /// 本端提供冻结/ pending/恢复状态，触发时序归事件管理器。</summary>
-    private bool _bossFrozen;
+    private int _bossFreezeDepth;
     private bool _bossPending;
 
     /// <summary>事件期间普通波次暂停（计数口径：事件 Start 时 +1、收尾 ResumeWaves 时 -1。
     /// 生产路径由统一事件管理器保证 encounter 组单活跃；计数化后即使不变量被绕过
     /// （直启两事件），先结束者也不会提前解除后结束者的暂停）。</summary>
     private int _wavesPauseDepth;
-
-    /// <summary>事件编排节点（Main 在 _Ready 登记；遭遇事件触发策略由统一事件管理器接管，
-    /// 本引用供互斥查询——FormationStrikeEvent 触发判定检查 elite 是否活跃）。</summary>
-    private Node? _event;
 
     public Spawner()
     {
@@ -601,8 +599,8 @@ public partial class Spawner : Node
         // 分数触发需同时越过最小间隔（防分数暴涨期战后连出 Boss）；时间兜底不受此限
         if (!_bossActive && ((GameState.Instance.Score >= _nextBossScore && _bossTimer >= BOSS_MIN_INTERVAL) || _bossTimer >= BOSS_TIME_LIMIT))
         {
-            // 精英炮塔事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
-            if (_bossFrozen)
+            // 精英炮塔/轰炸编队事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
+            if (BossFrozen())
             {
                 _bossPending = true;
             }
@@ -629,10 +627,16 @@ public partial class Spawner : Node
 
     // ---- 对外公开接口 ----
     // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名。
+    // 遭遇事件的活跃/互斥判定归 GameEventManager（唯一事实源），本端只暴露它需要的三个钩子。
 
-    public void SetEliteEvent(Node? eventNode) => _event = eventNode;
+    /// <summary>Boss 冻结持有/释放（深度计数，见 _bossFreezeDepth）。</summary>
+    public void SetBossFrozen(bool frozen)
+    {
+        _bossFreezeDepth = frozen ? _bossFreezeDepth + 1 : Mathf.Max(_bossFreezeDepth - 1, 0);
+    }
 
-    public void SetBossFrozen(bool frozen) => _bossFrozen = frozen;
+    /// <summary>当前是否处于 Boss 冻结（仍有事件持有）。</summary>
+    public bool BossFrozen() => _bossFreezeDepth > 0;
 
     public void SetWavesPaused(bool paused)
     {
@@ -640,8 +644,6 @@ public partial class Spawner : Node
     }
 
     public bool IsBossActive() => _bossActive;
-
-    public Node? EliteEvent() => _event;
 
     /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用）。</summary>
     public void NotifyEventTriggered() => _wavesSinceSpecial = 0;

@@ -149,8 +149,8 @@ public partial class EliteTurretEvent : EncounterEventBase
         }
 
         // 冻结 Boss 调度 + 暂停普通波次（spawner 钩子；注入 _spawner，typed 直调）
-        _spawner?.SetBossFrozen(true);
-        _spawner?.SetWavesPaused(true);
+        HoldBoss();
+        HoldWaves();
 
         _carrier = new StrikeCarrier();
         var carrier = _carrier;
@@ -277,7 +277,7 @@ public partial class EliteTurretEvent : EncounterEventBase
 
         if (_hud != null)
         {
-            _hud.ShowEventBar(_total);
+            _hud.ShowEventBar("ETV_TITLE", "ETV_TURRETS", UITheme.EventMagenta, _total);
         }
     }
 
@@ -298,7 +298,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             _hudPoll = 0.1f;
             if (_hud != null)
             {
-                _hud.UpdateEventBar(_timer, Duration, _total - _destroyed);
+                _hud.UpdateEventBar(_timer / Duration, _total - _destroyed);
             }
         }
 
@@ -319,7 +319,7 @@ public partial class EliteTurretEvent : EncounterEventBase
 
         if (_hud != null && _state == State.TURRET_ACTIVE)
         {
-            _hud.UpdateEventBar(_timer, Duration, _total - _destroyed);
+            _hud.UpdateEventBar(_timer / Duration, _total - _destroyed);
         }
 
         // 进度台词节点：摧毁 ≥ ⌈总数/3⌉ → 第 1 句；≥ ⌈总数×2/3⌉ → 第 2 句；全歼 → 第 3 句
@@ -416,14 +416,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         _state = State.IDLE;
         _cooldownLeft = Cooldown;
         _turrets.Clear();
-        if (_spawner != null)
-        {
-            _spawner.SetBossFrozen(false);
-            if (_spawner.ConsumeBossPending())
-            {
-                _spawner.TriggerBoss();
-            }
-        }
+        ReleaseBoss();
     }
 
     /// <summary>一次性计时回调（同 spawner._schedule：Godot.Timer 节点 + 信号，避免协程泄漏）。</summary>

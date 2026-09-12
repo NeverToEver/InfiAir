@@ -137,12 +137,11 @@ public partial class Main : Node2D
         _spawner.BossSpawned += _hud.ShowBossBar;
         _spawner.BossSpawned += OnBossSpawned;
         _spawner.BossWarning += _hud.ShowBossBanner;
-        // 精英炮塔事件：编排节点挂 Main 下（清场遍历可见），spawner 持引用做互斥
+        // 精英炮塔事件：编排节点挂 Main 下（清场遍历可见），活跃/互斥判定归事件管理器
         _event = new EliteTurretEvent();
         AddChild(_event);
         _event.SetSpawner(_spawner); // 依赖注入，替代事件侧 group 现找
-        _spawner.SetEliteEvent(_event);
-        // 轰炸编队事件：同模式登记（最低优先级随机事件，不冻结 Boss/波次）
+        // 轰炸编队事件：同模式登记（最低优先级随机事件，占用波次槽与 Boss 槽）
         _formation = new FormationStrikeEvent();
         AddChild(_formation);
         _formation.SetSpawner(_spawner); // 依赖注入延续——编队事件侧不再 group 现找 spawner
@@ -153,7 +152,7 @@ public partial class Main : Node2D
         _events.SetSpawner(_spawner);
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
-        // 事件 id → 实例（--event-probe 用；管理器侧的事件查找口是内部实现，不作公开面）
+        // 事件 id → 实例（--event-probe 的观测句柄；启动本身走管理器的统一触发路径）
         _encounterForProbe[new StringName("elite_turret")] = _event;
         _encounterForProbe[new StringName("formation_strike")] = _formation;
         _events.SetRunActive(GetTree().CurrentScene == this);
@@ -338,15 +337,23 @@ public partial class Main : Node2D
 
     /// <summary>遭遇事件冒烟（--event-probe=&lt;id&gt;）：强制触发一次指定遭遇。
     /// 遭遇要过分数门槛 + 掷签，无头 300 帧跑不到，而这类事件的编排/投弹/清场逻辑
-    /// 正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。</summary>
+    /// 正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。
+    /// 启动走管理器的统一入口（登记活跃 id/占特殊槽/广播一致），本处只留观测句柄。</summary>
     private void StartEventForProbe(string id)
     {
-        if (_encounterForProbe.TryGetValue(new StringName(id), out var ev) && !ev.IsActive())
+        var key = new StringName(id);
+        if (!_encounterForProbe.TryGetValue(key, out var ev) || ev.IsActive())
         {
-            ev.Start();
-            _probeEvent = ev;
-            _probeEventId = id;
+            return;
         }
+
+        if (!_events.TryStartEncounter(key))
+        {
+            return;
+        }
+
+        _probeEvent = ev;
+        _probeEventId = id;
     }
 
     /// <summary>event-probe 完成判定：事件回 IDLE 即整周期跑完，打一行固定标记。

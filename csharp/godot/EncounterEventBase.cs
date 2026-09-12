@@ -25,6 +25,12 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// <summary>母舰在场惰性缓存：首次查得后缓存引用，释放/退组失效自动重查（替代每帧组查询）。</summary>
     private Node? _mothershipCache;
 
+    /// <summary>本事件是否持有波次暂停（HoldWaves/ResumeWaves 配对，见 ResumeWaves）。</summary>
+    private bool _wavesHeld;
+
+    /// <summary>本事件是否持有 Boss 冻结（HoldBoss/ReleaseBoss 配对，见 HoldBoss）。</summary>
+    private bool _bossHeld;
+
     /// <summary>子类 FSM 是否处于 IDLE（桥接各事件私有状态枚举；IsActive/CanTrigger/TickCooldown 共用）。</summary>
     protected abstract bool IsIdle { get; }
 
@@ -84,12 +90,73 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
         return _mothershipCache != null;
     }
 
-    /// <summary>恢复普通波次（事件结束/打断时；多个遭遇事件可能同时持有暂停，以各自恢复为准）。</summary>
+    /// <summary>暂停普通波次（事件启动时；与 ResumeWaves 成对，重复调用只算一次持有）。
+    /// spawner 侧是深度计数，事件侧再记一次持有标志——收场路径可能重复调用释放，
+    /// 多余的释放会把别的持有者（Boss/另一个事件）的暂停一起解掉。</summary>
+    protected void HoldWaves()
+    {
+        if (_wavesHeld || _spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        {
+            return;
+        }
+
+        _spawner.SetWavesPaused(true);
+        _wavesHeld = true;
+    }
+
+    /// <summary>恢复普通波次（事件结束/打断时）；未持有则为空操作（幂等）。</summary>
     protected void ResumeWaves()
     {
+        if (!_wavesHeld)
+        {
+            return;
+        }
+
+        _wavesHeld = false;
         if (_spawner != null && GodotObject.IsInstanceValid(_spawner))
         {
             _spawner.SetWavesPaused(false);
+        }
+    }
+
+    /// <summary>冻结 Boss 调度（事件占用 Boss 槽时；spawner 侧深度计数，多事件同时持有安全）。
+    /// 与 HoldWaves 同构地记一次持有标志：重复持有会让一次释放留下未解冻的深度，
+    /// 表现是「本局再也不出 Boss」。</summary>
+    protected void HoldBoss()
+    {
+        if (_bossHeld || _spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        {
+            return;
+        }
+
+        _spawner.SetBossFrozen(true);
+        _bossHeld = true;
+    }
+
+    /// <summary>释放 Boss 互斥：完全释放（无其他持有者）时补触发一次期间被冻结的 Boss
+    /// ——冻结期间的到期只记一次 pending，解冻即兑现，不累积也不丢失。</summary>
+    protected void ReleaseBoss()
+    {
+        if (!_bossHeld)
+        {
+            return;
+        }
+
+        _bossHeld = false;
+        if (_spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        {
+            return;
+        }
+
+        _spawner.SetBossFrozen(false);
+        if (_spawner.BossFrozen())
+        {
+            return; // 仍有其他事件持有
+        }
+
+        if (_spawner.ConsumeBossPending())
+        {
+            _spawner.TriggerBoss();
         }
     }
 

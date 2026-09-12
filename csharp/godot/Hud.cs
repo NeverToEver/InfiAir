@@ -44,8 +44,12 @@ public partial class Hud : CanvasLayer
     private VBoxContainer _eventBox = null!;
     private SegmentedBar _eventBar = null!;
     private Label _eventTitle = null!;
-    private Label _eventTurretsLabel = null!;
-    private int _lastEventAlive = -1;
+    private Label _eventCounterLabel = null!;
+    /// <summary>事件条当前文案（标题键 + 计数行键与三个参数）：本地化切换与「数值未变不重写」
+    /// 共用一份缓存——调用方只给键与数字，排版与翻译都归 HUD。</summary>
+    private string _eventTitleKey = "";
+    private string _eventCounterKey = "";
+    private readonly int[] _eventCounter = { int.MinValue, int.MinValue, int.MinValue };
     /// <summary>当前血条绑定的 Boss（逃跑倒计时轮询用；died 时清空）。Boss 为 C# typed。</summary>
     private Boss? _boss;
     private Label _bossCountdown = null!;
@@ -293,7 +297,9 @@ public partial class Hud : CanvasLayer
         _augmentDockRest = _augmentDockWrap.Position;
     }
 
-    /// <summary>精英炮塔事件计时条（顶部居中，Boss 血条下方；与 Boss 互斥不会同屏）。</summary>
+    /// <summary>事件条（顶部居中，Boss 血条下方）：标题 + 分段进度 + 计数行。
+    /// 标题/计数文案与身份色由调用事件给（精英炮塔＝品红、轰炸编队＝琥珀），HUD 只负责排版、
+    /// 翻译与本地化重绘——两个遭遇事件共用一份实现，新增事件不再各建一套计时条。</summary>
     private void BuildEventBar()
     {
         _eventBox = new VBoxContainer
@@ -307,7 +313,6 @@ public partial class Hud : CanvasLayer
         AddChild(_eventBox);
         _eventTitle = new Label
         {
-            Text = (string)Tr("ETV_TITLE"),
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         _eventTitle.AddThemeFontOverride("font", Font);
@@ -321,45 +326,63 @@ public partial class Hud : CanvasLayer
             FillColor = UITheme.EventMagenta,
         };
         _eventBox.AddChild(_eventBar);
-        _eventTurretsLabel = new Label
+        _eventCounterLabel = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
         };
-        _eventTurretsLabel.AddThemeFontOverride("font", Font);
-        _eventTurretsLabel.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
-        _eventTurretsLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
-        _eventBox.AddChild(_eventTurretsLabel);
+        _eventCounterLabel.AddThemeFontOverride("font", Font);
+        _eventCounterLabel.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
+        _eventCounterLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
+        _eventBox.AddChild(_eventCounterLabel);
     }
 
-    /// <summary>事件倒计时开始：显示计时条（total = 炮台总数）。</summary>
-    public void ShowEventBar(int total)
+    /// <summary>事件条开启：标题键 + 计数行键（%d 参数由后续 update 给）+ 事件身份色。</summary>
+    public void ShowEventBar(string titleKey, string counterKey, Color accent, int counterA, int counterB = 0, int counterC = 0)
     {
-        _eventTitle.Text = (string)Tr("ETV_TITLE");
+        _eventTitleKey = titleKey;
+        _eventCounterKey = counterKey;
+        _eventTitle.Text = (string)Tr(titleKey);
+        _eventTitle.AddThemeColorOverride("font_color", accent);
+        _eventBar.FillColor = accent;
         _eventBar.Value = 100.0f;
-        _lastEventAlive = -1;
-        _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), total);
         _eventBox.Visible = true;
+        SetEventCounter(counterA, counterB, counterC);
     }
 
-    /// <summary>事件进行：剩余时间填充 + 剩余炮台数（约 0.1s 节流由调用侧控制）。</summary>
-    public void UpdateEventBar(float timeLeft, float duration, int alive)
+    /// <summary>事件进行：剩余进度填充 + 计数行（约 0.1s 节流由调用侧控制）。
+    /// 计数行只在数字真的变了时重写（逐帧 Format + 字形重排是白烧）。</summary>
+    public void UpdateEventBar(float fill01, int counterA, int counterB = 0, int counterC = 0)
     {
         if (!_eventBox.Visible)
         {
             return;
         }
 
-        _eventBar.Value = Mathf.Clamp(timeLeft / Mathf.Max(duration, 0.01f), 0.0f, 1.0f) * 100.0f;
-        if (alive != _lastEventAlive)
-        {
-            _lastEventAlive = alive;
-            _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), alive);
-        }
+        _eventBar.Value = Mathf.Clamp(fill01, 0.0f, 1.0f) * 100.0f;
+        SetEventCounter(counterA, counterB, counterC);
     }
 
     public void HideEventBar()
     {
         _eventBox.Visible = false;
+        _eventCounter[0] = int.MinValue; // 复位缓存：下一场事件的首帧必须重写文本
+        _eventCounter[1] = int.MinValue;
+        _eventCounter[2] = int.MinValue;
+    }
+
+    /// <summary>计数行写入（数值未变即跳过；GdFormat 忽略多余参数，故单参数文案键可复用同一接口）。
+    /// force 用于换语言这类「数值没变但文案必须重排」的路径。</summary>
+    private void SetEventCounter(int a, int b, int c, bool force = false)
+    {
+        if (!force && a == _eventCounter[0] && b == _eventCounter[1] && c == _eventCounter[2])
+        {
+            return;
+        }
+
+        _eventCounter[0] = a;
+        _eventCounter[1] = b;
+        _eventCounter[2] = c;
+        _eventCounterLabel.Text = GdFormat.Format((string)Tr(_eventCounterKey), a, b, c);
     }
 
     // ---------------- 长按蓄力通道（统一 HudChargeBar 组件注册表） ----------------
@@ -895,8 +918,8 @@ public partial class Hud : CanvasLayer
 
         if (_eventBox != null && _eventBox.Visible)
         {
-            _eventTitle.Text = (string)Tr("ETV_TITLE");
-            _eventTurretsLabel.Text = GdFormat.Format((string)Tr("ETV_TURRETS"), Mathf.Max(_lastEventAlive, 0));
+            _eventTitle.Text = (string)Tr(_eventTitleKey);
+            SetEventCounter(_eventCounter[0], _eventCounter[1], _eventCounter[2], force: true);
         }
 
         RebuildAugmentDock(true);
