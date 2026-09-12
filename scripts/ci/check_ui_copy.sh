@@ -7,6 +7,8 @@
 #   3) 空字段：zh/en 任一为空，该语言下界面留白
 #   4) 缺键：C# 静态 Tr("KEY") 在表中无行 → 游戏直接显示键名本身
 # 动态拼接键（Tr("ACT_" + name)）不参与缺键判定，故只认完整调用实参形态。
+# 事件台词/事件条走「键名字面量」而非 Tr()（CommOverlay.ShowLine、Hud.ShowEventBar 内部再翻），
+# 它们的缺键同样显示键名本身，故一并按同一口径判（TEXT_KEY_CALL）。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -24,6 +26,12 @@ BANNED = re.compile(
 KEY_OK = re.compile(r"[A-Z0-9_]+")
 # 只认完整实参：Tr("KEY") / Tr("KEY", …)，排除 Tr("ACT_" + name) 这类前缀拼接
 TR_ARG = re.compile(r'Tr\(\s*"([A-Z0-9_]+)"\s*[,)]')
+# 直接吃翻译键的 API（键名再经对应组件内部翻译）：键错/缺行同样是玩家直接看到键名。
+# 只列「实参就是翻译键」的 API——吃已翻译文本的（Hud.ShowInfoBanner）不入列，避免误判。
+TEXT_KEY_CALL = re.compile(
+    r'\.ShowLine\(\s*"([A-Z0-9_]+)"\s*[),]'
+    r'|\.ShowEventBar\(\s*"([A-Z0-9_]+)"\s*,\s*"([A-Z0-9_]+)"'
+)
 
 errors: list[str] = []
 rows = list(csv.DictReader(csv_path.open(encoding="utf-8", newline="")))
@@ -50,7 +58,10 @@ for path in (root / "csharp").rglob("*.cs"):
     parts = path.parts
     if "obj" in parts or "bin" in parts:
         continue
-    used.update(TR_ARG.findall(path.read_text(encoding="utf-8", errors="ignore")))
+    source = path.read_text(encoding="utf-8", errors="ignore")
+    used.update(TR_ARG.findall(source))
+    for match in TEXT_KEY_CALL.finditer(source):
+        used.update(group for group in match.groups() if group)
 for key in sorted(used - keys):
     errors.append(f"`{key}` 被 C# 引用但表中无此键（界面会显示键名本身）")
 
