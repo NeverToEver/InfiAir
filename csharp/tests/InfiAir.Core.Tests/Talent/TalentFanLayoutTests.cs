@@ -16,7 +16,7 @@ public sealed class TalentFanLayoutTests
     {
         var (x, y) = Production().Root;
         Assert.Equal(620.0, x, 6);
-        Assert.Equal(720.0 * 0.88, y, 6);
+        Assert.Equal(720.0 * 0.95, y, 6);
     }
 
     [Fact]
@@ -27,8 +27,8 @@ public sealed class TalentFanLayoutTests
         var positions = layout.Compute(new[] { new[] { "a", "b", "c" } });
 
         Assert.Equal(3, positions.Count);
-        // 绝对值钉住：RootGap 190、RadiusStep 165 是卡片不重叠的观感契约（注释自述 ≥178 约束）
-        var expectedR = new[] { 190.0, 355.0, 520.0 };
+        // 绝对值钉住：RootGap 190、RadiusStep 140 是卡片不重叠且全入面板的观感契约
+        var expectedR = new[] { 190.0, 330.0, 470.0 };
         for (var j = 0; j < 3; j++)
         {
             Assert.Equal(cx, positions[j].X, 6);
@@ -79,26 +79,20 @@ public sealed class TalentFanLayoutTests
     public void RealTree_AllNodesStayInsideDesignDomain()
     {
         // 以真实天赋树全部大类 + 生产布局参数验证：卡片中心不得飞出面板
-        // （面板局部 [0,1240]×[0,720]，飞出即被相邻 UI 遮挡或不可见）。
-        // 已知例外（ROADMAP 已登记，待窗口化过目收口）：奇数支线的中线竖直向上，
-        // 其第 4 级节点中心 Y≈-51.4 越出面板顶缘（offense.firecontrol 与 special.logistics
-        // 两条四节点支线的末端）——钉住精确值，偏离（变好或变坏）即红。
-        var knownOverflow = new HashSet<string> { "salvo", "combo_guard" };
+        // （面板局部 [0,1240]×[0,720]，飞出即被相邻 UI 遮挡或不可见）；
+        // 且竖直中线末端中心 ≥64（卡高一半），即卡片完整入面板
         foreach (var cat in TalentTree.Categories)
         {
             var lines = cat.Lines.Select(l => l.NodeIds).ToList();
             foreach (var p in Production().Compute(lines))
             {
                 Assert.InRange(p.X, 0.0, 1240.0);
-                if (knownOverflow.Contains(p.NodeId))
-                {
-                    Assert.Equal(-51.4, p.Y, 1);
-                }
-                else
-                {
-                    Assert.InRange(p.Y, 0.0, 720.0);
-                }
+                Assert.InRange(p.Y, 0.0, 720.0);
             }
         }
+
+        var special = TalentTree.Category("special");
+        var tip = Production().Compute(special.Lines.Select(l => l.NodeIds).ToList())[^1];
+        Assert.True(tip.Y >= 64.0, $"竖直中线末端卡片未完整入面板: Y={tip.Y}");
     }
 }

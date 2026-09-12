@@ -32,11 +32,13 @@ public sealed class TalentFanLayout
     /// <summary>根节点到第一级节点的径向距离（三线 ±45° 内圈弦距须容下 128px 卡片：2r·sin22.5° ≥ 136 → r ≥ 178）。</summary>
     public double RootGap { get; init; } = 190.0;
 
-    /// <summary>层级间径向步距。</summary>
-    public double RadiusStep { get; init; } = 165.0;
+    /// <summary>层级间径向步距。140：四节点支线末端 r=RootGap+3×140=610，
+    /// 竖直中线卡片中心 Y=74（卡 128px 全入面板）；同线卡间距 12px。</summary>
+    public double RadiusStep { get; init; } = 140.0;
 
-    /// <summary>根节点（大类入口）坐标。</summary>
-    public (double X, double Y) Root => (Width * 0.5, Height * 0.88);
+    /// <summary>根节点（大类入口）坐标。纵向系数 0.95：四节点支线全程须留在面板内
+    ///（根圆 30px 贴底不越界，末端卡片中心 ≥ 卡高一半 64px）。</summary>
+    public (double X, double Y) Root => (Width * 0.5, Height * 0.95);
 
     /// <summary>按支线排布全部节点：lines[i] = 第 i 条支线的节点 id 列表（由内向外）。</summary>
     public IReadOnlyList<TalentFanPosition> Compute(IReadOnlyList<IReadOnlyList<string>> lines)
