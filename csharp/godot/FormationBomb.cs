@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -290,7 +291,8 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     }
 
     /// <summary>反射弹轻量寻敌：朝最近的敌方单位缓转（速率上限），保证「弹反成功」不靠运气——
-    /// 编队横穿 + 弹体上抛的几何关系太容易擦身而过，纯直线反射会让最难的操作为零回报。</summary>
+    /// 编队横穿 + 弹体上抛的几何关系太容易擦身而过，纯直线反射会让最难的操作为零回报。
+    /// 转向决策在 core（BombReflectKinematics，单测钉住收敛性），这里只做节点适配。</summary>
     private void SteerHome(float delta)
     {
         var nearest = NearestEnemy();
@@ -300,14 +302,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         }
 
         var toTarget = nearest.GlobalPosition - GlobalPosition;
-        if (toTarget.LengthSquared() < 1.0f)
-        {
-            return;
-        }
-
-        var speed = Velocity.Length();
-        var desired = toTarget.Normalized() * speed;
-        Velocity = Velocity.MoveToward(desired, ReflectTurnAccel * delta);
+        var (vx, vy) = BombReflectKinematics.SteerHome(
+            Velocity.X, Velocity.Y, toTarget.X, toTarget.Y, ReflectTurnAccel, delta);
+        Velocity = new Vector2(vx, vy);
     }
 
     private Node2D? NearestEnemy()
@@ -418,10 +415,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         }
 
         IsReflected = true;
-        // 水平分量保留、只反垂直（与 Bullet 弹反同口径）。速度倍率是「能否咬住横穿编队」的
-        // 决定性旋钮：原样奉还的初速只比编队 run_speed 快一成，追尾永远差一截——
-        // 转向加速度只决定转弯半径（≈88px，远小于弹反距离），不是瓶颈。单源 bomb_reflect_speed_mult
-        Velocity = new Vector2(Velocity.X * 0.4f, -Mathf.Abs(Velocity.Y) * 1.25f) * ReflectSpeedMult;
+        // 初速决策在 core（BombReflectKinematics.Launch，单测钉住「只反垂直」与速度余量）
+        var launch = BombReflectKinematics.Launch(Velocity.X, Velocity.Y, ReflectSpeedMult);
+        Velocity = new Vector2(launch.X, launch.Y);
         // 第 2 层 player_bullet（与 Bullet 弹反后同层）：留在 enemy 层会让玩家自己的子弹
         // 把反射弹当成敌机命中并自我消耗（白丢一发）
         CollisionLayer = 2;
