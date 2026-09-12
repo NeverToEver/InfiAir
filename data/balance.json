@@ -1268,6 +1268,7 @@
 		"bomb_hp": 8,
 		"bomb_score": 50,
 		"bomb_reflect_damage": 45,
+		"bomb_reflect_turn_accel": 1600,
 		"reward_all_clear": 200,
 		"reward_intercept": 400,
 		"reward_per_intercept": 25

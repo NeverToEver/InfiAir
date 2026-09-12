@@ -22,13 +22,10 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 {
     private const int RingSegments = 32;
 
-    /// <summary>反射弹寻敌转向加速度（px/s²）——够快以咬住横穿的编队，又不至于瞬间掉头。</summary>
-    private const float ReflectTurnAccel = 1600.0f;
-
     /// <summary>弹头本色（_Ready 初值；弹反改冰蓝，Activate 复位）。</summary>
     private static readonly Color WarheadColor = new(1.0f, 0.42f, 0.14f);
 
-    /// <summary>投放参数（事件 Setup 注入；数值源 formation_strike_event.*）。</summary>
+    /// <summary>投放参数（事件 Setup/SpawnBomb 注入；数值源 formation_strike_event.*）。</summary>
     public Vector2 Velocity { get; set; } = new(0.0f, 300.0f);
     public float Fuse { get; set; } = 1.2f;
     public int Damage { get; set; } = 20;
@@ -36,6 +33,8 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     public float EdgeFalloff { get; set; } = 0.35f;
     public int BombScore { get; set; } = 50;
     public int ReflectDamage { get; set; } = 45;
+    /// <summary>反射态寻敌转向加速度（px/s²，事件注入；单源 balance bomb_reflect_turn_accel）。</summary>
+    public float ReflectTurnAccel { get; set; } = 1600.0f;
 
     public int MaxHp { get; set; } = 8;
     public int Hp { get; set; } = 8;

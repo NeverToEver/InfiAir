@@ -67,6 +67,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public int BombHp { get; set; } = 8;
     public int BombScore { get; set; } = 50;
     public int BombReflectDamage { get; set; } = 45;
+    /// <summary>反射弹寻敌转向加速度（px/s²）——够快以咬住横穿的编队，又不至于瞬间掉头。</summary>
+    public float BombReflectTurnAccel { get; set; } = 1600.0f;
     /// <summary>投弹波次数（每机每波投一枚）：1 = 单次齐投（无波次感），≥2 = 拉成多波轰炸。</summary>
     public int VolleyBatches { get; set; } = 2;
     /// <summary>相邻两波之间的间隔（秒）——波次间隔是「威胁有节奏」的来源。</summary>
@@ -105,6 +107,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
     private int _intercepted;
     /// <summary>本次事件已发放过拦截奖励（防 Finish/Abort 双路径重发）。</summary>
     private bool _interceptAwarded;
+
+    /// <summary>本次事件已打出全歼（打光编队）——收尾台词据此区分「全歼」与「普通清除」。</summary>
+    private bool _allClearAwarded;
     /// <summary>侧倾量（0..1，转弯与离场期写入，压坡用）。</summary>
     private float _bank;
     /// <summary>在场炸弹（事件结束/打断时随编队一并清理，与 FreeCrafts 同口径）。</summary>
@@ -171,6 +176,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
         BombHp = CfgFx.Int("formation_strike_event.bomb_hp", BombHp, 1);
         BombScore = CfgFx.Int("formation_strike_event.bomb_score", BombScore, 0);
         BombReflectDamage = CfgFx.Int("formation_strike_event.bomb_reflect_damage", BombReflectDamage, 0);
+        // 转向加速度钳 ≥1——0 让反射弹失去寻敌，「弹反成功」退化成靠运气
+        BombReflectTurnAccel = CfgFx.Float("formation_strike_event.bomb_reflect_turn_accel", BombReflectTurnAccel, 1.0f);
         // 波次数钳 [1,10]——0 会空跑（占波次槽不投弹），巨值把轰炸拉成永不停歇的弹幕
         VolleyBatches = CfgFx.Int("formation_strike_event.volley_batches", VolleyBatches, 1, 10);
         VolleyGap = CfgFx.Float("formation_strike_event.volley_gap", VolleyGap, CfgFx.IntervalFloor);
@@ -232,6 +239,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _dropped = 0;
         _intercepted = 0;
         _interceptAwarded = false;
+        _allClearAwarded = false;
         _bank = 0.0f;
         _intelLeft = 0.0f;
         FreeBombs();
@@ -477,10 +485,11 @@ public partial class FormationStrikeEvent : EncounterEventBase
     private void Finish()
     {
         SettleInterceptBonus();
-        // 非拦截收尾补一条清除提示（拦截路径已由奖励台词收尾，不叠）
+        // 非拦截收尾补一条清除提示（拦截路径已由奖励台词收尾，不叠）；全歼走专属台词，
+        // 奖励只静默入账的话玩家无法区分「打光了」与「它自己走了」
         if (_dropped > 0)
         {
-            _comm?.ShowLine("FBQ_CLEAR");
+            _comm?.ShowLine(_allClearAwarded ? "FBQ_ALL_CLEAR" : "FBQ_CLEAR");
         }
 
         FreeCrafts();
@@ -550,6 +559,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         bomb.EdgeFalloff = BombEdgeFalloff;
         bomb.BombScore = BombScore;
         bomb.ReflectDamage = BombReflectDamage;
+        bomb.ReflectTurnAccel = BombReflectTurnAccel;
         var dir = Vector2.Right.Rotated(_heading);
         // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
         bomb.Setup(
@@ -701,6 +711,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         GameState.Instance.AddKillScore(CraftScore); // 编队机击杀计连击（全歼奖励不计）
         if (_alive == 0 && _state != State.IDLE && _state != State.FORMATION_EXIT)
         {
+            _allClearAwarded = true;
             GameState.Instance.AddScore(RewardAllClear);
             BeginExit();
         }
