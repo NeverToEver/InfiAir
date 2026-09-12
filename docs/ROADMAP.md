@@ -42,7 +42,6 @@
 
 ### 批次 2 — 素材生成链完整性与发布预演
 
-- **`release.sh` 预演（不带 `--publish`）**：产物有效性摸底未实证。收口＝导出打包产物完整（托管程序集非空、安装脚本在包内、导出日志 ERROR 扫描通过）。
 - **Release 说明恒空**：GitHub Release body 一直是空的。默认方案＝`release.sh --publish` 读取 `docs/RELEASE_NOTES.md`（存在才作为 body）；发布流程归人（§3），落地前给成对信息征认可。
 
 ### 批次 3 — 债务择机收口（等触发点，不专门开工）
