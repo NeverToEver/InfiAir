@@ -22,6 +22,10 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 {
     private const int RingSegments = 32;
 
+    /// <summary>落点圈/倒计时弧线宽（设计值 × world_scale，与弹体同口径）。</summary>
+    private const float RingWidth = 12.0f;
+    private const float ArcWidth = 16.0f;
+
     /// <summary>弹头本色（_Ready 初值；弹反改冰蓝，Activate 复位）。</summary>
     private static readonly Color WarheadColor = new(1.0f, 0.42f, 0.14f);
 
@@ -67,6 +71,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     private readonly Vector2[] _arcPoints = new Vector2[RingSegments + 2];
     private readonly Vector2[] _unitRing = new Vector2[RingSegments + 1];
 
+    /// <summary>落点圈点集当前对应的半径（池化复用换半径时才重建点集）。</summary>
+    private float _ringRadius = -1.0f;
+
     /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
     public void Setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
     {
@@ -102,13 +109,12 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         if (_ring != null)
         {
             _ring.Visible = true; // 弹反态隐藏的落点圈/倒计时弧复位
-            _ring.Scale = Vector2.One * AoeRadius;
+            RebuildRing(AoeRadius); // 池化复用可能换伤害半径（balance 调参），点集随半径重建
         }
 
         if (_fuseArc != null)
         {
             _fuseArc.Visible = true;
-            _fuseArc.Scale = Vector2.One * AoeRadius;
             UpdateFuseArc();
         }
 
@@ -184,6 +190,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         AreaEntered += OnAreaEntered;
 
         // ---- 落点圈：伤害半径的完整轮廓（不随引信缩放，边界即实际生效边界）----
+        // 点集直接按伤害半径生成（世界像素）。Line2D 的 Width 处在局部空间、随节点 Scale
+        // 同相缩放——「单位圆 ×Scale」的写法会把线宽一起乘上半径，环带盖满圆心，渲染成
+        // 实心巨盘（多弹混投时叠成半个屏幕的亮饼，把爆炸与落点信息全部淹没）
         for (var i = 0; i <= RingSegments; i++)
         {
             var a = Mathf.Tau * i / RingSegments;
@@ -192,23 +201,20 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 
         _ring = new Line2D
         {
-            Points = _unitRing,
-            Width = 4.0f,
+            Width = RingWidth * ws,
             Closed = true,
             DefaultColor = new Color(1.0f, 0.35f, 0.15f, 0.55f),
         };
-        _ring.Scale = Vector2.One * AoeRadius;
+        RebuildRing(AoeRadius);
         _ring.ZIndex = -1; // 落点圈压在编队机/弹体之下，只当地面警示
         AddChild(_ring);
 
         // ---- 倒计时弧：随引信消耗变短，剩余越少越亮（与「越缩越暗」相反）----
         _fuseArc = new Line2D
         {
-            Points = _unitRing,
-            Width = 6.0f,
+            Width = ArcWidth * ws,
             DefaultColor = new Color(1.0f, 0.8f, 0.35f, 0.9f),
         };
-        _fuseArc.Scale = Vector2.One * AoeRadius;
         _fuseArc.ZIndex = -1;
         AddChild(_fuseArc);
         UpdateFuseArc();
@@ -227,9 +233,13 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         return g;
     }
 
+    /// <summary>单帧推进上限（秒）：与事件编排同口径——巨帧会让引信瞬爆、弹体瞬移出反应窗口
+    /// （落点圈/引信弧完全来不及读）。</summary>
+    private const float MaxStepDelta = 0.05f;
+
     public override void _Process(double delta)
     {
-        var d = (float)delta;
+        var d = Mathf.Min((float)delta, MaxStepDelta);
         if (_spent)
         {
             return;
@@ -325,10 +335,28 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         {
             // 角度自 -90° 起顺时针：即从 12 点方向向右扫
             var a = -Mathf.Pi / 2.0f + Mathf.Tau * i / RingSegments;
-            _arcPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            _arcPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * AoeRadius;
         }
 
         _fuseArc.Points = _arcPoints[..count];
+    }
+
+    /// <summary>落点圈点集按当前伤害半径重建（半径未变时跳过——激活高频路径免重算三角）。</summary>
+    private void RebuildRing(float radius)
+    {
+        if (Mathf.IsEqualApprox(_ringRadius, radius))
+        {
+            return;
+        }
+
+        _ringRadius = radius;
+        var pts = new Vector2[RingSegments + 1];
+        for (var i = 0; i <= RingSegments; i++)
+        {
+            pts[i] = _unitRing[i] * radius;
+        }
+
+        _ring.Points = pts;
     }
 
     // ---------------- IDamageable：空中被击落 ----------------

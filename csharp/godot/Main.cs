@@ -221,12 +221,13 @@ public partial class Main : Node2D
             CallDeferred(MethodName.OpenSettingsForProbe);
         }
 
+        var eventProbeId = "";
         foreach (var arg in userArgs)
         {
             if (arg.StartsWith("--event-probe=", System.StringComparison.Ordinal))
             {
-                var id = arg["--event-probe=".Length..];
-                CallDeferred(MethodName.StartEventForProbe, id);
+                eventProbeId = arg["--event-probe=".Length..];
+                CallDeferred(MethodName.StartEventForProbe, eventProbeId);
             }
         }
         // 开机流程：正常启动首次进入 → 播开场过场（或按设置跳过）→
@@ -267,7 +268,15 @@ public partial class Main : Node2D
         {
             GameState.Instance.IntroPlayedThisSession = true;
             ApplyNewRun();
-            if (GameState.Instance.SkipIntro)
+            if (eventProbeId.Length > 0)
+            {
+                // probe 直进开局：过场会暂停整棵树（事件 _Process 冻结），标题屏切换会把事件
+                // 连树销毁——两条路都让无头冒烟跑不到状态机。锁 60 帧：headless 无 vsync
+                // 不限帧率，锁住后 --quit-after 的帧数才对应真实时长（事件全周期 ≈8.5s）。
+                Engine.MaxFps = 60;
+                StartEntrySequenceInternal();
+            }
+            else if (GameState.Instance.SkipIntro)
             {
                 // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
                 // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切

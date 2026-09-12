@@ -32,5 +32,6 @@ run_case() {
 
 run_case "main scene smoke(300)" 300 "$LOG"
 run_case "settings page smoke" 60 "${LOG%.log}.settings.log" --settings-probe
-# 编队事件全周期（入场 1s + 转弯 1.2s + 投弹 ≈3s + 离场 1.5s）取 400 帧留余量
-run_case "formation strike smoke" 400 "${LOG%.log}.formation.log" --event-probe=formation_strike
+# 编队事件全周期（入场 1.5s + 转弯 1.2s + 投弹 ≈4.5s + 离场 1.5s ≈ 8.7s；probe 直进开局
+# 并锁 60 帧，帧数≈时长）取 700 帧留余量
+run_case "formation strike smoke" 700 "${LOG%.log}.formation.log" --event-probe=formation_strike

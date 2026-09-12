@@ -328,9 +328,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _comm?.Clear(); // 清掉已显警告台词，避免返航恢复后残留
     }
 
+    /// <summary>单帧推进上限（秒）：开局场景切换/着色器编译会产生巨帧（实测单帧 >1.4s），
+    /// 裸 delta 会让状态机逐帧连跳——入场/转弯/投弹表在一两帧内跑完，编队闪现投完弹即离场
+    /// （玩家与 event-probe 冒烟双双看不到过程）。钳后卡顿帧按小步推进，低帧率下事件周期
+    /// 拉长而非被跳过。</summary>
+    private const float MaxStepDelta = 0.05f;
+
     public override void _Process(double delta)
     {
-        var d = (float)delta;
+        var d = Mathf.Min((float)delta, MaxStepDelta);
         ProcessPendingBombParks(); // 帧末停放不限事件状态——IDLE 期也可能有待停放的回收弹
         if (_state == State.IDLE)
         {
