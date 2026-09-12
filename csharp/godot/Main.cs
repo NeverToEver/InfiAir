@@ -87,6 +87,9 @@ public partial class Main : Node2D
     private FormationStrikeEvent _formation = null!;
     /// <summary>遭遇 id → 实例（仅 --event-probe 用；生产路径不读）。</summary>
     private readonly System.Collections.Generic.Dictionary<StringName, IEncounterEvent> _encounterForProbe = new();
+    /// <summary>event-probe 待观测实例与其 id（Start 后置入，回 IDLE 即打完成标记；生产恒 null）。</summary>
+    private IEncounterEvent? _probeEvent;
+    private string _probeEventId = "";
     /// <summary>Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）</summary>
     private MetaHealthFX _metaFx = null!;
     /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
@@ -342,7 +345,23 @@ public partial class Main : Node2D
         if (_encounterForProbe.TryGetValue(new StringName(id), out var ev) && !ev.IsActive())
         {
             ev.Start();
+            _probeEvent = ev;
+            _probeEventId = id;
         }
+    }
+
+    /// <summary>event-probe 完成判定：事件回 IDLE 即整周期跑完，打一行固定标记。
+    /// --quit-after 的帧数只是上限——状态机中途停摆（例如卡在入场段）同样是「零错误退出」，
+    /// 冒烟照样绿；无标记即这趟没覆盖到全周期。</summary>
+    private void ReportEventProbeCompletion()
+    {
+        if (_probeEvent == null || _probeEvent.IsActive())
+        {
+            return;
+        }
+
+        GD.Print(GdFormat.Format("[event-probe] %s 全周期完成", _probeEventId));
+        _probeEvent = null;
     }
 
     /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
@@ -400,6 +419,7 @@ public partial class Main : Node2D
     public override void _Process(double delta)
     {
         var d = (float)delta;
+        ReportEventProbeCompletion();
         // Boss 狂暴子弹时间驱动（delta 已被 time_scale 缩放，计时为游戏秒）：
         // 0.24 慢速 1.2s → 0.3s 内线性恢复 1.0 → 恢复完成才发快照弹幕
         if (_bulletTimeLeft > 0.0f)

@@ -12,8 +12,8 @@ namespace InfiAir;
 ///   2) 空中被击落（IDamageable，bomb_hp 点）—— 静默引爆（小爆炸、无地面伤害）并给分；
 ///   3) 被弧光弹反盾反射（IParryable）—— 反向上升转为对编队的攻击，命中编队机按
 ///      bomb_reflect_damage 结算（「原样奉还」语义）。
-/// 可读性：落点圈（完整伤害半径的实心轮廓 + 收缩倒计时弧）标出「会炸到哪、还剩多久」，
-/// 圈随引信收缩但**亮度递增**（最危险的一刻最显眼，与「越缩越暗」相反）。
+/// 可读性：落点圈（完整伤害半径的轮廓，固定不缩放——边界即实际生效边界）标出「会炸到哪」，
+/// 倒计时弧随引信剩余变短标出「还剩多久」；圈与弧的亮度都随危险度递增（最危险的一刻最显眼）。
 /// 与敌弹语义差异：不注册进敌弹注册表（不是弹幕流），也不触发玩家受击宽限——爆炸是即时判定。
 /// 池化契约：外观在 _Ready 一次性构建；Activate 重置全部运行态与外观（含 _Ready 不再重跑的
 /// 回收复用路径）；终局路径一律 ReturnToPool（池失效时 QueueFree 兜底）。
@@ -39,6 +39,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     public int ReflectDamage { get; set; } = 45;
     /// <summary>反射态寻敌转向加速度（px/s²，事件注入；单源 balance bomb_reflect_turn_accel）。</summary>
     public float ReflectTurnAccel { get; set; } = 1600.0f;
+    /// <summary>弹反初速倍率（事件注入；单源 balance bomb_reflect_speed_mult）：1 = 原样奉还的
+    /// 初速（比编队横穿速度只快一成，追不上），须留出足够余量让「弹反成功」真能咬住编队。</summary>
+    public float ReflectSpeedMult { get; set; } = 1.6f;
 
     public int MaxHp { get; set; } = 8;
     public int Hp { get; set; } = 8;
@@ -68,13 +71,18 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     private Line2D _trail = null!;
     private Line2D _ring = null!;
     private Line2D _fuseArc = null!;
-    private readonly Vector2[] _arcPoints = new Vector2[RingSegments + 2];
+    private readonly Vector2[] _arcPoints = new Vector2[RingSegments + 1];
     private readonly Vector2[] _unitRing = new Vector2[RingSegments + 1];
 
     /// <summary>落点圈点集当前对应的半径（池化复用换半径时才重建点集）。</summary>
     private float _ringRadius = -1.0f;
 
-    /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
+    /// <summary>倒计时弧点集当前的点数：弧点集只是「点数 + 伤害半径」的函数，两者都没变时
+    /// 逐帧重建等于纯分配（0 为失效哨兵——RebuildRing 换半径时置回）。</summary>
+    private int _arcCount;
+
+    /// <summary>投放参数注入（SpawnBomb 在入树后、Activate 前调用：_Ready 先按默认值建外观，
+    /// 真值经 Activate 重置生效——落点圈点集因此要能随半径重建，见 RebuildRing）。</summary>
     public void Setup(Vector2 pVelocity, float pFuse, int pDamage, float pRadius)
     {
         Velocity = pVelocity;
@@ -233,13 +241,11 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         return g;
     }
 
-    /// <summary>单帧推进上限（秒）：与事件编排同口径——巨帧会让引信瞬爆、弹体瞬移出反应窗口
-    /// （落点圈/引信弧完全来不及读）。</summary>
-    private const float MaxStepDelta = 0.05f;
-
     public override void _Process(double delta)
     {
-        var d = Mathf.Min((float)delta, MaxStepDelta);
+        // 与事件编排同一单帧上限（FrameCache.MaxStepDelta）：巨帧会让引信瞬爆、弹体瞬移出
+        // 玩家反应窗口（落点圈/引信弧完全来不及读）
+        var d = Mathf.Min((float)delta, FrameCache.MaxStepDelta);
         if (_spent)
         {
             return;
@@ -331,6 +337,12 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     {
         var frac = Fuse <= 0.0f ? 0.0f : Mathf.Clamp(_fuseLeft / Fuse, 0.0f, 1.0f);
         var count = Mathf.Clamp((int)Mathf.Ceil((RingSegments + 1) * frac), 1, RingSegments + 1);
+        if (count == _arcCount)
+        {
+            return; // 点数未变即点集逐点相同（见 _arcCount），不重建
+        }
+
+        _arcCount = count;
         for (var i = 0; i < count; i++)
         {
             // 角度自 -90° 起顺时针：即从 12 点方向向右扫
@@ -357,6 +369,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         }
 
         _ring.Points = pts;
+        _arcCount = 0; // 弧点集含半径，换半径即失效（下一次 UpdateFuseArc 重建）
     }
 
     // ---------------- IDamageable：空中被击落 ----------------
@@ -405,13 +418,20 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         }
 
         IsReflected = true;
-        Velocity = new Vector2(-Velocity.X * 0.4f, -Mathf.Abs(Velocity.Y) * 1.25f);
-        CollisionLayer = 4; // 转为 player_bullet 语义层：可命中 enemy 层（编队机）
-        CollisionMask = 4; // 只探 enemy 层：反射弹不再威胁玩家，穿过玩家不受影响
+        // 水平分量保留、只反垂直（与 Bullet 弹反同口径）。速度倍率是「能否咬住横穿编队」的
+        // 决定性旋钮：原样奉还的初速只比编队 run_speed 快一成，追尾永远差一截——
+        // 转向加速度只决定转弯半径（≈88px，远小于弹反距离），不是瓶颈。单源 bomb_reflect_speed_mult
+        Velocity = new Vector2(Velocity.X * 0.4f, -Mathf.Abs(Velocity.Y) * 1.25f) * ReflectSpeedMult;
+        // 第 2 层 player_bullet（与 Bullet 弹反后同层）：留在 enemy 层会让玩家自己的子弹
+        // 把反射弹当成敌机命中并自我消耗（白丢一发）
+        CollisionLayer = 2;
+        CollisionMask = 4; // 只探 enemy 层（第 3 层）：命中编队机，不威胁玩家、穿过玩家不受影响
         _warhead.Color = new Color(0.55f, 0.85f, 1.0f); // 冰蓝：一眼看出「这枚现在属于我」
         _ring.Visible = false;
         _fuseArc.Visible = false;
-        SetProcess(false); // 反射弹不再引爆：命中即结算
+        // 推进不关：关掉 _Process 会把反射弹冻在弹反点——寻敌转向与出界回收都在那条路径上
+        // （弹反成了「原地插一枚冰蓝装饰」）。不引爆由 _Process 的 IsReflected 分支保证：
+        // 它先于引信递减返回，引信与爆炸都走不到
         return true;
     }
 

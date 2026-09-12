@@ -6,11 +6,19 @@ namespace InfiAir;
 /// view_world_rect 查询，替代 10 处同构样板（Enemy/Boss/EnrageSequence/BossAttacks/
 /// TurretBattery/AimFrameLayer/Bullet/FormationStrikeEvent/StrikeCarrier/FormationBomb）
 /// 各自每帧一次 Engine.GetPhysicsFrames + GameState.Instance.ViewWorldRect 调用。
+/// 另持帧级口径单源（单帧推进上限，见 MaxStepDelta）。
 /// 静态缓存绝不持有 Godot 对象引用（悬空访问 + 退出 finalize 触碰），
 /// 故只缓存纯值类型 Rect2；player 取用直读 GameState.Instance.PlayerRef（EntityManager
 /// O(1) typed 属性，不缓存不装箱——原 Variant 包拆纯负优化）。</summary>
 public static class FrameCache
 {
+    /// <summary>单帧推进上限（秒）：开局场景切换/着色器编译会产生巨帧（实测单帧 &gt;1.4s），
+    /// 裸 delta 会让逐帧编排的状态机连跳（入场/转弯/投弹表在一两帧内跑完、编队闪现投完弹
+    /// 即离场），炸弹引信也会瞬爆（弹体瞬移出玩家反应窗口）。
+    /// 钳后卡顿帧按小步推进：低帧率下演出周期拉长，而不是被跳过。
+    /// 口径单源——事件编排与炸弹推进共用，改这里即同时生效。</summary>
+    public const float MaxStepDelta = 0.05f;
+
     private static ulong _frame = ulong.MaxValue;
     private static Rect2 _view;
 

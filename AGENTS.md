@@ -34,8 +34,11 @@ CI 单 fast-gate 与上述一致（`.github/workflows/ci.yml`）。UI/视觉改�
 `check_settings_symmetry.sh`（写读对称 + 文案键存在）与设置页开页冒烟——设置项写错的表现是
 「玩家点开设置就崩」或「改了设置下次启动回到默认」，两者都不编译报错。
 **遭遇事件专属纪律**：遭遇要过分数门槛 + 掷签，常规冒烟跑不到；改动编队/精英事件后必须跑
-`godot --headless --path . --quit-after 700 -- --event-probe=formation_strike`（或 `elite_turret`），
-它强制触发一次事件并跑完全周期（probe 直进开局并锁 60 帧，帧数≈时长）——编排、投弹、落点圈、反射弹、结算分支都在这条路径上。
+`godot --headless --path . --quit-after 700 -- --event-probe=formation_strike`（精英炮塔用
+`--quit-after 2500 -- --event-probe=elite_turret`，30s 倒计时量级、全周期 ≈39s），它强制触发一次事件并跑完全周期
+（probe 直进开局并锁 60 帧，帧数≈时长）——编排、投弹、落点圈、反射弹、结算分支都在这条路径上。
+**跑完必须看到 `[event-probe] <id> 全周期完成`**：帧数只是上限，状态机中途停摆同样是「零错误退出」，
+标记缺失即这趟没覆盖到全周期（帧数不改不会报错，只会静默少覆盖）。
 
 Windows 本地一次跑完上述十步（推荐）：`python3 scripts/ci/gates.py`——自动发现 bash（Git Bash 优先、WSL 兜底，路径按目标 shell 自动转换）与 Godot 引擎，按 CI 顺序执行并汇总；`--only <slug>` 只跑子集，`--list` 列出步骤。它只做调度，判定逻辑仍在各门禁脚本，不复制口径。
 

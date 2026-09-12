@@ -69,6 +69,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public int BombReflectDamage { get; set; } = 45;
     /// <summary>反射弹寻敌转向加速度（px/s²）——够快以咬住横穿的编队，又不至于瞬间掉头。</summary>
     public float BombReflectTurnAccel { get; set; } = 1600.0f;
+    /// <summary>弹反初速倍率（1 = 原样奉还）——追尾横穿的编队要靠速度余量，转向加速度只决定
+    /// 转弯半径；倍率不足的表现是「弹反成功但永远差一截」。</summary>
+    public float BombReflectSpeedMult { get; set; } = 1.6f;
     /// <summary>投弹波次数（每机每波投一枚）：1 = 单次齐投（无波次感），≥2 = 拉成多波轰炸。</summary>
     public int VolleyBatches { get; set; } = 2;
     /// <summary>相邻两波之间的间隔（秒）——波次间隔是「威胁有节奏」的来源。</summary>
@@ -178,6 +181,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
         BombReflectDamage = CfgFx.Int("formation_strike_event.bomb_reflect_damage", BombReflectDamage, 0);
         // 转向加速度钳 ≥1——0 让反射弹失去寻敌，「弹反成功」退化成靠运气
         BombReflectTurnAccel = CfgFx.Float("formation_strike_event.bomb_reflect_turn_accel", BombReflectTurnAccel, 1.0f);
+        // 反射初速倍率钳 ≥0.1——≤0 让反射弹原地悬停（弹反成功变成一枚不动的装饰）
+        BombReflectSpeedMult = CfgFx.Float("formation_strike_event.bomb_reflect_speed_mult", BombReflectSpeedMult, 0.1f);
         // 波次数钳 [1,10]——0 会空跑（占波次槽不投弹），巨值把轰炸拉成永不停歇的弹幕
         VolleyBatches = CfgFx.Int("formation_strike_event.volley_batches", VolleyBatches, 1, 10);
         VolleyGap = CfgFx.Float("formation_strike_event.volley_gap", VolleyGap, CfgFx.IntervalFloor);
@@ -328,15 +333,12 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _comm?.Clear(); // 清掉已显警告台词，避免返航恢复后残留
     }
 
-    /// <summary>单帧推进上限（秒）：开局场景切换/着色器编译会产生巨帧（实测单帧 >1.4s），
-    /// 裸 delta 会让状态机逐帧连跳——入场/转弯/投弹表在一两帧内跑完，编队闪现投完弹即离场
-    /// （玩家与 event-probe 冒烟双双看不到过程）。钳后卡顿帧按小步推进，低帧率下事件周期
-    /// 拉长而非被跳过。</summary>
-    private const float MaxStepDelta = 0.05f;
-
     public override void _Process(double delta)
     {
-        var d = Mathf.Min((float)delta, MaxStepDelta);
+        // 单帧推进上限（口径单源 FrameCache.MaxStepDelta）：开局巨帧（实测 >1.4s）会让本状态机
+        // 逐帧连跳——入场/转弯/投弹表在一两帧内跑完，编队闪现投完弹即离场（玩家与 event-probe
+        // 冒烟双双看不到过程）。钳后卡顿帧按小步推进，低帧率下事件周期拉长而非被跳过
+        var d = Mathf.Min((float)delta, FrameCache.MaxStepDelta);
         ProcessPendingBombParks(); // 帧末停放不限事件状态——IDLE 期也可能有待停放的回收弹
         if (_state == State.IDLE)
         {
@@ -566,6 +568,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         bomb.BombScore = BombScore;
         bomb.ReflectDamage = BombReflectDamage;
         bomb.ReflectTurnAccel = BombReflectTurnAccel;
+        bomb.ReflectSpeedMult = BombReflectSpeedMult;
         var dir = Vector2.Right.Rotated(_heading);
         // 炸弹伤害随本局进程 ramp（与敌弹同一系数）
         bomb.Setup(

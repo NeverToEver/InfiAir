@@ -8,6 +8,8 @@
 #   1) 300 帧基线：开机全链路；
 #   2) --settings-probe：设置页各分组在「开页」时才构建，写错＝玩家点开即崩；
 #   3) --event-probe：遭遇事件要过分数门槛 + 掷签，无头跑不到，而编排/投弹/清场是高密度出错区。
+# probe 那趟另判完成标记：--quit-after 只是帧数上限，事件中途停摆（例如卡在入场段）同样是
+# 「零错误退出」，只看退出码会把「没跑到全周期」判成绿——标记缺失即覆盖不成立。
 set -uo pipefail
 
 GODOT="${GODOT:-godot}"
@@ -30,8 +32,19 @@ run_case() {
   echo "$label: ok"
 }
 
+expect_marker() {
+  local label="$1" log="$2" marker="$3"
+  if ! grep -qF "$marker" "$log"; then
+    echo "::error::$label：日志无完成标记「$marker」——事件没跑完全周期"
+    tail -30 "$log"
+    exit 1
+  fi
+  echo "$label: ok"
+}
+
 run_case "main scene smoke(300)" 300 "$LOG"
 run_case "settings page smoke" 60 "${LOG%.log}.settings.log" --settings-probe
-# 编队事件全周期（入场 1.5s + 转弯 1.2s + 投弹 ≈4.5s + 离场 1.5s ≈ 8.7s；probe 直进开局
+# 编队事件全周期（入场 1.5s + 转弯 1.2s + 投弹最长 ≈4.95s + 离场 1.5s ≈ 9.1s；probe 直进开局
 # 并锁 60 帧，帧数≈时长）取 700 帧留余量
 run_case "formation strike smoke" 700 "${LOG%.log}.formation.log" --event-probe=formation_strike
+expect_marker "formation strike 全周期" "${LOG%.log}.formation.log" "[event-probe] formation_strike 全周期完成"
