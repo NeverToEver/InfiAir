@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 统一素材生成入口:依固定顺序重跑 7 个离线生成器,输出与仓库提交资产一致。
+# 统一素材生成入口:依固定顺序重跑 8 个离线生成器 + SFX 微调写回,输出与仓库提交资产一致。
 # 用法:scripts/tools/regenerate_all.sh
 # - 生成器输出路径均锚定脚本位置,可在任意 cwd 下运行;
-# - 脚本幂等、可重复执行:贴图生成器为纯确定性绘制(无随机源),
-#   generate_audio.py 固定 random.seed(20260720),全量重跑输出应逐字节一致
-#   (验证: 运行后 git diff --stat 应为空)。
+# - 脚本幂等、可重复执行:角色/Boss/背景贴图生成器为纯确定性绘制(无随机源),
+#   gen_metal_textures.py 固定 SEED=20260907、generate_audio.py 固定 random.seed(20260720),
+#   全量重跑输出应逐字节一致(验证: 运行后 git diff --stat 应为空)。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,8 +52,17 @@ echo "==> [6/7] 标题 logo (generate_logo.py)"
 "$PY" "$SCRIPT_DIR/generate_logo.py"
 echo "    产物: assets/sprites/ui/logo.png(900x260)"
 
-echo "==> [7/7] 音效/BGM (generate_audio.py)"
+echo "==> [7/8] UI 金属贴图 (gen_metal_textures.py)"
+# 纯标准库(无 PIL 依赖),固定种子;同样走 $PY 保持单一解释器口径
+"$PY" "$SCRIPT_DIR/gen_metal_textures.py" >/dev/null
+echo "    产物: assets/sprites/ui/metal_streak.png(128x128 拉丝),"
+echo "          button_plate.png / button_plate_pressed.png(48x48 九宫格)"
+
+echo "==> [8/8] 音效/BGM (generate_audio.py + tune_sfx.py --apply)"
 "$PY" "$SCRIPT_DIR/generate_audio.py"
+# 入库态 = 生成 + 逐文件 DSP 微调(2026-09-08 音频库重构引入的处理链,
+# 缺这一步重跑必然与入库资产漂移)——体检报告噪声大,只留产物摘要
+"$PY" "$SCRIPT_DIR/tune_sfx.py" --apply >/dev/null
 echo "    产物: assets/audio/explosion.wav, explosion_big.wav, player_hit.wav,"
 echo "          buff_pick.wav, dash.wav, resupply.wav, heartbeat.wav,"
 echo "          bgm_loop.wav, bullet_fire.wav, bullet_fire_b.wav, bullet_fire_c.wav"

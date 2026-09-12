@@ -42,7 +42,6 @@
 
 ### 批次 2 — 素材生成链完整性与发布预演
 
-- **`gen_metal_textures.py` 未纳入 `regenerate_all.sh`**（2026-09-12 摸底核实）：它生成的三张 UI 金属贴图（`metal_streak` / `button_plate` / `button_plate_pressed`）是入库素材、固定种子、纯标准库，却不在统一生成入口——「重跑后 `git diff` 应为空」的保证对它们失效，手改贴图无法察觉。收口＝纳入生成链并按 §6 铁律在同一提交给破坏验证。
 - **`release.sh` 预演（不带 `--publish`）**：产物有效性摸底未实证。收口＝导出打包产物完整（托管程序集非空、安装脚本在包内、导出日志 ERROR 扫描通过）。
 - **Release 说明恒空**：GitHub Release body 一直是空的。默认方案＝`release.sh --publish` 读取 `docs/RELEASE_NOTES.md`（存在才作为 body）；发布流程归人（§3），落地前给成对信息征认可。
 
