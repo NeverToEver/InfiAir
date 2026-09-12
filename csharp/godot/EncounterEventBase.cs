@@ -95,8 +95,15 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// 多余的释放会把别的持有者（Boss/另一个事件）的暂停一起解掉。</summary>
     protected void HoldWaves()
     {
-        if (_wavesHeld || _spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        if (_wavesHeld)
         {
+            return;
+        }
+
+        if (_spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        {
+            // 静默空转会演成「事件在跑但波次不暂停/Boss 不冻结」——必须可见
+            GD.PushWarning($"{GetType().Name}: HoldWaves 时 spawner 未注入，波次未暂停");
             return;
         }
 
@@ -124,8 +131,14 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// 表现是「本局再也不出 Boss」。</summary>
     protected void HoldBoss()
     {
-        if (_bossHeld || _spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        if (_bossHeld)
         {
+            return;
+        }
+
+        if (_spawner == null || !GodotObject.IsInstanceValid(_spawner))
+        {
+            GD.PushWarning($"{GetType().Name}: HoldBoss 时 spawner 未注入，Boss 未冻结");
             return;
         }
 

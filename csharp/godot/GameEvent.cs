@@ -68,7 +68,11 @@ public partial class GameEvent : RefCounted
     {
         if (IsActive)
         {
-            OnEnd(); // 自愈：重复 start 先清理旧状态，防 _on_start 叠加
+            // 自愈：重复 start 先清理旧状态，防 _on_start 叠加。
+            // 先落 IsActive=false——子类 OnEnd 内若调 RequestEnd，编排器回调重入
+            // 时会看到 IsActive==true 而把 OnEnd 跑第二次（信号倒挂）
+            IsActive = false;
+            OnEnd();
         }
 
         Context = pContext.Duplicate(); // 浅拷贝：编排器复用/修改字典不污染本事件
