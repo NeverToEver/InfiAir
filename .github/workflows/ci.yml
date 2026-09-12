@@ -4,8 +4,9 @@ name: CI
 # 引擎耦合行为测试（断言/截图场景）已退役；当前保留的 xUnit 工程只测
 # csharp/core 纯逻辑层（零 Godot 依赖，决策见 ROADMAP Decisions），不入主 sln。
 # 门禁链：
-# 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 → 设置写读对称性 → C# 构建零警告
-# → core 层单测 → 资源导入无警告 → 无头冒烟四趟（主场景/设置页/编队遭遇/精英炮塔，固定步长）。
+# 卫生（注释日期戳与术语）→ 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 →
+# 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
+# 无头冒烟四趟（主场景/设置页/编队遭遇/精英炮塔，固定步长 + 完成标记）。
 # 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
 # + 官方 Godot 引擎/模板，禁止其他第三方依赖。
 
@@ -41,6 +42,9 @@ jobs:
           bash /tmp/dotnet-install.sh --channel "$DOTNET_SDK_VERSION" --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
           dotnet --version
+
+      - name: Prose hygiene gate
+        run: bash scripts/ci/check_prose_hygiene.sh
 
       - name: Player-facing copy gate
         run: bash scripts/ci/check_ui_copy.sh
