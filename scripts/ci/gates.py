@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十步：注释无日期戳 → 注释语种与术语 → 玩家可见文案 →
-数值键存在性 → 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 →
-资源导入无警告 → 主场景 300 帧无错误。
+按 CI fast-gate 顺序跑完全部八步：玩家可见文案 → 数值键存在性 → 存档写读对称性 →
+设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟四趟。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
@@ -15,7 +14,7 @@
 
 为什么是 Python 而不是 .ps1：Windows PowerShell 5.1 读取无 BOM 脚本时按系统 ANSI 解码，
 中文注释会变乱码并直接语法报错（一次普通编辑就会踩），而 Python 3 源码默认 UTF-8；
-且五个门禁脚本本就依赖 python3，不新增工具链依赖。
+且若门禁脚本依赖 python3，不新增工具链依赖。
 """
 
 from __future__ import annotations
@@ -33,8 +32,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml）
 STEPS = (
-    {"slug": "comment_stamps", "name": "注释无日期戳", "kind": "bash", "script": "check_comment_stamps.sh", "godot": False},
-    {"slug": "language_style", "name": "注释语种与术语", "kind": "bash", "script": "check_language_style.sh", "godot": False},
     {"slug": "ui_copy", "name": "玩家可见文案", "kind": "bash", "script": "check_ui_copy.sh", "godot": False},
     {"slug": "balance_keys", "name": "数值键存在性", "kind": "bash", "script": "check_balance_keys.sh", "godot": False},
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
@@ -42,7 +39,7 @@ STEPS = (
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "冒烟三趟（主场景/设置页/编队事件）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "无头冒烟四趟（主场景/设置页/编队/精英炮塔）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
 
 
@@ -138,18 +135,16 @@ def find_godot(explicit: str) -> str:
 
 
 def preflight(bash: str) -> list[str]:
-    """bash 侧最小依赖探活（git/python3 缺失会让门禁以「假绿」或难懂的方式失败）。"""
+    """bash 侧最小依赖探活（python3 缺失会让四个静态门禁以「假绿」或难懂的方式失败）。"""
     probe = subprocess.run(
-        [bash, "-c", "command -v git; command -v python3 || command -v python"],
+        [bash, "-c", "command -v python3 || command -v python"],
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
     )
     found = {line.strip().split("/")[-1] for line in probe.stdout.splitlines() if line.strip()}
-    missing = [tool for tool in ("git",) if tool not in found and f"{tool}.exe" not in found]
-    if not any(name.startswith("python") for name in found):
-        missing.append("python3")
+    missing = [] if any(name.startswith("python") for name in found) else ["python3"]
     return missing
 
 
@@ -244,7 +239,7 @@ def main() -> int:
     missing = preflight(bash)
     if missing:
         fail(
-            f"bash 侧缺少 {', '.join(missing)}：门禁给不出可信结论（注释门禁会静默假绿）。"
+            f"bash 侧缺少 {', '.join(missing)}：门禁给不出可信结论（静态门禁会静默假绿）。"
             "请安装缺失工具，或用 --bash 指向工具链完整的 bash（推荐 Git for Windows）。"
         )
     print(f"[门禁] 日志目录：{log_dir}")

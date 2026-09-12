@@ -214,7 +214,7 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 门禁用冒烟开关（仅显式传参时生效）：
+        // 门禁用冒烟开关（仅显式传参时生效；须配 --fixed-fps 固定步长，口径见 AGENTS.md）：
         //   --settings-probe 开设置页并逐页切过（设置项在开页时才构建，300 帧基线碰不到）
         //   --event-probe=<id> 强制触发一次遭遇事件（遭遇要过分数门槛与掷签，无头跑不到）
         var userArgs = OS.GetCmdlineUserArgs();
@@ -274,9 +274,8 @@ public partial class Main : Node2D
             if (eventProbeId.Length > 0)
             {
                 // probe 直进开局：过场会暂停整棵树（事件 _Process 冻结），标题屏切换会把事件
-                // 连树销毁——两条路都让无头冒烟跑不到状态机。锁 60 帧：headless 无 vsync
-                // 不限帧率，锁住后 --quit-after 的帧数才对应真实时长（事件全周期 ≈8.5s）。
-                Engine.MaxFps = 60;
+                // 连树销毁——两条路都让无头冒烟跑不到状态机。步长交给调用方的 --fixed-fps 固定
+                // （帧数＝模拟时长）：生产代码不替测试设施锁帧率。
                 StartEntrySequenceInternal();
             }
             else if (GameState.Instance.SkipIntro)
