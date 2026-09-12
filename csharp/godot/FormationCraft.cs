@@ -26,8 +26,10 @@ public partial class FormationCraft : Area2D, IDamageable
     private static readonly Color FormationTint = new(1.0f, 0.82f, 0.62f);
 
     private Sprite2D? _sprite;
-    private GlowDot? _bayLight; // 机腹投弹舱照明（投弹瞬间闪亮）
+    private GlowDot? _bayLight; // 机腹投弹舱照明（投弹前预警闪烁、投弹瞬间满亮）
     private float _bayFlash;
+    /// <summary>投弹预警剩余（投弹前的一小段闪烁窗口：玩家据此判断「这架要投了」）。</summary>
+    private float _bayWarn;
     /// <summary>受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
     private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
@@ -82,9 +84,22 @@ public partial class FormationCraft : Area2D, IDamageable
         Scale = new Vector2(Mathf.Lerp(1.0f, 0.82f, b), 1.0f);
     }
 
-    /// <summary>投弹舱闪亮（每次投弹由事件调用）：机腹照明亮一下，一眼看出「这架刚扔了弹」。</summary>
+    /// <summary>投弹预警（投放前由事件按时刻表提前调用）：机腹灯进入闪烁窗口，
+    /// 玩家能看出「哪一架即将投弹」——投弹动作可预判，威胁才是公平的。
+    /// 窗口长度由调用方给（唯一口径在事件编排的 BayWarnLead），不在此重复一份时长。</summary>
+    public void WarnBay(float duration)
+    {
+        _bayWarn = Mathf.Max(_bayWarn, Mathf.Max(duration, 0.0f));
+        if (_bayLight != null && GodotObject.IsInstanceValid(_bayLight))
+        {
+            _bayLight.Visible = true;
+        }
+    }
+
+    /// <summary>投弹舱满亮（每次投弹由事件调用）：投弹动作的确认信号。</summary>
     public void FlashBay()
     {
+        _bayWarn = 0.0f; // 投放已发生，预警窗口即刻结束
         _bayFlash = BayFlashTime;
         if (_bayLight != null && GodotObject.IsInstanceValid(_bayLight))
         {
@@ -101,22 +116,41 @@ public partial class FormationCraft : Area2D, IDamageable
             FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White, ref _flashBaseScale);
         }
 
-        if (_bayFlash <= 0.0f)
+        if (_bayWarn > 0.0f)
         {
+            _bayWarn -= d;
+        }
+
+        if (_bayFlash <= 0.0f && _bayWarn <= 0.0f)
+        {
+            if (_bayLight != null && GodotObject.IsInstanceValid(_bayLight) && _bayLight.Visible)
+            {
+                _bayLight.Visible = false;
+            }
+
             return;
         }
 
-        _bayFlash -= d;
         if (_bayLight == null || !GodotObject.IsInstanceValid(_bayLight))
         {
             return;
         }
 
-        // 投弹舱灯的可见期 = 闪亮窗口：宽度与亮度同衰
-        var k = Mathf.Clamp(_bayFlash / BayFlashTime, 0.0f, 1.0f);
+        // 投弹舱灯的可见期 = 预警窗口（脉冲）+ 投放窗口（满亮）；两者同源，先满亮后脉冲
         _bayLight.Visible = true;
+        float k;
+        if (_bayFlash > 0.0f)
+        {
+            _bayFlash -= d;
+            k = Mathf.Clamp(_bayFlash / BayFlashTime, 0.0f, 1.0f);
+        }
+        else
+        {
+            k = 0.35f + (0.45f * Mathf.Abs(Enemy.SinFast(_bayWarn * 42.0f))); // 预警脉冲
+        }
+
         _bayLight.Modulate = new Color(1.0f, 1.0f, 1.0f, k);
-        if (_bayFlash <= 0.0f)
+        if (_bayFlash <= 0.0f && _bayWarn <= 0.0f)
         {
             _bayLight.Visible = false;
         }

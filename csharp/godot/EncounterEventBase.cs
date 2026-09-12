@@ -134,8 +134,10 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     }
 
     /// <summary>释放 Boss 互斥：完全释放（无其他持有者）时补触发一次期间被冻结的 Boss
-    /// ——冻结期间的到期只记一次 pending，解冻即兑现，不累积也不丢失。</summary>
-    protected void ReleaseBoss()
+    /// ——冻结期间的到期只记一次 pending，解冻即兑现，不累积也不丢失。
+    /// <paramref name="triggerPending"/>＝false 用于打断路径（返航/死亡）：此刻补出 Boss 只会在
+    /// 结算画面上弹预警横幅，pending 留给本局恢复后的自然门控（分数/时间门不会饿死）。</summary>
+    protected void ReleaseBoss(bool triggerPending = true)
     {
         if (!_bossHeld)
         {
@@ -149,9 +151,9 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
         }
 
         _spawner.SetBossFrozen(false);
-        if (_spawner.BossFrozen())
+        if (!triggerPending || _spawner.BossFrozen())
         {
-            return; // 仍有其他事件持有
+            return; // 丢弃补触发 / 仍有其他事件持有
         }
 
         if (_spawner.ConsumeBossPending())

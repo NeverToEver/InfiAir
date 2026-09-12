@@ -78,9 +78,13 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     /// <summary>落点圈点集当前对应的半径（池化复用换半径时才重建点集）。</summary>
     private float _ringRadius = -1.0f;
 
-    /// <summary>倒计时弧点集当前的点数：弧点集只是「点数 + 伤害半径」的函数，两者都没变时
-    /// 逐帧重建等于纯分配（0 为失效哨兵——RebuildRing 换半径时置回）。</summary>
+    /// <summary>倒计时弧点集：长度恒为 RingSegments+1，尾段重复末点（折线里零长段不可见）——
+    /// 池化复用下点集数组只建一次，改弧长只改前缀，不产生每帧/每次弧变的托管分配。
+    /// 0 为失效哨兵（换半径时置回）。</summary>
     private int _arcCount;
+
+    /// <summary>弧点集当前对应的半径（与 _arcCount 同为缓存键：两者都没变就跳过重建）。</summary>
+    private float _arcRadius = -1.0f;
 
     /// <summary>投放参数注入（SpawnBomb 在入树后、Activate 前调用：_Ready 先按默认值建外观，
     /// 真值经 Activate 重置生效——落点圈点集因此要能随半径重建，见 RebuildRing）。</summary>
@@ -290,64 +294,53 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         }
     }
 
-    /// <summary>反射弹轻量寻敌：朝最近的敌方单位缓转（速率上限），保证「弹反成功」不靠运气——
+    /// <summary>反射弹轻量寻敌：朝编队机缓转（速率上限），保证「弹反成功」不靠运气——
     /// 编队横穿 + 弹体上抛的几何关系太容易擦身而过，纯直线反射会让最难的操作为零回报。
+    /// 目标由归属事件给（本事件最近的在场编队机）：不再每帧扫全局敌机注册表，
+    /// 且编队全灭后反射弹自然直飞离场（没有可回敬的目标）。
     /// 转向决策在 core（BombReflectKinematics，单测钉住收敛性），这里只做节点适配。</summary>
     private void SteerHome(float delta)
     {
-        var nearest = NearestEnemy();
-        if (nearest == null)
+        if (_pool == null || !GodotObject.IsInstanceValid(_pool)
+            || !_pool.TryGetNearestCraft(GlobalPosition, out var target))
         {
             return;
         }
 
-        var toTarget = nearest.GlobalPosition - GlobalPosition;
+        var toTarget = target - GlobalPosition;
         var (vx, vy) = BombReflectKinematics.SteerHome(
             Velocity.X, Velocity.Y, toTarget.X, toTarget.Y, ReflectTurnAccel, delta);
         Velocity = new Vector2(vx, vy);
     }
 
-    private Node2D? NearestEnemy()
-    {
-        Node2D? best = null;
-        var bestDist = float.MaxValue;
-        foreach (var node in GameState.Instance.Enemies)
-        {
-            if (node is not Node2D node2d || node is FormationBomb || !GodotObject.IsInstanceValid(node2d))
-            {
-                continue;
-            }
-
-            var dist = node2d.GlobalPosition.DistanceSquaredTo(GlobalPosition);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                best = node2d;
-            }
-        }
-
-        return best;
-    }
-
-    /// <summary>倒计时弧：12 点起顺时针按剩余引信比例绘制（弧长 = 剩余时间）。</summary>
+    /// <summary>倒计时弧：12 点起顺时针按剩余引信比例绘制（弧长 = 剩余时间）。
+    /// 点数与半径都未变即点集逐点相同，不重建也不回写。</summary>
     private void UpdateFuseArc()
     {
         var frac = Fuse <= 0.0f ? 0.0f : Mathf.Clamp(_fuseLeft / Fuse, 0.0f, 1.0f);
         var count = Mathf.Clamp((int)Mathf.Ceil((RingSegments + 1) * frac), 1, RingSegments + 1);
-        if (count == _arcCount)
+        if (count == _arcCount && Mathf.IsEqualApprox(_arcRadius, AoeRadius))
         {
-            return; // 点数未变即点集逐点相同（见 _arcCount），不重建
+            return;
         }
 
         _arcCount = count;
+        _arcRadius = AoeRadius;
         for (var i = 0; i < count; i++)
         {
             // 角度自 -90° 起顺时针：即从 12 点方向向右扫
-            var a = -Mathf.Pi / 2.0f + Mathf.Tau * i / RingSegments;
+            var a = -Mathf.Pi / 2.0f + (Mathf.Tau * i / RingSegments);
             _arcPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * AoeRadius;
         }
 
-        _fuseArc.Points = _arcPoints[..count];
+        // 尾段重复末点：折线里零长段不可见，于是「一度长数组表示任意弧长」成立
+        var tail = _arcPoints[count - 1];
+        for (var i = count; i <= RingSegments; i++)
+        {
+            _arcPoints[i] = tail;
+        }
+
+        _fuseArc.Points = _arcPoints;
     }
 
     /// <summary>落点圈点集按当前伤害半径重建（半径未变时跳过——激活高频路径免重算三角）。</summary>
