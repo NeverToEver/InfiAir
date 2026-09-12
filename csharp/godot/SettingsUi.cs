@@ -420,6 +420,8 @@ public partial class SettingsUi : RadialMenuLayer
         dialog.Canceled += () => dialog.QueueFree();
         AddChild(dialog);
         dialog.PopupCentered();
+        // 默认焦点落在「取消」：回车直通会一步执行重置，确认必须是显式的一步（与战斗退出弹窗同口径）
+        dialog.GetCancelButton().GrabFocus();
     }
 
     private void OnResetKeys()
@@ -656,13 +658,22 @@ public partial class SettingsUi : RadialMenuLayer
         var fpsLabel = UITheme.MakeLabel(Tr("SET_FPS_CAP"), UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
         fpsLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         fpsRow.AddChild(fpsLabel);
+        // 九档流式换行（同分辨率行）：单行 HBox 会被九个按钮撑破内容区，把面板最小宽度连带撑大
+        var fpsFlow = new HFlowContainer();
+        fpsFlow.AddThemeConstantOverride("h_separation", 10);
+        fpsFlow.AddThemeConstantOverride("v_separation", 8);
+        fpsFlow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        fpsRow.AddChild(fpsFlow);
         _fpsButtons.Clear();
         foreach (var level in FpsCapOrder)
         {
-            var b = UITheme.MakeToggleButton(Tr("SET_FPS_" + level.ToString().ToUpperInvariant()), _fpsGroup);
+            // 档位文本是纯数值（30/45/…），不走翻译键；仅「不限制」有独立文案键
+            var name = level.ToString();
+            var text = name.StartsWith("fps") ? name["fps".Length..] : Tr("SET_FPS_" + name.ToUpperInvariant());
+            var b = UITheme.MakeToggleButton(text, _fpsGroup);
             b.CustomMinimumSize = new Vector2(96.0f, 48.0f);
             b.Pressed += () => GameState.Instance.SetFpsCap(level);
-            fpsRow.AddChild(b);
+            fpsFlow.AddChild(b);
             _fpsButtons[level] = Variant.From(b);
         }
 
