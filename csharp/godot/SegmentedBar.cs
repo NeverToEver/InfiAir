@@ -93,8 +93,147 @@ public partial class SegmentedBar : Control
                 return; // 值未变不重绘（调用侧赋同一计算值；精确比较足够）
             }
 
+            var previous = _value;
             _value = value;
             QueueRedraw();
+            if (!_enableGhost)
+            {
+                return;
+            }
+
+            if (value >= previous)
+            {
+                _ghostValue = value; // 回血不留残影：残影只表示「刚失去的血」
+                _ghostHold = 0.0f;
+            }
+            else
+            {
+                // 受击沿用短延迟：连击掉血期间反复重置延迟，停手后残影才开始下坠
+                _ghostHold = GhostHoldSeconds;
+            }
+
+            SetProcess(true);
+        }
+    }
+
+    // ---------------- 受伤残影（血量下落拖尾） ----------------
+    // 残影只是显示层：它不改变 Value、不影响任何判定，仅让「刚失去的血」多留一瞬。
+    // 只在残影/闪段活跃时开 _process，静止后 SetProcess(false)——无永久逐帧开销。
+
+    private bool _enableGhost;
+    private float _ghostValue = 100.0f;
+    private float _ghostHold;
+    private int _flashSeg = -1;
+    private float _flashT;
+
+    /// <summary>残影开关（仅 HpBar 开启；Boss/燃料/dash/弹反/事件条不受影响）。</summary>
+    [Export]
+    public bool EnableGhost
+    {
+        get => _enableGhost;
+        set
+        {
+            _enableGhost = value;
+            _ghostValue = _value;
+            _ghostHold = 0.0f;
+            QueueRedraw();
+        }
+    }
+
+    /// <summary>残影归位：读档续局/场景重载后把残影对齐当前值，避免满血基线被当作一次掉血演出。</summary>
+    public void SnapGhost()
+    {
+        _ghostValue = _value;
+        _ghostHold = 0.0f;
+        if (_flashT <= 0.0f)
+        {
+            SetProcess(false);
+        }
+    }
+
+    /// <summary>残影延迟（秒）：掉血后先停住再追赶，读作「损失量」而非即时抖动。</summary>
+    private const float GhostHoldSeconds = 0.22f;
+
+    /// <summary>残影追赶速率：比例收敛（每帧按剩余差值的比例推进，越近越慢）。</summary>
+    private const float GhostEaseRate = 9.0f;
+
+    /// <summary>残影追赶下限：比例项过小时仍以固定步进收尾，避免无限逼近。</summary>
+    private const float GhostMinStep = 20.0f;
+
+    /// <summary>残影/闪段收敛阈值（Value 量纲，0.05 ≈ 无感）。</summary>
+    private const float AnimEpsilon = 0.05f;
+
+    /// <summary>闪段衰减时长（秒）。</summary>
+    private const float DamageFlashSeconds = 0.28f;
+
+    /// <summary>残影填充色（红）：与填充色叠加后读作「已扣掉的那截」。</summary>
+    private static readonly Color GhostColor = new(UITheme.Danger, 0.5f);
+
+    /// <summary>分段模式下让第 index 段短闪（Boss 掉血时指向刚被消耗的那段）。
+    /// ReduceFlash 开启时直接跳过——无障碍下不做亮度泵动。</summary>
+    public void FlashSegment(int index)
+    {
+        if (index < 0 || index >= Segments || GameState.Instance.ReduceFlash)
+        {
+            return;
+        }
+
+        _flashSeg = index;
+        _flashT = 1.0f;
+        SetProcess(true);
+        QueueRedraw();
+    }
+
+    public override void _Ready()
+    {
+        // 未动画时彻底关闭逐帧回调（全部分段条默认零开销）
+        SetProcess(false);
+    }
+
+    public override void _Process(double delta)
+    {
+        var d = (float)delta;
+        var busy = false;
+        if (_enableGhost && _ghostValue > _value + AnimEpsilon)
+        {
+            busy = true;
+            if (_ghostHold > 0.0f)
+            {
+                _ghostHold -= d;
+            }
+            else
+            {
+                var gap = _ghostValue - _value;
+                _ghostValue -= Mathf.Max(gap * GhostEaseRate, GhostMinStep) * d;
+                if (_ghostValue <= _value + AnimEpsilon)
+                {
+                    _ghostValue = _value;
+                }
+            }
+        }
+        else if (_ghostValue != _value)
+        {
+            _ghostValue = _value; // 残影已追平（含回血快照）
+        }
+
+        if (_flashT > 0.0f)
+        {
+            busy = true;
+            _flashT -= d / DamageFlashSeconds;
+            if (_flashT < 0.0f)
+            {
+                _flashT = 0.0f;
+                _flashSeg = -1;
+            }
+        }
+
+        if (busy)
+        {
+            QueueRedraw();
+        }
+        else
+        {
+            SetProcess(false);
         }
     }
 
@@ -159,6 +298,41 @@ public partial class SegmentedBar : Control
         return Mathf.Clamp((hi - ratio) / Mathf.Max(hi - lo, 0.0001f), 0.0f, 1.0f);
     }
 
+    /// <summary>ratio 落在哪一段（段序 = 权重数组从左到右；与 SegmentFill 同一区间划分）。
+    /// Boss 掉血闪段用：找到首个尚有余量的段即「当前段」。空权重返回 -1。</summary>
+    public static int SegmentIndexAt(float ratio, Godot.Collections.Array weights)
+    {
+        if (weights.Count == 0)
+        {
+            return -1;
+        }
+
+        var total = 0.0f;
+        foreach (var w in weights)
+        {
+            total += (float)w.AsDouble();
+        }
+
+        if (total <= 0.0f)
+        {
+            return 0;
+        }
+
+        // 消耗从左端起算：累计段宽首次覆盖「已消耗比例」的段即当前段
+        var consumed = 1.0f - Mathf.Clamp(ratio, 0.0f, 1.0f);
+        var cumulative = 0.0f;
+        for (var i = 0; i < weights.Count; i++)
+        {
+            cumulative += (float)weights[i].AsDouble() / total;
+            if (cumulative >= consumed)
+            {
+                return i;
+            }
+        }
+
+        return weights.Count - 1; // ratio 恰为 0：收尾闪最后一段
+    }
+
     public override void _Draw()
     {
         if (Segments <= 0 || Size.Y <= 0.0f)
@@ -173,9 +347,34 @@ public partial class SegmentedBar : Control
             return;
         }
 
+        // 绘制序：空槽底盘 → 残影 → 实填充（残影在填充之下，只露出刚失去的那截）
+        DrawEqualBase(gap);
+        if (_enableGhost && _ghostValue > _value + AnimEpsilon && MaxValue > 0.0f)
+        {
+            DrawEqualFill(gap, _ghostValue / MaxValue, GhostColor, false);
+        }
+
+        DrawEqualFill(gap, MaxValue > 0.0f ? Value / MaxValue : 0.0f, FillColor, true);
+        DrawMetalFrame();
+    }
+
+    /// <summary>等分模式空槽底盘（全段 EmptyColor；与旧实现逐段空槽同一渲染结果）。</summary>
+    private void DrawEqualBase(float gap)
+    {
         var segW = (Size.X - gap * (Segments + 1)) / Segments;
-        // 平滑填充：满格数取 floor，最后一段按小数部分宽度部分填充
-        var exact = Mathf.Clamp(Value / MaxValue, 0.0f, 1.0f) * Segments;
+        for (var i = 0; i < Segments; i++)
+        {
+            var x = gap + i * (segW + gap);
+            DrawRect(new Rect2(x, gap, segW, Size.Y - gap * 2.0f), EmptyColor);
+        }
+    }
+
+    /// <summary>等分模式填充（只画填充段与末段小数部分，不画空槽——底盘已铺）。
+    /// 平滑填充：满格数取 floor，最后一段按小数部分宽度部分填充。</summary>
+    private void DrawEqualFill(float gap, float ratio, Color color, bool sheen)
+    {
+        var segW = (Size.X - gap * (Segments + 1)) / Segments;
+        var exact = Mathf.Clamp(ratio, 0.0f, 1.0f) * Segments;
         var filled = (int)Mathf.Floor(exact);
         var partial = exact - filled;
         for (var i = 0; i < Segments; i++)
@@ -184,23 +383,22 @@ public partial class SegmentedBar : Control
             var rect = new Rect2(x, gap, segW, Size.Y - gap * 2.0f);
             if (i < filled)
             {
-                DrawRect(rect, FillColor);
-                DrawSheen(rect);
+                DrawRect(rect, color);
+                if (sheen)
+                {
+                    DrawSheen(rect);
+                }
             }
             else if (i == filled && partial > 0.0f)
             {
-                DrawRect(rect, EmptyColor);
                 var fillRect = new Rect2(rect.Position, new Vector2(segW * partial, rect.Size.Y));
-                DrawRect(fillRect, FillColor);
-                DrawSheen(fillRect);
-            }
-            else
-            {
-                DrawRect(rect, EmptyColor);
+                DrawRect(fillRect, color);
+                if (sheen)
+                {
+                    DrawSheen(fillRect);
+                }
             }
         }
-
-        DrawMetalFrame();
     }
 
     /// <summary>分段血条绘制：按权重分格，逐段按消耗度填充（未消耗全亮、部分消耗暗底+右侧亮区、
@@ -234,6 +432,12 @@ public partial class SegmentedBar : Control
                 DrawSheen(fillRect);
             }
 
+            // 段闪：Boss 掉血时叠一层白，指向刚被吃掉的那段（衰减由 _process 驱动）
+            if (i == _flashSeg && _flashT > 0.0f)
+            {
+                DrawRect(rect, new Color(1.0f, 1.0f, 1.0f, _flashT * 0.7f));
+            }
+
             x += w + gap;
         }
 
@@ -249,7 +453,7 @@ public partial class SegmentedBar : Control
         var sideCol = new Color(FrameColor, FrameColor.A * 0.75f);
         DrawLine(new Vector2(0.5f, 0.5f), new Vector2(0.5f, s.Y - 0.5f), sideCol, 1.0f, true);
         DrawLine(new Vector2(s.X - 0.5f, 0.5f), new Vector2(s.X - 0.5f, s.Y - 0.5f), sideCol, 1.0f, true);
-        DrawLine(new Vector2(1.5f, 1.5f), new Vector2(s.X - 1.5f, 1.5f), new Color(0.0f, 0.0f, 0.0f, 0.5f), 1.0f, true);
+        DrawLine(new Vector2(1.5f, 1.5f), new Vector2(s.X - 1.5f, 1.5f), UITheme.ShadowBlack, 1.0f, true);
     }
 
     /// <summary>填充段顶部 1px 镜面高光（段太矮时省略，避免吃掉填充色）。</summary>
@@ -260,7 +464,7 @@ public partial class SegmentedBar : Control
             return;
         }
 
-        DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, 1.5f)), new Color(1.0f, 1.0f, 1.0f, 0.40f));
+        DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, 1.5f)), UITheme.SheenWhite);
     }
 
     private float WeightsTotal()

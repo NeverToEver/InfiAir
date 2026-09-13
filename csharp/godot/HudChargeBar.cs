@@ -19,6 +19,8 @@ public partial class HudChargeBar : VBoxContainer
     private ColorRect _fill = null!;
     private string _promptFormat = "";
     private int _lastPercent = -1;
+    /// <summary>充满短闪（100% 到达沿触发）；互斥缓存防连发叠加。</summary>
+    private Tween? _completeTween;
 
 
     /// <summary>工厂：promptFormat 走翻译串（%d 百分比占位），color 为通道色，slot 为底部居中锚下的槽位偏移。</summary>
@@ -47,7 +49,7 @@ public partial class HudChargeBar : VBoxContainer
 
         var barBg = new ColorRect
         {
-            Color = new Color(1.0f, 1.0f, 1.0f, 0.15f),
+            Color = UITheme.TrackWhite,
             CustomMinimumSize = new Vector2(BarWidth, BarHeight),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
@@ -77,7 +79,35 @@ public partial class HudChargeBar : VBoxContainer
             return; // 每帧驱动：整百分比未变不重写文本（零冗余分配）
         }
 
+        // 到达沿：上一档已有值（非首帧/非重新显示）且升到满格时给一次完成提示
+        if (percent == 100 && _lastPercent >= 0 && _lastPercent < 100)
+        {
+            PlayCompleteFlash();
+        }
+
         _lastPercent = percent;
         _label.Text = GdFormat.Format(_promptFormat, percent);
+    }
+
+    /// <summary>蓄满短闪 + 轻微弹跳：亮度抬高后回落。ReduceFlash 开启时取消亮度泵动，只留缩放。</summary>
+    private void PlayCompleteFlash()
+    {
+        UITheme.PunchScale(this, 1.05f, 0.16f);
+        if (GameState.Instance.ReduceFlash)
+        {
+            return;
+        }
+
+        if (_completeTween != null && _completeTween.IsValid())
+        {
+            _completeTween.Kill();
+        }
+
+        var hot = new Color(1.7f, 1.7f, 1.5f);
+        _label.Modulate = hot;
+        _fill.Modulate = hot;
+        _completeTween = CreateTween().SetParallel(true);
+        _completeTween.TweenProperty(_label, "modulate", Colors.White, 0.28).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        _completeTween.TweenProperty(_fill, "modulate", Colors.White, 0.28).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
     }
 }
