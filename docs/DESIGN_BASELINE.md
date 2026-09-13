@@ -81,6 +81,22 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Explicit (SegmentedBar) + implicit (desaturate/vignette/heartbeat) layers; `reduce_flash`: CA ×0.4, no breath/shake/heartbeat (SFX kept).
 - Brightness proxy from registries (bullets ×0.002 + explosions ×0.15), zero GPU readback; LOD1 skips CA/blur/ripple.
 
+### 1.9.1 左下集成仪表盘（2026-09-13 追加）
+把左下角从「四条同形横条 + 文字标签」改为**按元素真实特性选形态**的单面板仪表带，两排：上排生命（主读数）＋坞态指示灯，下排燃料量槽＋两枚充能槽＋弹仓格。
+
+- **形态判据**（形态差异必须表达「量是什么样的量」，不是装饰堆砌——这是与「技术展示品」的分界）：
+  - **生命 → 分段横条（保持原形态）**：主生存资源、最常扫视，占上排整行、字号最大最亮，是整块面板的视觉主导。
+  - **燃料 → `FuelTank` 消耗量槽**：**持续消耗的预算**，玩家只问「还剩多少、够不够」→ 容器液位即读数（液位高度＝存量）。侧缘 4 段刻度给量程参照（不写数字）。
+  - **冲刺 / 弹反 → `AbilitySocket` 充能槽**（**同一构件两个实例**）：二者是同一类量——**充满即可用、用掉清空、冷却回充**的循环充能，不是需要读刻度的连续量 → 环形冷却（动作游戏 / MOBA 能力冷却通用语汇：一眼只回答「能不能用」）。三态即读数：充能中＝环按进度填充＋字形压暗、就绪＝字形点亮＋满环＋一次性外扩脉冲、未解锁＝整体压暗＋锁定横杠。**不用指针表盘**：本盘没有任何「需要读速率的量」，指针会读成模拟量测，诱导玩家读数而非判断可用性。
+  - **弹仓 → `CartridgeStrip` 分立格**：离散计数 → 独立药槽（连续条会读成比例，而玩家需要的是「还能打几发」）。
+  - **母舰坞态 → `AnnunciatorLamp` 指示灯**：枚举状态 → 灯。配色语义取自 **14 CFR 29.1322** 三级分类（一手法规）——红＝warning（须立即处置，此项目前唯一用途＝弹仓见底）、琥珀＝caution（蓄力/下降/在场/冷却）、绿＝safe operation（就绪待命）。
+- **形状语汇单源**：所有方形构件（量槽、充能槽、面板）一律走 `UITheme.ChamferPoints` 的切角八边形，全盘只有一套方形语言——「每元素一套隐喻」正是读作展示品的根因。
+- **液体表现的克制纪律**：**静止几乎不动、变化时才动**。常驻液面只有约 2px 低频起伏（0.32Hz，只做「是液体」的材质暗示），数值变化时叠加一次衰减晃动读作惯性；**不做气泡**（无信息量的装饰）。弹幕游戏里任何常驻动效都会抢视线。
+- **单源与文件**：`FuelTank.cs` / `AbilitySocket.cs` / `AnnunciatorLamp.cs` / `CartridgeStrip.cs`（均 `Control` + `_Draw` 程序化绘制，零贴图零 shader）；装配与位置单源在 `Hud.BuildInstrumentCluster`（原 tscn 的 FuelBar/DashBar/ParryBar + 三个标签节点退役）。母舰灯态由 `Main.DockStateValue` 单源给出，与坞态文本同分支，不在 HUD 重推。
+- **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结；闪烁频率全部低于 WCAG 2.3.1 阈值。
+- **文案**：三个小标题复用既有翻译键（`UI_FUEL`/`UI_DASH`/`UI_PARRY`），**不新增任何玩家可见文案或数字**（数值只用形状/颜色/液位编码）。
+- **成本**：仅液槽常态逐帧（每帧 ≤12 点液面 + 4 条刻度线，控件 34×52）；充能槽只在充能追赶与就绪脉冲期间推进，静止 `SetProcess(false)`。
+
 ### 1.10 Cinematics
 - Intro: 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `CurrentScene == Main`; Esc/any key/click skip; tree paused, root `ProcessMode=Always`.
 - Return: 7 shots 11.8s, mirrors intro; Esc via `SKIP_RETURN` (1.2s grace `effects.return_skip_grace`); both paths land on base UI (tree paused); BGM −40dB in shot 7.
@@ -206,5 +222,18 @@ GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕
 - **Boss P2 变身**：切换瞬间装甲碎片炸散 + 能量层切狂暴配色（品红→白炽）+ 持续光环粒子；贴图沿用 `_p2` 帧不重绘。
 - **标题品牌化**：`generate_logo.py` 确定性生成字标 + 切角徽章（呼应 ChamferedPanel 与机体剪影），文字 Label 退役。
 - 数值全部落 `data/balance.json` effects 段（`backdrop` / `explosion` / `ship_energy` / `thruster_core` / `boss_p2_transform` 等）；world_grade 辉光阈值/强度随新亮点上调。
+
+### 2.8 动效与可读性强化（2026-09-13 追加）
+第三轮视觉升级，补齐「界面无动效、状态变化硬切、事件缺反馈」三层缺口，仍为纯表现层、**玩法判定零改动**。
+动效常量一律 `private const` 就地定义（不新增 balance 键）；一切闪烁/提亮脉冲按 `ReduceFlash` 递减或停用。
+
+- **共享动效设施**（`UITheme`）：新增 `FadeIn` / `AnimateClose` / `AnimateModalClose` / `PunchScale` 四个工厂，并把散落 HUD 的硬编码色收归 token（`HudBossHp` / `HudBossHpP2` / `DangerVignette` / `TickWhite` / `TrackWhite` / `ShadowBlack` / `SheenWhite` / `AimAmber*`）。
+  **模态退场契约**：`AnimateModalClose` 在调用当帧即断开输入处理与鼠标命中、置遮罩穿透，仅把视觉渐隐留给 tween —— 退回/暂停链的焦点交接仍同步，残影不截获已交还给下一层的输入（重新打开时调用方须复位 `SetProcessInput` 与遮罩 `MouseFilter`）。
+- **Meta 界面动效**：暂停页焦点描述卡改交叉淡入 + 弹一下（原先每次焦点变化硬切显隐）；设置页五页切换改淡出/淡入 + 行错峰（页指针与焦点同步更新）；破坏性确认弹窗由引擎默认 `ConfirmationDialog` 换成统一页壳模态（全站唯一视觉语言缺口消除）；退出确认补面板缩放归位 + 按钮行错峰；结算页统计行错峰淡入；通讯浮层补滑入/强调脉冲/保持期扫描线（打字机与停留时长口径不变）。
+- **Meta 屏幕动效**：标题屏「任意键」加确认动效后再切场景（0.2s，重复输入仍由 `_started` 挡回）；标题战场编队机补尾焰 + 翼尖航行灯、Boss 巡航补垂向漂移与压坡；天赋扇形补悬停缩放 + 依赖线提亮 + 加点闪光；基地控制台分类切换改定向滑动、任务/路线行错峰、继续出击走退场动画；黎明站补 ~300s 环体怠速自转并把冷灰/窗灯收归 token；教程补阶段横幅、目标更新动效与完成面板入场（步骤逻辑/时序/文案不变）。
+- **HUD 可读性**（`Hud` / `SegmentedBar` / `HudChargeBar` / 新增 `HudDamageArcs`）：血条加「残影段」（掉血后滞后回追，仅 `EnableGhost` 的玩家血条）；新增屏幕边缘方向受击弧（消费既有 `PlayerDamaged(amount, fromPos)`，仅显示）；低油量脉冲 / 冲刺与弹反就绪脉冲 / 蓄力条满闪；事件条与 Boss 血条改淡入淡出、Boss 掉段补闪；增幅格新增弹出高亮；击杀数补弹跳。**未新增任何玩家可见文字或数值**（本作已裁局内计分显示，不复活连击/任务计数）。
+- **战斗即时特效**（新增 `CombatVfx` + `VisualFxDirector`）：击杀环（敌机 `Died`）、Boss 常规阶段冲击波与狂暴放射爆发（`PhaseChanged` / `Enraged`）、弹反金环 + 碎片、冲刺发射环 + 反向拖尾、直击火花与暴击星芒（`Bullet` 直击/暴击分支，暴击复用既有单次 RNG 结果不重掷）。轻量特效静态在活计数封顶 24、总监侧封顶 10，超限跳过；特效根按 `world_scale` 缩放、tween 自毁。
+- **动态分级**（`world_grade.gdshader` / `meta_health.gdshader`）：`Engine.TimeScale < 1`（狂暴子弹时间）驱动暖调增对比 + 晕影升温的平滑热档，重击（`ScreenShake` 强度阈值）脉冲泛光/晕影，冲刺驱动既有径向模糊通道的速度模糊；高质量档加二级宽晕。**中性态逐位等于原静态调色**（uniform 为 0 时不产生任何永久观感偏移），额外采样仅在档位非零时发生，空闲零 GPU 路径不变。
+- **人工过目**：以上为窗口化过目项（无头门禁只保证不崩与全周期标记）。
 
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*
