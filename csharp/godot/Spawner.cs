@@ -401,6 +401,8 @@ public partial class Spawner : Node
         var telegraph = new SpawnTelegraph();
         telegraph.Position = new Vector2(x, view.Position.Y);
         telegraph.Duration = telegraphDuration;
+        // 精英预告线用分辨标识（双条/侧刻度/脉冲环）：纯外观，预告时长与自毁时钟不变
+        telegraph.EliteVariant = special;
         GetParent()!.AddChild(telegraph);
         _pendingTelegraphs.Add(telegraph);
         // 预告线自毁（超时 / clear_pending 释放）时解除登记，与 _pendingTimers 的 OnPendingTimerFired 对称

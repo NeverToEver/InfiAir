@@ -421,6 +421,7 @@ public partial class Bullet : Area2D, IParryable
             {
                 // crit_shot 暴击：层数 × 基础概率判定，命中 ×倍率伤害（玩家侧缓存经 player_ref）
                 var hitDamage = Damage;
+                var isCrit = false; // 记既有单次 RNG 抽取结果供命中特效复用，不得重掷（重掷会改动随机序列）
                 var pRef = GameState.Instance.PlayerRef;
                 if (pRef is Player p) // typed（Player.CritChance/CritMultiplierValue 为 buff 缓存属性）
                 {
@@ -428,6 +429,7 @@ public partial class Bullet : Area2D, IParryable
                     if (critChance > 0.0f && GD.Randf() < critChance)
                     {
                         hitDamage = (int)(Damage * p.CritMultiplierValue);
+                        isCrit = true;
                     }
                 }
 
@@ -454,6 +456,9 @@ public partial class Bullet : Area2D, IParryable
                 {
                     DespawnInternal();
                 }
+
+                // 直击反馈（玩法结算之后）：非致命也有一枚火花，暴击另加星芒
+                CombatVfx.DirectHit(GetParent(), area.GlobalPosition, -Direction, isCrit, GameState.Instance.ReduceFlash);
             }
         }
         else if (area.IsInGroup(GroupPlayerHitbox))

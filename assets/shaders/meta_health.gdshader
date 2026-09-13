@@ -1,6 +1,6 @@
 shader_type canvas_item;
 // Meta HUD 血量/受击后处理（docs/META_HUD_DESIGN.md §3，管线顺序即 §1）：
-// 屏幕抓取 → 径向色差+手写 4-tap 径向模糊 → 定向波纹(边缘弧形 ADD)
+// 屏幕抓取 → 径向色差+手写 4-tap 径向模糊（受击脉冲与冲刺速度模糊共用该通道）→ 定向波纹(边缘弧形 ADD)
 // → 去饱和/冷青色偏 → 晕影/心跳/视野收窄 → 裂纹距离场合成。
 // 挂在 MetaHealthFX（CanvasLayer，世界之上、HUD 之下）的全屏 ColorRect 上。
 // 注：Godot 4.3+ 的 gl_compatibility 已对 screen_texture 做过 Y 归一，直接采 SCREEN_UV，
@@ -13,6 +13,7 @@ uniform float u_hit_intensity = 0.0;         // 受击总强度（hit_pulse）
 uniform vec2 u_hit_dir = vec2(0.0, 0.0);     // 攻击方向（屏幕归一化；零向量=全边缘均匀环）
 uniform float u_chromatic_amount = 0.0;      // 径向色差偏移（0..0.02）
 uniform float u_radial_blur_strength = 0.0;  // <0.001 整段跳过（D4）
+uniform float u_speed_blur = 0.0;            // 冲刺速度模糊（0..1）：并入同一径向模糊通道，为 0 时零成本
 uniform float u_ripple_phase = 1.0;          // 波纹推进相位 0→1（0.4s）
 uniform float u_crack_progress = 0.0;        // 裂纹蔓延进度（含生长过冲）
 uniform vec4 u_crack_color : source_color = vec4(0.208, 0.878, 1.0, 1.0);
@@ -37,18 +38,20 @@ void fragment() {
 	float dist = length(to_center * vec2(1.0, 0.5625)) * 2.0;
 	float radial_w = smoothstep(0.25, 1.0, dist);            // 边缘强、中心弱
 
-	// ── 1. 受击层：径向色差 + 手写 4-tap 径向模糊（LOD1 整段跳过，D2/D4；P1-7 减采样至 4-tap）──
+	// ── 1. 受击层：径向色差 + 手写 4-tap 径向模糊 + 冲刺速度模糊（LOD1 整段跳过，D2/D4；P1-7 减采样至 4-tap）──
+	// 速度模糊并入同一模糊通道（复用现有 4 tap，不新增 pass/tap）；u_speed_blur 为 0 时该段成本为零
 	vec3 col;
-	if (u_lod == 0 && (u_chromatic_amount > 0.0001 || u_radial_blur_strength > 0.001)) {
+	float blur_strength = max(u_radial_blur_strength, u_speed_blur);
+	if (u_lod == 0 && (u_chromatic_amount > 0.0001 || blur_strength > 0.001)) {
 		vec2 off = normalize(to_center + 1e-6) * radial_w * u_chromatic_amount;
 		// P1-7：色差 3 采样 → 2 采样（G 通道取两端平均，色差感不变）
 		vec3 a = texture(screen_texture, uv + off).rgb;
 		vec3 b = texture(screen_texture, uv - off).rgb;
 		col = vec3(a.r, mix(a.g, b.g, 0.5), b.b);
-		if (u_radial_blur_strength > 0.001) {
+		if (blur_strength > 0.001) {
 			vec3 acc = col;
 			for (int i = 1; i <= 3; i++) {
-				float t = float(i) / 4.0 * u_radial_blur_strength * radial_w * 0.06;
+				float t = float(i) / 4.0 * blur_strength * radial_w * 0.06;
 				acc += texture(screen_texture, mix(uv, vec2(0.5), t)).rgb;
 			}
 			col = acc / 4.0;

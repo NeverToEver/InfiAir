@@ -14,6 +14,8 @@ public partial class MuzzleFlash : Sprite2D
     private float _life;
     private float _baseScale = 0.5f;
     private Color _color = new(1.0f, 0.4f, 0.55f);
+    private int _shotIndex;
+    private float _shotAlpha = 1.0f;
 
     /// <summary>常驻挂载（懒建一次）；返回实例供每次开火 Flash()。</summary>
     public static MuzzleFlash Attach(Node parent)
@@ -35,9 +37,15 @@ public partial class MuzzleFlash : Sprite2D
         Visible = false;
     }
 
-    /// <summary>点亮一次（局部坐标 + 阵营色）；高频开火反复调用只重置寿命，不增节点。</summary>
+    /// <summary>点亮一次（局部坐标 + 阵营色）；高频开火反复调用只重置寿命，不增节点。
+    /// 逐发亮度轻微错拍：实例计数哈希（非 GD.Rand*——不扰动全局随机序列），
+    /// 仅改 alpha 峰值，不改 _total 时长与 _baseScale 尺寸契约。</summary>
     public void Flash(Vector2 localPos, Color color)
     {
+        _shotIndex++;
+        var hash = Mathf.Sin(_shotIndex * 12.9898f) * 43758.5453f;
+        var frac = hash - Mathf.Floor(hash);
+        _shotAlpha = 0.82f + 0.23f * frac;
         Position = localPos;
         _color = color;
         Modulate = color;
@@ -63,6 +71,6 @@ public partial class MuzzleFlash : Sprite2D
         // 急速收缩 + 线性淡出（爆点收束感）
         var p = _life / _total;
         Scale = Vector2.One * (_baseScale * (0.7f + 0.5f * p));
-        Modulate = new Color(_color.R, _color.G, _color.B, _color.A * p);
+        Modulate = new Color(_color.R, _color.G, _color.B, _color.A * p * _shotAlpha);
     }
 }

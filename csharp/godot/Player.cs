@@ -983,6 +983,7 @@ public partial class Player : CharacterBody2D
             && _fuel >= DashFuelCost())
         {
             _dash.Start(inputDir, this);
+            CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
         }
 
         if (_dash.IsDashing())
@@ -1592,6 +1593,7 @@ public partial class Player : CharacterBody2D
         }
 
         _visuals.SetParryFlash();
+        CombatVfx.ParryRing(GetParent(), GlobalPosition, GameState.Instance.ReduceFlash);
         RumbleService.Parry(); // 弹反成功震动
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(SfxId.Dash);

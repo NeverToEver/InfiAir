@@ -21,11 +21,29 @@ public partial class WorldPostFx : CanvasLayer
 {
     private const float Epsilon = 0.001f;
 
+    // 动态战斗分级口径：Engine.TimeScale 低于 1（狂暴子弹时间）时向热档靠拢，恢复即回中。
+    // SlowFloor 为归一化下限（缩放 ≤ 此值视为满档）；ramp 收敛到 epsilon 以下即吸回精确 0，
+    // 保证中性时上传值与静态调色逐位一致。delta 已被引擎按 TimeScale 缩放，慢速段 ramp
+    // 推进同样放缓——与 Main 的演出节奏口径一致。
+    private const float CombatSlowFloor = 0.25f;
+    private const float CombatRampTau = 0.22f;
+    // 动态附加层上限（仅 ramp 非零时出现；空闲分支跳过，零额外采样）。
+    private const float CombatChromaMax = 0.004f;   // 全局色差最大偏移（屏幕比例）
+    private const float CombatScanlineMax = 0.045f; // 扫描线最深压暗比例
+    // 重击脉冲：ScreenShake 强度达阈才触发；参考满量程取 boss 终段量级（24）。
+    private const float HeavyHitShakeMin = 8.0f;
+    private const float HeavyHitShakeRef = 24.0f;
+    private const float HitPulseDecayTau = 0.12f;
+
     // 设置 override：-1 = 未设置，取 balance.json 默认
     private bool _enabled = true;
     private bool _reduceFlash;
     private float _time;
     private bool _paramsDirty = true;
+    private float _combatRamp;
+    private float _hitPulse;
+    private Viewport? _viewport;
+    private Vector2I _vpSize;
 
     private ShaderMaterial _mat = null!;
     private ColorRect _rect = null!;
@@ -46,6 +64,8 @@ public partial class WorldPostFx : CanvasLayer
 
     private readonly Callable _onWorldPostFxChanged;
     private readonly Callable _onReduceFlashChanged;
+    private readonly Callable _onScreenShake;
+    private readonly Callable _onViewportSizeChanged;
 
     private static readonly StringName UTime = new("u_time");
     private static readonly StringName UTexel = new("u_texel");
@@ -60,11 +80,17 @@ public partial class WorldPostFx : CanvasLayer
     private static readonly StringName UContrast = new("u_contrast");
     private static readonly StringName UVignette = new("u_vignette");
     private static readonly StringName UGrain = new("u_grain");
+    private static readonly StringName UCombatRamp = new("u_combat_ramp");
+    private static readonly StringName UHitPulse = new("u_hit_pulse");
+    private static readonly StringName UChroma = new("u_chroma");
+    private static readonly StringName UScanline = new("u_scanline");
 
     public WorldPostFx()
     {
         _onWorldPostFxChanged = Callable.From<bool>(OnWorldPostFxChanged);
         _onReduceFlashChanged = Callable.From<bool>(OnReduceFlashChanged);
+        _onScreenShake = Callable.From<double>(OnScreenShake);
+        _onViewportSizeChanged = Callable.From(OnViewportSizeChanged);
     }
 
     public override void _Ready()
@@ -73,6 +99,7 @@ public partial class WorldPostFx : CanvasLayer
         LoadCfg();
         _enabled = GameState.Instance.WorldPostFx;
         _reduceFlash = GameState.Instance.ReduceFlash;
+        _viewport = GetViewport();
 
         _rect = new ColorRect();
         _rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -95,6 +122,19 @@ public partial class WorldPostFx : CanvasLayer
         {
             gs.Connect(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
         }
+
+        // 重击脉冲来源：震屏信号（只读强度，不做任何玩法状态写入）
+        if (!gs.IsConnected(GameState.SignalName.ScreenShake, _onScreenShake))
+        {
+            gs.Connect(GameState.SignalName.ScreenShake, _onScreenShake);
+        }
+
+        // 分辨率切换后 texel 必须重算（_Ready 只读一次，否则环采样半径按旧像素换算）
+        if (GodotObject.IsInstanceValid(_viewport)
+            && !_viewport.IsConnected(Viewport.SignalName.SizeChanged, _onViewportSizeChanged))
+        {
+            _viewport.Connect(Viewport.SignalName.SizeChanged, _onViewportSizeChanged);
+        }
     }
 
     public override void _Process(double delta)
@@ -104,8 +144,10 @@ public partial class WorldPostFx : CanvasLayer
             return;
         }
 
-        _time += (float)delta;
+        var d = (float)delta;
+        _time += d;
         _mat.SetShaderParameter(UTime, _time);
+        UpdateCombatLayer(d);
         if (_paramsDirty)
         {
             _paramsDirty = false;
@@ -127,6 +169,17 @@ public partial class WorldPostFx : CanvasLayer
             {
                 gs.Disconnect(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
             }
+
+            if (gs.IsConnected(GameState.SignalName.ScreenShake, _onScreenShake))
+            {
+                gs.Disconnect(GameState.SignalName.ScreenShake, _onScreenShake);
+            }
+        }
+
+        if (GodotObject.IsInstanceValid(_viewport)
+            && _viewport.IsConnected(Viewport.SignalName.SizeChanged, _onViewportSizeChanged))
+        {
+            _viewport.Disconnect(Viewport.SignalName.SizeChanged, _onViewportSizeChanged);
         }
     }
 
@@ -167,6 +220,7 @@ public partial class WorldPostFx : CanvasLayer
     private void PushStaticParams()
     {
         var vp = GetViewport().GetVisibleRect().Size;
+        _vpSize = new Vector2I((int)vp.X, (int)vp.Y);
         _mat.SetShaderParameter(UTexel, new Vector2(1.0f / Mathf.Max(vp.X, 1.0f), 1.0f / Mathf.Max(vp.Y, 1.0f)));
         _mat.SetShaderParameter(UBloomThreshold, _bloomThreshold);
         _mat.SetShaderParameter(UBloomRadius, _bloomRadius);
@@ -186,6 +240,72 @@ public partial class WorldPostFx : CanvasLayer
         var grain = _reduceFlash ? 0.0f : _grain;
         SetIfChanged(UBloomIntensity, bloom);
         SetIfChanged(UGrain, grain);
+    }
+
+    /// <summary>动态战斗分级 + 重击脉冲：只读 Engine.TimeScale 与震屏信号，
+    /// 写出 u_combat_ramp / u_hit_pulse / u_chroma / u_scanline（全部 epsilon 守卫）。
+    /// 中性时四者恒为精确 0，shader 分支跳过——不产生永久观感偏移、零额外 GPU 成本。</summary>
+    private void UpdateCombatLayer(float d)
+    {
+        var ts = (float)Engine.TimeScale;
+        var target = Mathf.Clamp((1.0f - ts) / Mathf.Max(1.0f - CombatSlowFloor, Epsilon), 0.0f, 1.0f);
+        _combatRamp += (target - _combatRamp) * (1.0f - Mathf.Exp(-d / CombatRampTau));
+        if (_combatRamp < Epsilon)
+        {
+            _combatRamp = 0.0f; // 吸回中性：保证空闲上传值精确等于静态调色
+        }
+
+        _hitPulse *= Mathf.Exp(-d / HitPulseDecayTau);
+        if (_hitPulse < Epsilon)
+        {
+            _hitPulse = 0.0f;
+        }
+
+        var pulse = _reduceFlash ? _hitPulse * 0.5f : _hitPulse;
+        // 减少闪光：色差/扫描线属可触发附加层，直接置零；重击脉冲减半
+        var chroma = _reduceFlash ? 0.0f : _combatRamp * CombatChromaMax;
+        var scanline = _reduceFlash ? 0.0f : _combatRamp * CombatScanlineMax;
+        SetIfChanged(UCombatRamp, _combatRamp);
+        SetIfChanged(UHitPulse, pulse);
+        SetIfChanged(UChroma, chroma);
+        SetIfChanged(UScanline, scanline);
+    }
+
+    /// <summary>震屏信号：仅重击（强度达阈）触发瞬时泛光/晕影脉冲；弱震不参与。</summary>
+    private void OnScreenShake(double strength)
+    {
+        var s = (float)strength;
+        if (s < HeavyHitShakeMin)
+        {
+            return;
+        }
+
+        // 下限 0.25 保证达阈重击必有可见脉冲；上限 1 防极端强度过冲
+        _hitPulse = Mathf.Max(_hitPulse, Mathf.Clamp(s / HeavyHitShakeRef, 0.25f, 1.0f));
+    }
+
+    private void OnViewportSizeChanged()
+    {
+        RefreshTexel();
+    }
+
+    /// <summary>视口尺寸变化时刷新 u_texel（环采样半径按新像素换算，否则分辨率切换后晕光尺度失真）。</summary>
+    private void RefreshTexel()
+    {
+        if (_mat == null || !GodotObject.IsInstanceValid(_viewport))
+        {
+            return;
+        }
+
+        var size = _viewport.GetVisibleRect().Size;
+        var sizeI = new Vector2I((int)size.X, (int)size.Y);
+        if (sizeI == _vpSize)
+        {
+            return;
+        }
+
+        _vpSize = sizeI;
+        _mat.SetShaderParameter(UTexel, new Vector2(1.0f / Mathf.Max(size.X, 1.0f), 1.0f / Mathf.Max(size.Y, 1.0f)));
     }
 
     private void SetIfChanged(StringName name, float value)

@@ -35,6 +35,15 @@ public partial class Starfield : Node2D
     private Vector2[] _nearLines = System.Array.Empty<Vector2>();
     private const float LineLen = 1.0f;
 
+    // ---- 视觉常量（原内联字面量集中于此，便于统一调色/节奏；不动星数/种子，
+    //      确定性观感与既有画面逐位一致） ----
+    private const float NebulaTileRatio = 0.7f;    // 星云平铺高 / 可见区高（滚动回绕基线）
+    private const float NebulaScrollSpeed = 12.0f; // 星云下卷速度（px/s；Warp 时按倍率加速）
+    private const float NebulaCoolAlphaScale = 0.7f; // 冷色层相对暖色层的 alpha 比例
+    private const float BrightParallax = 1.35f;    // 亮星层相对近层的速度（远近视差）
+    private static readonly Color NebulaWarm = new(0.72f, 0.42f, 0.16f); // 暖色层（暖琥珀）
+    private static readonly Color NebulaCool = new(0.16f, 0.38f, 0.55f); // 冷色层（冷青）
+
     // ---- 亮星层（比近层更快 = 更近的视差深度；逐星色温 + 闪烁相位，_Draw 内查表零分配） ----
     private Vector2[] _bright = System.Array.Empty<Vector2>();
     private Color[] _brightColors = System.Array.Empty<Color>();
@@ -121,7 +130,7 @@ public partial class Starfield : Node2D
         RemapArea(_bright, view);
         _areaSize = view.Size;
         _origin = view.Position;
-        _nebulaTileY = _areaSize.Y * 0.7f;
+        _nebulaTileY = _areaSize.Y * NebulaTileRatio;
         if (_nebulaSprite != null)
         {
             _nebulaSprite.Position = _origin;
@@ -248,10 +257,10 @@ public partial class Starfield : Node2D
         // ShowBehindParent 保持星云在星点之下；alpha≈0 整层不建（同原早退门槛）
         if (_nebulaTex != null && _nebulaAlpha > 0.001f)
         {
-            _nebulaTileY = _areaSize.Y * 0.7f;
+            _nebulaTileY = _areaSize.Y * NebulaTileRatio;
             _nebulaMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/starfield_nebula.gdshader") };
-            _nebulaMat.SetShaderParameter("warm", new Color(0.72f, 0.42f, 0.16f, _nebulaAlpha));
-            _nebulaMat.SetShaderParameter("cool", new Color(0.16f, 0.38f, 0.55f, _nebulaAlpha * 0.7f));
+            _nebulaMat.SetShaderParameter("warm", new Color(NebulaWarm.R, NebulaWarm.G, NebulaWarm.B, _nebulaAlpha));
+            _nebulaMat.SetShaderParameter("cool", new Color(NebulaCool.R, NebulaCool.G, NebulaCool.B, _nebulaAlpha * NebulaCoolAlphaScale));
             var nebula = new Sprite2D
             {
                 Texture = _nebulaTex,
@@ -307,11 +316,11 @@ public partial class Starfield : Node2D
             _nearLines[i * 2 + 1] = p + new Vector2(LineLen, 0.0f);
         }
 
-        // 星云缓慢下卷（Warp 时同步加速）；亮星 1.35× 近层速度（更近的视差层）
-        _nebulaScroll += 12.0f * WarpFactor * d;
+        // 星云缓慢下卷（Warp 时同步加速）；亮星按 BrightParallax 倍速（更近的视差层）
+        _nebulaScroll += NebulaScrollSpeed * WarpFactor * d;
         // 星云相位单 uniform（x 偏 0.15 格；y = 1 − PosMod(scroll, tile)/tile，同原回绕基线）
         _nebulaMat?.SetShaderParameter(UNebulaPhase, new Vector2(0.15f, 1.0f - Mathf.PosMod(_nebulaScroll, _nebulaTileY) / _nebulaTileY));
-        var brightSpeed = _nearSpeed * 1.35f * WarpFactor;
+        var brightSpeed = _nearSpeed * BrightParallax * WarpFactor;
         for (int i = 0; i < _bright.Length; i++)
         {
             var p = _bright[i] + new Vector2(0.0f, brightSpeed * d);

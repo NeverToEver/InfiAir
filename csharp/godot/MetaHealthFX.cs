@@ -41,11 +41,19 @@ public partial class MetaHealthFX : CanvasLayer
     private static readonly Color CRACK_RED = new(0xff3b4eff);
     private const float COLOR_BAND = 0.08f;
 
+    // 冲刺速度模糊口径（仅读取 Player.Dashing，纯视觉）：冲刺激活时并入现有径向模糊通道
+    // （复用 4 tap，不新增 pass/tap），与受击脉冲取 max 不叠加；结束即 ramp 回 0，
+    // 回 0 后 idle 早退恢复（满血隐藏全屏层）。
+    private const float SpeedBlurMax = 0.5f;   // 速度模糊占模糊通道的最大份额
+    private const float SpeedChroma = 0.006f;  // 冲刺时附加的径向色差量（< 受击峰值）
+    private const float SpeedRampTau = 0.12f;  // 冲刺模糊升/降时间常数（短促，不拖尾）
+
     // 上传参数名（StringName 为 struct 可静态；等价 GDScript &"..." 字面量）
     private static readonly StringName UHitIntensity = new("u_hit_intensity");
     private static readonly StringName UHitDir = new("u_hit_dir");
     private static readonly StringName UChromaticAmount = new("u_chromatic_amount");
     private static readonly StringName URadialBlurStrength = new("u_radial_blur_strength");
+    private static readonly StringName USpeedBlur = new("u_speed_blur");
     private static readonly StringName URipplePhase = new("u_ripple_phase");
     private static readonly StringName UCrackProgress = new("u_crack_progress");
     private static readonly StringName UCrackColor = new("u_crack_color");
@@ -73,6 +81,9 @@ public partial class MetaHealthFX : CanvasLayer
     private float _breath = 1.0f;
     private float _vigInner = 0.62f;
     private float _warnT; // DYING 警告边框正弦相位
+    private float _speedRamp; // 冲刺速度模糊平滑量 0..1（dash 起→1、止→0）
+    private float _speedBlur; // 折算后的速度模糊量（含 reduce_flash 折减）
+    private Player? _playerCache; // Player 延迟缓存（只读冲刺态；场景重载 IsInstanceValid 守卫重取）
     private ShaderMaterial _mat = null!;
     private ColorRect _rect = null!;
     private readonly Godot.Collections.Dictionary _last = new(); // epsilon 缓存（参数名 -> 上次上传值）
@@ -471,6 +482,24 @@ public partial class MetaHealthFX : CanvasLayer
         return _hudCache;
     }
 
+    /// <summary>Player 延迟缓存——仅读取冲刺态；与 Hud() 同款 IsInstanceValid 守卫，
+    /// 场景重载/摘树后缓存失效自动重取，不写任何玩法状态。</summary>
+    private Player? Player()
+    {
+        if (!GodotObject.IsInstanceValid(_playerCache))
+        {
+            _playerCache = GameState.Instance.PlayerRef as Player;
+        }
+
+        return _playerCache;
+    }
+
+    /// <summary>玩家冲刺态（只读；Player 不在场视为未冲刺）。</summary>
+    private bool PlayerDashing()
+    {
+        return Player()?.Dashing ?? false;
+    }
+
     private int StateForX(float x)
     {
         var ratio = Mathf.Clamp(1.0f - x, 0.0f, 1.0f);
@@ -550,6 +579,8 @@ public partial class MetaHealthFX : CanvasLayer
             && _healT < 0.0f
             && _growBoost < Epsilon
             && Mathf.Abs(_breath - 1.0f) < Epsilon
+            && _speedBlur < Epsilon
+            && !PlayerDashing()
         );
         if (idle && !_forceRefresh)
         {
@@ -603,8 +634,18 @@ public partial class MetaHealthFX : CanvasLayer
         _hitPulse *= Mathf.Exp(-d / _pulseDecayTau);
         _rippleT += d / _rippleDuration;
 
+        // 3b. 冲刺速度模糊：只读 Player.Dashing，短促 ramp；与受击模糊共用通道（取 max 不叠加），
+        // 结束回 0 后 idle 早退恢复——不改变 LOD 门控与满血隐藏行为
+        var speedTarget = PlayerDashing() ? 1.0f : 0.0f;
+        _speedRamp += (speedTarget - _speedRamp) * (1.0f - Mathf.Exp(-d / SpeedRampTau));
+        if (_speedRamp < Epsilon)
+        {
+            _speedRamp = 0.0f;
+        }
+
         // 4. DYING 临界层：心跳（1.0→1.2Hz 随 x 插值）/呼吸/抖动/警告脉动；进出均 0.3s 淡出无硬切
         var reduceFlash = GameState.Instance.ReduceFlash;
+        _speedBlur = reduceFlash ? _speedRamp * SpeedBlurMax * 0.5f : _speedRamp * SpeedBlurMax;
         var healthNow = GameState.Instance.Health;
         if (_state == STATE_DYING && healthNow > 0.0)
         {
@@ -681,13 +722,17 @@ public partial class MetaHealthFX : CanvasLayer
         if (pulse > Epsilon)
         {
             chromatic = _chromaticBase + _chromaticPeak * pulse;
-            if (reduceFlash)
-            {
-                chromatic *= _reduceFlashChromaticScale;
-            }
         }
 
-        var blur = _blurStrength * pulse;
+        // 冲刺附加径向色差：与受击正交（取 max 不叠加），与受击同受 reduce_flash 折减
+        chromatic = Mathf.Max(chromatic, _speedRamp * SpeedChroma);
+        if (reduceFlash)
+        {
+            chromatic *= _reduceFlashChromaticScale;
+        }
+
+        // 速度模糊与受击模糊共用同一通道（取 max），空闲时两者皆 0 → shader 整段跳过
+        var blur = Mathf.Max(_blurStrength * pulse, _speedBlur);
         var rippleOn = _rippleT <= 1.0f;
         var density = _crackDensityCaps[Mathf.Min(_state, _crackDensityCaps.Length - 1)]; // 字段化（LoadCfg 一次性缓存，免每帧字典 + Variant 数组转换）
         if (!_fieldReady)
@@ -709,6 +754,7 @@ public partial class MetaHealthFX : CanvasLayer
         Put(UHitDir, _hitDir);
         Put(UChromaticAmount, chromatic);
         Put(URadialBlurStrength, blur);
+        Put(USpeedBlur, _speedBlur);
         Put(URipplePhase, Mathf.Clamp(_rippleT, 0.0f, 1.0f));
         Put(UCrackProgress, progress);
         Put(UCrackColor, CrackColor(x));

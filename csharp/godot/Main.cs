@@ -54,8 +54,31 @@ public partial class Main : Node2D
     /// <summary>坞态文本缓存（HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
     /// 免每轮 Tr/GdFormat 分配；母舰态文本由状态机自驱、输入不可廉价观测，不缓存）。</summary>
     private enum DockTextBranch { None, Charging, SummonWindow, Mothership, Cooldown, Ready }
-
     private DockTextBranch _dockTextBranch = DockTextBranch.None;
+
+    /// <summary>母舰坞态对外的显性读数（HUD 警示灯用）：文本与灯态同源，避免两处各自推导分支。
+    /// 与 <see cref="DockStatusText"/> 同一次轮询读取，值域即其分支。</summary>
+    public enum DockState
+    {
+        /// <summary>蓄力召唤中。</summary>
+        Charging,
+
+        /// <summary>机库小窗演出中（母舰下降中）。</summary>
+        Descending,
+
+        /// <summary>母舰在场（含对接/补给/待机/离场）。</summary>
+        Present,
+
+        /// <summary>冷却中。</summary>
+        Cooldown,
+
+        /// <summary>就绪待命（可安全操作）。</summary>
+        Ready,
+    }
+
+    /// <summary>最近一次 <see cref="DockStatusText"/> 轮询解出的坞态；未轮询前为 Ready。</summary>
+    public DockState DockStateValue { get; private set; } = DockState.Ready;
+
     private int _dockTextArg = -1;
     private string _dockTextLocale = "";
     private string _dockTextCached = "";
@@ -185,7 +208,11 @@ public partial class Main : Node2D
         AddChild(_worldPostFx);
         // Meta HUD 血量/受击后处理层（layer=1，世界之上、HUD 之下；先于首次 zoom 组合创建）
         _metaFx = new MetaHealthFX();
-        AddChild(_metaFx);        // 辅助瞄准框覆盖层：世界坐标单节点，每帧统一画标记敌 bracket 框
+        AddChild(_metaFx);
+        // 战斗表现总监（信号驱动的纯表现层）：监听敌机死亡/Boss 阶段与狂暴，撒击杀环与阶段冲击波——
+        // 挂在世界节点下，与实体同坐标系；不参与任何玩法判定
+        AddChild(new VisualFxDirector());
+        // 辅助瞄准框覆盖层：世界坐标单节点，每帧统一画标记敌 bracket 框
         _aimFrames = new AimFrameLayer();
         AddChild(_aimFrames);
 
@@ -940,6 +967,7 @@ public partial class Main : Node2D
         if (_charging)
         {
             var pct = (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f);
+            DockStateValue = DockState.Charging;
             if (_dockTextBranch != DockTextBranch.Charging || _dockTextArg != pct || _dockTextLocale != locale)
             {
                 _dockTextBranch = DockTextBranch.Charging;
@@ -953,6 +981,7 @@ public partial class Main : Node2D
 
         if (_summonWindow != null)
         {
+            DockStateValue = DockState.Descending;
             if (_dockTextBranch != DockTextBranch.SummonWindow || _dockTextLocale != locale)
             {
                 _dockTextBranch = DockTextBranch.SummonWindow;
@@ -966,12 +995,14 @@ public partial class Main : Node2D
         if (_mothership != null)
         {
             _dockTextBranch = DockTextBranch.Mothership; // 不缓存（母舰状态机自驱，输入不可廉价观测）
+            DockStateValue = DockState.Present;
             return _mothership.StateText();
         }
 
         if (_dockCooldown > 0.0f)
         {
             var cd = Mathf.CeilToInt(_dockCooldown);
+            DockStateValue = DockState.Cooldown;
             if (_dockTextBranch != DockTextBranch.Cooldown || _dockTextArg != cd || _dockTextLocale != locale)
             {
                 _dockTextBranch = DockTextBranch.Cooldown;
@@ -990,6 +1021,7 @@ public partial class Main : Node2D
             _dockTextCached = Tr("MS_READY");
         }
 
+        DockStateValue = DockState.Ready;
         return _dockTextCached;
     }
 
