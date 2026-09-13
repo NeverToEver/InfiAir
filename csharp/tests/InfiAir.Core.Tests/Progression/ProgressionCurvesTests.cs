@@ -51,6 +51,24 @@ public sealed class ProgressionCurvesTests
     }
 
     [Fact]
+    public void Threshold_SaturationHugeIndex_TerminatesAndClamps()
+    {
+        // tamper 存档可把 milestone_count 传到 int 上限：曲线在百余圈内即饱和，
+        // 逐圈推进若不做饱和早退就是 O(index) 的主线程挂死（旧实现上本用例跑不完即红）。
+        var base8 = new long[] { 3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000 };
+        Assert.Equal(long.MaxValue, MilestoneCurve.Threshold(int.MaxValue, base8, 1.35, 1.0));
+    }
+
+    [Fact]
+    public void ThresholdInt_HugeIndex_ClampsInsteadOfWrappingNegative()
+    {
+        var base8 = new long[] { 3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000 };
+        // 先钉住危险：long 阈值确实越过 int 上限（旧实现直接 (int) 转换会回绕成负）
+        Assert.True(MilestoneCurve.Threshold(int.MaxValue, base8, 1.35, 1.5) > int.MaxValue);
+        Assert.Equal(int.MaxValue, MilestoneCurve.ThresholdInt(int.MaxValue, base8, 1.35, 1.5));
+    }
+
+    [Fact]
     public void Compute_ZeroRuntime_ReturnsBossTermOnly()
     {
         Assert.Equal(2.2, DifficultyCurve.Compute(0, 30, 1.5, 0.6, 2), 12);
@@ -91,5 +109,14 @@ public sealed class ProgressionCurvesTests
             Assert.True(v >= prev);
             prev = v;
         }
+    }
+
+    [Fact]
+    public void Compute_NonPositiveTimeStep_DropsTimeTerm()
+    {
+        // 步长非正 → 除零得 inf、double→long 转换越界；只留 Boss 项且保持有限
+        Assert.Equal(2.2, DifficultyCurve.Compute(30, 0, 1.5, 0.6, 2), 12);
+        Assert.Equal(2.2, DifficultyCurve.Compute(30, -5, 1.5, 0.6, 2), 12);
+        Assert.Equal(1.0, DifficultyCurve.Compute(30, double.NaN, 1.5, 0.0, 0), 12);
     }
 }

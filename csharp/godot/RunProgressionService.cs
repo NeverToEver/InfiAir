@@ -258,7 +258,7 @@ public sealed partial class RunProgressionService : RefCounted
     /// 再乘难度阈值倍率（easy ×1 / medium ×1 / hard ×1.5）。
     /// 算法核心在 InfiAir.Core.Progression.MilestoneCurve（C# 纯函数，零 Godot 依赖）：
     /// pow 钳制、roundf half-away-from-zero、累加顺序与曲线定义一致。</summary>
-    public int MilestoneThreshold(int index) => (int)MilestoneCurve.Threshold(
+    public int MilestoneThreshold(int index) => MilestoneCurve.ThresholdInt(
         index, ToLongArray(GameState.Instance.MilestoneBase), GameState.Instance.MilestoneCycleMult, MilestoneMult());
 
     /// <summary>milestone_base 为 GameState 校验后的非负 int 数组（ScoreService.BuildMilestoneBase /
