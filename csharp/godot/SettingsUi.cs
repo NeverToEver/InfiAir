@@ -797,7 +797,7 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(UITheme.MakeLabel(Tr("SET_SHAKE_SCALE_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 关于：版本与操作速查（设置页承载「关于」是单机游戏的通行做法，便于一处查版本与按键）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ABOUT")));
-        _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString()), UITheme.FontBody, UITheme.AccentGold);
+        _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), GameVersion()), UITheme.FontBody, UITheme.AccentGold);
         page.AddChild(_versionLabel);
         _cheatsheetLabel = UITheme.MakeLabel(Tr("SET_CHEATSHEET"), UITheme.FontCaption, UITheme.TextDim);
         page.AddChild(_cheatsheetLabel);
@@ -1109,6 +1109,12 @@ public partial class SettingsUi : RadialMenuLayer
         }
     }
 
+    /// <summary>版本号读出（关于页展示）：取 project.godot 的 config/version（发布口径单源，
+    /// 与 README/Release 同一取值）。玩家不需要看到引擎版本——引擎版本对排查问题有用，但不属
+    /// 玩家可见文案，故不在此展示。</summary>
+    private static string GameVersion()
+        => ProjectSettings.GetSetting("application/config/version", "dev").AsString();
+
     /// <summary>预设档是否适配当前显示器（物理像素比较：逻辑尺寸 × 屏幕缩放 ≤ 可用区）。
     /// headless 或无窗口时一律放行（无头探针/CI 需要完整档位表）。</summary>
     private static bool ResolutionFitsScreen(StringName preset)
@@ -1168,7 +1174,7 @@ public partial class SettingsUi : RadialMenuLayer
         _backButton.Text = Tr("SET_BACK");
         _resetButton.Text = Tr("SET_RESET");
         _resetAllButton.Text = Tr("SET_RESET_ALL");
-        _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), Engine.GetVersionInfo()["string"].AsString());
+        _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), GameVersion());
         _cheatsheetLabel.Text = Tr("SET_CHEATSHEET");
         RefreshLangButtons();
         RefreshNavLabels();
