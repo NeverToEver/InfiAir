@@ -90,6 +90,10 @@ public partial class Main : Node2D
     /// <summary>event-probe 待观测实例与其 id（Start 后置入，回 IDLE 即打完成标记；生产恒 null）。</summary>
     private IEncounterEvent? _probeEvent;
     private string _probeEventId = "";
+    /// <summary>待启动的探针事件 id 与「分数已补足」标记：探针不能越过入场窗口与生产触发链
+    /// （见 StartEventForProbe），故延后到可驱动时才请求强制触发。</summary>
+    private string _probePendingId = "";
+    private bool _probeArmed;
     /// <summary>Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）</summary>
     private MetaHealthFX _metaFx = null!;
     /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
@@ -335,25 +339,51 @@ public partial class Main : Node2D
         }
     }
 
-    /// <summary>遭遇事件冒烟（--event-probe=&lt;id&gt;）：强制触发一次指定遭遇。
-    /// 遭遇要过分数门槛 + 掷签，无头 300 帧跑不到，而这类事件的编排/投弹/清场逻辑
-    /// 正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。
-    /// 启动走管理器的统一入口（登记活跃 id/占特殊槽/广播一致），本处只留观测句柄。</summary>
+    /// <summary>遭遇事件冒烟（--event-probe=&lt;id&gt;）：请求一次指定遭遇。
+    /// 遭遇要过入场窗口、分数门槛、资格合成与掷签，无头 300 帧跑不到，而这类事件的编排/投弹/
+    /// 清场逻辑正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。
+    /// 本处只登记待启动 id——真正启动由 <see cref="TickProbeStart"/> 在生产触发链上请求，
+    /// 避免越过入场窗口与生产门控（探针绕过判定链时，生产触发断线探针仍绿）。</summary>
     private void StartEventForProbe(string id)
     {
-        var key = new StringName(id);
-        if (!_encounterForProbe.TryGetValue(key, out var ev) || ev.IsActive())
+        if (_encounterForProbe.ContainsKey(new StringName(id)))
+        {
+            _probePendingId = id;
+        }
+    }
+
+    /// <summary>探针启动驱动（逐帧）：等入场动画结束、spawner 恢复处理后再把分数补到门槛并要求
+    /// 管理器下一次触发检查强制命中。资格（就绪/Boss 槽/组内互斥/分数门槛/可驱动）仍全部走
+    /// 生产链——本处只做「等窗口 + 补分数 + 请求掷签必中」。</summary>
+    private void TickProbeStart()
+    {
+        if (_probePendingId.Length == 0 || _player.IsEntryPlaying() || !_spawner.IsProcessing())
         {
             return;
         }
 
-        if (!_events.TryStartEncounter(key))
+        var key = new StringName(_probePendingId);
+        if (!_probeArmed)
         {
+            GameState.Instance.AddScore(Math.Max(_events.EncounterMinScore(key), 1));
+            _probeArmed = true;
+            if (!_events.RequestForcedTrigger(key))
+            {
+                GD.PushError($"[event-probe] 请求启动失败：{_probePendingId} 未注册");
+                _probePendingId = "";
+            }
+
             return;
         }
 
-        _probeEvent = ev;
-        _probeEventId = id;
+        // 请求已下达：等管理器在生产链上启动它，再转为观测句柄
+        if (_encounterForProbe.TryGetValue(key, out var ev) && ev.IsActive())
+        {
+            _probeEvent = ev;
+            _probeEventId = _probePendingId;
+            _probePendingId = "";
+            _probeArmed = false;
+        }
     }
 
     /// <summary>event-probe 完成判定：事件回 IDLE 即整周期跑完，打一行固定标记。
@@ -425,6 +455,7 @@ public partial class Main : Node2D
     public override void _Process(double delta)
     {
         var d = (float)delta;
+        TickProbeStart();
         ReportEventProbeCompletion();
         // Boss 狂暴子弹时间驱动（delta 已被 time_scale 缩放，计时为游戏秒）：
         // 0.24 慢速 1.2s → 0.3s 内线性恢复 1.0 → 恢复完成才发快照弹幕

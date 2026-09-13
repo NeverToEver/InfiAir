@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using InfiAir.Core.Events;
 
 namespace InfiAir;
@@ -118,6 +119,12 @@ public partial class GameEventManager : Node
     /// <summary>遭遇触发策略计时器（id -> 剩余秒）。CLR 字典镜像——避免每帧 GetValueOrDefault/
     /// 写入的 Variant 装箱 + native 往返。</summary>
     private readonly Dictionary<StringName, float> _encounterTimers = new();
+
+    /// <summary>一次性强制触发标记（探针/诊断）：置位后本次掷签必中，其余判定照走生产链。
+    /// 只豁免「随机掷签」这一条，资格合成/分数门槛/驱动门控仍需真正通过——探针因此不再
+    /// 绕过生产触发链（生产门控断线时探针不再照绿）。</summary>
+    private readonly HashSet<StringName> _forcedTriggers = new();
+
     /// <summary>遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）。</summary>
     /// <summary>遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
@@ -204,6 +211,7 @@ public partial class GameEventManager : Node
         _runActive = active;
         // 帧驱动随本局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
         SetProcess(active);
+        _forcedTriggers.Clear(); // 跨局不残留强制触发标记（诊断入口）
         if (!active)
         {
             EndFog();
@@ -367,26 +375,6 @@ public partial class GameEventManager : Node
         return false;
     }
 
-    /// <summary>强制启动一次已注册遭遇（诊断/无头探针入口）：与自动触发共用同一条启动路径
-    /// ——活跃 id 登记、特殊槽通知、EventStarted 广播一并走齐。绕过管理器直调 Start 会让
-    /// 「事件在跑、管理器不知道」，只能靠轮询兜底自愈；触发路径因此只留这一条。</summary>
-    public bool TryStartEncounter(StringName pId)
-    {
-        if (!_encounterOrder.Contains(pId))
-        {
-            return false;
-        }
-
-        var ev = EventFor(pId);
-        if (!GodotObject.IsInstanceValid(ev) || ev is not IEncounterEvent enc || enc.IsActive())
-        {
-            return false;
-        }
-
-        StartEncounter(pId, enc);
-        return true;
-    }
-
     /// <summary>立即结束指定分组进行中的事件（fog：清理效果；encounter：abort 打断）。</summary>
     public void EndActive(StringName pGroup)
     {
@@ -538,11 +526,31 @@ public partial class GameEventManager : Node
             var step = EncounterTrigger.Advance(
                 _encounterTimers.GetValueOrDefault(id, trig.Interval), delta, trig.Interval, eligible, score, trig.MinScore);
             _encounterTimers[id] = step.Remaining;
-            if (step.Due && GD.Randf() < trig.Chance)
+            // 探针标记只豁免随机掷签；eligible/分数门槛/驱动门控仍须真正通过
+            if (step.Due && (_forcedTriggers.Remove(id) || GD.Randf() < trig.Chance))
             {
                 StartEncounter(id, enc);
             }
         }
+    }
+
+    /// <summary>该遭遇的分数门槛（探针据此把分数补到门槛，其余判定照走生产链）。</summary>
+    public int EncounterMinScore(StringName pId)
+        => _encounterTrig.TryGetValue(pId, out var trig) ? trig.MinScore : 0;
+
+    /// <summary>请求下一次触发检查强制命中该遭遇（探针/诊断）：只把计时拉到到点并跳过随机掷签，
+    /// 资格（就绪/Boss 槽/组内互斥/分数门槛/本局可驱动）全部由生产链判定——
+    /// 生产触发断线时探针一并变红，不再假绿。</summary>
+    public bool RequestForcedTrigger(StringName pId)
+    {
+        if (!_encounterOrder.Contains(pId) || !_encounterTrig.ContainsKey(pId))
+        {
+            return false;
+        }
+
+        _encounterTimers[pId] = 0.0f;
+        _forcedTriggers.Add(pId);
+        return true;
     }
 
     /// <summary>Boss 是否占用遭遇槽（注入的 spawner 判活后直读；未注入按未激活处理）。</summary>
