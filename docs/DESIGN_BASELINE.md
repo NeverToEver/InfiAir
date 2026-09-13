@@ -6,7 +6,7 @@
 ## 1. Product & Gameplay
 
 ### 1.1 Positioning
-Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **平台定稿：PC 桌面专用**（Windows / Linux / macOS），输入面只有键鼠与手柄两路（2026-09-11 触屏虚拟控件全量退役，见 §1.14 与 ROADMAP 决策）。**Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无排行榜/无局外成长；开机 = 开场过场 → 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始新的一局 / **C 继续上次出击** / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。**本局存档**（2026-09-10 追加，见 §2.5）：回基地与选择「保存并退出」时落盘、死亡即删档、读档还原进度从新一波开始。
+Single-player 2D top-down shmup; Godot 4.6.2 .NET + C# (full migration 2026-08-08, zero GDScript), GL Compatibility, 1920×1080 (`canvas_items`/`keep`). **平台定稿：PC 桌面专用**（Windows / Linux / macOS），输入面只有键鼠与手柄两路（2026-09-11 触屏虚拟控件全量退役，见 §1.14 与 ROADMAP 决策）。**Score-only** (no drops/pickups/equipment). Remade from `airwar-game`, now independent. 2026-09-08 纯街机流：无登录/无排行榜/无局外成长；开机 = 深空机库标题屏（星空 + 远景实况战场 + 玩家机跃迁飞入悬挂展示 + 铭牌；按任意键开始新的一局 / **C 继续上次出击** / T 教程）→ 开局；对局内分数不显示不记录，仅作隐藏进度引擎（敌机解锁 / Boss 节奏 / 事件门控 / 里程碑→天赋点触发）。**本局存档**（2026-09-10 追加，见 §2.5）：回基地与选择「保存并退出」时落盘、死亡即删档、读档还原进度从新一波开始。
 
 ### 1.2 Core Loop
 ```
@@ -98,16 +98,15 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **成本**：仅液槽常态逐帧（每帧 ≤12 点液面 + 4 条刻度线，控件 34×52）；充能槽只在充能追赶与就绪脉冲期间推进，静止 `SetProcess(false)`。
 
 ### 1.10 Cinematics
-- Intro: 6 shots 17.3s, 2.35:1 letterbox, `INTRO_SUB_1..6`; Welcome "New Game"; gate `CurrentScene == Main`; Esc/any key/click skip; tree paused, root `ProcessMode=Always`.
-- Return: 7 shots 11.8s, mirrors intro; Esc via `SKIP_RETURN` (1.2s grace `effects.return_skip_grace`); both paths land on base UI (tree paused); BGM −40dB in shot 7.
-- Shared factories: `CinematicFx.cs` (`SoftGlow`/`Particles`/`Shockwave`/`Beam`/`RadialStreaks`; zero heap alloc in drive `_Process`), `DawnStation.cs`.
+- Return: 7 shots 11.8s, 2.35:1 letterbox; Esc via `RETURN_SKIP` (1.2s grace `effects.return_skip_grace`); lands on base UI (tree paused); BGM −40dB in shot 7.
+- Shared factories: `CinematicFx.cs` (`SoftGlow`/`Particles`/`Shockwave`/`Beam`/`RadialStreaks`; zero heap alloc in drive `_Process`), `DawnStation.cs`（全息虚影态）。
 
 ### 1.11 Tutorial
 - Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-H → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
 
 ### 1.12 Exit/Back Navigation
 - All back inputs → `BackNavigator.GoBack()` via pure `DecideBackAction()` (confirm → cinematic skip → settings/base/blocking/results → augment dock → pause → top → combat).
-- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock)。标题屏 `title.tscn` 为独立场景（2026-09-09 深空机库改版：程序化星空 + 远景实况战场〔敌机编队/远处爆炸/Boss 剪影〕+ 玩家机自远处跃迁飞入右侧悬挂展示〔轮廓背光/尾焰怠速/铭牌卡〕+ 左侧标题区，开场演出 ~2.2s 不阻塞输入；任意键开局 + T 教程；设置页「默认跳过入场动画」开启时开机直达）。
+- Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock)。标题屏 `title.tscn` 为独立场景（2026-09-09 深空机库改版：程序化星空 + 远景实况战场〔敌机编队/远处爆炸/Boss 剪影〕+ 玩家机自远处跃迁飞入右侧悬挂展示〔轮廓背光/尾焰怠速/铭牌卡〕+ 左侧标题区，开场演出 ~2.2s 不阻塞输入；任意键开局 + T 教程。）
 - **圆盘 UI 全覆盖（2026-09-08）**：左缘 `RadialWheel`（圆心锚屏外左侧，卡片沿弧排列；槽距按选项数自适应 `SlotAngleFor`，端点角钳 ±36° 防压 HUD；全容弧面时键盘/滚轮经 `FocusBias` 移动聚焦项）为全站菜单导航面：天赋面板（已有）、暂停、死亡结算、基地目录、设置页导航；`RadialMenuLayer` 为统一开合骨架（dim+轮盘过冲滑入，`SetWheelActive` 同步轮盘/chrome 遮罩显隐——非模态页须显式关遮罩）；方向键旋转 + Enter 确认（GUI 焦点存在时自动让位焦点链）。
 - Battle exit: 2nd confirm (progress-loss warning); `ExecuteExitCleanup`: save profile, delete save in battle, stop SFX, fade quit.
 - Esc / gamepad `ui_cancel`, one state machine.
@@ -128,7 +127,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **信息架构：五页**，左缘轮盘与左侧导航同源（同一份页表 `SettingsUi._pageDefs` 驱动页目录/内容构建/文案，增页只改一处）。分组与顺序：
   - **控制 Controls**：可改键表（动作清单唯一事实源 = `GameState.REBINDABLE_ACTIONS`）· 手柄分组（布局/灵敏度/死区）· 重置区（恢复默认按键 / 全部恢复默认）。
   - **游戏 Gameplay**：难度 · 开火方式 · Ctrl/Shift 模式 · 辅助瞄准档位。
-  - **显示与性能 Display & Performance**：视角 · 窗口模式 · 分辨率 · 帧率上限 · 垂直同步（含实际状态读出）· 当前帧率与显示器刷新率 · 鼠标锁定 · 画面增强 · 启动（跳过过场）。
+  - **显示与性能 Display & Performance**：视角 · 窗口模式 · 分辨率 · 帧率上限 · 垂直同步（含实际状态读出）· 当前帧率与显示器刷新率 · 鼠标锁定 · 画面增强。
   - **音频 Audio**：主音量 · 音乐 · 音效。
   - **辅助与关于 Accessibility & About**：减少闪光 · 屏幕震动强度 · 版本与操作速查。
 - **生效时机**：一律即时生效（无需「应用」按钮）；滑杆拖动即时改值、松手才落盘（`DragEnded`）——拖动过程中逐帧写盘是磁盘写风暴。
@@ -155,7 +154,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - 暖钢 tint：`SteelTint`(暖青铜灰) / `SteelTintHover`(受激暖光) / `SteelAccentTint`(主按钮琥珀面)；焦点环取 `AccentHot`。
 - 次级局部色板同步收编：`RadialWheel`(Card/Band 暖炭灰)、`DawnStation`(暖钢/全息琥珀虚影)、`AimCrosshair`/`AimFrameLayer`(琥珀)、
   `MothershipSummonWindow`、`TalentFanView`、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带。
-  返航过场（黎明站/舱室）与玩家侧（母舰/跃迁门/轨道打击）同属暖族；**开场过场（曙光站）保留冷色**——那是失事的敌方场所，冷暖对照是刻意的。
+  返航过场（黎明站/舱室）与玩家侧（母舰/跃迁门/轨道打击）同属暖族。
 - **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红/品红（不与琥珀 UI 混同）。玩家机能量/尾焰/激光/残影/增幅附件统一琥珀；
   Boss 预警色（telegraph）保留多色编码，属玩法信号不作统一。
 
@@ -182,15 +181,10 @@ GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕
 - **面板铬件**：`ChamferedPanel` 新增四角琥珀刻度（`CornerTicks` 默认开）+ 顶缘全强调色受光线（受激边缘）。
 
 ### 2.4 过场演出细节（2026-09-10 精修）
-「简单处够简单、精细处不够」的补课——对入场/返航过场的乘员与场景追加设计细节（纯表现层，时序/时长/字幕/音效口径全不变）：
+「简单处够简单、精细处不够」的补课——对返航过场的乘员与场景追加设计细节（纯表现层，时序/时长/字幕/音效口径全不变）：
 
-- **共享乘员构件 `csharp/godot/CrewFigure.cs`**：把原先两处近乎重复的简笔人物（圆头 + 棍状四肢 + 平板躯干）重建为有设计细节的宇航服——分件头盔（棱面壳/面罩玻璃/框缘/颈环/侧通讯舱/天线信号灯/下颌护板）、分层胸甲 + 背带扣具 + 状态灯排、双筒维生背包（罐体/喷嘴/供气管/压力表/散热格栅）、肩部叠甲 + 铆钉、关节环/护膝胫甲/护腕分指手套/齿纹战术靴、全身边缘走线与琥珀状态灯。**关节契约逐位不变**（返回 {node,hips,knees,shoulders,elbows,torso,eyelid}），步行/握姿/呼吸相位公式与 eye-lid 特写全部照旧；`ReturnCinematic.BuildPerson`（冷青状态灯）与 `IntroCinematic.Shot3`（琥珀）共用，删除两处重复内联。
-- **操作台仪表（镜头 4）**：三分区各补精密仪表——圆形读数表（表壳/12 格刻度环/危险区标红/指针/中心轴/状态灯）+ 分段电平条（外框/逐格亮灯/刻度）；面板浮雕板 + 四角螺钉 + 顶缘受光线（先铺浮雕、仪表叠其上）。
+- **共享乘员构件 `csharp/godot/CrewFigure.cs`**：把原先重复的简笔人物（圆头 + 棍状四肢 + 平板躯干）重建为有设计细节的宇航服——分件头盔（棱面壳/面罩玻璃/框缘/颈环/侧通讯舱/天线信号灯/下颌护板）、分层胸甲 + 背带扣具 + 状态灯排、双筒维生背包（罐体/喷嘴/供气管/压力表/散热格栅）、肩部叠甲 + 铆钉、关节环/护膝胫甲/护腕分指手套/齿纹战术靴、全身边缘走线与状态灯。**关节契约逐位不变**（返回 {node,hips,knees,shoulders,elbows,torso,eyelid}），步行/握姿/呼吸相位公式与 eye-lid 特写全部照旧；`ReturnCinematic.BuildPerson` 调用。
 - **舱段模块（`DawnStation` 共享）**：环体舱段加舷窗灯带 + 装甲分缝 + 端盖条 + 散热格栅（环站不再是光板矩形块）；返航/基地背景同享。
-- **X 光剖面（镜头 2）**：舱室内部补控制台长条/货箱/状态点（确定性布局，无随机），甲板底缘加走线槽 + 铆钉列——蓝图不再是空网格。
-- **弹射通道（镜头 5）**：两侧导轨（轨面/暗边/受光棱）+ 轨枕横梁 + 轨端铆灯 + 壁面横向加强肋/铆钉列/警示斜纹——战机压在真实导轨上滑出，而非悬在空走廊。
-- **尾焰修正（镜头 5）**：原喷口位置硬编码 `(960±46, y640)` 与贴图真实喷口（锚点 ×1.4 = `960±26.6, y704`）错位约 60px，且尾焰用等宽硬边 `Line2D` 读作灰色矩形块——改为**由贴图锚点推导真实喷口位**，尾焰改软点辉光链（喷口炽芯→沿轴递减半径/亮度→尾端透明，无硬边）+ 喷口外圈热辉；拖影改加性暖色微放大（读作加速辉光而非重影复制）；机身提亮一档。
-- **镜头 5 代码重构（去叠加）**：原 ~340 行单方法拆为「编排 `BuildShot5` + 四个分层构建器」——`BuildLaunchCorridor`（走廊结构）/`BuildShipRig`（机体与尾焰）/`BuildSpeedField`（速度场）/`PlayIgnition`（点火时序），辅以 `ExhaustParticles`/`Poly`/`LaunchNozzlePositions` 小工厂。同时收掉叠加过量的层：每喷口原 5 层橙光（主焰粒子 + 白芯粒子 + 柔光柱 + 独立喷口热辉 + 壁面投光）收敛为 3 层（主焰粒子 + 柔光柱含喷口炽芯 + 壁面投光）；走廊去掉与轨枕灯重复的独立铆钉列、6 条任意位置接缝收敛为每壁 1 条；走廊几何/色板提为常量单源（`WallInnerL/R`、`RailL/R`、`Corridor*` 色板）。**渲染结果实测一致（略减噪），时序/时长/音效口径不变。**
 
 ### 2.5 本局存档（2026-09-10 追加）
 反转 2026-09-08「无对局存档」：新增**单存档位**本局存档 `user://run.json`（与 `settings.json` 分区；复用 `SaveManager`/`SaveStore` 原子写 + 损坏隔离）。

@@ -101,7 +101,6 @@ Both files live under Godot's `user://` directory and never interfere with each 
 - **Godot standard build won't open the project**: the project contains C#, so the .NET edition is mandatory.
 - **Instant crash on launch / black screen**: usually a GPU driver without OpenGL 3.3, or — when running from source — a failed C# build (run `dotnet build` first). See `logs/`.
 - **Window ends up off-screen or the size is wrong**: delete `settings.json` to restore defaults, or pick another window resolution tier in the settings page.
-- **Want to skip the intro cinematic**: Settings → Operation Mode → skip intro cinematic; any key during playback also skips it.
 - **Sensitive to flashing**: the "reduce flashing" toggle in the settings page lowers post-processing intensity.
 
 ## Project layout
@@ -109,7 +108,7 @@ Both files live under Godot's `user://` directory and never interfere with each 
 ```
 csharp/core/     Pure logic: talent tree, progression curves, balance & save models (Godot-free)
 csharp/godot/    Godot binding layer: scene scripts, UI, services
-scenes/          Scenes: main / title / tutorial / intro / boss, etc.
+scenes/          Scenes: main / title / tutorial / boss / return, etc.
 data/            balance.json (single source of numbers) · translations.csv (zh/en)
 assets/          sprites / audio / fonts / shaders
 packaging/       Install / uninstall scripts and desktop entries shipped in releases

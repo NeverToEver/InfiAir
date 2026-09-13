@@ -101,7 +101,6 @@
 - **Godot 标准版打不开工程**：本工程含 C#，必须用 .NET 版引擎。
 - **启动后闪退 / 只有黑屏**：多为显卡驱动不支持 OpenGL 3.3，或源码运行时 C# 程序集没构建成功（先 `dotnet build`）。日志见 `logs/`。
 - **窗口跑到屏幕外或尺寸不合适**：删除 `settings.json` 恢复默认，或在设置页重选窗口分辨率档。
-- **想跳过开场过场**：设置 → 操作模式 → 跳过开场过场；过场播放中按任意键也可跳过。
 - **不想被闪烁影响**：设置页的「减弱闪烁」开关降低后处理强度。
 
 ## 项目结构
@@ -109,7 +108,7 @@
 ```
 csharp/core/     纯逻辑层：天赋树、进度曲线、数值与存档模型（不依赖 Godot）
 csharp/godot/    Godot 绑定层：场景脚本、UI、服务
-scenes/          场景：main / title / tutorial / intro / boss 等
+scenes/          场景：main / title / tutorial / boss / return 等
 data/            balance.json 数值单源 · translations.csv 双语翻译表
 assets/          sprites / 音频 / 字体 / shader
 packaging/       发布包内的安装 / 卸载脚本与桌面项
