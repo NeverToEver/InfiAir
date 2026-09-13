@@ -302,8 +302,8 @@ public partial class Bullet : Area2D, IParryable
                 var dist = toTarget.Length();
                 if (dist > 0.0f && dist <= HomingSnapRadius + step)
                 {
-                    // 近距直取：对准目标，并把本帧位移钳到目标点——位移大于目标判定直径时
-                    // （子弹 1800~3600px/s → 单帧 30~60px，超过 ~37px 的命中窗口），
+                    // 近距直取：对准目标，并把本帧位移钳到目标点——玩家弹速下单帧位移（数十 px）
+                    // 常超过目标判定直径（~37px），
                     // 只对准不钳位会整步跨过目标，下一帧再从背后对准跨回，形成永不命中的
                     // 来回穿越：高射速/多弹道下就是整屏乱飞。钳位后落点必在判定内，本帧即结算。
                     Direction = toTarget / dist;

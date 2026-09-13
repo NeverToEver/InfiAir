@@ -285,24 +285,21 @@ public partial class AimFrameLayer : Node2D
         return (best.GlobalPosition - point).Normalized() * Mathf.Min(mag, _magnetMaxSpeed);
     }
 
-    /// <summary>锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近标记敌；
-    /// 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。</summary>
+    /// <summary>锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近敌机；
+    /// 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。
+    /// **覆盖全部存活敌机**（不限标记敌）：弱追踪的定位是「轻微修正瞄偏」，给所有普通敌机都生效；
+    /// 标记只决定框显式与框内强追踪，不是弱追踪的准入门槛（早期按 aim_marked 过滤时，约七成敌机
+    /// 完全拿不到辅助，玩家实感即「弱辅瞄时有时无」）。</summary>
     public Enemy? NearestConeTarget(Vector2 origin, Vector2 aimDir, float coneCos)
     {
-        // 零标记早退
-        if (Enemy.AimMarkedCount == 0)
-        {
-            return null;
-        }
-
         Enemy? best = null;
         var bestD = float.PositiveInfinity;
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {
-            if (arr[i] is not Enemy e || !e.AimMarked)
+            if (arr[i] is not Enemy e)
             {
-                continue;
+                continue;  // 注册表含 Boss，Boss 非 Enemy 类——is 判定语义等价排除
             }
 
             var to = e.GlobalPosition - origin;

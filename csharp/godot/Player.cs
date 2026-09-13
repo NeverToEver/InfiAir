@@ -67,7 +67,7 @@ public partial class Player : CharacterBody2D
     public float Decel { get; private set; } = 1800.0f;
     public float BoostMult { get; private set; } = 1.8f;
     public float BaseFireInterval { get; private set; } = 0.15f;
-    public float BulletSpeed { get; private set; } = 1800.0f;
+    public float BulletSpeed { get; private set; } = 2600.0f;
     public float CritChanceBase { get; private set; } = 0.12f;
     public float CritMultiplier { get; private set; } = 2.0f;
     public float BulletSpreadDeg { get; private set; } = 15.0f;
@@ -140,9 +140,9 @@ public partial class Player : CharacterBody2D
     private float _aimStickFactor = 0.5f;
     private float _aimJoySpeed = 1400.0f;
     private float _aimJoyExpo = 2.2f;
-    private float _coneAngleDeg = 6.0f;
-    private float _coneCos = 0.9945f;
-    private float _coneStrength = 0.45f;
+    private float _coneAngleDeg = 8.0f;
+    private float _coneCos = 0.99027f;
+    private float _coneStrength = 0.52f;
     private float _magnetRange = 100.0f;
     private float _magnetStrength = 6.0f;
     private float _magnetMaxSpeed = 8.0f;
@@ -853,7 +853,7 @@ public partial class Player : CharacterBody2D
     /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 AugmentLevel 字典查找 + Pow。</summary>
     private float _fireIntervalValue = 0.15f;
     private int _bulletDamageValue = 10;
-    private float _bulletSpeedValue = 1800.0f;
+    private float _bulletSpeedValue = 2600.0f;
     private int _spreadShotCount;
     private int _pierceCount;
     private bool _explosiveEnabled;

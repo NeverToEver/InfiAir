@@ -8,7 +8,7 @@
 		"boost_mult": 1.8,
 		"fine_move_mult": 0.35,
 		"base_fire_interval": 0.15,
-		"bullet_speed": 1800,
+		"bullet_speed": 2600,
 		"bullet_spread_deg": 15,
 		"bullet_damage": 10,
 		"max_health": 100,
@@ -89,8 +89,8 @@
 					"magnet_range": 70,
 					"magnet_strength": 4.0,
 					"magnet_max_speed": 5.5,
-					"cone_angle_deg": 4.0,
-					"cone_strength": 0.35
+					"cone_angle_deg": 6.0,
+					"cone_strength": 0.42
 				},
 				"medium": {
 					"frame_pad": 16,
@@ -99,8 +99,8 @@
 					"magnet_range": 100,
 					"magnet_strength": 6.0,
 					"magnet_max_speed": 8.0,
-					"cone_angle_deg": 6.0,
-					"cone_strength": 0.45
+					"cone_angle_deg": 8.0,
+					"cone_strength": 0.52
 				},
 				"high": {
 					"frame_pad": 24,
@@ -109,8 +109,8 @@
 					"magnet_range": 130,
 					"magnet_strength": 8.0,
 					"magnet_max_speed": 10.5,
-					"cone_angle_deg": 8.0,
-					"cone_strength": 0.55
+					"cone_angle_deg": 10.0,
+					"cone_strength": 0.62
 				}
 			}
 		}
