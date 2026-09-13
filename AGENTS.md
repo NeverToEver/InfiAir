@@ -96,7 +96,7 @@ godot --headless --path . --fixed-fps 60 --quit-after <帧数> -- <开关>
 
 - 帧数 = 事件全周期秒数 × 60 + 余量；**帧数只在 `scripts/ci/check_smoke.sh` 维护一份**。
 - 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 直进开局并强制触发一次遭遇；`--startup-time` 打印启动分段耗时。
-- 事件两趟必须出现 `[event-probe] <id> 全周期完成`。
+- 事件两趟必须出现 `[event-probe] <id> 全周期完成`；主场景那趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败只打 `ERROR: Cannot open file`，不在引擎错误正则内，缺标记即红）。
 - 日志：主场景 `<LOG>`、设置页 `<LOG>.settings.log`、编队 `<LOG>.formation.log`、精英 `<LOG>.elite.log`。
 - 遭遇事件改动后至少手跑一次对应探针；`Main` 里的探针开关是 ROADMAP 登记的存量偏离（§10）。
 

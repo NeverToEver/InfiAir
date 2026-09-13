@@ -35,7 +35,7 @@ run_case() {
 expect_marker() {
   local label="$1" log="$2" marker="$3"
   if ! grep -qF "$marker" "$log"; then
-    echo "::error::$label：日志无完成标记「$marker」——事件没跑完全周期"
+    echo "::error::$label：日志无完成标记「$marker」——该路径没跑到终点"
     tail -30 "$log"
     exit 1
   fi
@@ -43,6 +43,9 @@ expect_marker() {
 }
 
 run_case "main scene smoke(300)" 300 "$LOG"
+# 开机交接：main 开机必须落到 title.tscn（无开场过场，直达标题屏）。标记由 TitleScreen._Ready
+# 打印——切场景静默失败（路径错/资源缺失）时它不会出现，只判「不崩」则停在 main 空战场看不出。
+expect_marker "开机直达标题屏" "$LOG" "[boot] 标题屏就绪"
 run_case "settings page smoke" 60 "${LOG%.log}.settings.log" --settings-probe
 # 全周期帧数含两段：① 探针等入场动画（0.55 + 1.1 = 1.65s）后才在生产触发链上放行
 # （入场窗口内 spawner 停驱动、生产不可能触发，探针不得绕过）；② 事件自身全周期。

@@ -41,6 +41,9 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _Ready()
     {
+        // 固定标记：开机交接契约的观测点——标记只在标题屏真正入树时打印，冒烟门禁据此断言
+        // 「开机落到了标题屏」。切场景静默失败（路径错/资源缺失）时本行不会执行，无头也能判出来。
+        GD.Print("[boot] 标题屏就绪");
         // 深空底色 + 程序化星空
         // Starfield._Ready 自置 ZIndex=-10，底色须再低一层否则星点被底色盖住
         var bg = CinematicFx.BgRect(TitleBgColor);
