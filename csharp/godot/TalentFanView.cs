@@ -22,12 +22,15 @@ public partial class TalentFanView : Control
 
     private const float CardW = 128f;
     private const float CardH = 128f;
+    private const float HoverScale = 1.07f;   // 悬停/焦点放大峰值
+    private const float HoverTime = 0.12f;
 
     private readonly TalentFanLayout _layout = new() { Width = 1240.0, Height = 720.0 };
     private readonly Dictionary<string, ChamferedPanel> _cards = new();
     private readonly Dictionary<string, Label> _levelLabels = new();
     private readonly Dictionary<string, Label> _badgeLabels = new();
     private readonly Dictionary<string, Label> _valueLabels = new();
+    private readonly Dictionary<string, int> _lastLevels = new(); // 加点前层级，供升级闪烁比对
     private string? _categoryId;
     private string? _hovered;
     private string? _selected;
@@ -58,15 +61,34 @@ public partial class TalentFanView : Control
 
     public string? Selected => _selected;
 
-    /// <summary>状态刷新（加点/路线/代币变化后）：重刷卡片样式与文案，不重建控件。</summary>
+    /// <summary>状态刷新（加点/路线/代币变化后）：重刷卡片样式与文案，不重建控件。
+    /// 层级上涨的卡片追加一次闪烁，让「加点」有落点而非静默变样。</summary>
     public void RefreshStates()
     {
+        var talent = GameState.Instance.Talent;
+        List<string>? leveled = null;
         foreach (var kv in _cards)
         {
+            var level = talent.Level(new StringName(kv.Key));
+            if (_lastLevels.TryGetValue(kv.Key, out var prev) && level > prev)
+            {
+                (leveled ??= new List<string>()).Add(kv.Key);
+            }
+
+            _lastLevels[kv.Key] = level;
             StyleCard(kv.Key, kv.Value);
         }
 
         QueueRedraw();
+        if (leveled == null)
+        {
+            return;
+        }
+
+        foreach (var nodeId in leveled)
+        {
+            FlashCard(nodeId);
+        }
     }
 
     private void RebuildCards()
@@ -80,18 +102,21 @@ public partial class TalentFanView : Control
         _levelLabels.Clear();
         _badgeLabels.Clear();
         _valueLabels.Clear();
+        _lastLevels.Clear();
         if (_categoryId == null)
         {
             return;
         }
 
         var cat = TalentTree.Category(_categoryId);
+        var talent = GameState.Instance.Talent;
         foreach (var line in cat.Lines)
         {
             foreach (var nodeId in line.NodeIds)
             {
                 var card = MakeCard(nodeId);
                 _cards[nodeId] = card;
+                _lastLevels[nodeId] = talent.Level(new StringName(nodeId));
                 AddChild(card);
             }
         }
@@ -222,9 +247,75 @@ public partial class TalentFanView : Control
             return;
         }
 
+        var prev = _hovered;
         _hovered = nodeId;
+        if (prev != null)
+        {
+            HoverMotion(prev, false);
+        }
+
+        if (nodeId != null)
+        {
+            HoverMotion(nodeId, true);
+        }
+
         NodeHovered?.Invoke(nodeId);
         QueueRedraw();
+    }
+
+    /// <summary>悬停/焦点缩放（互斥 tween，快速进出不叠写）；pivot 已在建卡时置中心。</summary>
+    private void HoverMotion(string nodeId, bool on)
+    {
+        if (!_cards.TryGetValue(nodeId, out var card) || !GodotObject.IsInstanceValid(card))
+        {
+            return;
+        }
+
+        if (card.HasMeta("hover_tween"))
+        {
+            var old = card.GetMeta("hover_tween").AsGodotObject() as Tween;
+            if (old != null && old.IsValid())
+            {
+                old.Kill();
+            }
+        }
+
+        // 命中目标选中卡已因闪烁保持放大时不再缩回原尺寸
+        var target = on || _selected == nodeId ? HoverScale : 1.0f;
+        var tw = card.CreateTween();
+        card.SetMeta("hover_tween", Variant.From(tw));
+        tw.TweenProperty(card, "scale", new Vector2(target, target), HoverTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+    }
+
+    /// <summary>加点落点闪烁：亮度冲击 + 缩放脉冲（互斥 tween）。ReduceFlash 时只留缩放的轻微确认。</summary>
+    private void FlashCard(string nodeId)
+    {
+        if (!_cards.TryGetValue(nodeId, out var card) || !GodotObject.IsInstanceValid(card))
+        {
+            return;
+        }
+
+        if (card.HasMeta("flash_tween"))
+        {
+            var old = card.GetMeta("flash_tween").AsGodotObject() as Tween;
+            if (old != null && old.IsValid())
+            {
+                old.Kill();
+            }
+        }
+
+        // ReduceFlash：不提亮，只留极轻缩放确认
+        if (GameState.Instance.ReduceFlash)
+        {
+            UITheme.PunchScale(card, 1.04f, 0.16f);
+            return;
+        }
+
+        var tw = card.CreateTween();
+        card.SetMeta("flash_tween", Variant.From(tw));
+        tw.TweenProperty(card, "modulate", new Color(1.6f, 1.45f, 1.15f), 0.09).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(card, "modulate", Colors.White, 0.22).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
     }
 
     /// <summary>节点卡片样式（状态色/徽标/层数/增幅值；数据源 TalentService 单一事实源）。</summary>
@@ -376,8 +467,16 @@ public partial class TalentFanView : Control
                 var col = sealed_ ? new Color(UITheme.Danger, 0.35f)
                     : lit ? new Color(AugmentIcons.ColorFor(idSn), 0.75f)
                     : new Color(UITheme.PanelBorder, 0.18f);
-                DrawLine(prev, cur, new Color(0f, 0f, 0f, 0.4f), 4.5f, true);
-                DrawLine(prev, cur, col, 2f, true);
+                // 通向悬停/选中节点的那一段提亮加粗：把「依赖来路」指给玩家
+                var intoHighlight = nodeId == _hovered || nodeId == _selected;
+                var width = intoHighlight ? 3f : 2f;
+                if (intoHighlight)
+                {
+                    col = new Color(UITheme.AccentHot, 0.9f);
+                }
+
+                DrawLine(prev, cur, new Color(0f, 0f, 0f, 0.4f), width + 2.5f, true);
+                DrawLine(prev, cur, col, width, true);
                 prev = cur;
             }
         }

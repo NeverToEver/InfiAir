@@ -1,3 +1,4 @@
+using System;
 using Godot;
 
 namespace InfiAir;
@@ -46,6 +47,19 @@ public partial class UITheme : RefCounted
     public static readonly Color WarnYellow = new(1.0f, 0.86f, 0.30f); // 蓄力/提示黄（比琥珀更黄更亮，与主交互色区分）
     public static readonly Color ChargeAccent = new(1.0f, 0.76f, 0.30f); // 蓄力琥珀（蓄力进度条）
     public static readonly Color BannerDangerBg = new(0.35f, 0.06f, 0.10f, 0.7f); // 警告横幅底
+
+    // HUD 专用 token（原先散落在 Hud/SegmentedBar/AimCrosshair 的硬编码色，收归单源）
+    public static readonly Color HudBossHp = new(0.98f, 0.80f, 0.42f); // Boss 血条一阶段
+    public static readonly Color HudBossHpP2 = new(1.0f, 0.46f, 0.14f); // Boss 血条二阶段
+    public static readonly Color DangerVignette = new(1.0f, 0.20f, 0.30f); // 受击暗角内圈（比 Danger 更暗，压屏幕边缘）
+    public static readonly Color TickWhite = new(1.0f, 1.0f, 1.0f, 0.55f); // 刻度线（Boss 分段）
+    public static readonly Color TrackWhite = new(1.0f, 1.0f, 1.0f, 0.15f); // 仪表空槽高光
+    public static readonly Color ShadowBlack = new(0.0f, 0.0f, 0.0f, 0.50f); // 仪表外框投影
+    public static readonly Color SheenWhite = new(1.0f, 1.0f, 1.0f, 0.40f); // 仪表顶缘受光
+    public static readonly Color AimAmber = new(1.0f, 0.76f, 0.30f, 0.95f); // 准星十字
+    public static readonly Color AimAmberLit = new(1.0f, 0.72f, 0.30f); // 瞄准框常态
+    public static readonly Color AimAmberHot = new(1.0f, 0.90f, 0.45f); // 瞄准框锁定峰值
+    public static readonly Color HostileCool = new(0.52f, 0.64f, 0.80f, 0.50f); // 标题战场远处敌机冷色（开场冷暖对照的刻意例外）
 
     // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
     public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）
@@ -329,6 +343,35 @@ public partial class UITheme : RefCounted
         }
     }
 
+    // ---------------- 切角几何（仪表盘与面板共用的形状语汇） ----------------
+
+    /// <summary>切角矩形点集（顺时针，起点上左切角）：八边形，四角按 chamfer 切掉。
+    /// 与 ChamferedPanel 的切角几何同源——仪表盘瓦片/量槽一律用它绘制，
+    /// 保证「所有方形构件都是同一个切角」而非各处自行拼多边形。
+    /// 尺寸或切角过小（放不下切角）时返回空集，调用方跳过绘制。</summary>
+    public static Vector2[] ChamferPoints(Vector2 size, float chamfer)
+    {
+        var c = Mathf.Max(chamfer, 0.0f);
+        var w = size.X;
+        var h = size.Y;
+        if (c <= 0.0f || w < c * 2.0f || h < c * 2.0f)
+        {
+            return System.Array.Empty<Vector2>();
+        }
+
+        return new[]
+        {
+            new Vector2(c, 0.0f),
+            new Vector2(w - c, 0.0f),
+            new Vector2(w, c),
+            new Vector2(w, h - c),
+            new Vector2(w - c, h),
+            new Vector2(c, h),
+            new Vector2(0.0f, h - c),
+            new Vector2(0.0f, c),
+        };
+    }
+
     // ---------------- 基础样式 ----------------
 
     /// <summary>统一按钮样式：金属钢板（贴图预烘焙凸起倒角）——normal 冷钢灰面 + 状态差异走 tint。</summary>
@@ -432,6 +475,83 @@ public partial class UITheme : RefCounted
         control.Modulate = new Color(control.Modulate, 0.0f);
         var tween = control.CreateTween();
         tween.TweenProperty(control, "modulate:a", 1.0f, 0.2);
+    }
+
+    /// <summary>淡入（可延迟）：只动 modulate.a。容器布局会覆盖 position，故入场一律走透明度而非位移。</summary>
+    public static void FadeIn(Control control, float time = 0.18f, float delay = 0.0f)
+    {
+        control.Modulate = new Color(control.Modulate, 0.0f);
+        var tween = control.CreateTween();
+        if (delay > 0.0f)
+        {
+            tween.TweenInterval(delay);
+        }
+
+        tween.TweenProperty(control, "modulate:a", 1.0f, time).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+    }
+
+    /// <summary>淡出后回调（默认不隐藏，由调用方决定）。控件已失效时直接回调，不建 tween。</summary>
+    public static void AnimateClose(Control control, float time = 0.16f, Action? onDone = null)
+    {
+        if (!GodotObject.IsInstanceValid(control))
+        {
+            onDone?.Invoke();
+            return;
+        }
+
+        var tween = control.CreateTween();
+        tween.TweenProperty(control, "modulate:a", 0.0f, time).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        if (onDone != null)
+        {
+            tween.TweenCallback(Callable.From(onDone));
+        }
+    }
+
+    /// <summary>模态退出编排：面板与遮罩同时淡出后隐藏根节点。
+    /// 交互与输入在调用当帧立即断开（鼠标穿透 + 停用输入处理），因此退场动画期间
+    /// 不会截获已交还给下一层的输入——退回/暂停链的焦点交接保持同步，仅有视觉残影渐隐。</summary>
+    public static void AnimateModalClose(Node root, Control dim, Control panel, Action? onClosed = null)
+    {
+        if (!GodotObject.IsInstanceValid(root) || !GodotObject.IsInstanceValid(panel))
+        {
+            onClosed?.Invoke();
+            return;
+        }
+
+        dim.MouseFilter = Control.MouseFilterEnum.Ignore;
+        panel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        root.SetProcessInput(false);
+        root.SetProcessUnhandledInput(false);
+
+        var tw = panel.CreateTween().SetParallel(true);
+        tw.TweenProperty(panel, "modulate:a", 0.0f, 0.15).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        var dimTw = dim.CreateTween();
+        dimTw.TweenProperty(dim, "modulate:a", 0.0f, 0.15).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        tw.Chain().TweenCallback(Callable.From(() =>
+        {
+            if (GodotObject.IsInstanceValid(root))
+            {
+                // 根可能是 CanvasLayer（无 Visible 属性，只有 visible 成员）或 Control——统一走属性名写入
+                root.Set("visible", false);
+            }
+
+            onClosed?.Invoke();
+        }));
+    }
+
+    /// <summary>一次性缩放冲击（pivot 居中）：入场/受激/数值变化时的「弹一下」。
+    /// 只动 scale，不改布局；容器内控件缩放不参与布局计算，无回流。</summary>
+    public static void PunchScale(Control control, float amount = 1.06f, float time = 0.14f)
+    {
+        if (!GodotObject.IsInstanceValid(control))
+        {
+            return;
+        }
+
+        control.PivotOffset = control.Size * 0.5f;
+        var tween = control.CreateTween();
+        tween.TweenProperty(control, "scale", new Vector2(amount, amount), time * 0.35f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        tween.TweenProperty(control, "scale", Vector2.One, time * 0.65f).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
     }
 
     /// <summary>按钮微动效：hover/焦点 1.02 倍放大、按下 0.98 回弹。由 MakeButton/MakeToggleButton 统一挂载。</summary>

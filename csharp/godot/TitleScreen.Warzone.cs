@@ -11,8 +11,22 @@ public partial class TitleScreen : CanvasLayer
 {
     private const int WzShipPool = 9; // 编队同屏上限：~3 编队 × 2-3 架，池耗尽时静默少生成
 
+    // 编队附加灯：尾焰辉光 + 翼尖航行灯（贴图局部坐标，190px 原生；机头朝局部 +Y，尾在 -Y）
+    private const float WzTrailRadius = 26.0f;
+    private const float WzNavRadius = 7.0f;
+    private static readonly Vector2 WzTrailPos = new(0.0f, -96.0f);
+    private static readonly Vector2 WzNavPosL = new(-58.0f, 6.0f);
+    private static readonly Vector2 WzNavPosR = new(58.0f, 6.0f);
+
+    // Boss 巡航：横向匀速外附加纵向漂浮与微幅侧倾，剪影不再走直线
+    private const float WzBossDriftY = 16.0f;
+    private const float WzBossDriftPeriod = 7.0f;
+    private const float WzBossBank = 0.05f;
+    private const float WzBossBankPeriod = 6.0f;
+
     private Node2D _wzRoot = null!;
-    private readonly Sprite2D[] _wzShips = new Sprite2D[WzShipPool];
+    private readonly Node2D[] _wzShips = new Node2D[WzShipPool];
+    private readonly Sprite2D[] _wzBodies = new Sprite2D[WzShipPool];
     private readonly Vector2[] _wzVel = new Vector2[WzShipPool];
     private readonly Texture2D[] _enemyTexs = new Texture2D[4];
     private readonly Texture2D[] _bossTexs = new Texture2D[4];
@@ -29,9 +43,23 @@ public partial class TitleScreen : CanvasLayer
 
         for (var i = 0; i < WzShipPool; i++)
         {
-            var ship = new Sprite2D { Visible = false };
+            // 容器承载机体 + 尾焰/航行灯：机体单独压冷色 modulate，灯不被冷色乘暗
+            var ship = new Node2D { Visible = false };
+            var body = new Sprite2D();
+            ship.AddChild(body);
+            var trail = CinematicFx.SoftGlow(WzTrailRadius, new Color(1.0f, 0.62f, 0.24f, 0.42f));
+            trail.Position = WzTrailPos;
+            trail.Scale = new Vector2(trail.Scale.X * 0.55f, trail.Scale.Y * 1.7f); // 沿尾向拉长成尾迹
+            ship.AddChild(trail);
+            var navL = CinematicFx.SoftGlow(WzNavRadius, new Color(UITheme.HoloPale, 0.85f));
+            navL.Position = WzNavPosL;
+            ship.AddChild(navL);
+            var navR = CinematicFx.SoftGlow(WzNavRadius, new Color(UITheme.HoloPale, 0.85f));
+            navR.Position = WzNavPosR;
+            ship.AddChild(navR);
             _wzRoot.AddChild(ship);
             _wzShips[i] = ship;
+            _wzBodies[i] = body;
         }
 
         ScheduleWz(3.0f, 5.0f, 8.0f, SpawnFormation);
@@ -107,10 +135,10 @@ public partial class TitleScreen : CanvasLayer
             }
 
             var ship = _wzShips[idx];
-            ship.Texture = tex;
+            _wzBodies[idx].Texture = tex;
+            _wzBodies[idx].Modulate = UITheme.HostileCool;
             ship.Scale = Vector2.One * scale;
             ship.Rotation = rot;
-            ship.Modulate = new Color(0.52f, 0.64f, 0.8f, 0.5f);
             var yOff = j == 0 ? 0.0f : (j == 1 ? 26.0f : -26.0f);
             ship.Position = new Vector2(x0 - dir * 78.0f * j, y + yOff);
             _wzVel[idx] = new Vector2(dir * speed, vy);
@@ -145,24 +173,36 @@ public partial class TitleScreen : CanvasLayer
         }
     }
 
-    /// <summary>Boss 剪影：暗蓝调大机型缓慢横穿上部空域（~18s），自毁。</summary>
+    /// <summary>Boss 剪影：暗蓝调大机型缓慢横穿上部空域（~18s），自毁。
+    /// 横向匀速之外附加纵向漂浮 + 微幅侧倾（分属性 tween 并行，互不覆盖）。</summary>
     private void SpawnBossCruise()
     {
         var tex = _bossTexs[GD.RandRange(0, 3)];
         var toRight = GD.Randf() < 0.5f;
         var y = (float)GD.RandRange(120.0, 250.0);
+        var baseRot = (toRight ? 0.0f : Mathf.Pi) - Mathf.Pi * 0.5f; // 同敌机：原图机头朝下
         var boss = new Sprite2D
         {
             Texture = tex,
             Scale = Vector2.One * 0.55f,
             Modulate = new Color(0.3f, 0.42f, 0.58f, 0.4f),
-            Rotation = (toRight ? 0.0f : Mathf.Pi) - Mathf.Pi * 0.5f, // 同敌机：原图机头朝下
+            Rotation = baseRot,
             Position = new Vector2(toRight ? -280.0f : 2200.0f, y),
         };
         _wzRoot.AddChild(boss);
         var tw = boss.CreateTween();
-        // 匀速横穿（缓动会让剪影在屏缘停滞数秒才露头）
-        tw.TweenProperty(boss, "position", new Vector2(toRight ? 2200.0f : -280.0f, y), 18.0);
+        // 匀速横穿（缓动会让剪影在屏缘停滞数秒才露头）；只写 x，给纵向漂浮留出 y
+        tw.TweenProperty(boss, "position:x", toRight ? 2200.0f : -280.0f, 18.0);
         tw.TweenCallback(Callable.From(boss.QueueFree));
+
+        var half = WzBossDriftPeriod * 0.5f;
+        var drift = boss.CreateTween().SetLoops();
+        drift.TweenProperty(boss, "position:y", y - WzBossDriftY, half).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        drift.TweenProperty(boss, "position:y", y + WzBossDriftY, half).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+
+        var bankHalf = WzBossBankPeriod * 0.5f;
+        var bank = boss.CreateTween().SetLoops();
+        bank.TweenProperty(boss, "rotation", baseRot + WzBossBank, bankHalf).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        bank.TweenProperty(boss, "rotation", baseRot - WzBossBank, bankHalf).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
     }
 }

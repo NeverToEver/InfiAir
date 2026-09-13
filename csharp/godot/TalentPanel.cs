@@ -41,6 +41,7 @@ public partial class TalentPanel : CanvasLayer
     private Button _overchargeButton = null!;
     private ChamferedPanel _footer = null!;
     private HBoxContainer _footerBox = null!;
+    private readonly List<string> _footerChipTexts = new(); // 上次底栏芯片文案，供值变化脉冲比对
     private StringName? _selectedNode;
     private string? _category;
 
@@ -987,11 +988,22 @@ public partial class TalentPanel : CanvasLayer
             child.Free();
         }
 
+        // 重建的芯片逐枚记录文案：同序文案变了 = 该值变了，补一记落点脉冲（经济变化不再静默换字）
+        var texts = new List<string>();
+        var chips = new List<Label>();
+        void AddChip(string text, Color color)
+        {
+            var chip = MakeFooterChip(text, color);
+            _footerBox.AddChild(chip);
+            chips.Add(chip);
+            texts.Add(text);
+        }
+
         var talent = GameState.Instance.Talent;
-        _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_CACHE_FMT"), talent.EffectiveCacheText, talent.RawCache), UITheme.Accent));
+        AddChip(GdFormat.Format(Tr("TALENT_FOOTER_CACHE_FMT"), talent.EffectiveCacheText, talent.RawCache), UITheme.Accent);
         if (talent.RawCache > talent.Config.SafeThreshold)
         {
-            _footerBox.AddChild(MakeFooterChip(Tr("TALENT_FOOTER_DECAY_FMT"), UITheme.WarnYellow));
+            AddChip(Tr("TALENT_FOOTER_DECAY_FMT"), UITheme.WarnYellow);
         }
 
         var routeName = "";
@@ -1003,21 +1015,44 @@ public partial class TalentPanel : CanvasLayer
             }
         }
 
-        _footerBox.AddChild(MakeFooterChip(
+        AddChip(
             routeName == "" ? Tr("TALENT_FOOTER_ROUTE_NONE") : GdFormat.Format(Tr("TALENT_FOOTER_ROUTE_FMT"), routeName),
-            routeName == "" ? UITheme.TextDim : UITheme.AccentGold));
-        _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_TOKEN_FMT"), talent.ResetTokens), UITheme.AccentGold));
-        _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_OVERCHARGE_FMT"), talent.OverchargeUsed, talent.Config.OverchargeMaxPerRun), UITheme.Text));
+            routeName == "" ? UITheme.TextDim : UITheme.AccentGold);
+        AddChip(GdFormat.Format(Tr("TALENT_FOOTER_TOKEN_FMT"), talent.ResetTokens), UITheme.AccentGold);
+        AddChip(GdFormat.Format(Tr("TALENT_FOOTER_OVERCHARGE_FMT"), talent.OverchargeUsed, talent.Config.OverchargeMaxPerRun), UITheme.Text);
         if (talent.FocusOver() > 0)
         {
             var penalty = Math.Min(talent.Config.FocusPenaltyCap, talent.Config.FocusPenaltyPerLevel * talent.FocusOver());
-            _footerBox.AddChild(MakeFooterChip(GdFormat.Format(Tr("TALENT_FOOTER_FOCUS_FMT"), (int)Math.Round(penalty * 100)), UITheme.Danger));
+            AddChip(GdFormat.Format(Tr("TALENT_FOOTER_FOCUS_FMT"), (int)Math.Round(penalty * 100)), UITheme.Danger);
         }
 
         if (talent.MutexReductionFor(new StringName("offense")) > 0 || talent.MutexReductionFor(new StringName("defense")) > 0)
         {
-            _footerBox.AddChild(MakeFooterChip(Tr("TALENT_FOOTER_MUTEX"), UITheme.Danger));
+            AddChip(Tr("TALENT_FOOTER_MUTEX"), UITheme.Danger);
         }
+
+        // 逐枚错峰淡入（同序同文案视为未变，不重播入场）
+        var hadPrev = _footerChipTexts.Count > 0;
+        for (var i = 0; i < chips.Count; i++)
+        {
+            var changed = hadPrev && i < _footerChipTexts.Count && _footerChipTexts[i] != texts[i];
+            UITheme.FadeIn(chips[i], 0.14f, 0.03f * i);
+            if (changed)
+            {
+                var chip = chips[i];
+                // 首帧布局未定，pivot 尺寸要等布局完成后再取
+                Callable.From(() =>
+                {
+                    if (GodotObject.IsInstanceValid(chip))
+                    {
+                        UITheme.PunchScale(chip, 1.12f, 0.18f);
+                    }
+                }).CallDeferred();
+            }
+        }
+
+        _footerChipTexts.Clear();
+        _footerChipTexts.AddRange(texts);
     }
 
     private Label MakeFooterChip(string text, Color color)

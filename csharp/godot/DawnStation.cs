@@ -26,20 +26,40 @@ public partial class DawnStation : RefCounted
     public const float BreachStart = 0.5f; // 破口起角（rad，右下象限，识别锚点不可移动）
     public const float BreachEnd = 1.2f; // 破口止角
 
+    // 毁灭态冷钢灰阶：色板 token 全为琥珀/全息暖色，无冷钢对应项，而开场镜头 1 的
+    // 「冷站体 + 暖爆心」冷暖对照是刻意设计，故这组冷灰单源于此，不强行套暖 token。
+    private static readonly Color DestroyedRing = new(0.62f, 0.60f, 0.56f);
+    private static readonly Color DestroyedDetail = new(0.76f, 0.72f, 0.66f, 0.6f);
+    private static readonly Color DestroyedTick = new(0.36f, 0.34f, 0.31f);
+    private static readonly Color DestroyedSeg = new(0.72f, 0.68f, 0.62f);
+    private static readonly Color DestroyedSegEdge = new(0.88f, 0.83f, 0.75f, 0.45f);
+    private static readonly Color DestroyedSpoke = new(0.48f, 0.45f, 0.41f);
+    private static readonly Color DestroyedHub = new(0.47f, 0.44f, 0.40f);
+    private static readonly Color DestroyedHubRing = new(0.70f, 0.66f, 0.60f, 0.7f);
+    private static readonly Color DestroyedBreachShadow = new(0.055f, 0.052f, 0.048f);
+    private static readonly Color DestroyedBreachCut = new(0.035f, 0.032f, 0.030f);
+    private static readonly Color DestroyedFlake = new(0.34f, 0.32f, 0.29f);
+
     public static Node2D Build() => Build(Mode.Destroyed);
 
     /// <summary>构建站体（中心在原点，未定位）。DESTROYED = 开场镜头 1 现状视觉（纯提取，行为不变）；
-    /// PHANTOM = §1.1 四层虚影变换全开（全息基底/扫描带/数据流/破口能量网格）。</summary>
+    /// PHANTOM = §1.1 四层虚影变换全开（全息基底/扫描带/数据流/破口能量网格）。
+    /// 环体带极慢怠速自转：全部构件挂内部 IdleSpin 容器，自转只写该容器，station 自身
+    /// rotation 仍归调用方（开场镜头 1 用整站旋转做「极缓自转」，不与之叠加）。</summary>
     public static Node2D Build(Mode mode)
     {
         var station = new Node2D { Name = "DawnStation" };
+        // 站体全部构件挂内部 IdleSpin 容器：怠速自转只写容器，station 自身 rotation
+        // 仍归调用方（开场镜头 1 的整站自转不与之叠加）
+        var spin = new DawnStationIdleSpin { Name = "IdleSpin" };
+        station.AddChild(spin);
         if (mode == Mode.Destroyed)
         {
-            BuildDestroyed(station);
+            BuildDestroyed(spin);
         }
         else
         {
-            BuildPhantom(station);
+            BuildPhantom(spin);
         }
 
         return station;
@@ -250,7 +270,7 @@ public partial class DawnStation : RefCounted
             // 舷窗灯带 + 纵向装甲分缝 + 两端端盖条 + 顶部散热格栅——环体从「矩形块」变「舱段模块」
             for (var w = 0; w < 5; w++)
             {
-                var win = RectPoly(4.0f, 4.0f, new Color(1.0f, 0.78f, 0.42f, 0.85f));
+                var win = RectPoly(4.0f, 4.0f, new Color(UITheme.Holo, 0.85f)); // 舷窗灯走全息琥珀 token
                 win.Position = new Vector2(-24.0f + 12.0f * w, -9.0f);
                 Additive(win);
                 seg.AddChild(win);
@@ -348,14 +368,14 @@ public partial class DawnStation : RefCounted
             station,
             new Godot.Collections.Dictionary
             {
-                ["ring"] = new Color(0.62f, 0.60f, 0.56f),
-                ["detail"] = new Color(0.76f, 0.72f, 0.66f, 0.6f),
-                ["tick"] = new Color(0.36f, 0.34f, 0.31f),
-                ["seg"] = new Color(0.72f, 0.68f, 0.62f),
-                ["seg_edge"] = new Color(0.88f, 0.83f, 0.75f, 0.45f),
-                ["spoke"] = new Color(0.48f, 0.45f, 0.41f),
-                ["hub"] = new Color(0.47f, 0.44f, 0.40f),
-                ["hub_ring"] = new Color(0.70f, 0.66f, 0.60f, 0.7f),
+                ["ring"] = DestroyedRing,
+                ["detail"] = DestroyedDetail,
+                ["tick"] = DestroyedTick,
+                ["seg"] = DestroyedSeg,
+                ["seg_edge"] = DestroyedSegEdge,
+                ["spoke"] = DestroyedSpoke,
+                ["hub"] = DestroyedHub,
+                ["hub_ring"] = DestroyedHubRing,
             },
             false,
             new Godot.Collections.Array());
@@ -367,9 +387,9 @@ public partial class DawnStation : RefCounted
             brokenPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
         }
 
-        station.AddChild(Line(brokenPoints, new Color(0.055f, 0.052f, 0.048f), 30.0f));
+        station.AddChild(Line(brokenPoints, DestroyedBreachShadow, 30.0f));
         // 破口锯齿边缘
-        var jagged = new Polygon2D { Polygon = JaggedPoints(), Color = new Color(0.035f, 0.032f, 0.030f) };
+        var jagged = new Polygon2D { Polygon = JaggedPoints(), Color = DestroyedBreachCut };
         station.AddChild(jagged);
         // 破口剥落碎片：小多边形缓慢外飘 + 翻滚
         for (var k = 0; k < 3; k++)
@@ -383,7 +403,7 @@ public partial class DawnStation : RefCounted
                     new Vector2(5.0f, 7.0f),
                     new Vector2(-6.0f, 6.0f),
                 },
-                Color = new Color(0.34f, 0.32f, 0.29f),
+                Color = DestroyedFlake,
             };
             var fa = 0.6f + 0.3f * k;
             flake.Position = new Vector2(Mathf.Cos(fa), Mathf.Sin(fa)) * 265.0f;
@@ -625,5 +645,17 @@ public partial class DawnStationDot : Node2D
     public override void _Draw()
     {
         DrawCircle(Vector2.Zero, Radius, DotColor);
+    }
+}
+
+/// <summary>站体怠速自转容器：极慢匀速自转（约 5 分钟一周），只让站体读作「活着」。
+/// 纯几何旋转，每帧 O(1) 无分配；station 自身 rotation 留给调用方（开场镜头 1 的整站自转）。</summary>
+public partial class DawnStationIdleSpin : Node2D
+{
+    private const float SpinPeriod = 300.0f; // 一周秒数
+
+    public override void _Process(double delta)
+    {
+        Rotation += (float)delta * Mathf.Tau / SpinPeriod;
     }
 }

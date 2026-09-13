@@ -13,11 +13,20 @@ namespace InfiAir;
 /// </summary>
 public partial class PauseUi : RadialMenuLayer
 {
+    // 说明卡动效：聚焦切换走文本交叉淡化，显隐走整体淡入淡出（硬切 Visible 会闪跳）
+    private const float HintSwapOutTime = 0.08f;
+    private const float HintSwapInTime = 0.12f;
+    private const float HintAppearTime = 0.16f;
+    private const float HintHideTime = 0.10f;
+    private const float HintPunchAmount = 1.03f;
+    private const float HintPunchTime = 0.16f;
+
     private Label _titleLabel = null!;
     private Label _hintTitle = null!;
     private Label _hintBody = null!;
     private ChamferedPanel _hintPlate = null!;
     private SettingsUi? _settingsUi; // 惰性绑定（SettingsUI 的 _ready 晚于本节点）
+    private Tween? _hintTween; // 说明卡交叉淡化/显隐的唯一 tween，重入前 kill 防属性竞争
 
     private readonly Callable _onLocaleChanged;
 
@@ -79,6 +88,8 @@ public partial class PauseUi : RadialMenuLayer
             Brackets = true,
         };
         _hintPlate.Resized += () => _hintPlate.PivotOffset = _hintPlate.Size / 2f;
+        // 初态隐藏：首次聚焦经 ShowHint 淡入，否则会以满 alpha 硬出现
+        _hintPlate.Visible = false;
         AddChild(_hintPlate);
 
         var margin = new MarginContainer();
@@ -136,19 +147,124 @@ public partial class PauseUi : RadialMenuLayer
         }
     }
 
-    /// <summary>右区说明卡随轮盘聚焦项联动。</summary>
+    /// <summary>右区说明卡随轮盘聚焦项联动。聚焦/选中逻辑本身保持同步，仅文本切换与显隐走淡入淡出；
+    /// 缩放冲击属运动脉冲，受 ReduceFlash 无障碍约束。</summary>
     private void RefreshHint()
     {
         var focused = Wheel.FocusedOption;
         if (focused == null)
         {
-            _hintPlate.Visible = false;
+            if (_hintPlate.Visible)
+            {
+                HideHint();
+            }
+
             return;
         }
 
+        var title = focused.Label;
+        var body = Tr("MENU_HINT_" + focused.Id.ToUpperInvariant());
+        if (_hintPlate.Visible)
+        {
+            SwapHintText(title, body);
+        }
+        else
+        {
+            ShowHint(title, body);
+        }
+    }
+
+    /// <summary>说明卡首次出现：整体淡入（不硬切 Visible）。</summary>
+    private void ShowHint(string title, string body)
+    {
+        KillHintTween();
+        _hintTitle.Text = title;
+        _hintBody.Text = body;
+        _hintTitle.Modulate = new Color(_hintTitle.Modulate, 1.0f);
+        _hintBody.Modulate = new Color(_hintBody.Modulate, 1.0f);
         _hintPlate.Visible = true;
-        _hintTitle.Text = focused.Label;
-        _hintBody.Text = Tr("MENU_HINT_" + focused.Id.ToUpperInvariant());
+        _hintPlate.Modulate = new Color(_hintPlate.Modulate, 0.0f);
+        var tw = _hintPlate.CreateTween();
+        _hintTween = tw;
+        tw.TweenProperty(_hintPlate, "modulate:a", 1.0f, HintAppearTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        if (!GameState.Instance.ReduceFlash)
+        {
+            UITheme.PunchScale(_hintPlate, HintPunchAmount, HintPunchTime);
+        }
+    }
+
+    /// <summary>说明卡消失：整体淡出后再隐藏（聚焦项为空时）。</summary>
+    private void HideHint()
+    {
+        KillHintTween();
+        var tw = _hintPlate.CreateTween();
+        _hintTween = tw;
+        tw.TweenProperty(_hintPlate, "modulate:a", 0.0f, HintHideTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        tw.TweenCallback(Callable.From(() =>
+        {
+            _hintTween = null;
+            if (GodotObject.IsInstanceValid(_hintPlate))
+            {
+                _hintPlate.Visible = false;
+            }
+        }));
+    }
+
+    /// <summary>说明卡已显示时的文本交叉淡化：先淡出旧文，再换文淡入；面板同时回正 alpha
+    /// （可能在上一轮隐去的半途被重新聚焦）。</summary>
+    private void SwapHintText(string title, string body)
+    {
+        KillHintTween();
+        var tw = _hintPlate.CreateTween();
+        _hintTween = tw;
+        tw.SetParallel(true);
+        tw.TweenProperty(_hintTitle, "modulate:a", 0.0f, HintSwapOutTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        tw.TweenProperty(_hintBody, "modulate:a", 0.0f, HintSwapOutTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        tw.TweenProperty(_hintPlate, "modulate:a", 1.0f, HintSwapOutTime);
+        // chain 之后的回调在并行的淡出段结束才执行，故换文与淡入严格串行
+        tw.Chain().TweenCallback(Callable.From(() =>
+        {
+            if (!GodotObject.IsInstanceValid(_hintTitle))
+            {
+                return;
+            }
+
+            _hintTitle.Text = title;
+            _hintBody.Text = body;
+            _hintTitle.Modulate = new Color(_hintTitle.Modulate, 0.0f);
+            _hintBody.Modulate = new Color(_hintBody.Modulate, 0.0f);
+            FadeHintLabelsIn();
+        }));
+        if (!GameState.Instance.ReduceFlash)
+        {
+            UITheme.PunchScale(_hintPlate, HintPunchAmount, HintPunchTime);
+        }
+    }
+
+    private void FadeHintLabelsIn()
+    {
+        var tw = _hintPlate.CreateTween();
+        _hintTween = tw;
+        tw.SetParallel(true);
+        tw.TweenProperty(_hintTitle, "modulate:a", 1.0f, HintSwapInTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(_hintBody, "modulate:a", 1.0f, HintSwapInTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+    }
+
+    /// <summary>kill 进行中的说明卡 tween（快速连切聚焦时防同属性竞争抖动）。</summary>
+    private void KillHintTween()
+    {
+        if (_hintTween != null && _hintTween.IsValid())
+        {
+            _hintTween.Kill();
+        }
+
+        _hintTween = null;
     }
 
     private void OnLocaleChanged()

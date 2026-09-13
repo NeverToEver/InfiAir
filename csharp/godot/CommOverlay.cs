@@ -14,7 +14,28 @@ public partial class CommOverlay : CanvasLayer
     private const float HoldTime = 3.5f;
     private const float FadeTime = 0.5f;
 
+    // 面板几何（入场滑入与扫描线的静止基准）
+    private const float PanelX = 24.0f;
+    private const float PanelY = 760.0f;
+    private const float PanelW = 760.0f;
+    private const float PanelH = 96.0f;
+    private const float ScanInset = 12.0f;
+
+    // 入场/重入：滑入 + 受激提亮（提亮属亮度脉冲，受 ReduceFlash 约束）
+    private const float EntranceFadeTime = 0.16f;
+    private const float EntranceSlideTime = 0.22f;
+    private const float EntranceSlidePx = 28.0f;
+    private const float ReentrySlidePx = 14.0f;
+    private const float ReentryTime = 0.14f;
+    private const float PulsePeak = 1.6f; // self_modulate 峰值（>1 读作受激暖光）
+    private const float PulseTime = 0.22f;
+
+    // 台词停留期的慢扫描线（只在按住时循环，非亮度脉冲；ReduceFlash 下不启）
+    private const float ScanSweepTime = 2.2f;
+    private const float ScanAlpha = 0.10f;
+
     private Control _panel = null!;
+    private ColorRect _scanline = null!;
     private Label _label = null!;
     private string _fullText = "";
 
@@ -24,6 +45,8 @@ public partial class CommOverlay : CanvasLayer
     /// <summary>淡出 tween 缓存——ShowLine/Clear 必须 kill 进行中的淡出，
     /// 否则新台词恰落淡出窗口时被残留 tween 拉回 alpha=0 并 hide。</summary>
     private Tween? _fadeTween;
+    private Tween? _introTween; // 入场/重入滑入与提亮，新台词重入前必须 kill
+    private Tween? _scanTween; // 扫描线循环
 
     private readonly Color _accent;
 
@@ -39,8 +62,8 @@ public partial class CommOverlay : CanvasLayer
         Layer = 12;
         var panel = new ChamferedPanel
         {
-            Position = new Vector2(24.0f, 760.0f),
-            Size = new Vector2(760.0f, 96.0f),
+            Position = new Vector2(PanelX, PanelY),
+            Size = new Vector2(PanelW, PanelH),
             BgColor = UITheme.CommBgDark,
             BorderColor = new Color(accent, 0.6f),
             BracketColor = accent,
@@ -49,6 +72,16 @@ public partial class CommOverlay : CanvasLayer
         };
         _panel = panel;
         AddChild(panel);
+        // 扫描线先于字幕入树：绘制序在底衬之上、文字之下，不遮字
+        _scanline = new ColorRect
+        {
+            Position = new Vector2(ScanInset, ScanInset),
+            Size = new Vector2(PanelW - (ScanInset * 2.0f), 2.0f),
+            Color = new Color(accent, ScanAlpha),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        panel.AddChild(_scanline);
         _label = UITheme.MakeLabel("", 22, UITheme.Text, HorizontalAlignment.Left);
         _label.Position = new Vector2(20.0f, 14.0f);
         _label.CustomMinimumSize = new Vector2(720.0f, 68.0f);
@@ -58,9 +91,11 @@ public partial class CommOverlay : CanvasLayer
         panel.AddChild(_label);
     }
 
-    /// <summary>播放一句台词（翻译键）：新台词顶掉未播完的旧台词。</summary>
+    /// <summary>播放一句台词（翻译键）：新台词顶掉未播完的旧台词。
+    /// 打字机/停留/淡出计时本身不变，仅叠加不改变时序的入场表现。</summary>
     public void ShowLine(string key)
     {
+        var replacing = _panel.Visible; // 旧句仍在场：走重入表现，否则整段入场
         // 先取消进行中的淡出，避免新台词被残留 tween 拖回 alpha=0
         if (_fadeTween != null && _fadeTween.IsValid())
         {
@@ -68,16 +103,82 @@ public partial class CommOverlay : CanvasLayer
             _fadeTween = null;
         }
 
+        KillIntro();
+        KillScan();
+
         _fullText = Tr(key);
         _shownChars = 0;
         _charT = 0.0f;
         _holdLeft = -1.0f;
         _label.Text = "";
         var m = _panel.Modulate;
-        m.A = 1.0f;
+        m.A = replacing ? 1.0f : 0.0f;
         _panel.Modulate = m;
         _panel.Visible = true;
+        PlayEnter(replacing);
         GameState.Instance.PlaySfx(SfxId.FireC);
+    }
+
+    /// <summary>入场（首次出现：滑入 + 淡入 + 受激提亮）与重入（顶掉旧句：轻推 + 提亮）。
+    /// 提亮与扫描线受 ReduceFlash 约束（减弱/关闭），滑动属位移不触发频闪。</summary>
+    private void PlayEnter(bool replacing)
+    {
+        var reduceFlash = GameState.Instance.ReduceFlash;
+        _panel.Position = new Vector2(PanelX - (replacing ? ReentrySlidePx : EntranceSlidePx), PanelY);
+        _panel.SelfModulate = reduceFlash ? Colors.White : new Color(PulsePeak, PulsePeak * 0.86f, PulsePeak * 0.6f);
+        _introTween = _panel.CreateTween();
+        _introTween.SetParallel(true);
+        if (!replacing)
+        {
+            _introTween.TweenProperty(_panel, "modulate:a", 1.0f, EntranceFadeTime)
+                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+
+        _introTween.TweenProperty(_panel, "position:x", PanelX, replacing ? ReentryTime : EntranceSlideTime)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        if (!reduceFlash)
+        {
+            _introTween.TweenProperty(_panel, "self_modulate", Colors.White, PulseTime)
+                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+
+        if (!reduceFlash)
+        {
+            StartScan();
+        }
+    }
+
+    /// <summary>慢扫描线：上下来回循环（tween 循环，无每帧逻辑）。</summary>
+    private void StartScan()
+    {
+        _scanline.Visible = true;
+        _scanline.Color = new Color(_accent, ScanAlpha);
+        _scanTween = _scanline.CreateTween().SetLoops();
+        _scanTween.TweenProperty(_scanline, "position:y", PanelH - ScanInset, ScanSweepTime)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        _scanTween.TweenProperty(_scanline, "position:y", ScanInset, ScanSweepTime)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+    }
+
+    private void KillIntro()
+    {
+        if (_introTween != null && _introTween.IsValid())
+        {
+            _introTween.Kill();
+        }
+
+        _introTween = null;
+    }
+
+    private void KillScan()
+    {
+        if (_scanTween != null && _scanTween.IsValid())
+        {
+            _scanTween.Kill();
+        }
+
+        _scanTween = null;
+        _scanline.Visible = false;
     }
 
     /// <summary>清空当前台词并隐藏（返航打断事件时调用，避免恢复本局后台词残留）。</summary>
@@ -90,6 +191,11 @@ public partial class CommOverlay : CanvasLayer
             _fadeTween = null;
         }
 
+        KillIntro();
+        KillScan();
+        // 复位入场残留（半途被打断时面板可能停在滑入位/提亮态）
+        _panel.Position = new Vector2(PanelX, PanelY);
+        _panel.SelfModulate = Colors.White;
         _fullText = "";
         _shownChars = 0;
         _charT = 0.0f;
@@ -135,6 +241,10 @@ public partial class CommOverlay : CanvasLayer
                 // 进入淡出段（复用同一计时；FADE_TIME+1.0 余量防淡出期间本分支重入——
                 // 实际视觉 = HOLD_TIME 3.5s hold + 0.5s fade，与 ELITE_TURRET_EVENT 文档「3.5s then fade」一致）
                 _holdLeft = FadeTime + 1.0f;
+                // 淡出期间停掉扫描线/复位提亮，避免残影里还有元素在动
+                KillIntro();
+                KillScan();
+                _panel.SelfModulate = Colors.White;
                 _fadeTween = CreateTween();
                 _fadeTween.TweenProperty(_panel, "modulate:a", 0.0f, FadeTime);
                 _fadeTween.TweenCallback(Callable.From(() =>

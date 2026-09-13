@@ -14,6 +14,10 @@ namespace InfiAir;
 /// </summary>
 public partial class ExitConfirm : CanvasLayer
 {
+    // 入场：面板轻微放大归位 + 按钮行错峰淡入；退场走 AnimateModalClose（当帧断输入）
+    private const float PlateEntranceScale = 0.96f;
+    private const float PlateEntranceTime = 0.18f;
+
     /// <summary>取消退出时发出（按钮点击与 BackNavigator 路由的 Esc 同一出口）；打开者据此恢复自身。</summary>
     public event System.Action? Canceled;
     private Label _msgLabel = null!;
@@ -24,8 +28,10 @@ public partial class ExitConfirm : CanvasLayer
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
     private Label _titleLabel = null!;
+    private HBoxContainer _row = null!;
     private bool _battle;
     private bool _exiting;
+    private bool _closing; // 退场过渡中：根可见性在回调里才落下，防重复触发
 
     private readonly Callable _onLocaleChanged;
 
@@ -51,6 +57,7 @@ public partial class ExitConfirm : CanvasLayer
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         row.AddThemeConstantOverride("separation", 20);
         content.AddChild(row);
+        _row = row;
 
         _cancelButton = MakeButton(Tr("EXIT_CANCEL"));
         _cancelButton.Pressed += Cancel;
@@ -102,8 +109,21 @@ public partial class ExitConfirm : CanvasLayer
     {
         _battle = battle;
         RefreshTexts();
+        // 退场后的重新打开：恢复退场所停用的输入处理与遮罩鼠标拦截（AnimateModalClose 当帧二者都落下）
+        SetProcessInput(true);
+        SetProcessUnhandledInput(true);
+        _closing = false;
         Visible = true;
+        _dim.MouseFilter = Control.MouseFilterEnum.Stop;
+        _plate.MouseFilter = Control.MouseFilterEnum.Stop;
         UITheme.AnimateModalOpen(_dim, _plate);
+        // 面板放大归位（pivot 居中）；容器内缩放不参与布局计算，无回流
+        _plate.PivotOffset = _plate.Size * 0.5f;
+        _plate.Scale = new Vector2(PlateEntranceScale, PlateEntranceScale);
+        var tw = _plate.CreateTween();
+        tw.TweenProperty(_plate, "scale", Vector2.One, PlateEntranceTime)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        UITheme.StaggerOpen(_row); // 按钮行错峰淡入
         // 默认焦点在「取消」（安全侧），防止误按 Enter 直接退出
         _cancelButton.GrabFocus();
     }
@@ -123,15 +143,18 @@ public partial class ExitConfirm : CanvasLayer
         _okButton.Visible = !_battle;
     }
 
-    /// <summary>取消退出（Esc/手柄 B 由 BackNavigator 路由到这里）</summary>
+    /// <summary>取消退出（Esc/手柄 B 由 BackNavigator 路由到这里）。
+    /// 退场动画期间即断开输入与鼠标命中（AnimateModalClose），逻辑交接在回调内同步完成，
+    /// 故退场残影不会截获已交还给下一层的输入。</summary>
     public void Cancel()
     {
-        if (_exiting)
+        if (_exiting || _closing)
         {
             return;
         }
-        Visible = false;
-        Canceled?.Invoke();
+
+        _closing = true;
+        UITheme.AnimateModalClose(this, _dim, _plate, () => Canceled?.Invoke());
     }
 
     /// <summary>退出确认已受理（_exiting），调用方（GameState.RestartRun）须屏蔽冲突快捷键。</summary>

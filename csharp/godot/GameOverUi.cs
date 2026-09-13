@@ -10,7 +10,13 @@ namespace InfiAir;
 /// </summary>
 public partial class GameOverUi : RadialMenuLayer
 {
-    private Label _statsLabel = null!;
+    // 统计两行错峰淡入 + 面板轻微强调（缩放属运动脉冲，受 ReduceFlash 约束）
+    private const float StatsPunchAmount = 1.02f;
+    private const float StatsPunchTime = 0.2f;
+
+    private Label _killsLabel = null!;
+    private Label _bossKillsLabel = null!;
+    private VBoxContainer _statsBox = null!;
     private Label _titleLabel = null!;
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
@@ -41,8 +47,14 @@ public partial class GameOverUi : RadialMenuLayer
         _titleLabel = (Label)shell["title"].AsGodotObject();
         _content = (VBoxContainer)shell["content"].AsGodotObject();
 
-        _statsLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
-        _content.AddChild(_statsLabel);
+        _statsBox = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        _statsBox.AddThemeConstantOverride("separation", 8);
+        _content.AddChild(_statsBox);
+        // 两行统计分列：错峰淡入作用在行上，整体格式与合并成一行的旧观感一致
+        _killsLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
+        _statsBox.AddChild(_killsLabel);
+        _bossKillsLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
+        _statsBox.AddChild(_bossKillsLabel);
 
         var gs = GameState.Instance;
         // IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
@@ -81,10 +93,8 @@ public partial class GameOverUi : RadialMenuLayer
 
     private void RefreshStats()
     {
-        _statsLabel.Text = GdFormat.Format(
-            Tr("GO_KILLS") + "\n" + Tr("GO_BOSS_KILLS"),
-            GameState.Instance.Kills,
-            GameState.Instance.BossKills);
+        _killsLabel.Text = GdFormat.Format(Tr("GO_KILLS"), GameState.Instance.Kills);
+        _bossKillsLabel.Text = GdFormat.Format(Tr("GO_BOSS_KILLS"), GameState.Instance.BossKills);
     }
 
     /// <summary>装配结算菜单（打开时重装，复位轮盘导航态）。</summary>
@@ -128,7 +138,12 @@ public partial class GameOverUi : RadialMenuLayer
         SetWheelActive(true);
         BuildMenu();
         PlayWheelEntrance();
-        UITheme.AnimateModalOpen(_dim, _plate, _content);
+        UITheme.AnimateModalOpen(_dim, _plate);
+        UITheme.StaggerOpen(_statsBox); // 两行统计错峰淡入
+        if (!GameState.Instance.ReduceFlash)
+        {
+            UITheme.PunchScale(_plate, StatsPunchAmount, StatsPunchTime);
+        }
     }
 
     /// <summary>重新出击（轮盘/R 快捷键共用）：结算完成后重开同一场景。</summary>

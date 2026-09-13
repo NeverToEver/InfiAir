@@ -12,7 +12,6 @@ public partial class Tutorial : Node2D
 {
     // 静态 Godot 资源必须改实例字段——静态持 RefCounted/资源
     // 在引擎退出后被 .NET finalize 触碰 native 可致 segfault
-    private readonly FontFile _font = UITheme.Font;
     private readonly PackedScene _enemyScene = GD.Load<PackedScene>("res://scenes/enemy.tscn");
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
     private readonly PackedScene _mothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
@@ -57,9 +56,10 @@ public partial class Tutorial : Node2D
     private Label _objectiveLabel = null!;
     private string _objectiveKey = "";
     private Godot.Collections.Array _objectiveArgs = new();
-    private PanelContainer _completePanel = null!;
+    private Control _completePanel = null!;
     private CanvasLayer _hudLayer = null!;
     private Player _player = null!;
+    private Tween? _stageTween; // 阶段横幅编排（连过阶段时先杀旧）
 
     private readonly Callable _onLocaleChanged;
     private readonly Callable _onPlayerDied;
@@ -121,28 +121,24 @@ public partial class Tutorial : Node2D
         }
     }
 
+    /// <summary>阶段标题基位（横幅滑入/滑出的归属位）。</summary>
+    private static readonly Vector2 TitleBasePos = new(-400.0f, 24.0f);
+
     private void BuildHud()
     {
         _hudLayer = new CanvasLayer { Layer = 2 };
         AddChild(_hudLayer);
-        _titleLabel = new Label();
+        // 字号走 UITheme 阶梯（原裸 34/22 不在梯度上）
+        _titleLabel = UITheme.MakeLabel("", UITheme.FontScore, UITheme.AccentGold, HorizontalAlignment.Center);
         _titleLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        _titleLabel.Position = new Vector2(-400.0f, 24.0f);
+        _titleLabel.Position = TitleBasePos;
         _titleLabel.CustomMinimumSize = new Vector2(800.0f, 0.0f);
-        _titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        _titleLabel.AddThemeFontOverride("font", _font);
-        _titleLabel.AddThemeFontSizeOverride("font_size", 34);
-        _titleLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
         _hudLayer.AddChild(_titleLabel);
-        _objectiveLabel = new Label();
+        _objectiveLabel = UITheme.MakeLabel("", UITheme.FontHudL, UITheme.TextDim, HorizontalAlignment.Center);
         _objectiveLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         _objectiveLabel.Position = new Vector2(-500.0f, 74.0f);
         _objectiveLabel.CustomMinimumSize = new Vector2(1000.0f, 0.0f);
-        _objectiveLabel.HorizontalAlignment = HorizontalAlignment.Center;
         _objectiveLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _objectiveLabel.AddThemeFontOverride("font", _font);
-        _objectiveLabel.AddThemeFontSizeOverride("font_size", 22);
-        _objectiveLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
         _hudLayer.AddChild(_objectiveLabel);
     }
 
@@ -150,10 +146,42 @@ public partial class Tutorial : Node2D
 
     private void SetObjectiveTr(string key, Godot.Collections.Array args)
     {
+        // 换行（新目标/新阶段）才做入场动效；同键只换数字的高频刷新（击杀计数、100ms 蓄力轮询）
+        // 直接改文本——否则每 0.1s 起一条 tween，既抖又白分配
+        var keyChanged = _objectiveKey != key;
         _objectiveKey = key;
         _objectiveArgs = args;
         // tr(key) % args if not args.is_empty() else tr(key)
-        _objectiveLabel.Text = args.Count > 0 ? GdFormat.Format((string)Tr(key), ToObjects(args)) : (string)Tr(key);
+        var text = args.Count > 0 ? GdFormat.Format((string)Tr(key), ToObjects(args)) : (string)Tr(key);
+        if (_objectiveLabel.Text == text)
+        {
+            return;
+        }
+
+        _objectiveLabel.Text = text;
+        if (!keyChanged)
+        {
+            return;
+        }
+
+        UITheme.FadeIn(_objectiveLabel, 0.18f);
+        UITheme.PunchScale(_objectiveLabel, 1.02f, 0.14f);
+    }
+
+    /// <summary>阶段横幅：标题自左滑入淡入（目标文本由 SetObjectiveTr 换行时自行入场）。</summary>
+    private void PlayStageBanner()
+    {
+        if (_stageTween != null && _stageTween.IsValid())
+        {
+            _stageTween.Kill();
+        }
+
+        _titleLabel.Modulate = new Color(_titleLabel.Modulate, 0f);
+        _titleLabel.Position = new Vector2(TitleBasePos.X - 48.0f, TitleBasePos.Y);
+        _stageTween = _titleLabel.CreateTween();
+        _stageTween.TweenProperty(_titleLabel, "modulate:a", 1.0f, 0.22).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        _stageTween.Parallel().TweenProperty(_titleLabel, "position", TitleBasePos, 0.3)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
     }
 
     private void OnLocaleChanged()
@@ -167,6 +195,7 @@ public partial class Tutorial : Node2D
         _stage = idx;
         _stageKills = 0;
         _titleLabel.Text = (string)Tr(StageTitles[idx]);
+        PlayStageBanner();
         switch (idx)
         {
             case 0:
@@ -597,21 +626,26 @@ public partial class Tutorial : Node2D
 
         _titleLabel.Text = (string)Tr("TUT_DONE");
         SetObjectiveTr("TUT_DONE_DESC");
-        _completePanel = new PanelContainer();
-        _completePanel.SetAnchorsPreset(Control.LayoutPreset.Center);
-        _completePanel.Position = new Vector2(-160.0f, -40.0f);
-        _completePanel.CustomMinimumSize = new Vector2(320.0f, 0.0f);
-        var style = UITheme.MakeMetalPanelStyle();
-        style.SetContentMarginAll(20.0f);
-        _completePanel.AddThemeStyleboxOverride("panel", style);
-        var button = new Button();
-        button.Text = (string)Tr("TUT_BACK");
-        button.AddThemeFontOverride("font", _font);
-        button.AddThemeFontSizeOverride("font_size", 26);
-        UITheme.ApplyButton(button);
+        // 完成面板走切角面板（与全站视觉语言一致），控件装配后 pivot 置中，入场缩放脉冲
+        var panel = new ChamferedPanel { Brackets = true };
+        panel.SetAnchorsPreset(Control.LayoutPreset.Center);
+        panel.Position = new Vector2(-160.0f, -40.0f);
+        panel.CustomMinimumSize = new Vector2(320.0f, 0.0f);
+        panel.Padding = 24.0f;
+        var button = UITheme.MakeButton((string)Tr("TUT_BACK"), true);
         button.Pressed += ExitTutorial;
-        _completePanel.AddChild(button);
-        _hudLayer.AddChild(_completePanel);
+        panel.AddChild(button);
+        _hudLayer.AddChild(panel);
+        _completePanel = panel;
+        // 首帧布局未定，pivot 尺寸要等布局完成后再取
+        Callable.From(() =>
+        {
+            if (GodotObject.IsInstanceValid(panel))
+            {
+                UITheme.AnimateOpen(panel);
+                UITheme.PunchScale(panel, 1.06f, 0.2f);
+            }
+        }).CallDeferred();
     }
 
     private void ExitTutorial()

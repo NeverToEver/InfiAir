@@ -14,6 +14,14 @@ public partial class TitleScreen : CanvasLayer
 {
     private const ulong InputGuardMs = 500;
 
+    // 开局确认动效：延迟即切场景等待时长（保持迅捷），ReduceFlash 时只留极轻缩放、不提亮
+    private const float ConfirmDelay = 0.2f;
+    private const float ConfirmZoom = 1.05f;
+    private const float ConfirmZoomReduced = 1.015f;
+
+    // 标题屏深空底色：色板 token 均为半透明面板底（BgDeep α0.92）且更偏暖，无同值不透明底色，故单源于此
+    private static readonly Color TitleBgColor = new(0.020f, 0.018f, 0.015f);
+
     // 悬挂展示位与跃迁远点（1920×1080 设计坐标：机体停驻右三分之一，自右上远处飞入）
     private static readonly Vector2 ShipAnchorPos = new(1360.0f, 470.0f);
     private static readonly Vector2 ShipFarPos = new(1560.0f, 230.0f);
@@ -23,6 +31,11 @@ public partial class TitleScreen : CanvasLayer
     /// ChangeSceneToFile（deferred 双倍执行），且 T 与其他键同帧时目的地由后调用者覆盖</summary>
     private bool _started;
 
+    // 确认动效引用的标题构件（BuildTitleUi 装配，确认时提亮/缩放）
+    private TextureRect? _logo;
+    private ColorRect? _accentLine;
+    private Label? _pressHint;
+
     /// <summary>存在本局存档（_Ready 缓存：标题屏 UI 与输入路由共用）。</summary>
     private bool _hasSave;
 
@@ -30,7 +43,7 @@ public partial class TitleScreen : CanvasLayer
     {
         // 深空底色 + 程序化星空（IntroCinematic Shot1/6 同款直接 new）
         // Starfield._Ready 自置 ZIndex=-10，底色须再低一层否则星点被底色盖住
-        var bg = CinematicFx.BgRect(new Color(0.020f, 0.018f, 0.015f));
+        var bg = CinematicFx.BgRect(TitleBgColor);
         bg.ZIndex = -20;
         AddChild(bg);
         AddChild(new Starfield());
@@ -89,6 +102,7 @@ public partial class TitleScreen : CanvasLayer
             SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
+        _logo = title;
         vbox.AddChild(title);
 
         var accentLine = new ColorRect
@@ -98,6 +112,7 @@ public partial class TitleScreen : CanvasLayer
             SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
+        _accentLine = accentLine;
         vbox.AddChild(accentLine);
 
         var spacer = new Control { CustomMinimumSize = new Vector2(0.0f, 28.0f), MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -105,6 +120,7 @@ public partial class TitleScreen : CanvasLayer
 
         var hint = UITheme.MakeLabel((string)Tr("TITLE_PRESS_ANY_KEY"), UITheme.FontBody, UITheme.TextDim, HorizontalAlignment.Center);
         hint.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f); // 落位后（2.2s）才启动闪烁
+        _pressHint = hint;
         vbox.AddChild(hint);
 
         // 本局存档存在时：额外一行「按 C 继续上次出击」提示（高亮于「任意键新局」之上）
@@ -166,36 +182,78 @@ public partial class TitleScreen : CanvasLayer
             var kc = key.Keycode != Key.None ? key.Keycode : key.PhysicalKeycode;
             if (kc == Key.T)
             {
-                GetTree().ChangeSceneToFile("res://scenes/tutorial.tscn");
+                StartScene("res://scenes/tutorial.tscn");
             }
             else if (kc == Key.C && _hasSave)
             {
                 // 读取上次存档（仅在存在存档时消费 C；无档时 C 等同「任意键」新局）
                 GameState.Instance.PendingLoadRun = true;
-                StartGame();
+                StartScene("res://scenes/main.tscn");
             }
             else
             {
-                StartGame();
+                StartScene("res://scenes/main.tscn");
             }
         }
         else if (@event is InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true })
         {
             GetViewport().SetInputAsHandled();
             _started = true;
-            StartGame();
+            StartScene("res://scenes/main.tscn");
         }
         else if (@event is InputEventJoypadMotion joyMotion && Mathf.Abs(joyMotion.AxisValue) > 0.6f)
         {
             // 摇杆/扳机推过阈值也能开始（手柄玩家无需刻意够按钮）
             GetViewport().SetInputAsHandled();
             _started = true;
-            StartGame();
+            StartScene("res://scenes/main.tscn");
         }
     }
 
-    private void StartGame()
+    /// <summary>确认动效 → 延迟切场景：_started 已由调用方置位（重复输入在入口即被挡回），
+    /// 延迟内输入不再被消费，切场景仍走 ChangeSceneToFile 原生路径。</summary>
+    private void StartScene(string scenePath)
     {
-        GetTree().ChangeSceneToFile("res://scenes/main.tscn");
+        PlayConfirmFlourish();
+        var tw = CreateTween();
+        tw.TweenInterval(ConfirmDelay);
+        tw.TweenCallback(Callable.From(() => GetTree().ChangeSceneToFile(scenePath)));
+    }
+
+    /// <summary>开局确认：logo 放大回弹 + 受激提亮、标题短线提亮、按任意键提示弹一下。
+    /// ReduceFlash 时压掉提亮与放大（无障碍），只留极轻缩放。</summary>
+    private void PlayConfirmFlourish()
+    {
+        var reduce = GameState.Instance.ReduceFlash;
+        var peak = reduce ? ConfirmZoomReduced : ConfirmZoom;
+        if (_logo != null && GodotObject.IsInstanceValid(_logo))
+        {
+            _logo.PivotOffset = _logo.Size * 0.5f;
+            var tw = _logo.CreateTween();
+            tw.TweenProperty(_logo, "scale", new Vector2(peak, peak), 0.1).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+            if (!reduce)
+            {
+                tw.Parallel().TweenProperty(_logo, "modulate", new Color(1.35f, 1.2f, 1.0f), 0.1).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+            }
+
+            tw.TweenProperty(_logo, "scale", Vector2.One, 0.12).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+            if (!reduce)
+            {
+                tw.Parallel().TweenProperty(_logo, "modulate", Colors.White, 0.12).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+            }
+        }
+
+        if (_accentLine != null && GodotObject.IsInstanceValid(_accentLine))
+        {
+            var baseCol = new Color(UITheme.Accent, 0.4f);
+            var tw = _accentLine.CreateTween();
+            tw.TweenProperty(_accentLine, "color", reduce ? baseCol : new Color(UITheme.AccentHot, 1.0f), 0.1);
+            tw.TweenProperty(_accentLine, "color", baseCol, 0.14);
+        }
+
+        if (_pressHint != null && GodotObject.IsInstanceValid(_pressHint))
+        {
+            UITheme.PunchScale(_pressHint, reduce ? 1.02f : 1.08f, 0.16f);
+        }
     }
 }

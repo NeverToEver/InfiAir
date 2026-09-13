@@ -53,6 +53,8 @@ public partial class BaseConsole : RadialMenuLayer
     private Label _categoryLabel = null!;
     private Control _pageHolder = null!;
     private GradientTexture2D? _glowTexture;
+    private Tween? _switchTween; // 分类切换编排（连点时先杀旧，防同属性叠写）
+    private bool _resuming;      // 继续出击退场重入守卫
 
     /// <summary>虚影面板底后径向辉光垫（近似毛玻璃）：全面板共享一张径向渐变纹理。</summary>
     private GradientTexture2D MakeGlowTexture()
@@ -427,7 +429,8 @@ public partial class BaseConsole : RadialMenuLayer
         SwitchCategory(option.Id, animate: true);
     }
 
-    /// <summary>目录切换：轮盘确认/芯片行共用；单面板可见 + 轻量入场动效。</summary>
+    /// <summary>目录切换：轮盘确认/芯片行共用。animate = 方向性滑切（旧页朝来向退出、
+    /// 新页自对应侧滑入），非 animate = 即时装配（开页初始 + HoloBoot 前置）。</summary>
     private void SwitchCategory(string categoryId, bool animate)
     {
         if (!_pages.ContainsKey(categoryId))
@@ -435,24 +438,86 @@ public partial class BaseConsole : RadialMenuLayer
             return;
         }
 
+        var prev = _currentCategory;
         _currentCategory = categoryId;
-        foreach (var kv in _pages)
-        {
-            kv.Value.Visible = kv.Key == categoryId;
-        }
-
         if (_categoryChips.TryGetValue(categoryId, out var chip))
         {
             chip.SetPressedNoSignal(true);
         }
 
         _categoryLabel.Text = (string)Tr(ChipKey(categoryId));
-        if (animate && _pages.TryGetValue(categoryId, out var page))
+        if (!animate)
         {
-            page.Modulate = new Color(page.Modulate, 0f);
-            var tw = CreateTween();
-            tw.TweenProperty(page, "modulate:a", 1.0f, 0.18);
+            foreach (var kv in _pages)
+            {
+                kv.Value.Visible = kv.Key == categoryId;
+            }
+
+            return;
         }
+
+        KillSwitch();
+        // 按目录顺序判定来向：索引增大 = 自右侧进入，减小 = 自左侧
+        var forward = System.Array.IndexOf(CategoryIds, categoryId) >= System.Array.IndexOf(CategoryIds, prev);
+        var newPage = _pages[categoryId];
+        if (!_pages.TryGetValue(prev, out var oldPage) || oldPage == newPage)
+        {
+            oldPage = null;
+        }
+
+        // 残留态归零：连点切换时被中断的页先复位（否则停在半透明/偏移位）
+        foreach (var kv in _pages)
+        {
+            if (kv.Value == newPage || kv.Value == oldPage)
+            {
+                continue;
+            }
+
+            kv.Value.Visible = false;
+            kv.Value.Modulate = new Color(kv.Value.Modulate, 1f);
+            kv.Value.Position = new Vector2(0f, kv.Value.Position.Y);
+        }
+
+        var tw = CreateTween();
+        _switchTween = tw;
+        if (oldPage != null && oldPage.Visible)
+        {
+            tw.TweenProperty(oldPage, "modulate:a", 0f, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+            tw.Parallel().TweenProperty(oldPage, "position:x", forward ? -44f : 44f, 0.12)
+                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+        }
+
+        tw.TweenCallback(Callable.From(() =>
+        {
+            if (oldPage != null)
+            {
+                oldPage.Visible = false;
+                oldPage.Modulate = new Color(oldPage.Modulate, 1f);
+                oldPage.Position = new Vector2(0f, oldPage.Position.Y);
+            }
+
+            newPage.Visible = true;
+            newPage.Modulate = new Color(newPage.Modulate, 0f);
+            newPage.Position = new Vector2(forward ? 44f : -44f, newPage.Position.Y);
+        }));
+        tw.TweenProperty(newPage, "modulate:a", 1.0f, 0.2).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        tw.Parallel().TweenProperty(newPage, "position:x", 0f, 0.2).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+    }
+
+    /// <summary>杀掉进行中的切换编排并把各页恢复到稳定态。</summary>
+    private void KillSwitch()
+    {
+        if (_switchTween == null)
+        {
+            return;
+        }
+
+        if (_switchTween.IsValid())
+        {
+            _switchTween.Kill();
+        }
+
+        _switchTween = null;
     }
 
     private void RefreshChipLabels()
@@ -478,6 +543,20 @@ public partial class BaseConsole : RadialMenuLayer
         // 任务轮换：进基地发放刷新点数（GRANT_PER_VISIT 档位，攒两次基地换一次刷新）
         GameState.Instance.GrantRefreshPoints();
         Refresh();
+        _resuming = false;
+        KillSwitch();
+        // 复位上次退场留给 chrome/面板的残态：遮罩与页板必须重新拦点击、输入处理重新接管
+        //（AnimateModalClose 会把它们置穿透并停用 process_input/unhandled_input）
+        SetProcessInput(true);
+        SetProcessUnhandledInput(true);
+        Dim.MouseFilter = Control.MouseFilterEnum.Stop;
+        foreach (var kv in _pages)
+        {
+            kv.Value.MouseFilter = Control.MouseFilterEnum.Stop;
+            kv.Value.Modulate = new Color(kv.Value.Modulate, 1f);
+            kv.Value.Position = new Vector2(0f, kv.Value.Position.Y);
+        }
+
         Visible = true;
         OnVisibleChangedForFx();
         SetWheelActive(true);
@@ -585,6 +664,7 @@ public partial class BaseConsole : RadialMenuLayer
         }
 
         var talent = GameState.Instance.Talent;
+        var rowIndex = 0;
         foreach (var route in TalentTree.Routes)
         {
             var row = new HBoxContainer();
@@ -616,6 +696,8 @@ public partial class BaseConsole : RadialMenuLayer
             button.Pressed += () => OnRoutePressed(routeId);
             row.AddChild(button);
             _routesBox.AddChild(row);
+            UITheme.FadeIn(row, 0.16f, 0.04f * rowIndex);
+            rowIndex += 1;
         }
 
         // 重置代币购置行（RP 结算；切换路线的唯一来源）
@@ -631,6 +713,7 @@ public partial class BaseConsole : RadialMenuLayer
         buyButton.Pressed += OnBuyTokenPressed;
         tokenRow.AddChild(buyButton);
         _routesBox.AddChild(tokenRow);
+        UITheme.FadeIn(tokenRow, 0.16f, 0.04f * rowIndex);
     }
 
     private void RefreshMissions()
@@ -643,6 +726,7 @@ public partial class BaseConsole : RadialMenuLayer
 
         // 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS
         var ids = GameState.Instance.ActiveMissionIds();
+        var rowIndex = 0;
         foreach (var idV in ids)
         {
             var id = idV;
@@ -681,6 +765,8 @@ public partial class BaseConsole : RadialMenuLayer
             claimButton.Pressed += () => OnClaimPressed(id);
             row.AddChild(claimButton);
             _missionsBox.AddChild(row);
+            UITheme.FadeIn(row, 0.16f, 0.04f * rowIndex);
+            rowIndex += 1;
         }
     }
 
@@ -839,13 +925,29 @@ public partial class BaseConsole : RadialMenuLayer
         }
     }
 
+    /// <summary>继续出击退场：AnimateModalClose 语义——交互与输入当帧立即断开（鼠标穿透 +
+    /// 停用输入处理），视觉残影渐隐后隐藏；Resume 信号同步发出，下一层照常接手。</summary>
     private void OnResumePressed()
     {
-        Visible = false;
-        OnVisibleChangedForFx();
+        if (_resuming)
+        {
+            return;
+        }
+
+        _resuming = true;
+        KillSwitch();
         SetWheelActive(false);
+        UITheme.AnimateModalClose(this, Dim, CurrentPage(), () =>
+        {
+            _resuming = false;
+            Visible = false;
+            OnVisibleChangedForFx();
+        });
         EmitSignal(SignalName.ResumeRequested);
     }
+
+    private Control CurrentPage() =>
+        _pages.TryGetValue(_currentCategory, out var page) ? page : _pageHolder;
 }
 
 /// <summary>面板扫描线叠加层：单节点自绘每 4px 一条 1px 横线，1 draw call。</summary>

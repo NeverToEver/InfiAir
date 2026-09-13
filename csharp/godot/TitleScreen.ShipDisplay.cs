@@ -172,5 +172,20 @@ public partial class TitleScreen : CanvasLayer
         var sway = _shipBobber.CreateTween().SetLoops();
         sway.TweenProperty(_shipBobber, "rotation", 0.018f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         sway.TweenProperty(_shipBobber, "rotation", -0.018f, 1.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+
+        // 喷口怠速微闪：点火缩放已结束后再起（各喷口相位错开），避免与落位 tween 抢 scale；
+        // ReduceFlash 时保持静止
+        if (!GameState.Instance.ReduceFlash)
+        {
+            for (var i = 0; i < _nozzleGlows.Count; i++)
+            {
+                var nozzle = _nozzleGlows[i];
+                var baseScale = nozzle.Scale; // 点火终态（0.75 基准）
+                var flicker = nozzle.CreateTween().SetLoops();
+                flicker.TweenInterval(0.12 * i);
+                flicker.TweenProperty(nozzle, "scale", baseScale * 1.1f, 0.42).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+                flicker.TweenProperty(nozzle, "scale", baseScale * 0.93f, 0.5).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+            }
+        }
     }
 }

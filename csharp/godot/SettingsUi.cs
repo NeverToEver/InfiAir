@@ -32,6 +32,11 @@ public partial class SettingsUi : RadialMenuLayer
     /// 四个分组原本各写 140/180/200/240 四种宽度，视觉上参差）。</summary>
     private const float LabelColumnWidth = 220.0f;
 
+    // 页面切换过渡：内容区是 VBox，两页同时可见会各占半高错位，故先淡出旧页再淡入新页；
+    // 时长短，视觉上仍读作一次交叉切换。
+    private const float PageFadeOutTime = 0.08f;
+    private const float PageFadeInTime = 0.16f;
+
     /// <summary>关闭信号（设置页已关闭）：生产侧暂无消费方（BackNavigator 以可见态路由），
     /// 保留 API 供外部/未来 UI 连接，勿当死代码删除。</summary>
     [Signal]
@@ -79,6 +84,22 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _cheatsheetLabel = null!;
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
+
+    private Control? _activePage; // 当前逻辑页：过渡半途不以 Visible 判态，避免误判当前页
+    private Tween? _pageTween;
+    private int _pageGen; // 过渡代次：连点切页时旧页淡出回调作废
+    private bool _closing; // 退场过渡中：防重复触发（根节点可见性在回调里才落下）
+
+    // 破坏性确认弹窗（惰性构建、复用）：替代引擎默认主题的 ConfirmationDialog
+    private ColorRect? _confirmDim;
+    private ChamferedPanel? _confirmPlate;
+    private VBoxContainer? _confirmContent;
+    private Label? _confirmTitle;
+    private Label? _confirmMsg;
+    private Button? _confirmOk;
+    private Button? _confirmCancel;
+    private Action? _confirmAction;
+    private Control? _confirmFocusReturn;
 
     private readonly Godot.Collections.Dictionary _pages = new(); // 页名 -> Control
     private readonly Godot.Collections.Dictionary _navButtons = new();
@@ -401,27 +422,91 @@ public partial class SettingsUi : RadialMenuLayer
     // ---------------- 破坏性操作确认 ----------------
 
     /// <summary>破坏性操作的二次确认（改键/全量重置）：Material「确认与告知」要求破坏性动作
-    /// 在生效前让玩家确认并说明后果；确认文案由调用方给出（不同动作后果不同）。</summary>
+    /// 在生效前让玩家确认并说明后果；确认文案由调用方给出（不同动作后果不同）。
+    /// 本窗用统一页壳 + 统一按钮，替代引擎默认主题的 ConfirmationDialog（全站唯一视觉语言缺口）。</summary>
     private void ConfirmDestructive(string messageKey, Action onConfirm)
     {
-        var dialog = new ConfirmationDialog
-        {
-            Title = Tr("SET_CONFIRM_TITLE"),
-            DialogText = Tr(messageKey),
-            OkButtonText = Tr("SET_CONFIRM_OK"),
-            CancelButtonText = Tr("SET_CONFIRM_CANCEL"),
-            ProcessMode = Node.ProcessModeEnum.Always,
-        };
-        dialog.Confirmed += () =>
-        {
-            onConfirm();
-            dialog.QueueFree();
-        };
-        dialog.Canceled += () => dialog.QueueFree();
-        AddChild(dialog);
-        dialog.PopupCentered();
+        EnsureConfirmModal();
+        _confirmTitle!.Text = Tr("SET_CONFIRM_TITLE");
+        _confirmMsg!.Text = Tr(messageKey);
+        _confirmOk!.Text = Tr("SET_CONFIRM_OK");
+        _confirmCancel!.Text = Tr("SET_CONFIRM_CANCEL");
+        _confirmAction = onConfirm;
+        _confirmFocusReturn = GetViewport()?.GuiGetFocusOwner();
+        _confirmDim!.Visible = true;
+        // 打开时重新落回 STOP：退场编排会把遮罩/面板设为 Ignore（鼠标穿透交给下层）
+        _confirmDim.MouseFilter = Control.MouseFilterEnum.Stop;
+        _confirmPlate!.MouseFilter = Control.MouseFilterEnum.Stop;
+        UITheme.AnimateModalOpen(_confirmDim, _confirmPlate, _confirmContent);
         // 默认焦点落在「取消」：回车直通会一步执行重置，确认必须是显式的一步（与战斗退出弹窗同口径）
-        dialog.GetCancelButton().GrabFocus();
+        _confirmCancel!.GrabFocus();
+    }
+
+    private void OnConfirmOkPressed()
+    {
+        var action = _confirmAction;
+        CloseConfirmModal();
+        action?.Invoke();
+    }
+
+    private void OnConfirmCancelPressed() => CloseConfirmModal();
+
+    /// <summary>确认弹窗可见态：返回路由拦截用（可见时 Esc 先取消弹窗，而非退回设置页）。</summary>
+    private bool ConfirmModalVisible => _confirmDim != null && _confirmDim.Visible;
+
+    /// <summary>关闭确认弹窗：退场动画期间即断开输入（AnimateModalClose），同步交还焦点。</summary>
+    private void CloseConfirmModal()
+    {
+        if (_confirmDim == null)
+        {
+            return;
+        }
+
+        _confirmAction = null;
+        var focusReturn = _confirmFocusReturn;
+        _confirmFocusReturn = null;
+        UITheme.AnimateModalClose(_confirmDim, _confirmDim, _confirmPlate!, () =>
+        {
+            if (GodotObject.IsInstanceValid(focusReturn))
+            {
+                focusReturn!.GrabFocus();
+            }
+        });
+    }
+
+    /// <summary>惰性构建确认弹窗一次后复用（每次打开只换文案，不重建节点）。</summary>
+    private void EnsureConfirmModal()
+    {
+        if (_confirmDim != null)
+        {
+            return;
+        }
+
+        var shell = UITheme.MakePageShell("SET_CONFIRM_TITLE");
+        AddChild((Node)shell["root"].AsGodotObject());
+        _confirmDim = (ColorRect)shell["dim"].AsGodotObject();
+        _confirmPlate = (ChamferedPanel)shell["panel"].AsGodotObject();
+        _confirmTitle = (Label)shell["title"].AsGodotObject();
+        _confirmContent = (VBoxContainer)shell["content"].AsGodotObject();
+
+        _confirmMsg = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
+        _confirmMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _confirmMsg.CustomMinimumSize = new Vector2(520.0f, 0.0f);
+        _confirmContent.AddChild(_confirmMsg);
+
+        var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        row.AddThemeConstantOverride("separation", 20);
+        _confirmContent.AddChild(row);
+        _confirmCancel = UITheme.MakeButton(Tr("SET_CONFIRM_CANCEL"));
+        _confirmCancel.CustomMinimumSize = new Vector2(200.0f, 52.0f);
+        _confirmCancel.Pressed += OnConfirmCancelPressed;
+        row.AddChild(_confirmCancel);
+        _confirmOk = UITheme.MakeButton(Tr("SET_CONFIRM_OK"), true);
+        _confirmOk.CustomMinimumSize = new Vector2(200.0f, 52.0f);
+        _confirmOk.Pressed += OnConfirmOkPressed;
+        row.AddChild(_confirmOk);
+
+        _confirmDim.Visible = false;
     }
 
     private void OnResetKeys()
@@ -451,6 +536,15 @@ public partial class SettingsUi : RadialMenuLayer
     /// 即便未来右键被绑进任何动作/输入映射，此处也优先保证撤销可达。</summary>
     public override void _Input(InputEvent @event)
     {
+        // 确认弹窗打开时：Esc 先取消弹窗。挂 _Input（早于 BackNavigator 的 _UnhandledInput），
+        // 否则返回路由会把整个设置页一起退回，弹窗语义丢失。
+        if (Visible && ConfirmModalVisible && @event.IsActionPressed("ui_cancel"))
+        {
+            CloseConfirmModal();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (!Visible || _capturingAction == new StringName())
         {
             return;
@@ -911,16 +1005,80 @@ public partial class SettingsUi : RadialMenuLayer
 
     public void ShowPage(StringName pageName)
     {
-        _lastPage = DefFor(pageName).Id; // 未知名回退首页，并同步记忆值
+        _lastPage = DefFor(pageName).Id; // 未知名回退首页，并同步记忆值（返回路由依赖此值，须同步）
         foreach (var key in _pages.Keys)
         {
             var k = key.AsStringName();
-            var active = k == _lastPage;
-            (_pages[key].AsGodotObject() as Control)!.Visible = active;
-            ((Button)_navButtons[key].AsGodotObject()).SetPressedNoSignal(active);
+            ((Button)_navButtons[key].AsGodotObject()).SetPressedNoSignal(k == _lastPage);
         }
 
         RefreshDisplayReadouts();
+
+        var incoming = (Control)_pages[_lastPage].AsGodotObject()!;
+        if (incoming == _activePage && incoming.Visible)
+        {
+            return; // 同页重入：不重播过渡
+        }
+
+        var outgoing = _activePage;
+        _activePage = incoming;
+        KillPageTween();
+        if (outgoing != null && GodotObject.IsInstanceValid(outgoing) && outgoing != incoming && outgoing.Visible)
+        {
+            var gen = ++_pageGen;
+            var tw = outgoing.CreateTween();
+            _pageTween = tw;
+            tw.TweenProperty(outgoing, "modulate:a", 0.0f, PageFadeOutTime)
+                .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+            tw.TweenCallback(Callable.From(() =>
+            {
+                if (gen != _pageGen || !GodotObject.IsInstanceValid(outgoing))
+                {
+                    return;
+                }
+
+                outgoing.Visible = false;
+                RevealPage(incoming);
+            }));
+            return;
+        }
+
+        RevealPage(incoming);
+    }
+
+    /// <summary>新页就位：其余页一律隐藏后淡入本页并错峰其行（须在旧页淡出隐藏后调用）。</summary>
+    private void RevealPage(Control page)
+    {
+        foreach (var key in _pages.Keys)
+        {
+            var p = (Control)_pages[key].AsGodotObject()!;
+            if (p != page)
+            {
+                p.Visible = false;
+            }
+        }
+
+        page.Visible = true;
+        UITheme.FadeIn(page, PageFadeInTime);
+        if (PageBodyOf(page) is { } body)
+        {
+            UITheme.StaggerOpen(body);
+        }
+    }
+
+    /// <summary>页壳 ScrollContainer 下的内容 VBox：错峰作用于行，而非整页容器。</summary>
+    private static Control? PageBodyOf(Control page)
+        => page is ScrollContainer scroll && scroll.GetChildCount() > 0 ? scroll.GetChild(0) as Control : page;
+
+    /// <summary>kill 进行中的页面过渡 tween（连点切页时防同属性竞争）。</summary>
+    private void KillPageTween()
+    {
+        if (_pageTween != null && _pageTween.IsValid())
+        {
+            _pageTween.Kill();
+        }
+
+        _pageTween = null;
     }
 
     /// <summary>帧率/垂直同步读出轮询（仅设置页可见时；Engine.FramesPerSecond 本身是滑动平均）。
@@ -1037,7 +1195,13 @@ public partial class SettingsUi : RadialMenuLayer
         ShowPage(_lastPage);
         RebuildWheelMenu();
         Wheel.FocusOption(OptionIndexFor(_lastPage)); // 轮盘聚焦与当前页对齐（轮盘与左侧导航同源，序号一致）
+        // 退场后的重新打开：恢复退场所停用的输入处理与遮罩鼠标拦截（AnimateModalClose 当帧二者都落下）
+        SetProcessInput(true);
+        SetProcessUnhandledInput(true);
+        _closing = false;
         Visible = true;
+        _dim.MouseFilter = Control.MouseFilterEnum.Stop;
+        _plate.MouseFilter = Control.MouseFilterEnum.Stop;
         SetWheelActive(true, dimActive: false); // 本页遮罩由 page shell 提供
         PlayWheelEntrance();
         UITheme.AnimateModalOpen(_dim, _plate);
@@ -1179,16 +1343,10 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshLangButtons();
         RefreshNavLabels();
         // 重建前记录当前页并恢复——否则无条件跳回「控制」页；
-        // 旧行的一次冗余刷新随旧页一起销毁，统一由重建后 _refresh_rebind_rows 刷新
-        var current = DefaultPage;
-        foreach (var key in _pages.Keys)
-        {
-            if ((_pages[key].AsGodotObject() as Control)!.Visible)
-            {
-                current = key.AsStringName();
-                break;
-            }
-        }
+        // 过渡半途不以 Visible 判态（旧页尚在淡出），以 _lastPage 为准
+        KillPageTween();
+        _pageGen += 1;
+        var current = _lastPage;
 
         // 重建内容区文本（重建代价低，保证全部文案换语言）
         // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
@@ -1199,6 +1357,7 @@ public partial class SettingsUi : RadialMenuLayer
             (p.AsGodotObject() as Control)!.Free();
         }
 
+        _activePage = null;
         _volumeSliders.Clear();
         foreach (var def in _pageDefs)
         {
@@ -1279,21 +1438,37 @@ public partial class SettingsUi : RadialMenuLayer
 
     private void OnBackPressed()
     {
-        _capturingAction = new StringName();
-        Visible = false;
-        SetWheelActive(false, dimActive: false);
-        if (_opener != null && GodotObject.IsInstanceValid(_opener))
+        // 确认弹窗打开时先收弹窗：右键返回与 Esc 同口径，不退整页
+        if (ConfirmModalVisible)
         {
-            _opener.Visible = true;
-            // 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
-            // typed 分派（打开者 = 暂停面板 PauseUi，有 GrabPrimaryFocus）
-            if (_opener is PauseUi p)
-            {
-                p.GrabPrimaryFocus();
-            }
+            CloseConfirmModal();
+            return;
         }
 
-        _opener = null;
-        EmitSignal(SignalName.BackPressed);
+        if (_closing)
+        {
+            return; // 退场过渡中：可见性尚未落下，防重复触发
+        }
+
+        _capturingAction = new StringName();
+        _closing = true;
+        SetWheelActive(false, dimActive: false);
+        // 退场当帧即断开输入处理与鼠标命中（AnimateModalClose），opener 恢复与焦点交还在回调内同步收尾
+        UITheme.AnimateModalClose(this, _dim, _plate, () =>
+        {
+            if (_opener != null && GodotObject.IsInstanceValid(_opener))
+            {
+                _opener.Visible = true;
+                // 焦点还给打开者主按钮：键盘/手柄链路不因进出设置页而断
+                // typed 分派（打开者 = 暂停面板 PauseUi，有 GrabPrimaryFocus）
+                if (_opener is PauseUi p)
+                {
+                    p.GrabPrimaryFocus();
+                }
+            }
+
+            _opener = null;
+            EmitSignal(SignalName.BackPressed);
+        });
     }
 }
