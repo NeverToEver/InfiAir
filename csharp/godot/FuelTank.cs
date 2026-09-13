@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
@@ -151,7 +152,12 @@ public partial class FuelTank : Control
         var levelY = inner.Position.Y + inner.Size.Y * (1.0f - Mathf.Clamp(_shown, 0.0f, 1.0f));
         if (_shown > 0.002f)
         {
-            DrawLiquid(inner, levelY, body);
+            // 填充多边形要求液层够厚（薄到近共线时三角化失败、整块不画）；不够厚只留液面线。
+            if (TankLiquid.HasDrawableFill(inner.Size.Y, _shown))
+            {
+                DrawLiquid(inner, levelY, body);
+            }
+
             DrawMeniscus(inner, levelY, body);
         }
 
@@ -185,7 +191,11 @@ public partial class FuelTank : Control
 
     private Vector2[] SurfacePoints(Rect2 inner, float levelY)
     {
-        var amp = inner.Size.Y * (WaveAmpBase + (_reduceFlash ? 0.0f : _slosh * WaveAmpSlosh));
+        // 波幅上限由 TankLiquid 定（波谷不得越过内腔底，否则填充多边形自交、三角化整块失败）。
+        var amp = TankLiquid.WaveAmplitude(
+            inner.Size.Y,
+            _shown,
+            WaveAmpBase + (_reduceFlash ? 0.0f : _slosh * WaveAmpSlosh));
         var pts = new Vector2[WaveSegments + 1];
         for (var i = 0; i <= WaveSegments; i++)
         {
