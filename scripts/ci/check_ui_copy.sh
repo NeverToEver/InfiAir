@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # 玩家可见文案门禁（data/translations.csv）。
 # 用法：bash scripts/ci/check_ui_copy.sh
-# 拦截四类问题——它们都会让玩家直接看到「不该出现的东西」：
+# 拦截五类问题——它们都会让玩家直接看到「不该出现的东西」：
 #   1) 开发措辞 / 流程术语（例：「（左侧轮盘同步下钻）」「见 ROADMAP」）
 #   2) 已移除系统的残留词条（局外成长、排行榜、账户…）
-#   3) 空字段：zh/en 任一为空，该语言下界面留白
-#   4) 缺键：C# 静态 Tr("KEY") 在表中无行 → 游戏直接显示键名本身
+#   3) 术语漂移：玩家文案出现「敌人 / 对局」（AGENTS §9 规范写法「敌机 / 本局」）
+#   4) 空字段：zh/en 任一为空，该语言下界面留白
+#   5) 缺键：C# 静态 Tr("KEY") 在表中无行 → 游戏直接显示键名本身
 # 动态拼接键（Tr("ACT_" + name)）不参与缺键判定，故只认完整调用实参形态。
 # 事件台词/事件条走「键名字面量」而非 Tr()（CommOverlay.ShowLine、Hud.ShowEventBar 内部再翻），
 # 它们的缺键同样显示键名本身，故一并按同一口径判（TEXT_KEY_CALL）。
@@ -19,9 +20,12 @@ root = pathlib.Path.cwd()
 csv_path = root / "data" / "translations.csv"
 
 # 高信号词表：玩家文案里出现即为泄漏（宽泛词不入表，避免误伤正常文案）
+# 「敌人 / 对局」= 术语漂移（AGENTS §9 表规范写法为「敌机 / 本局」）——玩家文案是术语唯一
+# 没有机器副本的一面，漏了就会随新文案回潮；只锁中文词，英文 side 的 enemy 不受影响。
 BANNED = re.compile(
     "下钻|轮盘同步|DESIGN_BASELINE|ROADMAP|AGENTS|口径|门禁|幂等|硬编码|占位|"
-    "TODO|FIXME|科技点|局外成长|研究所|排行榜|生效上限|结构上限|user://|res://"
+    "TODO|FIXME|科技点|局外成长|研究所|排行榜|生效上限|结构上限|user://|res://|"
+    "敌人|对局"
 )
 KEY_OK = re.compile(r"[A-Z0-9_]+")
 # 只认完整实参：Tr("KEY") / Tr("KEY", …)，排除 Tr("ACT_" + name) 这类前缀拼接
