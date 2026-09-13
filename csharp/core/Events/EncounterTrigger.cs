@@ -32,10 +32,11 @@ public static class EncounterTrigger
     /// <summary>触发计时推进：资格/分数门槛未过时计时冻结，过了才递减；
     /// 到点先把计时复位到整段 <paramref name="interval"/> 再回报掷签——掷签失败与成功都从整段
     /// 重新计，否则停在 0 附近每帧重掷，等于把触发概率变成「迟早必中」。
-    /// <paramref name="interval"/> 的域钳（≥最小时长）由调用方在读取配置时完成，本函数按正值处理。</summary>
+    /// <paramref name="interval"/> 的域钳（≥最小时长）由调用方在读取配置时完成；此处对非正值
+    /// 再兜一层（返回不触发）——interval ≤0 会让每帧都判定到点，退化成触发风暴。</summary>
     public static Step Advance(float remaining, float delta, float interval, bool eligible, int score, int minScore)
     {
-        if (!eligible || score < minScore)
+        if (!eligible || score < minScore || interval <= 0.0f)
         {
             return new Step(remaining, false);
         }

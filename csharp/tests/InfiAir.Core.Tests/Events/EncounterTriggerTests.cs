@@ -73,6 +73,17 @@ public sealed class EncounterTriggerTests
     }
 
     [Fact]
+    public void Advance_NonPositiveIntervalNeverFires()
+    {
+        // interval ≤0 会让「left ≤ 0」每帧成立 —— 触发风暴；core 自己兜一层：
+        // 调用方域钳缺失时不得退化成到点必触发
+        var zero = EncounterTrigger.Advance(0.0f, 1.0f, 0.0f, eligible: true, score: MinScore, minScore: MinScore);
+        Assert.False(zero.Due);
+        var negative = EncounterTrigger.Advance(1.0f, 1.0f, -5.0f, eligible: true, score: MinScore, minScore: MinScore);
+        Assert.False(negative.Due);
+    }
+
+    [Fact]
     public void Advance_OverdueTimerStillYieldsSingleDue()
     {
         // 巨帧（钳制前可达 1.4s）一次性跨过整段间隔也只掷一次签
