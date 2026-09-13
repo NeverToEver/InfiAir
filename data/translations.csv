@@ -213,7 +213,7 @@ TUT_S5_OBJ,"长按 B 1.5 秒返航，打开基地控制台
 TUT_S5_CHARGE,"返航蓄力 %d%%…","Charging %d%%…"
 TUT_S6_OBJ,"攻击首领，逼它进入狂暴状态（血量 30%）","Damage the boss until it enrages (30% HP)"
 TUT_DONE,"教程完成！","Tutorial Complete!"
-TUT_DONE_DESC,"你已掌握全部基础操作，祝武运昌隆！","You've mastered the basics. Good hunting!"
+TUT_DONE_DESC,"快上吧！","Now get up there!"
 TUT_BACK,"返回主菜单","Main Menu"
 TUT_FAIL_TITLE,"任务失败","Mission Failed"
 TUT_FAIL_DESC,"战机已损毁，按 Esc 退出教程","Fighter destroyed — press Esc to exit"
