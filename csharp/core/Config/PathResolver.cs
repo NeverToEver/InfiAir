@@ -23,8 +23,8 @@ public enum ValueKind
 /// 点路径解析核心：在 CLR JSON 兼容树上按 "a.b.c" 路径取值。
 /// 承载 Godot 侧 BalanceService.cfg() 全部调用点语义：数值宽容 / 容器浅拷贝 / typeof 相等判定；
 /// 纯 .NET、零 Godot 依赖，可独立单测。
-/// 行为差异（均为防御性规范化，仅作用于手改/非 JSON 数据）：
-/// 容器拷贝为逐层新建（嵌套容器不再与源共享——比引擎单层 duplicate 更隔离，不污染配置真值）。
+/// 容器拷贝为单层新容器（与 GDScript <c>duplicate()</c> 默认语义一致）：顶层增删不污染配置真值，
+/// 但嵌套容器仍与源共享——消费方不得就地改写取回容器里的嵌套容器。
 /// </summary>
 public static class PathResolver
 {
