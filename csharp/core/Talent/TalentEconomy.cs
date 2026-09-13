@@ -103,10 +103,12 @@ public sealed class TalentCache
         ApplyDecay();
     }
 
-    /// <summary>从尾部扣减 cost（LIFO）；有效点数不足返回 false 且不扣减。</summary>
+    /// <summary>从尾部扣减 cost（LIFO）；有效点数不足返回 false 且不扣减。
+    /// cost 非有限值（NaN/±inf）直接拒绝：NaN 比较恒 false，会让扣减循环空转并以 true 放行
+    /// （买了一级却没扣点）。</summary>
     public bool Spend(double cost)
     {
-        if (cost < 0.0 || Effective + 1e-9 < cost)
+        if (!double.IsFinite(cost) || cost < 0.0 || Effective + 1e-9 < cost)
         {
             return false;
         }
@@ -152,7 +154,9 @@ public sealed class TalentCache
     public List<double> Snapshot() => new(_values);
 
     /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/裁剪——
-    /// 快照已是历史衰减后的真实状态，重算会二次衰减。null/空 = 清空。</summary>
+    /// 快照已是历史衰减后的真实状态，重算会二次衰减。null/空 = 清空。
+    /// 非有限或负值钳为 0：点值序列若混入 NaN，<see cref="Effective"/> 会变 NaN，
+    /// 使花费判据恒假、<see cref="Spend"/> 空转放行——手改存档可借此白拿天赋。</summary>
     public void RestoreValues(IEnumerable<double>? values)
     {
         _values.Clear();
@@ -163,7 +167,7 @@ public sealed class TalentCache
 
         foreach (var v in values)
         {
-            _values.Add(v);
+            _values.Add(double.IsFinite(v) && v > 0.0 ? v : 0.0);
         }
     }
 }

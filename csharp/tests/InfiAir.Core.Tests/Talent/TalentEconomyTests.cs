@@ -85,6 +85,27 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
+    public void Cache_RestoreValues_NonFiniteOrNegative_ClampsToZero()
+    {
+        // 手改存档混入 NaN：Effective 变 NaN 后花费判据恒假、Spend 空转返回 true——白拿天赋。
+        var cache = new TalentCache(CacheConfig());
+        cache.RestoreValues(new[] { 1.0, double.NaN, double.PositiveInfinity, -5.0, 1.0 });
+
+        Assert.Equal(2.0, cache.Effective, 12);
+        Assert.False(cache.Spend(2.5));
+    }
+
+    [Fact]
+    public void Cache_SpendNaN_IsRejected()
+    {
+        var cache = new TalentCache(CacheConfig());
+        cache.Grant(3);
+
+        Assert.False(cache.Spend(double.NaN));
+        Assert.Equal(3.0, cache.Effective, 12);
+    }
+
+    [Fact]
     public void CostForLevel_IncrementsLinearly()
     {
         var config = new TalentConfig();
