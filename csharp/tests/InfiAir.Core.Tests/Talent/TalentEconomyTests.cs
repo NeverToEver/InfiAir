@@ -160,4 +160,38 @@ public sealed class TalentEconomyTests
         Assert.Equal(1, TalentEconomy.FocusOver(7, config));
         Assert.Equal(6, TalentEconomy.OverchargeCost(config, 3));
     }
+
+    // ---- 可升级提示判定（HUD：点数够点亮任一可选节点） ----
+
+    [Fact]
+    public void CheapestAffordable_ReturnsLowestAffordableCost()
+    {
+        // 三档价格 5/3/9，缓存 4：只有 3 买得起
+        Assert.Equal(3, TalentEconomy.CheapestAffordable(new[] { 5, 3, 9 }, 4.0));
+    }
+
+    [Fact]
+    public void CheapestAffordable_ExactBoundary_IsAffordable()
+    {
+        // 缓存恰好等于价格即可买（衰减产生小数，须容差而非严格大于）
+        Assert.Equal(2, TalentEconomy.CheapestAffordable(new[] { 2 }, 2.0));
+        Assert.Equal(2, TalentEconomy.CheapestAffordable(new[] { 2 }, 1.999999999));
+        Assert.Equal(0, TalentEconomy.CheapestAffordable(new[] { 2 }, 1.0));
+    }
+
+    [Fact]
+    public void CheapestAffordable_EmptyOrAllTooExpensive_ReturnsZero()
+    {
+        // 无可选节点（全被前置/上限/名额挡下）→ 0，提示不亮
+        Assert.Equal(0, TalentEconomy.CheapestAffordable(Array.Empty<int>(), 99.0));
+        Assert.Equal(0, TalentEconomy.CheapestAffordable(new[] { 7, 9 }, 6.0));
+    }
+
+    [Fact]
+    public void CheapestAffordable_IgnoresNonPositiveCosts()
+    {
+        // 0 是 NextCost 的「已锁定」契约值，不参与「买得起」判定（否则提示恒亮）
+        Assert.Equal(0, TalentEconomy.CheapestAffordable(new[] { 0, 0 }, 100.0));
+        Assert.Equal(3, TalentEconomy.CheapestAffordable(new[] { 0, 3 }, 100.0));
+    }
 }

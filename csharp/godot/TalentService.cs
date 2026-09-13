@@ -32,6 +32,9 @@ public sealed partial class TalentService : RefCounted
     /// <summary>已风险加点节点（机制 D：永久锁定不可再升级）。</summary>
     private readonly HashSet<StringName> _overcharged = new();
 
+    /// <summary>可升级提示判定复用表（CacheChanged 驱动，非热路径；免每次调用分配）。</summary>
+    private readonly List<int> _eligibleCosts = new();
+
     /// <summary>结构上限回退表（与旧 BuffSelect 池一致；balance.json augments.&lt;id&gt;.max_stacks 为唯一权威）。</summary>
     private static readonly Dictionary<string, int> MaxLevelFallbacks = new()
     {
@@ -271,6 +274,29 @@ public sealed partial class TalentService : RefCounted
     /// <summary>节点生效上限：结构上限 → 互斥扣减 → 路线减半（下限钳制在 Economy 内）。</summary>
     public int CapFor(StringName id) =>
         TalentEconomy.EffectiveCap(_config, MaxLevel(id), MutexReductionFor(id), RouteHalvedFor(id));
+
+    /// <summary>当前有效缓存是否已够点亮任一可选节点（HUD「可升级」提示的判定口）。</summary>
+    public bool HasAffordableUpgrade() => CheapestAffordableUpgradeCost() > 0;
+
+    /// <summary>最便宜的可购下一级价格（0 = 当前买不起任何节点）；只统计「仅差点数」的节点
+    /// （前置/互斥/上限/风险加点名额均已通过，拦截原因恰为 CACHE 或可购），
+    /// 价格与缓存的比较判定下沉 core（TalentEconomy.CheapestAffordable，可单测）。</summary>
+    public int CheapestAffordableUpgradeCost()
+    {
+        _eligibleCosts.Clear();
+        var ids = TalentTree.NodeIds();
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var id = new StringName(ids[i]);
+            var reason = UpgradeBlockReason(id);
+            if (reason.Length == 0 || reason == "CACHE")
+            {
+                _eligibleCosts.Add(NextCost(id));
+            }
+        }
+
+        return TalentEconomy.CheapestAffordable(_eligibleCosts, _cache.Effective);
+    }
 
     /// <summary>全局焦点超限档数（机制 B；未触发 0）。</summary>
     public int FocusOver()

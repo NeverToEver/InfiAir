@@ -249,4 +249,30 @@ public static class TalentEconomy
     /// <summary>机制 D 风险加点消耗：下一级消耗 × 倍率。</summary>
     public static int OverchargeCost(TalentConfig config, int baseCost) =>
         (int)Math.Ceiling(baseCost * config.OverchargeCostMult);
+
+    /// <summary>
+    /// 有效缓存是否已够点亮「当前任一可选节点」：返回其中最便宜的下一级价，0 = 尚不可购。
+    /// 入参 eligibleNextCosts 由引擎侧给出——只含前置/互斥/上限/风险加点名额都通过、仅「点数够不够」
+    /// 未定的节点（TalentService 逐节点筛后取 NextCost）；本函数只判价格与缓存的比较，
+    /// 属可单测的纯判定。空表（无任何可选节点）返回 0——提示不应在没有可买项时亮。
+    /// </summary>
+    public static int CheapestAffordable(IReadOnlyList<int> eligibleNextCosts, double effectiveCache)
+    {
+        var cheapest = 0;
+        for (var i = 0; i < eligibleNextCosts.Count; i++)
+        {
+            var cost = eligibleNextCosts[i];
+            if (cost <= 0 || cost > effectiveCache + 1e-9)
+            {
+                continue;  // 0 = 已锁定/无价（NextCost 契约），负价非法；超出缓存跳过
+            }
+
+            if (cheapest == 0 || cost < cheapest)
+            {
+                cheapest = cost;
+            }
+        }
+
+        return cheapest;
+    }
 }

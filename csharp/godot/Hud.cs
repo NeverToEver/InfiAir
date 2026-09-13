@@ -1347,8 +1347,10 @@ public partial class Hud : CanvasLayer
     private ChamferedPanel _cacheChip = null!;
     private Label _cacheCount = null!;
     private Label _cacheTooltip = null!;
+    private Label _cacheReadyHint = null!;
     private Tween? _cachePulseTween;
     private int _lastCacheRaw = -1;
+    private bool _lastAffordable;
 
     /// <summary>缓存指示器芯片（难度块下方）：点数 + 状态光晕；点击/G 键开天赋面板。
     /// 状态：空闲(0) 灰 / 可用(1..20) 青+呼吸 / 溢出警告(21..29) 橙 / 严重溢出(30+) 红。
@@ -1383,6 +1385,16 @@ public partial class Hud : CanvasLayer
         var keyHint = UITheme.MakeLabel("G", UITheme.FontSmall, UITheme.TextDim);
         keyHint.MouseFilter = Control.MouseFilterEnum.Ignore;
         box.AddChild(keyHint);
+
+        // 「可升级」提示（点数够点亮任一节点时可见；芯片下方一行小字，比只变色更难错过）。
+        // 停靠 y=212：让开悬停提示那一行（178），两者可同屏不重叠。
+        _cacheReadyHint = UITheme.MakeLabel((string)Tr("TALENT_READY_HINT"), UITheme.FontSmall, UITheme.AccentGold, HorizontalAlignment.Right);
+        _cacheReadyHint.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        _cacheReadyHint.Position = new Vector2(-192.0f, 212.0f);
+        _cacheReadyHint.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _cacheReadyHint.Visible = false;
+        _cacheReadyHint.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_cacheReadyHint);
 
         _cacheTooltip = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.Text, HorizontalAlignment.Right);
         _cacheTooltip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
@@ -1448,9 +1460,13 @@ public partial class Hud : CanvasLayer
     {
         var gs = GameState.Instance;
         var raw = gs.TalentRawCache;
+        // 可升级态与衰减溢出正交：点数够点亮任一可选节点时，即使未溢出也给出「可升级」提示
+        // （原实现只在溢出时才变色，玩家攒够点却无从得知能加点了）。
+        var affordable = raw > 0 && gs.Talent.HasAffordableUpgrade();
         var (color, border, breathing) = raw switch
         {
             0 => (UITheme.TextDim, new Color(UITheme.PanelBorder, 0.4f), false),
+            <= 20 when affordable => (UITheme.AccentGold, new Color(UITheme.AccentGold, 0.95f), true),
             <= 20 => (UITheme.Accent, new Color(UITheme.Accent, 0.8f), true),
             <= 29 => (UITheme.WarnYellow, new Color(UITheme.WarnYellow, 0.9f), false),
             _ => (UITheme.Danger, new Color(UITheme.Danger, 1.0f), false),
@@ -1458,6 +1474,15 @@ public partial class Hud : CanvasLayer
         _cacheCount.Text = raw.ToString();
         _cacheCount.AddThemeColorOverride("font_color", color);
         _cacheChip.BorderColor = border;
+        _cacheReadyHint.Visible = affordable;
+        if (affordable && !_lastAffordable)
+        {
+            // 点数首次够用：弹一条横幅（与指示器变色同时发生，玩家不看 HUD 也能被通知到）；
+            // 之后持续可升级不重复弹，避免每点入账刷屏。
+            ShowInfoBanner((string)Tr("TALENT_READY_BANNER"));
+        }
+
+        _lastAffordable = affordable;
         if (raw != _lastCacheRaw || !breathing)
         {
             _lastCacheRaw = raw;
