@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Text;
 
 namespace InfiAir;
 
@@ -30,6 +31,9 @@ public partial class MothershipSummonWindow : CanvasLayer
     private static readonly Vector2 ShipHome = new(280.0f, 380.0f); // 面板局部坐标
 
     private static readonly string[] ShotKeys = { "MS_SEQ_CHARGE", "MS_SEQ_ARMS", "MS_SEQ_LAUNCH" };
+
+    /// <summary>相位轨节点短标签（三字）：完整描述由字幕给，轨上只需认得「走到哪」。</summary>
+    private static readonly string[] PhaseRailKeys = { "MS_RAIL_CHARGE", "MS_RAIL_RELEASE", "MS_RAIL_LAUNCH" };
 
     /// <summary>母舰贴图：C# 静态字段禁止持有
     /// Godot 对象（退出 segfault 实测根因），改 GD.Load（命中资源缓存，仅构建期一次）。</summary>
@@ -64,6 +68,24 @@ public partial class MothershipSummonWindow : CanvasLayer
     private ColorRect _flash = null!;
 
     private Label _subtitle = null!;
+
+    // ---------------- 实况屏铬件（抬头栏 / 相位轨 / 扫描线） ----------------
+
+    /// <summary>抬头栏右端实况标记（闪烁琥珀点 + 已播秒数），把面板读作「通讯实况」而非静态贴图。</summary>
+    private Label _feedLabel = null!;
+
+    /// <summary>相位轨三联节点（镜头索引 → 节点），随推进点亮/锁定，玩家看得出流程走到哪一步。</summary>
+    private readonly List<Polygon2D> _phaseNodes = new();
+
+    private readonly List<Label> _phaseLabels = new();
+
+    /// <summary>相位节点当前点亮态缓存（-1 = 未初始化），只在变化时改色，免逐帧写属性。</summary>
+    private int _phaseLit = -1;
+
+    /// <summary>扫描带（纵向缓移的横向光带，机库纵深信号的常驻动效）。</summary>
+    private ColorRect _scanBand = null!;
+
+    private long _feedStartMs;
 
     private readonly List<Line2D> _chargeLines = new();
 
@@ -107,6 +129,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         _total = OpenTime + _shotDurations[0] + _shotDurations[1] + _shotDurations[2] + CloseTime;
         BuildPanel();
         BuildHangar();
+        BuildScanlines(); // 必须在机库之后：叠加层要盖在不透明机库底色之上
         Update(0.0f);
     }
 
@@ -152,15 +175,86 @@ public partial class MothershipSummonWindow : CanvasLayer
         AddChild(_panel);
         _stage = new Node2D();
         _panel.AddChild(_stage);
-        // 抬头标题
+        // 抬头标题 + 实况标记（右端）
         var title = UITheme.MakeLabel((string)Tr("MS_SEQ_TITLE"), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Left);
         title.Position = new Vector2(20.0f, 10.0f);
         _panel.AddChild(title);
+        _feedLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.Accent, HorizontalAlignment.Right);
+        _feedLabel.Position = new Vector2(PanelSize.X - 200.0f, 10.0f);
+        _feedLabel.Size = new Vector2(180.0f, 0.0f);
+        _feedLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _panel.AddChild(_feedLabel);
         // 字幕
         _subtitle = UITheme.MakeLabel("", UITheme.FontHudL, UITheme.Text, HorizontalAlignment.Center);
         _subtitle.Position = new Vector2(24.0f, PanelSize.Y - 58.0f);
         _subtitle.Size = new Vector2(PanelSize.X - 48.0f, 40.0f);
         _panel.AddChild(_subtitle);
+        BuildPhaseRail();
+    }
+
+    /// <summary>相位轨：三节点 + 连接线，标出「充能管线 → 释放机械臂 → 弹射出仓」的推进位置。
+    /// 节点用菱形（与全站 chip 菱形灯语一致），已过/当前点亮、未到暗置。
+    /// 节点标签用三字短键（完整描述由字幕承担）——长句在三节点间距里必然重叠（实测「弹射出击 ·
+    /// 穿梭器启动」压住中段标签）。</summary>
+    private void BuildPhaseRail()
+    {
+        var xs = new[] { 120.0f, 280.0f, 440.0f };
+        const float railY = 730.0f;
+        // 连接底线（贯穿三节点的暗轨）
+        var track = new Line2D
+        {
+            Width = 2.0f,
+            DefaultColor = new Color(UITheme.Accent, 0.22f),
+            Points = new[] { new Vector2(xs[0], railY), new Vector2(xs[2], railY) },
+        };
+        _panel.AddChild(track);
+        for (var i = 0; i < xs.Length; i++)
+        {
+            var node = new Polygon2D
+            {
+                Polygon = new[]
+                {
+                    new Vector2(0.0f, -7.0f),
+                    new Vector2(7.0f, 0.0f),
+                    new Vector2(0.0f, 7.0f),
+                    new Vector2(-7.0f, 0.0f),
+                },
+                Position = new Vector2(xs[i], railY),
+                Color = new Color(UITheme.Accent, 0.18f),
+            };
+            _panel.AddChild(node);
+            _phaseNodes.Add(node);
+            var label = UITheme.MakeLabel((string)Tr(PhaseRailKeys[i]), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Center);
+            label.Position = new Vector2(xs[i] - 60.0f, railY + 12.0f);
+            label.Size = new Vector2(120.0f, 0.0f);
+            label.MouseFilter = Control.MouseFilterEnum.Ignore;
+            _panel.AddChild(label);
+            _phaseLabels.Add(label);
+        }
+    }
+
+    /// <summary>扫描线叠加：机库区每 4px 一条 1px 暖线 + 一条纵向缓移亮带（实况屏质感；
+    /// 单节点自绘，1 draw call）。挂 _panel 而非 _stage，且须在机库底色之后构建——
+    /// 挂 _stage 会被后建的不透明机库底完全盖住。</summary>
+    private void BuildScanlines()
+    {
+        var overlay = new SummonScanlines
+        {
+            Position = new Vector2(14.0f, 40.0f),
+            Size = PanelSize - new Vector2(28.0f, 110.0f),
+        };
+        _panel.AddChild(overlay);
+        // 插到 _stage 之后、文字/相位轨之前：扫描线只叠机库画面，不扫过标题与相位轨
+        _panel.MoveChild(overlay, 1);
+        _scanBand = new ColorRect
+        {
+            Color = new Color(UITheme.Accent, 0.055f),
+            Position = new Vector2(14.0f, 40.0f),
+            Size = new Vector2(PanelSize.X - 28.0f, 46.0f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _panel.AddChild(_scanBand);
+        _panel.MoveChild(_scanBand, 2);
     }
 
     /// <summary>机库剖面：深色内场 + 顶部滑轨 + 母舰剪影 + 充能管线 ×3 + 维护臂 ×2（竖向纵深构图）</summary>
@@ -376,7 +470,9 @@ public partial class MothershipSummonWindow : CanvasLayer
 
         if (idx >= _shotDurations.Length)
         {
-            return; // 收尾淡出段：保持末帧画面
+            // 收尾淡出段：保持末帧画面，但实况标记/扫描带继续推进（否则面板在收尾里冻住）
+            UpdateChrome(t, _shotDurations.Length - 1);
+            return;
         }
 
         if (idx != _shotIdx)
@@ -414,6 +510,8 @@ public partial class MothershipSummonWindow : CanvasLayer
                 UpdateLaunch(p);
                 break;
         }
+
+        UpdateChrome(t, idx);
 
         var flashMod = _flash.Color;
         flashMod.A = Mathf.Max(flashMod.A - 2.2f * delta, 0.0f);
@@ -502,4 +600,59 @@ public partial class MothershipSummonWindow : CanvasLayer
         }
     }
 
+    /// <summary>实况标记与相位轨刷新：抬头右端秒数 + 闪烁点，相位节点按当前镜头点亮。
+    /// 只在节点状态变化时改色（每帧写属性会打断 tween 且徒增开销）。</summary>
+    private void UpdateChrome(float t, int idx)
+    {
+        var secs = (long)t;
+        _feedLabel.Text = GdFormat.Format(Tr("MS_SEQ_FEED_FMT"), secs);
+        // 实况点闪烁：与相位推进解耦的常驻低频脉动（ReduceFlash 下静止不闪）。
+        // 下限抬到 0.62——原 0.55/0.45 摆到谷底几乎读不出文字（实测看不清「实况」标记）。
+        _feedLabel.Modulate = new Color(1.0f, 1.0f, 1.0f,
+            GameState.Instance.ReduceFlash ? 1.0f : 0.82f + 0.18f * Enemy.SinFast(t * 3.4f));
+
+        // 扫描带缓移（机库纵深信号）：三角波上下往复，ReduceFlash 下停在中位
+        var bandRange = PanelSize.Y - 150.0f - 46.0f;
+        var bandY = GameState.Instance.ReduceFlash
+            ? 40.0f + bandRange * 0.5f
+            : 40.0f + bandRange * (0.5f - 0.5f * Mathf.Cos(t * 0.55f));
+        _scanBand.Position = new Vector2(_scanBand.Position.X, bandY);
+
+        if (idx == _phaseLit)
+        {
+            return;
+        }
+
+        _phaseLit = idx;
+        for (var i = 0; i < _phaseNodes.Count; i++)
+        {
+            // 已完成/当前：实心琥珀；当前额外更亮；未到：暗空心
+            var reached = i <= idx;
+            _phaseNodes[i].Color = !reached
+                ? new Color(UITheme.Accent, 0.18f)
+                : (i == idx ? UITheme.AccentHot : new Color(UITheme.Accent, 0.75f));
+            _phaseLabels[i].AddThemeColorOverride("font_color", reached ? UITheme.Text : UITheme.TextDim);
+        }
+    }
+
+}
+
+/// <summary>召唤小窗扫描线叠加层：每 4px 一条 1px 暖线，单节点自绘 1 draw call。</summary>
+public partial class SummonScanlines : Control
+{
+    public override void _Ready()
+    {
+        MouseFilter = MouseFilterEnum.Ignore;
+        Resized += QueueRedraw;
+    }
+
+    public override void _Draw()
+    {
+        var y = 2.0f;
+        while (y < Size.Y)
+        {
+            DrawLine(new Vector2(0.0f, y), new Vector2(Size.X, y), UITheme.PhantomScan, 1.0f);
+            y += 4.0f;
+        }
+    }
 }
