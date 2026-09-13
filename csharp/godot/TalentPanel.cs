@@ -167,11 +167,10 @@ public partial class TalentPanel : CanvasLayer
             return;
         }
 
-        // 打断守卫：本局被其他模态暂停 / 死亡结算 / 开场返航过场抢占 / 蓄力期间受击
+        // 打断守卫：本局被其他模态暂停 / 死亡结算 / 返航过场抢占 / 蓄力期间受击
         var interrupted = GetTree().Paused
             || Visible
             || _main.IsGameOver()
-            || _main.IsIntroPlaying()
             || _main.IsReturnPlaying()
             || GameState.Instance.Health < _chargeStartHealth;
         if (interrupted)
@@ -201,7 +200,6 @@ public partial class TalentPanel : CanvasLayer
         && !_closing
         && !GetTree().Paused
         && !_main.IsGameOver()
-        && !_main.IsIntroPlaying()
         && !_main.IsReturnPlaying()
         && !_main.IsHomecoming();
 
@@ -247,7 +245,7 @@ public partial class TalentPanel : CanvasLayer
     }
 
     /// <summary>G 键（talent_panel）：按住蓄力（松开取消）、满格进入；打开态按 G 动画关闭。
-    /// 暂停态守卫覆盖 开场/返航过场/基地/暂停/设置（均持树暂停），死亡结算单独判。</summary>
+    /// 暂停态守卫覆盖 返航过场/基地/暂停/设置（均持树暂停），死亡结算单独判。</summary>
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event.IsActionPressed("talent_panel"))

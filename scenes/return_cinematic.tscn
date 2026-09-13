@@ -81,5 +81,5 @@ offset_right = 1900.0
 offset_bottom = 1045.0
 theme_override_colors/font_color = Color(0.541176, 0.607843, 0.690196, 1)
 theme_override_font_sizes/font_size = 18
-text = "INTRO_SKIP"
+text = "RETURN_SKIP"
 horizontal_alignment = 2

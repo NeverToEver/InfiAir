@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 过场/演出共享特效工具：软径向光晕、带纹理粒子、冲击波环、分层能量束、速度线/放射线场。
-/// 供 IntroCinematic / ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
+/// 供 ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
 /// 避免多处重复实现硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
 /// RefCounted + 全静态工厂。
 /// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——贴图/材质
@@ -39,15 +39,13 @@ public partial class CinematicFx : RefCounted
     }
 
     /// <summary>深空星云贴图工厂：256² 画布逐像素累积 10 枚软斑（确定性种子），再双线性放大。
-    /// 灰度能量场（RGB=alpha=能量值），颜色全部交给调用方 modulate 染色——星空/开始页/过场共用一张。
-    /// edgeFade：贴图边缘 20px 渐隐（独幅平铺的过场星云用，避免半透明下露出矩形硬边）；
-    /// 默认 false 保持四向平铺无缝（星空滚动回绕依赖边缘连续，不可衰减）。
+    /// 灰度能量场（RGB=alpha=能量值），颜色全部交给调用方 modulate 染色——星空/开始页共用一张。
+    /// 贴图四向平铺无缝（星空滚动回绕依赖边缘连续，不做边缘衰减）。
     /// 一次性构建（调用方自持实例字段），热路径零分配。</summary>
-    public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907, bool edgeFade = false)
+    public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907)
     {
         const int BaseSize = 256;
         const int BlobCount = 10;
-        const float FadeBand = 20.0f;
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong)seed;
         var blobX = new float[BlobCount];
@@ -91,15 +89,6 @@ public partial class CinematicFx : RefCounted
                 }
 
                 v = Mathf.Clamp(v, 0.0f, 1.0f);
-                if (edgeFade)
-                {
-                    // 独幅模式：四边 20px 线性渐隐，sprite 平铺不出硬边
-                    var fade = Mathf.Min(
-                        Mathf.Min(x, BaseSize - 1 - x) / FadeBand,
-                        Mathf.Min(y, BaseSize - 1 - y) / FadeBand);
-                    v *= Mathf.Clamp(fade, 0.0f, 1.0f);
-                }
-
                 img.SetPixel(x, y, new Color(v, v, v, v));
             }
         }
@@ -134,7 +123,7 @@ public partial class CinematicFx : RefCounted
         return s;
     }
 
-    /// <summary>叠加态辉光圆点（复用 C# 顶层类 GlowDot，原内嵌 _GlowDot 同构；intro/return 过场构图共用）。</summary>
+    /// <summary>叠加态辉光圆点（复用 C# 顶层类 GlowDot，原内嵌 _GlowDot 同构；过场构图共用）。</summary>
     public static GlowDot Glow(float radius, Color color, bool additive = true)
     {
         var dot = new GlowDot { Radius = radius, DotColor = color };
@@ -147,7 +136,7 @@ public partial class CinematicFx : RefCounted
         return dot;
     }
 
-    /// <summary>居中矩形 Polygon2D（w/h 为全宽全高，坐标 -0.5w..0.5w / -0.5h..0.5h；intro/return 过场构图共用）。</summary>
+    /// <summary>居中矩形 Polygon2D（w/h 为全宽全高，坐标 -0.5w..0.5w / -0.5h..0.5h；过场构图共用）。</summary>
     public static Polygon2D RectPoly(float w, float h, Color color)
     {
         var p = new Polygon2D
@@ -164,7 +153,7 @@ public partial class CinematicFx : RefCounted
         return p;
     }
 
-    /// <summary>全屏底色 ColorRect（1920×1080 设计坐标，鼠标穿透；intro/return 过场构图共用）。</summary>
+    /// <summary>全屏底色 ColorRect（1920×1080 设计坐标，鼠标穿透；过场构图共用）。</summary>
     public static ColorRect BgRect(Color color)
     {
         var r = new ColorRect
@@ -177,7 +166,7 @@ public partial class CinematicFx : RefCounted
         return r;
     }
 
-    /// <summary>折线 Line2D（Points 逐点折线，默认宽 2px；intro/return 过场构图共用）。</summary>
+    /// <summary>折线 Line2D（Points 逐点折线，默认宽 2px；过场构图共用）。</summary>
     public static Line2D Line(Vector2[] points, Color color, float width = 2.0f)
     {
         var l = new Line2D

@@ -4,64 +4,29 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 初代环带空间站「曙光」共享构件（几何/虚影变换为开场与返航过场、基地背景共用）。
+/// 初代环带空间站「曙光」共享构件（几何/虚影变换为返航过场与基地背景共用）。
 /// 纯静态工厂：build() 返回中心在原点的 Node2D，调用方负责 position/scale 与入树。
-/// 三处复用：开场镜头 1（DESTROYED 实体毁灭态）、返航镜头 2/3/4（PHANTOM 全息虚影态）、
-/// 基地 UI 背景层（PHANTOM，自行压 modulate.a）。粒子发射器 ≤96/个，与过场性能预算一致。
+/// 两处复用：返航镜头 2/3/4（PHANTOM 全息虚影态）、基地 UI 背景层（自行压 modulate.a）。
+/// 粒子发射器 ≤96/个，与过场性能预算一致。
 /// 注：DawnStationDot 为同文件顶层类（C# 源生成器不支持内嵌类）；
 /// PackedVector2Array → Vector2[]（互操作语义一致）。
 /// </summary>
 public partial class DawnStation : RefCounted
 {
-    /// <summary>实体毁灭态：冷钢蓝灰 + 破口残骸（开场镜头 1 现状配色，提取自 intro_cinematic._build_shot1）</summary>
-    public enum Mode
-    {
-        Destroyed,
-
-        /// <summary>全息虚影态：ADD 青蓝 + 慢呼吸 + 扫描带 + 数据流粒子 + 破口能量网格（§1.1 四层变换）</summary>
-        Phantom,
-    }
-
     public const float RingRadius = 260.0f; // 环体主弧半径
     public const float BreachStart = 0.5f; // 破口起角（rad，右下象限，识别锚点不可移动）
     public const float BreachEnd = 1.2f; // 破口止角
 
-    // 毁灭态冷钢灰阶：色板 token 全为琥珀/全息暖色，无冷钢对应项，而开场镜头 1 的
-    // 「冷站体 + 暖爆心」冷暖对照是刻意设计，故这组冷灰单源于此，不强行套暖 token。
-    private static readonly Color DestroyedRing = new(0.62f, 0.60f, 0.56f);
-    private static readonly Color DestroyedDetail = new(0.76f, 0.72f, 0.66f, 0.6f);
-    private static readonly Color DestroyedTick = new(0.36f, 0.34f, 0.31f);
-    private static readonly Color DestroyedSeg = new(0.72f, 0.68f, 0.62f);
-    private static readonly Color DestroyedSegEdge = new(0.88f, 0.83f, 0.75f, 0.45f);
-    private static readonly Color DestroyedSpoke = new(0.48f, 0.45f, 0.41f);
-    private static readonly Color DestroyedHub = new(0.47f, 0.44f, 0.40f);
-    private static readonly Color DestroyedHubRing = new(0.70f, 0.66f, 0.60f, 0.7f);
-    private static readonly Color DestroyedBreachShadow = new(0.055f, 0.052f, 0.048f);
-    private static readonly Color DestroyedBreachCut = new(0.035f, 0.032f, 0.030f);
-    private static readonly Color DestroyedFlake = new(0.34f, 0.32f, 0.29f);
-
-    public static Node2D Build() => Build(Mode.Destroyed);
-
-    /// <summary>构建站体（中心在原点，未定位）。DESTROYED = 开场镜头 1 现状视觉（纯提取，行为不变）；
-    /// PHANTOM = §1.1 四层虚影变换全开（全息基底/扫描带/数据流/破口能量网格）。
-    /// 环体带极慢怠速自转：全部构件挂内部 IdleSpin 容器，自转只写该容器，station 自身
-    /// rotation 仍归调用方（开场镜头 1 用整站旋转做「极缓自转」，不与之叠加）。</summary>
-    public static Node2D Build(Mode mode)
+    /// <summary>构建站体（中心在原点，未定位）：全息虚影态（§1.1 四层变换全开——全息基底/
+    /// 扫描带/数据流/破口能量网格）。环体带极慢怠速自转：全部构件挂内部 IdleSpin 容器，
+    /// 自转只写该容器，station 自身 rotation 仍归调用方。</summary>
+    public static Node2D Build()
     {
         var station = new Node2D { Name = "DawnStation" };
-        // 站体全部构件挂内部 IdleSpin 容器：怠速自转只写容器，station 自身 rotation
-        // 仍归调用方（开场镜头 1 的整站自转不与之叠加）
+        // 站体全部构件挂内部 IdleSpin 容器：怠速自转只写容器，station 自身 rotation 归调用方
         var spin = new DawnStationIdleSpin { Name = "IdleSpin" };
         station.AddChild(spin);
-        if (mode == Mode.Destroyed)
-        {
-            BuildDestroyed(spin);
-        }
-        else
-        {
-            BuildPhantom(spin);
-        }
-
+        BuildPhantom(spin);
         return station;
     }
 
@@ -148,8 +113,8 @@ public partial class DawnStation : RefCounted
 
     /// <summary>站体共享几何：环体主弧 + 内外廓细节环 + 舱段刻线 + 8 舱段 + 辐条 + 中心毂。
     /// palette 键：ring/detail/tick/seg/seg_edge/spoke/hub/hub_ring；additive=true 时全构件改叠加态。
-    /// gaps（[[a0,a1],…]，rad）：主弧分段绘制留出缺口（虚影态破碎感）；空表 = 完整闭合环（毁灭态现状）。
-    /// 返回 {"segments":…, "edges":…} 舱段引用（虚影态逐个掉线闪烁用；毁灭态忽略）。</summary>
+    /// gaps（[[a0,a1],…]，rad）：主弧分段绘制留出缺口（虚影态破碎感）。
+    /// 返回 {"segments":…, "edges":…} 舱段引用（虚影态逐个掉线闪烁用）。</summary>
     private static Godot.Collections.Dictionary BuildBody(
         Node2D station,
         Godot.Collections.Dictionary palette,
@@ -163,44 +128,23 @@ public partial class DawnStation : RefCounted
         };
         var segments = refs["segments"].AsGodotArray();
         var edges = refs["edges"].AsGodotArray();
-        if (gaps.Count == 0)
+        // 按 a0 升序排缺口（GDScript sort_custom 语义：a[0] < b[0]）
+        var sortedGaps = new List<Vector2>();
+        foreach (var gap in gaps)
         {
-            var ringPoints = new Vector2[48];
-            for (var i = 0; i < 48; i++)
-            {
-                var a = Mathf.Tau * (float)i / 48.0f;
-                ringPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
-            }
-
-            var ring = Line(ringPoints, PaletteColor(palette, "ring"), 26.0f);
-            ring.Closed = true;
-            if (additive)
-            {
-                Additive(ring);
-            }
-
-            station.AddChild(ring);
+            var arr = gap.AsGodotArray();
+            sortedGaps.Add(new Vector2(arr[0].AsSingle(), arr[1].AsSingle()));
         }
-        else
+
+        sortedGaps.Sort((a, b) => a.X.CompareTo(b.X));
+        var cursor = 0.0f;
+        foreach (var gap in sortedGaps)
         {
-            // 按 a0 升序排缺口（GDScript sort_custom 语义：a[0] < b[0]）
-            var sortedGaps = new List<Vector2>();
-            foreach (var gap in gaps)
-            {
-                var arr = gap.AsGodotArray();
-                sortedGaps.Add(new Vector2(arr[0].AsSingle(), arr[1].AsSingle()));
-            }
-
-            sortedGaps.Sort((a, b) => a.X.CompareTo(b.X));
-            var cursor = 0.0f;
-            foreach (var gap in sortedGaps)
-            {
-                RingArc(station, PaletteColor(palette, "ring"), cursor, gap.X, additive);
-                cursor = gap.Y;
-            }
-
-            RingArc(station, PaletteColor(palette, "ring"), cursor, Mathf.Tau, additive);
+            RingArc(station, PaletteColor(palette, "ring"), cursor, gap.X, additive);
+            cursor = gap.Y;
         }
+
+        RingArc(station, PaletteColor(palette, "ring"), cursor, Mathf.Tau, additive);
 
         foreach (var rDetail in new[] { 232.0f, 288.0f })
         {
@@ -347,7 +291,7 @@ public partial class DawnStation : RefCounted
         station.AddChild(arc);
     }
 
-    /// <summary>破口锯齿轮廓顶点（两态共用：毁灭态=近黑填充，虚影态=亮线描边）</summary>
+    /// <summary>破口锯齿轮廓顶点（虚影态破口亮线描边）</summary>
     private static Vector2[] JaggedPoints()
     {
         return new[]
@@ -359,63 +303,6 @@ public partial class DawnStation : RefCounted
             new Vector2(Mathf.Cos(1.25f), Mathf.Sin(1.25f)) * 244.0f,
             new Vector2(Mathf.Cos(0.85f), Mathf.Sin(0.85f)) * 262.0f,
         };
-    }
-
-    /// <summary>实体毁灭态：冷钢蓝灰（受光面提亮保证深空可读）+ 破口残骸（开场镜头 1）</summary>
-    private static void BuildDestroyed(Node2D station)
-    {
-        BuildBody(
-            station,
-            new Godot.Collections.Dictionary
-            {
-                ["ring"] = DestroyedRing,
-                ["detail"] = DestroyedDetail,
-                ["tick"] = DestroyedTick,
-                ["seg"] = DestroyedSeg,
-                ["seg_edge"] = DestroyedSegEdge,
-                ["spoke"] = DestroyedSpoke,
-                ["hub"] = DestroyedHub,
-                ["hub_ring"] = DestroyedHubRing,
-            },
-            false,
-            new Godot.Collections.Array());
-        // 破损段：暗色弧覆盖出缺口（0.5–1.2 rad）
-        var brokenPoints = new Vector2[7];
-        for (var i = 0; i < 7; i++)
-        {
-            var a = BreachStart + (BreachEnd - BreachStart) * (float)i / 6.0f;
-            brokenPoints[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * RingRadius;
-        }
-
-        station.AddChild(Line(brokenPoints, DestroyedBreachShadow, 30.0f));
-        // 破口锯齿边缘
-        var jagged = new Polygon2D { Polygon = JaggedPoints(), Color = DestroyedBreachCut };
-        station.AddChild(jagged);
-        // 破口剥落碎片：小多边形缓慢外飘 + 翻滚
-        for (var k = 0; k < 3; k++)
-        {
-            var flake = new Polygon2D
-            {
-                Polygon = new[]
-                {
-                    new Vector2(-8.0f, -5.0f),
-                    new Vector2(9.0f, -3.0f),
-                    new Vector2(5.0f, 7.0f),
-                    new Vector2(-6.0f, 6.0f),
-                },
-                Color = DestroyedFlake,
-            };
-            var fa = 0.6f + 0.3f * k;
-            flake.Position = new Vector2(Mathf.Cos(fa), Mathf.Sin(fa)) * 265.0f;
-            station.AddChild(flake);
-            // 往复段：外飘/翻滚到目标后返回起点（对齐虚影态碎片）——仅 set_loops 时循环重放
-            // 立即完成，碎片冻结在首圈末位
-            var ft = station.CreateTween().SetLoops();
-            ft.TweenProperty(flake, "position", flake.Position + new Vector2(Mathf.Cos(fa), Mathf.Sin(fa)) * 60.0f, 2.0);
-            ft.Parallel().TweenProperty(flake, "rotation", flake.Rotation + 2.5f, 2.0);
-            ft.TweenProperty(flake, "position", flake.Position, 2.0);
-            ft.Parallel().TweenProperty(flake, "rotation", flake.Rotation, 2.0);
-        }
     }
 
     /// <summary>全息虚影态（§1.1）：四层变换——全息基底 / 扫描线光晕 / 数据流粒子 / 破口能量网格修补，
@@ -649,7 +536,7 @@ public partial class DawnStationDot : Node2D
 }
 
 /// <summary>站体怠速自转容器：极慢匀速自转（约 5 分钟一周），只让站体读作「活着」。
-/// 纯几何旋转，每帧 O(1) 无分配；station 自身 rotation 留给调用方（开场镜头 1 的整站自转）。</summary>
+/// 纯几何旋转，每帧 O(1) 无分配；station 自身 rotation 留给调用方。</summary>
 public partial class DawnStationIdleSpin : Node2D
 {
     private const float SpinPeriod = 300.0f; // 一周秒数

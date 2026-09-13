@@ -21,8 +21,6 @@ public partial class BackNavigator : Node
         CLOSE_SETTINGS,
         /// <summary>基地控制台 → 继续出击</summary>
         RESUME_BASE,
-        /// <summary>开场过场播放中：返回 = 跳过过场</summary>
-        SKIP_INTRO,
         /// <summary>返航过场播放中：返回 = 跳过过场</summary>
         SKIP_RETURN,
         /// <summary>增幅 滚动栏展开中：返回 = 收起栏（优先于打开暂停）</summary>
@@ -110,10 +108,6 @@ public partial class BackNavigator : Node
                 _baseUi.Resume();
                 MarkHandled();
                 break;
-            case BackAction.SKIP_INTRO:
-                _main.SkipIntro();
-                MarkHandled();
-                break;
             case BackAction.SKIP_RETURN:
                 _main.SkipReturn();
                 MarkHandled();
@@ -163,14 +157,9 @@ public partial class BackNavigator : Node
             return BackAction.CANCEL_EXIT;
         }
 
-        if (_main.IsIntroPlaying())
-        {
-            return BackAction.SKIP_INTRO; // 过场播放中：Esc = 跳过过场（须在下方暂停 IGNORE 之前）
-        }
-
         if (_main.IsReturnPlaying())
         {
-            return BackAction.SKIP_RETURN; // 返航过场播放中：Esc = 跳过过场（优先级同 SKIP_INTRO）
+            return BackAction.SKIP_RETURN; // 返航过场播放中：Esc = 跳过过场（须在下方暂停 IGNORE 之前）
         }
 
         if (_settingsUi.Visible)

@@ -24,7 +24,7 @@ public partial class ReturnCinematic : CanvasLayer
         var neb2 = Glow(420.0f, new Color(0.450f, 0.304f, 0.100f, 0.05f));
         neb2.Position = new Vector2(1520.0f, 280.0f);
         root.AddChild(neb2);
-        // 战机尾部视角悬停（同开场镜头 5 摆位）
+        // 战机尾部视角悬停
         var ship = new Sprite2D
         {
             Texture = _playerShip,

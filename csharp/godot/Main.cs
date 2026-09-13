@@ -25,7 +25,6 @@ public partial class Main : Node2D
     // 静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
     // 改实例字段——Main 每局重建实例，加载命中资源缓存。
     private readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
-    private readonly PackedScene IntroScene = GD.Load<PackedScene>("res://scenes/intro_cinematic.tscn");
     private readonly PackedScene ReturnScene = GD.Load<PackedScene>("res://scenes/return_cinematic.tscn");
     public float DOCK_CHARGE_TIME { get; set; } = 3.0f;
     public float HOME_CHARGE_TIME { get; set; } = 1.5f;
@@ -96,8 +95,6 @@ public partial class Main : Node2D
     private float _bulletTimeLeft; // >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
     private float _timeScaleRamp = -1.0f; // >=0：恢复过渡进度 0..1
     private Boss? _enrageBoss;
-    /// <summary>播放中的开场过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）</summary>
-    private IntroCinematic? _intro;
     /// <summary>播放中的返航过场（BackNavigator 据此路由 Esc=跳过；null = 未播放）</summary>
     private ReturnCinematic? _return;
     /// <summary>播放中的轨道打击清场动画（继续出击时触发；null = 未播放）</summary>
@@ -193,7 +190,7 @@ public partial class Main : Node2D
         // 迷雾事件：仅真实本局（main 为 current_scene）开启自动触发。
         // main.tscn 作为子节点嵌入宿主场景（current_scene 为宿主）时保持关闭，
         // 防止随机迷雾事件（如方向偏转把玩家推入弹幕触发擦弹得分）破坏宿主场景确定性；
-        // 需要启用时显式 SetRunActive(true)（同 intro 过场的 current_scene 判定惯例）
+        // 需要启用时显式 SetRunActive(true)（同 current_scene 判定惯例）
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
         _fogEvents.SetRunActive(GetTree().CurrentScene == this);
@@ -263,14 +260,13 @@ public partial class Main : Node2D
                 CallDeferred(MethodName.StartEventForProbe, eventProbeId);
             }
         }
-        // 开机流程：正常启动首次进入 → 播开场过场（或按设置跳过）→
-        // 切标题屏；标题屏任意键再进 main（IntroPlayedThisSession 已置位）→ 直接开局。
-        // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不过场、不入场（由宿主驱动）。
+        // 开机流程：正常启动首次进入 → 直达标题屏；标题屏任意键再进 main（BootHandoffDone 已置位）→ 直接开局。
+        // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不交接、不入场（由宿主驱动）。
         if (GetTree().CurrentScene != this)
         {
             ApplyNewRun();
         }
-        else if (GameState.Instance.IntroPlayedThisSession)
+        else if (GameState.Instance.BootHandoffDone)
         {
             // 幂等兜底：标题屏→开局依赖「到标题屏前必已 ResetRun」的上游约定
             // （当前所有到 title 的边均已复位）；此处直进开局分支补一次，新增到 title 的路径不踩雷
@@ -299,24 +295,19 @@ public partial class Main : Node2D
         }
         else
         {
-            GameState.Instance.IntroPlayedThisSession = true;
+            GameState.Instance.BootHandoffDone = true;
             ApplyNewRun();
             if (eventProbeId.Length > 0)
             {
-                // probe 直进开局：过场会暂停整棵树（事件 _Process 冻结），标题屏切换会把事件
-                // 连树销毁——两条路都让无头冒烟跑不到状态机。步长交给调用方的 --fixed-fps 固定
-                // （帧数＝模拟时长）：生产代码不替测试设施锁帧率。
+                // probe 直进开局：标题屏切换会把事件连树销毁，无头冒烟跑不到状态机。
+                // 步长交给调用方的 --fixed-fps 固定（帧数＝模拟时长）：生产代码不替测试设施锁帧率。
                 StartEntrySequenceInternal();
-            }
-            else if (GameState.Instance.SkipIntro)
-            {
-                // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
-                // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
-                Callable.From(GoTitleScreen).CallDeferred(); // 设置「默认跳过入场动画」：开机直达标题屏
             }
             else
             {
-                PlayIntroCinematic();
+                // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
+                // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
+                Callable.From(GoTitleScreen).CallDeferred(); // 开机直达标题屏
             }
         }
     }
@@ -428,8 +419,6 @@ public partial class Main : Node2D
     }
 
     /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
-    public bool IsIntroPlaying() => _intro != null;
-
     public bool IsReturnPlaying() => _return != null;
 
     public bool IsGameOver() => _gameOver;
@@ -449,8 +438,6 @@ public partial class Main : Node2D
 
     public float TimeScaleRamp() => _timeScaleRamp;
 
-    public void SkipIntro() => SkipIntroInternal();
-
     public void SkipReturn() => SkipReturnInternal();
 
     public float GiveUpCharge() => _giveUpCharge;
@@ -460,8 +447,6 @@ public partial class Main : Node2D
     public float DockCooldown() => _dockCooldown;
 
     public void SetChargeTime(float seconds) => _chargeTime = seconds;
-
-    public IntroCinematic? Intro() => _intro;
 
     public ReturnCinematic? ReturnCinematic() => _return;
 
@@ -759,44 +744,13 @@ public partial class Main : Node2D
         _replay.Begin();
     }
 
-    /// <summary>播放开场过场：冻结本局帧 0（树暂停，过场 process_mode=Always 照常播放），
-    /// 播完/跳过统一走 finished 恢复。幂等（已播中重复调用直接返回）。</summary>
-    private void PlayIntroCinematic()
-    {
-        if (_intro != null)
-        {
-            return;
-        }
-
-        _intro = IntroScene.Instantiate<IntroCinematic>();
-        _intro.Finished += OnIntroFinished;
-        AddChild(_intro);
-        GameState.Instance.SetTreePaused(true);
-    }
-
-    /// <summary>Esc 经 BackNavigator 路由至此；任意键/点击由过场自身 _unhandled_input 捕获</summary>
-    private void SkipIntroInternal()
-    {
-        if (_intro != null)
-        {
-            _intro.Skip();
-        }
-    }
-
-    private void OnIntroFinished()
-    {
-        _intro = null;
-        GameState.Instance.SetTreePaused(false);
-        GoTitleScreen(); // 过场结束 → 深空机库标题屏（机体飞入悬挂展示，按任意键开始）
-    }
-
     /// <summary>切换到标题屏（title.tscn：星空 + 远景战场 + 机体飞入悬挂展示 + 按任意键开始 / T 教程）。</summary>
     private void GoTitleScreen()
     {
         GetTree().ChangeSceneToFile("res://scenes/title.tscn");
     }
 
-    /// <summary>播放返航过场：与 PlayIntroCinematic 同构（冻结本局，树暂停，process_mode=Always 播放）。
+    /// <summary>播放返航过场（冻结本局，树暂停，process_mode=Always 播放）。
     /// BGM 引用交给过场做镜头 7 渐暗期淡出（_bgmPlayer 异步创建，取值判空）。幂等。</summary>
     private void PlayReturnCinematic()
     {
@@ -1132,7 +1086,7 @@ public partial class Main : Node2D
         // 遭遇事件（轰炸编队/精英炮塔）进行中则打断：编队解散离场/航母完整撤离，无结算，
         // 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
         _events.EndActive(_events.GROUP_ENCOUNTER);
-        _starfield.Warp(18.0f); // 保留：过场镜头 1 的充能与星光拉伸自然衔接
+        _starfield.Warp(18.0f); // 保留：返航过场镜头 1 的星光拉伸自然衔接
         PlayReturnCinematic();
     }
 
@@ -1187,7 +1141,7 @@ public partial class Main : Node2D
         StartEntrySequenceInternal();
     }
 
-    /// <summary>入场衔接（开场/继续出击后）：播战机入场动画，敌机生成延迟到动画结束才恢复</summary>
+    /// <summary>入场衔接（继续出击后）：播战机入场动画，敌机生成延迟到动画结束才恢复</summary>
     private void StartEntrySequenceInternal()
     {
         _spawner.SetProcess(false);

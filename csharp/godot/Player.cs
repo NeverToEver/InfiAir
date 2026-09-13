@@ -1212,7 +1212,7 @@ public partial class Player : CharacterBody2D
     /// <summary>冲刺残影公开入口——委托 PlayerVisuals 池化生成。</summary>
     public void SpawnAfterimage() => _visuals.SpawnAfterimage(_sprite!.Texture, _sprite.Scale, GlobalPosition, Rotation);
 
-    /// <summary>入场动画（开场/返航继续出击后由 main 调用）。</summary>
+    /// <summary>入场动画（返航继续出击后由 main 调用）。</summary>
     public void PlayEntryAnimation()
     {
         if (_entryPhase != 0 || _dead)

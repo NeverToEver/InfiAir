@@ -3,7 +3,7 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 共享「多段式飞行服乘员」构件工厂（开场/返航过场共用）：把原先两处近乎重复的
+/// 共享「多段式飞行服乘员」构件工厂（返航过场）：把原先近乎重复的
 /// 简笔人物（圆头 + 棍状四肢 + 平板躯干）重建为有设计细节的宇航服形象——
 /// 分件头盔（壳/面罩玻璃/颈环/侧通讯舱/天线/下颌护板）、分层胸甲与背带扣具、
 /// 双筒维生背包（罐体/喷嘴/供气管/压力表/散热格栅）、肩部叠甲与铆钉、
@@ -16,7 +16,7 @@ namespace InfiAir;
 /// </summary>
 public static class CrewFigure
 {
-    // 套装分层（冷钢蓝灰为主，琥珀/青只作状态灯与面罩高光，双方镜头各自调性下都成立）
+    // 套装分层（冷钢蓝灰为主，琥珀/青只作状态灯与面罩高光）
     private static readonly Color SuitNear = new(0.26f, 0.31f, 0.41f);
     private static readonly Color SuitFar = new(0.14f, 0.18f, 0.26f);
     private static readonly Color SuitMid = new(0.20f, 0.25f, 0.34f);
@@ -28,7 +28,7 @@ public static class CrewFigure
     private static readonly Color Glass = new(0.06f, 0.11f, 0.17f);
     private static readonly Color GlowCyan = new(0.5f, 0.9f, 1.0f, 0.9f);
 
-    /// <summary>构建乘员。accent = 状态灯/装备提示色（默认琥珀，返航可传冷青）。</summary>
+    /// <summary>构建乘员。accent = 状态灯/装备提示色（默认琥珀）。</summary>
     public static Godot.Collections.Dictionary Build(Color? accent = null)
     {
         var lamp = accent ?? new Color(1.0f, 0.72f, 0.28f);

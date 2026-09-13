@@ -8,7 +8,7 @@ namespace InfiAir;
 /// _Process 原地写 PackedVector2Array，零每帧分配（热路径红线）。
 /// 星点范围随可见世界区域 view_world_rect（尺寸 + 锚点，zoom>1 时锚点
 /// 随可见区平移，回绕同基线）；配置须判型 + 非负钳制。
-/// 语境适配：挂在 CanvasLayer 下（标题屏/开场返航过场镜头）
+/// 语境适配：挂在 CanvasLayer 下（标题屏/返航过场镜头）
 /// 渲染 1:1 画布、相机 zoom 不作用于该画布——星区取全视口 rect；挂世界层（main/tutorial）
 /// 才走 zoom 感知的 view_world_rect，且视角档位切换时星区按相对坐标重映射（星云/回绕基线
 /// 同步），消除「大档位建区后切回小档位，星空只盖中央一块」的残留。
@@ -98,7 +98,7 @@ public partial class Starfield : Node2D
 
     public void Warp(float factor) => WarpFactor = factor;
 
-    /// <summary>是否挂在 CanvasLayer 之下（标题屏/开场返航过场镜头等 1:1 画布语境）。</summary>
+    /// <summary>是否挂在 CanvasLayer 之下（标题屏/返航过场镜头等 1:1 画布语境）。</summary>
     private bool InCanvasLayerSpace()
     {
         for (Node? n = this; n != null; n = n.GetParent())

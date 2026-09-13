@@ -71,7 +71,7 @@ public partial class ReturnCinematic : CanvasLayer
         neb.Position = new Vector2(420.0f, 780.0f);
         partB.AddChild(neb);
         // 远处虚影站剪影（α0.15，为镜头 4 铺垫）
-        var farStation = DawnStation.Build(DawnStation.Mode.Phantom);
+        var farStation = DawnStation.Build();
         farStation.Scale = Vector2.One * 0.3f;
         farStation.Position = new Vector2(1560.0f, 300.0f);
         var farMod = farStation.Modulate;
@@ -106,7 +106,7 @@ public partial class ReturnCinematic : CanvasLayer
         });
         trail.Position = new Vector2(-26.0f, 0.0f);
         shipB.AddChild(trail);
-        // 白闪转场件（镜头内部，复用开场 1→2 差异化白闪）
+        // 白闪转场件（镜头内部）
         var flash = BgRect(new Color(1.0f, 1.0f, 1.0f, 0.0f));
         root.AddChild(flash);
         Once(root, 0.9f * u, Callable.From(() =>

@@ -59,7 +59,7 @@ public partial class UITheme : RefCounted
     public static readonly Color AimAmber = new(1.0f, 0.76f, 0.30f, 0.95f); // 准星十字
     public static readonly Color AimAmberLit = new(1.0f, 0.72f, 0.30f); // 瞄准框常态
     public static readonly Color AimAmberHot = new(1.0f, 0.90f, 0.45f); // 瞄准框锁定峰值
-    public static readonly Color HostileCool = new(0.52f, 0.64f, 0.80f, 0.50f); // 标题战场远处敌机冷色（开场冷暖对照的刻意例外）
+    public static readonly Color HostileCool = new(0.52f, 0.64f, 0.80f, 0.50f); // 标题战场远处敌机冷色（暖族中的刻意冷色例外）
 
     // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
     public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）

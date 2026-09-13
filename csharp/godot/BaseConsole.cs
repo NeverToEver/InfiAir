@@ -174,7 +174,7 @@ public partial class BaseConsole : RadialMenuLayer
         bgModulate.A = 0.12f;
         bgWrap.Modulate = bgModulate;
         AddChild(bgWrap);
-        var station = DawnStation.Build(DawnStation.Mode.Phantom);
+        var station = DawnStation.Build();
         station.Position = new Vector2(960.0f, 540.0f);
         station.Scale = Vector2.One * 2.0f;
         bgWrap.AddChild(station);

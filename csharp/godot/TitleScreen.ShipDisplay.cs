@@ -78,7 +78,7 @@ public partial class TitleScreen : CanvasLayer
         };
         _shipBobber.AddChild(ship);
 
-        // 尾焰怠速（青色对齐主色板；喷口按贴图 254px × scale 2 折算，比例同 IntroCinematic.Shot5）
+        // 尾焰怠速（青色对齐主色板；喷口按贴图 254px × scale 2 折算）
         foreach (var side in new[] { -66.0f, 66.0f })
         {
             var flame = CinematicFx.Particles(new Godot.Collections.Dictionary

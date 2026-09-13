@@ -6,7 +6,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 设置界面：左缘圆盘导航五页——「控制」（可改键表 + 恢复默认）、「游戏」（难度、开火方式、
-/// Ctrl/Shift 模式、辅助瞄准、跳过过场）、「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
+/// Ctrl/Shift 模式、辅助瞄准）、「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
 /// 鼠标锁定）、「音频」（主/音乐/音效音量）、「辅助与关于」（无障碍项 + 版本与操作速查）。
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除并提示来源。
@@ -65,7 +65,6 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _resolutionInfoLabel = null!; // 分辨率说明/当前尺寸（custom/无边框时提示）
     private readonly ButtonGroup _diffGroup = new();
     private readonly Godot.Collections.Dictionary _diffButtons = new(); // 难度档位 -> Button
-    private Button _skipIntroBtn = null!; // 流程·默认跳过入场动画开关
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
     private Button _joyVibrationBtn = null!; // 手柄·震动开关
@@ -800,13 +799,6 @@ public partial class SettingsUi : RadialMenuLayer
         _worldPostFxBtn.Pressed += OnWorldPostFx;
         page.AddChild(_worldPostFxBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_WORLD_POST_FX_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
-        // 流程：默认跳过入场动画（开启后开机直达标题屏；只在下次启动生效）
-        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_STARTUP")));
-        _skipIntroBtn = UITheme.MakeToggleButton(Tr("SET_SKIP_INTRO"), new ButtonGroup { AllowUnpress = true });
-        _skipIntroBtn.CustomMinimumSize = new Vector2(280.0f, 48.0f);
-        _skipIntroBtn.Pressed += OnSkipIntro;
-        page.AddChild(_skipIntroBtn);
-        page.AddChild(UITheme.MakeLabel(Tr("SET_SKIP_INTRO_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         return page;
     }
 
@@ -1109,7 +1101,6 @@ public partial class SettingsUi : RadialMenuLayer
         _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _joyVibrationBtn.SetPressedNoSignal(GameState.Instance.JoyVibration);
-        _skipIntroBtn.SetPressedNoSignal(GameState.Instance.SkipIntro);
         RefreshShakeLabel();
         RefreshVolumeSliders();
         RefreshDisplayReadouts();
@@ -1429,11 +1420,6 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnJoyVibration()
     {
         GameState.Instance.SetJoyVibration(_joyVibrationBtn.ButtonPressed);
-    }
-
-    private void OnSkipIntro()
-    {
-        GameState.Instance.SetSkipIntro(_skipIntroBtn.ButtonPressed);
     }
 
     private void OnBackPressed()

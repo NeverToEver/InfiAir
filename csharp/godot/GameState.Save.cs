@@ -22,7 +22,7 @@ public partial class GameState : Node
     /// 先钳 long 域再转 int</summary>
     public int SaveInt(Variant v, int defaultValue) => (int)Math.Clamp(SaveNum(v, defaultValue), 0.0, (double)int.MaxValue);
 
-    // ---------------- 设置持久化（键位/locale/难度/视图/无障碍/手柄/TutorialDone/跳过过场） ----------------
+    // ---------------- 设置持久化（键位/locale/难度/视图/无障碍/手柄/TutorialDone） ----------------
 
     /// <summary>启动加载设置：缺少新字段时保留当前内存值；损坏文件隔离备份后按默认值继续。</summary>
     public void LoadSettings()

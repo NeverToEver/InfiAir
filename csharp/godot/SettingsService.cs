@@ -90,9 +90,6 @@ public sealed partial class SettingsService : RefCounted
     /// 防止准星跟随鼠标出框后位置冻结/跳变；窗口失焦自动放行，不阻碍切换应用）</summary>
     public bool MouseLock { get; set; } = true;
 
-    /// <summary>默认跳过开场过场（持久化，默认关=播过场；开启后开机直达标题屏）</summary>
-    public bool SkipIntroCinematic { get; set; } = false;
-
     /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// （径向语义，读取侧 StickShaper 生效——不写 InputMap deadzone）。</summary>
     public double JoyAimSpeed { get; set; } = 1400.0;
@@ -129,7 +126,6 @@ public sealed partial class SettingsService : RefCounted
         FpsCap = new StringName("60");
         VSync = true;
         MouseLock = true;
-        SkipIntroCinematic = false;
         JoyAimSpeed = 1400.0;
         JoyDeadzone = 0.2;
         JoyVibration = true;
@@ -649,18 +645,6 @@ public sealed partial class SettingsService : RefCounted
         MouseLockChanged?.Invoke(enabled);
     }
 
-    /// <summary>默认跳过开场过场：开关持久化（无运行期副作用——只在下次开机生效）</summary>
-    public void SetSkipIntroCinematic(bool enabled)
-    {
-        if (enabled == SkipIntroCinematic)
-        {
-            return;
-        }
-
-        SkipIntroCinematic = enabled;
-        GameState.Instance.SaveSettings();
-    }
-
     /// <summary>手柄设置 setter：右摇杆瞄准灵敏度（200..4000 px/s）。
     /// 只更新内存 + 广播（灵敏度不影响 InputMap 死区）；持久化由设置页 drag_ended 统一
     /// 提交——不得每步全量原子写盘，否则滑杆拖动（数十次 value_changed）放大为磁盘写风暴</summary>
@@ -890,7 +874,6 @@ public sealed partial class SettingsService : RefCounted
         ReduceFlash = GameState.Instance.SaveBool(data.GetValueOrDefault("reduce_flash", ReduceFlash), ReduceFlash);
         WorldPostFx = GameState.Instance.SaveBool(data.GetValueOrDefault("world_post_fx", WorldPostFx), WorldPostFx);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
-        SkipIntroCinematic = GameState.Instance.SaveBool(data.GetValueOrDefault("skip_intro", SkipIntroCinematic), SkipIntroCinematic);
         MasterVolume = ReadVolume(data.GetValueOrDefault("master_volume", MasterVolume), MasterVolume);
         MusicVolume = ReadVolume(data.GetValueOrDefault("music_volume", MusicVolume), MusicVolume);
         SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
@@ -944,7 +927,6 @@ public sealed partial class SettingsService : RefCounted
         ["fps_cap"] = FpsCap.ToString(),
         ["vsync"] = VSync,
         ["mouse_lock"] = MouseLock,
-        ["skip_intro"] = SkipIntroCinematic,
         ["joy_aim_speed"] = JoyAimSpeed,
         ["joy_deadzone"] = JoyDeadzone,
         ["joy_vibration"] = JoyVibration,

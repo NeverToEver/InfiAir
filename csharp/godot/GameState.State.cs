@@ -276,14 +276,9 @@ public partial class GameState : Node
     /// SettingsService 转发。</summary>
     public bool FireToggleMode { get => _settings.FireToggleMode; set => _settings.FireToggleMode = value; }
 
-    /// <summary>默认跳过开场过场（settings.json 持久化，默认关=播过场；开启后开机直达标题屏）——SettingsService 转发。</summary>
-    public bool SkipIntro => _settings.SkipIntroCinematic;
-
-    public void SetSkipIntro(bool enabled) => _settings.SetSkipIntroCinematic(enabled);
-
-    /// <summary>本次进程内开场过场是否已播/已跳过（标题屏路由旗标：开机播一次，之后从标题屏直接开局）。
-    /// 存活于 autoload，跨场景切换保持。</summary>
-    public bool IntroPlayedThisSession { get; set; } = false;
+    /// <summary>本次进程内是否已完成开机交接（main 首次进入时置位；标题屏路由旗标：
+    /// 开机经标题屏一次，之后从标题屏直接开局）。存活于 autoload，跨场景切换保持。</summary>
+    public bool BootHandoffDone { get; set; } = false;
 
     /// <summary>视角档位（settings.json 持久化，默认 small=原始视角；相机 zoom = VIEW_ZOOM_LEVELS[view_zoom]）——SettingsService 转发。</summary>
     public StringName ViewZoom { get => _settings.ViewZoom; set => _settings.ViewZoom = value; }

@@ -6,7 +6,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 返航过场导演：7 镜头时序串联、黑场转场、跳过与整树清理。
-/// 架构与 IntroCinematic 同构；无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
+/// 无标题定格——镜头 7 渐暗停在全黑后直接走统一出口，
 /// 让基地 UI 在黑场下淡入。严禁 await create_timer 协程（退出时协程状态泄漏）。
 /// CanvasLayer 子类；UITheme/Starfield/CinematicFx/DawnStation 均为 C# typed 直调；
 /// 各镜头类为独立顶层类（ReturnCinematicPortalShot.cs 等；C# 源生成器不支持内嵌类）。
@@ -56,7 +56,7 @@ public partial class ReturnCinematic : CanvasLayer
         _fade = GetNode<ColorRect>("Fade");
         _subtitle = GetNode<Label>("Subtitle");
         _skipHint = GetNode<Label>("SkipHint");
-        _skipHint.Text = (string)Tr("INTRO_SKIP"); // 跳过提示复用开场键
+        _skipHint.Text = (string)Tr("RETURN_SKIP"); // 跳过提示
         _skipHint.AddThemeFontOverride("font", UITheme.Font);
         _subtitle.AddThemeFontOverride("font", UITheme.Font);
         _shotTimer = new Godot.Timer { OneShot = true };
@@ -288,7 +288,7 @@ public partial class ReturnCinematic : CanvasLayer
     /// 步行循环由镜头 _process 相位驱动，姿态关键帧直接写关节 rotation。</summary>
     private static Godot.Collections.Dictionary BuildPerson()
     {
-        // 返航段整体冷调，乘员状态灯走冷青（与开场琥珀区分）
+        // 乘员状态灯走暖琥珀（对齐玩家侧暖族）
         return CrewFigure.Build(new Color(0.950f, 0.700f, 0.350f));
     }
 

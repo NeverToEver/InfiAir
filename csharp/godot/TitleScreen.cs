@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 见 Warzone 部分）+ 玩家机自远处跃迁飞入悬挂展示（轮廓背光/尾焰怠速，见 ShipDisplay 部分）+
 /// 左侧标题区。开场演出全程不阻塞输入，任意时刻可开局。
 /// 输入路由不变：任意键/点击 → main.tscn 开局；T → tutorial.tscn；Esc 不消费。
-/// 0.5s 输入守卫：过场跳过键/入场期残留按键不误触发开局。
+/// 0.5s 输入守卫：上一场景残留按键不误触发开局。
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
@@ -41,7 +41,7 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _Ready()
     {
-        // 深空底色 + 程序化星空（IntroCinematic Shot1/6 同款直接 new）
+        // 深空底色 + 程序化星空
         // Starfield._Ready 自置 ZIndex=-10，底色须再低一层否则星点被底色盖住
         var bg = CinematicFx.BgRect(TitleBgColor);
         bg.ZIndex = -20;
@@ -56,7 +56,7 @@ public partial class TitleScreen : CanvasLayer
         // 与正局同款视觉语言；黑场淡出在其后入树，保证淡出覆盖增强层
         AddChild(new WorldPostFx());
 
-        // 开场黑场淡出：掩盖过场/主场景 → 标题屏的场景硬切（0.5s）
+        // 黑场淡出：掩盖主场景 → 标题屏的场景硬切（0.5s）
         var fadeIn = CinematicFx.BgRect(new Color(0.0f, 0.0f, 0.0f, 1.0f));
         AddChild(fadeIn);
         var fadeTween = fadeIn.CreateTween();
