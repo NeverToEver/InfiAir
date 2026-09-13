@@ -95,7 +95,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public int RewardAllClear { get; set; } = 200;
     /// <summary>全数拦截奖励：投出全拦 + 一架未坠（比全歼更难）。</summary>
     public int RewardIntercept { get; set; } = 400;
-    /// <summary>每枚被空中击落/弹反的炸弹奖励（拦住威胁本身的回报，拦截当帧入账）。</summary>
+    /// <summary>每枚被拆除（空中击落，或弹反后命中单位）的炸弹奖励（拦住威胁本身的回报，拦截当帧入账）。</summary>
     public int RewardPerIntercept { get; set; } = 25;
 
     private State _state = State.IDLE;
@@ -131,7 +131,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
     private int _warnIndex;
     private int _dropped;
 
-    /// <summary>未被引信引爆就消失的弹数（空中被击落 / 被弹反）——拦截计数的唯一来源。</summary>
+    /// <summary>未被引信引爆就消失的弹数（空中被击落 / 弹反命中单位）——拦截计数的唯一来源。
+    /// 弹反后出界回收不计（反射弹未命中即无战果），与 FormationBomb.Intercepted 的写入点一致。</summary>
     private int _intercepted;
 
     /// <summary>本次事件已结算（防 Finish/Abort 双路径重发奖励与台词）。</summary>
@@ -239,7 +240,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
         ResetRunState();
         _state = State.FORMATION_ENTER;
         var view = FrameCache.ViewRect();
-        var x0 = (float)GD.RandRange(view.Position.X + (view.Size.X * 0.4), view.Position.X + (view.Size.X * 0.6));
+        // 锚点横向抖动由触发时刻确定性散列（core FormationPlan.AnchorJitter）——
+        // 此前用 GD 默认随机序列，无头探针每次跑出不同锚点与转向侧，违反确定性硬规则
+        var jitter = FormationPlan.AnchorJitter(GameState.Instance.RunTime);
+        var x0 = view.Position.X + (view.Size.X * (0.4f + (0.2f * jitter)));
         _anchor = new Vector2(x0, view.Position.Y - SpawnLeadY);
         BuildFormation();
         // 计划时长只看静态配置：投弹表在编队成型时就已定，玩家打掉几架只让事件更早收场

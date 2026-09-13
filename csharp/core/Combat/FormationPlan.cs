@@ -134,4 +134,18 @@ public static class FormationPlan
 
         return new DropSchedule(sortedTimes, sortedCrafts);
     }
+
+    /// <summary>进场锚点的横向抖动（0..1）：把锚点散布在视野中央带内，同时决定 90° 转向侧。
+    /// 由触发时刻确定性散列得到——同一次触发恒定可复现（无头探针不再每次跑出不同锚点与转向侧），
+    /// 不同触发时刻经黄金比低差异序列仍大范围散开。取代此前的 GD 默认随机序列（违反确定性硬规则）。</summary>
+    public static float AnchorJitter(double runTime)
+    {
+        if (!double.IsFinite(runTime) || runTime <= 0.0)
+        {
+            return 0.0f;
+        }
+
+        var x = runTime * 0.6180339887498949;
+        return (float)(x - Math.Floor(x));
+    }
 }

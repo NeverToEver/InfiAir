@@ -126,4 +126,28 @@ public sealed class FormationPlanTests
         Assert.Empty(FormationPlan.Schedule(rank, 2, 0, 0.8f, 0.4f, 1.0f).Times);
         Assert.Empty(FormationPlan.Schedule(Array.Empty<int>(), 2, 2, 0.8f, 0.4f, 1.0f).Times);
     }
+
+    [Fact]
+    public void AnchorJitter_IsDeterministicAndBounded()
+    {
+        // 锚点抖动取代 GD 默认随机序列：同一次触发必须可复现，且落在 [0,1)
+        Assert.Equal(FormationPlan.AnchorJitter(123.456), FormationPlan.AnchorJitter(123.456));
+        foreach (var t in new[] { 0.0, 0.5, 7.7, 61.2, 3600.0, 98765.4321 })
+        {
+            var j = FormationPlan.AnchorJitter(t);
+            Assert.InRange(j, 0.0f, 1.0f);
+        }
+
+        // 相邻触发时刻应给出不同锚点（低差异序列不退化到常数）
+        Assert.NotEqual(FormationPlan.AnchorJitter(60.0), FormationPlan.AnchorJitter(61.0));
+    }
+
+    [Fact]
+    public void AnchorJitter_NonPositiveOrNonFinite_IsZero()
+    {
+        Assert.Equal(0.0f, FormationPlan.AnchorJitter(0.0));
+        Assert.Equal(0.0f, FormationPlan.AnchorJitter(-5.0));
+        Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.NaN));
+        Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.PositiveInfinity));
+    }
 }
