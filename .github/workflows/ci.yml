@@ -6,9 +6,10 @@ name: CI
 # 门禁链：
 # 卫生（注释日期戳与术语）→ 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 →
 # 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-# 无头冒烟六趟（主场景/设置页/编队遭遇/精英炮塔/死亡打断/燃料满扫，固定步长 + 完成标记）。
-# 政策口径保持：仅官方 checkout/upload-artifact/cache action + 官方 dotnet-install.sh
-# + 官方 Godot 引擎/模板，禁止其他第三方依赖。
+# 无头冒烟六趟（主场景/设置页/编队遭遇/精英炮塔/死亡打断/燃料满扫，固定步长 + 完成标记）→
+# 截图探针（HUD + 五张设置页，自检非空白/页面互异）。
+# 依赖口径：项目代码零第三方库（官方 action/安装脚本/引擎/模板）；测试设施允许系统包——
+# 视觉门禁需要 Xvfb + Mesa 软件光栅（runner 无 GPU，headless 截不到画面）。
 
 on:
   push:
@@ -96,6 +97,14 @@ jobs:
       - name: Headless smoke (fixed-step)
         run: bash scripts/ci/check_smoke.sh /tmp/smoke.log
 
+      - name: Screenshot probe (Xvfb + software raster)
+        run: |
+          # runner 无 GPU，headless dummy 截不到画面——装系统级虚拟显示与 Mesa 软光栅，
+          # 由 check_visual.sh 在无 DISPLAY 时自动走 xvfb-run + LIBGL_ALWAYS_SOFTWARE。
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          bash scripts/ci/check_visual.sh /tmp/visual.log
+
       - name: Upload fast-gate failure logs
         if: failure()
         uses: actions/upload-artifact@v4
@@ -105,4 +114,5 @@ jobs:
             /tmp/import.log
             /tmp/smoke.log
             /tmp/smoke.*.log
+            /tmp/visual.log
           retention-days: 7

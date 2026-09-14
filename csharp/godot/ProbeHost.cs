@@ -32,6 +32,8 @@ public partial class ProbeHost : Node
     private bool _settingsProbe;
     private bool _startupProbe;
     private bool _fuelProbe;
+    private bool _shotProbe;
+    private string _shotDir = "";
     private string _eventId = "";
     private bool _deathProbe;
     private bool _startupPrinted;
@@ -41,6 +43,26 @@ public partial class ProbeHost : Node
     private int _frame;
     private int _activeFrame;
     private int _fuelStep;
+    private int _shotStep;
+
+    /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）。
+    /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
+    /// 等新页构建并渲染完成（捕获取的是已渲染帧，同帧切页会捕到上一帧）。
+    /// 切页与捕获间留 ~0.5s，避开设置页交叉淡入/入场动画（捕在转场中段画面未成形）。</summary>
+    private static readonly (int Frame, string Page, string Shot)[] ShotPlan =
+    {
+        (90, "", "hud"),
+        (100, "gameplay", ""),
+        (130, "", "settings-gameplay"),
+        (140, "display", ""),
+        (170, "", "settings-display"),
+        (180, "audio", ""),
+        (210, "", "settings-audio"),
+        (220, "about", ""),
+        (250, "", "settings-about"),
+        (260, "controls", ""),
+        (290, "", "settings-controls"),
+    };
 
     public override void _Ready()
     {
@@ -64,6 +86,14 @@ public partial class ProbeHost : Node
             else if (arg == "--fuel-probe")
             {
                 _fuelProbe = true;
+            }
+            else if (arg == "--shot-probe")
+            {
+                _shotProbe = true;
+            }
+            else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
+            {
+                _shotDir = arg["--shot-dir=".Length..];
             }
             else if (arg.StartsWith("--event-probe-death=", System.StringComparison.Ordinal))
             {
@@ -108,10 +138,152 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (_shotProbe)
+        {
+            TickShotProbe();
+            return;
+        }
+
         if (_eventId.Length > 0)
         {
             TickEventProbe();
         }
+    }
+
+    /// <summary>签名网格（粗）：只判「有没有画面内容」与「各页是否不同」，
+    /// 不做像素级比对——占位内容（帧率/垂直同步读出、背景星空动画）本就随环境变化，
+    /// 跨渲染器比像素必然误报。细粒度退化归 core 单测与断言探针。</summary>
+    private const int SigW = 16;
+    private const int SigH = 9;
+
+    /// <summary>非空白判定：签名通道极差下限。真界面明暗跨度大（面板/文字/高光），
+    /// 黑屏或渲染全坏时极差趋 0。</summary>
+    private const int MinSpread = 24;
+
+    /// <summary>页面可区分判定：五张设置页两两签名最大差的下限。页面切换失效
+    /// （始终同一页/空白）时各页趋同。</summary>
+    private const int MinPageDiff = 12;
+
+    private readonly System.Collections.Generic.Dictionary<string, int[]> _shotSigs = new();
+    private readonly System.Collections.Generic.List<string> _shots = new();
+
+    /// <summary>截图驱动：按计划帧切页/捕获；序列结束后做两条廉价自检（非空白、页面互异），
+    /// 全过才打完成标记（缺标记即门禁红）。</summary>
+    private void TickShotProbe()
+    {
+        foreach (var step in ShotPlan)
+        {
+            if (step.Frame != _frame)
+            {
+                continue;
+            }
+
+            if (step.Page.Length > 0)
+            {
+                var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
+                settings?.ShowSettings(null);
+                settings?.ShowPage(new StringName(step.Page));
+            }
+
+            if (step.Shot.Length > 0)
+            {
+                CaptureShot(step.Shot);
+            }
+
+            return;
+        }
+
+        if (_frame > ShotPlan[^1].Frame && _shotProbe)
+        {
+            _shotProbe = false;
+            VerifyShots();
+        }
+    }
+
+    /// <summary>截图自检：每张非空白 + 五张设置页两两可区分。任一不过就不打完成标记，
+    /// 由门禁按「缺标记」判红（与其它探针同一口径）。</summary>
+    private void VerifyShots()
+    {
+        var ok = true;
+        foreach (var name in _shots)
+        {
+            var sig = _shotSigs[name];
+            var min = int.MaxValue;
+            var max = int.MinValue;
+            foreach (var v in sig)
+            {
+                if (v < min) { min = v; }
+                if (v > max) { max = v; }
+            }
+
+            if (max - min < MinSpread)
+            {
+                GD.PushError(GdFormat.Format("[shot-probe] %s 画面近乎空白（极差 %d）", name, max - min));
+                ok = false;
+            }
+        }
+
+        for (var i = 0; i < _shots.Count; i++)
+        {
+            for (var j = i + 1; j < _shots.Count; j++)
+            {
+                var a = _shotSigs[_shots[i]];
+                var b = _shotSigs[_shots[j]];
+                var worst = 0;
+                for (var k = 0; k < a.Length; k++)
+                {
+                    var d = System.Math.Abs(a[k] - b[k]);
+                    if (d > worst) { worst = d; }
+                }
+
+                if (worst < MinPageDiff)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[shot-probe] %s 与 %s 画面几乎相同（最大差 %d）——页面切换可能失效",
+                        _shots[i], _shots[j], worst));
+                    ok = false;
+                }
+            }
+        }
+
+        if (ok)
+        {
+            GD.Print(GdFormat.Format("[shot-probe] 截图序列完成（%d 张）", _shots.Count));
+        }
+    }
+
+    /// <summary>捕获当前视口：存 PNG（生成截图用） + 记下粗签名（供上面的自检）。
+    /// 目录由 <c>--shot-dir=</c> 指定（门禁侧传绝对路径）。</summary>
+    private void CaptureShot(string name)
+    {
+        var image = GetViewport().GetTexture().GetImage();
+        if (image == null)
+        {
+            GD.PushError(GdFormat.Format("[shot-probe] 视口取像失败：%s", name));
+            return;
+        }
+
+        var png = _shotDir.Length > 0
+            ? GdFormat.Format("%s/%s.png", _shotDir, name)
+            : GdFormat.Format("user://%s.png", name);
+        var err = image.SavePng(png);
+        if (err != Error.Ok)
+        {
+            GD.PushError(GdFormat.Format("[shot-probe] 写出失败 %s：%s", png, err));
+            return;
+        }
+
+        // 缩到粗网格后逐格取平均灰阶：只用于「有内容/各页不同」两条自检
+        image.Resize(SigW, SigH, Image.Interpolation.Bilinear);
+        var sig = new int[SigW * SigH];
+        for (var i = 0; i < sig.Length; i++)
+        {
+            var c = image.GetPixel(i % SigW, i / SigW);
+            sig[i] = (int)Mathf.Round(((c.R + c.G + c.B) / 3.0f) * 255.0f);
+        }
+
+        _shotSigs[name] = sig;
+        _shots.Add(name);
     }
 
     /// <summary>燃料量槽探针：把液位从满油扫到见底，逼 <c>FuelTank._Draw</c> 在每个液位各画一次
