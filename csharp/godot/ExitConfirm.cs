@@ -88,7 +88,13 @@ public partial class ExitConfirm : CanvasLayer
 
     public override void _ExitTree()
     {
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
@@ -171,15 +177,25 @@ public partial class ExitConfirm : CanvasLayer
         FadeAndQuit();
     }
 
-    /// <summary>「存档并退出」：先落盘本局进度再走统一退出清理（战斗模式专属）。</summary>
+    /// <summary>「存档并退出」：先落盘本局进度，成功才走统一退出清理（战斗模式专属）。
+    /// 保存失败不得静默退出——玩家会以为进度已存（SaveManager 已 push_warning），
+    /// 此处留在游戏内让玩家重试或改选「不保存退出」（破坏性意图须显式）。</summary>
     private void OnSaveQuitPressed()
     {
         if (_exiting)
         {
             return;
         }
+
+        if (!GameState.Instance.SaveRun())
+        {
+            GD.PushWarning("InfiAir: 保存并退出失败——留在游戏内，未退出");
+            _msgLabel.Text = Tr("EXIT_SAVE_FAILED");
+            _msgLabel.AddThemeColorOverride("font_color", UITheme.Danger);
+            return;
+        }
+
         _exiting = true;
-        GameState.Instance.SaveRun();
         ExecuteExitCleanup(_battle);
         FadeAndQuit();
     }

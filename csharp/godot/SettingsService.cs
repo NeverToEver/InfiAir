@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Storage;
 
 namespace InfiAir;
 
@@ -626,12 +627,12 @@ public sealed partial class SettingsService : RefCounted
     /// 与「减少闪光」并列——两者针对不同的不适来源（频闪 vs 运动）。</summary>
     public double ShakeScale { get; set; } = 1.0;
 
-    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化。
+    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存，不自动写盘——
+    /// 设置页滑杆在 DragEnded/离开页时统一落盘一次，防拖动时每步全量原子写盘。
     /// 消费端 GameState.Shake 直读本字段，无需同步进手感域。</summary>
     public void SetShakeScale(double value)
     {
         ShakeScale = Mathf.Clamp(value, 0.0, 1.0);
-        GameState.Instance.SaveSettings();
     }
 
     // ---------------- 无障碍：命中顿帧强度 ----------------
@@ -640,12 +641,12 @@ public sealed partial class SettingsService : RefCounted
     /// 与「减少闪光」「屏幕震动强度」并列——针对瞬时定格带来的不适/晕动来源。</summary>
     public double HitStopScale { get; set; } = 1.0;
 
-    /// <summary>设置命中顿帧强度（钳 [0,1]）：只更新内存 + 持久化 + 同步开关到手感域。</summary>
+    /// <summary>设置命中顿帧强度（钳 [0,1]）：只更新内存 + 同步开关到手感域；
+    /// 落盘由设置页滑杆的 DragEnded/离开页统一提交（同震动强度，防拖动写盘风暴）。</summary>
     public void SetHitStopScale(double value)
     {
         HitStopScale = Mathf.Clamp(value, 0.0, 1.0);
         GameState.Instance.SyncHitStopScale(HitStopScale);
-        GameState.Instance.SaveSettings();
     }
 
     /// <summary>鼠标锁定窗口内：开关持久化并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
@@ -692,7 +693,7 @@ public sealed partial class SettingsService : RefCounted
         GameState.Instance.SaveSettings();
     }
 
-    /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
+    /// <summary>手柄设置显式落盘入口（幂等）：setter 不自动写盘，滑杆由设置页在收尾时机调用一次。</summary>
     public void PersistJoySettings() => GameState.Instance.SaveSettings();
 
     // ---------------- 视图簇（热路径：ViewWorldRect 帧缓存） ----------------
@@ -768,6 +769,20 @@ public sealed partial class SettingsService : RefCounted
     /// 回血缓存——GameState.Difficulty.cs 门面包装）。</summary>
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
     {
+        // 版本决策（单源 SettingsMigration.CurrentVersion，写档方 GameState.PersistVersionValue 引用同一常量）：
+        // 同版直读；旧版走下方各旧键迁移分支；更高版保守拒绝——未知字段逐字段回退，降级必须可观测。
+        // version 键保持 data.GetValueOrDefault 直读形态（设置对称门禁据此判定「真读」）。
+        var savedVersion = data.GetValueOrDefault("version", SettingsMigration.CurrentVersion);
+        var versionDecision = SettingsMigration.DecideVersion(
+            savedVersion.VariantType is Variant.Type.Int or Variant.Type.Float
+                ? savedVersion.AsInt64()
+                : SettingsMigration.CurrentVersion,
+            SettingsMigration.CurrentVersion);
+        if (versionDecision == SaveVersionDecision.RejectNewer)
+        {
+            GD.PushWarning($"InfiAir: settings.json 版本 {savedVersion.AsInt64()} 高于当前支持的 {SettingsMigration.CurrentVersion}，未知字段按默认值回退");
+        }
+
         GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
         // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
@@ -779,10 +794,17 @@ public sealed partial class SettingsService : RefCounted
 
         // key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
         // 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
+        // 旧名迁移判定单源在 SettingsMigration.TryMapKeyBindingAction（新名已绑过则丢弃旧条目）。
         GameState.Instance.KeyBindings.Clear();
         var savedKeys = data.GetValueOrDefault("key_bindings", new Variant());
         if (savedKeys.VariantType == Variant.Type.Dictionary)
         {
+            var existingActions = new List<string>();
+            foreach (var a in savedKeys.AsGodotDictionary().Keys)
+            {
+                existingActions.Add(a.AsStringName().ToString());
+            }
+
             foreach (var a in savedKeys.AsGodotDictionary().Keys)
             {
                 var raw = savedKeys.AsGodotDictionary()[a];
@@ -804,14 +826,12 @@ public sealed partial class SettingsService : RefCounted
                     keys.Add((int)k.AsInt64());
                 }
 
-                var action = a.AsStringName();
-                // 档案里的旧增幅 面板键位迁往新动作名
-                if (action == new StringName("buff_panel"))
+                if (!SettingsMigration.TryMapKeyBindingAction(existingActions, a.AsStringName().ToString(), out var mappedAction))
                 {
-                    action = new StringName("augment_panel");
+                    continue; // 新动作名已在表中：旧条目不得覆盖真值
                 }
 
-                GameState.Instance.KeyBindings[action] = keys;
+                GameState.Instance.KeyBindings[new StringName(mappedAction)] = keys;
             }
         }
 
@@ -834,7 +854,11 @@ public sealed partial class SettingsService : RefCounted
             InvalidateViewRectCache();
         }
 
-        // 新模式键缺失时兼容迁移旧 window_size（small/medium/large）。
+        // 窗口模式 + 分辨率：新模式键缺失时兼容迁移旧 window_size（small/medium/large）——
+        // 迁移优先级与非法值回退语义单源在 SettingsMigration.ResolveResolution（合法档来自
+        // RESOLUTION_LEVELS，本类不复制档位表；结果必为合法档或默认档）。
+        // resolution 键保留 data.GetValueOrDefault 直读：设置对称门禁据它判定「真读」
+        //（core 内部取键不在门禁正则可见范围内），非法/缺失才走 core 决策。
         var savedMode = data.GetValueOrDefault("window_mode", "").AsStringName();
         if (savedMode == WindowModeWindowed || savedMode == WindowModeBorderless)
         {
@@ -846,16 +870,13 @@ public sealed partial class SettingsService : RefCounted
         {
             Resolution = savedResolution;
         }
-        else if (!data.ContainsKey("window_mode") && data.ContainsKey("window_size"))
+        else
         {
-            // 旧档案迁移：window_size 三档 → 16:9 分辨率档（旧档位仅窗口化生效，模式取默认 windowed）
-            var legacy = data.GetValueOrDefault("window_size", "").AsStringName();
-            Resolution = legacy switch
-            {
-                var s when s == new StringName("small") => new StringName("1280x720"),
-                var s when s == new StringName("medium") => new StringName("1600x900"),
-                _ => new StringName("1920x1080"),
-            };
+            Resolution = new StringName(SettingsMigration.ResolveResolution(
+                ToClrTree(data),
+                ResolutionKeys(),
+                SettingsMigration.CustomResolution,
+                SettingsMigration.DefaultResolution));
         }
 
         // custom 尺寸判型（对齐 joy 字段惯例）：手改档案非数值时跳过，不触发 Variant 转换错误
@@ -924,6 +945,25 @@ public sealed partial class SettingsService : RefCounted
         }
 
         return Mathf.Clamp(raw.AsDouble(), 0.0, 1.0);
+    }
+
+    /// <summary>设置档 Variant 字典 → CLR JSON 兼容树（core 迁移判定的输入形态；转换失败回空表）。</summary>
+    private static IReadOnlyDictionary<string, object?> ToClrTree(Godot.Collections.Dictionary data)
+        => VariantBridge.TryToClr(data, out var clr, out _)
+            && clr is IReadOnlyDictionary<string, object?> tree
+                ? tree
+                : new Dictionary<string, object?>();
+
+    /// <summary>合法分辨率档集（唯一来源 RESOLUTION_LEVELS，不复制档位表）。</summary>
+    private IReadOnlyCollection<string> ResolutionKeys()
+    {
+        var keys = new List<string>(RESOLUTION_LEVELS.Count);
+        foreach (var key in RESOLUTION_LEVELS.Keys)
+        {
+            keys.Add(key.AsStringName().ToString());
+        }
+
+        return keys;
     }
 
     /// <summary>当前设置字段收集（settings.json；统计类字段不在此列）</summary>

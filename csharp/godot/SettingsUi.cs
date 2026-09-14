@@ -22,9 +22,7 @@ public partial class SettingsUi : RadialMenuLayer
     // ---------------- 可改键动作清单（单一事实源：GameState.REBINDABLE_ACTIONS，本页只读） ----------------
     private static Godot.Collections.Array<StringName> RebindableActions => GameState.Instance.REBINDABLE_ACTIONS;
 
-    private static readonly StringName[] AimAssistOrder = { new("low"), new("medium"), new("high") };
-    private static readonly StringName[] ViewZoomOrder = { new("small"), new("medium"), new("large") };
-    private static readonly StringName[] FpsCapOrder = { new("fps30"), new("fps45"), new("fps60"), new("fps120"), new("fps144"), new("fps165"), new("fps180"), new("fps240"), new("unlimited") };
+    // 档位表一律读服务（*_ORDER 单一事实源，与分辨率 RESOLUTION_ORDER 同例），本页不复制副本
     private static readonly StringName DefaultPage = new("controls");
     private static readonly StringName LayoutPs = new("ps");
 
@@ -105,7 +103,7 @@ public partial class SettingsUi : RadialMenuLayer
 
     private readonly Godot.Collections.Dictionary _pages = new(); // 页名 -> Control
     private readonly Godot.Collections.Dictionary _navButtons = new();
-    private readonly Godot.Collections.Dictionary _rebindRows = new(); // action -> {"keys": Label, "button": Button, "name": Label}
+    private readonly Godot.Collections.Dictionary _rebindRows = new(); // action -> {"keys": Label, "button": Button, "name": Label} 控件表
     private Label _hintLabel = null!;
     private StringName _capturingAction = new StringName();
     private Label _titleLabel = null!;
@@ -116,6 +114,10 @@ public partial class SettingsUi : RadialMenuLayer
     private CanvasLayer? _opener; // 打开者（开始/暂停面板），返回时恢复其可见
     private StringName _lastPage = DefaultPage; // 上次查看的页（重开设置页恢复，HIG：恢复最近面板）
     private double _readoutTimer;
+
+    /// <summary>有滑杆值已改但还没落盘（ValueChanged 只 apply，DragEnded/离页统一落盘）。
+    /// 键盘方向键调整滑杆只走 ValueChanged，离开设置页时兜底落盘一次，覆盖异常退出丢值窗口。</summary>
+    private bool _pendingPersist;
 
     private readonly Callable _onKeyBindingsChanged;
     private readonly Callable _onLocaleChanged;
@@ -257,7 +259,17 @@ public partial class SettingsUi : RadialMenuLayer
 
     public override void _ExitTree()
     {
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值；
+        // 本方法余下均为 GameState 断连与落盘，autoload 已销毁时无本节点清理可做
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
+        // 滑杆调整只 apply 不落盘（DragEnded/离页才写）：本页先于 GameState 退出（重开场景/关窗）
+        // 时最后兜底一次，覆盖「键盘方向键调完直接异常退出」的丢值窗口
+        PersistPending();
         if (gs.IsConnected(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged))
         {
             gs.Disconnect(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
@@ -590,13 +602,18 @@ public partial class SettingsUi : RadialMenuLayer
                 return;
             }
 
-            GameState.Instance.RebindAction(_capturingAction, kc);
             var boundKey = OS.GetKeycodeString((Key)kc);
-            // 冲突来源一并告知：被抢占的动作原本绑着这个键，只说「已绑定」会让玩家以为出现了重复绑定
+            // 抢占来源须在改键前取：RebindAction 会把键从原动作上摘掉，事后查询永远为空
+            // （旧顺序下「原属…已解除」提示是死路径，玩家看不到冲突来源）。
+            // 固定动作（talent_panel/restart 等）与保留的系统键不可抢占——RebindAction 返回 false，
+            // 明确告知玩家为何没绑上，而不是静默让某功能按不出来。
             var stolen = GameState.Instance.OccupiedBy(kc, _capturingAction);
-            _hintLabel.Text = stolen == new StringName()
-                ? GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey)
-                : GdFormat.Format(Tr("SET_BOUND_STOLEN"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey, Tr("ACT_" + stolen.ToString().ToUpper()));
+            var bound = GameState.Instance.RebindAction(_capturingAction, kc);
+            _hintLabel.Text = !bound
+                ? GdFormat.Format(Tr("SET_BOUND_RESERVED"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey)
+                : stolen == new StringName()
+                    ? GdFormat.Format(Tr("SET_BOUND"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey)
+                    : GdFormat.Format(Tr("SET_BOUND_STOLEN"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey, Tr("ACT_" + stolen.ToString().ToUpper()));
             _capturingAction = new StringName();
             GetViewport().SetInputAsHandled();
         }
@@ -660,7 +677,7 @@ public partial class SettingsUi : RadialMenuLayer
         aimRow.AddThemeConstantOverride("separation", 16);
         page.AddChild(aimRow);
         _aimButtons.Clear();
-        foreach (var level in AimAssistOrder)
+        foreach (var level in GameState.Instance.AIM_ASSIST_ORDER)
         {
             var ab = UITheme.MakeToggleButton(Tr("SET_AIM_" + level.ToString().ToUpper()), _aimGroup);
             ab.Pressed += () => GameState.Instance.SetAimAssistLevel(level);
@@ -688,7 +705,7 @@ public partial class SettingsUi : RadialMenuLayer
         zoomLabel.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         zoomRow.AddChild(zoomLabel);
         _zoomButtons.Clear();
-        foreach (var level in ViewZoomOrder)
+        foreach (var level in GameState.Instance.VIEW_ZOOM_ORDER)
         {
             var b = UITheme.MakeToggleButton(Tr("SET_VIEW_" + level.ToString().ToUpper()), _zoomGroup);
             b.Pressed += () => GameState.Instance.SetViewZoom(level);
@@ -761,7 +778,7 @@ public partial class SettingsUi : RadialMenuLayer
         fpsFlow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         fpsRow.AddChild(fpsFlow);
         _fpsButtons.Clear();
-        foreach (var level in FpsCapOrder)
+        foreach (var level in GameState.Instance.FPS_CAP_ORDER)
         {
             // 档位文本是纯数值（30/45/…），不走翻译键；仅「不限制」有独立文案键
             var name = level.ToString();
@@ -842,7 +859,7 @@ public partial class SettingsUi : RadialMenuLayer
         var valueLabel = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
         row.AddChild(valueLabel);
-        // 拖动实时改总线音量，但不逐帧写盘：ValueChanged 只应用，DragEnded 才持久化
+        // 拖动实时改总线音量，但不逐帧写盘：ValueChanged 只应用，DragEnded 才持久化（保持原口径）
         slider.ValueChanged += v =>
         {
             valueLabel.Text = $"{v:0}%";
@@ -933,9 +950,10 @@ public partial class SettingsUi : RadialMenuLayer
         slider.ValueChanged += v =>
         {
             valueLabel.Text = $"{v:0}%";
+            _pendingPersist = true;
             onChanged(v / 100.0);
         };
-        slider.DragEnded += _ => GameState.Instance.SaveSettings();
+        slider.DragEnded += _ => PersistPending();
         return (slider, valueLabel);
     }
 
@@ -955,7 +973,8 @@ public partial class SettingsUi : RadialMenuLayer
         return new[] { hold, toggle };
     }
 
-    /// <summary>手柄参数滑杆行（标题 + HSlider + 数值标签；value_changed 实时回调并更新数值显示）</summary>
+    /// <summary>手柄参数滑杆行（标题 + HSlider + 数值标签；ValueChanged 实时 apply 并更新显示）。
+    /// 落盘只在 DragEnded 与离页兜底（同音量/无障碍滑杆）——键盘方向键调整不应每步全量原子写盘。</summary>
     private HSlider MakeJoySlider(
         Container parent, string title, float minValue, float maxValue, float value, string format, Action<float> onChanged
     )
@@ -982,14 +1001,23 @@ public partial class SettingsUi : RadialMenuLayer
         slider.ValueChanged += v =>
         {
             valueLabel.Text = GdFormat.Format(format, (float)v);
+            _pendingPersist = true;
             onChanged((float)v);
-            // 键盘焦点链方向键调整只走 ValueChanged（仅 DragEnded 落盘会在正常退出
-            // 靠 SaveSettings 兜底，进程异常终止则丢失调整值）——滑杆调整频率低，写盘直接可接受
-            GameState.Instance.PersistJoySettings();
         };
-        // 拖动结束同样持久化（与 ValueChanged 并存，拖动场景双保险）
-        slider.DragEnded += _ => GameState.Instance.PersistJoySettings();
+        slider.DragEnded += _ => PersistPending();
         return slider;
+    }
+
+    /// <summary>滑杆收尾落盘：有未落盘调整时写一次设置（DragEnded 与离页/退树共用）。</summary>
+    private void PersistPending()
+    {
+        if (!_pendingPersist)
+        {
+            return;
+        }
+
+        _pendingPersist = false;
+        GameState.Instance.SaveSettings();
     }
 
     /// <summary>PS 布局适配：刷新手柄布局指示（joy_layout_changed / locale 重建时调用）</summary>
@@ -1472,6 +1500,7 @@ public partial class SettingsUi : RadialMenuLayer
 
         _capturingAction = new StringName();
         _closing = true;
+        PersistPending(); // 离开设置页兜底落盘（滑杆调整不逐帧写盘）
         SetWheelActive(false, dimActive: false);
         // 退场当帧即断开输入处理与鼠标命中（AnimateModalClose），opener 恢复与焦点交还在回调内同步收尾
         UITheme.AnimateModalClose(this, _dim, _plate, () =>

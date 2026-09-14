@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
+using InfiAir.Core.Storage;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -252,7 +253,18 @@ public partial class Main : Node2D
 
             if (!loaded)
             {
-                bootGs.ResetRun(); // 全新一局（保留旧档，待新档覆盖）
+                // 读档失败分型（LoadRun 的核心层结果）：Missing 照旧全新一局（旧档保留待覆盖）；
+                // Corrupt 已被隔离（保留 .corrupt 隔离件），同样全新一局；Unreadable 只是暂时打不开
+                // （IO/权限/被占用），保留旧档让玩家重试——不得 ResetRun 覆盖玩家进度。
+                // 开机进 main 前必经标题屏（上游已 ResetRun），跳过 ResetRun 不残留上一本局状态。
+                if (bootGs.LastRunLoadStatus == SaveLoadStatus.Unreadable)
+                {
+                    GD.PushWarning("InfiAir: 本局存档暂时不可读——保留旧档，本次按全新一局继续（未删除任何进度）");
+                }
+                else
+                {
+                    bootGs.ResetRun(); // 全新一局（保留旧档，待新档覆盖）
+                }
             }
 
             ApplyNewRun();
@@ -270,28 +282,36 @@ public partial class Main : Node2D
 
     public override void _ExitTree()
     {
-        // 子弹时间内退出（重开/中途退出）也要保证演出倍率与顿帧残留一并复位
-        GameState.Instance.ResetTimeScale();
-        GameState.Instance.SummonInProgress = false; // 同 TimeScale：跨场景不残留
-        var camRef = GameState.Instance.CameraRef;
-        if (camRef == _camera)
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值。
+        // 下方 _fogEvents.SetRunActive 属本节点自身资源回收，不因 autoload 取不到而跳过
+        var gs = GameState.TryGetInstance();
+        if (gs != null)
         {
-            GameState.Instance.CameraRef = null;
+            // 子弹时间内退出（重开/中途退出）也要保证演出倍率与顿帧残留一并复位
+            gs.ResetTimeScale();
+            gs.SummonInProgress = false; // 同 TimeScale：跨场景不残留
+            var camRef = gs.CameraRef;
+            if (camRef == _camera)
+            {
+                gs.CameraRef = null;
+            }
         }
 
         _fogEvents.SetRunActive(false);
-        GameState.Instance.SetRunActive(false);
+        gs?.SetRunActive(false);
         // GameState 信号显式断开——退出时 GameState 先于本节点释放的
         // 时序下连接悬空可致退出 segfault（GDScript 自动断开，C# 需手动）
-        var gs = GameState.Instance;
-        if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
+        if (gs != null)
         {
-            gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
-        }
+            if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
+            {
+                gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
+            }
 
-        if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
-        {
-            gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
+            if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
+            {
+                gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
+            }
         }
     }
 
@@ -306,24 +326,12 @@ public partial class Main : Node2D
 
     public Hud Hud() => _hud;
 
-
-
     /// <summary>天赋缓存面板（HUD 指示器点击入口）。</summary>
     public TalentPanel TalentPanel() => _talentUi;
 
     public MetaHealthFX MetaFx() => _metaFx;
 
-    public float TimeScaleRamp() => _timeScaleRamp;
-
     public void SkipReturn() => SkipReturnInternal();
-
-    public float GiveUpCharge() => _giveUpCharge;
-
-    public float BulletTime() => _bulletTimeLeft;
-
-    public float DockCooldown() => _dockCooldown;
-
-    public void SetChargeTime(float seconds) => _chargeTime = seconds;
 
     public ReturnCinematic? ReturnCinematic() => _return;
 
@@ -503,7 +511,7 @@ public partial class Main : Node2D
         _chargeFx.Visible = false;
         AddChild(_chargeFx);
         // 背光（衬在虚影之下：z -1）
-        _chargeGlow = CinematicFx.SoftGlow(220.0f * ws, new Color(0.35f, 0.85f, 1.0f, 0.0f));
+        _chargeGlow = CinematicFx.SoftGlow(220.0f * ws, new Color(UITheme.MothershipCool, 0.0f));
         _chargeGlow.ZIndex = -1;
         _chargeFx.AddChild(_chargeGlow);
         // 收缩椭圆环 ×2（透视压扁，蓄力进度驱动 2.2→0.7 错峰收缩）
@@ -642,7 +650,11 @@ public partial class Main : Node2D
         _baseUi.ShowBase();
         // 本局存档：回到基地（母舰坞修/返航）自动落盘——基地是天然的安全点，
         // 崩溃/断电后可从基地继续；「不保存退出」仍可主动丢弃。
-        GameState.Instance.SaveRun();
+        // 失败必须可观测：静默失败会让玩家以为回基地已存，崩溃后进度凭空消失。
+        if (!GameState.Instance.SaveRun())
+        {
+            GD.PushWarning("InfiAir: 回基地自动存档失败——本局进度未落盘");
+        }
         if (_bgmPlayer != null)
         {
             var bgmTween = CreateTween();
@@ -867,11 +879,19 @@ public partial class Main : Node2D
         AddChild(gate);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
         _mothership = MothershipScene.Instantiate<Mothership>();
-        _mothership.BeginWarpIn(gatePos, gate);
-        // C# 事件/TreeExited 订阅随 _mothership 包装对象消亡，无需手动退订（仅针对 Connect）
-        _mothership.Departed += OnMothershipDepartedInternal;
-        _mothership.TreeExited += () => _mothership = null;
-        AddChild(_mothership);
+        var mothership = _mothership;
+        mothership.BeginWarpIn(gatePos, gate);
+        // C# 事件/TreeExited 订阅随实例包装对象消亡，无需手动退订（仅针对 Connect）
+        mothership.Departed += OnMothershipDepartedInternal;
+        // 旧实例离树只清自己：无条件置空会把已替换上的新实例引用一并抹掉
+        mothership.TreeExited += () =>
+        {
+            if (ReferenceEquals(mothership, _mothership))
+            {
+                _mothership = null;
+            }
+        };
+        AddChild(mothership);
     }
 
     private void OnMothershipDepartedInternal(float cooldown)

@@ -215,7 +215,7 @@ public sealed partial class InputBindingsService : RefCounted
         AddJoyButton("dock", 2); // X
         AddJoyButton("homecoming", 3); // Y（长按返航）
         AddJoyButton("give_up", 7); // R3（长按放弃）
-        AddJoyButton("augment_panel", 6); // L3（展开/收起 buff 栏）
+        AddJoyButton("augment_panel", 6); // L3（展开/收起增幅栏）
         AddJoyButton("restart", 0); // A（结算/暂停重开）
         AddJoyAxis("parry", 4, -1.0); // LT 左扳机（弧光弹反盾，轴 4 负向按下；阈值经 deadzone）
         AddJoyAxis("fire", 5, 1.0); // RT 右扳机（轴 5 正向；与 LT 弹反同族，阈值经 deadzone）
@@ -323,12 +323,13 @@ public sealed partial class InputBindingsService : RefCounted
         return XBOX_BUTTON_LABELS.GetValueOrDefault(button, button.ToString()).ToString();
     }
 
-    /// <summary>改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）
-    /// 冲突清理同时扫默认绑定——未自定义动作的默认键被占用时置空绑定覆盖默认，
-    /// 避免 apply_key_bindings 从默认表重灌同键造成两动作冲突</summary>
+    /// <summary>改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）。
+    /// 固定动作（talent_panel/restart）与引擎 ui_* 保留键在此拒绝（返回 false）——这些动作无
+    /// 可改入口，被抢占后对应功能静默按不出来；冲突清理同时扫默认绑定——未自定义动作的默认键
+    /// 被占用时置空绑定覆盖默认，避免 apply_key_bindings 从默认表重灌同键造成两动作冲突</summary>
     public bool RebindAction(StringName action, int keycode)
     {
-        if (!REBINDABLE_ACTIONS.Contains(action))
+        if (!REBINDABLE_ACTIONS.Contains(action) || ReservedBy(keycode) != new StringName())
         {
             return false;
         }
@@ -374,8 +375,9 @@ public sealed partial class InputBindingsService : RefCounted
         KeyBindingsChanged?.Invoke();
     }
 
-    /// <summary>键位占用者查询（改键前提示用）：返回当前已绑该键的动作，无占用返回空 StringName。
-    /// 遍历口径与 RebindAction 的冲突清理一致（有效绑定 = KeyBindings 覆盖，否则默认表）。</summary>
+    /// <summary>键位占用者查询（改键前提示用）：返回当前已绑该键的**可改键**动作，无占用返回空 StringName。
+    /// 遍历口径与 RebindAction 的冲突清理一致（有效绑定 = KeyBindings 覆盖，否则默认表）。
+    /// 固定/ui_* 动作的占用另经 <see cref="ReservedBy"/> 判定（不可抢占，只能拒绝）。</summary>
     public StringName OccupiedBy(int keycode, StringName except)
     {
         foreach (var a in REBINDABLE_ACTIONS)
@@ -393,6 +395,82 @@ public sealed partial class InputBindingsService : RefCounted
         }
 
         return new StringName();
+    }
+
+    /// <summary>
+    /// 保留键查询：返回占用该键的不可改动作（固定动作 talent_panel/restart 等，或引擎 ui_*），
+    /// 无占用返回空 StringName。这些动作没有改键入口，键被改键系统抢走后对应功能静默失效
+    /// （表现为「按不出来」，既不崩也不报错），故 RebindAction 直接拒绝。
+    /// ui_* 与游戏动作**共用**的键（引擎默认方向键/空格，project.godot 里移动与冲刺本就用它们）
+    /// 不算保留——按设计允许重叠，一刀切会把「把移动键改回方向键」也挡掉。
+    /// </summary>
+    public StringName ReservedBy(int keycode)
+    {
+        if (keycode == 0)
+        {
+            return new StringName();
+        }
+
+        foreach (var (key, action) in ReservedKeycodes())
+        {
+            if (key == keycode)
+            {
+                return action;
+            }
+        }
+
+        return new StringName();
+    }
+
+    /// <summary>保留键表缓存（首次查询时从 InputMap 实际绑定构建；固定动作与 ui_* 的键集合
+    /// 运行期不再变化——改键只动可改键动作）。</summary>
+    private List<(int Key, StringName Action)>? _reservedKeycodes;
+
+    private List<(int Key, StringName Action)> ReservedKeycodes()
+    {
+        if (_reservedKeycodes != null)
+        {
+            return _reservedKeycodes;
+        }
+
+        // 游戏动作已按设计占用的键（默认绑定）——ui_* 与它们的重叠是既有约定，不算保留
+        var gameplayKeys = new HashSet<int>();
+        foreach (var a in REBINDABLE_ACTIONS)
+        {
+            foreach (var k in _defaultBindings.GetValueOrDefault(a, new Variant()).AsGodotArray())
+            {
+                gameplayKeys.Add((int)k.AsInt64());
+            }
+        }
+
+        var reserved = new List<(int, StringName)>();
+        foreach (var action in InputMap.GetActions())
+        {
+            if (REBINDABLE_ACTIONS.Contains(action) || action == FireAction)
+            {
+                continue;
+            }
+
+            var isUi = action.ToString().StartsWith("ui_", StringComparison.Ordinal);
+            foreach (var ev in InputMap.ActionGetEvents(action))
+            {
+                if (ev is not InputEventKey keyEvent)
+                {
+                    continue;
+                }
+
+                var kc = keyEvent.Keycode != Key.None ? (int)keyEvent.Keycode : (int)keyEvent.PhysicalKeycode;
+                if (kc == 0 || (isUi && gameplayKeys.Contains(kc)))
+                {
+                    continue; // ui_* 与游戏动作共用键（方向键/空格）：按设计允许重叠
+                }
+
+                reserved.Add((kc, action));
+            }
+        }
+
+        _reservedKeycodes = reserved;
+        return reserved;
     }
 
     public string ActionKeysText(StringName action)

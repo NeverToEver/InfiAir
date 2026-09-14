@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Storage;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -12,7 +13,7 @@ namespace InfiAir;
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
-    private const ulong InputGuardMs = 500;
+    private const float InputGuardSeconds = 0.5f;
 
     // 开局确认动效：延迟即切场景等待时长（保持迅捷），ReduceFlash 时只留极轻缩放、不提亮
     private const float ConfirmDelay = 0.2f;
@@ -26,7 +27,12 @@ public partial class TitleScreen : CanvasLayer
     private static readonly Vector2 ShipAnchorPos = new(1360.0f, 470.0f);
     private static readonly Vector2 ShipFarPos = new(1560.0f, 230.0f);
 
-    private ulong _readyMs;
+    /// <summary>输入守卫已过（0.5s 模拟时间）：上一场景残留按键不误触发开局。
+    /// 按物理帧累计 delta（--fixed-fps 下每帧恒 1/60，帧数＝模拟时长），不用墙钟——
+    /// 墙钟与模拟时间脱钩，守卫时长在无头/低帧率下不可复现。本类 _Process 由 Warzone 分部占用，
+    /// 故用 _PhysicsProcess 计时。</summary>
+    private bool _guardDone;
+    private double _guardElapsed;
     /// <summary>开局/进教程一次性守卫：同帧多个按下事件（键+点击、T+其他键）会各触发一次
     /// ChangeSceneToFile（deferred 双倍执行），且 T 与其他键同帧时目的地由后调用者覆盖</summary>
     private bool _started;
@@ -65,8 +71,15 @@ public partial class TitleScreen : CanvasLayer
         var fadeTween = fadeIn.CreateTween();
         fadeTween.TweenProperty(fadeIn, "color:a", 0.0f, 0.5).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         fadeTween.TweenCallback(Callable.From(fadeIn.QueueFree));
+    }
 
-        _readyMs = Time.GetTicksMsec();
+    /// <summary>输入守卫计时（模拟时间）：累计物理帧 delta 到 0.5s 后放行输入。</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        if (!_guardDone && (_guardElapsed += delta) >= InputGuardSeconds)
+        {
+            _guardDone = true;
+        }
     }
 
     private void BuildTitleUi()
@@ -126,7 +139,9 @@ public partial class TitleScreen : CanvasLayer
         _pressHint = hint;
         vbox.AddChild(hint);
 
-        // 本局存档存在时：额外一行「按 C 继续上次出击」提示（高亮于「任意键新局」之上）
+        // 本局存档存在（可解析且含本局数据）时：额外一行「按 C 继续上次出击」提示。
+        // 暂时读不出（IO/权限）时不显示继续项，但要告警——否则玩家只看到「不能继续」而无从知晓原因，
+        // 且旧档未被隔离也未被删除，下次启动可重试。
         if (GameState.Instance.HasRunSave())
         {
             _hasSave = true;
@@ -135,6 +150,10 @@ public partial class TitleScreen : CanvasLayer
             vbox.AddChild(contHint);
             var contIn = contHint.CreateTween();
             contIn.TweenProperty(contHint, "modulate:a", 1.0f, 0.5).SetDelay(1.4).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        }
+        else if (GameState.Instance.LastRunLoadStatus == SaveLoadStatus.Unreadable)
+        {
+            GD.PushWarning("InfiAir: 本局存档暂时不可读——本次不提供继续（旧档未被删除，可稍后重启重试）");
         }
 
         // 标题块滑入淡入（1.0s 起，与机体飞入并行）
@@ -167,7 +186,7 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (_started || Time.GetTicksMsec() - _readyMs < InputGuardMs)
+        if (_started || !_guardDone)
         {
             return;
         }
