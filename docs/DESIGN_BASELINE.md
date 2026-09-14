@@ -45,8 +45,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Card text via `AUG_%s_DESC` keys (single source).
 - Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile), `explosive.*` (unlock `boss_kills>=3` no longer gates purchase — legacy trait), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
-  - **弱追踪覆盖全部敌机（2026-09-14 修正）**：`NearestConeTarget` 不再按 `aim_marked` 过滤——标记只决定**框显示**与**框内强追踪**，不是弱追踪的准入门槛。原实现只对约 25% 的标记敌生效，玩家实感是「弱辅瞄时有时无」。锥角/强度随档位（low 6°/0.42、medium 8°/0.52、high 10°/0.62；本次由 4/6/8° 与 0.35/0.45/0.55 上调，属玩家可感取值）。
-  - 玩家弹速 `player.bullet_speed`（2026-09-14 由 1800 → 2600，属玩家可感取值）：1080 设计高度下横穿约 0.74s，远距离目标不必再「等弹到」。
+  - **弱追踪覆盖全部敌机（2026-09-14 修正）**：`NearestConeTarget` 不再按 `aim_marked` 过滤——标记只决定**框显示**与**框内强追踪**，不是弱追踪的准入门槛。原实现只对约 25% 的标记敌生效，玩家实感是「弱辅瞄时有时无」。锥角/强度随档位（low 6°/0.42、medium 8°/0.52、high 10°/0.62；本次由 4/6/8° 与 0.35/0.45/0.55 上调，人类已确认按现值定稿）。
+  - 玩家弹速 `player.bullet_speed`（2026-09-14 由 1800 → 2600，人类已确认按现值定稿）：1080 设计高度下横穿约 0.74s，远距离目标不必再「等弹到」。
 - **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
 
 ### 1.6 Bosses

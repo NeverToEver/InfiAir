@@ -186,7 +186,20 @@ if [ "$PUBLISH" = 1 ]; then
 	git push "$PUSH_URL" "v$VERSION"
 
 	NOTES_FILE="$(mktemp)"
-	# 文档收敛：CHANGELOG.md 已移除，发布说明为空（如需说明请手写后另行上传）
+	# 发布说明单一维护点：docs/RELEASE_NOTES.md 按 `## v<版本>` 分节，取本版本那一节作 Release 正文。
+	# 文件可累积保留历史节，正文不会把旧版本一起带上；缺文件/缺该版本节/节为空则回退空 body
+	# （不阻断发布，也不静默编造内容——判断依据只有文件本身）
+	if [ -s docs/RELEASE_NOTES.md ]; then
+		awk -v ver="v$VERSION" '
+			/^## / { inblock = ($2 == ver) }
+			inblock && $0 !~ /^---[[:space:]]*$/ { print }
+		' docs/RELEASE_NOTES.md > "$NOTES_FILE"
+	fi
+	if [ -s "$NOTES_FILE" ]; then
+		echo "==> Release 正文取自 docs/RELEASE_NOTES.md 的 $VERSION 节（$(wc -c < "$NOTES_FILE") 字节）"
+	else
+		echo "[release] docs/RELEASE_NOTES.md 无 v$VERSION 节（或文件缺失），Release 正文为空" >&2
+	fi
 	PAYLOAD=$(python3 -c '
 import json, sys
 print(json.dumps({"tag_name": "v" + sys.argv[1], "name": "InfiAir v" + sys.argv[1], "body": sys.stdin.read()}))' "$VERSION" < "$NOTES_FILE")
