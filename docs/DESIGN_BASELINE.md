@@ -56,7 +56,10 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.5 Talent Cache System（2026-09-07 重构，替代旧里程碑三选一）
 - **Structure**: 27 nodes in 4 categories × lines — `csharp/core/Talent/TalentTree.cs` is the single structural source. Line order = prerequisite chain (next node needs previous ≥ Lv1). Node caps = `augments.<id>.max_stacks` (json is sole authority; `extra_life` 10). 2026-09-08 作战增幅扩展：新增 8 节点（旧 buff 身份全站退役为「增幅/Augment」——效果桥 `CombatStateService.Augments`、文本键 `AUG_*`、配置段 `augments.*`）：`homing`（制导航弹：出膛弹锁定锥内追踪最近敌机）、`salvo`（齐射重弹：每 N 发 ×3 伤害，层数缩短间隔）、`deflector`（偏导护盾：弹反冷却 ×0.78^eff、反射伤害 ×1.6^eff）、`second_wind`（背水回涌：受击后 3s 每秒 +3 HP/层）、`dash_strike`（相位冲击：冲刺触及敌机 35×层伤害）、`graze_field`（擦弹力场：擦弹环 ×1.2^eff、擦弹分 +5/层）、`score_amp`（战果增幅：击杀分 ×1.08^eff）、`combo_guard`（连击护持：连击窗口 ×1.5^eff）。
-- **Points & cache**: milestone +`talent.grant.points_per_milestone`(2), boss kill +`points_per_boss`(1) → ordered cache pool. Overflow decay: first `safe_threshold`(**30**) points full value; each excess position −`decay_step`(10%), floor `decay_floor`(10%) — LIFO (newest decay deepest). Spend is LIFO from tail. **正向回补**（2026-09-14）：每次花费后已衰减点朝满值抬 `recovery_step`(25%)——原为「超阈值即不可逆」的纯惩罚，叠加隐蔽入口（长按 G）后对新手是纯负面；回补让「花掉点数」本身成为自救手段（StS 稀有度保底思路）。读档还原不触发回补（快照即真实历史态）。**里程碑达成横幅**（2026-09-14）：达成时提示获得点数，原实现只写池不给反馈，玩家无法关联「打得好」与「点数变多」。HUD indicator (top-right, 4 states: 0 / 1–30 breathing / 31–39 warn / 40+ danger，阈值随 safe_threshold 上移)。 Opening is charge-gated: hold `G` (`talent_panel`) or hold the indicator (`talent.panel.charge_time`, bottom-center bar; release/damage/other-modal cancels) → full bar opens `TalentPanel` (tree pauses) with layered choreography (dim → wheel overshoot slide → staggered content → footer; exit reversed+faster, unpause after).
+- **Points & cache**: milestone +`talent.grant.points_per_milestone`(2), boss kill +`points_per_boss`(1) → ordered cache pool. Overflow decay: first `safe_threshold`(**30**) points full value; each excess position −`decay_step`(10%), floor `decay_floor`(10%) — LIFO (newest decay deepest). Spend is LIFO from tail. **正向回补**（2026-09-14）：每次花费后已衰减点朝满值抬 `recovery_step`(25%)——原为「超阈值即不可逆」的纯惩罚，叠加隐蔽入口（长按 G）后对新手是纯负面；回补让「花掉点数」本身成为自救手段（StS 稀有度保底思路）。读档还原不触发回补（快照即真实历史态）。**里程碑达成横幅 + 常驻进度**（2026-09-14）：达成时提示获得点数；HUD 缓存芯片下方常驻目标行内并排显示
+  「距下一里程碑 %N」（`ScoreService.MilestoneProgress`，按**本档起点之后**的分数计算，使进度条每档从 0 重走，
+  而非直接用 score/threshold——后者因阈值指数增长会越到后期越填不满、读不出进展）。
+  原实现只写池不给反馈，玩家无法关联「打得好」与「点数变多」。HUD indicator (top-right, 4 states: 0 / 1–30 breathing / 31–39 warn / 40+ danger，阈值随 safe_threshold 上移)。 Opening is charge-gated: hold `G` (`talent_panel`) or hold the indicator (`talent.panel.charge_time`, bottom-center bar; release/damage/other-modal cancels) → full bar opens `TalentPanel` (tree pauses) with layered choreography (dim → wheel overshoot slide → staggered content → footer; exit reversed+faster, unpause after).
 - **Costs**: next level = `cost.base`(2) + level × `cost.increment`(1).
 - **Diminishing returns**: per-node `softcap` (`talent.softcaps.*`, default 3); past softcap each level's efficiency = max(`diminishing.floor`(0.25), 1 − `diminishing.step`(0.25)×(k−softcap)) → fractional effective level; multiplicative consumers (Player pow-factors, crit, dash CD, mothership_recall CD) read `TalentEffLevel` (= factor^effLevel); integer-semantics consumers (shield layers, pierce, spread, extra_life HP) keep integer levels.
 - **Mechanism A — faction mutex**: offense↔defense; one side's total investment ≥ `mutex.threshold`(5) → opposing nodes' caps −`mutex.cap_reduction`(2), permanent for the run.
@@ -72,6 +75,10 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
 
 ### 1.6 Bosses
+- **攻击密度随难度乘数 D 增长（2026-09-14）**：档位分档照旧只表达「选哪档开局」，D 另追加弹数
+  每 **3.0** D +1（上限 **4**），作用于多弹道攻击（扇射/追踪/环弹/齐射/弹幕墙）；单体狙击与蓄力炮
+  等「少而准」的攻击语义不受影响。判定在 core `DifficultyScaling.BossDensityBonus`。
+  目的：原实现弹数只看档位，后期弹幕「不更密、只更痛」，与弹幕系「后期靠密度/模式」相悖。
 - Rotation: Nth boss = type `(N-1)%4+1` via `spawner.SpawnBoss()`.
 - Phase tables P1/P2/ENRAGE (`boss.phases.typeN` + telegraph); 4-type enrage (`boss.enrage.type_*`, player slow ×0.35, no freeze); difficulty tiers × once in `_Ready()` (`boss.difficulty_scaling`: count/interval/speed).
 - Anchor: `FightY` = offset from view top; all via `FightAnchorY()`.
@@ -137,6 +144,10 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Esc / gamepad `ui_cancel`, one state machine.
 
 ### 1.13 Combat Fairness (数值定稿)
+- **受击喘息窗口口径（2026-09-14 人类决断收窄）**：玩家受击后 `dda.duration`(5s) 内，敌机与 Boss 的
+  **开火间隔** × `dda.factor`(1.3)（只做「直接缓解」：减弱打你的火力）。
+  **波次间隔不再吃该因子**——原实现同时拉长波次，等于整局推进速度被「免伤 + 清 250px 弹 + 降档」
+  三重喘息拖慢，与「压力无界」的设计意图相悖。候选「扩为真自适应」明确不做（须先推翻本条）。
 - **Grace frames**: enemy bullet in Hitbox defers settlement `player.grace_period` (0.05s); only enemy-bullet→player timing. **离场判定（2026-09-10 修复直击不结算）**：窗口内离场时按弹心相对轨迹段（入口→离场，圆心参考系两端同减抵消玩家移动）最近距 ≤ 核心半径（7×ws = 2.8px）判定——贯穿核心 = 视觉直击，照常吃伤害；仅擦边入框（最近距 > 核心）才免伤。修复前高速弹（420px/s 穿越核心 ~25ms）必在宽限内离场，「离场即免伤」使直击永不结算。到期仍在框内同样结算（不变）。
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (10, × difficulty), once/bullet; hitbox area gives none. 玩家受击判定仅经 `Player/Hitbox`（r=7 × world_scale = 2.8）；机身 r=22 不参与碰撞（mask=0）。
 - **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).

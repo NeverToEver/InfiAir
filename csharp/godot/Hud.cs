@@ -1530,9 +1530,14 @@ public partial class Hud : CanvasLayer
         }
 
         var gs = GameState.Instance;
+        // 距下一里程碑的百分比并排显示（同一行）：奖励节奏在达成前就可预期——
+        // 原实现只在里程碑达成那一刻给横幅，玩家看不到「还差多少」。
+        var milestonePct = (int)Mathf.Round(gs.MilestoneProgress() * 100.0);
+        var milestoneText = GdFormat.Format((string)Tr("MILESTONE_PROGRESS"), milestonePct);
         if (gs.GoalAchieved())
         {
-            _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), (string)Tr("GO_BOSS_ACHIEVED"));
+            _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
+                (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
             _goalLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
             if (!_goalBannerShown)
             {
@@ -1559,7 +1564,7 @@ public partial class Hud : CanvasLayer
                 (int)(gs.RunTime / 60.0), (int)(surviveTarget / 60.0));
         }
 
-        _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), detail);
+        _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), detail) + "  ·  " + milestoneText;
         _goalLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
     }
 

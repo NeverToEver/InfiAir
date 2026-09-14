@@ -36,8 +36,10 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>难度进程乘数（GameState 公开属性转发，只读）。</summary>
     public double DifficultyMultiplier { get; private set; } = 1.0;
 
-    /// <summary>DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
-    /// （只拉间隔不降收益，分数公平）；_apply_balance 经 ApplyDdaParams 注入（GameState 公开属性转发，只读）。</summary>
+    /// <summary>受击喘息窗口——玩家受击后短暂拉长敌机/Boss 开火间隔
+    /// （只做直接缓解：减弱打你的火力，不拖慢波次推进；不降收益，分数公平）。
+    /// 口径经人类决断收窄：原实现同时拉长波次间隔，等于整局节奏被受击拖慢，
+    /// 与「压力无界」的设计意图相悖。_apply_balance 经 ApplyDdaParams 注入。</summary>
     public double DDA_DURATION { get; private set; } = 5.0;
 
     public double DDA_FACTOR { get; private set; } = 1.3;
@@ -174,8 +176,8 @@ public sealed partial class RunProgressionService : RefCounted
         return _scoreMult;
     }
 
-    /// <summary>DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
-    /// （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
+    /// <summary>受击喘息中（玩家受击后 DDA_DURATION 内）——消费方
+    /// （enemy 开火计时 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
     public bool DdaActive() => _ddaTimer > 0.0;
 
     /// <summary>DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）</summary>

@@ -404,6 +404,22 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            // Boss 攻击密度必须随 D 增长（后期压力要有「密度」这一轴，而不只是更肉更痛）
+            var density = Core.Progression.DifficultyScaling.BossDensityBonus(d, cfg);
+            if (minutes >= 30.0 && density <= 0)
+            {
+                GD.PushError($"[long-probe] {minutes}min Boss 攻击密度追加为 0（密度未接难度）");
+                _longProbe = false;
+                return;
+            }
+
+            if (density > cfg.BossDensityBonusCap)
+            {
+                GD.PushError($"[long-probe] {minutes}min Boss 密度追加 {density} 越过上限 {cfg.BossDensityBonusCap}");
+                _longProbe = false;
+                return;
+            }
+
             prevHp = hp;
             prevDmg = dmg;
         }
@@ -424,6 +440,15 @@ public partial class ProbeHost : Node
         if (!(capped > 0.0) || capped >= raw)
         {
             GD.PushError($"[long-probe] 时间项软上限未生效（raw={raw} capped={capped:0.###}）");
+            _longProbe = false;
+            return;
+        }
+
+        // 里程碑进度：开局应为 0（未得分），且必须落在 [0,1]——算错会让 HUD 条骗人
+        var mp = GameState.Instance.MilestoneProgress();
+        if (mp < 0.0 || mp > 1.0)
+        {
+            GD.PushError($"[long-probe] 里程碑进度越界：{mp:0.###}（应在 [0,1]）");
             _longProbe = false;
             return;
         }

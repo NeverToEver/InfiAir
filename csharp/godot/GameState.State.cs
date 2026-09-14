@@ -399,8 +399,8 @@ public partial class GameState : Node
     /// <summary>任务进度整秒缓存（_process 热路径免每帧字典访问）</summary>
     private int _surviveSecCached = -1;
 
-    /// <summary>DDA 弹幕密度降档——玩家受击后短暂拉长敌弹/波次间隔
-    /// （只拉间隔不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存（只读——
+    /// <summary>受击喘息窗口——玩家受击后短暂拉长敌机/Boss 开火间隔
+    /// （只拉敌机与 Boss 开火间隔，不拉波次间隔、不降收益，分数公平）；_apply_balance 从 balance.json dda 段缓存（只读——
     /// 写入收口到 ApplyDdaParams）——RunProgressionService 转发。</summary>
     public double DDA_DURATION => _runProg.DDA_DURATION;
 

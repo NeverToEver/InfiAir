@@ -1299,6 +1299,28 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // 4 型狂暴弹数分档（ring 增量 [-2,0,2]，同 1/3 型环弹口径；下限 4 防越界）
         E4RingCount = Mathf.Max(4, E4RingCount + CountDelta("ring", tier));
         E4ReleaseRingCount = Mathf.Max(4, E4ReleaseRingCount + CountDelta("ring", tier));
+
+        // 本局难度乘数再追加密度（分档只表达「选哪档开局」，D 表达「打到多后期」）：
+        // 原实现弹数只看档位，后期弹幕不更密、只更痛——与弹幕系「后期靠密度/模式」相悖。
+        // 上限在 core DifficultyScaling（防同屏弹量失控）。增量只作用于多弹道攻击，
+        // 单体狙击/蓄力炮等「少而准」的攻击语义不受影响。
+        var density = Core.Progression.DifficultyScaling.BossDensityBonus(
+            GameState.Instance.DifficultyMultiplier, GameState.Instance.Scaling());
+        if (density > 0)
+        {
+            _attacks.FanDelta += density;
+            _attacks.HomingDelta += density;
+            _attacks.RingDelta = Mathf.Max(4, _attacks.RingDelta + density);
+            VolleyCount = Mathf.Max(1, VolleyCount + density);
+            WallCount = Mathf.Max(6, WallCount + density);
+            E1RingCount = Mathf.Max(4, E1RingCount + density);
+            E3RingCount = Mathf.Max(4, E3RingCount + density);
+            E2ReleaseRingCount = Mathf.Max(4, E2ReleaseRingCount + density);
+            E3ReleaseRingCount = Mathf.Max(4, E3ReleaseRingCount + density);
+            E1SalvoCount = Mathf.Max(4, E1SalvoCount + density);
+            E4RingCount = Mathf.Max(4, E4RingCount + density);
+            E4ReleaseRingCount = Mathf.Max(4, E4ReleaseRingCount + density);
+        }
     }
 
     /// <summary>弹数分档取值：boss.difficulty_scaling.counts[key][tier]，缺键/越界回退 0。</summary>

@@ -43,14 +43,19 @@ public partial class GameState : Node
     /// <summary>达成所需 Boss 击杀数。</summary>
     public int GoalBossKills() => _runProg.GoalBossKills();
 
+    /// <summary>距下一里程碑的进度 0..1（HUD 常驻显示）。</summary>
+    public double MilestoneProgress() => _score.MilestoneProgress();
+
     /// <summary>DDA 降档：受击触发（重入安全——幂等置位，重复受击刷新计时）；
     /// 同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
     private void OnPlayerDamagedDda(float amount, Vector2 fromPos) => _runProg.OnPlayerDamagedDda(amount, fromPos);
 
     public int ScoreMultiplier() => _runProg.ScoreMultiplier();
 
-    /// <summary>DDA 降档中（玩家受击后 DDA_DURATION 内）——消费方
-    /// （enemy 开火计时 / spawner 波次间隔 / boss 攻击间隔）乘 dda_factor() 拉长间隔</summary>
+    /// <summary>受击喘息中（玩家受击后 DDA_DURATION 内）——消费方
+    /// （enemy 开火计时 / boss 攻击间隔）乘 dda_factor() 拉长间隔。
+    /// 波次间隔不吃 DDA：原实现把喘息也加到波次上，等于整局推进速度被受击拖慢，
+    /// 与「压力无界」相悖；喘息只做「直接缓解」（减弱打你的火力），不改「推进速度」。</summary>
     public bool DdaActive() => _runProg.DdaActive();
 
     /// <summary>DDA 降档乘区：active 时返回配置因子（>1 拉长间隔），否则 1.0（热路径零分支常态）</summary>

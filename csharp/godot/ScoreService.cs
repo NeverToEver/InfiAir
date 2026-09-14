@@ -239,6 +239,28 @@ public sealed partial class ScoreService : RefCounted
     /// <summary>当前已触发的里程碑数（Mothership.Tier 升级档位等消费点）。</summary>
     public int MilestoneCount() => _milestoneCount;
 
+    /// <summary>距下一里程碑的进度 0..1（HUD 常驻显示用）。
+    /// 分子用「本档起点之后的分数」，使进度条每档从 0 重新走一遍——
+    /// 直接用 score/threshold 会让条子越到后期填得越慢且永远填不满（阈值指数增长），读不出进展。
+    /// 阈值 ≤0（坏配置）或本档起点 ≥ 下一档阈值时返回 1.0（避免除零与负进度）。</summary>
+    public double MilestoneProgress()
+    {
+        var start = _milestoneCount <= 0 ? 0 : GameState.Instance.MilestoneThreshold(_milestoneCount - 1);
+        var span = _nextMilestone - start;
+        if (span <= 0)
+        {
+            return 1.0;
+        }
+
+        var done = Score - start;
+        if (done < 0)
+        {
+            return 0.0;
+        }
+
+        return Math.Clamp(done / (double)span, 0.0, 1.0);
+    }
+
     /// <summary>读档还原（本局存档）：写回汇总计数 + 里程碑档位，并以还原后的档位重算下一档阈值
     /// （_nextMilestone 无需持久化——它是档位的纯函数）。连击窗口计时不还原（读档从新一波开始）；
     /// 末尾补发 ScoreChanged 驱动 HUD 刷新。</summary>

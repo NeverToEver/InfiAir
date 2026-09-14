@@ -58,6 +58,8 @@ public partial class BalanceService : RefCounted
             SpawnDifficultyFactor = Cfg("spawner.difficulty_factor", _scaling.SpawnDifficultyFactor).AsDouble(),
             WaveIntervalFloor = Cfg("spawner.interval_min", _scaling.WaveIntervalFloor).AsDouble(),
             FireIntervalFloor = Cfg("enemies.fire_interval_floor", _scaling.FireIntervalFloor).AsDouble(),
+            BossDensityPerDifficulty = Cfg("enemies.boss_density_per_difficulty", _scaling.BossDensityPerDifficulty).AsDouble(),
+            BossDensityBonusCap = Mathf.Max((int)Cfg("enemies.boss_density_bonus_cap", _scaling.BossDensityBonusCap).AsInt64(), 0),
             ElitePerDifficulty = Cfg("spawner.elite_per_difficulty", _scaling.ElitePerDifficulty).AsDouble(),
             EliteCountCap = Mathf.Max((int)Cfg("spawner.elite_count_cap", _scaling.EliteCountCap).AsInt64(), 1),
         };

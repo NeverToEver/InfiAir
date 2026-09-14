@@ -222,6 +222,8 @@
 		"speed_ramp_factor": 0.1,
 		"speed_ramp_cap": 1.8,
 		"fire_interval_floor": 1.2,
+		"boss_density_per_difficulty": 3.0,
+		"boss_density_bonus_cap": 4,
 		"move_strategies": {
 			"sine": {
 				"amp": 90.0,

@@ -625,12 +625,10 @@ public partial class Spawner : Node
             baseInterval * GameState.Instance.SpawnIntervalMultiplier(),
             GameState.Instance.DifficultyMultiplier,
             GameState.Instance.Scaling());
-        // DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
-        // clamp 上界同步乘因子，避免拉长效果被上限吞掉
-        return Mathf.Clamp(
-            interval * (float)GameState.Instance.DdaFactor(),
-            INTERVAL_MIN,
-            WAVE_INTERVAL_START * (float)GameState.Instance.SpawnIntervalMultiplier() * (float)GameState.Instance.DdaFactor());
+        // 波次间隔**不吃 DDA**：原实现把受击后的喘息也加到波次上，等于整局节奏被拖慢，
+        // 与「压力无界」的设计意图相悖（一次受击换来「免伤 + 清弹 + 全局降速」三重喘息）。
+        // 喘息窗口现在只作用于敌机与 Boss 的开火间隔（直接缓解，不改变本局推进速度）。
+        return Mathf.Clamp(interval, INTERVAL_MIN, WAVE_INTERVAL_START * (float)GameState.Instance.SpawnIntervalMultiplier());
     }
 
     // ---- 对外公开接口 ----

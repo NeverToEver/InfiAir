@@ -138,6 +138,43 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void BossDensityBonus_ZeroUntilConfiguredStep()
+    {
+        var cfg = Cfg(); // 每 3.0 D 追加 1，上限 4
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(1.0, cfg));
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(3.9, cfg));
+        Assert.Equal(1, DifficultyScaling.BossDensityBonus(4.0, cfg));
+        Assert.Equal(1, DifficultyScaling.BossDensityBonus(6.9, cfg));
+        Assert.Equal(2, DifficultyScaling.BossDensityBonus(7.0, cfg));
+    }
+
+    [Fact]
+    public void BossDensityBonus_CapsAndHandlesConfigOff()
+    {
+        var cfg = Cfg();
+        Assert.Equal(cfg.BossDensityBonusCap, DifficultyScaling.BossDensityBonus(1000.0, cfg));
+        cfg.BossDensityPerDifficulty = 0.0;
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(1000.0, cfg));
+        cfg.BossDensityPerDifficulty = 3.0;
+        cfg.BossDensityBonusCap = 0;
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(1000.0, cfg));
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(double.NaN, cfg));
+    }
+
+    [Fact]
+    public void BossDensityBonus_IsMonotonicNonDecreasing()
+    {
+        var cfg = Cfg();
+        var prev = 0;
+        for (var d = 1.0; d <= 40.0; d += 0.25)
+        {
+            var bonus = DifficultyScaling.BossDensityBonus(d, cfg);
+            Assert.True(bonus >= prev, $"D={d:0.00} 处密度追加回退");
+            prev = bonus;
+        }
+    }
+
+    [Fact]
     public void SoftCappedTimeTerm_FlattensTailOnly()
     {
         var cfg = Cfg();

@@ -37,6 +37,13 @@ public sealed class DifficultyScalingConfig
     /// <summary>精英数量上限（含基础那只）。</summary>
     public int EliteCountCap { get; set; } = 3;
 
+    /// <summary>Boss 攻击弹数随 D 的密度步进：每该点数 D 追加 1 发/道（0/负 = 关闭）。
+    /// 接上后后期压力才有「密度/模式」这一轴，而不只是「更肉更痛」。</summary>
+    public double BossDensityPerDifficulty { get; set; } = 3.0;
+
+    /// <summary>Boss 攻击弹数随 D 追加的上限（防同屏弹量失控与性能退化）。</summary>
+    public int BossDensityBonusCap { get; set; } = 4;
+
     /// <summary>D 的软上限起点：D 超过该值后时间项斜率按 TailSpeedFactor 折减（0/负 = 不设软上限）。</summary>
     public double DifficultySoftCapStart { get; set; } = 6.0;
 
@@ -132,6 +139,28 @@ public static class DifficultyScaling
         }
 
         return Math.Min(1 + extra, cfg.EliteCountCap);
+    }
+
+    /// <summary>Boss 攻击弹数随 D 的追加量（0..上限）。取整向下，配置关闭或 D ≤ 1 时为 0。</summary>
+    public static int BossDensityBonus(double difficulty, DifficultyScalingConfig cfg)
+    {
+        if (cfg.BossDensityPerDifficulty <= 0.0 || cfg.BossDensityBonusCap <= 0 || !double.IsFinite(difficulty))
+        {
+            return 0;
+        }
+
+        if (difficulty <= 1.0)
+        {
+            return 0;
+        }
+
+        var extra = (int)Math.Floor((difficulty - 1.0) / cfg.BossDensityPerDifficulty);
+        if (extra < 0)
+        {
+            extra = 0;
+        }
+
+        return Math.Min(extra, cfg.BossDensityBonusCap);
     }
 
     /// <summary>
