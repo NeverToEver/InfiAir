@@ -626,12 +626,11 @@ public sealed partial class SettingsService : RefCounted
     /// 与「减少闪光」并列——两者针对不同的不适来源（频闪 vs 运动）。</summary>
     public double ShakeScale { get; set; } = 1.0;
 
-    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化 + 同步到手感域
-    /// （trauma 累加入口读 GameState.ShakeScale，不每帧回查设置）。</summary>
+    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化。
+    /// 消费端 GameState.Shake 直读本字段，无需同步进手感域。</summary>
     public void SetShakeScale(double value)
     {
         ShakeScale = Mathf.Clamp(value, 0.0, 1.0);
-        GameState.Instance.SyncShakeScale(ShakeScale);
         GameState.Instance.SaveSettings();
     }
 
@@ -896,9 +895,8 @@ public sealed partial class SettingsService : RefCounted
         SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
         ShakeScale = ReadVolume(data.GetValueOrDefault("shake_scale", ShakeScale), ShakeScale);
         HitStopScale = ReadVolume(data.GetValueOrDefault("hit_stop_scale", HitStopScale), HitStopScale);
-        // 读档直写字段不发 setter 事件：此处显式同步进手感域——否则持久化的「关闭震动/顿帧」
-        // 在下次启动被忽略（ApplyBalance 早于 LoadSettings，注入时读到的还是默认值）
-        GameState.Instance.SyncShakeScale(ShakeScale);
+        // 读档直写字段不发 setter 事件：顿帧强度须显式同步进手感域（ApplyBalance 早于
+        // LoadSettings，注入时读到的还是默认值）。震动倍率无缓存，不必同步。
         GameState.Instance.SyncHitStopScale(HitStopScale);
         ApplyVolumes();
         // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.2（径向，读取侧生效）

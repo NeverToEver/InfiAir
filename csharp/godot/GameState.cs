@@ -197,6 +197,12 @@ public partial class GameState : Node
     /// 新增退出路径漏写复位即全局卡死；autoload 场景无关，拆树期 GetTree() 判空防线集中一处。</summary>
     public void SetTreePaused(bool paused)
     {
+        if (paused)
+        {
+            // 暂停即清顿帧残留：否则 Always 的暂停菜单/设置页会被冻结倍率（0.06）慢放
+            _gameFeel.ClearHitStop();
+        }
+
         var tree = (SceneTree?)Engine.GetMainLoop();
         if (tree != null)
         {
@@ -208,7 +214,7 @@ public partial class GameState : Node
     /// 子弹时间与暂停复位 + 全新一局 + 切场景。新增退出入口一律复用本出口，防漏复位软锁。</summary>
     public void ExitToTitle()
     {
-        Engine.TimeScale = 1.0f; // 狂暴子弹时间残留复位（无残留时无副作用）
+        ResetTimeScale(); // 演出倍率 + 顿帧 + trauma 残留一并复位（只复位演出侧会留下顿帧定格）
         SetTreePaused(false);
         ResetRun(); // 保证下次开局为全新一局，不污染正常对局
         ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile("res://scenes/title.tscn");
@@ -497,6 +503,11 @@ public partial class GameState : Node
     {
         LoadBalance();
         ApplyBalance();
+        // 手感驱动：Always 子节点（autoload，场景无关）——顿帧/震动按真实时间推进，
+        // 不受本局暂停影响（挂在 Pausable 的 GameState._Process 上会让暂停菜单被冻结倍率慢放）
+        var feelDriver = new GameFeelDriver { ProcessMode = ProcessModeEnum.Always };
+        feelDriver.Bind(_gameFeel);
+        AddChild(feelDriver);
         // 实体生命周期信号转发（EntityManager 非 Node，无树内信号；GameState 收口转发）
         // C# [Signal] 以 PascalCase 注册
         _registry.EntityRegistered += OnRegistryEntityRegistered;
@@ -626,10 +637,6 @@ public partial class GameState : Node
         // 必须难度档信号先于连击信号
         _runProg.Tick(delta);
         _score.Tick(delta);
-        // 手感推进：顿帧剩余与 trauma 衰减都用**真实帧长**（delta 已按时间缩放折算，
-        // 顿帧把缩放压到 0.05 时会拖慢衰减、甚至让剩余量永远推不完——须反解除回）。
-        // 放在本局时钟之后：本局时钟仍按缩放后 delta 推进（狂暴慢动作下玩法时间同样变慢）。
-        _gameFeel.Tick(_gameFeel.RealDelta(delta));
     }
 
     /// <summary>volumeDb/pitchScale 缺省 = SfxPlayer 目录基准（音量基准/抖动/冷却/复音都在目录表）；

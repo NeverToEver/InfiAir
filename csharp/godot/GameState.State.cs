@@ -165,7 +165,7 @@ public partial class GameState : Node
             Mathf.Max(Cfg("effects.shake.recovery", 1.5).AsDouble(), 0.01),
             Mathf.Max(Cfg("effects.shake.reference", 24.0).AsDouble(), 1e-6));
         _gameFeel.SetHitStopScale(HitStopScale);
-        _gameFeel.ShakeScale = _settings.ShakeScale;
+        // 震动倍率不注入手感域：折算单口在 Shake（见 GameFeelService.AddShake 注释）
     }
 
     /// <summary>难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -361,11 +361,8 @@ public partial class GameState : Node
     /// <summary>无障碍：命中顿帧强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭顿帧）——SettingsService 转发。</summary>
     public double HitStopScale { get => _settings.HitStopScale; set => _settings.HitStopScale = value; }
 
-    /// <summary>设置改动/读档后把震动倍率同步进手感域（trauma 累加不每帧回查设置）。
-    /// 读档路径直写 _settings 字段不发服务事件，须由 GameState 显式同步（同 HitStop）。</summary>
-    public void SyncShakeScale(double value) => _gameFeel.ShakeScale = value;
-
-    /// <summary>设置改动/读档后把顿帧强度同步进手感域（同上）。</summary>
+    /// <summary>设置改动/读档后把顿帧强度同步进手感域（trauma 与顿帧时长都不每帧回查设置；
+    /// 震动倍率无缓存——Shake 出口直读 _settings，故无需同步口）。</summary>
     public void SyncHitStopScale(double value) => _gameFeel.SetHitStopScale(value);
 
     /// <summary>主音量（0..1，settings.json 持久化，默认 0.8；作用于 Master 总线）——SettingsService 转发。</summary>

@@ -200,6 +200,9 @@ public partial class GameState : Node
         _settings.ApplyDisplay();
         _settings.ApplyWindow();
         _settings.ApplyVolumes();
+        // 手感域同步：ResetToDefaults 直写字段不发 setter 事件，漏这一步会「界面显示已恢复、
+        // 实际仍按旧的关闭档运行」（顿帧/震动强度为 0 时手感域直接忽略请求）
+        SyncHitStopScale(_settings.HitStopScale);
         SaveSettings();
     }
 

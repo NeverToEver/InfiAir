@@ -74,9 +74,6 @@ public sealed partial class GameFeelService : RefCounted
         _intensity = double.IsFinite(scale) && scale > 0.0 ? Math.Min(scale, 1.0) : 0.0;
     }
 
-    /// <summary>屏幕震动无障碍倍率（0 = 完全关闭；ShakeScale 设置写入口转发）。</summary>
-    public double ShakeScale { get; set; } = 1.0;
-
     /// <summary>请求一次命中顿帧（档位取时长；同帧多请求取较大者，不叠加）。</summary>
     public void RequestHitStop(HitStopTier tier)
     {
@@ -89,16 +86,10 @@ public sealed partial class GameFeelService : RefCounted
         _hitStop.Request(baseDuration * _intensity);
     }
 
-    /// <summary>屏幕震动唯一累加入口：震源振幅 ÷ 参考振幅 = trauma 增量（驾驶倍率按无障碍折算）。</summary>
-    public void AddShake(double strength)
-    {
-        if (ShakeScale <= 0.0)
-        {
-            return;
-        }
-
-        _shake.Add(strength * ShakeScale / _shakeReference);
-    }
+    /// <summary>屏幕震动唯一累加入口：震源振幅 ÷ 参考振幅 = trauma 增量。
+    /// **无障碍倍率不在此折算**——折算单口在 `GameState.Shake`（否则两处各乘一次，
+    /// trauma ∝ scale²、再经 trauma² 映射使位移 ∝ scale⁴，滑杆中段严重非线性）。</summary>
+    public void AddShake(double strength) => _shake.Add(strength / _shakeReference);
 
     /// <summary>当前 trauma（CameraShake 每帧读取换算位移）。</summary>
     public double ShakeTrauma() => _shake.Trauma;
@@ -110,6 +101,15 @@ public sealed partial class GameFeelService : RefCounted
     public void SetEnrageTimeScale(double scale)
     {
         _enrageScale = scale > 0.0 && double.IsFinite(scale) ? scale : 1.0;
+        ApplyTimeScale();
+    }
+
+    /// <summary>清顿帧残留（保持演出倍率与 trauma 不变）：暂停/模态入口调用——
+    /// 冻结是「按真实时间流逝」的战斗现象，暂停中继续压低全局时间缩放会让 Always 的
+    /// 暂停菜单/设置页慢放（实测 0.5s 的轮盘滑入变约 8s）。</summary>
+    public void ClearHitStop()
+    {
+        _hitStop.Clear();
         ApplyTimeScale();
     }
 
