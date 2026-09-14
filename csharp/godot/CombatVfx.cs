@@ -86,10 +86,10 @@ public partial class CombatVfx : RefCounted
             AddFlash(root, tex, 22.0f, new Color(UITheme.HoloPale, 0.8f));
         }
 
-        const int shardCount = 6;
-        for (var i = 0; i < shardCount; i++)
+        const int ShardCount = 6;
+        for (var i = 0; i < ShardCount; i++)
         {
-            var dir = Vector2.Right.Rotated(Mathf.Tau * i / shardCount);
+            var dir = Vector2.Right.Rotated(Mathf.Tau * i / ShardCount);
             AddShard(root, tex, dir, 7.0f, 48.0f, new Color(UITheme.AccentGold, 0.9f), 2.4f, ParryLife);
         }
 
@@ -135,11 +135,11 @@ public partial class CombatVfx : RefCounted
             AddFlash(root, tex, 20.0f, new Color(UITheme.AccentGold, 0.65f));
         }
 
-        const int shardCount = 5;
-        for (var i = 0; i < shardCount; i++)
+        const int ShardCount = 5;
+        for (var i = 0; i < ShardCount; i++)
         {
             // 局部 -x = 冲刺反向拖尾；小幅扇开避免整齐
-            var dirLocal = Vector2.Left.Rotated((i - (shardCount - 1) * 0.5f) * 0.22f);
+            var dirLocal = Vector2.Left.Rotated((i - (ShardCount - 1) * 0.5f) * 0.22f);
             AddShard(root, tex, dirLocal, 6.0f, 34.0f, new Color(UITheme.Accent, 0.8f), 2.6f, DashLife);
         }
 
@@ -181,11 +181,11 @@ public partial class CombatVfx : RefCounted
         }
 
         var baseAngle = normal.Angle();
-        const int shardCount = 3;
-        for (var i = 0; i < shardCount; i++)
+        const int ShardCount = 3;
+        for (var i = 0; i < ShardCount; i++)
         {
             // 火花集中在来袭反方向 ±60° 锥内（溅回来源侧）
-            var spread = (i - (shardCount - 1) * 0.5f) * 0.6f;
+            var spread = (i - (ShardCount - 1) * 0.5f) * 0.6f;
             var dir = Vector2.Right.Rotated(baseAngle + spread);
             AddShard(root, tex, dir, 5.0f, 30.0f, new Color(UITheme.AccentHot, reduceFlash ? 0.4f : 0.92f), 2.2f, SparkLife);
         }
@@ -215,11 +215,11 @@ public partial class CombatVfx : RefCounted
         }
 
         HoldLight(root);
-        const int spokeCount = 8;
+        const int SpokeCount = 8;
         var color = new Color(UITheme.AccentHot, reduceFlash ? 0.4f : 0.95f);
-        for (var i = 0; i < spokeCount; i++)
+        for (var i = 0; i < SpokeCount; i++)
         {
-            var a = Mathf.Tau * i / spokeCount;
+            var a = Mathf.Tau * i / SpokeCount;
             var dir = Vector2.Right.Rotated(a);
             var line = CinematicFx.Line(
                 new[] { dir * 4.0f, dir * (i % 2 == 0 ? 46.0f : 30.0f) }, color, i % 2 == 0 ? 3.0f : 1.8f);
@@ -294,11 +294,11 @@ public partial class CombatVfx : RefCounted
             0.62f,
             0.2f);
 
-        const int streakCount = 14;
+        const int StreakCount = 14;
         var streakColor = new Color(UITheme.AccentHot, reduceFlash ? 0.2f : 0.55f);
-        for (var i = 0; i < streakCount; i++)
+        for (var i = 0; i < StreakCount; i++)
         {
-            var dir = Vector2.Right.Rotated(Mathf.Tau * i / streakCount);
+            var dir = Vector2.Right.Rotated(Mathf.Tau * i / StreakCount);
             root.AddChild(CinematicFx.Line(new[] { Vector2.Zero, dir * 130.0f }, streakColor, 4.0f));
         }
 

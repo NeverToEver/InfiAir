@@ -179,7 +179,7 @@ public partial class BackNavigator : Node
 
         if (_talentUi.Visible)
         {
-            return BackAction.CLOSE_TALENT; // 天赋面板打开中：Esc = 关闭面板（对局随之恢复）
+            return BackAction.CLOSE_TALENT; // 天赋面板打开中：Esc = 关闭面板（本局随之恢复）
         }
 
         if (_main.IsGameOver() && !_gameOverUi.Visible)
@@ -194,7 +194,7 @@ public partial class BackNavigator : Node
 
         if (_hud.IsAugmentPanelOpen())
         {
-            return BackAction.CLOSE_AUG_PANEL; // buff 滚动栏展开中：先收栏（不暂停对局的 HUD 覆盖层）
+            return BackAction.CLOSE_AUG_PANEL; // 增幅滚动栏展开中：先收栏（不暂停本局的 HUD 覆盖层）
         }
 
         if (_pauseUi.Visible)

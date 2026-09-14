@@ -192,7 +192,7 @@ public partial class Mothership : Area2D
         // 能量发光层（GlowLayer，tscn 挂载于主贴图下）：母舰青色能量 tint（纯视觉叠加）
         ShipEnergyFx.Apply(
             _sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName),
-            ShipEnergyFx.CfgColor("effects.ship_energy.tint_mothership", new Color(0.35f, 0.85f, 1.0f)),
+            ShipEnergyFx.CfgColor("effects.ship_energy.tint_mothership", UITheme.MothershipCool),
             CfgFx.Float("effects.ship_energy.intensity_mothership", 0.35f, 0.0f));
         var beamPts = _beam.Polygon;
         for (var i = 0; i < beamPts.Length; i++)

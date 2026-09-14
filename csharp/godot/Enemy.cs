@@ -231,17 +231,22 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
 
         // 池化 reparent 只注销注册表、不发 entity_unregistered
-        if (_repooling)
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null)
         {
-            GameState.Instance.UnregisterEnemy(this);
-        }
-        else
-        {
-            GameState.Instance.UnbindEnemy(this);
-        }
+            if (_repooling)
+            {
+                gs.UnregisterEnemy(this);
+            }
+            else
+            {
+                gs.UnbindEnemy(this);
+            }
 
-        // 增幅 信号断开（池化 reparent 复用由 Reactivate 对称重连）
-        _slowCache.Disconnect(GameState.Instance);
+            // 增幅 信号断开（池化 reparent 复用由 Reactivate 对称重连）
+            _slowCache.Disconnect(gs);
+        }
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
         if (_pool != null && GodotObject.IsInstanceValid(_pool) && !_repooling)
@@ -605,7 +610,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
             }
         }
 
-        return StrategyFactories.GetValueOrDefault(Strategy)?.Invoke(params_) ?? new HoverMove(params_); // straight / hover
+        return StrategyFactories.GetValueOrDefault(Strategy)?.Invoke(params_) ?? new HoverMove(params_); // straight=直行 / hover=悬停
     }
 
     /// <summary>尾焰光点同步：颜色/半径档按精英标记、位置贴纹理尾缘。</summary>

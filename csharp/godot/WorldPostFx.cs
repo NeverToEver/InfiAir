@@ -157,7 +157,8 @@ public partial class WorldPostFx : CanvasLayer
 
     public override void _ExitTree()
     {
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
         if (gs != null)
         {
             if (gs.IsConnected(GameState.SignalName.WorldPostFxChanged, _onWorldPostFxChanged))

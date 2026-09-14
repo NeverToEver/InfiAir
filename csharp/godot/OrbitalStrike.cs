@@ -61,7 +61,7 @@ public partial class OrbitalStrike : CanvasLayer
     public override void _Ready()
     {
         ProcessMode = Node.ProcessModeEnum.Always;
-        Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下
+        Layer = 24; // 世界层与 HUD 之上、基地 UI（25）之下
         // 时轴序钳制——duration=0 首帧 finished、impact_at≥1.0 时 struck 不可达
         // （main 收不到 _on_orbital_struck，树保持暂停+锁输入软锁）、missile_from≥impact_at 时瞄准段除零
         DURATION = Mathf.Max((float)GameState.Instance.Cfg("effects.orbital_strike.duration", DURATION).AsDouble(), 0.01f);

@@ -158,7 +158,7 @@ public partial class FormationCraft : Area2D, IDamageable
 
     public override void _ExitTree()
     {
-        GameState.Instance.UnbindEnemy(this); // 统一解绑
+        GameState.TryGetInstance()?.UnbindEnemy(this); // 统一解绑；autoload 可能先于本节点释放
     }
 
     public void TakeDamage(int amount, float scoreScale)

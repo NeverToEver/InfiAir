@@ -158,7 +158,13 @@ public partial class BaseConsole : RadialMenuLayer
     public override void _ExitTree()
     {
         // 配对断开——死亡重开场景重载后残留连接在切语言时回调已释放实例
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _localeChanged);

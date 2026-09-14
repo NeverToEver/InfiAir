@@ -64,7 +64,13 @@ public partial class PauseUi : RadialMenuLayer
 
     public override void _ExitTree()
     {
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
@@ -124,7 +130,7 @@ public partial class PauseUi : RadialMenuLayer
                 new() { Id = "quit", Label = Tr("PAUSE_QUIT"), Glyph = RadialGlyph.Star },
             },
             string.Empty);
-        Wheel.FocusOption(0); // 开页聚焦「继续」：默认弧面中点槽会停在「重新出击」（误 Enter 重开对局）
+        Wheel.FocusOption(0); // 开页聚焦「继续」：默认弧面中点槽会停在「重新出击」（误 Enter 重开本局）
         RefreshHint();
     }
 

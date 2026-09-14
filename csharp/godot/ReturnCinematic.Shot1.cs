@@ -16,7 +16,7 @@ public partial class ReturnCinematic : CanvasLayer
         var dur = _shotDurations[0];
         var root = new Node2D { Name = "Shot1" };
         var starfield = new Starfield(); // Starfield 为 C# typed，typed 实例化
-        starfield.Warp(12.0f); // 承接对局 _starfield.Warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
+        starfield.Warp(12.0f); // 承接本局 _starfield.Warp(18.0) 的星光拉伸（自身 lerp 衰减回 1）
         root.AddChild(starfield);
         var neb1 = Glow(480.0f, new Color(0.400f, 0.267f, 0.080f, 0.05f));
         neb1.Position = new Vector2(360.0f, 800.0f);

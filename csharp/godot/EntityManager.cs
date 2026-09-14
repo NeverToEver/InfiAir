@@ -23,7 +23,7 @@ public partial class EntityManager : RefCounted
     public Godot.Collections.Array<Node> Enemies { get; } = new();
 
     /// <summary>enemies 的 O(1) 存在性索引（追踪弹每帧 has 判定）。</summary>
-    private readonly Godot.Collections.Dictionary _enemySet = new(); // node -> true
+    private readonly Godot.Collections.Dictionary _enemySet = new(); // node -> true（当作集合用，值恒为 true）
 
     /// <summary>enemies 在册索引表（node -> 数组下标），swap-remove 双维护
     /// （_enemyBulletIndex 同款模式）——Array.Remove 为 O(n) 线性扫描+搬移，
@@ -35,7 +35,7 @@ public partial class EntityManager : RefCounted
     /// <summary>敌弹注册表（death_replay 录制数据源；元素为 Bullet）。</summary>
     public Godot.Collections.Array<GodotObject> EnemyBullets { get; } = new();
 
-    private readonly Godot.Collections.Dictionary _enemyBulletSet = new(); // node -> true
+    private readonly Godot.Collections.Dictionary _enemyBulletSet = new(); // node -> true（当作集合用，值恒为 true）
 
     /// <summary>敌弹在册索引表（node -> 数组下标），swap-remove 双维护。</summary>
     private readonly Godot.Collections.Dictionary _enemyBulletIndex = new();

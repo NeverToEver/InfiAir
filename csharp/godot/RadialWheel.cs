@@ -1245,9 +1245,9 @@ public partial class RadialWheel : Node2D
     /// <summary>内域雷达扫掠扇环：前缘亮、拖尾渐隐的渐变四边形（rot 为前缘角，向逆时针拖尾）。</summary>
     private static void DrawSweepQuad(RadialWheelLayer c, float r1, float r2, float rot, Color col)
     {
-        const float half = 0.35f;
+        const float Half = 0.35f;
         var uf = new Vector2(Mathf.Cos(rot), Mathf.Sin(rot));
-        var ub = new Vector2(Mathf.Cos(rot - half), Mathf.Sin(rot - half));
+        var ub = new Vector2(Mathf.Cos(rot - Half), Mathf.Sin(rot - Half));
         SweepQuad[0] = uf * r1;
         SweepQuad[1] = ub * r1;
         SweepQuad[2] = ub * r2;

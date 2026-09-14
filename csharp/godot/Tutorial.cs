@@ -109,7 +109,13 @@ public partial class Tutorial : Node2D
     {
         // 配对的信号断开——教程 Esc/完成退出后残留连接
         // 在正局死亡（PlayerDied 高频）或切语言时回调已释放实例
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
@@ -283,7 +289,6 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）</summary>
     /// <summary>阶段 0 训练靶：辅助瞄准标记靶同款布局补刷（EnterStage(0) 与 _PhysicsProcess 兜底共用，
     /// 防复制漂移；布局对齐正局追踪弹体验，强制 aim_marked 保证确定性）</summary>
     private void SpawnAimTargets(int count)
@@ -297,6 +302,7 @@ public partial class Tutorial : Node2D
         }
     }
 
+    /// <summary>阶段 3 战斗波次：刷 count 只 straight（过关补刷复用同一布局）</summary>
     private void SpawnCombatWave(int count)
     {
         var view = GameState.Instance.ViewWorldRect(); // 视口基线
@@ -384,11 +390,19 @@ public partial class Tutorial : Node2D
         gate!.Position = gatePos;
         AddChild(gate);
         _mothership = _mothershipScene.Instantiate<Mothership>();
-        _mothership.BeginWarpIn(gatePos, gate);
-        _mothership.Departed += OnMothershipDeparted;
+        var mothership = _mothership;
+        mothership.BeginWarpIn(gatePos, gate);
+        mothership.Departed += OnMothershipDeparted;
         // 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 3 轮询判空依赖）
-        _mothership.TreeExited += () => _mothership = null;
-        AddChild(_mothership);
+        // 旧实例离树只清自己：无条件置空会把已替换上的新实例引用一并抹掉
+        mothership.TreeExited += () =>
+        {
+            if (ReferenceEquals(mothership, _mothership))
+            {
+                _mothership = null;
+            }
+        };
+        AddChild(mothership);
         SetObjectiveTr("TUT_S4_DOCK");
     }
 
@@ -650,7 +664,7 @@ public partial class Tutorial : Node2D
 
     private void ExitTutorial()
     {
-        GameState.Instance.ExitToTitle(); // 单口内含 TimeScale/暂停复位与 ResetRun（不污染正常对局）
+        GameState.Instance.ExitToTitle(); // 单口内含 TimeScale/暂停复位与 ResetRun（不污染正常本局）
     }
 
     public override void _UnhandledInput(InputEvent @event)

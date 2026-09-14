@@ -31,9 +31,11 @@ public partial class BulletPool : Node
     /// <summary>场景卸载时清空全局注册，避免 GameState.bullet_pool 悬空。</summary>
     public override void _ExitTree()
     {
-        if (GameState.Instance.BulletPool == this)
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null && gs.BulletPool == this)
         {
-            GameState.Instance.BulletPool = null; // Nil → 置 null
+            gs.BulletPool = null; // Nil → 置 null
         }
     }
 

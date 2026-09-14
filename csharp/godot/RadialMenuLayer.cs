@@ -232,8 +232,8 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         }
 
         var vp = GetViewport().GetVisibleRect().Size;
-        const float margin = 24f;
-        const float leg = 64f;
+        const float MarginEdge = 24f;
+        const float Leg = 64f;
         for (var k = 0; k < 4; k++)
         {
             var s = Mathf.Clamp((_frameT - k * 0.12f) * 2.2f, 0f, 1f);
@@ -243,15 +243,15 @@ public abstract partial class RadialMenuLayer : CanvasLayer
             }
 
             var e = (float)RadialWheelModel.EaseOutCubic(s);
-            var cx = k % 2 == 0 ? margin : vp.X - margin;
-            var cy = k < 2 ? margin : vp.Y - margin;
+            var cx = k % 2 == 0 ? MarginEdge : vp.X - MarginEdge;
+            var cy = k < 2 ? MarginEdge : vp.Y - MarginEdge;
             var sx = k % 2 == 0 ? 1f : -1f;
             var sy = k < 2 ? 1f : -1f;
             // 暗托底 + 亮线双描：括弧要压在宿主页/HUD 面板之上仍可辨
             var under = new Color(0f, 0f, 0f, 0.55f * e);
             var col = new Color(UITheme.Accent, 0.6f * e);
-            var x2 = cx + (sx * leg * e);
-            var y2 = cy + (sy * leg * e);
+            var x2 = cx + (sx * Leg * e);
+            var y2 = cy + (sy * Leg * e);
             c.DrawLine(new Vector2(cx, cy), new Vector2(x2, cy), under, 5.5f, true);
             c.DrawLine(new Vector2(cx, cy), new Vector2(cx, y2), under, 5.5f, true);
             c.DrawLine(new Vector2(cx, cy), new Vector2(x2, cy), col, 2.5f, true);
@@ -260,8 +260,8 @@ public abstract partial class RadialMenuLayer : CanvasLayer
             var tA = Mathf.Clamp((e - 0.85f) / 0.15f, 0f, 1f);
             if (tA > 0f)
             {
-                var lx = cx + (sx * (leg + 7f));
-                var ly = cy + (sy * (leg + 7f));
+                var lx = cx + (sx * (Leg + 7f));
+                var ly = cy + (sy * (Leg + 7f));
                 var eCol = new Color(UITheme.Accent, 0.28f * tA);
                 c.DrawLine(new Vector2(lx, cy), new Vector2(lx + (sx * 9f * tA), cy), eCol, 1.5f, true);
                 c.DrawLine(new Vector2(cx, ly), new Vector2(cx, ly + (sy * 9f * tA)), eCol, 1.5f, true);
@@ -280,12 +280,12 @@ public abstract partial class RadialMenuLayer : CanvasLayer
         var midU = new Color(0f, 0f, 0f, 0.45f * eE);
         var colE = new Color(UITheme.Accent, 0.45f * eE);
         var len = 12f * eE;
-        MidTickPts[0] = new Vector2(vp.X * 0.5f, margin);
-        MidTickPts[1] = new Vector2(vp.X * 0.5f, margin + len);
-        MidTickPts[2] = new Vector2(vp.X * 0.5f, vp.Y - margin);
-        MidTickPts[3] = new Vector2(vp.X * 0.5f, vp.Y - margin - len);
-        MidTickPts[4] = new Vector2(vp.X - margin, vp.Y * 0.5f);
-        MidTickPts[5] = new Vector2(vp.X - margin - len, vp.Y * 0.5f);
+        MidTickPts[0] = new Vector2(vp.X * 0.5f, MarginEdge);
+        MidTickPts[1] = new Vector2(vp.X * 0.5f, MarginEdge + len);
+        MidTickPts[2] = new Vector2(vp.X * 0.5f, vp.Y - MarginEdge);
+        MidTickPts[3] = new Vector2(vp.X * 0.5f, vp.Y - MarginEdge - len);
+        MidTickPts[4] = new Vector2(vp.X - MarginEdge, vp.Y * 0.5f);
+        MidTickPts[5] = new Vector2(vp.X - MarginEdge - len, vp.Y * 0.5f);
         for (var m = 0; m < 6; m += 2)
         {
             c.DrawLine(MidTickPts[m], MidTickPts[m + 1], midU, 4.5f, true);

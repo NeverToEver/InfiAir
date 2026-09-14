@@ -26,9 +26,11 @@ public partial class EnemyPool : Node
     /// <summary>场景卸载时清空全局注册，避免 GameState.enemy_pool 悬空。</summary>
     public override void _ExitTree()
     {
-        if (GameState.Instance.EnemyPool == this)
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null && gs.EnemyPool == this)
         {
-            GameState.Instance.EnemyPool = null; // Nil → 置 null
+            gs.EnemyPool = null; // Nil → 置 null
         }
     }
 

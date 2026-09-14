@@ -16,7 +16,7 @@ namespace InfiAir;
 /// 再传给 _Process，倍率为 0 时 delta 恒 0、剩余时长永远推不完（冻死）；且帧长被压到 0 后
 /// 无法还原未缩放时长。取正值后可反解真实帧长（delta / 当前总倍率），固定步长下精确可重复。
 ///
-/// 判定下沉：时序与 trauma 数学在 csharp/core/GameFeel/GameFeelCurves.cs（零引擎依赖，有单测）；
+/// 判定下沉：时序与 trauma 数学在 csharp/core/GameFeel/（`HitStopTimeline`/`TraumaShake` 等，零引擎依赖，有单测）；
 /// 本类只做配置注入、合成与广播。
 /// </summary>
 public sealed partial class GameFeelService : RefCounted

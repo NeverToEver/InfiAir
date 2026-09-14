@@ -103,7 +103,7 @@ public partial class MothershipSummonWindow : CanvasLayer
 
     public override void _Ready()
     {
-        Layer = 24; // 对局世界与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
+        Layer = 24; // 世界层与 HUD 之上、基地 UI（25）之下（与 OrbitalStrike 同层）
         // open/close 时长钳下限——0 时 t/OpenTime 除零
         // 经 Clamp 兜底无 NaN，但面板淡入淡出退化为瞬现/瞬隐，_total 计算也失真
         OpenTime = Mathf.Max((float)GameState.Instance.Cfg("effects.mothership_summon.window.open_time", OpenTime).AsDouble(), 0.001f);
@@ -199,13 +199,13 @@ public partial class MothershipSummonWindow : CanvasLayer
     private void BuildPhaseRail()
     {
         var xs = new[] { 120.0f, 280.0f, 440.0f };
-        const float railY = 730.0f;
+        const float RailY = 730.0f;
         // 连接底线（贯穿三节点的暗轨）
         var track = new Line2D
         {
             Width = 2.0f,
             DefaultColor = new Color(UITheme.Accent, 0.22f),
-            Points = new[] { new Vector2(xs[0], railY), new Vector2(xs[2], railY) },
+            Points = new[] { new Vector2(xs[0], RailY), new Vector2(xs[2], RailY) },
         };
         _panel.AddChild(track);
         for (var i = 0; i < xs.Length; i++)
@@ -219,13 +219,13 @@ public partial class MothershipSummonWindow : CanvasLayer
                     new Vector2(0.0f, 7.0f),
                     new Vector2(-7.0f, 0.0f),
                 },
-                Position = new Vector2(xs[i], railY),
+                Position = new Vector2(xs[i], RailY),
                 Color = new Color(UITheme.Accent, 0.18f),
             };
             _panel.AddChild(node);
             _phaseNodes.Add(node);
             var label = UITheme.MakeLabel((string)Tr(PhaseRailKeys[i]), UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Center);
-            label.Position = new Vector2(xs[i] - 60.0f, railY + 12.0f);
+            label.Position = new Vector2(xs[i] - 60.0f, RailY + 12.0f);
             label.Size = new Vector2(120.0f, 0.0f);
             label.MouseFilter = Control.MouseFilterEnum.Ignore;
             _panel.AddChild(label);
@@ -545,7 +545,7 @@ public partial class MothershipSummonWindow : CanvasLayer
     /// <summary>镜头 2：维护臂解除链接，末端+关节同步收回基座</summary>
     private void UpdateArms(float p)
     {
-        var e = 1.0f - (1.0f - p) * (1.0f - p); // ease-out
+        var e = 1.0f - (1.0f - p) * (1.0f - p); // 缓出（ease-out）
         for (var i = 0; i < _arms.Count; i++)
         {
             var arm = _arms[i];

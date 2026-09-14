@@ -263,7 +263,8 @@ public partial class MetaHealthFX : CanvasLayer
 
         // GameState 信号显式断开 + 挂起的烘焙延迟回调——防退出 segfault
         // MetaFX 不在场时 hud 低血晕影走回退路径
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
         if (gs != null)
         {
             gs.MetaFxLod = 1;

@@ -625,9 +625,15 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
     public override void _ExitTree()
     {
-        GameState.Instance.UnbindEnemy(this); // 统一解绑
-        // 显式断开 augments_changed 信号连接（重入树不重复连接）
-        _slowCache.Disconnect(GameState.Instance);
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值；
+        // UnlockPlayer 属本节点自身回收，不因取不到 autoload 而跳过
+        var gs = GameState.TryGetInstance();
+        if (gs != null)
+        {
+            gs.UnbindEnemy(this); // 统一解绑
+            // 显式断开 augments_changed 信号连接（重入树不重复连接）
+            _slowCache.Disconnect(gs);
+        }
 
         _enrageSequence.UnlockPlayer(); // 兜底：离场必复位玩家减速，不留残留（归 EnrageSequence）
     }

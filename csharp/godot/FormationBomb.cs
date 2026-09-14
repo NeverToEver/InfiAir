@@ -235,7 +235,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         GameState.Instance.BindEnemy(this); // 与编队机同口径：玩家子弹可命中、清场可销毁
     }
 
-    public override void _ExitTree() => GameState.Instance.UnbindEnemy(this);
+    public override void _ExitTree() => GameState.TryGetInstance()?.UnbindEnemy(this);
 
     /// <summary>尾迹渐隐（尾端透明、弹头端实）。</summary>
     private static Gradient TrailGradient()

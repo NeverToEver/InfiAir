@@ -78,7 +78,13 @@ public partial class GameOverUi : RadialMenuLayer
     public override void _ExitTree()
     {
         // 显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);

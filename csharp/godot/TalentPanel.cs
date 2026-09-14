@@ -101,7 +101,13 @@ public partial class TalentPanel : CanvasLayer
     public override void _ExitTree()
     {
         // 显式断开 GameState 信号连接（对齐 PauseUi/Hud）
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);

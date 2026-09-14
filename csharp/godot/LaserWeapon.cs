@@ -141,7 +141,12 @@ public partial class LaserWeapon : Node2D
     public override void _ExitTree()
     {
         // augments_changed 信号断开（Enemy.cs 同款；节点随 Player 一起释放；AugmentBoolCache 内部判 null）
-        _laserBeamCache.Disconnect(GameState.Instance);
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null)
+        {
+            _laserBeamCache.Disconnect(gs);
+        }
     }
 
     public override void _PhysicsProcess(double delta)

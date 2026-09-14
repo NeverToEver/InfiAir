@@ -86,7 +86,7 @@ public sealed partial class MissionsService : RefCounted
     public void InitMissions()
     {
         Missions.Clear();
-        _lastKindValue.Clear(); // 对局重开：绝对计数随 Kills/RunTime 归零，基线源同步清零
+        _lastKindValue.Clear(); // 本局重开：绝对计数随 Kills/RunTime 归零，基线源同步清零
         foreach (var def in GameState.Instance.MISSION_DEFS)
         {
             // goal 一次性缓存进条目，_set_mission_progress 免每帧线性扫 MISSION_POOL

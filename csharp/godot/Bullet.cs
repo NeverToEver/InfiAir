@@ -273,10 +273,10 @@ public partial class Bullet : Area2D, IParryable
             ActiveCount--;
         }
 
-        // 外部销毁同步移出敌弹注册表（幂等）
+        // 外部销毁同步移出敌弹注册表（幂等）；autoload 可能先于本节点释放，故安全取值
         if (!IsPlayerBullet)
         {
-            GameState.Instance.UnregisterEnemyBullet(this);
+            GameState.TryGetInstance()?.UnregisterEnemyBullet(this);
         }
     }
 
@@ -424,7 +424,7 @@ public partial class Bullet : Area2D, IParryable
                 var hitDamage = Damage;
                 var isCrit = false; // 记既有单次 RNG 抽取结果供命中特效复用，不得重掷（重掷会改动随机序列）
                 var pRef = GameState.Instance.PlayerRef;
-                if (pRef is Player p) // typed（Player.CritChance/CritMultiplierValue 为 buff 缓存属性）
+                if (pRef is Player p) // typed（Player.CritChance/CritMultiplierValue 为增幅缓存属性）
                 {
                     var critChance = p.CritChance;
                     if (critChance > 0.0f && GD.Randf() < critChance)
