@@ -102,7 +102,7 @@ godot --headless --path . --fixed-fps 60 --quit-after <帧数> --scene res://sce
 - 帧数 = 事件全周期秒数 × 60 + 余量；**帧数只在 `scripts/ci/check_smoke.sh` 维护一份**。
 - 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 在生产触发链上请求一次遭遇（资格/门槛/门控仍须真正通过）；`--event-probe-death=elite_turret` 激活后延迟击杀玩家，覆盖死亡打断路径；`--fuel-probe` 把燃料液位从满扫到空，逼量槽填充绘制在每个液位各画一次；`--feel-probe` 请求一次顿帧与震动，覆盖「时间缩放被压低→自行复位→trauma 归零」（顿帧写 `Engine.TimeScale`，写错的表现是画面永久定格，无头下不崩也不报错）；`--long-probe` 直接取生产曲线在 t=5/10/20/30min 的各量，断言单调、速度有顶、精英随难度增长、Boss 斜率独立于完整 D、时间项软上限生效；`--startup-time` 打印启动分段耗时。
 - 完成标记：三趟遭遇必须出现 `[event-probe] <id> 全周期完成`、死亡趟 `[event-probe] <id> 死亡打断完成`（截断/收尾残缺都不打）、设置页 `[settings-probe] 五页切换完成`、燃料 `[fuel-probe] 液位满扫完成`、手感 `[feel-probe] 顿帧与震动复位完成`、长局曲线 `[long-probe] 难度曲线落在预期带`；主场景趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败只打 `ERROR: Cannot open file`，不在引擎错误正则内，缺标记即红）。
-- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death / fuel）。
+- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death / fuel / feel / long）。
 - 死亡趟在临时用户目录（`<LOG>.userdata`）内跑——死亡即删本局存档，探针不得触碰开发者当前存档。
 - 引擎错误正则含 `Invalid polygon data`：程序化绘制 headless 仍会执行 `_Draw`（dummy 渲染不拦绘制调用），自交/退化多边形在三角化处报该错并整块不画——不崩、只看退出码抓不到；燃料槽低油量整块消失即此类。
 - 截图探针趟**不用 headless**（dummy 截不到画面）：`--shot-probe` 在固定帧捕获视口，Linux 无 DISPLAY 时脚本自动走 `xvfb-run` + `LIBGL_ALWAYS_SOFTWARE=1`（软光栅）。判定全在探针内（非空白 + 页间互异），门禁只断完成标记——**不做像素基线比对**（跨渲染器与占位内容本就不同，会误报）。`KEEP_SHOTS=<dir>` 可把 PNG 留出当截图用。

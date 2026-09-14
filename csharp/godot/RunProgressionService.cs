@@ -284,18 +284,23 @@ public sealed partial class RunProgressionService : RefCounted
     public bool GoalAchieved() =>
         RunGoal.Achieved(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
-    /// <summary>达成方式（None/BossKills/Survive；结算页文案分档用）。</summary>
+    /// <summary>达成方式（None/BossKills/Survive）。
+    /// 保留公开读口作诊断面；生产零引用是刻意的——结算页目前只显示「达成/未达成」，
+    /// 未来若要区分达成方式（Boss 击杀 vs 存活）直接消费本口。</summary>
     public RunGoalKind GoalKind() =>
         RunGoal.Kind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
-    /// <summary>达成进度 0..1（取两条件中更接近者；HUD 常驻进度条用）。</summary>
+    /// <summary>达成进度 0..1（取两条件中更接近者）。
+    /// 保留公开读口作诊断面；HUD 目前自行取「更接近的一支」以同时显示条件文本，
+    /// 若日后统一走本口须一并核对边界（core RunGoal.Progress 与 HUD 内联的并列判定不完全等价）。</summary>
     public double GoalProgress() =>
         RunGoal.Progress(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
     /// <summary>当前难度命名档位（0 起；HUD 难度标签用）。</summary>
     public int DifficultyTierIndex() => DifficultyTier.IndexFor(DifficultyMultiplier, _tierThresholds);
 
-    /// <summary>难度命名档位数量（文案键编号上限）。</summary>
+    /// <summary>难度命名档位数量（HUD 档名取键区间上限用；保留公开读口作诊断面）。
+    /// 生产零引用是刻意的：HUD 目前用编译期常量钳制编号，此处保留以支持运行期档位表扩缩。</summary>
     public int DifficultyTierCount() => _tierThresholds.Count;
 
     /// <summary>达成所需存活秒数（HUD 进度文案用）。</summary>
