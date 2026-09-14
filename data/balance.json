@@ -1338,7 +1338,8 @@
 	},
 	"talent": {
 		"cache": {
-			"safe_threshold": 20,
+			"safe_threshold": 30,
+			"recovery_step": 0.25,
 			"decay_step": 0.1,
 			"decay_floor": 0.1
 		},

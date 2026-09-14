@@ -1,5 +1,6 @@
 keys,zh,en
 UI_KILLS,"击杀：%d","Kills: %d"
+MILESTONE_BANNER,"战果里程碑 · 天赋点 +%d","Milestone reached · Talent point +%d"
 UI_KILLS_TAG,"击杀","KILLS"
 UI_DIFF_FMT,"难度 x%.2f · %s","Diff x%.2f · %s"
 DIFF_EASY,"易","Easy"

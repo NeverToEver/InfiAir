@@ -137,6 +137,7 @@ public partial class Hud : CanvasLayer
     private Callable _onAugmentsChanged;
     private Callable _onKeyBindingsChanged;
     private Callable _onTalentCacheChanged;
+    private Callable _onMilestoneReached;
     private Callable _onReduceFlashChanged;
 
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
@@ -235,6 +236,10 @@ public partial class Hud : CanvasLayer
         ConnectGs(GameState.SignalName.DifficultyChanged, _onDifficultyChanged);
         ConnectGs(GameState.SignalName.DifficultySelected, _onDifficultySelected);
         ConnectGs(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        // 里程碑达成给出可见反馈：原实现只写缓存池不发提示，玩家无法把「打得好」与
+        // 「点数变多」关联，奖励节奏不可感知（学习曲线断裂）。
+        _onMilestoneReached = Callable.From<int>(OnMilestoneReached);
+        ConnectGs(GameState.SignalName.MilestoneReached, _onMilestoneReached);
         OnScoreChanged(GameState.Instance.Score);
         OnHealthChanged((float)GameState.Instance.Health);
         _hpBar.SnapGhost(); // 读档续局残血开局：残影对齐实值，不播一次假掉血
@@ -562,6 +567,7 @@ public partial class Hud : CanvasLayer
         DisconnectGs(GameState.SignalName.DifficultyChanged, _onDifficultyChanged);
         DisconnectGs(GameState.SignalName.DifficultySelected, _onDifficultySelected);
         DisconnectGs(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        DisconnectGs(GameState.SignalName.MilestoneReached, _onMilestoneReached);
         DisconnectGs(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         DisconnectGs(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
         DisconnectGs(GameState.SignalName.TalentCacheChanged, _onTalentCacheChanged);
@@ -1825,6 +1831,14 @@ public partial class Hud : CanvasLayer
         _infoTween.TweenProperty(_infoLabel, "modulate:a", 0.0f, 0.4);
         _infoTween.Chain().TweenCallback(Callable.From(_infoPlate.Hide));
         _infoTween.TweenCallback(Callable.From(_infoLabel.Hide));
+    }
+
+    /// <summary>里程碑达成横幅：提示获得的天赋点数（横幅已有复用设施，不新增 HUD 布局）。
+    /// 参数是达成时的分数，仅作签名对齐用，不在文案里显示分数（本作分数不显示）。</summary>
+    private void OnMilestoneReached(int _score)
+    {
+        ShowInfoBanner(GdFormat.Format((string)Tr("MILESTONE_BANNER"),
+            (int)GameState.Instance.Cfg("talent.grant.points_per_milestone", 2).AsInt64()));
     }
 
     // ---------------- snake_case 兼容桥（meta_jitter 由 MetaHealthFX 经 CallGroup("hud", "meta_jitter", ...) 动态派发——

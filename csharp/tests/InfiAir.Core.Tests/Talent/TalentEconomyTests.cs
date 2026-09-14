@@ -7,12 +7,24 @@ namespace InfiAir.Core.Tests.Talent;
 /// 衰减或花费口径错了直接变经济漏洞。</summary>
 public sealed class TalentEconomyTests
 {
-    /// <summary>小阈值配置：3 点内不衰减，之后每点 -0.5，下限 0.1。</summary>
+    /// <summary>小阈值配置：3 点内不衰减，之后每点 -0.5，下限 0.1。
+    /// 默认关掉正向回补（RecoveryStep = 0）——回补单独用 PositiveConfig 测，
+    /// 否则「衰减不可逆」的既有断言会被回补静默改写成另一套语义。</summary>
     private static TalentConfig CacheConfig() => new()
     {
         SafeThreshold = 3,
         DecayStep = 0.5,
         DecayFloor = 0.1,
+        RecoveryStep = 0.0,
+    };
+
+    /// <summary>开启正向回补的配置（同阈值，每次花费后已衰减点朝 1.0 抬 25%）。</summary>
+    private static TalentConfig PositiveConfig() => new()
+    {
+        SafeThreshold = 3,
+        DecayStep = 0.5,
+        DecayFloor = 0.1,
+        RecoveryStep = 0.25,
     };
 
     [Fact]
@@ -46,6 +58,39 @@ public sealed class TalentEconomyTests
 
         Assert.Equal(4, cache.Raw);
         Assert.Equal(3.3, cache.Effective, 12); // 1+1+1+0.3：第 4 点保持历史衰减后的 0.3
+    }
+
+    [Fact]
+    public void Cache_SpendTriggersRecovery_WhenEnabled()
+    {
+        // 回补语义：花掉点数即缓解溢出压力（StS 稀有度保底的正向补偿思路）
+        var cache = new TalentCache(PositiveConfig());
+        cache.Grant(5); // 值 [1,1,1,0.5,0.1]
+
+        Assert.True(cache.Spend(1.0)); // 扣掉尾点 0.1 + 次尾 0.5 + 第三点 0.4，第三点留 0.6
+        // 回补：剩下那点 0.6 朝 1.0 抬 25% → 0.6 + 0.4×0.25 = 0.7；合计 1 + 1 + 0.7 = 2.7
+        Assert.Equal(2.7, cache.Effective, 12);
+    }
+
+    [Fact]
+    public void Cache_RecoveryNeverExceedsFullValue()
+    {
+        var cache = new TalentCache(PositiveConfig());
+        cache.Grant(4); // 值 [1,1,1,0.5]
+        Assert.True(cache.Spend(0.2));
+
+        // 多次回补不得把任何点抬过 1.0（回补只作用于曾被衰减的点）
+        for (var i = 0; i < 20; i++)
+        {
+            cache.Grant(1);
+            if (!cache.Spend(0.05))
+            {
+                break;
+            }
+        }
+
+        Assert.True(cache.Effective <= cache.Raw + 1e-9,
+            $"回补越界：有效 {cache.Effective} > 原始 {cache.Raw}");
     }
 
     [Fact]

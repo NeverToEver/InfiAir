@@ -5,13 +5,19 @@ public sealed class TalentConfig
 {
     // ---- 缓存溢出衰减（第四章）----
     /// <summary>安全阈值：缓存前 N 点不衰减。</summary>
-    public int SafeThreshold { get; set; } = 20;
+    public int SafeThreshold { get; set; } = 30;
 
     /// <summary>每超出 1 点，该点价值衰减比例。</summary>
     public double DecayStep { get; set; } = 0.10;
 
     /// <summary>单点价值下限（90% 衰减上限）。</summary>
     public double DecayFloor { get; set; } = 0.10;
+
+    /// <summary>正向回补步进：每次花费后，已衰减点按此比例回补（0 = 关闭，维持「衰减不可逆」）。
+    /// 引入理由：StS 的稀有度保底用「每掉一张普通牌，稀有概率 +1%」做正向补偿，
+    /// 而原实现是「超阈值即不可逆衰减」——惩罚 + 隐藏入口叠加后对新手是纯负面。
+    /// 回补让「花掉点数」本身成为缓解手段，玩家不必先知道规则也不至于持续亏损。</summary>
+    public double RecoveryStep { get; set; } = 0.25;
 
     // ---- 点数来源 ----
     public int PointsPerMilestone { get; set; } = 2;
@@ -129,11 +135,34 @@ public sealed class TalentCache
             }
         }
 
+        // 正向回补：花掉点数即缓解溢出压力（RecoveryStep=0 时维持原「不可逆」语义）
+        ApplyRecovery();
         return true;
     }
 
-    /// <summary>溢出衰减（每次增减后调用）：位置 ≥ SafeThreshold 的点按超出深度衰减，
-    /// 取 min（历史衰减不可恢复——花费使总点数下降时，已衰减点不回满，维持溢出压力）。</summary>
+    /// <summary>正向回补：把每个已衰减点的价值朝 1.0 抬 <see cref="TalentConfig.RecoveryStep"/> 的比例。
+    /// 只抬曾经被衰减过的点（值 &lt; 1），不会把正常点抬过 1.0。</summary>
+    private void ApplyRecovery()
+    {
+        var step = _config.RecoveryStep;
+        if (step <= 0.0)
+        {
+            return;
+        }
+
+        step = Math.Min(step, 1.0);
+        for (var i = 0; i < _values.Count; i++)
+        {
+            if (_values[i] < 1.0)
+            {
+                _values[i] += (1.0 - _values[i]) * step;
+            }
+        }
+    }
+
+    /// <summary>溢出衰减（每次入账后调用）：位置 ≥ SafeThreshold 的点按超出深度衰减，取 min。
+    /// 衰减本身不可逆（Grant 后不自动回涨），但 <see cref="Spend"/> 会触发正向回补
+    /// （RecoveryStep）——花掉点数即缓解溢出，玩家有明确的自救手段。</summary>
     public void ApplyDecay()
     {
         for (var i = _config.SafeThreshold; i < _values.Count; i++)
@@ -153,8 +182,8 @@ public sealed class TalentCache
     /// 缓存是衰减型 LIFO 点值序列，Grant/Spend 都无法回到某个历史状态，故读档必须整体还原原始序列。</summary>
     public List<double> Snapshot() => new(_values);
 
-    /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/裁剪——
-    /// 快照已是历史衰减后的真实状态，重算会二次衰减。null/空 = 清空。
+    /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/回补/裁剪——
+    /// 快照已是历史衰减后的真实状态，重算会二次衰减、回补会凭空加点。null/空 = 清空。
     /// 非有限或负值钳为 0：点值序列若混入 NaN，<see cref="Effective"/> 会变 NaN，
     /// 使花费判据恒假、<see cref="Spend"/> 空转放行——手改存档可借此白拿天赋。</summary>
     public void RestoreValues(IEnumerable<double>? values)

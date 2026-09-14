@@ -105,8 +105,9 @@ public sealed partial class TalentService : RefCounted
     public void LoadTalentConfig()
     {
         var gs = GameState.Instance;
-        _config.SafeThreshold = Math.Max((int)gs.Cfg("talent.cache.safe_threshold", 20).AsInt64(), 1);
+        _config.SafeThreshold = Math.Max((int)gs.Cfg("talent.cache.safe_threshold", 30).AsInt64(), 1);
         _config.DecayStep = Mathf.Clamp(gs.Cfg("talent.cache.decay_step", 0.10).AsDouble(), 0.0, 1.0);
+        _config.RecoveryStep = Math.Clamp(gs.Cfg("talent.cache.recovery_step", _config.RecoveryStep).AsDouble(), 0.0, 1.0);
         _config.DecayFloor = Mathf.Clamp(gs.Cfg("talent.cache.decay_floor", 0.10).AsDouble(), 0.01, 1.0);
         _config.PointsPerMilestone = Math.Max((int)gs.Cfg("talent.grant.points_per_milestone", 2).AsInt64(), 0);
         _config.PointsPerBoss = Math.Max((int)gs.Cfg("talent.grant.points_per_boss", 1).AsInt64(), 0);
