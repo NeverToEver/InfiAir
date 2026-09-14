@@ -51,6 +51,16 @@ public partial class FuelTank : Control
     private bool _warn;
     private bool _reduceFlash;
 
+    // ---- 绘制顶点缓冲（实例级一次分配）----
+    // 燃料推进中持续下降会逐帧重绘，_Draw 内不得再 new 顶点数组；各缓冲容量由
+    // WaveSegments 与切角点数固定，绘制时只原地改写。Draw* 调用在调色板入队时即复制数据，
+    // 复用同一缓冲安全（同一缓冲不得跨两次 Draw 调用并存）。
+    private readonly Vector2[] _chamfer = new Vector2[8];                 // 外框切角八边形
+    private readonly Vector2[] _frameLoop = new Vector2[9];               // 外框闭合描边（八边形 + 回起点）
+    private readonly Vector2[] _surface = new Vector2[WaveSegments + 1];  // 液面弯月线
+    private readonly Vector2[] _liquid = new Vector2[WaveSegments + 3];   // 液位为底的填充多边形
+    private readonly Vector2[] _band = new Vector2[WaveSegments + 3];     // 近液面提亮带
+
     public override void _Ready()
     {
         _shown = _ratio;
@@ -134,8 +144,7 @@ public partial class FuelTank : Control
 
     public override void _Draw()
     {
-        var pts = UITheme.ChamferPoints(Size, Chamfer);
-        if (pts.Length == 0)
+        if (!UITheme.FillChamferPoints(_chamfer, Size, Chamfer))
         {
             return;
         }
@@ -146,7 +155,7 @@ public partial class FuelTank : Control
             return;
         }
 
-        DrawColoredPolygon(pts, new Color(UITheme.SlotDark, 0.75f));
+        DrawColoredPolygon(_chamfer, new Color(UITheme.SlotDark, 0.75f));
 
         var body = _warn ? UITheme.Danger : UITheme.Accent;
         var levelY = inner.Position.Y + inner.Size.Y * (1.0f - Mathf.Clamp(_shown, 0.0f, 1.0f));
@@ -162,50 +171,53 @@ public partial class FuelTank : Control
         }
 
         DrawGraduations(inner);
-        DrawFrame(pts);
+        DrawFrame();
     }
 
     /// <summary>液位以下填充 + 近液面提亮带（体积感的唯一来源，不做内层分区等装饰）。</summary>
     private void DrawLiquid(Rect2 inner, float levelY, Color body)
     {
-        var surface = SurfacePoints(inner, levelY);
-        var poly = new Vector2[surface.Length + 2];
-        System.Array.Copy(surface, poly, surface.Length);
-        poly[^2] = new Vector2(inner.Position.X + inner.Size.X, inner.Position.Y + inner.Size.Y);
-        poly[^1] = new Vector2(inner.Position.X, inner.Position.Y + inner.Size.Y);
-        DrawColoredPolygon(poly, new Color(body, 0.70f));
+        FillSurface(inner, levelY);
+        var bottomRight = new Vector2(inner.Position.X + inner.Size.X, inner.Position.Y + inner.Size.Y);
+        var bottomLeft = new Vector2(inner.Position.X, inner.Position.Y + inner.Size.Y);
+        BuildFillPolygon(_liquid, _surface, bottomRight, bottomLeft);
+        DrawColoredPolygon(_liquid, new Color(body, 0.70f));
 
         var bandY = Mathf.Min(levelY + inner.Size.Y * 0.20f, inner.Position.Y + inner.Size.Y);
-        var band = new Vector2[surface.Length + 2];
-        System.Array.Copy(surface, band, surface.Length);
-        band[^2] = new Vector2(inner.Position.X + inner.Size.X, bandY);
-        band[^1] = new Vector2(inner.Position.X, bandY);
-        DrawColoredPolygon(band, new Color(body.Lightened(0.28f), 0.40f));
+        BuildFillPolygon(_band, _surface, new Vector2(bottomRight.X, bandY), new Vector2(bottomLeft.X, bandY));
+        DrawColoredPolygon(_band, new Color(body.Lightened(0.28f), 0.40f));
     }
 
     /// <summary>液面弯月线：贴合波形的亮线——「这是液面」最强的单一信号。</summary>
     private void DrawMeniscus(Rect2 inner, float levelY, Color body)
     {
-        DrawPolyline(SurfacePoints(inner, levelY), new Color(body.Lightened(0.6f), 1.0f), 1.4f, true);
+        FillSurface(inner, levelY);
+        DrawPolyline(_surface, new Color(body.Lightened(0.6f), 1.0f), 1.4f, true);
     }
 
-    private Vector2[] SurfacePoints(Rect2 inner, float levelY)
+    /// <summary>填充多边形 = 液面采样点 + 底边两端闭合（写入调用方缓冲，零分配）。</summary>
+    private static void BuildFillPolygon(Vector2[] dst, Vector2[] surface, Vector2 bottomRight, Vector2 bottomLeft)
+    {
+        System.Array.Copy(surface, dst, surface.Length);
+        dst[^2] = bottomRight;
+        dst[^1] = bottomLeft;
+    }
+
+    /// <summary>液面采样点写入 <see cref="_surface"/>（原地改写，零分配）。</summary>
+    private void FillSurface(Rect2 inner, float levelY)
     {
         // 波幅上限由 TankLiquid 定（波谷不得越过内腔底，否则填充多边形自交、三角化整块失败）。
         var amp = TankLiquid.WaveAmplitude(
             inner.Size.Y,
             _shown,
             WaveAmpBase + (_reduceFlash ? 0.0f : _slosh * WaveAmpSlosh));
-        var pts = new Vector2[WaveSegments + 1];
         for (var i = 0; i <= WaveSegments; i++)
         {
             var t = (float)i / WaveSegments;
             var x = inner.Position.X + inner.Size.X * t;
             var wave = _reduceFlash ? 0.0f : Mathf.Sin((_wavePhase + t * 1.2f) * Mathf.Tau);
-            pts[i] = new Vector2(x, levelY + wave * amp);
+            _surface[i] = new Vector2(x, levelY + wave * amp);
         }
-
-        return pts;
     }
 
     /// <summary>侧缘刻度：短横线给液位量程参照；低量区在警戒时标红。</summary>
@@ -225,12 +237,11 @@ public partial class FuelTank : Control
     }
 
     /// <summary>外框：切角描边（与面板/插座同语汇）；警戒时边框转红（与液色同步）。</summary>
-    private void DrawFrame(Vector2[] pts)
+    private void DrawFrame()
     {
-        var loop = new Vector2[pts.Length + 1];
-        System.Array.Copy(pts, loop, pts.Length);
-        loop[^1] = pts[0];
+        System.Array.Copy(_chamfer, _frameLoop, _chamfer.Length);
+        _frameLoop[^1] = _chamfer[0];
         var col = _warn ? new Color(UITheme.Danger, 0.85f) : new Color(UITheme.PanelBorder, 0.9f);
-        DrawPolyline(loop, col, 1.2f, true);
+        DrawPolyline(_frameLoop, col, 1.2f, true);
     }
 }

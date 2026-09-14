@@ -21,6 +21,10 @@ namespace InfiAir;
 /// </summary>
 public partial class MouseTrap : Node
 {
+    /// <summary>headless 判定缓存一次（同 SfxPlayer.IsHeadless）：DisplayServer.GetName() 是原生调用，
+    /// 平台的 DisplayServer 一旦选定不会中途更换，逐帧比较字符串纯属浪费。</summary>
+    private static readonly bool IsHeadless = DisplayServer.GetName() == "headless";
+
     /// <summary>最后已知窗口内容区内的鼠标位置（每帧缓存；移出后 get_mouse_position() 不再更新，
     /// 供 mouse_exited 时生成 warp 目标；从未进入窗口内时为负，此时不拉回）</summary>
     private Vector2 _lastKnownPos = new(-1.0f, -1.0f);
@@ -45,7 +49,7 @@ public partial class MouseTrap : Node
 
     public override void _Process(double delta)
     {
-        if (DisplayServer.GetName() == "headless")
+        if (IsHeadless)
         {
             return; // headless 无真实鼠标/窗口事件，confine 逻辑全部跳过
         }

@@ -51,6 +51,10 @@ public partial class AimFrameLayer : Node2D
     /// <summary>上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
     private bool _hadMarked;
 
+    /// <summary>模拟时间（秒，本节点累计 _Process delta）：框低频闪相位基准，替代墙钟
+    /// （帧率/机器性能无关；闪频与原墙钟版一致 4Hz）。</summary>
+    private float _simTime;
+
     public AimFrameLayer()
     {
         _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
@@ -98,7 +102,8 @@ public partial class AimFrameLayer : Node2D
     public override void _ExitTree()
     {
         // 显式断开档位信号（Player 同款），节点未 free 重新入树不重复连接
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
         if (gs != null)
         {
             if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistChanged))
@@ -130,6 +135,7 @@ public partial class AimFrameLayer : Node2D
 
     public override void _Process(double delta)
     {
+        _simTime += (float)delta; // 闪相位基准（模拟时间），见字段注释
         // 无标记敌常态跳过扫描+重绘（否则每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
         // 归零当帧补一次重绘清残框
         if (Enemy.AimMarkedCount == 0)
@@ -331,7 +337,7 @@ public partial class AimFrameLayer : Node2D
 
     public override void _Draw()
     {
-        var flicker = 0.55f + 0.35f * Enemy.SinFast((float)Time.GetTicksMsec() / 1000.0f * 4.0f);
+        var flicker = 0.55f + 0.35f * Enemy.SinFast(_simTime * 4.0f);
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {

@@ -23,6 +23,10 @@ public partial class AimCrosshair : Node2D
     /// <summary>SceneTree 缓存（避免 _Process 每帧 GetTree() 原生往返取 Paused）。</summary>
     private SceneTree? _tree;
 
+    /// <summary>模拟时间（秒，本节点累计 _Process delta）：脉冲相位基准，替代墙钟
+    /// （帧率/机器性能无关；_Process 与 _Draw 同帧先后执行，_Draw 读到的是本帧已推进值）。</summary>
+    private float _simTime;
+
     /// <summary>Player._load_balance 在 add_child 前调用（top_level 需入树前置位）。</summary>
     public void Init(Player p)
     {
@@ -48,6 +52,7 @@ public partial class AimCrosshair : Node2D
 
     public override void _Process(double delta)
     {
+        _simTime += (float)delta;
         var active = _player != null
             && _tree is { Paused: false }
             && !_player.IsDead()
@@ -68,7 +73,7 @@ public partial class AimCrosshair : Node2D
 
     public override void _Draw()
     {
-        var pulse = 0.75f + 0.25f * Enemy.SinFast((float)Time.GetTicksMsec() / 1000.0f * 6.0f);
+        var pulse = 0.75f + 0.25f * Enemy.SinFast(_simTime * 6.0f);
         var c = CrosshairColor * new Color(1.0f, 1.0f, 1.0f, pulse);
         foreach (var sx in SignValues)
         {

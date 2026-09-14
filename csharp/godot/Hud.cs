@@ -37,6 +37,9 @@ public partial class Hud : CanvasLayer
 
     private Main _main = null!; // typed
     private float _pollTimer;
+    /// <summary>累计模拟时间（秒，_Process delta）：倒计时闪烁等表现相位的基准，替代墙钟
+    /// （帧率/机器性能无关）。</summary>
+    private float _simTime;
     private string _lastDockText = "";
     private AnnunciatorLamp.Lamp _lastDockLamp = AnnunciatorLamp.Lamp.Off; // 灯态缓存（每轮只写变化）
     private int _lastMagCells = -1;
@@ -98,7 +101,7 @@ public partial class Hud : CanvasLayer
     private GridContainer _augmentDock = null!;
     private Label _augmentTag = null!;
     private Label? _augmentOverflowLabel; // 收起态溢出计数（">4 个 buff 时 +N"）
-    private ChamferedPanel _augmentPanel = null!; // L 键展开的 buff 滚动栏
+    private ChamferedPanel _augmentPanel = null!; // L 键展开的增幅滚动栏
     private Label _augmentPanelTitle = null!;
     private VBoxContainer _augmentRows = null!;
     private string _lastAugmentSignature = "";
@@ -615,8 +618,9 @@ public partial class Hud : CanvasLayer
     /// <summary>GameState 信号断开（IsConnected 守卫防未连先断报错）。</summary>
     private void DisconnectGs(StringName signal, Callable callable)
     {
-        var gs = GameState.Instance;
-        if (gs.IsConnected(signal, callable))
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null && gs.IsConnected(signal, callable))
         {
             gs.Disconnect(signal, callable);
         }
@@ -627,6 +631,7 @@ public partial class Hud : CanvasLayer
         // 晕影/受击红闪每帧更新（需连续衰减与脉动）；其余仪表类按 POLL_INTERVAL（0.1s）降频，
         // 文本类由信号驱动（见 _ready 连接）
         var d = (float)delta;
+        _simTime += d;
         UpdateVignette(d);
         UpdateFuelPulse(d); // 低燃料警戒亮度泵动（空闲时无逐帧写）
         _pollTimer -= d;
@@ -645,7 +650,7 @@ public partial class Hud : CanvasLayer
                 _bossCountdown.Visible = true;
                 _bossCountdown.Text = GdFormat.Format("%d", Mathf.CeilToInt(remaining));
                 var cm = _bossCountdown.Modulate;
-                cm.A = Time.GetTicksMsec() / CountdownBlinkHalfPeriodMs % 2 == 0 ? 1.0f : 0.45f;
+                cm.A = (long)(_simTime * 1000.0f) / CountdownBlinkHalfPeriodMs % 2 == 0 ? 1.0f : 0.45f;
                 _bossCountdown.Modulate = cm;
             }
             else
@@ -1706,7 +1711,7 @@ public partial class Hud : CanvasLayer
 
     private void RebuildAugmentDock(bool force)
     {
-        _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // buff 变化（extra_life 层数）时刷新缓存，热路径免查 JSON
+        _cachedMaxHp = (float)GameState.Instance.MaxHealth(); // 增幅变化（extra_life 层数）时刷新缓存，热路径免查 JSON
         var signature = "";
         var active = new Godot.Collections.Array(); // [[id, stacks], ...] 按获得顺序
         var augments = GameState.Instance.Augments;

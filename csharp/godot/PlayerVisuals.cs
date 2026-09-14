@@ -130,29 +130,29 @@ public class PlayerVisuals
     }
 
     /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 Player 传入——增幅 外观
-    /// 写入 Player.EngineTint，公开字段被 PlayerAugmentVisuals 访问，留在 Player 侧）。</summary>
-    public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint)
+    /// 写入 Player.EngineTint，公开字段被 PlayerAugmentVisuals 访问，留在 Player 侧）。
+    /// simTime = Player 累计模拟时间（秒），作为喷口抖动相位基准（替代墙钟）。</summary>
+    public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint, float simTime)
     {
         _thruster.SpeedScale = speedScale;
         _thruster.AmountRatio = amountRatio;
         _thruster.SelfModulate = new Color(1.0f, 1.0f, 1.0f, alpha) * engineTint;
-        UpdateThrusterFlare(speedScale, alpha, engineTint);
+        UpdateThrusterFlare(speedScale, alpha, engineTint, simTime);
     }
 
     /// <summary>核心喷口三层逐帧驱动（SetThruster 逐帧调用）：随速度 Y 向伸缩（外层拉伸更大）+
     /// 双正交高频小幅抖动；alpha 随尾焰档位，增幅 染色经 engineTint 只染琥珀/红外两层（白芯保白）。
-    /// 只写 struct 属性，零托管分配。</summary>
-    private void UpdateThrusterFlare(float speedScale, float alpha, Color engineTint)
+    /// 相位基准为模拟时间，抖动频率与墙钟版一致（43/37 Hz）。只写 struct 属性，零托管分配。</summary>
+    private void UpdateThrusterFlare(float speedScale, float alpha, Color engineTint, float simTime)
     {
         if (_flareCore == null || _flareMid == null || _flareOuter == null)
         {
             return;
         }
 
-        var t = Time.GetTicksMsec() / 1000.0f;
         var stretch = 1.0f + _flareSpeedStretch * Mathf.Max(speedScale - 1.0f, 0.0f);
-        var jx = Mathf.Sin(t * 43.0f) * _flareJitterPx;
-        var jy = Mathf.Cos(t * 37.0f) * _flareJitterPx;
+        var jx = Mathf.Sin(simTime * 43.0f) * _flareJitterPx;
+        var jy = Mathf.Cos(simTime * 37.0f) * _flareJitterPx;
         ApplyFlare(_flareCore, _flareCoreSize, _flareAlphaCore * alpha, stretch, jx, 0.0f + jy * 0.4f, FlareCoreColor);
         ApplyFlare(_flareMid, _flareMidSize, _flareAlphaMid * alpha, stretch * 1.15f, jx * 0.7f, _flareMidY + jy * 0.7f, FlareMidColor);
         ApplyFlare(_flareOuter, _flareOuterSize, _flareAlphaOuter * alpha, stretch * 1.35f, jx * 0.5f, _flareOuterY + jy, FlareOuterColor);
@@ -224,8 +224,9 @@ public class PlayerVisuals
 
     /// <summary>机身色调四源（优先级从高到低）：弹反金 tint &gt; 擦弹金色微闪 &gt; 无敌帧闪烁 &gt; 常态基底。
     /// 擦弹闪光在此递减（原 _physics_process 视觉分支）；无敌倒计时递减留在 player（战斗状态）。
-    /// 受击点光点脉动同帧驱动（常亮低频闪烁，提示实际受击判定位置）。</summary>
-    public void UpdateFrame(float delta, float parryTint, float invincible, long nowMs)
+    /// 受击点光点脉动同帧驱动（常亮低频闪烁，提示实际受击判定位置）。
+    /// simTime = Player 累计模拟时间（秒），脉动相位基准（原墙钟 nowMs；频率等价换算 20/6 rad/s）。</summary>
+    public void UpdateFrame(float delta, float parryTint, float invincible, float simTime)
     {
         if (parryTint > 0.0f)
         {
@@ -239,7 +240,7 @@ public class PlayerVisuals
         else if (invincible > 0.0f)
         {
             var m = BodyTintBase;
-            m.A = 0.35f + 0.65f * Mathf.Abs(Enemy.SinFast((float)(nowMs * 0.02)));
+            m.A = 0.35f + 0.65f * Mathf.Abs(Enemy.SinFast(simTime * 20.0f));
             _sprite.Modulate = m;
         }
         else
@@ -248,7 +249,7 @@ public class PlayerVisuals
         }
 
         var hd = _hitboxDot.Modulate;
-        hd.A = 0.45f + 0.55f * Mathf.Abs(Enemy.SinFast((float)(nowMs * 0.006)));
+        hd.A = 0.45f + 0.55f * Mathf.Abs(Enemy.SinFast(simTime * 6.0f));
         _hitboxDot.Modulate = hd;
     }
 
@@ -270,7 +271,7 @@ public class PlayerVisuals
     /// 三层结构：暗金填充扇面 + 亮金分段盾缘（伪能量格）+ 流光高光带（零 shader 依赖，ADD 混合出辉光）。
     /// 参数化（expand/shine 来自 PlayerParry，radius/arc 来自 player 常量）——视觉不感知 弹反组件。
     /// 每物理帧调用：只写 Modulate/Scale（struct），流光带顶点走预分配缓冲，零托管分配。</summary>
-    public void UpdateParryVisuals(float expand, float shine, float radius, float arcDeg, float delta, long nowMs)
+    public void UpdateParryVisuals(float expand, float shine, float radius, float arcDeg, float delta, float simTime)
     {
         var visible = expand > 0.0f;
         _parryArc.Visible = visible;
@@ -308,7 +309,7 @@ public class PlayerVisuals
         _parryArc.Scale = Vector2.One * scale;
         _parryArc.Modulate = new Color(1.0f, 1.0f, 1.0f, 1.0f + 1.4f * flash);
         // 盾缘：ACTIVE（shine>0）能量脉动，RECOVER 恒定高亮；命中闪叠加外扩 + 白金色提亮
-        var pulse = shine > 0.0f ? 0.72f + 0.28f * Mathf.Abs(Mathf.Sin((float)(nowMs * 0.012))) : 0.9f;
+        var pulse = shine > 0.0f ? 0.72f + 0.28f * Mathf.Abs(Mathf.Sin(simTime * 12.0f)) : 0.9f;
         _parryRim.Scale = Vector2.One * (scale * (1.0f + 0.14f * flash));
         _parryRim.Modulate = new Color(1.0f + 1.1f * flash, 1.0f + 0.6f * flash, 1.0f, Mathf.Min(pulse + 0.6f * flash, 1.0f));
         _parryShine.Visible = shine > 0.0f;

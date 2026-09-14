@@ -31,6 +31,14 @@ public partial class TalentFanView : Control
     private readonly Dictionary<string, Label> _badgeLabels = new();
     private readonly Dictionary<string, Label> _valueLabels = new();
     private readonly Dictionary<string, int> _lastLevels = new(); // 加点前层级，供升级闪烁比对
+    /// <summary>节点 id 的 StringName 每节点缓存一次（建卡时构造；_Process/_Draw/StyleCard 复用，
+    /// 免逐帧 new StringName 的原生封送）。</summary>
+    private readonly Dictionary<string, StringName> _cardIds = new();
+    /// <summary>「存在可升级节点」聚合态缓存：建卡与 RefreshStates 时重算，_Process 只读它
+    /// 决定呼吸脉冲，不再逐帧遍历卡片连查天赋字典。</summary>
+    private bool _anyUpgradeable;
+    /// <summary>本控件累计模拟时间（秒）：呼吸脉冲相位基准（替代墙钟，帧率/机器性能无关）。</summary>
+    private float _simTime;
     private string? _categoryId;
     private string? _hovered;
     private string? _selected;
@@ -69,16 +77,18 @@ public partial class TalentFanView : Control
         List<string>? leveled = null;
         foreach (var kv in _cards)
         {
-            var level = talent.Level(new StringName(kv.Key));
+            var idSn = _cardIds[kv.Key];
+            var level = talent.Level(idSn);
             if (_lastLevels.TryGetValue(kv.Key, out var prev) && level > prev)
             {
                 (leveled ??= new List<string>()).Add(kv.Key);
             }
 
             _lastLevels[kv.Key] = level;
-            StyleCard(kv.Key, kv.Value);
+            StyleCard(kv.Key, kv.Value, idSn);
         }
 
+        RefreshUpgradeableFlag();
         QueueRedraw();
         if (leveled == null)
         {
@@ -89,6 +99,26 @@ public partial class TalentFanView : Control
         {
             FlashCard(nodeId);
         }
+    }
+
+    /// <summary>「存在可升级节点」聚合态一次性重算（建卡 / 加点 / 路线 / 代币变化时）：
+    /// 判定式与 _Process 旧逐帧版本逐项一致；_Process 只读缓存，免逐帧 StringName 构造与字典连查。</summary>
+    private void RefreshUpgradeableFlag()
+    {
+        var talent = GameState.Instance.Talent;
+        var any = false;
+        foreach (var kv in _cardIds)
+        {
+            var idSn = kv.Value;
+            if (talent.Level(idSn) < talent.CapFor(idSn) && talent.PrerequisiteMet(idSn)
+                && !talent.IsOvercharged(idSn) && talent.EffectiveCache >= talent.NextCost(idSn))
+            {
+                any = true;
+                break;
+            }
+        }
+
+        _anyUpgradeable = any;
     }
 
     private void RebuildCards()
@@ -103,6 +133,8 @@ public partial class TalentFanView : Control
         _badgeLabels.Clear();
         _valueLabels.Clear();
         _lastLevels.Clear();
+        _cardIds.Clear();
+        _anyUpgradeable = false;
         if (_categoryId == null)
         {
             return;
@@ -114,14 +146,16 @@ public partial class TalentFanView : Control
         {
             foreach (var nodeId in line.NodeIds)
             {
+                _cardIds[nodeId] = new StringName(nodeId);
                 var card = MakeCard(nodeId);
                 _cards[nodeId] = card;
-                _lastLevels[nodeId] = talent.Level(new StringName(nodeId));
+                _lastLevels[nodeId] = talent.Level(_cardIds[nodeId]);
                 AddChild(card);
             }
         }
 
         LayoutCards();
+        RefreshUpgradeableFlag();
         // 键盘链路：焦点落首卡（方向键走 Godot 邻居焦点，Enter 经 GuiInput ui_accept）
         var first = _cards.Values.FirstOrDefault();
         first?.GrabFocus();
@@ -147,7 +181,7 @@ public partial class TalentFanView : Control
 
     private ChamferedPanel MakeCard(string nodeId)
     {
-        var idSn = new StringName(nodeId);
+        var idSn = _cardIds[nodeId];
         var card = new ChamferedPanel
         {
             CustomMinimumSize = new Vector2(CardW, CardH),
@@ -211,7 +245,7 @@ public partial class TalentFanView : Control
         _valueLabels[nodeId] = value;
 
         // 样式刷新依赖上方 label 注册表（层数/徽标/数值），必须在注册完成后执行
-        StyleCard(nodeId, card);
+        StyleCard(nodeId, card, idSn);
 
         card.GuiInput += ev => OnCardGuiInput(ev, nodeId);
         card.MouseEntered += () => SetHover(nodeId);
@@ -318,11 +352,11 @@ public partial class TalentFanView : Control
         tw.TweenProperty(card, "modulate", Colors.White, 0.22).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
     }
 
-    /// <summary>节点卡片样式（状态色/徽标/层数/增幅值；数据源 TalentService 单一事实源）。</summary>
-    private void StyleCard(string nodeId, ChamferedPanel card)
+    /// <summary>节点卡片样式（状态色/徽标/层数/增幅值；数据源 TalentService 单一事实源）。
+    /// idSn 由调用方从 _cardIds 取（免重复构造 StringName）。</summary>
+    private void StyleCard(string nodeId, ChamferedPanel card, StringName idSn)
     {
         var talent = GameState.Instance.Talent;
-        var idSn = new StringName(nodeId);
         var level = talent.Level(idSn);
         var cap = talent.CapFor(idSn);
         var maxLevel = talent.MaxLevel(idSn);
@@ -393,7 +427,9 @@ public partial class TalentFanView : Control
         }
     }
 
-    /// <summary>可升级呼吸脉冲（点数充足的未满节点边框明暗交替；ReduceFlash 时静止）。</summary>
+    /// <summary>可升级呼吸脉冲（点数充足的未满节点边框明暗交替；ReduceFlash 时静止）。
+    /// 走势聚合态 _anyUpgradeable 在 RefreshStates/RebuildCards 时重算，本方法只读缓存；
+    /// 相位基准为本控件累计的模拟时间（delta 来自 _Process），与墙钟/帧率无关。</summary>
     public override void _Process(double delta)
     {
         if (!Visible || _categoryId == null || GameState.Instance.ReduceFlash)
@@ -401,20 +437,7 @@ public partial class TalentFanView : Control
             return;
         }
 
-        var talent = GameState.Instance.Talent;
-        var anyUpgradeable = false;
-        foreach (var kv in _cards)
-        {
-            var idSn = new StringName(kv.Key);
-            if (talent.Level(idSn) < talent.CapFor(idSn) && talent.PrerequisiteMet(idSn)
-                && !talent.IsOvercharged(idSn) && talent.EffectiveCache >= talent.NextCost(idSn))
-            {
-                anyUpgradeable = true;
-                break;
-            }
-        }
-
-        if (!anyUpgradeable)
+        if (!_anyUpgradeable)
         {
             if (_pulsePhase)
             {
@@ -425,7 +448,8 @@ public partial class TalentFanView : Control
             return;
         }
 
-        var phase = Mathf.Sin(Time.GetTicksMsec() / 500.0) > 0.0;
+        _simTime += (float)delta;
+        var phase = Mathf.Sin(_simTime * 2.0f) > 0.0; // 与墙钟版 GetTicksMsec()/500 同频（周期 ≈3.14s）
         if (phase != _pulsePhase)
         {
             _pulsePhase = phase;
@@ -461,9 +485,11 @@ public partial class TalentFanView : Control
                 }
 
                 var cur = card.Position + card.Size / 2f;
-                var idSn = new StringName(nodeId);
-                var lit = talent.Level(idSn) > 0;
-                var sealed_ = talent.CapFor(idSn) < talent.MaxLevel(idSn) && talent.Level(idSn) >= talent.CapFor(idSn);
+                var idSn = _cardIds[nodeId];
+                var level = talent.Level(idSn);
+                var cap = talent.CapFor(idSn);
+                var lit = level > 0;
+                var sealed_ = cap < talent.MaxLevel(idSn) && level >= cap;
                 var col = sealed_ ? new Color(UITheme.Danger, 0.35f)
                     : lit ? new Color(AugmentIcons.ColorFor(idSn), 0.75f)
                     : new Color(UITheme.PanelBorder, 0.18f);

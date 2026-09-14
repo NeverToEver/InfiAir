@@ -45,6 +45,11 @@ public partial class HudDamageArcs : Control
     private readonly Arc[] _arcs = new Arc[MaxArcs];
     private int _arcCount;
 
+    /// <summary>模拟时间（秒，本节点累计 _Process delta）：闪动脉冲相位基准，替代墙钟
+    /// （帧率/机器性能无关；脉冲频率与原墙钟版一致 PulseHz）。空闲停 _Process 时仅停推进，
+    /// 无弧即无绘制，无观测差异。</summary>
+    private float _simTime;
+
     private readonly Callable _onPlayerDamaged;
 
     public HudDamageArcs()
@@ -68,7 +73,8 @@ public partial class HudDamageArcs : Control
     public override void _ExitTree()
     {
         // GameState 为 autoload 恒存：显式断开，防本节点释放后信号回调指向已释放对象
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
         if (gs != null && gs.IsConnected(GameState.SignalName.PlayerDamaged, _onPlayerDamaged))
         {
             gs.Disconnect(GameState.SignalName.PlayerDamaged, _onPlayerDamaged);
@@ -124,6 +130,7 @@ public partial class HudDamageArcs : Control
     public override void _Process(double delta)
     {
         var d = (float)delta;
+        _simTime += d; // 闪相位基准（模拟时间）
         var kept = 0;
         for (var i = 0; i < _arcCount; i++)
         {
@@ -157,7 +164,7 @@ public partial class HudDamageArcs : Control
         var pulse = 1.0f;
         if (!GameState.Instance.ReduceFlash)
         {
-            pulse = 0.78f + 0.22f * Enemy.SinFast((float)Time.GetTicksMsec() / 1000.0f * PulseHz * Mathf.Tau);
+            pulse = 0.78f + 0.22f * Enemy.SinFast(_simTime * PulseHz * Mathf.Tau);
         }
 
         for (var i = 0; i < _arcCount; i++)

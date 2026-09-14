@@ -60,6 +60,7 @@ public partial class UITheme : RefCounted
     public static readonly Color AimAmberLit = new(1.0f, 0.72f, 0.30f); // 瞄准框常态
     public static readonly Color AimAmberHot = new(1.0f, 0.90f, 0.45f); // 瞄准框锁定峰值
     public static readonly Color HostileCool = new(0.52f, 0.64f, 0.80f, 0.50f); // 标题战场远处敌机冷色（暖族中的刻意冷色例外）
+    public static readonly Color MothershipCool = new(0.35f, 0.85f, 1.0f); // 母舰能量青（能量层 tint / 召唤蓄力背光；与 HostileCool 同族的刻意冷色例外）
 
     // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
     public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）
@@ -351,25 +352,37 @@ public partial class UITheme : RefCounted
     /// 尺寸或切角过小（放不下切角）时返回空集，调用方跳过绘制。</summary>
     public static Vector2[] ChamferPoints(Vector2 size, float chamfer)
     {
+        var dst = new Vector2[8];
+        if (!FillChamferPoints(dst, size, chamfer))
+        {
+            return System.Array.Empty<Vector2>();
+        }
+
+        return dst;
+    }
+
+    /// <summary>切角矩形点集写入调用方缓冲（零分配重载，容量须 ≥8）：逐帧绘制路径用它，
+    /// 避免每帧新建数组。几何唯一来源在此——<see cref="ChamferPoints(Vector2, float)"/>
+    /// 也经本方法产出，两处不得各写一份点序。放不下切角时返回 false（不写 dst），调用方跳过绘制。</summary>
+    public static bool FillChamferPoints(Vector2[] dst, Vector2 size, float chamfer)
+    {
         var c = Mathf.Max(chamfer, 0.0f);
         var w = size.X;
         var h = size.Y;
         if (c <= 0.0f || w < c * 2.0f || h < c * 2.0f)
         {
-            return System.Array.Empty<Vector2>();
+            return false;
         }
 
-        return new[]
-        {
-            new Vector2(c, 0.0f),
-            new Vector2(w - c, 0.0f),
-            new Vector2(w, c),
-            new Vector2(w, h - c),
-            new Vector2(w - c, h),
-            new Vector2(c, h),
-            new Vector2(0.0f, h - c),
-            new Vector2(0.0f, c),
-        };
+        dst[0] = new Vector2(c, 0.0f);
+        dst[1] = new Vector2(w - c, 0.0f);
+        dst[2] = new Vector2(w, c);
+        dst[3] = new Vector2(w, h - c);
+        dst[4] = new Vector2(w - c, h);
+        dst[5] = new Vector2(c, h);
+        dst[6] = new Vector2(0.0f, h - c);
+        dst[7] = new Vector2(0.0f, c);
+        return true;
     }
 
     // ---------------- 基础样式 ----------------
