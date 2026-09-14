@@ -1016,7 +1016,6 @@
 			"reference": 24,
 			"recovery": 1.5,
 			"max_offset": 22,
-			"frequency": 25,
 			"rotation_deg": 0.4
 		},
 		"hit_flash": {

@@ -128,10 +128,10 @@ public partial class Player : CharacterBody2D
 
     /// <summary>擦弹环基础值（balance 注入；graze_field 乘区后的运行值见 GrazeRadius）。</summary>
     private float GrazeRadiusBase = 20.0f;
-    private int GrazeScoreBase = 10;
+    private int GrazeScoreBase = 30;
 
     public float GrazeRadius { get; private set; } = 20.0f;
-    public int GrazeScore { get; private set; } = 10;
+    public int GrazeScore { get; private set; } = 30;
     public float GrazeFlashTime { get; private set; } = 0.12f;
     private float _hitboxRadius = 2.8f;
 

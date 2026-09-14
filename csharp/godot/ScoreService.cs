@@ -54,7 +54,7 @@ public sealed partial class ScoreService : RefCounted
 
     /// <summary>击杀连击：
     /// 窗口内连杀放大击杀分——怒首领蜂/虫姬链式得分的温和版（贪分 vs 稳）。</summary>
-    public double ComboWindow { get; private set; } = 3.0;
+    public double ComboWindow { get; private set; } = 5.0;
 
     /// <summary>score_amp 增幅：击杀分乘区底数（combo_guard 同款：pow(factor, 有效层级)，1.0 = 未购）。</summary>
     private double _scoreAmpFactor = 1.0;

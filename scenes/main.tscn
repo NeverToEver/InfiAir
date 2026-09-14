@@ -61,7 +61,7 @@ text = "Kills: 0"
 [node name="DifficultyLabel" type="Label" parent="HUD"]
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -300.0
+offset_left = -390.0
 offset_top = 14.0
 offset_right = -20.0
 offset_bottom = 50.0

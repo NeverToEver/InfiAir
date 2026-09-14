@@ -805,23 +805,25 @@ public partial class Hud : CanvasLayer
         statusDivider.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         AddChild(statusDivider);
         // 右上难度背板：与分数块同语系（原浮空文字难以在亮背景上阅读）
+        // 背板宽度须容纳难度标签三段文案（「难度 x2.50 · 第四档 · 危险 · 中」）；
+        // 原 230 宽在加入档名后被文字压过（实测中文约 296px / 英文约 362px）
         var diffPlate = new ChamferedPanel
         {
-            Position = new Vector2(-240.0f, 24.0f),
-            Size = new Vector2(230.0f, 44.0f),
+            Position = new Vector2(-400.0f, 24.0f),
+            Size = new Vector2(390.0f, 44.0f),
             EdgeRivets = true,
         };
         diffPlate.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         AddChild(diffPlate);
         MoveChild(diffPlate, 0);
-        _difficultyLabel.OffsetLeft = -228.0f;
+        _difficultyLabel.OffsetLeft = -388.0f;
         _difficultyLabel.OffsetTop = 24.0f;
         _difficultyLabel.OffsetRight = -22.0f;
         _difficultyLabel.OffsetBottom = 68.0f;
         _difficultyLabel.VerticalAlignment = VerticalAlignment.Center;
         var diffTag = MakeCornerTag((string)Tr("UI_DIFF_TAG"));
         diffTag.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        diffTag.Position = new Vector2(-236.0f, 6.0f);
+        diffTag.Position = new Vector2(-396.0f, 6.0f);
         AddChild(diffTag);
         // 刷新时同步小标签语言
         _tagLabels = new[] { killsTag, livesTag, diffTag };
@@ -1098,7 +1100,9 @@ public partial class Hud : CanvasLayer
     /// 命名档位让连续爬升可读、可讨论（原只有一个数字，玩家读不出「到哪个阶段了」）。</summary>
     private void RefreshDifficultyLabel()
     {
-        var tier = Mathf.Clamp(GameState.Instance.DifficultyTierIndex(), 0, MaxDifficultyTierIndex);
+        // 档名取键区间上限用运行期档位数，不在 HUD 复制一份常量（档位表扩增时不再静默显示错档名）
+        var tierMax = Math.Max(GameState.Instance.DifficultyTierCount() - 1, 0);
+        var tier = Mathf.Clamp(GameState.Instance.DifficultyTierIndex(), 0, tierMax);
         var tierText = Tr($"DIFF_TIER_{tier}");
         _difficultyLabel.Text = GdFormat.Format(
             (string)Tr("UI_DIFF_FMT"),
@@ -1107,9 +1111,7 @@ public partial class Hud : CanvasLayer
             (string)GameState.Instance.DifficultyLabel());
     }
 
-    /// <summary>命名档位文案键编号上限（DIFF_TIER_0..5；balance 的 tier_thresholds 若更长，
-    /// 超出部分复用最后一档文案——避免动态拼键访问不存在的翻译行）。</summary>
-    private const int MaxDifficultyTierIndex = 5;
+
 
     private void OnBossHealthChanged(float current, float maximum)
     {
@@ -1368,13 +1370,15 @@ public partial class Hud : CanvasLayer
     private Label _cacheReadyHint = null!;
     private Label _goalLabel = null!;
     private bool _goalBannerShown;
+    private string _goalText = string.Empty;
+    private bool _goalWasAchieved;
     private Tween? _cachePulseTween;
     private int _lastCacheRaw = -1;
     private bool _lastAffordable;
 
     /// <summary>缓存指示器芯片（难度块下方）：点数 + 状态光晕；点击/G 键开天赋面板。
-    /// 状态：空闲(0) 灰 / 可用(1..20) 青+呼吸 / 溢出警告(21..29) 橙 / 严重溢出(30+) 红。
-    /// 呼吸脉冲受 ReduceFlash 无障碍约束（开启后静止）。</summary>
+    /// 状态阈值读设置域 SafeThreshold（空闲 0 灰 / 可升级金 / 可用 ≤safe 青+呼吸 /
+    /// 溢出警告 ≤safe+safe/3 橙 / 以上红），与衰减起点同源；呼吸脉冲受 ReduceFlash 约束。</summary>
     private void BuildCacheIndicator()
     {
         _cacheChip = new ChamferedPanel
@@ -1428,11 +1432,14 @@ public partial class Hud : CanvasLayer
         // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，取先到者）。
         _goalLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Right);
         _goalLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _goalLabel.Position = new Vector2(-192.0f, 236.0f);
+        // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉
+        _goalLabel.GrowHorizontal = Control.GrowDirection.Begin;
+        _goalLabel.Position = new Vector2(-20.0f, 236.0f);
         _goalLabel.CustomMinimumSize = new Vector2(172.0f, 0.0f);
         _goalLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_goalLabel);
-        RefreshGoalLabel();
+        // 初刷延后到信息横幅构建之后（ShowInfoBanner 依赖 _infoLabel；达成态下同帧调用会空引用）
+        Callable.From(RefreshGoalLabel).CallDeferred();
 
         _cacheChip.GuiInput += OnCacheChipInput;
         _cacheChip.MouseEntered += () =>
@@ -1493,12 +1500,16 @@ public partial class Hud : CanvasLayer
         // 可升级态与衰减溢出正交：点数够点亮任一可选节点时，即使未溢出也给出「可升级」提示
         // （原实现只在溢出时才变色，玩家攒够点却无从得知能加点了）。
         var affordable = raw > 0 && gs.Talent.HasAffordableUpgrade();
+        // 阈值与衰减起点同源（读设置域 SafeThreshold）：原实现硬编码 20/29，
+        // 安全阈值改为 30 后 HUD 说「已溢出」而面板说「未衰减」，玩家可见地互相矛盾
+        var safe = gs.Talent.Config.SafeThreshold;
+        var warn = safe + Math.Max(safe / 3, 1); // 溢出警告带上界：安全阈值后约三分之一区间
         var (color, border, breathing) = raw switch
         {
             0 => (UITheme.TextDim, new Color(UITheme.PanelBorder, 0.4f), false),
-            <= 20 when affordable => (UITheme.AccentGold, new Color(UITheme.AccentGold, 0.95f), true),
-            <= 20 => (UITheme.Accent, new Color(UITheme.Accent, 0.8f), true),
-            <= 29 => (UITheme.WarnYellow, new Color(UITheme.WarnYellow, 0.9f), false),
+            _ when raw <= safe && affordable => (UITheme.AccentGold, new Color(UITheme.AccentGold, 0.95f), true),
+            _ when raw <= safe => (UITheme.Accent, new Color(UITheme.Accent, 0.8f), true),
+            _ when raw <= warn => (UITheme.WarnYellow, new Color(UITheme.WarnYellow, 0.9f), false),
             _ => (UITheme.Danger, new Color(UITheme.Danger, 1.0f), false),
         };
         _cacheCount.Text = raw.ToString();
@@ -1536,6 +1547,12 @@ public partial class Hud : CanvasLayer
         var milestoneText = GdFormat.Format((string)Tr("MILESTONE_PROGRESS"), milestonePct);
         if (gs.GoalAchieved())
         {
+            if (!_goalWasAchieved)
+            {
+                _goalWasAchieved = true;
+                _goalText = string.Empty; // 强制文本分支重写（达成态与未达成态各自只写一次）
+            }
+
             _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
                 (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
             _goalLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
@@ -1548,7 +1565,8 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        // 展示「更接近达成」的那个条件（与 core 的进度取法一致，避免显示条件来回跳）
+        // 展示「更接近达成」的那个条件。判定与 core 同源（RunGoal.Progress 取两支更接近者），
+        // 避免 HUD 内联重算与 core 分叉（原实现自己写了一遍并列比较，两处任改其一即静默不一致）。
         var killTarget = gs.GoalBossKills();
         var surviveTarget = gs.GoalSurviveSeconds();
         var killProgress = killTarget > 0 ? gs.BossKills / (double)killTarget : -1.0;
@@ -1564,7 +1582,15 @@ public partial class Hud : CanvasLayer
                 (int)(gs.RunTime / 60.0), (int)(surviveTarget / 60.0));
         }
 
-        _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), detail) + "  ·  " + milestoneText;
+        var text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), detail) + "  ·  " + milestoneText;
+        if (text == _goalText && !_goalWasAchieved)
+        {
+            return; // 文本未变即早退（本方法被 0.1s 轮询 × 每次得分双路驱动，避免无谓重写）
+        }
+
+        _goalText = text;
+        _goalWasAchieved = false;
+        _goalLabel.Text = text;
         _goalLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
     }
 

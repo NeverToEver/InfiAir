@@ -37,6 +37,9 @@ public partial class GameState : Node
     /// <summary>当前难度命名档位（0 起）。</summary>
     public int DifficultyTierIndex() => _runProg.DifficultyTierIndex();
 
+    /// <summary>难度命名档位数量（HUD 取档名键区间上限用）。</summary>
+    public int DifficultyTierCount() => _runProg.DifficultyTierCount();
+
     /// <summary>达成所需存活秒数。</summary>
     public double GoalSurviveSeconds() => _runProg.GoalSurviveSeconds();
 

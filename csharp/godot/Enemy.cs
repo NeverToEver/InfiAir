@@ -50,9 +50,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     public float SpiralDriftAmp { get; private set; } = 56.0f;
     public float SpiralDriftFreq { get; private set; } = 0.7f;
     public float SpiralRadius { get; private set; } = 50.0f;
-    public float HpRampFactor { get; private set; } = 0.25f;
-    public float SpeedRampFactor { get; private set; } = 0.1f;
-
     // ---- 尾焰软光点 ----
     private const float TailGlowRadius = 26.0f;
     private const float TailGlowRadiusElite = 36.0f;

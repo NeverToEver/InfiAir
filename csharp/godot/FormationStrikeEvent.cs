@@ -92,11 +92,11 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public int VolleyBatches { get; set; } = 2;
     /// <summary>相邻两波之间的间隔（秒）——波次间隔是「威胁有节奏」的来源。</summary>
     public float VolleyGap { get; set; } = 1.35f;
-    public int RewardAllClear { get; set; } = 200;
+    public int RewardAllClear { get; set; } = 400;
     /// <summary>全数拦截奖励：投出全拦 + 一架未坠（比全歼更难）。</summary>
-    public int RewardIntercept { get; set; } = 400;
+    public int RewardIntercept { get; set; } = 600;
     /// <summary>每枚被拆除（空中击落，或弹反后命中单位）的炸弹奖励（拦住威胁本身的回报，拦截当帧入账）。</summary>
-    public int RewardPerIntercept { get; set; } = 25;
+    public int RewardPerIntercept { get; set; } = 50;
 
     private State _state = State.IDLE;
     protected override bool IsIdle => _state == State.IDLE;

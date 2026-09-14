@@ -55,7 +55,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             new StringName("sniper"), new StringName("single"),
         },
     };
-    public int RewardScore { get; private set; } = 500;
+    public int RewardScore { get; private set; } = 900;
     public float HoverY { get; private set; } = 300.0f;
     public float Cooldown { get; private set; } = 60.0f;
 
