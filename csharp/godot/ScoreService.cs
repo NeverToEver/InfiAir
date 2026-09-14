@@ -113,6 +113,19 @@ public sealed partial class ScoreService : RefCounted
     public double KillScoreFactor() =>
         RewardScaling.KillScoreFactor(GameState.Instance.DifficultyMultiplier, _reward);
 
+    /// <summary>事件档位奖励唯一入口（与 fog 存活补偿同口径，事件奖励随 D 增长）：
+    /// 基础分乘击杀分难度乘区后经 AddScore（AddScore 内再乘难度分数倍率与总分钳制）。
+    /// 与 AddKillScore 的差别只在「不计连击、不吃 score_amp 乘区」——事件档位是固定奖励，
+    /// 不随连杀放大；但不乘 KillScoreFactor 会让后期事件奖励被 HP 膨胀稀释成零头。</summary>
+    public void AddEventScore(int basePoints)
+    {
+        // long 域乘算防回绕（与 AddKillScore 同款双保险）：乘积钳 [0, long.MaxValue]，
+        // 再钳 int 上限进 AddScore（AddScore 内另有总分钳制）
+        var scaled = (long)Math.Round(
+            Math.Clamp((double)basePoints * KillScoreFactor(), 0.0, (double)long.MaxValue));
+        AddScore((int)Math.Min(scaled, (long)int.MaxValue));
+    }
+
     /// <summary>擦弹得分（吃难度与连击乘区；风险回报成立才鼓励贴弹贪分）。</summary>
     public double GrazeScoreFor(double baseScore) =>
         RewardScaling.GrazeScore(baseScore, ComboMultiplier(), GameState.Instance.DifficultyMultiplier, _reward);
@@ -231,7 +244,7 @@ public sealed partial class ScoreService : RefCounted
         Kills = 0;
         BossKills = 0;
         InitMilestones();
-        ResetCombo(); // 连击跨对局清零（幂等 + 广播 HUD）
+        ResetCombo(); // 连击跨本局清零（幂等 + 广播 HUD）
     }
 
     // ---------------- 里程碑曲线 ----------------
@@ -262,7 +275,9 @@ public sealed partial class ScoreService : RefCounted
     }
 
     /// <summary>读档还原（本局存档）：写回汇总计数 + 里程碑档位，并以还原后的档位重算下一档阈值
-    /// （_nextMilestone 无需持久化——它是档位的纯函数）。连击窗口计时不还原（读档从新一波开始）；
+    /// （_nextMilestone 无需持久化——它是档位的纯函数）。连击窗口计时不持久化，但要给满窗口：
+    /// combo 是刻意持久化的（GameState.RunSave 写读该字段），若计时归零，Tick 只在 _comboTimer > 0
+    /// 时递减，连击数会永不过期；给一个完整窗口是其与「窗口本身不持久化」唯一自洽的组合。
     /// 末尾补发 ScoreChanged 驱动 HUD 刷新。</summary>
     public void RestoreRunState(int score, int kills, int bossKills, int combo, int milestoneCount)
     {
@@ -270,7 +285,7 @@ public sealed partial class ScoreService : RefCounted
         Kills = Math.Max(kills, 0);
         BossKills = Math.Max(bossKills, 0);
         Combo = Math.Max(combo, 0);
-        _comboTimer = 0.0;
+        _comboTimer = EffectiveComboWindow();
         _milestoneCount = Math.Max(milestoneCount, 0);
         _nextMilestone = GameState.Instance.MilestoneThreshold(_milestoneCount);
         ScoreChanged?.Invoke(Score);

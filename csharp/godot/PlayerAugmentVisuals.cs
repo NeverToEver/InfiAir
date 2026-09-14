@@ -14,7 +14,8 @@ namespace InfiAir;
 /// </summary>
 public partial class PlayerAugmentVisuals : Node2D
 {
-    private static readonly Color ColorCyan = new(1.0f, 0.72f, 0.30f); // 增幅能量色：随机体统一为琥珀
+    /// <summary>增幅能量色：随机体统一为琥珀（引用 UITheme 单源，勿另写字面量）。</summary>
+    private static readonly Color ColorAmber = UITheme.AimAmberLit;
     private static readonly Color ColorGold = new(1.0f, 0.85f, 0.35f);
     private static readonly Color ColorOrange = new(1.0f, 0.55f, 0.2f);
     private static readonly Color ColorGreen = new Color(1.000f, 0.771f, 0.450f);
@@ -88,7 +89,13 @@ public partial class PlayerAugmentVisuals : Node2D
     public override void _ExitTree()
     {
         // 显式断开 GameState 信号连接（C# [Signal]/Connect 连接不随接收方释放自动断开）
-        var gs = GameState.Instance;
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
         if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onAugmentsChanged))
         {
             gs.Disconnect(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
@@ -140,7 +147,7 @@ public partial class PlayerAugmentVisuals : Node2D
         _rapidFins.Visible = stacks > 0;
         if (stacks > 0)
         {
-            var finColor = stacks < 2 ? ColorCyan : new Color(1.0f, 0.86f, 0.45f);
+            var finColor = stacks < 2 ? ColorAmber : new Color(1.0f, 0.86f, 0.45f);
             foreach (var child in _rapidFins.GetChildren())
             {
                 ((Polygon2D)child).Color = finColor;
@@ -207,10 +214,10 @@ public partial class PlayerAugmentVisuals : Node2D
 
         // 引擎舱散热鳍（rapid_fire）
         _rapidFins = new Node2D();
-        var finL = _MakePoly(new Vector2[] { new(-2, -12), new(-10, 10), new(2, 10) }, ColorCyan);
+        var finL = _MakePoly(new Vector2[] { new(-2, -12), new(-10, 10), new(2, 10) }, ColorAmber);
         finL.Position = new Vector2(-18.0f, 50.0f);
         _rapidFins.AddChild(finL);
-        var finR = _MakePoly(new Vector2[] { new(2, -12), new(10, 10), new(-2, 10) }, ColorCyan);
+        var finR = _MakePoly(new Vector2[] { new(2, -12), new(10, 10), new(-2, 10) }, ColorAmber);
         finR.Position = new Vector2(18.0f, 50.0f);
         _rapidFins.AddChild(finR);
         AddChild(_rapidFins);
@@ -222,7 +229,7 @@ public partial class PlayerAugmentVisuals : Node2D
             var pod = new Node2D { Position = podPos };
             var body = _MakePoly(new Vector2[] { new(-7, -10), new(7, -10), new(7, 10), new(-7, 10) }, ColorSteel);
             pod.AddChild(body);
-            var barrel = _MakePoly(new Vector2[] { new(-2, -22), new(2, -22), new(2, -10), new(-2, -10) }, ColorCyan);
+            var barrel = _MakePoly(new Vector2[] { new(-2, -22), new(2, -22), new(2, -10), new(-2, -10) }, ColorAmber);
             pod.AddChild(barrel);
             AddChild(pod);
             _spreadPods.Add(pod);

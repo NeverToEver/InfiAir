@@ -557,7 +557,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             case FormationSettle.Tier.InterceptBonus:
                 if (RewardIntercept > 0)
                 {
-                    GameState.Instance.AddScore(RewardIntercept);
+                    GameState.Instance.AddEventScore(RewardIntercept);
                 }
 
                 _comm?.ShowLine("FBQ_INTERCEPT_BONUS");
@@ -674,7 +674,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             _intercepted++;
             if (RewardPerIntercept > 0)
             {
-                GameState.Instance.AddScore(RewardPerIntercept);
+                GameState.Instance.AddEventScore(RewardPerIntercept);
             }
 
             // 进度台词：第一次拆下炸弹时敌方的反应（与战损台词共用单条槽位，先到先播）
@@ -824,7 +824,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
     }
 
     /// <summary>击坠：单机得分走 AddKillScore（连击+1、乘区放大后照常过难度倍率）；
-    /// 全歼 → 全歼奖励 AddScore（不计连击）+ 提前离场。</summary>
+    /// 全歼 → 全歼奖励 AddEventScore（不计连击、随 D 增长）+ 提前离场。</summary>
     private void OnCraftDied(FormationCraft craft, int index)
     {
         if (index >= 0 && index < _crafts.Length && ReferenceEquals(_crafts[index], craft))
@@ -849,7 +849,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             _allClear = true;
             if (RewardAllClear > 0)
             {
-                GameState.Instance.AddScore(RewardAllClear);
+                GameState.Instance.AddEventScore(RewardAllClear);
             }
 
             if (_state != State.FORMATION_EXIT)

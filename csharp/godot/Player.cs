@@ -210,6 +210,10 @@ public partial class Player : CharacterBody2D
     private bool _boostToggleOn;
     private bool _fineToggleOn;
 
+    /// <summary>本机累计模拟时间（秒，_PhysicsProcess 的 delta 累加）：机身闪烁/盾脉动/喷口抖动的
+    /// 相位基准（取代墙钟——表现层相位不该受帧率与机器性能影响，无头固定步长下也可重复）。</summary>
+    private float _simTime;
+
     // 迷雾事件效果状态（FogEventManager 信号驱动）
     private bool _fogInvertInput;
     private float _fogBulletJitterDeg;
@@ -227,7 +231,7 @@ public partial class Player : CharacterBody2D
     private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
     private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
     private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
-    private double _cachedMaxHp = 100.0; // MaxHealth 热路径缓存（extra_life 随 buff 变化，AugmentsChanged 时刷新）
+    private double _cachedMaxHp = 100.0; // MaxHealth 热路径缓存（extra_life 随增幅变化，AugmentsChanged 时刷新）
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
     private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
     private Sprite2D? _glow;
@@ -787,6 +791,7 @@ public partial class Player : CharacterBody2D
         _dashStrikeLevel = (int)GameState.Instance.AugmentLevel(AugDashStrike);
         _dashStrikeRadius = CfgFx.Float("augments.dash_strike.radius", 80.0f, 0.0f);
         _dashStrikeDamage = Mathf.Max(1, CfgFx.Int("augments.dash_strike.damage_per_level", 35, 0));
+        _dashStrikeInterval = CfgFx.Float("augments.dash_strike.tick_interval", _dashStrikeInterval, CfgFx.IntervalFloor);
         _dashStrikeTick = 0f;
 
         // MaxHealth 热路径缓存（extra_life 随天赋层级变化才变，
@@ -878,8 +883,9 @@ public partial class Player : CharacterBody2D
     private int _dashStrikeLevel;
     private float _dashStrikeRadius = 80.0f;
     private int _dashStrikeDamage = 35;
+    /// <summary>冲刺打击节流间隔（s），缺键回退 balance.json 的 0.12；钳 0.05 下限同 laser tick_interval 族。</summary>
+    private float _dashStrikeInterval = 0.12f;
     private float _dashStrikeTick;
-    private const float DashStrikeDefaultInterval = 0.12f;
 
     public float FuelDrainRate() => _fuelDrainRate;
 
@@ -887,7 +893,7 @@ public partial class Player : CharacterBody2D
 
     /// <summary>推进器状态下发（统一注入 EngineTint；入场冲刺 ×2.0 强度为一次性演出，不走三态表）。</summary>
     private void ApplyThruster((float Speed, float Amount, float Alpha) state)
-        => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint);
+        => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint, _simTime);
 
     /// <summary>尾焰色阶：白热芯 → 琥珀 → 暗橙熄灭（GradientTexture1D 一次性构建，随粒子寿命采样）。</summary>
     private static GradientTexture1D ThrusterRamp()
@@ -910,8 +916,8 @@ public partial class Player : CharacterBody2D
         var d = (float)delta;
         // 帧首缓存 GameState 门面：本方法多次读取设置域，避免重复 Instance 判活/根节点查询。
         var gs = GameState.Instance;
-        // 同帧双 GetTicksMsec 合并：帧首取一次、本帧内复用（免同帧多次系统时钟查询）
-        var nowMs = (long)Time.GetTicksMsec();
+        // 表现层相位基准 = 累计模拟时间（原墙钟 Time.GetTicksMsec；帧率/性能无关，见 §5）
+        _simTime += d;
         if (_dead)
         {
             return;
@@ -974,7 +980,7 @@ public partial class Player : CharacterBody2D
             }
         }
 
-        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, nowMs);
+        _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
         if (DashUnlocked()
             && !MovementLocked
             && Input.IsActionJustPressed(ActDash)
@@ -1097,7 +1103,7 @@ public partial class Player : CharacterBody2D
             Invincible -= d;
         }
 
-        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, nowMs);
+        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime);
         // 回血（委托 PlayerDamage）
         _damage.HealTick(d);
     }
@@ -1230,7 +1236,7 @@ public partial class Player : CharacterBody2D
         _entryPrevFireGate = _fireGateEnabled;
         _fireGateEnabled = false;
         Position = new Vector2(rect.GetCenter().X, rect.End.Y + EntrySpawnClearance);
-        _visuals.SetThruster(2.0f, 1.0f, 1.0f, EngineTint);
+        _visuals.SetThruster(2.0f, 1.0f, 1.0f, EngineTint, _simTime);
         _entryTween = CreateTween();
         _entryTween.TweenProperty(this, "position:y", landY, EntryRushTime)
             .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -1324,7 +1330,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        _dashStrikeTick = DashStrikeDefaultInterval;
+        _dashStrikeTick = _dashStrikeInterval;
         var radiusSq = _dashStrikeRadius * _dashStrikeRadius;
         var enemies = GameState.Instance.Enemies;
         for (var i = enemies.Count - 1; i >= 0; i--)
@@ -1735,39 +1741,53 @@ public partial class Player : CharacterBody2D
     public override void _ExitTree()
     {
         // 显式断开 GameState 信号连接（重入树不重复连接）
-        var gs = GameState.Instance;
-        if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs != null)
         {
-            gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
+            if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
+            {
+                gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
+            }
+
+            if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
+            {
+                gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
+            }
+
+            if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
+            {
+                gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
+            }
+
+            var fogEvents = gs.FogEvents;
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
+            {
+                fogEvents.Disconnect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
+            }
+
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
+            {
+                fogEvents.Disconnect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
+            }
+
+            if (fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
+            {
+                fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
+            }
+
+            if (gs.PlayerRef == this)
+            {
+                gs.PlayerRef = null;
+            }
+
+            if (gs.PlayerHitbox == _hitbox)
+            {
+                gs.PlayerHitbox = null;
+            }
         }
 
-        if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
-        {
-            gs.Disconnect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
-        }
-
-        if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged))
-        {
-            gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
-        }
-
-        var fogEvents = gs.FogEvents;
-        if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted))
-        {
-            fogEvents.Disconnect(FogEventManager.SignalName.FogEventStarted, _onFogEventStarted);
-        }
-
-        if (fogEvents.IsConnected(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded))
-        {
-            fogEvents.Disconnect(FogEventManager.SignalName.FogEventEnded, _onFogEventEnded);
-        }
-
-        if (fogEvents.IsConnected(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift))
-        {
-            fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
-        }
-
-        // 子节点信号断开
+        // 子节点信号断开（本节点自身资源，不因 autoload 缺失跳过）
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null && grazeArea.IsConnected(Area2D.SignalName.AreaEntered, _onGrazeEntered))
         {
@@ -1777,16 +1797,6 @@ public partial class Player : CharacterBody2D
         if (_parryShield != null && _parryShield.IsConnected(Area2D.SignalName.AreaEntered, _onParryShieldEntered))
         {
             _parryShield.Disconnect(Area2D.SignalName.AreaEntered, _onParryShieldEntered);
-        }
-
-        if (GameState.Instance.PlayerRef == this)
-        {
-            GameState.Instance.PlayerRef = null;
-        }
-
-        if (GameState.Instance.PlayerHitbox == _hitbox)
-        {
-            GameState.Instance.PlayerHitbox = null;
         }
     }
 }

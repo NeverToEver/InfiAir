@@ -6,7 +6,7 @@ namespace InfiAir;
 /// <summary>
 /// 精英炮塔事件编排：
 /// IDLE → CARRIER_ENTER（航母降入 2s）→ 炮塔升起充能 1.5s → TURRET_ACTIVE（30s 倒计时）
-/// → 成功（全歼，+500 基础分）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
+/// → 成功（全歼，事件档位奖励 RewardScore）/失败（超时撤退）→ CARRIER_EXIT → BOSS_DELAY（4s）→ IDLE。
 /// 与 Boss 互斥：进入 CARRIER_ENTER 冻结 Boss 调度（到期记 _boss_pending 一次，不累积），
 /// BOSS_DELAY 结束时解冻并补触发一次。事件期间普通波次暂停（CARRIER_EXIT 起恢复）。
 /// Spawner/HUD 为 C# typed 调用，turret.tscn 场景绑定 Instantiate&lt;TurretBattery&gt;。
@@ -188,9 +188,9 @@ public partial class EliteTurretEvent : EncounterEventBase
         }
 
         _turrets.Clear();
-        if (_hud != null)
+        if (_hud != null && GodotObject.IsInstanceValid(_hud))
         {
-            _hud.HideEventBar();
+            _hud.HideEventBar(); // HUD 可能先于本节点释放（场景切换），`?.` 拦不住已释放对象
         }
 
         if (_comm != null)
@@ -279,7 +279,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             }
         }
 
-        if (_hud != null)
+        if (_hud != null && GodotObject.IsInstanceValid(_hud))
         {
             _hud.ShowEventBar("ETV_TITLE", "ETV_TURRETS", UITheme.EventMagenta, _total);
         }
@@ -302,7 +302,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         if (_hudPoll <= 0.0f)
         {
             _hudPoll = 0.1f;
-            if (_hud != null)
+            if (_hud != null && GodotObject.IsInstanceValid(_hud))
             {
                 _hud.UpdateEventBar(_timer / Duration, _total - _destroyed);
             }
@@ -323,7 +323,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             _carrier.SetSocketDestroyed(socket);
         }
 
-        if (_hud != null && _state == State.TURRET_ACTIVE)
+        if (_hud != null && GodotObject.IsInstanceValid(_hud) && _state == State.TURRET_ACTIVE)
         {
             _hud.UpdateEventBar(_timer / Duration, _total - _destroyed);
         }
@@ -347,7 +347,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         }
     }
 
-    /// <summary>成功结算：第 3 句台词 + 复用 Boss 击杀得分（基础 500，add_score 内乘难度倍率）。</summary>
+    /// <summary>成功结算：第 3 句台词 + 事件档位奖励（基础 RewardScore，经 AddEventScore 乘难度奖励因子）。</summary>
     private void OnAllTurretsDestroyed()
     {
         if (_state != State.TURRET_ACTIVE)
@@ -357,10 +357,10 @@ public partial class EliteTurretEvent : EncounterEventBase
 
         _state = State.CARRIER_EXIT;
         _comm!.ShowLine(_lines[2]);
-        GameState.Instance.AddScore(RewardScore);
-        if (_hud != null)
+        GameState.Instance.AddEventScore(RewardScore);
+        if (_hud != null && GodotObject.IsInstanceValid(_hud))
         {
-            _hud.HideEventBar();
+            _hud.HideEventBar(); // HUD 可能先于本节点释放（场景切换），`?.` 拦不住已释放对象
         }
 
         ResumeWaves();
@@ -383,9 +383,9 @@ public partial class EliteTurretEvent : EncounterEventBase
         // 消除最长 ~6s（BOSS_RESUME_DELAY 窗口）的失效引用驻留（OnBossDelayEnd 的 clear 幂等）
         _turrets.Clear();
         _comm!.ShowLine("ETQ_RETREAT");
-        if (_hud != null)
+        if (_hud != null && GodotObject.IsInstanceValid(_hud))
         {
-            _hud.HideEventBar();
+            _hud.HideEventBar(); // HUD 可能先于本节点释放（场景切换），`?.` 拦不住已释放对象
         }
 
         ResumeWaves();

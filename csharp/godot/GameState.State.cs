@@ -132,9 +132,10 @@ public partial class GameState : Node
             Mathf.Clamp(Cfg("scoring.combo.step", _score.ComboStep).AsDouble(), 0.0, 1e3),
             Mathf.Clamp(Cfg("scoring.combo.max_mult", _score.ComboMaxMult).AsDouble(), 1.0, 1e3));
         // score_amp/combo_guard 增幅底数缓存（击杀路径免 cfg；底数 ≤1 钳为未购档）
+        // 兜底默认须与 balance.json 一致（键缺失时不静默退回 1.0 档）
         _score.ApplyAugmentScoreConfig(
-            Cfg("augments.score_amp.factor", 1.0).AsDouble(),
-            Cfg("augments.combo_guard.window_factor", 1.0).AsDouble());
+            Cfg("augments.score_amp.factor", 1.08).AsDouble(),
+            Cfg("augments.combo_guard.window_factor", 1.5).AsDouble());
         // 奖励缩放：击杀分与擦弹分随难度增长（止住单位时间收入被 HP 膨胀稀释）
         _score.ApplyRewardScalingConfig(
             Mathf.Max(Cfg("reward_scaling.kill_score_ramp_factor", 0.15).AsDouble(), 0.0),
@@ -270,9 +271,9 @@ public partial class GameState : Node
     private const string SettingsPathValue = "user://settings.json";
     public string SETTINGS_PATH => SettingsPathValue;
 
-    /// <summary>settings.json 版本标记。
+    /// <summary>settings.json 版本标记（版本号单源在 core 常量，避免写档方与判定方各写一份数字）。
     /// v4 = 窗口管理重构（window_size → window_mode + resolution + custom_width/height）。</summary>
-    private const int PersistVersionValue = 4;
+    private const int PersistVersionValue = InfiAir.Core.Storage.SettingsMigration.CurrentVersion;
 
     /// <summary>手柄设置：右摇杆瞄准灵敏度 px/s（默认取 balance player.aim_assist.joy_speed）与摇杆死区
     /// （径向，读取侧 StickShaper 生效）——SettingsService 转发。</summary>
@@ -435,6 +436,9 @@ public partial class GameState : Node
 
     /// <summary>得分（难度分数倍率统一在此乘算）——ScoreService 转发。</summary>
     public void AddScore(int points) => _score.AddScore(points);
+
+    /// <summary>事件档位奖励（基础分乘击杀分难度乘区；不计连击）——ScoreService 转发。</summary>
+    public void AddEventScore(int basePoints) => _score.AddEventScore(basePoints);
 
     // ---------------- 击杀编排（本局状态方法） ----------------
 
