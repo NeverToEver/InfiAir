@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -842,12 +843,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             return;
         }
 
-        Hp -= amount;
+        // 血量推进与阶段判定在 core（BossPhaseGate）：核心不变量是「单调不增、只钳 0」。
+        // 原先「跌破狂暴线就抬回该线」会让血条可见回跳，且致死一击因 Hp>0 前置绕过整个狂暴段。
+        Hp = (float)BossPhaseGate.ApplyDamage(Hp, amount);
         _scoreScale = scoreScale;
-        if (Hp > 0.0f && !_enraged && Hp < MaxHp * EnrageHpRatio)
-        {
-            Hp = MaxHp * EnrageHpRatio;
-        }
 
         EmitSignal(SignalName.HealthChanged, Hp, MaxHp);
         FlashHit();
@@ -859,11 +858,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         {
             // 单发跨 70%+30% 双线：P2 转场必须先于狂暴判定——else-if 链直走 Enrage 会跳过
             // P2 转场（停火蓄力/清弹无敌/PhaseChanged），状态机缺边
-            if (_fightPhase == FightPhase.P1 && Hp <= MaxHp * Phase2HpRatio)
+            if (BossPhaseGate.ShouldEnterPhase2(Hp, MaxHp, Phase2HpRatio, _fightPhase == FightPhase.P1))
             {
                 EnterPhase(FightPhase.P2);
             }
-            if (!_enraged && Hp <= MaxHp * EnrageHpRatio)
+            if (BossPhaseGate.ShouldEnrage(Hp, MaxHp, EnrageHpRatio, _enraged))
             {
                 Enrage();
             }
