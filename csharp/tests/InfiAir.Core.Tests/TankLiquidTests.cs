@@ -44,10 +44,38 @@ public sealed class TankLiquidTests
     }
 
     [Fact]
-    public void Amplitude_KeepsRequestedRatio_WhenTankIsFull()
+    public void Amplitude_KeepsRequestedRatio_WhenTankIsMid()
     {
-        var amp = TankLiquid.WaveAmplitude(InnerHeight, 1.0f, BaseAmpRatio);
+        // 中位液量两侧余量都足，波幅保持请求值（护栏不压低正常液面起伏）。
+        var amp = TankLiquid.WaveAmplitude(InnerHeight, 0.5f, BaseAmpRatio);
         Assert.Equal(InnerHeight * BaseAmpRatio, amp, 4);
+    }
+
+    [Fact]
+    public void Amplitude_NeverReachesCeiling_AcrossLevelSweep()
+    {
+        // 对称护栏：液面最低点（液位 − 波幅）必须落在内腔顶之下。满油时液位即内腔顶，
+        // 任何正波幅都会把液面与弯月线画到内腔之外（压过外框上缘）——与「波谷越底」同族，
+        // 此前只堵了底侧。该越顶不触发三角化失败，但绘制溢出内腔。
+        for (var i = 0; i <= 100; i++)
+        {
+            var level = i / 100.0f;
+            var levelY = InnerHeight * (1.0f - level);
+            foreach (var ratio in new[] { BaseAmpRatio, SloshAmpRatio })
+            {
+                var amp = TankLiquid.WaveAmplitude(InnerHeight, level, ratio);
+                Assert.True(
+                    levelY - amp >= -1e-4f,
+                    $"液面越过内腔顶：level={level} ratio={ratio} levelY={levelY} amp={amp}");
+            }
+        }
+    }
+
+    [Fact]
+    public void Amplitude_IsZeroAtFullTank_NoOverdrawAboveCavity()
+    {
+        // 满油：液位即内腔顶，上方余量为 0 → 波幅归零（液面静止，不探出内腔）。
+        Assert.Equal(0.0f, TankLiquid.WaveAmplitude(InnerHeight, 1.0f, BaseAmpRatio));
     }
 
     [Fact]
