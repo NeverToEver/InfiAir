@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 无头冒烟五趟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟八趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
 # 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
@@ -17,7 +17,7 @@
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
-# 2~5 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
+# 2~8 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
 # main.tscn/Main（AGENTS §5）。死亡那趟在临时用户目录里跑——死亡即删本局存档，探针不得
 # 触碰开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
 set -uo pipefail
@@ -92,7 +92,9 @@ expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[
 run_case "fuel tank sweep smoke" 400 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "" --fuel-probe
 expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] 液位满扫完成"
 # 手感探针：请求顿帧与震动后断言时间缩放压低/复位与 trauma 归零（无头下不崩即坏点，见文件头）。
-run_case "game feel probe smoke" 400 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE" "" --feel-probe
+# 隔离用户目录：探针前提是「顿帧/震动未被玩家关掉」，而 GameFeelService 在强度为 0 时直接忽略请求
+# ——读开发者本机 settings.json 会让无障碍配置（把震动/顿帧拉 0）变成门禁假红（AGENTS §5 外部残留状态）。
+run_case "game feel probe smoke" 400 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE"   "${PROBE_LOG_BASE}.feel.userdata" --feel-probe
 expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe] 顿帧与震动复位完成"
 # 长局难度曲线：直接取生产曲线在 t=5/10/20/30min 的值，断言单调/速度有顶/精英增长/Boss 斜率独立/软上限。
 run_case "long-run difficulty curve smoke" 200 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "" --long-probe

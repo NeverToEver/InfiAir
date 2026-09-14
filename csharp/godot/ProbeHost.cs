@@ -330,11 +330,22 @@ public partial class ProbeHost : Node
         }
 
         var cfg = GameState.Instance.Scaling();
-        var timeStep = Mathf.Max((float)GameState.Instance.Cfg("progression.time_step_seconds", 30.0).AsDouble(), 0.1f);
-        var perTen = GameState.Instance.Cfg("progression.per_ten_minutes", 1.5).AsDouble();
 
-        double DifficultyAt(double minutes) =>
-            1.0 + perTen * Mathf.Floor((float)(minutes * 60.0) / timeStep) * timeStep / 600.0;
+        // 用**生产入口**求 t 时刻的难度乘数，而不是在探针里复刻公式：
+        // 复刻会让「曲线公式改坏」时本探针仍测旧公式的形状、标记照打（护栏与生产脱钩）。
+        // DifficultyCurve.Compute 就是 RunProgressionService.RecomputeDifficultyInternal 的同一函数。
+        var timeStep = GameState.Instance.Cfg("progression.time_step_seconds", 30.0).AsDouble();
+        var perTen = GameState.Instance.Cfg("progression.per_ten_minutes", 1.5).AsDouble();
+        var perBoss = GameState.Instance.Cfg("progression.per_boss_kill", 0.6).AsDouble();
+
+        double DifficultyAt(double minutes)
+        {
+            var raw = Core.Progression.DifficultyCurve.Compute(minutes * 60.0, timeStep, perTen, perBoss, 0);
+            // 时间项折减与生产同源（RunProgressionService 消费的同一函数）
+            var rawTimeTerm = raw - 1.0;
+            var capped = Core.Progression.DifficultyScaling.SoftCappedTimeTerm(rawTimeTerm, cfg);
+            return 1.0 + capped;
+        }
 
         double prevHp = 0.0;
         double prevDmg = 0.0;
@@ -498,8 +509,12 @@ public partial class ProbeHost : Node
     ///
     /// 为什么不能只判「不崩」：顿帧写的是 Engine.TimeScale——写错（倍率写成 0 或按缩放 delta 推进）
     /// 的表现是**画面永久定格**，无头下不崩、也不报错，只有完成标记能抓住。
-    /// 顺序固定：先等场景稳定，再逐档请求（各档间隔需大于前档时长，避免被 max 合并掩盖），
-    /// 最后断言全部档位结束后时间缩放已回到演出侧上报值 1.0。</summary>
+    ///
+    /// **断言必须读引擎真值**：只读手感域自己算出的 `FeelTimeScale()` 会漏掉「算了但没落笔」这一整类
+    /// 故障（实测：删掉 `GameFeelService.ApplyTimeScale` 的赋值，自算值仍返回正常值、探针照样全绿）。
+    /// 故冻结中断言 `Engine.TimeScale` 真的 &lt; 1，复位后断言它真的回到 1。震动的读口读 trauma——
+    /// 位移采样在 `CameraShake._Process`，而相机不在 headless 探针宿主内，故只断言到「trauma 确实被累加/衰减」。
+    /// 顺序固定：先等场景稳定，再请求，最后断言引擎时间缩放已复位。</summary>
     private void TickFeelProbe()
     {
         // 前 30 帧等入场与稳定（入场窗口内玩家不可驱动、GameState 时钟未起）
@@ -510,11 +525,11 @@ public partial class ProbeHost : Node
 
         if (GameState.Instance.HitStopActive())
         {
-            // 冻结中：时间缩放必须被压低（否则「请求了但没生效」）。
+            // 冻结中：**引擎**的时间缩放必须真被压低（读 Engine.TimeScale，不读自算值）。
             // 探针宿主 ProcessMode=Always 且本驱动每帧都在跑，故这里能看到冻结窗口。
-            if (GameState.Instance.FeelTimeScale() >= 1.0)
+            if ((float)Engine.TimeScale >= 1.0f)
             {
-                GD.PushError("[feel-probe] 顿帧激活但时间缩放未压低（请求未生效）");
+                GD.PushError($"[feel-probe] 顿帧激活但引擎时间缩放未压低（Engine.TimeScale={(float)Engine.TimeScale:0.###}）");
                 _feelProbe = false;
                 return;
             }
@@ -554,9 +569,10 @@ public partial class ProbeHost : Node
                 return;
             }
 
-            if (GameState.Instance.FeelTimeScale() < 1.0)
+            // 复位断言同样读引擎真值：自算值说「复位了」而引擎仍被压死，正是本探针要抓的定格
+            if (!Mathf.IsEqualApprox((float)Engine.TimeScale, 1.0f))
             {
-                GD.PushError("[feel-probe] 顿帧已结束但时间缩放未复位（画面将永久定格）");
+                GD.PushError($"[feel-probe] 顿帧已结束但引擎时间缩放未复位（Engine.TimeScale={(float)Engine.TimeScale:0.###}，画面将永久定格）");
                 _feelProbe = false;
                 return;
             }

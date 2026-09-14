@@ -1,3 +1,5 @@
+using System.IO;
+using System.Linq;
 using InfiAir.Core.Talent;
 using Xunit;
 
@@ -73,24 +75,34 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
-    public void Cache_RecoveryNeverExceedsFullValue()
+    public void Cache_Recovery_IsExactAndNeverOvershoots()
     {
+        // 精确值断言（原版只判 Effective ≤ Raw，对任何 step∈[0,1] 的实现都恒真 → 守不住不变量）：
+        // [1,1,1,0.5,0.1] 花 1.0 → 扣 0.1 + 0.5 + 0.4，第三点余 0.6；回补 25% → 0.6 + 0.4×0.25 = 0.7
         var cache = new TalentCache(PositiveConfig());
-        cache.Grant(4); // 值 [1,1,1,0.5]
-        Assert.True(cache.Spend(0.2));
+        cache.Grant(5);
+        Assert.True(cache.Spend(1.0));
+        Assert.Equal(2.7, cache.Effective, 12);
 
-        // 多次回补不得把任何点抬过 1.0（回补只作用于曾被衰减的点）
-        for (var i = 0; i < 20; i++)
-        {
-            cache.Grant(1);
-            if (!cache.Spend(0.05))
-            {
-                break;
-            }
-        }
-
+        // 已满值的点不得被回补抬过 1.0：再入账 1 点后逐点核对（回补只作用于曾被衰减的点）
+        cache.Grant(1);
         Assert.True(cache.Effective <= cache.Raw + 1e-9,
             $"回补越界：有效 {cache.Effective} > 原始 {cache.Raw}");
+
+        // 坏配置（RecoveryStep > 1）不得过冲：步进在实现内钳到 1.0，满值点最多抬到 1.0、绝不越过。
+        // 这条是「回补不得抬过满值」的真回归面——把实现里的 Math.Min(step, 1.0) 放开到 2.0 即红。
+        var overshootCfg = new TalentConfig
+        {
+            SafeThreshold = 3,
+            DecayStep = 0.5,
+            DecayFloor = 0.1,
+            RecoveryStep = 2.0,
+        };
+        var overshoot = new TalentCache(overshootCfg);
+        overshoot.Grant(2);
+        Assert.True(overshoot.Spend(0.5));
+        Assert.True(overshoot.Effective <= overshoot.Raw + 1e-9,
+            $"坏配置下回补过冲：有效 {overshoot.Effective} > 原始 {overshoot.Raw}");
     }
 
     [Fact]
@@ -206,36 +218,62 @@ public sealed class TalentEconomyTests
         Assert.Equal(6, TalentEconomy.OverchargeCost(config, 3));
     }
 
+    /// <summary>
+    /// 专注惩罚触发面护栏：**读真实 data/balance.json**，断言「只有 extra_life 能触发」。
+    ///
+    /// 为什么必须读配置而不是手抄一张上限表：手抄的表是配置的快照副本，改 balance.json
+    /// 放宽某个节点的 max_stacks 时用例不会红——护栏形同虚设（本条此前正是如此，实测把
+    /// power_shot 从 5 改到 7 后 217 条单测全绿）。读真值后，任何让第二个节点够到阈值的
+    /// 改动都会立即变红，强制走一次显式决策（阈值 7 属人类已决策保留项）。
+    /// </summary>
     [Fact]
-    public void FocusTriggerSurface_IsPinned()
+    public void FocusTriggerSurface_MatchesRealBalanceConfig()
     {
-        // 护栏（对应 TalentEconomy.FocusOver 注释里的显式约束）：阈值 7 时，只有结构上限 ≥7 的节点
-        // 能触发专注惩罚。现网 balance.json 的 max_stacks 里只有 extra_life=10 满足，其余最高 5
-        // （风险加点 +1 后 6，仍不过线）。此处把「触发面」钉死：日后放宽任一节点上限
-        // （使它能到 7 级）本用例即红，强制走一次显式决策而不是让惩罚面悄悄扩大。
-        var config = new TalentConfig { FocusThreshold = 7 };
-        // 现网全部节点的结构上限（balance.json augments.*.max_stacks）
-        var caps = new[]
-        {
-            5, 4, 2, 10, 1, 2, 1, 1, 1, 1, 3, 1, 2, 2, 2, 3, 2, 3, 1, 2, 2, 2, 2, 2, 3, 3, 2,
-        };
+        var (threshold, caps) = LoadFocusInputs();
 
-        var triggerable = 0;
-        var maxCap = 0;
-        foreach (var cap in caps)
+        // 前提校验：读到的配置必须是真的（读失败要让本用例红，而不是静默用默认值蒙混）
+        Assert.True(threshold > 0, "balance.json talent.focus.threshold 未读到正值");
+        Assert.True(caps.Count > 0, "balance.json augments.*.max_stacks 未读到任何节点上限");
+
+        var reachable = caps
+            .Where(kv => TalentEconomy.FocusOver(kv.Value + 1, new TalentConfig { FocusThreshold = threshold }) > 0)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        // 触发面必须恰好是 extra_life 一个节点（其余节点连「结构上限 + 风险加点 1 级」都够不到阈值）
+        Assert.Equal(new[] { "extra_life" }, reachable);
+        Assert.Equal(10, caps["extra_life"]);
+    }
+
+    /// <summary>从仓库的 data/balance.json 读出专注阈值与全部节点结构上限。
+    /// 从测试程序集目录向上找仓库根（不依赖 dotnet test 的 cwd）。</summary>
+    private static (int Threshold, Dictionary<string, int> Caps) LoadFocusInputs()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "data", "balance.json")))
         {
-            maxCap = Math.Max(maxCap, cap);
-            if (TalentEconomy.FocusOver(cap, config) > 0)
+            dir = dir.Parent;
+        }
+
+        if (dir == null)
+        {
+            throw new InvalidOperationException("未找到仓库根（data/balance.json）——护栏必须读真实配置");
+        }
+
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(dir.FullName, "data", "balance.json")));
+        var root = doc.RootElement;
+        var threshold = root.GetProperty("talent").GetProperty("focus").GetProperty("threshold").GetInt32();
+        var caps = new Dictionary<string, int>();
+        foreach (var node in root.GetProperty("augments").EnumerateObject())
+        {
+            if (node.Value.TryGetProperty("max_stacks", out var ms))
             {
-                triggerable++;
+                caps[node.Name] = ms.GetInt32();
             }
         }
 
-        // 触发面必须是「恰好 extra_life 一个节点」＋「最高上限 10」——两者任一变化都要显式复核
-        Assert.Equal(1, triggerable);
-        Assert.Equal(10, maxCap);
-        // 其余节点即使风险加点 +1 也不得越线（5+1=6 < 7）
-        Assert.Equal(0, TalentEconomy.FocusOver(6, config));
+        return (threshold, caps);
     }
 
     // ---- 可升级提示判定（HUD：点数够点亮任一可选节点） ----
