@@ -2,6 +2,8 @@
 
 > **快照时点：`5bc845b`（本批改动前）**。§1「现状取证」、§2 的现状列、§3 症结、§6「待确认取值清单」均**只对该时点成立**——本批已按其中的建议落地，落地后的现状与定稿取值见 `docs/DESIGN_BASELINE.md`（§1.3 / §1.4 / §1.4.1 / §1.5 / §2.9）与 `docs/ROADMAP.md`。本文件保留为**决策依据与行业证据的存档**，不是现行设计口径。
 >
+> 读法：§1/§2/§3 中凡以「现状」表述的条目（难度斜率与上限、精英数量、敌机开火间隔、命中顿帧、屏幕震动模型、连击窗口、擦弹基准分、缓存安全阈值与衰减、事件与迷雾奖励等）一律是**快照取值**；§4「改进建议」与 §5「更改路线」是**动手前的计划**（含当时的拟用键名与文件位置）。两者均不描述落地后的实现——已落地项的键名/结构以 `docs/DESIGN_BASELINE.md` 与代码为准（例：顿帧定稿键为 `effects.hit_stop.*`，非当时拟用的 `effects.hitstop.*`）。
+>
 > 本文是一次**难度曲线 / 平衡机制 / 奖励机制 / 手感观感**的横向审查：先把现状取证成可计算的公式与数值，再与弹幕射击、街机、无尽模式的行业惯例逐项对照，最后给出改进建议与分阶段更改路线。
 >
 > **本文不是设计定稿**。玩家可感取值（伤害、血量、速度、冷却、概率、奖励、手感系数）按 `AGENTS.md` §3 属人类决策，本文只给「成对信息 + 建议取值」，落地时须在提交正文标注「该取值待人类确认」。
@@ -14,16 +16,16 @@
 
 ### 1.1 难度乘数闭式
 
-`DifficultyCurve.Compute`（`csharp/core/Progression/ProgressionCurves.cs:107-131`）与 `balance.json:progression`：
+`DifficultyCurve.Compute`（`csharp/core/Progression/DifficultyCurve.cs`）与 `balance.json:progression`：
 
 ```
 D(t, k) = 1 + per_boss_kill·k + floor(t / time_step_seconds) · time_step_seconds / 600 · per_ten_minutes
         = 1 + 0.6·k + 0.15·t        （t 单位分钟，k = Boss 击杀数，量化步 30s）
 ```
 
-- 时间斜率 **+0.15/分钟**；每杀一只 Boss **+0.6 = 相当于 4 分钟墙钟**（`ProgressionCurves.cs:130`）。
-- **Boss 击杀项与总 D 均无上限**；只有 1e6 秒的防御性钳制（`ProgressionCurves.cs:117-120`）。
-- 三档难度**共享同一个 D**——`DifficultyCurve` 不接收难度档（`ProgressionCurves.cs:107-108`），档位是独立乘区（`GameState.Constants.cs:33-64`）。
+- 时间斜率 **+0.15/分钟**；每杀一只 Boss **+0.6 = 相当于 4 分钟墙钟**（`DifficultyCurve.cs`）。
+- **Boss 击杀项与总 D 均无上限**；只有 1e6 秒的防御性钳制（`DifficultyCurve.cs`）。
+- 三档难度**共享同一个 D**——`DifficultyCurve` 不接收难度档（`DifficultyCurve.cs`），档位是独立乘区（`GameState.Constants.cs`）。
 
 纯时间基线（k=0）：
 
@@ -327,9 +329,9 @@ E1 命名档位与达成判定；E3 长线动机。P3 不进本轮实现。
 
 ---
 
-## 6. 待人类确认取值清单（`AGENTS.md` §3 格式；**历史——已于 2026-09-14 全部定稿**）
+## 6. 待人类确认取值清单（`AGENTS.md` §3 格式；**历史存档——所列取值已于 2026-09-14 全部定稿**）
 
-以下取值均「默认未落地」，须人类认可或改值后方向可实施：
+以下均为当时提出的建议值与选项对照（「默认未落地」是快照时点的状态，已不成立），仅作决策依据留档；现行取值与口径以 `docs/DESIGN_BASELINE.md` 为准。
 
 1. **结论：建议命中顿帧三档 40 / 90 / 160ms（默认未落地，待确认）**
 

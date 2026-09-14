@@ -32,7 +32,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 
 - **Run checkpoint saves** — progress is written automatically when you dock at base or choose "save & exit"; dying or abandoning a run deletes the save — checkpoints can be resumed, but never rolled back after death. "Continue last sortie" on the title screen restores the whole run (score, difficulty, talents, augments, missions); the battlefield restarts from the next wave.
 - **Talent cache tree** — milestones and boss kills mint talent points into a cache pool (last in, first out, with overflow decay). Charge open the panel and build freely: 27 nodes across 4 categories, with faction mutex, focus penalty, route contracts and overcharge pulling against each other — no build is a free lunch.
-- **Precise bullet-hell feel** — manual fire on the left mouse button (hold to fire, or click to toggle) with combo scoring (3 s window, up to ×2), graze scoring, and a 360° parry that reflects enemy bullets back at their owners. Your hitbox is a 2.8 px core; grace frames and exit-trajectory settlement guarantee a direct hit always lands and only grazes get forgiven.
+- **Precise bullet-hell feel** — manual fire on the left mouse button (hold to fire, or click to toggle) with combo scoring (5 s window, up to ×2), graze scoring, and a 360° parry that reflects enemy bullets back at their owners. Your hitbox is a 2.8 px core; grace frames and exit-trajectory settlement guarantee a direct hit always lands and only grazes get forgiven.
 - **Boss rotation & encounter events** — 4 bosses with phased patterns and enrage; fail to kill one within 50 s and it flees. Elite turrets, bomber formations (their bombs can be shot down or parried back) and four interference fogs interleave under a strict priority chain — never two at once.
 - **Mothership & the Dawn Station** — charge-summon the mothership for fire support and a hangar pod, then return to the Dawn Station to refit: hangar, repair & resupply, route contracts and mission planning, spending RP on the way back out.
 - **Tactical-amber presentation** — warm charcoal base with amber interaction accents; metal, hologram lines and text greys all sit in the same warm family (the old cool cyan is retired); hand-written screen-space post-processing (bloom / grade / vignette / grain) fills in what GL Compatibility lacks; heavy damage cracks the screen and sinks your heartbeat into it, with a flash-reduction toggle for accessibility.
@@ -114,18 +114,18 @@ assets/          sprites / audio / fonts / shaders
 packaging/       Install / uninstall scripts and desktop entries shipped in releases
 scripts/ci/      CI gate scripts
 scripts/tools/   Asset generators and balance editor (Python)
-docs/            Design baseline · direction & debt · README screenshots
+docs/            Design baseline · direction & debt · balance review archive · release notes · README screenshots
 builds/          Export and packaging output (not tracked)
 ```
 
 ## Development
 
-- **Tune gameplay numbers in `data/balance.json` only** (visual editing: `python3 scripts/tools/balance_editor.py`, stdlib-only); **every color token lives in `csharp/godot/UITheme.cs`**.
+- **Tune gameplay numbers in `data/balance.json` only** (visual editing: `python3 scripts/tools/balance_editor.py`, stdlib-only); **every UI palette token lives in `csharp/godot/UITheme.cs`** (VFX/particle colors embedded in a `.tscn` are owned by that scene file).
 - **Assets are procedurally generated**: `scripts/tools/regenerate_all.sh` re-runs every generator in a fixed order (needs Python 3 + Pillow); its output should match the committed assets — an empty `git diff` afterwards means it does.
 - **Build**: `dotnet build` (warnings are errors, `TreatWarningsAsErrors`).
 - **Pre-commit verification gates and commit-message rules live in [AGENTS.md](AGENTS.md)**; CI runs the same gate set as the local workflow.
 - **Packaging**: `./release.sh` exports Linux/Windows and packages them into `builds/release/`; `./release.sh --publish` additionally pushes the tag, creates the GitHub Release and uploads the assets.
-- Design intent: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md).
+- Design intent: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md) · historical balance review: [BALANCE_REVIEW](docs/BALANCE_REVIEW.md) · release notes: [RELEASE_NOTES](docs/RELEASE_NOTES.md).
 
 ## License
 

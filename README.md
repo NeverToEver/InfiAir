@@ -32,7 +32,7 @@
 
 - **本局检查点存档** — 回基地或「保存并退出」自动落盘；死亡或放弃重开即删档——检查点可以续，死了不能读。标题屏「继续上次出击」还原整局进度（分数、难度、天赋、增幅、任务），战场从新一波开始。
 - **天赋缓存树** — 里程碑与 Boss 击杀产出天赋点进入缓存池（后进先出、超额衰减），蓄力打开面板自主加点：4 大类 27 节点，派系互斥、专注惩罚、路线契约、风险加点四套机制互相制衡，构筑没有免费午餐。
-- **精确的弹幕手感** — 鼠标左键手动开火（按住连发或按一下切换）+ 连击计分（3 秒窗口、最高 ×2）、擦弹得分、360° 弹反把敌弹原样奉还；受击判定只有 2.8px 的核心，宽限期与离场结算保证直击必中、擦边才免。
+- **精确的弹幕手感** — 鼠标左键手动开火（按住连发或按一下切换）+ 连击计分（5 秒窗口、最高 ×2）、擦弹得分、360° 弹反把敌弹原样奉还；受击判定只有 2.8px 的核心，宽限期与离场结算保证直击必中、擦边才免。
 - **Boss 轮换与遭遇事件** — 4 种 Boss 阶段弹幕 + 狂暴，50 秒打不死就逃逸；精英炮塔、编队突袭（炸弹可击落、可弹反打回）、四种干扰雾事件按优先级互斥穿插，同屏不乱套。
 - **母舰与黎明站** — 蓄力召唤母舰随行支援（火力平台 + 机库小窗），返回黎明站休整：战机库、维修补给、路线契约、任务规划，用 RP 换资源后继续出击。
 - **战术琥珀视觉** — 暖炭黑底、琥珀主交互，金属 / 全息线光 / 文字灰全部收在同族暖偏（冷青已退役）；世界层手写屏幕后处理（辉光 / 调色 / 晕影 / 颗粒）补足 GL Compatibility；重伤时屏幕碎裂、呼吸与心跳随血量下沉，可一键减弱闪烁。
@@ -114,18 +114,18 @@ assets/          sprites / 音频 / 字体 / shader
 packaging/       发布包内的安装 / 卸载脚本与桌面项
 scripts/ci/      CI 门禁脚本
 scripts/tools/   素材生成器与数值编辑器（Python）
-docs/            设计定稿 · 方向与债务 · README 截图
+docs/            设计定稿 · 方向与债务 · 平衡审查存档 · 发布说明 · README 截图
 builds/          导出与打包产物（不入库）
 ```
 
 ## 开发
 
-- **数值调参只改 `data/balance.json`**（可视化编辑：`python3 scripts/tools/balance_editor.py`，仅依赖 Python 标准库）；**全站颜色只改 `csharp/godot/UITheme.cs`**。
+- **数值调参只改 `data/balance.json`**（可视化编辑：`python3 scripts/tools/balance_editor.py`，仅依赖 Python 标准库）；**UI 调色板只改 `csharp/godot/UITheme.cs`**（场景文件内嵌的 VFX/粒子配色以对应 `.tscn` 为准）。
 - **素材为程序化生成**：`scripts/tools/regenerate_all.sh` 按固定顺序重跑全部生成器（需 Python 3 + Pillow），输出应与仓库现有资产一致——重跑后 `git diff` 为空即正确。
 - **构建**：`dotnet build`（零警告口径，`TreatWarningsAsErrors`）。
 - **提交前必过的验证门禁与提交信息规范见 [AGENTS.md](AGENTS.md)**；CI 与本地是同一套口径。
 - **打包发布**：`./release.sh` 导出 Linux/Windows 并打包到 `builds/release/`；`./release.sh --publish` 继续推送 tag、建 GitHub Release 并上传资产。
-- 设计意图见 [DESIGN_BASELINE](docs/DESIGN_BASELINE.md)；方向 / 债务 / 决策索引见 [ROADMAP](docs/ROADMAP.md)。
+- 设计意图见 [DESIGN_BASELINE](docs/DESIGN_BASELINE.md)；方向 / 债务 / 决策索引见 [ROADMAP](docs/ROADMAP.md)；历史平衡审查存档见 [BALANCE_REVIEW](docs/BALANCE_REVIEW.md)；发布说明见 [RELEASE_NOTES](docs/RELEASE_NOTES.md)。
 
 ## 许可证
 
