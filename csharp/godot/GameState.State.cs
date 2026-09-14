@@ -106,6 +106,11 @@ public partial class GameState : Node
         _score.ApplyAugmentScoreConfig(
             Cfg("augments.score_amp.factor", 1.0).AsDouble(),
             Cfg("augments.combo_guard.window_factor", 1.0).AsDouble());
+        // 奖励缩放：击杀分与擦弹分随难度增长（止住单位时间收入被 HP 膨胀稀释）
+        _score.ApplyRewardScalingConfig(
+            Mathf.Max(Cfg("reward_scaling.kill_score_ramp_factor", 0.15).AsDouble(), 0.0),
+            Mathf.Clamp(Cfg("reward_scaling.graze_combo_weight", 1.0).AsDouble(), 0.0, 1.0),
+            Mathf.Max(Cfg("reward_scaling.graze_difficulty_factor", 0.15).AsDouble(), 0.0));
         // 健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
         // 与 ScoreService.ApplyComboConfig 同构）——max_health ≤0 使上限归零/负值，玩家秒死
         // 与 _maxHpBase 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）

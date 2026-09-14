@@ -1536,7 +1536,9 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        GameState.Instance.AddScore(GrazeScore);
+        // 擦弹分吃难度与连击乘区（原为固定 10 分不吃任何乘区——风险回报失真，
+        // 与弹幕系「擦弹=贪分」的惯例相反）
+        GameState.Instance.AddScore((int)Math.Round(GameState.Instance.GrazeScoreFor(GrazeScore)));
         _visuals.SetGrazeFlash(GrazeFlashTime);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.25f);
         GameState.Instance.PlaySfx(SfxId.AugmentPick);

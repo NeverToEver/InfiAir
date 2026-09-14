@@ -16,6 +16,14 @@ manual fire (left mouse / RT; hold or toggle per `settings.json fire_toggle_mode
 Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded player growth, unbounded enemy pressure).
 
 ### 1.3 Scoring & Economy
+- **奖励随难度增长**（2026-09-14）：击杀分 ×`(1 + reward_scaling.kill_score_ramp_factor(0.15)×(D−1))`。
+  原先 D 抬高敌方 HP 而击杀分固定，单位时间收入被 HP 膨胀稀释——与 RoR2「货币同步通胀」双轨惯例相悖，是后期「越打越难攒点」的成因之一。
+  缩放判定在 core `RewardScaling`（单测钉住单调不减与非法输入不倒扣）。
+- **擦弹吃难度与连击**（2026-09-14）：擦弹基础分 10 → 30，且并入连击乘区（`graze_combo_weight`(1.0)）与难度乘区。
+  弹幕系惯例是「擦弹 = 贪分」，原实现固定 10 分不吃任何乘区，风险回报失真、不鼓励贴弹。
+- **连击窗口 3.0 → 5.0s**（2026-09-14）：窗口须覆盖最大波间隔（4–7s 的波次节奏），否则跨波必断、×2 不可达。
+- **迷雾事件存活补偿**（2026-09-14）：四类迷雾原为纯负反馈（无奖励、easy/hard 同受），
+  结束给 `fog_events.reward_score`(150) × 难度奖励因子的存活分。
 - `GameState.AddScore(v)`: multiplies difficulty (Easy ×1 / Normal ×2 / Hard ×3); all kills route here.
 - **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window 3.0s / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 3s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards / graze do NOT combo. 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.

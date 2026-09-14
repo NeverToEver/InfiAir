@@ -59,6 +59,9 @@ public sealed partial class ScoreService : RefCounted
     /// <summary>score_amp 增幅：击杀分乘区底数（combo_guard 同款：pow(factor, 有效层级)，1.0 = 未购）。</summary>
     private double _scoreAmpFactor = 1.0;
 
+    /// <summary>奖励缩放配置（难度反哺得分；ApplyBalance 注入）。</summary>
+    private RewardScalingConfig _reward = new();
+
     /// <summary>combo_guard 增幅：连击窗口延长底数（pow(factor, 有效层级)）。</summary>
     private double _comboWindowFactor = 1.0;
 
@@ -97,6 +100,22 @@ public sealed partial class ScoreService : RefCounted
         _scoreAmpFactor = Math.Max(scoreAmpFactor, 1.0);
         _comboWindowFactor = Math.Max(comboWindowFactor, 1.0);
     }
+
+    /// <summary>奖励缩放参数注入（ApplyBalance 调用）。</summary>
+    public void ApplyRewardScalingConfig(double killScoreRampFactor, double grazeComboWeight, double grazeDifficultyFactor)
+    {
+        _reward.KillScoreRampFactor = killScoreRampFactor;
+        _reward.GrazeComboWeight = grazeComboWeight;
+        _reward.GrazeDifficultyFactor = grazeDifficultyFactor;
+    }
+
+    /// <summary>击杀分的难度乘区（随 D 增长，止住「怪更肉但同酬」的单位时间收入稀释）。</summary>
+    public double KillScoreFactor() =>
+        RewardScaling.KillScoreFactor(GameState.Instance.DifficultyMultiplier, _reward);
+
+    /// <summary>擦弹得分（吃难度与连击乘区；风险回报成立才鼓励贴弹贪分）。</summary>
+    public double GrazeScoreFor(double baseScore) =>
+        RewardScaling.GrazeScore(baseScore, ComboMultiplier(), GameState.Instance.DifficultyMultiplier, _reward);
 
     /// <summary>combo_guard 后的生效连击窗口（每杀刷新时求值；击杀频率下开销可忽略）。</summary>
     public double EffectiveComboWindow() =>
@@ -144,7 +163,9 @@ public sealed partial class ScoreService : RefCounted
         // 双保险：乘积钳 [0, long.MaxValue]——组合极端路径
         // （basePoints×乘区越界 → double→long 转换未定义/回绕巨负）下兜底防负分入账
         var amplified = basePoints * Math.Pow(_scoreAmpFactor, GameState.Instance.TalentEffLevel(AugScoreAmpId));
-        var scaled = (long)Math.Round(Math.Clamp(amplified * ComboMultiplier(), 0.0, (double)long.MaxValue));
+        // 奖励随难度增长：否则 D 抬高敌方 HP 而击杀分固定，单位时间收入被膨胀稀释
+        var scaled = (long)Math.Round(
+            Math.Clamp(amplified * ComboMultiplier() * KillScoreFactor(), 0.0, (double)long.MaxValue));
         AddScore((int)Math.Min(scaled, (long)int.MaxValue));
         ComboChanged?.Invoke(Combo);
     }

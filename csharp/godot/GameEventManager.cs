@@ -62,6 +62,10 @@ public partial class GameEventManager : Node
 
     public float FOG_FIRST_DELAY { get; set; } = 25.0f;
 
+    /// <summary>迷雾事件结束的存活补偿分（0 = 关闭）。原四类迷雾全是纯负反馈、无奖励，
+    /// 属「减 fun 不加压」的噪声；给一个小额存活分使其成为风险回报而非纯惩罚。</summary>
+    public int FOG_REWARD_SCORE { get; set; } = 150;
+
     public Godot.Collections.Dictionary FOG_WEIGHTS { get; set; } = new()
     {
         [new StringName("fake_enemies")] = 1.0f,
@@ -156,6 +160,7 @@ public partial class GameEventManager : Node
             (float)GameState.Instance.Cfg("fog_events.check_interval", FOG_CHECK_INTERVAL).AsDouble(), 0.1f);
         FOG_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("fog_events.min_interval", FOG_MIN_INTERVAL).AsDouble(), 0.0f);
         FOG_FIRST_DELAY = Mathf.Max((float)GameState.Instance.Cfg("fog_events.first_delay", FOG_FIRST_DELAY).AsDouble(), 0.0f);
+        FOG_REWARD_SCORE = Mathf.Max((int)GameState.Instance.Cfg("fog_events.reward_score", FOG_REWARD_SCORE).AsInt64(), 0);
         var weights = GameState.Instance.Cfg("fog_events.weights", FOG_WEIGHTS);
         if (weights.VariantType == Variant.Type.Dictionary)
         {
@@ -745,6 +750,13 @@ public partial class GameEventManager : Node
         _fogActiveEvent = null;
         _fogCooldownLeft = FOG_MIN_INTERVAL;
         _fogCheckTimer = FOG_CHECK_INTERVAL;
+        // 存活补偿：迷雾是纯干扰，给一笔随难度增长的分使其成为风险回报
+        // （原为纯负反馈无奖励 → 玩家理性选择是躲无可躲的纯损失）
+        if (FOG_REWARD_SCORE > 0)
+        {
+            GameState.Instance.AddScore((int)Math.Round(FOG_REWARD_SCORE * GameState.Instance.KillScoreFactor()));
+        }
+
         EmitSignal(SignalName.EventEnded, id);
     }
 

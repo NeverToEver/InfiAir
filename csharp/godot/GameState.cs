@@ -684,4 +684,10 @@ public partial class GameState : Node
 
     /// <summary>手感探针专用的一次震动注入（绕过震源表，让探针不依赖具体战斗事件即可覆盖 trauma 链路）。</summary>
     public void AddShakeForProbe() => Shake(Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
+
+    /// <summary>擦弹得分（吃难度与连击乘区）——ScoreService 转发。</summary>
+    public double GrazeScoreFor(double baseScore) => _score.GrazeScoreFor(baseScore);
+
+    /// <summary>击杀分的难度乘区（诊断/探针读口）。</summary>
+    public double KillScoreFactor() => _score.KillScoreFactor();
 }
