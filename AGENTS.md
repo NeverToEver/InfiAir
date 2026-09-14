@@ -83,7 +83,7 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 | `bash scripts/ci/check_settings_symmetry.sh` | 设置写读字段一一对应 + 设置页文案键存在 |
 | `bash scripts/ci/check_ui_copy.sh` | 玩家可见文案无缺键、无开发措辞、无空字段 |
 | `bash scripts/ci/check_import.sh` | 资源导入无警告 |
-| `bash scripts/ci/check_smoke.sh` | 无头冒烟五趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 |
+| `bash scripts/ci/check_smoke.sh` | 无头冒烟六趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 / 燃料量槽满扫 |
 
 **卫生门禁**（判散文形态，不产生质量信号）：`bash scripts/ci/check_prose_hygiene.sh` 判注释无日期戳、注释散文简体中文、术语单一叫法（与 §9 表同源）。
 **铁律**：1 **每个门禁必须能失败**——新增或改门禁同提交给破坏验证（怎么破坏、红了什么）；2 **假绿比没门禁更糟**——取不到判据必须显式失败（工具缺失 / 路径不存在 / 零命中）；3 **卫生门禁不得当完成依据**，也不许以「业务优先」长期纵容变红——红了顺手改；4 **时间预算**：本地全跑 ≤90 秒（`gates.py` 结束打印用时），单条超 30 秒在上表注明理由。
@@ -99,10 +99,11 @@ godot --headless --path . --fixed-fps 60 --quit-after <帧数> --scene res://sce
 
 - 开关与驱动全在探针宿主 `csharp/godot/ProbeHost.cs`；生产 `main.tscn`/`Main` 不读任何测试开关（§5「测试设施不进生产路径」）。
 - 帧数 = 事件全周期秒数 × 60 + 余量；**帧数只在 `scripts/ci/check_smoke.sh` 维护一份**。
-- 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 在生产触发链上请求一次遭遇（资格/门槛/门控仍须真正通过）；`--event-probe-death=elite_turret` 激活后延迟击杀玩家，覆盖死亡打断路径；`--startup-time` 打印启动分段耗时。
-- 完成标记：三趟遭遇必须出现 `[event-probe] <id> 全周期完成`、死亡趟 `[event-probe] <id> 死亡打断完成`（截断/收尾残缺都不打）、设置页 `[settings-probe] 五页切换完成`；主场景趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败只打 `ERROR: Cannot open file`，不在引擎错误正则内，缺标记即红）。
-- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death）。
+- 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 在生产触发链上请求一次遭遇（资格/门槛/门控仍须真正通过）；`--event-probe-death=elite_turret` 激活后延迟击杀玩家，覆盖死亡打断路径；`--fuel-probe` 把燃料液位从满扫到空，逼量槽填充绘制在每个液位各画一次；`--startup-time` 打印启动分段耗时。
+- 完成标记：三趟遭遇必须出现 `[event-probe] <id> 全周期完成`、死亡趟 `[event-probe] <id> 死亡打断完成`（截断/收尾残缺都不打）、设置页 `[settings-probe] 五页切换完成`、燃料 `[fuel-probe] 液位满扫完成`；主场景趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败只打 `ERROR: Cannot open file`，不在引擎错误正则内，缺标记即红）。
+- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death / fuel）。
 - 死亡趟在临时用户目录（`<LOG>.userdata`）内跑——死亡即删本局存档，探针不得触碰开发者当前存档。
+- 引擎错误正则含 `Invalid polygon data`：程序化绘制 headless 仍会执行 `_Draw`（dummy 渲染不拦绘制调用），自交/退化多边形在三角化处报该错并整块不画——不崩、只看退出码抓不到；燃料槽低油量整块消失即此类。
 - 遭遇事件改动后至少手跑一次对应探针。
 
 ## 7 提交与发布

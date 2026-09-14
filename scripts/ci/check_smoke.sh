@@ -20,7 +20,10 @@ set -uo pipefail
 
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/smoke.log}"
-ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception"
+# 引擎错误正则。`Invalid polygon data, triangulation failed.` 是程序化绘制的静默坏点：
+# headless 走 dummy 渲染仍会执行 _Draw（实测），自交/退化多边形在 canvas_item_add_polygon
+# 处报该错并**整块不画**——不崩、不看日志就完全无感（燃料槽低油量整块消失即此类）。
+ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception\|Invalid polygon data"
 PROBE_SCENE="res://scenes/probe_host.tscn"
 PROBE_LOG_BASE="${LOG%.log}"
 
@@ -79,3 +82,8 @@ expect_marker "elite turret 全周期" "${PROBE_LOG_BASE}.elite.log" "[event-pro
 run_case "elite turret death-path smoke" 1500 "${PROBE_LOG_BASE}.elite_death.log" "$PROBE_SCENE" \
   "${PROBE_LOG_BASE}.userdata" --event-probe-death=elite_turret
 expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[event-probe] elite_turret 死亡打断完成"
+# 燃料量槽满扫：无头局玩家不操作、不掉油，低油量填充绘制路径平时走不到；探针把液位从满扫到空，
+# 逼 _Draw 在每个液位各画一次（含掉液触发的最大波幅晃动）。判定靠错误正则抓「Invalid polygon data」
+# ——自交/退化多边形整块不画且不崩，只判「不崩」抓不到（低油量燃料槽整块消失即此类）。
+run_case "fuel tank sweep smoke" 400 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "" --fuel-probe
+expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] 液位满扫完成"

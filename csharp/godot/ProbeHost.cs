@@ -27,6 +27,7 @@ public partial class ProbeHost : Node
 
     private bool _settingsProbe;
     private bool _startupProbe;
+    private bool _fuelProbe;
     private string _eventId = "";
     private bool _deathProbe;
     private bool _startupPrinted;
@@ -35,6 +36,7 @@ public partial class ProbeHost : Node
     private bool _killed;
     private int _frame;
     private int _activeFrame;
+    private int _fuelStep;
 
     public override void _Ready()
     {
@@ -54,6 +56,10 @@ public partial class ProbeHost : Node
             else if (arg == "--startup-time")
             {
                 _startupProbe = true;
+            }
+            else if (arg == "--fuel-probe")
+            {
+                _fuelProbe = true;
             }
             else if (arg.StartsWith("--event-probe-death=", System.StringComparison.Ordinal))
             {
@@ -92,9 +98,36 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (_fuelProbe)
+        {
+            TickFuelProbe();
+            return;
+        }
+
         if (_eventId.Length > 0)
         {
             TickEventProbe();
+        }
+    }
+
+    /// <summary>燃料量槽探针：把液位从满油扫到见底，逼 <c>FuelTank._Draw</c> 在每个液位各画一次
+    /// （含每档掉液触发的晃动叠加＝最大波幅）。无头局玩家不操作不掉油，该绘制路径平时根本走不到。
+    /// 判定靠冒烟错误正则捕获「Invalid polygon data」——自交/退化多边形整块不画且不崩，
+    /// 只判「不崩」抓不到（低油量燃料槽整块消失即此类）。</summary>
+    private void TickFuelProbe()
+    {
+        // 21 档 × 8 帧（> HUD 0.1s 轮询 + 液罐追赶/晃动），扫满一整段液位行程
+        if (_frame % 8 != 0)
+        {
+            return;
+        }
+
+        _player.SetFuel(_player.FuelMax * (1.0f - _fuelStep / 20.0f));
+        _fuelStep++;
+        if (_fuelStep > 20)
+        {
+            GD.Print("[fuel-probe] 液位满扫完成");
+            _fuelProbe = false;
         }
     }
 

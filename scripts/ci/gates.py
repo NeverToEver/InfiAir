@@ -2,7 +2,7 @@
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
 按 CI fast-gate 顺序跑完全部九步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
-存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟五趟。
+存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟六趟。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
@@ -40,7 +40,7 @@ STEPS = (
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "无头冒烟五趟（主场景/设置页/编队/精英炮塔/死亡打断）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "无头冒烟六趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
 
 
