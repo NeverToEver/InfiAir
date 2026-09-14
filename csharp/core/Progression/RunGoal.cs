@@ -1,7 +1,7 @@
 namespace InfiAir.Core.Progression;
 
 /// <summary>
-/// 本局达成目标参数：击杀 Boss 数或存活时长，取先到者。默认值经人类认可（Boss 10 只 / 20 分钟）。
+/// 本局达成目标参数：击杀 Boss 数或存活时长，任一满足即达成。默认值经人类认可（Boss 10 只 / 20 分钟）。
 /// </summary>
 public sealed class RunGoalConfig
 {
@@ -31,11 +31,16 @@ public enum RunGoalKind
 /// </summary>
 public static class RunGoal
 {
-    /// <summary>是否已达成（两个条件取先到者）。</summary>
+    /// <summary>是否已达成（任一条件满足）。</summary>
     public static bool Achieved(int bossKills, double runTime, RunGoalConfig cfg) =>
         Kind(bossKills, runTime, cfg) != RunGoalKind.None;
 
-    /// <summary>达成方式（未达成返回 None）。两项都未配置时永远未达成。</summary>
+    /// <summary>达成方式（未达成返回 None）。两项都未配置时永远未达成。
+    ///
+    /// **固定优先级**（Boss 击杀 &gt; 存活），不是「哪个先达成」：本函数是当前状态的纯函数，
+    /// 不持有历史，无法知道两个条件里哪个先满足；两条件都满足时恒报 Boss 击杀（它更主动、
+    /// 是玩家操作的直接结果）。原注释写「取先到者」与实现不符，已更正。
+    /// 注意 <see cref="Achieved"/> 不受优先级影响——任一满足即为真，达成与否不会因此抖动。</summary>
     public static RunGoalKind Kind(int bossKills, double runTime, RunGoalConfig cfg)
     {
         var killsTarget = cfg.BossKillsTarget;

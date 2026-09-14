@@ -280,7 +280,7 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>Boss HP 本局进程 ramp（斜率独立于杂兵；Boss.Setup 消费）。</summary>
     public float BossHpRamp() => (float)_balanceService.BossHpRamp(GameState.Instance.DifficultyMultiplier);
 
-    /// <summary>本局是否已达成（Boss 击杀数或存活时长，取先到者；不终止本局）。</summary>
+    /// <summary>本局是否已达成（Boss 击杀数或存活时长，任一满足；不终止本局）。</summary>
     public bool GoalAchieved() =>
         RunGoal.Achieved(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 

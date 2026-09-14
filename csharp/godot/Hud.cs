@@ -1429,7 +1429,7 @@ public partial class Hud : CanvasLayer
         AddChild(_cacheTooltip);
 
         // 常驻目标进度（芯片下方一行）：让「打到哪算赢」在达成前就可见——
-        // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，取先到者）。
+        // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，任一满足即达成）。
         _goalLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Right);
         _goalLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉

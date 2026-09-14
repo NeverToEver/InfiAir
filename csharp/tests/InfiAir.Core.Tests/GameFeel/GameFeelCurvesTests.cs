@@ -83,6 +83,12 @@ public sealed class GameFeelCurvesTests
         timeline.Request(double.NaN);
         timeline.Request(double.PositiveInfinity);
         Assert.False(timeline.Active);
+        Assert.Equal(0.0, timeline.Remaining, 6); // 只判 !Active 抓不到「NaN 被存进 _remaining」
+
+        // 坏输入不得污染后续合法请求（NaN 若入内，`seconds > _remaining` 恒假 → 合法请求被吞）
+        timeline.Request(0.05);
+        Assert.True(timeline.Active);
+        Assert.Equal(0.05, timeline.Remaining, 6);
     }
 
     [Fact]
@@ -91,7 +97,7 @@ public sealed class GameFeelCurvesTests
         var timeline = new HitStopTimeline();
         timeline.Request(0.16);
         timeline.Clear();
-        Assert.False(timeline.Active);
+        Assert.Equal(0.0, timeline.Remaining, 6); // 只判 !Active 时把 Clear 写成 _remaining=-1 也过
     }
 
     // ---------------- TraumaShake ----------------
@@ -167,7 +173,7 @@ public sealed class GameFeelCurvesTests
         var shake = new TraumaShake();
         shake.Add(1.0);
         shake.Clear();
-        Assert.False(shake.Active);
+        Assert.Equal(0.0, shake.Trauma, 6); // 只判 !Active 时把 Clear 写成 trauma=-1 也过
         Assert.Equal(0.0, shake.Magnitude(), 6);
     }
 }

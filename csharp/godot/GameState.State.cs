@@ -79,7 +79,7 @@ public partial class GameState : Node
         _runProg.ApplySoftCapParams(
             Cfg("progression.soft_cap_start", 6.0).AsDouble(),
             Cfg("progression.tail_speed_factor", 0.5).AsDouble());
-        // 本局达成目标（Boss 击杀数或存活时长，取先到者）与难度命名档位阈值。
+        // 本局达成目标（Boss 击杀数或存活时长，任一满足即达成）与难度命名档位阈值。
         // 阈值表仅接受正数且升序——乱序/含负值会让档位显示跳动或倒退；元素判型防坏 JSON 崩启动。
         var tierV = Cfg("progression.tier_thresholds", new Godot.Collections.Array<double>());
         var tierArr = new Godot.Collections.Array<double>();

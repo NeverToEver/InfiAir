@@ -34,11 +34,15 @@ public sealed class RunGoalTests
     }
 
     [Fact]
-    public void Achieved_EarliestWins_RegardlessOfOrder()
+    public void Kind_BothConditionsMet_ReportsBossKillsByFixedPriority()
     {
         var cfg = Cfg();
-        // 两个条件同时满足时，Boss 击杀优先（它更「主动」，是玩家操作的直接结果）
+        // 固定优先级（非「先到者」——纯函数不持历史，无法知道哪个先满足）：两条件都满足时恒报 Boss 击杀。
+        // 原名 EarliestWins 名不副实（只测了优先级，从未测「先后」），已按真实语义改名。
         Assert.Equal(RunGoalKind.BossKills, RunGoal.Kind(10, 5000.0, cfg));
+        Assert.Equal(RunGoalKind.BossKills, RunGoal.Kind(11, 1200.0, cfg));
+        // 只满足存活时仍报存活（优先级不掩盖单条件结果）
+        Assert.Equal(RunGoalKind.Survive, RunGoal.Kind(3, 1200.0, cfg));
     }
 
     [Fact]
