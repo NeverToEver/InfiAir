@@ -16,6 +16,7 @@ public partial class GameOverUi : RadialMenuLayer
 
     private Label _killsLabel = null!;
     private Label _bossKillsLabel = null!;
+    private Label _goalLabel = null!;
     private VBoxContainer _statsBox = null!;
     private Label _titleLabel = null!;
     private ChamferedPanel _plate = null!;
@@ -55,6 +56,10 @@ public partial class GameOverUi : RadialMenuLayer
         _statsBox.AddChild(_killsLabel);
         _bossKillsLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.Text);
         _statsBox.AddChild(_bossKillsLabel);
+        // 本局目标结果（达成/未达成）：必死曲线必须有「打到哪算赢」的落点，
+        // 结算页是玩家复盘时唯一会细看的地方（Brotato 的「打过 wave20 算胜」同款锚点）。
+        _goalLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold);
+        _statsBox.AddChild(_goalLabel);
 
         var gs = GameState.Instance;
         // IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
@@ -95,6 +100,10 @@ public partial class GameOverUi : RadialMenuLayer
     {
         _killsLabel.Text = GdFormat.Format(Tr("GO_KILLS"), GameState.Instance.Kills);
         _bossKillsLabel.Text = GdFormat.Format(Tr("GO_BOSS_KILLS"), GameState.Instance.BossKills);
+        var achieved = GameState.Instance.GoalAchieved();
+        _goalLabel.Text = GdFormat.Format(Tr("GO_GOAL_RESULT"),
+            achieved ? Tr("GO_BOSS_ACHIEVED") : Tr("GO_BOSS_PENDING"));
+        _goalLabel.AddThemeColorOverride("font_color", achieved ? UITheme.AccentGold : UITheme.TextDim);
     }
 
     /// <summary>装配结算菜单（打开时重装，复位轮盘导航态）。</summary>

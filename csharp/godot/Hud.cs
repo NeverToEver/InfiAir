@@ -658,6 +658,9 @@ public partial class Hud : CanvasLayer
             _bossCountdown.Visible = false;
         }
 
+        // 目标进度按本局时钟推进（存活型目标不触发任何信号，只有轮询能捕获到达成线）
+        RefreshGoalLabel();
+
         var player = GameState.Instance.PlayerRef as Player;
         if (player == null)
         {
@@ -985,6 +988,7 @@ public partial class Hud : CanvasLayer
     private void OnScoreChanged(int _newScore)
     {
         RefreshKills();
+        RefreshGoalLabel();
     }
 
     private void RefreshKills()
@@ -1090,14 +1094,22 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    /// <summary>难度标签：Boss 击杀乘数 + 难度档位（如「难度 x1.00 · 中」）。</summary>
+    /// <summary>难度标签：难度乘数 + 命名档位 + 难度档设置（如「难度 x2.50 · 第四档 · 危险 · 中」）。
+    /// 命名档位让连续爬升可读、可讨论（原只有一个数字，玩家读不出「到哪个阶段了」）。</summary>
     private void RefreshDifficultyLabel()
     {
+        var tier = Mathf.Clamp(GameState.Instance.DifficultyTierIndex(), 0, MaxDifficultyTierIndex);
+        var tierText = Tr($"DIFF_TIER_{tier}");
         _difficultyLabel.Text = GdFormat.Format(
             (string)Tr("UI_DIFF_FMT"),
             (float)GameState.Instance.DifficultyMultiplier,
+            tierText,
             (string)GameState.Instance.DifficultyLabel());
     }
+
+    /// <summary>命名档位文案键编号上限（DIFF_TIER_0..5；balance 的 tier_thresholds 若更长，
+    /// 超出部分复用最后一档文案——避免动态拼键访问不存在的翻译行）。</summary>
+    private const int MaxDifficultyTierIndex = 5;
 
     private void OnBossHealthChanged(float current, float maximum)
     {
@@ -1354,6 +1366,8 @@ public partial class Hud : CanvasLayer
     private Label _cacheCount = null!;
     private Label _cacheTooltip = null!;
     private Label _cacheReadyHint = null!;
+    private Label _goalLabel = null!;
+    private bool _goalBannerShown;
     private Tween? _cachePulseTween;
     private int _lastCacheRaw = -1;
     private bool _lastAffordable;
@@ -1409,6 +1423,16 @@ public partial class Hud : CanvasLayer
         _cacheTooltip.Visible = false;
         _cacheTooltip.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_cacheTooltip);
+
+        // 常驻目标进度（芯片下方一行）：让「打到哪算赢」在达成前就可见——
+        // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，取先到者）。
+        _goalLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Right);
+        _goalLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        _goalLabel.Position = new Vector2(-192.0f, 236.0f);
+        _goalLabel.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _goalLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_goalLabel);
+        RefreshGoalLabel();
 
         _cacheChip.GuiInput += OnCacheChipInput;
         _cacheChip.MouseEntered += () =>
@@ -1494,6 +1518,49 @@ public partial class Hud : CanvasLayer
             _lastCacheRaw = raw;
             RestartCachePulse(breathing);
         }
+    }
+
+    /// <summary>目标进度刷新：未达成显示「离达成还有多少」，达成后显示已达成并（一次性）横幅提示。
+    /// 刷新时机＝分数变化（Boss 击杀会加分）与本局时钟轮询（存活型目标需按时间推进）。</summary>
+    private void RefreshGoalLabel()
+    {
+        if (_goalLabel == null)
+        {
+            return;
+        }
+
+        var gs = GameState.Instance;
+        if (gs.GoalAchieved())
+        {
+            _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), (string)Tr("GO_BOSS_ACHIEVED"));
+            _goalLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
+            if (!_goalBannerShown)
+            {
+                _goalBannerShown = true;
+                ShowInfoBanner((string)Tr("GOAL_ACHIEVED_BANNER"));
+            }
+
+            return;
+        }
+
+        // 展示「更接近达成」的那个条件（与 core 的进度取法一致，避免显示条件来回跳）
+        var killTarget = gs.GoalBossKills();
+        var surviveTarget = gs.GoalSurviveSeconds();
+        var killProgress = killTarget > 0 ? gs.BossKills / (double)killTarget : -1.0;
+        var surviveProgress = surviveTarget > 0 ? gs.RunTime / surviveTarget : -1.0;
+        string detail;
+        if (killProgress >= surviveProgress && killTarget > 0)
+        {
+            detail = GdFormat.Format((string)Tr("GOAL_BOSS_KILLS"), gs.BossKills, killTarget);
+        }
+        else
+        {
+            detail = GdFormat.Format((string)Tr("GOAL_SURVIVE"),
+                (int)(gs.RunTime / 60.0), (int)(surviveTarget / 60.0));
+        }
+
+        _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"), detail);
+        _goalLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
     }
 
     /// <summary>呼吸脉冲（2s 周期明暗循环）；非呼吸态/ReduceFlash/蓄力中（芯片被提亮占用）不启动。</summary>

@@ -428,6 +428,42 @@ public partial class ProbeHost : Node
             return;
         }
 
+        // 本局达成判定与命名档位（生产配置）：达成线必须可达、档位必须随 D 单调推进。
+        // 达成判定坏掉的表现是「打了很久也没算赢」，无头下不崩不报错，只能靠断言。
+        var goalCfg = new Core.Progression.RunGoalConfig
+        {
+            BossKillsTarget = GameState.Instance.GoalBossKills(),
+            SurviveSeconds = GameState.Instance.GoalSurviveSeconds(),
+        };
+        if (goalCfg.BossKillsTarget > 0 && Core.Progression.RunGoal.Achieved(goalCfg.BossKillsTarget, 0.0, goalCfg) == false)
+        {
+            GD.PushError("[long-probe] 达不成线不可达：Boss 击杀数达到目标仍判未达成");
+            _longProbe = false;
+            return;
+        }
+
+        if (goalCfg.SurviveSeconds > 0.0 && !Core.Progression.RunGoal.Achieved(0, goalCfg.SurviveSeconds, goalCfg))
+        {
+            GD.PushError("[long-probe] 达不成线不可达：存活到目标时长仍判未达成");
+            _longProbe = false;
+            return;
+        }
+
+        if (Core.Progression.RunGoal.Achieved(0, 0.0, goalCfg))
+        {
+            GD.PushError("[long-probe] 开局即判达成（目标线配置失效）");
+            _longProbe = false;
+            return;
+        }
+
+        var tierEarly = GameState.Instance.DifficultyTierIndex();
+        if (tierEarly != 0)
+        {
+            GD.PushError($"[long-probe] 开局难度档位应为 0，实为 {tierEarly}");
+            _longProbe = false;
+            return;
+        }
+
         GD.Print("[long-probe] 难度曲线落在预期带");
         _longProbe = false;
     }

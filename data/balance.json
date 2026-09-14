@@ -920,7 +920,10 @@
 		"per_ten_minutes": 1.5,
 		"time_step_seconds": 30,
 		"soft_cap_start": 6.0,
-		"tail_speed_factor": 0.5
+		"tail_speed_factor": 0.5,
+		"goal_boss_kills": 10,
+		"goal_survive_seconds": 1200,
+		"tier_thresholds": [1.0, 1.6, 2.4, 3.6, 5.5, 8.0]
 	},
 	"scoring": {
 		"combo": {

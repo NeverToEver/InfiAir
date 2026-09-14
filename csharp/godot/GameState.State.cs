@@ -79,6 +79,35 @@ public partial class GameState : Node
         _runProg.ApplySoftCapParams(
             Cfg("progression.soft_cap_start", 6.0).AsDouble(),
             Cfg("progression.tail_speed_factor", 0.5).AsDouble());
+        // 本局达成目标（Boss 击杀数或存活时长，取先到者）与难度命名档位阈值。
+        // 阈值表仅接受正数且升序——乱序/含负值会让档位显示跳动或倒退；元素判型防坏 JSON 崩启动。
+        var tierV = Cfg("progression.tier_thresholds", new Godot.Collections.Array<double>());
+        var tierArr = new Godot.Collections.Array<double>();
+        if (tierV.VariantType == Variant.Type.Array)
+        {
+            double last = double.NegativeInfinity;
+            foreach (var tv in tierV.AsGodotArray())
+            {
+                if (tv.VariantType is not (Variant.Type.Int or Variant.Type.Float) || tv.VariantType == Variant.Type.Bool)
+                {
+                    continue;
+                }
+
+                var value = tv.AsDouble();
+                if (value <= 0.0 || value <= last)
+                {
+                    continue; // 非正或乱序：跳过该元素（已接受的前缀仍升序）
+                }
+
+                tierArr.Add(value);
+                last = value;
+            }
+        }
+
+        _runProg.ApplyGoalParams(
+            Mathf.Max((int)Cfg("progression.goal_boss_kills", 10).AsInt64(), 0),
+            Mathf.Max(Cfg("progression.goal_survive_seconds", 1200.0).AsDouble(), 0.0),
+            tierArr);
         // 难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
         // （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
         var diff = Cfg("difficulty", new Godot.Collections.Dictionary());

@@ -25,6 +25,24 @@ public partial class GameState : Node
     /// <summary>难度映射配置快照（门面转发；波次间隔/精英数量/开火地板查询用）。</summary>
     public InfiAir.Core.Progression.DifficultyScalingConfig Scaling() => _runProg.Scaling();
 
+    /// <summary>本局是否已达成（Boss 击杀数或存活时长；不终止本局）。</summary>
+    public bool GoalAchieved() => _runProg.GoalAchieved();
+
+    /// <summary>达成方式（None/BossKills/Survive）。</summary>
+    public InfiAir.Core.Progression.RunGoalKind GoalKind() => _runProg.GoalKind();
+
+    /// <summary>达成进度 0..1（HUD 常驻进度条用）。</summary>
+    public double GoalProgress() => _runProg.GoalProgress();
+
+    /// <summary>当前难度命名档位（0 起）。</summary>
+    public int DifficultyTierIndex() => _runProg.DifficultyTierIndex();
+
+    /// <summary>达成所需存活秒数。</summary>
+    public double GoalSurviveSeconds() => _runProg.GoalSurviveSeconds();
+
+    /// <summary>达成所需 Boss 击杀数。</summary>
+    public int GoalBossKills() => _runProg.GoalBossKills();
+
     /// <summary>DDA 降档：受击触发（重入安全——幂等置位，重复受击刷新计时）；
     /// 同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
     private void OnPlayerDamagedDda(float amount, Vector2 fromPos) => _runProg.OnPlayerDamagedDda(amount, fromPos);

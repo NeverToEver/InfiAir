@@ -70,6 +70,12 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>时间项软上限配置（progression.soft_cap_start / tail_speed_factor；0/1 视为关闭）。</summary>
     private readonly DifficultyScalingConfig _softCap = new();
 
+    /// <summary>本局达成目标（progression.goal_boss_kills / goal_survive_seconds；≤0 视为该项关闭）。</summary>
+    private readonly RunGoalConfig _goal = new();
+
+    /// <summary>难度命名档位阈值（progression.tier_thresholds，升序）。</summary>
+    private readonly List<double> _tierThresholds = new() { 1.0, 1.6, 2.4, 3.6, 5.5, 8.0 };
+
     /// <summary>已计入难度乘数的时间档位（按 time_step_seconds 量化步进，避免连续漂移）</summary>
     private int _difficultyTimeStep;
 
@@ -113,6 +119,21 @@ public sealed partial class RunProgressionService : RefCounted
     {
         _softCap.DifficultySoftCapStart = softCapStart;
         _softCap.DifficultyTailSpeedFactor = tailSpeedFactor;
+    }
+
+    /// <summary>本局达成目标与难度档位阈值注入（ApplyBalance 调用）。</summary>
+    public void ApplyGoalParams(int goalBossKills, double goalSurviveSeconds, Godot.Collections.Array<double> tierThresholds)
+    {
+        _goal.BossKillsTarget = goalBossKills;
+        _goal.SurviveSeconds = goalSurviveSeconds;
+        if (tierThresholds.Count > 0)
+        {
+            _tierThresholds.Clear();
+            foreach (var t in tierThresholds)
+            {
+                _tierThresholds.Add(t);
+            }
+        }
     }
 
     // ---------------- 难度档位 ----------------
@@ -256,6 +277,30 @@ public sealed partial class RunProgressionService : RefCounted
 
     /// <summary>Boss HP 本局进程 ramp（斜率独立于杂兵；Boss.Setup 消费）。</summary>
     public float BossHpRamp() => (float)_balanceService.BossHpRamp(GameState.Instance.DifficultyMultiplier);
+
+    /// <summary>本局是否已达成（Boss 击杀数或存活时长，取先到者；不终止本局）。</summary>
+    public bool GoalAchieved() =>
+        RunGoal.Achieved(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
+
+    /// <summary>达成方式（None/BossKills/Survive；结算页文案分档用）。</summary>
+    public RunGoalKind GoalKind() =>
+        RunGoal.Kind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
+
+    /// <summary>达成进度 0..1（取两条件中更接近者；HUD 常驻进度条用）。</summary>
+    public double GoalProgress() =>
+        RunGoal.Progress(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
+
+    /// <summary>当前难度命名档位（0 起；HUD 难度标签用）。</summary>
+    public int DifficultyTierIndex() => DifficultyTier.IndexFor(DifficultyMultiplier, _tierThresholds);
+
+    /// <summary>难度命名档位数量（文案键编号上限）。</summary>
+    public int DifficultyTierCount() => _tierThresholds.Count;
+
+    /// <summary>达成所需存活秒数（HUD 进度文案用）。</summary>
+    public double GoalSurviveSeconds() => _goal.SurviveSeconds;
+
+    /// <summary>达成所需 Boss 击杀数（HUD 进度文案用）。</summary>
+    public int GoalBossKills() => _goal.BossKillsTarget;
 
     /// <summary>难度映射配置快照（只读；波次间隔/精英数量/开火地板查询用）。</summary>
     public DifficultyScalingConfig Scaling() => _balanceService.Scaling();
