@@ -67,6 +67,9 @@ public sealed partial class RunProgressionService : RefCounted
 
     private double _progTimeStepSeconds = 30.0;
 
+    /// <summary>时间项软上限配置（progression.soft_cap_start / tail_speed_factor；0/1 视为关闭）。</summary>
+    private readonly DifficultyScalingConfig _softCap = new();
+
     /// <summary>已计入难度乘数的时间档位（按 time_step_seconds 量化步进，避免连续漂移）</summary>
     private int _difficultyTimeStep;
 
@@ -102,6 +105,14 @@ public sealed partial class RunProgressionService : RefCounted
         // 本地防线：timeStep ≤0 使本类两处 RunTime/_progTimeStepSeconds 除零；
         // 上游注入点（GameState.State.cs）已钳 0.1，此处不依赖跨层契约
         _progTimeStepSeconds = Math.Max(timeStepSeconds, 0.1);
+    }
+
+    /// <summary>时间项软上限参数注入（ApplyBalance 调用；不在 D 上设硬顶——必死曲线仍在，
+    /// 只是挂机时间项的斜率在软上限之后折减，让必死点更多由「打得好不好」而非「挂了多久」决定）。</summary>
+    public void ApplySoftCapParams(double softCapStart, double tailSpeedFactor)
+    {
+        _softCap.DifficultySoftCapStart = softCapStart;
+        _softCap.DifficultyTailSpeedFactor = tailSpeedFactor;
     }
 
     // ---------------- 难度档位 ----------------
@@ -243,6 +254,12 @@ public sealed partial class RunProgressionService : RefCounted
     /// <summary>敌方速度 ramp（显式难度乘数版本）：Enemy.Setup 以自身难度快照计算（EnemyHpRamp 同款模式）。</summary>
     public float EnemySpeedRamp(double difficultyMultiplier) => (float)_balanceService.EnemySpeedRamp(difficultyMultiplier);
 
+    /// <summary>Boss HP 本局进程 ramp（斜率独立于杂兵；Boss.Setup 消费）。</summary>
+    public float BossHpRamp() => (float)_balanceService.BossHpRamp(GameState.Instance.DifficultyMultiplier);
+
+    /// <summary>难度映射配置快照（只读；波次间隔/精英数量/开火地板查询用）。</summary>
+    public DifficultyScalingConfig Scaling() => _balanceService.Scaling();
+
     /// <summary>敌机移动策略参数表（Load 缓存引用，只读消费；Enemy.MakeStrategy 每 spawn 读取）。</summary>
     public Godot.Collections.Dictionary MoveStrategies() => _balanceService.MoveStrategies();
 
@@ -287,9 +304,12 @@ public sealed partial class RunProgressionService : RefCounted
         // （初值 0、仅 _Process += delta、重置为 0；公开属性直写约定为非负），
         // 对非负数截断与 floor 等价，省一次原生调用
         var step = (int)(GameState.Instance.RunTime / _progTimeStepSeconds);
-        // 曲线公式在 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）
-        var newMult = DifficultyCurve.Compute(
-            GameState.Instance.RunTime, _progTimeStepSeconds, _progPerTenMinutes, _progPerBossKill, GameState.Instance.BossKills);
+        // 曲线公式在 InfiAir.Core.Progression.DifficultyCurve（C#，运算顺序逐位等价）。
+        // 时间项再经软上限折减：D 无硬顶（必死仍在），但「挂机也会涨」的那条在软上限后放缓。
+        var rawTimeTerm = DifficultyCurve.Compute(
+            GameState.Instance.RunTime, _progTimeStepSeconds, _progPerTenMinutes, _progPerBossKill, 0) - 1.0;
+        var cappedTimeTerm = DifficultyScaling.SoftCappedTimeTerm(rawTimeTerm, _softCap);
+        var newMult = 1.0 + _progPerBossKill * GameState.Instance.BossKills + cappedTimeTerm;
         _difficultyTimeStep = step;
         if (Mathf.IsEqualApprox(newMult, DifficultyMultiplier))
         {

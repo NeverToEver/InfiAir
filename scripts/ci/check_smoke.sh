@@ -9,7 +9,9 @@
 #   4) --event-probe-death=elite_turret：死亡打断路径（管理器 EndActive → 事件 Abort →
 #      归还波次/Boss 互斥），自然探针等不到（无头局玩家不操作、不会死），此前是覆盖缺口；
 #   5) --feel-probe：命中顿帧与屏幕震动复位——顿帧写 Engine.TimeScale，写错（倍率 0 或按
-#      缩放 delta 推进）的表现是画面永久定格，无头下不崩也不报错，只有完成标记能抓住。
+#      缩放 delta 推进）的表现是画面永久定格，无头下不崩也不报错，只有完成标记能抓住；
+#   6) --long-probe：难度曲线落在预期带——曲线是 D 的纯函数，直接取 t=5/10/20/30min 的值断言
+#      单调/速度有顶/精英随难度增长/Boss 斜率独立/软上限，把「曲线形状」变成可失败的判定。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
@@ -92,3 +94,6 @@ expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] �
 # 手感探针：请求顿帧与震动后断言时间缩放压低/复位与 trauma 归零（无头下不崩即坏点，见文件头）。
 run_case "game feel probe smoke" 400 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE" "" --feel-probe
 expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe] 顿帧与震动复位完成"
+# 长局难度曲线：直接取生产曲线在 t=5/10/20/30min 的值，断言单调/速度有顶/精英增长/Boss 斜率独立/软上限。
+run_case "long-run difficulty curve smoke" 200 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "" --long-probe
+expect_marker "难度曲线落在预期带" "${PROBE_LOG_BASE}.long.log" "[long-probe] 难度曲线落在预期带"

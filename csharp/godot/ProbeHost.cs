@@ -34,6 +34,7 @@ public partial class ProbeHost : Node
     private bool _fuelProbe;
     private bool _shotProbe;
     private bool _feelProbe;
+    private bool _longProbe;
     private string _shotDir = "";
     private string _eventId = "";
     private bool _deathProbe;
@@ -99,6 +100,10 @@ public partial class ProbeHost : Node
             {
                 _feelProbe = true;
             }
+            else if (arg == "--long-probe")
+            {
+                _longProbe = true;
+            }
             else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
             {
                 _shotDir = arg["--shot-dir=".Length..];
@@ -114,7 +119,7 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_eventId.Length > 0 || _feelProbe)
+        if (_eventId.Length > 0 || _feelProbe || _longProbe)
         {
             // Main 嵌入宿主时按 current_scene 判定关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -149,6 +154,12 @@ public partial class ProbeHost : Node
         if (_feelProbe)
         {
             TickFeelProbe();
+            return;
+        }
+
+        if (_longProbe)
+        {
+            TickLongProbe();
             return;
         }
 
@@ -298,6 +309,114 @@ public partial class ProbeHost : Node
 
         _shotSigs[name] = sig;
         _shots.Add(name);
+    }
+
+    /// <summary>长局难度曲线探针：把生产换算出的各量与**行业对齐的预期带**逐点比对。
+    ///
+    /// 为什么不用「跑 30 分钟再看」：难度映射是 D 的纯函数，长跑只是采样同一函数。
+    /// 这里直接取 t = 5/10/20/30 分钟对应的 D（用生产曲线算），断言：
+    ///   ① HP 与伤害乘区单调不减且斜率比在预期内（HP 快于伤害，与行业「HP 缩放缓于伤害但都低于玩家成长」一致）；
+    ///   ② 速度乘区有硬顶（不得随 D 无限增长）；
+    ///   ③ 波次间隔触底后不再缩、且不越过地板；
+    ///   ④ 精英数量随 D 增长且有上限；
+    ///   ⑤ Boss HP 乘区**慢于**完整 D（修正前等于 D，是 Boss 成墙的根因）；
+    ///   ⑥ 时间项软上限之后斜率折减（挂机不再等比推高必死点）。
+    /// 任一条不成立即 PushError 且不打完成标记（门禁按缺标记判红）。</summary>
+    private void TickLongProbe()
+    {
+        if (_frame < 30)
+        {
+            return;
+        }
+
+        var cfg = GameState.Instance.Scaling();
+        var timeStep = Mathf.Max((float)GameState.Instance.Cfg("progression.time_step_seconds", 30.0).AsDouble(), 0.1f);
+        var perTen = GameState.Instance.Cfg("progression.per_ten_minutes", 1.5).AsDouble();
+
+        double DifficultyAt(double minutes) =>
+            1.0 + perTen * Mathf.Floor((float)(minutes * 60.0) / timeStep) * timeStep / 600.0;
+
+        double prevHp = 0.0;
+        double prevDmg = 0.0;
+        foreach (var minutes in new[] { 5.0, 10.0, 20.0, 30.0 })
+        {
+            var d = DifficultyAt(minutes);
+            var hp = Core.Progression.DifficultyScaling.EnemyHpRamp(d, cfg);
+            var dmg = Core.Progression.DifficultyScaling.EnemyDamageRamp(d, cfg);
+            var speed = Core.Progression.DifficultyScaling.EnemySpeedRamp(d, cfg);
+            var bossHp = Core.Progression.DifficultyScaling.BossHpRamp(d, cfg);
+            var wave = Core.Progression.DifficultyScaling.WaveInterval(4.0, d, cfg);
+            var elites = Core.Progression.DifficultyScaling.EliteCount(d, cfg);
+
+            if (hp < prevHp || dmg < prevDmg)
+            {
+                GD.PushError($"[long-probe] 难度乘区回退于 {minutes}min（hp={hp:0.###} dmg={dmg:0.###}）");
+                _longProbe = false;
+                return;
+            }
+
+            if (hp <= dmg)
+            {
+                GD.PushError($"[long-probe] {minutes}min 的 HP 乘区未超过伤害乘区（hp={hp:0.###} dmg={dmg:0.###}）");
+                _longProbe = false;
+                return;
+            }
+
+            if (speed > cfg.SpeedRampCap + 1e-6)
+            {
+                GD.PushError($"[long-probe] {minutes}min 速度乘区 {speed:0.###} 越过硬顶 {cfg.SpeedRampCap:0.###}");
+                _longProbe = false;
+                return;
+            }
+
+            if (wave < cfg.WaveIntervalFloor - 1e-6)
+            {
+                GD.PushError($"[long-probe] {minutes}min 波次间隔 {wave:0.###}s 跌破地板 {cfg.WaveIntervalFloor:0.###}s");
+                _longProbe = false;
+                return;
+            }
+
+            if (elites < 1 || elites > cfg.EliteCountCap)
+            {
+                GD.PushError($"[long-probe] {minutes}min 精英数量 {elites} 越界 [1, {cfg.EliteCountCap}]");
+                _longProbe = false;
+                return;
+            }
+
+            // Boss HP 必须慢于完整 D（修正前 = D，斜率是杂兵 4 倍）
+            if (bossHp >= d)
+            {
+                GD.PushError($"[long-probe] {minutes}min Boss HP 乘区未低于完整难度乘数（boss={bossHp:0.###} d={d:0.###}）");
+                _longProbe = false;
+                return;
+            }
+
+            prevHp = hp;
+            prevDmg = dmg;
+        }
+
+        // 精英数量必须真的随时间增长（否则「后期靠密度」根本没接上）
+        var eliteEarly = Core.Progression.DifficultyScaling.EliteCount(DifficultyAt(1.0), cfg);
+        var eliteLate = Core.Progression.DifficultyScaling.EliteCount(DifficultyAt(30.0), cfg);
+        if (eliteLate <= eliteEarly)
+        {
+            GD.PushError($"[long-probe] 精英数量不随难度增长（1min={eliteEarly} 30min={eliteLate}）");
+            _longProbe = false;
+            return;
+        }
+
+        // 时间项软上限：折减后必须仍单调不减、且慢于不折减
+        var raw = 20.0;
+        var capped = Core.Progression.DifficultyScaling.SoftCappedTimeTerm(raw, cfg);
+        if (!(capped > 0.0) || capped >= raw)
+        {
+            GD.PushError($"[long-probe] 时间项软上限未生效（raw={raw} capped={capped:0.###}）");
+            _longProbe = false;
+            return;
+        }
+
+        GD.Print("[long-probe] 难度曲线落在预期带");
+        _longProbe = false;
     }
 
     /// <summary>手感探针：请求四档顿帧与一次震动，断言「时间缩放确实被压低 + trauma 确实累加 +

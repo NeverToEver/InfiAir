@@ -19,6 +19,12 @@ public partial class GameState : Node
 
     public string DifficultyLabel() => _runProg.DifficultyLabel();
 
+    /// <summary>Boss HP 本局进程 ramp（门面转发；Boss.Setup 消费）。</summary>
+    public float BossHpRamp() => _runProg.BossHpRamp();
+
+    /// <summary>难度映射配置快照（门面转发；波次间隔/精英数量/开火地板查询用）。</summary>
+    public InfiAir.Core.Progression.DifficultyScalingConfig Scaling() => _runProg.Scaling();
+
     /// <summary>DDA 降档：受击触发（重入安全——幂等置位，重复受击刷新计时）；
     /// 同源断连（受击 = 降档 + 断连双通道，均不致命）。</summary>
     private void OnPlayerDamagedDda(float amount, Vector2 fromPos) => _runProg.OnPlayerDamagedDda(amount, fromPos);

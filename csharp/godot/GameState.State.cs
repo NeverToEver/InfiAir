@@ -75,6 +75,10 @@ public partial class GameState : Node
             Mathf.Max(Cfg("progression.per_boss_kill", 0.6).AsDouble(), 0.0),
             Mathf.Max(Cfg("progression.per_ten_minutes", 1.5).AsDouble(), 0.0),
             Mathf.Max(Cfg("progression.time_step_seconds", 30.0).AsDouble(), 0.1)); // =0 除零挂死
+        // 时间项软上限（≤0 起点或 ≥1 折减系数由 core 视为关闭，不设硬顶——必死曲线仍成立）
+        _runProg.ApplySoftCapParams(
+            Cfg("progression.soft_cap_start", 6.0).AsDouble(),
+            Cfg("progression.tail_speed_factor", 0.5).AsDouble());
         // 难度表仅在校验 easy/medium/hard 三子键齐全后覆盖，否则回退脚本默认值
         // （缺子键时 DIFFICULTY_DEFS[difficulty]["score"] 会 KeyError，与"损坏回退默认"宣称冲突）
         var diff = Cfg("difficulty", new Godot.Collections.Dictionary());

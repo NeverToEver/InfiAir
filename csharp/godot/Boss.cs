@@ -673,9 +673,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
 
         var hpMults = hpMultsValid ? hpMultsArr : new Godot.Collections.Array { 1.3, 0.7, 1.6, 1.2 };
+        // Boss HP 斜率独立于杂兵（原实现直接乘完整难度乘数 pDifficulty，斜率是杂兵的 4 倍，
+        // 使 Boss 单点检查过早变成墙）。斜率与域钳在 core DifficultyScaling。
         MaxHp = (float)GameState.Instance.Cfg("boss.hp_base", HpBase).AsDouble()
             * (float)hpMults[pType - 1].AsDouble()
-            * pDifficulty
+            * (float)Core.Progression.DifficultyScaling.BossHpRamp(pDifficulty, GameState.Instance.Scaling())
             * (float)GameState.Instance.EnemyHpMultiplier();
         Hp = MaxHp;
         // setup() 在 _ready() 之前调用，不能用 @onready 变量——GetNode 对场景分支子节点

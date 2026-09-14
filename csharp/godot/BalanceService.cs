@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core.Config;
+using InfiAir.Core.Progression;
 
 namespace InfiAir;
 
@@ -16,16 +17,15 @@ public partial class BalanceService : RefCounted
     private Godot.Collections.Dictionary _balance = new();
     private Dictionary<string, object?> _tree = new();
 
-    /// <summary>ramp 因子 load() 时缓存一次（热路径免 JSON 查询）。
-    /// 64 位 double 运算（对齐文件头"纯标量 double 逐位等价"纪律）。</summary>
-    private double _hpRampFactor = 0.25;
-    private double _damageRampFactor = 0.20;
+    /// <summary>难度映射配置（load() 时缓存一次，热路径免 JSON 查询）：斜率与上限的单一事实源在
+    /// csharp/core/Progression/DifficultyScaling.cs。64 位 double 运算
+    /// （对齐文件头"纯标量 double 逐位等价"纪律）。</summary>
+    private DifficultyScalingConfig _scaling = new();
 
     /// <summary>每 spawn 热路径配置 load() 时缓存（与 ramp 因子同款；
     /// ReloadBalance → Load 重缓存自然失效）。move_strategies 缓存解析后字典引用（只读消费）；
     /// telegraph_duration 的判型/下限钳制随缓存内聚（免 Spawner.QueueEnemy 每 spawn 判型）。</summary>
     private Godot.Collections.Dictionary _moveStrategies = new();
-    private double _speedRampFactor = 0.1;
     private double _aimMarkRatio = 0.25;
     private float _telegraphDuration = 0.6f;
 
@@ -46,13 +46,24 @@ public partial class BalanceService : RefCounted
                 && clr is Dictionary<string, object?> d
             ? d
             : new Dictionary<string, object?>();
-        // 缓存 ramp 因子（缺键回退脚本默认，与 cfg 语义一致）
-        _hpRampFactor = Cfg("enemies.hp_ramp_factor", 0.25).AsDouble();
-        _damageRampFactor = Cfg("enemies.damage_ramp_factor", 0.20).AsDouble();
+        // 缓存难度映射配置（缺键回退脚本默认，与 cfg 语义一致）。
+        // 上限类判型：≤0 视为「不设限/关闭」由 DifficultyScaling 内部兜底（速度上限除外——见 core 注释）
+        _scaling = new DifficultyScalingConfig
+        {
+            HpRampFactor = Cfg("enemies.hp_ramp_factor", _scaling.HpRampFactor).AsDouble(),
+            DamageRampFactor = Cfg("enemies.damage_ramp_factor", _scaling.DamageRampFactor).AsDouble(),
+            SpeedRampFactor = Cfg("enemies.speed_ramp_factor", _scaling.SpeedRampFactor).AsDouble(),
+            SpeedRampCap = Cfg("enemies.speed_ramp_cap", _scaling.SpeedRampCap).AsDouble(),
+            BossHpRampFactor = Cfg("boss.hp_ramp_factor", _scaling.BossHpRampFactor).AsDouble(),
+            SpawnDifficultyFactor = Cfg("spawner.difficulty_factor", _scaling.SpawnDifficultyFactor).AsDouble(),
+            WaveIntervalFloor = Cfg("spawner.interval_min", _scaling.WaveIntervalFloor).AsDouble(),
+            FireIntervalFloor = Cfg("enemies.fire_interval_floor", _scaling.FireIntervalFloor).AsDouble(),
+            ElitePerDifficulty = Cfg("spawner.elite_per_difficulty", _scaling.ElitePerDifficulty).AsDouble(),
+            EliteCountCap = Mathf.Max((int)Cfg("spawner.elite_count_cap", _scaling.EliteCountCap).AsInt64(), 1),
+        };
         // 每 spawn 热路径键同款缓存（默认值与调用点回退一致）
         var ms = Cfg("enemies.move_strategies", new Godot.Collections.Dictionary());
         _moveStrategies = ms.VariantType == Variant.Type.Dictionary ? ms.AsGodotDictionary() : new Godot.Collections.Dictionary();
-        _speedRampFactor = Cfg("enemies.speed_ramp_factor", 0.1).AsDouble();
         _aimMarkRatio = Cfg("player.aim_assist.mark_ratio", 0.25).AsDouble();
         // 判型 + 下限钳制（0/负值使预告线立即超时或 Timer 反向；坏值回退默认）
         var td = Cfg("spawner.telegraph_duration", SpawnTelegraph.GetDefaultDuration());
@@ -79,14 +90,24 @@ public partial class BalanceService : RefCounted
         return VariantBridge.ToVariant(PathResolver.Resolve(_tree, path, clr, kind));
     }
 
-    /// <summary>敌方 HP 本局进程 ramp：×(1 + hp_ramp_factor × (难度乘数 − 1))。</summary>
-    public double EnemyHpRamp(double difficultyMultiplier) => 1.0 + _hpRampFactor * (difficultyMultiplier - 1.0);
+    /// <summary>敌方 HP 本局进程 ramp（斜率与域钳在 core DifficultyScaling）。</summary>
+    public double EnemyHpRamp(double difficultyMultiplier) =>
+        DifficultyScaling.EnemyHpRamp(difficultyMultiplier, _scaling);
 
-    /// <summary>敌方伤害本局进程 ramp：×(1 + damage_ramp_factor × (难度乘数 − 1))。</summary>
-    public double EnemyDamageRamp(double difficultyMultiplier) => 1.0 + _damageRampFactor * (difficultyMultiplier - 1.0);
+    /// <summary>敌方伤害本局进程 ramp。</summary>
+    public double EnemyDamageRamp(double difficultyMultiplier) =>
+        DifficultyScaling.EnemyDamageRamp(difficultyMultiplier, _scaling);
 
-    /// <summary>敌方速度本局进程 ramp：×(1 + speed_ramp_factor × (难度乘数 − 1))（load 缓存；免每 spawn Cfg 全链路）。</summary>
-    public double EnemySpeedRamp(double difficultyMultiplier) => 1.0 + _speedRampFactor * (difficultyMultiplier - 1.0);
+    /// <summary>敌方速度 ramp（带硬上限；load 缓存，免每 spawn Cfg 全链路）。</summary>
+    public double EnemySpeedRamp(double difficultyMultiplier) =>
+        DifficultyScaling.EnemySpeedRamp(difficultyMultiplier, _scaling);
+
+    /// <summary>Boss HP ramp（斜率独立于杂兵，见 core）。</summary>
+    public double BossHpRamp(double difficultyMultiplier) =>
+        DifficultyScaling.BossHpRamp(difficultyMultiplier, _scaling);
+
+    /// <summary>难度映射配置快照（只读；Spawner/Enemy 侧区间/数量/地板查询用）。</summary>
+    public DifficultyScalingConfig Scaling() => _scaling;
 
     /// <summary>敌机移动策略参数表（load 缓存引用，只读消费；免每 spawn Cfg 深拷贝）。</summary>
     public Godot.Collections.Dictionary MoveStrategies() => _moveStrategies;

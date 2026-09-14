@@ -24,6 +24,12 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Milestones: score thresholds → talent points into the cache pool (no popup; §1.5).
 
 ### 1.4 Difficulty & Endless Curve
+- **难度映射单源**（2026-09-14 收口）：D → 各敌方量的斜率、上限与地板集中到 core `DifficultyScaling`（+ `DifficultyScalingConfig`），
+  服务层只注入配置。原先换算散在 `Enemy`/`Boss`/`Bullet`/`Spawner` 四处，曲线形状无法被断言。
+  现状取值：杂兵 HP 0.40 / 伤害 0.20 / 速度 0.10（**硬顶 ×1.8**）；**Boss HP 0.55（独立斜率，不再等于完整 D）**；
+  开火间隔随 D 缩短但保有 **1.2s 地板**；波次间隔走同一函数并保有 `interval_min` 地板；精英数量随 D 增长（每 2.0 D +1，上限 3）。
+- **时间项软上限**：`progression.soft_cap_start`(6.0) 之后时间项超出部分按 `tail_speed_factor`(0.5) 折减。
+  **D 仍无硬顶**（必死曲线为既定设计），只是让「挂机也会涨」的那条在软上限后放缓——必死点更多由打法而非挂机时长决定。
 **Endgame (D1)**: inevitable-death curve. 公式落地 `csharp/core/Progression/ProgressionCurves.cs` 与 `data/balance.json`。
 - `mult = 1 + progression.per_boss_kill(0.6) × boss_kills + time`. Time: quantized by `progression.time_step_seconds` (30s), + `progression.per_ten_minutes` (1.5)/10min → `floor(run_time/30) × 0.075`; counts live `run_time` only (tree-pause and non-run scenes excluded); quantization pins HUD/tests.
 - No hard cap. `RecomputeDifficulty()` unified (kill + time tier + save-restore); broadcasts `DifficultyChanged`.

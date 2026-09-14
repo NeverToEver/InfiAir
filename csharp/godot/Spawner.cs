@@ -362,14 +362,18 @@ public partial class Spawner : Node
         }
     }
 
-    /// <summary>精英波：占用特殊槽，ELITE_WAVE_SIZE 个精英均布入场；击杀触发休整。</summary>
+    /// <summary>精英波：占用特殊槽，精英数量随难度增派（每 elite_per_difficulty 点 D 加一只，
+    /// 钳上限）均布入场；击杀触发休整。数量判定在 core DifficultyScaling.EliteCount。</summary>
     private void SpawnEliteWaveInternal()
     {
         var view = GameState.Instance.ViewWorldRect();
-        for (var i = 0; i < ELITE_WAVE_SIZE; i++)
+        var count = Math.Max(
+            Core.Progression.DifficultyScaling.EliteCount(GameState.Instance.DifficultyMultiplier, GameState.Instance.Scaling()),
+            ELITE_WAVE_SIZE);
+        for (var i = 0; i < count; i++)
         {
             var config = ELITE_TYPES[(int)(GD.Randi() % (uint)ELITE_TYPES.Count)];
-            var x = SlotPos(view.Position.X + SpawnInsetX, view.Size.X - SpawnInsetX * 2, ELITE_WAVE_SIZE, i);
+            var x = SlotPos(view.Position.X + SpawnInsetX, view.Size.X - SpawnInsetX * 2, count, i);
             QueueEnemy(config, x, (float)GD.RandRange(view.Position.Y + _hoverBand.X, view.Position.Y + _hoverBand.Y), true);
         }
     }
@@ -616,9 +620,11 @@ public partial class Spawner : Node
     private float CurrentIntervalInternal()
     {
         var baseInterval = Mathf.Lerp(WAVE_INTERVAL_START, WAVE_INTERVAL_END, Mathf.Clamp(_elapsed / RAMP_TIME, 0.0f, 1.0f));
-        // 难度倍率：easy ×1.25（更疏）/ medium ×1 / hard ×0.8（更密）
-        var interval = baseInterval * (float)GameState.Instance.SpawnIntervalMultiplier()
-            / (1.0f + DIFFICULTY_FACTOR * ((float)GameState.Instance.DifficultyMultiplier - 1.0f));
+        // 难度倍率（档位乘区）先作用，再经 core 的难度项与地板（地板与斜率是单一事实源）
+        var interval = (float)Core.Progression.DifficultyScaling.WaveInterval(
+            baseInterval * GameState.Instance.SpawnIntervalMultiplier(),
+            GameState.Instance.DifficultyMultiplier,
+            GameState.Instance.Scaling());
         // DDA 降档拉长波次间隔（只拉间隔不降收益，分数公平）；
         // clamp 上界同步乘因子，避免拉长效果被上限吞掉
         return Mathf.Clamp(

@@ -290,7 +290,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
                 * (float)GameState.Instance.EnemyHpRamp(pDifficulty)));
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
-        FireInterval = (float)config.GetValueOrDefault("fire_interval", 2.2).AsDouble();
+        // 开火间隔随难度缩短但保有地板（密度可升、射速不得突破可反应下限）：
+        // 原实现完全不吃难度，后期弹幕「不更密但更痛」，与弹幕系加压方式相悖。
+        // 斜率/地板在 core DifficultyScaling；pDifficulty 保持调用方快照语义。
+        FireInterval = (float)Core.Progression.DifficultyScaling.FireInterval(
+            config.GetValueOrDefault("fire_interval", 2.2).AsDouble(), pDifficulty, GameState.Instance.Scaling());
         BulletType = pBulletType != NoBulletType
             ? pBulletType
             : PickConfiguredBulletType(config);
