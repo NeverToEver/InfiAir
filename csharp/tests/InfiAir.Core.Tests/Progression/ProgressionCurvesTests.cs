@@ -69,6 +69,44 @@ public sealed class ProgressionCurvesTests
     }
 
     [Fact]
+    public void Threshold_LargeIndexWithinIntDomain_ReturnsTrueValue()
+    {
+        // 平坦曲线（cycle_mult=1）不饱和：旧实现 MaxCycles=100_000 硬停会把 index=200_000 的门槛
+        // 静默截到第 100_001 圈（返回约一半的真值），里程碑因此提前触发——int 索引必须拿到真值。
+        Assert.Equal(1000L * 200001L, MilestoneCurve.Threshold(200000, new long[] { 1000 }, 1.0, 1.0));
+    }
+
+    [Fact]
+    public void Threshold_FlatCurveHugeIndex_DoesNotHang()
+    {
+        // 挂死保护：平坦曲线不饱和，逐圈推进在 int.MaxValue 索引上是 O(2^31) 的主线程挂死。
+        // 正确实现走闭式（O(1)）；退化回逐圈时本用例会超时而非静默给出错值。
+        Assert.Equal(
+            ((long)int.MaxValue * 1000L) + 1000L,
+            MilestoneCurve.Threshold(int.MaxValue, new long[] { 1000 }, 1.0, 1.0));
+    }
+
+    [Fact]
+    public void Threshold_ShrinkingMultiplier_ConvergesWithoutHanging()
+    {
+        // 异常配置（cycle_mult<1，生产已钳 ≥1.0）：pow 下溢到 0 后每圈贡献恒为 0，必须立即收束。
+        var t = MilestoneCurve.Threshold(int.MaxValue, new long[] { 1000, 2000 }, 0.5, 1.0);
+        Assert.True(t > 0);
+        Assert.Equal(MilestoneCurve.Threshold(5000, new long[] { 1000, 2000 }, 0.5, 1.0), t);
+    }
+
+    [Fact]
+    public void Compute_NaNRuntime_TreatedAsNoTimeProgress()
+    {
+        // NaN 使 runTime<=0 与 >1e6 皆假，(long)Math.Floor(NaN) 得 long.MinValue → 难度巨负。
+        // 前置 IsFinite：按无时间累进处理，只留 Boss 项。
+        Assert.Equal(2.2, DifficultyCurve.Compute(double.NaN, 30, 1.5, 0.6, 2), 12);
+        var t = DifficultyCurve.Compute(double.NaN, 30, 1.5, 1.0, 0);
+        Assert.True(double.IsFinite(t), $"NaN 运行时产出非有限值：{t}");
+        Assert.Equal(1.0, t, 12);
+    }
+
+    [Fact]
     public void Compute_ZeroRuntime_ReturnsBossTermOnly()
     {
         Assert.Equal(2.2, DifficultyCurve.Compute(0, 30, 1.5, 0.6, 2), 12);

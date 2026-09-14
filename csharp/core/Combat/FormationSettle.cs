@@ -16,10 +16,12 @@ public static class FormationSettle
     }
 
     /// <summary>分档判定：优先级 全数拦截 &gt; 全歼 &gt; 清除 &gt; 无。
-    /// intercepted &gt; dropped 属计数错乱，不按全数拦截计。</summary>
+    /// intercepted &gt; dropped 属计数错乱，不按全数拦截计。
+    /// 全数拦截附加 <c>total &gt; 0</c> 前置：空遭遇（0/0/0/0）或计数错乱（有弹无编队机）会让
+    /// <c>alive == total</c> 恒真，凭空洞真值白拿最高档奖励与专属台词。</summary>
     public static Tier Verdict(int dropped, int intercepted, int alive, int total, bool allClear)
     {
-        if (dropped > 0 && intercepted == dropped && alive == total)
+        if (total > 0 && dropped > 0 && intercepted == dropped && alive == total)
         {
             return Tier.InterceptBonus;
         }

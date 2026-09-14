@@ -73,4 +73,25 @@ public sealed class StickShaperTests
         var (x, _) = StickShaper.Shape(-1.0f, 0.0f, 0.2f, 1.0f);
         Assert.Equal(-1.0f, x, 3);
     }
+
+    [Fact]
+    public void Shape_NonFiniteInput_IsZero()
+    {
+        // NaN/±∞ 会让归一化 x/len 得 NaN（∞/∞ 或 NaN/NaN），输出直接灌进机体位置。
+        Assert.Equal((0.0f, 0.0f), StickShaper.Shape(float.NaN, 0.0f, 0.2f, 1.0f));
+        Assert.Equal((0.0f, 0.0f), StickShaper.Shape(0.0f, float.NaN, 0.2f, 1.0f));
+        Assert.Equal((0.0f, 0.0f), StickShaper.Shape(float.PositiveInfinity, 0.0f, 0.2f, 1.0f));
+        Assert.Equal((0.0f, 0.0f), StickShaper.Shape(float.NegativeInfinity, 0.0f, 0.2f, 1.0f));
+    }
+
+    [Fact]
+    public void Shape_NonFiniteTuning_FallsBackToSafeValues()
+    {
+        // 死区/指数来自设置（手改 settings.json 可写坏）：NaN 死区与 NaN 指数都会让输出为 NaN，
+        // 须各自回退安全值（死区 0 = 不吞输入，指数 1 = 线性）。
+        var (x, y) = StickShaper.Shape(0.5f, 0.0f, float.NaN, float.NaN);
+        Assert.True(float.IsFinite(x) && float.IsFinite(y), $"非有限输出：({x}, {y})");
+        Assert.Equal(0.5f / 0.98f, x, 3);
+        Assert.Equal(0.0f, y);
+    }
 }

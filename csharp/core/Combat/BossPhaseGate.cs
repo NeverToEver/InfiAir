@@ -28,25 +28,33 @@ public static class BossPhaseGate
     /// 狂暴线由 <paramref name="maxHp"/> × <paramref name="ratio"/> 给出。</summary>
     public static bool ShouldEnrage(double hp, double maxHp, double ratio, bool alreadyEnraged)
     {
-        if (alreadyEnraged || !double.IsFinite(hp) || hp <= 0.0)
+        if (alreadyEnraged)
         {
             return false;
         }
 
-        if (!double.IsFinite(maxHp) || maxHp <= 0.0)
-        {
-            return false;
-        }
-
-        var line = maxHp * (double.IsFinite(ratio) && ratio > 0.0 ? ratio : 0.0);
-        return hp <= line;
+        return BelowLine(hp, maxHp, ratio);
     }
 
     /// <summary>是否应转入二阶段：仍在一阶段、已进入存活域、且血量不高于二阶段线。
     /// 与狂暴判定同源（单发跨双线时由调用方先转阶段再判狂暴）。</summary>
     public static bool ShouldEnterPhase2(double hp, double maxHp, double ratio, bool inPhase1)
     {
-        if (!inPhase1 || !double.IsFinite(hp) || hp <= 0.0)
+        if (!inPhase1)
+        {
+            return false;
+        }
+
+        return BelowLine(hp, maxHp, ratio);
+    }
+
+    /// <summary>血量是否已跌到「maxHp × ratio」这条线（含线上）。两条门控线共用本判定——
+    /// 原先两处各抄一遍，改一处漏一处会让阶段线与狂暴线静默分叉。
+    /// 存活域前置（hp&gt;0）：已死（含致死一击）不触发任何转场；线为 0（上限/比例非法）时 hp≤0 才命中，
+    /// 而存活域已排除，故非法参数天然不触发。</summary>
+    private static bool BelowLine(double hp, double maxHp, double ratio)
+    {
+        if (!double.IsFinite(hp) || hp <= 0.0)
         {
             return false;
         }

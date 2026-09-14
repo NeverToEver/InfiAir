@@ -5,6 +5,10 @@ namespace InfiAir.Core.Config;
 /// <see cref="PathResolver.Resolve(IReadOnlyDictionary{string, object?}, string, object?, ValueKind)"/>
 /// 的 <c>typeof(node) == typeof(default)</c> 判定据此进行——绑定壳在转换 Variant 时
 /// 一并给出类型标签，避免 StringName 等类型在 CLR 转换后丢失区分度。
+///
+/// <see cref="StringName"/> 与 <see cref="Other"/> 在 CLR JSON 兼容树里无法表示对应值：
+/// StringName 值经绑定时退化为 string（与 String 无区分度），Other 无判型分支。
+/// 两者一律回退默认值，不参与原样透传。
 /// </summary>
 public enum ValueKind
 {
@@ -45,7 +49,9 @@ public static class PathResolver
             }
         }
 
-        // 数值宽容：JSON 整数/浮点互通；按 default 类型显式转换（GDScript int()/float() 语义）
+        // 数值宽容：JSON 整数/浮点互通；按 default 类型显式转换（GDScript int()/float() 语义）。
+        // 非有限（NaN/±∞，JSON 溢出 1e999 或手改数据）一律回退默认值：透传 ±∞ 会污染下游数值，
+        // 而 unchecked((long)d) 对 NaN/越界 double 折成 long.MinValue（不是默认值）。
         if (kind is ValueKind.Int or ValueKind.Float)
         {
             if (node is long or double)
@@ -54,10 +60,10 @@ public static class PathResolver
                 // GDScript int 默认 + int 节点应原样返回 int——数值类型语义差异）
                 if (kind == ValueKind.Int)
                 {
-                    return ToInt(node);
+                    return ToInt(node, defaultValue);
                 }
 
-                return ToDouble(node);
+                return ToDouble(node, defaultValue);
             }
 
             return defaultValue;
@@ -93,25 +99,36 @@ public static class PathResolver
         return defaultValue;
     }
 
-    /// <summary>GDScript int() 语义：float → 向零截断（JSON 数值域内安全，unchecked 防越界 UB）。</summary>
-    private static long ToInt(object? node)
+    /// <summary>GDScript int() 语义：float → 向零截断。
+    /// NaN/±∞ 与超出 long 域的 double 回退 <paramref name="defaultValue"/>——
+    /// 旧实现的 unchecked((long)d) 对这类输入折成 long.MinValue，把「缺省」伪装成一个极端有效值。</summary>
+    private static object? ToInt(object? node, object? defaultValue)
+    {
+        switch (node)
+        {
+            case long l:
+                return l;
+            case double d when double.IsFinite(d) && d >= LongMinAsDouble && d < LongMaxExclusiveAsDouble:
+                return (long)d;
+            default:
+                return defaultValue;
+        }
+    }
+
+    /// <summary>GDScript float() 语义：int → 拓宽为 double；NaN/±∞ 回退 <paramref name="defaultValue"/>。</summary>
+    private static object? ToDouble(object? node, object? defaultValue)
     {
         return node switch
         {
-            long l => l,
-            double d => unchecked((long)d),
-            _ => 0,
+            long l => (double)l,
+            double d when double.IsFinite(d) => d,
+            _ => defaultValue,
         };
     }
 
-    /// <summary>GDScript float() 语义：int → 拓宽为 double。</summary>
-    private static double ToDouble(object? node)
-    {
-        return node switch
-        {
-            long l => l,
-            double d => d,
-            _ => 0,
-        };
-    }
+    /// <summary>long.MinValue 的 double 表示（-2^63，精确可表示）——cast 安全下界。</summary>
+    private const double LongMinAsDouble = -9223372036854775808.0;
+
+    /// <summary>2^63（long.MaxValue + 1，精确可表示）——开区间上界，越过即越界。</summary>
+    private const double LongMaxExclusiveAsDouble = 9223372036854775808.0;
 }

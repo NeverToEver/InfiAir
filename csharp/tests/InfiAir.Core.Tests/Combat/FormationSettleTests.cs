@@ -62,4 +62,13 @@ public sealed class FormationSettleTests
         // 计数错乱的防御分支：拦截数超过投出数不得判全数拦截
         Assert.Equal(FormationSettle.Tier.Clear, FormationSettle.Verdict(3, 4, 5, 5, false));
     }
+
+    [Fact]
+    public void Verdict_ZeroTotal_IsNotInterceptBonus()
+    {
+        // total=0 时 alive==total 恒真：空遭遇（0/0/0/0）与计数错乱（投了弹却没有编队机）都不得
+        // 靠「一架未坠」的空洞真值拿到最高档奖励。
+        Assert.Equal(FormationSettle.Tier.None, FormationSettle.Verdict(0, 0, 0, 0, false));
+        Assert.NotEqual(FormationSettle.Tier.InterceptBonus, FormationSettle.Verdict(3, 3, 0, 0, false));
+    }
 }

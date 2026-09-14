@@ -60,36 +60,24 @@ public sealed class DifficultyScalingConfig
 /// </summary>
 public static class DifficultyScaling
 {
-    /// <summary>线性 ramp：×(1 + factor×(D−1))（D ≤ 1 时为 1.0，不反向削弱）。</summary>
-    private static double Ramp(double difficulty, double factor)
-    {
-        if (!double.IsFinite(difficulty) || !double.IsFinite(factor) || factor <= 0.0)
-        {
-            return 1.0;
-        }
-
-        var d = difficulty <= 1.0 ? 1.0 : difficulty;
-        return 1.0 + factor * (d - 1.0);
-    }
-
     /// <summary>杂兵/精英 HP 乘区。</summary>
     public static double EnemyHpRamp(double difficulty, DifficultyScalingConfig cfg) =>
-        Ramp(difficulty, cfg.HpRampFactor);
+        DifficultyRamp.Linear(difficulty, cfg.HpRampFactor);
 
     /// <summary>全部敌方伤害乘区。</summary>
     public static double EnemyDamageRamp(double difficulty, DifficultyScalingConfig cfg) =>
-        Ramp(difficulty, cfg.DamageRampFactor);
+        DifficultyRamp.Linear(difficulty, cfg.DamageRampFactor);
 
     /// <summary>杂兵/精英速度乘区（带上限）。</summary>
     public static double EnemySpeedRamp(double difficulty, DifficultyScalingConfig cfg)
     {
-        var ramp = Ramp(difficulty, cfg.SpeedRampFactor);
+        var ramp = DifficultyRamp.Linear(difficulty, cfg.SpeedRampFactor);
         return cfg.SpeedRampCap > 0.0 ? Math.Min(ramp, Math.Max(cfg.SpeedRampCap, 1.0)) : ramp;
     }
 
     /// <summary>Boss HP 乘区（斜率独立于杂兵；原实现等价 factor=1.0）。</summary>
     public static double BossHpRamp(double difficulty, DifficultyScalingConfig cfg) =>
-        Ramp(difficulty, cfg.BossHpRampFactor);
+        DifficultyRamp.Linear(difficulty, cfg.BossHpRampFactor);
 
     /// <summary>Boss HP 绝对值：hp_base × 类型倍率 × 难度档倍率 × Boss ramp。</summary>
     public static double BossHp(double hpBase, double typeMult, double tierMult, double difficulty, DifficultyScalingConfig cfg) =>
@@ -104,7 +92,7 @@ public static class DifficultyScaling
             return floor;
         }
 
-        var divisor = Ramp(difficulty, cfg.SpawnDifficultyFactor);
+        var divisor = DifficultyRamp.Linear(difficulty, cfg.SpawnDifficultyFactor);
         var interval = baseInterval / (divisor > 0.0 ? divisor : 1.0);
         return interval < floor ? floor : interval;
     }
@@ -118,7 +106,7 @@ public static class DifficultyScaling
             return floor;
         }
 
-        var divisor = Ramp(difficulty, cfg.SpawnDifficultyFactor);
+        var divisor = DifficultyRamp.Linear(difficulty, cfg.SpawnDifficultyFactor);
         var interval = baseInterval / (divisor > 0.0 ? divisor : 1.0);
         return interval < floor ? floor : interval;
     }

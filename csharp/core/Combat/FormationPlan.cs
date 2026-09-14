@@ -89,6 +89,12 @@ public static class FormationPlan
         return rank;
     }
 
+    /// <summary>投弹时刻表元素总数上限。乘法在 long 域判定后才分配——
+    /// int 相乘溢出成负数会让 <c>new float[count]</c> 抛异常击穿事件启动（无头冒烟只判退出码，
+    /// 真机上是遭遇事件一开就崩）。正常配置量级为「波次 × 机数 × 每机弹数」两位数到三位数，
+    /// 越界按拒绝（返回空表）处理。</summary>
+    public const int MaxScheduleElements = 100_000;
+
     /// <summary>投弹时刻表：波次外层 × 槽位内层 × 每机连投，逐项以 (时刻, 生成序) 排序后输出。
     /// 生成序作第二键，使等距/等时刻的条目顺序与配置和排序实现无关。
     /// 波次数/每机弹数 ≤0 时返回空表（调用侧的域钳已排除，这里只保证不产生空转或负时长）。</summary>
@@ -100,10 +106,30 @@ public static class FormationPlan
             return DropSchedule.Empty;
         }
 
-        var count = batches * rank.Length * bombsPerCraft;
-        var times = new float[count];
-        var crafts = new int[count];
-        var seq = new int[count];
+        // 每个因子先各自与上限比较，再 long 域逐次相乘——三个 int 直接相乘即使在 long 域
+        // 也可能溢出（int.MaxValue³ ≈ 1e28 ≫ long.MaxValue），溢出成负会绕过上限检查。
+        if (batches > MaxScheduleElements || rank.Length > MaxScheduleElements
+            || bombsPerCraft > MaxScheduleElements)
+        {
+            return DropSchedule.Empty;
+        }
+
+        var count = (long)batches * rank.Length;
+        if (count > MaxScheduleElements)
+        {
+            return DropSchedule.Empty;
+        }
+
+        count *= bombsPerCraft;
+        if (count > MaxScheduleElements)
+        {
+            return DropSchedule.Empty;
+        }
+
+        var total = (int)count;
+        var times = new float[total];
+        var crafts = new int[total];
+        var seq = new int[total];
         var cursor = 0;
         for (var b = 0; b < batches; b++)
         {
@@ -124,9 +150,9 @@ public static class FormationPlan
             var cmp = times[a].CompareTo(times[b]);
             return cmp != 0 ? cmp : a.CompareTo(b);
         });
-        var sortedTimes = new float[count];
-        var sortedCrafts = new int[count];
-        for (var i = 0; i < count; i++)
+        var sortedTimes = new float[total];
+        var sortedCrafts = new int[total];
+        for (var i = 0; i < total; i++)
         {
             sortedTimes[i] = times[seq[i]];
             sortedCrafts[i] = crafts[seq[i]];

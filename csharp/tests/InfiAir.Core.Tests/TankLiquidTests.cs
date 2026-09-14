@@ -88,6 +88,18 @@ public sealed class TankLiquidTests
     }
 
     [Fact]
+    public void Amplitude_NonFiniteLevelOrRatio_StaysFinite()
+    {
+        // 液位来自燃料读数（可被 NaN 污染）：Clamp01 对 NaN 原样放行 → 波幅 NaN →
+        // 填充多边形顶点 NaN/自交，Godot 三角化整块失败且静默不画。非有限一律按 0 液位处理。
+        Assert.Equal(0.0f, TankLiquid.WaveAmplitude(InnerHeight, float.NaN, BaseAmpRatio));
+        Assert.Equal(0.0f, TankLiquid.WaveAmplitude(InnerHeight, float.NaN, SloshAmpRatio));
+        Assert.True(float.IsFinite(TankLiquid.WaveAmplitude(InnerHeight, 0.5f, float.NaN)));
+        Assert.True(float.IsFinite(TankLiquid.WaveAmplitude(InnerHeight, 0.5f, float.PositiveInfinity)));
+        Assert.True(float.IsFinite(TankLiquid.WaveAmplitude(float.NaN, 0.5f, BaseAmpRatio)));
+    }
+
+    [Fact]
     public void HasDrawableFill_RejectsDegenerateLayer()
     {
         // 见底附近：液层薄到不能安全三角化，调用方只画液面线。

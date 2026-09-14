@@ -14,8 +14,10 @@ public static class MilestoneCurve
     /// <summary>里程碑批量推进的档数上限（while 逐档推进的挂死守卫，超限直接 break）。</summary>
     public const int MaxIterations = 10000;
 
-    /// <summary>逐圈推进的硬上限（tamper 存档可传入巨 milestone_count，见 <see cref="Threshold"/>）。</summary>
-    private const int MaxCycles = 100_000;
+    /// <summary>逐圈推进的硬上限（非有限倍率等不收敛输入的最后兜底，见 <see cref="Threshold"/>）。
+    /// 取 int.MaxValue：int 索引的 cycle 恒 ≤ int.MaxValue（baseThresholds 至少 1 项），
+    /// 故合法 int 调用者永不被截断；旧值 100_000 会把平坦曲线的大 index 门槛静默截到约一半。</summary>
+    private const int MaxCycles = int.MaxValue;
 
     /// <summary>pow 指数增长的上限（1e15）与 int64 饱和判定阈值。</summary>
     private const double PowClamp = 1e15;
@@ -32,14 +34,44 @@ public static class MilestoneCurve
         {
             return 0;
         }
+
+        // 非有限倍率是 Math.Pow / 饱和判定的失控输入（NaN 参与比较恒假，循环永不早退）：
+        // 视作 1.0=不放大（调用方本应域钳，此处自兜一层，保住下方的挂死保护）。
+        if (!double.IsFinite(cycleMultiplier) || cycleMultiplier <= 0.0)
+        {
+            cycleMultiplier = 1.0;
+        }
+
+        if (!double.IsFinite(difficultyMultiplier))
+        {
+            difficultyMultiplier = 1.0;
+        }
+
         int idx = Math.Max(index, 0);
         int cycle = idx / n;
         int step = idx % n;
+
+        // 平坦曲线（cycle_mult == 1）闭式求值：每圈贡献恒为表末值 b[n-1]（内层累加即 b[lastStep]×mult），
+        // 故 total = cycle×b[n-1] + b[step]。必须闭式，不能逐圈——手改存档可把 milestone_count 顶到
+        // int.MaxValue，平坦曲线不饱和，逐圈是 O(index) 的主线程挂死。long 溢出由 double 域 + ToInt64 兜住。
+        if (cycleMultiplier == 1.0)
+        {
+            double flat = ((double)cycle * baseThresholds[n - 1]) + baseThresholds[step];
+            return ToInt64(flat * difficultyMultiplier);
+        }
+
         double total = 0.0;
         for (int c = 0; c <= cycle; c++)
         {
             // cycle_mult>1 时 pow 指数增长，极大 cycle 溢出至 inf——必须钳至有限值（1e15）
             double mult = Math.Min(Math.Pow(cycleMultiplier, c), PowClamp);
+
+            // 收缩曲线（cycle_mult<1，异常配置）：pow 下溢到 0 后每圈贡献恒为 0，立即收束，结果与跑完等价。
+            if (mult <= 0.0)
+            {
+                break;
+            }
+
             int lastStep = c == cycle ? step : n - 1;
             double prev = 0.0;
             for (int i = 0; i <= lastStep; i++)
@@ -56,8 +88,8 @@ public static class MilestoneCurve
                 break;
             }
 
-            // 绝对圈数兜底：cycleMultiplier ≤ 1 或阈值表非单调时曲线不饱和，逐圈仍是 O(index)，
-            // 必须硬停（停在曲线上限处，属 tamper 输入的取值钳制）。
+            // 绝对圈数兜底（挂死保护）：上限取 int.MaxValue，int 索引的 cycle 恒 ≤ int.MaxValue，
+            // 故合法调用者永不被截断；此处理论上只兜「表全零且 cycle_mult>1」这类不产生增量的退化配置。
             if (c >= MaxCycles)
             {
                 break;
@@ -93,40 +125,5 @@ public static class MilestoneCurve
             return long.MinValue;
         }
         return (long)Math.Round(value, MidpointRounding.AwayFromZero);
-    }
-}
-
-/// <summary>
-/// 难度乘数本局进程曲线核心：
-/// 1 + perBossKill×Boss击杀 + 时间轴累进（每 timeStepSeconds 量化一档，每 10 分钟 +perTenMinutes）。
-/// 纯函数：输入即输出，零 Godot 依赖可独立单测；与引擎 64 位浮点表达式运算顺序逐位一致。
-/// </summary>
-public static class DifficultyCurve
-{
-    /// <summary>返回新难度乘数（是否变化由调用方 is_equal_approx 判定，与本函数无关）。</summary>
-    public static double Compute(
-        double runTime, double timeStepSeconds, double perTenMinutes, double perBossKill, int bossKills)
-    {
-        // 0/负值钳制——负 runTime 使 step 为负、难度乘数反向下降；
-        // 巨值防御——(long)Math.Floor 对超大 double 为未定义转换（实践得 long.MinValue），
-        // 使难度乘数巨负击穿「单调不减」防线；1e6 秒 ≈ 11.6 天远超合理本局时长
-        if (runTime <= 0.0)
-        {
-            return 1.0 + perBossKill * bossKills;
-        }
-        if (runTime > 1e6)
-        {
-            runTime = 1e6;
-        }
-
-        if (timeStepSeconds <= 0.0 || !double.IsFinite(timeStepSeconds))
-        {
-            // 量化步长非正时时间项无定义（除零 → inf，double→long 转换越界）：
-            // 视作无时间累进，只留 Boss 项（调用方本应域钳，此处自兜一层）
-            return 1.0 + perBossKill * bossKills;
-        }
-
-        long step = (long)Math.Floor(runTime / timeStepSeconds);
-        return 1.0 + perBossKill * bossKills + step * timeStepSeconds / 600.0 * perTenMinutes;
     }
 }

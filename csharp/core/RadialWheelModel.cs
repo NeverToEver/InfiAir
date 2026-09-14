@@ -72,11 +72,33 @@ public sealed class RadialWheelModel
     public double FadeDeg { get; init; } = 18.0;
 
     /// <summary>全容弧面时的焦点偏移（槽位）：选项全部可见时 EffectiveScroll 钳在居中、
-    /// 滚动位失效，键盘/滚轮改驱动本偏移移动聚焦项（展示层 focused 高亮跟随 FocusedIndex）。</summary>
+    /// 滚动位失效，键盘/滚轮改驱动本偏移移动聚焦项（展示层 focused 高亮跟随 FocusedIndex）。
+    /// 偏移保持有界（钳 [0, n-1] 相对基准槽）——只累加不钳会让漂移攒进偏移里，
+    /// 随后 <see cref="SetFocus"/> 的绝对定位被历史漂移吃掉、焦点静默停错项。</summary>
     public int FocusBias { get; private set; }
 
-    /// <summary>聚焦项偏移一步（钳制在首末项；仅全容态有意义，调用方负责分流）。</summary>
-    public void MoveFocus(int delta) => FocusBias += delta;
+    /// <summary>聚焦项偏移一步（钳制在 [0, n-1] 相对基准槽；仅全容态有意义，调用方负责分流）。</summary>
+    public void MoveFocus(int delta)
+    {
+        var n = Top.Options.Count;
+        var min = -BaseIndex;
+        var max = n - 1 - BaseIndex;
+        FocusBias = Math.Clamp(FocusBias + delta, min, max);
+    }
+
+    /// <summary>绝对聚焦到第 <paramref name="index"/> 项（越界忽略，保持当前焦点不变）。
+    /// 与 <see cref="MoveFocus"/> 增量语义互补：开页初始聚焦用本接口，
+    /// 不得再自行算增量——漂移后增量会被有界偏移吃掉。</summary>
+    public void SetFocus(int index)
+    {
+        var n = Top.Options.Count;
+        if (index < 0 || index >= n)
+        {
+            return;
+        }
+
+        FocusBias = index - BaseIndex;
+    }
 
     public int Depth => _stack.Count;
 
@@ -101,13 +123,16 @@ public sealed class RadialWheelModel
         }
     }
 
+    /// <summary>基准槽（弧面中点，四舍五入到最近槽；.5 远离零）：焦点 = 本槽 + <see cref="FocusBias"/>。</summary>
+    private int BaseIndex => (int)Math.Round(EffectiveScroll, MidpointRounding.AwayFromZero);
+
     /// <summary>弧面中点聚焦项（四舍五入到最近槽；.5 远离零）。</summary>
     public int FocusedIndex
     {
         get
         {
             var n = Top.Options.Count;
-            return Math.Clamp((int)Math.Round(EffectiveScroll, MidpointRounding.AwayFromZero) + FocusBias, 0, n - 1);
+            return Math.Clamp(BaseIndex + FocusBias, 0, n - 1);
         }
     }
 
@@ -197,24 +222,24 @@ public sealed class RadialWheelModel
     /// <summary>bounce ease-out（overshoot 后回落），轮盘收缩/回弹的统一缓动。t 需在 [0,1]。</summary>
     public static double BounceOut(double t)
     {
-        const double n1 = 7.5625;
-        const double d1 = 2.75;
-        if (t < 1.0 / d1)
+        const double N1 = 7.5625;
+        const double D1 = 2.75;
+        if (t < 1.0 / D1)
         {
-            return n1 * t * t;
+            return N1 * t * t;
         }
 
-        if (t < 2.0 / d1)
+        if (t < 2.0 / D1)
         {
-            return n1 * (t -= 1.5 / d1) * t + 0.75;
+            return N1 * (t -= 1.5 / D1) * t + 0.75;
         }
 
-        if (t < 2.5 / d1)
+        if (t < 2.5 / D1)
         {
-            return n1 * (t -= 2.25 / d1) * t + 0.9375;
+            return N1 * (t -= 2.25 / D1) * t + 0.9375;
         }
 
-        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+        return N1 * (t -= 2.625 / D1) * t + 0.984375;
     }
 
     /// <summary>ease-out cubic：淡入/吸附等次级动效。</summary>
@@ -223,9 +248,9 @@ public sealed class RadialWheelModel
     /// <summary>ease-out back（轻微过冲后回落到 1，峰值 ≈1.1）：卡片开机部署等需要弹性的入场。</summary>
     public static double EaseOutBack(double t)
     {
-        const double c1 = 1.70158;
-        const double c3 = c1 + 1.0;
+        const double C1 = 1.70158;
+        const double C3 = C1 + 1.0;
         var x = Math.Clamp(t, 0.0, 1.0) - 1.0;
-        return 1.0 + c3 * x * x * x + c1 * x * x;
+        return 1.0 + C3 * x * x * x + C1 * x * x;
     }
 }

@@ -130,6 +130,62 @@ public sealed class RadialWheelModelTests
     }
 
     [Fact]
+    public void MoveFocus_AfterDrift_AbsoluteFocusLandsOnTarget()
+    {
+        // 绝对定位语义（引擎层 FocusOption）：漂移后必须还能精确停到第 n 项。
+        // FocusBias 若只累加不钳，漂移量会攒在偏移里，随后的补偿差值被历史漂移吃掉，
+        // 焦点静默停错项（玩家看到「点了没反应」）。
+        var wheel = Flat(4); // 基准槽 2
+        wheel.MoveFocus(10);  // 漂到右端
+        Assert.Equal(3, wheel.FocusedIndex);
+
+        wheel.SetFocus(0);
+        Assert.Equal(0, wheel.FocusedIndex);
+        Assert.Equal("r0", wheel.FocusedOption!.Id);
+
+        wheel.MoveFocus(10); // 再漂一次
+        wheel.SetFocus(2);
+        Assert.Equal(2, wheel.FocusedIndex);
+        Assert.Equal("r2", wheel.FocusedOption!.Id);
+
+        // 越界目标不改动焦点（不得静默钳到端点造成误触发）
+        wheel.SetFocus(99);
+        Assert.Equal(2, wheel.FocusedIndex);
+        wheel.SetFocus(-1);
+        Assert.Equal(2, wheel.FocusedIndex);
+    }
+
+    [Fact]
+    public void MoveFocus_IncrementalDelta_AfterDriftStillReachesTarget()
+    {
+        // 引擎层 FocusOption 的既有实现是 MoveFocus(target − FocusedIndex)：偏移有界后
+        // 该增量式仍须落到目标（避免接线期间行为分叉）。
+        var wheel = Flat(4);
+        wheel.MoveFocus(10);
+        wheel.MoveFocus(0 - wheel.FocusedIndex);
+        Assert.Equal(0, wheel.FocusedIndex);
+
+        wheel.MoveFocus(2 - wheel.FocusedIndex);
+        Assert.Equal(2, wheel.FocusedIndex);
+    }
+
+    [Fact]
+    public void FocusBias_StaysBoundedAcrossRepeatedMoves()
+    {
+        // 有界性是绝对定位可用的前提：连续同向步进不得让偏移无限增长
+        var wheel = Flat(4);
+        for (var i = 0; i < 50; i++)
+        {
+            wheel.MoveFocus(1);
+        }
+
+        Assert.True(wheel.FocusBias <= wheel.OptionCount, $"焦点偏移越界：{wheel.FocusBias}");
+        Assert.Equal(3, wheel.FocusedIndex);
+        wheel.SetFocus(0);
+        Assert.Equal(0, wheel.FocusedIndex);
+    }
+
+    [Fact]
     public void AngleOf_IndexMinusEffectiveScrollTimesSlot()
     {
         var wheel = Flat(6);

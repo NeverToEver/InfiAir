@@ -163,6 +163,53 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
+    public void Cache_SpendZeroOrNegative_IsRejectedWithoutRecovery()
+    {
+        // cost<=0 是空转花费：旧实现走完扣减循环（零次）后仍触发正向回补，Effective 白涨——
+        // 花 0 点就能抬高有效点数，破坏「Spend 不得抬高 Effective」。
+        var cache = new TalentCache(PositiveConfig());
+        cache.Grant(5); // 值 [1,1,1,0.5,0.1]，Effective 3.6
+        var before = cache.Effective;
+
+        Assert.False(cache.Spend(0.0));
+        Assert.False(cache.Spend(-1.0));
+        Assert.Equal(before, cache.Effective, 12);
+    }
+
+    [Fact]
+    public void Cache_SpendNeverRaisesEffective()
+    {
+        // 不变量：任何 cost 下花费后有效点数不得上升（回补只能把「已扣剩的」点朝 1 抬，
+        // 且被扣掉的量必须不小于回补量）。旧实现下 Spend(0.0) 即红。
+        var cache = new TalentCache(PositiveConfig());
+        cache.Grant(5);
+        foreach (var cost in new[] { 0.0, 0.1, 0.5, 1.0, 2.0, 10.0 })
+        {
+            var before = cache.Effective;
+            cache.Spend(cost);
+            Assert.True(
+                cache.Effective <= before + 1e-9,
+                $"Spend({cost}) 抬高了有效点数：{before} → {cache.Effective}");
+        }
+    }
+
+    [Fact]
+    public void Cache_NegativeSafeThreshold_TreatedAsZeroStartAndDoesNotThrow()
+    {
+        // 手改配置/坏档可能给出负安全阈值：直接拿它当数组下标会抛 IndexOutOfRangeException
+        // 击穿入账路径。负值视作 0 起点（缓存第 i 点按衰减深度 i+1 处理）。
+        var config = CacheConfig();
+        config.SafeThreshold = -5;
+        var cache = new TalentCache(config);
+
+        cache.Grant(3);
+
+        Assert.Equal(3, cache.Raw);
+        // 深度 1/2/3 → cap 0.5 / max(0.1, 0) / max(0.1, -0.5) = 0.5 + 0.1 + 0.1
+        Assert.Equal(0.7, cache.Effective, 12);
+    }
+
+    [Fact]
     public void CostForLevel_IncrementsLinearly()
     {
         var config = new TalentConfig();

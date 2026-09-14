@@ -20,7 +20,8 @@ public static class TankLiquid
     public const float MinDrawableHeightPx = 2.0f;
 
     /// <summary>液面波幅（px）。want = 内腔高 × 幅度比例；但不得超过液层厚度与液位上方余量的较小者——
-    /// 前者保证波谷不越过内腔底（防自交、防整块不画），后者保证波峰不越过内腔顶（防绘制溢出内腔）。</summary>
+    /// 前者保证波谷不越过内腔底（防自交、防整块不画），后者保证波峰不越过内腔顶（防绘制溢出内腔）。
+    /// 非有限输入（NaN/±∞）回退安全值：NaN 液位/比例会让波幅为 NaN，填充多边形顶点随即非法。</summary>
     public static float WaveAmplitude(float innerHeightPx, float levelRatio, float amplitudeRatio)
     {
         var height = heightOf(innerHeightPx);
@@ -28,7 +29,8 @@ public static class TankLiquid
         var fill = height * level;
         var headroom = height * (1.0f - level);
         var room = fill < headroom ? fill : headroom;
-        var want = height * (amplitudeRatio > 0.0f ? amplitudeRatio : 0.0f);
+        var ratio = float.IsFinite(amplitudeRatio) ? amplitudeRatio : 0.0f;
+        var want = height * (ratio > 0.0f ? ratio : 0.0f);
         return want < room ? want : room;
     }
 
@@ -36,7 +38,18 @@ public static class TankLiquid
     public static bool HasDrawableFill(float innerHeightPx, float levelRatio)
         => heightOf(innerHeightPx) * Clamp01(levelRatio) >= MinDrawableHeightPx;
 
-    private static float heightOf(float innerHeightPx) => innerHeightPx > 0.0f ? innerHeightPx : 0.0f;
+    private static float heightOf(float innerHeightPx)
+        => float.IsFinite(innerHeightPx) && innerHeightPx > 0.0f ? innerHeightPx : 0.0f;
 
-    private static float Clamp01(float value) => value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+    /// <summary>钳 [0,1]；非有限（NaN/±∞）按 0 处理——NaN 通过与 0/1 的比较恒假，
+    /// 原样放行会让液位与波幅变 NaN。</summary>
+    private static float Clamp01(float value)
+    {
+        if (!float.IsFinite(value) || value < 0.0f)
+        {
+            return 0.0f;
+        }
+
+        return value > 1.0f ? 1.0f : value;
+    }
 }

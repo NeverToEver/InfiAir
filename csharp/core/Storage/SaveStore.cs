@@ -3,24 +3,35 @@ using System.Text.Json.Nodes;
 
 namespace InfiAir.Core.Storage;
 
-/// <summary>加载结果状态（三态：缺失/正常/损坏隔离）。</summary>
+/// <summary>加载结果状态（四态：缺失/正常/损坏隔离/不可读）。</summary>
 public enum SaveLoadStatus
 {
-    /// <summary>文件不存在或读取失败（不置损坏——打不开按无存档处理）。</summary>
+    /// <summary>文件确实不存在（按无存档处理）。</summary>
     Missing,
 
     /// <summary>JSON 解析成功且根为对象。</summary>
     Ok,
 
-    /// <summary>解析失败或根非对象：已隔离为 &lt;path&gt;.corrupt 并按无存档处理。</summary>
+    /// <summary>解析失败 / 根非对象 / 超过大小上限：已隔离为 &lt;path&gt;.corrupt 并按无存档处理。</summary>
     Corrupt,
+
+    /// <summary>IO / 权限 / 被占用导致读不出内容——**不得**当成无存档：
+    /// 旧档可能只是暂时打不开，按无档处理会让上层把玩家进度覆盖成全新一局。</summary>
+    Unreadable,
 }
 
-/// <summary>加载结果（Tree 仅 Ok 时非空；QuarantineError 为隔离失败时的警告信息）。</summary>
+/// <summary>加载结果（Tree 仅 Ok 时非空；QuarantineError 为隔离失败时的警告信息，
+/// Error 为 Unreadable 的 IO/权限原因）。</summary>
 public sealed record SaveLoadResult(
     SaveLoadStatus Status, Dictionary<string, object?>? Tree, string? QuarantineError)
 {
+    /// <summary>Unreadable 的原因（供调用方告警；其余状态为 null）。</summary>
+    public string? Error { get; init; }
+
     public static SaveLoadResult Missing() => new(SaveLoadStatus.Missing, null, null);
+
+    public static SaveLoadResult Unreadable(string error) =>
+        new(SaveLoadStatus.Unreadable, null, null) { Error = error };
 }
 
 /// <summary>
@@ -32,31 +43,54 @@ public sealed record SaveLoadResult(
 /// </summary>
 public sealed class SaveStore
 {
+    /// <summary>单个存档文件的大小上限（1 MiB）：远超正常档体积的「损坏档」不整份读入内存
+    /// （手改/被写坏的巨型文件会让 ReadAllText 直接 OOM），超限按 Corrupt 隔离。</summary>
+    public const long MaxSaveBytes = 1024 * 1024;
+
     public bool Exists(string path) => File.Exists(path);
 
-    /// <summary>删除文件（不存在时静默成功，先判存在再删）。</summary>
-    public void Delete(string path)
+    /// <summary>删除文件（不存在＝成功）；IO/权限失败返回 false 并带出原因。
+    /// 旧实现吞掉全部异常，死亡删档失败时玩家既能继续读回进度、又无人知晓。</summary>
+    public bool Delete(string path, out string? error)
     {
-        // IO 防护——只读/占用时 File.Delete 抛异常会让删号流程崩溃，
-        // 吞 IOException/UnauthorizedAccessException 对齐"不存在时静默成功"的宽松语义
         try
         {
+            // 目录占位（或路径被目录顶替）时 File.Exists 为 false 却删不掉——显式判成失败，
+            // 不落入「不存在＝成功」的假象
+            if (Directory.Exists(path))
+            {
+                error = "路径被目录占用";
+                return false;
+            }
+
             if (File.Exists(path))
             {
                 File.Delete(path);
             }
+
+            error = null;
+            return true;
         }
-        catch (IOException)
+        catch (FileNotFoundException)
         {
+            // 判存在与删除之间文件消失：目标已不存在，等同成功
+            error = null;
+            return true;
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            error = ex.Message;
+            return false;
         }
     }
 
+    /// <summary>无原因删除（SaveManager 门面沿用）；需要观测失败请用带 out 重载。</summary>
+    public void Delete(string path) => Delete(path, out _);
+
     /// <summary>
-    /// 原子写：先写 &lt;path&gt;.tmp 再 rename 覆盖正本；首次 rename 失败（平台不支持
-    /// 原子覆盖）时删正本重试（回退路径）。失败返回 false + 错误信息。
+    /// 原子写：先写 &lt;path&gt;.tmp，首次覆盖既有档前留一份 &lt;path&gt;.bak，再 rename 覆盖正本；
+    /// rename 失败（平台不支持原子覆盖）时把正本改名为 .bak 再落新档。
+    /// 失败返回 false + 错误信息。回退路径不得先删正本——那会开出「正本已删、新档未落」的丢档窗口。
     /// </summary>
     public bool TrySave(string path, object? tree, out string? error)
     {
@@ -64,14 +98,31 @@ public sealed class SaveStore
         {
             var json = JsonSerializer.Serialize(tree);
             var tmpPath = path + ".tmp";
+            var backupPath = path + ".bak";
             File.WriteAllText(tmpPath, json);
+            // 首次覆盖既有档前确保 .bak 存在：覆盖写坏/写一半时旧进度仍可取回。
+            // 尽力而为——旧档可能暂时不可读（占用/权限），此时不能因此阻断保存本身；
+            // 回退路径的改名仍会产出一份 .bak。
+            if (File.Exists(path) && !File.Exists(backupPath))
+            {
+                try
+                {
+                    File.Copy(path, backupPath);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // .bak 非必需；保存本身继续
+                }
+            }
+
             try
             {
                 File.Move(tmpPath, path, overwrite: true);
             }
             catch (IOException) when (File.Exists(path))
             {
-                File.Delete(path);
+                // 平台不支持原子覆盖：先把正本改名成 .bak（内容仍在盘上），再落新档
+                File.Move(path, backupPath, overwrite: true);
                 File.Move(tmpPath, path);
             }
 
@@ -86,11 +137,17 @@ public sealed class SaveStore
     }
 
     /// <summary>
-    /// 读 JSON 文件：缺失/读取失败 → Missing（不置损坏）；解析失败或根非对象 → 隔离
-    /// 备份为 &lt;path&gt;.corrupt 并返回 Corrupt（对齐 GDScript load + quarantine 语义）。
+    /// 读 JSON 文件四态：不存在 → Missing；目录占位 / IO / 权限失败 → Unreadable（不置损坏，
+    /// 也不当成无档）；解析失败、根非对象或超过 <see cref="MaxSaveBytes"/> → 隔离为
+    /// &lt;path&gt;.corrupt 并返回 Corrupt（对齐 GDScript load + quarantine 语义）。
     /// </summary>
     public SaveLoadResult Load(string path)
     {
+        if (Directory.Exists(path))
+        {
+            return SaveLoadResult.Unreadable("路径被目录占用");
+        }
+
         if (!File.Exists(path))
         {
             return SaveLoadResult.Missing();
@@ -99,15 +156,29 @@ public sealed class SaveStore
         string text;
         try
         {
+            if (new FileInfo(path).Length > MaxSaveBytes)
+            {
+                // 超大损坏档：不整份读入（OOM 防御），直接同路径隔离
+                return QuarantineResult(path);
+            }
+
             text = File.ReadAllText(path);
         }
-        catch (IOException)
+        catch (FileNotFoundException)
         {
-            return SaveLoadResult.Missing();
+            return SaveLoadResult.Missing(); // 判存在与读取之间消失：确实无档
         }
-        catch (UnauthorizedAccessException)
+        catch (DirectoryNotFoundException)
         {
-            return SaveLoadResult.Missing();
+            return SaveLoadResult.Missing(); // 父目录不存在：确实无档
+        }
+        catch (IOException ex)
+        {
+            return SaveLoadResult.Unreadable(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return SaveLoadResult.Unreadable(ex.Message);
         }
 
         try
@@ -129,6 +200,11 @@ public sealed class SaveStore
             // 会让异常逃逸击穿"损坏隔离"契约（欢迎页崩溃），此处与语法损坏同路径隔离
         }
 
+        return QuarantineResult(path);
+    }
+
+    private SaveLoadResult QuarantineResult(string path)
+    {
         var quarantineError = Quarantine(path, out var qError) ? null : qError;
         return new SaveLoadResult(SaveLoadStatus.Corrupt, null, quarantineError);
     }

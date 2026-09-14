@@ -27,20 +27,9 @@ public sealed class RewardScalingConfig
 /// </summary>
 public static class RewardScaling
 {
-    private static double Ramp(double difficulty, double factor)
-    {
-        if (!double.IsFinite(difficulty) || !double.IsFinite(factor) || factor <= 0.0)
-        {
-            return 1.0;
-        }
-
-        var d = difficulty <= 1.0 ? 1.0 : difficulty;
-        return 1.0 + factor * (d - 1.0);
-    }
-
     /// <summary>击杀分难度乘区（单调不减；D ≤ 1 时为 1.0，不倒扣）。</summary>
     public static double KillScoreFactor(double difficulty, RewardScalingConfig cfg) =>
-        Ramp(difficulty, cfg.KillScoreRampFactor);
+        DifficultyRamp.Linear(difficulty, cfg.KillScoreRampFactor);
 
     /// <summary>
     /// 擦弹得分：基础分 × 难度乘区 × 连击加权。
@@ -62,7 +51,7 @@ public static class RewardScaling
 
         var weight = double.IsFinite(cfg.GrazeComboWeight) ? Math.Clamp(cfg.GrazeComboWeight, 0.0, 1.0) : 0.0;
         var comboFactor = 1.0 + (mult - 1.0) * weight;
-        var value = baseScore * Ramp(difficulty, cfg.GrazeDifficultyFactor) * comboFactor;
+        var value = baseScore * DifficultyRamp.Linear(difficulty, cfg.GrazeDifficultyFactor) * comboFactor;
         return value > 0.0 ? value : 0.0;
     }
 }

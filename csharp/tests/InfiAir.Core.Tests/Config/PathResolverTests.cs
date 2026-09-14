@@ -57,6 +57,47 @@ public sealed class PathResolverTests
     }
 
     [Fact]
+    public void Resolve_NonFiniteNumber_FallsBackToDefault()
+    {
+        // JSON 溢出（1e999 → ±∞）与手改 NaN：非有限值不得透传。Int 分支的
+        // unchecked((long)d) 会把 NaN/±∞ 折成 long.MinValue，Float 分支原样透传 ±∞——
+        // 两者都会污染下游数值。
+        var tree = new Dictionary<string, object?>
+        {
+            ["nan"] = double.NaN,
+            ["inf"] = double.PositiveInfinity,
+            ["neg_inf"] = double.NegativeInfinity,
+        };
+
+        foreach (var key in new[] { "nan", "inf", "neg_inf" })
+        {
+            Assert.Equal(7L, PathResolver.Resolve(tree, key, 7L, ValueKind.Int));
+            Assert.Equal(1.5, (double)PathResolver.Resolve(tree, key, 1.5, ValueKind.Float)!);
+        }
+    }
+
+    [Fact]
+    public void Resolve_IntKind_OverflowingDouble_FallsBackToDefault()
+    {
+        // 1e30 超出 long 域：旧实现 unchecked((long)d) 得 long.MinValue（不是默认值）。
+        // 有限且可表示的 double 仍按 GDScript int() 向零截断。
+        var tree = new Dictionary<string, object?> { ["huge"] = 1e30, ["ok"] = 4.0e18 };
+        Assert.Equal(7L, PathResolver.Resolve(tree, "huge", 7L, ValueKind.Int));
+        Assert.Equal(4000000000000000000L, PathResolver.Resolve(tree, "ok", 7L, ValueKind.Int));
+    }
+
+    [Fact]
+    public void Resolve_UnsupportedKind_FallsBackToDefault()
+    {
+        // CLR JSON 树里没有 StringName 表达（键与值都退化为 string），Other 亦无判型分支——
+        // 两种 kind 的 typeof 相等判定永假，必须显式回退默认值（不得原样透传同形字符串/节点）
+        var stringDefault = new object();
+        var otherDefault = new object();
+        Assert.Same(stringDefault, PathResolver.Resolve(Tree(), "player.title", stringDefault, ValueKind.StringName));
+        Assert.Same(otherDefault, PathResolver.Resolve(Tree(), "player.level", otherDefault, ValueKind.Other));
+    }
+
+    [Fact]
     public void Resolve_ArrayKind_ReturnsDetachedCopy()
     {
         var tree = Tree();
@@ -74,7 +115,13 @@ public sealed class PathResolverTests
     {
         var tree = Tree();
         var first = PathResolver.Resolve(tree, "player.nested", new Dictionary<string, object?>(), ValueKind.Dictionary);
-        Assert.IsType<Dictionary<string, object?>>(first);
+        var dict = Assert.IsType<Dictionary<string, object?>>(first);
+        dict["污染"] = 1L; // 调用方误写返回容器不得污染配置真值（只断返回类型抓不到共享引用）
+
+        var second = PathResolver.Resolve(tree, "player.nested", new Dictionary<string, object?>(), ValueKind.Dictionary);
+        var fresh = Assert.IsType<Dictionary<string, object?>>(second);
+        Assert.Single(fresh);
+        Assert.False(fresh.ContainsKey("污染"));
     }
 
     [Fact]

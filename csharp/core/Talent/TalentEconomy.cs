@@ -110,15 +110,17 @@ public sealed class TalentCache
     }
 
     /// <summary>从尾部扣减 cost（LIFO）；有效点数不足返回 false 且不扣减。
-    /// cost 非有限值（NaN/±inf）直接拒绝：NaN 比较恒 false，会让扣减循环空转并以 true 放行
-    /// （买了一级却没扣点）。</summary>
+    /// cost 非有限值（NaN/±inf）或 ≤0 直接拒绝：NaN 比较恒 false，会让扣减循环空转并以 true 放行
+    /// （买了一级却没扣点）；cost≤0 是空转花费，放行会触发正向回补、白涨 Effective
+    /// （破坏「Spend 不得抬高 Effective」）。</summary>
     public bool Spend(double cost)
     {
-        if (!double.IsFinite(cost) || cost < 0.0 || Effective + 1e-9 < cost)
+        if (!double.IsFinite(cost) || cost <= 0.0 || Effective + 1e-9 < cost)
         {
             return false;
         }
 
+        var before = Effective;
         var remaining = cost;
         while (remaining > 1e-9 && _values.Count > 0)
         {
@@ -135,39 +137,55 @@ public sealed class TalentCache
             }
         }
 
-        // 正向回补：花掉点数即缓解溢出压力（RecoveryStep=0 时维持原「不可逆」语义）
-        ApplyRecovery();
+        // 正向回补：花掉点数即缓解溢出压力（RecoveryStep=0 时维持原「不可逆」语义）。
+        // 回补总额以本次实际扣减量为预算——否则消耗一个低值点（如 0.1）后按比例回补其余点，
+        // 有效点数会净增（花 0.1 反倒涨点），破坏「Spend 不得抬高 Effective」。
+        ApplyRecovery(before - Effective);
         return true;
     }
 
-    /// <summary>正向回补：把每个已衰减点的价值朝 1.0 抬 <see cref="TalentConfig.RecoveryStep"/> 的比例。
+    /// <summary>正向回补：把每个已衰减点的价值朝 1.0 抬 <see cref="TalentConfig.RecoveryStep"/> 的比例，
+    /// 总额不超过本次花费实际扣减的 <paramref name="budget"/>（见 <see cref="Spend"/>）。
     /// 只抬曾经被衰减过的点（值 &lt; 1），不会把正常点抬过 1.0。</summary>
-    private void ApplyRecovery()
+    private void ApplyRecovery(double budget)
     {
         var step = _config.RecoveryStep;
-        if (step <= 0.0)
+        if (step <= 0.0 || budget <= 0.0)
         {
             return;
         }
 
         step = Math.Min(step, 1.0);
-        for (var i = 0; i < _values.Count; i++)
+        var recovered = 0.0;
+        for (var i = 0; i < _values.Count && recovered < budget; i++)
         {
-            if (_values[i] < 1.0)
+            if (_values[i] >= 1.0)
             {
-                _values[i] += (1.0 - _values[i]) * step;
+                continue;
             }
+
+            var gain = (1.0 - _values[i]) * step;
+            if (recovered + gain > budget)
+            {
+                gain = budget - recovered;
+            }
+
+            _values[i] += gain;
+            recovered += gain;
         }
     }
 
-    /// <summary>溢出衰减（每次入账后调用）：位置 ≥ SafeThreshold 的点按超出深度衰减，取 min。
+    /// <summary>溢出衰减（每次入账后调用）：位置 ≥ <see cref="TalentConfig.SafeThreshold"/> 的点按超出深度衰减，取 min。
+    /// 阈值负值（手改配置/坏档）视作 0 起点——直接拿负阈值当数组下标会抛 IndexOutOfRangeException
+    /// 击穿入账路径，而负阈值语义上就是「无豁免」。
     /// 衰减本身不可逆（Grant 后不自动回涨），但 <see cref="Spend"/> 会触发正向回补
     /// （RecoveryStep）——花掉点数即缓解溢出，玩家有明确的自救手段。</summary>
     public void ApplyDecay()
     {
-        for (var i = _config.SafeThreshold; i < _values.Count; i++)
+        var safeThreshold = Math.Max(_config.SafeThreshold, 0);
+        for (var i = safeThreshold; i < _values.Count; i++)
         {
-            var depth = i - _config.SafeThreshold + 1;
+            var depth = i - safeThreshold + 1;
             var cap = Math.Max(_config.DecayFloor, 1.0 - _config.DecayStep * depth);
             if (_values[i] > cap)
             {

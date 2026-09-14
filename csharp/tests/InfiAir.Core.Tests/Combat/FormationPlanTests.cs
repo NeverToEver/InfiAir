@@ -128,6 +128,17 @@ public sealed class FormationPlanTests
     }
 
     [Fact]
+    public void Schedule_ExtremeElementCount_RejectedInsteadOfThrowing()
+    {
+        // 元素总数用 int 相乘会溢出成负数 → new float[count] 抛异常击穿事件启动。
+        // 超出正常量级的配置按「拒绝」处理（返回空表），不得抛。
+        var rank = new[] { 0, 1, 2, 3 };
+        Assert.Empty(FormationPlan.Schedule(rank, int.MaxValue, 2, 0.8f, 0.4f, 1.0f).Times);
+        Assert.Empty(FormationPlan.Schedule(rank, int.MaxValue, int.MaxValue, 0.8f, 0.4f, 1.0f).Times);
+        Assert.Empty(FormationPlan.Schedule(rank, 1_000_000, 4, 0.8f, 0.4f, 1.0f).Times);
+    }
+
+    [Fact]
     public void AnchorJitter_IsDeterministicAndBounded()
     {
         // 锚点抖动取代 GD 默认随机序列：同一次触发必须可复现，且落在 [0,1)
@@ -135,7 +146,8 @@ public sealed class FormationPlanTests
         foreach (var t in new[] { 0.0, 0.5, 7.7, 61.2, 3600.0, 98765.4321 })
         {
             var j = FormationPlan.AnchorJitter(t);
-            Assert.InRange(j, 0.0f, 1.0f);
+            // 文档口径 [0,1)：右端开区间必须钉死（InRange 含 1.0 会让「取整落到 1.0」的实现漏网）
+            Assert.True(j >= 0.0f && j < 1.0f, $"锚点抖动越界：{j}");
         }
 
         // 相邻触发时刻应给出不同锚点（低差异序列不退化到常数）
