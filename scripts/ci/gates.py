@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
+按 CI fast-gate 顺序跑完全部十一步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
 无头冒烟九趟 → 截图探针（辅助）。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
@@ -9,7 +9,7 @@
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十步
+    python3 scripts/ci/gates.py                  # 全部十一步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -38,6 +38,7 @@ STEPS = (
     {"slug": "balance_keys", "name": "数值键存在性", "kind": "bash", "script": "check_balance_keys.sh", "godot": False},
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
+    {"slug": "realtime_allowlist", "name": "真实时间允许清单", "kind": "bash", "script": "check_realtime_allowlist.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
