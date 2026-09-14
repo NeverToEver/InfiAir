@@ -129,6 +129,11 @@ public partial class GameEventManager : Node
     /// 绕过生产触发链（生产门控断线时探针不再照绿）。</summary>
     private readonly HashSet<StringName> _forcedTriggers = new();
 
+    /// <summary>迷雾组一次性强制事件 id（探针/诊断）：置位后 TryTriggerGroup(fog) 跳过随机掷签与
+    /// 权重选取，但仍须先通过 CanTriggerGroup（接线/启用/本局活跃/组内无进行中/首延迟/冷却）——
+    /// 只豁免「随机」这一步，生产门控断线时探针一并发红。</summary>
+    private StringName _fogForcedId = EmptyId;
+
     /// <summary>遭遇事件活跃快照（id -> bool；轮询检测结束发 event_ended）。</summary>
     /// <summary>遭遇结束信号待发集合——end_active 打断后 FSM 未立即回 IDLE 时
     /// 记 pending，由轮询在检测到回 IDLE 后统一补发（防双发/发在事件仍活跃时）。</summary>
@@ -217,6 +222,7 @@ public partial class GameEventManager : Node
         // 帧驱动随本局开关——非活跃时 Poll/Tick 全为无操作空转（标题屏每帧白跑）
         SetProcess(active);
         _forcedTriggers.Clear(); // 跨局不残留强制触发标记（诊断入口）
+        _fogForcedId = EmptyId; // 跨局不残留强制迷雾事件（诊断入口）
         if (!active)
         {
             EndFog();
@@ -358,8 +364,22 @@ public partial class GameEventManager : Node
     {
         if (pGroup == GroupFog)
         {
+            // 门控仍是必经（接线/启用/本局活跃/组内无进行中/首延迟到点/冷却到点）——
+            // 强制入口只替换下面的掷签与权重选取，不绕过本判定
             if (!CanTriggerGroup(GroupFog))
             {
+                return false;
+            }
+
+            if (_fogForcedId != EmptyId)
+            {
+                // 强制指定：跳过掷签与权重选取；启动失败时保留 pending 供下帧重试（不静默丢弃）
+                if (StartFog(_fogForcedId))
+                {
+                    _fogForcedId = EmptyId;
+                    return true;
+                }
+
                 return false;
             }
 
@@ -378,6 +398,20 @@ public partial class GameEventManager : Node
         }
 
         return false;
+    }
+
+    /// <summary>请求下一次 fog 触发检查强制启动指定迷雾事件（探针/诊断）：只把随机掷签与权重选取
+    /// 换成指定 id，其余资格仍由 <see cref="CanTriggerGroup"/> 判定——生产门控断线时探针一并发红。
+    /// id 未注册、非 fog 组或为空返回 false，不静默（调用方据此显式失败）。</summary>
+    public bool RequestForcedFog(StringName pId)
+    {
+        if (pId == EmptyId || !EVENT_FACTORIES.ContainsKey(pId) || GroupOf(pId) != GroupFog)
+        {
+            return false;
+        }
+
+        _fogForcedId = pId;
+        return true;
     }
 
     /// <summary>立即结束指定分组进行中的事件（fog：清理效果；encounter：abort 打断）。</summary>

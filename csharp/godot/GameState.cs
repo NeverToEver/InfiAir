@@ -216,7 +216,7 @@ public partial class GameState : Node
     {
         ResetTimeScale(); // 演出倍率 + 顿帧 + trauma 残留一并复位（只复位演出侧会留下顿帧定格）
         SetTreePaused(false);
-        ResetRun(); // 保证下次开局为全新一局，不污染正常对局
+        ResetRun(); // 保证下次开局为全新一局，不复用上一本局残留
         ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile("res://scenes/title.tscn");
     }
 
@@ -688,9 +688,6 @@ public partial class GameState : Node
 
     /// <summary>当前合成后的时间倍率（诊断/探针读口：验证顿帧确实压低了时间缩放）。</summary>
     public double FeelTimeScale() => _gameFeel.CurrentTimeScale();
-
-    /// <summary>手感探针专用的一次震动注入（绕过震源表，让探针不依赖具体战斗事件即可覆盖 trauma 链路）。</summary>
-    public void AddShakeForProbe() => Shake(Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
 
     /// <summary>擦弹得分（吃难度与连击乘区）——ScoreService 转发。</summary>
     public double GrazeScoreFor(double baseScore) => _score.GrazeScoreFor(baseScore);

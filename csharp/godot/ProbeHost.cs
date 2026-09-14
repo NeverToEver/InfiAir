@@ -24,6 +24,15 @@ public partial class ProbeHost : Node
     /// 覆盖打断的清理分支（精英炮塔升起到位后的炮塔回收），而非入场即打断。</summary>
     private const int DeathProbeDelayFrames = 240;
 
+    /// <summary>迷雾探针强制指定的事件 id：fake_enemies 是无伤害/无碰撞的纯视觉干扰，
+    /// 不会改动玩家血量/输入/子弹参数，避免其它三类迷雾把全周期判定搅成「玩家状态被打断」。</summary>
+    private static readonly StringName FogProbeEventId = new("fake_enemies");
+
+    /// <summary>全周期判定的帧级容差（s）：EventEnded 由管理器 Timer 在 autoload _Process 内发出，
+    /// 早于探针本帧自增的帧计数，逐帧换算会出现不足一帧的差；容差取 0.1s（6 帧）兜住时序差，
+    /// 同时远小于任何真实截断（截断至少丢掉整段事件时长）。</summary>
+    private const double FogCycleToleranceSeconds = 0.1;
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -35,6 +44,7 @@ public partial class ProbeHost : Node
     private bool _shotProbe;
     private bool _feelProbe;
     private bool _longProbe;
+    private bool _fogProbe;
     private string _shotDir = "";
     private string _eventId = "";
     private bool _deathProbe;
@@ -42,6 +52,10 @@ public partial class ProbeHost : Node
     private bool _triggerPosted;
     private bool _sawActive;
     private bool _killed;
+    private bool _fogActive;
+    private bool _fogSubscribed;
+    private int _fogStartFrame;
+    private double _fogDuration;
     private int _frame;
     private int _activeFrame;
     private int _fuelStep;
@@ -104,6 +118,10 @@ public partial class ProbeHost : Node
             {
                 _longProbe = true;
             }
+            else if (arg == "--fog-probe")
+            {
+                _fogProbe = true;
+            }
             else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
             {
                 _shotDir = arg["--shot-dir=".Length..];
@@ -119,12 +137,39 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_eventId.Length > 0 || _feelProbe || _longProbe)
+        if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe)
         {
             // Main 嵌入宿主时按 current_scene 判定关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
             GameState.Instance.SetRunActive(true);
             _events.SetRunActive(true);
+            // 遭遇/手感/长局探针一律关闭迷雾随机事件：首延迟（25s）过后被精英炮塔等长趟越过，
+            // 此后每 3s 有 35% 概率触发迷雾（方向偏转会把无头局的玩家推入弹幕致死），
+            // 探针红绿将取决于随机数——违反 §5「随机要么避免、要么走可注入取值源」。
+            // 迷雾由 --fog-probe 专趟覆盖（该趟保持开启，仍走生产资格/门槛）。
+            _events.FOG_ENABLED = _fogProbe;
+            if (_fogProbe)
+            {
+                // 统一信号监听（完整周期判定：start→end）；退订在 _ExitTree 配对
+                _events.EventStarted += OnFogEventStarted;
+                _events.EventEnded += OnFogEventEnded;
+                _fogSubscribed = true;
+                if (!_events.RequestForcedFog(FogProbeEventId))
+                {
+                    GD.PushError("[fog-probe] 强制迷雾事件请求失败：id 未注册或非 fog 组");
+                    _fogProbe = false;
+                }
+            }
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        if (_fogSubscribed)
+        {
+            _fogSubscribed = false;
+            _events.EventStarted -= OnFogEventStarted;
+            _events.EventEnded -= OnFogEventEnded;
         }
     }
 
@@ -160,6 +205,12 @@ public partial class ProbeHost : Node
         if (_longProbe)
         {
             TickLongProbe();
+            return;
+        }
+
+        if (_fogProbe)
+        {
+            TickFogProbe();
             return;
         }
 
@@ -546,7 +597,9 @@ public partial class ProbeHost : Node
 
         if (_feelStep == 0)
         {
-            GameState.Instance.AddShakeForProbe();
+            // 直接走公开震动入口（生产无探针专用 API）；取值仍是生产配置里的最大档，
+            // 保证 trauma 累加量足以被断言观测到
+            GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
             GameState.Instance.RequestHitStop(Core.GameFeel.HitStopTier.Heavy);
             _feelStep = 1;
             return;
@@ -634,6 +687,76 @@ public partial class ProbeHost : Node
         }
 
         GD.Print("[settings-probe] 五页切换完成");
+    }
+
+    /// <summary>迷雾探针驱动：在宿主里请求一次**强制指定**的迷雾事件（fake_enemies，无伤害/无碰撞，
+    /// 不扰动玩家血量/输入/子弹参数），等该 id 的完整周期（EventStarted → EventEnded）跑完再打标记。
+    ///
+    /// 为什么不能只靠自动触发：迷雾走「首延迟 25s + 每 3s 掷 35%」的随机链，常规冒烟趟跑不到，
+    /// 而迷雾注册/context 构建/生命周期/效果清理是高密度出错区。
+    /// **仍走生产门控**：强制入口只替换掷签与权重选取，TryTriggerGroup 内先过 CanTriggerGroup
+    /// （接线/启用/本局活跃/组内无进行中/首延迟到点/冷却到点）——门控断线时本探针一并发红。
+    /// 帧数只由 --fixed-fps 60 驱动，不等真实时间；截断（提前 EndActive）不满足完整周期，不打标记。</summary>
+    private void TickFogProbe()
+    {
+        // 前 30 帧等入场与稳定（入场窗口内玩家不可驱动、生产时钟未起）
+        if (_frame < 30 || _player.IsEntryPlaying() || !_spawner.IsProcessing())
+        {
+            return;
+        }
+
+        _player.SetInvincible(ProbeInvincibleSeconds); // 无头局玩家不操作，与存活解耦
+
+        if (!_fogActive)
+        {
+            // 门控未到点（首延迟/冷却）时 TryTriggerGroup 返回 false——下帧再试，不绕过
+            _events.TryTriggerGroup(GameEventManager.GroupFog);
+        }
+    }
+
+    /// <summary>迷雾事件开始：只认强制指定的 id，记下起始帧与生产下发的 duration
+    /// （完整周期判定用；duration 由管理器从 balance 读出，探针不复刻配置）。</summary>
+    private void OnFogEventStarted(StringName eventId, float duration)
+    {
+        if (!_fogProbe)
+        {
+            return;
+        }
+
+        if (eventId != FogProbeEventId)
+        {
+            GD.PushError(GdFormat.Format("[fog-probe] 启动了非指定迷雾事件 %s（强制入口应只启动 %s）",
+                eventId, FogProbeEventId));
+            _fogProbe = false;
+            return;
+        }
+
+        _fogActive = true;
+        _fogStartFrame = _frame;
+        _fogDuration = duration;
+    }
+
+    /// <summary>迷雾事件结束：跑满完整周期（实际时长 ≥ 生产 duration − 时序容差）才打完成标记；
+    /// 截断/中途结束一律不打（门禁按缺标记判红）。</summary>
+    private void OnFogEventEnded(StringName eventId)
+    {
+        if (!_fogProbe || !_fogActive || eventId != FogProbeEventId)
+        {
+            return;
+        }
+
+        _fogActive = false;
+        var elapsed = (_frame - _fogStartFrame) / 60.0;
+        if (elapsed + FogCycleToleranceSeconds < _fogDuration)
+        {
+            GD.PushError(GdFormat.Format(
+                "[fog-probe] %s 周期被截断（实际 %.2fs < 生产 duration %.2fs）", eventId, elapsed, _fogDuration));
+            _fogProbe = false;
+            return;
+        }
+
+        GD.Print("[fog-probe] 迷雾全周期完成");
+        _fogProbe = false;
     }
 
     /// <summary>遭遇探针驱动：等可驱动 → 补分数 + 请求掷签必中（仍走生产触发链）→ 观测收场。
