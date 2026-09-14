@@ -15,10 +15,8 @@
 
 > 唯一登记处，只保留未关闭项；修复后直接删除（变更史在 git log）；新发现追加在末尾。
 
-- **[低] 视觉层无自动化覆盖（已评估的接受项）**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏。常驻 CI 视觉捕获不可行——Godot headless 为 dummy 渲染截不到画面，CI runner 无 GPU 且项目禁第三方依赖（软光栅方案越线）。纪律 = UI/视觉改动窗口化人工过目；不重引入截图探针场景（与 lean-reset 一致）。**可行的收窄手段**（2026-09-14 实例）：把绘制里的**取值判定**下沉 `core/` 并单测，绘制代码只做取值适配——燃料槽填充多边形在低油量时波谷越过内腔底、三角化失败整块不画（实机 68 次/局），headless 走 dummy 渲染执行不到 `_Draw`、且 `ERROR: Invalid polygon data` 不在冒烟错误正则内，双重抓不到；修法即 `TankLiquid`（波幅上限 + 最薄可三角化液层）下沉 core 配单测。新增程序化绘制控件时按此办理：几何边界条件不放绘制函数里靠人工兜底。
+- **[低] 视觉层无自动化覆盖（已评估的接受项；2026-09-14 修正一处错误前提）**：无头门禁不经过 GPU/shader 管线，UI 布局腐烂可潜伏。常驻 CI 视觉捕获不可行——Godot headless 为 dummy 渲染截不到画面，CI runner 无 GPU 且项目禁第三方依赖（软光栅方案越线）。纪律 = UI/视觉改动窗口化人工过目；不重引入截图探针场景（与 lean-reset 一致）。**修正**：原记「headless 为 dummy 渲染执行不到 `_Draw`」**不成立**——实测 headless 仍会执行 `_Draw`，自交/退化多边形在 `canvas_item_add_polygon` 处报 `ERROR: Invalid polygon data, triangulation failed.` 且整块不画。燃料槽低油量整块消失之所以漏网，真实原因是该错误不在冒烟正则内、且无头局玩家不操作走不到低油量路径——不是执行不到 `_Draw`。已据此收口：冒烟错误正则收录 `Invalid polygon data`，并新增 `--fuel-probe` 把液位从满扫到空、真正逼出每个液位的填充绘制（破坏验证：还原无钳制形态即红）。**仍属窗口化过目的**只有「不走三角化但画错位置/压字/溢出」这类无报错的布局退化（如液面越顶溢出内腔）。**可行的收窄手段**：把绘制里的**取值判定**下沉 `core/` 并单测，绘制代码只做取值适配——`TankLiquid` 守波幅双向钳制（波谷不越底防自交、波峰不越顶防溢出）即此办理。新增程序化绘制控件时按此办理：几何边界条件不放绘制函数里靠人工兜底。
 - **[低] 零引用成员保留面（已 triage，口径封存）**：全库扫描零引用（.cs + .tscn + 字符串派发全查）的公开/内部成员 85 个。其中 11 个是**退役测试/诊断探针的遗留白盒访问口**（注释自述「诊断白盒断言」「boss_registry_test 校验用」「注册表完整性查询」「诊断用」，或为测试期对外暴露的注入点）——已删除（`AimFrameLayer.FramePad`、`BossAttacks.GetAttackTells/HasAttack/AttackIds`、`BossMovement.HasMover`、`EnrageSequence.Has*Handler`、`GameState.HasBalance`、`Player.Fire/ResetFireCooldown`；2026-09-12 续删同类无注释零引用口 `Enemy.SetFireTimer/FireAtPlayer/SetLifeTimer`、`Boss.SetFireTimer/FireTimer/BaseModulateColor`、`RadialWheelModel.ScrollBy`）。其余 74 个属**刻意保留的公开门面与白盒读口**（GameState 门面成对 API、Player/MetaHealthFX 调参阅数读口、Main 调试开关），保留并以此口径封存：**新增零引用成员必须在注释里写明保留理由，否则视为死代码**。批量删除需人工确认（这些读口是实机调参时的观察面）。
-
-- **[低] 探针宿主类型随程序集发布（场景已排除）**：`ProbeHost` 类编译进 `InfiAir.dll`（Godot .NET 导出整包发布，无法按文件排除），`scenes/probe_host.tscn` 已在 `export_presets.cfg` 的 `exclude_filter` 中排除，故发布包里没有可启动的探针入口、生产路径不实例化该类。为什么不现在做：按文件排除需条件编译或自定义导出脚本，代价高于收益（类型惰性、无引用）。收口条件＝Godot 提供按文件排除托管源码的导出能力时顺带处理；触发时机＝下一次动导出配置。
 
 ## 发布前人工验收
 
@@ -108,6 +106,9 @@ Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect
 - **2026-09-14 弹速与弱辅瞄取值结案（人类确认「现状合理」）**：弹速 2600、弱辅瞄锥角 6/8/10° 与强度 0.42/0.52/0.62 按当前落地值确认为既定设计，待确认条目从债务区移除并同步 DESIGN_BASELINE §1.5。反转需人类显式改值。
 - **2026-09-14 死亡路径探针覆盖补齐**：`--event-probe-death=<id>` 在遭遇激活后延迟击杀玩家，覆盖「死亡 → 管理器 EndActive → 事件 Abort → 归还波次/Boss 互斥」整条清理链，并断言互斥确实归还；该趟在临时用户目录内跑（死亡即删本局存档，不得触碰开发者存档）。自然探针另给玩家注入长无敌——探针的绿不再依赖「无头局玩家恰好活过事件时长」。为什么：此前精英探针的绿依赖玩家 30s 不死，死亡路径（清理分支）永覆盖不到。
 - **2026-09-14 Release 说明接入**：新增 `docs/RELEASE_NOTES.md`，`release.sh --publish` 读其内容作 GitHub Release body（缺文件回退空 body，不静默改其他行为）。为什么：此前 Release body 恒空，发布说明无处承载；文档收敛后 CHANGELOG 已移除，需要单一维护点。
+- **2026-09-14 探针类型经条件编译退出发布程序集**（收口前批留存残项）：`ProbeHost` 整文件以 `#if DEBUG || TOOLS` 条件编译，发布导出（`ExportRelease` 配置，Godot SDK 不定义二者）整类不进 `InfiAir.dll`。为什么：原先只排了场景文件，类型仍随程序集分发；Godot SDK 已按导出配置给 `DefineConstants`，无需自定义导出脚本即收口。反转＝发现 Debug-only 编译遮蔽了需要随包分发的行为。
+- **2026-09-14 冒烟补燃料满扫并收录多边形错误**：新增 `--fuel-probe`（液位满→空扫描）第六趟，冒烟错误正则收录 `Invalid polygon data`。为什么：修正「headless 执行不到 `_Draw`」的错误前提（实测会执行、自交确实报该错），且无头局不掉油走不到低油量绘制；两处合计才真正覆盖燃料槽整块消失这类静默坏点。破坏验证＝还原无钳制形态即红。
+- **2026-09-14 液面波幅双向钳制（修波峰越顶）**：`TankLiquid.WaveAmplitude` 由「只钳液层厚度」改为「液层厚度与液位上方余量取较小者」——满油时液位即内腔顶，原实现波峰探出内腔（压过外框上缘）；对称补上顶侧护栏。为什么：底侧防的是三角化失败整块不画，顶侧防的是无报错的绘制溢出，同一族几何退化只堵了一半。属行为修正（绘制几何），非玩家可感数值。
 
 ## Maintenance
 
