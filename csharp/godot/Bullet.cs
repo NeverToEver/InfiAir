@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.GameFeel;
 
 namespace InfiAir;
 
@@ -459,6 +460,8 @@ public partial class Bullet : Area2D, IParryable
 
                 // 直击反馈（玩法结算之后）：非致命也有一枚火花，暴击另加星芒
                 CombatVfx.DirectHit(GetParent(), area.GlobalPosition, -Direction, isCrit, GameState.Instance.ReduceFlash);
+                // 命中顿帧：暴击高一档（时序取 balance effects.hit_stop.*；同帧多命中取较大者不叠加）
+                GameState.Instance.RequestHitStop(isCrit ? HitStopTier.Crit : HitStopTier.Normal);
             }
         }
         else if (area.IsInGroup(GroupPlayerHitbox))

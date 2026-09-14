@@ -77,6 +77,9 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _shakeValueLabel = null!; // 屏幕震动强度档位读出（如「100%（关闭震动请拉到 0）」）
     private Label _shakeValueLabelInline = null!; // 震动滑杆行内数值
     private HSlider _shakeSlider = null!;
+    private Label _hitStopValueLabel = null!; // 命中顿帧强度档位读出
+    private Label _hitStopValueLabelInline = null!; // 顿帧滑杆行内数值
+    private HSlider _hitStopSlider = null!;
     private readonly List<(HSlider Slider, Func<double> Read, Label Value)> _volumeSliders = new(); // 音量滑杆（语言重建后需重置显示值）
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
@@ -868,7 +871,7 @@ public partial class SettingsUi : RadialMenuLayer
         rfRow.AddChild(_reduceFlashBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_REDUCE_FLASH_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 屏幕震动强度（0 = 完全关闭）：与减少闪光并列，针对不同的不适来源（运动 vs 频闪）
-        MakePercentSlider(
+        (_shakeSlider, _shakeValueLabelInline) = MakePercentSlider(
             page,
             Tr("SET_SHAKE_SCALE"),
             GameState.Instance.ShakeScale,
@@ -881,6 +884,20 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(_shakeValueLabel);
         RefreshShakeLabel();
         page.AddChild(UITheme.MakeLabel(Tr("SET_SHAKE_SCALE_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 命中顿帧强度（0 = 完全关闭）：与减少闪光/震动强度并列，针对瞬时定格带来的不适
+        (_hitStopSlider, _hitStopValueLabelInline) = MakePercentSlider(
+            page,
+            Tr("SET_HIT_STOP"),
+            GameState.Instance.HitStopScale,
+            v =>
+            {
+                GameState.Instance.SetHitStopScale(v);
+                RefreshHitStopLabel();
+            });
+        _hitStopValueLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_hitStopValueLabel);
+        RefreshHitStopLabel();
+        page.AddChild(UITheme.MakeLabel(Tr("SET_HIT_STOP_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 关于：版本与操作速查（设置页承载「关于」是单机游戏的通行做法，便于一处查版本与按键）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ABOUT")));
         _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), GameVersion()), UITheme.FontBody, UITheme.AccentGold);
@@ -890,8 +907,9 @@ public partial class SettingsUi : RadialMenuLayer
         return page;
     }
 
-    /// <summary>百分比滑杆行（0..100%，与音量滑杆同构，但不落盘音量域）。</summary>
-    private void MakePercentSlider(VBoxContainer parent, string title, double value, Action<double> onChanged)
+    /// <summary>百分比滑杆行（0..100%，与音量滑杆同构，但不落盘音量域）。
+    /// 返回滑杆与行内数值标签，供「语言切换/恢复默认后重新取值」使用（避免显示值与设置域脱钩）。</summary>
+    private (HSlider Slider, Label ValueLabel) MakePercentSlider(VBoxContainer parent, string title, double value, Action<double> onChanged)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 12);
@@ -909,16 +927,16 @@ public partial class SettingsUi : RadialMenuLayer
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
         row.AddChild(slider);
-        _shakeSlider = slider;
-        _shakeValueLabelInline = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
-        _shakeValueLabelInline.CustomMinimumSize = new Vector2(70.0f, 0.0f);
-        row.AddChild(_shakeValueLabelInline);
+        var valueLabel = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
+        valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
+        row.AddChild(valueLabel);
         slider.ValueChanged += v =>
         {
-            _shakeValueLabelInline.Text = $"{v:0}%";
+            valueLabel.Text = $"{v:0}%";
             onChanged(v / 100.0);
         };
         slider.DragEnded += _ => GameState.Instance.SaveSettings();
+        return (slider, valueLabel);
     }
 
 
@@ -1118,6 +1136,17 @@ public partial class SettingsUi : RadialMenuLayer
         _shakeValueLabel.Text = pct == 0 ? Tr("SET_SHAKE_OFF_STATE") : GdFormat.Format(Tr("SET_SHAKE_STATE"), pct);
     }
 
+    private void RefreshHitStopLabel()
+    {
+        if (_hitStopValueLabel == null)
+        {
+            return;
+        }
+
+        var pct = (int)Mathf.Round(GameState.Instance.HitStopScale * 100.0);
+        _hitStopValueLabel.Text = pct == 0 ? Tr("SET_HIT_STOP_OFF_STATE") : GdFormat.Format(Tr("SET_HIT_STOP_STATE"), pct);
+    }
+
     private void RefreshVolumeSliders()
     {
         // 音量滑杆行随页重建（语言切换/全部恢复默认后）重新取值，避免显示值与设置域脱钩
@@ -1131,6 +1160,11 @@ public partial class SettingsUi : RadialMenuLayer
         if (_shakeSlider != null)
         {
             _shakeSlider.SetValueNoSignal(GameState.Instance.ShakeScale * 100.0);
+        }
+
+        if (_hitStopSlider != null)
+        {
+            _hitStopSlider.SetValueNoSignal(GameState.Instance.HitStopScale * 100.0);
         }
     }
 

@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.GameFeel;
 
 namespace InfiAir;
 
@@ -514,6 +515,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         GameState.Instance.TryLifesteal();
         GameState.Instance.PlaySfx(IsElite ? SfxId.ExplosionBig : SfxId.Explosion);
         GameState.Instance.Shake(IsElite ? _shakeDieElite : _shakeDieNormal);
+        // 击杀顿帧（表现层，结算已完成）：精英比杂兵长，给多目标击杀一个短促的节拍
+        GameState.Instance.RequestHitStop(HitStopTier.Kill);
         Explosion.SpawnAt(GetParent(), GlobalPosition, IsElite ? 1.5f : 1.0f);
         EmitSignal(SignalName.Died, this);
         DespawnInternal();

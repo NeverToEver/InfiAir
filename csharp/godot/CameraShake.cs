@@ -3,61 +3,37 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 屏幕震动：监听
-/// GameState.ScreenShake 信号，随机偏移 + 微旋转（±0.4° 内）+ 指数衰减。process_mode 需为 Always
-/// （场景文件中设置），保证暂停时震动也能衰减结束。
-/// 信号声明 double、监听 float 类型不一致
-/// （PlayerDamaged 已统一为 float，此信号低频无精度压力）——监听侧适配 double。
+/// 屏幕震动：每帧从 GameFeelService 读 trauma，按 trauma^2 映射位移 + 微旋转（钳 ≤0.4°）。
+/// 震源经 GameState.Shake 只累加 trauma 值（不再直接给振幅），本类只负责采样与噪声——
+/// 幂次映射让小额冲击近乎无感、大额才猛烈，高频抖动不再叠加成持续晃动。
+/// process_mode 需为 Always（场景文件中设置），保证暂停时震动也能衰减结束。
+/// 衰减与时间缩放合成在 GameFeelService.Tick（按真实帧长推进，不受顿帧与子弹时间拖慢）。
 /// </summary>
 public partial class CameraShake : Camera2D
 {
-    private readonly Callable _onShake;
-    private float _decay = 6.0f;
-    private float _strength;
+    private double _maxOffset = 22.0; // 位移上限（effects.shake.max_offset；trauma^2 后乘此值）
     private float _rotMaxDeg; // 微旋转上限（effects.shake.rotation_deg，钳 ≤0.4°）
     private bool _offsetActive; // 偏移非零标记：静止写门，仅在震动→静止过渡帧归零 Offset/Rotation
 
-    public CameraShake()
-    {
-        _onShake = Callable.From<double>(OnScreenShake);
-    }
-
     public override void _Ready()
     {
-        // is_connected 守卫，相机重入树（场景重载/重挂）不重复连接
-        var gs = GameState.Instance;
-        if (gs != null && !gs.IsConnected(GameState.SignalName.ScreenShake, _onShake))
-        {
-            gs.Connect(GameState.SignalName.ScreenShake, _onShake);
-        }
-
-        _decay = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.decay", _decay).AsDouble(), 0.001f); // decay=0 震动永不衰减
+        _maxOffset = Mathf.Max((float)GameState.Instance.Cfg("effects.shake.max_offset", 22.0).AsDouble(), 0.0f);
         _rotMaxDeg = Mathf.Clamp((float)GameState.Instance.Cfg("effects.shake.rotation_deg", 0.4).AsDouble(), 0.0f, 0.4f);
-    }
-
-    public override void _ExitTree()
-    {
-        var gs = GameState.Instance;
-        if (gs != null && gs.IsConnected(GameState.SignalName.ScreenShake, _onShake))
-        {
-            gs.Disconnect(GameState.SignalName.ScreenShake, _onShake);
-        }
     }
 
     public override void _Process(double delta)
     {
-        if (_strength > 0.1f)
+        var magnitude = (float)GameState.Instance.ShakeMagnitude();
+        if (magnitude > 1e-4)
         {
             _offsetActive = true;
-            Offset = new Vector2((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0)) * _strength;
-            // 微旋转分量：与强度同比例（24 = 最大震源 boss_seq_final），同速率指数衰减
-            var rotDeg = Mathf.Min(_strength / 24.0f, 1.0f) * _rotMaxDeg;
-            Rotation = Mathf.DegToRad((float)GD.RandRange(-1.0, 1.0) * rotDeg);
-            _strength = Mathf.Lerp(_strength, 0.0f, _decay * (float)delta);
+            Offset = new Vector2((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0))
+                * (float)_maxOffset * (float)magnitude;
+            // 微旋转与位移同量纲：满创伤给 rotMaxDeg，半创伤因平方只剩四分之一
+            Rotation = Mathf.DegToRad((float)GD.RandRange(-1.0, 1.0) * magnitude * _rotMaxDeg);
         }
         else
         {
-            _strength = 0.0f;
             if (_offsetActive) // 静止写门：仅过渡帧归零一次（否则每空帧重复写 Vector2.Zero）
             {
                 _offsetActive = false;
@@ -65,10 +41,5 @@ public partial class CameraShake : Camera2D
                 Rotation = 0.0f;
             }
         }
-    }
-
-    private void OnScreenShake(double strength)
-    {
-        _strength = Mathf.Max(_strength, (float)strength);
     }
 }

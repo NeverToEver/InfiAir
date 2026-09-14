@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # 无头冒烟五趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
-# 五趟覆盖五个「跑不到就发现不了」的面：
+# 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
 #   2) --settings-probe：设置页各分组在「开页」时才构建，写错＝玩家点开即崩；
 #   3) --event-probe=formation_strike / elite_turret：遭遇要过分数门槛 + 掷签，常规冒烟跑不到，
 #      而编排/投弹/落点圈/反射弹/结算分支是高密度出错区；
 #   4) --event-probe-death=elite_turret：死亡打断路径（管理器 EndActive → 事件 Abort →
-#      归还波次/Boss 互斥），自然探针等不到（无头局玩家不操作、不会死），此前是覆盖缺口。
+#      归还波次/Boss 互斥），自然探针等不到（无头局玩家不操作、不会死），此前是覆盖缺口；
+#   5) --feel-probe：命中顿帧与屏幕震动复位——顿帧写 Engine.TimeScale，写错（倍率 0 或按
+#      缩放 delta 推进）的表现是画面永久定格，无头下不崩也不报错，只有完成标记能抓住。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
@@ -87,3 +89,6 @@ expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[
 # ——自交/退化多边形整块不画且不崩，只判「不崩」抓不到（低油量燃料槽整块消失即此类）。
 run_case "fuel tank sweep smoke" 400 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "" --fuel-probe
 expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] 液位满扫完成"
+# 手感探针：请求顿帧与震动后断言时间缩放压低/复位与 trauma 归零（无头下不崩即坏点，见文件头）。
+run_case "game feel probe smoke" 400 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE" "" --feel-probe
+expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe] 顿帧与震动复位完成"

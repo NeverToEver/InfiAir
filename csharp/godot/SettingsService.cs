@@ -122,6 +122,7 @@ public sealed partial class SettingsService : RefCounted
         AimAssistLevel = new StringName("medium");
         ReduceFlash = false;
         ShakeScale = 1.0;
+        HitStopScale = 1.0;
         WorldPostFx = true;
         FpsCap = new StringName("60");
         VSync = true;
@@ -625,10 +626,26 @@ public sealed partial class SettingsService : RefCounted
     /// 与「减少闪光」并列——两者针对不同的不适来源（频闪 vs 运动）。</summary>
     public double ShakeScale { get; set; } = 1.0;
 
-    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化（消费端每次震动读取）</summary>
+    /// <summary>设置屏幕震动强度（钳 [0,1]）：只更新内存 + 持久化 + 同步到手感域
+    /// （trauma 累加入口读 GameState.ShakeScale，不每帧回查设置）。</summary>
     public void SetShakeScale(double value)
     {
         ShakeScale = Mathf.Clamp(value, 0.0, 1.0);
+        GameState.Instance.SyncShakeScale(ShakeScale);
+        GameState.Instance.SaveSettings();
+    }
+
+    // ---------------- 无障碍：命中顿帧强度 ----------------
+
+    /// <summary>命中顿帧强度倍率（0..1，settings.json 持久化）：0 = 完全关闭顿帧。
+    /// 与「减少闪光」「屏幕震动强度」并列——针对瞬时定格带来的不适/晕动来源。</summary>
+    public double HitStopScale { get; set; } = 1.0;
+
+    /// <summary>设置命中顿帧强度（钳 [0,1]）：只更新内存 + 持久化 + 同步开关到手感域。</summary>
+    public void SetHitStopScale(double value)
+    {
+        HitStopScale = Mathf.Clamp(value, 0.0, 1.0);
+        GameState.Instance.SyncHitStopScale(HitStopScale);
         GameState.Instance.SaveSettings();
     }
 
@@ -878,6 +895,11 @@ public sealed partial class SettingsService : RefCounted
         MusicVolume = ReadVolume(data.GetValueOrDefault("music_volume", MusicVolume), MusicVolume);
         SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
         ShakeScale = ReadVolume(data.GetValueOrDefault("shake_scale", ShakeScale), ShakeScale);
+        HitStopScale = ReadVolume(data.GetValueOrDefault("hit_stop_scale", HitStopScale), HitStopScale);
+        // 读档直写字段不发 setter 事件：此处显式同步进手感域——否则持久化的「关闭震动/顿帧」
+        // 在下次启动被忽略（ApplyBalance 早于 LoadSettings，注入时读到的还是默认值）
+        GameState.Instance.SyncShakeScale(ShakeScale);
+        GameState.Instance.SyncHitStopScale(HitStopScale);
         ApplyVolumes();
         // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.2（径向，读取侧生效）
         var joySpeed = data.GetValueOrDefault("joy_aim_speed", GameState.Instance.Cfg("player.aim_assist.joy_speed", JoyAimSpeed));
@@ -934,5 +956,6 @@ public sealed partial class SettingsService : RefCounted
         ["music_volume"] = MusicVolume,
         ["sfx_volume"] = SfxVolume,
         ["shake_scale"] = ShakeScale,
+        ["hit_stop_scale"] = HitStopScale,
     };
 }

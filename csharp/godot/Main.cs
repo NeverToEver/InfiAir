@@ -144,8 +144,8 @@ public partial class Main : Node2D
         ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // =0 使狂暴慢速完全冻结
         ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // =0 跳过子弹时间演出
         ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // =0 时 _time_scale_ramp 除零
-        // 防御：上一场本局若在子弹时间内结束（死亡重开），确保全局速度已复位
-        Engine.TimeScale = 1.0f;
+        // 防御：上一场本局若在子弹时间内结束（死亡重开），确保演出倍率与顿帧残留一并复位
+        GameState.Instance.ResetTimeScale();
         // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
         GameState.Instance.SummonInProgress = false;
         RenderingServer.SetDefaultClearColor(new Color(0.025f, 0.022f, 0.018f));
@@ -270,8 +270,8 @@ public partial class Main : Node2D
 
     public override void _ExitTree()
     {
-        // 子弹时间内退出（重开/中途退出）也要保证全局速度复位
-        Engine.TimeScale = 1.0f;
+        // 子弹时间内退出（重开/中途退出）也要保证演出倍率与顿帧残留一并复位
+        GameState.Instance.ResetTimeScale();
         GameState.Instance.SummonInProgress = false; // 同 TimeScale：跨场景不残留
         var camRef = GameState.Instance.CameraRef;
         if (camRef == _camera)
@@ -364,12 +364,12 @@ public partial class Main : Node2D
             if (_timeScaleRamp >= 1.0f)
             {
                 _timeScaleRamp = -1.0f;
-                Engine.TimeScale = 1.0f;
+                GameState.Instance.SetEnrageTimeScale(1.0);
                 FireEnrageSnapshot();
             }
             else
             {
-                Engine.TimeScale = Mathf.Lerp(ENRAGE_SLOW_SCALE, 1.0f, _timeScaleRamp);
+                GameState.Instance.SetEnrageTimeScale(Mathf.Lerp(ENRAGE_SLOW_SCALE, 1.0f, _timeScaleRamp));
             }
         }
 
@@ -690,7 +690,7 @@ public partial class Main : Node2D
         _bulletTimeLeft = 0.0f;
         _timeScaleRamp = -1.0f;
         _enrageBoss = null;
-        Engine.TimeScale = 1.0f;
+        GameState.Instance.ResetTimeScale();
     }
 
     /// <summary>Boss 入场时挂接狂暴信号（狂暴弹幕/子弹时间由 main 统一编排）。
@@ -728,7 +728,7 @@ public partial class Main : Node2D
         _enrageBoss = boss;
         _bulletTimeLeft = ENRAGE_BULLET_TIME;
         _timeScaleRamp = -1.0f;
-        Engine.TimeScale = ENRAGE_SLOW_SCALE;
+        GameState.Instance.SetEnrageTimeScale(ENRAGE_SLOW_SCALE);
         EnrageVignette();
     }
 

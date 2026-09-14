@@ -99,6 +99,9 @@ public partial class GameState : Node
     /// <summary>无障碍·屏幕震动强度（0..1，0 = 完全关闭）：持久化到 settings.json，Shake 出口按此折算</summary>
     public void SetShakeScale(double value) => _settings.SetShakeScale(value);
 
+    /// <summary>无障碍·命中顿帧强度（0..1，0 = 完全关闭）：持久化到 settings.json，顿帧请求按此折算时长</summary>
+    public void SetHitStopScale(double value) => _settings.SetHitStopScale(value);
+
     /// <summary>主音量（0..1）：立即应用到 Master 总线 + 持久化</summary>
     public void SetMasterVolume(double value) => _settings.SetMasterVolume(value);
 

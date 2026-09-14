@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.GameFeel;
 
 namespace InfiAir;
 
@@ -109,6 +110,8 @@ public class PlayerDamage
         _secondWindTimer = SecondWindDuration;
         GameState.Instance.PlaySfx(SfxId.PlayerHit);
         GameState.Instance.Shake(ShakeHit);
+        // 玩家被击中给最重档顿帧：受击是全局最需要「顿一下」确认的事件
+        GameState.Instance.RequestHitStop(HitStopTier.Heavy);
         RumbleService.Hit(); // 受击震动（扣血生效才触发；闪避/盾吸收分支不震）
         GameState.Instance.LoseHealth(amount);
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDamaged, amount, fromPos); // SignalName 常量 + 类型链统一 float

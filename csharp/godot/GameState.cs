@@ -173,6 +173,10 @@ public partial class GameState : Node
     /// 风险加点；GameState 组合持有并做门面。无构造依赖（跨域经 Instance）。</summary>
     private readonly TalentService _talent = new();
 
+    /// <summary>手感域（GameFeelService）——命中顿帧时序 + 屏幕震动 trauma + Engine.TimeScale
+    /// 合成（狂暴子弹时间由 Main 上报演出倍率，两路不再各自直写）。无构造依赖。</summary>
+    private readonly GameFeelService _gameFeel = new();
+
     public GameState()
     {
         _missions = new MissionsService();
@@ -622,6 +626,10 @@ public partial class GameState : Node
         // 必须难度档信号先于连击信号
         _runProg.Tick(delta);
         _score.Tick(delta);
+        // 手感推进：顿帧剩余与 trauma 衰减都用**真实帧长**（delta 已按时间缩放折算，
+        // 顿帧把缩放压到 0.05 时会拖慢衰减、甚至让剩余量永远推不完——须反解除回）。
+        // 放在本局时钟之后：本局时钟仍按缩放后 delta 推进（狂暴慢动作下玩法时间同样变慢）。
+        _gameFeel.Tick(_gameFeel.RealDelta(delta));
     }
 
     /// <summary>volumeDb/pitchScale 缺省 = SfxPlayer 目录基准（音量基准/抖动/冷却/复音都在目录表）；
@@ -637,7 +645,43 @@ public partial class GameState : Node
         _sfxPlayer.StopAll();
     }
 
-    /// <summary>屏幕震动唯一入口（所有来源的震动强度在此按无障碍倍率折算后广播）。
-    /// 倍率 0 = 完全关闭画面震动；过场内部的镜头抖动不走本入口，属演出编排不经此缩放。</summary>
-    public void Shake(double strength) => EmitSignal(SignalName.ScreenShake, strength * _settings.ShakeScale);
+    /// <summary>屏幕震动唯一入口（所有来源的震动强度在此按无障碍倍率折算后累加 trauma）。
+    /// 倍率 0 = 完全关闭画面震动；过场内部的镜头抖动不走本入口，属演出编排不经此缩放。
+    /// 相机位移改由 CameraShake 每帧按 trauma^2 采样（Eiserloh trauma 惯例）：小额冲击近乎无感、
+    /// 大额才猛烈，高频抖动不再叠加成持续晃动；信号仍在发（WorldPostFx 的重击脉冲按原始强度取阈）。</summary>
+    public void Shake(double strength)
+    {
+        var scaled = strength * _settings.ShakeScale;
+        _gameFeel.AddShake(scaled);
+        EmitSignal(SignalName.ScreenShake, scaled);
+    }
+
+    /// <summary>命中顿帧请求（唯一入口）：档位在 balance.json effects.hit_stop.* 取时长。
+    /// 实际冻结由 GameFeelService 合成 Engine.TimeScale——与狂暴子弹时间共存不互覆盖。</summary>
+    public void RequestHitStop(Core.GameFeel.HitStopTier tier) => _gameFeel.RequestHitStop(tier);
+
+    /// <summary>当前屏幕震动位移映射量（trauma^2；CameraShake 每帧读取）。</summary>
+    public double ShakeMagnitude() => _gameFeel.ShakeOffset(1.0);
+
+    /// <summary>屏幕震动 trauma 原值（诊断/探针读口）。</summary>
+    public double ShakeTrauma() => _gameFeel.ShakeTrauma();
+
+    /// <summary>顿帧是否进行中（诊断/探针读口）。</summary>
+    public bool HitStopActive() => _gameFeel.HitStopActive();
+
+    /// <summary>Boss 狂暴子弹时间的演出倍率上报（Main 调用；1.0 = 无演出）。
+    /// 时间缩放收口在 GameFeelService——Main 不再直写 Engine.TimeScale（直写会与顿帧互覆盖）。</summary>
+    public void SetEnrageTimeScale(double scale) => _gameFeel.SetEnrageTimeScale(scale);
+
+
+
+    /// <summary>时间缩放整体复位（演出倍率归 1、顿帧与 trauma 残留清空）。
+    /// 本局终态/场景切换/死亡重开统一走此——只复位演出侧会把顿帧残留留在下一局（开局定格）。</summary>
+    public void ResetTimeScale() => _gameFeel.ResetAll();
+
+    /// <summary>当前合成后的时间倍率（诊断/探针读口：验证顿帧确实压低了时间缩放）。</summary>
+    public double FeelTimeScale() => _gameFeel.CurrentTimeScale();
+
+    /// <summary>手感探针专用的一次震动注入（绕过震源表，让探针不依赖具体战斗事件即可覆盖 trauma 链路）。</summary>
+    public void AddShakeForProbe() => Shake(Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
 }

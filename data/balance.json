@@ -984,6 +984,13 @@
 			"boss_seq_step_min": 0.07,
 			"boss_seq_step_max": 0.17
 		},
+		"hit_stop": {
+			"normal": 0.03,
+			"crit": 0.07,
+			"kill": 0.11,
+			"heavy": 0.16,
+			"freeze_scale": 0.06
+		},
 		"shake": {
 			"player_hit": 12,
 			"enemy_die": 5,
@@ -994,7 +1001,10 @@
 			"boss_seq_final": 24,
 			"enrage": 16,
 			"mothership": 4,
-			"decay": 6,
+			"reference": 24,
+			"recovery": 1.5,
+			"max_offset": 22,
+			"frequency": 25,
 			"rotation_deg": 0.4
 		},
 		"hit_flash": {

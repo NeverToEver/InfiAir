@@ -33,6 +33,7 @@ public partial class ProbeHost : Node
     private bool _startupProbe;
     private bool _fuelProbe;
     private bool _shotProbe;
+    private bool _feelProbe;
     private string _shotDir = "";
     private string _eventId = "";
     private bool _deathProbe;
@@ -44,6 +45,9 @@ public partial class ProbeHost : Node
     private int _activeFrame;
     private int _fuelStep;
     private int _shotStep;
+    private int _feelStep;
+    private bool _feelSawHitStop;
+    private bool _feelSawTrauma;
 
     /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）。
     /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
@@ -91,6 +95,10 @@ public partial class ProbeHost : Node
             {
                 _shotProbe = true;
             }
+            else if (arg == "--feel-probe")
+            {
+                _feelProbe = true;
+            }
             else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
             {
                 _shotDir = arg["--shot-dir=".Length..];
@@ -106,7 +114,7 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_eventId.Length > 0)
+        if (_eventId.Length > 0 || _feelProbe)
         {
             // Main 嵌入宿主时按 current_scene 判定关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -135,6 +143,12 @@ public partial class ProbeHost : Node
         if (_fuelProbe)
         {
             TickFuelProbe();
+            return;
+        }
+
+        if (_feelProbe)
+        {
+            TickFeelProbe();
             return;
         }
 
@@ -284,6 +298,91 @@ public partial class ProbeHost : Node
 
         _shotSigs[name] = sig;
         _shots.Add(name);
+    }
+
+    /// <summary>手感探针：请求四档顿帧与一次震动，断言「时间缩放确实被压低 + trauma 确实累加 +
+    /// 顿帧在真实时间下会自行结束」。
+    ///
+    /// 为什么不能只判「不崩」：顿帧写的是 Engine.TimeScale——写错（倍率写成 0 或按缩放 delta 推进）
+    /// 的表现是**画面永久定格**，无头下不崩、也不报错，只有完成标记能抓住。
+    /// 顺序固定：先等场景稳定，再逐档请求（各档间隔需大于前档时长，避免被 max 合并掩盖），
+    /// 最后断言全部档位结束后时间缩放已回到演出侧上报值 1.0。</summary>
+    private void TickFeelProbe()
+    {
+        // 前 30 帧等入场与稳定（入场窗口内玩家不可驱动、GameState 时钟未起）
+        if (_frame < 30)
+        {
+            return;
+        }
+
+        if (GameState.Instance.HitStopActive())
+        {
+            // 冻结中：时间缩放必须被压低（否则「请求了但没生效」）。
+            // 探针宿主 ProcessMode=Always 且本驱动每帧都在跑，故这里能看到冻结窗口。
+            if (GameState.Instance.FeelTimeScale() >= 1.0)
+            {
+                GD.PushError("[feel-probe] 顿帧激活但时间缩放未压低（请求未生效）");
+                _feelProbe = false;
+                return;
+            }
+
+            // trauma 由震动请求累加，与顿帧独立——两者都断言，任一路坏都要红
+            if (GameState.Instance.ShakeTrauma() > 0.0)
+            {
+                _feelSawTrauma = true;
+            }
+
+            _feelSawHitStop = true;
+            return;
+        }
+
+        if (_feelStep == 0)
+        {
+            GameState.Instance.AddShakeForProbe();
+            GameState.Instance.RequestHitStop(Core.GameFeel.HitStopTier.Heavy);
+            _feelStep = 1;
+            return;
+        }
+
+        // 顿帧结束：确认已真正观察到冻结、trauma 已累加、时间缩放已复位
+        if (_feelStep == 1)
+        {
+            if (!_feelSawHitStop)
+            {
+                GD.PushError("[feel-probe] 从未观测到顿帧激活（请求被吞或时序未推进）");
+                _feelProbe = false;
+                return;
+            }
+
+            if (!_feelSawTrauma)
+            {
+                GD.PushError("[feel-probe] 震动未累加 trauma（Shake 入口未接到手感域）");
+                _feelProbe = false;
+                return;
+            }
+
+            if (GameState.Instance.FeelTimeScale() < 1.0)
+            {
+                GD.PushError("[feel-probe] 顿帧已结束但时间缩放未复位（画面将永久定格）");
+                _feelProbe = false;
+                return;
+            }
+
+            _feelStep = 2;
+            return;
+        }
+
+        // trauma 自行衰减至 0：衰减链路（GameFeelService.Tick 按真实帧长推进）确实在跑
+        if (_feelStep == 2)
+        {
+            if (GameState.Instance.ShakeTrauma() > 1e-4)
+            {
+                return;
+            }
+
+            GD.Print("[feel-probe] 顿帧与震动复位完成");
+            _feelProbe = false;
+        }
     }
 
     /// <summary>燃料量槽探针：把液位从满油扫到见底，逼 <c>FuelTank._Draw</c> 在每个液位各画一次

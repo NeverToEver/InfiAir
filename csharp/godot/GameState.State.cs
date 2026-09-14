@@ -115,6 +115,19 @@ public partial class GameState : Node
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
         // 天赋缓存：经济参数 + 节点上限/软上限缓存
         _talent.LoadTalentConfig();
+        // 手感域：命中顿帧各档时长 + 顿帧时间倍率 + 震动 trauma 衰减/参考振幅
+        // （trauma 参考振幅 = 震源振幅归一化基准；满量程取 boss 终段 24 的同一量纲，
+        // 故 reference 缺省与 boss_seq_final 一致——改震源表须同步此值，否则层级感漂移）
+        _gameFeel.ApplyConfig(
+            Mathf.Max(Cfg("effects.hit_stop.normal", 0.03).AsDouble(), 0.0),
+            Mathf.Max(Cfg("effects.hit_stop.crit", 0.07).AsDouble(), 0.0),
+            Mathf.Max(Cfg("effects.hit_stop.kill", 0.11).AsDouble(), 0.0),
+            Mathf.Max(Cfg("effects.hit_stop.heavy", 0.16).AsDouble(), 0.0),
+            Cfg("effects.hit_stop.freeze_scale", 0.06).AsDouble(),
+            Mathf.Max(Cfg("effects.shake.recovery", 1.5).AsDouble(), 0.01),
+            Mathf.Max(Cfg("effects.shake.reference", 24.0).AsDouble(), 1e-6));
+        _gameFeel.SetHitStopScale(HitStopScale);
+        _gameFeel.ShakeScale = _settings.ShakeScale;
     }
 
     /// <summary>难度表结构校验——顶层 Dictionary、含 easy/medium/hard 三个子字典，
@@ -306,6 +319,16 @@ public partial class GameState : Node
 
     /// <summary>无障碍：屏幕震动强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭画面震动）——SettingsService 转发。</summary>
     public double ShakeScale { get => _settings.ShakeScale; set => _settings.ShakeScale = value; }
+
+    /// <summary>无障碍：命中顿帧强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭顿帧）——SettingsService 转发。</summary>
+    public double HitStopScale { get => _settings.HitStopScale; set => _settings.HitStopScale = value; }
+
+    /// <summary>设置改动/读档后把震动倍率同步进手感域（trauma 累加不每帧回查设置）。
+    /// 读档路径直写 _settings 字段不发服务事件，须由 GameState 显式同步（同 HitStop）。</summary>
+    public void SyncShakeScale(double value) => _gameFeel.ShakeScale = value;
+
+    /// <summary>设置改动/读档后把顿帧强度同步进手感域（同上）。</summary>
+    public void SyncHitStopScale(double value) => _gameFeel.SetHitStopScale(value);
 
     /// <summary>主音量（0..1，settings.json 持久化，默认 0.8；作用于 Master 总线）——SettingsService 转发。</summary>
     public double MasterVolume { get => _settings.MasterVolume; set => _settings.MasterVolume = value; }
