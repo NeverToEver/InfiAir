@@ -3,7 +3,7 @@
 
 按 CI fast-gate 顺序跑完全部十一步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
 存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-无头冒烟九趟 → 截图探针（辅助）。
+无头冒烟十趟 → 截图探针（辅助）。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
@@ -42,7 +42,7 @@ STEPS = (
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "无头冒烟九趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "无头冒烟十趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/返航宽限）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
     {"slug": "visual", "name": "截图探针（HUD + 五张设置页，自检非空白/页面互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
 )
 

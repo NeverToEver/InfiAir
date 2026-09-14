@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 无头冒烟九趟（固定步长、机器速度）+ 完成标记断言。
+无头冒烟十趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
 # 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
@@ -15,12 +15,16 @@
 #   7) --fog-probe：迷雾事件全周期——迷雾走「首延迟 25s + 每 3s 掷 35%」的随机链，常规冒烟
 #      跑不到，而注册/context 构建/生命周期/效果清理是高密度出错区。强制入口只替换掷签与
 #      权重选取（仍过生产门控），并断言「start→end 跑满生产 duration」——截断不打标记。
+#   8) --return-probe：返航过场输入宽限与跳过收尾——走生产蓄力链触发返航，三段确定性判据：
+#      宽限内跳过被忽略、推进 >宽限 的模拟时长后仍被忽略（真实时间基准的判别式：若误改模拟
+#      时间此刻会放行）、越过宽限后跳过生效且落基地并保持暂停。不用「等真实时间越宽限」
+#      （--fixed-fps 下那个写法既慢又不可靠，见 71e6324）。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
-# 2~9 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
+# 2~10 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
 # main.tscn/Main（AGENTS §5）。死亡那趟在临时用户目录里跑——死亡即删本局存档，探针不得
 # 触碰开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
 set -uo pipefail
@@ -111,3 +115,7 @@ expect_marker "难度曲线落在预期带" "${PROBE_LOG_BASE}.long.log" "[long-
 # fake_enemies duration（data/balance.json fog_events.durations）+ 3s 余量 = 36s × 60 = 2160。
 run_case "fog event full-cycle smoke" 2160 "${PROBE_LOG_BASE}.fog.log" "$PROBE_SCENE" "" --fog-probe
 expect_marker "迷雾全周期" "${PROBE_LOG_BASE}.fog.log" "[fog-probe] 迷雾全周期完成"
+# 返航宽限与跳过收尾：入场约 1.65s + 蓄力 1.5s + 判别窗口 1.5s（90 帧）+ 收尾余量 ≈ 6s，取 10s
+# 余量 600 帧；探针不等真实时间，判据全部由帧数与墙钟前置守卫决定（见 ProbeHost.TickReturnProbe）。
+run_case "return grace smoke" 600 "${PROBE_LOG_BASE}.return.log" "$PROBE_SCENE" "" --return-probe
+expect_marker "返航宽限与跳过收尾" "${PROBE_LOG_BASE}.return.log" "[return-probe] 返航宽限与跳过收尾完成"

@@ -29,8 +29,10 @@ SKIP = {".git", ".godot", "builds", "tools", "bin", "obj", "__pycache__", ".venv
 ALLOW = (
     ("csharp/godot/GameState.cs", "Time.GetTicksMsec", 1,
      "开机耗时基准：autoload 最早生命周期点打点，只供 --startup-time 分段读数，不参与模拟与判定"),
-    ("csharp/godot/ProbeHost.cs", "Time.GetTicksMsec", 1,
-     "读开机基准并打印启动耗时：探针的性能读数，非判定"),
+    ("csharp/godot/ProbeHost.cs", "Time.GetTicksMsec", 3,
+     "启动耗时打印（1 处）与返航探针的环境前置守卫（2 处：记墙钟起点、算已耗真实毫秒）——"
+     "守卫用途是「若 90 帧耗时已达生产宽限则无法判别时间基准，显式报错」，度量的是真实耗时，"
+     "非判定输入；探针的判定本身只用帧数与过场状态"),
     ("csharp/godot/ReturnCinematic.cs", "Time.GetTicksMsec", 2,
      "返航过场输入宽限：门控的是玩家物理按键是否还压着 / 输入事件是否还在队列里这一现实世界窗口，"
      "与过场世界推进多少无关；用模拟时间会在时间缩放或回调停摆时被拉伸乃至永不结束（跳过失效）。见 71e6324"),

@@ -33,6 +33,19 @@ public partial class ProbeHost : Node
     /// 同时远小于任何真实截断（截断至少丢掉整段事件时长）。</summary>
     private const double FogCycleToleranceSeconds = 0.1;
 
+    /// <summary>返航宽限探针蓄力触发返航的帧预算：effects.home_charge_time 1.5s = 90 帧，留 3 倍余量。</summary>
+    private const int ReturnProbeChargeFrames = 300;
+
+    /// <summary>返航宽限探针在过场开播后推进的帧数（60 帧＝1 模拟秒）。取 90 帧（1.5 模拟秒 &gt; 默认宽限
+    /// 1.2s）作「模拟时间足够越界、真实时间尚未越界」的判别窗口——见 TickReturnProbe 的说明。</summary>
+    private const int ReturnProbeGraceWindowFrames = 90;
+
+    /// <summary>返航宽限探针判定用的墙钟余量（ms）：越过宽限后多等一点，抵消边界抖动。</summary>
+    private const ulong ReturnProbeGraceMarginMs = 250;
+
+    /// <summary>返航蓄力动作名（与 project.godot 的 homecoming 映射一致，生产判定读同一动作）。</summary>
+    private static readonly StringName ActHomecoming = new("homecoming");
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -45,6 +58,7 @@ public partial class ProbeHost : Node
     private bool _feelProbe;
     private bool _longProbe;
     private bool _fogProbe;
+    private bool _returnProbe;
     private string _shotDir = "";
     private string _eventId = "";
     private bool _deathProbe;
@@ -56,6 +70,11 @@ public partial class ProbeHost : Node
     private bool _fogSubscribed;
     private int _fogStartFrame;
     private double _fogDuration;
+    private int _returnStage;
+    private int _returnChargeFrames;
+    private int _returnStartFrame;
+    private ulong _returnWallStart;
+    private float _returnGrace;
     private int _frame;
     private int _activeFrame;
     private int _fuelStep;
@@ -122,6 +141,10 @@ public partial class ProbeHost : Node
             {
                 _fogProbe = true;
             }
+            else if (arg == "--return-probe")
+            {
+                _returnProbe = true;
+            }
             else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
             {
                 _shotDir = arg["--shot-dir=".Length..];
@@ -137,7 +160,7 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe)
+        if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _returnProbe)
         {
             // Main 嵌入宿主时按 current_scene 判定关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -211,6 +234,12 @@ public partial class ProbeHost : Node
         if (_fogProbe)
         {
             TickFogProbe();
+            return;
+        }
+
+        if (_returnProbe)
+        {
+            TickReturnProbe();
             return;
         }
 
@@ -757,6 +786,146 @@ public partial class ProbeHost : Node
 
         GD.Print("[fog-probe] 迷雾全周期完成");
         _fogProbe = false;
+    }
+
+    /// <summary>返航宽限探针：走生产蓄力链触发返航（长按 homecoming 蓄满，不直调过场、不绕过输入判定），
+    /// 再分三段确定性地覆盖输入宽限与跳过收尾。
+    ///
+    /// 为什么不能照搬旧测试「等 1.4s 真实时间越宽限」：`--fixed-fps 60` 下引擎不等真实时间，帧跑得远快于
+    /// 墙钟（71e6324 记载过由此导致的静默跳过失效），等真实时间的写法在帧预算内既慢又不可靠。宽限本身
+    /// 用真实时间是对的（见 DESIGN_BASELINE §2.10），故本探针**不靠等待**，改用两个确定性判据：
+    ///   1) 开播即调跳过 → 必须被忽略（宽限存在）；
+    ///   2) 推进 ReturnProbeGraceWindowFrames（90 帧 = 1.5 模拟秒 &gt; 生产宽限 1.2s）后仍必须被忽略——
+    ///      若宽限被误改成模拟时间，此刻 1.5s &gt; 1.2s 会放行，判据即红。真实时间下这段墙钟远未越界，
+    ///      探针另测墙钟做前置守卫（环境过慢则显式报错，绝不静默放过）。
+    ///   3) 把宽限置 0（确定越过边界）后跳过必须生效，且收尾落在基地、树保持暂停。
+    /// 段 2 的「仍被忽略」是真实时间基准的判别式；「是否用真实时间 API」另由 check_realtime_allowlist.sh 兜住。</summary>
+    private void TickReturnProbe()
+    {
+        // 触发前的等待/蓄力阶段：等入场结束、spawner 可处理（生产蓄力链的前置）。
+        // 注意这一段守卫**只**管「尚未开播的 stage 0」——过场一开播 Main 就 SetProcess(false) 停掉
+        // spawner，若把 `!IsProcessing()` 继续套用会永远卡在 stage 0（实测 proc 会变 false）。
+        if (_returnStage == 0 && !_main.IsReturnPlaying()
+            && (_frame < 30 || _player.IsEntryPlaying() || !_spawner.IsProcessing()))
+        {
+            return;
+        }
+
+        _player.SetInvincible(ProbeInvincibleSeconds); // 无头局玩家不操作，与存活解耦
+
+        if (_returnStage == 0)
+        {
+            if (_main.IsReturnPlaying())
+            {
+                Input.ActionRelease(ActHomecoming);
+                var ret = _main.ReturnCinematic();
+                if (ret == null)
+                {
+                    ReturnProbeFail("返航过场已开始但引用为空");
+                    return;
+                }
+
+                _returnStartFrame = _frame;
+                _returnWallStart = Time.GetTicksMsec();
+                _returnGrace = ret.SKIP_GRACE; // 生产宽限值（判别与诊断用）
+                _returnStage = 1;
+                return;
+            }
+
+            _returnChargeFrames++;
+            if (_returnChargeFrames > ReturnProbeChargeFrames)
+            {
+                Input.ActionRelease(ActHomecoming);
+                ReturnProbeFail(GdFormat.Format("长按返航蓄力 %d 帧仍未触发过场", ReturnProbeChargeFrames));
+                return;
+            }
+
+            Input.ActionPress(ActHomecoming); // 生产蓄力链：Main._Process 读同一动作
+            return;
+        }
+
+        var cinematic = _main.ReturnCinematic();
+        if (cinematic == null)
+        {
+            ReturnProbeFail("返航过场在收尾前意外消失");
+            return;
+        }
+
+        if (_returnStage == 1)
+        {
+            _main.SkipReturn();
+            if (!_main.IsReturnPlaying())
+            {
+                ReturnProbeFail("宽限期内跳过未被忽略（过场已销毁）");
+                return;
+            }
+
+            _returnStage = 2;
+            return;
+        }
+
+        if (_returnStage == 2)
+        {
+            if (_frame - _returnStartFrame < ReturnProbeGraceWindowFrames)
+            {
+                return;
+            }
+
+            var wallMs = Time.GetTicksMsec() - _returnWallStart;
+            var graceMs = (ulong)(_returnGrace * 1000.0f);
+            if (wallMs + ReturnProbeGraceMarginMs >= graceMs)
+            {
+                // 墙钟已追上宽限，本趟无法判别「真实时间 vs 模拟时间」——显式失败，不静默放过
+                ReturnProbeFail(GdFormat.Format(
+                    "环境过慢：%d 帧耗 %dms 已达生产宽限 %dms，无法判别时间基准",
+                    ReturnProbeGraceWindowFrames, (long)wallMs, (long)graceMs));
+                return;
+            }
+
+            _main.SkipReturn();
+            if (!_main.IsReturnPlaying())
+            {
+                ReturnProbeFail(GdFormat.Format(
+                    "推进 %d 帧后跳过被提前放行——宽限疑似按模拟时间计（应为真实时间）",
+                    ReturnProbeGraceWindowFrames));
+                return;
+            }
+
+            _returnStage = 3;
+            return;
+        }
+
+        // 段 3：宽限置 0 确定越过边界 → 跳过必须生效，收尾落基地且树保持暂停
+        cinematic.SKIP_GRACE = 0.0f;
+        _main.SkipReturn();
+        if (_main.IsReturnPlaying())
+        {
+            ReturnProbeFail("越过宽限后跳过未生效");
+            return;
+        }
+
+        var baseUi = _main.GetNodeOrNull<BaseConsole>("BaseUI");
+        if (baseUi == null || !baseUi.Visible)
+        {
+            ReturnProbeFail("跳过收尾未显示基地 UI");
+            return;
+        }
+
+        if (!GetTree().Paused)
+        {
+            ReturnProbeFail("跳过收尾树未保持暂停（基地界面应为暂停态）");
+            return;
+        }
+
+        GD.Print("[return-probe] 返航宽限与跳过收尾完成");
+        _returnProbe = false;
+    }
+
+    /// <summary>返航宽限探针失败：报错并停探针（门禁按缺完成标记判红）。</summary>
+    private void ReturnProbeFail(string reason)
+    {
+        GD.PushError("[return-probe] " + reason);
+        _returnProbe = false;
     }
 
     /// <summary>遭遇探针驱动：等可驱动 → 补分数 + 请求掷签必中（仍走生产触发链）→ 观测收场。

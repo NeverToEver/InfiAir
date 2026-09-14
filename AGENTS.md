@@ -86,7 +86,7 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 | `bash scripts/ci/check_ui_copy.sh` | 玩家可见文案无缺键、无开发措辞、无空字段 |
 | `bash scripts/ci/check_realtime_allowlist.sh` | `csharp/` 里的墙钟 / 帧率 / 机器性能读数全部登记在脚本内 `ALLOW`（单源）：未登记的新增判红，**已登记站点消失也判红**（防合法墙钟被「顺手改成模拟时间」——返航输入宽限的 71e6324 形态）；总命中为零判红；`csharp/core/` 出现任何命中即红 |
 | `bash scripts/ci/check_import.sh` | 资源导入退出码为 0 且日志无 `ERROR`（导入静默坏不改退出码，只在日志留 ERROR；旧的 `Warning treated as error` 判据在零 GDScript 后取不到） |
-| `bash scripts/ci/check_smoke.sh` | 无头冒烟九趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 / 燃料量槽满扫 / 手感复位 / 难度曲线落在预期带 / 迷雾事件全周期；引擎错误正则含通用 `ERROR:`（退出期资源统计噪声走白名单） |
+| `bash scripts/ci/check_smoke.sh` | 无头冒烟十趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 / 燃料量槽满扫 / 手感复位 / 难度曲线落在预期带 / 迷雾事件全周期 / 返航宽限与跳过收尾；引擎错误正则含通用 `ERROR:`（退出期资源统计噪声走白名单） |
 | `bash scripts/ci/check_visual.sh` | 截图探针（辅助）：固定帧捕获 HUD 与五张设置页存 PNG；探针自检「画面非空白 + 五页互不相同」，抓渲染整体坏掉/页面切换失效。**不是像素级回归**——占位内容（帧率读出、背景动画）随环境变化，细粒度退化归单测与人工 |
 
 **卫生门禁**（判散文形态，不产生质量信号）：`bash scripts/ci/check_prose_hygiene.sh` 判注释无日期戳、注释散文简体中文、术语单一叫法（与 §9 表同源）；注释抽取含行尾注释（剥离字符串与 `res://` 协议分隔后取 `//` 之后文本）。
@@ -103,9 +103,9 @@ godot --headless --path . --fixed-fps 60 --quit-after <帧数> --scene res://sce
 
 - 开关与驱动全在探针宿主 `csharp/godot/ProbeHost.cs`；生产 `main.tscn`/`Main` 不读任何测试开关（§5「测试设施不进生产路径」）。
 - 帧数 = 事件全周期秒数 × 60 + 余量；**帧数只在 `scripts/ci/check_smoke.sh` 维护一份**。
-- 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 在生产触发链上请求一次遭遇（资格/门槛/门控仍须真正通过）；`--event-probe-death=elite_turret` 激活后延迟击杀玩家，覆盖死亡打断路径；`--fuel-probe` 把燃料液位从满扫到空，逼量槽填充绘制在每个液位各画一次；`--feel-probe` 请求一次顿帧与震动，覆盖「时间缩放被压低→自行复位→trauma 归零」（顿帧写 `Engine.TimeScale`，写错的表现是画面永久定格，无头下不崩也不报错）；`--long-probe` 直接取生产曲线在 t=5/10/20/30min 的各量，断言单调、速度有顶、精英随难度增长、Boss 斜率独立于完整 D、时间项软上限生效；`--fog-probe` 请求一次**强制指定**的迷雾事件（fake_enemies，无伤害）并等 start→end 跑满生产 duration（仍过生产门控：接线/启用/本局活跃/首延迟/冷却；只有完整周期才打标记）；`--startup-time` 打印启动分段耗时。
-- 完成标记：三趟遭遇必须出现 `[event-probe] <id> 全周期完成`、死亡趟 `[event-probe] <id> 死亡打断完成`（截断/收尾残缺都不打）、设置页 `[settings-probe] 五页切换完成`、燃料 `[fuel-probe] 液位满扫完成`、手感 `[feel-probe] 顿帧与震动复位完成`、长局曲线 `[long-probe] 难度曲线落在预期带`、迷雾 `[fog-probe] 迷雾全周期完成`（截断不打）；主场景趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败打 `ERROR: Cannot open file`，既被引擎错误正则抓、又缺完成标记，双红灯）。
-- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death / fuel / feel / long / fog）。
+- 开关：`--settings-probe` 开设置页并逐页切过；`--event-probe=formation_strike|elite_turret` 在生产触发链上请求一次遭遇（资格/门槛/门控仍须真正通过）；`--event-probe-death=elite_turret` 激活后延迟击杀玩家，覆盖死亡打断路径；`--fuel-probe` 把燃料液位从满扫到空，逼量槽填充绘制在每个液位各画一次；`--feel-probe` 请求一次顿帧与震动，覆盖「时间缩放被压低→自行复位→trauma 归零」（顿帧写 `Engine.TimeScale`，写错的表现是画面永久定格，无头下不崩也不报错）；`--long-probe` 直接取生产曲线在 t=5/10/20/30min 的各量，断言单调、速度有顶、精英随难度增长、Boss 斜率独立于完整 D、时间项软上限生效；`--fog-probe` 请求一次**强制指定**的迷雾事件（fake_enemies，无伤害）并等 start→end 跑满生产 duration（仍过生产门控：接线/启用/本局活跃/首延迟/冷却；只有完整周期才打标记）；`--return-probe` 走生产蓄力链触发返航，三段判定输入宽限（宽限内跳过被忽略、推进 90 帧＝1.5 模拟秒后仍被忽略——宽限若误按模拟时间计此刻会放行、越过宽限后跳过生效且落基地并保持暂停）；`--startup-time` 打印启动分段耗时。
+- 完成标记：三趟遭遇必须出现 `[event-probe] <id> 全周期完成`、死亡趟 `[event-probe] <id> 死亡打断完成`（截断/收尾残缺都不打）、设置页 `[settings-probe] 五页切换完成`、燃料 `[fuel-probe] 液位满扫完成`、手感 `[feel-probe] 顿帧与震动复位完成`、长局曲线 `[long-probe] 难度曲线落在预期带`、迷雾 `[fog-probe] 迷雾全周期完成`（截断不打）、返航宽限 `[return-probe] 返航宽限与跳过收尾完成`；主场景趟必须出现 `[boot] 标题屏就绪`（开机交接落到 title.tscn；切场景失败打 `ERROR: Cannot open file`，既被引擎错误正则抓、又缺完成标记，双红灯）。
+- 日志：主场景 `<LOG>`、其余 `<LOG>.<面>.log`（settings / formation / elite / elite_death / fuel / feel / long / fog / return）。
 - 死亡趟在临时用户目录（`<LOG>.userdata`）内跑——死亡即删本局存档，探针不得触碰开发者当前存档。
 - 引擎错误正则含 `Invalid polygon data` 与通用 `ERROR:`：前者是程序化绘制的静默坏点——程序化绘制 headless 仍会执行 `_Draw`（dummy 渲染不拦绘制调用），自交/退化多边形在三角化处报该错并整块不画——不崩、只看退出码抓不到；燃料槽低油量整块消失即此类。`ERROR:` 兜住未列举的错误类别，退出期资源统计噪声（`N resources still in use at exit`）走白名单，不算功能坏点。
 - 截图探针趟**不用 headless**（dummy 截不到画面）：`--shot-probe` 在固定帧捕获视口，Linux 无 DISPLAY 时脚本自动走 `xvfb-run` + `LIBGL_ALWAYS_SOFTWARE=1`（软光栅）。判定全在探针内（非空白 + 页间互异），门禁只断完成标记——**不做像素基线比对**（跨渲染器与占位内容本就不同，会误报）。`KEEP_SHOTS=<dir>` 可把 PNG 留出当截图用。
