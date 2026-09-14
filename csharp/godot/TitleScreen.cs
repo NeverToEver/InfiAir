@@ -13,7 +13,7 @@ namespace InfiAir;
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
-    private const float InputGuardSeconds = 0.5f;
+    private const ulong InputGuardMs = 500;
 
     // 开局确认动效：延迟即切场景等待时长（保持迅捷），ReduceFlash 时只留极轻缩放、不提亮
     private const float ConfirmDelay = 0.2f;
@@ -27,12 +27,9 @@ public partial class TitleScreen : CanvasLayer
     private static readonly Vector2 ShipAnchorPos = new(1360.0f, 470.0f);
     private static readonly Vector2 ShipFarPos = new(1560.0f, 230.0f);
 
-    /// <summary>输入守卫已过（0.5s 模拟时间）：上一场景残留按键不误触发开局。
-    /// 按物理帧累计 delta（--fixed-fps 下每帧恒 1/60，帧数＝模拟时长），不用墙钟——
-    /// 墙钟与模拟时间脱钩，守卫时长在无头/低帧率下不可复现。本类 _Process 由 Warzone 分部占用，
-    /// 故用 _PhysicsProcess 计时。</summary>
-    private bool _guardDone;
-    private double _guardElapsed;
+    /// <summary>标题屏就绪的真实时刻：输入守卫计时基准（残留在输入队列/玩家手里的上一场景按键，
+    /// 属现实世界窗口，故用真实时间而非模拟时间，见 DESIGN_BASELINE「时间基准」）。</summary>
+    private ulong _readyMs;
     /// <summary>开局/进教程一次性守卫：同帧多个按下事件（键+点击、T+其他键）会各触发一次
     /// ChangeSceneToFile（deferred 双倍执行），且 T 与其他键同帧时目的地由后调用者覆盖</summary>
     private bool _started;
@@ -50,6 +47,7 @@ public partial class TitleScreen : CanvasLayer
         // 固定标记：开机交接契约的观测点——标记只在标题屏真正入树时打印，冒烟门禁据此断言
         // 「开机落到了标题屏」。切场景静默失败（路径错/资源缺失）时本行不会执行，无头也能判出来。
         GD.Print("[boot] 标题屏就绪");
+        _readyMs = Time.GetTicksMsec();
         // 深空底色 + 程序化星空
         // Starfield._Ready 自置 ZIndex=-10，底色须再低一层否则星点被底色盖住
         var bg = CinematicFx.BgRect(TitleBgColor);
@@ -71,15 +69,6 @@ public partial class TitleScreen : CanvasLayer
         var fadeTween = fadeIn.CreateTween();
         fadeTween.TweenProperty(fadeIn, "color:a", 0.0f, 0.5).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         fadeTween.TweenCallback(Callable.From(fadeIn.QueueFree));
-    }
-
-    /// <summary>输入守卫计时（模拟时间）：累计物理帧 delta 到 0.5s 后放行输入。</summary>
-    public override void _PhysicsProcess(double delta)
-    {
-        if (!_guardDone && (_guardElapsed += delta) >= InputGuardSeconds)
-        {
-            _guardDone = true;
-        }
     }
 
     private void BuildTitleUi()
@@ -186,7 +175,7 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (_started || !_guardDone)
+        if (_started || Time.GetTicksMsec() - _readyMs < InputGuardMs)
         {
             return;
         }

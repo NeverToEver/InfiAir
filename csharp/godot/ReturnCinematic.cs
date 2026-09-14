@@ -37,10 +37,11 @@ public partial class ReturnCinematic : CanvasLayer
     private Node2D? _currentShot;
     private Godot.Timer _shotTimer = null!;
     private bool _done;
-    /// <summary>开播以来的累计模拟时间（秒，_Process delta）：输入宽限计时基准。
-    /// 不用墙钟——低帧率/无头固定步长下墙钟推进远快于过场自身时间轴，宽限期会被迅速走完或被
-    /// 单帧巨帧一次性吞掉，输入跳过判定失真（§5 确定性硬规则：只看模拟状态）。</summary>
-    private float _elapsed;
+    /// <summary>开播真实时刻（输入宽限计时基准）。真实时间而非模拟时间：宽限门控的是「玩家
+    /// 物理按键是否还压着 / 输入事件是否还在队列里」这一现实世界窗口，与过场世界推进多少无关；
+    /// 用模拟时间会在时间缩放或回调停摆时被拉伸乃至永不结束（表现为跳过失效）。见 AGENTS §5 与
+    /// DESIGN_BASELINE「时间基准」。</summary>
+    private ulong _startMsec;
     private float _driftT; // 导演级手持漂移相位（共享容器，单 _process 零堆分配）
     private bool _seamlessNext; // 差异化转场：2→3 画面连续（端口内推，不黑场）
     private Tween? _subTween; // 字幕淡入/淡出互斥
@@ -54,7 +55,7 @@ public partial class ReturnCinematic : CanvasLayer
     public override void _Ready()
     {
         SKIP_GRACE = (float)GameState.Instance.Cfg("effects.return_skip_grace", SKIP_GRACE).AsDouble();
-        _elapsed = 0.0f;
+        _startMsec = Time.GetTicksMsec();
         _shotRoot = GetNode<Node2D>("ShotRoot");
         _fade = GetNode<ColorRect>("Fade");
         _subtitle = GetNode<Label>("Subtitle");
@@ -91,7 +92,6 @@ public partial class ReturnCinematic : CanvasLayer
     {
         var d = (float)delta;
         _driftT += d;
-        _elapsed += d; // 输入宽限计时（模拟时间，见字段注释）
         var pos = _shotRoot.Position;
         pos.X = Mathf.Sin(_driftT * 0.45f) * 3.0f;
         pos.Y = Mathf.Cos(_driftT * 0.38f) * 2.5f;
@@ -113,7 +113,7 @@ public partial class ReturnCinematic : CanvasLayer
             return;
         }
 
-        if (!bypassGrace && _elapsed < SKIP_GRACE)
+        if (!bypassGrace && (float)(Time.GetTicksMsec() - _startMsec) / 1000.0f < SKIP_GRACE)
         {
             return; // 输入宽限期内忽略跳过
         }
