@@ -48,6 +48,9 @@ public partial class PlayerAugmentVisuals : Node2D
 
     private readonly Callable _onAugmentsChanged;
 
+    /// <summary>表现层相位基准：累计模拟时间（§5——脉动不看墙钟，帧率/性能无关）。</summary>
+    private double _simTime;
+
     public PlayerAugmentVisuals()
     {
         _onAugmentsChanged = Callable.From(Refresh);
@@ -102,10 +105,11 @@ public partial class PlayerAugmentVisuals : Node2D
         }
     }
 
-    public override void _Process(double _delta)
+    public override void _Process(double delta)
     {
         // 仅 Refresh() 判定有脉动件可见时才启用处理；动画全部按时间正弦，无每帧分配
-        var t = Time.GetTicksMsec() / 1000.0;
+        _simTime += delta;
+        var t = _simTime;
         if (_regenRing.Visible)
         {
             _regenRing.Modulate = WithAlpha(_regenRing.Modulate, 0.2f + 0.35f * Mathf.Abs(Enemy.SinFast((float)(t * 2.0))));

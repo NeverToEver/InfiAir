@@ -128,6 +128,8 @@ public partial class Mothership : Area2D
     // ---- 本局状态 ----
     private State _state = State.DESCEND;
     private float _stateTimer;
+    /// <summary>表现层相位基准：累计模拟时间（§5——脉动不看墙钟，帧率/性能无关）。</summary>
+    private float _simTime;
     private float _departSpeed;
     private Player? _player; // player_ref 恒为 Player
     private float _gatlingTimer;
@@ -486,6 +488,7 @@ public partial class Mothership : Area2D
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        _simTime += d;
         // 牵引光束附件随 _beam.visible 同步显隐（_start_docking/start_release/对接完成均走此同步）
         if (_beamFx.Visible != _beam.Visible)
         {
@@ -495,8 +498,8 @@ public partial class Mothership : Area2D
 
         if (_beam.Visible)
         {
-            // 淡光束：低调脉动，不刺眼（查表 sin）；时钟取一次，脉动与附件共用
-            var nowS = (float)(Time.GetTicksMsec() / 1000.0);
+            // 淡光束：低调脉动，不刺眼（查表 sin）；相位取累计模拟时间，脉动与附件共用
+            var nowS = _simTime;
             var bm = _beam.Modulate;
             bm.A = 0.55f + 0.45f * Enemy.SinFast(nowS * 8.0f); // Enemy 静态直调
             _beam.Modulate = bm;
