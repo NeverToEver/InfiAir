@@ -369,6 +369,19 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            // 硬顶必须真的「咬得住」：只判「不越顶」在把上限配成极大值时同样通过（等于没有上限）。
+            // 末尾取极高 D，速度乘区必须恰好等于上限。
+            if (minutes >= 30.0)
+            {
+                var pinned = Core.Progression.DifficultyScaling.EnemySpeedRamp(1000.0, cfg);
+                if (Math.Abs(pinned - cfg.SpeedRampCap) > 1e-6)
+                {
+                    GD.PushError($"[long-probe] 速度硬顶未生效：D=1000 时 {pinned:0.###} ≠ 上限 {cfg.SpeedRampCap:0.###}");
+                    _longProbe = false;
+                    return;
+                }
+            }
+
             if (wave < cfg.WaveIntervalFloor - 1e-6)
             {
                 GD.PushError($"[long-probe] {minutes}min 波次间隔 {wave:0.###}s 跌破地板 {cfg.WaveIntervalFloor:0.###}s");
