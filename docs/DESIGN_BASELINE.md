@@ -44,7 +44,12 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Enemy growth: Boss HP linear × mult (50s-escape DPS check = "can't kill → flees" valve); `enemies.hp_ramp_factor`/`damage_ramp_factor` (k=0.25 HP / 0.20 dmg)/spawn ramp unbounded.
 - Survival: `extra_life` cap **10** (HP 100+500=600); card "max 10"; lifesteal ≤10% feedback offset by HP cap + ramp.
 - Event units scale: turret/formation HP × `GameState.EnemyHpRamp()`.
-- **D2**: Hard-mode buff pacing fastest (×3 score, ×1.5 thresholds) is **intentional**; unchanged.
+- **D2**: 难度档的分数倍率与里程碑阈值倍率**成对**给出（easy 1/1、medium 2/1、hard 3/1.5）。
+  净点数节奏 = 分数倍率 ÷ 里程碑阈值倍率：easy **1×**、medium **2×**、hard **2×**。
+  **口径修正（2026-09-14）**：原记 hard「buff pacing fastest（×3 score, ×1.5 thresholds）」—该表述不准确，
+  hard 的净节奏与 medium 相同（3/1.5 = 2 = 2/1）；hard 的定位是「以更强的敌机（HP ×1.5 / 速度 ×1.2 / 刷怪间隔 ×0.8）
+  换取同等的成长节奏与更高的荣誉分」，不是更快成型。方向未变（hard 不劣于 medium），仅表述与算式对齐。
+  若日后要让 hard 真正最快，须下调 `hard.milestone`（属玩家可感取值，需人类确认）。
 
 ### 1.5 Talent Cache System（2026-09-07 重构，替代旧里程碑三选一）
 - **Structure**: 27 nodes in 4 categories × lines — `csharp/core/Talent/TalentTree.cs` is the single structural source. Line order = prerequisite chain (next node needs previous ≥ Lv1). Node caps = `augments.<id>.max_stacks` (json is sole authority; `extra_life` 10). 2026-09-08 作战增幅扩展：新增 8 节点（旧 buff 身份全站退役为「增幅/Augment」——效果桥 `CombatStateService.Augments`、文本键 `AUG_*`、配置段 `augments.*`）：`homing`（制导航弹：出膛弹锁定锥内追踪最近敌机）、`salvo`（齐射重弹：每 N 发 ×3 伤害，层数缩短间隔）、`deflector`（偏导护盾：弹反冷却 ×0.78^eff、反射伤害 ×1.6^eff）、`second_wind`（背水回涌：受击后 3s 每秒 +3 HP/层）、`dash_strike`（相位冲击：冲刺触及敌机 35×层伤害）、`graze_field`（擦弹力场：擦弹环 ×1.2^eff、擦弹分 +5/层）、`score_amp`（战果增幅：击杀分 ×1.08^eff）、`combo_guard`（连击护持：连击窗口 ×1.5^eff）。

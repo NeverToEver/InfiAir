@@ -206,6 +206,38 @@ public sealed class TalentEconomyTests
         Assert.Equal(6, TalentEconomy.OverchargeCost(config, 3));
     }
 
+    [Fact]
+    public void FocusTriggerSurface_IsPinned()
+    {
+        // 护栏（对应 TalentEconomy.FocusOver 注释里的显式约束）：阈值 7 时，只有结构上限 ≥7 的节点
+        // 能触发专注惩罚。现网 balance.json 的 max_stacks 里只有 extra_life=10 满足，其余最高 5
+        // （风险加点 +1 后 6，仍不过线）。此处把「触发面」钉死：日后放宽任一节点上限
+        // （使它能到 7 级）本用例即红，强制走一次显式决策而不是让惩罚面悄悄扩大。
+        var config = new TalentConfig { FocusThreshold = 7 };
+        // 现网全部节点的结构上限（balance.json augments.*.max_stacks）
+        var caps = new[]
+        {
+            5, 4, 2, 10, 1, 2, 1, 1, 1, 1, 3, 1, 2, 2, 2, 3, 2, 3, 1, 2, 2, 2, 2, 2, 3, 3, 2,
+        };
+
+        var triggerable = 0;
+        var maxCap = 0;
+        foreach (var cap in caps)
+        {
+            maxCap = Math.Max(maxCap, cap);
+            if (TalentEconomy.FocusOver(cap, config) > 0)
+            {
+                triggerable++;
+            }
+        }
+
+        // 触发面必须是「恰好 extra_life 一个节点」＋「最高上限 10」——两者任一变化都要显式复核
+        Assert.Equal(1, triggerable);
+        Assert.Equal(10, maxCap);
+        // 其余节点即使风险加点 +1 也不得越线（5+1=6 < 7）
+        Assert.Equal(0, TalentEconomy.FocusOver(6, config));
+    }
+
     // ---- 可升级提示判定（HUD：点数够点亮任一可选节点） ----
 
     [Fact]

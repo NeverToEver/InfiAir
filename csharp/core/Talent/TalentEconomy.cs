@@ -258,9 +258,12 @@ public static class TalentEconomy
     }
 
     /// <summary>专注惩罚超限档数：焦点属性最高等级超阈值 1 级起算一档（未触发返回 0）。
-    /// 阈值现网只对 extra_life 生效——其结构上限 10（balance.json max_stacks），是唯一可能达阈值的
-    /// 节点；其余节点上限 ≤5，风险加点 +1 后 ≤6。若日后放宽任一节点等级上限，须同步重校
-    /// talent.focus.threshold 与惩罚曲线，否则惩罚面与设计意图脱节。</summary>
+    ///
+    /// **生效面是显式约束，不是意外**（人类已决策保留阈值 7，承认该设计约束）：
+    /// 阈值 7 现网**只对 extra_life 生效**——其结构上限 10 是唯一可能达阈值的节点；
+    /// 其余节点上限 ≤5，风险加点 +1 后 ≤6。即「专注惩罚」实质是「把 extra_life 点高的代价」。
+    /// 若日后放宽任一节点等级上限，须同步重校 threshold 与惩罚曲线——该不变量由
+    /// <c>FocusTriggerSurface_IsPinned</c> 单测护栏钉住（改动触发面即红，强制走一次显式决策）。</summary>
     public static int FocusOver(int maxNodeLevel, TalentConfig config)
     {
         if (maxNodeLevel < config.FocusThreshold)
