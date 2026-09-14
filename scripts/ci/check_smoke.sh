@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 无头冒烟八趟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟九趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
 # 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
@@ -11,13 +11,16 @@
 #   5) --feel-probe：命中顿帧与屏幕震动复位——顿帧写 Engine.TimeScale，写错（倍率 0 或按
 #      缩放 delta 推进）的表现是画面永久定格，无头下不崩也不报错，只有完成标记能抓住；
 #   6) --long-probe：难度曲线落在预期带——曲线是 D 的纯函数，直接取 t=5/10/20/30min 的值断言
-#      单调/速度有顶/精英随难度增长/Boss 斜率独立/软上限，把「曲线形状」变成可失败的判定。
+#      单调/速度有顶/精英随难度增长/Boss 斜率独立/软上限，把「曲线形状」变成可失败的判定；
+#   7) --fog-probe：迷雾事件全周期——迷雾走「首延迟 25s + 每 3s 掷 35%」的随机链，常规冒烟
+#      跑不到，而注册/context 构建/生命周期/效果清理是高密度出错区。强制入口只替换掷签与
+#      权重选取（仍过生产门控），并断言「start→end 跑满生产 duration」——截断不打标记。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
-# 2~8 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
+# 2~9 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
 # main.tscn/Main（AGENTS §5）。死亡那趟在临时用户目录里跑——死亡即删本局存档，探针不得
 # 触碰开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
 set -uo pipefail
@@ -27,7 +30,11 @@ LOG="${1:-/tmp/smoke.log}"
 # 引擎错误正则。`Invalid polygon data, triangulation failed.` 是程序化绘制的静默坏点：
 # headless 走 dummy 渲染仍会执行 _Draw（实测），自交/退化多边形在 canvas_item_add_polygon
 # 处报该错并**整块不画**——不崩、不看日志就完全无感（燃料槽低油量整块消失即此类）。
-ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception\|Invalid polygon data"
+# `ERROR:` 是通用引擎错误前缀，兜住上面未列举的错误类别（此前只看退出码，静默错误漏判）。
+ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception\|Invalid polygon data\|ERROR:"
+# 白名单：退出期资源统计噪声（RefCounted 释放顺序告警，非功能坏点）。设置页趟实测出现
+# `ERROR: 1 resources still in use at exit`；无头冒烟退出时对象释放顺序与探针无关，不判功能。
+ERR_ALLOW="ERROR: [0-9][0-9]* resources still in use at exit"
 PROBE_SCENE="res://scenes/probe_host.tscn"
 PROBE_LOG_BASE="${LOG%.log}"
 
@@ -50,9 +57,9 @@ run_case() {
     tail -30 "$log"
     exit 1
   fi
-  if grep -q "$ERR" "$log"; then
+  if grep "$ERR" "$log" | grep -v "$ERR_ALLOW" | grep -q .; then
     echo "::error::$label engine errors in log"
-    grep -B1 "$ERR" "$log" | head -10
+    grep "$ERR" "$log" | grep -v "$ERR_ALLOW" | head -10
     exit 1
   fi
   echo "$label: ok"
@@ -99,3 +106,8 @@ expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe]
 # 长局难度曲线：直接取生产曲线在 t=5/10/20/30min 的值，断言单调/速度有顶/精英增长/Boss 斜率独立/软上限。
 run_case "long-run difficulty curve smoke" 200 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "" --long-probe
 expect_marker "难度曲线落在预期带" "${PROBE_LOG_BASE}.long.log" "[long-probe] 难度曲线落在预期带"
+# 迷雾全周期（fake_enemies）：强制入口只替换掷签与权重选取，仍过生产门控（首延迟/冷却/接线/
+# 本局活跃/组内无进行中），并断言 start→end 跑满生产 duration。帧数单源：25s 首延迟 + 8s
+# fake_enemies duration（data/balance.json fog_events.durations）+ 3s 余量 = 36s × 60 = 2160。
+run_case "fog event full-cycle smoke" 2160 "${PROBE_LOG_BASE}.fog.log" "$PROBE_SCENE" "" --fog-probe
+expect_marker "迷雾全周期" "${PROBE_LOG_BASE}.fog.log" "[fog-probe] 迷雾全周期完成"

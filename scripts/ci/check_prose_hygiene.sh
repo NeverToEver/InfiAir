@@ -12,6 +12,10 @@
 #      代码字面量不受影响）；docs/ 与 *.md 不扫描——文档里的日期是合法时间线锚点。
 #   2) .cs 注释散文用简体中文（标识符/API 名/配置路径/代码片段豁免）。
 #   3) .cs 注释里的术语按单一叫法（TERMS 表 = AGENTS.md §9 术语表的机器副本，改动须同步）。
+# 注释抽取：逐字符扫描，跳过字符串字面量（双引号含转义 / 逐字字符串 "" 转义）与协议分隔 `://`
+# （`res://` 不是注释起点），取每行第一个 `//` 之后的文本——行尾注释与整行注释一视同仁
+# （此前只认行首 //，代码后跟行尾注释的漂移判不到）。注释文本保留字符串原文，供语种启发式
+# 复用既有豁免（XML cref / 括号片段）；术语判定另用剥离字符串后的文本，避免引号内的词误报。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -23,7 +27,8 @@ ROOT = pathlib.Path.cwd()
 SKIP = {".git", ".godot", "builds", "tools", "bin", "obj", "__pycache__", ".venv"}
 EXTS = {".cs", ".sh", ".py"}
 CJK = re.compile(r"[\u4e00-\u9fff]")
-CS_COMMENT = re.compile(r"^\s*(?:///|//)\s?(.*)$")
+# 字符串字面量（含 \" 转义）与逐字字符串 @"..."（"" 转义）；用于术语判定前剥离引号内容。
+STRING = re.compile(r'@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*"')
 DATE = re.compile(r"20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]")
 IDENT = re.compile(
     r"`[^`]*`|https?://\S+|cref=\"[^\"]*\"|\b[A-Za-z]+[A-Z][A-Za-z0-9]*\b"
@@ -38,8 +43,49 @@ TERMS = {
     "增幅": r"\bbuff\b|\bBuff\b|增益",
     "弹反": r"格挡",
     "天赋": r"技能树",
+    "弹体": r"弹丸",
     "键鼠": r"触屏|触控|移动端",
 }
+
+
+def comment_text(line):
+    """返回行内 `//` 注释文本（不含标记）；无注释返回 None。跳过字符串与 `://`。"""
+    i, n = 0, len(line)
+    while i < n:
+        c = line[i]
+        if c == '"':
+            if i > 0 and line[i - 1] == "@":      # 逐字字符串："" 为转义引号
+                i += 1
+                while i < n:
+                    if line[i] == '"':
+                        if i + 1 < n and line[i + 1] == '"':
+                            i += 2
+                            continue
+                        i += 1
+                        break
+                    i += 1
+                continue
+            i += 1
+            while i < n:
+                if line[i] == "\\":
+                    i += 2
+                    continue
+                if line[i] == '"':
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and line[i + 1] == "/":
+            if i > 0 and line[i - 1] == ":":      # res:// / https:// 的协议分隔，不是注释
+                i += 2
+                continue
+            j = i
+            while j < n and line[j] == "/":
+                j += 1
+            return line[j:]
+        i += 1
+    return None
+
 
 stamps, prose, term_hits = [], [], defaultdict(list)
 for path in sorted(ROOT.rglob("*")):
@@ -49,23 +95,22 @@ for path in sorted(ROOT.rglob("*")):
         continue
     rel = str(path.relative_to(ROOT))
     for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        # 日期戳：只在注释标记之后计命中
+        # 日期戳：只在注释标记之后计命中（沿用原逻辑，注释标记取原始行）
         dm = DATE.search(line)
         if dm:
             marks = [m for m in (line.find("//"), line.find("#")) if m >= 0]
             if marks and dm.start() > min(marks):
                 stamps.append(f"{rel}:{i}  {line.strip()[:90]}")
 
-        m = CS_COMMENT.match(line)
-        if not m:
+        text = comment_text(line)
+        if text is None or not text.strip():
             continue
-        text = m.group(1).strip()
-        if not text:
-            continue
-        if CJK.search(text):
+        text = text.strip()
+        plain = STRING.sub("", text)
+        if CJK.search(plain):
             for canon, bad in TERMS.items():
-                if re.search(bad, text):
-                    term_hits[canon].append(f"{rel}:{i}  {text[:90]}")
+                if re.search(bad, plain):
+                    term_hits[canon].append(f"{rel}:{i}  {plain[:90]}")
             continue
         # 非中文注释：剔除标识符/代码片段/分隔装饰后仍成句，才算「英文散文」
         # 分隔符按单字符剥离：`a/b/c` 这类配置键列表不是散文（键名可无下划线/驼峰，故按「/≥2 且无空格」整体豁免）
@@ -91,3 +136,4 @@ if errors:
     sys.exit(1)
 print("prose-hygiene gate: clean（注释无日期戳、语种与术语单一）")
 PY
+

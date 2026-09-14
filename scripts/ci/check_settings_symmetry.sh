@@ -23,14 +23,21 @@ if not collect or not apply or not reset:
 
 written = set(re.findall(r'\["([a-z_]+)"\]\s*=', collect.group(1)))
 # 只认「data 直接取键」；空串默认值是合法读法（StringName 字段的惯例），不当漏读。
-# 显式豁免：window_size 只出现在旧档案迁移分支（新键 window_mode 取代之），写入侧早已不产出
-# 这个键——这是决策点，改它等于恢复旧键的读写，须连迁移分支一起删。
+# window_size 只出现在旧档案迁移分支（新键 window_mode 取代之），写入侧早已不产出这个键
+# ——这是决策点，改它等于恢复旧键的读写，须连迁移分支一起删。
 read = set(re.findall(r'data\s*\.\s*GetValueOrDefault\("([a-z_]+)"', apply.group(1)))
 read -= {"window_size"}
-# version 为文件版本号，tutorial_done/key_bindings 的读写在别处（GameState.Save/RunSave），不参与对称性
-EXEMPT = {"version"}
-written -= EXEMPT
-read -= EXEMPT
+# version 由落盘侧 GameState.SaveSettings 在 CollectSettingsDict 之后补写（data["version"] = ...），
+# 不在 Collect 字面表内；把它并进写入侧，version 才能真正参与写读对称判定（此前整键豁免＝判不到）。
+save = pathlib.Path("csharp/godot/GameState.Save.cs").read_text(encoding="utf-8")
+if re.search(r'\["version"\]\s*=', save):
+    written.add("version")
+
+# 零命中守卫：正则或结构变了会两边皆空，对称差为空而误判 clean——假绿比没门禁更糟
+# （AGENTS §6 铁律 2），取不到判据必须显式失败。
+if not written or not read:
+    print(f"::error::写读键集为空（写 {len(written)} / 读 {len(read)}）——正则或结构变了？门禁需同步")
+    sys.exit(1)
 
 for key in sorted(written - read):
     errors.append(f"`{key}` 只写不读：设置项存了但读档不还原（玩家改动下次启动丢失）")

@@ -25,6 +25,12 @@ read = set(re.findall(r'GetValueOrDefault\("([a-z_]+)"', apply.group(1)))
 written.discard("version")
 read.discard("version")
 
+# 零命中守卫：正则或结构变了会两边皆空，`written - read`/`read - written` 都为空而误判 clean
+# ——假绿比没门禁更糟（AGENTS §6 铁律 2），取不到判据必须显式失败。
+if not written or not read:
+    print(f"::error::写读键集为空（写 {len(written)} / 读 {len(read)}）——正则或结构变了？门禁需同步")
+    sys.exit(1)
+
 errors = []
 for key in sorted(written - read):
     errors.append(f"`{key}` 只写不读：存了但读档不还原（玩家进度静默丢失）")
