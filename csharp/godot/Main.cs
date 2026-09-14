@@ -333,6 +333,18 @@ public partial class Main : Node2D
 
     public void SkipReturn() => SkipReturnInternal();
 
+    /// <summary>实机调参观察面（零引用保留）：返航蓄力/放弃充能/子弹时间/坞冷却/装填时长的
+    /// 白盒读数与写入。ROADMAP「零引用成员保留面」口径封存——不得当死代码删除。</summary>
+    public float TimeScaleRamp() => _timeScaleRamp;
+
+    public float GiveUpCharge() => _giveUpCharge;
+
+    public float BulletTime() => _bulletTimeLeft;
+
+    public float DockCooldown() => _dockCooldown;
+
+    public void SetChargeTime(float seconds) => _chargeTime = seconds;
+
     public ReturnCinematic? ReturnCinematic() => _return;
 
     private void OnViewZoomChanged(float _factor) => ApplyCameraZoom();
