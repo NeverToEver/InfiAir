@@ -538,6 +538,11 @@ public partial class GameEventManager : Node
     public int EncounterMinScore(StringName pId)
         => _encounterTrig.TryGetValue(pId, out var trig) ? trig.MinScore : 0;
 
+    /// <summary>已注册遭遇实例的只读查询（探针宿主观测收场用；未注册或实例已释放返回 null）。
+    /// 触发分派仍走管理器内部路径，本查询不改变生产判定。</summary>
+    public IEncounterEvent? EncounterInstance(StringName pId)
+        => EventFor(pId) is IEncounterEvent enc ? enc : null;
+
     /// <summary>请求下一次触发检查强制命中该遭遇（探针/诊断）：只把计时拉到到点并跳过随机掷签，
     /// 资格（就绪/Boss 槽/组内互斥/分数门槛/本局可驱动）全部由生产链判定——
     /// 生产触发断线时探针一并变红，不再假绿。</summary>

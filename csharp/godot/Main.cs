@@ -105,15 +105,6 @@ public partial class Main : Node2D
     private EliteTurretEvent _event = null!;
     /// <summary>轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）</summary>
     private FormationStrikeEvent _formation = null!;
-    /// <summary>遭遇 id → 实例（仅 --event-probe 用；生产路径不读）。</summary>
-    private readonly System.Collections.Generic.Dictionary<StringName, IEncounterEvent> _encounterForProbe = new();
-    /// <summary>event-probe 待观测实例与其 id（Start 后置入，回 IDLE 即打完成标记；生产恒 null）。</summary>
-    private IEncounterEvent? _probeEvent;
-    private string _probeEventId = "";
-    /// <summary>待启动的探针事件 id 与「分数已补足」标记：探针不能越过入场窗口与生产触发链
-    /// （见 StartEventForProbe），故延后到可驱动时才请求强制触发。</summary>
-    private string _probePendingId = "";
-    private bool _probeArmed;
     /// <summary>Meta HUD 血量/受击后处理层（_ready 创建；DYING 呼吸缩放经 _apply_camera_zoom 组合）</summary>
     private MetaHealthFX _metaFx = null!;
     /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
@@ -176,9 +167,6 @@ public partial class Main : Node2D
         _events.SetSpawner(_spawner);
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
-        // 事件 id → 实例（--event-probe 的观测句柄；启动本身走管理器的统一触发路径）
-        _encounterForProbe[new StringName("elite_turret")] = _event;
-        _encounterForProbe[new StringName("formation_strike")] = _formation;
         _events.SetRunActive(GetTree().CurrentScene == this);
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
@@ -220,10 +208,6 @@ public partial class Main : Node2D
         }
 
         _ = StartBgmAsync();
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--startup-time") >= 0)
-        {
-            _ = ReportStartupTime();
-        }
 
         // 蓄力虚影（长按 H 蓄力期间显示）：复用真实母舰场景实例做半透明预告，
         // 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
@@ -241,25 +225,6 @@ public partial class Main : Node2D
         _chargeGhost.Modulate = ghostMod;
         _chargeGhost.Visible = false;
         BuildChargeFx();
-        // 门禁用冒烟开关（仅显式传参时生效；须配 --fixed-fps 固定步长，口径见 AGENTS.md）：
-        //   --settings-probe 开设置页并逐页切过（设置项在开页时才构建，300 帧基线碰不到）
-        //   --event-probe=<id> 强制触发一次遭遇事件（遭遇要过分数门槛与掷签，无头跑不到）
-        var userArgs = OS.GetCmdlineUserArgs();
-        if (System.Array.IndexOf(userArgs, "--settings-probe") >= 0)
-        {
-            // 延后到帧末：此刻同场景的 SettingsUi 尚未就绪入组（GetFirstNodeInGroup 会取空）。
-            CallDeferred(MethodName.OpenSettingsForProbe);
-        }
-
-        var eventProbeId = "";
-        foreach (var arg in userArgs)
-        {
-            if (arg.StartsWith("--event-probe=", System.StringComparison.Ordinal))
-            {
-                eventProbeId = arg["--event-probe=".Length..];
-                CallDeferred(MethodName.StartEventForProbe, eventProbeId);
-            }
-        }
         // 开机流程：正常启动首次进入 → 直达标题屏；标题屏任意键再进 main（BootHandoffDone 已置位）→ 直接开局。
         // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不交接、不入场（由宿主驱动）。
         if (GetTree().CurrentScene != this)
@@ -297,18 +262,9 @@ public partial class Main : Node2D
         {
             GameState.Instance.BootHandoffDone = true;
             ApplyNewRun();
-            if (eventProbeId.Length > 0)
-            {
-                // probe 直进开局：标题屏切换会把事件连树销毁，无头冒烟跑不到状态机。
-                // 步长交给调用方的 --fixed-fps 固定（帧数＝模拟时长）：生产代码不替测试设施锁帧率。
-                StartEntrySequenceInternal();
-            }
-            else
-            {
-                // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
-                // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
-                Callable.From(GoTitleScreen).CallDeferred(); // 开机直达标题屏
-            }
+            // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
+            // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
+            Callable.From(GoTitleScreen).CallDeferred(); // 开机直达标题屏
         }
     }
 
@@ -337,85 +293,6 @@ public partial class Main : Node2D
         {
             gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
         }
-    }
-
-    /// <summary>设置页冒烟（--settings-probe）：打开设置页并逐页切换一次。
-    /// 只用于门禁的无头开页验证——五个分组的内容都在 ShowSettings 之后才构建，
-    /// 平时的 300 帧冒烟碰不到它们（玩家点开即崩的写法在这里暴露）。</summary>
-    private void OpenSettingsForProbe()
-    {
-        var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
-        if (settings == null)
-        {
-            return;
-        }
-
-        settings.ShowSettings(null);
-        foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
-        {
-            settings.ShowPage(new StringName(page));
-        }
-    }
-
-    /// <summary>遭遇事件冒烟（--event-probe=&lt;id&gt;）：请求一次指定遭遇。
-    /// 遭遇要过入场窗口、分数门槛、资格合成与掷签，无头 300 帧跑不到，而这类事件的编排/投弹/
-    /// 清场逻辑正是「写错就崩」的高密度区（落点圈、弹道、反射弹、结算分支）。
-    /// 本处只登记待启动 id——真正启动由 <see cref="TickProbeStart"/> 在生产触发链上请求，
-    /// 避免越过入场窗口与生产门控（探针绕过判定链时，生产触发断线探针仍绿）。</summary>
-    private void StartEventForProbe(string id)
-    {
-        if (_encounterForProbe.ContainsKey(new StringName(id)))
-        {
-            _probePendingId = id;
-        }
-    }
-
-    /// <summary>探针启动驱动（逐帧）：等入场动画结束、spawner 恢复处理后再把分数补到门槛并要求
-    /// 管理器下一次触发检查强制命中。资格（就绪/Boss 槽/组内互斥/分数门槛/可驱动）仍全部走
-    /// 生产链——本处只做「等窗口 + 补分数 + 请求掷签必中」。</summary>
-    private void TickProbeStart()
-    {
-        if (_probePendingId.Length == 0 || _player.IsEntryPlaying() || !_spawner.IsProcessing())
-        {
-            return;
-        }
-
-        var key = new StringName(_probePendingId);
-        if (!_probeArmed)
-        {
-            GameState.Instance.AddScore(Math.Max(_events.EncounterMinScore(key), 1));
-            _probeArmed = true;
-            if (!_events.RequestForcedTrigger(key))
-            {
-                GD.PushError($"[event-probe] 请求启动失败：{_probePendingId} 未注册");
-                _probePendingId = "";
-            }
-
-            return;
-        }
-
-        // 请求已下达：等管理器在生产链上启动它，再转为观测句柄
-        if (_encounterForProbe.TryGetValue(key, out var ev) && ev.IsActive())
-        {
-            _probeEvent = ev;
-            _probeEventId = _probePendingId;
-            _probePendingId = "";
-            _probeArmed = false;
-        }
-    }
-
-    /// <summary>event-probe 完成判定：事件回 IDLE 即整周期跑完，打一行固定标记。
-    /// --quit-after 的帧数只是上限——状态机中途停摆（例如卡在入场段）同样是「零错误退出」，
-    /// 冒烟照样绿；无标记即这趟没覆盖到全周期。</summary>
-    private void ReportEventProbeCompletion()
-    {
-        if (_probeEvent == null || _probeEvent.IsActive())
-        {
-            return;
-        }
-
-        GD.Print(GdFormat.Format("[event-probe] %s 全周期完成", _probeEventId));
-        _probeEvent = null;
     }
 
     /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
@@ -467,8 +344,6 @@ public partial class Main : Node2D
     public override void _Process(double delta)
     {
         var d = (float)delta;
-        TickProbeStart();
-        ReportEventProbeCompletion();
         // Boss 狂暴子弹时间驱动（delta 已被 time_scale 缩放，计时为游戏秒）：
         // 0.24 慢速 1.2s → 0.3s 内线性恢复 1.0 → 恢复完成才发快照弹幕
         if (_bulletTimeLeft > 0.0f)
@@ -689,26 +564,6 @@ public partial class Main : Node2D
         catch (Exception ex)
         {
             GD.PushWarning("StartBgmAsync 异常：" + ex.Message);
-        }
-    }
-
-    /// <summary>启动计时（--startup-time 传入时）：打印 boot → 首帧 / → 首面板就绪 的分段耗时</summary>
-    private async Task ReportStartupTime()
-    {
-        try
-        {
-            // await 段异常统一 try/catch + 判活守卫
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (!IsInsideTree())
-            {
-                return;
-            }
-
-            GD.Print(GdFormat.Format("[startup] boot → first frame: %d ms", (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
-        }
-        catch (Exception ex)
-        {
-            GD.PushWarning("ReportStartupTime 异常：" + ex.Message);
         }
     }
 

@@ -645,6 +645,9 @@ public partial class Spawner : Node
         _wavesPauseDepth = paused ? _wavesPauseDepth + 1 : Mathf.Max(_wavesPauseDepth - 1, 0);
     }
 
+    /// <summary>当前波次是否被事件暂停（仍有事件持有，见 SetWavesPaused）。</summary>
+    public bool WavesPaused() => _wavesPauseDepth > 0;
+
     public bool IsBossActive() => _bossActive;
 
     /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用）。</summary>
