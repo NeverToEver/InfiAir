@@ -5,8 +5,10 @@ name: CI
 # csharp/core 纯逻辑层（零 Godot 依赖，决策见 ROADMAP Decisions），不入主 sln。
 # 门禁链：
 # 卫生（注释日期戳与术语）→ 玩家可见文案无开发措辞 → 数值键存在性 → 存档写读对称性 →
-# 设置写读对称性 → 真实时间允许清单 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-# 无头冒烟十趟（主场景/设置页/编队遭遇/精英炮塔/死亡打断/燃料满扫/手感复位/难度曲线/迷雾/返航宽限，固定步长 + 完成标记）→
+# 设置写读对称性 → 真实时间允许清单 → 代码默认值与 balance 定稿对账 → 门禁装配完整性 →
+# C# 构建零警告 →
+# core 层单测 → 资源导入无警告 →
+# 无头冒烟十一趟（主场景/设置页/编队遭遇/精英炮塔/死亡打断/燃料满扫/手感复位/难度曲线/迷雾/返航宽限/教程场景，固定步长 + 完成标记）→
 # 截图探针（HUD + 五张设置页，自检非空白/页面互异）。
 # 依赖口径：项目代码零第三方库（官方 action/安装脚本/引擎/模板）；测试设施允许系统包——
 # 视觉门禁需要 Xvfb + Mesa 软件光栅（runner 无 GPU，headless 截不到画面）。
@@ -61,6 +63,12 @@ jobs:
 
       - name: Realtime allowlist gate
         run: bash scripts/ci/check_realtime_allowlist.sh
+
+      - name: Code defaults vs balance gate
+        run: bash scripts/ci/check_code_defaults.sh
+
+      - name: Gate wiring gate
+        run: bash scripts/ci/check_gate_wiring.sh
 
       - name: Build C# (warnings-as-errors)
         run: dotnet build --nologo

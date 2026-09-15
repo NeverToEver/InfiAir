@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 无头冒烟十趟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟十一趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
 # 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
@@ -19,15 +19,19 @@
 #      宽限内跳过被忽略、推进 >宽限 的模拟时长后仍被忽略（真实时间基准的判别式：若误改模拟
 #      时间此刻会放行）、越过宽限后跳过生效且落基地并保持暂停。不用「等真实时间越宽限」
 #      （--fixed-fps 下那个写法既慢又不可靠，见 71e6324）。
+#   9) 教程场景直开（--scene res://scenes/tutorial.tscn）：教程是独立场景、不走 Main 的标题屏
+#      交接，属**另一条生产入口**——常规趟只跑 main.tscn，教程的入场链路（ResetRun、HUD 构建、
+#      六阶段首屏）写坏时没有任何一趟会经过它。断场景就绪标记，判「加载/切场景失败」这类静默坏点。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
 # 2~10 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
-# main.tscn/Main（AGENTS §5）。**每趟都在各自临时用户目录里跑**——探针会读存档/设置在标题屏
-# 与设置页分叉，且返航趟的收尾走生产存档出口（Main.OnReturnFinished → SaveRun）；不隔离就会
-# 读走开发者本机配置、写坏开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
+# main.tscn/Main（AGENTS §5）。第 11 趟直开 scenes/tutorial.tscn——教程自有场景与入口，不经
+# Main，故无宿主、无开关，只断完成标记。**每趟都在各自临时用户目录里跑**——探针会读存档/设置
+# 在标题屏与设置页分叉，且返航趟的收尾走生产存档出口（Main.OnReturnFinished → SaveRun）；
+# 不隔离就会读走开发者本机配置、写坏开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
 set -uo pipefail
 
 GODOT="${GODOT:-godot}"
@@ -120,3 +124,7 @@ expect_marker "迷雾全周期" "${PROBE_LOG_BASE}.fog.log" "[fog-probe] 迷雾�
 # 余量 600 帧；探针不等真实时间，判据全部由帧数与墙钟前置守卫决定（见 ProbeHost.TickReturnProbe）。
 run_case "return grace smoke" 600 "${PROBE_LOG_BASE}.return.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.return.userdata" --return-probe
 expect_marker "返航宽限与跳过收尾" "${PROBE_LOG_BASE}.return.log" "[return-probe] 返航宽限与跳过收尾完成"
+# 教程场景直开：教程是**另一条生产入口**（独立场景，不经 Main 的标题屏交接），上面各趟都不经过
+# 它。标记在 Tutorial._Ready 末尾打，切场景/资源加载失败时不出现——只判「不崩」抓不到。
+run_case "tutorial scene smoke" 120 "${PROBE_LOG_BASE}.tutorial.log" "res://scenes/tutorial.tscn" "${PROBE_LOG_BASE}.tutorial.userdata"
+expect_marker "教程场景就绪" "${PROBE_LOG_BASE}.tutorial.log" "[tutorial] 场景就绪"

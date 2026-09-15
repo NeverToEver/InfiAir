@@ -81,12 +81,14 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 | `dotnet build` | 零警告（TreatWarningsAsErrors） |
 | `bash scripts/ci/check_unit_tests.sh` | `csharp/core/` 纯逻辑单测 |
 | `bash scripts/ci/check_balance_keys.sh` | 代码读的 balance 键真实存在（防键名写错静默回退默认值）；只认完整点分路径，不做后缀放宽（后缀命中的前缀写错正是要抓的静默错误） |
+| `bash scripts/ci/check_code_defaults.sh` | 代码内缺档回退默认值 == balance 定稿值（防手抄分叉：json 缺失/损坏时静默用错值，编译/单测/冒烟都抓不到）；登记表逐张声明预期条目数，取不到判据（文件/符号/键缺、条目数不符、零比对）即红 |
 | `bash scripts/ci/check_save_symmetry.sh` | 存档写读字段一一对应（防进度静默丢失）；键集为空即红（防正则/结构漂移造成假绿） |
 | `bash scripts/ci/check_settings_symmetry.sh` | 设置写读字段一一对应 + 设置页文案键存在；键集为空即红 |
 | `bash scripts/ci/check_ui_copy.sh` | 玩家可见文案无缺键、无开发措辞、无空字段 |
 | `bash scripts/ci/check_realtime_allowlist.sh` | `csharp/` 里的墙钟 / 帧率 / 机器性能读数全部登记在脚本内 `ALLOW`（单源）：未登记的新增判红，**已登记站点消失也判红**（防合法墙钟被「顺手改成模拟时间」——返航输入宽限的 71e6324 形态）；总命中为零判红；`csharp/core/` 出现任何命中即红 |
 | `bash scripts/ci/check_import.sh` | 资源导入退出码为 0 且日志无 `ERROR`（导入静默坏不改退出码，只在日志留 ERROR；旧的 `Warning treated as error` 判据在零 GDScript 后取不到） |
-| `bash scripts/ci/check_smoke.sh` | 无头冒烟十趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 / 燃料量槽满扫 / 手感复位 / 难度曲线落在预期带 / 迷雾事件全周期 / 返航宽限与跳过收尾；引擎错误正则含通用 `ERROR:`（退出期资源统计噪声走白名单） |
+| `bash scripts/ci/check_smoke.sh` | 无头冒烟十一趟：主场景 300 帧 / 设置页开页 / 编队遭遇全周期 / 精英炮塔全周期 / 精英炮塔死亡打断 / 燃料量槽满扫 / 手感复位 / 难度曲线落在预期带 / 迷雾事件全周期 / 返航宽限与跳过收尾 / 教程场景就绪；引擎错误正则含通用 `ERROR:`（退出期资源统计噪声走白名单） |
+| `bash scripts/ci/check_gate_wiring.sh` | 门禁自身接线完整：`scripts/ci/` 下每个脚本都注册进 `gates.py` 与 `ci.yml`（双向——未注册的脚本永不执行，注册了不存在的脚本则 CI 报路径错）；冒烟趟数与 `expect_marker` 完成标记断言逐条对应 |
 | `bash scripts/ci/check_visual.sh` | 截图探针（辅助）：固定帧捕获 HUD 与五张设置页存 PNG；探针自检「画面非空白 + 五页互不相同」，抓渲染整体坏掉/页面切换失效。**不是像素级回归**——占位内容（帧率读出、背景动画）随环境变化，细粒度退化归单测与人工 |
 
 **卫生门禁**（判散文形态，不产生质量信号）：`bash scripts/ci/check_prose_hygiene.sh` 判注释无日期戳、注释散文简体中文、术语单一叫法（与 §9 表同源）；注释抽取含行尾注释（剥离字符串与 `res://` 协议分隔后取 `//` 之后文本）。
