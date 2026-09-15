@@ -419,7 +419,6 @@ public partial class SettingsUi : RadialMenuLayer
         _capturingAction = new StringName();
     }
 
-
     public void Back()
     {
         OnBackPressed();
@@ -430,8 +429,6 @@ public partial class SettingsUi : RadialMenuLayer
     {
         return _capturingAction;
     }
-
-
 
     // ---------------- 破坏性操作确认 ----------------
 
@@ -956,7 +953,6 @@ public partial class SettingsUi : RadialMenuLayer
         slider.DragEnded += _ => PersistPending();
         return (slider, valueLabel);
     }
-
 
     private Button[] MakeModeRow(Container parent, string labelText, ButtonGroup group)
     {

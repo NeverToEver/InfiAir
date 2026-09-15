@@ -680,8 +680,6 @@ public partial class GameState : Node
     /// 时间缩放收口在 GameFeelService——Main 不再直写 Engine.TimeScale（直写会与顿帧互覆盖）。</summary>
     public void SetEnrageTimeScale(double scale) => _gameFeel.SetEnrageTimeScale(scale);
 
-
-
     /// <summary>时间缩放整体复位（演出倍率归 1、顿帧与 trauma 残留清空）。
     /// 本局终态/场景切换/死亡重开统一走此——只复位演出侧会把顿帧残留留在下一局（开局定格）。</summary>
     public void ResetTimeScale() => _gameFeel.ResetAll();

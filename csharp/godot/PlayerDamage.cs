@@ -19,8 +19,6 @@ public class PlayerDamage
     private static readonly StringName ArmorId = new("armor");
     private static readonly StringName SecondWindId = new("second_wind");
 
-
-
     /// <summary>受击无敌剩余秒数（Player._physics_process 每帧递减）。</summary>
     public float Invincible { get; set; }
 
@@ -58,8 +56,6 @@ public class PlayerDamage
     public void SetInvincible(float seconds) => Invincible = seconds;
 
     public float InvincibleRemaining() => Invincible;
-
-
 
     /// <summary>
     /// 受击结算（100 HP 制）。返回 true = 本帧实际结算（调用方据此决定子弹是否销毁）。

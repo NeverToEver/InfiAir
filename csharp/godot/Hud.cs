@@ -1116,8 +1116,6 @@ public partial class Hud : CanvasLayer
             (string)GameState.Instance.DifficultyLabel());
     }
 
-
-
     private void OnBossHealthChanged(float current, float maximum)
     {
         var ratio = Mathf.Clamp(current / maximum, 0.0f, 1.0f);

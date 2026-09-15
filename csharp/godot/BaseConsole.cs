@@ -792,9 +792,6 @@ public partial class BaseConsole : RadialMenuLayer
         }
     }
 
-
-
-
     public void Resume() => OnResumePressed();
 
     private void OnRepairPressed()
