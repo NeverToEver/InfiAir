@@ -47,6 +47,121 @@ public partial class ProbeHost : Node
     /// <summary>返航蓄力动作名（与 project.godot 的 homecoming 映射一致，生产判定读同一动作）。</summary>
     private static readonly StringName ActHomecoming = new("homecoming");
 
+    /// <summary>母舰坞态探针的蓄力动作名（与 project.godot 的 dock 映射一致，生产判定读同一动作）。</summary>
+    private static readonly StringName ActDock = new("dock");
+
+    /// <summary>Boss 探针入场等待帧上限（入场动画 1.65s + 余量）：超时即判失败，不静默空转到退出。</summary>
+    private const int BossProbeEntryWaitFrames = 300;
+
+    /// <summary>Boss 探针两次「拉近阶段阈值」之间的间隔帧数：先让生产链推进出敌弹/开火，
+    /// 再注入伤害——这样转场清弹与 P1→P2 在真实受击链上各有可观测的前后态。</summary>
+    private const int BossProbeApproachIntervalFrames = 90;
+
+    /// <summary>Boss 探针等待生产触发链请出 Boss 的帧上限：入场 1.65s + <c>boss_min_interval</c>
+    /// （实测 80s = 4800 帧）+ 余量。超时即判失败，不静默空转到退出。</summary>
+    private const int BossProbeSpawnTimeoutFrames = 5400;
+
+    /// <summary>Boss 探针狂暴锁血等待上限（帧）：狂暴序列 transition 0.9 + active 6 + hold 0.7 +
+    /// return 0.8 ≈ 8.4s，取 20s 余量。超时即判失败（锁血残留＝Boss 永久无敌）。</summary>
+    private const int BossProbeLockTimeoutFrames = 1200;
+
+    /// <summary>Boss 探针狂暴后推进的帧数（=1 模拟秒）：等主场景主循环走完子弹时间并自行复位
+    /// 时间缩放，然后才开始击杀链（否则击杀发生在慢放演出里，时序不可读）。</summary>
+    private const int BossProbeEnrageWaitFrames = 60;
+
+    /// <summary>Boss 探针击杀后的收尾帧数：Die() → Died 信号 → 生成器轮换/休整推进。</summary>
+    private const int BossProbeKillSettleFrames = 10;
+
+    /// <summary>击杀型遭遇探针在激活后等待的帧数（精英炮塔：等升起到位进入可攻击态；
+    /// 生产 rise_time 1.5s + 余量）。</summary>
+    private const int KillAllProbeEliteDelayFrames = 240;
+
+    /// <summary>击杀型遭遇探针（编队）等待投弹的帧数上限：等实战投出炸弹后再收场，
+    /// 确保「全歼」以外的投弹/拦截路径也被走到（超时即判失败，不静默降档）。</summary>
+    private const int KillAllProbeFormationWaitFrames = 1200;
+
+    /// <summary>击杀型遭遇探针连杀编队机的帧间隔：每帧击杀会让同一帧多次结算，隔几帧更贴近实战节奏。</summary>
+    private const int KillAllProbeKillIntervalFrames = 3;
+
+    /// <summary>击杀型遭遇探针收尾帧数：等事件收场（结算/台词）后判定。</summary>
+    private const int KillAllProbeSettleFrames = 180;
+
+    /// <summary>击杀型遭遇探针连续未命中事件单位的容忍次数：超过即判失败（单位没进注册表）。
+    /// 单位在收尾段本就清空，故只在「一次都没杀到」时才据此判红。</summary>
+    private const int KillAllProbeMissAttempts = 60;
+
+    /// <summary>击杀型遭遇探针的整趟帧上限：超时即判失败（事件收场链断线），不静默空转到退出。
+    /// 精英侧收场要走航母撤离 + BOSS_DELAY 4s，编队侧要走离场 1.5s，取 30s 余量。</summary>
+    private const int KillAllProbeTimeoutFrames = 1800;
+
+    /// <summary>击杀型遭遇探针串的事件顺序（先精英炮塔、后轰炸编队）：两事件各自独立触发、
+    /// 独立判定，任一不过即整趟失败。</summary>
+    private static readonly string[] KillAllProbeIds = { "elite_turret", "formation_strike" };
+
+    /// <summary>母舰坞态探针的长按蓄力帧预算：mothership.dock_charge_time 3s = 180 帧，留 2 倍余量。</summary>
+    private const int DockProbeChargeFrames = 360;
+
+    /// <summary>母舰坞态探针逐阶段等待上限（帧）：任一状态下超过它仍未推进即判失败。</summary>
+    private const int DockProbeStageTimeoutFrames = 600;
+
+    /// <summary>母舰坞态探针在警告档之后等提前离舰的帧上限：生产 early_hold_time 2s = 120 帧，
+    /// 取 2 倍余量。这个上限同时是**提前离舰与警告到期强制离舰的判别式**：警告横幅 5s 到点会走
+    /// 强制离舰（同一段 StartReleaseInternal），若闸门断线、只剩强制路径，离舰会晚到 5s ——
+    /// 越过本上限即红。上限也须显著小于整趟帧预算，否则坏法会先撞 --quit-after 的缺标记。</summary>
+    private const int DockProbeEjectTimeoutFrames = 240;
+
+    /// <summary>母舰坞态探针等弹匣警告的帧上限：10 格 − 警告档 4 格 = 6 格 × 2s = 12 模拟秒，
+    /// 取 15s（余量 25%）。上限同时须留足后续段（提前离舰 + 释放 + 离场）的帧预算——超过整趟
+    /// --quit-after 时，「弹匣不耗」的坏法会先撞帧上限而只表现为缺完成标记，探针自己的定位信息
+    /// 就丢了，排查时少一条线索。</summary>
+    private const int DockProbeMagWarnTimeoutFrames = 900;
+
+    /// <summary>恶意 run.json：语法合法、根为对象、version 合法，但字段类型全错——
+    /// 非字典（missions / talent_levels）、非字符串（talent_route / augments）、非数值
+    /// （health / score / run_time）、非数组（talent_cache_values）、子表非字典（rp）。</summary>
+    private const string HostileRunJson =
+        """{"version":1,"missions":5,"talent_levels":[],"talent_overcharged":{},"talent_cache_values":{},"talent_route":7,"augments":3,"last_kind_value":"none","health":"full","score":"lots","run_time":[],"rp":{}}""";
+
+    /// <summary>恶意 settings.json：同样语法合法而字段类型全错，覆盖设置域全部字符串档
+    /// （locale / difficulty / view_zoom / window_mode / resolution / aim_assist / fps_cap）
+    /// 与数值档（version / custom_* / joy_* / 音量 / 顿帧与震动强度）读点。</summary>
+    private const string HostileSettingsJson =
+        """{"version":"four","locale":123,"difficulty":[],"view_zoom":{},"window_mode":5,"resolution":true,"aim_assist":[],"fps_cap":{},"ctrl_toggle_mode":"yes","custom_width":"wide","custom_height":[],"joy_aim_speed":"fast","joy_deadzone":[],"vsync":"on","reduce_flash":0,"world_post_fx":"no","mouse_lock":1,"master_volume":"loud","music_volume":{},"sfx_volume":[],"shake_scale":"lots","hit_stop_scale":[],"tutorial_done":"yes","joy_vibration":"off"}""";
+
+    /// <summary>正常 run.json：与下方断言逐项对齐（只判恶意档会让「守卫一律回退」的实现照样绿）。
+    /// augments 与 talent_levels 必须一致——两者都来自同一局的写出，生产档里 extra_life 两侧都有
+    /// （talent 层级决定生命上限，combat 步的 augments 是被消耗盾层等运行态）。</summary>
+    private const string ValidRunJson =
+        """{"version":1,"score":900,"kills":7,"boss_kills":2,"combo":5,"milestone_count":4,"run_time":300.0,"difficulty_multiplier":1.6,"dda_timer":12.5,"difficulty_time_step":2,"health":42.5,"augments":{"extra_life":1},"talent_levels":{"extra_life":1},"talent_overcharged":[],"talent_route":"","talent_reset_tokens":1,"talent_bonus_overcharge_slots":1,"talent_cache_values":[],"rp":6,"refresh_points":2,"missions":{"kill_15":{"progress":3,"claimed":false,"goal":15,"baseline":1}},"last_kind_value":{"kill":12}}""";
+
+    /// <summary>正常 settings.json：同前，取值刻意全非默认（回退实现会把它们全部读成默认而判红）。</summary>
+    private const string ValidSettingsJson =
+        """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"world_post_fx":false,"mouse_lock":false}""";
+
+    /// <summary>正常档还原断言里 health 的期望值（ValidRunJson 的 health 字段）。</summary>
+    private const float AssertedHealth = 42.5f;
+
+    /// <summary>恶意 run.json·任务子表类型错：missions 是字典，但条目内 progress/claimed 类型不符。
+    /// 覆盖「子条目判型」这一支（顶层 missions 非字典由上一条恶意档覆盖）。</summary>
+    private const string HostileMissionEntryJson =
+        """{"version":1,"missions":{"kill_15":{"progress":"lots","claimed":"no","goal":{},"baseline":[]}}}""";
+
+    /// <summary>正常档还原断言里手柄两项的期望值（ValidSettingsJson 的 joy_* 字段）。</summary>
+    private const double AssertedJoyAimSpeed = 3000.0;
+
+    private const double AssertedJoyDeadzone = 0.7;
+
+    /// <summary>读档补发信号的观测值：健康 -1 = 未收到（正常血量恒 &gt; 0）。</summary>
+    private float _probeHealthSeen = -1.0f;
+
+    private double _probeJoyAimSpeedSeen = -1.0;
+    private double _probeJoyDeadzoneSeen = -1.0;
+    private Callable _onProbeHealthChanged;
+    private Callable _onProbeJoySettingsChanged;
+    private bool _probeSubscribed;
+    private bool _hostileProbe;
+    private bool _deathGateProbe;
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -59,6 +174,17 @@ public partial class ProbeHost : Node
     private bool _feelProbe;
     private bool _longProbe;
     private bool _fogProbe;
+    /// <summary>迷雾打断探针：迷雾进行中主动打断，断「存活补偿不发」（与 --fog-probe 的自然到期
+    /// 发奖互补；只判一侧会让「一律不发」或「一律发」的实现照样绿）。</summary>
+    private bool _fogInterruptProbe;
+    private bool _fogInterruptCut;
+    private int _fogScoreAtInterrupt;
+    private int _fogScoreAtStart;
+    /// <summary>增幅缓存连接态探针：池化敌机复用后，慢速力场缓存必须仍接在 AugmentsChanged 上。</summary>
+    private bool _augmentCacheProbe;
+    private HashSet<ulong> _augmentCachePrevLive = new();
+    private readonly HashSet<ulong> _augmentCacheRetired = new();
+    private int _augmentCacheReuseFrame = -1;
     private bool _returnProbe;
     private string _shotDir = "";
     private string _eventId = "";
@@ -83,6 +209,49 @@ public partial class ProbeHost : Node
     private int _feelStep;
     private bool _feelSawHitStop;
     private bool _feelSawTrauma;
+    private double _feelEnrageScale = 1.0;
+
+    private bool _bossProbe;
+    private bool _bossSubscribed;
+    private Boss? _boss;
+    private int _bossStage;
+    private bool _bossTriggerPosted;
+    private int _bossTriggerFrame;
+    private int _bossKillsBefore;
+    private int _bossLastSpawnFrame;
+    private int _bossLastTickFrame;
+    private int _bossClearCheckFrame;
+    private int _bossBulletsBeforeClear;
+    private bool _bossSawPhase2BulletsBeforeClear;
+    private float _bossPrevHp;
+    private bool _bossHpMonotonic = true;
+    private bool _bossSawPhase2Invincible;
+    private bool _bossSawPhase2Clear;
+    private bool _bossKillInjected;
+    private bool _bossOutcomeChecked;
+
+    private bool _killAllProbe;
+    private int _killAllIndex;
+    private int _killAllPhase;
+    private int _killAllActiveFrame;
+    private int _killAllStageFrame;
+    private int _killAllLastKillFrame;
+    private int _killAllKillAttempts;
+    private int _killAllScoreAtStart;
+    private int _killAllScoreFloor;
+    private bool _killAllSawKill;
+    private bool _killAllSawLine;
+
+    private bool _dockProbe;
+    private int _dockStage;
+    private int _dockChargeFrames;
+    private int _dockStateFrame;
+    private int _dockReached = -1;
+    private int _dockMagCellsStart;
+    private float _dockCooldownSeen;
+    private bool _dockSawPod;
+    private bool _dockSawMagConsume;
+    private bool _dockSawMagWarn;
 
     /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）。
     /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
@@ -157,13 +326,41 @@ public partial class ProbeHost : Node
             {
                 _fogProbe = true;
             }
+            else if (arg == "--fog-interrupt-probe")
+            {
+                _fogInterruptProbe = true;
+            }
             else if (arg == "--return-probe")
             {
                 _returnProbe = true;
             }
+            else if (arg == "--boss-probe")
+            {
+                _bossProbe = true;
+            }
+            else if (arg == "--dock-probe")
+            {
+                _dockProbe = true;
+            }
+            else if (arg == "--hostile-save-probe")
+            {
+                _hostileProbe = true;
+            }
+            else if (arg == "--death-gate-probe")
+            {
+                _deathGateProbe = true;
+            }
+            else if (arg == "--augment-cache-probe")
+            {
+                _augmentCacheProbe = true;
+            }
             else if (arg.StartsWith("--shot-dir=", System.StringComparison.Ordinal))
             {
                 _shotDir = arg["--shot-dir=".Length..];
+            }
+            else if (arg == "--event-probe-killall")
+            {
+                _killAllProbe = true;
             }
             else if (arg.StartsWith("--event-probe-death=", System.StringComparison.Ordinal))
             {
@@ -176,18 +373,25 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _returnProbe)
+        if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
+            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe)
         {
             // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
             GameState.Instance.SetRunActive(true);
-            _events.SetRunActive(true);
+            // Boss/坞态探针要连跑 80 秒以上的模拟时长（Boss 最小间隔门；坞态全周期），
+            // 而遭遇事件的自动掷签在这段窗口里会连中（精英 45s×35%、编队 40s×30%）：
+            // 事件一开就冻结 Boss 调度、暂停波次，并挡下 Main 的坞蓄力（互斥）。
+            // 探针不请求任何遭遇，也不缩短任何生产时长，故这两趟整体关掉遭遇驱动——
+            // 红绿因此只取决于生产链本身，与随机掷签无关（AGENTS §5）。
+            // 遭遇本身的覆盖由 --event-probe 各趟负责。
+            _events.SetRunActive(!(_bossProbe || _dockProbe));
             // 遭遇/手感/长局探针一律关闭迷雾随机事件：首延迟（25s）过后被精英炮塔等长趟越过，
             // 此后每 3s 有 35% 概率触发迷雾（方向偏转会把无头局的玩家推入弹幕致死），
             // 探针红绿将取决于随机数——违反 §5「随机要么避免、要么走可注入取值源」。
             // 迷雾由 --fog-probe 专趟覆盖（该趟保持开启，仍走生产资格/门槛）。
-            _events.FOG_ENABLED = _fogProbe;
-            if (_fogProbe)
+            _events.FOG_ENABLED = _fogProbe || _fogInterruptProbe;
+            if (_fogProbe || _fogInterruptProbe)
             {
                 // 统一信号监听（完整周期判定：start→end）；退订在 _ExitTree 配对
                 _events.EventStarted += OnFogEventStarted;
@@ -197,6 +401,7 @@ public partial class ProbeHost : Node
                 {
                     GD.PushError("[fog-probe] 强制迷雾事件请求失败：id 未注册或非 fog 组");
                     _fogProbe = false;
+                    _fogInterruptProbe = false;
                 }
             }
         }
@@ -210,6 +415,30 @@ public partial class ProbeHost : Node
             _events.EventStarted -= OnFogEventStarted;
             _events.EventEnded -= OnFogEventEnded;
         }
+
+        if (_bossSubscribed)
+        {
+            _bossSubscribed = false;
+            _spawner.BossSpawned -= OnBossProbeSpawned;
+        }
+
+        if (_probeSubscribed)
+        {
+            _probeSubscribed = false;
+            var gs = GameState.TryGetInstance();
+            if (gs != null)
+            {
+                if (gs.IsConnected(GameState.SignalName.HealthChanged, _onProbeHealthChanged))
+                {
+                    gs.Disconnect(GameState.SignalName.HealthChanged, _onProbeHealthChanged);
+                }
+
+                if (gs.IsConnected(GameState.SignalName.JoySettingsChanged, _onProbeJoySettingsChanged))
+                {
+                    gs.Disconnect(GameState.SignalName.JoySettingsChanged, _onProbeJoySettingsChanged);
+                }
+            }
+        }
     }
 
     public override void _Process(double delta)
@@ -220,6 +449,20 @@ public partial class ProbeHost : Node
             _startupPrinted = true;
             GD.Print(GdFormat.Format("[startup] boot → first frame: %d ms",
                 (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
+        }
+
+        if (_hostileProbe && _frame >= 2)
+        {
+            _hostileProbe = false;
+            RunHostileSaveProbe();
+            return;
+        }
+
+        if (_deathGateProbe && _frame >= 2)
+        {
+            _deathGateProbe = false;
+            RunDeathGateProbe();
+            return;
         }
 
         if (_settingsProbe)
@@ -247,7 +490,7 @@ public partial class ProbeHost : Node
             return;
         }
 
-        if (_fogProbe)
+        if (_fogProbe || _fogInterruptProbe)
         {
             TickFogProbe();
             return;
@@ -259,9 +502,33 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (_bossProbe)
+        {
+            TickBossProbe();
+            return;
+        }
+
+        if (_dockProbe)
+        {
+            TickDockProbe();
+            return;
+        }
+
         if (_shotProbe)
         {
             TickShotProbe();
+            return;
+        }
+
+        if (_killAllProbe)
+        {
+            TickKillAllProbe();
+            return;
+        }
+
+        if (_augmentCacheProbe)
+        {
+            TickAugmentCacheProbe();
             return;
         }
 
@@ -631,7 +898,8 @@ public partial class ProbeHost : Node
     /// 故障（实测：删掉 `GameFeelService.ApplyTimeScale` 的赋值，自算值仍返回正常值、探针照样全绿）。
     /// 故冻结中断言 `Engine.TimeScale` 真的 &lt; 1，复位后断言它真的回到 1。震动的读口读 trauma——
     /// 位移采样在 `CameraShake._Process`，而相机不在 headless 探针宿主内，故只断言到「trauma 确实被累加/衰减」。
-    /// 顺序固定：先等场景稳定，再请求，最后断言引擎时间缩放已复位。</summary>
+    /// 顺序固定：先等场景稳定，再请求顿帧/震动，顿帧自行结束、trauma 自行衰减后，上报演出倍率
+    /// 并暂停一次——暂停是「清冻结 + 清演出倍率」的复位口，只清一半会让 Always UI 慢放。</summary>
     private void TickFeelProbe()
     {
         // 前 30 帧等入场与稳定（入场窗口内玩家不可驱动、GameState 时钟未起）
@@ -708,6 +976,40 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            // 暂停复位：先上报生产狂暴子弹时间的演出倍率（取值同 Main._Ready 的钳制口径）
+            _feelEnrageScale = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", 0.24).AsDouble(), 0.01f);
+            GameState.Instance.SetEnrageTimeScale(_feelEnrageScale);
+            _feelStep = 3;
+            return;
+        }
+
+        // 上报必须真落到引擎——否则下面的暂停断言会因为「倍率本来就是 1.0」而假绿
+        if (_feelStep == 3)
+        {
+            if (!Mathf.IsEqualApprox((float)Engine.TimeScale, (float)_feelEnrageScale))
+            {
+                GD.PushError($"[feel-probe] 上报演出倍率后引擎时间缩放未压低（Engine.TimeScale={(float)Engine.TimeScale:0.###}，期望 {_feelEnrageScale:0.###}）");
+                _feelProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetTreePaused(true);
+            _feelStep = 4;
+            return;
+        }
+
+        // 暂停必须把冻结与演出倍率一并清掉：只清一半（顿帧清了、0.24 留着）时暂停页/设置页/
+        // 天赋面板等 Always UI 会被拉到 24% 速度播放，玩家读作「菜单卡死」。同样读引擎真值。
+        if (_feelStep == 4)
+        {
+            if (!Mathf.IsEqualApprox((float)Engine.TimeScale, 1.0f))
+            {
+                GD.PushError($"[feel-probe] 暂停未复位演出倍率，Always UI 将被慢放（Engine.TimeScale={(float)Engine.TimeScale:0.###}，期望 1）");
+                _feelProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetTreePaused(false);
             GD.Print("[feel-probe] 顿帧与震动复位完成");
             _feelProbe = false;
         }
@@ -772,11 +1074,85 @@ public partial class ProbeHost : Node
         }
 
         _player.SetInvincible(ProbeInvincibleSeconds); // 无头局玩家不操作，与存活解耦
+        // 迷雾趟暂停波次：无弹幕即无擦弹/击杀分，于是「分数增量」只可能来自迷雾存活补偿本身
+        // （否则擦弹的随机得分会污染判据，把「补偿没发」淹没在噪声里）。
+        _spawner.SetWavesPaused(true);
 
         if (!_fogActive)
         {
             // 门控未到点（首延迟/冷却）时 TryTriggerGroup 返回 false——下帧再试，不绕过
             _events.TryTriggerGroup(GameEventManager.GroupFog);
+            return;
+        }
+
+        // 打断趟：迷雾跑满 1.0s（远低于生产 duration 6~8s）后走生产返航/死亡同一条 API 打断，
+        // 断「存活补偿不发」。只判自然到期那侧会让「一律发」的实现照样绿，故必须成对。
+        if (_fogInterruptProbe && !_fogInterruptCut && (_frame - _fogStartFrame) >= 60)
+        {
+            _fogInterruptCut = true;
+            _fogScoreAtInterrupt = GameState.Instance.Score;
+            GameState.Instance.FogEvents.EndActive();
+        }
+    }
+
+    /// <summary>增幅缓存连接态探针：长跑到敌机池发生复用（同一实例离场回收后被下一波重新取出），
+    /// 断言每个活跃敌机的 slow_field 缓存仍接在 AugmentsChanged 上。坏法静默——池化复用的
+    /// reparent 会触发 `_ExitTree`，连/断错序时该敌机整个活跃期不再随加点刷新（「买了力场没感觉」），
+    /// 不崩不报错。**未观察到复用则不打标记**（没走到复用路径等于没覆盖这个坏点），
+    /// 且识别到复用后**再多判几帧**——回挂发生在帧末，断开要下一帧才可见。</summary>
+    private void TickAugmentCacheProbe()
+    {
+        if (_frame < 30 || _player.IsEntryPlaying())
+        {
+            return;
+        }
+
+        var live = new HashSet<ulong>();
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is not Enemy enemy || !GodotObject.IsInstanceValid(enemy) || !enemy.IsActive())
+            {
+                continue;
+            }
+
+            live.Add(enemy.GetInstanceId());
+            if (!enemy.IsAugmentCacheConnected())
+            {
+                _augmentCacheProbe = false;
+                GD.PushError("[augment-cache-probe] 活跃敌机的 slow_field 缓存未连接——"
+                    + "该敌机不随 AugmentsChanged 刷新（加点后力场对其无效，且无任何报错）");
+                return;
+            }
+        }
+
+        // 上一帧在场、本帧不在 ⇒ 已被回收；回收过的实例再露面即池化复用
+        foreach (var id in _augmentCachePrevLive)
+        {
+            if (!live.Contains(id))
+            {
+                _augmentCacheRetired.Add(id);
+            }
+        }
+
+        if (_augmentCacheReuseFrame < 0)
+        {
+            foreach (var id in live)
+            {
+                if (_augmentCacheRetired.Contains(id))
+                {
+                    _augmentCacheReuseFrame = _frame;
+                    break;
+                }
+            }
+        }
+
+        _augmentCachePrevLive = live;
+
+        // 复用发生后留 3 帧让帧末回挂与随后的断开（若有）落定，再判最终态
+        if (_augmentCacheReuseFrame >= 0 && _frame >= _augmentCacheReuseFrame + 3)
+        {
+            _augmentCacheProbe = false;
+            GD.Print("[augment-cache-probe] 池化复用后缓存连接态成立");
         }
     }
 
@@ -784,7 +1160,7 @@ public partial class ProbeHost : Node
     /// （完整周期判定用；duration 由管理器从 balance 读出，探针不复刻配置）。</summary>
     private void OnFogEventStarted(StringName eventId, float duration)
     {
-        if (!_fogProbe)
+        if (!_fogProbe && !_fogInterruptProbe)
         {
             return;
         }
@@ -794,29 +1170,65 @@ public partial class ProbeHost : Node
             GD.PushError(GdFormat.Format("[fog-probe] 启动了非指定迷雾事件 %s（强制入口应只启动 %s）",
                 eventId, FogProbeEventId));
             _fogProbe = false;
+            _fogInterruptProbe = false;
             return;
         }
 
         _fogActive = true;
         _fogStartFrame = _frame;
         _fogDuration = duration;
+        _fogScoreAtStart = GameState.Instance.Score; // 自然到期的补偿入账判定基线
+        _fogInterruptCut = false;
     }
 
-    /// <summary>迷雾事件结束：跑满完整周期（实际时长 ≥ 生产 duration − 时序容差）才打完成标记；
-    /// 截断/中途结束一律不打（门禁按缺标记判红）。</summary>
+    /// <summary>迷雾事件结束：自然到期趟（--fog-probe）判「跑满完整周期 + 存活补偿已入账」；
+    /// 打断趟（--fog-interrupt-probe）判「打断后存活补偿不发放」。两者互补——只判一侧的话，
+    /// 「一律发」或「一律不发」的坏实现都能混过。</summary>
     private void OnFogEventEnded(StringName eventId)
     {
-        if (!_fogProbe || !_fogActive || eventId != FogProbeEventId)
+        if ((!_fogProbe && !_fogInterruptProbe) || !_fogActive || eventId != FogProbeEventId)
         {
             return;
         }
 
         _fogActive = false;
         var elapsed = (_frame - _fogStartFrame) / 60.0;
+
+        if (_fogInterruptProbe)
+        {
+            _fogInterruptProbe = false;
+            var delta = GameState.Instance.Score - _fogScoreAtInterrupt;
+            if (delta != 0)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[fog-interrupt-probe] 打断后仍发放存活补偿（分数增量 %d，期望 0）——"
+                    + "「存活」补偿不该在没扛满整段时兑现", delta));
+                return;
+            }
+
+            GD.Print("[fog-interrupt-probe] 打断不发存活补偿");
+            return;
+        }
+
         if (elapsed + FogCycleToleranceSeconds < _fogDuration)
         {
             GD.PushError(GdFormat.Format(
                 "[fog-probe] %s 周期被截断（实际 %.2fs < 生产 duration %.2fs）", eventId, elapsed, _fogDuration));
+            _fogProbe = false;
+            return;
+        }
+
+        // 自然到期必须发奖，且金额等于生产口径（AddScore 里统一乘难度档倍率）：波次已暂停，
+        // 分数增量只可能来自这一笔。不判这条的话，把奖励整段删掉（只留效果清理）也会绿——
+        // 而那正是「迷雾成为纯负反馈」的原始缺陷形态。
+        var expected = (int)System.Math.Round(
+            _events.FOG_REWARD_SCORE * GameState.Instance.KillScoreFactor()) * GameState.Instance.ScoreMultiplier();
+        var reward = GameState.Instance.Score - _fogScoreAtStart;
+        if (reward != expected)
+        {
+            GD.PushError(GdFormat.Format(
+                "[fog-probe] 自然到期的存活补偿不符（分数增量 %d，期望 %d＝reward_score×难度奖励因子×难度档倍率）"
+                + "——迷雾将退回纯负反馈", reward, expected));
             _fogProbe = false;
             return;
         }
@@ -965,6 +1377,852 @@ public partial class ProbeHost : Node
         _returnProbe = false;
     }
 
+    /// <summary>Boss 阶段机探针：走生产触发链（补分数越过 <c>boss_score_step</c> 且等过
+    /// <c>boss_min_interval</c>）请出 Boss，然后在真实受击链上逐段推进并断言。
+    ///
+    /// 为什么必须探这一趟：Boss 的阶段机（P1→P2→狂暴→击杀）在引擎侧此前零自动覆盖，
+    /// 写坏的表现是「不崩、不报错、只是没那一段」——转场未发生（少一次清弹与喘息）、
+    /// 锁血不解（Boss 无敌但画面只是打得久）、击杀没接轮换（下一只又是同一型）。
+    /// 判定分五条，缺一条即不打完成标记（门禁按缺标记判红）：
+    ///   ① 出场经生产门控：补分数到 <c>boss_score_step</c> 之上后等生产链自己触发，
+    ///      并在超时前收到 BossSpawned——探针不直调 TriggerBoss/SpawnBoss；
+    ///   ② 血量单调不增：逐帧采样 Boss.Hp，任何一次上抬即红（BossPhaseGate 不变量的真实链验证）；
+    ///   ③ P1→P2 在真实受击链上发生（越线注入后 FightPhaseValue 当场就是 P2，
+    ///      且玩家无敌被抬起——转场公平感清理不生效时玩家会在残留弹里被打死）；
+    ///   ④ ENRAGE 在越过狂暴线后当场进入（IsEnraged + FightPhaseValue == ENRAGE）；
+    ///   ⑤ 击杀走 Die()：致死一击经 TakeDamage 判定，随后 BossKills +1、生成器 Boss 槽复位、
+    ///      实例释放（＝轮换已推进，下一只换型）。
+    /// 另断狂暴锁血会在序列里自行解除（锁血残留的表现是 Boss 永久无敌，不崩不报错），
+    /// 以及 P2 转场后一帧内活跃敌弹被清空（TransitionCleanup 的 QueueFree 在帧末出树）。
+    ///
+    /// 逃跑不在此趟：它只由存活计时触发且计满 <c>boss.escape.time</c>（实测 50s 模拟时长），
+    /// 装进冒烟会吃掉一半时间预算（AGENTS §6 铁律 4）。轮换与「逃跑是否推进/是否休整」的判定
+    /// 已下沉 core <see cref="Core.Combat.BossRotation"/> 并有单测钉住，引擎侧只做薄接线。</summary>
+    private void TickBossProbe()
+    {
+        // 入场阶段：等入场结束与 spawner 可处理（生产触发链的前置）；超时即失败，不空转
+        if (!_bossTriggerPosted)
+        {
+            if (_frame > BossProbeEntryWaitFrames)
+            {
+                BossProbeFail(GdFormat.Format(
+                    "入场 %d 帧仍未就绪（入场动画未结束或 spawner 未处理）", BossProbeEntryWaitFrames));
+                return;
+            }
+
+            if (_player.IsEntryPlaying() || !_spawner.IsProcessing())
+            {
+                return;
+            }
+
+            _player.SetInvincible(ProbeInvincibleSeconds); // 无头局玩家不操作，与存活解耦
+            _bossSubscribed = true;
+            _spawner.BossSpawned += OnBossProbeSpawned; // 观测量：出场时记录，不驱动、不绕过门控
+            _bossKillsBefore = GameState.Instance.BossKills;
+            // 分数门：补到第一档之上（再留一档余量）。时间门由生产链自己走满 boss_min_interval，
+            // 探针不缩短、不直调触发——触发点与真实本局同一条路径。
+            var step = GameState.Instance.Cfg("spawner.boss_score_step", 1500).AsInt64();
+            var need = System.Math.Max(step, 1) * 2;
+            GameState.Instance.AddScore((int)System.Math.Max(need - GameState.Instance.Score, 0));
+            _bossTriggerPosted = true;
+            _bossTriggerFrame = _frame;
+            return;
+        }
+
+        if (_boss == null)
+        {
+            // 生产链到点即触发（分数门 + 最小间隔）。超时说明触发链本身坏了——报错，缺标记即红
+            if (_frame - _bossTriggerFrame > BossProbeSpawnTimeoutFrames)
+            {
+                BossProbeFail(GdFormat.Format(
+                    "补足分数门后 %d 帧仍未请出 Boss（分数门/最小间隔/波次冻结断线？）",
+                    BossProbeSpawnTimeoutFrames));
+            }
+
+            return;
+        }
+
+        var boss = _boss;
+        if (!GodotObject.IsInstanceValid(boss))
+        {
+            // 实例释放只应发生在击杀注入之后：未到击杀阶段就没了即失败（非击杀离场路径）。
+            // 击杀路径的收尾判定在此进行——QueueFree 后实例当帧即失效，下面的逐帧分支不再可达。
+            if (!_bossKillInjected)
+            {
+                BossProbeFail("Boss 实例在击杀前释放（非击杀离场路径）");
+                return;
+            }
+
+            if (!_bossOutcomeChecked && _frame - _bossLastTickFrame >= BossProbeKillSettleFrames)
+            {
+                _bossOutcomeChecked = true;
+                BossProbeCheckKillOutcome();
+            }
+
+            return;
+        }
+
+        // ② 血量单调不增：逐帧采样（血量只由受击链推进，探针只读）
+        if (boss.Hp > _bossPrevHp + 1e-3f)
+        {
+            _bossHpMonotonic = false;
+        }
+
+        _bossPrevHp = boss.Hp;
+
+        // ③ 转场清弹：越线注入当帧记下清弹前的活跃敌弹数（清弹走 QueueFree，注册表在帧末出树时
+        // 才移除），下一帧判「已清空」。前置 >0 让判据非空洞——否则「本来就没弹」也算清干净。
+        if (_bossClearCheckFrame > 0 && _frame >= _bossClearCheckFrame)
+        {
+            _bossClearCheckFrame = 0;
+            if (GameState.Instance.EnemyBullets.Count == 0)
+            {
+                _bossSawPhase2Clear = true;
+            }
+        }
+
+        switch (_bossStage)
+        {
+            case 1:
+                // 等入场降入完成（生产判定：IsInFight）再开始注入伤害
+                if (!boss.IsInFight())
+                {
+                    return;
+                }
+
+                _bossStage = 2;
+                _bossLastTickFrame = _frame;
+                _bossPrevHp = boss.Hp;
+                return;
+
+            case 2:
+                // P1 段：先让生产链跑一段（出弹/开火），再把血量压到二阶段线之上
+                if (_frame - _bossLastTickFrame < BossProbeApproachIntervalFrames)
+                {
+                    return;
+                }
+
+                _bossLastTickFrame = _frame;
+                if (BossProbeApproachLine(boss, boss.Phase2HpRatio))
+                {
+                    return;
+                }
+
+                // 越线注入：走生产 TakeDamage → 生产链自己判 P2 与转场
+                BossProbeCrossLine(boss, boss.Phase2HpRatio);
+                if (boss.FightPhaseValue() != (int)Boss.FightPhase.P2)
+                {
+                    BossProbeFail("血量已越过二阶段线但 FightPhase 仍不是 P2（阶段门控断线）");
+                    return;
+                }
+
+                // 转场当帧的公平感清理：无敌被抬起（只加不减）；清弹下帧判
+                if (_player.InvincibleRemaining() <= 0.0f)
+                {
+                    BossProbeFail("P1→P2 转场未给玩家短暂无敌（转场清弹的喘息缺失）");
+                    return;
+                }
+
+                _bossSawPhase2Invincible = true;
+                _bossBulletsBeforeClear = GameState.Instance.EnemyBullets.Count;
+                _bossSawPhase2BulletsBeforeClear |= _bossBulletsBeforeClear > 0;
+                _bossClearCheckFrame = _frame + 1;
+                _bossStage = 3;
+                return;
+
+            case 3:
+                // P2 段：等一段让 P2 模式表开火，再压到狂暴线之上
+                if (_frame - _bossLastTickFrame < BossProbeApproachIntervalFrames)
+                {
+                    return;
+                }
+
+                _bossLastTickFrame = _frame;
+                if (BossProbeApproachLine(boss, boss.EnrageHpRatio))
+                {
+                    return;
+                }
+
+                BossProbeCrossLine(boss, boss.EnrageHpRatio);
+                if (!boss.IsEnraged() || boss.FightPhaseValue() != (int)Boss.FightPhase.ENRAGE)
+                {
+                    BossProbeFail("血量已越过狂暴线但未进入 ENRAGE（狂暴门控/序列断线）");
+                    return;
+                }
+
+                _bossStage = 4;
+                _bossLastTickFrame = _frame;
+                return;
+
+            case 4:
+                // 狂暴序列期间锁血：先等子弹时间走完（主场景按真实帧长推进并自行复位时间缩放），
+                // 再等血锁在 RELEASE_HOLD 起点解除。锁血不解的表现是 Boss 永久无敌。
+                if (boss.IsHealthLocked())
+                {
+                    if (_frame - _bossLastTickFrame > BossProbeLockTimeoutFrames)
+                    {
+                        BossProbeFail(GdFormat.Format(
+                            "狂暴序列 %d 帧仍未解血锁（Boss 将永久无敌）", BossProbeLockTimeoutFrames));
+                    }
+
+                    return;
+                }
+
+                if (_frame - _bossLastTickFrame < BossProbeEnrageWaitFrames)
+                {
+                    return;
+                }
+
+                _bossStage = 5;
+                _bossKillInjected = true;
+                _bossLastTickFrame = _frame;
+                BossProbeInjectKill(boss); // 致死一击走生产受击链 → Die()
+                return;
+
+            case 5:
+                if (!_bossOutcomeChecked && _frame - _bossLastTickFrame >= BossProbeKillSettleFrames)
+                {
+                    _bossOutcomeChecked = true;
+                    BossProbeCheckKillOutcome();
+                }
+
+                return;
+        }
+    }
+
+    /// <summary>把血量压到阶段线**上方一点**（生产受击链入口，一次到位）。返回 true 表示本帧
+    /// 只是接近、还没到线上方——调用方下个间隔再判越线。是否越线、是否转阶段全由 Boss 自己判。</summary>
+    private static bool BossProbeApproachLine(Boss boss, float ratio)
+    {
+        var target = boss.MaxHp * (ratio + 0.02f);
+        if (boss.Hp <= target)
+        {
+            return false;
+        }
+
+        boss.TakeDamage((int)System.Math.Ceiling(boss.Hp - target), 1.0f);
+        return true;
+    }
+
+    /// <summary>越线一击：把血量打到阶段线**下方 2 个点**（一次穿过，再靠 MaxHp 的往返误差
+    /// 兜住 ceil 取整）。跨线判定与转场全部由生产链完成——探针不碰 Phase/Enrage 本身。</summary>
+    private static void BossProbeCrossLine(Boss boss, float ratio)
+    {
+        var target = boss.MaxHp * (ratio - 0.02f);
+        var amount = boss.Hp - target;
+        boss.TakeDamage((int)System.Math.Ceiling(amount > 0.0f ? amount : 1.0f), 1.0f);
+    }
+
+    /// <summary>击杀注入：致死一击走生产受击链（TakeDamage 判定 Hp&lt;=0 → Die），
+    /// 不直调 Die（Die 是结算出口，绕过受击链就测不到阶段门与受击编排）。</summary>
+    private void BossProbeInjectKill(Boss boss)
+    {
+        var amount = boss.Hp + 1.0f;
+        boss.TakeDamage((int)System.Math.Ceiling(amount), 1.0f);
+    }
+
+    /// <summary>击杀后的收尾断言：轮换推进（BossKills+1）、生成器占用复位、实例已释放。
+    /// 三件都成立才打完成标记——只判「Boss 没了」会让逃跑/清场路径照样绿。</summary>
+    private void BossProbeCheckKillOutcome()
+    {
+        var ok = true;
+        if (GameState.Instance.BossKills != _bossKillsBefore + 1)
+        {
+            GD.PushError(GdFormat.Format(
+                "[boss-probe] 击杀未推进 Boss 击杀数（%d → %d，期望 %d）——轮换/难度/奖励都不会动",
+                _bossKillsBefore, GameState.Instance.BossKills, _bossKillsBefore + 1));
+            ok = false;
+        }
+
+        if (_boss != null && GodotObject.IsInstanceValid(_boss))
+        {
+            GD.PushError("[boss-probe] 击杀后 Boss 实例仍在场（Die 未走 QueueFree）");
+            ok = false;
+        }
+
+        if (_spawner.IsBossActive())
+        {
+            GD.PushError("[boss-probe] 击杀后生成器仍占用 Boss 槽——后续 Boss 永不再出");
+            ok = false;
+        }
+
+        if (!_bossHpMonotonic)
+        {
+            GD.PushError("[boss-probe] 受击链上血量出现上抬——血条会可见回跳，且致死一击可能绕过转场");
+            ok = false;
+        }
+
+        if (!_bossSawPhase2BulletsBeforeClear)
+        {
+            GD.PushError("[boss-probe] P1→P2 越线时场上没有活跃敌弹——清弹判据空洞（Boss 未开火？）");
+            ok = false;
+        }
+
+        if (!_bossSawPhase2Clear)
+        {
+            GD.PushError("[boss-probe] 未观测到 P1→P2 转场的清弹（TransitionCleanup 未生效或转场根本没发生）");
+            ok = false;
+        }
+
+        if (!_bossSawPhase2Invincible)
+        {
+            GD.PushError("[boss-probe] 未观测到 P1→P2 转场给玩家的短暂无敌（玩家会在转场里被残留弹打死）");
+            ok = false;
+        }
+
+        if (!ok)
+        {
+            _bossProbe = false;
+            return;
+        }
+
+        GD.Print(GdFormat.Format(
+            "[boss-probe] 阶段机全周期完成（P1→P2→狂暴→击杀，BossKills=%d）", GameState.Instance.BossKills));
+        _bossProbe = false;
+    }
+
+    /// <summary>Boss 出场观测（生产 BossSpawned 信号）：只记录实例与实例身份校验，不驱动生成。</summary>
+    private void OnBossProbeSpawned(Boss boss)
+    {
+        if (!_bossProbe || _boss != null)
+        {
+            return;
+        }
+
+        if (_bossLastSpawnFrame > 0 && _frame - _bossLastSpawnFrame < 60)
+        {
+            GD.PushError("[boss-probe] 短时间内重复出场（Boss 槽/最小间隔门疑似失效）");
+            _bossProbe = false;
+            return;
+        }
+
+        _boss = boss;
+        _bossLastSpawnFrame = _frame;
+        _bossStage = 1;
+        _bossPrevHp = boss.Hp;
+        _bossLastTickFrame = _frame;
+    }
+
+    /// <summary>Boss 探针失败：报错并停探针（门禁按缺完成标记判红）。</summary>
+    private void BossProbeFail(string reason)
+    {
+        GD.PushError("[boss-probe] " + reason);
+        _bossProbe = false;
+    }
+
+    /// <summary>母舰坞态探针：走生产蓄力链（长按 <c>dock</c> 蓄满，不直调召唤或坞态方法）请出母舰，
+    /// 断 DESCEND → DOCKING → RESUPPLY → STAY → RELEASE → DEPART 六个状态按序到达，
+    /// 并在 STAY 长按 <c>dock</c> 走**提前离舰**收尾（生产 early_hold_time 蓄力链 + 冷却折扣/预填）。
+    ///
+    /// 为什么必须探：坞态机在引擎侧此前零覆盖，写坏的表现是「卡死」——某个状态不再推进到下一个，
+    /// 玩家只能看到母舰悬停不动（不崩、不报错、日志干净）。判定 = 六个状态按序到达 + RELEASE 前
+    /// 玩家已在保护舱（进舱链生效）+ 离场信号真的给出冷却 + 母舰实例最终被释放。
+    /// 帧序只由 <c>--fixed-fps 60</c> 驱动，不看墙钟（AGENTS §5）。
+    ///
+    /// 收尾只覆盖提前离舰这一条：强制离舰（弹匣警告到期）要先把 10 格弹匣耗到 4 格（12 模拟秒）
+    /// 再等警告横幅 5 秒，且要走完 26~36 秒的坞冷却才能二次召唤——两条都要跑会吃掉小半时间预算
+    /// （AGENTS §6 铁律 4）。两条收尾共用同一段 StartReleaseInternal，故共享代码已被本趟执行；
+    /// 差异只在触发源（见报告「装不下的部分」）。</summary>
+    private void TickDockProbe()
+    {
+        if (_dockStage == 0)
+        {
+            if (_frame < 30 || _player.IsEntryPlaying() || !_spawner.IsProcessing())
+            {
+                return;
+            }
+
+            _player.SetInvincible(ProbeInvincibleSeconds);
+            if (_main.Mothership() != null)
+            {
+                DockProbeFail("本趟开局即有母舰在场（用户目录未隔离或残留状态）");
+                return;
+            }
+
+            _dockStage = 1;
+            _dockStateFrame = _frame;
+            _dockReached = -1;
+            return;
+        }
+
+        // 蓄力段：长按 dock 直到生产链自己召唤（Main._Process 读同一动作；资格判定全在生产侧）
+        if (_dockStage == 1)
+        {
+            _dockChargeFrames++;
+            if (_dockChargeFrames > DockProbeChargeFrames)
+            {
+                Input.ActionRelease(ActDock);
+                DockProbeFail(GdFormat.Format("长按坞蓄力 %d 帧仍未触发召唤（蓄力链断线）", DockProbeChargeFrames));
+                return;
+            }
+
+            Input.ActionPress(ActDock);
+            if (_main.Mothership() != null)
+            {
+                Input.ActionRelease(ActDock);
+                _dockStage = 2; // 母舰已入场：从 DESCEND 开始逐状态判
+                _dockStateFrame = _frame;
+                _dockReached = -1;
+                _dockMagCellsStart = _main.Mothership()!.GetMagCells();
+            }
+
+            return;
+        }
+
+        // 离场收尾：母舰出界后 QueueFree，Main 侧引用清空 + 冷却入账（OnMothershipDepartedInternal）
+        if (_dockStage == 8)
+        {
+            if (_main.Mothership() != null)
+            {
+                if (_frame - _dockStateFrame > DockProbeStageTimeoutFrames)
+                {
+                    DockProbeFail(GdFormat.Format("母舰离开 %d 帧后仍未释放/Main 引用未清",
+                        DockProbeStageTimeoutFrames));
+                }
+
+                return;
+            }
+
+            if (_dockReached < (int)Mothership.State.DEPART)
+            {
+                DockProbeFail("母舰已释放但 DEPART 状态未被观测到（离场段被整段跳过）");
+                return;
+            }
+
+            if (_dockCooldownSeen <= 0.0f)
+            {
+                DockProbeFail("离场未给出坞冷却（Depart 信号未接上，可无限连召）");
+                return;
+            }
+
+            if (!_dockSawPod)
+            {
+                DockProbeFail("未观测到 RELEASE 前玩家进入保护舱（对接段编排断线）");
+                return;
+            }
+
+            if (!_dockSawMagConsume)
+            {
+                DockProbeFail("未观测到 STAY 驻留期弹匣消耗（驻留逐帧驱动断线，玩家会永久驻留）");
+                return;
+            }
+
+            GD.Print(GdFormat.Format(
+                "[dock-probe] 坞态全周期完成（六态按序 + 提前离舰，冷却 %.1fs）", _dockCooldownSeen));
+            _dockProbe = false;
+            return;
+        }
+
+        var ms = _main.Mothership();
+        // 离场冷却读数逐帧采样（Depart 信号 → Main.OnMothershipDepartedInternal 写入）：
+        // 母舰自身出界后 QueueFree，故冷却必须在引用还在的帧里采到
+        _dockCooldownSeen = System.Math.Max(_dockCooldownSeen, _main.DockCooldown());
+        if (ms == null || !GodotObject.IsInstanceValid(ms))
+        {
+            if (_dockReached < (int)Mothership.State.DEPART)
+            {
+                DockProbeFail(GdFormat.Format("坞态推进到 %d 时母舰意外消失（提前离场）", _dockReached));
+                return;
+            }
+
+            // 跑完 DEPART 后母舰出界自释放：进入收尾判定段（冷却/保护舱/弹匣三断）
+            _dockStage = 8;
+            _dockStateFrame = _frame;
+            return;
+        }
+
+        var state = ms.GetState();
+        var idx = (int)state;
+        if (idx < _dockReached)
+        {
+            DockProbeFail(GdFormat.Format("坞态回退：%d → %d（状态机倒序推进）", _dockReached, idx));
+            return;
+        }
+
+        if (idx > _dockReached)
+        {
+            // 状态只允许逐级前进（枚举序数即状态机顺序），跳跃意味着某段演出被整段跳过
+            if (idx != _dockReached + 1)
+            {
+                DockProbeFail(GdFormat.Format("坞态跳跃：%d → %d（中间状态被跳过）", _dockReached, idx));
+                return;
+            }
+
+            _dockReached = idx;
+            _dockStateFrame = _frame;
+        }
+
+        if (!_dockSawMagConsume && _dockReached >= (int)Mothership.State.STAY && ms.GetMagCells() < _dockMagCellsStart)
+        {
+            // 弹匣真的在耗（STAY 驻留推进）；只判「状态到了 STAY」会让停在原地不耗弹的坏法假绿
+            _dockSawMagConsume = true;
+        }
+
+        if (!_dockSawPod && !_player.Visible)
+        {
+            _dockSawPod = true; // 进保护舱：隐藏 + 关受击判定（DOCKING 完成时置位）
+        }
+
+        switch (state)
+        {
+            case Mothership.State.DESCEND:
+            case Mothership.State.DOCKING:
+            case Mothership.State.RESUPPLY:
+                if (_frame - _dockStateFrame > DockProbeStageTimeoutFrames)
+                {
+                    DockProbeFail(GdFormat.Format("坞态 %s 停滞 %d 帧未推进（状态机卡死）",
+                        state, DockProbeStageTimeoutFrames));
+                }
+
+                return;
+
+            case Mothership.State.STAY:
+                // STAY 前半段不操作：让弹匣自然耗到警告档（生产 mag_warn_cells），断言警告真的亮起
+                // ——「驻留无限期」的坏法表现是弹匣不耗、警告不亮，玩家可以永久驻留白拿火力掩护。
+                if (!_dockSawMagWarn)
+                {
+                    if (ms.MagWarned() && ms.WarnEjectTimer() > 0.0f)
+                    {
+                        _dockSawMagWarn = true;
+                        _dockStateFrame = _frame;
+                        return;
+                    }
+
+                    if (_frame - _dockStateFrame > DockProbeMagWarnTimeoutFrames)
+                    {
+                        DockProbeFail(GdFormat.Format(
+                            "STAY 驻留 %d 帧仍未触弹匣警告（弹匣不耗/警告不亮，玩家可永久驻留）",
+                            DockProbeMagWarnTimeoutFrames));
+                    }
+
+                    return;
+                }
+
+                // 警告横幅倒计时里长按提前离舰（生产 early_hold_time 蓄力链）——提前离舰优先于
+                // 警告到期的强制离舰（同段 StartReleaseInternal，折扣/预填按剩余弹匣结算）
+                if (_frame - _dockStateFrame > DockProbeEjectTimeoutFrames)
+                {
+                    Input.ActionRelease(ActDock);
+                    DockProbeFail(GdFormat.Format(
+                        "STAY 长按提前离舰 %d 帧未生效（early_hold_time 蓄力链或离舰路径断线）",
+                        DockProbeEjectTimeoutFrames));
+                    return;
+                }
+
+                Input.ActionPress(ActDock);
+                return;
+
+            case Mothership.State.RELEASE:
+                Input.ActionRelease(ActDock);
+                if (_frame - _dockStateFrame > DockProbeStageTimeoutFrames)
+                {
+                    DockProbeFail(GdFormat.Format("RELEASE 停滞 %d 帧未进入 DEPART", DockProbeStageTimeoutFrames));
+                    return;
+                }
+
+                return;
+
+            case Mothership.State.DEPART:
+                Input.ActionRelease(ActDock);
+                if (_frame - _dockStateFrame > DockProbeStageTimeoutFrames * 2)
+                {
+                    DockProbeFail(GdFormat.Format("DEPART 停滞 %d 帧未出界释放", DockProbeStageTimeoutFrames * 2));
+                    return;
+                }
+
+                return;
+        }
+    }
+
+    /// <summary>母舰坞态探针失败：报错并停探针（门禁按缺完成标记判红）。</summary>
+    private void DockProbeFail(string reason)
+    {
+        GD.PushError("[dock-probe] " + reason);
+        _dockProbe = false;
+    }
+
+    /// <summary>击杀型遭遇探针：与 <see cref="TickEventProbe"/> 同一触发链（补分数 + 请求掷签必中，
+    /// 资格/门槛/门控仍由生产判定），区别在激活后逐帧对事件单位施加致死伤害（走生产 TakeDamage 链），
+    /// 把「击杀型」收尾跑到终点。**一趟串两个事件**（精英炮塔 → 轰炸编队，各自独立触发与判定）：
+    /// 固定开销（引擎启动 + 场景加载）比帧数更贵，合趟是时间预算下的取舍。
+    ///
+    /// 为什么需要：常规 `--event-probe` 跑不到任何击杀——精英炮塔趟只走到 30s 超时（0 奖励），
+    /// 编队趟让编队自然离场（只命中「清除」档）。于是 `Tier.AllClear`、精英全歼 reward_score、
+    /// 结算台词的**节点侧发奖与播报**在 CI 里从未执行过：奖励键被改成 0、或发奖调用被删，
+    /// 全绿发布而玩家打了全歼只拿「它自己走了」档。
+    ///
+    /// 每个事件判三条（缺一条即不打完成标记）：
+    ///   ① 击杀确实发生，且以击杀型收场（编队另断存活机归零＝走到「全歼」档）；
+    ///   ② 档位奖励确实入账：本趟分数增量 ≥ 生产配置的奖励下界（精英 reward_score；
+    ///      编队 reward_all_clear + 编队机数 × craft_score，两笔都只乘下界为 1 的乘区）；
+    ///   ③ 结算台词确实播报：击杀后通讯浮层的台词面板出现过（ShowLine 后可见，
+    ///      3.5s 停留 + 0.5s 淡出）。只读节点可见性，不碰台词层实现。
+    /// 奖励值一律不动，只断言「确实入了账」。</summary>
+    private void TickKillAllProbe()
+    {
+        if (_killAllIndex >= KillAllProbeIds.Length)
+        {
+            GD.Print("[event-probe] 击杀型全周期完成（精英炮塔与轰炸编队）");
+            _killAllProbe = false;
+            return;
+        }
+
+        var key = new StringName(KillAllProbeIds[_killAllIndex]);
+        if (_killAllPhase == 0)
+        {
+            if (_frame - _killAllStageFrame > KillAllProbeTimeoutFrames)
+            {
+                KillAllProbeFail(key, GdFormat.Format("%d 帧仍未激活（生产触发链断线？）", KillAllProbeTimeoutFrames));
+                return;
+            }
+
+            if (_player.IsEntryPlaying() || !_spawner.IsProcessing())
+            {
+                return;
+            }
+
+            if (!_triggerPosted)
+            {
+                _player.SetInvincible(ProbeInvincibleSeconds);
+                GameState.Instance.AddScore(System.Math.Max(_events.EncounterMinScore(key), 1));
+                _triggerPosted = true;
+                if (!_events.RequestForcedTrigger(key))
+                {
+                    GD.PushError($"[event-probe] 请求启动失败：{key} 未注册");
+                    _killAllProbe = false;
+                }
+
+                return;
+            }
+
+            if (_events.EncounterInstance(key)?.IsActive() == true)
+            {
+                _killAllPhase = 1;
+                _killAllActiveFrame = _frame;
+                _killAllStageFrame = _frame;
+                _killAllLastKillFrame = _frame;
+                _killAllScoreAtStart = GameState.Instance.Score;
+                _killAllScoreFloor = KillAllProbeRewardFloor(key);
+            }
+
+            return;
+        }
+
+        var ev = _events.EncounterInstance(key);
+        if (ev == null)
+        {
+            KillAllProbeFail(key, "实例已失效，无法判定收场");
+            return;
+        }
+
+        if (_frame - _killAllStageFrame > KillAllProbeTimeoutFrames)
+        {
+            KillAllProbeFail(key, GdFormat.Format("击杀趟 %d 帧仍未收场（击杀链或收场路径断线）",
+                KillAllProbeTimeoutFrames));
+            return;
+        }
+
+        // ③ 结算台词：击杀发生之后通讯浮层的台词面板出现过即记一笔（只读节点可见性）
+        if (_killAllSawKill && _frame > _killAllLastKillFrame && KillAllProbeCommLive(ev))
+        {
+            _killAllSawLine = true;
+        }
+
+        if (ev.IsActive())
+        {
+            KillAllProbeKillUnits(key, ev);
+            return;
+        }
+
+        // 已收场：再给几帧让结算/发奖落定，然后判本事件
+        if (_frame - _killAllLastKillFrame < KillAllProbeSettleFrames)
+        {
+            return;
+        }
+
+        if (!KillAllProbeVerify(key, ev))
+        {
+            _killAllProbe = false;
+            return;
+        }
+
+        // 本事件过了，接下一个（下一个的激活等待从本帧起算）
+        _killAllIndex++;
+        _killAllPhase = 0;
+        _killAllStageFrame = _frame;
+        _triggerPosted = false;
+        _killAllSawKill = false;
+        _killAllSawLine = false;
+        _killAllKillAttempts = 0;
+    }
+
+    /// <summary>击杀趟失败：报错并停探针（门禁按缺完成标记判红）。</summary>
+    private void KillAllProbeFail(StringName key, string reason)
+    {
+        GD.PushError(GdFormat.Format("[event-probe] %s 击杀趟：%s", key, reason));
+        _killAllProbe = false;
+    }
+
+    /// <summary>通讯浮层的台词面板是否正在显示：事件节点下的 CommOverlay 首子节点即台词面板，
+    /// ShowLine 后可见、3.5s 停留 + 0.5s 淡出后隐藏。
+    /// 判据用 IsVisibleInTree 而非节点自身的 Visible——后者只反映本节点开关，浮层/祖先被隐藏
+    /// （台词层整体不可见）时它仍为 true，是假绿；IsVisibleInTree 把祖先链一并算进来。
+    /// 只读可见性，不碰台词层实现。</summary>
+    private static bool KillAllProbeCommLive(IEncounterEvent ev)
+    {
+        if (ev is not Node eventNode || !GodotObject.IsInstanceValid(eventNode))
+        {
+            return false;
+        }
+
+        foreach (var child in eventNode.GetChildren())
+        {
+            if (child is CommOverlay comm && comm.GetChildCount() > 0 && comm.GetChild(0) is CanvasItem panel)
+            {
+                return panel.IsVisibleInTree();
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>档位奖励的分数下界（读生产配置，不另抄一份常量；全部乘区只按**下界**取）：
+    /// 精英 = reward_score × 难度分数倍率；编队 =（reward_all_clear + 编队机数 × craft_score）
+    /// × 难度分数倍率——编队机击毁的分数与全歼奖励同源入账，两者都经 AddEventScore/AddKillScore
+    /// 乘「难度击杀分系数（≥1）」「连击倍率（≥1）」「难度分数倍率」，故实际增量只会 ≥ 本下界。
+    /// 下界必须含难度分数倍率：不含时，删掉 reward_all_clear 只少了 1/3 分，仍能越过松下界（假绿）。</summary>
+    private static int KillAllProbeRewardFloor(StringName key)
+    {
+        var gs = GameState.Instance;
+        var mult = System.Math.Max(gs.ScoreMultiplier(), 1);
+        if (key == new StringName("elite_turret"))
+        {
+            var reward = System.Math.Max((int)gs.Cfg("elite_turret_event.reward_score", 0).AsInt64(), 0);
+            return reward * mult; // 炮台击毁本身不给分，增量几乎全来自这一笔
+        }
+
+        var allClear = System.Math.Max((int)gs.Cfg("formation_strike_event.reward_all_clear", 0).AsInt64(), 0);
+        var craftScore = System.Math.Max((int)gs.Cfg("formation_strike_event.craft_score", 0).AsInt64(), 0);
+        var counts = gs.Cfg("formation_strike_event.craft_counts", new Godot.Collections.Dictionary());
+        var count = 0;
+        if (counts.VariantType == Variant.Type.Dictionary)
+        {
+            var v = counts.AsGodotDictionary().GetValueOrDefault(gs.Difficulty.ToString(), new Variant());
+            if (v.VariantType is Variant.Type.Int or Variant.Type.Float)
+            {
+                count = System.Math.Max((int)v.AsInt64(), 0);
+            }
+        }
+
+        return (allClear + (count * craftScore)) * mult;
+    }
+
+    /// <summary>逐帧对事件在场的可击杀单位施加致死伤害（走生产 TakeDamage 链，不直调 Die）：
+    /// 精英炮塔事件杀炮台，编队事件杀编队机。
+    /// 精英先等升起到位（生产 rise_time），编队先等投出至少一枚炸弹——保证「全歼」之外，
+    /// 投弹/拦截/战损台词这些分支也被走过。</summary>
+    private void KillAllProbeKillUnits(StringName key, IEncounterEvent ev)
+    {
+        if (key == new StringName("elite_turret"))
+        {
+            if (_frame - _killAllActiveFrame < KillAllProbeEliteDelayFrames)
+            {
+                return; // 等炮塔升起到位（升起期不可被攻击）
+            }
+        }
+        else if (ev is FormationStrikeEvent formation
+            && formation.DroppedCount() < 1
+            && _frame - _killAllActiveFrame < KillAllProbeFormationWaitFrames)
+        {
+            return; // 等实战投弹
+        }
+
+        if (_frame - _killAllLastKillFrame < KillAllProbeKillIntervalFrames)
+        {
+            return;
+        }
+
+        _killAllLastKillFrame = _frame;
+        _killAllKillAttempts++;
+        var killed = false;
+        // 注册表内直接判型击杀；失效实例跳过（收场当帧可能正被清）
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node == null || !GodotObject.IsInstanceValid(node))
+            {
+                continue;
+            }
+
+            if (node is TurretBattery turret)
+            {
+                turret.TakeDamage(turret.Hp + 1, 1.0f);
+                killed = true;
+            }
+            else if (node is FormationCraft craft)
+            {
+                craft.TakeDamage(craft.Hp + 1, 1.0f);
+                killed = true;
+            }
+        }
+
+        if (!killed)
+        {
+            // 收尾段（精英的航母撤离 / 编队的离场）本就无单位可杀；只在**从未**命中过单位时判失败
+            if (!_killAllSawKill && _killAllKillAttempts > KillAllProbeMissAttempts)
+            {
+                KillAllProbeFail(key, GdFormat.Format(
+                    "连续 %d 次未命中任何事件单位（单位未绑定注册表？）", KillAllProbeMissAttempts));
+            }
+
+            return;
+        }
+
+        _killAllSawKill = true;
+    }
+
+    /// <summary>单个事件的击杀型收尾判定。返回 false 表示已报错（调用方停探针）。</summary>
+    private bool KillAllProbeVerify(StringName key, IEncounterEvent ev)
+    {
+        var ok = true;
+        if (!_killAllSawKill)
+        {
+            GD.PushError(GdFormat.Format("[event-probe] %s 击杀趟从未命中事件单位（击杀路径未执行）", key));
+            ok = false;
+        }
+
+        if (key == new StringName("formation_strike") && ev is FormationStrikeEvent formation && formation.AliveCount() != 0)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] 编队击杀趟收场时仍有 %d 架在编（未走到「全歼」档，Tier.AllClear 分支未执行）",
+                formation.AliveCount()));
+            ok = false;
+        }
+
+        var delta = GameState.Instance.Score - _killAllScoreAtStart;
+        if (delta < _killAllScoreFloor)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] %s 击杀趟档位奖励未入账：分数增量 %d < 生产下界 %d（发奖调用被删或奖励值被清零？）",
+                key, delta, _killAllScoreFloor));
+            ok = false;
+        }
+
+        if (!_killAllSawLine)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] %s 击杀趟未观察到结算台词（通讯浮层击杀后未出现）", key));
+            ok = false;
+        }
+
+        if (ok)
+        {
+            GD.Print(GdFormat.Format("[event-probe] %s 击杀型全周期完成", key));
+            GD.Print(GdFormat.Format("[event-probe] %s 档位奖励入账 %d 分", key, delta));
+        }
+
+        return ok;
+    }
+
     /// <summary>遭遇探针驱动：等可驱动 → 补分数 + 请求掷签必中（仍走生产触发链）→ 观测收场。
     /// 死亡探针在激活后延迟若干帧显式击杀玩家，走管理器 EndActive 与事件 Abort 的死亡路径；
     /// 收场以「事件回 IDLE」为据，死亡探针另断波次与 Boss 互斥已归还。</summary>
@@ -1032,6 +2290,284 @@ public partial class ProbeHost : Node
         GD.Print(GdFormat.Format(
             _deathProbe ? "[event-probe] %s 死亡打断完成" : "[event-probe] %s 全周期完成", _eventId));
         _eventId = "";
+    }
+
+    /// <summary>恶意存档探针：读档链对「语法合法但字段类型不符」的手改档必须逐字段回默认。
+    ///
+    /// 为什么必须探这一趟：Godot 4.6 的 Variant.As* 是**宽松转换、不抛异常**（实测全矩阵：
+    /// AsBool("no") 得 true、AsInt64("lots") 得 0、AsString(7) 得 "7"、AsGodotDictionary(5) 得空表），
+    /// 于是裸取不会崩溃，只会把坏值静默读成合法值——比崩溃更安静：任务 claimed 写成 "no"
+    /// 会被当成已领取，该任务奖励永久领不到，界面无任何信号。单测够不到（判型在引擎绑定层，
+    /// xUnit 只引用 core），故用探针写档 + 调生产读档入口实跑。三段判定，缺一不可：
+    ///   ① 恶意档（字段类型全错）读入不得抛，且各字段落回默认；
+    ///   ② 恶意档·子表类型错：mission 条目的 claimed/progress 判型（宽松转换的真正判别式）；
+    ///   ③ 正常档读入必须逐项还原——只判 ①② 会让「守卫一律回退」的实现照样绿（假绿）。
+    /// 另断补发信号：读档直写字段必须把还原值推给消费域，否则界面/手感读的是复位值
+    /// （健康值给 HUD 血条，手柄灵敏度给 Player 的摇杆积分）。</summary>
+    private void RunHostileSaveProbe()
+    {
+        var gs = GameState.Instance;
+        var ok = true;
+
+        _onProbeHealthChanged = Callable.From<float>(OnProbeHealthChanged);
+        _onProbeJoySettingsChanged = Callable.From<double, double>(OnProbeJoySettingsChanged);
+        gs.Connect(GameState.SignalName.HealthChanged, _onProbeHealthChanged);
+        gs.Connect(GameState.SignalName.JoySettingsChanged, _onProbeJoySettingsChanged);
+        _probeSubscribed = true;
+
+        // ① 恶意档：写盘 → 走生产读档入口；逐字段落默认（不抛，故异常分支实际抓的是意外）
+        ok &= WriteUserFile("user://run.json", HostileRunJson);
+        ok &= WriteUserFile("user://settings.json", HostileSettingsJson);
+        try
+        {
+            if (!gs.LoadRun())
+            {
+                GD.PushError("[hostile-save-probe] 恶意 run.json（version 合法）未读入——应逐字段回默认，而不是判无档");
+                ok = false;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 恶意 run.json 读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        try
+        {
+            gs.LoadSettings();
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 恶意 settings.json 读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        if (gs.Missions.Count != 0)
+        {
+            GD.PushError($"[hostile-save-probe] missions 非字典应回空表，实得 {gs.Missions.Count} 条");
+            ok = false;
+        }
+
+        if (gs.Score != 0)
+        {
+            GD.PushError($"[hostile-save-probe] score 非数值应回 0，实得 {gs.Score}");
+            ok = false;
+        }
+
+        if (!(gs.Health >= 1.0 && gs.Health <= gs.MaxHealth()))
+        {
+            GD.PushError($"[hostile-save-probe] health 非数值应回上限并钳，实得 {gs.Health}（上限 {gs.MaxHealth()}）");
+            ok = false;
+        }
+
+        if (gs.Locale != "zh" || gs.ViewZoom != new StringName("small") || gs.AimAssistLevel != new StringName("medium"))
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 恶意设置档应保持出厂档，实得 locale=%s view_zoom=%s aim_assist=%s",
+                gs.Locale, gs.ViewZoom, gs.AimAssistLevel));
+            ok = false;
+        }
+
+        if (gs.JoyAimSpeed != 1400.0)
+        {
+            GD.PushError($"[hostile-save-probe] joy_aim_speed 非数值应保持默认 1400，实得 {gs.JoyAimSpeed}");
+            ok = false;
+        }
+
+        // ② 恶意档·子表类型错：mission 条目内 progress/claimed 判型。
+        // 这一段是本探针真正的判别式：Godot 4.6 的 Variant.As* 是**宽松转换**（不抛）——
+        // AsBool("no") 得 true、AsInt64("lots") 得 0。裸取会把「字符串 claimed」静默读成已领取
+        // （玩家领不到已完成任务的 RP，且界面无任何信号）。故此处断「非 Bool 一律回 false」。
+        ok &= WriteUserFile("user://run.json", HostileMissionEntryJson);
+        try
+        {
+            if (!gs.LoadRun())
+            {
+                GD.PushError("[hostile-save-probe] 恶意 run.json（任务子表类型错）未读入");
+                ok = false;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 恶意 run.json（任务子表类型错）读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        var probeMission = new StringName("kill_15");
+        if (gs.IsMissionClaimed(probeMission))
+        {
+            GD.PushError("[hostile-save-probe] claimed 非 Bool 被判为已领取（AsBool 宽松转换把字符串读成 true）——"
+                + "玩家将无法领取该任务奖励");
+            ok = false;
+        }
+
+        if (gs.MissionProgress(probeMission) != 0)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 恶意任务子表 progress 应回默认 0，实得 %d",
+                gs.MissionProgress(probeMission)));
+            ok = false;
+        }
+
+        // ③ 正常档：还原值逐项对上；同时观测读档补发的两个信号
+        _probeHealthSeen = -1.0f;
+        _probeJoyAimSpeedSeen = -1.0;
+        _probeJoyDeadzoneSeen = -1.0;
+        ok &= WriteUserFile("user://run.json", ValidRunJson);
+        ok &= WriteUserFile("user://settings.json", ValidSettingsJson);
+        try
+        {
+            if (!gs.LoadRun())
+            {
+                GD.PushError("[hostile-save-probe] 正常 run.json 未读入（守卫把合法档也拒了？）");
+                ok = false;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 正常 run.json 读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        if (gs.Score != 900 || gs.Kills != 7 || gs.BossKills != 2 || gs.Rp != 6)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 正常档标量未还原：score=%d kills=%d boss_kills=%d rp=%d（期望 900/7/2/6）",
+                gs.Score, gs.Kills, gs.BossKills, gs.Rp));
+            ok = false;
+        }
+
+        if (Math.Abs(gs.RunTime - 300.0) > 1e-6 || Math.Abs(gs.Health - AssertedHealth) > 1e-6)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 正常档 run_time/health 未还原：run_time=%.3f health=%.3f（期望 300 / %.1f）",
+                gs.RunTime, gs.Health, AssertedHealth));
+            ok = false;
+        }
+
+        if (gs.MaxHealth() != 150.0)
+        {
+            GD.PushError($"[hostile-save-probe] 正常档 extra_life 层级未还原：生命上限 {gs.MaxHealth()}（期望 150）");
+            ok = false;
+        }
+
+        if (gs.MissionProgress(new StringName("kill_15")) != 3)
+        {
+            GD.PushError($"[hostile-save-probe] 正常档任务进度未还原：{gs.MissionProgress(new StringName("kill_15"))}（期望 3）");
+            ok = false;
+        }
+
+        if (Math.Abs(_probeHealthSeen - AssertedHealth) > 1e-6)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 读档未补发健康信号（收到 %.3f，期望 %.1f）——HUD 血条会停在复位值",
+                _probeHealthSeen, AssertedHealth));
+            ok = false;
+        }
+
+        try
+        {
+            gs.LoadSettings();
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 正常 settings.json 读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        if (gs.Locale != "en" || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
+            || gs.FpsCap != new StringName("fps30") || gs.Difficulty != new StringName("hard")
+            || gs.CustomWindowWidth != 1000)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 正常设置档未还原：locale=%s view_zoom=%s aim_assist=%s fps_cap=%s difficulty=%s custom_width=%d",
+                gs.Locale, gs.ViewZoom, gs.AimAssistLevel, gs.FpsCap, gs.Difficulty, gs.CustomWindowWidth));
+            ok = false;
+        }
+
+        if (Math.Abs(gs.JoyAimSpeed - AssertedJoyAimSpeed) > 1e-6 || Math.Abs(gs.JoyDeadzone - AssertedJoyDeadzone) > 1e-6)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 正常档手柄两项未还原：joy_aim_speed=%.1f joy_deadzone=%.2f（期望 %.1f / %.2f）",
+                gs.JoyAimSpeed, gs.JoyDeadzone, AssertedJoyAimSpeed, AssertedJoyDeadzone));
+            ok = false;
+        }
+
+        if (Math.Abs(_probeJoyAimSpeedSeen - AssertedJoyAimSpeed) > 1e-6
+            || Math.Abs(_probeJoyDeadzoneSeen - AssertedJoyDeadzone) > 1e-6)
+        {
+            GD.PushError(GdFormat.Format(
+                "[hostile-save-probe] 读档未补发手柄设置通知（收到 %.1f/%.2f）——Player 会按旧灵敏度跑",
+                _probeJoyAimSpeedSeen, _probeJoyDeadzoneSeen));
+            ok = false;
+        }
+
+        if (ok)
+        {
+            GD.Print("[hostile-save-probe] 恶意档读入未崩溃");
+        }
+    }
+
+    /// <summary>死亡删档的本局门控探针：非本局（教程/标题屏）死亡不得删玩家真实检查点。
+    ///
+    /// 为什么必须探：删档钩子挂在全局 PlayerDied 上、且 PlayerDied 无场景上下文——教程死亡走同
+    /// 一信号并把它当预期终态，无门控就是「玩教程顺手抹掉玩家存档」（C 继续上次出击凭空消失），
+    /// 静默且不可逆。本趟跑在探针宿主里（_runActive 保持 false，同教程/标题屏语义），
+    /// 写一份检查点后发 PlayerDied：文件必须原封不动；再把门控置真（同生产 Main 路径）发一次，
+    /// 文件必须被删——前半段判「误伤」，后半段判「该删的仍然删」，缺一半都判不出。
+    /// 直接发信号而非 Player.Die()：本探针只判删档钩子，不引入死亡结算/结算页的一串副作用。</summary>
+    private void RunDeathGateProbe()
+    {
+        var gs = GameState.Instance;
+        gs.SetRunActive(false); // 显式声明本趟语义：非本局（同教程/标题屏）
+        var runPath = ProjectSettings.GlobalizePath("user://run.json");
+        if (!WriteUserFile("user://run.json", ValidRunJson))
+        {
+            return;
+        }
+
+        // 非本局（探针宿主 _runActive 为假，同教程/标题屏）：死亡不得删档
+        gs.EmitSignal(GameState.SignalName.PlayerDied);
+        if (!System.IO.File.Exists(runPath))
+        {
+            GD.PushError("[death-gate-probe] 非本局死亡删掉了玩家检查点（教程/标题屏死亡会误伤存档）");
+            return;
+        }
+
+        // 真实本局（生产 Main 路径置真）：死亡必须删档
+        gs.SetRunActive(true);
+        gs.EmitSignal(GameState.SignalName.PlayerDied);
+        if (System.IO.File.Exists(runPath))
+        {
+            GD.PushError("[death-gate-probe] 本局死亡未删档——检查点可无限读回（必死曲线紧张感丢失）");
+            return;
+        }
+
+        GD.Print("[death-gate-probe] 非本局不删档/本局删档均生效");
+    }
+
+    /// <summary>健康值观测（读档补发信号）。</summary>
+    private void OnProbeHealthChanged(float health) => _probeHealthSeen = health;
+
+    /// <summary>手柄设置观测（读档补发通知）。</summary>
+    private void OnProbeJoySettingsChanged(double aimSpeed, double deadzone)
+    {
+        _probeJoyAimSpeedSeen = aimSpeed;
+        _probeJoyDeadzoneSeen = deadzone;
+    }
+
+    /// <summary>写用户目录文件（探针自备存档）；写不出即判失败，不静默跳过整个探针。</summary>
+    private static bool WriteUserFile(string path, string content)
+    {
+        using var file = Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Write);
+        if (file == null)
+        {
+            GD.PushError($"[hostile-save-probe] 无法写出 {path}：{Godot.FileAccess.GetOpenError()}");
+            return false;
+        }
+
+        file.StoreString(content);
+        return true;
     }
 }
 #endif
