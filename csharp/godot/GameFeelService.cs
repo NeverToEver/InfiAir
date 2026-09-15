@@ -12,7 +12,7 @@ namespace InfiAir;
 /// 或子弹时间把顿帧顶掉），故合成收口在本服务：Main 只上报自己的演出倍率（SetEnrageTimeScale），
 /// 实际写入 = 演出倍率 × 顿帧倍率。
 ///
-/// 顿帧倍率取**严格正值**（effects.hit_stop.scale，默认 0.05）：引擎把 delta 按时间缩放后
+/// 顿帧倍率取**严格正值**（effects.hit_stop.freeze_scale，默认 0.06）：引擎把 delta 按时间缩放后
 /// 再传给 _Process，倍率为 0 时 delta 恒 0、剩余时长永远推不完（冻死）；且帧长被压到 0 后
 /// 无法还原未缩放时长。取正值后可反解真实帧长（delta / 当前总倍率），固定步长下精确可重复。
 ///

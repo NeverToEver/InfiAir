@@ -2,11 +2,11 @@
 
 > 方向决策与已知债务的单一权威。现状快照只在方向变化时更新；变更史看 git log；设计数值见 `docs/DESIGN_BASELINE.md`；流程与门禁口径见 `AGENTS.md`。
 
-## Current State (2026-09-14)
+## Current State (2026-09-15)
 
 - 纯街机流落地（2026-09-08 用户指令）：账户/登录、排行榜、分数显示与记录、局外成长（研究所/科技点）全量移除；开机流程 = `scenes/main.tscn` 开机直达 `scenes/title.tscn` 深空机库标题屏（形态详见 DESIGN_BASELINE §1.12）→ 开局（2026-09-13 移除开场过场）。对局内分数保留为隐藏进度引擎（敌机解锁/Boss 节奏/事件门控/里程碑→天赋点）。无尽必死曲线（D1）为既定设计。
 - 本局存档回归（2026-09-10，反转 09-08「无对局存档」）：单存档位检查点模型——保存退出/回基地落盘，死亡或放弃重开删档，标题屏可读档续局。口径见 DESIGN_BASELINE §2.5。
-- 内容演进：4 Boss 轮换、母舰火力平台、触屏输入、天赋缓存系统（2026-09-07，替代旧里程碑三选一与 line→双 buff 路线，低血保底随之退役）。
+- 内容演进：4 Boss 轮换、母舰火力平台、天赋缓存系统（2026-09-07，替代旧里程碑三选一与 line→双 buff 路线，低血保底随之退役）。
 - 平台收束（2026-09-11，方向变化）：**PC 桌面专用、移动端不做**（产品范围决定），输入面 = 键鼠 + 手柄两路；触屏虚拟控件与 Android 返回路径全量退役（口径见 DESIGN_BASELINE §1.14）。
 - 质量形态：CI 单 job fast-gate 与本地门禁一致（口径见 AGENTS.md）；回归验证 = core 单测 + 无头固定步长冒烟，GPU 表现 / 手感 / 长时稳定性另做窗口化人工过目。
 - 文档形态（2026-09-10 惯例整改后）：**四份**单源分工——`README.md`（怎么跑/怎么发）+ 本文件（方向/债务/决策索引）+ `docs/DESIGN_BASELINE.md`（设计定稿）+ `AGENTS.md`（流程/门禁/提交纪律）。另有 `docs/BALANCE_REVIEW.md`（历史平衡审查存档，只读证据、非现行口径）与 `docs/RELEASE_NOTES.md`（Release body 单源，按版本手工维护）。
@@ -19,6 +19,9 @@
 - **[低] 视觉层：截图探针作辅助，布局判定优先下沉 core**：`scripts/ci/check_visual.sh` 只兜两条结构故障——**画面空白（渲染整体坏掉）与五页互不相同（页面切换失效）**。**刻意不做像素基线比对**（设置页含环境相关占位内容、背景有墙钟动画，跨渲染器基线必然误报）。**仍属窗口化过目的**：面板错位/重叠/字形断裂/子像素/观感——按纪律优先把**几何与布局算式下沉 `core/` 并单测**，截图探针只兜结构性故障。收口条件＝观感面获得可自动化的几何判据；触发时机＝下次视觉改动时逐条评估可下沉项。
 - **[低] 零引用成员保留面（口径封存）**：全库扫描零引用的公开/内部成员中，**刻意保留的公开门面与白盒读口**（GameState 门面成对 API、Player/MetaHealthFX 调参阅数读口、Main 调试开关）以此口径封存：**新增零引用成员必须在注释里写明保留理由，否则视为死代码**。批量删除需人工确认（这些读口是实机调参时的观察面）。收口条件＝新增零引用成员的注释护栏被门禁自动化；触发时机＝新增此类成员时。
 - **[低] balance 反向死键检测不做自动化**：`data/balance.json` 中大量键经 `"augments." + id` 动态拼接读取（节点 id 来自天赋树结构单源），静态扫描判「无人读」会大面积误红，无法给出可信判据。收口条件＝动态键的读取面被显式登记表覆盖后再评估；触发时机＝动到天赋树结构或 `augments.*` 配置段时。**人工项（怎么算过）**：新增/改名数值键后，`grep` 该键在 `csharp/` 的实际读取点存在，且 `check_balance_keys.sh` 全绿（正向键存在）。
+- **[测试设施/生产路径] `Main` 的嵌入宿主嗅探**：`csharp/godot/Main.cs` 的 `_hostDriven`（由 `GetTree().CurrentScene != this` 判定）只为 `scenes/probe_host.tscn` 嵌入宿主服务（测试设施），属 AGENTS §10 要求登记的「测试或探测设施进生产路径」偏离。为什么不现在做：属结构重构，且宿主路径仅探针启动方式使用。收口条件＝把宿主判定换成显式注入而非 `CurrentScene` 嗅探；触发时机＝下次重构 `Main` 生命周期时。
+- **[单源] balance 表式数值手抄进 C# 当缺档回退默认值**：难度档 24 值、`augments.max_stacks` 27 项、里程碑阈值表、解锁分、Boss 数组、`EnemyMoveStrategy` 等约 90 个值被系统性手抄进 C# 作为「缺档回退默认值」（当前逐值比对 0 处不一致，靠人工维持）。为什么不现在做：改表为单一解析源会牵动大批读取点，且当前无不一致实例。收口条件＝加一条「代码默认 == balance 定稿值」的门禁，或把这些表改为单一解析源；触发时机＝下次调数值或新增表式键时。
+- **[中] 教程配置绕过 balance**：`csharp/godot/Tutorial.cs:336` 的 `EnemyTypeConfig()` 直读 `Spawner.BuildEnemyTypes()` 静态默认表，不经 balance merge——正局走 `Cfg("enemies.types")` + merge，教程走代码默认表，同一事实两处来源，改数值时教程静默不跟。收口条件＝教程改经 balance 取配置，与正局同源；触发时机＝下次动敌机机型表或教程时。
 
 ## 发布前人工验收
 
@@ -46,18 +49,10 @@
 | Content | mechanic completion | keep current; depth/new content cut 2026-07-30 — restart needs re-scoping |
 | Meta | cross-run growth (TechPoints tech tree, 2026-08-09 ~ 2026-09-08) | score-only in-run（局外成长随纯街机流移除） |
 
-## Phases
+## Deferred / Cut
 
-### Phase 0 — Tech-debt finish ✅ closed (2026-08-03)
+> 已完成阶段不在此复述（变更史见 git log）；内容范围见 Direction Shift。
 
-Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect table, four fairness mechanics, CI/CD。test/ 门禁盲区修复（compile probe + 计数权威）。A8 PlayerVisuals 拆分为最后一条架构债。（细节见 git 历史与归档审计。）
-
-### Phase 3 — Deferred/cut (restart needs explicit decision)
-
-- **Local accounts**：landed 后于 2026-09-08 全量移除（纯街机流，见 Decisions）。
-- **Mothership expansion**：landed（里程碑门控的加特林/导弹升级）。
-- **Content evolution**：landed（3 buffs、分裂者、重型炮塔、第 4 Boss「月蚀」）+ mobile touch landed（2026-08-07，2026-09-11 全量退役退出本条）。（独立排行榜页未做；排行榜体系 2026-09-08 随账户移除。）
-- **Endless k-value calibration**：landed（`progression.*` + ramp 因子；3 × 900s 探针零异常）。
 - **Online leaderboard**：decided NO（2026-07-20）；反转需显式推翻。
 
 ## Decisions
@@ -121,6 +116,7 @@ Spawn path unified to pool, 4-service split, A3/A4 registry + declarative effect
 - **2026-09-14 颜色单源口径收窄**：`UITheme.cs` 声明为 **UI 调色板**唯一来源；场景文件（`scenes/*.tscn`）内嵌的 VFX/粒子配色以场景文件为准（编辑器内嵌资源，代码无法统一注入），C# 侧重复色必须引用 `UITheme` 常量。为什么：原口径笼统称「全站颜色单源」，与场景内嵌资源的既成事实不符。口径见 DESIGN_BASELINE §2.1 与 README 开发段。
 - **2026-09-15 真实时间立规并收口（反转 2026-09-15「表现层脉冲一律改模拟时间」）**：两套时钟各管一类量——判定与模拟一律模拟时间，真实时间只用于「引擎之外的现实世界」量（人机输入宽限、音效节流、性能读数、打击感真实帧长），且必须逐点登记在 `scripts/ci/check_realtime_allowlist.sh` 的 `ALLOW` 单源。新增未登记命中判红，**已登记站点消失也判红**。为什么：前批把返航输入宽限与标题屏输入守卫「依 §5 不看墙钟」改成模拟时间，但 §5 该条管的是探针断言的确定性、不是禁止生产用真实时间；这两处门控的是玩家物理按键与输入队列（现实世界窗口），改模拟时间会在时间缩放或回调停摆时被拉伸乃至永不结束，且实测九趟探针根本不进入这两条路径（不是活跃 bug，是语义与鲁棒性错误）。反转链：同一处 1.2s 宽限在 1.5 个月内被反方向改了三次（`750490b` 引入真实时间 → `71e6324` 实证墙钟为准 → 本会话前批改模拟 → 本次回退并立规），根因是两套时钟混用 + 该行为早无回归面。口径见 DESIGN_BASELINE §2.10 与 AGENTS §5/§6。
 - **2026-09-15 返航宽限补无头探针（收口上一行的人工项）**：新增 `--return-probe`——走生产蓄力链触发返航，三段判定输入宽限（宽限内跳过被忽略、推进 90 帧＝1.5 模拟秒后仍被忽略、越过宽限后跳过生效且落基地并保持暂停）。中间那段「推进超过宽限的模拟时长后仍被忽略」是**真实时间基准的判别式**：宽限若被误按模拟时间计，此刻 1.5s &gt; 1.2s 会放行，判据即红（已实测破坏会失败）。不用「等真实时间越宽限」的旧写法——`--fixed-fps` 下它既慢又不可靠（71e6324 记载的坑）。冒烟扩至十趟。
+- **2026-09-15 挑刺修复批次（人类确认「都是合理改动」）**：一次性审计的项目面修复，分四类——① **假绿门禁收口**：八道门禁此前声称在判、实际判不出的坏点全部补齐（截图探针零张图判绿、数值键漏带接收者的 `gs.Cfg(...)`、真实时间漏 `TickCount64` 与内插字符串、卫生门禁整块跳过 `scripts/tools/` 且不判 `#` 注释、存档判不了键改名、零测试/零文案键无守卫、设置重置覆盖用魔数阈值），逐条做了破坏验证；② **引擎层修真实错误**：`BaseConsole`/`SettingsUi` 在按钮回调里同步 `Free()` 掉发射者祖先（引擎报「freed while a signal is being emitted」，点击领取/刷新/切路线/切语言每次必现）改为先隐藏再 `QueueFree`；③ **单源对齐**：敌机 `scale`/`radius` 逐档对齐 balance（原脚本默认停在三周前旧值）、RP 经济四值迁入 balance、颜色重复字面量改引 `UITheme`、shader 死默认对齐、场景内嵌英文文案置空；④ **core 守静默错误**：`TalentEconomy.EffectiveCap` 钳制方向修正（原 `RouteCapFloor > maxLevel` 会把节点上限抬到结构上限之上）、`DifficultyCurve`/`DifficultyScaling` 补 long/int 域饱和、`RadialWheelModel` 不再命中不可见渐隐卡，单测 263 → 278 条并逐条做变异验证。**取值确认**：教程敌机尺寸随脚本默认对齐 balance 而变大（零档 0.62/34 → 0.80/41）按现值确认为既定设计；天赋缓存正向回补「被下次入账衰减回收」、`FocusOver` 阈值 7「达到即算一档」、任务抽取不注入固定种子（生产不要求可复现，core 保留可注入种子口）三项按现状确认为既定设计，三条待确认条目已从债务区移除。为什么：审计实测八道门禁存在可复现假绿，掩盖了「探针写坏开发者真实存档」等既成损害。反转需人类显式改值。
 
 ## Maintenance
 
