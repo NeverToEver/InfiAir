@@ -23,6 +23,8 @@ public partial class UITheme : RefCounted
     public static readonly Color AccentGold = new(0xe8c170ff); // 数值金（RP/最高分/新纪录等关键数值）
     public static readonly Color AccentDim = new(1.0f, 0.624f, 0.110f, 0.22f); // 装饰分隔线/页头短线
     public static readonly Color BgDeep = new(0.043f, 0.034f, 0.027f, 0.92f); // 更深面板底（欢迎页/满屏遮罩层）
+    /// <summary>最深面板底（母舰召唤小窗）：比 BgDeep 再暗一档，让长条面板贴屏幕左缘时与背景分明。</summary>
+    public static readonly Color BgDeepest = new(0.038f, 0.032f, 0.026f, 0.92f);
     public static readonly Color Text = new(0xeee7dcff); // 文字主（暖白）
     public static readonly Color TextOnBright = new(0x17110aff); // 高亮暖钢面上的深暖字（hover 钢面近白，浅色字会洗白）
     public static readonly Color TextDim = new(0x9c9184ff); // 文字次（暖灰）
@@ -64,8 +66,8 @@ public partial class UITheme : RefCounted
 
     // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
     public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）
-    public static readonly Color PhantomBorder = new(new Color(0xffc861ff), 0.65f); // 虚影面板边框（全息琥珀）
-    public static readonly Color PhantomScan = new(new Color(0xffc861ff), 0.06f); // 扫描线/毛玻璃叠加层
+    public static readonly Color PhantomBorder = new(Holo, 0.65f); // 虚影面板边框（全息琥珀）
+    public static readonly Color PhantomScan = new(Holo, 0.06f); // 扫描线/毛玻璃叠加层
 
     // ---------------- 字号阶梯（层级靠字号/颜色/透明度区分） ----------------
     public const int FontDisplay = 72; // 超大展示（主标题/结算大数字）

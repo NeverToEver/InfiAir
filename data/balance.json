@@ -898,7 +898,13 @@
 			"cache_points": 2,
 			"overcharge_cost_rp": 8,
 			"overcharge_slot_max": 2
-		}
+		},
+		"repair_cost_rp": 2,
+		"recharge_cost_rp": 2
+	},
+	"rp": {
+		"boss_kill": 5,
+		"mission_claim": 3
 	},
 	"base_task": {
 		"refresh_cost": 2,

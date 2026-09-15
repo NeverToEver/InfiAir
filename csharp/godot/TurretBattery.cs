@@ -128,7 +128,7 @@ public partial class TurretBattery : Area2D, IDamageable
         _muzzleOffset = 40.0f * ws;
         _hpBar.MaxValue = 100.0f;
         _hpBar.Value = 100.0f;
-        _hpBar.FillColor = new Color(1.0f, 0.25f, 0.75f); // 精英品红
+        _hpBar.FillColor = UITheme.EventMagenta; // 精英品红（调色板单源）
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
         // 击杀震动强度缓存
         _shakeDie = CfgFx.Float("effects.shake.enemy_die", _shakeDie);

@@ -49,8 +49,7 @@ public sealed partial class MissionsService : RefCounted
     /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏）。</summary>
     private readonly Dictionary<StringName, int> _lastKindValue = new();
 
-    /// <summary>任务领取奖励 RP（对齐原作 RequisitionConstants）。</summary>
-    private const int RpMissionRewardValue = 3;
+    /// <summary>任务领取奖励 RP（取值单源在 balance.json rp.mission_claim，经 GameState 侧缓存读取）。</summary>
 
     /// <summary>RP 变化（AddRp/SpendRp，2 处触发点）；GameState 订阅后转发为 RpChanged 信号
     /// （ResetRun 直接赋值路径由 GameState 侧直发同名信号，不重复）。</summary>
@@ -270,7 +269,7 @@ public sealed partial class MissionsService : RefCounted
         }
 
         Missions[id].AsGodotDictionary()["claimed"] = true;
-        AddRp(RpMissionRewardValue);
+        AddRp(GameState.Instance.RP_MISSION_CLAIM);
         return true;
     }
 

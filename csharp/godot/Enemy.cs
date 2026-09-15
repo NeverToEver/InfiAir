@@ -65,8 +65,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private Sprite2D? _glowLayer;
     // 阵营分档懒加载一次（effects.ship_energy.*；静态标量/结构体，非 Godot 对象）
     private static bool _glowCfgLoaded;
-    private static Color _glowTintEnemy = new(0.78f, 0.50f, 0.90f); // 紫晶
-    private static Color _glowTintElite = new(1.0f, 0.39f, 0.75f);  // 淡品红
+    // 回退值取 balance.json effects.ship_energy.tint_enemy / tint_elite 的定稿色（hex 与 json 逐位一致），
+    // 防「键缺失/写错 → 落到与设计值有色差的旧常量」；正常路径由下方 CfgColor 覆盖
+    private static Color _glowTintEnemy = new(0xc77fe6ff); // 紫晶
+    private static Color _glowTintElite = new(0xff64bfff); // 淡品红
     private static float _glowIntEnemy = 0.30f;
     private static float _glowIntElite = 0.40f;
 
@@ -312,9 +314,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         sprite.Texture = (Texture2D)config["texture"];
         // mark_ratio 同款——走 Load 时缓存 API，免每 spawn Cfg 全链路
         AimMarked = GD.Randf() < (float)GameState.Instance.AimMarkRatio();
-        var sc = (float)config.GetValueOrDefault("scale", 0.85).AsDouble();
+        // 二级回退（机型表本身缺键时才走）：取 balance.json enemies.types[0] 定稿值，
+        // 与 Spawner 脚本默认同源，防「表损坏 → 落到与设计值无关的旧常量」
+        var sc = (float)config.GetValueOrDefault("scale", 0.80).AsDouble();
         sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
-        var hitR = (float)config.GetValueOrDefault("radius", 30.0).AsDouble() * (float)GameState.Instance.WorldScale;
+        var hitR = (float)config.GetValueOrDefault("radius", 41.0).AsDouble() * (float)GameState.Instance.WorldScale;
         if (shapeNode.Shape is CircleShape2D circle)
         {
             circle.Radius = hitR;

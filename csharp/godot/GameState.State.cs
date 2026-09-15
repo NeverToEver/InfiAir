@@ -152,6 +152,12 @@ public partial class GameState : Node
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
+        // RP 经济（Boss 击杀奖励 / 基地维修·再充能消耗 / 任务领取奖励）——玩家可感奖励，
+        // 单源在 balance.json；消耗项 ≥1 钳制防免费无限修/充，奖励项 ≥0 钳制防击杀倒扣
+        RP_BOSS_KILL = Mathf.Max((int)Cfg("rp.boss_kill", RP_BOSS_KILL).AsInt64(), 0);
+        RP_MISSION_CLAIM = Mathf.Max((int)Cfg("rp.mission_claim", RP_MISSION_CLAIM).AsInt64(), 0);
+        RP_REPAIR_COST = Mathf.Max((int)Cfg("base.repair_cost_rp", RP_REPAIR_COST).AsInt64(), 1);
+        RP_RECHARGE_COST = Mathf.Max((int)Cfg("base.recharge_cost_rp", RP_RECHARGE_COST).AsInt64(), 1);
         // 天赋缓存：经济参数 + 节点上限/软上限缓存
         _talent.LoadTalentConfig();
         // 手感域：命中顿帧各档时长 + 顿帧时间倍率 + 震动 trauma 衰减/参考振幅
@@ -236,11 +242,17 @@ public partial class GameState : Node
 
     // ---------------- RP（征用点数）经济：对齐原作 RequisitionConstants ----------------
 
-    private const int RpBossKillValue = 5;
-    private const int RpRepairCostValue = 2;
-    public int RP_REPAIR_COST => RpRepairCostValue;
-    private const int RpRechargeCostValue = 2;
-    public int RP_RECHARGE_COST => RpRechargeCostValue;
+    /// <summary>Boss 击杀 RP 奖励（balance.json rp.boss_kill 覆盖；≥0 钳制）。</summary>
+    public int RP_BOSS_KILL { get; set; } = 5;
+
+    /// <summary>基地维修消耗 RP（balance.json base.repair_cost_rp 覆盖；≥1 钳制，0 会免费无限修）。</summary>
+    public int RP_REPAIR_COST { get; set; } = 2;
+
+    /// <summary>基地再充能消耗 RP（balance.json base.recharge_cost_rp 覆盖；≥1 钳制，0 会免费无限充）。</summary>
+    public int RP_RECHARGE_COST { get; set; } = 2;
+
+    /// <summary>任务领取奖励 RP（balance.json rp.mission_claim 覆盖；≥0 钳制）。</summary>
+    public int RP_MISSION_CLAIM { get; set; } = 3;
 
     // 常驻基地任务（对齐原作 base_talent_console 三任务）：
     // 初始手牌 = MISSION_DEFS 三项（保持既有 id 语义）；刷新（refresh_missions）从
@@ -455,7 +467,7 @@ public partial class GameState : Node
         // （ScoreChanged/MilestoneReached 经 ScoreService 订阅重发；DifficultyChanged 此处直发）
         _score.AddBossKill(scoreScale);
         _talent.GrantForBoss();
-        AddRp(RpBossKillValue);
+        AddRp(RP_BOSS_KILL);
         SetKindProgress("boss", BossKills);
         if (_runProg.RecomputeDifficultyInternal())
         {
