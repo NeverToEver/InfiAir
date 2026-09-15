@@ -131,12 +131,16 @@ public sealed partial class MissionsService : RefCounted
         RefreshPoints = Math.Max(refreshPoints, 0);
         // JSON 往返把 StringName 键退化为 String——必须重建成 StringName 键，
         // 否则 SetMissionProgress 以 StringName 查 ContainsKey 会全部落空（任务进度静默停摆）。
+        // 子条目逐字段判型：As* 是宽松转换（AsBool("no") 得 true、AsInt64("lots") 得 0），
+        // 裸取不会报错，只会把「claimed: "no"」静默读成已领取——玩家领不到该任务奖励，
+        // 界面无任何信号。类型不符一律回默认。
         Missions = new Godot.Collections.Dictionary();
         if (missions != null)
         {
             foreach (var key in missions.Keys)
             {
-                if (missions[key].VariantType != Variant.Type.Dictionary)
+                if (key.VariantType is not (Variant.Type.String or Variant.Type.StringName)
+                    || missions[key].VariantType != Variant.Type.Dictionary)
                 {
                     continue;
                 }
@@ -144,10 +148,10 @@ public sealed partial class MissionsService : RefCounted
                 var src = missions[key].AsGodotDictionary();
                 Missions[new StringName(key.AsString())] = new Godot.Collections.Dictionary
                 {
-                    ["progress"] = Math.Max((int)src.GetValueOrDefault("progress", 0).AsInt64(), 0),
-                    ["claimed"] = src.GetValueOrDefault("claimed", false).AsBool(),
-                    ["goal"] = Math.Max((int)src.GetValueOrDefault("goal", 1).AsInt64(), 1),
-                    ["baseline"] = Math.Max((int)src.GetValueOrDefault("baseline", 0).AsInt64(), 0),
+                    ["progress"] = ReadEntryInt(src.GetValueOrDefault("progress", 0), 0),
+                    ["claimed"] = ReadEntryBool(src.GetValueOrDefault("claimed", false), false),
+                    ["goal"] = Math.Max(ReadEntryInt(src.GetValueOrDefault("goal", 1), 1), 1),
+                    ["baseline"] = ReadEntryInt(src.GetValueOrDefault("baseline", 0), 0),
                 };
             }
         }
@@ -165,6 +169,18 @@ public sealed partial class MissionsService : RefCounted
         RpChanged?.Invoke(Rp);
         RefreshPointsChanged?.Invoke(RefreshPoints);
     }
+
+    /// <summary>任务条目 int 字段读档判型：仅接受 Int/Float，其余回退 <paramref name="fallback"/>；
+    /// 数值再钳 [0, int.MaxValue]（手改超大值裸 (int) 转换会回绕成负数，进度静默错乱）。</summary>
+    private static int ReadEntryInt(Variant v, int fallback) =>
+        v.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? (int)Math.Clamp(v.AsInt64(), 0L, int.MaxValue)
+            : fallback;
+
+    /// <summary>任务条目布尔字段读档判型：仅接受 Bool，其余回退 <paramref name="fallback"/>
+    /// （字符串 "false" 不得当成真值——同 SaveBool 判型口径）。</summary>
+    private static bool ReadEntryBool(Variant v, bool fallback) =>
+        v.VariantType == Variant.Type.Bool ? v.AsBool() : fallback;
 
     /// <summary>绝对计数基线快照（读档写出用）。</summary>
     public Dictionary<string, int> LastKindValueSnapshot()

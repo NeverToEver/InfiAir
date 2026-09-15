@@ -404,8 +404,10 @@ public sealed partial class RunProgressionService : RefCounted
         _ddaTimer = 0.0; // DDA 计时必须复位——否则旧局受击降档渗透新局
     }
 
-    /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新
-    /// （DDA 计时不还原剩余时长——读档从新一波开始，降档仅作参考量不持久化语义）。</summary>
+    /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新。
+    /// **DDA 剩余时长会一并还原**（键 `dda_timer` 写读成对，见存档对称门禁）——受击喘息是有界量
+    /// （≤`DDA_DURATION`），带过读档边界对读档手感的影响在噪声内；改动此处须同步
+    /// DESIGN_BASELINE §2.5 的字段表（不得只改一侧：键留着不读会掉出写读对称判定）。</summary>
     public void RestoreRunState(double difficultyMultiplier, int difficultyTimeStep, double ddaTimer)
     {
         DifficultyMultiplier = Math.Max(difficultyMultiplier, 1.0);

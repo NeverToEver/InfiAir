@@ -33,13 +33,6 @@ public partial class SaveManager : RefCounted
         return true;
     }
 
-    /// <summary>存档数值字段安全读取：手改存档的非法类型（字符串/数组/字典等）回默认值
-    /// （Int/Float 类型不可能是 Bool，直接判类型即可）。</summary>
-    public double SanitizeNum(Variant v, double defaultValue)
-        => v.VariantType is Variant.Type.Int or Variant.Type.Float
-            ? (double)v.AsDouble()
-            : defaultValue;
-
     /// <summary>user:// 等 Godot 路径 → OS 路径（核心层只做纯文件 IO）。</summary>
     private static string Globalize(string path) => ProjectSettings.GlobalizePath(path);
 
