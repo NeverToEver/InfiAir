@@ -129,7 +129,11 @@ public static class DifficultyScaling
     /// <summary>Boss 攻击弹数随 D 的追加量（0..上限）。取整向下，配置关闭或 D ≤ 1 时为 0。</summary>
     public static int BossDensityBonus(double difficulty, DifficultyScalingConfig cfg)
     {
-        if (cfg.BossDensityPerDifficulty <= 0.0 || cfg.BossDensityBonusCap <= 0 || !double.IsFinite(difficulty))
+        // 非有限档距与关闭同义（同 EliteCount 的口径）：NaN 参与 <= 比较恒假会漏过下面的闸，
+        // 使 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——追加量变负，
+        // 违约「0..上限」的契约，下一个调用点就会把负增量灌进弹数。
+        if (!double.IsFinite(cfg.BossDensityPerDifficulty) || cfg.BossDensityPerDifficulty <= 0.0
+            || cfg.BossDensityBonusCap <= 0 || !double.IsFinite(difficulty))
         {
             return 0;
         }

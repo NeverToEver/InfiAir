@@ -29,7 +29,10 @@ public static class FormationComms
     /// 进度台词槽位为空时取 <paramref name="earliestAt"/>；
     /// 槽位已占时，若该句在 <paramref name="now"/> 仍未播完（含在 <paramref name="now"/> 之后
     /// 才开播的情形）则顺延到该句结束，否则照旧。
-    /// 顺延值就是「该句结束时刻」，不再因子句叠加而二次顺延——进度台词一次事件至多一句。</summary>
+    /// 顺延值是 **max(earliestAt, 该句结束时刻)**：台词占场窗口落在 [now, earliestAt) 内时，
+    /// 只返回该句结束会让提示**早于**设计口径的下限播出（earliestAt 是「投弹后 4s、警告台词
+    /// 播完」的语义，早播等于空谈）。顺延含义是「只推后、不提前」，故下界仍由 earliestAt 把住。
+    /// 顺延只顺「一句」——进度台词一次事件至多一句。</summary>
     public static float NextIntelAt(
         float earliestAt, float now, int lineStage, float lineStartedAt, float lineOnScreenTime)
     {
@@ -39,7 +42,7 @@ public static class FormationComms
         }
 
         var lineEnds = lineStartedAt + lineOnScreenTime;
-        return lineEnds > now ? lineEnds : earliestAt;
+        return lineEnds > now ? MathF.Max(earliestAt, lineEnds) : earliestAt;
     }
 
     /// <summary>到点当帧的是否允许播提示：顺延只保证「排程那一刻」该句已结束，

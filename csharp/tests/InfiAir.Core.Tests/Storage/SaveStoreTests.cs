@@ -176,6 +176,26 @@ public sealed class SaveStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_RefusesOversizedPayload_SoWrittenFileIsAlwaysReadable()
+    {
+        // 写读上限对称：读侧把超限档当损坏隔离，写侧若照写不误，就会产出「自己刚写出、
+        // 自己读不回」的档——下次开机遇 Corrupt 改名隔离，进度静默丢失。触发源真实存在：
+        // TalentCache.RestoreValues 接受任意长度点值序列（手改档可塞几十万项），读得进、
+        // 再落盘就写出巨型档。判据是「写出的档必须能被自己读回」。
+        var store = new SaveStore();
+        var path = PathFor("oversized.json");
+        var big = new Dictionary<string, object?> { ["pad"] = new string('x', (int)SaveStore.MaxSaveBytes + 1024) };
+
+        Assert.False(store.TrySave(path, big, out var error));
+        Assert.NotNull(error);
+        Assert.False(File.Exists(path)); // 拒绝即不落盘，不留半成品
+
+        // 对照：正常体积的档写得出、读得回（判据不得把正常路径一起拒掉）
+        Assert.True(store.TrySave(path, new Dictionary<string, object?> { ["v"] = 1L }, out _));
+        Assert.Equal(SaveLoadStatus.Ok, store.Load(path).Status);
+    }
+
+    [Fact]
     public void Save_FirstOverwrite_KeepsBackupOfPreviousContent()
     {
         // 首次覆盖既有档前必须留 .bak：覆盖写坏/写一半时旧进度仍可取回。

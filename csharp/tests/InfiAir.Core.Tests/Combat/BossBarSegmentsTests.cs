@@ -100,4 +100,29 @@ public sealed class BossBarSegmentsTests
         Assert.All(clamped, x => Assert.True(x >= 0.0f));
         Assert.Equal(1.0f, clamped[0] + clamped[1] + clamped[2], 4);
     }
+
+    [Fact]
+    public void Normalize_SingleSource_MatchBossLoadBalanceContract()
+    {
+        // 保序收口是单源（Boss.LoadBalance 与本类段权/刻度同调）：对同一对阈值必须给出同一结果，
+        // 且 P2 严格高于 ENRAGE。这里把「Boss 侧原实现」的形态钉死为反例——它在 e=0.99 处
+        // 产出 p2=0.98 < e 的倒挂，正是本函数要消除的分叉。
+        var (p2, e) = BossBarSegments.Normalize(0.7f, 0.3f);
+        Assert.Equal(0.7f, p2, 5);
+        Assert.Equal(0.3f, e, 5);
+
+        // e 顶到上界 0.99：Normalize 必须把 e 压到 0.98 并让 p2 高于它（原实现会倒挂）
+        var (hiP2, hiE) = BossBarSegments.Normalize(0.2f, 0.99f);
+        Assert.True(hiP2 > hiE, $"保序失败：p2={hiP2} e={hiE}");
+        Assert.Equal(0.99f, hiP2, 5);
+        Assert.Equal(0.98f, hiE, 5);
+
+        // 幂等：对已收口的值再调一次不得再变（Boss 收口后 HUD 从实例读回再派生）
+        Assert.Equal((hiP2, hiE), BossBarSegments.Normalize(hiP2, hiE));
+        Assert.Equal((p2, e), BossBarSegments.Normalize(p2, e));
+
+        // 倒挂输入（p2 ≤ e）一律修正为 p2 > e
+        var (a, b) = BossBarSegments.Normalize(0.2f, 0.5f);
+        Assert.True(a > b, $"倒挂未修正：p2={a} e={b}");
+    }
 }

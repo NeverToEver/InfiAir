@@ -11,9 +11,19 @@ public static class AimFalloff
 {
     /// <summary>取值：d &lt;= peak 全额；d &gt;= end 取地板；之间按 (d - peak) / (end - peak) 线性。
     /// 两端点都闭合（边界值归入「全额」与「地板」两侧）。
-    /// 非法配置（peak &gt;= end）只由两端分支兜住、不进除法：peak 先命中，不产生 NaN。</summary>
+    /// 非法配置（peak &gt;= end）只由两端分支兜住、不进除法：peak 先命中，不产生 NaN。
+    /// 非有限输入（NaN/±∞）必须回退安全值——NaN 与任何值比较恒假、会穿过两端分支落进除法，
+    /// 结果乘进辅助强度后一路穿到准星偏移（磁吸路径的注入点无有限性判定，Mathf.Min 与
+    /// Normalized 都不拦 NaN），表现是准星静默失准。NaN 距离按「最远」处理（地板）；
+    /// 参数非法同样回退地板（与同层 TankLiquid/WarpClamp 同款口径）。</summary>
     public static float Evaluate(float distance, float peak, float end, float minValue)
     {
+        var floor = float.IsFinite(minValue) ? minValue : 0.0f;
+        if (float.IsNaN(distance) || !float.IsFinite(peak) || !float.IsFinite(end))
+        {
+            return floor;
+        }
+
         if (distance <= peak)
         {
             return 1.0f;
@@ -21,10 +31,10 @@ public static class AimFalloff
 
         if (distance >= end)
         {
-            return minValue;
+            return floor;
         }
 
-        return Lerp(1.0f, minValue, (distance - peak) / (end - peak));
+        return Lerp(1.0f, floor, (distance - peak) / (end - peak));
     }
 
     // 逐位等价于引擎侧的 Mathf.Lerp（Godot 实现 = from + (to - from) * weight；

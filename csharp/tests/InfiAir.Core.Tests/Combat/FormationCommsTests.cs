@@ -58,6 +58,17 @@ public sealed class FormationCommsTests
     }
 
     [Fact]
+    public void NextIntelAt_LineEndsBeforeEarliestAt_NeverSchedulesEarlierThanFloor()
+    {
+        // 台词占场窗口整个落在 [now, earliestAt) 内：该句 0s 起播、3.9s 结束，提示定 4.0s。
+        // 只返回「该句结束」会给出 3.9s —— 早于设计下限 4.0s，等于绕过「投弹后 4s」的门。
+        // 顺延的语义是「只推后、不提前」，下界仍由 earliestAt 把住。
+        Assert.Equal(4.0f, FormationComms.NextIntelAt(4.0f, 0.0f, 1, 0.0f, LineWindow));
+        // 台词结束恰在 now 与 earliestAt 之间的任意点同样不得给出早于 4.0 的时刻
+        Assert.Equal(4.0f, FormationComms.NextIntelAt(4.0f, 1.0f, 1, 2.0f, 1.5f));
+    }
+
+    [Fact]
     public void NextIntelAt_DeferredTimeIsNotDeferredAgain()
     {
         // 顺延值即「该句结束」本身：以它为 now 再算一次不得再顺延一句

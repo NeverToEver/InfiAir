@@ -176,6 +176,16 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void BossDensityBonus_NaNPerDifficulty_StaysZero()
+    {
+        // 坏配置（NaN 档距）与 EliteCount 同款口径：契约是 0..上限。NaN 参与 <= 比较恒假会漏过
+        // 关闭闸，随后 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——负增量。
+        var cfg = Cfg();
+        cfg.BossDensityPerDifficulty = double.NaN;
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(100.0, cfg));
+    }
+
+    [Fact]
     public void BossDensityBonus_ZeroUntilConfiguredStep()
     {
         var cfg = Cfg(); // 每 3.0 D 追加 1，上限 4

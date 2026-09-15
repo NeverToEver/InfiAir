@@ -77,4 +77,19 @@ public sealed class AimFalloffTests
         Assert.Equal(1.0f, AimFalloff.Evaluate(75.0f, 100.0f, 50.0f, Min)); // peak 先命中
         Assert.False(float.IsNaN(AimFalloff.Evaluate(500.0f, 100.0f, 50.0f, Min)));
     }
+
+    [Fact]
+    public void NonFiniteInputs_ReturnSafeValueInsteadOfNaN()
+    {
+        // 非有限输入必须回退安全值：NaN 距离穿过两端分支的比较（NaN 与任何值比较恒假）、落进除法，
+        // 结果乘进辅助强度后一路穿到准星偏移——磁吸路径的注入点直接用 Cfg().AsDouble()（无有限性
+        // 判定），NaN 不会在任何 Mathf.Min/Normalized 处被拦下，表现是准星静默失准。
+        Assert.Equal(Min, AimFalloff.Evaluate(float.NaN, Peak, End, Min));               // 距离未知 → 按最远处理
+        Assert.Equal(1.0f, AimFalloff.Evaluate(float.NegativeInfinity, Peak, End, Min)); // −∞ ≤ peak
+        Assert.Equal(Min, AimFalloff.Evaluate(float.PositiveInfinity, Peak, End, Min));  // +∞ ≥ end
+        Assert.Equal(Min, AimFalloff.Evaluate(2000.0f, float.NaN, End, Min));            // 参数非法 → 地板
+        Assert.Equal(Min, AimFalloff.Evaluate(2000.0f, Peak, float.NaN, Min));
+        Assert.Equal(0.0f, AimFalloff.Evaluate(2000.0f, Peak, End, float.NaN));
+        Assert.False(float.IsNaN(AimFalloff.Evaluate(500.0f, Peak, float.PositiveInfinity, Min)));
+    }
 }

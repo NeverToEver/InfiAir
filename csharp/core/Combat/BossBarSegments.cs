@@ -26,24 +26,12 @@ public static class BossBarSegments
     /// <summary>ENRAGE 阈值上限：为保序留出至少一个 OrderStep（0.98 + 0.01 = 0.99）。</summary>
     private const float EnrageMax = 0.99f - OrderStep;
 
-    /// <summary>段权（三项：P1/P2/ENRAGE），非负且和恒为 1。</summary>
-    public static float[] Weights(float phase2HpRatio, float enrageHpRatio)
-    {
-        var (p2, e) = Thresholds(phase2HpRatio, enrageHpRatio);
-        return new[] { 1.0f - p2, p2 - e, e };
-    }
-
-    /// <summary>阶段刻度线比例（两项：P2 段界 / ENRAGE 段界），自血条左端量起、单调递减。</summary>
-    public static float[] Ticks(float phase2HpRatio, float enrageHpRatio)
-    {
-        var (p2, e) = Thresholds(phase2HpRatio, enrageHpRatio);
-        return new[] { p2, e };
-    }
-
-    /// <summary>阈值域收口：非有限按 0，钳到 [0.01, 0.99]（Boss.LoadBalance 的同款域），
-    /// 并保证 P2 &gt; ENRAGE——调用方传入原始配置或倒挂输入时，血条段权不得出现负值、
-    /// 段界不得反序（Boss 侧已保证保序，此处仍按防御写）。</summary>
-    private static (float Phase2, float Enrage) Thresholds(float phase2HpRatio, float enrageHpRatio)
+    /// <summary>阈值保序收口（**单源**：Boss.LoadBalance 与血条段权/刻度都调它）。域钳到 [0,1]，
+    /// ENRAGE 压到 EnrageMax（为抬升留出一个 OrderStep 余量），并保证 P2 &gt; ENRAGE。
+    /// 倒挂输入（p2 ≤ e）时**先压 e 再抬 p2**：原引擎侧的 `Min(e + 0.01, 0.98)` 在 e 已顶到
+    /// 0.99 时会算出 p2=0.98 &lt; e，保序修正自己产出了倒挂——Boss 按倒挂阈值转阶段、血条按
+    /// 另一套画，玩家读到的阶段边界是假的。幂等：对已收口的值再调一次不变。</summary>
+    public static (float Phase2, float Enrage) Normalize(float phase2HpRatio, float enrageHpRatio)
     {
         var e = MathF.Min(Clamp01(enrageHpRatio), EnrageMax);
         var p2 = Clamp01(phase2HpRatio);
@@ -53,6 +41,20 @@ public static class BossBarSegments
         }
 
         return (p2, e);
+    }
+
+    /// <summary>段权（三项：P1/P2/ENRAGE），非负且和恒为 1。</summary>
+    public static float[] Weights(float phase2HpRatio, float enrageHpRatio)
+    {
+        var (p2, e) = Normalize(phase2HpRatio, enrageHpRatio);
+        return new[] { 1.0f - p2, p2 - e, e };
+    }
+
+    /// <summary>阶段刻度线比例（两项：P2 段界 / ENRAGE 段界），自血条左端量起、单调递减。</summary>
+    public static float[] Ticks(float phase2HpRatio, float enrageHpRatio)
+    {
+        var (p2, e) = Normalize(phase2HpRatio, enrageHpRatio);
+        return new[] { p2, e };
     }
 
     private static float Clamp01(float ratio)
