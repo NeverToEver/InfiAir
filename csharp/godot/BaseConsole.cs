@@ -663,10 +663,15 @@ public partial class BaseConsole : RadialMenuLayer
     /// <summary>路线契约刷新（机制 C）：三条路线行（绑定/切换/生效中）+ 重置代币购置行。</summary>
     private void RefreshRoutes()
     {
-        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
+        // 重建旧行：先隐藏（立即退出容器布局）再 QueueFree（帧末释放）。本方法由行内按钮的
+        // pressed 回调（绑定/切换路线/购置代币）经 Refresh 进入——同步 Free() 会释放**正在派发
+        // 信号的发射者祖先**，引擎报「freed while a signal is being emitted from it」，
+        // 同批被释放的兄弟控件若被后续代码触碰还会抛 ObjectDisposedException。
         foreach (var child in _routesBox.GetChildren())
         {
-            child.Free();
+            var row = (Control)child;
+            row.Visible = false;
+            row.QueueFree();
         }
 
         var talent = GameState.Instance.Talent;
@@ -724,10 +729,12 @@ public partial class BaseConsole : RadialMenuLayer
 
     private void RefreshMissions()
     {
-        // 同步删除防同帧并存闪一帧
+        // 旧行先隐藏再 QueueFree——见 RefreshRoutes 的说明（领取按钮的 pressed 回调经 Refresh 走到这里）
         foreach (var child in _missionsBox.GetChildren())
         {
-            child.Free();
+            var row = (Control)child;
+            row.Visible = false;
+            row.QueueFree();
         }
 
         // 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS

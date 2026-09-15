@@ -305,11 +305,32 @@ public partial class ProbeHost : Node
         }
     }
 
-    /// <summary>截图自检：每张非空白 + 五张设置页两两可区分。任一不过就不打完成标记，
-    /// 由门禁按「缺标记」判红（与其它探针同一口径）。</summary>
+    /// <summary>截图自检：计划张数全部入账 + 每张非空白 + 五张设置页两两可区分。任一不过就不打完成标记，
+    /// 由门禁按「缺标记」判红（与其它探针同一口径）。
+    ///
+    /// 张数必须单独判：`_shots` 只收成功写出的图（取像/写出失败会 PushError 后跳过），
+    /// 少了图时以下两个循环只是少比几对、`ok` 仍为 true——全靠已入账的图自证，零张时循环空转、
+    /// 照样打完成标记（假绿）。期望张数从 ShotPlan 派生，不另写一份。</summary>
     private void VerifyShots()
     {
         var ok = true;
+        var expected = 0;
+        foreach (var step in ShotPlan)
+        {
+            if (step.Shot.Length > 0)
+            {
+                expected++;
+            }
+        }
+
+        if (_shots.Count < expected)
+        {
+            GD.PushError(GdFormat.Format(
+                "[shot-probe] 实际捕获 %d 张，少于计划 %d 张——取像或写出失败（日志里应有对应的失败行）",
+                _shots.Count, expected));
+            ok = false;
+        }
+
         foreach (var name in _shots)
         {
             var sig = _shotSigs[name];

@@ -1402,12 +1402,17 @@ public partial class SettingsUi : RadialMenuLayer
         var current = _lastPage;
 
         // 重建内容区文本（重建代价低，保证全部文案换语言）
-        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
-        //（Hud.cs:1194 同场景先例）
+        // 旧页先隐藏（立即退出容器布局，不留新旧页并存的错位/闪帧）再 QueueFree（帧末释放）：
+        // 本方法由语言按钮的 pressed 回调链（SetLocale → LocaleChanged）进入，同步 Free() 会释放
+        // **正在派发信号的发射者祖先**，引擎报「freed while a signal is being emitted from it」；
+        // 重建本身同步完成——点击语义（当帧换语言、当帧落新页与焦点）不变，也无需防重入标志
+        // （同一帧内连点语言按钮＝按当前状态再重建一次，结果恒等）。
         var content = FirstPageParent();
         foreach (var p in _pages.Values)
         {
-            (p.AsGodotObject() as Control)!.Free();
+            var oldPage = (Control)p.AsGodotObject()!;
+            oldPage.Visible = false;
+            oldPage.QueueFree();
         }
 
         _activePage = null;

@@ -45,6 +45,10 @@ public partial class Main : Node2D
     private Starfield _starfield = null!;
     private Camera2D _camera = null!;
     private bool _gameOver;
+    /// <summary>本节点是否作为子节点嵌入宿主场景（探针宿主用 --scene 启动 probe_host.tscn，main.tscn
+    /// 实例只是它的子节点，current_scene 指向宿主）。判定只此一处，供本局时钟/事件自动触发、开机交接
+    /// 与存档出口共用——宿主驱动时这些都不该走生产分歧。</summary>
+    private bool _hostDriven;
     /// <summary>死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
     private readonly DeathReplay _replay = new();
     private bool _homecoming;
@@ -130,6 +134,7 @@ public partial class Main : Node2D
 
     public override void _Ready()
     {
+        _hostDriven = GetTree().CurrentScene != this;
         _spawner = GetNode<Spawner>("Spawner");
         _hud = GetNode<Hud>("HUD");
         _pauseUi = GetNode<PauseUi>("PauseUI");
@@ -168,7 +173,7 @@ public partial class Main : Node2D
         _events.SetSpawner(_spawner);
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
-        _events.SetRunActive(GetTree().CurrentScene == this);
+        _events.SetRunActive(!_hostDriven);
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
@@ -182,10 +187,10 @@ public partial class Main : Node2D
         // 需要启用时显式 SetRunActive(true)（同 current_scene 判定惯例）
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
-        _fogEvents.SetRunActive(GetTree().CurrentScene == this);
+        _fogEvents.SetRunActive(!_hostDriven);
         // 运行期时钟门控（GameState._Process）：welcome 停留时间不计入本局 RunTime/
         // 难度时间档/survive 任务——子节点嵌入宿主场景时同样保持关闭
-        GameState.Instance.SetRunActive(GetTree().CurrentScene == this);
+        GameState.Instance.SetRunActive(!_hostDriven);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
         GameState.Instance.CameraRef = _camera;
         // 世界层画面增强（layer=1，世界之上、HUD 之下）：先于 MetaFX 入树——同 layer 靠树序，
@@ -227,8 +232,8 @@ public partial class Main : Node2D
         _chargeGhost.Visible = false;
         BuildChargeFx();
         // 开机流程：正常启动首次进入 → 直达标题屏；标题屏任意键再进 main（BootHandoffDone 已置位）→ 直接开局。
-        // main.tscn 作为子节点嵌入宿主场景时 current_scene != self：不交接、不入场（由宿主驱动）。
-        if (GetTree().CurrentScene != this)
+        // main.tscn 作为子节点嵌入宿主场景时不交接、不入场（由宿主驱动）。
+        if (_hostDriven)
         {
             ApplyNewRun();
         }
@@ -663,7 +668,13 @@ public partial class Main : Node2D
         // 本局存档：回到基地（母舰坞修/返航）自动落盘——基地是天然的安全点，
         // 崩溃/断电后可从基地继续；「不保存退出」仍可主动丢弃。
         // 失败必须可观测：静默失败会让玩家以为回基地已存，崩溃后进度凭空消失。
-        if (!GameState.Instance.SaveRun())
+        //
+        // 宿主驱动（main.tscn 嵌入探针宿主）时不落盘：本条是**非玩家路径**（无头探针走生产蓄力链
+        // 触发返航并收尾到此），无头跑不会退出运行确认、也没人会去点「保存退出」，自动落盘会覆写
+        // 开发者当前存档。宿主判定复用 _Ready 缓存的 _hostDriven（current_scene 非自身），
+        // Main 因此不依赖 ProbeHost 的任何测试符号——测试设施不进生产路径（AGENTS §5）。
+        // 用户目录隔离仍是主护栏（脚本层），本行是代码层的第二道，防「探针路径写坏真实存档」复发。
+        if (!_hostDriven && !GameState.Instance.SaveRun())
         {
             GD.PushWarning("InfiAir: 回基地自动存档失败——本局进度未落盘");
         }
