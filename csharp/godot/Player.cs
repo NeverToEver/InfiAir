@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 using InfiAir.Core.Input;
 
 namespace InfiAir;
@@ -159,7 +160,6 @@ public partial class Player : CharacterBody2D
 
     public float FuelMax { get; private set; } = 100.0f;
     private bool _inputLocked;
-    public bool MovementLocked { get; set; }
     private float _enrageSlow = 1.0f;
 
     /// <summary>开火门：外部系统（入场序列 / 激光光束）临时屏蔽普通子弹发射。
@@ -201,6 +201,8 @@ public partial class Player : CharacterBody2D
     public float AfterimageTimer { get => _dash.AfterimageTimer; set => _dash.AfterimageTimer = value; }
 
     private bool _dead;
+    /// <summary>在母舰保护舱内（EnterPod/ExitPod 维护）：判定关闭走延迟写，回调需自行守卫掉这种窗口。</summary>
+    private bool _inPod;
     private float _fuel = 100.0f;
     private bool _fuelLocked;
 
@@ -671,23 +673,13 @@ public partial class Player : CharacterBody2D
     };
 
     /// <summary>距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
-    public float AimDistFalloff(float d) => DistFalloffCurve(d, _falloffPeak, _falloffEnd, _falloffMin);
+    public float AimDistFalloff(float d) => AimFalloff.Evaluate(d, _falloffPeak, _falloffEnd, _falloffMin);
 
-    /// <summary>距离衰减分段纯函数（单实现）。</summary>
+    /// <summary>距离衰减分段纯函数（判定在 <see cref="AimFalloff"/>，csharp/core/Combat；
+    /// 回归面在 csharp/tests/InfiAir.Core.Tests/Combat/AimFalloffTests.cs）——保留本静态入口供
+    /// AimFrameLayer 以 <c>Player.DistFalloffCurve</c> 形态调用。</summary>
     public static float DistFalloffCurve(float d, float peak, float end, float minV)
-    {
-        if (d <= peak)
-        {
-            return 1.0f;
-        }
-
-        if (d >= end)
-        {
-            return minV;
-        }
-
-        return Mathf.Lerp(1.0f, minV, (d - peak) / (end - peak));
-    }
+        => AimFalloff.Evaluate(d, peak, end, minV);
 
     public void LockInput() => _inputLocked = true;
 
@@ -764,7 +756,8 @@ public partial class Player : CharacterBody2D
             _homingLockTime = CfgFx.Float("augments.homing.lock_time", 8.0f, CfgFx.IntervalFloor);
             _homingLockRange = CfgFx.Float("augments.homing.lock_range", 900.0f, 0.0f);
             var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
-            _homingLockConeCos = Mathf.Cos(Mathf.DegToRad(coneDeg * 0.5f));
+            // 该键语义＝整角（接受域 ±coneDeg/2）；口径与换算单源在 core AimCone
+            _homingLockConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(coneDeg);
         }
         else
         {
@@ -956,13 +949,6 @@ public partial class Player : CharacterBody2D
             inputDir = _fogForcedDir;
         }
 
-        if (MovementLocked)
-        {
-            inputDir = Vector2.Zero;
-            Velocity = Vector2.Zero;
-            Dashing = false;
-        }
-
         _dash.TickCooldown(d);
         _parry.Tick(d);
         if (Input.IsActionJustPressed(ActParry))
@@ -982,7 +968,6 @@ public partial class Player : CharacterBody2D
 
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
         if (DashUnlocked()
-            && !MovementLocked
             && Input.IsActionJustPressed(ActDash)
             && _dash.CooldownRemaining() <= 0.0f
             && !_dash.IsDashing()
@@ -1007,10 +992,6 @@ public partial class Player : CharacterBody2D
         }
 
         var wantBoost = (bool)gs.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed(ActBoost);
-        if (MovementLocked)
-        {
-            wantBoost = false;
-        }
 
         if (_fuelLocked && _fuel >= FuelRestart)
         {
@@ -1201,7 +1182,8 @@ public partial class Player : CharacterBody2D
         // cone_angle_deg 钳 [0,360]——越界角度（负/超 360）致 coneCos 周期折叠，
         // 锥形弱追踪判定失真（360 时 cos=1 → angT 0/0=NaN，NaN 守卫兜底）
         _coneAngleDeg = Mathf.Clamp((float)GameState.Instance.Cfg(basePath + "cone_angle_deg", _coneAngleDeg).AsDouble(), 0.0f, 360.0f);
-        _coneCos = Mathf.Cos(Mathf.DegToRad(_coneAngleDeg));
+        // 档位语义＝半角（接受域 ±cone_angle_deg）；口径与换算单源在 core AimCone
+        _coneCos = Core.Combat.AimCone.CosFromHalfAngleDeg(_coneAngleDeg);
         _coneStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), 0.0f);
         _magnetRange = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), 0.0f);
         _magnetStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), 0.0f);
@@ -1482,10 +1464,14 @@ public partial class Player : CharacterBody2D
             b.Position = Position + aimRot * _muzzleOffset;
         }
 
-        // 枪口辉光：以末发弹方向点亮（散射时多方向只有一盏，视觉噪声可控）
+        // 枪口辉光：以末发弹方向点亮（散射时多方向只有一盏，视觉噪声可控）。
+        // **局部坐标**：_muzzleGlow 是 Player 的子节点，位移会再经 Player.Rotation
+        // （= aim.Angle() + π/2，见机头朝向段）变换一次；机头恒为局部 -Y（贴图机头朝上），
+        // 故沿机头的最远点恒为 (0, -_muzzleOffset)。写 aim * _muzzleOffset 会把世界方向
+        // 当局部方向、被父节点旋转二次叠加，斜向瞄准时辉光落到机体侧后方。
         if (_muzzleGlow != null)
         {
-            _muzzleGlow.Position = aim * _muzzleOffset;
+            _muzzleGlow.Position = new Vector2(0.0f, -_muzzleOffset);
             _muzzleGlowA = 1.0f;
         }
 
@@ -1525,6 +1511,13 @@ public partial class Player : CharacterBody2D
     /// <summary>擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。</summary>
     private void OnGrazeEntered(Area2D area)
     {
+        // 死亡/进舱守卫：两者的 monitoring 关闭都走延迟写（见 DieInternal/EnterPod）——同一物理帧内
+        // 迟到的擦弹信号仍会到达，无守卫会死后加分/播特效，或进舱（机体已隐藏）仍在计分
+        if (_dead || _inPod)
+        {
+            return;
+        }
+
         var b = area.GetScript().AsGodotObject() == _bulletScript ? (Bullet)area : null;
         if (b == null || b.IsPlayerBullet || !b.IsActive())
         {
@@ -1558,6 +1551,13 @@ public partial class Player : CharacterBody2D
     /// 角度过滤能力——&lt;360 时回退为机头前方扇形），O(1) 阵营翻转。</summary>
     private void OnParryShieldEntered(Area2D area)
     {
+        // 死亡/进舱守卫：盾 monitoring 关闭走延迟写（见 DieInternal/EnterPod），同帧迟到信号仍会到达——
+        // Phase 每帧复位，进舱时可能恰停在 ACTIVE，无守卫会死后持续把敌弹反射成玩家弹
+        if (_dead || _inPod)
+        {
+            return;
+        }
+
         if (_parry.Phase != PlayerParry.ParryPhase.ACTIVE)
         {
             return;
@@ -1670,6 +1670,7 @@ public partial class Player : CharacterBody2D
         }
 
         _dead = true;
+        _inPod = false; // 死亡优先于进舱态：出舱路径的 _dead 早退不得把标志留在 true
         AbortEntry(); // 入场期间自毁复位入场状态机
         _enrageSlow = 1.0f; // 死亡/重生路径兜底
         Hide();
@@ -1678,16 +1679,18 @@ public partial class Player : CharacterBody2D
             _hitbox.SetDeferred("monitoring", false);
         }
 
-        // 死亡路径关闭擦弹环与弹反盾判定
+        // 死亡路径关闭擦弹环与弹反盾判定（延迟写：致死主链路整条在 area_exited 信号回调栈内，
+        // 引擎在物理 in/out 回调里拒绝 monitoring 直写并打 ERROR，写后读回仍是 true——
+        // 擦弹环不关会死后继续加分、弹反盾不关会死后继续反射敌弹，同受击盒口径）
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = false;
+            grazeArea.SetDeferred("monitoring", false);
         }
 
         if (_parryShield != null)
         {
-            _parryShield.Monitoring = false;
+            _parryShield.SetDeferred("monitoring", false);
         }
 
         SetPhysicsProcess(false);
@@ -1696,9 +1699,12 @@ public partial class Player : CharacterBody2D
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
     }
 
-    /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。</summary>
+    /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。
+    /// 三处 monitoring 一律延迟写（同 DieInternal 口径）：延迟写落在 idle 帧末，等价于此处直写，
+    /// 且在物理回调栈内到达时不会被引擎拒绝——三处同口径，不靠调用时机区分。</summary>
     public void EnterPod()
     {
+        _inPod = true;
         Hide();
         if (_hitbox != null)
         {
@@ -1708,16 +1714,17 @@ public partial class Player : CharacterBody2D
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = false;
+            grazeArea.SetDeferred("monitoring", false);
         }
 
         if (_parryShield != null)
         {
-            _parryShield.Monitoring = false;
+            _parryShield.SetDeferred("monitoring", false);
         }
     }
 
-    /// <summary>离开保护舱（释放抛下时调用）：恢复显示与受击判定。</summary>
+    /// <summary>离开保护舱（释放抛下时调用）：恢复显示与受击判定（受击盒/擦弹环延迟写同 EnterPod）。
+    /// 弹反盾不回写——其 monitoring 由 _PhysicsProcess 按 _parry.Phase 每帧同步，此处插一脚会打架。</summary>
     public void ExitPod()
     {
         if (_dead)
@@ -1725,6 +1732,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
+        _inPod = false;
         Show();
         if (_hitbox != null)
         {
@@ -1734,7 +1742,7 @@ public partial class Player : CharacterBody2D
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = true;
+            grazeArea.SetDeferred("monitoring", true);
         }
     }
 
