@@ -225,6 +225,21 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
+    public void Cache_RestoreValues_AboveFullValue_ClampsToOne()
+    {
+        // 点值不变量是「每点 ≤1」：Grant 只追加 1.0、ApplyDecay 只下调、ApplyRecovery 只在 <1 时朝 1 抬。
+        // 读档是唯一外部入口，手改存档塞入 5.0 会让 Effective 虚高——与 NaN 同一条威胁模型，
+        // 原先只堵了非有限/非正一路，超值原样入列即白拿天赋。
+        var cache = new TalentCache(CacheConfig());
+        cache.RestoreValues(new[] { 5.0, 0.5 });
+
+        Assert.Equal(2, cache.Raw);
+        Assert.Equal(1.5, cache.Effective, 12);
+        Assert.False(cache.Spend(2.0));    // 兑现不了被钳掉的 3.5
+        Assert.True(cache.Spend(1.5));
+    }
+
+    [Fact]
     public void Cache_SpendNaN_IsRejected()
     {
         var cache = new TalentCache(CacheConfig());

@@ -30,6 +30,24 @@ public sealed class ProgressionCurvesTests
     }
 
     [Fact]
+    public void Threshold_CycleMultiplier_AmplifiesEachCyclesRungs()
+    {
+        // 口径：内层是对该圈各档「相邻档差」的累加（望远镜求和，结果即该圈末档基础阈值），
+        // 再整体乘该圈倍率 mult(c)=cycle_mult^c；第 c 圈贡献 = 末档阈值 × mult(c)。
+        // 即 total = Σ_{c<cycle} b[7]×m^c + b[step]×m^cycle，最终 × 难度倍率后四舍五入（.5 远离零）。
+        // 8 档表（生产 base）下：index 8 = 第 0 圈全额 b7 + 第 1 圈取第 0 档 = 80000 + 3000×1.35；
+        // 旧实现丢掉档差的 ×mult 放大后这些值全部偏离——本用例把它钉死。
+        var base8 = new long[] { 3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000 };
+        Assert.Equal(84050L, MilestoneCurve.Threshold(8, base8, 1.35, 1.0));
+        Assert.Equal(100250L, MilestoneCurve.Threshold(10, base8, 1.35, 1.0));   // 80000 + 15000×1.35
+        Assert.Equal(188000L, MilestoneCurve.Threshold(15, base8, 1.35, 1.0));   // 80000 + 80000×1.35
+        Assert.Equal(193468L, MilestoneCurve.Threshold(16, base8, 1.35, 1.0));   // 80000×(1+1.35) + 3000×1.35²
+
+        // 难度档倍率作用在求和之后（hard 的 1.5）：84050×1.5 = 126075
+        Assert.Equal(126075L, MilestoneCurve.Threshold(8, base8, 1.35, 1.5));
+    }
+
+    [Fact]
     public void Threshold_IsMonotonicOverLongHorizon()
     {
         long prev = 0;

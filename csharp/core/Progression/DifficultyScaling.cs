@@ -79,10 +79,6 @@ public static class DifficultyScaling
     public static double BossHpRamp(double difficulty, DifficultyScalingConfig cfg) =>
         DifficultyRamp.Linear(difficulty, cfg.BossHpRampFactor);
 
-    /// <summary>Boss HP 绝对值：hp_base × 类型倍率 × 难度档倍率 × Boss ramp。</summary>
-    public static double BossHp(double hpBase, double typeMult, double tierMult, double difficulty, DifficultyScalingConfig cfg) =>
-        hpBase * typeMult * tierMult * BossHpRamp(difficulty, cfg);
-
     /// <summary>波次间隔：基础间隔 ÷ 难度项，钳下限（基础间隔 ≤0 时返回下限）。</summary>
     public static double WaveInterval(double baseInterval, double difficulty, DifficultyScalingConfig cfg)
     {

@@ -202,8 +202,10 @@ public sealed class TalentCache
 
     /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/回补/裁剪——
     /// 快照已是历史衰减后的真实状态，重算会二次衰减、回补会凭空加点。null/空 = 清空。
-    /// 非有限或负值钳为 0：点值序列若混入 NaN，<see cref="Effective"/> 会变 NaN，
-    /// 使花费判据恒假、<see cref="Spend"/> 空转放行——手改存档可借此白拿天赋。</summary>
+    /// 手改存档是威胁模型，输入一律钳进点值不变量 [0, 1]：非有限或非正值钳 0（NaN 会让
+    /// <see cref="Effective"/> 变 NaN、花费判据恒假而 <see cref="Spend"/> 空转放行）；
+    /// 正超值钳 1.0（Grant 只追加 1.0、ApplyDecay 只下调，序列里本不存在 >1 的点——
+    /// 原样入列等于手改存档白拿天赋）。</summary>
     public void RestoreValues(IEnumerable<double>? values)
     {
         _values.Clear();
@@ -214,7 +216,7 @@ public sealed class TalentCache
 
         foreach (var v in values)
         {
-            _values.Add(double.IsFinite(v) && v > 0.0 ? v : 0.0);
+            _values.Add(!double.IsFinite(v) || v <= 0.0 ? 0.0 : Math.Min(v, 1.0));
         }
     }
 }

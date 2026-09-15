@@ -89,16 +89,6 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
-    public void BossHp_ComposesBaseTypeAndTier()
-    {
-        var cfg = Cfg();
-        // hp_base=800 × 类型 1.3 × 档位 1.0 × ramp(D=1)=1
-        Assert.Equal(1040.0, DifficultyScaling.BossHp(800.0, 1.3, 1.0, 1.0, cfg), 6);
-        // D=5：ramp = 1 + 0.55×4 = 3.2
-        Assert.Equal(800.0 * 1.3 * 3.2, DifficultyScaling.BossHp(800.0, 1.3, 1.0, 5.0, cfg), 6);
-    }
-
-    [Fact]
     public void WaveInterval_ShrinksWithDifficultyAndHitsFloor()
     {
         var cfg = Cfg();
@@ -235,6 +225,20 @@ public sealed class DifficultyScalingTests
         var b = DifficultyScaling.SoftCappedTimeTerm(26.0, cfg);
         Assert.True(b > a);
         Assert.Equal(0.0, DifficultyScaling.SoftCappedTimeTerm(-1.0, cfg), 6);
+    }
+
+    [Fact]
+    public void SoftCappedTimeTerm_NonHalfFactor_KeepsExactFractionOfOvershoot()
+    {
+        // 折减算术是 start + (超出量)×factor（保留 factor 比例），不是 start + 超出量×(1−factor)。
+        // 默认 0.5 恰好等于 1−0.5，原先唯一的数值用例对两种式子同样成立——只有非 0.5 因子能分辨。
+        var cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = 0.25;
+        Assert.Equal(6.0 + 10.0 * 0.25, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        Assert.Equal(8.5, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+
+        cfg.DifficultyTailSpeedFactor = 0.75;
+        Assert.Equal(6.0 + 100.0 * 0.75, DifficultyScaling.SoftCappedTimeTerm(106.0, cfg), 6);
     }
 
     [Fact]
