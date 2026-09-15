@@ -28,8 +28,9 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// <summary>本事件是否持有波次暂停（HoldWaves/ResumeWaves 配对，见 ResumeWaves）。</summary>
     private bool _wavesHeld;
 
-    /// <summary>本事件是否持有 Boss 冻结（HoldBoss/ReleaseBoss 配对，见 HoldBoss）。</summary>
-    private bool _bossHeld;
+    /// <summary>本事件是否持有 Boss 冻结（记账在 core BossFreezeLedger：深度 + pending 语义同源）。
+    /// 只用于「重复持有/重复释放」的配对守卫；Boss 是否兑现由 spawner 侧那份记账决定。</summary>
+    private readonly Core.Combat.BossFreezeLedger _bossLedger = new();
 
     /// <summary>子类 FSM 是否处于 IDLE（桥接各事件私有状态枚举；IsActive/CanTrigger/TickCooldown 共用）。</summary>
     protected abstract bool IsIdle { get; }
@@ -127,11 +128,11 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     }
 
     /// <summary>冻结 Boss 调度（事件占用 Boss 槽时；spawner 侧深度计数，多事件同时持有安全）。
-    /// 与 HoldWaves 同构地记一次持有标志：重复持有会让一次释放留下未解冻的深度，
+    /// 本事件是否已持有由 ledger 深度判定：重复持有会让一次释放留下未解冻的深度，
     /// 表现是「本局再也不出 Boss」。</summary>
     protected void HoldBoss()
     {
-        if (_bossHeld)
+        if (_bossLedger.Frozen)
         {
             return;
         }
@@ -142,34 +143,36 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
             return;
         }
 
-        _spawner.SetBossFrozen(true);
-        _bossHeld = true;
+        _spawner.HoldBossFreeze();
+        _bossLedger.Hold();
     }
 
     /// <summary>释放 Boss 互斥：完全释放（无其他持有者）时补触发一次期间被冻结的 Boss
     /// ——冻结期间的到期只记一次 pending，解冻即兑现，不累积也不丢失。
     /// <paramref name="triggerPending"/>＝false 用于打断路径（返航/死亡）：此刻补出 Boss 只会在
-    /// 结算画面上弹预警横幅，pending 留给本局恢复后的自然门控（分数/时间门不会饿死）。</summary>
+    /// 结算画面上弹预警横幅，故丢弃；**丢弃必须连同 pending 一起清掉**——自然门控（分数/时间门）
+    /// 不会饿死，留着的陈旧标记会在下一次遭遇正常收场时被消费，凭空补出一只绕过分数门与
+    /// 最小间隔的 Boss。仍被其他事件持有时不清：那一次到期属于共享冻结窗口，
+    /// 由最后一位持有者收场时消费。</summary>
     protected void ReleaseBoss(bool triggerPending = true)
     {
-        if (!_bossHeld)
+        if (!_bossLedger.Frozen)
         {
-            return;
+            return; // 未持有：空操作（幂等），不得替其他持有者消费共享冻结窗口里的到期
         }
 
-        _bossHeld = false;
         if (_spawner == null || !GodotObject.IsInstanceValid(_spawner))
         {
+            // spawner 已释放：无可解冻、无 Boss 可触发，只同步递减本端持有
+            _bossLedger.Release(false);
             return;
         }
 
-        _spawner.SetBossFrozen(false);
-        if (!triggerPending || _spawner.BossFrozen())
-        {
-            return; // 丢弃补触发 / 仍有其他事件持有
-        }
-
-        if (_spawner.ConsumeBossPending())
+        // spawner 侧决定「兑现还是丢弃」（含仍有其他持有者时不动 pending 的语义）；
+        // 本端持有随之同步递减——两侧只递减各自的深度，pending 只由 spawner 侧那份记账持有
+        var trigger = _spawner.ReleaseBossFreeze(triggerPending);
+        _bossLedger.Release(triggerPending);
+        if (trigger)
         {
             _spawner.TriggerBoss();
         }

@@ -62,6 +62,9 @@ public partial class EliteTurretEvent : EncounterEventBase
     private State _state = State.IDLE;
     protected override bool IsIdle => _state == State.IDLE;
 
+    /// <summary>炮台贴合自检容差（px）——悬停期航母浮动 &lt;0.1px/帧，容差只兜同帧顺序余量。</summary>
+    private const float MountTolerance = 1.5f;
+
     private StrikeCarrier? _carrier;
     private readonly Godot.Collections.Array<TurretBattery> _turrets = new();
     private float _timer;
@@ -72,6 +75,9 @@ public partial class EliteTurretEvent : EncounterEventBase
     private int _lineStage;
     /// <summary>打断标志（返航/死亡 Abort 置位）：收场不补触发被冻结的 Boss。</summary>
     private bool _aborted;
+
+    /// <summary>炮台贴合自检已报错（只报一次，避免逐帧刷屏）。</summary>
+    private bool _mountErrorLogged;
     private readonly Godot.Collections.Array<String> _lines = new();
     private Hud? _hud; // typed
 
@@ -249,10 +255,16 @@ public partial class EliteTurretEvent : EncounterEventBase
         {
             var turret = TurretScene.Instantiate<TurretBattery>();
             turret.Setup(hp, ammo.AsGodotArray(), FireInterval, WeakLock);
-            turret.Position = _carrier!.Position + StrikeCarrier.Sockets[i] * (float)GameState.Instance.WorldScale;
+            // 挂到航母节点下：基座偏移即父级本地坐标，悬停浮动与撤离加速随父级自动同步。
+            // 原先挂 Main 下只在升起瞬间写一次绝对位置——悬停期错位 ±6px，超时路径更明显
+            //（撤回动画 0.8s 内舰已上升约 230px，画面上是「炮台悬空收盖板、舰已飞走」）。
+            // 连带代价：炮台的击毁爆炸（TurretBattery.Die 挂自身父级）随之落在航母体上——
+            // 击杀只可能发生在炮台激活期，此时舰仅做 ±6px 悬停浮动，观感等价；
+            // 撤回/撤离期的炮台已被 CeaseFireAndRetract 关掉 monitorable，不再产生爆炸。
+            turret.Position = StrikeCarrier.Sockets[i] * (float)GameState.Instance.WorldScale;
             var socket = i;
             turret.Died += (t) => OnTurretDied(socket, t);
-            GetParent().AddChild(turret);
+            _carrier!.AddChild(turret);
             _turrets.Add(turret);
             _carrier!.SetSocketCharging(i);
             turret.Rise(RiseTime);
@@ -297,6 +309,7 @@ public partial class EliteTurretEvent : EncounterEventBase
             return;
         }
 
+        CheckTurretMounting();
         _timer -= d;
         _hudPoll -= d;
         if (_hudPoll <= 0.0f)
@@ -311,6 +324,39 @@ public partial class EliteTurretEvent : EncounterEventBase
         if (_timer <= 0.0f)
         {
             OnEventTimeout();
+        }
+    }
+
+    /// <summary>炮台贴合自检（激活期每帧一次）：炮台是航母子节点，本地坐标应恒等于对应基座偏移。
+    /// 改回「挂 Main + 绝对位置」或另有节点抢写位置时，这一步会报错——无头冒烟不看画面，
+    /// 「炮台与基座环错位」在别处是零症状（只错位、不崩、不打日志）。
+    /// 局部坐标只看轴对齐，不含旋转：航母无旋转且 Sockets 为轴向偏移，成立。</summary>
+    private void CheckTurretMounting()
+    {
+        if (_mountErrorLogged || _carrier == null || !GodotObject.IsInstanceValid(_carrier))
+        {
+            return;
+        }
+
+        var ws = (float)GameState.Instance.WorldScale;
+        for (var i = 0; i < _turrets.Count; i++)
+        {
+            var turret = _turrets[i];
+            if (!GodotObject.IsInstanceValid(turret) || turret.GetParent() != _carrier)
+            {
+                _mountErrorLogged = true;
+                GD.PushError($"{GetType().Name}: 炮台未挂在航母节点下，悬停浮动与撤离不会随动");
+                return;
+            }
+
+            // 索引 i 与基座的对应在炮台被毁后失效（_turrets 移除后收缩），只在未击毁任一炮台时逐槽比对
+            if (_destroyed == 0 && i < StrikeCarrier.Sockets.Length
+                && turret.Position.DistanceTo(StrikeCarrier.Sockets[i] * ws) > MountTolerance)
+            {
+                _mountErrorLogged = true;
+                GD.PushError($"{GetType().Name}: 炮台 {i} 偏离基座 {turret.Position.DistanceTo(StrikeCarrier.Sockets[i] * ws):F1}px");
+                return;
+            }
         }
     }
 

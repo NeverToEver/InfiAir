@@ -145,7 +145,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// 台词框 3.5s 停留，进度台词叠起来只会互相顶掉）。</summary>
     private int _lineStage;
 
-    /// <summary>战术提示播报时刻（_elapsed 口径；float.MaxValue = 已播/未排程）。</summary>
+    /// <summary>进度台词开播时刻（_elapsed 口径）与占场时长——战术提示据此让位
+    /// （顺序约束单源在 core FormationComms）。</summary>
+    private float _lineStartedAt;
+
+    private float _lineOnScreenTime = FormationComms.LineOnScreenTime(0);
+
+    /// <summary>战术提示播报时刻（_elapsed 口径；float.MaxValue = 已播/未排程）。
+    /// 排程时若进度台词已在场上，取该句结束时刻（core FormationComms.NextIntelAt）——
+    /// 否则先到的战损/拆弹台词只闪零点几秒就被提示顶掉，顺序与声明相反。</summary>
     private float _intelAt = float.MaxValue;
 
     /// <summary>在场炸弹（事件结束/打断时随编队一并清理，与 FreeCrafts 同口径）。</summary>
@@ -376,6 +384,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _settled = false;
         _allClear = false;
         _lineStage = 0;
+        _lineStartedAt = 0.0f;
+        _lineOnScreenTime = FormationComms.LineOnScreenTime(0);
         _intelAt = float.MaxValue;
         _hudPoll = 0.0f;
     }
@@ -436,7 +446,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
     }
 
     /// <summary>投弹后 4s（警告台词播完）补一条战术提示，且不早于轰炸段开始：
-    /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。</summary>
+    /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。
+    /// 进度台词先占槽位时顺延到该句结束（排程见 BeginRun），到点当帧再确认台词已下场——
+    /// 两句共用一个槽位，后播的只会顶掉先播的。</summary>
     private void TickIntelHint()
     {
         if (_intelAt > _elapsed)
@@ -444,8 +456,22 @@ public partial class FormationStrikeEvent : EncounterEventBase
             return;
         }
 
+        if (!FormationComms.IntelAllowed(_lineStage, _lineStartedAt, _lineOnScreenTime, _elapsed))
+        {
+            return; // 台词仍在场上：本帧不播，句尾自然接上
+        }
+
         _intelAt = float.MaxValue;
         _comm?.ShowLine("FBQ_INTEL");
+    }
+
+    /// <summary>播进度台词（战损/拦截）：登记开播时刻与占场时长，供战术提示让位。
+    /// 占场时长按翻译表实际字数算（打字机是 0.03s/字），故必须先取文案再登记。</summary>
+    private void ShowProgressLine(string key)
+    {
+        _lineStartedAt = _elapsed;
+        _lineOnScreenTime = FormationComms.LineOnScreenTime(Tr(key).Length);
+        _comm?.ShowLine(key);
     }
 
     /// <summary>把当前侧倾量写到全体在编队机（被击坠槽位跳过）。</summary>
@@ -478,8 +504,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _warnIndex = 0;
         _bank = 0.0f;
         ApplyBank();
-        // 战术提示的播报时刻：警告台词播完之后、且至少晚于轰炸段开始 0.8s
-        _intelAt = Mathf.Max(IntelEarliest, _elapsed + 0.8f);
+        // 战术提示的播报时刻：警告台词播完之后、且至少晚于轰炸段开始 0.8s；
+        // 进度台词若已在场上（战损/拆弹先于轰炸段发生）则顺延到该句结束
+        _intelAt = FormationComms.NextIntelAt(
+            Mathf.Max(IntelEarliest, _elapsed + 0.8f), _elapsed, _lineStage, _lineStartedAt, _lineOnScreenTime);
     }
 
     /// <summary>收回进场预告线（未到寿命才回收）。C# 侧 `?.` 拦不住已释放的 Godot 对象
@@ -681,7 +709,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             if (_lineStage == 0 && _state != State.IDLE)
             {
                 _lineStage = 2;
-                _comm?.ShowLine("FBQ_TAUNT_INTERCEPT");
+                ShowProgressLine("FBQ_TAUNT_INTERCEPT");
             }
 
             RefreshEventBar(0.0f, force: true);
@@ -838,7 +866,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         if (_lineStage == 0 && _state != State.IDLE)
         {
             _lineStage = 1;
-            _comm?.ShowLine("FBQ_TAUNT_LOSS");
+            ShowProgressLine("FBQ_TAUNT_LOSS");
         }
 
         RefreshEventBar(0.0f, force: true);
