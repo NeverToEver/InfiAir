@@ -179,13 +179,18 @@ public partial class GameState : Node
         // 键位与难度各有独立事实源：先复位它们，再重置设置域字段并重放副作用
         ResetKeyBindings();
         SetDifficulty(new StringName("medium")); // 走玩家改档正口：校验/落盘/广播，已在 medium 时幂等早退
+        // 语言要先记下复位前的值：ResetToDefaults 已把 Locale 直写成 "zh"，复位后再拿它做条件
+        // 恒为假——SetLocale 永不执行、LocaleChanged 永不发射，英文档点「全部恢复默认」后
+        // 设置页标题/导航/分组与其余订阅方（HUD/暂停/基地/天赋/确认弹窗）全部停在旧语言，
+        // 且不会自愈（LocaleChanged 只在玩家手动切语言时才发）。
+        var prevLocale = _settings.Locale;
         _settings.ResetToDefaults();
         TutorialDone = tutorialDone;
         // 语言经 SetLocale 重放（走 LocaleChanged 广播，设置页据此整页重建文案）；
         // TranslationServer 已由其内部写，避免此处再写一次
-        if (_settings.Locale != "zh")
+        if (prevLocale != _settings.Locale)
         {
-            SetLocale("zh");
+            SetLocale(_settings.Locale);
         }
         else
         {
@@ -201,6 +206,9 @@ public partial class GameState : Node
         // 手感域同步：ResetToDefaults 直写字段不发 setter 事件，漏这一步会「界面显示已恢复、
         // 实际仍按旧的关闭档运行」（顿帧/震动强度为 0 时手感域直接忽略请求）
         SyncHitStopScale(_settings.HitStopScale);
+        // 手柄设置同理：ResetToDefaults 直写 JoyAimSpeed/JoyDeadzone 不发服务事件，而 Player 的
+        // 灵敏度只在事件里赋值——不补发则「全部恢复默认」后存档/设置页回到默认，游戏内仍按旧档跑。
+        _settings.EmitJoySettingsChanged();
         SaveSettings();
     }
 

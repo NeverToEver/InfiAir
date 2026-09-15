@@ -666,6 +666,10 @@ public sealed partial class SettingsService : RefCounted
         JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
     }
 
+    /// <summary>重放手柄设置广播（不改成对字段）：供「全部恢复默认」在直写字段后补发——
+    /// ResetToDefaults 不发服务事件，不补发则 Player 仍按旧灵敏度跑（设置页/存档已回默认）。</summary>
+    public void EmitJoySettingsChanged() => JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
+
     /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，径向语义）。读取侧生效——Player 移动/瞄准
     /// 经 StickShaper 整形时每帧读取本值，不写 InputMap（摇杆 action 的 InputMap deadzone 恒 0.05
     /// 只滤硬件噪声，扳机阈值恒 0.2，均与本设置解耦）。只更新内存 + 广播；不自动写盘</summary>

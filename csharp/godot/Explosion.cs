@@ -24,6 +24,8 @@ public partial class Explosion : GpuParticles2D
     private static float _visualScale = -1.0f;
     private static int _poolCap = -1;
     private static int _shardCap = -1;
+    private static bool _positionMismatchLogged;
+
     // 池可用队列与宿主节点在 GameState 实例字段（ExplosionStock / ExplosionPoolHost）——
     // 静态字段持 Godot 对象为退出 segfault 实测根因（Main/Spawner 同规）
 
@@ -65,8 +67,11 @@ public partial class Explosion : GpuParticles2D
 
     private static Godot.Collections.Array<Explosion> Stock => GameState.Instance.ExplosionStock;
 
-    /// <summary>在 parent 下 pos 处引爆。pScale 为规模分档（普通 1.0 / 精英 1.5 / Boss 3.0）；
-    /// playerSide 决定装甲碎片配色（敌机残骸暗钢紫晶 / 玩家侧琥珀钢）。</summary>
+    /// <summary>在 <paramref name="pos"/>（**世界坐标**）处引爆。pScale 为规模分档（普通 1.0 /
+    /// 精英 1.5 / Boss 3.0）；playerSide 决定装甲碎片配色（敌机残骸暗钢紫晶 / 玩家侧琥珀钢）。
+    /// 入参按世界坐标处理（写入 <c>GlobalPosition</c>）：调用方一律传 <c>GlobalPosition</c>/<c>Position</c>
+    /// 这类世界量，而 parent 未必在世界原点——曾按 <c>Position</c> 写入，在 parent 偏离原点时
+    /// 特效整体错位（炮塔改挂航母后击毁爆炸落在屏外约 1000px）。</summary>
     public static void SpawnAt(Node parent, Vector2 pos, float pScale = 1.0f, bool playerSide = false)
     {
         var e = _takeFromPool();
@@ -95,7 +100,17 @@ public partial class Explosion : GpuParticles2D
             _liveCount++;
         }
 
-        e.Position = pos;
+        e.GlobalPosition = pos;
+        // 护栏（代码层，非探针）：入参是世界坐标，写入后读回全局位核对。若有人把这一行改回
+        // `e.Position = pos`（parent 偏离原点时把世界坐标当局部坐标），偏差即 parent 的全局偏移——
+        // 炮塔挂航母后偏差 ≈1000px，特效整体落到屏外且不崩、不报错、不撞任何错误正则。
+        // 只报一次（每帧刷新会刷屏），走 PushError 使其撞冒烟/截图探针的 ERROR 正则。
+        if (!_positionMismatchLogged && e.GlobalPosition.DistanceTo(pos) > 1.0f)
+        {
+            _positionMismatchLogged = true;
+            GD.PushError($"Explosion.SpawnAt 落点与入参偏差 {e.GlobalPosition.DistanceTo(pos):F1}px"
+                + "（parent 偏离原点时把世界坐标当局部坐标写入？）");
+        }
         // effects.explosion_visual_scale：全局特效设计比例 × world_scale（调用方 p_scale 语义不变）
         if (_visualScale < 0.0f)
         {

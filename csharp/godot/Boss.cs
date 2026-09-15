@@ -416,12 +416,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // 阶段阈值钳 (0.01, 0.99]——>1 时钳血逻辑把 HP 抬升到 >MaxHp 并永久锁血，≤0 免疫伤害
         Phase2HpRatio = CfgFx.Float("boss.phase2_hp_ratio", Phase2HpRatio, 0.01f, 0.99f);
         EnrageHpRatio = CfgFx.Float("boss.enrage.hp_ratio", EnrageHpRatio, 0.01f, 0.99f);
-        // 保序：P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），
-        // 倒挂配置（phase2=0.2, enrage=0.3）使 P2 段整体跳过、Boss 以 P1 强度直接狂暴且无告警
-        if (Phase2HpRatio <= EnrageHpRatio)
-        {
-            Phase2HpRatio = Mathf.Min(EnrageHpRatio + 0.01f, 0.98f);
-        }
+        // 保序：P2 段必须高于 ENRAGE 线（BOSS_REDESIGN §4.1 70%→30% 顺序），倒挂配置
+        // （phase2=0.2, enrage=0.3）使 P2 段整体跳过、Boss 以 P1 强度直接狂暴且无告警。
+        // 收口单源在 core BossBarSegments.Normalize（血量条段界/刻度调同一函数）：此处自写
+        // `Min(e + 0.01, 0.98)` 在 e=0.99 处会产出 p2=0.98 < e 的倒挂，与 HUD 派生分叉。
+        (Phase2HpRatio, EnrageHpRatio) = BossBarSegments.Normalize(Phase2HpRatio, EnrageHpRatio);
         EnrageRateMult = CfgFx.Float("boss.enrage.rate_mult", EnrageRateMult);
         EnrageSpeedMult = CfgFx.Float("boss.enrage.speed_mult", EnrageSpeedMult);
         EnragePlayerSlow = CfgFx.Float("boss.enrage.player_slow", EnragePlayerSlow);

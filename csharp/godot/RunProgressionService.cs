@@ -291,10 +291,13 @@ public sealed partial class RunProgressionService : RefCounted
         RunGoal.Kind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
     /// <summary>达成进度 0..1（取两条件中更接近者）。
-    /// 保留公开读口作诊断面；HUD 目前自行取「更接近的一支」以同时显示条件文本，
-    /// 若日后统一走本口须一并核对边界（core RunGoal.Progress 与 HUD 内联的并列判定不完全等价）。</summary>
+    /// 保留公开读口作诊断面；HUD 用 <see cref="GoalCloserKind"/> 选显示哪一支（判定同源在 core）。</summary>
     public double GoalProgress() =>
         RunGoal.Progress(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
+
+    /// <summary>两支里更接近达成的那一支（HUD 常驻目标行选显示哪条用；判定在 core RunGoal.CloserKind）。</summary>
+    public RunGoalKind GoalCloserKind() =>
+        RunGoal.CloserKind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
     /// <summary>当前难度命名档位（0 起；HUD 难度标签用）。</summary>
     public int DifficultyTierIndex() => DifficultyTier.IndexFor(DifficultyMultiplier, _tierThresholds);

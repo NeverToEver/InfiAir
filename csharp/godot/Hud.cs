@@ -1618,14 +1618,13 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        // 展示「更接近达成」的那个条件。判定与 core 同源（RunGoal.Progress 取两支更接近者），
-        // 避免 HUD 内联重算与 core 分叉（原实现自己写了一遍并列比较，两处任改其一即静默不一致）。
+        // 展示「更接近达成」的那个条件。判定走 core RunGoal.CloserKind（经 GameState 门面）——
+        // 原实现自己写了一遍并列比较，与 core 的口径只是「碰巧一致」：单支未配置时内联会把 −1
+        // 当比例参与比较，core 则直接返回已配置的那一支。改由 core 判定后两处不可能再分叉。
         var killTarget = gs.GoalBossKills();
         var surviveTarget = gs.GoalSurviveSeconds();
-        var killProgress = killTarget > 0 ? gs.BossKills / (double)killTarget : -1.0;
-        var surviveProgress = surviveTarget > 0 ? gs.RunTime / surviveTarget : -1.0;
         string detail;
-        if (killProgress >= surviveProgress && killTarget > 0)
+        if (gs.GoalCloserKind() != InfiAir.Core.Progression.RunGoalKind.Survive)
         {
             detail = GdFormat.Format((string)Tr("GOAL_BOSS_KILLS"), gs.BossKills, killTarget);
         }

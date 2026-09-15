@@ -34,6 +34,9 @@ public partial class GameState : Node
     /// <summary>达成进度 0..1（HUD 常驻进度条用）。</summary>
     public double GoalProgress() => _runProg.GoalProgress();
 
+    /// <summary>两支里更接近达成的那一支（HUD 常驻目标行选显示哪条用；判定在 core RunGoal）。</summary>
+    public InfiAir.Core.Progression.RunGoalKind GoalCloserKind() => _runProg.GoalCloserKind();
+
     /// <summary>当前难度命名档位（0 起）。</summary>
     public int DifficultyTierIndex() => _runProg.DifficultyTierIndex();
 

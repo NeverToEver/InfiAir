@@ -61,9 +61,12 @@ public class PlayerDamage
     public float InvincibleRemaining() => Invincible;
 
     /// <summary>
-    /// 受击结算（100 HP 制）。返回 true = 本帧实际结算（调用方据此决定子弹是否销毁）。
-    /// 顺序与归属在 DamageMitigation：拦截守卫（死/无敌/冲刺/本帧已结算）→ 20% 闪避 →
-    /// 盾吸收（每层一次全额，不置无敌/不写单帧守卫/不掉血）→ 护甲 ×0.85 → 结算；对全部伤害源生效。
+    /// 受击结算（100 HP 制）。返回 true = **投射物应被消耗**（闪避/盾吸收/实际结算三档皆然），
+    /// false = 被拦截守卫挡下、弹体继续飞（调用方据此决定子弹是否销毁）。
+    /// 口径单源在 DamageMitigation 的四档归属——闪避档的规格是「完全免伤、**子弹照常销毁**」，
+    /// 与盾吸收一致；两者都不置无敌、不消耗单帧守卫、不掉血。
+    /// 顺序：拦截守卫（死/无敌/冲刺/本帧已结算）→ 20% 闪避 → 盾吸收（每层一次全额）→
+    /// 护甲 ×0.85 → 结算；对全部伤害源生效。
     /// fromPos：伤害源世界坐标（Meta HUD 定向波纹）；Vector2.INF = 无方向（均匀环）。
     /// </summary>
     public bool TakeDamage(float amount, Vector2 fromPos, Player player)
@@ -88,7 +91,10 @@ public class PlayerDamage
             amount);
         if (result.Outcome == DamageOutcome.Evaded)
         {
-            return false; // 闪避增幅：完全免伤（不置无敌、不清弹）
+            // 闪避增幅：完全免伤（不置无敌、不清弹、不写单帧守卫），但**子弹照常销毁**——
+            // 返回 false 会让弹体继续飞：既不消耗敌弹上限的位，又在宽限到期路径（_graceHitbox
+            // 已置空、计时器已停）里永久失去再次结算的能力，变成穿模的哑弹。
+            return true;
         }
 
         if (result.Outcome == DamageOutcome.ShieldAbsorbed)

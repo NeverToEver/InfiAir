@@ -279,6 +279,12 @@ public partial class Player : CharacterBody2D
             gs.Connect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
         }
 
+        // 摇杆灵敏度必须在此刻主动读一次：唯一赋值点是 JoySettingsChanged 回调，而该信号在
+        // GameState（autoload）_Ready → LoadSettings 末尾补发，早于本场景实例化——读档恢复的
+        // 灵敏度送不到（设置页与存档都是 3000，实际按硬编码 1400 跑，玩家只觉「滑杆不管用」）。
+        // 死区本就每帧 live 读（见 AimPoint），灵敏度在此对齐。
+        _aimJoySpeed = (float)gs.JoyAimSpeed;
+
         if (!gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
         {
             gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged);
@@ -1122,13 +1128,21 @@ public partial class Player : CharacterBody2D
             var raw = GetGlobalMousePosition();
             // 右摇杆虚拟准星（四向独立动作，差值驱动）：读取侧 StickShaper 整形——
             // 径向死区（设置域）+ 指数响应曲线（joy_expo，轻推精瞄/推满甩枪）
+            var processDelta = (float)GetProcessDeltaTime();
             var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
             var joyShaped = StickShaper.Shape(joy.X, joy.Y, (float)GameState.Instance.JoyDeadzone, _aimJoyExpo);
             if (joyShaped.X != 0.0f || joyShaped.Y != 0.0f)
             {
-                joyDelta = new Vector2(joyShaped.X, joyShaped.Y) * _aimJoySpeed * (float)GetProcessDeltaTime();
+                joyDelta = new Vector2(joyShaped.X, joyShaped.Y) * _aimJoySpeed * processDelta;
             }
+
+            // 磁吸输入窗口的帧长归一：窗口（magnet_input_min/full）的口径是「每 1/60s 的位移」，
+            // 而 joyDelta 与鼠标物理增量都是**本帧**位移——帧率档（30..不限制）一变，同样是满推
+            // 摇杆/手速，进窗口的量就变：fps30 下满推 ≈46.7 ≥ 40（窗口上界）会让磁吸直接失效，
+            // fps45 权重掉到 ≈0.13；鼠标路反向（高帧率下每帧位移更小，本应退出辅助的甩枪反而留在
+            // 辅助内）。换算口径单源在 core AimMagnetInput（可单测）。
+            var magnetScale = (float)AimMagnetInput.FrameScale(processDelta);
 
             var factor = 1.0f;
             var magnet = Vector2.Zero;
@@ -1142,10 +1156,11 @@ public partial class Player : CharacterBody2D
                 }
                 else
                 {
-                    // 磁吸输入窗口：摇杆有输入时取摇杆增量（joyDelta 与鼠标增量同量纲 px/帧，
-                    // 1400px/s ÷ 60fps ≈ 23px/帧 落在 magnet_input_min/full 窗口内），否则取鼠标
-                    // 物理增量——两路二选一，避免同帧双输入叠加放大磁吸强度
-                    magnet = aimLayer.MagnetPull(_aimSmooth, joyDelta != Vector2.Zero ? joyDelta : raw - _aimLastRaw);
+                    // 磁吸输入窗口：摇杆有输入时取摇杆增量，否则取鼠标物理增量——两路二选一，
+                    // 避免同帧双输入叠加放大磁吸强度。两者都乘 magnetScale 换成「每 1/60s 位移」
+                    // 后再进窗口（窗口口径即此单位；见上方 magnetScale 说明）。
+                    var magnetInput = (joyDelta != Vector2.Zero ? joyDelta : raw - _aimLastRaw) * magnetScale;
+                    magnet = aimLayer.MagnetPull(_aimSmooth, magnetInput);
                 }
             }
 
