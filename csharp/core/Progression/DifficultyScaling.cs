@@ -115,17 +115,18 @@ public static class DifficultyScaling
     /// 配置关闭（≤0）或上限 &lt;1 时恒为 1——至少一只，否则精英波会空转。</summary>
     public static int EliteCount(double difficulty, DifficultyScalingConfig cfg)
     {
-        if (cfg.ElitePerDifficulty <= 0.0 || cfg.EliteCountCap <= 1 || !double.IsFinite(difficulty))
+        // 非有限档距（NaN/±∞）与关闭同义：NaN 参与 <= 比较恒假会漏过下面的闸，
+        // 使 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——精英数变负。
+        if (!double.IsFinite(cfg.ElitePerDifficulty) || cfg.ElitePerDifficulty <= 0.0
+            || cfg.EliteCountCap <= 1 || !double.IsFinite(difficulty))
         {
             return 1;
         }
 
-        var extra = (int)Math.Floor((difficulty - 1.0) / cfg.ElitePerDifficulty);
-        if (extra < 0)
-        {
-            extra = 0;
-        }
-
+        // 取整前先落回 int 域：巨大 D（如 1e10）下 double→int 直接转换回绕成负值，
+        // 精英数会从触顶值回落到 1——D 越大精英越少（单调性反转）。上限本就钳在
+        // EliteCountCap（≤ int.MaxValue），超出的档数精确值无关紧要。
+        var extra = (int)Math.Floor(Math.Clamp((difficulty - 1.0) / cfg.ElitePerDifficulty, 0.0, int.MaxValue - 1.0));
         return Math.Min(1 + extra, cfg.EliteCountCap);
     }
 
@@ -142,12 +143,8 @@ public static class DifficultyScaling
             return 0;
         }
 
-        var extra = (int)Math.Floor((difficulty - 1.0) / cfg.BossDensityPerDifficulty);
-        if (extra < 0)
-        {
-            extra = 0;
-        }
-
+        // 同上：取整前先落回 int 域，防巨大 D 下回绕成负值把追加量打回 0。
+        var extra = (int)Math.Floor(Math.Clamp((difficulty - 1.0) / cfg.BossDensityPerDifficulty, 0.0, int.MaxValue - 1.0));
         return Math.Min(extra, cfg.BossDensityBonusCap);
     }
 

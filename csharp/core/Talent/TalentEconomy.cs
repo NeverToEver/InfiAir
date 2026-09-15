@@ -226,7 +226,12 @@ public static class TalentEconomy
     public static int CostForLevel(TalentConfig config, int level) =>
         config.CostBase + Math.Max(level, 0) * config.CostIncrement;
 
-    /// <summary>节点生效上限：结构上限 → 互斥锁扣减（机制 A）→ 路线契约减半（机制 C），下限钳 1。</summary>
+    /// <summary>节点生效上限：结构上限 → 互斥锁扣减（机制 A）→ 路线契约减半（机制 C），
+    /// 下限 <see cref="TalentConfig.RouteCapFloor"/>（防 1 级节点被扣减/减半削到 0）。
+    ///
+    /// 钳制顺序是语义的一部分：先钳下限再钳回结构上限。结构上限是硬顶——下限只保证
+    /// 「扣到 0 的节点仍买得起 1 级」，不得把 max_stacks=1 的节点抬到 3 级（消费点判
+    /// level &gt;= cap 即已满），max_stacks=0 的不可升级节点也不得被抬到 1。</summary>
     public static int EffectiveCap(TalentConfig config, int maxLevel, int mutexReduction, bool routeHalved)
     {
         var cap = maxLevel;
@@ -240,7 +245,8 @@ public static class TalentEconomy
             cap /= 2;
         }
 
-        return Math.Max(Math.Min(cap, maxLevel), config.RouteCapFloor);
+        var floor = Math.Max(config.RouteCapFloor, 0);
+        return Math.Clamp(cap, Math.Min(floor, maxLevel), maxLevel);
     }
 
     /// <summary>
@@ -269,13 +275,20 @@ public static class TalentEconomy
 
         if (focusDiscounted && focusOver > 0)
         {
-            eff *= 1.0 - Math.Min(config.FocusPenaltyCap, config.FocusPenaltyPerLevel * focusOver);
+            eff *= 1.0 - FocusPenalty(config, focusOver);
         }
 
         return Math.Max(eff, 0.0);
     }
 
-    /// <summary>专注惩罚超限档数：焦点属性最高等级超阈值 1 级起算一档（未触发返回 0）。
+    /// <summary>专注惩罚折扣率（<see cref="FocusOver"/> 档数 → 比例，上限 <see cref="TalentConfig.FocusPenaltyCap"/>）。
+    /// 面板显示与 <see cref="EffectiveLevel"/> 的生效值共用这一个式子——同式两写会在改参数时分叉
+    /// （面板说 -12%、实际按 -6% 扣，玩家无法从界面判断真实收益）。</summary>
+    public static double FocusPenalty(TalentConfig config, int over) =>
+        Math.Min(config.FocusPenaltyCap, config.FocusPenaltyPerLevel * Math.Max(over, 0));
+
+    /// <summary>专注惩罚超限档数：焦点属性最高等级达到阈值即算一档（达到阈值 7 级 → 1，8 级 → 2；
+    /// 未达阈值返回 0）。
     ///
     /// **生效面是显式约束，不是意外**（人类已决策保留阈值 7，承认该设计约束）：
     /// 阈值 7 现网**只对 extra_life 生效**——其结构上限 10 是唯一可能达阈值的节点；

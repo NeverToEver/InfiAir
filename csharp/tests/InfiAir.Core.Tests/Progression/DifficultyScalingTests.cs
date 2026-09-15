@@ -51,6 +51,20 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void SpeedRamp_CapBelowOne_NeverWeakensEnemiesBelowIdentity()
+    {
+        // 速度乘区只能「更快」：上限配置 < 1（手改 balance.json）时按 1.0 处理，
+        // 否则 Math.Min 会把后期敌机乘到 1.0 以下——难度越高敌机越慢。
+        var cfg = Cfg();
+        cfg.SpeedRampCap = 0.5;
+        Assert.Equal(1.0, DifficultyScaling.EnemySpeedRamp(10.0, cfg), 6);
+
+        // 上限 ≤0 = 关闭上限（与原语义一致，仍是未钳的线性 ramp）
+        cfg.SpeedRampCap = 0.0;
+        Assert.Equal(1.0 + 0.10 * 9.0, DifficultyScaling.EnemySpeedRamp(10.0, cfg), 6);
+    }
+
+    [Fact]
     public void SpeedRamp_IsCapped()
     {
         var cfg = Cfg();
@@ -138,6 +152,40 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void EliteCount_HugeDifficulty_SaturatesInsteadOfWrappingNegative()
+    {
+        var cfg = Cfg();
+        // 档数越过 int 域：(1e10−1)/2 ≈ 5e9 > int.MaxValue，double→int 直接转换回绕成负值 →
+        // 精英数从触顶值回落到 1，D 越大精英越少（单调性反转）。
+        Assert.Equal(cfg.EliteCountCap, DifficultyScaling.EliteCount(1e10, cfg));
+        Assert.Equal(cfg.EliteCountCap, DifficultyScaling.EliteCount(1e12, cfg));
+        Assert.True(
+            DifficultyScaling.EliteCount(1e12, cfg) >= DifficultyScaling.EliteCount(1e6, cfg),
+            "巨大 D 下精英数回退");
+    }
+
+    [Fact]
+    public void BossDensityBonus_HugeDifficulty_SaturatesInsteadOfWrappingNegative()
+    {
+        var cfg = Cfg();
+        // (1e12−1)/3 ≈ 3.3e11 > int.MaxValue：同样在取整处回绕成负值，追加量从触顶值回落到 0。
+        Assert.Equal(cfg.BossDensityBonusCap, DifficultyScaling.BossDensityBonus(1e10, cfg));
+        Assert.Equal(cfg.BossDensityBonusCap, DifficultyScaling.BossDensityBonus(1e12, cfg));
+        Assert.True(
+            DifficultyScaling.BossDensityBonus(1e12, cfg) >= DifficultyScaling.BossDensityBonus(1e6, cfg),
+            "巨大 D 下 Boss 弹数追加回退");
+    }
+
+    [Fact]
+    public void EliteCount_NaNPerDifficulty_StaysOne()
+    {
+        // 坏配置（NaN 档距）不得让档数取整产出负数
+        var cfg = Cfg();
+        cfg.ElitePerDifficulty = double.NaN;
+        Assert.Equal(1, DifficultyScaling.EliteCount(100.0, cfg));
+    }
+
+    [Fact]
     public void BossDensityBonus_ZeroUntilConfiguredStep()
     {
         var cfg = Cfg(); // 每 3.0 D 追加 1，上限 4
@@ -197,6 +245,21 @@ public sealed class DifficultyScalingTests
         Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
         cfg.DifficultyTailSpeedFactor = 0.5;
         cfg.DifficultySoftCapStart = 0.0;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+    }
+
+    [Fact]
+    public void SoftCappedTimeTerm_NonPositiveTailFactor_DoesNotFlattenCurve()
+    {
+        // factor ≤ 0 是「关闭软上限」，不是「超出部分折减到 0」：若守卫漏掉 factor=0，
+        // 返回 start + (term−start)×0 = start，曲线在 6.0 处彻底平台化——时间不再加难度，
+        // 与长局探针断言的单调性直接冲突（factor<0 更会反向下降）。
+        var cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = 0.0;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        Assert.Equal(100.0, DifficultyScaling.SoftCappedTimeTerm(100.0, cfg), 6);
+
+        cfg.DifficultyTailSpeedFactor = -0.5;
         Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
     }
 }

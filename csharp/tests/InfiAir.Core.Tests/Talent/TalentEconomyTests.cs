@@ -77,20 +77,16 @@ public sealed class TalentEconomyTests
     [Fact]
     public void Cache_Recovery_IsExactAndNeverOvershoots()
     {
-        // 精确值断言（原版只判 Effective ≤ Raw，对任何 step∈[0,1] 的实现都恒真 → 守不住不变量）：
+        // 精确值断言（原版只判 Effective ≤ Raw，对任何「每点值 ≤1」的实现都恒真 → 守不住不变量）：
         // [1,1,1,0.5,0.1] 花 1.0 → 扣 0.1 + 0.5 + 0.4，第三点余 0.6；回补 25% → 0.6 + 0.4×0.25 = 0.7
         var cache = new TalentCache(PositiveConfig());
         cache.Grant(5);
         Assert.True(cache.Spend(1.0));
         Assert.Equal(2.7, cache.Effective, 12);
 
-        // 已满值的点不得被回补抬过 1.0：再入账 1 点后逐点核对（回补只作用于曾被衰减的点）
-        cache.Grant(1);
-        Assert.True(cache.Effective <= cache.Raw + 1e-9,
-            $"回补越界：有效 {cache.Effective} > 原始 {cache.Raw}");
-
-        // 坏配置（RecoveryStep > 1）不得过冲：步进在实现内钳到 1.0，满值点最多抬到 1.0、绝不越过。
-        // 这条是「回补不得抬过满值」的真回归面——把实现里的 Math.Min(step, 1.0) 放开到 2.0 即红。
+        // 坏配置（RecoveryStep > 1）不得过冲：步进必须在实现内钳到 1.0。
+        // 逐点判而不看 Effective：回补预算（＝本次实际扣减量）会盖住某一点的过冲——
+        // 0.6 这一点按 step=2.0 会被抬到 1.4，总和却仍是「扣 1.0 补 ≤1.0」。放开 Math.Min(step,1.0) 即红。
         var overshootCfg = new TalentConfig
         {
             SafeThreshold = 3,
@@ -99,10 +95,86 @@ public sealed class TalentEconomyTests
             RecoveryStep = 2.0,
         };
         var overshoot = new TalentCache(overshootCfg);
-        overshoot.Grant(2);
-        Assert.True(overshoot.Spend(0.5));
-        Assert.True(overshoot.Effective <= overshoot.Raw + 1e-9,
-            $"坏配置下回补过冲：有效 {overshoot.Effective} > 原始 {overshoot.Raw}");
+        overshoot.Grant(5); // 值 [1,1,1,0.5,0.1]
+        Assert.True(overshoot.Spend(1.0)); // 扣 0.1+0.5+0.4，第三点余 0.6；回补预算 1.0
+        foreach (var value in overshoot.Snapshot())
+        {
+            Assert.True(value <= 1.0 + 1e-9, $"回补把点值抬过满值：{value}");
+        }
+    }
+
+    [Fact]
+    public void Cache_RecoveryGain_IsErasedByNextGrantDecay()
+    {
+        // 现状钉住（回补「名不副实」是设计意图与实现不符，属人决策项，见交付报告）：
+        // 回补当场生效，但下一次 Grant 末尾的 ApplyDecay 按位置把已衰减点重新压回深度上限——
+        // 收益被逐位抹平，RecoveryStep=0.25 与 RecoveryStep=0 走同一序列得到完全相同的点值序列。
+        var recoveryConfig = new TalentConfig
+        {
+            SafeThreshold = 2,
+            DecayStep = 0.25,
+            DecayFloor = 0.25,
+            RecoveryStep = 0.25,
+        };
+        var offConfig = new TalentConfig
+        {
+            SafeThreshold = 2,
+            DecayStep = 0.25,
+            DecayFloor = 0.25,
+            RecoveryStep = 0.0,
+        };
+
+        var withRecovery = new TalentCache(recoveryConfig);
+        var without = new TalentCache(offConfig);
+        foreach (var spent in new[] { withRecovery, without })
+        {
+            // Grant(5) → 第 2/3/4 点衰减到 0.75/0.5/0.25，有效 3.5
+            spent.Grant(5);
+            Assert.True(spent.Spend(0.25)); // 吃掉 0.25 尾点
+        }
+
+        // 机制确实在跑：回补当场把 0.75→0.8125、0.5→0.625（+0.1875）
+        Assert.Equal(3.4375, withRecovery.Effective, 12);
+        Assert.True(withRecovery.Effective > without.Effective);
+
+        foreach (var spent in new[] { withRecovery, without })
+        {
+            spent.Grant(1); // 回补收益到此处被 ApplyDecay 抹平
+        }
+
+        Assert.Equal(without.Effective, withRecovery.Effective, 12);
+        Assert.Equal(without.Snapshot(), withRecovery.Snapshot());
+    }
+
+    [Fact]
+    public void Cache_RecoveryGain_IsPartlyErasedByNextGrantDecay_AtProductionDefaults()
+    {
+        // 现状钉住（「回补名不副实」是设计意图与实现不符，属人决策项，见交付报告）。
+        // 生产参数（TalentConfig 默认值＝balance.json talent.cache：阈值 30 / 衰减 0.1 / 回补 0.25）：
+        // Grant(35) 后第 30..34 点衰减为 0.9/0.8/0.7/0.6/0.5（Effective 31.5）；
+        // Spend(2.0) 扣掉尾三点共 1.8 + 从 0.8 点扣 0.2（余 0.6）→ 31.5，回补预算 2.0 把
+        // 0.9→0.925、0.6→0.7（当场 31.625，比关闭回补的 31.5 多 0.125）；
+        // 下一次 Grant(1) 触发 ApplyDecay：0.925 越过后点上限 0.9 被压回，0.7 未越上限 0.8 得以保留
+        // → 回补路径 32.3 vs 关闭回补 32.2，回补收益只剩 0.1（0.125 中的 0.1）。
+        // 该收益为「跨位置上限的透支」，会被后续入账按上限差额逐步回收。
+        var recovery = new TalentCache(new TalentConfig());
+        var baseline = new TalentCache(new TalentConfig { RecoveryStep = 0.0 });
+        foreach (var cache in new[] { recovery, baseline })
+        {
+            cache.Grant(35);
+            Assert.True(cache.Spend(2.0));
+        }
+
+        Assert.Equal(31.625, recovery.Effective, 12);
+        Assert.Equal(31.5, baseline.Effective, 12);
+
+        foreach (var cache in new[] { recovery, baseline })
+        {
+            cache.Grant(1);
+        }
+
+        Assert.Equal(32.3, recovery.Effective, 12);
+        Assert.Equal(32.2, baseline.Effective, 12);
     }
 
     [Fact]
@@ -245,12 +317,82 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
+    public void FocusPenalty_MatchesEffectiveLevelDiscount_AndCaps()
+    {
+        // 面板显示与生效层级必须用同一式子：折扣率从本函数出，EffectiveLevel 内部也调它
+        // （同式两写会在改参数时分叉——面板说 -12%、实际按 -6% 扣）。
+        var config = new TalentConfig { FocusPenaltyPerLevel = 0.06, FocusPenaltyCap = 0.4 };
+        Assert.Equal(0.0, TalentEconomy.FocusPenalty(config, 0), 12);
+        Assert.Equal(0.06, TalentEconomy.FocusPenalty(config, 1), 12);
+        Assert.Equal(0.12, TalentEconomy.FocusPenalty(config, 2), 12);
+        Assert.Equal(0.4, TalentEconomy.FocusPenalty(config, 100), 12); // 触顶
+
+        foreach (var over in new[] { 1, 2, 6, 20 })
+        {
+            var expected = 6.0 * (1.0 - TalentEconomy.FocusPenalty(config, over));
+            Assert.Equal(
+                expected,
+                TalentEconomy.EffectiveLevel(config, 6, softcap: 6, routeCore: false, focusDiscounted: true, focusOver: over),
+                12);
+        }
+    }
+
+    [Fact]
+    public void FocusOver_PinsThresholdTriggerSemantics()
+    {
+        // 达到阈值即算一档（threshold → over=1），不是「超阈值 1 级起算」：
+        // 注释与实现曾不一致，这里把实现的真实口径钉住，改口径必须显式改本用例。
+        var config = new TalentConfig { FocusThreshold = 7 };
+        Assert.Equal(0, TalentEconomy.FocusOver(6, config));
+        Assert.Equal(1, TalentEconomy.FocusOver(7, config));
+        Assert.Equal(2, TalentEconomy.FocusOver(8, config));
+    }
+
+    [Fact]
     public void EffectiveCap_FloorPreventsZero()
     {
         var config = new TalentConfig { RouteCapFloor = 1 };
         // 互斥 -2 后路线减半：(5-2)/2 = 1；无扣减时上限保持结构值
         Assert.Equal(1, TalentEconomy.EffectiveCap(config, maxLevel: 5, mutexReduction: 2, routeHalved: true));
         Assert.Equal(5, TalentEconomy.EffectiveCap(config, maxLevel: 5, mutexReduction: 0, routeHalved: false));
+    }
+
+    [Fact]
+    public void EffectiveCap_NeverExceedsStructuralMaxLevel()
+    {
+        // RouteCapFloor 是「减半后不得归零」的下限，不是上限来源：下限高于结构上限时旧实现的
+        // Math.Max 会把返回值抬到结构上限之上——配置 route_cap_floor=3 时，max_stacks=1 的节点
+        // 可买到 3 级（消费点判的是 level >= cap）。
+        var config = new TalentConfig { RouteCapFloor = 3 };
+        Assert.Equal(1, TalentEconomy.EffectiveCap(config, maxLevel: 1, mutexReduction: 0, routeHalved: false));
+        Assert.Equal(1, TalentEconomy.EffectiveCap(config, maxLevel: 1, mutexReduction: 2, routeHalved: false));
+        Assert.Equal(2, TalentEconomy.EffectiveCap(config, maxLevel: 2, mutexReduction: 0, routeHalved: true));
+
+        // 结构上限 0（不可升级节点）不得被下限抬到 1
+        Assert.Equal(0, TalentEconomy.EffectiveCap(config, maxLevel: 0, mutexReduction: 0, routeHalved: false));
+
+        // 上限足够时下限仍生效（原意保留：互斥扣减/路线减半不得把节点削到买不了）
+        Assert.Equal(3, TalentEconomy.EffectiveCap(config, maxLevel: 5, mutexReduction: 4, routeHalved: false));
+    }
+
+    [Fact]
+    public void EffectiveCap_IsAlwaysWithinStructuralBound()
+    {
+        // 「上限不越界」是消费点语义的前提（level >= cap 即已满）：全网格扫一遍，
+        // 任何组合下返回值都必须落在 [0, maxLevel]。
+        foreach (var maxLevel in new[] { 0, 1, 2, 5, 10 })
+        {
+            foreach (var mutex in new[] { 0, 1, 2, 7, 20 })
+            {
+                foreach (var halved in new[] { false, true })
+                {
+                    var cap = TalentEconomy.EffectiveCap(new TalentConfig(), maxLevel, mutex, halved);
+                    Assert.True(
+                        cap >= 0 && cap <= maxLevel,
+                        $"上限越界：maxLevel={maxLevel} mutex={mutex} halved={halved} → {cap}");
+                }
+            }
+        }
     }
 
     [Fact]

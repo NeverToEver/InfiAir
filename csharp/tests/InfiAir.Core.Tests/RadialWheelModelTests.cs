@@ -228,6 +228,22 @@ public sealed class RadialWheelModelTests
     }
 
     [Fact]
+    public void IndexAtAngle_NonIntegerScroll_NeverHitsInvisibleSlot()
+    {
+        // 生产参数（SlotAngle=27 / HalfSpan=66 / FadeDeg=18）下滚动位 0.5（滚动动画/非整数位）：
+        // item3 弧角 67.5° 已在可视弧外，AlphaAt=0，展示层按 AlphaAt ≤ 0.05 剔除（不画这张卡）；
+        // 而查询 66° 距该槽仅 1.5°（半槽距 13.5° 内），旧实现只按角距吸附 → 返回 3，点击命中没画出来的卡。
+        var wheel = Flat(6);
+        wheel.ScrollTo(0.5);
+        Assert.Equal(0.0, wheel.AlphaAt(wheel.AngleOf(3)));
+        Assert.Null(wheel.IndexAtAngle(66.0));
+        Assert.Null(wheel.IndexAtAngle(64.0));
+
+        // 校验不得把端点区打成死区：可见邻槽仍可命中
+        Assert.Equal(1, wheel.IndexAtAngle(13.5));
+    }
+
+    [Fact]
     public void Easing_EndpointsPinned()
     {
         Assert.Equal(0.0, RadialWheelModel.BounceOut(0.0), 9);

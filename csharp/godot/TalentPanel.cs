@@ -1026,7 +1026,7 @@ public partial class TalentPanel : CanvasLayer
         AddChip(GdFormat.Format(Tr("TALENT_FOOTER_OVERCHARGE_FMT"), talent.OverchargeUsed, talent.Config.OverchargeMaxPerRun), UITheme.Text);
         if (talent.FocusOver() > 0)
         {
-            var penalty = Math.Min(talent.Config.FocusPenaltyCap, talent.Config.FocusPenaltyPerLevel * talent.FocusOver());
+            var penalty = TalentEconomy.FocusPenalty(talent.Config, talent.FocusOver());
             AddChip(GdFormat.Format(Tr("TALENT_FOOTER_FOCUS_FMT"), (int)Math.Round(penalty * 100)), UITheme.Danger);
         }
 

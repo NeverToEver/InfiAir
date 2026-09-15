@@ -92,6 +92,28 @@ public sealed class SettingsMigrationTests
     }
 
     [Fact]
+    public void ResolveResolution_NewFormatDeclaredWithLegacyKey_DoesNotMigrateLegacy()
+    {
+        // 守卫的真正边界：window_size 同时存在且合法，仍不得借旧档迁移路径把非法 resolution
+        // 换成旧档档位——新格式一旦声明（window_mode 存在），旧键已退役，只看新键。
+        var data = new Dictionary<string, object?>
+        {
+            ["window_mode"] = "borderless",
+            ["resolution"] = "bogus",
+            ["window_size"] = "small",
+        };
+        Assert.Equal("1920x1080", Resolve(data));
+
+        // 对照：同数据去掉 window_mode（真旧档）→ 走迁移
+        var legacy = new Dictionary<string, object?>
+        {
+            ["resolution"] = "bogus",
+            ["window_size"] = "small",
+        };
+        Assert.Equal("1280x720", Resolve(legacy));
+    }
+
+    [Fact]
     public void ResolveResolution_NoKeysAtAll_KeepsDefault()
     {
         Assert.Equal("1366x768", Resolve(new Dictionary<string, object?>(), "1366x768"));
