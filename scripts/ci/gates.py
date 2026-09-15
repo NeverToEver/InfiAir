@@ -265,6 +265,18 @@ def main() -> int:
             print(f"   ！！未执行（判失败）：未找到 Godot 可执行文件（日志：{log_file}）")
             results.append((step["name"], False, log_file))
             continue
+        if step["kind"] == "dotnet" and not shutil.which("dotnet"):
+            # 与 godot 同款预检：缺 dotnet 时 subprocess.run 抛 FileNotFoundError，
+            # 栈回溯会中断整个 main()——build 之后的步骤一步都不跑、汇总表也不打。
+            # 判失败并继续后续步骤，失败面与失败原因都可读（AGENTS §6 铁律 2）。
+            log_file = log_dir / f"{step['slug']}.log"
+            log_file.write_text(
+                "未找到 dotnet：本步无法执行。请安装 .NET 8 SDK，或确认它在 PATH 上。\n",
+                encoding="utf-8",
+            )
+            print(f"   ！！未执行（判失败）：未找到 dotnet 可执行文件（日志：{log_file}）")
+            results.append((step["name"], False, log_file))
+            continue
         ok, log_file = run_step(step, bash, wsl, godot_shell, log_dir)
         if not ok:
             print(f"   ！！失败：{step['name']}（日志：{log_file}）")

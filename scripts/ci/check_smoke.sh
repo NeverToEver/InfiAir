@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 无头冒烟十六趟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
-# 覆盖「跑不到就发现不了」的面（16 趟 run_case；同一开关的不同参数视作同一面）：
+# 覆盖「跑不到就发现不了」的面（趟数与调度单源在文件末尾 SMOKE_CASES；同一开关的不同参数视作同一面）：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
 #   2) --settings-probe：设置页各分组在「开页」时才构建，写错＝玩家点开即崩；
 #   3) --event-probe=formation_strike / elite_turret：遭遇要过分数门槛 + 掷签，常规冒烟跑不到，
@@ -50,7 +50,7 @@
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
-# 第 1 趟跑生产 main.tscn；第 2~15 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入
+# 首趟跑生产 main.tscn；中间各趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入
 # main.tscn）——测试开关不进生产 main.tscn/Main（AGENTS §5）；最后一趟直开
 # scenes/tutorial.tscn：教程自有场景与入口，不经 Main，无宿主、无开关，只断完成标记。
 # **每趟都在各自临时用户目录里跑（使用前先清空重建）**——探针会读存档/设置在标题屏与设置页
@@ -103,11 +103,22 @@ run_case() {
     tail -30 "$log"
     return 1
   fi
-  if grep "$ERR" "$log" | grep -v "$ERR_ALLOW" | grep -q .; then
-    echo "::error::$label engine errors in log"
-    grep "$ERR" "$log" | grep -v "$ERR_ALLOW" | head -10
-    return 1
+  # 错误行判定先落文件再取内容，不用 `grep | grep -v | grep -q` 管道：错误行极多时 `grep -q` 一命中
+  # 就退出，上游 grep 可能收到 SIGPIPE，pipefail 下整条管道返回非 0（141）而把有错的日志判成无错。
+  # 模式沿用 BRE（ERR 内是 `\|` 交替）——**不得改成 grep -E**：`\|` 在 ERE 里是字面竖线，
+  # 全部错误类别会一起失配，门禁静默变成永不报错。
+  local errs="$log.errs"
+  grep "$ERR" "$log" > "$errs" 2>/dev/null
+  if [ -s "$errs" ]; then
+    grep -v "$ERR_ALLOW" "$errs" > "$errs.kept" 2>/dev/null
+    if [ -s "$errs.kept" ]; then
+      echo "::error::$label engine errors in log"
+      head -10 "$errs.kept"
+      rm -f "$errs" "$errs.kept"
+      return 1
+    fi
   fi
+  rm -f "$errs" "$errs.kept"
   echo "$label: ok"
   return 0
 }
@@ -287,13 +298,37 @@ SMOKE_CASES=(
 # 失败趟的输出与串行时同形（run_case/expect_marker 里的 ::error:: 与日志尾部照打）。
 total="${#SMOKE_CASES[@]}"
 failures=0
+out_dir="$(mktemp -d)"
+trap 'rm -rf "$out_dir"' EXIT
+
+# 单趟失败判定：退出码非零，或该趟输出里出现 `::error::`。
+# 为什么不能只看退出码：每趟函数体是「run_case 紧随 expect_marker」两条**并列**语句，脚本未开
+# `set -e`（只用 set -uo pipefail），函数退出码只等于最后一条命令——run_case 判出的引擎错误
+# 会被紧随其后的 expect_marker 成功覆盖，于是「日志有 ERROR 但路径跑完」的趟判绿，
+# 而这一整类正是错误正则（含 `Invalid polygon data`、通用 `ERROR:`）存在的理由。
+case_failed() {
+  local out="$1" rc="$2"
+  if [ "$rc" -ne 0 ]; then
+    return 0
+  fi
+  if [ -f "$out" ] && grep -qF "::error::" "$out"; then
+    return 0
+  fi
+  return 1
+}
+
 if [ "$WORKERS" -le 1 ]; then
+  # 串行：输出实时可见，首个失败即退出（与既有行为一致）
   for fn in "${SMOKE_CASES[@]}"; do
-    "$fn" || exit 1
+    out="$out_dir/$fn.out"
+    "$fn" 2>&1 | tee "$out"
+    rc=${PIPESTATUS[0]}
+    if case_failed "$out" "$rc"; then
+      echo "::error::无头冒烟在趟次 $fn 处失败（串行模式，首个失败即停）"
+      exit 1
+    fi
   done
 else
-  out_dir="$(mktemp -d)"
-  trap 'rm -rf "$out_dir"' EXIT
   i=0
   while [ "$i" -lt "$total" ]; do
     end=$((i + WORKERS))
@@ -304,7 +339,9 @@ else
       pids+=($!)
     done
     for ((j = i; j < end; j++)); do
-      if ! wait "${pids[j - i]}"; then
+      rc=0
+      wait "${pids[j - i]}" || rc=$?
+      if case_failed "$out_dir/$j.out" "$rc"; then
         failures=$((failures + 1))
       fi
     done

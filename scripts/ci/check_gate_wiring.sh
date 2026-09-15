@@ -53,6 +53,55 @@ def read(path: pathlib.Path):
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+# C# 字符串字面量（普通/逐字/原始）与行注释。剥壳只求「注释里的标记不算打印点」，
+# 不做完整词法分析：逐字符状态机跳过字符串内部，遇到 // 即丢弃到行尾。
+CSHARP_STRING = re.compile(r'@""(?:[^"]|"")*"|"""[\s\S]*?"""|"(?:\\.|[^"\\])*"', re.S)
+
+
+def strip_comments(src: str) -> str:
+    """剥掉行注释与块注释（字符串字面量内部的 // 不动）。"""
+    out = []
+    i = 0
+    n = len(src)
+    while i < n:
+        ch = src[i]
+        if ch == '"':
+            m = CSHARP_STRING.match(src, i)
+            if m:
+                out.append(m.group(0))
+                i = m.end()
+                continue
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and src[i + 1] == "/":
+            nl = src.find("\n", i)
+            i = n if nl < 0 else nl
+            continue
+        if ch == "/" and i + 1 < n and src[i + 1] == "*":
+            end = src.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+PRINT_CALL = re.compile(
+    r"\b(?:GD\.Print|GD\.PushError|GD\.PushWarning|GdFormat\.Format)\s*\(([\s\S]*?)\)\s*[,;)]"
+)
+
+
+def print_literals(src: str) -> list[str]:
+    """打印调用实参里的字符串字面量（剥注释后的源码）。只认这些调用，避免把任意文案
+    字符串（如 HUD 标签、日志前缀之外的说明）当成完成标记的打印点。"""
+    lits = []
+    for m in PRINT_CALL.finditer(src):
+        for lm in re.finditer(r'"((?:[^"\\]|\\.)*)"', m.group(1)):
+            lits.append(lm.group(1))
+    return lits
+
+
 gates_text = read(GATES)
 yml_text = read(CI_YML)
 smoke_text = read(SMOKE)
@@ -152,7 +201,7 @@ if smoke_text is not None:
     # 趟数下限：配对性判定抓不到「整趟两行一起删」——run_case 与 expect_marker 同删时配对关系
     # 仍成立、条数仍相等，覆盖静默消失而门禁判 clean。取**下限**而非精确值：新增趟是被鼓励的
     # 覆盖增量、不构成静默错误（新趟漏配 expect_marker 由上面的配对性判定抓），把新增也判红
-    # 会造成「加覆盖反而红」的反向激励。当前实测 16 趟（check_smoke.sh 的 run_case 条数）。
+    # 会造成「加覆盖反而红」的反向激励。当前实测十八趟（check_smoke.sh 的 run_case 条数）。
     MIN_SMOKE_CASES = 18
     if len(cases) < MIN_SMOKE_CASES:
         errors.append(
@@ -160,6 +209,75 @@ if smoke_text is not None:
             f"{MIN_SMOKE_CASES}）——整趟的 run_case 与 expect_marker 一起删时配对性判定仍成立，"
             "门禁会静默判 clean；确认是有意缩减覆盖后同步本常量，不要放宽下限"
         )
+
+    # ---------- c2) 调度数组 SMOKE_CASES ↔ 趟函数 ----------
+    # 上一节的计数只数「语句文本」，而真正决定哪些趟被执行的是末尾的 SMOKE_CASES 数组。
+    # 保留 run_case/expect_marker 两行、只从数组里删一行时：语句计数不变、配对性成立、下限守卫
+    # 也落空，而该趟根本不执行——门禁自报的趟数与实际执行趟数静默分叉（元门禁自己判 clean）。
+    defined_case_fns = set()
+    for m in re.finditer(r"^(smoke_[A-Za-z0-9_]+)\(\)\s*\{", smoke_text, re.M):
+        defined_case_fns.add(m.group(1))
+
+    arr = re.search(r"SMOKE_CASES=\((.*?)^\)", smoke_text, re.M | re.S)
+    if not arr:
+        errors.append("check_smoke.sh 未找到 SMOKE_CASES=(...) 调度数组——取不到判据，拒绝判 clean")
+    else:
+        smoke_cases = [
+            tok for tok in arr.group(1).split()
+            if tok and not tok.startswith("#")
+        ]
+        if not smoke_cases:
+            errors.append("SMOKE_CASES 为空——没有任何趟会被执行，拒绝判 clean")
+        for name in smoke_cases:
+            if name not in defined_case_fns:
+                errors.append(f"SMOKE_CASES 引用了未定义的趟函数 {name}（调度即失败或空跑）")
+        # 含 run_case 的趟函数必须全部在调度数组里——漏一个就等于整趟覆盖静默消失
+        for name in sorted(defined_case_fns):
+            body = re.search(rf"^{name}\(\)\s*\{{(.*?)^\}}", smoke_text, re.M | re.S)
+            if body and "run_case " in body.group(1) and name not in smoke_cases:
+                errors.append(
+                    f"趟函数 {name} 定义了 run_case 却不在 SMOKE_CASES 里——该趟永不执行，"
+                    "而语句计数、配对性与下限守卫都仍成立，正是「整趟覆盖静默消失」的漏判形态"
+                )
+        if len(smoke_cases) != len(cases):
+            errors.append(
+                f"SMOKE_CASES 有 {len(smoke_cases)} 项、run_case 语句有 {len(cases)} 条——"
+                "两者分叉即有趟次被定义却未调度（或调度了未定义项）"
+            )
+
+    # 每趟的日志路径与用户目录（run_case 第 3/5 实参）此前不参与任何判定：复制粘贴漏改时
+    # 两趟共写同一日志、共用同一用户目录——并行下完成标记可能来自另一趟，且破坏 check_smoke.sh
+    # 自陈的「每趟各自临时用户目录、先清空重建」隔离不变式（AGENTS §5 不依赖外部残留状态）。
+    arg_re = re.compile(r'"((?:[^"\\]|\\.)*)"|(\S+)')
+    seen_log: dict[str, str] = {}
+    seen_userdir: dict[str, str] = {}
+    for stmt in cases:
+        toks = [q if q else b for q, b in arg_re.findall(stmt)]
+        # run_case "label" frames log scene userdir [开关...]
+        if len(toks) < 6:
+            errors.append(f"run_case 实参不足 6 项（label/frames/log/scene/userdir）：{stmt[:80]}")
+            continue
+        label, log_tok, userdir_tok = toks[1], toks[3], toks[5]
+        if not userdir_tok:
+            errors.append(
+                f"趟次「{label}」未给用户目录（第 5 实参为空）——不隔离的趟会读走开发者配置、"
+                "写坏开发者当前存档，且同目录重跑会读到上一趟的残留（AGENTS §5）"
+            )
+        else:
+            if userdir_tok in seen_userdir:
+                errors.append(
+                    f"趟次「{label}」与「{seen_userdir[userdir_tok]}」共用用户目录 {userdir_tok}"
+                    "——破坏各趟隔离（AGENTS §5 不依赖外部残留状态）"
+                )
+            else:
+                seen_userdir[userdir_tok] = label
+        if log_tok in seen_log:
+            errors.append(
+                f"趟次「{label}」与「{seen_log[log_tok]}」共用日志 {log_tok}"
+                "——并行下两进程写同一文件，完成标记可能来自另一趟"
+            )
+        else:
+            seen_log[log_tok] = label
 
     # 逐条配对：run_case 语句之后紧邻的语句必须是 expect_marker。帧数参数另判正整数：
     # 帧数被掏空（空串或非数字）时该趟只跑 0 帧，完成标记必然缺失，却可能因退出码 0 而静默过。
@@ -191,22 +309,24 @@ if smoke_text is not None:
             for p in CSHARP.rglob("*.cs"):
                 if any(part in {"obj", "bin", "__pycache__"} for part in p.parts):
                     continue
-                out.append(p.read_text(encoding="utf-8", errors="replace"))
+                out.append(strip_comments(p.read_text(encoding="utf-8", errors="replace")))
         return out
 
     sources = csharp_sources()
     if not sources:
         errors.append("csharp/ 下未收集到任何 .cs——路径漂移？取不到判据，拒绝判 clean")
 
-    # 含格式占位的打印模板 → 正则：id/计数等由运行期代入，字面量里查不到完整标记
-    literal_re = re.compile(r'"((?:[^"\\]|\\.)*)"')
-    placeholder_re = re.compile(r"%[-+0-9.#]*[sdfgxX]")
+    # 判据落在**打印调用的实参**上，而不是「全库字符串包含」：此前按包含判定把注释里的标记、
+    # 别的日志文案里恰好包含的标记、以及另一趟的字面量（例如把编队趟的标记换成某条 fog 趟的
+    # 错误文案）都算作「有打印点」——而该断言在其对应趟次永不可能通过，现场表现是「一条永远
+    # 红的门禁」，正是本条声称要抓的形态。故先剥注释，再只取打印调用实参里的字符串字面量。
+    print_lits: set[str] = set()
     templates = []
+    placeholder_re = re.compile(r"%[-+0-9.#]*[sdfgxX]")
     for src in sources:
-        for lit in literal_re.findall(src):
-            if "%" not in lit or "]" not in lit:
-                continue
-            if not placeholder_re.search(lit):
+        for lit in print_literals(src):
+            print_lits.add(lit)
+            if "%" not in lit or "]" not in lit or not placeholder_re.search(lit):
                 continue
             patterns = []
             pos = 0
@@ -217,6 +337,8 @@ if smoke_text is not None:
             patterns.append(re.escape(lit[pos:]))
             templates.append(re.compile("".join(patterns)))
 
+    if not print_lits:
+        errors.append("csharp/ 里未从打印调用中解析出任何字符串——取不到判据，拒绝判 clean")
     if not templates:
         errors.append("csharp/ 里未解析出任何含占位的打印模板——取不到判据，拒绝判 clean")
 
@@ -229,13 +351,15 @@ if smoke_text is not None:
         marker = found[-1]
         if "$" in marker:
             continue  # 变量拼出的标记无法静态判定，跳过（本表内不存在）
-        if any(marker in src for src in sources):
+        # 运行时判定是 `grep -qF`（子串匹配），故标记是某条打印实参的子串即成立
+        # （如 `[boss-probe] 阶段机全周期完成` 命中 `...（P1→P2→狂暴→击杀，BossKills=%d）`）。
+        if any(marker in lit for lit in print_lits):
             continue
         if any(t.fullmatch(marker) for t in templates):
             continue
         errors.append(
-            f"完成标记「{marker}」在 csharp/ 里找不到打印点（字面命中和格式模板都不匹配）"
-            "——字符串写错则该断言永不可能通过"
+            f"完成标记「{marker}」在 csharp/ 的打印调用实参里找不到（子串命中与格式模板都不匹配）"
+            "——字符串写错则该断言永不可能通过；只出现在注释或非打印文案里都不算打印点"
         )
 
 if errors:
