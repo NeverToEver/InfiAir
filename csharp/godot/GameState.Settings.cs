@@ -48,8 +48,6 @@ public partial class GameState : Node
 
     public double ViewZoomFactor() => _settings.ViewZoomFactor();
 
-    public void SetViewZoomFactor(double factor) => _settings.SetViewZoomFactor(factor);
-
     /// <summary>当前可见世界区域（相机未注册时以 (960,540) 为心），margin 向外扩张。
     /// 屏幕边缘钳制 / 出屏销毁 / 刷怪位置统一以此为准；zoom=1 时即全屏 1920×1080。
     /// 物理帧内缓存：同一物理帧内多次调用（每弹/每敌/玩家/Boss）共享一次视口查询——

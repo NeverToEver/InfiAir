@@ -81,7 +81,9 @@ public partial class BaseConsole : RadialMenuLayer
 
     /// <summary>数据抖动装饰：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
     /// （tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。
-    /// 页面隐藏时经 VisibleChanged 暂停/恢复（关页后不再空转）。</summary>
+    /// 隐藏即停由调用方手工驱动：ShowBase 与 OnResumePressed 的退场回调各调一次
+    /// <see cref="OnVisibleChangedForFx"/>；**新增隐藏本层的路径必须同步补调**，
+    /// 否则 5 条循环 tween 会在关页后继续空转（本层未订阅 VisibilityChanged）。</summary>
     private void ApplyDataFlicker(Label label)
     {
         var tween = CreateTween().SetLoops();
@@ -103,8 +105,10 @@ public partial class BaseConsole : RadialMenuLayer
     private readonly List<Tween> _dataFlickerTweens = new();
     private Tween? _scanTween;
 
-    /// <summary>页面隐藏时暂停装饰 tween、可见时恢复；树暂停期间照常播放
-    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。</summary>
+    /// <summary>暂停装饰 tween（隐藏时）或恢复（可见时）；树暂停期间照常播放
+    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。
+    /// 由 ShowBase / OnResumePressed / _Ready 手工调用——本层未订阅 VisibilityChanged，
+    /// 新增隐藏路径须同步补调（见 <see cref="ApplyDataFlicker"/>）。</summary>
     private void OnVisibleChangedForFx()
     {
         void Apply(Tween? tween)

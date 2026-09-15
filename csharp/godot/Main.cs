@@ -291,13 +291,16 @@ public partial class Main : Node2D
     public override void _ExitTree()
     {
         // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值。
-        // 下方 _fogEvents.SetRunActive 属本节点自身资源回收，不因 autoload 取不到而跳过
+        // 迷雾本局开关走 FogEventManager.Events() → GameState.Instance，同样取不到即抛；
+        // 下面全部复位都只在本节点能安全触达 autoload（gs != null）时执行。
         var gs = GameState.TryGetInstance();
         if (gs != null)
         {
             // 子弹时间内退出（重开/中途退出）也要保证演出倍率与顿帧残留一并复位
             gs.ResetTimeScale();
             gs.SummonInProgress = false; // 同 TimeScale：跨场景不残留
+            _fogEvents.SetRunActive(false);
+            gs.SetRunActive(false);
             var camRef = gs.CameraRef;
             if (camRef == _camera)
             {
@@ -305,8 +308,6 @@ public partial class Main : Node2D
             }
         }
 
-        _fogEvents.SetRunActive(false);
-        gs?.SetRunActive(false);
         // GameState 信号显式断开——退出时 GameState 先于本节点释放的
         // 时序下连接悬空可致退出 segfault（GDScript 自动断开，C# 需手动）
         if (gs != null)
@@ -393,6 +394,11 @@ public partial class Main : Node2D
         // 0.24 慢速 1.2s → 0.3s 内线性恢复 1.0 → 恢复完成才发快照弹幕
         if (_bulletTimeLeft > 0.0f)
         {
+            // 慢速段每帧重报演出倍率：暂停复位口（GameState.SetTreePaused → ClearForPause）
+            // 会把倍率交还 1.0，而本段内 _timeScaleRamp 恒为 -1（上报只在 ramp 分支发生），
+            // 不重报则恢复本局后剩余慢速段会在 1.0 下跑完——子弹时间被悄悄吃掉。
+            // 正常路径（未暂停）重报值未变，ApplyTimeScale 早退，不产生额外引擎写入。
+            GameState.Instance.SetEnrageTimeScale(ENRAGE_SLOW_SCALE);
             _bulletTimeLeft -= d;
             if (_bulletTimeLeft <= 0.0f)
             {
@@ -717,9 +723,8 @@ public partial class Main : Node2D
         _events.EndActive(_events.GROUP_ENCOUNTER);
         _spawner.SetProcess(false);
         _spawner.ClearPending(); // 释放排队中的敌机/Boss 预告（死亡局不再进场）
-        // 玩家死亡兜底：输入/狂暴移动锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
+        // 玩家死亡兜底：输入锁立即解除（锁计时器随暂停冻结，不能依赖它解锁）
         _player.UnlockInput();
-        _player.MovementLocked = false;
         // 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24
         ResetGlobalTimeScale();
         // 死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）

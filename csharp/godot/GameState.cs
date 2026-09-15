@@ -199,8 +199,9 @@ public partial class GameState : Node
     {
         if (paused)
         {
-            // 暂停即清顿帧残留：否则 Always 的暂停菜单/设置页会被冻结倍率（0.06）慢放
-            _gameFeel.ClearHitStop();
+            // 暂停即清掉手感域对时间缩放的全部影响（顿帧冻结 + 狂暴演出倍率）：只清顿帧会让
+            // Always 的暂停菜单/设置页/天赋面板被 0.24 的演出倍率慢放（见 GameFeelService.ClearForPause）
+            _gameFeel.ClearForPause();
         }
 
         var tree = (SceneTree?)Engine.GetMainLoop();
@@ -208,6 +209,16 @@ public partial class GameState : Node
         {
             tree.Paused = paused;
         }
+    }
+
+    /// <summary>退出前统一清理：设置落盘 + 停止未播完的音效（带播未停时 AudioStreamPlayback
+    /// 会在退出时泄漏，见 SfxPlayer）。**所有退出路径共用**——散在各 UI 里直调
+    /// SaveSettings + Quit 会漏掉清理，新增清理项时必然只落一半。
+    /// 不负责退出动画/二次确认：那些属各入口的演出编排（如 ExitConfirm 的淡出）。</summary>
+    public void ExecuteExitCleanup()
+    {
+        SaveSettings();
+        StopAllSfx();
     }
 
     /// <summary>终止本局回标题屏单口（结算页「返回标题」/暂停/教程 Esc/BackNavigator 同路由）：
@@ -604,8 +615,19 @@ public partial class GameState : Node
         PlayerDied += OnPlayerDiedDeleteRunSave;
     }
 
-    /// <summary>死亡即删档（本局存档单一钩子）。</summary>
-    private void OnPlayerDiedDeleteRunSave() => DeleteRunSave();
+    /// <summary>死亡即删档（本局存档单一钩子）——仅真实本局删（门控见 <see cref="_runActive"/>）：
+    /// 教程死亡走同一信号且被教程当预期终态，标题屏等非本局场景也可能有玩家实体；
+    /// 无门控会让「玩教程顺手抹掉玩家真实检查点」（同 ExitToTitle 对此类误伤的规避）。
+    /// 死亡探针趟只断「管理器 EndActive → 事件 Abort → 归还波次/Boss 互斥」，不依赖删档，不受影响。</summary>
+    private void OnPlayerDiedDeleteRunSave()
+    {
+        if (!_runActive)
+        {
+            return;
+        }
+
+        DeleteRunSave();
+    }
 
     // 运行期时钟门控：仅真实本局（main 为 current_scene）累积 RunTime/推进 survive 任务/
     // 难度时间档/连击窗口——welcome 等非本局场景的停留时间不得污染下一局难度曲线。
