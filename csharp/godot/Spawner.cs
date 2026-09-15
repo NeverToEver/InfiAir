@@ -196,30 +196,43 @@ public partial class Spawner : Node
 
         // 遭遇事件触发参数（trigger_interval/trigger_chance/min_score）由
         // 统一事件管理器读取（GameEventManager，键不变）
-        var normal = GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array());
-        if (normal.VariantType == Variant.Type.Array)
+        MergeTypesInto(ENEMY_TYPES, GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array()));
+        MergeTypesInto(ELITE_TYPES, GameState.Instance.Cfg("elites.types", new Godot.Collections.Array()));
+    }
+
+    /// <summary>balance 机型覆盖表逐条并入默认表（原地）。生产注入与 BuildMergedEnemyTypes
+    /// 共用本入口——教程不持有 Spawner 实例，只有共用同一段 merge 才能保证
+    /// 调 balance.json 时正局与教程同步跟随（曾因教程直读默认表而静默脱钩）。
+    /// 覆盖表非数组时整体跳过（损坏 JSON 回退默认表）。</summary>
+    private static void MergeTypesInto(Godot.Collections.Array<Godot.Collections.Dictionary> table, Variant srcV)
+    {
+        if (srcV.VariantType != Variant.Type.Array)
         {
-            var normalArr = normal.AsGodotArray();
-            for (var i = 0; i < Mathf.Min(normalArr.Count, ENEMY_TYPES.Count); i++)
-            {
-                MergeType(ENEMY_TYPES[i], normalArr[i]);
-            }
+            return;
         }
 
-        var elites = GameState.Instance.Cfg("elites.types", new Godot.Collections.Array());
-        if (elites.VariantType == Variant.Type.Array)
+        var src = srcV.AsGodotArray();
+        for (var i = 0; i < Mathf.Min(src.Count, table.Count); i++)
         {
-            var elitesArr = elites.AsGodotArray();
-            for (var i = 0; i < Mathf.Min(elitesArr.Count, ELITE_TYPES.Count); i++)
-            {
-                MergeType(ELITE_TYPES[i], elitesArr[i]);
-            }
+            MergeTypeInto(table[i], src[i]);
         }
+    }
+
+    /// <summary>默认普通机型表叠加 balance 覆盖（与生产注入走同一段 merge）。
+    /// 供不持有 Spawner 实例的路径（教程）取配置；表局部构建并返回新数组，
+    /// 不静态持有（静态持 Godot 对象退出 segfault，见类头）。</summary>
+    public static Godot.Collections.Array<Godot.Collections.Dictionary> BuildMergedEnemyTypes()
+    {
+        var table = BuildEnemyTypes();
+        MergeTypesInto(table, GameState.Instance.Cfg("enemies.types", new Godot.Collections.Array()));
+        return table;
     }
 
     private static bool IsNumber(Variant v) => (v.VariantType == Variant.Type.Int || v.VariantType == Variant.Type.Float) && v.VariantType != Variant.Type.Bool;
 
-    private void MergeType(Godot.Collections.Dictionary dst, Variant srcV)
+    /// <summary>单条机型覆盖并入 dst（原地）。无实例状态，生产注入与教程取配置共用；
+    /// 逐键判型 + 值域钳制，坏值回退 dst 既有值而非覆写（静默错误护栏）。</summary>
+    public static void MergeTypeInto(Godot.Collections.Dictionary dst, Variant srcV)
     {
         if (srcV.VariantType != Variant.Type.Dictionary)
         {

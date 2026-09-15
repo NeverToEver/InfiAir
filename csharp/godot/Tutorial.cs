@@ -70,12 +70,6 @@ public partial class Tutorial : Node2D
         _onPlayerDied = Callable.From(OnPlayerDied);
     }
 
-
-
-
-
-
-
     public override void _Ready()
     {
         GameState.Instance.ResetRun();
@@ -103,6 +97,9 @@ public partial class Tutorial : Node2D
         HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
         DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
         EnterStage(0);
+        // 固定标记：教程场景就绪观测点（冒烟门禁据此断言教程入场链路跑通）；
+        // 场景加载/切场景失败时本行不执行，无头也能判出
+        GD.Print("[tutorial] 场景就绪");
     }
 
     public override void _ExitTree()
@@ -329,11 +326,11 @@ public partial class Tutorial : Node2D
         return n;
     }
 
-    /// <summary>敌机配置取默认表首项（教程只用 straight 基础型）。</summary>
+    /// <summary>敌机配置取「默认表 + balance 覆盖」首项（教程只用 straight 基础型）。
+    /// 经 Spawner 的共用 merge 入口，保证教程与正局同源——不得直读 BuildEnemyTypes 默认表。</summary>
     private static Godot.Collections.Dictionary EnemyTypeConfig()
     {
-        // Spawner.ENEMY_TYPES 为实例属性——默认表经静态工厂构建（教程只用 straight 基础型）
-        return Spawner.BuildEnemyTypes()[0];
+        return Spawner.BuildMergedEnemyTypes()[0];
     }
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
