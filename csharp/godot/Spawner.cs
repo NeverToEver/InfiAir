@@ -16,9 +16,8 @@ namespace InfiAir;
 public partial class Spawner : Node
 {
     // 弹种名静态缓存：spawn 路径反复比较/回退，避免每次 string→StringName 转换。
+    // 其余弹种（spread/laser）的判定已收口到 Enemy.Setup，本端只认抽签回退档 single。
     private static readonly StringName BulletTypeSingle = new("single");
-    private static readonly StringName BulletTypeSpread = new("spread");
-    private static readonly StringName BulletTypeLaser = new("laser");
 
     /// <summary>生成区水平内边距（px）：波次槽位与随机单机的 x 范围两侧各内收此距离
     /// （敌机不在屏幕边缘贴边生成）。</summary>
@@ -72,8 +71,7 @@ public partial class Spawner : Node
     public float WAVE_INTERVAL_END { get; set; } = 4.0f;
     public float RAMP_TIME { get; set; } = 300.0f;
 
-    /// <summary>Boss 击杀难度乘数对波次间隔的影响系数。</summary>
-    public float DIFFICULTY_FACTOR { get; set; } = 0.15f;
+    /// <summary>波次间隔下限（钳制用；间隔的难度项与地板在 core DifficultyScaling）。</summary>
     public float INTERVAL_MIN { get; set; } = 2.5f;
     public int WAVE_SIZE_START { get; set; } = 3;
     public int WAVE_SIZE_END { get; set; } = 5;
@@ -110,12 +108,12 @@ public partial class Spawner : Node
 
     /// <summary>遭遇事件对 Boss 调度的冻结（深度计数口径：事件持有 +1、释放 -1，与
     /// _wavesPauseDepth 同构）——两个事件各自持有时，先结束者不会提前解冻后结束者的冻结。
-    /// 到期记 _boss_pending 一次，不累积。
+    /// 到期记 pending 一次，不累积。记账（深度/pending/释放语义）在 core BossFreezeLedger，
+    /// 本端只做引擎侧对接。
     /// 对偶契约：GameEventManager.CanDriveEncounters 每帧重验本端处理状态后才驱动事件掷签，
     /// 同帧 Boss/遭遇竞态由「事件先冻结 Boss + 本端 boss_resume_delay 推迟恢复」兜住——
     /// 本端提供冻结/ pending/恢复状态，触发时序归事件管理器。</summary>
-    private int _bossFreezeDepth;
-    private bool _bossPending;
+    private readonly Core.Combat.BossFreezeLedger _bossLedger = new();
 
     /// <summary>事件期间普通波次暂停（计数口径：事件 Start 时 +1、收尾 ResumeWaves 时 -1。
     /// 生产路径由统一事件管理器保证 encounter 组单活跃；计数化后即使不变量被绕过
@@ -151,7 +149,9 @@ public partial class Spawner : Node
         // 时间兜底 ≤0 时 Boss 无限连出（_bossTimer≥0 恒满足）；分数门负值恒真——钳下限
         BOSS_MIN_INTERVAL = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_min_interval", BOSS_MIN_INTERVAL).AsDouble(), 0.0f);
         BOSS_TIME_LIMIT = Mathf.Max((float)GameState.Instance.Cfg("spawner.boss_time_limit", BOSS_TIME_LIMIT).AsDouble(), 5.0f);
-        DIFFICULTY_FACTOR = (float)GameState.Instance.Cfg("spawner.difficulty_factor", DIFFICULTY_FACTOR).AsDouble();
+        // 注：波次间隔的难度斜率（原脚本 DIFFICULTY_FACTOR 字段）已删——它从 spawner.difficulty_factor
+        // 读值却从不参与计算，真实斜率在 core DifficultyScaling（经 BalanceService 同名键注入），
+        // 留着是「看着能调、实际调不动」的漂移源。
         // cfg 返回 Variant，显式转 Array[int] 再赋 typed 变量
         var us = GameState.Instance.Cfg("spawner.unlock_scores", UNLOCK_SCORES);
         var usArr = new Godot.Collections.Array<int>();
@@ -326,18 +326,10 @@ public partial class Spawner : Node
         return pool;
     }
 
-    /// <summary>当前在屏的 spread 弹种敌机数（离场中的不计）。
-    /// 遍历 GameState.enemies 注册表（只含在屏活跃敌机）而非 "enemy" 组——
-    /// 池化敌机 deactivate 时不 remove_from_group，组遍历会把池中闲置实例计入、虚抬 spread 上限。
-    /// 经统一实体管理器 count_enemies 批量 API 统计。</summary>
-    private int CountSpreadEnemiesInternal()
-    {
-        return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
-            e is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting()));
-    }
-
-    /// <summary>从机型弹种池抽取弹种；spread 超同屏上限时退化（普通→single，精英→laser）。
-    /// 同屏上限按难度取（GameState.spread_enemy_cap：easy 1 / medium 2 / hard 3）。</summary>
+    /// <summary>从机型弹种池抽取弹种。spread 同屏上限**不在此判定**：敌机延后进场（先抽签、
+    /// telegraph 后才 Spawn），同一波抽签同帧发生、在册数彼此不变，此处判定会让整波全部抽中
+    /// spread、上限形同虚设；且下游还有 NoBulletType 旁路（Boss-3 召唤/分裂子机）不走本方法。
+    /// 上限统一在 Enemy.Setup（唯一写 BulletType 的入场收口）按 core SpreadCapPolicy 收敛。</summary>
     private StringName PickBulletTypeInternal(Godot.Collections.Dictionary config)
     {
         var raw = config.GetValueOrDefault("bullet_types", new Variant());
@@ -350,11 +342,6 @@ public partial class Spawner : Node
             {
                 btype = (StringName)pool[(int)(GD.Randi() % (uint)pool.Count)];
             }
-        }
-
-        if (btype == BulletTypeSpread && CountSpreadEnemiesInternal() >= GameState.Instance.SpreadEnemyCap())
-        {
-            btype = (bool)config.GetValueOrDefault("elite", false) ? BulletTypeLaser : BulletTypeSingle;
         }
 
         return btype;
@@ -480,13 +467,14 @@ public partial class Spawner : Node
         Schedule(2.0f, () => SpawnBossInternal(0));
     }
 
-    /// <summary>p_type &lt;= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（轮换扩 4 型含月蚀）。</summary>
+    /// <summary>p_type &lt;= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（轮换扩 4 型含月蚀）。
+    /// 派生在 core BossRotation.TypeForKills（单测钉住循环与负值口径）。</summary>
     private void SpawnBossInternal(int pType = 0)
     {
         _bossActive = true;
         if (pType <= 0)
         {
-            pType = GameState.Instance.BossKills % 4 + 1; // 轮换 4 型（含月蚀）
+            pType = Core.Combat.BossRotation.TypeForKills(GameState.Instance.BossKills);
         }
 
         var boss = _bossScene.Instantiate<Boss>();
@@ -503,19 +491,24 @@ public partial class Spawner : Node
     }
 
     /// <summary>Boss 离场统一结算。逃跑离场也会发 Died（Boss 逃跑路径同时发 Escaped+Died，
-    /// 用于血条隐藏/生成器重排）；此处按 IsEscaped 区分，只对真·击杀推进轮换与休整。
+    /// 用于血条隐藏/生成器重排）；此处按 IsEscaped 区分，只对真·击杀推进轮换与休整
+    /// （「逃跑不推进轮换、不休息」的判定在 core BossRotation，单测钉住）。
     /// 逃跑期 collision_layer 已置 0（不再受弹），故逃跑中不存在"击毁"路径，IsEscaped 判定无歧义。</summary>
     private void OnBossDied(Boss? boss = null)
     {
         _bossActive = false;
         _bossTimer = 0.0f;
-        if (boss != null && boss.IsEscaped)
+        var escaped = boss != null && boss.IsEscaped;
+        if (!Core.Combat.BossRotation.RotationAdvances(escaped))
         {
             return; // 逃跑离场：不推进轮换、不给休整（与 OnBossEscaped 契约一致）
         }
 
         _nextBossScore += BOSS_SCORE_STEP;
-        OnSpecialKilled(); // Boss 击杀休整
+        if (Core.Combat.BossRotation.Rests(escaped))
+        {
+            OnSpecialKilled(); // Boss 击杀休整
+        }
     }
 
     /// <summary>Boss 逃跑：不推进轮换、不给休整，仅解除波次/事件占用（Boss 计时重置，之后按分数/时间门再触发同型）。</summary>
@@ -621,7 +614,7 @@ public partial class Spawner : Node
             // 精英炮塔/轰炸编队事件期间 Boss 触发被冻结：只记录一次 pending（重复到期覆盖，不累积）
             if (BossFrozen())
             {
-                _bossPending = true;
+                _bossLedger.NoteDue();
             }
             else
             {
@@ -648,14 +641,18 @@ public partial class Spawner : Node
     // 事件互斥/Boss 调度/计时状态封装，禁止跨类直接写 _ 私有字段；PascalCase 为 C# typed 访问名。
     // 遭遇事件的活跃/互斥判定归 GameEventManager（唯一事实源），本端只暴露它需要的三个钩子。
 
-    /// <summary>Boss 冻结持有/释放（深度计数，见 _bossFreezeDepth）。</summary>
-    public void SetBossFrozen(bool frozen)
-    {
-        _bossFreezeDepth = frozen ? _bossFreezeDepth + 1 : Mathf.Max(_bossFreezeDepth - 1, 0);
-    }
+    /// <summary>持有一份 Boss 冻结（深度计数，记账在 core BossFreezeLedger：到期只记一次 pending，
+    /// 不累积）。释放经 ReleaseBossFreeze 成对调用。</summary>
+    public void HoldBossFreeze() => _bossLedger.Hold();
 
     /// <summary>当前是否处于 Boss 冻结（仍有事件持有）。</summary>
-    public bool BossFrozen() => _bossFreezeDepth > 0;
+    public bool BossFrozen() => _bossLedger.Frozen;
+
+    /// <summary>释放一次 Boss 冻结持有并判定是否应立即补触发（调用方随后 TriggerBoss）。
+    /// <paramref name="triggerPending"/>＝false 为打断路径：丢弃期间到期（必须连 pending 一起清，
+    /// 见 core BossFreezeLedger.Release）。仍有其他持有者时不清——由最后一位持有者收场时决定。
+    /// 未持有时空转（不会替其他持有者消费）。</summary>
+    public bool ReleaseBossFreeze(bool triggerPending) => _bossLedger.Release(triggerPending);
 
     public void SetWavesPaused(bool paused)
     {
@@ -669,14 +666,6 @@ public partial class Spawner : Node
 
     /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用）。</summary>
     public void NotifyEventTriggered() => _wavesSinceSpecial = 0;
-
-    /// <summary>读取并清除一次 Boss pending（事件解冻时若期间触发过 Boss 则补触发）。</summary>
-    public bool ConsumeBossPending()
-    {
-        var was = _bossPending;
-        _bossPending = false;
-        return was;
-    }
 
     public void TriggerBoss() => TriggerBossInternal();
 

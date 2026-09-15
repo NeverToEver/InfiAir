@@ -202,7 +202,10 @@ public partial class TurretBattery : Area2D, IDamageable
             var maxStep = TurnRate * d;
             var diff = Mathf.Wrap(target - _facing, -Mathf.Pi, Mathf.Pi);
             _facing += Mathf.Clamp(diff, -maxStep, maxStep);
-            _sprite.Rotation = _facing - Mathf.Pi / 2.0f; // 贴图炮口朝上（-Y），旋转到朝向
+            // 贴图炮口朝画布上缘（生成器 turret() 的炮身在基座之上、炮口制退环/能量核在顶端），
+            // turret.tscn 根节点与 Sprite2D 均无补偿 rotation；换算见 core TurretAim。
+            // 原式 _facing - π/2 按「炮口朝下」推导，炮口与弹道反 180°（从基座方向出弹）。
+            _sprite.Rotation = Core.Combat.TurretAim.SpriteRotation(_facing);
         }
 
         _fireTimer -= d;
@@ -254,7 +257,6 @@ public partial class TurretBattery : Area2D, IDamageable
 
             b.HomingTurnRate = HomingTurnRate;
             b.Position = GlobalPosition + dir * _muzzleOffset;
-            b.SetMeta(Bullet.MetaBulletType, AmmoHoming);
         }
         else if (ammo == AmmoSniper)
         {
@@ -292,7 +294,6 @@ public partial class TurretBattery : Area2D, IDamageable
         }
 
         b.Position = GlobalPosition + dir * _muzzleOffset;
-        b.SetMeta(Bullet.MetaBulletType, pType);
         if (pType == AmmoLaser)
         {
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）

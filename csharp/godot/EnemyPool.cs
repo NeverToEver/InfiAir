@@ -136,6 +136,10 @@ public partial class EnemyPool : Node
                 // reparent 的 _exit_tree（repooling 路径）会 UnregisterEnemy，而 Reactivate 注册在先——
                 // 回挂后补注册（幂等），与「先 reparent 后 Reactivate 注册」语义对齐。
                 GameState.Instance.RegisterEnemy(e);
+                // 同一次 _exit_tree 还会跳过增幅 断开（_repooling 门控），故此处补重连：
+                // Reactivate 的 Connect 发生在 Spawn 期、回挂之后，非幂等重连会把「连在先」的
+                // 连接断掉（slow_field 增量对场上复用敌机失效且无报错）。
+                e.ReconnectAugmentCache();
             }
 
             _pendingActivate.Clear();

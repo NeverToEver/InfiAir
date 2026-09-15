@@ -246,8 +246,14 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
                 gs.UnbindEnemy(this);
             }
 
-            // 增幅 信号断开（池化 reparent 复用由 Reactivate 对称重连）
-            _slowCache.Disconnect(gs);
+            // 增幅 信号断开：只对真离树（外部 queue_free）执行。池化 reparent 也会触发本回调
+            // （_repooling 置位），若在此断开，Spawn 期间 Reactivate 的 Connect 会被随后的回挂
+            // 反手断掉——连断顺序倒置，缓存整个活跃期处于未连接态（中途加点 slow_field 对场上
+            // 敌机无效，且无任何报错）。池化路径的连/断成对由 Reactivate/EnemyPool 回挂处保证。
+            if (!_repooling)
+            {
+                _slowCache.Disconnect(gs);
+            }
         }
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -259,8 +265,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     /// <summary>setup：config 驱动数值/外观（_ready 之前调用，不用 @onready）。</summary>
     /// <summary>从敌机配置的弹种池随机取一种；缺键/空池/坏值回退 single。
-    /// 不分配默认 Array——原 GetValueOrDefault 的默认实参每 spawn 求值一次（空间换时间）。</summary>
-    private StringName PickConfiguredBulletType(Godot.Collections.Dictionary config)
+    /// 不分配默认 Array——原 GetValueOrDefault 的默认实参每 spawn 求值一次（空间换时间）。
+    /// 抽签与实际入场分离：spread 同屏上限在 Setup 的收敛点判定（见 ResolveSpreadCapInternal）。</summary>
+    private static StringName PickConfiguredBulletType(Godot.Collections.Dictionary config)
     {
         var raw = config.GetValueOrDefault("bullet_types", new Variant());
         if (raw.VariantType == Variant.Type.Array)
@@ -275,6 +282,67 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         return BulletTypeSingle; // 空弹种池/坏值回退单发
     }
 
+    /// <summary>弹种名 → core 判定域（映射只此一处，避免名字字符串散落）。</summary>
+    private static Core.Combat.EnemyBulletKind ToKind(StringName type)
+    {
+        if (type == BulletTypeSpread)
+        {
+            return Core.Combat.EnemyBulletKind.Spread;
+        }
+
+        if (type == BulletTypeLaser)
+        {
+            return Core.Combat.EnemyBulletKind.Laser;
+        }
+
+        return type == BulletTypeSingle ? Core.Combat.EnemyBulletKind.Single : Core.Combat.EnemyBulletKind.Other;
+    }
+
+    private static StringName FromKind(Core.Combat.EnemyBulletKind kind)
+    {
+        return kind switch
+        {
+            Core.Combat.EnemyBulletKind.Spread => BulletTypeSpread,
+            Core.Combat.EnemyBulletKind.Laser => BulletTypeLaser,
+            // Other 只可能来自未登记的弹种名；收敛判定不降级非 spread，落到单发（同空弹种池回退）
+            _ => BulletTypeSingle,
+        };
+    }
+
+    /// <summary>当前在册（在屏活跃）spread 弹种敌机数（离场中的不计）。
+    /// 遍历注册表（只含活跃敌机）而非 "enemy" 组——池化敌机回收时不 remove_from_group，
+    /// 组遍历会把池中闲置实例计入、虚抬 spread 上限。</summary>
+    private static int CountActiveSpreadEnemies()
+    {
+        return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
+            e is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting()));
+    }
+
+    /// <summary>spread 同屏上限在**实际入场处**收敛（判定在 core SpreadCapPolicy）：敌机延后进场
+    /// （先抽签、0.6s 后再 Spawn），同一波敌机的抽签发生在同一帧、在册数彼此不变，只在抽签处判会让
+    /// 整波全部抽中 spread、上限形同虚设。本方法写 BulletType，是所有入场路径
+    /// （波次预告超时 / Boss-3 召唤 / 分裂子机）的共同收口。池化复用与同帧逐只生成时，
+    /// 前一任的弹种标记会随本机先注册（Reactivate）而被计入——故先落 single 再判定，
+    /// 使「逐只递减配额」的语义与 core 单测一致。</summary>
+    private void ApplyBulletTypeInternal(Godot.Collections.Dictionary config, StringName pBulletType)
+    {
+        var picked = pBulletType != NoBulletType ? pBulletType : PickConfiguredBulletType(config);
+        if (picked != BulletTypeSpread)
+        {
+            BulletType = picked;
+            return;
+        }
+
+        BulletType = BulletTypeSingle;
+        var resolved = Core.Combat.SpreadCapPolicy.Resolve(
+            ToKind(picked),
+            CountActiveSpreadEnemies(),
+            GameState.Instance.SpreadEnemyCap(),
+            (bool)config.GetValueOrDefault("elite", false));
+        BulletType = resolved == Core.Combat.EnemyBulletKind.Spread ? picked : FromKind(resolved);
+    }
+
+    /// <summary>setup：config 驱动数值/外观（_ready 之前调用，不用 @onready）。</summary>
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
         Strategy = pStrategy;
@@ -299,9 +367,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         // 斜率/地板在 core DifficultyScaling；pDifficulty 保持调用方快照语义。
         FireInterval = (float)Core.Progression.DifficultyScaling.FireInterval(
             config.GetValueOrDefault("fire_interval", 2.2).AsDouble(), pDifficulty, GameState.Instance.Scaling());
-        BulletType = pBulletType != NoBulletType
-            ? pBulletType
-            : PickConfiguredBulletType(config);
+        ApplyBulletTypeInternal(config, pBulletType);
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
             // speed_ramp 必须走 Load 时缓存的 ramp API，不得每 spawn 直查 Cfg 全链路
@@ -406,7 +472,21 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public void SetRepooling(bool value) => _repooling = value;
 
+    /// <summary>池化回挂后重连增幅 缓存（幂等）。Spawn 期的 Reactivate 已连一次，但若后续发生
+    /// reparent，_exit_tree 的断开（repooling 门控）与 Connect 的先后顺序必须由回挂处收口——
+    /// 与同处的 RegisterEnemy 补偿同一理由，回挂后缓存必须处于已连接态。</summary>
+    public void ReconnectAugmentCache()
+    {
+        _slowCache.Connect(GameState.Instance);
+        _slowCache.Refresh();
+    }
+
     public bool IsExiting() => _exiting;
+
+    /// <summary>只读探针口：slow_field 缓存是否处于已连接态。池化复用的 reparent 会触发
+    /// `_ExitTree`，连/断错序时该敌机整个活跃期不再随 AugmentsChanged 刷新（「买了力场没感觉」，
+    /// 零报错）——故这条不变量需要可判定，由探针在池复用回挂后断言。</summary>
+    public bool IsAugmentCacheConnected() => _slowCache.IsConnectedTo(GameState.Instance);
 
     /// <summary>池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）。</summary>
     public void Reactivate(
@@ -857,7 +937,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
 
         b.Position = Position; // 敌方子弹出生在敌机位置（typed；Player 开火同款）
-        b.SetMeta(Bullet.MetaBulletType, pType);
         if (pType == BulletTypeLaser)
         {
             // 细长高亮快速弹（Sprite2D 缓存引用）

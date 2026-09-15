@@ -793,6 +793,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>狂暴态查询（BossMovement/BossAttacks/EnrageSequence 经公开接口交互）。</summary>
     public bool IsEnraged() => _enraged;
 
+    /// <summary>狂暴锁血查询（只读观测量：狂暴序列期间受击不掉血不死，锁在 RELEASE_HOLD 起点解除）。
+    /// 供探针断「锁血确实在解」——锁血残留的表现是 Boss 无敌，不崩不报错。</summary>
+    public bool IsHealthLocked() => _enrageSequence.IsHealthLocked();
+
     /// <summary>语义化类型查询（调用方不再依赖 `is Boss` 具体类型）。</summary>
     public bool IsBoss() => true;
 

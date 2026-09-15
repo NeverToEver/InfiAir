@@ -449,6 +449,10 @@ public partial class Mothership : Area2D
 
     public int GetMagCells() => _magCells;
 
+    // 以下四个 Set* 是坞态机计时/弹匣的**白盒写口**，与上方 GetState/GetMagCells/MagWarned/
+    // WarnEjectTimer 成对。保留理由（AGENTS §10 零引用成员口径）：它们是实机调参时的坞态观察面，
+    // 可在不改生产时长常量的前提下把坞态推入任意相位复核演出与读数。**仅供诊断**——
+    // 生产路径只经 EnterState/Tick 推进，外部调用会造成计时与状态不自洽。
     public void SetStateTimer(float seconds) => _stateTimer = seconds;
 
     public bool MagWarned() => _magWarned;
