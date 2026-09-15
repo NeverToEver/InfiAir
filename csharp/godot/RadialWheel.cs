@@ -368,7 +368,7 @@ public partial class RadialWheel : Node2D
         }
 
         var a = (float)_model.AngleOf(i);
-        if (Mathf.Abs(a) > (float)_model.HalfSpan || (float)_model.AlphaAt(a) <= 0.05f)
+        if (!_model.IsVisibleAt(a))
         {
             return null;
         }
@@ -1093,9 +1093,9 @@ public partial class RadialWheel : Node2D
         for (var i = 0; i < n; i++)
         {
             var a = (float)_model.AngleOf(i);
-            if (Mathf.Abs(a) > (float)_model.HalfSpan)
+            if (!_model.IsVisibleAt(a))
             {
-                continue; // 视口剪裁之外的弧段本就不可见，弧端外不再绘制
+                continue; // 渐隐带外不可见，视口剪裁之外的弧段亦不可点（判据与命中判定同源）
             }
 
             var deploy = 1f;
@@ -1118,10 +1118,15 @@ public partial class RadialWheel : Node2D
         for (var i = 0; i + 1 < n; i++)
         {
             var a = (float)(_model.AngleOf(i) + gapA);
-            var vis = (float)_model.AlphaAt(a) * pop * cIn;
-            if (Mathf.Abs(a) > (float)_model.HalfSpan || vis <= 0.01f)
+            if (!_model.IsVisibleAt(a))
             {
                 continue;
+            }
+
+            var vis = (float)_model.AlphaAt(a) * pop * cIn;
+            if (vis <= 0f)
+            {
+                continue; // 开机/弹出动画把淡入因子推到 0 时不画零透明线段
             }
 
             var au = new Vector2(Mathf.Cos(Mathf.DegToRad(a)), Mathf.Sin(Mathf.DegToRad(a)));
@@ -1289,8 +1294,13 @@ public partial class RadialWheel : Node2D
     private void DrawCard(RadialWheelLayer c, RadialWheelModel model, int i, float angleDeg, float pop, float deploy)
     {
         var focused = i == model.FocusedIndex;
+        if (!model.IsVisibleAt(angleDeg))
+        {
+            return; // 可见性判据单源在 core：与命中判定、引线锚点共用同一阈值
+        }
+
         var alpha = (float)model.AlphaAt(angleDeg) * pop * Mathf.Clamp(deploy * 1.5f, 0f, 1f);
-        if (alpha <= 0.01f)
+        if (alpha <= 0f)
         {
             return;
         }

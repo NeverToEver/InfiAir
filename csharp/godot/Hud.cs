@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core;
+using InfiAir.Core.Combat;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -60,6 +62,7 @@ public partial class Hud : CanvasLayer
     private Label _bossCountdown = null!;
     private Label _bossName = null!; // Boss 名牌（型号 + 阶段），血条子节点随其显隐
     private ChamferedPanel _bossPlate = null!; // Boss 血条 + 名牌的切角背板（随血条显隐）
+    private BossBarTicks _bossTicks = null!; // 阶段刻度线覆盖层（比例由阶段阈值派生注入）
     /// <summary>Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
     /// GetFightPhaseTransition/Active 一致；ENRAGE=2 由声明顺序确定）——值镜像。</summary>
     private const int FightPhaseP1 = 0;
@@ -68,13 +71,13 @@ public partial class Hud : CanvasLayer
     private int _bossPhase = FightPhaseP1;
     /// <summary>仪表类刷新降频（信号驱动的文本不受影响）。≤0 节流失效。</summary>
     private float _pollInterval = 0.1f;
-    /// <summary>分段血条：段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
-    /// （段界 = 阶段阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
+    /// <summary>分段血条：段权与段界**由阶段阈值派生**（boss.phase2_hp_ratio / boss.enrage.hp_ratio，
+    /// 在 ShowBossBar 时从活着的 Boss 实例读，见 BossBarSegments），段色按段序给
     /// （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）。
-    /// 段数恒由权重数组决定（不读 hud.boss_bar_segments 配置键——加权分支只迭代
-    /// SegWeights.Count，改该键无任何视觉变化）。</summary>
+    /// 段数恒由权重数组决定，HUD 不再另存一份阈值或段权常量——否则改 balance 后 Boss 按新阈值
+    /// 转阶段而血条段界/刻度仍在旧值，玩家读到的阶段边界是假的。</summary>
     // 静态 Godot 集合在引擎退出后被 .NET finalize 触碰 native → segfault（实测），改实例字段
-    private readonly Godot.Collections.Array BossSegWeights = new() { 0.3f, 0.4f, 0.3f };
+    private readonly Godot.Collections.Array BossSegWeights = new() { 0.0f, 0.0f, 0.0f };
     private readonly Godot.Collections.Array BossSegColors = new()
     {
         UITheme.HudBossHp,
@@ -93,6 +96,14 @@ public partial class Hud : CanvasLayer
     private TextureRect _vignette = null!;
     /// <summary>受击红闪 alpha（tween 衰减）；公开属性供 TweenProperty 字符串路径驱动（原 _hit_flash 脚本属性）。</summary>
     public float HitFlash { get; set; }
+
+    /// <summary>信息横幅当前不透明度（探针读口）：横幅触发后前 1.6s 应恒为 1。
+    /// 停留被并行语义吞掉时此处提前归零——无头下既不崩也不报错，只能靠读口断言。</summary>
+    public float InfoBannerAlpha => _infoLabel.Modulate.A;
+
+    /// <summary>Boss 血条当前 modulate（探针读口）：ReduceFlash 下阶段切换后应为 Colors.White
+    /// （无提亮脉冲），否则为 2.2 倍亮度峰值。</summary>
+    public Color BossBarModulate => _bossBar.Modulate;
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
@@ -149,8 +160,8 @@ public partial class Hud : CanvasLayer
     /// <summary>Boss 逃跑倒计时明暗闪烁半周期（ms）：取模翻转透明度，快于人眼追踪的告警节奏。</summary>
     private const long CountdownBlinkHalfPeriodMs = 500;
 
-    /// <summary>燃料低量警戒线（比例）：低于此值液罐转警示色。</summary>
-    private const float FuelWarnRatio = 0.3f;
+    /// <summary>燃料低量警戒线（比例）的唯一来源在 <see cref="FuelGauge.WarnRatio"/>：液色警戒
+    /// 与量槽刻度警示区共用一份判据，HUD 不再另存常量（两处各写一份会出半红量槽）。</summary>
 
     /// <summary>冲刺/弹反「已满」判定线（比例）：径向仪表满格即就绪，留 0.5% 余量吸收充能取整误差。</summary>
     private const float DashFullRatio = 0.995f;
@@ -168,12 +179,25 @@ public partial class Hud : CanvasLayer
     /// <summary>新增幅瓦片入场提亮峰值（仅视觉，不改瓦片数据）。</summary>
     private const float AugmentGainBoost = 1.5f;
 
+    /// <summary>信息横幅停留与淡出时长（秒）：「奖励节奏可被感知」靠的正是这段停留。</summary>
+    private const float InfoBannerHoldSeconds = 1.6f;
+    private const float InfoBannerFadeSeconds = 0.4f;
+
     /// <summary>
-    /// Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层。
+    /// Boss 血条阶段刻度线（§4.2）：随血条显隐的覆盖层，比例由 <see cref="BossBarSegments.Ticks"/>
+    /// 从阶段阈值派生后注入（段界即阈值；本控件不持有阈值，也不另存刻度常量）。
     /// </summary>
     public partial class BossBarTicks : Control
     {
-        private readonly float[] _ratios = { 0.7f, 0.3f };
+        /// <summary>刻度比例（自血条左端量起）；实例级复用，重绑 Boss 时才改写。</summary>
+        private float[] _ratios = System.Array.Empty<float>();
+
+        /// <summary>登记刻度比例（调用方给自 <see cref="BossBarSegments.Ticks"/> 的数组，本控件不复制）。</summary>
+        public void SetRatios(float[] ratios)
+        {
+            _ratios = ratios;
+            QueueRedraw();
+        }
 
         public override void _Draw()
         {
@@ -197,7 +221,6 @@ public partial class Hud : CanvasLayer
         _dockTag = GetNode<Label>("DockTag");
         BuildInstrumentCluster();
         _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // ≤0 节流失效
-        // hud.boss_bar_segments 配置键不参与——段数恒由权重数组决定（见 ShowBossBar）
         _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
         _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
         _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
@@ -224,6 +247,15 @@ public partial class Hud : CanvasLayer
         // 仪表盘配色与语义：燃料琥珀（低量转危红）、冲刺琥珀、弹反金；两枚充能槽满格即就绪
         _dashSocket.Configure(AbilitySocket.Glyph.Dash, UITheme.Accent);
         _parrySocket.Configure(AbilitySocket.Glyph.Parry, UITheme.AccentGold);
+        // 无障碍开关初始化：设置档读入是直写字段、不发 ReduceFlashChanged（改键那次才发），
+        // 而三个构件自己的 _reduceFlash 默认 false——不补这一次，settings.json 里
+        // reduce_flash=true 的玩家（正是为降频闪才开它的人）整局仍看到液面起伏/就绪脉冲/坞态灯呼吸，
+        // 直到进设置页再拨一次开关。判据与实时读 GameState.Instance.ReduceFlash 的点同源。
+        var reduceFlashNow = GameState.Instance.ReduceFlash;
+        _fuelTank.SetReduceFlash(reduceFlashNow);
+        _dashSocket.SetReduceFlash(reduceFlashNow);
+        _parrySocket.SetReduceFlash(reduceFlashNow);
+        _dockLamp.SetReduceFlash(reduceFlashNow);
         // HpBar 全息化：底盘更透 + 填充段 ADD 伪泛光
         _hpBar.EmptyColor = new Color(UITheme.SlotDark, 0.25f);
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -273,11 +305,11 @@ public partial class Hud : CanvasLayer
         _bossName.AddThemeColorOverride("font_color", UITheme.Text);
         namePlate.AddChild(_bossName);
         _bossBar.AddChild(namePlate);
-        // Boss 血条阶段刻度线（70%/30%，覆盖在血条上随其显隐）
-        var ticks = new BossBarTicks();
-        ticks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        ticks.MouseFilter = Control.MouseFilterEnum.Ignore;
-        _bossBar.AddChild(ticks);
+        // Boss 血条阶段刻度线（覆盖在血条上随其显隐；比例在 ShowBossBar 由阶段阈值派生注入）
+        _bossTicks = new BossBarTicks();
+        _bossTicks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _bossTicks.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _bossBar.AddChild(_bossTicks);
         // Boss 血条背板：名牌 + 血条整体纳入切角面板（与角落板块同一语系，随血条显隐；
         // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）
         _bossPlate = new ChamferedPanel
@@ -676,8 +708,8 @@ public partial class Hud : CanvasLayer
         // 液罐自身的液位追赶/晃动/气泡全在其 _Process 内，HUD 侧只推目标值（不逐帧碰它）
         _fuelTank.SetRatio(fuel);
 
-        // 警戒态未翻转跳过液色写入（阈值与低燃料脉冲共用同一态缓存）
-        var fuelWarn = fuel < FuelWarnRatio ? 1 : 0;
+        // 警戒态未翻转跳过液色写入（阈值与低燃料脉冲共用同一态缓存；阈值单一来源 FuelGauge）
+        var fuelWarn = FuelGauge.IsLow(fuel) ? 1 : 0;
         if (fuelWarn != _lastFuelWarn)
         {
             _lastFuelWarn = fuelWarn;
@@ -954,11 +986,22 @@ public partial class Hud : CanvasLayer
         };
     }
 
-    /// <summary>绑定 Boss 血条（spawner 经 boss_spawned 信号调用）：登记分段参数并连接 Boss 信号。</summary>
+    /// <summary>绑定 Boss 血条（spawner 经 boss_spawned 信号调用）：从该 Boss 的阶段阈值派生
+    /// 段权/段界与刻度线，再连接 Boss 信号。阈值只从活着的 Boss 实例读（其单源是 balance
+    /// boss.phase2_hp_ratio / boss.enrage.hp_ratio），HUD 不再另存一份。</summary>
     public void ShowBossBar(Boss boss)
     {
         _bossBar.FillColor = UITheme.Accent; // 重置上一只 Boss 狂暴留下的红色
-        // 分段血条——段权/段色按权重数组登记（段数 = 权重数，恒为 3）
+        // 分段血条：段权由阶段阈值派生（段界＝转阶段点），段数 = 段权数 = 3；
+        // 刻度线取同一份派生的段界，两者不可能分叉。取值本身是防御性的域钳（Boss 侧已保证 p2>e）。
+        var weights = BossBarSegments.Weights(boss.Phase2HpRatio, boss.EnrageHpRatio);
+        var ticks = BossBarSegments.Ticks(boss.Phase2HpRatio, boss.EnrageHpRatio);
+        for (var i = 0; i < BossSegWeights.Count; i++)
+        {
+            BossSegWeights[i] = weights[i];
+        }
+
+        _bossTicks.SetRatios(ticks);
         _bossBar.Segments = BossSegWeights.Count;
         _bossBar.SegWeights = BossSegWeights;
         _bossBar.SegColors = BossSegColors;
@@ -1147,11 +1190,18 @@ public partial class Hud : CanvasLayer
         RefreshBossName();
     }
 
-    /// <summary>阶段切换瞬间血条短闪（§4.2）。</summary>
+    /// <summary>阶段切换瞬间血条短闪（§4.2）。ReduceFlash 下只刷新名牌——整条 600px 血条被抬到
+    /// 2.2 倍亮度再回落正是该开关要挡的光敏脉冲（同血条的掉段闪已在 SegmentedBar 内门控）。</summary>
     private void OnBossPhaseChanged(int phase)
     {
         _bossPhase = phase;
         RefreshBossName();
+        if (GameState.Instance.ReduceFlash)
+        {
+            _bossBar.Modulate = Colors.White; // 峰值 1.0 即等同无闪（并清掉上一次可能残留的提亮）
+            return;
+        }
+
         _bossBar.Modulate = new Color(2.2f, 2.2f, 2.2f);
         var tween = CreateTween();
         tween.TweenProperty(_bossBar, "modulate", Colors.White, 0.3);
@@ -1908,7 +1958,10 @@ public partial class Hud : CanvasLayer
         AddChild(_infoLabel);
     }
 
-    /// <summary>信息横幅：显示 ~1.6s 后淡出（位于警告横幅下方，不与其重叠）。</summary>
+    /// <summary>信息横幅：显示 ~1.6s 后淡出（位于警告横幅下方，不与其重叠）。
+    /// 顺序语义：先停留 TweenInterval，再第一条属性补间，第二条以 Parallel() 与之并行，
+    /// 最后 Chain() 收尾 Hide——SetParallel(true) 是「把后续补间与前一步并行」，
+    /// 直接跟在 TweenInterval 后会从 t=0 就开始淡出、停留被吞掉（奖励节奏是这条横幅的唯一载体）。</summary>
     public void ShowInfoBanner(string text)
     {
         _infoLabel.Text = text;
@@ -1926,10 +1979,9 @@ public partial class Hud : CanvasLayer
         }
 
         _infoTween = CreateTween();
-        _infoTween.TweenInterval(1.6);
-        _infoTween.SetParallel(true);
-        _infoTween.TweenProperty(_infoPlate, "modulate:a", 0.0f, 0.4);
-        _infoTween.TweenProperty(_infoLabel, "modulate:a", 0.0f, 0.4);
+        _infoTween.TweenInterval(InfoBannerHoldSeconds);
+        _infoTween.TweenProperty(_infoPlate, "modulate:a", 0.0f, InfoBannerFadeSeconds);
+        _infoTween.Parallel().TweenProperty(_infoLabel, "modulate:a", 0.0f, InfoBannerFadeSeconds);
         _infoTween.Chain().TweenCallback(Callable.From(_infoPlate.Hide));
         _infoTween.TweenCallback(Callable.From(_infoLabel.Hide));
     }

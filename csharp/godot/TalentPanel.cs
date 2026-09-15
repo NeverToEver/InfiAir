@@ -59,10 +59,10 @@ public partial class TalentPanel : CanvasLayer
     private readonly Callable _onTalentsChanged;
     private readonly Callable _onCacheChanged;
 
-    /// <summary>右区几何（1080p 设计坐标；UI 不走 world_scale）。</summary>
+    /// <summary>右区几何（1080p 设计坐标；UI 不走 world_scale）。扇形宽/高与详情栏左缘不在此另存
+    /// ——它们是 <see cref="TalentFanGeometry"/> 的装配来源，构件布局域与单测据此同域。</summary>
     private const float RightLeft = 560f;
     private const float FanTop = 170f;
-    private const float FanHeight = 720f;
 
     // 轮盘圆心（holder 静止位）单一来源 RadialMenuLayer.WheelRest——自管骨架不另设常量
 
@@ -603,11 +603,12 @@ public partial class TalentPanel : CanvasLayer
         _overviewBox.OffsetBottom = -180f;
         _rightRoot.AddChild(_overviewBox);
 
-        // 树状扇形（下钻后）
+        // 树状扇形（下钻后）：尺寸取 TalentFanGeometry（装配与构件布局域同一来源，
+        // 单测也以同一组数当定义域——三处各写一份曾让测试在 1240 的假域上判绿）
         _fan = new TalentFanView
         {
             Position = new Vector2(0f, FanTop),
-            Size = new Vector2(900f, FanHeight),
+            Size = new Vector2((float)TalentFanGeometry.ViewportWidth, (float)TalentFanGeometry.ViewportHeight),
             Visible = false,
         };
         _rightRoot.AddChild(_fan);
@@ -622,7 +623,7 @@ public partial class TalentPanel : CanvasLayer
     {
         _detail = new ChamferedPanel
         {
-            Position = new Vector2(910f, 200f),
+            Position = new Vector2((float)TalentFanGeometry.DetailColumnLeft, 200f),
             Size = new Vector2(360f, 600f),
             Brackets = true,
             Visible = false,
@@ -906,10 +907,10 @@ public partial class TalentPanel : CanvasLayer
         {
             // 详情卡从右滑入（不做对称退场——内容切换时直接替换更干净）
             _detail.Modulate = new Color(_detail.Modulate, 0f);
-            _detail.Position = new Vector2(946f, 200f);
+            _detail.Position = new Vector2((float)TalentFanGeometry.DetailColumnLeft + 36f, 200f);
             var tw = SwapTween(_detail);
             tw.TweenProperty(_detail, "modulate:a", 1.0f, 0.2);
-            tw.Parallel().TweenProperty(_detail, "position", new Vector2(910f, 200f), 0.2)
+            tw.Parallel().TweenProperty(_detail, "position", new Vector2((float)TalentFanGeometry.DetailColumnLeft, 200f), 0.2)
                 .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
 

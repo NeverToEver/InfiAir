@@ -200,8 +200,17 @@ public sealed class RadialWheelModel
         return t >= 1.0 ? 1.0 : t * t * (3.0 - 2.0 * t);
     }
 
+    /// <summary>槽位可见性 alpha 阈值（唯一真源）：绘制剔除、命中判定、引线锚点共用这一个数。
+    /// 三处各写各的字面量（0.01 / 0.05）时口径必然分叉——生产参数下会出现「不画却可点」的槽，
+    /// 或「已画但引线锚点消失」的卡。</summary>
+    public const double VisibleAlphaThreshold = 0.01;
+
+    /// <summary>该弧角处的槽位是否可见：不画即不可点、不锚引线。展示层只消费本判据，
+    /// 不得自写剔除阈值（见 <see cref="VisibleAlphaThreshold"/>）。</summary>
+    public bool IsVisibleAt(double angleDeg) => AlphaAt(angleDeg) >= VisibleAlphaThreshold;
+
     /// <summary>命中：查询弧角须落在可视弧内（弧外不可见不可点），命中距查询角最近（半槽距内）的
-    /// 可选项；该槽已渐隐（<see cref="AlphaAt"/> 为 0，绘制层不画这张卡）时不算命中，返回 null。
+    /// 可选项；该槽不可见（<see cref="IsVisibleAt"/> 为假，绘制层不画这张卡）时不算命中，返回 null。
     /// 容差只有半槽距，故最近槽就是唯一可能命中的槽——它不可见即无命中，无从退到相邻槽
     /// （相邻槽距查询角至少 1.5 个槽距）。（径向距离判定在展示层）</summary>
     public int? IndexAtAngle(double angleDeg)
@@ -219,7 +228,7 @@ public sealed class RadialWheelModel
         }
 
         var angle = AngleOf(nearest);
-        return Math.Abs(angle - angleDeg) <= SlotAngle * 0.5 && AlphaAt(angle) > 0.0 ? nearest : null;
+        return Math.Abs(angle - angleDeg) <= SlotAngle * 0.5 && IsVisibleAt(angle) ? nearest : null;
     }
 
     /// <summary>bounce ease-out（overshoot 后回落），轮盘收缩/回弹的统一缓动。t 需在 [0,1]。</summary>
