@@ -10,7 +10,8 @@ namespace InfiAir;
 /// <summary>
 /// 无头探针宿主：门禁冒烟的测试开关与驱动全部收在这里，生产 main.tscn 与 Main 不再读任何测试开关
 /// （AGENTS §5「测试/探测设施不进生产路径」）。仅由 <c>scenes/probe_host.tscn</c> 经 <c>--scene</c> 启动，
-/// 以子节点嵌入 main.tscn——Main 见 CurrentScene 非自身即走「嵌入宿主」分支（不入场、不进标题屏），
+/// 以子节点嵌入 main.tscn——_EnterTree 里经 <c>Main.MarkHostDriven</c> 显式声明宿主身份（不入场、
+/// 不进标题屏、不落盘）；宿主判定由本类主动注入，Main 不反推场景结构、也不依赖本类符号。身份就位后
 /// 由本节点显式开启本局可驱动，再经生产触发链请求遭遇（资格/门槛/门控仍由生产判定，探针不得绕过）。
 /// 开关、帧数与日志口径的单源在 scripts/ci/check_smoke.sh。
 /// </summary>
@@ -102,6 +103,21 @@ public partial class ProbeHost : Node
         (290, "", "settings-controls"),
     };
 
+    /// <summary>宿主身份注入点：_EnterTree 由父到子（本节点先于子节点 Main），_Ready 由子到父
+    /// （Main 先于本节点），故这是**唯一**能赶在 Main._Ready 之前的位置（本类 _Ready 太晚）。
+    /// 子节点在场景实例化时已挂上，此处按名字取得到；取不到即报错，不退回嗅探（宁可响，不可悄悄坏）。</summary>
+    public override void _EnterTree()
+    {
+        var main = GetNodeOrNull<Main>("Main");
+        if (main == null)
+        {
+            GD.PushError("[probe-host] 未找到子节点 Main，宿主身份未能注入——本趟将按生产语义启动");
+            return;
+        }
+
+        main.MarkHostDriven();
+    }
+
     public override void _Ready()
     {
         // 死亡打断会暂停整棵树（结算页接管）；宿主须继续推进才能观测打断收尾
@@ -162,7 +178,7 @@ public partial class ProbeHost : Node
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _returnProbe)
         {
-            // Main 嵌入宿主时按 current_scene 判定关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
+            // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
             GameState.Instance.SetRunActive(true);
             _events.SetRunActive(true);

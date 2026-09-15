@@ -45,10 +45,12 @@ public partial class Main : Node2D
     private Starfield _starfield = null!;
     private Camera2D _camera = null!;
     private bool _gameOver;
-    /// <summary>本节点是否作为子节点嵌入宿主场景（探针宿主用 --scene 启动 probe_host.tscn，main.tscn
-    /// 实例只是它的子节点，current_scene 指向宿主）。判定只此一处，供本局时钟/事件自动触发、开机交接
-    /// 与存档出口共用——宿主驱动时这些都不该走生产分歧。</summary>
+    /// <summary>本节点是否由探针宿主驱动（宿主经 <see cref="MarkHostDriven"/> 显式注入，默认 false）。
+    /// 判定只此一处，供本局时钟/事件自动触发、开机交接与存档出口共用——宿主驱动时这些都不该走生产分歧。</summary>
     private bool _hostDriven;
+    /// <summary>_Ready 是否已跑完：<see cref="MarkHostDriven"/> 的护栏判据——注入晚于它时宿主分支
+    /// 已按生产语义走过（见该方法）。</summary>
+    private bool _readyDone;
     /// <summary>死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
     private readonly DeathReplay _replay = new();
     private bool _homecoming;
@@ -134,7 +136,6 @@ public partial class Main : Node2D
 
     public override void _Ready()
     {
-        _hostDriven = GetTree().CurrentScene != this;
         _spawner = GetNode<Spawner>("Spawner");
         _hud = GetNode<Hud>("HUD");
         _pauseUi = GetNode<PauseUi>("PauseUI");
@@ -181,10 +182,10 @@ public partial class Main : Node2D
         }
 
         _baseUi.ResumeRequested += OnResumeFromBase;
-        // 迷雾事件：仅真实本局（main 为 current_scene）开启自动触发。
-        // main.tscn 作为子节点嵌入宿主场景（current_scene 为宿主）时保持关闭，
+        // 迷雾事件：仅真实本局（未被 MarkHostDriven 标记）开启自动触发。
+        // main.tscn 作为子节点嵌入宿主场景（宿主已显式注入）时保持关闭，
         // 防止随机迷雾事件（如方向偏转把玩家推入弹幕触发擦弹得分）破坏宿主场景确定性；
-        // 需要启用时显式 SetRunActive(true)（同 current_scene 判定惯例）
+        // 需要启用时显式 SetRunActive(true)（同 _hostDriven 判定惯例）
         var fogV = GameState.Instance.FogEvents;
         _fogEvents = fogV;
         _fogEvents.SetRunActive(!_hostDriven);
@@ -283,6 +284,8 @@ public partial class Main : Node2D
             // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
             Callable.From(GoTitleScreen).CallDeferred(); // 开机直达标题屏
         }
+
+        _readyDone = true;
     }
 
     public override void _ExitTree()
@@ -318,6 +321,23 @@ public partial class Main : Node2D
                 gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
             }
         }
+    }
+
+    /// <summary>探针宿主显式声明「Main 由我驱动」——宿主判定不靠场景结构反推，由测试设施自己注入；
+    /// Main 因此不依赖 ProbeHost 的任何符号（测试设施不进生产路径，AGENTS §5）。
+    /// 时序约束：必须在 <see cref="_Ready"/> 之前调用——Godot 的 _EnterTree 由父到子（宿主先于
+    /// 子节点 Main），_Ready 由子到父（Main 先于宿主），故宿主只能在自己的 _EnterTree 里注入。
+    /// 晚到时宿主分支已按生产语义走过（已交接标题屏/已开启本局可驱动），静默接受等于把
+    /// 「注入没赶上」伪装成正常——宁可响，不可悄悄坏，故显式报错并保持生产语义。</summary>
+    public void MarkHostDriven()
+    {
+        if (_readyDone)
+        {
+            GD.PushError("InfiAir: MarkHostDriven 在 Main._Ready 之后才调用——宿主注入未赶在 _Ready 之前，本局已按生产语义启动");
+            return;
+        }
+
+        _hostDriven = true;
     }
 
     /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
@@ -671,7 +691,7 @@ public partial class Main : Node2D
         //
         // 宿主驱动（main.tscn 嵌入探针宿主）时不落盘：本条是**非玩家路径**（无头探针走生产蓄力链
         // 触发返航并收尾到此），无头跑不会退出运行确认、也没人会去点「保存退出」，自动落盘会覆写
-        // 开发者当前存档。宿主判定复用 _Ready 缓存的 _hostDriven（current_scene 非自身），
+        // 开发者当前存档。宿主判定取 _hostDriven（宿主入树时显式注入，见 MarkHostDriven），
         // Main 因此不依赖 ProbeHost 的任何测试符号——测试设施不进生产路径（AGENTS §5）。
         // 用户目录隔离仍是主护栏（脚本层），本行是代码层的第二道，防「探针路径写坏真实存档」复发。
         if (!_hostDriven && !GameState.Instance.SaveRun())
