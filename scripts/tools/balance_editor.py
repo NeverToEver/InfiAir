@@ -213,6 +213,19 @@ load();
 """
 
 
+def _render_save(payload: object, path: Path) -> str:
+    """序列化待落盘内容，行尾沿用现文件（与运行平台无关）。
+
+    Path.write_text 走 newline=None：写入时 `\\n` 按 os.linesep 展开（Windows CRLF / Linux LF），
+    于是同一份全 CRLF 的 balance.json 在 Linux 上保存一次就整文件翻成 LF，diff 全红淹没真实改值。
+    改为「先取现文件行尾、自行把 json.dumps 的 LF 全量展开、再以 newline="" 写入」——文件既是
+    单源，行尾也随它走。只换末尾那一个换行不够：正文的 LF 仍会被原样写出，文件变成混合行尾。
+    """
+    newline = "\r\n" if b"\r\n" in path.read_bytes() else "\n"
+    body = json.dumps(payload, indent="\t", ensure_ascii=False)
+    return body.replace("\n", newline) + newline if newline != "\n" else body + "\n"
+
+
 def _check_shape(new: object, old: object, path: str = "") -> list[str]:
     """递归校验结构与标量类型和现文件一致（数组只要求元素类型一致，长度可变）。"""
     errs: list[str] = []
@@ -287,7 +300,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             shutil.copy2(BALANCE, BALANCE.with_suffix(".json.bak"))
             tmp = BALANCE.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(payload, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
+            # newline="" 关闭换行翻译，行尾由 _render_save 显式给出（见其说明）
+            with open(tmp, "w", encoding="utf-8", newline="") as handle:
+                handle.write(_render_save(payload, BALANCE))
             os.replace(tmp, BALANCE)
         except OSError as e:
             # 写盘侧 OSError 必须兜底为 400 响应——磁盘满/只读/权限不足时若裸抛

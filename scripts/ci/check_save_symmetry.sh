@@ -39,19 +39,54 @@ if not collect or not apply or not version:
     print("::error::无法定位 CollectRunDict/ApplyRunDict/RunSaveVersion（结构变了？门禁需同步）")
     sys.exit(1)
 
-written = set(re.findall(r'\["([a-z_]+)"\]\s*=', collect.group(1)))
-read = set(re.findall(r'GetValueOrDefault\("([a-z_]+)"', apply.group(1)))
+# 键口径与设置对称门禁同款：AGENTS §9 规定数值键 snake_case。命中**不**再用键名字符集限定
+# ——此前正则写 `[a-z_]+`，含数字的键在写读两侧同时不可见：只写不读 / 只读不写两种静默错误
+# 全不报（键名进不了 written 也进不了 read）。改为「先按 `["任意键"] =` 全量取键、再单独判
+# 键名是否合规」：任何键都不会对判定不可见，键名不合规即显式报红。两侧计数一致＝交叉对上。
+KEY_NAME = re.compile(r"[a-z_][a-z0-9_]*")
+ASSIGN_KEY = re.compile(r'\["([^"]*)"\]\s*=')
+READ_KEY = re.compile(r'\b(d)\s*\.\s*GetValueOrDefault\("([^"]*)"')
+ANY_READ_KEY = re.compile(r'\b\w+\s*\.\s*GetValueOrDefault\("([^"]*)"')
+# 交叉断言：键字面量的**出现次数**必须等于正则命中数（实测写侧 21=21、读侧 21=21）。取键正则
+# 覆盖任意键名后二者天然相等；一旦有人把正则收窄回 `[a-z_]+`，字面量计数不动而命中数掉，含数字
+# 键又回到两侧都不可见的静默态——这条算术不依赖捕获组宽窄，故能兜住那次回退。
+assign_literals = collect.group(1).count('["')
+read_literals = apply.group(1).count('GetValueOrDefault("')
+
+assigned = ASSIGN_KEY.findall(collect.group(1))
+read_pairs = READ_KEY.findall(apply.group(1))
+written = set(assigned)
+read = {key for _recv, key in read_pairs}
 # version 由 LoadRun 单独判定，不参与对称性
 written.discard("version")
 read.discard("version")
+illegal = sorted({key for key in written | read if not KEY_NAME.fullmatch(key)})
+# 读侧换接收者（改写成本地变量再取键）会让键整批对判定不可见——与含数字键同族，显式报红。
+foreign = sorted(set(ANY_READ_KEY.findall(apply.group(1))) - {k for _r, k in read_pairs})
 
 # 零命中守卫：正则或结构变了会两边皆空，`written - read`/`read - written` 都为空而误判 clean
 # ——假绿比没门禁更糟（AGENTS §6 铁律 2），取不到判据必须显式失败。
 if not written or not read:
     print(f"::error::写读键集为空（写 {len(written)} / 读 {len(read)}）——正则或结构变了？门禁需同步")
     sys.exit(1)
+if len(assigned) != assign_literals:
+    print(f"::error::写侧键字面量 {assign_literals} 处、取键正则只命中 {len(assigned)} 个"
+          "——正则收窄会静默丢掉一部分键（此前 `[a-z_]+` 就是这样漏掉含数字键的），"
+          "取键正则必须覆盖任意键名，键名合规性另判")
+    sys.exit(1)
+if len(read_pairs) != read_literals:
+    print(f"::error::读侧取键字面量 {read_literals} 处、取键正则只命中 {len(read_pairs)} 个"
+          "——正则收窄会静默丢掉一部分键，取键正则必须覆盖任意键名")
+    sys.exit(1)
 
 errors = []
+if illegal:
+    errors.append(f"存档键名不合 snake_case（AGENTS §9）：{illegal}"
+                  f"（写侧键字面量 {len(assigned)} 条、读侧 {len(read_pairs)} 条，其中 {len(illegal)} 个"
+                  "键名不合法）——键名不合法时它在写读对称判定里取不到，须改名或同步本门禁的键口径")
+if foreign:
+    errors.append(f"读侧出现非 `d.GetValueOrDefault(\"键\", …)` 形态的取键：{foreign}"
+                  "——接收者换名后该键对写读对称判定不可见（静默漏判），须回到 d 直取")
 for key in sorted(written - read):
     errors.append(f"`{key}` 只写不读：存了但读档不还原（玩家进度静默丢失）")
 for key in sorted(read - written):
@@ -79,6 +114,6 @@ if errors:
         print("::error::" + e)
     print(f"save-symmetry gate: FAILED（写 {len(written)} / 读 {len(read)} / 冻结基线 {len(FROZEN_KEYS)}）")
     sys.exit(1)
-print(f"save-symmetry gate: clean（写读各 {len(written)} 个字段，一一对应；与冻结基线一致，"
-      f"RunSaveVersion={code_version}）")
+print(f"save-symmetry gate: clean（写读各 {len(written)} 个字段（键字面量 {len(assigned)} 条，"
+      f"键名全部合规），一一对应；与冻结基线一致，RunSaveVersion={code_version}）")
 PY

@@ -9,9 +9,13 @@
 # 输入宽限在 1.5 个月内被反方向改了三次，本门禁即为此设。
 #
 # 判定口径（单源在本脚本 ALLOW 表，AGENTS §5 与 DESIGN_BASELINE 只给指针，不复述清单）：
-#   1) 扫描 csharp/ 下所有 .cs 的**代码段**（剥字符串与注释——注释里提到 API 名不算命中；
-#      内插字符串 $"...{expr}..." 的洞是代码，参与命中，否则本仓库惯用的内插写法会整块漏判），
-#      按 (文件, 符号) 统计命中数；
+#   1) 扫描 csharp/ 下所有 .cs 的**代码段**（先按字符串状态机整体剥掉所有字符串字面量
+#      ——普通 "..."、逐字 @"..."、原始 """..."""、字符 'x'——再剥注释；注释与字符串里提到 API 名
+#      都不算命中；内插字符串 $"...{expr}..." 的洞是代码，递归进来参与命中，否则本仓库惯用的
+#      内插写法会整块漏判），按 (文件, 符号) 统计命中数；
+#      字符串必须**整体**剥掉而不能只看 $ / @ 前缀：普通字符串里的 `//`（如 "res://a // b"）
+#      会被当行注释起点，同一行其后的墙钟调用整块蒸发——登记量对得上、总命中不为 0，
+#      三道老守卫全落空；
 #   2) 命中数超出 ALLOW 登记量 → 红（新增未登记的真实时间使用，输出 文件:行）；
 #   3) ALLOW 登记量多于实际命中 → 红（登记站点消失，通常是合法用途被改掉）；
 #   4) 总命中为 0 → 红（防扫描范围或正则漂移造成假绿）。
@@ -99,67 +103,192 @@ FIXED = (
 TIME_CALL = re.compile(r"\bTime\.([A-Za-z_]\w*)")
 
 
-def code_only(line: str) -> str:
-    """返回剥掉字符串字面量与注释后的代码段；`res://` / `http://` 的协议分隔不算注释起点。
-    内插字符串 $"...{expr}..." 的洞保留为代码——否则本仓库惯用的 `$"...{Time.GetTicksMsec()}..."`
-    会把墙钟调用一并剥掉（整类漏判）。"""
-    out, i, n = [], 0, len(line)
-    while i < n:
-        c = line[i]
-        # 字符串前缀：@（逐字）、$（内插），可组合出现（$@"..." / @$"..."）
-        verbatim = interp = False
-        j = i
-        while j < n and line[j] in "@$":
-            verbatim = verbatim or line[j] == "@"
-            interp = interp or line[j] == "$"
-            j += 1
-        if (interp or verbatim) and j < n and line[j] == '"':
-            out.append('""')
-            i = j + 1
-            while i < n:
-                c2 = line[i]
-                if not verbatim and c2 == "\\":
-                    i += 2
-                    continue
-                if c2 == '"':
-                    if verbatim and i + 1 < n and line[i + 1] == '"':
-                        i += 2
-                        continue
-                    i += 1
+class _Scanner:
+    """按 C# 词法把源码切成「代码段」与「字符串 / 注释段」。
+
+    字符串字面量**整体**剥掉（不参与命中）——这是本门禁最要紧的一步：普通字符串里的 `//`
+    若被当注释起点，同一行其后的墙钟调用会整块蒸发（普通字符串里写 res 协议加 `//` 再接未登记
+    墙钟即静默逃过）。内插字符串的洞是代码，递归扫描后保留，否则本仓库惯用的内插写法会整类漏判。
+    """
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.i = 0
+
+    def code(self, stop_at=None, emit=None) -> str:
+        """扫到 stop_at（内插洞的收尾括号）或文本末尾，返回剥掉字符串与注释后的代码段。
+
+        `emit` 是外层代码段的收集器：内插洞里的表达式属于**外层**代码（`$"{expr}"` 的
+        expr 不因外层是字符串而消失），所以要回填给调用方，不能随字符串一起丢掉。
+        """
+        text, out = self.text, []
+        sink = out.append if emit is None else emit
+        while self.i < len(text):
+            c = text[self.i]
+            if stop_at is not None and text.startswith(stop_at, self.i):
+                return "".join(out)
+            if text.startswith("//", self.i):
+                nl = text.find("\n", self.i)
+                if nl < 0:
                     break
-                if interp and c2 == "{":
-                    if i + 1 < n and line[i + 1] == "{":   # {{ 是字面花括号
-                        i += 2
-                        continue
-                    depth, hole = 0, []
-                    while i < n:
-                        ch = line[i]
-                        if ch == "{":
-                            depth += 1
-                        elif ch == "}":
-                            depth -= 1
-                            if depth == 0:
-                                i += 1
-                                break
-                        hole.append(ch)
-                        i += 1
-                    out.append(" " + code_only("".join(hole)) + " ")
-                    continue
-                i += 1
-            continue
-        if interp or verbatim:      # 只是 @ 开头的标识符或孤立 $，按普通代码处理
-            out.append(line[i:j])
-            i = j
-            continue
-        if c == "/" and i + 1 < n and line[i + 1] == "/":
-            if i > 0 and line[i - 1] == ":":  # 协议分隔，不是注释起点
-                out.append("//")
-                i += 2
+                self.i = nl + 1      # 注释里的换行要还给代码，否则会把两行粘在一起
+                sink("\n")
                 continue
-            break  # 行尾注释及之后不参与命中
-        out.append(c)
-        i += 1
-    return "".join(out)
+            if text.startswith("/*", self.i):
+                end = text.find("*/", self.i + 2)
+                self.i = len(text) if end < 0 else end + 2
+                sink(" ")
+                continue
+            if c == '"':
+                if text.startswith('"""', self.i):    # 原始字符串：整体剥掉，含其中的 `//`
+                    self._raw()
+                else:
+                    self._regular(False)
+                sink(" ")
+                continue
+            if c in "@$":
+                if self._prefixed_string(c, sink):
+                    sink(" ")
+                    continue
+                sink(c)              # 只是裸 @ 或 $（标识符前缀），按普通代码处理
+                self.i += 1
+                continue
+            if c == "'":              # 字符字面量：'/' 与 '"' 这类值必须整体剥掉，否则污染代码段
+                self._char()
+                sink(" ")
+                continue
+            sink(c)
+            self.i += 1
+        return "".join(out)
+
+    def _advance_escaped(self) -> None:
+        """跳过当前字符；反斜杠转义连跳两位。"""
+        if self.text[self.i] == "\\":
+            self.i += 2
+        else:
+            self.i += 1
+
+    def _regular(self, verbatim: bool) -> None:
+        self.i += 1                  # 开引号
+        while self.i < len(self.text):
+            c = self.text[self.i]
+            if not verbatim and c == "\\":
+                self._advance_escaped()
+                continue
+            if c == '"':
+                if verbatim and self.text.startswith('""', self.i):   # 逐字串里 "" 是转义引号
+                    self.i += 2
+                    continue
+                self.i += 1
+                return
+            self.i += 1
+
+    def _quote_run(self) -> int:
+        """self.i 处连续引号的个数（原始字符串的开 / 闭引号串）。"""
+        j = self.i
+        while j < len(self.text) and self.text[j] == '"':
+            j += 1
+        return j - self.i
+
+    def _raw(self) -> None:
+        opening = self._quote_run()
+        end = self.text.find('"' * opening, self.i + opening)
+        self.i = len(self.text) if end < 0 else end + opening
+
+    def _char(self) -> None:
+        self.i += 1
+        while self.i < len(self.text):
+            if self.text[self.i] == "\\":
+                self._advance_escaped()
+                continue
+            if self.text[self.i] == "'":
+                self.i += 1
+                return
+            self.i += 1
+
+    def _prefixed_string(self, first: str, emit) -> bool:
+        """处理 @ 或 $ 打头的字符串；只是普通标识符前缀时返回 False 且不移动游标。
+
+        内插洞里的表达式递归按代码扫（本仓库惯用内插墙钟调用，整块剥掉会漏判），并回填 emit。
+        """
+        verbatim = first == "@"
+        interp = first == "$"
+        j, n = self.i, len(self.text)
+        while j < n and self.text[j] in "@$":
+            verbatim = verbatim or self.text[j] == "@"
+            interp = interp or self.text[j] == "$"
+            j += 1
+        if j >= n or self.text[j] != '"':
+            return False
+        self.i = j
+        if not interp:               # 仅 @ 前缀：逐字字符串，洞不是代码，整体剥掉
+            self._regular(verbatim=True)
+            return True
+        opening = self._quote_run()
+        if opening >= 3:             # 内插原始字符串
+            if verbatim:
+                self._raw()
+            else:
+                self._raw_interpolated(emit)
+            return True
+        self._regular_interpolated(verbatim, emit)
+        return True
+
+    def _regular_interpolated(self, verbatim: bool, emit) -> None:
+        self.i += 1                  # 开引号
+        while self.i < len(self.text):
+            c = self.text[self.i]
+            if not verbatim and c == "\\":
+                self._advance_escaped()
+                continue
+            if c == '"':
+                if verbatim and self.text.startswith('""', self.i):
+                    self.i += 2
+                    continue
+                self.i += 1
+                return
+            if c == "{":
+                if self.text.startswith("{{", self.i):    # {{ 是字面花括号
+                    self.i += 2
+                    continue
+                self._hole("}", emit)
+                continue
+            self.i += 1
+
+    def _hole(self, closing: str, emit) -> None:
+        self.i += 1                  # 洞的开括号
+        if emit is not None:
+            emit(" ")                # 洞两侧留白，避免与相邻代码粘连成新标识符
+        hole = self.code(stop_at=closing, emit=emit)
+        if emit is not None:
+            emit(hole)
+            emit(" ")
+        if self.i < len(self.text):
+            self.i += 1              # 洞的收尾括号
+
+    def _raw_interpolated(self, emit) -> None:
+        opening = self._quote_run()
+        self.i += opening            # 开引号串
+        holes = "$" * max(opening - 1, 1)
+        curlies = "{" * opening
+        while self.i < len(self.text):
+            c = self.text[self.i]
+            if c == "$" and self.text.startswith(holes + "{", self.i):
+                if self.text.startswith(holes + curlies, self.i):
+                    self.i += len(holes) + len(curlies)    # 内插原始串里的字面花括号
+                    continue
+                self.i += len(holes)
+                self._hole("}", emit)
+                continue
+            if c == '"' and self._quote_run() >= opening:
+                self.i += self._quote_run()
+                return
+            self.i += 1
+
+
+def code_only(text: str) -> str:
+    """返回剥掉字符串字面量（含普通 / 逐字 / 原始字符串与字符字面量，内插洞保留为代码）与注释后的代码段。"""
+    return _Scanner(text).code()
 
 
 hits: dict[tuple[str, str], list[tuple[int, str]]] = {}

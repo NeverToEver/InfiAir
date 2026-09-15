@@ -12,13 +12,18 @@
 #
 # 判定（四条，任一条取不到判据即红——AGENTS §6 铁律 2）：
 #   a) scripts/ci/ 下每个 .sh 都注册在 gates.py 的 STEPS 与 ci.yml 里（缺失＝永不执行）；
-#   b) gates.py / ci.yml 登记的每个脚本都真实存在（不存在＝CI 在调用处才报错，本地可能不跑）；
-#      另判 gates.py 的 slug 不重名——`--only <slug>` 是跑单步的唯一入口，重名会静默跑错一步；
-#   c) check_smoke.sh 的每条 run_case 紧随一条 expect_marker（漏断言＝该趟降级为不崩即过）；
+#   b) gates.py 的 STEPS 与 ci.yml 的调用**顺序逐条一致**（集合相等抓不到重排：本地排在冒烟
+#      之后的静态门禁，CI 在构建前就红——同一份改动本地与 CI 的失败暴露面不一致，排查顺序错位）；
+#      另判 gates.py / ci.yml 登记的每个脚本都真实存在（不存在＝CI 在调用处才报错，本地可能不跑）；
+#      再判 gates.py 的 slug 不重名——`--only <slug>` 是跑单步的唯一入口，重名会静默跑错一步；
+#   c) check_smoke.sh 的每条 run_case 紧随一条 expect_marker（漏断言＝该趟降级为不崩即过），
+#      且 run_case 总数不低于 MIN_SMOKE_CASES、每趟帧数参数为正整数——整趟的 run_case 与
+#      expect_marker 两行一起删时配对性仍成立，只有趟数下限能抓「覆盖被整趟删掉」；
 #   d) 每条 expect_marker 的标记字符串都能对应到 csharp/ 里的**打印点**——字面命中，或匹配某条
 #      含格式占位的打印模板（`[event-probe] %s 全周期完成` 这类：id 由运行期代入，字面量里查不到）。
 #      字符串写错则断言永不可能通过，而现场表现只是「一条永远红的门禁」，容易被顺手删掉。
-# 三条「取不到判据」防线：脚本集为空、登记集为空、趟次为 0，一律红。
+# 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、趟次为 0、帧数非正整数，
+# 一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -62,10 +67,26 @@ if not on_disk:
     errors.append(f"{CI_DIR.relative_to(ROOT).as_posix()} 下未发现任何 .sh——路径漂移？取不到判据，拒绝判 clean")
     sys.exit(1)
 
-# gates.py：STEPS 表里 "script": "xxx.sh"
-in_gates = set(re.findall(r'"script"\s*:\s*"([^"]+\.sh)"', gates_text))
-# ci.yml：调用 bash scripts/ci/xxx.sh（可带参数）
-in_yml = set(re.findall(r"scripts/ci/([A-Za-z0-9_]+\.sh)", yml_text))
+# 顺序口径必须含 `dotnet build` 这一步：它没有 .sh 名字，只比脚本序列会漏掉「把静态门禁挪到
+# 构建之后」这种重排——而本门禁要判的正是「本地与 CI 的失败暴露顺序是否分叉」。故两处都提取
+# 成同一种 token（脚本名 / `dotnet build`），再逐位比对。
+DOTNET = "dotnet build"
+# gates.py：每个 STEPS 条目一行，取其 kind 与 script
+gates_order = []
+for line in gates_text.splitlines():
+    if not line.strip().startswith('{"slug"'):
+        continue
+    kind = re.search(r'"kind"\s*:\s*"([^"]+)"', line)
+    script = re.search(r'"script"\s*:\s*"([^"]*)"', line)
+    if not kind or not script:
+        continue
+    gates_order.append(DOTNET if kind.group(1) == "dotnet" else script.group(1))
+# ci.yml：脚本调用可能落在 `run: |` 多行块里，故按**字符位置**排序取实际先后
+occurrences = [(m.start(), m.group(1)) for m in re.finditer(r"scripts/ci/([A-Za-z0-9_]+\.sh)", yml_text)]
+occurrences += [(m.start(), DOTNET) for m in re.finditer(r"dotnet build --nologo", yml_text)]
+yml_order = [token for _pos, token in sorted(occurrences)]
+in_gates = {t for t in gates_order if t != DOTNET}
+in_yml = {t for t in yml_order if t != DOTNET}
 
 # 本门禁自己不在 gates.py 的 "script" 形态里被别的步骤引用，但必须被登记（自身也参与断言）
 for name in sorted(on_disk):
@@ -79,6 +100,21 @@ for name in sorted(in_gates | in_yml):
 
 if not in_gates:
     errors.append("gates.py 未解析出任何登记的 .sh——STEPS 结构漂移？取不到判据，拒绝判 clean")
+if not in_yml:
+    errors.append("ci.yml 未解析出任何 scripts/ci/*.sh 调用——路径漂移？取不到判据，拒绝判 clean")
+
+# 顺序逐条一致：集合相等抓不到重排（本地与 CI 的失败暴露顺序分叉，排查切入点就错了）。
+if in_gates and in_yml and gates_order != yml_order:
+    for i in range(max(len(gates_order), len(yml_order))):
+        g = gates_order[i] if i < len(gates_order) else "<无>"
+        y = yml_order[i] if i < len(yml_order) else "<无>"
+        if g != y:
+            errors.append(
+                f"第 {i + 1} 步顺序不一致：gates.py 是 {g}、ci.yml 是 {y}"
+                "——同一份改动在本地与 CI 的失败暴露顺序分叉（后置的静态门禁会被构建与冒烟挡住），"
+                "两处须同步重排"
+            )
+            break
 
 # slug 唯一：`--only <slug>` 按 slug 匹配出唯一的步，重名时静默跑到先匹配的那一步
 slugs = re.findall(r'"slug"\s*:\s*"([^"]+)"', gates_text)
@@ -94,15 +130,15 @@ if smoke_text is not None:
     # 先吃掉反斜杠续行，再按语句看顺序：每条 run_case 之后必须紧跟一条 expect_marker
     joined = re.sub(r"\\\n", " ", smoke_text)
     stmts = []
-    for raw in joined.split("\n"):
+    for lineno, raw in enumerate(joined.split("\n"), 1):
         s = raw.strip()
         if s.startswith("run_case "):
-            stmts.append(("run_case", s))
+            stmts.append(("run_case", s, lineno))
         elif s.startswith("expect_marker "):
-            stmts.append(("expect_marker", s))
+            stmts.append(("expect_marker", s, lineno))
 
-    cases = [s for kind, s in stmts if kind == "run_case"]
-    markers = [s for kind, s in stmts if kind == "expect_marker"]
+    cases = [s for kind, s, _ln in stmts if kind == "run_case"]
+    markers = [s for kind, s, _ln in stmts if kind == "expect_marker"]
     if not cases:
         errors.append("check_smoke.sh 未解析出任何 run_case——脚本结构漂移？取不到判据，拒绝判 clean")
     if not markers:
@@ -113,10 +149,32 @@ if smoke_text is not None:
             "数目不等即有趟次漏断言（该趟降级为「退出码 0 + 无错误」＝只判不崩）"
         )
 
-    # 逐条配对：run_case 语句之后紧邻的语句必须是 expect_marker
-    for i, (kind, stmt) in enumerate(stmts):
+    # 趟数下限：配对性判定抓不到「整趟两行一起删」——run_case 与 expect_marker 同删时配对关系
+    # 仍成立、条数仍相等，覆盖静默消失而门禁判 clean。取**下限**而非精确值：新增趟是被鼓励的
+    # 覆盖增量、不构成静默错误（新趟漏配 expect_marker 由上面的配对性判定抓），把新增也判红
+    # 会造成「加覆盖反而红」的反向激励。当前实测 16 趟（check_smoke.sh 的 run_case 条数）。
+    MIN_SMOKE_CASES = 18
+    if len(cases) < MIN_SMOKE_CASES:
+        errors.append(
+            f"{SMOKE.relative_to(ROOT).as_posix()} 只解析出 {len(cases)} 趟 run_case（下限 "
+            f"{MIN_SMOKE_CASES}）——整趟的 run_case 与 expect_marker 一起删时配对性判定仍成立，"
+            "门禁会静默判 clean；确认是有意缩减覆盖后同步本常量，不要放宽下限"
+        )
+
+    # 逐条配对：run_case 语句之后紧邻的语句必须是 expect_marker。帧数参数另判正整数：
+    # 帧数被掏空（空串或非数字）时该趟只跑 0 帧，完成标记必然缺失，却可能因退出码 0 而静默过。
+    for i, (kind, stmt, lineno) in enumerate(stmts):
         if kind != "run_case":
             continue
+        head = re.match(r'^run_case\s+"([^"]*)"\s+(\S+)', stmt)
+        frames_tok = head.group(2) if head else ""
+        if not re.fullmatch(r"\d+", frames_tok) or int(frames_tok) <= 0:
+            errors.append(
+                f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 趟次「"
+                f"{head.group(1) if head else stmt[:60]}」的帧数参数不是正整数"
+                f"（帧数位取到 `{frames_tok}`，可能是帧数被掏空或参数顺序变了）"
+                "——帧数被掏空时该趟只跑 0 帧，只判「不崩」抓不到"
+            )
         nxt = stmts[i + 1] if i + 1 < len(stmts) else None
         if nxt is None or nxt[0] != "expect_marker":
             label = re.search(r'"([^"]*)"', stmt)

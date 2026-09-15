@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十二步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
+按 CI fast-gate 顺序跑完全部十三步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
 存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 代码默认值与 balance 定稿对账 →
-C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟十一趟 → 截图探针（辅助）。
+门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟十八趟 → 截图探针（辅助）。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十二步
+    python3 scripts/ci/gates.py                  # 全部十三步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -31,7 +31,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml）
+# 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml），逐条对应，新增或重排须两处同步。
+# gate_wiring 紧跟在 code_defaults 之后（与 ci.yml 一致）：它是静态检查，本地也要在构建前就暴露
+# 装配错误——排在冒烟之后时，本地一次装配错误要等构建 + 单测 + 导入 + 十八趟冒烟才红。
 STEPS = (
     {"slug": "prose_hygiene", "name": "卫生：注释日期戳与术语", "kind": "bash", "script": "check_prose_hygiene.sh", "godot": False},
     {"slug": "ui_copy", "name": "玩家可见文案", "kind": "bash", "script": "check_ui_copy.sh", "godot": False},
@@ -40,11 +42,11 @@ STEPS = (
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "realtime_allowlist", "name": "真实时间允许清单", "kind": "bash", "script": "check_realtime_allowlist.sh", "godot": False},
     {"slug": "code_defaults", "name": "代码默认值与 balance 定稿对账", "kind": "bash", "script": "check_code_defaults.sh", "godot": False},
+    {"slug": "gate_wiring", "name": "门禁装配完整性（脚本↔注册↔完成标记断言）", "kind": "bash", "script": "check_gate_wiring.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "无头冒烟十一趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/返航宽限/教程场景）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
-    {"slug": "gate_wiring", "name": "门禁装配完整性（脚本↔注册↔完成标记断言）", "kind": "bash", "script": "check_gate_wiring.sh", "godot": False},
+    {"slug": "smoke", "name": "无头冒烟十八趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/迷雾打断/返航宽限/Boss阶段机/母舰坞态/遭遇击杀型/恶意存档/死亡删档门控/增幅缓存复用/教程场景）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
     {"slug": "visual", "name": "截图探针（HUD + 五张设置页，自检非空白/页面互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
 )
 

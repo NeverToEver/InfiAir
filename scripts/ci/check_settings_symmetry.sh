@@ -21,12 +21,33 @@ if not collect or not apply or not reset:
     print("::error::无法定位 CollectSettingsDict/ApplySettingsDict/ResetToDefaults（结构变了？门禁需同步）")
     sys.exit(1)
 
-written = set(re.findall(r'\["([a-z_]+)"\]\s*=', collect.group(1)))
+# 键口径：AGENTS §9 规定数值键 snake_case。命中**不**再用键名字符集限定——此前正则写
+# `[a-z_]+`，含数字的键（fps_cap2 这类）在写读两侧同时不可见：只写不读、只读不写、可持久化
+# 却未被「全部恢复默认」覆盖三种静默错误全不报，而这三样正是本门禁存在的唯一理由。
+# 改为「先按 `["任意键"] =` 全量取键、再单独判键名是否合规」：任何键都不会对判定不可见，
+# 键名不合规即显式报红（而不是静默漏判）。两侧计数一致＝键字面量与合法命中数交叉对上。
+KEY_NAME = re.compile(r"[a-z_][a-z0-9_]*")
+ASSIGN_KEY = re.compile(r'\["([^"]*)"\]\s*=')
+READ_KEY = re.compile(r'\b(data)\s*\.\s*GetValueOrDefault\("([^"]*)"')
+ANY_READ_KEY = re.compile(r'\b\w+\s*\.\s*GetValueOrDefault\("([^"]*)"')
+# 交叉断言：键字面量的**出现次数**必须等于正则命中数。取键正则覆盖任意键名后二者天然相等
+# （实测写侧 26=26、读侧 27=27），一旦有人把正则收窄回 `[a-z_]+`，字面量计数不动而命中数掉、
+# 含数字键又回到「两侧都不可见」的静默态——这条算术不依赖捕获组宽窄，故能兜住那次回退。
+assign_literals = collect.group(1).count('["')
+read_literals = apply.group(1).count('GetValueOrDefault("')
+
+assigned = ASSIGN_KEY.findall(collect.group(1))
 # 只认「data 直接取键」；空串默认值是合法读法（StringName 字段的惯例），不当漏读。
 # window_size 只出现在旧档案迁移分支（新键 window_mode 取代之），写入侧早已不产出这个键
 # ——这是决策点，改它等于恢复旧键的读写，须连迁移分支一起删。
-read = set(re.findall(r'data\s*\.\s*GetValueOrDefault\("([a-z_]+)"', apply.group(1)))
+read_pairs = READ_KEY.findall(apply.group(1))
+read = {key for _recv, key in read_pairs}
 read -= {"window_size"}
+written = set(assigned)
+
+illegal = sorted({key for key in assigned + [k for _r, k in read_pairs] if not KEY_NAME.fullmatch(key)})
+# 读侧换接收者（改写成本地变量再取键）会让键整批对判定不可见——与含数字键同族，显式报红。
+foreign = sorted(set(ANY_READ_KEY.findall(apply.group(1))) - {k for _r, k in read_pairs})
 # version 由落盘侧 GameState.SaveSettings 在 CollectSettingsDict 之后补写（data["version"] = ...），
 # 不在 Collect 字面表内；把它并进写入侧，version 才能真正参与写读对称判定（此前整键豁免＝判不到）。
 save = pathlib.Path("csharp/godot/GameState.Save.cs").read_text(encoding="utf-8")
@@ -38,6 +59,24 @@ if re.search(r'\["version"\]\s*=', save):
 if not written or not read:
     print(f"::error::写读键集为空（写 {len(written)} / 读 {len(read)}）——正则或结构变了？门禁需同步")
     sys.exit(1)
+if len(assigned) != assign_literals:
+    print(f"::error::写侧键字面量 {assign_literals} 处、取键正则只命中 {len(assigned)} 个"
+          "——正则收窄会静默丢掉一部分键（此前 `[a-z_]+` 就是这样漏掉含数字键的），"
+          "取键正则必须覆盖任意键名，键名合规性另判")
+    sys.exit(1)
+if len(read_pairs) != read_literals:
+    print(f"::error::读侧取键字面量 {read_literals} 处、取键正则只命中 {len(read_pairs)} 个"
+          "——正则收窄会静默丢掉一部分键，取键正则必须覆盖任意键名")
+    sys.exit(1)
+
+if illegal:
+    errors.append(f"设置键名不合 snake_case（AGENTS §9）：{illegal}"
+                  f"（写侧键字面量 {len(assigned)} 条、读侧 {len(read_pairs)} 条，其中 {len(illegal)} 个"
+                  "键名不合法）——键名不合法时它在写读与复位三项判定里都取不到，"
+                  "须改名或同步本门禁的键口径")
+if foreign:
+    errors.append(f"读侧出现非 `data.GetValueOrDefault(\"键\", …)` 形态的取键：{foreign}"
+                  "——接收者换名后该键对写读对称判定不可见（静默漏判），须回到 data 直取")
 
 for key in sorted(written - read):
     errors.append(f"`{key}` 只写不读：设置项存了但读档不还原（玩家改动下次启动丢失）")
@@ -91,5 +130,6 @@ if errors:
         print("::error::" + e)
     print(f"settings-symmetry gate: FAILED（写 {len(written)} / 读 {len(read)} / 重置 {len(touched)} 字段）")
     sys.exit(1)
-print(f"settings-symmetry gate: clean（写读各 {len(written)} 字段；重置覆盖 {len(touched)} 字段）")
+print(f"settings-symmetry gate: clean（写读各 {len(written)} 字段（键字面量 {len(assigned)} 条，"
+      f"键名全部合规）；重置覆盖 {len(touched)} 字段）")
 PY
