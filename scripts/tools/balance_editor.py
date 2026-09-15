@@ -75,7 +75,7 @@ PAGE = """<!DOCTYPE html>
 <script>
 let original = null;   // 服务器文件快照
 let current = null;    // 编辑中的副本
-const rows = [];       // {path, parse, input, row}
+const rows = [];       // 行记录：路径 / 解析器 / 输入框 / 行元素
 let errorCount = 0;    // 处于解析错误状态的行数（>0 禁止保存）
 
 const statusEl = document.getElementById('status');

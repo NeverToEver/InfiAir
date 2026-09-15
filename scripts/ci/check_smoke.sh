@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-无头冒烟十趟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟十趟（固定步长、机器速度）+ 完成标记断言。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
 # 覆盖「跑不到就发现不了」的面：
 #   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
@@ -25,8 +25,9 @@
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
 #
 # 2~10 趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入 main.tscn）：测试开关不进生产
-# main.tscn/Main（AGENTS §5）。死亡那趟在临时用户目录里跑——死亡即删本局存档，探针不得
-# 触碰开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
+# main.tscn/Main（AGENTS §5）。**每趟都在各自临时用户目录里跑**——探针会读存档/设置在标题屏
+# 与设置页分叉，且返航趟的收尾走生产存档出口（Main.OnReturnFinished → SaveRun）；不隔离就会
+# 读走开发者本机配置、写坏开发者当前存档（AGENTS §5「不依赖外部残留状态」）。
 set -uo pipefail
 
 GODOT="${GODOT:-godot}"
@@ -79,28 +80,28 @@ expect_marker() {
   echo "$label: ok"
 }
 
-run_case "main scene smoke(300)" 300 "$LOG" "" ""
+run_case "main scene smoke(300)" 300 "$LOG" "" "${PROBE_LOG_BASE}.main.userdata"
 # 开机交接：main 开机必须落到 title.tscn（无开场过场，直达标题屏）。标记由 TitleScreen._Ready
 # 打印——切场景静默失败（路径错/资源缺失）时它不会出现，只判「不崩」则停在 main 空战场看不出。
 expect_marker "开机直达标题屏" "$LOG" "[boot] 标题屏就绪"
-run_case "settings page smoke" 60 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "" --settings-probe
+run_case "settings page smoke" 60 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
 expect_marker "settings page 五页" "${PROBE_LOG_BASE}.settings.log" "[settings-probe] 五页切换完成"
 # 全周期帧数含两段：① 探针等入场动画（0.55 + 1.1 = 1.65s）后才在生产触发链上放行
 # （入场窗口内 spawner 停驱动、生产不可能触发，探针不得绕过）；② 事件自身全周期。
 # 编队全周期 ≈ 入场 1.46s + 转弯 1.2s + 投弹最长 4.95s + 离场 1.5s ≈ 9.1s
-run_case "formation strike smoke" 800 "${PROBE_LOG_BASE}.formation.log" "$PROBE_SCENE" "" --event-probe=formation_strike
+run_case "formation strike smoke" 800 "${PROBE_LOG_BASE}.formation.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.formation.userdata" --event-probe=formation_strike
 expect_marker "formation strike 全周期" "${PROBE_LOG_BASE}.formation.log" "[event-probe] formation_strike 全周期完成"
 # 精英炮塔全周期 ≈ 入场 2s + 升起 1.5s + 30s 倒计时 + 撤离 ≈1.7s + Boss 恢复 4s ≈ 39.2s
-run_case "elite turret smoke" 2700 "${PROBE_LOG_BASE}.elite.log" "$PROBE_SCENE" "" --event-probe=elite_turret
+run_case "elite turret smoke" 2700 "${PROBE_LOG_BASE}.elite.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.elite.userdata" --event-probe=elite_turret
 expect_marker "elite turret 全周期" "${PROBE_LOG_BASE}.elite.log" "[event-probe] elite_turret 全周期完成"
 # 死亡打断：激活后延迟 4s 击杀（覆盖「炮塔已升起」的清理分支）→ 打断 → 撤离 + Boss 恢复 ≈ 14s
 run_case "elite turret death-path smoke" 1500 "${PROBE_LOG_BASE}.elite_death.log" "$PROBE_SCENE" \
-  "${PROBE_LOG_BASE}.userdata" --event-probe-death=elite_turret
+  "${PROBE_LOG_BASE}.elite_death.userdata" --event-probe-death=elite_turret
 expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[event-probe] elite_turret 死亡打断完成"
 # 燃料量槽满扫：无头局玩家不操作、不掉油，低油量填充绘制路径平时走不到；探针把液位从满扫到空，
 # 逼 _Draw 在每个液位各画一次（含掉液触发的最大波幅晃动）。判定靠错误正则抓「Invalid polygon data」
 # ——自交/退化多边形整块不画且不崩，只判「不崩」抓不到（低油量燃料槽整块消失即此类）。
-run_case "fuel tank sweep smoke" 400 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "" --fuel-probe
+run_case "fuel tank sweep smoke" 400 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.fuel.userdata" --fuel-probe
 expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] 液位满扫完成"
 # 手感探针：请求顿帧与震动后断言时间缩放压低/复位与 trauma 归零（无头下不崩即坏点，见文件头）。
 # 隔离用户目录：探针前提是「顿帧/震动未被玩家关掉」，而 GameFeelService 在强度为 0 时直接忽略请求
@@ -108,14 +109,14 @@ expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] �
 run_case "game feel probe smoke" 400 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE"   "${PROBE_LOG_BASE}.feel.userdata" --feel-probe
 expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe] 顿帧与震动复位完成"
 # 长局难度曲线：直接取生产曲线在 t=5/10/20/30min 的值，断言单调/速度有顶/精英增长/Boss 斜率独立/软上限。
-run_case "long-run difficulty curve smoke" 200 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "" --long-probe
+run_case "long-run difficulty curve smoke" 200 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.long.userdata" --long-probe
 expect_marker "难度曲线落在预期带" "${PROBE_LOG_BASE}.long.log" "[long-probe] 难度曲线落在预期带"
 # 迷雾全周期（fake_enemies）：强制入口只替换掷签与权重选取，仍过生产门控（首延迟/冷却/接线/
 # 本局活跃/组内无进行中），并断言 start→end 跑满生产 duration。帧数单源：25s 首延迟 + 8s
 # fake_enemies duration（data/balance.json fog_events.durations）+ 3s 余量 = 36s × 60 = 2160。
-run_case "fog event full-cycle smoke" 2160 "${PROBE_LOG_BASE}.fog.log" "$PROBE_SCENE" "" --fog-probe
+run_case "fog event full-cycle smoke" 2160 "${PROBE_LOG_BASE}.fog.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.fog.userdata" --fog-probe
 expect_marker "迷雾全周期" "${PROBE_LOG_BASE}.fog.log" "[fog-probe] 迷雾全周期完成"
 # 返航宽限与跳过收尾：入场约 1.65s + 蓄力 1.5s + 判别窗口 1.5s（90 帧）+ 收尾余量 ≈ 6s，取 10s
 # 余量 600 帧；探针不等真实时间，判据全部由帧数与墙钟前置守卫决定（见 ProbeHost.TickReturnProbe）。
-run_case "return grace smoke" 600 "${PROBE_LOG_BASE}.return.log" "$PROBE_SCENE" "" --return-probe
+run_case "return grace smoke" 600 "${PROBE_LOG_BASE}.return.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.return.userdata" --return-probe
 expect_marker "返航宽限与跳过收尾" "${PROBE_LOG_BASE}.return.log" "[return-probe] 返航宽限与跳过收尾完成"

@@ -10,6 +10,10 @@
 # 动态拼接键（Tr("ACT_" + name)）不参与缺键判定，故只认完整调用实参形态。
 # 事件台词/事件条走「键名字面量」而非 Tr()（CommOverlay.ShowLine、Hud.ShowEventBar 内部再翻），
 # 它们的缺键同样显示键名本身，故一并按同一口径判（TEXT_KEY_CALL）。
+# 扫描面：目前只扫 csharp/ 的 .cs。scenes/*.tscn 里的硬编码文案不在判定内（需先清掉
+# scenes/main.tscn 的硬编码文案再扩面，属另一项改动）。
+# 零命中守卫：静态键是「本门禁的判据来源」，取不到就谈不上「无缺键」——两个正则各自的命中集都
+# 不得为空，且静态键总数不得低于 MIN_STATIC_KEYS（理由见该常量处）。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -58,14 +62,36 @@ for line_no, row in enumerate(rows, start=2):
             errors.append(f"第 {line_no} 行 `{key}` 的 {lang} 含开发措辞「{hit.group(0)}」：{text!r}")
 
 used: set[str] = set()
+tr_used: set[str] = set()
+text_used: set[str] = set()
 for path in (root / "csharp").rglob("*.cs"):
     parts = path.parts
     if "obj" in parts or "bin" in parts:
         continue
     source = path.read_text(encoding="utf-8", errors="ignore")
-    used.update(TR_ARG.findall(source))
+    tr_used.update(TR_ARG.findall(source))
     for match in TEXT_KEY_CALL.finditer(source):
-        used.update(group for group in match.groups() if group)
+        text_used.update(group for group in match.groups() if group)
+used = tr_used | text_used
+
+# 零命中守卫：判据取不到必须显式失败（AGENTS §6 铁律 2）。
+#   - 两个抽取正则各自的命中集非空：任一条静默失效都会让对应面（Tr / 直接吃键的 API）退出判定；
+#   - 静态键总数下限 MIN_STATIC_KEYS：单项守卫抓不到「访问器整体改名」这类漂移——把全库 Tr( 改名
+#     成 Loc( 后仍能从 ShowLine/ShowEventBar 抓到十几个键，差集照样为空。当前实测 225 个静态键
+#     （Tr 213 + 直接吃键 12），取 150：掉到 150 以下意味着三分之一以上的调用点消失，那是重构
+#     规模的口径变更，须人工确认后连同门禁一起改，而不是静默放行。
+MIN_STATIC_KEYS = 150
+if not tr_used:
+    print("::error::Tr(\"KEY\") 形态一个键都没抓到（访问器改名或正则漂移？）——拒绝判 clean")
+    sys.exit(1)
+if not text_used:
+    print("::error::直接吃翻译键的 API（ShowLine/ShowEventBar）一个键都没抓到（签名变了？）——拒绝判 clean")
+    sys.exit(1)
+if len(used) < MIN_STATIC_KEYS:
+    print(f"::error::静态键只有 {len(used)} 个（下限 {MIN_STATIC_KEYS}；Tr {len(tr_used)} / "
+          f"直接吃键 {len(text_used)}）——访问器被整体改名或扫描面变了？门禁需同步，不要放宽下限")
+    sys.exit(1)
+
 for key in sorted(used - keys):
     errors.append(f"`{key}` 被 C# 引用但表中无此键（界面会显示键名本身）")
 
@@ -74,5 +100,6 @@ if errors:
         print("::error::" + message)
     print(f"ui-copy gate: FAILED（{len(errors)} 项）")
     sys.exit(1)
-print(f"ui-copy gate: clean（{len(rows)} 条文案 / {len(used)} 个静态键）")
+print(f"ui-copy gate: clean（{len(rows)} 条文案 / {len(used)} 个静态键"
+      f"（Tr {len(tr_used)} / 直接吃键 {len(text_used)}））")
 PY

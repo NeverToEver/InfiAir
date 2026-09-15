@@ -44,11 +44,34 @@ for key in sorted(written - read):
 for key in sorted(read - written):
     errors.append(f"`{key}` 只读不写：读档永远取默认值（该设置从未落盘）")
 
-# 恢复默认必须覆盖全部可持久化设置项之外的「玩家可调项」：粗校验——ResetToDefaults 至少
-# 触及多个字段，且不能只改 Locale（防止有人把它写成空壳后仍然「通过」）
+# 恢复默认必须覆盖全部可持久化设置项：集合关系判定（键 -> ResetToDefaults 触及的字段名）。
+# 此前用「触及字段数 ≥15」的魔数粗校验：新增设置项、写读都加、就是不加进 ResetToDefaults 时
+# 字段数照旧达标，门禁判 clean，而玩家点「全部恢复默认」后该项仍是旧值（且随后落盘固化旧值）。
+# 键到字段名默认按 snake_case → PascalCase 映射；不规则命名在 RESET_ALIASES 里逐一列出。
+# 复位改由别处负责、或刻意不复位的键在 RESET_EXEMPT 里列出并给理由（不登记即报「疑似漏项」）。
+RESET_ALIASES = {
+    "vsync": "VSync",                 # 缩写保留全大写（C# 属性名 VSync）
+    "aim_assist": "AimAssistLevel",   # 档位字段带 Level 后缀
+    "custom_width": "CustomWindowWidth",    # 字段名带 Window 中缀
+    "custom_height": "CustomWindowHeight",
+}
+RESET_EXEMPT = {
+    "tutorial_done": "教程完成度不是偏好设置，复位等于让玩家重看教程——GameState.ResetAllSettings 刻意保留",
+    "key_bindings": "键位有独立事实源：GameState.ResetAllSettings 先调 ResetKeyBindings()，不归本服务",
+    "difficulty": "难度由 GameState.ResetAllSettings 走 SetDifficulty(medium) 正口复位（校验/落盘/广播），"
+                  "不归本服务",
+}
 touched = set(re.findall(r"^\s+([A-Z][A-Za-z]+)\s*=", reset.group(1), re.M))
-if len(touched) < 15:
-    errors.append(f"ResetToDefaults 只重置 {len(touched)} 个字段（疑似漏项）：{sorted(touched)}")
+# 零命中守卫：ResetToDefaults 被写成空壳（或正则漂移）时 touched 为空，差集同为空——必须先炸
+if not touched:
+    print("::error::ResetToDefaults 里没解析到任何字段赋值（结构变了或方法被掏空？）——拒绝判 clean")
+    sys.exit(1)
+persistable = written - {"version"}
+for key in sorted(persistable):
+    field = RESET_ALIASES.get(key) or "".join(part.capitalize() for part in key.split("_"))
+    if field not in touched and key not in RESET_EXEMPT:
+        errors.append(f"`{key}` 可持久化但 ResetToDefaults 没重置（映射字段 `{field}` 不在赋值列表里）"
+                      "——「全部恢复默认」后仍是旧值；确实不复位就登记进 RESET_EXEMPT 并给理由")
 
 # 设置页文案键存在性：页表与各分组标题引用的 SET_* 键必须在 translations.csv 中。
 # 以 "_" 结尾的是拼接前缀（"SET_AIM_" + level），按静态键判会误报，一并跳过。

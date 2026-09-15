@@ -23,32 +23,32 @@ else
 fi
 echo "==> 使用解释器: $PY"
 
-echo "==> [1/7] 玩家战机 + 受击帧贴图 (generate_player_sprite.py)"
+echo "==> [1/8] 玩家战机 + 受击帧贴图 (generate_player_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_player_sprite.py"
 echo "    产物: assets/sprites/player_ship.png, player_ship_hit_1.png, player_ship_hit_2.png,"
 echo "          player_ship_glow.png(能量发光遮罩)"
 
-echo "==> [2/7] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
+echo "==> [2/8] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
 "$PY" "$SCRIPT_DIR/generate_enemy_sprites.py"
 echo "    产物: assets/sprites/enemy_ship_1..4.png, elite_ship_1..3.png,"
 echo "          boss_ship_1..4.png, strike_carrier.png(800x460), elite_turret.png"
 echo "          + 各机 *_glow.png(能量发光遮罩,elite_turret 除外)"
 
-echo "==> [3/7] Boss P2 损伤帧 (generate_boss_p2_frames.py)"
+echo "==> [3/8] Boss P2 损伤帧 (generate_boss_p2_frames.py)"
 "$PY" "$SCRIPT_DIR/generate_boss_p2_frames.py"
 echo "    产物: assets/sprites/boss_ship_1_p2.png .. boss_ship_4_p2.png"
 echo "          + boss_ship_1_p2_glow.png .. boss_ship_4_p2_glow.png(损伤能量遮罩)"
 
-echo "==> [4/7] 母舰贴图 (generate_mothership_sprite.py)"
+echo "==> [4/8] 母舰贴图 (generate_mothership_sprite.py)"
 "$PY" "$SCRIPT_DIR/generate_mothership_sprite.py"
 echo "    产物: assets/sprites/mothership.png, mothership_glow.png(能量发光遮罩)"
 
-echo "==> [5/7] 深空背景贴图 (generate_backdrop_sprites.py)"
+echo "==> [5/8] 深空背景贴图 (generate_backdrop_sprites.py)"
 "$PY" "$SCRIPT_DIR/generate_backdrop_sprites.py"
 echo "    产物: assets/sprites/backdrop/planet_1.png(900x900), planet_2.png(640x640),"
 echo "          debris_1..3.png"
 
-echo "==> [6/7] 标题 logo (generate_logo.py)"
+echo "==> [6/8] 标题 logo (generate_logo.py)"
 "$PY" "$SCRIPT_DIR/generate_logo.py"
 echo "    产物: assets/sprites/ui/logo.png(900x260)"
 
@@ -60,7 +60,7 @@ echo "          button_plate.png / button_plate_pressed.png(48x48 九宫格)"
 
 echo "==> [8/8] 音效/BGM (generate_audio.py + tune_sfx.py --apply)"
 "$PY" "$SCRIPT_DIR/generate_audio.py"
-# 入库态 = 生成 + 逐文件 DSP 微调(2026-09-08 音频库重构引入的处理链,
+# 入库态 = 生成 + 逐文件 DSP 微调(音频库重构引入的处理链,
 # 缺这一步重跑必然与入库资产漂移)——体检报告噪声大,只留产物摘要
 "$PY" "$SCRIPT_DIR/tune_sfx.py" --apply >/dev/null
 echo "    产物: assets/audio/explosion.wav, explosion_big.wav, player_hit.wav,"
