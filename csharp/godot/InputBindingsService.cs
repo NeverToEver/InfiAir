@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Input;
 
 namespace InfiAir;
 
@@ -323,10 +324,11 @@ public sealed partial class InputBindingsService : RefCounted
         return XBOX_BUTTON_LABELS.GetValueOrDefault(button, button.ToString()).ToString();
     }
 
-    /// <summary>改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换）。
+    /// <summary>改键：清除该动作现有键设新键；冲突键从占用者移除（允许交换），占用者其余绑定保留。
     /// 固定动作（talent_panel/restart）与引擎 ui_* 保留键在此拒绝（返回 false）——这些动作无
-    /// 可改入口，被抢占后对应功能静默按不出来；冲突清理同时扫默认绑定——未自定义动作的默认键
-    /// 被占用时置空绑定覆盖默认，避免 apply_key_bindings 从默认表重灌同键造成两动作冲突</summary>
+    /// 可改入口，被抢占后对应功能静默按不出来。冲突清理的口径单源在 core 层 KeyBindingConflict：
+    /// 占用者的生效绑定来自默认表时，写回的是「默认表减去该键」——写空数组会连带打掉同一动作的
+    /// 另一个默认键（移动动作均为双键默认值），而不写覆盖又会让 apply_key_bindings 从默认表重灌同键。</summary>
     public bool RebindAction(StringName action, int keycode)
     {
         if (!REBINDABLE_ACTIONS.Contains(action) || ReservedBy(keycode) != new StringName())
@@ -334,33 +336,31 @@ public sealed partial class InputBindingsService : RefCounted
             return false;
         }
 
+        // 快照成纯 .NET 表喂 core 纯函数（Godot 容器不参与判定；两张源表不被就地修改）
+        var overrides = KeyBindings.ToDictionary(
+            kv => kv.Key.AsStringName().ToString(),
+            kv => kv.Value.AsGodotArray().Select(k => (int)k.AsInt64()).ToArray());
+        var defaults = new Dictionary<string, int[]>();
+        var actionNames = new List<string>();
         foreach (var a in REBINDABLE_ACTIONS)
         {
-            if (a == action)
-            {
-                continue;
-            }
-
-            var effective = KeyBindings.GetValueOrDefault(a, _defaultBindings.GetValueOrDefault(a, new Variant())).AsGodotArray();
-            if (effective.Count == 0)
-            {
-                continue; // 空绑定 = 该动作无键，不占用任何键
-            }
-
-            if (effective.Contains(keycode))
-            {
-                if (KeyBindings.ContainsKey(a))
-                {
-                    KeyBindings[a].AsGodotArray().Remove(keycode);
-                }
-                else
-                {
-                    KeyBindings[a] = new Godot.Collections.Array(); // 默认键被占用：空绑定覆盖默认，解除占用
-                }
-            }
+            var name = a.ToString();
+            actionNames.Add(name);
+            defaults[name] = _defaultBindings.GetValueOrDefault(a, new Variant()).AsGodotArray()
+                .Select(k => (int)k.AsInt64()).ToArray();
         }
 
-        KeyBindings[action] = new Godot.Collections.Array { keycode };
+        foreach (var (a, keys) in KeyBindingConflict.Cleanup(defaults, overrides, actionNames, action.ToString(), keycode))
+        {
+            var arr = new Godot.Collections.Array();
+            foreach (var k in keys)
+            {
+                arr.Add(k);
+            }
+
+            KeyBindings[new StringName(a)] = arr;
+        }
+
         ApplyKeyBindings();
         GameState.Instance.SaveSettings();
         KeyBindingsChanged?.Invoke();

@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Input;
 
 namespace InfiAir;
 
@@ -9,7 +10,10 @@ namespace InfiAir;
 /// 冻结 → 准星失控"的前提；暂停/增幅/基地/结算/过场/开始页等非准星态（AimCrosshair
 /// 恢复系统光标）与窗口失焦一律放行——暂停后鼠标可自由移出窗口（如点系统标题栏
 /// 关闭按钮退出游戏）。
-/// Godot 4 的 Input.warp_mouse 接受屏幕坐标：warp 目标 = 窗口左上角屏幕坐标 + 内容区 clamp 点。
+/// Godot 4 的 Input.warp_mouse 收**窗口相对坐标**（GodotSharp.xml：relative to an origin at the
+/// upper left corner of the currently focused Window Manager game window）——warp 目标就是内容区
+/// clamp 点本身，**不得叠加窗口的屏幕位置**：叠上去会把光标弹开该偏移量（窗口不在 (0,0) 时准星瞬跳，
+/// 窗口左/上边带成死区）。钳制算式单源在 WarpClamp（core 纯逻辑层，配单测）。
 /// warp 目标恒取"出框前最后窗口内位置"（_last_known_pos），位移 ≤ 1-2px；且鼠标在窗口外时
 /// get_global_mouse_position() 本就冻结在最后内部位置，warp 后读值连续——不引入准星跳变，
 /// 反而把"移回窗口时的位置跳变"钳在边缘内侧（无 confine 时可有数十 px 跳变）。
@@ -104,7 +108,9 @@ public partial class MouseTrap : Node
         }
 
         var win = GetWindow();
-        Input.WarpMouse((Vector2)win.GetPosition() + WarpTarget(_lastKnownPos, win.Size));
+        // warp_mouse 收窗口相对坐标：结果原样交出，不加窗口屏幕位置（见文件头注释）
+        var (wx, wy) = WarpTarget(_lastKnownPos.X, _lastKnownPos.Y, win.Size.X, win.Size.Y);
+        Input.WarpMouse(new Vector2(wx, wy));
     }
 
     /// <summary>每帧防御：已知位置经 clamp 改变（窗口尺寸/位置变化等偶发越界）时即时拉回</summary>
@@ -116,18 +122,18 @@ public partial class MouseTrap : Node
         }
 
         var win = GetWindow();
-        var target = WarpTarget(_lastKnownPos, win.Size);
-        if (target != _lastKnownPos)
+        var (tx, ty) = WarpTarget(_lastKnownPos.X, _lastKnownPos.Y, win.Size.X, win.Size.Y);
+        if (tx != _lastKnownPos.X || ty != _lastKnownPos.Y)
         {
-            Input.WarpMouse((Vector2)win.GetPosition() + target);
+            Input.WarpMouse(new Vector2(tx, ty));
         }
     }
 
     /// <summary>warp 目标：已知窗口内位置 clamp 到内容区边缘内侧 1px（窗口相对坐标）。
-    /// 避免系统判定鼠标仍在窗外造成 exited/warp 循环；窗口最小边假设 ≥ 2px。
-    /// 纯函数，公开（见 TrapEnabled）。</summary>
-    public static Vector2 WarpTarget(Vector2 knownPos, Vector2I winSize)
+    /// 钳制算式单源在 core 层 WarpClamp.Target（坐标系语义与退化窗口/非有限输入边界由单测钉住；
+    /// 本方法只做 Godot 类型适配）。</summary>
+    public static (float X, float Y) WarpTarget(float knownX, float knownY, float winWidth, float winHeight)
     {
-        return knownPos.Clamp(Vector2.One, (Vector2)(winSize - Vector2I.One));
+        return WarpClamp.Target(knownX, knownY, winWidth, winHeight);
     }
 }

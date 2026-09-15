@@ -17,11 +17,7 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
 
-    /// <summary>bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
-    /// 本类 ApplyFaction 复位消费；不得每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
-    internal static readonly StringName MetaBulletType = new("bullet_type");
-
-    /// <summary>组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，MetaBulletType 同款）。</summary>
+    /// <summary>组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，零分配）。</summary>
     private static readonly StringName GroupEnemy = new("enemy");
     private static readonly StringName GroupPlayerHitbox = new("player_hitbox");
 
@@ -636,11 +632,7 @@ public partial class Bullet : Area2D, IParryable
         // modulate 复位为白（玩家弹呼吸脉冲亮度残留——反射/换阵营复用同实例）
         _sprite.SelfModulate = Colors.White;
         _sprite.Modulate = Colors.White;
-        if (HasMeta(MetaBulletType))
-        {
-            RemoveMeta(MetaBulletType);
-        }
-
+        // 不在此复位 bullet_type meta：写入侧已全部退役、全库无读取点
         if (IsPlayerBullet)
         {
             CollisionLayer = 2; // 第 2 层：player_bullet
