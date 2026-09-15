@@ -160,6 +160,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.11 Tutorial
 - Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-H → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
+- 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
+- 教程是独立于 `Main` 的生产入口，冒烟单独一趟直开 `tutorial.tscn` 覆盖（断 `[tutorial] 场景就绪`）。
 
 ### 1.12 Exit/Back Navigation
 - All back inputs → `BackNavigator.GoBack()` via pure `DecideBackAction()` (confirm → cinematic skip → settings/base/blocking/results → augment dock → pause → top → combat).
@@ -329,5 +331,13 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
 - **各基准归属**：真实时间＝返航过场输入宽限 / 标题屏输入守卫、音效最小触发间隔、开机耗时读数、设置页帧率与刷新率读出、打击感的真实帧长推进（`HitStopTimeline`「零真实帧长不得结束顿帧」即此）；模拟时间＝帧级去重与缓存（`FrameCache` 等 `GetPhysicsFrames` 族）、事件/波次编排时间轴、表现层脉动相位、右摇杆准星积分（`GetProcessFrames` 门控 + `GetProcessDeltaTime` 配对）。
 - **维护方式**：门禁双向判定——新增未登记的真实时间使用判红，**已登记站点消失也判红**（防合法墙钟被「顺手改成模拟时间」，正是同一处宽限在 1.5 个月内被反方向改了三次的形态）。改动这些位置时先改 `ALLOW` 再改代码。`csharp/core/` 出现任何真实时间命中即红（纯逻辑层可单测的前提）。
 - **回归面**：`--return-probe`（冒烟第十趟）走生产蓄力链（长按 `homecoming` 蓄满，不直调过场）触发返航后分三段判定——宽限内跳过被忽略；推进 90 帧（1.5 模拟秒，越过生产宽限 1.2s）后**仍**被忽略，这一条是真实时间基准的判别式（若宽限被误按模拟时间计，此刻会放行）；越过宽限后跳过生效且收尾落基地并保持树暂停。探针**不等真实时间**（`--fixed-fps` 下与帧数脱节），另用墙钟做环境过慢的前置守卫，慢到无法判别时显式报错而非静默放过。
+
+### 2.11 数值单源的两道判据（2026-09-15）
+
+balance.json 是数值唯一来源，但一批「表式」数值被手抄进 C# 当 `Cfg(key, 代码内默认值)` 的回退实参——json 完整时读 json，看不出代码默认值已分叉，只有 json 缺失/损坏才回退到错值。两道门禁分工：
+
+- `check_balance_keys.sh` 判**键存在**（键名写错会静默回退默认值）；`check_code_defaults.sh` 判**取值一致**（15 张登记表 256 个缺档默认值 == json 定稿值，含移动策略专属参数与三元素数组）。两侧改一侧不改即红。
+- 登记表逐张声明预期条目数与 `文件:符号`，取不到判据（文件/符号/键缺、条目数不符、零比对）一律红——防「表被改名后零比对静默判 clean」。
+- 同一事实的**读取面**也收口：未经 balance 覆盖的默认表（`Spawner.BuildEnemyTypes` / `BuildEliteTypes`）只许 `Spawner` 内部读取，外部直读即红（教程曾如此，是「正局跟随、教程不跟」的根因）。
 
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*
