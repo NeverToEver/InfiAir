@@ -313,26 +313,39 @@ public sealed partial class MissionsService : RefCounted
         RefreshPointsChanged?.Invoke(RefreshPoints);
     }
 
-    /// <summary>刷新资格校验（点数不足禁止刷新；UI 据此禁用按钮并提示）</summary>
-    public bool CanRefreshMissions() => RefreshPoints >= GameState.Instance.REFRESH_COST;
+    /// <summary>刷新资格校验（点数不足或没有空位时禁止刷新；UI 据此禁用按钮并提示）。
+    /// 判定单源在 <see cref="MissionRefresh.CanRefresh"/>：保留条目（已完成未领取）占满槽位时
+    /// 刷新扣费却抽不出任何新任务——只判点数会放行一次「点数减少、面板零变化」的空刷新。</summary>
+    public bool CanRefreshMissions() => MissionRefresh.CanRefresh(
+        RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, KeptMissionCount());
+
+    /// <summary>保留条目数（已完成未领取；刷新时原样留场，防吞待领奖励）。</summary>
+    private int KeptMissionCount()
+    {
+        var count = 0;
+        foreach (var idV in Missions.Keys)
+        {
+            var id = idV.AsStringName();
+            if (IsMissionDone(id) && !IsMissionClaimed(id))
+            {
+                count += 1;
+            }
+        }
+
+        return count;
+    }
 
     /// <summary>刷新任务：消耗 RefreshPoints 重抽任务（槽位数 MISSION_SLOTS）。
     /// 已完成未领取的任务保留（防止刷新吞掉待领奖励），其余槽位从任务池无放回重抽
-    /// （排除在场 id，避免与保留槽位重号）。余额不足返回 false 且不扣减。</summary>
+    /// （排除在场 id，避免与保留槽位重号）。点数不足 / 无空位返回 false 且不扣减
+    /// （无空位时抽不出任何任务，扣费等于净损失）。</summary>
     public bool RefreshMissions()
     {
-        if (!CanRefreshMissions())
-        {
-            return false;
-        }
-
         if (_taskPool == null || !GodotObject.IsInstanceValid(_taskPool))
         {
             InitMissions(); // 防御：池未初始化（异常时序）时重建
         }
 
-        RefreshPoints -= GameState.Instance.REFRESH_COST;
-        RefreshPointsChanged?.Invoke(RefreshPoints);
         // 收集保留条目（已完成未领取）与在场 id（重抽排除全部在场 id：
         // 既防抽回刚换下的任务，也防与保留任务重号覆盖其进度）
         var kept = new Godot.Collections.Dictionary();
@@ -348,9 +361,19 @@ public sealed partial class MissionsService : RefCounted
             exclude.Add(id);
         }
 
+        // 扣费前判「点数够 且 有空位」（判定单源 MissionRefresh.CanRefresh）：保留条目占满槽位时
+        // 抽取结果必为空，扣费等于净损失——玩家看到按钮可用、听到成功音效、点数减少、面板零变化
+        if (!MissionRefresh.CanRefresh(
+            RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, kept.Count))
+        {
+            return false;
+        }
+
+        RefreshPoints -= GameState.Instance.REFRESH_COST;
+        RefreshPointsChanged?.Invoke(RefreshPoints);
+
         var drawn = _taskPool!.Draw(GameState.Instance.MISSION_SLOTS - kept.Count, exclude);
         Missions.Clear();
-
         foreach (var idV in kept.Keys)
         {
             Missions[idV] = kept[idV];
