@@ -11,10 +11,12 @@ namespace InfiAir.Core.Combat;
 /// </summary>
 public static class FormationComms
 {
-    /// <summary>台词停留时长（秒）——与 CommOverlay.HoldTime 同值，非可调手感值。</summary>
+    /// <summary>台词停留时长（秒）——单源在此，引擎侧 <c>CommOverlay</c> 直接引用
+    /// （引擎侧另存一份副本时，只调观感就会让本模块推算的「提示最早可播时刻」失真）。</summary>
     public const float HoldTime = 3.5f;
 
-    /// <summary>打字机字间隔（秒）——与 CommOverlay.CharInterval 同值。</summary>
+    /// <summary>打字机字间隔（秒）——单源在此，引擎侧 <c>CommOverlay</c> 直接引用
+    /// （占场时长按字数算，副本分叉会让顺延量算错一整句）。</summary>
     public const float CharInterval = 0.03f;
 
     /// <summary>进度台词槽位空（未播任何进度台词）。</summary>

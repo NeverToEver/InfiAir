@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -7,11 +8,12 @@ namespace InfiAir;
 /// 屏幕左下角六边切角通讯框 + 打字机字幕，显示 3.5s 后淡出；
 /// 不暂停游戏（process_mode 跟随本局）；新台词顶掉未播完的旧台词。
 /// 强调色由事件经构造函数注入（精英炮塔＝品红、轰炸编队＝琥珀）——两个事件共用同一浮层，
-/// 但各自的身份色要能一眼区分，否则「谁在说话」无从判断。</summary>
+/// 但各自的身份色要能一眼区分，否则「谁在说话」无从判断。
+/// 打字机字间隔与停留时长只有一份（core FormationComms）：编队侧要用它们推算
+/// 「战术提示最早可播时刻」（新提示顶掉仍在播的进度台词正是该组常量要防的），
+/// 引擎侧再存一份副本时，只调观感就会让 core 的推算失真。</summary>
 public partial class CommOverlay : CanvasLayer
 {
-    private const float CharInterval = 0.03f; // 打字机字间隔
-    private const float HoldTime = 3.5f;
     private const float FadeTime = 0.5f;
 
     // 面板几何（入场滑入与扫描线的静止基准）
@@ -217,9 +219,9 @@ public partial class CommOverlay : CanvasLayer
             // 打字机（字符数未变时不 set_text，避免逐帧字形 shaping）
             var prev = _shownChars;
             _charT += d;
-            while (_charT >= CharInterval && _shownChars < _fullText.Length)
+            while (_charT >= FormationComms.CharInterval && _shownChars < _fullText.Length)
             {
-                _charT -= CharInterval;
+                _charT -= FormationComms.CharInterval;
                 _shownChars += 1;
             }
 
@@ -230,7 +232,7 @@ public partial class CommOverlay : CanvasLayer
 
             if (_shownChars >= _fullText.Length)
             {
-                _holdLeft = HoldTime;
+                _holdLeft = FormationComms.HoldTime;
             }
         }
         else
@@ -239,7 +241,7 @@ public partial class CommOverlay : CanvasLayer
             if (_holdLeft <= 0.0f)
             {
                 // 进入淡出段（复用同一计时；FADE_TIME+1.0 余量防淡出期间本分支重入——
-                // 实际视觉 = HOLD_TIME 3.5s hold + 0.5s fade，与 ELITE_TURRET_EVENT 文档「3.5s then fade」一致）
+                // 实际视觉 = FormationComms.HoldTime 停留 + 0.5s fade，与 ELITE_TURRET_EVENT 文档「3.5s then fade」一致）
                 _holdLeft = FadeTime + 1.0f;
                 // 淡出期间停掉扫描线/复位提亮，避免残影里还有元素在动
                 KillIntro();
