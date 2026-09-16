@@ -10,8 +10,9 @@ namespace InfiAir;
 /// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点。
 /// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、可见区域经 FrameCache 每物理帧共享。
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达，新增单位无需改分派器。
+/// 实现 IAimTarget：辅助瞄准扫描按契约判型（与遭遇单位同路径）。
 /// </summary>
-public partial class Enemy : Area2D, IDamageable, ISlowable
+public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
@@ -99,12 +100,46 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。</summary>
+    /// <summary>在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。
+    /// 遭遇单位的标记另计（AimTargetCount），本计数只含普通敌机，语义不变。</summary>
     public static int AimMarkedCount { get; private set; }
 
     /// <summary>辅助框半径缓存（setup 写入，已含 world_scale；替代 aim_frame_radius meta 的
-    /// HasMeta/GetMeta——AimFrameLayer.FrameHalfSize 直读）。&lt;0 = 未初始化（兼容路径回退读形状）。</summary>
+    /// HasMeta/GetMeta——经 <see cref="AimCollisionRadius"/> 直读）。&lt;0 = 未初始化（兼容路径回退读形状）。</summary>
     public float AimFrameRadius { get; internal set; } = -1.0f;
+
+    // ---- IAimTarget 契约（辅助瞄准扫描只读量；判定算式在 AimFrameLayer 与 core AimTargeting） ----
+
+    /// <summary>恒 true：注册表成员资格已表达「存活且在册」（Die → Deactivate → Unregister 同路径
+    /// 移除），再叠一道存活判据会改普通敌机的既有辅瞄语义（同帧已死未注销的敌机原本仍是弱追踪目标）。
+    /// 遭遇单位的可打判定另在各自实现里（升起/收回期不可打）。</summary>
+    public bool AimTargetable => true;
+
+    /// <summary>世界坐标（框心与锥角/距离判定基准）。</summary>
+    public Vector2 AimWorldPosition => GlobalPosition;
+
+    /// <summary>碰撞半径（已含 world_scale）：辅助框半宽 = 本值 + 档位 frame_pad（pad 单源在 AimFrameLayer）。
+    /// 未经 setup 的兼容路径回退读碰撞形状并回填——原在 AimFrameLayer.FrameHalfSize 内，收归数据属主。</summary>
+    public float AimCollisionRadius
+    {
+        get
+        {
+            var r = AimFrameRadius;
+            if (r < 0.0f)
+            {
+                var shapeNode = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
+                r = 0.0f;
+                if (shapeNode != null && shapeNode.Shape is CircleShape2D circle)
+                {
+                    r = circle.Radius;
+                }
+
+                AimFrameRadius = r;
+            }
+
+            return r;
+        }
+    }
 
     private bool _aimMarked;
 

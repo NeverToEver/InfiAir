@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -56,6 +57,9 @@ public partial class EliteTurretEvent : EncounterEventBase
         },
     };
     public int RewardScore { get; private set; } = 900;
+    /// <summary>单座炮台击毁的击杀分（balance.json elite_turret_event.turret_score，与 turret_hp_base
+    /// 同段）——走 AddKillScore，与原「炮塔击毁不给分」的差异见 Die 处注释。该判定经人类授权落地，反转需显式改值。</summary>
+    public int TurretScore { get; private set; } = 150;
     public float HoverY { get; private set; } = 300.0f;
     public float Cooldown { get; private set; } = 60.0f;
 
@@ -93,6 +97,8 @@ public partial class EliteTurretEvent : EncounterEventBase
         // boss_resume_delay 钳下限（Schedule 负值行为未定义）
         BossResumeDelay = Mathf.Max((float)GameState.Instance.Cfg("elite_turret_event.boss_resume_delay", BossResumeDelay).AsDouble(), CfgFx.IntervalFloor);
         TurretHpBase = (int)GameState.Instance.Cfg("elite_turret_event.turret_hp_base", TurretHpBase).AsInt64();
+        // turret_score 钳 ≥0（负分被连击乘区倒扣）
+        TurretScore = CfgFx.Int("elite_turret_event.turret_score", TurretScore, 0);
         // turret_counts/ammo_sequences 判型回退——非 Dictionary 时
         // 后续 .get() 在 Variant 上调用会运行时崩溃（标量口径判型只覆盖 fire_interval 等）
         var tc = GameState.Instance.Cfg("elite_turret_event.turret_counts", TurretCounts);
@@ -107,21 +113,46 @@ public partial class EliteTurretEvent : EncounterEventBase
             AmmoSequences = am.AsGodotDictionary();
         }
 
-        // fire_interval 判型回退（防非数组/短数组 _ready 崩溃）
+        // fire_interval 判型回退（防非数组/短数组 _ready 崩溃）+ **元素级判型与域钳**：
+        // 容器判型只保证它是个数组，元素写成字符串/数组时 Godot 的 AsDouble 宽松转换得 0（不抛），
+        // 于是 _fireTimer 恒 0 → 炮台每物理帧开火且零报错。判型与钳制口径单源在 core EncounterConfig。
         var fi = GameState.Instance.Cfg(
             "elite_turret_event.fire_interval", new Godot.Collections.Array { FireInterval.X, FireInterval.Y });
         if (fi.VariantType == Variant.Type.Array && fi.AsGodotArray().Count >= 2)
         {
             var fiArr = fi.AsGodotArray();
-            FireInterval = new Vector2((float)fiArr[0].AsDouble(), (float)fiArr[1].AsDouble());
+            var lo = fiArr[0];
+            var hi = fiArr[1];
+            var loValid = lo.VariantType is Variant.Type.Int or Variant.Type.Float;
+            var hiValid = hi.VariantType is Variant.Type.Int or Variant.Type.Float;
+            var (min, max) = EncounterConfig.Range(
+                loValid,
+                loValid ? (float)lo.AsDouble() : 0.0f,
+                hiValid,
+                hiValid ? (float)hi.AsDouble() : 0.0f,
+                FireInterval.X,
+                FireInterval.Y,
+                CfgFx.IntervalFloor);
+            FireInterval = new Vector2(min, max);
         }
 
         // WEAK_LOCK 判型——非 Dictionary 时透传给
-        // turret.Setup 的弱锁参数会在消费方崩溃，与 TURRET_COUNTS 同口径回退
+        // turret.Setup 的弱锁参数会在消费方崩溃，与 TURRET_COUNTS 同口径回退。
+        // 容器判型之外**逐键判型与域钳**（同 fire_interval 的元素级口径）：turn_rate 写成坏值时
+        // AsDouble 得 0 → 炮台不再转向、弹道永远朝下。净化后的字典是传给炮台的唯一来源。
         var wl = GameState.Instance.Cfg("elite_turret_event.weak_lock", WeakLock);
         if (wl.VariantType == Variant.Type.Dictionary)
         {
-            WeakLock = wl.AsGodotDictionary();
+            // 回退默认取属性现值（脚本默认表），不把四个默认数字再抄一份
+            var raw = wl.AsGodotDictionary();
+            var defaults = WeakLock;
+            WeakLock = new Godot.Collections.Dictionary
+            {
+                ["turn_rate"] = WeakLockFloat(raw, "turn_rate", defaults, 0.0f),
+                ["homing_turn_rate"] = WeakLockFloat(raw, "homing_turn_rate", defaults, 0.0f),
+                ["homing_time"] = WeakLockFloat(raw, "homing_time", defaults, CfgFx.IntervalFloor),
+                ["spread_deg"] = WeakLockFloat(raw, "spread_deg", defaults, 0.0f),
+            };
         }
 
         RewardScore = (int)GameState.Instance.Cfg("elite_turret_event.reward_score", RewardScore).AsInt64();
@@ -214,6 +245,17 @@ public partial class EliteTurretEvent : EncounterEventBase
         // CARRIER_EXIT/BOSS_DELAY：撤离/解冻流程已在推进，无需干预
     }
 
+    /// <summary>弱锁单键净化：判型失败/非有限/负值回退默认表取值，合法值钳到下限之上
+    /// （判定单源在 core <see cref="EncounterConfig.RangeEndpoint"/>）。</summary>
+    private static float WeakLockFloat(
+        Godot.Collections.Dictionary cfg, string key, Godot.Collections.Dictionary defaults, float floor)
+    {
+        var v = cfg.GetValueOrDefault(key, new Variant());
+        var valid = v.VariantType is Variant.Type.Int or Variant.Type.Float;
+        var fallback = (float)defaults.GetValueOrDefault(key, 0.0).AsDouble();
+        return EncounterConfig.RangeEndpoint(valid, valid ? (float)v.AsDouble() : 0.0f, fallback, floor);
+    }
+
     /// <summary>航母悬停到位：基座盖板旋开、炮塔升起充能（不可被攻击）。</summary>
     private void OnCarrierEntered()
     {
@@ -255,6 +297,7 @@ public partial class EliteTurretEvent : EncounterEventBase
         {
             var turret = TurretScene.Instantiate<TurretBattery>();
             turret.Setup(hp, ammo.AsGodotArray(), FireInterval, WeakLock);
+            turret.ScoreValue = TurretScore;
             // 挂到航母节点下：基座偏移即父级本地坐标，悬停浮动与撤离加速随父级自动同步。
             // 原先挂 Main 下只在升起瞬间写一次绝对位置——悬停期错位 ±6px，超时路径更明显
             //（撤回动画 0.8s 内舰已上升约 230px，画面上是「炮台悬空收盖板、舰已飞走」）。

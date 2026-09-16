@@ -1431,8 +1431,9 @@ public partial class Player : CharacterBody2D
         var pierce = _pierceCount;
         var explosive = _explosiveEnabled;
         var gs = GameState.Instance;
-        // 辅助瞄准：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
-        Enemy? homingTarget = null;
+        // 辅助瞄准：准星在某标记目标框内 → 追踪修正；框外锥内 → 弱追踪。
+        // 目标类型 = 契约（IAimTarget）：普通敌机与遭遇单位（炮塔/编队机）同一路径，Boss 不实现契约
+        IAimTarget? homingTarget = null;
         var homingRate = _homingTurnRate;
         if (gs.AimFrameLayer is AimFrameLayer aimLayer)
         {
@@ -1443,10 +1444,10 @@ public partial class Player : CharacterBody2D
                 homingTarget = aimLayer.NearestConeTarget(GlobalPosition, aimDir, _coneCos);
                 if (homingTarget != null)
                 {
-                    var dot = aimDir.Dot((homingTarget.GlobalPosition - GlobalPosition).Normalized());
+                    var dot = aimDir.Dot((homingTarget.AimWorldPosition - GlobalPosition).Normalized());
                     var angT = Mathf.Clamp((dot - _coneCos) / (1.0f - _coneCos), 0.0f, 1.0f);
                     homingRate = _homingTurnRate * _coneStrength * angT
-                        * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.GlobalPosition));
+                        * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.AimWorldPosition));
                     // NaN 守卫——cone_angle_deg=360 时 _coneCos=1 使 angT 0/0 得
                     // NaN，homingRate=NaN 恒不满足 ≤0 守卫（NaN 比较 false），弱追踪修正失控
                     if (homingRate <= 0.0f || float.IsNaN(homingRate))
@@ -1521,9 +1522,11 @@ public partial class Player : CharacterBody2D
 
             b.Pierce = pierce;
             b.Explosive = explosive;
-            if (homingTarget != null)
+            // 追踪弹落靶仍按 Node2D 持有（Bullet 用它的世界坐标 + 注册表判定）；契约实现方
+            // 都是 Area2D 派生，非 Node2D 的实现拿不到落靶口（契约只保证可瞄准，不保证可追踪）
+            if (homingTarget is Node2D homingNode)
             {
-                b.HomingTarget = homingTarget;
+                b.HomingTarget = homingNode;
                 b.HomingTime = augmentHoming ? _homingLockTime : HomingTime;
                 b.HomingTurnRate = homingRate;
             }

@@ -8,9 +8,10 @@ namespace InfiAir;
 /// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动，侧倾（bank）由事件按
 /// 转向/离场进度写入（俯视视角下「压坡转弯」比平推更有质量感）。
 /// 身份识别：琥珀色调 + 翼尖航行灯（红/绿）+ 机腹投弹舱照明——与普通敌机同贴图但一眼可区分。
-/// 被击坠：爆炸 + 注销注册表，击坠得分由事件编排结算。
+/// 被击坠：爆炸 + 注销注册表；击坠得分由事件编排结算（本类只推进击杀数）。
+/// 实现 IAimTarget：与普通敌机同吃辅助瞄准（遭遇期间它是屏上唯一可打目标）。
 /// </summary>
-public partial class FormationCraft : Area2D, IDamageable
+public partial class FormationCraft : Area2D, IDamageable, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(FormationCraft craft);
@@ -37,6 +38,36 @@ public partial class FormationCraft : Area2D, IDamageable
     private const float BayFlashTime = 0.18f;
     /// <summary>击杀震动强度缓存（_Ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
+    /// <summary>碰撞半径缓存（_Ready 按机体尺寸族写入，26 × world_scale）——辅助框半宽的基数。</summary>
+    private float _bodyRadius;
+    /// <summary>辅助瞄准标记登记态（编队机自入场即可打，登记随 _Ready/_ExitTree 成对）。</summary>
+    private bool _aimMarked;
+
+    // ---- IAimTarget 契约（辅助瞄准扫描只读量） ----
+
+    /// <summary>可打 = 未被击坠（Hp 守卫与 TakeDamage 同口径）。</summary>
+    public bool AimTargetable => Hp > 0;
+
+    /// <summary>标记态与计数同源：登记即标记（<see cref="SetAimMarked"/>）。</summary>
+    public bool AimMarked => _aimMarked;
+
+    /// <summary>世界坐标（编队机位置由事件按编队锚点驱动）。</summary>
+    public Vector2 AimWorldPosition => GlobalPosition;
+
+    /// <summary>碰撞半径（已含 world_scale）；辅助框半宽 = 本值 + 档位 frame_pad。</summary>
+    public float AimCollisionRadius => _bodyRadius;
+
+    /// <summary>标记登记（幂等）：改标记即改计数——AimFrameLayer 的零标记早退依赖计数准确。</summary>
+    private void SetAimMarked(bool marked)
+    {
+        if (_aimMarked == marked)
+        {
+            return;
+        }
+
+        _aimMarked = marked;
+        AimTargetCount.SetEncounterMarked(marked);
+    }
 
     /// <summary>setup() 在入树/_Ready() 之前调用。</summary>
     public void Setup(int pHp)
@@ -69,10 +100,12 @@ public partial class FormationCraft : Area2D, IDamageable
         _bayLight.Visible = false;
         _sprite.AddChild(_bayLight);
         var shape = new CollisionShape2D();
-        var circle = new CircleShape2D { Radius = 26.0f * (float)GameState.Instance.WorldScale };
+        _bodyRadius = 26.0f * (float)GameState.Instance.WorldScale;
+        var circle = new CircleShape2D { Radius = _bodyRadius };
         shape.Shape = circle;
         AddChild(shape);
         GameState.Instance.BindEnemy(this); // 统一绑定
+        SetAimMarked(true); // 编队机自入场即可打：纳入辅助瞄准标记
         // 击杀震动强度缓存
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
     }
@@ -158,6 +191,8 @@ public partial class FormationCraft : Area2D, IDamageable
 
     public override void _ExitTree()
     {
+        // 标记计数离树兜底（幂等）：事件清场直接 QueueFree 的编队机不经 Die
+        SetAimMarked(false);
         GameState.TryGetInstance()?.UnbindEnemy(this); // 统一解绑；autoload 可能先于本节点释放
     }
 
@@ -189,6 +224,10 @@ public partial class FormationCraft : Area2D, IDamageable
 
     public void Die()
     {
+        // 击杀数在击坠处推进（与普通敌机同口：任务/解锁进度门读它）；击坠分不必在此重复入账——
+        // 编队机的 AddKillScore 由编排侧（FormationStrikeEvent.OnCraftDied）结算，两处分工是既有形态
+        SetAimMarked(false);
+        GameState.Instance.AddKill();
         GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(_shakeDie);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);

@@ -1210,6 +1210,7 @@
 		"trigger_chance": 0.35,
 		"cooldown": 60,
 		"turret_hp_base": 80,
+		"turret_score": 150,
 		"turret_counts": {
 			"easy": 3,
 			"medium": 4,
