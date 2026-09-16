@@ -63,6 +63,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// Boss 机体显著大于敌机且逃跑离场速度快，余量不足会屏上可辨地凭空消失。</summary>
     private const float EscapeExitMargin = 280.0f;
 
+    /// <summary>慢速力场乘区下限（见 SlowFactor）：低于此值机体位移趋停，
+    /// 入场/逃跑的越线判定都到不了，整局调度被 _bossActive 冻死。</summary>
+    private const float SlowFactorFloor = 0.05f;
+
     private const float EscapeBlinkHz = 8.0f;
 
     /// <summary>
@@ -409,7 +413,12 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private void LoadBalance()
     {
         // 数值配置缓存（启动一次读入）
-        EnterSpeed = CfgFx.Float("boss.enter_speed", EnterSpeed);
+        // 入场速度是「机体自视野上方下压到战斗锚线」的唯一驱动：0/负值时 Position.Y 增量恒零或反向，
+        // `Position.Y >= FightAnchorY()` 永假 → _inFight 恒 false → Boss 悬在视野外不开火也不逃跑
+        // （50s 逃跑计时在 _inFight 之后），_bossActive 恒 true 把普通波次计时与后续 Boss 触发
+        // 一并冻死——整局只剩背景且全程无报错。下限 1px/s 与 StrikeCarrier 撤离速度同口径：
+        // 「几乎不动」是配置错误，不可能是设计取值。
+        EnterSpeed = CfgFx.Float("boss.enter_speed", EnterSpeed, 1.0f);
         FightY = CfgFx.Float("boss.fight_y", FightY);
         StrafeMinX = CfgFx.Float("boss.strafe_min_x", StrafeMinX);
         StrafeMaxX = CfgFx.Float("boss.strafe_max_x", StrafeMaxX);
@@ -451,8 +460,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         EscapeTime = CfgFx.Float("boss.escape.time", EscapeTime);
         EscapeWarning = CfgFx.Float("boss.escape.warning", EscapeWarning);
         EscapeDrift = CfgFx.Float("boss.escape.drift", EscapeDrift);
-        EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed);
-        EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel);
+        // 逃跑两键是「_escapeSpeed 是否增长」的输入：0/负值时逃跑分支 Position.Y 不再上行，
+        // 越顶界判定永假 → Escaped/Died 永不发 → _bossActive 恒 true，与入场速度同一条冻死链
+        // （普通波次与后续 Boss 全停）。下限同取 1.0。
+        EscapeStartSpeed = CfgFx.Float("boss.escape.start_speed", EscapeStartSpeed, 1.0f);
+        EscapeAccel = CfgFx.Float("boss.escape.accel", EscapeAccel, 1.0f);
         // slow_field 缓存初始值 + AugmentsChanged 增量刷新
         _slowCache.Refresh();
         _slowCache.Connect(GameState.Instance);
@@ -503,10 +515,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         SniperBulletSpeed = CfgFx.Float("boss.sniper_bullet_speed", SniperBulletSpeed);
         CrossBulletSpeed = CfgFx.Float("boss.cross_bullet_speed", CrossBulletSpeed);
         CollisionDamage = CfgFx.Int("boss.collision_damage", CollisionDamage);
-        // slow_field.factor 此处保持无钳制直读——Enemy 侧同键
-        // 钳 [0,1]，Boss 侧慢速力场仅作减速系数、无加速场语义；行为零变化铁律下不补钳，
-        // CfgFx.Float 仅加判型回退（坏类型不崩）
-        SlowFieldFactor = CfgFx.Float("augments.slow_field.factor", SlowFieldFactor);
+        // slow_field.factor 钳 [0.05, 1]——0/负值让 SlowFactor() 的乘区归零或反向：入场段位移
+        // 恒零/上行 → 永不到战斗锚线（与 enter_speed=0 同一条整局冻死链）；>1 是「加速场」，
+        // 与增幅的减速语义相反（Enemy 侧同键也钳 [0,1]）。
+        SlowFieldFactor = CfgFx.Float("augments.slow_field.factor", SlowFieldFactor, 0.05f, 1.0f);
         BulletDamageFan = CfgFx.Int("boss.bullet_damage.fan", BulletDamageFan);
         BulletDamageHoming = CfgFx.Int("boss.bullet_damage.homing", BulletDamageHoming);
         BulletDamageSniper = CfgFx.Int("boss.bullet_damage.sniper", BulletDamageSniper);
@@ -902,7 +914,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     }
 
     /// <summary>慢速力场因子（全局机体移速 ×0.8；与狂暴移速倍率相乘）。
-    /// 母舰召唤减速带命中时叠加短时乘区（同语义，仅位移）。</summary>
+    /// 母舰召唤减速带命中时叠加短时乘区（同语义，仅位移）。
+    /// 乘区下限取 0.05：0/负值让位移恒零或反向（入场段永远到不了战斗锚线，见 LoadBalance 的
+    /// enter_speed 说明）；召唤减速带是与 slow_field 并列的第二路来源，故下限钳在乘区（用点）
+    /// 而不是只钳配置。</summary>
     public float SlowFactor()
     {
         var f = _slowCache.Value ? SlowFieldFactor : 1.0f;
@@ -911,7 +926,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
             f *= _summonSlowFactor;
         }
 
-        return f;
+        return Mathf.Max(f, SlowFactorFloor);
     }
 
     /// <summary>母舰召唤减速带命中：duration 秒内位移速度 ×factor。</summary>
