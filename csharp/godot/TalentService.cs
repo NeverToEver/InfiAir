@@ -554,9 +554,11 @@ public sealed partial class TalentService : RefCounted
     }
 
     /// <summary>读档还原（本局存档）：层级/风险加点/路线/代币/超载槽/缓存点值序列整体覆盖。
-    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；末尾 SyncAllAugments + 广播
-    /// CacheChanged/TalentsChanged/AugmentsChanged，驱动 HUD 与 Player 增幅件重建。
-    /// 与 ResetAll 对称——先清空再写入，保证残留态不串档。</summary>
+    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；层级上限按「节点是否在风险加点名单里」
+    /// 区分——风险加点买的那一级是双倍价换来的，
+    /// 无条件钳回结构上限会让它读档即消失（判定单源 <see cref="TalentEconomy.RestoreLevel"/>）；
+    /// 末尾 SyncAllAugments + 广播 CacheChanged/TalentsChanged/AugmentsChanged，
+    /// 驱动 HUD 与 Player 增幅件重建。与 ResetAll 对称——先清空再写入，保证残留态不串档。</summary>
     public void RestoreRunState(
         IReadOnlyDictionary<string, int> levels,
         IReadOnlyCollection<string> overcharged,
@@ -570,18 +572,18 @@ public sealed partial class TalentService : RefCounted
         _route = "";
         _resetTokens = Math.Max(resetTokens, 0);
         _bonusOverchargeSlots = Math.Max(bonusOverchargeSlots, 0);
+        foreach (var oc in overcharged)
+        {
+            _overcharged.Add(new StringName(oc));
+        }
+
         foreach (var kv in levels)
         {
             var id = new StringName(kv.Key);
             if (kv.Value > 0 && _maxLevels.ContainsKey(id))
             {
-                _levels[id] = Mathf.Clamp(kv.Value, 0, MaxLevel(id));
+                _levels[id] = TalentEconomy.RestoreLevel(kv.Value, MaxLevel(id), IsOvercharged(id));
             }
-        }
-
-        foreach (var oc in overcharged)
-        {
-            _overcharged.Add(new StringName(oc));
         }
 
         // 路线只接受已定义的 id（FindRoute 判型；空串 = 未绑定）
@@ -596,6 +598,12 @@ public sealed partial class TalentService : RefCounted
         TalentsChanged?.Invoke();
         GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
     }
+
+    /// <summary>读档层级上限口（augments 侧用）：与 talent_levels 同一式子（风险加点节点 +1），
+    /// 两处共用才不会有「同一节点两套层级」；未知节点返回 0 = 该条丢弃。
+    /// 供 GameState.RunSave.NormalizeAugments 在 talent 还原之后调用（名单已就位）。</summary>
+    public int RestoreLimitFor(StringName id) =>
+        _maxLevels.TryGetValue(id, out var max) ? TalentEconomy.RestoreLimit(max, IsOvercharged(id)) : 0;
 
     /// <summary>缓存点值序列快照（读档写出用）。</summary>
     public List<double> CacheSnapshot() => _cache.Snapshot();

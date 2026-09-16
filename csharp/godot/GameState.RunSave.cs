@@ -223,9 +223,12 @@ public partial class GameState : Node
             : new Godot.Collections.Dictionary();
 
     /// <summary>增幅表键归一化（StringName 键）：JSON 往返把键退化为 String，逐项重建为 StringName；
-    /// 层级判定（只保留正层级 + 钳 [0, int.MaxValue]）委托 <see cref="RunFieldNormalize.NormalizeAugments"/>。
+    /// 键集与层级上限经 <see cref="RunFieldNormalize.NormalizeAugments"/> 收口——上限取自
+    /// <see cref="_talent"/>（结构上限，风险加点节点 +1），与 talent_levels 同一式子：
+    /// 只在 augments 侧收紧会把 IsOvercharged 节点多花的那一级削掉（同一节点两套层级，
+    /// 乘算消费端少一级效果）；未知 id 与超上限层级都是手改档注入的增幅效果，整条丢弃。
     /// 不重建 StringName 的话 AugmentLevel 以 StringName 查字典会全部落空（增幅效果静默失效）。</summary>
-    private static Godot.Collections.Dictionary NormalizeAugments(Variant v)
+    private Godot.Collections.Dictionary NormalizeAugments(Variant v)
     {
         var result = new Godot.Collections.Dictionary();
         if (!VariantBridge.TryToClr(v, out var clr, out _))
@@ -233,13 +236,16 @@ public partial class GameState : Node
             return result;
         }
 
-        foreach (var kv in RunFieldNormalize.NormalizeAugments(clr))
+        foreach (var kv in RunFieldNormalize.NormalizeAugments(clr, AugmentLevelLimit))
         {
             result[new StringName(kv.Key)] = kv.Value;
         }
 
         return result;
     }
+
+    /// <summary>增幅表读档层级上限（0 = 未知节点，丢弃）。</summary>
+    private int AugmentLevelLimit(string id) => _talent.RestoreLimitFor(new StringName(id));
 
     /// <summary>int 子表读取（talent_levels / last_kind_value）：逐项判型 + 钳 [0, int.MaxValue]，
     /// 非数值整条跳过；判型口径单源在 <see cref="RunFieldNormalize.ReadIntMap"/>。</summary>

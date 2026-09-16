@@ -315,6 +315,24 @@ public static class TalentEconomy
     public static int OverchargeCost(TalentConfig config, int baseCost) =>
         (int)Math.Ceiling(baseCost * config.OverchargeCostMult);
 
+    /// <summary>节点读档层级上限：结构上限（非正＝不可升级/脏配置 → 0，不得放行任何层级），
+    /// 风险加点节点再 +1 级。
+    /// 层级还原与增幅表上限必须共用这一个式子——两处各写一份会在改规则时分叉
+    /// （talent_levels 保留超载那一级而 Augments 被削掉，同一节点两套层级）。
+    /// 上限是「读档许可」，不等于 <see cref="EffectiveCap"/>（生效上限随互斥/路线浮动，
+    /// 读档时按结构上限判，否则绑定路线就会把已买层级判成非法）。</summary>
+    public static int RestoreLimit(int maxLevel, bool isOvercharged) =>
+        maxLevel <= 0 ? 0 : maxLevel + (isOvercharged ? 1 : 0);
+
+    /// <summary>
+    /// 读档层级还原：钳 [0, <see cref="RestoreLimit"/>]。
+    /// 风险加点那一级是玩家花双倍价买的（<see cref="OverchargeCost"/>）且永久锁定，读档无条件钳回
+    /// 结构上限会让它静默消失——乘算消费端少一级效果，玩家无从察觉。
+    /// 未标记风险加点的节点仍钳回结构上限：存档是威胁模型，抬级得有对应的锁定标记。
+    /// </summary>
+    public static int RestoreLevel(int raw, int maxLevel, bool isOvercharged) =>
+        Math.Clamp(raw, 0, RestoreLimit(maxLevel, isOvercharged));
+
     /// <summary>
     /// 有效缓存是否已够点亮「当前任一可选节点」：返回其中最便宜的下一级价，0 = 尚不可购。
     /// 入参 eligibleNextCosts 由引擎侧给出——只含前置/互斥/上限/风险加点名额都通过、仅「点数够不够」

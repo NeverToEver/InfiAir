@@ -513,4 +513,38 @@ public sealed class TalentEconomyTests
         Assert.Equal(0, TalentEconomy.CheapestAffordable(new[] { 0, 0 }, 100.0));
         Assert.Equal(3, TalentEconomy.CheapestAffordable(new[] { 0, 3 }, 100.0));
     }
+
+    // ---- 读档层级还原（风险加点那一级不得在读档时消失） ----
+
+    [Fact]
+    public void RestoreLevel_OverchargedNode_KeepsBoughtExtraLevel()
+    {
+        // 风险加点买的那一级是双倍价换来的：overcharged 节点读档必须保留 MaxLevel+1。
+        // 无条件钳回 MaxLevel 会让这一级永久消失，且 _levels 与 Augments 分叉（同一节点两套层级）。
+        Assert.Equal(4, TalentEconomy.RestoreLevel(4, 3, isOvercharged: true));
+        Assert.Equal(3, TalentEconomy.RestoreLevel(3, 3, isOvercharged: true));
+    }
+
+    [Fact]
+    public void RestoreLevel_NotOvercharged_ClampsBackToStructuralMax()
+    {
+        // 未标记风险加点的节点不得借存档抬高一级（手改档案把 level 写成 max+1 也不行）
+        Assert.Equal(3, TalentEconomy.RestoreLevel(4, 3, isOvercharged: false));
+        Assert.Equal(3, TalentEconomy.RestoreLevel(int.MaxValue, 3, isOvercharged: false));
+        // 标记了也只多一级（多出来的不许留）
+        Assert.Equal(4, TalentEconomy.RestoreLevel(int.MaxValue, 3, isOvercharged: true));
+        // 负层级钳 0（手改档负值不得变成「负投入」影响互斥阈值判定）
+        Assert.Equal(0, TalentEconomy.RestoreLevel(-5, 3, isOvercharged: true));
+        Assert.Equal(0, TalentEconomy.RestoreLevel(2, 0, isOvercharged: false));
+    }
+
+    [Fact]
+    public void RestoreLimit_SharesOneExtraLevelRule()
+    {
+        // 层级还原与增幅表上限必须同源：两处各写一份 +1 会在改规则时分叉
+        Assert.Equal(3, TalentEconomy.RestoreLimit(3, isOvercharged: false));
+        Assert.Equal(4, TalentEconomy.RestoreLimit(3, isOvercharged: true));
+        Assert.Equal(0, TalentEconomy.RestoreLimit(-2, isOvercharged: true)); // 脏配置不得把上限算成负数
+    }
+
 }

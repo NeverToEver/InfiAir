@@ -92,10 +92,32 @@ public sealed class RunFieldNormalizeTests
             ["broken"] = "x",
         };
 
-        var augments = RunFieldNormalize.NormalizeAugments(raw);
+        var augments = RunFieldNormalize.NormalizeAugments(raw, _ => 9);
 
         Assert.Equal(2, augments["homing"]);
         Assert.Single(augments);
+    }
+
+    [Fact]
+    public void NormalizeAugments_LevelLimit_DropsUnknownNodesAndCapsKnown()
+    {
+        // augments 是「节点 → 层级」表，此前无键集与层级上限：手改档可注入任意 id 与超大层级，
+        // 效果消费端直接按它生效（白拿增幅）；同时它必须与 talent_levels 用同一上限，
+        // 否则风险加点节点在两侧分叉（talent 侧保留 MaxLevel+1、augments 侧被削掉一级）。
+        var raw = new Dictionary<string, object?>
+        {
+            ["extra_life"] = 11L,  // 风险加点节点：上限 10 + 1
+            ["homing"] = 9L,       // 结构上限 2，未标记风险加点
+            ["ghost"] = 3L,        // 未知 id：查不到上限 → 丢弃
+        };
+
+        var augments = RunFieldNormalize.NormalizeAugments(
+            raw, id => id switch { "extra_life" => 11, "homing" => 2, _ => 0 });
+
+        Assert.Equal(11, augments["extra_life"]);
+        Assert.Equal(2, augments["homing"]);
+        Assert.False(augments.ContainsKey("ghost"));
+        Assert.Equal(2, augments.Count);
     }
 
     [Fact]
@@ -124,7 +146,7 @@ public sealed class RunFieldNormalizeTests
         var levels = RunFieldNormalize.ReadIntMap(legacy["talent_levels"]);
         Assert.Equal(2, levels["extra_life"]);
         Assert.Equal(1, levels["homing"]);
-        Assert.Equal(1, RunFieldNormalize.NormalizeAugments(legacy["augments"])["homing"]);
+        Assert.Equal(1, RunFieldNormalize.NormalizeAugments(legacy["augments"], _ => 9)["homing"]);
 
         // 新字段缺失：回退默认值，不抛、不影响上面已还原的进度
         Assert.Equal(0, RunFieldNormalize.ReadInt(legacy, "difficulty_time_step", 0));

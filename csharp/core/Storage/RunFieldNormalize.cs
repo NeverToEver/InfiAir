@@ -85,10 +85,15 @@ public static class RunFieldNormalize
     }
 
     /// <summary>
-    /// 增幅表规范化：只保留正层级（0 / 负 / 非数值丢弃），层级钳 [0, int.MaxValue]。
+    /// 增幅表规范化：只保留正层级（0 / 负 / 非数值丢弃），层级钳 [0, levelLimit(id)]。
+    /// <paramref name="levelLimit"/> 由调用方按节点结构上限构造（风险加点节点 +1：那一级是双倍价
+    /// 买的，见 <c>TalentEconomy.RestoreLimit</c>），返回 ≤0 表示未知节点 → 整条丢弃：
+    /// 增幅表键集必须与天赋树同源，否则手改档可注入任意 id 让效果消费端直接生效（白拿增幅）。
+    /// 上限不得只在一侧收紧：augments 与 talent_levels 是同一节点的两套层级，
+    /// 只削一侧会让 IsOvercharged 的节点多花的那一级在乘算消费端失效。
     /// 键在 Godot 侧需重建为 StringName（JSON 往返会退化为 String），本函数只产出字符串键。
     /// </summary>
-    public static Dictionary<string, int> NormalizeAugments(object? raw)
+    public static Dictionary<string, int> NormalizeAugments(object? raw, Func<string, int> levelLimit)
     {
         var result = new Dictionary<string, int>();
         if (raw is not IReadOnlyDictionary<string, object?> map)
@@ -98,10 +103,13 @@ public static class RunFieldNormalize
 
         foreach (var kv in map)
         {
-            if (TryClampInt(kv.Value, out var level) && level > 0)
+            var limit = levelLimit(kv.Key);
+            if (limit <= 0 || !TryClampInt(kv.Value, out var level) || level <= 0)
             {
-                result[kv.Key] = level;
+                continue;
             }
+
+            result[kv.Key] = Math.Min(level, limit);
         }
 
         return result;
