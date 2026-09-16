@@ -769,7 +769,10 @@ public sealed partial class SettingsService : RefCounted
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
     {
         // 版本决策（单源 SettingsMigration.CurrentVersion，写档方 GameState.PersistVersionValue 引用同一常量）：
-        // 同版直读；旧版走下方各旧键迁移分支；更高版保守拒绝——未知字段逐字段回退，降级必须可观测。
+        // 同版直读；旧版走下方各旧键迁移分支；更高版按 DESIGN_BASELINE §1.15 承诺的**逐字段默认值回退**
+        // ——降级安装/手改档里可能有当前代码不认识的字段语义，照读已知键名等于猜未来格式，
+        // 故把整表当空档处理（各字段落到保存当前值的默认档），保留告警、不拒绝加载、不改写格式。
+        // 注意：空表只影响本方法后续取值；键位等跨域字段仍在下方按空表语义回到默认。
         // version 键保持 data.GetValueOrDefault 直读形态（设置对称门禁据此判定「真读」）。
         var savedVersion = data.GetValueOrDefault("version", SettingsMigration.CurrentVersion);
         var savedVersionNumber = savedVersion.VariantType is Variant.Type.Int or Variant.Type.Float
@@ -778,10 +781,11 @@ public sealed partial class SettingsService : RefCounted
         var versionDecision = SettingsMigration.DecideVersion(savedVersionNumber, SettingsMigration.CurrentVersion);
         if (versionDecision == SaveVersionDecision.RejectNewer)
         {
-            GD.PushWarning($"InfiAir: settings.json 版本 {savedVersionNumber} 高于当前支持的 {SettingsMigration.CurrentVersion}，未知字段按默认值回退");
+            GD.PushWarning($"InfiAir: settings.json 版本 {savedVersionNumber} 高于当前支持的 {SettingsMigration.CurrentVersion}，按逐字段默认值回退");
+            data = new Godot.Collections.Dictionary();
         }
 
- GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
+        GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
         // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
         var savedLocale = ReadString(data.GetValueOrDefault("locale", ""), "");

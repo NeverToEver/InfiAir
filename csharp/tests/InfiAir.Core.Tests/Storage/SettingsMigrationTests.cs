@@ -135,4 +135,17 @@ public sealed class SettingsMigrationTests
         // 版本高于当前（降级安装/手改）：保守拒绝，按默认值继续，不猜未来字段语义
         Assert.Equal(SaveVersionDecision.RejectNewer, SettingsMigration.DecideVersion(5, 4));
     }
+
+    [Fact]
+    public void DecideVersion_AgainstCurrentVersionConstant_NewerIsRejected()
+    {
+        // 生产读入链的判别式（DESIGN_BASELINE §1.15「高于当前按逐字段默认值回退」）：
+        // 按常量判定而非字面量 4——版本号 bump（0x 或 5x）后本用例仍钉住该语义。
+        Assert.Equal(
+            SaveVersionDecision.Accepted,
+            SettingsMigration.DecideVersion(SettingsMigration.CurrentVersion, SettingsMigration.CurrentVersion));
+        Assert.Equal(
+            SaveVersionDecision.RejectNewer,
+            SettingsMigration.DecideVersion(SettingsMigration.CurrentVersion + 1, SettingsMigration.CurrentVersion));
+    }
 }
