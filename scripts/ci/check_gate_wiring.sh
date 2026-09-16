@@ -377,7 +377,7 @@ if smoke_text is not None:
     # 趟数下限：配对性判定抓不到「整趟两行一起删」——run_case 与 expect_marker 同删时配对关系
     # 仍成立、条数仍相等，覆盖静默消失而门禁判 clean。取**下限**而非精确值：新增趟是被鼓励的
     # 覆盖增量、不构成静默错误（新趟漏配 expect_marker 由上面的配对性判定抓），把新增也判红
-    # 会造成「加覆盖反而红」的反向激励。当前实测十八趟（check_smoke.sh 的 run_case 条数）。
+    # 会造成「加覆盖反而红」的反向激励。当前实测二十趟（check_smoke.sh 的 run_case 条数）。
     MIN_SMOKE_CASES = 18
     if len(cases) < MIN_SMOKE_CASES:
         errors.append(
