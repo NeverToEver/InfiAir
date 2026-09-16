@@ -359,8 +359,11 @@ public partial class Main : Node2D
 
     public void SkipReturn() => SkipReturnInternal();
 
-    /// <summary>实机调参观察面（零引用保留）：返航蓄力/放弃充能/子弹时间/坞冷却/装填时长的
-    /// 白盒读数与写入。ROADMAP「零引用成员保留面」口径封存——不得当死代码删除。</summary>
+    /// <summary>实机调参观察面（白盒读数与写入）：子弹时间剩余与恢复过渡、放弃充能、坞冷却、母舰召唤蓄力。
+    /// TimeScaleRamp/GiveUpCharge/BulletTime/SetChargeTime 在生产路径零引用，按 ROADMAP「零引用成员
+    /// 保留面」口径封存，不得当死代码删除——保留理由是它们读的演出量仍由本类独占编排：演出倍率的
+    /// 生产调用点全在本类的子弹时间段（GameState.SetEnrageTimeScale），读数不会与实现脱节；
+    /// DockCooldown 与 ReturnCinematic 另有探针宿主读取，不属零引用成员。</summary>
     public float TimeScaleRamp() => _timeScaleRamp;
 
     public float GiveUpCharge() => _giveUpCharge;
