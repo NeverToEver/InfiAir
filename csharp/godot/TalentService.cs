@@ -78,13 +78,22 @@ public sealed partial class TalentService : RefCounted
     /// <summary>基地补给购置的额外超载槽（run 域；存档字段 oc_bonus）。</summary>
     private int _bonusOverchargeSlots;
 
+    /// <summary>补给超载槽上限（balance base.supply.overcharge_slot_max；本类的配置缓存）。
+    /// 超载经济归本类所有，故上限也只在这里读一份：基地售罄判定（BaseConsole 读本属性）与
+    /// 读档钳制共用它——两处各读一次键，改档位时会分叉成「买不到但能改档塞进来」。</summary>
+    private int _bonusOverchargeSlotsMax = 2;
+
     /// <summary>本局超载总上限 = 配置档 + 基地补给购置档。</summary>
     public int OverchargeMaxPerRun => _config.OverchargeMaxPerRun + _bonusOverchargeSlots;
 
     /// <summary>已购置的补给超载档（基地面板售罄判定）。</summary>
     public int BonusOverchargeSlots => _bonusOverchargeSlots;
 
-    /// <summary>基地补给：购置 +1 超载槽（RP 结算在调用侧；上限由调用侧钳制）。</summary>
+    /// <summary>补给超载档的购置/读档双重上限（基地售罄判定读口）。</summary>
+    public int BonusOverchargeSlotsMax => _bonusOverchargeSlotsMax;
+
+    /// <summary>基地补给：购置 +1 超载槽（RP 结算在调用侧；上限由调用侧按
+    /// <see cref="BonusOverchargeSlotsMax"/> 把门，读档侧按同一上限钳制）。</summary>
     public bool AddOverchargeSlot()
     {
         _bonusOverchargeSlots += 1;
@@ -126,6 +135,8 @@ public sealed partial class TalentService : RefCounted
         ResetTokenCost = Math.Max((int)gs.Cfg("talent.route.reset_token_cost", 6).AsInt64(), 1);
         _config.OverchargeCostMult = Math.Max(gs.Cfg("talent.overcharge.cost_mult", 2.0).AsDouble(), 1.0);
         _config.OverchargeMaxPerRun = Math.Max((int)gs.Cfg("talent.overcharge.max_per_run", 3).AsInt64(), 0);
+        // 补给超载档上限与超载经济同处：该键在生产面只此一个读取点
+        _bonusOverchargeSlotsMax = Math.Max((int)gs.Cfg("base.supply.overcharge_slot_max", 2).AsInt64(), 0);
 
         // 节点上限/软上限：balance.json 为唯一权威，回退默认须与 json 定稿值一致
         _maxLevels.Clear();
@@ -554,7 +565,9 @@ public sealed partial class TalentService : RefCounted
     }
 
     /// <summary>读档还原（本局存档）：层级/风险加点/路线/代币/超载槽/缓存点值序列整体覆盖。
-    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；风险加点名单先过滤（未知 id/重复/超额），
+    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；补给超载档按补给档位上限
+    /// <see cref="BonusOverchargeSlotsMax"/> 钳制（<see cref="TalentEconomy.ClampBonusSlots"/>）；
+    /// 风险加点名单先过滤（未知 id/重复/超额），
     /// 再按「该节点是否在名单里」决定层级上限——风险加点买的那一级是双倍价换来的，
     /// 无条件钳回结构上限会让它读档即消失（判定单源 <see cref="TalentEconomy.RestoreLevel"/>）；
     /// 末尾 SyncAllAugments + 广播 CacheChanged/TalentsChanged/AugmentsChanged，
@@ -572,8 +585,9 @@ public sealed partial class TalentService : RefCounted
         _route = "";
         _resetTokens = Math.Max(resetTokens, 0);
         // 先定超载槽（名额上限＝配置档 + 补给档，风险加点名单按它截断），再过滤名单，
-        // 最后才还原层级——层级上限依赖名单，三步顺序是判定的一部分，不得调换
-        _bonusOverchargeSlots = Math.Max(bonusOverchargeSlots, 0);
+        // 最后才还原层级——层级上限依赖名单，三步顺序是判定的一部分，不得调换。
+        // 超载槽按补给档位钳制（只钳 ≥0 时手改档写 999 即让全树节点各白拿一级风险加点名额）
+        _bonusOverchargeSlots = TalentEconomy.ClampBonusSlots(bonusOverchargeSlots, _bonusOverchargeSlotsMax);
         foreach (var id in TalentEconomy.FilterOvercharged(overcharged, TalentTree.NodeIds(), OverchargeMaxPerRun))
         {
             _overcharged.Add(new StringName(id));

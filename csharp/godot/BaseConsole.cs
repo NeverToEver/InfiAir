@@ -647,7 +647,9 @@ public partial class BaseConsole : RadialMenuLayer
         _buyCacheButton.Text = GdFormat.Format((string)Tr("BASE_SUPPLY_CACHE_FMT"), cacheCost);
         _buyCacheButton.Disabled = rp < cacheCost || SupplyCfg("cache_points", 2) <= 0;
         var slotCost = SupplyCfg("overcharge_cost_rp", 8);
-        var slotsMaxed = GameState.Instance.Talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2);
+        // 售罄上限读天赋服务的单一读取点（读档钳制与售罄判定共用同一档位，不在此处再读一次键）
+        var slotsMaxed = GameState.Instance.Talent.BonusOverchargeSlots
+            >= GameState.Instance.Talent.BonusOverchargeSlotsMax;
         _buyOverchargeButton.Text = slotsMaxed
             ? (string)Tr("BASE_SUPPLY_OVERCHARGE_MAXED")
             : GdFormat.Format((string)Tr("BASE_SUPPLY_OVERCHARGE_FMT"), slotCost);
@@ -845,12 +847,12 @@ public partial class BaseConsole : RadialMenuLayer
         Refresh();
     }
 
-    /// <summary>超载槽补给：RP → 本局风险加点上限 +1（上限 base.supply.overcharge_slot_max，随存档保存）。</summary>
+    /// <summary>超载槽补给：RP → 本局风险加点上限 +1（上限由天赋服务给出，随存档保存）。</summary>
     private void OnBuyOverchargePressed()
     {
         var cost = SupplyCfg("overcharge_cost_rp", 8);
         var talent = GameState.Instance.Talent;
-        if (talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2))
+        if (talent.BonusOverchargeSlots >= talent.BonusOverchargeSlotsMax)
         {
             return;
         }

@@ -548,6 +548,27 @@ public sealed class TalentEconomyTests
     }
 
     [Fact]
+    public void ClampBonusSlots_ClampsToSupplyTierCap()
+    {
+        // 补给超载档是花 RP 买的档位（base.supply.overcharge_slot_max）：手改档把它写成 999
+        // 会让本局每个节点都多一次风险加点名额，且绕过售罄限制——读档侧必须按同一档位钳回
+        Assert.Equal(2, TalentEconomy.ClampBonusSlots(999.0, 2));
+        Assert.Equal(2, TalentEconomy.ClampBonusSlots(2.0, 2));
+        Assert.Equal(1, TalentEconomy.ClampBonusSlots(1.0, 2));
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(0.0, 2));
+        // 负值与小数（手改档的两种形态）：负数不得变成「负名额」影响名单截断，小数向零截断
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(-1.0, 2));
+        Assert.Equal(1, TalentEconomy.ClampBonusSlots(1.9, 2));
+        // 非有限按「无值」归 0：NaN 与任何比较都假，放行会让名额上限静默失效
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(double.NaN, 2));
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(double.PositiveInfinity, 2));
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(double.NegativeInfinity, 2));
+        // 坏配置（档位 ≤0）：不得把「不可购置」当成「不设上限」
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(5.0, 0));
+        Assert.Equal(0, TalentEconomy.ClampBonusSlots(5.0, -3));
+    }
+
+    [Fact]
     public void FilterOvercharged_DropsUnknownDuplicatesAndExcessEntries()
     {
         var known = new[] { "power_shot", "extra_life", "homing" };

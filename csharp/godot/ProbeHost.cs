@@ -4357,7 +4357,9 @@ public partial class ProbeHost : Node
     /// 与目标行停在复位值（最长停到下一次 30s 量化步进）。三段，缺一不可：
     ///   ① 带风险加点标记的超结构层级：层级 == max+1，生命上限与层级自洽；
     ///   ② 反向对照（去掉标记）：同一存档层级钳回 max——只判 ① 会让「一律抬级」的实现照样绿；
-    ///   ③ 对照（名单里塞池外节点名）：不抬高任何节点。
+    ///   ③ 对照（名单里塞池外节点名）：不抬高任何节点；
+    ///   ④ 超档的补给超载槽（档位 +997）→ 钳回补给档位，且本局超载上限 == 配置档 + 补给档；
+    ///   ⑤ 反向对照（合法档位 1）→ 原样还原——只判 ④ 时「一律归 0」的实现照样绿。
     /// 另断读档补发：DifficultyChanged 的值 == 存档 difficulty_multiplier、ScoreChanged 回调里读到的时间
     /// 已是存档 run_time（信号先于还原会让订阅方读到 0）。</summary>
     private void RunSaveRestoreProbe()
@@ -4391,6 +4393,14 @@ public partial class ProbeHost : Node
             $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
             + $"\"talent_levels\":{{\"extra_life\":{plainLevel}}},\"talent_overcharged\":[\"ghost\"],"
             + $"\"augments\":{{\"extra_life\":{plainLevel}}}}}";
+        var slotMax = gs.Talent.BonusOverchargeSlotsMax;
+        var cfgSlots = System.Math.Max((int)gs.Cfg("talent.overcharge.max_per_run", 3).AsInt64(), 0);
+        var bonusSlotJson =
+            $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+            + $"\"talent_levels\":{{}},\"talent_overcharged\":[],\"talent_bonus_overcharge_slots\":{slotMax + 997}}}";
+        var legalSlotJson =
+            $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+            + $"\"talent_levels\":{{}},\"talent_overcharged\":[],\"talent_bonus_overcharge_slots\":1}}";
 
         // ① 超结构层级 + 风险加点标记：max+1 级须保留（双倍价买的那一级）
         _probeDifficultySeen = -1.0f;
@@ -4451,6 +4461,34 @@ public partial class ProbeHost : Node
         {
             GD.PushError($"[save-restore-probe] 池外风险加点名抬高了节点（extra_life={gs.TalentLevel(extraLife)}，"
                 + $"ghost={gs.TalentLevel(new StringName("ghost"))}）——未知 id 不该让任何节点多一级");
+            ok = false;
+        }
+
+        // ④ 超档的补给超载槽（slotMax+997）→ 钳回补给档位：这条字段决定本局风险加点名额
+        // （OverchargeMaxPerRun），只钳 ≥0 时手改档写大数即让全树节点各白拿一级、且绕过补给售罄限制
+        ok &= WriteUserFile("user://run.json", bonusSlotJson);
+        ok &= LoadRunForProbe("超档补给超载槽档");
+        if (gs.Talent.BonusOverchargeSlots != slotMax)
+        {
+            GD.PushError($"[save-restore-probe] 补给超载槽未钳回档位：{gs.Talent.BonusOverchargeSlots}"
+                + $"（期望 {slotMax}）——手改档写大数即绕过补给限制多拿风险加点名额");
+            ok = false;
+        }
+
+        if (gs.Talent.OverchargeMaxPerRun != cfgSlots + slotMax)
+        {
+            GD.PushError($"[save-restore-probe] 本局超载上限与钳制后的补给槽不自洽：{gs.Talent.OverchargeMaxPerRun}"
+                + $"（期望 talent.overcharge.max_per_run {cfgSlots} + 补给档 {slotMax}）");
+            ok = false;
+        }
+
+        // ⑤ 反向对照（合法档位 1）：只判 ④ 时「一律归 0」的实现照样绿——买到的槽必须留住
+        ok &= WriteUserFile("user://run.json", legalSlotJson);
+        ok &= LoadRunForProbe("合法补给超载槽档");
+        if (gs.Talent.BonusOverchargeSlots != 1 || gs.Talent.OverchargeMaxPerRun != cfgSlots + 1)
+        {
+            GD.PushError($"[save-restore-probe] 合法补给超载槽未原样还原：槽 {gs.Talent.BonusOverchargeSlots}（期望 1）、"
+                + $"本局超载上限 {gs.Talent.OverchargeMaxPerRun}（期望 {cfgSlots + 1}）——买到的风险加点名额读档即丢");
             ok = false;
         }
 

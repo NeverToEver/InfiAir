@@ -334,6 +334,26 @@ public static class TalentEconomy
         Math.Clamp(raw, 0, RestoreLimit(maxLevel, isOvercharged));
 
     /// <summary>
+    /// 读档「基地补给超载槽」条数钳制：钳 [0, <paramref name="cap"/>]。
+    /// 上限是补给档位（base.supply.overcharge_slot_max）——手改档把该字段写成 999 会让本局每个
+    /// 节点都能风险加点一次（名额判定读 config + 补给档）、且不再受补给售罄限制，
+    /// 而这条不变量在读档侧此前只剩「钳 ≥0」。
+    /// 数值域取 double 与存档数值读取同口径（Int/Float 互通）：非有限值按「无值」归 0——
+    /// NaN 与任何比较都假，放行会让名额上限静默失效。
+    /// <paramref name="cap"/> ≤ 0（坏配置）归 0：不得把「不可购置」当成「不设上限」。
+    /// </summary>
+    public static int ClampBonusSlots(double raw, int cap)
+    {
+        if (!double.IsFinite(raw) || raw <= 0.0)
+        {
+            return 0;
+        }
+
+        var limit = Math.Max(cap, 0);
+        return raw >= limit ? limit : (int)raw;
+    }
+
+    /// <summary>
     /// 读档风险加点名单过滤：只保留 <paramref name="knownIds"/> 内的 id（未知 id 抬高不了任何节点，
     /// 留着只会占名额、让真实节点少一次风险加点）、去重、并按 <paramref name="limit"/> 截断
     /// （上限 ＝ 配置档 + 基地补给档；手改档塞满全部节点＝每节点白拿一级）。
