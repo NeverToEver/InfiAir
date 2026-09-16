@@ -455,10 +455,12 @@ public partial class TalentFanView : Control
 
     /// <summary>可升级呼吸脉冲（点数充足的未满节点边框明暗交替；ReduceFlash 时静止）。
     /// 走势聚合态 _anyUpgradeable 在 RefreshStates/RebuildCards 时重算，本方法只读缓存；
-    /// 相位基准为本控件累计的模拟时间（delta 来自 _Process），与墙钟/帧率无关。</summary>
+    /// 相位基准为本控件累计的模拟时间（delta 来自 _Process），与墙钟/帧率无关。
+    /// 可见性判 IsVisibleInTree 而非 Visible：面板关闭只把 CanvasLayer 置 Visible=false，
+    /// 本 Control 的 Visible 仍为 true、_Process 照跑——只要有点数可加就会永久每约 1.57s 全卡重刷样式。</summary>
     public override void _Process(double delta)
     {
-        if (!Visible || _categoryId == null || GameState.Instance.ReduceFlash)
+        if (!IsVisibleInTree() || _categoryId == null || GameState.Instance.ReduceFlash)
         {
             return;
         }

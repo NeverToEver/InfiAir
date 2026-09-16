@@ -1637,7 +1637,9 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>目标进度刷新：未达成显示「离达成还有多少」，达成后显示已达成并（一次性）横幅提示。
-    /// 刷新时机＝分数变化（Boss 击杀会加分）与本局时钟轮询（存活型目标需按时间推进）。</summary>
+    /// 刷新时机＝分数变化（Boss 击杀会加分）与本局时钟轮询（存活型目标需按时间推进）；
+    /// 两个分支都只在文案变化时重写——达成态尤其不能每帧重写（擦弹逐枚得分都会带一次
+    /// Tr + GdFormat 分配 + AddThemeColorOverride 的主题失效与重排）。</summary>
     private void RefreshGoalLabel()
     {
         if (_goalLabel == null)
@@ -1652,14 +1654,16 @@ public partial class Hud : CanvasLayer
         var milestoneText = GdFormat.Format((string)Tr("MILESTONE_PROGRESS"), milestonePct);
         if (gs.GoalAchieved())
         {
-            if (!_goalWasAchieved)
+            var achievedText = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
+                (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
+            if (_goalWasAchieved && achievedText == _goalText)
             {
-                _goalWasAchieved = true;
-                _goalText = string.Empty; // 强制文本分支重写（达成态与未达成态各自只写一次）
+                return; // 文案与配色都已写定：0.1s 轮询 × 每次得分（擦弹逐枚）双路驱动下不再重写
             }
 
-            _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
-                (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
+            _goalText = achievedText;
+            _goalWasAchieved = true;
+            _goalLabel.Text = achievedText;
             _goalLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
             if (!_goalBannerShown)
             {
