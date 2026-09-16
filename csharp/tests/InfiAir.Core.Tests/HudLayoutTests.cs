@@ -73,6 +73,15 @@ public sealed class HudLayoutTests
         // 名牌行在血条带之上（同宽同列：改一处必然带动另一处）
         Assert.True(HudLayout.BossNameRowTop < HudLayout.BossHealthBandTop);
         Assert.True(HudLayout.BossNameRowTop >= HudLayout.BossPlateTop);
+        // 名牌行「盒」与血条带不许相交：名牌是有底衬的金属面板、自带上下内边距，预留量小于实际盒高
+        // 时底衬会盖住血条上沿——玩家读到的血条高度就少一截。Hud 侧把该面板的纵向内边距清零，
+        // 使实际盒高 == BossNameRowHeight（本断言的前提，漂移即红）。
+        Assert.False(
+            HudLayout.BoxesOverlap(
+                HudLayout.BossNameRowTop, HudLayout.BossNameRowHeight,
+                HudLayout.BossHealthBandTop, HudLayout.BossHealthBandHeight),
+            $"名牌行盒（{HudLayout.BossNameRowTop}..{HudLayout.BossNameRowTop + HudLayout.BossNameRowHeight}）"
+            + $"与血条带（{HudLayout.BossHealthBandTop}..{HudLayout.BossHealthBandBottom}）相交");
         Assert.Equal(-HudLayout.BossBarWidth * 0.5f, HudLayout.BossBarLeft);
         // 名牌是血条子节点：局部顶位与两带之差必须一致（换算写错会让名牌落进血条里）
         Assert.Equal(HudLayout.BossNameRowTop - HudLayout.BossHealthBandTop, HudLayout.BossNameRowTopInBar);
@@ -268,5 +277,34 @@ public sealed class HudLayoutTests
         Assert.DoesNotMatch(new Regex(@"PlaceBottomLeft\([^,]*,\s*[-0-9]"), src);
         // 就地构造盒同样算第二份拷贝：盒里出现数字即说明落位写死在 Hud（`new HudLayout.AnchoredBox(24.0f, …)` 形态）
         Assert.DoesNotMatch(new Regex(@"new\s+HudLayout\.AnchoredBox\([^)]*\d"), src);
+    }
+
+    [Fact]
+    public void ChargeBars_SlotsArePitchSpacedAndDoNotOverlap()
+    {
+        // 节距必须容得下整条盒：两条通道同时蓄力时（例如同时按住返航与天赋面板）条盒互压，
+        // 玩家会把一条的进度读成另一条的——原实现五个手写槽位偏移的最后两对重叠 7px 与 27px。
+        Assert.True(
+            HudLayout.ChargeSlotPitch >= HudLayout.ChargeBarHeight,
+            $"槽位节距 {HudLayout.ChargeSlotPitch} 容不下条盒高 {HudLayout.ChargeBarHeight}");
+
+        const int channels = 5;
+        for (var i = 0; i < channels; i++)
+        {
+            Assert.True(HudLayout.IsWellFormed(HudLayout.ChargeBarBox(i)));
+        }
+
+        for (var i = 0; i + 1 < channels; i++)
+        {
+            Assert.False(
+                HudLayout.Intersects(HudLayout.ChargeBarBox(i), HudLayout.ChargeBarBox(i + 1)),
+                $"第 {i} 与第 {i + 1} 条蓄力条盒相交");
+            Assert.True(
+                HudLayout.ChargeSlotY(i) > HudLayout.ChargeSlotY(i + 1),
+                "槽位必须自下而上单调排开（索引 0 在最下）");
+        }
+
+        // 最下一条整体留在视野内（y 以底缘为 0、负值向上）
+        Assert.True(HudLayout.ChargeSlotY(0) + HudLayout.ChargeBarHeight <= 0.0f);
     }
 }

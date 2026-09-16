@@ -61,6 +61,8 @@ public partial class Hud : CanvasLayer
     private Boss? _boss;
     private Label _bossCountdown = null!;
     private Label _bossName = null!; // Boss 名牌（型号 + 阶段），血条子节点随其显隐
+
+    private PanelContainer _bossNamePlate = null!; // 名牌底衬（运行期版式护栏要比它的实际盒）
     private ChamferedPanel _bossPlate = null!; // Boss 血条 + 名牌的切角背板（随血条显隐）
     private BossBarTicks _bossTicks = null!; // 阶段刻度线覆盖层（比例由阶段阈值派生注入）
     /// <summary>Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
@@ -307,7 +309,13 @@ public partial class Hud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         namePlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        namePlate.AddThemeStyleboxOverride("panel", UITheme.MakeMetalPanelStyle());
+        // 底衬面板清零纵向内边距：core 的名牌行预留量（BossNameRowHeight）是按字形行盒留的，
+        // 而金属面板样式自带上下各 8px 内边距——不清零则实际盒高比预留量高 16px，底衬会盖住
+        // 血条带上沿 12px（玩家读到的血条高度少一截）。横向内边距保留（底衬要略宽于文字）。
+        var namePlateStyle = UITheme.MakeMetalPanelStyle();
+        namePlateStyle.ContentMarginTop = 0.0f;
+        namePlateStyle.ContentMarginBottom = 0.0f;
+        namePlate.AddThemeStyleboxOverride("panel", namePlateStyle);
         _bossName = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -318,6 +326,7 @@ public partial class Hud : CanvasLayer
         _bossName.AddThemeColorOverride("font_color", UITheme.Text);
         namePlate.AddChild(_bossName);
         _bossBar.AddChild(namePlate);
+        _bossNamePlate = namePlate;
         // Boss 血条阶段刻度线（覆盖在血条上随其显隐；比例在 ShowBossBar 由阶段阈值派生注入）
         _bossTicks = new BossBarTicks();
         _bossTicks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -490,13 +499,16 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>通道规格：提示翻译键（%d 占位）/ 通道色 / 底部居中槽位（沿用历史堆叠次序防互叠）。</summary>
-    private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, float SlotY)> ChargeBarSpecs = new()
+    /// <summary>通道 → 槽位索引（自下而上）。槽位 y 由 core <c>HudLayout.ChargeSlotY</c> 按节距推出，
+    /// 不再各写一份手写偏移——原实现五个偏移的节距 48/56/44/24，最后两对条盒重叠 7px 与 27px，
+    /// 两条通道同时蓄力时会把一条的进度读成另一条的。</summary>
+    private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, int Slot)> ChargeBarSpecs = new()
     {
-        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeAccent, -268.0f),
-        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeAccent, -120.0f),
-        [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, -164.0f),
-        [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, -220.0f),
-        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeAccent, -96.0f),
+        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeAccent, 4),
+        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeAccent, 1),
+        [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, 2),
+        [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, 3),
+        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeAccent, 0),
     };
 
     private readonly Dictionary<ChargeChannel, HudChargeBar> _chargeBars = new();
@@ -505,14 +517,90 @@ public partial class Hud : CanvasLayer
     {
         foreach (var kv in ChargeBarSpecs)
         {
-            var bar = HudChargeBar.Create((string)Tr(kv.Value.PromptKey), kv.Value.Color, new Vector2(-140.0f, kv.Value.SlotY));
+            var bar = HudChargeBar.Create(
+                (string)Tr(kv.Value.PromptKey),
+                kv.Value.Color,
+                new Vector2(-HudLayout.ChargeBarWidth * 0.5f, HudLayout.ChargeSlotY(kv.Value.Slot)));
             _chargeBars[kv.Key] = bar;
             AddChild(bar);
         }
     }
 
+    /// <summary>蓄力条槽位互压的运行期护栏：两条通道同时蓄力时（例如返航 + 天赋面板）条盒互压
+    /// 会让玩家把一条的进度读成另一条的。槽位算式已在 core 由单测钉住，这里防的是「实际盒高被
+    /// 字号/样式撑过预算」——那种漂移只有运行期量得出来。每帧调用、每次会话只报一次，
+    /// 走 PushError 撞冒烟与截图探针的错误正则。</summary>
+    private void VerifyChargeBarsDoNotOverlap()
+    {
+        if (_chargeOverlapChecked)
+        {
+            return;
+        }
+
+        var shown = new List<(ChargeChannel Channel, Rect2 Area)>();
+        foreach (var kv in _chargeBars)
+        {
+            var bar = kv.Value;
+            // 未参与布局（不可见或尺寸尚未定）的条跳过：拿零尺寸去比会误报
+            if (!bar.Visible || bar.Size.Y <= 0.0f)
+            {
+                continue;
+            }
+
+            shown.Add((kv.Key, bar.GetGlobalRect()));
+        }
+
+        if (shown.Count < 2)
+        {
+            return; // 单条在场不可能互压；等到真的两条同屏再判
+        }
+
+        _chargeOverlapChecked = true;
+        for (var i = 0; i < shown.Count; i++)
+        {
+            for (var j = i + 1; j < shown.Count; j++)
+            {
+                if (shown[i].Area.Intersects(shown[j].Area))
+                {
+                    GD.PushError($"[hud] 蓄力条槽位互压：{shown[i].Channel} 与 {shown[j].Channel} "
+                        + $"（槽位节距 {HudLayout.ChargeSlotPitch}，盒高预算 {HudLayout.ChargeBarHeight}）——"
+                        + "两条通道同时蓄力时会把一条的进度读成另一条的");
+                }
+            }
+        }
+    }
+
+    private bool _chargeOverlapChecked;
+
+    /// <summary>Boss 头部版式的运行期护栏：名牌底衬（金属面板）的实际盒高若超过 core 的预留量
+    /// （BossNameRowHeight），它的底色会盖住血条带上沿——血条可读高度少一截且零报错。core 单测
+    /// 钉的是常量关系，实际盒高由字形行盒与面板内边距决定，只有运行期量得出来。</summary>
+    private void VerifyBossHeaderLayout()
+    {
+        if (_bossHeaderChecked || !_bossBar.Visible || _bossNamePlate.Size.Y <= 0.0f)
+        {
+            return;
+        }
+
+        _bossHeaderChecked = true;
+        var plateRect = _bossNamePlate.GetGlobalRect();
+        var barRect = _bossBar.GetGlobalRect();
+        if (plateRect.Intersects(barRect))
+        {
+            GD.PushError($"[hud] Boss 名牌底衬压住血条带（名牌底 {plateRect.End.Y:F0} > 血条顶 {barRect.Position.Y:F0}）"
+                + $"——名牌行预留量 {HudLayout.BossNameRowHeight} 小于名牌实际盒高，血条可读高度被削掉一截");
+        }
+    }
+
+    private bool _bossHeaderChecked;
+
     /// <summary>统一蓄力进度口（全部长按功能唯一入口）：ratio &lt; 0 隐藏该通道。</summary>
-    public void SetCharge(ChargeChannel channel, float ratio) => _chargeBars[channel].SetRatio(ratio);
+    public void SetCharge(ChargeChannel channel, float ratio)
+    {
+        _chargeBars[channel].SetRatio(ratio);
+        // 蓄力状态每帧由 Main 写入：挂在这里才能在「两条同时可见」的当帧量到真实盒
+        VerifyChargeBarsDoNotOverlap();
+    }
 
     /// <summary>当前仍在显示的蓄力通道（探针读口，零引用保留）：终局路径（死亡 → 树暂停）的
     /// 判据是「结算页上不该残留任何蓄力条」，而只有 HUD 知道哪条通道还在显示；逐通道读私有
@@ -706,6 +794,7 @@ public partial class Hud : CanvasLayer
         _simTime += d;
         UpdateVignette(d);
         UpdateFuelPulse(d); // 低燃料警戒亮度泵动（空闲时无逐帧写）
+        VerifyBossHeaderLayout(); // Boss 血条显形后判一次（见该方法的护栏理由）
         _pollTimer -= d;
         if (_pollTimer > 0.0f)
         {

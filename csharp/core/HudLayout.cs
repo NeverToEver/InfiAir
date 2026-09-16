@@ -333,4 +333,31 @@ public static class HudLayout
     /// <summary>信息横幅（母舰到达 / 里程碑 / 可升级）：紧接警告横幅之下。</summary>
     public static AnchoredBox InfoBannerBox =>
         CenterTopRow(WarningBannerBox.OffsetBottom + BannerStackGap, BannerWidth, InfoBannerHeight);
+
+    // ---------------- 长按蓄力条槽位（底部居中锚，各通道纵向排开） ----------------
+
+    /// <summary>蓄力条宽（提示文字与条体同宽）。</summary>
+    public const float ChargeBarWidth = 280.0f;
+
+    /// <summary>单条蓄力条的盒高预算：提示行盒 35 + 行间距 6 + 条体 10（<c>HudChargeBar</c> 实测盒高）。
+    /// 改字号或行间距都会改变实际盒高，槽位节距与它的关系由单测钉住。</summary>
+    public const float ChargeBarHeight = 51.0f;
+
+    /// <summary>槽位节距。**必须 ≥ <see cref="ChargeBarHeight"/>**——两条通道同时蓄力时（例如同时
+    /// 按住返航与天赋面板）条盒会互相压住，玩家把一条的进度读成另一条的。原实现五个槽位手写偏移
+    /// （−268/−220/−164/−120/−96），节距 48/56/44/24，最后两对分别重叠 7px 与 27px。</summary>
+    public const float ChargeSlotPitch = 56.0f;
+
+    /// <summary>最下一条（索引 0）离底缘的距离。</summary>
+    public const float ChargeSlotBase = 96.0f;
+
+    /// <summary>第 index 条蓄力条的槽位偏移（底部居中锚下的 y；索引自下而上）。</summary>
+    public static float ChargeSlotY(int index) => -(ChargeSlotBase + (index * ChargeSlotPitch));
+
+    /// <summary>第 index 条蓄力条的盒（水平居中：x 以视野中线为 0）。</summary>
+    public static AnchoredBox ChargeBarBox(int index)
+    {
+        var top = ChargeSlotY(index);
+        return new AnchoredBox(-ChargeBarWidth * 0.5f, top, ChargeBarWidth * 0.5f, top + ChargeBarHeight);
+    }
 }
