@@ -473,13 +473,13 @@ public partial class Main : Node2D
 
             if (_chargeTime >= DOCK_CHARGE_TIME)
             {
-                StopChargingInternal();
+                StopSummonCharge();
                 SummonMothershipInternal();
             }
         }
         else if (_charging)
         {
-            StopChargingInternal();
+            StopSummonCharge();
         }
 
         // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期本局不暂停）播放中禁止——与 dock 蓄力
@@ -490,9 +490,7 @@ public partial class Main : Node2D
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, _homeChargeTime / HOME_CHARGE_TIME);
             if (_homeChargeTime >= HOME_CHARGE_TIME)
             {
-                _homeChargeTime = 0.0f;
-                _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
-                StartHomecomingInternal();
+                StartHomecomingInternal(); // 内含蓄力清理（四通道唯一出口）
             }
         }
         else if (_homeChargeTime > 0.0f)
@@ -509,8 +507,7 @@ public partial class Main : Node2D
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, _giveUpCharge / GIVE_UP_HOLD_TIME);
             if (_giveUpCharge >= GIVE_UP_HOLD_TIME)
             {
-                _giveUpCharge = 0.0f;
-                _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
+                ClearAllCharge();
                 GiveUp();
             }
         }
@@ -533,7 +530,30 @@ public partial class Main : Node2D
         _replay.Record();
     }
 
-    private void StopChargingInternal()
+    /// <summary>蓄力清理的唯一出口（终局路径：返航 / 死亡 / 放弃出击）：
+    /// 四条蓄力通道（母舰召唤 / 返航 / 放弃出击 / 天赋面板）的进度字段与 HUD 条一并复位。
+    /// 死亡路径必须走它——死亡帧 `SetTreePaused(true)` 之后 _Process 不再执行，只清召唤通道时
+    /// 另一条正被按住（或刚蓄满）的通道会以最后比例常驻屏幕，结算页 dim 只压暗、不清除。
+    /// 松手取消是**逐通道**的（StopSummonCharge 与 _Process 的 else 分支）：清全部会把与它
+    /// 并行的另一条正在蓄力的通道一并取消。</summary>
+    private void ClearAllCharge()
+    {
+        StopSummonCharge();
+        _homeChargeTime = 0.0f;
+        _giveUpCharge = 0.0f;
+        _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
+        _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
+        // 天赋面板的 G 蓄力同归此口：面板侧的中断守卫（树暂停/死亡）跑在它自己的 _Process 里，
+        // 而「树已暂停」时它根本不再执行——正是它要防的那种状态的死角
+        if (_talentUi != null && GodotObject.IsInstanceValid(_talentUi))
+        {
+            _talentUi.CancelCharge();
+        }
+    }
+
+    /// <summary>母舰召唤通道的清理（松手取消 / 蓄满转演出）：虚影、蓄力特效与 HUD 条一起收。
+    /// 只清这一条通道——它可以在玩家同时按住 B/K 时与那两条并行蓄力。</summary>
+    private void StopSummonCharge()
     {
         _charging = false;
         _chargeTime = 0.0f;
@@ -727,8 +747,9 @@ public partial class Main : Node2D
         _player.UnlockInput();
         // 死亡终局冻结 _process：狂暴子弹时间不复位会卡在 0.24
         ResetGlobalTimeScale();
-        // 死亡路径清理蓄力特效残留（_give_up 经 player_died 覆盖到此）
-        StopChargingInternal();
+        // 死亡路径清理全部蓄力（_give_up / _homecoming 经 player_died 覆盖到此）：
+        // 死亡同帧树暂停，_Process 的清零分支不再执行，漏清哪条就常驻哪条
+        ClearAllCharge();
         // 死亡路径必须清理召唤小窗——否则 give_up 与 dock
         // 蓄力同按 3s 同帧完成时小窗打开同帧死亡，finished 无人消费（_process 已冻结）小窗永驻
         if (_summonWindow != null)
@@ -971,10 +992,8 @@ public partial class Main : Node2D
         _homecoming = true;
         // 返航冻结本局：狂暴子弹时间若在播先复位，避免过场以慢速播放
         ResetGlobalTimeScale();
-        // 返航路径清理蓄力特效残留（蓄力中按 B 返航时虚影/特效不再残留）
-        StopChargingInternal();
-        _homeChargeTime = 0.0f;
-        _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
+        // 返航路径清理全部蓄力（蓄力中按 B 返航时虚影/特效与其它通道的进度条不再残留）
+        ClearAllCharge();
         _player.LockInput();
         // 迷雾事件：返航中场整备清除进行中的干扰效果（继续出击后干净开局）
         _fogEvents.EndActive();

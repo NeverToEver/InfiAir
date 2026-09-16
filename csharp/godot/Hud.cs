@@ -497,6 +497,23 @@ public partial class Hud : CanvasLayer
     /// <summary>统一蓄力进度口（全部长按功能唯一入口）：ratio &lt; 0 隐藏该通道。</summary>
     public void SetCharge(ChargeChannel channel, float ratio) => _chargeBars[channel].SetRatio(ratio);
 
+    /// <summary>当前仍在显示的蓄力通道（探针读口，零引用保留）：终局路径（死亡 → 树暂停）的
+    /// 判据是「结算页上不该残留任何蓄力条」，而只有 HUD 知道哪条通道还在显示；逐通道读私有
+    /// 进度需要 5 次往返，这里一次给全。下一 wave 的死亡蓄力趟据此断言，见 ROADMAP 零引用口径。</summary>
+    public List<ChargeChannel> VisibleChargeChannels()
+    {
+        var visible = new List<ChargeChannel>();
+        foreach (var kv in _chargeBars)
+        {
+            if (kv.Value.Visible)
+            {
+                visible.Add(kv.Key);
+            }
+        }
+
+        return visible;
+    }
+
     /// <summary>集成仪表盘装配（左下）：单一紧凑面板，两排——上排生命（主读数）＋坞态指示灯，
     /// 下排燃料量槽＋两枚充能槽＋弹仓格。所有方形构件共用 UITheme.ChamferPoints 的切角语汇，
     /// 不出现两套形状语言（这是「像展示品」的主要来源）。
