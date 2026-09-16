@@ -327,6 +327,14 @@ smoke_settings_version() {
   expect_marker "设置版本回退与复位信号" "${PROBE_LOG_BASE}.settings_version.log" "[settings-version-probe] 版本回退与复位信号成立"
 }
 
+smoke_early_leave() {
+  # 提前离舰蓄力的终局清理：走生产蓄力链（长按 dock 召唤 → 驻留态）把「提前离舰」蓄力条按出来
+  # （先断在列，否则「死亡后为空」空转假绿），同帧松手 + 击杀玩家，断结算页上不再有这条蓄力条
+  # ——推进在母舰 _PhysicsProcess 里，树暂停后没人清、只留一条常驻条（不崩不报错）。
+  run_case "early leave charge clear smoke" 900 "${PROBE_LOG_BASE}.early_leave.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.early_leave.userdata" --early-leave-probe
+  expect_marker "提前离舰蓄力随死亡清理" "${PROBE_LOG_BASE}.early_leave.log" "[early-leave-probe] 提前离舰蓄力随死亡清理"
+}
+
 smoke_tutorial() {
   # 教程场景直开：教程是**另一条生产入口**（独立场景，不经 Main 的标题屏交接），上面各趟都不经过
   # 它。标记在 Tutorial._Ready 末尾打，切场景/资源加载失败时不出现——只判「不崩」抓不到。
@@ -354,6 +362,7 @@ SMOKE_CASES=(
   smoke_augment_cache
   smoke_save_restore
   smoke_settings_version
+  smoke_early_leave
   smoke_tutorial
 )
 

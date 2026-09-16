@@ -221,6 +221,17 @@ public partial class ProbeHost : Node
     /// <summary>设置版本探针（--settings-version-probe）。</summary>
     private bool _settingsVersionProbe;
 
+    /// <summary>提前离舰蓄力的终局清理探针（--early-leave-clear-probe）。</summary>
+    private bool _earlyProbe;
+
+    private int _earlyStage;
+    private int _earlyChargeFrames;
+    private bool _earlySawChannel;
+    private Hud? _earlyHud;
+
+    /// <summary>提前离舰蓄力的观测上限（帧）：生产 early_hold_time 2s = 120 帧，取 2.5 倍余量。</summary>
+    private const int EarlyLeaveProbeChargeBoundFrames = 300;
+
     /// <summary>设置页探针里两处频闪的采样窗口（帧）：轮盘开机物化 0.62s、横幅闪烁半周期 ≤0.25s，
     /// 取 30 帧（0.5s）覆盖至少一个完整明暗周期，留出轮询与帧序余量。</summary>
     private const int SettingsFlashWindowFrames = 30;
@@ -516,6 +527,10 @@ public partial class ProbeHost : Node
             {
                 _deathGateProbe = true;
             }
+            else if (arg == "--early-leave-probe")
+            {
+                _earlyProbe = true;
+            }
             else if (arg == "--save-restore-probe")
             {
                 _saveRestoreProbe = true;
@@ -554,7 +569,7 @@ public partial class ProbeHost : Node
         VerifyUserDirIsolation(expectUserDir);
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
-            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe)
+            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe)
         {
             // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -708,6 +723,12 @@ public partial class ProbeHost : Node
         {
             _hostileProbe = false;
             RunHostileSaveProbe();
+            return;
+        }
+
+        if (_earlyProbe)
+        {
+            TickEarlyLeaveProbe();
             return;
         }
 
@@ -4062,6 +4083,120 @@ public partial class ProbeHost : Node
         if (ok)
         {
             GD.Print("[hostile-save-probe] 恶意档读入未崩溃");
+        }
+    }
+
+    /// <summary>提前离舰蓄力的终局清理探针（--early-leave-clear-probe）：走生产蓄力链进入驻留态、
+    /// 长按 <c>dock</c> 把「提前离舰」蓄力条按出来，然后**先松手、再击杀玩家**，断结算页上不再有这条蓄力条。
+    ///
+    /// 为什么必须探：这条通道的推进在母舰的 <c>_PhysicsProcess</c> 里，而死亡终局会暂停整棵树——
+    /// 母舰既不推进也不拆树，`_ExitTree` 的兜底清理不会发生，漏清的表现是**进度条以最后比例常驻结算页**
+    /// （结算页 dim 只压暗、不清除），不崩不报错。
+    /// 判定三段，缺一不可：① 蓄力条**确实在列**（先断在列，否则「死亡后为空」空转假绿）；
+    /// ② 松手（不松手则树恢复后母舰重新蓄力、条子再现，判定反过来冤枉实现）；
+    /// ③ 击杀玩家后不再含该通道。帧序只由 <c>--fixed-fps 60</c> 驱动，不看墙钟。</summary>
+    private void TickEarlyLeaveProbe()
+    {
+        if (_earlyStage == 0)
+        {
+            if (_frame < 30 || _player.IsEntryPlaying() || !_spawner.IsProcessing())
+            {
+                return;
+            }
+
+            _player.SetInvincible(ProbeInvincibleSeconds); // 无头局玩家不操作，与存活解耦
+            _earlyStage = 1;
+            return;
+        }
+
+        if (_earlyStage == 1)
+        {
+            _earlyChargeFrames++;
+            if (_earlyChargeFrames > DockProbeChargeFrames)
+            {
+                Input.ActionRelease(ActDock);
+                _earlyProbe = false;
+                GD.PushError($"[early-leave-probe] 长按坞蓄力 {DockProbeChargeFrames} 帧仍未召唤母舰（蓄力链断线）");
+                return;
+            }
+
+            Input.ActionPress(ActDock);
+            if (_main.Mothership() != null)
+            {
+                Input.ActionRelease(ActDock);
+                _earlyStage = 2;
+            }
+
+            return;
+        }
+
+        var ms = _main.Mothership();
+        if (ms == null || !GodotObject.IsInstanceValid(ms))
+        {
+            _earlyProbe = false;
+            GD.PushError("[early-leave-probe] 母舰在驻留前离场——提前离舰蓄力判据取不到");
+            return;
+        }
+
+        if (_earlyStage == 2)
+        {
+            // 等对接流程推进到驻留态（提前离舰蓄力只在 STAY 内累积）
+            if (ms.GetState() == Mothership.State.STAY)
+            {
+                _earlyStage = 3;
+                _earlyChargeFrames = 0;
+            }
+            else if (_earlyChargeFrames++ > DockProbeMagWarnTimeoutFrames)
+            {
+                _earlyProbe = false;
+                GD.PushError($"[early-leave-probe] 驻留态 {DockProbeMagWarnTimeoutFrames} 帧内未到达（对接链卡死）");
+            }
+
+            return;
+        }
+
+        if (_earlyStage == 3)
+        {
+            _earlyChargeFrames++;
+            if (_earlyChargeFrames > EarlyLeaveProbeChargeBoundFrames)
+            {
+                Input.ActionRelease(ActDock);
+                _earlyProbe = false;
+                GD.PushError($"[early-leave-probe] 长按 {EarlyLeaveProbeChargeBoundFrames} 帧仍未出现提前离舰蓄力通道"
+                    + "（通道未推进或 HUD 未登记）——判据取不到");
+                return;
+            }
+
+            Input.ActionPress(ActDock); // 生产蓄力链：进度由母舰 _PhysicsProcess 推进、HUD 读口可见
+            _earlyHud ??= GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (_earlyHud == null)
+            {
+                Input.ActionRelease(ActDock);
+                _earlyProbe = false;
+                GD.PushError("[early-leave-probe] 未找到 HUD 节点——蓄力通道读口取不到");
+                return;
+            }
+
+            if (_earlyHud.VisibleChargeChannels().Contains(Hud.ChargeChannel.EarlyLeave))
+            {
+                _earlySawChannel = true;
+                // 松手与击杀必须**同帧**（先松手再击杀）：跨帧时母舰的 _PhysicsProcess 会先跑完松手
+                // 分支把条子清掉，死亡清理的判据就变成空转（判的是松手路径而非终局路径）。
+                Input.ActionRelease(ActDock);
+                _player.Die(); // 显式击杀（绕过无敌）——死亡路径 = 同帧暂停树 + ClearAllCharge
+                var leftover = _earlyHud.VisibleChargeChannels().Contains(Hud.ChargeChannel.EarlyLeave);
+                _earlyProbe = false;
+                if (leftover)
+                {
+                    GD.PushError("[early-leave-probe] 死亡终局后提前离舰蓄力条仍常驻（结算页 dim 只压暗、不清除）——"
+                        + "ClearAllCharge 未覆盖这条通道");
+                    return;
+                }
+
+                GD.Print("[early-leave-probe] 提前离舰蓄力随死亡清理");
+            }
+
+            return;
         }
     }
 
