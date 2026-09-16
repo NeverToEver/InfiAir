@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十五步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
+按 CI fast-gate 顺序跑完全部十六步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
 数值键反向死键 → 存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 零引用成员登记 →
 代码默认值与 balance 定稿对账 → 门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-无头冒烟二十一趟 → 截图探针（辅助）。
+无头冒烟二十一趟 → 截图探针（辅助）→ 素材生成可复现性。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十五步
+    python3 scripts/ci/gates.py                  # 全部十六步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -52,6 +52,9 @@ STEPS = (
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
     {"slug": "smoke", "name": "无头冒烟二十一趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/迷雾打断/返航宽限/Boss阶段机/母舰坞态/遭遇击杀型/恶意存档/死亡删档门控/增幅缓存复用/存档还原/设置版本回退/提前离舰蓄力/教程场景）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
     {"slug": "visual", "name": "截图探针（HUD + 五张设置页，自检非空白/页面互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
+    # 素材复现性排最后：它是唯一会**改写工作区**的步骤（跑生成器覆盖 assets/ 产物），
+    # 排在引擎三步之后时，引擎侧（导入/冒烟/截图）看到的始终是提交态，漂移也不会污染后续步骤的判据。
+    {"slug": "assets_reproducible", "name": "素材生成可复现性（重跑生成器 + 产物无漂移，单条约 33s）", "kind": "bash", "script": "check_assets_reproducible.sh", "godot": False},
 )
 
 
