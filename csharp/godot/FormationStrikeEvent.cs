@@ -419,6 +419,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             var index = i; // 闭包捕获副本：C# for 循环变量为单变量，直接捕获会全部指向末索引
             var craft = new FormationCraft();
             craft.Setup(hp);
+            craft.ScoreValue = CraftScore; // 击坠分随生成注入（与 EliteTurretEvent 注入 turret.ScoreValue 同口径）
             craft.Position = _anchor + _offsets[i];
             craft.Rotation = _heading + (Mathf.Pi / 2.0f);
             craft.Died += (c) => OnCraftDied(c, index);
@@ -880,7 +881,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _hud.UpdateEventBar(fill, _alive, _total, _intercepted);
     }
 
-    /// <summary>击坠：单机得分走 AddKillScore（连击+1、乘区放大后照常过难度倍率）；
+    /// <summary>击坠：单机得分与击杀数在击坠处一并入账（编队机 Die），本处只做编排；
     /// 全歼 → 全歼奖励 AddEventScore（不计连击、随 D 增长）+ 提前离场。</summary>
     private void OnCraftDied(FormationCraft craft, int index)
     {
@@ -890,7 +891,6 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         _alive = Mathf.Max(0, _alive - 1);
-        GameState.Instance.AddKillScore(CraftScore);
         // 进度台词：第一次战损时敌方指挥官的反应（与拦截台词共用单条槽位）
         if (_lineStage == 0 && _state != State.IDLE)
         {

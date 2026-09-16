@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 自身无 AI：位置/朝向由 FormationStrikeEvent._Process 按编队锚点驱动，侧倾（bank）由事件按
 /// 转向/离场进度写入（俯视视角下「压坡转弯」比平推更有质量感）。
 /// 身份识别：琥珀色调 + 翼尖航行灯（红/绿）+ 机腹投弹舱照明——与普通敌机同贴图但一眼可区分。
-/// 被击坠：爆炸 + 注销注册表；击坠得分由事件编排结算（本类只推进击杀数）。
+/// 被击坠：爆炸 + 注销注册表；击杀数与击杀分同处入账（与普通敌机/精英炮塔同口）。
 /// 实现 IAimTarget：与普通敌机同吃辅助瞄准（遭遇期间它是屏上唯一可打目标）。
 /// </summary>
 public partial class FormationCraft : Area2D, IDamageable, IAimTarget
@@ -22,6 +22,10 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
 
     public int MaxHp { get; set; } = 60;
     public int Hp { get; set; } = 60;
+
+    /// <summary>击落入账的击杀分（balance.json formation_strike_event.craft_score，事件编排生成时注入）：
+    /// 走 AddKillScore，吃连击/score_amp/难度档倍率——与普通敌机、精英炮塔同口。</summary>
+    public int ScoreValue { get; set; } = 200;
 
     /// <summary>编队身份色（琥珀偏橙：与普通敌机的冷灰、精英炮塔的品红区分）。</summary>
     private static readonly Color FormationTint = new(1.0f, 0.82f, 0.62f);
@@ -224,9 +228,10 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
 
     public void Die()
     {
-        // 击杀数在击坠处推进（与普通敌机同口：任务/解锁进度门读它）；击坠分不必在此重复入账——
-        // 编队机的 AddKillScore 由编排侧（FormationStrikeEvent.OnCraftDied）结算，两处分工是既有形态
+        // 击杀数与击杀分在同一处入账（ScoreValue 由事件编排注入）：两笔分处两处时，
+        // 「打光编队」与「打光一波敌机」的账目形态不同，漏一侧也不报错
         SetAimMarked(false);
+        GameState.Instance.AddKillScore(ScoreValue);
         GameState.Instance.AddKill();
         GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(_shakeDie);
