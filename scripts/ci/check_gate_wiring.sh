@@ -31,9 +31,13 @@
 #      早已写好，运行期也可能照绿）；
 #   d) 每条 expect_marker 的标记字符串都能对应到 csharp/ 里的**打印点**——字面命中，或匹配某条
 #      含格式占位的打印模板（`[event-probe] %s 全周期完成` 这类：id 由运行期代入，字面量里查不到）。
-#      字符串写错则断言永不可能通过，而现场表现只是「一条永远红的门禁」，容易被顺手删掉。
+#      字符串写错则断言永不可能通过，而现场表现只是「一条永远红的门禁」，容易被顺手删掉；
+#   e) 构建期配置声明与判据不脱钩：Directory.Build.props 的 TreatWarningsAsErrors 必须为 true
+#      （否则「零警告」门禁静默降级为「零 error」）、各 csproj 不得用 false 覆盖；InfiAir.sln 里
+#      主工程的 Release|Any CPU 不得映射到 Debug（否则 `dotnet build -c Release` 静默产出带
+#      DEBUG/TOOLS 的主程序集，探针类编进正式产物）。
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -292,6 +296,58 @@ else:
     if gate_steps == 0:
         errors.append("ci.yml 里没有任何步骤在跑门禁（scripts/ci/ 或 dotnet build）——"
                       "路径或命令写法漂移？取不到判据，拒绝判 clean")
+
+# ---------- e) 构建期配置声明与判据不脱钩 ----------
+# 判据：AGENTS §6 门禁表写「`dotnet build` 零警告（TreatWarningsAsErrors）」，而这条声明在此前
+# 没有任何断言——把 TreatWarningsAsErrors 改成 false、或让主工程 Release 映射到 Debug，构建门禁
+# 就静默降级（只把 error 当失败 / 产出带 DEBUG、TOOLS 的主程序集，探针类编进正式产物）。
+
+props = read(ROOT / "Directory.Build.props")
+if props is not None:
+    m = re.search(r"<TreatWarningsAsErrors>\s*([^<\s]+)\s*</TreatWarningsAsErrors>", props)
+    if not m:
+        errors.append("Directory.Build.props 未声明 TreatWarningsAsErrors——「dotnet build 零警告」"
+                      "取不到判据（缺声明时 MSBuild 默认 false，门禁静默降级为「零 error」）")
+    elif m.group(1).lower() != "true":
+        errors.append(f"Directory.Build.props 的 TreatWarningsAsErrors={m.group(1)}——"
+                      "构建门禁从「零警告」静默降级为「零 error」，与 AGENTS §6 门禁表的声明不符")
+csprojs = sorted(p for p in ROOT.rglob("*.csproj") if not any(x in {"obj", "bin"} for x in p.parts))
+if not csprojs:
+    errors.append("仓库里找不到任何 .csproj——路径漂移？取不到构建配置判据，拒绝判 clean")
+for csproj in csprojs:
+    csproj_text = read(csproj)
+    if csproj_text is None:
+        continue
+    for m in re.finditer(r"<TreatWarningsAsErrors>\s*([^<\s]+)\s*</TreatWarningsAsErrors>", csproj_text):
+        if m.group(1).lower() != "true":
+            errors.append(f"{csproj.relative_to(ROOT).as_posix()} 覆盖 TreatWarningsAsErrors={m.group(1)}"
+                          "——单个工程关掉零警告即让构建门禁在该工程上静默失效")
+
+sln = read(ROOT / "InfiAir.sln")
+if sln is not None:
+    projects = re.findall(r'Project\("\{[^"]+\}"\)\s*=\s*"([^"]*)",\s*"([^"]*)",\s*"\{([^}]+)\}"', sln)
+    main = [guid for _name, path, guid in projects if path.replace("\\", "/") == "InfiAir.csproj"]
+    if len(main) != 1:
+        errors.append(f"InfiAir.sln 里主工程 InfiAir.csproj 的条目解析出 {len(main)} 条（期望 1 条）"
+                      "——取不到 Release 映射判据，拒绝判 clean")
+    else:
+        guid = main[0]
+        for label, pattern in (("ActiveCfg", r"\.ActiveCfg\s*=\s*([^\r\n]+)"),
+                               ("Build.0", r"\.Build\.0\s*=\s*([^\r\n]+)")):
+            m = re.search(rf"\{{{guid}\}}\.Release\|Any CPU{pattern}", sln)
+            if m is None:
+                errors.append(f"InfiAir.sln 找不到主工程 Release|Any CPU 的 {label} 映射"
+                              "——取不到判据，拒绝判 clean（缺映射时该配置不构建该工程）")
+                continue
+            value = m.group(1).strip()
+            if "Debug" in value:
+                errors.append(
+                    f"InfiAir.sln 的主工程 Release|Any CPU.{label} = {value}——"
+                    "`dotnet build -c Release InfiAir.sln` 会静默产出带 DEBUG/TOOLS 的主程序集"
+                    "（#if DEBUG || TOOLS 的探针类编进正式产物），须映射回 Release|Any CPU")
+            elif not value.startswith("Release"):
+                errors.append(f"InfiAir.sln 的主工程 Release|Any CPU.{label} = {value}——"
+                              "配置映射既不是 Release 也不是 Debug，构建口径不可判，门禁需同步")
 
 # ---------- c) 冒烟趟次 ↔ 完成标记断言 ----------
 
