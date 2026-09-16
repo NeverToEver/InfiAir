@@ -29,18 +29,23 @@ public sealed class BossFreezeLedger
         }
     }
 
-    /// <summary>读取并清除 pending（唯一消费口）。</summary>
-    public bool ConsumePending()
+    /// <summary>兑现成功后的唯一确认口：清掉 pending 并返回是否确实清掉了。
+    /// 与 <see cref="Release"/> 配对构成原子操作——两者之间插不进任何「消费了却没触发」的窗口。</summary>
+    public bool CommitPending()
     {
         var was = Pending;
         Pending = false;
         return was;
     }
 
-    /// <summary>释放一次持有并判定是否应立即补触发。返回 true 的调用方负责真正触发 Boss。
+    /// <summary>释放一次持有并判定「期间是否到期」。返回 true 表示**应由调用方当场兑现**，
+    /// 此时 pending **尚未清除**——兑现成功必须紧接着调 <see cref="CommitPending"/>，
+    /// 兑现被拒（spawner 停驱动、入场窗口等）则标记留在账上，由下一次触发兑现。
+    /// 先消费再触发会让被拒的那一次到期静默消失（Boss 不来了，也没有任何报错），
+    /// 正是「解冻即兑现，不累积也不丢失」被破坏的形态。
     /// <paramref name="triggerPending"/>＝false 是打断路径（返航/死亡）：此刻补出 Boss 只会在结算画面上
     /// 弹预警横幅，而自然门控（分数/时间门）不会饿死，故由**最后一位**持有者丢弃并清除 pending。
-    /// 仍被其他事件持有时不清——那一次到期属于共享冻结窗口，由最后一位持有者收场时消费。
+    /// 仍被其他事件持有时不清——那一次到期属于共享冻结窗口，由最后一位持有者收场时兑现。
     /// 未持有（深度已为 0）时整体空转，不动 pending。</summary>
     public bool Release(bool triggerPending)
     {
@@ -61,6 +66,6 @@ public sealed class BossFreezeLedger
             return false;
         }
 
-        return ConsumePending();
+        return Pending;
     }
 }

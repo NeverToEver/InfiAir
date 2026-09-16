@@ -153,7 +153,9 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
     /// 结算画面上弹预警横幅，故丢弃；**丢弃必须连同 pending 一起清掉**——自然门控（分数/时间门）
     /// 不会饿死，留着的陈旧标记会在下一次遭遇正常收场时被消费，凭空补出一只绕过分数门与
     /// 最小间隔的 Boss。仍被其他事件持有时不清：那一次到期属于共享冻结窗口，
-    /// 由最后一位持有者收场时消费。</summary>
+    /// 由最后一位持有者收场时消费。
+    /// 兑现与清标记合并在 spawner 一口内完成（本端不再单独触发）——分两步会让触发被拒的那次
+    /// 到期静默消失。</summary>
     protected void ReleaseBoss(bool triggerPending = true)
     {
         if (!_bossLedger.Frozen)
@@ -168,14 +170,10 @@ public abstract partial class EncounterEventBase : Node, IEncounterEvent // 遭�
             return;
         }
 
-        // spawner 侧决定「兑现还是丢弃」（含仍有其他持有者时不动 pending 的语义）；
+        // spawner 侧决定「兑现还是丢弃」（含仍有其他持有者时不动 pending 的语义），并当场触发；
         // 本端持有随之同步递减——两侧只递减各自的深度，pending 只由 spawner 侧那份记账持有
-        var trigger = _spawner.ReleaseBossFreeze(triggerPending);
+        _spawner.ReleaseBossFreeze(triggerPending);
         _bossLedger.Release(triggerPending);
-        if (trigger)
-        {
-            _spawner.TriggerBoss();
-        }
     }
 
     /// <summary>IDLE 期触发冷却逐帧递减（两事件 _Process 同构段）。</summary>

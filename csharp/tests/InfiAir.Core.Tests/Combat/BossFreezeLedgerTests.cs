@@ -4,20 +4,51 @@ using Xunit;
 namespace InfiAir.Core.Tests.Combat;
 
 /// <summary>Boss 冻结/pending 记账契约：冻结期间的到期只记一次、解冻即兑现（不累积不丢失），
-/// 打断路径（丢弃补触发）必须清除陈旧标记。原实现丢弃分支先 return、不清 pending——
-/// 返航/死亡打断后 pending 残留，下一次任何遭遇正常收场都会命中陈旧标记、凭空补触发一只
-/// 绕过分数门与最小间隔的 Boss，且无报错。</summary>
+/// 打断路径（丢弃补触发）必须清除陈旧标记。
+/// 两条已修形态都留在这里当护栏：丢弃分支先 return 不清 pending，会让返航/死亡打断后的陈旧标记
+/// 在下一次正常收场时凭空补出绕过分数门与最小间隔的 Boss；而 Release 把 pending 一次消费干净、
+/// 触发却可能被拒（spawner 停驱动/入场窗口），会让那一次到期静默消失。故「报有到期」与
+/// 「清标记」分成 Release / CommitPending 两步，兑现被拒时标记留账。</summary>
 public sealed class BossFreezeLedgerTests
 {
     [Fact]
-    public void Release_TriggerPending_ConsumesDue()
+    public void Release_TriggerPending_ReportsDueButLeavesItUntilCommit()
     {
+        // 兑现与清标记分两步：Release 只报「有到期」，标记留到 CommitPending ——
+        // 先消费再触发时，触发被拒（spawner 停驱动/入场窗口）的那一次到期会静默消失
         var ledger = new BossFreezeLedger();
         ledger.Hold();
         ledger.NoteDue();
         Assert.True(ledger.Release(triggerPending: true));
+        Assert.True(ledger.Pending);
+        Assert.True(ledger.CommitPending());
         Assert.False(ledger.Pending);
+        Assert.False(ledger.CommitPending());
         Assert.False(ledger.Frozen);
+    }
+
+    [Fact]
+    public void CommitPending_WithoutDue_IsNoOp()
+    {
+        var ledger = new BossFreezeLedger();
+        ledger.Hold();
+        Assert.False(ledger.Release(triggerPending: true));
+        Assert.False(ledger.CommitPending());
+    }
+
+    [Fact]
+    public void UncommittedDue_IsDiscardedByLaterAbort()
+    {
+        // 兑现被拒后标记留账，但打断路径（返航/死亡）仍必须把它丢掉——
+        // 否则它会在已终结的本局里等下一次收场兑现
+        var ledger = new BossFreezeLedger();
+        ledger.Hold();
+        ledger.NoteDue();
+        Assert.True(ledger.Release(triggerPending: true));
+        Assert.True(ledger.Pending);
+        ledger.Hold();
+        Assert.False(ledger.Release(triggerPending: false));
+        Assert.False(ledger.Pending);
     }
 
     [Fact]
@@ -48,6 +79,7 @@ public sealed class BossFreezeLedgerTests
         Assert.True(ledger.Pending);
         Assert.True(ledger.Frozen);
         Assert.True(ledger.Release(triggerPending: true));
+        Assert.True(ledger.CommitPending());
         Assert.False(ledger.Pending);
     }
 
@@ -88,13 +120,31 @@ public sealed class BossFreezeLedgerTests
     [Fact]
     public void NoteDue_RepeatedDues_LatchOnce()
     {
-        // 一次冻结窗口内多次到期只兑现一次（Boss 不连出）
+        // 一次冻结窗口内多次到期只兑现一次（Boss 不连出）：兑现后重新持有再过一次窗口，
+        // 期间没有新的到期，就不该再报一次
         var ledger = new BossFreezeLedger();
         ledger.Hold();
         ledger.NoteDue();
         ledger.NoteDue();
         ledger.NoteDue();
         Assert.True(ledger.Release(triggerPending: true));
+        Assert.True(ledger.CommitPending());
+        ledger.Hold();
         Assert.False(ledger.Release(triggerPending: true));
+        Assert.False(ledger.CommitPending());
+    }
+
+    [Fact]
+    public void NoteDue_AfterUncommittedDue_ReportsAgain()
+    {
+        // 兑现被拒（标记留账）后，下一次收场必须再报一次——Boss 不丢，只是延后兑现
+        var ledger = new BossFreezeLedger();
+        ledger.Hold();
+        ledger.NoteDue();
+        Assert.True(ledger.Release(triggerPending: true));
+        ledger.Hold();
+        Assert.True(ledger.Release(triggerPending: true));
+        Assert.True(ledger.CommitPending());
+        Assert.False(ledger.Pending);
     }
 }

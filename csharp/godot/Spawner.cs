@@ -460,6 +460,9 @@ public partial class Spawner : Node
             return;
         }
 
+        // 自然门控触发即视为「期间那次到期」已经兑现，连同 pending 一起清掉：
+        // 冻结期记下的到期若一直留账，会在下一次遭遇收场时补出第二只 Boss（同一次到期兑现两次）。
+        _bossLedger.CommitPending();
         _bossActive = true;
         _wavesSinceSpecial = 0; // Boss 占用特殊槽
         EmitSignal(SignalName.BossWarning);
@@ -648,11 +651,27 @@ public partial class Spawner : Node
     /// <summary>当前是否处于 Boss 冻结（仍有事件持有）。</summary>
     public bool BossFrozen() => _bossLedger.Frozen;
 
-    /// <summary>释放一次 Boss 冻结持有并判定是否应立即补触发（调用方随后 TriggerBoss）。
+    /// <summary>释放一次 Boss 冻结持有，并在期间有到期时**当场兑现**（合并触发与清标记，调用方不再单独触发）。
+    /// 先消费 pending 再触发会让触发被拒（入场窗口/spawner 停驱动）的那一次到期静默消失——
+    /// 「解冻即兑现，不累积也不丢失」在引擎侧被破坏。被拒时标记留在账上，由下一次触发兑现。
     /// <paramref name="triggerPending"/>＝false 为打断路径：丢弃期间到期（必须连 pending 一起清，
     /// 见 core BossFreezeLedger.Release）。仍有其他持有者时不清——由最后一位持有者收场时决定。
-    /// 未持有时空转（不会替其他持有者消费）。</summary>
-    public bool ReleaseBossFreeze(bool triggerPending) => _bossLedger.Release(triggerPending);
+    /// 未持有时空转（不会替其他持有者消费）。返回是否真的触发了 Boss。</summary>
+    public bool ReleaseBossFreeze(bool triggerPending)
+    {
+        if (!_bossLedger.Release(triggerPending))
+        {
+            return false;
+        }
+
+        if (!IsProcessing())
+        {
+            return false; // 触发被拒：pending 留账，下一次触发（自然门或下次收场）兑现
+        }
+
+        TriggerBossInternal();
+        return true;
+    }
 
     public void SetWavesPaused(bool paused)
     {
@@ -666,8 +685,6 @@ public partial class Spawner : Node
 
     /// <summary>事件占用特殊槽（统一事件管理器触发遭遇事件时调用）。</summary>
     public void NotifyEventTriggered() => _wavesSinceSpecial = 0;
-
-    public void TriggerBoss() => TriggerBossInternal();
 
     /// <summary>普通机型配置表（见 ENEMY_TYPES 属性；表构造自实例字段贴图）。</summary>
     /// <summary>默认普通机型表（静态化供 Tutorial 读 [0]——教程只用 straight 基础型；局部构建非静态持有）。</summary>
