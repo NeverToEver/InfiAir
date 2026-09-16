@@ -1112,9 +1112,28 @@ public partial class Player : CharacterBody2D
         return p.Clamp(view.Position + inset, view.End - inset);
     }
 
+    /// <summary>瞄准活跃态：准星显示、光标回写、粘滞/磁吸生效的共同判据（树暂停由调用方判定——
+    /// 暂停期本节点的物理与渲染路径都不推进，AimCrosshair 的 Always 分支自行加树状态）。
+    /// 输入锁定期（母舰召唤/对接约十秒）准星已隐藏：此时若仍回写光标，玩家移动可见光标会被
+    /// 以半速拖回、并被磁吸轻推——准星看不见、系统光标却发黏。</summary>
+    public bool AimActive() => !_dead && !_inputLocked;
+
     /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先；
-    /// 键鼠/手柄下准星与系统光标逐像素绑定（见内注）。</summary>
-    public Vector2 AimPoint()
+    /// 键鼠/手柄下准星与系统光标逐像素绑定，回写受 <see cref="AimActive"/> 门控（见内注）。</summary>
+    public Vector2 AimPoint() => AimPointInternal(warp: true);
+
+    /// <summary>只读当前瞄准点（不回写系统光标）：纯读取方（AimFrameLayer 的 hover 查询等）用此口——
+    /// 它只关心「准星此刻在哪」，回写光标是推点方的职责。</summary>
+    public Vector2 AimPointNoWarp() => AimPointInternal(warp: false);
+
+    /// <summary>本渲染帧的光标回写目标（世界坐标）与是否已回写：同帧多调用方共享帧首结果，
+    /// 但回写只做一次。</summary>
+    private Vector2 _aimWarpTarget;
+    private float _aimWarpDriftSq;
+    private ulong _aimWarpFrame = ulong.MaxValue;
+    private bool _aimWarpDone;
+
+    private Vector2 AimPointInternal(bool warp)
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
         {
@@ -1138,11 +1157,15 @@ public partial class Player : CharacterBody2D
             }
 
             // 磁吸输入窗口的帧长归一：窗口（magnet_input_min/full）的口径是「每 1/60s 的位移」，
-            // 而 joyDelta 与鼠标物理增量都是**本帧**位移——帧率档（30..不限制）一变，同样是满推
-            // 摇杆/手速，进窗口的量就变：fps30 下满推 ≈46.7 ≥ 40（窗口上界）会让磁吸直接失效，
-            // fps45 权重掉到 ≈0.13；鼠标路反向（高帧率下每帧位移更小，本应退出辅助的甩枪反而留在
-            // 辅助内）。换算口径单源在 core AimMagnetInput（可单测）。
-            var magnetScale = (float)AimMagnetInput.FrameScale(processDelta);
+            // 而两路的**本帧位移来源不同**——摇杆增量由上面那个**缩放后**的帧长积分而来（乘回同一
+            // 帧长即同时消掉帧率与 Engine.TimeScale），鼠标物理增量是**真实手部位移**（手不随子弹
+            // 时间变慢），只能按真实帧长换算。原先两路共用一个缩放帧长：Boss 狂暴（TS=0.24）里进窗口
+            // 的量被放大 1/TS = 4.17 倍，窗口上界 40 实际等价真实手速 9.6px/帧，磁吸完全失效
+            //（MagnetPull 在 ilen ≥ full 时直接返回零向量）；顿帧（TS=0.06）等价 2.4px/帧。
+            // 帧长与口径的单源在 core AimMagnetInput.FrameScale(路, 缩放帧长, 真实帧长)（可单测）。
+            var realDelta = GameState.Instance.RealDelta(processDelta);
+            var stickMagnetScale = (float)AimMagnetInput.FrameScale(AimInputPath.Stick, processDelta, realDelta);
+            var mouseMagnetScale = (float)AimMagnetInput.FrameScale(AimInputPath.Mouse, processDelta, realDelta);
 
             var factor = 1.0f;
             var magnet = Vector2.Zero;
@@ -1157,9 +1180,11 @@ public partial class Player : CharacterBody2D
                 else
                 {
                     // 磁吸输入窗口：摇杆有输入时取摇杆增量，否则取鼠标物理增量——两路二选一，
-                    // 避免同帧双输入叠加放大磁吸强度。两者都乘 magnetScale 换成「每 1/60s 位移」
-                    // 后再进窗口（窗口口径即此单位；见上方 magnetScale 说明）。
-                    var magnetInput = (joyDelta != Vector2.Zero ? joyDelta : raw - _aimLastRaw) * magnetScale;
+                    // 避免同帧双输入叠加放大磁吸强度。各按自己那路的帧长换成「每 1/60s 位移」
+                    // 后再进窗口（窗口口径即此单位；见上方换算说明）。
+                    var magnetInput = joyDelta != Vector2.Zero
+                        ? joyDelta * stickMagnetScale
+                        : (raw - _aimLastRaw) * mouseMagnetScale;
                     magnet = aimLayer.MagnetPull(_aimSmooth, magnetInput);
                 }
             }

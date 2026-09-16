@@ -43,4 +43,61 @@ public sealed class AimMagnetInputTests
         Assert.Equal(1.0, AimMagnetInput.FrameScale(double.NaN));
         Assert.Equal(1.0, AimMagnetInput.FrameScale(double.PositiveInfinity));
     }
+
+    [Fact]
+    public void MousePath_IsTimeScaleInvariant()
+    {
+        // 判别式：同一手速（每秒 S 像素，手不随 Engine.TimeScale 变慢）在 TS=1 与
+        // TS=0.24（Boss 狂暴子弹时间）下换算后进窗口的量必须相等。
+        // 真实帧长在两条路上都是 1/60（--fixed-fps 60），缩放帧长 = 真实帧长 × TimeScale。
+        const double handSpeed = 600.0; // px/s：60fps 下每真实帧 10px，落在窗口 [2, 40) 内
+        const double realFrame = 1.0 / 60.0;
+        const double scale = 0.24;
+
+        var mouseDelta = handSpeed * realFrame; // 真实手部位移，与 TimeScale 无关
+        var atFullSpeed = mouseDelta * AimMagnetInput.FrameScale(AimInputPath.Mouse, realFrame, realFrame);
+        var atSlowMo = mouseDelta
+            * AimMagnetInput.FrameScale(AimInputPath.Mouse, realFrame * scale, realFrame);
+
+        Assert.Equal(atFullSpeed, atSlowMo, 6);
+        Assert.Equal(handSpeed * AimMagnetInput.ReferenceFrame, atSlowMo, 6);
+
+        // 反例自证：鼠标路若吃缩放帧长（实现坏掉的形态），换算比例是 1/TimeScale = 4.1667，
+        // 进窗口的量被放大同样倍数并越过窗口上界 40 → MagnetPull 直接返回零向量、磁吸整体失效
+        var brokenScale = AimMagnetInput.FrameScale(realFrame * scale);
+        Assert.Equal(4.16667, brokenScale, 5);
+        Assert.True(mouseDelta * brokenScale > 40.0, "前提：吃缩放帧长时 10px/帧 会被放大到 41.7，越过窗口上界");
+    }
+
+    [Fact]
+    public void StickPath_UsesIntegratingDelta()
+    {
+        // 摇杆路：位移本身就由缩放帧长积分而来（speed × shaped × delta），乘回同一比例后
+        // 与 TimeScale 无关——这是它「不受影响」的原因，也是两路不能共用一条换算式的理由。
+        const float shaped = 1.0f;
+        const float speed = 1400.0f;
+        const double realFrame = 1.0 / 60.0;
+        const double scale = 0.24;
+
+        var deltaNormal = realFrame;
+        var deltaSlowMo = realFrame * scale;
+        var atNormal = shaped * speed * deltaNormal
+            * AimMagnetInput.FrameScale(AimInputPath.Stick, deltaNormal, realFrame);
+        var atSlowMo = shaped * speed * deltaSlowMo
+            * AimMagnetInput.FrameScale(AimInputPath.Stick, deltaSlowMo, realFrame);
+
+        Assert.Equal(atNormal, atSlowMo, 4);
+        Assert.Equal(speed * AimMagnetInput.ReferenceFrame, atSlowMo, 4);
+        Assert.NotEqual(
+            AimMagnetInput.FrameScale(AimInputPath.Stick, deltaSlowMo, realFrame),
+            AimMagnetInput.FrameScale(AimInputPath.Mouse, deltaSlowMo, realFrame));
+    }
+
+    [Fact]
+    public void MousePath_NonFiniteRealDelta_FallsBackToIdentity()
+    {
+        // 真实帧长取不到（倍率异常）时不做缩放，避免除零把输入放大成无穷
+        Assert.Equal(1.0, AimMagnetInput.FrameScale(AimInputPath.Mouse, 1.0 / 60.0, 0.0));
+        Assert.Equal(1.0, AimMagnetInput.FrameScale(AimInputPath.Mouse, 1.0 / 60.0, double.NaN));
+    }
 }

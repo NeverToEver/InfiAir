@@ -53,10 +53,11 @@ public partial class AimCrosshair : Node2D
     public override void _Process(double delta)
     {
         _simTime += (float)delta;
+        // 活跃判据与光标回写同源：Player.AimActive（存活 + 未锁输入）之外，本节点是 Always
+        // 处理模式，树暂停也要自行判（暂停期必须把系统光标还回去）
         var active = _player != null
             && _tree is { Paused: false }
-            && !_player.IsDead()
-            && !_player.IsInputLocked();
+            && _player.AimActive();
         if (active)
         {
             GlobalPosition = _player!.AimPoint();  // active 蕴含 _player 非空（NRT 流分析不透传布尔变量）

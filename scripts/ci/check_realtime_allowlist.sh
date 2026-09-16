@@ -73,7 +73,9 @@ ALLOW = (
      "超出屏幕可用区的窗口尺寸回缩：机器配置读数，只影响窗口几何"),
     ("csharp/godot/Player.cs", "GetProcessDeltaTime", 1,
      "右摇杆虚拟准星积分：与同函数 Engine.GetProcessFrames 门控配对（渲染帧轴上的缩放 delta）——"
-     "非判定，且换成物理 delta 会随帧率错速；--fixed-fps 下恒 1/60"),
+     "非判定，且换成物理 delta 会随帧率错速；--fixed-fps 下恒 1/60。同一处 delta 另经"
+     "GameState.RealDelta 反解真实帧长喂鼠标路磁吸输入窗口（手部位移是现实世界位移，不随"
+     "Engine.TimeScale 缩放；反解口径单源在 GameFeelService.RealDelta，未新增墙钟读数）"),
 )
 
 # 真实时间 / 帧率 / 机器性能 API 模式 → 规范符号（qualifier 归一，便于登记）

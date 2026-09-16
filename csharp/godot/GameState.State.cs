@@ -481,6 +481,12 @@ public partial class GameState : Node
     /// 随后经 AddScore 乘难度倍率。Boss 击杀（AddBossKill）/事件奖励/擦弹不计连击。——ScoreService 转发。</summary>
     public void AddKillScore(int basePoints) => _score.AddKillScore(basePoints);
 
+    /// <summary>反解真实（未缩放）帧长——门面转发 <c>GameFeelService.RealDelta</c>（换算口径单源在那里，
+    /// 含除零钳制）。只给「引擎之外的现实世界」类换算用：目前是鼠标路磁吸输入窗口的帧长归一
+    ///（手部位移是真实位移，不随 <c>Engine.TimeScale</c> 缩放，见 Player.AimPointInternal）。
+    /// 判定与模拟仍一律模拟时间（AGENTS §5）。</summary>
+    public double RealDelta(double scaledDelta) => _gameFeel.RealDelta(scaledDelta);
+
     /// <summary>连击乘区：min(1 + (combo−1)×step, max_mult)；combo 0/1 → 1.0（第 1 杀不放大）。</summary>
     public double ComboMultiplier() => _score.ComboMultiplier();
 
