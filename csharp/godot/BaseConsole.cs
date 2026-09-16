@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using InfiAir.Core;
+using InfiAir.Core.Missions;
 using InfiAir.Core.Talent;
 using InfiAir.Core.Text;
 
@@ -41,8 +42,7 @@ public partial class BaseConsole : RadialMenuLayer
     private VBoxContainer _missionsBox = null!;
     private Button _refreshButton = null!; // 任务轮换——刷新任务按钮
     private Label _refreshPointsLabel = null!;
-    private Label _refreshHintLabel = null!; // 点数不足提示（临时显示，2s 后隐藏）
-    private Godot.Timer? _refreshHintTimer;
+    private Label _refreshHintLabel = null!; // 刷新受阻提示（无空位 / 点数不足；随刷新资格常显）
     private readonly Dictionary<string, Label> _titleLabels = new();
     private Label _routeHintLabel = null!;
     private readonly Dictionary<string, ChamferedPanel> _pages = new();
@@ -654,10 +654,12 @@ public partial class BaseConsole : RadialMenuLayer
             ? (string)Tr("BASE_SUPPLY_OVERCHARGE_MAXED")
             : GdFormat.Format((string)Tr("BASE_SUPPLY_OVERCHARGE_FMT"), slotCost);
         _buyOverchargeButton.Disabled = slotsMaxed || rp < slotCost;
-        // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 OnRefreshPressed 内）
+        // 任务轮换：刷新点数与按钮状态；受阻原因由 SyncRefreshHint 常显
+        // （置灰按钮按不动，「按下才提示」对置灰玩家等于没有提示）
         _refreshPointsLabel.Text = GdFormat.Format((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
         _refreshButton.Text = GdFormat.Format((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
-        _refreshButton.Disabled = !GameState.Instance.CanRefreshMissions();
+        _refreshButton.Disabled = GameState.Instance.CanRefreshMissions();
+        SyncRefreshHint();
         RefreshRoutes();
         RefreshMissions();
     }
@@ -894,51 +896,44 @@ public partial class BaseConsole : RadialMenuLayer
         Refresh();
     }
 
-    /// <summary>刷新任务：消耗 RefreshPoints 重抽（余额不足时提示；成功播音效并重绘任务面板）。</summary>
+    /// <summary>刷新任务：消耗 RefreshPoints 重抽（受阻原因见提示区；成功播音效并重绘任务面板）。</summary>
     private void OnRefreshPressed()
     {
         if (GameState.Instance.RefreshMissions())
         {
             GameState.Instance.PlaySfx(SfxId.AugmentPick);
-            HideRefreshHint();
-        }
-        else
-        {
-            ShowRefreshHint((string)Tr("BASE_NO_REFRESH_POINTS"));
         }
 
+        // 成功或失败都重绘：受阻原因由状态驱动（见 SyncRefreshHint），成功时自动收起
         Refresh();
     }
 
-    private void ShowRefreshHint(string text)
+    /// <summary>提示区当前显示的文本（探针读口；"" = 未显示）：置灰原因是否真的画在界面上，
+    /// 只有读标签这一条路能断——探针据此断言「无空位时显示的是领取指引」。</summary>
+    public string RefreshHintText => _refreshHintLabel.Visible ? _refreshHintLabel.Text : "";
+
+    /// <summary>按当前刷新资格同步提示区。
+    ///
+    /// 提示必须由状态驱动而与「按下」无关：按钮受阻即置灰、置灰按钮不派发 pressed，
+    /// 原先「失败才提示」的分支在置灰态根本走不到，玩家只能看到一颗没有原因的灰按钮。
+    /// 选词与优先序全在 core（MissionRefresh.RefreshBlockReason）：无空位优先于点数不足，
+    /// 因为无空位的自解动作只有「去领取已完成的任务」且从界面看不出这条规则，
+    /// 点数不足则点数读数就摆在旁边的标签上；领取后若点数仍不足会自动改口。
+    /// </summary>
+    private void SyncRefreshHint()
     {
-        _refreshHintLabel.Text = text;
+        var reason = GameState.Instance.MissionRefreshBlockReason();
+        if (reason.Length == 0)
+        {
+            _refreshHintLabel.Text = "";
+            _refreshHintLabel.Visible = false;
+            return;
+        }
+
+        _refreshHintLabel.Text = (string)Tr(reason == MissionRefresh.ReasonSlots
+            ? "BASE_NO_REFRESH_SLOTS"
+            : "BASE_NO_REFRESH_POINTS");
         _refreshHintLabel.Visible = true;
-        if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
-        {
-            _refreshHintTimer.Stop();
-            _refreshHintTimer.QueueFree();
-        }
-
-        _refreshHintTimer = new Godot.Timer
-        {
-            OneShot = true,
-            WaitTime = 2.0,
-        };
-        _refreshHintTimer.Timeout += HideRefreshHint;
-        AddChild(_refreshHintTimer);
-        _refreshHintTimer.Start();
-    }
-
-    private void HideRefreshHint()
-    {
-        _refreshHintLabel.Visible = false;
-        // 一次性提示 Timer 触发后自清理（否则每次提示泄漏一个已触发 Timer）
-        if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
-        {
-            _refreshHintTimer.QueueFree();
-            _refreshHintTimer = null;
-        }
     }
 
     /// <summary>继续出击退场：AnimateModalClose 语义——交互与输入当帧立即断开（鼠标穿透 +

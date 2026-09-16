@@ -66,6 +66,10 @@ public partial class GameState : Node
     /// <summary>刷新资格校验（点数不足禁止刷新；UI 据此禁用按钮并提示）</summary>
     public bool CanRefreshMissions() => _missions.CanRefreshMissions();
 
+    /// <summary>刷新受阻原因（"SLOTS"/"POINTS"/""）——基地面板置灰提示的选词依据，
+    /// 与 <see cref="CanRefreshMissions"/> 同源（MissionsService 转发）</summary>
+    public string MissionRefreshBlockReason() => _missions.RefreshBlockReason();
+
     /// <summary>刷新任务：消耗 RefreshPoints 重抽任务（槽位数 MISSION_SLOTS）。
     /// 已完成未领取的任务保留（防止刷新吞掉待领奖励），其余槽位从任务池无放回重抽
     /// （排除在场 id，避免与在场任务重号）。余额不足返回 false 且不扣减。</summary>

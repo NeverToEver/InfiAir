@@ -319,6 +319,11 @@ public sealed partial class MissionsService : RefCounted
     public bool CanRefreshMissions() => MissionRefresh.CanRefresh(
         RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, KeptMissionCount());
 
+    /// <summary>刷新受阻原因（"" = 可刷新；见 <see cref="MissionRefresh.RefreshBlockReason"/>）——
+    /// 基地面板据此把置灰原因显示出来（无空位 / 点数不足选不同文案）。</summary>
+    public string RefreshBlockReason() => MissionRefresh.RefreshBlockReason(
+        RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, KeptMissionCount());
+
     /// <summary>保留条目数（已完成未领取；刷新时原样留场，防吞待领奖励）。</summary>
     private int KeptMissionCount()
     {

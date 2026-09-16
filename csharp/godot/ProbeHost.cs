@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Missions;
 using InfiAir.Core.Text;
 
 // 探针宿主整体条件编译：仅编辑器/调试构建（Debug 定义 TOOLS、ExportDebug 定义 DEBUG）编入，
@@ -4359,7 +4360,10 @@ public partial class ProbeHost : Node
     ///   ② 反向对照（去掉标记）：同一存档层级钳回 max——只判 ① 会让「一律抬级」的实现照样绿；
     ///   ③ 对照（名单里塞池外节点名）：不抬高任何节点；
     ///   ④ 超档的补给超载槽（档位 +997）→ 钳回补给档位，且本局超载上限 == 配置档 + 补给档；
-    ///   ⑤ 反向对照（合法档位 1）→ 原样还原——只判 ④ 时「一律归 0」的实现照样绿。
+    ///   ⑤ 反向对照（合法档位 1）→ 原样还原——只判 ④ 时「一律归 0」的实现照样绿；
+    ///   ⑥ 任务位占满档（三槽全已完成未领取 + 刷新点数不足）→ 受阻原因＝无空位，
+    ///      且经生产入基地口 ShowBase 后面板显示的正是领取指引（置灰按钮按不动，
+    ///      「按下才提示」的写法在置灰态根本走不到）。
     /// 另断读档补发：DifficultyChanged 的值 == 存档 difficulty_multiplier、ScoreChanged 回调里读到的时间
     /// 已是存档 run_time（信号先于还原会让订阅方读到 0）。</summary>
     private void RunSaveRestoreProbe()
@@ -4490,6 +4494,74 @@ public partial class ProbeHost : Node
             GD.PushError($"[save-restore-probe] 合法补给超载槽未原样还原：槽 {gs.Talent.BonusOverchargeSlots}（期望 1）、"
                 + $"本局超载上限 {gs.Talent.OverchargeMaxPerRun}（期望 {cfgSlots + 1}）——买到的风险加点名额读档即丢");
             ok = false;
+        }
+
+        // ⑥ 任务位占满档（三槽全「已完成未领取」且刷新点数不足）：刷新受阻原因必须是「无空位」，
+        // 且基地面板真的把这条原因画出来——置灰按钮不派发 pressed，「按下才提示」的写法在置灰态
+        // 走不到，玩家只能看到一颗没有原因的灰按钮。走生产入基地口 ShowBase（内部 Refresh 同步提示）
+        var slots = gs.MISSION_SLOTS;
+        var missionEntries = "";
+        var filled = 0;
+        foreach (var def in gs.MISSION_POOL)
+        {
+            if (filled >= slots)
+            {
+                break;
+            }
+
+            var defId = def["id"].AsStringName().ToString();
+            var defGoal = (int)def["goal"].AsInt64();
+            missionEntries += $"\"{defId}\":{{\"progress\":{defGoal},\"claimed\":false}},";
+            filled += 1;
+        }
+
+        if (filled < slots)
+        {
+            // 构造不出满槽档：判据取不到，显式判红（不得静默跳过这一段的断言）
+            GD.PushError($"[save-restore-probe] 任务池条目 {filled} 个不足以填满 {slots} 个槽位，"
+                + "本趟无法构造满槽档");
+            ok = false;
+        }
+        else
+        {
+            var fullSlotsJson =
+                $"{{\"version\":1,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+                + $"\"talent_levels\":{{}},\"refresh_points\":0,"
+                + $"\"missions\":{{{missionEntries.TrimEnd(',')}}}}}";
+            ok &= WriteUserFile("user://run.json", fullSlotsJson);
+            ok &= LoadRunForProbe("任务位占满档");
+            if (gs.MissionRefreshBlockReason() != MissionRefresh.ReasonSlots)
+            {
+                GD.PushError($"[save-restore-probe] 满槽档的刷新受阻原因不是「无空位」："
+                    + $"{gs.MissionRefreshBlockReason()}——点数不足提示会把玩家引向一个他已经满足的条件");
+                ok = false;
+            }
+
+            var baseUi = _main.GetNodeOrNull<BaseConsole>("BaseUI");
+            var slotHint = (string)Tr("BASE_NO_REFRESH_SLOTS");
+            var pointsHint = (string)Tr("BASE_NO_REFRESH_POINTS");
+            if (baseUi == null)
+            {
+                GD.PushError("[save-restore-probe] 基地面板不存在，无法断言置灰原因已显示");
+                ok = false;
+            }
+            else
+            {
+                baseUi.ShowBase(); // 生产入基地口：内部 Refresh 同步提示区
+                var shown = baseUi.RefreshHintText;
+                if (shown != slotHint || shown.Length == 0 || shown == "BASE_NO_REFRESH_SLOTS")
+                {
+                    GD.PushError($"[save-restore-probe] 满槽档未显示领取指引：显示的是「{shown}」"
+                        + $"（期望「{slotHint}」）——无空位与点数不足要选不同文案");
+                    ok = false;
+                }
+            }
+
+            if (slotHint == pointsHint)
+            {
+                GD.PushError("[save-restore-probe] 无空位与点数不足的文案相同——两条受阻原因分不开");
+                ok = false;
+            }
         }
 
         if (ok)
