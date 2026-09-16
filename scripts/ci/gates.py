@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十三步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
-存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 代码默认值与 balance 定稿对账 →
-门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟二十一趟 → 截图探针（辅助）。
+按 CI fast-gate 顺序跑完全部十四步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
+存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 零引用成员登记 →
+代码默认值与 balance 定稿对账 → 门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
+无头冒烟二十一趟 → 截图探针（辅助）。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十三步
+    python3 scripts/ci/gates.py                  # 全部十四步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -42,6 +43,7 @@ STEPS = (
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "realtime_allowlist", "name": "真实时间允许清单", "kind": "bash", "script": "check_realtime_allowlist.sh", "godot": False},
+    {"slug": "zero_ref_members", "name": "零引用成员登记", "kind": "bash", "script": "check_zero_ref_members.sh", "godot": False},
     {"slug": "code_defaults", "name": "代码默认值与 balance 定稿对账", "kind": "bash", "script": "check_code_defaults.sh", "godot": False},
     {"slug": "gate_wiring", "name": "门禁装配完整性（脚本↔注册↔完成标记断言）", "kind": "bash", "script": "check_gate_wiring.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},

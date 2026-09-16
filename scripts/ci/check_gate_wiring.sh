@@ -133,8 +133,9 @@ on_disk = on_disk_all - {GATES.name}
 # 共用模块（不是门禁步骤）：不要求注册进 STEPS/ci.yml，但必须真被某个门禁 import——
 # 「既不注册又没人引用」才是要抓的「永不执行」形态；只登记不引用＝孤儿模块，同样报红。
 HELPER_MODULES = {
-    "csharp_lex.py": "C# 注释/字符串掩码剥离与条件编译段定位；check_balance_keys / check_code_defaults / "
-                     "check_save_symmetry / check_settings_symmetry 共用",
+    "csharp_lex.py": "C# 注释/字符串掩码剥离与条件编译段定位；check_balance_keys / "
+                     "check_code_defaults / check_save_symmetry / check_settings_symmetry / "
+                     "check_zero_ref_members 共用",
 }
 if not on_disk:
     errors.append(f"{CI_DIR.relative_to(ROOT).as_posix()} 下未发现任何门禁脚本——路径漂移？取不到判据，拒绝判 clean")
