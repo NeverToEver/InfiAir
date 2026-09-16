@@ -2,7 +2,8 @@
 """InfiAir 数值管理器（balance editor）
 
 本机可视化编辑 data/balance.json：分区树形展示全部可调数值，标黄未保存改动，
-保存前服务端递归校验结构/类型与现文件一致，临时文件 + os.replace 原子落盘，
+保存前服务端递归校验结构与类型和现文件一致（键集双向相等——编辑器加不了也删不了键），
+临时文件 + os.replace 原子落盘，
 并自动备份（balance.json.bak）。
 
 用法：
@@ -227,7 +228,13 @@ def _render_save(payload: object, path: Path) -> str:
 
 
 def _check_shape(new: object, old: object, path: str = "") -> list[str]:
-    """递归校验结构与标量类型和现文件一致（数组只要求元素类型一致，长度可变）。"""
+    """递归校验结构与标量类型和现文件一致（键集双向相等；数组只要求元素类型一致，长度可变）。
+
+    键集必须**双向**相等：编辑器的行集完全由现文件的键生成，加不了键也删不了键，
+    故合法保存不可能引入新键——只判「旧键都在」时，手工构造的 POST 能往 balance.json
+    塞界面上看不见的键（界面看不到，改起来只能全文件搜，且没人知道它该不该有）。
+    数组长度仍可变：UI 把数字数组编成一行逗号表，本就支持增删元素，只按首元素判元素类型。
+    """
     errs: list[str] = []
     where = path or "<root>"
     if isinstance(old, dict):
@@ -236,7 +243,11 @@ def _check_shape(new: object, old: object, path: str = "") -> list[str]:
         for k in old:
             if k not in new:
                 errs.append(f"{where}.{k}: 缺失")
-            else:
+        for k in new:
+            if k not in old:
+                errs.append(f"{where}.{k}: 现文件无此键（编辑器加不了新键，拒绝写入未知键）")
+        for k in old:
+            if k in new:
                 errs.extend(_check_shape(new[k], old[k], f"{where}.{k}"))
     elif isinstance(old, list):
         if not isinstance(new, list):
