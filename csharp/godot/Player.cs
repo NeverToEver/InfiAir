@@ -1373,7 +1373,8 @@ public partial class Player : CharacterBody2D
         EmitSignal(SignalName.EntryFinished);
     }
 
-    /// <summary>dash_strike 冲刺打击：冲刺期间按节流间隔对触及敌机结算伤害（未购零开销）。</summary>
+    /// <summary>dash_strike 冲刺打击：冲刺期间按节流间隔对触及的可打目标结算伤害（未购零开销）；
+    /// 触及判定算式在 core <see cref="DashStrikeReach"/>。</summary>
     private void TickDashStrike(float d)
     {
         if (_dashStrikeLevel <= 0)
@@ -1388,46 +1389,51 @@ public partial class Player : CharacterBody2D
         }
 
         _dashStrikeTick = _dashStrikeInterval;
-        var radiusSq = _dashStrikeRadius * _dashStrikeRadius;
+        var radius = _dashStrikeRadius;
         var enemies = GameState.Instance.Enemies;
         for (var i = enemies.Count - 1; i >= 0; i--)
         {
-            if (enemies[i] is Enemy e && GodotObject.IsInstanceValid(e)
-                && e.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            // 目标类型 = 契约（IAimTarget）：遭遇单位（炮塔/编队机）与普通敌机同一路径，
+            // Boss 与场上炸弹不实现契约故天然排除（既有例外，不扩大打击面）
+            if (enemies[i] is not Node2D node || !GodotObject.IsInstanceValid(node)
+                || node is not IAimTarget t || !t.AimTargetable)
             {
-                EntityDamage.Dispatch(e, _dashStrikeDamage * _dashStrikeLevel);
-                Explosion.SpawnAt(GetParent(), e.GlobalPosition, 0.4f);
+                continue;
             }
+
+            var target = t.AimWorldPosition;
+            if (!DashStrikeReach.Hits(target.X - GlobalPosition.X, target.Y - GlobalPosition.Y, radius))
+            {
+                continue;
+            }
+
+            EntityDamage.Dispatch(node, _dashStrikeDamage * _dashStrikeLevel);
+            Explosion.SpawnAt(GetParent(), target, 0.4f);
         }
     }
 
-    /// <summary>homing 制导增幅的落靶搜索：锁定锥 + 射程内最近注册表敌机（开火频次路径，零分配）。</summary>
-    private Enemy? NearestAugHomingTarget(Vector2 aimDir)
+    /// <summary>homing 制导增幅的落靶搜索：锁定锥 + 射程内最近的可打目标（开火频次路径，零分配）。
+    /// 目标类型 = 契约（IAimTarget）：遭遇单位（炮塔/编队机）与普通敌机同一路径；判型口径与
+    /// 弱追踪/框内强追踪同源，算式在 core <see cref="HomingLockSearch"/>。</summary>
+    private IAimTarget? NearestAugHomingTarget(Vector2 aimDir)
     {
-        Enemy? best = null;
-        var bestD = _homingLockRange;
+        IAimTarget? best = null;
+        var search = new HomingLockSearch(
+            GlobalPosition.X, GlobalPosition.Y, aimDir.X, aimDir.Y, _homingLockConeCos, _homingLockRange);
         var enemies = GameState.Instance.Enemies;
         for (var i = 0; i < enemies.Count; i++)
         {
-            if (enemies[i] is not Enemy e || !GodotObject.IsInstanceValid(e))
+            if (enemies[i] is not Node2D node || !GodotObject.IsInstanceValid(node)
+                || node is not IAimTarget t || !t.AimTargetable)
             {
                 continue;
             }
 
-            var to = e.GlobalPosition - GlobalPosition;
-            var d = to.Length();
-            if (d > bestD || d <= 0.0f)
+            var target = t.AimWorldPosition;
+            if (search.Consider(target.X, target.Y))
             {
-                continue;
+                best = t;
             }
-
-            if (aimDir.Dot(to / d) < _homingLockConeCos)
-            {
-                continue;
-            }
-
-            bestD = d;
-            best = e;
         }
 
         return best;
