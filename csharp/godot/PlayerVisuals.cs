@@ -37,8 +37,10 @@ public class PlayerVisuals
     /// <summary>弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
     private readonly Vector2[] _parryShinePoly = new Vector2[6];
 
-    /// <summary>BODY_TINT_BASE 迁入（可视性增强提亮青白）。</summary>
-    private static readonly Color BodyTintBase = new(1.35f, 1.4f, 1.55f);
+    /// <summary>机体底色（暖族提亮，DESIGN_BASELINE §2.1/§2.3 的战术琥珀）：全站唯一一份——
+    /// Player._Ready 的初值与 UpdateFrame 的每帧写共用本常量（两份同名常量分叉时，运行时生效的是
+    /// 每帧写的那份，初值侧被静默架空；原先的冷色是全息青退役残留）。</summary>
+    public static readonly Color BodyTintBase = new(1.42f, 1.34f, 1.24f);
     /// <summary>擦弹机身短闪光剩余时长（金色微闪，独立短计时；SetGrazeFlash 置位、UpdateFrame 递减）。</summary>
     private float _grazeFlash;
     private readonly System.Collections.Generic.List<Sprite2D> _afterimagePool = new();

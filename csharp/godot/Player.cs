@@ -119,8 +119,6 @@ public partial class Player : CharacterBody2D
     private static readonly (float Speed, float Amount, float Alpha) ThrusterCruise = (1.0f, 0.8f, 0.85f);
     private static readonly (float Speed, float Amount, float Alpha) ThrusterIdle = (0.6f, 0.35f, 0.6f);
 
-    private static readonly Color BodyTintBase = new(1.42f, 1.34f, 1.24f);
-
     public float DashDistance { get; private set; } = 200.0f;
     public float DashTime { get; private set; } = 0.25f;
     public float DashCooldownMaxValue { get; private set; } = 4.0f;
@@ -545,8 +543,8 @@ public partial class Player : CharacterBody2D
         _crosshair = new AimCrosshair();
         _crosshair.Init(this);
         AddChild(_crosshair);
-        // 可视性增强：机体提亮 + 青色描边辉光
-        _sprite.Modulate = BodyTintBase;
+        // 可视性增强：机体提亮（底色单源在 PlayerVisuals.BodyTintBase，每帧由 UpdateFrame 覆写）
+        _sprite.Modulate = PlayerVisuals.BodyTintBase;
         _glow = new Sprite2D
         {
             Texture = _sprite.Texture,
