@@ -94,8 +94,10 @@ public partial class Tutorial : Node2D
         // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
         AddChild(new WorldPostFx());
         BuildHud();
-        HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
-        DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
+        // 蓄力时长是百分比文本与「蓄满即过关」判定的除数（_homeCharge / HomeChargeTime）：
+        // 0/负值让蓄力段开按即过（非有限读数还会写进提示文案），钳制口径与主路径 Main 同源。
+        HomeChargeTime = CfgFx.Float("effects.home_charge_time", HomeChargeTime, CfgFx.IntervalFloor);
+        DockChargeTime = CfgFx.Float("mothership.dock_charge_time", DockChargeTime, CfgFx.IntervalFloor);
         EnterStage(0);
         // 固定标记：教程场景就绪观测点（冒烟门禁据此断言教程入场链路跑通）；
         // 场景加载/切场景失败时本行不执行，无头也能判出
