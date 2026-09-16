@@ -101,6 +101,14 @@ public partial class ProbeHost : Node
     /// <summary>母舰坞态探针的长按蓄力帧预算：mothership.dock_charge_time 3s = 180 帧，留 2 倍余量。</summary>
     private const int DockProbeChargeFrames = 360;
 
+    /// <summary>坞态探针的锁输入残留断言：蓄力将满时提前这么多帧经生产输入路径触发冲刺与弹反。
+    /// 冲刺 0.25s（15 帧）很短、弹反 0.8s（48 帧）才是覆盖锁定时刻的可靠载体，故两路都触发、
+    /// 前置守卫只要求「至少一路在进行中」（任一被吞都要显式报错，不静默降档）。</summary>
+    private const int LockProbeTriggerLeadFrames = 12;
+
+    private static readonly StringName ProbeActDash = new("dash");
+    private static readonly StringName ProbeActParry = new("parry");
+
     /// <summary>母舰坞态探针逐阶段等待上限（帧）：任一状态下超过它仍未推进即判失败。</summary>
     private const int DockProbeStageTimeoutFrames = 600;
 
@@ -333,6 +341,20 @@ public partial class ProbeHost : Node
     private bool _dockSawPod;
     private bool _dockSawMagConsume;
     private bool _dockSawMagWarn;
+
+    /// <summary>锁输入残留断言的观测态：锁前逐帧记录两路是否在进行中（锁定当帧据此判判据是否取到），
+    /// 锁定窗口内逐帧断已归位，解锁后第一帧再断一次。</summary>
+    private bool _lockProbeDashGranted;
+
+    private bool _lockProbeTriggered;
+
+    private bool _lockSeen;
+
+    private bool _lockCheckedAfterUnlock;
+
+    private bool _lockWasDashing;
+
+    private bool _lockWasParryFlowing;
 
     /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）。
     /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
@@ -2032,6 +2054,8 @@ public partial class ProbeHost : Node
             return;
         }
 
+        TickLockResidualProbe();
+
         // 蓄力段：长按 dock 直到生产链自己召唤（Main._Process 读同一动作；资格判定全在生产侧）
         if (_dockStage == 1)
         {
@@ -2043,6 +2067,7 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            TriggerLockResidualInputs();
             Input.ActionPress(ActDock);
             if (_main.Mothership() != null)
             {
@@ -2218,6 +2243,99 @@ public partial class ProbeHost : Node
                 }
 
                 return;
+        }
+    }
+
+    /// <summary>蓄力将满时经生产输入路径触发一次冲刺与弹反：母舰召唤（蓄力完成）当帧会 LockInput，
+    /// 锁定期的物理早退把两者的时间轴一起冻结——缺 Cancel 的实现会让解锁后第一帧用旧方向跑完残余
+    /// 冲刺（含残影）、弹反停在 ACTIVE 重新打开盾判定并闪一次金光。两路都要真的在跑过，
+    /// 否则判据取不到（见 <see cref="TickLockResidualProbe"/> 的前置守卫）。
+    /// 冲刺默认未解锁（phase_dash 需天赋层数），故先经生产入口给一层。</summary>
+    private void TriggerLockResidualInputs()
+    {
+        if (!_lockProbeDashGranted)
+        {
+            _lockProbeDashGranted = true;
+            GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
+        }
+
+        if (_lockProbeTriggered)
+        {
+            return;
+        }
+
+        var chargeFrames = Mathf.RoundToInt(
+            (float)GameState.Instance.Cfg("mothership.dock_charge_time", 3.0).AsDouble() * 60.0f);
+        var triggerFrame = Mathf.Max(chargeFrames - LockProbeTriggerLeadFrames, 1);
+        if (_dockChargeFrames == triggerFrame)
+        {
+            _lockProbeTriggered = true;
+            Input.ActionPress(ProbeActDash);
+            Input.ActionPress(ProbeActParry);
+        }
+    }
+
+    /// <summary>锁输入残留断言：锁定窗口内逐帧断「冲刺已中止且弹反已归位」，解锁后第一帧再断一次。
+    /// 判据取不到（锁定时两路都没在跑 → 触发被吞或时机错位）即显式报错，不静默降档成空转绿。</summary>
+    private void TickLockResidualProbe()
+    {
+        if (_lockCheckedAfterUnlock)
+        {
+            return;
+        }
+
+        var locked = _player.IsInputLocked();
+        if (!locked)
+        {
+            if (_lockSeen)
+            {
+                // 解锁后第一帧：残留的冲刺/弹反会在这一帧继续推进（冻结解除后 Tick 才跑）
+                _lockCheckedAfterUnlock = true;
+                if (_player.Dashing)
+                {
+                    DockProbeFail(GdFormat.Format(
+                        "解锁后第一帧冲刺仍在进行（第 %d 帧）——锁定期冻结的残余冲刺会在解锁后跑完", _frame));
+                    return;
+                }
+
+                if (_player.ParryPhase() != 0)
+                {
+                    DockProbeFail(GdFormat.Format(
+                        "解锁后第一帧弹反未归位（第 %d 帧，相位 %d）——残余流程会重新打开盾判定",
+                        _frame, _player.ParryPhase()));
+                }
+
+                return;
+            }
+
+            // 锁前逐帧记录：锁定当帧据此判「判据是否真的取到了」
+            _lockWasDashing = _player.Dashing;
+            _lockWasParryFlowing = _player.ParryPhase() != 0;
+            return;
+        }
+
+        if (!_lockSeen)
+        {
+            _lockSeen = true;
+            if (!_lockWasDashing && !_lockWasParryFlowing)
+            {
+                DockProbeFail("锁定发生时冲刺与弹反都不在进行——锁输入残留判据取不到（生产输入路径未触发？）");
+                return;
+            }
+        }
+
+        if (_player.Dashing)
+        {
+            DockProbeFail(GdFormat.Format(
+                "锁输入期冲刺仍在进行（第 %d 帧，Dashing=true）——解锁后会用旧方向跑完残余冲刺", _frame));
+            return;
+        }
+
+        if (_player.ParryPhase() != 0)
+        {
+            DockProbeFail(GdFormat.Format(
+                "锁输入期弹反流程未归位（第 %d 帧，相位 %d）——停在有效窗口会重新打开盾判定并闪金光",
+                _frame, _player.ParryPhase()));
         }
     }
 
