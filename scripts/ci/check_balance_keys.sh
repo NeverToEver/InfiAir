@@ -14,6 +14,8 @@
 #   - 已知读 balance 的包装器在 BALANCE_ACCESSORS 白名单里逐一列出并给理由（含键实参位置规则）；
 #   - 明确不读 balance 的同名族包装器在 NON_BALANCE 里列出（避免未登记告警误报）；
 #   - 出现既不在白名单也不在豁免表、实参却带字面字符串的 Cfg 族调用 → 红（防新包装器悄悄绕开判定）；
+#   - 名字里没有 cfg 的转发包装器同样能读 balance（`ReadBalance(key, def) => Cfg(key, def)`），
+#     故除名字含 cfg 外，**实参里带点分路径字面量**的未登记调用一律红——按名字判会被改名整族绕过；
 #   - 白名单里每个访问器都必须真判到至少一处字面键 → 红（某一族访问器整体停止命中时，光看总数
 #     看不出来：本次修的正是「总数 566 个键照旧全部命中，却整族漏判」这一形态）。
 # 跳过：注释行、字符串里的同名文本、以点结尾或以 + 拼接的前缀（"boss.phases.type" + n）。
@@ -85,6 +87,9 @@ import csharp_lex
 CALL = re.compile(r'(?:(?P<recv>[A-Za-z_][\w.]*)\s*\.\s*)?(?P<name>[A-Za-z_]\w*)\s*\(')
 PURE_LIT = re.compile(r'^"((?:\\.|[^"\\])*)"$')
 GCFG = re.compile(r"cfg", re.I)
+# balance 键的形态：全小写分段 + 至少一个点（`a.b` / `spawner.unlock_scores`）。
+# 名字不含 cfg 的转发包装器靠实参形态暴露：键实参就是这个形态的字面量。
+DOTTED = re.compile(r'^"[a-z_][a-z0-9_]*(?:\.[a-z0-9_]+)+"$')
 
 
 def match_paren(text, open_idx):
@@ -158,6 +163,9 @@ for path in sorted(ROOT.rglob("*.cs")):
     if any(part in SKIP for part in path.parts):
         continue
     rel = str(path.relative_to(ROOT)).replace("\\", "/")
+    # 测试工程不入发布包、字符串多为夹具名与夹具键（"run.json"、"player.max_speed" 这类
+    # PathResolver 输入），故点分路径规则只判生产代码面；名字含 cfg 的老规则对测试照旧生效。
+    is_test = rel.startswith("csharp/tests/")
     text, in_string = csharp_lex.strip_comments(path.read_text(encoding="utf-8"))
     for m in CALL.finditer(text):
         if in_string[m.start()]:                 # 字符串里的同名文本不是调用
@@ -168,14 +176,20 @@ for path in sorted(ROOT.rglob("*.cs")):
         lookup = f"{short_recv}.{name}" if f"{short_recv}.{name}" in BALANCE_ACCESSORS else name
         if lookup not in BALANCE_ACCESSORS and lookup not in NON_BALANCE:
             # 未登记的 Cfg 族调用：只对「实参里带字面字符串」的调用报警，避开 LoadCfg() 这类无参同名方法
-            if GCFG.search(name):
+            if GCFG.search(name) or (not is_test):
                 close = match_paren(text, m.end() - 1)
-                if close > 0 and any(PURE_LIT.match(a) for a in split_args(text[m.end():close])):
+                args = split_args(text[m.end():close]) if close > 0 else []
+                # 名字含 cfg 的：实参带任意字面字符串即可疑；名字不含 cfg 的：只有实参是
+                # 点分路径字面量（键的形态）才可疑——否则会把每个普通方法调用都算进来
+                suspicious = any(PURE_LIT.match(a) for a in args) if GCFG.search(name) \
+                    else any(DOTTED.match(a) for a in args)
+                if suspicious:
                     lineno = text.count("\n", 0, m.start()) + 1
                     called = f"{recv}.{name}" if recv else name
                     unregistered.append(
                         f"{rel}:{lineno}  `{called}` 未登记为 balance 访问器或豁免项"
-                        "（新包装器？读 balance 就登记进 BALANCE_ACCESSORS，不读就给理由进 NON_BALANCE）")
+                        "（新包装器？读 balance 就登记进 BALANCE_ACCESSORS，不读就给理由进 NON_BALANCE；"
+                        "转发包装器可以起任意名字，键实参的点分路径形态一样会命中）")
             continue
         if lookup in NON_BALANCE:
             continue
