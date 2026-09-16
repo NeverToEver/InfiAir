@@ -189,7 +189,8 @@ smoke_main() {
 }
 
 smoke_settings() {
-  run_case "settings page smoke" 60 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
+  # 帧数含四段频闪采样（轮盘开机 A/B + 危险横幅 A/B，各 30/45 帧）与五页切换，取 300 帧余量。
+  run_case "settings page smoke" 300 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
   expect_marker "settings page 五页" "${PROBE_LOG_BASE}.settings.log" "[settings-probe] 五页切换完成"
 }
 

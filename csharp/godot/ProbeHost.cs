@@ -61,6 +61,13 @@ public partial class ProbeHost : Node
     /// （实测 80s = 4800 帧）+ 余量。超时即判失败，不静默空转到退出。</summary>
     private const int BossProbeSpawnTimeoutFrames = 5400;
 
+    /// <summary>Boss 探针等入场的上限（帧）：入场动画 1.65s 的余量；超时即判失败——
+    /// 入场速度域归零时 IsInFight 恒假、本局被永久冻结且零报错。</summary>
+    private const int BossProbeFightTimeoutFrames = 600;
+
+    /// <summary>Boss 逃跑倒计时门控的采样窗口（帧）：闪烁半周期 0.5s（30 帧）+ 0.1s 轮询余量。</summary>
+    private const int BossCountdownWindowFrames = 40;
+
     /// <summary>Boss 探针狂暴锁血等待上限（帧）：狂暴序列 transition 0.9 + active 6 + hold 0.7 +
     /// return 0.8 ≈ 8.4s，取 20s 余量。超时即判失败（锁血残留＝Boss 永久无敌）。</summary>
     private const int BossProbeLockTimeoutFrames = 1200;
@@ -214,6 +221,19 @@ public partial class ProbeHost : Node
     /// <summary>设置版本探针（--settings-version-probe）。</summary>
     private bool _settingsVersionProbe;
 
+    /// <summary>设置页探针里两处频闪的采样窗口（帧）：轮盘开机物化 0.62s、横幅闪烁半周期 ≤0.25s，
+    /// 取 30 帧（0.5s）覆盖至少一个完整明暗周期，留出轮询与帧序余量。</summary>
+    private const int SettingsFlashWindowFrames = 30;
+
+    private const int SettingsBannerWindowFrames = 45;
+
+    /// <summary>设置页探针的阶段与观测态（0 起 → 4 收尾；sawBlink 是正对照的判据）。</summary>
+    private int _settingsProbeStep;
+
+    private int _settingsProbeFrame;
+    private bool _settingsProbeSawBlink;
+    private RadialWheel? _settingsWheel;
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -336,6 +356,14 @@ public partial class ProbeHost : Node
     private bool _bossSawPhase2Clear;
     private bool _bossKillInjected;
     private bool _bossOutcomeChecked;
+
+    /// <summary>逃跑倒计时门控断言的观测态（HUD 引用、阶段与正对照是否见到翻转）。</summary>
+    private Hud? _bossHud;
+
+    private int _bossCountdownStep;
+    private int _bossCountdownFrame;
+    private bool _bossCountdownSawFlip;
+    private bool _bossCountdownDone;
 
     private bool _killAllProbe;
     private int _killAllIndex;
@@ -695,8 +723,7 @@ public partial class ProbeHost : Node
 
         if (_settingsProbe)
         {
-            _settingsProbe = false;
-            RunSettingsProbe();
+            TickSettingsProbe();
             return;
         }
 
@@ -1410,23 +1437,186 @@ public partial class ProbeHost : Node
 
     /// <summary>设置页探针：开页并逐页切过——五页内容都在 ShowSettings 之后才构建，
     /// 平时的 300 帧基线碰不到它们（玩家点开即崩的写法在这里暴露）。
-    /// 找不到设置节点就不打完成标记——空转同样「零错误退出」，缺标记即红。</summary>
-    private void RunSettingsProbe()
+    /// 找不到设置节点就不打完成标记——空转同样「零错误退出」，缺标记即红。
+    ///
+    /// 另断两处「减少闪光」门控（借开页顺带覆盖，不额外起趟）：轮盘开机物化的全息频闪
+    /// （Modulate 按 0.028s 步进在 0.45/0.95 之间跳）与危险横幅的明暗闪烁循环。两者都是
+    /// 「开关认了、两处频闪没认」的静默残留，且**两半互补**：必须先在没有减少闪光时观测到
+    /// 闪烁（否则「根本没显示」会让减闪段退化成空转绿），再在减少闪光下断恒定全亮。</summary>
+    private void TickSettingsProbe()
     {
         var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
         if (settings == null)
         {
             GD.PushError("[settings-probe] 未找到设置页节点，无法覆盖五页构建");
+            _settingsProbe = false;
             return;
         }
 
-        settings.ShowSettings(null);
-        foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
+        if (_settingsProbeStep == 0)
         {
-            settings.ShowPage(new StringName(page));
+            _settingsWheel = FindWheel(settings);
+            if (_settingsWheel == null)
+            {
+                GD.PushError("[settings-probe] 未找到轮盘节点——开机频闪的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(false);
+            settings.ShowSettings(null); // 每次开页都重放 PlayBoot
+            _settingsProbeStep = 1;
+            _settingsProbeFrame = 0;
+            _settingsProbeSawBlink = false;
+            return;
         }
 
-        GD.Print("[settings-probe] 五页切换完成");
+        if (_settingsProbeStep == 1)
+        {
+            if (_settingsWheel!.Modulate.A < 0.99f)
+            {
+                _settingsProbeSawBlink = true;
+            }
+
+            if (++_settingsProbeFrame < SettingsFlashWindowFrames)
+            {
+                return;
+            }
+
+            if (!_settingsProbeSawBlink)
+            {
+                GD.PushError($"[settings-probe] 无减少闪光的 {SettingsFlashWindowFrames} 帧内未观测到轮盘开机频闪"
+                    + "——开机物化未触发，减闪段会退化成空转绿");
+                _settingsProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(true);
+            settings.ShowSettings(null);
+            _settingsProbeStep = 2;
+            _settingsProbeFrame = 0;
+            return;
+        }
+
+        if (_settingsProbeStep == 2)
+        {
+            if (_settingsWheel!.Modulate.A < 0.99f)
+            {
+                GD.PushError($"[settings-probe] 减少闪光下轮盘开机仍在频闪（alpha={_settingsWheel.Modulate.A:0.##}）"
+                    + "——Modulate 按 0.028s 步进跳变的明暗未停用");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (++_settingsProbeFrame < SettingsFlashWindowFrames)
+            {
+                return;
+            }
+
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (hud == null)
+            {
+                GD.PushError("[settings-probe] 未找到 HUD 节点——危险横幅的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(false);
+            hud.ShowWarning(Tr("WARN_BOSS"));
+            _settingsProbeStep = 3;
+            _settingsProbeFrame = 0;
+            _settingsProbeSawBlink = false;
+            return;
+        }
+
+        if (_settingsProbeStep == 3)
+        {
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (hud == null)
+            {
+                GD.PushError("[settings-probe] 未找到 HUD 节点——危险横幅的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (hud.WarningBannerAlpha < 0.99f)
+            {
+                _settingsProbeSawBlink = true;
+            }
+
+            if (++_settingsProbeFrame < SettingsBannerWindowFrames)
+            {
+                return;
+            }
+
+            if (!_settingsProbeSawBlink)
+            {
+                GD.PushError($"[settings-probe] 无减少闪光的 {SettingsBannerWindowFrames} 帧内未观测到危险横幅明暗循环"
+                    + "——横幅未显示，减闪段会退化成空转绿");
+                _settingsProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(true);
+            hud.ShowWarning(Tr("WARN_BOSS"));
+            _settingsProbeStep = 4;
+            _settingsProbeFrame = 0;
+            return;
+        }
+
+        if (_settingsProbeStep == 4)
+        {
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (hud == null)
+            {
+                GD.PushError("[settings-probe] 未找到 HUD 节点——危险横幅的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (hud.WarningBannerAlpha < 0.99f)
+            {
+                GD.PushError($"[settings-probe] 减少闪光下危险横幅仍在明暗循环（alpha={hud.WarningBannerAlpha:0.##}）"
+                    + "——频闪未停用（读数与淡出应保留、只停闪烁）");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (++_settingsProbeFrame < SettingsBannerWindowFrames)
+            {
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(false);
+            settings.ShowSettings(null);
+            foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
+            {
+                settings.ShowPage(new StringName(page));
+            }
+
+            GD.Print("[settings-probe] 五页切换完成");
+            _settingsProbe = false;
+        }
+    }
+
+    /// <summary>按型递归找轮盘节点（<c>SettingsUi.Wheel</c> 是 protected，探针不为观测再开一个写口）。</summary>
+    private static RadialWheel? FindWheel(Node node)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is RadialWheel wheel)
+            {
+                return wheel;
+            }
+
+            var found = FindWheel(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>迷雾探针驱动：在宿主里请求一次**强制指定**的迷雾事件（fake_enemies，无伤害/无碰撞，
@@ -1856,9 +2046,27 @@ public partial class ProbeHost : Node
         switch (_bossStage)
         {
             case 1:
+                // 速度域：入场/逃跑的推进速度与慢速力场乘区都是「写坏成 0 即整局冻死」的静默面——
+                // 入场速度归零则永不到战斗锚线、_bossActive 恒 true 把波次与后续 Boss 一起冻住，
+                // 且不崩不报错。故在等入场完成的同时把域判掉，超时即显式失败（不空转到退出）。
+                if (boss.EnterSpeed < 1.0f || boss.EscapeStartSpeed < 1.0f || boss.EscapeAccel < 1.0f
+                    || boss.SlowFactor() < 0.05f)
+                {
+                    BossProbeFail($"Boss 速度域越界：enter={boss.EnterSpeed:0.###} escape_start={boss.EscapeStartSpeed:0.###}"
+                        + $" escape_accel={boss.EscapeAccel:0.###} slow_factor={boss.SlowFactor():0.###}"
+                        + "——入场速度归零时永不到锚线，波次与后续 Boss 会被一起冻死");
+                    return;
+                }
+
                 // 等入场降入完成（生产判定：IsInFight）再开始注入伤害
                 if (!boss.IsInFight())
                 {
+                    if (_frame - _bossLastSpawnFrame > BossProbeFightTimeoutFrames)
+                    {
+                        BossProbeFail($"出场后 {BossProbeFightTimeoutFrames} 帧仍未进入战斗（IsInFight 恒假）"
+                            + "——入场推进断线，本局将被永久冻结");
+                    }
+
                     return;
                 }
 
@@ -1868,6 +2076,13 @@ public partial class ProbeHost : Node
                 return;
 
             case 2:
+                // 逃跑倒计时的减少闪光门控（借在场 Boss 断）：先断无减闪时确有明暗翻转（正对照，
+                // 防「倒计时根本没显示」被当成「不闪」），再断减闪下 alpha 恒为 1。
+                if (!TickBossCountdownProbe(boss))
+                {
+                    return;
+                }
+
                 // P1 段：先让生产链跑一段（出弹/开火），再把血量压到二阶段线之上
                 if (_frame - _bossLastTickFrame < BossProbeApproachIntervalFrames)
                 {
@@ -2080,6 +2295,79 @@ public partial class ProbeHost : Node
     {
         GD.PushError("[boss-probe] " + reason);
         _bossProbe = false;
+    }
+
+    /// <summary>逃跑倒计时的减少闪光门控断言（借在场 Boss）：返回 true = 本段已完成。
+    ///
+    /// 两半互补，缺一条即假绿：**无减闪时必须有明暗翻转**（正对照——倒计时根本没显示时，
+    /// 「减闪下恒定全亮」会被空转蒙过）、**减闪下 alpha 必须恒为 1**（频闪停用、读数保留）。
+    /// 判据读 HUD 的只读口，不碰倒计时实现。倒计时只在「战斗期 + 剩余 ≤ countdown_visible_from」
+    /// 显示，探针把该阈值临时放宽到整段存活时长（公开属性，探针侧观测便利，不改生产判定）。</summary>
+    private bool TickBossCountdownProbe(Boss boss)
+    {
+        if (_bossCountdownDone)
+        {
+            return true;
+        }
+
+        if (_bossHud == null)
+        {
+            _bossHud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (_bossHud == null)
+            {
+                BossProbeFail("未找到 HUD 节点——逃跑倒计时的减少闪光门控断言取不到判据");
+                return false;
+            }
+        }
+
+        switch (_bossCountdownStep)
+        {
+            case 0:
+                boss.EscapeCountdownFrom = boss.EscapeTime;
+                GameState.Instance.SetReduceFlash(false);
+                _bossCountdownStep = 1;
+                _bossCountdownFrame = _frame;
+                _bossCountdownSawFlip = false;
+                return false;
+            case 1:
+                if (_bossHud.BossCountdownModulate.A < 0.99f)
+                {
+                    _bossCountdownSawFlip = true;
+                }
+
+                if (_frame - _bossCountdownFrame < BossCountdownWindowFrames)
+                {
+                    return false;
+                }
+
+                if (!_bossCountdownSawFlip)
+                {
+                    BossProbeFail($"无减闪的 {BossCountdownWindowFrames} 帧内未观测到逃跑倒计时的明暗翻转"
+                        + "——倒计时未显示或翻转停用，减闪段会退化成空转绿");
+                    return false;
+                }
+
+                GameState.Instance.SetReduceFlash(true);
+                _bossCountdownStep = 2;
+                _bossCountdownFrame = _frame;
+                return false;
+            default:
+                if (_bossHud.BossCountdownModulate.A < 0.99f)
+                {
+                    BossProbeFail($"减少闪光下逃跑倒计时仍在明暗翻转（第 {_frame} 帧 "
+                        + $"alpha={_bossHud.BossCountdownModulate.A:0.##}）——频闪未停用");
+                    return false;
+                }
+
+                if (_frame - _bossCountdownFrame < BossCountdownWindowFrames)
+                {
+                    return false;
+                }
+
+                GameState.Instance.SetReduceFlash(false);
+                _bossCountdownDone = true;
+                return true;
+        }
     }
 
     /// <summary>母舰坞态探针：走生产蓄力链（长按 <c>dock</c> 蓄满，不直调召唤或坞态方法）请出母舰，
