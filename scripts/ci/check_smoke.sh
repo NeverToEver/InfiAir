@@ -78,6 +78,10 @@ ERR_ALLOW="ERROR: [0-9][0-9]* resources still in use at exit"
 PROBE_SCENE="res://scenes/probe_host.tscn"
 PROBE_LOG_BASE="${LOG%.log}"
 WORKERS="${SMOKE_WORKERS:-4}"
+# 单趟墙钟上限（秒）：任一 Godot 趟挂死（死锁/等待真实时间/驱动卡住）时判该趟失败并杀掉引擎，
+# 本地不再无限等待（此前只能人工中断，CI 靠 job 的 15 分钟兜底）。取实测最长趟的数倍——这是
+# 挂死安全阀，不是时长判据：模拟时长仍由 --fixed-fps 60 与帧数决定，与机器快慢无关。
+CASE_TIMEOUT="${SMOKE_CASE_TIMEOUT:-240}"
 
 run_case() {
   local label="$1" frames="$2" log="$3" scene="$4" userdir="$5"
@@ -109,8 +113,25 @@ run_case() {
          "且同目录重跑会读到上一趟的残留（AGENTS §5）"
     return 1
   fi
-  if ! "${env_args[@]}" "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$frames" \
-      "${scene_args[@]}" -- "$@" "${expect_args[@]}" > "$log" 2>&1; then
+  # 后台跑 + 轮询墙钟上限：Git Bash 的 `timeout` 会落到 Windows 的 timeout.exe（语义完全不同，
+  # 是等按键），故不依赖外部 timeout 命令。
+  "${env_args[@]}" "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$frames" \
+      "${scene_args[@]}" -- "$@" "${expect_args[@]}" > "$log" 2>&1 &
+  local pid=$! waited=0 rc=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$waited" -ge "$CASE_TIMEOUT" ]; then
+      echo "::error::$label 超过单趟上限 ${CASE_TIMEOUT}s 未退出（挂死）——杀掉引擎并判失败" \
+           "（SMOKE_CASE_TIMEOUT 可调上限；模拟时长与帧数无关于此值）"
+      kill -9 "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      tail -30 "$log"
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  wait "$pid" || rc=$?
+  if [ "$rc" -ne 0 ]; then
     echo "::error::$label failed"
     tail -30 "$log"
     return 1
