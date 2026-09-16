@@ -13,14 +13,26 @@
 #   - 键集一致但 RunSaveVersion 与 FROZEN_VERSION 不同 → 红：bump 版本会让旧档读不回，
 #     同样要求显式确认（同步 FROZEN_VERSION 即视为确认，理由写进提交正文）。
 # FROZEN_KEYS 来源：本门禁上线时按当前 CollectRunDict 实况生成一次，之后即为冻结基线。
+#
+# 取键前先按 C# 词法剥注释（共用模块 scripts/ci/csharp_lex.py）：注释掉的写入/读取行不能再参与
+# 对账——「把旧读取行留在注释里、实现改成读常量」这类改法会让键集看上去没变，而运行期每次读档
+# 都落默认值，正是本门禁存在的理由的反面。条件编译段无法静态对账（`#if false` 包住的写入在文本
+# 里照旧命中），捕获块内出现指令即红，不静默少几行。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
 python3 - <<'PY'
 import pathlib, re, sys
 
+LEX_DIR = pathlib.Path("scripts/ci")
+if not (LEX_DIR / "csharp_lex.py").exists():
+    print("::error::scripts/ci/csharp_lex.py 不存在——共用词法剥离模块缺失，取不到判据，拒绝判 clean")
+    sys.exit(1)
+sys.path.insert(0, str(LEX_DIR))
+import csharp_lex
+
 path = pathlib.Path("csharp/godot/GameState.RunSave.cs")
-src = path.read_text(encoding="utf-8")
+src, in_string = csharp_lex.strip_comments(path.read_text(encoding="utf-8"))
 
 # 冻结基线（上线时按 CollectRunDict 实况生成一次）：改这行 = 承认改了存档键集，
 # 必须在同一提交里说明是 bump RunSaveVersion 还是补了迁移分支。
@@ -38,6 +50,18 @@ version = re.search(r"private const int RunSaveVersion = (\d+);", src)
 if not collect or not apply or not version:
     print("::error::无法定位 CollectRunDict/ApplyRunDict/RunSaveVersion（结构变了？门禁需同步）")
     sys.exit(1)
+
+# 条件编译防线：捕获块（写入块 / 读取块 / 版本常量）内出现 #if/#elif/#else/#endif 即红。
+# 「按文本对账」的前提是这段文本都编译进产物；`#if false` 包住一行写入时文本照旧命中，
+# 门禁判 clean 而运行期该字段不再落盘——须把该段拆出或登记，不得静默按文本判。
+conditional = set(csharp_lex.conditional_lines(src, in_string))
+
+
+def cond_hits(match):
+    lo = src.count("\n", 0, match.start()) + 1
+    hi = src.count("\n", 0, match.end()) + 1
+    return [n for n in sorted(conditional) if lo <= n <= hi]
+
 
 # 键口径与设置对称门禁同款：AGENTS §9 规定数值键 snake_case。命中**不**再用键名字符集限定
 # ——此前正则写 `[a-z_]+`，含数字的键在写读两侧同时不可见：只写不读 / 只读不写两种静默错误
@@ -80,6 +104,13 @@ if len(read_pairs) != read_literals:
     sys.exit(1)
 
 errors = []
+for label, match in (("CollectRunDict 写入块", collect), ("ApplyRunDict 读取块", apply),
+                     ("RunSaveVersion 常量", version)):
+    hits = cond_hits(match)
+    if hits:
+        errors.append(f"{label} 落在条件编译段内（第 {', '.join(str(n) for n in hits)} 行有 "
+                      "#if/#elif/#else/#endif）——该段是否编译进产物不可静态判定，"
+                      "键集对账在此失效；须把条件编译去掉或把该段拆出单独文件")
 if illegal:
     errors.append(f"存档键名不合 snake_case（AGENTS §9）：{illegal}"
                   f"（写侧键字面量 {len(assigned)} 条、读侧 {len(read_pairs)} 条，其中 {len(illegal)} 个"

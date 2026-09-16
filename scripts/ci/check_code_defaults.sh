@@ -25,6 +25,10 @@
 # 标准库（不依赖 godot / dotnet / 第三方包）；解析只认字面量与显式登记的映射，不做「猜哪个
 # 变量是默认值」的启发式——映射不清、或回退实参是符号而非字面量的读取点，一律写进 EXCLUDED
 # 并给理由，使覆盖边界是明示的而不是悄悄残缺。
+#
+# 剥注释与条件编译防线：解析前用 shared 模块 scripts/ci/csharp_lex.py 剥掉注释（含块注释），
+# 注释掉的档位/条目不再被解析成对账条目（否则「注释掉一个数值」仍算通过）；登记的文件里出现
+# `#if/#elif/#else/#endif` 即红——条件编译段是否编译进产物不可静态判定，按文本对账在此失效。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -37,6 +41,13 @@ import sys
 
 ROOT = pathlib.Path.cwd()
 MISSING = object()
+
+LEX_DIR = ROOT / "scripts" / "ci"
+if not (LEX_DIR / "csharp_lex.py").exists():
+    print("::error::scripts/ci/csharp_lex.py 不存在——共用词法剥离模块缺失，取不到判据，拒绝判 clean")
+    sys.exit(1)
+sys.path.insert(0, str(LEX_DIR))
+import csharp_lex
 
 
 class GateError(Exception):
@@ -830,7 +841,15 @@ def main():
             problems.append(
                 f"{entry['file']} 不存在（{entry['desc']}）——登记表指向的文件被改名/删除，门禁需同步")
             continue
-        text = path.read_text(encoding="utf-8")
+        text, in_string = csharp_lex.strip_comments(path.read_text(encoding="utf-8"))
+        hits = csharp_lex.directives(text, in_string)
+        if hits:
+            where = "、".join(f"第 {n} 行 `{d}`" for n, d in hits[:5])
+            problems.append(
+                f"{entry['file']} 含条件编译指令（{where}）——登记文件按文本对账，"
+                "条件编译段是否编译进产物不可静态判定（`#if false` 包住的档位/条目在文本里照旧命中），"
+                "该表取不到判据；须去掉条件编译或把该段拆出单独文件后重新登记")
+            continue
         try:
             rows = PARSERS[entry["kind"]](entry, text, problems)
         except GateError as exc:

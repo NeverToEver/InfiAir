@@ -6,6 +6,8 @@
 # 判定：字面键必须完整命中 balance.json 的某个「点分路径」（不做后缀放宽——后缀命中会把
 #       `player.bullet_speed` 这类前缀写错、只靠尾段撞上的键放绿，正是要抓的静默错误）。
 #
+# 注释剥离（含块注释）与字符串掩码取自共用模块 scripts/ci/csharp_lex.py，口径单源，勿在此重写一份。
+#
 # 扫描口径（先剥注释、再按整个调用实参取键——多行调用不会整条漏掉）：
 #   - 接收者任意：`gs.Cfg(...)` / `GameState.Instance.Cfg(...)` / `_balanceService.Cfg(...)` 一视同仁
 #     （此前用 `(?<!\.)\bCfg` 只认无限定名，带接收者的调用整块漏判）；
@@ -70,54 +72,14 @@ balance = json.loads((ROOT / "data" / "balance.json").read_text(encoding="utf-8"
 paths = flatten(balance)
 
 
-def strip_comments(src):
-    """把 // 注释替换成空格（保留换行与偏移），并标出每个字符是否落在字符串字面量内。"""
-    out = list(src)
-    in_string = [False] * len(src)
-    i, n = 0, len(src)
-    while i < n:
-        c = src[i]
-        start = i
-        if c == '"' or (c == "@" and i + 1 < n and src[i + 1] == '"') or c == "'":
-            i = skip_literal(src, i)
-            for j in range(start, i):
-                in_string[j] = True
-            continue
-        if c == "/" and i + 1 < n and src[i + 1] == "/":
-            if i > 0 and src[i - 1] == ":":       # res:// 协议分隔，不是注释
-                i += 2
-                continue
-            while i < n and src[i] != "\n":
-                out[i] = " "
-                i += 1
-            continue
-        i += 1
-    return "".join(out), in_string
-
-
-def skip_literal(text, i):
-    """跳过 text[i] 起的字符串/字符字面量（含 @"" 与转义），返回结束后的下标。"""
-    n = len(text)
-    if text[i] == "@":
-        i += 2
-        while i < n:
-            if text[i] == '"':
-                if i + 1 < n and text[i + 1] == '"':
-                    i += 2
-                    continue
-                return i + 1
-            i += 1
-        return n
-    quote = text[i]
-    i += 1
-    while i < n:
-        if text[i] == "\\":
-            i += 2
-            continue
-        if text[i] == quote:
-            return i + 1
-        i += 1
-    return n
+# 共用词法模块（scripts/ci/csharp_lex.py）：剥注释 + 字符串掩码。缺失即红——不允许退回
+# 「在注释里取键」的旧形态，也不允许静默少判。
+LEX_DIR = ROOT / "scripts" / "ci"
+if not (LEX_DIR / "csharp_lex.py").exists():
+    print("::error::scripts/ci/csharp_lex.py 不存在——共用词法剥离模块缺失，取不到判据，拒绝判 clean")
+    sys.exit(1)
+sys.path.insert(0, str(LEX_DIR))
+import csharp_lex
 
 
 CALL = re.compile(r'(?:(?P<recv>[A-Za-z_][\w.]*)\s*\.\s*)?(?P<name>[A-Za-z_]\w*)\s*\(')
@@ -131,7 +93,7 @@ def match_paren(text, open_idx):
     while i < n:
         c = text[i]
         if c == '"' or (c == "@" and i + 1 < n and text[i + 1] == '"') or c == "'":
-            i = skip_literal(text, i)
+            i = csharp_lex.skip_literal(text, i)
             continue
         if c == "(":
             depth += 1
@@ -149,7 +111,7 @@ def split_args(text):
     while i < n:
         c = text[i]
         if c == '"' or (c == "@" and i + 1 < n and text[i + 1] == '"') or c == "'":
-            j = skip_literal(text, i)
+            j = csharp_lex.skip_literal(text, i)
             cur.append(text[i:j])
             i = j
             continue
@@ -196,7 +158,7 @@ for path in sorted(ROOT.rglob("*.cs")):
     if any(part in SKIP for part in path.parts):
         continue
     rel = str(path.relative_to(ROOT)).replace("\\", "/")
-    text, in_string = strip_comments(path.read_text(encoding="utf-8"))
+    text, in_string = csharp_lex.strip_comments(path.read_text(encoding="utf-8"))
     for m in CALL.finditer(text):
         if in_string[m.start()]:                 # 字符串里的同名文本不是调用
             continue

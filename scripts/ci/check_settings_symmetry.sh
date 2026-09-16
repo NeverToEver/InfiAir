@@ -5,21 +5,44 @@
 # 为什么需要：settings.json 与门禁可见的存档不同——写而未读 = 玩家改了设置下次启动回到默认，
 # 读而未写 = 每次读档落默认值静默覆盖（与存档丢进度同类，但编译与冒烟都发现不了）；
 # 设置项文案键写错则界面直接显示键名本身。
+#
+# 取键前先按 C# 词法剥注释（共用模块 scripts/ci/csharp_lex.py）：注释掉的写入/读取行不能参与对账
+# ——把旧读取行留在注释里、实现改成读常量，键集会看上去没变，而运行期每次都落默认值；
+# 条件编译段无法静态对账（`#if false` 包住的赋值在文本里照旧命中），捕获块内出现指令即红。
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
 python3 - <<'PY'
 import pathlib, re, sys
 
+LEX_DIR = pathlib.Path("scripts/ci")
+if not (LEX_DIR / "csharp_lex.py").exists():
+    print("::error::scripts/ci/csharp_lex.py 不存在——共用词法剥离模块缺失，取不到判据，拒绝判 clean")
+    sys.exit(1)
+sys.path.insert(0, str(LEX_DIR))
+import csharp_lex
+
 errors = []
 
-service = pathlib.Path("csharp/godot/SettingsService.cs").read_text(encoding="utf-8")
+service, _service_strings = csharp_lex.strip_comments(
+    pathlib.Path("csharp/godot/SettingsService.cs").read_text(encoding="utf-8"))
 collect = re.search(r"CollectSettingsDict\(\)\s*=>\s*new\(\)\s*\{(.*?)\n    \};", service, re.S)
 apply = re.search(r"public void ApplySettingsDict\(Godot\.Collections\.Dictionary data\)(.*?)\n    \}", service, re.S)
 reset = re.search(r"public void ResetToDefaults\(\)(.*?)\n    \}", service, re.S)
 if not collect or not apply or not reset:
     print("::error::无法定位 CollectSettingsDict/ApplySettingsDict/ResetToDefaults（结构变了？门禁需同步）")
     sys.exit(1)
+
+# 条件编译防线：捕获块（写入块 / 读取块 / 复位块）内出现指令即红——「按文本对账」的前提是
+# 这段文本都编译进产物；`#if false` 包住一行赋值时文本照旧命中，门禁判 clean 而运行期不生效。
+conditional = set(csharp_lex.conditional_lines(service, _service_strings))
+
+
+def cond_hits(match):
+    lo = service.count("\n", 0, match.start()) + 1
+    hi = service.count("\n", 0, match.end()) + 1
+    return [n for n in sorted(conditional) if lo <= n <= hi]
+
 
 # 键口径：AGENTS §9 规定数值键 snake_case。命中**不**再用键名字符集限定——此前正则写
 # `[a-z_]+`，含数字的键（fps_cap2 这类）在写读两侧同时不可见：只写不读、只读不写、可持久化
@@ -50,7 +73,8 @@ illegal = sorted({key for key in assigned + [k for _r, k in read_pairs] if not K
 foreign = sorted(set(ANY_READ_KEY.findall(apply.group(1))) - {k for _r, k in read_pairs})
 # version 由落盘侧 GameState.SaveSettings 在 CollectSettingsDict 之后补写（data["version"] = ...），
 # 不在 Collect 字面表内；把它并进写入侧，version 才能真正参与写读对称判定（此前整键豁免＝判不到）。
-save = pathlib.Path("csharp/godot/GameState.Save.cs").read_text(encoding="utf-8")
+save, _save_strings = csharp_lex.strip_comments(
+    pathlib.Path("csharp/godot/GameState.Save.cs").read_text(encoding="utf-8"))
 if re.search(r'\["version"\]\s*=', save):
     written.add("version")
 
@@ -69,6 +93,13 @@ if len(read_pairs) != read_literals:
           "——正则收窄会静默丢掉一部分键，取键正则必须覆盖任意键名")
     sys.exit(1)
 
+for label, match in (("CollectSettingsDict 写入块", collect), ("ApplySettingsDict 读取块", apply),
+                     ("ResetToDefaults 复位块", reset)):
+    hits = cond_hits(match)
+    if hits:
+        errors.append(f"{label} 落在条件编译段内（第 {', '.join(str(n) for n in hits)} 行有 "
+                      "#if/#elif/#else/#endif）——该段是否编译进产物不可静态判定，"
+                      "写读与复位三项对账在此失效；须把条件编译去掉或把该段拆出单独文件")
 if illegal:
     errors.append(f"设置键名不合 snake_case（AGENTS §9）：{illegal}"
                   f"（写侧键字面量 {len(assigned)} 条、读侧 {len(read_pairs)} 条，其中 {len(illegal)} 个"
@@ -114,7 +145,8 @@ for key in sorted(persistable):
 
 # 设置页文案键存在性：页表与各分组标题引用的 SET_* 键必须在 translations.csv 中。
 # 以 "_" 结尾的是拼接前缀（"SET_AIM_" + level），按静态键判会误报，一并跳过。
-ui = pathlib.Path("csharp/godot/SettingsUi.cs").read_text(encoding="utf-8")
+ui, _ui_strings = csharp_lex.strip_comments(
+    pathlib.Path("csharp/godot/SettingsUi.cs").read_text(encoding="utf-8"))
 csv_text = pathlib.Path("data/translations.csv").read_text(encoding="utf-8")
 known = {line.split(",", 1)[0] for line in csv_text.splitlines() if line and not line.startswith("keys,")}
 prefixes = [k for k in set(re.findall(r'"(SET_[A-Z0-9_]+)"', ui)) if k.endswith("_")]
