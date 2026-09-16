@@ -76,6 +76,9 @@ public partial class ProbeHost : Node
     /// 时间缩放，然后才开始击杀链（否则击杀发生在慢放演出里，时序不可读）。</summary>
     private const int BossProbeEnrageWaitFrames = 60;
 
+    /// <summary>Boss 探针「转场清弹」的观察窗口（帧）：注册表移除挂在帧末，窗口只吸收这一帧级时序差。</summary>
+    private const int BossProbeClearSettleFrames = 5;
+
     /// <summary>Boss 探针击杀后的收尾帧数：Die() → Died 信号 → 生成器轮换/休整推进。</summary>
     private const int BossProbeKillSettleFrames = 10;
 
@@ -2190,13 +2193,20 @@ public partial class ProbeHost : Node
         _bossPrevHp = boss.Hp;
 
         // ③ 转场清弹：越线注入当帧记下清弹前的活跃敌弹数（清弹走 QueueFree，注册表在帧末出树时
-        // 才移除），下一帧判「已清空」。前置 >0 让判据非空洞——否则「本来就没弹」也算清干净。
+        // 才移除），随后**在有限窗口内**判「已清空」。前置 >0 让判据非空洞——否则「本来就没弹」也算清干净。
+        // 窗口而非单帧：出树与注册表移除都挂在帧末，负载抖动下队列可能晚一帧落地——单帧判会把
+        // 「清弹确实发生、只是晚一帧可见」判成失败（实测：并行冒烟满载时偶发红）。
+        // 判据仍是「转场后弹数归零」，窗口只吸收帧末簿记的时序差，不是重试掩盖。
         if (_bossClearCheckFrame > 0 && _frame >= _bossClearCheckFrame)
         {
-            _bossClearCheckFrame = 0;
-            if (GameState.Instance.EnemyBullets.Count == 0)
+            if (!_bossSawPhase2Clear && GameState.Instance.EnemyBullets.Count == 0)
             {
                 _bossSawPhase2Clear = true;
+            }
+
+            if (_bossSawPhase2Clear || _frame > _bossClearCheckFrame + BossProbeClearSettleFrames)
+            {
+                _bossClearCheckFrame = 0;
             }
         }
 
