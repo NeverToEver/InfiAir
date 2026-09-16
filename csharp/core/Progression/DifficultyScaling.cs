@@ -68,10 +68,18 @@ public static class DifficultyScaling
     public static double EnemyDamageRamp(double difficulty, DifficultyScalingConfig cfg) =>
         DifficultyRamp.Linear(difficulty, cfg.DamageRampFactor);
 
-    /// <summary>杂兵/精英速度乘区（带上限）。</summary>
+    /// <summary>杂兵/精英速度乘区（带上限）。非有限上限（NaN/±∞）按下安全语义处理：退回基线 1.0
+    /// （速度不随难度上涨），**不按「关闭速度顶」解释**——速度是唯一直接破坏可反应性的量，设计
+    /// 口径要求必须有顶；NaN 参与 &gt; 比较恒假会静默跳过 Math.Min，正是「坏配置取消硬顶」的形态。
+    /// 与既有的「上限 ≤0 按 1.0 处理」同口径（本量不设「关闭」分支）。</summary>
     public static double EnemySpeedRamp(double difficulty, DifficultyScalingConfig cfg)
     {
         var ramp = DifficultyRamp.Linear(difficulty, cfg.SpeedRampFactor);
+        if (!double.IsFinite(cfg.SpeedRampCap))
+        {
+            return 1.0;
+        }
+
         return cfg.SpeedRampCap > 0.0 ? Math.Min(ramp, Math.Max(cfg.SpeedRampCap, 1.0)) : ramp;
     }
 
@@ -152,6 +160,10 @@ public static class DifficultyScaling
     /// 难度乘数的时间项软上限：时间项超过 softCapStart 之后按 tailSpeedFactor 折减其超出部分。
     /// 只折时间项（Boss 击杀项不动）——它才是「挂机也会涨」的那条，也是必死时点方差的主要来源。
     /// 配置关闭（start ≤0 或 factor ≥1 或 factor ≤0）时原样返回。
+    /// 非有限 start/factor 按下安全语义处理：**关闭软上限**，原样返回——NaN 会让四个早退条件
+    /// 全假、返回 NaN 时间项，难度乘区随之变 NaN（每帧 IsEqualApprox 判否 → 反复广播
+    /// DifficultyChanged，敌方 HP/伤害乘区全 NaN）。折减只是压力整形，坏配置下退回「未折减」
+    /// 既保住曲线单调不减，也不把整条难度轴弄坏（与 ≤0/≥1 的「关闭」同口径）。
     /// </summary>
     public static double SoftCappedTimeTerm(double timeTerm, DifficultyScalingConfig cfg)
     {
@@ -162,7 +174,8 @@ public static class DifficultyScaling
 
         var start = cfg.DifficultySoftCapStart;
         var factor = cfg.DifficultyTailSpeedFactor;
-        if (start <= 0.0 || factor <= 0.0 || factor >= 1.0 || timeTerm <= start)
+        if (!double.IsFinite(start) || !double.IsFinite(factor)
+            || start <= 0.0 || factor <= 0.0 || factor >= 1.0 || timeTerm <= start)
         {
             return timeTerm;
         }

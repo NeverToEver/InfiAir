@@ -78,6 +78,26 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void SpeedRamp_NonFiniteCap_KeepsSpeedAtBaselineInsteadOfLosingTheCap()
+    {
+        // 非有限上限＝无可用上限：速度顶落到基线 1.0（这条压力轴失效），不解释为「关闭上限」——
+        // NaN 参与 > 比较恒假会静默跳过 Math.Min，反向解读就是「坏配置放出一条无顶的速度乘区」，
+        // 而速度是唯一直接破坏可反应性的量，设计口径要求必须有顶。
+        var cfg = Cfg();
+        cfg.SpeedRampCap = double.NaN;
+        var nan = DifficultyScaling.EnemySpeedRamp(10.0, cfg);
+        Assert.Equal(1.0, nan, 6);
+        Assert.True(double.IsFinite(nan), "速度乘区非有限");
+
+        cfg.SpeedRampCap = double.PositiveInfinity;
+        var inf = DifficultyScaling.EnemySpeedRamp(10.0, cfg);
+        Assert.Equal(1.0, inf, 6);
+        Assert.True(double.IsFinite(inf), "速度乘区非有限");
+        // 相邻档位也不得越过任何顶（坏配置下整条速度轴退回基线，仍有限且有顶）
+        Assert.Equal(1.0, DifficultyScaling.EnemySpeedRamp(1000.0, cfg), 6);
+    }
+
+    [Fact]
     public void BossHpRamp_IsSlowerThanFullDifficulty()
     {
         var cfg = Cfg();
@@ -249,6 +269,38 @@ public sealed class DifficultyScalingTests
 
         cfg.DifficultyTailSpeedFactor = 0.75;
         Assert.Equal(6.0 + 100.0 * 0.75, DifficultyScaling.SoftCappedTimeTerm(106.0, cfg), 6);
+    }
+
+    [Fact]
+    public void SoftCappedTimeTerm_NonFiniteConfig_DisablesSoftCap()
+    {
+        // 非有限 start/factor 与「关闭软上限」同义：NaN 会让四个早退条件全假 → 返回 NaN 时间项 →
+        // 难度乘区变 NaN（每帧判否 → 反复广播 DifficultyChanged，敌方 HP/伤害乘区全 NaN）。
+        // 折减只是压力整形，坏配置下退回未折减既保曲线单调、也不坏整条难度轴。
+        var cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.NaN;
+        var nanStart = DifficultyScaling.SoftCappedTimeTerm(16.0, cfg);
+        Assert.Equal(16.0, nanStart, 6);
+        Assert.True(double.IsFinite(nanStart), "时间项非有限");
+
+        cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = double.NaN;
+        var nanFactor = DifficultyScaling.SoftCappedTimeTerm(16.0, cfg);
+        Assert.Equal(16.0, nanFactor, 6);
+        Assert.True(double.IsFinite(nanFactor), "时间项非有限");
+
+        // 无穷档同样按关闭处理（+∞ 起点/折减系数都无可用折减语义）
+        cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.PositiveInfinity;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        cfg.DifficultyTailSpeedFactor = double.PositiveInfinity;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+
+        // 坏配置下曲线仍单调不减（长局探针的判据不因坏配置反转）
+        cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.NaN;
+        Assert.True(DifficultyScaling.SoftCappedTimeTerm(26.0, cfg)
+            > DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), "坏配置把时间项压回退");
     }
 
     [Fact]
