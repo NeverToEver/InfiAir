@@ -181,19 +181,6 @@ public sealed partial class TalentService : RefCounted
         }
     }
 
-    /// <summary>溢出衰减压力预览（UI 悬停提示用）：满员后每点实际价值。</summary>
-    public double TailValue()
-    {
-        var raw = _cache.Raw;
-        if (raw <= _config.SafeThreshold)
-        {
-            return 1.0;
-        }
-
-        var depth = raw - _config.SafeThreshold;
-        return Math.Max(_config.DecayFloor, 1.0 - _config.DecayStep * depth);
-    }
-
     public void Grant(int points)
     {
         if (points <= 0)

@@ -2141,8 +2141,4 @@ public partial class Hud : CanvasLayer
             (int)GameState.Instance.Cfg("talent.grant.points_per_milestone", 2).AsInt64()));
     }
 
-    // ---------------- snake_case 兼容桥（meta_jitter 由 MetaHealthFX 经 CallGroup("hud", "meta_jitter", ...) 动态派发——
-    // CallGroup 走方法名字符串，保留原名避免调用点失效） ----------------
-
-    public void meta_jitter(float px) => MetaJitter(px);
 }
