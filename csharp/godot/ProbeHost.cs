@@ -232,6 +232,10 @@ public partial class ProbeHost : Node
 
     private int _aimHoldFrames;
 
+    /// <summary>死亡打断收尾期的活跃 id 断言（任务：打断后 ActiveId 立即为空）：
+    /// 只在事件 FSM 尚未回 IDLE 的窗口内逐帧判——回 IDLE 之后再判空转即过（空转假绿）。</summary>
+    private bool _interruptIdChecked;
+
     /// <summary>编队投放点可见域：上一帧在册的炸弹实例 id（池化复用时同一实例重新入场＝一次新投放，
     /// 故按「本帧在册而上一帧不在册」判定投放，而不是按实例首见）。</summary>
     private HashSet<ulong> _bombIdsPrev = new();
@@ -2597,6 +2601,13 @@ public partial class ProbeHost : Node
 
         if (ev.IsActive())
         {
+            // 死亡打断后的收尾窗口（管理器已 EndActive、事件 FSM 尚未回 IDLE）：此刻活跃 id
+            // 必须仍为空——收尾期被轮询重新登记回来时，「本局是否有遭遇在跑」的判据读反
+            if (_killed)
+            {
+                TickInterruptActiveId(key);
+            }
+
             if (!_deathProbe)
             {
                 TickEncounterAimProbe();
@@ -2623,6 +2634,13 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (_deathProbe && !_interruptIdChecked)
+        {
+            GD.PushError($"[event-probe] {_eventId} 死亡打断后未观测到事件收尾窗口——活跃 id 断言未执行（判据取不到即失败）");
+            _eventId = "";
+            return;
+        }
+
         if (!_deathProbe && !VerifyEventProbeOutcome(key, ev))
         {
             _eventId = "";
@@ -2631,6 +2649,25 @@ public partial class ProbeHost : Node
 
         GD.Print(GdFormat.Format(
             _deathProbe ? "[event-probe] %s 死亡打断完成" : "[event-probe] %s 全周期完成", _eventId));
+        _eventId = "";
+    }
+
+    /// <summary>死亡打断收尾期的活跃 id 断言：只在事件 FSM 尚未回 IDLE 的窗口内逐帧判——
+    /// 回 IDLE 之后再判「ActiveId 为空」是空转（坏实现也已把 id 清掉），等于没判。
+    /// 发现被重新登记即报红并停探针（缺完成标记，双重红灯）。</summary>
+    private void TickInterruptActiveId(StringName key)
+    {
+        _interruptIdChecked = true;
+        var active = _events.ActiveId(GameEventManager.GroupEncounter).ToString();
+        if (active.Length == 0)
+        {
+            return;
+        }
+
+        GD.PushError(GdFormat.Format(
+            "[event-probe] %s 死亡打断后的收尾期（第 %d 帧，事件 FSM 尚未回 IDLE）又被登记为活跃（ActiveId=%s）"
+            + "——收尾期的「本局是否有遭遇在跑」读作有遭遇，语义与事实相反",
+            key, _frame, active));
         _eventId = "";
     }
 
