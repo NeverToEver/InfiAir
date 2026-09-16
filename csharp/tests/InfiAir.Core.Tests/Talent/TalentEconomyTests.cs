@@ -547,4 +547,20 @@ public sealed class TalentEconomyTests
         Assert.Equal(0, TalentEconomy.RestoreLimit(-2, isOvercharged: true)); // 脏配置不得把上限算成负数
     }
 
+    [Fact]
+    public void FilterOvercharged_DropsUnknownDuplicatesAndExcessEntries()
+    {
+        var known = new[] { "power_shot", "extra_life", "homing" };
+
+        // 未知 id 丢弃：名单是「该节点允许 MaxLevel+1」的唯一许可来源，未知 id 抬高不了任何节点
+        Assert.Equal(new[] { "extra_life" }, TalentEconomy.FilterOvercharged(new[] { "ghost", "extra_life" }, known, 3));
+        // 重复 id 去重：否则同一节点占掉多个名额（玩家反而少一次风险加点）
+        Assert.Equal(new[] { "extra_life" }, TalentEconomy.FilterOvercharged(new[] { "extra_life", "extra_life" }, known, 3));
+        // 名额上限截断：手改档塞满 27 个节点 = 每个节点白拿一级
+        Assert.Equal(new[] { "power_shot" }, TalentEconomy.FilterOvercharged(new[] { "power_shot", "extra_life" }, known, 1));
+        // 名额 ≤0（配置/坏档）不得放行任何条目
+        Assert.Empty(TalentEconomy.FilterOvercharged(new[] { "extra_life" }, known, 0));
+        Assert.Empty(TalentEconomy.FilterOvercharged(new[] { "extra_life" }, known, -3));
+        Assert.Empty(TalentEconomy.FilterOvercharged(Array.Empty<string>(), known, 3));
+    }
 }

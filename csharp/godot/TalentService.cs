@@ -554,8 +554,8 @@ public sealed partial class TalentService : RefCounted
     }
 
     /// <summary>读档还原（本局存档）：层级/风险加点/路线/代币/超载槽/缓存点值序列整体覆盖。
-    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；层级上限按「节点是否在风险加点名单里」
-    /// 区分——风险加点买的那一级是双倍价换来的，
+    /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；风险加点名单先过滤（未知 id/重复/超额），
+    /// 再按「该节点是否在名单里」决定层级上限——风险加点买的那一级是双倍价换来的，
     /// 无条件钳回结构上限会让它读档即消失（判定单源 <see cref="TalentEconomy.RestoreLevel"/>）；
     /// 末尾 SyncAllAugments + 广播 CacheChanged/TalentsChanged/AugmentsChanged，
     /// 驱动 HUD 与 Player 增幅件重建。与 ResetAll 对称——先清空再写入，保证残留态不串档。</summary>
@@ -571,10 +571,12 @@ public sealed partial class TalentService : RefCounted
         _overcharged.Clear();
         _route = "";
         _resetTokens = Math.Max(resetTokens, 0);
+        // 先定超载槽（名额上限＝配置档 + 补给档，风险加点名单按它截断），再过滤名单，
+        // 最后才还原层级——层级上限依赖名单，三步顺序是判定的一部分，不得调换
         _bonusOverchargeSlots = Math.Max(bonusOverchargeSlots, 0);
-        foreach (var oc in overcharged)
+        foreach (var id in TalentEconomy.FilterOvercharged(overcharged, TalentTree.NodeIds(), OverchargeMaxPerRun))
         {
-            _overcharged.Add(new StringName(oc));
+            _overcharged.Add(new StringName(id));
         }
 
         foreach (var kv in levels)

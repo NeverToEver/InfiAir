@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Missions;
 
 namespace InfiAir;
 
@@ -119,7 +120,9 @@ public sealed partial class MissionsService : RefCounted
     public void ResetMissions() => InitMissions();
 
     /// <summary>读档还原（本局存档）：RP/刷新点/任务条目/绝对计数基线整体覆盖。
-    /// 任务池洗牌游标不还原（刷新序列从新洗牌开始，与「读档从新一波开始」一致）；
+    /// 任务池洗牌游标不还原（刷新序列从新洗牌开始，与「读档从新一波开始」一致）。
+    /// 条目过滤与 goal 取值单源在 <see cref="MissionRestore.Normalize"/>：白名单外的 id 整条丢弃
+    /// （查池得 goal=0 会让 IsMissionDone 恒真、可反复领 RP），goal 一律取池内定稿值。
     /// 末尾重建 kind 索引 + 补发 RpChanged/RefreshPointsChanged 驱动 HUD。</summary>
     public void RestoreRunState(
         int rp,
@@ -145,13 +148,25 @@ public sealed partial class MissionsService : RefCounted
                     continue;
                 }
 
+                var id = key.AsStringName();
                 var src = missions[key].AsGodotDictionary();
-                Missions[new StringName(key.AsString())] = new Godot.Collections.Dictionary
+                // 白名单：池外 id（手改档注入）整条丢弃，保持已有的合法态
+                var entry = MissionRestore.Normalize(
+                    MissionGoal(id),
+                    ReadEntryInt(src.GetValueOrDefault("progress", 0), 0),
+                    ReadEntryInt(src.GetValueOrDefault("baseline", 0), 0),
+                    ReadEntryBool(src.GetValueOrDefault("claimed", false), false));
+                if (entry is null)
                 {
-                    ["progress"] = ReadEntryInt(src.GetValueOrDefault("progress", 0), 0),
-                    ["claimed"] = ReadEntryBool(src.GetValueOrDefault("claimed", false), false),
-                    ["goal"] = Math.Max(ReadEntryInt(src.GetValueOrDefault("goal", 1), 1), 1),
-                    ["baseline"] = ReadEntryInt(src.GetValueOrDefault("baseline", 0), 0),
+                    continue;
+                }
+
+                Missions[id] = new Godot.Collections.Dictionary
+                {
+                    ["progress"] = entry.Value.Progress,
+                    ["claimed"] = entry.Value.Claimed,
+                    ["goal"] = entry.Value.Goal,
+                    ["baseline"] = entry.Value.Baseline,
                 };
             }
         }
@@ -335,6 +350,7 @@ public sealed partial class MissionsService : RefCounted
 
         var drawn = _taskPool!.Draw(GameState.Instance.MISSION_SLOTS - kept.Count, exclude);
         Missions.Clear();
+
         foreach (var idV in kept.Keys)
         {
             Missions[idV] = kept[idV];

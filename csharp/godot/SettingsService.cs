@@ -781,7 +781,7 @@ public sealed partial class SettingsService : RefCounted
             GD.PushWarning($"InfiAir: settings.json 版本 {savedVersionNumber} 高于当前支持的 {SettingsMigration.CurrentVersion}，未知字段按默认值回退");
         }
 
-        GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
+ GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
         // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
         var savedLocale = ReadString(data.GetValueOrDefault("locale", ""), "");
@@ -792,7 +792,10 @@ public sealed partial class SettingsService : RefCounted
 
         // key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
         // 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
-        // 旧名迁移判定单源在 SettingsMigration.TryMapKeyBindingAction（新名已绑过则丢弃旧条目）。
+        // 动作名白名单＝可改键动作清单（唯一事实源 GameState.REBINDABLE_ACTIONS）：不在清单里的
+        // 条目丢弃——收下会永久回写进设置档（下次落盘把它固化），且 ApplyKeyBindings 不认它，
+        // 盘上留一条谁也读不懂的死绑。旧名迁移判定单源在 SettingsMigration.TryMapKeyBindingAction
+        //（新名已绑过则丢弃旧条目），迁移后再过白名单（旧名映射出的新名须真的可改键）。
         GameState.Instance.KeyBindings.Clear();
         var savedKeys = data.GetValueOrDefault("key_bindings", new Variant());
         if (savedKeys.VariantType == Variant.Type.Dictionary)
@@ -827,6 +830,11 @@ public sealed partial class SettingsService : RefCounted
                 if (!SettingsMigration.TryMapKeyBindingAction(existingActions, a.AsStringName().ToString(), out var mappedAction))
                 {
                     continue; // 新动作名已在表中：旧条目不得覆盖真值
+                }
+
+                if (!GameState.Instance.REBINDABLE_ACTIONS.Contains(new StringName(mappedAction)))
+                {
+                    continue; // 白名单外动作名：丢弃（不落回设置档、不进 InputMap）
                 }
 
                 GameState.Instance.KeyBindings[new StringName(mappedAction)] = keys;

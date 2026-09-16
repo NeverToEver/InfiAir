@@ -334,6 +334,39 @@ public static class TalentEconomy
         Math.Clamp(raw, 0, RestoreLimit(maxLevel, isOvercharged));
 
     /// <summary>
+    /// 读档风险加点名单过滤：只保留 <paramref name="knownIds"/> 内的 id（未知 id 抬高不了任何节点，
+    /// 留着只会占名额、让真实节点少一次风险加点）、去重、并按 <paramref name="limit"/> 截断
+    /// （上限 ＝ 配置档 + 基地补给档；手改档塞满全部节点＝每节点白拿一级）。
+    /// 输出顺序＝输入顺序（存档里没有序语义，保序只为让重放结果可复现）。
+    /// </summary>
+    public static List<string> FilterOvercharged(
+        IEnumerable<string> raw, IReadOnlyCollection<string> knownIds, int limit)
+    {
+        var result = new List<string>();
+        if (limit <= 0)
+        {
+            return result;
+        }
+
+        var known = new HashSet<string>(knownIds);
+        var seen = new HashSet<string>();
+        foreach (var id in raw)
+        {
+            if (result.Count >= limit)
+            {
+                break;
+            }
+
+            if (known.Contains(id) && seen.Add(id))
+            {
+                result.Add(id);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// 有效缓存是否已够点亮「当前任一可选节点」：返回其中最便宜的下一级价，0 = 尚不可购。
     /// 入参 eligibleNextCosts 由引擎侧给出——只含前置/互斥/上限/风险加点名额都通过、仅「点数够不够」
     /// 未定的节点（TalentService 逐节点筛后取 NextCost）；本函数只判价格与缓存的比较，
