@@ -449,7 +449,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。
     /// 进度台词先占槽位时顺延到该句结束（排程见 BeginRun），到点当帧再确认台词已下场——
     /// 两句共用一个槽位，后播的只会顶掉先播的。
-    /// 状态门（core FormationComms.IntelStateAllowed）：只在轰炸段内播出；越段即作废排程，
+    /// 状态门（core FormationComms.IntelAllowed 的第一项）：只在轰炸段内播出；越段即作废排程，
     /// 不留到离场段被 1.5s 后的结算台词顶掉或在结算画面上闪现。</summary>
     private void TickIntelHint()
     {
