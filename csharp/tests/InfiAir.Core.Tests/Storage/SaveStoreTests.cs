@@ -238,4 +238,57 @@ public sealed class SaveStoreTests : IDisposable
         Assert.True(store.Quarantine(path, out _));
         Assert.Equal("old", File.ReadAllText(path + ".corrupt")); // 旧备份先删，新损坏档顶替
     }
+
+    [Fact]
+    public void Save_FallbackRenameFails_RestoresBackupInsteadOfLeavingDiskWithoutASave()
+    {
+        // 回退链：原子覆盖失败 → 正本改名 .bak → 落新档。第二步与第一步同源失败（权限/杀软/占用
+        // 通常同时命中两步）时盘上只剩 .bak/.tmp，上层按「无存档」处理且只留一条 PushWarning
+        // （非 ERROR:，不撞门禁正则）——旧进度静默变成读不回来。故回退失败必须把 .bak 复原成
+        // 正本：保存失败是允许的，进度消失不是。真实文件系统造不出「第一步成功、第二步失败」
+        // 的确定性条件，故经注入的 rename 原语制造该形态（生产走默认 File.Move）。
+        var store = new SaveStore(moveFile: (source, destination, overwrite) =>
+        {
+            if (source.EndsWith(".tmp", StringComparison.Ordinal))
+            {
+                throw new IOException("注入：落新档失败");
+            }
+
+            File.Move(source, destination, overwrite);
+        });
+        var path = PathFor("fallback.json");
+        File.WriteAllText(path, """{"v":1}""");
+
+        Assert.False(store.TrySave(path, new Dictionary<string, object?> { ["v"] = 2L }, out var error));
+        Assert.NotNull(error);
+
+        // 正本必须还在盘上、且仍是旧内容（保存失败不等于进度丢失）
+        Assert.True(File.Exists(path));
+        Assert.Equal(1L, store.Load(path).Tree!["v"]);
+    }
+
+    [Fact]
+    public void Save_FallbackRestoreAlsoFails_ReportsBackupLossInError()
+    {
+        // 复原也失败（.bak 也移不回去）时只剩告警可观察：错误信息必须写明正本已不在盘上，
+        // 不能让上层以为「只是这次没保存成功」。
+        var store = new SaveStore(moveFile: (source, destination, overwrite) =>
+        {
+            if (source.EndsWith(".tmp", StringComparison.Ordinal)
+                || source.EndsWith(".bak", StringComparison.Ordinal))
+            {
+                throw new IOException("注入：rename 全面失败");
+            }
+
+            File.Move(source, destination, overwrite);
+        });
+        var path = PathFor("stranded.json");
+        File.WriteAllText(path, """{"v":1}""");
+
+        Assert.False(store.TrySave(path, new Dictionary<string, object?> { ["v"] = 2L }, out var error));
+        Assert.NotNull(error);
+        Assert.False(File.Exists(path));                       // 复原失败：正本确实离盘
+        Assert.True(File.Exists(path + ".bak"));               // 旧内容仍在 .bak，未凭空消失
+        Assert.Contains("复原失败", error, StringComparison.Ordinal);
+    }
 }

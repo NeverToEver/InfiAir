@@ -47,6 +47,26 @@ public sealed class SaveStore
     /// （手改/被写坏的巨型文件会让 ReadAllText 直接 OOM），超限按 Corrupt 隔离。</summary>
     public const long MaxSaveBytes = 1024 * 1024;
 
+    /// <summary>rename 原语注入点（默认 <see cref="File.Move(string,string,bool)"/>）。
+    /// 只为单测存在：回退链的失效形态是「第一步（正本 → .bak）成功、第二步（.tmp → 正本）失败」，
+    /// 而这两步的失败条件在真实文件系统上同源（权限/杀软/被占用通常同时命中两步），
+    /// 造不出确定性的「只失败第二步」。生产一律走默认值。</summary>
+    private readonly Action<string, string, bool>? _moveFile;
+
+    public SaveStore(Action<string, string, bool>? moveFile = null) => _moveFile = moveFile;
+
+    private void Move(string source, string destination, bool overwrite)
+    {
+        if (_moveFile is null)
+        {
+            File.Move(source, destination, overwrite);
+        }
+        else
+        {
+            _moveFile(source, destination, overwrite);
+        }
+    }
+
     public bool Exists(string path) => File.Exists(path);
 
     /// <summary>删除文件（不存在＝成功）；IO/权限失败返回 false 并带出原因。
@@ -127,13 +147,27 @@ public sealed class SaveStore
 
             try
             {
-                File.Move(tmpPath, path, overwrite: true);
+                Move(tmpPath, path, overwrite: true);
             }
             catch (IOException) when (File.Exists(path))
             {
-                // 平台不支持原子覆盖：先把正本改名成 .bak（内容仍在盘上），再落新档
-                File.Move(path, backupPath, overwrite: true);
-                File.Move(tmpPath, path);
+                // 平台不支持原子覆盖：先把正本改名成 .bak（内容仍在盘上），再落新档。
+                // 回退的第二步同样失败时（同一 IO 条件通常成立）盘上只剩 .bak/.tmp，上层按
+                // 「无存档」处理而只留一条告警——旧进度就此静默消失，故失败前必须把 .bak 复原回正本：
+                // 保存失败允许，丢档不允许。复原也失败才在错误信息里写明正本已离盘。
+                Move(path, backupPath, overwrite: true);
+                try
+                {
+                    Move(tmpPath, path, overwrite: false);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    var restored = TryRestoreBackup(backupPath, path);
+                    error = restored
+                        ? $"rename 覆盖与回退均失败（{ex.Message}）；旧档已从 {backupPath} 复原，本次未保存"
+                        : $"rename 覆盖与回退均失败（{ex.Message}）；旧档复原失败——{path} 已不在盘上（内容留在 {backupPath}）";
+                    return false;
+                }
             }
 
             error = null;
@@ -142,6 +176,20 @@ public sealed class SaveStore
         catch (Exception ex)
         {
             error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>把 .bak 复原成正本（尽力而为；失败不抛——调用方只能告警）。</summary>
+    private bool TryRestoreBackup(string backupPath, string path)
+    {
+        try
+        {
+            Move(backupPath, path, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
             return false;
         }
     }
