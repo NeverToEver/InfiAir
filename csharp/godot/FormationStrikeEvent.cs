@@ -448,7 +448,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// <summary>投弹后 4s（警告台词播完）补一条战术提示，且不早于轰炸段开始：
     /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。
     /// 进度台词先占槽位时顺延到该句结束（排程见 BeginRun），到点当帧再确认台词已下场——
-    /// 两句共用一个槽位，后播的只会顶掉先播的。</summary>
+    /// 两句共用一个槽位，后播的只会顶掉先播的。
+    /// 状态门（core FormationComms.IntelStateAllowed）：只在轰炸段内播出；越段即作废排程，
+    /// 不留到离场段被 1.5s 后的结算台词顶掉或在结算画面上闪现。</summary>
     private void TickIntelHint()
     {
         if (_intelAt > _elapsed)
@@ -456,9 +458,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
             return;
         }
 
-        if (!FormationComms.IntelAllowed(_lineStage, _lineStartedAt, _lineOnScreenTime, _elapsed))
+        var bombingRun = _state == State.BOMBING_RUN;
+        if (!FormationComms.IntelAllowed(bombingRun, _lineStage, _lineStartedAt, _lineOnScreenTime, _elapsed))
         {
-            return; // 台词仍在场上：本帧不播，句尾自然接上
+            if (!bombingRun)
+            {
+                _intelAt = float.MaxValue; // 已越过轰炸段：不播，也不悬着等下一段
+            }
+
+            return; // 其余情形是台词仍在场上：本帧不播，句尾自然接上
         }
 
         _intelAt = float.MaxValue;
@@ -522,13 +530,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _telegraph = null;
     }
 
-    /// <summary>离场：沿当前航向加速穿出侧缘（压坡回正，收尾干净）。</summary>
+    /// <summary>离场：沿当前航向加速穿出侧缘（压坡回正，收尾干净）。
+    /// 同时作废尚未播出的战术提示——离场段紧接着结算，提示挤不进来也不该挤（状态门见 TickIntelHint）。</summary>
     private void BeginExit()
     {
         _state = State.FORMATION_EXIT;
         _stateTime = 0.0f;
         _exitSpeed = RunSpeed;
         _bank = 0.0f;
+        _intelAt = float.MaxValue;
         ApplyBank();
         DiscardTelegraph();
     }

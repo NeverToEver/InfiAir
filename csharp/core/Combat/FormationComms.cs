@@ -45,9 +45,15 @@ public static class FormationComms
         return lineEnds > now ? MathF.Max(earliestAt, lineEnds) : earliestAt;
     }
 
-    /// <summary>到点当帧的是否允许播提示：顺延只保证「排程那一刻」该句已结束，
-    /// 逐帧到点时台词若仍在场上（长句、或判断被改成只算一次）就不播，下一帧再判。
-    /// 提示是排程入口，不会因此丢失。</summary>
-    public static bool IntelAllowed(int lineStage, float lineStartedAt, float lineOnScreenTime, float now)
-        => lineStage == LineStageNone || lineStartedAt + lineOnScreenTime <= now;
+    /// <summary>到点当帧的是否允许播提示（「现在是提示的窗口吗」的唯一判据）：
+    /// 状态门——只允许在轰炸段（<paramref name="bombingRun"/>）内播出。排程点设在轰炸段起点，
+    /// 但顺延可能把它推到离场段：离场只有 1.5s 且紧接着结算台词，提示要么被结算台词顶掉
+    /// （单槽位），要么落在结算画面上；全歼路径更会让排程在离场被复位而永不播出。
+    /// 台词槽位门——顺延只保证「排程那一刻」该句已结束，逐帧到点时台词若仍在场上（长句、
+    /// 或判断被改成只算一次）就不播，下一帧再判。两半同属一个窗口判定，分开写在引擎侧必漏一条
+    /// （原实现漏的正是状态门）。引擎侧的义务：离开轰炸段时显式作废排程，
+    /// 让「不播」成为确定性结果而不是悬着的排程。</summary>
+    public static bool IntelAllowed(
+        bool bombingRun, int lineStage, float lineStartedAt, float lineOnScreenTime, float now)
+        => bombingRun && (lineStage == LineStageNone || lineStartedAt + lineOnScreenTime <= now);
 }

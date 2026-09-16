@@ -81,16 +81,26 @@ public sealed class FormationCommsTests
     public void IntelAllowed_LineStillOnScreen_IsFalse()
     {
         // 到点当帧的守卫：顺延只保证「计算时」该句已结束；到点时若仍有台词在场就不播
-        Assert.False(FormationComms.IntelAllowed(1, 4.0f, LineWindow, 4.0f));
-        Assert.False(FormationComms.IntelAllowed(2, 0.0f, LineWindow, 1.0f));
+        Assert.False(FormationComms.IntelAllowed(true, 1, 4.0f, LineWindow, 4.0f));
+        Assert.False(FormationComms.IntelAllowed(true, 2, 0.0f, LineWindow, 1.0f));
     }
 
     [Fact]
     public void IntelAllowed_NoLineOrLineFinished_IsTrue()
     {
-        Assert.True(FormationComms.IntelAllowed(0, 0.0f, LineWindow, 1.0f));
-        Assert.True(FormationComms.IntelAllowed(1, 0.0f, LineWindow, LineWindow));
-        Assert.True(FormationComms.IntelAllowed(1, 0.0f, LineWindow, 9.0f));
+        Assert.True(FormationComms.IntelAllowed(true, 0, 0.0f, LineWindow, 1.0f));
+        Assert.True(FormationComms.IntelAllowed(true, 1, 0.0f, LineWindow, LineWindow));
+        Assert.True(FormationComms.IntelAllowed(true, 1, 0.0f, LineWindow, 9.0f));
+    }
+
+    [Fact]
+    public void IntelAllowed_OutsideBombingRun_IsFalseEvenWithFreeSlot()
+    {
+        // 状态门：入场/转弯/离场段一律不播。离场段只有 1.5s 且紧接着结算台词，
+        // 提示落在那儿只会被顶掉（单槽位）或落在结算画面上；台词槽位空着也不算窗口。
+        Assert.False(FormationComms.IntelAllowed(false, 0, 0.0f, LineWindow, 9.0f));
+        Assert.False(FormationComms.IntelAllowed(false, 1, 0.0f, LineWindow, 9.0f));
+        Assert.False(FormationComms.IntelAllowed(false, 1, 4.0f, LineWindow, 4.0f));
     }
 
     [Fact]
