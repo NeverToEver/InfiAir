@@ -252,9 +252,13 @@ def _check_shape(new: object, old: object, path: str = "") -> list[str]:
     elif isinstance(old, list):
         if not isinstance(new, list):
             return [f"{where}: 应为数组"]
-        if old and new:
-            for i, item in enumerate(new):
-                errs.extend(_check_shape(item, old[0], f"{where}[{i}]"))
+        if not old:
+            return errs  # 现文件该数组为空：无模板可判
+        for i, item in enumerate(new):
+            # 元素按位比对（超出长度的新元素拿首元素当模板）：对象数组在 UI 里按位置改值，
+            # 元素形状本就允许逐位不同（boss 某阶段的 waves / duration 交替），
+            # 一律拿 old[0] 当模板会对着原样文件报缺键——保存被整体拒掉，编辑器等于不可用。
+            errs.extend(_check_shape(item, old[i] if i < len(old) else old[0], f"{where}[{i}]"))
     elif isinstance(old, bool):  # bool 是 int 子类，必须先判
         if not isinstance(new, bool):
             errs.append(f"{where}: 应为布尔")
