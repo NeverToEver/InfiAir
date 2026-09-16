@@ -85,8 +85,6 @@ public partial class MothershipSummonWindow : CanvasLayer
     /// <summary>扫描带（纵向缓移的横向光带，机库纵深信号的常驻动效）。</summary>
     private ColorRect _scanBand = null!;
 
-    private long _feedStartMs;
-
     private readonly List<Line2D> _chargeLines = new();
 
     private readonly List<Sprite2D> _chargeSparks = new(); // 断开点软火花

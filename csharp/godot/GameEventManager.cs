@@ -450,14 +450,6 @@ public partial class GameEventManager : Node
         }
     }
 
-    /// <summary>全部事件终止（返航/死亡路径：迷雾清除 + 遭遇打断）。迷雾按**打断**收尾——
-    /// 没扛满整段就不给存活补偿，与「存活」语义一致。</summary>
-    public void EndAll()
-    {
-        EndFogInterrupted();
-        EndActive(GroupEncounter);
-    }
-
     /// <summary>当前 fog 事件剩余时长（无事件返回 0）。</summary>
     public float ActiveRemaining()
     {
