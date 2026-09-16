@@ -387,6 +387,7 @@ public partial class ProbeHost : Node
     private bool _bossCountdownSawFlip;
     private bool _bossCountdownDone;
 
+
     private bool _killAllProbe;
     private int _killAllIndex;
     private int _killAllPhase;
@@ -2174,6 +2175,21 @@ public partial class ProbeHost : Node
                 return;
 
             case 4:
+                // 狂暴子弹时间「自行复位」：子弹时间结束 + ramp 走完（TimeScaleRamp 回 -1）之后，
+                // 引擎倍率必须回到 1。写坏的表现是整局（含 Always 状态的菜单/结算 UI）以 0.24 播放——
+                // 不崩不报错、本趟原有五条断言（全读 Boss 自身状态）照旧成立；而锁血等待会被拉长
+                // 四倍先撞超时，所以这条必须**在等锁血之前**判，否则报出的是「锁血未解」而非病根。
+                // 判据读引擎真值：自算值说「复位了」而引擎仍被压死正是要抓的形态。
+                if (_main.BulletTime() <= 0.0f && _main.TimeScaleRamp() < 0.0f
+                    && !GameState.Instance.HitStopActive()
+                    && !Mathf.IsEqualApprox((float)Engine.TimeScale, 1.0f))
+                {
+                    BossProbeFail($"狂暴子弹时间未自行复位：ramp 已结束但 Engine.TimeScale 卡在 "
+                        + $"{(float)Engine.TimeScale:0.###}（第 {_frame} 帧）——"
+                        + "整局（含 Always 状态的菜单/结算 UI）将以该倍率播放");
+                    return;
+                }
+
                 // 狂暴序列期间锁血：先等子弹时间走完（主场景按真实帧长推进并自行复位时间缩放），
                 // 再等血锁在 RELEASE_HOLD 起点解除。锁血不解的表现是 Boss 永久无敌。
                 if (boss.IsHealthLocked())
