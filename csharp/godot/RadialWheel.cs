@@ -973,16 +973,18 @@ public partial class RadialWheel : Node2D
         var sweepRad = Mathf.DegToRad(sweepDeg);
 
         // 面包屑内环（已下钻的旧层级：暗钢细环 + 受光/背光缘线，随收缩一起缩放）
+        // 底色取 UITheme 暖暗钢 token：冷蓝底会在琥珀主题里留下一圈蓝灰（全息青已退役）
         for (var j = 0; j < depth - 1; j++)
         {
             var rj = Radius * Mathf.Pow(RingQ, depth - 1 - j) * cs;
-            c.DrawArc(Vector2.Zero, rj, 0f, Mathf.Tau, 64, new Color(0.10f, 0.14f, 0.20f, 0.42f * cIn), 14f, true);
+            c.DrawArc(Vector2.Zero, rj, 0f, Mathf.Tau, 64, new Color(UITheme.PanelSteelTint, 0.42f * cIn), 14f, true);
             c.DrawArc(Vector2.Zero, rj - 8f, 0f, Mathf.Tau, 64, new Color(0f, 0f, 0f, 0.35f * cIn), 1f, true);
             c.DrawArc(Vector2.Zero, rj + 8f, 0f, Mathf.Tau, 64, new Color(UITheme.PanelBorder, 0.16f * cIn), 1f, true);
         }
 
         // 内域暗面 + 装饰导引弧 + 轮毂刻度环 + 返回芯片（回上一层的常驻入口）
-        c.DrawCircle(Vector2.Zero, (HubR + 40f) * cs, new Color(0.016f, 0.03f, 0.055f, 0.85f * cIn));
+        // 暗面取 UITheme.BgDeepest（暖黑）：冷蓝暗面在琥珀主题里读成一块发灰的补丁
+        c.DrawCircle(Vector2.Zero, (HubR + 40f) * cs, new Color(UITheme.BgDeepest, 0.85f * cIn));
         c.DrawArc(Vector2.Zero, (HubR + 40f) * cs, 0f, Mathf.Tau, 48, new Color(UITheme.PanelBorder, 0.25f * cIn), 1.5f, true);
         c.DrawArc(Vector2.Zero, (HubR + 40f + (Radius - BandW * 0.5f - HubR - 40f) * 0.45f) * cs, 0f, Mathf.Tau, 64,
             new Color(UITheme.PanelBorder, 0.10f * cIn), 1f, true);
@@ -1344,7 +1346,8 @@ public partial class RadialWheel : Node2D
         var socketC = new Vector2(-CardW * 0.5f + 50f, 0f);
         var socketWorld = pos + (socketC * cardScale).Rotated(rot);
         c.DrawSetTransform(socketWorld, rot, new Vector2(cardScale, cardScale));
-        c.DrawPolygon(SocketPts, Fill(SocketFill, new Color(0.024f, 0.040f, 0.066f, 0.92f * alpha), SocketFill.Length));
+        // 槽底取 UITheme.SlotDark（同语义 token：槽的暗底）——冷蓝底与卡片/条带的暖炭值不同族
+        c.DrawPolygon(SocketPts, Fill(SocketFill, new Color(UITheme.SlotDark, 0.92f * alpha), SocketFill.Length));
         if (h > 0.01f)
         {
             c.DrawPolygon(SocketPts, Fill(SocketFill, new Color(UITheme.Accent, 0.10f * h * alpha), SocketFill.Length));
