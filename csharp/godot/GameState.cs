@@ -677,12 +677,14 @@ public partial class GameState : Node
     /// <summary>屏幕震动唯一入口（所有来源的震动强度在此按无障碍倍率折算后累加 trauma）。
     /// 倍率 0 = 完全关闭画面震动；过场内部的镜头抖动不走本入口，属演出编排不经此缩放。
     /// 相机位移改由 CameraShake 每帧按 trauma^2 采样（Eiserloh trauma 惯例）：小额冲击近乎无感、
-    /// 大额才猛烈，高频抖动不再叠加成持续晃动；信号仍在发（WorldPostFx 的重击脉冲按原始强度取阈）。</summary>
+    /// 大额才猛烈，高频抖动不再叠加成持续晃动。
+    /// 信号发的是**原始强度**：WorldPostFx 的重击泛光脉冲按未折算值取阈（量程 8~24）——
+    /// 发折算值会让「屏幕震动强度」滑杆 ≤33% 时连泛光一起关掉，而它与「减少闪光」是两个
+    /// 独立的无障碍项（滑杆只管运动，不该连坐频闪层）。</summary>
     public void Shake(double strength)
     {
-        var scaled = strength * _settings.ShakeScale;
-        _gameFeel.AddShake(scaled);
-        EmitSignal(SignalName.ScreenShake, scaled);
+        _gameFeel.AddShake(strength * _settings.ShakeScale);
+        EmitSignal(SignalName.ScreenShake, strength);
     }
 
     /// <summary>命中顿帧请求（唯一入口）：档位在 balance.json effects.hit_stop.* 取时长。
