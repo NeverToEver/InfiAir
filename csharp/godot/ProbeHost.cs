@@ -295,6 +295,8 @@ public partial class ProbeHost : Node
 
     /// <summary>弹反拆弹路径（IParryable 入口）：是否已发起、发起前的连击/分数、奖励下界与等待帧。</summary>
     private bool _parryProbeFired;
+    /// <summary>已反射的那枚弹（命中即入池释放，实例失效即「已消耗」）。</summary>
+    private FormationBomb? _parryProbeBomb;
 
     private bool _parryProbeVerified;
 
@@ -2858,19 +2860,21 @@ public partial class ProbeHost : Node
         {
             var reward = System.Math.Max((int)gs.Cfg("elite_turret_event.reward_score", 0).AsInt64(), 0);
             var turretScore = System.Math.Max((int)gs.Cfg("elite_turret_event.turret_score", 0).AsInt64(), 0);
-            return (reward + (KillAllProbeCount("elite_turret_event.turret_counts", gs) * turretScore)) * mult;
+            var turretCounts = gs.Cfg("elite_turret_event.turret_counts", new Godot.Collections.Dictionary());
+            return (reward + (KillAllProbeCount(turretCounts, gs) * turretScore)) * mult;
         }
 
         var allClear = System.Math.Max((int)gs.Cfg("formation_strike_event.reward_all_clear", 0).AsInt64(), 0);
         var craftScore = System.Math.Max((int)gs.Cfg("formation_strike_event.craft_score", 0).AsInt64(), 0);
-        return (allClear + (KillAllProbeCount("formation_strike_event.craft_counts", gs) * craftScore)) * mult;
+        var craftCounts = gs.Cfg("formation_strike_event.craft_counts", new Godot.Collections.Dictionary());
+        return (allClear + (KillAllProbeCount(craftCounts, gs) * craftScore)) * mult;
     }
 
     /// <summary>按当前难度档读「本档单位数」（turret_counts / craft_counts 同构）：坏值一律回 0，
-    /// 下界只靠档位奖励兜底（判据不因配置损坏而失配）。</summary>
-    private static int KillAllProbeCount(string cfgKey, GameState gs)
+    /// 下界只靠档位奖励兜底（判据不因配置损坏而失配）。计数表由调用方经 Cfg 取好传入——
+    /// 键字面量留在调用点，包装器不藏 balance 键（balance 读取面门禁按实参判路径）。</summary>
+    private static int KillAllProbeCount(Variant counts, GameState gs)
     {
-        var counts = gs.Cfg(cfgKey, new Godot.Collections.Dictionary());
         if (counts.VariantType != Variant.Type.Dictionary)
         {
             return 0;
@@ -3298,6 +3302,7 @@ public partial class ProbeHost : Node
                 }
 
                 _parryProbeFired = true;
+                _parryProbeBomb = bomb;
                 _parryWaitFrames = 0;
                 _parryComboBefore = gs.Combo;
                 _parryScoreBefore = gs.Score;
@@ -3346,11 +3351,20 @@ public partial class ProbeHost : Node
             return;
         }
 
+        // 反射弹已消耗（命中编队机）却仍无连击：直接指出是拆弹分这条路径断了——
+        // 只报「等超时」会把定位信息丢给读日志的人（命中当帧即可判定，不必等满超时）
+        if (_parryProbeBomb != null && GodotObject.IsInstanceValid(_parryProbeBomb)
+            && _parryProbeBomb.IsParked() && _parryProbeBomb.Intercepted && gs.Combo <= _parryComboBefore)
+        {
+            GD.PushError("[event-probe] formation_strike 反射弹已命中编队机（Intercepted 已置位）但连击未 +1——"
+                + "弹反路径的拆弹分未走 AddKillScore（更难的应对收益反而低于直接击落）");
+            _eventId = "";
+            return;
+        }
+
         if (++_parryWaitFrames > ParryProbeTimeoutFrames)
         {
-            GD.PushError(GdFormat.Format(
-                "[event-probe] formation_strike 反射弹 %d 帧内未命中编队机——弹反拆弹路径断言未执行",
-                ParryProbeTimeoutFrames));
+            GD.PushError($" 反射弹 {ParryProbeTimeoutFrames} 帧内未命中编队机——弹反拆弹路径断言未执行");
             _eventId = "";
         }
     }
