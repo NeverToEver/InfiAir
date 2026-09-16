@@ -311,11 +311,12 @@ public partial class Hud : CanvasLayer
         _bossTicks.MouseFilter = Control.MouseFilterEnum.Ignore;
         _bossBar.AddChild(_bossTicks);
         // Boss 血条背板：名牌 + 血条整体纳入切角面板（与角落板块同一语系，随血条显隐；
-        // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）
+        // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）。顶位/高度单源在 core HudLayout：
+        // 逃跑倒计时的顶位由同模块推出，改背板高必然带动倒计时位（原实现两处各写字面量，倒计时压在背板上）
         _bossPlate = new ChamferedPanel
         {
-            Position = new Vector2(-320.0f, 4.0f),
-            Size = new Vector2(640.0f, 88.0f),
+            Position = new Vector2(-320.0f, HudLayout.BossPlateTop),
+            Size = new Vector2(640.0f, HudLayout.BossPlateHeight),
             Brackets = true,
             EdgeRivets = true,
             Visible = false,
@@ -324,10 +325,10 @@ public partial class Hud : CanvasLayer
         _bossPlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         AddChild(_bossPlate);
         MoveChild(_bossPlate, _bossBar.GetIndex()); // 绘制序压在血条之下
-        // Boss 逃跑倒计时（血条下方，剩余 ≤10s 起显示，红色闪烁）
+        // Boss 逃跑倒计时（背板下缘之外，剩余 ≤10s 起显示，红色闪烁）
         _bossCountdown = new Label
         {
-            Position = new Vector2(-100.0f, 78.0f),
+            Position = new Vector2(-100.0f, HudLayout.BossCountdownTop),
             CustomMinimumSize = new Vector2(200.0f, 0.0f),
             HorizontalAlignment = HorizontalAlignment.Center,
             Visible = false,

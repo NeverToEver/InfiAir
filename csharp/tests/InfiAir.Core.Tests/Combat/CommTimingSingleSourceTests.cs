@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Xunit;
 
 namespace InfiAir.Core.Tests.Combat;
@@ -14,28 +13,11 @@ public sealed class CommTimingSingleSourceTests
     [Fact]
     public void CommOverlay_ReferencesCoreTimingConstantsWithoutLocalCopies()
     {
-        var src = File.ReadAllText(Path.Combine(RepoRoot(), "csharp", "godot", "CommOverlay.cs"));
+        var src = RepoFiles.Read("csharp/godot/CommOverlay.cs");
         Assert.Contains("FormationComms.HoldTime", src, StringComparison.Ordinal);
         Assert.Contains("FormationComms.CharInterval", src, StringComparison.Ordinal);
         // 副本形态：再声明一次同名常量（改一侧不改另一侧时两侧都是「正常」字面量，判不出来）
         Assert.DoesNotContain("const float HoldTime", src, StringComparison.Ordinal);
         Assert.DoesNotContain("const float CharInterval", src, StringComparison.Ordinal);
-    }
-
-    /// <summary>仓库根（含 InfiAir.sln）：测试输出目录逐级上溯，不依赖当前工作目录。</summary>
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "InfiAir.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("未找到仓库根（InfiAir.sln）：单源判定取不到判据，显式失败");
     }
 }
