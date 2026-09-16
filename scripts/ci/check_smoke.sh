@@ -85,6 +85,7 @@ run_case() {
   local -a scene_args=()
   [ -n "$scene" ] && scene_args=(--scene "$scene")
   local -a env_args=()
+  local -a expect_args=()
   if [ -n "$userdir" ]; then
     # 先复位再建：探针会往自己的用户目录写存档/设置（恶意档趟写 run.json/settings.json，
     # 返航趟走生产存档出口），残留会让下一趟（或同目录重跑）读到上一趟的档而判红
@@ -92,15 +93,37 @@ run_case() {
     # 且每趟需要的预置状态都在趟内自备（恶意档/检查点均由探针自己写出），故清空安全。
     rm -rf "$userdir"
     mkdir -p "$userdir"
-    # 隔离用户数据目录：Windows 读 APPDATA（须 Windows 路径），Linux 读 XDG_DATA_HOME
+    # 隔离用户数据目录：Windows 读 APPDATA（须 Windows 路径），Linux 读 XDG_DATA_HOME，
+    # macOS 读 HOME——三处都指到本趟临时目录，否则 macOS 上 user:// 落在真实
+    # ~/Library/Application Support/Godot/app_userdata/InfiAir：恶意档趟覆写、死亡删档趟
+    # 删掉开发者的真实检查点，而门禁照旧全绿。
     local win_dir="$userdir"
     command -v cygpath >/dev/null 2>&1 && win_dir="$(cygpath -w "$userdir")"
-    env_args=(env "APPDATA=$win_dir" "XDG_DATA_HOME=$userdir")
+    env_args=(env "APPDATA=$win_dir" "XDG_DATA_HOME=$userdir" "HOME=$userdir")
+    # 显式期望值交给探针（ProbeHost 在 _Ready 比对引擎实际 user:// 路径，不符即报错）；
+    # 格式为绝对路径、正斜杠分隔。脚本侧另有与探针实现无关的日志判据（见下方隔离断言），
+    # 覆盖 main/tutorial 这类不经探针宿主的趟。
+    expect_args=(--expect-user-dir="${win_dir//\\//}")
+  else
+    echo "::error::$label 未给用户目录——不隔离的趟会读走开发者配置、写坏开发者当前存档，" \
+         "且同目录重跑会读到上一趟的残留（AGENTS §5）"
+    return 1
   fi
   if ! "${env_args[@]}" "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$frames" \
-      "${scene_args[@]}" -- "$@" > "$log" 2>&1; then
+      "${scene_args[@]}" -- "$@" "${expect_args[@]}" > "$log" 2>&1; then
     echo "::error::$label failed"
     tail -30 "$log"
+    return 1
+  fi
+  # 隔离判据（与探针实现无关）：引擎的 user:// 若没落在本趟临时目录内，这里就看不到它写出的
+  # user://logs/godot.log——隔离失效必须显式判红并指明是哪趟，否则开发者的真实检查点被删/
+  # 被覆写而门禁全绿（AGENTS §6 铁律 2）。
+  local user_log=""
+  user_log="$(find "$userdir" -type f -name 'godot.log' -print -quit 2>/dev/null)"
+  if [ -z "$user_log" ]; then
+    echo "::error::$label 用户目录隔离未生效：$userdir 下没有引擎写出的 user:// 日志" \
+         "（隔离环境变量没被引擎采纳？引擎版本换了日志落点？）——本趟可能已读写开发者本机数据"
+    ls -la "$userdir" 2>/dev/null | head -5
     return 1
   fi
   # 错误行判定先落文件再取内容，不用 `grep | grep -v | grep -q` 管道：错误行极多时 `grep -q` 一命中
