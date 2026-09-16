@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -25,7 +26,9 @@ public partial class AimFrameLayer : Node2D
 
     /// <summary>当前档位辅助框内边距（balance.json player.aim_assist.levels，信号联动刷新）。</summary>
     private float _framePad = 16.0f;
-    /// <summary>准星磁吸档位参数（同 levels 前缀、同信号刷新）。</summary>
+    /// <summary>准星磁吸档位参数（同 levels 前缀、同信号刷新）。负值属配置损坏，读取处按
+    /// core <see cref="AimAssistParams.NonNegativeOr"/> 回退默认——钳成 0 等于磁吸失效/反向
+    /// （护栏加在诊断读口上而不在这里，就是原缺陷的形态）。</summary>
     private float _magnetRange = 100.0f;
     private float _magnetStrength = 6.0f;
     private float _magnetMaxSpeed = 8.0f;
@@ -86,13 +89,19 @@ public partial class AimFrameLayer : Node2D
         }
 
         LoadLevelParams();
-        _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
-        _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
-        // full 钳到 min 之上——两键相等时 MagnetPull 的 t = 0/0 = NaN 污染准星
-        _magnetInputFull = Mathf.Max(_magnetInputFull, _magnetInputMin + 0.01f);
-        _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
-        _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
-        _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
+        // 输入窗口与衰减域一律经 core AimAssistParams 钳（与 Player.LoadAimAssistParams 同口径）：
+        // 负值属配置损坏，回退默认而非钳 0（0 是「机制关闭」的合法取值，与损坏不是一个语义）
+        (_magnetInputMin, _magnetInputFull) = AimAssistParams.MagnetWindow(
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble(),
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble(),
+            _magnetInputMin,
+            _magnetInputFull);
+        _falloffPeak = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble(), _falloffPeak);
+        _falloffEnd = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble(), _falloffEnd);
+        _falloffMin = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), _falloffMin);
         if (gs != null)
         {
             gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistChanged);
@@ -122,10 +131,15 @@ public partial class AimFrameLayer : Node2D
     private void LoadLevelParams()
     {
         var basePath = "player.aim_assist.levels." + GameState.Instance.AimAssistLevel.ToString() + ".";
-        _framePad = (float)GameState.Instance.Cfg(basePath + "frame_pad", _framePad).AsDouble();
-        _magnetRange = (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble();
-        _magnetStrength = (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble();
-        _magnetMaxSpeed = (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
+        // 负值口径见字段注释：损坏回退默认，不是钳 0
+        _framePad = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "frame_pad", _framePad).AsDouble(), _framePad);
+        _magnetRange = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), _magnetRange);
+        _magnetStrength = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), _magnetStrength);
+        _magnetMaxSpeed = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), _magnetMaxSpeed);
     }
 
     private void OnAimAssistLevelChanged(StringName level)

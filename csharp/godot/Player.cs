@@ -429,12 +429,19 @@ public partial class Player : CharacterBody2D
             CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
             CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
-        // aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
-        _magnetInputMin = CfgFx.Float("player.aim_assist.input.magnet_input_min", _magnetInputMin, 0.0f);
-        _magnetInputFull = CfgFx.Float("player.aim_assist.input.magnet_input_full", _magnetInputFull, 0.0f);
-        _falloffPeak = CfgFx.Float("player.aim_assist.falloff.peak", _falloffPeak, 0.0f);
-        _falloffEnd = CfgFx.Float("player.aim_assist.falloff.end", _falloffEnd, 0.0f);
-        _falloffMin = CfgFx.Float("player.aim_assist.falloff.min", _falloffMin, 0.0f);
+        // aim_assist.input/falloff 域钳经 core——负值磁吸力/衰减域反转，与 AimFrameLayer 的
+        // 读取点同口径（那侧才是磁吸算术的消费方，本侧同名参数只喂诊断读口 AimAssistParams）
+        (_magnetInputMin, _magnetInputFull) = Core.Combat.AimAssistParams.MagnetWindow(
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble(),
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble(),
+            _magnetInputMin,
+            _magnetInputFull);
+        _falloffPeak = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble(), _falloffPeak);
+        _falloffEnd = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble(), _falloffEnd);
+        _falloffMin = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), _falloffMin);
         LoadAimAssistParams();
         // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖
         var ws = (float)GameState.Instance.WorldScale;
@@ -662,6 +669,8 @@ public partial class Player : CharacterBody2D
 
     public void SetFineToggle(bool enabled) => _fineToggleOn = enabled;
 
+    /// <summary>辅助瞄准档位参数读数（白盒调参观察面，非判定输入——真正的磁吸/锥形算术在
+    /// AimFrameLayer，两侧共用 core <c>AimAssistParams</c> 的域钳口径，不再各写一份）。</summary>
     public Godot.Collections.Dictionary AimAssistParams() => new()
     {
         ["homing_turn_rate"] = _homingTurnRate,
@@ -1197,37 +1206,55 @@ public partial class Player : CharacterBody2D
             var view = GameState.Instance.ViewWorldRect();
             var inset = new Vector2(AimClampInset, AimClampInset);
             desired = desired.Clamp(view.Position + inset, view.End - inset);
-            if ((desired - raw).LengthSquared() > 0.25f)
-            {
-                GetViewport().WarpMouse(GetCanvasTransform() * desired);
-            }
+            _aimWarpFrame = frame;
+            _aimWarpDone = false;
+            _aimWarpDriftSq = (desired - raw).LengthSquared();
+            _aimWarpTarget = desired;
 
             _aimSmooth = desired;
             _aimLastRaw = desired;
             _aimInitialized = true;
         }
 
+        // 光标回写与瞄准活跃态同门控（见 AimActive）：回写是表现副作用，只有准星可见时才做。
+        // 不按调用方区分——纯读取方（AimFrameLayer 的 hover 查询）走 AimPointNoWarp，本帧的推点方
+        // 仍能回写；同帧多次调用只回写一次（帧内目标一致）。
+        if (warp && !_aimWarpDone && _aimWarpFrame == frame && AimActive() && _aimWarpDriftSq > 0.25f)
+        {
+            GetViewport().WarpMouse(GetCanvasTransform() * _aimWarpTarget);
+            _aimWarpDone = true;
+        }
+
         return _aimSmooth;
     }
 
-    /// <summary>读取当前强度档位参数（balance.json player.aim_assist.levels.&lt;level&gt;）。</summary>
+    /// <summary>读取当前强度档位参数（balance.json player.aim_assist.levels.&lt;level&gt;）。
+    /// 域钳经 core <see cref="AimAssistParams"/>（与 AimFrameLayer 同口径：负值属配置损坏，
+    /// 回退默认而非钳 0——0 是「该机制关闭」的合法取值）。</summary>
     private void LoadAimAssistParams()
     {
         var level = (string)(StringName)GameState.Instance.AimAssistLevel;
         var basePath = "player.aim_assist.levels." + level + ".";
-        // 档位参数钳 ≥0——负值致追踪/磁吸反向
-        _homingTurnRate = Mathf.Max((float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble(), 0.0f);
-        _aimStickFactor = Mathf.Max((float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble(), 0.0f);
-        HomingTime = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble(), 0.0f);
+        // 档位参数钳非负——负值致追踪/磁吸反向
+        _homingTurnRate = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble(), _homingTurnRate);
+        _aimStickFactor = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble(), _aimStickFactor);
+        HomingTime = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble(), HomingTime);
         // cone_angle_deg 钳 [0,360]——越界角度（负/超 360）致 coneCos 周期折叠，
         // 锥形弱追踪判定失真（360 时 cos=1 → angT 0/0=NaN，NaN 守卫兜底）
         _coneAngleDeg = Mathf.Clamp((float)GameState.Instance.Cfg(basePath + "cone_angle_deg", _coneAngleDeg).AsDouble(), 0.0f, 360.0f);
         // 档位语义＝半角（接受域 ±cone_angle_deg）；口径与换算单源在 core AimCone
         _coneCos = Core.Combat.AimCone.CosFromHalfAngleDeg(_coneAngleDeg);
-        _coneStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), 0.0f);
-        _magnetRange = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), 0.0f);
-        _magnetStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), 0.0f);
-        _magnetMaxSpeed = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), 0.0f);
+        _coneStrength = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), _coneStrength);
+        _magnetRange = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), _magnetRange);
+        _magnetStrength = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), _magnetStrength);
+        _magnetMaxSpeed = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), _magnetMaxSpeed);
         // 摇杆瞄准响应曲线指数：钳 ≥1.0——<1 会变成轻推即满速的反曲线
         _aimJoyExpo = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.joy_expo", _aimJoyExpo).AsDouble(), 1.0f);
     }
