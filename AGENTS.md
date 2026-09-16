@@ -81,6 +81,7 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 | `dotnet build` | 零警告（TreatWarningsAsErrors；该属性与 `InfiAir.sln` 的主工程 Release 映射由 `check_gate_wiring.sh` 断言——改掉一两行配置就能把「零警告」静默降级成「零 error」） |
 | `bash scripts/ci/check_unit_tests.sh` | `csharp/core/` 纯逻辑单测 |
 | `bash scripts/ci/check_balance_keys.sh` | 代码读的 balance 键真实存在（防键名写错静默回退默认值）；只认完整点分路径，不做后缀放宽（后缀命中的前缀写错正是要抓的静默错误）；未登记的转发包装器按「实参里出现点分路径字面量」识别（只看名字含 cfg 的包装器，改名即可绕过） |
+| `bash scripts/ci/check_balance_dead_keys.sh` | balance 反向（正向见上一行）：每个叶子键都有读取证据——字面量（`"a.b.c"` 出现在 `csharp/`）/ 动态键族（键模板 + 取值源，族内键由单源展开成具体键集，写错的键仍判红）/ 整表读取（容器被 `Cfg` 整取后按键迭代，逐条登记）。无人读的死配置与键名写错判红；键族空转、整表登记指向不存在的路径、叶子键总数低于下限即红 |
 | `bash scripts/ci/check_code_defaults.sh` | 代码内缺档回退默认值 == balance 定稿值（防手抄分叉：json 缺失/损坏时静默用错值，编译/单测/冒烟都抓不到）；登记表逐张声明预期条目数，取不到判据（文件/符号/键缺、条目数不符、零比对）即红 |
 | `bash scripts/ci/check_save_symmetry.sh` | 存档写读字段一一对应（防进度静默丢失）；键集为空即红（防正则/结构漂移造成假绿） |
 | `bash scripts/ci/check_settings_symmetry.sh` | 设置写读字段一一对应 + 设置页文案键存在；键集为空即红 |
