@@ -179,7 +179,9 @@ public partial class GameState : Node
         // 必须落在 combat 步之后：extra_life 层级已还原，此时 MaxHealth 才是正确上限。
         EmitSignal(SignalName.HealthChanged, (float)Health);
 
-        // 3) score
+        // 3) score。RunTime 先还原：本步与后续各服务的 RestoreRunState 都会补发信号驱动 HUD 重建，
+        // 订阅方（HUD 目标行/长局读数）读 RunTime——放在信号之后还原会让它们读到复位值 0。
+        RunTime = Math.Max(SaveNum(d.GetValueOrDefault("run_time", 0.0), 0.0), 0.0);
         _score.RestoreRunState(
             SaveInt(d.GetValueOrDefault("score", 0), 0),
             SaveInt(d.GetValueOrDefault("kills", 0), 0),
@@ -188,7 +190,6 @@ public partial class GameState : Node
             SaveInt(d.GetValueOrDefault("milestone_count", 0), 0));
 
         // 4) progress
-        RunTime = Math.Max(SaveNum(d.GetValueOrDefault("run_time", 0.0), 0.0), 0.0);
         _runProg.RestoreRunState(
             SaveNum(d.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0),
             SaveInt(d.GetValueOrDefault("difficulty_time_step", 0), 0),

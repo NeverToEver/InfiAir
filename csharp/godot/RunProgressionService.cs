@@ -408,6 +408,9 @@ public sealed partial class RunProgressionService : RefCounted
     }
 
     /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新。
+    /// 末尾补发 DifficultyChanged——HUD 难度读数只在难度信号/语言变更时刷新（无轮询），
+    /// 漏发则读档后最长停到下一次时间档跨步（30 秒量化）才显示真实难度，与
+    /// DESIGN_BASELINE §2.5「各服务 RestoreRunState 末尾补发既有信号」不符（姊妹服务均已如此）。
     /// **DDA 剩余时长会一并还原**（键 `dda_timer` 写读成对，见存档对称门禁）——受击喘息是有界量
     /// （≤`DDA_DURATION`），带过读档边界对读档手感的影响在噪声内；改动此处须同步
     /// DESIGN_BASELINE §2.5 的字段表（不得只改一侧：键留着不读会掉出写读对称判定）。</summary>
@@ -417,5 +420,6 @@ public sealed partial class RunProgressionService : RefCounted
         _difficultyTimeStep = Math.Max(difficultyTimeStep, 0);
         _ddaTimer = Math.Max(ddaTimer, 0.0);
         RefreshRegenCache();
+        DifficultyChanged?.Invoke(DifficultyMultiplier);
     }
 }
