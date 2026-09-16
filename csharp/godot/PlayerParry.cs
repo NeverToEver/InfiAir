@@ -75,6 +75,10 @@ public partial class PlayerParry : RefCounted
     /// <summary>尝试启动：仅 IDLE 且冷却结束可启动（Player 门面已校验输入）。</summary>
     public bool TryStart() => _timeline.TryStart();
 
+    /// <summary>取消进行中的流程（外部编排锁输入时调用；语义与不追加冷却的理由见
+    /// <see cref="ParryTimeline.Cancel"/>）。</summary>
+    public void Cancel() => _timeline.Cancel();
+
     /// <summary>流程推进（Player._PhysicsProcess 每帧调用）：IDLE 期冷却递减；流程期按相位时长推进。</summary>
     public void Tick(float delta) => _timeline.Tick(delta);
 

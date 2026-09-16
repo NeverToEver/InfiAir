@@ -694,7 +694,17 @@ public partial class Player : CharacterBody2D
     public static float DistFalloffCurve(float d, float peak, float end, float minV)
         => AimFalloff.Evaluate(d, peak, end, minV);
 
-    public void LockInput() => _inputLocked = true;
+    /// <summary>锁输入（返航过场/母舰召唤与对接等编排窗口）。同时**显式中止**冲刺与弹反：
+    /// 锁定期的物理早退会让两者的时间轴一起冻结（Tick 在早退之后），解锁后第一帧会用旧 DashDir
+    /// 把残余冲刺跑完（最多一个 dash_distance + 残影），弹反若停在 ACTIVE 会重新打开盾判定并闪一次
+    /// 金光（不按键出现整段有效窗口）。盾视觉一并归位——否则盾面停在锁定前的展开形态、整段可见。</summary>
+    public void LockInput()
+    {
+        _inputLocked = true;
+        _dash.Cancel();
+        _parry.Cancel();
+        _visuals.UpdateParryVisuals(0.0f, 0.0f, ParryRadius, ParryArcDeg, 0.0f, _simTime);
+    }
 
     public void UnlockInput() => _inputLocked = false;
 

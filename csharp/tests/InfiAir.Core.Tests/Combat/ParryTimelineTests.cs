@@ -219,6 +219,39 @@ public sealed class ParryTimelineTests
     }
 
     [Fact]
+    public void CancelFromActive_LeavesNoGhostWindow()
+    {
+        // 输入锁打断（Tick 停摆 → 相位冻在中断点）：取消后不得留下残留判定，
+        // 否则解锁第一帧会重新打开有效窗口（不按键出现整段盾 + 一次金光）
+        var timeline = Production();
+        Assert.True(timeline.TryStart());
+        while (timeline.Phase != ParryPhase.Active)
+        {
+            timeline.Tick(Frame);
+        }
+
+        timeline.Cancel();
+        Assert.Equal(ParryPhase.Idle, timeline.Phase);
+        Assert.False(timeline.IsFlowing());
+        Assert.Equal(0.0f, timeline.ShieldExpand(), 6); // 盾视觉归位（残留展开＝可见的幽灵盾）
+        Assert.Equal(0.0f, timeline.TintStrength(), 6);
+        Assert.True(timeline.TryStart(), "取消不追加冷却：解锁后应立即可用");
+    }
+
+    [Fact]
+    public void CancelFromIdle_IsNoOp()
+    {
+        // 幂等：待机期取消不得改动相位与冷却进度（重复锁输入不得吞掉冷却）
+        var timeline = Production();
+        CompleteFlow(timeline);
+        timeline.Tick(Frame);
+        var cooldownBefore = timeline.Cooldown;
+        timeline.Cancel();
+        Assert.Equal(ParryPhase.Idle, timeline.Phase);
+        Assert.Equal(cooldownBefore, timeline.Cooldown);
+    }
+
+    [Fact]
     public void PhaseIdsMatchEngineSideOrdinal()
     {
         // HUD/探针按 int 读相位（Player.ParryPhase() 返回 (int)Phase）：序数不得重排

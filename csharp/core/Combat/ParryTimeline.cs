@@ -124,6 +124,22 @@ public sealed class ParryTimeline
         return true;
     }
 
+    /// <summary>外部中断（输入锁等编排原因）：取消进行中的流程回到待机，**不追加冷却**——
+    /// 打断不是玩家的决策失误，追加惩罚会让「母舰召唤」顺手吃掉一次弹反。冷却保持原值
+    ///（流程期为 0 = 解除后立刻可用）。存在的理由：输入锁期 Tick 停摆，相位会冻在中断点，
+    /// 解锁后第一帧重新打开 ACTIVE 判定（不按键出现整段有效窗口 + 一次金光）。
+    /// 幂等：IDLE 期调用无副作用。</summary>
+    public void Cancel()
+    {
+        if (Phase == ParryPhase.Idle)
+        {
+            return;
+        }
+
+        Phase = ParryPhase.Idle;
+        FlowTimer = 0.0f;
+    }
+
     /// <summary>流程推进（每物理帧调用）：IDLE 期冷却递减；流程期按相位时长推进。
     /// 每帧至多推进一个相位（与帧长无关的相位机，不是「按经过时间补相位」）。</summary>
     public void Tick(float delta)
