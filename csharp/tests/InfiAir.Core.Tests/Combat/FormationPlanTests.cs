@@ -52,6 +52,42 @@ public sealed class FormationPlanTests
     }
 
     [Fact]
+    public void DropRank_BreaksTiesBySlotBeyondInsertionSortSize()
+    {
+        // 「同距离按槽位定序」的判别式必须跨过 .NET 排序实现的插入排序分界：Array.Sort 对
+        // 长度 ≤16 的输入走插入排序，比较器返回 0 时不交换（天然稳定），于是删掉第二排序键
+        // 的变异在 5 元素楔形上照样全绿——契约（Schedule 按 rank[craft] 决定先投哪一架）
+        // 会在排序实现变化或编队规模超过 16 后静默漂移。故这里用 ≥20 个严格等距槽位：
+        // 名次只能由槽位索引决定，与排序算法无关。
+        var slots = new FormationPlan.Slot[24];
+        for (var i = 0; i < slots.Length; i++)
+        {
+            // 同一距离圆上的四个方向轮流取点：LengthSquared 逐位等于 10000（严格等距，无浮点误差）
+            slots[i] = (i % 4) switch
+            {
+                0 => new FormationPlan.Slot(100.0f, 0.0f),
+                1 => new FormationPlan.Slot(-100.0f, 0.0f),
+                2 => new FormationPlan.Slot(0.0f, 100.0f),
+                _ => new FormationPlan.Slot(0.0f, -100.0f),
+            };
+        }
+
+        var rank = FormationPlan.DropRank(slots);
+        for (var i = 0; i < rank.Length; i++)
+        {
+            Assert.Equal(i, rank[i]);
+        }
+
+        // 大楔形（≥17 架，越过插入排序分界）同样逐位自定序：等距的两架按槽位先后
+        var wedge = FormationPlan.Wedge(21, 55.0f);
+        var wedgeRank = FormationPlan.DropRank(wedge);
+        for (var i = 0; i < wedgeRank.Length; i++)
+        {
+            Assert.Equal(i, wedgeRank[i]);
+        }
+    }
+
+    [Fact]
     public void DropRank_PutsNearerWingBeforeFartherOne()
     {
         // 手写乱序槽位：名次只由到长机距离决定，与槽位排列无关
