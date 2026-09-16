@@ -960,7 +960,7 @@ public partial class SettingsUi : RadialMenuLayer
         row.AddThemeConstantOverride("separation", 16);
         parent.AddChild(row);
         var label = UITheme.MakeLabel(labelText, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        label.CustomMinimumSize = new Vector2(240.0f, 0.0f);
+        label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
         var hold = UITheme.MakeToggleButton(Tr("SET_HOLD"), group);
         var toggle = UITheme.MakeToggleButton(Tr("SET_TOGGLE"), group);
