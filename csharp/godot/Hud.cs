@@ -295,15 +295,15 @@ public partial class Hud : CanvasLayer
         BuildBackplates();
         BuildBanner();
         BuildChargeBars();
-        // 名牌行占位：血条整体下移 30px，上方留出一行型号 + 阶段标签
-        _bossBar.OffsetTop += 30.0f;
-        _bossBar.OffsetBottom += 30.0f;
+        // 名牌行占位：血条整体下移，上方留出一行型号 + 阶段标签（下移量＝名牌行带高，单源 core）
+        _bossBar.OffsetTop += HudLayout.BossNameRowHeight;
+        _bossBar.OffsetBottom += HudLayout.BossNameRowHeight;
         // Boss 名牌（型号 + 阶段，血条子节点随其显隐；事件与 Boss 互斥不会同屏）
         // 深色底衬保证叠在 Boss 机体/辉光上时可读
         var namePlate = new PanelContainer
         {
-            Position = new Vector2(-300.0f, -34.0f),
-            CustomMinimumSize = new Vector2(600.0f, 0.0f),
+            Position = new Vector2(HudLayout.BossBarLeft, HudLayout.BossNameRowTopInBar),
+            CustomMinimumSize = new Vector2(HudLayout.BossBarWidth, 0.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         namePlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
@@ -324,12 +324,14 @@ public partial class Hud : CanvasLayer
         _bossTicks.MouseFilter = Control.MouseFilterEnum.Ignore;
         _bossBar.AddChild(_bossTicks);
         // Boss 血条背板：名牌 + 血条整体纳入切角面板（与角落板块同一语系，随血条显隐；
-        // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）。顶位/高度单源在 core HudLayout：
-        // 逃跑倒计时的顶位由同模块推出，改背板高必然带动倒计时位（原实现两处各写字面量，倒计时压在背板上）
+        // 名牌行与血条带都落在背板之内）。顶位/高度/名牌行与血条带的顶位单源在 core HudLayout：
+        // 逃跑倒计时的顶位由同模块推出，改背板高必然带动倒计时位（原实现三处各写字面量，
+        // 倒计时压在背板上、血条出背板都只能靠人工发现）
+        var bossPlateBox = HudLayout.BossPlateBox;
         _bossPlate = new ChamferedPanel
         {
-            Position = new Vector2(-320.0f, HudLayout.BossPlateTop),
-            Size = new Vector2(640.0f, HudLayout.BossPlateHeight),
+            Position = new Vector2(bossPlateBox.OffsetLeft, bossPlateBox.OffsetTop),
+            Size = new Vector2(bossPlateBox.Width, bossPlateBox.Height),
             Brackets = true,
             EdgeRivets = true,
             Visible = false,
@@ -339,10 +341,11 @@ public partial class Hud : CanvasLayer
         AddChild(_bossPlate);
         MoveChild(_bossPlate, _bossBar.GetIndex()); // 绘制序压在血条之下
         // Boss 逃跑倒计时（背板下缘之外，剩余 ≤10s 起显示，红色闪烁）
+        var countdownBox = HudLayout.BossCountdownBox;
         _bossCountdown = new Label
         {
-            Position = new Vector2(-100.0f, HudLayout.BossCountdownTop),
-            CustomMinimumSize = new Vector2(200.0f, 0.0f),
+            Position = new Vector2(countdownBox.OffsetLeft, countdownBox.OffsetTop),
+            CustomMinimumSize = new Vector2(countdownBox.Width, 0.0f),
             HorizontalAlignment = HorizontalAlignment.Center,
             Visible = false,
         };
@@ -536,34 +539,34 @@ public partial class Hud : CanvasLayer
     {
         // 下排：燃料量槽（窄高，液位即读数）
         _fuelTank = new FuelTank();
-        PlaceBottomLeft(_fuelTank, 24.0f, -104.0f, 58.0f, -52.0f);
+        PlaceBottomLeft(_fuelTank, HudLayout.FuelTankBox);
         AddChild(_fuelTank);
 
         // 下排：冲刺 / 弹反充能槽（同一构件、只换字形与身份色）
         _dashSocket = new AbilitySocket();
         _dashSocket.Configure(AbilitySocket.Glyph.Dash, UITheme.Accent);
-        PlaceBottomLeft(_dashSocket, 66.0f, -104.0f, 114.0f, -52.0f);
+        PlaceBottomLeft(_dashSocket, HudLayout.SocketBox(0));
         AddChild(_dashSocket);
 
         _parrySocket = new AbilitySocket();
         _parrySocket.Configure(AbilitySocket.Glyph.Parry, UITheme.AccentGold);
-        PlaceBottomLeft(_parrySocket, 122.0f, -104.0f, 170.0f, -52.0f);
+        PlaceBottomLeft(_parrySocket, HudLayout.SocketBox(1));
         AddChild(_parrySocket);
 
-        AddGaugeCaption(UI_FUEL_KEY, 24.0f, 58.0f, -34.0f);
-        AddGaugeCaption(UI_DASH_KEY, 66.0f, 114.0f, -34.0f);
-        AddGaugeCaption(UI_PARRY_KEY, 122.0f, 170.0f, -34.0f);
+        AddGaugeCaption(UI_FUEL_KEY, HudLayout.CaptionBox(HudLayout.FuelTankBox));
+        AddGaugeCaption(UI_DASH_KEY, HudLayout.CaptionBox(HudLayout.SocketBox(0)));
+        AddGaugeCaption(UI_PARRY_KEY, HudLayout.CaptionBox(HudLayout.SocketBox(1)));
 
         // 下排：弹仓格（母舰驻留时才显；与充能槽同一行）
         _magStrip = new CartridgeStrip { Visible = false };
-        PlaceBottomLeft(_magStrip, 184.0f, -90.0f, 284.0f, -76.0f);
+        PlaceBottomLeft(_magStrip, HudLayout.MagStripBox);
         AddChild(_magStrip);
 
         // 下排右：坞态指示灯 + 状态文本（与充能槽同一行）
         _dockLamp = new AnnunciatorLamp();
-        PlaceBottomLeft(_dockLamp, 300.0f, -98.0f, 316.0f, -82.0f);
+        PlaceBottomLeft(_dockLamp, HudLayout.DockLampBox);
         AddChild(_dockLamp);
-        PlaceBottomLeft(_dockTag, 322.0f, -104.0f, 444.0f, -76.0f);
+        PlaceBottomLeft(_dockTag, HudLayout.DockTagBox);
     }
 
     private static readonly StringName UI_FUEL_KEY = new("UI_FUEL");
@@ -573,8 +576,8 @@ public partial class Hud : CanvasLayer
     private static readonly StringName UI_PARRY_KEY = new("UI_PARRY");
 
     /// <summary>仪表小标题（复用既有文案键，随语言切换刷新）：置于各仪表正下方，字小色淡不压读数。
-    /// 纵向位置由调用方给（不同仪表底边不同），宽度与仪表对齐。</summary>
-    private void AddGaugeCaption(StringName key, float left, float right, float bottom)
+    /// 盒由调用方给（core 从该仪表的盒推出，宽度与仪表对齐），本层只做装配。</summary>
+    private void AddGaugeCaption(StringName key, HudLayout.AnchoredBox box)
     {
         var caption = new Label
         {
@@ -582,7 +585,7 @@ public partial class Hud : CanvasLayer
             HorizontalAlignment = HorizontalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        PlaceBottomLeft(caption, left, bottom - 16.0f, right, bottom);
+        PlaceBottomLeft(caption, box);
         caption.AddThemeFontOverride("font", Font);
         caption.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
         caption.AddThemeColorOverride("font_color", UITheme.TextDim);
@@ -593,14 +596,20 @@ public partial class Hud : CanvasLayer
     /// <summary>仪表小标题（控件 + 键）：语言切换时按键重写文案。</summary>
     private readonly List<(Label Label, StringName Key)> _gaugeCaptions = new();
 
-    /// <summary>按左下锚点摆放（坐标语义与 tscn 的 offset_* 一致，便于与场景节点并置）。</summary>
-    private static void PlaceBottomLeft(Control control, float left, float top, float right, float bottom)
+    /// <summary>按左下锚摆放（锚 + 四条 offset 一并写；坐标语义与 tscn 的 offset_* 一致）。</summary>
+    private static void PlaceBottomLeft(Control control, HudLayout.AnchoredBox box)
     {
         control.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        control.OffsetLeft = left;
-        control.OffsetTop = top;
-        control.OffsetRight = right;
-        control.OffsetBottom = bottom;
+        ApplyOffsets(control, box);
+    }
+
+    /// <summary>只写 offset（锚沿用场景给的：这些节点的底左锚在 tscn 里定好，重设锚会改掉场景的作者意图）。</summary>
+    private static void ApplyOffsets(Control control, HudLayout.AnchoredBox box)
+    {
+        control.OffsetLeft = box.OffsetLeft;
+        control.OffsetTop = box.OffsetTop;
+        control.OffsetRight = box.OffsetRight;
+        control.OffsetBottom = box.OffsetBottom;
     }
 
     /// <summary>L（augment_panel）切换增幅 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
@@ -854,11 +863,9 @@ public partial class Hud : CanvasLayer
         AddChild(killsTag);
         var statusPlate = new ChamferedPanel
         {
-            Position = new Vector2(10.0f, -150.0f),
-            Size = new Vector2(446.0f, 136.0f),
             EdgeRivets = true,
         };
-        statusPlate.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        PlaceBottomLeft(statusPlate, HudLayout.InstrumentPanelBox);
         AddChild(statusPlate);
         MoveChild(statusPlate, 0);
         var livesTag = MakeCornerTag((string)Tr("UI_LIVES_TAG"));
@@ -867,39 +874,30 @@ public partial class Hud : CanvasLayer
         AddChild(livesTag);
         // 上排＝生命（主读数：分段横条 + 数值，占满整行宽度；最常扫视故最大最亮），
         // 下排＝仪表带（燃料/充能/弹仓/坞态）。上下两排，避免与坞态文本压字。
-        _hpBar.OffsetTop = -144.0f;
-        _hpBar.OffsetBottom = -116.0f;
-        _hpBar.OffsetRight = 300.0f;
-        _livesLabel.OffsetLeft = 312.0f;
-        _livesLabel.OffsetTop = -146.0f;
-        _livesLabel.OffsetRight = 436.0f;
-        _livesLabel.OffsetBottom = -112.0f;
+        ApplyOffsets(_hpBar, HudLayout.HpBarBox);
+        ApplyOffsets(_livesLabel, HudLayout.LivesLabelBox);
         // 上下排之间的横向分隔线（分区结构感）
         var statusDivider = new ColorRect
         {
             Color = UITheme.AccentDim,
-            Position = new Vector2(24.0f, -112.0f),
-            Size = new Vector2(418.0f, 1.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        statusDivider.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        PlaceBottomLeft(statusDivider, HudLayout.InstrumentDividerBox);
         AddChild(statusDivider);
         // 右上难度背板：与分数块同语系（原浮空文字难以在亮背景上阅读）
         // 背板宽度须容纳难度标签三段文案（「难度 x2.50 · 第四档 · 危险 · 中」）；
         // 原 230 宽在加入档名后被文字压过（实测中文约 296px / 英文约 362px）
+        var diffBox = HudLayout.DifficultyPlateBox;
         var diffPlate = new ChamferedPanel
         {
-            Position = new Vector2(-400.0f, 24.0f),
-            Size = new Vector2(390.0f, 44.0f),
+            Position = new Vector2(diffBox.OffsetLeft, diffBox.OffsetTop),
+            Size = new Vector2(diffBox.Width, diffBox.Height),
             EdgeRivets = true,
         };
         diffPlate.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         AddChild(diffPlate);
         MoveChild(diffPlate, 0);
-        _difficultyLabel.OffsetLeft = -388.0f;
-        _difficultyLabel.OffsetTop = 24.0f;
-        _difficultyLabel.OffsetRight = -22.0f;
-        _difficultyLabel.OffsetBottom = 68.0f;
+        ApplyOffsets(_difficultyLabel, HudLayout.DifficultyLabelBox);
         _difficultyLabel.VerticalAlignment = VerticalAlignment.Center;
         var diffTag = MakeCornerTag((string)Tr("UI_DIFF_TAG"));
         diffTag.SetAnchorsPreset(Control.LayoutPreset.TopRight);
@@ -948,10 +946,12 @@ public partial class Hud : CanvasLayer
 
     private void BuildBanner()
     {
+        // 警告横幅与信息横幅同宽同列、信息横幅紧接其下（两盒由 core 推出，避免改一处即叠字）
+        var warningBox = HudLayout.WarningBannerBox;
         _bannerPlate = new ChamferedPanel
         {
-            Position = new Vector2(-300.0f, 140.0f),
-            Size = new Vector2(600.0f, 80.0f),
+            Position = new Vector2(warningBox.OffsetLeft, warningBox.OffsetTop),
+            Size = new Vector2(warningBox.Width, warningBox.Height),
             Brackets = true,
             BgColor = UITheme.BannerDangerBg,
             BorderColor = new Color(UITheme.Danger, 0.6f),
@@ -962,8 +962,8 @@ public partial class Hud : CanvasLayer
         AddChild(_bannerPlate);
         _bannerLabel = new Label
         {
-            Position = new Vector2(-300.0f, 140.0f),
-            CustomMinimumSize = new Vector2(600.0f, 80.0f),
+            Position = new Vector2(warningBox.OffsetLeft, warningBox.OffsetTop),
+            CustomMinimumSize = new Vector2(warningBox.Width, warningBox.Height),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Visible = false,
@@ -1486,14 +1486,15 @@ public partial class Hud : CanvasLayer
     /// 溢出警告 ≤safe+safe/3 橙 / 以上红），与衰减起点同源；呼吸脉冲受 ReduceFlash 约束。</summary>
     private void BuildCacheIndicator()
     {
+        var chipBox = HudLayout.CacheChipBox;
         _cacheChip = new ChamferedPanel
         {
-            CustomMinimumSize = new Vector2(172.0f, 56.0f),
+            CustomMinimumSize = new Vector2(chipBox.Width, chipBox.Height),
             Brackets = true,
             Padding = 0.0f,
         };
         _cacheChip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheChip.Position = new Vector2(-192.0f, 118.0f);
+        _cacheChip.Position = new Vector2(chipBox.OffsetLeft, chipBox.OffsetTop);
         AddChild(_cacheChip);
 
         var box = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -1516,19 +1517,19 @@ public partial class Hud : CanvasLayer
         box.AddChild(keyHint);
 
         // 「可升级」提示（点数够点亮任一节点时可见；芯片下方一行小字，比只变色更难错过）。
-        // 停靠 y=212：让开悬停提示那一行（178），两者可同屏不重叠。
+        // 停靠位让开悬停提示那一行（两者可同屏不重叠）——各行顶位单源 core HudLayout。
         _cacheReadyHint = UITheme.MakeLabel((string)Tr("TALENT_READY_HINT"), UITheme.FontSmall, UITheme.AccentGold, HorizontalAlignment.Right);
         _cacheReadyHint.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheReadyHint.Position = new Vector2(-192.0f, 212.0f);
-        _cacheReadyHint.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _cacheReadyHint.Position = new Vector2(HudLayout.CacheHintBox.OffsetLeft, HudLayout.CacheHintBox.OffsetTop);
+        _cacheReadyHint.CustomMinimumSize = new Vector2(HudLayout.CacheColumnWidth, 0.0f);
         _cacheReadyHint.Visible = false;
         _cacheReadyHint.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_cacheReadyHint);
 
         _cacheTooltip = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.Text, HorizontalAlignment.Right);
         _cacheTooltip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheTooltip.Position = new Vector2(-360.0f, 178.0f);
-        _cacheTooltip.CustomMinimumSize = new Vector2(340.0f, 0.0f);
+        _cacheTooltip.Position = new Vector2(HudLayout.CacheTooltipBox.OffsetLeft, HudLayout.CacheTooltipBox.OffsetTop);
+        _cacheTooltip.CustomMinimumSize = new Vector2(HudLayout.CacheTooltipBox.Width, 0.0f);
         _cacheTooltip.Visible = false;
         _cacheTooltip.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_cacheTooltip);
@@ -1537,10 +1538,11 @@ public partial class Hud : CanvasLayer
         // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，任一满足即达成）。
         _goalLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Right);
         _goalLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉
+        // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉，
+        // 故落位写的是列右缘（与芯片/提示同一列右缘，单源 core）
         _goalLabel.GrowHorizontal = Control.GrowDirection.Begin;
-        _goalLabel.Position = new Vector2(-20.0f, 236.0f);
-        _goalLabel.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _goalLabel.Position = new Vector2(HudLayout.CacheGoalBox.OffsetRight, HudLayout.CacheGoalBox.OffsetTop);
+        _goalLabel.CustomMinimumSize = new Vector2(HudLayout.CacheColumnWidth, 0.0f);
         _goalLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_goalLabel);
         // 初刷延后到信息横幅构建之后（ShowInfoBanner 依赖 _infoLabel；达成态下同帧调用会空引用）
@@ -1986,10 +1988,11 @@ public partial class Hud : CanvasLayer
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>
     private void BuildInfoBanner()
     {
+        var infoBox = HudLayout.InfoBannerBox;
         _infoPlate = new ChamferedPanel
         {
-            Position = new Vector2(-300.0f, 232.0f),
-            Size = new Vector2(600.0f, 64.0f),
+            Position = new Vector2(infoBox.OffsetLeft, infoBox.OffsetTop),
+            Size = new Vector2(infoBox.Width, infoBox.Height),
             Brackets = true,
             BgColor = UITheme.BtnPrimaryBg,
             BorderColor = new Color(UITheme.Accent, 0.6f),
@@ -2000,8 +2003,8 @@ public partial class Hud : CanvasLayer
         AddChild(_infoPlate);
         _infoLabel = new Label
         {
-            Position = new Vector2(-300.0f, 232.0f),
-            CustomMinimumSize = new Vector2(600.0f, 64.0f),
+            Position = new Vector2(infoBox.OffsetLeft, infoBox.OffsetTop),
+            CustomMinimumSize = new Vector2(infoBox.Width, infoBox.Height),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Visible = false,
