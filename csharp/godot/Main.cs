@@ -531,7 +531,8 @@ public partial class Main : Node2D
     }
 
     /// <summary>蓄力清理的唯一出口（终局路径：返航 / 死亡 / 放弃出击）：
-    /// 四条蓄力通道（母舰召唤 / 返航 / 放弃出击 / 天赋面板）的进度字段与 HUD 条一并复位。
+    /// 五条蓄力通道（母舰召唤 / 返航 / 放弃出击 / 天赋面板 / 驻留母舰的提前离舰）的进度字段
+    /// 与 HUD 条一并复位。
     /// 死亡路径必须走它——死亡帧 `SetTreePaused(true)` 之后 _Process 不再执行，只清召唤通道时
     /// 另一条正被按住（或刚蓄满）的通道会以最后比例常驻屏幕，结算页 dim 只压暗、不清除。
     /// 松手取消是**逐通道**的（StopSummonCharge 与 _Process 的 else 分支）：清全部会把与它
@@ -543,6 +544,13 @@ public partial class Main : Node2D
         _giveUpCharge = 0.0f;
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
+        // 提前离舰蓄力归母舰所有（推进在它的 _PhysicsProcess 里）：树暂停后母舰节点既不推进
+        // 也不拆树，_ExitTree 的兜底清理不会发生，只有这个口能把它按掉的进度条收回
+        if (_mothership != null && GodotObject.IsInstanceValid(_mothership))
+        {
+            _mothership.CancelEarlyLeaveCharge();
+        }
+
         // 天赋面板的 G 蓄力同归此口：面板侧的中断守卫（树暂停/死亡）跑在它自己的 _Process 里，
         // 而「树已暂停」时它根本不再执行——正是它要防的那种状态的死角
         if (_talentUi != null && GodotObject.IsInstanceValid(_talentUi))

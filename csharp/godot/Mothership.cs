@@ -467,6 +467,20 @@ public partial class Mothership : Area2D
 
     public void SetWarnEjectTimer(float seconds) => _warnEjectTimer = seconds;
 
+    /// <summary>提前离舰蓄力通道的清理口（生产路径：Main.ClearAllCharge 的终局清理）。
+    /// 进度字段与 HUD 进度条一并复位——它的推进在本类 _PhysicsProcess 里，而死亡/返航的终局
+    /// 会暂停或卸载本节点，漏清则进度条以最后比例常驻结算页（结算页 dim 只压暗、不清除）。
+    /// 与 Main.StopSummonCharge 同族：只清这一条通道，不碰并行蓄力的其它通道。</summary>
+    public void CancelEarlyLeaveCharge()
+    {
+        _earlyTimer = 0.0f;
+        var hud = Hud();
+        if (hud != null)
+        {
+            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
+        }
+    }
+
     /// <summary>升级档位——里程碑数 ≥ 阈值即升档（0 或 1）。</summary>
     public int Tier() => (int)GameState.Instance.MilestoneCount() >= _upgradeThreshold ? 1 : 0;
 
