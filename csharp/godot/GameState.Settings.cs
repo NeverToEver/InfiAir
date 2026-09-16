@@ -171,8 +171,8 @@ public partial class GameState : Node
 
     /// <summary>全部设置回到出厂默认并落盘：键位/难度/画质/音频/无障碍/手柄全量复位。
     /// 刻意保留 `tutorial_done`（教程完成度不是偏好设置，复位它等于让玩家重看教程）。
-    /// 只做内存复位 + 重放必要的运行期副作用（键位/开火动作/手柄装配/显示/窗口/音量/换语言）；
-    /// 画质类开关的显隐由各消费方读设置或由设置页刷新，此处不广播（避免半套信号语义）。</summary>
+    /// 只做内存复位 + 重放必要的运行期副作用（键位/开火动作/手柄装配/显示/窗口/音量/换语言/
+    /// 视角与辅瞄与减闪与画面增强的事件回放——服务侧 ResetToDefaultsAndBroadcast 只对变化过的项补发）。</summary>
     public void ResetAllSettings()
     {
         var tutorialDone = TutorialDone;
@@ -184,7 +184,9 @@ public partial class GameState : Node
         // 设置页标题/导航/分组与其余订阅方（HUD/暂停/基地/天赋/确认弹窗）全部停在旧语言，
         // 且不会自愈（LocaleChanged 只在玩家手动切语言时才发）。
         var prevLocale = _settings.Locale;
-        _settings.ResetToDefaults();
+        // 复位走带广播的口（视角/辅瞄/减闪/画面增强的消费方都是「_Ready 读一次 + 信号刷新」的
+        // 缓存型；无变化时不发信号，不会造成多余重建）
+        _settings.ResetToDefaultsAndBroadcast();
         TutorialDone = tutorialDone;
         // 语言经 SetLocale 重放（走 LocaleChanged 广播，设置页据此整页重建文案）；
         // TranslationServer 已由其内部写，避免此处再写一次

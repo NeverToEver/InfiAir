@@ -137,6 +137,40 @@ public sealed partial class SettingsService : RefCounted
         SfxVolume = 0.8;
     }
 
+    /// <summary>「全部恢复默认」的完整复位：内存字段回默认 + 对**确实变化过**的缓存型设置项补发事件。
+    /// ResetToDefaults 直写字段、刻意不发事件（运行期副作用由调用侧重放），但视角/辅瞄/减闪/画面增强
+    /// 这四项的消费方（Main 相机 zoom、Player 与 AimFrameLayer 的辅瞄参数、Hud 与 MetaHealthFX 的减闪、
+    /// WorldPostFx 与 VisualFxDirector 的画面增强）都是「_Ready 读一次 + 信号刷新」的缓存型：
+    /// 战斗中点「全部恢复默认」后设置值与落盘已回默认、表现仍按旧值跑（相机 zoom 与 ViewWorldRect()
+    /// 分叉还会让实体在玩家看不见的域里生成/存活），要等切场景才自愈。无变化则不发，避免多余重建。</summary>
+    public void ResetToDefaultsAndBroadcast()
+    {
+        var prevZoomFactor = _viewZoomFactor;
+        var prevAimAssist = AimAssistLevel;
+        var prevReduceFlash = ReduceFlash;
+        var prevWorldPostFx = WorldPostFx;
+        ResetToDefaults();
+        if (prevZoomFactor != _viewZoomFactor)
+        {
+            ViewZoomChanged?.Invoke(_viewZoomFactor);
+        }
+
+        if (prevAimAssist != AimAssistLevel)
+        {
+            AimAssistChanged?.Invoke(AimAssistLevel);
+        }
+
+        if (prevReduceFlash != ReduceFlash)
+        {
+            ReduceFlashChanged?.Invoke(ReduceFlash);
+        }
+
+        if (prevWorldPostFx != WorldPostFx)
+        {
+            WorldPostFxChanged?.Invoke(WorldPostFx);
+        }
+    }
+
     // ---------------- 信号 C# 事件 ----------------
 
     /// <summary>视角档位变化（参数为生效 zoom 倍率）；GameState 订阅后转发为 ViewZoomChanged 信号。</summary>
