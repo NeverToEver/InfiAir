@@ -104,6 +104,14 @@ public partial class Hud : CanvasLayer
     /// <summary>Boss 血条当前 modulate（探针读口）：ReduceFlash 下阶段切换后应为 Colors.White
     /// （无提亮脉冲），否则为 2.2 倍亮度峰值。</summary>
     public Color BossBarModulate => _bossBar.Modulate;
+
+    /// <summary>Boss 逃跑倒计时当前 modulate（探针读口，零引用保留）：减少闪光下 alpha 应恒为 1
+    /// （读数保留、明暗翻转停用），否则在 1 与 0.45 之间翻转。见 ROADMAP 零引用成员口径。</summary>
+    public Color BossCountdownModulate => _bossCountdown.Modulate;
+
+    /// <summary>警告横幅当前 alpha（探针读口，零引用保留）：减少闪光下 ShowWarning 全程应恒为 1
+    /// （不再 0.25↔1.0 闪烁），否则在闪烁窗内可读到 0.25。见 ROADMAP 零引用成员口径。</summary>
+    public float WarningBannerAlpha => _bannerPlate.Modulate.A;
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
@@ -157,8 +165,13 @@ public partial class Hud : CanvasLayer
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
     private const int AugmentDockMaxTiles = 4;
 
-    /// <summary>Boss 逃跑倒计时明暗闪烁半周期（ms）：取模翻转透明度，快于人眼追踪的告警节奏。</summary>
-    private const long CountdownBlinkHalfPeriodMs = 500;
+    /// <summary>Boss 逃跑倒计时明暗闪烁半周期（秒）：取模翻转透明度，快于人眼追踪的告警节奏。
+    /// 减少闪光下不翻转（读数保留）。</summary>
+    private const float CountdownBlinkHalfPeriod = 0.5f;
+
+    /// <summary>警告横幅明暗步长与循环数：0.25s 一步、4 个来回 ≈2s（与 spawner 预警同步）。</summary>
+    private const float WarningBlinkStep = 0.25f;
+    private const int WarningBlinkLoops = 4;
 
     /// <summary>燃料低量警戒线（比例）的唯一来源在 <see cref="FuelGauge.WarnRatio"/>：液色警戒
     /// 与量槽刻度警示区共用一份判据，HUD 不再另存常量（两处各写一份会出半红量槽）。</summary>
@@ -700,7 +713,7 @@ public partial class Hud : CanvasLayer
                 _bossCountdown.Visible = true;
                 _bossCountdown.Text = GdFormat.Format("%d", Mathf.CeilToInt(remaining));
                 var cm = _bossCountdown.Modulate;
-                cm.A = (long)(_simTime * 1000.0f) / CountdownBlinkHalfPeriodMs % 2 == 0 ? 1.0f : 0.45f;
+                cm.A = CountdownAlpha();
                 _bossCountdown.Modulate = cm;
             }
             else
@@ -767,6 +780,18 @@ public partial class Hud : CanvasLayer
             UpdateDockLamp(_main.DockStateValue);
             UpdateMagazineBar(_main);
         }
+    }
+
+    /// <summary>Boss 逃跑倒计时的闪烁 alpha：0.5s 明暗翻转；减少闪光下恒定全亮——
+    /// 读数本身是必要信息（保留），明暗翻转属频闪（停用）。相位基准是 _simTime（模拟时间）。</summary>
+    private float CountdownAlpha()
+    {
+        if (GameState.Instance.ReduceFlash)
+        {
+            return 1.0f;
+        }
+
+        return (long)(_simTime / CountdownBlinkHalfPeriod) % 2 == 0 ? 1.0f : 0.45f;
     }
 
     private void UpdateMagazineBar(Main main)
@@ -984,13 +1009,22 @@ public partial class Hud : CanvasLayer
         lm.A = 1.0f;
         _bannerLabel.Modulate = lm;
         // 闪烁对（0.25→1.0）循环 4 次 ≈2s（与 spawner 预警同步）；set_loops 作用于整链，
-        // 淡出必须移出循环——把淡出+hide 也包进循环时，首轮末尾 hide 即永久隐藏
+        // 淡出必须移出循环——把淡出+hide 也包进循环时，首轮末尾 hide 即永久隐藏。
+        // 减少闪光：明暗闪烁停用（恒定 alpha 静置同一 2s 时间轴），横幅本身照常出现与淡出
         var blink = CreateTween();
-        blink.TweenProperty(_bannerPlate, "modulate:a", 0.25f, 0.25);
-        blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 0.25f, 0.25);
-        blink.TweenProperty(_bannerPlate, "modulate:a", 1.0f, 0.25);
-        blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 1.0f, 0.25);
-        blink.SetLoops(4);
+        if (GameState.Instance.ReduceFlash)
+        {
+            blink.TweenInterval(WarningBlinkStep * 2.0f * WarningBlinkLoops);
+        }
+        else
+        {
+            blink.TweenProperty(_bannerPlate, "modulate:a", 0.25f, WarningBlinkStep);
+            blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 0.25f, WarningBlinkStep);
+            blink.TweenProperty(_bannerPlate, "modulate:a", 1.0f, WarningBlinkStep);
+            blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 1.0f, WarningBlinkStep);
+            blink.SetLoops(WarningBlinkLoops);
+        }
+
         _warningTween = blink;
         blink.Finished += () =>
         {

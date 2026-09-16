@@ -628,11 +628,12 @@ public partial class RadialWheel : Node2D
     }
 
     /// <summary>开机前段的全息闪烁：确定性阶梯 alpha（步进翻转，无随机抖动），只在前
-    /// FlickerDur 内写 Modulate，其余帧归位全亮。</summary>
+    /// FlickerDur 内写 Modulate，其余帧归位全亮。减少闪光下整段不闪（Modulate 固定全亮）——
+    /// 扫掠成形本身是几何展开、不是亮度脉冲，照常播放。</summary>
     private void ApplyBootFlicker()
     {
         var elapsed = _bootT * BootDur;
-        if (elapsed >= FlickerDur)
+        if (elapsed >= FlickerDur || GameState.Instance.ReduceFlash)
         {
             if (Modulate.A != 1f)
             {
