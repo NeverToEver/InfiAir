@@ -307,6 +307,15 @@ public partial class ProbeHost : Node
 
     /// <summary>弹反路径等待上限（帧）：反射弹寻敌转向 + 命中编队机的余量。</summary>
     private const int ParryProbeTimeoutFrames = 600;
+
+    /// <summary>homing 判定的准星偏角（度）：大于 high 档弱追踪半角 10°（弱追踪不得替玩家把弹拨过去）、
+    /// 小于制导锁定锥半角 22°（制导仍能锁定）。</summary>
+    private const float AugHomingProbeOffsetDeg = 15.0f;
+
+    /// <summary>增幅判定的离散帧窗：等出膛弹飞完 / 等冲刺打击节拍落下（每级伤害按 0.12s 节流结算）。</summary>
+    private const int AugProbeSettleFrames = 40;
+
+    private static readonly StringName ProbeActFire = new("fire");
     private bool _fogActive;
     private bool _fogSubscribed;
     private int _fogStartFrame;
@@ -3084,6 +3093,11 @@ public partial class ProbeHost : Node
             if (!_deathProbe)
             {
                 TickEncounterAimProbe();
+                if (key == new StringName("elite_turret"))
+                {
+                    TickAugmentContractProbe();
+                }
+
                 if (key == new StringName("formation_strike"))
                 {
                     TickFormationBombDomain();
@@ -3217,6 +3231,315 @@ public partial class ProbeHost : Node
 
         _player.AimPointOverride = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
         _aimProbeChecked = true;
+    }
+
+    /// <summary>homing/dash_strike 契约判定的观测态（步序、靶、出血基线、是否见到制导落靶）。</summary>
+    private int _augStep;
+
+    private int _augFrame;
+    private int _augFireHold;
+    private TurretBattery? _augTarget;
+    private TurretBattery? _augLockedTurret;
+    private int _augHpBefore;
+    private int _augLockedHpBefore;
+    private float _augOffsetDeg;
+    private Vector2 _augAimDir;
+    private bool _augDone;
+
+    /// <summary>homing 落靶与 dash_strike 触达的契约判定（精英炮塔趟）。两条都属「按 is Enemy 判型时
+    /// 屏上唯一可打目标整体吃不到增幅效果」的静默面——不崩不报错，只是打得没用。
+    ///
+    /// homing 的判据必须**排除弱追踪这条旁路**：炮台在航母上成排，相邻两座的角距可以小于弱追踪半角，
+    /// 偏开一座的准星仍可能落进另一座的锥内（实测：偏 15° 时弱追踪锁上了邻座）。故先扫一个
+    /// **干净的偏角**（用生产查询 <c>NearestConeTarget</c> 确认锥内没有任何目标，且目标仍在制导锁定锥内），
+    /// 于是「出膛弹有落靶」只可能来自 homing 增幅这条路径。两半互补：
+    ///   ① 未授 homing 的同一发：全部在场玩家弹的 <c>HomingTarget</c> 必须为空、炮塔 Hp 不变；
+    ///   ② 授了 homing：出膛弹的 <c>HomingTarget</c> 指向炮台，且那座炮台 Hp 下降。
+    /// dash_strike：把玩家摆进炮台触及半径内，经生产输入 <c>Input.ActionPress("dash")</c> 冲一次，
+    /// 断 Hp 下降 ≥ 每级伤害；冲刺前同位置的一小段帧窗内必须不掉血（防「本来就挨了别的弹」假绿）。
+    /// 两处都用生产直写口授层（<c>Talent.GrantLevel</c>，与加点同口径但不扣缓存）。</summary>
+    private void TickAugmentContractProbe()
+    {
+        if (_augDone || !_aimProbeChecked)
+        {
+            return;
+        }
+
+        if (_augTarget == null || !GodotObject.IsInstanceValid(_augTarget))
+        {
+            _augTarget = FindAimableTurret();
+            if (_augTarget == null)
+            {
+                return; // 炮台尚未升起到位（升起期不可打），下一帧再找
+            }
+        }
+
+        TickFireHold();
+        switch (_augStep)
+        {
+            case 0:
+                if (!PickCleanOffset())
+                {
+                    GD.PushError("[event-probe] 找不到锥内无目标的干净偏角（炮台过于密集？）——homing 判据取不到");
+                    _eventId = "";
+                    return;
+                }
+
+                _augHpBefore = _augTarget.Hp;
+                AimAtOffsetFrom(_augTarget.AimWorldPosition, _augOffsetDeg); // 对照段：未授 homing
+                _augFireHold = 2;
+                _augFrame = 0;
+                _augStep = 1;
+                return;
+
+            case 1:
+                if (++_augFrame < AugProbeSettleFrames)
+                {
+                    return;
+                }
+
+                if (AnyPlayerBulletHoming())
+                {
+                    GD.PushError("[event-probe] 未授 homing 的偏角射击出现了落靶（弱追踪把弹拨走了）——"
+                        + "干净偏角的前提被破坏，homing 判据失效");
+                    _eventId = "";
+                    return;
+                }
+
+                if (_augTarget.Hp != _augHpBefore)
+                {
+                    GD.PushError($"[event-probe] 未授 homing 的偏角射击命中了炮塔（Hp {_augHpBefore} → {_augTarget.Hp}）"
+                        + "——偏角过小或炮台不在预期位置，homing 判据失效");
+                    _eventId = "";
+                    return;
+                }
+
+                GameState.Instance.Talent.GrantLevel(new StringName("homing"), 1);
+                AimAtOffsetFrom(_augTarget.AimWorldPosition, _augOffsetDeg);
+                _augFireHold = 2;
+                _augFrame = 0;
+                _augStep = 2;
+                return;
+
+            case 2:
+                // 出膛后逐帧枚举在场玩家弹：落靶必须是炮台（记下它锁的那座，按它判掉血）
+                if (_augLockedTurret == null)
+                {
+                    _augLockedTurret = FirstHomingTurret();
+                    if (_augLockedTurret != null)
+                    {
+                        _augLockedHpBefore = _augLockedTurret.Hp;
+                    }
+                }
+
+                if (++_augFrame < AugProbeSettleFrames)
+                {
+                    return;
+                }
+
+                if (_augLockedTurret == null)
+                {
+                    GD.PushError("[event-probe] 已授 homing 但出膛弹的落靶未指向任何炮塔——"
+                        + "制导落靶搜索未吃 IAimTarget 契约（遭遇单位整体吃不到制导）");
+                    _eventId = "";
+                    return;
+                }
+
+                if (!GodotObject.IsInstanceValid(_augLockedTurret) || _augLockedTurret.Hp >= _augLockedHpBefore)
+                {
+                    var now = _augLockedTurret == null || !GodotObject.IsInstanceValid(_augLockedTurret)
+                        ? -1
+                        : _augLockedTurret.Hp;
+                    GD.PushError($"[event-probe] 制导已在炮塔上落靶，但 {AugProbeSettleFrames} 帧内该炮塔 Hp 未下降"
+                        + $"（{_augLockedHpBefore} → {now}）——制导未把弹拨到靶上");
+                    _eventId = "";
+                    return;
+                }
+
+                AimAtOffsetFrom(_augTarget.AimWorldPosition, 0.0f);
+                _augHpBefore = _augTarget.Hp;
+                _augFrame = 0;
+                _augStep = 3;
+                return;
+
+            case 3:
+                // dash_strike 的对照段：先在触及半径内站定、不冲刺，Hp 不得变化
+                if (++_augFrame == 1)
+                {
+                    PlacePlayerWithinReach(_augTarget.AimWorldPosition);
+                    GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
+                    GameState.Instance.Talent.GrantLevel(new StringName("dash_strike"), 1);
+                }
+
+                if (_augFrame < AugProbeSettleFrames)
+                {
+                    return;
+                }
+
+                if (_augTarget.Hp != _augHpBefore)
+                {
+                    GD.PushError($"[event-probe] 未冲刺时炮塔 Hp 已变化（{_augHpBefore} → {_augTarget.Hp}）"
+                        + "——冲刺打击的判据被别的伤害源污染");
+                    _eventId = "";
+                    return;
+                }
+
+                _augHpBefore = _augTarget.Hp;
+                Input.ActionPress(ProbeActDash);
+                _augFrame = 0;
+                _augStep = 4;
+                return;
+
+            default:
+                if (_augFrame == 1)
+                {
+                    Input.ActionRelease(ProbeActDash);
+                }
+
+                if (++_augFrame < AugProbeSettleFrames)
+                {
+                    return;
+                }
+
+                var dashFloor = System.Math.Max(
+                    (int)GameState.Instance.Cfg("augments.dash_strike.damage_per_level", 0).AsInt64(), 0);
+                var dealt = _augHpBefore - _augTarget.Hp;
+                if (dealt < dashFloor)
+                {
+                    GD.PushError($"[event-probe] 冲刺打击对炮塔的伤害 {dealt} < 每级伤害 {dashFloor}——"
+                        + "触及判定的判型未吃 IAimTarget 契约（遭遇单位整体打不到）");
+                    _eventId = "";
+                    return;
+                }
+
+                _augDone = true;
+                _player.AimPointOverride = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+                return;
+        }
+    }
+
+    /// <summary>选一个「弱追踪锥内无任何目标、且目标仍在制导锁定锥内」的偏角（确定性扫描：
+    /// 先小后大、正负交替，命中即用）。返回 false = 没有可用偏角，判据取不到（显式失败）。</summary>
+    private bool PickCleanOffset()
+    {
+        if (GameState.Instance.AimFrameLayer is not AimFrameLayer layer)
+        {
+            return false;
+        }
+
+        var target = _augTarget!.AimWorldPosition;
+        var toTarget = (target - _player.GlobalPosition).Normalized();
+        var coneCos = _player.ConeCos();
+        var homingConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(
+            (float)GameState.Instance.Cfg("augments.homing.lock_cone_deg", 0.0).AsDouble());
+        for (var step = 1; step <= 20; step++)
+        {
+            foreach (var sign in new[] { 1.0f, -1.0f })
+            {
+                var offset = (11.0f + step) * sign; // 11..31 度，跳过弱追踪半角内
+                var dir = toTarget.Rotated(Mathf.DegToRad(offset));
+                // 制导锁定锥（整角 44°）内必须仍有目标，否则 homing 也不该锁
+                if (!Core.Combat.AimTargeting.InCone(dir.X, dir.Y, toTarget.X, toTarget.Y, homingConeCos))
+                {
+                    continue;
+                }
+
+                if (layer.NearestConeTarget(_player.GlobalPosition, dir, coneCos) != null)
+                {
+                    continue; // 弱追踪会抢锁：换一个偏角
+                }
+
+                _augOffsetDeg = offset;
+                _augAimDir = dir;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>在场玩家弹里是否有任何一枚带落靶（对照段要求全空：没有 homing 增幅时不该有落靶）。</summary>
+    private bool AnyPlayerBulletHoming()
+    {
+        foreach (var child in _main.GetChildren())
+        {
+            if (child is Bullet bullet && GodotObject.IsInstanceValid(bullet) && bullet.IsPlayerBullet
+                && bullet.IsActive() && bullet.HomingTarget != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>在场玩家弹里第一枚落靶为炮台的弹所锁的那座炮台（没有则 null）。</summary>
+    private TurretBattery? FirstHomingTurret()
+    {
+        foreach (var child in _main.GetChildren())
+        {
+            if (child is Bullet bullet && GodotObject.IsInstanceValid(bullet) && bullet.IsPlayerBullet
+                && bullet.IsActive() && bullet.HomingTarget is TurretBattery turret)
+            {
+                return turret;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>把准星指到「以玩家为顶点、指向目标的方向偏 <paramref name="offsetDeg"/> 度」的延长线上
+    /// （offset 0 = 正对目标）。900px 只表达方向，落在视野外无妨。</summary>
+    private void AimAtOffsetFrom(Vector2 targetPos, float offsetDeg)
+    {
+        var dir = (targetPos - _player.GlobalPosition).Normalized();
+        if (offsetDeg != 0.0f)
+        {
+            dir = dir.Rotated(Mathf.DegToRad(offsetDeg));
+        }
+
+        _player.AimPointOverride = _player.GlobalPosition + (dir * 900.0f);
+    }
+
+    /// <summary>把玩家摆到目标的触及半径内（并让机头方向指向目标）：冲刺方向取准星方向，
+    /// 正对目标冲刺才能在打击节拍上保持在半径内。</summary>
+    private void PlacePlayerWithinReach(Vector2 targetPos)
+    {
+        var radius = (float)GameState.Instance.Cfg("augments.dash_strike.radius", 80.0f).AsDouble();
+        var below = targetPos + new Vector2(0.0f, Mathf.Max(radius * 0.5f, 8.0f));
+        var view = GameState.Instance.ViewWorldRect();
+        _player.GlobalPosition = below.Clamp(view.Position + new Vector2(8.0f, 8.0f), view.End - new Vector2(8.0f, 8.0f));
+        _player.Velocity = Vector2.Zero;
+        AimAtOffsetFrom(targetPos, 0.0f);
+    }
+
+    /// <summary>开火键按住两帧后松开（一发出膛；开火间隔远大于两帧）。</summary>
+    private void TickFireHold()
+    {
+        if (_augFireHold == 2)
+        {
+            Input.ActionPress(ProbeActFire);
+            _augFireHold = 1;
+        }
+        else if (_augFireHold == 1)
+        {
+            Input.ActionRelease(ProbeActFire);
+            _augFireHold = 0;
+        }
+    }
+
+    /// <summary>可打的炮台（升起到位后才纳入瞄准；升起期 AimTargetable=false，此时开火会漏判）。</summary>
+    private static TurretBattery? FindAimableTurret()
+    {
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is TurretBattery turret && GodotObject.IsInstanceValid(turret) && turret.AimTargetable)
+            {
+                return turret;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>注册表里第一个可瞄准的遭遇单位（非 Enemy 的 IAimTarget 实现：炮塔/编队机）。</summary>
