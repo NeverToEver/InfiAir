@@ -167,6 +167,22 @@ public partial class ProbeHost : Node
     private bool _hostileProbe;
     private bool _deathGateProbe;
 
+    /// <summary>读档补发信号的观测值：难度信号收到的乘数（-1 = 未收到）与 ScoreChanged 回调里
+    /// 读到的 RunTime（-1 = 未收到）。读档直写字段必须把还原值推给消费域——HUD 难度读数与目标行
+    /// 都是「_Ready 读一次 + 信号刷新」的缓存型，漏发则读档后停在复位值。</summary>
+    private float _probeDifficultySeen = -1.0f;
+
+    private double _probeRunTimeAtScore = -1.0;
+    private Callable _onProbeDifficultyChanged;
+    private Callable _onProbeScoreChanged;
+    private bool _probeRunSubscribed;
+
+    /// <summary>存档还原探针（--save-restore-probe）的临时用户目录由 check_smoke.sh 隔离。</summary>
+    private bool _saveRestoreProbe;
+
+    /// <summary>设置版本探针（--settings-version-probe）。</summary>
+    private bool _settingsVersionProbe;
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -198,6 +214,42 @@ public partial class ProbeHost : Node
     private bool _triggerPosted;
     private bool _sawActive;
     private bool _killed;
+
+    /// <summary>遭遇收场后的判定等待帧（QueueFree 在帧末出树、注销登记也在那一刻）：
+    /// 收场当帧就断「标记计数回落」会读到尚未出树的单位，属假红。</summary>
+    private const int EventEndSettleFrames = 3;
+
+    private int _eventEndSettle;
+
+    /// <summary>辅助瞄准契约断言（遭遇单位）：是否已观测到可瞄准的遭遇单位，避免断言从未执行
+    /// （扫描按 is Enemy 判型的坏实现在「从未找到单位」时同样不打失败）。</summary>
+    private bool _aimProbeChecked;
+
+    private bool _aimProbeTried;
+
+    /// <summary>辅助瞄准断言的准星注入目标与等待帧（注入后等两帧，让帧缓存的查询点落到单位坐标上）。</summary>
+    private IAimTarget? _aimProbeTarget;
+
+    private int _aimHoldFrames;
+
+    /// <summary>编队投放点可见域：上一帧在册的炸弹实例 id（池化复用时同一实例重新入场＝一次新投放，
+    /// 故按「本帧在册而上一帧不在册」判定投放，而不是按实例首见）。</summary>
+    private HashSet<ulong> _bombIdsPrev = new();
+
+    private bool _bombDomainChecked;
+
+    /// <summary>弹反拆弹路径（IParryable 入口）：是否已发起、发起前的连击/分数、奖励下界与等待帧。</summary>
+    private bool _parryProbeFired;
+
+    private bool _parryProbeVerified;
+
+    private int _parryComboBefore;
+    private int _parryScoreBefore;
+    private int _parryScoreFloor;
+    private int _parryWaitFrames;
+
+    /// <summary>弹反路径等待上限（帧）：反射弹寻敌转向 + 命中编队机的余量。</summary>
+    private const int ParryProbeTimeoutFrames = 600;
     private bool _fogActive;
     private bool _fogSubscribed;
     private int _fogStartFrame;
@@ -215,6 +267,21 @@ public partial class ProbeHost : Node
     private bool _feelSawHitStop;
     private bool _feelSawTrauma;
     private double _feelEnrageScale = 1.0;
+
+    /// <summary>磁吸测量的注入位移（px，逻辑/视口坐标）：取 20 落在窗口 [2,40) 的中段——
+    /// 换算若吃了缩放帧长（TS=0.24 时 ×4.17），量立刻越窗。</summary>
+    private const float MagnetProbeDeltaPx = 20.0f;
+
+    /// <summary>磁吸测量的换点重试上限（准星压在标记目标上时走粘滞分支、不换算窗口）。</summary>
+    private const int MagnetProbeMaxAttempts = 8;
+
+    private int _magnetState;
+    private int _magnetInjectFrame;
+    private int _magnetAttempts;
+    private Vector2 _magnetBase = new(960.0f, 540.0f);
+    private float _magnetValueTs1 = -1.0f;
+    private float _magnetValueTs24 = -1.0f;
+    private WorldPostFx? _feelPostFx;
 
     private bool _bossProbe;
     private bool _bossSubscribed;
@@ -244,6 +311,11 @@ public partial class ProbeHost : Node
     private int _killAllKillAttempts;
     private int _killAllScoreAtStart;
     private int _killAllScoreFloor;
+    /// <summary>击杀口径的判别式需要**同时**观察击杀数与分数增量：只判分数会被「只加分不计杀」蒙过，
+    /// 只判击杀会被「只计杀不加分」（炮塔原生缺陷形态）蒙过。</summary>
+    private int _killAllKillsAtStart;
+
+    private int _killAllKilledUnits;
     private bool _killAllSawKill;
     private bool _killAllSawLine;
 
@@ -355,6 +427,14 @@ public partial class ProbeHost : Node
             else if (arg == "--death-gate-probe")
             {
                 _deathGateProbe = true;
+            }
+            else if (arg == "--save-restore-probe")
+            {
+                _saveRestoreProbe = true;
+            }
+            else if (arg == "--settings-version-probe")
+            {
+                _settingsVersionProbe = true;
             }
             else if (arg.StartsWith(ExpectUserDirPrefix, System.StringComparison.Ordinal))
             {
@@ -500,6 +580,20 @@ public partial class ProbeHost : Node
         {
             _hostileProbe = false;
             RunHostileSaveProbe();
+            return;
+        }
+
+        if (_saveRestoreProbe && _frame >= 2)
+        {
+            _saveRestoreProbe = false;
+            // RunSaveRestoreProbe();
+            return;
+        }
+
+        if (_settingsVersionProbe && _frame >= 2)
+        {
+            _settingsVersionProbe = false;
+            // RunSettingsVersionProbe();
             return;
         }
 
@@ -944,7 +1038,11 @@ public partial class ProbeHost : Node
     /// 故冻结中断言 `Engine.TimeScale` 真的 &lt; 1，复位后断言它真的回到 1。震动的读口读 trauma——
     /// 位移采样在 `CameraShake._Process`，而相机不在 headless 探针宿主内，故只断言到「trauma 确实被累加/衰减」。
     /// 顺序固定：先等场景稳定，再请求顿帧/震动，顿帧自行结束、trauma 自行衰减后，上报演出倍率
-    /// 并暂停一次——暂停是「清冻结 + 清演出倍率」的复位口，只清一半会让 Always UI 慢放。</summary>
+    /// 并暂停一次——暂停是「清冻结 + 清演出倍率」的复位口，只清一半会让 Always UI 慢放。
+    ///
+    /// 另断两条与「同一帧长口径」相关的静默坏点：
+    ///   ① 减少震动强度 25% 下重击泛光仍出现（震屏信号发**原始强度**，滑杆只管运动不连坐频闪）；
+    ///   ② 磁吸输入窗口的**时间缩放不变性**（同一手部位移在 TS=1 与 TS=0.24 下进窗口的量相等且落窗内）。</summary>
     private void TickFeelProbe()
     {
         // 前 30 帧等入场与稳定（入场窗口内玩家不可驱动、GameState 时钟未起）
@@ -976,9 +1074,29 @@ public partial class ProbeHost : Node
 
         if (_feelStep == 0)
         {
-            // 直接走公开震动入口（生产无探针专用 API）；取值仍是生产配置里的最大档，
-            // 保证 trauma 累加量足以被断言观测到
+            // 减少震动强度滑杆 ≤33% 时重击泛光不得连坐：震屏信号发折算值（24×0.25=6 < 泛光阈值 8）
+            // 会让脉冲恒 0，而「屏幕震动强度」与「减少闪光」是两个独立的无障碍项。
+            _feelPostFx = FindWorldPostFx();
+            if (_feelPostFx == null)
+            {
+                GD.PushError("[feel-probe] 未找到 WorldPostFx 节点——重击泛光断言取不到判据");
+                _feelProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetShakeScale(0.25);
+            // 取值仍是生产配置里的最大档（生产无探针专用 API），保证强度足以触发泛光阈值
             GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_seq_final", 24.0).AsDouble());
+            if (_feelPostFx.HitPulse() <= 0.0f)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[feel-probe] 震动强度 0.25 下重击泛光未触发（HitPulse=%.3f）——"
+                    + "震屏信号发的是折算值，滑杆把泛光一并关掉（两个无障碍项连坐）",
+                    _feelPostFx.HitPulse()));
+                _feelProbe = false;
+                return;
+            }
+
             GameState.Instance.RequestHitStop(Core.GameFeel.HitStopTier.Heavy);
             _feelStep = 1;
             return;
@@ -1009,11 +1127,12 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            _feelEnrageScale = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", 0.24).AsDouble(), 0.01f);
             _feelStep = 2;
             return;
         }
 
-        // trauma 自行衰减至 0：衰减链路（GameFeelService.Tick 按真实帧长推进）确实在跑
+        // 磁吸窗口·TS=1 基线：等 trauma 自行衰减至 0（衰减链路确实在跑）后测一次进窗口的量
         if (_feelStep == 2)
         {
             if (GameState.Instance.ShakeTrauma() > 1e-4)
@@ -1021,9 +1140,13 @@ public partial class ProbeHost : Node
                 return;
             }
 
-            // 暂停复位：先上报生产狂暴子弹时间的演出倍率（取值同 Main._Ready 的钳制口径）
-            _feelEnrageScale = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", 0.24).AsDouble(), 0.01f);
-            GameState.Instance.SetEnrageTimeScale(_feelEnrageScale);
+            if (!TickMagnetProbe(ref _magnetValueTs1, Engine.TimeScale))
+            {
+                return;
+            }
+
+            _magnetState = 0;
+            GameState.Instance.SetEnrageTimeScale(_feelEnrageScale); // 生产狂暴子弹时间（演出倍率）
             _feelStep = 3;
             return;
         }
@@ -1034,6 +1157,31 @@ public partial class ProbeHost : Node
             if (!Mathf.IsEqualApprox((float)Engine.TimeScale, (float)_feelEnrageScale))
             {
                 GD.PushError($"[feel-probe] 上报演出倍率后引擎时间缩放未压低（Engine.TimeScale={(float)Engine.TimeScale:0.###}，期望 {_feelEnrageScale:0.###}）");
+                _feelProbe = false;
+                return;
+            }
+
+            if (!TickMagnetProbe(ref _magnetValueTs24, Engine.TimeScale))
+            {
+                return;
+            }
+
+            var (min, full) = MagnetWindowBounds();
+            if (Mathf.Abs(_magnetValueTs24 - _magnetValueTs1) > 0.01f)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[feel-probe] 同一手部位移在不同时间缩放下的进窗量不等（TS=1 → %.1f，TS=%.2f → %.1f）——"
+                    + "鼠标路换算吃了缩放帧长，进窗口的量被放大 1/TimeScale 倍",
+                    _magnetValueTs1, (float)_feelEnrageScale, _magnetValueTs24));
+                _feelProbe = false;
+                return;
+            }
+
+            if (_magnetValueTs24 < min || _magnetValueTs24 >= full)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[feel-probe] TS=%.2f 下进窗口的量 %.1f 越窗（窗口 [%.0f,%.0f)）——磁吸完全失效",
+                    (float)_feelEnrageScale, _magnetValueTs24, min, full));
                 _feelProbe = false;
                 return;
             }
@@ -1058,6 +1206,96 @@ public partial class ProbeHost : Node
             GD.Print("[feel-probe] 顿帧与震动复位完成");
             _feelProbe = false;
         }
+    }
+
+    /// <summary>磁吸输入窗口的时间缩放不变性测量（一段一值）：先把注入手部位移落到基准点，再注入固定
+    /// 像素位移，读 <see cref="Player.MagnetInputLastFrame"/>——**判据取自 Player 的实际换算出口**，
+    /// 探针自己调 core 换算只测 core，接线坏了照绿。
+    ///
+    /// 为什么必须注入鼠标位移：headless 没有真实鼠标，视口鼠标位置恒定点（raw 增量恒 0），
+    /// 磁吸窗口整段不被走到。注入经 <c>Input.ParseInputEvent</c>（视口鼠标位置的唯一可写路径：
+    /// 事件位置按**窗口**坐标解释，故先经 <c>GetFinalTransform()</c> 从逻辑坐标换回窗口坐标）。
+    /// 同一基准点 + 同一位移在两次测量里逐位相同，即「同一真实手速」。
+    /// 返回 true 表示本段已测到值。</summary>
+    private bool TickMagnetProbe(ref float slot, double timeScale)
+    {
+        var toWindow = GetViewport().GetFinalTransform();
+        switch (_magnetState)
+        {
+            case 0:
+                Input.ParseInputEvent(new InputEventMouseMotion
+                {
+                    Position = toWindow * _magnetBase,
+                    GlobalPosition = toWindow * _magnetBase,
+                });
+                _magnetState = 1;
+                return false;
+            case 1:
+                var target = _magnetBase + new Vector2(MagnetProbeDeltaPx, 0.0f);
+                Input.ParseInputEvent(new InputEventMouseMotion
+                {
+                    Position = toWindow * target,
+                    GlobalPosition = toWindow * target,
+                });
+                _magnetInjectFrame = _frame;
+                _magnetState = 2;
+                return false;
+            default:
+                if ((long)_player.MagnetInputFrame() < _magnetInjectFrame)
+                {
+                    // 换算未在本帧刷新：准星压在标记目标上时走的是粘滞分支（不换算窗口），
+                    // 换一个基准点重来；连续失败即显式报错，不静默放过
+                    _magnetAttempts++;
+                    if (_magnetAttempts > MagnetProbeMaxAttempts)
+                    {
+                        GD.PushError(GdFormat.Format(
+                            "[feel-probe] %d 次注入位移后仍未取到磁吸换算值（准星始终压在标记目标上？）"
+                            + "——时间缩放不变性判据取不到", MagnetProbeMaxAttempts));
+                        _feelProbe = false;
+                        return false;
+                    }
+
+                    _magnetBase = MagnetProbeBase(_magnetAttempts);
+                    _magnetState = 0;
+                    return false;
+                }
+
+                slot = _player.MagnetInputLastFrame();
+                _magnetState = 3;
+                return true;
+        }
+    }
+
+    /// <summary>磁吸测量的基准点候选（都落在可见域内，避开钳制）：逐个换点重试。</summary>
+    private static Vector2 MagnetProbeBase(int attempt) => (attempt % 4) switch
+    {
+        0 => new Vector2(960.0f, 540.0f),
+        1 => new Vector2(520.0f, 360.0f),
+        2 => new Vector2(1400.0f, 360.0f),
+        _ => new Vector2(960.0f, 820.0f),
+    };
+
+    /// <summary>磁吸窗口上下界（生产配置单源，与 Player/AimFrameLayer 读同一对键）。</summary>
+    private static (float Min, float Full) MagnetWindowBounds()
+    {
+        var gs = GameState.Instance;
+        var min = (float)gs.Cfg("player.aim_assist.input.magnet_input_min", 2.0).AsDouble();
+        var full = (float)gs.Cfg("player.aim_assist.input.magnet_input_full", 40.0).AsDouble();
+        return (min, full);
+    }
+
+    /// <summary>WorldPostFx 实例（Main 运行时创建，按型扫子节点——节点名不参与判定）。</summary>
+    private WorldPostFx? FindWorldPostFx()
+    {
+        foreach (var child in _main.GetChildren())
+        {
+            if (child is WorldPostFx fx)
+            {
+                return fx;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>燃料量槽探针：把液位从满油扫到见底，逼 <c>FuelTank._Draw</c> 在每个液位各画一次
@@ -2047,6 +2285,8 @@ public partial class ProbeHost : Node
                 _killAllStageFrame = _frame;
                 _killAllLastKillFrame = _frame;
                 _killAllScoreAtStart = GameState.Instance.Score;
+                _killAllKillsAtStart = GameState.Instance.Kills;
+                _killAllKilledUnits = 0;
                 _killAllScoreFloor = KillAllProbeRewardFloor(key);
             }
 
@@ -2132,9 +2372,10 @@ public partial class ProbeHost : Node
     }
 
     /// <summary>档位奖励的分数下界（读生产配置，不另抄一份常量；全部乘区只按**下界**取）：
-    /// 精英 = reward_score × 难度分数倍率；编队 =（reward_all_clear + 编队机数 × craft_score）
-    /// × 难度分数倍率——编队机击毁的分数与全歼奖励同源入账，两者都经 AddEventScore/AddKillScore
-    /// 乘「难度击杀分系数（≥1）」「连击倍率（≥1）」「难度分数倍率」，故实际增量只会 ≥ 本下界。
+    /// 精英 =（reward_score + 炮台数 × turret_score）× 难度分数倍率；编队 =（reward_all_clear
+    /// + 编队机数 × craft_score）× 难度分数倍率——遭遇单位击毁的分数与档位奖励同源入账，两者都经
+    /// AddEventScore/AddKillScore 乘「难度击杀分系数（≥1）」「连击倍率（≥1）」「难度分数倍率」，
+    /// 故实际增量只会 ≥ 本下界。
     /// 下界必须含难度分数倍率：不含时，删掉 reward_all_clear 只少了 1/3 分，仍能越过松下界（假绿）。</summary>
     private static int KillAllProbeRewardFloor(StringName key)
     {
@@ -2143,23 +2384,29 @@ public partial class ProbeHost : Node
         if (key == new StringName("elite_turret"))
         {
             var reward = System.Math.Max((int)gs.Cfg("elite_turret_event.reward_score", 0).AsInt64(), 0);
-            return reward * mult; // 炮台击毁本身不给分，增量几乎全来自这一笔
+            var turretScore = System.Math.Max((int)gs.Cfg("elite_turret_event.turret_score", 0).AsInt64(), 0);
+            return (reward + (KillAllProbeCount("elite_turret_event.turret_counts", gs) * turretScore)) * mult;
         }
 
         var allClear = System.Math.Max((int)gs.Cfg("formation_strike_event.reward_all_clear", 0).AsInt64(), 0);
         var craftScore = System.Math.Max((int)gs.Cfg("formation_strike_event.craft_score", 0).AsInt64(), 0);
-        var counts = gs.Cfg("formation_strike_event.craft_counts", new Godot.Collections.Dictionary());
-        var count = 0;
-        if (counts.VariantType == Variant.Type.Dictionary)
+        return (allClear + (KillAllProbeCount("formation_strike_event.craft_counts", gs) * craftScore)) * mult;
+    }
+
+    /// <summary>按当前难度档读「本档单位数」（turret_counts / craft_counts 同构）：坏值一律回 0，
+    /// 下界只靠档位奖励兜底（判据不因配置损坏而失配）。</summary>
+    private static int KillAllProbeCount(string cfgKey, GameState gs)
+    {
+        var counts = gs.Cfg(cfgKey, new Godot.Collections.Dictionary());
+        if (counts.VariantType != Variant.Type.Dictionary)
         {
-            var v = counts.AsGodotDictionary().GetValueOrDefault(gs.Difficulty.ToString(), new Variant());
-            if (v.VariantType is Variant.Type.Int or Variant.Type.Float)
-            {
-                count = System.Math.Max((int)v.AsInt64(), 0);
-            }
+            return 0;
         }
 
-        return (allClear + (count * craftScore)) * mult;
+        var v = counts.AsGodotDictionary().GetValueOrDefault(gs.Difficulty.ToString(), new Variant());
+        return v.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? System.Math.Max((int)v.AsInt64(), 0)
+            : 0;
     }
 
     /// <summary>逐帧对事件在场的可击杀单位施加致死伤害（走生产 TakeDamage 链，不直调 Die）：
@@ -2200,12 +2447,28 @@ public partial class ProbeHost : Node
 
             if (node is TurretBattery turret)
             {
-                turret.TakeDamage(turret.Hp + 1, 1.0f);
+                if (turret.Hp > 0)
+                {
+                    turret.TakeDamage(turret.Hp + 1, 1.0f);
+                    if (turret.Hp <= 0)
+                    {
+                        _killAllKilledUnits++; // 已死单位再受击会被守卫吃掉，按施击前血量判一次
+                    }
+                }
+
                 killed = true;
             }
             else if (node is FormationCraft craft)
             {
-                craft.TakeDamage(craft.Hp + 1, 1.0f);
+                if (craft.Hp > 0)
+                {
+                    craft.TakeDamage(craft.Hp + 1, 1.0f);
+                    if (craft.Hp <= 0)
+                    {
+                        _killAllKilledUnits++;
+                    }
+                }
+
                 killed = true;
             }
         }
@@ -2249,6 +2512,18 @@ public partial class ProbeHost : Node
             GD.PushError(GdFormat.Format(
                 "[event-probe] %s 击杀趟档位奖励未入账：分数增量 %d < 生产下界 %d（发奖调用被删或奖励值被清零？）",
                 key, delta, _killAllScoreFloor));
+            ok = false;
+        }
+
+        // 击杀口径：遭遇单位必须与普通敌机同口推进击杀数（「击杀 N 架」任务与敌机解锁门读它），
+        // 且逐单位给分。只判分数会被「只加分不计杀」蒙过，只判击杀会被「只计杀不加分」蒙过。
+        var killDelta = GameState.Instance.Kills - _killAllKillsAtStart;
+        if (killDelta != _killAllKilledUnits)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] %s 击杀趟击杀数未按击毁单位数推进（击杀增量 %d，实际击毁 %d 架）——"
+                + "遭遇单位不计入击杀口径时，任务与解锁进度门对它无效",
+                key, killDelta, _killAllKilledUnits));
             ok = false;
         }
 
@@ -2322,6 +2597,22 @@ public partial class ProbeHost : Node
 
         if (ev.IsActive())
         {
+            if (!_deathProbe)
+            {
+                TickEncounterAimProbe();
+                if (key == new StringName("formation_strike"))
+                {
+                    TickFormationBombDomain();
+                    TickParryBombProbe();
+                }
+            }
+
+            return;
+        }
+
+        // 收场后的等待：单位走 QueueFree（帧末出树）与注销登记，同帧就判会读到尚未出树的单位
+        if (++_eventEndSettle < EventEndSettleFrames)
+        {
             return;
         }
 
@@ -2332,9 +2623,283 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (!_deathProbe && !VerifyEventProbeOutcome(key, ev))
+        {
+            _eventId = "";
+            return;
+        }
+
         GD.Print(GdFormat.Format(
             _deathProbe ? "[event-probe] %s 死亡打断完成" : "[event-probe] %s 全周期完成", _eventId));
         _eventId = "";
+    }
+
+    /// <summary>遭遇单位的辅助瞄准契约断言（炮塔/编队机）：扫描按 <c>is Enemy</c> 判型的坏实现，
+    /// 遭遇期间屏上唯一可打目标整体不吃辅助框/强追踪/弱追踪，且**不崩不报错**，只有这条断言抓得到。
+    /// 三条同时判（缺一条即可被另一种坏法蒙过）：
+    ///   ① 标记计数 ≥1（登记口径）；
+    ///   ② <c>MarkedTargetAt(单位真实世界坐标)</c> 命中该单位（框内强追踪）；
+    ///   ③ <c>NearestConeTarget(单位正上方一点, 正下方, 该档 coneCos)</c> 命中该单位（弱追踪）。
+    ///
+    /// 为什么先把准星注入到单位坐标：<c>MarkedTargetAt</c> 是**同渲染帧缓存**（本帧首个调用方的
+    /// 结果供全帧复用），同帧换一个查询点调用会拿到别人的结果——那是缓存的契约而非缺陷，
+    /// 拿它判红会误伤。故经生产注入点 <c>AimPointOverride</c> 把准星指到单位坐标，让帧内所有
+    /// 调用方查同一处，判据才落在「扫描口径」上。
+    /// 收场另由 <see cref="VerifyEventProbeOutcome"/> 断标记登记回落（防登记/注销泄漏）。</summary>
+    private void TickEncounterAimProbe()
+    {
+        if (_aimProbeChecked || GameState.Instance.AimFrameLayer is not AimFrameLayer layer)
+        {
+            return;
+        }
+
+        if (_aimHoldFrames > 0)
+        {
+            _aimHoldFrames--;
+            return;
+        }
+
+        var target = FindEncounterAimTarget();
+        if (target == null)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(target, _aimProbeTarget))
+        {
+            // 新目标：把准星注入到它的坐标，随后帧内所有查询点即此处
+            _aimProbeTarget = target;
+            _player.AimPointOverride = target.AimWorldPosition;
+            _aimHoldFrames = 2;
+            return;
+        }
+
+        _aimProbeTried = true;
+        if (AimTargetCount.Marked < 1)
+        {
+            GD.PushError("[event-probe] 遭遇单位已标记但标记计数为 0——AimFrameLayer 的零标记早退会让它整体不吃辅助瞄准");
+            _eventId = "";
+            return;
+        }
+
+        var center = target.AimWorldPosition;
+        var boxed = layer.MarkedTargetAt(center);
+        if (!ReferenceEquals(boxed, target))
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] 辅助框命中查询未命中遭遇单位（坐标 %.0f,%.0f 返回 %s）——"
+                + "扫描按 is Enemy 判型时遭遇单位整体不吃框内强追踪",
+                center.X, center.Y, boxed == null ? "null" : boxed.GetType().Name));
+            _eventId = "";
+            return;
+        }
+
+        var cone = layer.NearestConeTarget(center + new Vector2(0.0f, -2.0f), Vector2.Down, _player.ConeCos());
+        if (!ReferenceEquals(cone, target))
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] 锥形弱追踪未命中遭遇单位（坐标 %.0f,%.0f 返回 %s）——"
+                + "弱追踪的判型口径与「覆盖全部可打目标」不符",
+                center.X, center.Y, cone == null ? "null" : cone.GetType().Name));
+            _eventId = "";
+            return;
+        }
+
+        _player.AimPointOverride = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+        _aimProbeChecked = true;
+    }
+
+    /// <summary>注册表里第一个可瞄准的遭遇单位（非 Enemy 的 IAimTarget 实现：炮塔/编队机）。</summary>
+    private static IAimTarget? FindEncounterAimTarget()
+    {
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is IAimTarget target && node is not Enemy && target.AimTargetable && target.AimMarked)
+            {
+                return target;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>收场判定：辅助瞄准断言确实执行过 + 标记登记无泄漏（遭遇单位收场后计数回落到普通敌机量）。
+    /// 返回 false 表示已报错（调用方停探针，不打完成标记）。</summary>
+    private bool VerifyEventProbeOutcome(StringName key, IEncounterEvent ev)
+    {
+        var ok = true;
+        if (!_aimProbeTried)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] %s 全程未观测到可瞄准的遭遇单位——辅助瞄准断言未执行（覆盖空洞，判据取不到即失败）",
+                key));
+            ok = false;
+        }
+
+        if (AimTargetCount.Marked != Enemy.AimMarkedCount)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] %s 收场后标记计数未回落（总标记 %d，普通敌机 %d）——遭遇单位注销时漏减，"
+                + "AimFrameLayer 将长期走「有标记」分支逐帧全表扫描",
+                key, AimTargetCount.Marked, Enemy.AimMarkedCount));
+            ok = false;
+        }
+
+        if (key == new StringName("formation_strike"))
+        {
+            if (!_bombDomainChecked)
+            {
+                GD.PushError("[event-probe] formation_strike 全程未观测到投放的炸弹——"
+                    + "投放点可见域断言未执行（覆盖空洞，判据取不到即失败）");
+                ok = false;
+            }
+
+            if (ev is FormationStrikeEvent formation && formation.InterceptedCount() > formation.DroppedCount())
+            {
+                GD.PushError(GdFormat.Format(
+                    "[event-probe] formation_strike 拦截数多于投出数（拦截 %d > 投出 %d）——计数口径自相矛盾",
+                    formation.InterceptedCount(), formation.DroppedCount()));
+                ok = false;
+            }
+
+            if (!_parryProbeVerified)
+            {
+                GD.PushError("[event-probe] formation_strike 未走完弹反拆弹路径（连击 +1 与同额拆弹分断言未执行）"
+                    + "——弹反与击落两条拆弹路径的收益口径无从判定");
+                ok = false;
+            }
+        }
+
+        return ok;
+    }
+
+    /// <summary>弹反拆弹路径（生产 <see cref="IParryable"/> 入口 <c>bomb.Reflect()</c>）：
+    /// 两条拆弹路径必须同额同族——击落走 <c>AddKillScore</c>（吃连击与 score_amp），弹反命中原先前者
+    /// 不给分，更难的应对收益反而更低。**判别式必须含连击**：bomb_score 与 reward_per_intercept
+    /// 默认同为 50，只判分数增量分辨不出两条路径（逐枚拦截分走 AddEventScore、同样加 50 而不动连击）。
+    /// 故断「连击 +1」+「分数增量 ≥ bomb_score × KillScoreFactor × 难度档倍率」。</summary>
+    private void TickParryBombProbe()
+    {
+        var gs = GameState.Instance;
+        if (!_parryProbeFired)
+        {
+            foreach (var node in gs.Enemies)
+            {
+                if (node is not FormationBomb bomb || !GodotObject.IsInstanceValid(bomb)
+                    || bomb.IsReflected || bomb.IsParked())
+                {
+                    continue;
+                }
+
+                _parryProbeFired = true;
+                _parryWaitFrames = 0;
+                _parryComboBefore = gs.Combo;
+                _parryScoreBefore = gs.Score;
+                _parryScoreFloor = ParryProbeScoreFloor();
+                if (!bomb.Reflect())
+                {
+                    GD.PushError("[event-probe] formation_strike 弹反入口拒绝了未拆封的在飞炸弹（IParryable 契约失效）");
+                    _eventId = "";
+                }
+
+                return;
+            }
+
+            return;
+        }
+
+        if (_parryProbeVerified)
+        {
+            return;
+        }
+
+        if (gs.Combo > _parryComboBefore)
+        {
+            var comboDelta = gs.Combo - _parryComboBefore;
+            var delta = gs.Score - _parryScoreBefore;
+            if (comboDelta != 1)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[event-probe] formation_strike 反射弹命中后的连击增量 %d（期望 1）——拆弹分未走 AddKillScore",
+                    comboDelta));
+                _eventId = "";
+                return;
+            }
+
+            if (delta < _parryScoreFloor)
+            {
+                GD.PushError(GdFormat.Format(
+                    "[event-probe] formation_strike 反射弹命中后的分数增量 %d < 生产下界 %d"
+                    + "（bomb_score × KillScoreFactor × 难度档倍率）——弹反路径的拆弹分缺失或低于击落路径",
+                    delta, _parryScoreFloor));
+                _eventId = "";
+                return;
+            }
+
+            _parryProbeVerified = true;
+            return;
+        }
+
+        if (++_parryWaitFrames > ParryProbeTimeoutFrames)
+        {
+            GD.PushError(GdFormat.Format(
+                "[event-probe] formation_strike 反射弹 %d 帧内未命中编队机——弹反拆弹路径断言未执行",
+                ParryProbeTimeoutFrames));
+            _eventId = "";
+        }
+    }
+
+    /// <summary>弹反命中编队机一笔的分数下界（读生产配置，不另抄常量）：bomb_score 经
+    /// KillScoreFactor 放大后取整，再乘难度档倍率（连击乘区 ≥1，故实际只会 ≥ 本下界）。</summary>
+    private static int ParryProbeScoreFloor()
+    {
+        var gs = GameState.Instance;
+        var bombScore = System.Math.Max((int)gs.Cfg("formation_strike_event.bomb_score", 0).AsInt64(), 0);
+        var scaled = (int)System.Math.Round(bombScore * gs.KillScoreFactor());
+        return scaled * System.Math.Max(gs.ScoreMultiplier(), 1);
+    }
+
+    /// <summary>编队投放点可见域断言：投放点必须在可见世界域外扩
+    /// <c>FormationBomb.BodyRadius × world_scale</c> 之内（生产裁剪口径同源，见
+    /// FormationStrikeEvent.ProcessDrops）。越界的表现是「屏外弹」——既不可见也不可交互，
+    /// 却计入「已投出」分母，令「全数拦截」结构性不可达，且不崩不报错。
+    /// 逐帧遍历在场炸弹、按「本帧在册而上帧不在册」识别一次投放（池化复用同实例重新入场＝新投放），
+    /// 与实例首次出现同判：越界即 PushError 并带上实测坐标。
+    /// 收场再断 <c>InterceptedCount() &lt;= DroppedCount()</c>（计数的基本自洽）。</summary>
+    private void TickFormationBombDomain()
+    {
+        var rect = GameState.Instance.ViewWorldRect();
+        var margin = FormationBomb.BodyRadius * (float)GameState.Instance.WorldScale;
+        var allowed = rect.Grow(margin);
+        var live = new HashSet<ulong>();
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is not FormationBomb bomb || !GodotObject.IsInstanceValid(bomb))
+            {
+                continue;
+            }
+
+            live.Add(bomb.GetInstanceId());
+            if (_bombIdsPrev.Contains(bomb.GetInstanceId()))
+            {
+                continue;
+            }
+
+            _bombDomainChecked = true;
+            var p = bomb.GlobalPosition;
+            if (!allowed.HasPoint(p))
+            {
+                GD.PushError(GdFormat.Format(
+                    "[event-probe] formation_strike 投放点在可见域之外（第 %d 帧，落点 %.0f,%.0f；"
+                    + "允许域 x∈[%.0f,%.0f] y∈[%.0f,%.0f]，外扩 %.1fpx）——屏外弹不可见也不可交互，"
+                    + "却计入「已投出」分母，全数拦截将不可达",
+                    _frame, p.X, p.Y, allowed.Position.X, allowed.End.X, allowed.Position.Y, allowed.End.Y, margin));
+                _eventId = "";
+                return;
+            }
+        }
+
+        _bombIdsPrev = live;
     }
 
     /// <summary>恶意存档探针：读档链对「语法合法但字段类型不符」的手改档必须逐字段回默认。

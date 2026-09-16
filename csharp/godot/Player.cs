@@ -685,6 +685,18 @@ public partial class Player : CharacterBody2D
         ["falloff_min"] = _falloffMin,
     };
 
+    /// <summary>当前档位的锥形弱追踪余弦阈值（只读诊断口）：唯一真值在 <c>_coneCos</c>，
+    /// 探针用它做 <c>AimFrameLayer.NearestConeTarget</c> 的入参——探针自己换算 core 函数会与
+    /// Player 的实际档位取值分叉（接线坏了照绿）。见 ROADMAP 零引用成员口径。</summary>
+    public float ConeCos() => _coneCos;
+
+    /// <summary>上一渲染帧进磁吸窗口的输入量（只读诊断口，见字段注释）。
+    /// 零运行期引用，保留理由与 <see cref="_probeMagnetInput"/> 同。</summary>
+    public float MagnetInputLastFrame() => _probeMagnetInput;
+
+    /// <summary>上面那次换算所属的渲染帧号（只读诊断口）：探针据此确认读到的是刚注入那一帧的值。</summary>
+    public ulong MagnetInputFrame() => _probeMagnetInputFrame;
+
     /// <summary>距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
     public float AimDistFalloff(float d) => AimFalloff.Evaluate(d, _falloffPeak, _falloffEnd, _falloffMin);
 
@@ -1150,6 +1162,14 @@ public partial class Player : CharacterBody2D
     private ulong _aimWarpFrame = ulong.MaxValue;
     private bool _aimWarpDone;
 
+    /// <summary>上一渲染帧经换算进磁吸窗口的输入量（只读诊断口，零生产引用；见 ROADMAP 零引用
+    /// 成员口径——它是探针观察面）：磁吸窗口的帧长归一坏掉时量会越窗，无头下不崩不报错，
+    /// 只能靠读这个出口值判定。</summary>
+    private float _probeMagnetInput;
+
+    /// <summary>上面那次换算所属的渲染帧号（探针据此判断读到的是本帧还是陈旧值）。</summary>
+    private ulong _probeMagnetInputFrame = ulong.MaxValue;
+
     private Vector2 AimPointInternal(bool warp)
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
@@ -1202,6 +1222,10 @@ public partial class Player : CharacterBody2D
                     var magnetInput = joyDelta != Vector2.Zero
                         ? joyDelta * stickMagnetScale
                         : (raw - _aimLastRaw) * mouseMagnetScale;
+                    // 进窗口的量（只读诊断口，探针断「同一真实手速在不同 Engine.TimeScale 下进窗口的量
+                    // 相等」）：它是换算链的**出口**，探针自己调 core 换算只测 core、接线坏了照绿。
+                    _probeMagnetInput = magnetInput.Length();
+                    _probeMagnetInputFrame = frame;
                     magnet = aimLayer.MagnetPull(_aimSmooth, magnetInput);
                 }
             }
