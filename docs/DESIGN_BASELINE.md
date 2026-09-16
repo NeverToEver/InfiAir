@@ -33,6 +33,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   `--fog-interrupt-probe` 断打断后增量为 0，两半互补（只判一侧会让「一律发／一律不发」混过）。
 - `GameState.AddScore(v)`: multiplies difficulty (easy ×1 / medium ×2 / hard ×3；玩家文案 易/中/难，配置键 `difficulty.<tier>.score`); all kills route here.
 - **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window **5.0s** / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 5s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards do NOT combo；**擦弹吃连击加权**（`graze_combo_weight` 1.0，2026-09-14 起）。 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
+- **遭遇单位同口径**（2026-09-17 裁定）：编队机与精英炮塔的击毁都走 `AddKill()`（计「击杀」数，推进 kill 类任务与进度门）**并且**给一笔击杀分走 `AddKillScore`（吃连击与 `score_amp`）——此前两者都不计击杀数、炮塔连分数都不给，与「所有击杀都经 `AddScore`」冲突。炮塔击杀分取值 `elite_turret_event.turret_score`（**150**，独立于事件档位奖励 `reward_score`）；编队机沿用 `craft_score`（同一处入账，不再由事件编排侧代给）。
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only; spent at base console, not carried between runs.
 - **RefreshPoints**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
@@ -98,6 +99,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile；`tick_interval` 可配置), `explosive.*`, `dash_strike.tick_interval` (**0.12s，可配置**), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
   - **弱追踪覆盖全部敌机**：`NearestConeTarget` 不按 `aim_marked` 过滤——标记只决定**框显示**与**框内强追踪**，不是弱追踪的准入门槛。锥角/强度随档位（low 6°/0.42、medium 8°/0.52、high 10°/0.62）。
+  - **遭遇单位同属瞄准面**（2026-09-17 裁定）：编队机与精英炮塔实现同一个「可瞄准目标」契约（存活 / 世界位置 / 框半宽 / 是否标记），弱追踪、框内强追踪、磁吸、标记框**一律覆盖**；遭遇单位恒为标记目标（框恒显）。理由：遭遇期间它们是屏上唯一可打目标，按类名排除会让瞄准手感随目标类型漂移。框半宽沿用普通敌机的「碰撞半径 + 同一 pad」口径，不另造一套。**Boss 不参与辅助瞄准**（既有例外，刻意留在契约外）。
   - 玩家弹速 `player.bullet_speed`（**2600**，定稿）：纵向 1080 设计高约 0.42s、横向 1920 宽约 0.74s 横穿，远距离目标不必再「等弹到」。
 - **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
 
@@ -126,6 +128,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **Formation strike** (lowest priority; 2026-09-11 深化): 3/4/5 (by difficulty) wedge dive → 90° cross（**全程压坡**）→ **波次化投弹** → exit。**核心是一条「三种应对」的攻防**：炸弹可被**击落**（`bomb_hp`，空中引爆＝无地面伤害 + 拦截分）、可被**弹反**（`IParryable` 契约，反射后反向上升并轻量寻敌，命中编队按 `bomb_reflect_damage` 结算）、也可纯**闪避**。
   - **落点可读**：每枚炸弹自带「落点圈」——完整伤害半径的轮廓 + 12 点起收缩的倒计时弧，**圈越少越亮**（最危险的一刻最显眼）。引信到期在弹体当前位置引爆，伤害按距离衰减（中心满伤 → 边缘 `bomb_edge_falloff`），边界即实际生效边界。
   - **结算三分支**（收益上限由玩家操作决定）：**全数拦截**（投出的弹全被空中拆掉 + 编队机一架未坠）→ `reward_intercept` + 逐枚 `reward_per_intercept`；**全歼**（打光编队，含已投弹）→ `reward_all_clear`；放它离场 → 只有击坠得分。被引信引爆的弹**不计**拦截；弹反后出界回收（未命中）同样不计——空中击落或弹反命中单位才算拆掉。
+  - **投放必须落在可见区内**（2026-09-17 裁定）：投放点越出可见世界域的弹**不再生成**（越界即跳过这次投放，与「已毁机跳过、时刻表照走」同族，不生成弹也不计入投放数）。理由：屏外弹既不可见也不可交互，其存在只会污染「已拦截 n」的分母、让**全数拦截档结构性不可达**，还会用屏外的爆炸边缘蹭到贴边的玩家；而设计口径「投出的弹全被空中拆掉」因此保持字面成立。代价：计划时刻表与实际投放数不再相等（实测 medium 16→9），档位判定与 HUD 分母一律取实际投放数。
+  - **拆弹两条路径同额**（2026-09-17 裁定）：空中击落与弹反命中都是「拆掉一枚威胁」，收益必须同族同额——两路都给 `bomb_score` 走 `AddKillScore`（吃连击与 `score_amp`），并叠加同一笔逐枚 `reward_per_intercept`（经 `AddEventScore`，属事件奖励、不计连击）。原实现只在击落路径给击杀分，于是更难的弹反应对收益反而更低。
   - **投弹节奏**：`volley_batches` 波 × 每波按「到长机的距离排序」依次 `bomb_interval` 错开（长机先投），波间 `volley_gap` 呼吸；同机 `bombs_per_craft` 枚以 0.4s 间隔连投。编队几何与投弹时刻表在 core `FormationPlan`（楔形槽位 / 名次定序 / 时刻表排序，可单测）；引擎侧只按表消费。
   - **演出与可读性**（2026-09-12）：入场前屏顶打**进场预告线**（复用普通波次的 `SpawnTelegraph`，换编队身份色，时长取 `spawner.telegraph_duration`）；投弹前 **0.45s 机腹灯闪烁预警**（落点圈只说明「会炸到哪」，预警灯说明「谁要投」）；顶部**事件条**显示全程进度（入场 + 转弯 + 投弹表末刻 + 离场）与「编队机 x/y · 已拦截炸弹 n」（与精英炮塔共用同一组件，标题/计数文案与身份色由事件注入）；通讯序列 = 接敌警告 → 轰炸段开始的战术提示（可击落 / 可弹反回敬）→ 至多一条进度台词（首次战损或首次拆弹，敌方视角）→ 结算台词。
   - **触发与互斥**：触发策略（`min_score` / `trigger_chance` / `trigger_interval`）只由 `GameEventManager` 读取与判定，事件自身只报「就绪」（空闲 + 冷却结束 + 母舰不在场）；资格合成与计时推进下沉 core `EncounterTrigger`（可单测：分数门槛、资格不足时计时冻结、到点先复位整段再掷签）。事件**同时占用波次槽与 Boss 槽**：运行期暂停普通波次并冻结 Boss 调度，收场（含返航打断）一并解除并补触发一次期间到期的 Boss。`Abort()` 连同在场炸弹一并清除且无结算（已入账的击坠分与拦截分保留）。
@@ -197,7 +201,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   - **音频 Audio**：主音量 · 音乐 · 音效。
   - **辅助与关于 Accessibility & About**：减少闪光 · 屏幕震动强度 · 命中顿帧强度 · 版本与操作速查。
 - **生效时机**：一律即时生效（无需「应用」按钮）；滑杆拖动即时改值（apply），持久化只在 **`DragEnded` 与离开设置页时各一次**——拖动过程中逐帧全量原子写盘是磁盘写风暴。
-- **持久化版本**：`settings.json` 带 `version`（当前 4），**读入时真读**。版本与当前一致直读、低于当前按旧键名迁移、**高于当前告警并按逐字段默认值回退**（不猜未来字段语义、不拒绝加载文件、不改写格式）；判定在 core `SettingsMigration`（可单测）。
+- **持久化版本**：`settings.json` 带 `version`（当前 4），**读入时真读**。版本与当前一致直读、低于当前按旧键名迁移、**高于当前按逐字段默认值回退**（不猜未来字段语义、不拒绝加载文件、不改写格式）；判定在 core `SettingsMigration`（可单测）。**「逐字段回退」的落地口径**（2026-09-17 收口）：版本高于当前时整份档**按空档读入**——每个字段都取默认值，不拿当前语义去读未来档里的同名键（这正是该分支存在的唯一理由；只对缺失键回退而照读已知键，等于把未来语义当当前语义用）。告警照发，文件在下次落盘前不动。
 - **破坏性动作必二次确认**：恢复默认按键、全部恢复默认都经 `ConfirmationDialog`，确认文案写清后果（会丢什么、什么会保留）。
 - **状态可见**：开关下方给出当前状态读出（垂直同步的实际生效值可能被驱动覆盖，与偏好不一致时明示）；屏幕震动强度与命中顿帧强度 0% 都单独文案说明「已关闭」，避免玩家把 0% 读成「最小」。
 - **无障碍定稿范围**：减少闪光（频闪）× 屏幕震动强度（运动）× 命中顿帧强度（瞬时定格）× 可改键 × 音量三分路。屏幕朗读（XAG 106）与字幕**不做**——本作无配音与叙事对白，无朗读对象。
@@ -267,6 +271,8 @@ GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕
   - **连击（combo）**：连击数持久化，读档时恢复并给予**满连击窗口**（与「连击窗口计时本身不持久化」自洽——存档的是连击段位，不是剩余时间）。
 - **还原顺序**（`GameState.RunSave.cs.ApplyRunDict`）：talent → combat（先恢复 extra_life 层级才有正确 MaxHealth）→ score → progress → missions；各服务 `RestoreRunState` 末尾补发既有信号（`AugmentsChanged/TalentsChanged/CacheChanged/RpChanged/…`）驱动 HUD 与 Player 增幅件重建。
 - **健壮性**：档案带 `version`（=1），不符按无存档忽略（不隔离不阻塞开机）；损坏 JSON 走既有隔离（且 `HasRunSave` 会触发该自愈，无需人工清理）；**JSON 往返会把 `StringName` 键退化为 `String`**，还原时对 `augments`/`missions` 键做 StringName 归一化（否则查表落空、增幅与任务进度静默失效）；所有字段判型读取，非法回默认。
+- **还原必须过白名单与上限**（2026-09-17 收口）：手改档是可达输入面，「判型 + 钳域」不足以防静默错值，还原一律按**已知集合**过滤——`missions` 只收 `MISSION_POOL` 里的 id（goal 取池内定稿值，不读存档里的 goal，否则查池得 0 会让 `IsMissionDone` 恒真、可反复领取 RP）；`talent_overcharged` 只收已知节点、去重并按本局过载名额上限截断；`augments` 只收天赋树已知节点且层级 ≤ 该节点上限（**风险加点节点例外**：层级 `max_stacks+1` 是其正当形态，读档必须保留，否则双倍价买的那一级静默消失）；`key_bindings` 只收 `REBINDABLE_ACTIONS` 里的动作名（否则未知动作名被永久回写）。过滤策略下沉 core 纯函数并配单测。
+- **还原末尾补发驱动信号**：各服务 `RestoreRunState` 末尾补发既有信号（`AugmentsChanged/TalentsChanged/CacheChanged/RpChanged/DifficultyChanged/…`）。`DifficultyChanged` 尤其不能漏——HUD 难度标签只在信号与语言变更时刷新（无轮询），漏发会让难度读数停在 x1.00 直到下一次时间档跨步（最长 30s）。
 
 ### 2.6 性能设置（2026-09-10 追加）
 设置页「显示与性能」页的**性能**段（`SettingsService` + `SettingsUi`，settings.json 持久化）：
@@ -321,8 +327,11 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
   小额冲击近乎无感、大额才猛烈，高频抖动不再叠加成持续晃动。衰减与顿帧同时序按真实帧长推进。
   震源表在 `effects.shake.*`，语义是**创伤增量**（不是像素振幅），另有 `recovery`（衰减速率）
   与 `reference`（归一化参考振幅，缺省与 `boss_seq_final` 同量纲）。
-- **设置项**：辅助页新增「命中顿帧强度」（0..1，0 = 完全关闭；按比例**缩时长**而非改冻结倍率——倍率逼近 0
-  会让帧长趋零、采样与输入一起失真）。与「减少闪光」「屏幕震动强度」并列，`HitStopScale` 落 settings.json。
+- **设置项**：辅助页「命中顿帧强度」（0..1，0 = 完全关闭；按比例**缩时长**而非改冻结倍率——倍率逼近 0
+  会让帧长趋零、采样与输入一起失真），与「减少闪光」「屏幕震动强度」并列，`HitStopScale` 落 settings.json。
+  **三项互不连坐**（2026-09-17 收口）：屏幕震动强度只作用在**运动**（trauma 与像素位移），广播给画面增强层的
+  震源强度取原始值——两者的语义分别是「运动」与「频闪」，滑块关掉震动不该连带关掉重击泛光（否则把强度调到
+  1/3 以下时重击脉冲完全消失，而「减少闪光」明明是另一项设置）。
 - **回归面**：`--feel-probe`（冒烟第七趟）请求顿帧与震动后断言「时间缩放被压低 → 自行复位 → trauma 归零」；
   顿帧写坏的表现是**画面永久定格**，无头下不崩也不报错，只有完成标记抓得住。
   时序与 trauma 数学下沉 `csharp/core/GameFeel/`（`HitStopTimeline`/`TraumaShake`）并由单测钉住（含「零真实帧长不得结束顿帧」）。
