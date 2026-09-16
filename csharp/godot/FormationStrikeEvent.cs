@@ -332,7 +332,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 {
                     _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
                     ProcessDropWarnings();
-                    ProcessDrops();
+                    ProcessDrops(view);
                     PruneBombs();
                     // 出界余量按投弹表剩余最大时长折算：固定 ±120 会在 hard 5 机
                     // 投弹段截断末机炸弹（余量动态 = 末弹时刻 × 速度）
@@ -617,9 +617,16 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
     }
 
-    /// <summary>按时刻表投弹：投弹点即当前编队机位置（+机腹偏移）；已毁机跳过（时刻表照走）。</summary>
-    private void ProcessDrops()
+    /// <summary>按时刻表投弹：投弹点即当前编队机位置（+机腹偏移）；已毁机跳过、**投放点出可见域
+    /// 的也跳过**（时刻表照走，游标照常推进，与已毁机同族）。屏外弹既不可见也不可交互，
+    /// 生成出来只会污染「已拦截/投出」计数——编队横穿侧缘时末几枚的落点在视界之外，
+    /// 计进分母会让「全数拦截」结构性不可达；跳过的这次不算投出，也就不进结算分母。
+    /// 可见域取生产单源 FrameCache.ViewRect()（＝ GameState.ViewWorldRect()，玩家侧瞄准钳制
+    /// 与弹体出界回收同一口径），余量取弹体半径（同源 FormationBomb.BodyRadius）——
+    /// 弹心越出界一个半径以内仍有一段弹体在可见区内、可被击落，不算「屏外弹」。</summary>
+    private void ProcessDrops(Rect2 view)
     {
+        var margin = FormationBomb.BodyRadius * (float)GameState.Instance.WorldScale;
         while (_dropIndex < _dropTimes.Length && _stateTime >= _dropTimes[_dropIndex])
         {
             var idx = _dropCraft[_dropIndex];
@@ -630,11 +637,23 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 continue;
             }
 
-            SpawnBomb(craft);
+            var dropPoint = DropPoint(craft);
+            if (!FormationPlan.DropPointVisible(
+                    dropPoint.X, dropPoint.Y, view.Position.X, view.Position.Y, view.Size.X, view.Size.Y, margin))
+            {
+                continue;
+            }
+
+            SpawnBomb(craft, dropPoint);
         }
     }
 
-    private void SpawnBomb(FormationCraft craft)
+    /// <summary>投弹点（弹体生成位置）：编队机当前位置 + 机腹偏移（设计值 × world_scale）。
+    /// 可见域裁剪与弹体落位共用这一处取值——两处各写一份表达式时，裁掉的与落下的会悄悄分叉。</summary>
+    private Vector2 DropPoint(FormationCraft craft)
+        => craft.Position + (new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale);
+
+    private void SpawnBomb(FormationCraft craft, Vector2 dropPoint)
     {
         var bomb = AcquireBomb();
         if (bomb.GetParent() == null)
@@ -661,7 +680,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         bomb.MaxHp = Mathf.Max(1, BombHp);
         bomb.Hp = bomb.MaxHp;
         bomb.Activate(); // 全运行态/外观复位（新弹幂等重入；回收弹经此复活并重绑注册表）
-        bomb.Position = craft.Position + (new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale);
+        bomb.Position = dropPoint;
         _bombs.Add(bomb);
         craft.FlashBay(); // 机腹照明亮一下：投弹动作可见
         GameState.Instance.PlaySfx(SfxId.Dash, -14.0, 1.7); // 投弹舱释放的轻响（复用采样 + 高音变体）

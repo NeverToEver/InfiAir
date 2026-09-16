@@ -162,4 +162,42 @@ public sealed class FormationPlanTests
         Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.NaN));
         Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.PositiveInfinity));
     }
+
+    [Fact]
+    public void DropPointVisible_InsideOrWithinMargin_IsVisible()
+    {
+        // 视域 x ∈ [-100, 100]、y ∈ [0, 200]，余量 12：域内与其外一个余量内的投放点都算可见
+        Assert.True(FormationPlan.DropPointVisible(0.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(-112.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(112.0f, -12.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_BeyondMargin_IsCut()
+    {
+        // 编队横穿侧缘的形态：投放点越出右界一个余量以上即不生成
+        // （屏外弹不可见不可交互，计进投出数会让「全数拦截」结构性不可达）
+        Assert.False(FormationPlan.DropPointVisible(113.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(-113.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(0.0f, 213.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        // 视界右缘 1920 的实测量级：2425 判不可见，1928（余量内）判可见
+        Assert.False(FormationPlan.DropPointVisible(2425.0f, 700.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(1928.0f, 700.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_NonFinitePoint_IsCut()
+    {
+        // 坏坐标（NaN 编队机位置）生成出来只会是 NaN 节点：判不可见即跳过这次投放
+        Assert.False(FormationPlan.DropPointVisible(float.NaN, 100.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(100.0f, float.PositiveInfinity, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_NonFiniteView_DoesNotCut()
+    {
+        // 视域读数坏掉时不裁剪：裁剪不得成为「事件整个不投弹」的静默来源
+        var nan = float.NaN;
+        Assert.True(FormationPlan.DropPointVisible(5000.0f, 100.0f, nan, 0.0f, nan, nan, nan));
+    }
 }

@@ -161,6 +161,31 @@ public static class FormationPlan
         return new DropSchedule(sortedTimes, sortedCrafts);
     }
 
+    /// <summary>投放点（弹心）是否落在可见世界域内（含 <paramref name="margin"/> 余量）。
+    /// 编队横穿侧缘时末几枚的投放点已出视野——这些弹永不可见、不可击落、不可弹反，
+    /// 计进投出数会让「全数拦截」结构性不可达（没投出去的不该算投出，故不生成）。
+    /// 余量取弹体半径量级：判据是弹心落点而弹体有半径——弹心越出界一个半径以内时弹体仍有
+    /// 一段落在可见区内（玩家看得见也打得掉），越出一个半径才是完全不可见，砍它才是裁剪本意。
+    /// 视域读数非有限时不裁剪——裁剪不得成为「事件整个不投弹」的静默来源；
+    /// 投放点自身非有限则判不可见（坏坐标生成出来只会是 NaN 节点）。</summary>
+    public static bool DropPointVisible(
+        float x, float y, float viewLeft, float viewTop, float viewWidth, float viewHeight, float margin)
+    {
+        if (!float.IsFinite(x) || !float.IsFinite(y))
+        {
+            return false;
+        }
+
+        if (!float.IsFinite(viewLeft) || !float.IsFinite(viewTop)
+            || !float.IsFinite(viewWidth) || !float.IsFinite(viewHeight) || !float.IsFinite(margin))
+        {
+            return true;
+        }
+
+        return x >= viewLeft - margin && x <= viewLeft + viewWidth + margin
+            && y >= viewTop - margin && y <= viewTop + viewHeight + margin;
+    }
+
     /// <summary>进场锚点的横向抖动（0..1）：把锚点散布在视野中央带内，同时决定 90° 转向侧。
     /// 由触发时刻确定性散列得到——同一次触发恒定可复现（无头探针不再每次跑出不同锚点与转向侧），
     /// 不同触发时刻经黄金比低差异序列仍大范围散开。取代此前的 GD 默认随机序列（违反确定性硬规则）。</summary>

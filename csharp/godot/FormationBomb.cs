@@ -23,6 +23,11 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 {
     private const int RingSegments = 32;
 
+    /// <summary>弹体碰撞半径（设计值 × world_scale）：弹心之外还占这么多像素。
+    /// 事件侧的投放点可见域裁剪余量与此同源——两处各写一份会让「可交互边界」与「裁剪边界」分叉
+    /// （裁剪砍掉一枚仍有一半露在界内、玩家打得掉的弹，或留下完全不可交互的屏外弹）。</summary>
+    public const float BodyRadius = 12.0f;
+
     /// <summary>落点圈/倒计时弧线宽（设计值 × world_scale，与弹体同口径）。</summary>
     private const float RingWidth = 12.0f;
     private const float ArcWidth = 16.0f;
@@ -196,7 +201,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
             Color = WarheadColor,
         };
         _body.AddChild(_warhead);
-        var shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = 12.0f * ws } };
+        var shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius * ws } };
         AddChild(shape);
         // 命中只在反射态生效（见 OnAreaEntered）：未反射时区域判定为空跑，
         // 保留连接以免反射瞬间才连信号（信号时序不确定）
