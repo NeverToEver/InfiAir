@@ -309,6 +309,23 @@ smoke_augment_cache() {
   expect_marker "池化复用后缓存连接态成立" "${PROBE_LOG_BASE}.augment.log" "[augment-cache-probe] 池化复用后缓存连接态成立"
 }
 
+smoke_save_restore() {
+  # 存档还原：风险加点层级（max+1 须保留，读档无条件钳回会让双倍价买的一级静默消失）、
+  # 生命上限与层级自洽、读档补发的难度信号值 == 存档难度乘数、ScoreChanged 回调里 RunTime 已是存档值
+  # （信号先于还原会让订阅方读到复位值 0）。三段互相对照：带标记 / 去标记（须钳回）/ 池外标记名（不抬高）。
+  run_case "save restore probe smoke" 120 "${PROBE_LOG_BASE}.save_restore.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.save_restore.userdata" --save-restore-probe
+  expect_marker "存档层级与信号还原" "${PROBE_LOG_BASE}.save_restore.log" "[save-restore-probe] 层级与信号还原成立"
+}
+
+smoke_settings_version() {
+  # 设置版本：高于当前的版本档必须按逐字段默认值回退（只告警照读已知键名会把未来语义当当前语义读入，
+  # core 版本判定被架空且无任何信号）。判据两半互补——高版本档逐项等于出厂档、同版对照档逐项还原
+  # （只判前半会让「一律回默认」的实现照样绿）；另断「全部恢复默认」的四个缓存型信号在有变化时
+  # 各发一次、无变化时一个都不发。
+  run_case "settings version probe smoke" 120 "${PROBE_LOG_BASE}.settings_version.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings_version.userdata" --settings-version-probe
+  expect_marker "设置版本回退与复位信号" "${PROBE_LOG_BASE}.settings_version.log" "[settings-version-probe] 版本回退与复位信号成立"
+}
+
 smoke_tutorial() {
   # 教程场景直开：教程是**另一条生产入口**（独立场景，不经 Main 的标题屏交接），上面各趟都不经过
   # 它。标记在 Tutorial._Ready 末尾打，切场景/资源加载失败时不出现——只判「不崩」抓不到。
@@ -334,6 +351,8 @@ SMOKE_CASES=(
   smoke_dock
   smoke_killall
   smoke_augment_cache
+  smoke_save_restore
+  smoke_settings_version
   smoke_tutorial
 )
 

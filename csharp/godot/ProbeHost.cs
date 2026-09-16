@@ -149,6 +149,17 @@ public partial class ProbeHost : Node
     /// <summary>正常档还原断言里 health 的期望值（ValidRunJson 的 health 字段）。</summary>
     private const float AssertedHealth = 42.5f;
 
+    /// <summary>存档还原探针写入 run.json 的进度定值（与断言逐项对齐：难度信号值与
+    /// ScoreChanged 回调里读到的时间）。</summary>
+    private const double AssertedRunTime = 300.0;
+
+    private const double AssertedDifficulty = 1.6;
+
+    /// <summary>恶意 run.json·白名单与上限：missions 含池外 id（查池得 goal 0 → IsMissionDone 恒真）
+    /// 与池内 id 但 goal 被改小；augments 含未知键与超上限层级。三处都是手改档可注入的静默错值。</summary>
+    private const string HostileWhitelistRunJson =
+        """{"version":1,"missions":{"ghost_task":{"progress":5,"claimed":false,"goal":0,"baseline":0},"kill_15":{"progress":3,"claimed":false,"goal":1,"baseline":0}},"talent_levels":{"extra_life":1},"augments":{"ghost_augment":9,"extra_life":99}}""";
+
     /// <summary>恶意 run.json·任务子表类型错：missions 是字典，但条目内 progress/claimed 类型不符。
     /// 覆盖「子条目判型」这一支（顶层 missions 非字典由上一条恶意档覆盖）。</summary>
     private const string HostileMissionEntryJson =
@@ -184,6 +195,18 @@ public partial class ProbeHost : Node
     private Callable _onProbeDifficultyChanged;
     private Callable _onProbeScoreChanged;
     private bool _probeRunSubscribed;
+
+    /// <summary>「全部恢复默认」的信号补发观测（设置版本探针）：四个缓存型设置项各计一次。</summary>
+    private int _probeViewZoomSignals;
+
+    private int _probeAimAssistSignals;
+    private int _probeReduceFlashSignals;
+    private int _probeWorldPostFxSignals;
+    private Callable _onProbeViewZoom;
+    private Callable _onProbeAimAssist;
+    private Callable _onProbeReduceFlash;
+    private Callable _onProbeWorldPostFx;
+    private bool _probeSettingsSubscribed;
 
     /// <summary>存档还原探针（--save-restore-probe）的临时用户目录由 check_smoke.sh 隔离。</summary>
     private bool _saveRestoreProbe;
@@ -525,6 +548,15 @@ public partial class ProbeHost : Node
         }
     }
 
+    /// <summary>设置信号退订（存在性判断——探针可能在订阅前就失败退出）。</summary>
+    private static void DisconnectSettingSignal(GameState gs, StringName signal, Callable callable)
+    {
+        if (gs.IsConnected(signal, callable))
+        {
+            gs.Disconnect(signal, callable);
+        }
+    }
+
     /// <summary>隔离判据（本类唯一的运行时口径）：本趟用户数据根由 check_smoke.sh 以
     /// <c>--expect-user-dir=</c> 传入（其取值＝ APPDATA/XDG_DATA_HOME/HOME，正斜杠分隔），
     /// 与引擎实际 <c>user://</c> 目录做前缀包含比较。不符即 PushError——被冒烟的错误正则按趟判红。
@@ -573,6 +605,37 @@ public partial class ProbeHost : Node
             _spawner.BossSpawned -= OnBossProbeSpawned;
         }
 
+        if (_probeRunSubscribed)
+        {
+            _probeRunSubscribed = false;
+            var gsRun = GameState.TryGetInstance();
+            if (gsRun != null)
+            {
+                if (gsRun.IsConnected(GameState.SignalName.DifficultyChanged, _onProbeDifficultyChanged))
+                {
+                    gsRun.Disconnect(GameState.SignalName.DifficultyChanged, _onProbeDifficultyChanged);
+                }
+
+                if (gsRun.IsConnected(GameState.SignalName.ScoreChanged, _onProbeScoreChanged))
+                {
+                    gsRun.Disconnect(GameState.SignalName.ScoreChanged, _onProbeScoreChanged);
+                }
+            }
+        }
+
+        if (_probeSettingsSubscribed)
+        {
+            _probeSettingsSubscribed = false;
+            var gsSet = GameState.TryGetInstance();
+            if (gsSet != null)
+            {
+                DisconnectSettingSignal(gsSet, GameState.SignalName.ViewZoomChanged, _onProbeViewZoom);
+                DisconnectSettingSignal(gsSet, GameState.SignalName.AimAssistChanged, _onProbeAimAssist);
+                DisconnectSettingSignal(gsSet, GameState.SignalName.ReduceFlashChanged, _onProbeReduceFlash);
+                DisconnectSettingSignal(gsSet, GameState.SignalName.WorldPostFxChanged, _onProbeWorldPostFx);
+            }
+        }
+
         if (_probeSubscribed)
         {
             _probeSubscribed = false;
@@ -612,14 +675,14 @@ public partial class ProbeHost : Node
         if (_saveRestoreProbe && _frame >= 2)
         {
             _saveRestoreProbe = false;
-            // RunSaveRestoreProbe();
+            RunSaveRestoreProbe();
             return;
         }
 
         if (_settingsVersionProbe && _frame >= 2)
         {
             _settingsVersionProbe = false;
-            // RunSettingsVersionProbe();
+            RunSettingsVersionProbe();
             return;
         }
 
@@ -3174,6 +3237,110 @@ public partial class ProbeHost : Node
             ok = false;
         }
 
+        // ④ 白名单与上限过滤：池外任务 id 整条丢弃（否则 goal 查池得 0 → IsMissionDone 恒真 →
+        // 反复领取 RP）、池内条目的 goal 取池内定稿值、未知增幅键丢弃、超上限层级削平、
+        // 白名单外改键动作名丢弃（收下会永久回写进设置档）
+        var rebindable = gs.REBINDABLE_ACTIONS.Count > 0 ? gs.REBINDABLE_ACTIONS[0].ToString() : "";
+        ok &= WriteUserFile("user://run.json", HostileWhitelistRunJson);
+        ok &= WriteUserFile("user://settings.json", GdFormat.Format(
+            "{\"version\":%d,\"key_bindings\":{\"%s\":[81],\"not_a_real_action\":[87]}}",
+            Core.Storage.SettingsMigration.CurrentVersion, rebindable));
+        try
+        {
+            if (!gs.LoadRun())
+            {
+                GD.PushError("[hostile-save-probe] 恶意 run.json（白名单/上限）未读入");
+                ok = false;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 恶意 run.json（白名单/上限）读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        try
+        {
+            gs.LoadSettings();
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[hostile-save-probe] 恶意 settings.json（改键白名单）读入抛异常：{ex.GetType().Name} {ex.Message}");
+            ok = false;
+        }
+
+        var ghostTask = new StringName("ghost_task");
+        if (gs.Missions.ContainsKey(ghostTask))
+        {
+            GD.PushError("[hostile-save-probe] 池外任务 id 被收下——goal 查池得 0 会让 IsMissionDone 恒真，可反复领 RP");
+            ok = false;
+        }
+
+        if (gs.IsMissionDone(ghostTask))
+        {
+            GD.PushError("[hostile-save-probe] 池外任务被判为已完成（IsMissionDone 恒真）——该档可直接换 RP");
+            ok = false;
+        }
+
+        var poolTask = new StringName("kill_15");
+        var poolGoal = gs.MissionGoal(poolTask);
+        if (gs.IsMissionDone(poolTask))
+        {
+            GD.PushError($"[hostile-save-probe] 池内任务用了存档里被改小的 goal（progress 3 ≥ 存档 goal 1 即判完成）"
+                + $"——goal 必须取池内定稿值 {poolGoal}");
+            ok = false;
+        }
+
+        if (gs.Missions.TryGetValue(poolTask, out var storedEntry) && storedEntry.VariantType == Variant.Type.Dictionary)
+        {
+            var storedGoal = (int)storedEntry.AsGodotDictionary().GetValueOrDefault("goal", 0).AsInt64();
+            if (storedGoal != poolGoal)
+            {
+                GD.PushError($"[hostile-save-probe] 池内任务条目的 goal 未取池内定稿值（存档 {storedGoal}，池内 {poolGoal}）");
+                ok = false;
+            }
+        }
+        else
+        {
+            GD.PushError("[hostile-save-probe] 池内任务条目未被收下——白名单把合法条目一并滤掉了");
+            ok = false;
+        }
+
+        var ghostAugment = new StringName("ghost_augment");
+        if (gs.AugmentLevel(ghostAugment) != 0)
+        {
+            GD.PushError($"[hostile-save-probe] 未知增幅键被收下（层级 {gs.AugmentLevel(ghostAugment)}）"
+                + "——手改档可凭空注入增幅效果");
+            ok = false;
+        }
+
+        var extraLifeMax = (int)gs.Cfg("augments.extra_life.max_stacks", 0).AsInt64();
+        var extraLifeProbe = new StringName("extra_life");
+        if (gs.AugmentLevel(extraLifeProbe) != extraLifeMax)
+        {
+            GD.PushError($"[hostile-save-probe] 超上限增幅层级未削平（存档 99 → {gs.AugmentLevel(extraLifeProbe)}，"
+                + $"结构上限 {extraLifeMax}）");
+            ok = false;
+        }
+
+        if (gs.KeyBindings.ContainsKey(new StringName("not_a_real_action")))
+        {
+            GD.PushError("[hostile-save-probe] 白名单外的改键动作名被收下——会被永久回写进设置档，且 InputMap 不认它");
+            ok = false;
+        }
+
+        if (InputMap.HasAction("not_a_real_action"))
+        {
+            GD.PushError("[hostile-save-probe] 白名单外的动作名进了 InputMap");
+            ok = false;
+        }
+
+        if (rebindable.Length > 0 && !gs.KeyBindings.ContainsKey(new StringName(rebindable)))
+        {
+            GD.PushError($"[hostile-save-probe] 合法改键动作 {rebindable} 被白名单误丢——玩家改键会静默丢失");
+            ok = false;
+        }
+
         // ③ 正常档：还原值逐项对上；同时观测读档补发的两个信号
         _probeHealthSeen = -1.0f;
         _probeJoyAimSpeedSeen = -1.0;
@@ -3273,6 +3440,291 @@ public partial class ProbeHost : Node
         }
     }
 
+    /// <summary>存档还原探针（--save-restore-probe）：风险加点层级、生命上限自洽与读档补发信号。
+    ///
+    /// 为什么必须探：读档还原里的「层级上限」与「信号补发」都是静默面——层级被无条件钳回结构上限时，
+    /// 玩家双倍价买的那一级静默消失（乘算消费端少一级效果）；还原直写字段不发信号时，HUD 难度读数
+    /// 与目标行停在复位值（最长停到下一次 30s 量化步进）。三段，缺一不可：
+    ///   ① 带风险加点标记的超结构层级：层级 == max+1，生命上限与层级自洽；
+    ///   ② 反向对照（去掉标记）：同一存档层级钳回 max——只判 ① 会让「一律抬级」的实现照样绿；
+    ///   ③ 对照（名单里塞池外节点名）：不抬高任何节点。
+    /// 另断读档补发：DifficultyChanged 的值 == 存档 difficulty_multiplier、ScoreChanged 回调里读到的时间
+    /// 已是存档 run_time（信号先于还原会让订阅方读到 0）。</summary>
+    private void RunSaveRestoreProbe()
+    {
+        var gs = GameState.Instance;
+        var ok = true;
+
+        _onProbeDifficultyChanged = Callable.From<float>(OnProbeDifficultyChanged);
+        _onProbeScoreChanged = Callable.From<int>(OnProbeScoreChanged);
+        gs.Connect(GameState.SignalName.DifficultyChanged, _onProbeDifficultyChanged);
+        gs.Connect(GameState.SignalName.ScoreChanged, _onProbeScoreChanged);
+        _probeRunSubscribed = true;
+
+        var maxLevel = System.Math.Max((int)gs.Cfg("augments.extra_life.max_stacks", 0).AsInt64(), 0);
+        var baseHp = gs.Cfg("player.max_health", 100.0).AsDouble();
+        var bonusHp = gs.Cfg("augments.extra_life.max_hp_bonus", 50.0).AsDouble();
+        var extraLife = new StringName("extra_life");
+        // JSON 里的数值一律用不变文化格式化：逗号小数点会被 JSON 解析拒掉（本地化环境的静默坏点）
+        var runTimeJson = AssertedRunTime.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var difficultyJson = AssertedDifficulty.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var overchargedJson =
+            $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+            + $"\"talent_levels\":{{\"extra_life\":{maxLevel + 1}}},\"talent_overcharged\":[\"extra_life\"],"
+            + $"\"augments\":{{\"extra_life\":{maxLevel + 1}}}}}";
+        var plainJson =
+            $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+            + $"\"talent_levels\":{{\"extra_life\":{maxLevel + 1}}},\"talent_overcharged\":[],"
+            + $"\"augments\":{{\"extra_life\":{maxLevel + 1}}}}}";
+        var plainLevel = System.Math.Clamp(maxLevel - 3, 1, System.Math.Max(maxLevel, 1));
+        var ghostJson =
+            $"{{\"version\":1,\"health\":42.5,\"run_time\":{runTimeJson},\"difficulty_multiplier\":{difficultyJson},"
+            + $"\"talent_levels\":{{\"extra_life\":{plainLevel}}},\"talent_overcharged\":[\"ghost\"],"
+            + $"\"augments\":{{\"extra_life\":{plainLevel}}}}}";
+
+        // ① 超结构层级 + 风险加点标记：max+1 级须保留（双倍价买的那一级）
+        _probeDifficultySeen = -1.0f;
+        _probeRunTimeAtScore = -1.0;
+        ok &= WriteUserFile("user://run.json", overchargedJson);
+        ok &= LoadRunForProbe("超载档（max+1 + 风险加点标记）");
+        if (gs.TalentLevel(extraLife) != maxLevel + 1)
+        {
+            GD.PushError($"[save-restore-probe] 风险加点的那一级未保留：层级 {gs.TalentLevel(extraLife)}"
+                + $"（期望 {maxLevel + 1}）——双倍价买的层级读档即消失");
+            ok = false;
+        }
+
+        var expectSuperHp = baseHp + (bonusHp * (maxLevel + 1));
+        if (Math.Abs(gs.MaxHealth() - expectSuperHp) > 1e-6)
+        {
+            GD.PushError($"[save-restore-probe] 生命上限与层级不自洽：{gs.MaxHealth():0.###}"
+                + $"（层级 {gs.TalentLevel(extraLife)} 应为 {expectSuperHp:0.###}）——读档后血上限与天赋读数分叉");
+            ok = false;
+        }
+
+        if (Math.Abs(_probeDifficultySeen - AssertedDifficulty) > 1e-3)
+        {
+            GD.PushError($"[save-restore-probe] 读档未补发难度信号或值不符（收到 {_probeDifficultySeen:0.###}，"
+                + $"存档 {AssertedDifficulty:0.###}）——HUD 难度读数会停在复位值");
+            ok = false;
+        }
+
+        if (Math.Abs(_probeRunTimeAtScore - AssertedRunTime) > 1e-6)
+        {
+            GD.PushError($"[save-restore-probe] 分数信号回调里读到的时间是 {_probeRunTimeAtScore:0.###}"
+                + $"（存档 {AssertedRunTime:0.###}）——RunTime 还原晚于信号补发时，订阅方读到复位值 0");
+            ok = false;
+        }
+
+        // ② 反向对照：去掉风险加点标记 → 同一层级钳回结构上限（只判 ① 会让「一律抬级」照样绿）
+        ok &= WriteUserFile("user://run.json", plainJson);
+        ok &= LoadRunForProbe("无标记档（层级超上限）");
+        if (gs.TalentLevel(extraLife) != maxLevel)
+        {
+            GD.PushError($"[save-restore-probe] 无风险加点标记的层级未钳回结构上限：{gs.TalentLevel(extraLife)}"
+                + $"（期望 {maxLevel}）——存档是威胁模型，抬级得有对应的锁定标记");
+            ok = false;
+        }
+
+        var expectPlainHp = baseHp + (bonusHp * maxLevel);
+        if (Math.Abs(gs.MaxHealth() - expectPlainHp) > 1e-6)
+        {
+            GD.PushError($"[save-restore-probe] 钳回层级后生命上限未同步：{gs.MaxHealth():0.###}"
+                + $"（层级 {gs.TalentLevel(extraLife)} 应为 {expectPlainHp:0.###}）");
+            ok = false;
+        }
+
+        // ③ 对照：名单里塞池外节点名 → 不抬高任何节点
+        ok &= WriteUserFile("user://run.json", ghostJson);
+        ok &= LoadRunForProbe("池外风险加点档");
+        if (gs.TalentLevel(extraLife) != plainLevel || gs.TalentLevel(new StringName("ghost")) != 0)
+        {
+            GD.PushError($"[save-restore-probe] 池外风险加点名抬高了节点（extra_life={gs.TalentLevel(extraLife)}，"
+                + $"ghost={gs.TalentLevel(new StringName("ghost"))}）——未知 id 不该让任何节点多一级");
+            ok = false;
+        }
+
+        if (ok)
+        {
+            GD.Print("[save-restore-probe] 层级与信号还原成立");
+        }
+    }
+
+    /// <summary>本探针的读档（失败即记一条错，返回 false 供调用方累计）。</summary>
+    private static bool LoadRunForProbe(string label)
+    {
+        try
+        {
+            if (GameState.Instance.LoadRun())
+            {
+                return true;
+            }
+
+            GD.PushError($"[save-restore-probe] {label} 未读入");
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[save-restore-probe] {label} 读入抛异常：{ex.GetType().Name} {ex.Message}");
+        }
+
+        return false;
+    }
+
+    /// <summary>设置版本探针（--settings-version-probe）：高于当前的版本档按逐字段默认值回退。
+    ///
+    /// DESIGN_BASELINE §1.15 承诺「高于当前按逐字段默认值回退（不猜未来字段语义）」——只告警照读已知键名
+    /// 时，降级安装会把未来语义的同名键当当前语义读入，core 的版本判定被架空且没有任何信号。
+    /// 三段，缺一不可：
+    ///   ① 版本 +1 且关键项全非默认 → 读入后逐项等于默认（先复位到出厂档再读，默认值才是判据）；
+    ///   ② 同版对照档（同值）→ 必须逐项还原——只判 ① 会让「一律回默认」的实现照样绿；
+    ///   ③ 「全部恢复默认」的信号补发：值确实变化过时视角/辅瞄/减闪/画面增强四个信号各发一次，
+    ///      无变化时一个都不发（消费方是「读一次 + 信号刷新」的缓存型，漏发则表现仍按旧值跑）。</summary>
+    private void RunSettingsVersionProbe()
+    {
+        var gs = GameState.Instance;
+        var ok = true;
+
+        _probeViewZoomSignals = 0;
+        _probeAimAssistSignals = 0;
+        _probeReduceFlashSignals = 0;
+        _probeWorldPostFxSignals = 0;
+        _onProbeViewZoom = Callable.From<double>(_ => _probeViewZoomSignals++);
+        _onProbeAimAssist = Callable.From<StringName>(_ => _probeAimAssistSignals++);
+        _onProbeReduceFlash = Callable.From<bool>(_ => _probeReduceFlashSignals++);
+        _onProbeWorldPostFx = Callable.From<bool>(_ => _probeWorldPostFxSignals++);
+        gs.Connect(GameState.SignalName.ViewZoomChanged, _onProbeViewZoom);
+        gs.Connect(GameState.SignalName.AimAssistChanged, _onProbeAimAssist);
+        gs.Connect(GameState.SignalName.ReduceFlashChanged, _onProbeReduceFlash);
+        gs.Connect(GameState.SignalName.WorldPostFxChanged, _onProbeWorldPostFx);
+        _probeSettingsSubscribed = true;
+
+        // 判据的基线必须是出厂档：高于当前的档「按逐字段默认值回退」等价于把整表当空档，
+        // 而空档的语义是「保持当前值」——当前值非默认时，判据就落到读入的那份档上了（假绿）。
+        gs.ResetAllSettings();
+        ok &= WriteUserFile("user://settings.json",
+            $"{{\"version\":{Core.Storage.SettingsMigration.CurrentVersion + 1},\"locale\":\"en\","
+            + "\"difficulty\":\"hard\",\"view_zoom\":\"large\",\"resolution\":\"1280x720\","
+            + "\"custom_width\":1000,\"custom_height\":700,\"aim_assist\":\"high\",\"fps_cap\":\"fps30\","
+            + "\"vsync\":false,\"reduce_flash\":true,\"world_post_fx\":false,\"mouse_lock\":false,"
+            + "\"shake_scale\":0.2,\"hit_stop_scale\":0.1,\"master_volume\":0.5,\"music_volume\":0.4,"
+            + "\"sfx_volume\":0.3,\"joy_aim_speed\":3000.0,\"joy_deadzone\":0.7,\"joy_vibration\":false}");
+        ok &= LoadSettingsForProbe("更高版本档");
+        ok &= VerifySettingsDefaults("更高版本档读入后");
+
+        // ② 同版对照档：同一组非默认值必须逐项还原
+        ok &= WriteUserFile("user://settings.json", ValidSettingsJson);
+        ok &= LoadSettingsForProbe("同版对照档");
+        ok &= VerifySettingsRestored("同版对照档读入后");
+
+        // ③ 恢复默认的信号补发：当前值确实非默认 → 四个信号各发一次；再复位（无变化）→ 一个都不发
+        _probeViewZoomSignals = 0;
+        _probeAimAssistSignals = 0;
+        _probeReduceFlashSignals = 0;
+        _probeWorldPostFxSignals = 0;
+        gs.ResetAllSettings();
+        if (_probeViewZoomSignals != 1 || _probeAimAssistSignals != 1
+            || _probeReduceFlashSignals != 1 || _probeWorldPostFxSignals != 1)
+        {
+            GD.PushError($"[settings-version-probe] 「全部恢复默认」的补发信号不全（视角 {_probeViewZoomSignals} / "
+                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 画面增强 {_probeWorldPostFxSignals}，"
+                + "各期望 1）——消费方是「读一次 + 信号刷新」的缓存型，漏发则表现仍按旧值跑");
+            ok = false;
+        }
+
+        _probeViewZoomSignals = 0;
+        _probeAimAssistSignals = 0;
+        _probeReduceFlashSignals = 0;
+        _probeWorldPostFxSignals = 0;
+        gs.ResetAllSettings();
+        if (_probeViewZoomSignals + _probeAimAssistSignals + _probeReduceFlashSignals + _probeWorldPostFxSignals != 0)
+        {
+            GD.PushError($"[settings-version-probe] 值未变化时仍补发了设置信号（视角 {_probeViewZoomSignals} / "
+                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 画面增强 {_probeWorldPostFxSignals}）"
+                + "——多余重建");
+            ok = false;
+        }
+
+        if (ok)
+        {
+            GD.Print("[settings-version-probe] 版本回退与复位信号成立");
+        }
+    }
+
+    /// <summary>逐项断「已回出厂档」（更高版本档的判据；取值口径与 SettingsService.ResetToDefaults 同源）。</summary>
+    private static bool VerifySettingsDefaults(string label)
+    {
+        var gs = GameState.Instance;
+        var ok = true;
+        if (gs.Locale != "zh" || gs.Difficulty != new StringName("medium")
+            || gs.ViewZoom != new StringName("small") || gs.AimAssistLevel != new StringName("medium")
+            || gs.FpsCap != new StringName("60") || !gs.VSync || !gs.MouseLock || gs.ReduceFlash
+            || !gs.WorldPostFx || gs.CustomWindowWidth != 1920 || gs.CustomWindowHeight != 1080)
+        {
+            GD.PushError($"[settings-version-probe] {label} 未逐项回出厂档：locale={gs.Locale} "
+                + $"difficulty={gs.Difficulty} view_zoom={gs.ViewZoom} aim_assist={gs.AimAssistLevel} "
+                + $"fps_cap={gs.FpsCap} vsync={gs.VSync} mouse_lock={gs.MouseLock} reduce_flash={gs.ReduceFlash} "
+                + $"world_post_fx={gs.WorldPostFx} custom={gs.CustomWindowWidth}x{gs.CustomWindowHeight}");
+            ok = false;
+        }
+
+        if (Math.Abs(gs.MasterVolume - 0.8) > 1e-6 || Math.Abs(gs.ShakeScale - 1.0) > 1e-6
+            || Math.Abs(gs.HitStopScale - 1.0) > 1e-6 || Math.Abs(gs.JoyAimSpeed - 1400.0) > 1e-6
+            || Math.Abs(gs.JoyDeadzone - 0.2) > 1e-6)
+        {
+            GD.PushError($"[settings-version-probe] {label} 数值档未回出厂档：master={gs.MasterVolume:0.##} "
+                + $"shake={gs.ShakeScale:0.##} hit_stop={gs.HitStopScale:0.##} joy_speed={gs.JoyAimSpeed:0.#} "
+                + $"joy_deadzone={gs.JoyDeadzone:0.##}");
+            ok = false;
+        }
+
+        return ok;
+    }
+
+    /// <summary>逐项断「等于同版对照档的取值」（对照段；只判更高版本段会让「一律回默认」照样绿）。</summary>
+    private static bool VerifySettingsRestored(string label)
+    {
+        var gs = GameState.Instance;
+        var ok = true;
+        if (gs.Locale != "en" || gs.Difficulty != new StringName("hard")
+            || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
+            || gs.FpsCap != new StringName("fps30") || gs.VSync || gs.MouseLock || !gs.ReduceFlash
+            || gs.WorldPostFx || gs.CustomWindowWidth != 1000 || gs.CustomWindowHeight != 700)
+        {
+            GD.PushError($"[settings-version-probe] {label} 未逐项还原：locale={gs.Locale} "
+                + $"difficulty={gs.Difficulty} view_zoom={gs.ViewZoom} aim_assist={gs.AimAssistLevel} "
+                + $"fps_cap={gs.FpsCap} vsync={gs.VSync} mouse_lock={gs.MouseLock} reduce_flash={gs.ReduceFlash} "
+                + $"world_post_fx={gs.WorldPostFx} custom={gs.CustomWindowWidth}x{gs.CustomWindowHeight}");
+            ok = false;
+        }
+
+        if (Math.Abs(gs.MasterVolume - 0.5) > 1e-6 || Math.Abs(gs.ShakeScale - 0.2) > 1e-6
+            || Math.Abs(gs.HitStopScale - 0.1) > 1e-6 || Math.Abs(gs.JoyAimSpeed - 3000.0) > 1e-6
+            || Math.Abs(gs.JoyDeadzone - 0.7) > 1e-6)
+        {
+            GD.PushError($"[settings-version-probe] {label} 数值档未还原：master={gs.MasterVolume:0.##} "
+                + $"shake={gs.ShakeScale:0.##} hit_stop={gs.HitStopScale:0.##} joy_speed={gs.JoyAimSpeed:0.#} "
+                + $"joy_deadzone={gs.JoyDeadzone:0.##}");
+            ok = false;
+        }
+
+        return ok;
+    }
+
+    /// <summary>本探针的读设置（失败即记一条错，返回 false 供调用方累计）。</summary>
+    private static bool LoadSettingsForProbe(string label)
+    {
+        try
+        {
+            GameState.Instance.LoadSettings();
+            return true;
+        }
+        catch (System.Exception ex)
+        {
+            GD.PushError($"[settings-version-probe] {label} 读入抛异常：{ex.GetType().Name} {ex.Message}");
+            return false;
+        }
+    }
+
     /// <summary>死亡删档的本局门控探针：非本局（教程/标题屏）死亡不得删玩家真实检查点。
     ///
     /// 为什么必须探：删档钩子挂在全局 PlayerDied 上、且 PlayerDied 无场景上下文——教程死亡走同
@@ -3310,6 +3762,12 @@ public partial class ProbeHost : Node
 
         GD.Print("[death-gate-probe] 非本局不删档/本局删档均生效");
     }
+
+    /// <summary>难度信号观测（读档补发；值应为存档 difficulty_multiplier）。</summary>
+    private void OnProbeDifficultyChanged(float value) => _probeDifficultySeen = value;
+
+    /// <summary>分数信号观测：回调里读到的时间须已是存档值（信号先于还原会让订阅方读到复位值 0）。</summary>
+    private void OnProbeScoreChanged(int score) => _probeRunTimeAtScore = GameState.Instance.RunTime;
 
     /// <summary>健康值观测（读档补发信号）。</summary>
     private void OnProbeHealthChanged(float health) => _probeHealthSeen = health;
