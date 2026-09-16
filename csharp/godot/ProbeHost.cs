@@ -151,6 +151,11 @@ public partial class ProbeHost : Node
 
     private const double AssertedJoyDeadzone = 0.7;
 
+    /// <summary>冒烟每趟传入的隔离根（＝ APPDATA/XDG_DATA_HOME/HOME 的取值，正斜杠分隔）。
+    /// 单源在 scripts/ci/check_smoke.sh：门禁侧另有「本趟用户目录下必须出现引擎写出的日志」判据，
+    /// 这里断的是「引擎实际用的 user:// 就在本趟临时目录内」——隔离失效必须显式失败。</summary>
+    private const string ExpectUserDirPrefix = "--expect-user-dir=";
+
     /// <summary>读档补发信号的观测值：健康 -1 = 未收到（正常血量恒 &gt; 0）。</summary>
     private float _probeHealthSeen = -1.0f;
 
@@ -296,6 +301,7 @@ public partial class ProbeHost : Node
         _spawner = GetTree().GetFirstNodeInGroup("spawner") as Spawner ?? _main.GetNode<Spawner>("Spawner");
         _events = GameState.Instance.Events;
 
+        var expectUserDir = "";
         foreach (var arg in OS.GetCmdlineUserArgs())
         {
             if (arg == "--settings-probe")
@@ -350,6 +356,10 @@ public partial class ProbeHost : Node
             {
                 _deathGateProbe = true;
             }
+            else if (arg.StartsWith(ExpectUserDirPrefix, System.StringComparison.Ordinal))
+            {
+                expectUserDir = arg[ExpectUserDirPrefix.Length..];
+            }
             else if (arg == "--augment-cache-probe")
             {
                 _augmentCacheProbe = true;
@@ -372,6 +382,8 @@ public partial class ProbeHost : Node
                 _eventId = arg["--event-probe=".Length..];
             }
         }
+
+        VerifyUserDirIsolation(expectUserDir);
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
             || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe)
@@ -405,6 +417,39 @@ public partial class ProbeHost : Node
                 }
             }
         }
+    }
+
+    /// <summary>隔离判据（本类唯一的运行时口径）：本趟用户数据根由 check_smoke.sh 以
+    /// <c>--expect-user-dir=</c> 传入（其取值＝ APPDATA/XDG_DATA_HOME/HOME，正斜杠分隔），
+    /// 与引擎实际 <c>user://</c> 目录做前缀包含比较。不符即 PushError——被冒烟的错误正则按趟判红。
+    ///
+    /// 为什么判前缀而不是判相等：Windows 上 user:// 落在 <c>&lt;APPDATA&gt;/Godot/app_userdata/InfiAir</c>，
+    /// 是隔离根的子路径；前缀以 `/` 收尾，避免 `/tmp/probe-x` 误配到 `/tmp/probe-xyz`（同前缀不同目录）。
+    /// Windows 路径大小写不敏感，比较时忽略大小写。
+    ///
+    /// 未传参时只告警不报错：手动直跑探针（README/AGENTS 记的调试用法）不带该参数，
+    /// 而门禁侧另有「本趟用户目录下必须出现引擎写出的 godot.log」判据兜底隔离失效。</summary>
+    private static void VerifyUserDirIsolation(string expected)
+    {
+        if (expected.Length == 0)
+        {
+            GD.PushWarning("[probe-host] 未传 --expect-user-dir=，跳过用户目录隔离比对（门禁一律传参）");
+            return;
+        }
+
+        var actual = ProjectSettings.GlobalizePath("user://").Replace('\\', '/').TrimEnd('/') + "/";
+        var want = expected.Replace('\\', '/').TrimEnd('/') + "/";
+        var cmp = OS.GetName() == "Windows"
+            ? System.StringComparison.OrdinalIgnoreCase
+            : System.StringComparison.Ordinal;
+        if (actual.StartsWith(want, cmp))
+        {
+            return;
+        }
+
+        GD.PushError(GdFormat.Format(
+            "[probe-host] 用户目录隔离失效：引擎实际 user:// 为 %s，不在本趟隔离根 %s 之内——"
+            + "本趟可能已读写开发者本机存档/设置", actual, want));
     }
 
     public override void _ExitTree()
