@@ -405,8 +405,11 @@ public partial class BaseConsole : RadialMenuLayer
         _refreshButton.Pressed += OnRefreshPressed;
         refreshRow.AddChild(_refreshButton);
         ((VBoxContainer)panel.GetNode("Body")).AddChild(refreshRow);
+        // 受阻原因说明常显（置灰按钮按不动，「按下才提示」等于没有提示），故它不是错误：
+        // 用次级文字色而非 Danger——「点数还没攒够」是常态读数、不是出错，红色常驻会读成故障，
+        // 而 Danger 在本项目留给「须立即处置」的警告（见 DESIGN_BASELINE §1.9.1 的灯色语义）。
         _refreshHintLabel = MakeLabel("", 16);
-        _refreshHintLabel.AddThemeColorOverride("font_color", UITheme.Danger);
+        _refreshHintLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
         _refreshHintLabel.HorizontalAlignment = HorizontalAlignment.Left;
         _refreshHintLabel.Visible = false;
         ((VBoxContainer)panel.GetNode("Body")).AddChild(_refreshHintLabel);
