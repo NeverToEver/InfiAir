@@ -648,9 +648,12 @@ public partial class GameEventManager : Node
                 _encounterActiveId = EmptyId;
                 EmitSignal(SignalName.EventEnded, id);
             }
-            else if (active && _encounterActiveId == EmptyId)
+            else if (active && _encounterActiveId == EmptyId && !_encounterEndPending.ContainsKey(id))
             {
-                _encounterActiveId = id; // 手动 start 兜底登记
+                // 手动 start 兜底登记。已被打断、正在收尾（pending 期）的事件不再登记回来——
+                // 反了的话收起期 ActiveId/AnyOtherEncounterActive 仍读作「有遭遇在跑」，
+                // 只在「收尾期树暂停、Main._Process 不跑」时侥幸不显形
+                _encounterActiveId = id;
             }
         }
     }
