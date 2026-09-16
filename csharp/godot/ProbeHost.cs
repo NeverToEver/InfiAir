@@ -245,6 +245,12 @@ public partial class ProbeHost : Node
     private bool _settingsProbeSawBlink;
     private RadialWheel? _settingsWheel;
 
+    /// <summary>模态退场鼠标命中断言的步序与取样按钮表（0 未开始 / 1 待退场回调 / 2 待重开复查）。</summary>
+    private int _modalStep;
+
+    private readonly List<Button> _modalButtons = new();
+    private readonly List<Control.MouseFilterEnum> _modalBaseline = new();
+
     private Main _main = null!;
     private Player _player = null!;
     private Spawner _spawner = null!;
@@ -1627,8 +1633,126 @@ public partial class ProbeHost : Node
                 settings.ShowPage(new StringName(page));
             }
 
-            GD.Print("[settings-probe] 五页切换完成");
+            _settingsProbeStep = 5;
+            _modalStep = 0;
+        }
+
+        if (_settingsProbeStep == 5)
+        {
+            TickModalCloseProbe(settings);
+        }
+    }
+
+    /// <summary>模态退场期的鼠标命中断言（设置页趟尾段，借 <c>Back()</c> 的真实退场链）。
+    ///
+    /// 为什么必须判：退场动画期间的视觉残影与「谁在接鼠标」是两件事——父级置 Ignore 只让父节点
+    /// 自己不返回，子按钮照旧被命中（Viewport 命中先递归子节点、后判父级），故摘除必须**递归整棵子树**；
+    /// 只摘父级/只摘面板时，退场画面会截获已经交还给下一层的点击，且不崩不报错。
+    /// 判据取**全部按钮**（不是「随便找一个」）：只摘面板的写法会让面板外的导航按钮照旧可命中，
+    /// 取单个按钮时恰好取到面板内的那个就漏判（实测过这一形态）。
+    /// 三段，缺一段都能被另一种坏法蒙过：退场当帧全部按钮即 Ignore、退场回调后逐个还原到基线、
+    /// 重开后全部按钮即可被命中（还原漏写时第二次开页的按钮会永久不吃点击）。</summary>
+    private bool TickModalCloseProbe(SettingsUi settings)
+    {
+        if (_modalStep == 0)
+        {
+            _modalButtons.Clear();
+            _modalBaseline.Clear();
+            CollectButtons(settings, _modalButtons);
+            if (_modalButtons.Count == 0)
+            {
+                GD.PushError("[settings-probe] 设置页子树里找不到按钮——模态退场的鼠标命中断言取不到判据");
+                _settingsProbe = false;
+                return false;
+            }
+
+            foreach (var button in _modalButtons)
+            {
+                _modalBaseline.Add(button.MouseFilter);
+                if (button.MouseFilter == Control.MouseFilterEnum.Ignore)
+                {
+                    GD.PushError("[settings-probe] 退场前已有按钮不吃鼠标命中（基线 Ignore）——退场摘除判据不成立");
+                    _settingsProbe = false;
+                    return false;
+                }
+            }
+
+            settings.Back(); // 生产退场链（AnimateModalClose：整棵子树摘命中 + 0.15s 后还原并隐藏）
+            for (var i = 0; i < _modalButtons.Count; i++)
+            {
+                if (_modalButtons[i].MouseFilter != Control.MouseFilterEnum.Ignore)
+                {
+                    GD.PushError($"[settings-probe] 退场当帧仍有按钮可被命中（第 {i} 个，MouseFilter="
+                        + $"{_modalButtons[i].MouseFilter}）——退场期会截获已交还给下一层的点击"
+                        + "（只摘父级/只摘面板时，面板外的按钮照旧命中）");
+                    _settingsProbe = false;
+                    return false;
+                }
+            }
+
+            _modalStep = 1;
+            return false;
+        }
+
+        if (_modalStep == 1)
+        {
+            // 等退场回调落地（根隐藏即回调已跑完，还原就在它之前一行）
+            if (settings.Visible)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _modalButtons.Count; i++)
+            {
+                if (GodotObject.IsInstanceValid(_modalButtons[i]) && _modalButtons[i].MouseFilter != _modalBaseline[i])
+                {
+                    GD.PushError($"[settings-probe] 退场回调后按钮鼠标命中未还原（第 {i} 个，MouseFilter="
+                        + $"{_modalButtons[i].MouseFilter}，基线 {_modalBaseline[i]}）——退场画面收走后按钮永久不吃点击");
+                    _settingsProbe = false;
+                    return false;
+                }
+            }
+
+            settings.ShowSettings(null); // 重开：退场后重新打开应一切照旧
+            _modalStep = 2;
+            return false;
+        }
+
+        _modalButtons.Clear();
+        CollectButtons(settings, _modalButtons);
+        if (_modalButtons.Count == 0)
+        {
+            GD.PushError("[settings-probe] 重开设置页后找不到按钮——模态退场还原判据取不到");
             _settingsProbe = false;
+            return false;
+        }
+
+        foreach (var button in _modalButtons)
+        {
+            if (button.MouseFilter == Control.MouseFilterEnum.Ignore)
+            {
+                GD.PushError("[settings-probe] 重开设置页后仍有按钮不吃鼠标命中——还原写坏时第二次开页的按钮永久失效");
+                _settingsProbe = false;
+                return false;
+            }
+        }
+
+        GD.Print("[settings-probe] 五页切换完成");
+        _settingsProbe = false;
+        return true;
+    }
+
+    /// <summary>子树里的全部按钮（递归；退场摘除是递归的，判定也覆盖整棵子树）。</summary>
+    private static void CollectButtons(Node node, List<Button> into)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is Button button)
+            {
+                into.Add(button);
+            }
+
+            CollectButtons(child, into);
         }
     }
 
