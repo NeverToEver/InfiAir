@@ -152,7 +152,7 @@ public partial class ExitConfirm : CanvasLayer
 
     /// <summary>取消退出（Esc/手柄 B 由 BackNavigator 路由到这里）。
     /// 退场动画期间即断开输入与鼠标命中（AnimateModalClose），逻辑交接在回调内同步完成，
-    /// 故退场残影不会截获已交还给下一层的输入。</summary>
+    /// 故退场残影不会截获已交还给下一层的输入；_closing 与 _exiting 同口径守卫退场中的重复触发。</summary>
     public void Cancel()
     {
         if (_exiting || _closing)
@@ -169,10 +169,13 @@ public partial class ExitConfirm : CanvasLayer
 
     private void OnOkPressed()
     {
-        if (_exiting)
+        // _closing 同口径守卫：退场动画期间本窗的子控件已摘除鼠标命中，但守卫不依赖上层
+        // 「按钮点不到」这件事实——退场中误触/程序化触发都不得真的退出游戏。
+        if (_exiting || _closing)
         {
             return;
         }
+
         _exiting = true;
         GameState.Instance.ExecuteExitCleanup();
         FadeAndQuit();
@@ -183,7 +186,7 @@ public partial class ExitConfirm : CanvasLayer
     /// 此处留在游戏内让玩家重试或改选「不保存退出」（破坏性意图须显式）。</summary>
     private void OnSaveQuitPressed()
     {
-        if (_exiting)
+        if (_exiting || _closing)
         {
             return;
         }

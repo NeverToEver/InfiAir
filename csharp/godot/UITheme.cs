@@ -523,8 +523,12 @@ public partial class UITheme : RefCounted
     }
 
     /// <summary>模态退出编排：面板与遮罩同时淡出后隐藏根节点。
-    /// 交互与输入在调用当帧立即断开（鼠标穿透 + 停用输入处理），因此退场动画期间
-    /// 不会截获已交还给下一层的输入——退回/暂停链的焦点交接保持同步，仅有视觉残影渐隐。</summary>
+    /// 交互与输入在调用当帧立即断开（整棵子树鼠标命中摘除 + 停用输入处理），因此退场动画期间
+    /// 不会截获已交还给下一层的输入——退回/暂停链的焦点交接保持同步，仅有视觉残影渐隐。
+    /// 鼠标命中摘除必须递归：Viewport 命中先递归子节点、后判父级 mouse_filter，父级置 Ignore
+    /// 只让父节点自己不返回，子按钮照旧被命中（而 Button 走 GUI 相位，不经被停用的
+    /// _input/_unhandled_input）。退场结束（根已隐藏）时按快照还原，故各 Show*/重开路径
+    /// 只需照旧复位根与遮罩即可。</summary>
     public static void AnimateModalClose(Node root, Control dim, Control panel, Action? onClosed = null)
     {
         if (!GodotObject.IsInstanceValid(root) || !GodotObject.IsInstanceValid(panel))
@@ -533,8 +537,7 @@ public partial class UITheme : RefCounted
             return;
         }
 
-        dim.MouseFilter = Control.MouseFilterEnum.Ignore;
-        panel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        SuppressMouseInput(root);
         root.SetProcessInput(false);
         root.SetProcessUnhandledInput(false);
 
@@ -544,6 +547,7 @@ public partial class UITheme : RefCounted
         dimTw.TweenProperty(dim, "modulate:a", 0.0f, 0.15).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
         tw.Chain().TweenCallback(Callable.From(() =>
         {
+            RestoreMouseInput(root);
             if (GodotObject.IsInstanceValid(root))
             {
                 // 根可能是 CanvasLayer（无 Visible 属性，只有 visible 成员）或 Control——统一走属性名写入
@@ -552,6 +556,62 @@ public partial class UITheme : RefCounted
 
             onClosed?.Invoke();
         }));
+    }
+
+    /// <summary>退场期鼠标命中快照（存在被摘除子树的根节点 meta 上）。</summary>
+    private const string MouseFilterSnapshotMeta = "modal_close_mouse_filter_snapshot";
+
+    /// <summary>递归摘除子树鼠标命中（含根自身），原值按 (节点, 值) 平铺快照挂在根 meta 上。
+    /// Control 没有「上一值」可查，而子树里装饰件多为 Ignore、按钮是 Stop——统一硬编码一个
+    /// 默认值必然改坏另一类，故一律快照后还原。</summary>
+    private static void SuppressMouseInput(Node root)
+    {
+        var snapshot = new Godot.Collections.Array();
+        CollectMouseFilters(root, snapshot);
+        if (snapshot.Count == 0)
+        {
+            // 空摘除＝退场仍可能截获点击（调用方把根节点传成了不含任何 Control 的容器）。
+            // 无头下不崩不报错，只有这条日志能指认，故不静默放过。
+            GD.PushWarning("InfiAir: AnimateModalClose 的根子树里没有任何 Control——退场期鼠标命中摘除是空操作");
+            return;
+        }
+
+        root.SetMeta(MouseFilterSnapshotMeta, snapshot);
+    }
+
+    private static void CollectMouseFilters(Node node, Godot.Collections.Array snapshot)
+    {
+        if (node is Control control)
+        {
+            snapshot.Add(Variant.From(control));
+            snapshot.Add((int)control.MouseFilter);
+            control.MouseFilter = Control.MouseFilterEnum.Ignore;
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            CollectMouseFilters(child, snapshot);
+        }
+    }
+
+    /// <summary>还原退场前摘除的鼠标命中。快照中的节点可能已被重建（基地页/轮盘选项按次重建），
+    /// 失效引用跳过——新节点保留构造函数给的默认值，不会被还原成上一批节点的残值。</summary>
+    private static void RestoreMouseInput(Node root)
+    {
+        if (!GodotObject.IsInstanceValid(root) || !root.HasMeta(MouseFilterSnapshotMeta))
+        {
+            return;
+        }
+
+        var snapshot = root.GetMeta(MouseFilterSnapshotMeta).AsGodotArray();
+        root.RemoveMeta(MouseFilterSnapshotMeta);
+        for (var i = 0; i + 1 < snapshot.Count; i += 2)
+        {
+            if (snapshot[i].AsGodotObject() is Control control && GodotObject.IsInstanceValid(control))
+            {
+                control.MouseFilter = (Control.MouseFilterEnum)snapshot[i + 1].AsInt32();
+            }
+        }
     }
 
     /// <summary>一次性缩放冲击（pivot 居中）：入场/受激/数值变化时的「弹一下」。

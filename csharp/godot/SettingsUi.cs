@@ -1506,6 +1506,10 @@ public partial class SettingsUi : RadialMenuLayer
         // 退场当帧即断开输入处理与鼠标命中（AnimateModalClose），opener 恢复与焦点交还在回调内同步收尾
         UITheme.AnimateModalClose(this, _dim, _plate, () =>
         {
+            // 确认弹窗不能跨页留存：退场锁死鼠标前的窗口内被重新打开（或退场序与弹窗退场序交叠）时，
+            // 本层随即整体隐藏，而 _confirmDim.Visible 与 _confirmAction 会留到下次开页——那时会带着
+            // 上一次的确认弹窗出现，确认按钮可直接执行上一次的破坏性动作。
+            ResetConfirmModal();
             if (_opener != null && GodotObject.IsInstanceValid(_opener))
             {
                 _opener.Visible = true;
@@ -1520,5 +1524,18 @@ public partial class SettingsUi : RadialMenuLayer
             _opener = null;
             EmitSignal(SignalName.BackPressed);
         });
+    }
+
+    /// <summary>清掉确认弹窗的可见态与待执行动作（含退场 tween 尚未落地的情形——弹窗退场快
+    /// 而本层稍慢，交叠时不能靠弹窗自己的回调收尾）。节点未构建或已重建时只清动作。</summary>
+    private void ResetConfirmModal()
+    {
+        _confirmAction = null;
+        _confirmFocusReturn = null;
+        if (_confirmDim != null)
+        {
+            _confirmDim.Visible = false;
+            _confirmDim.MouseFilter = Control.MouseFilterEnum.Ignore;
+        }
     }
 }
