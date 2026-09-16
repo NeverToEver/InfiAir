@@ -37,8 +37,6 @@ public partial class GameEventManager : Node
     public static readonly StringName GroupEncounter = new StringName("encounter");
 
     /// <summary>分组常量实例属性转发（UPPER_SNAKE 访问口径保持）。</summary>
-    public StringName GROUP_FOG => GroupFog;
-
     public StringName GROUP_ENCOUNTER => GroupEncounter;
 
     /// <summary>事件工厂注册表（唯一事实源；迷雾默认注册，遭遇经 register_encounter 注入）。</summary>

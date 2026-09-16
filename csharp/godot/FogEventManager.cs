@@ -39,49 +39,6 @@ public partial class FogEventManager : Node
         set => Events().EVENT_FACTORIES = value;
     }
 
-    /// <summary>迷雾组配置代理（balance.json fog_events.* 由统一管理器读取；脚本值为缺键回退）。</summary>
-    public bool ENABLED
-    {
-        get => Events().FOG_ENABLED;
-        set => Events().FOG_ENABLED = value;
-    }
-
-    public float TRIGGER_CHANCE
-    {
-        get => Events().FOG_TRIGGER_CHANCE;
-        set => Events().FOG_TRIGGER_CHANCE = value;
-    }
-
-    public float CHECK_INTERVAL
-    {
-        get => Events().FOG_CHECK_INTERVAL;
-        set => Events().FOG_CHECK_INTERVAL = value;
-    }
-
-    public float MIN_INTERVAL
-    {
-        get => Events().FOG_MIN_INTERVAL;
-        set => Events().FOG_MIN_INTERVAL = value;
-    }
-
-    public float FIRST_DELAY
-    {
-        get => Events().FOG_FIRST_DELAY;
-        set => Events().FOG_FIRST_DELAY = value;
-    }
-
-    public Godot.Collections.Dictionary WEIGHTS
-    {
-        get => Events().FOG_WEIGHTS;
-        set => Events().FOG_WEIGHTS = value;
-    }
-
-    public Godot.Collections.Dictionary EVENT_DURATIONS
-    {
-        get => Events().FOG_EVENT_DURATIONS;
-        set => Events().FOG_EVENT_DURATIONS = value;
-    }
-
     /// <summary>伪敌机容器（z_index=10：世界之上、HUD 之下；autoload 先于 Main 入树，层 0 内 z 排序兜底）。</summary>
     private Node2D? _fakeContainer;
     /// <summary>精神错乱全屏变色覆盖层（layer=2，与 HUD 同层、先入树 → 绘制于 HUD 之下，数值保持可读）。</summary>

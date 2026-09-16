@@ -70,7 +70,6 @@ public partial class UITheme : RefCounted
     public static readonly Color PhantomScan = new(Holo, 0.06f); // 扫描线/毛玻璃叠加层
 
     // ---------------- 字号阶梯（层级靠字号/颜色/透明度区分） ----------------
-    public const int FontDisplay = 72; // 超大展示（主标题/结算大数字）
     public const int FontTitle = 40; // 页标题
     public const int FontScore = 32; // 大数值（得分等）
     public const int FontHeader = 28; // 卡片名/主按钮
@@ -451,23 +450,6 @@ public partial class UITheme : RefCounted
     /// <summary>金属面板底衬（PanelContainer/Panel 的 "panel" 样式盒）：暗钢 tint，散落 Panel 统一入口。</summary>
     public static StyleBoxTexture MakeMetalPanelStyle(Color? tint = null)
         => MakeBtnStyle(tint ?? PanelSteelTint);
-
-    /// <summary>输入框金属化（normal/focus 钢板 + 文字/光标/占位配色）。散落 LineEdit 统一入口。</summary>
-    public static void ApplyMetalLineEdit(LineEdit edit)
-    {
-        var normal = MakeBtnStyle(new Color(0.30f, 0.25f, 0.20f, 0.80f));
-        normal.ContentMarginLeft = 12.0f;
-        normal.ContentMarginRight = 12.0f;
-        var focus = MakeBtnStyle(new Color(0.38f, 0.31f, 0.24f, 0.88f));
-        focus.ContentMarginLeft = 12.0f;
-        focus.ContentMarginRight = 12.0f;
-        edit.AddThemeStyleboxOverride("normal", normal);
-        edit.AddThemeStyleboxOverride("focus", focus);
-        edit.AddThemeColorOverride("font_color", Text);
-        edit.AddThemeColorOverride("font_placeholder_color", new Color(TextDim, 0.7f));
-        edit.AddThemeColorOverride("caret_color", Accent);
-        edit.AddThemeColorOverride("selection_color", new Color(Accent, 0.30f));
-    }
 
     /// <summary>滚动条金属化（深槽 + 钢质拉条）。ScrollContainer 两轴滚动条统一入口。</summary>
     public static void ApplyMetalScrollBar(ScrollBar bar)
