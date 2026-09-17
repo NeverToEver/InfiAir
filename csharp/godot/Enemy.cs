@@ -346,11 +346,20 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
     /// <summary>当前在册（在屏活跃）spread 弹种敌机数（离场中的不计）。
     /// 遍历注册表（只含活跃敌机）而非 "enemy" 组——池化敌机回收时不 remove_from_group，
-    /// 组遍历会把池中闲置实例计入、虚抬 spread 上限。</summary>
+    /// 组遍历会把池中闲置实例计入、虚抬 spread 上限。直迭代托管注册表：谓词走原生 Callable 时
+    /// 每元素一次闭包派发 + Variant 编组，同一波逐只生成时是 O(波长 × 在册数) 的白工。</summary>
     private static int CountActiveSpreadEnemies()
     {
-        return GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e =>
-            e is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting()));
+        var count = 0;
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting())
+            {
+                count += 1;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>spread 同屏上限在**实际入场处**收敛（判定在 core SpreadCapPolicy）：敌机延后进场

@@ -313,10 +313,10 @@ public partial class GameState : Node
     /// 属性转发保持外部语法不变；内部用 C# PascalCase。
     /// 热路径缓存，避免每帧 get_nodes_in_group 分配。
     /// enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。</summary>
-    public Godot.Collections.Array<Node> Enemies => _registry.Enemies;
+    public List<Node2D> Enemies => _registry.Enemies;
 
     /// <summary>敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）</summary>
-    public Godot.Collections.Array<GodotObject> EnemyBullets => _registry.EnemyBullets;
+    public List<Bullet> EnemyBullets => _registry.EnemyBullets;
 
     public Node2D? PlayerRef
     {
@@ -358,49 +358,23 @@ public partial class GameState : Node
     /// <summary>统一事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）</summary>
     public GameEventManager Events => _events;
 
-    public void RegisterEnemy(Node node) => _registry.RegisterEnemy(node);
+    public void RegisterEnemy(Node2D node) => _registry.RegisterEnemy(node);
 
     /// <summary>统一单位绑定样板：add_to_group("enemy") + 注册 + entity_registered</summary>
-    public void BindEnemy(Node node) => _registry.BindEnemy(node);
+    public void BindEnemy(Node2D node) => _registry.BindEnemy(node);
 
     /// <summary>统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）</summary>
-    public void UnbindEnemy(Node node) => _registry.UnbindEnemy(node);
-
-    /// <summary>计数（谓词可选过滤）。spread 上限/统计用。
-    /// Callable 空判定（Godot C# Callable 无 IsValid 属性——空 callable 的 Method 为空 StringName，
-    /// 替代 GDScript predicate.is_valid()）。</summary>
-    public int CountEnemies(Variant predicate = default)
-    {
-        var count = 0;
-        var hasPredicate = predicate.VariantType == Variant.Type.Callable
-            && predicate.AsCallable().Method != new StringName();
-        foreach (var node in _registry.Enemies)
-        {
-            if (!GodotObject.IsInstanceValid(node))
-            {
-                continue;
-            }
-
-            if (hasPredicate && !predicate.AsCallable().Call(node).AsBool())
-            {
-                continue;
-            }
-
-            count += 1;
-        }
-
-        return count;
-    }
+    public void UnbindEnemy(Node2D node) => _registry.UnbindEnemy(node);
 
     /// <summary>敌弹注册/注销转发（Bullet 激活/回收时维护）</summary>
-    public void RegisterEnemyBullet(GodotObject b) => _registry.RegisterEnemyBullet(b);
+    public void RegisterEnemyBullet(Bullet b) => _registry.RegisterEnemyBullet(b);
 
-    public void UnregisterEnemyBullet(GodotObject b) => _registry.UnregisterEnemyBullet(b);
+    public void UnregisterEnemyBullet(Bullet b) => _registry.UnregisterEnemyBullet(b);
 
     /// <summary>注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）</summary>
-    public bool EnemiesHas(Node node) => _registry.HasEnemy(node);
+    public bool EnemiesHas(Node2D node) => _registry.HasEnemy(node);
 
-    public void UnregisterEnemy(Node node) => _registry.UnregisterEnemy(node);
+    public void UnregisterEnemy(Node2D node) => _registry.UnregisterEnemy(node);
 
     private void OnRegistryEntityRegistered(Node node) => EmitSignal(SignalName.EntityRegistered, node);
 

@@ -1419,8 +1419,8 @@ public partial class Player : CharacterBody2D
         {
             // 目标类型 = 契约（IAimTarget）：遭遇单位（炮塔/编队机）与普通敌机同一路径，
             // Boss 与场上炸弹不实现契约故天然排除（既有例外，不扩大打击面）
-            if (enemies[i] is not Node2D node || !GodotObject.IsInstanceValid(node)
-                || node is not IAimTarget t || !t.AimTargetable)
+            var node = enemies[i];
+            if (!GodotObject.IsInstanceValid(node) || node is not IAimTarget t || !t.AimTargetable)
             {
                 continue;
             }
@@ -1447,8 +1447,8 @@ public partial class Player : CharacterBody2D
         var enemies = GameState.Instance.Enemies;
         for (var i = 0; i < enemies.Count; i++)
         {
-            if (enemies[i] is not Node2D node || !GodotObject.IsInstanceValid(node)
-                || node is not IAimTarget t || !t.AimTargetable)
+            var node = enemies[i];
+            if (!GodotObject.IsInstanceValid(node) || node is not IAimTarget t || !t.AimTargetable)
             {
                 continue;
             }
@@ -1605,8 +1605,8 @@ public partial class Player : CharacterBody2D
         var clearRadiusSq = BulletClearRadius * BulletClearRadius; // 平方距离比较免每弹 sqrt
         for (var i = bullets.Count - 1; i >= 0; i--)
         {
-            var b = (Bullet?)bullets[i];
-            if (b != null && !b.IsPlayerBullet)
+            var b = bullets[i];
+            if (!b.IsPlayerBullet)
             {
                 if (b.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= clearRadiusSq)
                 {

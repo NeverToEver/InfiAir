@@ -49,10 +49,11 @@ public partial class AimFrameLayer : Node2D
 
     private readonly Callable _onAimAssistChanged;
 
-    /// <summary>热路径缓存：enemies 每渲染帧一次取 typed Array<Node>（单实例共享，帧内复用）。
-    /// 不得用静态集合持 Godot 对象引用（悬空访问 + 退出 finalize 触碰风险）。</summary>
+    /// <summary>热路径缓存：enemies 每渲染帧一次取注册表引用（单实例共享，帧内复用；
+    /// 注册表是托管 List，取用零封送）。不得用静态集合持 Godot 对象引用
+    /// （悬空访问 + 退出 finalize 触碰风险）。</summary>
     private ulong _cacheFrame = ulong.MaxValue;
-    private Godot.Collections.Array<Node> _frameEnemies = new();
+    private List<Node2D> _frameEnemies = new();
 
     /// <summary>上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
     private bool _hadMarked;
@@ -66,8 +67,8 @@ public partial class AimFrameLayer : Node2D
         _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
     }
 
-    /// <summary>enemies 每渲染帧一次 typed 缓存（帧内复用，避免逐敌 Variant 拆装箱）。</summary>
-    private Godot.Collections.Array<Node> CachedEnemies()
+    /// <summary>enemies 每渲染帧一次取注册表引用（帧内复用，免逐次 GameState 单例校验）。</summary>
+    private List<Node2D> CachedEnemies()
     {
         var frame = Engine.GetProcessFrames();
         if (frame != _cacheFrame)

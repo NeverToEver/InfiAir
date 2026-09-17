@@ -8,7 +8,7 @@ namespace InfiAir;
 /// 玩家死亡后以幽灵弹幕重放（死因可见，最强公平感信号；只重放不结算，零碰撞）。
 /// 录制在 main._process（存活期渲染帧采样；死亡后树暂停，main._process 冻结自然停止）；
 /// 重放演出节点 process_mode=ALWAYS，暂停树中照常播放，播完自毁。
-/// 录制数据源为 GameState.enemy_bullets 注册表（零 cast 遍历）；帧缓冲固定容量环形缓冲
+/// 录制数据源为 GameState.enemy_bullets 注册表（托管强类型集合，逐弹零封送）；帧缓冲固定容量环形缓冲
 /// （索引取模写入，删除 pop_front O(n) 整表移位）；内层 [x,y] 交错存储
 /// （槽复用 clear 保留容量，录制循环零分配）。
 /// 重放演出节点为独立顶层类 csharp/godot/DeathReplayPlayer.cs（C# 源生成器不支持内嵌类）。
@@ -39,8 +39,8 @@ public partial class DeathReplay : RefCounted
     /// 门控到每物理帧至多采样一次（Bullet.CachedViewRect 同款帧缓存模式）。</summary>
     private ulong _lastRecordFrame = ulong.MaxValue;
 
-    /// <summary>敌弹注册表包装缓存（begin 时取一次；包装共享底层数组，内容实时可读，零拷贝）。</summary>
-    private Godot.Collections.Array _bulletRegistry = new();
+    /// <summary>敌弹注册表引用缓存（begin 时取一次；注册表本身是托管 List，内容实时可读，零拷贝）。</summary>
+    private List<Bullet> _bulletRegistry = new();
 
     /// <summary>开始录制（main 新本局入口调用；幂等——重复调用清缓冲重录）</summary>
     public void Begin()
@@ -58,7 +58,7 @@ public partial class DeathReplay : RefCounted
             }
         }
 
-        _bulletRegistry = (Godot.Collections.Array)GameState.Instance.EnemyBullets;
+        _bulletRegistry = GameState.Instance.EnemyBullets;
     }
 
     /// <summary>停止录制（死亡/结算后调用；之后 record 零开销早退）</summary>
@@ -83,16 +83,17 @@ public partial class DeathReplay : RefCounted
 
         var frame = _frames[_writeIdx];
         frame.Clear();
-        foreach (var b in _bulletRegistry)
+        foreach (var bullet in _bulletRegistry)
         {
-            var bullet = b.AsGodotObject() as Bullet;
             if (bullet == null || !GodotObject.IsInstanceValid(bullet))
             {
                 continue; // 注销延迟/销毁竞态的悬空引用防御
             }
 
-            frame.Add(bullet.GlobalPosition.X);
-            frame.Add(bullet.GlobalPosition.Y);
+            // 全局变换一次取全（每物理帧最多数百弹，两次原生物理属性读取是白工）
+            var pos = bullet.GlobalPosition;
+            frame.Add(pos.X);
+            frame.Add(pos.Y);
         }
 
         _writeIdx = (_writeIdx + 1) % MaxFrames;

@@ -730,7 +730,7 @@ public partial class Mothership : Area2D
         // 经 ISlowable 契约分派，失效实例跳过；新增减速响应单位实现接口即可被覆盖。
         foreach (var item in GameState.Instance.Enemies)
         {
-            if (item == null || !GodotObject.IsInstanceValid(item) || item is not ISlowable slowable)
+            if (!GodotObject.IsInstanceValid(item) || item is not ISlowable slowable)
             {
                 continue;
             }
@@ -829,15 +829,15 @@ public partial class Mothership : Area2D
     {
         _targetsBuf.Clear();
         // 统一实体管理器批量 API 语义等价直迭代：
-        // 失效实例跳过 + Node2D 判型 + Enemy 离场 / Boss 逃跑过滤
+        // 失效实例跳过 + Enemy 离场 / Boss 逃跑过滤（注册表元素契约即 Node2D）
         foreach (var item in GameState.Instance.Enemies)
         {
-            if (item == null || !GodotObject.IsInstanceValid(item) || item is not Node2D node || !IsLiveTarget(node))
+            if (!GodotObject.IsInstanceValid(item) || !IsLiveTarget(item))
             {
                 continue;
             }
 
-            _targetsBuf.Add(node);
+            _targetsBuf.Add(item);
         }
 
         return _targetsBuf;

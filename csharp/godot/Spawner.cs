@@ -559,7 +559,7 @@ public partial class Spawner : Node
     {
         // 预警 2s 窗口内取消须解除占用（SpawnBossInternal 未执行则无 died/escaped 复位
         // 路径）；Boss 已生成在场上则由注册表判定——存活 Boss 存在时保持 _bossActive 占用
-        if (GameState.Instance.CountEnemies(Callable.From<GodotObject, bool>(e => e is Boss)) == 0)
+        if (!AnyBossRegistered())
         {
             _bossActive = false;
         }
@@ -583,6 +583,21 @@ public partial class Spawner : Node
         }
 
         _pendingTelegraphs.Clear();
+    }
+
+    /// <summary>注册表里是否还有 Boss（含离场演出中的）。直迭代托管注册表，
+    /// 免原生 Callable 谓词的逐元素闭包派发与 Variant 编组。</summary>
+    private static bool AnyBossRegistered()
+    {
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is Boss)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public override void _Process(double delta)

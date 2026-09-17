@@ -361,7 +361,7 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>爆炸弹增幅：命中时对周围敌机造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void Explode()
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         var radiusSq = ExplosiveRadius * ExplosiveRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
@@ -384,19 +384,19 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌机（含主目标与 Boss）追加固定伤害。</summary>
     private void Splash()
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         var radiusSq = SplashRadius * SplashRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
-            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d || n2d is not IDamageable)
+            if (!GodotObject.IsInstanceValid(node) || node is not IDamageable)
             {
                 continue;
             }
 
-            if (n2d.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            if (node.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
-                EntityDamage.Dispatch(n2d, SplashDamage, ScoreScale);
+                EntityDamage.Dispatch(node, SplashDamage, ScoreScale);
             }
         }
 

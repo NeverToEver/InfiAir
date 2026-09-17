@@ -272,22 +272,22 @@ public partial class LaserWeapon : Node2D
     /// 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝。</summary>
     private void DamageTick(Vector2 start, Vector2 end)
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         // 平方距离比较免每敌 sqrt（Bullet.Explode 的 radiusSq 同口径）
         var hitRadiusSq = BeamHalfWidth + EnemyHitRadius;
         hitRadiusSq *= hitRadiusSq;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
-            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d)
+            if (!GodotObject.IsInstanceValid(node))
             {
                 continue;
             }
 
-            if (DistToSegmentSq(n2d.GlobalPosition, start, end) <= hitRadiusSq)
+            if (DistToSegmentSq(node.GlobalPosition, start, end) <= hitRadiusSq)
             {
                 // 激光路径不传 ScoreScale——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同）。
-                EntityDamage.Dispatch(n2d, TickDamage);
+                EntityDamage.Dispatch(node, TickDamage);
             }
         }
     }
