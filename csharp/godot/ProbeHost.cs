@@ -5173,7 +5173,8 @@ public partial class ProbeHost : Node
                     return;
                 }
 
-                if (!RunPracticePanelCheck() || !PreparePracticeProbeRun())
+                // 入场演出的断言必须在开局的头几帧读（演出全程 1.65s），故排在面板自检之前
+                if (!VerifyPracticeEntrySequence() || !RunPracticePanelCheck() || !PreparePracticeProbeRun())
                 {
                     _practiceProbe = false;
                     return;
@@ -5326,6 +5327,52 @@ public partial class ProbeHost : Node
                 GameState.Instance.EnterPractice(_practiceSetup);
                 return;
         }
+    }
+
+    /// <summary>练习开局的入场演出断言（DESIGN_BASELINE §1.16「练习局的 RunTime / 难度 / 里程碑照常在
+    /// 内存里推进，**手感必须与正局一致**」）：练习局走的是与正局同一条入场路径，故开局三件事必须
+    /// 与正局同口径——演出在进行中、无敌窗口是入场档（而不是只剩出生保护）、玩家位在可见域下沿之外
+    /// （入场落点轨迹的起点，正局落点在域内约 0.74 屏高）。
+    ///
+    /// 为什么必须探：漏投入场序列时练习局照常开局、不崩不报错，只有两处手感不同（起始位与无敌
+    /// 窗口），而练习局与正局共用同一套结算与难度推进——「练一个手感不同的游戏」没有任何门禁信号。
+    /// 三条判据各防一种实现：只判「演出在进行中」会被「播了演出但没接无敌」蒙过；只判无敌会被
+    /// 「按无敌时长直接开局」蒙过；故都在首帧读（三条各自独立失败）。</summary>
+    private bool VerifyPracticeEntrySequence()
+    {
+        var view = GameState.Instance.ViewWorldRect();
+        var ok = true;
+        if (!_player.IsEntryPlaying())
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 练习开局没有入场演出（首帧玩家位 %.0f,%.0f，无敌 %.2fs / 入场档 %.2fs）——"
+                + "练习局的落点与入场无敌窗口与正局不同口径",
+                _player.Position.X, _player.Position.Y, _player.Invincible, _player.EntryInvincible));
+            ok = false;
+        }
+
+        // 入场无敌窗口：演出期间的无敌由入场档写入（不是出生保护——后者只有 1s，练习局靠它撑不过
+        // 开局的头两秒）。容差 0.2s 吸收首帧与逐帧递减的读数差。
+        if (Math.Abs(_player.Invincible - _player.EntryInvincible) > 0.2f)
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 练习开局的无敌窗口不是入场档（实得 %.2fs，入场档 %.2fs，出生保护 %.2fs）——"
+                + "练习开局少了入场无敌",
+                _player.Invincible, _player.EntryInvincible, _player.SpawnInvincibleTime));
+            ok = false;
+        }
+
+        // 入场起点在可见域下沿之外（正局同一式）：起点若留在场景初始位（域内），落点轨迹整段不存在。
+        if (_player.Position.Y < view.End.Y)
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 练习开局的玩家位不在可见域下沿之外（y=%.0f，域下沿 %.0f）——"
+                + "没有入场落点，玩家从场景初始位开局",
+                _player.Position.Y, view.End.Y));
+            ok = false;
+        }
+
+        return ok;
     }
 
     /// <summary>面板开页自检：三行控件都建起来了、显示的是所选设置对应的译文（缺键时 Tr 返回键名本身、
