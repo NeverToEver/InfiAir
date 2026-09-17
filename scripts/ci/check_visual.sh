@@ -52,12 +52,16 @@ if [ "$(uname -s)" = "Linux" ]; then
   RENDER_ENV+=("env" "LIBGL_ALWAYS_SOFTWARE=1")
 fi
 
-# 窗口移出可视区，本机跑时不在用户眼前弹窗
+# 窗口移出可视区，本机跑时不在用户眼前弹窗。
+# 音频驱动显式取 Dummy：本探针不判音频，而 CI runner 无声卡时 ALSA 初始化失败会打一行
+# `ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN`（引擎随后自己回落到 dummy），
+# 那一行被下面的错误正则抓住即判红——探针本身是零错误跑完的（判据吃到环境噪声）。显式 dummy
+# 从源头消掉这条噪声，而不是把它加进白名单（同一条通用消息也可能来自真正的资源打开失败）。
 # RENDER_ENV 可能为空（有 DISPLAY 的非 Linux 平台）：`"${RENDER_ENV[@]}"` 在 set -u 下遇空数组
 # 会报 unbound variable（bash 3.2，声明支持的 macOS 系统 bash）——用 + 展开兜住空数组。
 if ! "${RENDER_ENV[@]+"${RENDER_ENV[@]}"}" \
   env "APPDATA=$USERDIR_ARG" "XDG_DATA_HOME=$USERDIR" "HOME=$USERDIR" \
-  "$GODOT" --path . --resolution 1920x1080 --position -4000,-4000 \
+  "$GODOT" --path . --resolution 1920x1080 --position -4000,-4000 --audio-driver Dummy \
   --fixed-fps 60 --quit-after "$FRAMES" --scene res://scenes/probe_host.tscn \
   -- --shot-probe --shot-dir="$SHOT_DIR_ARG" --expect-user-dir="$USERDIR_ARG" > "$LOG" 2>&1; then
   echo "::error::截图探针运行失败（Godot 退出码非 0）——崩溃/启动即失败时探针根本不执行"
