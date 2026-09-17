@@ -43,6 +43,10 @@ SKIP = {".git", ".godot", "builds", "tools", "bin", "obj", "__pycache__", ".venv
 ALLOW = (
     ("csharp/godot/GameState.cs", "Time.GetTicksMsec", 1,
      "开机耗时基准：autoload 最早生命周期点打点，只供 --startup-time 分段读数，不参与模拟与判定"),
+    ("csharp/godot/ProbeHost.TitleNav.cs", "Time.GetTicksMsec", 3,
+     "标题屏手柄可达探针的注入时机：标题屏输入守卫本身是 0.5s 真实时间窗（挡上一场景残留按键），"
+     "无头 fixed-fps 下帧数与真实时间脱钩（45 帧可能只过百毫秒），等守卫过去必须按墙钟——"
+     "度量的是「守卫还剩多久」这一现实世界窗口，探针的判定本身只用焦点落位与场景状态"),
     ("csharp/godot/ProbeHost.cs", "Time.GetTicksMsec", 3,
      "启动耗时打印（1 处）与返航探针的环境前置守卫（2 处：记墙钟起点、算已耗真实毫秒）——"
      "守卫用途是「若 90 帧耗时已达生产宽限则无法判别时间基准，显式报错」，度量的是真实耗时，"

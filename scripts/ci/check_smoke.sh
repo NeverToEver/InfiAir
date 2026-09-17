@@ -371,11 +371,15 @@ smoke_tutorial_flow() {
 smoke_practice() {
   # 练习模式：面板开页与三行直选（控件文本是译文而非键名、环形切换回到原点、确认键交出的设置
   # 等于面板显示）+ 直选 Boss 经生产出场链按型别出场 + 直选遭遇经生产触发链启动
-  # （其分数门槛由练习起始分真正满足）+ 练习死亡不写记录、不删检查点；收尾再走一次真实入口
-  # （EnterPractice → scenes/practice.tscn）：这一步跑通则留下宿主注入与直选请求两行日志，
-  # 写坏则同一份日志里出引擎错误（切场景失败打 ERROR: Cannot open file）由本趟的错误正则判红。
-  # 帧数：探针段 ≈ 5 模拟秒 + 入口后练习场景的入场 1.65s 与直选请求 ≈ 3 模拟秒（余量 ≈ 300 帧）。
-  run_case "practice mode smoke" 900 "${PROBE_LOG_BASE}.practice.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.practice.userdata" --practice-probe
+  # （其分数门槛由练习起始分真正满足）+ 练习死亡不写记录、不删检查点；死亡收尾后加**标题屏
+  # 手柄可达段**（挂根驱动，跨两次切场景存活）：手柄事件注入走两个底部入口（摇杆/dpad 导航
+  # 聚焦教程入口 → A 进教程场景；dpad 焦点链移到练习入口 → A 开面板），导航不过则不交棒。
+  # 收尾再走一次真实入口（EnterPractice → scenes/practice.tscn）：这一步跑通则留下宿主注入与
+  # 直选请求两行日志，写坏则同一份日志里出引擎错误（切场景失败打 ERROR: Cannot open file）由
+  # 本趟的错误正则判红。导航段的两处标题屏输入守卫等待是**真实时间窗**（帧数与墙钟脱钩），
+  # 驱动用 DelayMsec 阻塞等待（墙钟走、帧不走），帧预算按探针段 ≈ 5 模拟秒 + 导航 ≈ 200 帧 +
+  # 练习场景入场与直选 ≈ 3 模拟秒估（余量 ≈ 900 帧）。
+  run_case "practice mode smoke" 2400 "${PROBE_LOG_BASE}.practice.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.practice.userdata" --practice-probe
   expect_marker "练习直选与不落盘" "${PROBE_LOG_BASE}.practice.log" "[practice] 直选内容已受理"
 }
 

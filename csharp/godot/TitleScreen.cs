@@ -46,6 +46,27 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>练习设置面板（P 打开；打开期间标题屏不再消费按键——否则面板上按任意键会直接开新局）。</summary>
     private PracticePanel? _practicePanel;
 
+    /// <summary>底部「教程」入口按钮（手柄可聚焦：dpad/摇杆移动焦点、A 确认，键盘 T 与点击照旧）。</summary>
+    private Button _tutorialEntry = null!;
+
+    /// <summary>底部「练习」入口按钮（同上；键盘 P 与点击照旧）。</summary>
+    private Button _practiceEntry = null!;
+
+    /// <summary>当前聚焦的入口（"tutorial" / "practice"；无焦点空串）——探针断手柄导航的落位。</summary>
+    public string FocusedEntryName()
+    {
+        var owner = GetViewport()?.GuiGetFocusOwner();
+        if (owner == _tutorialEntry)
+        {
+            return "tutorial";
+        }
+
+        return owner == _practiceEntry ? "practice" : "";
+    }
+
+    /// <summary>练习设置面板是否展开（探针断「手柄确认能进练习入口」）。</summary>
+    public bool PracticePanelOpen() => _practicePanel != null;
+
     public override void _Ready()
     {
         // 固定标记：开机交接契约的观测点——标记只在标题屏真正入树时打印，冒烟门禁据此断言
@@ -182,12 +203,12 @@ public partial class TitleScreen : CanvasLayer
         var tutorialHighlighted = tutorialResume || !GameState.Instance.TutorialDone;
         // 两个键都写成字面量 Tr 调用（条件表达式里放键名时文案门禁扫不到，缺键会静默显示键名本身）
         var tutorialHint = tutorialResume ? (string)Tr("TITLE_TUTORIAL_RESUME") : (string)Tr("TITLE_TUTORIAL_HINT");
-        hintRow.AddChild(UITheme.MakeLabel(
-            tutorialHint,
-            UITheme.FontCaption,
-            tutorialHighlighted ? UITheme.AccentGold : UITheme.TextDim,
-            HorizontalAlignment.Center));
-        hintRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PRACTICE"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center));
+        _tutorialEntry = MakeEntryButton(tutorialHint, tutorialHighlighted ? UITheme.AccentGold : UITheme.TextDim);
+        _tutorialEntry.Pressed += () => StartFromTitle("res://scenes/tutorial.tscn");
+        hintRow.AddChild(_tutorialEntry);
+        _practiceEntry = MakeEntryButton((string)Tr("TITLE_PRACTICE"), UITheme.TextDim);
+        _practiceEntry.Pressed += OpenPracticePanel;
+        hintRow.AddChild(_practiceEntry);
         AddChild(hintRow);
         var tutIn = hintRow.CreateTween();
         tutIn.TweenProperty(hintRow, "modulate:a", 1.0f, 0.4).SetDelay(1.8).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -201,6 +222,35 @@ public partial class TitleScreen : CanvasLayer
             blink.TweenProperty(hint, "modulate:a", 0.25f, 0.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
             blink.TweenProperty(hint, "modulate:a", 0.9f, 0.6).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         };
+    }
+
+    /// <summary>底部入口按钮：透明底 + 说明字号文字，视觉与原标签一致；可聚焦（手柄 dpad/摇杆移动
+    /// 焦点、A 确认），聚焦/悬停提亮成强调色——焦点态必须有可见反馈，否则手柄玩家看不见自己在哪。</summary>
+    private static Button MakeEntryButton(string text, Color restColor)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Flat = true,
+            FocusMode = Control.FocusModeEnum.All,
+            MouseFilter = Control.MouseFilterEnum.Stop,
+        };
+        button.AddThemeFontOverride("font", UITheme.Font);
+        button.AddThemeFontSizeOverride("font_size", UITheme.FontCaption);
+        button.AddThemeColorOverride("font_color", restColor);
+        button.AddThemeColorOverride("font_hover_color", UITheme.AccentGold);
+        button.AddThemeColorOverride("font_focus_color", UITheme.AccentGold);
+        button.AddThemeColorOverride("font_pressed_color", UITheme.AccentGold);
+        return button;
+    }
+
+    /// <summary>经入口离开标题屏的统一出口（按钮点击 / 键盘 T / 手柄确认共用）：标输入已处理 +
+    /// 置 _started（重复输入挡回）+ 确认动效切场景。练习入口不走这里（开面板不离开标题屏）。</summary>
+    private void StartFromTitle(string scenePath)
+    {
+        GetViewport()?.SetInputAsHandled();
+        _started = true;
+        StartScene(scenePath);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -234,25 +284,46 @@ public partial class TitleScreen : CanvasLayer
                 return;
             }
 
-            // 先标输入再切场景：ChangeSceneToFile 立即摘树，其后 GetViewport() 返回 null
-            GetViewport().SetInputAsHandled();
-            _started = true;
             if (kc == Key.T)
             {
-                StartScene("res://scenes/tutorial.tscn");
+                StartFromTitle("res://scenes/tutorial.tscn");
             }
             else if (kc == Key.C && _hasSave)
             {
                 // 读取上次存档（仅在存在存档时消费 C；无档时 C 等同「任意键」新局）
+                GetViewport().SetInputAsHandled();
+                _started = true;
                 GameState.Instance.PendingLoadRun = true;
                 StartScene("res://scenes/main.tscn");
             }
             else
             {
-                StartScene("res://scenes/main.tscn");
+                StartFromTitle("res://scenes/main.tscn");
             }
         }
-        else if (@event is InputEventMouseButton { Pressed: true } or InputEventJoypadButton { Pressed: true })
+        else if (@event is InputEventJoypadButton joyButton && joyButton.Pressed)
+        {
+            // dpad 导航：无焦点时聚焦教程入口（首个入口），有焦点时引擎焦点链已消费（到不了这里）
+            if (joyButton.ButtonIndex is JoyButton.DpadUp or JoyButton.DpadDown or JoyButton.DpadLeft or JoyButton.DpadRight)
+            {
+                FocusFirstEntry();
+                return;
+            }
+
+            // A 确认聚焦的入口（ui_accept 未必绑手柄 A，不依赖引擎默认——按下即激活，两条路等价）
+            if (joyButton.ButtonIndex == JoyButton.A && FocusedEntryName().Length > 0)
+            {
+                GetViewport()?.SetInputAsHandled();
+                ActivateFocusedEntry();
+                return;
+            }
+
+            // 其余手柄键仍按「任意键开局」处理（手柄玩家不必刻意够入口）
+            GetViewport()?.SetInputAsHandled();
+            _started = true;
+            StartScene("res://scenes/main.tscn");
+        }
+        else if (@event is InputEventMouseButton { Pressed: true })
         {
             GetViewport().SetInputAsHandled();
             _started = true;
@@ -260,10 +331,41 @@ public partial class TitleScreen : CanvasLayer
         }
         else if (@event is InputEventJoypadMotion joyMotion && Mathf.Abs(joyMotion.AxisValue) > 0.6f)
         {
-            // 摇杆/扳机推过阈值也能开始（手柄玩家无需刻意够按钮）
-            GetViewport().SetInputAsHandled();
+            // 左摇杆导航（ui_* 已装配摇杆轴绑定）：无焦点时聚焦教程入口，有焦点时引擎焦点链已消费；
+            // 右摇杆/扳机推过阈值仍能开始（手柄玩家无需刻意够按钮）
+            if (joyMotion.Axis is JoyAxis.LeftX or JoyAxis.LeftY)
+            {
+                FocusFirstEntry();
+                return;
+            }
+
+            GetViewport()?.SetInputAsHandled();
             _started = true;
             StartScene("res://scenes/main.tscn");
+        }
+    }
+
+    /// <summary>首个手柄导航事件自动聚焦教程入口（首局玩家的引导面）；已有焦点时不打扰——
+    /// 引擎焦点链（dpad/摇杆经 ui_* 绑定）自行移动。</summary>
+    private void FocusFirstEntry()
+    {
+        if (GetViewport()?.GuiGetFocusOwner() == null && GodotObject.IsInstanceValid(_tutorialEntry))
+        {
+            _tutorialEntry.GrabFocus();
+        }
+    }
+
+    /// <summary>激活当前聚焦的入口（手柄 A；与按钮点击/键盘 T/P 同一处理口）。</summary>
+    private void ActivateFocusedEntry()
+    {
+        var owner = GetViewport()?.GuiGetFocusOwner();
+        if (owner == _tutorialEntry)
+        {
+            StartFromTitle("res://scenes/tutorial.tscn");
+        }
+        else if (owner == _practiceEntry)
+        {
+            OpenPracticePanel();
         }
     }
 

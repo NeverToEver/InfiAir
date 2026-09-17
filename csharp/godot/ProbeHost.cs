@@ -547,6 +547,12 @@ public partial class ProbeHost : Node
 
         /// <summary>按下面板的开始键（走生产单口 EnterPractice 换场到 scenes/practice.tscn）。</summary>
         PracticeConfirm,
+
+        /// <summary>经生产单口回标题屏（入口聚焦拍的布景）。</summary>
+        TitleReturn,
+
+        /// <summary>注入手柄摇杆导航聚焦教程入口（焦点提亮是入口态的实拍面）。</summary>
+        TitleFocus,
     }
 
     /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）→ 本步是否击杀玩家
@@ -587,6 +593,11 @@ public partial class ProbeHost : Node
         (382, "", "", false, ShotAction.PracticeSelect),
         (384, "", "", false, ShotAction.PracticeConfirm),
         (534, "", "practice-run", false, ShotAction.None),
+        // 标题屏入口聚焦态（手柄可达入口的实拍面）：回标题后注入摇杆导航——教程入口被聚焦提亮，
+        // 焦点态若无可见反馈（手柄玩家看不见自己在哪）这张图一眼可见；两段间留足标题加载与输入守卫
+        (560, "", "", false, ShotAction.TitleReturn),
+        (650, "", "", false, ShotAction.TitleFocus),
+        (678, "", "title-entries", false, ShotAction.None),
     };
 
     /// <summary>宿主身份注入点：_EnterTree 由父到子（本节点先于子节点 Main），_Ready 由子到父
@@ -1156,6 +1167,14 @@ public partial class ProbeHost : Node
                 case ShotAction.PracticeConfirm:
                     ConfirmPracticePanelForShots();
                     break;
+
+                case ShotAction.TitleReturn:
+                    GameState.Instance.ExitToTitle();
+                    break;
+
+                case ShotAction.TitleFocus:
+                    InjectTitleNavEvent();
+                    break;
             }
 
             if (step.Kill)
@@ -1176,6 +1195,13 @@ public partial class ProbeHost : Node
             _shotProbe = false;
             VerifyShots();
         }
+    }
+
+    /// <summary>标题屏摇杆导航注入（与 TitleNavProbeDriver 同款：轴立即归零防状态残留）。</summary>
+    private static void InjectTitleNavEvent()
+    {
+        Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.8f });
+        Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.0f });
     }
 
     /// <summary>截图自检：计划张数全部入账 + 每张非空白 + 五张设置页两两可区分。任一不过就不打完成标记，
@@ -5523,19 +5549,16 @@ public partial class ProbeHost : Node
                     return;
                 }
 
-                // 恢复暂停：结算页把树暂停了，本帧之后本趟还要走一次真实的练习入口（见下）
+                // 恢复暂停：结算页把树暂停了，本帧之后本趟还要走标题屏与真实的练习入口（见下）
                 GameState.Instance.SetTreePaused(false);
                 GD.Print(GdFormat.Format("[practice-probe] 直选与不落盘语义成立（Boss 型别 %d，遭遇 %s）",
                     _practiceSetup.BossType, _practiceSetup.EncounterId));
-                _practiceProbe = false;
 
-                // 收尾再走一次**真实入口**：EnterPractice 会切到 scenes/practice.tscn（练习宿主 +
-                // 内嵌 main.tscn），本节点随场景易主释放——故这里打完标记就交棒，后面的判定由
-                // **练习宿主自己**打的那一行承担：`[practice] 直选内容已受理`（两请求都过生产链
-                // 才打），它才是「练习场景起来了且直选内容送得到」的判据——本节点打的这一行只
-                // 证明探针段自身跑完，切场景之后的事它看不到（在切换前打、由切换方自述，
-                // 练不到入口本身）。切场景失败仍由本趟的错误正则兜住（ERROR: Cannot open file）。
-                GameState.Instance.EnterPractice(_practiceSetup);
+                // 标题屏手柄可达段：驱动节点挂根（本节点随场景切换释放，导航判定跨两次切场景），
+                // 导航全过后由它交棒真实练习入口；导航不过则不交棒——练习宿主的标记缺席即本趟红
+                var navDriver = new TitleNavProbeDriver(_practiceSetup) { Name = "TitleNavProbeDriver" };
+                GetTree().Root.AddChild(navDriver);
+                _practiceProbe = false;
                 return;
         }
     }
