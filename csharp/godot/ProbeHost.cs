@@ -171,6 +171,16 @@ public partial class ProbeHost : Node
     /// <summary>正常档还原断言里 health 的期望值（ValidRunJson 的 health 字段）。</summary>
     private const float AssertedHealth = 42.5f;
 
+    /// <summary>损坏的 best.json（截断的 JSON）：读入即被隔离，本趟断「隔离之后仍允许写记录」。
+    /// 这是真本事——损坏档曾让记录写门槛为假，整场会话的记录再也不落盘（静默丢记录）。</summary>
+    private const string CorruptBestJson = "{\"version\":1,\"survived_seconds\":";
+
+    /// <summary>版本不符的 best.json：语法合法、字段齐全（与编解码器同键名），读数刻意远好于本趟——
+    /// 实现若「认了」这本档，写盘要么被挡、要么把未来档的 9999s 当成玩家成绩，两个方向都在断言里判红。</summary>
+    private static string FutureVersionBestJson() => GdFormat.Format(
+        "{\"version\":%d,\"survived_seconds\":9999.0,\"boss_kills\":99,\"max_difficulty\":9.0,\"goal_achieved\":1}",
+        BestRecordCodec.Version + 1);
+
     /// <summary>存档还原探针写入 run.json 的进度定值（与断言逐项对齐：难度信号值与
     /// ScoreChanged 回调里读到的时间）。</summary>
     private const double AssertedRunTime = 300.0;
@@ -501,7 +511,7 @@ public partial class ProbeHost : Node
     private string _runPathForBest = "";
 
     /// <summary>记录读出探针步序（0 置两局前提 → 1 第一局 → 2 断记录落盘 → 3 第二局更差 → 4 断不回退
-    /// → 5/6 断「刷新记录」判定的两个复位点）。</summary>
+    /// → 5/6 断「刷新记录」判定的两个复位点 → 7/8 断损坏档与版本不符档读入后仍允许写）。</summary>
     private int _bestStage;
 
     private int _bestStageFrame;
@@ -5839,12 +5849,140 @@ public partial class ProbeHost : Node
 
                 GameState.Instance.EndPractice();
                 GameState.Instance.SetTreePaused(false);
+
+                // 坏档（损坏 / 版本不符）走生产读档口复算写门槛：两种档都不构成「可能更好的
+                // 在盘记录」，故都必须可写——挡住的坏法是整场会话的记录静默丢失（版本不符更是永久）。
+                if (!WriteUserFile("user://best.json", CorruptBestJson))
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.LoadBestRecord();
+                if (!GameState.Instance.BestKnown || GameState.Instance.Best != BestRecord.Empty)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[best-record-probe] 损坏档读入后的写门槛/基线不对（known=%s 记录=%.1f/%d）——"
+                        + "损坏档已被隔离，必须按无档处理（可写、基线为空记录）",
+                        GameState.Instance.BestKnown, GameState.Instance.Best.SurvivedSeconds,
+                        GameState.Instance.Best.BossKills));
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                if (!Godot.FileAccess.FileExists(_bestPath + ".corrupt"))
+                {
+                    GD.PushError($"[best-record-probe] 损坏档未被隔离（{_bestPath}.corrupt 不存在）——"
+                        + "损坏档占着原路径时，后续写盘与「按无档处理」的口径都对不上");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetRunActive(true);
+                GameState.Instance.RunTime = 1200.0;
+                GameState.Instance.BossKills = 7;
+                _bestStage = 7;
+                _bestStageFrame = _frame;
+                return;
+
+            case 7:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                _bestImprovedRun = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                if (!VerifyBestRecordWritable("损坏档读入后"))
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                if (!WriteUserFile("user://best.json", FutureVersionBestJson()))
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetTreePaused(false);
+                GameState.Instance.LoadBestRecord();
+                if (!GameState.Instance.BestKnown || GameState.Instance.Best != BestRecord.Empty)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[best-record-probe] 版本不符档读入后的写门槛/基线不对（known=%s 记录=%.1f/%d）——"
+                        + "版本不符按无档处理（可写、基线为空记录），不得把未来档读数认成玩家的成绩",
+                        GameState.Instance.BestKnown, GameState.Instance.Best.SurvivedSeconds,
+                        GameState.Instance.Best.BossKills));
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetRunActive(true);
+                GameState.Instance.RunTime = 1500.0;
+                GameState.Instance.BossKills = 8;
+                _bestStage = 8;
+                _bestStageFrame = _frame;
+                return;
+
+            case 8:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                _bestImprovedRun = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                if (!VerifyBestRecordWritable("版本不符档读入后"))
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetTreePaused(false);
                 GD.Print(GdFormat.Format(
                     "[best-record-probe] 两局语义成立（记录 %.0fs / Boss %d 不回退，键集 %d 项无分数）",
                     _bestFirstRun.SurvivedSeconds, _bestFirstRun.BossKills, BestRecordCodec.ToFields(_bestFirstRun).Count));
                 _bestRecordProbe = false;
                 return;
         }
+    }
+
+    /// <summary>坏档之后的落盘断言（写门槛）：本局终结必须**真的写出记录**（文件在、内容等于本局读数），
+    /// 而不是被「盘上档读不出」挡住。只断 BestKnown 会放过「门槛放行但写路径别处仍早退」的实现，
+    /// 故断言落在盘上文件的内容上。</summary>
+    private bool VerifyBestRecordWritable(string label)
+    {
+        if (GameState.Instance.Best != _bestImprovedRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] {0}本局终结未把读数并进内存记录（%.1f/%d，期望 %.1f/%d）",
+                label, GameState.Instance.Best.SurvivedSeconds, GameState.Instance.Best.BossKills,
+                _bestImprovedRun.SurvivedSeconds, _bestImprovedRun.BossKills));
+            return false;
+        }
+
+        if (!TryReadBestFile(out var onDisk, out var why))
+        {
+            GD.PushError(GdFormat.Format("[best-record-probe] {0}本局终结未写出记录：%s"
+                + "——坏档之后整场会话的记录静默丢失", label, why));
+            return false;
+        }
+
+        if (onDisk != _bestImprovedRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] {0}盘上记录内容不符（%.1f/%d/%.3f，期望 %.1f/%d/%.3f）",
+                label, onDisk.SurvivedSeconds, onDisk.BossKills, onDisk.MaxDifficulty,
+                _bestImprovedRun.SurvivedSeconds, _bestImprovedRun.BossKills, _bestImprovedRun.MaxDifficulty));
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>练习终结后的断言（半 ②）：判定必须当场清掉，且记录（内存与盘上）不受练习读数影响——

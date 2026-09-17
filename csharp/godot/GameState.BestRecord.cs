@@ -12,7 +12,9 @@ namespace InfiAir;
 /// 与本局存档分区：死亡删档只作用于 run.json，本档案随之**更新**而非删除。
 ///
 /// 落盘时机＝本局终结（死亡 / 放弃重开），与终结删档同两处调用点；仅在实际有改善时写，
-/// 且「盘上记录暂时读不出」时不落盘——用一份读不出原因的旧档覆盖玩家更好的成绩，是静默丢记录。
+/// 且只有「盘上记录暂时读不出」时不落盘——用一份读不出原因的旧档覆盖玩家更好的成绩，是静默丢记录。
+/// 损坏档（已隔离）与版本不符档按无档处理，**可写**：它们不构成「可能更好的在盘记录」，
+/// 一律挡住的结果是一次坏档让整场会话的记录静默丢失（与 run.json 读档口径一致）。
 /// 字段编解码单源在 core <see cref="BestRecordCodec"/>（写读键名与判型口径只写在那里）。
 /// </summary>
 public partial class GameState : Node
@@ -22,7 +24,12 @@ public partial class GameState : Node
     /// <summary>跨局最好成绩（未取到可信记录时为 <see cref="BestRecord.Empty"/>）。</summary>
     public BestRecord Best { get; private set; } = BestRecord.Empty;
 
-    /// <summary>盘上是否已取到可信记录（无档＝可信的空记录；损坏隔离与暂时不可读为 false）。</summary>
+    /// <summary>盘上是否已取到可信记录（无档＝可信的空记录）。只有「暂时读不出」为 false——
+    /// 那时盘上的记录可能是**比内存更好**的成绩，覆盖它就是静默丢记录。损坏档已被隔离
+    /// （原路径上已无此档）、版本不符档按无档处理（与 run.json 读档同口径：版本不符＝不认这本档，
+    /// 写侧不设卡），两者都不构成「可能更好的在盘记录」，故可写——否则一次损坏就让整场会话的
+    /// 记录永不落盘（版本不符更是每一次都写不进去）。该位同时是结算页/标题屏那行的显示门控：
+    /// 读不出（Unreadable）时留空，而不是把「读不出」说成「没打过」。</summary>
     public bool BestKnown { get; private set; }
 
     /// <summary>本局是否刷新了记录（本局终结时定格；结算页据此打「新纪录」）。
@@ -31,7 +38,9 @@ public partial class GameState : Node
     /// 不给判定值的终结，漏清就让上一局的判定渗进这一局的结算页。</summary>
     public bool BestImprovedThisRun { get; private set; }
 
-    private void LoadBestRecord()
+    /// <summary>读盘取记录（启动时调用；探针走同一入口复算坏档下的写门槛——重读路径与启动路径
+    /// 共用本方法，不各写一套三态判定）。写门槛见 <see cref="RecordRunResult"/>。</summary>
+    public void LoadBestRecord()
     {
         var result = LoadJsonCore(BestPathValue);
         if (result.Status == SaveLoadStatus.Ok && result.Tree is not null
@@ -42,9 +51,8 @@ public partial class GameState : Node
             return;
         }
 
-        // 无档＝可信的空记录；损坏档已被隔离、暂时不可读不认领——后两者都不得覆盖盘上文件。
         Best = BestRecord.Empty;
-        BestKnown = result.Status == SaveLoadStatus.Missing;
+        BestKnown = result.Status != SaveLoadStatus.Unreadable;
     }
 
     /// <summary>本局终结时把本局结果并进记录。门控与本局存档的终结删档同源（<see cref="_runActive"/>）：
