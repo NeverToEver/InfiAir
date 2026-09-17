@@ -56,7 +56,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | R | Restart run (pause screen) |
 | Esc | Back / Pause |
 
-Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial. Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
+Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial. **P** opens practice: pick a boss type, starting difficulty and encounter — counts no progress and writes no saves. Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
 
 ## Running
 
