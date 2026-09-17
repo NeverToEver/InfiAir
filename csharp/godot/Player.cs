@@ -1009,6 +1009,18 @@ public partial class Player : CharacterBody2D
             }
         }
 
+        // 有效窗口内逐物理帧扫描重叠区（与 area_entered 同一条处理口，反射幂等）：
+        // 物理重叠在「盾半径＋弹体半径」处即触发 area_entered，而几何判据要求弹心 ≤ 盾半径——
+        // 进入事件落在两者之间的弹会被单事件判定拒掉且不再有第二次机会（弹已深入盾内却穿盾而过，
+        // 玩家看到的是「时机对了却没弹反」）。逐帧扫描让这批边界弹在真正进入判据半径的帧被补判。
+        if (shieldOn && _parryShield != null)
+        {
+            foreach (var overlapped in _parryShield.GetOverlappingAreas())
+            {
+                OnParryShieldEntered(overlapped);
+            }
+        }
+
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
         if (DashUnlocked()
             && Input.IsActionJustPressed(ActDash)
