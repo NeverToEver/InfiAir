@@ -167,9 +167,15 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Shared factories: `CinematicFx.cs` (`SoftGlow`/`Particles`/`Shockwave`/`Beam`/`RadialStreaks`; zero heap alloc in drive `_Process`), `DawnStation.cs`（全息虚影态）。
 
 ### 1.11 Tutorial
-- Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-H → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
+- Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-dock → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
+- **课程表单源在 core**（`csharp/core/Tutorial/`）：六个阶段的标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作名一处写定（`TutorialCurriculum`），阶段内目标进度与达成判据在 `TutorialProgress`。godot 层只做适配——刷怪布局、信号接线、取值来源；阶段顺序、目标数、达成判据、续接钳制不在节点里各写一份（此前目标数在代码常数与玩家文案里各有一份，改一处即静默分叉）。
+- **目标行键位感知**：教程要求玩家「按某个键」的每一处（加速 / 相位突进 / 召唤母舰 / 返航 / 跳过）都从**实际绑定**取标签（`GameState.ActionKeysText`），玩家改键后教程文案跟着变，不再硬编码键名。鼠标开火与手柄扳机是固定绑定（`EnsureFireBinding` 只增不改），仍按定值写。
+- **目标计数与文案同源**：目标行里的数字（击杀 N、加速 N/2）由 core 的目标计数经文案补参给出，文案表只留占位符；返航蓄力秒数取 `effects.home_charge_time`、首领狂暴阈值取 `boss.enrage.hp_ratio`——改平衡值文案自动跟。
+- **进度检查点与续接**：`settings.json` 的 `tutorial_stage` 记录「下次进入从第几阶段开始」，进入阶段时写入、教程完成时清零；标题屏在该值 > 0 时把入口提示换成「继续教程」。完成度 `tutorial_done` 语义不变（不是偏好设置，「全部恢复默认」保留它）。
+- **死亡自动重开本阶段**：教程不设失败死局——死亡后短暂提示并重开**当前**阶段（清场、重置该阶段进度、重刷目标），Esc 随时可退出。此前死亡只把 HUD 换成「任务失败」并要求玩家自己 Esc 退出，再从第一阶段重来。
+- **跳过本阶段**：长按 `give_up`（放弃出击的键位）1 秒跳过当前阶段，屏上常驻「长按 <实际按键> 跳过本阶段」提示。教程是可选内容，卡住的玩家不该被某一步锁住。
 - 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
-- 教程是独立于 `Main` 的生产入口，冒烟单独一趟直开 `tutorial.tscn` 覆盖（断 `[tutorial] 场景就绪`）。
+- 教程是独立于 `Main` 的生产入口，回归面两趟：冒烟直开 `tutorial.tscn` 断 `[tutorial] 场景就绪`（入场链路）；`--tutorial-probe` 在探针宿主里实例化同一场景，经生产输入与生产伤害入口走满六阶段，断阶段推进 / 改键后目标行跟变 / 跳过 / 死亡重开 / 检查点落盘与完成清零。
 
 ### 1.12 Exit/Back Navigation
 - All back inputs → `BackNavigator.GoBack()` via pure `DecideBackAction()` (confirm → cinematic skip → settings/base/blocking/results → augment dock → pause → top → combat).
