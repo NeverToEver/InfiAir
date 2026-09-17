@@ -39,8 +39,6 @@ public partial class Spawner : Node
     // 禁静态持 Godot 对象（退出 segfault 实测根因）→ 场景资源用实例只读字段
     private readonly PackedScene _bossScene = GD.Load<PackedScene>("res://scenes/boss.tscn");
 
-    /// <summary>贴图复用常量（分裂者复用 3 型、重装炮台复用精英 1 型）。</summary>
-
     private Godot.Collections.Array<Godot.Collections.Dictionary> _enemyTypes = null!;
     private Godot.Collections.Array<Godot.Collections.Dictionary> _eliteTypes = null!;
 
@@ -789,7 +787,7 @@ public partial class Spawner : Node
                 ["bullet_types"] = new Godot.Collections.Array<StringName> { "spread", "single" },
             },
             new() { // 5 型 分裂者：死亡分裂 2 小机（×0.6 缩放/HP 半/无分数/不开火）
-                ["texture"] = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_3.png"),
+                ["texture"] = GD.Load<Texture2D>("res://assets/sprites/enemy_ship_5.png"),
                 ["strategies"] = new Godot.Collections.Array<StringName> { "straight", "hover" },
                 ["hp"] = new Vector2I(80, 92),
                 ["speed"] = new Vector2(100.0f, 130.0f),
@@ -850,7 +848,7 @@ public partial class Spawner : Node
                 ["bullet_types"] = new Godot.Collections.Array<StringName> { "spread", "laser" },
             },
             new() { // 重装炮台：最高 HP 慢速弹幕机
-                ["texture"] = GD.Load<Texture2D>("res://assets/sprites/elite_ship_1.png"),
+                ["texture"] = GD.Load<Texture2D>("res://assets/sprites/elite_ship_4.png"),
                 ["strategies"] = new Godot.Collections.Array<StringName> { "hover", "straight" },
                 ["hp"] = new Vector2I(240, 270),
                 ["speed"] = new Vector2(55.0f, 75.0f),
