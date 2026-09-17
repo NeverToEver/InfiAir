@@ -54,7 +54,7 @@ STEPS = (
     {"slug": "visual", "name": "截图探针（HUD + 五张设置页，自检非空白/页面互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
     # 素材复现性排最后：它是唯一会**改写工作区**的步骤（跑生成器覆盖 assets/ 产物），
     # 排在引擎三步之后时，引擎侧（导入/冒烟/截图）看到的始终是提交态，漂移也不会污染后续步骤的判据。
-    {"slug": "assets_reproducible", "name": "素材生成可复现性（生成器确定 + 产物同步；产出环境 33s，有跨机残差时约 66s）", "kind": "bash", "script": "check_assets_reproducible.sh", "godot": False},
+    {"slug": "assets_reproducible", "name": "素材生成可复现性（生成器确定 + 产物同步；产出环境约 60s，有跨机残差时约 130s——音频纯 Python 合成是主项）", "kind": "bash", "script": "check_assets_reproducible.sh", "godot": False},
 )
 
 
