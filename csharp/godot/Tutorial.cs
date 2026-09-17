@@ -1,10 +1,14 @@
 using Godot;
+using InfiAir.Core.Input;
 using InfiAir.Core.Text;
+using InfiAir.Core.Tutorial;
 
 namespace InfiAir;
 
 /// <summary>
 /// 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
+/// 阶段顺序、目标计数、目标行补参与达成判据全部来自 core 课程表（<see cref="TutorialCurriculum"/>
+/// 与 <see cref="TutorialProgress"/>）——本节点只做适配：刷怪布局、信号接线、键位与平衡值取值。
 /// 不启动正常 Spawner 波次；进场/出场各 ResetRun 隔离本局状态，出场保证 TimeScale=1。
 /// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型。
 /// </summary>
@@ -23,34 +27,32 @@ public partial class Tutorial : Node2D
     private static readonly StringName ActDock = new("dock");
     private static readonly StringName ActHomecoming = new("homecoming");
     private static readonly StringName ActBoost = new("boost");
+    private static readonly StringName ActDash = new("dash");
 
-    private static readonly string[] StageTitles =
+    /// <summary>移动提示的四向动作（顺序即提示里的拼段顺序：上/左/下/右＝WASD 的书写顺序）。
+    /// 四向都可改键，故提示文本不得写死键名。</summary>
+    private static readonly StringName[] MoveActions =
     {
-        "TUT_S1_TITLE",
-        "TUT_S2_TITLE",
-        "TUT_S3_TITLE",
-        "TUT_S4_TITLE",
-        "TUT_S5_TITLE",
-        "TUT_S6_TITLE",
+        new("move_up"),
+        new("move_left"),
+        new("move_down"),
+        new("move_right"),
     };
 
+    /// <summary>阶段进度与达成判据（core）。节点每帧只把事件喂进来，不在这里判达标。</summary>
+    private readonly TutorialProgress _progress = new();
+
+    /// <summary>当前阶段在课程表里的索引（观测面与推进用；定义取自 <see cref="_progress"/>）。</summary>
     private int _stage;
     private bool _advancing;
-    private int _stageKills;
-    /// <summary>训练靶阶段（case 0）目标击杀数：补刷兜底与进度判定共用。</summary>
-    private const int AimTargetKillGoal = 3;
-    /// <summary>实战阶段（case 2）目标击杀数：补刷兜底与进度判定共用。</summary>
-    private const int CombatKillGoal = 5;
     /// <summary>蓄力百分比文本刷新节流（对齐 HUD 仪表约定）。</summary>
     private const float ObjectivePollInterval = 0.1f;
-    private int _boostCount;
-    private int _dashCount;
     private bool _prevDashing;
-    // 两段蓄力（阶段 3 召唤母舰 / 阶段 4 返航）用 core HoldCharge（按住累加 → 达阈值触发一次 → 松手复位）；
+    // 两段蓄力（阶段 4 召唤母舰 / 阶段 5 返航）用 core HoldCharge（按住累加 → 达阈值触发一次 → 松手复位）；
     // 阈值在 _Ready 按配置覆写。阶段切换与门控失效都靠 Reset 归零，不再各自维护累加字段。
-    private readonly InfiAir.Core.Input.HoldCharge _homeCharge = new(1.5f);
-    private readonly InfiAir.Core.Input.HoldCharge _dockCharge = new(3.0f);
-    private float _maxHp = 100.0f; // 阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
+    private readonly HoldCharge _homeCharge = new(1.5f);
+    private readonly HoldCharge _dockCharge = new(3.0f);
+    private float _maxHp = 100.0f; // 阶段 3 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
     private TutorialEscRouter? _escRouter; // 基地开启窗口期（树暂停）的 Always 态 Esc 返回路由
@@ -80,7 +82,7 @@ public partial class Tutorial : Node2D
     public override void _Ready()
     {
         GameState.Instance.ResetRun();
-        _maxHp = (float)GameState.Instance.MaxHealth(); // 热路径缓存（阶段 2 锁血每物理帧读）
+        _maxHp = (float)GameState.Instance.MaxHealth(); // 热路径缓存（阶段 3 锁血每物理帧读）
         RenderingServer.SetDefaultClearColor(new Color(0.025f, 0.022f, 0.018f));
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
@@ -156,8 +158,6 @@ public partial class Tutorial : Node2D
         _hudLayer.AddChild(_objectiveLabel);
     }
 
-    private void SetObjectiveTr(string key) => SetObjectiveTr(key, new Godot.Collections.Array());
-
     private void SetObjectiveTr(string key, Godot.Collections.Array args)
     {
         // 换行（新目标/新阶段）才做入场动效；同键只换数字的高频刷新（击杀计数、100ms 蓄力轮询）
@@ -182,6 +182,58 @@ public partial class Tutorial : Node2D
         UITheme.PunchScale(_objectiveLabel, 1.02f, 0.14f);
     }
 
+    /// <summary>按课程表声明的补参顺序取值（顺序错位＝玩家看到错位的数字或键名，不会报错；
+    /// 顺序由 core 单测与文案占位符对账钉住）。</summary>
+    private Godot.Collections.Array Args(TutorialArg[] plan, float chargeProgress = 0.0f)
+    {
+        var args = new Godot.Collections.Array();
+        foreach (var kind in plan)
+        {
+            args.Add(ResolveArg(kind, chargeProgress));
+        }
+
+        return args;
+    }
+
+    private Variant ResolveArg(TutorialArg kind, float chargeProgress) => kind switch
+    {
+        TutorialArg.MoveKeys => MoveKeysText(),
+        TutorialArg.BoostKey => GameState.Instance.ActionKeyText(ActBoost),
+        TutorialArg.DashKey => GameState.Instance.ActionKeyText(ActDash),
+        TutorialArg.DockKey => GameState.Instance.ActionKeyText(ActDock),
+        TutorialArg.HomecomingKey => GameState.Instance.ActionKeyText(ActHomecoming),
+        TutorialArg.BoostCount => _progress.BoostCount,
+        TutorialArg.BoostGoal => _progress.BoostGoal,
+        TutorialArg.DashCount => _progress.DashCount,
+        TutorialArg.DashGoal => _progress.DashGoal,
+        TutorialArg.KillCount => _progress.KillCount,
+        TutorialArg.KillGoal => _progress.Goal,
+        TutorialArg.ChargePercent => (int)(chargeProgress * 100.0f),
+        TutorialArg.ChargeSeconds => HomeChargeTime,
+        TutorialArg.EnragePercent => BossEnragePercent(),
+        _ => "",
+    };
+
+    /// <summary>移动提示的键位段：四向各自的首个绑定键拼段（默认 WASD）。
+    /// 四向都可改键，写死键名会让改键后的提示说谎；未绑定的方向跳过，全未绑定则整段取未绑定文案。</summary>
+    private string MoveKeysText()
+    {
+        var parts = new List<string>();
+        foreach (var action in MoveActions)
+        {
+            if (GameState.Instance.ActionBound(action))
+            {
+                parts.Add(GameState.Instance.ActionKeyText(action));
+            }
+        }
+
+        return parts.Count > 0 ? string.Concat(parts) : GameState.Instance.ActionKeyText(MoveActions[0]);
+    }
+
+    /// <summary>首领狂暴阈值百分比：取自 Boss 自身的装载值（同一份配置的同一份读数，
+    /// 与 Boss 的狂暴判据同源），不在教程里再读一次配置。</summary>
+    private int BossEnragePercent() => (int)Mathf.Round(_boss.EnrageHpRatio * 100.0f);
+
     /// <summary>阶段横幅：标题自左滑入淡入（目标文本由 SetObjectiveTr 换行时自行入场）。</summary>
     private void PlayStageBanner()
     {
@@ -200,66 +252,63 @@ public partial class Tutorial : Node2D
 
     private void OnLocaleChanged()
     {
-        _titleLabel.Text = (string)Tr(StageTitles[_stage]);
+        _titleLabel.Text = (string)Tr(_progress.Stage.TitleKey);
         SetObjectiveTr(_objectiveKey, _objectiveArgs);
     }
 
     private void EnterStage(int idx)
     {
-        _stage = idx;
-        _stageKills = 0;
-        _titleLabel.Text = (string)Tr(StageTitles[idx]);
+        _stage = TutorialCurriculum.ClampStage(idx);
+        _progress.EnterStage(TutorialCurriculum.At(_stage));
+        _titleLabel.Text = (string)Tr(_progress.Stage.TitleKey);
         PlayStageBanner();
-        switch (idx)
+        switch (_progress.Stage.Goal)
         {
-            case 0:
+            case TutorialGoalKind.Marksmanship:
                 {
                     // 移动与瞄准：3 个辅助瞄准标记训练靶（正常速度，对齐正局追踪弹体验）
-                    SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { 0 });
-                    SpawnAimTargets(3);
+                    SetStageObjective();
+                    SpawnAimTargets(_progress.Remaining);
                     break;
                 }
 
-            case 1:
+            case TutorialGoalKind.Maneuver:
                 {
                     // 加速与相位突进
                     // 教程授予相位冲刺（天赋域层级直写口，含 Augments 同步广播）
                     GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
-                    _boostCount = 0;
-                    _dashCount = 0;
                     _prevDashing = false;
-                    UpdateBoostObjective();
+                    SetStageObjective();
                     break;
                 }
 
-            case 2:
+            case TutorialGoalKind.Combat:
                 {
                     // 战斗基础：5 只 straight，锁血下限
-                    SetObjectiveTr("TUT_S3_OBJ", new Godot.Collections.Array { 0 });
-                    SpawnCombatWave(5);
+                    SetStageObjective();
+                    SpawnCombatWave(_progress.Remaining);
                     break;
                 }
 
-            case 3:
+            case TutorialGoalKind.Dock:
                 {
-                    // 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
+                    // 母舰召唤与停靠（对齐正局：长按蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
                     _dockCharge.Reset();
-                    SetObjectiveTr("TUT_S4_OBJ");
+                    SetStageObjective();
                     break;
                 }
 
-            case 4:
+            case TutorialGoalKind.Homecoming:
                 {
                     // 返航与基地
                     _homeCharge.Reset();
-                    SetObjectiveTr("TUT_S5_OBJ");
+                    SetStageObjective();
                     break;
                 }
 
-            case 5:
+            case TutorialGoalKind.BossEnrage:
                 {
                     // 首领遭遇：低 HP Boss-1，触发狂暴即过关
-                    SetObjectiveTr("TUT_S6_OBJ");
                     _player.SetInvincible(999.0f); // 教程不判负
                     var view5 = GameState.Instance.ViewWorldRect();
                     _boss = _bossScene.Instantiate<Boss>(); // Boss 为 C# typed，typed 实例化
@@ -270,8 +319,23 @@ public partial class Tutorial : Node2D
                     _boss.Enraged += OnBossEnraged; // C# [Signal] 以 PascalCase 注册
                     _boss.Died += OnBossGone; // C# [Signal] 以 PascalCase 注册
                     AddChild(_boss);
+                    // 目标行要写狂暴阈值百分比，取值来自 Boss 装载后的读数——故在入场之后再渲染
+                    SetStageObjective();
                     break;
                 }
+        }
+    }
+
+    /// <summary>渲染当前阶段的目标行（补参按课程表声明的顺序取值）。</summary>
+    private void SetStageObjective() => SetObjectiveTr(_progress.Stage.ObjectiveKey, Args(_progress.Stage.ObjectiveArgs));
+
+    /// <summary>渲染蓄力进行中的替换行（百分比按各阶段声明的补参取值）。</summary>
+    private void SetChargeObjective(HoldCharge charge)
+    {
+        var stage = _progress.Stage;
+        if (stage.ChargeKey.Length > 0 && stage.ChargeArgs != null)
+        {
+            SetObjectiveTr(stage.ChargeKey, Args(stage.ChargeArgs, charge.Progress));
         }
     }
 
@@ -285,19 +349,19 @@ public partial class Tutorial : Node2D
 
         _failed = true;
         _titleLabel.Text = (string)Tr("TUT_FAIL_TITLE");
-        SetObjectiveTr("TUT_FAIL_DESC");
+        SetObjectiveTr("TUT_FAIL_DESC", new Godot.Collections.Array());
     }
 
     /// <summary>阶段 6 软锁兜底：Boss 未触发狂暴即被击杀/逃跑离场（died 两种离场都会发）→ 重置阶段重刷</summary>
     private void OnBossGone()
     {
-        if (_stage == 5 && !_finished && !_failed)
+        if (_stage == TutorialCurriculum.StageCount - 1 && !_finished && !_failed)
         {
-            EnterStage(5);
+            EnterStage(_stage);
         }
     }
 
-    /// <summary>阶段 0 训练靶：辅助瞄准标记靶同款布局补刷（EnterStage(0) 与 _PhysicsProcess 兜底共用，
+    /// <summary>阶段 1 训练靶：辅助瞄准标记靶同款布局补刷（EnterStage 与 _PhysicsProcess 兜底共用，
     /// 防复制漂移；布局对齐正局追踪弹体验，强制 aim_marked 保证确定性）</summary>
     private void SpawnAimTargets(int count)
     {
@@ -353,7 +417,7 @@ public partial class Tutorial : Node2D
     {
         var e = _enemyScene.Instantiate<Enemy>(); // Enemy 为 C# typed，typed 实例化
         e.Setup(config, strategy, 1.0f);
-        e.CanShoot = _stage == 2; // 仅战斗阶段敌机开火
+        e.CanShoot = _progress.Stage.Goal == TutorialGoalKind.Combat; // 仅战斗阶段敌机开火
         var view = GameState.Instance.ViewWorldRect(); // 视口基线（不得硬编码 960）
         e.Position = new Vector2(view.GetCenter().X, view.Position.Y - 60.0f);
         e.Died += OnEnemyDied; // Enemy 为 C# typed，[Signal] 以 PascalCase 注册
@@ -363,33 +427,17 @@ public partial class Tutorial : Node2D
 
     private void OnEnemyDied(Enemy enemy)
     {
-        if (_stage != 0 && _stage != 2)
+        if (_progress.Stage.Goal is not (TutorialGoalKind.Marksmanship or TutorialGoalKind.Combat))
         {
             return;
         }
 
-        _stageKills += 1;
-        if (_stage == 0)
+        _progress.AddKill();
+        SetStageObjective();
+        if (_progress.IsComplete)
         {
-            SetObjectiveTr("TUT_S1_OBJ", new Godot.Collections.Array { _stageKills });
-            if (_stageKills >= AimTargetKillGoal)
-            {
-                PassStage();
-            }
+            PassStage();
         }
-        else if (_stage == 2)
-        {
-            SetObjectiveTr("TUT_S3_OBJ", new Godot.Collections.Array { _stageKills });
-            if (_stageKills >= CombatKillGoal)
-            {
-                PassStage();
-            }
-        }
-    }
-
-    private void UpdateBoostObjective()
-    {
-        SetObjectiveTr("TUT_S2_OBJ", new Godot.Collections.Array { _boostCount, _dashCount });
     }
 
     /// <summary>母舰召唤（对齐 main._on_summon_window_finished 的实体路径：穿梭门 + begin_warp_in；
@@ -406,7 +454,7 @@ public partial class Tutorial : Node2D
         var mothership = _mothership;
         mothership.BeginWarpIn(gatePos, gate);
         mothership.Departed += OnMothershipDeparted;
-        // 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 3 轮询判空依赖）
+        // 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 4 轮询判空依赖）
         // 旧实例离树只清自己：无条件置空会把已替换上的新实例引用一并抹掉
         mothership.TreeExited += () =>
         {
@@ -416,12 +464,18 @@ public partial class Tutorial : Node2D
             }
         };
         AddChild(mothership);
-        SetObjectiveTr("TUT_S4_DOCK");
+        SetObjectiveTr("TUT_S4_DOCK", new Godot.Collections.Array());
     }
 
     private void OnMothershipDeparted(float cooldown)
     {
-        if (_stage == 3)
+        if (_stage != 3)
+        {
+            return;
+        }
+
+        _progress.MarkCharged();
+        if (_progress.IsComplete)
         {
             PassStage();
         }
@@ -429,9 +483,15 @@ public partial class Tutorial : Node2D
 
     private void OnBossEnraged()
     {
-        if (_stage == 5 && !_finished)
+        if (_stage != TutorialCurriculum.StageCount - 1 || _finished)
         {
-            _boss.AbortEnrageSequence(); // 教程触发即过关：中止序列，不冻结玩家移动
+            return;
+        }
+
+        _boss.AbortEnrageSequence(); // 教程触发即过关：中止序列，不冻结玩家移动
+        _progress.MarkEnraged();
+        if (_progress.IsComplete)
+        {
             Finish();
         }
     }
@@ -447,10 +507,10 @@ public partial class Tutorial : Node2D
         PlaySfxAugmentPick();
         // 一次性 Timer 节点 + 信号回调（禁 await create_timer 协程，退出时协程状态泄漏）；
         // Always：树暂停中仍计时（对齐原 SceneTreeTimer 语义）
-        TimerFx.OneShot(this, 1.0, FinishPassStage, alwaysProcessing: true);
+        TimerFx.OneShot(this, TutorialCurriculum.PassDelaySeconds, FinishPassStage, alwaysProcessing: true);
     }
 
-    /// <summary>_pass_stage 的延迟推进必须走 Timer 回调（await create_timer 在教程被释放时协程悬死）</summary>
+    /// <summary>延迟推进必须走 Timer 回调（await create_timer 在教程被释放时协程悬死）</summary>
     private void FinishPassStage()
     {
         // 失败/结束态必须防阶段推进（失败态下已挂起的推进 Timer 仍会触发）
@@ -460,9 +520,9 @@ public partial class Tutorial : Node2D
         }
 
         _advancing = false;
-        if (_stage < StageTitles.Length - 1)
+        if (!TutorialCurriculum.IsLast(_stage))
         {
-            EnterStage(_stage + 1);
+            EnterStage(TutorialCurriculum.Next(_stage));
         }
     }
 
@@ -474,38 +534,57 @@ public partial class Tutorial : Node2D
         }
 
         var d = (float)delta;
-        switch (_stage)
+        switch (_progress.Stage.Goal)
         {
-            case 0:
+            case TutorialGoalKind.Marksmanship:
+            case TutorialGoalKind.Combat:
                 {
-                    // 补刷兜底（对齐 case 2 口径）：训练靶走正常 Enemy 生命周期，15s 寿命到期/飞出屏底
-                    // 静默 despawn 不发 Died，场上无靶且 _stageKills 未达标时补足剩余数，防新手超时软锁。
-                    // 保持每帧检查（与 case 2 同理，不引入节流窗口）
-                    if (!_advancing && _stageKills < AimTargetKillGoal && AliveEnemyCount() == 0)
+                    if (_progress.Stage.Goal == TutorialGoalKind.Combat)
                     {
-                        SpawnAimTargets(AimTargetKillGoal - _stageKills);
+                        // 锁血下限：每帧补足，受伤不死
+                        var health = GameState.Instance.Health;
+                        if (health < _maxHp)
+                        {
+                            GameState.Instance.Heal(_maxHp - health);
+                        }
+                    }
+
+                    // 补刷兜底（两阶段同口径）：目标走正常 Enemy 生命周期，15s 寿命到期/飞出屏底
+                    // 静默 despawn 不发 Died，场上无目标且未达标时补足剩余数，防新手超时软锁。
+                    // 保持每帧检查（不引入节流窗口：0.25s 节流会因释放帧与节流窗口交错而跳过补刷）
+                    if (!_advancing && !_progress.IsComplete && AliveEnemyCount() == 0)
+                    {
+                        var remaining = _progress.Remaining;
+                        if (_progress.Stage.Goal == TutorialGoalKind.Marksmanship)
+                        {
+                            SpawnAimTargets(remaining);
+                        }
+                        else
+                        {
+                            SpawnCombatWave(remaining);
+                        }
                     }
 
                     break;
                 }
 
-            case 1:
+            case TutorialGoalKind.Maneuver:
                 {
                     // 加速/冲刺输入计数（rising edge）
                     if (Input.IsActionJustPressed(ActBoost))
                     {
-                        _boostCount = Mathf.Min(_boostCount + 1, 2);
-                        UpdateBoostObjective();
+                        _progress.AddBoost();
+                        SetStageObjective();
                     }
 
                     if (_player.IsDashing() && !_prevDashing)
                     {
-                        _dashCount = Mathf.Min(_dashCount + 1, 2);
-                        UpdateBoostObjective();
+                        _progress.AddDash();
+                        SetStageObjective();
                     }
 
                     _prevDashing = _player.IsDashing();
-                    if (_boostCount >= 2 && _dashCount >= 2)
+                    if (_progress.IsComplete)
                     {
                         PassStage();
                     }
@@ -513,48 +592,28 @@ public partial class Tutorial : Node2D
                     break;
                 }
 
-            case 2:
+            case TutorialGoalKind.Dock:
                 {
-                    // 锁血下限：每帧补足，受伤不死
-                    var health = GameState.Instance.Health;
-                    if (health < _maxHp)
-                    {
-                        GameState.Instance.Heal(_maxHp - health);
-                    }
-
-                    // 补刷兜底：敌机飞出屏幕自毁不计击杀，场上无敌机且未达标时补足剩余数。
-                    // 注意：必须保持每帧检查（queue_free 释放与检查窗口需即时生效；
-                    // 0.25s 节流会因释放帧与节流窗口交错而跳过补刷）
-                    if (!_advancing && _stageKills < CombatKillGoal && AliveEnemyCount() == 0)
-                    {
-                        SpawnCombatWave(CombatKillGoal - _stageKills);
-                    }
-
-                    break;
-                }
-
-            case 3:
-                {
-                    // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
+                    // 长按蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
                     if (_mothership == null && !_advancing)
                     {
                         switch (_dockCharge.Tick(d, Input.IsActionPressed(ActDock)))
                         {
-                            case InfiAir.Core.Input.HoldChargePhase.Triggered:
+                            case HoldChargePhase.Triggered:
                                 SummonMothership();
                                 break;
-                            case InfiAir.Core.Input.HoldChargePhase.Charging:
+                            case HoldChargePhase.Charging:
                                 _objectivePoll -= d;
                                 if (_objectivePoll <= 0.0f)
                                 {
                                     _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                                    SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(_dockCharge.Progress * 100.0f) });
+                                    SetChargeObjective(_dockCharge);
                                 }
 
                                 break;
-                            case InfiAir.Core.Input.HoldChargePhase.Released:
+                            case HoldChargePhase.Released:
                                 _objectivePoll = 0.0f;
-                                SetObjectiveTr("TUT_S4_OBJ");
+                                SetStageObjective();
                                 break;
                         }
                     }
@@ -562,31 +621,33 @@ public partial class Tutorial : Node2D
                     break;
                 }
 
-            case 4:
+            case TutorialGoalKind.Homecoming:
                 {
                     switch (_homeCharge.Tick(d, Input.IsActionPressed(ActHomecoming)))
                     {
-                        case InfiAir.Core.Input.HoldChargePhase.Triggered:
+                        case HoldChargePhase.Triggered:
+                            _progress.MarkCharged();
                             OpenBase();
                             break;
-                        case InfiAir.Core.Input.HoldChargePhase.Charging:
+                        case HoldChargePhase.Charging:
                             _objectivePoll -= d;
                             if (_objectivePoll <= 0.0f)
                             {
                                 _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                                SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(_homeCharge.Progress * 100.0f) });
+                                SetChargeObjective(_homeCharge);
                             }
 
                             break;
-                        case InfiAir.Core.Input.HoldChargePhase.Released:
+                        case HoldChargePhase.Released:
                             _objectivePoll = 0.0f;
-                            SetObjectiveTr("TUT_S5_OBJ");
+                            SetStageObjective();
                             break;
                     }
 
                     break;
                 }
         }
+
     }
 
     private void OpenBase()
@@ -608,7 +669,11 @@ public partial class Tutorial : Node2D
         AddChild(_escRouter);
         // 打开即过关：1s 后自动关闭进入下一阶段（玩家点继续出击同样推进）；
         // Always：树暂停（基地 UI）中仍需计时
-        PassStage();
+        if (_progress.IsComplete)
+        {
+            PassStage();
+        }
+
         TimerFx.OneShot(this, 1.2, CloseBase, alwaysProcessing: true);
     }
 
@@ -648,7 +713,7 @@ public partial class Tutorial : Node2D
         }
 
         _titleLabel.Text = (string)Tr("TUT_DONE");
-        SetObjectiveTr("TUT_DONE_DESC");
+        SetObjectiveTr("TUT_DONE_DESC", new Godot.Collections.Array());
         // 完成面板走切角面板（与全站视觉语言一致），控件装配后 pivot 置中，入场缩放脉冲
         var panel = new ChamferedPanel { Brackets = true };
         panel.SetAnchorsPreset(Control.LayoutPreset.Center);
@@ -691,9 +756,9 @@ public partial class Tutorial : Node2D
     private static object[] ToObjects(Godot.Collections.Array args)
     {
         var objs = new object[args.Count];
-        for (int i = 0; i < args.Count; i++)
+        for (var i = 0; i < args.Count; i++)
         {
-            objs[i] = args[i].Obj!; // 教程补参均为非空标量（int 计数/百分比），Obj 不可能为 null
+            objs[i] = args[i].Obj!; // 教程补参均为非空标量（int 计数/百分比/键名文本），Obj 不可能为 null
         }
 
         return objs;

@@ -9,7 +9,7 @@ namespace InfiAir;
 /// 状态：REBINDABLE_ACTIONS/KeyBindings/_defaultBindings/JoyLayout/_joypadBound；
 /// 方法：CaptureDefaultBindings/GetActionKeycodes/ApplyKeyBindings/EnsureFireBinding/BindJoypadDefaults/
 /// AddJoyAxis/AddJoyButton/OnJoyConnectionChanged/DetectJoyLayout/IsPsGuid/JoyButtonLabel/RebindAction/
-/// ResetKeyBindings/ActionKeysText。
+/// ResetKeyBindings/ActionKeysText/ActionKeyText/ActionBound。
 /// Godot 绑定层：跨域访问统一经 GameState.Instance——SaveSettings（RebindAction/ResetKeyBindings
 /// 持久化）经门面；Tr 为 GodotObject 实例方法（RefCounted 继承链可用），ActionKeysText 保持直调。
 /// GameState 组合持有本服务并做门面对齐转发（签名/语义不变），保持唯一 autoload：GameState 约定。
@@ -475,7 +475,7 @@ public sealed partial class InputBindingsService : RefCounted
 
     public string ActionKeysText(StringName action)
     {
-        var keys = KeyBindings.GetValueOrDefault(action, _defaultBindings.GetValueOrDefault(action, new Variant())).AsGodotArray();
+        var keys = EffectiveKeys(action);
         if (keys.Count == 0)
         {
             return (string)Tr("SET_UNBOUND");
@@ -489,4 +489,27 @@ public sealed partial class InputBindingsService : RefCounted
 
         return string.Join(" / ", parts);
     }
+
+    /// <summary>动作的**首个**绑定键标签（一句玩家提示里只放一个键时的取值口，如教程的
+    /// 「按住 &lt;键&gt; 加速」）。与 <see cref="ActionKeysText"/> 同源（同一份有效绑定表：
+    /// 玩家改键后两者一起变）；未绑定时返回未绑定文案而不是空串——空串会让提示读成
+    /// 「按住 加速」，玩家看不出少了什么。</summary>
+    public string ActionKeyText(StringName action)
+    {
+        var keys = EffectiveKeys(action);
+        if (keys.Count == 0)
+        {
+            return (string)Tr("SET_UNBOUND");
+        }
+
+        return OS.GetKeycodeString((Key)(int)keys[0].AsInt64());
+    }
+
+    /// <summary>动作当前是否有生效绑定（教程的移动提示要跳过未绑定的方向，改键把某个方向
+    /// 的两个键都换走时提示不得印出「未绑定」当键名）。</summary>
+    public bool ActionBound(StringName action) => EffectiveKeys(action).Count > 0;
+
+    /// <summary>动作的生效绑定（settings.json 覆盖优先，否则出厂默认表）。</summary>
+    private Godot.Collections.Array EffectiveKeys(StringName action)
+        => KeyBindings.GetValueOrDefault(action, _defaultBindings.GetValueOrDefault(action, new Variant())).AsGodotArray();
 }

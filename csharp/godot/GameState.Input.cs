@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 全部职责由 InputBindingsService（csharp/godot/InputBindingsService.cs，
 /// 组合持有；REBINDABLE_ACTIONS/KeyBindings/JoyLayout/PS/XBOX_BUTTON_LABELS 状态与
 /// CaptureDefaultBindings/ApplyKeyBindings/EnsureFireBinding/BindJoypadDefaults/DetectJoyLayout/IsPsGuid/JoyButtonLabel/
-/// RebindAction/ResetKeyBindings/ActionKeysText 方法一并在此），本文件为门面对齐转发——公开 API
+/// RebindAction/ResetKeyBindings/ActionKeysText/ActionKeyText/ActionBound 方法一并在此），本文件为门面对齐转发——公开 API
 /// 签名/语义不变；JoyLayout/PS/XBOX_BUTTON_LABELS 在
 /// GameState.State.cs 转发。
 /// 信号：KeyBindingsChanged/JoyLayoutChanged 由 InputBindingsService 的 C# 事件经 GameState 订阅
@@ -48,4 +48,10 @@ public partial class GameState : Node
     public StringName OccupiedBy(int keycode, StringName except) => _input.OccupiedBy(keycode, except);
 
     public string ActionKeysText(StringName action) => _input.ActionKeysText(action);
+
+    /// <summary>动作的首个绑定键标签（一句提示里只放一个键时用；未绑定返回未绑定文案）</summary>
+    public string ActionKeyText(StringName action) => _input.ActionKeyText(action);
+
+    /// <summary>动作当前是否有生效绑定（提示文本要跳过未绑定方向时用）</summary>
+    public bool ActionBound(StringName action) => _input.ActionBound(action);
 }
