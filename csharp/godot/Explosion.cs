@@ -1,10 +1,12 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
 /// <summary>
 /// 一次性爆炸粒子：主火花 + 余烬碎片 + 烟尾三发射器，叠白炽核心闪帧、装甲碎片（Polygon2D）
-/// 与双层冲击环，纯代码构建。池化复用（上限 24），超出上限的临时实例照旧销毁。
+/// 与双层冲击环，纯代码构建。池化复用（保留总量上限 24 ＝ 空闲 + 活跃 + 本实例，判据在
+/// core 的 ExplosionPoolPolicy），超出上限的临时实例照旧销毁。
 /// 回池 reparent 到统一 ExplosionPool 节点；活跃实例计数（Meta HUD 亮度代理）。
 /// 回池时机由 _Process 按总寿命（烟尾最晚熄灭）驱动，不再依赖主火花 Finished 信号。
 /// process_mode Always（玩家死亡爆炸生成于暂停的树）。
@@ -83,7 +85,10 @@ public partial class Explosion : GpuParticles2D
                 _poolCap = (int)GameState.Instance.Cfg("effects.explosion.pool_cap", PoolCap).AsInt64();
             }
 
-            e._pooled = Stock.Count < _poolCap;
+            // 入池资格＝保留总量（空闲 + 活跃 + 本实例）不超过上限，判据在 core（单源、有单测）。
+            // 此处不可改回「空闲队列长度 < 上限」：池被取空时（并发高峰）空闲恒为 0，该式恒真，
+            // 上限永不触发，实例按历史峰值并发长期保留。
+            e._pooled = ExplosionPoolPolicy.ShouldPool(Stock.Count, _liveCount, _poolCap);
             parent.AddChild(e);
         }
         else
