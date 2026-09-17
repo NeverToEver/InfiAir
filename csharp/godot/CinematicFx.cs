@@ -8,9 +8,9 @@ namespace InfiAir;
 /// 供 ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
 /// 避免多处重复实现硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
 /// RefCounted + 全静态工厂。
-/// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——贴图/材质
-/// 不做静态缓存，改每次构建（UITheme.Font 同款处理）；
-/// 内容确定性一致，仅多次构建时重复生成。
+/// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——需跨调用复用的
+/// 贴图缓存在 GameState autoload 的实例字段上（SoftDotTex，与引擎同生命周期），材质仍每次新建
+/// （UITheme.Font 同款处理）。
 /// C# 调用方（BossAttacks/Enemy/Mothership 过场）经 typed 直调——公开方法名为 PascalCase。
 /// </summary>
 public partial class CinematicFx : RefCounted
@@ -21,8 +21,33 @@ public partial class CinematicFx : RefCounted
 
     /// <summary>64×64 径向渐变软点贴图（白色，alpha pow 衰减）：
     /// 粒子与光晕共用，消除硬边实心圆的廉价感；颜色经 modulate/process_material 乘算。
-    /// 不做静态缓存（C# 静态字段禁持 Godot 对象——退出 segfault），每次构建（内容确定性一致）。</summary>
+    /// 惰性建一次、缓存于 GameState autoload 的实例字段（全实例共用）——调用点遍布命中特效、
+    /// 敌机尾焰与每个新建爆炸（4 次），逐次构建是 4096 次逐像素 SetPixel 加一次纹理解析；
+    /// 缓存不持静态字段（禁持 Godot 对象）也不改像素公式，外观逐位不变。</summary>
     public static ImageTexture SoftTexture()
+    {
+        var host = GameState.Instance;
+        if (host.SoftDotTex != null)
+        {
+            return host.SoftDotTex;
+        }
+
+        var tex = BuildSoftTexture();
+        // 护栏（代码层，非探针）：同一宿主实例第二次构建＝共享缓存被绕过（改回每次构建、或字段被
+        // 清空）。表现是纯性能劣化——不崩、不报错、画面逐位一致，除本行外没有任何信号。
+        // 走 PushError 使其撞冒烟/截图探针的 ERROR 正则。计数在实例上：autoload 重建允许再建一次。
+        if (host.SoftDotTexBuilds > 0)
+        {
+            GD.PushError($"CinematicFx.SoftTexture 在同一 GameState 实例上重复构建"
+                + $"（第 {host.SoftDotTexBuilds + 1} 次）——共享缓存被绕过？");
+        }
+
+        host.SoftDotTexBuilds++;
+        host.SoftDotTex = tex;
+        return tex;
+    }
+
+    private static ImageTexture BuildSoftTexture()
     {
         var img = Image.CreateEmpty(SoftTexSize, SoftTexSize, false, Image.Format.Rgba8);
         var half = SoftTexSize * 0.5f;

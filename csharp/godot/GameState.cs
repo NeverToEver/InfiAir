@@ -270,6 +270,15 @@ public partial class GameState : Node
     /// 不引入逐帧分配）。</summary>
     public Texture2D? BulletEnemyContrastTex { get; set; }
 
+    /// <summary>软点贴图共享缓存（CinematicFx.SoftTexture 首次取用时惰性生成，全实例共用）：
+    /// 调用点遍布命中特效、尾焰与每个新建爆炸（4 次），逐次构建＝每次 4096 次逐像素 SetPixel
+    /// 加一次纹理解析。实例字段而非静态——同上铁律。</summary>
+    public ImageTexture? SoftDotTex { get; set; }
+
+    /// <summary>本实例上软点贴图已构建次数（CinematicFx.SoftTexture 的护栏读数：同一实例第二次
+    /// 构建即缓存被绕过）。挂实例而非静态：autoload 实例重建时允许重新构建一次。</summary>
+    public int SoftDotTexBuilds { get; set; }
+
     /// <summary>爆炸粒子池可用队列（Explosion.OnFinished 回池 / SpawnAt 取用；元素失效由
     /// 取用方 IsInstanceValid 过滤）。实例字段而非静态——同上铁律。</summary>
     public Godot.Collections.Array<Explosion> ExplosionStock { get; } = new();
