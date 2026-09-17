@@ -360,8 +360,8 @@ smoke_tutorial() {
 smoke_tutorial_flow() {
   # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满六阶段——断阶段推进、目标行补参
   # 成形、键位随改键跟变、跳过本阶段、死亡重开本阶段且进度归零、检查点写入与完成清零。
-  # 帧数：实测两遍流程 1830 帧，取 3600 帧（60 模拟秒）留一倍余量。
-  run_case "tutorial flow probe smoke" 3600 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
+  # 帧数：实测两遍流程 1830 帧，取 2700 帧（45 模拟秒）留约五成余量。
+  run_case "tutorial flow probe smoke" 2700 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
   expect_marker "教程全周期" "${PROBE_LOG_BASE}.tutorial_flow.log" "[tutorial-probe] 全周期完成"
 }
 
