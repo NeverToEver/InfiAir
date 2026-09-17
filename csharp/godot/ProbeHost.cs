@@ -1,5 +1,7 @@
 using Godot;
 using InfiAir.Core.Missions;
+using InfiAir.Core.Practice;
+using InfiAir.Core.Progression;
 using InfiAir.Core.Text;
 
 // 探针宿主整体条件编译：仅编辑器/调试构建（Debug 定义 TOOLS、ExportDebug 定义 DEBUG）编入，
@@ -439,23 +441,85 @@ public partial class ProbeHost : Node
 
     private bool _lockWasParryFlowing;
 
-    /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）。
+    // ---------------- 练习模式探针（--practice-probe）与记录读出探针（--best-record-probe） ----------------
+
+    /// <summary>练习局探针步序（0 面板自检 → 1 等入场结束 → 2 等直选 Boss 出场 → 3 等直选遭遇启动 →
+    /// 4 击杀玩家 → 5 断不落盘）。显式步序而非一串布尔：任一步失败都打 ::error 且不打完成标记。</summary>
+    private int _practiceStage;
+
+    /// <summary>练习模式探针开关（--practice-probe[=boss,diff,enc]）。</summary>
+    private bool _practiceProbe;
+
+    /// <summary>记录读出探针开关（--best-record-probe）。</summary>
+    private bool _bestRecordProbe;
+
+    private int _practiceStageFrame;
+
+    /// <summary>练习探针的直选设置（命令行给，默认 Ⅱ型 · 难 · 精英炮塔）。</summary>
+    private PracticeSetup _practiceSetup = new(2, 2, 1);
+
+    private Boss? _practiceBoss;
+
+    /// <summary>面板确认键交出的设置（判据：与面板此刻显示的一致，见 RunPracticePanelCheck）。</summary>
+    private PracticeSetup? _practicePanelConfirmed;
+
+    /// <summary>练习探针预置的检查点路径（练习死亡后必须原封不动）。</summary>
+    private string _practiceRunPath = "";
+
+    /// <summary>练习探针的直选请求驱动（与练习宿主同一个类：探针覆盖到的就是生产落地路径）。</summary>
+    private PracticeDriver? _driver;
+
+    /// <summary>练习探针是否已订阅 BossSpawned（_ExitTree 配对退订）。</summary>
+    private bool _practiceSubscribed;
+
+    /// <summary>练习探针的等待上限（帧）：直选请求受理 / Boss 出场 / 直选遭遇启动 / 死亡结算落定。</summary>
+    private const int PracticeProbeRequestFrames = 420;
+
+    private const int PracticeProbeBossFrames = 600;
+
+    private const int PracticeProbeEventFrames = 600;
+
+    private const int PracticeProbeDeathSettleFrames = 30;
+
+    /// <summary>记录探针每步的落定等待帧数（死亡会暂停树，删档/写记录的帧末簿记要跑完）。</summary>
+    private const int BestRecordSettleFrames = 6;
+
+    /// <summary>记录探针第一步写下的本局存档路径（记录与本局存档分区：死亡删档只动前者）。</summary>
+    private string _runPathForBest = "";
+
+    /// <summary>记录读出探针步序（0 置两局前提 → 1 第一局 → 2 断记录落盘 → 3 第二局更差 → 4 断不回退）。</summary>
+    private int _bestStage;
+
+    private int _bestStageFrame;
+
+    /// <summary>第一局落定的读数（第二局的「更差」前提与「不回退」基准都对着它判）。</summary>
+    private BestRecord _bestFirstRun = BestRecord.Empty;
+
+    /// <summary>记录文件绝对路径（存在性与读回判定）。</summary>
+    private string _bestPath = "";
+
+    /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）→ 本步是否击杀玩家。
     /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
     /// 等新页构建并渲染完成（捕获取的是已渲染帧，同帧切页会捕到上一帧）。
     /// 切页与捕获间留 ~0.5s，避开设置页交叉淡入/入场动画（捕在转场中段画面未成形）。</summary>
-    private static readonly (int Frame, string Page, string Shot)[] ShotPlan =
+    private static readonly (int Frame, string Page, string Shot, bool Kill)[] ShotPlan =
     {
-        (90, "", "hud"),
-        (100, "gameplay", ""),
-        (130, "", "settings-gameplay"),
-        (140, "display", ""),
-        (170, "", "settings-display"),
-        (180, "audio", ""),
-        (210, "", "settings-audio"),
-        (220, "about", ""),
-        (250, "", "settings-about"),
-        (260, "controls", ""),
-        (290, "", "settings-controls"),
+        (90, "", "hud", false),
+        (100, "gameplay", "", false),
+        (130, "", "settings-gameplay", false),
+        (140, "display", "", false),
+        (170, "", "settings-display", false),
+        (180, "audio", "", false),
+        (210, "", "settings-audio", false),
+        (220, "about", "", false),
+        (250, "", "settings-about", false),
+        (260, "controls", "", false),
+        (290, "", "settings-controls", false),
+        // 死亡结算页（人工验收项「本局记录读出过目」的实拍面）：先击杀玩家，隔 ~0.6s 再捕——
+        // 遮罩 150ms 淡入 + 面板 200ms 入场 + 轮盘 500ms 滑入，捕在中段刚好是页面成形后的样子。
+        // 捕在死亡回放（3s 幽灵弹幕，ZIndex 在 HUD 之下）播完之前，属画面的一部分，不影响自检。
+        (292, "", "", true),
+        (330, "", "gameover", false),
     };
 
     /// <summary>宿主身份注入点：_EnterTree 由父到子（本节点先于子节点 Main），_Ready 由子到父
@@ -470,7 +534,57 @@ public partial class ProbeHost : Node
             return;
         }
 
+        // 练习探针要在 Main._Ready 之前注入练习口径（与 MarkHostDriven 同一时序约束），
+        // 而开关解析在 _Ready——故这里先扫一遍用户参数。
+        // 练习探针**不调 MarkHostDriven**：练习是生产模式（本局时钟、事件触发、结算页照走），
+        // 探针只把它按直选条件起一局，其余判定仍由生产链做。
+        var practiceArg = FindUserArg("--practice-probe");
+        if (practiceArg != null)
+        {
+            _practiceSetup = ParsePracticeSetup(practiceArg);
+            GameState.Instance.BeginPractice(_practiceSetup);
+            main.MarkPracticeRun();
+            return;
+        }
+
         main.MarkHostDriven();
+    }
+
+    /// <summary>命令行用户参数里查开关：返回整条实参（形如 <c>--x</c> 或 <c>--x=a</c>），无则 null。</summary>
+    private static string? FindUserArg(string prefix)
+    {
+        foreach (var arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg == prefix || arg.StartsWith(prefix + "=", System.StringComparison.Ordinal))
+            {
+                return arg;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>解析练习直选设置（<c>--practice-probe=boss,diff,enc</c>）：三项索引为位置参数，
+    /// 缺省/解析不出即用整条默认设置——索引越界由 core PracticeSetup 归一，不在此再写一套钳制。</summary>
+    private static PracticeSetup ParsePracticeSetup(string arg)
+    {
+        var eq = arg.IndexOf('=');
+        if (eq < 0)
+        {
+            return new PracticeSetup(2, 2, 1);
+        }
+
+        var parts = arg[(eq + 1)..].Split(',');
+        if (parts.Length != 3
+            || !int.TryParse(parts[0], out var boss)
+            || !int.TryParse(parts[1], out var difficulty)
+            || !int.TryParse(parts[2], out var encounter))
+        {
+            GD.PushError($"[practice-probe] 开关取值解析失败（{arg}）——按默认设置跑");
+            return new PracticeSetup(2, 2, 1);
+        }
+
+        return new PracticeSetup(boss, difficulty, encounter);
     }
 
     public override void _Ready()
@@ -514,6 +628,17 @@ public partial class ProbeHost : Node
             else if (arg == "--shot-probe")
             {
                 _shotProbe = true;
+            }
+            else if (arg == "--practice-probe" || arg.StartsWith("--practice-probe=", System.StringComparison.Ordinal))
+            {
+                // 练习口径已在 _EnterTree 注入（早于 Main._Ready）；这里只记下开关，
+                // 取值同一处解析，避免两遍解析各写一套（第二遍只用于拿到设置，不再注入）。
+                _practiceProbe = true;
+                _practiceSetup = ParsePracticeSetup(arg);
+            }
+            else if (arg == "--best-record-probe")
+            {
+                _bestRecordProbe = true;
             }
             else if (arg == "--feel-probe")
             {
@@ -602,7 +727,8 @@ public partial class ProbeHost : Node
         VerifyUserDirIsolation(expectUserDir);
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
-            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _autoplayProbe)
+            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _autoplayProbe
+            || _practiceProbe || _bestRecordProbe)
         {
             // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -696,6 +822,12 @@ public partial class ProbeHost : Node
         {
             _bossSubscribed = false;
             _spawner.BossSpawned -= OnBossProbeSpawned;
+        }
+
+        if (_practiceSubscribed)
+        {
+            _practiceSubscribed = false;
+            _spawner.BossSpawned -= OnPracticeProbeBossSpawned;
         }
 
         if (_probeRunSubscribed)
@@ -852,6 +984,18 @@ public partial class ProbeHost : Node
             return;
         }
 
+        if (_practiceProbe)
+        {
+            TickPracticeProbe();
+            return;
+        }
+
+        if (_bestRecordProbe)
+        {
+            TickBestRecordProbe();
+            return;
+        }
+
         if (_killAllProbe)
         {
             TickKillAllProbe();
@@ -903,6 +1047,11 @@ public partial class ProbeHost : Node
                 var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
                 settings?.ShowSettings(null);
                 settings?.ShowPage(new StringName(step.Page));
+            }
+
+            if (step.Kill)
+            {
+                KillPlayerForShots();
             }
 
             if (step.Shot.Length > 0)
@@ -991,6 +1140,16 @@ public partial class ProbeHost : Node
         {
             GD.Print(GdFormat.Format("[shot-probe] 截图序列完成（%d 张）", _shots.Count));
         }
+    }
+
+    /// <summary>截图趟的击杀（死亡结算页那张图的前置）：把本局置为活跃——宿主驱动默认非本局，
+    /// 不置活跃则记录不会写、结算页的记录行只能显示「暂无记录」，而这一张图正是「本局记录读出」的
+    /// 实拍面；随后经生产死亡路径击杀（结算页由 GameOverUi 的 PlayerDied 订阅打开，探针不直接建 UI）。
+    /// 击杀后树被暂停，本宿主 ProcessMode=Always 照常推进；死亡回放 3s 未走完即捕，属画面的一部分。</summary>
+    private void KillPlayerForShots()
+    {
+        GameState.Instance.SetRunActive(true);
+        _player.Die();
     }
 
     /// <summary>捕获当前视口：存 PNG（生成截图用） + 记下粗签名（供上面的自检）。
@@ -4845,5 +5004,637 @@ public partial class ProbeHost : Node
         file.StoreString(content);
         return true;
     }
+
+    // ---------------- 练习模式探针（--practice-probe） ----------------
+
+    /// <summary>
+    /// 练习局探针：判练习模式的四件承诺里无头下判得动的部分——
+    ///   ① 面板开页与三行直选：控件文本是所选设置对应的**译文**（缺键时玩家看到的是键名本身）、
+    ///      循环切换与 core 映射一致、确认键交出的设置等于面板此刻显示的东西；
+    ///   ② 所选 Boss 经生产出场链按型别出场（探针不 instantiate，BossSpawned 是唯一观测面）；
+    ///   ③ 所选遭遇走生产触发链启动（分数门槛由练习起始分数真正满足，不是绕过）；
+    ///   ④ 练习局不落盘：死亡后预置的检查点原封不动、记录文件不出现。
+    /// 面板的实拍观感（排版/文案语气）归窗口化过目，本探针只判「能开、选项对、键都翻得出来」。
+    /// </summary>
+    private void TickPracticeProbe()
+    {
+        switch (_practiceStage)
+        {
+            case 0:
+                if (_frame < 2)
+                {
+                    return;
+                }
+
+                if (!RunPracticePanelCheck() || !PreparePracticeProbeRun())
+                {
+                    _practiceProbe = false;
+                    return;
+                }
+
+                _practiceStage = 1;
+                _practiceStageFrame = _frame;
+                return;
+
+            case 1:
+                if (_driver == null)
+                {
+                    var driverPlayer = _main.GetNode<Player>("Player");
+                    _driver = new PracticeDriver(_practiceSetup, driverPlayer, _spawner, _events);
+                    _driver.SeedScore(); // 与练习宿主同一条落地路径（补门槛分 → 请 Boss/事件）
+                }
+
+                if (GameState.Instance.Practice.BossType != _practiceSetup.BossType
+                    || GameState.Instance.Practice.DifficultyName != _practiceSetup.DifficultyName)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[practice-probe] 练习态与直选设置不符（局内 Boss=%d 难度=%s，期望 %d/%s）——"
+                        + "面板选的东西没落到本局",
+                        GameState.Instance.Practice.BossType, GameState.Instance.Practice.DifficultyName,
+                        _practiceSetup.BossType, _practiceSetup.DifficultyName));
+                    _practiceProbe = false;
+                    return;
+                }
+
+                if (!_driver.Tick())
+                {
+                    if (_frame - _practiceStageFrame > PracticeProbeRequestFrames)
+                    {
+                        GD.PushError(GdFormat.Format(
+                            "[practice-probe] 入场 %d 帧后直选请求仍未被受理（Boss=%s 事件=%s）——"
+                            + "练习局的直选内容送不到生产链",
+                            PracticeProbeRequestFrames, _driver.BossRequested, _driver.EventRequested));
+                        _practiceProbe = false;
+                    }
+
+                    return;
+                }
+
+                // 起始分与所选遭遇的生产门槛：分数没补到门槛，遭遇永远等不到（请求会被资格判据挡在门外）
+                var minScore = _events.EncounterMinScore(new StringName(PracticeSetup.EliteTurretId));
+                if (_practiceSetup.HasEncounter && !_practiceSetup.EncounterIsFog
+                    && GameState.Instance.Score < minScore)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[practice-probe] 练习起始分 %d 低于所选遭遇的生产门槛 %d——遭遇的门槛没有被满足",
+                        GameState.Instance.Score, minScore));
+                    _practiceProbe = false;
+                    return;
+                }
+
+                _practiceStage = 2;
+                _practiceStageFrame = _frame;
+                return;
+
+            case 2:
+                if (_practiceBoss == null)
+                {
+                    if (_frame - _practiceStageFrame > PracticeProbeBossFrames)
+                    {
+                        GD.PushError(GdFormat.Format(
+                            "[practice-probe] 请求受理后 %d 帧仍未等出 Boss（生产出场链断线？）",
+                            PracticeProbeBossFrames));
+                        _practiceProbe = false;
+                    }
+
+                    return;
+                }
+
+                if (!GodotObject.IsInstanceValid(_practiceBoss))
+                {
+                    GD.PushError("[practice-probe] Boss 实例在断言前释放（出场链异常收场）");
+                    _practiceProbe = false;
+                    return;
+                }
+
+                // 型别断言：这是「直选」二字的唯一判据——出场链走通了但型别是轮换出来的，
+                // 玩家练的就不是自己选的那只，而失败表现只是「打着不对劲」。
+                if (_practiceBoss.BossType != _practiceSetup.BossType)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[practice-probe] 出场 Boss 型别 %d ≠ 直选 %d——直选型别没有传到出场链",
+                        _practiceBoss.BossType, _practiceSetup.BossType));
+                    _practiceProbe = false;
+                    return;
+                }
+
+                // 让出 Boss 槽（走生产受击链致死）：遭遇组的互斥判据要求 Boss 不在场，
+                // 不放它走就永远观测不到所选遭遇启动——那不是遭遇坏了，是探针没给机会。
+                var amount = _practiceBoss.Hp + 1.0f;
+                _practiceBoss.TakeDamage((int)System.Math.Ceiling(amount), 1.0f);
+                _practiceBoss = null;
+                _practiceStage = 3;
+                _practiceStageFrame = _frame;
+                return;
+
+            case 3:
+                if (_events.ActiveId(GameEventManager.GroupEncounter).ToString() == _practiceSetup.EncounterId)
+                {
+                    _practiceStage = 4;
+                    _practiceStageFrame = _frame;
+                    return;
+                }
+
+                if (_frame - _practiceStageFrame > PracticeProbeEventFrames)
+                {
+                    GD.PushError($"[practice-probe] Boss 让位后 {PracticeProbeEventFrames} 帧仍未等到直选的遭遇 "
+                        + $"{_practiceSetup.EncounterId} 启动（分数门槛/生产触发链断线？）");
+                    _practiceProbe = false;
+                }
+
+                return;
+
+            case 4:
+                // 死亡前先让遭遇跑起来一点（收尾期事件会被 Main 打断，但「启动过」已在上一步断掉）
+                _player.Die(); // 走生产死亡链：PauseUi/结算页/删档钩子全按正局走
+                _practiceStage = 5;
+                _practiceStageFrame = _frame;
+                return;
+
+            case 5:
+                if (_frame - _practiceStageFrame < PracticeProbeDeathSettleFrames)
+                {
+                    return;
+                }
+
+                _practiceStage = 6;
+                if (!VerifyPracticeProbeNoWrites())
+                {
+                    _practiceProbe = false;
+                    return;
+                }
+
+                // 恢复暂停：结算页把树暂停了，本帧之后本趟还要走一次真实的练习入口（见下）
+                GameState.Instance.SetTreePaused(false);
+                GD.Print(GdFormat.Format("[practice-probe] 直选与不落盘语义成立（Boss 型别 %d，遭遇 %s）",
+                    _practiceSetup.BossType, _practiceSetup.EncounterId));
+                _practiceProbe = false;
+
+                // 收尾再走一次**真实入口**：EnterPractice 会切到 scenes/practice.tscn（练习宿主 +
+                // 内嵌 main.tscn），本节点随场景易主释放——故完成标记在上一步就打。
+                // 这一段的价值在于：入口路径（场景资源/宿主注入/Main 的练习分支）写坏时会在同一份
+                // 日志里留下引擎错误或 PushError（切场景失败打 ERROR: Cannot open file），
+                // 由 check_smoke.sh 的错误正则判红；跑通则留下 `[practice] 练习局就绪` 与
+                // `[practice] 已按直选请求 …` 两行，是这条生产入口真的跑起来了的证据。
+                GameState.Instance.EnterPractice(_practiceSetup);
+                return;
+        }
+    }
+
+    /// <summary>面板开页自检：三行控件都建起来了、显示的是所选设置对应的译文（缺键时 Tr 返回键名本身、
+    /// 玩家看到的就是键名）、环形切换与 core 映射一致、确认键交出的设置等于面板此刻显示的值。
+    /// 三条判据都读面板自己的控件文本（与玩家看到的是同一批控件），不另算一份期望文本——
+    /// 另算一份就成了「实现与判据各写一遍」，实现对不上时判据会跟着一起错。</summary>
+    private bool RunPracticePanelCheck()
+    {
+        var panel = new PracticePanel();
+        AddChild(panel); // 入树即跑 _Ready：控件在本帧内建好
+        var initial = panel.RowTexts();
+        if (initial.Length != PracticePanel.RowCount)
+        {
+            GD.PushError($"[practice-probe] 练习面板只建出 {initial.Length} 行（期望 {PracticePanel.RowCount} 行）");
+            panel.QueueFree();
+            return false;
+        }
+
+        var expectDefault = new[] { "PRACTICE_NONE", "DIFF_MEDIUM", "PRACTICE_NONE" };
+        for (var i = 0; i < initial.Length; i++)
+        {
+            if (initial[i].Length == 0 || initial[i] == expectDefault[i])
+            {
+                // Tr 缺行时原样返回键名——这正是玩家会看到的东西，故按「显示内容 == 键名」判缺键
+                GD.PushError(GdFormat.Format(
+                    "[practice-probe] 练习面板第 %d 行显示为空或缺键（显示「%s」，键 %s）",
+                    i, initial[i], expectDefault[i]));
+                panel.QueueFree();
+                return false;
+            }
+        }
+
+        // 环形切换：一行单独切一步再切回来，必须回到出发点（越界归一口径在 core，此处验它被面板用上）
+        panel.Cycle(0, 1);
+        var afterBoss = panel.RowTexts()[0];
+        panel.Cycle(0, -1);
+        if (panel.RowTexts()[0] != initial[0])
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 练习面板 Boss 行切换后未回到原值（切一步显示「%s」，切回来「%s」）",
+                afterBoss, panel.RowTexts()[0]));
+            panel.QueueFree();
+            return false;
+        }
+
+        // 把面板调到本趟的直选设置，再走确认键：交出的设置必须与面板此刻显示的一致
+        panel.Cycle(0, _practiceSetup.BossType);
+        panel.Cycle(1, _practiceSetup.DifficultyIndex - 1); // 面板初值为中档（索引 1）
+        panel.Cycle(2, _practiceSetup.EncounterIndex);
+        if (panel.Current != _practiceSetup)
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 面板环形切换后的当前设置（Boss {0}/难度 {1}/遭遇 {2}）≠ 本趟目标（Boss {3}/难度 {4}/遭遇 {5}）"
+                + "——面板的循环与 core 映射不同源",
+                panel.Current.BossType, panel.Current.DifficultyIndex, panel.Current.EncounterIndex,
+                _practiceSetup.BossType, _practiceSetup.DifficultyIndex, _practiceSetup.EncounterIndex));
+            panel.QueueFree();
+            return false;
+        }
+
+        _practicePanelConfirmed = null;
+        panel.StartRequested += setup => _practicePanelConfirmed = setup;
+        panel.Confirm();
+        var confirmed = _practicePanelConfirmed;
+        if (confirmed == null || confirmed != _practiceSetup)
+        {
+            GD.PushError(GdFormat.Format(
+                "[practice-probe] 练习面板确认键交出的设置（{0}）≠ 面板此刻显示的设置（{1}）——"
+                + "面板上写的与点下去启动的不是同一件事",
+                confirmed == null ? "null" : $"Boss {confirmed.BossType}/难度 {confirmed.DifficultyIndex}/遭遇 {confirmed.EncounterIndex}",
+                $"Boss {_practiceSetup.BossType}/难度 {_practiceSetup.DifficultyIndex}/遭遇 {_practiceSetup.EncounterIndex}"));
+            panel.QueueFree();
+            return false;
+        }
+
+        panel.QueueFree();
+        // 练习场景资源必须真的加载得起来：入口路径写错（场景改名/搬走）时 EnterPractice 会切到
+        // 一个不存在的场景——面板一切正常、代码全绿，玩家却进不去练习，只有这一步判得出来。
+        if (ResourceLoader.Load<PackedScene>("res://scenes/practice.tscn") == null)
+        {
+            GD.PushError("[practice-probe] 练习场景 res://scenes/practice.tscn 加载失败——练习入口会切到不存在的场景");
+            return false;
+        }
+
+        _practiceRunPath = ProjectSettings.GlobalizePath("user://run.json");
+        _bestPath = ProjectSettings.GlobalizePath("user://best.json");
+        if (!WriteUserFile("user://run.json", ValidRunJson))
+        {
+            return false;
+        }
+
+        // 练习局按生产语义活跃（练习场景里 Main._Ready 的 SetRunActive(!_hostDriven) 为真），
+        // 探针显式声明同一条语义：否则「不落盘」的判据会退化成「非本局本来就不写」，判不到守卫本身。
+        GameState.Instance.SetRunActive(true);
+        _spawner.BossSpawned += OnPracticeProbeBossSpawned;
+        _practiceSubscribed = true;
+        return true;
+    }
+
+    /// <summary>预置一局运行条件：本趟必须从「无记录」起判——隔离用户目录里若已有记录文件，
+    /// 「练习不写记录」就成了读旧值（判据空洞），故取不到干净起点即显式失败而不是删掉它重来。
+    /// check_smoke.sh 每趟清空重建用户目录，正常路径走不到这里。</summary>
+    private bool PreparePracticeProbeRun()
+    {
+        if (Godot.FileAccess.FileExists(_bestPath))
+        {
+            GD.PushError($"[practice-probe] 隔离用户目录里已有 {_bestPath}——本趟须从「无记录」起判（用户目录未清空？）");
+            return false;
+        }
+
+        if (!Godot.FileAccess.FileExists(_practiceRunPath))
+        {
+            GD.PushError($"[practice-probe] 预置检查点写出失败（{_practiceRunPath} 不存在）——不落盘判据取不到");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Boss 出场观测（生产 BossSpawned 信号）：只记录实例，不驱动生成。</summary>
+    private void OnPracticeProbeBossSpawned(Boss boss)
+    {
+        _practiceBoss ??= boss;
+    }
+
+    /// <summary>练习局「不落盘」断言：预置的检查点必须原封不动，记录文件必须没出现。</summary>
+    private bool VerifyPracticeProbeNoWrites()
+    {
+        var ok = true;
+        if (!Godot.FileAccess.FileExists(_practiceRunPath))
+        {
+            GD.PushError("[practice-probe] 练习中死亡删掉了本局检查点——玩家的真实存档会被练习抹掉");
+            ok = false;
+        }
+
+        if (Godot.FileAccess.FileExists(_bestPath))
+        {
+            GD.PushError("[practice-probe] 练习中写下了跨局记录 best.json——练习读数污染了玩家的记录");
+            ok = false;
+        }
+
+        return ok;
+    }
+
+    // ---------------- 本局记录读出探针（--best-record-probe） ----------------
+
+    /// <summary>
+    /// 本局记录读出探针：在隔离用户目录里连跑两局，判跨局记录的三件语义——
+    ///   ① 死亡一局后记录确实落盘，且**写出后读回**逐字段核对（键集恰好等于 core 编解码器的字段集，
+    ///      值经生产读档口 FromFields 回读后与内存记录逐项一致）；
+    ///   ② 记录里不含分数：键集比对是结构判据（多写一个 score 键即判红），
+    ///      而不是「grep 一下文件里没有 score 字样」这种能被改名绕过的形态；
+    ///   ③ 第二局打得更差时记录不回退（内存与盘上都不动），且不误报「新纪录」。
+    /// 另断结算页/标题屏那行文本确实能被格式化出来（译文里占位符数与实参不匹配时，玩家看到的
+    /// 是原样的 %s/%d）——判据就是两处读出共用的那套实参。
+    /// </summary>
+    private void TickBestRecordProbe()
+    {
+        switch (_bestStage)
+        {
+            case 0:
+                if (_frame < 2)
+                {
+                    return;
+                }
+
+                _bestPath = ProjectSettings.GlobalizePath("user://best.json");
+                _runPathForBest = ProjectSettings.GlobalizePath("user://run.json");
+                if (!WriteUserFile("user://run.json", ValidRunJson))
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                if (Godot.FileAccess.FileExists(_bestPath))
+                {
+                    GD.PushError($"[best-record-probe] 起点已有 {_bestPath}——本趟需要从「无记录」起判（用户目录未清空？）");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                if (!GameState.Instance.BestKnown || GameState.Instance.Best != BestRecord.Empty)
+                {
+                    GD.PushError("[best-record-probe] 无档时记录未按「可信的空记录」起步——三态口径坏了");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                // 第一局：本局活跃（生产语义）+ 一组明确的读数（存活 300s、3 只 Boss）
+                GameState.Instance.SetRunActive(true);
+                GameState.Instance.RunTime = 300.0;
+                GameState.Instance.BossKills = 3;
+                _bestStage = 1;
+                _bestStageFrame = _frame;
+                return;
+
+            case 1:
+                // 等一帧让难度时间档按新读数重算（记录里的最高难度档取的就是重算后的乘数）
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                _bestFirstRun = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                if (_bestFirstRun.SurvivedSeconds < 300.0 || _bestFirstRun.BossKills != 3
+                    || _bestFirstRun.MaxDifficulty <= 1.0)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[best-record-probe] 第一局读数不合预期（存活 %.1f / Boss %d / 难度 %.3f）——"
+                        + "第二局的「更差」前提取不到",
+                        _bestFirstRun.SurvivedSeconds, _bestFirstRun.BossKills, _bestFirstRun.MaxDifficulty));
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                _bestStage = 2;
+                _bestStageFrame = _frame;
+                return;
+
+            case 2:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                if (!VerifyBestRecordWritten())
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                // 第二局：更差的一局（存活 5s、0 只 Boss → 难度档退回 1.0）
+                GameState.Instance.SetTreePaused(false); // 死亡会把树暂停，不恢复则难度档不会被重算
+                GameState.Instance.RunTime = 5.0;
+                GameState.Instance.BossKills = 0;
+                _bestStage = 3;
+                _bestStageFrame = _frame;
+                return;
+
+            case 3:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                var worse = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                if (worse.SurvivedSeconds >= _bestFirstRun.SurvivedSeconds
+                    || worse.MaxDifficulty >= _bestFirstRun.MaxDifficulty
+                    || worse.BossKills >= _bestFirstRun.BossKills)
+                {
+                    GD.PushError(GdFormat.Format(
+                        "[best-record-probe] 第二局读数未严格劣于第一局（%.1f/%.3f/%d vs %.1f/%.3f/%d）——"
+                        + "「不回退」判据取不到，拒绝判 clean",
+                        worse.SurvivedSeconds, worse.MaxDifficulty, worse.BossKills,
+                        _bestFirstRun.SurvivedSeconds, _bestFirstRun.MaxDifficulty, _bestFirstRun.BossKills));
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                _bestStage = 4;
+                _bestStageFrame = _frame;
+                return;
+
+            case 4:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                if (!VerifyBestRecordKept())
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetTreePaused(false);
+                GD.Print(GdFormat.Format(
+                    "[best-record-probe] 两局语义成立（记录 %.0fs / Boss %d 不回退，键集 %d 项无分数）",
+                    _bestFirstRun.SurvivedSeconds, _bestFirstRun.BossKills, BestRecordCodec.ToFields(_bestFirstRun).Count));
+                _bestRecordProbe = false;
+                return;
+        }
+    }
+
+    /// <summary>第一局落盘后的断言：文件在、键集恰好等于编解码器字段集、逐字段回读一致、
+    /// 内存记录等于期望、且本局被标为「刷新了记录」（结算页据此打「新纪录」）。</summary>
+    private bool VerifyBestRecordWritten()
+    {
+        var ok = true;
+        if (!TryReadBestFile(out var onDisk, out var why))
+        {
+            GD.PushError("[best-record-probe] 死亡后记录未落盘：" + why);
+            return false;
+        }
+
+        if (onDisk != _bestFirstRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] 读回的记录（%.1f/%d/%.3f）≠ 本局读数（%.1f/%d/%.3f）——"
+                + "写出与读回不是同一件事",
+                onDisk.SurvivedSeconds, onDisk.BossKills, onDisk.MaxDifficulty,
+                _bestFirstRun.SurvivedSeconds, _bestFirstRun.BossKills, _bestFirstRun.MaxDifficulty));
+            ok = false;
+        }
+
+        if (GameState.Instance.Best != _bestFirstRun)
+        {
+            GD.PushError("[best-record-probe] 内存里的记录与本局读数不符——信号消费方（结算页）会读到别的数");
+            ok = false;
+        }
+
+        if (!GameState.Instance.BestImprovedThisRun)
+        {
+            GD.PushError("[best-record-probe] 首局未标记「刷新记录」——结算页不会打「新纪录」");
+            ok = false;
+        }
+
+        if (!VerifyBestLineFormat(improved: true, out var lineWhy))
+        {
+            GD.PushError("[best-record-probe] " + lineWhy);
+            ok = false;
+        }
+
+        // 记录与本局存档分区：死亡删档只作用于 run.json
+        if (Godot.FileAccess.FileExists(_runPathForBest))
+        {
+            GD.PushError("[best-record-probe] 死亡后本局存档仍在——删档钩子没走（与记录的分区判据一同失效）");
+            ok = false;
+        }
+
+        return ok;
+    }
+
+    /// <summary>第二局（更差）之后的断言：内存与盘上的记录都必须还是第一局的读数，
+    /// 且不误标「刷新记录」（误标会让结算页对一局更差的成绩打「新纪录」）。</summary>
+    private bool VerifyBestRecordKept()
+    {
+        var ok = true;
+        if (GameState.Instance.Best != _bestFirstRun || GameState.Instance.BestImprovedThisRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] 更差的一局改动了记录（内存 %.1f/%d/%.3f，improved=%s）——"
+                + "记录会随每一局下滑",
+                GameState.Instance.Best.SurvivedSeconds, GameState.Instance.Best.BossKills,
+                GameState.Instance.Best.MaxDifficulty, GameState.Instance.BestImprovedThisRun));
+            ok = false;
+        }
+
+        if (!TryReadBestFile(out var onDisk, out var why))
+        {
+            GD.PushError("[best-record-probe] 第二局后记录读不出：" + why);
+            return false;
+        }
+
+        if (onDisk != _bestFirstRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] 盘上记录被更差的一局覆写（%.1f/%d/%.3f）——重启游戏后玩家会看到退步的成绩",
+                onDisk.SurvivedSeconds, onDisk.BossKills, onDisk.MaxDifficulty));
+            ok = false;
+        }
+
+        if (!VerifyBestLineFormat(improved: false, out var lineWhy))
+        {
+            GD.PushError("[best-record-probe] " + lineWhy);
+            ok = false;
+        }
+
+        return ok;
+    }
+
+    /// <summary>读出行的格式化判据：结算页（新纪录/历史最好）与标题屏（历史最好）那行文本都用
+    /// core <c>BestRecord.FormatArgs</c> 装配实参，此处用同一套实参走一遍 GdFormat——译文里的占位符
+    /// 与实参不匹配时（多一个 %d、写成 %f），玩家看到的是原样的占位符，而任何门禁都不判这一层。</summary>
+    private bool VerifyBestLineFormat(bool improved, out string why)
+    {
+        var template = Tr(improved ? "BEST_NEW" : "BEST_LINE");
+        var line = GdFormat.Format(template, BestRecord.FormatArgs(_bestFirstRun));
+        why = string.Empty;
+        if (line.Contains('%'))
+        {
+            why = GdFormat.Format("读出行的占位符没被实参填完（%s → 「%s」）——玩家会看到原样的 %%s/%%d",
+                improved ? "BEST_NEW" : "BEST_LINE", line);
+            return false;
+        }
+
+        var duration = BestRecord.FormatDuration(_bestFirstRun.SurvivedSeconds);
+        if (!line.Contains(duration))
+        {
+            why = GdFormat.Format("读出行里没有存活时长的格式化结果（期望含「%s」，实际「%s」）", duration, line);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>读回 user://best.json 并逐字段核对（写出后读回，判据不依赖写侧自述）：
+    /// 键集必须**恰好等于** core <see cref="BestRecordCodec"/> 的字段集——多一个键就是「记录里混进了
+    /// 别的东西」（分数/战力一旦写进去，这条记录就从局末读数变成局外成长），少一个键是写入残缺；
+    /// 值再经 FromFields（生产读档同一个口）回读，供调用方与内存记录逐项比对。</summary>
+    private bool TryReadBestFile(out BestRecord record, out string why)
+    {
+        record = BestRecord.Empty;
+        why = string.Empty;
+        if (!Godot.FileAccess.FileExists(_bestPath))
+        {
+            why = $"文件不存在（{_bestPath}）";
+            return false;
+        }
+
+        using var file = Godot.FileAccess.Open(_bestPath, Godot.FileAccess.ModeFlags.Read);
+        if (file == null)
+        {
+            why = $"打不开（{Godot.FileAccess.GetOpenError()}）";
+            return false;
+        }
+
+        var parsed = Json.ParseString(file.GetAsText());
+        if (parsed.VariantType != Variant.Type.Dictionary)
+        {
+            why = $"根不是对象（{parsed.VariantType}）";
+            return false;
+        }
+
+        var raw = parsed.AsGodotDictionary();
+        var want = BestRecordCodec.ToFields(BestRecord.Empty).Keys;
+        if (raw.Count != want.Count)
+        {
+            why = $"字段数 {raw.Count} ≠ 编解码器字段数 {want.Count}——记录里混进了别的东西（如分数）";
+            return false;
+        }
+
+        foreach (var key in raw.Keys)
+        {
+            if (!want.Contains(key.AsStringName().ToString()))
+            {
+                why = $"出现字段表之外的键 {key}——记录里混进了别的东西（如分数）";
+                return false;
+            }
+        }
+
+        if (!VariantBridge.TryToClr(parsed, out var clr, out var error) || clr is not Dictionary<string, object?> fields)
+        {
+            why = $"Variant 树转 CLR 失败（{error}）";
+            return false;
+        }
+
+        record = BestRecordCodec.FromFields(fields);
+        return true;
+    }
 }
 #endif
+

@@ -30,6 +30,21 @@ public sealed record BestRecord(double SurvivedSeconds, int BossKills, double Ma
         return $"{total / 60}:{total % 60:00}";
     }
 
+    /// <summary>
+    /// 读出行（结算页「新纪录 / 历史最好」与标题屏「历史最好」）的格式化实参，顺序与译文里的
+    /// 占位符一一对应：存活时长 / Boss 击杀 / 最高难度档。
+    ///
+    /// 收在 core 是因为**两处读出共用同一套实参**——各写一份时改一处忘另一处，玩家看到的是标题屏与
+    /// 结算页对同一份记录显示不同的数；探针也取这里去填模板，判据才与两处读出的实参同源。
+    /// 模板本身由 godot 侧经 Tr 给出（译文属翻译表单源，core 不持有文案）。
+    /// </summary>
+    public static object[] FormatArgs(BestRecord record) => new object[]
+    {
+        FormatDuration(record.SurvivedSeconds),
+        record.BossKills,
+        record.MaxDifficulty,
+    };
+
     /// <summary>非有限与负数一律折成 0——坏档值不得污染记录，也不得让 NaN 传进比较与显示
     /// （<see cref="Math.Max(double, double)"/> 遇 NaN 会把 NaN 原样传出）。</summary>
     public static double Sane(double value) => double.IsFinite(value) && value > 0.0 ? value : 0.0;

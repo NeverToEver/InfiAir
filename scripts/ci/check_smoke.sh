@@ -344,6 +344,26 @@ smoke_tutorial() {
   expect_marker "教程场景就绪" "${PROBE_LOG_BASE}.tutorial.log" "[tutorial] 场景就绪"
 }
 
+smoke_practice() {
+  # 练习模式：面板开页与三行直选（控件文本是译文而非键名、环形切换回到原点、确认键交出的设置
+  # 等于面板显示）+ 直选 Boss 经生产出场链按型别出场 + 直选遭遇经生产触发链启动
+  # （其分数门槛由练习起始分真正满足）+ 练习死亡不写记录、不删检查点；收尾再走一次真实入口
+  # （EnterPractice → scenes/practice.tscn）：这一步跑通则留下宿主注入与直选请求两行日志，
+  # 写坏则同一份日志里出引擎错误（切场景失败打 ERROR: Cannot open file）由本趟的错误正则判红。
+  # 帧数：探针段 ≈ 5 模拟秒 + 入口后练习场景的入场 1.65s 与直选请求 ≈ 3 模拟秒（余量 ≈ 300 帧）。
+  run_case "practice mode smoke" 900 "${PROBE_LOG_BASE}.practice.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.practice.userdata" --practice-probe
+  expect_marker "练习直选与不落盘" "${PROBE_LOG_BASE}.practice.log" "[practice-probe] 直选与不落盘语义成立"
+}
+
+smoke_best_record() {
+  # 本局记录读出：连跑两局（先 300 模拟秒 / 3 只 Boss，再 5 模拟秒 / 0 只）——断死亡后记录落盘、
+  # 写出后读回逐字段一致、键集恰好等于编解码器字段集（多一个 score 键即判红）、更差的一局不回退
+  # （内存与盘上都不动、不误标「新纪录」），并断读出行能被格式化出来（译文占位符与实参不匹配时
+  # 玩家看到的是原样的 %s/%d，此前没有任何判据）。
+  run_case "best record probe smoke" 400 "${PROBE_LOG_BASE}.best_record.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.best_record.userdata" --best-record-probe
+  expect_marker "记录两局语义" "${PROBE_LOG_BASE}.best_record.log" "[best-record-probe] 两局语义成立"
+}
+
 smoke_autoplay() {
   # 自动游玩（autoplay，探针口径见 csharp/godot/ProbeHost.Autoplay.cs）：真实规则跑一整局——不注入无敌、
   # 不直接改血量/得分，全经生产输入面（移动/开火/弹反/召唤母舰）。CI 只取 180 模拟秒（≈8s 墙钟）：
@@ -376,6 +396,8 @@ SMOKE_CASES=(
   smoke_settings_version
   smoke_early_leave
   smoke_tutorial
+  smoke_practice
+  smoke_best_record
   smoke_autoplay
 )
 
