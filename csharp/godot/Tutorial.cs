@@ -97,6 +97,10 @@ public partial class Tutorial : Node2D
     /// <summary>目标行当前显示给玩家的文本（探针判补参是否成形、键位是否跟随改键）。</summary>
     public string ObjectiveText() => _objectiveLabel.Text;
 
+    /// <summary>跳过提示当前显示给玩家的文本（隐藏时为空串）：跳过是**没有其它入口**的能力，
+    /// 提示缺失＝玩家永远发现不了它，而引擎侧零报错。</summary>
+    public string SkipHintText() => _skipLabel.Visible ? _skipLabel.Text : "";
+
     public override void _Ready()
     {
         GameState.Instance.ResetRun();

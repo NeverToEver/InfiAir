@@ -691,6 +691,12 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
+        if (PlaceholderPattern().IsMatch(_tutorial.SkipHintText()) || _tutorial.SkipHintText().Length == 0)
+        {
+            Fail($"阶段 {stage + 1} 的跳过提示未成形（空串或残留占位符）：«{_tutorial.SkipHintText()}»");
+            return;
+        }
+
         if (GameState.Instance.TutorialStage != stage)
         {
             Fail($"进入阶段 {stage + 1} 时检查点未写入（tutorial_stage={GameState.Instance.TutorialStage}）");
