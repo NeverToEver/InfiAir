@@ -503,28 +503,60 @@ public partial class ProbeHost : Node
     /// <summary>记录文件绝对路径（存在性与读回判定）。</summary>
     private string _bestPath = "";
 
-    /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）→ 本步是否击杀玩家。
-    /// 固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
-    /// 等新页构建并渲染完成（捕获取的是已渲染帧，同帧切页会捕到上一帧）。
-    /// 切页与捕获间留 ~0.5s，避开设置页交叉淡入/入场动画（捕在转场中段画面未成形）。</summary>
-    private static readonly (int Frame, string Page, string Shot, bool Kill)[] ShotPlan =
+    /// <summary>截图序列的一拍在捕获前要做的事（页面切换之外的开关操作）。</summary>
+    private enum ShotAction
     {
-        (90, "", "hud", false),
-        (100, "gameplay", "", false),
-        (130, "", "settings-gameplay", false),
-        (140, "display", "", false),
-        (170, "", "settings-display", false),
-        (180, "audio", "", false),
-        (210, "", "settings-audio", false),
-        (220, "about", "", false),
-        (250, "", "settings-about", false),
-        (260, "controls", "", false),
-        (290, "", "settings-controls", false),
+        /// <summary>不做额外动作。</summary>
+        None,
+
+        /// <summary>开练习设置面板（三行取面板此刻的取值＝刚打开的样子）。</summary>
+        PracticeOpen,
+
+        /// <summary>把练习面板三行切到本趟直选设置（按下开始键前的那一步，见 SelectPracticeRowsForShots）。</summary>
+        PracticeSelect,
+
+        /// <summary>按下面板的开始键（走生产单口 EnterPractice 换场到 scenes/practice.tscn）。</summary>
+        PracticeConfirm,
+    }
+
+    /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）→ 本步是否击杀玩家
+    /// → 本步的开关动作。固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
+    /// 等新页构建并渲染完成（捕获取的是已渲染帧，同帧切页会捕到上一帧）。
+    /// 切页与捕获间留 ~0.5s，避开设置页交叉淡入/入场动画（捕在转场中段画面未成形）。
+    ///
+    /// 练习那两拍的落位与理由：面板只有行内文字随直选变化（刚打开的选择态与三行选定后的选定态），
+    /// 两态之间的画面差**小于互异判据**（实测签名最大差 2 < MinPageDiff——两张同底图的面板图会被
+    /// 判「画面几乎相同」）。故第二拍不取面板的另一个状态，而取按下开始键之后的落点：练习局开局
+    /// 的画面（所选 Boss / 起始难度档 / 遭遇都已在局里）。两拍因此是「选择态面板」与「确认之后」，
+    /// 互异判据判得到东西（实测最小 124），整条练习入口也照生产链走全了。</summary>
+    private static readonly (int Frame, string Page, string Shot, bool Kill, ShotAction Act)[] ShotPlan =
+    {
+        (90, "", "hud", false, ShotAction.None),
+        (100, "gameplay", "", false, ShotAction.None),
+        (130, "", "settings-gameplay", false, ShotAction.None),
+        (140, "display", "", false, ShotAction.None),
+        (170, "", "settings-display", false, ShotAction.None),
+        (180, "audio", "", false, ShotAction.None),
+        (210, "", "settings-audio", false, ShotAction.None),
+        (220, "about", "", false, ShotAction.None),
+        (250, "", "settings-about", false, ShotAction.None),
+        (260, "controls", "", false, ShotAction.None),
+        (290, "", "settings-controls", false, ShotAction.None),
         // 死亡结算页（人工验收项「本局记录读出过目」的实拍面）：先击杀玩家，隔 ~0.6s 再捕——
         // 遮罩 150ms 淡入 + 面板 200ms 入场 + 轮盘 500ms 滑入，捕在中段刚好是页面成形后的样子。
         // 捕在死亡回放（3s 幽灵弹幕，ZIndex 在 HUD 之下）播完之前，属画面的一部分，不影响自检。
-        (292, "", "", true),
-        (330, "", "gameover", false),
+        (292, "", "", true, ShotAction.None),
+        (330, "", "gameover", false, ShotAction.None),
+        // 练习面板选择态：结算页轮盘「练习模式」那处生产入口的就地开面板背景（GameOverUi.
+        // OpenPracticePanel），三行取面板初值（默认＝不指定 Boss / 中档 / 不指定遭遇）。
+        // 捕在一片已成形、无动画的底图上——本图判的是面板自身排版与可读性，不判它压在哪张底图上。
+        (340, "", "", false, ShotAction.PracticeOpen),
+        (380, "", "practice-panel", false, ShotAction.None),
+        // 选定三行后按确认（走生产单口换场），捕练习局开局的画面：所选 Boss 与遭遇由生产链
+        // 逐帧请出，起始难度档也已落到 HUD 上——面板上选的东西有没有真的出现在局里，这一张是实拍面。
+        (382, "", "", false, ShotAction.PracticeSelect),
+        (384, "", "", false, ShotAction.PracticeConfirm),
+        (534, "", "practice-run", false, ShotAction.None),
     };
 
     /// <summary>宿主身份注入点：_EnterTree 由父到子（本节点先于子节点 Main），_Ready 由子到父
@@ -1036,7 +1068,10 @@ public partial class ProbeHost : Node
     private readonly System.Collections.Generic.Dictionary<string, int[]> _shotSigs = new();
     private readonly System.Collections.Generic.List<string> _shots = new();
 
-    /// <summary>截图驱动：按计划帧切页/捕获；序列结束后做两条廉价自检（非空白、页面互异），
+    /// <summary>练习面板：从开面板那拍起活到确认拍（面板那张图捕完还要切三行再按确认），故跨拍持有实例。</summary>
+    private PracticePanel? _shotPracticePanel;
+
+    /// <summary>截图驱动：按计划帧切页/开关/捕获；序列结束后做两条廉价自检（非空白、页面互异），
     /// 全过才打完成标记（缺标记即门禁红）。</summary>
     private void TickShotProbe()
     {
@@ -1052,6 +1087,21 @@ public partial class ProbeHost : Node
                 var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
                 settings?.ShowSettings(null);
                 settings?.ShowPage(new StringName(step.Page));
+            }
+
+            switch (step.Act)
+            {
+                case ShotAction.PracticeOpen:
+                    OpenPracticePanelForShots();
+                    break;
+
+                case ShotAction.PracticeSelect:
+                    SelectPracticeRowsForShots();
+                    break;
+
+                case ShotAction.PracticeConfirm:
+                    ConfirmPracticePanelForShots();
+                    break;
             }
 
             if (step.Kill)
@@ -1155,6 +1205,77 @@ public partial class ProbeHost : Node
     {
         GameState.Instance.SetRunActive(true);
         _player.Die();
+    }
+
+    /// <summary>练习面板那两拍的前置：挂生产面板类（与 --practice-probe 的
+    /// <see cref="RunPracticePanelCheck"/> 同一条生产用法——面板没有独立场景，两处正式入口
+    /// 都是就地 <c>new PracticePanel()</c> 加进树，本探针不另造测试专用面板）。
+    /// 面板自己置 ProcessMode=Always，死亡把树暂停后照常入场与收输入。</summary>
+    private void OpenPracticePanelForShots()
+    {
+        if (_shotPracticePanel != null)
+        {
+            return;
+        }
+
+        _shotPracticePanel = new PracticePanel();
+        // 确认出口按两处生产入口同一行接法（TitleScreen / GameOverUi 的 OpenPracticePanel）：
+        // 换场与复位口径收在 EnterPractice 单口里，本探针不另写一套。
+        _shotPracticePanel.StartRequested += setup => GameState.Instance.EnterPractice(setup);
+        AddChild(_shotPracticePanel);
+    }
+
+    /// <summary>按确认前把三行切到**文字最长的直选组合**（Ⅲ型 · 母舰级 / 难 / 精英炮塔阵地，取 core
+    /// 映射下最长的那几条文案）：面板那张图上是三行初值，这一组则决定了练习局里出现什么，
+    /// 也让「选的内容进不了局」这类坏法在练习局那张图上有实拍面。
+    /// 走面板自己的环形切换口（行按钮与左右方向键同一出口），步长由面板此刻的取值反推，
+    /// 不假定初值——面板会记住上一次用过的设置。</summary>
+    private void SelectPracticeRowsForShots()
+    {
+        if (_shotPracticePanel == null)
+        {
+            // 没面板时本拍仍会捕到底图：张数入账、非空白与互异也都过得了（底图是成形页面），
+            // 序列顺序写错会静默变成「多捕一张底图」——故这里显式报错（门禁按日志错误正则判红）
+            GD.PushError("[shot-probe] 练习面板未建起来，选定态拍无面板可切——序列顺序写反了？");
+            return;
+        }
+
+        var target = new PracticeSetup(3, 2, 1);
+        var now = _shotPracticePanel.Current;
+        _shotPracticePanel.Cycle(0, target.BossType - now.BossType);
+        _shotPracticePanel.Cycle(1, target.DifficultyIndex - now.DifficultyIndex);
+        _shotPracticePanel.Cycle(2, target.EncounterIndex - now.EncounterIndex);
+    }
+
+    /// <summary>练习面板退场：后续拍（设置页、结算页）不能被它盖住。不走面板的 Close 动效——
+    /// 那会多留一段淡出中的画面（探针要的是「面板不在」的确定态，不是转场）。</summary>
+    private void FreePracticePanelForShots()
+    {
+        _shotPracticePanel?.QueueFree();
+        _shotPracticePanel = null;
+    }
+
+    /// <summary>按下练习面板的开始键：走面板自己的确认出口（StartRequested 由本探针按两处生产入口
+    /// 同一行接法接到 GameState.EnterPractice），换场到 scenes/practice.tscn 开一局练习。
+    ///
+    /// 换场释放的是「当前场景」，而探针宿主正是当前场景（内嵌的 Main 是它的子节点）——不先交出这个
+    /// 身份，宿主就随换场一起被释放，练习局开局的画面再没人捕。故先让出身份、并照生产语义让旧局退场
+    /// （换场本来释放的就是它），宿主留在根上把计划走完。这是探针的取像需要，生产路径一字未改：
+    /// Main 与练习场景都按生产语义跑，EnterPractice 也仍是那个单口。</summary>
+    private void ConfirmPracticePanelForShots()
+    {
+        if (_shotPracticePanel == null)
+        {
+            GD.PushError("[shot-probe] 练习面板未建起来，确认拍按不下开始键——序列顺序写反了？");
+            return;
+        }
+
+        GetTree().CurrentScene = null!;
+        _main.QueueFree();
+        _shotPracticePanel.Confirm();
+        // 生产里面板是旧场景的子节点，随换场一起消失（面板自己不退场）；宿主不随换场消失，
+        // 故这里替它做这件事，否则面板会一直盖在练习局画面上。
+        FreePracticePanelForShots();
     }
 
     /// <summary>捕获当前视口：存 PNG（生成截图用） + 记下粗签名（供上面的自检）。

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 截图探针门禁（辅助）：固定帧捕获 HUD 与五张设置页，存 PNG 供人工/文档使用；
-# 探针内部做两条廉价自检（画面非空白、五页互不相同），全过才打完成标记。
+# 截图探针门禁（辅助）：固定帧捕获 HUD、五张设置页、死亡结算页、练习面板与练习局开局（九张），
+# 存 PNG 供人工/文档使用；探针内部做两条廉价自检（画面非空白、各图两两互不相同），全过才打完成标记。
 # Usage: check_visual.sh [log_path]           (default /tmp/visual.log)
 #        KEEP_SHOTS=<dir> check_visual.sh      # 把 PNG 留到该目录（生成截图用）
 #
@@ -19,7 +19,7 @@ SHOT_DIR="$(mktemp -d)"
 # 读走开发者本机配置、写坏开发者当前存档。Windows 读 APPDATA、Linux 读 XDG_DATA_HOME、
 # macOS 读 HOME——三处都指到临时目录（macOS 不认前两个，user:// 会落真实用户目录）。
 USERDIR="$(mktemp -d)"
-FRAMES=340
+FRAMES=544
 # 引擎错误正则：与 check_smoke.sh 同口径。`ERROR:` 是通用引擎错误前缀，兜住未列举的错误类别
 # （此前只有 SCRIPT ERROR 等五类：截图写出失败、`Invalid polygon data` 这类静默坏点全漏判——
 # 探针只打一条 PushError 就跳过该图，日志有 ERROR 而正则抓不到，门禁照样判绿）。
