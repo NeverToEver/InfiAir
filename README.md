@@ -1,7 +1,7 @@
 # InfiAir
 
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
-[![Godot 4.6 .NET](https://img.shields.io/badge/Godot-4.6%20.NET-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org/download)
+[![Godot 4.7 .NET](https://img.shields.io/badge/Godot-4.7%20.NET-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org/download)
 [![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -13,7 +13,7 @@
 
 | | |
 | --- | --- |
-| 引擎 | Godot 4.6 .NET，全量 C#（零 GDScript），GL Compatibility，1920×1080 |
+| 引擎 | Godot 4.7 .NET，全量 C#（零 GDScript），GL Compatibility，1920×1080 |
 | 平台 | Windows / Linux 预编译包；macOS 由源码运行（PC 专用） |
 | 输入 | 键鼠 / 手柄两路（触屏已退役） |
 | 界面语言 | 简体中文 / English（游戏内切换） |
@@ -69,18 +69,18 @@
 
 ### 从源码运行
 
-需要 [Godot 4.6+ .NET 版](https://godotengine.org/download)（含 C# 支持，标准版无法打开本工程）；构建 C# 程序集另需 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)。
+需要 [Godot 4.7+ .NET 版](https://godotengine.org/download)（含 C# 支持，标准版无法打开本工程）；构建 C# 程序集另需 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)。
 
 - Windows：双击 `run.bat`
 - Linux：`./run.sh`（`--editor` 打开编辑器）
 - macOS：双击 `run.command`（首次需 `chmod +x run.command`）
 
-启动脚本会自动探测引擎（`godot-mono` → `godot` → `godot4` → `~/.local/bin` → macOS 的 `Godot*.app`）并校验版本（低于 4.6 会告警）。
+启动脚本会自动探测引擎（`godot-mono` → `godot` → `godot4` → `~/.local/bin` → macOS 的 `Godot*.app`）并校验版本（低于 4.7 会告警）。
 
 ### 系统要求
 
 - 支持 OpenGL 3.3 的桌面 GPU（GL Compatibility 后端），Windows / Linux / macOS。
-- 预编译包自带 .NET 运行时；源码运行需 Godot 4.6+ .NET 版 + .NET 8 SDK。
+- 预编译包自带 .NET 运行时；源码运行需 Godot 4.7+ .NET 版 + .NET 8 SDK。
 
 ## 存档与设置
 

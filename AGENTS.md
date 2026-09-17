@@ -5,7 +5,7 @@
 
 ## 1 项目形态与不变式
 
-Godot 4.6 .NET + C#（零 GDScript），GL Compatibility，1920×1080；平台 PC 桌面，输入面只有键鼠与手柄两路。
+Godot 4.7 .NET + C#（零 GDScript），GL Compatibility，1920×1080；平台 PC 桌面，输入面只有键鼠与手柄两路。
 目录职责：`csharp/core/` 纯逻辑（零 Godot 依赖，可单测）；`csharp/godot/` 引擎适配层（场景脚本、UI、服务）；`csharp/tests/` 只测 core，不入主 sln（构建发布不耦合测试工具链）；`scenes/` 场景；`data/` 数值与翻译表；`scripts/ci/` 门禁；`scripts/tools/` 素材生成器与数值编辑器。
 
 单源（一个事实只写一份，别处给指针）：

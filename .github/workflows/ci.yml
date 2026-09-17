@@ -30,8 +30,8 @@ concurrency:
 
 env:
   DOTNET_SDK_VERSION: "8.0"
-  GODOT_VERSION: 4.6.2
-  GODOT_CACHE_DIR: /tmp/godot-4.6.2
+  GODOT_VERSION: 4.7.2
+  GODOT_CACHE_DIR: /tmp/godot-4.7.2
 
 jobs:
   fast-gate:

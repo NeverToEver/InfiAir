@@ -30,7 +30,7 @@ for app in "/Applications/Godot_mono.app" "$HOME/Applications/Godot_mono.app" \
     [ -x "$bin" ] && add_candidate "$bin"
 done
 
-# 版本判定：4.6+ 返回 0；版本号无法解析视为不满足（避免误用 Godot 3 / 4.5）
+# 版本判定：4.7+ 返回 0；版本号无法解析视为不满足（避免误用 Godot 3 / 4.5）
 version_ok() {
     local ver major rest minor
     ver="$("$1" --version 2>/dev/null | head -n1)"
@@ -38,10 +38,10 @@ version_ok() {
     major="${ver%%.*}"
     rest="${ver#*.}"
     minor="${rest%%.*}"
-    { [ "$major" -gt 4 ] || { [ "$major" -eq 4 ] && [ "$minor" -ge 6 ]; }; }
+    { [ "$major" -gt 4 ] || { [ "$major" -eq 4 ] && [ "$minor" -ge 7 ]; }; }
 }
 
-# 优先选第一个 4.6+ 的候选；全部不满足时回退第一个候选并警告
+# 优先选第一个 4.7+ 的候选；全部不满足时回退第一个候选并警告
 GODOT=""
 for c in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
     if version_ok "$c"; then
@@ -52,11 +52,11 @@ done
 if [ -z "$GODOT" ] && [ ${#CANDIDATES[@]} -gt 0 ]; then
     GODOT="${CANDIDATES[0]}"
     VER="$("$GODOT" --version 2>/dev/null | head -n1)"
-    echo "[InfiAir] 警告：只检测到 Godot ${VER:-未知版本}，本项目按 4.6+ .NET 版构建，可能无法正常运行。"
+    echo "[InfiAir] 警告：只检测到 Godot ${VER:-未知版本}，本项目按 4.7+ .NET 版构建，可能无法正常运行。"
 fi
 
 if [ -z "$GODOT" ]; then
-    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+ .NET 版——含 C# 工程，标准版无法构建；开发需 .NET 8 SDK）。"
+    echo "[InfiAir] 未找到 Godot 引擎（需要 4.7+ .NET 版——含 C# 工程，标准版无法构建；开发需 .NET 8 SDK）。"
     echo "          下载：https://godotengine.org/download（选 .NET 版本）"
     echo "          Godot_mono.app 安装到 /Applications 或 ~/Applications（改带版本的名字也能识别），"
     echo "          或将 godot-mono 加入 PATH / 放置到 ~/.local/bin/godot-mono。"

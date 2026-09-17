@@ -15,7 +15,7 @@ config/description="2D 俯视空战射击游戏 —— Python airwar 的 Godot �
 ; 发布版本（与 release.sh VERSION 一致，发布时同步更新）
 config/version="3.34"
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.6", "GL Compatibility")
+config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
 

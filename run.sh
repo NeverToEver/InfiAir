@@ -31,20 +31,20 @@ elif [ -x "$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot" ]; then
 elif [ -d "/Applications/Godot.app" ]; then
     GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 else
-    echo "[InfiAir] 未找到 Godot 引擎（需要 4.6+，推荐 .NET 版）。"
+    echo "[InfiAir] 未找到 Godot 引擎（需要 4.7+，推荐 .NET 版）。"
     echo "          下载：https://godotengine.org/download"
     echo "          或将 godot-mono / godot / godot4 加入 PATH / 放置到 ~/.local/bin/"
     exit 1
 fi
 
-# 版本检查：低于 4.6 提示但尝试继续（仅警告不阻断）
+# 版本检查：低于 4.7 提示但尝试继续（仅警告不阻断）
 VER="$("$GODOT" --version 2>/dev/null | head -n1)"
 if [ -n "$VER" ]; then
     MAJOR="${VER%%.*}"
     REST="${VER#*.}"
     MINOR="${REST%%.*}"
-    if [ "$MAJOR" -lt 4 ] || { [ "$MAJOR" -eq 4 ] && [ "$MINOR" -lt 6 ]; }; then
-        echo "[InfiAir] 警告：检测到 Godot ${VER}，本项目按 4.6+ 构建，可能无法正常运行。"
+    if [ "$MAJOR" -lt 4 ] || { [ "$MAJOR" -eq 4 ] && [ "$MINOR" -lt 7 ]; }; then
+        echo "[InfiAir] 警告：检测到 Godot ${VER}，本项目按 4.7+ 构建，可能无法正常运行。"
     fi
 fi
 

@@ -1,6 +1,6 @@
 @echo off
 REM InfiAir 双击启动（Windows）
-REM 需要 Godot 4.6+ .NET 版（含 C# 工程，标准版无法打开；开发需 .NET 8 SDK）：https://godotengine.org/download
+REM 需要 Godot 4.7+ .NET 版（含 C# 工程，标准版无法打开；开发需 .NET 8 SDK）：https://godotengine.org/download
 setlocal
 cd /d "%~dp0"
 
@@ -30,7 +30,7 @@ if not defined GODOT (
     )
 )
 if not defined GODOT (
-    echo [InfiAir] 未找到 Godot 引擎（需要 4.6+ .NET 版——含 C# 工程，标准版无法打开；开发需 .NET 8 SDK）。
+    echo [InfiAir] 未找到 Godot 引擎（需要 4.7+ .NET 版——含 C# 工程，标准版无法打开；开发需 .NET 8 SDK）。
     echo           下载：https://godotengine.org/download（选 .NET 版本）
     echo           或将 godot-mono / godot / godot4 加入 PATH 环境变量后重试。
     pause
@@ -41,10 +41,10 @@ echo [InfiAir] 使用引擎：%GODOT%
 
 REM R07：版本判定（L 系列工具链登记遗留）——探测版本 <4.6 仅警告继续（对齐 run.sh 口径）
 for /f "tokens=1,2 delims=. " %%a in ('"%GODOT%" --version 2^>nul') do (
-    if %%a geq 4 if %%b geq 6 set "GVER_OK=1"
+    if %%a geq 4 if %%b geq 7 set "GVER_OK=1"
 )
 if not defined GVER_OK (
-    echo [InfiAir] 警告：检测到 Godot 版本低于 4.6（需要 4.6+ .NET 版），可能无法正常运行。
+    echo [InfiAir] 警告：检测到 Godot 版本低于 4.7（需要 4.7+ .NET 版），可能无法正常运行。
 )
 
 REM R07：保留真实退出码——原 `if errorlevel 1 pause` 使 pause 把退出码归零，脚本恒返回 0

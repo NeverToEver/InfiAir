@@ -1,7 +1,7 @@
 # InfiAir
 
 [![CI](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml/badge.svg)](https://github.com/NeverToEver/InfiAir/actions/workflows/ci.yml)
-[![Godot 4.6 .NET](https://img.shields.io/badge/Godot-4.6%20.NET-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org/download)
+[![Godot 4.7 .NET](https://img.shields.io/badge/Godot-4.7%20.NET-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org/download)
 [![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -13,7 +13,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 
 | | |
 | --- | --- |
-| Engine | Godot 4.6 .NET — 100% C# (zero GDScript), GL Compatibility, 1920×1080 |
+| Engine | Godot 4.7 .NET — 100% C# (zero GDScript), GL Compatibility, 1920×1080 |
 | Platforms | Windows / Linux prebuilt packages; macOS from source (desktop only) |
 | Input | Keyboard & mouse plus gamepad (touch support retired) |
 | UI languages | 简体中文 / English (switchable in game) |
@@ -69,18 +69,18 @@ Grab a package from [Releases](https://github.com/NeverToEver/InfiAir/releases) 
 
 ### From source
 
-You need the [Godot 4.6+ .NET edition](https://godotengine.org/download) (the standard build cannot open this project); building the C# assembly also requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+You need the [Godot 4.7+ .NET edition](https://godotengine.org/download) (the standard build cannot open this project); building the C# assembly also requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 - Windows: double-click `run.bat`
 - Linux: `./run.sh` (`--editor` opens the editor)
 - macOS: double-click `run.command` (`chmod +x run.command` first)
 
-The launcher scripts auto-detect the engine (`godot-mono` → `godot` → `godot4` → `~/.local/bin` → macOS `Godot*.app`) and check its version (a warning is printed below 4.6).
+The launcher scripts auto-detect the engine (`godot-mono` → `godot` → `godot4` → `~/.local/bin` → macOS `Godot*.app`) and check its version (a warning is printed below 4.7).
 
 ### System requirements
 
 - A desktop GPU with OpenGL 3.3 support (GL Compatibility backend) on Windows / Linux / macOS.
-- Prebuilt packages bundle the .NET runtime; from source you need Godot 4.6+ .NET edition plus the .NET 8 SDK.
+- Prebuilt packages bundle the .NET runtime; from source you need Godot 4.7+ .NET edition plus the .NET 8 SDK.
 
 ## Saves & settings
 

@@ -73,7 +73,7 @@ fi
 # GODOT 兜底链断裂必须给出诊断——回退链末端 command not found 裸报错对用户无指引，
 # 最终探测失败立即给出引擎安装指引（对齐 run.sh 诊断口径）
 if ! command -v "$GODOT" >/dev/null 2>&1; then
-    echo "[release] 未找到 Godot 引擎：${GODOT}（需要 4.6+，推荐 .NET 版）" >&2
+    echo "[release] 未找到 Godot 引擎：${GODOT}（需要 4.7+，推荐 .NET 版）" >&2
     echo "         下载：https://godotengine.org/download 或放置到 ~/.local/bin/" >&2
     exit 1
 fi
@@ -124,7 +124,7 @@ export_platform() {
 		echo "[release] 导出失败：$preset" >&2
 		exit 1
 	fi
-	# Godot 4.6 headless 导出在引擎退出阶段可能打印「RID allocations leaked at exit」
+	# Godot headless 导出在引擎退出阶段可能打印（4.6 起实测）「RID allocations leaked at exit」
 	# （dummy 渲染器 teardown 噪音，发生在产物落盘之后，与包内容无关）；精确豁免该行，
 	# 其余 ^ERROR 仍中止（防空壳包的门禁语义不变）
 	if grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep -q "^ERROR"; then
