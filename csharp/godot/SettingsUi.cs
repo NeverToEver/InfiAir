@@ -125,12 +125,14 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly Callable _onJoyLayoutChanged;
     private readonly Callable _onResolutionChanged;
     private readonly Callable _onWindowModeChanged;
+    private readonly Callable _onInputDeviceChanged;
 
     public SettingsUi()
     {
         _onKeyBindingsChanged = Callable.From(RefreshRebindRows);
         _onLocaleChanged = Callable.From(OnLocaleChanged);
         _onJoyLayoutChanged = Callable.From(RefreshJoyLayoutLabel);
+        _onInputDeviceChanged = Callable.From(RefreshCheatsheet);
         _onResolutionChanged = Callable.From((StringName _) => RefreshResolutionButtons());
         _onWindowModeChanged = Callable.From((StringName _) => RefreshWindowModeButtons());
         _pageDefs = new List<PageDef>
@@ -241,6 +243,11 @@ public partial class SettingsUi : RadialMenuLayer
             gs.Connect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
         }
 
+        if (!gs.IsConnected(GameState.SignalName.InputDeviceChanged, _onInputDeviceChanged))
+        {
+            gs.Connect(GameState.SignalName.InputDeviceChanged, _onInputDeviceChanged);
+        }
+
         if (!gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
         {
             gs.Connect(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged);
@@ -279,6 +286,11 @@ public partial class SettingsUi : RadialMenuLayer
         if (gs.IsConnected(GameState.SignalName.LocaleChanged, _onLocaleChanged))
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _onLocaleChanged);
+        }
+
+        if (gs.IsConnected(GameState.SignalName.InputDeviceChanged, _onInputDeviceChanged))
+        {
+            gs.Disconnect(GameState.SignalName.InputDeviceChanged, _onInputDeviceChanged);
         }
 
         if (gs.IsConnected(GameState.SignalName.JoyLayoutChanged, _onJoyLayoutChanged))
@@ -927,9 +939,47 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ABOUT")));
         _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), GameVersion()), UITheme.FontBody, UITheme.AccentGold);
         page.AddChild(_versionLabel);
-        _cheatsheetLabel = UITheme.MakeLabel(Tr("SET_CHEATSHEET"), UITheme.FontCaption, UITheme.TextDim);
+        _cheatsheetLabel = UITheme.MakeLabel(CheatsheetText(), UITheme.FontCaption, UITheme.TextDim);
         page.AddChild(_cheatsheetLabel);
         return page;
+    }
+
+    /// <summary>操作速查全文：标题行 + 五行按键速查，键名一律经设备感知取值口（键鼠＝键名 /
+    /// 手柄＝按钮标签，与教程目标行同一设施——「教程跟设备、设置页不跟」的第二套事实不存在）。
+    /// 改键后键名跟随（EffectiveKeys 同源）；设备档切换经 InputDeviceChanged 即时重拼。</summary>
+    private string CheatsheetText()
+    {
+        var gs = GameState.Instance;
+        return string.Join("\n", new[]
+        {
+            (string)Tr("SET_CHEATSHEET"),
+            GdFormat.Format(Tr("SET_CHEAT_MOVE"), gs.MoveHintText(), gs.AimHintText()),
+            GdFormat.Format(
+                Tr("SET_CHEAT_ACTS"),
+                gs.ActionHintText(new StringName("fire")),
+                gs.ActionHintText(new StringName("boost")),
+                gs.ActionHintText(new StringName("fine_move")),
+                gs.ActionHintText(new StringName("dash"))),
+            GdFormat.Format(
+                Tr("SET_CHEAT_HOLD"),
+                gs.ActionHintText(new StringName("dock")),
+                gs.ActionHintText(new StringName("homecoming")),
+                gs.ActionHintText(new StringName("give_up"))),
+            GdFormat.Format(Tr("SET_CHEAT_PARRY"), gs.ActionHintText(new StringName("parry"))),
+            GdFormat.Format(
+                Tr("SET_CHEAT_SYS"),
+                gs.ActionHintText(new StringName("ui_cancel")),
+                gs.ActionHintText(new StringName("restart"))),
+        });
+    }
+
+    /// <summary>设备档切换：速查行的键名换档重拼（语言切换走 OnLocaleChanged 的整页重取）。</summary>
+    private void RefreshCheatsheet()
+    {
+        if (_cheatsheetLabel != null && GodotObject.IsInstanceValid(_cheatsheetLabel))
+        {
+            _cheatsheetLabel.Text = CheatsheetText();
+        }
     }
 
     /// <summary>百分比滑杆行（0..100%，与音量滑杆同构，但不落盘音量域）。
@@ -1400,7 +1450,7 @@ public partial class SettingsUi : RadialMenuLayer
         _resetButton.Text = Tr("SET_RESET");
         _resetAllButton.Text = Tr("SET_RESET_ALL");
         _versionLabel.Text = GdFormat.Format(Tr("SET_VERSION"), GameVersion());
-        _cheatsheetLabel.Text = Tr("SET_CHEATSHEET");
+        _cheatsheetLabel.Text = CheatsheetText();
         RefreshLangButtons();
         RefreshNavLabels();
         // 重建前记录当前页并恢复——否则无条件跳回「控制」页；

@@ -116,6 +116,89 @@ public sealed partial class InputBindingsService : RefCounted
     /// <summary>手柄布局变更（检测/拔出回落）；GameState 订阅后转发为 JoyLayoutChanged 信号。</summary>
     public event Action<StringName>? JoyLayoutChanged;
 
+    /// <summary>提示标签的设备档切换（键鼠 ⇄ 手柄）；GameState 订阅后转发为 InputDeviceChanged 信号。</summary>
+    public event Action? HintDeviceChanged;
+
+    // ---------------- 提示标签的设备档（最近使用设备，档位判定 core） ----------------
+
+    private readonly Core.Input.LastInputDevice _hints = new();
+
+    /// <summary>喂入一次设备观察（GameState._Input 按事件类型映射后调用）；切换时发
+    /// <see cref="HintDeviceChanged"/>。事件→设备类的映射在 GameState 侧，档位判定在此。</summary>
+    public void NoteInputDevice(Core.Input.HintDevice device)
+    {
+        if (_hints.Note(device))
+        {
+            HintDeviceChanged?.Invoke();
+        }
+    }
+
+    /// <summary>提示标签当前是否手柄档（面板/探针的档位读数口）。</summary>
+    public bool HintsAreGamepad => _hints.IsGamepad;
+
+    /// <summary>动作的**单标签提示**（按最近使用设备取档）：键鼠档＝首个键名（<see cref="ActionKeyText"/>），
+    /// 手柄档＝按钮/扳机/摇杆标签（扫 InputMap 的手柄绑定：按钮经 <see cref="JoyButtonLabel"/> 按当前
+    /// 布局取标签，轴按语义取左/右摇杆或 LT/RT）；无手柄绑定的固定键（天赋面板 G）回落键名。</summary>
+    public string ActionHintText(StringName action)
+        => _hints.IsGamepad ? ActionPadLabel(action) : ActionKeyText(action);
+
+    private string ActionPadLabel(StringName action)
+    {
+        foreach (var ev in InputMap.ActionGetEvents(action))
+        {
+            if (ev is InputEventJoypadButton button)
+            {
+                return JoyButtonLabel((int)button.ButtonIndex);
+            }
+
+            if (ev is InputEventJoypadMotion motion)
+            {
+                return motion.Axis switch
+                {
+                    JoyAxis.LeftX or JoyAxis.LeftY => (string)Tr("SET_LABEL_LSTICK"),
+                    JoyAxis.RightX or JoyAxis.RightY => (string)Tr("SET_LABEL_RSTICK"),
+                    JoyAxis.TriggerLeft => "LT",
+                    JoyAxis.TriggerRight => "RT",
+                    _ => motion.Axis.ToString(),
+                };
+            }
+        }
+
+        return ActionKeyText(action);
+    }
+
+    /// <summary>移动提示的标签段：手柄档＝左摇杆（一个标签），键鼠档＝四向各自首个键名拼段
+    /// （默认 WASD；未绑定的方向跳过——键位感知与 <see cref="ActionKeysText"/> 同源）。</summary>
+    public string MoveHintText()
+    {
+        if (_hints.IsGamepad)
+        {
+            return (string)Tr("SET_LABEL_LSTICK");
+        }
+
+        var parts = new List<string>();
+        foreach (var action in MoveHintActions)
+        {
+            if (ActionBound(action))
+            {
+                parts.Add(ActionKeyText(action));
+            }
+        }
+
+        return parts.Count > 0 ? string.Join(" / ", parts) : ActionKeyText(MoveHintActions[0]);
+    }
+
+    /// <summary>瞄准提示的标签：键鼠档＝鼠标，手柄档＝右摇杆（瞄准没有可改键动作，档位二选一）。</summary>
+    public string AimHintText() => _hints.IsGamepad ? (string)Tr("SET_LABEL_RSTICK") : (string)Tr("SET_LABEL_MOUSE");
+
+    private static readonly StringName[] MoveHintActions =
+    {
+        new("move_up"),
+        new("move_left"),
+        new("move_down"),
+        new("move_right"),
+    };
+
     // ---------------- 可改键系统方法 ----------------
 
     /// <summary>启动默认键位快照（_ready 首调；改键冲突/恢复默认的数据源）</summary>
@@ -495,7 +578,8 @@ public sealed partial class InputBindingsService : RefCounted
     /// 玩家改键后两者一起变）；未绑定时返回未绑定文案而不是空串——空串会让提示读成
     /// 「按住 加速」，玩家看不出少了什么。
     /// 固定键动作（天赋面板 G 这类不在可改键表的）回落 <c>InputMap</c> 的键盘事件——
-    /// 它们的键不在 <see cref="KeyBindings"/> 里，但提示文案同样要报真键名而非「未绑定」。</summary>
+    /// 它们的键不在 <see cref="KeyBindings"/> 里，但提示文案同样要报真键名而非「未绑定」；
+    /// 鼠标绑定的动作（开火＝左键）再回落鼠标事件，同样报「鼠标左键」而非「未绑定」。</summary>
     public string ActionKeyText(StringName action)
     {
         var keys = EffectiveKeys(action);
@@ -513,6 +597,14 @@ public sealed partial class InputBindingsService : RefCounted
                 {
                     return OS.GetKeycodeString(kc);
                 }
+            }
+        }
+
+        foreach (var ev in InputMap.ActionGetEvents(action))
+        {
+            if (ev is InputEventMouseButton { ButtonIndex: MouseButton.Left })
+            {
+                return (string)Tr("SET_LABEL_LMB");
             }
         }
 

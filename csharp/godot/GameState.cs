@@ -57,6 +57,11 @@ public partial class GameState : Node
     [Signal]
     public delegate void KeyBindingsChangedEventHandler();
 
+    /// <summary>提示标签的设备档切换（键鼠 ⇄ 手柄，最近者胜）：教程目标行与设置页操作速查
+    /// 据此重渲染已显示的提示行。</summary>
+    [Signal]
+    public delegate void InputDeviceChangedEventHandler();
+
     [Signal]
     public delegate void LocaleChangedEventHandler();
 
@@ -470,6 +475,8 @@ public partial class GameState : Node
     // 本订阅转发——订阅在启动装配之前，转发不丢）
     private void OnInputKeyBindingsChanged() => EmitSignal(SignalName.KeyBindingsChanged);
 
+    private void OnInputHintDeviceChanged() => EmitSignal(SignalName.InputDeviceChanged);
+
     private void OnInputJoyLayoutChanged(StringName v) => EmitSignal(SignalName.JoyLayoutChanged, v);
 
     // 本局进程域：RunProgressionService C# 事件 → GameState 同名信号转发
@@ -562,6 +569,7 @@ public partial class GameState : Node
         // 下方启动装配 DetectJoyLayout 按需发射一次，订阅在前保证转发）
         _input.KeyBindingsChanged += OnInputKeyBindingsChanged;
         _input.JoyLayoutChanged += OnInputJoyLayoutChanged;
+        _input.HintDeviceChanged += OnInputHintDeviceChanged;
         // 常驻音效播放器池：播放节点被 queue_free 时音效也不会中断（SfxPlayer 子节点挂本节点）
         AddChild(_sfxPlayer);
         _sfxPlayer.BuildPool();

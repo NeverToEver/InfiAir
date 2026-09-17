@@ -175,15 +175,12 @@ SET_STATE_OFF,"关","Off"
 SET_FIRE,"开火","Fire"
 SET_FIRE_MODE,"开火方式","Fire Input"
 SET_FIRE_MODE_DESC,"按住：按住鼠标左键持续开火；切换：按一下开火、再按一下停火。手柄为右扳机 RT","Hold: fire while the left mouse button is held; Toggle: press once to fire, press again to stop. Gamepad fires with RT"
-SET_CHEATSHEET,"操作速查：
-WASD/方向键 移动 · 鼠标 瞄准
-鼠标左键 开火 · Shift 加速 · Ctrl 微调 · 空格 相位冲刺
-长按 H 召唤母舰 · 长按 B 返航 · 长按 K 放弃
-Esc 暂停 · R 重开（固定不可改）","Controls:
-WASD/Arrows Move · Mouse Aim
-Left Mouse Fire · Shift Boost · Ctrl Fine · Space Dash
-Hold H Mothership · Hold B Home · Hold K Abandon
-Esc Pause · R Restart (fixed)"
+SET_CHEATSHEET,"操作速查","Controls"
+SET_CHEAT_MOVE,"%s 移动 · %s 瞄准","%s Move · %s Aim"
+SET_CHEAT_ACTS,"%s 开火 · %s 加速 · %s 微调 · %s 相位冲刺","%s Fire · %s Boost · %s Fine · %s Dash"
+SET_CHEAT_HOLD,"长按 %s 召唤母舰 · 长按 %s 返航 · 长按 %s 放弃","Hold %s Mothership · Hold %s Home · Hold %s Abandon"
+SET_CHEAT_PARRY,"%s 弹反来袭敌弹","%s Parry incoming bullets"
+SET_CHEAT_SYS,"%s 暂停 · %s 重开（固定不可改）","%s Pause · %s Restart (fixed)"
 SET_VERSION,"InfiAir · v%s","InfiAir · v%s"
 SET_LANGUAGE,"语言","Language"
 SET_AIM_ASSIST,"辅助瞄准","Aim Assist"
@@ -211,9 +208,9 @@ TUT_S4_TITLE,"阶段 4/7：弧光弹反","Stage 4/7: Arc Parry"
 TUT_S5_TITLE,"阶段 5/7：母舰停靠","Stage 5/7: Docking"
 TUT_S6_TITLE,"阶段 6/7：返航与基地","Stage 6/7: Homecoming"
 TUT_S7_TITLE,"阶段 7/7：首领遭遇","Stage 7/7: Boss"
-TUT_S1_OBJ,"%s 移动，鼠标瞄准，按住鼠标左键开火
+TUT_S1_OBJ,"%s 移动，%s 瞄准，按住 %s 开火
 准星套住琥珀标记框，子弹会追踪目标
-击落标记靶 %d/%d","Move with %s, aim with mouse, hold the left button to fire
+击落标记靶 %d/%d","Move with %s, aim with %s, hold %s to fire
 Catch an amber bracket frame with your crosshair to make bullets home in
 Destroy marked targets %d/%d"
 TUT_S2_OBJ,"按住 %s 加速（耗燃料，松开恢复）：%d/%d
@@ -236,6 +233,10 @@ TUT_S6_OBJ,"长按 %s %.1f 秒返航，打开基地控制台
 TUT_S6_CHARGE,"返航蓄力 %d%%…","Charging %d%%…"
 TUT_S6_DOCK,"按 %s 打开一次增幅面板即完成（%s 打开天赋面板）","Press %s to open the augment panel (%s opens the talent panel)"
 TUT_AUGMENT_EMPTY,"本局暂无增幅——正局中获得增幅后在此查看","No augments this run — in a real run they appear here"
+SET_LABEL_LSTICK,"左摇杆","Left Stick"
+SET_LABEL_RSTICK,"右摇杆","Right Stick"
+SET_LABEL_MOUSE,"鼠标","Mouse"
+SET_LABEL_LMB,"鼠标左键","Left Mouse"
 TUT_S7_OBJ,"攻击首领，逼它进入狂暴状态（血量 %d%%）","Damage the boss until it enrages (%d%% HP)"
 TUT_SKIP_HINT,"长按 %s 跳过本阶段","Hold %s to skip this stage"
 TUT_DONE,"教程完成！","Tutorial Complete!"

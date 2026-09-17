@@ -60,7 +60,7 @@ public sealed class TutorialCurriculumTests
     /// （加速读数 ↔ 加速目标、击杀读数 ↔ 目标数）测试照样绿，而玩家看到的是反过来的一组数字。
     /// 期望签名按「阶段 → 目标行 / 蓄力行」写在表里，中文与英文各自比对（两侧签名不同即红）。</summary>
     [Theory]
-    [InlineData(0, "%s|%d|%d", "")]
+    [InlineData(0, "%s|%s|%s|%d|%d", "")]
     [InlineData(1, "%s|%d|%d|%s|%d|%d|%d", "")]
     [InlineData(2, "%d|%d|%d", "")]
     [InlineData(3, "%s|%d|%d", "")]
@@ -263,8 +263,8 @@ public sealed class TutorialCurriculumTests
         Assert.Contains("TutorialProgress", src, StringComparison.Ordinal);
         Assert.DoesNotContain("AimTargetKillGoal", src, StringComparison.Ordinal);
         Assert.DoesNotContain("CombatKillGoal", src, StringComparison.Ordinal);
-        // 键位提示必须取自实际绑定（改键后文案跟变），不得把键名写死回节点
-        Assert.Contains("ActionKeyText", src, StringComparison.Ordinal);
+        // 键位提示必须取自实际绑定的设备感知口（改键后文案跟变、手柄档报按钮标签），不得写死键名
+        Assert.Contains("ActionHintText", src, StringComparison.Ordinal);
         // 阶段定义与达成判据必须经 core：节点自己判「击杀数 >= 3」这类比较即分叉
         Assert.DoesNotContain("_stageKills", src, StringComparison.Ordinal);
     }

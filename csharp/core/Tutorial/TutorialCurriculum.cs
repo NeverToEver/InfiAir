@@ -33,6 +33,12 @@ public enum TutorialArg
     /// <summary>移动四向的绑定键（四向各自的键拼成一段）。</summary>
     MoveKeys,
 
+    /// <summary>瞄准的设备标签（键鼠＝鼠标，手柄＝右摇杆）。</summary>
+    AimHint,
+
+    /// <summary>开火的设备标签（键鼠＝鼠标左键，手柄＝RT）。</summary>
+    FireHint,
+
     /// <summary>加速动作的绑定键。</summary>
     BoostKey,
 
@@ -157,7 +163,7 @@ public static class TutorialCurriculum
             "TUT_S1_TITLE",
             "TUT_S1_OBJ",
             TargetCount: 3,
-            ObjectiveArgs: new[] { TutorialArg.MoveKeys, TutorialArg.KillCount, TutorialArg.KillGoal }
+            ObjectiveArgs: new[] { TutorialArg.MoveKeys, TutorialArg.AimHint, TutorialArg.FireHint, TutorialArg.KillCount, TutorialArg.KillGoal }
         ),
         new(
             TutorialGoalKind.Maneuver,

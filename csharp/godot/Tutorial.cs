@@ -33,16 +33,6 @@ public partial class Tutorial : Node2D
     private static readonly StringName ActAugmentPanel = new("augment_panel");
     private static readonly StringName ActTalentPanel = new("talent_panel");
 
-    /// <summary>移动提示的四向动作（顺序即提示里的拼段顺序：上/左/下/右＝WASD 的书写顺序）。
-    /// 四向都可改键，故提示文本不得写死键名。</summary>
-    private static readonly StringName[] MoveActions =
-    {
-        new("move_up"),
-        new("move_left"),
-        new("move_down"),
-        new("move_right"),
-    };
-
     /// <summary>阶段进度与达成判据（core）。节点每帧只把事件喂进来，不在这里判达标。</summary>
     private readonly TutorialProgress _progress = new();
 
@@ -82,11 +72,13 @@ public partial class Tutorial : Node2D
 
     private readonly Callable _onLocaleChanged;
     private readonly Callable _onPlayerDied;
+    private readonly Callable _onHintDeviceChanged;
 
     public Tutorial()
     {
         _onLocaleChanged = Callable.From(OnLocaleChanged);
         _onPlayerDied = Callable.From(OnPlayerDied);
+        _onHintDeviceChanged = Callable.From(OnHintDeviceChanged);
     }
 
     // ---------------- 观测面（探针读取的玩家可见读数） ----------------
@@ -124,6 +116,11 @@ public partial class Tutorial : Node2D
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
+        }
+
+        if (!gs.IsConnected(GameState.SignalName.InputDeviceChanged, _onHintDeviceChanged))
+        {
+            gs.Connect(GameState.SignalName.InputDeviceChanged, _onHintDeviceChanged);
         }
 
         // 辅助瞄准框覆盖层：与 Main 同款运行时创建（登记 GameState.AimFrameLayer），
@@ -167,6 +164,11 @@ public partial class Tutorial : Node2D
         if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
+        }
+
+        if (gs.IsConnected(GameState.SignalName.InputDeviceChanged, _onHintDeviceChanged))
+        {
+            gs.Disconnect(GameState.SignalName.InputDeviceChanged, _onHintDeviceChanged);
         }
     }
 
@@ -252,15 +254,19 @@ public partial class Tutorial : Node2D
 
     private Variant ResolveArg(TutorialArg kind, float chargeProgress) => kind switch
     {
-        TutorialArg.MoveKeys => MoveKeysText(),
-        TutorialArg.BoostKey => GameState.Instance.ActionKeyText(ActBoost),
-        TutorialArg.DashKey => GameState.Instance.ActionKeyText(ActDash),
-        TutorialArg.DockKey => GameState.Instance.ActionKeyText(ActDock),
-        TutorialArg.HomecomingKey => GameState.Instance.ActionKeyText(ActHomecoming),
-        TutorialArg.SkipKey => GameState.Instance.ActionKeyText(ActGiveUp),
-        TutorialArg.ParryKey => GameState.Instance.ActionKeyText(ActParry),
-        TutorialArg.AugmentKey => GameState.Instance.ActionKeyText(ActAugmentPanel),
-        TutorialArg.TalentKey => GameState.Instance.ActionKeyText(ActTalentPanel),
+        // 键位补参一律走设备感知取值口（ActionHintText/MoveHintText）：键鼠档＝键名（改键后跟变，
+        // 既有判据保持），手柄档＝按钮/扳机/摇杆标签——同一处提示在两档下都不留占位符
+        TutorialArg.MoveKeys => GameState.Instance.MoveHintText(),
+        TutorialArg.AimHint => GameState.Instance.AimHintText(),
+        TutorialArg.FireHint => GameState.Instance.ActionHintText(new StringName("fire")),
+        TutorialArg.BoostKey => GameState.Instance.ActionHintText(ActBoost),
+        TutorialArg.DashKey => GameState.Instance.ActionHintText(ActDash),
+        TutorialArg.DockKey => GameState.Instance.ActionHintText(ActDock),
+        TutorialArg.HomecomingKey => GameState.Instance.ActionHintText(ActHomecoming),
+        TutorialArg.SkipKey => GameState.Instance.ActionHintText(ActGiveUp),
+        TutorialArg.ParryKey => GameState.Instance.ActionHintText(ActParry),
+        TutorialArg.AugmentKey => GameState.Instance.ActionHintText(ActAugmentPanel),
+        TutorialArg.TalentKey => GameState.Instance.ActionHintText(ActTalentPanel),
         TutorialArg.BoostCount => _progress.BoostCount,
         TutorialArg.BoostGoal => _progress.BoostGoal,
         TutorialArg.DashCount => _progress.DashCount,
@@ -277,22 +283,6 @@ public partial class Tutorial : Node2D
         // 「少一块」的文案（编译、单测、冒烟全绿）——抛错会被冒烟的错误正则抓红
         _ => throw new System.ArgumentOutOfRangeException(nameof(kind), kind, "教程补参未接线"),
     };
-
-    /// <summary>移动提示的键位段：四向各自的首个绑定键拼段（默认 WASD）。
-    /// 四向都可改键，写死键名会让改键后的提示说谎；未绑定的方向跳过，全未绑定则整段取未绑定文案。</summary>
-    private string MoveKeysText()
-    {
-        var parts = new List<string>();
-        foreach (var action in MoveActions)
-        {
-            if (GameState.Instance.ActionBound(action))
-            {
-                parts.Add(GameState.Instance.ActionKeyText(action));
-            }
-        }
-
-        return parts.Count > 0 ? string.Join(" / ", parts) : GameState.Instance.ActionKeyText(MoveActions[0]);
-    }
 
     /// <summary>首领狂暴阈值百分比：取自 Boss 自身的装载值（同一份配置的同一份读数，
     /// 与 Boss 的狂暴判据同源），不在教程里再读一次配置。</summary>
@@ -322,6 +312,28 @@ public partial class Tutorial : Node2D
     {
         _titleLabel.Text = (string)Tr(_progress.Stage.TitleKey);
         SetObjectiveTr(_objectiveKey, _objectiveArgs);
+        RefreshSkipHint();
+    }
+
+    /// <summary>设备档切换：键位补参按当前设备重取（键鼠 ⇄ 手柄），已显示的提示行即时换档。
+    /// 返航段已返航时目标行是后续行（带两个键位补参），其余形态按阶段目标行重渲染；
+    /// 蓄力行只有百分比补参，下一次 0.1s 节流轮询自然成形，不必在此特判。</summary>
+    private void OnHintDeviceChanged()
+    {
+        if (_finished || _failed)
+        {
+            return;
+        }
+
+        if (_progress.Stage.Goal == TutorialGoalKind.Homecoming && _progress.Charged && !AugmentPanelOpen())
+        {
+            ShowFollowUpObjective();
+        }
+        else
+        {
+            SetStageObjective();
+        }
+
         RefreshSkipHint();
     }
 

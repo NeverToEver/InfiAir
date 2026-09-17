@@ -92,6 +92,16 @@ public partial class TutorialProbeDriver : Node
     /// 冷却未到就按只会白挥一下盾，探针按冷却节奏发令。</summary>
     private const int ParryCooldownFrames = 270;
 
+    /// <summary>设备档切换断言的等待上限（帧）：信号广播与重渲染都应在两三帧内完成，
+    /// 超时即断线（不是慢，是没接上）。</summary>
+    private const int HintSwitchBudgetFrames = 30;
+
+    /// <summary>召唤母舰的手柄标签（物理名，不随语言变；本趟默认 Xbox 布局，PS 布局为 □）。</summary>
+    private const string PadDockLabel = "X";
+
+    /// <summary>召唤母舰的键鼠档键名（本趟经生产改键口改到 J——顺带钉「改键后键鼠档仍跟随」）。</summary>
+    private const string KbDockLabel = "J";
+
     /// <summary>死亡重开的等待上限（帧）：提示 1.5s + 场景重载 ≈ 2s，取 6s 余量。</summary>
     private const int ReloadBudgetFrames = 360;
 
@@ -144,6 +154,10 @@ public partial class TutorialProbeDriver : Node
     /// <summary>弹反段走完后的下一站（首遍→母舰段；第三遍→对接召唤）：实战清场后必经弹反段，
     /// 两遍的后续不同，故单独持有而不是复用 _nextStep。</summary>
     private Step _parryNext;
+    /// <summary>设备感知断言的子阶段（机动段内嵌：注手柄断手柄档 → 注键盘断回键鼠档）。</summary>
+    private int _hintPhase;
+    /// <summary>设备感知断言当前子阶段的等待帧（超时即红——信号链或重渲染断了）。</summary>
+    private int _hintWaitFrames;
 
     /// <summary>连跳编排：当前这一跳的目标阶段（1 → 2）、两跳走完后的下一站。</summary>
     private int _skipTarget;
@@ -340,6 +354,54 @@ public partial class TutorialProbeDriver : Node
         OverBudget("机动");
     }
 
+    /// <summary>设备感知断言（母舰段内嵌）：该阶段的目标行不随任何计数自动刷新——只有设备档
+    /// 切换信号链能把它换档，判据钉的就是这条链。经 <c>Input.ParseInputEvent</c> 注入**手柄事件**
+    /// （生产输入面的另一路），断目标行报出手柄标签（X＝召唤的手柄绑定，物理名不随语言变）；再注入
+    /// 键盘事件断切回键名（J＝本趟改键后的召唤键——顺带钉「改键后键鼠档仍跟随」）。标签不跟设备
+    /// 变档／重渲染链断线／残留占位符，都在这里红。手柄摇杆注入后立即归零：ParseInputEvent 的轴
+    /// 状态不会自动复位，不复位会让玩家一直向下漂；断言窗口收在蓄力替换行出现（3s）之前。</summary>
+    private void DriveHintDeviceCheck()
+    {
+        switch (_hintPhase)
+        {
+            case 0:
+                if (_stepFrame >= 2)
+                {
+                    Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.8f });
+                    Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.0f });
+                    _hintPhase = 1;
+                    _hintWaitFrames = 0;
+                }
+
+                break;
+            case 1:
+                if (_tutorial!.ObjectiveText().Contains(PadDockLabel, System.StringComparison.Ordinal))
+                {
+                    _hintPhase = 2;
+                    _hintWaitFrames = 0;
+                    Input.ParseInputEvent(new InputEventKey { Device = -1, Keycode = Key.F7, Pressed = true });
+                    Input.ParseInputEvent(new InputEventKey { Device = -1, Keycode = Key.F7, Pressed = false });
+                }
+                else if (++_hintWaitFrames > HintSwitchBudgetFrames)
+                {
+                    Fail($"注入手柄事件后目标行未报手柄标签 {PadDockLabel}（设备档切换或重渲染断线）：{_tutorial.ObjectiveText()}");
+                }
+
+                break;
+            case 2:
+                if (_tutorial!.ObjectiveText().Contains(KbDockLabel, System.StringComparison.Ordinal))
+                {
+                    _hintPhase = 3; // 两档都成形，设备感知判据收口
+                }
+                else if (++_hintWaitFrames > HintSwitchBudgetFrames)
+                {
+                    Fail($"注入键盘事件后目标行未切回键名 {KbDockLabel}（档位不随最近设备回切）：{_tutorial.ObjectiveText()}");
+                }
+
+                break;
+        }
+    }
+
     /// <summary>弹反段驱动（正反两半）：先反向对照——等一发敌弹贴身（&lt;55px）而全程不按弹反，
     /// 断目标行读数纹丝不动（弹到了、没弹反、计数不涨）；再正向两发——常规距离带与近身带各
     /// 弹反一发（生产输入面 <c>parry</c> 动作），断读数 0→1→2 且阶段推进。发令按生产冷却节奏
@@ -495,6 +557,7 @@ public partial class TutorialProbeDriver : Node
         }
 
         CheckStageReadout(4);
+        DriveHintDeviceCheck();
         Input.ActionPress(new StringName("dock"));
         OverBudget("母舰停靠");
     }

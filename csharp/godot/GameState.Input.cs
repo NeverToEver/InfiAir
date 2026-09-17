@@ -52,6 +52,35 @@ public partial class GameState : Node
     /// <summary>动作的首个绑定键标签（一句提示里只放一个键时用；未绑定返回未绑定文案）</summary>
     public string ActionKeyText(StringName action) => _input.ActionKeyText(action);
 
+    /// <summary>动作的单标签提示（按最近使用设备取档：键鼠＝键名，手柄＝按钮/扳机/摇杆标签）。
+    /// 教程目标行与设置页操作速查共用本口——「教程跟设备、设置页不跟」的第二套事实不成立。</summary>
+    public string ActionHintText(StringName action) => _input.ActionHintText(action);
+
+    /// <summary>移动提示标签段（手柄档＝左摇杆；键鼠档＝四向首个键名拼段，默认 WASD）。</summary>
+    public string MoveHintText() => _input.MoveHintText();
+
+    /// <summary>瞄准提示标签（键鼠＝鼠标；手柄＝右摇杆）。</summary>
+    public string AimHintText() => _input.AimHintText();
+
+    /// <summary>提示标签当前是否手柄档（探针断「标签随设备变档」的读数口）。</summary>
+    public bool HintsAreGamepad => _input.HintsAreGamepad;
+
     /// <summary>动作当前是否有生效绑定（提示文本要跳过未绑定方向时用）</summary>
     public bool ActionBound(StringName action) => _input.ActionBound(action);
+
+    /// <summary>观察全部输入事件并按类型映射到设备档（键鼠事件 ⇄ 手柄事件，最近者胜）：
+    /// 只观察不消费，档位判定在 core（LastInputDevice），切换经 InputDeviceChanged 广播。
+    /// 逐事件只做类型分派——热路径无分配。</summary>
+    public override void _Input(InputEvent @event)
+    {
+        if (@event is InputEventJoypadButton or InputEventJoypadMotion)
+        {
+            _input.NoteInputDevice(Core.Input.HintDevice.Gamepad);
+        }
+        else if (@event is InputEventKey or InputEventMouseButton or InputEventMouseMotion)
+        {
+            _input.NoteInputDevice(Core.Input.HintDevice.KeyboardMouse);
+        }
+        // 其余事件类型（触摸板手势等）不参与档位判定
+    }
 }
