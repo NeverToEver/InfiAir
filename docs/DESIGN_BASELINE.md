@@ -168,8 +168,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.11 Tutorial
 - Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-dock → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
-- **课程表单源在 core**（`csharp/core/Tutorial/`）：六个阶段的标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作名一处写定（`TutorialCurriculum`），阶段内目标进度与达成判据在 `TutorialProgress`。godot 层只做适配——刷怪布局、信号接线、取值来源；阶段顺序、目标数、达成判据、续接钳制不在节点里各写一份（此前目标数在代码常数与玩家文案里各有一份，改一处即静默分叉）。
-- **目标行键位感知**：教程要求玩家「按某个键」的每一处（加速 / 相位突进 / 召唤母舰 / 返航 / 跳过）都从**实际绑定**取标签（`GameState.ActionKeysText`），玩家改键后教程文案跟着变，不再硬编码键名。鼠标开火与手柄扳机是固定绑定（`EnsureFireBinding` 只增不改），仍按定值写。
+- **阶段表单源在 core**（`csharp/core/Tutorial/`）：六个阶段的标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作名一处写定（`TutorialCurriculum`），阶段内目标进度与达成判据在 `TutorialProgress`。godot 层只做适配——刷怪布局、信号接线、取值来源；阶段顺序、目标数、达成判据、续接钳制不在节点里各写一份（此前目标数在代码常数与玩家文案里各有一份，改一处即静默分叉）。
+- **目标行键位感知**：教程要求玩家「按某个键」的每一处（加速 / 相位突进 / 召唤母舰 / 返航 / 跳过）都从**实际绑定**取标签（`GameState.ActionKeyText`（动作的首个绑定键）），玩家改键后教程文案跟着变，不再硬编码键名。鼠标开火与手柄扳机是固定绑定（`EnsureFireBinding` 只增不改），仍按定值写。
 - **目标计数与文案同源**：目标行里的数字（击杀 N、加速 N/2）由 core 的目标计数经文案补参给出，文案表只留占位符；返航蓄力秒数取 `effects.home_charge_time`、首领狂暴阈值取 Boss 装载后的读数（`boss.enrage.hp_ratio`，与 Boss 的狂暴判据同一份值）——改平衡值文案自动跟。
 - **进度检查点与续接**：`settings.json` 的 `tutorial_stage` 记录「下次进入从第几阶段开始」，进入阶段时写入、教程完成时清零；标题屏在该值 > 0 时把入口提示换成「继续教程」。完成度 `tutorial_done` 语义不变（不是偏好设置，「全部恢复默认」保留它）。
 - **死亡自动重开本阶段**：教程不设失败死局——死亡后短暂提示并重开**当前**阶段（清场、重置该阶段进度、重刷目标），Esc 随时可退出。此前死亡只把 HUD 换成「任务失败」并要求玩家自己 Esc 退出，再从第一阶段重来。
