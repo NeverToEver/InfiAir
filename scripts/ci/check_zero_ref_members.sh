@@ -131,9 +131,10 @@ ALLOW = (
     ("csharp/godot/PlayerParry.cs", "GetPhaseRecover", "相位值静态访问口（注释声明保留为公开查询口）"),
     # 天赋 UI/服务读口。
     ("csharp/godot/TalentFanView.cs", "Selected", "选中节点读口（与 SetSelected 成对，供外部读取当前选中）"),
-    # UITheme 共享设施：文档单源指针指向它们，删除须连带改文档（归文档 owner）。
-    ("csharp/godot/UITheme.cs", "ChamferPoints", "切角语汇单源公开入口（DESIGN_BASELINE 与 Hud 注释均指向它）"),
-    ("csharp/godot/UITheme.cs", "AnimateClose", "共享动效设施（DESIGN_BASELINE §2.8 与 ROADMAP 决策点名；模态退场现走 AnimateModalClose）"),
+    # UITheme 共享设施：两条都是「已有替代实现在服役」的一次性分配版/通用版，当前无调用方。
+    # 保留是显式决策（删掉要同步文档与调用点），不是漏网死代码。
+    ("csharp/godot/UITheme.cs", "ChamferPoints", "切角几何的一次性分配版；逐帧绘制走零分配的 FillChamferPoints，本方法当前无调用方，删除须同步 DESIGN_BASELINE §1.9.1 与 Hud 注释"),
+    ("csharp/godot/UITheme.cs", "AnimateClose", "淡出 + 回调的通用工厂；模态退场现走 AnimateModalClose，本方法当前无调用方，删除须同步 DESIGN_BASELINE §2.8"),
 )
 
 

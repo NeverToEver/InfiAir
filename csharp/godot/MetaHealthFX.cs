@@ -154,7 +154,9 @@ public partial class MetaHealthFX : CanvasLayer
         _deferFrame = Callable.From(OnDeferFrame);
     }
 
-    // ---------------- 实机调参阅数读口（平滑参数注入口 + 状态 getter；无生产调用方，保留理由见 ROADMAP） ----------------
+    // ---------------- 实机调参阅数读口（平滑参数注入口 + 状态 getter） ----------------
+    // 无生产调用方，保留理由＝实机调参与截图核对的观察面（诊断口，非死代码）；
+    // 逐条登记在 scripts/ci/check_zero_ref_members.sh 的 ALLOW 表。
 
     /// <summary>血量-裂纹映射曲线（§4.2；纯映射值，不含生长过冲）</summary>
     public float CrackProgress()
