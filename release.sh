@@ -158,11 +158,31 @@ cp "$BUILD_DIR/linux/InfiAir.x86_64" "$STAGE_DIR/linux/"
 cp -r "$BUILD_DIR/linux/data_InfiAir_linuxbsd_x86_64" "$STAGE_DIR/linux/"
 cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/infiair.desktop "$STAGE_DIR/linux/"
 chmod +x "$STAGE_DIR/linux/install.sh" "$STAGE_DIR/linux/uninstall.sh"
-tar -C "$STAGE_DIR/linux" -czf "$OUT_DIR/InfiAir-$VERSION-linux-x86_64.tar.gz" .
 
 cp "$BUILD_DIR/windows/InfiAir.exe" "$STAGE_DIR/windows/"
 cp -r "$BUILD_DIR/windows/data_InfiAir_windows_x86_64" "$STAGE_DIR/windows/"
 cp packaging/windows/install.bat packaging/windows/uninstall.bat "$STAGE_DIR/windows/"
+
+# 随包授权文本：MIT 全文 + 第三方声明 + 字体许可全文。字体已随 embed_pck 嵌进可执行体，
+# 而 OFL 第 2 条要求每份副本都含版权声明与许可全文——包内缺件即分发面授权不完整，
+# 且这种缺失不报错、下载者根本看不出，故在打包处逐件断言（缺件非零退出）。
+# 先查源再拷：源文件被删/改名时直接由这里点名（否则先炸在 cp 上，报错只说「没有这个文件」）。
+for f in LICENSE NOTICE assets/fonts/NotoSansSC-OFL.txt; do
+	if [ ! -s "$f" ]; then
+		echo "[release] 授权文本源文件缺失或为空：${f}——OFL 要求随副本附版权声明与许可全文，中止" >&2
+		exit 1
+	fi
+done
+for d in linux windows; do
+	cp LICENSE NOTICE assets/fonts/NotoSansSC-OFL.txt "$STAGE_DIR/$d/"
+	for f in LICENSE NOTICE NotoSansSC-OFL.txt; do
+		if [ ! -s "$STAGE_DIR/$d/$f" ]; then
+			echo "[release] 包内缺少授权文本 ${f}（${d}）——OFL 要求随副本附版权声明与许可全文，中止" >&2
+			exit 1
+		fi
+	done
+done
+tar -C "$STAGE_DIR/linux" -czf "$OUT_DIR/InfiAir-$VERSION-linux-x86_64.tar.gz" .
 ZIP_OUT="$(pwd)/$OUT_DIR/InfiAir-$VERSION-windows-x86_64.zip"
 	case "$ZIP_TOOL" in
 		zip)    (cd "$STAGE_DIR/windows" && zip -q -r "$ZIP_OUT" .) ;;
