@@ -489,19 +489,19 @@ public partial class ProbeHost : Node
             {
                 _settingsProbe = true;
             }
-            else if (arg == "--play-probe")
+            else if (arg == "--autoplay-probe")
             {
-                _playProbe = true;
+                _autoplayProbe = true;
             }
-            else if (arg.StartsWith("--play-probe=", System.StringComparison.Ordinal))
+            else if (arg.StartsWith("--autoplay-probe=", System.StringComparison.Ordinal))
             {
                 // 模拟时长（秒）；解析不出正整数就按默认时长跑——不静默变成 0 帧空跑
-                if (int.TryParse(arg["--play-probe=".Length..], out var seconds) && seconds > 0)
+                if (int.TryParse(arg["--autoplay-probe=".Length..], out var seconds) && seconds > 0)
                 {
-                    _playSeconds = seconds;
+                    _autoplaySeconds = seconds;
                 }
 
-                _playProbe = true;
+                _autoplayProbe = true;
             }
             else if (arg == "--startup-time")
             {
@@ -590,19 +590,19 @@ public partial class ProbeHost : Node
             }
         }
 
-        if (_playProbe && expectUserDir.Length == 0)
+        if (_autoplayProbe && expectUserDir.Length == 0)
         {
             // 安全互锁：模拟游玩真跑一局（会写设置、可能死亡删档），必须在隔离用户目录里跑——
             // 不带 --expect-user-dir 时拒绝启动，避免动到开发者真实的检查点与设置。
-            GD.PushError("[play-probe] 未给 --expect-user-dir：模拟游玩会写 user://（含死亡删档），"
+            GD.PushError("[autoplay-probe] 未给 --expect-user-dir：模拟游玩会写 user://（含死亡删档），"
                 + "拒绝在开发者真实用户目录下开跑；用临时目录并把 APPDATA/XDG_DATA_HOME/HOME 一起指过去");
-            _playProbe = false;
+            _autoplayProbe = false;
         }
 
         VerifyUserDirIsolation(expectUserDir);
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
-            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _playProbe)
+            || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _autoplayProbe)
         {
             // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -679,10 +679,10 @@ public partial class ProbeHost : Node
 
     public override void _ExitTree()
     {
-        if (_playProbe || _playFireHeld != 0 || _playMoveX != 0 || _playMoveY != 0)
+        if (_autoplayProbe || _autoplayFireHeld != 0 || _autoplayMoveX != 0 || _autoplayMoveY != 0)
         {
             // 模拟游玩注入的是生产输入动作：退出树必须收回，否则动作残留会传给后续场景（同进程重开一局）
-            ReleasePlayInputs();
+            ReleaseAutoplayInputs();
         }
 
         if (_fogSubscribed)
@@ -798,9 +798,9 @@ public partial class ProbeHost : Node
             return;
         }
 
-        if (_playProbe)
+        if (_autoplayProbe)
         {
-            TickPlayProbe();
+            TickAutoplayProbe();
             return;
         }
 
@@ -1541,7 +1541,7 @@ public partial class ProbeHost : Node
             }
 
             GameState.Instance.SetReduceFlash(false);
-            settings.ShowSettings(null); // 每次开页都重放 PlayBoot
+            settings.ShowSettings(null); // 每次开页都重放 AutoplayBoot
             _settingsProbeStep = 1;
             _settingsProbeFrame = 0;
             _settingsProbeSawBlink = false;

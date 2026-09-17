@@ -344,6 +344,16 @@ smoke_tutorial() {
   expect_marker "教程场景就绪" "${PROBE_LOG_BASE}.tutorial.log" "[tutorial] 场景就绪"
 }
 
+smoke_autoplay() {
+  # 自动游玩（autoplay，探针口径见 csharp/godot/ProbeHost.Autoplay.cs）：真实规则跑一整局——不注入无敌、
+  # 不直接改血量/得分，全经生产输入面（移动/开火/弹反/召唤母舰）。CI 只取 180 模拟秒（≈8s 墙钟）：
+  # 抓「能开局但玩不起来」这一类——整局零击杀（火力/命中/刷怪链断线）、存活却连续 60 模拟秒无得分
+  # 无击杀（停摆）都判红且不打完成标记，只判「不崩」抓不到。死亡不算失败（必死曲线下的正常收场，
+  # 写进汇总）。长局（--autoplay-probe=900）靠人工过目，标准登记在 ROADMAP「发布前人工验收」。
+  run_case "autoplay run smoke" 11100 "${PROBE_LOG_BASE}.autoplay.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.autoplay.userdata" --autoplay-probe=180
+  expect_marker "自动游玩全周期" "${PROBE_LOG_BASE}.autoplay.log" "[autoplay-probe] 自动游玩完成（预算 180s）"
+}
+
 SMOKE_CASES=(
   smoke_main
   smoke_settings
@@ -366,6 +376,7 @@ SMOKE_CASES=(
   smoke_settings_version
   smoke_early_leave
   smoke_tutorial
+  smoke_autoplay
 )
 
 # 调度：串行（WORKERS ≤ 1）时逐趟直跑，输出实时可见、首个失败即退出（与既有行为一致）；
