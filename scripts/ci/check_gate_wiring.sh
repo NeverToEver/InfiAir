@@ -800,6 +800,7 @@ if smoke_text is not None:
     MARKER_TAG_ALIAS = {
         "event-probe-death": "event-probe",     # 死亡趟复用 event-probe 的打印点
         "event-probe-killall": "event-probe",   # 击杀趟的收尾标记同样打在 event-probe 标签下
+        "practice-probe": "practice",           # 落位标记打在练习宿主（生产节点）身上，探针宿主随切场景释放
     }
     # 无探针开关的趟（跑生产场景）：标记标签无法从开关派生，逐条登记（未登记即红，逼出决策）
     NO_SWITCH_MARKER_TAGS = {

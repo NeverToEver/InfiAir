@@ -331,7 +331,7 @@ smoke_save_restore() {
 smoke_settings_version() {
   # 设置版本：高于当前的版本档必须按逐字段默认值回退（只告警照读已知键名会把未来语义当当前语义读入，
   # core 版本判定被架空且无任何信号）。判据两半互补——高版本档逐项等于出厂档、同版对照档逐项还原
-  # （只判前半会让「一律回默认」的实现照样绿）；另断「全部恢复默认」的四个缓存型信号在有变化时
+  # （只判前半会让「一律回默认」的实现照样绿）；另断「全部恢复默认」的五个缓存型信号在有变化时
   # 各发一次、无变化时一个都不发。
   run_case "settings version probe smoke" 120 "${PROBE_LOG_BASE}.settings_version.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings_version.userdata" --settings-version-probe
   expect_marker "设置版本回退与复位信号" "${PROBE_LOG_BASE}.settings_version.log" "[settings-version-probe] 版本回退与复位信号成立"
@@ -360,7 +360,7 @@ smoke_practice() {
   # 写坏则同一份日志里出引擎错误（切场景失败打 ERROR: Cannot open file）由本趟的错误正则判红。
   # 帧数：探针段 ≈ 5 模拟秒 + 入口后练习场景的入场 1.65s 与直选请求 ≈ 3 模拟秒（余量 ≈ 300 帧）。
   run_case "practice mode smoke" 900 "${PROBE_LOG_BASE}.practice.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.practice.userdata" --practice-probe
-  expect_marker "练习直选与不落盘" "${PROBE_LOG_BASE}.practice.log" "[practice-probe] 直选与不落盘语义成立"
+  expect_marker "练习直选与不落盘" "${PROBE_LOG_BASE}.practice.log" "[practice] 直选内容已受理"
 }
 
 smoke_best_record() {
