@@ -43,13 +43,22 @@
 #   e2) export_presets.cfg 的 include/exclude 过滤项都指向仓库内真实存在的路径（含通配项须匹配到
 #      至少一个文件）——写错或漏跟改名时该条排除静默失效，而导出照常成功、日志干净。构建产物
 #      目录（obj/bin）跳过：干净检出里本就不存在；
+#   e3) 上一条只有**正向**判据（列出的路径存在），反向「该排除的都排除了」无人判：新增一个
+#      csharp/godot/ProbeHost.Foo.cs 或 csharp/tests 下的新测试文件而不改 exclude 时，它们静默
+#      进发布包（AGENTS §5：测试设施不进生产路径），且导出照常成功、日志干净。故按 PACKAGE_RULES
+#      逐条从磁盘枚举发布包候选文件，要求每条都被某条 exclude 过滤项覆盖；
 #   e4) ci.yml 的引擎钉版：GODOT_VERSION 取自 env，缓存命中时直接软链、`godot --version` 只打印
 #      不校验——缓存污染或镜像换版会让全部门禁跑到别的引擎上（判据全变味而全绿）。故要求
 #      安装步骤与缓存命中步骤**都**断言版本，且断言与 env.GODOT_VERSION 同源（比较 $GODOT_VERSION
 #      而非第二份字面量）；版本字面量不得散落在 run 正文里（改 env 却漏改字面量＝同一事实两处维护，
 #      AGENTS §1 单源）；
+#   f) regenerate_all.sh 的生成器覆盖：素材门禁判的是「重跑后无漂移」，漏跑一个生成器同样无漂移
+#      （那份产物根本没被重写）＝覆盖静默缩小。scripts/tools 下每个 .py 要么被 regenerate_all
+#      调用、要么登记进 TOOLS_IGNORE（独立工具，逐条写理由）、要么是被调用生成器 import 的共享
+#      模块——新生成器忘挂进 regenerate_all 即红。
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数、配置项找不到、版本断言解析不出，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到、发布包候选枚举为空、生成器集合为空、版本断言解析不出，
+# 一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -79,6 +88,11 @@ TOOLS_IGNORE = {
 
 errors: list[str] = []
 MISSING = object()
+# 结论行要报的计数（在各自的判定段里填充；取不到判据时对应的错误已另报，结论行只在零错误时打印）
+package_candidates = 0                # e3：发布包候选文件数（被 exclude 覆盖的那些）
+generator_called: set[str] = set()    # f：regenerate_all.sh 实际调用的生成器
+
+
 def read(path: pathlib.Path):
     if not path.exists():
         errors.append(f"{path.relative_to(ROOT).as_posix()} 不存在——取不到判据，拒绝判 clean")
@@ -407,6 +421,59 @@ else:
         errors.append("export_presets.cfg 一条过滤项都没解析出来——格式或路径漂移？"
                       "取不到判据，拒绝判 clean")
 
+    # ---------- e3) 反向：发布包里不得留下测试设施 ----------
+    # 上面的正向判据只管「列出的路径存在」，管不到「该排除的漏了」：新增一个
+    # csharp/godot/ProbeHost.Foo.cs（该项目刚因分部文件踩过坑）或 csharp/tests 下的新文件而不改
+    # exclude 时，它们静默进发布包（AGENTS §5：测试设施不进生产路径），导出照常成功、日志干净。
+    # 故按 PACKAGE_RULES 从磁盘枚举候选，逐个要求被某条 exclude 过滤项覆盖。
+    # 维护口径：新增测试设施落在别的路径下时，必须在此登记一条规则（规则匹配不到任何文件也判红，
+    # 防规则随改名失效后本判定空转）。
+    PACKAGE_EXCLUDE_RULES = [
+        ("csharp/**/ProbeHost*.cs", "探针宿主源码（含分部文件）：测试设施不得进发布包"),
+        ("scenes/probe_host.tscn", "探针宿主场景：测试设施不得进发布包"),
+        # 整棵 tests 树（源码 / .uid / csproj）：uid 是 Godot 导入产物、会随工程入包，
+        # 只挡 *.cs 会给「测试工程以别的后缀散进发布包」留口子
+        ("csharp/tests/**/*", "core 层单测工程整棵（测试设施，不入主 sln）"),
+    ]
+
+    def glob_candidates(pattern: str) -> list[str]:
+        """枚举候选文件（返回仓库相对路径）。`**` 跨目录层级（pathlib 语义：`*` 不跨 `/`）；
+        候选是否被覆盖由 exclude_matcher 按 Godot 过滤项语义判（那里的 `*` 与 `**` 都跨分隔符）。
+        路径一律按 relative_to(ROOT) 归一：macOS 上 ROOT 是 /private/tmp/… 而 glob 可能给出
+        /tmp/… 别名（/tmp 是符号链接），比对绝对路径字符串会得到假「未覆盖」或假覆盖。
+        obj/bin 下的构建产物跳过（与 e2 同口径）：它们不进发布包、干净检出里也不存在，
+        本机刚构建过的树上把它们计入候选只会让条数与失败输出变噪。"""
+        return sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob(pattern)
+                      if p.is_file() and not any(x in {"obj", "bin"} for x in p.parts))
+
+    def exclude_matcher(pattern: str):
+        pat = pattern[6:] if pattern.startswith("res://") else pattern
+        return re.compile("^" + re.escape(pat).replace(r"\*\*", ".*").replace(r"\*", ".*") + "$")
+
+    uncovered: list[str] = []
+    candidates_seen: set[str] = set()
+    for pattern, why in PACKAGE_EXCLUDE_RULES:
+        candidates = glob_candidates(pattern)
+        if not candidates:
+            errors.append(
+                f"发布包反向判据的规则 {pattern}（{why}）匹配不到任何文件——路径漂移（改名/搬目录）"
+                "会让该条判定静默空转，须同步规则，别删断言")
+            continue
+        matchers = [exclude_matcher(e) for e in exclude_entries]
+        for rel in candidates:
+            candidates_seen.add(rel)
+            if not any(m.match(rel) for m in matchers):
+                uncovered.append(f"{rel}（规则 {pattern}：{why}）")
+    package_candidates = len(candidates_seen)
+    if not candidates_seen:
+        errors.append("发布包反向判据一条候选文件都没枚举到——取不到判据，拒绝判 clean")
+    for rel in sorted(set(uncovered)):
+        errors.append(
+            f"测试设施 {rel} 没有被 export_presets.cfg 的任何 exclude 过滤项覆盖——"
+            "它会静默进发布包（AGENTS §5），而导出照常成功、日志干净：须在该文件的 exclude_filter "
+            "里补一条（或把目标移出发布包路径）"
+        )
+
 # ---------- e4) ci.yml 的引擎钉版必须有断言 ----------
 # 判据：GODOT_VERSION 是钉版的单一事实源，但此前缓存命中路径只是软链 + 打印版本——缓存污染
 # （同 key 里躺着别的版本）或镜像换版时，整条门禁链跑到另一个引擎上而全绿。故要求两个安装步骤
@@ -463,6 +530,44 @@ if yml_text is not None:
                 errors.append(
                     f"ci.yml:{lineno} 的门禁步骤 run 正文里出现版本字面量 {lit}——"
                     "版本以 ${GODOT_VERSION} 代入，写死即同一事实两处维护")
+
+# ---------- f) regenerate_all.sh 的生成器覆盖 ----------
+# 判据：素材门禁判「重跑后无漂移」，漏跑一个生成器同样无漂移（那份产物根本没被重写）＝覆盖静默
+# 缩小，而门禁照绿。两个方向都判：regenerate_all 调的脚本必须存在；scripts/tools 下的每个 .py
+# 要么被调用、要么登记为豁免工具、要么是共享模块（被某个被调用的生成器 import）。
+if TOOLS_DIR.is_dir():
+    regen_text = read(TOOLS_DIR / "regenerate_all.sh")
+    if regen_text is None:
+        errors.append("找不到 scripts/tools/regenerate_all.sh——取不到生成器覆盖判据，拒绝判 clean")
+    else:
+        # 先剥反引号内的文本：注释里提到某个脚本名不算「调用了它」
+        regen_code = re.sub(r"`[^`]*`", "", regen_text)
+        generator_called = set(re.findall(r"\$SCRIPT_DIR/([A-Za-z0-9_.-]+\.py)", regen_code))
+        called = generator_called
+        tools_py = {p.name for p in TOOLS_DIR.iterdir() if p.is_file() and p.suffix == ".py"}
+        tools_text = {
+            p.name: p.read_text(encoding="utf-8", errors="replace")
+            for p in TOOLS_DIR.iterdir() if p.is_file() and p.suffix == ".py"
+        }
+        if not tools_py or not called:
+            errors.append(
+                f"scripts/tools 有 {len(tools_py)} 个 .py、regenerate_all.sh 调用 {len(called)} 个——"
+                "任一侧为空即解析漂移，取不到覆盖判据，拒绝判 clean")
+        for name in sorted(called):
+            if name not in tools_py:
+                errors.append(f"regenerate_all.sh 调用了不存在的 {name}——素材门禁在调用处才报错")
+        for name in sorted(tools_py - called):
+            if name in TOOLS_IGNORE:
+                continue
+            if any(re.search(rf"\bimport\s+{re.escape(name[:-3])}\b|"
+                             rf"from\s+{re.escape(name[:-3])}\s+import\b", tools_text.get(caller, ""))
+                   for caller in sorted(called) if caller in tools_text):
+                continue
+            errors.append(
+                f"scripts/tools/{name} 既没被 regenerate_all.sh 调用，也不在被调用生成器 import 的"
+                "共享模块名单里——漏跑一个生成器与「重跑后无漂移」同形：该产物根本没被重写，"
+                "覆盖静默缩小而素材门禁照绿；新生成器须同时挂进 regenerate_all.sh，"
+                "或登记进本脚本的 TOOLS_IGNORE 并写明理由")
 
 # ---------- c) 冒烟趟次 ↔ 完成标记断言 ----------
 
@@ -871,6 +976,8 @@ if errors:
 print(
     f"gate-wiring gate: clean（{len(on_disk - set(HELPER_MODULES))} 个门禁脚本全部注册进 gates.py 与 ci.yml，"
     f"{len(ci_steps) if ci_steps else 0} 个 CI 步骤无容错属性；另有 {len(HELPER_MODULES)} 个共用模块被门禁 import）；"
-    f"冒烟 {len(cases)} 趟各自配对完成标记断言（下限 {MIN_SMOKE_CASES}）、标记均有对应打印点"
+    f"冒烟 {len(cases)} 趟各自配对完成标记断言（下限 {MIN_SMOKE_CASES}）、标记均有对应打印点；"
+    f"发布包候选 {package_candidates} 个（ProbeHost/探针场景/tests 树）全被 exclude 覆盖；"
+    f"regenerate_all 覆盖 {len(generator_called)} 个生成器"
 )
 PY
