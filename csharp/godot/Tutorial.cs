@@ -83,6 +83,20 @@ public partial class Tutorial : Node2D
         _onPlayerDied = Callable.From(OnPlayerDied);
     }
 
+    // ---------------- 观测面（探针读取的玩家可见读数） ----------------
+
+    /// <summary>当前阶段索引（0 起）——冒烟探针据此判阶段推进。</summary>
+    public int StageIndex() => _stage;
+
+    /// <summary>教程是否已进入完成态（完成结算面板已出）。</summary>
+    public bool IsFinished() => _finished;
+
+    /// <summary>阶段标题当前显示给玩家的文本（探针判文案键是否成形）。</summary>
+    public string TitleText() => _titleLabel.Text;
+
+    /// <summary>目标行当前显示给玩家的文本（探针判补参是否成形、键位是否跟随改键）。</summary>
+    public string ObjectiveText() => _objectiveLabel.Text;
+
     public override void _Ready()
     {
         GameState.Instance.ResetRun();

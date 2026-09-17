@@ -780,6 +780,10 @@ public partial class ProbeHost : Node
             {
                 _eventId = arg["--event-probe=".Length..];
             }
+            else if (arg == "--tutorial-probe")
+            {
+                _tutorialProbe = true;
+            }
         }
 
         if (_autoplayProbe && expectUserDir.Length == 0)
@@ -791,7 +795,26 @@ public partial class ProbeHost : Node
             _autoplayProbe = false;
         }
 
+        if (_tutorialProbe && expectUserDir.Length == 0)
+        {
+            // 安全互锁（同 autoplay）：本趟会写 user://（教程检查点与改键落 settings.json），
+            // 不带 --expect-user-dir 时拒绝启动，避免动到开发者真实设置。
+            GD.PushError("[tutorial-probe] 未给 --expect-user-dir：本趟会写 user://（教程检查点与改键），"
+                + "拒绝在开发者真实用户目录下开跑；用临时目录并把 APPDATA/XDG_DATA_HOME/HOME 一起指过去");
+            _tutorialProbe = false;
+        }
+
         VerifyUserDirIsolation(expectUserDir);
+
+        if (_tutorialProbe)
+        {
+            // 教程自成一条生产入口（独立场景、不经 Main），故本趟不复用宿主里的 Main：
+            // 驱动节点挂根后切到生产教程场景，本节点随场景切换释放（驱动跨重载存活）。
+            // 必须延迟到本帧装载结束：_Ready 期间父节点仍在加子节点，此刻挂根/切场景会被引擎拒绝
+            // （Parent node is busy adding/removing children），切场景失败而本趟静默跑空。
+            Callable.From(StartTutorialProbe).CallDeferred();
+            return;
+        }
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
             || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _autoplayProbe

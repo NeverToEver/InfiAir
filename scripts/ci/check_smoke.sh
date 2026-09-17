@@ -45,6 +45,11 @@
 #  15) 教程场景直开（--scene res://scenes/tutorial.tscn）：教程是独立场景、不走 Main 的标题屏
 #      交接，属**另一条生产入口**——常规趟只跑 main.tscn，教程的入场链路（ResetRun、HUD 构建、
 #      六阶段首屏）写坏时没有任何一趟会经过它。断场景就绪标记，判「加载/切场景失败」这类静默坏点。
+#  16) --tutorial-probe：教程**全周期**——上一趟只走到首屏，阶段推进链（达标信号 → 推进 →
+#      下一阶段入场）、目标行补参成形（占位符与实参错位时玩家看到原样的 %s/%d）、键位随改键跟变、
+#      跳过本阶段、死亡重开本阶段（含进度归零）、检查点的写入与完成清零，全是「不崩、不报错、
+#      只是没往下走」的形态。本趟在探针宿主里切到同一生产场景，经生产输入面与生产伤害入口
+#      走满六阶段，两遍流程（第一遍走满并改键，第二遍用跳过与死亡重开）。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
@@ -352,6 +357,14 @@ smoke_tutorial() {
   expect_marker "教程场景就绪" "${PROBE_LOG_BASE}.tutorial.log" "[tutorial] 场景就绪"
 }
 
+smoke_tutorial_flow() {
+  # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满六阶段——断阶段推进、目标行补参
+  # 成形、键位随改键跟变、跳过本阶段、死亡重开本阶段且进度归零、检查点写入与完成清零。
+  # 帧数：实测两遍流程 1830 帧，取 3600 帧（60 模拟秒）留一倍余量。
+  run_case "tutorial flow probe smoke" 3600 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
+  expect_marker "教程全周期" "${PROBE_LOG_BASE}.tutorial_flow.log" "[tutorial-probe] 全周期完成"
+}
+
 smoke_practice() {
   # 练习模式：面板开页与三行直选（控件文本是译文而非键名、环形切换回到原点、确认键交出的设置
   # 等于面板显示）+ 直选 Boss 经生产出场链按型别出场 + 直选遭遇经生产触发链启动
@@ -404,6 +417,7 @@ SMOKE_CASES=(
   smoke_settings_version
   smoke_early_leave
   smoke_tutorial
+  smoke_tutorial_flow
   smoke_practice
   smoke_best_record
   smoke_autoplay

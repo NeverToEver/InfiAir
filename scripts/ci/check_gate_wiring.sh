@@ -672,9 +672,9 @@ if smoke_text is not None:
     # 覆盖增量、不构成静默错误（新趟漏配 expect_marker 由上面的配对性判定抓），把新增也判红
     # 会造成「加覆盖反而红」的反向激励。
     # 维护口径：本常量随 check_smoke.sh 的趟数在**同一个提交**里同步（加一趟就加一、删一趟须在
-    # 提交正文写明理由并同时下调）——下限过期即等于没下限：曾把它留在 18 而实际 24 趟，整趟删除
+    # 提交正文写明理由并同时下调）——下限过期即等于没下限：曾把它留在 24 而实际 25 趟，整趟删除
     # 后元门禁照判 clean，正是本行声称要抓的形态。
-    MIN_SMOKE_CASES = 24
+    MIN_SMOKE_CASES = 25
     if len(cases) < MIN_SMOKE_CASES:
         errors.append(
             f"{SMOKE.relative_to(ROOT).as_posix()} 只解析出 {len(cases)} 趟 run_case（下限 "
