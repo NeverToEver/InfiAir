@@ -940,49 +940,57 @@ public partial class TalentPanel : CanvasLayer
         var reason = talent.UpgradeBlockReason(idSn);
         var cost = talent.NextCost(idSn);
         var isOvercharge = talent.IsOverchargePurchase(idSn);
-        if (reason == "OVERCHARGED")
+        switch (reason)
         {
-            _detailStatus.Text = Tr("TALENT_STATUS_OVERCHARGED");
-            _upgradeButton.Visible = false;
-            _overchargeButton.Visible = false;
-        }
-        else if (reason == "PREREQ")
-        {
-            var prev = TalentTree.Prerequisite(_selectedNode.ToString());
-            _detailStatus.Text = prev != null
-                ? GdFormat.Format(Tr("TALENT_STATUS_PREREQ_FMT"), Tr($"AUG_{prev.ToUpperInvariant()}_NAME"))
-                : "";
-            _upgradeButton.Visible = false;
-            _overchargeButton.Visible = false;
-        }
-        else if (reason == "OVERCHARGE_LIMIT")
-        {
-            _detailStatus.Text = Tr("TALENT_STATUS_OVERCHARGE_LIMIT");
-            _upgradeButton.Visible = false;
-            _overchargeButton.Visible = false;
-        }
-        else if (reason == "CACHE")
-        {
-            _detailStatus.Text = "";
-            _upgradeButton.Visible = !isOvercharge;
-            _upgradeButton.Text = GdFormat.Format(Tr("TALENT_UPGRADE_FMT"), cost);
-            _upgradeButton.Disabled = true;
-            _overchargeButton.Visible = isOvercharge;
-            _overchargeButton.Text = GdFormat.Format(Tr("TALENT_OVERCHARGE_FMT"), cost);
-            _overchargeButton.Disabled = true;
-        }
-        else
-        {
-            _detailStatus.Text = cap < maxLevel && level >= cap
-                ? Tr("TALENT_STATUS_SEALED")
-                : isOvercharge ? Tr("TALENT_STATUS_OVERCHARGE_WARNING") : "";
-            _upgradeButton.Visible = !isOvercharge;
-            _upgradeButton.Text = GdFormat.Format(Tr("TALENT_UPGRADE_FMT"), cost);
-            _upgradeButton.Disabled = false;
-            _overchargeButton.Visible = isOvercharge;
-            _overchargeButton.Text = GdFormat.Format(Tr("TALENT_OVERCHARGE_FMT"), cost);
-            _overchargeButton.Disabled = false;
-            _upgradeButton.GrabFocus();
+            case InfiAir.Core.Talent.TalentUpgradeBlock.Overcharged:
+                _detailStatus.Text = Tr("TALENT_STATUS_OVERCHARGED");
+                _upgradeButton.Visible = false;
+                _overchargeButton.Visible = false;
+                break;
+            case InfiAir.Core.Talent.TalentUpgradeBlock.Prereq:
+                {
+                    var prev = TalentTree.Prerequisite(_selectedNode.ToString());
+                    _detailStatus.Text = prev != null
+                        ? GdFormat.Format(Tr("TALENT_STATUS_PREREQ_FMT"), Tr($"AUG_{prev.ToUpperInvariant()}_NAME"))
+                        : "";
+                    _upgradeButton.Visible = false;
+                    _overchargeButton.Visible = false;
+                    break;
+                }
+
+            case InfiAir.Core.Talent.TalentUpgradeBlock.OverchargeLimit:
+                _detailStatus.Text = Tr("TALENT_STATUS_OVERCHARGE_LIMIT");
+                _upgradeButton.Visible = false;
+                _overchargeButton.Visible = false;
+                break;
+            case InfiAir.Core.Talent.TalentUpgradeBlock.Cache:
+                _detailStatus.Text = "";
+                _upgradeButton.Visible = !isOvercharge;
+                _upgradeButton.Text = GdFormat.Format(Tr("TALENT_UPGRADE_FMT"), cost);
+                _upgradeButton.Disabled = true;
+                _overchargeButton.Visible = isOvercharge;
+                _overchargeButton.Text = GdFormat.Format(Tr("TALENT_OVERCHARGE_FMT"), cost);
+                _overchargeButton.Disabled = true;
+                break;
+            case InfiAir.Core.Talent.TalentUpgradeBlock.None:
+                _detailStatus.Text = cap < maxLevel && level >= cap
+                    ? Tr("TALENT_STATUS_SEALED")
+                    : isOvercharge ? Tr("TALENT_STATUS_OVERCHARGE_WARNING") : "";
+                _upgradeButton.Visible = !isOvercharge;
+                _upgradeButton.Text = GdFormat.Format(Tr("TALENT_UPGRADE_FMT"), cost);
+                _upgradeButton.Disabled = !InfiAir.Core.Talent.TalentUpgradeGate.UpgradeEnabled(reason);
+                _overchargeButton.Visible = isOvercharge;
+                _overchargeButton.Text = GdFormat.Format(Tr("TALENT_OVERCHARGE_FMT"), cost);
+                _overchargeButton.Disabled = false;
+                _upgradeButton.GrabFocus();
+                break;
+            default:
+                // 失败关闭：未登记原因（如节点 id 不在树里）不亮按钮——旧实现以 else 兜底＝可升级，
+                // 表现为「按钮可点、点下去被判定侧静默拦下」且无提示
+                _detailStatus.Text = "";
+                _upgradeButton.Visible = false;
+                _overchargeButton.Visible = false;
+                break;
         }
     }
 

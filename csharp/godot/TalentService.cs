@@ -288,7 +288,8 @@ public sealed partial class TalentService : RefCounted
         {
             var id = new StringName(ids[i]);
             var reason = UpgradeBlockReason(id);
-            if (reason.Length == 0 || reason == "CACHE")
+            if (reason == InfiAir.Core.Talent.TalentUpgradeBlock.None
+                || reason == InfiAir.Core.Talent.TalentUpgradeBlock.Cache)
             {
                 _eligibleCosts.Add(NextCost(id));
             }
@@ -346,22 +347,23 @@ public sealed partial class TalentService : RefCounted
 
     // ---------------- 加点（升级 / 风险加点） ----------------
 
-    /// <summary>升级拦截原因（UI 禁用与提示文案键后缀）："" = 可升级。</summary>
-    public string UpgradeBlockReason(StringName id)
+    /// <summary>升级拦截原因（核心层枚举 <see cref="InfiAir.Core.Talent.TalentUpgradeBlock"/>，
+    /// UI 按它决定按钮可用性与提示文案）：<c>None</c> = 可升级。</summary>
+    public InfiAir.Core.Talent.TalentUpgradeBlock UpgradeBlockReason(StringName id)
     {
         if (TalentTree.Find(id.ToString()) == null)
         {
-            return "UNKNOWN";
+            return InfiAir.Core.Talent.TalentUpgradeBlock.Unknown;
         }
 
         if (IsOvercharged(id))
         {
-            return "OVERCHARGED";
+            return InfiAir.Core.Talent.TalentUpgradeBlock.Overcharged;
         }
 
         if (!PrerequisiteMet(id))
         {
-            return "PREREQ";
+            return InfiAir.Core.Talent.TalentUpgradeBlock.Prereq;
         }
 
         var level = Level(id);
@@ -369,15 +371,17 @@ public sealed partial class TalentService : RefCounted
         if (level >= cap)
         {
             // 上限侧：可走风险加点（次数未满）否则顶满
-            return _overcharged.Count < OverchargeMaxPerRun ? "" : "OVERCHARGE_LIMIT";
+            return _overcharged.Count < OverchargeMaxPerRun
+                ? InfiAir.Core.Talent.TalentUpgradeBlock.None
+                : InfiAir.Core.Talent.TalentUpgradeBlock.OverchargeLimit;
         }
 
         if (_cache.Effective + 1e-9 < TalentEconomy.CostForLevel(_config, level))
         {
-            return "CACHE";
+            return InfiAir.Core.Talent.TalentUpgradeBlock.Cache;
         }
 
-        return "";
+        return InfiAir.Core.Talent.TalentUpgradeBlock.None;
     }
 
     /// <summary>下一级消耗（已到生效上限时为风险加点双倍价；已永久锁定返回 0）。</summary>
@@ -404,7 +408,7 @@ public sealed partial class TalentService : RefCounted
     /// 失败返回 false 且无副作用。</summary>
     public bool Upgrade(StringName id)
     {
-        if (UpgradeBlockReason(id) != "")
+        if (UpgradeBlockReason(id) != InfiAir.Core.Talent.TalentUpgradeBlock.None)
         {
             return false;
         }
