@@ -675,6 +675,11 @@ public partial class Bullet : Area2D, IParryable
         _sprite.Texture = TextureForSkin(BulletAppearance.SkinFor(IsPlayerBullet, GameState.Instance.HighContrast));
     }
 
+    /// <summary>外观读口：当前**实际**画出来的那张贴图（不是设置值）。判据必须读它——读设置值
+    /// 只能证明开关本身生效，证明不了在飞的弹真的换了外观（重挑贴图的接线漏写时设置值照旧正确，
+    /// 场上却混着两种外观，要等各自寿命到期才自愈）。</summary>
+    public Texture2D? SpriteTexture() => _sprite?.Texture;
+
     /// <summary>共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
     /// 双层辉光（内白芯 / 外阵营色）+ 弹尾能量拖尾直接画进图集；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void EnsureTextures()

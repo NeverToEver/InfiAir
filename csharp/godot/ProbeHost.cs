@@ -150,9 +150,11 @@ public partial class ProbeHost : Node
 
     /// <summary>恶意 settings.json：同样语法合法而字段类型全错，覆盖设置域全部字符串档
     /// （locale / difficulty / view_zoom / window_mode / resolution / aim_assist / fps_cap）
-    /// 与数值档（version / custom_* / joy_* / 音量 / 顿帧与震动强度）读点。</summary>
+    /// 与数值档（version / custom_* / joy_* / 音量 / 顿帧与震动强度）读点；
+    /// 无障碍档的布尔的取值刻意用宽松转换会读成 true 的形态（"on"/"no"/1）——非 bool 一律不认，
+    /// 手改档不得把开关打开。</summary>
     private const string HostileSettingsJson =
-        """{"version":"four","locale":123,"difficulty":[],"view_zoom":{},"window_mode":5,"resolution":true,"aim_assist":[],"fps_cap":{},"ctrl_toggle_mode":"yes","custom_width":"wide","custom_height":[],"joy_aim_speed":"fast","joy_deadzone":[],"vsync":"on","reduce_flash":0,"world_post_fx":"no","mouse_lock":1,"master_volume":"loud","music_volume":{},"sfx_volume":[],"shake_scale":"lots","hit_stop_scale":[],"tutorial_done":"yes","joy_vibration":"off"}""";
+        """{"version":"four","locale":123,"difficulty":[],"view_zoom":{},"window_mode":5,"resolution":true,"aim_assist":[],"fps_cap":{},"ctrl_toggle_mode":"yes","custom_width":"wide","custom_height":[],"joy_aim_speed":"fast","joy_deadzone":[],"vsync":"on","high_contrast":"on","reduce_flash":0,"world_post_fx":"no","mouse_lock":1,"master_volume":"loud","music_volume":{},"sfx_volume":[],"shake_scale":"lots","hit_stop_scale":[],"tutorial_done":"yes","joy_vibration":"off"}""";
 
     /// <summary>正常 run.json：与下方断言逐项对齐（只判恶意档会让「守卫一律回退」的实现照样绿）。
     /// augments 与 talent_levels 必须一致——两者都来自同一局的写出，生产档里 extra_life 两侧都有
@@ -160,9 +162,11 @@ public partial class ProbeHost : Node
     private const string ValidRunJson =
         """{"version":1,"score":900,"kills":7,"boss_kills":2,"combo":5,"milestone_count":4,"run_time":300.0,"difficulty_multiplier":1.6,"dda_timer":12.5,"difficulty_time_step":2,"health":42.5,"augments":{"extra_life":1},"talent_levels":{"extra_life":1},"talent_overcharged":[],"talent_route":"","talent_reset_tokens":1,"talent_bonus_overcharge_slots":1,"talent_cache_values":[],"rp":6,"refresh_points":2,"missions":{"kill_15":{"progress":3,"claimed":false,"goal":15,"baseline":1}},"last_kind_value":{"kill":12}}""";
 
-    /// <summary>正常 settings.json：同前，取值刻意全非默认（回退实现会把它们全部读成默认而判红）。</summary>
+    /// <summary>正常 settings.json：同前，取值刻意全非默认（回退实现会把它们全部读成默认而判红）；
+    /// 无障碍的无障碍四项开关（减闪 / 高对比 / 画面增强 / 鼠标锁定）同样取非默认值——
+    /// 高对比进表也是「全部恢复默认」补发信号那半判据的前提（值没变过就无从判漏发）。</summary>
     private const string ValidSettingsJson =
-        """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"world_post_fx":false,"mouse_lock":false}""";
+        """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"high_contrast":true,"world_post_fx":false,"mouse_lock":false}""";
 
     /// <summary>正常档还原断言里 health 的期望值（ValidRunJson 的 health 字段）。</summary>
     private const float AssertedHealth = 42.5f;
@@ -214,15 +218,19 @@ public partial class ProbeHost : Node
     private Callable _onProbeScoreChanged;
     private bool _probeRunSubscribed;
 
-    /// <summary>「全部恢复默认」的信号补发观测（设置版本探针）：四个缓存型设置项各计一次。</summary>
+    /// <summary>「全部恢复默认」的信号补发观测（设置版本探针）：五个「读一次 + 信号刷新」的缓存型
+    /// 设置项各计一次（视角 / 辅瞄 / 减闪 / 高对比 / 画面增强）——高对比的消费方是 Main 的
+    /// 在飞敌弹重挑贴图，漏发则复位后场上残留高对比外观。</summary>
     private int _probeViewZoomSignals;
 
     private int _probeAimAssistSignals;
     private int _probeReduceFlashSignals;
+    private int _probeHighContrastSignals;
     private int _probeWorldPostFxSignals;
     private Callable _onProbeViewZoom;
     private Callable _onProbeAimAssist;
     private Callable _onProbeReduceFlash;
+    private Callable _onProbeHighContrast;
     private Callable _onProbeWorldPostFx;
     private bool _probeSettingsSubscribed;
 
@@ -898,6 +906,7 @@ public partial class ProbeHost : Node
                 DisconnectSettingSignal(gsSet, GameState.SignalName.ViewZoomChanged, _onProbeViewZoom);
                 DisconnectSettingSignal(gsSet, GameState.SignalName.AimAssistChanged, _onProbeAimAssist);
                 DisconnectSettingSignal(gsSet, GameState.SignalName.ReduceFlashChanged, _onProbeReduceFlash);
+                DisconnectSettingSignal(gsSet, GameState.SignalName.HighContrastChanged, _onProbeHighContrast);
                 DisconnectSettingSignal(gsSet, GameState.SignalName.WorldPostFxChanged, _onProbeWorldPostFx);
             }
         }
@@ -1966,8 +1975,82 @@ public partial class ProbeHost : Node
 
         if (_settingsProbeStep == 5)
         {
+            if (!VerifyHighContrastBullets())
+            {
+                _settingsProbe = false;
+                return;
+            }
+
+            _settingsProbeStep = 6;
+        }
+
+        if (_settingsProbeStep == 6)
+        {
             TickModalCloseProbe(settings);
         }
+    }
+
+    /// <summary>高对比弹体接线的两半判据（借设置趟顺带覆盖，不额外起趟）。
+    ///
+    /// 为什么必须判：开关置位只是把设置值改了，玩家看到的那张图由 Main 的重挑接线决定——
+    /// 只判设置值会与实现同源（删掉重挑调用照样绿），而表现是场上的弹保持旧外观直到各自寿命
+    /// 到期（半场两种外观）；「全部恢复默认」那条补发接线同理（无变化不发，变化过必须发）。
+    /// 两半互补：置位后在飞敌弹必须换成高对比档（置位前先断原档作正对照——少了正对照，
+    /// 「一律高对比」的实现照样绿），关回后必须退回原档（少了这半，关掉开关后残留高对比外观）。
+    /// 判据对象是一枚经生产对象池发射的敌弹：在飞、已登记进敌弹注册表，贴图读的是实际贴的那张。</summary>
+    private bool VerifyHighContrastBullets()
+    {
+        var gs = GameState.Instance;
+        var pool = gs.BulletPool;
+        if (pool == null)
+        {
+            GD.PushError("[settings-probe] 子弹对象池不存在——在飞敌弹的高对比贴图判据取不到");
+            return false;
+        }
+
+        gs.SetHighContrast(false); // 起点＝原档（正对照）
+        // 从视口左下角向上射一枚慢速敌弹：与玩家所在的中路拉开，无头局撞不到玩家（判据不该
+        // 改变本趟其余部分的存活叙事）
+        var bullet = pool.Fire(new Vector2(0.0f, -1.0f), 60.0f, 1, false);
+        if (bullet == null || !GodotObject.IsInstanceValid(bullet) || !gs.EnemyBullets.Contains(bullet))
+        {
+            GD.PushError("[settings-probe] 敌弹未发射或未登记进敌弹注册表——高对比接线的判据对象取不到");
+            return false;
+        }
+
+        var normal = gs.BulletEnemyTex;
+        var contrast = gs.BulletEnemyContrastTex;
+        var ok = true;
+        if (normal == null || contrast == null || normal == contrast)
+        {
+            GD.PushError("[settings-probe] 敌弹两档贴图为空或同源——判据两边可能是同一张图，档位判不出来");
+            ok = false;
+        }
+        else if (bullet.SpriteTexture() != normal)
+        {
+            GD.PushError("[settings-probe] 新发射的敌弹贴图不等于原档（开关未打开时）——外观档与设置不同源");
+            ok = false;
+        }
+
+        gs.SetHighContrast(true);
+        if (bullet.SpriteTexture() != contrast)
+        {
+            GD.PushError("[settings-probe] 打开高对比后在飞敌弹仍是原档贴图——开关只改了设置值，"
+                + "场上的弹保持旧外观（要等各自寿命到期才换）");
+            ok = false;
+        }
+
+        gs.SetHighContrast(false);
+        if (bullet.SpriteTexture() != normal)
+        {
+            GD.PushError("[settings-probe] 关回高对比后在飞敌弹未退回原档贴图——关掉开关后场上残留高对比外观");
+            ok = false;
+        }
+
+        // 这枚弹只为判据而放：走生产回收口归还对象池，不留到后续步骤（模态退场等）里
+        pool.Release(bullet);
+        gs.SetHighContrast(false);
+        return ok;
     }
 
     /// <summary>模态退场期的鼠标命中断言（设置页趟尾段，借 <c>Back()</c> 的真实退场链）。
@@ -4332,6 +4415,14 @@ public partial class ProbeHost : Node
             ok = false;
         }
 
+        // 无障碍开关同样只认真 bool（宽松转换把 "on" 读成 true 时，手改档就能替玩家打开高对比）
+        if (gs.HighContrast)
+        {
+            GD.PushError("[hostile-save-probe] 恶意设置档的 high_contrast 非 bool 却被读成开——"
+                + "手改档可替玩家改无障碍档");
+            ok = false;
+        }
+
         if (gs.JoyAimSpeed != 1400.0)
         {
             GD.PushError($"[hostile-save-probe] joy_aim_speed 非数值应保持默认 1400，实得 {gs.JoyAimSpeed}");
@@ -4545,11 +4636,13 @@ public partial class ProbeHost : Node
 
         if (gs.Locale != "en" || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
             || gs.FpsCap != new StringName("fps30") || gs.Difficulty != new StringName("hard")
-            || gs.CustomWindowWidth != 1000)
+            || !gs.HighContrast || gs.CustomWindowWidth != 1000)
         {
             GD.PushError(GdFormat.Format(
-                "[hostile-save-probe] 正常设置档未还原：locale=%s view_zoom=%s aim_assist=%s fps_cap=%s difficulty=%s custom_width=%d",
-                gs.Locale, gs.ViewZoom, gs.AimAssistLevel, gs.FpsCap, gs.Difficulty, gs.CustomWindowWidth));
+                "[hostile-save-probe] 正常设置档未还原：locale=%s view_zoom=%s aim_assist=%s fps_cap=%s difficulty=%s "
+                + "high_contrast=%s custom_width=%d",
+                gs.Locale, gs.ViewZoom, gs.AimAssistLevel, gs.FpsCap, gs.Difficulty, gs.HighContrast,
+                gs.CustomWindowWidth));
             ok = false;
         }
 
@@ -4936,8 +5029,9 @@ public partial class ProbeHost : Node
     /// 三段，缺一不可：
     ///   ① 版本 +1 且关键项全非默认 → 读入后逐项等于默认（先复位到出厂档再读，默认值才是判据）；
     ///   ② 同版对照档（同值）→ 必须逐项还原——只判 ① 会让「一律回默认」的实现照样绿；
-    ///   ③ 「全部恢复默认」的信号补发：值确实变化过时视角/辅瞄/减闪/画面增强四个信号各发一次，
-    ///      无变化时一个都不发（消费方是「读一次 + 信号刷新」的缓存型，漏发则表现仍按旧值跑）。</summary>
+    ///   ③ 「全部恢复默认」的信号补发：值确实变化过时视角/辅瞄/减闪/高对比/画面增强五个信号各发一次，
+    ///      无变化时一个都不发（消费方是「读一次 + 信号刷新」的缓存型，漏发则表现仍按旧值跑——
+    ///      高对比的消费方是在飞敌弹的重挑贴图，漏发就让复位前的旧外观留在场上）。</summary>
     private void RunSettingsVersionProbe()
     {
         var gs = GameState.Instance;
@@ -4946,14 +5040,17 @@ public partial class ProbeHost : Node
         _probeViewZoomSignals = 0;
         _probeAimAssistSignals = 0;
         _probeReduceFlashSignals = 0;
+        _probeHighContrastSignals = 0;
         _probeWorldPostFxSignals = 0;
         _onProbeViewZoom = Callable.From<double>(_ => _probeViewZoomSignals++);
         _onProbeAimAssist = Callable.From<StringName>(_ => _probeAimAssistSignals++);
         _onProbeReduceFlash = Callable.From<bool>(_ => _probeReduceFlashSignals++);
+        _onProbeHighContrast = Callable.From<bool>(_ => _probeHighContrastSignals++);
         _onProbeWorldPostFx = Callable.From<bool>(_ => _probeWorldPostFxSignals++);
         gs.Connect(GameState.SignalName.ViewZoomChanged, _onProbeViewZoom);
         gs.Connect(GameState.SignalName.AimAssistChanged, _onProbeAimAssist);
         gs.Connect(GameState.SignalName.ReduceFlashChanged, _onProbeReduceFlash);
+        gs.Connect(GameState.SignalName.HighContrastChanged, _onProbeHighContrast);
         gs.Connect(GameState.SignalName.WorldPostFxChanged, _onProbeWorldPostFx);
         _probeSettingsSubscribed = true;
 
@@ -4964,7 +5061,7 @@ public partial class ProbeHost : Node
             $"{{\"version\":{Core.Storage.SettingsMigration.CurrentVersion + 1},\"locale\":\"en\","
             + "\"difficulty\":\"hard\",\"view_zoom\":\"large\",\"resolution\":\"1280x720\","
             + "\"custom_width\":1000,\"custom_height\":700,\"aim_assist\":\"high\",\"fps_cap\":\"fps30\","
-            + "\"vsync\":false,\"reduce_flash\":true,\"world_post_fx\":false,\"mouse_lock\":false,"
+            + "\"vsync\":false,\"reduce_flash\":true,\"high_contrast\":true,\"world_post_fx\":false,\"mouse_lock\":false,"
             + "\"shake_scale\":0.2,\"hit_stop_scale\":0.1,\"master_volume\":0.5,\"music_volume\":0.4,"
             + "\"sfx_volume\":0.3,\"joy_aim_speed\":3000.0,\"joy_deadzone\":0.7,\"joy_vibration\":false}");
         ok &= LoadSettingsForProbe("更高版本档");
@@ -4975,31 +5072,36 @@ public partial class ProbeHost : Node
         ok &= LoadSettingsForProbe("同版对照档");
         ok &= VerifySettingsRestored("同版对照档读入后");
 
-        // ③ 恢复默认的信号补发：当前值确实非默认 → 四个信号各发一次；再复位（无变化）→ 一个都不发
+        // ③ 恢复默认的信号补发：当前值确实非默认 → 五个信号各发一次；再复位（无变化）→ 一个都不发
         _probeViewZoomSignals = 0;
         _probeAimAssistSignals = 0;
         _probeReduceFlashSignals = 0;
+        _probeHighContrastSignals = 0;
         _probeWorldPostFxSignals = 0;
         gs.ResetAllSettings();
         if (_probeViewZoomSignals != 1 || _probeAimAssistSignals != 1
-            || _probeReduceFlashSignals != 1 || _probeWorldPostFxSignals != 1)
+            || _probeReduceFlashSignals != 1 || _probeHighContrastSignals != 1
+            || _probeWorldPostFxSignals != 1)
         {
             GD.PushError($"[settings-version-probe] 「全部恢复默认」的补发信号不全（视角 {_probeViewZoomSignals} / "
-                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 画面增强 {_probeWorldPostFxSignals}，"
-                + "各期望 1）——消费方是「读一次 + 信号刷新」的缓存型，漏发则表现仍按旧值跑");
+                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 高对比 {_probeHighContrastSignals} / "
+                + $"画面增强 {_probeWorldPostFxSignals}，各期望 1）——消费方是「读一次 + 信号刷新」的缓存型，"
+                + "漏发则表现仍按旧值跑");
             ok = false;
         }
 
         _probeViewZoomSignals = 0;
         _probeAimAssistSignals = 0;
         _probeReduceFlashSignals = 0;
+        _probeHighContrastSignals = 0;
         _probeWorldPostFxSignals = 0;
         gs.ResetAllSettings();
-        if (_probeViewZoomSignals + _probeAimAssistSignals + _probeReduceFlashSignals + _probeWorldPostFxSignals != 0)
+        if (_probeViewZoomSignals + _probeAimAssistSignals + _probeReduceFlashSignals
+            + _probeHighContrastSignals + _probeWorldPostFxSignals != 0)
         {
             GD.PushError($"[settings-version-probe] 值未变化时仍补发了设置信号（视角 {_probeViewZoomSignals} / "
-                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 画面增强 {_probeWorldPostFxSignals}）"
-                + "——多余重建");
+                + $"辅瞄 {_probeAimAssistSignals} / 减闪 {_probeReduceFlashSignals} / 高对比 {_probeHighContrastSignals} / "
+                + $"画面增强 {_probeWorldPostFxSignals}）——多余重建");
             ok = false;
         }
 
@@ -5017,11 +5119,13 @@ public partial class ProbeHost : Node
         if (gs.Locale != "zh" || gs.Difficulty != new StringName("medium")
             || gs.ViewZoom != new StringName("small") || gs.AimAssistLevel != new StringName("medium")
             || gs.FpsCap != new StringName("60") || !gs.VSync || !gs.MouseLock || gs.ReduceFlash
+            || gs.HighContrast
             || !gs.WorldPostFx || gs.CustomWindowWidth != 1920 || gs.CustomWindowHeight != 1080)
         {
             GD.PushError($"[settings-version-probe] {label} 未逐项回出厂档：locale={gs.Locale} "
                 + $"difficulty={gs.Difficulty} view_zoom={gs.ViewZoom} aim_assist={gs.AimAssistLevel} "
                 + $"fps_cap={gs.FpsCap} vsync={gs.VSync} mouse_lock={gs.MouseLock} reduce_flash={gs.ReduceFlash} "
+                + $"high_contrast={gs.HighContrast} "
                 + $"world_post_fx={gs.WorldPostFx} custom={gs.CustomWindowWidth}x{gs.CustomWindowHeight}");
             ok = false;
         }
@@ -5047,11 +5151,13 @@ public partial class ProbeHost : Node
         if (gs.Locale != "en" || gs.Difficulty != new StringName("hard")
             || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
             || gs.FpsCap != new StringName("fps30") || gs.VSync || gs.MouseLock || !gs.ReduceFlash
+            || !gs.HighContrast
             || gs.WorldPostFx || gs.CustomWindowWidth != 1000 || gs.CustomWindowHeight != 700)
         {
             GD.PushError($"[settings-version-probe] {label} 未逐项还原：locale={gs.Locale} "
                 + $"difficulty={gs.Difficulty} view_zoom={gs.ViewZoom} aim_assist={gs.AimAssistLevel} "
                 + $"fps_cap={gs.FpsCap} vsync={gs.VSync} mouse_lock={gs.MouseLock} reduce_flash={gs.ReduceFlash} "
+                + $"high_contrast={gs.HighContrast} "
                 + $"world_post_fx={gs.WorldPostFx} custom={gs.CustomWindowWidth}x{gs.CustomWindowHeight}");
             ok = false;
         }
