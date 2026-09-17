@@ -180,8 +180,10 @@ public partial class TitleScreen : CanvasLayer
         // 已完成且无检查点即回落次级色，不再打扰老玩家。
         var tutorialResume = GameState.Instance.TutorialStage > 0;
         var tutorialHighlighted = tutorialResume || !GameState.Instance.TutorialDone;
+        // 两个键都写成字面量 Tr 调用（条件表达式里放键名时文案门禁扫不到，缺键会静默显示键名本身）
+        var tutorialHint = tutorialResume ? (string)Tr("TITLE_TUTORIAL_RESUME") : (string)Tr("TITLE_TUTORIAL_HINT");
         hintRow.AddChild(UITheme.MakeLabel(
-            (string)Tr(tutorialResume ? "TITLE_TUTORIAL_RESUME" : "TITLE_TUTORIAL_HINT"),
+            tutorialHint,
             UITheme.FontCaption,
             tutorialHighlighted ? UITheme.AccentGold : UITheme.TextDim,
             HorizontalAlignment.Center));

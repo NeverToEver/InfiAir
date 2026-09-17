@@ -77,7 +77,8 @@ public enum TutorialArg
 /// 单个教程阶段：标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作与数值。
 /// <paramref name="TargetCount"/> 的语义按形态分两种——计数型（训练靶 / 实战：需要击落的数量；
 /// 机动：加速与突进各自需要的次数）与单次触发型（停靠 / 返航 / 首领：达成就完成，恒为 1）。
-/// <paramref name="ChargeKey"/> 非空时表示该阶段另有「蓄力进行中」的替换行（百分比）。
+/// <paramref name="ChargeKey"/> 非空时表示该阶段另有「蓄力进行中」的替换行（百分比）；
+/// <paramref name="FollowUpKey"/> 非空时表示达标过程中还有一行后续目标（无补参）。
 /// </summary>
 public sealed record TutorialStage(
     TutorialGoalKind Goal,
@@ -86,7 +87,8 @@ public sealed record TutorialStage(
     int TargetCount,
     TutorialArg[] ObjectiveArgs,
     string ChargeKey = "",
-    TutorialArg[]? ChargeArgs = null);
+    TutorialArg[]? ChargeArgs = null,
+    string FollowUpKey = "");
 
 /// <summary>
 /// 教程课程表（纯逻辑，零 Godot 依赖）：六个阶段的顺序、标题与目标文案键、目标计数、
@@ -156,7 +158,8 @@ public static class TutorialCurriculum
             TargetCount: 1,
             ObjectiveArgs: new[] { TutorialArg.DockKey },
             ChargeKey: "TUT_S4_CHARGE",
-            ChargeArgs: new[] { TutorialArg.ChargePercent }
+            ChargeArgs: new[] { TutorialArg.ChargePercent },
+            FollowUpKey: "TUT_S4_DOCK"
         ),
         new(
             TutorialGoalKind.Homecoming,

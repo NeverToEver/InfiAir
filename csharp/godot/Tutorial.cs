@@ -521,7 +521,7 @@ public partial class Tutorial : Node2D
             }
         };
         AddChild(mothership);
-        SetObjectiveTr("TUT_S4_DOCK", new Godot.Collections.Array());
+        SetObjectiveTr(        _progress.Stage.FollowUpKey, new Godot.Collections.Array());
     }
 
     private void OnMothershipDeparted(float cooldown)

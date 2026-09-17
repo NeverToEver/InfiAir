@@ -71,6 +71,13 @@ public sealed class TutorialCurriculumTests
         }
 
         AssertPlaceholders(copy, TutorialCurriculum.SkipHintKey, TutorialCurriculum.SkipHintArgs.Length);
+        foreach (var stage in TutorialCurriculum.Stages)
+        {
+            if (stage.FollowUpKey.Length > 0)
+            {
+                AssertPlaceholders(copy, stage.FollowUpKey, expected: 0);
+            }
+        }
     }
 
     [Fact]
@@ -79,7 +86,7 @@ public sealed class TutorialCurriculumTests
         var copy = TranslationTable();
         foreach (var stage in TutorialCurriculum.Stages)
         {
-            foreach (var key in new[] { stage.TitleKey, stage.ObjectiveKey, stage.ChargeKey })
+            foreach (var key in new[] { stage.TitleKey, stage.ObjectiveKey, stage.ChargeKey, stage.FollowUpKey })
             {
                 if (key.Length == 0)
                 {
