@@ -64,6 +64,7 @@ public partial class SettingsUi : RadialMenuLayer
     private readonly ButtonGroup _diffGroup = new();
     private readonly Godot.Collections.Dictionary _diffButtons = new(); // 难度档位 -> Button
     private Button _reduceFlashBtn = null!; // 无障碍·减少闪光开关
+    private Button _highContrastBtn = null!; // 无障碍·高对比弹体开关
     private Button _mouseLockBtn = null!; // 显示·鼠标锁定窗口内开关
     private Button _joyVibrationBtn = null!; // 手柄·震动开关
     private Button _worldPostFxBtn = null!; // 画面·世界层增强（辉光/分级）开关
@@ -884,6 +885,16 @@ public partial class SettingsUi : RadialMenuLayer
         _reduceFlashBtn.Pressed += OnReduceFlash;
         rfRow.AddChild(_reduceFlashBtn);
         page.AddChild(UITheme.MakeLabel(Tr("SET_REDUCE_FLASH_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 高对比弹体：与减少闪光并列，但针对的是另一类障碍（色觉判读，而非频闪不适）
+        var hcRow = new HBoxContainer();
+        hcRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(hcRow);
+        var hcGroup = new ButtonGroup { AllowUnpress = true };
+        _highContrastBtn = UITheme.MakeToggleButton(Tr("SET_HIGH_CONTRAST"), hcGroup);
+        _highContrastBtn.CustomMinimumSize = new Vector2(160.0f, 48.0f);
+        _highContrastBtn.Pressed += OnHighContrast;
+        hcRow.AddChild(_highContrastBtn);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_HIGH_CONTRAST_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 屏幕震动强度（0 = 完全关闭）：与减少闪光并列，针对不同的不适来源（运动 vs 频闪）
         (_shakeSlider, _shakeValueLabelInline) = MakePercentSlider(
             page,
@@ -1138,6 +1149,7 @@ public partial class SettingsUi : RadialMenuLayer
         RefreshDiffButtons();
         RefreshAimButtons();
         _reduceFlashBtn.SetPressedNoSignal(GameState.Instance.ReduceFlash);
+        _highContrastBtn.SetPressedNoSignal(GameState.Instance.HighContrast);
         _worldPostFxBtn.SetPressedNoSignal(GameState.Instance.WorldPostFx);
         RefreshFpsButtons();
         _vsyncBtn.SetPressedNoSignal(GameState.Instance.VSync);
@@ -1463,6 +1475,11 @@ public partial class SettingsUi : RadialMenuLayer
     private void OnReduceFlash()
     {
         GameState.Instance.SetReduceFlash(_reduceFlashBtn.ButtonPressed);
+    }
+
+    private void OnHighContrast()
+    {
+        GameState.Instance.SetHighContrast(_highContrastBtn.ButtonPressed);
     }
 
     private void OnWorldPostFx()

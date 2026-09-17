@@ -8,7 +8,10 @@ namespace InfiAir.Core.Tests;
 /// 不得静默跳过（AGENTS §6 铁律 2）。</summary>
 public static class RepoFiles
 {
-    public static string Read(string relativePath) => File.ReadAllText(Path.Combine(Root(), relativePath));
+    public static string Read(string relativePath) => File.ReadAllText(PathOf(relativePath));
+
+    /// <summary>仓库内相对路径 → 绝对路径（「产物文件真的在」这类存在性事实的取源）。</summary>
+    public static string PathOf(string relativePath) => Path.Combine(Root(), relativePath);
 
     private static string Root()
     {

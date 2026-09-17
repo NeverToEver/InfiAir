@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 using InfiAir.Core.GameFeel;
 
 namespace InfiAir;
@@ -622,7 +623,7 @@ public partial class Bullet : Area2D, IParryable
             return;
         }
 
-        _sprite.Texture = IsPlayerBullet ? GameState.Instance.BulletPlayerTex : GameState.Instance.BulletEnemyTex;
+        _sprite.Texture = TextureForSkin(BulletAppearance.SkinFor(IsPlayerBullet, GameState.Instance.HighContrast));
         _sprite.Scale = Vector2.One * (IsPlayerBullet ? VisualScale : EnemyVisualScale);
         // self_modulate 染色残留复位为白（laser 黄/Boss 重弹橙/致死高亮红）；
         // modulate 复位为白（玩家弹呼吸脉冲亮度残留——反射/换阵营复用同实例）
@@ -651,6 +652,29 @@ public partial class Bullet : Area2D, IParryable
         }
     }
 
+    /// <summary>外观档 → 共享贴图（纯取用，判定在 core BulletAppearance；贴图为 null 时
+    /// 交给 Sprite2D 不画——与既有「加载失败降级静默」同口径）。</summary>
+    private static Texture2D? TextureForSkin(BulletSkin skin) => skin switch
+    {
+        BulletSkin.Player => GameState.Instance.BulletPlayerTex,
+        BulletSkin.EnemyContrast => GameState.Instance.BulletEnemyContrastTex,
+        _ => GameState.Instance.BulletEnemyTex,
+    };
+
+    /// <summary>高对比开关切换时重挑贴图（只换贴图：不动 scale/modulate/self_modulate——
+    /// 激光弹的染色、致死高亮与玩家弹呼吸相位不因此复位）。开关关闭后重挑回原贴图的
+    /// 那一档即逐位退回原实现。</summary>
+    public void RefreshSkin()
+    {
+        _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+        if (_sprite == null)
+        {
+            return;
+        }
+
+        _sprite.Texture = TextureForSkin(BulletAppearance.SkinFor(IsPlayerBullet, GameState.Instance.HighContrast));
+    }
+
     /// <summary>共享纹理惰性生成（缓存于 GameState 实例字段，全实例共用；首次调用光栅化一次）。
     /// 双层辉光（内白芯 / 外阵营色）+ 弹尾能量拖尾直接画进图集；仅改共享贴图，碰撞半径/视觉缩放不受影响。</summary>
     private static void EnsureTextures()
@@ -667,12 +691,24 @@ public partial class Bullet : Area2D, IParryable
             new Color(1.0f, 0.72f, 0.30f, 0.38f), new Color(1.0f, 0.95f, 0.82f, 0.50f), new Color(1.0f, 0.62f, 0.22f, 0.55f));
         gs.BulletEnemyTex = _stampTexture(ArrowBody, new Color(1.0f, 0.28f, 0.34f), ArrowCore, new Color(1.0f, 0.88f, 0.92f),
             new Color(1.0f, 0.24f, 0.42f, 0.38f), new Color(1.0f, 0.72f, 0.80f, 0.45f), new Color(1.0f, 0.30f, 0.46f, 0.50f));
+        // 高对比：同一枚敌弹体 + 亮色轮廓（色相不变，靠轮廓与玩家弹拉开——玩家弹是白芯、
+        // 敌弹是白边，两者按亮度结构而非色相可辨）。
+        // 为什么不是深色描边：本作背景实测中位亮度 9/255（截图探针帧统计），深色描边的
+        // 可读像素改变量为零（描边本身与背景同色）——无障碍编码必须是亮度编码，不是色相编码。
+        // 轮廓不是独立图层、不是常驻动效：它光栅化进同一张共享贴图，只在外观档为高对比时取用。
+        gs.BulletEnemyContrastTex = _stampTexture(ArrowBody, new Color(1.0f, 0.28f, 0.34f), ArrowCore,
+            new Color(1.0f, 0.88f, 0.92f), new Color(1.0f, 0.24f, 0.42f, 0.38f), new Color(1.0f, 0.72f, 0.80f, 0.45f),
+            new Color(1.0f, 0.30f, 0.46f, 0.50f), ContrastRimColor);
     }
 
+    /// <summary>高对比轮廓色：冷白（既与近黑背景拉开约 240/255 的亮度差，又不与玩家弹的琥珀同色相）。</summary>
+    private static readonly Color ContrastRimColor = new(0.94f, 0.97f, 1.0f, 1.0f);
+
     /// <summary>把多边形（弹体 + 可选白芯）与双层辉光、弹尾拖尾光栅化进共享纹理
-    /// （像素级平移对齐，无缩放损失）；叠层顺序：外辉光 → 尾迹 → 弹体 → 内芯辉光 → 白芯。</summary>
+    /// （像素级平移对齐，无缩放损失）；叠层顺序：外辉光 → 尾迹 → 轮廓 → 弹体 → 内芯辉光 → 白芯。
+    /// <paramref name="rim"/> 透明（alpha 0）= 不画轮廓，此时逐位等于既有实现。</summary>
     private static ImageTexture _stampTexture(Vector2[] body, Color bodyColor, Vector2[] core, Color coreColor,
-        Color outerGlow, Color innerGlow, Color tailColor)
+        Color outerGlow, Color innerGlow, Color tailColor, Color rim = default)
     {
         var img = Image.CreateEmpty(TexSize.X, TexSize.Y, false, Image.Format.Rgba8);
         img.Fill(new Color(0, 0, 0, 0));
@@ -684,6 +720,11 @@ public partial class Bullet : Area2D, IParryable
         if (tailColor.A > 0.0f)
         {
             _addTail(img, tailColor);
+        }
+
+        if (rim.A > 0.0f)
+        {
+            _addRim(img, body, rim);
         }
 
         _fillPolygon(img, body, bodyColor);
@@ -698,6 +739,28 @@ public partial class Bullet : Area2D, IParryable
         }
 
         return ImageTexture.CreateFromImage(img);
+    }
+
+    /// <summary>轮廓：把弹体多边形沿圆周多方向错位重填成"膨胀"底（扫描线填充器没有描边参数，
+    /// 环形多方向重填即等价做法），随后正常叠画的弹体只留出外圈那一线——即一圈静态轮廓。
+    /// 步数取 12：8 会在折角留下可见缺口，再多只是更慢（仅构建期执行一次，不进逐帧）。
+    /// 半径取 1.4px：细于 1px 在 1080p 下被抗锯齿吃掉，粗于此弹体显胖（描边要勾形，不要造形）。</summary>
+    private static void _addRim(Image img, Vector2[] body, Color rim)
+    {
+        const int steps = 12;
+        const float radius = 1.4f;
+        var shifted = new Vector2[body.Length];
+        for (var i = 0; i < steps; i++)
+        {
+            var angle = Mathf.Tau * i / steps;
+            var offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            for (var p = 0; p < body.Length; p++)
+            {
+                shifted[p] = body[p] + offset;
+            }
+
+            _fillPolygon(img, shifted, rim);
+        }
     }
 
     /// <summary>椭圆径向辉光：横轴拉长覆盖弹体与尾迹（能量拖尾感）、纵轴压扁；

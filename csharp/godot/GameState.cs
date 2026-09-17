@@ -77,6 +77,10 @@ public partial class GameState : Node
     [Signal]
     public delegate void ReduceFlashChangedEventHandler(bool enabled);
 
+    /// <summary>无障碍·高对比弹体开关变更广播；在飞敌弹据此重挑贴图（Main 订阅后遍历敌弹注册表）</summary>
+    [Signal]
+    public delegate void HighContrastChangedEventHandler(bool enabled);
+
     /// <summary>世界层画面增强开关（辉光/分级）变更广播；WorldPostFx 据此显隐全屏增强层</summary>
     [Signal]
     public delegate void WorldPostFxChangedEventHandler(bool enabled);
@@ -262,6 +266,10 @@ public partial class GameState : Node
     public Texture2D? BulletPlayerTex { get; set; }
     public Texture2D? BulletEnemyTex { get; set; }
 
+    /// <summary>敌弹·高对比贴图（同上惰性生成；同一枚弹只在开关切换时重挑一次，
+    /// 不引入逐帧分配）。</summary>
+    public Texture2D? BulletEnemyContrastTex { get; set; }
+
     /// <summary>爆炸粒子池可用队列（Explosion.OnFinished 回池 / SpawnAt 取用；元素失效由
     /// 取用方 IsInstanceValid 过滤）。实例字段而非静态——同上铁律。</summary>
     public Godot.Collections.Array<Explosion> ExplosionStock { get; } = new();
@@ -434,6 +442,8 @@ public partial class GameState : Node
 
     private void OnSettingsReduceFlashChanged(bool v) => EmitSignal(SignalName.ReduceFlashChanged, v);
 
+    private void OnSettingsHighContrastChanged(bool v) => EmitSignal(SignalName.HighContrastChanged, v);
+
     private void OnSettingsWorldPostFxChanged(bool v) => EmitSignal(SignalName.WorldPostFxChanged, v);
 
     private void OnSettingsDisplaySettingsChanged() => EmitSignal(SignalName.DisplaySettingsChanged);
@@ -532,6 +542,7 @@ public partial class GameState : Node
         _settings.ResolutionChanged += OnSettingsResolutionChanged;
         _settings.AimAssistChanged += OnSettingsAimAssistChanged;
         _settings.ReduceFlashChanged += OnSettingsReduceFlashChanged;
+        _settings.HighContrastChanged += OnSettingsHighContrastChanged;
         _settings.WorldPostFxChanged += OnSettingsWorldPostFxChanged;
         _settings.DisplaySettingsChanged += OnSettingsDisplaySettingsChanged;
         _settings.MouseLockChanged += OnSettingsMouseLockChanged;

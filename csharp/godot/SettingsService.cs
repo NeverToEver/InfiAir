@@ -76,6 +76,10 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
     public bool ReduceFlash { get; set; } = false;
 
+    /// <summary>无障碍：高对比弹体（settings.json 持久化，默认关；开启后敌弹带深色描边，靠形状而非
+    /// 色相与玩家弹区分。纯表现——碰撞/伤害/速度一律不变，关闭时逐位退回原外观）</summary>
+    public bool HighContrast { get; set; } = false;
+
     /// <summary>世界层画面增强（辉光/色彩分级/晕影，settings.json 持久化，默认开）。
     /// 关闭 = 逐元素发光回退路径，WorldPostFx 全屏层隐藏（低配机/风格偏好）。</summary>
     public bool WorldPostFx { get; set; } = true;
@@ -123,6 +127,7 @@ public sealed partial class SettingsService : RefCounted
         CustomWindowHeight = 1080;
         AimAssistLevel = new StringName("medium");
         ReduceFlash = false;
+        HighContrast = false;
         ShakeScale = 1.0;
         HitStopScale = 1.0;
         WorldPostFx = true;
@@ -142,12 +147,14 @@ public sealed partial class SettingsService : RefCounted
     /// 这四项的消费方（Main 相机 zoom、Player 与 AimFrameLayer 的辅瞄参数、Hud 与 MetaHealthFX 的减闪、
     /// WorldPostFx 与 VisualFxDirector 的画面增强）都是「_Ready 读一次 + 信号刷新」的缓存型：
     /// 战斗中点「全部恢复默认」后设置值与落盘已回默认、表现仍按旧值跑（相机 zoom 与 ViewWorldRect()
-    /// 分叉还会让实体在玩家看不见的域里生成/存活），要等切场景才自愈。无变化则不发，避免多余重建。</summary>
+    /// 分叉还会让实体在玩家看不见的域里生成/存活），要等切场景才自愈。无变化则不发，避免多余重建。
+    /// 高对比弹体同属缓存型（在飞弹体的贴图按设置挑一次），故一并补发。</summary>
     public void ResetToDefaultsAndBroadcast()
     {
         var prevZoomFactor = _viewZoomFactor;
         var prevAimAssist = AimAssistLevel;
         var prevReduceFlash = ReduceFlash;
+        var prevHighContrast = HighContrast;
         var prevWorldPostFx = WorldPostFx;
         ResetToDefaults();
         if (prevZoomFactor != _viewZoomFactor)
@@ -163,6 +170,11 @@ public sealed partial class SettingsService : RefCounted
         if (prevReduceFlash != ReduceFlash)
         {
             ReduceFlashChanged?.Invoke(ReduceFlash);
+        }
+
+        if (prevHighContrast != HighContrast)
+        {
+            HighContrastChanged?.Invoke(HighContrast);
         }
 
         if (prevWorldPostFx != WorldPostFx)
@@ -187,6 +199,10 @@ public sealed partial class SettingsService : RefCounted
 
     /// <summary>减少闪光开关变化；GameState 订阅后转发为 ReduceFlashChanged 信号。</summary>
     public event Action<bool>? ReduceFlashChanged;
+
+    /// <summary>高对比弹体开关变化；GameState 订阅后转发为 HighContrastChanged 信号
+    /// （在飞敌弹据此重挑贴图，不必等下一发弹出膛）。</summary>
+    public event Action<bool>? HighContrastChanged;
 
     /// <summary>世界层画面增强开关变化；GameState 订阅后转发为 WorldPostFxChanged 信号。</summary>
     public event Action<bool>? WorldPostFxChanged;
@@ -575,6 +591,19 @@ public sealed partial class SettingsService : RefCounted
         ReduceFlashChanged?.Invoke(enabled);
     }
 
+    /// <summary>无障碍·高对比弹体：开关持久化到 settings.json 并广播（在飞敌弹据此换描边贴图）</summary>
+    public void SetHighContrast(bool enabled)
+    {
+        if (enabled == HighContrast)
+        {
+            return;
+        }
+
+        HighContrast = enabled;
+        GameState.Instance.SaveSettings();
+        HighContrastChanged?.Invoke(enabled);
+    }
+
     /// <summary>世界层画面增强：开关持久化并广播（WorldPostFx 据此显隐全屏增强层）</summary>
     public void SetWorldPostFx(bool enabled)
     {
@@ -953,6 +982,7 @@ public sealed partial class SettingsService : RefCounted
         VSync = GameState.Instance.SaveBool(data.GetValueOrDefault("vsync", VSync), VSync);
         ApplyDisplay();
         ReduceFlash = GameState.Instance.SaveBool(data.GetValueOrDefault("reduce_flash", ReduceFlash), ReduceFlash);
+        HighContrast = GameState.Instance.SaveBool(data.GetValueOrDefault("high_contrast", HighContrast), HighContrast);
         WorldPostFx = GameState.Instance.SaveBool(data.GetValueOrDefault("world_post_fx", WorldPostFx), WorldPostFx);
         MouseLock = GameState.Instance.SaveBool(data.GetValueOrDefault("mouse_lock", MouseLock), MouseLock);
         MasterVolume = ReadVolume(data.GetValueOrDefault("master_volume", MasterVolume), MasterVolume);
@@ -1042,6 +1072,7 @@ public sealed partial class SettingsService : RefCounted
         ["custom_height"] = CustomWindowHeight,
         ["aim_assist"] = AimAssistLevel.ToString(),
         ["reduce_flash"] = ReduceFlash,
+        ["high_contrast"] = HighContrast,
         ["world_post_fx"] = WorldPostFx,
         ["fps_cap"] = FpsCap.ToString(),
         ["vsync"] = VSync,

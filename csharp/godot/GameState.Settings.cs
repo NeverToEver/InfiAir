@@ -94,6 +94,9 @@ public partial class GameState : Node
     /// <summary>无障碍·减少闪光：开关持久化到 settings.json 并广播（Meta HUD 据此折算色差/禁脉冲）</summary>
     public void SetReduceFlash(bool enabled) => _settings.SetReduceFlash(enabled);
 
+    /// <summary>无障碍·高对比弹体：开关持久化到 settings.json 并广播（在飞敌弹据此换描边贴图）</summary>
+    public void SetHighContrast(bool enabled) => _settings.SetHighContrast(enabled);
+
     /// <summary>无障碍·屏幕震动强度（0..1，0 = 完全关闭）：持久化到 settings.json，Shake 出口按此折算</summary>
     public void SetShakeScale(double value) => _settings.SetShakeScale(value);
 

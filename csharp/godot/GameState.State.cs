@@ -368,6 +368,10 @@ public partial class GameState : Node
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）——SettingsService 转发。</summary>
     public bool ReduceFlash { get => _settings.ReduceFlash; set => _settings.ReduceFlash = value; }
 
+    /// <summary>无障碍：高对比弹体（settings.json 持久化，默认关；开启后敌弹带深色描边，纯表现、
+    /// 判定不变）——SettingsService 转发。</summary>
+    public bool HighContrast { get => _settings.HighContrast; set => _settings.HighContrast = value; }
+
     /// <summary>无障碍：屏幕震动强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭画面震动）——SettingsService 转发。</summary>
     public double ShakeScale { get => _settings.ShakeScale; set => _settings.ShakeScale = value; }
 
