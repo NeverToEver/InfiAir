@@ -30,7 +30,7 @@ echo "          player_ship_glow.png(能量发光遮罩)"
 
 echo "==> [2/8] 敌机/精英/Boss/航母/炮塔贴图 (generate_enemy_sprites.py)"
 "$PY" "$SCRIPT_DIR/generate_enemy_sprites.py"
-echo "    产物: assets/sprites/enemy_ship_1..4.png, elite_ship_1..3.png,"
+echo "    产物: assets/sprites/enemy_ship_1..5.png, elite_ship_1..4.png,"
 echo "          boss_ship_1..4.png, strike_carrier.png(800x460), elite_turret.png"
 echo "          + 各机 *_glow.png(能量发光遮罩,elite_turret 除外)"
 

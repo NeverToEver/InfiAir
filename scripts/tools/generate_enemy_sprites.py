@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """离线敌方单位贴图生成器（晶体棱镜风格，非游戏运行时依赖）。
 
-重绘 4 普通机 + 3 精英 + 4 Boss，直接覆盖 assets/sprites/ 同名 PNG
+重绘 5 普通机 + 4 精英 + 4 Boss，直接覆盖 assets/sprites/ 同名 PNG
 （画布尺寸与原贴图一致：190/245/410，机头朝上，场景根节点 rotation=PI 翻转）。
 
 另输出能量发光遮罩 *_glow.png（黑底同画布，elite_turret 不导出）：
@@ -412,6 +412,72 @@ def enemy_4() -> Ship:  # 针刺：双叉机头
     return s
 
 
+def enemy_5() -> Ship:  # 分裂者：窄脊 + 双舷挂舱，两舱各挂独立喷口（剪影即「一对一解体」的预告）
+    # 剪影区分点（同屏一眼可辨，不靠尺寸/缩放）：1–4 型都是「单机体 + 侧翼」的连续轮廓，
+    # 本型是**三段并列**——中央窄脊 + 左右两条竖直挂舱，舱与脊之间留透空缝，尾部三喷口之间
+    # 是深凹口。它同时以 0.6 缩放作为分裂子机出场，故区分靠整体轮廓而非细节纹理：
+    # 缩到 60% 后仍是「两根平行竖条 + 中间细脊」，不会被读成任何一型普通机。
+    s = Ship(190, 190, ENEMY_ACCENT, ENEMY_CORE)
+    # 舷侧挂舱（首尾各自收尖的竖长六边体；右舱由 mirror 镜像得到）
+    s.facet([(50, 30), (68, 52), (68, 126), (50, 152), (32, 126), (32, 52)], HULL_B)
+    s.facet([(50, 38), (62, 56), (62, 122), (50, 140), (38, 122), (38, 56)], HULL_C)  # 舱体承力面
+    s.facet([(50, 46), (58, 60), (58, 116), (50, 130), (42, 116), (42, 60)], HULL_D)  # 舱体子面（提亮）
+    s.facet([(50, 30), (68, 52), (50, 68), (32, 52)], HULL_D)                         # 舱首晶面
+    s.facet([(50, 152), (68, 126), (50, 116), (32, 126)], HULL_C)                     # 舱尾承力面
+    s.shade([(42, 132), (50, 150), (58, 132)], alpha=45)                              # 舱尾阴影
+    s.seam([(50, 36), (50, 148)], width=1)                                            # 舱体纵缝
+    s.seam([(34, 54), (66, 54)], width=1, mirror=True)                                # 舱首环缝
+    s.seam([(34, 120), (66, 120)], width=1, mirror=True)                              # 舱尾环缝
+    s.seam([(38, 86), (62, 86)], width=1, mirror=True)                                # 舱中段板划分
+    s.rim([(32, 52), (32, 126)])                                                      # 舱外缘棱线
+    s.rim([(50, 30), (68, 52)])                                                       # 舱首棱线
+    s.greeble(38, 96, 8, 6)                                                           # 舱体设备舱口
+    s.panel_dot(46, 74)
+    s.panel_dot(54, 106)
+    s.vent(34, 60, length=8, gap=3, n=2)                                              # 舱体散热格栅
+    s.vent(44, 126, length=8, gap=3, n=2)
+    s.crystal(50, 56, 3)                                                              # 舱首晶簇
+    s.lamp(50, 34, 2.2)                                                               # 舱首航行灯
+    # 中央窄脊（比机身一族的躯干更细，两肩不展翼——展翼会让三段轮廓糊成一团）
+    s.facet([(95, 16), (106, 50), (106, 120), (95, 140), (84, 120), (84, 50)], HULL_A, False)
+    s.facet([(95, 16), (106, 50), (95, 72), (84, 50)], HULL_C, False)                 # 机头亮面
+    s.facet([(95, 26), (101, 48), (95, 64), (89, 48)], HULL_D, False)                 # 机头子面
+    s.shade([(86, 122), (95, 138), (104, 122)], alpha=45, mirror=False)               # 脊尾阴影
+    s.seam([(95, 18), (95, 138)], mirror=False)                                       # 脊背中缝
+    s.seam([(86, 60), (104, 60)], width=1, mirror=False)                              # 脊体环缝
+    s.seam([(86, 108), (104, 108)], width=1, mirror=False)
+    s.rim([(95, 16), (106, 50)], mirror=False)
+    s.rim([(95, 16), (84, 50)], mirror=False)
+    s.rim([(106, 50), (106, 120)], mirror=False)                                      # 脊侧缘棱线
+    s.rim([(84, 50), (84, 120)], mirror=False)
+    s.panel_dot(88, 92, mirror=False)
+    s.panel_dot(102, 112, mirror=False)
+    s.vent(98, 74, length=6, gap=3, n=2, mirror=False)                                # 脊侧散热格栅
+    # 挂接臂（最后画，把脊与两舱连成一体：缺它两舱会被读成两架独立小机）
+    s.facet([(98, 86), (56, 76), (56, 104), (98, 102)], HULL_C)
+    s.seam([(57, 77), (97, 87)], width=1)
+    s.seam([(57, 103), (97, 101)], width=1)
+    s.shade([(58, 94), (97, 95), (97, 101), (58, 104)], alpha=40)
+    s.panel_dot(72, 86)
+    s.panel_dot(86, 88)
+    # 能量层：脊核 + 挂接臂走线 + 双舱内侧走线
+    s.neon([(95, 28), (95, 82)], width=1, mirror=False)                               # 脊背二级走线
+    s.ring_core(95, 92, 9)
+    s.neon([(58, 82), (96, 92)], width=1)                                             # 挂接臂能量缝
+    s.neon([(64, 60), (64, 120)], width=1)                                            # 舱内缘二级走线
+    # 三喷口：两舱各一台（大）＋ 脊尾一台（小）——「两舱随时可脱开」的语义锚点
+    s.nozzle_ring(50, 142, 7, 4)
+    s.engine(50, 142, 7, 4)
+    s.engine_particles(50, 148, n=2, drop=7, spread=4)
+    s.nozzle_ring(140, 142, 7, 4)
+    s.engine(140, 142, 7, 4)
+    s.engine_particles(140, 148, n=2, drop=7, spread=4)
+    s.nozzle_ring(95, 132, 5, 3)
+    s.engine(95, 132, 5, 3)
+    s.engine_particles(95, 137, n=2, drop=5, spread=3)
+    return s
+
+
 # ---------------- 精英（245×245，品红） ----------------
 
 def elite_1() -> Ship:  # 枪骑：长机身 + 侧刃 + 鸭翼
@@ -529,6 +595,108 @@ def elite_3() -> Ship:  # 掠舰：爪形翼
     s.nozzle_ring(122, 198, 8, 5)
     s.engine(122, 198, 8, 5)
     s.engine_particles(122, 206)
+    return s
+
+
+def elite_4() -> Ship:  # 重装炮台：三炮口铁砧（宽装甲台 + 双圆炮塔鼓 + 平尾装甲鳍）
+    # 剪影区分点（同屏一眼可辨）：1–3 型精英的翼尖都是「尖的」（侧刃/盾翼/爪），本型是唯一
+    # **钝头 + 竖立炮管**的轮廓——顶部三个平口炮口之间是深 V 缺口，左右两端是圆形炮塔鼓
+    # （比装甲台外伸一截），尾部两片平口装甲鳍。它是最重最慢的精英（scale 1.28 最大、HP 最高），
+    # 故剪影直接按「炮台」而非「飞机」画：炮口数量与装甲厚度就是它的身份。
+    s = Ship(245, 245, ELITE_ACCENT, ELITE_CORE)
+    # 尾部装甲鳍（厚板平口，不尖——尖尾翼会退回 1–3 型的飞机语言）
+    s.facet([(116, 174), (44, 192), (56, 228), (124, 206)], HULL_B)
+    s.facet([(110, 184), (58, 198), (68, 220), (116, 202)], HULL_C)                  # 鳍面承力板
+    s.facet([(106, 192), (74, 202), (80, 214), (108, 199)], HULL_D)                  # 鳍面子面
+    s.shade([(62, 210), (70, 224), (118, 204)], alpha=40)                            # 鳍下缘阴影
+    s.seam([(113, 179), (48, 195)], width=1)                                         # 鳍前缘接缝
+    s.seam([(120, 204), (54, 225)], width=1)
+    s.rim([(116, 174), (44, 192)])                                                   # 鳍前缘棱线
+    s.rim([(44, 192), (56, 228)])                                                    # 平口端面棱线
+    s.panel_dot(68, 206)
+    s.panel_dot(96, 194)
+    s.vent(78, 208, length=9, gap=3, n=2)                                            # 鳍面散热格栅
+    s.crystal(92, 208, 4)
+    s.neon([(113, 178), (46, 194)], width=1)                                         # 鳍前缘霓虹
+    s.lamp(50, 212, 2.5)                                                             # 鳍端航行灯
+    # 装甲台主体（宽、平、钝头的承力梁）
+    s.facet([(122, 106), (206, 130), (210, 176), (178, 198), (66, 198), (34, 176), (38, 130)], HULL_A, False)
+    s.facet([(122, 106), (206, 130), (206, 148), (122, 128), (38, 148), (38, 130)], HULL_C, False)  # 台面上缘受光带
+    s.facet([(106, 116), (138, 116), (142, 190), (102, 190)], HULL_B, False)          # 中央纵向承力脊
+    s.shade([(40, 172), (122, 150), (204, 172), (204, 194), (40, 194)], alpha=45, mirror=False)
+    s.seam([(122, 108), (206, 130)], mirror=False)
+    s.seam([(122, 108), (38, 130)], mirror=False)
+    s.seam([(38, 130), (34, 176)], mirror=False)
+    s.seam([(206, 130), (210, 176)], mirror=False)
+    s.seam([(34, 176), (66, 198)], mirror=False)
+    s.seam([(210, 176), (178, 198)], mirror=False)
+    s.seam([(82, 152), (162, 152)], mirror=False)                                     # 装甲基板环缝
+    s.seam([(72, 176), (172, 176)], width=1, mirror=False)
+    s.rim([(122, 108), (206, 130)], mirror=False)
+    s.rim([(122, 108), (38, 130)], mirror=False)
+    s.greeble(150, 162, 10, 8)                                                       # 台面舱口（左右各一）
+    s.greeble(92, 130, 8, 8)
+    s.panel_dot(96, 140)
+    s.panel_dot(148, 140)
+    s.panel_dot(72, 186)
+    s.panel_dot(172, 186)
+    s.vent(78, 156, length=10, gap=3, n=2)
+    s.crystal(64, 138, 5)                                                            # 台角晶簇
+    s.crystal(122, 136, 4, mirror=False)
+    # 双圆炮塔鼓（外伸出台面一截：钝圆端是「炮台」轮廓的第二个锚点）
+    s.facet(_octagon(52, 130, 30), HULL_B)
+    s.facet(_octagon(52, 130, 24), HULL_C)
+    s.facet(_octagon(52, 126, 17), HULL_D)                                           # 鼓面受光子面
+    s.seam(_octagon(52, 130, 30) + [_octagon(52, 130, 30)[0]], width=1)               # 鼓缘接缝
+    s.seam(_octagon(52, 130, 24) + [_octagon(52, 130, 24)[0]], width=1)
+    s.seam([(24, 130), (80, 130)], width=1)                                          # 鼓面横缝
+    s.panel_dot(33, 111)
+    s.panel_dot(71, 111)
+    s.panel_dot(33, 149)
+    s.panel_dot(71, 149)
+    s.neon(_octagon(52, 130, 34), width=2)                                           # 充能环
+    s.ring_core(52, 130, 9)
+    s.ring_core(193, 130, 9)
+    s.lamp(30, 130, 2.5)                                                             # 鼓外缘航行灯
+    # 侧炮管（左右各一，架在炮塔鼓上）
+    s.facet([(40, 36), (66, 36), (66, 112), (40, 112)], HULL_A)
+    s.facet([(44, 40), (51, 40), (51, 108), (44, 108)], HULL_D)                      # 炮身亮面
+    s.seam([(40, 60), (66, 60)], width=1)
+    s.seam([(40, 86), (66, 86)], width=1)
+    s.vent(44, 96, length=8, gap=3, n=2)                                             # 炮身散热格栅
+    s.facet([(34, 20), (72, 20), (66, 36), (40, 36)], HULL_C)                        # 炮口制退器
+    s.rim([(34, 20), (72, 20)])
+    s.panel_dot(62, 28)
+    s.neon([(43, 42), (43, 106)], width=1)                                           # 炮身二级走线
+    s.nozzle_ring(53, 28, 9, 5)                                                      # 炮口装甲环
+    s.nozzle_ring(192, 28, 9, 5)
+    s.energy_core(53, 26, 6)                                                         # 炮口能量核心
+    s.energy_core(192, 26, 6)
+    # 中央主炮（最粗最长，压过两侧炮口一档 = 主炮身份）
+    s.facet([(108, 30), (136, 30), (136, 122), (108, 122)], HULL_A, False)
+    s.facet([(112, 34), (121, 34), (121, 118), (112, 118)], HULL_D, False)            # 炮身亮面
+    s.seam([(108, 56), (136, 56)], width=1, mirror=False)
+    s.seam([(108, 82), (136, 82)], width=1, mirror=False)
+    s.vent(110, 92, length=10, gap=3, n=2, mirror=False)
+    s.facet([(100, 12), (144, 12), (136, 30), (108, 30)], HULL_C, False)              # 炮口制退器
+    s.rim([(100, 12), (144, 12)], mirror=False)
+    s.panel_dot(104, 118, mirror=False)
+    s.panel_dot(140, 118, mirror=False)
+    s.neon([(116, 36), (116, 116)], width=1, mirror=False)                            # 主炮二级走线
+    s.neon([(128, 36), (128, 116)], width=1, mirror=False)
+    s.nozzle_ring(122, 20, 12, 6)
+    s.energy_core(122, 18, 8)
+    # 台面主能量核 + 尾部三喷口（中央大、两侧小）
+    s.ring_core(122, 158, 12)
+    s.lamp(114, 130, 2.5, mirror=False)
+    s.lamp(130, 130, 2.5, mirror=False)
+    s.nozzle_ring(88, 186, 8, 5)
+    s.engine(88, 186, 8, 5)
+    s.nozzle_ring(157, 186, 8, 5)
+    s.engine(157, 186, 8, 5)
+    s.nozzle_ring(122, 188, 12, 7)
+    s.engine(122, 188, 12, 7)
+    s.engine_particles(122, 196, n=4, drop=10, spread=7)
     return s
 
 
@@ -923,8 +1091,9 @@ def main() -> None:
     ships = [
         (enemy_1, "enemy_ship_1.png", PALETTE_BRIGHT), (enemy_2, "enemy_ship_2.png", PALETTE_BRIGHT),
         (enemy_3, "enemy_ship_3.png", PALETTE_BRIGHT), (enemy_4, "enemy_ship_4.png", PALETTE_BRIGHT),
+        (enemy_5, "enemy_ship_5.png", PALETTE_BRIGHT),
         (elite_1, "elite_ship_1.png", PALETTE_BRIGHT), (elite_2, "elite_ship_2.png", PALETTE_BRIGHT),
-        (elite_3, "elite_ship_3.png", PALETTE_BRIGHT),
+        (elite_3, "elite_ship_3.png", PALETTE_BRIGHT), (elite_4, "elite_ship_4.png", PALETTE_BRIGHT),
         (boss_1, "boss_ship_1.png", PALETTE_DARK), (boss_2, "boss_ship_2.png", PALETTE_DARK),
         (boss_3, "boss_ship_3.png", PALETTE_DARK), (eclipse, "boss_ship_4.png", PALETTE_DARK),
         (strike_carrier, "strike_carrier.png", PALETTE_DARK), (turret, "elite_turret.png", PALETTE_DARK),
